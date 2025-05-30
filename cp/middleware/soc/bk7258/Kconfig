@@ -20,10 +20,6 @@ menu "bk7258"
 		hex "CPU1 app RAM size"
 		default 0x40000
 
-	config CPU2_APP_RAM_SIZE
-		hex "CPU2 app RAM size"
-		default 0x10000
-
 	config ANA_REG_WRITE_POLL_REG_B
 		bool "Write analog register polls sys reg0xb"
 		default y
