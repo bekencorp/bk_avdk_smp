@@ -155,7 +155,7 @@ static bool on_thread_before_fault[NR_CPUS] = {false, };
 int cm_backtrace_get_core()
 {
 #if CONFIG_FREERTOS_SMP
-    return rtos_get_core_id();
+    return portGET_CORE_ID(); //rtos_get_core_id();
 #else
     return 0;
 #endif
