@@ -107,7 +107,7 @@ bk_err_t bk_uvc_camera_open(camera_handle_t *handle, media_camera_device_t *devi
 {
     int ret = BK_FAIL;
     uvc_config_t config = {0};
-
+    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUXS, 0, 0);
     // step 1: wait uvc connect ok
     ret = bk_uvc_power_on(device->format, 4000);
     if (ret != BK_OK)
@@ -141,7 +141,7 @@ bk_err_t bk_uvc_camera_close(camera_handle_t *handle)
     ret = bk_uvc_deinit(handle);
 
     bk_uvc_power_off();
-
+    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUXS, 1, 0);
     return ret;
 }
 
