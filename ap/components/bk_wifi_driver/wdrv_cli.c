@@ -1,0 +1,276 @@
+#include "conv_utf8_pub.h"
+#include "wdrv_main.h"
+#include "wdrv_cntrl.h"
+#include "wdrv_ipc.h"
+#include "wdrv_api.h"
+#include "pbuf.h"
+#include <components/netif.h>
+#include <components/event.h>
+#include "net.h"
+#include "lwip/err.h"
+#include "lwip/netif.h"
+#include <components/netif.h>
+#include "lwip/ping.h"
+
+/**
+ * @brief default AP configuration
+ * */
+#define WIFI_DEFAULT_AP_CONFIG() {\
+    .ssid = "ap_default_ssid",\
+    .password = "",\
+    .channel = 0,\
+    .security = WIFI_SECURITY_WPA2_MIXED,\
+    .hidden = 0,\
+    .max_con = 0,\
+    .reserved = {0},\
+    }
+
+#if  1 //def CONFIG_WIFI_VNET_CONTROLLER
+void wdrv_demo_connect(char *oob_ssid, char *connect_key)
+{
+    wifi_sta_config_t sta_config = {0};
+    int len;
+
+    len = os_strlen(oob_ssid);
+    if (SSID_MAX_LEN < len) {
+        WDRV_LOGI("ssid name more than 32 Bytes\r\n");
+        return;
+    }
+    os_strcpy(sta_config.ssid, oob_ssid);
+    if (connect_key)
+        os_strcpy(sta_config.password, connect_key);
+
+    WDRV_LOGI("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
+    BK_LOG_ON_ERR(bk_wifi_sta_set_config(&sta_config));
+    BK_LOG_ON_ERR(bk_wifi_sta_start());
+}
+
+int wdrv_demo_softap_init(char *ap_ssid, char *ap_key, char *ap_channel)
+{
+    wifi_ap_config_t ap_config = WIFI_DEFAULT_AP_CONFIG();
+    netif_ip4_config_t ip4_config = {0};
+    int len, key_len;
+    len = os_strlen(ap_ssid);
+    key_len = os_strlen(ap_key);
+    if (SSID_MAX_LEN < len) {
+        WDRV_LOGE("ssid name more than 32 Bytes\r\n");
+        return BK_FAIL;
+    }
+    if (0 == len) {
+        WDRV_LOGE("ssid name must not be null\r\n");
+        return BK_FAIL;
+    }
+
+    if (8 > key_len)
+        WDRV_LOGE("key less than 8 Bytes, the security will be set NONE\r\n");
+
+    if (64 < key_len) {
+        WDRV_LOGE("key more than 64 Bytes\r\n");
+        return BK_FAIL;
+    }
+
+    os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
+    os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
+    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
+    os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
+    BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
+
+    os_strcpy(ap_config.ssid, ap_ssid);
+    os_strcpy(ap_config.password, ap_key);
+
+    if (ap_channel) {
+        int channel;
+        char *end;
+
+        channel = strtol(ap_channel, &end, 0);
+        if (*end) {
+            WDRV_LOGE("Invalid number '%s'", ap_channel);
+            return BK_FAIL;
+        }
+        ap_config.channel = channel;
+    }
+
+    //bk_wifi_ap_init();
+    WDRV_LOGI("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+    BK_RETURN_ON_ERR(bk_wifi_ap_set_config(&ap_config));
+    BK_RETURN_ON_ERR(bk_wifi_ap_start());
+
+    return BK_OK;
+}
+
+static const char *wdr_ifname[NETIF_IF_COUNT] = {
+    "sta", "ap",
+};
+
+static inline const char *wdr_if_idx_name(netif_if_t ifx)
+{
+    if (ifx > NETIF_IF_COUNT)
+        return "unkown";
+    return wdr_ifname[ifx];
+}
+
+#define WDRV_CLI_DUMP_IP(_prompt, _ifx, _cfg) do {\
+    WDRV_LOGI("%s wdrv_netif(%s) wdrv_ip4=%s wdrv_mask=%s wdrv_gate=%s wdrv_dns=%s\n", (_prompt),\
+                wdr_if_idx_name(_ifx),\
+                (_cfg)->ip, (_cfg)->mask, (_cfg)->gateway, (_cfg)->dns);\
+} while(0)
+
+void wdrv_ip_cmd_show_ip(int ifx)
+{
+    netif_ip4_config_t config;
+
+    if (ifx == NETIF_IF_STA || ifx == NETIF_IF_AP || ifx == NETIF_IF_ETH) {
+        BK_LOG_ON_ERR(bk_netif_get_ip4_config(ifx, &config));
+        WDRV_CLI_DUMP_IP(" ", ifx, &config);
+    } else {
+        BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_STA, &config));
+        WDRV_CLI_DUMP_IP(" ", NETIF_IF_STA, &config);
+        BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &config));
+        WDRV_CLI_DUMP_IP(" ", NETIF_IF_AP, &config);
+#ifdef CONFIG_ETH
+        BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_ETH, &config));
+        WDRV_CLI_DUMP_IP(" ", NETIF_IF_ETH, &config);
+#endif
+    }
+}
+
+#define WDRV_CMD_CNT (sizeof(s_wdrv_commands) / sizeof(struct cli_command))
+static void wdrv_cmd_help(void)
+{
+    printf("wdrv <arg1> <arg2> <arg3> <arg4>\r\n");
+    printf("--------------WLAN COMMAND---------------------------------\r\n");
+    printf("wdrv scan_wifi                                 - scan AP\r\n");
+    printf("wdrv connect [ssid] [password]                 - connect with AP\r\n");
+    printf("wdrv disconnect                                - disconnect with ap\r\n");
+    printf("wdrv start_ap [ssid] [password]                - start SoftAP\r\n");
+    printf("wdrv stop_ap                                   - stop softAP\r\n");
+    printf("wdrv get_wlan_stat                             - get wlan status\r\n");
+    printf("wdrv wifi_mmd [enable]                         - config Wi-Fi multimedia mode\r\n");
+    printf("wdrv set_netinfo [ip] [mask] [gw] [dns]        - config net info\r\n");
+    printf("wdrv set_ar [ar_en]                            - config auto reconnect\r\n");
+    printf("--------------BLE COMMAND----------------------------------\r\n");
+    printf("wdrv open_ble                                  - open ble\r\n");
+    printf("wdrv close ble                                 - close ble\r\n");
+    printf("--------------SYSTEM COMMAND-------------------------------\r\n");
+    printf("wdrv set_mac [mac]                             - set mac addr(set_mac 112233aabbcc)\r\n");
+    printf("wdrv get_mac                                   - get mac addr\r\n");
+    printf("wdrv enter_sleep                               - ask controller goto sleep\r\n");
+    printf("wdrv exit_sleep                                - ask controller exit sleep\r\n");
+    printf("wdrv send_at [AT string]                       - send AT command\r\n");
+    printf("wdrv keepalive_cfg [ip] [port]                 - start keepalive demo\r\n");
+    printf("wdrv set_time [time]                           - set time\r\n");
+    printf("wdrv get_time                                  - get time\r\n");
+    printf("wdrv cust [data string]                        - start customer demo\r\n");
+    printf("wdrv start_ota                                 - notify controller to START OTA\r\n");
+    printf("wdrv send_ota_pkt [offset] [size] [finish]     - send demo OTA packet\r\n");
+    printf("wdrv stop_ota                                  - notify controller to STOP OTA\r\n");
+}
+static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, int argC, char **argV)
+{
+    if(argC <= 1) {
+        printf("Invalid argC = %d.\r\n", argC);
+        wdrv_cmd_help();
+        return;
+    }
+    else if ((argC == 2) && 
+        (!os_strcmp(argV[1], "-h") || !os_strcmp(argV[1], "help"))) {
+        wdrv_cmd_help();
+        return;
+    }
+
+    /// Wi-Fi command
+    if (!strcasecmp(argV[1], "scan_wifi")) {
+        //bk_ioctl_scan_wifi_cmd();
+    } else if (!strcasecmp(argV[1], "connect")) {
+        char *ssid = NULL;
+        char *password = "";
+        if (argC >= 2)
+            ssid = argV[2];
+
+        if (argC >= 3)
+            password = argV[3];
+        char *oob_ssid_tp = ssid;
+        if (oob_ssid_tp)
+            wdrv_demo_connect((char *)oob_ssid_tp, password);
+    } else if (!strcasecmp(argV[1], "stop_sta")) {
+        bk_wifi_sta_stop();
+    } else if (!strcasecmp(argV[1], "get_mac")) {
+        uint8_t sta_mac[BK_MAC_ADDR_LEN] = {0};
+        uint8_t ap_mac[BK_MAC_ADDR_LEN] = {0};
+        BK_LOG_ON_ERR(bk_wifi_sta_get_mac(sta_mac));
+        BK_LOG_ON_ERR(bk_wifi_ap_get_mac(ap_mac));
+        WDRV_LOGI("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
+        WDRV_LOGI("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
+    } else if (!strcasecmp(argV[1], "ip")) {
+        wdrv_ip_cmd_show_ip(NETIF_IF_COUNT);
+    } else if (!strcasecmp(argV[1], "ping")) {
+        uint32_t cnt = 4;
+        if (argC >= 3) {
+            cnt = os_strtoul(argV[3], NULL, 10);
+            ping_start(argV[2], cnt, 60);
+        }
+    } else if (!strcasecmp(argV[1], "scan")) {
+        BK_LOG_ON_ERR(bk_wifi_scan_start(NULL));
+    } else if (!strcasecmp(argV[1], "debug")) {
+        WDRV_LOGI("wdrv rx cnt:%d,rx win:%d,tx cnt:%d,process:%d,eth_num:%d,tx_free_total:%d\n", 
+            wdrv_stats_ptr->rx_alloc_num,wdrv_stats_ptr->rx_win,wdrv_stats_ptr->tx_alloc_num,
+            wdrv_stats_ptr->tx_process_num,wdrv_stats_ptr->tx_eth_num,
+            wdrv_stats_ptr->tx_free_total);
+       
+        WDRV_LOGI("wdrv tx_list_num:%d,first:0x%x,last:0x%x\n", 
+            wdrv_stats_ptr->tx_list_num,wdrv_ipc_env[IPC_DATA].tx_list.first,wdrv_ipc_env[IPC_DATA].tx_list.last);
+    }
+    else if (strcasecmp(argV[1], "m_mode") == 0) {
+        WDRV_LOGI("media_mode: %d\n",os_strtoul(argV[2], NULL, 10));
+        bk_wifi_set_wifi_media_mode(os_strtoul(argV[2], NULL, 10));
+    }
+    else if (strcasecmp(argV[1], "m_quality") == 0) {
+        WDRV_LOGI("media_quality: %d\n",os_strtoul(argV[2], NULL, 10));
+        bk_wifi_set_video_quality(os_strtoul(argV[2], NULL, 10));
+    }
+#if CONFIG_WIFI_SOFTAP
+    else if (!strcasecmp(argV[1], "start_ap")) {
+        char *ap_ssid = NULL;
+        char *ap_key = "";
+        char *ap_channel = NULL;
+        if (argC == 2)
+            ap_ssid = argV[2];
+        else if (argC == 3) {
+            ap_ssid = argV[2];
+            if (os_strlen(argV[3]) <= 2)
+                ap_channel = argV[3];
+            else
+                ap_key = argV[3];
+        } else if (argC == 4) {
+            ap_ssid = argV[2];
+            ap_key = argV[3];
+            ap_channel = argV[4];
+        } else {
+            CLI_LOGI("Invalid parameters\n");
+            return;
+        }
+
+        char *oob_ssid_softap = ap_ssid;
+        if (oob_ssid_softap) {
+            wdrv_demo_softap_init((char *)oob_ssid_softap, ap_key, ap_channel);
+        }
+    }else if (!strcasecmp(argV[1], "stop_ap")) {
+            bk_wifi_ap_stop();
+    }
+#endif
+    else {
+        printf("Invalid wdrv command\n");
+        wdrv_cmd_help();
+    }
+}
+
+static const struct cli_command s_wdrv_commands[] = {
+    {"wdrv", "wdrv", wdrv_handle_cli_commmand},
+};
+
+int wdrv_cli_init(void)
+{
+    return cli_register_commands(s_wdrv_commands, WDRV_CMD_CNT);
+}
+#endif
+    

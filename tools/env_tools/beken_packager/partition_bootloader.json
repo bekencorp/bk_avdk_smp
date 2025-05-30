@@ -1,0 +1,32 @@
+{
+    "part_table": [
+        {
+            "magic": "0x45503130",
+            "name": "bootloader",
+            "flash_name": "beken_onchip_crc",
+            "offset": "0x00000000",
+            "len": "68K"
+        },
+        {
+            "magic": "0x45503130",
+            "name": "appa",
+            "flash_name": "beken_onchip_crc",
+            "offset": "0x00011000",
+            "len": "2312K"
+        },
+        {
+            "magic": "0x45503130",
+            "name": "s_app",
+            "flash_name": "beken_onchip_crc",
+            "offset": "0x00253000",
+            "len": "2312K"
+        },
+        {
+            "magic": "0x45503130",
+            "name": "ota_fina_executive",
+            "flash_name": "beken_onchip",
+            "offset": "0x004a7000",
+            "len": "4K"
+        }
+    ]
+}
