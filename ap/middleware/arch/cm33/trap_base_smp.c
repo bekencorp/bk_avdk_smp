@@ -221,6 +221,8 @@ static const char * const fault_type[] =
 #include "spinlock.h"
 static SPINLOCK_SECTION volatile spinlock_t dump_spin_lock = SPIN_LOCK_INIT;
 
+extern void stop_cpu1_core(void);
+extern void stop_cpu2_core(void);
 static void dump_prologue(void)
 {
 	spin_lock(&dump_spin_lock);
@@ -231,13 +233,15 @@ static void dump_prologue(void)
     ipc_send_trap_handle_begin();
 
     /* if core1 dump */
-    // if (rtos_get_core_id() == CPU1_CORE_ID) {
-    //     /* send a mailbox interruption to core 2*/
-    //     crosscore_int_send_dump(CPU2_CORE_ID);
-    // } else {
-    //     /* send a mailbox interruption to core 1 */
-    //     crosscore_int_send_dump(CPU1_CORE_ID);
-    // }
+    if (rtos_get_core_id() == CPU1_CORE_ID) {
+        /* send a mailbox interruption to core 2*/
+        stop_cpu2_core();
+        // crosscore_int_send_dump(CPU2_CORE_ID);
+    } else {
+        /* send a mailbox interruption to core 1 */
+        // crosscore_int_send_dump(CPU1_CORE_ID);
+        stop_cpu1_core();
+    }
 
     /* flush log buffer first */
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
@@ -253,7 +257,7 @@ static void dump_epilogue(void)
 	// #if (CONFIG_SHELL_ASYNCLOG)
 	// shell_set_log_cpu(SHELL_MAX_CPU_CNT);
 	// #endif
-
+    ipc_send_trap_handle_end();
 }
 
 /**
@@ -486,8 +490,8 @@ static void user_except_handler(uint32_t reset_reason, SAVED_CONTEXT *regs)
 
         rtos_enable_int(int_level);
     } else {
-		dump_epilogue();
-        ipc_send_trap_handle_end();
+        BK_DUMP_OUT("Secondary crash happend !!!!\r\n");
+		dump_epilogue();       
         bk_wdt_force_reboot();
     }
 
@@ -608,13 +612,13 @@ void user_except_handler_ex(uint32_t reset_reason, uint32_t lr, uint32_t sp)
 #if CONFIG_INTERRUPT_DEBUG_RECORDER
         CPUx_crash_recorder = 0;
 #endif
+        BK_DUMP_OUT("Secondary crash happend !!!\r\n");
         /*When an exception occurs in a core under SMP,the contents of the ITCM and DTCM
          of the other core ifself should also be dumped*/
         stack_mem_dump((uint32_t)SOC_DTCM_DATA_BASE, (uint32_t)(SOC_DTCM_DATA_BASE + SOC_DTCM_DATA_SIZE));
         stack_mem_dump((uint32_t)(SOC_ITCM_DATA_BASE + 0x20) , (uint32_t)(SOC_ITCM_DATA_BASE + SOC_ITCM_DATA_SIZE));
 		dump_epilogue();        
         bk_misc_set_reset_reason(reset_reason);
-        ipc_send_trap_handle_end();
         bk_wdt_force_reboot();
     }
 }
