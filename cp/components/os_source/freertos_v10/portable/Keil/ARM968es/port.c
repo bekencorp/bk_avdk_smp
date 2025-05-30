@@ -124,6 +124,19 @@ void vApplicationIdleHook( void )
 	extern void bk_task_wdt_feed(void);
 	bk_task_wdt_feed();
 #endif
+#if (CONFIG_CPU_CNT > 1)
+	uint32_t cp1_psram_malloc_count_state       = 0;
+	if(bk_pm_low_vol_vote_state_get())
+	{
+		cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count();
+		pm_cp1_psram_malloc_count_state_set(cp1_psram_malloc_count_state);
+		//pm_debug_module_state();
+	}
+	if(bk_pm_cp1_recovery_all_state_get())
+	{
+		bk_pm_module_check_cp1_shutdown();
+	}
+#endif
 }
 
 /*-----------------------------------------------------------*/
