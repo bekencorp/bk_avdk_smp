@@ -37,7 +37,7 @@
 
 #include "reset_reason.h"
 
-#if CONFIG_EASY_FLASH && (!CONFIG_RTT)
+#if CONFIG_EASY_FLASH
 #include "easyflash.h"
 #include "bk_ef.h"
 #endif

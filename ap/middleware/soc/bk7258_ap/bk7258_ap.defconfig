@@ -512,12 +512,13 @@ CONFIG_PWM_V1PX=y
 #
 CONFIG_EFUSE=n
 
+#
+# easy flash
+#
+CONFIG_EASY_FLASH=y
+CONFIG_EASY_FLASH_V4=y
+
 # end of Driver
-
-# CONFIG_EASY_FLASH is not set
-CONFIG_EASY_FLASH=n
-
-CONFIG_EASY_FLASH_V4=n
 
 #
 # LwIP 2.0.2

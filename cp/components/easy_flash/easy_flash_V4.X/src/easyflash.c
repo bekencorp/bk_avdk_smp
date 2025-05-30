@@ -102,7 +102,7 @@ EfErrCode easyflash_init(void) {
     } else {
         EF_INFO("EasyFlash V%s is initialize fail.\n", EF_SW_VERSION);
     }
-    EF_INFO("You can get the latest version on https://github.com/armink/EasyFlash .\n");
+    //EF_INFO("You can get the latest version on https://github.com/armink/EasyFlash .\n");
 
     s_g_easyflash_init_flag = 1;
 

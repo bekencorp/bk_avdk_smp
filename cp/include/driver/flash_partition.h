@@ -21,6 +21,8 @@
 */
 #pragma once
 #include <common/bk_include.h>
+#include "vendor_flash_partition.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -62,6 +64,7 @@ typedef enum
     BK_PARTITION_OTA_FINA_EXECUTIVE = 8,
     BK_PARTITION_APPLICATION2 = 9,
     BK_PARTITION_EASYFLASH = 10,
+    BK_PARTITION_EASYFLASH_AP = 11,
     BK_PARTITION_MAX,
 }bk_partition_t;
 

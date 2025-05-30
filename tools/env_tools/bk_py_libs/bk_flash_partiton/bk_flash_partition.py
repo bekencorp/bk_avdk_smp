@@ -283,7 +283,7 @@ class bk_flash_partition:
         inc_arch_dict['enum_list'].append(enum_flash_entry)
 
         # use enum template initialize one enum entry, add it to inc_arch_dict
-        keys = ["bootloader","application","ota","application1","matter_flash","rf_firmware","net_param","usr_config","ota_fina_executive","application2","easyflash"]
+        keys = ["bootloader","application","ota","application1","matter_flash","rf_firmware","net_param","usr_config","ota_fina_executive","application2","easyflash","easyflash_ap"]
         keys.extend(['max'])
         values = range(len(keys))
         enum_partition_entry = copy.deepcopy(enum_entry_temp)
