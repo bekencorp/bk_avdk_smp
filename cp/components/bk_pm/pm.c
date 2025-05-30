@@ -898,8 +898,8 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 	}
 	if((cp0_psram_malloc_count == 0)&&(cp1_psram_malloc_count == 0))
 	{
-		bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_AS_MEM,PM_POWER_MODULE_STATE_OFF);
-		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_OFF);
+		//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_AS_MEM,PM_POWER_MODULE_STATE_OFF);
+		//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_OFF);
 	}
 
   #endif
