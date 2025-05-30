@@ -278,9 +278,8 @@ struct usbh_urb *uvc_camera_urb_malloc(void)
 void uvc_camera_urb_free(struct usbh_urb *urb)
 {
     uvc_urb_list_t *mem_list = NULL;
-    uvc_urb_node_t *node = list_entry(urb, uvc_urb_node_t, urb);
-
-    GLOBAL_INT_DECLARATION();
+    uint32_t isr_context = platform_is_in_interrupt_context();
+    uvc_urb_node_t *node = NULL;
 
     mem_list = &g_uvc_list;
 
@@ -290,14 +289,23 @@ void uvc_camera_urb_free(struct usbh_urb *urb)
         return;
     }
 
-    rtos_lock_mutex(&mem_list->lock);
-    GLOBAL_INT_DISABLE();
+    GLOBAL_INT_DECLARATION();
 
+    if (!isr_context)
+    {
+        rtos_lock_mutex(&mem_list->lock);
+        GLOBAL_INT_DISABLE();
+    }
+
+    node = list_entry(urb, uvc_urb_node_t, urb);
     urb->pipe = NULL;
     list_add_tail(&node->list, &mem_list->free);
 
-    GLOBAL_INT_RESTORE();
-    rtos_unlock_mutex(&mem_list->lock);
+    if (!isr_context)
+    {
+        GLOBAL_INT_RESTORE();
+        rtos_unlock_mutex(&mem_list->lock);
+    }
 }
 
 void uvc_camera_urb_push(struct usbh_urb *urb)
