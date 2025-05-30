@@ -122,6 +122,8 @@ typedef enum
     UAC_SPK_STA_CONNECT,           /**< Connected: uac speaker connect status after connected */
     UAC_SPK_STA_OPEN,              /**< Open: uac speaker open status after open */
     UAC_SPK_STA_WORKING,           /**< Working: uac speaker working status */
+
+    UAC_SPK_STA_CHECKING,          /**< Checking: uac speaker parameters checking status, protect port_info */
 } uac_spk_sta_t;
 
 typedef struct uac_speaker_stream
@@ -155,6 +157,10 @@ typedef struct uac_speaker_stream
     uint8_t *                     urb_buff_pang;         /**< uac speaker urb buffer pang address used to save data written to uac speaker */
     uint8_t *                     urb_buff_use;          /**< uac speaker urb buffer pang address used to save data written to uac speaker */
     bool                          wr_spk_rb_done;        /**< write one farme data to speaker ring buffer done */
+
+    uint16_t                      format_tag;            /**< uac speaker device format used for check */
+    uint8_t                       samples_frequence_num; /**< uac speaker device frequences number used for check */
+    uint32_t *                    samples_frequence;     /**< uac speaker device frequences used for check */
 
     int                           task_stack;            /**< Task stack size */
     int                           task_core;             /**< Task running in core (0 or 1) */
@@ -228,6 +234,7 @@ static bk_err_t uac_spk_disconnect_handle(uac_speaker_stream_t *uac_spk)
     return BK_OK;
 }
 
+#if 0
 static void usb_hub_print_port_info(bk_usb_hub_port_info *port_info)
 {
 //    BK_LOGI(TAG, "%s port_info:0x%x\n", __func__, port_info);
@@ -240,6 +247,7 @@ static void usb_hub_print_port_info(bk_usb_hub_port_info *port_info)
 //    BK_LOGI(TAG, "%s usb_device_param:0x%x\n", __func__, port_info->usb_device_param);
 //    BK_LOGI(TAG, "%s usb_device_param_config:0x%x\n", __func__, port_info->usb_device_param_config);
 }
+#endif
 
 static void uac_spk_disconnect_cb(bk_usb_hub_port_info *port_info, void *arg)
 {
@@ -247,7 +255,7 @@ static void uac_spk_disconnect_cb(bk_usb_hub_port_info *port_info, void *arg)
 
     BK_LOGI(TAG, "%s, %d \n", __func__, __LINE__);
 
-    usb_hub_print_port_info(port_info);
+    //usb_hub_print_port_info(port_info);
 
     uac_speaker_stream_t *uac_spk = (uac_speaker_stream_t *)arg;
 
@@ -260,6 +268,12 @@ static void uac_spk_disconnect_cb(bk_usb_hub_port_info *port_info, void *arg)
     /* reset port_info */
     if (port_info->device_index == USB_UAC_SPEAKER_DEVICE)
     {
+        /* wait checking complete */
+        while (uac_spk->status == UAC_SPK_STA_CHECKING)
+        {
+            rtos_delay_milliseconds(2);
+        }
+
         uac_spk->status = UAC_SPK_STA_DISCONNECT;
         uac_spk->spk_port_info = NULL;
     }
@@ -473,7 +487,7 @@ static void uac_spk_connect_cb(bk_usb_hub_port_info *port_info, void *arg)
     {
         uac_spk->status = UAC_SPK_STA_CONNECT;
         uac_spk->spk_port_info = port_info;
-
+#if 0
         bk_uac_spk_config_t *uac_device_param_canfig = (bk_uac_spk_config_t *)port_info->usb_device_param_config;
         struct usb_endpoint_descriptor *spk_ep_desc = (struct usb_endpoint_descriptor *)uac_device_param_canfig->spk_ep_desc;
         BK_LOGI(TAG, "     ------------ Audio Data Spk Endpoint Descriptor -----------  \n");
@@ -483,6 +497,44 @@ static void uac_spk_connect_cb(bk_usb_hub_port_info *port_info, void *arg)
         BK_LOGI(TAG, "bmAttributes                   : 0x%x\n", spk_ep_desc->bmAttributes);
         BK_LOGI(TAG, "wMaxPacketSize                 : 0x%x\n", spk_ep_desc->wMaxPacketSize);
         BK_LOGI(TAG, "bInterval                      : 0x%x\n", spk_ep_desc->bInterval);
+#endif
+
+        /* Copy uac speaker device parameters and then check parameters.
+         * Avoid device disconnect and parameters ptr was been change to NULL when using parameters ptr.
+         */
+        if (uac_spk->spk_port_info)
+        {
+            bk_uac_device_brief_info_t *uac_device_param = (bk_uac_device_brief_info_t *)uac_spk->spk_port_info->usb_device_param;
+            if (uac_device_param)
+            {
+                uac_spk->format_tag = uac_device_param->spk_format_tag;
+                uac_spk->samples_frequence_num = uac_device_param->spk_samples_frequence_num;
+                if (uac_spk->samples_frequence_num > 0)
+                {
+                    uac_spk->samples_frequence = audio_calloc(1, sizeof(uint32_t) * uac_spk->samples_frequence_num);
+                    if (uac_spk->samples_frequence)
+                    {
+                        os_memcpy(uac_spk->samples_frequence, uac_device_param->mic_samples_frequence, sizeof(uint32_t) * uac_spk->samples_frequence_num);
+                    }
+                    else
+                    {
+                        BK_LOGE(TAG, "%s, %d, malloc samples_frequence fail\n", __func__, __LINE__);
+                    }
+                }
+                else
+                {
+                    BK_LOGE(TAG, "%s, %d, samples_frequence_num: %d\n", __func__, __LINE__, uac_spk->samples_frequence_num);
+                }
+            }
+            else
+            {
+                BK_LOGE(TAG, "%s, %d, uac_device_param: %p is NULL\n", __func__, __LINE__, uac_device_param);
+            }
+        }
+        else
+        {
+            BK_LOGE(TAG, "%s, %d, spk_port_info: %p is NULL\n", __func__, __LINE__, uac_spk->spk_port_info);
+        }
     }
     else
     {
@@ -490,7 +542,7 @@ static void uac_spk_connect_cb(bk_usb_hub_port_info *port_info, void *arg)
         return;
     }
 
-    usb_hub_print_port_info(port_info);
+    //usb_hub_print_port_info(port_info);
 
     /* check automatic recover uac connect */
     if (uac_spk->cont_sta == UAC_SPK_ABNORMAL_DISCONNECTED)
@@ -678,6 +730,53 @@ static int _uac_speaker_open(audio_element_handle_t self)
 
         /* set uac status and send  */
         uac_spk->cont_sta = UAC_SPK_CONNECTED;
+
+        uac_spk->status = UAC_SPK_STA_CHECKING;
+
+        /* Copy uac speaker device parameters and then check parameters.
+         * Avoid device disconnect and parameters ptr was been change to NULL when using parameters ptr.
+         */
+        if (uac_spk->spk_port_info)
+        {
+            bk_uac_device_brief_info_t *uac_device_param = (bk_uac_device_brief_info_t *)uac_spk->spk_port_info->usb_device_param;
+            if (uac_device_param)
+            {
+                uac_spk->format_tag = uac_device_param->spk_format_tag;
+                uac_spk->samples_frequence_num = uac_device_param->spk_samples_frequence_num;
+                if (uac_spk->samples_frequence_num > 0)
+                {
+                    if (uac_spk->samples_frequence)
+                    {
+                        audio_free(uac_spk->samples_frequence);
+                        uac_spk->samples_frequence = NULL;
+                    }
+                    uac_spk->samples_frequence = audio_calloc(1, sizeof(uint32_t) * uac_spk->samples_frequence_num);
+                    if (uac_spk->samples_frequence)
+                    {
+                        os_memcpy(uac_spk->samples_frequence, uac_device_param->mic_samples_frequence, sizeof(uint32_t) * uac_spk->samples_frequence_num);
+                    }
+                    else
+                    {
+                        BK_LOGE(TAG, "%s, %d, malloc samples_frequence fail\n", __func__, __LINE__);
+                    }
+                }
+                else
+                {
+                    BK_LOGE(TAG, "%s, %d, samples_frequence_num: %d\n", __func__, __LINE__, uac_spk->samples_frequence_num);
+                }
+            }
+            else
+            {
+                BK_LOGE(TAG, "%s, %d, uac_device_param: %p is NULL\n", __func__, __LINE__, uac_device_param);
+            }
+        }
+        else
+        {
+            BK_LOGE(TAG, "%s, %d, spk_port_info: %p is NULL\n", __func__, __LINE__, uac_spk->spk_port_info);
+        }
+
+        uac_spk->status = UAC_SPK_STA_CONNECT;
+
         ret = uac_spk_drv_send_msg(uac_spk, UAC_SPK_DRV_CONT, uac_spk);
         if (ret != BK_OK)
         {
@@ -920,26 +1019,41 @@ static int _uac_speaker_close(audio_element_handle_t self)
 
     uac_speaker_stream_t *uac_spk = (uac_speaker_stream_t *)audio_element_getdata(self);
 
+    /* uac speaker close
+     * steps:
+     * 1. Set uac speaker status to "UAC_SPK_STA_OPEN" to stop write speaker data.
+     * 2. Set uac connect status to "UAC_SPK_NORMAL_DISCONNECTED".
+     * 3. Deregister connect and disconnect callback to NULL, avoid processing disconenct and connect handle.
+     * 4. Close usb port device.
+     * 5. Power down.
+     */
+
     uac_spk->status = UAC_SPK_STA_OPEN;
 
     uac_spk->cont_sta = UAC_SPK_NORMAL_DISCONNECTED;
+
+    /* deregister connect and disconnect callback */
+    bk_usbh_hub_port_register_disconnect_callback(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, NULL, NULL);
+    bk_usbh_hub_port_register_connect_callback(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, NULL, NULL);
+
     /* close usb port device */
     if (uac_spk->spk_port_info)
     {
         bk_usbh_hub_port_dev_close(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, uac_spk->spk_port_info);
         uac_spk->status = UAC_SPK_STA_CONNECT;
-        /* power down */
-        bk_err_t ret = bk_usbh_hub_multiple_devices_power_down(USB_HOST_MODE, uac_spk->port_index, USB_UAC_SPEAKER_DEVICE);
-        if (ret != BK_OK)
-        {
-            BK_LOGE(TAG, "%s, %d, uac mic power down fail, ret: %d\n", __func__, __LINE__, ret);
-        }
-        else
-        {
-            uac_spk->status = UAC_SPK_STA_DISCONNECT;
-            uac_spk->spk_port_info = NULL;
-            uac_spk->cont_sta = UAC_SPK_IDLE;
-        }
+    }
+
+    /* power down */
+    bk_err_t ret = bk_usbh_hub_multiple_devices_power_down(USB_HOST_MODE, uac_spk->port_index, USB_UAC_SPEAKER_DEVICE);
+    if (ret != BK_OK)
+    {
+        BK_LOGE(TAG, "%s, %d, uac mic power down fail, ret: %d\n", __func__, __LINE__, ret);
+    }
+    else
+    {
+        uac_spk->status = UAC_SPK_STA_DISCONNECT;
+        uac_spk->spk_port_info = NULL;
+        uac_spk->cont_sta = UAC_SPK_IDLE;
     }
 
     /* 
@@ -953,10 +1067,6 @@ static int _uac_speaker_close(audio_element_handle_t self)
         return BK_FAIL;
     }
 #endif
-
-    /* deregister connect and disconnect callback */
-    bk_usbh_hub_port_register_disconnect_callback(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, NULL, NULL);
-    bk_usbh_hub_port_register_connect_callback(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, NULL, NULL);
 
     /* free uac_spk_urb and urb buffer */
     if (uac_spk->uac_spk_urb)
@@ -1013,6 +1123,13 @@ static int _uac_speaker_destroy(audio_element_handle_t self)
         ring_buffer_clear(&uac_spk->pool_rb);
         audio_free(uac_spk->pool_ring_buff);
         uac_spk->pool_ring_buff = NULL;
+    }
+
+    /* clear device parameters */
+    if (uac_spk->samples_frequence)
+    {
+        audio_free(uac_spk->samples_frequence);
+        uac_spk->samples_frequence = NULL;
     }
 
     if (uac_spk)

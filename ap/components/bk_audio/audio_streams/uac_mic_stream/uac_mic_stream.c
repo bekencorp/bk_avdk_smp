@@ -75,13 +75,13 @@
 #ifdef UAC_MIC_DATA_COUNT
 
 #include <components/bk_audio/audio_utils/count_util.h>
-static count_util_t ua_mic_count_util = {0};
+static count_util_t uac_mic_count_util = {0};
 #define UAC_MIC_DATA_COUNT_INTERVAL     (1000 * 4)
 #define UAC_MIC_DATA_COUNT_TAG          "UAC_MIC"
 
-#define UAC_MIC_DATA_COUNT_OPEN()               count_util_create(&ua_mic_count_util, UAC_MIC_DATA_COUNT_INTERVAL, UAC_MIC_DATA_COUNT_TAG)
-#define UAC_MIC_DATA_COUNT_CLOSE()              count_util_destroy(&ua_mic_count_util)
-#define UAC_MIC_DATA_COUNT_ADD_SIZE(size)       count_util_add_size(&ua_mic_count_util, size)
+#define UAC_MIC_DATA_COUNT_OPEN()               count_util_create(&uac_mic_count_util, UAC_MIC_DATA_COUNT_INTERVAL, UAC_MIC_DATA_COUNT_TAG)
+#define UAC_MIC_DATA_COUNT_CLOSE()              count_util_destroy(&uac_mic_count_util)
+#define UAC_MIC_DATA_COUNT_ADD_SIZE(size)       count_util_add_size(&uac_mic_count_util, size)
 
 #else
 
@@ -124,6 +124,8 @@ typedef enum
     UAC_MIC_STA_CONNECT,           /**< Connected: uac mic connect status after connected */
     UAC_MIC_STA_OPEN,              /**< Open: uac mic open status after open */
     UAC_MIC_STA_WORKING,           /**< Working: uac mic working status */
+
+    UAC_MIC_STA_CHECKING,          /**< Checking: uac mic parameters checking status, protect port_info */
 } uac_mic_sta_t;
 
 typedef struct uac_mic_stream
@@ -147,6 +149,10 @@ typedef struct uac_mic_stream
     struct usbh_urb *             uac_mic_urb;           /**< uac mic urb */
     uint32_t                      urb_buff_size;         /**< uac mic urb buffer size(one frame size) */
     uint8_t *                     urb_buff_addr;         /**< uac mic urb buffer address */
+
+    uint16_t                      format_tag;            /**< uac mic device format used for check */
+    uint8_t                       samples_frequence_num; /**< uac mic device frequences number used for check */
+    uint32_t *                    samples_frequence;     /**< uac mic device frequences used for check */
 
     int                           task_stack;            /**< Task stack size */
     int                           task_core;             /**< Task running in core (0 or 1) */
@@ -204,6 +210,7 @@ static bk_err_t uac_mic_disconnect_handle(uac_mic_stream_t *uac_mic)
     return BK_OK;
 }
 
+#if 0
 static void usb_hub_print_port_info(bk_usb_hub_port_info *port_info)
 {
 //    BK_LOGI(TAG, "%s port_info:0x%x\n", __func__, port_info);
@@ -216,6 +223,7 @@ static void usb_hub_print_port_info(bk_usb_hub_port_info *port_info)
 //    BK_LOGI(TAG, "%s usb_device_param:0x%x\n", __func__, port_info->usb_device_param);
 //    BK_LOGI(TAG, "%s usb_device_param_config:0x%x\n", __func__, port_info->usb_device_param_config);
 }
+#endif
 
 static void uac_mic_disconnect_cb(bk_usb_hub_port_info *port_info, void *arg)
 {
@@ -223,7 +231,7 @@ static void uac_mic_disconnect_cb(bk_usb_hub_port_info *port_info, void *arg)
 
     BK_LOGI(TAG, "%s, %d \n", __func__, __LINE__);
 
-    usb_hub_print_port_info(port_info);
+    //usb_hub_print_port_info(port_info);
 
     uac_mic_stream_t *uac_mic = (uac_mic_stream_t *)arg;
 
@@ -236,6 +244,12 @@ static void uac_mic_disconnect_cb(bk_usb_hub_port_info *port_info, void *arg)
     /* reset port_info */
     if (port_info->device_index == USB_UAC_MIC_DEVICE)
     {
+        /* wait checking complete */
+        while (uac_mic->status == UAC_MIC_STA_CHECKING)
+        {
+            rtos_delay_milliseconds(2);
+        }
+
         uac_mic->status = UAC_MIC_STA_DISCONNECT;
         uac_mic->mic_port_info = NULL;
     }
@@ -343,37 +357,41 @@ static bk_err_t uac_mic_connect_handle(uac_mic_stream_t * uac_mic)
     /* config uac */
     BK_LOGI(TAG, "%s, %d, config uac mic\n", __func__, __LINE__);
 
-    bk_uac_mic_config_t *uac_mic_param_config = (bk_uac_mic_config_t *)uac_mic->mic_port_info->usb_device_param_config;
-    bk_uac_device_brief_info_t *uac_device_param = (bk_uac_device_brief_info_t *)uac_mic->mic_port_info->usb_device_param;
-    /* check whether format and sample_rate is support */
-    if (uac_mic->format != uac_device_param->mic_format_tag)
+    if (uac_mic->status == UAC_MIC_STA_CONNECT)
     {
-        BK_LOGE(TAG, "%s, %d, format: %d is not support, invalid value: %d \n", __func__, __LINE__, uac_mic->format, uac_device_param->mic_format_tag);
-        goto fail;
-    }
-    if (uac_device_param->mic_samples_frequence_num)
-    {
-        for (i = 0; i < uac_device_param->mic_samples_frequence_num; i++)
+        /* check whether format and sample_rate is support */
+        if (uac_mic->format != uac_mic->format_tag)
         {
-            if (uac_device_param->mic_samples_frequence[i] == uac_mic->samp_rate)
+            BK_LOGE(TAG, "%s, %d, format: %d is not support, invalid value: %d \n", __func__, __LINE__, uac_mic->format, uac_mic->format_tag);
+            goto fail;
+        }
+        if (uac_mic->samples_frequence_num)
+        {
+            for (i = 0; i < uac_mic->samples_frequence_num; i++)
             {
-                break;
+                if (uac_mic->samples_frequence[i] == uac_mic->samp_rate)
+                {
+                    break;
+                }
             }
         }
-    }
-    else
-    {
-        BK_LOGE(TAG, "%s, %d, mic not support, mic_samples_frequence_num: %d \n", __func__, __LINE__, uac_device_param->mic_samples_frequence_num);
-        goto fail;
-    }
-    if (i >= uac_device_param->mic_samples_frequence_num)
-    {
-        BK_LOGE(TAG, "%s, %d, mic sample_rate: %d not support \n", __func__, __LINE__, uac_mic->samp_rate);
-        goto fail;
+        else
+        {
+            BK_LOGE(TAG, "%s, %d, mic not support, mic_samples_frequence_num: %d \n", __func__, __LINE__, uac_mic->samples_frequence_num);
+            goto fail;
+        }
+        if (i >= uac_mic->samples_frequence_num)
+        {
+            BK_LOGE(TAG, "%s, %d, mic sample_rate: %d not support \n", __func__, __LINE__, uac_mic->samp_rate);
+            goto fail;
+        }
     }
 
     if (uac_mic->status == UAC_MIC_STA_CONNECT)
     {
+        /* open device */
+        bk_uac_mic_config_t *uac_mic_param_config = (bk_uac_mic_config_t *)uac_mic->mic_port_info->usb_device_param_config;
+        bk_uac_device_brief_info_t *uac_device_param = (bk_uac_device_brief_info_t *)uac_mic->mic_port_info->usb_device_param;
         uac_mic_param_config->mic_format_tag = uac_mic->format;
         uac_mic_param_config->mic_samples_frequence = uac_mic->samp_rate;
         uac_mic_param_config->mic_ep_desc = uac_device_param->mic_ep_desc;
@@ -453,6 +471,7 @@ static void uac_mic_connect_cb(bk_usb_hub_port_info *port_info, void *arg)
         uac_mic->status = UAC_MIC_STA_CONNECT;
         uac_mic->mic_port_info = port_info;
 
+#if 0
         bk_uac_mic_config_t *uac_device_param_canfig = (bk_uac_mic_config_t *)port_info->usb_device_param_config;
         struct usb_endpoint_descriptor *mic_ep_desc = (struct usb_endpoint_descriptor *)uac_device_param_canfig->mic_ep_desc;
         BK_LOGI(TAG, "     ------------ Audio Data Mic Endpoint Descriptor -----------  \n");
@@ -462,6 +481,44 @@ static void uac_mic_connect_cb(bk_usb_hub_port_info *port_info, void *arg)
         BK_LOGI(TAG, "bmAttributes                   : 0x%x\n", mic_ep_desc->bmAttributes);
         BK_LOGI(TAG, "wMaxPacketSize                 : 0x%x\n", mic_ep_desc->wMaxPacketSize);
         BK_LOGI(TAG, "bInterval                      : 0x%x\n", mic_ep_desc->bInterval);
+#endif
+
+        /* Copy uac mic device parameters and then check parameters.
+         * Avoid device disconnect and parameters ptr was been change to NULL when using parameters ptr.
+         */
+        if (uac_mic->mic_port_info)
+        {
+            bk_uac_device_brief_info_t *uac_device_param = (bk_uac_device_brief_info_t *)uac_mic->mic_port_info->usb_device_param;
+            if (uac_device_param)
+            {
+                uac_mic->format_tag = uac_device_param->mic_format_tag;
+                uac_mic->samples_frequence_num = uac_device_param->mic_samples_frequence_num;
+                if (uac_mic->samples_frequence_num > 0)
+                {
+                    uac_mic->samples_frequence = audio_calloc(1, sizeof(uint32_t) * uac_mic->samples_frequence_num);
+                    if (uac_mic->samples_frequence)
+                    {
+                        os_memcpy(uac_mic->samples_frequence, uac_device_param->mic_samples_frequence, sizeof(uint32_t) * uac_mic->samples_frequence_num);
+                    }
+                    else
+                    {
+                        BK_LOGE(TAG, "%s, %d, malloc samples_frequence fail\n", __func__, __LINE__);
+                    }
+                }
+                else
+                {
+                    BK_LOGE(TAG, "%s, %d, samples_frequence_num: %d\n", __func__, __LINE__, uac_mic->samples_frequence_num);
+                }
+            }
+            else
+            {
+                BK_LOGE(TAG, "%s, %d, uac_device_param: %p is NULL\n", __func__, __LINE__, uac_device_param);
+            }
+        }
+        else
+        {
+            BK_LOGE(TAG, "%s, %d, mic_port_info: %p is NULL\n", __func__, __LINE__, uac_mic->mic_port_info);
+        }
     }
     else
     {
@@ -469,7 +526,7 @@ static void uac_mic_connect_cb(bk_usb_hub_port_info *port_info, void *arg)
         return;
     }
 
-    usb_hub_print_port_info(port_info);
+    //usb_hub_print_port_info(port_info);
 
     /* check automatic recover uac connect */
     if (uac_mic->cont_sta == UAC_MIC_ABNORMAL_DISCONNECTED)
@@ -655,6 +712,53 @@ static int _uac_mic_open(audio_element_handle_t self)
 
         /* set uac status and send  */
         uac_mic->cont_sta = UAC_MIC_CONNECTED;
+
+        uac_mic->status = UAC_MIC_STA_CHECKING;
+
+        /* Copy uac mic device parameters and then check parameters.
+         * Avoid device disconnect and parameters ptr was been change to NULL when using parameters ptr.
+         */
+        if (uac_mic->mic_port_info)
+        {
+            bk_uac_device_brief_info_t *uac_device_param = (bk_uac_device_brief_info_t *)uac_mic->mic_port_info->usb_device_param;
+            if (uac_device_param)
+            {
+                uac_mic->format_tag = uac_device_param->mic_format_tag;
+                uac_mic->samples_frequence_num = uac_device_param->mic_samples_frequence_num;
+                if (uac_mic->samples_frequence_num > 0)
+                {
+                    if (uac_mic->samples_frequence)
+                    {
+                        audio_free(uac_mic->samples_frequence);
+                        uac_mic->samples_frequence = NULL;
+                    }
+                    uac_mic->samples_frequence = audio_calloc(1, sizeof(uint32_t) * uac_mic->samples_frequence_num);
+                    if (uac_mic->samples_frequence)
+                    {
+                        os_memcpy(uac_mic->samples_frequence, uac_device_param->mic_samples_frequence, sizeof(uint32_t) * uac_mic->samples_frequence_num);
+                    }
+                    else
+                    {
+                        BK_LOGE(TAG, "%s, %d, malloc samples_frequence fail\n", __func__, __LINE__);
+                    }
+                }
+                else
+                {
+                    BK_LOGE(TAG, "%s, %d, samples_frequence_num: %d\n", __func__, __LINE__, uac_mic->samples_frequence_num);
+                }
+            }
+            else
+            {
+                BK_LOGE(TAG, "%s, %d, uac_device_param: %p is NULL\n", __func__, __LINE__, uac_device_param);
+            }
+        }
+        else
+        {
+            BK_LOGE(TAG, "%s, %d, mic_port_info: %p is NULL\n", __func__, __LINE__, uac_mic->mic_port_info);
+        }
+
+        uac_mic->status = UAC_MIC_STA_CONNECT;
+
         ret = uac_mic_drv_send_msg(uac_mic, UAC_MIC_DRV_CONT, uac_mic);
         if (ret != BK_OK)
         {
@@ -806,30 +910,45 @@ static int _uac_mic_close(audio_element_handle_t self)
 
     uac_mic_stream_t *uac_mic = (uac_mic_stream_t *)audio_element_getdata(self);
 
+    /* uac mic close
+     * steps:
+     * 1. Set uac mic status to "UAC_MIC_STA_OPEN" to stop get mic data.
+     * 2. Set uac connect status to "UAC_MIC_NORMAL_DISCONNECTED".
+     * 3. Deregister connect and disconnect callback to NULL, avoid processing disconenct and connect handle.
+     * 4. Close usb port device.
+     * 5. Power down.
+     */
+
     uac_mic->status = UAC_MIC_STA_OPEN;
 
     uac_mic->cont_sta = UAC_MIC_NORMAL_DISCONNECTED;
+
+    /* deregister connect and disconnect callback */
+    bk_usbh_hub_port_register_disconnect_callback(uac_mic->port_index, USB_UAC_MIC_DEVICE, NULL, NULL);
+    bk_usbh_hub_port_register_connect_callback(uac_mic->port_index, USB_UAC_MIC_DEVICE, NULL, NULL);
+
     /* close usb port device */
     if (uac_mic->mic_port_info)
     {
         bk_usbh_hub_port_dev_close(uac_mic->port_index, USB_UAC_MIC_DEVICE, uac_mic->mic_port_info);
         uac_mic->status = UAC_MIC_STA_CONNECT;
-        /* power down */
-        bk_err_t ret = bk_usbh_hub_multiple_devices_power_down(USB_HOST_MODE, uac_mic->port_index, USB_UAC_MIC_DEVICE);
-        if (ret != BK_OK)
-        {
-            BK_LOGE(TAG, "%s, %d, uac mic power down fail, ret: %d\n", __func__, __LINE__, ret);
-        }
-        else
-        {
-            uac_mic->status = UAC_MIC_STA_DISCONNECT;
-            uac_mic->mic_port_info = NULL;
-            uac_mic->cont_sta = UAC_MIC_IDLE;
-        }
         //uac_mic->status = UAC_MIC_STA_DISCONNECT;
     }
 
-    /* 
+    /* power down */
+    bk_err_t ret = bk_usbh_hub_multiple_devices_power_down(USB_HOST_MODE, uac_mic->port_index, USB_UAC_MIC_DEVICE);
+    if (ret != BK_OK)
+    {
+        BK_LOGE(TAG, "%s, %d, uac mic power down fail, ret: %d\n", __func__, __LINE__, ret);
+    }
+    else
+    {
+        uac_mic->status = UAC_MIC_STA_DISCONNECT;
+        uac_mic->mic_port_info = NULL;
+        uac_mic->cont_sta = UAC_MIC_IDLE;
+    }
+
+    /*
      * Don't wait for uac mic disconnect callback.
      * Because uac mic disconnect callback will not been call when other devices are working.
      */
@@ -840,10 +959,6 @@ static int _uac_mic_close(audio_element_handle_t self)
         return BK_FAIL;
     }
 #endif
-
-    /* deregister connect and disconnect callback */
-    bk_usbh_hub_port_register_disconnect_callback(uac_mic->port_index, USB_UAC_MIC_DEVICE, NULL, NULL);
-    bk_usbh_hub_port_register_connect_callback(uac_mic->port_index, USB_UAC_MIC_DEVICE, NULL, NULL);
 
     /* free uac_mic_urb and urb buffer */
     if (uac_mic->uac_mic_urb)
@@ -893,6 +1008,13 @@ static int _uac_mic_destroy(audio_element_handle_t self)
         ring_buffer_clear(&uac_mic->mic_rb);
         audio_free(uac_mic->mic_ring_buff);
         uac_mic->mic_ring_buff = NULL;
+    }
+
+    /* clear device parameters */
+    if (uac_mic->samples_frequence)
+    {
+        audio_free(uac_mic->samples_frequence);
+        uac_mic->samples_frequence = NULL;
     }
 
     if (uac_mic)
