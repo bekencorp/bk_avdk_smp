@@ -32,6 +32,9 @@
 #include <lcd_spi_display_service.h>
 #endif
 
+#ifdef CONFIG_FREERTOS_SMP
+#include "spinlock.h"
+#endif
 
 #define TAG "lcd_disp"
 
@@ -85,13 +88,37 @@ typedef enum
 {
     DISPLAY_FRAME_REQUEST,
     DISPLAY_FRAME_FREE,
-    DISPLAY_FRAME_EXTI,
+    DISPLAY_FRAME_EXIT,
 } lcd_display_msg_type_t;
 
 static lcd_disp_config_t *lcd_disp_config = NULL;
 static display_service_info_t *service_info = NULL;
 
 bk_err_t lcd_display_task_send_msg(uint8_t type, uint32_t param);
+
+#ifdef CONFIG_FREERTOS_SMP
+static SPINLOCK_SECTION volatile spinlock_t display_spin_lock = SPIN_LOCK_INIT;
+#endif
+
+static inline uint32_t display_enter_critical()
+{
+    uint32_t flags = rtos_disable_int();
+
+#ifdef CONFIG_FREERTOS_SMP
+   spin_lock(&display_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   return flags;
+}
+
+static inline void display_exit_critical(uint32_t flags)
+{
+#ifdef CONFIG_FREERTOS_SMP
+   spin_unlock(&display_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   rtos_enable_int(flags);
+}
 
 static void lcd_display_free(frame_buffer_t *frame)
 {
@@ -108,7 +135,6 @@ static void lcd_display_free(frame_buffer_t *frame)
 static void lcd_driver_display_mcu_isr(void)
 {
     media_debug->isr_lcd++;
-    GLOBAL_INT_DECLARATION();
 
     if (lcd_disp_config->pingpong_frame != NULL)
     {
@@ -119,10 +145,11 @@ static void lcd_driver_display_mcu_isr(void)
             lcd_disp_config->display_frame = NULL;
         }
 
-        GLOBAL_INT_DISABLE();
+        uint32_t flag = 0;
+        flag = display_enter_critical();
         lcd_disp_config->display_frame = lcd_disp_config->pingpong_frame;
         lcd_disp_config->pingpong_frame = NULL;
-        GLOBAL_INT_RESTORE();
+        display_exit_critical(flag);
         bk_lcd_8080_start_transfer(0);
 
         rtos_set_semaphore(&lcd_disp_config->disp_sem);
@@ -136,68 +163,63 @@ __attribute__((section(".itcm_sec_code"))) static void lcd_driver_display_rgb_is
 #endif
 {
     DISPLAY_ISR_START();
-    //flash_op_status_t flash_status = FLASH_OP_IDLE;
-    //flash_status = bk_flash_get_operate_status();
     media_debug->isr_lcd++;
-    //if (flash_status == FLASH_OP_IDLE)
+    uint32_t flag = 0;
+    if (lcd_disp_config->pingpong_frame != NULL)
     {
-        GLOBAL_INT_DECLARATION();
-        if (lcd_disp_config->pingpong_frame != NULL)
+        if (lcd_disp_config->display_frame != NULL)
         {
-            if (lcd_disp_config->display_frame != NULL)
+            frame_buffer_t *temp_buffer = NULL;
+            bk_err_t ret = BK_OK;
+            media_debug->fps_lcd++;
+
+            flag = display_enter_critical();
+
+            if (lcd_disp_config->pingpong_frame != lcd_disp_config->display_frame)
             {
-                frame_buffer_t *temp_buffer = NULL;
-                bk_err_t ret = BK_OK;
-                media_debug->fps_lcd++;
-
-                GLOBAL_INT_DISABLE();
-
-                if (lcd_disp_config->pingpong_frame != lcd_disp_config->display_frame)
+                if (lcd_disp_config->display_frame->width != lcd_disp_config->pingpong_frame->width
+                    || lcd_disp_config->display_frame->height != lcd_disp_config->pingpong_frame->height)
                 {
-                    if (lcd_disp_config->display_frame->width != lcd_disp_config->pingpong_frame->width
-                        || lcd_disp_config->display_frame->height != lcd_disp_config->pingpong_frame->height)
-                    {
-                        lcd_driver_ppi_set(lcd_disp_config->pingpong_frame->width, lcd_disp_config->pingpong_frame->height);
-                    }
-                    if (lcd_disp_config->display_frame->fmt != lcd_disp_config->pingpong_frame->fmt)
-                    {
-                        bk_lcd_set_yuv_mode(lcd_disp_config->pingpong_frame->fmt);
-                    }
-                    if (lcd_disp_config->display_frame->cb != NULL
-                        && lcd_disp_config->display_frame->cb->free != NULL)
-                    {
-                        lcd_disp_config->display_frame->cb->free(lcd_disp_config->display_frame);
-                    }
-                    else
-                    {
-                        temp_buffer = lcd_disp_config->display_frame;
-                        lcd_disp_config->display_frame = NULL;
-                    }
+                    lcd_driver_ppi_set(lcd_disp_config->pingpong_frame->width, lcd_disp_config->pingpong_frame->height);
                 }
-                lcd_disp_config->display_frame = lcd_disp_config->pingpong_frame;
-                lcd_disp_config->pingpong_frame = NULL;
-
-                lcd_driver_set_display_base_addr((uint32_t)lcd_disp_config->display_frame->frame);
-
-                if (temp_buffer != NULL)
+                if (lcd_disp_config->display_frame->fmt != lcd_disp_config->pingpong_frame->fmt)
                 {
-                    ret = lcd_display_task_send_msg(DISPLAY_FRAME_FREE, (uint32_t)temp_buffer);
-                    if (ret != BK_OK)
-                    {
-                        lcd_display_free(temp_buffer);
-                    }
+                    bk_lcd_set_yuv_mode(lcd_disp_config->pingpong_frame->fmt);
                 }
-                GLOBAL_INT_RESTORE();
-                rtos_set_semaphore(&lcd_disp_config->disp_sem);
+                if (lcd_disp_config->display_frame->cb != NULL
+                    && lcd_disp_config->display_frame->cb->free != NULL)
+                {
+                    lcd_disp_config->display_frame->cb->free(lcd_disp_config->display_frame);
+                }
+                else
+                {
+                    temp_buffer = lcd_disp_config->display_frame;
+                    lcd_disp_config->display_frame = NULL;
+                }
             }
-            else
+            lcd_disp_config->display_frame = lcd_disp_config->pingpong_frame;
+            lcd_disp_config->pingpong_frame = NULL;
+
+            lcd_driver_set_display_base_addr((uint32_t)lcd_disp_config->display_frame->frame);
+
+            if (temp_buffer != NULL)
             {
-                GLOBAL_INT_DISABLE();
-                lcd_disp_config->display_frame = lcd_disp_config->pingpong_frame;
-                lcd_disp_config->pingpong_frame = NULL;
-                GLOBAL_INT_RESTORE();
-                rtos_set_semaphore(&lcd_disp_config->disp_sem);
+                ret = lcd_display_task_send_msg(DISPLAY_FRAME_FREE, (uint32_t)temp_buffer);
+                if (ret != BK_OK)
+                {
+                    lcd_display_free(temp_buffer);
+                }
             }
+            display_exit_critical(flag);
+            rtos_set_semaphore(&lcd_disp_config->disp_sem);
+        }
+        else
+        {
+            flag = display_enter_critical();
+            lcd_disp_config->display_frame = lcd_disp_config->pingpong_frame;
+            lcd_disp_config->pingpong_frame = NULL;
+            display_exit_critical(flag);
+            rtos_set_semaphore(&lcd_disp_config->disp_sem);
         }
     }
     DISPLAY_ISR_END();
@@ -213,7 +235,10 @@ static bk_err_t lcd_display_frame(frame_buffer_t *frame)
         lcd_driver_ppi_set(frame->width, frame->height);
 
         bk_lcd_set_yuv_mode(frame->fmt);
+        uint32_t flag = 0;
+        flag = display_enter_critical();
         lcd_disp_config->pingpong_frame = frame;
+        display_exit_critical(flag);
 
         lcd_driver_set_display_base_addr((uint32_t)frame->frame);
         lcd_driver_display_enable();
@@ -221,14 +246,14 @@ static bk_err_t lcd_display_frame(frame_buffer_t *frame)
     }
     else
     {
-        GLOBAL_INT_DECLARATION();
-        GLOBAL_INT_DISABLE();
+        uint32_t flag = 0;
+        flag = display_enter_critical();
         if (lcd_disp_config->pingpong_frame != NULL)
         {
             lcd_display_free(lcd_disp_config->pingpong_frame);
             lcd_disp_config->pingpong_frame = NULL;
         }
-        GLOBAL_INT_RESTORE();
+        display_exit_critical(flag);
 
         lcd_disp_config->pingpong_frame = frame;
 
@@ -252,8 +277,6 @@ static bk_err_t lcd_display_frame(frame_buffer_t *frame)
 
     return ret;
 }
-
-
 
 bk_err_t lcd_display_task_send_msg(uint8_t type, uint32_t param)
 {
@@ -329,7 +352,7 @@ static void lcd_display_task_entry(beken_thread_arg_t data)
 #endif
                     break;
 
-                case DISPLAY_FRAME_EXTI:
+                case DISPLAY_FRAME_EXIT:
                 {
                     rtos_lock_mutex(&service_info->lock);
                     lcd_disp_config->disp_task_running = false;
@@ -409,7 +432,7 @@ static bk_err_t lcd_display_task_stop(void)
         return ret;
     }
 
-    lcd_display_task_send_msg(DISPLAY_FRAME_EXTI, 0);
+    lcd_display_task_send_msg(DISPLAY_FRAME_EXIT, 0);
 
     ret = rtos_get_semaphore(&lcd_disp_config->disp_task_sem, BEKEN_NEVER_TIMEOUT);
 
