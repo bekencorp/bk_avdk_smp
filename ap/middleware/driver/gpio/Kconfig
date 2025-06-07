@@ -66,5 +66,9 @@ menu "GPIO"
 		depends on GPIO_DEFAULT_SET_SUPPORT
 		default n
 
+	config GPIO_DUMP_MAP_DEV_DEBUG
+		bool "Enable GPIO MAP DEV DEBUG CODE"
+		default n
+		
 endmenu
 

@@ -409,6 +409,14 @@ static void cli_gpio_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	}
 }
 
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+static void cli_gpio_dump_map_dev_cfg_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	extern bk_err_t gpio_dump_map_dev_cfg(void);
+	gpio_dump_map_dev_cfg();
+}
+#endif
+
 #define GPIO_CMD_CNT (sizeof(s_gpio_commands) / sizeof(struct cli_command))
 static const struct cli_command s_gpio_commands[] = {
 	{"gpio_int", "gpio_int    [index]     [inttype/start/stop]     [low/high_level/rising/falling edge]", cli_gpio_int_cmd},
@@ -422,9 +430,11 @@ static const struct cli_command s_gpio_commands[] = {
 #endif
 	{"gpio_retention_test", "gpio_retention_test", cli_gpio_retention_test_cmd},
 #if CONFIG_GPIO_SIMULATE_UART_WRITE
-	{"gpio_uart_write", "[index][div(baud_rate=1Mbps/(1+div))][string]", cli_gpio_simulate_uart_write_cmd}
+	{"gpio_uart_write", "[index][div(baud_rate=1Mbps/(1+div))][string]", cli_gpio_simulate_uart_write_cmd},
 #endif
-
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+	{"gpio_dump_map_dev_cfg", "gpio_dump_map_dev_cfg", cli_gpio_dump_map_dev_cfg_cmd}
+#endif
 };
 
 int cli_gpio_init(void)

@@ -214,6 +214,10 @@ bk_err_t gpio_hal_func_map(gpio_hal_t *hal, gpio_id_t gpio_id, gpio_dev_t dev)
 
 bk_err_t gpio_hal_func_unmap(gpio_hal_t *hal, gpio_id_t gpio_id)
 {
+	if(gpio_hal_map_check(hal, gpio_id)) {
+		HAL_LOGE("Abnormal gpio cfg detected.Please review the previous log to identify the issue\r\n", gpio_id);
+	}
+
 	gpio_hal_sencond_function_enable(hal, gpio_id, 0);
 	return BK_OK;
 }
@@ -351,7 +355,7 @@ bk_err_t gpio_hal_default_map_init(gpio_hal_t *hal)
 
 		HAL_LOGD("int_en: %d, int_type:%d \r\n",
 				default_map[i].int_en, default_map[i].int_type);
-
+		
 		//function mode
 		if(default_map[i].second_func_en) {
 			gpio_hal_func_unmap(hal, default_map[i].gpio_id);
@@ -429,3 +433,14 @@ bk_err_t gpio_hal_default_map_init(gpio_hal_t *hal)
 
 #endif
 
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+bk_err_t gpio_hal_dump_map_dev_cfg(gpio_hal_t *hal)
+{
+	for(int i = 0; i < SOC_GPIO_NUM; i++)
+	{
+		gpio_hal_map_check(hal, i);
+	}
+
+	return BK_OK;
+}
+#endif

@@ -116,6 +116,10 @@ bk_err_t gpio_hal_wakeup_enable(int64_t index, uint64_t type_l, uint64_t type_h)
 bk_err_t gpio_hal_wakeup_interrupt_clear();
 #endif
 
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+bk_err_t gpio_hal_dump_map_dev_cfg(gpio_hal_t *hal);
+#endif
+
 #define gpio_hal_disable_interrupt(hal, id)			gpio_ll_disable_interrupt((hal)->hw, id)
 
 #define gpio_hal_get_interrupt_status(hal, status)		gpio_ll_get_interrupt_status((hal)->hw, status)
