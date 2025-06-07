@@ -220,8 +220,13 @@ struct dynamic_log_node_t
 	u8 ptr[0];
 };
 
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+#define LOG_MALLOC psram_malloc
+#define LOG_FREE psram_free
+#else
 #define LOG_MALLOC os_malloc
 #define LOG_FREE os_free
+#endif
 
 static dynamic_log_node s_dynamic_header = {NULL};
 static dynamic_log_node *s_to_free_list = NULL;
