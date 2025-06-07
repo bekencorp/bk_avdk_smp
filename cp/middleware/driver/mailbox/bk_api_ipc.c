@@ -70,7 +70,7 @@ typedef union
 } ipc_result_t;
 
 
-#define TAG "AIPC"
+#define TAG "bk_ipc"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)

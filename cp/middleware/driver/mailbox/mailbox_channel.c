@@ -165,6 +165,13 @@ static inline void mb_chnl_exit_critical(uint32_t flags)
 
 /* =====================      physical channel functions      ==================*/
 
+static volatile uint32_t s_mailbox_tx_cnt = 0;
+static volatile uint32_t s_mailbox_rx_cnt = 0;
+static volatile uint32_t s_mailbox_rx_ack_cnt = 0;
+static volatile uint32_t s_mailbox_tx_ack_cnt = 0;
+static volatile uint32_t s_mailbox_tx_compl_cnt = 0;
+static volatile uint32_t s_mailbox_tx_ack_fault_mask = 0;
+
 static inline bk_err_t bk_mailbox_send_safe(mailbox_data_t *data, mailbox_endpoint_t src, mailbox_endpoint_t dst, void *arg)
 {
 	bk_err_t		ret_code;
@@ -175,6 +182,7 @@ static inline bk_err_t bk_mailbox_send_safe(mailbox_data_t *data, mailbox_endpoi
 	
 	return ret_code;
 }
+
 
 static u8 mb_phy_chnl_tx_cmd(u8 log_chnl)
 {
@@ -235,6 +243,8 @@ static u8 mb_phy_chnl_tx_cmd(u8 log_chnl)
 		return 2;
 	}
 
+	s_mailbox_tx_cnt++;
+
 	log_chnl_cb_x[log_chnl_idx].tx_state = CHNL_STATE_IDLE;
 
 	if(log_chnl_cb_x[log_chnl_idx].tx_isr != NULL)
@@ -260,25 +270,40 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 	phy_chnl_idx = GET_DST_CPU_ID(log_chnl);   // = DST_CPU_ID;
 	log_chnl_idx = GET_LOG_CHNL_ID(log_chnl);
 
-	if(SELF_CPU != GET_SRC_CPU_ID(log_chnl))
+	s_mailbox_tx_ack_cnt++;
+
+	if(SELF_CPU != GET_SRC_CPU_ID(log_chnl)) {
+		s_mailbox_tx_ack_fault_mask |= 0x1;
 		return;
+	}
+
 
 	if(SELF_CPU == phy_chnl_idx)  // received from self.
+	{
+		s_mailbox_tx_ack_fault_mask |= 0x2;
 		return;
+	}
 
-	if(phy_chnl_idx >= PHY_CHNL_NUM)
+
+	if(phy_chnl_idx >= PHY_CHNL_NUM){
+		s_mailbox_tx_ack_fault_mask |= 0x4;
 		return;
+	}
 
 	phy_chnl_ptr = &phy_chnl_x_cb[phy_chnl_idx];
 	log_chnl_cb_x = (mb_log_chnl_cb_t *)(phy_chnl_log_chnl_list[phy_chnl_idx]);
 
 	if(log_chnl_idx >= phy_chnl_log_chnl_num[phy_chnl_idx])
+	{
+		s_mailbox_tx_ack_fault_mask |= 0x8;
 		return;
+	}
 
 	if(ack_ptr->hdr.ctrl & CHNL_CTRL_RESET)
 	{
 		if(phy_chnl_ptr->tx_state == CHNL_STATE_IDLE)
 		{
+			s_mailbox_tx_ack_fault_mask |= 0x10;
 			return;
 		}
 
@@ -290,12 +315,16 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 
 		log_chnl_idx = GET_LOG_CHNL_ID(phy_chnl_ptr->tx_log_chnl);
 
-		if(log_chnl_idx >= phy_chnl_log_chnl_num[phy_chnl_idx])
+		if(log_chnl_idx >= phy_chnl_log_chnl_num[phy_chnl_idx]) {
+			s_mailbox_tx_ack_fault_mask |= 0x20;
 			return;
+		}
+
 
 		extern bk_err_t bk_mailbox_ready(mailbox_endpoint_t src, mailbox_endpoint_t dst, uint32_t box_id);
 		if( bk_mailbox_ready(SELF_CPU, phy_chnl_idx, MB_PHY_CMD_CHNL) != BK_OK)
 		{
+			s_mailbox_tx_ack_fault_mask |= 0x40;
 			return;
 		}
 
@@ -303,6 +332,7 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 		log_chnl += log_chnl_idx;  // don't change SRC-DST cpu-id, use only the chnl-id of tx_log_chnl.
 		if(log_chnl != phy_chnl_ptr->tx_log_chnl)
 		{
+			s_mailbox_tx_ack_fault_mask |= 0x80;
 			return;
 		}
 		os_printf("====mailbox reset!!%x, %x\r\n", log_chnl, phy_chnl_ptr->tx_log_chnl);
@@ -333,8 +363,10 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 		ack_ptr->hdr.ctrl         = 0;
 
 		/* hdr.state, hdr.cmd these 2 members keep untouched. */
-
+		s_mailbox_tx_compl_cnt++;
 		log_chnl_cb_x[log_chnl_idx].tx_cmpl_isr(log_chnl_cb_x[log_chnl_idx].isr_param, (mb_chnl_ack_t *)ack_ptr);
+	} else {
+		s_mailbox_tx_ack_fault_mask |= 0x100;
 	}
 
 	u32 int_mask = mb_chnl_enter_critical();
@@ -361,6 +393,7 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 	}
 	mb_chnl_exit_critical(int_mask);
 
+	mb_chnl_exit_critical(int_mask);
 	return;
 
 }
@@ -380,6 +413,8 @@ static void mb_phy_chnl_rx_cmd_isr(mb_phy_chnl_cmd_t *cmd_ptr)
 
 	phy_chnl_idx = GET_SRC_CPU_ID(log_chnl);   // = SRC_CPU_ID; from SRC_CPU.
 	log_chnl_idx = GET_LOG_CHNL_ID(log_chnl);
+
+	s_mailbox_rx_cnt++;
 
 	if(SELF_CPU != GET_DST_CPU_ID(log_chnl))
 		return;
@@ -446,6 +481,7 @@ static void mb_phy_chnl_rx_cmd_isr(mb_phy_chnl_cmd_t *cmd_ptr)
 		return;
 	}
 
+	s_mailbox_rx_ack_cnt++;
 	return;
 }
 
@@ -511,6 +547,8 @@ static void mb_phy_chnl_start_tx(u8 log_chnl)
 	return;
 }
 
+volatile uint32_t s_mailbox_sync_cnt = 0;
+
 static bk_err_t mb_phy_chnl_tx_cmd_sync(u8 log_chnl, mb_phy_chnl_cmd_t *cmd_ptr)
 {
 	bk_err_t		ret_code;
@@ -540,6 +578,8 @@ static bk_err_t mb_phy_chnl_tx_cmd_sync(u8 log_chnl, mb_phy_chnl_cmd_t *cmd_ptr)
 
 	chnl_type = MB_PHY_CMD_CHNL;
 
+	s_mailbox_sync_cnt++;
+	
 	/*
 	 * can't wait 'phy_chnl_cb.tx_state' to be CHNL_STATE_IDLE here,
 	 * 'phy_chnl_cb.tx_state' is set to CHNL_STATE_IDLE in interrupt callback.
@@ -864,3 +904,6 @@ bk_err_t mb_chnl_ctrl(u8 log_chnl, u8 cmd, void * param)
 	return BK_OK;
 }
 
+void mb_debug_status() {
+
+}

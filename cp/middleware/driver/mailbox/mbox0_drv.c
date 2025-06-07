@@ -3,16 +3,11 @@
 #include "mbox0_drv.h"
 #include "sys_driver.h"
 
-#if CONFIG_SOC_SMP
-// smp(cpu0,cpu1) + cpu2
-#define MBOX0_CHN0_FIFO_LEN     3
-#define MBOX0_CHN1_FIFO_LEN     3
-#define MBOX0_CHN2_FIFO_LEN     2
-#else //#if CONFIG_SOC_SMP
+
 #define MBOX0_CHN0_FIFO_LEN     2
-#define MBOX0_CHN1_FIFO_LEN     4
-#define MBOX0_CHN2_FIFO_LEN     2
-#endif //#if CONFIG_SOC_SMP
+#define MBOX0_CHN1_FIFO_LEN     3
+#define MBOX0_CHN2_FIFO_LEN     3
+
 
 #define MBOX0_CHN0_FIFO_START     0
 #define MBOX0_CHN1_FIFO_START     (MBOX0_CHN0_FIFO_START + MBOX0_CHN0_FIFO_LEN)

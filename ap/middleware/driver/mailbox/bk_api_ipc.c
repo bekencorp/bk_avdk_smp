@@ -68,14 +68,36 @@ typedef union
 } ipc_result_t;
 
 
-#define TAG "AIPC"
+#define TAG "bk_ipc"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
+#if CONFIG_SOC_SMP
+#include "spinlock.h"
+static SPINLOCK_SECTION volatile spinlock_t bk_ipc_spin_lock = SPIN_LOCK_INIT;
+#endif // CONFIG_SOC_SMP
+static inline uint32_t bk_ipc_enter_critical()
+{
+	uint32_t flags = rtos_disable_int();
 
+#if CONFIG_SOC_SMP
+	spin_lock(&bk_ipc_spin_lock);
+#endif // CONFIG_SOC_SMP
+
+	return flags;
+}
+
+static inline void bk_ipc_exit_critical(uint32_t flags)
+{
+#if CONFIG_SOC_SMP
+	spin_unlock(&bk_ipc_spin_lock);
+#endif // CONFIG_SOC_SMP
+
+	rtos_enable_int(flags);
+}
 
 bk_ipc_info_t *bk_ipc_info = NULL;
 
@@ -148,8 +170,7 @@ static void bk_ipc_event_notify(bk_ipc_info_t *ipc_info, uint32_t event)
 
 bk_ipc_data_t *bk_ipc_data_pop(LIST_HEADER_T *list)
 {
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     LIST_HEADER_T *pos, *n;
     bk_ipc_data_t *node = NULL;
     bk_ipc_data_t *tmp = NULL;
@@ -167,15 +188,14 @@ bk_ipc_data_t *bk_ipc_data_pop(LIST_HEADER_T *list)
             }
         }
     }
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
 
     return node;
 }
 
 void bk_ipc_data_clear(LIST_HEADER_T *list)
 {
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     LIST_HEADER_T *pos, *n;
     bk_ipc_data_t *tmp = NULL;
 
@@ -191,15 +211,14 @@ void bk_ipc_data_clear(LIST_HEADER_T *list)
             }
         }
     }
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
 }
 
 bk_err_t bk_ipc_list_insert(LIST_HEADER_T *list, LIST_HEADER_T *node)
 {
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     list_add_tail(node, list);
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
     return BK_OK;
 }
 
@@ -214,10 +233,9 @@ bk_err_t bk_ipc_data_push(LIST_HEADER_T *list, bk_ipc_data_t *data)
         return -1;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     list_add_tail(&data->list, list);
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
     return ret;
 }
 
@@ -235,8 +253,7 @@ bk_ipc_handle_t *bk_ipc_get_handle_by_name(LIST_HEADER_T *list, char *name)
         return NULL;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     LIST_HEADER_T *pos, *n;
     bk_ipc_handle_t *node = NULL;
     bk_ipc_handle_t *tmp = NULL;
@@ -254,7 +271,7 @@ bk_ipc_handle_t *bk_ipc_get_handle_by_name(LIST_HEADER_T *list, char *name)
         }
     }
 
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
     return node;
 }
 
@@ -275,8 +292,7 @@ bk_err_t bk_ipc_channel_list_remove(LIST_HEADER_T *list, char *name)
         return ret;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     LIST_HEADER_T *pos, *n;
     bk_ipc_handle_t *tmp = NULL;
 
@@ -294,7 +310,7 @@ bk_err_t bk_ipc_channel_list_remove(LIST_HEADER_T *list, char *name)
         }
     }
 
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
     return ret;
 }
 
@@ -703,22 +719,21 @@ static void bk_ipc_thread_entry(beken_thread_arg_t param)
     bk_ipc_info_t *ipc_info = (bk_ipc_info_t *)param;
 
     ipc_info->thread_running = true;
-    GLOBAL_INT_DECLARATION();
 
     do
     {
         uint32_t bits = 0;
         ret = rtos_get_semaphore(ipc_info->waiting_sem, BEKEN_WAIT_FOREVER);
-        GLOBAL_INT_DISABLE();
+        uint32_t flags  = bk_ipc_enter_critical();
         if (ret != BK_OK)
         {
             LOGE("%s, rtos_get_semaphore fail\n", __func__);
-            GLOBAL_INT_RESTORE();
+            bk_ipc_exit_critical(flags);
             continue;
         }
         bits = ipc_info->waiting_event;
         ipc_info->waiting_event = 0;
-        GLOBAL_INT_RESTORE();
+        bk_ipc_exit_critical(flags);
         if (bits & IPC_EVENT_RECV)
         {
             do
