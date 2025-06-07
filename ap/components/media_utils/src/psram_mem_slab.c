@@ -83,7 +83,7 @@ void bk_psram_frame_buffer_init(void)
 
 	end_adderss += sizeof(psram_mem_slab);
 
-	if (end_adderss > CONFIG_PSRAM_HEAP_CPU0_BASE_ADDER)
+	if (end_adderss > CONFIG_PSRAM_HEAP_BASE_ADDER)
 	{
 		LOGE("multimedia allocte psram over the maximum length!!!\n");
 		BK_ASSERT(0);
