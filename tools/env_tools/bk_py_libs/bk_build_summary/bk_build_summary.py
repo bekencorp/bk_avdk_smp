@@ -126,6 +126,9 @@ class bk_build_summary:
             mem_info += cls._combine_link_and_map_info(link_info, map_info)
         except RuntimeError:
             prerequisite = False
+        except IndexError:
+            logger.error("Index Error")
+            prerequisite = False
         if not prerequisite:
             mem_info += "no found memory info"
         mem_info += f"<<<<<<<<<< {app_name}\n"
@@ -142,11 +145,11 @@ class bk_build_summary:
         mem_region_info = ""
 
         mem_region_info += (
-            f"{'name':<10}"
+            f"{'name':<12}"
             + f"{' addr':^11}"
             + f"{' size':^11}"
             + f"{'used ':>11}"
-            + f"{'usage':>9}"
+            + f"{'usage':>7}"
             + "\n"
         )
         mem_region_info += f"{'':-^52}\n"
@@ -155,11 +158,11 @@ class bk_build_summary:
             map_name, map_addr, map_size = map_info[index]
             if link_name != map_name or link_size != map_size:
                 raise RuntimeError("data invalid")
-            mem_region_info += f"{link_name:<10}"  # 10
+            mem_region_info += f"{link_name:<12}"  # 12
             mem_region_info += f" 0x{map_addr:08x}"  # 11
             mem_region_info += f" 0x{map_size:08x}"  # 11
             mem_region_info += f" {link_used_size:>8} B"  # 11
-            mem_region_info += f"{link_usage_rate:>9}\n"
+            mem_region_info += f"{link_usage_rate:>7}\n"
         return mem_region_info
 
     @classmethod

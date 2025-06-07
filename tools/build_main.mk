@@ -149,12 +149,14 @@ package_script := $(ARMINO_AVDK_DIR)/tools/bk_smp_package.py
 package_dir := $(PROJECT_BUILD_DIR)/package
 package_json := $(PARTITIONS_DIR)/bk_package.json
 build_summary := $(package_dir)/build_summary.txt
+check_psram_script := $(ARMINO_AVDK_DIR)/tools/check_psram_region.py
 package: $(package_script) $(ARMINO_SOC)_cp $(soc_targets_ap)
 	@mkdir -p $(package_dir)
 	@python3 $(package_script) $(PROJECT_BUILD_DIR) $(package_json) $(build_summary)
 ifneq ($(PRINT_SUMMARY), 0)
 	@cat $(build_summary)
 endif
+	@python3 $(check_psram_script) $(build_summary)
 
 ap_doc:
 	@make doc ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) -C $(ARMINO_AP_DIR)

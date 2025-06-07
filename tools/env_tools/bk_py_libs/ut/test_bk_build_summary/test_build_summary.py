@@ -1,9 +1,8 @@
 from pathlib import Path
 from unittest import TestCase
 
-from ut_msic import get_file_md5sum
-
 from bk_build_summary import bk_build_summary
+from ut_msic import get_file_md5sum
 
 curr_dir = Path(__file__).parent
 
@@ -45,7 +44,7 @@ class Test_bk_build_summary(TestCase):
         summary.set_app_folder("CP", workdir)
         summary.gen_summary(output_file)
         self.assertTrue(output_file.exists())
-        expect_file_md5 = "5543bbd087051938b1d32010b2c82233"
+        expect_file_md5 = "42762f03af584b1683a8a6fd04aa31c6"
         gen_file_md5 = get_file_md5sum(output_file)
         self.assertEqual(expect_file_md5, gen_file_md5)
         output_file.unlink()
@@ -53,15 +52,12 @@ class Test_bk_build_summary(TestCase):
     def test_build_summary_output_file(self):
         workdir = curr_dir / "workspace"
         output_file = workdir / "summary3.txt"
-        out_info = (
-            f"firmware: {workdir / 'all_app.bin'}\n"
-            + f"ota binary: {workdir / 'ota.rbl'}\n"
-        )
+        out_info = "firmware: all_app.bin\n" + "ota binary: ota.rbl\n"
         summary = bk_build_summary()
         summary.set_output_file_info(out_info)
         summary.gen_summary(output_file)
         self.assertTrue(output_file.exists())
-        expect_file_md5 = "9c2c6bf9f50268d0c0e99912d79ec737"
+        expect_file_md5 = "b136e9f835cd86e9c91ace3efd0ea3a7"
         gen_file_md5 = get_file_md5sum(output_file)
         self.assertEqual(expect_file_md5, gen_file_md5)
         output_file.unlink()
@@ -74,14 +70,11 @@ class Test_bk_build_summary(TestCase):
         summary.set_partitions_info(partitions_info)
         summary.set_app_folder("AP", workdir)
         summary.set_app_folder("CP", workdir)
-        out_info = (
-            f"firmware: {workdir / 'all_app.bin'}\n"
-            + f"ota binary: {workdir / 'ota.rbl'}\n"
-        )
+        out_info = "firmware: all_app.bin\n" + "ota binary: ota.rbl\n"
         summary.set_output_file_info(out_info)
         summary.gen_summary(output_file)
         self.assertTrue(output_file.exists())
-        expect_file_md5 = "0508f4c582d48c1b9a72cbcfb87b4f63"
+        expect_file_md5 = "be488c995c3ccd0c7e350ff885609624"
         gen_file_md5 = get_file_md5sum(output_file)
         self.assertEqual(expect_file_md5, gen_file_md5)
         output_file.unlink()
