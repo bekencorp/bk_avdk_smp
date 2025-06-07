@@ -225,8 +225,6 @@ bk_err_t bk_jpeg_dec_isr_register(jpeg_dec_isr_type_t isr_id, jpeg_dec_isr_cb_t 
 	if ((isr_id) >= DEC_ISR_MAX)
 		return BK_FAIL;
 
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
 	if (isr_id == DEC_END_OF_FRAME)
 	{
 		jpeg_dec_auto_frame_end_int_en(1);
@@ -249,7 +247,6 @@ bk_err_t bk_jpeg_dec_isr_register(jpeg_dec_isr_type_t isr_id, jpeg_dec_isr_cb_t 
 #endif
 	}
 
-	GLOBAL_INT_RESTORE();
 	return BK_OK;
 }
 

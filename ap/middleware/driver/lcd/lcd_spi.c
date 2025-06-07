@@ -16,9 +16,8 @@ static void SPI_SendData(uint8_t data)
 	uint8_t n;
 
 	//in while loop, to avoid disable IRQ too much time, release it if finish one byte.
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
-	for (n = 0; n < 8; n++)
+    uint32_t irq_level = rtos_disable_int();
+    for (n = 0; n < 8; n++)
 	{
 		if (data & 0x80)
 		{
@@ -38,7 +37,7 @@ static void SPI_SendData(uint8_t data)
 		bk_delay_us(LCD_SPI_DELAY);
 
 	}
-	GLOBAL_INT_RESTORE();
+    rtos_enable_int(irq_level);
 }
 
 void lcd_spi_write_cmd(uint8_t cmd)
@@ -122,7 +121,7 @@ void lcd_spi_init_gpio(void)
 	BK_LOG_ON_ERR(bk_gpio_disable_input(LCD_SPI_SDA_GPIO));
 	BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_SPI_SDA_GPIO));
 
-//	bk_gpio_set_output_high(LCD_SPI_CLK_GPIO);
+	bk_gpio_set_output_high(LCD_SPI_CLK_GPIO);
 	bk_gpio_set_output_high(LCD_SPI_CSX_GPIO);
 }
 

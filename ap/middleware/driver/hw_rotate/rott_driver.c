@@ -206,6 +206,7 @@ bk_err_t bk_rott_driver_deinit(void)
 	rott_ll_set_rotate_ctrl_rotate_ena(0);
 	bk_rott_soft_reset();
 	sys_hal_set_rott_int_en(0);
+
 	bk_int_isr_unregister(INT_SRC_ROTT);
 	rott_ll_set_module_contol_clk_gate(0);
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_VIDP_ROTT, PM_POWER_MODULE_STATE_OFF);

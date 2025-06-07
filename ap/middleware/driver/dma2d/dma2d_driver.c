@@ -120,6 +120,7 @@ bk_err_t bk_dma2d_driver_deinit(void)
 		return BK_OK;
 	}
 
+	sys_drv_int_disable(DMA2D_INTERRUPT_CTRL_BIT);
 	dma2d_hal_soft_reset();
 	bk_int_isr_unregister(INT_SRC_DMA2D);
 
