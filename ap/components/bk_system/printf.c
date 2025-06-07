@@ -48,6 +48,10 @@ static uint8_t s_printf_enable = 1;
 #if CONFIG_SHELL_ASYNCLOG
 static volatile uint8_t s_printf_sync = 0;
 
+#define CPU_PREFIX_CPU0    "cpu"
+#define CPU_PREFIX_CPU1    "ap"
+#define CPU_PREFIX_CPU2    "ap"
+
 typedef  struct
 {
 	char	mod_name[11];
@@ -129,10 +133,27 @@ static void bk_printf_port_ext_internel(int block_mode, int level, char *tag, co
 #endif
 
 	prefix_str[0] = 0;
-	if(cpu_id >= 0)
+	if (cpu_id >= 0)
 	{
-		os_snprintf(&prefix_str[data_len], CPU_STR_LEN + 1, "cpu%d", cpu_id);
-		data_len += CPU_STR_LEN;
+		const char *cpu_prefix = NULL;
+		int core_num = 0;
+
+		if (cpu_id == 0) {
+			cpu_prefix = CPU_PREFIX_CPU0;
+			core_num = 0;
+		} else if (cpu_id == 1) {
+			cpu_prefix = CPU_PREFIX_CPU1;
+			core_num = 0;
+		} else if (cpu_id == 2) {
+			cpu_prefix = CPU_PREFIX_CPU2;
+			core_num = 1;
+		} else {
+			cpu_prefix = "cpu";
+			core_num = cpu_id;
+		}
+
+		os_snprintf(&prefix_str[data_len], CPU_STR_LEN + 1, "%s%d", cpu_prefix, core_num);
+    	data_len += strlen(cpu_prefix) + 1;  // +1 for the digit
 
 		prefix_str[data_len++] = ':';
 		prefix_str[data_len] = 0;
