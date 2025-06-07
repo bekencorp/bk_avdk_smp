@@ -4,6 +4,8 @@ from pathlib import Path
 
 from . import logger
 
+OUTPUT_LINE_MAX_LEN = 52
+
 
 def find_string_in_file(file_path: Path, target: str):
     target_bytes = target.encode("utf-8")
@@ -66,14 +68,14 @@ class bk_build_summary:
         summary = ""
         summary += self._get_header()
         if self.partitions_info:
-            summary += f"{' Partitions Table ':=^52}\n"
+            summary += f"{' Partitions Table ':=^{OUTPUT_LINE_MAX_LEN}}\n"
             summary += self.partitions_info.read_text()
 
         if len(self.app_folder):
             summary += self._get_apps_memory()
 
         if self.out_info:
-            summary += f"{' Output Info ':=^52}\n"
+            summary += f"{' Output Info ':=^{OUTPUT_LINE_MAX_LEN}}\n"
             summary += self.out_info
 
         logger.info(f"save build summary to {output_file}")
@@ -83,15 +85,15 @@ class bk_build_summary:
     def _get_header(self) -> str:
         head_title = "  BUILD  SUMMARY  "
         head = ""
-        separete_line = f"{'':-^52}\n"
+        separete_line = f"{'':-^{OUTPUT_LINE_MAX_LEN}}\n"
         head += separete_line
-        head += f"{head_title:-^52}\n"
+        head += f"{head_title:-^{OUTPUT_LINE_MAX_LEN}}\n"
         head += separete_line
         return head
 
     def _get_apps_memory(self) -> str:
         memory_info = ""
-        memory_info += f"{' APP Memory Info ':=^52}\n"
+        memory_info += f"{' APP Memory Info ':=^{OUTPUT_LINE_MAX_LEN}}\n"
         for app in self.app_folder:
             app_name = app[0]
             app_path = app[1]
@@ -138,23 +140,23 @@ class bk_build_summary:
         mem_region_info = ""
 
         mem_region_info += (
-            f"{'name':<12}"
+            f"{'name':<13}"
             + f"{' addr':^11}"
             + f"{' size':^11}"
-            + f"{'used ':>11}"
+            + f"{'used ':>10}"
             + f"{'usage':>7}"
             + "\n"
         )
-        mem_region_info += f"{'':-^52}\n"
+        mem_region_info += f"{'':-^{OUTPUT_LINE_MAX_LEN}}\n"
         for index in range(len(link_info)):
             link_name, link_used_size, link_size, link_usage_rate = link_info[index]
             map_name, map_addr, map_size = map_info[index]
             if link_name != map_name or link_size != map_size:
                 raise RuntimeError("data invalid")
-            mem_region_info += f"{link_name:<12}"  # 12
+            mem_region_info += f"{link_name:<13}"  # 13
             mem_region_info += f" 0x{map_addr:08x}"  # 11
             mem_region_info += f" 0x{map_size:08x}"  # 11
-            mem_region_info += f" {link_used_size:>8} B"  # 11
+            mem_region_info += f" {link_used_size:>7} B"  # 10
             mem_region_info += f"{link_usage_rate:>7}\n"
         return mem_region_info
 
@@ -162,7 +164,7 @@ class bk_build_summary:
     def _get_map_info(cls, map_file: Path):
         all_mem_info: list[tuple[str, int, int]] = []
 
-        offset = find_string_in_file(map_file, "Memory Configuratio")
+        offset = find_string_in_file(map_file, "Memory Configuration")
         if offset == -1:
             logger.error(f"{map_file} size is {map_file.stat().st_size}")
             raise RuntimeError("not found 'Memory Configuration'")

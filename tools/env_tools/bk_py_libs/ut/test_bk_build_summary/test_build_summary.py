@@ -45,7 +45,7 @@ class Test_bk_build_summary(TestCase):
         summary.set_app_folder("CP", workdir)
         summary.gen_summary(output_file)
         self.assertTrue(output_file.exists())
-        expect_file_md5 = "42762f03af584b1683a8a6fd04aa31c6"
+        expect_file_md5 = "cf7ba3a1f4e60ce1249992e5845e7a1d"
         gen_file_md5 = get_file_md5sum(output_file)
         self.assertEqual(expect_file_md5, gen_file_md5)
         output_file.unlink()
@@ -75,7 +75,7 @@ class Test_bk_build_summary(TestCase):
         summary.set_output_file_info(out_info)
         summary.gen_summary(output_file)
         self.assertTrue(output_file.exists())
-        expect_file_md5 = "be488c995c3ccd0c7e350ff885609624"
+        expect_file_md5 = "53dc02b70991f8ccaafb205746476075"
         gen_file_md5 = get_file_md5sum(output_file)
         self.assertEqual(expect_file_md5, gen_file_md5)
         output_file.unlink()
