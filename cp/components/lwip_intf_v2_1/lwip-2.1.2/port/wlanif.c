@@ -231,7 +231,7 @@ ethernetif_input(int iface, struct pbuf *p)
         return;
     }
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
-	if(false == cif_rx_local_packet_check(&p,ethhdr))
+	if(false == cif_rx_local_packet_check(&p,ethhdr,vif))
 	{
 		return;
 	}

@@ -244,7 +244,7 @@ bool cif_filter_check_ip_data(struct pbuf *p)
     return upload2ctrl;
 }
 
-bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
+bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void* vif)
 {
     bool upload2ctrl = true;
     struct pbuf *p = *p_ptr;
@@ -321,6 +321,7 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
             cpdu->co_hdr.length = p_copy->len - sizeof(struct pbuf);
             cpdu->co_hdr.type = RX_MSDU_DATA;
             cpdu->co_hdr.need_free = 0;
+            cpdu->co_hdr.vif_idx = wifi_netif_vif_to_netif_type(vif);
             ret = cif_msg_sender(cpdu,CIF_TASK_MSG_RX_DATA,0);
             if(ret != BK_OK)
             {
@@ -377,6 +378,7 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
                 cpdu->co_hdr.length = p_copy->len - sizeof(struct pbuf);
                 cpdu->co_hdr.type = RX_MSDU_DATA;
                 cpdu->co_hdr.need_free = 0;
+                cpdu->co_hdr.vif_idx = wifi_netif_vif_to_netif_type(vif);
                 CIF_LOGD("%s,%d p:%p next:%p payload:%p len:%d\r\n",
                     __func__,__LINE__, p_copy, p_copy->next, p_copy->payload, p_copy->tot_len);
 
