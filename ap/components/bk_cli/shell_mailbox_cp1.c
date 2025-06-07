@@ -212,6 +212,8 @@ static void shell_mb_tx_isr2(shell_mb_ext_t *mb_ext)
 		{
 			/* to next packet. */
 			mb_ext->list_out_idx = (mb_ext->list_out_idx + 1) % TX_QUEUE_LEN;
+		} else {
+			mb_ext->tx_stopped = 1;
 		}
 	}
 	else
