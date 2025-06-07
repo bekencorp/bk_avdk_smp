@@ -517,10 +517,6 @@ static void jpeg_decode_software_decode_start_handle(frame_module_t module)
 	{
 		if (module == MODULE_DECODER_CP1)
 		{
-			frame_buffer_fb_read_free(jdec_config->stream, jdec_config->jpeg_frame, MODULE_DECODER_CP1);
-			jdec_config->jpeg_frame = NULL;
-			jpeg_decode_get_next_frame();
-			return;
 			jdec_config->jdec_frame = frame_buffer_display_malloc(jdec_config->jpeg_frame->width *
 									jdec_config->jpeg_frame->height * 2);
 			if(jdec_config->jdec_frame == NULL)
@@ -640,7 +636,7 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 		{
 			frame_buffer_fb_read_free(jdec_config->stream, jpeg_frame, module);
 			return;
-		}
+		}
 
 		jdec_config->jpeg_frame = jpeg_frame;
 	}
