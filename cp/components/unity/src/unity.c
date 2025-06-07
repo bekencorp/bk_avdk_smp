@@ -23,11 +23,11 @@ void UNITY_OUTPUT_CHAR(int);
 #endif
 
 #undef UNITY_OUTPUT_CHAR
-extern bk_err_t uart_write_byte(uart_id_t id, uint8_t data);
+int shell_log_raw_data(const u8 *data, u16 data_len);
 
 void UNITY_OUTPUT_CHAR(int data)
 {
-	(void)uart_write_byte(bk_get_printf_port(), (unsigned char)data);
+    (void)shell_log_raw_data((unsigned char*)&data, 1);
 }
 
 /* Helpful macros for us to use here in Assert functions */

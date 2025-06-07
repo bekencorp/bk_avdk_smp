@@ -43,12 +43,56 @@ TEST_TEAR_DOWN(TEST_IOT_AVDK_IPC)
 
 TEST(TEST_IOT_AVDK_IPC, AVDKIpcSync)
 {
+    bk_err_t ret = BK_OK;
+    int i = 0;
 
+    TEST_ASSERT_EQUAL(ret, BK_OK);
+
+    char data[128] = {0};
+
+    for (i = 0; i < 5; i++)
+    {
+        uint64_t before = bk_aon_rtc_get_us();
+
+        sprintf(data, "Sync Hello From CPU: %d, @time: %lu", bk_ipc_cpu_id_get(), before);
+
+        ret = bk_ipc_send(&ui_ipc_test, (uint8_t *)data, sizeof(data), MIPC_CHAN_SEND_FLAG_SYNC, 0);
+        uint64_t after = bk_aon_rtc_get_us();
+
+        TEST_ASSERT_EQUAL(ret, BK_OK);
+
+        LOGD("ipc send cost: %u\n", after - before);
+    }
+
+    TEST_ASSERT_EQUAL(ret, BK_OK);
 }
 
 TEST(TEST_IOT_AVDK_IPC, AVDKIpcAsync)
 {
+    bk_err_t ret = BK_OK;
+    int i = 0;
 
+    TEST_ASSERT_EQUAL(ret, BK_OK);
+
+    char data[128] = {0};
+
+    for (i = 0; i < 5; i++)
+    {
+        uint64_t before = bk_aon_rtc_get_us();
+
+        sprintf(data, "Async Hello From CPU: %d, @time: %lu", bk_ipc_cpu_id_get(), before);
+
+        ret = bk_ipc_send(&ui_ipc_test, (uint8_t *)data, sizeof(data), 0, 0);
+        uint64_t after = bk_aon_rtc_get_us();
+
+        TEST_ASSERT_EQUAL(ret, BK_OK);
+
+        LOGD("ipc send cost: %u\n", after - before);
+
+        rtos_delay_milliseconds(100);
+    }
+
+    TEST_ASSERT_EQUAL(ret, BK_OK);
 }
 
 

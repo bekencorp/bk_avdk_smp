@@ -78,6 +78,8 @@ enum
 	CP0_MB_CHNL_IPC,
 	MB_CHNL_PWC,
 	MB_CHNL_BT_CMD,
+  MB_CHNL_WIFI_CMD,
+	MB_CHNL_WIFI_DATA,
 	MB_CHNL_USB,
 	MB_CHNL_MIPC_SYNC,
 	MB_CHNL_AT,
@@ -85,9 +87,6 @@ enum
 	MB_CHNL_UART1,
 	MB_CHNL_UART2,
 	MB_CHNL_FLASH,
-
-	MB_CHNL_WIFI_CMD,
-	MB_CHNL_WIFI_DATA,
 
 	/*                  !!!!!   Note   !!!!!              */
 	/* ===> MB_CHNL_LOG should be the LAST one. LOWEST priority. */

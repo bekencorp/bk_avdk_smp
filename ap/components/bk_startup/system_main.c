@@ -182,7 +182,7 @@ void reset_cpu1_core(uint32 offset, uint32_t start_flag)
 
 }
 
-extern void mb_ipc_reset_notify(u32 power_on);
+extern void mb_ipc_reset_notify(u32 cpu_id, u32 power_on);
 
 void start_cpu1_core(void)
 {
@@ -192,14 +192,15 @@ void start_cpu1_core(void)
 #else
 	reset_cpu1_core(addr, 1);
 #endif
-	mb_ipc_reset_notify(1);
+	mb_ipc_reset_notify(1, 1);
 }
 
 void stop_cpu1_core(void)
 {
 	reset_cpu1_core(0, 0);
-	mb_ipc_reset_notify(0);
+	mb_ipc_reset_notify(1, 0);
 }
+
 
 void reset_cpu2_core(uint32 offset, uint32_t start_flag)
 {

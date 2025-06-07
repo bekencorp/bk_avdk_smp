@@ -186,7 +186,7 @@ void reset_cpu1_core(uint32 offset, uint32_t start_flag)
 
 }
 
-extern void mb_ipc_reset_notify(u32 power_on);
+extern void mb_ipc_reset_notify(u32 cpu_id, u32 power_on);
 
 void start_cpu1_core(void)
 {
@@ -196,13 +196,13 @@ void start_cpu1_core(void)
 #else
 	reset_cpu1_core(addr, 1);
 #endif
-	mb_ipc_reset_notify(1);
+	mb_ipc_reset_notify(1, 1);
 }
 
 void stop_cpu1_core(void)
 {
 	reset_cpu1_core(0, 0);
-	mb_ipc_reset_notify(0);
+	mb_ipc_reset_notify(1, 0);
 }
 
 void reset_cpu2_core(uint32 offset, uint32_t start_flag)
@@ -290,7 +290,7 @@ int32_t vote_stop_cpu2_core(cpu2_user_id_t user_id)
 
 
 void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {
-#if CONFIG_SWD_DEBUG_MODE
+#if CONFIG_SWD_DEBUG_MODE || CONFIG_DEBUG_VERSION
 
 	if (cpu_id == 0) {
 		(void)sys_drv_set_jtag_mode(0);
