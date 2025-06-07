@@ -1418,7 +1418,7 @@ bk_err_t bk_pwm_group_set_config(pwm_group_t group, const pwm_group_config_t *co
 	pwm_hal_set_new_config_way(&s_pwm[id1].hal, hw_ch1, 1);
 	pwm_hal_set_new_config_way(&s_pwm[id2].hal, hw_ch2, 1);
 
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	s_pwm_groups[group].period_cycle = config->period_cycle;
 	s_pwm_groups[group].chan1_duty_cycle = config->chan1_duty_cycle;
 	s_pwm_groups[group].chan2_duty_cycle = config->chan2_duty_cycle;
@@ -1426,7 +1426,7 @@ bk_err_t bk_pwm_group_set_config(pwm_group_t group, const pwm_group_config_t *co
 	s_pwm_groups[group].is_param_need_update = true;
 	s_pwm_groups[group].is_flip_mode_need_update = true;
 	pwm_hal_set_uie(&s_pwm[id1].hal, hw_ch1, 1);
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }
@@ -1812,10 +1812,10 @@ bk_err_t bk_pwm_phase_shift_set_duty_and_update(const pwm_phase_shift_config_t *
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_PWM_2, PM_CPU_FRQ_120M);
 	pwm_sw_ch_to_hw_id_ch(shift_config->duty_config[0].chan, &id, &hw_ch);
 
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	memcpy(s_shift_config, shift_config, sizeof(pwm_phase_shift_config_t));
 	pwm_hal_set_uie(&s_pwm[id].hal, hw_ch, 1);
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return ret;
 }
@@ -1846,9 +1846,9 @@ bk_err_t bk_pwm_phase_shift_update_duty(void)
 
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_PWM_2, PM_CPU_FRQ_120M);
 	pwm_sw_ch_to_hw_id_ch(s_shift_config->duty_config[0].chan, &id, &hw_ch);
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	pwm_hal_set_uie(&s_pwm[id].hal, hw_ch, 1);
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }

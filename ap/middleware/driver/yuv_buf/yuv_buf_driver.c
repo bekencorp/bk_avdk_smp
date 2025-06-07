@@ -259,20 +259,20 @@ uint32_t bk_yuv_buf_get_emr_base_addr(void)
 
 bk_err_t bk_yuv_buf_register_isr(yuv_buf_isr_type_t type_id, yuv_buf_isr_t isr, void *param)
 {
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	s_yuv_buf.yuv_buf_isr_handler[type_id].isr_handler = isr;
 	s_yuv_buf.yuv_buf_isr_handler[type_id].param = param;
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }
 
 bk_err_t bk_yuv_buf_unregister_isr(yuv_buf_isr_type_t type_id)
 {
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	s_yuv_buf.yuv_buf_isr_handler[type_id].isr_handler = NULL;
 	s_yuv_buf.yuv_buf_isr_handler[type_id].param = NULL;
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }
@@ -298,11 +298,11 @@ bk_err_t bk_yuv_buf_soft_reset(void)
 	YUV_BUF_LOGD("yuv soft reset \r\n");
 	YUV_BUF_RETURN_ON_DRIVER_NOT_INIT();
 
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 
 	yuv_buf_hal_soft_reset(&s_yuv_buf.hal);
 
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }

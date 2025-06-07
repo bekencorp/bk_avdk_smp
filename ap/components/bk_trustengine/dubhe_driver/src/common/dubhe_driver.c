@@ -133,8 +133,6 @@ static void te200_isr(void)
 
 static int do_dubhe_driver_init( unsigned long dbh_base_addr )
 {
-    //uint32_t int_level = rtos_disable_int();
-
     if (sys_ll_get_cpu_power_sleep_wakeup_pwd_encp() != 0) {
         sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(0);
         bk_delay_us(100);
@@ -172,7 +170,6 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
     dubhe_event_init( );
 #endif
 
-    //rtos_enable_int(int_level);
     return 0;
 }
 

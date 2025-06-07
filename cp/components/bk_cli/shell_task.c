@@ -69,24 +69,17 @@
 #define SHELL_LOG_BUF3_LEN      40
 
 #if (LOG_DEV == DEV_MAILBOX)
-#define SHELL_LOG_BUF1_NUM      2
-#define SHELL_LOG_BUF2_NUM      4
-#define SHELL_LOG_BUF3_NUM      8
-#define SHELL_DYM_LOG_NUM_MAX   50
+#define SHELL_LOG_BUF1_NUM      8
+#define SHELL_LOG_BUF2_NUM      40
+#define SHELL_LOG_BUF3_NUM      40
+#define SHELL_DYM_LOG_NUM_MAX   150
 #endif   //  (LOG_DEV == DEV_MAILBOX)
 
 #if (LOG_DEV == DEV_UART)
-#if CONFIG_RELEASE_VERSION
-#define SHELL_LOG_BUF1_NUM      4
-#define SHELL_LOG_BUF2_NUM      16
-#define SHELL_LOG_BUF3_NUM      32
-#define SHELL_DYM_LOG_NUM_MAX   50
-#else
 #define SHELL_LOG_BUF1_NUM      8
 #define SHELL_LOG_BUF2_NUM      40
 #define SHELL_LOG_BUF3_NUM      60
-#define SHELL_DYM_LOG_NUM_MAX   100
-#endif
+#define SHELL_DYM_LOG_NUM_MAX   200
 #endif   // (LOG_DEV == DEV_UART)
 
 #define SHELL_LOG_BUF_NUM       (SHELL_LOG_BUF1_NUM + SHELL_LOG_BUF2_NUM + SHELL_LOG_BUF3_NUM)

@@ -707,7 +707,7 @@ static int ipc_socket_tx_rsp(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 	
 	ipc_socket_set_addr(ipc_socket, ipc_cmd);
 
-	uint32_t flags = rtos_disable_int();
+	uint32_t flags = rtos_enter_critical();
 	
 	int route_status = ipc_router_send(ipc_route, ipc_cmd);
 
@@ -716,7 +716,7 @@ static int ipc_socket_tx_rsp(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 		ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process.
 	}
 
-	rtos_enable_int(flags);
+	rtos_exit_critical(flags);
 
 	return route_status;
 }
@@ -751,7 +751,7 @@ static int ipc_socket_tx_cmd(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 
 	ipc_socket_set_addr(ipc_socket, ipc_cmd);
 
-	uint32_t flags = rtos_disable_int();
+	uint32_t flags = rtos_enter_critical();
 	
 	int route_status = ipc_router_send(ipc_route, ipc_cmd);
 
@@ -760,7 +760,7 @@ static int ipc_socket_tx_cmd(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 		ipc_socket->run_state |= STATE_TX_IN_PROCESS;
 	}
 
-	rtos_enable_int(flags);
+	rtos_exit_critical(flags);
 
 	return route_status;
 }

@@ -392,11 +392,11 @@ bk_err_t bk_dma2d_register_int_callback_isr(dm2d_isr_id_t isr_id, dma2d_isr_t cb
 	if ((isr_id) >= DMA2D_ISR_NUM)
 		return BK_FAIL;
 
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 
 	s_dma2d_isr[isr_id] = cb_isr;
 
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }

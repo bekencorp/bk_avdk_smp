@@ -260,7 +260,7 @@ static void bk_flash_xip_write_cbus(uint32_t off, const void *src, uint32_t len)
 	if((fa_off+off) & 0x31)  // MUST aligh with 32-byte.
 		return;
 
-	uint32_t int_status =  rtos_disable_int();
+	uint32_t int_status =  rtos_enter_critical();
 #if CONFIG_CACHE_ENABLE
     enable_dcache(0);
 #endif
@@ -270,7 +270,7 @@ static void bk_flash_xip_write_cbus(uint32_t off, const void *src, uint32_t len)
 #if CONFIG_CACHE_ENABLE
     enable_dcache(1);
 #endif
-	rtos_enable_int(int_status);
+	rtos_exit_critical(int_status);
 }
 
 void bk_flash_xip_write_dbus(uint32_t off, const void *src, uint32_t len)

@@ -192,13 +192,13 @@ static uint32_t bk_usbh_to_uart_rx_fifo_get(usbh_simulate_uart_id_config_t *seri
 {
     uint32_t size = 0;
     uint32_t flag;
-	flag = rtos_disable_int();
+	flag = rtos_enter_critical();
 
     if (serial_id->fifo.rx) {
         size = kfifo_get(serial_id->fifo.rx, buf, len);
     }
 
-	rtos_enable_int(flag);
+	rtos_exit_critical(flag);
     return size;
 }
 
@@ -206,13 +206,13 @@ static uint32_t bk_usbh_to_uart_rx_fifo_put(usbh_simulate_uart_id_config_t *seri
 {
     uint32_t size = 0;
     uint32_t flag;
-	flag = rtos_disable_int();
+	flag = rtos_enter_critical();
 
     if (serial_id->fifo.rx) {
         size = kfifo_put(serial_id->fifo.rx, buf, len);
     }
 
-	rtos_enable_int(flag);
+	rtos_exit_critical(flag);
     return size;
 }
 
@@ -220,13 +220,13 @@ static uint32_t bk_usbh_to_uart_rx_size_get(usbh_simulate_uart_id_config_t *seri
 {
     uint32_t size = 0;
     uint32_t flag;
-	flag = rtos_disable_int();
+	flag = rtos_enter_critical();
 
     if (serial_id->fifo.rx) {
         size = kfifo_data_size(serial_id->fifo.rx);
     }
 
-	rtos_enable_int(flag);
+	rtos_exit_critical(flag);
 
     return size;
 }

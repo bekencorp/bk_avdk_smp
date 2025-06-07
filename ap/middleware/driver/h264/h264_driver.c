@@ -56,19 +56,19 @@ static void h264_isr(void);
 
 bk_err_t h264_int_enable(void)
 {
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	sys_drv_int_group2_enable(H264_INTERRUPT_CTRL_BIT);
 	h264_hal_int_config(&s_h264.hal, H264_INT_ENABLE);
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 	return BK_OK;
 }
 
 bk_err_t h264_int_disable(void)
 {
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	h264_hal_int_config(&s_h264.hal, H264_CPU_INT_DISABLE);
 	sys_drv_int_group2_disable(H264_INTERRUPT_CTRL_BIT);
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 	return BK_OK;
 }
 
@@ -501,10 +501,10 @@ bk_err_t bk_h264_register_isr(h264_isr_type_t type_id, h264_isr_t isr, void *par
 	if(type_id >= H264_ISR_MAX) {
 		return BK_ERR_H264_ISR_INVALID_ID;
 	}
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	s_h264.h264_isr_handler[type_id].isr_handler = isr;
 	s_h264.h264_isr_handler[type_id].param = param;
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 	return BK_OK;
 }
 
@@ -513,10 +513,10 @@ bk_err_t bk_h264_unregister_isr(h264_isr_type_t type_id)
 	if(type_id >= H264_ISR_MAX) {
 		return BK_ERR_H264_ISR_INVALID_ID;
 	}
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	s_h264.h264_isr_handler[type_id].isr_handler = NULL;
 	s_h264.h264_isr_handler[type_id].param = NULL;
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 	return BK_OK;
 }
 

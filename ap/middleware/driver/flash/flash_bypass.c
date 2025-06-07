@@ -23,7 +23,7 @@ __attribute__((section(".iram"))) int flash_bypass_op_write(uint8_t *op_code, ui
 	int exceptional_flag = 0;
 	uint32_t reg_sys_clk_en_0xc, reg_sys_clk_sel_0xa;
 
-	int_status =  rtos_disable_int();
+	int_status =  rtos_enter_critical();
 
 	/*step 1, save spi register configuration*/
 	reg_0x2 = REG_READ(SPI_R_0X2(0));
@@ -215,7 +215,7 @@ wr_exceptional:
 	REG_WRITE(SPI_R_0X2(0), reg_0x2);
 
 	/*step 11, enable interrupt*/
-	rtos_enable_int(int_status);
+	rtos_exit_critical(int_status);
 
 	return exceptional_flag;
 }
@@ -230,7 +230,7 @@ __attribute__((section(".iram"))) int flash_bypass_op_read(uint8_t *tx_buf, uint
 	int exceptional_flag = 0;
 	uint32_t reg_sys_clk_en_0xc, reg_sys_clk_sel_0xa;
 
-	int_status =  rtos_disable_int();
+	int_status =  rtos_enter_critical();
 
 	/*step 1, save spi register configuration*/
 	reg_0x2 = REG_READ(SPI_R_0X2(0));
@@ -462,7 +462,7 @@ wr_exceptional:
 	REG_WRITE(SPI_R_0X2(0), reg_0x2);
 
 	/*step 11, enable interrupt*/
-	rtos_enable_int(int_status);
+	rtos_exit_critical(int_status);
 
 	return exceptional_flag;
 }
@@ -1083,7 +1083,7 @@ __attribute__((section(".itcm_sec_code"))) void flash_bypass_quad_enable(void)
 	uint32_t spi_status = 0;
 	volatile uint32_t i, j, delay_count;
 
-	int_status =  rtos_disable_int();
+	int_status =  rtos_enter_critical();
 
 	/*step 1, save spi register configuration*/
 	reg_ctrl = REG_READ(SPI_R_CTRL(0));
@@ -1149,7 +1149,7 @@ __attribute__((section(".itcm_sec_code"))) void flash_bypass_quad_enable(void)
 	REG_WRITE(SPI_R_INT_STATUS(0), reg_stat);
 	REG_WRITE(SPI_R_DATA(0), reg_dat);
 	REG_WRITE(SPI_R_CFG(0), reg_cfg);
-	rtos_enable_int(int_status);
+	rtos_exit_critical(int_status);
 }
 
 
@@ -1162,7 +1162,7 @@ __attribute__((section(".itcm_sec_code"))) void flash_bypass_quad_test(uint32_t 
 	uint32_t spi_status = 0;
 	volatile uint32_t i, j, delay_count;
 
-	int_status =  rtos_disable_int();
+	int_status =  rtos_enter_critical();
 
 	/*step 1, save spi register configuration*/
 	reg_ctrl = REG_READ(SPI_R_CTRL(0));
@@ -1232,7 +1232,7 @@ __attribute__((section(".itcm_sec_code"))) void flash_bypass_quad_test(uint32_t 
 	REG_WRITE(SPI_R_INT_STATUS(0), reg_stat);
 	REG_WRITE(SPI_R_DATA(0), reg_dat);
 	REG_WRITE(SPI_R_CFG(0), reg_cfg);
-	rtos_enable_int(int_status);
+	rtos_exit_critical(int_status);
 }
 
 #endif

@@ -72,7 +72,7 @@ void bk_system_dump(const char *, const int);
 #define BK_ASSERT(exp)                                       \
 do {                                                         \
     if ( !(exp) ) {                                          \
-        rtos_disable_int();                                  \
+        rtos_enter_critical();                                  \
         BK_LOG_FLUSH();                                      \
         BK_ASSERT_DUMP(__FUNCTION__, __LINE__);              \
     }                                                        \
@@ -81,7 +81,7 @@ do {                                                         \
 #define BK_ASSERT_EX(exp, format, ... )                      \
 do {                                                         \
     if ( !(exp) ) {                                          \
-        rtos_disable_int();                                  \
+        rtos_enter_critical();                                  \
         BK_LOG_FLUSH();                                      \
         BK_DUMP_OUT(format, ##__VA_ARGS__);                  \
         BK_ASSERT_DUMP(__FUNCTION__, __LINE__);              \
@@ -93,7 +93,7 @@ do {                                                         \
 #define BK_ASSERT(exp)                                       \
 do {                                                         \
     if ( !(exp) ) {                                          \
-        rtos_disable_int();                                  \
+        rtos_enter_critical();                                  \
         BK_LOG_FLUSH();                                      \
         BK_DUMP_OUT("(%d)Assert at: %s:%d\r\n", rtos_get_time(), __FUNCTION__, __LINE__);    \
         bk_reboot_ex(RESET_SOURCE_CRASH_ASSERT);                                         \
@@ -103,7 +103,7 @@ do {                                                         \
 #define BK_ASSERT_EX(exp, format, ... )                      \
 do {                                                         \
     if ( !(exp) ) {                                          \
-        rtos_disable_int();                                  \
+        rtos_enter_critical();                                  \
         BK_LOG_FLUSH();                                      \
         BK_DUMP_OUT(format, ##__VA_ARGS__);                  \
         BK_DUMP_OUT("(%d)Assert at: %s:%d\r\n", rtos_get_time(), __FUNCTION__, __LINE__);    \

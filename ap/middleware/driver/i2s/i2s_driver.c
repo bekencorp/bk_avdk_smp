@@ -620,10 +620,10 @@ bk_err_t bk_i2s_register_i2s_isr(i2s_isr_id_t isr_id, i2s_isr_t isr, void *param
 {
 	I2S_RETURN_ON_NOT_INIT();
 	I2S_RETURN_ON_INVALID_ISR_ID(isr_id);
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	s_i2s_isr[isr_id].callback = isr;
 	s_i2s_isr[isr_id].param = param;
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }

@@ -2404,11 +2404,11 @@ void sys_hal_set_ana_reg12_dpfms(uint32_t value) {
 
 void sys_hal_set_rott_int_en(uint32_t value)
 {
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 
 	sys_ll_set_cpu1_int_32_63_en_cpu1_rott_int_en(value);
 
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 }
 
 static void sys_hal_delay(volatile uint32_t times)

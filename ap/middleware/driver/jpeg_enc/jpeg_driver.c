@@ -235,7 +235,7 @@ uint32_t bk_jpeg_enc_get_frame_size(void)
 bk_err_t bk_jpeg_enc_register_isr(jpeg_isr_type_t type_id, jpeg_isr_t isr, void *param)
 {
 	JPEG_RETURN_ON_NOT_INIT();
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	s_jpeg.jpeg_isr_handler[type_id].isr_handler = isr;
 	s_jpeg.jpeg_isr_handler[type_id].param = param;
 
@@ -266,7 +266,7 @@ bk_err_t bk_jpeg_enc_register_isr(jpeg_isr_type_t type_id, jpeg_isr_t isr, void 
 			break;
 	}
 
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }
@@ -274,7 +274,7 @@ bk_err_t bk_jpeg_enc_register_isr(jpeg_isr_type_t type_id, jpeg_isr_t isr, void 
 bk_err_t bk_jpeg_enc_unregister_isr(jpeg_isr_type_t type_id)
 {
 	JPEG_RETURN_ON_NOT_INIT();
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	s_jpeg.jpeg_isr_handler[type_id].isr_handler = NULL;
 	s_jpeg.jpeg_isr_handler[type_id].param = NULL;
 
@@ -305,7 +305,7 @@ bk_err_t bk_jpeg_enc_unregister_isr(jpeg_isr_type_t type_id)
 			break;
 	}
 
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 	return BK_OK;
 }
 
@@ -339,7 +339,7 @@ bk_err_t bk_jpeg_enc_encode_config(uint8_t enable, uint16_t up_size, uint16_t lo
 {
 	JPEG_RETURN_ON_NOT_INIT();
 
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 
 	if (enable && low_size > 0 && up_size > low_size)
 	{
@@ -351,7 +351,7 @@ bk_err_t bk_jpeg_enc_encode_config(uint8_t enable, uint16_t up_size, uint16_t lo
 
 	jpeg_encode_size.auto_enable = enable;
 
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }
@@ -360,11 +360,11 @@ bk_err_t bk_jpeg_enc_soft_reset(void)
 {
 	JPEG_RETURN_ON_NOT_INIT();
 
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 
 	jpeg_hal_soft_reset(&s_jpeg.hal);
 
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 
 	return BK_OK;
 }

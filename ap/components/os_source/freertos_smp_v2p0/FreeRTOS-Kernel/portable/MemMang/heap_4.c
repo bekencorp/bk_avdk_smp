@@ -733,7 +733,7 @@ __attribute__((section(".iram")))void CheckFreeList(void)
 {
 	BlockLink_t *pxIterator;
 	uint32_t i = 0;
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 	
 	for( pxIterator = &xStart; (pxIterator->pxNextFreeBlock != pxEnd) && (i < FREE_LIST_RECORD_MAX); pxIterator = pxIterator->pxNextFreeBlock )
 	{
@@ -753,7 +753,7 @@ __attribute__((section(".iram")))void CheckFreeList(void)
 			BK_ASSERT(0);
 	}
 #endif
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 }
 #endif
 
@@ -1609,14 +1609,14 @@ uint8_t *puc;
 #if CONFIG_MEM_DEBUG_OVERFLOW
    
 	uint32_t i = 0;
-	uint32_t int_level = rtos_disable_int();
+	uint32_t int_level = rtos_enter_critical();
 
 	for( pxIterator = &xStart; (pxIterator->pxNextFreeBlock != pxEnd) && i < FREE_LIST_RECORD_MAX; pxIterator = pxIterator->pxNextFreeBlock )
 	{
 		/* bak all free nodes to list */
 		s_freelist_records[i++] = (uint32_t)pxIterator->pxNextFreeBlock;
 	}
-	rtos_enable_int(int_level);
+	rtos_exit_critical(int_level);
 #endif
 }
 
