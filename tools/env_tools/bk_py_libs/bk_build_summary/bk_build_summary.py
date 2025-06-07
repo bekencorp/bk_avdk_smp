@@ -1,0 +1,217 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from . import logger
+
+
+@dataclass
+class Elf_Memory_Info:
+    name: str
+    addr: int
+    region_size: int
+    used_size: int
+    usage: str
+
+
+def find_string_in_file(file_path: Path, target: str):
+    target_bytes = target.encode("utf-8")
+    buffer_size = 4096
+    offset = 0
+    global_offset = 0
+    column_number = 0
+    try:
+        with file_path.open("rb") as file:
+            while True:
+                buffer = file.read(buffer_size)
+                if not buffer:
+                    raise EOFError("not found")
+                position = buffer.find(target_bytes)
+                if position != -1:
+                    global_offset = offset + position
+                    last_newline = buffer.rfind(b"\n", 0, position)
+                    column_number = (
+                        position - last_newline if last_newline != -1 else position + 1
+                    )
+                    break
+                offset += len(buffer)
+    except FileNotFoundError:
+        logger.error(f"file '{file_path}' not exist.")
+    except Exception as e:
+        logger.error(f"read file error: {e}")
+
+    return global_offset, column_number
+
+
+class bk_build_summary:
+    def __init__(self) -> None:
+        self.partitions_info = None
+        self.app_folder: list[tuple[str, Path]] = []
+        self.out_info = None
+
+    def set_partitions_info(self, part_info: Path) -> None:
+        if not part_info.exists():
+            msg = f"{part_info} not exists"
+            raise RuntimeError(msg)
+
+        self.partitions_info = part_info
+
+    def set_app_folder(self, app_name: str, app_path: Path) -> None:
+        if not app_name:
+            raise RuntimeError("app name is not valid.")
+        if not app_path.is_dir():
+            raise RuntimeError("app path not exist.")
+        self.app_folder.append((app_name, app_path))
+
+    def set_output_file_info(self, out_info: str):
+        self.out_info = out_info
+
+    def gen_summary(self, output_file: Path) -> None:
+        if output_file.exists():
+            output_file.unlink()
+
+        summary = ""
+        summary += self._get_header()
+        if self.partitions_info:
+            summary += f"{' Partitions Table ':=^52}\n"
+            summary += self.partitions_info.read_text()
+
+        if len(self.app_folder):
+            summary += self._get_apps_memory()
+
+        if self.out_info:
+            summary += f"{' Output Info ':=^52}\n"
+            summary += self.out_info
+
+        logger.info(f"save build summary to {output_file}")
+        with output_file.open("w", newline="\n") as f:
+            f.write(summary)
+
+    def _get_header(self) -> str:
+        head_title = "  BUILD  SUMMARY  "
+        head = ""
+        separete_line = f"{'':-^52}\n"
+        head += separete_line
+        head += f"{head_title:-^52}\n"
+        head += separete_line
+        return head
+
+    def _get_apps_memory(self) -> str:
+        memory_info = ""
+        memory_info += f"{' APP Memory Info ':=^52}\n"
+        for app in self.app_folder:
+            app_name = app[0]
+            app_path = app[1]
+            memory_info += self._get_app_mem_info(app_name, app_path)
+        return memory_info
+
+    @classmethod
+    def _get_app_mem_info(cls, app_name: str, app_path: Path):
+        mem_info = ""
+        map_file = app_path / "app.map"
+        mem_file = app_path / "app_memory.txt"
+        mem_info += f">>>>>>>>>> {app_name}\n"
+        prerequisite = True
+        if not map_file.exists():
+            logger.warning(f"{map_file} not exists.")
+            prerequisite = False
+        if not mem_file.exists():
+            logger.warning(f"{mem_file} not exists.")
+            prerequisite = False
+
+        try:
+            link_info = cls._get_link_info(mem_file)
+            map_info = cls._get_map_info(map_file)
+            mem_info += cls._combine_link_and_map_info(link_info, map_info)
+        except RuntimeError:
+            prerequisite = False
+        if not prerequisite:
+            mem_info += "no found memory info"
+        mem_info += f"<<<<<<<<<< {app_name}\n"
+        return mem_info
+
+    @classmethod
+    def _combine_link_and_map_info(
+        cls,
+        link_info: list[tuple[str, int, int, str]],
+        map_info: list[tuple[str, int, int]],
+    ):
+        if len(link_info) != len(map_info):
+            raise RuntimeError("map and link len not align")
+        mem_region_info = ""
+
+        mem_region_info += (
+            f"{'name':<10}"
+            + f"{' addr':^11}"
+            + f"{' size':^11}"
+            + f"{'used ':>11}"
+            + f"{'usage':>9}"
+            + "\n"
+        )
+        mem_region_info += f"{'':-^52}\n"
+        for index in range(len(link_info)):
+            link_name, link_used_size, link_size, link_usage_rate = link_info[index]
+            map_name, map_addr, map_size = map_info[index]
+            if link_name != map_name or link_size != map_size:
+                raise RuntimeError("data invalid")
+            mem_region_info += f"{link_name:<10}"  # 10
+            mem_region_info += f" 0x{map_addr:08x}"  # 11
+            mem_region_info += f" 0x{map_size:08x}"  # 11
+            mem_region_info += f" {link_used_size:>8} B"  # 11
+            mem_region_info += f"{link_usage_rate:>9}\n"
+        return mem_region_info
+
+    @classmethod
+    def _get_map_info(cls, map_file: Path):
+        all_mem_info: list[tuple[str, int, int]] = []
+
+        try:
+            offset, _ = find_string_in_file(map_file, "Memory Configuration")
+        except EOFError:
+            return all_mem_info
+
+        with map_file.open("r") as f:
+            f.seek(offset)
+            raw_mem_info: str = f.read(1024)
+
+        start = raw_mem_info.find("FLASH")
+        end = raw_mem_info.find("*default")
+        mem_regions = raw_mem_info[start:end].strip().split("\n")
+
+        for mem in mem_regions:
+            mem_info = mem.split()
+            mem_name = mem_info[0]
+            mem_addr = int(mem_info[1], 16)
+            mem_size = int(mem_info[2], 16)
+            all_mem_info.append((mem_name, mem_addr, mem_size))
+        return all_mem_info
+
+    @classmethod
+    def _get_link_info(cls, mem_file: Path):
+        def get_size(size_unit: str):
+            if size_unit.upper() == "B":
+                return 1
+            elif size_unit.upper() == "KB":
+                return 1024
+            elif size_unit.upper() == "MB":
+                return 1024 * 1024
+            elif size_unit.upper() == "GB":
+                return 1024 * 1024 * 1024
+            raise RuntimeError("unknown size unit")
+
+        mem_info: list[tuple[str, int, int, str]] = []
+        raw_link_mem_info = mem_file.read_text().strip().replace(":", "")
+        start = raw_link_mem_info.find("FLASH")
+
+        link_mem_info = raw_link_mem_info[start:]
+        lines = link_mem_info.split("\n")
+
+        for line in lines:
+            info = line.split()
+            name = info[0]
+            used_size = int(info[1]) * get_size(info[2])
+            region_size = int(info[3]) * get_size(info[4])
+            usage_rate = info[5]
+            mem_info.append((name, used_size, region_size, usage_rate))
+        return mem_info

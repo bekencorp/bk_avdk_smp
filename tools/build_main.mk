@@ -70,6 +70,10 @@ ifdef USE_LIBS_DETERMINED_MODE
 	export ARMINO_WRAPPER_NEW_PATH := /armino_avdk_smp
 endif
 
+ifndef PRINT_SUMMARY
+	PRINT_SUMMARY := 1
+endif
+
 .PHONY: all_targets
 
 help:
@@ -142,12 +146,15 @@ print_partitions: auto_partition
 	@echo ====================================================
 
 package_script := $(ARMINO_AVDK_DIR)/tools/bk_smp_package.py
-package_dir = $(PROJECT_BUILD_DIR)/package
-package_json = $(PARTITIONS_DIR)/bk_package.json
+package_dir := $(PROJECT_BUILD_DIR)/package
+package_json := $(PARTITIONS_DIR)/bk_package.json
+build_summary := $(package_dir)/build_summary.txt
 package: $(package_script) $(ARMINO_SOC)_cp $(soc_targets_ap)
 	@mkdir -p $(package_dir)
-	@echo $(package_script) $(PROJECT_BUILD_DIR) $(package_json)
-	@python3 $(package_script) $(PROJECT_BUILD_DIR) $(package_json)
+	@python3 $(package_script) $(PROJECT_BUILD_DIR) $(package_json) $(build_summary)
+ifneq ($(PRINT_SUMMARY), 0)
+	@cat $(build_summary)
+endif
 
 ap_doc:
 	@make doc ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) -C $(ARMINO_AP_DIR)

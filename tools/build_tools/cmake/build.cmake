@@ -629,12 +629,6 @@ function(armino_build_executable bin)
 
     # Add dependency of the build target to the executable
     add_dependencies(${bin} __armino_build_target)
- 
-    if (EXISTS "$ENV{ARMINO_PATH}/middleware/boards/${ARMINO_SOC}/${ARMINO_SOC}.wrapper")
-        set(armino_pack "$ENV{ARMINO_PATH}/middleware/boards/${ARMINO_SOC}/${ARMINO_SOC}.wrapper")
-    else()
-        set(armino_pack "${armino_tools_path}/env_tools/beken_packager/cmake_packager_wrapper")
-    endif()
 
     set(target ${ARMINO_SOC})
 
@@ -651,13 +645,6 @@ function(armino_build_executable bin)
         endif()
     endforeach()
 
-    set(wrapper_cmd COMMAND ${python} ${armino_pack} -n all-${bin_name}.bin -f ${bin_name}.bin -c ${ARMINO_SOC})
-    if ("${target}" STREQUAL "bk7258")
-        set(wrapper_cmd COMMAND ${python} ${armino_pack} pack)
-    elseif ( "${target}" STREQUAL "bk7258_ap")
-        set(wrapper_cmd)
-    endif()
-    set(wrapper_cmd)
     set(objdump_cmd)
     if(objdump_config EQUAL 1)
         set(objdump_cmd COMMAND ${armino_objdump} -d ${bin_dir}/${bin} > ${bin_dir}/${bin_name}.lst)
@@ -668,7 +655,6 @@ function(armino_build_executable bin)
         COMMAND "${armino_readelf}" -a -h -l -S -g -s "${bin_dir}/${bin}" > "${bin_dir}/${bin_name}.txt"
         COMMAND "${armino_nm}" -n -l -C -a -A -g "${bin_dir}/${bin}" > "${bin_dir}/${bin_name}.nm"
         COMMAND ${objdump_cmd}
-        COMMAND ${wrapper_cmd}
         DEPENDS ${bin}
         VERBATIM
         WORKING_DIRECTORY ${bin_dir}
