@@ -18,13 +18,39 @@
 #include <os/str.h>
 #include "uvc_urb_list.h"
 #include <driver/media_types.h>
-
+#ifdef CONFIG_FREERTOS_SMP
+#include "spinlock.h"
+#endif
 #define TAG "uvc_urb"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+
+#ifdef CONFIG_FREERTOS_SMP
+static SPINLOCK_SECTION volatile spinlock_t urb_spin_lock = SPIN_LOCK_INIT;
+#endif
+
+static inline uint32_t urb_enter_critical()
+{
+    uint32_t flags = rtos_disable_int();
+
+#ifdef CONFIG_FREERTOS_SMP
+   spin_lock(&urb_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   return flags;
+}
+
+static inline void urb_exit_critical(uint32_t flags)
+{
+#ifdef CONFIG_FREERTOS_SMP
+   spin_unlock(&urb_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   rtos_enable_int(flags);
+}
 
 uvc_urb_list_t g_uvc_list = {0};
 
@@ -43,8 +69,6 @@ bk_err_t uvc_camera_urb_list_init(void)
 
     INIT_LIST_HEAD(&mem_list->free);
     INIT_LIST_HEAD(&mem_list->ready);
-
-    rtos_init_mutex(&mem_list->lock);
 
     rtos_init_semaphore(&mem_list->sem, 1);
 
@@ -121,19 +145,13 @@ bk_err_t uvc_camera_urb_list_deinit(void)
     uvc_urb_node_t *tmp = NULL;
     LIST_HEADER_T *pos, *n;
 
-    GLOBAL_INT_DECLARATION();
-
     mem_list = &g_uvc_list;
-
 
     if (mem_list->enable == false)
     {
         LOGE("%s already deinit\n", __func__);
         return ret;
     }
-
-    rtos_lock_mutex(&mem_list->lock);
-    GLOBAL_INT_DISABLE();
 
     if (!list_empty(&mem_list->free))
     {
@@ -174,10 +192,7 @@ bk_err_t uvc_camera_urb_list_deinit(void)
 
     mem_list->enable = false;
 
-    GLOBAL_INT_RESTORE();
-    rtos_unlock_mutex(&mem_list->lock);
     rtos_deinit_semaphore(&mem_list->sem);
-    rtos_deinit_mutex(&mem_list->lock);
 
     LOGI("uvc urb list deinit finish\n");
 
@@ -190,8 +205,6 @@ void uvc_camera_urb_list_clear(void)
     uvc_urb_node_t *tmp = NULL;
     LIST_HEADER_T *pos, *n;
 
-    GLOBAL_INT_DECLARATION();
-
     mem_list = &g_uvc_list;
 
     if (mem_list->enable == false)
@@ -200,8 +213,7 @@ void uvc_camera_urb_list_clear(void)
         return;
     }
 
-    rtos_lock_mutex(&mem_list->lock);
-    GLOBAL_INT_DISABLE();
+    uint32_t flag = urb_enter_critical();
 
     list_for_each_safe(pos, n, &mem_list->ready)
     {
@@ -213,8 +225,7 @@ void uvc_camera_urb_list_clear(void)
         }
     }
 
-    GLOBAL_INT_RESTORE();
-    rtos_unlock_mutex(&mem_list->lock);
+    urb_exit_critical(flag);
 }
 
 struct usbh_urb *uvc_camera_urb_malloc(void)
@@ -222,9 +233,6 @@ struct usbh_urb *uvc_camera_urb_malloc(void)
     uvc_urb_list_t *mem_list = NULL;
     uvc_urb_node_t *tmp = NULL, *node = NULL;
     LIST_HEADER_T *pos, *n;
-    uint32_t isr_context = platform_is_in_interrupt_context();
-
-    GLOBAL_INT_DECLARATION();
 
     mem_list = &g_uvc_list;
 
@@ -234,11 +242,7 @@ struct usbh_urb *uvc_camera_urb_malloc(void)
         return NULL;
     }
 
-    if (!isr_context)
-    {
-        rtos_lock_mutex(&mem_list->lock);
-        GLOBAL_INT_DISABLE();
-    }
+    uint32_t flag = urb_enter_critical();
 
     list_for_each_safe(pos, n, &mem_list->free)
     {
@@ -251,11 +255,7 @@ struct usbh_urb *uvc_camera_urb_malloc(void)
         }
     }
 
-    if (!isr_context)
-    {
-        GLOBAL_INT_RESTORE();
-        rtos_unlock_mutex(&mem_list->lock);
-    }
+    urb_exit_critical(flag);
 
     if (node == NULL)
     {
@@ -278,7 +278,6 @@ struct usbh_urb *uvc_camera_urb_malloc(void)
 void uvc_camera_urb_free(struct usbh_urb *urb)
 {
     uvc_urb_list_t *mem_list = NULL;
-    uint32_t isr_context = platform_is_in_interrupt_context();
     uvc_urb_node_t *node = NULL;
 
     mem_list = &g_uvc_list;
@@ -289,32 +288,19 @@ void uvc_camera_urb_free(struct usbh_urb *urb)
         return;
     }
 
-    GLOBAL_INT_DECLARATION();
-
-    if (!isr_context)
-    {
-        rtos_lock_mutex(&mem_list->lock);
-        GLOBAL_INT_DISABLE();
-    }
+    uint32_t flag = urb_enter_critical();
 
     node = list_entry(urb, uvc_urb_node_t, urb);
     urb->pipe = NULL;
     list_add_tail(&node->list, &mem_list->free);
 
-    if (!isr_context)
-    {
-        GLOBAL_INT_RESTORE();
-        rtos_unlock_mutex(&mem_list->lock);
-    }
+    urb_exit_critical(flag);
 }
 
 void uvc_camera_urb_push(struct usbh_urb *urb)
 {
     uvc_urb_list_t *mem_list = NULL;
     uvc_urb_node_t *node = list_entry(urb, uvc_urb_node_t, urb);
-    uint32_t isr_context = platform_is_in_interrupt_context();
-
-    GLOBAL_INT_DECLARATION();
 
     mem_list = &g_uvc_list;
 
@@ -324,19 +310,11 @@ void uvc_camera_urb_push(struct usbh_urb *urb)
         return;
     }
 
-    if (!isr_context)
-    {
-        rtos_lock_mutex(&mem_list->lock);
-        GLOBAL_INT_DISABLE();
-    }
+    uint32_t flag = urb_enter_critical();
 
     list_add_tail(&node->list, &mem_list->ready);
 
-    if (!isr_context)
-    {
-        GLOBAL_INT_RESTORE();
-        rtos_unlock_mutex(&mem_list->lock);
-    }
+    urb_exit_critical(flag);
 
     rtos_set_semaphore(&mem_list->sem);
 }
@@ -347,8 +325,6 @@ struct usbh_urb *uvc_camera_urb_pop(void)
     uvc_urb_node_t *tmp = NULL, *node = NULL;
     LIST_HEADER_T *pos, *n;
 
-    GLOBAL_INT_DECLARATION();
-
     mem_list = &g_uvc_list;
 
     if (mem_list->enable == false)
@@ -357,8 +333,7 @@ struct usbh_urb *uvc_camera_urb_pop(void)
         return NULL;
     }
 
-    rtos_lock_mutex(&mem_list->lock);
-    GLOBAL_INT_DISABLE();
+    uint32_t flag = urb_enter_critical();
 
     list_for_each_safe(pos, n, &mem_list->ready)
     {
@@ -371,8 +346,7 @@ struct usbh_urb *uvc_camera_urb_pop(void)
         }
     }
 
-    GLOBAL_INT_RESTORE();
-    rtos_unlock_mutex(&mem_list->lock);
+    urb_exit_critical(flag);
 
     if (node == NULL)
     {

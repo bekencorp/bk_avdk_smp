@@ -102,7 +102,8 @@ static bk_err_t uvc_camera_stream_check_config(camera_param_t *param)
 
     bk_usb_hub_port_info *uvc_port_info = param->port_info;
     uvc_config_t *user_config = param->info;
-    LOGI("%s, %d, port:%d, format:%d\r\n", __func__, __LINE__, user_config->port, user_config->img_format);
+    LOGI("%s, %d, port:%d, format:%d, W*H:%d*%d\r\n", __func__, __LINE__, user_config->port, user_config->img_format,
+        user_config->width, user_config->height);
 
     bk_uvc_device_brief_info_t *uvc_device_param = (bk_uvc_device_brief_info_t *)uvc_port_info->usb_device_param;
     bk_uvc_config_t *uvc_device_param_config = (bk_uvc_config_t *)uvc_port_info->usb_device_param_config;
@@ -661,7 +662,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
 
     if (uvc_param->camera_state != UVC_CONNECT_STATE || uvc_handle->pro_enable == false)
     {
-        LOGE("%s, state:%d, pro_task:%d\r\n", __func__, uvc_param->camera_state, uvc_handle->pro_enable);
+        LOGE("%s, state:%d, pro_task:%d\n", __func__, uvc_param->camera_state, uvc_handle->pro_enable);
         ret = BK_UVC_DISCONNECT;
         goto out;
     }
@@ -669,7 +670,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
     // setp 1 check presuppose frame_info
     if (uvc_param->info == NULL)
     {
-        LOGE("%s, camera presuppose frame_info is empty....\r\n", __func__);
+        LOGE("%s, camera presuppose frame_info is empty....\n", __func__);
         ret = BK_UVC_NO_RESOURCE;
         goto out;
     }
@@ -680,7 +681,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
     ret = uvc_camera_stream_check_config(uvc_param);
     if (ret != BK_OK)
     {
-        LOGE("%s, not support this solution, please retry...\r\n", __func__);
+        LOGE("%s, not support this solution, please retry...\n", __func__);
         ret = BK_UVC_PPI_ERROR;
         goto out;
     }
@@ -696,7 +697,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
         ret = uvc_separate_packet_cb.uvc_init_packet_cb(uvc_param->info, 1, &uvc_handle->callback);
         if (ret != BK_OK)
         {
-            LOGE("%s, %d\r\n", __func__, __LINE__);
+            LOGE("%s, %d\n", __func__, __LINE__);
             ret = BK_UVC_NO_MEMORY;
             goto out;
         }
@@ -706,7 +707,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
     uvc_param->stream = uvc_handle->callback.frame_init(uvc_param->info->port, UVC_CAMERA, uvc_param->info->img_format);
     if (uvc_param->stream == NULL)
     {
-        LOGE("%s, %d not register callback, or stream create fail\r\n", __func__, __LINE__);
+        LOGE("%s, %d not register callback, or stream create fail\n", __func__, __LINE__);
         ret = BK_UVC_NOT_PERMIT;
         goto out;
     }
@@ -1377,10 +1378,7 @@ static void uvc_camera_process_task_deinit(uvc_stream_handle_t *handle)
     uvc_pro_config_t *pro_config = handle->pro_config;
     if (pro_config && handle->pro_enable)
     {
-        GLOBAL_INT_DECLARATION();
-        GLOBAL_INT_DISABLE();
         handle->pro_enable = false;
-        GLOBAL_INT_RESTORE();
 
         xEventGroupWaitBits(handle->handle, UVC_PROCESS_TASK_DISABLE_BIT, true, true, BEKEN_WAIT_FOREVER);
 

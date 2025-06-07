@@ -151,8 +151,6 @@ camera_param_t *uvc_camera_stream_node_get_by_port_and_format(uvc_stream_handle_
         return NULL;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
     if (!list_empty(&handle->list))
     {
         list_for_each_safe(pos, n, &handle->list)
@@ -170,8 +168,6 @@ camera_param_t *uvc_camera_stream_node_get_by_port_and_format(uvc_stream_handle_
         }
     }
 
-    GLOBAL_INT_RESTORE();
-
     return node;
 }
 
@@ -186,8 +182,6 @@ camera_param_t *uvc_camera_stream_node_get_by_port_info(uvc_stream_handle_t *han
         return NULL;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
     if (!list_empty(&handle->list))
     {
         list_for_each_safe(pos, n, &handle->list)
@@ -205,8 +199,6 @@ camera_param_t *uvc_camera_stream_node_get_by_port_info(uvc_stream_handle_t *han
         }
     }
 
-    GLOBAL_INT_RESTORE();
-
     return node;
 }
 
@@ -221,9 +213,6 @@ bool uvc_camera_stream_check_all_uvc_closed(uvc_stream_handle_t *handle)
         return all_closed;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
-
     if (!list_empty(&handle->list))
     {
         list_for_each_safe(pos, n, &handle->list)
@@ -236,8 +225,6 @@ bool uvc_camera_stream_check_all_uvc_closed(uvc_stream_handle_t *handle)
             }
         }
     }
-
-    GLOBAL_INT_RESTORE();
 
     return all_closed;
 }
