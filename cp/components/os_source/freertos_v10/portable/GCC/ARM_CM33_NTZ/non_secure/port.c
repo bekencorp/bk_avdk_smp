@@ -45,6 +45,8 @@
 #include "bk_wdt.h"
 #include "bk_aon_wdt.h"
 #include "sys_ll.h"
+#include "bk_pm_internal_api.h"
+#include <driver/pwr_clk.h>
 
 #if ( configENABLE_TRUSTZONE == 1 )
     /* Secure components includes. */
@@ -1291,6 +1293,20 @@ void vApplicationIdleHook( void )
 #if (CONFIG_TASK_WDT)
     extern void bk_task_wdt_feed(void);
     bk_task_wdt_feed();
+#endif
+#if (CONFIG_CPU_CNT > 1)
+	uint32_t cp1_psram_malloc_count_state       = 0;
+	if(bk_pm_low_vol_vote_state_get())
+	{
+        /*Get ap psram memory malloc usage*/
+		cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count(0);
+		pm_cp1_psram_malloc_count_state_set(cp1_psram_malloc_count_state);
+		//pm_debug_module_state();
+	}
+	if(bk_pm_cp1_recovery_all_state_get())
+	{
+		bk_pm_module_check_cp1_shutdown();
+	}
 #endif
 }
 

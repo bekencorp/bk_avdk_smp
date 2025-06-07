@@ -2,9 +2,6 @@
 #include <driver/aon_rtc.h>
 #include <driver/aon_rtc_types.h>
 #endif
-#include "bk_pm_internal_api.h"
-#include <driver/pwr_clk.h>
-
 #define TAG "os"
 
 #if CONFIG_AON_RTC
