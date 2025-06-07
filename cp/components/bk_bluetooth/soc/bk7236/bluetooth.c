@@ -89,6 +89,31 @@ static bk_err_t bluetooth_int_isr_register_wrapper(uint8_t type, void *isr, void
     return bk_int_isr_register(src, (int_group_isr_t)isr, arg);
 }
 
+static bk_err_t bluetooth_int_isr_unregister_wrapper(uint8_t type)
+{
+    icu_int_src_t src = INT_SRC_BTDM;
+
+    if (type == BLUETOOTH_INT_SRC_BTDM)
+    {
+        src = INT_SRC_BTDM;
+    }
+    else if (type == BLUETOOTH_INT_SRC_BLE)
+    {
+        src = INT_SRC_BLE;
+    }
+    else if (type == BLUETOOTH_INT_SRC_BT)
+    {
+        src = INT_SRC_BT;
+    }
+    else
+    {
+        //error
+        return -1;
+    }
+
+    return bk_int_isr_unregister(src);
+}
+
 static bk_err_t init_queue_wrapper(void **queue, const char *name, uint32_t message_size, uint32_t number_of_messages)
 {
     return rtos_init_queue(queue, name, message_size, number_of_messages);
@@ -1246,6 +1271,7 @@ static struct bt_osi_funcs_t bt_osi_funcs =
     ._ble_enter_dut = ble_enter_dut,
     ._ble_exit_dut = ble_exit_dut,
     ._set_bluetooth_power_level = set_bluetooth_power_level,
+    ._bluetooth_int_isr_unregister = bluetooth_int_isr_unregister_wrapper,
 };
 
 int bk_bt_os_adapter_init(void)
