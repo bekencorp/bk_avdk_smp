@@ -209,6 +209,7 @@ void bk_wifi_init(void)
     if (wifi_is_inited())
     {
         WDRV_LOGI("wifi already init!\n");
+        host_wlan_remove_netif();
     }
 
     bk_wifi_sta_get_mac((uint8_t *)mac);
@@ -216,7 +217,7 @@ void bk_wifi_init(void)
     //ToDo: AP Netif should add separated
     //bk_wifi_ap_get_mac((uint8_t *)mac);
     //host_wlan_add_netif(mac);
-    
+
     wifi_set_state_bit(WIFI_INIT_BIT);
     WDRV_LOGI("wifi inited(%x)\n", s_wifi_state_bits);
 
@@ -284,11 +285,6 @@ bk_err_t bk_wifi_scan_start(const wifi_scan_config_t *config)
     cmd_cfm.cfm_id = 0;
 
     WDRV_LOGI("scaning\n");
-
-    if (!wifi_is_inited()) {
-        WDRV_LOGI("start scan fail, wifi not init\n");
-        return BK_ERR_WIFI_NOT_INIT;
-    }
 
     wifi_scan_init_global_config();
 
@@ -465,7 +461,11 @@ void bk_wifi_ap_init(void)
     uint8_t mac[ETH_ALEN];
 
     if(wifi_is_inited())
+    {
         WDRV_LOGI("wifi already init, reinit anyway!\n");
+        uap_ip_down();
+        host_wlan_remove_sap_netif();
+    }
 
     bk_wifi_ap_get_mac((uint8_t *)mac);
     host_wlan_add_netif(mac);
@@ -669,6 +669,8 @@ bk_err_t bk_wifi_ap_stop(void)
     wdrv_tx_msg((uint8_t *)&stop_ap_req, sizeof(stop_ap_req), &stop_ap_req.cmd_cfm, NULL);
 
     WDRV_LOGI("ap stopped\n");
+    uap_ip_down();
+    host_wlan_remove_sap_netif();
     wifi_clear_state_bit(WIFI_AP_STARTED_BIT);
     return BK_OK;
 }

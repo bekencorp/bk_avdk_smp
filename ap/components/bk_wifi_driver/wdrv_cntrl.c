@@ -297,6 +297,7 @@ void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
 void wdrv_rx_handle_event(wdrv_rx_msg *msg)
 {
     WDRV_LOGI("%s,%d\n",__func__,__LINE__);
+    //int loop_idx = 0;
     switch(msg->id) {
         case BK_EVT_CONNECT_IND:
             wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_CONNECTED;
@@ -344,6 +345,21 @@ void wdrv_rx_handle_event(wdrv_rx_msg *msg)
         case BK_EVT_SCAN_WIFI_IND:
             WDRV_LOGD("BK_EVT_SCAN_WIFI_IND\n");
             wdrv_notify_scan_done(msg->param, msg->param_len);
+#if 0
+            os_memcpy(&wdrv_host_env.scan_wifi_cfm, msg->param, sizeof(struct wdrv_scan_result_cfm) * MAX_SCAN_AP_NUM);
+            wdrv_host_env.scan_wifi_cfm_ptr = wdrv_host_env.scan_wifi_cfm;
+            do {
+                os_printf("%2d:(%3d dBm) CH=%3d AKM=%3d BSSID=%02x:%02x:%02x:%02x:%02x:%02x SSID=%s\n",
+                wdrv_host_env.scan_wifi_cfm_ptr->scan_num, wdrv_host_env.scan_wifi_cfm_ptr->rssi,
+                wdrv_host_env.scan_wifi_cfm_ptr->channal,  wdrv_host_env.scan_wifi_cfm_ptr->akm,
+                wdrv_host_env.scan_wifi_cfm_ptr->bssid[0], wdrv_host_env.scan_wifi_cfm_ptr->bssid[1],
+                wdrv_host_env.scan_wifi_cfm_ptr->bssid[2], wdrv_host_env.scan_wifi_cfm_ptr->bssid[3],
+                wdrv_host_env.scan_wifi_cfm_ptr->bssid[4], wdrv_host_env.scan_wifi_cfm_ptr->bssid[5],
+                wdrv_host_env.scan_wifi_cfm_ptr->ssid);
+                wdrv_host_env.scan_wifi_cfm_ptr++;
+                loop_idx++;
+            } while(loop_idx != MAX_SCAN_AP_NUM && wdrv_host_env.scan_wifi_cfm_ptr->scan_num != 0);
+#endif
             break;
     }
 }

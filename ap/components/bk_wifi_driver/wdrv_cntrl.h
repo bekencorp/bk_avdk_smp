@@ -563,6 +563,17 @@ struct wdrv_wlan_status_cfm
     char  dns[NETIF_IP4_STR_LEN];
 };
 
+struct wdrv_scan_result_cfm
+{
+    uint8_t  scan_num;
+    int8_t   rssi;
+    uint8_t  bssid[6];
+    uint8_t  ssid[SSID_MAX_LEN];
+    uint32_t  akm;
+    int      channal;
+};
+
+
 /* event-table from CP to AP */
 enum BK_EVENT_TYPE
 {
@@ -606,6 +617,8 @@ typedef struct _wdrv_wlan {
     struct wdrv_wlan_status_cfm get_wlan_cfm;
     struct wdrv_connect_ind connect_ind;
     struct wdrv_ap_status_cfm ap_status_cfm;
+    struct wdrv_scan_result_cfm *scan_wifi_cfm_ptr;
+    struct wdrv_scan_result_cfm scan_wifi_cfm[MAX_SCAN_AP_NUM];
 
 }wdrv_wlan;
 
