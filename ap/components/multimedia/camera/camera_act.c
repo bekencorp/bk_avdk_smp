@@ -49,7 +49,7 @@ static void camera_uvc_device_info_notify_to_cp0(bk_usb_hub_port_info *info, uin
         uvc_state_cb(info, state);
     }
 #if CONFIG_MEDIA_PIPELINE
-    if (state == UVC_DISCONNECT_STATE)
+    if (state == BK_UVC_DISCONNECT)
     {
         jpeg_decode_restart();
     }
