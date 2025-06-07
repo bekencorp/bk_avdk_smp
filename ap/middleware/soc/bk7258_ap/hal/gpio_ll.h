@@ -254,8 +254,10 @@ static inline void gpio_ll_set_perial_mode(gpio_hw_t *hw, uint32 index, uint32_t
 		REG_MCHAN_SET_FIELD(index-GPIO_24, &gpio_system_gpio_func_mode->gpio_sys_num[3], GPIO_F_PERIAL_MODE, mode);
 	else if (index < GPIO_40)
 		REG_MCHAN_SET_FIELD(index-GPIO_32, &gpio_system_gpio_func_mode->gpio_sys_num[4], GPIO_F_PERIAL_MODE, mode);
-	else
+	else if (index < GPIO_48)
 		REG_MCHAN_SET_FIELD(index-GPIO_40, &gpio_system_gpio_func_mode->gpio_sys_num[5], GPIO_F_PERIAL_MODE, mode);
+	else
+		REG_MCHAN_SET_FIELD(index-GPIO_48, &gpio_system_gpio_func_mode->gpio_sys_num[6], GPIO_F_PERIAL_MODE, mode);
 }
 
 static inline uint32 gpio_ll_get_perial_mode(gpio_hw_t *hw, uint32 index)
@@ -270,8 +272,10 @@ static inline uint32 gpio_ll_get_perial_mode(gpio_hw_t *hw, uint32 index)
 		return ((REG_MCHAN_GET_FIELD(index-GPIO_24, &gpio_system_gpio_func_mode->gpio_sys_num[3], GPIO_F_PERIAL_MODE)));
 	else if (index < GPIO_40)
 		return ((REG_MCHAN_GET_FIELD(index-GPIO_32, &gpio_system_gpio_func_mode->gpio_sys_num[4], GPIO_F_PERIAL_MODE)));
-	else
+	else if (index < GPIO_48)
 		return ((REG_MCHAN_GET_FIELD(index-GPIO_40, &gpio_system_gpio_func_mode->gpio_sys_num[5], GPIO_F_PERIAL_MODE)));
+	else
+		return ((REG_MCHAN_GET_FIELD(index-GPIO_48, &gpio_system_gpio_func_mode->gpio_sys_num[6], GPIO_F_PERIAL_MODE)));
 }
 
 #define gpio_ll_set_gpio_perial_mode(hw, index, mode) gpio_ll_set_perial_mode(hw, index, mode)
