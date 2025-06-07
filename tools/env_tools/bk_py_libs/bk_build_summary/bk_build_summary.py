@@ -7,31 +7,33 @@ from . import logger
 
 def find_string_in_file(file_path: Path, target: str):
     target_bytes = target.encode("utf-8")
+    target_len = len(target_bytes)
     buffer_size = 4096
-    offset = 0
-    global_offset = -1
-    column_number = 0
+
     try:
         with file_path.open("rb") as file:
+            offset = 0
+            prev_chunk = b""
+
             while True:
-                buffer = file.read(buffer_size)
-                if not buffer:
-                    raise EOFError(f"not found '{target}'")
-                position = buffer.find(target_bytes)
-                if position != -1:
-                    global_offset = offset + position
-                    last_newline = buffer.rfind(b"\n", 0, position)
-                    column_number = (
-                        position - last_newline if last_newline != -1 else position + 1
-                    )
-                    break
-                offset += len(buffer)
+                chunk = file.read(buffer_size)
+                if not chunk:
+                    return -1
+
+                search_data = prev_chunk + chunk
+                pos = search_data.find(target_bytes)
+
+                if pos != -1:
+                    return offset + pos - len(prev_chunk)
+
+                prev_chunk = chunk[-target_len + 1 :] if target_len > 1 else b""
+                offset += len(chunk)
+
     except FileNotFoundError:
         logger.error(f"file '{file_path}' not exist.")
     except Exception as e:
         logger.error(f"error: {e}, error type: {type(e)}")
-
-    return global_offset, column_number
+    return -1
 
 
 class bk_build_summary:
@@ -160,7 +162,7 @@ class bk_build_summary:
     def _get_map_info(cls, map_file: Path):
         all_mem_info: list[tuple[str, int, int]] = []
 
-        offset, _ = find_string_in_file(map_file, "Memory Configuration")
+        offset = find_string_in_file(map_file, "Memory Configuratio")
         if offset == -1:
             logger.error(f"{map_file} size is {map_file.stat().st_size}")
             raise RuntimeError("not found 'Memory Configuration'")

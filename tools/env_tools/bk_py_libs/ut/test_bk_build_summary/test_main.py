@@ -20,7 +20,6 @@ def TestMain():
 if __name__ == "__main__":
     set_logging()
     currPath = Path(__file__).resolve().parent
-    print(currPath)
     packagePath = currPath.parent
     sys.path.append(str(packagePath))
     packagePath = currPath.parent.parent
