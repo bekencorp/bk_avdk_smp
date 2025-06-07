@@ -1107,10 +1107,11 @@ static bk_err_t crosscore_int_send(int xCoreID, uint32_t cmd)
 	crosscore_mb_busy[core - 1] = 1;
 
 	spin_unlock(&crosscore_spin_lock);
-	rtos_enable_int(flag);
 
 	if(old_busy == 0)
 		bk_mailbox_master_send(&data, core, xCoreID);
+
+	rtos_enable_int(flag);
 
     return 0;
 }
