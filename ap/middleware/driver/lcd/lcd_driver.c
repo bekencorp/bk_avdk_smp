@@ -347,10 +347,10 @@ static bk_err_t lcd_rgb_gpio_init(void)
 
 bk_err_t bk_lcd_rgb_io_deinit(void)
 {
-    IO_FUNCTION_UNMAP(LCD_SPI_CLK_GPIO);
-    IO_FUNCTION_UNMAP(LCD_SPI_CSX_GPIO);
-    IO_FUNCTION_UNMAP(LCD_SPI_SDA_GPIO);
-    IO_FUNCTION_UNMAP(LCD_SPI_RST);
+    bk_gpio_set_output_low(LCD_SPI_CLK_GPIO);
+    bk_gpio_set_output_low(LCD_SPI_CSX_GPIO);
+    bk_gpio_set_output_low(LCD_SPI_SDA_GPIO);
+    bk_gpio_set_output_low(LCD_SPI_RST);
     return BK_OK;
 }
 
@@ -583,6 +583,8 @@ bk_err_t bk_lcd_driver_deinit(void)
 
 //	lcd_hal_soft_reset();
 	bk_int_isr_unregister(INT_SRC_LCD);
+    sys_drv_int_disable(LCD_INTERRUPT_CTRL_BIT);
+
 //	if (sys_drv_lcd_close() != 0)
 //	{
 //		LOGE("lcd system deinit reg config error \r\n");
@@ -1102,7 +1104,6 @@ bk_err_t lcd_driver_init(const lcd_device_t *device)
 
 	int ret = BK_OK;
 	LOGD("%s  \n", __func__);
-
 	/// LCD module power
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_VIDP_LCD, PM_POWER_MODULE_STATE_ON);
 	bk_pm_clock_ctrl(PM_CLK_ID_DISP, CLK_PWR_CTRL_PWR_UP);
@@ -1113,6 +1114,7 @@ bk_err_t lcd_driver_init(const lcd_device_t *device)
     bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_CTRL_GPIO, GPIO_OUTPUT_STATE_HIGH);
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DISP, PM_CPU_FRQ_480M);
 #endif
+
 	os_memset(&s_lcd, 0, sizeof(s_lcd));
 	os_memcpy((void*)&s_lcd.device, device, sizeof(lcd_device_t));
 

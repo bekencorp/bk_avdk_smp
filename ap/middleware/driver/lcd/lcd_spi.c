@@ -107,28 +107,23 @@ void lcd_spi_write_hf_word_cmd(unsigned int cmd)
 void lcd_spi_init_gpio(void)
 {
 	gpio_dev_unmap(LCD_SPI_RST);
-	bk_gpio_set_capacity(LCD_SPI_RST, 0);
 	BK_LOG_ON_ERR(bk_gpio_disable_input(LCD_SPI_RST));
 	BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_SPI_RST));
 
 	gpio_dev_unmap(LCD_SPI_CLK_GPIO);
-	bk_gpio_set_capacity(LCD_SPI_CLK_GPIO, 0);
 	BK_LOG_ON_ERR(bk_gpio_disable_input(LCD_SPI_CLK_GPIO));
 	BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_SPI_CLK_GPIO));
 
 	gpio_dev_unmap(LCD_SPI_CSX_GPIO);
-	bk_gpio_set_capacity(LCD_SPI_CSX_GPIO, 0);
 	BK_LOG_ON_ERR(bk_gpio_disable_input(LCD_SPI_CSX_GPIO));
 	BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_SPI_CSX_GPIO));
 
 	gpio_dev_unmap(LCD_SPI_SDA_GPIO);
-	bk_gpio_set_capacity(LCD_SPI_SDA_GPIO, 0);
 	BK_LOG_ON_ERR(bk_gpio_disable_input(LCD_SPI_SDA_GPIO));
 	BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_SPI_SDA_GPIO));
 
-	bk_gpio_set_output_high(LCD_SPI_CLK_GPIO);
+//	bk_gpio_set_output_high(LCD_SPI_CLK_GPIO);
 	bk_gpio_set_output_high(LCD_SPI_CSX_GPIO);
-	bk_delay_us(200);
 }
 
 
