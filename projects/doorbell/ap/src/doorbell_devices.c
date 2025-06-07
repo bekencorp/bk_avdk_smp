@@ -65,6 +65,7 @@ extern const dvp_sensor_config_t **get_sensor_config_devices_list(void);
 extern int get_sensor_config_devices_num(void);
 
 extern const doorbell_service_interface_t *doorbell_current_service;
+static media_camera_device_t current_device = {0};
 
 
 #define DEVICE_RESPONSE_SIZE (DOORBELL_NETWORK_MAX_SIZE - sizeof(db_evt_head_t))
@@ -444,13 +445,20 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
         }
     }
 
-    if (device.type == UVC_CAMERA)
+    if (check_lcd_task_is_open())
     {
-        lcd_jdec_pipeline_open();
+        if (device.type == UVC_CAMERA)
+        {
+            lcd_jdec_pipeline_open();
+        }
+        else if (device.type == DVP_CAMERA)
+        {
+            img_service_open();
+        }
     }
-    else if (device.type == DVP_CAMERA)
+    else
     {
-        img_service_open();
+        current_device.type = device.type;
     }
 
     return ret;
@@ -600,6 +608,15 @@ int doorbell_display_turn_on(uint16_t id, uint16_t rotate, uint16_t fmt)
             break;
     }
     media_app_set_rotate(rot_angle);
+
+    if (current_device.type == UVC_CAMERA)
+    {
+        lcd_jdec_pipeline_open();
+    }
+    else if (current_device.type == DVP_CAMERA)
+    {
+        img_service_open();
+    }
 
     media_app_lcd_disp_open(&lcd_open);
 
