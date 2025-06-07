@@ -48,9 +48,6 @@ menu "PWR_CLK"
 	config VBSPBUFLP1V_ENABLE
 		 bool "enable vbspbuflp1v"
 		default n
-	config SMP_CPU1_DISABLE
-		 bool "not enalbe the cpu1 when using the SMP"
-		default n
 	config LPO_MP_A_FORCE_USE_EXT32K
 		 bool "MP_A force use the external 32k"
 		default n

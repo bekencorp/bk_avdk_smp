@@ -15,7 +15,7 @@ menu "PSRAM"
 		help
 			The psram address is from 0x60000000 to 0x60800000 for psram aps6408l_o
 
-	config PSRAM_HEAP_CPU0_BASE_ADDER
+	config PSRAM_HEAP_BASE_ADDER
 		depends on PSRAM
 		hex "Set psram_malloc base address"
 		default 0x60700000
