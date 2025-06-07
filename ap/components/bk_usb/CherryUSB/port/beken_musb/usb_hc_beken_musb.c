@@ -12,6 +12,26 @@
 #include <driver/gpio.h>
 #include "usb_errno.h"
 
+#ifdef CONFIG_FREERTOS_SMP
+#include "spinlock.h"
+static SPINLOCK_SECTION volatile  spinlock_t usb_spin_lock = SPIN_LOCK_INIT;
+#endif // CONFIG_FREERTOS_SMP
+
+static inline void usb_enter_critical()
+{
+#ifdef CONFIG_FREERTOS_SMP
+	spin_lock(&usb_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+}
+
+static inline void usb_exit_critical()
+{
+#ifdef CONFIG_FREERTOS_SMP
+	spin_unlock(&usb_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+}
+
+
 #define HWREG(x) \
     (*((volatile uint32_t *)(x)))
 #define HWREGH(x) \
@@ -479,7 +499,8 @@ __WEAK void usb_hc_low_level_init(void)
 	HWREGB(USB_PHY_BASE + NANENG_PHY_FC_REG0B) = 0x7C;
 #endif
     bk_int_isr_register(INT_SRC_USB, USBH_IRQHandler, NULL);
-    sys_drv_int_enable(USB_INTERRUPT_CTRL_BIT);
+    //sys_drv_int_enable(USB_INTERRUPT_CTRL_BIT);
+    sys_drv_core_intr_group1_enable(2, USB_INTERRUPT_CTRL_BIT);
     USB_LOG_DBG("[-]%s\r\n", __func__);
 }
 
@@ -1192,7 +1213,7 @@ int usbh_pipe_free(usbh_pipe_t pipe)
 int usbh_submit_urb(struct usbh_urb *urb)
 {
     struct musb_pipe *pipe;
-    size_t flags;
+
     int ret = 0;
     USB_LOG_DBG("[+]%s\r\n", __func__);
 
@@ -1208,8 +1229,6 @@ int usbh_submit_urb(struct usbh_urb *urb)
         return -EINVAL;
     }
 
-    flags = usb_osal_enter_critical_section();
-
     if (!pipe->hport->connected) {
         return -ENODEV;
     }
@@ -1217,6 +1236,8 @@ int usbh_submit_urb(struct usbh_urb *urb)
     if (pipe->urb) {
         return -EBUSY;
     }
+
+    usb_enter_critical();
 
     pipe->waiter = false;
     pipe->xfrd = 0;
@@ -1227,7 +1248,6 @@ int usbh_submit_urb(struct usbh_urb *urb)
     if (urb->timeout > 0) {
         pipe->waiter = true;
     }
-    usb_osal_leave_critical_section(flags);
 
     switch (pipe->ep_type) {
         case USB_ENDPOINT_TYPE_CONTROL:
@@ -1249,6 +1269,9 @@ int usbh_submit_urb(struct usbh_urb *urb)
         default:
             break;
     }
+
+    usb_exit_critical();
+
     if (urb->timeout > 0) {
         /* wait until timeout or sem give */
         ret = usb_osal_sem_take(pipe->waitsem, urb->timeout);
