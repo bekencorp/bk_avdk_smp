@@ -78,6 +78,17 @@ typedef union
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 
+static inline uint32_t bk_ipc_enter_critical()
+{
+	uint32_t flags = rtos_disable_int();
+
+	return flags;
+}
+
+static inline void bk_ipc_exit_critical(uint32_t flags)
+{
+	rtos_enable_int(flags);
+}
 
 bk_ipc_info_t *bk_ipc_info = NULL;
 
@@ -272,22 +283,17 @@ bk_ipc_mailbox_state_t bk_ipc_mailbox_state_get(void)
 
 static void bk_ipc_event_notify(bk_ipc_info_t *ipc_info, uint32_t event)
 {
-    if (platform_is_in_interrupt_context())
-    {
-        ipc_info->waiting_event |= event;
-        rtos_set_semaphore(&ipc_info->waiting_sem);
-    }
-    else
-    {
-        ipc_info->waiting_event |= event;
-        rtos_set_semaphore(&ipc_info->waiting_sem);
-    }
+    uint32_t flags  = bk_ipc_enter_critical();
+
+    ipc_info->waiting_event |= event;
+    rtos_set_semaphore(&ipc_info->waiting_sem);
+
+    bk_ipc_exit_critical(flags);
 }
 
 bk_ipc_data_t *bk_ipc_data_pop(LIST_HEADER_T *list)
 {
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     LIST_HEADER_T *pos, *n;
     bk_ipc_data_t *node = NULL;
     bk_ipc_data_t *tmp = NULL;
@@ -305,15 +311,14 @@ bk_ipc_data_t *bk_ipc_data_pop(LIST_HEADER_T *list)
             }
         }
     }
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
 
     return node;
 }
 
 void bk_ipc_data_clear(LIST_HEADER_T *list)
 {
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     LIST_HEADER_T *pos, *n;
     bk_ipc_data_t *tmp = NULL;
 
@@ -329,15 +334,14 @@ void bk_ipc_data_clear(LIST_HEADER_T *list)
             }
         }
     }
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
 }
 
 bk_err_t bk_ipc_list_insert(LIST_HEADER_T *list, LIST_HEADER_T *node)
 {
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     list_add_tail(node, list);
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
     return BK_OK;
 }
 
@@ -352,10 +356,9 @@ bk_err_t bk_ipc_data_push(LIST_HEADER_T *list, bk_ipc_data_t *data)
         return -1;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     list_add_tail(&data->list, list);
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
     return ret;
 }
 
@@ -373,8 +376,7 @@ bk_ipc_handle_t *bk_ipc_get_handle_by_name(LIST_HEADER_T *list, char *name)
         return NULL;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     LIST_HEADER_T *pos, *n;
     bk_ipc_handle_t *node = NULL;
     bk_ipc_handle_t *tmp = NULL;
@@ -392,7 +394,7 @@ bk_ipc_handle_t *bk_ipc_get_handle_by_name(LIST_HEADER_T *list, char *name)
         }
     }
 
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
     return node;
 }
 
@@ -413,8 +415,7 @@ bk_err_t bk_ipc_channel_list_remove(LIST_HEADER_T *list, char *name)
         return ret;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flags  = bk_ipc_enter_critical();
     LIST_HEADER_T *pos, *n;
     bk_ipc_handle_t *tmp = NULL;
 
@@ -432,7 +433,7 @@ bk_err_t bk_ipc_channel_list_remove(LIST_HEADER_T *list, char *name)
         }
     }
 
-    GLOBAL_INT_RESTORE();
+    bk_ipc_exit_critical(flags);
     return ret;
 }
 
@@ -746,7 +747,6 @@ static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
     if (header.source == bk_ipc_cpu_id_get())
     {
         LOGE("%s error, should not recv the message form itself\n", __func__, header.source);
-        //TODO
     }
 
     switch (header.type)
@@ -861,61 +861,91 @@ static void bk_ipc_thread_entry(beken_thread_arg_t param)
     bk_ipc_info_t *ipc_info = (bk_ipc_info_t *)param;
 
     ipc_info->thread_running = true;
-    GLOBAL_INT_DECLARATION();
 
     do
     {
         uint32_t bits = 0;
         ret = rtos_get_semaphore(ipc_info->waiting_sem, BEKEN_WAIT_FOREVER);
-        GLOBAL_INT_DISABLE();
         if (ret != BK_OK)
         {
             LOGE("%s, rtos_get_semaphore fail\n", __func__);
-            GLOBAL_INT_RESTORE();
             continue;
         }
+        uint32_t flags  = bk_ipc_enter_critical();
         bits = ipc_info->waiting_event;
         ipc_info->waiting_event = 0;
-        GLOBAL_INT_RESTORE();
-        if (bits & IPC_EVENT_RECV)
-        {
-            do
+        bk_ipc_exit_critical(flags);
+
+        int loop_again = 0;
+
+        do {
+            loop_again = 0;
+
+            if (bits & IPC_EVENT_FREE)
             {
-                data = bk_ipc_data_pop(&ipc_info->remote_list);
-
-                if (data == NULL)
+                do
                 {
-                    break;
-                }
+                    data = bk_ipc_data_pop(&ipc_info->free_list);
 
-                bk_ipc_handle_t *local_handle = bk_ipc_get_handle_by_name(&ipc_info->channel_list, data->handle->cfg->name);
-
-                if (local_handle == NULL)
-                {
-                    ipc_header_t header;
-
-                    LOGE("%s, not register local channel: %s\n", __func__, data->handle->cfg->name);
-
-                    header.source = bk_ipc_cpu_id_get();
-                    header.type = IPC_TYPE_ACK;
-                    data->result = BK_ERR_NO_DEV;
-
-                    if (bk_ipc_send_mailbox(ipc_info, &header, data))
+                    if (data == NULL)
                     {
-                        LOGE("%s, send ack failed\n", __func__);
+                        LOGD("%s free data error, should not be NULL\n", __func__);
+                        break;
                     }
-                    break;
-                }
 
-                if (data)
+                    bk_ipc_handle_t *local_handle = bk_ipc_get_handle_by_name(&ipc_info->channel_list, data->handle->cfg->name);
+
+                    if (local_handle && local_handle->cfg->tx_cb)
+                    {
+                        ipc_obj_t ipc_obj = (ipc_obj_t)data;
+                        ret = local_handle->cfg->tx_cb(ipc_obj);
+                    }
+
+                    os_free(data);
+                    data = NULL;
+                    bk_cpu_sleep_unlock(ipc_info);
+
+                }
+                while (true);
+            }
+
+            if (bits & IPC_EVENT_RECV)
+            {
+                do
                 {
+                    data = bk_ipc_data_pop(&ipc_info->remote_list);
+
+                    if (data == NULL)
+                    {
+                        break;
+                    }
+                    loop_again = 1;
+                    bk_ipc_handle_t *local_handle = bk_ipc_get_handle_by_name(&ipc_info->channel_list, data->handle->cfg->name);
+
+                    if (local_handle == NULL)
+                    {
+                        ipc_header_t header;
+
+                        LOGE("%s, not register local channel: %s\n", __func__, data->handle->cfg->name);
+
+                        header.source = bk_ipc_cpu_id_get();
+                        header.type = IPC_TYPE_ACK;
+                        data->result = BK_ERR_NO_DEV;
+
+                        if (bk_ipc_send_mailbox(ipc_info, &header, data))
+                        {
+                            LOGE("%s, send ack failed\n", __func__);
+                        }
+                        break;
+                    }
+
                     ipc_header_t header;
 
-                    if (local_handle->cfg->cb)
+                    if (local_handle->cfg->rx_cb)
                     {
                         data->result = (uint32_t)ipc_info;
                         ipc_obj_t ipc_obj = (ipc_obj_t)data;
-                        ret = local_handle->cfg->cb(data->data, data->size, local_handle->cfg->param, ipc_obj);
+                        ret = local_handle->cfg->rx_cb(data->data, data->size, local_handle->cfg->param, ipc_obj);
                     }
 
                     if (data->flags & MIPC_CHAN_HAND_FLAG_ASYNC)
@@ -934,59 +964,38 @@ static void bk_ipc_thread_entry(beken_thread_arg_t param)
                         LOGE("%s send mailbox ack failed\n", __func__);
                     }
                 }
-
-
+                while (0);
             }
-            while (true);
-        }
 
-        if (bits & IPC_EVENT_SEND)
-        {
-            do
+            if (bits & IPC_EVENT_SEND)
             {
-                ipc_header_t header;
-                data = bk_ipc_data_pop(&ipc_info->local_list);
-
-                if (data == NULL)
+                do
                 {
-                    break;
-                }
+                    ipc_header_t header;
+                    data = bk_ipc_data_pop(&ipc_info->local_list);
 
-                header.source = bk_ipc_cpu_id_get();
-                header.type = IPC_TYPE_CMD;
-                ret = bk_ipc_send_mailbox(ipc_info, &header, data);
+                    if (data == NULL)
+                    {
+                        break;
+                    }
 
-                if (ret != BK_OK)
-                {
-                    LOGE("%s send async mailbox message to cpu %d failed\n", __func__, bk_ipc_cpu_id_get());
+                    loop_again = 1;
+
+                    header.source = bk_ipc_cpu_id_get();
+                    header.type = IPC_TYPE_CMD;
+                    ret = bk_ipc_send_mailbox(ipc_info, &header, data);
+
+                    if (ret != BK_OK)
+                    {
+                        LOGE("%s send async mailbox message to cpu %d failed\n", __func__, bk_ipc_cpu_id_get());
+                    }
                 }
+                while (0);
             }
-            while (true);
-        }
+        } while(loop_again);
 
-        if (bits & IPC_EVENT_FREE)
-        {
-            do
-            {
-                data = bk_ipc_data_pop(&ipc_info->free_list);
 
-                if (data == NULL)
-                {
-                    LOGD("%s free data error, should not be NULL\n", __func__);
-                    break;
-                }
-                else
-                {
-                    os_free(data);
-                    data = NULL;
-                    bk_cpu_sleep_unlock(ipc_info);
-                }
-            }
-            while (true);
-        }
-
-    }
-    while (ipc_info->thread_running);
+    } while (ipc_info->thread_running);
 
     ipc_info->thread = NULL;
     rtos_delete_thread(NULL);
@@ -998,7 +1007,7 @@ bk_ipc_info_t *bk_ipc_core_init(uint8_t channel)
     bk_err_t ret = BK_OK;
     bk_ipc_info_t *ipc_info = NULL;
 
-    LOGE("%s\n", __func__);
+    LOGI("%s\n", __func__);
 
     ipc_info = (bk_ipc_info_t *)os_malloc(sizeof(bk_ipc_info_t));
 
@@ -1108,7 +1117,7 @@ bk_ipc_info_t *bk_ipc_core_init(uint8_t channel)
                              2048,
                              ipc_info);
 
-    LOGE("%s success\n", __func__);
+    LOGI("%s success\n", __func__);
 
     return ipc_info;
 

@@ -133,7 +133,7 @@ uint32_t bk_ipc_sync_cpu1_callback(uint8_t *data, uint32_t size, void *param, ip
     return ret;
 }
 
-BK_IPC_CHANNEL_REGISTER(ui_ipc_test, IPC_ROUTE_CPU0_CPU1, bk_ipc_sync_cpu1_callback, NULL);
+BK_IPC_CHANNEL_REGISTER(ui_ipc_test, IPC_ROUTE_CPU0_CPU1, bk_ipc_sync_cpu1_callback, NULL, NULL);
 
 
 

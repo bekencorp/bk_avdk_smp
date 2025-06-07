@@ -156,16 +156,12 @@ bk_ipc_mailbox_state_t bk_ipc_mailbox_state_get(void)
 
 static void bk_ipc_event_notify(bk_ipc_info_t *ipc_info, uint32_t event)
 {
-    if (platform_is_in_interrupt_context())
-    {
-        ipc_info->waiting_event |= event;
-        rtos_set_semaphore(&ipc_info->waiting_sem);
-    }
-    else
-    {
-        ipc_info->waiting_event |= event;
-        rtos_set_semaphore(&ipc_info->waiting_sem);
-    }
+    uint32_t flags  = bk_ipc_enter_critical();
+
+    ipc_info->waiting_event |= event;
+    rtos_set_semaphore(&ipc_info->waiting_sem);
+
+    bk_ipc_exit_critical(flags);
 }
 
 bk_ipc_data_t *bk_ipc_data_pop(LIST_HEADER_T *list)
@@ -724,55 +720,84 @@ static void bk_ipc_thread_entry(beken_thread_arg_t param)
     {
         uint32_t bits = 0;
         ret = rtos_get_semaphore(ipc_info->waiting_sem, BEKEN_WAIT_FOREVER);
-        uint32_t flags  = bk_ipc_enter_critical();
         if (ret != BK_OK)
         {
             LOGE("%s, rtos_get_semaphore fail\n", __func__);
-            bk_ipc_exit_critical(flags);
             continue;
         }
+        uint32_t flags  = bk_ipc_enter_critical();
         bits = ipc_info->waiting_event;
         ipc_info->waiting_event = 0;
         bk_ipc_exit_critical(flags);
-        if (bits & IPC_EVENT_RECV)
-        {
-            do
+
+        int loop_again = 0;
+
+        do {
+            loop_again = 0;
+
+            if (bits & IPC_EVENT_FREE)
             {
-                data = bk_ipc_data_pop(&ipc_info->remote_list);
-
-                if (data == NULL)
+                do
                 {
-                    break;
-                }
+                    data = bk_ipc_data_pop(&ipc_info->free_list);
 
-                bk_ipc_handle_t *local_handle = bk_ipc_get_handle_by_name(&ipc_info->channel_list, data->handle->cfg->name);
-
-                if (local_handle == NULL)
-                {
-                    ipc_header_t header;
-
-                    LOGE("%s, not register local channel: %s\n", __func__, data->handle->cfg->name);
-
-                    header.source = bk_ipc_cpu_id_get();
-                    header.type = IPC_TYPE_ACK;
-                    data->result = BK_ERR_NO_DEV;
-
-                    if (bk_ipc_send_mailbox(ipc_info, &header, data))
+                    if (data == NULL)
                     {
-                        LOGE("%s, send ack failed\n", __func__);
+                        LOGD("%s free data error, should not be NULL\n", __func__);
+                        break;
                     }
-                    break;
-                }
 
-                if (data)
+                    bk_ipc_handle_t *local_handle = bk_ipc_get_handle_by_name(&ipc_info->channel_list, data->handle->cfg->name);
+
+                    if (local_handle && local_handle->cfg->tx_cb)
+                    {
+                        ipc_obj_t ipc_obj = (ipc_obj_t)data;
+                        ret = local_handle->cfg->tx_cb(ipc_obj);
+                    }
+                    os_free(data);
+                    data = NULL;
+
+                }
+                while (true);
+            }
+
+            if (bits & IPC_EVENT_RECV)
+            {
+                do
                 {
+                    data = bk_ipc_data_pop(&ipc_info->remote_list);
+
+                    if (data == NULL)
+                    {
+                        break;
+                    }
+                    loop_again = 1;
+                    bk_ipc_handle_t *local_handle = bk_ipc_get_handle_by_name(&ipc_info->channel_list, data->handle->cfg->name);
+
+                    if (local_handle == NULL)
+                    {
+                        ipc_header_t header;
+
+                        LOGE("%s, not register local channel: %s\n", __func__, data->handle->cfg->name);
+
+                        header.source = bk_ipc_cpu_id_get();
+                        header.type = IPC_TYPE_ACK;
+                        data->result = BK_ERR_NO_DEV;
+
+                        if (bk_ipc_send_mailbox(ipc_info, &header, data))
+                        {
+                            LOGE("%s, send ack failed\n", __func__);
+                        }
+                        break;
+                    }
+
                     ipc_header_t header;
 
-                    if (local_handle->cfg->cb)
+                    if (local_handle->cfg->rx_cb)
                     {
                         data->result = (uint32_t)ipc_info;
                         ipc_obj_t ipc_obj = (ipc_obj_t)data;
-                        ret = local_handle->cfg->cb(data->data, data->size, local_handle->cfg->param, ipc_obj);
+                        ret = local_handle->cfg->rx_cb(data->data, data->size, local_handle->cfg->param, ipc_obj);
                     }
 
                     if (data->flags & MIPC_CHAN_HAND_FLAG_ASYNC)
@@ -791,62 +816,43 @@ static void bk_ipc_thread_entry(beken_thread_arg_t param)
                         LOGE("%s send mailbox ack failed\n", __func__);
                     }
                 }
-
-
+                while (0);
             }
-            while (true);
-        }
 
-        if (bits & IPC_EVENT_SEND)
-        {
-            do
+            if (bits & IPC_EVENT_SEND)
             {
-                ipc_header_t header;
-                data = bk_ipc_data_pop(&ipc_info->local_list);
-
-                if (data == NULL)
+                do
                 {
-                    break;
-                }
+                    ipc_header_t header;
+                    data = bk_ipc_data_pop(&ipc_info->local_list);
 
-                header.source = bk_ipc_cpu_id_get();
-                header.type = IPC_TYPE_CMD;
-                ret = bk_ipc_send_mailbox(ipc_info, &header, data);
+                    if (data == NULL)
+                    {
+                        break;
+                    }
 
-                if (ret != BK_OK)
-                {
-                    LOGE("%s send async mailbox message to cpu %d failed\n", __func__, bk_ipc_cpu_id_get());
+                    loop_again = 1;
+
+                    header.source = bk_ipc_cpu_id_get();
+                    header.type = IPC_TYPE_CMD;
+                    ret = bk_ipc_send_mailbox(ipc_info, &header, data);
+
+                    if (ret != BK_OK)
+                    {
+                        LOGE("%s send async mailbox message to cpu %d failed\n", __func__, bk_ipc_cpu_id_get());
+                    }
                 }
+                while (0);
             }
-            while (true);
-        }
 
-        if (bits & IPC_EVENT_FREE)
-        {
-            do
+            if (bits & IPC_EVENT_LOCAL_SHUTDOWN)
             {
-                data = bk_ipc_data_pop(&ipc_info->free_list);
-
-                if (data == NULL)
-                {
-                    LOGD("%s free data error, should not be NULL\n", __func__);
-                    break;
-                }
-                else
-                {
-                    os_free(data);
-                    data = NULL;
-                }
+                bk_ipc_slave_core_state_change(ipc_info, IPC_CPU_SHUTDOWN);
             }
-            while (true);
-        }
+        } while(loop_again);
 
-        if (bits & IPC_EVENT_LOCAL_SHUTDOWN)
-        {
-            bk_ipc_slave_core_state_change(ipc_info, IPC_CPU_SHUTDOWN);
-        }
-    }
-    while (ipc_info->thread_running);
+
+    } while (ipc_info->thread_running);
 
     ipc_info->thread = NULL;
     rtos_delete_thread(NULL);

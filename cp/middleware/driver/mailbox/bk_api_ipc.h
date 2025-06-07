@@ -28,15 +28,16 @@
 #define BK_IPC_CHANNEL_DEF(section_name)                    \
     extern bk_ipc_t section_name;                         \
 
-#define BK_IPC_CHANNEL_REGISTER(_channel, _route, _callback, _param)                                  \
+#define BK_IPC_CHANNEL_REGISTER(_channel, _route, _rx_cb, _param, _tx_cb)                                  \
     bk_ipc_t _channel;                                                                                \
     BK_SECTION_ITEM_REGISTER(ipc_chan_reg, const bk_ipc_chan_cfg_t _channel##section) =             \
     {                                                                                                   \
                 .ipc = &(_channel),                                                                     \
                 .route = (_route),                                                                      \
                 .name = #_channel,                                                                      \
-                .cb = _callback,                                                                        \
+                .rx_cb = _rx_cb,                                                                        \
                 .param = _param,                                                                        \
+                .tx_cb = _tx_cb,                                                                        \
     }
 
 #define BK_IPC_CHANNEL_REGISTER_COUNT          \
@@ -48,7 +49,8 @@
 
 typedef void *ipc_obj_t;
 
-typedef uint32_t (*bk_ipc_callback)(uint8_t *data, uint32_t size, void *param, ipc_obj_t ipc_obj);
+typedef uint32_t (*bk_ipc_rx_cb)(uint8_t *data, uint32_t size, void *param, ipc_obj_t ipc_obj);
+typedef uint32_t (*bk_ipc_tx_cb)(ipc_obj_t ipc_obj);
 typedef void *bk_ipc_t;
 
 typedef enum
@@ -77,7 +79,8 @@ typedef struct
     bk_ipc_t *ipc;
     bk_ipc_route_t route;
     char *name;
-    bk_ipc_callback cb;
+    bk_ipc_rx_cb rx_cb;
+    bk_ipc_tx_cb tx_cb;
     void *param;
 } bk_ipc_chan_cfg_t;
 
@@ -133,9 +136,6 @@ int bk_ipc_init(void);
 int bk_ipc_deinit(void);
 bk_ipc_core_t bk_ipc_cpu_id_get(void);
 int bk_ipc_send(bk_ipc_t *ipc, void *data, uint32_t size, uint32_t flags, uint32_t *result);
-bk_err_t bk_ipc_vote_boot_cp1_ctrl(uint32_t module,uint32_t power_state);
-bk_err_t bk_ipc_wait_cpu_startup(uint8_t cpu_id);
-
 bk_err_t bk_ipc_obj_extract(ipc_obj_t obj);
 void *bk_ipc_obj_convert(ipc_obj_t obj, uint32_t *size);
 bk_err_t bk_ipc_obj_free(ipc_obj_t obj, uint32_t result);
