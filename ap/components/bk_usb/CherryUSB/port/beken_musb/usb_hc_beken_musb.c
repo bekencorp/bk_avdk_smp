@@ -1061,7 +1061,7 @@ static struct musb_pipe *usbh_pipe_alloc_epx(uint16_t bVal,
                                             struct musb_pipe *ppipe,
                                             const struct usbh_endpoint_cfg *ep_cfg)
 {
-    
+    usb_enter_critical();
     usb_osal_sem_t waitsem = NULL;
     struct musb_pipe *epx_ppipe = NULL;
     uint8_t ep_local_idx = ppipe->ep_local_index;
@@ -1095,7 +1095,7 @@ static struct musb_pipe *usbh_pipe_alloc_epx(uint16_t bVal,
     /* restore variable */
     epx_ppipe->inuse = true;
     epx_ppipe->waitsem = waitsem;
-
+    usb_exit_critical();
     return epx_ppipe;
 }
 
@@ -1765,7 +1765,7 @@ void USBH_IRQHandler(void)
 
     if (is & USB_IS_SESREQ) {
     }
-
+    usb_enter_critical();
 #if CONFIG_USB_DMA_ENABLE
     uint32_t dmais;
     USB_LOG_DBG("%s is: 0x%x txis: 0x%x rxis:0x%x dmais:0x%x\r\n", __func__, is, txis, rxis, dmais);
@@ -1879,6 +1879,7 @@ void USBH_IRQHandler(void)
     }
     musb_set_active_ep(old_ep_idx);
     USB_LOG_DBG("[-]%s\r\n", __func__);
+    usb_exit_critical();
     return;
 //pipe_wait:
 //    musb_set_active_ep(old_ep_idx);
