@@ -133,8 +133,6 @@ static void software_decode_task_deinit(void)
 		os_free(sw_dec_config_cp2);
 		sw_dec_config_cp2 = NULL;
 	}
-	bk_jpeg_dec_sw_deinit_by_handle(jpeg_decode_cp2_handle);
-	jpeg_decode_cp2_handle = NULL;
 
 	LOGI("%s complete\r\n", __func__);
 }
@@ -322,6 +320,9 @@ static void software_decode_main(beken_thread_arg_t data)
 
 exit:
 	LOGI("%s, exit\r\n", __func__);
+	bk_jpeg_dec_sw_deinit_by_handle(jpeg_decode_cp2_handle);
+	jpeg_decode_cp2_handle = NULL;
+
 	rtos_set_semaphore(&sw_dec_config_cp2->sw_dec_sem);
 	rtos_delete_thread(NULL);
 }
