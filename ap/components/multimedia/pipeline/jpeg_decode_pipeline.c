@@ -34,6 +34,9 @@
 #include "components/system.h"
 #endif
 #include "lcd_display_service.h"
+#ifdef CONFIG_FREERTOS_SMP
+#include "spinlock.h"
+#endif
 
 #define TAG "jdec_pip"
 
@@ -131,7 +134,6 @@ typedef struct {
 	mux_request_callback_t cb[PIPELINE_MOD_MAX];
 	mux_reset_callback_t   reset_cb[PIPELINE_MOD_MAX];
 } jdec_config_t;
-
 typedef struct {
 	beken_mutex_t lock;
 } jdec_info_t;
@@ -159,6 +161,31 @@ const mux_callback_t mux_callback[PIPELINE_MOD_LINE_MAX] = {
 	jpeg_rotate_line_request_callback,
 	jpeg_scale_line_request_callback,
 };
+
+#ifdef CONFIG_FREERTOS_SMP
+    static SPINLOCK_SECTION volatile spinlock_t jdec_pipeline_spin_lock = SPIN_LOCK_INIT;
+#endif
+    
+static inline uint32_t jdec_pipeline_enter_critical()
+{
+    uint32_t flags = rtos_disable_int();
+
+#ifdef CONFIG_FREERTOS_SMP
+   spin_lock(&jdec_pipeline_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   return flags;
+}
+
+static inline void jdec_pipeline_exit_critical(uint32_t flags)
+{
+#ifdef CONFIG_FREERTOS_SMP
+   spin_unlock(&jdec_pipeline_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   rtos_enable_int(flags);
+}
+
 
 void jpeg_decode_get_next_frame();
 
@@ -762,9 +789,7 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 	{
 		if (jdec_config->jdec_type == JPEGDEC_BY_LINE)
 		{
-			rtos_lock_mutex(&jdec_info->lock);
-			GLOBAL_INT_DECLARATION();
-			GLOBAL_INT_DISABLE();
+            rtos_lock_mutex(&jdec_info->lock);
 
 			for (int i = 0; i < PIPELINE_MOD_MAX; i++)
 			{
@@ -778,10 +803,6 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 				}
 			}
 
-			GLOBAL_INT_RESTORE();
-
-			DECODER_FRAME_START();
-			DECODER_LINE_START();
 
 			LOGD("%s, %d, seq:%d, module:%d, %p\r\n", __func__, __LINE__, jdec_config->jpeg_frame->sequence, module, jdec_config->jpeg_frame);
 
@@ -790,7 +811,6 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 			{
 				LOGW("%s %d buffer error\n", __func__, __LINE__);
 			}
-
 			rtos_unlock_mutex(&jdec_info->lock);
 
 			if (!rtos_is_oneshot_timer_running(&jdec_config->decoder_timer))
@@ -829,9 +849,7 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 		{
 #if 0
             sw_jpeg_dec_res_t result;
-			rtos_lock_mutex(&jdec_info->lock);
-			GLOBAL_INT_DECLARATION();
-			GLOBAL_INT_DISABLE();
+            rtos_lock_mutex(&jdec_info->lock);
 
 			for (int i = 0; i < PIPELINE_MOD_MAX; i++)
 			{
@@ -845,7 +863,6 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 				}
 			}
 
-			GLOBAL_INT_RESTORE();
 			DECODER_FRAME_START();
 
 			DECODER_LINE_START();
@@ -855,7 +872,7 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 				LOGW("%s %d buffer error\n", __func__, __LINE__);
 			}
 
-			rtos_unlock_mutex(&jdec_info->lock);
+            rtos_unlock_mutex(&jdec_info->lock);
 
 			(void)(result, jdec_msg);
 
@@ -964,8 +981,8 @@ static void jpeg_decode_line_done_handle(uint32_t param)
 			}
 		}
 	}
-
 	rtos_unlock_mutex(&jdec_info->lock);
+
 	if (j == 0)
 	{
 		LOGI("%s, %d\n", __func__, __LINE__);
@@ -995,7 +1012,7 @@ static void jpeg_decode_finish_handle(uint32_t param)
 
 		os_memset(&jdec_config->mux_buf, 0, sizeof(pipeline_mux_buf_t) * MUX_MAX);
 
-		rtos_lock_mutex(&jdec_info->lock);
+        uint32_t flag = jdec_pipeline_enter_critical();
 		for (int i = 0; i < PIPELINE_MOD_MAX; i++)
 		{
 			if (jdec_config->module[i].enable == false)
@@ -1003,7 +1020,7 @@ static void jpeg_decode_finish_handle(uint32_t param)
 				jdec_config->module[i].start = false;
 			}
 		}
-		rtos_unlock_mutex(&jdec_info->lock);
+        jdec_pipeline_exit_critical(flag);
 
 		// step 2: jpeg decode a new frame
 		if(param != MUX_DEC_TIMEOUT)
@@ -1209,7 +1226,7 @@ static void jpeg_decode_notify_handle(uint32_t param, pipeline_module_t module)
 		}
 	}
 
-	rtos_unlock_mutex(&jdec_info->lock);
+    rtos_unlock_mutex(&jdec_info->lock);
 
 out:
 
@@ -1713,13 +1730,13 @@ bk_err_t jpeg_decode_task_open(media_decode_mode_t jdec_mode, media_decode_type_
 {
 	int ret = BK_OK;
 
-	rtos_lock_mutex(&jdec_info->lock);
+    rtos_unlock_mutex(&jdec_info->lock);
 
 	// step 1: check jdec_task state
 	if (jdec_config != NULL && jdec_config->task_state)
 	{
 		LOGE("%s have been opened!\r\n", __func__);
-		rtos_unlock_mutex(&jdec_info->lock);
+        rtos_unlock_mutex(&jdec_info->lock);
 		return ret;
 	}
 
@@ -1728,9 +1745,10 @@ bk_err_t jpeg_decode_task_open(media_decode_mode_t jdec_mode, media_decode_type_
 	if (jdec_config == NULL)
 	{
 		LOGE("%s, malloc jdec_config failed\r\n", __func__);
-		rtos_unlock_mutex(&jdec_info->lock);
+        rtos_unlock_mutex(&jdec_info->lock);
 		return BK_FAIL;
 	}
+	rtos_unlock_mutex(&jdec_info->lock);
 
 	os_memset(jdec_config, 0, sizeof(jdec_config_t));
 
@@ -1822,7 +1840,6 @@ bk_err_t jpeg_decode_task_open(media_decode_mode_t jdec_mode, media_decode_type_
 
 	rtos_get_semaphore(&jdec_config->jdec_sem, BEKEN_NEVER_TIMEOUT);
 
-	rtos_unlock_mutex(&jdec_info->lock);
 	DECODER_LINE_END();
 	DECODER_FRAME_END();
 
@@ -1833,8 +1850,6 @@ error:
 	LOGE("%s, open failed\r\n", __func__);
 
 	jpeg_decode_task_deinit();
-
-	rtos_unlock_mutex(&jdec_info->lock);
 
 	return ret;
 }
@@ -1847,14 +1862,11 @@ bk_err_t jpeg_decode_task_close()
 
 	if (jdec_config == NULL || !jdec_config->task_state)
 	{
-		rtos_unlock_mutex(&jdec_info->lock);
+        rtos_unlock_mutex(&jdec_info->lock);
 		return BK_OK;
 	}
 
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
 	jdec_config->task_state = false;
-	GLOBAL_INT_RESTORE();
 
 	rtos_unlock_mutex(&jdec_info->lock);
 
@@ -1875,9 +1887,7 @@ bk_err_t jpeg_decode_task_close()
 #endif
 	}
 
-	rtos_lock_mutex(&jdec_info->lock);
 	jpeg_decode_task_deinit();
-	rtos_unlock_mutex(&jdec_info->lock);
 
 	LOGI("%s complete, %d\n", __func__, __LINE__);
 
@@ -1888,17 +1898,13 @@ void bk_jdec_buffer_request_register(pipeline_module_t module, mux_request_callb
 {
 	LOGI("%s module: %d, trigger:%d\n", __func__, module, jdec_config->trigger);
 
-	rtos_lock_mutex(&jdec_info->lock);
-
 	if (jdec_config)
 	{
-
-		GLOBAL_INT_DECLARATION();
-		GLOBAL_INT_DISABLE();
+        uint32_t flag = jdec_pipeline_enter_critical();
 		jdec_config->module[module].enable = true;
 		jdec_config->cb[module] = cb;
 		jdec_config->reset_cb[module] = reset_cb;
-		GLOBAL_INT_RESTORE();
+        jdec_pipeline_exit_critical(flag);
 
 		if (jdec_config->trigger == false)
 		{
@@ -1906,25 +1912,20 @@ void bk_jdec_buffer_request_register(pipeline_module_t module, mux_request_callb
 			jdec_config->trigger = true;
 		}
 	}
-	rtos_unlock_mutex(&jdec_info->lock);
 }
 
 void bk_jdec_buffer_request_deregister(pipeline_module_t module)
 {
 	LOGD("%s module: %d\n", __func__, module);
 
-	rtos_lock_mutex(&jdec_info->lock);
-
 	if (jdec_config)
 	{
-
-		GLOBAL_INT_DECLARATION();
-		GLOBAL_INT_DISABLE();
+        uint32_t flag = jdec_pipeline_enter_critical();
 		jdec_config->cb[module] = NULL;
 		jdec_config->reset_cb[module] = NULL;
 		jdec_config->module[module].enable = false;
 		jdec_config->module[module].start = false;
-		GLOBAL_INT_RESTORE();
+        jdec_pipeline_exit_critical(flag);
 
 		if (module < PIPELINE_MOD_LINE_MAX)
 		{
@@ -1961,10 +1962,7 @@ void bk_jdec_buffer_request_deregister(pipeline_module_t module)
 		}
 
 	}
-
-	rtos_unlock_mutex(&jdec_info->lock);
 }
-
 
 
 bk_err_t bk_jdec_pipeline_init(void)
@@ -1996,4 +1994,5 @@ bk_err_t bk_jdec_pipeline_init(void)
 
 	return ret;
 }
+
 

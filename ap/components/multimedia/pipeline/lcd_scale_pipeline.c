@@ -34,6 +34,9 @@
 
 #include "mux_pipeline.h"
 #include "lcd_display_service.h"
+#ifdef CONFIG_FREERTOS_SMP
+#include "spinlock.h"
+#endif
 
 #define TAG "scale_pipline"
 
@@ -143,14 +146,38 @@ typedef struct {
     mux_callback_t reset_cb;
 
 } scale_config_t;
-
 typedef struct {
 	beken_mutex_t lock;
 } scale_info_t;
+static scale_info_t *scale_info = NULL;
+
+
+#ifdef CONFIG_FREERTOS_SMP
+    static SPINLOCK_SECTION volatile spinlock_t scale_pipeline_spin_lock = SPIN_LOCK_INIT;
+#endif
+    
+static inline uint32_t scale_pipeline_enter_critical()
+{
+    uint32_t flags = rtos_disable_int();
+
+#ifdef CONFIG_FREERTOS_SMP
+   spin_lock(&scale_pipeline_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   return flags;
+}
+
+static inline void scale_pipeline_exit_critical(uint32_t flags)
+{
+#ifdef CONFIG_FREERTOS_SMP
+   spin_unlock(&scale_pipeline_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   rtos_enable_int(flags);
+}
 
 
 static scale_config_t *scale_config = NULL;
-static scale_info_t *scale_info = NULL;
 
 static complex_buffer_t *scale_get_idle_buf(void)
 {
@@ -197,13 +224,12 @@ static void scale_timer_handle(void *arg1, void *arg2)
 
 uint32_t get_scale_list_num(LIST_HEADER_T *list)
 {
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
-
     uint32_t cnt = 0;
 	LIST_HEADER_T *pos, *n;
     scale_request_t *tmp = NULL;
     pos = NULL, n = NULL;
+
+    uint32_t flag = scale_pipeline_enter_critical();
 	list_for_each_safe(pos, n, &scale_config->scale_pedding_list)
 	{
 		tmp = list_entry(pos, scale_request_t, list);
@@ -215,8 +241,8 @@ uint32_t get_scale_list_num(LIST_HEADER_T *list)
 			}
 		}
 	}
+    scale_pipeline_exit_critical(flag);
 
-	GLOBAL_INT_RESTORE();
     return cnt;
 }
 
@@ -229,20 +255,20 @@ bk_err_t scale_request_list_push(frame_buffer_t *scale_src_frame, LIST_HEADER_T 
 		return BK_ERR_NO_MEM;
 	}
 	scale_list->scale_src_frame = scale_src_frame;
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
+
+    uint32_t flag = scale_pipeline_enter_critical();
 	list_add_tail(&scale_list->list, list);
-	GLOBAL_INT_RESTORE();
+    scale_pipeline_exit_critical(flag);
 	return ret;
 }
 
 frame_buffer_t *scale_request_list_pop(LIST_HEADER_T *list)
 {
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
 	LIST_HEADER_T *pos, *n;
 	frame_buffer_t *frame = NULL;
 	scale_request_t *tmp = NULL;
+
+    uint32_t flag = scale_pipeline_enter_critical();
 	list_for_each_safe(pos, n, list)
 	{
 		tmp = list_entry(pos, scale_request_t, list);
@@ -254,7 +280,7 @@ frame_buffer_t *scale_request_list_pop(LIST_HEADER_T *list)
 			break;
 		}
 	}
-	GLOBAL_INT_RESTORE();
+    scale_pipeline_exit_critical(flag);
 	return frame;
 }
 
@@ -545,10 +571,9 @@ bk_err_t lcd_scale_line_state_machine(scale_state_t state, void *args)
 				break;
 			}
 
-			GLOBAL_INT_DECLARATION();
-			GLOBAL_INT_DISABLE();
+            uint32_t flag = scale_pipeline_enter_critical();
 			scale_request = list_pop_edge(&scale_config->request_list, pipeline_encode_request_t, list);
-			GLOBAL_INT_RESTORE();
+            scale_pipeline_exit_critical(flag);
 
 			if (scale_request == NULL)
 			{
@@ -604,10 +629,9 @@ bk_err_t lcd_scale_line_state_machine(scale_state_t state, void *args)
 				break;
 			}
 
-			GLOBAL_INT_DECLARATION();
-			GLOBAL_INT_DISABLE();
+            uint32_t flag = scale_pipeline_enter_critical();
 			pipeline_encode_request_t *scale_request = list_pop_edge(&scale_config->request_list, pipeline_encode_request_t, list);
-			GLOBAL_INT_RESTORE();
+            scale_pipeline_exit_critical(flag);
 
 			if (scale_request == NULL)
 			{
@@ -712,10 +736,9 @@ bk_err_t lcd_scale_line_start_request_handle(pipeline_encode_request_t *scale_re
 		return BK_FAIL;
 	}
 
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
+    uint32_t flag = scale_pipeline_enter_critical();
 	list_add_tail(&scale_request->list, &scale_config->request_list);
-	GLOBAL_INT_RESTORE();
+    scale_pipeline_exit_critical(flag);
 
 	if (BK_OK != scale_task_send_msg(SCALE_LINE_START_LOOP, 0))
 	{
@@ -863,8 +886,7 @@ static void scale_main_entry(beken_thread_arg_t data)
                     bk_hw_scale_int_enable(HW_SCALE, 0);
                     bk_hw_scale_stop(HW_SCALE);
                     
-                    GLOBAL_INT_DECLARATION();
-                    GLOBAL_INT_DISABLE();
+                    uint32_t flag = scale_pipeline_enter_critical();
                     while (!list_empty(&scale_config->request_list))
                     {
                         pipeline_encode_request_t *scale_request = list_pop_edge(&scale_config->request_list, pipeline_encode_request_t, list);
@@ -879,7 +901,7 @@ static void scale_main_entry(beken_thread_arg_t data)
                             break;
                         }
                     }
-                    GLOBAL_INT_RESTORE();
+                    scale_pipeline_exit_critical(flag);
 
                     HW_SCALE_FRAME_END();
                     HW_SCALE_SRC_END();
@@ -946,20 +968,19 @@ bk_err_t scale_task_open(lcd_scale_t *lcd_scale)
 	int ret =BK_OK;
 
 	rtos_lock_mutex(&scale_info->lock);
-
 	if (scale_config != NULL && scale_config->task_running)
 	{
-		LOGE("%s, scale task have been opened!\r\n", __func__);
 		rtos_unlock_mutex(&scale_info->lock);
+		LOGE("%s, scale task have been opened!\r\n", __func__);
 		return ret;
 	}
+    rtos_unlock_mutex(&scale_info->lock);
 
 	scale_config = (scale_config_t *)os_malloc(sizeof(scale_config_t));
 
 	if (scale_config == NULL)
 	{
 		LOGE("%s, malloc scale_config failed\r\n", __func__);
-		rtos_unlock_mutex(&scale_info->lock);
 		return BK_FAIL;
 	}
 
@@ -1072,8 +1093,6 @@ bk_err_t scale_task_open(lcd_scale_t *lcd_scale)
 
 	LOGI("%s complete\n", __func__);
 
-	rtos_unlock_mutex(&scale_info->lock);
-
 	return ret;
 error:
 
@@ -1090,8 +1109,6 @@ error:
 		os_free(scale_config);
 		scale_config = NULL;
 	}
-
-	rtos_unlock_mutex(&scale_info->lock);
 
 	return BK_FAIL;
 }
@@ -1122,14 +1139,15 @@ bk_err_t scale_task_close(void)
 {
 	LOGI("%s\n", __func__);
 
-	rtos_lock_mutex(&scale_info->lock);
+    rtos_lock_mutex(&scale_info->lock);
 
 	if (scale_config == NULL || !scale_config->task_running)
 	{
-		LOGI("%s already close\n", __func__);
 		rtos_unlock_mutex(&scale_info->lock);
+		LOGI("%s already close\n", __func__);
 		return BK_OK;
 	}
+    rtos_unlock_mutex(&scale_info->lock);
 
 	scale_config->enable = false;
 
@@ -1228,15 +1246,13 @@ bk_err_t scale_task_close(void)
 
 	LOGI("%s complete\n", __func__);
 
-	rtos_unlock_mutex(&scale_info->lock);
-
 	return BK_OK;
 }
 
 bk_err_t bk_scale_reset_request(mux_callback_t cb)
 {
     rtos_lock_mutex(&scale_info->lock);
- 
+
     scale_config->reset_cb = cb;
 
     if (BK_OK != scale_task_send_msg(SCALE_RESET, 0))
@@ -1273,9 +1289,12 @@ bk_err_t bk_scale_encode_request(pipeline_encode_request_t *request, mux_callbac
 
 	if (scale_config == NULL || scale_config->enable == false)
 	{
+        rtos_unlock_mutex(&scale_info->lock);
 		LOGI("%s not open\n", __func__);
 		goto error;
 	}
+
+	rtos_unlock_mutex(&scale_info->lock);
 
 	scale_request = (pipeline_encode_request_t *)os_malloc(sizeof(pipeline_encode_request_t));
 
@@ -1295,7 +1314,6 @@ bk_err_t bk_scale_encode_request(pipeline_encode_request_t *request, mux_callbac
 		goto error;
 	}
 
-	rtos_unlock_mutex(&scale_info->lock);
 
 	return BK_OK;
 
@@ -1313,7 +1331,6 @@ error:
 		scale_request = NULL;
 	}
 
-	rtos_unlock_mutex(&scale_info->lock);
 
 	LOGE("%s failed\n", __func__);
 
@@ -1349,5 +1366,4 @@ bk_err_t bk_scale_pipeline_init(void)
 
 	return ret;
 }
-
 

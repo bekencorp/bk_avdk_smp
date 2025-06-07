@@ -268,10 +268,7 @@ static void img_service_task_stop(void)
         LOGI("%s already stop\n", __func__);
         return;
     }
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
     img_service_task_running = false;
-    GLOBAL_INT_RESTORE();
 
     img_msg_t msg =
     {
@@ -831,10 +828,8 @@ bk_err_t img_service_close(void)
 
     img_service_task_stop();
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
     img_info.enable = false;
-    GLOBAL_INT_RESTORE();
+
 
     rtos_lock_mutex(&img_info.dec_lock);
     img_info.decoder_en = false;

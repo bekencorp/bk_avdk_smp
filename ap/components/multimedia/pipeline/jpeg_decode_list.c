@@ -27,11 +27,37 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
+#ifdef CONFIG_FREERTOS_SMP
+#include "spinlock.h"
+#endif
+#ifdef CONFIG_FREERTOS_SMP
+static SPINLOCK_SECTION volatile spinlock_t jdec_list_spin_lock = SPIN_LOCK_INIT;
+#endif
+
+static inline uint32_t jdec_list_enter_critical()
+{
+    uint32_t flags = rtos_disable_int();
+
+#ifdef CONFIG_FREERTOS_SMP
+   spin_lock(&jdec_list_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   return flags;
+}
+
+static inline void jdec_list_exit_critical(uint32_t flags)
+{
+#ifdef CONFIG_FREERTOS_SMP
+   spin_unlock(&jdec_list_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   rtos_enable_int(flags);
+}
+
 void jpeg_decode_list_clear(LIST_HEADER_T *list)
 {
-	GLOBAL_INT_DECLARATION();
+    uint32_t flag = jdec_list_enter_critical();
 
-	GLOBAL_INT_DISABLE();
 	LIST_HEADER_T *pos, *n;
 	jpeg_decode_list_t *tmp = NULL;
 	if (!list_empty(list))
@@ -49,13 +75,12 @@ void jpeg_decode_list_clear(LIST_HEADER_T *list)
 		}
 		INIT_LIST_HEAD(list);
 	}
-	GLOBAL_INT_RESTORE();
+    jdec_list_exit_critical(flag);
 }
 
 uint8_t jpeg_decode_list_del_node(frame_buffer_t *frame, LIST_HEADER_T *list)
 {
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
+    uint32_t flag = jdec_list_enter_critical();
 	LIST_HEADER_T *pos, *n;
 	uint8_t delete_status = false;
 	jpeg_decode_list_t *tmp = NULL;
@@ -73,14 +98,13 @@ uint8_t jpeg_decode_list_del_node(frame_buffer_t *frame, LIST_HEADER_T *list)
 			}
 		}
 	}
-	GLOBAL_INT_RESTORE();
+    jdec_list_exit_critical(flag);
 	return delete_status;
 }
 
 uint8_t jpeg_decode_list_get_count(LIST_HEADER_T *list)
 {
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
+    uint32_t flag = jdec_list_enter_critical();
 	LIST_HEADER_T *pos, *n;
 	uint8 count = 0;
 	jpeg_decode_list_t *tmp = NULL;
@@ -92,14 +116,13 @@ uint8_t jpeg_decode_list_get_count(LIST_HEADER_T *list)
 			count++;
 		}
 	}
-	GLOBAL_INT_RESTORE();
+    jdec_list_exit_critical(flag);
 	return count;
 }
 
 frame_buffer_t *jpeg_decode_list_pop(LIST_HEADER_T *list)
 {
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
+    uint32_t flag = jdec_list_enter_critical();
 	LIST_HEADER_T *pos, *n;
 	frame_buffer_t *frame = NULL;
 	jpeg_decode_list_t *tmp = NULL;
@@ -118,7 +141,7 @@ frame_buffer_t *jpeg_decode_list_pop(LIST_HEADER_T *list)
 			}
 		}
 	}
-	GLOBAL_INT_RESTORE();
+    jdec_list_exit_critical(flag);
 	return frame;
 }
 
@@ -131,11 +154,10 @@ bk_err_t jpeg_decode_list_push(frame_buffer_t *frame, LIST_HEADER_T *list)
 		return BK_ERR_NO_MEM;
 	}
 	jpeg_decode_list->frame = frame;
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
+    uint32_t flag = jdec_list_enter_critical();
 
 	list_add_tail(&jpeg_decode_list->list, list);
-	GLOBAL_INT_RESTORE();
+    jdec_list_exit_critical(flag);
 	return ret;
 }
 

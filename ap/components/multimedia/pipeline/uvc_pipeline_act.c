@@ -299,13 +299,14 @@ bk_err_t uvc_pipeline_init(void)
 
 	LOGI("%s mux_sram_buffer_t: %d\n", __func__, sizeof(mux_sram_buffer_t));
 
-	bk_jdec_pipeline_init();
-
+        bk_jdec_pipeline_init();
+    
 #if SUPPORTED_IMAGE_MAX_720P
-	bk_scale_pipeline_init();
+        bk_scale_pipeline_init();
 #endif
 
-	bk_rotate_pipeline_init();
+        bk_rotate_pipeline_init();
+
 	bk_h264_pipeline_init();
 
 	return BK_OK;
