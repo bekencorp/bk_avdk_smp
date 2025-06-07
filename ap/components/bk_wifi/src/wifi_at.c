@@ -356,9 +356,6 @@ static int at_wlan_scan_cmd(int sync,int argc, char **argv)
 	int chan_nb[WIFI_2BAND_MAX_CHAN_NUM] = {0};
 	wifi_scan_config_t scan_config = {0};
 
-	extern void bk_wifi_init(void);
-	bk_wifi_init();
-
 	///check AT cmd length
 	if((argc > 2) && (argc < 5)) {
 		atsvr_cmd_rsp_error();
