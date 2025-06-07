@@ -1378,8 +1378,8 @@ the stack and so not exists after this function exits. */
     static __attribute__((section(".dtcm_sec_data "))) StaticTask_t xIdleTaskTCB[configNUM_CORES];
     static __attribute__((section(".dtcm_sec_data "))) StackType_t uxIdleTaskStack[configNUM_CORES][ configMINIMAL_STACK_SIZE ];
 #else
-    static StaticTask_t xIdleTaskTCB[configNUM_CORES];
-    static StackType_t uxIdleTaskStack[configNUM_CORES][ configMINIMAL_STACK_SIZE ];
+    static SPINLOCK_SECTION StaticTask_t xIdleTaskTCB[configNUM_CORES];
+    static SPINLOCK_SECTION StackType_t uxIdleTaskStack[configNUM_CORES][ configMINIMAL_STACK_SIZE ];
 #endif
 	static uint32_t xCoreID = 0;	//static: adapte with CONFIG_FREERTOS_SMP
 
@@ -1414,8 +1414,8 @@ the stack and so not exists after this function exits. */
     static __attribute__((section(".dtcm_sec_data "))) StaticTask_t xTimerTaskTCB;
     static __attribute__((section(".dtcm_sec_data "))) StackType_t uxTimerTaskStack[ configTIMER_TASK_STACK_DEPTH ];
 #else
-    static StaticTask_t xTimerTaskTCB;
-    static StackType_t uxTimerTaskStack[ configTIMER_TASK_STACK_DEPTH ];
+    static SPINLOCK_SECTION StaticTask_t xTimerTaskTCB;
+    static SPINLOCK_SECTION StackType_t uxTimerTaskStack[ configTIMER_TASK_STACK_DEPTH ];
 #endif
     /* Pass out a pointer to the StaticTask_t structure in which the Timer
     task's state will be stored. */
