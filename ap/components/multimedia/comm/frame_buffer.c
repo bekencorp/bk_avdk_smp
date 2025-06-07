@@ -15,13 +15,13 @@
 #include <os/os.h>
 #include <os/mem.h>
 #include <driver/int.h>
-
 #include <components/log.h>
-
 #include "frame_buffer.h"
-
 #include "psram_mem_slab.h"
 #include "avdk_crc.h"
+#ifdef CONFIG_FREERTOS_SMP
+#include "spinlock.h"
+#endif
 
 #include "mlist.h"
 
@@ -47,7 +47,29 @@ typedef struct
 
 static fb_info_t *fb_info = NULL;
 
-extern uint32_t  platform_is_in_interrupt_context(void);
+#ifdef CONFIG_FREERTOS_SMP
+static SPINLOCK_SECTION volatile spinlock_t fb_spin_lock = SPIN_LOCK_INIT;
+#endif
+
+static inline uint32_t fb_enter_critical()
+{
+    uint32_t flags = rtos_disable_int();
+
+#ifdef CONFIG_FREERTOS_SMP
+   spin_lock(&fb_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   return flags;
+}
+
+static inline void fb_exit_critical(uint32_t flags)
+{
+#ifdef CONFIG_FREERTOS_SMP
+   spin_unlock(&fb_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+   rtos_enable_int(flags);
+}
 
 frame_buffer_t *frame_buffer_display_malloc(uint32_t size)
 {
@@ -119,6 +141,7 @@ void frame_buffer_encode_free(frame_buffer_t *frame)
         LOGE("%s %d buffer is NULL\n", __func__, __LINE__);
         return;
     }
+
     if (frame->flag == FB_ALLOCATED_PATTERN)
     {
         uint8_t crc = hnd_crc8((uint8_t *)frame, 6, 0xFF);
@@ -207,8 +230,7 @@ frame_list_node_t *frame_buffer_list_get_by_type(uint16_t camera_id, uint8_t cam
     frame_list_node_t *node = NULL;
     LIST_HEADER_T *pos, *n;
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flag = fb_enter_critical();
 
     if (!list_empty(&fb_info->list))
     {
@@ -229,7 +251,7 @@ frame_list_node_t *frame_buffer_list_get_by_type(uint16_t camera_id, uint8_t cam
         }
     }
 
-    GLOBAL_INT_RESTORE();
+    fb_exit_critical(flag);
 
     return node;
 }
@@ -240,8 +262,7 @@ frame_list_node_t *frame_buffer_list_get_by_format(uint16_t img_format)
     frame_list_node_t *node = NULL;
     LIST_HEADER_T *pos, *n;
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flag = fb_enter_critical();
 
     if (!list_empty(&fb_info->list))
     {
@@ -260,7 +281,7 @@ frame_list_node_t *frame_buffer_list_get_by_format(uint16_t img_format)
         }
     }
 
-    GLOBAL_INT_RESTORE();
+    fb_exit_critical(flag);
 
     return node;
 }
@@ -329,15 +350,12 @@ void *frame_buffer_list_node_init(uint16_t camera_id, uint8_t camera_type, uint1
     }
 
     os_memset(fb_list_node->node, 0 , sizeof(frame_list_node_t));
-    rtos_init_mutex(&fb_list_node->node->lock);
     rtos_init_semaphore(&fb_list_node->node->read_sem, 1);
     fb_list_node->node->camera_id = camera_id;
     fb_list_node->node->camera_type = camera_type;
     fb_list_node->node->img_format = img_format;
     INIT_LIST_HEAD(&fb_list_node->node->ready);
     INIT_LIST_HEAD(&fb_list_node->node->free);
-
-    rtos_lock_mutex(&fb_list_node->node->lock);
 
     if (img_format == IMAGE_H264 || img_format == IMAGE_H265)
     {
@@ -379,8 +397,6 @@ void *frame_buffer_list_node_init(uint16_t camera_id, uint8_t camera_type, uint1
         LOGI("%s, main_stream:%p\n", __func__, fb_info->main);
     }
 
-    rtos_unlock_mutex(&fb_list_node->node->lock);
-
     return (void *)fb_list_node->node;
 }
 
@@ -395,12 +411,9 @@ bk_err_t frame_buffer_list_node_deinit(frame_list_node_t *node)
         return BK_OK;
     }
 
-    rtos_lock_mutex(&node->lock);
-
     if (node->register_mask != 0)
     {
         LOGE("there are modes not deregister: %d\n", node->register_mask);
-        rtos_unlock_mutex(&node->lock);
         return BK_OK;
     }
 
@@ -457,7 +470,6 @@ bk_err_t frame_buffer_list_node_deinit(frame_list_node_t *node)
     if (tmp_node == NULL)
     {
         LOGE("%s, %d not find this node\n", __func__, __LINE__);
-        rtos_unlock_mutex(&node->lock);
     }
     else
     {
@@ -467,8 +479,6 @@ bk_err_t frame_buffer_list_node_deinit(frame_list_node_t *node)
         {
             fb_info->main = NULL;
         }
-        rtos_unlock_mutex(&node->lock);
-        rtos_deinit_mutex(&node->lock);
         os_free(tmp_node->node);
         tmp_node->node = NULL;
         os_free(tmp_node);
@@ -488,22 +498,16 @@ bk_err_t frame_buffer_list_node_invalid(frame_list_node_t *node)
         return BK_OK;
     }
 
-    rtos_lock_mutex(&node->lock);
-
     node->invalid = true;
     LOGW("%s, %d, node:%p\n", __func__, __LINE__, node);
 
-    rtos_unlock_mutex(&node->lock);
-
     return BK_OK;
 }
-
 
 frame_buffer_t *frame_buffer_fb_malloc(frame_list_node_t *node, uint32_t size)
 {
     frame_node_t *tmp = NULL, *f_node = NULL;
     LIST_HEADER_T *pos, *n;
-    uint32_t isr_context = platform_is_in_interrupt_context();
 
     if (node == NULL || size == 0)
     {
@@ -511,13 +515,7 @@ frame_buffer_t *frame_buffer_fb_malloc(frame_list_node_t *node, uint32_t size)
         return NULL;
     }
 
-    GLOBAL_INT_DECLARATION();
-
-    if (!isr_context)
-    {
-        rtos_lock_mutex(&node->lock);
-        GLOBAL_INT_DISABLE();
-    }
+    uint32_t flag = fb_enter_critical();
 
     if (!list_empty(&node->free))
     {
@@ -578,11 +576,7 @@ frame_buffer_t *frame_buffer_fb_malloc(frame_list_node_t *node, uint32_t size)
         }
     }
 
-    if (!isr_context)
-    {
-        GLOBAL_INT_RESTORE();
-        rtos_unlock_mutex(&node->lock);
-    }
+    fb_exit_critical(flag);
 
     if (f_node == NULL)
     {
@@ -607,7 +601,6 @@ frame_buffer_t *frame_buffer_fb_malloc(frame_list_node_t *node, uint32_t size)
 bk_err_t frame_buffer_fb_free(frame_list_node_t *node, frame_buffer_t *frame)
 {
     frame_node_t *f_node = NULL;
-    uint32_t isr_context = platform_is_in_interrupt_context();
     uint8_t index = 0;
 
     if (node == NULL || frame == NULL)
@@ -616,13 +609,7 @@ bk_err_t frame_buffer_fb_free(frame_list_node_t *node, frame_buffer_t *frame)
         return BK_OK;
     }
 
-    GLOBAL_INT_DECLARATION();
-
-    if (!isr_context)
-    {
-        rtos_lock_mutex(&node->lock);
-        GLOBAL_INT_DISABLE();
-    }
+    uint32_t flag = fb_enter_critical();
 
     for (index = 0; index < node->count; index++)
     {
@@ -657,11 +644,7 @@ bk_err_t frame_buffer_fb_free(frame_list_node_t *node, frame_buffer_t *frame)
 
 out:
 
-    if (!isr_context)
-    {
-        GLOBAL_INT_RESTORE();
-        rtos_unlock_mutex(&node->lock);
-    }
+    fb_exit_critical(flag);
 
     return BK_OK;
 }
@@ -669,7 +652,6 @@ out:
 bk_err_t frame_buffer_fb_push(frame_list_node_t *node, frame_buffer_t *frame)
 {
     frame_node_t *f_node = NULL;
-    uint32_t isr_context = platform_is_in_interrupt_context();
     uint8_t index = 0;
 
     if (node == NULL || frame == NULL)
@@ -678,13 +660,7 @@ bk_err_t frame_buffer_fb_push(frame_list_node_t *node, frame_buffer_t *frame)
         return BK_FAIL;
     }
 
-    GLOBAL_INT_DECLARATION();
-
-    if (!isr_context)
-    {
-        rtos_lock_mutex(&node->lock);
-        GLOBAL_INT_DISABLE();
-    }
+    uint32_t flag = fb_enter_critical();
 
     for (index = 0; index < node->count; index++)
     {
@@ -696,8 +672,9 @@ bk_err_t frame_buffer_fb_push(frame_list_node_t *node, frame_buffer_t *frame)
 
     if (index == node->count)
     {
+        fb_exit_critical(flag);
         LOGE("%s, %d not find this frame in frame_list\n", __func__, __LINE__);
-        goto out;
+        return BK_OK;
     }
 
     f_node = node->node_list[index];
@@ -707,18 +684,11 @@ bk_err_t frame_buffer_fb_push(frame_list_node_t *node, frame_buffer_t *frame)
     f_node->free_mask = 0;
     f_node->read_mask = 0;
     list_add_tail(&f_node->list, &node->ready);
+    fb_exit_critical(flag);
     if (node->trigger)
     {
         node->trigger = false;
         rtos_set_semaphore(&node->read_sem);
-    }
-
-out:
-
-    if (!isr_context)
-    {
-        GLOBAL_INT_RESTORE();
-        rtos_unlock_mutex(&node->lock);
     }
 
     return BK_OK;
@@ -735,7 +705,7 @@ frame_buffer_t *frame_buffer_fb_pop(frame_list_node_t *node, uint32_t timeout)
         return NULL;
     }
 
-    rtos_lock_mutex(&node->lock);
+    uint32_t flag = fb_enter_critical();
 
     if (!list_empty(&node->ready))
     {
@@ -751,7 +721,7 @@ frame_buffer_t *frame_buffer_fb_pop(frame_list_node_t *node, uint32_t timeout)
         }
     }
 
-    rtos_unlock_mutex(&node->lock);
+    fb_exit_critical(flag);
 
     if (f_node)
     {
@@ -776,14 +746,14 @@ bk_err_t frame_buffer_fb_register(frame_list_node_t *node, frame_module_t module
         LOGD("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
     }
 
-    rtos_lock_mutex(&node->lock);
+    uint32_t flag = fb_enter_critical();
 
     if ((node->register_mask & INDEX_MASK(module)) == 0)
     {
         node->register_mask |= INDEX_MASK(module);
     }
 
-    rtos_unlock_mutex(&node->lock);
+    fb_exit_critical(flag);
     LOGI("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
 
     return BK_OK;
@@ -803,7 +773,7 @@ bk_err_t frame_buffer_fb_deregister(frame_list_node_t *node, frame_module_t modu
         LOGD("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
     }
 
-    rtos_lock_mutex(&node->lock);
+    uint32_t flag = fb_enter_critical();
 
     if (node->register_mask & INDEX_MASK(module))
     {
@@ -830,7 +800,7 @@ bk_err_t frame_buffer_fb_deregister(frame_list_node_t *node, frame_module_t modu
     }
     LOGI("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
 
-    rtos_unlock_mutex(&node->lock);
+    fb_exit_critical(flag);
 
     return BK_OK;
 }
@@ -874,10 +844,10 @@ frame_buffer_t *frame_buffer_fb_read(frame_list_node_t *node, frame_module_t mod
     if (node == NULL)
     {
         LOGW("%s, %d null ptr\n", __func__, node);
-        return NULL;
+        return frame;
     }
 
-    rtos_lock_mutex(&node->lock);
+    uint32_t flag = fb_enter_critical();
 
     if ((node->register_mask & INDEX_MASK(module)) == 0)
     {
@@ -911,20 +881,18 @@ frame_buffer_t *frame_buffer_fb_read(frame_list_node_t *node, frame_module_t mod
     if (frame == NULL)
     {
         node->trigger = true;
-        rtos_unlock_mutex(&node->lock);
+        fb_exit_critical(flag);
         if (BK_OK != rtos_get_semaphore(&node->read_sem, timeout))
         {
             LOGD("%s, timeout:%dms, module:%d\n", __func__, timeout, module);
         }
 
-        rtos_lock_mutex(&node->lock);
+        flag = fb_enter_critical();
         frame = frame_buffer_fb_read_pop(&node->ready, module);
     }
 
 out:
-
-    rtos_unlock_mutex(&node->lock);
-
+    fb_exit_critical(flag);
     return frame;
 }
 
@@ -941,8 +909,7 @@ frame_list_node_t *frame_buffer_fb_get_stream_by_frame(frame_buffer_t *frame)
         return NULL;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    uint32_t flag = fb_enter_critical();
     if (!list_empty(&fb_info->list))
     {
         list_for_each_safe(pos, n, &fb_info->list)
@@ -967,11 +934,10 @@ frame_list_node_t *frame_buffer_fb_get_stream_by_frame(frame_buffer_t *frame)
         }
     }
 
-    GLOBAL_INT_RESTORE();
+    fb_exit_critical(flag);
 
     return node;
 }
-
 
 void frame_buffer_fb_read_free(frame_list_node_t *node, frame_buffer_t *frame, frame_module_t mode)
 {
@@ -999,7 +965,7 @@ void frame_buffer_fb_read_free(frame_list_node_t *node, frame_buffer_t *frame, f
     curr_node = node;
 #endif
 
-    rtos_lock_mutex(&curr_node->lock);
+    uint32_t flag = fb_enter_critical();
 
     for (index = 0; index < curr_node->count; index++)
     {
@@ -1054,6 +1020,7 @@ void frame_buffer_fb_read_free(frame_list_node_t *node, frame_buffer_t *frame, f
                 frame_buffer_encode_free(frame);
             }
             f_node->frame = NULL;
+
             list_add_tail(&f_node->list, &curr_node->free);
         }
         else
@@ -1078,6 +1045,6 @@ void frame_buffer_fb_read_free(frame_list_node_t *node, frame_buffer_t *frame, f
 
 out:
 
-	rtos_unlock_mutex(&curr_node->lock);
+	fb_exit_critical(flag);
 }
 

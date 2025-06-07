@@ -63,7 +63,6 @@ typedef struct {
     uint16_t camera_id;
     uint16_t img_format;
     uint32_t register_mask;
-    beken_mutex_t lock;
     beken_semaphore_t read_sem;
     LIST_HEADER_T ready;
     LIST_HEADER_T free;
