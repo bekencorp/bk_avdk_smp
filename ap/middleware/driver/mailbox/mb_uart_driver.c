@@ -67,7 +67,6 @@ enum
 {
 	MB_UART_SEND_DATA = 0,
 	MB_UART_SEND_STATE,
-	MB_UART_ASSERT_DATA,
 
 	MB_UART_CMD_MAX,
 };
@@ -99,19 +98,18 @@ typedef struct
 
 	/* tx channel */
 	u8			*	tx_xchg_buff;        /* uart tx FIFO */
-	u8				tx_buf[MB_UART_TX_FIFO_LEN];
+	u8				tx_buf[MB_UART_TX_FIFO_LEN + 1];
 	u16				tx_rd_idx;
 	u16				tx_wr_idx;
-	volatile u16 	tx_data_cnt;
 	volatile u8		tx_in_process;
+	volatile u8		tx_state_req;
 	u8				tx_cmd;
 
 	/* rx channel */
 	u8			*	rx_xchg_buff;        /* uart rx FIFO */
-	u8				rx_buf[2 * MB_UART_RX_FIFO_LEN];
+	u8				rx_buf[2 * MB_UART_RX_FIFO_LEN + 1];
 	u16				rx_rd_idx;
 	u16				rx_wr_idx;
-	volatile u16 	rx_data_cnt;
 } mb_uart_cb_t;
 
 #ifdef MB_UART_CRC8_ENABLE
@@ -150,97 +148,137 @@ static u8 cal_crc8_0x31(u8 *data_buf, u16 len)
 	return (crc);
 }
 
+#if CONFIG_SOC_SMP
+#include "spinlock.h"
+static SPINLOCK_SECTION volatile spinlock_t mb_uart_spin_lock = SPIN_LOCK_INIT;
+#endif // CONFIG_SOC_SMP
+static inline uint32_t mb_uart_enter_critical()
+{
+	uint32_t flags = rtos_disable_int();
+
+#if CONFIG_SOC_SMP
+	spin_lock(&mb_uart_spin_lock);
+#endif // CONFIG_SOC_SMP
+
+	return flags;
+}
+
+static inline void mb_uart_exit_critical(uint32_t flags)
+{
+#if CONFIG_SOC_SMP
+	spin_unlock(&mb_uart_spin_lock);
+#endif // CONFIG_SOC_SMP
+
+	rtos_enable_int(flags);
+}
+
 static bk_err_t mb_uart_send_data(mb_uart_cb_t *chnl_cb);
+static bk_err_t mb_uart_send_state(mb_uart_cb_t *chnl_cb);
+static bk_err_t mb_uart_send_data_trigger(mb_uart_cb_t *chnl_cb);
 
 static void rx_isr_data_handler(mb_uart_cb_t *chnl_cb, mb_uart_cmd_t * uart_cmd)
 {
+	u8      tx_fail = 0;
+
+	u16    rd_idx, wr_idx, free_cnt;
+
+	rd_idx = chnl_cb->rx_rd_idx;
+	wr_idx = chnl_cb->rx_wr_idx;
+
+	if(rd_idx > wr_idx)
+	{
+		free_cnt = rd_idx - wr_idx - 1;  // always reserved one byte space.
+	}
+	else
+	{
+		free_cnt = sizeof(chnl_cb->rx_buf) - (wr_idx - rd_idx) - 1;
+	}
+
+	/* chnl_cb->rx_xchg_buff == uart_cmd->cmd_buff. MUST be true. */
+
+	if((uart_cmd->cmd_buff == NULL) || (uart_cmd->cmd_data_len == 0))
+	{
+		goto rx_isr_data_xit;
+	}
+
+	if(uart_cmd->cmd_data_len > free_cnt)
+	{
+		chnl_cb->status_overflow = 1;   /* discards all rx-data.  */
+		tx_fail = 1;
+		
+		goto rx_isr_data_xit;
+	}
+
+	#if CONFIG_CACHE_ENABLE
+	flush_dcache(uart_cmd->cmd_buff, uart_cmd->cmd_data_len);
+	#endif
+
+	u16    rem_len, cpy_len;
+
+	cpy_len = uart_cmd->cmd_data_len;
+
+	if(uart_cmd->crc8 != cal_crc8_0x31((u8 *)uart_cmd->cmd_buff, cpy_len))
+	{
+		chnl_cb->status_parity = 1;   /* discards all rx-data.  */
+		tx_fail = 1;
+		
+		goto rx_isr_data_xit;
+	}
+
+	if(wr_idx < rd_idx)
+	{
+		memcpy(chnl_cb->rx_buf + wr_idx, uart_cmd->cmd_buff, cpy_len);
+		chnl_cb->rx_wr_idx += cpy_len;
+	}
+	else
+	{
+		rem_len = sizeof(chnl_cb->rx_buf) - wr_idx;
+
+		if(rd_idx == 0)
+			rem_len -= 1;  // if rx_idx == 0, reserved one byte at tail of the array.
+
+		if(rem_len > cpy_len)
+		{
+			memcpy(chnl_cb->rx_buf + wr_idx, uart_cmd->cmd_buff, cpy_len);
+			chnl_cb->rx_wr_idx += cpy_len;
+		}
+		else
+		{
+			memcpy(chnl_cb->rx_buf + wr_idx, uart_cmd->cmd_buff, rem_len);
+
+			if(rem_len < cpy_len)
+			{
+				memcpy(chnl_cb->rx_buf, uart_cmd->cmd_buff + rem_len, cpy_len - rem_len);
+			}
+
+			chnl_cb->rx_wr_idx = cpy_len - rem_len;
+		}
+	}
+
+	free_cnt -= cpy_len;
+
+	if(chnl_cb->rx_isr_callback != NULL)
+	{
+		chnl_cb->rx_isr_callback(chnl_cb->rx_isr_param);
+	}
+
+rx_isr_data_xit:
+	
+	if(free_cnt <= MB_UART_RX_FIFO_LEN)
+	{
+		chnl_cb->ctrl_rts = 1;
+	}
+
+	u8      old_cts = chnl_cb->status_cts;
+
+	chnl_cb->status_cts = uart_cmd->uart_rts;
+
 	/* overwrite the uart_cmd after the ISR handle completed.
 	 * return the rsp info to caller using the SAME buffer with cmd buffer.
 	 *     !!!! [input as param / output as result ]  !!!!
 	 */
 	mb_uart_rsp_t * uart_rsp = (mb_uart_rsp_t *)uart_cmd;
 
-	u8      tx_fail = 0;
-	u8      old_cts = chnl_cb->status_cts;
-
-	/* chnl_cb->rx_xchg_buff == uart_cmd->cmd_buff. MUST be true. */
-
-	chnl_cb->status_cts = uart_cmd->uart_rts;
-
-	if((uart_cmd->cmd_buff == NULL) || (uart_cmd->cmd_data_len == 0))
-	{
-		goto rx_isr_data_xit;
-	}
-	else if((uart_cmd->cmd_data_len + chnl_cb->rx_data_cnt) > sizeof(chnl_cb->rx_buf))
-	{
-		chnl_cb->status_overflow = 1;   /* discards all rx-data.  */
-		tx_fail = 1;
-	}
-	else
-	{
-		#if CONFIG_CACHE_ENABLE
-		flush_dcache(uart_cmd->cmd_buff, uart_cmd->cmd_data_len);
-		#endif
-
-		u16    rem_len, cpy_len;
-
-		cpy_len = uart_cmd->cmd_data_len;
-
-		if(uart_cmd->crc8 != cal_crc8_0x31((u8 *)uart_cmd->cmd_buff, cpy_len))
-		{
-			chnl_cb->status_parity = 1;   /* discards all rx-data.  */
-			tx_fail = 1;
-			
-			goto rx_isr_data_xit;
-		}
-
-		if(chnl_cb->rx_wr_idx < chnl_cb->rx_rd_idx)
-		{
-			memcpy(chnl_cb->rx_buf + chnl_cb->rx_wr_idx, uart_cmd->cmd_buff, cpy_len);
-			chnl_cb->rx_wr_idx += cpy_len;
-		}
-		else
-		{
-			rem_len = sizeof(chnl_cb->rx_buf) - chnl_cb->rx_wr_idx;
-
-			if(rem_len > cpy_len)
-			{
-				memcpy(chnl_cb->rx_buf + chnl_cb->rx_wr_idx, uart_cmd->cmd_buff, cpy_len);
-				chnl_cb->rx_wr_idx += cpy_len;
-			}
-			else
-			{
-				memcpy(chnl_cb->rx_buf + chnl_cb->rx_wr_idx, uart_cmd->cmd_buff, rem_len);
-				chnl_cb->rx_wr_idx = 0;
-
-				if(rem_len < cpy_len)
-				{
-					memcpy(chnl_cb->rx_buf, uart_cmd->cmd_buff + rem_len, cpy_len - rem_len);
-				}
-
-				chnl_cb->rx_wr_idx = cpy_len - rem_len;
-			}
-		}
-
-		chnl_cb->rx_data_cnt += cpy_len;
-
-		if(chnl_cb->rx_isr_callback != NULL)
-		{
-			chnl_cb->rx_isr_callback(chnl_cb->rx_isr_param);
-		}
-	}
-
-rx_isr_data_xit:
-	
-	if(chnl_cb->rx_data_cnt >= (sizeof(chnl_cb->rx_buf) - MB_UART_RX_FIFO_LEN))
-	{
-		chnl_cb->ctrl_rts = 1;
-	}
-
-	/* overwrite the uart_cmd after the ISR handle completed.
-	 * return the rsp info to caller using the SAME buffer with cmd buffer.
-	 *     !!!! [input as param / output as result ]  !!!!
-	 */
 	uart_rsp->uart_rts = chnl_cb->ctrl_rts;
 	uart_rsp->uart_tx_fail = tx_fail;
 	uart_rsp->resvd = 0;
@@ -250,7 +288,7 @@ rx_isr_data_xit:
 		if(chnl_cb->status_cts == 0)
 		{
 			/* trigger send! */
-			mb_uart_send_data(chnl_cb);
+			mb_uart_send_data_trigger(chnl_cb);
 		}
 	}
 	
@@ -259,15 +297,7 @@ rx_isr_data_xit:
 
 static void rx_isr_state_handler(mb_uart_cb_t *chnl_cb, mb_uart_cmd_t *uart_cmd)
 {
-	/* overwrite the uart_cmd after the ISR handle completed.
-	 * return the rsp info to caller using the SAME buffer with cmd buffer.
-	 *     !!!! [input as param / output as result ]  !!!!
-	 */
-	mb_uart_rsp_t * uart_rsp = (mb_uart_rsp_t *)uart_cmd;
-
 	u8      old_cts = chnl_cb->status_cts;
-
-	/* chnl_cb->rx_xchg_buff == uart_cmd->cmd_buff. MUST be true. */
 
 	chnl_cb->status_cts = uart_cmd->uart_rts;
 
@@ -275,6 +305,8 @@ static void rx_isr_state_handler(mb_uart_cb_t *chnl_cb, mb_uart_cmd_t *uart_cmd)
 	 * return the rsp info to caller using the SAME buffer with cmd buffer.
 	 *     !!!! [input as param / output as result ]  !!!!
 	 */
+	mb_uart_rsp_t * uart_rsp = (mb_uart_rsp_t *)uart_cmd;
+
 	uart_rsp->uart_rts = chnl_cb->ctrl_rts;
 	uart_rsp->uart_tx_fail = 0;
 	uart_rsp->resvd = 0;
@@ -284,7 +316,7 @@ static void rx_isr_state_handler(mb_uart_cb_t *chnl_cb, mb_uart_cmd_t *uart_cmd)
 		if(chnl_cb->status_cts == 0)
 		{
 			/* trigger send! */
-			mb_uart_send_data(chnl_cb);
+			mb_uart_send_data_trigger(chnl_cb);
 		}
 	}
 
@@ -293,12 +325,9 @@ static void rx_isr_state_handler(mb_uart_cb_t *chnl_cb, mb_uart_cmd_t *uart_cmd)
 
 static void mb_uart_rx_isr(mb_uart_cb_t *chnl_cb, mb_chnl_cmd_t *cmd_buf)
 {
-	/* overwrite the cmd_buf after the ISR handle completed.
-	 * return the ack info to caller using the SAME buffer with cmd buffer.
-	 *     !!!! [input as param / output as result ]  !!!!
-	 */
-	mb_uart_rsp_t * uart_rsp = (mb_uart_rsp_t *)cmd_buf;
-
+	/* clear here, because rts state will be passed in response data! */
+	chnl_cb->tx_state_req = 0;
+	
 	if(cmd_buf->hdr.cmd == MB_UART_SEND_DATA)
 	{
 		rx_isr_data_handler(chnl_cb, (mb_uart_cmd_t *)cmd_buf);
@@ -307,18 +336,14 @@ static void mb_uart_rx_isr(mb_uart_cb_t *chnl_cb, mb_chnl_cmd_t *cmd_buf)
 	{
 		rx_isr_state_handler(chnl_cb, (mb_uart_cmd_t *)cmd_buf);
 	}
-	else if(cmd_buf->hdr.cmd == MB_UART_ASSERT_DATA)
-	{
-		mb_uart_cmd_t * uart_cmd_buf = (mb_uart_cmd_t *)cmd_buf;
-		uart_cmd_buf->cmd_data_len--;
-		volatile u8  * busy_buf = (volatile u8 *)uart_cmd_buf->cmd_buff;
-		uart_cmd_buf->cmd_buff = (void *)(busy_buf + 1);
-		rx_isr_data_handler(chnl_cb, uart_cmd_buf);
-
-		busy_buf[0] = 0;
-	}
 	else
 	{
+		/* overwrite the cmd_buf after the ISR handle completed.
+		 * return the ack info to caller using the SAME buffer with cmd buffer.
+		 *     !!!! [input as param / output as result ]  !!!!
+		 */
+		mb_uart_rsp_t * uart_rsp = (mb_uart_rsp_t *)cmd_buf;
+
 		uart_rsp->uart_rts = chnl_cb->ctrl_rts;
 		uart_rsp->uart_tx_fail = 1;
 		uart_rsp->resvd = 0;
@@ -346,7 +371,6 @@ static void mb_uart_tx_cmpl_isr(mb_uart_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)  
 		return;
 	}
 
-	chnl_cb->tx_in_process = 0;
 	chnl_cb->status_cts = uart_rsp->uart_rts;
 
 	if(ack_buf->hdr.state & CHNL_STATE_COM_FAIL)
@@ -359,8 +383,32 @@ static void mb_uart_tx_cmpl_isr(mb_uart_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)  
 	}
 
 	/* try next Tx. */
-	/* trigger next Tx after saved cts and cleared tx_in_process. */
-	mb_uart_send_data(chnl_cb);
+
+	bk_err_t	ret_val = BK_FAIL;
+
+	ret_val = mb_uart_send_data(chnl_cb);
+
+	if(ret_val == BK_OK)
+	{
+		chnl_cb->tx_state_req = 0;
+	}
+	else
+	{
+		if(chnl_cb->tx_state_req)
+		{
+			ret_val = mb_uart_send_state(chnl_cb);
+			
+			if(ret_val == BK_OK)
+			{
+				chnl_cb->tx_state_req = 0;
+			}
+		}
+	}
+
+	if(ret_val != BK_OK)
+	{
+		chnl_cb->tx_in_process = 0;  /* clear here, because no tx_cmpl_isr callback! */
+	}
 
 	if(tx_fail)
 	{
@@ -429,71 +477,64 @@ static bk_err_t mb_uart_deinit(mb_uart_cb_t *chnl_cb, u8 chnl_id)
 	return BK_OK;
 }
 
-/* should be called in context of interrupt !* DISABLED *! . */
 static bk_err_t mb_uart_send_data(mb_uart_cb_t *chnl_cb)
 {
 	bk_err_t	ret_val = BK_FAIL;
 
 	u16    rem_len, cpy_len;
-	
-	mb_uart_cmd_t	uart_cmd;
-
-	if(!chnl_cb->chnl_inited)
-		return BK_ERR_NOT_INIT;
-
-	if(chnl_cb->tx_data_cnt == 0)
-		return BK_OK;
+	u16    rd_idx, wr_idx;
 
 	if(chnl_cb->status_cts != 0)
 	{
 		return BK_ERR_BUSY;
 	}
 
-	if(chnl_cb->tx_in_process != 0)
+	rd_idx = chnl_cb->tx_rd_idx;
+	wr_idx = chnl_cb->tx_wr_idx;
+
+	if(rd_idx <= wr_idx)
 	{
-		return BK_ERR_BUSY;
+		cpy_len = wr_idx - rd_idx;
+	}
+	else
+	{
+		cpy_len = sizeof(chnl_cb->tx_buf) - (rd_idx - wr_idx);
 	}
 
-	cpy_len = chnl_cb->tx_data_cnt;
+	if(cpy_len == 0)
+	{
+		return BK_FAIL;
+	}
+
 	if(cpy_len > MB_UART_TX_FIFO_LEN)
 	{
 		cpy_len = MB_UART_TX_FIFO_LEN;
 	}
 
-	if(chnl_cb->tx_rd_idx < chnl_cb->tx_wr_idx)
+	if(rd_idx < wr_idx)
 	{
-		memcpy(chnl_cb->tx_xchg_buff, chnl_cb->tx_buf + chnl_cb->tx_rd_idx, cpy_len);
-		chnl_cb->tx_rd_idx += cpy_len;
+		memcpy(chnl_cb->tx_xchg_buff, chnl_cb->tx_buf + rd_idx, cpy_len);
 	}
 	else
 	{
-		rem_len = sizeof(chnl_cb->tx_buf) - chnl_cb->tx_rd_idx;
+		rem_len = sizeof(chnl_cb->tx_buf) - rd_idx;
 
-		if(rem_len > cpy_len)
+		if(rem_len >= cpy_len)
 		{
-			memcpy(chnl_cb->tx_xchg_buff, chnl_cb->tx_buf + chnl_cb->tx_rd_idx, cpy_len);
-			
-			chnl_cb->tx_rd_idx += cpy_len;
+			memcpy(chnl_cb->tx_xchg_buff, chnl_cb->tx_buf + rd_idx, cpy_len);
 		}
 		else
 		{
-			memcpy(chnl_cb->tx_xchg_buff, chnl_cb->tx_buf + chnl_cb->tx_rd_idx, rem_len);
+			memcpy(chnl_cb->tx_xchg_buff, chnl_cb->tx_buf + rd_idx, rem_len);
 
-			if(rem_len < cpy_len)
-			{
-				memcpy(chnl_cb->tx_xchg_buff + rem_len, chnl_cb->tx_buf, cpy_len - rem_len);
-			}
-
-			chnl_cb->tx_rd_idx = cpy_len - rem_len;
+			memcpy(chnl_cb->tx_xchg_buff + rem_len, chnl_cb->tx_buf, cpy_len - rem_len);
 		}
 	}
 
-	chnl_cb->tx_data_cnt -= cpy_len;
-
-	chnl_cb->tx_in_process = 1;
 	chnl_cb->tx_cmd = MB_UART_SEND_DATA;
 
-	uart_cmd.chnl_hdr.data = 0;	/* clear hdr. */
+	mb_uart_cmd_t	uart_cmd;
+
 	uart_cmd.chnl_hdr.cmd  = MB_UART_SEND_DATA;
 	uart_cmd.cmd_buff      = (void *)(chnl_cb->tx_xchg_buff);
 	uart_cmd.cmd_data_len  = cpy_len;
@@ -503,42 +544,46 @@ static bk_err_t mb_uart_send_data(mb_uart_cb_t *chnl_cb)
 
 	ret_val = mb_chnl_write(chnl_cb->chnl_id, (mb_chnl_cmd_t *)&uart_cmd);
 
+	if(ret_val == BK_OK)
+	{
+		chnl_cb->tx_rd_idx = (rd_idx + cpy_len) % sizeof(chnl_cb->tx_buf);
+	}
+
+	return ret_val;
+}
+
+static bk_err_t mb_uart_send_data_trigger(mb_uart_cb_t *chnl_cb)
+{
+	u32 flag = mb_uart_enter_critical();
+
+	if(chnl_cb->tx_in_process != 0)
+	{
+		mb_uart_exit_critical(flag);
+		return BK_OK;
+	}
+
+	chnl_cb->tx_in_process = 1;
+
+	mb_uart_exit_critical(flag);
+
+	bk_err_t	ret_val = BK_FAIL;
+
+	ret_val = mb_uart_send_data(chnl_cb);
+
 	if(ret_val != BK_OK)
 	{
 		chnl_cb->tx_in_process = 0;  /* clear here, because no tx_cmpl_isr callback! */
 	}
 
 	return ret_val;
-
 }
 
-/* should be called in context of interrupt !* DISABLED *! . */
 static bk_err_t mb_uart_send_state(mb_uart_cb_t *chnl_cb)
 {
-	bk_err_t	ret_val = BK_FAIL;
-
 	mb_uart_cmd_t	uart_cmd;
 
-	if(!chnl_cb->chnl_inited)
-		return BK_ERR_NOT_INIT;
-
-	if(chnl_cb->tx_in_process != 0)
-	{
-		return BK_ERR_BUSY;
-	}
-
-	#if 1
-	if((chnl_cb->tx_data_cnt > 0) && (chnl_cb->status_cts == 0))
-	{
-		BK_LOGW(MOD_TAG, "pass in data,rts:%d\r\n", chnl_cb->ctrl_rts);
-		return BK_OK;  /* rts state will be passed in send_data. */
-	}
-	#endif
-
-	chnl_cb->tx_in_process = 1;
 	chnl_cb->tx_cmd = MB_UART_SEND_STATE;
 
-	uart_cmd.chnl_hdr.data = 0;	/* clear hdr. */
 	uart_cmd.chnl_hdr.cmd  = MB_UART_SEND_STATE;
 	uart_cmd.cmd_buff      = NULL;
 	uart_cmd.cmd_data_len  = 0;
@@ -546,7 +591,31 @@ static bk_err_t mb_uart_send_state(mb_uart_cb_t *chnl_cb)
 	uart_cmd.resvd         = 0;
 	uart_cmd.crc8          = 0;
 
+	bk_err_t	ret_val = BK_FAIL;
+
 	ret_val = mb_chnl_write(chnl_cb->chnl_id, (mb_chnl_cmd_t *)&uart_cmd);
+
+	return ret_val;
+}
+
+static bk_err_t mb_uart_send_state_trigger(mb_uart_cb_t *chnl_cb)
+{
+	u32 flag = mb_uart_enter_critical();
+
+	if(chnl_cb->tx_in_process != 0)
+	{
+		chnl_cb->tx_state_req = 1;
+		mb_uart_exit_critical(flag);
+		return BK_OK;
+	}
+
+	chnl_cb->tx_in_process = 1;
+
+	mb_uart_exit_critical(flag);
+
+	bk_err_t	ret_val = BK_FAIL;
+
+	ret_val = mb_uart_send_state(chnl_cb);
 
 	if(ret_val != BK_OK)
 	{
@@ -556,111 +625,56 @@ static bk_err_t mb_uart_send_state(mb_uart_cb_t *chnl_cb)
 	return ret_val;
 }
 
-/* should be called in context of interrupt !* DISABLED *! . */
 static u16 mb_uart_write_data(mb_uart_cb_t *chnl_cb, u8 * data_buf, u16 data_len)
 {
 	u16    rem_len, wr_len;
+	u16    rd_idx, wr_idx;
 	
-	if(!chnl_cb->chnl_inited)
-		return 0;
+	rd_idx = chnl_cb->tx_rd_idx;
+	wr_idx = chnl_cb->tx_wr_idx;
 
-	rem_len = sizeof(chnl_cb->tx_buf) - chnl_cb->tx_data_cnt;
+	if(rd_idx > wr_idx)
+	{
+		rem_len = rd_idx - wr_idx - 1;  // always reserved one byte space.
+	}
+	else
+	{
+		rem_len = sizeof(chnl_cb->tx_buf) - (wr_idx - rd_idx) - 1;
+	}
 
 	wr_len = data_len;
 	if(wr_len > rem_len)
 		wr_len = rem_len;
 
-	if(chnl_cb->tx_wr_idx < chnl_cb->tx_rd_idx)
+	if(wr_idx < rd_idx)
 	{
-		memcpy(chnl_cb->tx_buf + chnl_cb->tx_wr_idx, data_buf, wr_len);
-		chnl_cb->tx_wr_idx += wr_len;
+		memcpy(chnl_cb->tx_buf + wr_idx, data_buf, wr_len);
 	}
 	else
 	{
-		rem_len = sizeof(chnl_cb->tx_buf) - chnl_cb->tx_wr_idx;
+		if(rd_idx != 0)
+			rem_len = sizeof(chnl_cb->tx_buf) - wr_idx;  // if rx_idx == 0, reserved one byte at tail of the array.
 
-		if(rem_len > wr_len)
+		if(rem_len >= wr_len)
 		{
-			memcpy(chnl_cb->tx_buf + chnl_cb->tx_wr_idx, data_buf, wr_len);
-			chnl_cb->tx_wr_idx += wr_len;
+			memcpy(chnl_cb->tx_buf + wr_idx, data_buf, wr_len);
 		}
 		else
 		{
-			memcpy(chnl_cb->tx_buf + chnl_cb->tx_wr_idx, data_buf, rem_len);
-			if(rem_len < wr_len)
-			{
-				memcpy(chnl_cb->tx_buf, data_buf + rem_len, wr_len - rem_len);
-			}
+			memcpy(chnl_cb->tx_buf + wr_idx, data_buf, rem_len);
 
-			chnl_cb->tx_wr_idx = wr_len - rem_len;
+			memcpy(chnl_cb->tx_buf, data_buf + rem_len, wr_len - rem_len);
 		}
 	}
-	
-	chnl_cb->tx_data_cnt += wr_len;
+
+	chnl_cb->tx_wr_idx = (wr_idx + wr_len) % sizeof(chnl_cb->tx_buf);
 
 	/* trigger send! */
-	mb_uart_send_data(chnl_cb);
+	mb_uart_send_data_trigger(chnl_cb);
 
 	return wr_len;
 }
 
-/* should be called in context of interrupt !* DISABLED *! . */
-static bk_err_t mb_uart_write_sync(mb_uart_cb_t *chnl_cb, u8 * data_buf, u16 data_len)
-{
-	volatile u8 * buff_busy;
-	u8 *          tx_buff;
-	u16           cpy_len;
-	bk_err_t      ret_code = BK_FAIL;
-
-	tx_buff = &chnl_cb->tx_xchg_buff[1];
-	buff_busy = (volatile u8 * )&chnl_cb->tx_xchg_buff[0];
-
-	while(data_len > 0)
-	{
-		cpy_len = MB_UART_TX_FIFO_LEN - 1;
-
-		if(cpy_len > data_len)
-			cpy_len = data_len;
-
-		buff_busy[0] = 1;  /* the buffer is busy. */
-		memcpy(tx_buff, data_buf, cpy_len);
-
-		mb_uart_cmd_t	uart_cmd;
-
-		uart_cmd.chnl_hdr.data = 0;
-		uart_cmd.chnl_hdr.cmd = MB_UART_ASSERT_DATA;
-		uart_cmd.cmd_buff = chnl_cb->tx_xchg_buff;
-		uart_cmd.cmd_data_len = cpy_len + 1;
-		uart_cmd.uart_rts     = chnl_cb->ctrl_rts;
-		uart_cmd.resvd         = 0;
-		uart_cmd.crc8          = cal_crc8_0x31((u8 *)tx_buff, cpy_len);
-
-		ret_code = mb_chnl_ctrl(chnl_cb->chnl_id, MB_CHNL_WRITE_SYNC, &uart_cmd);
-
-		if(ret_code == BK_OK)
-		{
-			while(*buff_busy)
-			{
-				// wait buffer to be free.
-				#if CONFIG_CACHE_ENABLE
-				flush_dcache((void *)buff_busy, 1);
-				#endif
-			}
-		}
-		else
-		{
-			break;
-		}
-		
-		data_len -= cpy_len;
-		data_buf += cpy_len;
-		
-	}
-
-	return ret_code;
-}
-
-/* should be called in context of interrupt !* DISABLED *! . */
 static u16 mb_uart_read_data(mb_uart_cb_t *chnl_cb, u8 * data_buf, u16 buf_len)
 {
 	u16    rem_len, rd_len;
@@ -668,27 +682,46 @@ static u16 mb_uart_read_data(mb_uart_cb_t *chnl_cb, u8 * data_buf, u16 buf_len)
 	if(!chnl_cb->chnl_inited)
 		return 0;
 
-	rd_len = chnl_cb->rx_data_cnt;
+	u16    rd_idx, wr_idx, data_cnt;
+
+	rd_idx = chnl_cb->rx_rd_idx;
+	wr_idx = chnl_cb->rx_wr_idx;
+
+	if(rd_idx <= wr_idx)
+	{
+		data_cnt = wr_idx - rd_idx;
+	}
+	else
+	{
+		data_cnt = sizeof(chnl_cb->rx_buf) - (rd_idx - wr_idx);
+	}
+
+	rd_len = data_cnt;
 	if(rd_len > buf_len)
 		rd_len = buf_len;
 
-	if(chnl_cb->rx_rd_idx < chnl_cb->rx_wr_idx)
+	if(rd_len == 0)
 	{
-		memcpy(data_buf, chnl_cb->rx_buf + chnl_cb->rx_rd_idx, rd_len);
+		return 0;
+	}
+
+	if(rd_idx < wr_idx)
+	{
+		memcpy(data_buf, chnl_cb->rx_buf + rd_idx, rd_len);
 		chnl_cb->rx_rd_idx += rd_len;
 	}
 	else
 	{
-		rem_len = sizeof(chnl_cb->rx_buf) - chnl_cb->rx_rd_idx;
+		rem_len = sizeof(chnl_cb->rx_buf) - rd_idx;
 
 		if(rem_len > rd_len)
 		{
-			memcpy(data_buf, chnl_cb->rx_buf + chnl_cb->rx_rd_idx, rd_len);
+			memcpy(data_buf, chnl_cb->rx_buf + rd_idx, rd_len);
 			chnl_cb->rx_rd_idx += rd_len;
 		}
 		else
 		{
-			memcpy(data_buf, chnl_cb->rx_buf + chnl_cb->rx_rd_idx, rem_len);
+			memcpy(data_buf, chnl_cb->rx_buf + rd_idx, rem_len);
 			if(rem_len < rd_len)
 			{
 				memcpy(data_buf + rem_len, chnl_cb->rx_buf, rd_len - rem_len);
@@ -698,15 +731,15 @@ static u16 mb_uart_read_data(mb_uart_cb_t *chnl_cb, u8 * data_buf, u16 buf_len)
 		}
 	}
 
-	chnl_cb->rx_data_cnt -= rd_len;
+	data_cnt -= rd_len;
 
 	/* rts assert...... */
-	if(chnl_cb->rx_data_cnt < ((sizeof(chnl_cb->rx_buf) - MB_UART_RX_FIFO_LEN) * 8 / 10))
+	if(data_cnt < ((sizeof(chnl_cb->rx_buf) - 1 - MB_UART_RX_FIFO_LEN) * 8 / 10))
 	{
 		if( chnl_cb->ctrl_rts != 0)
 		{
 			chnl_cb->ctrl_rts = 0;
-			mb_uart_send_state(chnl_cb);
+			mb_uart_send_state_trigger(chnl_cb);
 		}
 	}
 
@@ -734,13 +767,9 @@ bk_err_t bk_mb_uart_dev_init(u8 id)
 	if(id >= MB_UART_MAX)
 		return BK_ERR_PARAM;
 
-	u32  int_mask = rtos_disable_int();
-
 	ret_val = mb_uart_init(&mb_uart_cb[id], mb_uart_chnl_id[id]);
 
-	mb_uart_send_state(&mb_uart_cb[id]);
-
-	rtos_enable_int(int_mask);
+	mb_uart_send_state_trigger(&mb_uart_cb[id]);
 
 	return ret_val;
 }
@@ -752,11 +781,7 @@ bk_err_t bk_mb_uart_dev_deinit(u8 id)
 	if(id >= MB_UART_MAX)
 		return BK_ERR_PARAM;
 
-	u32  int_mask = rtos_disable_int();
-
 	ret_val = mb_uart_deinit(&mb_uart_cb[id], mb_uart_chnl_id[id]);
-
-	rtos_enable_int(int_mask);
 
 	return ret_val;
 }
@@ -769,12 +794,8 @@ bk_err_t bk_mb_uart_register_rx_isr(u8 id, mb_uart_isr_t isr, void *param)
 	if(!mb_uart_cb[id].chnl_inited)
 		return BK_ERR_NOT_INIT;
 
-	u32  int_mask = rtos_disable_int();
-	
 	mb_uart_cb[id].rx_isr_param = param;    /* save rx_isr_param firstly! */
 	mb_uart_cb[id].rx_isr_callback = isr;
-
-	rtos_enable_int(int_mask);
 
 	return BK_OK;
 }
@@ -787,12 +808,8 @@ bk_err_t bk_mb_uart_register_tx_isr(u8 id, mb_uart_isr_t isr, void *param)
 	if(!mb_uart_cb[id].chnl_inited)
 		return BK_ERR_NOT_INIT;
 
-	u32  int_mask = rtos_disable_int();
-	
 	mb_uart_cb[id].tx_isr_param = param;    /* save tx_isr_param firstly! */
 	mb_uart_cb[id].tx_isr_callback = isr;
-	
-	rtos_enable_int(int_mask);
 
 	return BK_OK;
 }
@@ -805,7 +822,22 @@ u16 bk_mb_uart_write_ready(u8 id)
 	if(!mb_uart_cb[id].chnl_inited)
 		return 0;
 
-	return (sizeof(mb_uart_cb[id].tx_buf) - mb_uart_cb[id].tx_data_cnt);
+	u16    rem_len;
+	u16    rd_idx, wr_idx;
+	
+	rd_idx = mb_uart_cb[id].tx_rd_idx;
+	wr_idx = mb_uart_cb[id].tx_wr_idx;
+
+	if(rd_idx > wr_idx)
+	{
+		rem_len = rd_idx - wr_idx - 1;  // always reserved one byte space.
+	}
+	else
+	{
+		rem_len = sizeof(mb_uart_cb[id].tx_buf) - (wr_idx - rd_idx) - 1;
+	}
+
+	return rem_len;
 }
 
 u16 bk_mb_uart_read_ready(u8 id)
@@ -816,7 +848,21 @@ u16 bk_mb_uart_read_ready(u8 id)
 	if(!mb_uart_cb[id].chnl_inited)
 		return 0;
 
-	return (mb_uart_cb[id].rx_data_cnt);
+	u16    rd_idx, wr_idx, data_cnt;
+
+	rd_idx = mb_uart_cb[id].rx_rd_idx;
+	wr_idx = mb_uart_cb[id].rx_wr_idx;
+
+	if(rd_idx <= wr_idx)
+	{
+		data_cnt = wr_idx - rd_idx;
+	}
+	else
+	{
+		data_cnt = sizeof(mb_uart_cb[id].rx_buf) - (rd_idx - wr_idx);
+	}
+
+	return data_cnt;
 }
 
 u16 bk_mb_uart_write_byte(u8 id, u8 data)
@@ -829,11 +875,7 @@ u16 bk_mb_uart_write_byte(u8 id, u8 data)
 	if(!mb_uart_cb[id].chnl_inited)
 		return 0;
 
-	u32  int_mask = rtos_disable_int();
-
 	len = mb_uart_write_data(&mb_uart_cb[id], &data, 1);
-
-	rtos_enable_int(int_mask);
 
 	return len;
 }
@@ -851,11 +893,7 @@ u16 bk_mb_uart_write(u8 id, u8 *data_buf, u16 data_len)
 	if((data_buf == NULL) || (data_len == 0))
 		return 0;
 
-	u32  int_mask = rtos_disable_int();
-
 	len = mb_uart_write_data(&mb_uart_cb[id], data_buf, data_len);
-
-	rtos_enable_int(int_mask);
 
 	return len;
 }
@@ -873,11 +911,7 @@ u16 bk_mb_uart_read_byte(u8 id, u8 * data)
 	if(data == NULL)
 		return 0;
 
-	u32  int_mask = rtos_disable_int();
-
 	len = mb_uart_read_data(&mb_uart_cb[id], data, 1);
-
-	rtos_enable_int(int_mask);
 
 	return len;
 }
@@ -895,57 +929,26 @@ u16 bk_mb_uart_read(u8 id, u8 *data_buf, u16 buf_len)
 	if((data_buf == NULL) || (buf_len == 0))
 		return 0;
 
-	u32  int_mask = rtos_disable_int();
-
 	len = mb_uart_read_data(&mb_uart_cb[id], data_buf, buf_len);
-
-	rtos_enable_int(int_mask);
 
 	return len;
 }
 
 bool bk_mb_uart_is_tx_over(u8 id)
 {
-	#if 1
-
 	if(id >= MB_UART_MAX)
 		return 1;
 
 	if(!mb_uart_cb[id].chnl_inited)
 		return 1;
 
-	if( (mb_uart_cb[id].tx_data_cnt == 0) && 
+	if( (mb_uart_cb[id].tx_rd_idx == mb_uart_cb[id].tx_wr_idx) && 
 		(mb_uart_cb[id].tx_in_process == 0) )
 	{
 		return 1;
 	}
 
 	return 0;
-
-	#else
-
-	return 1;
-	
-	#endif
-}
-
-bk_err_t bk_mb_uart_dump(u8 id, u8 *data_buf, u16 data_len)
-{
-	bk_err_t    ret_val;
-	
-	if(id >= MB_UART_MAX)
-		return BK_ERR_PARAM;
-
-	if(!mb_uart_cb[id].chnl_inited)
-		return BK_ERR_NOT_INIT;
-
-	u32  int_mask = rtos_disable_int();
-
-	ret_val = mb_uart_write_sync(&mb_uart_cb[id], data_buf, data_len);
-
-	rtos_enable_int(int_mask);
-
-	return ret_val;
 }
 
 u16 bk_mb_uart_get_status(u8 id)
