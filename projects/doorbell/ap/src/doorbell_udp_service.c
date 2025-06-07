@@ -67,8 +67,7 @@ int doorbell_udp_img_send_packet(uint8_t *data, uint32_t len)
         return -1;
     }
 
-    return -1;
-    //return doorbell_socket_sendto(&db_udp_service->img_fd, (struct sockaddr *)&db_udp_service->img_remote, data, len, -sizeof(db_trans_head_t));
+    return doorbell_socket_sendto(&db_udp_service->img_fd, (struct sockaddr *)&db_udp_service->img_remote, data, len, -sizeof(db_trans_head_t));
 }
 
 
@@ -169,7 +168,6 @@ int doorbell_udp_aud_get_tx_size(void)
     return db_udp_service->aud_channel->tsize - sizeof(db_trans_head_t);
 }
 
-#if 0
 static media_transfer_cb_t doorbell_udp_img_channel =
 {
     .send = doorbell_udp_img_send_packet,
@@ -185,7 +183,6 @@ static const media_transfer_cb_t doorbell_udp_aud_channel =
     .get_tx_buf = doorbell_udp_aud_get_tx_buf,
     .get_tx_size = doorbell_udp_aud_get_tx_size,
 };
-#endif
 
 static inline void doorbell_udp_voice_receiver(db_channel_t *channel, uint16_t sequence, uint16_t flags, uint32_t timestamp, uint8_t sequences, uint8_t *data, uint16_t length)
 {
@@ -195,7 +192,6 @@ static inline void doorbell_udp_voice_receiver(db_channel_t *channel, uint16_t s
 
 static void doorbell_udp_service_main(beken_thread_arg_t data)
 {
-    GLOBAL_INT_DECLARATION();
     int maxfd, ret = 0;
     int rcv_len = 0;
     socklen_t srvaddr_len = 0;
@@ -213,7 +209,6 @@ static void doorbell_udp_service_main(beken_thread_arg_t data)
         LOGE("udp os_malloc failed\n");
         goto out;
     }
-
 
     // for data transfer
     db_udp_service->img_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -272,11 +267,9 @@ static void doorbell_udp_service_main(beken_thread_arg_t data)
     timeout.tv_sec = APP_DEMO_UDP_SOCKET_TIMEOUT / 1000;
     timeout.tv_usec = (APP_DEMO_UDP_SOCKET_TIMEOUT % 1000) * 1000;
 
-    GLOBAL_INT_DISABLE();
     db_udp_service->img_status = 1;
     db_udp_service->running = 1;
     db_udp_service->aud_status = 1;
-    GLOBAL_INT_RESTORE();
 
     {
         doorbell_msg_t msg;
@@ -373,12 +366,9 @@ out:
         db_udp_service->aud_fd = -1;
     }
 
-    GLOBAL_INT_DISABLE();
     db_udp_service->img_status = 0;
     db_udp_service->running = 0;
     db_udp_service->aud_status = 0;
-    GLOBAL_INT_RESTORE();
-
     db_udp_service->thd = NULL;
     rtos_delete_thread(NULL);
 }
@@ -421,9 +411,9 @@ bk_err_t doorbell_udp_service_init(void)
         goto error;
     }
 
-    //doorbell_devices_set_camera_transfer_callback(&doorbell_udp_img_channel);
+    doorbell_devices_set_camera_transfer_callback(&doorbell_udp_img_channel);
 
-    //doorbell_devices_set_audio_transfer_callback(&doorbell_udp_aud_channel);
+    doorbell_devices_set_audio_transfer_callback(&doorbell_udp_aud_channel);
 
     ret = rtos_create_thread(&db_udp_service->thd,
                              4,
@@ -463,8 +453,6 @@ error:
 
 void doorbell_udp_service_deinit(void)
 {
-    GLOBAL_INT_DECLARATION();
-
     LOGI("%s\n", __func__);
 
     if (db_udp_service == NULL)
@@ -485,10 +473,7 @@ void doorbell_udp_service_deinit(void)
         db_udp_service->img_channel = NULL;
     }
 
-    GLOBAL_INT_DISABLE();
     db_udp_service->running == 0;
-    GLOBAL_INT_RESTORE();
-
     while (db_udp_service->thd)
     {
         rtos_delay_milliseconds(10);
