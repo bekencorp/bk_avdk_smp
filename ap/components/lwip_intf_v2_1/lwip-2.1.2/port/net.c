@@ -1273,6 +1273,19 @@ int host_wlan_remove_netif(void)
 
 }
 
+int host_wlan_remove_sap_netif(void)
+{
+    err_t err = netifapi_netif_remove(&g_uap.netif);
+
+    if (err != ERR_OK) {
+        LWIP_LOGE("remove host wlan netif, failed(%d)\n", err);
+        return err;
+    }
+
+    return ERR_OK;
+
+}
+
 #endif
 
 

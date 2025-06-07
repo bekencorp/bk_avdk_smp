@@ -40,6 +40,8 @@ extern void *net_get_br_handle(void);
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 int host_wlan_add_netif(uint8_t *mac);
 int host_wlan_remove_netif(void);
+int host_wlan_remove_sap_netif(void);
+
 #endif
 
 #ifdef __cplusplus
