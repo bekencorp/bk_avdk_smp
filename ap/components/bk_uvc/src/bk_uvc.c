@@ -843,7 +843,7 @@ void uvc_camera_stream_stop_handle(uint32_t param)
         uvc_param->camera_state = UVC_CONNECT_STATE;
     }
 
-    if (uvc_param->port_info)
+    if (uvc_param->camera_state != UVC_DISCONNECT_STATE)
     {
         bk_usbh_hub_port_dev_close(uvc_param->info->port, uvc_param->port_info->device_index, uvc_param->port_info);
     }
