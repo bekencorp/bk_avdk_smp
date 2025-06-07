@@ -82,6 +82,9 @@ bk_err_t bk_wdrv_get_mac(uint8_t *mac, mac_type_t type)
     uint8_t mac_low;
 
     switch (type) {
+    case MAC_TYPE_BASE:
+        memcpy(mac, wdrv_host_env.macaddr_cfm.mac_addr, BK_MAC_ADDR_LEN);
+        break;
 
     case MAC_TYPE_AP:
         mac_mask = (0xff & (2/*NX_VIRT_DEV_MAX*/ - 1));
@@ -126,6 +129,13 @@ int wdrv_get_mac_addr()
     //ToDo
     wdrv_tx_msg((uint8_t *)&req, sizeof(req), &cmd_cfm, NULL);
     return 0;
+}
+
+void wdrv_notify_scan_done(void *data, uint16_t len)
+{
+    wifi_event_scan_done_t event_data = {0};
+    bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_SCAN_DONE, &event_data,
+    sizeof(event_data), BEKEN_NEVER_TIMEOUT);
 }
 
 void wdrv_notify_sta_connected(void)
@@ -246,6 +256,7 @@ int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
 void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
 {
     WDRV_LOGD("%s,%d\n",__func__,__LINE__);
+    uint8_t interval = 0;
     switch(BK_CFM_GET_CMD_ID(msg->id)) {
         case BK_CMD_GET_MAC_ADDR:
             os_memcpy(&wdrv_host_env.macaddr_cfm, msg->param, sizeof(struct wdrv_mac_addr_cfm));
@@ -271,6 +282,10 @@ void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
         case BK_CMD_START_AP:
             WDRV_LOGD("MCU-AP-STATE: start AP\r\n");
             break;
+        case BK_CMD_GET_INTERVAL:
+            interval = *(msg->param);
+            WDRV_LOGI("listen interval is %d\r\n",interval);
+            break;
         default:
             WDRV_LOGD("%s,%d\n",__func__,__LINE__);
             break;
@@ -281,7 +296,7 @@ void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
 
 void wdrv_rx_handle_event(wdrv_rx_msg *msg)
 {
-    WDRV_LOGD("%s,%d\n",__func__,__LINE__);
+    WDRV_LOGI("%s,%d\n",__func__,__LINE__);
     switch(msg->id) {
         case BK_EVT_CONNECT_IND:
             wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_CONNECTED;
@@ -325,6 +340,10 @@ void wdrv_rx_handle_event(wdrv_rx_msg *msg)
                 (wdrv_host_env.ap_status_cfm.gw >> 0 ) & 0xff, (wdrv_host_env.ap_status_cfm.gw >> 8 ) & 0xff,
                 (wdrv_host_env.ap_status_cfm.gw >> 16) & 0xff, (wdrv_host_env.ap_status_cfm.gw >> 24) & 0xff,);
 #endif
+            break;
+        case BK_EVT_SCAN_WIFI_IND:
+            WDRV_LOGD("BK_EVT_SCAN_WIFI_IND\n");
+            wdrv_notify_scan_done(msg->param, msg->param_len);
             break;
     }
 }

@@ -60,6 +60,7 @@ void wdrv_rxdata_process(struct pbuf *p)
     bk_err_t ret = BK_OK;
     uint8_t vif_idx = 0;
 #endif
+
     wdrv_attach_rx_buffer();
 
     if(cpdu->co_hdr.need_free)
@@ -103,8 +104,12 @@ void wdrv_rxdata_process(struct pbuf *p)
         WDRV_LOGE("%s, RXC sender error\r\n",__func__);
     }
     if(p_copy)
+    {
+        WDRV_LOGD("%s, vif%d\r\n",__func__,vif_idx);
         ethernetif_input(vif_idx , p_copy);
+    }
 #else
+    WDRV_LOGD("------%s, vif%d\r\n",__func__,cpdu->co_hdr.vif_idx);
     ethernetif_input(cpdu->co_hdr.vif_idx , p);
 #endif
 }

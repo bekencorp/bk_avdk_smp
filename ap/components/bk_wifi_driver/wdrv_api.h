@@ -436,6 +436,7 @@ bk_err_t bk_wifi_ap_start(void);
  */
 bk_err_t bk_wifi_ap_stop(void);
 
+
 #ifdef __cplusplus
 }
 #endif

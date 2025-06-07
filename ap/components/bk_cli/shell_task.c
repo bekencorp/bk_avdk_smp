@@ -1434,7 +1434,16 @@ static void rx_ind_process(void)
 			/* handle command. */
 			if( cmd_line_buf.cmd_data_len > 0 )
 			{
-				handle_shell_input( (char *)cmd_line_buf.cmd_buff, cmd_line_buf.cmd_data_len, (char *)cmd_line_buf.rsp_buff, SHELL_RSP_BUF_LEN - 4 );
+
+				#if defined(CONFIG_AT)
+				#if (CONFIG_UART_PRINT_PORT == AT_UART_PORT_CFG)
+					atsvr_msg_get_input((char *)cmd_line_buf.cmd_buff, cmd_line_buf.cmd_data_len, (char *)cmd_line_buf.rsp_buff, SHELL_RSP_BUF_LEN - 4);
+				#else
+					handle_shell_input( (char *)cmd_line_buf.cmd_buff, cmd_line_buf.cmd_data_len, (char *)cmd_line_buf.rsp_buff, SHELL_RSP_BUF_LEN - 4 );
+				#endif
+				#else
+					handle_shell_input( (char *)cmd_line_buf.cmd_buff, cmd_line_buf.cmd_data_len, (char *)cmd_line_buf.rsp_buff, SHELL_RSP_BUF_LEN - 4 );
+				#endif
 			}
 			cmd_line_buf.rsp_buff[SHELL_RSP_BUF_LEN - 4] = 0;
 

@@ -99,6 +99,13 @@ enum BK_CMD_TYPE
     BK_CMD_SET_AUTOCONNECT     = 0xA,
     BK_CMD_SET_MEDIA_MODE      = 0xB,
     BK_CMD_SET_MEDIA_QUALITY   = 0xC,
+    BK_CMD_GET_INTERVAL         = 0xD,
+    BK_CMD_GET_WIFI_STATUS      = 0xE,
+    BK_CMD_SET_COEX_CSA         = 0xF,
+    BK_CMD_GET_AP_CONFIG       = 0x10,
+    BK_CMD_GET_IP_CONFIG       = 0x11,
+    BK_CMD_GET_STAIPUP         = 0x12,
+    BK_CMD_GET_APIPUP          = 0x13,
 
     // BLE command
     BK_CMD_OPEN_BLE            = 0x101,
@@ -368,6 +375,17 @@ struct cif_rx_bank_t
     uint32_t rx_buf_bank[MAX_NUM_RX_BUFFERS];
     uint16_t rx_buf_bank_cnt;
 };
+
+struct bk_msg_scan_start_req
+{
+    uint8_t ssid[AP_SSID_BUF_MAX];
+};
+
+struct bk_msg_get_ip_config_req
+{
+    uint8_t flag;
+};
+
 
 typedef int(*cif_customer_msg_cb_t)(struct bk_msg_hdr *msg);
 struct cif_env_t

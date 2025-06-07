@@ -47,7 +47,7 @@ extern "C" {
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-bk_err_t bk_wifi_init(const wifi_init_config_t *init_config);
+//bk_err_t bk_wifi_init(const wifi_init_config_t *init_config);
 
 /**
  * @brief     Deinit the BK WiFi driver

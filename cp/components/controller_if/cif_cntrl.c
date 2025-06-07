@@ -381,9 +381,21 @@ bk_err_t cif_handle_bk_cmd_stop_ap_ind(uint8_t status)
 
 bk_err_t cif_handle_bk_cmd_scan_wifi_req(struct bk_msg_hdr *msg)
 {
-    CTRL_IF_CMD("%s\n",__func__);
+    struct bk_msg_scan_start_req *req = (struct bk_msg_scan_start_req*) (msg + 1);
+
     cif_bk_cmd_confirm(msg, NULL, 0);
-    demo_scan_adv_app_init(NULL);
+
+    int len = os_strlen((const char *)req->ssid);
+    if(0 == len)
+    {
+        CTRL_IF_CMD("%s,len 0\n",__func__);
+        demo_scan_adv_app_init(NULL);
+    }
+    else
+    {
+        CTRL_IF_CMD("%s,ssid %s\n",__func__,req->ssid);
+        demo_scan_adv_app_init(req->ssid);
+    }
 
     return BK_OK;
 
@@ -396,12 +408,13 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_ind(wifi_scan_result_t *scan_result)
     uint8_t ap_num = 0;
     CTRL_IF_CMD("%s\n",__func__);
 
+#if 0
     if (!cif_env.host_powerup)
     {
         CTRL_IF_CMD("Host does NOT power on, SKIP bk_cmd_scan_wifi_ind\n");
         return BK_OK;
     }
-
+#endif
     ap_num = scan_result->ap_num;
     if (ap_num > CIF_MAX_SCAN_AP_CNT_TO_HOST)
     {
@@ -432,6 +445,102 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_ind(wifi_scan_result_t *scan_result)
 
     return ret;
 }
+
+bk_err_t cif_handle_bk_cmd_get_wifi_status_req(struct bk_msg_hdr *msg)
+{
+    wifi_link_status_t link_status = {0};
+
+    CIF_LOGD("%s\n",__func__);
+    os_memset(&link_status, 0x0, sizeof(link_status));
+
+    if ((wifi_netif_sta_is_connected() || wifi_netif_sta_is_got_ip()))
+    {
+            bk_wifi_sta_get_link_status(&link_status);
+            link_status.state = WIFI_LINKSTATE_STA_CONNECTED;
+    }
+    else
+    {
+        link_status.state = WIFI_LINKSTATE_STA_DISCONNECTED;
+    }
+
+    //os_printf("link state:%d\n", link_status.state);
+    cif_bk_cmd_confirm(msg, (uint8_t *)(&link_status), sizeof(wifi_link_status_t));
+    return BK_OK;
+}
+
+
+
+bk_err_t cif_handle_bk_cmd_get_ap_config_req(struct bk_msg_hdr *msg)
+{
+    wifi_ap_config_t ap_config = {0};
+
+    CIF_LOGD("%s\n",__func__);
+    os_memset(&ap_config, 0x0, sizeof(wifi_ap_config_t));
+
+    os_memcpy(ap_config.ssid, g_ap_param_ptr->ssid.array, g_ap_param_ptr->ssid.length);
+    os_memcpy(ap_config.password, g_ap_param_ptr->key, g_ap_param_ptr->key_len);
+    ap_config.channel = g_ap_param_ptr->chann;
+    ap_config.security = g_ap_param_ptr->cipher_suite;
+
+    cif_bk_cmd_confirm(msg, (uint8_t *)(&ap_config), sizeof(wifi_ap_config_t));
+    return BK_OK;
+}
+
+#include "inet.h"
+bk_err_t cif_handle_bk_cmd_get_ip_config_req(struct bk_msg_hdr *msg)
+{
+
+    struct wlan_ip_config addr;
+    struct bk_msg_get_ip_config_req *req = (struct bk_msg_get_ip_config_req*) (msg + 1);
+    netif_if_t ifx = req->flag;
+    netif_ip4_config_t ip4_config;
+    CIF_LOGI("%s start\n",__func__);
+
+    os_memset(&addr, 0, sizeof(struct wlan_ip_config));
+    if (ifx == NETIF_IF_STA) {
+        net_get_if_addr(&addr, net_get_sta_handle());
+    } else if (ifx == NETIF_IF_AP) {
+        net_get_if_addr(&addr, net_get_uap_handle());
+#ifdef CONFIG_ETH
+    } else if (ifx == NETIF_IF_ETH) {
+        net_get_if_addr(&addr, net_get_eth_handle());
+#endif
+#if CONFIG_BRIDGE
+    } else if (ifx == NETIF_IF_BRIDGE) {
+        net_get_if_addr(&addr, net_get_br_handle());
+#endif
+    } else {
+        return BK_ERR_NETIF_IF;
+    }
+
+    os_strcpy(ip4_config.ip, inet_ntoa(addr.ipv4.address));
+    os_strcpy(ip4_config.mask, inet_ntoa(addr.ipv4.netmask));
+    os_strcpy(ip4_config.gateway, inet_ntoa(addr.ipv4.gw));
+    os_strcpy(ip4_config.dns, inet_ntoa(addr.ipv4.dns1));
+
+    CIF_LOGI("%s end\n",__func__);
+    CIF_LOGI("[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
+            ip4_config.ip, ip4_config.gateway, ip4_config.mask, ip4_config.dns);
+
+    cif_bk_cmd_confirm(msg, (uint8_t *)(&ip4_config), sizeof(netif_ip4_config_t));
+    return BK_OK;
+}
+
+bk_err_t cif_handle_bk_cmd_get_staipup_req(struct bk_msg_hdr *msg)
+{
+    wifi_linkstate_reason_t info = mhdr_get_station_status();
+    bool res = (info.state == WIFI_LINKSTATE_STA_GOT_IP);
+    cif_bk_cmd_confirm(msg, (uint8_t *)(&res), sizeof(bool));
+    return BK_OK;
+}
+bk_err_t cif_handle_bk_cmd_get_apipup_req(struct bk_msg_hdr *msg)
+{
+    bool res = (uap_ip_is_start() != 0);
+
+    cif_bk_cmd_confirm(msg, (uint8_t *)(&res), sizeof(bool));
+    return BK_OK;
+}
+
 
 bk_err_t cif_send_exit_sleep_cfm(void)
 {
@@ -601,6 +710,20 @@ bk_err_t cif_handle_bk_cmd_set_media_quality_req(struct bk_msg_hdr *msg)
     return BK_OK;
 }
 
+
+bk_err_t cif_handle_bk_cmd_get_interval_req(struct bk_msg_hdr *msg)
+{
+    uint8_t interval = 0;
+
+    bk_wifi_get_listen_interval(&interval);
+
+    //CTRL_IF_CMD("%s,interval %d\n",__func__,interval);
+
+    cif_bk_cmd_confirm(msg, &interval, 1);
+
+    return BK_OK;
+}
+
 bk_err_t cif_handle_bk_cmd_set_autoconnect_req(struct bk_msg_hdr *msg)
 {
     int32_t ret = 0;
@@ -623,6 +746,21 @@ bk_err_t cif_handle_bk_cmd_set_autoconnect_req(struct bk_msg_hdr *msg)
     cif_bk_cmd_confirm(msg, NULL, 0);
     return ret;
 }
+
+bk_err_t cif_handle_bk_cmd_set_coex_csa_req(struct bk_msg_hdr *msg)
+{
+    bool close_coex_csa = false;
+
+    close_coex_csa = *(bool *)(msg + 1);
+    CIF_LOGD("%s close coex csa:%d\n",__func__, close_coex_csa);
+
+    bk_wifi_set_csa_coexist_mode_flag(close_coex_csa);
+
+    cif_bk_cmd_confirm(msg, NULL, 0);
+
+    return BK_OK;
+}
+
 bk_err_t cif_handle_bk_cmd(void *head)
 {
     bk_err_t ret = BK_OK;
@@ -704,10 +842,35 @@ bk_err_t cif_handle_bk_cmd(void *head)
             ret = cif_handle_bk_cmd_get_wlan_status_req(msg);
             break;
         }
+        case BK_CMD_GET_STAIPUP:
+        {
+            ret = cif_handle_bk_cmd_get_staipup_req(msg);
+            break;
+        }
+        case BK_CMD_GET_APIPUP:
+        {
+            ret = cif_handle_bk_cmd_get_apipup_req(msg);
+            break;
+        }
         case BK_CMD_SCAN_WIFI:
         {
             cif_env.host_wifi_init = true;
             ret = cif_handle_bk_cmd_scan_wifi_req(msg);
+            break;
+        }
+        case BK_CMD_GET_WIFI_STATUS:
+        {
+            ret = cif_handle_bk_cmd_get_wifi_status_req(msg);
+            break;
+        }
+        case BK_CMD_GET_AP_CONFIG:
+        {
+            ret = cif_handle_bk_cmd_get_ap_config_req(msg);
+            break;
+        }
+        case BK_CMD_GET_IP_CONFIG:
+        {
+            ret = cif_handle_bk_cmd_get_ip_config_req(msg);
             break;
         }
         case BK_CMD_CONTROLLER_AT:
@@ -770,6 +933,16 @@ bk_err_t cif_handle_bk_cmd(void *head)
         case BK_CMD_SET_MEDIA_QUALITY:
         {
             ret = cif_handle_bk_cmd_set_media_quality_req(msg);
+            break;
+        }
+        case BK_CMD_GET_INTERVAL:
+        {
+            ret = cif_handle_bk_cmd_get_interval_req(msg);
+            break;
+        }
+        case BK_CMD_SET_COEX_CSA:
+        {
+            ret = cif_handle_bk_cmd_set_coex_csa_req(msg);
             break;
         }
         default:

@@ -4149,6 +4149,8 @@ bk_err_t bk_wifi_set_csa_coexist_mode_flag(bool is_close)
 	}
 
 	close_coexist_csa = is_close;
+	WIFI_LOGI("%s coexist csa \r\n",close_coexist_csa? "Close": "Open");
+
 	return BK_OK;
 }
 

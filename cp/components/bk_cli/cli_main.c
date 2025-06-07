@@ -351,7 +351,7 @@ int handle_shell_input2(char *inbuf, int in_buf_size, char * outbuf, int out_buf
                 return 2;
             }
             break;
-
+#if 0
         case ',':
             if((stat.isD == 1)&&(argc == 1))  ///=,
             {
@@ -365,7 +365,7 @@ int handle_shell_input2(char *inbuf, int in_buf_size, char * outbuf, int out_buf
                 stat.limQ = 1;
             }
             break;
-
+#endif
 		default:
 			if (!stat.inArg) {
 				stat.inArg = 1;

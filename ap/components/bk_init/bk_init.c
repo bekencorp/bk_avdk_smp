@@ -282,17 +282,21 @@ int bk_init(void)
 #endif
 
 	bk_pm_mailbox_init();
-#if CONFIG_AT
-	at_server_init();
-#endif
 
 	app_cli_init();
 
+	bk_event_init();
+
 #if CONFIG_AT 
+	at_server_init();
+
 	extern int atsvr_app_init(void);
 	if(0 != atsvr_app_init())
 		return -1;	
+	extern void wifi_at_cmd_init(void);
+	wifi_at_cmd_init();
 #endif
+
 
 #if (CONFIG_NTP_SYNC_RTC)
     // if(ate_is_enabled() == 0)

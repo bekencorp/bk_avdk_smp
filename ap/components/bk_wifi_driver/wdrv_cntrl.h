@@ -431,6 +431,55 @@ struct wdrv_stop_ap_req
     wdrv_cmd_cfm cmd_cfm;
 };
 
+struct wdrv_start_scan_req
+{
+    wdrv_cmd_hdr cmd_hdr;
+    char ssid[SSID_MAX_LEN];
+    wdrv_cmd_cfm cmd_cfm;
+};
+
+struct wdrv_get_interval_req
+{
+    wdrv_cmd_hdr cmd_hdr;
+    wdrv_cmd_cfm cmd_cfm;
+};
+
+struct wdrv_get_wifi_status_req
+{
+    wdrv_cmd_hdr cmd_hdr;
+    wdrv_cmd_cfm cmd_cfm;
+};
+
+struct wdrv_get_ap_config_req
+{
+    wdrv_cmd_hdr cmd_hdr;
+    wdrv_cmd_cfm cmd_cfm;
+};
+struct wdrv_get_ip4_config_req
+{
+    wdrv_cmd_hdr cmd_hdr;
+	uint8_t flag;
+    wdrv_cmd_cfm cmd_cfm;
+};
+struct wdrv_get_staipup_req
+{
+    wdrv_cmd_hdr cmd_hdr;
+    wdrv_cmd_cfm cmd_cfm;
+};
+struct wdrv_get_apipup_req
+{
+    wdrv_cmd_hdr cmd_hdr;
+    wdrv_cmd_cfm cmd_cfm;
+};
+
+
+struct wdrv_set_csa_coexist_mode_flag_req
+{
+    wdrv_cmd_hdr cmd_hdr;
+    bool is_close;
+    wdrv_cmd_cfm cmd_cfm;
+};
+
 enum BK_CMD_TYPE
 {
     // Wi-Fi command
@@ -446,6 +495,13 @@ enum BK_CMD_TYPE
     BK_CMD_SET_AUTO_RECONNECT  = 0xA,
     BK_CMD_SET_MEDIA_MODE      = 0xB,
     BK_CMD_SET_MEDIA_QUALITY   = 0xC,
+    BK_CMD_GET_INTERVAL         = 0xD,
+    BK_CMD_GET_WIFI_STATUS      = 0xE,
+    BK_CMD_SET_COEX_CSA         = 0xF,
+    BK_CMD_GET_AP_CONFIG       = 0x10,
+    BK_CMD_GET_IP_CONFIG       = 0x11,
+    BK_CMD_GET_STAIPUP         = 0x12,
+    BK_CMD_GET_APIPUP          = 0x13,
 
     // BLE command
     BK_CMD_OPEN_BLE            = 0x101,
@@ -573,6 +629,11 @@ typedef struct {
     char ssid[SSID_MAX_LEN];      /**< SSID of connected AP */
     uint8_t bssid[WIFI_BSSID_LEN];        /**< BSSID of connected AP*/
 } wifi_event_sta_connected_t;
+
+typedef struct {
+    uint32_t scan_id; /**< Scan ID */
+    uint32_t scan_use_time;/**< scan time. us */
+} wifi_event_scan_done_t;
 
 typedef struct {
 	int disconnect_reason;                /**< Disconnect reason of BK STA */

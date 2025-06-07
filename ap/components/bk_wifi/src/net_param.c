@@ -147,6 +147,7 @@ UINT32 test_get_whole_tbl(UINT8 *ptr)
 
 UINT32 save_net_info(NET_INFO_ITEM item, UINT8 *ptr0, UINT8 *ptr1, UINT8 *ptr2)
 {
+#if 0
 	UINT32 len, offset;
 
 	switch (item) {
@@ -165,7 +166,7 @@ UINT32 save_net_info(NET_INFO_ITEM item, UINT8 *ptr0, UINT8 *ptr1, UINT8 *ptr2)
 	default:
 		break;
 	}
-
+#endif
 	return 0;
 }
 

@@ -92,7 +92,8 @@ extern int bmsg_special_tx_sender(struct pbuf *p, uint32_t vif_idx);
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "wdrv_tx.h"
 #include "wdrv_main.h"
-void ethernetif_input(struct netif *netif, struct pbuf *p);
+//void ethernetif_input(struct netif *netif, struct pbuf *p);
+void ethernetif_input(int iface, struct pbuf *p);
 #else
 void ethernetif_input(int iface, struct pbuf *p);
 #endif
@@ -274,21 +275,32 @@ static inline int is_broadcast_mac_addr(const u8 *a)
  */
 
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
-void ethernetif_input(struct netif *netif, struct pbuf *p)
+//void ethernetif_input(struct netif *netif, struct pbuf *p)
+void ethernetif_input(int iface, struct pbuf *p)
 {
     struct eth_hdr *ethhdr;
-    //struct netif *netif = NULL;
+    struct netif *netif = NULL;
 
     if (p->len <= SIZEOF_ETH_HDR) {
         pbuf_free(p);
         return;
     }
 
+#if 0
     netif = net_get_sta_handle();
 #if CONFIG_WIFI_SOFTAP
     netif = net_get_uap_handle();
 #endif
+#endif
 
+#if 1
+     if (iface == 0)
+         netif = net_get_sta_handle();
+     else if (iface == 1)
+         netif = net_get_uap_handle();
+     else
+         return;
+#endif
     if(!netif) {
         LWIP_DEBUGF(NETIF_DEBUG, ("ethernetif_input no netif found\r\n"));
         pbuf_free(p);

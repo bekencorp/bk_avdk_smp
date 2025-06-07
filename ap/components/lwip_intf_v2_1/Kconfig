@@ -56,6 +56,10 @@ menu "Lwip_intf_v2_1"
                 bool "Enable LWIP BRIDGE"
                 default n
 
+	config WIFI_SOFTAP
+                bool "Enable SAP"
+                default n
+
 	menu "Modify Lwip Config"
 		depends on LWIP
 

@@ -1677,7 +1677,6 @@ int bk_cli_init(void)
 
 #endif  // CONFIG_CLI
 
-
 #if CONFIG_SHELL_ASYNCLOG
 #if CONFIG_ATE_TEST
 	ret = rtos_create_thread(&cli_thread_handle,

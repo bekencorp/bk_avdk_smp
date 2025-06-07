@@ -35,6 +35,7 @@ list(APPEND srcs
 	src/wifi_v2.c
 	src/wifi_wpa_cmd.c
 )
+endif()
 if(CONFIG_AT)
 list(APPEND srcs
 	src/wifi_at.c
@@ -47,10 +48,11 @@ list(APPEND incs
 	${components}/at_server/_at_server_port
 	${components}/bk_net/include
 	${components}/bk_event
+	${components}/bk_wifi_driver
 	${IDK_INC}/modules
 	)
 endif()
-endif()
+
 if(CONFIG_NET_PARAM)
 list(APPEND srcs
 	src/net_param.c
