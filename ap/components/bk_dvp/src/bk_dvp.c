@@ -1654,10 +1654,7 @@ bk_err_t bk_dvp_deinit(camera_handle_t *handle)
         goto out;
     }
 
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
     dvp_handle->dvp_state = MASTER_TURNING_OFF;
-    GLOBAL_INT_RESTORE();
 
     if (BK_OK != rtos_get_semaphore(&dvp_handle->sem, 500))
     {
