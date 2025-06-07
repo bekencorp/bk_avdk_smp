@@ -22,11 +22,7 @@
 #if (CONFIG_CPU_CNT > 1)
 
 
-#if CONFIG_MAILBOX_V2_0
-#define MAILBOX_HOST		MAILBOX_CPU1
-#else
 #define MAILBOX_HOST		MAILBOX_CPU0
-#endif
 
 
 /* all slave CPUs must send msg to MAILBOX_HOST ONLY. */
@@ -44,13 +40,10 @@ static chnl_xchg_buff_t * const xchg_buff = (chnl_xchg_buff_t *)(&_swap_start);
 static const u8   chni_id_map[] = 
 {
 	MB_CHNL_HW_CTRL,
-#if CONFIG_AT
-	MB_CHNL_AT,
-#endif
+
 	MB_CHNL_LOG,
 	MB_CHNL_UART0,
 	MB_CHNL_UART1,
-	MB_CHNL_UART2,
 };
 
 #define CHNL_IDX_MAX	( sizeof(chni_id_map) / sizeof(chni_id_map[0]) )

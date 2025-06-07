@@ -74,7 +74,6 @@ enum
 	MB_CHNL_AT,
 	MB_CHNL_UART0,
 	MB_CHNL_UART1,
-	MB_CHNL_UART2,
 	MB_CHNL_FLASH,
 
 	/*                  !!!!!   Note   !!!!!              */

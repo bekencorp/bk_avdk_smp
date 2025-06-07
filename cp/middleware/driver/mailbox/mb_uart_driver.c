@@ -756,8 +756,7 @@ static u16 mb_uart_read_data(mb_uart_cb_t *chnl_cb, u8 * data_buf, u16 buf_len)
 static mb_uart_cb_t		mb_uart_cb[MB_UART_MAX] = {0};
 static const u8  		mb_uart_chnl_id[MB_UART_MAX] = {
 	MB_CHNL_UART0,
-	MB_CHNL_UART1,
-	MB_CHNL_UART2
+	MB_CHNL_UART1
 };
 
 bk_err_t bk_mb_uart_dev_init(u8 id)
