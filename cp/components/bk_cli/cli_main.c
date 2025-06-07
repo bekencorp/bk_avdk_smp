@@ -1541,10 +1541,6 @@ int bk_cli_init(void)
 	cli_mp3_init();
 #endif
 
-#if (CLI_CFG_ES8311 == 1)
-	cli_es8311_init();
-#endif
-
 #if (CLI_CFG_AGC == 1)
 	cli_agc_init();
 #endif

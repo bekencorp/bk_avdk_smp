@@ -342,10 +342,6 @@ if (CONFIG_SDMADC_TEST)
 	list(APPEND srcs cli_sdmadc.c)
 endif()
 
-if (CONFIG_ES8311_TEST)
-	list(APPEND srcs cli_es8311.c)
-endif()
-
 if (CONFIG_AUDIO_AGC_TEST)
 	list(APPEND srcs cli_aud_agc.c)
 endif()

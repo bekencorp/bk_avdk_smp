@@ -28,10 +28,4 @@ menu "AUDIO"
 		default y
 		help
 			Enable Audio ring buffer
-
-	config ES8311
-		depends on SIM_I2C
-		depends on I2S
-		bool "Enable audio codec chip ES8311 driver"
-		default n
 endmenu

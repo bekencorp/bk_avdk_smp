@@ -173,7 +173,7 @@ if (CONFIG_I2S)
 	)
 
 	list(APPEND srcs
-		i2s/i2s_driver_v1_1.c
+		i2s/i2s_driver.c
 	)
 endif()
 
@@ -331,12 +331,6 @@ if (CONFIG_AUDIO)
 if (CONFIG_SBC)
 	list(APPEND srcs
 		"sbc/sbc_driver.c"
-		)
-endif()
-
-if (CONFIG_ES8311)
-	list(APPEND srcs
-		"audio/codec/es8311.c"
 		)
 endif()
 

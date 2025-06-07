@@ -150,7 +150,6 @@ int cli_interrupt_init(void);
 int cli_video_transfer_init(void);
 int cli_pm_init(void);
 int cli_cs2_p2p_init(void);
-int cli_es8311_init(void);
 int cli_asr_init(void);
 int cli_agc_init(void);
 int cli_flashdb_init(void);

@@ -335,10 +335,6 @@ extern "C" {
 #define CLI_CFG_UID        0
 #endif
 
-#if (CONFIG_ES8311_TEST)
-#define CLI_CFG_ES8311        1
-#endif
-
 #if (CONFIG_AUDIO_AGC_TEST)
 #define CLI_CFG_AGC         1
 #endif
