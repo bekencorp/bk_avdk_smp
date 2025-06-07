@@ -76,7 +76,14 @@ __CPU1_APP_IRAM_OFFSET = 0x20000000;
 __CPU1_APP_IRAM_BASE = __CPU1_APP_RAM_BASE - __CPU1_APP_IRAM_OFFSET;  /*0x08000000 = 0x28000000 - __CPU0_APP_IRAM_OFFSET*/
 __CPU1_APP_IRAM_SIZE = __CPU1_APP_RAM_SIZE;
 
-
+__PSRAM_END_ADDR = SOC_PSRAM_DATA_BASE + CONFIG_PSRAM_CAPACITY_SIZE;
+__PSRAM_MEDIA_SIZE = CONFIG_PSRAM_HEAP_CPU0_BASE_ADDER - SOC_PSRAM_DATA_BASE;
+#if (CONFIG_PSRAM_AS_SYS_MEMORY)
+__PSRAM_USER_BASE = CONFIG_PSRAM_HEAP_BASE + CONFIG_PSRAM_HEAP_SIZE;
+#else
+__PSRAM_USER_BASE = CONFIG_PSRAM_HEAP_BASE;
+#endif
+__PSRAM_USER_SIZE = __PSRAM_END_ADDR - __PSRAM_USER_BASE;
 
 MEMORY
 {
@@ -106,7 +113,11 @@ MEMORY
   DTCM (rwx)            : ORIGIN = SOC_DTCM_DATA_BASE + 0, LENGTH = CONFIG_DTCM_SIZE
 #endif
 
-  PSRAM (rwx)           : ORIGIN = SOC_PSRAM_DATA_BASE, LENGTH = 0x4000000
+  PSRAM_MEDIA (rwx)     : ORIGIN = SOC_PSRAM_DATA_BASE, LENGTH = __PSRAM_MEDIA_SIZE
+#if (CONFIG_PSRAM_AS_SYS_MEMORY)
+  PSRAM_HEAP (rwx)      : ORIGIN = CONFIG_PSRAM_HEAP_BASE, LENGTH = CONFIG_PSRAM_HEAP_SIZE
+#endif
+  PSRAM_USER (rwx)      : ORIGIN = __PSRAM_USER_BASE, LENGTH = __PSRAM_USER_SIZE
 }
 
 #if (CONFIG_SOC_SMP)
@@ -216,9 +227,9 @@ SECTIONS
         LONG (__data_start__)
         LONG ((__data_end__ - __data_start__) / 4)
 
-        LONG (__video_cache_text)
-        LONG (__video_cache_data_start__)
-        LONG ((__video_cache_data_end__ - __video_cache_data_start__) / 4)
+        LONG (__psram_text)
+        LONG (__psram_data_start__)
+        LONG ((__psram_data_end__ - __psram_data_start__) / 4)
 
 #if ((!defined(CONFIG_SOC_SMP)) || (0 == CONFIG_SOC_SMP))
         LONG (__itcm_text)
@@ -247,8 +258,8 @@ SECTIONS
         LONG (_heap_start)
         LONG ((_heap_end - _heap_start) / 4)
         /* Add each additional bss section here */
-        LONG (__video_cache_bss_start__)
-        LONG ((__video_cache_bss_end__ - __video_cache_bss_start__) / 4)
+        LONG (__psram_bss_start__)
+        LONG ((__psram_bss_end__ - __psram_bss_start__) / 4)
         __zero_table_end__ = .;
     } > FLASH
 
@@ -589,28 +600,28 @@ SECTIONS
         _swap_end = .;
     } > SWAP AT > FLASH
 
-    .video.cache.data :
+    .psram.data :
     {
         . = ALIGN(4);
-        PROVIDE(__video_cache_text = LOADADDR(.video.cache.data));
-        __video_cache_data_start__ = .;
+        PROVIDE(__psram_text = LOADADDR(.psram.data));
+        __psram_data_start__ = .;
 
-        *(.video_cache_data)
-        *(.video_cache_data*)
+        *(.psram.data)
+        *(.psram.data*)
 
         . = ALIGN(4);
-        __video_cache_data_end__ = .;
-    } > PSRAM AT > FLASH
+        __psram_data_end__ = .;
+    } > PSRAM_USER AT > FLASH
 
-    .video_cache_bss (NOLOAD):
+    .psram.bss (NOLOAD):
     {
         . = ALIGN(4);
-        __video_cache_bss_start__ = .;
-        *(.video_cache_bss)
-        *(.video_cache_bss*)
+        __psram_bss_start__ = .;
+        *(.psram.bss)
+        *(.psram.bss*)
         . = ALIGN(4);
-        __video_cache_bss_end__ = .;
-    } > PSRAM
+        __psram_bss_end__ = .;
+    } > PSRAM_USER
 
     /* Set stack top to end of RAM, and stack limit move down by
      * size of stack_dummy section */
