@@ -1417,7 +1417,7 @@ bk_err_t uvc_camera_process_task_init(uvc_stream_handle_t *handle, bk_uvc_callba
 
         xEventGroupClearBits(handle->handle, UVC_PROCESS_TASK_ENABLE_BIT);
 
-        ret = rtos_create_thread(&handle->pro_thread,
+        ret = rtos_smp_create_thread(&handle->pro_thread,
                                        BEKEN_DEFAULT_WORKER_PRIORITY - 3,
                                        "uvc_pro_task",
                                        (beken_thread_function_t)uvc_camera_process_task_main,
