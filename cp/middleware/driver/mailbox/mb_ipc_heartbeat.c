@@ -64,12 +64,19 @@ enum
 	CORE_STARTING,
 	CORE_POWER_ON,
 };
+typedef enum
+{
+	MB_IPC_ENTER_LV = 0,
+	MB_IPC_EXIT_LV,
+	MB_IPC_WORKING,
+}mb_ipc_work_state_e;
 
-static rtos_event_ext_t		mb_ipc_heart_event;
-static u32             cpu_x_heartbeat_timestamp = 0;
-static volatile u8     cpu_x_state = CORE_POWER_OFF;
-static volatile u8     cpu_x_id = 0xFF;   /* invalid ID, */
-static volatile u8     cpu_x_dump = 0;
+static rtos_event_ext_t             mb_ipc_heart_event;
+static u32                          cpu_x_heartbeat_timestamp = 0;
+static volatile u8                  cpu_x_state = CORE_POWER_OFF;
+static volatile u8                  cpu_x_id = 0xFF;   /* invalid ID, */
+static volatile u8                  cpu_x_dump = 0;
+static volatile mb_ipc_work_state_e s_mb_ipc_work_state = MB_IPC_WORKING;
 
 extern void start_cpu1_core(void);
 extern void stop_cpu1_core(void);
@@ -104,6 +111,13 @@ static int ipc_heartbeat_timeout(void)
 	if(cur_time < CONFIG_INT_WDT_PERIOD_MS)
 	{
 		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
+		return 0;
+	}
+
+	if(s_mb_ipc_work_state == MB_IPC_EXIT_LV)
+	{
+		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
+		s_mb_ipc_work_state = MB_IPC_WORKING;
 		return 0;
 	}
 
@@ -148,10 +162,7 @@ static int check_cpu_id_ok(u32 cpu_id)
 static bk_err_t mb_ipc_exit_lv(uint64_t sleep_time, void *args)
 {
 	cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
-	if(ipc_heartbeat_timeout() == 1)
-	{
-		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
-	}
+	s_mb_ipc_work_state = MB_IPC_EXIT_LV;
 	return BK_OK;
 }
 static bk_err_t mb_ipc_enter_lv(uint64_t sleep_time, void *args)
