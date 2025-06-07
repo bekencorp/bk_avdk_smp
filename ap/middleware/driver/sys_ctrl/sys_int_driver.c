@@ -14,13 +14,16 @@
 
 #include "sys_hal.h"
 #include "sys_driver.h"
+#include <os/os.h>
 
 //NOTICE:This function is disable the INTERRUPT SOURCE, not the INTERRUPT TARGET.
 __IRAM_SEC int32 sys_drv_int_disable(uint32 param)
 {
 	int32 ret = 0;
+    uint32_t core_id;
 	uint32_t int_level = sys_drv_enter_critical();
-	ret = sys_hal_int_disable(param);
+    core_id = rtos_get_core_id();
+	ret = sys_hal_core_int_group1_disable(core_id, param);
 	sys_drv_exit_critical(int_level);
 	return ret;
 }
@@ -29,8 +32,10 @@ __IRAM_SEC int32 sys_drv_int_disable(uint32 param)
 __IRAM_SEC int32 sys_drv_int_enable(uint32 param)
 {
 	int32 ret = 0;
+    uint32_t core_id;
 	uint32_t int_level = sys_drv_enter_critical();
-	ret = sys_hal_int_enable(param);
+    core_id = rtos_get_core_id();
+	ret = sys_hal_core_int_group1_enable(core_id, param);
 	sys_drv_exit_critical(int_level);
 	return ret;
 }
@@ -39,8 +44,10 @@ __IRAM_SEC int32 sys_drv_int_enable(uint32 param)
 __IRAM_SEC int32 sys_drv_int_group2_disable(uint32 param)
 {
 	int32 ret = 0;
+    uint32_t core_id;
 	uint32_t int_level = sys_drv_enter_critical();
-	ret = sys_hal_int_group2_disable(param);
+    core_id = rtos_get_core_id();
+	ret = sys_hal_core_int_group2_disable(core_id, param);
 	sys_drv_exit_critical(int_level);
 	return ret;
 }
@@ -49,8 +56,10 @@ __IRAM_SEC int32 sys_drv_int_group2_disable(uint32 param)
 __IRAM_SEC int32 sys_drv_int_group2_enable(uint32 param)
 {
 	int32 ret = 0;
+    uint32_t core_id;
 	uint32_t int_level = sys_drv_enter_critical();
-	ret = sys_hal_int_group2_enable(param);
+    core_id = rtos_get_core_id();
+	ret = sys_hal_core_int_group2_enable(core_id, param);
 	sys_drv_exit_critical(int_level);
 	return ret;
 }
