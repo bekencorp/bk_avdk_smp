@@ -215,13 +215,13 @@ static void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops)
 void bk_usb_phy_register_refresh()
 {
 #if CONFIG_USB_HOST
-	sys_drv_int_disable(USB_INTERRUPT_CTRL_BIT);
+	sys_drv_core_intr_group1_disable(2, USB_INTERRUPT_CTRL_BIT);
 	bk_gpio_set_output_low(CONFIG_USB_VBAT_CONTROL_GPIO_ID);
 	bk_analog_layer_usb_sys_related_ops(USB_HOST_MODE, false);
 	bk_analog_layer_usb_sys_related_ops(USB_HOST_MODE, true);
 	extern int usb_hc_mhdrc_register_init(void);
 	usb_hc_mhdrc_register_init();
-	sys_drv_int_enable(USB_INTERRUPT_CTRL_BIT);
+	sys_drv_core_intr_group1_enable(2, USB_INTERRUPT_CTRL_BIT);
 	if(s_usb_power_on_flag) {
 		bk_gpio_set_output_high(CONFIG_USB_VBAT_CONTROL_GPIO_ID);
 	}

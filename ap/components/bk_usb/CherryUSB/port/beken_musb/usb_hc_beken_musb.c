@@ -634,7 +634,7 @@ hc_init_fail:
 
 __WEAK void usb_hc_low_level_deinit(void)
 {
-    sys_drv_int_disable(USB_INTERRUPT_CTRL_BIT);
+    sys_drv_core_intr_group1_disable(2, USB_INTERRUPT_CTRL_BIT);
     bk_int_isr_unregister(INT_SRC_USB);
 }
 
