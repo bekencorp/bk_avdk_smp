@@ -172,11 +172,8 @@ static u8 mb_phy_chnl_tx_cmd(u8 log_chnl)
 	mb_phy_chnl_cb_t * phy_chnl_ptr;
 	mb_log_chnl_cb_t * log_chnl_cb_x;
 
-#if CONFIG_SOC_SMP
-	/* for SMP project, log_chnl is always built by CPU0. need to reconstruct here to run in CPU1 correctly. */
-	log_chnl = CPX_LOG_CHNL_START(SELF_CPU, phy_chnl_idx) + log_chnl_idx;
-#else
-
+#if !CONFIG_SOC_SMP
+	/* for SMP project, log_chnl is always built by CPU0. it is always failed when call this API in CPU1. */
 	if(SELF_CPU != GET_SRC_CPU_ID(log_chnl))
 		return 4;
 #endif
@@ -280,6 +277,7 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 		log_chnl_cb_x[log_chnl_idx].tx_cmpl_isr(log_chnl_cb_x[log_chnl_idx].isr_param, (mb_chnl_ack_t *)ack_ptr);
 	}
 
+	u32 int_mask = mb_chnl_enter_critical();
 	for(log_chnl_idx = 0; log_chnl_idx < phy_chnl_log_chnl_num[phy_chnl_idx]; log_chnl_idx++)  /* priority descended search. */
 	{
 		if(log_chnl_cb_x[log_chnl_idx].tx_state != CHNL_STATE_IDLE)
@@ -289,6 +287,7 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 	if(log_chnl_idx >= phy_chnl_log_chnl_num[phy_chnl_idx])
 	{
 		phy_chnl_ptr->tx_state = CHNL_STATE_IDLE;
+		mb_chnl_exit_critical(int_mask);
 		return;
 	}
 
@@ -299,8 +298,8 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 	if(ret_code != 0)
 	{
 		phy_chnl_ptr->tx_state = CHNL_STATE_IDLE;
-		return;
 	}
+	mb_chnl_exit_critical(int_mask);
 
 	return;
 
@@ -420,11 +419,12 @@ static void mb_phy_chnl_rx_isr(mailbox_data_t * mb_data)
 static void mb_phy_chnl_start_tx(u8 log_chnl)
 {
 	u8		ret_code;
-	u8		phy_chnl_idx = GET_DST_CPU_ID(log_chnl);   // = DST_CPU_ID;
-	u8		log_chnl_idx = GET_LOG_CHNL_ID(log_chnl);
+
+	u8		phy_chnl_idx;
 
 	mb_phy_chnl_cb_t * phy_chnl_ptr;
-	mb_log_chnl_cb_t * log_chnl_cb_x;
+
+	phy_chnl_idx = GET_DST_CPU_ID(log_chnl);   // = DST_CPU_ID;
 
 	if(SELF_CPU == phy_chnl_idx)  // transferred to self.
 		return;
@@ -434,13 +434,7 @@ static void mb_phy_chnl_start_tx(u8 log_chnl)
 
 	phy_chnl_ptr = &phy_chnl_x_cb[phy_chnl_idx];
 
-	log_chnl_cb_x = (mb_log_chnl_cb_t *)(phy_chnl_log_chnl_list[phy_chnl_idx]);
-
-	if(log_chnl_idx >= phy_chnl_log_chnl_num[phy_chnl_idx])
-		return;
-
-	if( (phy_chnl_ptr->tx_state == CHNL_STATE_IDLE) && 
-		(log_chnl_cb_x[log_chnl_idx].tx_state != CHNL_STATE_IDLE) )
+	if(phy_chnl_ptr->tx_state == CHNL_STATE_IDLE)
 	{
 		phy_chnl_ptr->tx_state = CHNL_STATE_BUSY;		/* MUST set channel state to BUSY firstly. */
 		/* start_tx->tx_cmd->tx_isr callback->mb_chnl_write->start_tx, it is a loop.
