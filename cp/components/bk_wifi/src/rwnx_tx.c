@@ -695,7 +695,7 @@ exit:
 		#if CONFIG_WIFI_VNET_CONTROLLER
 		if((p->flags & PBUF_FLAG_IS_EXTERNAL)||is_ctrl_if_data)
 		{
-			cif_free_ap_txbuf(skb->p);
+			cif_free_ap_txbuf(p);
 		}
 		else
 		#endif
