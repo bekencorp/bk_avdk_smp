@@ -165,6 +165,17 @@ static inline void mb_chnl_exit_critical(uint32_t flags)
 
 /* =====================      physical channel functions      ==================*/
 
+static inline bk_err_t bk_mailbox_send_safe(mailbox_data_t *data, mailbox_endpoint_t src, mailbox_endpoint_t dst, void *arg)
+{
+	bk_err_t		ret_code;
+	
+	u32 int_mask = mb_chnl_enter_critical();
+	ret_code = bk_mailbox_send(data, src, dst, arg);
+	mb_chnl_exit_critical(int_mask);
+	
+	return ret_code;
+}
+
 static u8 mb_phy_chnl_tx_cmd(u8 log_chnl)
 {
 	mb_phy_chnl_cmd_t	* cmd_ptr;
@@ -305,8 +316,6 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 		ack_ptr->data3 = phy_chnl_ptr->param3;
 	}
 	else
-
-
 	if( (log_chnl != phy_chnl_ptr->tx_log_chnl) ||
 		(ack_ptr->hdr.tx_seq != phy_chnl_ptr->tx_seq) )
 	{
@@ -328,6 +337,7 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 		log_chnl_cb_x[log_chnl_idx].tx_cmpl_isr(log_chnl_cb_x[log_chnl_idx].isr_param, (mb_chnl_ack_t *)ack_ptr);
 	}
 
+	u32 int_mask = mb_chnl_enter_critical();
 	for(log_chnl_idx = 0; log_chnl_idx < phy_chnl_log_chnl_num[phy_chnl_idx]; log_chnl_idx++)  /* priority descended search. */
 	{
 		if(log_chnl_cb_x[log_chnl_idx].tx_state != CHNL_STATE_IDLE)
@@ -337,6 +347,7 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 	if(log_chnl_idx >= phy_chnl_log_chnl_num[phy_chnl_idx])
 	{
 		phy_chnl_ptr->tx_state = CHNL_STATE_IDLE;
+		mb_chnl_exit_critical(int_mask);
 		return;
 	}
 
@@ -347,8 +358,8 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 	if(ret_code != 0)
 	{
 		phy_chnl_ptr->tx_state = CHNL_STATE_IDLE;
-		return;
 	}
+	mb_chnl_exit_critical(int_mask);
 
 	return;
 
@@ -425,7 +436,7 @@ static void mb_phy_chnl_rx_cmd_isr(mb_phy_chnl_cmd_t *cmd_ptr)
 
 	mailbox_endpoint_t    dst_cpu = (mailbox_endpoint_t)(phy_chnl_idx);
 
-	ret_code = bk_mailbox_send((mailbox_data_t *)cmd_ptr, SELF_CPU, dst_cpu, (void *)&chnl_type);	/* mb_phy_chnl_tx_ack. */
+	ret_code = bk_mailbox_send_safe((mailbox_data_t *)cmd_ptr, SELF_CPU, dst_cpu, (void *)&chnl_type);	/* mb_phy_chnl_tx_ack. */
 
 	if(ret_code != BK_OK)
 	{
@@ -537,7 +548,7 @@ static bk_err_t mb_phy_chnl_tx_cmd_sync(u8 log_chnl, mb_phy_chnl_cmd_t *cmd_ptr)
 	 */
 	while(1)
 	{
-		ret_code = bk_mailbox_send((mailbox_data_t *)cmd_ptr, SELF_CPU, dst_cpu, (void *)&chnl_type);
+		ret_code = bk_mailbox_send_safe((mailbox_data_t *)cmd_ptr, SELF_CPU, dst_cpu, (void *)&chnl_type);
 
 		if(ret_code != BK_ERR_MAILBOX_TIMEOUT)
 		{
