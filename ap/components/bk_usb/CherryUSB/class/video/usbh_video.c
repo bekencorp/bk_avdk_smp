@@ -214,8 +214,7 @@ int usbh_video_open(struct usbh_video *video_class, uint8_t altsetting)
 int usbh_video_close(struct usbh_video *video_class)
 {
     struct usb_setup_packet *setup = &video_class->hport->setup;
-    int ret;
-
+    int ret = 0;
 
     if (video_class->isoin) {
         usbh_pipe_free(video_class->isoin);
@@ -230,13 +229,30 @@ int usbh_video_close(struct usbh_video *video_class)
     USB_LOG_DBG("Close video device\r\n");
     video_class->is_opened = false;
 
-    setup->bmRequestType = USB_REQUEST_DIR_OUT | USB_REQUEST_STANDARD | USB_REQUEST_RECIPIENT_INTERFACE;
-    setup->bRequest = USB_REQUEST_SET_INTERFACE;
-    setup->wValue = 0;
-    setup->wIndex = video_class->data_intf;
-    setup->wLength = 0;
+    uint8_t altsetting = video_class->hport->config.intf[video_class->data_intf].altsetting[1].intf_desc.bAlternateSetting;
+    struct usb_endpoint_descriptor *ep_desc = &video_class->hport->config.intf[video_class->data_intf].altsetting[altsetting].ep[0].ep_desc;
 
-    ret = usbh_control_transfer(video_class->hport->ep0, setup, NULL);
+    switch (ep_desc->bmAttributes & USB_ENDPOINT_TYPE_MASK) {
+        case USB_ENDPOINT_TYPE_BULK:
+        case USB_ENDPOINT_TYPE_INTERRUPT:
+            break;
+        case USB_ENDPOINT_TYPE_ISOCHRONOUS:
+            {
+               setup->bmRequestType = USB_REQUEST_DIR_OUT | USB_REQUEST_STANDARD | USB_REQUEST_RECIPIENT_INTERFACE;
+               setup->bRequest = USB_REQUEST_SET_INTERFACE;
+               setup->wValue = 0;
+               setup->wIndex = video_class->data_intf;
+               setup->wLength = 0;
+           
+               ret = usbh_control_transfer(video_class->hport->ep0, setup, NULL);
+               if (ret < 0) {
+                   return ret;
+               }
+            }
+            break;
+        default:
+            break;
+    }
 
     return ret;
 }
