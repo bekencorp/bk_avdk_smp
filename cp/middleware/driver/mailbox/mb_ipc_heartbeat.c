@@ -148,6 +148,10 @@ static int check_cpu_id_ok(u32 cpu_id)
 static bk_err_t mb_ipc_exit_lv(uint64_t sleep_time, void *args)
 {
 	cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
+	if(ipc_heartbeat_timeout() == 1)
+	{
+		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
+	}
 	return BK_OK;
 }
 static bk_err_t mb_ipc_enter_lv(uint64_t sleep_time, void *args)
@@ -241,7 +245,7 @@ static void mb_ipc_task( void *para )
 		{
 			if(ipc_heartbeat_timeout())
 			{
-				BK_LOGE(MOD_TAG, "IPC heartbeat timeout%d\r\n", cpu_x_id);
+				BK_LOGE(MOD_TAG, "IPC[%d]heartbeat timeout %d,%d\r\n",cpu_x_id,cpu_x_heartbeat_timestamp,(u32)rtos_get_time());
 				/*when cpu1 heartbeat timeout, then system reboot*/
 				BK_ASSERT(false);
 			}
