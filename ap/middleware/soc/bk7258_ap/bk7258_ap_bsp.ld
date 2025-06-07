@@ -50,8 +50,8 @@ The follow four shared memory address area mapping to the same physical memory
 ******************************************************************************/
 #if CONFIG_SPINLOCK_SECTION
 __SMP_SPINLOCK_BASE = __PRIMARY_APP_RAM_BASE;
-/*__SMP_SPINLOCK_SIZE =  (64 << 10);*/
-__SMP_SPINLOCK_SIZE = (CONFIG_SPINLOCK_DYNAMIC_CNT + CONFIG_SPINLOCK_STATIC_CNT) * 16;
+__SMP_SPINLOCK_SIZE =  (64 << 10);
+/*__SMP_SPINLOCK_SIZE = (CONFIG_SPINLOCK_DYNAMIC_CNT + CONFIG_SPINLOCK_STATIC_CNT) * 16;*/
 #else
 __SMP_SPINLOCK_BASE = __PRIMARY_APP_RAM_BASE;
 __SMP_SPINLOCK_SIZE = 0;
