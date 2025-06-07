@@ -1184,7 +1184,7 @@ static const struct cli_command built_ins[] = {
 #endif
 #if (CONFIG_SHELL_ASYNCLOG && CONFIG_MAILBOX)
 #if !CONFIG_FREERTOS_SMP
-	{"cpu1", "cpu1 cmd (ex:cpu1 help)", cli_cpu1_command},
+	{"ap_cmd", "ap_cmd cmd (ex:ap_cmd help)", cli_cpu1_command},
 #endif
 #endif
 #if (CONFIG_SHELL_ASYNCLOG)
