@@ -225,7 +225,7 @@ bk_err_t beken_time_get_time(beken_time_t *time_ptr);
   */
 bk_err_t rtos_create_sram_thread(beken_thread_t *thread, uint8_t priority, const char *name, beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg);
 
-/** @brief Creates and starts a new thread on psram
+/** @brief Creates and starts a new thread on psram and not specify core
   *
   * @param thread     : Pointer to variable that will receive the thread handle (can be null)
   * @param priority   : A priority number.
@@ -1284,6 +1284,23 @@ bk_err_t rtos_smp_create_thread( beken_thread_t* thread, uint8_t priority, const
 bk_err_t rtos_core0_create_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg );
 
+
+/** @brief Creates and starts a new thread specify to run on cpu0 which use psram memeory
+  *
+  * @param thread     : Pointer to variable that will receive the thread handle (can be null)
+  * @param priority   : A priority number.
+  * @param name       : a text name for the thread (can be null)
+  * @param function   : the main thread function
+  * @param stack_size : stack size for this thread
+  * @param arg        : argument which will be passed to thread function
+  *
+  * @return    kNoErr          : on success.
+  * @return    kGeneralErr     : if an error occurred
+  */
+bk_err_t rtos_core0_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name,
+                        beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg );
+
+
 #if (CONFIG_CPU_CNT > 1)
 /** @brief Creates and starts a new thread specify to run on cpu1
   *
@@ -1298,6 +1315,23 @@ bk_err_t rtos_core0_create_thread( beken_thread_t* thread, uint8_t priority, con
   * @return    kGeneralErr     : if an error occurred
   */
 bk_err_t rtos_core1_create_thread( beken_thread_t* thread, uint8_t priority, const char* name,
+                        beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg );
+
+
+
+/** @brief Creates and starts a new thread specify to run on cpu1 which use psram memeory
+  *
+  * @param thread     : Pointer to variable that will receive the thread handle (can be null)
+  * @param priority   : A priority number.
+  * @param name       : a text name for the thread (can be null)
+  * @param function   : the main thread function
+  * @param stack_size : stack size for this thread
+  * @param arg        : argument which will be passed to thread function
+  *
+  * @return    kNoErr          : on success.
+  * @return    kGeneralErr     : if an error occurred
+  */
+bk_err_t rtos_core1_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg );
 
 #endif

@@ -63,7 +63,8 @@ BaseType_t xTaskCreateInPsram( TaskFunction_t pxTaskCode,
                         const configSTACK_DEPTH_TYPE usStackDepth,
                         void * const pvParameters,
                         UBaseType_t uxPriority,
-                        TaskHandle_t * const pxCreatedTask );
+                        TaskHandle_t * const pxCreatedTask,
+                        const BaseType_t xCoreID );
 
 /******************************************************
  *                   Enumerations
@@ -136,11 +137,7 @@ bk_err_t rtos_create_thread_with_affinity( beken_thread_t *thread, uint32_t affi
 bk_err_t rtos_create_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-#if (CONFIG_FREERTOS_SMP)
 	return rtos_create_thread_with_affinity(thread, 0, priority, name, function, stack_size, arg);
-#else
-    return rtos_create_thread_with_affinity(thread, 1 << 0, priority, name, function, stack_size, arg);
-#endif
 }
 
 
@@ -153,22 +150,39 @@ bk_err_t rtos_smp_create_thread( beken_thread_t* thread, uint8_t priority, const
 bk_err_t rtos_core0_create_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-#if (CONFIG_FREERTOS_SMP)
+
 	return rtos_create_thread_with_affinity(thread, 0, priority, name, function, stack_size, arg);
-#else
-	return rtos_create_thread_with_affinity(thread, 1 << 0, priority, name, function, stack_size, arg);
-#endif
+}
+
+bk_err_t rtos_core0_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name,
+                        beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
+{
+	return xTaskCreateInPsram( (native_thread_t)function, 
+                                name, 
+                                (unsigned short) (stack_size/sizeof( portSTACK_TYPE )), 
+                                (void *)arg, 
+                                BK_PRIORITY_TO_NATIVE_PRIORITY(priority), 
+                                (TaskHandle_t *)thread,
+                                0 );
 }
 
 #if (CONFIG_CPU_CNT > 1)
 bk_err_t rtos_core1_create_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-#if (CONFIG_FREERTOS_SMP)
 	return rtos_create_thread_with_affinity(thread, 1, priority, name, function, stack_size, arg);
-#else
-	return rtos_create_thread_with_affinity(thread, 1 << 1, priority, name, function, stack_size, arg);
-#endif
+}
+
+bk_err_t rtos_core1_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name,
+                        beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
+{
+	return xTaskCreateInPsram( (native_thread_t)function, 
+                                name, 
+                                (unsigned short) (stack_size/sizeof( portSTACK_TYPE )), 
+                                (void *)arg, 
+                                BK_PRIORITY_TO_NATIVE_PRIORITY(priority), 
+                                (TaskHandle_t *)thread,
+                                1 );
 }
 #endif
 
@@ -176,11 +190,7 @@ bk_err_t rtos_core1_create_thread( beken_thread_t* thread, uint8_t priority, con
 bk_err_t rtos_core2_create_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-#if (CONFIG_FREERTOS_SMP)
 	return rtos_create_thread_with_affinity(thread, 2, priority, name, function, stack_size, arg);
-#else
-    return rtos_create_thread_with_affinity(thread, 1 << 2, priority, name, function, stack_size, arg);
-#endif
 }
 #endif
 
@@ -194,7 +204,26 @@ bk_err_t rtos_create_sram_thread( beken_thread_t* thread, uint8_t priority, cons
 bk_err_t rtos_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name, 
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-    os_printf("Task Create In Psram is not supported.\r\n.");
+    /* Limit priority to default lib priority */
+    if ( priority > RTOS_HIGHEST_PRIORITY )
+    {
+        priority = RTOS_HIGHEST_PRIORITY;
+    }
+
+    if( pdPASS == xTaskCreateInPsram( (native_thread_t)function, 
+                                      name, 
+                                     (unsigned short) (stack_size/sizeof( portSTACK_TYPE )), 
+                                     (void *)arg, 
+                                     BK_PRIORITY_TO_NATIVE_PRIORITY(priority), 
+                                     (TaskHandle_t *)thread,
+                                      tskNO_AFFINITY) )
+    {
+        return kNoErr;
+    }
+    else
+    {
+        return kGeneralErr;
+    }
     return kGeneralErr;
 }
 

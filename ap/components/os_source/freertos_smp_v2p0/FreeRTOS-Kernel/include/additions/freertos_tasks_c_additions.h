@@ -20,6 +20,7 @@
 
 #include "sdkconfig.h"
 #include "freertos_additions.h"
+#include <os/mem.h>
 
 /*
  * Both StaticTask_t and TCB_t structures are provided by FreeRTOS sources.
@@ -143,14 +144,15 @@ _Static_assert( offsetof( StaticTask_t, pxDummy8 ) == offsetof( TCB_t, pxEndOfSt
 /* -------------------------------------------------- Task Creation ------------------------------------------------- */
 
 #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
-
-    BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pxTaskCode,
-                                        const char * const pcName,
-                                        const uint32_t usStackDepth,
-                                        void * const pvParameters,
-                                        UBaseType_t uxPriority,
-                                        TaskHandle_t * const pxCreatedTask,
-                                        const BaseType_t xCoreID )
+ 
+    BaseType_t xTaskCreate_ex( TaskFunction_t pxTaskCode,
+                                const char * const pcName,
+                                const uint32_t usStackDepth,
+                                void * const pvParameters,
+                                UBaseType_t uxPriority,
+                                TaskHandle_t * const pxCreatedTask,
+                                const BaseType_t xCoreID,
+                                beken_mem_type_t eMemType)
     {
         BaseType_t xReturn;
 
@@ -164,57 +166,141 @@ _Static_assert( offsetof( StaticTask_t, pxDummy8 ) == offsetof( TCB_t, pxEndOfSt
              * then allocate the TCB then the stack. */
             #if ( portSTACK_GROWTH > 0 )
             {
-                /* Allocate space for the TCB.  Where the memory comes from depends on
-                 * the implementation of the port malloc function and whether or not static
-                 * allocation is being used. */
-                pxNewTCB = ( TCB_t * ) pvPortMalloc( sizeof( TCB_t ) );
-
-                if( pxNewTCB != NULL )
+                switch (eMemType)
                 {
-                    memset( ( void * ) pxNewTCB, 0x00, sizeof( TCB_t ) );
-
-                    /* Allocate space for the stack used by the task being created.
-                     * The base of the stack memory stored in the TCB so the task can
-                     * be deleted later if required. */
-                    pxNewTCB->pxStack = ( StackType_t * ) pvPortMalloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
-
-                    if( pxNewTCB->pxStack == NULL )
+                    case HEAP_MEM_TYPE_PSRAM:
+    #if CONFIG_PSRAM_AS_SYS_MEMORY
                     {
-                        /* Could not allocate the stack.  Delete the allocated TCB. */
-                        vPortFree( pxNewTCB );
-                        pxNewTCB = NULL;
+                        /* Allocate space for the TCB.  Where the memory comes from depends on
+                        * the implementation of the port malloc function and whether or not static
+                        * allocation is being used. */
+
+                        pxNewTCB = ( TCB_t * ) psram_malloc( sizeof( TCB_t ) );
+
+                        if( pxNewTCB != NULL )
+                        {
+                            memset( ( void * ) pxNewTCB, 0x00, sizeof( TCB_t ) );
+                            /* Allocate space for the stack used by the task being created.
+                            * The base of the stack memory stored in the TCB so the task can
+                            * be deleted later if required. */
+                            pxNewTCB->pxStack = ( StackType_t * ) psram_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
+
+                            if( pxNewTCB->pxStack == NULL )
+                            {
+                                /* Could not allocate the stack.  Delete the allocated TCB. */
+                                vPortFree( pxNewTCB );
+                                pxNewTCB = NULL;
+                            }
+                        }
                     }
+    #else //#if CONFIG_PSRAM_AS_SYS_MEMORY
+                        return pdFAIL;
+    #endif
+                        break;
+                    case HEAP_MEM_TYPE_DEFAULT:
+                    default:
+                    {
+                        /* Allocate space for the TCB.  Where the memory comes from depends on
+                        * the implementation of the port malloc function and whether or not static
+                        * allocation is being used. */
+                        pxNewTCB = ( TCB_t * ) pvPortMalloc( sizeof( TCB_t ) );
+
+                        if( pxNewTCB != NULL )
+                        {
+                            memset( ( void * ) pxNewTCB, 0x00, sizeof( TCB_t ) );
+
+                            /* Allocate space for the stack used by the task being created.
+                            * The base of the stack memory stored in the TCB so the task can
+                            * be deleted later if required. */
+                            pxNewTCB->pxStack = ( StackType_t * ) pvPortMalloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
+
+                            if( pxNewTCB->pxStack == NULL )
+                            {
+                                /* Could not allocate the stack.  Delete the allocated TCB. */
+                                vPortFree( pxNewTCB );
+                                pxNewTCB = NULL;
+                            }
+                        }
+                    }
+                    break;
                 }
             }
+
             #else /* portSTACK_GROWTH */
             {
-                StackType_t * pxStack;
-
-                /* Allocate space for the stack used by the task being created. */
-                pxStack = pvPortMalloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
-
-                if( pxStack != NULL )
+                switch (eMemType)
                 {
-                    /* Allocate space for the TCB. */
-                    pxNewTCB = ( TCB_t * ) pvPortMalloc( sizeof( TCB_t ) ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
-
-                    if( pxNewTCB != NULL )
+                    case HEAP_MEM_TYPE_PSRAM:
+#if CONFIG_PSRAM_AS_SYS_MEMORY
                     {
-                        memset( ( void * ) pxNewTCB, 0x00, sizeof( TCB_t ) );
+                        StackType_t * pxStack;
 
-                        /* Store the stack location in the TCB. */
-                        pxNewTCB->pxStack = pxStack;
+                        /* Allocate space for the stack used by the task being created. */
+                        pxStack = psram_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
+
+                        if( pxStack != NULL )
+                        {
+                            /* Allocate space for the TCB. */
+                            pxNewTCB = ( TCB_t * ) psram_malloc( sizeof( TCB_t ) ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
+
+                            if( pxNewTCB != NULL )
+                            {
+                                memset( ( void * ) pxNewTCB, 0x00, sizeof( TCB_t ) );
+
+                                /* Store the stack location in the TCB. */
+                                pxNewTCB->pxStack = pxStack;
+                            }
+                            else
+                            {
+                                /* The stack cannot be used as the TCB was not created.  Free
+                                * it again. */
+                                vPortFree( pxStack );
+                            }
+                        }
+                        else
+                        {
+                            pxNewTCB = NULL;
+                        }
                     }
-                    else
+#else //#if CONFIG_PSRAM_AS_SYS_MEMORY
+                    return pdFAIL;
+#endif //#if CONFIG_PSRAM_AS_SYS_MEMORY
+                    break;
+
+                    case HEAP_MEM_TYPE_DEFAULT:
+                    default:
                     {
-                        /* The stack cannot be used as the TCB was not created.  Free
-                         * it again. */
-                        vPortFree( pxStack );
+
+                        StackType_t * pxStack;
+
+                        /* Allocate space for the stack used by the task being created. */
+                        pxStack = pvPortMalloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
+
+                        if( pxStack != NULL )
+                        {
+                            /* Allocate space for the TCB. */
+                            pxNewTCB = ( TCB_t * ) pvPortMalloc( sizeof( TCB_t ) ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
+
+                            if( pxNewTCB != NULL )
+                            {
+                                memset( ( void * ) pxNewTCB, 0x00, sizeof( TCB_t ) );
+
+                                /* Store the stack location in the TCB. */
+                                pxNewTCB->pxStack = pxStack;
+                            }
+                            else
+                            {
+                                /* The stack cannot be used as the TCB was not created.  Free
+                                * it again. */
+                                vPortFree( pxStack );
+                            }
+                        }
+                        else
+                        {
+                            pxNewTCB = NULL;
+                        }
                     }
-                }
-                else
-                {
-                    pxNewTCB = NULL;
+                    break;
                 }
             }
             #endif /* portSTACK_GROWTH */
@@ -241,6 +327,31 @@ _Static_assert( offsetof( StaticTask_t, pxDummy8 ) == offsetof( TCB_t, pxEndOfSt
 
         return xReturn;
     }
+
+
+    BaseType_t xTaskCreatePinnedToCore( TaskFunction_t pxTaskCode,
+                                        const char * const pcName,
+                                        const uint32_t usStackDepth,
+                                        void * const pvParameters,
+                                        UBaseType_t uxPriority,
+                                        TaskHandle_t * const pxCreatedTask,
+                                        const BaseType_t xCoreID ) 
+    {
+        return xTaskCreate_ex(pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask, xCoreID, HEAP_MEM_TYPE_DEFAULT);                               
+    }
+
+    BaseType_t xTaskCreateInPsram( TaskFunction_t pxTaskCode,
+                            const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+                            const configSTACK_DEPTH_TYPE usStackDepth,
+                            void * const pvParameters,
+                            UBaseType_t uxPriority,
+                            TaskHandle_t * const pxCreatedTask,
+                            const BaseType_t xCoreID)
+    {
+        return xTaskCreate_ex(pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask, xCoreID, HEAP_MEM_TYPE_PSRAM);
+    }
+
+    
 
 #endif /* ( configSUPPORT_DYNAMIC_ALLOCATION == 1 ) */
 /*----------------------------------------------------------*/
