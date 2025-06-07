@@ -327,6 +327,7 @@ static void cli_pm_debug(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	{
 		pm_debug_pwr_clk_state();
 		pm_debug_lv_state();
+		bk_pm_cpu_freq_dump();
 	}
 	/*for temp debug*/
 	if(pm_debug == 16)
