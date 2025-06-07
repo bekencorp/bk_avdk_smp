@@ -1,33 +1,42 @@
-import os
-import re
-import json
-from typing import List
-from .bk_partition import bk_partition
-from . import logger
+from __future__ import annotations
 
-def parse_size(size_str:str):
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+from . import logger
+from .bk_partition import bk_partition
+
+
+def parse_size(size_str: str) -> int:
     for letter, multiplier in [("k", 1024), ("m", 1024 * 1024)]:
         if size_str.lower().endswith(letter):
             return parse_size(size_str[:-1]) * multiplier
     return int(size_str, 0)
 
+
 class bk_partitions_table:
-    def __init__(self, csv_path, crc_enable=False):
-        if not os.path.exists(csv_path):
-            raise FileNotFoundError(f"auto partition config table {csv_path} not exist.")
-        
+    PARTITION_ATTR_NUM = 6
+
+    def __init__(self, csv_path: Path, crc_enable: bool = False) -> None:
+        if not csv_path.exists():
+            msg = f"auto partition config table {csv_path} not exist."
+            raise FileNotFoundError(msg)
+
         logger.info(f"read parititon table from {csv_path}")
         self.crc_enable = crc_enable
         self._csv_path = csv_path
-        self.partitions:List[bk_partition] = []
+        self.partitions: list[bk_partition] = []
         self.cumulative_offset = 0
         self._parse_auto_partition_table()
         self._check_partition_valid()
 
-    def _parser_partition_line(self, part_line:str):
-        part_info = part_line.split(',')
-        if len(part_info) < 6:
-            raise RuntimeError(f"auto partition config table invalid, line:\n{part_line}")
+    def _parser_partition_line(self, part_line: str) -> bk_partition:
+        part_info = part_line.split(",")
+        if len(part_info) < bk_partitions_table.PARTITION_ATTR_NUM:
+            msg = f"auto partition config table invalid, line:\n{part_line}"
+            raise RuntimeError(msg)
         part_info = [item.strip() for item in part_info]
         name = part_info[0]
         offset_str = part_info[1]
@@ -36,43 +45,42 @@ class bk_partitions_table:
         read_str = part_info[4]
         write_str = part_info[5]
 
-        if offset_str == '':
-            offset = self.cumulative_offset
-        else:
-            offset = int(offset_str, 16)
-        
+        offset = self.cumulative_offset if offset_str == "" else int(offset_str, 16)
+
         size = parse_size(size_str)
 
-        if mode.lower() == 'code':
+        if mode.lower() == "code":
             execute = True
-        elif mode.lower() == 'data':
+        elif mode.lower() == "data":
             execute = False
         else:
-            raise RuntimeError(f"not support type: {mode}")
+            msg = f"not support type: {mode}"
+            raise RuntimeError(msg)
 
-        read = True if read_str.lower() == 'true' else False
-        write = True if write_str.lower() == 'true' else False
+        read = read_str.lower() == "true"
+        write = write_str.lower() == "true"
 
         part = bk_partition(name, offset, size)
         part.chmod(write, read, execute)
         self.cumulative_offset = offset + size
         return part
 
-    def _check_partition_valid(self):
+    def _check_partition_valid(self) -> None:
         self._check_offset_and_size_valid()
         self._check_partition_overlaps()
-    
-    def _check_offset_and_size_valid(self):
-        def check_align(name, num, align_num):
+
+    def _check_offset_and_size_valid(self) -> None:
+        def check_align(name: str, num: int, align_num: int) -> None:
             if num % align_num != 0:
-                raise RuntimeError(f"{name} partition align error")
+                msg = f"{name} partition align error"
+                raise RuntimeError(msg)
 
         for part in self.partitions:
             part_info = part.get_info()
-            offset = part_info['Offset']
-            size = part_info['Size']
-            name = part_info['Name']
-            execute = part_info['Execute']
+            offset: int = part_info.Offset
+            size: int = part_info.Size
+            name: str = part_info.Name
+            execute: int = part_info.Execute
             logger.debug(part_info)
             check_align(name, offset, 0x1000)
             check_align(name, size, 0x1000)
@@ -80,8 +88,8 @@ class bk_partitions_table:
                 check_align(name, offset, 1024 * 34)
                 check_align(name, size, 1024 * 34)
 
-    def _check_partition_overlaps(self):          
-        space_sections = []
+    def _check_partition_overlaps(self) -> None:
+        space_sections: list[tuple[int, int]] = []
         for part in self.partitions:
             offset, size = part.get_partition_size()
             space_sections.append((offset, size))
@@ -89,45 +97,44 @@ class bk_partitions_table:
         intervals.sort()
         for i in range(1, len(intervals)):
             if intervals[i][0] < intervals[i - 1][1]:
-                raise RuntimeError("partition table config overlaps")
+                msg = "partition table config overlaps"
+                raise RuntimeError(msg)
 
-    def _parse_auto_partition_table(self):
-        def check_auto_partition_line_valid(part_line):
-            ret = re.match(r'(?<!\\)\$([A-Za-z_][A-Za-z0-9_]*)', part_line)
+    def _parse_auto_partition_table(self) -> None:
+        def check_auto_partition_line_valid(part_line: str) -> None:
+            ret = re.match(r"(?<!\\)\$([A-Za-z_][A-Za-z0-9_]*)", part_line)
             if ret:
-                raise RuntimeError(f"auto partition table format error, line:\n{part_line}")
-        
-        with open(self._csv_path, 'r') as f:
-            csv_contents = f.read()
+                msg = f"auto partition table format error, line:\n{part_line}"
+                raise RuntimeError(msg)
+
+        csv_contents = self._csv_path.read_text()
         lines = csv_contents.splitlines()
         for line in lines:
-            line = line.strip()
-            if line.startswith("#") or len(line) == 0:
+            line_content = line.strip()
+            if line_content.startswith("#") or len(line_content) == 0:
                 continue
-            check_auto_partition_line_valid(line)
-            part = self._parser_partition_line(line)
+            check_auto_partition_line_valid(line_content)
+            part = self._parser_partition_line(line_content)
             self.partitions.append(part)
 
-    def gen_partition_csv(self, save_path):
+    def gen_partition_csv(self, save_path: Path) -> None:
         logger.info(f"save partition csv to {save_path}")
-        with open(save_path, 'w', newline='\n') as f:
+        with save_path.open("w", newline="\n") as f:
             f.write("Name,Offset,Size,Execute,Read,Write\n")
             for part in self.partitions:
-                f.write(part.get_format_info() + '\n')
+                f.write(part.get_format_info() + "\n")
 
-    def gen_partition_json(self, save_path):
-        json_content = {}
-        table = []
-        for part in self.partitions:
-            table.append(part.get_info())
+    def gen_partition_json(self, save_path: Path) -> None:
+        json_content: dict[str, Any] = {}
+        table = [part.get_part_dict() for part in self.partitions]
 
         json_content.update({"crc_enable": self.crc_enable})
         json_content.update({"section": table})
         logger.info(f"save partition json to {save_path}")
-        with open(save_path, 'w', newline='\n') as f:
+        with save_path.open("w", newline="\n") as f:
             json.dump(json_content, f, indent=4)
 
-    def gen_pretty_format_table(self, save_path):
+    def gen_pretty_format_table(self, save_path: Path) -> None:
         text_content = ""
         text_content += bk_partition.get_pretty_format_info_head()
         offset = 0
@@ -137,5 +144,6 @@ class bk_partitions_table:
                 text_content += bk_partition.get_unused_part_info(offset, addr - offset)
             text_content += part.get_pretty_format_info()
             offset = addr + size
-        with open(save_path, 'w') as f:
+
+        with save_path.open("w", newline="\n") as f:
             f.write(text_content)

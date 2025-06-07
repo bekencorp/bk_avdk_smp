@@ -8,3 +8,4 @@ python test_bk_packager/test_main.py
 python test_bk_auto_partition/test_main.py
 python test_bk_flash_partition/test_main.py
 python test_bk_ota_partition/test_main.py
+python test_bk_build_summary/test_main.py

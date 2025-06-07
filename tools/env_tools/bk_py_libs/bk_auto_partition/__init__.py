@@ -1,16 +1,20 @@
-
-__version__ = '0.0.1'
-
+__version__ = "0.0.1"
 import logging
 
 logger = logging.getLogger(__name__)
 
-def set_debug_log():
+
+from .bk_partitions_table import bk_partitions_table
+
+
+def set_debug_log() -> None:
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
 
-def set_info_log():
+
+def set_info_log() -> None:
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
-from .bk_partitions_table import bk_partitions_table
+
+__all__ = ["bk_partitions_table", "logger"]

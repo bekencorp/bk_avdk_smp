@@ -12,22 +12,22 @@
         {
             "Name": "primary_cpu0_app",
             "Offset": 69632,
-            "Size": 1810432,
+            "Size": 1392640,
             "Execute": true,
             "Read": true,
             "Write": false
         },
         {
             "Name": "primary_cpu1_app",
-            "Offset": 1880064,
-            "Size": 835584,
+            "Offset": 1462272,
+            "Size": 974848,
             "Execute": true,
             "Read": true,
             "Write": false
         },
         {
             "Name": "ota",
-            "Offset": 2715648,
+            "Offset": 2437120,
             "Size": 1462272,
             "Execute": false,
             "Read": true,
@@ -35,15 +35,23 @@
         },
         {
             "Name": "usr_config",
-            "Offset": 4177920,
-            "Size": 65536,
+            "Offset": 3899392,
+            "Size": 61440,
             "Execute": false,
             "Read": true,
             "Write": true
         },
         {
             "Name": "easyflash",
-            "Offset": 4243456,
+            "Offset": 8364032,
+            "Size": 8192,
+            "Execute": false,
+            "Read": true,
+            "Write": true
+        },
+        {
+            "Name": "easyflash_ap",
+            "Offset": 8372224,
             "Size": 8192,
             "Execute": false,
             "Read": true,

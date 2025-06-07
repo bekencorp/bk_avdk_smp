@@ -1,32 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from . import logger
-
-
-@dataclass
-class Elf_Memory_Info:
-    name: str
-    addr: int
-    region_size: int
-    used_size: int
-    usage: str
 
 
 def find_string_in_file(file_path: Path, target: str):
     target_bytes = target.encode("utf-8")
     buffer_size = 4096
     offset = 0
-    global_offset = 0
+    global_offset = -1
     column_number = 0
     try:
         with file_path.open("rb") as file:
             while True:
                 buffer = file.read(buffer_size)
                 if not buffer:
-                    raise EOFError("not found")
+                    raise EOFError(f"not found '{target}'")
                 position = buffer.find(target_bytes)
                 if position != -1:
                     global_offset = offset + position
@@ -39,7 +29,7 @@ def find_string_in_file(file_path: Path, target: str):
     except FileNotFoundError:
         logger.error(f"file '{file_path}' not exist.")
     except Exception as e:
-        logger.error(f"read file error: {e}")
+        logger.error(f"error: {e}, error type: {type(e)}")
 
     return global_offset, column_number
 
@@ -124,13 +114,14 @@ class bk_build_summary:
             link_info = cls._get_link_info(mem_file)
             map_info = cls._get_map_info(map_file)
             mem_info += cls._combine_link_and_map_info(link_info, map_info)
-        except RuntimeError:
+        except RuntimeError as e:
+            logger.error(str(e))
             prerequisite = False
         except IndexError:
             logger.error("Index Error")
             prerequisite = False
         if not prerequisite:
-            mem_info += "no found memory info"
+            mem_info += "no found memory info\n"
         mem_info += f"<<<<<<<<<< {app_name}\n"
         return mem_info
 
@@ -169,10 +160,10 @@ class bk_build_summary:
     def _get_map_info(cls, map_file: Path):
         all_mem_info: list[tuple[str, int, int]] = []
 
-        try:
-            offset, _ = find_string_in_file(map_file, "Memory Configuration")
-        except EOFError:
-            return all_mem_info
+        offset, _ = find_string_in_file(map_file, "Memory Configuration")
+        if offset == -1:
+            logger.error(f"{map_file} size is {map_file.stat().st_size}")
+            raise RuntimeError("not found 'Memory Configuration'")
 
         with map_file.open("r") as f:
             f.seek(offset)
@@ -180,6 +171,10 @@ class bk_build_summary:
 
         start = raw_mem_info.find("FLASH")
         end = raw_mem_info.find("*default")
+        if start == -1:
+            raise RuntimeError("not found 'FLASH'")
+        if end == -1:
+            raise RuntimeError("not found '*default'")
         mem_regions = raw_mem_info[start:end].strip().split("\n")
 
         for mem in mem_regions:

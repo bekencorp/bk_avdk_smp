@@ -1,8 +1,9 @@
 from pathlib import Path
 from unittest import TestCase
 
-from bk_build_summary import bk_build_summary
 from ut_msic import get_file_md5sum
+
+from bk_build_summary import bk_build_summary
 
 curr_dir = Path(__file__).parent
 
