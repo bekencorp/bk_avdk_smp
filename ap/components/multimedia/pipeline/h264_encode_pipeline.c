@@ -266,22 +266,7 @@ static void h264_encode_line_done_handler(h264_unit_t id, void *param)
 			h264_encode_config->decoder_buffer = NULL;
 			return;
 		}
-
-		frame_buffer_t *frame_buffer = (frame_buffer_t *)h264_encode_config->decoder_buffer->data;
-		h264_encode_config->encode_offset += h264_encode_config->encode_node_length;
-		if (h264_encode_config->line_done_index % 2)
-		{
-			os_memcpy(h264_encode_config->yuv_buf + h264_encode_config->encode_node_length, frame_buffer->frame + h264_encode_config->encode_offset, h264_encode_config->encode_node_length);
-		}
-		else
-		{
-			os_memcpy(h264_encode_config->yuv_buf, frame_buffer->frame + h264_encode_config->encode_offset, h264_encode_config->encode_node_length);
-		}
-
-		H264_LINE_START();
-		if (h264_encode_config->line_done_index < h264_encode_config->line_done_cnt)
-			bk_yuv_buf_rencode_start();
-		h264_encode_config->line_done_index ++;
+        h264_encode_task_send_msg(H264_ENCODE_LINE_CONTINUE, 0);
 	}
 	else
 	{
@@ -495,7 +480,8 @@ static void h264_encode_start_handle(uint32_t param)
 	if (h264_encode_config->input_buf_type)
 	{
 		frame_buffer_t *yuv_frame = (frame_buffer_t *)h264_encode_config->decoder_buffer->data;
-		os_memcpy(h264_encode_config->yuv_buf, yuv_frame->frame, h264_encode_config->encode_node_length);
+		os_memcpy(h264_encode_config->yuv_buf, yuv_frame->frame, h264_encode_config->encode_node_length * 2);
+		h264_encode_config->encode_offset = h264_encode_config->encode_node_length;
 	}
 	else
 	{
@@ -538,6 +524,30 @@ static void h264_encode_pingpang_buf_done_handle()
 	// send message to tell jpegdec one buffer have been encode finish, please transfer another buf
 	h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
 	h264_encode_config->decoder_buffer = NULL;
+}
+
+static void h264_encode_pingpang_buf_continue_handle()
+{
+    H264_LINE_START();
+    if (h264_encode_config->line_done_index < h264_encode_config->line_done_cnt)
+        bk_yuv_buf_rencode_start();
+    h264_encode_config->line_done_index ++;
+
+    if (h264_encode_config->line_done_index == h264_encode_config->line_done_cnt)
+    {
+        return;
+    }
+    frame_buffer_t *frame_buffer = (frame_buffer_t *)h264_encode_config->decoder_buffer->data;
+    h264_encode_config->encode_offset += h264_encode_config->encode_node_length;
+    if (h264_encode_config->line_done_index % 2 == 1)
+    {
+        os_memcpy(h264_encode_config->yuv_buf + h264_encode_config->encode_node_length, frame_buffer->frame + h264_encode_config->encode_offset, h264_encode_config->encode_node_length);
+    }
+    else
+    {
+        os_memcpy(h264_encode_config->yuv_buf, frame_buffer->frame + h264_encode_config->encode_offset, h264_encode_config->encode_node_length);
+    }
+
 }
 
 static bool h264_encode_check_head_handle(uint8_t *data)
@@ -811,9 +821,15 @@ static void h264_encode_main(beken_thread_arg_t data)
 					h264_encode_pingpang_buf_done_handle();
 					break;
 
+                case H264_ENCODE_LINE_CONTINUE:
+                    h264_encode_pingpang_buf_continue_handle();
+                    break;
+
 				case H264_ENCODE_FINISH:
 					h264_encode_finish_handle();
 					break;
+
+
 
 				case H264_ENCODE_RESET:
 					h264_encode_reset_handle();
@@ -1040,8 +1056,8 @@ bk_err_t h264_encode_task_open(media_camera_device_t *device)
 		goto error;
 	}
 
-	ret = rtos_create_thread(&h264_encode_config->h264_thread,
-							BEKEN_DEFAULT_WORKER_PRIORITY,
+	ret = rtos_smp_create_thread(&h264_encode_config->h264_thread,
+							BEKEN_DEFAULT_WORKER_PRIORITY - 1,
 							"h264_task",
 							(beken_thread_function_t)h264_encode_main,
 							1024 * 2,
