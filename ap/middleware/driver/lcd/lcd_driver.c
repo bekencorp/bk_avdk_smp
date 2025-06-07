@@ -35,6 +35,8 @@
 #include "driver/lcd.h"
 #include "driver/pwr_clk.h"
 
+#include "cpu_id.h"
+
 #if CONFIG_LCD_QSPI
 #include <driver/lcd_qspi.h>
 #include <driver/lcd_qspi_types.h>
@@ -616,7 +618,8 @@ bk_err_t bk_lcd_driver_init(lcd_clk_t clk)
 	}
 
 //	lcd_hal_soft_reset();
-    sys_drv_int_enable(LCD_INTERRUPT_CTRL_BIT);
+    // sys_drv_int_enable(LCD_INTERRUPT_CTRL_BIT);
+	sys_drv_core_intr_group1_enable(CPU2_CORE_ID, LCD_INTERRUPT_CTRL_BIT);
     sys_ll_set_cpu_device_clk_enable_disp_cken(0);
 	switch (clk)
 	{
