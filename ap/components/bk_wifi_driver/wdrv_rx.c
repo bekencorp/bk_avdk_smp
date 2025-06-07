@@ -55,7 +55,11 @@ void wdrv_rxdata_process(struct pbuf *p)
 {
     struct cpdu_t* cpdu = NULL;
     cpdu = (struct cpdu_t*)(p + 1);
-
+#ifdef CONFIG_CONTROLLER_RX_DIRECT_PSH
+    struct pbuf* p_copy = NULL;
+    bk_err_t ret = BK_OK;
+    uint8_t vif_idx = 0;
+#endif
     wdrv_attach_rx_buffer();
 
     if(cpdu->co_hdr.need_free)
@@ -84,7 +88,25 @@ void wdrv_rxdata_process(struct pbuf *p)
         __func__, p, p->next, p->payload, sizeof(struct pbuf), cpdu);
     WDRV_STATS_DEC(rx_alloc_num);
     WDRV_LOGD("%s rx_alloc_num = %d\r\n",__func__,wdrv_stats_ptr->rx_alloc_num );
+#if CONFIG_CONTROLLER_RX_DIRECT_PSH    
+    p_copy = pbuf_alloc(PBUF_RAW,p->len,PBUF_RAM_RX);
+
+    if(p_copy)
+        memcpy(p_copy->payload,p->payload,p->len);
+
+    cpdu->co_hdr.need_free = 1;//RXC free
+    vif_idx = cpdu->co_hdr.vif_idx;
+    ret = wdrv_txdata_sender(p,0);//vif null, just for free this RXC pbuf
+    if(0 != ret)
+    {
+        ret = ERR_TIMEOUT;
+        WDRV_LOGE("%s, RXC sender error\r\n",__func__);
+    }
+    if(p_copy)
+        ethernetif_input(vif_idx , p_copy);
+#else
     ethernetif_input(cpdu->co_hdr.vif_idx , p);
+#endif
 }
 //MBOX
 uint8_t wdrv_recv_buffer(void *param, uint32_t *payload)

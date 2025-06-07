@@ -16,7 +16,7 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 //        BK_ASSERT(0);
 //    }
 
-    //WDRV_LOGI("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
+    WDRV_LOGD("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
 	msg.type = WDRV_TASK_MSG_TXDATA;
 	msg.arg = (uint32_t)cpdu;
 	msg.len = vif_idx;

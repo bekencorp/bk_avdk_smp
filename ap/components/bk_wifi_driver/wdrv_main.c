@@ -159,6 +159,9 @@ void wdrv_rx_buffer_predict(uint8_t dir)
 void wdrv_attach_rx_buffer()
 {
     uint16_t num = 0;
+#ifdef CONFIG_CONTROLLER_RX_DIRECT_PSH
+    return;
+#endif
     if(wdrv_stats_ptr->rx_alloc_num <= 2)
     {
         wdrv_rx_buffer_predict(BUFFER_RX);
@@ -343,7 +346,7 @@ bk_err_t wdrv_init()
     }
     
     
-    ret = rtos_create_thread(&wdrv_env.handle,
+    ret = rtos_core1_create_thread(&wdrv_env.handle,
                                 WDRV_TASK_PRIO,
                                 "wdrv_thread",
                                 (beken_thread_function_t)wdrv_main,

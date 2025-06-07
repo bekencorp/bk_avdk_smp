@@ -54,12 +54,20 @@ bk_err_t cif_handle_txdata(void *head)
 {
     uint8_t ret = BK_OK;
     struct pbuf* pbuf = NULL;
-
+    cpdu_t* cpdu = (cpdu_t*)head;
     uint8_t vif_id = cif_vif_id_route();
 
     //struct tx_desc_tag * tx_desc = NULL;
     pbuf = (struct pbuf*)((uint8_t*)head - sizeof(struct pbuf));
-
+#if CONFIG_CONTROLLER_RX_DIRECT_PSH
+    if(cpdu->co_hdr.need_free)
+    {
+        CIF_LOGD("%s free p:%x,p->ref:%d\r\n",__func__, pbuf,pbuf->ref);
+        pbuf->ref--;
+        pbuf_free(pbuf);
+        return BK_OK;
+    }
+#endif
     CIF_STATS_INC(buf_in_txdata);
 
     //CTRL_IF_DATA("%s,1 length:%d\n",__func__,hdr->co_hdr.length);
@@ -262,9 +270,19 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
         {
             struct pbuf* p_copy = NULL;
             CIF_LOGD("ARP RX\n");
-            //stack_mem_dump((uint32_t)p->payload,(uint32_t)p->payload + 300);
-            //p_copy = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM_RX);
 
+#if CONFIG_CONTROLLER_RX_DIRECT_PSH
+            p_copy = pbuf_alloc(PBUF_RAW,p->len,PBUF_RAM_RX);
+            upload2ctrl = true;
+            if(p_copy)
+            {
+                memcpy(p_copy->payload,p->payload,p->len);
+            }
+            else
+            {
+                return upload2ctrl;   
+            }
+#else
             p_copy = (struct pbuf*)cif_maclloc_rx_buf();
 
             upload2ctrl = true;
@@ -284,7 +302,7 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
                 #endif
                 p_copy->len = p->len;
             }
-            
+#endif            
             //bk_mem_dump("Meth input p",(uint32_t)p,sizeof(struct pbuf)+8);
             //bk_mem_dump("Meth input payload",(uint32_t)p->payload,30);
             
@@ -300,8 +318,12 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
             ret = cif_msg_sender(cpdu,CIF_TASK_MSG_RX_DATA,0);
             if(ret != BK_OK)
             {
+                #if CONFIG_CONTROLLER_RX_DIRECT_PSH
+                pbuf_free(p_copy);
+                #else
                 //If rxbuf push fail, free it immediately
                 cif_free_rx_buf((uint32_t)p_copy);
+                #endif
             }
 
             break;
@@ -321,6 +343,10 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
                 */
                 struct pbuf* p_copy = NULL;
 
+#if CONFIG_CONTROLLER_RX_DIRECT_PSH
+                p_copy =  p;
+                upload2ctrl = false;
+#else
                 p_copy = (struct pbuf*)cif_maclloc_rx_buf();
                 
                 if (p_copy == NULL)
@@ -340,7 +366,7 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
                 p_copy->len = p->len;
 
                 pbuf_free(p);
-
+#endif
                 struct cpdu_t *cpdu = (struct cpdu_t*)(p_copy + 1);
                 cpdu->co_hdr.length = p_copy->len - sizeof(struct pbuf);
                 cpdu->co_hdr.type = RX_MSDU_DATA;
@@ -351,8 +377,12 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
                 ret = cif_msg_sender(cpdu,CIF_TASK_MSG_RX_DATA,0);
                 if(ret != BK_OK)
                 {
+                    #if CONFIG_CONTROLLER_RX_DIRECT_PSH
+                    pbuf_free(p_copy);
+                    #else
                     //If rxbuf push fail, free it immediately
                     cif_free_rx_buf((uint32_t)p_copy);
+                    #endif
                 }
 
 

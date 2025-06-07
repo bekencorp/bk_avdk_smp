@@ -91,6 +91,7 @@ extern int bmsg_special_tx_sender(struct pbuf *p, uint32_t vif_idx);
 /* Forward declarations. */
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "wdrv_tx.h"
+#include "wdrv_main.h"
 void ethernetif_input(struct netif *netif, struct pbuf *p);
 #else
 void ethernetif_input(int iface, struct pbuf *p);
@@ -209,10 +210,11 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
         int ret;
         err_t err = ERR_OK;
         uint8_t vif_idx = 0;//TODO: add vif index.wifi_netif_vif_to_vifid(netif->state); 
+        cpdu_t* cpdu = (cpdu_t*)(p + 1);
         // Sanity check
         if (vif_idx == 0xff)
             return ERR_ARG;
-
+        cpdu->co_hdr.need_free = 0;
         ret = wdrv_txdata_sender(p,vif_idx);
 
         if(0 != ret)
