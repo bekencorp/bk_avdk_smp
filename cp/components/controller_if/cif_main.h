@@ -372,7 +372,7 @@ struct cif_rx_bank_t
 typedef int(*cif_customer_msg_cb_t)(struct bk_msg_hdr *msg);
 struct cif_env_t
 {
-    bool host_connected;
+    bool host_wifi_init;
     bool host_powerup;
     // indicate controller only
     bool no_host;

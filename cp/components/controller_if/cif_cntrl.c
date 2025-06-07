@@ -85,6 +85,12 @@ bk_err_t cif_bk_send_event(uint16_t event_id, uint8_t *event_data, uint16_t even
     bk_err_t ret = BK_OK;
     CTRL_IF_CMD("%s\n",__func__);
 
+    if (!cif_env.host_wifi_init)
+    {
+        CIF_LOGD("AP does not init, cif_bk_send_event skip\n");
+        return BK_FAIL;
+    }
+
     if (event_len > CIF_MAX_CFM_DATA_LEN)
     {
         CTRL_IF_CMD("ctrl_if_bk_send_event data len[%d] is greater than %d, return\n", event_len, CIF_MAX_CFM_DATA_LEN);
@@ -390,12 +396,6 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_ind(wifi_scan_result_t *scan_result)
     uint8_t ap_num = 0;
     CTRL_IF_CMD("%s\n",__func__);
 
-    if (!cif_env.host_connected)
-    {
-        CTRL_IF_CMD("Host does NOT connected, SKIP bk_cmd_scan_wifi_ind\n");
-        return BK_OK;
-    }
-
     if (!cif_env.host_powerup)
     {
         CTRL_IF_CMD("Host does NOT power on, SKIP bk_cmd_scan_wifi_ind\n");
@@ -653,13 +653,13 @@ bk_err_t cif_handle_bk_cmd(void *head)
     msg = (struct bk_msg_hdr *)cmd;
 
     CIF_LOGD("cif_handle_bk_cmd cmd_id:%x\n", msg->cmd_id);
-    cif_env.host_connected = true;
     cif_env.no_host = false;
 
     switch(msg->cmd_id)
     {
         case BK_CMD_CONNECT:
         {
+            cif_env.host_wifi_init = true;
             ret = cif_handle_bk_cmd_connect_req(msg);
             break;
         }
@@ -680,6 +680,7 @@ bk_err_t cif_handle_bk_cmd(void *head)
         }
         case BK_CMD_START_AP:
         {
+            cif_env.host_wifi_init = true;
             ret = cif_handle_bk_cmd_start_ap_req(msg);
             break;
         }
@@ -705,6 +706,7 @@ bk_err_t cif_handle_bk_cmd(void *head)
         }
         case BK_CMD_SCAN_WIFI:
         {
+            cif_env.host_wifi_init = true;
             ret = cif_handle_bk_cmd_scan_wifi_req(msg);
             break;
         }

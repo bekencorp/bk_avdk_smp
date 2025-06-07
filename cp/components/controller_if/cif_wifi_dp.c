@@ -258,6 +258,12 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr)
          return true;
     }
 
+    if (!cif_env.host_wifi_init)
+    {
+         CIF_LOGD("%s AP Wi-Fi does not start, upload to controller\r\n",__func__);
+         return true;
+    }
+
     switch (htons(ethhdr->type))
     {
         case ETHTYPE_EAPOL:

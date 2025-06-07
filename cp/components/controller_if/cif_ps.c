@@ -100,7 +100,7 @@ bk_err_t cif_power_down_host(void)
     bluetooth_controller_deinit_api();
     //cif_power_down_host_by_gpio();
     cif_env.host_powerup = false;
-    cif_env.host_connected = false;
+    cif_env.host_wifi_init = false;
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_CIF, PM_CPU_FRQ_DEFAULT);
     return BK_OK;
 }
