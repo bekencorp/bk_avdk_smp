@@ -42,14 +42,11 @@ static void lcd_st7701sn_config(void)
 #define SPI_WriteComm lcd_spi_write_cmd
 #define SPI_WriteData lcd_spi_write_data
 
-	bk_gpio_set_output_high(LCD_SPI_RST);
-	Delay(10);
 	bk_gpio_set_output_low(LCD_SPI_RST);
-	Delay(100);
-	bk_gpio_set_output_high(LCD_SPI_RST);
-	Delay(60);
-
 	Delay(10);
+	bk_gpio_set_output_high(LCD_SPI_RST);
+	Delay(120);
+
 	SPI_WriteComm(0x11);
 	Delay(10);
 
@@ -322,6 +319,11 @@ static void lcd_st7701sn_config(void)
 	SPI_WriteComm(0x11);
 	SPI_WriteComm(0x29);
 }
+static bk_err_t lcd_st7701sn_off(void)
+{
+	SPI_WriteComm(0x28);
+    return 0;
+}
 
 static void lcd_st7701sn_init(void)
 {
@@ -339,7 +341,7 @@ const lcd_device_t lcd_device_st7701sn =
 	.rgb = &lcd_rgb,
 	.out_fmt = PIXEL_FMT_RGB888,
 	.init = lcd_st7701sn_init,
-	.lcd_off = NULL,
+	.lcd_off = lcd_st7701sn_off,
 };
 
 
