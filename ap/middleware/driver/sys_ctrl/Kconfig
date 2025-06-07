@@ -27,7 +27,7 @@ menu "SYS_CTRL"
 	config SYSTEM_CTRL
 		bool "Enable system_ctrl"
 		default n
-	
+
 	config HAL_DEBUG_SYS
 		bool "system_ctrl debug"
 		default n
@@ -49,7 +49,7 @@ menu "SYS_CTRL"
 		range 0 2
 		default 2
 
-	config CPU0_SUB_POWER_DOMAIN_ENA
+	config CP_SUB_POWER_DOMAIN_ENA
 		bool "Enable CPU0 sub-power dowmain"
 		default n
 

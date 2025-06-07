@@ -388,7 +388,7 @@ static inline void sys_hal_power_down_pd(volatile uint32_t *pd_reg_v)
 		}
 		sys_ll_set_cpu_power_sleep_wakeup_value(v);
 
-#if CONFIG_CPU0_SUB_POWER_DOMAIN_ENA
+#if CONFIG_CP_SUB_POWER_DOMAIN_ENA
 #if CONFIG_CACHE_ENABLE
 		flush_all_dcache();
 		enable_dcache(0);
@@ -404,7 +404,7 @@ static inline void sys_hal_power_on_pd(volatile uint32_t v_sys_r10)
 	IF_LV_CTRL_PD() {
 		sys_ll_set_cpu_power_sleep_wakeup_value(v_sys_r10);
 
-#if CONFIG_CPU0_SUB_POWER_DOMAIN_ENA
+#if CONFIG_CP_SUB_POWER_DOMAIN_ENA
 		sys_ll_set_cpu_power_sleep_wakeup_cpu0_subpwdm_en(0);
 #if CONFIG_CACHE_ENABLE
 		enable_dcache(1);

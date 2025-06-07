@@ -90,7 +90,7 @@ static void rtos_dump_plat_memory(void) {
     stack_mem_dump((uint32_t)SOC_SRAM3_DATA_BASE, (uint32_t)SOC_SRAM4_DATA_BASE);
     stack_mem_dump((uint32_t)SOC_SRAM4_DATA_BASE, (uint32_t)SOC_SRAM_DATA_END);
 #if (!CONFIG_SPE)
-    stack_mem_dump((uint32_t)SOC_SRAM0_DATA_BASE + CONFIG_CPU0_SPE_RAM_SIZE, (uint32_t)SOC_SRAM2_DATA_BASE);
+    stack_mem_dump((uint32_t)SOC_SRAM0_DATA_BASE + CONFIG_CP_SPE_RAM_SIZE, (uint32_t)SOC_SRAM2_DATA_BASE);
 #else
     stack_mem_dump((uint32_t)SOC_SRAM0_DATA_BASE, (uint32_t)SOC_SRAM1_DATA_BASE);
     stack_mem_dump((uint32_t)SOC_SRAM1_DATA_BASE, (uint32_t)SOC_SRAM2_DATA_BASE);
@@ -494,7 +494,7 @@ static void user_except_handler(uint32_t reset_reason, SAVED_CONTEXT *regs)
         rtos_enable_int(int_level);
     } else {
         BK_DUMP_OUT("Secondary crash happend !!!!\r\n");
-		dump_epilogue();       
+		dump_epilogue();
         bk_wdt_force_reboot();
     }
 
@@ -580,7 +580,7 @@ void user_except_handler_ex(uint32_t reset_reason, uint32_t lr, uint32_t sp)
 
     BK_DUMP_OUT("SMP MODE CPU_ID = %d build time => %s !\r\n", CPU_ID, build_version);
     dump_context(lr, sp);
-    
+
 
 #if CONFIG_DUMP_INTO_FLASH
     fdump_save();
@@ -602,7 +602,7 @@ void user_except_handler_ex(uint32_t reset_reason, uint32_t lr, uint32_t sp)
 		dump_epilogue();
 
         bk_wdt_force_feed();
-        /* When a core dumps its own information, it needs to 
+        /* When a core dumps its own information, it needs to
         hand over control to another core,and then acquire the
         spin lock again to suspend itself */
 		spin_lock(&dump_spin_lock);  // get spin lok again.
@@ -620,7 +620,7 @@ void user_except_handler_ex(uint32_t reset_reason, uint32_t lr, uint32_t sp)
          of the other core ifself should also be dumped*/
         stack_mem_dump((uint32_t)SOC_DTCM_DATA_BASE, (uint32_t)(SOC_DTCM_DATA_BASE + SOC_DTCM_DATA_SIZE));
         stack_mem_dump((uint32_t)(SOC_ITCM_DATA_BASE + 0x20) , (uint32_t)(SOC_ITCM_DATA_BASE + SOC_ITCM_DATA_SIZE));
-		dump_epilogue();        
+		dump_epilogue();
         bk_misc_set_reset_reason(reset_reason);
         bk_wdt_force_reboot();
     }
