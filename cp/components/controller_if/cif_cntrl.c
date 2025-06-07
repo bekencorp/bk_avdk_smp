@@ -85,11 +85,11 @@ bk_err_t cif_bk_send_event(uint16_t event_id, uint8_t *event_data, uint16_t even
     bk_err_t ret = BK_OK;
     CTRL_IF_CMD("%s\n",__func__);
 
-    if (!cif_env.host_wifi_init)
-    {
-        CIF_LOGD("AP does not init, cif_bk_send_event skip\n");
-        return BK_FAIL;
-    }
+    // if (!cif_env.host_wifi_init)
+    // {
+    //     CIF_LOGD("AP does not init, cif_bk_send_event skip\n");
+    //     return BK_FAIL;
+    // }
 
     if (event_len > CIF_MAX_CFM_DATA_LEN)
     {
