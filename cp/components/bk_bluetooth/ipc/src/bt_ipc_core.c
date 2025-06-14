@@ -13,6 +13,8 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
+static void bk_bluetooth_send_init_deinit_status(uint16_t opcode, uint8_t status);
+
 typedef struct 
 {
     uint8_t state;
@@ -32,6 +34,7 @@ bt_ipc_t bt_ipc_env = {
 #define BT_IPC_CMD_CHNL     MB_CHNL_BT_CMD
 #define BT_IPC_SEND_TIMEOUT_MS  4000
 
+#define HCI_COMMAND_COMPLETE_EVT_CODE    0x0E
 #define HCI_VENDOR_EVT_CODE    0xFE
 #define HCI_VENDOR_OPCODE      0xFEFE
 
@@ -113,7 +116,7 @@ static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
 {
     if (BT_IPC_STATE_READY != bt_ipc_env.state)
     {
-        LOGW("%s bt ipc is not ready！\r\n", __func__);
+        LOGW("%s bt ipc is not ready!\r\n", __func__);
         return;
     }
 
@@ -184,6 +187,30 @@ void bt_ipc_hci_send_vendor_event(uint8_t *data, uint16_t len)
     bt_ipc_mailbox_send_msg(&msg);
 }
 
+void bt_ipc_hci_send_complete_event(uint8_t *data, uint16_t len)
+{
+    hci_hdr_t msg;
+
+    uint16_t data_len = sizeof(event_hdr_t) + len;
+    event_hdr_t *event_hdr = (event_hdr_t *)os_malloc(data_len);
+
+    LOGI("malloc ptr %p\n",event_hdr);
+
+    if (event_hdr == NULL)
+    {
+        LOGE("%s, malloc failed\r\n", __func__);
+        return;
+    }
+    event_hdr->event_code = HCI_COMMAND_COMPLETE_EVT_CODE;
+    event_hdr->param_len = len;
+    os_memcpy(event_hdr->param, data, len);
+
+    msg.pkt_type = HCI_EVENT_PKT;
+    msg.hdr_ptr = (uint32_t)(uintptr_t)event_hdr;
+
+    bt_ipc_mailbox_send_msg(&msg);
+}
+
 void bt_ipc_hci_free_pkt(uint32_t ptr)
 {
     hci_hdr_t msg;
@@ -233,15 +260,18 @@ static void bt_ipc_message_handle(void)
                     LOGI("opcode 0x%04x, param_len %d\n",cmd_hdr->opcode, cmd_hdr->param_len);
                     if (cmd_hdr->opcode == HCI_VENDOR_OPCODE)
                     {
-                        if (2 == cmd_hdr->param_len && 1 == cmd_hdr->param[0])
+                        if(cmd_hdr->param_len >= 2)
                         {
-                            if (1 == cmd_hdr->param[1])
+                            uint16_t op = (cmd_hdr->param[0]<<8)|(cmd_hdr->param[1]);
+                            LOGI("op :0x%04x\n", op);
+                            if(op == BT_INIT_VENDOR_SUB_OPCODE)
                             {
                                 bk_bluetooth_init();
-                            }
-                            else
+                                bk_bluetooth_send_init_deinit_status(BT_INIT_VENDOR_SUB_OPCODE, BT_EVENT_STATUS_NOERROR);
+                            }else if(op == BT_DEINIT_VENDOR_SUB_OPCODE)
                             {
                                 bk_bluetooth_deinit();
+                                bk_bluetooth_send_init_deinit_status(BT_DEINIT_VENDOR_SUB_OPCODE, BT_EVENT_STATUS_NOERROR);
                             }
                         }
                     }
@@ -344,3 +374,12 @@ void bt_ipc_init(void)
     LOGI("%s success\n", __func__);
 }
 
+static void bk_bluetooth_send_init_deinit_status(uint16_t opcode, uint8_t status)
+{
+    uint8_t event_data[4];
+    event_data[0] = opcode>>8;
+    event_data[1] = opcode&0xff;
+    event_data[2] = 1; //Num_HCI_Command_Packets
+    event_data[3] = status;
+    bt_ipc_hci_send_complete_event(event_data, sizeof(event_data));
+}

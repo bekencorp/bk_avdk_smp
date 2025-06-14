@@ -11,6 +11,9 @@ enum {
 #define BT_IPC_QUEUE_LEN      64
 #define BT_IPC_TASK_PRIO       4
 
+#define BT_INIT_VENDOR_SUB_OPCODE 0x0001
+#define BT_DEINIT_VENDOR_SUB_OPCODE 0x0002
+#define BT_EVENT_STATUS_NOERROR 0x00
 
 typedef struct
 {
@@ -62,8 +65,9 @@ enum
     HCI_FREE_PKT = 0xa,
 };
 
-
 void bt_ipc_init(void);
 void bt_ipc_hci_send_vendor_event(uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_vendor_cmd(uint8_t *data, uint16_t len);
+void bt_ipc_hci_send_complete_event(uint8_t *data, uint16_t len);
+
 #endif
