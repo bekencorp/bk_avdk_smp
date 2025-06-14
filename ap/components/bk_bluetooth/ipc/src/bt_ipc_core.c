@@ -32,6 +32,7 @@ bt_ipc_t bt_ipc_env = {
 #define BT_IPC_CMD_CHNL     MB_CHNL_BT_CMD
 #define BT_IPC_SEND_TIMEOUT_MS  4000
 
+#define HCI_COMMAND_COMPLETE_EVT_CODE    0x0E
 #define HCI_VENDOR_EVT_CODE    0xFE
 #define HCI_VENDOR_OPCODE      0xFEFE
 
@@ -231,20 +232,6 @@ static void bt_ipc_message_handle(void)
                     LOGI("BT_IPC_CMD_IND_MSG\n");
                     cmd_hdr_t *cmd_hdr = (cmd_hdr_t *)(uintptr_t)msg.param;
                     LOGI("opcode 0x%04x, param_len %d\n",cmd_hdr->opcode, cmd_hdr->param_len);
-                    if (cmd_hdr->opcode == HCI_VENDOR_OPCODE)
-                    {
-                        if (2 == cmd_hdr->param_len && 1 == cmd_hdr->param[0])
-                        {
-                            if (1 == cmd_hdr->param[1])
-                            {
-                                bk_bluetooth_init();
-                            }
-                            else
-                            {
-                                bk_bluetooth_deinit();
-                            }
-                        }
-                    }
                     bt_ipc_hci_free_pkt(msg.param);
                 }
                 break;
@@ -254,6 +241,23 @@ static void bt_ipc_message_handle(void)
                     LOGI("BT_IPC_EVNET_IND_MSG\n");
                     event_hdr_t *event_hdr = (event_hdr_t *)(uintptr_t)msg.param;
                     LOGI("evt_code 0x%02x, param_len %d\n",event_hdr->event_code, event_hdr->param_len);
+                    if(event_hdr->event_code == HCI_COMMAND_COMPLETE_EVT_CODE)
+                    {
+                        if(event_hdr->param_len >= 4) //init deinit opcode
+                        {
+                            uint16_t op = (event_hdr->param[0]<<8)|(event_hdr->param[1]);
+                            LOGI("op :0x%04x\n", op);
+                            if(op == BT_INIT_VENDOR_SUB_OPCODE || op == BT_DEINIT_VENDOR_SUB_OPCODE)
+                            {
+                                if(event_hdr->param[3] == BT_EVENT_STATUS_NOERROR)//status
+                                {
+                                    bk_bluetooth_init_deinit_compelete();
+                                }
+                            }
+                        }
+                    }else if(event_hdr->event_code == HCI_VENDOR_EVT_CODE)
+                    {
+                    }
                     bt_ipc_hci_free_pkt(msg.param);
                 }
                 break;
