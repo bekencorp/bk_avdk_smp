@@ -65,7 +65,7 @@ extern int video_demo_register_cmd(void);
 
 #define SHELL_TASK_PRIORITY               4
 
-#define SHELL_CHECK_MINI_REMAIN_STACK    (8 * 1024)
+#define SHELL_CHECK_MINI_REMAIN_STACK    (10 * 1024)
 #define SHELL_TASK_CHECK_CNT             (200)
 
 
@@ -236,8 +236,18 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
                                 (beken_thread_arg_t)(&cmd_par));
 	if (ret != kNoErr)
 	{
-		os_printf("Error: Failed to create shell_handle_thread_handle thread: %d\r\n",ret);
-		BK_ASSERT(0);
+		os_printf("Error: Failed to create shell_handle_thread_handle thread in SRAM: %d\r\n",ret);
+
+#if CONFIG_PSRAM_AS_SYS_MEMORY		//try again in PSRAM
+	    ret = rtos_create_psram_thread(&shell_handle_thread_handle,
+                                4,
+                                "shell_handle",
+                                (beken_thread_function_t)handle_shell_input_proxy,
+                                1024*6,
+                                (beken_thread_arg_t)(&cmd_par));
+#endif
+		if (ret != kNoErr)
+			BK_ASSERT(0);
     }
 
 	err = rtos_get_semaphore(&wait_shell_handle_semaphore,BEKEN_WAIT_FOREVER);
