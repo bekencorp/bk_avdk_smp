@@ -18,7 +18,6 @@ menu "FLASH"
 	config FLASH_MB
 		bool "Enable flash mailbox channel"
 		depends on MAILBOX
-		depends on !SOC_SMP
 		default n
 
 	config FLASH_TEST
