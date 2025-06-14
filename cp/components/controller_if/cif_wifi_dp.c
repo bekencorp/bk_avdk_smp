@@ -80,7 +80,7 @@ bk_err_t cif_handle_txdata(void *head)
     //CTRL_IF_DATA("%s,2 length:%d\n",__func__,hdr->co_hdr.length);
     //Index offset 0xf is used to distinguish data from the controller interface.
     CIF_LOGD("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, pbuf, pbuf->next, pbuf->payload, sizeof(struct pbuf));
-    CIF_LOGD("%s p:%x\r\n",__func__, pbuf);
+    CIF_LOGD("%s p:%x,vif_id=%d\r\n",__func__, pbuf,vif_id);
 
     ret = bmsg_tx_sender(pbuf, vif_id);
 
@@ -278,10 +278,11 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
             CIF_LOGD("ARP RX\n");
 
 #if CONFIG_CONTROLLER_RX_DIRECT_PSH
-            p_copy = pbuf_alloc(PBUF_RAW,p->len,PBUF_RAM_RX);
+            p_copy = pbuf_alloc(PBUF_RAW,p->len+sizeof(cpdu_t),PBUF_RAM_RX);
             upload2ctrl = true;
             if(p_copy)
             {
+                pbuf_header(p_copy, -(s16)sizeof(struct cpdu_t));
                 memcpy(p_copy->payload,p->payload,p->len);
             }
             else
@@ -322,6 +323,7 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
             cpdu->co_hdr.type = RX_MSDU_DATA;
             cpdu->co_hdr.need_free = 0;
             cpdu->co_hdr.vif_idx = wifi_netif_vif_to_netif_type(vif);
+            //bk_mem_dump("cif_filter before snder",(uint32_t)p_copy->payload,100);
             ret = cif_msg_sender(cpdu,CIF_TASK_MSG_RX_DATA,0);
             if(ret != BK_OK)
             {

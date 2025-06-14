@@ -225,15 +225,20 @@ UINT32 rwm_get_rx_free_node(uint32_t *host_id, int len)
 		type = PBUF_RAM;
 	}
 #endif
+#if CONFIG_WIFI_VNET_CONTROLLER
+	len += sizeof(struct cpdu_t);
+#endif
 	p = pbuf_alloc(PBUF_RAW, len, type);
 	if (p) {
 		*host_id = (uint32_t)p;
+#if CONFIG_WIFI_VNET_CONTROLLER
+		pbuf_header(p, -(s16)sizeof(struct cpdu_t));
+#endif
 		buf_addr = (uint32_t)(p->payload);
 	} else {
 		*host_id = 0;
 		buf_addr = 0;
 	}
-
 	//if (!buf_addr)
 	//    os_printf("%s: xxxxxxxxxx oom\n", __func__);
 	return buf_addr;
