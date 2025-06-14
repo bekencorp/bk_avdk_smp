@@ -36,7 +36,7 @@ static void media_debug_dump(timer_id_t timer_id)
 	uint32_t wifi_kps = (media_debug->wifi_kbps - media_debug_cached->wifi_kbps) * 8 / DEBUG_INTERVAL / 1000;
 	uint32_t meantimes = (media_debug->meantimes - media_debug_cached->meantimes) / DEBUG_INTERVAL / 1000;
 
-	if (h264 == 0 && lcd == 0)
+	if (h264 == 0 && lcd == 0 && wifi == 0)
 	{
 		return;
 	}
