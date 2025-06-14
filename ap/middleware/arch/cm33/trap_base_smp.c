@@ -411,6 +411,8 @@ static void rtos_dump_system(void)
 
     rtos_dump_plat_sys_mems();
 
+    bk_psram_heap_dump_data();
+
 #if CONFIG_FREERTOS && CONFIG_MEM_DEBUG
     os_dump_memory_stats(0, 0, NULL);
 #endif
