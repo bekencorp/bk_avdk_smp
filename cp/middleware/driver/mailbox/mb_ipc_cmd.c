@@ -673,8 +673,6 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
                 sys_drv_int_disable(0xFFFE7FE7);
                 sys_drv_int_group2_disable(0x7FFFFFFF);
 
-                rtos_suspend_all_thread();
-
 				u8   dump_cpu_id = GET_DST_CPU_ID(chnl_cb->chnl_id);
 				mb_ipc_dump_notify(dump_cpu_id, 1);
 				/* no params, no returns. */
