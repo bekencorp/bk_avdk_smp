@@ -226,7 +226,7 @@ static void prvHeapInit( void );
 #if CONFIG_MEM_DEBUG_OVERFLOW
 #define GET_AON_RTC_TICK (REG_READ(SOC_AON_RTC_REG_BASE + (0x3 << 2)))
 #define FREE_RECORD_MAX  CONFIG_MEM_OVERFLOW_FREE_RECORD_MAX
-static volatile uint32_t s_free_record_index = 0;
+static __attribute__((section(".psram.data"))) volatile uint32_t s_free_record_index = 0;
 typedef struct {
 	char *name;
 	uint32_t line;
@@ -234,12 +234,12 @@ typedef struct {
 	char *free_ptr;
 	uint32_t time;
 }free_record_type;
-static __attribute__((__used__)) free_record_type volatile s_free_records[FREE_RECORD_MAX];
+static static __attribute__((section(".psram.data"))) free_record_type volatile s_free_records[FREE_RECORD_MAX];
 #define MALLOC_RECORD_MAX  CONFIG_MEM_OVERFLOW_MALLOC_RECORD_MAX
-static volatile uint32_t s_malloc_record_index = 0;
-static volatile uint32_t s_sram_malloc_record_index = 0;
-static __attribute__((__used__)) free_record_type volatile s_malloc_records[MALLOC_RECORD_MAX];
-static __attribute__((__used__)) free_record_type volatile s_sram_malloc_records[MALLOC_RECORD_MAX];
+static static __attribute__((section(".psram.data"))) volatile uint32_t s_malloc_record_index = 0;
+static static __attribute__((section(".psram.data"))) volatile uint32_t s_sram_malloc_record_index = 0;
+static static __attribute__((section(".psram.data"))) free_record_type volatile s_malloc_records[MALLOC_RECORD_MAX];
+static static __attribute__((section(".psram.data"))) free_record_type volatile s_sram_malloc_records[MALLOC_RECORD_MAX];
 
 __attribute__((section(".iram")))void CheckFreeList(void);
 #endif
@@ -728,12 +728,12 @@ void * psram_calloc(size_t num, size_t size)
 #if CONFIG_MEM_DEBUG_OVERFLOW
 #define FREE_LIST_RECORD_MAX  CONFIG_MEM_OVERFLOW_FREELIST_RECORD_MAX
 // static volatile uint32_t s_malloc_freelist_index = 0;
-static __attribute__((__used__)) uint32_t volatile s_freelist_records[FREE_LIST_RECORD_MAX];
+static static __attribute__((section(".psram.data")))uint32_t volatile s_freelist_records[FREE_LIST_RECORD_MAX];
 __attribute__((section(".iram")))void CheckFreeList(void)
 {
 	BlockLink_t *pxIterator;
 	uint32_t i = 0;
-	uint32_t int_level = rtos_enter_critical();
+	// uint32_t int_level = rtos_enter_critical();
 	
 	for( pxIterator = &xStart; (pxIterator->pxNextFreeBlock != pxEnd) && (i < FREE_LIST_RECORD_MAX); pxIterator = pxIterator->pxNextFreeBlock )
 	{
@@ -753,7 +753,7 @@ __attribute__((section(".iram")))void CheckFreeList(void)
 			BK_ASSERT(0);
 	}
 #endif
-	rtos_exit_critical(int_level);
+	// rtos_exit_critical(int_level);
 }
 #endif
 
@@ -995,11 +995,13 @@ void * bk_wrap_sram_malloc(size_t xWantedSize)
 	uint32_t lr = __get_LR();
 #endif
 
+    HeapEnterCritical();
+
 	if (xWantedSize == 0)
 		xWantedSize = 4;
 
 	// vTaskSuspendAll();
-    HeapEnterCritical();
+    
 
 	pvReturn = malloc_without_lock(xWantedSize + MEM_CHECK_TAG_LEN);
 	#if CONFIG_MALLOC_STATIS || CONFIG_MEM_DEBUG
@@ -1074,6 +1076,8 @@ void *pvPortMalloc( size_t xWantedSize )
 	uint32_t lr = __get_LR();
 #endif
 
+    HeapEnterCritical();
+
 #if CONFIG_MEM_DEBUG
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
 		os_printf("malloc_risk\r\n");
@@ -1106,6 +1110,8 @@ void *pvPortMalloc( size_t xWantedSize )
 	if(pvReturn && need_zero)
 		os_memset(pvReturn, 0, xWantedSize);
 	#endif
+
+    HeapExitCritical();
 
 	return pvReturn;
 }
@@ -1376,7 +1382,7 @@ void bk_psram_heap_get_used_state(void) {
 	BK_DUMP_OUT("\n");
 
 	if (arch_is_enter_exception() == 0) {
-		//vTaskSuspendAll();
+	
 #if CONFIG_FREERTOS_SMP
 		HeapEnterCritical();
 #endif
@@ -1389,7 +1395,7 @@ void bk_psram_heap_get_used_state(void) {
 	}
 
 	if (arch_is_enter_exception() == 0) {
-		//( void ) xTaskResumeAll();
+	
 #if CONFIG_FREERTOS_SMP
 		HeapExitCritical();
 #endif
@@ -1397,6 +1403,25 @@ void bk_psram_heap_get_used_state(void) {
 
 #endif //#if CONFIG_MALLOC_STATIS || CONFIG_MEM_DEBUG
 #endif //#if CONFIG_PSRAM_AS_SYS_MEMORY
+}
+
+extern unsigned char __psram_data_start__;
+#define PSRAM_DATA_START_ADDRESS ((uint32_t)&__psram_data_start__)
+
+extern unsigned char __psram_data_end__;
+#define PSRAM_DATA_END_ADDRESS ((uint32_t)&__psram_data_end__)
+
+void bk_psram_heap_dump_data(void)
+{
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+	stack_mem_dump(psram_used_area_begin, psram_used_area_end);
+
+    if (PSRAM_DATA_END_ADDRESS > PSRAM_DATA_START_ADDRESS)
+    {
+        stack_mem_dump(PSRAM_DATA_START_ADDRESS, PSRAM_DATA_END_ADDRESS);
+    }
+    
+#endif
 }
 
 /*-----------------------------------------------------------*/

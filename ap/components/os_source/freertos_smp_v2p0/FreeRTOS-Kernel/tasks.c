@@ -3652,10 +3652,10 @@ void vTaskSwitchContext( void )
             /* Check for stack overflow, if configured. */
             taskCHECK_FOR_STACK_OVERFLOW( xCurCoreID );
             {
-         #if CONFIG_MEM_DEBUG_OVERFLOW
-                extern void CheckFreeList(void);
-                CheckFreeList();
-        #endif
+        //  #if CONFIG_MEM_DEBUG_OVERFLOW
+        //         extern void CheckFreeList(void);
+        //         CheckFreeList();
+        // #endif
             }
 
             /* Before the currently running task is switched out, save its errno. */
