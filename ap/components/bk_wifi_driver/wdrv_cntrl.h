@@ -36,6 +36,7 @@ extern "C" {
 #define WIFI_CHANNEL_NUM_5G         28    /**< Maximum supported 5G channel numbe*/
 #define WIFI_2BAND_MAX_CHAN_NUM     (WIFI_CHANNEL_NUM_2G4 + WIFI_CHANNEL_NUM_5G)
 #define DEFAULT_CHANNEL_AP          1     /**< Default Channel of SoftAP */
+#define WIFI_MAC_LEN                6      /**< Length of MAC */
 
 /* host cmd setting */
 #define WDRV_CMD_WAITCFM           1
@@ -538,19 +539,17 @@ enum WLAN_MODE
 #define WLAN_DEFAULT_GW         "192.168.188.1"
 #define WLAN_DEFAULT_MASK       "255.255.255.0"
 
-/* CP Wi-Fi AP Mode State */
-enum WLAN_LINK_AP_STATUS
-{
-    CP_SOFTAP_START,                /* CP SoftAP Mode Started */
-    CP_SOFTAP_CLOSE,                /* CP SoftAP Mode Closed  */
-};
-
 struct wdrv_ap_status_cfm
 {
     uint8_t  status;
     uint32_t ip;
     uint32_t gw;
     uint32_t mk;
+};
+
+struct wdrv_ap_assoc_sta_ind
+{
+    uint8_t sub_sta_addr[6];
 };
 
 struct wdrv_wlan_status_cfm
@@ -618,6 +617,7 @@ typedef struct _wdrv_wlan {
     struct wdrv_wlan_status_cfm get_wlan_cfm;
     struct wdrv_connect_ind connect_ind;
     struct wdrv_ap_status_cfm ap_status_cfm;
+    struct wdrv_ap_assoc_sta_ind ap_assoc_sta_addr_ind;
     struct wdrv_scan_result_cfm *scan_wifi_cfm_ptr;
     struct wdrv_scan_result_cfm scan_wifi_cfm[MAX_SCAN_AP_NUM];
 
@@ -650,9 +650,25 @@ typedef struct {
 } wifi_event_scan_done_t;
 
 typedef struct {
-	int disconnect_reason;                /**< Disconnect reason of BK STA */
-	bool local_generated;                 /**< if disconnect is request by local */
+    int disconnect_reason;                /**< Disconnect reason of BK STA */
+    bool local_generated;                 /**< if disconnect is request by local */
 } wifi_event_sta_disconnected_t;
+
+typedef struct {
+    uint8_t mac[WIFI_MAC_LEN];            /**< MAC of the STA connected to the BK AP */
+} wifi_event_ap_connected_t;
+
+typedef struct {
+    uint8_t mac[WIFI_MAC_LEN];            /**< MAC of the STA disconnected from the BK AP */
+} wifi_event_ap_disconnected_t;
+
+/* A-Core Wi-Fi AP Mode State */
+enum WLAN_LINK_AP_STATUS
+{
+    CONTROLLER_AP_START,                /* A-Core AP Mode Started */
+    CONTROLLER_AP_CLOSE,                /* A-Core AP Mode Closed  */
+};
+
 
 #define CIFD_CUST_DEBUG_CODE_MAGIC                  (0xAABBCCDD)
 
@@ -713,7 +729,9 @@ void wdrv_notify_sta_got_ip(void);
 void bk_rx_handle_customer_event(void *data, uint16_t len);
 int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len);
 int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t * data, uint16_t len);
-
+void wdrv_notify_sta_disconnected(void);
+void wdrv_notify_sap_sta_connected(void);
+void wdrv_notify_sap_sta_disconnected(void);
 
 FUNC_1PARAM_PTR bk_wlan_get_status_cb(void);
 void wifi_netif_call_status_cb_when_sta_got_ip(void);

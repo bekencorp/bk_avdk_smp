@@ -148,6 +148,7 @@ void wdrv_notify_sta_connected(void)
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_CONNECTED,
                                 &sta_connected, sizeof(sta_connected), BEKEN_NEVER_TIMEOUT));
 }
+
 void wdrv_notify_sta_disconnected(void)
 {
     wifi_event_sta_connected_t sta_connected = {0};
@@ -158,6 +159,27 @@ void wdrv_notify_sta_disconnected(void)
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
                                 &sta_connected, sizeof(sta_connected), BEKEN_NEVER_TIMEOUT));
 }
+
+void wdrv_notify_sap_sta_connected(void)
+{
+    wifi_event_ap_connected_t ap_connected = {0};
+    /* post evevnt EVENT_WIFI_AP_CONNECTED */
+    os_memset(&ap_connected, 0, sizeof(ap_connected));
+    os_memcpy(ap_connected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED,
+                                &ap_connected, sizeof(ap_connected), BEKEN_NEVER_TIMEOUT));
+}
+
+void wdrv_notify_sap_sta_disconnected(void)
+{
+    wifi_event_ap_connected_t ap_disconnected = {0};
+    /* post evevnt EVENT_WIFI_AP_DISCONNECTED */
+    os_memset(&ap_disconnected, 0, sizeof(ap_disconnected));
+    os_memcpy(ap_disconnected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_AP_DISCONNECTED,
+                                &ap_disconnected, sizeof(ap_disconnected), BEKEN_NEVER_TIMEOUT));
+}
+
 void mhdr_set_station_status(wifi_linkstate_reason_t info)
 {
 	GLOBAL_INT_DECLARATION();
@@ -336,21 +358,26 @@ void wdrv_rx_handle_event(wdrv_rx_msg *msg)
             wdrv_notify_sta_disconnected();
             break;
         case BK_EVT_CUSTOMER_IND:
-            WDRV_LOGI(TAG, "Smart Config\n");
+            WDRV_LOGD(TAG, "Smart Config\n");
             wdv_rx_handle_customer_event(msg->param, msg->param_len);
             break;
         case BK_EVT_START_AP_IND:
-            WDRV_LOGD("Softap Started\n");
             os_memcpy(&wdrv_host_env.ap_status_cfm, msg->param, sizeof(struct wdrv_ap_status_cfm));
+            if (wdrv_host_env.ap_status_cfm.status == CONTROLLER_AP_START) {
+                WDRV_LOGI("MCU-AP-STATE: start AP Success\n");
 #if 0
-            os_printf("ip: %d.%d.%d.%d, mk: %d.%d.%d.%d, gw: %d.%d.%d.%d, dns: %d.%d.%d.%d\n",
-                (wdrv_host_env.ap_status_cfm.ip >> 0 ) & 0xff, (wdrv_host_env.ap_status_cfm.ip >> 8 ) & 0xff,
-                (wdrv_host_env.ap_status_cfm.ip >> 16) & 0xff, (wdrv_host_env.ap_status_cfm.ip >> 24) & 0xff,
-                (wdrv_host_env.ap_status_cfm.mk >> 0 ) & 0xff, (wdrv_host_env.ap_status_cfm.mk >> 8 ) & 0xff,
-                (wdrv_host_env.ap_status_cfm.mk >> 16) & 0xff, (wdrv_host_env.ap_status_cfm.mk >> 24) & 0xff,
-                (wdrv_host_env.ap_status_cfm.gw >> 0 ) & 0xff, (wdrv_host_env.ap_status_cfm.gw >> 8 ) & 0xff,
-                (wdrv_host_env.ap_status_cfm.gw >> 16) & 0xff, (wdrv_host_env.ap_status_cfm.gw >> 24) & 0xff,);
+                os_printf("ip: %d.%d.%d.%d, mk: %d.%d.%d.%d, gw: %d.%d.%d.%d, dns: %d.%d.%d.%d\n",
+                    (wdrv_host_env.ap_status_cfm.ip >> 0 ) & 0xff, (wdrv_host_env.ap_status_cfm.ip >> 8 ) & 0xff,
+                    (wdrv_host_env.ap_status_cfm.ip >> 16) & 0xff, (wdrv_host_env.ap_status_cfm.ip >> 24) & 0xff,
+                    (wdrv_host_env.ap_status_cfm.mk >> 0 ) & 0xff, (wdrv_host_env.ap_status_cfm.mk >> 8 ) & 0xff,
+                    (wdrv_host_env.ap_status_cfm.mk >> 16) & 0xff, (wdrv_host_env.ap_status_cfm.mk >> 24) & 0xff,
+                    (wdrv_host_env.ap_status_cfm.gw >> 0 ) & 0xff, (wdrv_host_env.ap_status_cfm.gw >> 8 ) & 0xff,
+                    (wdrv_host_env.ap_status_cfm.gw >> 16) & 0xff, (wdrv_host_env.ap_status_cfm.gw >> 24) & 0xff,);
 #endif
+                wdrv_host_env.wlan_mode = WIFI_MODE_AP;
+            } else if (wdrv_host_env.ap_status_cfm.status == CONTROLLER_AP_CLOSE) {
+                WDRV_LOGE("MCU-AP-STATE: start AP Fail\n");
+            }
             break;
         case BK_EVT_SCAN_WIFI_IND:
             WDRV_LOGD("BK_EVT_SCAN_WIFI_IND\n");
@@ -371,6 +398,33 @@ void wdrv_rx_handle_event(wdrv_rx_msg *msg)
             } while(loop_idx != MAX_SCAN_AP_NUM && wdrv_host_env.scan_wifi_cfm_ptr->scan_num != 0);
 #endif
             break;
+        case BK_EVT_ASSOC_AP_IND:
+            os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
+            WDRV_LOGI("AP-INDICATE: %x:%x:%x:%x:%x:%x connected\n",
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[0], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[1],
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[2], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[3],
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[4], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[5]);
+
+            wdrv_notify_sap_sta_connected();
+            break;
+        case BK_EVT_DISASSOC_AP_IND:
+            WDRV_LOGD("AP-INDICATE: disassoc\n");
+            os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
+            WDRV_LOGD("%x:%x:%x:%x:%x:%x\n",
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[0], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[1],
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[2], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[3],
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[4], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[5]);
+
+            wdrv_notify_sap_sta_disconnected();
+            break;
+        case BK_EVT_STOP_AP_IND:
+            wdrv_host_env.ap_status_cfm.status = CONTROLLER_AP_CLOSE;
+            wdrv_host_env.wlan_mode = WIFI_MODE_IDLE;
+            WDRV_LOGD("MCU-AP-STATE: stop AP success\n");
+            break;
+        default:
+            WDRV_LOGI("%s msg %x invaild\n", __func__, msg->id);
+            return;
     }
 }
 
