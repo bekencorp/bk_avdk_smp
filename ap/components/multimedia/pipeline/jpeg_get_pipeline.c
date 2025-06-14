@@ -175,7 +175,11 @@ static void jpeg_get_start_handle(frame_module_t frame_module)
 				jpeg_get_config->module_decode_cp1_status = 0;
 			}
 			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
-			jpeg_decode_task_send_more_msg(JPEGDEC_START, (uint32_t)jpeg_get_config->jpeg_frame, frame_module);
+			int ret = jpeg_decode_task_send_more_msg(JPEGDEC_START, (uint32_t)jpeg_get_config->jpeg_frame, frame_module);
+			if (ret != BK_OK)
+			{
+				frame_buffer_fb_read_free(jpeg_get_config->stream, jpeg_get_config->jpeg_frame, frame_module);
+			}
 			break;
 		}
 		else

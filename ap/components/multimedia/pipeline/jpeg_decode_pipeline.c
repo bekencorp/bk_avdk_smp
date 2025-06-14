@@ -230,10 +230,10 @@ bk_err_t jpeg_decode_task_send_msg(uint8_t type, uint32_t param)
 
 bk_err_t jpeg_decode_task_send_more_msg(uint8_t type, uint32_t param, uint32_t param1)
 {
-	int ret = BK_OK;
+	int ret = BK_FAIL;
 	jpeg_msg_t msg;
 
-	if (jdec_config && jdec_config->jdec_queue)
+	if (jdec_config && jdec_config->task_state)
 	{
 		msg.event = type;
 		msg.param = param;
@@ -663,7 +663,7 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 		{
 			frame_buffer_fb_read_free(jdec_config->stream, jpeg_frame, module);
 			return;
-		}
+		}
 
 		jdec_config->jpeg_frame = jpeg_frame;
 	}
@@ -1732,7 +1732,7 @@ bk_err_t jpeg_decode_task_open(media_decode_mode_t jdec_mode, media_decode_type_
 {
 	int ret = BK_OK;
 
-    rtos_unlock_mutex(&jdec_info->lock);
+	rtos_lock_mutex(&jdec_info->lock);
 
 	// step 1: check jdec_task state
 	if (jdec_config != NULL && jdec_config->task_state)
@@ -1864,7 +1864,7 @@ bk_err_t jpeg_decode_task_close()
 
 	if (jdec_config == NULL || !jdec_config->task_state)
 	{
-        rtos_unlock_mutex(&jdec_info->lock);
+		rtos_unlock_mutex(&jdec_info->lock);
 		return BK_OK;
 	}
 
@@ -1874,7 +1874,12 @@ bk_err_t jpeg_decode_task_close()
 
 	jpeg_decode_task_send_msg(JPEGDEC_STOP, 0);
 	rtos_get_semaphore(&jdec_config->jdec_sem, BEKEN_NEVER_TIMEOUT);
-
+	if (jdec_config->jpeg_frame)
+	{
+		LOGD("%s free jpeg_frame\n", __func__);
+		frame_buffer_fb_read_free(jdec_config->stream, jdec_config->jpeg_frame, MODULE_DECODER);
+		jdec_config->jpeg_frame = NULL;
+	}
 	jpeg_get_task_close();
 
 	if(check_software_decode_task_is_open())
@@ -1996,5 +2001,4 @@ bk_err_t bk_jdec_pipeline_init(void)
 
 	return ret;
 }
-
 
