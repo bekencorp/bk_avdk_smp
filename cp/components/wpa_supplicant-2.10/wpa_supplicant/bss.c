@@ -235,7 +235,7 @@ void wpa_bss_remove(struct wpa_supplicant *wpa_s, struct wpa_bss *bss,
 		wpa_ssid_txt(bss->ssid, bss->ssid_len), reason);
 	wpas_notify_bss_removed(wpa_s, bss->bssid, bss->id);
 	wpa_bss_anqp_free(bss->anqp);
-	os_free(bss);
+	psram_free(bss);
 }
 
 
@@ -446,9 +446,12 @@ static struct wpa_bss * wpa_bss_add(struct wpa_supplicant *wpa_s,
 	struct wpa_bss *bss;
 	char extra[50] __maybe_unused;
 
-	bss = os_zalloc(sizeof(*bss) + res->ie_len + res->beacon_ie_len);
+	bss = psram_zalloc(sizeof(*bss) + res->ie_len + res->beacon_ie_len);
 	if (bss == NULL)
+	{
+		//os_printf("wpa_bss_add,malloc null\r\n");
 		return NULL;
+	}
 	bss->id = wpa_s->bss_next_id++;
 	bss->last_update_idx = wpa_s->bss_update_idx;
 	wpa_bss_copy_res(bss, res, fetch_time);
@@ -699,8 +702,10 @@ wpa_bss_update(struct wpa_supplicant *wpa_s, struct wpa_bss *bss,
 		struct wpa_bss *nbss;
 		struct dl_list *prev = bss->list_id.prev;
 		dl_list_del(&bss->list_id);
-		nbss = os_realloc(bss, sizeof(*bss) + res->ie_len +
-				  res->beacon_ie_len);
+		psram_free(bss);
+		nbss = psram_zalloc(sizeof(*bss) + res->ie_len + res->beacon_ie_len);
+		//nbss = os_realloc(bss, sizeof(*bss) + res->ie_len +
+				  //res->beacon_ie_len);
 		if (nbss) {
 			unsigned int i;
 			for (i = 0; i < wpa_s->last_scan_res_used; i++) {

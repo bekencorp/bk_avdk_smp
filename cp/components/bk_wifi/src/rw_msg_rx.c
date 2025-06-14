@@ -107,16 +107,16 @@ extern void bk7011_default_rxsens_setting(void);
 UINT8 *sr_malloc_result_item(UINT32 vies_len)
 {
 	#if CONFIG_MINIMUM_SCAN_RESULTS
-	return os_zalloc(vies_len + sizeof(struct wpa_scan_res));
+	return psram_zalloc(vies_len + sizeof(struct wpa_scan_res));
 	#else
-	return os_zalloc(vies_len + sizeof(struct sta_scan_res));
+	return psram_zalloc(vies_len + sizeof(struct sta_scan_res));
 	#endif
 }
 
 /* free scan result item */
 void sr_free_result_item(UINT8 *item_ptr)
 {
-	os_free(item_ptr);
+	psram_free(item_ptr);
 }
 
 UINT8 *sr_malloc_shell(void)
@@ -131,7 +131,7 @@ UINT8 *sr_malloc_shell(void)
 	#else
 	layer2_space_len = MAX_BSS_LIST * sizeof(struct sta_scan_res *);
 	#endif
-	ptr = os_zalloc(layer1_space_len + layer2_space_len);
+	ptr = psram_zalloc(layer1_space_len + layer2_space_len);
 
 	if (ptr)
 		return ptr;
@@ -143,7 +143,7 @@ UINT8 *sr_malloc_shell(void)
 
 void sr_free_shell(UINT8 *shell_ptr)
 {
-	os_free(shell_ptr);
+	psram_free(shell_ptr);
 }
 
 void sr_free_all(SCAN_RST_UPLOAD_T *scan_rst)
