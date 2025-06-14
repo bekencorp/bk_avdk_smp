@@ -24,8 +24,19 @@ void *os_memmove(void *out, const void *in, UINT32 n)
 
 void *os_memcpy(void *out, const void *in, UINT32 n)
 {
-	configASSERT(NULL != in);
-	return memcpy(out, in, n);
+    if (out == NULL || in == NULL || n == 0)
+        return out;
+
+    if ((((uintptr_t)out | (uintptr_t)in | n) & 0x3) == 0)
+    {
+        os_memcpy_word((uint32_t *)out, (const uint32_t *)in, n);
+        return out;
+    }
+    else
+    {
+        extern void *memcpy(void *dest, const void *src, size_t n);
+        return memcpy(out, in, n);
+    }
 }
 
 void *os_memset(void *b, int c, UINT32 len)
