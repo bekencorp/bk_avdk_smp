@@ -24,6 +24,7 @@
 #define IPERF_BUFSZ             (8 * 1024)
 #define IPERF_TX_TIMEOUT_SEC    (3)
 #define IPERF_RX_TIMEOUT_SEC    (3)
+#define IPERF_MAX_TX_CONNECT_RETRY    10
 #define IPERF_MAX_TX_RETRY      10
 #define IPERF_MAX_RX_RETRY      10
 #define IPERF_REPORT_INTERVAL   1
@@ -362,10 +363,12 @@ static err_t iperf_report_task_start(void)
 
 static void iperf_client(void *thread_param)
 {
-	int i, sock, ret;
+	int i, ret;
+	int sock = 0;
 	uint8_t *send_buf;
 	struct sockaddr_in addr;
 	uint32_t retry_cnt = 0;
+	uint32_t connect_retry_cnt = 0;
 	int period_us = 0;
 	int fdelay_us = 0;
 	int64_t prev_time = 0;
@@ -401,70 +404,73 @@ static void iperf_client(void *thread_param)
 			}
 		}
 #endif
+
 		ret = connect(sock, (const struct sockaddr *)&addr, sizeof(addr));
 		if (ret == -1) {
 			os_printf("iperf: connect failed, err=%d!\n", errno);
-			closesocket(sock);
-			rtos_delay_milliseconds(1000);
-			continue;
-		}
-
-		os_printf("iperf: connect to iperf server successful!\n");
-		iperf_set_sock_opt(sock);
-
-		iperf_report_task_start();
-
-		prev_time = rtos_get_time();
-		while (s_param.state == IPERF_STATE_STARTED) {
-			if (speed_limit > 0) {
-				send_time = rtos_get_time();
-				fdelay_us = period_us + (int32_t)(prev_time - send_time);
-				prev_time = send_time;
+			connect_retry_cnt ++;
+			if (connect_retry_cnt >= IPERF_MAX_TX_CONNECT_RETRY) {
+				os_printf("iperf: tx connect max retry(%u)\n", connect_retry_cnt);
+				goto _exit;
 			}
-			else if (speed_limit == 0) {
-				now_time = rtos_get_time();
-				if ((now_time - prev_time) / 1000 > 0) {
-					prev_time = now_time;
-					rtos_delay_milliseconds(4);
-				}
-			}
-
-			retry_cnt = 0;
-_tx_retry:
-			ret = send(sock, send_buf, iperf_size, 0);
-			if (ret > 0) {
-				s_pkt_delta +=ret;
-				if (fdelay_us > 0) {
-					bk_delay_us(fdelay_us);
-				}
-			}
-			else {
-				if (s_param.state != IPERF_STATE_STARTED)
-					break;
-
-				if (errno == EWOULDBLOCK) {
-					retry_cnt ++;
-					if (retry_cnt >= IPERF_MAX_TX_RETRY) {
-						os_printf("iperf: tx reaches max retry(%u)\n", retry_cnt);
-						break;
-					} else
-						goto _tx_retry;
-				}
-
-				break;
-			}
-
-			#if (CONFIG_TASK_WDT)
-			bk_task_wdt_feed();
-			#endif
-		}
-
-		closesocket(sock);
-		if (s_param.state != IPERF_STATE_STARTED)
+		}else{
 			break;
-		rtos_delay_milliseconds(1000 * 2);
+		}
 	}
 
+	os_printf("iperf: connect to iperf server successful!\n");
+	iperf_set_sock_opt(sock);
+
+	iperf_report_task_start();
+
+	prev_time = rtos_get_time();
+	while (s_param.state == IPERF_STATE_STARTED) {
+		if (speed_limit > 0) {
+			send_time = rtos_get_time();
+			fdelay_us = period_us + (int32_t)(prev_time - send_time);
+			prev_time = send_time;
+		}
+		else if (speed_limit == 0) {
+			now_time = rtos_get_time();
+			if ((now_time - prev_time) / 1000 > 0) {
+				prev_time = now_time;
+				rtos_delay_milliseconds(4);
+			}
+		}
+
+		retry_cnt = 0;
+_tx_retry:
+		ret = send(sock, send_buf, iperf_size, 0);
+		if (ret > 0) {
+			s_pkt_delta +=ret;
+			if (fdelay_us > 0) {
+				bk_delay_us(fdelay_us);
+			}
+		}
+		else {
+			if (s_param.state != IPERF_STATE_STARTED)
+				break;
+
+			if (errno == EWOULDBLOCK) {
+				retry_cnt ++;
+				if (retry_cnt >= IPERF_MAX_TX_RETRY) {
+					os_printf("iperf: tx reaches max retry(%u)\n", retry_cnt);
+					break;
+				} else
+					goto _tx_retry;
+			}
+
+			break;
+		}
+
+		#if (CONFIG_TASK_WDT)
+		bk_task_wdt_feed();
+		#endif
+	}
+
+	closesocket(sock);
+	rtos_delay_milliseconds(1000 * 2);
+	
 _exit:
 	if (send_buf)
 		os_free(send_buf);
