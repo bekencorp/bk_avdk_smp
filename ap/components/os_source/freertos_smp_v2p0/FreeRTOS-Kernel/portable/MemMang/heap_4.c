@@ -234,12 +234,12 @@ typedef struct {
 	char *free_ptr;
 	uint32_t time;
 }free_record_type;
-static static __attribute__((section(".psram.data"))) free_record_type volatile s_free_records[FREE_RECORD_MAX];
+static  __attribute__((section(".psram.data"))) free_record_type volatile s_free_records[FREE_RECORD_MAX];
 #define MALLOC_RECORD_MAX  CONFIG_MEM_OVERFLOW_MALLOC_RECORD_MAX
-static static __attribute__((section(".psram.data"))) volatile uint32_t s_malloc_record_index = 0;
-static static __attribute__((section(".psram.data"))) volatile uint32_t s_sram_malloc_record_index = 0;
-static static __attribute__((section(".psram.data"))) free_record_type volatile s_malloc_records[MALLOC_RECORD_MAX];
-static static __attribute__((section(".psram.data"))) free_record_type volatile s_sram_malloc_records[MALLOC_RECORD_MAX];
+static __attribute__((section(".psram.data"))) volatile uint32_t s_malloc_record_index = 0;
+static __attribute__((section(".psram.data"))) volatile uint32_t s_sram_malloc_record_index = 0;
+static __attribute__((section(".psram.data"))) free_record_type volatile s_malloc_records[MALLOC_RECORD_MAX];
+static __attribute__((section(".psram.data"))) free_record_type volatile s_sram_malloc_records[MALLOC_RECORD_MAX];
 
 __attribute__((section(".iram")))void CheckFreeList(void);
 #endif
@@ -728,7 +728,7 @@ void * psram_calloc(size_t num, size_t size)
 #if CONFIG_MEM_DEBUG_OVERFLOW
 #define FREE_LIST_RECORD_MAX  CONFIG_MEM_OVERFLOW_FREELIST_RECORD_MAX
 // static volatile uint32_t s_malloc_freelist_index = 0;
-static static __attribute__((section(".psram.data")))uint32_t volatile s_freelist_records[FREE_LIST_RECORD_MAX];
+static __attribute__((section(".psram.data"))) uint32_t volatile s_freelist_records[FREE_LIST_RECORD_MAX];
 __attribute__((section(".iram")))void CheckFreeList(void)
 {
 	BlockLink_t *pxIterator;
