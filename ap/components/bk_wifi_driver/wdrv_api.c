@@ -518,6 +518,7 @@ bk_err_t bk_wifi_ap_start(void)
 
     os_memcpy(start_ap_req.ssid, g_ap_param_ptr->ssid.array, g_ap_param_ptr->ssid.length);
     os_memcpy(start_ap_req.pw, g_ap_param_ptr->key, g_ap_param_ptr->key_len);
+    start_ap_req.channel = g_ap_param_ptr->chann;
 
     start_ap_req.cmd_hdr.cmd_id = BK_CMD_START_AP;
     start_ap_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;

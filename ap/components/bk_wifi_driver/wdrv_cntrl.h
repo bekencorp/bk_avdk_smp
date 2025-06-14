@@ -422,6 +422,7 @@ struct wdrv_start_ap_req
     uint8_t band;
     char ssid[SSID_MAX_LEN];
     char pw[PASSWORD_MAX_LEN];
+    uint8_t channel;
     wdrv_cmd_cfm cmd_cfm;
 };
 
