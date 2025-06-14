@@ -52,8 +52,8 @@ extern "C" {
 #define ENCODE_DIAG_DEBUG
 #define DECODE_DIAG_DEBUG
 #define ROTATE_DIAG_DEBUG
-#define SCALE_DIAG_DEBUG
-//#define DISP_DIAG_DEBUG
+//#define SCALE_DIAG_DEBUG
+#define DISP_DIAG_DEBUG
 #endif
 
 typedef enum
@@ -120,6 +120,7 @@ typedef struct {
 	pixel_format_t fmt;
 	complex_buffer_t *buffer;
 	LIST_HEADER_T list;
+    uint32_t flag;
 } pipeline_encode_request_t;
 
 

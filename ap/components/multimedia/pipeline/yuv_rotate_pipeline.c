@@ -44,6 +44,7 @@
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
 #endif
+#include "dwt.h"
 
 #define TAG "rot_pipline"
 
@@ -261,7 +262,6 @@ static void dma2d_transfer_complete(void)
             }
             rotate_config->rotate_frame = NULL;
         }
-        ROTATE_LINE_END();
 
 #if (PIPELINE_ROTATE_CONTINUE == 0)
 		rotate_config->buf[0].state = BUF_IDLE;
@@ -280,6 +280,7 @@ static void dma2d_transfer_complete(void)
 		rotate_config->buf[1].state = BUF_IDLE;
 	}
 
+    uint32_t flag = rotate_pipeline_enter_critical();
 	if (!list_empty(&rotate_config->copy_pedding_list))
 	{
 		LIST_HEADER_T *pos, *n, *list = &rotate_config->copy_pedding_list;
@@ -320,6 +321,7 @@ static void dma2d_transfer_complete(void)
 			}
 		}
 	}
+    rotate_pipeline_exit_critical(flag);
 
     if ((rotate_config->rot_mode == SW_ROTATE) && (rotate_config->rot_angle == ROTATE_NONE))
     {
@@ -371,6 +373,10 @@ static void rotate_finish_handler(uint32_t param)
 	}
 
 	rotate_copy_request_t *rotate_copy_request = (rotate_copy_request_t*)os_malloc(sizeof(rotate_copy_request_t));
+    if(rotate_copy_request == NULL)
+    {
+        BK_ASSERT_EX(0, "%s, malloc rotate_copy_request fail NULL\n", __func__);
+    }
 	rotate_copy_request->rotate_buf = rotate_buf;
 
 #if (PIPELINE_ROTATE_CONTINUE == 0)
@@ -595,6 +601,8 @@ static void rotate_timer_handle(void *arg1, void *arg2)
 	LOGI("%s, timeout, rotate: %d, %p, %p %d\n", __func__, rotate_config->rotate_ena,
 	rotate_config->decoder_buffer, rotate_config->decoder_buffer->data, rotate_config->dma2d_isr_cnt);
 	//decoder_mux_dump();
+	
+    rtos_lock_mutex(&rotate_info->lock);
 	rotate_config->reset_status = true;
     if(rotate_config->rot_mode == HW_ROTATE)
     {
@@ -626,6 +634,8 @@ static void rotate_timer_handle(void *arg1, void *arg2)
     {
         LOGE("SW rotate Timeout\n");
     }
+    
+    rtos_unlock_mutex(&rotate_info->lock);
 }
 
 static bk_err_t rotate_no_rotate_direct_copy_handler(uint32_t param)
@@ -720,11 +730,6 @@ static bk_err_t rotate_dec_line_complete_handler(uint32_t param)
 
 	ROTATE_LINE_START();
 
-	if (!rtos_is_oneshot_timer_running(&rotate_timer))
-	{
-		rtos_start_oneshot_timer(&rotate_timer);
-	}
-
 	int (*func)(unsigned char *vuyy, unsigned char *rotatedVuyy, int width, int height);
     switch (rotate_config->rot_angle)
     {
@@ -758,6 +763,10 @@ static bk_err_t rotate_dec_line_complete_handler(uint32_t param)
     }
     else
 	{
+		if (!rtos_is_oneshot_timer_running(&rotate_timer))
+    	{
+    		rtos_start_oneshot_timer(&rotate_timer);
+    	}
 		rott_config_t rott_cfg = {0};
 		rott_cfg.input_addr = rotate_notify->buffer->data;
 		rott_cfg.output_addr = rotate_config->rotate_buffer->data;
@@ -786,6 +795,8 @@ static bk_err_t rotate_dec_line_complete_handler(uint32_t param)
 		}
     }
 out:
+    dwt_disable_watchpoint_comparator();
+
 	os_free(rotate_notify);
 	rotate_notify = NULL;
 	return ret;
@@ -1065,6 +1076,11 @@ error:
 		rtos_deinit_queue(&rotate_config->rotate_queue);
 		rotate_config->rotate_queue = NULL;
 	}
+    if (rotate_config->rot_sem)
+    {
+	    rtos_deinit_semaphore(&rotate_config->rot_sem);
+    }
+    rotate_task_deinit();
 
     if (rotate_config)
     {
@@ -1117,7 +1133,7 @@ bk_err_t rotate_task_close(void)
 	rotate_config->rot_sem = NULL;
 
 	rotate_task_deinit();
-
+    uint32_t flag = rotate_pipeline_enter_critical();
 	if (!list_empty(&rotate_config->rotate_pedding_list))
 	{
 		LOGD("%s, clear rotate_pedding_list\n", __func__);
@@ -1139,6 +1155,7 @@ bk_err_t rotate_task_close(void)
 			}
 		}
 	}
+    rotate_pipeline_exit_critical(flag);
 
 	if (rotate_config->decoder_buffer)
 	{
@@ -1146,6 +1163,7 @@ bk_err_t rotate_task_close(void)
 		rotate_config->decoder_buffer = NULL;
 	}
 
+    flag = rotate_pipeline_enter_critical();
 	if (!list_empty(&rotate_config->copy_pedding_list))
 	{
 		LOGD("%s, clear copy_pedding_list\n", __func__);
@@ -1163,6 +1181,7 @@ bk_err_t rotate_task_close(void)
 			}
 		}
 	}
+    rotate_pipeline_exit_critical(flag);
 
 
 	if (rotate_config->rotate_frame)
@@ -1197,6 +1216,7 @@ bk_err_t bk_rotate_encode_request(pipeline_encode_request_t *request, mux_callba
 
 	rotate_request = (pipeline_encode_request_t *)os_malloc(sizeof(pipeline_encode_request_t));
 
+
 	if (rotate_request == NULL)
 	{
 		LOGI("%s malloc failed\n", __func__);
@@ -1204,6 +1224,7 @@ bk_err_t bk_rotate_encode_request(pipeline_encode_request_t *request, mux_callba
 	}
 
 	os_memcpy(rotate_request, request, sizeof(pipeline_encode_request_t));
+    dwt_set_data_address_write((uint32_t)&rotate_request->flag);
 
 	rotate_config->decoder_free_cb = cb;
 

@@ -120,7 +120,7 @@ bk_err_t media_app_lcd_disp_open(void *config)
 
     bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VIDP_LCD,PM_POWER_MODULE_STATE_ON);
 
-    lcd_display_open(config);
+    ret = lcd_display_open(config);
 
     LOGI("%s complete %x\n", __func__, ret);
 

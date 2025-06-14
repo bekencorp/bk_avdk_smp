@@ -803,6 +803,8 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 				}
 			}
 
+           DECODER_FRAME_START();
+           DECODER_LINE_START();
 
 			LOGD("%s, %d, seq:%d, module:%d, %p\r\n", __func__, __LINE__, jdec_config->jpeg_frame->sequence, module, jdec_config->jpeg_frame);
 
