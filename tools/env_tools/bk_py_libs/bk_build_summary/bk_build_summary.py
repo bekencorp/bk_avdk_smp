@@ -4,7 +4,7 @@ from pathlib import Path
 
 from . import logger
 
-OUTPUT_LINE_MAX_LEN = 52
+OUTPUT_LINE_MAX_LEN = 60
 
 
 def find_string_in_file(file_path: Path, target: str):
@@ -140,7 +140,7 @@ class bk_build_summary:
         mem_region_info = ""
 
         mem_region_info += (
-            f"{'name':<13}"
+            f"{'name':<21}"
             + f"{' addr':^11}"
             + f"{' size':^11}"
             + f"{'used ':>10}"
@@ -153,7 +153,7 @@ class bk_build_summary:
             map_name, map_addr, map_size = map_info[index]
             if link_name != map_name or link_size != map_size:
                 raise RuntimeError("data invalid")
-            mem_region_info += f"{link_name:<13}"  # 13
+            mem_region_info += f"{link_name:<21}"  # 21
             mem_region_info += f" 0x{map_addr:08x}"  # 11
             mem_region_info += f" 0x{map_size:08x}"  # 11
             mem_region_info += f" {link_used_size:>7} B"  # 10
@@ -171,7 +171,7 @@ class bk_build_summary:
 
         with map_file.open("r") as f:
             f.seek(offset)
-            raw_mem_info: str = f.read(1024)
+            raw_mem_info: str = f.read(2048)
 
         start = raw_mem_info.find("FLASH")
         end = raw_mem_info.find("*default")

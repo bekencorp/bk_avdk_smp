@@ -129,21 +129,22 @@ else
 endif
 
 AUTO_PARTITION_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC)/auto_partitions.csv
+SRAM_REGIONS_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC)/ram_regions.csv
 export PARTITIONS_DIR := $(PROJECT_BUILD_DIR)/partitions
 
 auto_partition_script := $(ARMINO_AVDK_DIR)/tools/bk_smp_auto_partition.py
 auto_partition_out := $(PARTITIONS_DIR)/partitions.txt
 
-$(auto_partition_out): $(auto_partition_script) $(AUTO_PARTITION_TABLE)
+$(auto_partition_out): $(auto_partition_script) $(AUTO_PARTITION_TABLE) $(SRAM_REGIONS_TABLE)
 	@mkdir -p $(PARTITIONS_DIR)
-	@python3 $(auto_partition_script) $(PARTITIONS_DIR) $(AUTO_PARTITION_TABLE)
+	@python3 $(auto_partition_script) $(PARTITIONS_DIR) $(AUTO_PARTITION_TABLE) $(SRAM_REGIONS_TABLE)
 
 auto_partition: $(auto_partition_out)
 
 print_partitions: auto_partition
-	@echo ================= Partitions Table =================
+	@echo ===================== Partitions Table =====================
 	@cat $(auto_partition_out)
-	@echo ====================================================
+	@echo ============================================================
 
 package_script := $(ARMINO_AVDK_DIR)/tools/bk_smp_package.py
 package_dir := $(PROJECT_BUILD_DIR)/package
@@ -156,7 +157,6 @@ package: $(package_script) $(ARMINO_SOC)_cp $(soc_targets_ap)
 ifneq ($(PRINT_SUMMARY), 0)
 	@cat $(build_summary)
 endif
-	@python3 $(check_psram_script) $(build_summary)
 
 ap_doc:
 	@make doc ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) -C $(ARMINO_AP_DIR)

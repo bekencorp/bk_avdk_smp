@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-OUTPUT_LINE_MAX_LEN = 52
+OUTPUT_LINE_MAX_LEN = 60
 
 
 class PartInfo(NamedTuple):
@@ -66,7 +66,7 @@ class bk_partition:
         name = "Name"
         offset = "Offset"
         size = "Size"
-        head = f"{name:<24}" + f"{offset:^16}" + f"{size:^12}" + "\n"
+        head = f"{name:<26}" + f"{offset:^22}" + f"{size:^12}" + "\n"
         head += f"{'':-^{OUTPUT_LINE_MAX_LEN}}\n"
         return head
 
@@ -78,9 +78,9 @@ class bk_partition:
         part_size: int,
     ):
         info = ""
-        info += f"{part_name:<24}"  # 24
+        info += f"{part_name:<26}"  # 26
         offset = f"0x{part_offset:08x}"
-        info += f"{offset:^16}"  # offfset # 16
+        info += f"{offset:^22}"  # offfset # 22
         size_kb = f"{int(part_size / 1024)}K"
         info += f"{size_kb:^12}"  # size # 12
         info += "\n"

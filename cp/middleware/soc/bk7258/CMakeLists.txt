@@ -86,23 +86,18 @@ set(ld_header_dependencies
 	${CMAKE_CURRENT_BINARY_DIR}/../partitions/_build/partitions_gen.h
 )
 
-if(CONFIG_SOC_SMP)
 add_custom_command(
 	OUTPUT ${target}_out.ld
-	COMMAND "${CMAKE_C_COMPILER}" -P -x c -E - < ${LD_FILE} -o ${target}_out.ld -I ${armino_path}/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Include/ -I ${armino_path}/include/ -I ${config_dir} -I ${armino_path}/middleware/boards/bk7258/partitions -I ${CMAKE_CURRENT_BINARY_DIR}/../partitions/_build
+	COMMAND "${CMAKE_C_COMPILER}" -P -x c -E - < ${LD_FILE} -o ${target}_out.ld
+	        -I ${armino_path}/include/ -I ${config_dir}
+			-I ${armino_path}/middleware/boards/${target}/partitions
+			-I ${CMAKE_CURRENT_BINARY_DIR}/../partitions/_build
+			-I $ENV{PARTITIONS_DIR}
 	MAIN_DEPENDENCY ${LD_DIR}/${target}.ld ${sdkconfig_header}
 	DEPENDS generated_files ${ld_header_dependencies}
 	COMMENT "Generating linker script..."
-	VERBATIM)
-else()
-add_custom_command(
-	OUTPUT ${target}_out.ld
-	COMMAND "${CMAKE_C_COMPILER}" -P -x c -E - < ${LD_FILE} -o ${target}_out.ld -I ${armino_path}/include/ -I ${config_dir} -I ${armino_path}/middleware/boards/${target}/partitions -I ${CMAKE_CURRENT_BINARY_DIR}/../partitions/_build
-	MAIN_DEPENDENCY ${LD_DIR}/${target}.ld ${sdkconfig_header}
-	DEPENDS generated_files ${ld_header_dependencies}
-	COMMENT "Generating linker script..."
-	VERBATIM)
-endif()
+	VERBATIM
+)
 
 add_custom_target(${target}_linker_script DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}_out.ld)
 add_dependencies(${COMPONENT_LIB} ${target}_linker_script)

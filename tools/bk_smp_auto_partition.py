@@ -6,6 +6,7 @@ from bk_auto_partition import bk_partitions_table
 from bk_bootloader_post import check_is_ab_project
 from bk_flash_partiton import bk_flash_partition
 from bk_ota_partition import bk_ota_partition
+from bk_ram_region import bk_ram_region
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -37,7 +38,7 @@ class bk_part:
 
     def gen_partition_header(self):
         flash_part = bk_flash_partition(self.partitions_json)
-        header_path = self.partitions_dir / "partitions.h"
+        header_path = self.partitions_dir / "partitions_gen.h"
         flash_part.gen_partitions_layout_hdr(header_path)
 
     def gen_flash_partition_src(self):
@@ -52,14 +53,10 @@ class bk_part:
         flash_part.gen_pack_json(pack_json)
 
 
-def main():
-    logger.info("Enter SMP Auto Partition")
-    partitions_dir = Path(sys.argv[1])
-    auto_part_table = Path(sys.argv[2])
+def auto_patitions(partitions_dir: Path, auto_part_table: Path, flash_crc_enable: bool):
     partitions_json = partitions_dir / "partitions.json"
     partitions_txt = partitions_dir / "partitions.txt"
-    crc_enable = True
-    partitioner = bk_part(partitions_dir, auto_part_table, crc_enable)
+    partitioner = bk_part(partitions_dir, auto_part_table, flash_crc_enable)
     partitioner.auto_partition(partitions_json, partitions_txt)
     partitioner.gen_partition_header()
     partitioner.gen_flash_partition_src()
@@ -72,6 +69,22 @@ def main():
         ota_partition.gen_ab_configuartion_json(partitions_dir / "configurationab.json")
     else:
         ota_partition.gen_ota_json(ota_partition_json)
+
+
+def ram_region_partition(partitions_dir: Path, ram_regions_table: Path):
+    ram_regions = bk_ram_region(ram_regions_table)
+    ram_regions_hdr_file = partitions_dir / "ram_regions.h"
+    ram_regions.gen_memory_layout_hdr(ram_regions_hdr_file)
+
+
+def main():
+    logger.info("Enter SMP Auto Partition")
+    partitions_dir = Path(sys.argv[1])
+    auto_part_table = Path(sys.argv[2])
+    ram_regions_table = Path(sys.argv[3])
+    flash_crc_enable = True
+    auto_patitions(partitions_dir, auto_part_table, flash_crc_enable)
+    ram_region_partition(partitions_dir, ram_regions_table)
 
 
 if __name__ == "__main__":

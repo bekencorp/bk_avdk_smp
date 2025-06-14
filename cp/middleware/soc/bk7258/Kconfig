@@ -8,18 +8,6 @@ menu "bk7258"
 		hex "Total DTCM size"
 		default 0x4000
 
-	config CP_SPE_RAM_SIZE
-		hex "CPU0 RAM size for SPE"
-		default 0x50000
-
-	config CP_NSPE_RAM_SIZE
-		hex "CPU0 RAM size for NSPE"
-		default 0x40000
-
-	config AP_APP_RAM_SIZE
-		hex "CPU1 app RAM size"
-		default 0x40000
-
 	config ANA_REG_WRITE_POLL_REG_B
 		bool "Write analog register polls sys reg0xb"
 		default y

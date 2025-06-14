@@ -277,11 +277,11 @@ void rtos_regist_plat_dump_hook(uint32_t reg_base_addr, uint32_t reg_size);
 
 #if (CONFIG_PSRAM_AS_SYS_MEMORY)
 #if CONFIG_TZ
-#define PSRAM_START_ADDRESS    (void*)(CONFIG_PSRAM_HEAP_BASE + SOC_ADDR_OFFSET)
+#define PSRAM_START_ADDRESS    (void*)(CONFIG_CP_PSRAM_HEAP_ADDR + SOC_ADDR_OFFSET)
 #else
-#define PSRAM_START_ADDRESS    (void*)(CONFIG_PSRAM_HEAP_BASE)
+#define PSRAM_START_ADDRESS    (void*)(CONFIG_CP_PSRAM_HEAP_ADDR)
 #endif
-#define PSRAM_HEAP_SIZE        CONFIG_PSRAM_HEAP_SIZE   //1MB
+#define PSRAM_HEAP_SIZE        CONFIG_CP_PSRAM_HEAP_SIZE   //1MB
 #endif
 
 

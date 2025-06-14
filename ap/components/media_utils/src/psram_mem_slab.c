@@ -83,12 +83,6 @@ void bk_psram_frame_buffer_init(void)
 
 	end_adderss += sizeof(psram_mem_slab);
 
-	if (end_adderss > CONFIG_PSRAM_HEAP_BASE_ADDER)
-	{
-		LOGE("multimedia allocte psram over the maximum length!!!\n");
-		BK_ASSERT(0);
-	}
-
 	os_memset(frame_mem_heap.heap, 0, sizeof(struct fb_block_free*) * PSRAM_HEAP_MAX);
 	os_memset(frame_mem_heap.heap_size, 0, sizeof(uint32_t) * PSRAM_HEAP_MAX);
 

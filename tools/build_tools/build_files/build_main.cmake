@@ -93,10 +93,11 @@ endif()
 armino_build_get_property(build_dir BUILD_DIR)
 set(config_dir ${build_dir}/config)
 
-MESSAGE(STATUS "${config_dir}")
-
 list(APPEND compile_options "-I${config_dir}")
-list(APPEND compile_options "-include;sdkconfig.h")
+list(APPEND compile_options "-includesdkconfig.h")
+if (NOT "${BUILD_PROPERTIES_LIB}" EQUAL 1)
+list(APPEND compile_options "-include$ENV{PARTITIONS_DIR}/ram_regions.h")
+endif()
 
 
 list(APPEND link_options "-fno-lto")

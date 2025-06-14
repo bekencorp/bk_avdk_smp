@@ -13,6 +13,7 @@
 #include "soc/bk7258/reg_base.h"
 #include "partitions.h"
 #include "sdkconfig.h"
+#include "ram_regions.h"
 
 #if (CONFIG_SOC_SMP)
 #include "cpu_id.h"
@@ -32,22 +33,6 @@ __SWAP_SIZE = (2048);
 
 
 /*****************************************************************************
-|-----------------ap sram-----------|---bt---|------cp sram------------|-swap-|
-******************************************************************************/
-#if CONFIG_SPE
-__CP_APP_RAM_BASE = SOC_SRAM0_DATA_BASE + CONFIG_AP_APP_RAM_SIZE;
-#else
-__CP_APP_RAM_BASE = SOC_SRAM0_DATA_BASE + CONFIG_CP_SPE_RAM_SIZE + CONFIG_AP_APP_RAM_SIZE;
-#endif
-
-#if CONFIG_SPE
-__CP_APP_RAM_SIZE = CONFIG_CP_SPE_RAM_SIZE;
-#else
-__CP_APP_RAM_SIZE = CONFIG_CP_NSPE_RAM_SIZE;
-#endif
-
-
-/*****************************************************************************
 The follow four shared memory address area mapping to the same physical memory
     0x08000000 ~ 0x080a0000  ---- instruction area, recommend put sram code
     0x18000000 ~ 0x180a0000  ---- instruction area, recommend put sram code
@@ -57,26 +42,21 @@ The follow four shared memory address area mapping to the same physical memory
 
 __CP_APP_IRAM_OFFSET = 0x20000000;
 
-__CP_APP_IRAM_BASE = __CP_APP_RAM_BASE - __CP_APP_IRAM_OFFSET;  /*0x08000000 = 0x28000000 - __CP_APP_IRAM_OFFSET*/
-__CP_APP_IRAM_SIZE = __CP_APP_RAM_SIZE;
+__CP_APP_IRAM_BASE = CONFIG_CP_RAM_ADDR - __CP_APP_IRAM_OFFSET;  /*0x08000000 = 0x28000000 - __CP_APP_IRAM_OFFSET*/
+__CP_APP_IRAM_SIZE = CONFIG_CP_RAM_SIZE + CONFIG_SWAP_SIZE;
 
 __CP_APP_VIRTUAL_CODE_START = CONFIG_PRIMARY_CPU0_APP_VIRTUAL_CODE_START;
 __CP_APP_VIRTUAL_CODE_SIZE = CONFIG_PRIMARY_CPU0_APP_VIRTUAL_CODE_SIZE;
-
-#if CONFIG_BT_REUSE_MEDIA_MEMORY
-__BT_SRAM_BASE = __CP_APP_RAM_BASE - CONFIG_BT_REUSE_MEDIA_MEM_SIZE;
-__BT_SRAM_SIZE = CONFIG_BT_REUSE_MEDIA_MEM_SIZE;
-#endif
 
 MEMORY
 {
   FLASH (rx)            : ORIGIN = (SOC_FLASH_DATA_BASE + __CP_APP_VIRTUAL_CODE_START), LENGTH = __CP_APP_VIRTUAL_CODE_SIZE
   IRAM (rx)             : ORIGIN = __CP_APP_IRAM_BASE, LENGTH = __CP_APP_IRAM_SIZE
-  RAM (rwx)             : ORIGIN = __CP_APP_RAM_BASE, LENGTH = __CP_APP_RAM_SIZE - __SWAP_SIZE
-  SWAP (rwx)            : ORIGIN = __CP_APP_RAM_BASE + __CP_APP_RAM_SIZE - __SWAP_SIZE, LENGTH = __SWAP_SIZE
+  RAM (rwx)             : ORIGIN = CONFIG_CP_RAM_ADDR, LENGTH = CONFIG_CP_RAM_SIZE
+  SWAP (rwx)            : ORIGIN = CONFIG_SWAP_ADDR, LENGTH = CONFIG_SWAP_SIZE
 
 #if CONFIG_BT_REUSE_MEDIA_MEMORY
-  SRAM_BT (rwx)         : ORIGIN = __BT_SRAM_BASE, LENGTH = __BT_SRAM_SIZE
+  SRAM_BT (rwx)         : ORIGIN = CONFIG_SRAM_BT_ADDR, LENGTH = CONFIG_SRAM_BT_SIZE
 #endif
 
 #if (CONFIG_SOC_SMP)
@@ -93,7 +73,7 @@ MEMORY
   DTCM (rwx)            : ORIGIN = SOC_DTCM_DATA_BASE + 0, LENGTH = CONFIG_DTCM_SIZE
 #endif
 #if (CONFIG_PSRAM_AS_SYS_MEMORY)
-  PSRAM_HEAP (rwx)      : ORIGIN = CONFIG_PSRAM_HEAP_BASE, LENGTH = CONFIG_PSRAM_HEAP_SIZE
+  PSRAM_HEAP (rwx)      : ORIGIN = CONFIG_CP_PSRAM_HEAP_ADDR, LENGTH = CONFIG_CP_PSRAM_HEAP_SIZE
 #endif
 }
 
