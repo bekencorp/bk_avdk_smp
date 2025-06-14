@@ -349,10 +349,10 @@ static bk_err_t lcd_rgb_gpio_init(void)
 
 bk_err_t bk_lcd_rgb_io_deinit(void)
 {
-    bk_gpio_set_output_low(LCD_SPI_CLK_GPIO);
-    bk_gpio_set_output_low(LCD_SPI_CSX_GPIO);
-    bk_gpio_set_output_low(LCD_SPI_SDA_GPIO);
-    bk_gpio_set_output_low(LCD_SPI_RST);
+    gpio_dev_unmap(LCD_SPI_CLK_GPIO);
+    gpio_dev_unmap(LCD_SPI_CSX_GPIO);
+    gpio_dev_unmap(LCD_SPI_SDA_GPIO);
+    gpio_dev_unmap(LCD_SPI_RST);
     return BK_OK;
 }
 
@@ -585,7 +585,7 @@ bk_err_t bk_lcd_driver_deinit(void)
 
 //	lcd_hal_soft_reset();
 	bk_int_isr_unregister(INT_SRC_LCD);
-    sys_drv_int_disable(LCD_INTERRUPT_CTRL_BIT);
+    sys_drv_core_intr_group1_disable(CPU2_CORE_ID, LCD_INTERRUPT_CTRL_BIT);
 
 //	if (sys_drv_lcd_close() != 0)
 //	{
@@ -623,85 +623,6 @@ bk_err_t bk_lcd_driver_init(lcd_clk_t clk)
     sys_ll_set_cpu_device_clk_enable_disp_cken(0);
 	switch (clk)
 	{
-#if CONFIG_SOC_BK7256XX
-#if 0
-		case LCD_320M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_0, DISP_DIV_H_0, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_160M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_0, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_106M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_0, DISP_DIV_H_1, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_120M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_0, DISP_DIV_H_0, DSIP_DISCLK_ALWAYS_ON);
-			break;
-#endif
-		case LCD_64M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_0, DISP_DIV_H_2, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_60M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_1, DISP_DIV_H_0, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_80M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_1, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_54M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_2, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_45M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_3, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_40M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_0, DISP_DIV_H_1, DSIP_DISCLK_ALWAYS_ON);
-			//ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_3, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_35M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_0, DISP_DIV_H_4, DSIP_DISCLK_ALWAYS_ON);
-			//ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_3, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_32M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_4, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_30M:
-				ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_1, DISP_DIV_H_1, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_26M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_5, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_24M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_0, DISP_DIV_H_6, DSIP_DISCLK_ALWAYS_ON);
-		break;
-		case LCD_22M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_6, DSIP_DISCLK_ALWAYS_ON);
-		break;
-		case LCD_20M:
-			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_7, DSIP_DISCLK_ALWAYS_ON);
-			//ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_1, DISP_DIV_H_2, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_17M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_0, DISP_DIV_H_3, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_15M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_1, DISP_DIV_H_3, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_12M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_1, DISP_DIV_H_4, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_10M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_1, DISP_DIV_H_5, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_9M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_0, DISP_DIV_H_6, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_8M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_0, DISP_DIV_H_7, DSIP_DISCLK_ALWAYS_ON);
-			break;
-		case LCD_7M:
-			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_1, DISP_DIV_H_7, DSIP_DISCLK_ALWAYS_ON);
-			break;
-#else
 		case LCD_80M:
 			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_1, DISP_DIV_H_0, DSIP_DISCLK_ALWAYS_ON);
 			break;
@@ -747,7 +668,6 @@ bk_err_t bk_lcd_driver_init(lcd_clk_t clk)
 		case LCD_8M:
 			ret = sys_drv_lcd_set(DISP_CLK_120M, DISP_DIV_L_0, DISP_DIV_H_3, DSIP_DISCLK_ALWAYS_ON);
 			break;
-#endif
 		default:
 			ret = sys_drv_lcd_set(DISP_CLK_320M, DISP_DIV_L_0, DISP_DIV_H_4, DSIP_DISCLK_ALWAYS_ON);
 			break;
