@@ -2,6 +2,7 @@
 #define _MEM_PUB_H_
 
 #include <stdarg.h>
+#include <string.h>
 #include <common/bk_typedef.h>
 #include <common/sys_config.h>
 #ifdef __cplusplus
@@ -20,31 +21,37 @@ typedef enum {
     MEM_TYPE_MAX = 0xf
 } beken_mem_type_t;
 
-void *os_memcpy(void *out, const void *in, UINT32 n);
 __attribute__ ((__optimize__ ("-fno-tree-loop-distribute-patterns"))) \
 static inline void os_memcpy_word(uint32_t *out, const uint32_t *in, uint32_t n)
 {
-    // Note:
-    // the word count == sizeof(buf)/sizeof(uint32_t)
-    uint32_t word_cnt = n>>2;
-    uint32_t src_data = 0;
-    uint32_t i = 0;
+    if (n == 0)
+        return;
 
-    if((((uint32_t)in) & 0x3) != 0)
+    if (((uintptr_t)in & 0x3) != 0)
     {
-        for(; i < word_cnt; i++)
-        {
-            os_memcpy((void *)&src_data, (const void *)(in + i), 4);
-            os_write_word((out + i), src_data);
-        }
+        memcpy(out, in, n);
+        return;
     }
-    else
+
+    uint32_t word_cnt = n >> 2;
+    uint32_t i = 0;
+    const uint32_t *aligned_in = in;
+
+    // Manual unroll improves performance
+    for (i = 0; i + 3 < word_cnt; i += 4)
     {
-        for(; i < word_cnt; i++)
-        {
-            os_write_word((out + i), os_get_word(in + i));
-        }
+        os_write_word(out + i,     os_get_word(aligned_in + i));
+        os_write_word(out + i + 1, os_get_word(aligned_in + i + 1));
+        os_write_word(out + i + 2, os_get_word(aligned_in + i + 2));
+        os_write_word(out + i + 3, os_get_word(aligned_in + i + 3));
     }
+
+    // Dispose of the remaining word
+    for (; i < word_cnt; i++)
+    {
+        os_write_word(out + i, os_get_word(aligned_in + i));
+    }
+
 }
 
 __attribute__ ((__optimize__ ("-fno-tree-loop-distribute-patterns"))) \
