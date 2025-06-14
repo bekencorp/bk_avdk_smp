@@ -592,8 +592,15 @@ static void usbh_hub_events(struct usbh_hub *hub)
 
     uint16_t mask;
     uint16_t feat;
+    uint16_t clear_feature_err_count;
+  
+    if(hub->hub_desc.bNbrPorts > CONFIG_USBHOST_MAX_EHPORTS)
+    {
+        USB_LOG_ERR("%s Exceeding the Maximum value bNbrPorts: %d\r\n", __func__, hub->hub_desc.bNbrPorts);
+        usbh_musb_trigger_disconnect_by_sw();
+        return;
+    }
 
-    USB_LOG_DBG("usbh_hub_events bNbrPorts: %d\r\n", hub->hub_desc.bNbrPorts);
     for (uint8_t port = 0; port < hub->hub_desc.bNbrPorts; port++) {
         portchange_index = hub->int_buffer[0];
 
@@ -627,10 +634,16 @@ static void usbh_hub_events(struct usbh_hub *hub)
         /* First, clear all change bits */
         mask = 1;
         feat = HUB_PORT_FEATURE_C_CONNECTION;
+        clear_feature_err_count = 0;
         while (portchange) {
+            if(clear_feature_err_count > 5) {
+                usbh_musb_trigger_disconnect_by_sw();
+                return;
+            }
             if (portchange & mask) {
                 ret = usbh_hub_clear_feature(hub, port + 1, feat);
                 if (ret < 0) {
+                    clear_feature_err_count++;
                     USB_LOG_ERR("Failed to clear port %u, change mask:%04x, errorcode:%d\r\n", port + 1, mask, ret);
                     continue;
                 }
