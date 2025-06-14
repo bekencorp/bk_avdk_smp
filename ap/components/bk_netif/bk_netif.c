@@ -63,6 +63,7 @@ bk_err_t netif_wifi_event_cb(void *arg, event_module_t event_module,
         (wdrv_host_env.connect_ind.dns >> 16) & 0xff, (wdrv_host_env.connect_ind.dns >> 24) & 0xff);
 
         sta_ip_mode_set(0);
+        sta_ip_down();
         BK_LOG_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_STA, &wdrv_static_ip));
         sta_ip_start();
     }
