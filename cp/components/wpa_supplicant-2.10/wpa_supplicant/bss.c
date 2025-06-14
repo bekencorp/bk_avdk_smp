@@ -235,7 +235,11 @@ void wpa_bss_remove(struct wpa_supplicant *wpa_s, struct wpa_bss *bss,
 		wpa_ssid_txt(bss->ssid, bss->ssid_len), reason);
 	wpas_notify_bss_removed(wpa_s, bss->bssid, bss->id);
 	wpa_bss_anqp_free(bss->anqp);
+	#if CONFIG_PSRAM_AS_SYS_MEMORY
 	psram_free(bss);
+	#else
+	os_free(bss);
+	#endif
 }
 
 
@@ -446,7 +450,11 @@ static struct wpa_bss * wpa_bss_add(struct wpa_supplicant *wpa_s,
 	struct wpa_bss *bss;
 	char extra[50] __maybe_unused;
 
+	#if CONFIG_PSRAM_AS_SYS_MEMORY
 	bss = psram_zalloc(sizeof(*bss) + res->ie_len + res->beacon_ie_len);
+	#else
+	bss = os_zalloc(sizeof(*bss) + res->ie_len + res->beacon_ie_len);
+	#endif
 	if (bss == NULL)
 	{
 		//os_printf("wpa_bss_add,malloc null\r\n");
@@ -702,10 +710,15 @@ wpa_bss_update(struct wpa_supplicant *wpa_s, struct wpa_bss *bss,
 		struct wpa_bss *nbss;
 		struct dl_list *prev = bss->list_id.prev;
 		dl_list_del(&bss->list_id);
+
+		#if CONFIG_PSRAM_AS_SYS_MEMORY
 		psram_free(bss);
 		nbss = psram_zalloc(sizeof(*bss) + res->ie_len + res->beacon_ie_len);
-		//nbss = os_realloc(bss, sizeof(*bss) + res->ie_len +
-				  //res->beacon_ie_len);
+		#else
+		nbss = os_realloc(bss, sizeof(*bss) + res->ie_len +
+				res->beacon_ie_len);
+		#endif
+
 		if (nbss) {
 			unsigned int i;
 			for (i = 0; i < wpa_s->last_scan_res_used; i++) {

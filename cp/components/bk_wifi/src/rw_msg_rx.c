@@ -106,17 +106,29 @@ extern void bk7011_default_rxsens_setting(void);
 /* scan result malloc item */
 UINT8 *sr_malloc_result_item(UINT32 vies_len)
 {
+#if CONFIG_PSRAM_AS_SYS_MEMORY
 	#if CONFIG_MINIMUM_SCAN_RESULTS
 	return psram_zalloc(vies_len + sizeof(struct wpa_scan_res));
 	#else
 	return psram_zalloc(vies_len + sizeof(struct sta_scan_res));
 	#endif
+#else
+	#if CONFIG_MINIMUM_SCAN_RESULTS
+	return os_zalloc(vies_len + sizeof(struct wpa_scan_res));
+	#else
+	return os_zalloc(vies_len + sizeof(struct sta_scan_res));
+	#endif
+#endif
 }
 
 /* free scan result item */
 void sr_free_result_item(UINT8 *item_ptr)
 {
+#if CONFIG_PSRAM_AS_SYS_MEMORY
 	psram_free(item_ptr);
+#else
+	os_free(item_ptr);
+#endif
 }
 
 UINT8 *sr_malloc_shell(void)
@@ -131,7 +143,12 @@ UINT8 *sr_malloc_shell(void)
 	#else
 	layer2_space_len = MAX_BSS_LIST * sizeof(struct sta_scan_res *);
 	#endif
+
+	#if CONFIG_PSRAM_AS_SYS_MEMORY
 	ptr = psram_zalloc(layer1_space_len + layer2_space_len);
+	#else
+	ptr = os_zalloc(layer1_space_len + layer2_space_len);
+	#endif
 
 	if (ptr)
 		return ptr;
@@ -143,7 +160,11 @@ UINT8 *sr_malloc_shell(void)
 
 void sr_free_shell(UINT8 *shell_ptr)
 {
+	#if CONFIG_PSRAM_AS_SYS_MEMORY
 	psram_free(shell_ptr);
+	#else
+	os_free(shell_ptr);
+	#endif
 }
 
 void sr_free_all(SCAN_RST_UPLOAD_T *scan_rst)
