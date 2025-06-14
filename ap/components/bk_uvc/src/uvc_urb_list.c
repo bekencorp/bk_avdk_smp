@@ -70,7 +70,12 @@ bk_err_t uvc_camera_urb_list_init(void)
     INIT_LIST_HEAD(&mem_list->free);
     INIT_LIST_HEAD(&mem_list->ready);
 
-    rtos_init_semaphore(&mem_list->sem, 1);
+    ret = rtos_init_semaphore(&mem_list->sem, 1);
+    if (ret != BK_OK)
+    {
+        LOGE("%s sem init fail\n", __func__);
+        return ret;
+    }
 
     mem_list->count = CONFIG_UVC_URB_NUM;
     mem_list->size = CONFIG_UVC_URB_NUM * CONFIG_UVC_NUM_PACKET_PER_URB * UVC_MAX_PACKET_SIZE;
