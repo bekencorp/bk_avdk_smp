@@ -632,8 +632,9 @@ bk_err_t lcd_display_open(lcd_open_t *config)
 
 out:
 
-    LOGE("%s failed\r\n", __func__);
     lcd_display_config_free();
+    lcd_driver_backlight_close();
+    LOGE("%s failed\r\n", __func__);
 
     return ret;
 }
