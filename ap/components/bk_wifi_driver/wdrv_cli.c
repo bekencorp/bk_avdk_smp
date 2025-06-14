@@ -49,9 +49,10 @@ int wdrv_demo_softap_init(char *ap_ssid, char *ap_key, char *ap_channel)
 {
     wifi_ap_config_t ap_config = WIFI_DEFAULT_AP_CONFIG();
     netif_ip4_config_t ip4_config = {0};
-    int len, key_len;
+    int len, key_len = 0;
     len = os_strlen(ap_ssid);
-    key_len = os_strlen(ap_key);
+    if (ap_key)
+        key_len = os_strlen(ap_key);
     if (SSID_MAX_LEN < len) {
         WDRV_LOGE("ssid name more than 32 Bytes\r\n");
         return BK_FAIL;
@@ -76,7 +77,8 @@ int wdrv_demo_softap_init(char *ap_ssid, char *ap_key, char *ap_channel)
     BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
 
     os_strcpy(ap_config.ssid, ap_ssid);
-    os_strcpy(ap_config.password, ap_key);
+    if (ap_key)
+        os_strcpy(ap_config.password, ap_key);
 
     if (ap_channel) {
         int channel;
@@ -233,15 +235,15 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
         char *ap_ssid = NULL;
         char *ap_key = "";
         char *ap_channel = NULL;
-        if (argC == 2)
+        if (argC == 3)
             ap_ssid = argV[2];
-        else if (argC == 3) {
+        else if (argC == 4) {
             ap_ssid = argV[2];
             if (os_strlen(argV[3]) <= 2)
                 ap_channel = argV[3];
             else
                 ap_key = argV[3];
-        } else if (argC == 4) {
+        } else if (argC == 5) {
             ap_ssid = argV[2];
             ap_key = argV[3];
             ap_channel = argV[4];
