@@ -472,6 +472,7 @@ int cmd_wlan_get_ps_status();
 void demo_scan_app_init(void);
 void demo_scan_adv_app_init(uint8_t *oob_ssid);
 int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel);
+int demo_softap_hidden_init(char *ap_ssid, char *ap_key, char *ap_channel);
 #ifdef CONFIG_CONNECT_THROUGH_PSK_OR_SAE_PASSWORD
 int demo_sta_app_init(char *oob_ssid, u8 *psk, char *connect_key);
 #else
