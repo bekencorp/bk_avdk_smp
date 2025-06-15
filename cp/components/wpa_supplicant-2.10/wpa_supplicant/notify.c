@@ -358,7 +358,7 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 		sta_disconnected.disconnect_reason = state.reason_code;
 
 		#if CONFIG_WIFI_VNET_CONTROLLER
-		cif_handle_bk_cmd_disconnect_ind();
+		cif_handle_bk_cmd_disconnect_ind(local_generated, state.reason_code);
 		#endif
 
 		BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
