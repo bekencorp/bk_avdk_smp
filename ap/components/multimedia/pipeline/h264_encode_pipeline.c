@@ -530,7 +530,12 @@ static void h264_encode_pingpang_buf_continue_handle()
 {
     H264_LINE_START();
     if (h264_encode_config->line_done_index < h264_encode_config->line_done_cnt)
+	{
+		// this is for delay 10us, when start the next h264 encode;
+		// h264 encode interval is too short maybe cause timeout
+		for (volatile int i = 0 ; i < 200 ; i ++);
         bk_yuv_buf_rencode_start();
+	}
     h264_encode_config->line_done_index ++;
 
     if (h264_encode_config->line_done_index == h264_encode_config->line_done_cnt)

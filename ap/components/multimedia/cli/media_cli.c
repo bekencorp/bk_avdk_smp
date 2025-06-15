@@ -419,7 +419,7 @@ void media_cli_lcd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
     if (os_strcmp(argv[1], "open") == 0)
     {
         media_app_set_rotate(rotate);
-        if (os_strcmp(argv[1], "fb") == 0)
+        if (os_strcmp(argv[2], "fb") == 0)
         {
             img_service_open();
         }
