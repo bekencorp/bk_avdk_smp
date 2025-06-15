@@ -296,6 +296,7 @@ struct bk_msg_start_ap_req
     uint8_t ssid[AP_SSID_BUF_MAX];
     uint8_t pw[AP_PSWD_BUF_MAX];
     uint8_t channel;
+    uint8_t hidden;
 };
 struct bk_msg_ap_status_cfm
 {

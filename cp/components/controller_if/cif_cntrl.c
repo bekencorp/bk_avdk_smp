@@ -304,15 +304,26 @@ bk_err_t cif_handle_bk_cmd_start_ap_req(struct bk_msg_hdr *msg)
         cif_bk_cmd_confirm(msg, NULL, 0);
         char channel[3];
         itoa(buf->channel, channel, 10);
-        if(BK_OK == demo_softap_app_init((char *)buf->ssid, (char *)buf->pw, (char *)channel))
-        {
-            cif_handle_bk_cmd_start_ap_ind(CONTROLLER_AP_START);
+        uint8_t hidden_flag = buf->hidden;
+        if (hidden_flag) {
+            if(BK_OK == demo_softap_hidden_init((char *)buf->ssid, (char *)buf->pw, (char *)channel))
+            {
+                cif_handle_bk_cmd_start_ap_ind(CONTROLLER_AP_START);
+            }
+            else
+            {
+                cif_handle_bk_cmd_start_ap_ind(CONTROLLER_AP_CLOSE);
+            }
+        } else {
+            if(BK_OK == demo_softap_app_init((char *)buf->ssid, (char *)buf->pw, (char *)channel))
+            {
+                cif_handle_bk_cmd_start_ap_ind(CONTROLLER_AP_START);
+            }
+            else
+            {
+                cif_handle_bk_cmd_start_ap_ind(CONTROLLER_AP_CLOSE);
+            }
         }
-        else
-        {
-            cif_handle_bk_cmd_start_ap_ind(CONTROLLER_AP_CLOSE);
-        }
-
     }
 
     return BK_OK;
