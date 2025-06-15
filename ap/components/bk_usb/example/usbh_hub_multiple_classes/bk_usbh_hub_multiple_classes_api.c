@@ -184,6 +184,8 @@ bk_err_t bk_usbh_hub_multiple_devices_power_on(E_USB_MODE mode, E_USB_HUB_PORT_I
 		return BK_FAIL;
 	}
 
+	bk_usb_driver_task_lock_mutex();
+
 	if(!usb_hub_class_dev->usbh_hub_class_device_vote_power_flag[port_index]) {
 		gpio_id = bk_usbh_hub_get_port_vbus_control_gpio_id(port_index);
 		bk_usbh_hub_port_power_ops(gpio_id, 1);
@@ -201,7 +203,7 @@ bk_err_t bk_usbh_hub_multiple_devices_power_on(E_USB_MODE mode, E_USB_HUB_PORT_I
 	}
 
 	usb_hub_class_dev->usbh_hub_class_device_vote_power_flag[port_index] |= (0x1 << class_dev_index);
-
+	bk_usb_driver_task_unlock_mutex();
 	return ret;
 
 }
@@ -223,6 +225,8 @@ bk_err_t bk_usbh_hub_multiple_devices_power_down(E_USB_MODE mode, E_USB_HUB_PORT
 		USB_HUB_MD_LOGE("%s CLASS_DEV_INDEX IS ERROR\r\n", __func__);
 		return BK_FAIL;
 	}
+
+	bk_usb_driver_task_lock_mutex();
 
 	usb_hub_class_dev->usbh_hub_class_device_vote_power_flag[port_index] &= ~(0x1 << class_dev_index);
 	if(!usb_hub_class_dev->usbh_hub_class_device_vote_power_flag[port_index]) {
@@ -252,6 +256,7 @@ bk_err_t bk_usbh_hub_multiple_devices_power_down(E_USB_MODE mode, E_USB_HUB_PORT
 			bk_usb_power_ops(CONFIG_USB_VBAT_CONTROL_GPIO_ID, 0);
 		}
 	}
+	bk_usb_driver_task_unlock_mutex();
 	return ret;
 }
 
@@ -870,7 +875,7 @@ bk_err_t bk_usbh_hub_port_dev_open(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVICE
 		return BK_FAIL;
 	}
 
-	bk_usb_driver_task_lock_mutex();
+	usbh_hub_event_lock_mutex();
 	usbh_ep0_pipe_reconfigure(port_dev_info->hport->ep0, port_dev_info->hport->dev_addr, 0x40, port_dev_info->hport->speed);
 
 	switch (device_index)
@@ -922,7 +927,7 @@ bk_err_t bk_usbh_hub_port_dev_open(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVICE
 			ret = BK_FAIL;
 			break;
 	}
-	bk_usb_driver_task_unlock_mutex();
+	usbh_hub_event_unlock_mutex();
 
 	return ret;
 }
@@ -951,7 +956,7 @@ bk_err_t bk_usbh_hub_port_dev_close(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVIC
 		return BK_FAIL;
 	}
 
-	bk_usb_driver_task_lock_mutex();
+	usbh_hub_event_lock_mutex();
 	usbh_ep0_pipe_reconfigure(port_dev_info->hport->ep0, port_dev_info->hport->dev_addr, 0x40, port_dev_info->hport->speed);
 
 	switch (device_index)
@@ -973,7 +978,7 @@ bk_err_t bk_usbh_hub_port_dev_close(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVIC
 		default:
 			break;
 	}
-	bk_usb_driver_task_unlock_mutex();
+	usbh_hub_event_unlock_mutex();
 
 	return ret;
 }

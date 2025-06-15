@@ -615,12 +615,13 @@ static void usbh_hub_events(struct usbh_hub *hub)
 
         portchange_index &= ~(1 << (port + 1));
         USB_LOG_DBG("Port %d change hub_addr:%d\r\n", port + 1, hub->hub_addr);
+        usbh_hub_event_lock_mutex();
         if (!hub->is_roothub) {
              usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
         }
-
         /* Read hub port status */
         ret = usbh_hub_get_portstatus(hub, port + 1, &port_status);
+        usbh_hub_event_unlock_mutex();
         if (ret < 0) {
             USB_LOG_ERR("Failed to read port %u status, errorcode: %d\r\n", port + 1, ret);
             continue;
@@ -641,7 +642,12 @@ static void usbh_hub_events(struct usbh_hub *hub)
                 return;
             }
             if (portchange & mask) {
+                usbh_hub_event_lock_mutex();
+                if (!hub->is_roothub) {
+                    usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
+                }
                 ret = usbh_hub_clear_feature(hub, port + 1, feat);
+                usbh_hub_event_unlock_mutex();
                 if (ret < 0) {
                     clear_feature_err_count++;
                     USB_LOG_ERR("Failed to clear port %u, change mask:%04x, errorcode:%d\r\n", port + 1, mask, ret);
@@ -661,11 +667,13 @@ static void usbh_hub_events(struct usbh_hub *hub)
             uint16_t debouncestable = 0;
             for (uint32_t debouncetime = 0; debouncetime < DEBOUNCE_TIMEOUT; debouncetime += DEBOUNCE_TIME_STEP) {
                 usb_osal_msleep(DEBOUNCE_TIME_STEP);
+                usbh_hub_event_lock_mutex();
                 if (!hub->is_roothub) {
                     usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
                 }
                 /* Read hub port status */
                 ret = usbh_hub_get_portstatus(hub, port + 1, &port_status);
+                usbh_hub_event_unlock_mutex();
                 if (ret < 0) {
                     USB_LOG_ERR("Failed to read port %u status, errorcode: %d\r\n", port + 1, ret);
                     continue;
@@ -688,7 +696,12 @@ static void usbh_hub_events(struct usbh_hub *hub)
                 connection = portstatus & HUB_PORT_STATUS_CONNECTION;
 
                 if (portchange & HUB_PORT_STATUS_C_CONNECTION) {
+                    usbh_hub_event_lock_mutex();
+                    if (!hub->is_roothub) {
+                        usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
+                    }
                     usbh_hub_clear_feature(hub, port + 1, HUB_PORT_FEATURE_C_CONNECTION);
+                    usbh_hub_event_unlock_mutex();
                 }
             }
 
@@ -700,11 +713,12 @@ static void usbh_hub_events(struct usbh_hub *hub)
                     usbh_hub_events_disconnect_handle(hub, child, port);
                 }
 
+                usbh_hub_event_lock_mutex();
                 if (!hub->is_roothub) {
                     usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
                 }
-
                 ret = usbh_hub_set_feature(hub, port + 1, HUB_PORT_FEATURE_RESET);
+                usbh_hub_event_unlock_mutex();
                 if (ret < 0) {
                     USB_LOG_ERR("Failed to reset port %u,errorcode:%d\r\n", port, ret);
                     continue;
@@ -712,7 +726,12 @@ static void usbh_hub_events(struct usbh_hub *hub)
 
                 usb_osal_msleep(DELAY_TIME_AFTER_RESET);
                 /* Read hub port status */
+                usbh_hub_event_lock_mutex();
+                if (!hub->is_roothub) {
+                    usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
+                }
                 ret = usbh_hub_get_portstatus(hub, port + 1, &port_status);
+                usbh_hub_event_unlock_mutex();
                 if (ret < 0) {
                     USB_LOG_ERR("Failed to read port %u status, errorcode: %d\r\n", port + 1, ret);
                     continue;
@@ -722,7 +741,12 @@ static void usbh_hub_events(struct usbh_hub *hub)
                 portchange = port_status.wPortChange;
                 if (!(portstatus & HUB_PORT_STATUS_RESET) && (portstatus & HUB_PORT_STATUS_ENABLE)) {
                     if (portchange & HUB_PORT_STATUS_C_RESET) {
+                        usbh_hub_event_lock_mutex();
+                        if (!hub->is_roothub) {
+                            usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
+                        }
                         ret = usbh_hub_clear_feature(hub, port + 1, HUB_PORT_FEATURE_C_RESET);
+                        usbh_hub_event_unlock_mutex();
                         if (ret < 0) {
                             USB_LOG_ERR("Failed to clear port %u reset change, errorcode: %d\r\n", port, ret);
                         }
@@ -784,9 +808,7 @@ static void usbh_hub_thread(void *argument)
                 if(msg.callback != NULL) {
                     msg.callback();
                 }
-                usbh_hub_event_lock_mutex();
                 usbh_hub_events((struct usbh_hub *)msg.arg);
-                usbh_hub_event_unlock_mutex();
             }
         }
     }

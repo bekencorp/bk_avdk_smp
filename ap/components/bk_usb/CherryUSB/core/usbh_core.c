@@ -446,6 +446,7 @@ int usbh_enumerate(struct usbh_hubport *hport)
 #define USB_REQUEST_BUFFER_SIZE 256
     setup = &hport->setup;
 
+    usbh_hub_event_lock_mutex();
     /* Configure EP0 with the default maximum packet size */
     usbh_hport_activate_ep0(hport);
 
@@ -670,6 +671,7 @@ int usbh_enumerate(struct usbh_hubport *hport)
         goto errout;
     }
 
+    usbh_hub_event_unlock_mutex();
     USB_LOG_INFO("Enumeration success, start loading class driver\r\n");
     /*search supported class driver*/
     for (uint8_t i = 0; i < hport->config.config_desc.bNumInterfaces; i++) {
@@ -689,6 +691,7 @@ int usbh_enumerate(struct usbh_hubport *hport)
         USB_LOG_DBG("Loading %s class driver\r\n", class_driver->driver_name);
         ret = CLASS_CONNECT(hport, i);
         if (ret < 0) {
+            usbh_hub_event_lock_mutex();
             ret = CLASS_DISCONNECT(hport, i);
             goto errout;
         }
@@ -705,7 +708,7 @@ errout:
             hport->raw_config_desc = NULL;
         }
     }
-
+    usbh_hub_event_unlock_mutex();
     return ret;
 }
 
