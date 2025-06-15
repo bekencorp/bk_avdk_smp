@@ -2209,7 +2209,7 @@ bk_err_t bk_wifi_sta_stop(void)
 	wifi_clear_state_bit(WIFI_STA_STARTED_BIT);
 	WIFI_LOGI("sta stopped(%x)\n", s_wifi_state_bits);
 #if CONFIG_WIFI_VNET_CONTROLLER
-	cif_handle_bk_cmd_disconnect_ind();
+	//cif_handle_bk_cmd_disconnect_ind(true, WIFI_REASON_RESERVED);
 #endif
 	return BK_OK;
 }
