@@ -149,15 +149,16 @@ void wdrv_notify_sta_connected(void)
                                 &sta_connected, sizeof(sta_connected), BEKEN_NEVER_TIMEOUT));
 }
 
-void wdrv_notify_sta_disconnected(void)
+void wdrv_notify_sta_disconnected(void *data, uint16_t len)
 {
-    wifi_event_sta_connected_t sta_connected = {0};
-    /* post event sta_connected*/
-    os_memset(&sta_connected, 0, sizeof(sta_connected));
-    os_memcpy(&sta_connected.ssid, wdrv_host_env.connect_ind.ussid, sizeof(wdrv_host_env.connect_ind.ussid));
+    wifi_event_sta_disconnected_t sta_disconnected = {0};
+    os_memcpy(&sta_disconnected, data, len);
 
+    /* post event */
+    WDRV_LOGD("sta disconnect reason %d,local %d\n",
+    sta_disconnected.disconnect_reason, sta_disconnected.local_generated);
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
-                                &sta_connected, sizeof(sta_connected), BEKEN_NEVER_TIMEOUT));
+                             &sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
 }
 
 void wdrv_notify_sap_sta_connected(void)
@@ -355,7 +356,7 @@ void wdrv_rx_handle_event(wdrv_rx_msg *msg)
             wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_DISCONNECTED;
             wdrv_host_env.wlan_mode = WIFI_MODE_IDLE;
             WDRV_LOGI("WLAN-INDICATE: disconected and stop send data\n");
-            wdrv_notify_sta_disconnected();
+            wdrv_notify_sta_disconnected(msg->param, msg->param_len);
             break;
         case BK_EVT_CUSTOMER_IND:
             WDRV_LOGD(TAG, "Smart Config\n");
