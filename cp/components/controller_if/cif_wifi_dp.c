@@ -55,7 +55,7 @@ bk_err_t cif_handle_txdata(void *head)
     uint8_t ret = BK_OK;
     struct pbuf* pbuf = NULL;
     cpdu_t* cpdu = (cpdu_t*)head;
-    uint8_t vif_id = cif_vif_id_route();
+    uint8_t vif_id = cpdu->co_hdr.vif_idx + 0xF;//cif_vif_id_route();
 
     //struct tx_desc_tag * tx_desc = NULL;
     pbuf = (struct pbuf*)((uint8_t*)head - sizeof(struct pbuf));

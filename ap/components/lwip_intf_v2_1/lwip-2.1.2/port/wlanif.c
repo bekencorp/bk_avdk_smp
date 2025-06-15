@@ -210,12 +210,22 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 {
         int ret;
         err_t err = ERR_OK;
-        uint8_t vif_idx = 0;//TODO: add vif index.wifi_netif_vif_to_vifid(netif->state); 
+        uint8_t vif_idx = 0;
+        struct netif* sta_netif = net_get_sta_handle();
+        struct netif* sap_netif = net_get_uap_handle();
         cpdu_t* cpdu = (cpdu_t*)(p + 1);
         // Sanity check
-        if (vif_idx == 0xff)
+        if(netif == sta_netif){
+            vif_idx = 0;
+        }else if(netif == sap_netif){
+            vif_idx = 1;
+        }else{
+            os_printf("%s,%d,netif err!\n",__func__,__LINE__);
             return ERR_ARG;
+        }
+        cpdu->co_hdr.vif_idx = vif_idx;
         cpdu->co_hdr.need_free = 0;
+        //bk_mem_dump("low_level",(uint32_t)p->payload,p->len);
         ret = wdrv_txdata_sender(p,vif_idx);
 
         if(0 != ret)
