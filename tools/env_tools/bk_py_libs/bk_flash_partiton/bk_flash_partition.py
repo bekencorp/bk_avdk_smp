@@ -1,9 +1,10 @@
 import copy
 import json
+import logging
 import os
 from pathlib import Path
 
-from . import logger
+logger = logging.getLogger(__package__)
 
 
 def size_format(size, include_size):
@@ -377,7 +378,7 @@ class bk_flash_partition:
             "ota_fina_executive",
             "application2",
             "easyflash",
-            "easyflash_ap"
+            "easyflash_ap",
         ]
         keys.extend(["max"])
         values = range(len(keys))

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import logging
 import struct
 from pathlib import Path
 
 from bk_crc import bk_crc32
 
-from . import logger
 from .bk_packager_json import PartitionInfo
 from .bk_packager_linker import bk_packager_linker
+
+logger = logging.getLogger(__package__)
 
 
 class bk_packager_format_linker(bk_packager_linker):

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import NamedTuple
 
-from . import logger
+logger = logging.getLogger(__package__)
 
 
 class PartitionInfo(NamedTuple):

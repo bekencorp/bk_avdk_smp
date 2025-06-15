@@ -1,8 +1,10 @@
+import logging
 from pathlib import Path
 
-from . import logger
 from .bk_packager import bk_packager
 from .bk_packager_format_linker import bk_packager_format_linker
+
+logger = logging.getLogger(__package__)
 
 
 class bk_packager_format(bk_packager):

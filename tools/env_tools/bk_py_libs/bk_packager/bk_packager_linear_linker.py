@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import BinaryIO
 
-from . import logger
 from .bk_packager_json import PartitionInfo
 from .bk_packager_linker import bk_packager_linker
+
+logger = logging.getLogger(__package__)
 
 
 class bk_packager_linear_linker(bk_packager_linker):

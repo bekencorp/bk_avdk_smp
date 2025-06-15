@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
-from . import logger
+logger = logging.getLogger(__package__)
 
 OUTPUT_LINE_MAX_LEN = 60
 

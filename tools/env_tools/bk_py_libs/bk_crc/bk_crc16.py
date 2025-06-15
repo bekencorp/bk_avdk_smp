@@ -1,7 +1,8 @@
+import logging
 import shutil
 from pathlib import Path
 
-from . import logger
+logger = logging.getLogger(__package__)
 
 
 def crc16(data: bytes, offset: int, length: int):
@@ -21,9 +22,6 @@ def crc16(data: bytes, offset: int, length: int):
 class bk_crc16:
     CRC_PACK_LEN = 32
     PADDING_BYTE = bytes([0xFF])
-
-    def __init__(self):
-        pass
 
     def compute_crced_size(self, raw_size: int) -> int:
         return (

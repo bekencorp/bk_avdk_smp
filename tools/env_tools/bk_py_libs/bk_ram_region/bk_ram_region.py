@@ -1,8 +1,9 @@
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import logger
+logger = logging.getLogger(__package__)
 
 
 @dataclass

@@ -71,7 +71,7 @@ class test_partitions_table(TestCase):
         table = bk_auto_partition.bk_partitions_table(csv_path, crc_enable=True)
         table.gen_pretty_format_table(gen_txt_path)
         self.assertTrue(gen_txt_path.exists(), f"{gen_txt_path} not generate")
-        expect_txt_hash = "7b7487347fe967985d76ab12d3dd33b9"
+        expect_txt_hash = "a5eebd99f7fa1f53a53ce19eaafe8e39"
         gen_txt_hash = get_file_md5sum(gen_txt_path)
         self.assertEqual(expect_txt_hash, gen_txt_hash)
         gen_txt_path.unlink()

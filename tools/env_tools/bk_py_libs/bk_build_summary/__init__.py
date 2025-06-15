@@ -1,10 +1,10 @@
 import logging
 
-__version__ = "0.0.1"
-__all__ = ["bk_build_summary"]
-logger = logging.getLogger(__name__)
+from .bk_build_summary import bk_build_summary
 
-from .bk_build_summary import bk_build_summary  # noqa: E402
+__version__ = "0.0.1"
+
+__all__ = ["bk_build_summary"]
 
 
 def set_debug_log():

@@ -1,9 +1,11 @@
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from . import logger
 from .bk_packager_json import parse_packager_json
 from .bk_packager_linker import bk_packager_linker
+
+logger = logging.getLogger(__package__)
 
 
 class bk_packager(ABC):

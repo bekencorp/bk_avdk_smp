@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
 
-from . import logger
+logger = logging.getLogger(__package__)
 
 
 class bk_ota_partition:

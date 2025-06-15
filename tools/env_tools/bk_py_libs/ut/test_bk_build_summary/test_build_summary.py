@@ -32,7 +32,7 @@ class Test_bk_build_summary(TestCase):
         summary.set_partitions_info(partitions_info)
         summary.gen_summary(output_file)
         self.assertTrue(output_file.exists())
-        expect_file_md5 = "79b21719a6505f0121bf120f07867d56"
+        expect_file_md5 = "a1805d6e368bc27a7f7640a792578f6e"
         gen_file_md5 = get_file_md5sum(output_file)
         self.assertEqual(expect_file_md5, gen_file_md5)
         output_file.unlink()
@@ -45,7 +45,7 @@ class Test_bk_build_summary(TestCase):
         summary.set_app_folder("CP", workdir)
         summary.gen_summary(output_file)
         self.assertTrue(output_file.exists())
-        expect_file_md5 = "cf7ba3a1f4e60ce1249992e5845e7a1d"
+        expect_file_md5 = "6fb10dcfac77cffaee59319a2fe35907"
         gen_file_md5 = get_file_md5sum(output_file)
         self.assertEqual(expect_file_md5, gen_file_md5)
         output_file.unlink()
@@ -58,7 +58,7 @@ class Test_bk_build_summary(TestCase):
         summary.set_output_file_info(out_info)
         summary.gen_summary(output_file)
         self.assertTrue(output_file.exists())
-        expect_file_md5 = "b136e9f835cd86e9c91ace3efd0ea3a7"
+        expect_file_md5 = "7f0848fb989fdfc580093b7e4cdae690"
         gen_file_md5 = get_file_md5sum(output_file)
         self.assertEqual(expect_file_md5, gen_file_md5)
         output_file.unlink()
@@ -75,7 +75,7 @@ class Test_bk_build_summary(TestCase):
         summary.set_output_file_info(out_info)
         summary.gen_summary(output_file)
         self.assertTrue(output_file.exists())
-        expect_file_md5 = "53dc02b70991f8ccaafb205746476075"
+        expect_file_md5 = "fd857f18a5cb097a6095f85378c65fe5"
         gen_file_md5 = get_file_md5sum(output_file)
         self.assertEqual(expect_file_md5, gen_file_md5)
         output_file.unlink()

@@ -1,8 +1,11 @@
+import logging
 from pathlib import Path
 
-from . import bk_packager_crc_decorator, logger
+from . import bk_packager_crc_decorator
 from .bk_packager import bk_packager
 from .bk_packager_format_linker import bk_packager_format_linker
+
+logger = logging.getLogger(__package__)
 
 
 class bk_packager_format_crc(bk_packager):

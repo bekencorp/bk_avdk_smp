@@ -1,10 +1,10 @@
 import logging
 
-logger = logging.getLogger(__name__)
+from .bk_flash_partition import bk_flash_partition
 
 __version__ = "0.0.1"
 
-from .bk_flash_partition import bk_flash_partition  # noqa: E402
+__all__ = ["bk_flash_partition"]
 
 
 def set_debug_log():
@@ -15,6 +15,3 @@ def set_debug_log():
 def set_info_log():
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
-
-
-__all__ = ["bk_flash_partition"]

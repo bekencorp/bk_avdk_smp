@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
 
-from . import logger
 from .bk_partition import bk_partition
+
+logger = logging.getLogger(__package__)
 
 
 def parse_size(size_str: str) -> int:
