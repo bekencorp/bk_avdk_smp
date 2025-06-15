@@ -154,19 +154,18 @@ typedef enum {
  * @brief WiFi public event type
  */
 typedef enum {
-	EVENT_WIFI_SCAN_DONE = 0,      /**< WiFi scan done event */
-	EVENT_WIFI_CSI_DATA_IND,
-	EVENT_WIFI_CSI_ALG_IND,
-
-	EVENT_WIFI_STA_CONNECTED,      /**< The BK STA is connected */
+	EVENT_WIFI_SCAN_DONE = 0,	   /**< WiFi scan done event */
+	EVENT_WIFI_STA_ASSOCIATED,	   /**< WiFi associated event */
+	EVENT_WIFI_STA_CONNECTED,	   /**< The BK STA is connected */
 	EVENT_WIFI_STA_DISCONNECTED,   /**< The BK STA is disconnected */
 
-	EVENT_WIFI_AP_CONNECTED,       /**< A STA is connected to the BK AP */
+	EVENT_WIFI_AP_CONNECTED,	   /**< A STA is connected to the BK AP */
 	EVENT_WIFI_AP_DISCONNECTED,    /**< A STA is disconnected from the BK AP */
 
-	EVENT_WIFI_NETWORK_FOUND,      /**< The BK STA find target AP */
-	EVENT_WIFI_COUNT,              /**< WiFi event count */
+	EVENT_WIFI_NETWORK_FOUND,	   /**< The BK STA find target AP */
+	EVENT_WIFI_COUNT,			   /**< WiFi event count */
 } wifi_event_t;
+
 
 typedef enum {
 	WIFI_REASON_RESERVED = 0,
