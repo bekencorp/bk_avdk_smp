@@ -580,7 +580,7 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
         ) {
         g_ap_param_ptr->chann = ap_config->channel;
     } else if (ap_config->channel == 0){
-        g_ap_param_ptr->chann = DEFAULT_CHANNEL_AP;
+        g_ap_param_ptr->chann = 0;
     } else {
         WDRV_LOGE("error:invalid channel\r\n");
         return BK_FAIL;
