@@ -215,9 +215,15 @@ bk_err_t cif_handle_bk_cmd_disconnect_req(struct bk_msg_hdr *msg)
     return BK_OK;
 }
 
-bk_err_t cif_handle_bk_cmd_disconnect_ind(void)
+bk_err_t cif_handle_bk_cmd_disconnect_ind(bool local_generated, uint16_t reason_code)
 {
-    return cif_bk_send_event(BK_EVT_DISCONNECT_IND, NULL, 0);
+    wifi_event_sta_disconnected_t sta_disconnected = {0};
+
+    sta_disconnected.disconnect_reason = reason_code;
+    sta_disconnected.local_generated = local_generated;
+    //CTRL_IF_CMD("%s, reason %d,%d\n",__func__,reason_code,local_generated);
+
+    return cif_bk_send_event(BK_EVT_DISCONNECT_IND, (uint8_t *)(&sta_disconnected), sizeof(sta_disconnected));
 }
 bk_err_t cif_handle_bk_cmd_set_mac_addr_req(struct bk_msg_hdr *msg)
 {
