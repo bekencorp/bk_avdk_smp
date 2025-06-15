@@ -24,7 +24,7 @@ def parse_size(size_str: str) -> int:
 
 
 class bk_ram_region:
-    def __init__(self, ram_mem_csv: Path):
+    def __init__(self, ram_mem_csv: Path) -> None:
         self.ram_mem_csv = ram_mem_csv
         self.sram_base = 0
         self.sram_capacity = 0
@@ -34,16 +34,48 @@ class bk_ram_region:
         self.sram_regions_num = 0
         self.psram_regions_num = 0
         self.regions: list[mem_region] = []
-        self._gen_regions()
-        self._check_region_valid()
-        self._check_region_overlaps()
+        self.default_setting: list[mem_region] = []
 
-    def _gen_regions(self):
+    def set_default_setting(self, default_setting: list[mem_region]) -> None:
+        self.default_setting = default_setting
+
+    def set_sram_setting(self, sram_base: int, sram_capacity: int) -> None:
+        self.sram_base = sram_base
+        self.sram_capacity = sram_capacity
+
+    def set_psram_setting(self, psram_base: int, psram_capacity: int) -> None:
+        self.psram_base = psram_base
+        self.psram_capacity = psram_capacity
+
+    def _gen_regions(self) -> None:
         if not self.ram_mem_csv.exists():
             raise RuntimeError(f"{self.ram_mem_csv} not exists")
         self._parse_ram_mem_csv()
 
-    def _check_region_valid(self):
+    def _check_default_setting(self) -> None:
+        def find_region(def_region_name: str) -> int:
+            for id, region in enumerate(self.regions):
+                if region.name == def_region_name:
+                    return id
+            return -1
+
+        for def_item in self.default_setting:
+            region_id = find_region(def_item.name)
+            if region_id == -1:
+                msg = f"default region {def_item.name} not found"
+                raise RuntimeError(msg)
+            region = self.regions[region_id]
+            if def_item.type != region.type:
+                msg = f"{region.name} type is not valid, default type: {def_item.type}"
+                raise RuntimeError(msg)
+            if def_item.offset != region.offset:
+                msg = f"{region.name} addr is not valid, default addr: 0x{def_item.offset:08x}"
+                raise RuntimeError(msg)
+            if def_item.size != region.size:
+                msg = f"{region.name} size is not valid, default size: 0x{def_item.size:08x}"
+                raise RuntimeError(msg)
+
+    def _check_region_valid(self) -> None:
         for region in self.regions:
             if region.type == "SRAM":
                 base = self.sram_base
@@ -63,7 +95,7 @@ class bk_ram_region:
             if region.offset + region.size > base + capacity:
                 msg = (
                     f"{region.name} is out of range, end addr: 0x{limit_addr:08x},"
-                    + f"offset: 0x{region.offset:08x}, size: 0x{region.size:06x}"
+                    + f"offset: 0x{region.offset:08x}, size: 0x{region.size:06x}, {capacity=}"
                 )
                 raise RuntimeError(msg)
 
@@ -75,7 +107,7 @@ class bk_ram_region:
         intervals.sort()
         for i in range(1, len(intervals)):
             if intervals[i][0] < intervals[i - 1][1]:
-                msg = "partition table config overlaps"
+                msg = "RAM regions config overlaps"
                 raise RuntimeError(msg)
 
     def _parse_ram_mem_csv(self):
@@ -84,19 +116,10 @@ class bk_ram_region:
 
         for line in lines:
             line_content = line.strip()
-            if "#SRAM_BASE_ADDR=" in line_content:
-                self.sram_base = int(line_content.split("=")[1].strip(), 16)
-                continue
-            if "#SRAM_CAPCAITY_SIZE=" in line_content:
-                self.sram_capacity = parse_size(line_content.split("=")[1])
-                continue
-            if "#PSRAM_BASE_ADDR=" in line_content:
-                self.psram_base = int(line_content.split("=")[1].strip(), 16)
-                continue
-            if "#PSRAM_CAPCAITY_SIZE=" in line_content:
-                self.psram_capacity = parse_size(line_content.split("=")[1])
-                continue
             if line_content.startswith("#") or len(line_content) == 0:
+                continue
+            if "PSRAM_CAPCAITY_SIZE=" in line_content:
+                self.psram_capacity = parse_size(line_content.split("=")[1])
                 continue
             self._check_line_valid(line_content)
             self.regions.append(self._parse_line_mem_region(line_content))
@@ -125,6 +148,10 @@ class bk_ram_region:
             raise RuntimeError(msg)
 
     def gen_memory_layout_hdr(self, hdr_file: Path) -> None:
+        self._gen_regions()
+        self._check_default_setting()
+        self._check_region_valid()
+        self._check_region_overlaps()
         with hdr_file.open("w", newline="\n") as f:
             f.write(self._get_region_hdr_text())
         logger.info(f"generate ram region header file: {hdr_file}")

@@ -1,5 +1,3 @@
-#SRAM_BASE_ADDR=0x28000000
-#SRAM_CAPCAITY_SIZE=640K
 #Name,                   Type,     Offset,     Size
 AP_SPINLOCK,             SRAM, 0x28000000, 0x010000
 AP_RAM,                  SRAM,           , 0x054000

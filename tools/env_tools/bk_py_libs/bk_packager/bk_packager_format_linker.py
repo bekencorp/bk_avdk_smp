@@ -32,7 +32,7 @@ class bk_packager_format_linker(bk_packager_linker):
 
     def _gen_global_header(self):
         global_header = bytearray()
-        global_header += struct.pack("8s", "BKDLV10.".encode())
+        global_header += struct.pack("8s", b"BKDLV10.")
 
         header_info = bytearray()
         header_info += struct.pack(">I", 1)

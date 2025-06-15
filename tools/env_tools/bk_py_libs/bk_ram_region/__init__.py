@@ -3,7 +3,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .bk_ram_region import bk_ram_region
+from .bk_ram_region import (  # noqa: E402
+    bk_ram_region,
+    mem_region,
+)
 
 
 def set_debug_log() -> None:
@@ -16,4 +19,4 @@ def set_info_log() -> None:
     logger.setLevel(logging.INFO)
 
 
-__all__ = ["logger", "bk_ram_region"]
+__all__ = ["logger", "bk_ram_region", "mem_region"]

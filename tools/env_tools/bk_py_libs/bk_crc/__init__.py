@@ -4,8 +4,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .bk_crc16 import bk_crc16
-from .bk_crc32 import bk_crc32
+from .bk_crc16 import bk_crc16  # noqa: E402
+from .bk_crc32 import bk_crc32  # noqa: E402
 
 
 def set_debug_log():

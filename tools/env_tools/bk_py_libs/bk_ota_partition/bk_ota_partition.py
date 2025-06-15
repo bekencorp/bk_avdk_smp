@@ -9,18 +9,8 @@ from typing import Any
 from . import logger
 
 
-def size_format(size: int, include_size: bool):
-    if include_size:
-        for val, suffix in [(0x400, "K"), (0x100000, "M")]:
-            if size % val == 0:
-                return "%d%s" % (size // val, suffix)
-    size_str = "%x" % size
-    lead_zero = "0" * (8 - len(size_str))
-    return "0x%s%s" % (lead_zero, size_str)
-
-
 class bk_ota_partition:
-    def __init__(self, part_json: Path):
+    def __init__(self, part_json: Path) -> None:
         logger.info(f"read parititons from {part_json}")
         with part_json.open("r") as f:
             json_content = json.load(f)
@@ -96,12 +86,12 @@ class bk_ota_partition:
                 "beken_onchip_crc" if p["Execute"] else "beken_onchip"
             )
             part_dict["offset"] = f"0x{p['Offset']:08x}"
-            part_dict["len"] = size_format(p["Size"], True)
+            part_dict["len"] = self._size_format(p["Size"])
             part_table_dict["part_table"].append(part_dict)
             if p["Name"] in KEYWORDS.values():
-                part_dict["len"] = size_format(app_total_size, True)
+                part_dict["len"] = self._size_format(app_total_size)
             if p["Name"] == "appa":
-                part_dict["offset"] = size_format(appa_offset, False)
+                part_dict["offset"] = f"0x{appa_offset:08x}"
             if p["Name"] == "s_app":
                 part_dict["flash_name"] = "beken_onchip_crc"
 
@@ -148,8 +138,8 @@ class bk_ota_partition:
             part_dict["flash_name"] = (
                 "beken_onchip_crc" if p["Execute"] else "beken_onchip"
             )
-            part_dict["offset"] = size_format(p["Offset"], False)
-            part_dict["len"] = size_format(p["Size"], True)
+            part_dict["offset"] = f"0x{p['Offset']:08x}"
+            part_dict["len"] = self._size_format(p["Size"])
             part_table_dict["part_table"].append(part_dict)
         logger.info(f"gen package json: {ota_json}")
         with ota_json.open("w", newline="\n") as f:
@@ -197,3 +187,10 @@ class bk_ota_partition:
         logger.info(f"gen ab configuartion json: {config_json}")
         with config_json.open("w", newline="\n") as f:
             json.dump(json_content, f, indent=4)
+
+    @staticmethod
+    def _size_format(size: int) -> str:
+        for val, suffix in [(0x400, "K"), (0x100000, "M")]:
+            if size % val == 0:
+                return f"{size // val}{suffix}"
+        return f"{size}"

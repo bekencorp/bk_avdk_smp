@@ -4,7 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .bk_ota_partition import bk_ota_partition
+from .bk_ota_partition import bk_ota_partition  # noqa: E402
 
 
 def set_debug_log() -> None:

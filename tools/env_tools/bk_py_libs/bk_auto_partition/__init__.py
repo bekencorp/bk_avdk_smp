@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-from .bk_partitions_table import bk_partitions_table
+from .bk_partitions_table import bk_partitions_table  # noqa: E402
 
 
 def set_debug_log() -> None:

@@ -4,7 +4,7 @@ logger = logging.getLogger(__name__)
 
 __version__ = "0.0.1"
 
-from .bk_flash_partition import bk_flash_partition
+from .bk_flash_partition import bk_flash_partition  # noqa: E402
 
 
 def set_debug_log():

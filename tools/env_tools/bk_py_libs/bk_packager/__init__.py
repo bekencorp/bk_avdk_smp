@@ -9,10 +9,10 @@ __all__ = [
 ]
 logger = logging.getLogger(__name__)
 
-from .bk_packager_format import bk_packager_format
-from .bk_packager_format_crc import bk_packager_format_crc
-from .bk_packager_linear import bk_packager_linear
-from .bk_packager_linear_crc import bk_packager_linear_crc
+from .bk_packager_format import bk_packager_format  # noqa: E402
+from .bk_packager_format_crc import bk_packager_format_crc  # noqa: E402
+from .bk_packager_linear import bk_packager_linear  # noqa: E402
+from .bk_packager_linear_crc import bk_packager_linear_crc  # noqa: E402
 
 
 def set_debug_log():
