@@ -11,6 +11,7 @@
  */
 
 #include "soc/bk7258/reg_base.h"
+#include "ram_regions.h"
 #include "partitions.h"
 #include "sdkconfig.h"
 
@@ -28,18 +29,6 @@ __MPU_PROTECT_SIZE = 0x20;
 __MPU_PROTECT_SIZE = 0x0;
 #endif
 
-__SWAP_SIZE = (2048);
-
-
-/*****************************************************************************
-|-----------------ap sram-----------|---bt---|------cp sram-------------------|
-******************************************************************************/
-#if CONFIG_SPE
-__PRIMARY_APP_RAM_BASE = SOC_SRAM0_DATA_BASE;
-#else
-__PRIMARY_APP_RAM_BASE = SOC_SRAM0_DATA_BASE + CONFIG_CP_SPE_RAM_SIZE;
-#endif
-
 
 /*****************************************************************************
 The follow four shared memory address area mapping to the same physical memory
@@ -48,57 +37,24 @@ The follow four shared memory address area mapping to the same physical memory
     0x28000000 ~ 0x280a0000  ---- data area, recommend put sram data
     0x38000000 ~ 0x380a0000  ---- data area, recommend put sram data
 ******************************************************************************/
-#if CONFIG_SPINLOCK_SECTION
-__SMP_SPINLOCK_BASE = __PRIMARY_APP_RAM_BASE;
-__SMP_SPINLOCK_SIZE =  (64 << 10);
-/*__SMP_SPINLOCK_SIZE = (CONFIG_SPINLOCK_DYNAMIC_CNT + CONFIG_SPINLOCK_STATIC_CNT) * 16;*/
-#else
-__SMP_SPINLOCK_BASE = __PRIMARY_APP_RAM_BASE;
-__SMP_SPINLOCK_SIZE = 0;
-#endif
-
-
-#if (CONFIG_BT_REUSE_MEDIA_MEMORY)
-__BT_SRAM_SIZE = CONFIG_BT_REUSE_MEDIA_MEM_SIZE;
-#else
-__BT_SRAM_SIZE = 0;
-#endif
-__BT_SRAM_BASE = __PRIMARY_APP_RAM_BASE + CONFIG_AP_APP_RAM_SIZE - __BT_SRAM_SIZE;
-
-
-__AP_APP_RAM_BASE = __PRIMARY_APP_RAM_BASE + __SMP_SPINLOCK_SIZE;
-__AP_APP_RAM_SIZE = CONFIG_AP_APP_RAM_SIZE - __SMP_SPINLOCK_SIZE - __BT_SRAM_SIZE;
-
-
 
 __AP_APP_IRAM_OFFSET = 0x20000000;
 
-__AP_APP_IRAM_BASE = __AP_APP_RAM_BASE - __AP_APP_IRAM_OFFSET;  /*0x08000000 = 0x28000000 - __CP_APP_IRAM_OFFSET*/
-__AP_APP_IRAM_SIZE = __AP_APP_RAM_SIZE;
-
-#if CONFIG_PSRAM
-    __PSRAM_END_ADDR = SOC_PSRAM_DATA_BASE + CONFIG_PSRAM_CAPACITY_SIZE;
-    __PSRAM_MEDIA_SIZE = CONFIG_PSRAM_HEAP_BASE_ADDER - SOC_PSRAM_DATA_BASE;
-    #if (CONFIG_PSRAM_AS_SYS_MEMORY)
-    __PSRAM_SECTION_BASE = CONFIG_PSRAM_HEAP_BASE + CONFIG_PSRAM_HEAP_SIZE;
-    #else
-    __PSRAM_SECTION_BASE = CONFIG_PSRAM_HEAP_BASE;
-    #endif
-    __PSRAM_SECTION_SIZE = __PSRAM_END_ADDR - __PSRAM_SECTION_BASE;
-#endif
+__AP_APP_IRAM_BASE = CONFIG_AP_RAM_ADDR - __AP_APP_IRAM_OFFSET;  /*0x08000000 = 0x28000000 - __CP_APP_IRAM_OFFSET*/
+__AP_APP_IRAM_SIZE = CONFIG_AP_RAM_SIZE;
 
 MEMORY
 {
   FLASH (rx)            : ORIGIN = (SOC_FLASH_DATA_BASE + CONFIG_PRIMARY_CPU1_APP_VIRTUAL_CODE_START), LENGTH = CONFIG_PRIMARY_CPU1_APP_VIRTUAL_CODE_SIZE
   IRAM (rx)             : ORIGIN = __AP_APP_IRAM_BASE, LENGTH = __AP_APP_IRAM_SIZE
 #if CONFIG_SPINLOCK_SECTION
-  SPINLOCK (rwx)        : ORIGIN = __SMP_SPINLOCK_BASE, LENGTH = __SMP_SPINLOCK_SIZE
+  SPINLOCK (rwx)        : ORIGIN = CONFIG_AP_SPINLOCK_ADDR, LENGTH = CONFIG_AP_SPINLOCK_SIZE
 #endif
 
-  RAM (rwx)             : ORIGIN = __AP_APP_RAM_BASE, LENGTH = __AP_APP_RAM_SIZE
-  SWAP (rwx)            : ORIGIN = __PRIMARY_APP_RAM_BASE + CONFIG_CP_SPE_RAM_SIZE + CONFIG_AP_APP_RAM_SIZE - __SWAP_SIZE, LENGTH = __SWAP_SIZE
+  RAM (rwx)             : ORIGIN = CONFIG_AP_RAM_ADDR, LENGTH = CONFIG_AP_RAM_SIZE
+  SWAP (rwx)            : ORIGIN = CONFIG_SWAP_ADDR, LENGTH = CONFIG_SWAP_SIZE
 #if (CONFIG_BT_REUSE_MEDIA_MEMORY)
-  SRAM_BT (rwx)         : ORIGIN = __BT_SRAM_BASE, LENGTH = __BT_SRAM_SIZE
+  SRAM_BT (rwx)         : ORIGIN = CONFIG_SRAM_BT_ADDR, LENGTH = CONFIG_SRAM_BT_SIZE
 #endif
 
 #if (CONFIG_SOC_SMP)
@@ -116,11 +72,14 @@ MEMORY
 #endif
 
 #if CONFIG_PSRAM
-  PSRAM_MEDIA (rwx)     : ORIGIN = SOC_PSRAM_DATA_BASE, LENGTH = __PSRAM_MEDIA_SIZE
+  PSRAM_SLAB_USER (rwx)        : ORIGIN = CONFIG_PSRAM_MEM_SLAB_USER_ADDR, LENGTH = CONFIG_PSRAM_MEM_SLAB_USER_SIZE
+  PSRAM_SLAB_AUDIO (rwx)       : ORIGIN = CONFIG_PSRAM_MEM_SLAB_AUDIO_ADDR, LENGTH = CONFIG_PSRAM_MEM_SLAB_AUDIO_SIZE
+  PSRAM_SLAB_ENCODE (rwx)      : ORIGIN = CONFIG_PSRAM_MEM_SLAB_ENCODE_ADDR, LENGTH = CONFIG_PSRAM_MEM_SLAB_ENCODE_SIZE
+  PSRAM_SLAB_DISPLAY (rwx)     : ORIGIN = CONFIG_PSRAM_MEM_SLAB_DISPLAY_ADDR, LENGTH = CONFIG_PSRAM_MEM_SLAB_DISPLAY_SIZE
 #if (CONFIG_PSRAM_AS_SYS_MEMORY)
-  PSRAM_HEAP (rwx)      : ORIGIN = CONFIG_PSRAM_HEAP_BASE, LENGTH = CONFIG_PSRAM_HEAP_SIZE
+  PSRAM_HEAP (rwx)      : ORIGIN = CONFIG_AP_PSRAM_HEAP_ADDR, LENGTH = CONFIG_AP_PSRAM_HEAP_SIZE
 #endif
-  PSRAM_SECTION (rwx)   : ORIGIN = __PSRAM_SECTION_BASE, LENGTH = __PSRAM_SECTION_SIZE
+  PSRAM_SECTION (rwx)   : ORIGIN = CONFIG_AP_PSRAM_SECTION_ADDR, LENGTH = CONFIG_AP_PSRAM_SECTION_SIZE
 #endif
 }
 
@@ -637,12 +596,6 @@ SECTIONS
     ASSERT((s_rom_end < ORIGIN(FLASH) + LENGTH(FLASH)), "ROM overflow!!!")
     ASSERT(((ORIGIN(RAM) + LENGTH(RAM)) > (_heap_start + __MSP_STACK_SIZE + 8)), "Stack overflowed with bss")
     ASSERT(((_heap_end - _heap_start) >= __MIN_HEAP_SIZE), "Heap smaller than minimize size 32K!!!")
-#if CONFIG_PSRAM
-#if (CONFIG_PSRAM_AS_SYS_MEMORY)
-    ASSERT((CONFIG_PSRAM_HEAP_BASE + CONFIG_PSRAM_HEAP_SIZE <= __PSRAM_END_ADDR), "PSRAM_HEAP overflow!!!")
-#endif
-    ASSERT((__PSRAM_SECTION_BASE + __PSRAM_SECTION_SIZE <= __PSRAM_END_ADDR), "PSRAM_SECTION overflow!!!")
-#endif
 }
 //eof
 

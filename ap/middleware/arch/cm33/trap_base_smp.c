@@ -89,12 +89,8 @@ static void rtos_dump_plat_memory(void) {
     // Dump All SRAM
     stack_mem_dump((uint32_t)SOC_SRAM3_DATA_BASE, (uint32_t)SOC_SRAM4_DATA_BASE);
     stack_mem_dump((uint32_t)SOC_SRAM4_DATA_BASE, (uint32_t)SOC_SRAM_DATA_END);
-#if (!CONFIG_SPE)
-    stack_mem_dump((uint32_t)SOC_SRAM0_DATA_BASE + CONFIG_CP_SPE_RAM_SIZE, (uint32_t)SOC_SRAM2_DATA_BASE);
-#else
     stack_mem_dump((uint32_t)SOC_SRAM0_DATA_BASE, (uint32_t)SOC_SRAM1_DATA_BASE);
     stack_mem_dump((uint32_t)SOC_SRAM1_DATA_BASE, (uint32_t)SOC_SRAM2_DATA_BASE);
-#endif
     stack_mem_dump((uint32_t)SOC_SRAM2_DATA_BASE, (uint32_t)SOC_SRAM3_DATA_BASE);
 
 #if CONFIG_SOC_BK7236XX
