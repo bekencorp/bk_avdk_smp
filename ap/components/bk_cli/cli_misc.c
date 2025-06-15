@@ -117,13 +117,28 @@ void get_id(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 	CLI_LOGI("id : %x_%x",sys_drv_get_device_id(), sys_drv_get_chip_id());
 }
 
+#if CONFIG_NTP_SYNC_RTC
+#include <time/ntp.h>
+#endif
 static void uptime_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	CLI_LOGI("OS time %ldms\r\n", rtos_get_time());
 #if CONFIG_NTP_SYNC_RTC
-	extern time_t timestamp_get();
-	time_t cur_time = timestamp_get();
-	CLI_LOGI("Current time:%s\n", ctime(&cur_time));
+	time_t cur_time = ntp_sync_to_rtc();
+	if (cur_time)
+	{
+		CLI_LOGW("\r\nGet local time from NTP server: %s", ctime(&cur_time));
+	} else {
+		extern time_t timestamp_get();
+		cur_time = timestamp_get();
+		CLI_LOGW("Current time:%s\n", ctime(&cur_time));
+	}
+
+	struct timeval tv;
+	bk_rtc_gettimeofday(&tv, 0);
+	long ms_time = (tv.tv_usec / 1000);
+	CLI_LOGI("%s NTP Time s=%ld\r\n", __func__, tv.tv_sec);
+	CLI_LOGI("%s NTP Time ms=%ld\r\n", __func__, ms_time);
 #endif
 
 #if CONFIG_AON_RTC
