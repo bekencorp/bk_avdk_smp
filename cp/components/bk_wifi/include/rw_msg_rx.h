@@ -22,6 +22,11 @@
 #define GENMASK_ULL(h, l) (((~0ULL) << (l)) & (~0ULL >> (64 - 1 - (h))))
 #endif
 
+#define MAX_CHANNEL_SUPPORT_INDEX_FOR_2_4G       (14)
+#define CHANNEL_ONE_FREQUENCY_FOR_2_4G           (2412)
+#define CHANNEL_FOURTEEN_FREQUENCY_FOR_2_4G      (2484)
+
+
 extern void mr_kmsg_init(void);
 extern void rwnx_recv_msg(void);
 extern void mhdr_assoc_cfm_cb(FUNC_2PARAM_PTR ind_cb, void *ctxt);

@@ -84,7 +84,7 @@ int fhost_txdesc_init(struct txdesc *txdesc, uint32_t *seg_addr, int *seg_len, i
 int fhost_txdesc_mgmt_init(struct txdesc *txdesc, uint32_t addr, int len);
 int fhost_txdesc_raw_ext_init(struct txdesc *txdesc, uint32_t addr, int len,
 	uint32_t retry_cnt, uint32_t tx_rate, uint32_t tx_power);
-void txl_cntrl_set_timeout_per_ac(uint8_t ac, uint16_t timeout_ms);
+bk_err_t txl_cntrl_set_timeout_per_ac(uint8_t ac, uint16_t timeout_ms);
 int txdesc_extra_size();
 
 #endif // __FMAC_TX_H_

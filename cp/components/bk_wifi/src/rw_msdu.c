@@ -806,9 +806,19 @@ void rwm_transfer_raw_ex_node(MSDU_NODE_T *node, raw_tx_cntrl_t *raw_tx_cntrl)
 	//struct vif_info_tag *vif;
 	UINT8 retry_cnt = 0;
 	content_ptr = rwm_get_mpdu_content_ptr(node);
+	bk_err_t ret = BK_OK;
 
-	bk_wifi_get_tx_raw_ac(&queue_idx);
-	bk_wifi_get_tx_raw_timeout(&raw_timeout);
+	//bk_wifi_get_tx_raw_ac(&queue_idx);
+	//bk_wifi_get_tx_raw_timeout(&raw_timeout);
+
+	queue_idx = raw_tx_cntrl->tx_ac;
+	raw_timeout = raw_tx_cntrl->tx_timeout_ms;
+
+	// update tx timeout to 50ms
+	ret = txl_cntrl_set_timeout_per_ac(queue_idx, raw_timeout);
+
+	if (ret != BK_OK)
+		goto tx_exit;
 
 	// alloc fhost tx desc
 	fhost_txdesc = (struct fhost_txdesc *)wifi_zalloc(sizeof(struct fhost_txdesc));
@@ -837,7 +847,7 @@ void rwm_transfer_raw_ex_node(MSDU_NODE_T *node, raw_tx_cntrl_t *raw_tx_cntrl)
 	txl_buf->buffer_control.policy_tbl.powercntrlinfo[0] = TX_PWR_LEVEL_SET(raw_tx_cntrl->tx_power& 0xffu);
 
 	// update tx timeout to 50ms
-	txl_cntrl_set_timeout_per_ac(queue_idx, raw_timeout);
+	//txl_cntrl_set_timeout_per_ac(queue_idx, raw_timeout);
 
 	// setup hostdesc
 	host->flags = TXU_CNTRL_MGMT;

@@ -46,7 +46,6 @@
 #include "bk_wifi_prop_private.h"
 #include "net.h"
 #include "fhost_msg.h"
-//#include <modules/raw_link.h>
 #include <modules/wifi_types.h>
 
 uint32_t resultful_scan_cfm = 0;
@@ -1347,15 +1346,15 @@ void rwnx_chan_survey_ind_handler(void *msg)
 	RWNX_LOGD("chan_survey busy %d ms time %d ms noise %d freq %d\r\n",
 			 ind->chan_time_busy_ms,ind->chan_time_ms,ind->noise_dbm,ind->freq);
 
-	if(ind->freq < 2412)
+	if((ind->freq < CHANNEL_ONE_FREQUENCY_FOR_2_4G) || (ind->freq >= CHANNEL_FOURTEEN_FREQUENCY_FOR_2_4G))
 	{
 		return;
 	}
 
-	chan_idx = (ind->freq - 2412) / 5;
+	chan_idx = (ind->freq - CHANNEL_ONE_FREQUENCY_FOR_2_4G) / 5;
 	RWNX_LOGD("%s chan_idx %d\r\n",__func__,chan_idx);
 
-	if(chan_idx != 0xFF)
+	if((chan_idx != 0xFF) && (chan_idx < MAX_CHANNEL_SUPPORT_INDEX_FOR_2_4G))
 	{
 		wifi_rlk_info.chan[chan_idx].freq = ind->freq;
 		wifi_rlk_info.chan[chan_idx].noise_dbm = ind->noise_dbm;

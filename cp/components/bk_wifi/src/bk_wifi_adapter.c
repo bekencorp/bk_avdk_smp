@@ -1440,6 +1440,7 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t g_wifi_os_funcs = {
 	._tpc_get_media_pwr_level = NULL,
 	#endif
 	._rw_ieee80211_init_scan_chan = rw_ieee80211_init_scan_chan,
+	._rw_ieee80211_get_scan_default_chan_num = rw_ieee80211_get_scan_default_chan_num,
 	._rwnx_set_bk_rlk_start = rwnx_set_wifi_rlk_start,
 	._sr_get_scan_number = sr_get_scan_number,
 	._sr_get_scan_results = sr_get_scan_results,

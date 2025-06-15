@@ -814,9 +814,20 @@ void rwnx_start_xmit_raw_ex(struct sk_buff *skb, raw_tx_cntrl_t *raw_tx_cntrl)
 	struct rwnx_txq *txq;
 	bool more_pbuf = !!(rwnx_hw_mm_features() & (1ULL << MM_FEAT_MORE_TBD_BIT));
 	int p_cnt = 0;
+	bk_err_t ret = BK_OK;
 
-	bk_wifi_get_tx_raw_ac(&queue_idx);
-	bk_wifi_get_tx_raw_timeout(&raw_timeout);
+	queue_idx = raw_tx_cntrl->tx_ac;
+	raw_timeout = raw_tx_cntrl->tx_timeout_ms;
+
+	// update tx timeout to 50ms
+	ret = txl_cntrl_set_timeout_per_ac(queue_idx, raw_timeout);
+
+	if (ret != BK_OK)
+		goto tx_exit;
+
+
+	//bk_wifi_get_tx_raw_ac(&queue_idx);
+	//bk_wifi_get_tx_raw_timeout(&raw_timeout);
 
 	// sanity check
 	if (skb->vif_idx == INVALID_VIF_IDX)
@@ -857,9 +868,6 @@ void rwnx_start_xmit_raw_ex(struct sk_buff *skb, raw_tx_cntrl_t *raw_tx_cntrl)
 
 	fhost_txdesc_raw_ext_init(txdesc, (uint32_t)skb->msdu_ptr, skb->len,
 		raw_tx_cntrl->tx_retry_cnt, raw_tx_cntrl->tx_rate, raw_tx_cntrl->tx_power);
-
-	// update tx timeout to 50ms
-	txl_cntrl_set_timeout_per_ac(queue_idx, raw_timeout);
 
 	// setup hostdesc
 	host->flags = TXU_CNTRL_MGMT;

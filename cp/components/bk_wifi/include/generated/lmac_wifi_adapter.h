@@ -259,6 +259,7 @@ typedef struct {
 	void(*_tpc_set_media_pwr_level)(UINT8 level);
 	UINT8(*_tpc_get_media_pwr_level)(void);
 	UINT8 (*_rw_ieee80211_init_scan_chan)(void *req);
+	UINT8 (*_rw_ieee80211_get_scan_default_chan_num)(void);
 	void (*_rwnx_set_bk_rlk_start)(uint32_t rlk_start);
 	uint32_t (*_sr_get_scan_number)(void);
 	void *(*_sr_get_scan_results)(void);
