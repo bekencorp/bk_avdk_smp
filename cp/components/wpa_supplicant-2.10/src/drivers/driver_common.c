@@ -16,16 +16,27 @@ void wpa_scan_results_free(struct wpa_scan_results *res)
 
 	if (res == NULL)
 		return;
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+	for (i = 0; i < res->num; i++) {
+		psram_free(res->res[i]);
+		res->res[i] = 0;
+	}
 
+	psram_free(res->res);
+	res->res = 0;
+
+	psram_free(res);
+#else
 	for (i = 0; i < res->num; i++) {
 		os_free(res->res[i]);
 		res->res[i] = 0;
 	}
-	
+
 	os_free(res->res);
 	res->res = 0;
-	
+
 	os_free(res);
+#endif
 }
 
 

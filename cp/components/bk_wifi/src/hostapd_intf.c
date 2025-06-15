@@ -694,7 +694,11 @@ int wpa_get_scan_rst(struct prism2_hostapd_param *param, int len)
 			}
 		}
 #else
+		#if CONFIG_PSRAM_AS_SYS_MEMORY
+		r = psram_zalloc(sizeof(*r) + ie_len);
+		#else
 		r = os_zalloc(sizeof(*r) + ie_len);
+		#endif
 		if (r == NULL) {
 			uint32_t total_size,free_size,mini_size;
 			#if CONFIG_MEM_DEBUG && CONFIG_FREERTOS
