@@ -163,13 +163,6 @@ bk_err_t bk_gpio_driver_init(void)
 	bk_int_isr_register(INT_SRC_GPIO, gpio_isr, NULL);
 #endif
 
-	//interrupt to CPU enable
-#if (CONFIG_SYSTEM_CTRL)
-	sys_drv_int_group2_enable(GPIO_INTERRUPT_CTRL_BIT);
-#else
-	icu_enable_gpio_interrupt();
-#endif
-
 	s_gpio_is_init = true;
 	return BK_OK;
 }
@@ -182,12 +175,6 @@ bk_err_t bk_gpio_driver_deinit(void)
 		return BK_OK;
 	}
 
-	//interrupt to CPU disable
-#if (CONFIG_SYSTEM_CTRL)
-	sys_drv_int_group2_disable(GPIO_INTERRUPT_CTRL_BIT);
-#else
-	icu_disable_gpio_interrupt();
-#endif
 
 	s_gpio_is_init = false;
 
@@ -1055,6 +1042,12 @@ bk_err_t bk_gpio_unregister_lowpower_keep_status(gpio_id_t gpio_id)
 
 bk_err_t gpio_enter_low_power(void *param)
 {
+
+	//the gpio isr operate only in and out of low-power
+	//interrupt to CPU enable
+	//TODO AP keep alive at low-power,and bank up the interrupt GPIO status of AP
+	sys_drv_int_group2_enable(GPIO_INTERRUPT_CTRL_BIT);
+	
 	uint32_t int_cfg[2] = {0, 0};
 
 	GPIO_LOGD("%s[+]\r\n", __func__);
@@ -1095,6 +1088,9 @@ bk_err_t gpio_enter_low_power(void *param)
 
 bk_err_t gpio_exit_low_power(void *param)
 {
+	//interrupt to CPU disable
+	sys_drv_int_group2_disable(GPIO_INTERRUPT_CTRL_BIT);
+
 	gpio_hal_t *hal = &s_gpio.hal;
 	gpio_interrupt_status_t gpio_status;
 	uint32_t int_cfg[2] = {0, 0};
