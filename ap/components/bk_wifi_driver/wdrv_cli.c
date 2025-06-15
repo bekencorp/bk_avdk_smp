@@ -100,6 +100,61 @@ int wdrv_demo_softap_init(char *ap_ssid, char *ap_key, char *ap_channel)
     return BK_OK;
 }
 
+int wdrv_demo_hidden_softap_init(char *ap_ssid, char *ap_key, char *ap_channel)
+{
+    wifi_ap_config_t ap_config = WIFI_DEFAULT_AP_CONFIG();
+    netif_ip4_config_t ip4_config = {0};
+    int len, key_len = 0;
+    len = os_strlen(ap_ssid);
+    if (ap_key)
+        key_len = os_strlen(ap_key);
+    if (SSID_MAX_LEN < len) {
+        WDRV_LOGE("ssid name more than 32 Bytes\r\n");
+        return BK_FAIL;
+    }
+    if (0 == len) {
+        WDRV_LOGE("ssid name must not be null\r\n");
+        return BK_FAIL;
+    }
+
+    if (8 > key_len)
+        WDRV_LOGE("key less than 8 Bytes, the security will be set NONE\r\n");
+
+    if (64 < key_len) {
+        WDRV_LOGE("key more than 64 Bytes\r\n");
+        return BK_FAIL;
+    }
+
+    os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
+    os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
+    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
+    os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
+    BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
+
+    os_strcpy(ap_config.ssid, ap_ssid);
+    if (ap_key)
+        os_strcpy(ap_config.password, ap_key);
+
+    if (ap_channel) {
+        int channel;
+        char *end;
+
+        channel = strtol(ap_channel, &end, 0);
+        if (*end) {
+            WDRV_LOGE("Invalid number '%s'", ap_channel);
+            return BK_FAIL;
+        }
+        ap_config.channel = channel;
+    }
+
+    WDRV_LOGI("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+    ap_config.hidden = true;
+    BK_RETURN_ON_ERR(bk_wifi_ap_set_config(&ap_config));
+    BK_RETURN_ON_ERR(bk_wifi_ap_start());
+
+    return BK_OK;
+}
+
 static const char *wdr_ifname[NETIF_IF_COUNT] = {
     "sta", "ap",
 };
@@ -258,6 +313,32 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
         }
     }else if (!strcasecmp(argV[1], "stop_ap")) {
             bk_wifi_ap_stop();
+    }
+    else if (!strcasecmp(argV[1], "start_hidden_softap")) {
+        char *ap_ssid = NULL;
+        char *ap_key = "";
+        char *ap_channel = NULL;
+        if (argC == 3)
+            ap_ssid = argV[2];
+        else if (argC == 4) {
+            ap_ssid = argV[2];
+            if (os_strlen(argV[3]) <= 2)
+                ap_channel = argV[3];
+            else
+                ap_key = argV[3];
+        } else if (argC == 5) {
+            ap_ssid = argV[2];
+            ap_key = argV[3];
+            ap_channel = argV[4];
+        } else {
+            CLI_LOGI("Invalid parameters\n");
+            return;
+        }
+
+        char *oob_ssid_softap = ap_ssid;
+        if (oob_ssid_softap) {
+            wdrv_demo_hidden_softap_init((char *)oob_ssid_softap, ap_key, ap_channel);
+        }
     }
 #endif
     else {
