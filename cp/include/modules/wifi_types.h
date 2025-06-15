@@ -710,9 +710,11 @@ typedef struct {
  * @brief Wi-Fi RAW TX control.
  */
 typedef struct {
+	uint32_t tx_ac; 		/**< RAW Data TX AC information */
 	uint32_t tx_rate;       /**< RAW Data TX rate information */
 	uint32_t tx_power;      /**< RAW Data TX power information */
 	uint32_t tx_retry_cnt;  /**< RAW Data TX retry count */
+	uint32_t tx_timeout_ms; /**< RAW Data TX timeout information */
 } raw_tx_cntrl_t;
 
 /**
