@@ -124,8 +124,8 @@ task.h is included from an application file. */
 /* Assumes 8bit bytes! */
 #define heapBITS_PER_BYTE		( ( size_t ) 8 )
 
-#define MEM_OVERFLOW_TAG        0xcd
-#define MEM_OVERFLOW_WORD_TAG   0xcdcdcdcd
+#define MEM_OVERFLOW_TAG        0xDC
+#define MEM_OVERFLOW_WORD_TAG   0xDCDCDCDC
 
 #define MEM_HEAD_WORD_TAG       0xFFFFEEEE
 
