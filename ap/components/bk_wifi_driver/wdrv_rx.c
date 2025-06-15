@@ -78,10 +78,10 @@ void wdrv_rxdata_process(struct pbuf *p)
 //            if(k == (wdrv_rxbank_debug.rx_buf_bank_cnt -1)) BK_ASSERT(0);
 //        }
 //        --wdrv_rxbank_debug.rx_buf_bank_cnt;
+        cpdu->co_hdr.need_free = 0;
         pbuf_free(pbuf);
         WDRV_STATS_DEC(tx_alloc_num);
         wdrv_stats_ptr->tx_free_total++;
-        cpdu->co_hdr.need_free = 0;
         return;
     }
 
