@@ -31,7 +31,7 @@
 //#include "ble_api_5_x.h"
 
 #endif
-#include <bk_wifi_adapter.h>
+//#include <bk_wifi_adapter.h>
 // #include <bk_phy_adapter.h>
 // #include <bk_rf_adapter.h>
 #if (CONFIG_PSRAM)

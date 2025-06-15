@@ -34,7 +34,7 @@
 #include "bk_uart_debug.h"
 #include "bk_api_cli.h"
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
-#include "wdrv_cli.h"
+#include "wifi_cli.h"
 #endif
 
 #define TAG "cli"

@@ -9,9 +9,7 @@ if(CONFIG_WIFI_VNET_CONTROLLER)
 	list(APPEND srcs
 			wdrv_ipc.c
 			wdrv_main.c
-			wdrv_cli.c
 			wdrv_cntrl.c
-			wdrv_api.c
 			wdrv_tx.c
 			wdrv_rx.c
 			wdrv_co_list.c

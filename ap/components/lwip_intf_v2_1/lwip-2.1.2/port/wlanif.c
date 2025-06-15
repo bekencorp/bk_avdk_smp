@@ -71,7 +71,7 @@
 #include <os/os.h>
 #include "net.h"
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
-#include "wdrv_api.h"
+#include "wifi_api.h"
 #endif
 
 /* Define those to better describe your network interface. */

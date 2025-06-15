@@ -42,7 +42,7 @@
 
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "wdrv_cntrl.h"
-#include "wdrv_api.h"
+#include "wifi_api.h"
 #endif
 
 FUNC_1PARAM_PTR bk_wlan_get_status_cb(void);

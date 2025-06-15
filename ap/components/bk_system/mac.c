@@ -16,7 +16,7 @@
 #include <components/log.h>
 #include "bk_drv_model.h"
 #include "bk_uart.h"
-#include "bk_wifi_private.h"
+//#include "bk_wifi_private.h"
 #include "bk_sys_ctrl.h"
 #include <driver/efuse.h>
 #include <driver/otp.h>

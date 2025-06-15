@@ -25,8 +25,8 @@
 #include "doorbell_transmission.h"
 #include "doorbell_cmd.h"
 
-#include "wdrv_cntrl.h"
-#include "wdrv_api.h"
+//#include "wdrv_cntrl.h"
+#include "wifi_api.h"
 
 #define TAG "db-net"
 

@@ -2,7 +2,7 @@
 #include "wdrv_main.h"
 #include "wdrv_cntrl.h"
 #include "wdrv_ipc.h"
-#include "wdrv_api.h"
+#include "wifi_api.h"
 #include "pbuf.h"
 #include <components/netif.h>
 #include <components/event.h>

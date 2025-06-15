@@ -26,7 +26,7 @@
 #include <os/os.h>
 #include "net.h"
 #include "wdrv_rx.h"
-#include "wdrv_api.h"
+#include "wifi_api.h"
 #include "wdrv_co_list.h"
 #include "wdrv_tx.h"
 #include <components/netif.h>
