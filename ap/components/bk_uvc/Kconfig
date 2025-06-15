@@ -15,7 +15,7 @@ menu "USB Camera"
 	config UVC_URB_NUM
 		int "UVC URB count"
 		range 0 64
-		default 18
+		default 8
 		help
 			URB number advice large than camera_num * 4
 
