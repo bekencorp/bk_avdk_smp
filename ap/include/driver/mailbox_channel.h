@@ -50,10 +50,12 @@ extern "C" {
 /* ==========================  CPU1 --> Target_CPUs mailbox.   =========================== */
 /* ======================================================================================= */
 
+#define SELF_CPU		MAILBOX_CPU1
+
 enum
 {
 	/* CPU1 --> CPU1 */
-	CP1_MB_LOG_CHNL_START   = CPX_LOG_CHNL_START(MAILBOX_CPU1, MAILBOX_CPU1),
+	CP1_MB_LOG_CHNL_START   = CPX_LOG_CHNL_START(SELF_CPU, MAILBOX_CPU1),
 
 	CP1_MB_LOG_CHNL_END,
 	CP1_MB_LOG_CHNL_MAX = (CP1_MB_LOG_CHNL_START + LOG_CHNL_ID_MASK), // max 16 channels.
@@ -63,7 +65,7 @@ enum
 enum
 {
 	/* CPU1 --> CPU2 */
-	CP2_MB_LOG_CHNL_START   = CPX_LOG_CHNL_START(MAILBOX_CPU1, MAILBOX_CPU2),
+	CP2_MB_LOG_CHNL_START   = CPX_LOG_CHNL_START(SELF_CPU, MAILBOX_CPU2),
 
 	CP2_MB_LOG_CHNL_END,
 	CP2_MB_LOG_CHNL_MAX = (CP2_MB_LOG_CHNL_START + LOG_CHNL_ID_MASK), // max 16 channels.
@@ -73,7 +75,7 @@ enum
 enum
 {
 	/* CPU1 --> CPU0 */
-	CP0_MB_LOG_CHNL_START   = CPX_LOG_CHNL_START(MAILBOX_CPU1, MAILBOX_CPU0),
+	CP0_MB_LOG_CHNL_START   = CPX_LOG_CHNL_START(SELF_CPU, MAILBOX_CPU0),
 	MB_CHNL_HW_CTRL         = CP0_MB_LOG_CHNL_START,
 	CP0_MB_CHNL_IPC,
 	MB_CHNL_PWC,
@@ -97,10 +99,7 @@ enum
 
 #define MB_CHNL_MIPC MB_CHNL_MIPC_SYNC
 
-
-#define SELF_CPU     rtos_get_core_id()
-
-#define SRC_CPU      MAILBOX_CPU1
+#define SRC_CPU      SELF_CPU
 
 #define CHNL_STATE_MASK			0xF
 #define CHNL_STATE_COM_FAIL		0x1		/* cmd NO target app, it is an ACK bit to peer CPU. */

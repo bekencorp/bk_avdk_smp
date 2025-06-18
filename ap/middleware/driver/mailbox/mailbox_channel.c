@@ -189,11 +189,8 @@ static u8 mb_phy_chnl_tx_cmd(u8 log_chnl)
 	mb_phy_chnl_cb_t * phy_chnl_ptr;
 	mb_log_chnl_cb_t * log_chnl_cb_x;
 
-#if !CONFIG_SOC_SMP
-	/* for SMP project, log_chnl is always built by CPU0. it is always failed when call this API in CPU1. */
 	if(SELF_CPU != GET_SRC_CPU_ID(log_chnl))
 		return 4;
-#endif
 
 	if(SELF_CPU == phy_chnl_idx)  // transferred to self.
 		return 5;
@@ -486,10 +483,8 @@ static bk_err_t mb_phy_chnl_tx_cmd_sync(u8 log_chnl, mb_phy_chnl_cmd_t *cmd_ptr)
 
 	phy_chnl_idx = GET_DST_CPU_ID(log_chnl);   // = DST_CPU_ID;
 
-#if !CONFIG_SOC_SMP
 	if(SELF_CPU != GET_SRC_CPU_ID(log_chnl))
 		return BK_ERR_PARAM;
-#endif
 
 	if(SELF_CPU == phy_chnl_idx)  // transferred to self.
 		return BK_ERR_PARAM;
@@ -634,10 +629,8 @@ bk_err_t mb_chnl_open(u8 log_chnl, void * callback_param)
 
 	mb_log_chnl_cb_t * log_chnl_cb_x;
 
-#if !CONFIG_SOC_SMP
 	if(SELF_CPU != GET_SRC_CPU_ID(log_chnl))
 		return BK_ERR_PARAM;
-#endif
 
 	if(SELF_CPU == phy_chnl_idx)  // transferred to self.
 		return BK_ERR_PARAM;
@@ -675,10 +668,8 @@ bk_err_t mb_chnl_close(u8 log_chnl)
 
 	mb_log_chnl_cb_t * log_chnl_cb_x;
 
-#if !CONFIG_SOC_SMP
 	if(SELF_CPU != GET_SRC_CPU_ID(log_chnl))
 		return BK_ERR_PARAM;
-#endif
 
 	if(phy_chnl_idx >= PHY_CHNL_NUM)
 		return BK_ERR_PARAM;
@@ -734,10 +725,8 @@ bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf)
 
 	mb_log_chnl_cb_t * log_chnl_cb_x;
 
-#if !CONFIG_SOC_SMP
 	if(SELF_CPU != GET_SRC_CPU_ID(log_chnl))
 		return BK_ERR_PARAM;
-#endif
 
 	if(SELF_CPU == phy_chnl_idx)  // transferred to self.
 		return BK_ERR_PARAM;
@@ -796,10 +785,8 @@ bk_err_t mb_chnl_ctrl(u8 log_chnl, u8 cmd, void * param)
 
 	mb_log_chnl_cb_t * log_chnl_cb_x;
 
-#if !CONFIG_SOC_SMP
 	if(SELF_CPU != GET_SRC_CPU_ID(log_chnl))
 		return BK_ERR_PARAM;
-#endif
 
 	if(SELF_CPU == phy_chnl_idx)  // transferred to self.
 		return BK_ERR_PARAM;
