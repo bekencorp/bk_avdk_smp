@@ -31,7 +31,8 @@
 #include "wdrv_cntrl.h"
 #include "wdrv_co_list.h"
 #include "wdrv_tx.h"
-
+#include "wifi_api_ipc.h"
+#include "wdrv_cntrl.h"
 
 general_param_t *g_wlan_general_param = NULL;
 ap_param_t *g_ap_param_ptr = NULL;
@@ -201,10 +202,14 @@ bk_err_t bk_wifi_sta_get_config(wifi_sta_config_t *config)
     return BK_OK;
 }
 
-void bk_wifi_init(void)
+bk_err_t bk_wifi_init(void)
 {
     WDRV_LOGI("%s, %d\r\n", __func__, __LINE__);
     uint8_t mac[ETH_ALEN];
+
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+    wdrv_init();
+#endif
 
     if (wifi_is_inited())
     {
@@ -221,6 +226,7 @@ void bk_wifi_init(void)
     wifi_set_state_bit(WIFI_INIT_BIT);
     WDRV_LOGI("wifi inited(%x)\n", s_wifi_state_bits);
 
+    return BK_OK;
 }
 
 bk_err_t bk_wifi_sta_start(void)
@@ -239,7 +245,7 @@ bk_err_t bk_wifi_sta_start(void)
         bk_wifi_sta_stop();
     }
 
-    bk_wifi_init();
+    //bk_wifi_init();
 
     wifi_set_state_bit(WIFI_STA_STARTED_BIT);
     WDRV_LOGD("sta started(%x)\n", s_wifi_state_bits);
@@ -898,3 +904,86 @@ bool uap_ip_is_start_api(void)
 }
 
 
+
+bk_err_t bk_wifi_sta_start_ex(void)
+{
+    //bk_wifi_init();
+    return wifi_send_com_api_cmd(STA_START, 0);
+}
+bk_err_t bk_wifi_sta_set_config_ex(const wifi_sta_config_t *config)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_sta_config_t);
+
+    //WIFI_LOGE("%s config len:%d\r\n", __func__, len);
+    if (config == NULL) {
+        WIFI_LOGE("%s failed, invalid config\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memcpy(buffer_to_ipc, config, len);
+    ret = wifi_send_com_api_cmd(STA_SET_CONFIG, 2, (uint32_t)buffer_to_ipc);
+
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+bk_err_t bk_wifi_sta_get_config_ex(wifi_sta_config_t *config)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_sta_config_t);
+
+    //WIFI_LOGE("%s config len:%d\r\n", __func__, len);
+    if (config == NULL) {
+        WIFI_LOGE("%s failed, invalid config\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(STA_GET_CONFIG, 2, (uint32_t)buffer_to_ipc);
+
+    os_memcpy(config, buffer_to_ipc, len);
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+bk_err_t bk_wifi_sta_pm_enable(void)
+{
+    return wifi_send_com_api_cmd(STA_PM_ENABLE, 0);
+}
+
+
+int demo_sta_app_init_ex(char *oob_ssid, char *connect_key)
+{
+	wifi_sta_config_t sta_config = {0};
+	int len;
+
+	len = os_strlen(oob_ssid);
+	if (SSID_MAX_LEN < len) {
+		WIFI_LOGI("ssid name more than 32 Bytes\r\n");
+		return BK_FAIL;
+	}
+
+	os_strcpy(sta_config.ssid, oob_ssid);
+	os_strcpy(sta_config.password, connect_key);
+
+	WIFI_LOGI("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
+	BK_LOG_ON_ERR(bk_wifi_sta_set_config_ex(&sta_config));
+	BK_LOG_ON_ERR(bk_wifi_sta_start_ex());
+	return BK_OK;
+}

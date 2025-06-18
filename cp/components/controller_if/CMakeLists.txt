@@ -13,6 +13,7 @@ set(prev_req bk_common bk_wifi lwip_intf_v2_1 bk_pm app demos)
 		cif_main.c
 		cif_ipc.c
 		cif_mem_mgmt.c
+		cif_wifi_api.c
 		)
 	#list(APPEND prev_req mailbox)
 #endif()

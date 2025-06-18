@@ -11,6 +11,7 @@
 #include "lwip/netif.h"
 #include <components/netif.h>
 #include "lwip/ping.h"
+#include "wifi_demo.h"
 
 /**
  * @brief default AP configuration
@@ -249,8 +250,23 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
         char *oob_ssid_tp = ssid;
         if (oob_ssid_tp)
             wdrv_demo_connect((char *)oob_ssid_tp, password);
+    } else if (!strcasecmp(argV[1], "sta")) {
+        char *ssid = NULL;
+        char *password = "";
+        if (argC >= 2)
+            ssid = argV[2];
+
+        if (argC >= 3)
+            password = argV[3];
+        char *oob_ssid_tp = ssid;
+        if (oob_ssid_tp)
+            demo_sta_app_init_ex((char *)oob_ssid_tp, password);
     } else if (!strcasecmp(argV[1], "stop_sta")) {
         bk_wifi_sta_stop();
+    } else if (!strcasecmp(argV[1], "get_config")) {
+        wifi_sta_config_t config;
+        bk_wifi_sta_get_config_ex(&config);
+        WDRV_LOGI("ssid:%s pw:%s\r\n", config.ssid, config.password);
     } else if (!strcasecmp(argV[1], "get_mac")) {
         uint8_t sta_mac[BK_MAC_ADDR_LEN] = {0};
         uint8_t ap_mac[BK_MAC_ADDR_LEN] = {0};

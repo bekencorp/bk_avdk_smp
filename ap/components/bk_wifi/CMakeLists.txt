@@ -4,6 +4,7 @@ set(srcs)
 list(APPEND srcs
 	src/wifi_api.c
 	src/wifi_cli.c
+	src/wifi_api_ipc.c
 	#src/wifi_demo.c
 )
 #endif()

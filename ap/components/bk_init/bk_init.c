@@ -110,10 +110,10 @@ extern void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val);
 extern bk_err_t bk_dbg_init(void);
 #endif
 
-#ifdef CONFIG_WIFI_VNET_CONTROLLER
-#include "wdrv_main.h"
-#endif
-
+// #ifdef CONFIG_WIFI_VNET_CONTROLLER
+// #include "wdrv_main.h"
+// #endif
+#include "wifi_api.h"
 
 void rtos_user_app_launch_over(void);
 
@@ -126,12 +126,14 @@ int app_phy_init(void)
 
 static int app_wifi_init(void)
 {
-#if (CONFIG_WIFI_ENABLE)
-	wifi_init_config_t wifi_config = WIFI_DEFAULT_INIT_CONFIG();
+#if 1//(CONFIG_WIFI_ENABLE)
+	//wifi_init_config_t wifi_config = WIFI_DEFAULT_INIT_CONFIG();
 	BK_LOG_ON_ERR(bk_event_init());
 	BK_LOG_ON_ERR(bk_netif_init());
-	BK_LOG_ON_ERR(bk_wifi_init(&wifi_config));
+	BK_LOG_ON_ERR(bk_wifi_init());
+#endif
 
+#if (CONFIG_WIFI_ENABLE)
 #if (CONFIG_DEBUG_VERSION)
 	BK_LOG_ON_ERR(bk_dbg_init());
 #endif
@@ -349,8 +351,8 @@ extern int mp_do_startup(int heap_len);
 	bk_psram_id_auto_detect();
 #endif
 
-#ifdef CONFIG_WIFI_VNET_CONTROLLER
-    wdrv_init();
+#if 1//CONFIG_WIFI_ENABLE
+    app_wifi_init();
 #endif
 
 #ifdef CONFIG_BLUETOOTH_AP

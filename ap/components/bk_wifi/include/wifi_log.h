@@ -14,14 +14,17 @@
 
 #pragma once
 
-#include "bk_private/bk_wifi.h"
-#include "bk_private/bk_wifi_types.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
+#define WIFI_TAG "WIFI"
+#define WIFI_LOGI(...)       BK_LOGI(WIFI_TAG, ##__VA_ARGS__)
+#define WIFI_LOGW(...)       BK_LOGW(WIFI_TAG, ##__VA_ARGS__)
+#define WIFI_LOGE(...)       BK_LOGE(WIFI_TAG, ##__VA_ARGS__)
+#define WIFI_LOGD(...)       BK_LOGD(WIFI_TAG, ##__VA_ARGS__)
+#define WIFI_LOG_RAW(...)    BK_LOG_RAW(WIFI_TAG, ##__VA_ARGS__)
 
-struct scan_cfg_scan_param_tag{
-	u8 set_param;     /**< 1:indicates set scan param;0:not set scan para;*/
-	u8 scan_type;     /**< passive scan:1, active scan:0*/
-	u8 chan_cnt;     /**< scan channel cnt*/
-	u8 chan_nb[WIFI_2BAND_MAX_CHAN_NUM];     /**< scan channel number 2.4g+5g*/
-	u32 duration;     /**< scan duration,us*/
-};
+#ifdef __cplusplus
+}
+#endif

@@ -125,6 +125,9 @@ enum BK_CMD_TYPE
     BK_CMD_SEND_OTA_PKT        = 0x20B,
     BK_CMD_STOP_OTA            = 0x20C,
 
+    BK_CMD_WIFI_API_START      = 0x300,
+    BK_CMD_WIFI_API_END        = 0x5FF,
+
     BK_CMD_BUTT                = BK_MAX_MSG_CNT - 1
 };
 
@@ -146,6 +149,10 @@ enum BK_EVENT_TYPE
     // system event
     BK_EVT_CONTROLLER_AT_IND    = 0x201,
     BK_EVT_CUSTOMER_IND         = 0x202,
+
+    // Wi-Fi API event
+    BK_EVT_WIFI_API_START       = 0x300,
+    BK_EVT_WIFI_API_END         = 0x3FF,
 
     BK_EVT_BUTT                 = BK_MAX_MSG_CNT - 1
 };

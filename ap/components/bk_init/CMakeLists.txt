@@ -32,7 +32,7 @@ set(srcs
 	components_init.c
 	)
 
-set(priv_req bk_common bk_netif driver easy_flash bk_libs bk_bluetooth bk_wifi bk_wifi_driver)
+set(priv_req bk_common bk_netif driver easy_flash bk_libs bk_bluetooth bk_wifi bk_wifi_driver lwip_intf_v2_1)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
 

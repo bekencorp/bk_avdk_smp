@@ -329,8 +329,8 @@ bk_err_t wdrv_init()
     }
 
     //LWIP init
-    BK_LOG_ON_ERR(bk_event_init());
-    BK_LOG_ON_ERR(bk_netif_init());
+    // BK_LOG_ON_ERR(bk_event_init());
+    // BK_LOG_ON_ERR(bk_netif_init());
 
     //IPC interface init
     wdrv_ipc_init();

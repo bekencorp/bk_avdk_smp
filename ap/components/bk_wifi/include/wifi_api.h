@@ -23,6 +23,8 @@ extern "C" {
 #include "os/os.h"
 #include "wdrv_co_list.h"
 #include "wdrv_cntrl.h"
+#include "wifi_log.h"
+//#include "wifi_types.h"
 
 #define wifi_lock() \
     do{\
@@ -55,6 +57,10 @@ extern "C" {
 #define CONFIG_ROLE_AP          1
 #define CONFIG_ROLE_STA         2
 
+bk_err_t bk_wifi_api_test(void);
+bk_err_t bk_wifi_sta_start_ex(void);
+bk_err_t bk_wifi_sta_set_config_ex(const wifi_sta_config_t *config);
+bk_err_t bk_wifi_sta_get_config_ex(wifi_sta_config_t *config);
 
 /**************************WLAN API**************************/
 /**
@@ -64,7 +70,7 @@ extern "C" {
  * STA specific WiFi driver etc.
  *
  */
-void bk_wifi_init(void);
+bk_err_t bk_wifi_init(void);
 
 /**
  * @brief     Start the BK STA

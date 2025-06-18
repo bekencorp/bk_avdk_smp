@@ -10,6 +10,7 @@
 #include "components/bluetooth/bk_ble.h"
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
 #include "cif_ipc.h"
+#include "cif_wifi_api.h"
 
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
 extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
@@ -780,37 +781,9 @@ bk_err_t cif_handle_bk_cmd_set_coex_csa_req(struct bk_msg_hdr *msg)
     return BK_OK;
 }
 
-bk_err_t cif_handle_bk_cmd(void *head)
+bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
 {
     bk_err_t ret = BK_OK;
-    struct bk_msg_hdr *msg = NULL;
-    cpdu_t* hdr = (cpdu_t*)head;
-    void* cmd = (void *)((struct cpdu_t*)head + 1);
-    CIF_LOGD("%s,TX_BK_CMD_DATA \n",__func__);
-
-//    int_level = rtos_disable_int();
-//    cif_stats_ptr->buf_in_ctrlif_cmd--;
-//    cif_stats_ptr->buf_in_txcmd++;
-//    rtos_enable_int(int_level);
-//
-//    BK_ASSERT(cif_stats_ptr->buf_in_ctrlif_cmd >= 0);
-    if(hdr->co_hdr.is_buf_bank)
-    {
-        cif_save_buffer_addr(head);
-        return BK_OK;
-    }
-
-
-    if (cmd == NULL)
-    {
-        CIF_LOGE("cif_handle_bk_cmd INVALID paramter cmd:%x\n", cmd);
-        BK_ASSERT(0);
-    }
-
-    msg = (struct bk_msg_hdr *)cmd;
-
-    CIF_LOGD("cif_handle_bk_cmd cmd_id:%x\n", msg->cmd_id);
-    cif_env.no_host = false;
 
     switch(msg->cmd_id)
     {
@@ -966,9 +939,53 @@ bk_err_t cif_handle_bk_cmd(void *head)
         }
         default:
         {
-            os_printf("%s,error CMD type %x\n",__func__, msg->cmd_id);
+            CIF_LOGE("%s,error CMD type %x\n",__func__, msg->cmd_id);
+            ret = BK_FAIL;
             break;
         }
+    }
+
+    return ret;
+}
+bk_err_t cif_handle_bk_cmd(void *head)
+{
+    bk_err_t ret = BK_OK;
+    struct bk_msg_hdr *msg = NULL;
+    cpdu_t* hdr = (cpdu_t*)head;
+    void* cmd = (void *)((struct cpdu_t*)head + 1);
+    CIF_LOGD("%s,TX_BK_CMD_DATA \n",__func__);
+
+//    int_level = rtos_disable_int();
+//    cif_stats_ptr->buf_in_ctrlif_cmd--;
+//    cif_stats_ptr->buf_in_txcmd++;
+//    rtos_enable_int(int_level);
+//
+//    BK_ASSERT(cif_stats_ptr->buf_in_ctrlif_cmd >= 0);
+    if(hdr->co_hdr.is_buf_bank)
+    {
+        cif_save_buffer_addr(head);
+        return BK_OK;
+    }
+
+
+    if (cmd == NULL)
+    {
+        CIF_LOGE("cif_handle_bk_cmd INVALID paramter cmd:%x\n", cmd);
+        BK_ASSERT(0);
+    }
+
+    msg = (struct bk_msg_hdr *)cmd;
+
+    CIF_LOGD("cif_handle_bk_cmd cmd_id:%x\n", msg->cmd_id);
+    cif_env.no_host = false;
+
+    if ((msg->cmd_id >= BK_CMD_WIFI_API_START) && (msg->cmd_id < BK_CMD_WIFI_API_END))
+    {
+        ret = cif_handle_wifi_api_cmd(msg);
+    }
+    else
+    {
+        ret = cif_handle_wifi_ctrnl_cmd(msg);
     }
 
     //Free AP cmd buffer

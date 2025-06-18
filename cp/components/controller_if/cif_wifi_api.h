@@ -1,0 +1,69 @@
+#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "cif_main.h"
+
+#define WIFI_API_IPC_COM_REQ_MAX_ARGC           6
+
+
+enum CIF_WIFI_API_CMD_TYPE
+{
+    // SCAN management command section
+    SCAN_START                          = 0x300,  //BK_CMD_WIFI_API_START
+    SCAN_STOP                           = 0x301,
+
+    // STA management command section
+    STA_SET_CONFIG                      = 0x310,
+    STA_START                           = 0x311,
+    STA_STOP                            = 0x312,
+    STA_GET_CONFIG                      = 0x313,
+
+    // AP management command section
+    AP_SET_CONFIG                       = 0x320,
+    AP_START                            = 0x321,
+    AP_STOP                             = 0x322,
+
+    // PM management Wi-Fi command section
+    STA_PM_ENABLE                       = 0x330,
+    STA_PM_DISABLE                      = 0x331,
+
+    // MONITOR Wi-Fi command section
+    MONITOR_START                       = 0x340,
+    MONITOR_STOP                        = 0x341,
+    MONITOR_SET_CONFIG                  = 0x342,
+    MONITOR_GET_CONFIG                  = 0x343,
+    MONITOR_REGISTER_CB                 = 0x344,
+    MONITOR_SET_CHANNEL                 = 0x345,
+    MONITOR_RESUME                      = 0x346,
+    MONITOR_SUSPEND                     = 0x347,
+
+    // RAW Wi-Fi command section
+    SEND_RAW                            = 0x350,
+
+    BK_WIFI_API_CMD_BUTT                = BK_CMD_WIFI_API_END
+};
+
+enum CIF_WIFI_API_EVT_TYPE
+{
+    // Wi-Fi event
+    STA_EVT_XXX_0                       = 0x300,  //BK_EVT_WIFI_API_START
+    STA_EVT_XXX_1                       = 0x301,
+
+    BK_WIFI_API_EVT_BUTT                = BK_EVT_WIFI_API_END
+};
+
+typedef struct wifi_arg_ipc_info
+{
+    uint32_t argc;
+    uint32_t args[WIFI_API_IPC_COM_REQ_MAX_ARGC];
+} wifi_api_arg_info_t;
+
+bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg);
+
+
+#ifdef __cplusplus
+}
+#endif
