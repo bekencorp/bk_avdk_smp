@@ -69,7 +69,6 @@ static inline void amp_exit_critical(uint32_t flags)
 
 #ifdef AMP_RES_SERVER
 
-/* call this API in interrupt disabled state. */
 bk_err_t amp_res_acquire_cnt(u16 res_id, u16 cpu_id, amp_res_req_cnt_t *cnt_list)
 {
 	if(res_id >= AMP_RES_ID_MAX)
@@ -84,6 +83,8 @@ bk_err_t amp_res_acquire_cnt(u16 res_id, u16 cpu_id, amp_res_req_cnt_t *cnt_list
 	u16		i = 0;
 	u16 	all_cnt = 0;
 	
+	u32  int_mask = amp_enter_critical();
+
 	for(i = 0; i < AMP_CPU_CNT; i++)
 	{
 		all_cnt += amp_res_sync[res_id].req_cnt[i];
@@ -94,11 +95,12 @@ bk_err_t amp_res_acquire_cnt(u16 res_id, u16 cpu_id, amp_res_req_cnt_t *cnt_list
 
 	amp_res_sync[res_id].req_cnt[cpu_id]++;
 
+	amp_exit_critical(int_mask);
+
 	return BK_OK;
 	
 }
 
-/* call this API in interrupt disabled state. */
 bk_err_t amp_res_release_cnt(u16 res_id, u16 cpu_id, amp_res_req_cnt_t *cnt_list)
 {
 	if(res_id >= AMP_RES_ID_MAX)
@@ -111,6 +113,10 @@ bk_err_t amp_res_release_cnt(u16 res_id, u16 cpu_id, amp_res_req_cnt_t *cnt_list
 		return BK_ERR_PARAM;
 
 	u16		i = 0;
+	
+	bk_err_t	ret_val = BK_FAIL;
+
+	u32  int_mask = amp_enter_critical();
 
 	if(amp_res_sync[res_id].req_cnt[cpu_id] > 0)
 	{
@@ -126,12 +132,12 @@ bk_err_t amp_res_release_cnt(u16 res_id, u16 cpu_id, amp_res_req_cnt_t *cnt_list
 		cnt_list->self_req_cnt = amp_res_sync[res_id].req_cnt[cpu_id];
 		cnt_list->others_req_cnt = all_cnt - cnt_list->self_req_cnt;
 
-		return BK_OK;
+		ret_val = BK_OK;
 	}
-	else
-	{
-		return BK_FAIL;
-	}
+
+	amp_exit_critical(int_mask);
+
+	return ret_val;
 	
 }
 
@@ -146,9 +152,9 @@ bk_err_t amp_res_available(u16 res_id)
 	if(amp_res_sync[res_id].inited == 0)
 		return BK_ERR_NOT_INIT;
 
-	rtos_set_semaphore(&amp_res_sync[res_id].res_sema);
-
 	amp_res_sync[res_id].owner_cpu = SELF_CPU;
+
+	rtos_set_semaphore(&amp_res_sync[res_id].res_sema);
 
 	return BK_OK;
 }
@@ -159,15 +165,11 @@ static bk_err_t res_release_cnt(u16 res_id, amp_res_req_cnt_t *cnt_list)
 
 #ifdef AMP_RES_SERVER
 
-	u32  int_mask = amp_enter_critical();
-
-	ret_val = amp_res_release_cnt(res_id, SRC_CPU, cnt_list);
-
-	amp_exit_critical(int_mask);
+	ret_val = amp_res_release_cnt(res_id, SELF_CPU, cnt_list);
 
 #else
 
-	ret_val = ipc_send_res_release_cnt(res_id, SRC_CPU, cnt_list);
+	ret_val = ipc_send_res_release_cnt(res_id, SELF_CPU, cnt_list);
 
 #endif
 
@@ -200,15 +202,11 @@ bk_err_t amp_res_lock_acquire(u16 res_id, u32 timeout_ms, const char * func_name
 
 #ifdef AMP_RES_SERVER
 
-	u32  int_mask = amp_enter_critical();
-
-	ret_val = amp_res_acquire_cnt(res_id, SRC_CPU, &cnt_list);
-
-	amp_exit_critical(int_mask);
+	ret_val = amp_res_acquire_cnt(res_id, SELF_CPU, &cnt_list);
 
 #else
 
-	ret_val = ipc_send_res_acquire_cnt(res_id, SRC_CPU, &cnt_list);
+	ret_val = ipc_send_res_acquire_cnt(res_id, SELF_CPU, &cnt_list);
 
 #endif
 
