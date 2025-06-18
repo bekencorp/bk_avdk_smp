@@ -25,12 +25,6 @@ static void cli_aon_rtc_help(void)
 {
 	CLI_LOGI("aon_rtc_driver init\r\n");
 	CLI_LOGI("aon_rtc_driver deinit\r\n");
-#if 0	//remove it, only one HW can't be used for many APPs.
-	CLI_LOGI("aon_rtc <id> create <tick> <period>\r\n");
-	CLI_LOGI("aon_rtc <id> destroy\r\n");
-	CLI_LOGI("aon_rtc_int <id> tick\r\n");
-	CLI_LOGI("aon_rtc_int <id> upper\r\n");
-#endif
 	CLI_LOGI("aon_rtc_register {id} {name} {period_tick} {period_cnt}, {callback}\r\n");
 	CLI_LOGI("aon_rtc_unregister {id} {name}\r\n");
 	CLI_LOGI("aon_rtc_timing_test {id} {rounds} {cycles} {set tick val}\r\n");

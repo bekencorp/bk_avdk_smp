@@ -131,7 +131,7 @@ extern "C" {
 #define CLI_CFG_QSPI        0
 #endif
 
-#if (CONFIG_AON_RTC_TEST)
+#if (CONFIG_AON_RTC)
 #define CLI_CFG_AON_RTC     1
 #else
 #define CLI_CFG_AON_RTC     0

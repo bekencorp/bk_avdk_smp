@@ -124,7 +124,7 @@ if (CONFIG_SOC_BK7236XX)
 endif()
 
 
-if (CONFIG_AON_RTC_TEST)
+if (CONFIG_AON_RTC)
 	list(APPEND srcs
 		"cli_aon_rtc.c"
 	)
