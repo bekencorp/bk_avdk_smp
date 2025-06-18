@@ -2,6 +2,7 @@
 #define _STR_PUB_H_
 
 #include <stdarg.h>
+#include <common/bk_typedef.h>
 
 #ifdef __cplusplus
 extern "C" {
