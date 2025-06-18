@@ -393,7 +393,6 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 	}
 	mb_chnl_exit_critical(int_mask);
 
-	mb_chnl_exit_critical(int_mask);
 	return;
 
 }
