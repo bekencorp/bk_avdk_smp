@@ -100,7 +100,12 @@ enum cmd_buf_type
     CMD_BANK = 1,
     CMD_BUF_MAX
 };
-
+enum data_path_special_type
+{
+    RX_FILTER_TYPE = 1,
+    RX_MONITOR_TYPE = 2,
+    SPECIAL_DATA_TYPE_MAX
+};
 struct common_header
 {
     uint16_t length;//sdio whole buffer length(include common header)
@@ -108,7 +113,8 @@ struct common_header
     uint8_t need_free:1;
     uint8_t is_buf_bank:1;
     uint8_t vif_idx:2;
-    uint8_t rsve:4;
+    uint8_t special_type:3;
+    uint8_t rsve:1;
 };
 
 typedef struct

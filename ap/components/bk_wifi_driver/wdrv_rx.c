@@ -88,6 +88,12 @@ void wdrv_rxdata_process(struct pbuf *p)
         return;
     }
 
+    if(cpdu->co_hdr.special_type != 0)
+    {
+        wdrv_msg_sender((uint32_t)(cpdu + 1),WDRV_TASK_MSG_EVENT,0);
+        return;
+    }
+
     WDRV_LOGD("%s p:%p next:%p payload:%p sizeof:%d cpdu:%p\r\n",
         __func__, p, p->next, p->payload, sizeof(struct pbuf), cpdu);
     WDRV_STATS_DEC(rx_alloc_num);
