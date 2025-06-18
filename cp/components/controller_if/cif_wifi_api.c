@@ -6,6 +6,124 @@
 #include <string.h>
 #include "cif_wifi_api.h"
 #include "cif_main.h"
+#include "cif_ipc.h"
+
+bk_err_t wifi_monitor_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame_info_t *frame_info)
+{
+    struct monitor_struct
+    {
+        cpdu_t cp;
+        struct bk_rx_msg_hdr rx_msg_hdr;
+        uint32_t para[3];
+        uint32_t payload[1];
+    };
+
+    uint32_t total_len = len + sizeof(wifi_frame_info_t) + sizeof(uint32_t) + sizeof(struct monitor_struct); //extra not used in struct wifi_frame_info_t
+    struct pbuf* p_copy = NULL;
+    uint8_t* temp_payload = NULL;
+    p_copy = pbuf_alloc(PBUF_RAW,total_len,PBUF_RAM_RX);
+    struct monitor_struct* hdr = (struct monitor_struct*)(p_copy + 1);
+    bk_err_t ret =BK_OK;
+
+    if(p_copy)
+    {
+        hdr->para[0] = len;
+
+        memcpy(hdr->payload,frame_info,sizeof(wifi_frame_info_t));
+        hdr->para[1] = (uint32_t)hdr->payload;
+        
+        temp_payload = (uint8_t*)hdr->payload + sizeof(wifi_frame_info_t);
+
+        memcpy(temp_payload,frame,len);
+        hdr->para[2] = (uint32_t)temp_payload;
+        
+        //bk_mem_dump("cp",(uint32_t)p_copy,200);
+        //os_printf("%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",hdr->para[2],hdr->para[0],hdr->para[1]);
+    }
+    else
+    {
+        return BK_FAIL;
+    }
+
+    struct ctrl_cmd_hdr *cpdu = (struct ctrl_cmd_hdr*)(p_copy + 1);
+    cpdu->co_hdr.length = p_copy->len - sizeof(struct pbuf);
+    cpdu->co_hdr.type = RX_MSDU_DATA;
+    cpdu->co_hdr.need_free = 0;
+    cpdu->co_hdr.vif_idx = 0; //?
+    cpdu->co_hdr.special_type = RX_MONITOR_TYPE;
+    cpdu->msg_hdr.id = MONITOR_REGISTER_CB_IND;
+    cpdu->msg_hdr.param_len = len + sizeof(wifi_frame_info_t) + sizeof(uint32_t);
+    ret = cif_msg_sender(cpdu,CIF_TASK_MSG_RX_DATA,0);
+    
+    if(ret != BK_OK)
+    {
+        #if CONFIG_CONTROLLER_RX_DIRECT_PSH
+        pbuf_free(p_copy);
+        #else
+        //If rxbuf push fail, free it immediately
+        cif_free_rx_buf((uint32_t)p_copy);
+        #endif
+    }
+    return ret;
+}
+
+bk_err_t wifi_filter_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame_info_t *frame_info)
+{
+    struct filter_struct
+    {
+        cpdu_t cp;
+        struct bk_rx_msg_hdr rx_msg_hdr;
+        uint32_t para[3];
+        uint32_t payload[1];
+    };
+
+    uint32_t total_len = len + sizeof(wifi_frame_info_t) + sizeof(uint32_t) + sizeof(struct filter_struct); //extra not used in struct wifi_frame_info_t
+    struct pbuf* p_copy = NULL;
+    uint8_t* temp_payload = NULL;
+    p_copy = pbuf_alloc(PBUF_RAW,total_len,PBUF_RAM_RX);
+    struct filter_struct* hdr = (struct filter_struct*)(p_copy + 1);
+    bk_err_t ret =BK_OK;
+
+    if(p_copy)
+    {
+        hdr->para[0] = len;
+
+        memcpy(hdr->payload,frame_info,sizeof(wifi_frame_info_t));
+        hdr->para[1] = (uint32_t)hdr->payload;
+        
+        temp_payload = (uint8_t*)hdr->payload + sizeof(wifi_frame_info_t);
+
+        memcpy(temp_payload,frame,len);
+        hdr->para[2] = (uint32_t)temp_payload;
+
+        os_printf("%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",hdr->para[2],hdr->para[0],hdr->para[1]);
+    }
+    else
+    {
+        return BK_FAIL;
+    }
+
+    struct ctrl_cmd_hdr *cpdu = (struct ctrl_cmd_hdr*)(p_copy + 1);
+    cpdu->co_hdr.length = p_copy->len - sizeof(struct pbuf);
+    cpdu->co_hdr.type = RX_MSDU_DATA;
+    cpdu->co_hdr.need_free = 0;
+    cpdu->co_hdr.vif_idx = 0; //?
+    cpdu->co_hdr.special_type = RX_FILTER_TYPE;
+    cpdu->msg_hdr.id = FILER_REGISTER_CB_IND;
+    cpdu->msg_hdr.param_len = len + sizeof(wifi_frame_info_t) + sizeof(uint32_t);
+    ret = cif_msg_sender(cpdu,CIF_TASK_MSG_RX_DATA,0);
+    
+    if(ret != BK_OK)
+    {
+        #if CONFIG_CONTROLLER_RX_DIRECT_PSH
+        pbuf_free(p_copy);
+        #else
+        //If rxbuf push fail, free it immediately
+        cif_free_rx_buf((uint32_t)p_copy);
+        #endif
+    }
+    return ret;
+}
 
 bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
 {
@@ -180,6 +298,16 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         {
             wifi_scan_result_t *scan_result = (wifi_scan_result_t *)arg_info->args[0];
             ret = bk_wifi_scan_get_result(scan_result);
+            break;
+        }
+        case MONITOR_REGISTER_CB:
+        {
+            ret = bk_wifi_monitor_register_cb(wifi_monitor_cp_cb);
+            break;
+        }
+        case FILTER_REGISTER_CB:
+        {
+            ret = bk_wifi_filter_register_cb(wifi_filter_cp_cb);
             break;
         }
         default:

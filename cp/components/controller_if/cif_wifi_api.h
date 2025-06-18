@@ -47,7 +47,8 @@ enum CIF_WIFI_API_CMD_TYPE
     MONITOR_SET_CHANNEL                 = 0x345,
     MONITOR_RESUME                      = 0x346,
     MONITOR_SUSPEND                     = 0x347,
-
+    FILTER_REGISTER_CB                  = 0x348,
+    
     // RAW Wi-Fi command section
     SEND_RAW                            = 0x350,
 
@@ -67,6 +68,9 @@ enum CIF_WIFI_API_EVT_TYPE
     // Wi-Fi event
     STA_EVT_XXX_0                       = 0x300,  //BK_EVT_WIFI_API_START
     STA_EVT_XXX_1                       = 0x301,
+
+    MONITOR_REGISTER_CB_IND             = 0x310,
+    FILER_REGISTER_CB_IND               = 0x311,
 
     BK_WIFI_API_EVT_BUTT                = BK_EVT_WIFI_API_END
 };
