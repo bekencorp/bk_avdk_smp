@@ -6,21 +6,14 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .bk_partition import bk_partition
+from bk_misc import check_overlaps, parse_format_size
+
+from .bk_partition import PARTITION_ATTR_NUM, bk_partition
 
 logger = logging.getLogger(__package__)
 
 
-def parse_size(size_str: str) -> int:
-    for letter, multiplier in [("k", 1024), ("m", 1024 * 1024)]:
-        if size_str.lower().endswith(letter):
-            return parse_size(size_str[:-1]) * multiplier
-    return int(size_str, 0)
-
-
 class bk_partitions_table:
-    PARTITION_ATTR_NUM = 6
-
     def __init__(self, csv_path: Path, crc_enable: bool = False) -> None:
         if not csv_path.exists():
             msg = f"auto partition config table {csv_path} not exist."
@@ -36,7 +29,7 @@ class bk_partitions_table:
 
     def _parser_partition_line(self, part_line: str) -> bk_partition:
         part_info = part_line.split(",")
-        if len(part_info) < bk_partitions_table.PARTITION_ATTR_NUM:
+        if len(part_info) < PARTITION_ATTR_NUM:
             msg = f"auto partition config table invalid, line:\n{part_line}"
             raise RuntimeError(msg)
         part_info = [item.strip() for item in part_info]
@@ -49,7 +42,7 @@ class bk_partitions_table:
 
         offset = self.cumulative_offset if offset_str == "" else int(offset_str, 16)
 
-        size = parse_size(size_str)
+        size = parse_format_size(size_str)
 
         if mode.lower() == "code":
             execute = True
@@ -95,12 +88,8 @@ class bk_partitions_table:
         for part in self.partitions:
             offset, size = part.get_partition_size()
             space_sections.append((offset, size))
-        intervals = [(start, start + length) for start, length in space_sections]
-        intervals.sort()
-        for i in range(1, len(intervals)):
-            if intervals[i][0] < intervals[i - 1][1]:
-                msg = "partition table config overlaps"
-                raise RuntimeError(msg)
+        if check_overlaps(space_sections):
+            raise RuntimeError("partition table config overlaps")
 
     def _parse_auto_partition_table(self) -> None:
         def check_auto_partition_line_valid(part_line: str) -> None:

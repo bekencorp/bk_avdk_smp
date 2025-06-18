@@ -6,16 +6,15 @@ logger = logging.getLogger(__package__)
 
 
 def crc16(data: bytes, offset: int, length: int):
-    if offset < 0 or offset > len(data) - 1 and offset + length > len(data):
+    if offset < 0 or offset + length > len(data):
         return 0
     crc = 0xFFFFFFFF
-    for i in range(0, length):
+
+    # beken poly:8005
+    for i in range(length):
         crc ^= data[offset + i] << 8
-        for _ in range(0, 8):
-            if (crc & 0x8000) > 0:
-                crc = (crc << 1) ^ 0x8005  # for beken poly:8005
-            else:
-                crc = crc << 1
+        for _ in range(8):
+            crc = (crc << 1) ^ 0x8005 if (crc & 0x8000) else (crc << 1)
     return crc & 0xFFFF
 
 

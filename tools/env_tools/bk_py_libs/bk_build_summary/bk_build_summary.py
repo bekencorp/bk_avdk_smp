@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from bk_misc import parse_format_size
+
 logger = logging.getLogger(__package__)
 
 OUTPUT_LINE_MAX_LEN = 60
@@ -149,9 +151,9 @@ class bk_build_summary:
             + "\n"
         )
         mem_region_info += f"{'':-^{OUTPUT_LINE_MAX_LEN}}\n"
-        for index in range(len(link_info)):
-            link_name, link_used_size, link_size, link_usage_rate = link_info[index]
-            map_name, map_addr, map_size = map_info[index]
+        for link, map in zip(link_info, map_info):
+            link_name, link_used_size, link_size, link_usage_rate = link
+            map_name, map_addr, map_size = map
             if link_name != map_name or link_size != map_size:
                 raise RuntimeError("data invalid")
             mem_region_info += f"{link_name:<21}"  # 21
@@ -192,17 +194,6 @@ class bk_build_summary:
 
     @classmethod
     def _get_link_info(cls, mem_file: Path):
-        def get_size(size_unit: str):
-            if size_unit.upper() == "B":
-                return 1
-            elif size_unit.upper() == "KB":
-                return 1024
-            elif size_unit.upper() == "MB":
-                return 1024 * 1024
-            elif size_unit.upper() == "GB":
-                return 1024 * 1024 * 1024
-            raise RuntimeError("unknown size unit")
-
         mem_info: list[tuple[str, int, int, str]] = []
         raw_link_mem_info = mem_file.read_text().strip().replace(":", "")
         start = raw_link_mem_info.find("FLASH")
@@ -213,8 +204,8 @@ class bk_build_summary:
         for line in lines:
             info = line.split()
             name = info[0]
-            used_size = int(info[1]) * get_size(info[2])
-            region_size = int(info[3]) * get_size(info[4])
+            used_size = parse_format_size(info[1] + info[2])
+            region_size = parse_format_size(info[3] + info[4])
             usage_rate = info[5]
             mem_info.append((name, used_size, region_size, usage_rate))
         return mem_info

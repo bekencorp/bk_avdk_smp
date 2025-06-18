@@ -4,12 +4,6 @@ set(srcs
     ap_main.c
     )
 
-if (CONFIG_OVERRIDE_FLASH_PARTITION)
-    # list(APPEND srcs
-    #     ../partitions/vendor_flash.c
-    # )
-endif()
-
 
 set(priv_req  media_service multimedia)
 

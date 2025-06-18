@@ -5,6 +5,7 @@ from pathlib import Path
 
 from bk_bootloader_post import check_is_ab_project
 from bk_crc import bk_crc16
+from bk_misc import parse_format_size
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -16,15 +17,6 @@ header_path = "{}/env_tools/rtt_ota/ota-rbl/".format(armino_tools_path)
 ota_tool = "%s/env_tools/rtt_ota/ota-rbl/ota_packager_python.py" % (armino_tools_path)
 armino_path = os.getenv("ARMINO_CP_DIR")
 project_dir = os.getenv("PROJECT_DIR")
-
-
-def parse_format_size(size_str: str):
-    size_str = size_str.lower()
-    if size_str.endswith("m"):
-        return int(size_str[:-1]) * 1024 * 1024
-    if size_str.endswith("k"):
-        return int(size_str[:-1]) * 1024
-    return int(size_str)
 
 
 def pack_ota_rbl_non_ab(origin_ota_app_bin: Path):

@@ -113,7 +113,6 @@ class bk_sdk_info:
         def copy_binaries_to_pack_dir(origin_path: Path, pack_path: Path):
             if not origin_path.exists():
                 raise FileNotFoundError(f"{origin_path} not found.")
-            print("app bin path: ", origin_path)
             shutil.copy(origin_path, pack_path)
 
         soc_name = project_info.get_soc_name()

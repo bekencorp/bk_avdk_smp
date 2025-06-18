@@ -19,10 +19,10 @@ class bk_packager_linear_crc(bk_packager):
         super().__init__(workdir, pack_json, linker, output_file_name)
         logger.info(f"use {self.__class__.__name__} to pack {output_file_name}")
 
-    @bk_packager_crc_decorator.pre_link  # type: ignore
+    @bk_packager_crc_decorator.pre_link
     def _pre_link(self):
         pass
 
-    @bk_packager_crc_decorator.post_link  # type: ignore
+    @bk_packager_crc_decorator.post_link
     def _post_link(self):
         pass

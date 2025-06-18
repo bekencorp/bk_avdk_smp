@@ -5,7 +5,7 @@
 #include <os/mem.h>
 #include "cli.h"
 #include "driver/flash.h"
-#include "vendor_flash_partition.h"
+#include "driver/flash_partition.h"
 
 #define CPU_OPREATE_FLASH_ADDRESS	(0x02000000)
 

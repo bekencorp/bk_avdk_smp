@@ -25,9 +25,6 @@
 #include <modules/chip_support.h>
 #include "flash_bypass.h"
 
-#if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX)
-#include "partitions_gen.h"
-#endif
 
 extern bk_err_t bk_flash_erase_sector(uint32_t address);
 extern bk_err_t bk_flash_erase_32k(uint32_t address);
@@ -164,7 +161,6 @@ bk_err_t bk_flash_erase_fast(uint32_t erase_off, uint32_t len)
 
 #if defined(CONFIG_SECURITY_OTA) && !defined(CONFIG_TFM_FWU)
 
-#include "partitions.h"
 #include "_ota.h"
 #if CONFIG_CACHE_ENABLE
 #include "cache.h"

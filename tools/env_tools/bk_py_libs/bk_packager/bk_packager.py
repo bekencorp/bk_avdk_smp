@@ -23,7 +23,7 @@ class bk_packager(ABC):
         self.workdir = workdir.absolute()
 
         # check workdir
-        if (not self.workdir.exists()) or (not self.workdir.is_dir()):
+        if not self.workdir.is_dir():
             raise RuntimeError(f"work directory {self.workdir} not exist.")
 
         self.part_info = parse_packager_json(workdir, pack_json)

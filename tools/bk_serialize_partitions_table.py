@@ -2,14 +2,7 @@ import binascii
 import json
 from pathlib import Path
 
-
-def parse_format_size(size_str: str):
-    size_str = size_str.lower()
-    if size_str.endswith("m"):
-        return int(size_str[:-1]) * 1024 * 1024
-    if size_str.endswith("k"):
-        return int(size_str[:-1]) * 1024
-    return int(size_str)
+from bk_misc import parse_format_size
 
 
 def format_string_to_bytes(string: str, length: int) -> bytes:

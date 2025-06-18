@@ -9,24 +9,16 @@ from pathlib import Path
 
 import bk_packager
 from bk_build_summary import bk_build_summary
+from bk_misc import parse_format_size
 from bk_ota_pack import pack_ota_rbl
 from bk_project import bk_project_info
 
-logger = logging.getLogger(os.path.basename(__file__))
+logger = logging.getLogger(Path(__file__).name)
 
 
 def set_logging():
     log_format = "[%(name)s|%(levelname)s] %(message)s"
     logging.basicConfig(format=log_format, level=logging.INFO)
-
-
-def parse_format_size(size_str: str):
-    size_str = size_str.lower()
-    if size_str.endswith("m"):
-        return int(size_str[:-1]) * 1024 * 1024
-    if size_str.endswith("k"):
-        return int(size_str[:-1]) * 1024
-    return int(size_str)
 
 
 class bk_smp_packager:

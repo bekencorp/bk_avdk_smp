@@ -58,13 +58,6 @@ list(APPEND srcs
 )
 endif()
 
-if (CONFIG_OVERRIDE_FLASH_PARTITION)
-    # list(APPEND srcs
-    #     ../partitions/vendor_flash.c
-    # )
-endif()
-
-
 set(priv_req  media_service multimedia)
 
 if ("${ARMINO_SOC}" STREQUAL "bk7258_ap")

@@ -6,8 +6,7 @@ endif()
 
 set(GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/_build)
 armino_build_set_property(PARTITIONS_HDR_DIR ${GEN_DIR})
-set(GEN_FILE ${GEN_DIR}/partitions_gen.h)
-set(PARTITONS_TABLE_HEADER $ENV{PARTITIONS_DIR}/partitions_gen.h)
+set(GEN_FILE ${GEN_DIR}/security.h)
 set(CONFIG_FILE_LISTS
 	bl1_control.json
 	../csv/ota.csv
@@ -17,12 +16,11 @@ set(CONFIG_FILE_LISTS
 	)
 
 armino_build_get_property(python PYTHON)
-set(GEN_TOOL $ENV{ARMINO_PATH}/middleware/boards/${ARMINO_SOC}/bk7258.wrapper)
+set(GEN_TOOL $ENV{ARMINO_TOOLS_PATH}/bk_prebuild.py)
 
 add_custom_command(OUTPUT ${GEN_FILE}
-	COMMAND ${python} ${GEN_TOOL} pack --prebuild
-	COMMAND ${CMAKE_COMMAND} -E copy ${PARTITONS_TABLE_HEADER} ${GEN_FILE}
-	DEPENDS ${CONFIG_FILE_LISTS} ${GEN_TOOL} ${PARTITONS_TABLE_HEADER}
+	COMMAND ${python} ${GEN_TOOL}
+	DEPENDS ${CONFIG_FILE_LISTS} ${GEN_TOOL}
 )
 
 add_custom_target(generated_files SOURCES ${GEN_FILE})

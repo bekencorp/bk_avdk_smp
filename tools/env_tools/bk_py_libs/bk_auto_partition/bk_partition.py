@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import NamedTuple
+from dataclasses import asdict, dataclass, fields
+from typing import Any
 
 OUTPUT_LINE_MAX_LEN = 60
 
 
-class PartInfo(NamedTuple):
+@dataclass
+class PartInfo:
     Name: str
     Offset: int
     Size: int
@@ -14,52 +16,40 @@ class PartInfo(NamedTuple):
     Write: bool
 
 
+PARTITION_ATTR_NUM = len(fields(PartInfo))
+
+
 class bk_partition:
     def __init__(self, name: str, offset: int, size: int) -> None:
         if size == 0 or size % 1024 != 0:
             msg = f"size vale = {size}, not valid."
             raise ValueError(msg)
-        self._name = name
-        self._offset = offset
-        self._size = size
-        self._execute = False
-        self._read = True
-        self._write = True
+        self._part_info = PartInfo(name, offset, size, False, True, True)
 
     def chmod(self, write: bool, read: bool, execute: bool) -> None:
-        self._execute = execute
-        self._read = read
-        self._write = write
+        self._part_info.Execute = execute
+        self._part_info.Read = read
+        self._part_info.Write = write
 
     def get_info(self) -> PartInfo:
-        part_info = PartInfo(
-            self._name, self._offset, self._size, self._execute, self._read, self._write
-        )
-        return part_info
+        return self._part_info
 
-    def get_part_dict(self) -> dict[str, str | int | bool]:
-        part_info: dict[str, str | int | bool] = {}
-        part_info.update({"Name": self._name})
-        part_info.update({"Offset": self._offset})
-        part_info.update({"Size": self._size})
-        part_info.update({"Execute": self._execute})
-        part_info.update({"Read": self._read})
-        part_info.update({"Write": self._write})
-        return part_info
+    def get_part_dict(self) -> dict[str, Any]:
+        return asdict(self._part_info)
 
     def get_format_info(self) -> str:
         info = ""
-        info += self._name + ","
-        info += f"0x{self._offset:08x},"  # offfset
-        size_kb = int(self._size / 1024)
+        info += self._part_info.Name + ","
+        info += f"0x{self._part_info.Offset:08x},"  # offfset
+        size_kb = int(self._part_info.Size / 1024)
         info += f"{size_kb}K,"  # size
-        info += str(self._execute) + ","
-        info += str(self._read) + ","
-        info += str(self._write)
+        info += str(self._part_info.Execute) + ","
+        info += str(self._part_info.Read) + ","
+        info += str(self._part_info.Write)
         return info
 
     def get_partition_size(self) -> tuple[int, int]:
-        return self._offset, self._size
+        return self._part_info.Offset, self._part_info.Size
 
     @classmethod
     def get_pretty_format_info_head(cls):
@@ -87,7 +77,9 @@ class bk_partition:
         return info
 
     def get_pretty_format_info(self) -> str:
-        return self.get_partitions_pretty_info(self._name, self._offset, self._size)
+        return self.get_partitions_pretty_info(
+            self._part_info.Name, self._part_info.Offset, self._part_info.Size
+        )
 
     @classmethod
     def get_unused_part_info(cls, offset: int, size: int):

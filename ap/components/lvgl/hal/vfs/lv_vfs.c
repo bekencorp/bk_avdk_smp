@@ -1,9 +1,6 @@
 #include "os/os.h"
 #include "bk_posix.h"
 #include "driver/flash_partition.h"
-#if CONFIG_LITTLEFS_USE_LITTLEFS_PARTITION
-#include "vendor_flash_partition.h"
-#endif
 
 
 #if (CONFIG_FATFS)

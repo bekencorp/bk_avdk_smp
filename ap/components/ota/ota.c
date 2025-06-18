@@ -10,7 +10,7 @@
 #include "modules/wifi.h"
 #endif
 #ifdef CONFIG_OTA_HASH_FUNCTION
-#include "vendor_flash_partition.h"
+#include "driver/flash_partition.h"
 #endif
 #include "common/bk_err.h"
 #include "bk_private/bk_ota_private.h" 

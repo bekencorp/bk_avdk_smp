@@ -21,7 +21,8 @@
 */
 #pragma once
 #include <common/bk_include.h>
-#include "vendor_flash_partition.h"
+#include <flash_partitions_index.h>
+#include <partitions.h>
 
 #ifdef __cplusplus
 extern "C" {

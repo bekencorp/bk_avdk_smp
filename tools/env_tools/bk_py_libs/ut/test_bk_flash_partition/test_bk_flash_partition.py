@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest import TestCase
 
+from bk_flash_partitions_generator import bk_flash_test_partition_content_generator
 from ut_msic import get_file_md5sum
 
 from bk_flash_partiton import bk_flash_partition
@@ -27,17 +28,18 @@ class test_bk_flash_partition(TestCase):
     def test_flash_partition_src(self):
         workdir = curr_dir / "workspace"
         partition_json = workdir / "gen_partitions.json"
-        flash_part = bk_flash_partition(partition_json)
+        generator = bk_flash_test_partition_content_generator()
+        flash_part = bk_flash_partition(partition_json, generator)
         header_path = workdir / "vendor_flash_partition.h"
         src_path = workdir / "vendor_flash.c"
         flash_part.gen_flash_partitions_src(header_path, src_path)
         self.assertTrue(header_path.exists())
         self.assertTrue(src_path.exists())
         header_hash = get_file_md5sum(header_path)
-        expect_header_hash = "b8236d4322de27a251b098d18b70e5d5"
+        expect_header_hash = "2b1c92a51a03a049b2fae443fad9b04f"
         self.assertEqual(expect_header_hash, header_hash)
         src_hash = get_file_md5sum(src_path)
-        expect_src_hash = "7aa7b247a68a81ad328211b3557580f1"
+        expect_src_hash = "8a0c15bebafdaa05bbe10df01abd702b"
         self.assertEqual(expect_src_hash, src_hash)
         header_path.unlink()
         src_path.unlink()
@@ -45,12 +47,13 @@ class test_bk_flash_partition(TestCase):
     def test_gen_partitions_header(self):
         workdir = curr_dir / "workspace"
         partition_json = workdir / "gen_partitions.json"
-        flash_part = bk_flash_partition(partition_json)
+        generator = bk_flash_test_partition_content_generator()
+        flash_part = bk_flash_partition(partition_json, generator)
         header_path = workdir / "partitions.h"
         flash_part.gen_partitions_layout_hdr(header_path)
         self.assertTrue(header_path.exists())
         header_hash = get_file_md5sum(header_path)
-        expect_header_hash = "5dfe1145e0a16ff6107a5310a4d2bfb7"
+        expect_header_hash = "d34283f4771506436abc9de30f1c1d52"
         self.assertEqual(expect_header_hash, header_hash)
         header_path.unlink()
 
@@ -58,7 +61,8 @@ class test_bk_flash_partition(TestCase):
         workdir = curr_dir / "workspace"
         partition_json = workdir / "gen_partitions.json"
         package_json = workdir / "bk_package.json"
-        flash_part = bk_flash_partition(partition_json)
+        generator = bk_flash_test_partition_content_generator()
+        flash_part = bk_flash_partition(partition_json, generator)
         flash_part.gen_pack_json(package_json)
         self.assertTrue(package_json.exists())
         json_hash = get_file_md5sum(package_json)

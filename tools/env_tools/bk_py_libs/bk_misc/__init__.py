@@ -1,17 +1,13 @@
 import logging
 
-from .bk_flash_partition import (
-    bk_flash_partition,
-    bk_flash_partition_content_generator,
-    partition_info,
-)
+from .bk_misc import check_overlaps, format_size, parse_format_size
 
 __version__ = "0.0.1"
 
 __all__ = [
-    "bk_flash_partition",
-    "bk_flash_partition_content_generator",
-    "partition_info",
+    "format_size",
+    "check_overlaps",
+    "parse_format_size",
 ]
 
 

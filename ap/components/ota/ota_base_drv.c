@@ -16,7 +16,7 @@
 #endif
 #ifdef CONFIG_HTTP_AB_PARTITION
 #include "modules/ota.h"
-#include "vendor_flash_partition.h"
+#include "driver/flash_partition.h"
 extern part_flag update_part_flag;
 #endif
 

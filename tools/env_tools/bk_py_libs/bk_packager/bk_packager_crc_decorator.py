@@ -1,13 +1,15 @@
-from typing import Callable
+from typing import Callable, TypeVar
 
 from bk_crc import bk_crc16
 
 from .bk_packager import bk_packager
 from .bk_packager_json import PartitionInfo
 
+T = TypeVar("T", bound=bk_packager)
 
-def pre_link(func: Callable[[bk_packager], None]):  # type: ignore
-    def wrapper(self: bk_packager, *args, **kwargs):  # type: ignore
+
+def pre_link(func: Callable[[T], None]):
+    def wrapper(self: T):
         for index, part_item in enumerate(self.part_info):
             crced_data = crc_handler.crc16_data(part_item.data)
             if len(crced_data) > part_item.size:
@@ -18,18 +20,18 @@ def pre_link(func: Callable[[bk_packager], None]):  # type: ignore
                 part_item.addr, part_item.size, part_item.name, crced_data
             )
             self.part_info[index] = crced_part_item
-        return func(self, *args, **kwargs)  # type: ignore
+        return func(self)
 
     crc_handler = bk_crc16()
-    return wrapper  # type: ignore
+    return wrapper
 
 
-def post_link(func: Callable[[bk_packager], None]):  # type: ignore
-    def wrapper(self: bk_packager, *args, **kwargs):  # type: ignore
+def post_link(func: Callable[[T], None]):
+    def wrapper(self: T):
         # for ensure pre-read code length have 34 bytes at least.
-        ret = func(self, *args, **kwargs)
+        ret = func(self)
         with self.output_file.open("ab") as f:
             f.write(bytes([0xFF] * 34))
         return ret
 
-    return wrapper  # type: ignore
+    return wrapper

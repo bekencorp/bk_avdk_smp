@@ -90,7 +90,7 @@ LOGI("[Select ld file]: ${LD_FILE}.")
 
 set(ld_header_dependencies
 	${armino_path}/include/soc/bk7258/reg_base.h
-	${CMAKE_CURRENT_BINARY_DIR}/../partitions/_build/partitions_gen.h
+	$ENV{PARTITIONS_DIR}/partitions_gen.h
 )
 
 add_custom_command(
@@ -99,10 +99,9 @@ add_custom_command(
 	         -I ${ARMINO_PATH}/components/cmsis/CMSIS_5/Device/Beken/bk7236xx/Include/
 			 -I ${armino_path}/include/ -I ${config_dir}
 			 -I ${armino_path}/middleware/boards/${target}/partitions
-			 -I ${CMAKE_CURRENT_BINARY_DIR}/../partitions/_build
 			 -I $ENV{PARTITIONS_DIR}
 	MAIN_DEPENDENCY ${LD_DIR}/${target}.ld ${sdkconfig_header}
-	DEPENDS generated_files ${ld_header_dependencies}
+	DEPENDS ${ld_header_dependencies}
 	COMMENT "Generating linker script..."
 	VERBATIM
 )

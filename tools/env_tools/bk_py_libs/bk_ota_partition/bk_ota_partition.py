@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from bk_misc import format_size
+
 logger = logging.getLogger(__package__)
 
 
@@ -87,10 +89,10 @@ class bk_ota_partition:
                 "beken_onchip_crc" if p["Execute"] else "beken_onchip"
             )
             part_dict["offset"] = f"0x{p['Offset']:08x}"
-            part_dict["len"] = self._size_format(p["Size"])
+            part_dict["len"] = format_size(p["Size"])
             part_table_dict["part_table"].append(part_dict)
             if p["Name"] in KEYWORDS.values():
-                part_dict["len"] = self._size_format(app_total_size)
+                part_dict["len"] = format_size(app_total_size)
             if p["Name"] == "appa":
                 part_dict["offset"] = f"0x{appa_offset:08x}"
             if p["Name"] == "s_app":
@@ -140,7 +142,7 @@ class bk_ota_partition:
                 "beken_onchip_crc" if p["Execute"] else "beken_onchip"
             )
             part_dict["offset"] = f"0x{p['Offset']:08x}"
-            part_dict["len"] = self._size_format(p["Size"])
+            part_dict["len"] = format_size(p["Size"])
             part_table_dict["part_table"].append(part_dict)
         logger.info(f"gen package json: {ota_json}")
         with ota_json.open("w", newline="\n") as f:
@@ -188,10 +190,3 @@ class bk_ota_partition:
         logger.info(f"gen ab configuartion json: {config_json}")
         with config_json.open("w", newline="\n") as f:
             json.dump(json_content, f, indent=4)
-
-    @staticmethod
-    def _size_format(size: int) -> str:
-        for val, suffix in [(0x400, "K"), (0x100000, "M")]:
-            if size % val == 0:
-                return f"{size // val}{suffix}"
-        return f"{size}"

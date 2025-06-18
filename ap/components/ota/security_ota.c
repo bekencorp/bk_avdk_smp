@@ -11,7 +11,7 @@
 #include "modules/wifi.h"
 
 #include <driver/flash.h>
-#include "partitions.h"
+#include <driver/flash_partition.h>
 #include "CheckSumUtils.h"
 #include "security_ota.h"
 #include <driver/wdt.h>

@@ -24,10 +24,6 @@
 #include <modules/chip_support.h>
 #include "flash_bypass.h"
 
-#if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX)
-#include "partitions_gen.h"
-#endif
-
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
 static SPINLOCK_SECTION volatile spinlock_t flash_spin_lock = SPIN_LOCK_INIT;

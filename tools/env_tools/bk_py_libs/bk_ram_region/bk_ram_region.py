@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+from bk_misc import check_overlaps, parse_format_size
 
 logger = logging.getLogger(__package__)
 
@@ -12,16 +16,6 @@ class mem_region:
     type: str
     offset: int
     size: int
-
-
-def parse_size(size_str: str) -> int:
-    size_str = size_str.strip()
-    if size_str.endswith("K"):
-        return int(size_str[:-1]) * 1024
-    elif size_str.endswith("M"):
-        return int(size_str[:-1]) * 1024 * 1024
-    else:
-        return int(size_str)
 
 
 class bk_ram_region:
@@ -104,12 +98,8 @@ class bk_ram_region:
         space_sections: list[tuple[int, int]] = []
         for region in self.regions:
             space_sections.append((region.offset, region.size))
-        intervals = [(start, start + length) for start, length in space_sections]
-        intervals.sort()
-        for i in range(1, len(intervals)):
-            if intervals[i][0] < intervals[i - 1][1]:
-                msg = "RAM regions config overlaps"
-                raise RuntimeError(msg)
+        if check_overlaps(space_sections):
+            raise RuntimeError("RAM regions config overlaps")
 
     def _parse_ram_mem_csv(self):
         csv_contents = self.ram_mem_csv.read_text()
@@ -120,7 +110,7 @@ class bk_ram_region:
             if line_content.startswith("#") or len(line_content) == 0:
                 continue
             if "PSRAM_CAPCAITY_SIZE=" in line_content:
-                self.psram_capacity = parse_size(line_content.split("=")[1])
+                self.psram_capacity = parse_format_size(line_content.split("=")[1])
                 continue
             self._check_line_valid(line_content)
             self.regions.append(self._parse_line_mem_region(line_content))

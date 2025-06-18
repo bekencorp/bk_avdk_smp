@@ -16,8 +16,7 @@
 
 #include "driver/flash_partition.h"
 
-#if defined(CONFIG_OVERRIDE_FLASH_PARTITION) && defined(BK_PARTITION_LITTLEFS_USER)
-#include "vendor_flash_partition.h"
+#if defined(BK_PARTITION_LITTLEFS_USER)
 #define BK_PARTITION_FS_ID BK_PARTITION_LITTLEFS_USER
 #else
 #define BK_PARTITION_FS_ID BK_PARTITION_USR_CONFIG

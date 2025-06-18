@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-import os
-import logging
-import shutil
-import re
 import csv
+import logging
+import os
+
 
 class Csv:
-
-    def __init__(self, csv_file, is_list=False, supported_key_list=[], supported_key_list_old=None):
-
+    def __init__(
+        self,
+        csv_file,
+        is_list=False,
+        supported_key_list=[],
+        supported_key_list_old=None,
+    ):
         self.csv_file = csv_file
         self.is_list = is_list
         self.supported_key_list = supported_key_list
@@ -17,9 +20,10 @@ class Csv:
         self.dic_list = []
         self.dic = {}
 
-        logging.debug(f'parse csv_file={csv_file}')
+        logging.debug(f"parse csv_file={csv_file}")
         if not os.path.exists(self.csv_file):
-            logging.error(f'csv_file={csv_file} not exists')
+            logging.error(f"cwd:{os.getcwd()}")
+            logging.error(f"csv_file={csv_file} not exists")
             exit(1)
 
         self.dump_csv()
@@ -27,7 +31,6 @@ class Csv:
             self.parse_csv_list()
         else:
             self.parse_csv_dic()
-
 
     def upper_list(self, str_list):
         upper_str_list = []
@@ -48,30 +51,30 @@ class Csv:
         idx = 0
         for key in upper_keys:
             if key not in upper_key_list:
-                logging.debug(f'Field {keys[idx]} of {self.csv_file} not supported')
+                logging.debug(f"Field {keys[idx]} of {self.csv_file} not supported")
                 return False
             idx += 1
 
         idx = 0
         for key in upper_key_list:
-            if key == 'APP_VERSION':
+            if key == "APP_VERSION":
                 continue
             if key not in upper_keys:
-                logging.debug(f'{self.csv_file} missing Field {key_list[idx]}')
+                logging.debug(f"{self.csv_file} missing Field {key_list[idx]}")
                 return False
             idx += 1
 
         return True
-    
+
     def dump_csv(self):
-        if self.csv_file == 'partitions.csv':
-            with open(self.csv_file, 'r') as f:
-                csv_data = csv.reader(f, delimiter=',')
+        if self.csv_file == "partitions.csv":
+            with open(self.csv_file, "r") as f:
+                csv_data = csv.reader(f, delimiter=",")
                 for row in csv_data:
-                    logging.debug(','.join(row))
+                    logging.debug(",".join(row))
 
     def parse_csv_list(self):
-        with open(self.csv_file, 'r') as f:
+        with open(self.csv_file, "r") as f:
             csv_data = csv.reader(f)
 
             row_idx = 0
@@ -80,26 +83,28 @@ class Csv:
                 if row_idx == 0:
                     row_idx = 1
                     if self.check_keys(row, self.supported_key_list) == True:
-                        logging.debug(f'{self.csv_file} support prefered csv fields')
+                        logging.debug(f"{self.csv_file} support prefered csv fields")
                         self.active_key_list = self.supported_key_list
                     elif self.check_keys(row, self.supported_key_list_old) == True:
-                        logging.debug(f'{self.csv_file} support alternative csv fields')
+                        logging.debug(f"{self.csv_file} support alternative csv fields")
                         self.active_key_list = self.supported_key_list_old
                     else:
-                        logging.error(f'{self.csv_file} contain unknown or missing fields')
+                        logging.error(
+                            f"{self.csv_file} contain unknown or missing fields"
+                        )
                         exit(1)
                     continue
-    
+
                 dic = {}
                 key_idx = 0
                 for cell in row:
                     dic[self.active_key_list[key_idx]] = cell
                     key_idx += 1
                 self.dic_list.append(dic)
-            #logging.debug(f'dic_list={self.dic_list}')
+            # logging.debug(f'dic_list={self.dic_list}')
 
     def parse_csv_dic(self):
-        with open(self.csv_file, 'r') as f:
+        with open(self.csv_file, "r") as f:
             csv_data = csv.reader(f)
 
             actual_keys = []
@@ -107,12 +112,14 @@ class Csv:
             for row in csv_data:
                 if row_idx == 0:
                     row_idx = 1
-                    if (row[0].upper() != 'FIELD') or (row[1].upper() != 'VALUE'):
-                        logging.error(f'{self.csv_file} first row should be "Field", "Value"')
+                    if (row[0].upper() != "FIELD") or (row[1].upper() != "VALUE"):
+                        logging.error(
+                            f'{self.csv_file} first row should be "Field", "Value"'
+                        )
                         exit(1)
                     continue
                 actual_keys.append(row[0])
                 self.dic[row[0]] = row[1]
-   
+
             self.check_keys(actual_keys, self.active_key_list)
-            #logging.debug(f'parse {self.csv_file}: {self.dic}')
+            # logging.debug(f'parse {self.csv_file}: {self.dic}')
