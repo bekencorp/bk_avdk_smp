@@ -934,9 +934,8 @@ bk_err_t onboard_speaker_stream_set_param(audio_element_handle_t onboard_speaker
     return err;
 }
 
-bk_err_t onboard_speaker_stream_set_gain(audio_element_handle_t onboard_speaker_stream, uint8_t gain)
+bk_err_t onboard_speaker_stream_set_digital_gain(audio_element_handle_t onboard_speaker_stream, uint8_t gain)
 {
-    bk_err_t err = BK_OK;
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
 
     /* check param */
@@ -946,9 +945,16 @@ bk_err_t onboard_speaker_stream_set_gain(audio_element_handle_t onboard_speaker_
         return BK_FAIL;
     }
 
+    /* check param */
+    if (onboard_spk == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, onboard_spk is not init \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
     if (onboard_spk->dig_gain == gain)
     {
-        BK_LOGI(TAG, "not need updata onboard speaker gain \n");
+        BK_LOGI(TAG, "not need updata onboard speaker digital gain \n");
         return BK_OK;
     }
 
@@ -967,16 +973,39 @@ bk_err_t onboard_speaker_stream_set_gain(audio_element_handle_t onboard_speaker_
     }
     else
     {
-        BK_LOGE(TAG, "%s, line: %d, updata speaker gain fail \n", __func__, __LINE__);
-        err = BK_FAIL;
+        BK_LOGE(TAG, "%s, line: %d, updata speaker digital gain fail \n", __func__, __LINE__);
+        return BK_FAIL;
     }
 
-    return err;
+    return BK_OK;
 }
+
+bk_err_t onboard_speaker_stream_get_digital_gain(audio_element_handle_t onboard_speaker_stream, uint8_t *gain)
+{
+    onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
+
+    /* check param */
+    if (gain == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, gain is NULL\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    /* check param */
+    if (onboard_spk == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, onboard_spk is not init \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    *gain = onboard_spk->dig_gain;
+
+    return BK_OK;
+}
+
 
 bk_err_t onboard_speaker_stream_dac_mute_en(audio_element_handle_t onboard_speaker_stream, uint8_t value)
 {
-    bk_err_t err = BK_OK;
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
 
     /* check param */
@@ -995,7 +1024,7 @@ bk_err_t onboard_speaker_stream_dac_mute_en(audio_element_handle_t onboard_speak
         bk_aud_dac_mute();
     }
 
-    return err;
+    return BK_OK;
 }
 
 

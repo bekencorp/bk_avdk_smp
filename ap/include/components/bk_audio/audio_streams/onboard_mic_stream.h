@@ -32,7 +32,7 @@ typedef struct
     uint8_t                 chl_num;          /*!< mic channel number */
     uint8_t                 bits;             /*!< Bit wide (16 or 24 bits) */
     uint32_t                sample_rate;      /*!< mic sample rate */
-    int32_t                 dig_gain;         /*!< audio adc digital gain: value range: , suggest: */
+    int32_t                 dig_gain;         /*!< audio adc digital gain: value range: 0x00 ~ 0x3f(-45db ~ 18db, 0x2d: 0db), suggest: 0x2d */
     int32_t                 ana_gain;         /*!< audio adc analog gain: value range: , suggest: */
     aud_adc_mode_t          mode;             /*!< mic interface mode: signal_ended/differen */
     aud_clk_t               clk_src;          /*!< audio clock: XTAL(26MHz)/APLL */
@@ -162,6 +162,31 @@ typedef struct
  *                 - NULL: failed
  */
 audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config);
+
+/**
+ * @brief      Updata onboard mic stream digital gain.
+ *
+ * @param[in]      onboard_mic_stream  element handle
+ * @param[in]      gain  mic digital gain, range: 0x00 ~ 0x3f(-45db ~ 18db, 0x2d: 0db)
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t gain);
+
+/**
+ * @brief      Get onboard mic stream digital gain.
+ *
+ * @param[in]      onboard_mic_stream  element handle
+ * @param[in,out]  gain  mic digital gain
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t onboard_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t *gain);
+
 
 #ifdef __cplusplus
 }

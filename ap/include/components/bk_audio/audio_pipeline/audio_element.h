@@ -182,7 +182,7 @@ typedef struct
 /**
  * @brief      Initialize audio element with config.
  *
- * @param      config  The configuration
+ * @param[in]  config  The configuration
  *
  * @return
  *     - audio_elemenent handle object
@@ -206,7 +206,7 @@ bk_err_t audio_element_deinit(audio_element_handle_t el);
  *             It can be retrieved by calling `audio_element_getdata`.
  *
  * @param[in]  el    The audio element handle
- * @param      data  The data pointer
+ * @param[in]  data  The data pointer
  *
  * @return
  *     - BK_OK
@@ -248,7 +248,7 @@ char *audio_element_get_tag(audio_element_handle_t el);
  * @brief      Set audio element infomation.
  *
  * @param[in]  el    The audio element handle
- * @param      info  The information pointer
+ * @param[in]  info  The information pointer
  *
  * @return
  *     - BK_OK
@@ -259,8 +259,8 @@ bk_err_t audio_element_setinfo(audio_element_handle_t el, audio_element_info_t *
 /**
  * @brief      Get audio element infomation.
  *
- * @param[in]  el    The audio element handle
- * @param      info  The information pointer
+ * @param[in]      el    The audio element handle
+ * @param[in,out]  info  The information pointer
  *
  * @return
  *     - BK_OK
@@ -402,8 +402,8 @@ bk_err_t audio_element_resume(audio_element_handle_t el, float wait_for_rb_thres
  * @brief      This function will add a `listener` to listen to all events from audio element `el`.
  *             Any event from el->external_event will be send to the `listener`.
  *
- * @param      el           The audio element handle
- * @param      listener     The event will be listen to
+ * @param[in]  el           The audio element handle
+ * @param[in]  listener     The event will be listen to
  *
  * @return
  *     - BK_OK
@@ -415,9 +415,9 @@ bk_err_t audio_element_msg_set_listener(audio_element_handle_t el, audio_event_i
  * @brief      This function will add a `callback` to be called from audio element `el`.
  *             Any event to caller will cause to call callback function.
  *
- * @param      el           The audio element handle
- * @param      cb_func      The callback function
- * @param      ctx          Caller context
+ * @param[in]  el           The audio element handle
+ * @param[in]  cb_func      The callback function
+ * @param[in]  ctx          Caller context
  *
  * @return
  *     - BK_OK
@@ -430,7 +430,7 @@ bk_err_t audio_element_set_event_callback(audio_element_handle_t el, event_cb_fu
  *             No new events will be sent to the listener.
  *
  * @param[in]  el        The audio element handle
- * @param      listener  The listener
+ * @param[in]  listener  The listener
  *
  * @return
  *     - BK_OK
@@ -623,7 +623,7 @@ bk_err_t audio_element_reset_output_port(audio_element_handle_t el);
  *             Depending on setup using ringbuffer or function callback, Element invokes read ringbuffer, or calls read callback funtion.
  *
  * @param[in]  el            The audio element handle
- * @param      buffer        The buffer pointer
+ * @param[in]  buffer        The buffer pointer
  * @param[in]  wanted_size   The wanted size
  *
  * @return
@@ -637,7 +637,7 @@ int audio_element_input(audio_element_handle_t el, char *buffer, int wanted_size
  *             Depending on setup using ringbuffer or function callback, Element will invoke write to ringbuffer, or call write callback funtion.
  *
  * @param[in]  el          The audio element handle
- * @param      buffer      The buffer pointer
+ * @param[in]  buffer      The buffer pointer
  * @param[in]  write_size  The write size
  *
  * @return
@@ -730,15 +730,15 @@ bk_err_t audio_element_set_output_framebuf_size(audio_element_handle_t el, int n
 /**
  * @brief      Call this function to read data from multi input ringbuffer by given index.
  *
- * @param      el            The audio element handle
- * @param      buffer        The buffer pointer
- * @param      wanted_size   The wanted size
- * @param      index         The index of multi input ringbuffer, start from `0`, should be less than `NUMBER_OF_MULTI_RINGBUF`
- * @param      ticks_to_wait Timeout of ringbuffer
+ * @param[in]      el            The audio element handle
+ * @param[in,out]  buffer        The buffer pointer
+ * @param[in]      wanted_size   The wanted size
+ * @param[in]      index         The index of multi input ringbuffer, start from `0`, should be less than `NUMBER_OF_MULTI_RINGBUF`
+ * @param[in]      ticks_to_wait Timeout of ringbuffer
  *
  * @return
- *     - BK_OK
- *     - BK_ERR_ADK_INVALID_ARG
+ *     - >= 0: Size of input
+ *     -  < 0: Error
  */
 bk_err_t audio_element_multi_input(audio_element_handle_t el, char *buffer, int wanted_size, int index, TickType_t ticks_to_wait);
 
@@ -746,13 +746,13 @@ bk_err_t audio_element_multi_input(audio_element_handle_t el, char *buffer, int 
  * @brief      Call this function write data by multi output ringbuffer.
  *
  * @param[in]  el            The audio element handle
- * @param      buffer        The buffer pointer
+ * @param[in]  buffer        The buffer pointer
  * @param[in]  wanted_size   The wanted size
- * @param      ticks_to_wait Timeout of ringbuffer
+ * @param[in]  ticks_to_wait Timeout of ringbuffer
  *
  * @return
- *     - BK_OK
- *     - BK_FAIL
+ *     - >= 0: Size of output
+ *     -  < 0: Error
  */
 bk_err_t audio_element_multi_output(audio_element_handle_t el, char *buffer, int wanted_size, TickType_t ticks_to_wait);
 

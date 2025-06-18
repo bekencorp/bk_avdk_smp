@@ -606,3 +606,64 @@ _onboard_mic_init_exit:
     return NULL;
 }
 
+bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t gain)
+{
+    onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
+
+    /* check param */
+    if (gain < 0 || gain > 0x3f)
+    {
+        BK_LOGE(TAG, "gain: %d is out of range: 0x00 ~ 0x3f \n", gain);
+        return BK_FAIL;
+    }
+
+    /* check param */
+    if (onboard_mic == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, onboard_mic is not init \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    if (onboard_mic->adc_cfg.dig_gain == gain)
+    {
+        BK_LOGI(TAG, "not need updata onboard mic digital gain \n");
+        return BK_OK;
+    }
+
+    if (BK_OK == bk_aud_adc_set_gain(gain))
+    {
+        onboard_mic->adc_cfg.dig_gain = gain;
+        audio_element_setdata(onboard_mic_stream, onboard_mic);
+    }
+    else
+    {
+        BK_LOGE(TAG, "%s, line: %d, updata mic digital gain fail \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+bk_err_t onboard_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t *gain)
+{
+    onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
+
+    /* check param */
+    if (gain == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, gain is NULL\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    /* check param */
+    if (onboard_mic == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, onboard_mic is not init \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    *gain = onboard_mic->adc_cfg.dig_gain;
+
+    return BK_OK;
+}
+

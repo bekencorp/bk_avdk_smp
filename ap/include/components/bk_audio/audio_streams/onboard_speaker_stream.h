@@ -31,7 +31,7 @@ typedef struct
 {
     uint8_t                 chl_num;            /*!< speaker channel number */
     uint32_t                sample_rate;        /*!< speaker sample rate */
-    int32_t                 dig_gain;           /*!< audio dac digital gain: value range: , suggest:  */
+    int32_t                 dig_gain;           /*!< audio dac digital gain: value range: 0x00 ~ 0x3f(-45db ~ 18db, 0x2d: 0db), suggest: 0x2d */
     int32_t                 ana_gain;           /*!< audio dac analog gain: value range: , suggest:  */
     aud_dac_work_mode_t     work_mode;          /*!< audio dac mode: signal_ended/differen */
     uint8_t                 bits;               /*!< Bit wide (8, 16, 24, 32 bits) */
@@ -95,16 +95,28 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
 bk_err_t onboard_speaker_stream_set_param(audio_element_handle_t onboard_speaker_stream, int rate, int bits, int ch);
 
 /**
- * @brief      Updata onboard speaker stream gain.
+ * @brief      Updata onboard speaker stream digital gain.
  *
  * @param[in]      onboard_speaker_stream  element handle
- * @param[in]      gain  speaker digital gain (range: 0x00 ~ 0x3F)
+ * @param[in]      gain  speaker digital gain, range: 0x00 ~ 0x3f(-45db ~ 18db, 0x2d: 0db)
  *
  * @return         Result
  *                 - BK_OK: success
  *                 - other: failed
  */
-bk_err_t onboard_speaker_stream_set_gain(audio_element_handle_t onboard_speaker_stream, uint8_t gain);
+bk_err_t onboard_speaker_stream_set_digital_gain(audio_element_handle_t onboard_speaker_stream, uint8_t gain);
+
+/**
+ * @brief      Get onboard speaker stream digital gain.
+ *
+ * @param[in]      onboard_speaker_stream  element handle
+ * @param[in,out]  gain  speaker digital gain
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t onboard_speaker_stream_get_digital_gain(audio_element_handle_t onboard_speaker_stream, uint8_t *gain);
 
 /**
  * @brief      Control onboard audio dac mute.
