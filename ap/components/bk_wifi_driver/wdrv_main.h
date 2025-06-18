@@ -180,6 +180,12 @@ typedef struct wdrv_stats
     uint32_t tx_eth_num;
     uint32_t tx_process_num;
     uint32_t tx_free_total;
+
+    uint32_t rx_total_recv;
+
+    uint32_t ipc_tx_cnt;
+    uint32_t ipc_txc_cnt;
+    uint32_t ipc_tx_fail_cnt;
 }wdrv_stats;
 
 struct wdrv_env_t

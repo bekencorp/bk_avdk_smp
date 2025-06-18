@@ -224,6 +224,11 @@ struct cif_stats
 
     uint32_t total_in_cif;
     uint32_t total_attach_cif;
+    uint32_t total_recv_cnt;
+
+    uint32_t ipc_tx_cnt;
+    uint32_t ipc_txc_cnt;
+    uint32_t ipc_tx_fail_cnt;
 };
 struct cif_rx_filter_t
 {

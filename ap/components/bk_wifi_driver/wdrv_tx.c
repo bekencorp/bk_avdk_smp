@@ -15,7 +15,6 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 //    {
 //        BK_ASSERT(0);
 //    }
-
     WDRV_LOGD("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
 	msg.type = WDRV_TASK_MSG_TXDATA;
 	msg.arg = (uint32_t)cpdu;
@@ -25,7 +24,10 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 	cpdu->co_hdr.vif_idx = vif_idx;
 	cpdu->co_hdr.type = TX_MSDU_DATA;
 	cpdu->next = NULL;
-
+#if CONFIG_CONTROLLER_DEBUG
+    if(!cpdu->co_hdr.need_free)
+        TRACK_PBUF_ALLOC(p);
+#endif
     WDRV_STATS_INC(tx_eth_num,1);
 
 	pbuf_ref(p);
@@ -82,6 +84,14 @@ bk_err_t wdrv_txbuf_push(uint8_t channel,void* head,void* tail,uint8_t num)
             
             //bk_mem_dump("A_TX",PTR_TO_U32((struct pbuf*)head -1),100);
             ret = wdrv_ipc_env[IPC_DATA].send(WIFI_IPC_DATA_CHNL,(mb_chnl_cmd_t*)&ipc_node);
+
+            if(ret == BK_OK)
+            {
+                wdrv_stats_ptr->ipc_tx_cnt++;
+            }else{
+                WDRV_LOGE("%s,%d,error type:%d\n",__func__,__LINE__,ret);
+                wdrv_stats_ptr->ipc_tx_fail_cnt++;
+            }
 //            if(ret != BK_OK)
 //            {
 //                WDRV_LOGE("%s,%d,error type:%d\n",__func__,__LINE__,ret);

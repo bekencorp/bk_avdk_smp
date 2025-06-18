@@ -2672,8 +2672,8 @@ void cif_debug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **ar
 		CIF_LOGE("cif tx data cnt:%d\n",cif_stats_ptr->buf_in_txdata);
 		CIF_LOGE("cif tx total cnt:%d\n",cif_stats_ptr->total_in_cif);
 
-        CIF_LOGE("wdrv rxbank_cnt:%d \n",cif_rxbank_ptr->rx_buf_bank_cnt);
-        
+        CIF_LOGE("rx recv:%d, ipc tx cnt:%d, ipc txc cnt:%d, ipc tx fail cnt:%d \n",
+		cif_stats_ptr->total_recv_cnt,cif_stats_ptr->ipc_tx_cnt,cif_stats_ptr->total_recv_cnt,cif_stats_ptr->ipc_txc_cnt,cif_stats_ptr->ipc_tx_fail_cnt);
         for(uint8_t j = 0; j<cif_rxbank_ptr->rx_buf_bank_cnt ;j++)
         {
              CIF_LOGE("cnt:%d,addr:0x%x \n",j,cif_rxbank_ptr->rx_buf_bank[j]);

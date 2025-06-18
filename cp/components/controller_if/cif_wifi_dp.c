@@ -10,6 +10,7 @@
 
 #include "../../dhcpd/dhcp-bootp.h"
 #include "cif_ipc.h"
+#include "cif_co_list.h"
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
 extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
 extern uint8_t vif_mgmt_get_sta_vif_index();
@@ -81,7 +82,9 @@ bk_err_t cif_handle_txdata(void *head)
     //Index offset 0xf is used to distinguish data from the controller interface.
     CIF_LOGD("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, pbuf, pbuf->next, pbuf->payload, sizeof(struct pbuf));
     CIF_LOGD("%s p:%x,vif_id=%d\r\n",__func__, pbuf,vif_id);
-
+#if CONFIG_CONTROLLER_DEBUG
+    TRACK_PBUF_ALLOC(pbuf);
+#endif
     ret = bmsg_tx_sender(pbuf, vif_id);
 
     if(ret != BK_OK)
@@ -333,6 +336,9 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
                 //If rxbuf push fail, free it immediately
                 cif_free_rx_buf((uint32_t)p_copy);
                 #endif
+            }else
+            {
+                cif_stats_ptr->total_recv_cnt++;
             }
 
             break;
@@ -393,6 +399,9 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
                     //If rxbuf push fail, free it immediately
                     cif_free_rx_buf((uint32_t)p_copy);
                     #endif
+                }else
+                {
+                    cif_stats_ptr->total_recv_cnt++;
                 }
 
 

@@ -28,7 +28,6 @@ bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry)
 
     return ret;
 }
-
 void cif_main(void *arg)
 {
     bk_err_t ret;
@@ -41,7 +40,6 @@ void cif_main(void *arg)
         {
             continue;
         }
-
         switch (msg.type)
         {
             case CIF_TASK_MSG_CMD:
@@ -174,7 +172,13 @@ bk_err_t cif_rxbuf_push(uint8_t channel,void* head,void* tail,uint8_t num)
             //bk_mem_dump("Meth2 input payload",(uint32_t)p->payload,30);
 
             ret = cif_ipc_env[IPC_DATA].send(WIFI_IPC_DATA_CHNL,(mb_chnl_cmd_t*)&ipc_node);
-
+            if(ret == BK_OK)
+            {
+                cif_stats_ptr->ipc_tx_cnt++;
+            }else{
+                CIF_LOGE("%s,%d,error type:%d\n",__func__,__LINE__,ret);
+                cif_stats_ptr->ipc_tx_fail_cnt++;
+            }
             break;
         }
         default:
@@ -242,7 +246,7 @@ ERR_EXIT:
 void cif_rx_data_complete(void *param, void *ack_buf)
 {
     cif_ipc_env[IPC_DATA].sending_flag = 0;
-    
+    cif_stats_ptr->ipc_txc_cnt++;
     //os_printf("%s,%d\n",__func__,__LINE__);
     if(cif_ipc_env[IPC_DATA].rx_list.first != NULL)
     {

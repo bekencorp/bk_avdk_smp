@@ -351,6 +351,23 @@ __INLINE struct co_list_hdr *co_list_next(const struct co_list_hdr *const list_h
     for (pos = (list)->next; pos; pos = pos->next)
 #endif
 /// @} end of group COLIST
+// PbufTrackNode
+typedef struct PbufTrackNode {
+    void* pbuf_addr;
+    const char* file;
+    int line;
+    struct PbufTrackNode* next;
+} PbufTrackNode;
+
+void track_pbuf_free(void* pbuf);
+void track_pbuf_alloc(void* pbuf, const char* file, int line);
+
+
+#define TRACK_PBUF_ALLOC(pbuf) track_pbuf_alloc((void*)(pbuf), __FILE__, __LINE__)
+#define TRACK_PBUF_FREE(pbuf)  track_pbuf_free((void*)(pbuf))
+
+void print_unreleased_pbufs(void);
+int print_unreleased_pbufs_cnt(void);
 
 #endif // _CO_LIST_H_
 

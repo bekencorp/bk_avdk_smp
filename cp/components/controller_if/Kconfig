@@ -8,4 +8,7 @@ menu "Controller IF"
 	config CONTROLLER_WAR
 		bool "Controller RX Buf Directly push to AP"
 		default y
+	config CONTROLLER_DEBUG
+		bool "Controller Debug"
+		default n
 endmenu

@@ -79,6 +79,9 @@ void wdrv_rxdata_process(struct pbuf *p)
 //        }
 //        --wdrv_rxbank_debug.rx_buf_bank_cnt;
         cpdu->co_hdr.need_free = 0;
+#if CONFIG_CONTROLLER_DEBUG
+        TRACK_PBUF_FREE(pbuf);
+#endif
         pbuf_free(pbuf);
         WDRV_STATS_DEC(tx_alloc_num);
         wdrv_stats_ptr->tx_free_total++;
@@ -89,6 +92,7 @@ void wdrv_rxdata_process(struct pbuf *p)
         __func__, p, p->next, p->payload, sizeof(struct pbuf), cpdu);
     WDRV_STATS_DEC(rx_alloc_num);
     WDRV_LOGD("%s rx_alloc_num = %d\r\n",__func__,wdrv_stats_ptr->rx_alloc_num );
+    wdrv_stats_ptr->rx_total_recv++;
 #if CONFIG_CONTROLLER_RX_DIRECT_PSH    
     p_copy = pbuf_alloc(PBUF_RAW,p->len + sizeof(cpdu_t),PBUF_RAM_RX);
     //bk_mem_dump("wdrv_rxdata_process",(uint32_t)p->payload,100);

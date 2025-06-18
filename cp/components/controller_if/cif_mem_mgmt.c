@@ -1,17 +1,19 @@
 #include "cif_main.h"
 #include "cif_ipc.h"
+#include "cif_co_list.h"
 uint8_t cif_tx_event_buffer[MAX_NUM_CMD_LONG_BUF][CIF_MAX_CFM_DATA_LEN] = {0};
 uint8_t cif_tx_event_short_buffer[MAX_NUM_CMD_SHORT_BUF][CIF_MAX_CFM_SHORT_LEN] = {0};
 
 struct cif_rx_bank_t * cif_rxbank_ptr = &(cif_env.rx_bank);
-
 void cif_free_ap_txbuf(struct pbuf * pbuf)
 {
     CIF_LOGD("%s,%d,p:0x%x\n",__func__,__LINE__,pbuf);
     //send cpdu header addr
     struct cpdu_t * buf  =(struct cpdu_t *)(pbuf+1);
     buf->co_hdr.need_free = 1;
-
+#if CONFIG_CONTROLLER_DEBUG
+    TRACK_PBUF_FREE(pbuf);
+#endif
     if(cif_msg_sender(pbuf+1,CIF_TASK_MSG_RX_DATA,0) != BK_OK)
     {
         CIF_LOGE("%s,%d,addr send fail mem_leak:%d\n",__func__,__LINE__,pbuf);
