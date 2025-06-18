@@ -1529,7 +1529,7 @@ int bk_cli_init(void)
 	cli_qspi_init();
 #endif
 
-#if (CONFIG_AON_RTC_TEST == 1)
+#if (CLI_CFG_AON_RTC == 1)
 	cli_aon_rtc_init();
 #endif
 

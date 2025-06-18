@@ -183,7 +183,7 @@ if (CONFIG_QSPI)
 	)
 endif()
 
-if (CONFIG_AON_RTC_TEST)
+if (CONFIG_AON_RTC)
 	list(APPEND srcs
 		"cli_aon_rtc.c"
 	)
