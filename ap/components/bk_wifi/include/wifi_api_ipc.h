@@ -33,6 +33,7 @@ enum BK_WIFI_API_CMD_TYPE
     SCAN_START                          = 0x300,  //BK_CMD_WIFI_API_START
     SCAN_STOP                           = 0x301,
     SCAN_RESULT                         = 0x302,
+    SCAN_CONTRY_CODE                    = 0x303,
 
     // STA management command section
     STA_SET_CONFIG                      = 0x310,

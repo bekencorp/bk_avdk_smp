@@ -1257,6 +1257,52 @@ bk_err_t bk_wifi_set_bcn_miss_time(uint8_t bcnmiss_time);
  */
 bk_err_t bk_wifi_set_bcn_recv_win(uint8_t default_win, uint8_t max_win, uint8_t step);
 
+
+/**
+ * @brief regist bcn cc rxed callback.
+ *
+ * @param bcn cc the callback function.
+ *
+ * @return
+ * 	-BK_OK: on success
+ * 	-others:real error, used for future.
+ *
+ */
+bk_err_t bk_wifi_bcn_cc_rxed_register_cb(const wifi_beacon_cc_rxed_t cc_cb, void *ctxt);
+
+/**
+ * @brief start scan procedure to find AP's country code
+ *
+ * @return
+ * 	-BK_OK: on success
+ * 	-others:real error, used for future.
+ *
+ */
+int cc_scan_start(void);
+
+/**
+ * @brief stop scan procedure to find AP's country code
+ *
+ * @return
+ *   success
+ *
+ */
+void cc_scan_stop(void);
+
+/**
+ * @brief  Get country code by scan
+ *
+ * @attention Need open CONFIG_WIFI_SCAN_COUNTRY_CODE=y in config
+ *
+ * @param country_code The point of country code buffer
+ * @param len The length of the point of country code buffer
+ *
+ * @return
+ * 	-BK_OK: on success
+ * 	-others:real error, used for future.
+ */
+bk_err_t bk_scan_country_code(uint8_t *country_code, int *len);
+
 /**
  * @brief  Get wifi support mode.
  *

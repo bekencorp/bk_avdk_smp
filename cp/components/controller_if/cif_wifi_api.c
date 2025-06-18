@@ -245,6 +245,14 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             break;
         }
 
+        case SCAN_CONTRY_CODE:
+        {
+            uint8_t *country_code = (uint8_t *)(arg_info->args[0]);
+            int *country_code_len = (int *)(arg_info->args[1]);
+            ret = bk_scan_country_code(country_code, country_code_len);
+            break;
+        }
+
         case MONITOR_START:
         {
             ret = bk_wifi_monitor_start();

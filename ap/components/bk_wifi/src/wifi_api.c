@@ -1020,6 +1020,46 @@ bk_err_t bk_wifi_sta_get_linkstate_with_reason(wifi_linkstate_reason_t *info)
     return ret;
 }
 
+bk_err_t bk_scan_country_code(uint8_t *country_code, int *len)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc_1 = NULL;
+    void *buffer_to_ipc_2 = NULL;
+    uint8_t len_2 = sizeof(int);
+
+    if (country_code == NULL) {
+        WIFI_LOGE("%s failed, invalid input param\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc_1 = os_malloc(MAC_COUNTRY_STRING_LEN);
+    if (!buffer_to_ipc_1)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc_2 = os_malloc(len_2);
+    if (!buffer_to_ipc_2)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    *len = 0;
+    ret = wifi_send_com_api_cmd(SCAN_CONTRY_CODE, 2, (uint32_t)buffer_to_ipc_1, (uint32_t)buffer_to_ipc_2);
+
+    os_memcpy(len, buffer_to_ipc_2, len_2);
+    os_free(buffer_to_ipc_2);
+
+    WIFI_LOGI("%s: cc_len %d \n", __func__, *len);
+
+    if (*len > 0)
+        os_memcpy(country_code, buffer_to_ipc_1, *len);
+    os_free(buffer_to_ipc_1);
+
+    return ret;
+}
 
 bk_err_t bk_wifi_sta_start_ex(void)
 {
