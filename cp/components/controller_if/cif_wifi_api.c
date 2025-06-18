@@ -53,7 +53,6 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_sta_start();
             break;
         }
-
         case STA_GET_LINK_STATUS:
         {
             wifi_link_status_t *link_status = (wifi_link_status_t *)arg_info->args[0];
@@ -128,6 +127,44 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             break;
         }
 
+        case MONITOR_START:
+        {
+            ret = bk_wifi_monitor_start();
+            break;
+        }
+        case MONITOR_STOP:
+        {
+            ret = bk_wifi_monitor_stop();
+            break;
+        }
+        case MONITOR_SET_CHANNEL:
+        {
+            wifi_channel_t *chan = (wifi_channel_t *)arg_info->args[0];
+
+            ret = bk_wifi_monitor_set_channel(chan);
+            break;
+        }
+        case SEND_RAW:
+        {
+            uint8_t *buffer = (uint8_t *)arg_info->args[0];
+            int len = arg_info->args[1];
+
+            ret =  bk_wifi_send_raw(buffer, len);
+            break;
+        }
+        case PHY_CAL_RFCALI:
+        {
+            ret = bk_wifi_manual_cal_rfcali_status();
+            break;
+        }
+        case WIFI_CAPA_CONFIG:
+        {
+            wifi_capability_t capa_id = (wifi_capability_t)arg_info->args[0];
+            uint32_t capa_val = arg_info->args[1];
+
+            ret = bk_wifi_capa_config(capa_id,capa_val);
+            break;
+        }
         default:
         {
             ret = BK_ERR_NOT_FOUND;

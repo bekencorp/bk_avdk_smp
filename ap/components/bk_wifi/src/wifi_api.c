@@ -1076,11 +1076,16 @@ bk_err_t bk_wifi_sta_get_config_ex(wifi_sta_config_t *config)
 
     return ret;
 }
+
 bk_err_t bk_wifi_sta_pm_enable(void)
 {
     return wifi_send_com_api_cmd(STA_PM_ENABLE, 0);
 }
 
+bk_err_t bk_wifi_sta_pm_disable(void)
+{
+    return wifi_send_com_api_cmd(STA_PM_DISABLE, 0);
+}
 
 int demo_sta_app_init_ex(char *oob_ssid, char *connect_key)
 {
@@ -1101,3 +1106,75 @@ int demo_sta_app_init_ex(char *oob_ssid, char *connect_key)
 	BK_LOG_ON_ERR(bk_wifi_sta_start_ex());
 	return BK_OK;
 }
+
+bk_err_t bk_wifi_monitor_start(void)
+{
+    return wifi_send_com_api_cmd(MONITOR_START, 0);
+}
+
+bk_err_t bk_wifi_monitor_stop(void)
+{
+    return wifi_send_com_api_cmd(MONITOR_STOP, 0);
+}
+
+bk_err_t bk_wifi_monitor_set_channel(const wifi_channel_t *chan)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_channel_t);
+
+    if (chan == NULL) {
+        WIFI_LOGE("%s failed, invalid config\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memcpy(buffer_to_ipc, chan, len);
+    ret = wifi_send_com_api_cmd(MONITOR_SET_CHANNEL, 1, (uint32_t)buffer_to_ipc);
+
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_send_raw(uint8_t *buffer, int len)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+
+    if (buffer == NULL) {
+        WIFI_LOGE("%s failed, invalid config\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memcpy(buffer_to_ipc, buffer, len);
+    ret = wifi_send_com_api_cmd(SEND_RAW, 2, (uint32_t)buffer_to_ipc,len);
+
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_manual_cal_rfcali_status(void)
+{
+    return wifi_send_com_api_cmd(PHY_CAL_RFCALI, 0);
+}
+
+bk_err_t bk_wifi_capa_config(wifi_capability_t capa_id, uint32_t capa_val)
+{
+    return wifi_send_com_api_cmd(WIFI_CAPA_CONFIG, 2, (uint32_t)capa_id,capa_val);
+}
+

@@ -71,6 +71,10 @@ enum BK_WIFI_API_CMD_TYPE
     // Common Wi-Fi command section
     WIFI_GET_CHANNEL                    = 0x360,
     WIFI_SET_COUNTRY                    = 0x361,
+    WIFI_CAPA_CONFIG                    = 0x362,
+
+    //Common PHY command section
+    PHY_CAL_RFCALI                      = 0x370,
 
     BK_WIFI_API_CMD_BUTT                = BK_CMD_WIFI_API_END
 };
