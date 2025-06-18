@@ -188,6 +188,13 @@ struct wdrv_set_csa_coexist_mode_flag_req
     wdrv_cmd_cfm cmd_cfm;
 };
 
+struct wdrv_set_mac_req
+{
+    wdrv_cmd_hdr cmd_hdr;
+    uint8_t mac_addr[6];
+    wdrv_cmd_cfm cmd_cfm;
+};
+
 enum BK_CMD_TYPE
 {
     // Wi-Fi command

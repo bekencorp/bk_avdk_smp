@@ -1099,7 +1099,8 @@ int demo_sta_app_init_ex(char *oob_ssid, char *connect_key)
 	}
 
 	os_strcpy(sta_config.ssid, oob_ssid);
-	os_strcpy(sta_config.password, connect_key);
+	if (connect_key)
+		os_strcpy(sta_config.password, connect_key);
 
 	WIFI_LOGI("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
 	BK_LOG_ON_ERR(bk_wifi_sta_set_config_ex(&sta_config));
@@ -1178,3 +1179,178 @@ bk_err_t bk_wifi_capa_config(wifi_capability_t capa_id, uint32_t capa_val)
     return wifi_send_com_api_cmd(WIFI_CAPA_CONFIG, 2, (uint32_t)capa_id,capa_val);
 }
 
+bk_err_t bk_wifi_set_mac_address(char *mac)
+{
+    struct wdrv_set_mac_req set_mac_req;
+    set_mac_req.cmd_hdr.cmd_id = BK_CMD_SET_MAC_ADDR;
+    os_memcpy(set_mac_req.mac_addr, mac, 6);
+    set_mac_req.cmd_cfm.waitcfm = WDRV_CMD_NOWAITCFM;
+    set_mac_req.cmd_cfm.cfm_id = 0;
+    WDRV_LOGD("set mac addr: %02X:%02X:%02X:%02X:%02X:%02X", set_mac_req.mac_addr[0], set_mac_req.mac_addr[1],
+              set_mac_req.mac_addr[2], set_mac_req.mac_addr[3], set_mac_req.mac_addr[4], set_mac_req.mac_addr[5]);
+    wdrv_tx_msg((uint8_t *)&set_mac_req, sizeof(set_mac_req), &set_mac_req.cmd_cfm, NULL);
+
+    return BK_OK;
+}
+
+bk_err_t bk_wifi_scan_start_ex(const wifi_scan_config_t *scan_config)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_scan_config_t);
+
+    WDRV_LOGI("scaning\n");
+
+    //WIFI_LOGE("%s config len:%d\r\n", __func__, len);
+    if (scan_config == NULL) {
+        return wifi_send_com_api_cmd(SCAN_START, 1, 0);
+    } else {
+        buffer_to_ipc = os_malloc(len);
+        if (!buffer_to_ipc)
+        {
+            WIFI_LOGE("%s malloc failed\r\n", __func__);
+            return BK_ERR_NO_MEM;
+        }
+
+        os_memcpy(buffer_to_ipc, scan_config, len);
+
+        ret = wifi_send_com_api_cmd(SCAN_START, 1, (uint32_t)buffer_to_ipc);
+
+        os_free(buffer_to_ipc);
+
+        return ret;
+    }
+}
+
+bk_err_t bk_wifi_scan_stop(void)
+{
+    return wifi_send_com_api_cmd(SCAN_STOP, 0);
+}
+
+bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_scan_result_t);
+
+    if (scan_result == NULL) {
+        WIFI_LOGE("%s failed, invalid scan_result\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(SCAN_RESULT, 1, (uint32_t)buffer_to_ipc);
+    os_memcpy(scan_result, buffer_to_ipc, len);
+
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+static const char *wifi_sec_type_string_api(wifi_security_t security)
+{
+	switch (security) {
+	case WIFI_SECURITY_NONE:
+		return "NONE";
+	case WIFI_SECURITY_WEP:
+		return "WEP";
+	case WIFI_SECURITY_WPA_TKIP:
+		return "WPA-TKIP";
+	case WIFI_SECURITY_WPA_AES:
+		return "WPA-AES";
+	case WIFI_SECURITY_WPA_MIXED:
+		return "WPA-MIX";
+	case WIFI_SECURITY_WPA2_TKIP:
+		return "WPA2-TKIP";
+	case WIFI_SECURITY_WPA2_AES:
+		return "WPA2-AES";
+	case WIFI_SECURITY_WPA2_MIXED:
+		return "WPA2-MIX";
+	case WIFI_SECURITY_WPA3_SAE:
+		return "WPA3-SAE";
+	case WIFI_SECURITY_WPA3_WPA2_MIXED:
+		return "WPA3-WPA2-MIX";
+	case WIFI_SECURITY_EAP:
+		return "EAP";
+	case WIFI_SECURITY_OWE:
+		return "OWE";
+	case WIFI_SECURITY_AUTO:
+		return "AUTO";
+#ifdef CONFIG_WAPI_SUPPORT
+	case WIFI_SECURITY_TYPE_WAPI_PSK:
+		return "WAPI_PSK";
+	case WIFI_SECURITY_TYPE_WAPI_CERT:
+		return "WAPI_CERT";
+#endif
+	default:
+		return "UNKNOWN";
+	}
+}
+
+static void wifi_scan_dump_ap(const wifi_scan_ap_info_t *ap)
+{
+    const char *security_str = wifi_sec_type_string_api(ap->security);
+#if (CONFIG_SHELL_ASYNCLOG)
+    shell_cmd_ind_out("%-32s " BK_MAC_FORMAT "   %4d %2d %s\r\n",
+               ap->ssid, BK_MAC_STR(ap->bssid), (int8_t)ap->rssi, ap->channel, security_str);
+#else
+    WIFI_LOG_RAW("%-32s " BK_MAC_FORMAT "   %4d %2d %s\n",
+               ap->ssid, BK_MAC_STR(ap->bssid), (int8_t)ap->rssi, ap->channel, security_str);
+#endif
+}
+
+bk_err_t bk_wifi_scan_dump_result(const wifi_scan_result_t *scan_result)
+{
+    int i;
+
+    if (!scan_result) {
+#if (CONFIG_SHELL_ASYNCLOG)
+        shell_cmd_ind_out("scan doesn't found AP\n");
+#else
+        WIFI_LOGI("scan doesn't found AP\n");
+#endif
+        return BK_OK;
+    }
+
+    if ((scan_result->ap_num > 0) && (!scan_result->aps)) {
+        WIFI_LOGE("scan number is %d, but AP info is NULL\n", scan_result->ap_num);
+        return BK_ERR_PARAM;
+    }
+#if (CONFIG_SHELL_ASYNCLOG)
+    shell_cmd_ind_out("scan found %d AP\r\n", scan_result->ap_num);
+    shell_cmd_ind_out("%32s %17s   %4s %4s %s\r\n", "              SSID              ",
+               "      BSSID      ", "RSSI", "chan", "security");
+    shell_cmd_ind_out("%32s %17s   %4s %4s %s\r\n", "--------------------------------",
+               "-----------------", "----", "----", "---------\n");
+#else
+    WIFI_LOGI("scan found %d AP\n", scan_result->ap_num);
+    WIFI_LOG_RAW("%32s %17s   %4s %4s %s\n", "              SSID              ",
+               "      BSSID      ", "RSSI", "chan", "security");
+    WIFI_LOG_RAW("%32s %17s   %4s %4s %s\n", "--------------------------------",
+               "-----------------", "----", "----", "---------\n");
+#endif
+    for (i = 0; i < scan_result->ap_num; i++) {
+        wifi_scan_dump_ap(&scan_result->aps[i]);
+        rtos_delay_milliseconds(10);
+    }
+
+    //WIFI_LOG_RAW("\n");
+
+    return BK_OK;
+}
+
+void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
+{
+    if (scan_result) {
+        os_free(scan_result->aps);
+        scan_result->aps = 0;
+        scan_result->ap_num = 0;
+    }
+    WIFI_LOGD("scan free result\n");
+}

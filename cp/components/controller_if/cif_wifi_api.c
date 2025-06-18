@@ -165,6 +165,23 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_capa_config(capa_id,capa_val);
             break;
         }
+        case SCAN_START:
+        {
+            wifi_scan_config_t *scan_config = (wifi_scan_config_t *)arg_info->args[0];
+            ret = bk_wifi_scan_start(scan_config);
+            break;
+        }
+        case SCAN_STOP:
+        {
+            ret = bk_wifi_scan_stop();
+            break;
+        }
+        case SCAN_RESULT:
+        {
+            wifi_scan_result_t *scan_result = (wifi_scan_result_t *)arg_info->args[0];
+            ret = bk_wifi_scan_get_result(scan_result);
+            break;
+        }
         default:
         {
             ret = BK_ERR_NOT_FOUND;

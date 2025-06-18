@@ -156,6 +156,32 @@ int wdrv_demo_hidden_softap_init(char *ap_ssid, char *ap_key, char *ap_channel)
     return BK_OK;
 }
 
+static int wlan_scan_done_handler(void *arg, event_module_t event_module,
+                                         int event_id, void *event_data)
+{
+    wifi_scan_result_t scan_result = {0};
+
+    BK_LOG_ON_ERR(bk_wifi_scan_get_result(&scan_result));
+    BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
+    bk_wifi_scan_free_result(&scan_result);
+
+    return BK_OK;
+}
+
+void demo_scan_adv_app_init(uint8_t *oob_ssid)
+{
+    wifi_scan_config_t scan_config = {0};
+
+    bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_SCAN_DONE,
+                         wlan_scan_done_handler, NULL);
+
+    if (oob_ssid) {
+        os_strncpy(scan_config.ssid, (char *)oob_ssid, WIFI_SSID_STR_LEN);
+        BK_LOG_ON_ERR(bk_wifi_scan_start_ex(&scan_config));
+    } else
+        BK_LOG_ON_ERR(bk_wifi_scan_start_ex(NULL));
+}
+
 static const char *wdr_ifname[NETIF_IF_COUNT] = {
     "sta", "ap",
 };
@@ -190,6 +216,54 @@ void wdrv_ip_cmd_show_ip(int ifx)
         WDRV_CLI_DUMP_IP(" ", NETIF_IF_ETH, &config);
 #endif
     }
+}
+
+static int hex2num(char c)
+{
+	if (c >= '0' && c <= '9')
+		return c - '0';
+	if (c >= 'a' && c <= 'f')
+		return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F')
+		return c - 'A' + 10;
+	return -1;
+}
+
+static int hex2byte(const char *hex)
+{
+	int a, b;
+	a = hex2num(*hex++);
+	if (a < 0)
+		return -1;
+	b = hex2num(*hex++);
+	if (b < 0)
+		return -1;
+	return (a << 4) | b;
+}
+
+/**
+ * hexstr2bin - Convert ASCII hex string into binary data
+ * @hex: ASCII hex string (e.g., "01ab")
+ * @buf: Buffer for the binary data
+ * @len: Length of the text to convert in bytes (of buf); hex will be double
+ * this size
+ * Returns: 0 on success, -1 on failure (invalid hex string)
+ */
+int cli_hexstr2bin(const char *hex, u8 *buf, size_t len)
+{
+	size_t i;
+	int a;
+	const char *ipos = hex;
+	u8 *opos = buf;
+
+	for (i = 0; i < len; i++) {
+		a = hex2byte(ipos);
+		if (a < 0)
+			return -1;
+		*opos++ = a;
+		ipos += 2;
+	}
+	return 0;
 }
 
 #define WDRV_CMD_CNT (sizeof(s_wdrv_commands) / sizeof(struct cli_command))
@@ -268,12 +342,22 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
         bk_wifi_sta_get_config_ex(&config);
         WDRV_LOGI("ssid:%s pw:%s\r\n", config.ssid, config.password);
     } else if (!strcasecmp(argV[1], "get_mac")) {
+        uint8_t base_mac[BK_MAC_ADDR_LEN] = {0};
         uint8_t sta_mac[BK_MAC_ADDR_LEN] = {0};
         uint8_t ap_mac[BK_MAC_ADDR_LEN] = {0};
+        BK_LOG_ON_ERR(bk_wdrv_get_mac(base_mac, MAC_TYPE_BASE));
         BK_LOG_ON_ERR(bk_wifi_sta_get_mac(sta_mac));
         BK_LOG_ON_ERR(bk_wifi_ap_get_mac(ap_mac));
+        WDRV_LOGI("base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
         WDRV_LOGI("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
         WDRV_LOGI("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
+    } else if (!strcasecmp(argV[1], "set_mac")) {
+        uint8_t base_mac[BK_MAC_ADDR_LEN] = {0};
+        if (argC == 3) {
+            cli_hexstr2bin(argV[2], base_mac, BK_MAC_ADDR_LEN);
+            bk_wifi_set_mac_address((char *)base_mac);
+            WDRV_LOGI(BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+        }
     } else if (!strcasecmp(argV[1], "ip")) {
         wdrv_ip_cmd_show_ip(NETIF_IF_COUNT);
     } else if (!strcasecmp(argV[1], "ping")) {
@@ -283,7 +367,19 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
             ping_start(argV[2], cnt, 60);
         }
     } else if (!strcasecmp(argV[1], "scan")) {
-        BK_LOG_ON_ERR(bk_wifi_scan_start(NULL));
+        if (argC < 2) 
+           demo_scan_adv_app_init(NULL);
+        else {
+              uint8_t *ap_ssid;
+              ap_ssid = (uint8_t *)argV[2];
+              demo_scan_adv_app_init(ap_ssid);
+        }
+    } else if (!strcasecmp(argV[1], "stop_scan")) {
+        BK_LOG_ON_ERR(bk_wifi_scan_stop());
+    } else if (!strcasecmp(argV[1], "scan_result")) {
+        wifi_scan_result_t scan_result = {0};
+        BK_LOG_ON_ERR(bk_wifi_scan_get_result(&scan_result));
+        BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
     } else if (!strcasecmp(argV[1], "debug")) {
         WDRV_LOGI("wdrv rx cnt:%d,rx win:%d,tx cnt:%d,process:%d,eth_num:%d,tx_free_total:%d\n", 
             wdrv_stats_ptr->rx_alloc_num,wdrv_stats_ptr->rx_win,wdrv_stats_ptr->tx_alloc_num,
