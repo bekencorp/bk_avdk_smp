@@ -2054,9 +2054,10 @@ const struct _atsvr_command wifi_cmds_table[] = {
 	//ATSVR_CMD_HADLER("AT+STASTATIC","AT+STASTATIC=ip,mask,gate[,dns]",NULL,at_wlan_station_static_ip,false,0,0,NULL,false),
 	ATSVR_CMD_HADLER("AT+WIFISTATUS","AT+WIFISTATUS",NULL,
 					at_wlan_get_station_status,false,0,0,NULL,false),
-
+#endif
 	ATSVR_CMD_HADLER("AT+GETINTERVAL","AT+GETINTERVAL",NULL,
 					at_wlan_get_listen_interval,false,0,0,NULL,false),
+#if 0
 	ATSVR_CMD_HADLER("AT+GETMODE","AT+GETMODE",NULL,
 					at_wlan_get_support_mode,false,0,0,NULL,false),
 #if CONFIG_SOC_BK723L

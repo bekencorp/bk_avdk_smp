@@ -38,6 +38,13 @@ enum BK_WIFI_API_CMD_TYPE
     STA_START                           = 0x311,
     STA_STOP                            = 0x312,
     STA_GET_CONFIG                      = 0x313,
+    STA_GET_LINK_STATUS                 = 0x314,
+    STA_GET_LISTEN_INTERVAL             = 0x315,
+    STA_SET_LISTEN_INTERVAL             = 0x316,
+    STA_SET_BCN_LOSS_INT                = 0x317,
+    STA_SET_BCN_RECV_WIN                = 0x318,
+    STA_SET_BCN_LOSS_TIME               = 0x319,
+    STA_GET_LINK_STATE_WITH_REASON      = 0x31A,
 
     // AP management command section
     AP_SET_CONFIG                       = 0x320,
@@ -60,6 +67,10 @@ enum BK_WIFI_API_CMD_TYPE
 
     // RAW Wi-Fi command section
     SEND_RAW                            = 0x350,
+
+    // Common Wi-Fi command section
+    WIFI_GET_CHANNEL                    = 0x360,
+    WIFI_SET_COUNTRY                    = 0x361,
 
     BK_WIFI_API_CMD_BUTT                = BK_CMD_WIFI_API_END
 };

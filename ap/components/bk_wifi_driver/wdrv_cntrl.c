@@ -288,7 +288,7 @@ int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
 void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
 {
     WDRV_LOGD("%s,%d\n",__func__,__LINE__);
-    uint8_t interval = 0;
+
     switch(BK_CFM_GET_CMD_ID(msg->id)) {
         case BK_CMD_GET_MAC_ADDR:
             os_memcpy(&wdrv_host_env.macaddr_cfm, msg->param, sizeof(struct wdrv_mac_addr_cfm));
@@ -313,10 +313,6 @@ void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
             break;
         case BK_CMD_START_AP:
             WDRV_LOGD("MCU-AP-STATE: start AP\r\n");
-            break;
-        case BK_CMD_GET_INTERVAL:
-            interval = *(msg->param);
-            WDRV_LOGI("listen interval is %d\r\n",interval);
             break;
         default:
             WDRV_LOGD("%s,%d\n",__func__,__LINE__);

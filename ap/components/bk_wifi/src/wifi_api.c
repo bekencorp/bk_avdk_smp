@@ -773,47 +773,6 @@ int demo_sta_app_init(char *oob_ssid, char *connect_key)
     return BK_OK;
 }
 
-
-bk_err_t bk_wifi_get_listen_interval(uint8_t *listen_interval)
-{
-    WDRV_LOGI("bk_wifi_get_listen_interval\n");
-
-    struct wdrv_get_interval_req get_interval_req = {0};
-
-    get_interval_req.cmd_hdr.cmd_id = BK_CMD_GET_INTERVAL;
-    get_interval_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    get_interval_req.cmd_cfm.cfm_id = 0;
-
-    wdrv_tx_msg((uint8_t *)&get_interval_req, sizeof(get_interval_req), &get_interval_req.cmd_cfm, NULL);
-
-    return BK_OK;
-}
-
-bk_err_t bk_wifi_sta_get_link_status(wifi_link_status_t *link_status)
-{
-    struct wdrv_get_wifi_status_req get_req = {0};
-    wifi_link_status_t link_status_cfm = {0};
-
-    WDRV_LOGI("getting wifi status\n");
-    if(link_status == NULL)
-        return BK_FAIL;
-
-    get_req.cmd_hdr.cmd_id = BK_CMD_GET_WIFI_STATUS;
-    get_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    get_req.cmd_cfm.cfm_id = 0;
-
-    wdrv_tx_msg((uint8_t *)&get_req, sizeof(get_req), &get_req.cmd_cfm, (uint8_t *)(&link_status_cfm));
-
-    if ( get_req.cmd_cfm.cfm_buf)
-        os_memcpy(link_status, get_req.cmd_cfm.cfm_buf, get_req.cmd_cfm.cfm_len);
-    else
-        WDRV_LOGI("invalid addr\n");
-
-    WDRV_LOGI("got wifi status\n");
-
-    return BK_OK;
-}
-
 bk_err_t bk_wifi_ap_get_config(wifi_ap_config_t *ap_config)
 {
     if (!ap_config)
@@ -903,6 +862,161 @@ bool uap_ip_is_start_api(void)
     return is_ap_ip_up;
 }
 
+bk_err_t bk_wifi_sta_get_link_status(wifi_link_status_t *link_status)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_link_status_t);
+
+    if (link_status == NULL) {
+        WIFI_LOGE("%s failed, invalid pointer\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(STA_GET_LINK_STATUS, 1, (uint32_t)buffer_to_ipc);
+
+    os_memcpy(link_status, buffer_to_ipc, len);
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_get_channel(void)
+{
+    uint8_t channel = 0;
+    void *buffer_to_ipc = NULL;
+
+    buffer_to_ipc = os_malloc(1);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    wifi_send_com_api_cmd(WIFI_GET_CHANNEL, 1, (uint32_t)buffer_to_ipc);
+
+    channel = *(uint8_t *)buffer_to_ipc;
+
+    WIFI_LOGI("%s: %d \n", __func__, channel);
+
+    return channel;
+}
+
+bk_err_t bk_wifi_set_country(const wifi_country_t *country)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_country_t);
+
+    if (country == NULL) {
+        WIFI_LOGE("%s failed, invalid input param\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memcpy(buffer_to_ipc, country, len);
+    ret = wifi_send_com_api_cmd(WIFI_SET_COUNTRY, 1, (uint32_t)buffer_to_ipc);
+
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_get_listen_interval(uint8_t *listen_interval)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+
+    buffer_to_ipc = os_malloc(1);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(STA_GET_LISTEN_INTERVAL, 1, (uint32_t)buffer_to_ipc);
+
+    *listen_interval = *(uint8_t *)buffer_to_ipc;
+
+    WIFI_LOGI("%s: %d \n", __func__, *listen_interval);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_send_listen_interval_req(uint8_t interval)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(STA_SET_LISTEN_INTERVAL, 1, interval);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_send_bcn_loss_int_req(uint8_t interval,uint8_t repeat_num)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(STA_SET_BCN_LOSS_INT, 2, interval, repeat_num);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_set_bcn_recv_win(uint8_t default_win, uint8_t max_win, uint8_t step)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(STA_SET_BCN_RECV_WIN, 3, default_win, max_win, step);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_set_bcn_loss_time(uint8_t wait_cnt, uint8_t wake_cnt)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(STA_SET_BCN_LOSS_TIME, 2, wait_cnt, wake_cnt);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_sta_get_linkstate_with_reason(wifi_linkstate_reason_t *info)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_linkstate_reason_t);
+
+    if (info == NULL) {
+        WIFI_LOGE("%s failed, invalid input param\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(STA_GET_LINK_STATE_WITH_REASON, 1, (uint32_t)buffer_to_ipc);
+
+    os_memcpy(info, buffer_to_ipc, len);
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
 
 
 bk_err_t bk_wifi_sta_start_ex(void)

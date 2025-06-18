@@ -466,29 +466,6 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_ind(wifi_scan_result_t *scan_result)
     return ret;
 }
 
-bk_err_t cif_handle_bk_cmd_get_wifi_status_req(struct bk_msg_hdr *msg)
-{
-    wifi_link_status_t link_status = {0};
-
-    CIF_LOGD("%s\n",__func__);
-    os_memset(&link_status, 0x0, sizeof(link_status));
-
-    if ((wifi_netif_sta_is_connected() || wifi_netif_sta_is_got_ip()))
-    {
-            bk_wifi_sta_get_link_status(&link_status);
-            link_status.state = WIFI_LINKSTATE_STA_CONNECTED;
-    }
-    else
-    {
-        link_status.state = WIFI_LINKSTATE_STA_DISCONNECTED;
-    }
-
-    //os_printf("link state:%d\n", link_status.state);
-    cif_bk_cmd_confirm(msg, (uint8_t *)(&link_status), sizeof(wifi_link_status_t));
-    return BK_OK;
-}
-
-
 
 bk_err_t cif_handle_bk_cmd_get_ap_config_req(struct bk_msg_hdr *msg)
 {
@@ -730,20 +707,6 @@ bk_err_t cif_handle_bk_cmd_set_media_quality_req(struct bk_msg_hdr *msg)
     return BK_OK;
 }
 
-
-bk_err_t cif_handle_bk_cmd_get_interval_req(struct bk_msg_hdr *msg)
-{
-    uint8_t interval = 0;
-
-    bk_wifi_get_listen_interval(&interval);
-
-    //CTRL_IF_CMD("%s,interval %d\n",__func__,interval);
-
-    cif_bk_cmd_confirm(msg, &interval, 1);
-
-    return BK_OK;
-}
-
 bk_err_t cif_handle_bk_cmd_set_autoconnect_req(struct bk_msg_hdr *msg)
 {
     int32_t ret = 0;
@@ -767,18 +730,19 @@ bk_err_t cif_handle_bk_cmd_set_autoconnect_req(struct bk_msg_hdr *msg)
     return ret;
 }
 
+
 bk_err_t cif_handle_bk_cmd_set_coex_csa_req(struct bk_msg_hdr *msg)
 {
-    bool close_coex_csa = false;
+    int32_t ret = 0;
+    bool close_coex_csa = *(bool *)(msg + 1);
 
-    close_coex_csa = *(bool *)(msg + 1);
     CIF_LOGD("%s close coex csa:%d\n",__func__, close_coex_csa);
 
-    bk_wifi_set_csa_coexist_mode_flag(close_coex_csa);
+    ret = bk_wifi_set_csa_coexist_mode_flag(close_coex_csa);
 
     cif_bk_cmd_confirm(msg, NULL, 0);
 
-    return BK_OK;
+    return ret;
 }
 
 bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
@@ -848,11 +812,6 @@ bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
         {
             cif_env.host_wifi_init = true;
             ret = cif_handle_bk_cmd_scan_wifi_req(msg);
-            break;
-        }
-        case BK_CMD_GET_WIFI_STATUS:
-        {
-            ret = cif_handle_bk_cmd_get_wifi_status_req(msg);
             break;
         }
         case BK_CMD_GET_AP_CONFIG:
@@ -927,16 +886,13 @@ bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
             ret = cif_handle_bk_cmd_set_media_quality_req(msg);
             break;
         }
-        case BK_CMD_GET_INTERVAL:
-        {
-            ret = cif_handle_bk_cmd_get_interval_req(msg);
-            break;
-        }
+
         case BK_CMD_SET_COEX_CSA:
         {
             ret = cif_handle_bk_cmd_set_coex_csa_req(msg);
             break;
         }
+
         default:
         {
             CIF_LOGE("%s,error CMD type %x\n",__func__, msg->cmd_id);

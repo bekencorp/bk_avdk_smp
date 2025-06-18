@@ -53,6 +53,81 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_sta_start();
             break;
         }
+
+        case STA_GET_LINK_STATUS:
+        {
+            wifi_link_status_t *link_status = (wifi_link_status_t *)arg_info->args[0];
+            if ((wifi_netif_sta_is_connected() || wifi_netif_sta_is_got_ip()))
+            {
+                    bk_wifi_sta_get_link_status(link_status);
+                    link_status->state = WIFI_LINKSTATE_STA_CONNECTED;
+            }
+            else
+                link_status->state = WIFI_LINKSTATE_STA_DISCONNECTED;
+
+            break;
+        }
+
+        case WIFI_GET_CHANNEL:
+        {
+            uint8_t *channel = (uint8_t *)(arg_info->args[0]);
+            *channel = bk_wifi_get_channel();
+            break;
+        }
+
+        case WIFI_SET_COUNTRY:
+        {
+            wifi_country_t *country = (wifi_country_t *)(arg_info->args[0]);
+            ret = bk_wifi_set_country(country);
+            break;
+        }
+
+        case STA_GET_LISTEN_INTERVAL:
+        {
+            uint8_t *listen_interval = (uint8_t *)(arg_info->args[0]);
+            ret = bk_wifi_get_listen_interval(listen_interval);
+            break;
+        }
+
+        case STA_SET_LISTEN_INTERVAL:
+        {
+            uint8_t listen_interval = (uint8_t)(arg_info->args[0]);
+            ret = bk_wifi_send_listen_interval_req(listen_interval);
+            break;
+        }
+
+        case STA_SET_BCN_LOSS_INT:
+        {
+            uint8_t interval = (uint8_t)(arg_info->args[0]);
+            uint8_t repeat_num = (uint8_t)(arg_info->args[1]);
+            ret = bk_wifi_send_bcn_loss_int_req(interval, repeat_num);
+            break;
+        }
+
+        case STA_SET_BCN_RECV_WIN:
+        {
+            uint8_t default_win = (uint8_t)(arg_info->args[0]);
+            uint8_t max_win = (uint8_t)(arg_info->args[1]);
+            uint8_t step = (uint8_t)(arg_info->args[2]);
+            ret = bk_wifi_set_bcn_recv_win(default_win, max_win, step);
+            break;
+        }
+
+        case STA_SET_BCN_LOSS_TIME:
+        {
+            uint8_t wait_cnt = (uint8_t)(arg_info->args[0]);
+            uint8_t wake_cnt = (uint8_t)(arg_info->args[1]);
+            ret = bk_wifi_set_bcn_loss_time(wait_cnt, wake_cnt);
+            break;
+        }
+
+        case STA_GET_LINK_STATE_WITH_REASON:
+        {
+            wifi_linkstate_reason_t *info = (wifi_linkstate_reason_t *)(arg_info->args[0]);
+            ret = bk_wifi_sta_get_linkstate_with_reason(info);
+            break;
+        }
+
         default:
         {
             ret = BK_FAIL;

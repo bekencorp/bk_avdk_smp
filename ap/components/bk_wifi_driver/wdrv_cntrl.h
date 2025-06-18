@@ -203,8 +203,6 @@ enum BK_CMD_TYPE
     BK_CMD_SET_AUTO_RECONNECT  = 0xA,
     BK_CMD_SET_MEDIA_MODE      = 0xB,
     BK_CMD_SET_MEDIA_QUALITY   = 0xC,
-    BK_CMD_GET_INTERVAL         = 0xD,
-    BK_CMD_GET_WIFI_STATUS      = 0xE,
     BK_CMD_SET_COEX_CSA         = 0xF,
     BK_CMD_GET_AP_CONFIG       = 0x10,
     BK_CMD_GET_IP_CONFIG       = 0x11,
