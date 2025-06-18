@@ -39,6 +39,8 @@ ap_param_t *g_ap_param_ptr = NULL;
 sta_param_t *g_sta_param_ptr = NULL;
 struct scan_cfg_scan_param_tag scan_param_env = {0};
 
+static wifi_monitor_cb_t s_monitor_ap_cb = NULL;
+static wifi_filter_cb_t s_filter_ap_cb = NULL;
 /* State Indication */
 static uint16_t s_wifi_state_bits = 0;
 static inline void wifi_set_state_bit(uint16_t state_bit)
@@ -1353,4 +1355,103 @@ void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
         scan_result->ap_num = 0;
     }
     WIFI_LOGD("scan free result\n");
+}
+//MONITOR
+bk_err_t bk_wifi_monitor_register_cb(const wifi_monitor_cb_t monitor_cb)
+{
+    s_monitor_ap_cb = monitor_cb;
+    return wifi_send_com_api_cmd(MONITOR_REGISTER_CB, 0);
+}
+
+wifi_monitor_cb_t bk_wifi_monitor_get_cb(void)
+{
+	return s_monitor_ap_cb;
+}
+
+bk_err_t bk_wifi_monitor_register_ind(uint8_t * msg_payload)
+{
+    struct monitor_struct
+    {
+        cpdu_t cp;
+        struct bk_rx_msg_hdr rx_msg_hdr;
+        uint32_t para[3];
+        uint32_t payload[1];
+    };
+
+    bk_err_t ret = BK_OK;
+    const uint8_t *frame = NULL;
+    uint32_t len;
+    const wifi_frame_info_t *frame_info;
+    wifi_filter_cb_t cb = bk_wifi_monitor_get_cb();
+    //uint8_t *payload_temp =  NULL;
+    struct pbuf* pbuf = NULL;
+    cpdu_t * cpdu = NULL;
+    uint8_t vif_idx = 0;
+
+    pbuf = (struct pbuf*)((uint8_t*)msg_payload + sizeof(uint32_t) - sizeof(cpdu_t) - sizeof(wdrv_rx_msg) - sizeof(struct pbuf));
+    struct monitor_struct* mon_hdr = (struct monitor_struct*)(pbuf + 1);
+    
+    len = mon_hdr->para[0];
+    frame = (const uint8_t*)mon_hdr->para[2];
+    frame_info = (const wifi_frame_info_t *)mon_hdr->para[1];
+
+    if(cb)
+    {
+        cb(frame,len,frame_info);//This payload will free in next line.
+    }
+
+    cpdu = (cpdu_t*)(pbuf + 1);
+    cpdu->co_hdr.need_free = 1;//RXC free
+    vif_idx = cpdu->co_hdr.vif_idx;
+    ret = wdrv_txdata_sender(pbuf,vif_idx);//vif null, just for free this RXC pbuf
+    return ret;
+}
+//Filter
+bk_err_t bk_wifi_filter_register_cb(const wifi_filter_cb_t filter_cb)
+{
+    s_filter_ap_cb = filter_cb;
+    return wifi_send_com_api_cmd(FILTER_REGISTER_CB, 0);
+}
+
+wifi_filter_cb_t bk_wifi_filter_get_cb(void)
+{
+	return s_filter_ap_cb;
+}
+bk_err_t bk_wifi_filter_register_ind(uint8_t * msg_payload)
+{
+    struct filter_struct
+    {
+        cpdu_t cp;
+        struct bk_rx_msg_hdr rx_msg_hdr;
+        uint32_t para[3];
+        uint32_t payload[1];
+    };
+
+    bk_err_t ret = BK_OK;
+    const uint8_t *frame = NULL;
+    uint32_t len;
+    const wifi_frame_info_t *frame_info;
+    wifi_filter_cb_t cb = bk_wifi_filter_get_cb();
+    //uint8_t *payload_temp =  NULL;
+    struct pbuf* pbuf = NULL;
+    cpdu_t * cpdu = NULL;
+    uint8_t vif_idx = 0;
+
+    pbuf = (struct pbuf*)((uint8_t*)msg_payload + sizeof(uint32_t) - sizeof(cpdu_t) - sizeof(wdrv_rx_msg) - sizeof(struct pbuf));
+    struct filter_struct* filter_hdr = (struct filter_struct*)(pbuf + 1);
+    
+    len = filter_hdr->para[0];
+    frame = (const uint8_t*)filter_hdr->para[2];
+    frame_info = (const wifi_frame_info_t *)filter_hdr->para[1];
+    //bk_mem_dump("ap",(uint32_t)pbuf,200);
+    if(cb)
+    {
+        cb(frame,len,frame_info);//This payload will free in next line.
+    }
+
+    cpdu = (cpdu_t*)(pbuf + 1);
+    cpdu->co_hdr.need_free = 1;//RXC free
+    vif_idx = cpdu->co_hdr.vif_idx;
+    ret = wdrv_txdata_sender(pbuf,vif_idx);//vif null, just for free this RXC pbuf
+    return ret;
 }

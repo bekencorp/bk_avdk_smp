@@ -297,6 +297,17 @@ static void wdrv_cmd_help(void)
     printf("wdrv send_ota_pkt [offset] [size] [finish]     - send demo OTA packet\r\n");
     printf("wdrv stop_ota                                  - notify controller to STOP OTA\r\n");
 }
+static int wifi_filter_cb(const uint8_t *data, uint32_t len, const wifi_frame_info_t *frame_info)
+{
+	if (!data) {
+		CLI_LOGE("null data\n");
+		return BK_OK;
+	}
+
+    os_printf("%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",__func__,__LINE__,data,len,frame_info);
+
+	return BK_OK;
+}
 static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, int argC, char **argV)
 {
     if(argC <= 1) {
@@ -453,6 +464,9 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
         }
     }
 #endif
+    else if (!strcasecmp(argV[1], "filter")) {
+            bk_wifi_filter_register_cb(wifi_filter_cb);
+    }
     else {
         printf("Invalid wdrv command\n");
         wdrv_cmd_help();

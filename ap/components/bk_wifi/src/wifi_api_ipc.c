@@ -33,6 +33,9 @@
 #include "wdrv_tx.h"
 #include "wifi_api_ipc.h"
 
+extern bk_err_t bk_wifi_filter_register_ind(uint8_t * msg_payload);
+extern bk_err_t bk_wifi_monitor_register_ind(uint8_t * msg_payload);
+
 bk_err_t wifi_send_com_api_cmd(uint32_t cmd_id, uint32_t argc, ...)
 {
     bk_err_t ret = BK_OK;
@@ -83,6 +86,16 @@ bk_err_t wifi_handle_api_evt(uint32_t evt_id, uint8_t *evt_data, uint16_t evt_le
         {
             break;
         }
+        case MONITOR_REGISTER_CB_IND:
+        {
+            bk_wifi_monitor_register_ind(evt_data);
+            break;
+        }
+        case FILER_REGISTER_CB_IND:
+        {
+            bk_wifi_filter_register_ind(evt_data);
+            break;
+        }        
         default:
         {
             break;
