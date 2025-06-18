@@ -93,30 +93,6 @@ typedef struct
 	u16				cmd_len;
 } ipc_chnl_cb_t;
 
-#if CONFIG_SOC_SMP
-#include "spinlock.h"
-static SPINLOCK_SECTION volatile spinlock_t mb_ipc_spin_lock = SPIN_LOCK_INIT;
-#endif // CONFIG_SOC_SMP
-static inline uint32_t ipc_enter_critical()
-{
-	uint32_t flags = rtos_disable_int();
-
-#if CONFIG_SOC_SMP
-	spin_lock(&mb_ipc_spin_lock);
-#endif // CONFIG_SOC_SMP
-
-	return flags;
-}
-
-static inline void ipc_exit_critical(uint32_t flags)
-{
-#if CONFIG_SOC_SMP
-	spin_unlock(&mb_ipc_spin_lock);
-#endif // CONFIG_SOC_SMP
-
-	rtos_enable_int(flags);
-}
-
 static void ipc_cmd_rx_isr(ipc_chnl_cb_t *chnl_cb, mb_chnl_cmd_t *cmd_buf)
 {
 	u32		result = ACK_STATE_FAIL;
@@ -546,6 +522,7 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				result = ACK_STATE_COMPLETE;
 			}
 			break;
+
 #if (USB_CDC_CP1_IPC)
 		case IPC_CPU0_START_USB_CDC:
 			{
@@ -622,10 +599,7 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				ipc_res_req_t * res_req = (ipc_res_req_t *)chnl_cb->cmd_buf;
 				amp_res_req_cnt_t * res_cnt_list = (amp_res_req_cnt_t *)ipc_rsp->rsp_buff;
 
-				/* call amp_res_acquire_cnt in interrupt disabled state. */
-				u32  int_mask = ipc_enter_critical();
 				bk_err_t ret_code = amp_res_acquire_cnt(res_req->res_id, res_req->cpu_id, res_cnt_list);
-				ipc_exit_critical(int_mask);
 
 				if(ret_code == BK_OK)
 				{
@@ -652,10 +626,7 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				ipc_res_req_t * res_req = (ipc_res_req_t *)chnl_cb->cmd_buf;
 				amp_res_req_cnt_t * res_cnt_list = (amp_res_req_cnt_t *)ipc_rsp->rsp_buff;
 
-				/* call amp_res_release_cnt in interrupt disabled state. */
-				u32  int_mask = ipc_enter_critical();
 				bk_err_t ret_code = amp_res_release_cnt(res_req->res_id, res_req->cpu_id, res_cnt_list);
-				ipc_exit_critical(int_mask);
 
 				if(ret_code == BK_OK)
 				{
