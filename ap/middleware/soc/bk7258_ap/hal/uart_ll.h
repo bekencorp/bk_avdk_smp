@@ -30,6 +30,8 @@ extern "C" {
 #define CASE_PARITY(parity) case UART_PARITY_##parity: return UART_V_PARITY_##parity
 #define CASE_D() default: return 0
 
+#define UART0_FLOW_CTRL_CNT  0xCC
+
 static inline void uart_ll_set_int_enable_status(uart_hw_t *hw, uart_id_t id, uint32_t value)
 {
 	hw->int_enable.v = value;
@@ -63,6 +65,8 @@ static inline void uart_ll_init(uart_hw_t *hw)
 static inline gpio_id_t uart_ll_get_tx_pin(uart_id_t id)
 {
 	switch (id) {
+	case UART_ID_0:
+		return UART0_TX_PIN;
 	case UART_ID_1:
 		return UART1_TX_PIN;
 	case UART_ID_2:
@@ -75,6 +79,8 @@ static inline gpio_id_t uart_ll_get_tx_pin(uart_id_t id)
 static inline gpio_id_t uart_ll_get_rx_pin(uart_id_t id)
 {
 	switch (id) {
+	case UART_ID_0:
+		return UART0_RX_PIN;
 	case UART_ID_1:
 		return UART1_RX_PIN;
 	case UART_ID_2:
@@ -87,6 +93,8 @@ static inline gpio_id_t uart_ll_get_rx_pin(uart_id_t id)
 static inline gpio_id_t uart_ll_get_cts_pin(uart_id_t id)
 {
 	switch (id) {
+	case UART_ID_0:
+		return UART0_CTS_PIN;
 	default:
 		return SOC_GPIO_NUM;
 	}
@@ -95,6 +103,8 @@ static inline gpio_id_t uart_ll_get_cts_pin(uart_id_t id)
 static inline gpio_id_t uart_ll_get_rts_pin(uart_id_t id)
 {
 	switch (id) {
+	case UART_ID_0:
+		return UART0_RTS_PIN;
 	default:
 		return SOC_GPIO_NUM;
 	}
@@ -103,6 +113,8 @@ static inline gpio_id_t uart_ll_get_rts_pin(uart_id_t id)
 static inline uint32_t uart_ll_get_reg_base(uart_id_t id)
 {
 	switch (id) {
+	case UART_ID_0:
+		return UART0_R_BASE;
 	case UART_ID_1:
 		return UART1_R_BASE;
 	case UART_ID_2:
@@ -463,23 +475,52 @@ static inline void uart_ll_reset_wake_config_to_default(uart_hw_t *hw, uart_id_t
 	hw->wake_config.v = 0;
 }
 
+#if CONFIG_UART_PM_CB_SUPPORT
+#define UART_PM_BACKUP_REG_NUM    (6)
+
+static inline void uart_ll_backup(uart_hw_t *hw, uint32_t *pm_backup)
+{
+	pm_backup[0] = hw->config.v;
+	pm_backup[1] = hw->fifo_config.v;
+	pm_backup[2] = hw->int_enable.v;
+	pm_backup[3] = hw->flow_ctrl_config.v;
+	pm_backup[4] = hw->wake_config.v;
+	pm_backup[5] = hw->global_ctrl.v;
+}
+
+static inline void uart_ll_restore(uart_hw_t *hw, uint32_t *pm_backup)
+{
+	hw->config.v           = pm_backup[0];
+	hw->fifo_config.v      = pm_backup[1];
+	hw->int_enable.v       = pm_backup[2];
+	hw->flow_ctrl_config.v = pm_backup[3];
+	hw->wake_config.v      = pm_backup[4];
+	hw->global_ctrl.v      = pm_backup[5];
+}
+#endif
+
 static inline uint32_t uart_ll_wait_tx_over(void)
 {
 	uint32_t uart_wait_us;
+	uint32_t baudrate0;
 	uint32_t baudrate1;
 	uint32_t baudrate2;
 
+	uart_hw_t *hw0 = (uart_hw_t *)UART_LL_REG_BASE(0);
 	uart_hw_t *hw1 = (uart_hw_t *)UART_LL_REG_BASE(1);
 	uart_hw_t *hw2 = (uart_hw_t *)UART_LL_REG_BASE(2);
 
+	baudrate0 = UART_CLOCK / (hw0->config.clk_div + 1);
 	baudrate1 = UART_CLOCK / (hw1->config.clk_div + 1);
 	baudrate2 = UART_CLOCK / (hw2->config.clk_div + 1);
 
 	uart_wait_us = 1000000 * hw2->fifo_status.tx_fifo_count * 10 / baudrate2
-				 + 1000000 * hw1->fifo_status.tx_fifo_count * 10 / baudrate1;
+				 + 1000000 * hw1->fifo_status.tx_fifo_count * 10 / baudrate1
+				 + 1000000 * hw0->fifo_status.tx_fifo_count * 10 / baudrate0;
 
 	while (!hw2->fifo_status.tx_fifo_empty);
 	while (!hw1->fifo_status.tx_fifo_empty);
+	while (!hw0->fifo_status.tx_fifo_empty);
 
 	return uart_wait_us;
 }

@@ -138,6 +138,12 @@ uint32_t uart_hal_get_system_interrput_en_status(uart_id_t id)
 		case UART_ID_0:
 			sys_int_en_status = sys_ll_get_cpu0_int_0_31_en_cpu0_uart_int_en();
 			break;
+		case UART_ID_1:
+			sys_int_en_status = sys_ll_get_cpu0_int_0_31_en_cpu0_uart1_int_en();
+			break;
+		case UART_ID_2:
+			sys_int_en_status = sys_ll_get_cpu0_int_0_31_en_cpu0_uart2_int_en();
+			break;
 		default:
 			sys_int_en_status = 0;
 			break;

@@ -67,6 +67,10 @@ static inline gpio_id_t uart_ll_get_tx_pin(uart_id_t id)
 	switch (id) {
 	case UART_ID_0:
 		return UART0_TX_PIN;
+	case UART_ID_1:
+		return UART1_TX_PIN;
+	case UART_ID_2:
+		return UART2_TX_PIN;
 	default:
 		return SOC_GPIO_NUM;
 	}
@@ -77,6 +81,10 @@ static inline gpio_id_t uart_ll_get_rx_pin(uart_id_t id)
 	switch (id) {
 	case UART_ID_0:
 		return UART0_RX_PIN;
+	case UART_ID_1:
+		return UART1_RX_PIN;
+	case UART_ID_2:
+		return UART2_RX_PIN;
 	default:
 		return SOC_GPIO_NUM;
 	}
@@ -107,6 +115,10 @@ static inline uint32_t uart_ll_get_reg_base(uart_id_t id)
 	switch (id) {
 	case UART_ID_0:
 		return UART0_R_BASE;
+	case UART_ID_1:
+		return UART1_R_BASE;
+	case UART_ID_2:
+		return UART2_R_BASE;
 	default:
 		return BK_ERR_UART_BASE;
 	}
@@ -491,13 +503,23 @@ static inline uint32_t uart_ll_wait_tx_over(void)
 {
 	uint32_t uart_wait_us;
 	uint32_t baudrate0;
+	uint32_t baudrate1;
+	uint32_t baudrate2;
 
 	uart_hw_t *hw0 = (uart_hw_t *)UART_LL_REG_BASE(0);
+	uart_hw_t *hw1 = (uart_hw_t *)UART_LL_REG_BASE(1);
+	uart_hw_t *hw2 = (uart_hw_t *)UART_LL_REG_BASE(2);
 
 	baudrate0 = UART_CLOCK / (hw0->config.clk_div + 1);
+	baudrate1 = UART_CLOCK / (hw1->config.clk_div + 1);
+	baudrate2 = UART_CLOCK / (hw2->config.clk_div + 1);
 
-	uart_wait_us = 1000000 * hw0->fifo_status.tx_fifo_count * 10 / baudrate0;
+	uart_wait_us = 1000000 * hw2->fifo_status.tx_fifo_count * 10 / baudrate2
+				 + 1000000 * hw1->fifo_status.tx_fifo_count * 10 / baudrate1
+				 + 1000000 * hw0->fifo_status.tx_fifo_count * 10 / baudrate0;
 
+	while (!hw2->fifo_status.tx_fifo_empty);
+	while (!hw1->fifo_status.tx_fifo_empty);
 	while (!hw0->fifo_status.tx_fifo_empty);
 
 	return uart_wait_us;

@@ -6,23 +6,31 @@ menu "UART"
 		bool "Uart0 Flow Ctrl"
 		default n
 
+	config UART1
+		bool "Enable UART1"
+		default n
+
+	config UART2
+		bool "Enable UART2"
+		default n
+
 	config UART_PRINT_PORT
 		int "Config Uart Print Port"
-		range 0 0
+		range 0 2
 		default 0
 		help
 		Default 0 mean use UART0
 
 	config UART_ATE_PRINT_PORT
 		int "Config Uart ATE Print Port"
-		range 0 0
+		range 0 2
 		default 0
 		help
 		Default 0 mean use UART0
 
 	config UART_ATE_PORT
 		int "Config Uart ATE Port"
-		range 0 0
+		range 0 2
 		default 0
 		help
 		Default 0 mean use UART0

@@ -92,7 +92,15 @@ typedef struct
 static uart_driver_t s_uart[SOC_UART_ID_NUM_PER_UNIT] = {
 	{
 		.hal.hw = (uart_hw_t *)SOC_UART0_REG_BASE,
-	}
+	},
+	{
+		.hal.hw = (uart_hw_t *)SOC_UART1_REG_BASE,
+	},
+#if (SOC_UART_ID_NUM_PER_UNIT >= 2)
+	{
+		.hal.hw = (uart_hw_t *)SOC_UART2_REG_BASE,
+	},
+#endif
 };
 static bool s_uart_driver_is_init = false;
 static uart_callback_t s_uart_rx_isr[SOC_UART_ID_NUM_PER_UNIT] = {NULL};
@@ -161,6 +169,12 @@ static uart_sema_t s_uart_sema[SOC_UART_ID_NUM_PER_UNIT] = {0};
 	case UART_ID_0:\
 		BK_ASSERT(DEV_IS_SECURE(UART0) == 1);\
 		break;\
+	case UART_ID_1:\
+		BK_ASSERT(DEV_IS_SECURE(UART1) == 1);\
+		break;\
+	case UART_ID_2:\
+		BK_ASSERT(DEV_IS_SECURE(UART2) == 1);\
+		break;\
 	default:\
 		break;\
 	}\
@@ -187,6 +201,11 @@ void uart_clock_enable(uart_id_t id)
 		case UART_ID_0:
 			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART0, CLK_PWR_CTRL_PWR_UP);
 			break;
+		case UART_ID_1:
+			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART1, CLK_PWR_CTRL_PWR_UP);
+			break;
+		case UART_ID_2:
+			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART2, CLK_PWR_CTRL_PWR_UP);
 		default:
 			break;
 	}
@@ -198,6 +217,12 @@ void uart_clock_disable(uart_id_t id)
 	{
 		case UART_ID_0:
 			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART0, CLK_PWR_CTRL_PWR_DOWN);
+			break;
+		case UART_ID_1:
+			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART1, CLK_PWR_CTRL_PWR_DOWN);
+			break;
+		case UART_ID_2:
+			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART2, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 		default:
 			break;
@@ -211,6 +236,12 @@ static void uart_interrupt_enable(uart_id_t id)
 		case UART_ID_0:
 			sys_drv_int_enable(UART0_INTERRUPT_CTRL_BIT);
 			break;
+		case UART_ID_1:
+			sys_drv_int_enable(UART1_INTERRUPT_CTRL_BIT);
+			break;
+		case UART_ID_2:
+			sys_drv_int_enable(UART2_INTERRUPT_CTRL_BIT);
+			break;
 		default:
 			break;
 	}
@@ -222,6 +253,12 @@ static void uart_interrupt_disable(uart_id_t id)
 	{
 		case UART_ID_0:
 			sys_drv_int_disable(UART0_INTERRUPT_CTRL_BIT);
+			break;
+		case UART_ID_1:
+			sys_drv_int_disable(UART1_INTERRUPT_CTRL_BIT);
+			break;
+		case UART_ID_2:
+			sys_drv_int_disable(UART2_INTERRUPT_CTRL_BIT);
 			break;
 		default:
 			break;
@@ -254,6 +291,26 @@ static void uart_init_gpio(uart_id_t id)
 #endif
 			break;
 		}
+		case UART_ID_1:
+		{
+			gpio_dev_unmap(uart_hal_get_tx_pin(id));
+			gpio_dev_unmap(uart_hal_get_rx_pin(id));
+			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART1_TXD);
+			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART1_RXD);
+			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
+			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
+			break;
+		}
+		case UART_ID_2:
+		{
+			gpio_dev_unmap(uart_hal_get_tx_pin(id));
+			gpio_dev_unmap(uart_hal_get_rx_pin(id));
+			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART2_TXD);
+			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART2_RXD);
+			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
+			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
+			break;
+		}
 		default:
 			break;
 	}
@@ -264,6 +321,18 @@ static void uart_deinit_tx_gpio(uart_id_t id)
 	switch (id)
 	{
 		case UART_ID_0:
+		{
+			gpio_dev_unmap(uart_hal_get_tx_pin(id));
+			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
+			break;
+		}
+		case UART_ID_1:
+		{
+			gpio_dev_unmap(uart_hal_get_tx_pin(id));
+			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
+			break;
+		}
+		case UART_ID_2:
 		{
 			gpio_dev_unmap(uart_hal_get_tx_pin(id));
 			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
@@ -284,6 +353,18 @@ static void uart_deinit_rx_gpio(uart_id_t id)
 			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
 			break;
 		}
+		case UART_ID_1:
+		{
+			gpio_dev_unmap(uart_hal_get_rx_pin(id));
+			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
+			break;
+		}
+		case UART_ID_2:
+		{
+			gpio_dev_unmap(uart_hal_get_rx_pin(id));
+			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
+			break;
+		}
 		default:
 			break;
 	}
@@ -291,15 +372,12 @@ static void uart_deinit_rx_gpio(uart_id_t id)
 
 static bk_err_t uart_id_init_kfifo(uart_id_t id)
 {
-	if(id != UART_ID_0){
-		return BK_FAIL;
-	}
 	uint32_t fifo_size = CONFIG_KFIFO_SIZE;
 //RX DMA needs bigger FIFO size when erase flash.
 #if (CONFIG_UART_RX_DMA)
 	fifo_size = CONFIG_UART_RX_DMA_KFIFO_SIZE;
 #endif
-	
+
 	if (!s_uart_rx_kfifo[id]) {
 		s_uart_rx_kfifo[id] = kfifo_alloc(fifo_size);
 		if (!s_uart_rx_kfifo[id]) {
@@ -312,10 +390,6 @@ static bk_err_t uart_id_init_kfifo(uart_id_t id)
 
 static void uart_id_deinit_kfifo(uart_id_t id)
 {
-	if(id != UART_ID_0){
-		BK_ASSERT(0);
-	}
-
 	if (s_uart_rx_kfifo[id]) {
 		kfifo_free(s_uart_rx_kfifo[id]);
 	}
@@ -605,6 +679,12 @@ static void uart_isr_register_functions(uart_id_t id)
 		case UART_ID_0:
 			bk_int_isr_register(INT_SRC_UART0, uart0_isr, NULL);
 			break;
+		case UART_ID_1:
+			bk_int_isr_register(INT_SRC_UART1, uart1_isr, NULL);
+			break;
+		case UART_ID_2:
+			bk_int_isr_register(INT_SRC_UART2, uart2_isr, NULL);
+			break;
 		default:
 			break;
 	}
@@ -616,6 +696,13 @@ uint32_t uart_id_to_pm_uart_id(uint32_t uart_id)
 	{
 		case UART_ID_0:
 			return PM_DEV_ID_UART1;
+
+		case UART_ID_1:
+			return PM_DEV_ID_UART2;
+
+		case UART_ID_2:
+			return PM_DEV_ID_UART3;
+
 		default:
 			return PM_DEV_ID_UART1;
 	}
@@ -752,6 +839,13 @@ static inline dma_dev_t uart_id_to_dma_dev(uart_id_t id, bool rx)
 	{
 		case UART_ID_0:
 			return DMA_DEV_UART1 + rx_id_offset;
+
+		case UART_ID_1:
+			return DMA_DEV_UART2 + rx_id_offset;
+
+		case UART_ID_2:
+			return DMA_DEV_UART3 + rx_id_offset;
+
 		default:
 			return DMA_DEV_UART1 + rx_id_offset;
 	}
@@ -1640,3 +1734,12 @@ void uart0_isr(void)
 	uart_isr_common(UART_ID_0);
 }
 
+void uart1_isr(void)
+{
+	uart_isr_common(UART_ID_1);
+}
+
+void uart2_isr(void)
+{
+	uart_isr_common(UART_ID_2);
+}

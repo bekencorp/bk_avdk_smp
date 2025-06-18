@@ -53,10 +53,10 @@ extern "C" {
 typedef uint8_t uart_unit_t; /**< uart uint id */
 
 typedef enum {
-	//UART_ID_0,   /**< UART id 0 */	//ap can not use uart0 which is allocated for CP
-	UART_ID_1 =1,  /**< UART id 1 */
-	UART_ID_2,     /**< UART id 2 */
-	UART_ID_MAX    /**< UART id max */
+	UART_ID_0 = 0,  /**< UART id 0 */
+	UART_ID_1 = 1,  /**< UART id 1 */
+	UART_ID_2 = 2,  /**< UART id 2 */
+	UART_ID_MAX     /**< UART id max */
 } uart_id_t;
 
 typedef enum {

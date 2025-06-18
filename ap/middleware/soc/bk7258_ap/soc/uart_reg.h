@@ -18,6 +18,7 @@
 extern "C" {
 #endif
 
+#define UART0_R_BASE            (SOC_UART0_REG_BASE)
 #define UART1_R_BASE            (SOC_UART1_REG_BASE)
 #define UART2_R_BASE            (SOC_UART2_REG_BASE)
 

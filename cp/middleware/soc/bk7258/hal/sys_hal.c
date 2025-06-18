@@ -1027,6 +1027,22 @@ void sys_hal_uart_select_clock(uart_id_t id, uart_src_clk_t mode)
 					sys_ll_set_cpu_clk_div_mode1_clksel_uart0(sel_xtal);
 				break;
 			}
+		case UART_ID_1:
+			{
+				if(mode == UART_SCLK_APLL)
+					sys_ll_set_cpu_clk_div_mode1_cksel_uart1(sel_appl);
+				else
+					sys_ll_set_cpu_clk_div_mode1_cksel_uart1(sel_xtal);
+				break;
+			}
+		case UART_ID_2:
+			{
+				if(mode == UART_SCLK_APLL)
+					sys_ll_set_cpu_clk_div_mode1_cksel_uart2(sel_appl);
+				else
+					sys_ll_set_cpu_clk_div_mode1_cksel_uart2(sel_xtal);
+				break;
+			}
 		default:
 			break;
 	}
@@ -1226,6 +1242,16 @@ uint32_t sys_hal_uart_select_clock_get(uart_id_t id)
         case UART_ID_0:
         {
             ret = sys_ll_get_cpu_clk_div_mode1_clksel_uart0();
+            break;
+        }
+		case UART_ID_1:
+        {
+            ret = sys_ll_get_cpu_clk_div_mode1_cksel_uart1();
+            break;
+        }
+        case UART_ID_2:
+        {
+            ret = sys_ll_get_cpu_clk_div_mode1_cksel_uart2();
             break;
         }
         default:

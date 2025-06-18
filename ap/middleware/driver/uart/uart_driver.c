@@ -49,7 +49,7 @@ typedef struct {
 	uart_hal_t hal;
 	uint8_t id_init_bits;
 	uint8_t id_sw_fifo_enable_bits;
-#if CONFIG_UART_PM_CB_SUPPORT
+#if CONFIG_UART_PM_CB_SUPPORT	//this macro config set to n
 	uint32_t pm_backup[UART_PM_BACKUP_REG_NUM];
 	uint8_t pm_bakeup_is_valid;
 #endif
@@ -91,7 +91,7 @@ typedef struct
 
 static uart_driver_t s_uart[SOC_UART_ID_NUM_PER_UNIT] = {
 	{
-		.hal.hw = (uart_hw_t *)0,	//ap can not use uart0
+		.hal.hw = (uart_hw_t *)SOC_UART0_REG_BASE,
 	},
 	{
 		.hal.hw = (uart_hw_t *)SOC_UART1_REG_BASE,
@@ -115,7 +115,7 @@ static uart_sema_t s_uart_sema[SOC_UART_ID_NUM_PER_UNIT] = {0};
 	} while(0)
 
 #define UART_RETURN_ON_INVALID_ID(id) do {\
-		if (((id) >= SOC_UART_ID_NUM_PER_UNIT) ||((id) == 0)){\
+		if ((id) >= SOC_UART_ID_NUM_PER_UNIT) {\
 			return BK_ERR_UART_INVALID_ID;\
 		}\
 	} while(0)
@@ -133,11 +133,13 @@ static uart_sema_t s_uart_sema[SOC_UART_ID_NUM_PER_UNIT] = {0};
 		}\
 	} while(0)
 
-#if CONFIG_UART_PM_CB_SUPPORT
+#if CONFIG_UART_PM_CB_SUPPORT	//this macro config set to n
 #define UART_PM_CHECK_RESTORE(id) do {\
 	GLOBAL_INT_DECLARATION();\
 	GLOBAL_INT_DISABLE();\
 	switch (id) {\
+	case UART_ID_0:\
+		break;\
 	case UART_ID_1:\
 		if (bk_pm_module_lv_sleep_state_get(PM_DEV_ID_UART2)) {\
 			bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_UART1, PM_POWER_MODULE_STATE_ON);\
@@ -164,6 +166,9 @@ static uart_sema_t s_uart_sema[SOC_UART_ID_NUM_PER_UNIT] = {0};
 #if CONFIG_SPE
 #define UART_CHECK_SECURE(id) do {\
 	switch (id) {\
+	case UART_ID_0:\
+		BK_ASSERT(DEV_IS_SECURE(UART0) == 1);\
+		break;\
 	case UART_ID_1:\
 		BK_ASSERT(DEV_IS_SECURE(UART1) == 1);\
 		break;\
@@ -193,6 +198,9 @@ void uart_clock_enable(uart_id_t id)
 {
 	switch(id)
 	{
+		case UART_ID_0:
+			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART0, CLK_PWR_CTRL_PWR_UP);
+			break;
 		case UART_ID_1:
 			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART1, CLK_PWR_CTRL_PWR_UP);
 			break;
@@ -208,6 +216,9 @@ void uart_clock_disable(uart_id_t id)
 {
 	switch(id)
 	{
+		case UART_ID_0:
+			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART0, CLK_PWR_CTRL_PWR_DOWN);
+			break;
 		case UART_ID_1:
 			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART1, CLK_PWR_CTRL_PWR_DOWN);
 			break;
@@ -223,6 +234,9 @@ static void uart_interrupt_enable(uart_id_t id)
 {
 	switch(id)
 	{
+		case UART_ID_0:
+			sys_drv_int_enable(UART0_INTERRUPT_CTRL_BIT);
+			break;
 		case UART_ID_1:
 			sys_drv_int_enable(UART1_INTERRUPT_CTRL_BIT);
 			break;
@@ -238,6 +252,9 @@ static void uart_interrupt_disable(uart_id_t id)
 {
 	switch(id)
 	{
+		case UART_ID_0:
+			sys_drv_int_disable(UART0_INTERRUPT_CTRL_BIT);
+			break;
 		case UART_ID_1:
 			sys_drv_int_disable(UART1_INTERRUPT_CTRL_BIT);
 			break;
@@ -254,6 +271,27 @@ static void uart_init_gpio(uart_id_t id)
 {
 	switch (id)
 	{
+		case UART_ID_0:
+		{
+			gpio_dev_unmap(uart_hal_get_tx_pin(id));
+			gpio_dev_unmap(uart_hal_get_rx_pin(id));
+			gpio_dev_map(uart_hal_get_tx_pin(id), GPIO_DEV_UART0_TXD);
+			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART0_RXD);
+			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
+			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
+#if CONFIG_UART0_FLOW_CTRL
+			//NOTICE:BEKEN ASIC CTS PIN really function is RTS.
+			gpio_dev_map(uart_hal_get_cts_pin(id), GPIO_DEV_UART0_CTS);
+			bk_gpio_enable_output(uart_hal_get_cts_pin(id));
+			bk_gpio_pull_down(uart_hal_get_cts_pin(id));
+
+			gpio_dev_map(uart_hal_get_rts_pin(id), GPIO_DEV_UART0_RTS);
+			bk_gpio_enable_input(uart_hal_get_rts_pin(id));
+			bk_gpio_pull_down(uart_hal_get_rts_pin(id));
+			bk_uart_set_hw_flow_ctrl(id, UART0_FLOW_CTRL_CNT);
+#endif
+			break;
+		}
 		case UART_ID_1:
 		{
 			gpio_dev_unmap(uart_hal_get_tx_pin(id));
@@ -283,6 +321,12 @@ static void uart_deinit_tx_gpio(uart_id_t id)
 {
 	switch (id)
 	{
+		case UART_ID_0:
+		{
+			gpio_dev_unmap(uart_hal_get_tx_pin(id));
+			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
+			break;
+		}
 		case UART_ID_1:
 		{
 			gpio_dev_unmap(uart_hal_get_tx_pin(id));
@@ -304,6 +348,12 @@ static void uart_deinit_rx_gpio(uart_id_t id)
 {
 	switch (id)
 	{
+		case UART_ID_0:
+		{
+			gpio_dev_unmap(uart_hal_get_rx_pin(id));
+			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
+			break;
+		}
 		case UART_ID_1:
 		{
 			gpio_dev_unmap(uart_hal_get_rx_pin(id));
@@ -543,11 +593,11 @@ void uart_write_byte_for_ate(uart_id_t id, uint8_t *data, uint8_t cnt)
     }
 }
 
-void uart_write_byte_for_fr(uint8_t *data, uint8_t cnt)
+void uart_write_byte_for_fr(uart_id_t id, uint8_t *data, uint8_t cnt)
 {
     int i;
 
-    int port = UART_ID_2;
+    int port = id;
 
     if (bk_get_printf_port() == port)
         os_printf("!UART_ID_2\n");
@@ -627,6 +677,9 @@ static void uart_isr_register_functions(uart_id_t id)
 {
 	switch(id)
 	{
+		case UART_ID_0:
+			bk_int_isr_register(INT_SRC_UART0, uart0_isr, NULL);
+			break;
 		case UART_ID_1:
 			bk_int_isr_register(INT_SRC_UART1, uart1_isr, NULL);
 			break;
@@ -642,6 +695,8 @@ uint32_t uart_id_to_pm_uart_id(uint32_t uart_id)
 {
 	switch (uart_id)
 	{
+		case UART_ID_0:
+			return PM_DEV_ID_UART1;
 
 		case UART_ID_1:
 			return PM_DEV_ID_UART2;
@@ -650,7 +705,7 @@ uint32_t uart_id_to_pm_uart_id(uint32_t uart_id)
 			return PM_DEV_ID_UART3;
 
 		default:
-			return PM_DEV_ID_UART2;
+			return PM_DEV_ID_UART1;
 	}
 }
 
@@ -672,7 +727,7 @@ static bk_err_t uart_enter_deep_sleep(uint64_t sleep_time, void *args)
 	return BK_OK;
 }
 
-#if CONFIG_UART_PM_CB_SUPPORT
+#if CONFIG_UART_PM_CB_SUPPORT	//this macro config set to n
 static bk_err_t uart_pm_backup(uint64_t sleep_time, void *args)
 {
 	uart_id_t uart_id = (uart_id_t)args;
@@ -756,7 +811,7 @@ bk_err_t bk_uart_driver_deinit(void)
 	if (!s_uart_driver_is_init)
 		return BK_OK;
 
-	for (uart_id_t id = UART_ID_1; id < SOC_UART_ID_NUM_PER_UNIT; id++) {
+	for (uart_id_t id = UART_ID_0; id < SOC_UART_ID_NUM_PER_UNIT; id++) {
 		bk_uart_deinit(id);
 	}
 
@@ -783,6 +838,8 @@ static inline dma_dev_t uart_id_to_dma_dev(uart_id_t id, bool rx)
 		rx_id_offset = 1;
 	switch(id)
 	{
+		case UART_ID_0:
+			return DMA_DEV_UART1 + rx_id_offset;
 
 		case UART_ID_1:
 			return DMA_DEV_UART2 + rx_id_offset;
@@ -995,7 +1052,7 @@ bk_err_t bk_uart_init(uart_id_t id, const uart_config_t *config)
 	UART_RETURN_ON_BAUD_RATE_NOT_SUPPORT(config->baud_rate);
 	UART_CHECK_SECURE(id);
 
-#if CONFIG_UART_PM_CB_SUPPORT
+#if CONFIG_UART_PM_CB_SUPPORT	//this macro config set to n
 	pm_cb_conf_t uart_enter_config = {
 		.cb = (pm_cb)uart_pm_backup,
 		.args = (void *)id
@@ -1099,7 +1156,7 @@ bk_err_t bk_uart_deinit(uart_id_t id)
 
 	uart_id_deinit_common(id);
 
-#if CONFIG_UART_PM_CB_SUPPORT
+#if CONFIG_UART_PM_CB_SUPPORT	//this macro config set to n
 	if (id == UART_ID_1) {
 		bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_UART2, true, false);
 		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_UART1, PM_POWER_MODULE_STATE_OFF);
@@ -1668,6 +1725,11 @@ static void uart_isr_common(uart_id_t id)
 	}
 }
 
+void uart0_isr(void)
+{
+	uart_isr_common(UART_ID_0);
+}
+
 void uart1_isr(void)
 {
 	uart_isr_common(UART_ID_1);
@@ -1677,4 +1739,3 @@ void uart2_isr(void)
 {
 	uart_isr_common(UART_ID_2);
 }
-

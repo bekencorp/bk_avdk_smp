@@ -1,4 +1,11 @@
 menu "UART"
+	config UART0
+		bool "Enable UART0"
+		default n
+	config UART0_FLOW_CTRL
+		bool "Uart0 Flow Ctrl"
+		default n
+
 	config UART1
 		bool "Enable UART1"
 		default n
@@ -9,10 +16,10 @@ menu "UART"
 
 	config UART_PRINT_PORT
 		int "Config Uart Print Port"
-		range 1 2
-		default 1
+		range 0 2
+		default 0
 		help
-		Default 1 mean use UART1
+		Default 0 mean use UART0
 
 	config PRINTF_BUF_SIZE
 		int "Print Buffer Size"
