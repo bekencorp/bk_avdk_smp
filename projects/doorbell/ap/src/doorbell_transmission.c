@@ -32,6 +32,12 @@
 
 #define CRC8_INIT_VALUE 0xFF
 
+typedef struct
+{
+	struct timeval tv;
+} doorbell_trans_info_t;
+
+doorbell_trans_info_t g_doorbell_trans_info = {0};
 /*******************************************************************************
 * crc8
 *
@@ -367,7 +373,26 @@ uint32_t doorbell_transmission_get_milliseconds(void)
 	time = (riscv_get_mtimer() / 26000) & 0xFFFFFFFF;
 #elif CONFIG_ARCH_CM33
 
-	time = (bk_aon_rtc_get_us() / 1000) & 0xFFFFFFFF;
+    //time = (bk_aon_rtc_get_us() / 1000) & 0xFFFFFFFF;
+    bk_rtc_gettimeofday(&(g_doorbell_trans_info.tv), 0);
+
+    long time_offset = 8 * 3600; //8 hour offset
+    long ms_time = (g_doorbell_trans_info.tv.tv_usec / 1000);
+    long time_ms = 0;
+
+    if (g_doorbell_trans_info.tv.tv_sec < time_offset)
+    {
+        //os_printf(" local time sec: %ld \r\n",g_doorbell_trans_info.tv.tv_sec);
+        time_ms = (g_doorbell_trans_info.tv.tv_sec * 1000) + ms_time;
+    }
+    else
+    {
+        time_ms = ((g_doorbell_trans_info.tv.tv_sec - time_offset) * 1000) + ms_time;
+    }
+
+    time = (time_ms & 0xFFFFFFFF);
+
+    //os_printf("sec: %ld time %d\r\n", g_doorbell_trans_info.tv.tv_sec ,time);
 #endif
 
 	return time;
