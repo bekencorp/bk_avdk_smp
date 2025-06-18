@@ -37,8 +37,7 @@ void wdrv_rx_confirm_tx_msg(wdrv_rx_msg *msg)
 void wdrv_rx_handle_msg(wdrv_rx_msg *msg)
 {
     //bk_mem_dump("wdrv_rx_handle_msg",PTR_TO_U32(msg), 30);
-
-
+    cpdu_t* cpdu = (struct cpdu_t*)msg -1;
     WDRV_LOGI("wdrv_rx_handle_msg id:%x cfm_sn:%d len:%d\r\n", msg->id, msg->cfm_sn, msg->param_len);
 
     if (msg->id >= WDRV_CMD_CFM_OFFSET) {
@@ -48,7 +47,10 @@ void wdrv_rx_handle_msg(wdrv_rx_msg *msg)
         wdrv_rx_handle_event(msg);
     }
 
-    wdrv_free_cmd_buffer((uint8_t*)((struct cpdu_t*)msg -1));
+    if(cpdu->co_hdr.special_type == 0) //RX cmd pbuf(filter and monitor) don't free cmd buffer
+    {
+        wdrv_free_cmd_buffer((uint8_t*)cpdu);
+    }
 }
 
 void wdrv_rxdata_process(struct pbuf *p)
