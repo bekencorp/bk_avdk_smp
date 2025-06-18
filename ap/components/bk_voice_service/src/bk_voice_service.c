@@ -26,7 +26,8 @@
 #include <components/avdk_types.h>
 #include <components/bk_voice_service.h>
 #include <components/bk_voice_service_types.h>
-
+#include <driver/pwr_clk.h>
+#include <modules/pm.h>
 
 #define TAG "voc"
 
@@ -1165,6 +1166,9 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
 
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
 
+
+    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
+
     if (BK_OK != record_pipeline_init(voice_handle, cfg))
     {
         BK_LOGE(TAG, "%s, %d, record_pipeline_open fail\n", __func__, __LINE__);
@@ -1237,6 +1241,8 @@ fail:
     os_free(voice_handle);
 #endif
 
+    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
+
     return NULL;
 }
 
@@ -1277,6 +1283,8 @@ bk_err_t bk_voice_deinit(voice_handle_t voice_handle)
 #else
         os_free(voice_handle);
 #endif
+
+    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
 
     return BK_OK;
 }
