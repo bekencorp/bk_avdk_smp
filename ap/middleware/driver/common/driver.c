@@ -386,9 +386,10 @@ int driver_init(void) {
 	bk_h264_driver_init();
 #endif
 
-// #if CONFIG_AON_RTC
-// 	bk_aon_rtc_driver_init();
-// #endif
+#if CONFIG_AON_RTC_KEEP_TIME_SUPPORT
+extern void aon_rtc_update_boot_time();
+	aon_rtc_update_boot_time();
+#endif
 
 #if ((CONFIG_SDIO_HOST) || (CONFIG_SDCARD))
 	bk_sdio_host_driver_init();

@@ -201,6 +201,13 @@ static void aon_rtc_get_timeofday(struct timeval *time_p)
 #endif
 
 }
+
+void aon_rtc_update_boot_time()
+{
+	struct timeval time = {0, 0};
+	aon_rtc_get_timeofday(&time);
+	s_boot_time_us = ((uint64_t)time.tv_sec)*1000000LL+time.tv_usec;
+}
 #endif
 
 
