@@ -130,7 +130,7 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
 
         default:
         {
-            ret = BK_FAIL;
+            ret = BK_ERR_NOT_FOUND;
             break;
         }
     }
@@ -143,4 +143,34 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
 
     //CIF_LOGI("cif_handle_wifi_api_cmd ret:%d\n", ret);
     return BK_OK;
+}
+
+bk_err_t cif_send_wifi_api_evt(uint32_t cmd_id, uint32_t argc, ...)
+{
+     bk_err_t ret = BK_OK;
+    wifi_api_arg_info_t arg_info = { 0 };
+
+    if (argc)
+    {
+        BK_ASSERT (argc <= WIFI_API_IPC_COM_REQ_MAX_ARGC);
+        arg_info.argc = argc;
+
+        va_list args;
+        va_start(args, argc);
+        for (int i = 0; i < argc; i++)
+        {
+            arg_info.args[i] = va_arg(args, uint32_t);
+            //WIFI_LOGI("arg[%d]:%x\n", i, com_req.arg_info.args[i]);
+        }
+        va_end(args);
+    }
+    ret = cif_bk_send_event(cmd_id, (uint8_t *)&arg_info, sizeof(wifi_api_arg_info_t));
+
+    if (ret < 0)
+    {
+        CIF_LOGE("cif_send_wifi_api_evt FAILED, cmd_id:%x argc:%d ret:%d\n", cmd_id, arg_info.argc, ret);
+        return BK_ERR_TIMEOUT;
+    }
+
+    return ret;
 }

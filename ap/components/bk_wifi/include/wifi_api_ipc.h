@@ -161,7 +161,7 @@ struct wifi_api_com_req
 };
 
 bk_err_t wifi_send_com_api_cmd(uint32_t cmd_id, uint32_t argc, ...);
-
+bk_err_t wifi_handle_api_evt(uint32_t evt_id, uint8_t *evt_data, uint16_t evt_len);
 
 
 

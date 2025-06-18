@@ -73,7 +73,7 @@ typedef struct wifi_arg_ipc_info
 } wifi_api_arg_info_t;
 
 bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg);
-
+bk_err_t cif_send_wifi_api_evt(uint32_t cmd_id, uint32_t argc, ...);
 
 #ifdef __cplusplus
 }

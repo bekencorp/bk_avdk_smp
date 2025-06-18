@@ -33,38 +33,6 @@
 #include "wdrv_tx.h"
 #include "wifi_api_ipc.h"
 
-
-// bk_err_t wifi_send_api_cmd_no_arg(uint32_t cmd_id, ...)
-// {
-//     bk_err_t ret = BK_OK;
-//     struct wifi_api_com_req com_req = { 0 };
-
-//     req_no_param.cmd_hdr.cmd_id = cmd_id;
-//     req_no_param.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-
-//     wdrv_tx_msg((uint8_t *)&req_no_param, sizeof(req_no_param), &req_no_param.cmd_cfm, &ret);
-
-//     WIFI_LOGD("wifi_send_api_cmd_no_arg cmd_id:%x ret:%d\n", cmd_id, ret);
-
-//     return ret;
-// }
-
-// bk_err_t wifi_send_api_cmd_1_param(uint32_t cmd_id, uint32_t param1)
-// {
-//     bk_err_t ret = BK_OK;
-//     struct wifi_api_req_1_agr req_no_arg = { 0 };
-
-//     req_no_arg.cmd_hdr.cmd_id = cmd_id;
-//     req_no_arg.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-//     req_no_arg.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-
-//     wdrv_tx_msg((uint8_t *)&req_no_arg, sizeof(req_no_arg), &req_no_arg.cmd_cfm, &ret);
-
-//     WIFI_LOGD("wifi_send_api_cmd_no_arg cmd_id:%x ret:%d\n", cmd_id, ret);
-
-//     return ret;
-// }
-
 bk_err_t wifi_send_com_api_cmd(uint32_t cmd_id, uint32_t argc, ...)
 {
     bk_err_t ret = BK_OK;
@@ -94,8 +62,31 @@ bk_err_t wifi_send_com_api_cmd(uint32_t cmd_id, uint32_t argc, ...)
     //WIFI_LOGI("wifi_send_com_api_cmd cmd_id:%x argc:%d ret:%d\n", cmd_id, com_req.arg_info.argc, ret);
     if (wdrv_ret < 0)
     {
-        //WIFI_LOGI("wifi_send_com_api_cmd FAILED, cmd_id:%x argc:%d ret:%d\n", cmd_id, com_req.arg_info.argc, ret);
-        return BK_FAIL;
+        WIFI_LOGI("wifi_send_com_api_cmd FAILED, cmd_id:%x argc:%d ret:%d\n", cmd_id, com_req.arg_info.argc, ret);
+        return BK_ERR_TIMEOUT;
+    }
+
+    return ret;
+}
+
+bk_err_t wifi_handle_api_evt(uint32_t evt_id, uint8_t *evt_data, uint16_t evt_len)
+{
+    bk_err_t ret = BK_OK;
+
+    switch(evt_id)
+    {
+        case STA_EVT_XXX_0:
+        {
+            break;
+        }
+        case STA_EVT_XXX_1:
+        {
+            break;
+        }
+        default:
+        {
+            break;
+        }
     }
 
     return ret;

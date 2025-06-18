@@ -31,6 +31,7 @@
 #include "wdrv_tx.h"
 #include <components/netif.h>
 #include "components/event.h"
+#include "wifi_api_ipc.h"
 
 #define TAG "wdrv_cntrl"
 
@@ -321,8 +322,11 @@ void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
     wdrv_rx_confirm_tx_msg(msg);
 
 }
-
-void wdrv_rx_handle_event(wdrv_rx_msg *msg)
+void wdrv_rx_handle_wifi_api_event(wdrv_rx_msg *msg)
+{
+    wifi_handle_api_evt(msg->id, (uint8_t *)msg->param, msg->param_len);
+}
+void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
 {
     WDRV_LOGI("%s,%d\n",__func__,__LINE__);
     //int loop_idx = 0;
@@ -422,6 +426,18 @@ void wdrv_rx_handle_event(wdrv_rx_msg *msg)
         default:
             WDRV_LOGI("%s msg %x invaild\n", __func__, msg->id);
             return;
+    }
+}
+void wdrv_rx_handle_event(wdrv_rx_msg *msg)
+{
+    WDRV_LOGI("%s,%d\n",__func__,__LINE__);
+    if ((msg->id >= BK_EVT_WIFI_API_START) && (msg->id <= BK_EVT_WIFI_API_END))
+    {
+        wdrv_rx_handle_wifi_api_event(msg);
+    }
+    else
+    {
+        wdrv_rx_handle_wifi_cntrl_event(msg);
     }
 }
 
