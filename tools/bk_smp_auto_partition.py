@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 from pathlib import Path
 
 from bk_auto_partition import bk_partitions_table
 from bk_bootloader_post import check_is_ab_project
 from bk_flash_partiton import bk_flash_partition
 from bk_ota_partition import bk_ota_partition
+from bk_project import bk_project_info
 from bk_ram_region import bk_ram_region, mem_region
 
 logger = logging.getLogger(Path(__file__).name)
@@ -77,7 +77,7 @@ def auto_patitions(partitions_dir: Path, auto_part_table: Path, flash_crc_enable
 
     ota_partition_json = partitions_dir / "bk_ota_partitions.json"
     ota_partition = bk_ota_partition(partitions_json)
-    if check_is_ab_project() == "True":
+    if check_is_ab_project():
         ota_partition.gen_ab_ota_json(ota_partition_json)
         ota_partition.gen_ab_configuartion_json(partitions_dir / "configurationab.json")
     else:
@@ -107,11 +107,12 @@ def ram_region_partition(partitions_dir: Path, ram_regions_table: Path):
 
 
 def main():
-    logger.info("Enter SMP Auto Partition")
-    partitions_dir = Path(sys.argv[1])
-    auto_part_table = Path(sys.argv[2])
-    ram_regions_table = Path(sys.argv[3])
-    flash_crc_enable = True
+    logger.info("Enter Armino Auto Partition")
+    project_info = bk_project_info()
+    partitions_dir = project_info.get_project_build_path() / "partitions"
+    auto_part_table = project_info.get_auto_partitions_table()
+    ram_regions_table = project_info.get_ram_regions_table()
+    flash_crc_enable = project_info.get_flash_crc_enable()
     auto_patitions(partitions_dir, auto_part_table, flash_crc_enable)
     ram_region_partition(partitions_dir, ram_regions_table)
 

@@ -137,7 +137,7 @@ auto_partition_out := $(PARTITIONS_DIR)/partitions.txt
 
 $(auto_partition_out): $(auto_partition_script) $(AUTO_PARTITION_TABLE) $(SRAM_REGIONS_TABLE)
 	@mkdir -p $(PARTITIONS_DIR)
-	@python3 $(auto_partition_script) $(PARTITIONS_DIR) $(AUTO_PARTITION_TABLE) $(SRAM_REGIONS_TABLE)
+	@python3 $(auto_partition_script)
 
 auto_partition: $(auto_partition_out)
 
