@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,12 @@ from bk_misc import check_overlaps, parse_format_size
 from .bk_partition import PARTITION_ATTR_NUM, bk_partition
 
 logger = logging.getLogger(__package__)
+
+
+@dataclass
+class partition_limit:
+    name: str
+    index: int
 
 
 class bk_partitions_table:
@@ -24,6 +31,7 @@ class bk_partitions_table:
         self._csv_path = csv_path
         self.partitions: list[bk_partition] = []
         self.cumulative_offset = 0
+        # self.default_setting: list[partition_limit] = []
         self._parse_auto_partition_table()
         self._check_partition_valid()
 
@@ -59,6 +67,9 @@ class bk_partitions_table:
         part.chmod(write, read, execute)
         self.cumulative_offset = offset + size
         return part
+
+    def _check_default_setting(self) -> None:
+        pass
 
     def _check_partition_valid(self) -> None:
         self._check_offset_and_size_valid()
@@ -138,3 +149,26 @@ class bk_partitions_table:
 
         with save_path.open("w", newline="\n") as f:
             f.write(text_content)
+
+    def _check_partition_exists(self, part_name: str) -> bool:
+        for partition in self.partitions:
+            part_info = partition.get_info()
+            if part_info.Name == part_name:
+                return True
+        return False
+
+    def _check_partition_index(self, part_name: str, index: int) -> bool:
+        if index < 0:
+            index = len(self.partitions) + index
+        for part_id, partition in enumerate(self.partitions):
+            part_info = partition.get_info()
+            if part_info.Name == part_name:
+                return index == part_id
+        return False
+
+    def set_default_setting(self, default_setting: list[partition_limit]) -> None:
+        for item in default_setting:
+            if not self._check_partition_exists(item.name):
+                raise RuntimeError(f"{item.name} is not exists")
+            if not self._check_partition_index(item.name, item.index):
+                raise RuntimeError(f"{item.name} index error")

@@ -90,6 +90,10 @@ class bk_project(ABC):
 
     @property
     @abstractmethod
+    def flash_partitions_setting(self) -> Path: ...
+
+    @property
+    @abstractmethod
     def apps_info(self) -> list[app_info]: ...
 
     @abstractmethod

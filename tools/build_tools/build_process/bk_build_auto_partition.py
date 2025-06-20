@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
-from bk_auto_partition import bk_partitions_table
+from bk_auto_partition import bk_partitions_table, partition_limit
 from bk_curr_project import curr_project
 from bk_flash_partiton import bk_flash_partition
 from bk_ota_partition import bk_ota_partition
@@ -38,6 +39,13 @@ class bk_part:
     def auto_partition(self, partitions_txt: Path):
         partitions_csv = self.partitions_dir / "partitions.csv"
         part_table = bk_partitions_table(self.auto_part_table, self.crc_enable)
+        setting_path = curr_project.flash_partitions_setting
+        if setting_path.exists():
+            setting_json = json.loads(setting_path.read_text())
+            setting = [partition_limit(**item) for item in setting_json]
+            part_table.set_default_setting(setting)
+        else:
+            logger.warning("no flash limit setting check.")
         part_table.gen_partition_csv(partitions_csv)
         part_table.gen_partition_json(self.partitions_json)
         part_table.gen_pretty_format_table(partitions_txt)

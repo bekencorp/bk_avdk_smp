@@ -157,6 +157,10 @@ class bk_sdk_project(bk_project):
         return Path(__file__).absolute().parent / "smp_ram_setting.json"
 
     @property
+    def flash_partitions_setting(self) -> Path:
+        return Path(__file__).absolute().parent / "smp_flash_partitions_setting.json"
+
+    @property
     def apps_info(self) -> list[app_info]:
         app_list: list[app_info] = []
         for app_name in self._project_info.apps:

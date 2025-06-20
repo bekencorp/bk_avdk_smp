@@ -1,0 +1,30 @@
+[
+    {
+        "name": "primary_bootloader",
+        "index": 0
+    },
+    {
+        "name": "primary_cp_app",
+        "index": 1
+    },
+    {
+        "name": "primary_ap_app",
+        "index": 2
+    },
+    {
+        "name": "easyflash",
+        "index": -4
+    },
+    {
+        "name": "easyflash_ap",
+        "index": -3
+    },
+    {
+        "name": "sys_rf",
+        "index": -2
+    },
+    {
+        "name": "sys_net",
+        "index": -1
+    }
+]
