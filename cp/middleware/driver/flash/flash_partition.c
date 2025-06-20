@@ -392,10 +392,14 @@ bk_logic_partition_t *bk_flash_partition_get_info(bk_partition_t partition)
 		pt = (bk_logic_partition_t *)&bk_flash_partitions[partition];
 #endif
 	}
+    else
+    {
+        FLASH_LOGW("partition:0x%d is not valid.\r\n",partition);
+    }
 	return pt;
 }
 
-static bk_err_t flash_partition_addr_check(bk_logic_partition_t *partition_info, uint32_t offset, uint32_t size)
+bk_err_t flash_partition_addr_check(bk_logic_partition_t *partition_info, uint32_t offset, uint32_t size)
 {
 #if (CONFIG_FLASH_PARTITION_CHECK_VALID)
 	if ( (offset >= partition_info->partition_length)
@@ -413,7 +417,7 @@ static bk_err_t flash_partition_addr_check(bk_logic_partition_t *partition_info,
  *  this function MUST reside in the flash.
  *  it will use itself address to check partition write permission.
  */
-static bk_err_t flash_partition_write_perm_check(bk_logic_partition_t *partition_info)
+bk_err_t flash_partition_write_perm_check(bk_logic_partition_t *partition_info)
 {
 #if (CONFIG_FLASH_PARTITION_CHECK_VALID)
 	if((partition_info->partition_options & PAR_OPT_WRITE_EN) == 0)
