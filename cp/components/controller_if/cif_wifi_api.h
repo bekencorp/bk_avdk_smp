@@ -49,17 +49,20 @@ enum CIF_WIFI_API_CMD_TYPE
     MONITOR_RESUME                      = 0x346,
     MONITOR_SUSPEND                     = 0x347,
     FILTER_REGISTER_CB                  = 0x348,
-    
-    // RAW Wi-Fi command section
-    SEND_RAW                            = 0x350,
+    FILTER_FREE_PBUF                    = 0x349,
+    MONITOR_FREE_PBUF                   = 0x350,
 
     // Common Wi-Fi command section
     WIFI_GET_CHANNEL                    = 0x360,
     WIFI_SET_COUNTRY                    = 0x361,
     WIFI_CAPA_CONFIG                    = 0x362,
+    SEND_ARP_SET_RATE_REQ               = 0x363,
 
     //Common PHY command section
-    PHY_CAL_RFCALI                      = 0x370,
+    PHY_CAL_RFCALI                      = 0x380,
+
+    // RAW Wi-Fi command section
+    SEND_RAW                            = 0x390,
 
     BK_WIFI_API_CMD_BUTT                = BK_CMD_WIFI_API_END
 };

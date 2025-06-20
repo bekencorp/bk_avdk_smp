@@ -318,6 +318,11 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_filter_register_cb(wifi_filter_cp_cb);
             break;
         }
+        case SEND_ARP_SET_RATE_REQ:
+        {
+            ret = bk_wifi_send_arp_set_rate_req((uint16_t)arg_info->args[0]);
+            break;
+        }
         default:
         {
             ret = BK_ERR_NOT_FOUND;

@@ -1086,7 +1086,7 @@ bk_err_t bk_wifi_sta_set_config_ex(const wifi_sta_config_t *config)
     }
 
     os_memcpy(buffer_to_ipc, config, len);
-    ret = wifi_send_com_api_cmd(STA_SET_CONFIG, 2, (uint32_t)buffer_to_ipc);
+    ret = wifi_send_com_api_cmd(STA_SET_CONFIG, 1, (uint32_t)buffer_to_ipc);
 
     os_free(buffer_to_ipc);
 
@@ -1111,7 +1111,7 @@ bk_err_t bk_wifi_sta_get_config_ex(wifi_sta_config_t *config)
         return BK_ERR_NO_MEM;
     }
 
-    ret = wifi_send_com_api_cmd(STA_GET_CONFIG, 2, (uint32_t)buffer_to_ipc);
+    ret = wifi_send_com_api_cmd(STA_GET_CONFIG, 1, (uint32_t)buffer_to_ipc);
 
     os_memcpy(config, buffer_to_ipc, len);
     os_free(buffer_to_ipc);
@@ -1204,7 +1204,7 @@ bk_err_t bk_wifi_send_raw(uint8_t *buffer, int len)
     }
 
     os_memcpy(buffer_to_ipc, buffer, len);
-    ret = wifi_send_com_api_cmd(SEND_RAW, 2, (uint32_t)buffer_to_ipc,len);
+    ret = wifi_send_com_api_cmd(SEND_RAW, 2, (uint32_t)buffer_to_ipc, len);
 
     os_free(buffer_to_ipc);
 
@@ -1218,7 +1218,7 @@ bk_err_t bk_wifi_manual_cal_rfcali_status(void)
 
 bk_err_t bk_wifi_capa_config(wifi_capability_t capa_id, uint32_t capa_val)
 {
-    return wifi_send_com_api_cmd(WIFI_CAPA_CONFIG, 2, (uint32_t)capa_id,capa_val);
+    return wifi_send_com_api_cmd(WIFI_CAPA_CONFIG, 2, (uint32_t)capa_id, capa_val);
 }
 
 bk_err_t bk_wifi_set_mac_address(char *mac)
@@ -1494,4 +1494,8 @@ bk_err_t bk_wifi_filter_register_ind(uint8_t * msg_payload)
     vif_idx = cpdu->co_hdr.vif_idx;
     ret = wdrv_txdata_sender(pbuf,vif_idx);//vif null, just for free this RXC pbuf
     return ret;
+}
+bk_err_t bk_wifi_send_arp_set_rate_req(uint16_t arp_tx_rate)
+{
+    return wifi_send_com_api_cmd(SEND_ARP_SET_RATE_REQ, 1, arp_tx_rate);
 }
