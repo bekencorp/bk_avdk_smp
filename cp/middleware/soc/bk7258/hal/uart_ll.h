@@ -30,7 +30,7 @@ extern "C" {
 #define CASE_PARITY(parity) case UART_PARITY_##parity: return UART_V_PARITY_##parity
 #define CASE_D() default: return 0
 
-#define UART0_FLOW_CTRL_CNT  0xCC
+#define UART0_FLOW_CTRL_CNT  (CONFIG_KFIFO_SIZE - 1)
 
 static inline void uart_ll_set_int_enable_status(uart_hw_t *hw, uart_id_t id, uint32_t value)
 {
@@ -372,7 +372,7 @@ static inline void uart_ll_clear_id_interrupt_status(uart_hw_t *hw, uart_id_t id
 
 static inline void uart_ll_clear_id_tx_interrupt_status(uart_hw_t *hw, uart_id_t id)
 {
-	/* 
+	/*
 	 * WARNING:This REG has many bits which attribute is write 1 to clear.
 	 * If uses union bit operation, the asm codes will read data from REG
 	 * and write it back, maybe the other bits is 1 and cleared by this function.
@@ -387,7 +387,7 @@ static inline void uart_ll_clear_id_tx_interrupt_status(uart_hw_t *hw, uart_id_t
 
 static inline void uart_ll_clear_id_rx_interrupt_status(uart_hw_t *hw, uart_id_t id)
 {
-	/* 
+	/*
 	 * WARNING:This REG has many bits which attribute is write 1 to clear.
 	 * If uses union bit operation, the asm codes will read data from REG
 	 * and write it back, maybe the other bits is 1 and cleared by this function.

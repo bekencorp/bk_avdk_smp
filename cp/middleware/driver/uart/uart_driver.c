@@ -279,13 +279,11 @@ static void uart_init_gpio(uart_id_t id)
 			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
 			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
 #if CONFIG_UART0_FLOW_CTRL
-			//NOTICE:BEKEN ASIC CTS PIN really function is RTS.
+			//GPIO12 is RTS.GPIO13 is CTS
 			gpio_dev_map(uart_hal_get_cts_pin(id), GPIO_DEV_UART0_CTS);
-			bk_gpio_enable_output(uart_hal_get_cts_pin(id));
 			bk_gpio_pull_down(uart_hal_get_cts_pin(id));
 
 			gpio_dev_map(uart_hal_get_rts_pin(id), GPIO_DEV_UART0_RTS);
-			bk_gpio_enable_input(uart_hal_get_rts_pin(id));
 			bk_gpio_pull_down(uart_hal_get_rts_pin(id));
 			bk_uart_set_hw_flow_ctrl(id, UART0_FLOW_CTRL_CNT);
 #endif
@@ -972,7 +970,7 @@ static inline void uart_tx_dma_dst_port_config(uart_id_t id, dma_port_config_t *
 static void uart_tx_dma_write_done(dma_id_t dma_id)
 {
 	UART_LOGD("%s:dma_id=%d\r\n", __func__, dma_id);
-	
+
 }
 
 static bk_err_t uart_tx_dma_write_to_fifo(uart_id_t id, uint32_t data_address, uint32_t size)
@@ -999,7 +997,7 @@ static bk_err_t uart_tx_dma_init(uart_id_t id)
 		uint32_t tx_dma_test_buffer[8] = {0};
 		//DMA DST config:UART TX write port
 		uart_tx_dma_dst_port_config(id, &dma_cfg.dst);
-		
+
 		//DMA SRC config:Memory
 		dma_port_config_t dma_mem_port_config = {
 							.dev = DMA_DEV_DTCM,
@@ -1009,7 +1007,7 @@ static bk_err_t uart_tx_dma_init(uart_id_t id)
 							.start_addr = (uint32_t)(&tx_dma_test_buffer[0]),
 							.end_addr = (uint32_t)(&tx_dma_test_buffer[0]) + 8,
 						};
-		
+
 		dma_cfg.src = dma_mem_port_config;
 		dma_cfg.mode = DMA_WORK_MODE_SINGLE;
 		dma_cfg.chan_prio = 0;	//UART speed is slow, so no need high priority

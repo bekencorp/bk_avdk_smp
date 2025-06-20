@@ -42,9 +42,11 @@ bk_err_t uart_hal_init_uart(uart_hal_t *hal, uart_id_t id, const uart_config_t *
 	uart_ll_set_rx_fifo_threshold(hal->hw, id, UART_RX_FIFO_THRESHOLD);
 	uart_ll_set_rx_stop_detect_time(hal->hw, id, UART_RX_STOP_DETECT_TIME_32_BITS);
 
-	uart_ll_reset_flow_control_to_default(hal->hw, id);
+	#if !CONFIG_UART0_FLOW_CTRL
+		uart_ll_reset_flow_control_to_default(hal->hw, id);
+	#endif
 	if (config->flow_ctrl != UART_FLOWCTRL_DISABLE) {
-		uart_hal_set_hw_flow_ctrl(hal, id, CONFIG_KFIFO_SIZE & 0xff);
+		uart_hal_set_hw_flow_ctrl(hal, id, UART0_FLOW_CTRL_CNT);
 		uart_ll_enable_flow_control(hal->hw, id);
 	}
 
@@ -115,7 +117,7 @@ bk_err_t uart_hal_set_parity(uart_hal_t *hal, uart_id_t id, uart_parity_t parity
 
 bk_err_t uart_hal_set_hw_flow_ctrl(uart_hal_t *hal, uart_id_t id, uint8_t rx_threshold)
 {
-	uart_ll_set_flow_control_low_cnt(hal->hw, id, 0);
+	uart_ll_set_flow_control_low_cnt(hal->hw, id, 1);
 	uart_ll_set_flow_control_high_cnt(hal->hw, id, rx_threshold);
 	uart_ll_set_rts_polarity(hal->hw, id, 1);
 	uart_ll_set_cts_polarity(hal->hw, id, 1);
