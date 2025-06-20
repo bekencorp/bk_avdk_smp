@@ -141,7 +141,7 @@ int32_t bluetooth_controller_init_api(void)
         return -1;
     }
 
-#if CONFIG_BTDM_CONTROLLER_ONLY
+#if 0//CONFIG_BTDM_CONTROLLER_ONLY
     bluetooth_uart_controller_only_config_t config =
     {
         .uart_id = UART_ID_2,
