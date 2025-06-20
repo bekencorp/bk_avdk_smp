@@ -15,6 +15,7 @@ logger = logging.getLogger(__package__)
 
 @dataclass
 class partition_info:
+    Id: int
     Name: str
     Offset: int
     Size: int
@@ -28,12 +29,6 @@ class bk_flash_partition_content_generator(ABC):
     def get_flash_partitions_layout_hdr_content(
         self, part_info: list[partition_info], flash_crc_enable: bool
     ) -> str: ...
-
-    @abstractmethod
-    def get_partitions_src_content(self, part_info: list[partition_info]) -> str: ...
-
-    @abstractmethod
-    def get_partitions_hdr_content(self, part_info: list[partition_info]) -> str: ...
 
 
 class bk_flash_partition:
@@ -55,6 +50,7 @@ class bk_flash_partition:
     def _parse_partitions_info(self, part_info_json: list[dict[str, Any]]):
         self.part_info = [partition_info(**part) for part in part_info_json]
         self._part_adapter()
+        self.part_info.sort(key=lambda x: x.Id)
 
     def _part_adapter(self):
         app_count = 0
@@ -74,17 +70,6 @@ class bk_flash_partition:
             f.write(hdr_contents)
 
         logger.info(f"gen partition layout header to {partition_hdr_file}")
-
-    def gen_flash_partitions_src(self, hdr_path: Path, src_path: Path):
-        hdr_contents = self.generator.get_partitions_hdr_content(self.part_info)
-        with hdr_path.open("w", newline="\n") as f:
-            f.write(hdr_contents)
-        logger.info(f"gen flash partition header to {hdr_path}")
-
-        src_contents = self.generator.get_partitions_src_content(self.part_info)
-        with src_path.open("w", newline="\n") as f:
-            f.write(src_contents)
-        logger.info(f"gen flash partition src to {src_path}")
 
     def gen_pack_json(self, pack_json: Path):
         KEYWORDS = {

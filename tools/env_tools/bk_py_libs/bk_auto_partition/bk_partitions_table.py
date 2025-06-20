@@ -35,7 +35,7 @@ class bk_partitions_table:
         self._parse_auto_partition_table()
         self._check_partition_valid()
 
-    def _parser_partition_line(self, part_line: str) -> bk_partition:
+    def _parse_partition_line(self, index: int, part_line: str) -> bk_partition:
         part_info = part_line.split(",")
         if len(part_info) < PARTITION_ATTR_NUM:
             msg = f"auto partition config table invalid, line:\n{part_line}"
@@ -63,7 +63,7 @@ class bk_partitions_table:
         read = read_str.lower() == "true"
         write = write_str.lower() == "true"
 
-        part = bk_partition(name, offset, size)
+        part = bk_partition(index, name, offset, size)
         part.chmod(write, read, execute)
         self.cumulative_offset = offset + size
         return part
@@ -111,12 +111,14 @@ class bk_partitions_table:
 
         csv_contents = self._csv_path.read_text()
         lines = csv_contents.splitlines()
+        index = 0
         for line in lines:
             line_content = line.strip()
             if line_content.startswith("#") or len(line_content) == 0:
                 continue
             check_auto_partition_line_valid(line_content)
-            part = self._parser_partition_line(line_content)
+            part = self._parse_partition_line(index, line_content)
+            index += 1
             self.partitions.append(part)
 
     def gen_partition_csv(self, save_path: Path) -> None:
@@ -172,3 +174,17 @@ class bk_partitions_table:
                 raise RuntimeError(f"{item.name} is not exists")
             if not self._check_partition_index(item.name, item.index):
                 raise RuntimeError(f"{item.name} index error")
+
+    def sort_partitions(self, reserved_partitions: list[str]) -> None:
+        for part in self.partitions:
+            part.id += 100
+
+        exist_partitions = [part.get_info().Name for part in self.partitions]
+        for internel_id, item in enumerate(reserved_partitions):
+            if item in exist_partitions:
+                self.partitions[exist_partitions.index(item)].id = internel_id
+        user_index = len(reserved_partitions)
+        for part in self.partitions:
+            if part.id >= 100:
+                part.id = user_index
+                user_index += 1

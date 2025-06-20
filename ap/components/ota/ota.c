@@ -175,12 +175,12 @@ int32_t ota_do_hash_check(void)
 	uint32_t partition_length = 0;
 	int ret = BK_FAIL;
 	if(update_part_flag == UPDATE_B_PART) {
-		bk_ptr = bk_flash_partition_get_info(BK_PARTITION_S_APP_USER);   //note: when update_partition is B, arg: BK_PARTITION_APPLICATION1,update_partition is A??arg: BK_PARTITION_APPLICATION
+		bk_ptr = bk_flash_partition_get_info(BK_PARTITION_S_APP);   //note: when update_partition is B, arg: BK_PARTITION_APPLICATION1,update_partition is A??arg: BK_PARTITION_APPLICATION
 	}
 	else{    //B-->A
 		bk_ptr = bk_flash_partition_get_info(BK_PARTITION_APPLICATION);
 	}
-	partition_length = bk_flash_partition_get_info(BK_PARTITION_S_APP_USER)->partition_length;
+	partition_length = bk_flash_partition_get_info(BK_PARTITION_S_APP)->partition_length;
 	OTA_LOGD("partition_length :0x%x",partition_length);
 	if((bk_ptr == NULL))
 	{
@@ -282,7 +282,7 @@ int bk_ota_swap_execute_partition(void)
 	bk_logic_partition_t *b_app_ptr  = NULL;
 
 	a_app_ptr = bk_flash_partition_get_info(BK_PARTITION_APPLICATION);
-	b_app_ptr = bk_flash_partition_get_info(BK_PARTITION_S_APP_USER);
+	b_app_ptr = bk_flash_partition_get_info(BK_PARTITION_S_APP);
 	bk_ota_ptr = bk_flash_partition_get_info(BK_PARTITION_OTA_FINA_EXECUTIVE);
 	if((bk_ota_ptr == NULL)||(a_app_ptr == NULL) ||(b_app_ptr == NULL))
 	{

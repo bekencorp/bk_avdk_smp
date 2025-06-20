@@ -226,7 +226,7 @@ static void phy_sys_drv_modem_clk_ctrl_on(void)
 static uint32_t bk_flash_partition_get_rf_firmware_info(void)
 {
     bk_logic_partition_t * pt = NULL;
-    pt = bk_flash_partition_get_info(BK_PARTITION_RF_FIRMWARE);
+    pt = bk_flash_partition_get_info(BK_PARTITION_SYS_RF);
     return pt->partition_start_addr;
 }
 

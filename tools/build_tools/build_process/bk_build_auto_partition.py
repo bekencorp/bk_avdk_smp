@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from bk_auto_partition import bk_partitions_table, partition_limit
 from bk_curr_project import curr_project
@@ -36,16 +37,26 @@ class bk_part:
         self.partitions_json = partitions_json
         self.crc_enable = crc_enable
 
+    @staticmethod
+    def _partitions_setting(part_table: bk_partitions_table):
+        setting_path = curr_project.flash_partitions_setting
+        if not setting_path.exists():
+            logger.warning("no flash limit setting check.")
+            return
+
+        setting_json: dict[str, Any] = json.loads(setting_path.read_text())
+        if setting_json.get("patitions_limit"):
+            setting = [
+                partition_limit(**item) for item in setting_json["patitions_limit"]
+            ]
+            part_table.set_default_setting(setting)
+        if setting_json.get("internel_partitions"):
+            part_table.sort_partitions(setting_json["internel_partitions"])
+
     def auto_partition(self, partitions_txt: Path):
         partitions_csv = self.partitions_dir / "partitions.csv"
         part_table = bk_partitions_table(self.auto_part_table, self.crc_enable)
-        setting_path = curr_project.flash_partitions_setting
-        if setting_path.exists():
-            setting_json = json.loads(setting_path.read_text())
-            setting = [partition_limit(**item) for item in setting_json]
-            part_table.set_default_setting(setting)
-        else:
-            logger.warning("no flash limit setting check.")
+        self._partitions_setting(part_table)
         part_table.gen_partition_csv(partitions_csv)
         part_table.gen_partition_json(self.partitions_json)
         part_table.gen_pretty_format_table(partitions_txt)
@@ -56,11 +67,6 @@ class bk_part:
     def gen_partition_header(self):
         header_path = self.partitions_dir / "partitions_gen.h"
         self.flash_part.gen_partitions_layout_hdr(header_path)
-
-    def gen_flash_partition_src(self):
-        header_path = self.partitions_dir / "flash_partitions_index.h"
-        src_path = self.partitions_dir / "flash_partitions_table.c"
-        self.flash_part.gen_flash_partitions_src(header_path, src_path)
 
     def gen_pack_config_json(self):
         pack_json = self.partitions_dir / "bk_package.json"
@@ -75,7 +81,6 @@ def auto_patitions(partitions_dir: Path, auto_part_table: Path, flash_crc_enable
     )
     partitioner.auto_partition(partitions_txt)
     partitioner.gen_partition_header()
-    partitioner.gen_flash_partition_src()
     partitioner.gen_pack_config_json()
 
     ota_partition_json = partitions_dir / "bk_ota_partitions.json"

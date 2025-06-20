@@ -64,7 +64,7 @@ int32_t ota_read_partition(const bk_logic_partition_t *part, uint32_t addr, uint
 			return BK_FAIL;
         }
 
-        if (addr + size > (bk_flash_partition_get_info(BK_PARTITION_S_APP_USER)->partition_length))
+        if (addr + size > (bk_flash_partition_get_info(BK_PARTITION_S_APP)->partition_length))
         {
         	OTA_LOGE("read data exceeds the partition size \r\n");
             

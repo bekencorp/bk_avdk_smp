@@ -43,123 +43,6 @@
 #define SOC_FLASH_BASE_ADDR           0x02000000
 #define FLASH_LOGICAL_BASE_ADDR       SOC_FLASH_BASE_ADDR
 
-#if CONFIG_TFM_READ_FLASH_NSC
-#if (CONFIG_TFM_FWU)
-#include "tfm_flash_nsc.h"
-#endif
-
-#if CONFIG_NVS_ENCRYPTION
-/**/
-#else
-char eky[4 * NVS_KEY_SIZE + 1] = {
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
-	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
-	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
-	0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11
-};
-
-#endif
-
-uint32_t flash_partition_get_index(const bk_logic_partition_t *partition_ptr);
-
-#endif
-
-enum {
-	PARTITION_PRIMARY_ALL = 0,
-	PARTITION_SECONDARY_ALL,
-	PARTITION_OTA,
-	PARTITION_PARTITION,
-	PARTITION_SPE,
-	PARTITION_TFM_NS,
-	PARTITION_NSPE,
-	PARTITION_OTP_NV,
-	PARTITION_PS,
-	PARTITION_ITS,
-	PARTITION_CNT,
-};
-
-const char *s_partition_name[PARTITION_CNT] = {
-	// "sys_rf",
-	// "sys_net",
-	// "easyflash",
-	// "primary_tfm_s",
-	// "primary_cpu0_app",
-	// "ota",
-	// "user_config"
-		"primary_all",
-	"secondary_all",
-	"ota",
-	"partition",
-	"primary_tfm_s",
-	"primary_tfm_ns",
-	"primary_cpu0_app",
-	"sys_otp_nv",
-	"sys_ps",
-	"sys_its"
-};
-#if (CONFIG_TFM_READ_FLASH_NSC)
-	#define PARTITION_PARTITION_PHY_OFFSET   CONFIG_PARTITION_PHY_PARTITION_OFFSET
-	#define PARTITION_PPC_OFFSET             0x400
-	#define PARTITION_NAME_LEN               20
-	#define PARTITION_ENTRY_LEN              32
-	#define PARTITION_OFFSET_OFFSET          22
-	#define PARTITION_SIZE_OFFSET            26
-	#define PARTITION_FLAGS_OFFSET           30
-
-	typedef struct {
-		uint32_t phy_offset;
-		uint32_t phy_size;
-		uint32_t phy_flags;
-	} partition_config_t;
-
-	typedef struct {
-		bk_partition_t partition;
-		const char *name;
-	} partition_map_t;
-
-	typedef struct {
-		const char *name;
-		uint32_t offset;
-		uint32_t size;
-	} partition_info_t;
-
-	const partition_info_t partition_map_by_gen[] = PARTITION_MAP;
-
-	bk_logic_partition_t logic_partitions[sizeof(partition_map_by_gen) / sizeof(partition_map_by_gen[0])];
-	static int is_initialized = 0;
-
-    static struct {
-        char name[PARTITION_NAME_LEN + 1];
-        uint32_t phy_flags;
-    } cachedPartitions[PARTITION_AMOUNT];
-
-
-
-const partition_map_t partition_map[] = {
-    {BK_PARTITION_BOOTLOADER, "bl2"},
-    {BK_PARTITION_APPLICATION, "primary_cpu0_app"},
-    {BK_PARTITION_OTA, "ota"},
-    {BK_PARTITION_APPLICATION1, "primary_cpu0_app1"},
-    {BK_PARTITION_MATTER_FLASH, "matter"},
-    {BK_PARTITION_RF_FIRMWARE, "sys_rf"},
-    {BK_PARTITION_NET_PARAM, "sys_net"},
-    {BK_PARTITION_USR_CONFIG, "user_config"},
-    {BK_PARTITION_OTA_FINA_EXECUTIVE, "ota2"},
-    {BK_PARTITION_APPLICATION2, "primary_cpu0_app2"},
-    {BK_PARTITION_EASYFLASH, "easyflash"},
-    {BK_PARTITION_NVS, "nvs"},
-    {BK_PARTITION_NVS_KEY, "nvs_key"},
-    {BK_PARTITION_WIZ_MFR, "wiz_mfr"},
-};
-
-const size_t partition_map_size = sizeof(partition_map) / sizeof(partition_map[0]);
-
-#endif
-
 #if CONFIG_FLASH_ORIGIN_API
 #define PAR_OPT_READ_POS      (0)
 #define PAR_OPT_WRITE_POS     (1)
@@ -173,7 +56,7 @@ const size_t partition_map_size = sizeof(partition_map) / sizeof(partition_map[0
 #define PARTITION_IRAM         __attribute__((section(".iram")))
 
 /* Logic partition on flash devices */
-extern const bk_logic_partition_t bk_flash_partitions[BK_PARTITION_MAX_USER];
+static const bk_logic_partition_t bk_flash_partitions[] = BK_FLASH_PARTITIONS_MAP;
 
 
 static bool flash_partition_is_valid(bk_partition_t partition)
@@ -240,127 +123,6 @@ void generate_iv(uint8_t *iv, size_t unit_num) {
     }
 }
 
-
-#if CONFIG_TFM_READ_FLASH_NSC
-
-void initialize_logic_partitions() {
-    if (is_initialized) return;
-
-    for (size_t i = 0; i < sizeof(partition_map_by_gen) / sizeof(partition_map_by_gen[0]); ++i) {
-        logic_partitions[i].partition_owner = BK_FLASH_EMBEDDED;
-        logic_partitions[i].partition_description = partition_map_by_gen[i].name;
-        logic_partitions[i].partition_start_addr = partition_map_by_gen[i].offset;
-        logic_partitions[i].partition_length = partition_map_by_gen[i].size;
-        logic_partitions[i].partition_options = PAR_OPT_EXECUTE_DIS | PAR_OPT_READ_EN | PAR_OPT_WRITE_DIS;
-    }
-
-    is_initialized = 1;
-}
-
-static void get_partition_name(bk_partition_t partition, char *name, size_t name_len) {
-    for (size_t i = 0; i < sizeof(partition_map) / sizeof(partition_map[0]); ++i) {
-        if (partition_map[i].partition == partition) {
-            strncpy(name, partition_map[i].name, name_len - 1);
-            name[name_len - 1] = '\0';
-            return;
-        }
-    }
-    strncpy(name, "unknown", name_len - 1);
-    name[name_len - 1] = '\0';
-}
-
-bk_logic_partition_t * get_partition_info(bk_partition_t partition) {
-    const char *label = NULL;
-
-    for (size_t i = 0; i < sizeof(partition_map) / sizeof(partition_map[0]); ++i) {
-        if (partition_map[i].partition == partition) {
-            label = partition_map[i].name;
-            break;
-        }
-    }
-
-    if (label) {
-        return get_partition_info_by_name(label);
-    }
-
-    return NULL;
-}
-
-bk_logic_partition_t * get_partition_info_by_name(const char *label) {
-	if (!is_initialized) {
-		initialize_logic_partitions();
-	}
-
-	for (size_t i = 0; i < sizeof(partition_map_by_gen) / sizeof(partition_map_by_gen[0]); ++i) {
-		if (strcmp(partition_map_by_gen[i].name, label) == 0) {
-			return &logic_partitions[i];
-		}
-	}
-	return NULL;
-}
-
-uint32_t get_partition_index(const bk_logic_partition_t* partition) {
-    uint32_t iRet = 0;
-    for (size_t i = 0; i < partition_map_size; ++i) {
-        if (strcmp(partition->partition_description,partition_map[i].name) == 0) {
-            iRet = i;
-            break;
-        }
-    }
-    return iRet;
-}
-
-static bool partitionIsEncrypt(bk_logic_partition_t *partition_info)
-{
-    static bool isInitialized = false;
-
-    if (!isInitialized) {
-        uint8_t* buf = (uint8_t*)malloc(PARTITION_ENTRY_LEN * sizeof(uint8_t));
-        if (buf == NULL) {
-            BK_LOGE(TAG, "memory malloc fails.\r\n");
-            return false;
-        }
-
-        uint32_t partition_start = PARTITION_PARTITION_PHY_OFFSET + PARTITION_PPC_OFFSET;
-
-        for (uint32_t i = 0; i < PARTITION_AMOUNT; ++i) {
-            #if (CONFIG_TFM_FWU)
-                psa_flash_read_bytes(partition_start + PARTITION_ENTRY_LEN * i, buf, PARTITION_ENTRY_LEN);
-            #else
-                bk_flash_read_bytes(partition_start + PARTITION_ENTRY_LEN * i, buf, PARTITION_ENTRY_LEN);
-            #endif
-
-            if (is_alpha(buf[0]) == 0) {
-                break;
-            }
-
-            int j;
-            for (j = 0; j < PARTITION_NAME_LEN; ++j) {
-                if (buf[j] == 0xFF) {
-                    break;
-                }
-                cachedPartitions[i].name[j] = buf[j];
-            }
-            cachedPartitions[i].name[j] = '\0';
-
-            cachedPartitions[i].phy_flags = short_address(buf, PARTITION_FLAGS_OFFSET);
-        }
-
-        free(buf);
-        isInitialized = true;
-    }
-
-    for (uint32_t i = 0; i < PARTITION_AMOUNT; ++i) {
-        if (strcmp(partition_info->partition_description, cachedPartitions[i].name) == 0) {
-            return (cachedPartitions[i].phy_flags & 1) != 0;
-        }
-    }
-
-    return false;
-}
-
-#endif
-
 static bk_logic_partition_t * flash_partition_get_info_by_addr(uint32_t addr)
 {
 	const bk_logic_partition_t *pt;
@@ -384,14 +146,10 @@ bk_logic_partition_t *bk_flash_partition_get_info(bk_partition_t partition)
 {
 	bk_logic_partition_t *pt = NULL;
 
-	BK_ASSERT(BK_PARTITION_BOOTLOADER < BK_PARTITION_MAX);
+	BK_ASSERT(BK_PARTITION_BOOTLOADER < BK_PARTITIONS_TABLE_SIZE);
 
 	if (flash_partition_is_valid(partition)) {
-#if CONFIG_TFM_READ_FLASH_NSC
-		pt = get_partition_info(partition);
-#else
 		pt = (bk_logic_partition_t *)&bk_flash_partitions[partition];
-#endif
 	}
 	return pt;
 }
@@ -493,80 +251,9 @@ static bk_err_t bk_flash_partition_write_internal(bk_logic_partition_t *partitio
         return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
     }
 
-#if (CONFIG_TFM_READ_FLASH_NSC)
-    uint8_t *dest_hex = os_malloc(buffer_len);
-    if (dest_hex == NULL) {
-        FLASH_LOGW("%s malloc failed\r\n", __func__);
-        return BK_ERR_NO_MEM;
-    }
-
-    os_memcpy(dest_hex, buffer, buffer_len);
-
-    if (partitionIsEncrypt(partition_info)) {
-        uint8_t eky_hex[2 * NVS_KEY_SIZE];
-        uint8_t ptxt_hex[32], ctxt_hex[32], TweakValue[16];
-        bk_err_t ret = BK_FAIL;
-
-        mbedtls_aes_xts_context ectx[1];
-        mbedtls_aes_xts_init(ectx);
-
-#if CONFIG_NVS_ENCRYPTION
-#else
-        uint32_t byteArrayLen = 0;
-        toHexStream(eky, eky_hex, &byteArrayLen);
-#endif // CONFIG_NVS_ENCRYPTION
-
-        mbedtls_aes_xts_setkey_enc(ectx, eky_hex, 2 * NVS_KEY_SIZE * 8);
-
-        for (size_t i = 0; i < buffer_len; i += DATAUNIT_SIZE) {
-            os_memset(TweakValue, 0, 16);
-            os_memset(ptxt_hex, 0xff, 32);
-
-			generate_iv(TweakValue, (i + offset) / DATAUNIT_SIZE);
-
-            const uint8_t* tab_addr = &buffer[i];
-
-            if ((i + DATAUNIT_SIZE) < buffer_len)
-                os_memcpy(ptxt_hex, tab_addr, DATAUNIT_SIZE);
-            else {
-                // last copy
-                uint32_t len = buffer_len - i;
-                os_memcpy(ptxt_hex, tab_addr, len);
-            }
-
-            ret = mbedtls_aes_crypt_xts(ectx, MBEDTLS_AES_ENCRYPT, 32, TweakValue, ptxt_hex, ctxt_hex);
-            if (ret != BK_OK) {
-                mbedtls_aes_xts_free(ectx);
-                BK_LOGE(TAG, "Failed to mbedtls_aes_crypt_xts_encrypt: [0x%02X]", ret);
-                return ret;
-            }
-
-            if ((i + DATAUNIT_SIZE) < buffer_len)
-                os_memcpy(&dest_hex[i], ctxt_hex, DATAUNIT_SIZE);
-            else {
-                // last copy
-                uint32_t len = buffer_len - i;
-                os_memcpy(&dest_hex[i], ctxt_hex, len);
-            }
-        }
-        mbedtls_aes_xts_free(ectx);
-    }
-#endif
-
     if ((offset + buffer_len) <= partition_info->partition_length) {
-#if (CONFIG_TFM_READ_FLASH_NSC)
-        bk_flash_write_bytes(start_addr, dest_hex, buffer_len);
-#else
         bk_flash_write_bytes(start_addr, buffer, buffer_len);
-#endif
     }
-
-#if (CONFIG_TFM_READ_FLASH_NSC)
-    if (dest_hex) {
-        os_free(dest_hex);
-        dest_hex = NULL;
-    }
-#endif
 
     return BK_OK;
 }
@@ -604,72 +291,6 @@ static bk_err_t bk_flash_partition_read_internal(bk_logic_partition_t *partition
 
     bk_flash_read_bytes(start_addr, out_buffer, buffer_len);
 
-#if (CONFIG_TFM_READ_FLASH_NSC)
-    if (partitionIsEncrypt(partition_info)) {
-        uint8_t eky_hex[2 * NVS_KEY_SIZE];
-        uint8_t ptxt_hex[32], ctxt_hex[32], TweakValue[16];
-        bk_err_t ret = BK_FAIL;
-
-        mbedtls_aes_xts_context dctx[1];
-
-        uint8_t* dest_hex = os_malloc(buffer_len);
-        if (dest_hex == NULL) {
-            FLASH_LOGW("%s malloc failed\r\n", __func__);
-            return BK_ERR_NO_MEM;
-        }
-
-        os_memset(dest_hex, 0xff, buffer_len);
-        mbedtls_aes_xts_init(dctx);
-
-#if CONFIG_NVS_ENCRYPTION
-#else
-        uint32_t byteArrayLen = 0;
-        toHexStream(eky, eky_hex, &byteArrayLen);
-#endif // CONFIG_NVS_ENCRYPTION
-
-        mbedtls_aes_xts_setkey_dec(dctx, eky_hex, 2 * NVS_KEY_SIZE * 8);
-
-        for (size_t i = 0; i < buffer_len; i += DATAUNIT_SIZE) {
-            os_memset(TweakValue, 0, 16);
-            generate_iv(TweakValue, (i + offset) / DATAUNIT_SIZE);
-
-            uint8_t* tab_addr = &out_buffer[i];
-
-            if ((i + DATAUNIT_SIZE) < buffer_len)
-                os_memcpy(ctxt_hex, tab_addr, DATAUNIT_SIZE);
-            else {
-                // last copy
-                uint32_t len = buffer_len - i;
-                os_memcpy(ctxt_hex, tab_addr, len);
-            }
-
-            ret = mbedtls_aes_crypt_xts(dctx, MBEDTLS_AES_DECRYPT, 32, TweakValue, ctxt_hex, ptxt_hex);
-            if (ret != BK_OK) {
-                mbedtls_aes_xts_free(dctx);
-                BK_LOGE(TAG, "Failed to mbedtls_aes_crypt_xts_decrypt: [0x%02X]", ret);
-                return ret;
-            }
-
-            if ((i + DATAUNIT_SIZE) < buffer_len)
-                os_memcpy(&dest_hex[i], ptxt_hex, DATAUNIT_SIZE);
-            else {
-                // last copy
-                uint32_t len = buffer_len - i;
-                os_memcpy(&dest_hex[i], ptxt_hex, len);
-            }
-        }
-        mbedtls_aes_xts_free(dctx);
-
-        os_memset(out_buffer, 0xff, buffer_len);
-        os_memcpy(out_buffer, dest_hex, buffer_len);
-
-        if (dest_hex) {
-            os_free(dest_hex);
-            dest_hex = NULL;
-        }
-    }
-#endif
-
     return BK_OK;
 }
 
@@ -705,95 +326,6 @@ bk_err_t bk_flash_partition_read(bk_partition_t partition, uint8_t *out_buffer, 
 
     return BK_OK;
 }
-
-#if CONFIG_TFM_READ_FLASH_NSC
-bk_err_t bk_flash_partition_erase_all(const char *label)
-{
-	bk_logic_partition_t *partition_info = get_partition_info_by_name(label);
-    if (partition_info == NULL) {
-        return BK_ERR_FLASH_PARTITION_NOT_FOUND;
-    }
-	if (flash_partition_write_perm_check(partition_info) != BK_OK )
-	{
-		return BK_FAIL;
-	}
-
-    return bk_flash_partition_erase_internal(partition_info, 0, partition_info->partition_length);
-}
-
-bk_err_t bk_flash_partition_erase_by_name(const char* label, uint32_t offset, uint32_t size)
-{
-    bk_logic_partition_t *partition_info = get_partition_info_by_name(label);
-    if (partition_info == NULL) {
-        return BK_ERR_FLASH_PARTITION_NOT_FOUND;
-    }
-	if (flash_partition_addr_check(partition_info, offset, size) != BK_OK )
-	{
-        return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
-	}
-	if (flash_partition_write_perm_check(partition_info) != BK_OK )
-	{
-		return BK_FAIL;
-	}
-
-    return bk_flash_partition_erase_internal(partition_info, offset, size);
-}
-
-bk_err_t bk_flash_partition_write_by_name(const char *label, const uint8_t *buffer, uint32_t offset, uint32_t buffer_len)
-{
-    bk_logic_partition_t *partition_info = get_partition_info_by_name(label);
-
-    if (NULL == partition_info) {
-        FLASH_LOGW("%s partition not found\r\n", __func__);
-        return BK_ERR_FLASH_PARTITION_NOT_FOUND;
-    }
-	if (flash_partition_addr_check(partition_info, offset, buffer_len) != BK_OK )
-	{
-        return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
-	}
-	if (flash_partition_write_perm_check(partition_info) != BK_OK )
-	{
-		return BK_FAIL;
-	}
-
-    return bk_flash_partition_write_internal(partition_info, buffer, offset, buffer_len);
-}
-
-bk_err_t bk_flash_partition_read_by_name(const char *label, uint8_t *out_buffer, uint32_t offset, uint32_t buffer_len)
-{
-    bk_logic_partition_t *partition_info = get_partition_info_by_name(label);
-
-    if (NULL == partition_info) {
-        FLASH_LOGW("%s partition not found\r\n", __func__);
-        return BK_ERR_FLASH_PARTITION_NOT_FOUND;
-    }
-	if (flash_partition_addr_check(partition_info, offset, buffer_len) != BK_OK )
-	{
-        return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
-	}
-
-    uint32_t aligned_offset = offset & ~0x1F;
-    uint32_t aligned_end = (offset + buffer_len + 31) & ~0x1F;
-
-    uint32_t aligned_length = aligned_end - aligned_offset;
-    uint8_t *aligned_buffer = (uint8_t *)malloc(aligned_length);
-    if (aligned_buffer == NULL) {
-        return BK_ERR_NO_MEM;
-    }
-	
-    bk_err_t read_status = bk_flash_partition_read_internal(partition_info, aligned_buffer, aligned_offset, aligned_length);
-
-    if (read_status != BK_OK) {
-        free(aligned_buffer);
-        return read_status;
-    }
-    memcpy(out_buffer, aligned_buffer + (offset - aligned_offset), buffer_len);
-    free(aligned_buffer);
-
-    return BK_OK;
-}
-
-#endif
 
 extern void * bk_memcpy_4w(void *dst, const void *src, unsigned int size);
 

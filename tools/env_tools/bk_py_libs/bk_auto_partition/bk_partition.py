@@ -8,6 +8,7 @@ OUTPUT_LINE_MAX_LEN = 60
 
 @dataclass
 class PartInfo:
+    Id: int
     Name: str
     Offset: int
     Size: int
@@ -16,20 +17,29 @@ class PartInfo:
     Write: bool
 
 
-PARTITION_ATTR_NUM = len(fields(PartInfo))
+PARTITION_ATTR_NUM = len(fields(PartInfo)) - 1  # except id
 
 
 class bk_partition:
-    def __init__(self, name: str, offset: int, size: int) -> None:
+    def __init__(self, index: int, name: str, offset: int, size: int) -> None:
         if size == 0 or size % 1024 != 0:
             msg = f"size vale = {size}, not valid."
             raise ValueError(msg)
-        self._part_info = PartInfo(name, offset, size, False, True, True)
+        id = index
+        self._part_info = PartInfo(id, name, offset, size, False, True, True)
 
     def chmod(self, write: bool, read: bool, execute: bool) -> None:
         self._part_info.Execute = execute
         self._part_info.Read = read
         self._part_info.Write = write
+
+    @property
+    def id(self) -> int:
+        return self._part_info.Id
+
+    @id.setter
+    def id(self, index: int) -> None:
+        self._part_info.Id = index
 
     def get_info(self) -> PartInfo:
         return self._part_info

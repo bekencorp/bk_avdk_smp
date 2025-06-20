@@ -152,12 +152,7 @@ static uint32 get_partition_addr(uint32 cpu_id)
 		{
 			part_id = BK_PARTITION_APPLICATION1;
 			break;
-		} 
-		case 2:
-		{
-			part_id = BK_PARTITION_APPLICATION2;
-			break;
-		} 
+		}
 		default:
 			return 0;
 	}

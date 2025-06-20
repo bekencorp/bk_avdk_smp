@@ -60,7 +60,7 @@ class test_partitions_table(TestCase):
         table = bk_partitions_table(csv_path, crc_enable=True)
         table.gen_partition_json(gen_json_path)
         self.assertTrue(gen_json_path.exists(), f"{gen_json_path} not generate")
-        expect_json_hash = "9eb2936bd8e365b692450a32d315cdce"
+        expect_json_hash = "f42ec7f80d3e2976ed2495a489ea264a"
         gen_json_hash = get_file_md5sum(gen_json_path)
         self.assertEqual(expect_json_hash, gen_json_hash)
         gen_json_path.unlink()
@@ -116,7 +116,32 @@ class test_partitions_table(TestCase):
         table.set_default_setting(setting)
         table.gen_partition_json(gen_json_path)
         self.assertTrue(gen_json_path.exists(), f"{gen_json_path} not generate")
-        expect_json_hash = "9eb2936bd8e365b692450a32d315cdce"
+        expect_json_hash = "f42ec7f80d3e2976ed2495a489ea264a"
         gen_json_hash = get_file_md5sum(gen_json_path)
         self.assertEqual(expect_json_hash, gen_json_hash)
         gen_json_path.unlink()
+
+    def test_partitions_table_sort_paritions(self):
+        work_space = curr_dir / "workspace/with_crc"
+        csv_path = work_space / "auto_partitions_with_user.csv"
+        gen_json_path = work_space / "gen_partitions2.json"
+        table = bk_partitions_table(csv_path, crc_enable=True)
+        reserved_partitions = [
+            "primary_bootloader",
+            "primary_cp_app",
+            "primary_ap_app",
+            "sys_rf",
+            "sys_net",
+            "ota",
+            "usr_config",
+            "easyflash",
+            "easyflash_ap",
+        ]
+        table.sort_partitions(reserved_partitions)
+
+        table.gen_partition_json(gen_json_path)
+        self.assertTrue(gen_json_path.exists(), f"{gen_json_path} not generate")
+        expect_json_hash = "48309c01863dbfbe924eefc49c207dc6"
+        gen_json_hash = get_file_md5sum(gen_json_path)
+        self.assertEqual(expect_json_hash, gen_json_hash)
+        # gen_json_path.unlink()

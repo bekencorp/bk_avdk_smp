@@ -49,7 +49,7 @@ uint32_t g_ef_start_addr = 0xFFFFFFFF;
 void ef_check_config(void) {
 	bk_logic_partition_t *partition_info = NULL;
 
-	partition_info = bk_flash_partition_get_info(BK_PARTITION_EASYFLASH_USER);
+	partition_info = bk_flash_partition_get_info(BK_PARTITION_EASYFLASH);
 	BK_ASSERT(NULL != partition_info);
 
 	g_ef_start_addr = partition_info->partition_start_addr;
