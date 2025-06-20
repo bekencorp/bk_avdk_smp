@@ -51,6 +51,8 @@ void bk_system_dump(const char *, const int);
 
 #endif // #if CONFIG_SHELL_ASYNCLOG
 
+__attribute__((__used__)) static volatile  uint32_t g_ap_dump_flag = 0;
+
 
 #if (CONFIG_SWD_DEBUG_MODE)
 
@@ -71,7 +73,7 @@ void bk_system_dump(const char *, const int);
 
 #define BK_ASSERT(exp)                                       \
 do {                                                         \
-    if ( !(exp) ) {                                          \
+    if ( !(exp) && !g_ap_dump_flag) {                        \
         rtos_disable_int();                                  \
         BK_LOG_FLUSH();                                      \
         BK_ASSERT_DUMP(__FUNCTION__, __LINE__);              \
@@ -80,7 +82,7 @@ do {                                                         \
 
 #define BK_ASSERT_EX(exp, format, ... )                      \
 do {                                                         \
-    if ( !(exp) ) {                                          \
+    if ( !(exp) && !g_ap_dump_flag) {                        \
         rtos_disable_int();                                  \
         BK_LOG_FLUSH();                                      \
         BK_DUMP_OUT(format, ##__VA_ARGS__);                  \

@@ -472,6 +472,8 @@ typedef struct
 	(void)dump;
 }
 
+extern  volatile uint32_t g_ap_dump_flag;
+
 static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 {
 	/* must NOT change ack_buf->hdr. */
@@ -644,6 +646,8 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				ipc_rsp->rsp_data_len = 0;
 				result = ACK_STATE_COMPLETE;
 
+                g_ap_dump_flag = 1;
+
                 /* if ap dump ,then cp shoule disable its most interruptions */
                 sys_drv_int_disable(0xFFFE7FE7);
                 sys_drv_int_group2_disable(0x7FFFFFFF);
@@ -661,6 +665,8 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 			{
 				ipc_rsp->rsp_data_len = 0;
 				result = ACK_STATE_COMPLETE;
+
+                g_ap_dump_flag = 0;
 
 				u8   dump_cpu_id = GET_DST_CPU_ID(chnl_cb->chnl_id);
 				mb_ipc_dump_notify(dump_cpu_id, 0);
