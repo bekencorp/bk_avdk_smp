@@ -273,38 +273,43 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
     if (cfm->waitcfm == WDRV_CMD_WAITCFM) {
 
         ret = rtos_init_semaphore(&cfm->sema, 1);
-        if(ret != BK_OK) 
+        if(ret == BK_OK) 
         {
-            os_printf("%s,%d,sema_init fail\n",__func__,__LINE__);
-        }
-        WDRV_IRQ_DISABLE(int_level);
-        co_list_push_back((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cfm->list);
-        WDRV_IRQ_ENABLE(int_level);
-
-        cfm->cfm_buf = (uint8_t *)result;
-        cfm->cfm_id  = hdr->cmd_id + WDRV_CMD_CFM_OFFSET;
-        cfm->waitcfm = WDRV_CMD_WAITCFM;
-        cfm->cfm_sn  = hdr->cmd_sn;
-        wdrv_tx_msg_send(msg, msg_len, WDRV_CMD_WAITCFM);
-
-        // The len of result-buff is PRIVATE_COMMAND_DEF_LEN.
-        if ((rtos_get_semaphore(&cfm->sema, WDRV_CMDCFM_TIMEOUT)) != 0) {
 
             WDRV_IRQ_DISABLE(int_level);
-            co_list_extract((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cfm->list);
+            co_list_push_back((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cfm->list);
             WDRV_IRQ_ENABLE(int_level);
 
-            //Print AP/CP debug statistics
-            wdrv_print_debug_info();
-            wdrv_cntrl_get_cif_stats();
+            cfm->cfm_buf = (uint8_t *)result;
+            cfm->cfm_id  = hdr->cmd_id + WDRV_CMD_CFM_OFFSET;
+            cfm->waitcfm = WDRV_CMD_WAITCFM;
+            cfm->cfm_sn  = hdr->cmd_sn;
+            wdrv_tx_msg_send(msg, msg_len, WDRV_CMD_WAITCFM);
 
-            WDRV_LOGE("%s: cmd confirm timeout.\n", __func__);
-            ret = -3;
-        } else {
-            // receive cmd-cfm result
-            ret = cfm->cfm_len;
+            // The len of result-buff is PRIVATE_COMMAND_DEF_LEN.
+            if ((rtos_get_semaphore(&cfm->sema, WDRV_CMDCFM_TIMEOUT)) != 0) {
+
+                WDRV_IRQ_DISABLE(int_level);
+                co_list_extract((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cfm->list);
+                WDRV_IRQ_ENABLE(int_level);
+
+                //Print AP/CP debug statistics
+                wdrv_print_debug_info();
+                wdrv_cntrl_get_cif_stats();
+
+                WDRV_LOGE("%s: cmd confirm timeout.\n", __func__);
+                ret = -3;
+            } else {
+                // receive cmd-cfm result
+                ret = cfm->cfm_len;
+            }
+
+            rtos_deinit_semaphore(&cfm->sema);
         }
-
+        else
+        {
+            os_printf("%s,%d,sema_init fail,send msg fail\n",__func__,__LINE__);
+        }
     } else if (cfm->waitcfm == WDRV_CMD_NOWAITCFM) {
         // cmd send direct.
         wdrv_tx_msg_send(msg, msg_len, WDRV_CMD_NOWAITCFM);
