@@ -29,6 +29,8 @@ export SOC_SUPPORTED_TARGETS_CP := ${soc_targets_cp}
 export ARMINO_SOC := $(findstring $(MAKECMDGOALS), $(soc_targets))
 export CMD_TARGET := $(MAKECMDGOALS)
 
+export ARMINO_SOC_NAME = $(ARMINO_SOC)
+
 ifeq ("$(APP_VERSION)", "")
 	export APP_VERSION := unknown
 else
@@ -57,7 +59,7 @@ else
 	ARMINO_TARGET := build
 endif
 
-PROJECT_NAME := $(notdir $(PROJECT_DIR))
+export PROJECT_NAME := $(notdir $(PROJECT_DIR))
 ifneq ("$(BUILD_DIR)", "")
 	export PROJECT_BUILD_DIR := $(BUILD_DIR)
 else
@@ -101,10 +103,10 @@ common:
 
 all: $(soc_targets) $(ARMINO_SOC)_cp
 
-$(soc_targets_ap): common print_partitions auto_partition
+$(soc_targets_ap): common build_prepare
 	@make $(ARMINO_SOC)_ap ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_AP_DIR)
 
-$(ARMINO_SOC)_cp: common print_partitions auto_partition
+$(ARMINO_SOC)_cp: common build_prepare
 	@make $(ARMINO_SOC) ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_CP_DIR)
 
 $(soc_targets_cp): $(ARMINO_SOC)_ap $(ARMINO_SOC)_cp package
@@ -129,28 +131,32 @@ else
 endif
 
 AUTO_PARTITION_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC)/auto_partitions.csv
-SRAM_REGIONS_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC)/ram_regions.csv
 export PARTITIONS_DIR := $(PROJECT_BUILD_DIR)/partitions
-
-auto_partition_script := $(ARMINO_AVDK_DIR)/tools/bk_smp_auto_partition.py
+auto_partition_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_auto_partition.py
 auto_partition_out := $(PARTITIONS_DIR)/partitions.txt
 
-$(auto_partition_out): $(auto_partition_script) $(AUTO_PARTITION_TABLE) $(SRAM_REGIONS_TABLE)
+$(auto_partition_out): $(auto_partition_script) $(AUTO_PARTITION_TABLE)
 	@mkdir -p $(PARTITIONS_DIR)
 	@python3 $(auto_partition_script)
 
-auto_partition: $(auto_partition_out)
-
-print_partitions: auto_partition
+print_partitions: $(auto_partition_out)
 	@echo ===================== Partitions Table =====================
 	@cat $(auto_partition_out)
 	@echo ============================================================
 
-package_script := $(ARMINO_AVDK_DIR)/tools/bk_smp_package.py
+ram_partition_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_ram_regions.py
+RAM_REGIONS_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC)/ram_regions.csv
+ram_regions_out := $(PARTITIONS_DIR)/ram_regions.h
+$(ram_regions_out): $(RAM_REGIONS_TABLE)
+	@mkdir -p $(PARTITIONS_DIR)
+	@python3 $(ram_partition_script)
+
+build_prepare: $(auto_partition_out) print_partitions $(ram_regions_out)
+
+package_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_package.py
 package_dir := $(PROJECT_BUILD_DIR)/package
 package_json := $(PARTITIONS_DIR)/bk_package.json
 build_summary := $(package_dir)/build_summary.txt
-check_psram_script := $(ARMINO_AVDK_DIR)/tools/check_psram_region.py
 package: $(package_script) $(ARMINO_SOC)_cp $(soc_targets_ap)
 	@mkdir -p $(package_dir)
 	@python3 $(package_script) $(PROJECT_BUILD_DIR) $(package_json) $(build_summary)

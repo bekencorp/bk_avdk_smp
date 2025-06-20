@@ -8,10 +8,12 @@ import shutil
 from pathlib import Path
 
 import bk_packager
+from bk_bootloader_post import backup_bootloader_path
 from bk_build_summary import bk_build_summary
+from bk_curr_project import curr_project
 from bk_misc import parse_format_size
-from bk_ota_pack import pack_ota_rbl
-from bk_project import bk_project_info
+from bk_sdk.bk_ota_pack import pack_ota_rbl
+from bk_serialize_partitions_table import serialize_partitions_table
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -82,48 +84,94 @@ class bk_smp_packager:
         packager.pack()
 
 
-def gen_build_summary(build_dir: Path, sumary_file: Path, output_info: str):
+def gen_build_summary(output_info: str):
+    build_pack_dir = curr_project.project_build_package_dir
+    build_dir = curr_project.project_build_dir
+    sumary_file = build_pack_dir / "build_summary.txt"
     summary = bk_build_summary()
     partitions_info = build_dir / "partitions" / "partitions.txt"
-    # TODO optimize it
-    ap_build_dir = build_dir / "bk7258_ap"
-    cp_build_dir = build_dir / "bk7258"
     summary.set_partitions_info(partitions_info)
-    summary.set_app_folder("CP", cp_build_dir)
-    summary.set_app_folder("AP", ap_build_dir)
+
+    for app in curr_project.apps_info:
+        app_build_dir = build_dir / app.app_name
+        summary.set_app_folder(app.app_name_in_sdk, app_build_dir)
+
     summary.set_output_file_info(output_info)
     summary.gen_summary(sumary_file)
 
 
-def main():
-    def firmware_package():
-        if not pack_dir_temp.exists():
-            pack_dir_temp.mkdir()
-        project_info.prepare_apps_bin_to_pack_dir(pack_dir_temp)
-        os.chdir(build_pack_dir)
-        packager = bk_smp_packager(pack_dir_temp, pack_json)
-        all_app_bin = build_pack_dir / "all-app.bin"
-        packager.pack_all_bin(all_app_bin)
-        packager.pack_ota_app_bin(origin_ota_app_bin)
+def handle_bootloader_bin(pack_dir: Path):
+    if not pack_dir.exists():
+        pack_dir.mkdir()
+    # copy bootloader cp ap binary
+    bootloader_name = "bootloader.bin"
+    origin_bootloader_path = curr_project.bootloader_archive_path
+    pack_bootloader_path = pack_dir / bootloader_name
+    ota_json = curr_project.project_build_parititons_dir / "bk_ota_partitions.json"
+    part_bytes = serialize_partitions_table(ota_json)
+    shutil.copy(origin_bootloader_path, pack_bootloader_path)
+    with pack_bootloader_path.open("ab") as f:
+        pos = f.tell()
+        if pos % 32 != 0:
+            f.write(bytes(32 - pos % 32))
+        f.write(part_bytes)
 
-    logger.info("Enter Armino Package")
-    project_info = bk_project_info()
-    project_build_dir = project_info.get_project_build_path()
-    build_pack_dir = project_build_dir / "package"
-    build_partitions_dir = project_build_dir / "partitions"
-    raw_pack_json = build_partitions_dir / "bk_package.json"
-    sumary_file = build_pack_dir / "build_summary.txt"
-    pack_dir_temp = build_pack_dir / "tmp"
-    pack_json = build_pack_dir / "bk_package.json"
+    logger.info("attach ota partitions to bootloader")
+
+
+def copy_app_bin_to_pack_dir(pack_dir: Path):
+    def copy_binaries_to_pack_dir(origin_path: Path, pack_path: Path):
+        if not origin_path.exists():
+            raise FileNotFoundError(f"{origin_path} not found.")
+        shutil.copy(origin_path, pack_path)
+
+    app_list = curr_project.apps_info
+    for app in app_list:
+        app_build_bin = app.build_bin
+        app_pack_bin = pack_dir / app.pack_bin_name
+        copy_binaries_to_pack_dir(app_build_bin, app_pack_bin)
+
+
+def prepare_apps_bin_to_pack_dir(pack_dir: Path):
+    handle_bootloader_bin(pack_dir)
+    copy_app_bin_to_pack_dir(pack_dir)
+
+
+def firmware_package():
+    build_pack_dir = curr_project.project_build_package_dir
     all_app_bin = build_pack_dir / "all-app.bin"
+    build_partitions_dir = curr_project.project_build_parititons_dir
+    pack_dir_temp = build_pack_dir / "tmp"
+    pack_json = build_partitions_dir / "bk_package.json"
     origin_ota_app_bin = pack_dir_temp / "origin_ota_app.bin"
-    shutil.copy(raw_pack_json, pack_json)
-    firmware_package()
+    if not pack_dir_temp.exists():
+        pack_dir_temp.mkdir()
+    prepare_apps_bin_to_pack_dir(pack_dir_temp)
+    os.chdir(build_pack_dir)
+    packager = bk_smp_packager(pack_dir_temp, pack_json)
+    packager.pack_all_bin(all_app_bin)
+    packager.pack_ota_app_bin(origin_ota_app_bin)
+    return all_app_bin
 
+
+def ota_pack():
+    build_pack_dir = curr_project.project_build_package_dir
+    pack_dir_temp = build_pack_dir / "tmp"
+    build_partitions_dir = curr_project.project_build_parititons_dir
+    pack_json = build_partitions_dir / "bk_package.json"
+    origin_ota_app_bin = pack_dir_temp / "origin_ota_app.bin"
+    all_app_bin = build_pack_dir / "all-app.bin"
     ota_bin = pack_ota_rbl(pack_dir_temp, pack_json, origin_ota_app_bin, all_app_bin)
-    pack_json.unlink()
-    output_info = f"firmware: {all_app_bin}\n" + f"ota binary: {ota_bin.absolute()}\n"
-    gen_build_summary(project_build_dir, sumary_file, output_info)
+    return ota_bin.absolute()
+
+
+def main():
+    logger.info("Enter Armino Package")
+    backup_bootloader_path()
+    all_app_bin = firmware_package()
+    ota_bin = ota_pack()
+    output_info = f"firmware: {all_app_bin}\n" + f"ota binary: {ota_bin}\n"
+    gen_build_summary(output_info)
 
 
 if __name__ == "__main__":

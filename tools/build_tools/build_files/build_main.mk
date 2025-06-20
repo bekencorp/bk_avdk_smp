@@ -115,7 +115,7 @@ common:
 
 has_lib_src := $(shell python3 $(ARMINO_TOOLS_PATH)/build_tools/detect_internal_lib_src.py)
 
-bootloader_post_script := $(ARMINO_TOOLS_PATH)/bk_bootloader_post.py
+bootloader_post_script := $(ARMINO_TOOLS_PATH)/build_tools/build_process/bk_bootloader_post.py
 BOOTLOADER_JSON_OLD := $(ARMINO_BOOTLOADER)/tools/partition_ota.json
 BOOTLOADER_OTA_JSON := $(PARTITIONS_DIR)/bk_ota_partitions.json
 bootloader:

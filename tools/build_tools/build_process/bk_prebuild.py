@@ -1,29 +1,17 @@
 import logging
 import os
 import shutil
-import subprocess
+import sys
 from pathlib import Path
 
+from bk_curr_project import curr_project
+
 logger = logging.getLogger(Path(__file__).name)
-armino_path = os.getenv("ARMINO_PATH")
-armino_tools_path = os.getenv("ARMINO_TOOLS_PATH")
-project_dir = os.getenv("PROJECT_DIR")
-project_name = os.getenv("PROJECT")
-armino_soc = os.getenv("ARMINO_SOC", "")
-build_path = os.path.realpath(".")
 
 
 def set_logging():
     log_format = "[%(name)s|%(levelname)s] %(message)s"
     logging.basicConfig(format=log_format, level=logging.INFO)
-
-
-def run_cmd(cmd: str):
-    p = subprocess.Popen(cmd, shell=True)
-    ret = p.wait()
-    if ret:
-        logger.error(f'failed to run "{cmd}"')
-        exit(1)
 
 
 def copy_file(src: str, dst: str):
@@ -42,10 +30,10 @@ def copy_files(postfix: str, src_dir: str, dst_dir: str):
                 shutil.copy(f"{src_dir}/{f}", f"{dst_dir}/{f}")
 
 
-def install_configs(cfg_dir: str, install_dir: str):
+def install_configs(cfg_dir: Path, install_dir: Path):
     logger.debug(f"install configs from: {cfg_dir}")
     logger.debug(f"to: {install_dir}")
-    if not os.path.exists(f"{cfg_dir}"):
+    if not cfg_dir.exists():
         return
 
     if os.path.exists(f"{cfg_dir}/partitions.csv") and os.path.exists(
@@ -76,42 +64,49 @@ def install_configs(cfg_dir: str, install_dir: str):
                 shutil.copy(f"{cfg_dir}/{f}", f"{install_dir}/{f}")
 
     if os.path.exists(f"{cfg_dir}/key"):
-        copy_files(".pem", f"{cfg_dir}/key", install_dir)
+        copy_files(".pem", f"{cfg_dir}/key", str(install_dir))
     if os.path.exists(f"{cfg_dir}/csv"):
-        copy_files(".csv", f"{cfg_dir}/csv", install_dir)
+        copy_files(".csv", f"{cfg_dir}/csv", str(install_dir))
     if os.path.exists(f"{cfg_dir}/regs"):
-        copy_files(".csv", f"{cfg_dir}/regs", install_dir)
+        copy_files(".csv", f"{cfg_dir}/regs", str(install_dir))
 
 
 def prebuild():
-    soc: str = armino_soc
-    tools_dir = f"{armino_tools_path}/env_tools"
-    bin_dir = build_path
-    cpu0_armino_soc = armino_soc.replace("_ap", "")
-    base_cfg_dir = f"{armino_path}/middleware/boards/{armino_soc}"  # CPU1/CPU2 share the same config with CPU0
-    prefered_cfg_dir = f"{project_dir}/partitions"
+    soc_name: str = curr_project.soc_name
+    tools_dir = curr_project.tools_path
+    cpu0_armino_soc = curr_project.app0_name
 
-    logger.debug(f"tools_dir={tools_dir}")
-    logger.debug(f"base_cfg_dir={base_cfg_dir}")
-    logger.debug(f"prefered_cfg_dir={prefered_cfg_dir}")
-    logger.debug(f"soc={soc}")
-    BK_UTILS_TOOL = f"{tools_dir}/beken_utils/main.py"
-    BASE_CFG_DIR = base_cfg_dir
-    _BUILD_DIR = f"{bin_dir}/_build"
-    logger.debug("Create temporary _build")
-    os.makedirs(_BUILD_DIR, exist_ok=True)
-    os.chdir(_BUILD_DIR)
-    logger.debug(f"cd {_BUILD_DIR}")
-    copy_file(
-        f"{base_cfg_dir}/partitions/bl1_control.json", f"{_BUILD_DIR}/bl1_control.json"
+    app_name = sys.argv[1]
+    cmake_partition_bin_dir = (
+        curr_project.project_build_dir / app_name / "armino/partitions/_build"
     )
 
-    install_configs(BASE_CFG_DIR, _BUILD_DIR)
-    install_configs(prefered_cfg_dir, _BUILD_DIR)
-    install_configs(f"{prefered_cfg_dir}/common", _BUILD_DIR)
-    install_configs(f"{prefered_cfg_dir}/{cpu0_armino_soc}", _BUILD_DIR)
+    middleware_soc_cfg_dir = curr_project.get_middleware_soc_config_path(app_name)
+    project_partitions_dir = curr_project.partitions_dir
+
+    logger.debug(f"tools_dir={tools_dir}")
+    logger.debug(f"base_cfg_dir={middleware_soc_cfg_dir}")
+    logger.debug(f"prefered_cfg_dir={project_partitions_dir}")
+    logger.debug(f"soc={soc_name}")
+
+    bk_utils_script = tools_dir / "env_tools/beken_utils/main.py"
+    logger.debug("Create temporary _build")
+    os.makedirs(cmake_partition_bin_dir, exist_ok=True)
+    os.chdir(cmake_partition_bin_dir)
+    logger.debug(f"cd {cmake_partition_bin_dir}")
+    copy_file(
+        f"{middleware_soc_cfg_dir}/partitions/bl1_control.json",
+        f"{cmake_partition_bin_dir}/bl1_control.json",
+    )
+
+    install_configs(middleware_soc_cfg_dir, cmake_partition_bin_dir)
+    install_configs(project_partitions_dir, cmake_partition_bin_dir)
+    install_configs(project_partitions_dir / "common", cmake_partition_bin_dir)
+    install_configs(project_partitions_dir / cpu0_armino_soc, cmake_partition_bin_dir)
     logger.debug("partition pre-processing")
-    run_cmd(f"python3 {BK_UTILS_TOOL} gen all --debug")
+    ret = os.system(f"python3 {bk_utils_script} gen all --debug")
+    if ret != 0:
+        raise RuntimeError(f"run {bk_utils_script} fail")
 
 
 if __name__ == "__main__":

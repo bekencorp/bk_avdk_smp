@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-import json
 import logging
 from pathlib import Path
 
 from bk_auto_partition import bk_partitions_table
-from bk_bootloader_post import check_is_ab_project
-from bk_flash_partitions_generator import bk_flash_denpendecny_generator
+from bk_curr_project import curr_project
 from bk_flash_partiton import bk_flash_partition
-from bk_misc import parse_format_size
 from bk_ota_partition import bk_ota_partition
-from bk_project import bk_project_info
-from bk_ram_region import bk_ram_region, mem_region
+from bk_sdk.bk_flash_partitions_generator import bk_flash_denpendecny_generator
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -76,44 +72,19 @@ def auto_patitions(partitions_dir: Path, auto_part_table: Path, flash_crc_enable
 
     ota_partition_json = partitions_dir / "bk_ota_partitions.json"
     ota_partition = bk_ota_partition(partitions_json)
-    if check_is_ab_project():
+    if curr_project.is_ab_project:
         ota_partition.gen_ab_ota_json(ota_partition_json)
         ota_partition.gen_ab_configuartion_json(partitions_dir / "configurationab.json")
     else:
         ota_partition.gen_ota_json(ota_partition_json)
 
 
-def ram_region_partition(partitions_dir: Path, ram_regions_table: Path):
-    ram_regions = bk_ram_region(ram_regions_table)
-    ram_regions_hdr_file = partitions_dir / "ram_regions.h"
-    smp_default_config = Path(__file__).parent / "smp_ram_setting.json"
-    with smp_default_config.open("r") as f:
-        def_config = json.load(f)
-    sram_addr = int(def_config["SRAM_BASE_ADDR"], 16)
-    sram_size = parse_format_size(def_config["SRAM_CAPACITY"])
-    psram_addr = int(def_config["PSRAM_BASE_ADDR"], 16)
-    psram_size = parse_format_size(def_config["PSRAM_CAPACITY"])
-    defconfig: list[mem_region] = []
-    for item in def_config["Default_Regions"]:
-        region = mem_region(
-            item["name"], item["type"], int(item["addr"], 16), int(item["size"], 16)
-        )
-        defconfig.append(region)
-    ram_regions.set_sram_setting(sram_addr, sram_size)
-    ram_regions.set_psram_setting(psram_addr, psram_size)
-    ram_regions.set_default_setting(defconfig)
-    ram_regions.gen_memory_layout_hdr(ram_regions_hdr_file)
-
-
 def main():
     logger.info("Enter Armino Auto Partition")
-    project_info = bk_project_info()
-    partitions_dir = project_info.get_project_build_path() / "partitions"
-    auto_part_table = project_info.get_auto_partitions_table()
-    ram_regions_table = project_info.get_ram_regions_table()
-    flash_crc_enable = project_info.get_flash_crc_enable()
-    auto_patitions(partitions_dir, auto_part_table, flash_crc_enable)
-    ram_region_partition(partitions_dir, ram_regions_table)
+    build_partitions_dir = curr_project.project_build_parititons_dir
+    auto_part_table = curr_project.auto_partitions_table
+    flash_crc_enable = curr_project.flash_crc_enable
+    auto_patitions(build_partitions_dir, auto_part_table, flash_crc_enable)
 
 
 if __name__ == "__main__":

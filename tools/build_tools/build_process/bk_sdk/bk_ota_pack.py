@@ -3,28 +3,24 @@ import logging
 import os
 from pathlib import Path
 
-from bk_bootloader_post import check_is_ab_project
 from bk_crc import bk_crc16
+from bk_curr_project import curr_project
 from bk_misc import parse_format_size
 
 logger = logging.getLogger(Path(__file__).name)
-
-ARMINO_SOC = os.environ["ARMINO_SOC"]
-armino_tools_path = os.getenv("ARMINO_TOOLS_PATH")
-
-
-header_path = "{}/env_tools/rtt_ota/ota-rbl/".format(armino_tools_path)
-ota_tool = "%s/env_tools/rtt_ota/ota-rbl/ota_packager_python.py" % (armino_tools_path)
-armino_path = os.getenv("ARMINO_CP_DIR")
-project_dir = os.getenv("PROJECT_DIR")
+project_dir = curr_project.project_path
+armino_path = curr_project.app0_src_root_path
+ota_tool = curr_project.tools_path / "env_tools/rtt_ota/ota-rbl/ota_packager_python.py"
+header_path = curr_project.tools_path / "env_tools/rtt_ota/ota-rbl"
 
 
 def pack_ota_rbl_non_ab(origin_ota_app_bin: Path):
     ota_bin = Path("app_pack.rbl")
-    ret = os.system(
-        "python3 %s -i %s -o %s -g %s -ap %s -pjd %s packager"
-        % (ota_tool, origin_ota_app_bin, ota_bin, header_path, armino_path, project_dir)
+    cmd = (
+        f"python3 {ota_tool} -i {origin_ota_app_bin} -o {ota_bin} "
+        + f"-g {header_path} -ap {armino_path} -pjd {project_dir} packager"
     )
+    ret = os.system(cmd)
     if ret != 0:
         raise RuntimeError("generate ota rbl file fail.")
     logger.info(f"generate ota firmware {ota_bin}")
@@ -36,18 +32,13 @@ def pack_ota_rbl_ab(
 ):
     ota_bin = Path("app_ab_crc.rbl")
     ota_app_temp_bin = pack_dir / "ota_app_temp.bin"
-    ret = os.system(
-        "python3 %s -i %s -o %s -g %s -ap %s -soc %s -pjd %s packager"
-        % (
-            ota_tool,
-            origin_ota_app_bin,
-            ota_app_temp_bin,
-            header_path,
-            armino_path,
-            ARMINO_SOC,
-            project_dir,
-        )
+    soc_name = curr_project.soc_name
+    cmd = (
+        f"python3 {ota_tool} -i {origin_ota_app_bin} -o {ota_app_temp_bin} "
+        + f"-g {header_path} -ap {armino_path} -soc {soc_name} -pjd {project_dir} packager"
     )
+    # raise RuntimeError(cmd)
+    ret = os.system(cmd)
     if ret != 0:
         raise RuntimeError("generate ota rbl file fail.")
 
@@ -67,7 +58,7 @@ def pack_ota_rbl_ab(
 def pack_ota_rbl(
     pack_dir: Path, pack_json: Path, origin_ota_app_bin: Path, all_app_bin: Path
 ) -> Path:
-    if not check_is_ab_project():
+    if not curr_project.is_ab_project:
         return pack_ota_rbl_non_ab(origin_ota_app_bin)
 
     with open(pack_json, "r") as f:
@@ -81,3 +72,15 @@ def pack_ota_rbl(
     if bootloader_size == 0:
         raise RuntimeError("bootloader parse error")
     return pack_ota_rbl_ab(pack_dir, bootloader_size, origin_ota_app_bin, all_app_bin)
+
+
+if __name__ == "__main__":
+    project_build_dir = curr_project.project_build_dir
+    build_pack_dir = curr_project.project_build_package_dir
+    build_partitions_dir = curr_project.project_build_parititons_dir
+    sumary_file = build_pack_dir / "build_summary.txt"
+    pack_dir_temp = build_pack_dir / "tmp"
+    pack_json = build_partitions_dir / "bk_package.json"
+    all_app_bin = build_pack_dir / "all-app.bin"
+    origin_ota_app_bin = pack_dir_temp / "origin_ota_app.bin"
+    ota_bin = pack_ota_rbl(pack_dir_temp, pack_json, origin_ota_app_bin, all_app_bin)

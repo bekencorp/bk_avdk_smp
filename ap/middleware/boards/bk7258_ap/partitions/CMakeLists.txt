@@ -16,10 +16,10 @@ set(CONFIG_FILE_LISTS
 	)
 
 armino_build_get_property(python PYTHON)
-set(GEN_TOOL $ENV{ARMINO_TOOLS_PATH}/bk_prebuild.py)
+set(GEN_TOOL $ENV{ARMINO_TOOLS_PATH}/build_tools/build_process/bk_prebuild.py)
 
 add_custom_command(OUTPUT ${GEN_FILE}
-	COMMAND ${python} ${GEN_TOOL}
+	COMMAND ${python} ${GEN_TOOL} $ENV{ARMINO_SOC}
 	DEPENDS ${CONFIG_FILE_LISTS} ${GEN_TOOL}
 )
 
