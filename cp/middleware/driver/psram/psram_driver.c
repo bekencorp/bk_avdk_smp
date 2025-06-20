@@ -20,10 +20,15 @@
 #include "driver/psram_types.h"
 #include "psram_driver.h"
 #include <driver/psram.h>
+#include "ram_regions.h"
 #include <modules/pm.h>
 #if (CONFIG_PSRAM_AUTO_DETECT)
 #include "bk_ef.h"
 #endif
+
+#define PSRAM_4M_SIZE  (0x00400000)
+#define PSRAM_8M_SIZE  (0x00800000)
+#define PSRAM_16M_SIZE (0x01000000)
 
 #define PSRAM_CHECK_FLAG   0x3CA5C3A5
 typedef struct {
@@ -238,6 +243,34 @@ bk_err_t bk_psram_init(void)
 	bk_psram_set_clk(PSRAM_120M);
 
 	PSRAM_LOGI("%s, %x-%x\r\n", __func__, actual_id, chip_id);
+
+	switch (actual_id)
+	{
+		case PSRAM_W955D8MKY_5J_ID:
+		    if (CONFIG_PSRAM_CAPACITY != PSRAM_4M_SIZE)
+		    {
+		        PSRAM_LOGW("psram type(4MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
+		    }
+		    break;
+
+		case PSRAM_APS6408L_ID:
+		    if (CONFIG_PSRAM_CAPACITY != PSRAM_8M_SIZE)
+		    {
+		        PSRAM_LOGW("psram type(8MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
+		    }
+		    break;
+
+		case PSRAM_APS128XXO_OB9_ID:
+		    if (CONFIG_PSRAM_CAPACITY != PSRAM_16M_SIZE)
+		    {
+		        PSRAM_LOGW("psram type(16MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
+		    }
+		    break;
+
+		default:
+		    PSRAM_LOGW("not defined this psram, please check!\r\n");
+		    break;
+	}
 
 	if (actual_id != chip_id)
 	{
