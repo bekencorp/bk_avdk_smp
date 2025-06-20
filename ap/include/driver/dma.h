@@ -618,6 +618,17 @@ bk_err_t bk_dma_set_privileged_attr(dma_id_t id, dma_sec_attr_t attr);
  */
 bk_err_t bk_dma_set_int_allocate(dma_id_t id,dma_int_id_t int_id);
 
+/**
+ * @brief Get the working status of the current DMA channel
+ *
+ * @param NULL
+ *
+ * @return
+ *    - 0: All channeks are in an idle state
+ *    - others: Channel busy state.
+ */
+uint32_t bk_dma_check_chn_status(void);
+
 #endif
 
 #ifdef __cplusplus

@@ -429,6 +429,22 @@ uint32_t dma_wait_to_idle(dma_id_t id)
 	return 0;
 }
 
+uint32_t bk_dma_check_chn_status(void)
+{
+    uint32_t chn_sta = 0;
+    uint8_t channel;
+
+    for(uint32_t uint_id = 0; uint_id < SOC_DMA_UNIT_NUM; uint_id++) {
+        for (dma_id_t id = 0; id < SOC_DMA_CHAN_NUM_PER_UNIT; id++) {
+            channel = id + uint_id * SOC_DMA_CHAN_NUM_PER_UNIT;
+            if(dma_hal_get_enable_status(&s_dma[uint_id].hal, id))
+            {
+                chn_sta |= (0x1 << channel);
+            }
+        }
+    }
+    return chn_sta;
+}
 /* DTCM->peripheral
  */
 bk_err_t bk_dma_write(dma_id_t id, const uint8_t *data, uint32_t size)

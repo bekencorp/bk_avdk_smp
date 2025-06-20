@@ -147,7 +147,10 @@ static void cli_dma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
     } else if (os_strcmp(argv[2], "get_remain_len") == 0) {
         uint32_t remain_len = bk_dma_get_remain_len(id);
         CLI_LOGI("dma get remain_len, id=%d, len=%x\n", id, remain_len);
-    }else {
+    } else if(os_strcmp(argv[2], "get_chn_status") == 0){
+		uint32_t chn_status = bk_dma_check_chn_status();
+        CLI_LOGI("dma get chn_status:0x%x\n", chn_status);
+	} else {
         cli_dma_help();
         return;
     }
