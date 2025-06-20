@@ -96,7 +96,7 @@ bk_err_t wifi_filter_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame_
         memcpy(temp_payload,frame,len);
         hdr->para[2] = (uint32_t)temp_payload;
 
-        os_printf("%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",hdr->para[2],hdr->para[0],hdr->para[1]);
+        //os_printf("%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",__func__,__LINE__,hdr->para[2],hdr->para[0],hdr->para[1]);
     }
     else
     {

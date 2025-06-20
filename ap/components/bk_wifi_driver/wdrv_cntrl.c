@@ -286,6 +286,25 @@ int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
     return ret;
 }
 
+bk_err_t wdrv_cntrl_get_cif_stats()
+{
+    struct get_cif_stats
+    {
+        wdrv_cmd_hdr cmd_hdr;
+        wdrv_cmd_cfm cmd_cfm;
+    };
+    struct get_cif_stats req = {0};
+
+    req.cmd_hdr.cmd_id =  BK_INTERFACE_DEBUG_CMD;
+    req.cmd_cfm.waitcfm = WDRV_CMD_NOWAITCFM;
+    req.cmd_cfm.cfm_id = 0;
+    WDRV_LOGI("%s,%d\n",__func__,__LINE__);
+
+    wdrv_tx_msg((uint8_t *)&req, sizeof(req), &req.cmd_cfm, NULL);
+
+    return BK_OK;
+}
+
 void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
 {
     WDRV_LOGD("%s,%d\n",__func__,__LINE__);

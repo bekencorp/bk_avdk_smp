@@ -23,7 +23,8 @@ void cif_free_rx_buf(uint32_t buf);
 extern void cif_free_ap_txbuf(struct pbuf * pbuf);
 extern uint8_t* cif_maclloc_rx_buf();
 void cif_rxbank_check();
-
+uint8_t cif_get_event_short_buf_cnt();
+uint8_t cif_get_event_long_buf_cnt();
 #ifdef __cplusplus
 }
 #endif

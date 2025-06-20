@@ -746,7 +746,12 @@ bk_err_t cif_handle_bk_cmd_set_coex_csa_req(struct bk_msg_hdr *msg)
 
     return ret;
 }
-
+bk_err_t cif_handle_bk_cmd_interface_debug(struct bk_msg_hdr *msg)
+{
+    bk_err_t ret = BK_OK;
+    cif_print_debug_info();
+    return ret;
+}
 bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
 {
     bk_err_t ret = BK_OK;
@@ -894,7 +899,11 @@ bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
             ret = cif_handle_bk_cmd_set_coex_csa_req(msg);
             break;
         }
-
+        case BK_INTERFACE_DEBUG_CMD:
+        {
+            ret = cif_handle_bk_cmd_interface_debug(msg);
+            break;
+        }
         default:
         {
             CIF_LOGE("%s,error CMD type %x\n",__func__, msg->cmd_id);

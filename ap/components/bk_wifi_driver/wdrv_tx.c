@@ -294,6 +294,10 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
             co_list_extract((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cfm->list);
             WDRV_IRQ_ENABLE(int_level);
 
+            //Print AP/CP debug statistics
+            wdrv_print_debug_info();
+            wdrv_cntrl_get_cif_stats();
+
             WDRV_LOGE("%s: cmd confirm timeout.\n", __func__);
             ret = -3;
         } else {

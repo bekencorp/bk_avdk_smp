@@ -131,6 +131,35 @@ void cif_free_rx_buf(uint32_t buf)
 
     CIF_IRQ_ENABLE(int_level);
 }
+uint8_t cif_get_event_short_buf_cnt()
+{
+    uint8_t free_cnt = 0;
+    for (int i = 0; i < MAX_NUM_CMD_SHORT_BUF; i++) 
+    {
+        uint32_t pattern = *((uint32_t*)(cif_env.cmd_addr_short[i] - EVENT_HEAD_LEN));
+
+        if (pattern == PATTERN_FREE) 
+        {
+            free_cnt++;
+        }
+    }
+    return free_cnt;
+}
+uint8_t cif_get_event_long_buf_cnt()
+{
+    uint8_t free_cnt = 0;
+
+    for (int i = 0; i < MAX_NUM_CMD_LONG_BUF; i++) 
+    {
+        uint32_t pattern = *((uint32_t*)(cif_env.cmd_addr[i] - EVENT_HEAD_LEN));
+
+        if (pattern == PATTERN_FREE) 
+        {
+            free_cnt++;
+        }
+    }
+    return free_cnt;
+}
 
 uint8_t* cif_get_event_buffer(uint16_t size)
 {

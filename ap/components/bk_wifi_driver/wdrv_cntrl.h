@@ -220,6 +220,9 @@ enum BK_CMD_TYPE
     BK_CMD_OPEN_BLE            = 0x101,
     BK_CMD_CLOSE_BLE           = 0x102,
 
+    //Debug info section
+    BK_INTERFACE_DEBUG_CMD     = 0x110,
+
     // system command
     BK_CMD_SET_MAC_ADDR        = 0x201,
     BK_CMD_GET_MAC_ADDR        = 0x202,
@@ -417,7 +420,7 @@ void bk_wlan_status_register_cb(FUNC_1PARAM_PTR cb);
 
 typedef void (* rx_handle_customer_event_cb)(void *data, uint16_t len);
 void bk_customer_event_register_callback(rx_handle_customer_event_cb callback);
-
+bk_err_t wdrv_cntrl_get_cif_stats();
 extern wdrv_wlan wdrv_host_env;
 
 extern general_param_t *g_wlan_general_param;

@@ -391,14 +391,8 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
         wifi_scan_result_t scan_result = {0};
         BK_LOG_ON_ERR(bk_wifi_scan_get_result(&scan_result));
         BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
-    } else if (!strcasecmp(argV[1], "debug")) {
-        WDRV_LOGI("wdrv rx cnt:%d,rx win:%d,tx cnt:%d,process:%d,eth_num:%d,tx_free_total:%d\n", 
-            wdrv_stats_ptr->rx_alloc_num,wdrv_stats_ptr->rx_win,wdrv_stats_ptr->tx_alloc_num,
-            wdrv_stats_ptr->tx_process_num,wdrv_stats_ptr->tx_eth_num,
-            wdrv_stats_ptr->tx_free_total);
-       
-        WDRV_LOGI("wdrv tx_list_num:%d,first:0x%x,last:0x%x\n", 
-            wdrv_stats_ptr->tx_list_num,wdrv_ipc_env[IPC_DATA].tx_list.first,wdrv_ipc_env[IPC_DATA].tx_list.last);
+    } else if (!strcasecmp(argV[1], "stats")) {
+        wdrv_print_debug_info();
     }
     else if (strcasecmp(argV[1], "m_mode") == 0) {
         WDRV_LOGI("media_mode: %d\n",os_strtoul(argV[2], NULL, 10));

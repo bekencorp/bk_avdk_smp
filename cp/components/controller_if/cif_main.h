@@ -109,6 +109,9 @@ enum BK_CMD_TYPE
     BK_CMD_OPEN_BLE            = 0x101,
     BK_CMD_CLOSE_BLE           = 0x102,
 
+    //Debug info section
+    BK_INTERFACE_DEBUG_CMD     = 0x110,
+
     // system command
     BK_CMD_SET_MAC_ADDR        = 0x201,
     BK_CMD_GET_MAC_ADDR        = 0x202,
@@ -444,7 +447,7 @@ void cif_rx_data_complete(void *param, void *ack_buf);
 void cif_rx_evt_complete(void *param, void *ack_buf);
 bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry);
 void cif_register_customer_msg_handler(cif_customer_msg_cb_t func);
-
+void cif_print_debug_info();
 #ifdef __cplusplus
 }
 #endif

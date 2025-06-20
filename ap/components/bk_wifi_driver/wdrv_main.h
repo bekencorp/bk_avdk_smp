@@ -221,7 +221,7 @@ extern bk_err_t wdrv_txbuf_push(uint8_t channel,void* head,void *tail,uint8_t nu
 void wdrv_attach_rx_buffer();
 bk_err_t wdrv_msg_sender(uint32_t head,enum wdrv_task_msg_evt type,uint8_t retry);
 void wdrv_rx_buffer_predict(uint8_t dir);
-
+void wdrv_print_debug_info();
 extern char __wifi_start;
 extern char __wifi_end;
 #ifdef __cplusplus

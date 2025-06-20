@@ -2614,13 +2614,9 @@ void cif_debug_timer()
 	
 	CLI_LOGE("\n");
 	CLI_LOGE("stats,*******************************%d********************************\n",count);
-//	CLI_LOGE("buf_in_ctrlif_txdata=%d,buf_in_ctrlif_txcmd=%d,buf_in_txdata=%d,buf_in_txcmd=%d\n", 
-//	cif_stats_ptr->buf_in_ctrlif_data,cif_stats_ptr->buf_in_ctrlif_cmd,cif_stats_ptr->buf_in_txdata,cif_stats_ptr->buf_in_txcmd);
-//	CLI_LOGE("tx_win=%d,MAX_NUM_TX_BUFFERS=%d\n",cif_stats_ptr->tx_win,MAX_NUM_TX_BUFFERS);
-	CLI_LOGE("cif_rx_data=%d,rx_drop_cnt=%d,total_cif:%d,total txu:%d\n",
-	cif_stats_ptr->cif_rx_data,cif_stats_ptr->rx_drop_cnt,
-	cif_stats_ptr->total_in_cif);
-//	cif_stats_ptr->cif_rx_data = 0;
+	
+	cif_print_debug_info();
+	
 	CLI_LOGE("\n");
 	CLI_LOGE("========== MEM ============\r\n");
 	CLI_LOGE("avail %d, used %d, max %d, err %d\r\n",
@@ -2664,23 +2660,7 @@ void cif_debug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **ar
 //		#endif
 	}
 	else if (os_strcmp(argv[1], "stats") == 0) {
-		CIF_LOGE("cif rx bank cnt:%d\n",cif_rxbank_ptr->rx_buf_bank_cnt);
-		CIF_LOGE("cif rx drop cnt:%d\n",cif_stats_ptr->rx_drop_cnt);
-		CIF_LOGE("cif rx data cnt:%d\n",cif_stats_ptr->cif_rx_data);
-		CIF_LOGE("buf_in_rx_data cnt:%d\n",cif_stats_ptr->buf_in_rx_data);
-
-		CIF_LOGE("cif tx data cnt:%d\n",cif_stats_ptr->buf_in_txdata);
-		CIF_LOGE("cif tx total cnt:%d\n",cif_stats_ptr->total_in_cif);
-
-        CIF_LOGE("rx recv:%d, ipc tx cnt:%d, ipc txc cnt:%d, ipc tx fail cnt:%d \n",
-		cif_stats_ptr->total_recv_cnt,cif_stats_ptr->ipc_tx_cnt,cif_stats_ptr->total_recv_cnt,cif_stats_ptr->ipc_txc_cnt,cif_stats_ptr->ipc_tx_fail_cnt);
-        for(uint8_t j = 0; j<cif_rxbank_ptr->rx_buf_bank_cnt ;j++)
-        {
-             CIF_LOGE("cnt:%d,addr:0x%x \n",j,cif_rxbank_ptr->rx_buf_bank[j]);
-        }
-
-
-		CIF_LOGE("\n");
+		cif_print_debug_info();
 	}
 	else if (os_strcmp(argv[1], "stats_auto") == 0) {
 		uint16_t time = 0;

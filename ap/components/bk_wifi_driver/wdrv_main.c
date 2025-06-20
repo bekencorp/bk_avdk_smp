@@ -21,6 +21,17 @@ __attribute__((section(".wifi_data"))) uint8_t wdrv_cmd_bank[MAX_NUM_CMD_RX_BANK
 bk_err_t wdrv_txbuf_push(uint8_t channel,void* head,void* tail,uint8_t num);
 bk_err_t wdrv_deinit();
 
+void wdrv_print_debug_info()
+{
+    WDRV_LOGI("wdrv rx_alloc cnt:%d,rx win:%d,tx cnt:%d,process:%d,eth_num:%d,tx_free_total:%d\n rx recv:%d, ipc tx cnt:%d, ipc txc cnt:%d, ipc tx fail cnt:%d \n", 
+    wdrv_stats_ptr->rx_alloc_num,wdrv_stats_ptr->rx_win,wdrv_stats_ptr->tx_alloc_num,
+    wdrv_stats_ptr->tx_process_num,wdrv_stats_ptr->tx_eth_num,wdrv_stats_ptr->tx_free_total,
+    wdrv_stats_ptr->rx_total_recv,
+    wdrv_stats_ptr->ipc_tx_cnt,wdrv_stats_ptr->ipc_txc_cnt,wdrv_stats_ptr->ipc_tx_fail_cnt);
+
+    WDRV_LOGI("wdrv tx_list_num:%d,first:0x%x,last:0x%x\n", 
+        wdrv_stats_ptr->tx_list_num,wdrv_ipc_env[IPC_DATA].tx_list.first,wdrv_ipc_env[IPC_DATA].tx_list.last);
+}
 bk_err_t wdrv_msg_sender(uint32_t head,enum wdrv_task_msg_evt type,uint8_t retry)
 {
     bk_err_t ret = BK_OK;

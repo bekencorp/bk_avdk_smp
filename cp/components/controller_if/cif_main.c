@@ -12,6 +12,28 @@ void cif_register_customer_msg_handler(cif_customer_msg_cb_t func)
     cif_env.customer_msg_cb = func;
 }
 
+void cif_print_debug_info()
+{
+    CIF_LOGE("cif rx bank cnt:%d\n",cif_rxbank_ptr->rx_buf_bank_cnt);
+    CIF_LOGE("cif rx drop cnt:%d\n",cif_stats_ptr->rx_drop_cnt);
+    CIF_LOGE("cif rx data cnt:%d\n",cif_stats_ptr->cif_rx_data);
+    CIF_LOGE("buf_in_rx_data cnt:%d\n",cif_stats_ptr->buf_in_rx_data);
+
+    CIF_LOGE("cif tx data cnt:%d\n",cif_stats_ptr->buf_in_txdata);
+    CIF_LOGE("cif tx total cnt:%d\n",cif_stats_ptr->total_in_cif);
+
+    CIF_LOGE("rx recv:%d, ipc tx cnt:%d, ipc txc cnt:%d, ipc tx fail cnt:%d \n",
+    cif_stats_ptr->total_recv_cnt,cif_stats_ptr->ipc_tx_cnt,cif_stats_ptr->total_recv_cnt,cif_stats_ptr->ipc_txc_cnt,cif_stats_ptr->ipc_tx_fail_cnt);
+    for(uint8_t j = 0; j<cif_rxbank_ptr->rx_buf_bank_cnt ;j++)
+    {
+            CIF_LOGE("cnt:%d,addr:0x%x \n",j,cif_rxbank_ptr->rx_buf_bank[j]);
+    }
+
+    CIF_LOGI("cif event short buf cnt:%d,long buf cnt:%d\n",cif_get_event_short_buf_cnt(),cif_get_event_long_buf_cnt());
+
+    CIF_LOGE("\n");
+}
+
 bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry)
 {
     bk_err_t ret = BK_OK;
