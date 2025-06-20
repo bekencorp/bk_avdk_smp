@@ -269,7 +269,10 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
             goto fail;
             break;
     }
-    VOICE_CHECK_NULL(voice_handle->mic_enc, goto fail);
+    if (voice_handle->enc_type != AUDIO_ENC_TYPE_PCM)
+    {
+        VOICE_CHECK_NULL(voice_handle->mic_enc, goto fail);
+    }
 
     raw_stream_cfg_t raw_read_cfg = RAW_STREAM_CFG_DEFAULT();
     raw_read_cfg.type = AUDIO_STREAM_READER;
@@ -544,7 +547,10 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
             goto fail;
             break;
     }
-    VOICE_CHECK_NULL(voice_handle->spk_dec, goto fail);
+    if (voice_handle->dec_type != AUDIO_DEC_TYPE_PCM)
+    {
+        VOICE_CHECK_NULL(voice_handle->spk_dec, goto fail);
+    }
 
     if (voice_handle->spk_type == SPK_TYPE_ONBOARD)
     {
