@@ -438,6 +438,8 @@ typedef enum
 /*enter deep sleep ,require sleep module config*/
 #define PM_ENTER_DEEP_SLEEP_MODULES_CONFIG \
 {\
+	PM_POWER_MODULE_NAME_BTSP,\
+	PM_POWER_MODULE_NAME_WIFIP_MAC,\
 	PM_POWER_MODULE_NAME_AUDP,\
 	PM_POWER_MODULE_NAME_VIDP,\
 }
