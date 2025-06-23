@@ -494,7 +494,21 @@ static inline void sys_hal_set_power_parameter(uint8_t sleep_mode)
 		aon_pmu_ll_set_r40(val);
 	}
 }
+static inline void sys_hal_set_sleep_condition_deepsleep(void)
+{
+	uint32_t v = sys_ll_get_cpu_power_sleep_wakeup_value();
 
+	//sleep_en_need_cpu2_wfi = 1
+	//sleep_bus_idle_bypass =  0
+	//sleep_en_global = 1
+	//sleep_en_need_cpu0_wfi = 0
+	//sleep_en_need_cpu1_wfi = 1
+	//sleep_en_need_flash_idle = 0
+
+	v |= (0x2a << 16);
+
+	sys_ll_set_cpu_power_sleep_wakeup_value(v);
+}
 static inline void sys_hal_set_sleep_condition(void)
 {
 	uint32_t v = sys_ll_get_cpu_power_sleep_wakeup_value();
@@ -647,7 +661,7 @@ __attribute__((section(".itcm_sec_code"))) void sys_hal_enter_deep_sleep(void *p
 
 	sys_hal_set_halt_config();
 	sys_hal_clear_wakeup_status();
-	sys_hal_set_sleep_condition();
+	sys_hal_set_sleep_condition_deepsleep();
 
 	if (param && *(uint8_t *)param) {
 		sys_hal_set_power_parameter(PM_MODE_SUPER_DEEP_SLEEP);
