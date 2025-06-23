@@ -968,7 +968,7 @@ bk_ipc_info_t *bk_ipc_core_init(uint8_t channel)
                              4,
                              "ipc thread",
                              (beken_thread_function_t)bk_ipc_thread_entry,
-                             2048,
+                             CONFIG_MAILBOX_IPC_API_TASK_STACK_SIZE,
                              ipc_info);
 
     LOGI("%s success\n", __func__);
