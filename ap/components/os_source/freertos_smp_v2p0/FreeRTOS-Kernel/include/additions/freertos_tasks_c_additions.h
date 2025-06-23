@@ -55,7 +55,7 @@ _Static_assert( offsetof( StaticTask_t, pxDummy8 ) == offsetof( TCB_t, pxEndOfSt
 
 /*----------------------------------------------------------*/
 
-#if (1 )
+#if (1)
 
     BaseType_t xTaskIncrementTickOtherCores( void )
     {

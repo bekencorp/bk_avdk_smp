@@ -4271,21 +4271,7 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
                     {
                         traceLOW_POWER_IDLE_BEGIN();
 
-                        if(portGET_CORE_ID() == CPU0_CORE_ID)
-                        {
-                            portSUPPRESS_TICKS_AND_SLEEP( xExpectedIdleTime );
-                        }
-                        else if(portGET_CORE_ID() == CPU1_CORE_ID)
-                        {
-                            //WFI
-                            bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
-
-                            __asm volatile( "wfi" );
-
-                            bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0); //CLEAR VOTE
-                        }
-                        else
-                        {}
+                        portSUPPRESS_TICKS_AND_SLEEP( xExpectedIdleTime );
 
                         traceLOW_POWER_IDLE_END();
                     }

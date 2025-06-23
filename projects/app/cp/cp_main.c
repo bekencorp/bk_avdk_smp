@@ -23,5 +23,7 @@ int main(void)
 	bk_init();
 
 	bk_ipc_init();
+
+	// bk_set_jtag_mode(2, 0);
 	return 0;
 }

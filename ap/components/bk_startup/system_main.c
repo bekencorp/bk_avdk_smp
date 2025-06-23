@@ -347,6 +347,7 @@ static void start_user_app_thread(void)
 
 extern int main(void);
 extern bool ate_is_enabled(void);
+extern void rtos_init_base_time(void);
 
 static void app_main_thread(void *arg)
 {
@@ -435,11 +436,7 @@ void entry_main(void)
 
 	start_app_main_thread();
 
-
-#if (0) && (CONFIG_FREERTOS_V10)
-	extern void rtos_init_base_time(void);
 	rtos_init_base_time();
-#endif
 
 #if CONFIG_SAVE_BOOT_TIME_POINT
 	save_mtime_point(CPU_START_SCHE_TIME);

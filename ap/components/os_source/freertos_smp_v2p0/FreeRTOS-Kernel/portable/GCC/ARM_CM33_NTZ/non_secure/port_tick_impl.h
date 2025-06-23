@@ -33,7 +33,7 @@ static uint32_t base_os_time = 0;
 
 void rtos_init_base_time(void) {
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
-	base_aon_time = bk_aon_rtc_get_us()/1000;
+	base_aon_time = bk_aon_rtc_get_ms();
 	base_os_time = rtos_get_time();
 	BK_LOGI(TAG, "os time(%dms).\r\n", base_os_time);
 	BK_LOGI(TAG, "base aon rtc time: %d:%d\r\n", (uint32_t)(base_aon_time >> 32),
@@ -43,7 +43,9 @@ void rtos_init_base_time(void) {
 
 uint32_t rtos_get_time_diff(beken_time_t cur_os_time) {
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
-	uint64_t cur_aon_time = bk_aon_rtc_get_us()/1000;
+	//uint64_t cur_aon_time = bk_aon_rtc_get_us()/1000;
+	uint64_t cur_aon_time = bk_aon_rtc_get_ms();
+
 	uint64_t diff_time = (cur_aon_time - base_aon_time); //ms
 	uint32_t diff_ms = 0;
 
@@ -53,11 +55,18 @@ uint32_t rtos_get_time_diff(beken_time_t cur_os_time) {
 		return 0;
 	}
 
-	if (diff_time + base_os_time < cur_os_time) {
-		return 0;
+	if(cur_os_time >= base_os_time) {
+		if (diff_time + base_os_time < cur_os_time) {
+			return 0;
+		}
+		diff_ms = (uint32_t)(diff_time + base_os_time - cur_os_time);
+	} else {
+		uint64_t cur_os_time_64 = (0x100000000U + cur_os_time);
+		if((base_os_time + diff_time) < cur_os_time_64){
+			return 0;
+		}
+		diff_ms = (uint32_t)((base_os_time + diff_time) - cur_os_time_64);
 	}
-
-	diff_ms = (uint32_t)(diff_time + base_os_time - cur_os_time);
 
 	if (diff_ms > 20000) {
 		BK_LOGI(TAG, "aon_rtc diff_ms: %dms.\r\n", diff_ms);
@@ -148,7 +157,6 @@ static inline void systick_gated_update(TickType_t xExpectedIdleTime, uint32_t u
 
 	if(slept_ticks > 1) {
 		vTaskStepTick(slept_ticks);
-		//xTaskCatchUpTicks(slept_ticks);
 #if CONFIG_TASK_WDT
 		bk_task_wdt_feed();
 #endif
@@ -232,19 +240,6 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 	uint32_t ulReloadValue;
 	TickType_t xModifiableIdleTime;
 
-#if 0	//@cyg:TODO:it should move to low power module, no needs to set system porting layer.
-	uint32_t cp1_psram_malloc_count_state       = 0;
-	if(bk_pm_low_vol_vote_state_get())
-	{
-		cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count();
-		pm_cp1_psram_malloc_count_state_set(cp1_psram_malloc_count_state);
-		//pm_debug_module_state();
-	}
-	if(bk_pm_cp1_recovery_all_state_get())
-	{
-		bk_pm_module_check_cp1_shutdown();
-	}
-#endif
 	/* Make sure the SysTick reload value does not overflow the counter. */
 	if( xExpectedIdleTime > xMaximumPossibleSuppressedTicks ) {
 		xExpectedIdleTime = xMaximumPossibleSuppressedTicks;
@@ -264,11 +259,10 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		ulReloadValue -= ulStoppedTimerCompensation;
 	}
 
-	/* Enter a critical section but don't use the taskENTER_CRITICAL()
-	 * method as that will mask interrupts that should exit sleep mode. */
-	__asm volatile ( "cpsid i" ::: "memory" );
-	__asm volatile ( "dsb" );
-	__asm volatile ( "isb" );
+    /* we can use taskENTER_CRITICAL() to enter a critical section, because
+       in critical section also use primask to mask interrupts,this will not
+       destory the existing logic.  */
+    prvTakeKernelLock();
 
 	/* If a context switch is pending or a task is waiting for the scheduler
 	 * to be un-suspended then abandon the low power entry. */
@@ -286,11 +280,10 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		//portNVIC_SYSTICK_CTRL_REG |= portNVIC_SYSTICK_INT_BIT;
 		/* Re-enable interrupts - see comments above the cpsid instruction()
 		* above. */
-		__asm volatile ( "cpsie i" ::: "memory" );
+		// __asm volatile ( "cpsie i" ::: "memory" );
+        prvReleaseKernelLock();
+        
 	} else {
-		/* Remember current enabled SysTick per Core */
-		//ulNormalSysTickEnabled &= ~(1 << portGET_CORE_ID());  // FIXME: SMP atomic set
-
 		/* Set the new reload value. */
 		portNVIC_SYSTICK_LOAD_REG = ulReloadValue;
 
@@ -347,8 +340,10 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 #endif
 /* Restart SysTick. */
 		portNVIC_SYSTICK_CTRL_REG |= portNVIC_SYSTICK_ENABLE_BIT;
-		/* Exit with interrupts enabled. */
-		__asm volatile ( "cpsie i" ::: "memory" );
+
+		/* Exit with interrupts enabled. we used the critical to block interruption,
+        so should also be used accordingly here*/
+        prvReleaseKernelLock();
 	}
 }
 #endif
