@@ -29,6 +29,7 @@
 #include <os/os.h>
 #include "bk_pm_internal_api.h"
 #include <driver/psram.h>
+#include "sys_hal.h"
 
 #if CONFIG_FLASH_ORIGIN_API
 #include "bk_flash.h"
@@ -279,6 +280,7 @@ static uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_t
 static uint32_t pm_check_and_ctrl_sleep()
 {
 	uint32_t sleep_tick = 0;
+	bool bsubcores_wfi = sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi();
 	pm_check_power_on_module();
 	pm_wakeup_from_deepsleep_handle();
 
@@ -295,10 +297,11 @@ static uint32_t pm_check_and_ctrl_sleep()
 			os_printf("lowvol2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
 #endif
 		}
-		if ((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
+		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
+			&&(bsubcores_wfi))
 		{
 #if CONFIG_AON_RTC
-			s_current_tick = (uint32_t)bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			s_current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 #endif
 			if (s_pm_on_modules & (0x1 << POWER_MODULE_NAME_BTSP))
 			{
@@ -368,7 +371,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 			os_printf("lowvol2 0x%X 0x%X\r\n", s_pm_video_pm_state, s_pm_audio_pm_state);
 #endif
 		}
-		if ((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
+		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
+		&&(bsubcores_wfi))
 		{
 #if CONFIG_AON_RTC
 			s_current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
@@ -1583,6 +1587,7 @@ static void pm_low_voltage_resource_restore()
 	pm_lv_rtc_tick_set(PM_LV_WAKEUP_STEP_2,pm_rtc_cur_tick_get());
 	#endif
 
+	bk_pm_cp_wakeup_ap_from_wfi(0);
 }
 
 static uint32_t pm_low_voltage_process()
@@ -2306,6 +2311,7 @@ void pm_debug_ctrl(uint32_t debug_en)
 		os_printf("pm power,pmu[0x%x][0x%x][%d],[0x%x][0x%x][0x%x],[0x%x][0x%x][0x%x]\r\n",REG_READ(PM_DEBUG_SYS_REG_BASE+0x10*4),REG_READ(PM_DEBUG_PMU_REG_BASE+0x41*4),s_pm_exit_low_vol_wakeup_source,
 																	s_before_low_vol_pd,s_before_low_vol_lpo,s_before_low_vol_psram,
 																	s_after_low_vol_pd,s_after_low_vol_lpo,s_after_low_vol_psram);
+		os_printf("pm subcores state:0x%x\r\n",REG_READ(PM_DEBUG_PMU_REG_BASE+0x3*4));
 		#if CONFIG_PM_LV_TIME_COST_DEBUG
 		os_printf("pm lv time[%lld][%lld][%lld][%lld]\r\n"	,pm_lv_rtc_interval_get(PM_LV_WAKEUP_STEP_1)
 			                                                ,pm_lv_rtc_interval_get(PM_LV_WAKEUP_STEP_2)
