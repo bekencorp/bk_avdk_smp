@@ -20,8 +20,8 @@ class MapHelper(object):
             'data': ['.data.', '.data', '.sdata.', '.dtcm_sec_data', '.dtcm'],
             'bss': ['.bss.', '.bss', '.sbss.', '.dtcm_sec_bss','.bt_spec_data','.ble_bss_data','video_spec_data'],
         }
-        self.size_pat = re.compile(' +0x([a-fA-F\d]+) +0x([a-fA-F\d]+) +(.*)\((.*)\)')
-        self.oneline_size_pat = re.compile(' +[^ ]+ +0x([a-fA-F\d]+) +0x([a-fA-F\d]+) +(.*)\((.*)\)')
+        self.size_pat = re.compile(r' +0x([a-fA-F\d]+) +0x([a-fA-F\d]+) +(.*)\((.*)\)')
+        self.oneline_size_pat = re.compile(r' +[^ ]+ +0x([a-fA-F\d]+) +0x([a-fA-F\d]+) +(.*)\((.*)\)')
         #                0x00000000        0x8 armino/bk_rtos/libbk_rtos.a(rtos_pub.c.obj)
         self.parsed_data = OrderedDict()
 
