@@ -1781,6 +1781,25 @@ void *pvPortRealloc( void *pv, size_t size )
     return resized_ptr;
 }
 
+uint32_t CheckBlockSizeValid(uint32_t size)
+{
+	BlockLink_t *pxIterator;
+
+	HeapEnterCritical()
+	
+	for( pxIterator = &xStart; pxIterator->pxNextFreeBlock != pxEnd; pxIterator = pxIterator->pxNextFreeBlock )
+	{
+		if(pxIterator->xBlockSize >= size)
+        {
+            HeapExitCritical();
+            return 1;
+        }
+			
+	}
+	HeapExitCritical();
+    return 0;
+}
+
 
 // When bk_printf depends on heap initialization since bk_printf needs to init the mutex
 // and mutex initialization needs to allocate memory from heap. So when heap initialization

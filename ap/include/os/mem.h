@@ -67,15 +67,86 @@ __attribute__((section(".itcm_sec_code"))) static inline void os_memset_word(uin
     }
 }
 
+/** @brief   comparing the size of two memory blocks by specified length
+  *
+  * @note    this function is a wrapper for memcmp
+  *
+  * @param   s1     : the pointer of a memory block
+  * @param   s2     : the pointer of other memory block
+  * @param   n      : the specified length
+  *
+  * @return  the comarison results
+  */
 INT32 os_memcmp(const void *s1, const void *s2, UINT32 n);
+
+/** @brief   move data from one memory location to another memory
+  *          location with specified length
+  *
+  * @note    this function is a wrapper for memmove
+  *
+  * @param   out    : the pointer of source memory location
+  * @param   in     : the pointer of destinated memory location
+  * @param   n      : the specified length
+  *
+  */
 void *os_memmove(void *out, const void *in, UINT32 n);
+
+/** @brief   copies data from one memory location to another memory
+  *          location with specified length
+  *
+  * @note    this function is a wrapper for memcpy
+  *
+  * @param   out    : the pointer of source memory location
+  * @param   in     : the pointer of destinated memory location
+  * @param   n      : the specified length
+  *
+  */
 void *os_memcpy(void *out, const void *in, UINT32 n);
+
+/** @brief   copies data from one memory location to another memory
+  *          location with specified length
+  *
+  * @note    this function is a wrapper for memcpy
+  *
+  * @param   a    : the pointer of source memory location
+  * @param   b    : the pointer of destinated memory location
+  * @param   len  : the specified length
+  *
+  */
+int os_memcmp_const(const void *a, const void *b, size_t len);
+
+/** @brief   fill or copy a given value into the specified len bytes
+  *          of the specified memory
+  *
+  * @note    this function is a wrapper for memset
+  *
+  * @param   b    : the pointer of the specified memory
+  * @param   c    : the given value
+  * @param   len  : the specified length
+  *
+  */
 void *os_memset(void *b, int c, UINT32 len);
-void os_mem_init(void);
+
+/** @brief   reallocate memory
+  *
+  * @note    this API cannot be called in interrupt context
+  *
+  * @param   ptr    : the pointer of the specified memory
+  * @param   size   : the reallocate memory length
+  *
+  */
 void *os_realloc(void *ptr, size_t size);
+
+/** @brief   reallocate memory in psram
+  *
+  * @note    this API cannot be called in interrupt context
+  *
+  * @param   ptr    : the pointer of the specified memory
+  * @param   size   : the reallocate memory length
+  *
+  */
 void *bk_psram_realloc(void *ptr, size_t size);
 
-int os_memcmp_const(const void *a, const void *b, size_t len);
 
 #if (CONFIG_MALLOC_STATIS || CONFIG_MEM_DEBUG)
 void *os_malloc_debug(const char *func_name, int line, size_t size, int need_zero);
@@ -89,21 +160,114 @@ void os_dump_memory_stats(uint32_t start_tick, uint32_t ticks_since_malloc, cons
 #define psram_malloc(size)   psram_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 0)
 #define psram_zalloc(size)   psram_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 1)
 #else
+/** @brief   request memory according to the specified size
+  *
+  * @note    This API cannot be called in interrupt context.
+  *          When macro CONFIG_USE_PSRAM_HEAP_AT_SRAM_OOM is configured,
+  *          if sram is insufficient,the system will try to request
+  *          memory form psram
+  *
+  * @param   size   : requested memory size
+  *
+  * @return  if request success, return the pointer of the memory, otherwise
+  *          NULL is returned
+  *
+  */
 void *os_malloc(size_t size);
+
+/** @brief   release preciously reuqested memory
+  *
+  * @note    This API cannot be called in interrupt context.
+  *
+  * @param   ptr   : the pointer of the handle previously requested
+  *
+  */
 void os_free(void *ptr);
+
+/** @brief   request memory in sram of a specified size and auotmatically initializes
+  *          the allocated memory to zero
+  *
+  * @note    This API cannot be called in interrupt context.
+  *          and this function is a wrapper for os_sram_malloc and memset
+  *
+  * @param   size   : requested memory size in sram
+  *
+  * @return  if request success, return the pointer of the memory, otherwise
+  *          NULL is returned
+  *
+  */
 void *os_zalloc(size_t size);
+
+/** @brief   request memory in psram  according to the specified size
+  *
+  * @note    This API cannot be called in interrupt context.
+  *
+  * @param   size   : requested pspram memory size
+  *
+  * @return  if request success, return the pointer of the memory, otherwise
+  *          NULL is returned
+  *
+  */
 void *psram_malloc(size_t size);
+
+/** @brief   request memory in psram of a specified size and auotmatically initializes
+  *          the allocated memory to zero
+  *
+  * @note    This API cannot be called in interrupt context.
+  *          and this function is a wrapper for os_psram_malloc and memset
+  *
+  * @param   size   : requested memory size in psram
+  *
+  * @return  if request success, return the pointer of the memory, otherwise
+  *          NULL is returned
+  *
+  */
 void *psram_zalloc(size_t size);
 #endif
 
 #define psram_free        os_free
 
+/** @brief   get the current used psram size
+  *
+  * @return  psram size has been used
+  *
+  */
 uint32_t bk_psram_heap_get_used_count(void);
+
+/** @brief   get detailed information about the current psram in use
+  *
+  *
+  */
 void bk_psram_heap_get_used_state(void);
 void bk_psram_heap_dump_data(void);
 
+
+/** @brief   request memory according to the specified size
+  *
+  * @param   size   : requested memory size
+  *
+  * @return  if request success, return the pointer of the memory, otherwise
+  *          NULL is returned
+  *
+  */
 void* os_malloc_wifi_buffer(size_t size);
+
+/** @brief   show current system memory information
+  *
+  *
+  */
 void os_show_memory_config_info(void);
+
+/** @brief   Given a value, check if there is a memory block larger than that value in the free memory list.
+  * 
+  * @param   size   : check memory block size
+  * 
+  * @return  if request success, return 1, otherwise
+  *          0 is returned
+  * 
+  */
+uint32_t CheckBlockSizeValid(uint32_t size);
+
 #ifdef __cplusplus
 }
 #endif
