@@ -226,7 +226,7 @@ static void prvHeapInit( void );
 #if CONFIG_MEM_DEBUG_OVERFLOW
 #define GET_AON_RTC_TICK (REG_READ(SOC_AON_RTC_REG_BASE + (0x3 << 2)))
 #define FREE_RECORD_MAX  CONFIG_MEM_OVERFLOW_FREE_RECORD_MAX
-static __attribute__((section(".psram.data"))) volatile uint32_t s_free_record_index = 0;
+static __attribute__((section(".psram.bss"))) volatile uint32_t s_free_record_index = 0;
 typedef struct {
 	char *name;
 	uint32_t line;
@@ -234,12 +234,12 @@ typedef struct {
 	char *free_ptr;
 	uint32_t time;
 }free_record_type;
-static  __attribute__((section(".psram.data"))) free_record_type volatile s_free_records[FREE_RECORD_MAX];
+static  __attribute__((section(".psram.bss"))) free_record_type volatile s_free_records[FREE_RECORD_MAX];
 #define MALLOC_RECORD_MAX  CONFIG_MEM_OVERFLOW_MALLOC_RECORD_MAX
-static __attribute__((section(".psram.data"))) volatile uint32_t s_malloc_record_index = 0;
-static __attribute__((section(".psram.data"))) volatile uint32_t s_sram_malloc_record_index = 0;
-static __attribute__((section(".psram.data"))) free_record_type volatile s_malloc_records[MALLOC_RECORD_MAX];
-static __attribute__((section(".psram.data"))) free_record_type volatile s_sram_malloc_records[MALLOC_RECORD_MAX];
+static __attribute__((section(".psram.bss"))) volatile uint32_t s_malloc_record_index = 0;
+static __attribute__((section(".psram.bss"))) volatile uint32_t s_sram_malloc_record_index = 0;
+static __attribute__((section(".psram.bss"))) free_record_type volatile s_malloc_records[MALLOC_RECORD_MAX];
+static __attribute__((section(".psram.bss"))) free_record_type volatile s_sram_malloc_records[MALLOC_RECORD_MAX];
 
 __attribute__((section(".iram")))void CheckFreeList(void);
 #endif
@@ -728,7 +728,7 @@ void * psram_calloc(size_t num, size_t size)
 #if CONFIG_MEM_DEBUG_OVERFLOW
 #define FREE_LIST_RECORD_MAX  CONFIG_MEM_OVERFLOW_FREELIST_RECORD_MAX
 // static volatile uint32_t s_malloc_freelist_index = 0;
-static __attribute__((section(".psram.data"))) uint32_t volatile s_freelist_records[FREE_LIST_RECORD_MAX];
+static __attribute__((section(".psram.bss"))) uint32_t volatile s_freelist_records[FREE_LIST_RECORD_MAX];
 __attribute__((section(".iram")))void CheckFreeList(void)
 {
 	BlockLink_t *pxIterator;
