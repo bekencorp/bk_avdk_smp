@@ -59,14 +59,16 @@ __attribute__((__used__)) static volatile  uint32_t g_ap_dump_flag = 0;
 #define BK_ASSERT(exp) do{                                   \
 	if( !(exp) ){                                            \
 		BK_DUMP_OUT("(%d)Assert at: %s:%d\r\n", rtos_get_time(), __FUNCTION__, __LINE__);    \
-		}                                                    \
+		rtos_disable_int();                                  \
+		while(1); }                                          \
 }while(0)
 
 #define BK_ASSERT_EX(exp, format, ... )do{                   \
 	if( !(exp) ){                                            \
 		BK_DUMP_OUT(format, ##__VA_ARGS__);                  \
 		BK_DUMP_OUT("(%d)Assert at: %s:%d\r\n", rtos_get_time(), __FUNCTION__, __LINE__);    \
-		}                                                    \
+		rtos_disable_int();                                  \
+		while(1); }                                          \
 }while(0)
 
 #elif (CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE)
