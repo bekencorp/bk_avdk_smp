@@ -561,11 +561,19 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 		goto exit;
 	}
 #endif
-	skb = alloc_skb_with_pbuf(p);
+	skb = (struct sk_buff *)((uint8_t *)p + (sizeof(struct pbuf)));
+	
 	if (!skb) {
-		RWNX_LOGI("rwnx_start_xmit no node\r\n");
+		RWNX_LOGI("rwnx_start_xmit: invalid skb pointer\n");
 		goto exit;
 	}
+
+	memset(skb, 0, sizeof(struct sk_buff));
+	skb->p = p;
+	skb->next = NULL;
+	skb->prev = NULL;
+	skb->msdu_ptr = p->payload;
+	skb->len = p->tot_len;
 
 	if (rwnx_sg_init(skb, seg_addr, seg_len, &seg_cnt)) {
 		goto exit;
@@ -601,7 +609,13 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 		p_cnt = rwnx_tx_get_pbuf_chain_cnt(p);
 
 	// alloc tx desc
-	fhost_txdesc = (struct fhost_tx_desc_tag *)os_zalloc(sizeof(struct fhost_tx_desc_tag) + fhost_txdesc_extra_size() + p_cnt * sizeof(struct tx_pbd));
+	fhost_txdesc = (struct fhost_tx_desc_tag *)((uint8_t *)skb + (sizeof(struct sk_buff)));
+	if((sizeof(struct fhost_tx_desc_tag) + fhost_txdesc_extra_size() + p_cnt * sizeof(struct tx_pbd) + (sizeof(struct sk_buff))) > CONFIG_MSDU_RESV_DESC_LENGTH)
+	{
+		RWNX_LOGI("rwnx_start_xmit overflow mem \r\n");
+		BK_ASSERT(0);
+	}
+	memset(fhost_txdesc, 0, sizeof(struct fhost_tx_desc_tag));
 
 	if (!fhost_txdesc)
 		goto exit;
@@ -687,10 +701,8 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 	return 0;
 
 exit:
-	// free skb/pbuf
-	if (skb)
-		kfree_skb(skb);
-	else
+	// free pbuf
+	if (p)
 	{
 		#if CONFIG_WIFI_VNET_CONTROLLER
 		if((p->flags & PBUF_FLAG_IS_EXTERNAL)||is_ctrl_if_data)

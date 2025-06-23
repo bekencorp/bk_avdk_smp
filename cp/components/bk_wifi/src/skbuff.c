@@ -175,34 +175,39 @@ void kfree_skb(struct sk_buff *skb)
 {
 	if (!skb)
 		return;
-
-#if CONFIG_WIFI_VNET_CONTROLLER
 	struct txdesc *txdesc = &skb->ftxdesc->txdesc;
+#if CONFIG_WIFI_VNET_CONTROLLER
 	bool is_ap_buf = (txdesc->host.flags & TXU_CTRL_IF_DATA) != 0;
 #endif
-
-	if (skb->ftxdesc) {
-		os_free(skb->ftxdesc);
-		//skb->ftxdesc = NULL;
-	}
-	if (skb->p) {
-#if CONFIG_WIFI_VNET_CONTROLLER
-		if((skb->p->flags & PBUF_FLAG_IS_EXTERNAL)||(is_ap_buf && (skb->ftxdesc != NULL))){
-			//CIF_STATS_DEC(buf_in_txdata);
-			cif_free_ap_txbuf(skb->p);
-			//skb->p = NULL;
+	if(txdesc->host.flags & TXU_CNTRL_MGMT){
+		if (skb->ftxdesc) {
+			os_free(skb->ftxdesc);
+			skb->ftxdesc = NULL;
 		}
-		else
-#endif
-		{
+		if (skb->p) {
 			pbuf_free(skb->p);
+			skb->p = NULL;
+		} else if (skb->msdu_ptr) {
+			os_free(skb->msdu_ptr);
+			skb->msdu_ptr = NULL;
 		}
-		//skb->p = NULL;
-	} else if (skb->msdu_ptr) {
-		os_free(skb->msdu_ptr);
-		//skb->msdu_ptr = NULL;
+		os_free(skb);
+	}else{
+		if (skb->p) {
+#if CONFIG_WIFI_VNET_CONTROLLER
+			if((skb->p->flags & PBUF_FLAG_IS_EXTERNAL)||(is_ap_buf && (skb->ftxdesc != NULL))){
+				//CIF_STATS_DEC(buf_in_txdata);
+				cif_free_ap_txbuf(skb->p);
+				//skb->p = NULL;
+			}
+			else
+#endif
+			{
+				pbuf_free(skb->p);
+				skb->p = NULL;
+			}
+		}
 	}
-	os_free(skb);
 	skb_dec_pending_cnt();
 }
 

@@ -99,9 +99,16 @@ menu "Bk_Wifi"
 		int "Set Msdu Resv Head Length"
 		range 1 1500
 		default 96 if !WIFI_VNET_CONTROLLER
-		default 104 if WIFI_VNET_CONTROLLER
+		default 108 if WIFI_VNET_CONTROLLER
 		help
 			MSDU reserved header length
+
+	config MSDU_RESV_DESC_LENGTH
+		int "Set Msdu Resv Desc Length"
+		range 1 1500
+		default 600
+		help
+			MSDU reserved Desc length
 
 	config MSDU_RESV_TAIL_LENGTH
 		int "Set Msdu Resv Tail Length"
