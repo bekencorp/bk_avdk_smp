@@ -382,16 +382,7 @@ bk_err_t pm_management(uint32_t sleep_ticks)
 	}
 #endif
 #else
-
-	if (bk_pm_cp1_ctrl_state_get() == 0x0)
-	{
-		bk_pm_cp1_ctrl_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
-		pm_cp1_mailbox_send_data(PM_CPU1_BOOT_READY_CMD, 0x1,0,0);
-		// os_printf("cpu1 already\r\n");
-	}
-
 	pm_enter_normal_sleep();
-
 #endif
 	return BK_OK;
 }

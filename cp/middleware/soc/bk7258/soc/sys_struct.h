@@ -499,7 +499,10 @@ typedef volatile union {
 		uint32_t cpu0_dma1_nsec_int_en            :  1; /**<bit[25 : 25] */
 		uint32_t cpu0_yuvb_int_en                 :  1; /**<bit[26 : 26] */
 		uint32_t cpu0_rott_int_en                 :  1; /**<bit[27 : 27] */
-		uint32_t reserved0                        :  4; /**<bit[28 : 31] */
+		uint32_t cpu0_7816_int_en                 :  1; /**<bit[28 : 28] */
+		uint32_t cpu0_lin_int_en                  :  1; /**<bit[29 : 29] */
+		uint32_t cpu0_scal1_int_en                :  1; /**<bit[30 : 30] */
+		uint32_t cpu0_mailbox_int_en              :  1; /**<bit[31 : 31] */
 	};
 	uint32_t v;
 } sys_cpu0_int_32_63_en_t;
@@ -574,7 +577,10 @@ typedef volatile union {
 		uint32_t cpu1_dma1_nsec_int_en            :  1; /**<bit[25 : 25] */
 		uint32_t cpu1_yuvb_int_en                 :  1; /**<bit[26 : 26] */
 		uint32_t cpu1_rott_int_en                 :  1; /**<bit[27 : 27] */
-		uint32_t reserved0                        :  4; /**<bit[28 : 31] */
+		uint32_t cpu1_7816_int_en                 :  1; /**<bit[28 : 28] */
+		uint32_t cpu1_lin_int_en                  :  1; /**<bit[29 : 29] */
+		uint32_t cpu1_scal1_int_en                :  1; /**<bit[30 : 30] */
+		uint32_t cpu1_mailbox_int_en              :  1; /**<bit[31 : 31] */
 	};
 	uint32_t v;
 } sys_cpu1_int_32_63_en_t;
@@ -650,7 +656,10 @@ typedef volatile union {
 		uint32_t cpu2_dma1_nsec_int_en            :  1; /**<bit[25 : 25] */
 		uint32_t cpu2_yuvb_int_en                 :  1; /**<bit[26 : 26] */
 		uint32_t cpu2_rott_int_en                 :  1; /**<bit[27 : 27] */
-		uint32_t reserved0                        :  4; /**<bit[28 : 31] */
+		uint32_t cpu2_7816_int_en                 :  1; /**<bit[28 : 28] */
+		uint32_t cpu2_lin_int_en                  :  1; /**<bit[29 : 29] */
+		uint32_t cpu2_scal1_int_en                :  1; /**<bit[30 : 30] */
+		uint32_t cpu2_mailbox_int_en              :  1; /**<bit[31 : 31] */
 	};
 	uint32_t v;
 } sys_cpu2_int_32_63_en_t;

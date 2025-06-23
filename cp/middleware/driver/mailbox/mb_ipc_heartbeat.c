@@ -258,7 +258,9 @@ static void mb_ipc_task( void *para )
 			{
 				BK_LOGE(MOD_TAG, "IPC[%d]heartbeat timeout %d,%d\r\n",cpu_x_id,cpu_x_heartbeat_timestamp,(u32)rtos_get_time());
 				/*when cpu1 heartbeat timeout, then system reboot*/
+				#if !CONFIG_PM_LV_SUBCORES_ON
 				BK_ASSERT(false);
+				#endif
 			}
 		}
 

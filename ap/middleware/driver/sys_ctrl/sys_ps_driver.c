@@ -26,9 +26,9 @@ void sys_drv_enter_deep_sleep(void *param)
 
 void sys_drv_enter_normal_sleep(uint32_t peri_clk)
 {
-	uint32_t int_level = sys_drv_enter_critical();
+	//uint32_t int_level = sys_drv_enter_critical();
 	sys_hal_enter_normal_sleep(peri_clk);
-	sys_drv_exit_critical(int_level);
+	//sys_drv_exit_critical(int_level);
 }
 
 void sys_drv_enter_normal_wakeup()

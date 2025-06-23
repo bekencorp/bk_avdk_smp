@@ -3517,14 +3517,14 @@ static inline uint32_t sys_ll_get_cpu0_int_32_63_en_cpu0_rott_int_en(void) {
 	return r->cpu0_rott_int_en;
 }
 
-static inline void sys_ll_set_cpu0_int_32_63_en_reserved0(uint32_t v) {
+static inline void sys_ll_set_cpu0_int_32_63_en_cpu0_mailbox_int_en(uint32_t v) {
 	sys_cpu0_int_32_63_en_t *r = (sys_cpu0_int_32_63_en_t*)(SOC_SYS_REG_BASE + (0x21 << 2));
-	r->reserved0 = v;
+	r->cpu0_mailbox_int_en = v;
 }
 
-static inline uint32_t sys_ll_get_cpu0_int_32_63_en_reserved0(void) {
+static inline uint32_t sys_ll_get_cpu0_int_32_63_en_cpu0_mailbox_int_en(void) {
 	sys_cpu0_int_32_63_en_t *r = (sys_cpu0_int_32_63_en_t*)(SOC_SYS_REG_BASE + (0x21 << 2));
-	return r->reserved0;
+	return r->cpu0_mailbox_int_en;
 }
 
 //reg cpu1_int_0_31_en:
@@ -4151,15 +4151,16 @@ static inline uint32_t sys_ll_get_cpu1_int_32_63_en_cpu1_rott_int_en(void) {
 	return r->cpu1_rott_int_en;
 }
 
-static inline void sys_ll_set_cpu1_int_32_63_en_reserved0(uint32_t v) {
+static inline void sys_ll_set_cpu1_int_32_63_en_cpu1_mailbox_int_en(uint32_t v) {
 	sys_cpu1_int_32_63_en_t *r = (sys_cpu1_int_32_63_en_t*)(SOC_SYS_REG_BASE + (0x23 << 2));
-	r->reserved0 = v;
+	r->cpu1_mailbox_int_en = v;
 }
 
-static inline uint32_t sys_ll_get_cpu1_int_32_63_en_reserved0(void) {
+static inline uint32_t sys_ll_get_cpu1_int_32_63_en_cpu1_mailbox_int_en(void) {
 	sys_cpu1_int_32_63_en_t *r = (sys_cpu1_int_32_63_en_t*)(SOC_SYS_REG_BASE + (0x23 << 2));
-	return r->reserved0;
+	return r->cpu1_mailbox_int_en;
 }
+
 //reg cpu2_int_0_31_en:
 
 static inline void sys_ll_set_cpu2_int_0_31_en_value(uint32_t v) {
@@ -4784,15 +4785,16 @@ static inline uint32_t sys_ll_get_cpu2_int_32_63_en_cpu2_rott_int_en(void) {
 	return r->cpu2_rott_int_en;
 }
 
-static inline void sys_ll_set_cpu2_int_32_63_en_reserved0(uint32_t v) {
+static inline void sys_ll_set_cpu2_int_32_63_en_cpu2_mailbox_int_en(uint32_t v) {
 	sys_cpu2_int_32_63_en_t *r = (sys_cpu2_int_32_63_en_t*)(SOC_SYS_REG_BASE + (0x25 << 2));
-	r->reserved0 = v;
+	r->cpu2_mailbox_int_en = v;
 }
 
-static inline uint32_t sys_ll_get_cpu2_int_32_63_en_reserved0(void) {
+static inline uint32_t sys_ll_get_cpu2_int_32_63_en_cpu2_mailbox_int_en(void) {
 	sys_cpu2_int_32_63_en_t *r = (sys_cpu2_int_32_63_en_t*)(SOC_SYS_REG_BASE + (0x25 << 2));
-	return r->reserved0;
+	return r->cpu2_mailbox_int_en;
 }
+
 
 //reg cpu0_int_0_31_status:
 

@@ -4,6 +4,7 @@
 #include <components/shell_task.h>
 #include "driver/pm_ap_core.h"
 #include <os/mem.h>
+#include "FreeRTOS.h"
 
 /*=====================DEFINE  SECTION  START=====================*/
 
@@ -72,7 +73,7 @@ static bk_err_t pm_ap_core_message_handle(void)
     while (1)
     {
         ret = rtos_pop_from_queue(&s_pm_info->queue, &msg, BEKEN_WAIT_FOREVER);
-        LOGI("%s event:%d,param:%d,%d,%d\n", __func__,msg.event,msg.param1,msg.param2,msg.param3);
+        //LOGI("%s event:%d,param:%d,%d,%d\n", __func__,msg.event,msg.param1,msg.param2,msg.param3);
         if (kNoErr == ret)
         {
             switch (msg.event)
@@ -88,6 +89,8 @@ static bk_err_t pm_ap_core_message_handle(void)
                 break;
                 case PM_AP_CORE_SLEEP_WAKEUP_NOTIFY:
                 {
+                    /*Wakeup cpu2*/
+                    portYIELD_CORE(1);
                     bk_pm_ap_system_wakeup_handle_callback(&msg);
                 }
                 break;

@@ -503,7 +503,10 @@ static void sys_dump_cpu0_int_32_63_en(void)
 	SOC_LOGI("	cpu0_dma1_nsec_int_en: %8x\r\n", r->cpu0_dma1_nsec_int_en);
 	SOC_LOGI("	cpu0_yuvb_int_en: %8x\r\n", r->cpu0_yuvb_int_en);
 	SOC_LOGI("	cpu0_rott_int_en: %8x\r\n", r->cpu0_rott_int_en);
-	SOC_LOGI("	reserved0: %8x\r\n", r->reserved0);
+	SOC_LOGI("	cpu0_7816_int_en: %8x\r\n", r->cpu0_7816_int_en);
+	SOC_LOGI("	cpu0_lin_int_en: %8x\r\n", r->cpu0_lin_int_en);
+	SOC_LOGI("	cpu0_scal1_int_en: %8x\r\n", r->cpu0_scal1_int_en);
+	SOC_LOGI("	cpu0_mailbox_int_en: %8x\r\n", r->cpu0_mailbox_int_en);
 }
 
 static void sys_dump_cpu1_int_0_31_en(void)
@@ -577,7 +580,11 @@ static void sys_dump_cpu1_int_32_63_en(void)
 	SOC_LOGI("	cpu1_dma1_sec_int_en: %8x\r\n", r->cpu1_dma1_sec_int_en);
 	SOC_LOGI("	cpu1_dma1_nsec_int_en: %8x\r\n", r->cpu1_dma1_nsec_int_en);
 	SOC_LOGI("	cpu1_yuvb_int_en: %8x\r\n", r->cpu1_yuvb_int_en);
-	SOC_LOGI("	reserved0: %8x\r\n", r->reserved0);
+	SOC_LOGI("	cpu1_rott_int_en: %8x\r\n", r->cpu1_rott_int_en);
+	SOC_LOGI("	cpu1_7816_int_en: %8x\r\n", r->cpu1_7816_int_en);
+	SOC_LOGI("	cpu1_lin_int_en: %8x\r\n", r->cpu1_lin_int_en);
+	SOC_LOGI("	cpu1_scal1_int_en: %8x\r\n", r->cpu1_scal1_int_en);
+	SOC_LOGI("	cpu1_mailbox_int_en: %8x\r\n", r->cpu1_mailbox_int_en);
 }
 
 static void sys_dump_cpu2_int_0_31_en(void)
@@ -651,7 +658,11 @@ static void sys_dump_cpu2_int_32_63_en(void)
 	SOC_LOGI("	cpu2_dma1_sec_int_en: %8x\r\n", r->cpu2_dma1_sec_int_en);
 	SOC_LOGI("	cpu2_dma1_nsec_int_en: %8x\r\n", r->cpu2_dma1_nsec_int_en);
 	SOC_LOGI("	cpu2_yuvb_int_en: %8x\r\n", r->cpu2_yuvb_int_en);
-	SOC_LOGI("	reserved0: %8x\r\n", r->reserved0);
+	SOC_LOGI("	cpu2_rott_int_en: %8x\r\n", r->cpu2_rott_int_en);
+	SOC_LOGI("	cpu2_7816_int_en: %8x\r\n", r->cpu2_7816_int_en);
+	SOC_LOGI("	cpu2_lin_int_en: %8x\r\n", r->cpu2_lin_int_en);
+	SOC_LOGI("	cpu2_scal1_int_en: %8x\r\n", r->cpu2_scal1_int_en);
+	SOC_LOGI("	cpu2_mailbox_int_en: %8x\r\n", r->cpu2_mailbox_int_en);
 }
 
 static void sys_dump_rsv_26_27(void)

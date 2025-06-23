@@ -239,6 +239,36 @@ static inline uint32_t aon_pmu_ll_get_r3(void) {
 	return r->v;
 }
 
+static inline void aon_pmu_ll_set_r3_cp1_enter_wfi_state(uint32_t v) {
+	aon_pmu_r3_t *r = (aon_pmu_r3_t*)(SOC_AON_PMU_REG_BASE + (0x3 << 2));
+	r->cp1_enter_wfi_state = v;
+}
+
+static inline uint32_t aon_pmu_ll_get_r3_cp1_enter_wfi_state(void) {
+	aon_pmu_r3_t *r = (aon_pmu_r3_t*)(SOC_AON_PMU_REG_BASE + (0x3 << 2));
+	return r->cp1_enter_wfi_state;
+}
+
+static inline void aon_pmu_ll_set_r3_cp2_enter_wfi_state(uint32_t v) {
+	aon_pmu_r3_t *r = (aon_pmu_r3_t*)(SOC_AON_PMU_REG_BASE + (0x3 << 2));
+	r->cp2_enter_wfi_state = v;
+}
+
+static inline uint32_t aon_pmu_ll_get_r3_cp2_enter_wfi_state(void) {
+	aon_pmu_r3_t *r = (aon_pmu_r3_t*)(SOC_AON_PMU_REG_BASE + (0x3 << 2));
+	return r->cp2_enter_wfi_state;
+}
+
+static inline void aon_pmu_ll_set_r3_cp0_sleep_vote_state(uint32_t v) {
+	aon_pmu_r3_t *r = (aon_pmu_r3_t*)(SOC_AON_PMU_REG_BASE + (0x3 << 2));
+	r->cp0_sleep_vote_state = v;
+}
+
+static inline uint32_t aon_pmu_ll_get_r3_cp0_sleep_vote_state(void) {
+	aon_pmu_r3_t *r = (aon_pmu_r3_t*)(SOC_AON_PMU_REG_BASE + (0x3 << 2));
+	return r->cp0_sleep_vote_state;
+}
+
 static inline void aon_pmu_ll_set_r3_sd_en(uint32_t v) {
 	aon_pmu_r3_t *r = (aon_pmu_r3_t*)(SOC_AON_PMU_REG_BASE + (0x3 << 2));
 	r->sd_en = v;

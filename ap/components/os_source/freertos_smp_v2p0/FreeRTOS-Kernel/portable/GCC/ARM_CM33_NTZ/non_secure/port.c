@@ -46,6 +46,7 @@
 #include "driver/mailbox_types.h"
 #include "driver/mailbox.h"
 #include "bk_mailbox.h"
+#include <modules/pm.h>
 
 #if ( configENABLE_TRUSTZONE == 1 )
     /* Secure components includes. */
@@ -451,7 +452,6 @@ PRIVILEGED_DATA static volatile uint32_t ulCriticalNesting = 0xaaaaaaaaUL;
     /* The primary core number (the own which has the SysTick handler) */
     static uint8_t ucPrimaryCoreNum = INVALID_PRIMARY_CORE_NUM;
 extern uint32_t rtos_get_time_diff(beken_time_t cur_os_time);
-
 #if ( configUSE_TICKLESS_IDLE == 1 )
     __attribute__( ( weak ) ) void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
     {
@@ -537,9 +537,7 @@ extern uint32_t rtos_get_time_diff(beken_time_t cur_os_time);
 
             if( xModifiableIdleTime > 0 )
             {
-                __asm volatile ( "dsb" ::: "memory" );
-                __asm volatile ( "wfi" );
-                __asm volatile ( "isb" );
+                bk_pm_suppress_ticks_and_sleep(xModifiableIdleTime);
             }
 
             configPOST_SLEEP_PROCESSING( xExpectedIdleTime );

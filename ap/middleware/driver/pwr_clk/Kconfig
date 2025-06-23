@@ -79,5 +79,8 @@ menu "PWR_CLK"
 	config PM_CLI_ENABLE
 		bool "enable PM demo, Applications can develop their own low-power solutions based on this demo"
 		default n
+	config PM_LV_SUBCORES_ON
+		bool "CPU0 and CPU1,CPU2 ON when enter low voltage"
+		default n
 endmenu
 

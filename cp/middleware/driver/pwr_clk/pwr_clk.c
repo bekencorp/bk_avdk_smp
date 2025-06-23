@@ -473,7 +473,31 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 
     return BK_OK;
 }
+bk_err_t bk_pm_cp_wakeup_ap_from_wfi(uint8_t core_id)
+{
+	int ret                       = BK_OK;
+#if CONFIG_PM_LV_SUBCORES_ON
+	mb_chnl_cmd_t mb_cmd          = {0};
+	volatile uint8_t  retry_count = 0;
 
+	mb_cmd.hdr.cmd = PM_SLEEP_WAKEUP_NOTIFY_CMD;
+	mb_cmd.param1 = 0;
+	mb_cmd.param2 = 0;
+	mb_cmd.param3 = 0;
+	ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
+    while(ret != BK_OK)
+	{
+		//bk_delay_us(20);
+		ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
+		retry_count++;
+		if((retry_count > 4)||(ret == BK_OK))
+		{
+			break;
+		}
+	}
+#endif
+	return ret;
+}
 /*Get the cp1 heap malloc count*/
 uint32_t bk_pm_get_cp1_psram_malloc_count()
 {

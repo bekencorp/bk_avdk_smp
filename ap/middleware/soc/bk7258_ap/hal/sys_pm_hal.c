@@ -20,6 +20,7 @@
 #include "gpio_driver_base.h"
 #include "sys_types.h"
 #include <driver/aon_rtc.h>
+#include <driver/dma.h>
 #include <driver/hal/hal_spi_types.h>
 #include "bk_arch.h"
 #include "hal_port.h"
@@ -27,6 +28,7 @@
 #include "sys_pm_hal.h"
 #include "sys_pm_hal_ctrl.h"
 #include "modules/pm.h"
+#include "cpu_id.h"
 
 #if CONFIG_CACHE_ENABLE
 #include "cache.h"
@@ -804,11 +806,94 @@ void sys_hal_gpio_ana_wakeup_enable(uint32_t count, uint32_t index, uint32_t typ
 
 void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 {
-	// TODO - find out the reason:
-	// When sys_ll_set_cpu0_int_halt_clk_op_cpu0_int_mask() is called, the normal sleep can't wakedup,
-	// need to find out!!!
-	// sys_ll_set_cpu0_int_halt_clk_op_cpu0_halt(1);
+#if CONFIG_PM_LV_SUBCORES_ON
+	if(portGET_CORE_ID() == CPU0_CORE_ID)
+	{
+		if(aon_pmu_ll_get_r3_cp0_sleep_vote_state())
+		{
+			volatile uint32_t int_state1, int_state2;
+			uint32_t systick_ctrl_value = 0;
+
+			systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
+			portNVIC_SYSTICK_CTRL_REG = 0;
+
+			int_state1 = sys_ll_get_cpu1_int_0_31_en_value();
+			int_state2 = sys_ll_get_cpu1_int_32_63_en_value();
+
+			if(check_IRQ_pending()||bk_dma_check_chn_status())
+			{
+				sys_ll_set_cpu1_int_0_31_en_value(int_state1);
+				sys_ll_set_cpu1_int_32_63_en_value(int_state2);
+				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				//bk_printf("Core0 pending irq:0x%llx,0x%x\r\n",check_IRQ_pending(),bk_dma_check_chn_status());
+				return;
+			}
+			/*Disable Int exclude mailbox,mailbox int for wakeup*/
+			sys_ll_set_cpu1_int_0_31_en_value(0x0);
+			sys_ll_set_cpu1_int_32_63_en_value(0x0);
+			sys_ll_set_cpu1_int_32_63_en_cpu1_mailbox_int_en(1);
+
+			/*Set cpu1 wfi state*/
+			aon_pmu_ll_set_r3_cp1_enter_wfi_state(1);
+
+			/*Enter deep sleep*/
+			arch_deep_sleep();
+
+			/*Clear cpu1 wfi state*/
+			aon_pmu_ll_set_r3_cp1_enter_wfi_state(0);
+
+			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+		}
+		else
+		{
+			arch_sleep();
+		}
+	}
+	else if(portGET_CORE_ID() == CPU1_CORE_ID)
+	{
+		if(aon_pmu_ll_get_r3_cp0_sleep_vote_state())
+		{
+			volatile uint32_t int1_state1, int1_state2;
+			uint32_t systick_ctrl_value = 0;
+
+			systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
+			portNVIC_SYSTICK_CTRL_REG = 0;
+
+			int1_state1 = sys_ll_get_cpu2_int_0_31_en_value();
+			int1_state2 = sys_ll_get_cpu2_int_32_63_en_value();
+
+			if(check_IRQ_pending()||bk_dma_check_chn_status())
+			{
+				sys_ll_set_cpu2_int_0_31_en_value(int1_state1);
+				sys_ll_set_cpu2_int_32_63_en_value(int1_state2);
+				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				//bk_printf("Core1 pending irq:0x%llx,0x%x\r\n",check_IRQ_pending(),bk_dma_check_chn_status());
+				return;
+			}
+			/*Disable Int exclude mailbox,mailbox int for wakeup*/
+			sys_ll_set_cpu2_int_0_31_en_value(0x0);
+			sys_ll_set_cpu2_int_32_63_en_value(0x0);
+			sys_ll_set_cpu2_int_32_63_en_cpu2_mailbox_int_en(1);
+
+			/*Set cpu2 wfi state*/
+			aon_pmu_ll_set_r3_cp2_enter_wfi_state(1);
+
+			/*Enter deep sleep*/
+			arch_deep_sleep();
+
+			/*Clear cpu2 wfi state*/
+			aon_pmu_ll_set_r3_cp2_enter_wfi_state(0);
+
+			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+		}
+		else
+		{
+			arch_sleep();
+		}
+	}
+#else
 	arch_sleep();
+#endif
 }
 
 void sys_hal_enter_normal_wakeup()

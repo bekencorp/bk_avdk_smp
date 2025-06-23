@@ -73,5 +73,8 @@ menu "PWR_CLK"
 		default 1300
 		help
 			config the 26M crystal hardware stability time
-endmenu
+	config PM_LV_SUBCORES_ON
+		bool "CPU0 and CPU1,CPU2 ON when enter low voltage"
+		default n
+	endmenu
 

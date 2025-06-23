@@ -75,7 +75,11 @@ typedef struct
 	uint32_t offset_addr_end_val ;
 	uint32_t flash_addr_offset_val;
 }flash_ab_reg_t;
+#endif
 
+#if CONFIG_PM_LV_SUBCORES_ON
+static volatile uint32_t s_int1_state1, s_int1_state2;
+static volatile uint32_t s_int2_state1, s_int2_state2;
 #endif
 
 extern void bk_delay_us(UINT32 us);
@@ -502,7 +506,11 @@ static inline void sys_hal_set_sleep_condition(void)
 	//sleep_en_need_cpu1_wfi = 1
 	//sleep_en_need_flash_idle = 0
 
+	#if CONFIG_PM_LV_SUBCORES_ON
+	v |= (0x8 << 16);
+	#else
 	v |= (0x2a << 16);
+	#endif
 
 	sys_ll_set_cpu_power_sleep_wakeup_value(v);
 }
@@ -1033,6 +1041,32 @@ __attribute__((section(".itcm_sec_code"))) void sys_hal_enter_low_voltage(void)
 
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 
+#if CONFIG_PM_LV_SUBCORES_ON
+	/*Clear cpu0 sleep vote state*/
+	aon_pmu_ll_set_r3_cp0_sleep_vote_state(0);
+
+	/*AP CORE1 */
+	/*Clear cpu2 wfi state*/
+	aon_pmu_ll_set_r3_cp2_enter_wfi_state(0);
+
+	/*AP CORE0 */
+	/*Clear cpu1 wfi state*/
+	aon_pmu_ll_set_r3_cp1_enter_wfi_state(0);
+
+	/*Enable cpu1 and cpu2 mailbox interrupt */
+	sys_ll_set_cpu2_int_32_63_en_cpu2_mailbox_int_en(1);
+	sys_ll_set_cpu1_int_32_63_en_cpu1_mailbox_int_en(1);
+
+	/*Restore cpu1 interrupt*/
+	sys_ll_set_cpu1_int_0_31_en_value(s_int1_state1);
+	sys_ll_set_cpu1_int_32_63_en_value(s_int1_state2);
+
+	/*Restore cpu2 interrupt*/
+	sys_ll_set_cpu2_int_0_31_en_value(s_int2_state1);
+	sys_ll_set_cpu2_int_32_63_en_value(s_int2_state2);
+
+#endif
+
 }
 
 void sys_hal_touch_wakeup_enable(uint8_t index)
@@ -1104,6 +1138,34 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 	arch_sleep();
 }
 
+bool sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi()
+{
+	int  ret = true;
+	#if CONFIG_PM_LV_SUBCORES_ON
+	if(bk_pm_low_vol_vote_state_get())
+	{
+		s_int1_state1 = sys_ll_get_cpu1_int_0_31_en_value();
+		s_int1_state2 = sys_ll_get_cpu1_int_32_63_en_value();
+		s_int2_state1 = sys_ll_get_cpu2_int_0_31_en_value();
+		s_int2_state2 = sys_ll_get_cpu2_int_32_63_en_value();
+		aon_pmu_ll_set_r3_cp0_sleep_vote_state(1);
+	}
+	else
+	{
+		aon_pmu_ll_set_r3_cp0_sleep_vote_state(0);
+	}
+
+	if (aon_pmu_ll_get_r3_cp1_enter_wfi_state()&&aon_pmu_ll_get_r3_cp2_enter_wfi_state())
+	{
+		ret = true;
+	}
+	else
+	{
+		ret = false;
+	}
+	#endif
+	return ret;
+}
 void sys_hal_enter_normal_wakeup()
 {
 }

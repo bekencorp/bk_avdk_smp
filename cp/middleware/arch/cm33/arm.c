@@ -26,13 +26,17 @@ void smem_reset_lastblock(void)
 __attribute__((section(".itcm_sec_code"))) void arch_deep_sleep(void)
 {
 	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+	__asm volatile ( "dsb" ::: "memory" );
 	__WFI();
+	__asm volatile ( "isb" );
 }
 
 __attribute__((section(".iram"))) void arch_sleep(void)
 {
 	SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
+	__asm volatile ( "dsb" ::: "memory" );
 	__WFI();
+	__asm volatile ( "isb" );
 }
 
 __attribute__((section(".itcm_sec_code")))uint64_t check_IRQ_pending(void)
