@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
 from bk_misc import check_overlaps, parse_format_size
 
-from .bk_partition import PARTITION_ATTR_NUM, bk_partition
+from .bk_partition import bk_partition
 
 logger = logging.getLogger(__package__)
 
@@ -31,13 +31,12 @@ class bk_partitions_table:
         self._csv_path = csv_path
         self.partitions: list[bk_partition] = []
         self.cumulative_offset = 0
-        # self.default_setting: list[partition_limit] = []
         self._parse_auto_partition_table()
         self._check_partition_valid()
 
     def _parse_partition_line(self, index: int, part_line: str) -> bk_partition:
         part_info = part_line.split(",")
-        if len(part_info) < PARTITION_ATTR_NUM:
+        if len(part_info) < len(fields(bk_partition)) - 1:  # except id
             msg = f"auto partition config table invalid, line:\n{part_line}"
             raise RuntimeError(msg)
         part_info = [item.strip() for item in part_info]
@@ -63,13 +62,9 @@ class bk_partitions_table:
         read = read_str.lower() == "true"
         write = write_str.lower() == "true"
 
-        part = bk_partition(index, name, offset, size)
-        part.chmod(write, read, execute)
+        part = bk_partition(index, name, offset, size, execute, read, write)
         self.cumulative_offset = offset + size
         return part
-
-    def _check_default_setting(self) -> None:
-        pass
 
     def _check_partition_valid(self) -> None:
         self._check_offset_and_size_valid()
@@ -82,12 +77,11 @@ class bk_partitions_table:
                 raise RuntimeError(msg)
 
         for part in self.partitions:
-            part_info = part.get_info()
-            offset: int = part_info.Offset
-            size: int = part_info.Size
-            name: str = part_info.Name
-            execute: int = part_info.Execute
-            logger.debug(part_info)
+            offset: int = part.Offset
+            size: int = part.Size
+            name: str = part.Name
+            execute: int = part.Execute
+            logger.debug(part)
             check_align(name, offset, 0x1000)
             check_align(name, size, 0x1000)
             if self.crc_enable and execute:
@@ -97,8 +91,7 @@ class bk_partitions_table:
     def _check_partition_overlaps(self) -> None:
         space_sections: list[tuple[int, int]] = []
         for part in self.partitions:
-            offset, size = part.get_partition_size()
-            space_sections.append((offset, size))
+            space_sections.append((part.Offset, part.Size))
         if check_overlaps(space_sections):
             raise RuntimeError("partition table config overlaps")
 
@@ -143,19 +136,19 @@ class bk_partitions_table:
         text_content += bk_partition.get_pretty_format_info_head()
         offset = 0
         for part in self.partitions:
-            addr, size = part.get_partition_size()
-            if addr > offset:
-                text_content += bk_partition.get_unused_part_info(offset, addr - offset)
+            if part.Offset > offset:
+                text_content += bk_partition.get_unused_part_info(
+                    offset, part.Offset - offset
+                )
             text_content += part.get_pretty_format_info()
-            offset = addr + size
+            offset = part.Offset + part.Size
 
         with save_path.open("w", newline="\n") as f:
             f.write(text_content)
 
     def _check_partition_exists(self, part_name: str) -> bool:
         for partition in self.partitions:
-            part_info = partition.get_info()
-            if part_info.Name == part_name:
+            if partition.Name == part_name:
                 return True
         return False
 
@@ -163,8 +156,7 @@ class bk_partitions_table:
         if index < 0:
             index = len(self.partitions) + index
         for part_id, partition in enumerate(self.partitions):
-            part_info = partition.get_info()
-            if part_info.Name == part_name:
+            if partition.Name == part_name:
                 return index == part_id
         return False
 
@@ -177,14 +169,14 @@ class bk_partitions_table:
 
     def sort_partitions(self, reserved_partitions: list[str]) -> None:
         for part in self.partitions:
-            part.id += 100
+            part.Id += 10000
 
-        exist_partitions = [part.get_info().Name for part in self.partitions]
+        exist_partitions = [part.Name for part in self.partitions]
         for internel_id, item in enumerate(reserved_partitions):
             if item in exist_partitions:
-                self.partitions[exist_partitions.index(item)].id = internel_id
+                self.partitions[exist_partitions.index(item)].Id = internel_id
         user_index = len(reserved_partitions)
         for part in self.partitions:
-            if part.id >= 100:
-                part.id = user_index
+            if part.Id >= 10000:
+                part.Id = user_index
                 user_index += 1

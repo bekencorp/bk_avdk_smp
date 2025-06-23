@@ -144,4 +144,4 @@ class test_partitions_table(TestCase):
         expect_json_hash = "48309c01863dbfbe924eefc49c207dc6"
         gen_json_hash = get_file_md5sum(gen_json_path)
         self.assertEqual(expect_json_hash, gen_json_hash)
-        # gen_json_path.unlink()
+        gen_json_path.unlink()
