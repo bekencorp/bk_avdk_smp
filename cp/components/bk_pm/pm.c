@@ -977,7 +977,7 @@ bk_err_t bk_pm_sleep_mode_set(pm_sleep_mode_e sleep_mode)
 		{
 			if (s_pm_deepsleep_enter_cb_conf[i].cfg.cb != NULL)
 			{
-				//s_pm_deepsleep_enter_cb_conf[i].cfg.cb(0, s_pm_deepsleep_enter_cb_conf[i].cfg.args);
+				s_pm_deepsleep_enter_cb_conf[i].cfg.cb(0, s_pm_deepsleep_enter_cb_conf[i].cfg.args);
 			}
 		}
 	}
