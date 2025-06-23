@@ -66,7 +66,7 @@ void *os_realloc(void *ptr, size_t size)
 #endif
 }
 
-void *bk_psram_realloc(void *ptr, size_t size)
+void *psram_realloc(void *ptr, size_t size)
 {
 	void *tmp;
 
@@ -75,17 +75,22 @@ void *bk_psram_realloc(void *ptr, size_t size)
 		BK_ASSERT(false);
 	}
 
+	if (size & 0x3) {
+		size = ((size >> 2) + 1) << 2;
+	}
+
 	tmp = psram_malloc(size);
 	if (tmp && ptr) {
-		if (size & 0x3) {
-			os_memcpy_word((uint32_t *)tmp, (uint32_t *)ptr, ((size >> 2) + 1) << 2);
-		} else {
-			os_memcpy_word((uint32_t *)tmp, (uint32_t *)ptr, size);
-		}
+		os_memcpy_word((uint32_t *)tmp, (uint32_t *)ptr, size);
 		os_free((void *)ptr);
 	}
 
 	return tmp;
+}
+
+void *bk_psram_realloc(void *ptr, size_t size)
+{
+	return psram_realloc(ptr, size);
 }
 
 int os_memcmp_const(const void *a, const void *b, size_t len)
@@ -104,6 +109,18 @@ void *os_malloc(size_t size)
 #endif
 
 	return (void *)pvPortMalloc(size);
+}
+
+void *os_sram_malloc(size_t size)
+{
+ #if !CONFIG_FULLY_HOSTED
+	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
+        os_printf("malloc_risk\r\n");
+        BK_ASSERT(false);
+    }		
+#endif
+
+    return (void *)bk_wrap_sram_malloc(size);
 }
 
 void *os_zalloc(size_t size)
@@ -136,6 +153,13 @@ void *os_malloc_debug(const char *func_name, int line, size_t size, int need_zer
 	return (void *)os_malloc(size);
 }
 
+void *os_sram_malloc_debug(const char *func_name, int line, size_t size, int need_zero)
+{
+	if (need_zero) {
+		return (void *)os_sram_zalloc(size);
+	}
+	return (void *)os_sram_malloc(size);
+}
 
 void *os_free_debug(const char *func_name, int line, void *pv)
 {
@@ -164,6 +188,15 @@ void *os_malloc_debug(const char *func_name, int line, size_t size, int need_zer
 		BK_ASSERT(false);
 	}
 	return pvPortMalloc_cm(func_name, line, size, need_zero);
+}
+
+void *os_sram_malloc_debug(const char *func_name, int line, size_t size, int need_zero)
+{
+   if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
+		BK_DUMP_OUT("Error: [%s] line(%d). malloc_risk.\r\n", func_name, line);
+        BK_ASSERT(false);
+	}
+	return bk_wrap_sram_malloc_cm(func_name, line, size, need_zero); 
 }
 
 void *psram_malloc_debug(const char *func_name, int line, size_t size, int need_zero)
