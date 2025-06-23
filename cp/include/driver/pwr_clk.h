@@ -122,6 +122,22 @@ typedef enum
 	PM_CP1_PREPARE_CLOSE_MODULE_NAME_LVGL_CODE_RUN,// 13
 	PM_CP1_PREPARE_CLOSE_MODULE_NAME_MAX          ,// attention: MAX value can not exceed 31.
 }pm_cp1_prepare_close_module_name_e;
+
+/**
+ * @brief cp0 wakeup ap from wfi
+ *
+ * cp0 wakeup ap from wfi
+ *
+ * @attention
+ * - This API is used to cp0 wakeup ap from wfi
+ *
+ * @param
+ * - core_id: core id
+ * @return
+ * - BK_OK: succeed
+ * - others: other errors.
+ */
+bk_err_t bk_pm_cp_wakeup_ap_from_wfi(uint8_t core_id);
 /**
  * @brief cp0 response cp1 info
  *
