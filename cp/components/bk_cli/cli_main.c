@@ -65,8 +65,8 @@ extern int video_demo_register_cmd(void);
 
 #define SHELL_TASK_PRIORITY               4
 
-#define SHELL_CHECK_MINI_REMAIN_STACK    (10 * 1024)
-#define SHELL_TASK_CHECK_CNT             (200)
+#define SHELL_CHECK_MINI_REMAIN_STACK    (7 * 1024 + 128)
+#define SHELL_TASK_CHECK_CNT             (100)
 
 
 /* Find the command 'name' in the cli commands table.
@@ -218,9 +218,9 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
 
     /* If you send  cli commands too quickly,it may cause memory exhaustion.
     Here we wait for enough memory before responding to command */
-    while (rtos_get_free_heap_size() <= SHELL_CHECK_MINI_REMAIN_STACK)
+    while ((rtos_get_free_heap_size() <= SHELL_CHECK_MINI_REMAIN_STACK) && (CheckBlockSizeValid(SHELL_CHECK_MINI_REMAIN_STACK) == 0))
     {
-        rtos_delay_milliseconds(20);
+        rtos_delay_milliseconds(50);
         shell_wait_cnt++;
         if(shell_wait_cnt >= SHELL_TASK_CHECK_CNT) {
             shell_wait_cnt = 0;
