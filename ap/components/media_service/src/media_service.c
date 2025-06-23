@@ -29,23 +29,19 @@ static void media_debug_dump(timer_id_t timer_id)
 	uint16_t h264 = (media_debug->isr_h264 - media_debug_cached->isr_h264) / DEBUG_INTERVAL;
 	uint16_t dec = (media_debug->isr_decoder - media_debug_cached->isr_decoder) / DEBUG_INTERVAL;
 	uint16_t lcd = (media_debug->isr_lcd - media_debug_cached->isr_lcd) / DEBUG_INTERVAL;
-	uint16_t fps = (media_debug->fps_lcd - media_debug_cached->fps_lcd) / DEBUG_INTERVAL;
-	uint16_t wifi = (media_debug->fps_wifi - media_debug_cached->fps_wifi) / DEBUG_INTERVAL;
-	uint32_t jpeg_kps = (media_debug->jpeg_kbps - media_debug_cached->jpeg_kbps) * 8 / DEBUG_INTERVAL / 1000;
-	uint32_t h264_kps = (media_debug->h264_kbps - media_debug_cached->h264_kbps) * 8 / DEBUG_INTERVAL / 1000;
-	uint32_t wifi_kps = (media_debug->wifi_kbps - media_debug_cached->wifi_kbps) * 8 / DEBUG_INTERVAL / 1000;
+	uint16_t fps_lcd = (media_debug->fps_lcd - media_debug_cached->fps_lcd) / DEBUG_INTERVAL;
+	uint16_t fps_wifi = (media_debug->fps_wifi - media_debug_cached->fps_wifi) / DEBUG_INTERVAL;
+	uint32_t jpeg_kps = (media_debug->jpeg_kbps - media_debug_cached->jpeg_kbps) * 8 / DEBUG_INTERVAL / 1024;
+	uint32_t h264_kps = (media_debug->h264_kbps - media_debug_cached->h264_kbps) * 8 / DEBUG_INTERVAL / 1024;
+	uint32_t wifi_kps = (media_debug->wifi_kbps - media_debug_cached->wifi_kbps) * 8 / DEBUG_INTERVAL / 1024;
 	uint32_t meantimes = (media_debug->meantimes - media_debug_cached->meantimes) / DEBUG_INTERVAL / 1000;
 
-	if (h264 == 0 && lcd == 0 && wifi == 0)
+	if (h264 == 0 && lcd == 0 && fps_wifi == 0)
 	{
 		return;
 	}
 
-	if (wifi != 0 && meantimes != 0)
-	{
-		meantimes = meantimes / wifi;
-	}
-	else
+	if (fps_wifi == 0 || meantimes == 0)
 	{
 		if (media_debug->begin_trs == false)
 			meantimes = 0;
@@ -69,11 +65,11 @@ static void media_debug_dump(timer_id_t timer_id)
 			h264, media_debug->isr_h264,
 			dec, media_debug->isr_decoder,
 			lcd, media_debug->isr_lcd,
-			fps, media_debug->fps_lcd,
+			fps_lcd, media_debug->fps_lcd,
 			lvgl, media_debug->lvgl_draw);
 
 	LOGI("wifi:%d[%d, %dkbps, %dms, %d-%d], jpg:%dKB[%dKbps], h264:%dKB[%dKbps]\n",
-			wifi, media_debug->fps_wifi, wifi_kps, meantimes, media_debug->begin_trs, media_debug->end_trs,
+			fps_wifi, media_debug->fps_wifi, wifi_kps, meantimes, media_debug->begin_trs, media_debug->end_trs,
 			media_debug->jpeg_length / 1024, jpeg_kps,
 			media_debug->h264_length / 1024, h264_kps);
 }
