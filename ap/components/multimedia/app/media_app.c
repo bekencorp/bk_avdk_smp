@@ -19,6 +19,7 @@
 #include <driver/pwr_clk.h>
 #include "media_app.h"
 #include "camera_act.h"
+#include "transfer_act.h"
 #include "img_service.h"
 #include "camera_handle_list.h"
 #include "driver/lcd.h"
@@ -239,6 +240,56 @@ bk_err_t media_app_camera_close(camera_handle_t *handle)
     return ret;
 }
 
+bk_err_t media_app_register_read_frame_callback(image_format_t fmt, frame_cb_t cb)
+{
+    int ret = BK_OK;
+
+    LOGI("%s\n", __func__);
+#ifdef CONFIG_WIFI_TRANSFER
+    if (media_modules_state->trs_state)
+    {
+        LOGI("%s, transfer have been opened!\r\n", __func__);
+        return ret;
+    }
+
+    ret = transfer_app_task_init(cb, fmt);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
+
+    media_modules_state->trs_state = true;
+
+#endif
+    LOGI("%s complete\n", __func__);
+
+    return ret;
+}
+
+bk_err_t media_app_unregister_read_frame_callback(void)
+{
+    bk_err_t ret = BK_OK;
+#ifdef CONFIG_WIFI_TRANSFER
+
+    if (media_modules_state->trs_state == false)
+    {
+        LOGI("%s, transfer have been closed!\r\n", __func__);
+        return ret;
+    }
+
+    LOGI("%s\n", __func__);
+
+    ret = transfer_app_task_deinit();
+    if (ret == BK_OK)
+    {
+        media_modules_state->trs_state = false;
+    }
+
+#endif
+    LOGI("%s complete\n", __func__);
+
+    return ret;
+}
 
 bk_err_t media_app_init(void)
 {

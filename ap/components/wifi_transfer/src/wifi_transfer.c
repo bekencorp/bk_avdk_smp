@@ -18,8 +18,6 @@
 #include <driver/dma.h>
 #include "bk_general_dma.h"
 #include "wifi_transfer.h"
-#include "transfer_act.h"
-
 #include "media_app.h"
 
 #define TAG "wifi_trs"
@@ -243,7 +241,7 @@ bk_err_t bk_wifi_transfer_frame_open(const media_transfer_cb_t *cb, uint16_t img
 		return ret;
 	}
 
-	ret = transfer_app_task_init(wifi_transfer_read_frame_callback, img_format);
+	ret = media_app_register_read_frame_callback(img_format, wifi_transfer_read_frame_callback);
 
 	if (ret == BK_OK)
 	{
@@ -265,7 +263,7 @@ bk_err_t bk_wifi_transfer_frame_close(void)
 
 	transfer_enable = 0;
 
-    ret = transfer_app_task_deinit();
+    ret = media_app_unregister_read_frame_callback();
 	if (ret != BK_OK)
 	{
 		LOGE("%s, fail!\r\n", __func__);

@@ -50,10 +50,11 @@ bk_err_t media_app_lcd_disp_close(void);
 
 bk_err_t media_app_camera_open(camera_handle_t *handle, media_camera_device_t *device);
 bk_err_t media_app_camera_close(camera_handle_t *handle);
-
 bk_err_t media_app_get_main_camera_stream(frame_list_node_t *node);
-
 uint32_t media_app_get_lcd_status(void);
+bk_err_t media_app_register_read_frame_callback(image_format_t fmt, frame_cb_t cb);
+bk_err_t media_app_unregister_read_frame_callback(void);
+
 
 bk_err_t media_app_init(void);
 

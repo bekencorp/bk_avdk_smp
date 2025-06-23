@@ -330,7 +330,7 @@ typedef struct {
 	void (*free)(frame_buffer_t *frame_buffer);
 } frame_buffer_callback_t;
 
-
+typedef void (*frame_cb_t)(frame_buffer_t *frame);
 /**
  * @brief define frame buffer
  * @{
