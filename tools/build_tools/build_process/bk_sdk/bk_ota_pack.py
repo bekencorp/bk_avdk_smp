@@ -4,8 +4,9 @@ import os
 from pathlib import Path
 
 from bk_crc import bk_crc16
-from bk_curr_project import curr_project
 from bk_misc import parse_format_size
+
+from .bk_curr_project import curr_project
 
 logger = logging.getLogger(Path(__file__).name)
 project_dir = curr_project.project_path
@@ -72,15 +73,3 @@ def pack_ota_rbl(
     if bootloader_size == 0:
         raise RuntimeError("bootloader parse error")
     return pack_ota_rbl_ab(pack_dir, bootloader_size, origin_ota_app_bin, all_app_bin)
-
-
-if __name__ == "__main__":
-    project_build_dir = curr_project.project_build_dir
-    build_pack_dir = curr_project.project_build_package_dir
-    build_partitions_dir = curr_project.project_build_parititons_dir
-    sumary_file = build_pack_dir / "build_summary.txt"
-    pack_dir_temp = build_pack_dir / "tmp"
-    pack_json = build_partitions_dir / "bk_package.json"
-    all_app_bin = build_pack_dir / "all-app.bin"
-    origin_ota_app_bin = pack_dir_temp / "origin_ota_app.bin"
-    ota_bin = pack_ota_rbl(pack_dir_temp, pack_json, origin_ota_app_bin, all_app_bin)

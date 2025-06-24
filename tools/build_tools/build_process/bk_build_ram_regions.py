@@ -4,9 +4,9 @@ import json
 import logging
 from pathlib import Path
 
-from bk_curr_project import curr_project
 from bk_misc import parse_format_size
 from bk_ram_region import bk_ram_region, mem_region
+from bk_sdk.bk_curr_project import curr_project
 
 logger = logging.getLogger(Path(__file__).name)
 

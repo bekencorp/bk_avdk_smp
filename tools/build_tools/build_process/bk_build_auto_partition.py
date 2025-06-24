@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Any
 
 from bk_auto_partition import bk_partitions_table, partition_limit
-from bk_curr_project import curr_project
 from bk_flash_partiton import bk_flash_partition
 from bk_ota_partition import bk_ota_partition
+from bk_sdk.bk_curr_project import curr_project
 from bk_sdk.bk_flash_partitions_generator import bk_flash_denpendecny_generator
 
 logger = logging.getLogger(Path(__file__).name)

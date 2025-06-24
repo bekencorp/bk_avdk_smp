@@ -10,8 +10,8 @@ from pathlib import Path
 import bk_packager
 from bk_bootloader_post import backup_bootloader_path
 from bk_build_summary import bk_build_summary
-from bk_curr_project import curr_project
 from bk_misc import parse_format_size
+from bk_sdk.bk_curr_project import curr_project
 from bk_sdk.bk_ota_pack import pack_ota_rbl
 from bk_serialize_partitions_table import serialize_partitions_table
 

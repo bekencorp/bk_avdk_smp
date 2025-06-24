@@ -2,7 +2,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from bk_curr_project import curr_project
+from bk_sdk.bk_curr_project import curr_project
 
 logger = logging.getLogger(Path(__file__).name)
 

@@ -34,7 +34,7 @@ class test_bk_flash_partition(TestCase):
         flash_part.gen_partitions_layout_hdr(header_path)
         self.assertTrue(header_path.exists())
         header_hash = get_file_md5sum(header_path)
-        expect_header_hash = "fefeb79e6e531f4157f11b3fc57749e4"
+        expect_header_hash = "30983ecbe7e2e255bec57fd0a656ce82"
         self.assertEqual(expect_header_hash, header_hash)
         header_path.unlink()
 

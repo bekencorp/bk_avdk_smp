@@ -45,30 +45,27 @@ class bk_flash_denpendecny_generator(bk_flash_partition_content_generator):
         partitions_id_define += (
             f"#define {'BK_PARTITIONS_TABLE_SIZE':<45} {part_info[-1].Id + 1}\n"
         )
-        if part_info:
-            for part in part_info:
-                partition_name = (
-                    part.Name.upper().replace(" ", "_") if part.Name else ""
-                )
-                macro_name = f"BK_PARTITION_{partition_name}"
-                partitions_id_define += f"#define {macro_name:<45} {part.Id}\n"
-                macro_offset = f"CONFIG_{partition_name}_PARTITION_OFFSET"
-                macro_size = f"CONFIG_{partition_name}_PARTITION_SIZE"
+        for part in part_info:
+            partition_name = part.Name.upper().replace(" ", "_") if part.Name else ""
+            macro_name = f"BK_PARTITION_{partition_name}"
+            partitions_id_define += f"#define {macro_name:<45} {part.Id}\n"
+            macro_offset = f"CONFIG_{partition_name}_PARTITION_OFFSET"
+            macro_size = f"CONFIG_{partition_name}_PARTITION_SIZE"
 
-                s_hdr += f"#define {macro_offset:<45} 0x{part.Offset:08x}\n"
-                s_hdr += f"#define {macro_size:<45} 0x{part.Size:08x}\n"
-                if part.Execute:
-                    partitions_options = (
-                        "PAR_OPT_EXECUTE_EN | PAR_OPT_READ_EN | PAR_OPT_WRITE_DIS"
-                    )
-                else:
-                    partitions_options = (
-                        "PAR_OPT_EXECUTE_DIS | PAR_OPT_READ_EN | PAR_OPT_WRITE_EN"
-                    )
-                partition_struct_array += (
-                    f'    [{part.Id}] = {{BK_FLASH_EMBEDDED, "{part.Name}", {macro_offset}, '
-                    + f"{macro_size}, {partitions_options}}}, \\\n"
+            s_hdr += f"#define {macro_offset:<45} 0x{part.Offset:08x}\n"
+            s_hdr += f"#define {macro_size:<45} 0x{part.Size:08x}\n"
+            if part.Execute:
+                partitions_options = (
+                    "PAR_OPT_EXECUTE_EN | PAR_OPT_READ_EN | PAR_OPT_WRITE_DIS"
                 )
+            else:
+                partitions_options = (
+                    "PAR_OPT_EXECUTE_DIS | PAR_OPT_READ_EN | PAR_OPT_WRITE_EN"
+                )
+            partition_struct_array += (
+                f'    [{part.Id}] = {{BK_FLASH_EMBEDDED, "{part.Name}", {macro_offset}, '
+                + f"{macro_size}, {partitions_options}}}, \\\n"
+            )
 
         partition_struct_array += "}\n"
         return s_hdr + "\n" + partitions_id_define + "\n" + partition_struct_array
