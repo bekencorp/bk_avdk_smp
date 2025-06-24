@@ -17,11 +17,13 @@ logger = logging.getLogger(__package__)
 @dataclass
 class partition_limit:
     name: str
-    index: int
+    index: int | None
 
 
 class bk_partitions_table:
-    def __init__(self, csv_path: Path, crc_enable: bool = False) -> None:
+    def __init__(
+        self, csv_path: Path, flash_size: str = "8M", crc_enable: bool = False
+    ) -> None:
         if not csv_path.exists():
             msg = f"auto partition config table {csv_path} not exist."
             raise FileNotFoundError(msg)
@@ -31,6 +33,7 @@ class bk_partitions_table:
         self._csv_path = csv_path
         self.partitions: list[bk_partition] = []
         self.cumulative_offset = 0
+        self.flash_size = parse_format_size(flash_size)
         self._parse_auto_partition_table()
         self._check_partition_valid()
 
@@ -66,9 +69,16 @@ class bk_partitions_table:
         self.cumulative_offset = offset + size
         return part
 
+    def _check_partitions_bound(self):
+        for part in self.partitions:
+            if part.Offset + part.Size > self.flash_size:
+                msg = f"{part.Name} partition out of flash size"
+                raise RuntimeError(msg)
+
     def _check_partition_valid(self) -> None:
         self._check_offset_and_size_valid()
         self._check_partition_overlaps()
+        self._check_partitions_bound()
 
     def _check_offset_and_size_valid(self) -> None:
         def check_align(name: str, num: int, align_num: int) -> None:
@@ -109,6 +119,9 @@ class bk_partitions_table:
             line_content = line.strip()
             if line_content.startswith("#") or len(line_content) == 0:
                 continue
+            if "FLASH_CAPACITY" in line_content:
+                self.flash_size = parse_format_size(line_content.split("=")[1])
+                continue
             check_auto_partition_line_valid(line_content)
             part = self._parse_partition_line(index, line_content)
             index += 1
@@ -142,6 +155,10 @@ class bk_partitions_table:
                 )
             text_content += part.get_pretty_format_info()
             offset = part.Offset + part.Size
+        if offset < self.flash_size:
+            text_content += bk_partition.get_unused_part_info(
+                offset, self.flash_size - offset
+            )
 
         with save_path.open("w", newline="\n") as f:
             f.write(text_content)
@@ -164,6 +181,8 @@ class bk_partitions_table:
         for item in default_setting:
             if not self._check_partition_exists(item.name):
                 raise RuntimeError(f"{item.name} is not exists")
+            if item.index is None:
+                continue
             if not self._check_partition_index(item.name, item.index):
                 raise RuntimeError(f"{item.name} index error")
 

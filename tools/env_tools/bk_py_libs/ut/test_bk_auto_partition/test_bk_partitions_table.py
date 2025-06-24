@@ -77,6 +77,18 @@ class test_partitions_table(TestCase):
         self.assertEqual(expect_txt_hash, gen_txt_hash)
         gen_txt_path.unlink()
 
+    def test_partitions_table_unused_pretty_print(self):
+        work_space = curr_dir / "workspace/with_crc"
+        csv_path = work_space / "auto_partitions_unused.csv"
+        gen_txt_path = work_space / "gen_partitions_unused.txt"
+        table = bk_partitions_table(csv_path, crc_enable=True)
+        table.gen_pretty_format_table(gen_txt_path)
+        self.assertTrue(gen_txt_path.exists(), f"{gen_txt_path} not generate")
+        expect_txt_hash = "46e53795c0cd77db7664c87e81af3a8f"
+        gen_txt_hash = get_file_md5sum(gen_txt_path)
+        self.assertEqual(expect_txt_hash, gen_txt_hash)
+        gen_txt_path.unlink()
+
     def test_partitions_table_miss_bootloader(self):
         work_space = curr_dir / "workspace/with_crc"
         csv_path = work_space / "auto_partitions_no_bootloader.csv"
@@ -145,3 +157,23 @@ class test_partitions_table(TestCase):
         gen_json_hash = get_file_md5sum(gen_json_path)
         self.assertEqual(expect_json_hash, gen_json_hash)
         gen_json_path.unlink()
+
+    def test_partitions_table_flash_size_limit(self):
+        work_space = curr_dir / "workspace/with_crc"
+        csv_path = work_space / "auto_partitions.csv"
+        try:
+            bk_partitions_table(csv_path, "4M", crc_enable=True)
+        except RuntimeError as e:
+            self.assertIn("partition out of flash size", str(e))
+        else:
+            self.assertTrue(False, "not catch error")
+
+    def test_partitions_table_csv_flash_size_limit(self):
+        work_space = curr_dir / "workspace/with_crc"
+        csv_path = work_space / "auto_partitions_flash_size.csv"
+        try:
+            bk_partitions_table(csv_path, crc_enable=True)
+        except RuntimeError as e:
+            self.assertIn("partition out of flash size", str(e))
+        else:
+            self.assertTrue(False, "not catch error")

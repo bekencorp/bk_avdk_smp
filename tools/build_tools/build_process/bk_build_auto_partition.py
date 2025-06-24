@@ -53,9 +53,20 @@ class bk_part:
         if setting_json.get("internel_partitions"):
             part_table.sort_partitions(setting_json["internel_partitions"])
 
+    @staticmethod
+    def _get_flash_size():
+        setting_path = curr_project.flash_partitions_setting
+        if not setting_path.exists():
+            return "8M"
+        setting_json: dict[str, str] = json.loads(setting_path.read_text())
+        return setting_json.get("FLASH_CAPACITY", "8M")
+
     def auto_partition(self, partitions_txt: Path):
         partitions_csv = self.partitions_dir / "partitions.csv"
-        part_table = bk_partitions_table(self.auto_part_table, self.crc_enable)
+        flash_size = self._get_flash_size()
+        part_table = bk_partitions_table(
+            self.auto_part_table, flash_size, self.crc_enable
+        )
         self._partitions_setting(part_table)
         part_table.gen_partition_csv(partitions_csv)
         part_table.gen_partition_json(self.partitions_json)
