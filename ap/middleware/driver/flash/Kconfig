@@ -42,7 +42,7 @@ menu "FLASH"
 	config FLASH_PARTITION_CHECK_VALID
 		depends on FLASH
 		bool "Enable flash driver check write permission and address range"
-		default n
+		default y
 
 	config FLASH_CLK_120M
 		depends on FLASH
