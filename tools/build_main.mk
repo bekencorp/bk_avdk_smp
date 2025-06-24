@@ -72,6 +72,11 @@ ifdef USE_LIBS_DETERMINED_MODE
 	export ARMINO_WRAPPER_NEW_PATH := /armino_avdk_smp
 endif
 
+# verify enable multithread build.
+ifdef BK_JENKINS_ID
+    MAKEFLAGS += -j2
+endif
+
 ifndef PRINT_SUMMARY
 	PRINT_SUMMARY := 1
 endif
