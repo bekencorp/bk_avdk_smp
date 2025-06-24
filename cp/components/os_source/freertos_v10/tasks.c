@@ -3245,7 +3245,7 @@ typedef struct  task_list_recorder
 
     uint32_t time;        /*aon tick */
 
-    uint32_t TCB_ptr;     /*task TCB pointer*/
+    TCB_t * TCB_ptr;     /*task TCB pointer*/
 
     uint32_t stack_top;   /*top of tas kstack*/
 
@@ -3332,7 +3332,7 @@ void vTaskSwitchContext( void )
         {  
             s_task_recorder[s_task_cnt].tick = xTickCount;
             s_task_recorder[s_task_cnt].time = GET_AON_RTC_TIME;  
-            s_task_recorder[s_task_cnt].TCB_ptr = (uint32_t) pxCurrentTCB;           
+            s_task_recorder[s_task_cnt].TCB_ptr = pxCurrentTCB;           
             s_task_recorder[s_task_cnt].stack_top = (uint32_t) pxCurrentTCB->pxTopOfStack;
             s_task_recorder[s_task_cnt].stack_bottom = (uint32_t)(pxCurrentTCB->pxStack + pxCurrentTCB->ulStackSize);    
             s_task_recorder[s_task_cnt].stack_size   = pxCurrentTCB->ulStackSize;              

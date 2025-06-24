@@ -3581,7 +3581,7 @@ typedef struct  task_list_recorder
 
     uint32_t time;        /*aon tick */
 
-    uint32_t TCB_ptr;     /*task TCB pointer*/
+    TCB_t * TCB_ptr;     /*task TCB pointer*/
 
     uint32_t stack_top;   /*top of tas kstack*/
 
@@ -3674,7 +3674,7 @@ void vTaskSwitchContext( void )
              {  
                 s_task_recorder_core0[s_task_cnt_core0].tick = xTickCount;
                 s_task_recorder_core0[s_task_cnt_core0].time = GET_AON_RTC_TIME;  
-                s_task_recorder_core0[s_task_cnt_core0].TCB_ptr = (uint32_t) pxCurrentTCBs[0];           
+                s_task_recorder_core0[s_task_cnt_core0].TCB_ptr = pxCurrentTCBs[0];           
                 s_task_recorder_core0[s_task_cnt_core0].stack_top = (uint32_t) pxCurrentTCBs[0]->pxTopOfStack;
                 s_task_recorder_core0[s_task_cnt_core0].stack_bottom = (uint32_t)(pxCurrentTCBs[0]->pxStack + pxCurrentTCBs[0]->ulStackSize);    
                 s_task_recorder_core0[s_task_cnt_core0].stack_size   = pxCurrentTCBs[0]->ulStackSize;              
@@ -3683,7 +3683,7 @@ void vTaskSwitchContext( void )
             } else {
                 s_task_recorder_core1[s_task_cnt_core1].tick = xTickCount;
                 s_task_recorder_core1[s_task_cnt_core1].time = GET_AON_RTC_TIME;  
-                s_task_recorder_core1[s_task_cnt_core1].TCB_ptr = (uint32_t) pxCurrentTCBs[1];           
+                s_task_recorder_core1[s_task_cnt_core1].TCB_ptr = pxCurrentTCBs[1];           
                 s_task_recorder_core1[s_task_cnt_core1].stack_top = (uint32_t) pxCurrentTCBs[1]->pxTopOfStack;
                 s_task_recorder_core1[s_task_cnt_core1].stack_bottom = (uint32_t)(pxCurrentTCBs[1]->pxStack + pxCurrentTCBs[1]->ulStackSize);    
                 s_task_recorder_core1[s_task_cnt_core1].stack_size   = pxCurrentTCBs[1]->ulStackSize;              

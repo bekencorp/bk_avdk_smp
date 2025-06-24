@@ -98,6 +98,9 @@
     {
         TickType_t xMessageValue; /*<< An optional value used by a subset of commands, for example, when changing the period of a timer. */
         Timer_t * pxTimer;        /*<< The timer to which the command will be applied. */
+    #if  CONFIG_BK_OS_TIMER_DEBUG
+        TaskHandle_t TCB_ptr;
+    #endif
     } TimerParameter_t;
 
 
@@ -402,6 +405,10 @@
             xMessage.xMessageID = xCommandID;
             xMessage.u.xTimerParameters.xMessageValue = xOptionalValue;
             xMessage.u.xTimerParameters.pxTimer = xTimer;
+    
+     #if CONFIG_BK_OS_TIMER_DEBUG
+            xMessage.u.xTimerParameters.TCB_ptr = xTaskGetCurrentTaskHandle();
+    #endif
 
             if( xCommandID < tmrFIRST_FROM_ISR_COMMAND )
             {
@@ -537,6 +544,17 @@
         }
     }
 /*-----------------------------------------------------------*/
+#if CONFIG_DEBUG_RTOS_TIMER
+typedef struct  
+{
+    Timer_t * pxTimr;
+    uint32_t  tick;        /*os tick */
+}os_timer_record_t;
+
+__attribute__((__used__)) static volatile  uint32_t s_Timer_cnt = 0;
+__attribute__((__used__)) static volatile  os_timer_record_t  s_Timer_record[CONFIG_RTOS_TIMER_DEBUG_CNT];
+
+#endif
 
     static void prvProcessExpiredTimer( const TickType_t xNextExpireTime,
                                         const TickType_t xTimeNow )
@@ -558,6 +576,12 @@
         {
             pxTimer->ucStatus &= ( ( uint8_t ) ~tmrSTATUS_IS_ACTIVE );
         }
+
+#if CONFIG_DEBUG_RTOS_TIMER
+    s_Timer_record[s_Timer_cnt % CONFIG_RTOS_TIMER_DEBUG_CNT].pxTimr = pxTimer;
+    s_Timer_record[s_Timer_cnt % CONFIG_RTOS_TIMER_DEBUG_CNT].tick   = (uint32_t)xTaskGetTickCount();
+    s_Timer_cnt ++;
+#endif
 
         /* Call the timer callback. */
         traceTIMER_EXPIRED( pxTimer );
