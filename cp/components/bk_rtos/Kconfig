@@ -100,7 +100,7 @@ menu "Bk_rtos"
         
         config BK_OS_TIMER_DEBUG
             bool "Enable OS timer Debug"
-            default y
+            default n
             help
 				when turn on the marco,the current task TCB information
 				will be added every time the software timer command is sent
