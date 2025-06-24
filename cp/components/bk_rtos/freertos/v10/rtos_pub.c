@@ -17,6 +17,9 @@
 #include <components/system.h>
 #include <driver/gpio.h>
 #include "rtos_impl.h"
+#include "cmsis_gcc.h"
+
+#define TAG "Rtos"
 
 /******************************************************
  *                    Constants
@@ -665,6 +668,10 @@ bk_err_t rtos_start_oneshot_timer( beken2_timer_t* timer )
 bk_err_t rtos_deinit_oneshot_timer( beken2_timer_t* timer )
 {
 	bk_err_t ret = kNoErr;
+
+#if CONFIG_DEBUG_RTOS_TIMER
+    BK_LOGE(TAG,"[deinit_oneshot_timer]:lr=0x%x tick=%d timer=0x%x \r\n",  __get_LR(), rtos_get_tick_count(), timer->handle);
+#endif
 	GLOBAL_INT_DECLARATION();
 
 	GLOBAL_INT_DISABLE();
@@ -768,6 +775,10 @@ bk_err_t rtos_oneshot_reload_timer_ex(beken2_timer_t *timer,
 {
 	bk_err_t ret;
 
+#if CONFIG_DEBUG_RTOS_TIMER
+    BK_LOGE(TAG,"[oneshot_reload_timer_ex]:lr=0x%x tick=%d timer=0x%x\r\n",  __get_LR(), rtos_get_tick_count(), timer->handle);
+#endif
+
 	if (rtos_is_oneshot_timer_running(timer)) {
 		ret = rtos_stop_oneshot_timer(timer);
 		if (ret != kNoErr) {
@@ -794,6 +805,10 @@ bk_err_t rtos_init_oneshot_timer( beken2_timer_t *timer,
 									void* rarg )
 {
 	bk_err_t ret = kNoErr;
+
+#if CONFIG_DEBUG_RTOS_TIMER
+    BK_LOGE(TAG,"[init_oneshot_timer]:lr=0x%x tick=%d timer=0x%x \r\n",  __get_LR(), rtos_get_tick_count(), timer->handle);
+#endif
 	
 	GLOBAL_INT_DECLARATION();
 
@@ -823,6 +838,10 @@ bk_err_t rtos_init_timer( beken_timer_t *timer,
 						   void* arg )
 {
 	bk_err_t ret = kNoErr;
+
+#if CONFIG_DEBUG_RTOS_TIMER
+    BK_LOGE(TAG,"[init_timer]:lr=0x%x tick=%d timer=0x%x \r\n",  __get_LR(), rtos_get_tick_count(), timer->handle);
+#endif
 	
 	GLOBAL_INT_DECLARATION();
 
@@ -899,6 +918,13 @@ bk_err_t rtos_reload_timer( beken_timer_t* timer )
 {
     signed portBASE_TYPE result;
 
+#if CONFIG_DEBUG_RTOS_TIMER
+    uint32_t lr = __get_LR();
+
+	if(lr - (uint32_t)timer_callback1 > 0x20)
+		BK_LOGE(TAG, "[reload_timer]:lr=0x%x tick=%d timer=0x%x \r\n", __get_LR(), rtos_get_tick_count(), timer->handle);
+#endif
+
     if ( platform_is_in_interrupt_context() != 0 )
 	{
         signed portBASE_TYPE xHigherPriorityTaskWoken = 0;
@@ -948,6 +974,11 @@ bk_err_t rtos_change_period( beken_timer_t* timer, uint32_t time_ms)
 bk_err_t rtos_deinit_timer( beken_timer_t* timer )
 {
 	bk_err_t ret = kNoErr;
+
+#if CONFIG_DEBUG_RTOS_TIMER
+    BK_LOGE(TAG,"[deinit_timer]:lr=0x%x tick=%d\r\n",  timer, rtos_get_tick_count());
+#endif	
+
 	GLOBAL_INT_DECLARATION();
 
 	GLOBAL_INT_DISABLE();

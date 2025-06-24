@@ -97,6 +97,27 @@ menu "Bk_rtos"
 			default 1000
 			help
 				System tick count per second, can be 1-1000
+        
+        config BK_OS_TIMER_DEBUG
+            bool "Enable OS timer Debug"
+            default y
+            help
+				when turn on the marco,the current task TCB information
+				will be added every time the software timer command is sent
+        
+		config DEBUG_RTOS_TIMER
+			bool "Enable OS adapter layer timer Debug"
+			default n
+			help
+				when turn on the marco, the System will output timer related
+				debug information
+
+		config RTOS_TIMER_DEBUG_CNT
+            depends on DEBUG_RTOS_TIMER
+			int "OS adapter layer timer Debug count value"
+			default 128
+			help
+				set OS adapter layer timer Debug count value       
 
 	endmenu
 
