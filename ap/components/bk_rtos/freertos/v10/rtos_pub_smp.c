@@ -143,6 +143,37 @@ bk_err_t rtos_create_thread( beken_thread_t* thread, uint8_t priority, const cha
 	return rtos_create_thread_with_affinity(thread, 0, priority, name, function, stack_size, arg);
 }
 
+bk_err_t rtos_create_thread_static(beken_thread_t* thread, 
+                                   uint8_t priority, 
+                                   const char* name,
+                                   beken_thread_function_t function, 
+                                   uint32_t stack_size, 
+                                   beken_thread_arg_t arg,
+                                   void * const TaskStackBuffer,
+                                   void * const TaskTCBBuffer,
+                                   uint32_t core_id )
+{
+    if ((core_id != 0) && (core_id != 1)) {
+        core_id = tskNO_AFFINITY;
+    }
+    thread =  (beken_thread_t* )xTaskCreateStaticPinnedToCore( function,
+                                                                name,
+                                                                stack_size,
+                                                                arg,
+                                                                priority,
+                                                                (StackType_t * const)TaskStackBuffer,
+                                                                (StaticTask_t * const)TaskTCBBuffer,
+                                                                core_id );
+     if(thread != NULL )
+     {
+        return pdPASS;
+     }
+     else
+     {
+        return pdFAIL;
+     }
+}
+
 
 bk_err_t rtos_smp_create_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
