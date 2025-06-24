@@ -170,7 +170,7 @@ bk_err_t bk_psram_id_auto_detect(void)
 
 	if (ret != 8)
 	{
-		PSRAM_LOGW("%s, %d ret:%d read error\r\n", __func__, sizeof(psram_flash_t), ret);
+		PSRAM_LOGI("Auto detect:No PSRAM_CHIP_ID INFO, ret:%d\r\n", ret);
 	}
 
 	if (s_psram_id.magic_code == PSRAM_CHECK_FLAG)
