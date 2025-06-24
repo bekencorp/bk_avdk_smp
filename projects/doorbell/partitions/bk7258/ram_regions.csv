@@ -4,8 +4,8 @@
 PSRAM_CAPCAITY_SIZE=8M
 #Name,                   Type,     Offset,     Size
 AP_SPINLOCK,             SRAM, 0x28000000, 0x010000
+HARDWARE_ACC,            SRAM,           , 0x01b000
 AP_RAM,                  SRAM,           , 0x040000
-SRAM_BT,                 SRAM,           , 0x01b000
 CP_RAM,                  SRAM,           , 0x034800
 SWAP,                    SRAM,           , 0x000800
 PSRAM_MEM_SLAB_USER,    PSRAM, 0x60000000, 0x019000

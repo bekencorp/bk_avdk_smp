@@ -54,7 +54,7 @@ MEMORY
   RAM (rwx)             : ORIGIN = CONFIG_AP_RAM_ADDR, LENGTH = CONFIG_AP_RAM_SIZE
   SWAP (rwx)            : ORIGIN = CONFIG_SWAP_ADDR, LENGTH = CONFIG_SWAP_SIZE
 #if (CONFIG_BT_REUSE_MEDIA_MEMORY)
-  SRAM_BT (rwx)         : ORIGIN = CONFIG_SRAM_BT_ADDR, LENGTH = CONFIG_SRAM_BT_SIZE
+  HARDWARE_ACC (rwx)         : ORIGIN = CONFIG_HARDWARE_ACC_ADDR, LENGTH = CONFIG_HARDWARE_ACC_SIZE
 #endif
 
 #if (CONFIG_SOC_SMP)
@@ -227,16 +227,15 @@ SECTIONS
     } > FLASH
 
 #if (CONFIG_BT_REUSE_MEDIA_MEMORY)
-    .sram_bt (NOLOAD):
+    .hardware_acc (NOLOAD):
     {
         . = ALIGN(32);
-        PROVIDE(_bt_data_lmastart = LOADADDR(.sram_bt));
         _bt_data_start = .;
         KEEP(*(.bt_spec_data ))
         KEEP(*(.ble_bss_data ))
         . = ALIGN(4);
         _bt_data_end = .;
-    } > SRAM_BT AT > FLASH
+    } > HARDWARE_ACC AT > FLASH
 #endif
 
 #if (CONFIG_SOC_SMP)
