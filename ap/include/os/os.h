@@ -242,8 +242,6 @@ bk_err_t rtos_create_psram_thread(beken_thread_t *thread, uint8_t priority, cons
 
 /** @brief Creates and starts a new thread,the task will be dynamically created in sram(default)
   *         
-  * @note  Do not call this API when interrupts are disabled (may cause the system
-  *        to enter a deadlock or abnormal status)
   *
   * @param thread     : Pointer to variable that will receive the thread handle (can be null)
   * @param priority   : A priority number. The adaptation layer uniformly managers priorities.
@@ -261,6 +259,38 @@ bk_err_t rtos_create_psram_thread(beken_thread_t *thread, uint8_t priority, cons
   */
 bk_err_t rtos_create_thread(beken_thread_t *thread, uint8_t priority, const char *name, beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg);
 
+
+/** @brief Creates and starts a new thread,the task will be static created in sram(default)
+  *         
+  *
+  * @param thread     : Pointer to variable that will receive the thread handle (can be null)
+  * @param priority   : A priority number. The adaptation layer uniformly managers priorities.
+  *                     For the application layer,the lower the configured number,the higher 
+  *                     the task priority.Currently supports ten priority levels from 0 to 9.
+  *                     recommended that the application layer use priorities from 6 to 8.                     
+  * @param name       : a text name for the thread (can be null)
+  * @param function   : the main thread function
+  * @param stack_size : stack size for this thread,size is in bytes,for example if the stack_size
+  *                     is  defined as 2048,then 2048bytes will be allocated for stack storage.
+  * @param arg        : argument which will be passed to thread function
+  * @param TaskStackBuffer : Must point to a variable of type StaticTask_t, which will
+  *                          then be used to hold the task's data structures,
+  * @param TaskTCBBuffer : Must point to a variable of type StaticTask_t, which will
+  *                       then be used to hold the task's data structures,
+  * @param core_id : Specify which core a task is bound to,the value can be 0/1 or 0xFFFFFFFF
+  *
+  * @return    kNoErr          : on success.
+  * @return    kGeneralErr     : if an error occurred
+  */
+bk_err_t rtos_create_thread_static(beken_thread_t* thread, 
+                                   uint8_t priority, 
+                                   const char* name,
+                                   beken_thread_function_t function, 
+                                   uint32_t stack_size, 
+                                   beken_thread_arg_t arg,
+                                   void * const TaskStackBuffer,
+                                   void * const TaskTCBBuffer,
+                                   uint32_t core_id );
 
 /** @brief   Deletes a terminated thread
   *
