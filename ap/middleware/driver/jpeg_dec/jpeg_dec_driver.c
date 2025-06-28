@@ -21,9 +21,6 @@
 #include <driver/gpio.h>
 #include "gpio_map.h"
 #include <driver/int.h>
-#include "dma_hal.h"
-#include <driver/dma.h>
-//#include "dma_driver.h"
 #include "sys_driver.h"
 #include "jpeg_dec_macro_def.h"
 #include "jpeg_dec_ll_macro_def.h"
@@ -32,7 +29,6 @@
 #include "driver/jpeg_dec_types.h"
 #include <driver/hal/hal_jpeg_dec_types.h>
 #include <modules/pm.h>
-#include "bk_general_dma.h"
 #include <soc/mapping.h>
 #include <driver/media_types.h>
 #include "bk_misc.h"
@@ -131,9 +127,7 @@ bk_err_t bk_jpec_dec_int_en(jpeg_dec_isr_type_t isr_id, bool en)
 	}
 	else if (isr_id == DEC_ERR)
 	{
-#if CONFIG_SOC_BK7236XX
 		jpeg_dec_ll_set_reg0x5e_dec_huf_err_int(en);
-#endif
 	}
 	else
 	{
@@ -197,25 +191,22 @@ bk_err_t bk_jpeg_dec_stop(void)
 
 bk_err_t bk_jpeg_dec_out_format(pixel_format_t   pixel_fmt)
 {
-#if CONFIG_SOC_BK7236XX
-		switch (pixel_fmt)
-		{
-			case PIXEL_FMT_YUYV:
-				jpeg_dec_ll_set_reg0x50_out_fmt(0);
-				break;
-			case PIXEL_FMT_YYUV:
-				jpeg_dec_ll_set_reg0x50_out_fmt(3);
-				break;
-			
-			case PIXEL_FMT_VYUY:
-				jpeg_dec_ll_set_reg0x50_out_fmt(2);//vy1uy0
-				break;
-			case PIXEL_FMT_VUYY:
-			default:
-				jpeg_dec_ll_set_reg0x50_out_fmt(1);
-				break;
-		}
-#endif
+	switch (pixel_fmt)
+	{
+		case PIXEL_FMT_YUYV:
+			jpeg_dec_ll_set_reg0x50_out_fmt(0);
+			break;
+		case PIXEL_FMT_YYUV:
+			jpeg_dec_ll_set_reg0x50_out_fmt(3);
+			break;
+		case PIXEL_FMT_VYUY:
+			jpeg_dec_ll_set_reg0x50_out_fmt(2);//vy1uy0
+			break;
+		case PIXEL_FMT_VUYY:
+		default:
+			jpeg_dec_ll_set_reg0x50_out_fmt(1);
+			break;
+	}
 	return BK_OK;
 }
 
@@ -240,11 +231,9 @@ bk_err_t bk_jpeg_dec_isr_register(jpeg_dec_isr_type_t isr_id, jpeg_dec_isr_cb_t 
 	}
 	else
 	{
-#if CONFIG_SOC_BK7236XX
 		jpeg_dec_ll_set_reg0x5e_dec_huf_err_int(1);
 
 		s_jpeg_dec_isr[DEC_ERR] = cb_isr;
-#endif
 	}
 
 	return BK_OK;
@@ -305,7 +294,6 @@ static void jpeg_decoder_isr(void)
 	result.pixel_x = image_ppi >> 16;
 	result.pixel_y = image_ppi & 0xFFFF;
 
-#if CONFIG_SOC_BK7236XX  //enable huf err int
 	if(jpeg_dec_ll_get_reg0x5f_dec_huf_err_int_clr())
 	{
 		LOGI("%s int status = %x \r\n", __func__, jpeg_dec_hal_get_int_status_value());
@@ -323,33 +311,13 @@ static void jpeg_decoder_isr(void)
 		result.ok = false;
 		return;
 	}
-#endif
 
-	if (jpeg_dec_ll_get_reg0x5f_dec_frame_int_clr()) 
+	if (jpeg_dec_ll_get_reg0x5f_dec_frame_int_clr())
 	{
 		if (jpeg_dec_hal_get_jpeg_dec_linen())  //enable line num en
 		{
 			if (jpeg_dec_hal_get_mcu_index() == 0) //last line
 			{
-#if CONFIG_SOC_BK7256
-				register uint32_t rd_cnt = jpeg_dec_hal_get_master_rd_cnt();
-				register uint32_t base_raddr = jpeg_dec_hal_get_base_raddr();
-				register uint8_t dri = *((uint8_t *)(base_raddr + rd_cnt));
-				if (dri == 0xff)
-				{
-					dri = *((uint8_t *)(base_raddr + rd_cnt + 1));
-					if ((dri == 0xD0) || (dri == 0xD1) || (dri == 0xD2) || (dri == 0xD3) || (dri == 0xD4) || (dri == 0xD5) || (dri == 0xD6) || (dri == 0xD7))
-					{
-						dri = *(uint8_t *)(base_raddr + rd_cnt + 2);
-						if ((dri == 0xD0) || (dri == 0xD1) || (dri == 0xD2) || (dri == 0xD3) || (dri == 0xD4) || (dri == 0xD5) || (dri == 0xD6) || (dri == 0xD7) || (dri == 0x00))
-						{
-							bk_jpeg_dec_stop();
-							return;
-						}
-					}
-				}
-#endif
-
 #if (CONFIG_JPEGDEC_HW_SUPPORT_FFD9_CHECK)
 			// extern  void delay(int num);
 			while(jpeg_dec_ll_get_reg0xd_state_dec_busy())
@@ -373,41 +341,18 @@ static void jpeg_decoder_isr(void)
 #endif
 				bk_jpeg_dec_stop();
 				if (s_jpeg_dec_isr[DEC_EVERY_LINE_INT])
-				s_jpeg_dec_isr[DEC_EVERY_LINE_INT](&result);
+					s_jpeg_dec_isr[DEC_EVERY_LINE_INT](&result);
 			}
 			else
 			{
 				jpeg_dec_hal_set_dec_frame_int_clr(1);
-#if CONFIG_SOC_BK7256
-				register uint32_t rd_cnt = jpeg_dec_hal_get_master_rd_cnt();
-				register uint32_t base_raddr = jpeg_dec_hal_get_base_raddr();
-				register uint8_t dri = *(uint8_t *)(base_raddr + rd_cnt);
-				if (dri == 0xff)
-				{
-					dri = *((uint8_t *)(base_raddr + rd_cnt + 1));
-					if ((dri == 0xD0) || (dri == 0xD1) || (dri == 0xD2) || (dri == 0xD3) || (dri == 0xD4) || (dri == 0xD5) || (dri == 0xD6) || (dri == 0xD7))
-					{
-						dri = *(uint8_t *)(base_raddr + rd_cnt + 2);
-						if ((dri == 0xD0) || (dri == 0xD1) || (dri == 0xD2) || (dri == 0xD3) || (dri == 0xD4) || (dri == 0xD5) || (dri == 0xD6) || (dri == 0xD7) || (dri == 0x00))
-						{
-							bk_jpeg_dec_stop();
-							return;
-						}
-					}
-				}
-#endif
-
 				result.ok = true;
 				if (s_jpeg_dec_isr[DEC_EVERY_LINE_INT]) 
 					s_jpeg_dec_isr[DEC_EVERY_LINE_INT](&result);
-				//jpeg_dec_hal_set_dec_cmd(JPEGDEC_START);
-				
 			}
-			//jpeg_dec_hal_set_dec_frame_int_clr(1);
 		}
 		else
 		{
-
 #if (!CONFIG_JPEGDEC_HW_SUPPORT_FFD9_CHECK)
 			result.size = jpeg_dec_ll_get_reg0x5d_value();
 #ifdef JPEG_DEC_STRIP
@@ -431,8 +376,6 @@ static void jpeg_decoder_isr(void)
 	}
 }
 
-
-
 #else
 bk_err_t  bk_jpeg_dec_isr_register(jpeg_dec_isr_t jpeg_dec_isr)
 {
@@ -440,6 +383,3 @@ bk_err_t  bk_jpeg_dec_isr_register(jpeg_dec_isr_t jpeg_dec_isr)
 	return BK_OK;
 }
 #endif
-
-
-
