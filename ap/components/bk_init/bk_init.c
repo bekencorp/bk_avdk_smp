@@ -60,13 +60,13 @@ extern void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val);
 #endif
 #endif
 
-#if defined(CONFIG_WIFI_AT_ENABLE) && defined(CONFIG_WIFI_ENABLE) 
+#if defined(CONFIG_WIFI_AT_ENABLE) && defined(CONFIG_WIFI_ENABLE)
 #include "wifi_at.h"
 #endif
-#if defined(CONFIG_BT_AT_ENABLE) && defined(CONFIG_BT) 
+#if defined(CONFIG_BT_AT_ENABLE) && defined(CONFIG_BT)
 #include "bk_at_bluetooth.h"
 #endif
-#if defined(CONFIG_NETIF_AT_ENABLE) && defined(CONFIG_WIFI_ENABLE) 
+#if defined(CONFIG_NETIF_AT_ENABLE) && defined(CONFIG_WIFI_ENABLE)
 #include "bk_at_netif.h"
 
 
@@ -146,7 +146,7 @@ static int app_wifi_init(void)
 #if CONFIG_WIFI_AT_ENABLE
 	wifi_at_cmd_init();
 #endif
-#if CONFIG_NETIF_AT_ENABLE 
+#if CONFIG_NETIF_AT_ENABLE
 	netif_at_cmd_init();
 #endif
 
@@ -170,7 +170,7 @@ static int app_bt_init(void)
 	if (!ate_is_enabled())
 		bt_activate(NULL);
 #endif
-#if (CONFIG_BT_AT_ENABLE) 
+#if (CONFIG_BT_AT_ENABLE)
 	bt_at_cmd_init();
 #endif
 
@@ -271,6 +271,7 @@ int components_init(void);
 int bk_init(void)
 {
     set_ap_startup_index(AP_ENTER_BK_INIT);
+
 	components_init();
 
 	BK_LOGI(TAG, "armino app init: %s\n", build_version);
@@ -285,19 +286,17 @@ int bk_init(void)
 	vnd_cal_overlay();
 #endif
 
-	bk_pm_mailbox_init();
-
 	app_cli_init();
 
 	bk_event_init();
 
-#if CONFIG_AT 
+#if CONFIG_AT
     set_ap_startup_index(AP_ENTER_AT_SERVER_INIT);
 	at_server_init();
 
 	extern int atsvr_app_init(void);
 	if(0 != atsvr_app_init())
-		return -1;	
+		return -1;
 	extern void wifi_at_cmd_init(void);
 	wifi_at_cmd_init();
     set_ap_startup_index(AP_EXIT_AT_SERVER);

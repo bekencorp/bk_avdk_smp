@@ -22,6 +22,7 @@
 #include "bk_drv_model.h"
 #include <components/ate.h>
 #include <driver/wdt.h>
+#include <driver/pwr_clk.h>
 #include "bk_wdt.h"
 #include <common/sys_config.h>
 #include "release.h"
@@ -286,6 +287,8 @@ int components_early_init(void)
 
 	bandgap_init();
 	random_init();
+
+	bk_pm_mailbox_init();
 
 	bk_stack_guard_setup();
     set_ap_startup_index(AP_EXIT_COMPONTENT_EARLY_INIT);
