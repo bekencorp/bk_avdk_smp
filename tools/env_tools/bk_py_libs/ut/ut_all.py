@@ -6,12 +6,10 @@ from pathlib import Path
 
 def set_logging():
     log_format = "[%(name)s|%(levelname)s] %(message)s"
-    # 设置默认打印等级
     logging.basicConfig(format=log_format, level=logging.INFO)
 
 
-def TestMain():
-    """通过默认加载器"""
+def TestMain() -> bool:
     suite = unittest.TestSuite()
     loader = unittest.TestLoader()
     currPath = Path(__file__).resolve().parent
@@ -22,14 +20,19 @@ def TestMain():
             suite.addTests(discovered_tests)
 
     runner = unittest.TextTestRunner(verbosity=1)
-    runner.run(suite)
+    ret = runner.run(suite)
+    return ret.wasSuccessful()
 
 
-if __name__ == "__main__":
-    set_logging()
+def test_py_libs() -> bool:
     currPath = Path(__file__).resolve().parent
     packagePath = currPath
     sys.path.append(str(packagePath))
     packagePath = currPath.parent
     sys.path.append(str(packagePath))
-    TestMain()
+    return TestMain()
+
+
+if __name__ == "__main__":
+    set_logging()
+    test_py_libs()
