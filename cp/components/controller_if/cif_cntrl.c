@@ -127,66 +127,6 @@ bk_err_t cif_bk_send_event(uint16_t event_id, uint8_t *event_data, uint16_t even
 
     return BK_OK;
 }
-int32_t bluetooth_controller_init_api(void)
-{
-    int32_t ret = 0;
-    extern bt_err_t bk_bluetooth_init(void);
-
-    CTRL_IF_CMD("%s\n", __func__);
-
-    if((ret = bk_bluetooth_init()) != 0)
-    {
-        CTRL_IF_CMD("bk_bluetooth_init err %d\n", __func__, ret);
-
-        return -1;
-    }
-
-#if 0//CONFIG_BTDM_CONTROLLER_ONLY
-    bluetooth_uart_controller_only_config_t config =
-    {
-        .uart_id = UART_ID_2,
-        .band = 115200,
-        .data_bits = 8,
-        .stop_bits = 1,
-        .parity = 0,
-        .flow_ctrl = 0
-    };
-
-    return bk_ble_enable_uart_controller_only(1, &config);
-#else
-    return ret;
-#endif
-}
-
-int32_t bluetooth_controller_deinit_api(void)
-{
-    extern bt_err_t bk_bluetooth_deinit(void);
-
-    CTRL_IF_CMD("%s\n", __func__);
-    return bk_bluetooth_deinit();
-}
-
-bk_err_t cif_handle_bk_cmd_start_bluetooth_req(struct bk_msg_hdr *msg)
-{
-    int32_t ret = 0;
-
-    CTRL_IF_CMD("%s\n",__func__);
-    ret = bluetooth_controller_init_api();
-    cif_bk_cmd_confirm(msg, NULL, 0);
-
-    return ret;
-}
-
-bk_err_t cif_handle_bk_cmd_stop_bluetooth_req(struct bk_msg_hdr *msg)
-{
-    int32_t ret = 0;
-
-    CTRL_IF_CMD("%s\n",__func__);
-    ret = bluetooth_controller_deinit_api();
-    cif_bk_cmd_confirm(msg, NULL, 0);
-    return ret;
-}
-
 bk_err_t cif_handle_bk_cmd_connect_req(struct bk_msg_hdr *msg)
 {
     struct bk_msg_connect_req *req = (struct bk_msg_connect_req*) (msg + 1);
@@ -856,16 +796,6 @@ bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
         case BK_CMD_CUSTOMER_DATA:
         {
             ret = cif_handle_bk_cmd_customer_data_req(msg);
-            break;
-        }
-        case BK_CMD_OPEN_BLE:
-        {
-            ret = cif_handle_bk_cmd_start_bluetooth_req(msg);
-            break;
-        }
-        case BK_CMD_CLOSE_BLE:
-        {
-            ret = cif_handle_bk_cmd_stop_bluetooth_req(msg);
             break;
         }
         case BK_CMD_WIFI_MMD_CONFIG:

@@ -105,10 +105,6 @@ enum BK_CMD_TYPE
     BK_CMD_GET_STAIPUP         = 0x12,
     BK_CMD_GET_APIPUP          = 0x13,
 
-    // BLE command
-    BK_CMD_OPEN_BLE            = 0x101,
-    BK_CMD_CLOSE_BLE           = 0x102,
-
     //Debug info section
     BK_INTERFACE_DEBUG_CMD     = 0x110,
 
