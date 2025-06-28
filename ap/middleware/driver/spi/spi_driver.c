@@ -57,6 +57,7 @@ typedef struct {
 	beken_semaphore_t rx_sema;
 	dma_id_t spi_tx_dma_chan;
 	dma_id_t spi_rx_dma_chan;
+	bool dma_inited;
 #if CONFIG_SPI_PM_CB_SUPPORT
 	uint32_t pm_backup[SPI_PM_BACKUP_REG_NUM];
 	uint8_t pm_backup_is_valid;
@@ -67,16 +68,6 @@ typedef struct {
 	spi_isr_t callback;
 	void *param;
 } spi_callback_t;
-
-#if CONFIG_SPI_DMA
-typedef struct {
-    dma_id_t tx_dma_chan;
-    dma_id_t rx_dma_chan;
-    bool     inited;
-} spi_dma_info_t;
-
-static spi_dma_info_t s_spi_dma_info = {0};
-#endif
 
 #define SPI_RETURN_ON_NOT_INIT() do {\
 	if (!s_spi_driver_is_init) {\
@@ -412,8 +403,6 @@ static void spi_dma_tx_init(spi_id_t id, dma_id_t spi_tx_dma_chan, dma_data_widt
 	dma_config_t dma_config = {0};
 	spi_int_config_t int_cfg_table[] = SPI_INT_CONFIG_TABLE;
 
-	s_spi[id].spi_tx_dma_chan = spi_tx_dma_chan;
-
 	dma_config.mode = DMA_WORK_MODE_SINGLE;
 	dma_config.chan_prio = 0;
 	dma_config.src.dev = DMA_DEV_DTCM;
@@ -437,8 +426,6 @@ static void spi_dma_rx_init(spi_id_t id, dma_id_t spi_rx_dma_chan, dma_data_widt
 {
 	dma_config_t dma_config = {0};
 	spi_int_config_t int_cfg_table[] = SPI_RX_INT_CONFIG_TABLE;
-
-	s_spi[id].spi_rx_dma_chan = spi_rx_dma_chan;
 
 	dma_config.mode = DMA_WORK_MODE_SINGLE;
 	dma_config.chan_prio = 0;
@@ -570,18 +557,19 @@ bk_err_t bk_spi_init(spi_id_t id, const spi_config_t *config)
 	spi_hal_configure(&s_spi[id].hal, config);
 	spi_hal_start_common(&s_spi[id].hal);
 #if (CONFIG_SPI_DMA)
-	if (!s_spi_dma_info.inited) {
-		s_spi_dma_info.tx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0 + id * 2);
-		s_spi_dma_info.rx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0_RX + id * 2);
-		s_spi_dma_info.inited = true;
+	if (!s_spi[id].dma_inited) {
+		s_spi[id].spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0 + id * 2);
+		s_spi[id].spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0_RX + id * 2);
+
+		s_spi[id].dma_inited = true;
 	}
 
 	if (config->dma_mode) {
 #if (!CONFIG_SYSTEM_CTRL)
 		gpio_spi_sel(GPIO_SPI_MAP_MODE0);
 #endif
-		spi_dma_tx_init(id, config->spi_tx_dma_chan, config->spi_tx_dma_width);
-		spi_dma_rx_init(id, config->spi_rx_dma_chan, config->spi_rx_dma_width);
+		spi_dma_tx_init(id, s_spi[id].spi_tx_dma_chan, config->spi_tx_dma_width);
+		spi_dma_rx_init(id, s_spi[id].spi_rx_dma_chan, config->spi_rx_dma_width);
 	}
 #endif
 
@@ -594,16 +582,16 @@ bk_err_t bk_spi_deinit(spi_id_t id)
 	SPI_RETURN_ON_INVALID_ID(id);
 
 #if CONFIG_SPI_DMA
-    if (s_spi_dma_info.inited) {
-        if (s_spi_dma_info.tx_dma_chan != DMA_ID_MAX) {
-            BK_LOG_ON_ERR(bk_dma_free(DMA_DEV_GSPI0 + id * 2, s_spi_dma_info.tx_dma_chan));
-            s_spi_dma_info.tx_dma_chan = DMA_ID_MAX;
+    if (s_spi[id].dma_inited) {
+        if (s_spi[id].spi_tx_dma_chan != DMA_ID_MAX) {
+            BK_LOG_ON_ERR(bk_dma_free(DMA_DEV_GSPI0 + id * 2, s_spi[id].spi_tx_dma_chan));
+            s_spi[id].spi_tx_dma_chan = DMA_ID_MAX;
         }
-        if (s_spi_dma_info.rx_dma_chan != DMA_ID_MAX) {
-            BK_LOG_ON_ERR(bk_dma_free(DMA_DEV_GSPI0_RX + id * 2, s_spi_dma_info.rx_dma_chan));
-            s_spi_dma_info.rx_dma_chan = DMA_ID_MAX;
+        if (s_spi[id].spi_rx_dma_chan != DMA_ID_MAX) {
+            BK_LOG_ON_ERR(bk_dma_free(DMA_DEV_GSPI0_RX + id * 2, s_spi[id].spi_rx_dma_chan));
+            s_spi[id].spi_rx_dma_chan = DMA_ID_MAX;
         }
-        s_spi_dma_info.inited = false;
+        s_spi[id].dma_inited = false;
     }
 #endif
 
@@ -988,16 +976,22 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 			bk_dma_set_src_start_addr(s_spi[id].spi_tx_dma_chan,((uint32_t)tx_data + offset));
 			bk_dma_set_transfer_len(s_spi[id].spi_tx_dma_chan,tx_size);
 		}
-		spi_exit_critical(int_level);
 
 		if(tx_data) {
 			bk_dma_start(s_spi[id].spi_tx_dma_chan);
-			spi_hal_enable_tx(&s_spi[id].hal);
 		}
 		if(rx_data) {
 			bk_dma_start(s_spi[id].spi_rx_dma_chan);
+		}
+
+		if(tx_data) {
+			spi_hal_enable_tx(&s_spi[id].hal);
+		}
+		if(rx_data) {
 			spi_hal_enable_rx(&s_spi[id].hal);
 		}
+		spi_exit_critical(int_level);
+
 		if(tx_data) {
 			rtos_get_semaphore(&s_spi[id].tx_sema, BEKEN_NEVER_TIMEOUT);
 		}
