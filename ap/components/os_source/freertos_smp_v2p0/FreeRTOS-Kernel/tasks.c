@@ -2539,6 +2539,27 @@ BaseType_t xTaskResumeAll( void )
 	                    {
 	                        do
 	                        {
+                                const TickType_t xConstTickCount = xTickCount;
+                                const TickType_t xConstTickNext = xConstTickCount + xPendedCounts;
+
+                                /* Correct the tick count value after a period during which the tick
+                                * was suppressed.  Note this does *not* call the tick hook function for
+                                * each stepped tick. */
+                                if ( xConstTickNext > xConstTickCount )
+                                {
+                                    xTickCount = xConstTickNext - 1;
+                                    xPendedCounts = 0;
+                                }
+                                else  /* xTickCount wrap around. */
+                                {
+                                    if(xTickCount == portMAX_DELAY)
+                                        xPendedCounts--;
+                                    else
+                                    {
+                                        xTickCount = portMAX_DELAY - 1;
+                                        xPendedCounts = xConstTickNext + 1;
+                                    }
+                                }
 	                            if( xTaskIncrementTick() != pdFALSE )
 	                            {
 	                                xYieldPending[ xCurCoreID ] = pdTRUE;
@@ -2548,7 +2569,6 @@ BaseType_t xTaskResumeAll( void )
 	                                mtCOVERAGE_TEST_MARKER();
 	                            }
 
-	                            --xPendedCounts;
 	                        } while( xPendedCounts > ( TickType_t ) 0U );
 
 	                        xPendedTicks = 0;
@@ -4259,25 +4279,27 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
                     /* Now the scheduler is suspended, the expected idle
                      * time can be sampled again, and this time its value can
                      * be used. */
-                    configASSERT( xNextTaskUnblockTime >= xTickCount );
-                    xExpectedIdleTime = prvGetExpectedIdleTime();
+                    if(xPendedTicks) {    //xPendedTicks, no needs to enter sleep.(Maybe after vTaskSuspendAll, xTaskCatchUpTicks or vTaskStepTick is called in ISR)
+                        ;
+                    } else {
+                        configASSERT( xNextTaskUnblockTime >= xTickCount );
+                        xExpectedIdleTime = prvGetExpectedIdleTime();
 
-                    /* Define the following macro to set xExpectedIdleTime to 0
-                     * if the application does not want
-                     * portSUPPRESS_TICKS_AND_SLEEP() to be called. */
-                    configPRE_SUPPRESS_TICKS_AND_SLEEP_PROCESSING( xExpectedIdleTime );
+                        /* Define the following macro to set xExpectedIdleTime to 0
+                         * if the application does not want
+                         * portSUPPRESS_TICKS_AND_SLEEP() to be called. */
+                        configPRE_SUPPRESS_TICKS_AND_SLEEP_PROCESSING( xExpectedIdleTime );
 
-                    if( xExpectedIdleTime >= configEXPECTED_IDLE_TIME_BEFORE_SLEEP )
-                    {
-                        traceLOW_POWER_IDLE_BEGIN();
-
-                        portSUPPRESS_TICKS_AND_SLEEP( xExpectedIdleTime );
-
-                        traceLOW_POWER_IDLE_END();
-                    }
-                    else
-                    {
-                        mtCOVERAGE_TEST_MARKER();
+                        if( xExpectedIdleTime >= configEXPECTED_IDLE_TIME_BEFORE_SLEEP )
+                        {
+                            traceLOW_POWER_IDLE_BEGIN();
+                            portSUPPRESS_TICKS_AND_SLEEP( xExpectedIdleTime );
+                            traceLOW_POWER_IDLE_END();
+                        }
+                        else
+                        {
+                            mtCOVERAGE_TEST_MARKER();
+                        }
                     }
                 }
                 ( void )xTaskResumeAll();

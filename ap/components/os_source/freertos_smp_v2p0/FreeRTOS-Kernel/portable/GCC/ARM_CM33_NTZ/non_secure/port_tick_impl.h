@@ -41,11 +41,11 @@ void rtos_init_base_time(void) {
 #endif
 }
 
-uint32_t rtos_get_time_diff(beken_time_t cur_os_time) {
+uint32_t rtos_get_time_diff(void) {
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	//uint64_t cur_aon_time = bk_aon_rtc_get_us()/1000;
 	uint64_t cur_aon_time = bk_aon_rtc_get_ms();
-
+	uint32_t cur_os_time = rtos_get_time(); //ms
 	uint64_t diff_time = (cur_aon_time - base_aon_time); //ms
 	uint32_t diff_ms = 0;
 
@@ -143,7 +143,7 @@ void dump_os_tick_info(void)
 static inline void systick_gated_update(TickType_t xExpectedIdleTime, uint32_t ulReloadValue)
 {
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
-	TickType_t slept_ticks = rtos_get_time_diff(rtos_get_time());
+	TickType_t slept_ticks = rtos_get_time_diff();
 
 	/* Remember current enabled SysTick per Core */
 	//ulNormalSysTickEnabled |= 1 << portGET_CORE_ID();

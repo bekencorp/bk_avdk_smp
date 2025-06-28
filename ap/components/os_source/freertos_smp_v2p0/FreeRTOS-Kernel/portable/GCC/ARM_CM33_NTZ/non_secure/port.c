@@ -252,7 +252,7 @@
  * have occurred while the SysTick counter is stopped during tickless idle
  * calculations.
  */
-#define portMISSED_COUNTS_FACTOR    ( 94UL )
+#define portMISSED_COUNTS_FACTOR    ( 45UL )
 /*-----------------------------------------------------------*/
 
 /**
@@ -451,7 +451,7 @@ PRIVILEGED_DATA static volatile uint32_t ulCriticalNesting = 0xaaaaaaaaUL;
 #define INVALID_PRIMARY_CORE_NUM 0xffu
     /* The primary core number (the own which has the SysTick handler) */
     static uint8_t ucPrimaryCoreNum = INVALID_PRIMARY_CORE_NUM;
-extern uint32_t rtos_get_time_diff(beken_time_t cur_os_time);
+extern uint32_t rtos_get_time_diff(void);
 #if ( configUSE_TICKLESS_IDLE == 1 )
     __attribute__( ( weak ) ) void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
     {
@@ -660,8 +660,10 @@ extern uint32_t rtos_get_time_diff(beken_time_t cur_os_time);
             #endif /* portNVIC_SYSTICK_CLK_BIT_CONFIG */
 
             /* Step the tick to account for any tick periods that elapsed. */
-            vTaskStepTick( ulCompleteTickPeriods );
-
+            BaseType_t xCoreID = portGET_CORE_ID();   
+            if (xCoreID == CPU0_CORE_ID) {
+                vTaskStepTick( ulCompleteTickPeriods );
+            }
             /* Exit with interrupts enabled. */
             __asm volatile ( "cpsie i" ::: "memory" );
         }
@@ -853,8 +855,6 @@ void SysTick_Handler( void ) /* PRIVILEGED_FUNCTION */
     uint32_t ulPreviousMask;
     BaseType_t xCoreID = portGET_CORE_ID();
 
-    int pending = 0;
-
 	//other cores
     if (xCoreID != ucPrimaryCoreNum)
     {
@@ -870,30 +870,22 @@ void SysTick_Handler( void ) /* PRIVILEGED_FUNCTION */
 	{
 #if ( configUSE_TICKLESS_IDLE >= 1 )
         /* OS tick aligned with AON timer */
-        int tick_diff = rtos_get_time_diff((xTaskGetTickCount() + __xTaskGetxPendedTicks()) * bk_get_ms_per_tick());
+        int tick_diff = rtos_get_time_diff();
 #else
 		int tick_diff = 1;
 #endif
 
-        // align with AON timer
-        while (tick_diff)
-        {
-            /* Increment the RTOS tick. */
-            if( xTaskIncrementTick() != pdFALSE )
-            {
-                /* Pend a context switch. */
-                pending = 1;
-            }
-            tick_diff--;
+        if(tick_diff > 5) {
+            vTaskStepTick(tick_diff - 1);
         }
-
-		//yield?
-        if (pending)
+		
+		/* Increment the RTOS tick. */
+        if( xTaskIncrementTick() != pdFALSE )
         {
+            /* Pend a context switch. */
             portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
         }
-	}
-
+    }
     portCLEAR_INTERRUPT_MASK_FROM_ISR( ulPreviousMask );
 }
 
