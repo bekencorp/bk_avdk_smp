@@ -24,13 +24,14 @@
 #include <driver/gpio.h>
 #include <driver/h264.h>
 #include <driver/yuv_buf.h>
-#include <driver/aon_rtc.h>
+
 #include <driver/dvp_camera.h>
 
 #include "bk_misc.h"
 #include "gpio_driver.h"
 #include <driver/video_common_driver.h>
 #include "avdk_crc.h"
+#include "media_utils.h"
 
 #define TAG "dvp_drv"
 
@@ -707,7 +708,7 @@ static void dvp_camera_yuv_eof_handler(yuv_buf_unit_t id, void *param)
     uint32_t size = handle->config.width * handle->config.height * 2;
 
     handle->yuv_frame->sequence = handle->frame_id++;
-    handle->yuv_frame->timestamp = media_get_current_timer();
+    handle->yuv_frame->timestamp = get_current_timestamp();
 
     new_yuv = handle->callback.frame_malloc(IMAGE_YUV, handle->yuv_stream, size);
     if (new_yuv)
@@ -778,7 +779,7 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
     }
 
     handle->dma_length = 0;
-    handle->encode_frame->timestamp = media_get_current_timer();
+    handle->encode_frame->timestamp = get_current_timestamp();
 
     for (uint32_t i = real_length; i > real_length - 10; i--)
     {
@@ -844,7 +845,7 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
         yuv_config->yuv_data_offset = 0;
         bk_dma_flush_src_buffer(yuv_config->dma_collect_yuv);
         handle->yuv_frame->sequence = handle->frame_id - 1;
-        handle->yuv_frame->timestamp = media_get_current_timer();
+        handle->yuv_frame->timestamp = get_current_timestamp();
         LOGD("%s, ppi:%d-%d, length:%d, fmt:%d, seq:%d, %p\r\n", __func__, handle->yuv_frame->width,
             handle->yuv_frame->height, handle->yuv_frame->length,
             handle->yuv_frame->fmt, handle->yuv_frame->sequence, handle->yuv_frame);
@@ -971,7 +972,7 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
 
 
     handle->encode_frame->length = real_length;
-    handle->encode_frame->timestamp = media_get_current_timer();
+    handle->encode_frame->timestamp = get_current_timestamp();
 
     if (handle->i_frame)
     {
@@ -985,7 +986,7 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
         handle->encode_frame->h264_type |= 1 << H264_NAL_P_FRAME;
     }
 
-    handle->encode_frame->timestamp = media_get_current_timer();
+    handle->encode_frame->timestamp = get_current_timestamp();
 
 #ifdef CONFIG_H264_ADD_SELF_DEFINE_SEI
     handle->encode_frame->crc = hnd_crc8(handle->encode_frame->frame, handle->encode_frame->length, 0xFF);
@@ -1024,7 +1025,7 @@ out:
         handle->yuv_config->yuv_data_offset = 0;
         bk_dma_flush_src_buffer(handle->yuv_config->dma_collect_yuv);
         handle->yuv_frame->sequence =  handle->frame_id - 1;
-        handle->yuv_frame->timestamp = media_get_current_timer();
+        handle->yuv_frame->timestamp = get_current_timestamp();
         LOGD("%s, ppi:%d-%d, length:%d, fmt:%d, seq:%d, %p\r\n", __func__, handle->yuv_frame->width,
             handle->yuv_frame->height, handle->yuv_frame->length,
             handle->yuv_frame->fmt, handle->yuv_frame->sequence, handle->yuv_frame);

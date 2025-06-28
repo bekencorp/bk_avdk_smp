@@ -16,6 +16,7 @@
 #include <os/os.h>
 #include <os/mem.h>
 #include <os/str.h>
+#include "media_utils.h"
 #include "uvc_urb_list.h"
 #include <driver/media_types.h>
 #ifdef CONFIG_FREERTOS_SMP

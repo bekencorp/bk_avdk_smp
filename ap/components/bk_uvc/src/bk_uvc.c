@@ -3,6 +3,7 @@
 #include "uvc_stream_list.h"
 #include <modules/pm.h>
 #include <components/cherryusb/usb_errno.h>
+#include "media_utils.h"
 #define TAG "uvc_stream"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -1043,7 +1044,7 @@ static void uvc_camera_stream_eof_handle(camera_param_t *camera_param, uvc_pro_c
     pro_config->curr_length[index] = curr_frame_buffer->length;
 #endif
 
-    curr_frame_buffer->timestamp = media_get_current_timer();
+    curr_frame_buffer->timestamp = get_current_timestamp();
 
     if (camera_param->info->drop_num > 0)
     {

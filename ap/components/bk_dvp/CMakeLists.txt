@@ -9,7 +9,4 @@ if (CONFIG_DVP_CAMERA)
 	)
 endif()
 
-
-#list(APPEND priv_req unity include)
-
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}" media_utils)
