@@ -1411,6 +1411,13 @@ extern unsigned char __psram_data_start__;
 extern unsigned char __psram_data_end__;
 #define PSRAM_DATA_END_ADDRESS ((uint32_t)&__psram_data_end__)
 
+extern unsigned char __psram_bss_start__;
+#define PSRAM_BSS_START_ADDRESS ((uint32_t)&__psram_bss_start__)
+
+extern unsigned char __psram_bss_end__;
+#define PSRAM_BSS_END_ADDRESS ((uint32_t)&__psram_bss_end__)
+
+
 void bk_psram_heap_dump_data(void)
 {
 #if CONFIG_PSRAM_AS_SYS_MEMORY
@@ -1419,6 +1426,11 @@ void bk_psram_heap_dump_data(void)
     if (PSRAM_DATA_END_ADDRESS > PSRAM_DATA_START_ADDRESS)
     {
         stack_mem_dump(PSRAM_DATA_START_ADDRESS, PSRAM_DATA_END_ADDRESS);
+    }
+
+    if (PSRAM_BSS_END_ADDRESS > PSRAM_BSS_START_ADDRESS)
+    {
+        stack_mem_dump(PSRAM_BSS_START_ADDRESS, PSRAM_BSS_END_ADDRESS);
     }
     
 #endif
