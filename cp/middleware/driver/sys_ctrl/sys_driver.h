@@ -12,7 +12,7 @@
 #define SYS_DRV_DEBUG   0
 
 #if SYS_DRV_DEBUG
-#define SYS_DRV_PRT      os_printf
+#define SYS_DRV_PRT(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #else
 #define SYS_DRV_PRT      os_null_printf
 #endif
@@ -22,6 +22,7 @@
 #define SYSTEM_LOGW(...) BK_LOGW(SYSTEM_TAG, ##__VA_ARGS__)
 #define SYSTEM_LOGE(...) BK_LOGE(SYSTEM_TAG, ##__VA_ARGS__)
 #define SYSTEM_LOGD(...) BK_LOGD(SYSTEM_TAG, ##__VA_ARGS__)
+#define SYSTEM_LOGV(...) BK_LOGV(SYSTEM_TAG, ##__VA_ARGS__)
 
 #define SYS_DRV_FAILURE        ((UINT32)-1)
 #define SYS_DRV_SUCCESS        (0)

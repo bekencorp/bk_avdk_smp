@@ -394,7 +394,7 @@ unsigned int irq_lock_debug(const char *func)
 {
     char * current_thread_name = pcTaskGetName(NULL);
 
-    os_printf("%s %s %s\n", __func__, func, current_thread_name);
+    BK_LOGD(NULL,"%s %s %s\n", __func__, func, current_thread_name);
     return irq_lock();
 }
 
@@ -402,7 +402,7 @@ void irq_unlock_debug(unsigned int key, const char *func)
 {
     char * current_thread_name = pcTaskGetName(NULL);
 
-    os_printf("%s %s %s\n", __func__, func, current_thread_name);
+    BK_LOGD(NULL,"%s %s %s\n", __func__, func, current_thread_name);
     return irq_unlock(key);
 }
 
@@ -413,7 +413,8 @@ int Z_WORK_CMP_TIME(uint32_t a, uint32_t b)
 		if((a - b) <= (0xFFFFFFFFU >> 1)){
 			return 1;
 		}else{
-	return 0;
+
+	return 0;
 		}
 	}else{
 		if(b >= (0xFFFFFFFFU >> 1)){

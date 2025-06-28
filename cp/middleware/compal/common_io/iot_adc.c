@@ -406,7 +406,7 @@ int32_t iot_adc_start(IotAdcHandle_t const pxAdc,
       pxAdc->pxAdcCfg->is_open = pdTRUE;
   }
 
-  os_printf("iot_adc_start:ch:%d\n",ucAdcChannel);
+  BK_LOGD(NULL,"iot_adc_start:ch:%d\n",ucAdcChannel);
 
   /* update status */
   pxAdc->ucBusyStatus = pdTRUE;
@@ -419,11 +419,11 @@ int32_t iot_adc_start(IotAdcHandle_t const pxAdc,
 
   /* allocate analog bus */
   bk_adc_enable_bypass_clalibration();
-  os_printf("bk_adc_enable_bypass_clalibration\n");
+  BK_LOGD(NULL,"bk_adc_enable_bypass_clalibration\n");
   bk_adc_start();
-  os_printf("bk_adc_start\n");
+  BK_LOGD(NULL,"bk_adc_start\n");
   bk_adc_en();
-  os_printf("bk_adc_en\n");
+  BK_LOGD(NULL,"bk_adc_en\n");
   /* done */
   return IOT_ADC_SUCCESS;
 }
@@ -541,7 +541,7 @@ int32_t iot_adc_read_sample(IotAdcHandle_t const pxAdc,
     return IOT_ADC_INVALID_VALUE;
   }
 
-  os_printf("desc_ch:%d,ch:%d \n",pxAdc->pxAdcCfg->chan, ucAdcChannel);
+  BK_LOGD(NULL,"desc_ch:%d,ch:%d \n",pxAdc->pxAdcCfg->chan, ucAdcChannel);
 
   /* ucAdcChannel valid? */
   if (BK_OK != bk_adc_is_valid_ch(ucAdcChannel)){
@@ -569,19 +569,19 @@ int32_t iot_adc_read_sample(IotAdcHandle_t const pxAdc,
 
 
   bk_adc_enable_bypass_clalibration();
-  os_printf("bk_adc_enable_bypass_clalibration\n");
+  BK_LOGD(NULL,"bk_adc_enable_bypass_clalibration\n");
   bk_adc_start();
-  os_printf("bk_adc_start\n");
+  BK_LOGD(NULL,"bk_adc_start\n");
   
   /* read samples */  
   if ((NULL == pxAdc->pusBufPtr) || (0 == pxAdc->ucBufMax)) 
   {
-      os_printf("read sample no buf \n");
+      BK_LOGD(NULL,"read sample no buf \n");
       bk_adc_read_raw(pusAdcSample,1,1000);
   }
   else
   {
-      os_printf("read sample to buf \n");
+      BK_LOGD(NULL,"read sample to buf \n");
       bk_adc_read_raw(pxAdc->pusBufPtr,pxAdc->ucBufMax,1000);
   }
   

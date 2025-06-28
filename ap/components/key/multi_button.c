@@ -226,7 +226,7 @@ void button_ticks(void *param1, void *param2)
 	result = rtos_start_oneshot_timer(&g_key_timer);
 	if(kNoErr != result)
 	{
-		os_printf("rtos_start_timer fail\r\n");
+		BK_LOGD(NULL, "rtos_start_timer fail\r\n");
 		return;
 	}
 }

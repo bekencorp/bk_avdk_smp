@@ -157,10 +157,11 @@ static ble_read_phy_t s_ble_phy = {0, 0};
 
 #define TAG  "AT_BLE"
 
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 
 typedef struct
 {
@@ -600,7 +601,7 @@ static uint8_t ble_check_random_bda_is_resolvable(uint8_t *addr, uint8_t addr_ty
     if ((encrypt_data[13] == addr[2]) && (encrypt_data[14] == addr[1]) && (encrypt_data[15] == addr[0]))
     {
         ret = 1;
-        LOGI("the random bda is resolvable!\r\n");
+        LOGD("the random bda is resolvable!\r\n");
     }
 
     mbedtls_aes_free(&aes);
@@ -615,7 +616,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_WRITE_EVENT:
         {
             ble_write_req_t *w_req = (ble_write_req_t *)param;
-            LOGI("write_cb:conn_idx:%d, prf_id:%d, att_idx:%d, len:%d, data[0]:0x%02x\r\n",
+            LOGD("write_cb:conn_idx:%d, prf_id:%d, att_idx:%d, len:%d, data[0]:0x%02x\r\n",
                  w_req->conn_idx, w_req->prf_id, w_req->att_idx, w_req->len, w_req->value[0]);
             //#if (CONFIG_BTDM_5_2)
             if (bk_ble_get_controller_stack_type() == BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2
@@ -662,7 +663,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_READ_EVENT:
         {
             ble_read_req_t *r_req = (ble_read_req_t *)param;
-            LOGI("read_cb:conn_idx:%d, prf_id:%d, att_idx:%d\r\n",
+            LOGD("read_cb:conn_idx:%d, prf_id:%d, att_idx:%d\r\n",
                  r_req->conn_idx, r_req->prf_id, r_req->att_idx);
 
             if (r_req->prf_id == g_test_prf_task_id)
@@ -722,7 +723,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         {
             ble_recv_adv_t *r_ind = (ble_recv_adv_t *)param;
             uint8_t adv_type = r_ind->evt_type & REPORT_INFO_REPORT_TYPE_MASK;
-            //LOGI("r_ind:actv_idx:%d,", r_ind->actv_idx);
+            //LOGD("r_ind:actv_idx:%d,", r_ind->actv_idx);
             char *type_log = NULL;
             switch (adv_type)
             {
@@ -764,12 +765,12 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
                     type_log = "ERR_ADV,";
                     break;
             }
-            LOGI("%s addr_type:%d, adv_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n", type_log,
+            LOGD("%s addr_type:%d, adv_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n", type_log,
                  r_ind->adv_addr_type, r_ind->adv_addr[0], r_ind->adv_addr[1], r_ind->adv_addr[2],
                  r_ind->adv_addr[3], r_ind->adv_addr[4], r_ind->adv_addr[5]);
             if ((STATE_DISCOVERING == g_peer_dev.state) && (ble_check_device_name(r_ind->data, r_ind->data_len, &(g_peer_dev.dev))))
             {
-                LOGI("dev : %s is discovered\r\n", g_peer_dev.dev.name);
+                LOGD("dev : %s is discovered\r\n", g_peer_dev.dev.name);
                 os_memcpy(g_peer_dev.bdaddr.addr, r_ind->adv_addr, BK_BLE_GAP_BD_ADDR_LEN);
                 g_peer_dev.addr_type = r_ind->adv_addr_type;
                 g_peer_dev.state = STATE_DISCOVERED;
@@ -783,14 +784,14 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_MTU_CHANGE:
         {
             ble_mtu_change_t *m_ind = (ble_mtu_change_t *)param;
-            LOGI("%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
+            LOGD("%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
             s_ethermind_current_mtu = m_ind->mtu_size;
             break;
         }
         case BLE_5_CONNECT_EVENT:
         {
             ble_conn_ind_t *c_ind = (ble_conn_ind_t *)param;
-            LOGI("c_ind:conn_idx:%d, addr_type:%d, peer_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
+            LOGD("c_ind:conn_idx:%d, addr_type:%d, peer_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
                  c_ind->conn_idx, c_ind->peer_addr_type, c_ind->peer_addr[0], c_ind->peer_addr[1],
                  c_ind->peer_addr[2], c_ind->peer_addr[3], c_ind->peer_addr[4], c_ind->peer_addr[5]);
             s_test_conn_ind = c_ind->conn_idx;
@@ -802,7 +803,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         {
 
             ble_discon_ind_t *d_ind = (ble_discon_ind_t *)param;
-            LOGI("d_ind:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
+            LOGD("d_ind:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
             s_test_conn_ind = ~0;
 
             if (stability_test_s_enabled)
@@ -812,7 +813,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
                 if (actv_idx == AT_BLE_MAX_ACTV)
                 {
-                    LOGI("ble adv not created!\n");
+                    LOGD("ble adv not created!\n");
                 }
                 else
                 {
@@ -823,7 +824,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             {
                 uint8_t actv_idx = bk_ble_find_actv_state_idx_handle(AT_ACTV_ADV_CREATED);
 
-                LOGI("%s restart adv\n", __func__);
+                LOGD("%s restart adv\n", __func__);
                 bk_ble_start_advertising(actv_idx, 0, NULL);
             }
 
@@ -833,7 +834,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_ATT_INFO_REQ:
         {
             ble_att_info_req_t *a_ind = (ble_att_info_req_t *)param;
-            LOGI("a_ind:conn_idx:%d\r\n", a_ind->conn_idx);
+            LOGD("a_ind:conn_idx:%d\r\n", a_ind->conn_idx);
             a_ind->length = 128;
             a_ind->status = BK_ERR_BLE_SUCCESS;
             break;
@@ -845,7 +846,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             if (bk_ble_get_controller_stack_type() == BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
             {
                 ble_create_db_t *cd_ind = (ble_create_db_t *)param;
-                LOGI("cd_ind:prf_id:%d, status:%d sh %d\r\n", cd_ind->prf_id, cd_ind->status, cd_ind->start_hdl);
+                LOGD("cd_ind:prf_id:%d, status:%d sh %d\r\n", cd_ind->prf_id, cd_ind->status, cd_ind->start_hdl);
 
                 at_cmd_status = cd_ind->status;
                 s_first_service_handle = cd_ind->start_hdl;
@@ -861,7 +862,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_INIT_CONNECT_EVENT:
         {
             ble_conn_ind_t *c_ind = (ble_conn_ind_t *)param;
-            LOGI("BLE_5_INIT_CONNECT_EVENT:conn_idx:%d, addr_type:%d, peer_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
+            LOGD("BLE_5_INIT_CONNECT_EVENT:conn_idx:%d, addr_type:%d, peer_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
                  c_ind->conn_idx, c_ind->peer_addr_type, c_ind->peer_addr[0], c_ind->peer_addr[1],
                  c_ind->peer_addr[2], c_ind->peer_addr[3], c_ind->peer_addr[4], c_ind->peer_addr[5]);
 
@@ -882,7 +883,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_INIT_DISCONNECT_EVENT:
         {
             ble_discon_ind_t *d_ind = (ble_discon_ind_t *)param;
-            LOGI("BLE_5_INIT_DISCONNECT_EVENT:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
+            LOGD("BLE_5_INIT_DISCONNECT_EVENT:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
 
             if (stability_test_m_enabled)
             {
@@ -902,7 +903,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_INIT_CONNECT_FAILED_EVENT:
         {
             ble_discon_ind_t *d_ind = (ble_discon_ind_t *)param;
-            LOGI("BLE_5_INIT_CONNECT_FAILED_EVENT:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
+            LOGD("BLE_5_INIT_CONNECT_FAILED_EVENT:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
 
             if (stability_test_m_enabled)
             {
@@ -917,12 +918,12 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         }
 
         case BLE_5_SDP_REGISTER_FAILED:
-            LOGI("BLE_5_SDP_REGISTER_FAILED\r\n");
+            LOGD("BLE_5_SDP_REGISTER_FAILED\r\n");
             break;
         case BLE_5_READ_PHY_EVENT:
         {
             s_ble_phy = *(ble_read_phy_t *)param;
-            LOGI("BLE_5_READ_PHY_EVENT:tx_phy:0x%02x, rx_phy:0x%02x\r\n", s_ble_phy.tx_phy, s_ble_phy.rx_phy);
+            LOGD("BLE_5_READ_PHY_EVENT:tx_phy:0x%02x, rx_phy:0x%02x\r\n", s_ble_phy.tx_phy, s_ble_phy.rx_phy);
             break;
         }
         case BLE_5_TX_DONE:
@@ -936,7 +937,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             }
             else
             {
-                BK_LOGI("ble_at", "BLE_5_TX_DONE\r\n");
+                BK_LOGD("ble_at", "BLE_5_TX_DONE\r\n");
             }
         }
 
@@ -945,7 +946,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_CONN_UPDATA_EVENT:
         {
             ble_conn_param_t *updata_param = (ble_conn_param_t *)param;
-            LOGI("BLE_5_CONN_UPDATA_EVENT:conn_interval:0x%04x, con_latency:0x%04x, sup_to:0x%04x\r\n", updata_param->intv_max,
+            LOGD("BLE_5_CONN_UPDATA_EVENT:conn_interval:0x%04x, con_latency:0x%04x, sup_to:0x%04x\r\n", updata_param->intv_max,
                  updata_param->con_latency, updata_param->sup_to);
 
 
@@ -953,7 +954,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         }
 
         case BLE_5_PERIODIC_SYNC_CMPL_EVENT:
-            LOGI("BLE_5_PERIODIC_SYNC_CMPL_EVENT \n");
+            LOGD("BLE_5_PERIODIC_SYNC_CMPL_EVENT \n");
             break;
 
         case BLE_5_RECV_NOTIFY_EVENT:
@@ -968,7 +969,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 #ifdef CONFIG_ALI_MQTT
             if (loop_type == LT_COEX)
             {
-                LOGI("ATT_CON_ID %d data %s len %d sendto mqtt\n",
+                LOGD("ATT_CON_ID %d data %s len %d sendto mqtt\n",
                      tmp->conn_handle,
                      tmp->data, tmp->len);
 
@@ -980,14 +981,14 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
                 uint8_t index = 0;
                 if (0 == ethermind_find_index_by_info(&index, tmp->conn_handle))
                 {
-                    LOGI("%s ATT_CON_ID %d, send data to nordic len %d %s\n", __func__,
+                    LOGD("%s ATT_CON_ID %d, send data to nordic len %d %s\n", __func__,
                          tmp->conn_handle, tmp->len, tmp->data);
 
                     bk_ble_att_write(tmp->conn_handle, s_ethermind_nordic_write_attr_handle[index], tmp->data, tmp->len);
                 }
                 else
                 {
-                    LOGI("%s cant find info ATT_CON_ID %d\n", __func__, tmp->conn_handle);
+                    LOGD("%s cant find info ATT_CON_ID %d\n", __func__, tmp->conn_handle);
                 }
             }
         }
@@ -996,11 +997,11 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_DISCOVERY_PRIMARY_SERVICE_EVENT:
         {
             ble_discovery_primary_service_t *tmp = (typeof(tmp))param;
-            LOGI("%s BLE_5_DISCOVERY_PRIMARY_SERVICE_EVENT count %d\n", __func__, tmp->count);
+            LOGD("%s BLE_5_DISCOVERY_PRIMARY_SERVICE_EVENT count %d\n", __func__, tmp->count);
             for (uint8_t i = 0; i < tmp->count; i++)
             {
                 //service's char must in this range
-                LOGI("%s service uuid 0x%X start %d end %d\n", __func__, tmp->service[i].uuid.uuid_16,
+                LOGD("%s service uuid 0x%X start %d end %d\n", __func__, tmp->service[i].uuid.uuid_16,
                      tmp->service[i].range.start_handle, tmp->service[i].range.end_handle);
 
             }
@@ -1014,24 +1015,24 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             uint8_t found = 0;
             uint8_t i = 0;
 
-            LOGI("%s BLE_5_DISCOVERY_CHAR_EVENT count %d ATT_CON_ID %d\n", __func__, tmp->count,
+            LOGD("%s BLE_5_DISCOVERY_CHAR_EVENT count %d ATT_CON_ID %d\n", __func__, tmp->count,
                  tmp->conn_handle);
 
             //
 
             for (i = 0; i < tmp->count; ++i)
             {
-                //LOGI("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
+                //LOGD("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
 
                 switch (tmp->character[i].uuid_type)
                 {
                     case ATT_16_BIT_UUID_FORMAT:
-                        LOGI("%s char 16bit uuid 0x%04X, attr_handle %d\n", __func__, tmp->character[i].uuid.uuid_16, tmp->character[i].value_handle);
+                        LOGD("%s char 16bit uuid 0x%04X, attr_handle %d\n", __func__, tmp->character[i].uuid.uuid_16, tmp->character[i].value_handle);
                         break;
 
                     case ATT_128_BIT_UUID_FORMAT:
                     {
-                        //LOGI("%s char 128bit uuid 0x%08X\n", __func__, (uint32_t *)(tmp->character[i].uuid.uuid_128.value + 11));
+                        //LOGD("%s char 128bit uuid 0x%08X\n", __func__, (uint32_t *)(tmp->character[i].uuid.uuid_128.value + 11));
 
                         if (!os_memcmp(&tmp->character[i].uuid.uuid_128.value, nus_rx_uuid, sizeof(nus_rx_uuid)))
                         {
@@ -1052,7 +1053,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
             if (0 == ethermind_find_index_by_info(&index, tmp->conn_handle))
             {
-                LOGI("%s nordic info already exist ! att_id %d\n", __func__, tmp->conn_handle);
+                LOGD("%s nordic info already exist ! att_id %d\n", __func__, tmp->conn_handle);
             }
             else if (0 == ethermind_find_idle_info_index(&index))
             {
@@ -1066,7 +1067,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
             for (i = 0; i < tmp->count; ++i)
             {
-                //LOGI("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
+                //LOGD("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
 
                 switch (tmp->character[i].uuid_type)
                 {
@@ -1075,11 +1076,11 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
                     case ATT_128_BIT_UUID_FORMAT:
                     {
-                        LOGI("%s char 128bit uuid 0x%08X attr_hdl:%d\n", __func__, (uint32_t *)(tmp->character[i].uuid.uuid_128.value + 11), tmp->character[i].value_handle);
+                        LOGD("%s char 128bit uuid 0x%08X attr_hdl:%d\n", __func__, (uint32_t *)(tmp->character[i].uuid.uuid_128.value + 11), tmp->character[i].value_handle);
 
                         if (!os_memcmp(&tmp->character[i].uuid.uuid_128.value, nus_rx_uuid, sizeof(nus_rx_uuid)))
                         {
-                            LOGI("%s add to nordic info list %d\n", __func__, index);
+                            LOGD("%s add to nordic info list %d\n", __func__, index);
                             s_ethermind_nordic_used[index] = 1;
                             s_ethermind_nordic_write_attr_handle[index] = tmp->character[i].value_handle;
                             s_ethermind_nordic_att_info[index] = tmp->conn_handle;
@@ -1094,7 +1095,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
                                     {
                                         s_ethermind_nordic_write_notify_handle[index] = tmp->character[i].descriptor[j].handle;
                                         //                                const uint16_t noti_enable = 0x0001;
-                                        //                                LOGI("%s write nordic enable notify\n", __func__);
+                                        //                                LOGD("%s write nordic enable notify\n", __func__);
                                         //                                bk_ble_att_write(&tmp->att_handle, tmp->character[i].descriptor[j].handle, (uint8_t *)&noti_enable, sizeof(noti_enable));
                                     }
                                 }
@@ -1116,7 +1117,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         {
 
             ble_conn_update_para_ind_t *tmp = (typeof(tmp))param;
-            LOGI("%s BLE_5_CONN_UPD_PAR_ASK accept\n", __func__);
+            LOGD("%s BLE_5_CONN_UPD_PAR_ASK accept\n", __func__);
             tmp->is_agree = 1;
 
         }
@@ -1126,17 +1127,17 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             ble_att_rw_t *tmp = (typeof(tmp))param;
             if (!tmp->event_result)
             {
-                LOGI("%s att_id:%d, attr_hand:0x%x, result:%d\r\n", __func__,
+                LOGD("%s att_id:%d, attr_hand:0x%x, result:%d\r\n", __func__,
                      tmp->conn_handle,
                      s_read_tmp_attr_handle,
                      tmp->event_result
                     );
-                LOGI("data-> ");
+                LOGD("data-> ");
                 for (int i = 0; i < tmp->len; i++)
                 {
-                    LOGI("0x%x ", *tmp->data);
+                    LOGD("0x%x ", *tmp->data);
                 }
-                LOGI("\r\n");
+                LOGD("\r\n");
                 if (ble_at_cmd_sema != NULL)
                 {
                     rtos_set_semaphore(&ble_at_cmd_sema);
@@ -1155,7 +1156,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
         case BLE_5_PAIRING_REQ:
         {
-            LOGI("BLE_5_PAIRING_REQ\r\n");
+            LOGD("BLE_5_PAIRING_REQ\r\n");
             ble_smp_ind_t *s_ind = (ble_smp_ind_t *)param;
             if (!s_smp_set_auth_mode_manual)
             {
@@ -1169,7 +1170,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             break;
         }
         case BLE_5_PAIRING_SECURITY_REQ_EVENT:
-            LOGI("BLE_5_PAIRING_SECURITY_REQ_EVENT\n");
+            LOGD("BLE_5_PAIRING_SECURITY_REQ_EVENT\n");
 
             ble_smp_ind_t *s_ind = (ble_smp_ind_t *)param;
 
@@ -1191,10 +1192,10 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         {
             ble_smp_ind_t *s_ind = (typeof(s_ind))param;
 
-            LOGI("BLE_5_PARING_PASSKEY_REQ\r\n");
+            LOGD("BLE_5_PARING_PASSKEY_REQ\r\n");
             if (DEFENSISC_AUTO_TEST)
             {
-                LOGI("auto send passkey 000000\n", __func__);
+                LOGD("auto send passkey 000000\n", __func__);
                 bk_ble_passkey_send(s_ind->conn_idx, 1, 0);
             }
         }
@@ -1204,13 +1205,13 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         {
             ble_smp_ind_t *s_ind = (typeof(s_ind))param;
 
-            LOGI("BLE_5_PARING_NUMBER_COMPARE_REQ_EVENT %06d, auto accept\n", s_ind->num);
+            LOGD("BLE_5_PARING_NUMBER_COMPARE_REQ_EVENT %06d, auto accept\n", s_ind->num);
             bk_ble_number_compare_send(s_ind->conn_idx, 1);
         }
         break;
 
         case BLE_5_ENCRYPT_EVENT:
-            LOGI("BLE_5_ENCRYPT_EVENT\r\n");
+            LOGD("BLE_5_ENCRYPT_EVENT\r\n");
             at_cmd_status = 0;
             if ((ble_at_cmd_sema != NULL) && (s_ble_auth_req))
             {
@@ -1219,7 +1220,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             break;
 
         case BLE_5_PAIRING_SUCCEED:
-            LOGI("BLE_5_PAIRING_SUCCEED\r\n");
+            LOGD("BLE_5_PAIRING_SUCCEED\r\n");
             at_cmd_status = 0;
             if ((ble_at_cmd_sema != NULL) && (s_ble_auth_req))
             {
@@ -1232,7 +1233,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             ble_smp_ind_t *s_ind = (ble_smp_ind_t *)param;
             at_cmd_status = s_ind->status;
             os_memset(&s_ble_enc_key, 0, sizeof(s_ble_enc_key));
-            LOGI("BLE_5_PAIRING_FAILED 0x%x\r\n", s_ind->status);
+            LOGD("BLE_5_PAIRING_FAILED 0x%x\r\n", s_ind->status);
             if ((ble_at_cmd_sema != NULL) && (s_ble_auth_req))
             {
                 rtos_set_semaphore(&ble_at_cmd_sema);
@@ -1245,7 +1246,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             if (bk_ble_get_controller_stack_type() == BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
             {
                 ble_create_db_t *cd_ind = (ble_create_db_t *)param;
-                LOGI("delete dervice done, prf_id:%d, status:%d\r\n", cd_ind->prf_id, cd_ind->status);
+                LOGD("delete dervice done, prf_id:%d, status:%d\r\n", cd_ind->prf_id, cd_ind->status);
 
                 at_cmd_status = cd_ind->status;
                 if (ble_at_cmd_sema != NULL)
@@ -1283,7 +1284,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
                 }
                 case BLE_CONN_ENCRYPT:
                 {
-                    LOGI("BLE_5_GAP_CMD_CMP_EVENT(BLE_CONN_ENCRYPT) , status %x\r\n", event->status);
+                    LOGD("BLE_5_GAP_CMD_CMP_EVENT(BLE_CONN_ENCRYPT) , status %x\r\n", event->status);
                     if (event->status)
                     {
                         os_memset(&s_ble_enc_key, 0, sizeof(s_ble_enc_key));
@@ -1299,7 +1300,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
                 case BLE_ADD_WHITE_LIST:
                 case BLE_RMV_WHITE_LIST:
                 case BLE_CLE_WHITE_LIST:
-                    LOGI("BLE_WHITE_LIST_DONE, status 0x%x\r\n", event->status);
+                    LOGD("BLE_WHITE_LIST_DONE, status 0x%x\r\n", event->status);
                     at_cmd_status = event->status;
                     if (ble_at_cmd_sema != NULL)
                     {
@@ -1314,14 +1315,14 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         }
         case BLE_5_KEY_EVENT:
         {
-            bk_printf("BLE_5_KEY_EVENT\r\n");
+            BK_LOGD(NULL,"BLE_5_KEY_EVENT\r\n");
             s_ble_enc_key = *((bk_ble_key_t *)param);
             break;
         }
 
         case BLE_5_BOND_INFO_REQ_EVENT:
         {
-            bk_printf("BLE_5_BOND_INFO_REQ_EVENT\r\n");
+            BK_LOGD(NULL,"BLE_5_BOND_INFO_REQ_EVENT\r\n");
             bk_ble_bond_info_req_t *bond_info_req = (bk_ble_bond_info_req_t *)param;
             if (((bond_info_req->key.peer_addr_type == s_ble_enc_key.peer_addr_type)
                  && (!os_memcmp(bond_info_req->key.peer_addr, s_ble_enc_key.peer_addr, 6)))
@@ -1358,14 +1359,14 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
 
             if (r_ind->evt_type & (1 << 4))
             {
-                LOGI("evt_type:LEG_ADV,");
+                LOGD("evt_type:LEG_ADV,");
             }
             else
             {
-                LOGI("evt_type:EXT_ADV,");
+                LOGD("evt_type:EXT_ADV,");
             }
 
-            LOGI(
+            LOGD(
                 " adv_addr_type:%d, adv_addr:%02x:%02x:%02x:%02x:%02x:%02x name %s\r\n",
                 r_ind->peer_address_type, r_ind->peer_address.addr[5],
                 r_ind->peer_address.addr[4], r_ind->peer_address.addr[3],
@@ -1376,7 +1377,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
                 && (ble_check_device_name(r_ind->data, r_ind->data_len,
                                           &(g_peer_dev.dev))))
             {
-                LOGI("dev : %s is discovered\r\n", g_peer_dev.dev.name);
+                LOGD("dev : %s is discovered\r\n", g_peer_dev.dev.name);
                 os_memcpy(g_peer_dev.bdaddr.addr, r_ind->peer_address.addr,
                           BK_BLE_GAP_BD_ADDR_LEN);
                 g_peer_dev.addr_type = r_ind->peer_address_type;
@@ -1394,7 +1395,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
         case BK_DM_BLE_EVENT_MTU_CHANGE:
         {
             ble_mtu_change_t *m_ind = (ble_mtu_change_t *) param;
-            LOGI("%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
+            LOGD("%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
             s_ethermind_current_mtu = m_ind->mtu_size;
             break;
         }
@@ -1403,7 +1404,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
         {
 
             ble_conn_att_t *conn_att = (typeof(conn_att)) param;
-            LOGI("%s ethermind connected, ATT_CON_ID %d atype %d addr 0x%02X:%02X:%02X:%02X:%02X:%02X\n",
+            LOGD("%s ethermind connected, ATT_CON_ID %d atype %d addr 0x%02X:%02X:%02X:%02X:%02X:%02X\n",
                  __func__, conn_att->conn_handle, conn_att->peer_addr_type,
                  conn_att->peer_addr[5], conn_att->peer_addr[4],
                  conn_att->peer_addr[3], conn_att->peer_addr[2],
@@ -1436,7 +1437,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
             {
                 ble_conn_att_t *att_handle = (typeof(att_handle)) param;
                 uint8_t index = 0;
-                LOGI("%s ethermind disconnect reason %d attid %d atype %d addr 0x%02X:%02X:%02X:%02X:%02X:%02X\n",
+                LOGD("%s ethermind disconnect reason %d attid %d atype %d addr 0x%02X:%02X:%02X:%02X:%02X:%02X\n",
                      __func__, att_handle->event_result, att_handle->conn_handle,
                      att_handle->peer_addr_type, att_handle->peer_addr[5],
                      att_handle->peer_addr[4], att_handle->peer_addr[3],
@@ -1458,7 +1459,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
         case BK_DM_BLE_EVENT_TX_DONE:
         {
             ble_att_tx_compl_t *tx_comp = (typeof(tx_comp)) param;
-            //        LOGI("%s BK_DM_BLE_EVENT_TX_DONE res %d ATT_CON_ID %d ATT_ATTR_HANDLE %d\n",
+            //        LOGD("%s BK_DM_BLE_EVENT_TX_DONE res %d ATT_CON_ID %d ATT_ATTR_HANDLE %d\n",
             //                  __func__, tx_comp->event_result, tx_comp->conn_handle,
             //                  tx_comp->attr_handle);
 
@@ -1478,7 +1479,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
         {
             {
                 ble_conn_update_param_compl_ind_t *ind = (typeof(ind)) param;
-                LOGI("%s BK_DM_BLE_EVENT_CONN_UPDATA mac 0x%02X:%02X:%02X:%02X:%02X:%02X status 0x%X interval 0x%X lantency 0x%X tout 0x%X\n",
+                LOGD("%s BK_DM_BLE_EVENT_CONN_UPDATA mac 0x%02X:%02X:%02X:%02X:%02X:%02X status 0x%X interval 0x%X lantency 0x%X tout 0x%X\n",
                      __func__,
                      ind->peer_address.addr[5],
                      ind->peer_address.addr[4], ind->peer_address.addr[3],
@@ -1506,7 +1507,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
 
             if (loop_type == LT_COEX)
             {
-                LOGI("ATT_CON_ID %d data %s len %d sendto mqtt\n",
+                LOGD("ATT_CON_ID %d data %s len %d sendto mqtt\n",
                      tmp->conn_handle, tmp->data, tmp->len);
 
                 ble_send_data_2_mqtt(tmp->conn_handle, tmp->len, tmp->data);
@@ -1518,7 +1519,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
 
                 if (0 == ethermind_find_index_by_info(&index, tmp->conn_handle))
                 {
-                    LOGI("%s ATT_CON_ID %d, send data to nordic len %d %s\n",
+                    LOGD("%s ATT_CON_ID %d, send data to nordic len %d %s\n",
                          __func__, tmp->conn_handle, tmp->len, tmp->data);
 
                     bk_ble_att_write(tmp->conn_handle,
@@ -1527,7 +1528,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
                 }
                 else
                 {
-                    //                LOGI("%s cant find info ATT_CON_ID %d\n", __func__, tmp->conn_handle);
+                    //                LOGD("%s cant find info ATT_CON_ID %d\n", __func__, tmp->conn_handle);
                 }
             }
         }
@@ -1540,26 +1541,26 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
             uint8_t found = 0;
             uint8_t i = 0;
 
-            LOGI("%s BK_DM_BLE_EVENT_DISCOVERY_CHAR count %d ATT_CON_ID %d\n",
+            LOGD("%s BK_DM_BLE_EVENT_DISCOVERY_CHAR count %d ATT_CON_ID %d\n",
                  __func__, tmp->count, tmp->conn_handle);
 
             //
 
             for (i = 0; i < tmp->count; ++i)
             {
-                //LOGI("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
+                //LOGD("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
 
                 switch (tmp->character[i].uuid_type)
                 {
                     case ATT_16_BIT_UUID_FORMAT:
-                        LOGI("%s char 16bit uuid 0x%04X, attr_handle %d\n",
+                        LOGD("%s char 16bit uuid 0x%04X, attr_handle %d\n",
                              __func__, tmp->character[i].uuid.uuid_16,
                              tmp->character[i].value_handle);
                         break;
 
                     case ATT_128_BIT_UUID_FORMAT:
                     {
-                        //LOGI("%s char 128bit uuid 0x%08X\n", __func__, (uint32_t *)(tmp->character[i].uuid.uuid_128.value + 11));
+                        //LOGD("%s char 128bit uuid 0x%08X\n", __func__, (uint32_t *)(tmp->character[i].uuid.uuid_128.value + 11));
 
                         if (!os_memcmp(&tmp->character[i].uuid.uuid_128.value,
                                        nus_rx_uuid, sizeof(nus_rx_uuid)))
@@ -1580,7 +1581,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
 
             if (0 == ethermind_find_index_by_info(&index, tmp->conn_handle))
             {
-                LOGI("%s nordic info already exist ! att_id %d\n", __func__,
+                LOGD("%s nordic info already exist ! att_id %d\n", __func__,
                      tmp->conn_handle);
             }
             else if (0 == ethermind_find_idle_info_index(&index))
@@ -1588,13 +1589,13 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
             }
             else
             {
-                LOGI("%s nordic info list is full !\n", __func__);
+                LOGD("%s nordic info list is full !\n", __func__);
                 break;
             }
 
             for (i = 0; i < tmp->count; ++i)
             {
-                //LOGI("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
+                //LOGD("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
 
                 switch (tmp->character[i].uuid_type)
                 {
@@ -1603,14 +1604,14 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
 
                     case ATT_128_BIT_UUID_FORMAT:
                     {
-                        LOGI("%s char 128bit uuid 0x%08X attr_hdl:%d\n", __func__,
+                        LOGD("%s char 128bit uuid 0x%08X attr_hdl:%d\n", __func__,
                              (uint32_t *)(tmp->character[i].uuid.uuid_128.value + 11),
                              tmp->character[i].value_handle);
 
                         if (!os_memcmp(&tmp->character[i].uuid.uuid_128.value,
                                        nus_rx_uuid, sizeof(nus_rx_uuid)))
                         {
-                            LOGI("%s add to nordic info list %d\n", __func__,
+                            LOGD("%s add to nordic info list %d\n", __func__,
                                  index);
                             s_ethermind_nordic_used[index] = 1;
                             s_ethermind_nordic_write_attr_handle[index] =
@@ -1633,7 +1634,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
                                         s_ethermind_nordic_write_notify_handle[index] =
                                             tmp->character[i].descriptor[j].handle;
                                         //                                const uint16_t noti_enable = 0x0001;
-                                        //                                LOGI("%s write nordic enable notify\n", __func__);
+                                        //                                LOGD("%s write nordic enable notify\n", __func__);
                                         //                                bk_ble_att_write(&tmp->att_handle, tmp->character[i].descriptor[j].handle, (uint8_t *)&noti_enable, sizeof(noti_enable));
                                     }
                                 }
@@ -1643,7 +1644,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
                     break;
 
                     default:
-                        LOGI("%s unknow uuid type %d %d %p\n", __func__,
+                        LOGD("%s unknow uuid type %d %d %p\n", __func__,
                              tmp->character[i].uuid_type, i,
                              &tmp->character[i].uuid_type);
                         break;
@@ -1657,7 +1658,7 @@ static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
         {
             {
                 ble_conn_update_param_ind_t *ind = (typeof(ind)) param;
-                LOGI(
+                LOGD(
                     "%s BK_DM_BLE_EVENT_CONN_UPD_PAR_ASK 0x%02X:%02X:%02X:%02X:%02X:%02X imin 0x%X imax 0x%x latency 0x%X tout 0x%X\n",
                     __func__, ind->peer_address.addr[5],
                     ind->peer_address.addr[4], ind->peer_address.addr[3],
@@ -1741,11 +1742,11 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
                                  dname);
 
             printf_buff[sizeof(printf_buff) - 1] = 0;
-            LOGI("%s\n", printf_buff);
+            LOGD("%s\n", printf_buff);
 
             if ((STATE_DISCOVERING == g_peer_dev.state) && (ble_check_device_name(pm->params.adv_data, pm->params.adv_data_len, &(g_peer_dev.dev))))
             {
-                LOGI("dev : %s is discovered\r\n", g_peer_dev.dev.name);
+                LOGD("dev : %s is discovered\r\n", g_peer_dev.dev.name);
 
                 os_memcpy(g_peer_dev.bdaddr.addr, pm->params.addr, BK_BLE_GAP_BD_ADDR_LEN);
                 g_peer_dev.addr_type = pm->params.addr_type;
@@ -2755,7 +2756,7 @@ int ble_set_scan_param_handle(int sync, int argc, char **argv)
     if (argc >= 6)
     {
         uint8_t filter_policy = os_strtoul(argv[5], NULL, 10);
-        LOGI("set scan filter %d \n", filter_policy);
+        LOGD("set scan filter %d \n", filter_policy);
         if (filter_policy == 0)
         {
             scan_param.scan_filter = BASIC_UNFILTER_SCAN_POLICY;
@@ -2998,7 +2999,7 @@ static void ble_connect_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conidx,
     if (MST_TYPE_SVR_UUID == type)
     {
         struct ble_sdp_svc_ind *svc_inf = (struct ble_sdp_svc_ind *)param;
-        LOGI("Service UUID: 0x%02x%02x\r\n", svc_inf->uuid[1], svc_inf->uuid[0]);
+        LOGD("Service UUID: 0x%02x%02x\r\n", svc_inf->uuid[1], svc_inf->uuid[0]);
     }
 
     if (MST_TYPE_ATT_UUID == type)
@@ -3008,7 +3009,7 @@ static void ble_connect_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conidx,
         {
             s_device_name_hdl = char_inf->val_hdl;
         }
-        LOGI("Charac UUID: 0x%02x%02x, val_hdl: %d\r\n", char_inf->uuid[1], char_inf->uuid[0], char_inf->val_hdl);
+        LOGD("Charac UUID: 0x%02x%02x, val_hdl: %d\r\n", char_inf->uuid[1], char_inf->uuid[0], char_inf->val_hdl);
     }
 
     switch (type)
@@ -3029,7 +3030,7 @@ static void ble_connect_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conidx,
                 os_memcpy(&uuid, srv_ind->uuid, sizeof(uuid));
             }
 
-            LOGI("service rsp uuid 0x%04x sh 0x%04x eh 0x%04x len %d\n", uuid, srv_ind->start_hdl, srv_ind->end_hdl, srv_ind->uuid_len);
+            LOGD("service rsp uuid 0x%04x sh 0x%04x eh 0x%04x len %d\n", uuid, srv_ind->start_hdl, srv_ind->end_hdl, srv_ind->uuid_len);
         }
         break;
 
@@ -3049,7 +3050,7 @@ static void ble_connect_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conidx,
                 os_memcpy(&uuid, char_inf->uuid, sizeof(uuid));
             }
 
-            LOGI("char rsp uuid 0x%04x decl handle 0x%04x value handle 0x%04x prop 0x%x len %d\n", uuid, char_inf->char_hdl, char_inf->val_hdl, char_inf->prop, char_inf->uuid_len);
+            LOGD("char rsp uuid 0x%04x decl handle 0x%04x value handle 0x%04x prop 0x%x len %d\n", uuid, char_inf->char_hdl, char_inf->val_hdl, char_inf->prop, char_inf->uuid_len);
         }
         break;
 
@@ -3067,14 +3068,14 @@ static void ble_connect_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conidx,
                 os_memcpy(&uuid, desc_inf->uuid, sizeof(uuid));
             }
 
-            LOGI("char desc rsp uuid 0x%04x handle 0x%04x len %d\n", uuid, desc_inf->desc_hdl, desc_inf->uuid_len);
+            LOGD("char desc rsp uuid 0x%04x handle 0x%04x len %d\n", uuid, desc_inf->desc_hdl, desc_inf->uuid_len);
         }
         break;
 
         case MST_TYPE_DISCOVER_COMPLETED:
         {
             struct ble_descover_complete_inf *desc_inf = (typeof(desc_inf))param;
-            LOGI("discover complete action 0x%x con_id 0x%x\n", desc_inf->action_id, conidx);
+            LOGD("discover complete action 0x%x con_id 0x%x\n", desc_inf->action_id, conidx);
         }
         break;
         default:
@@ -3897,7 +3898,7 @@ int ble_update_mtu_2_max_handle(int sync, int argc, char **argv)
 
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
-        LOGI("%s addr %02x:%02x:%02x:%02x:%02x:%02x\n", __func__,
+        LOGD("%s addr %02x:%02x:%02x:%02x:%02x:%02x\n", __func__,
              connect_addr.addr[5],
              connect_addr.addr[4],
              connect_addr.addr[3],
@@ -3913,7 +3914,7 @@ int ble_update_mtu_2_max_handle(int sync, int argc, char **argv)
             goto error;
         }
 
-        LOGI("%s find conn_idx %d\n", __func__, conn_idx);
+        LOGD("%s find conn_idx %d\n", __func__, conn_idx);
 
         if (sync)
         {
@@ -4034,7 +4035,7 @@ int ble_tx_test_param_handle(int sync, int argc, char **argv)
 
     s_ethermind_send_size_value = s_test_data_len = len;
     s_ethermind_send_intv_value = s_test_send_inter = inter;
-    LOGI("%s len %d inter %d\n", __func__, s_test_data_len, s_test_send_inter);
+    LOGD("%s len %d inter %d\n", __func__, s_test_data_len, s_test_send_inter);
     if (err != BK_ERR_BLE_SUCCESS)
     {
         goto error;
@@ -4094,7 +4095,7 @@ int ble_tx_test_enable_handle(int sync, int argc, char **argv)
 
     enable = os_strtoul(argv[0], NULL, 10) & 0xFF;
     con_idx = os_strtoul(argv[1], NULL, 10) & 0xFF;
-    LOGI("%s enable %d, con_idx %d\n", __func__, enable, con_idx);
+    LOGD("%s enable %d, con_idx %d\n", __func__, enable, con_idx);
 
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
@@ -4167,7 +4168,7 @@ error:
 
 static void ble_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint16_t hdl, uint16_t len, uint8 *data)
 {
-    //LOGI("%s recv type %d len %d data[0] 0x%02X\n", __func__, type, len, data[0]);
+    //LOGD("%s recv type %d len %d data[0] 0x%02X\n", __func__, type, len, data[0]);
     s_performance_rx_bytes += len;
 }
 
@@ -4517,7 +4518,7 @@ static int ble_discover_characteristic_handle(int sync, int argc, char **argv)
         }
     }
 
-    LOGI("%s %d 0x%x~0x%x 0x%x\n", __func__, conn_handle, sh, eh, uuid);
+    LOGD("%s %d 0x%x~0x%x 0x%x\n", __func__, conn_handle, sh, eh, uuid);
 
     if (!uuid)
     {
@@ -4756,7 +4757,7 @@ static bk_err_t ethermind_test_gatt_char_handler
 
     static GATT_DB_HANDLE *gdbh = NULL;
 
-    LOGI("%s device_id %d service %d char %d attr_handle %d op 0x%02X\n", __func__,
+    LOGD("%s device_id %d service %d char %d attr_handle %d op 0x%02X\n", __func__,
          handle->device_id, handle->service_id, handle->char_id, params->handle, params->db_op);
 
     if (handle->service_id == s_ethermind_send_test_service_handle)
@@ -4771,7 +4772,7 @@ static bk_err_t ethermind_test_gatt_char_handler
                 {
                     if (GATT_CLI_CNFG_NOTIFICATION == value)
                     {
-                        LOGI("%s enable notify\n", __func__);
+                        LOGD("%s enable notify\n", __func__);
 
                         if (!gdbh)
                         {
@@ -4802,7 +4803,7 @@ static bk_err_t ethermind_test_gatt_char_handler
                     }
                     else
                     {
-                        LOGI("%s disable notify\n", __func__);
+                        LOGD("%s disable notify\n", __func__);
                         s_ethermind_auto_tx_enable = 0;
 
                         if (rtos_is_timer_init(&s_ethermind_ble_send_test_timer))
@@ -4835,13 +4836,13 @@ static bk_err_t ethermind_test_gatt_char_handler
                 {
                     //BT_UNPACK_LE_2_BYTE(&value, k);
                     memcpy(&value, params->value.val, 2);
-                    LOGI("%s write s_ethermind_send_size_handle %d\n", __func__, value);
+                    LOGD("%s write s_ethermind_send_size_handle %d\n", __func__, value);
                 }
                 else if (handle->char_id == s_ethermind_send_intv_handle)
                 {
                     //BT_UNPACK_LE_2_BYTE(&value, params->value.val);
                     memcpy(&value, params->value.val, 2);
-                    LOGI("%s write s_ethermind_send_intv_handle %d len %d %d\n", __func__, value, params->value.len, params->value.actual_len);
+                    LOGD("%s write s_ethermind_send_intv_handle %d len %d %d\n", __func__, value, params->value.len, params->value.actual_len);
                 }
                 else
                 {
@@ -4974,7 +4975,7 @@ static int ble_register_service_handle(int sync, int argc, char **argv)
                         //                        rtos_deinit_semaphore(&ble_at_cmd_sema);
                         //                        return err;
 
-                        LOGI("%s add 1 db ok, attr handle %d\n", __func__, ble_db_cfg.start_hdl);
+                        LOGD("%s add 1 db ok, attr handle %d\n", __func__, ble_db_cfg.start_hdl);
                         break;
                     }
                     else
@@ -5030,7 +5031,7 @@ static int ble_register_service_handle(int sync, int argc, char **argv)
                 {
                     if (at_cmd_status == BK_ERR_BLE_SUCCESS)
                     {
-                        LOGI("%s add 2 db ok, attr handle %d\n", __func__, ble_db_cfg.start_hdl);
+                        LOGD("%s add 2 db ok, attr handle %d\n", __func__, ble_db_cfg.start_hdl);
                         atsvr_cmd_rsp_ok();
                         rtos_deinit_semaphore(&ble_at_cmd_sema);
                         return err;
@@ -5098,7 +5099,7 @@ void ble_test_noti_hdl(void *param)
     os_memcpy(write_buffer, &s_test_noti_count, sizeof(s_test_noti_count));
     s_test_noti_count++;
 
-    //LOGI("ble_at", "%s send_noti_value\r\n", __func__);
+    //LOGD("ble_at", "%s send_noti_value\r\n", __func__);
 
     ret = bk_ble_send_noti_value(con_idx, s_test_data_len, write_buffer, g_test_prf_task_id, TEST_IDX_CHAR_VALUE);
     if (ret != BK_ERR_BLE_SUCCESS)
@@ -5114,7 +5115,7 @@ static void ble_performance_tx_timer_hdl(void *param)
     uint32_t tmp = s_performance_tx_bytes;
     s_performance_tx_bytes = 0;
 
-    LOGI("%s current tx %d bytes/sec\n", __func__, tmp);
+    LOGD("%s current tx %d bytes/sec\n", __func__, tmp);
 }
 
 static void ble_performance_rx_timer_hdl(void *param)
@@ -5122,7 +5123,7 @@ static void ble_performance_rx_timer_hdl(void *param)
     uint32_t tmp = s_performance_rx_bytes;
     s_performance_rx_bytes = 0;
 
-    LOGI("%s current rx %d bytes/sec\n", __func__, tmp);
+    LOGD("%s current rx %d bytes/sec\n", __func__, tmp);
 }
 
 static void ble_ethermind_performance_tx_timer_hdl(void *param)
@@ -5130,7 +5131,7 @@ static void ble_ethermind_performance_tx_timer_hdl(void *param)
     uint32_t tmp = s_ethermind_performance_tx_bytes;
     s_ethermind_performance_tx_bytes = 0;
 
-    LOGI("%s current tx %d bytes/sec\n", __func__, tmp);
+    LOGD("%s current tx %d bytes/sec\n", __func__, tmp);
 }
 
 static void ble_ethermind_performance_rx_timer_hdl(void *param)
@@ -5138,7 +5139,7 @@ static void ble_ethermind_performance_rx_timer_hdl(void *param)
     uint32_t tmp = s_ethermind_performance_rx_bytes;
     s_ethermind_performance_rx_bytes = 0;
 
-    LOGI("%s current rx %d bytes/sec\n", __func__, tmp);
+    LOGD("%s current rx %d bytes/sec\n", __func__, tmp);
 }
 
 
@@ -5714,7 +5715,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
 
     g_peer_dev.dev.len = os_strlen(argv[4]);
     os_memcpy(g_peer_dev.dev.name, argv[4], g_peer_dev.dev.len);
-    LOGI("%s %s\r\n", __func__, g_peer_dev.dev.name);
+    LOGD("%s %s\r\n", __func__, g_peer_dev.dev.name);
     g_peer_dev.state = STATE_DISCOVERING;
 
     if (err != kNoErr)
@@ -5839,7 +5840,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
         if (ble_at_cmd_sema != NULL)
         {
             err = bk_ble_set_scan_parameters(scan_param.own_addr_type, 0x00, scan_param.scan_phy, scan_param.scan_intv, scan_param.scan_wd, ble_at_cmd_cb);
-            LOGI("%s set scan param\r\n", __func__);
+            LOGD("%s set scan param\r\n", __func__);
             if (err != BK_ERR_BLE_SUCCESS)
             {
                 goto error;
@@ -5860,7 +5861,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
             {
                 goto error;
             }
-            LOGI("%s start scan\r\n", __func__);
+            LOGD("%s start scan\r\n", __func__);
 
             rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
 
@@ -5872,7 +5873,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
                 {
                     goto error;
                 }
-                LOGI("%s stop scan\r\n", __func__);
+                LOGD("%s stop scan\r\n", __func__);
 
                 ble_conn_param_normal_t tmp;
 
@@ -5884,7 +5885,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
 
                 tmp.peer_address_type = g_peer_dev.addr_type;
                 os_memcpy(tmp.peer_address.addr, &(g_peer_dev.bdaddr.addr[0]), BK_BLE_GAP_BD_ADDR_LEN);
-                LOGI("%s start conn, peer addr: %x %x %x %x %x %x\r\n", __func__, tmp.peer_address.addr[0], tmp.peer_address.addr[1],
+                LOGD("%s start conn, peer addr: %x %x %x %x %x %x\r\n", __func__, tmp.peer_address.addr[0], tmp.peer_address.addr[1],
                      tmp.peer_address.addr[2], tmp.peer_address.addr[3], tmp.peer_address.addr[4], tmp.peer_address.addr[5]);
                 g_peer_dev.state = STATE_CONNECTINIG;
 
@@ -5917,7 +5918,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
             }
             else
             {
-                LOGI("%s SCAN Timeout %d\r\n", __func__, g_peer_dev.state);
+                LOGD("%s SCAN Timeout %d\r\n", __func__, g_peer_dev.state);
                 bk_ble_set_scan_enable_extended(0, filt_duplicate, duration, period, ble_at_cmd_cb);
                 goto error;
             }
@@ -5944,7 +5945,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
             goto error;
         }
 
-        LOGI("%s set scan param\n", __func__);
+        LOGD("%s set scan param\n", __func__);
 
         if (ble_at_cmd_sema != NULL)
         {
@@ -5966,7 +5967,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
             goto error;
         }
 
-        LOGI("%s start scan\n", __func__);
+        LOGD("%s start scan\n", __func__);
 
         err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
         if (err != kNoErr)
@@ -5981,7 +5982,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
             goto error;
         }
 
-        LOGI("%s stop scan\n", __func__);
+        LOGD("%s stop scan\n", __func__);
 
         if (g_peer_dev.state != STATE_DISCOVERED)
         {
@@ -6391,7 +6392,7 @@ void s_ble_update_param_callback(MASTER_COMMON_TYPE type, uint8 conidx, void *pa
         case MST_TYPE_UPP_ASK:
         {
             struct mst_comm_updata_para *tmp = (typeof(tmp))param;
-            LOGI("%s MST_TYPE_UPP_ASK accept\n", __func__);
+            LOGD("%s MST_TYPE_UPP_ASK accept\n", __func__);
             tmp->is_agree = 0;
         }
         break;
@@ -6417,7 +6418,7 @@ int ble_update_param_reply_handle(char *pcWriteBuffer, int xWriteBufferLen, int 
 
     if (argc != 2)
     {
-        LOGI("input param error\r\n");
+        LOGD("input param error\r\n");
         err = kParamErr;
         goto error;
     }
@@ -6432,7 +6433,7 @@ int ble_update_param_reply_handle(char *pcWriteBuffer, int xWriteBufferLen, int 
     //err = ble_param_update_reply(con_idx, accept);
     if (err != kNoErr)
     {
-        LOGI("set update param reply failed\r\n");
+        LOGD("set update param reply failed\r\n");
         goto error;
     }
     atsvr_cmd_rsp_ok();
@@ -6487,7 +6488,7 @@ int ble_att_write_handle(int sync, int argc, char **argv)
         send_value[data_count] = os_strtoul(tmp_buf, NULL, 16) & 0xFF;
     }
 
-    LOGI("%s %d %d %d data 0x%02x%02x\n", __func__, conn_handle, attr_handle, data_count, send_value[0], send_value[1]);
+    LOGD("%s %d %d %d data 0x%02x%02x\n", __func__, conn_handle, attr_handle, data_count, send_value[0], send_value[1]);
 
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
@@ -6527,21 +6528,21 @@ static void ble_att_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint16_t h
 {
     if (CHARAC_READ == type)
     {
-        LOGI("%s, read hdl %d, len %d\r\n", __func__, hdl, len);
+        LOGD("%s, read hdl %d, len %d\r\n", __func__, hdl, len);
 
         if (len)
         {
-            LOGI("\n==================\n");
+            LOGD("\n==================\n");
             char s[100] = {0};
 
             os_memcpy(s, data, len < sizeof(s) - 1 ? len : sizeof(s) - 1);
 
             if (s_device_name_hdl == hdl)
             {
-                LOGI("%s\n", s);
+                LOGD("%s\n", s);
             }
 
-            LOGI("\n==================\n");
+            LOGD("\n==================\n");
 
             os_memset(s, 0, sizeof(s));
             for (int i = 0; i < 5 && i < len; ++i)
@@ -6549,8 +6550,8 @@ static void ble_att_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint16_t h
                 sprintf(s + i * 2, "%02x", data[i]);
             }
 
-            LOGI("0x%s\n", s);
-            LOGI("\n==================\n");
+            LOGD("0x%s\n", s);
+            LOGD("\n==================\n");
 
             if (s_read_tmp_attr_handle == hdl)
             {
@@ -6577,7 +6578,7 @@ static int ble_att_read_handle(int sync, int argc, char **argv)
 
     conn_handle = os_strtoul(argv[0], NULL, 10) & 0xFF;
     s_read_tmp_attr_handle = os_strtoul(argv[1], NULL, 10) & 0xFFFF;
-    //    LOGI("%s %d %d %d\n", __func__, att_handle.device_id, att_handle.att_id, attr_handle);
+    //    LOGD("%s %d %d %d\n", __func__, att_handle.device_id, att_handle.att_id, attr_handle);
 
     if (sync)
     {
@@ -6657,7 +6658,7 @@ static void ble_plr_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conidx, voi
     if (type == MST_TYPE_UPP_ASK)
     {
         struct mst_comm_updata_para *tmp = (typeof(tmp))param;
-        LOGI("%s MST_TYPE_UPP_ASK accept\n", __func__);
+        LOGD("%s MST_TYPE_UPP_ASK accept\n", __func__);
         tmp->is_agree = 1;
     }
 
@@ -6667,7 +6668,7 @@ static void ble_plr_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint16_t h
 {
     if (CHARAC_NOTIFY == type)
     {
-        //LOGI("con %d , len : %d, recv data %s\n", conidx, len, data);
+        //LOGD("con %d , len : %d, recv data %s\n", conidx, len, data);
         //bk_ble_gatt_write_value(conidx, plc_rx_handle[conidx], len, data);
 #ifdef CONFIG_ALI_MQTT
         if (loop_type == LT_COEX)
@@ -6685,7 +6686,7 @@ static void ble_plr_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint16_t h
     }
     else if (CHARAC_WRITE_DONE == type)
     {
-        //LOGI("con %d\n", conidx);
+        //LOGD("con %d\n", conidx);
     }
 }
 
@@ -6784,7 +6785,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
             {
                 if (s_ethermind_nordic_used[i])
                 {
-                    LOGI("%s ATT_CON_ID %d set notify param\n", __func__, s_ethermind_nordic_att_info[i]);
+                    LOGD("%s ATT_CON_ID %d set notify param\n", __func__, s_ethermind_nordic_att_info[i]);
                     bk_ble_att_write(s_ethermind_nordic_att_info[i], s_ethermind_nordic_write_attr_handle[i], (uint8_t *)&cmd, sizeof(cmd));
                 }
             }
@@ -6813,7 +6814,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
             {
                 if (s_ethermind_nordic_used[i])
                 {
-                    LOGI("%s ATT_CON_ID %d enable notify\n", __func__, s_ethermind_nordic_att_info[i]);
+                    LOGD("%s ATT_CON_ID %d enable notify\n", __func__, s_ethermind_nordic_att_info[i]);
                     bk_ble_att_write(s_ethermind_nordic_att_info[i], s_ethermind_nordic_write_notify_handle[i], (uint8_t *)&noti_enable, sizeof(noti_enable));
                 }
 
@@ -6910,7 +6911,7 @@ static void mqtt_loop_timer_callback(void *param)
         {
             LOGE("error occur when publish.\n");
         }
-        LOGI("packet-id=%u, publish topic msg=%s.\n", (uint32_t)rc, msg_pub);
+        LOGD("packet-id=%u, publish topic msg=%s.\n", (uint32_t)rc, msg_pub);
     }
 
 
@@ -6919,7 +6920,7 @@ static void mqtt_loop_timer_callback(void *param)
         rtos_stop_timer(mqtt_loop_timer);
         os_free(mqtt_loop_timer);
         mqtt_loop_timer = NULL;
-        LOGI("stop\n");
+        LOGD("stop\n");
     }
 
 }
@@ -6931,61 +6932,61 @@ void ble_mqtt_loop_event_handle(void *pcontext, void *pclient, iotx_mqtt_event_m
     switch (msg->event_type)
     {
         case IOTX_MQTT_EVENT_UNDEF:
-            LOGI("undefined event occur.\n");
+            LOGD("undefined event occur.\n");
             break;
 
         case IOTX_MQTT_EVENT_DISCONNECT:
-            LOGI("MQTT disconnect.\n");
+            LOGD("MQTT disconnect.\n");
             break;
 
         case IOTX_MQTT_EVENT_RECONNECT:
-            LOGI("MQTT reconnect.\n");
+            LOGD("MQTT reconnect.\n");
             break;
 
         case IOTX_MQTT_EVENT_SUBCRIBE_SUCCESS:
-            LOGI("subscribe success, packet-id=%u.\n", (unsigned int)packet_id);
+            LOGD("subscribe success, packet-id=%u.\n", (unsigned int)packet_id);
             break;
 
         case IOTX_MQTT_EVENT_SUBCRIBE_TIMEOUT:
-            LOGI("subscribe wait ack timeout, packet-id=%u.\n", (unsigned int)packet_id);
+            LOGD("subscribe wait ack timeout, packet-id=%u.\n", (unsigned int)packet_id);
             break;
 
         case IOTX_MQTT_EVENT_SUBCRIBE_NACK:
-            LOGI("subscribe nack, packet-id=%u.\n", (unsigned int)packet_id);
+            LOGD("subscribe nack, packet-id=%u.\n", (unsigned int)packet_id);
             break;
 
         case IOTX_MQTT_EVENT_UNSUBCRIBE_SUCCESS:
-            LOGI("unsubscribe success, packet-id=%u.\n", (unsigned int)packet_id);
+            LOGD("unsubscribe success, packet-id=%u.\n", (unsigned int)packet_id);
             break;
 
         case IOTX_MQTT_EVENT_UNSUBCRIBE_TIMEOUT:
-            LOGI("unsubscribe timeout, packet-id=%u.\n", (unsigned int)packet_id);
+            LOGD("unsubscribe timeout, packet-id=%u.\n", (unsigned int)packet_id);
             break;
 
         case IOTX_MQTT_EVENT_UNSUBCRIBE_NACK:
-            LOGI("unsubscribe nack, packet-id=%u.\n", (unsigned int)packet_id);
+            LOGD("unsubscribe nack, packet-id=%u.\n", (unsigned int)packet_id);
             break;
 
         case IOTX_MQTT_EVENT_PUBLISH_SUCCESS:
-            LOGI("publish success, packet-id=%u.\n", (unsigned int)packet_id);
+            LOGD("publish success, packet-id=%u.\n", (unsigned int)packet_id);
             break;
 
         case IOTX_MQTT_EVENT_PUBLISH_TIMEOUT:
-            LOGI("publish timeout, packet-id=%u.\n", (unsigned int)packet_id);
+            LOGD("publish timeout, packet-id=%u.\n", (unsigned int)packet_id);
             break;
 
         case IOTX_MQTT_EVENT_PUBLISH_NACK:
-            LOGI("publish nack, packet-id=%u.\n", (unsigned int)packet_id);
+            LOGD("publish nack, packet-id=%u.\n", (unsigned int)packet_id);
             break;
 
         case IOTX_MQTT_EVENT_PUBLISH_RECVEIVED:
 #if 0
             iotx_mqtt_topic_info_pt topic_info = (iotx_mqtt_topic_info_pt)msg->msg;
-            LOGI("topic message arrived but without any related handle:\n");
-            LOGI("    topic=%.*s,\n",
+            LOGD("topic message arrived but without any related handle:\n");
+            LOGD("    topic=%.*s,\n",
                  topic_info->topic_len,
                  topic_info->ptopic);
-            LOGI("    topic_msg=%.*s.\n",
+            LOGD("    topic_msg=%.*s.\n",
                  topic_info->payload_len,
                  topic_info->payload);
 #endif
@@ -7119,14 +7120,14 @@ static void ble_send_data_2_mqtt(uint8 con_idx, uint16_t len, uint8 *data)
         LOGE("Error occur! Exit program.\n");
     }
 
-    //LOGI("%s len %d msg_len1 %d %p %s\n", __func__, len, msg_len, &msg_len, msg_pub);
+    //LOGD("%s len %d msg_len1 %d %p %s\n", __func__, len, msg_len, &msg_len, msg_pub);
     os_memcpy(&msg_pub[msg_len], data, len);
     msg_len += len;
 
     msg_pub[msg_len++] = '"';
     msg_pub[msg_len++] = '}';
 
-    //LOGI("total msg_len = %d\n",msg_len);
+    //LOGD("total msg_len = %d\n",msg_len);
 
     demo_msg.data = (char *) os_malloc(msg_len);
     if (demo_msg.data == NULL)
@@ -7155,7 +7156,7 @@ static void ble_mqtt_loop_recv_handle(void *pcontext, void *pclient, iotx_mqtt_e
     //iotx_mqtt_topic_info_pt ptopic_info = (iotx_mqtt_topic_info_pt) msg->msg;
     if (loop_type == LT_WIFI_ONLY)
     {
-        LOGI("ble mqtt loop recv %d\n", loop_sr_index++);
+        LOGD("ble mqtt loop recv %d\n", loop_sr_index++);
     }
     else if (loop_type == LT_COEX)
     {
@@ -7177,7 +7178,7 @@ static void ble_mqtt_loop_recv_handle(void *pcontext, void *pclient, iotx_mqtt_e
             vaild_len = atoi(pos + os_strlen("rev_len") + 3);
         }
 
-        //LOGI("ble mqtt recv payload_len %d, vaild_len %d, con_idx %d\n", ptopic_info->payload_len, vaild_len, con_idx);
+        //LOGD("ble mqtt recv payload_len %d, vaild_len %d, con_idx %d\n", ptopic_info->payload_len, vaild_len, con_idx);
 
         if (ptopic_info->payload_len > vaild_len)
         {
@@ -7185,7 +7186,7 @@ static void ble_mqtt_loop_recv_handle(void *pcontext, void *pclient, iotx_mqtt_e
             if (pos)
             {
                 data = (uint8_t *)pos + os_strlen("rev_data") + 3;
-                //LOGI("recv data[0] %c\n", data[0]);
+                //LOGD("recv data[0] %c\n", data[0]);
                 if (BK_BLE_HOST_STACK_TYPE_ETHERMIND != bk_ble_get_host_stack_type())
                 {
                     bk_ble_gatt_write_value(con_idx, plc_rx_handle[con_idx], vaild_len, data);
@@ -7195,7 +7196,7 @@ static void ble_mqtt_loop_recv_handle(void *pcontext, void *pclient, iotx_mqtt_e
                     uint8_t index = 0;
                     if (0 == ethermind_find_index_by_att_con_id(&index, con_idx))
                     {
-                        LOGI("%s ATT_CON_ID %d, send data to nordic %s\n", __func__,
+                        LOGD("%s ATT_CON_ID %d, send data to nordic %s\n", __func__,
                              s_ethermind_nordic_att_info[index],
                              data);
 
@@ -7259,7 +7260,7 @@ void coex_demo_main(void *arg)
                     }
                     else
                     {
-                        //LOGI("packet-id=%u, publish topic msg=%s.\n", (uint32_t)rc, msg.data);
+                        //LOGD("packet-id=%u, publish topic msg=%s.\n", (uint32_t)rc, msg.data);
                     }
                     os_free(msg.data);
 #if CONFIG_ARCH_RISCV
@@ -7273,7 +7274,7 @@ void coex_demo_main(void *arg)
                     packet_sent_count++;
                     if (packet_sent_count >= 10)
                     {
-                        LOGI("mqtt pulish max delay %ld us.\n", (u32)(current_delay_max / 26));
+                        LOGD("mqtt pulish max delay %ld us.\n", (u32)(current_delay_max / 26));
                         packet_sent_count = 0;
                         current_delay_max = 0;
                     }
@@ -7336,7 +7337,7 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
 
     for (i = 0; i < argc; i++)
     {
-        LOGI("arg[%d]: %s\n", i, argv[i]);
+        LOGD("arg[%d]: %s\n", i, argv[i]);
     }
 
     if (loop_topic_ci == NULL)
@@ -7363,7 +7364,7 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
         }
         else
         {
-            LOGI("MQTT connect success\n");
+            LOGD("MQTT connect success\n");
         }
     }
 
@@ -7393,8 +7394,8 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
         loop_sr_index = 0;
         loop_ci_index = 0;
 
-        LOGI("WIFI only test, interval: %u, count: %u\n", loop_interval, loop_count);
-        LOGI("topic: %s:%s\n", loop_topic_sr, loop_topic_ci);
+        LOGD("WIFI only test, interval: %u, count: %u\n", loop_interval, loop_count);
+        LOGD("topic: %s:%s\n", loop_topic_sr, loop_topic_ci);
 
         if (IOT_MQTT_Subscribe(ble_mqtt_loop_client, loop_topic_sr, IOTX_MQTT_QOS0, ble_mqtt_loop_recv_handle, NULL) < 0)
         {
@@ -7415,7 +7416,7 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
         if (loop_topic_sr != NULL && ble_mqtt_loop_client != NULL)
         {
             IOT_MQTT_Unsubscribe(ble_mqtt_loop_client, loop_topic_sr);
-            LOGI("UnSubscribe\n");
+            LOGD("UnSubscribe\n");
         }
 
         if (mqtt_loop_timer != NULL)
@@ -7446,7 +7447,7 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
         loop_sr_index = 0;
         loop_ci_index = 0;
 
-        LOGI("topic: %s:%s", loop_topic_sr, loop_topic_ci);
+        LOGD("topic: %s:%s", loop_topic_sr, loop_topic_ci);
 
         if (IOT_MQTT_Subscribe(ble_mqtt_loop_client, loop_topic_sr, IOTX_MQTT_QOS0, ble_mqtt_loop_recv_handle, NULL) < 0)
         {
@@ -7518,7 +7519,7 @@ void show_stability_test_result(void)
     }
     if (m_sent_total)
     {
-        LOGI("stability test result : %d-%d(%d.%02d%%)>\r\n", s_recv_total, m_sent_total,
+        LOGD("stability test result : %d-%d(%d.%02d%%)>\r\n", s_recv_total, m_sent_total,
              (10000 * s_recv_total / m_sent_total) / 100, (10000 * s_recv_total / m_sent_total) % 100);
     }
 }
@@ -7591,7 +7592,7 @@ static void ble_stability_sdp_comm_callback(MASTER_COMMON_TYPE type, uint8 conid
     if (type == MST_TYPE_UPP_ASK)
     {
         struct mst_comm_updata_para *tmp = (typeof(tmp))param;
-        LOGI("%s MST_TYPE_UPP_ASK accept\n", __func__);
+        LOGD("%s MST_TYPE_UPP_ASK accept\n", __func__);
         tmp->is_agree = 1;
     }
 }
@@ -7602,7 +7603,7 @@ static void ble_stability_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint
     {
         uint32 s_recv_count = atoi((char *)data);
         ble_st_conn_env[conidx].s_recv_count = s_recv_count;
-        LOGI("stability test(link %d) <date_len : %d, PRR : %d-%d(%d.%02d%%)>\r\n", conidx, len, s_recv_count, stability_test_sent_count,
+        LOGD("stability test(link %d) <date_len : %d, PRR : %d-%d(%d.%02d%%)>\r\n", conidx, len, s_recv_count, stability_test_sent_count,
              (10000 * s_recv_count / stability_test_sent_count) / 100, (10000 * s_recv_count / stability_test_sent_count) % 100);
 
     }
@@ -7629,7 +7630,7 @@ static void ble_stability_show_recv_info(uint8_t *value, uint16_t len, uint8 con
                 value = value + 2;
                 stability_test_slave_recv_count++;
                 uint32 m_sent_id = atoi((char *)value);
-                LOGI("stability test(link %d) <date_len : %d, PRR : %d-%d(%d.%02d%%)>\r\n", con_idx, len, stability_test_slave_recv_count, m_sent_id,
+                LOGD("stability test(link %d) <date_len : %d, PRR : %d-%d(%d.%02d%%)>\r\n", con_idx, len, stability_test_slave_recv_count, m_sent_id,
                      (10000 * stability_test_slave_recv_count / m_sent_id) / 100, (10000 * stability_test_slave_recv_count / m_sent_id) % 100);
 
                 char *write_buffer = (char *)os_malloc(len);
@@ -9226,7 +9227,7 @@ static int ble_add_white_list_handle(int sync, int argc, char **argv)
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
         bk_ble_set_notice_cb(ble_at_notice_cb);
-        LOGI("add whl: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x, addr_type:%d\n",
+        LOGD("add whl: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x, addr_type:%d\n",
              bdaddr.addr[0], bdaddr.addr[1], bdaddr.addr[2], bdaddr.addr[3], bdaddr.addr[4], bdaddr.addr[5],
              addr_type);
         err = bk_ble_add_devices_to_while_list(&bdaddr, addr_type);
@@ -9299,7 +9300,7 @@ static int ble_rmv_white_list_handle(int sync, int argc, char **argv)
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
         bk_ble_set_notice_cb(ble_at_notice_cb);
-        LOGI("add whl: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x, addr_type:%d\n",
+        LOGD("add whl: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x, addr_type:%d\n",
              bdaddr.addr[0], bdaddr.addr[1], bdaddr.addr[2], bdaddr.addr[3], bdaddr.addr[4], bdaddr.addr[5],
              addr_type);
         err = bk_ble_remove_devices_from_while_list(&bdaddr, addr_type);
@@ -9360,7 +9361,7 @@ static int ble_cle_white_list_handle(int sync, int argc, char **argv)
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
         bk_ble_set_notice_cb(ble_at_notice_cb);
-        LOGI("clear white list \n");
+        LOGD("clear white list \n");
         err = bk_ble_clear_white_list();
         if (err)
         {
@@ -9620,7 +9621,7 @@ void ble_at_cmd_init(void)
     ret = atsvr_register_commands(ble_cmds_table, sizeof(ble_cmds_table) / sizeof(ble_cmds_table[0]), "ble", NULL);
     if (0 == ret)
     {
-        BK_LOGI(TAG, "BLE AT CMDS INIT OK\r\n");
+        BK_LOGD(TAG, "BLE AT CMDS INIT OK\r\n");
     }
 }
 #endif

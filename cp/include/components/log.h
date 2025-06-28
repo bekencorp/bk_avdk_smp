@@ -44,7 +44,7 @@ extern "C" {
 #else
     #if (CONFIG_LOG_LEVEL == BK_LOG_DEFAULT)
         #if defined(CONFIG_DEBUG_VERSION)
-            #define BK_LOG_LEVEL BK_LOG_INFO  /* TODO need change to debug when optimized. */
+            #define BK_LOG_LEVEL BK_LOG_DEBUG 
         #else
             #define BK_LOG_LEVEL BK_LOG_INFO
         #endif

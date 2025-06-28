@@ -510,7 +510,7 @@ UINT32 rwm_transfer_node(MSDU_NODE_T *node, u8 flag
 #if CONFIG_RWNX_QOS_MSDU
 	vif = rwm_mgmt_vif_idx2ptr(node->vif_idx);
 	if (NULL == vif) {
-		RWNX_LOGI("%s: vif is NULL!\r\n", __func__);
+		RWNX_LOGD("%s: vif is NULL!\r\n", __func__);
 		goto tx_exit;
 	}
 
@@ -649,7 +649,7 @@ UINT32 rwm_transfer(UINT8 vif_idx, struct pbuf *p, UINT8 *buf, UINT32 len, void 
 	ret = BK_FAIL;
 	node = rwm_tx_node_alloc_with_pbuf(p);
 	if (NULL == node) {
-		RWNX_LOGI("rwm_transfer no node\r\n");
+		RWNX_LOGD("rwm_transfer no node\r\n");
 		goto tx_exit;
 	}
 
@@ -666,7 +666,7 @@ UINT32 rwm_transfer(UINT8 vif_idx, struct pbuf *p, UINT8 *buf, UINT32 len, void 
 #if CONFIG_TX_BUFING
         if (!is_special_tx && rwm_check_tx_bufing(node))
         {
-                RWNX_LOGI("tx buffer: save node %x\n",node);
+                RWNX_LOGD("tx buffer: save node %x\n",node);
                 rwm_tx_bufing_save_data(node);
                 return ret;
         }

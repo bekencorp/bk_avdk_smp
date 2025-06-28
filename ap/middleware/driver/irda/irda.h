@@ -4,9 +4,10 @@
 #define IRDA_DEBUG
 
 #ifdef IRDA_DEBUG
-#define IRDA_PRT      os_printf
-#define IRDA_WARN     warning_prf
-#define IRDA_FATAL    fatal_prf
+#define TAG "irda"
+#define IRDA_PRT(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define IRDA_WARN(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define IRDA_FATAL(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #else
 #define IRDA_PRT      null_prf
 #define IRDA_WARN     null_prf

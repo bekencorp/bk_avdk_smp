@@ -161,7 +161,7 @@ int __wrap_viprintf(const char *format,va_list args)
 
 void __wrap___assert_func(const char *file, int line, const char *func, const char *failedexpr)
 {
-	os_printf("%s %d func %s expr %s\n", file, line, func, failedexpr);
+	BK_LOGD(NULL, "%s %d func %s expr %s\n", file, line, func, failedexpr);
 	BK_ASSERT(0); /* ASSERT VERIFIED */
 }
 

@@ -24,6 +24,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 // external statement.
@@ -84,11 +85,11 @@ bool hy4633_detect(const tp_i2c_callback_t *cb)
 		return false;
 	}
 
-	LOGI("%s, product id: 0X%02X\r\n", __func__, product_id);
+	LOGD("%s, product id: 0X%02X\r\n", __func__, product_id);
 
 	if (HY4633_PRODUCT_ID_CODE == product_id)
 	{
-		LOGI("%s success\n", __func__);
+		LOGD("%s success\n", __func__);
 		return true;
 	}
 
@@ -134,7 +135,7 @@ int hy4633_read_status(const tp_i2c_callback_t *cb, uint8_t *status)
 		return BK_FAIL;
 	}
 
-	LOGD("%s, status=0x%02X\r\n", __func__, *status);
+	LOGV("%s, status=0x%02X\r\n", __func__, *status);
 
 	return BK_OK;
 }
@@ -192,7 +193,7 @@ void hy4633_read_point(uint8_t *input_buff, void *buf, uint8_t num)
 				int16_t temp = input_x;
 				input_x = input_y;
 				input_y = temp;
-				LOGD("%s, [%d, %d]\r\n", __func__, input_x, input_y);
+				LOGV("%s, [%d, %d]\r\n", __func__, input_x, input_y);
 
 				#if 1
 					// lcd rotates 90 degrees counterclockwise(adapt to lvgl).
@@ -247,14 +248,14 @@ int hy4633_read_tp_info(const tp_i2c_callback_t *cb, uint8_t max_num, uint8_t *b
 	temp_status = read_buff[2];
 
 	// original registers datas.
-	LOGD("%s, status=0x%02X, pointer num is %d!\r\n", __func__, temp_status, temp_status&0x0F);
+	LOGV("%s, status=0x%02X, pointer num is %d!\r\n", __func__, temp_status, temp_status&0x0F);
 	#if (HY4633_REGS_DEBUG_EN > 0)
 		bk_mem_dump_ex("tp_hy4633", (unsigned char *)(read_buff), sizeof(read_buff));
 	#endif
 
 	read_num = HY4633_POINT_INFO_NUM;
 	
-	LOGD("%s, read num is %d!\r\n", __func__, read_num);
+	LOGV("%s, read num is %d!\r\n", __func__, read_num);
 	hy4633_read_point(read_buff+3, buff, read_num);
 
 exit_:

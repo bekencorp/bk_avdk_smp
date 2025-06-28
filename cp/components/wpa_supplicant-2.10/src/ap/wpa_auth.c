@@ -3490,7 +3490,7 @@ SM_STATE(WPA_PTK, PTKINITNEGOTIATING)
 		_rsc = rsc;
 		encr = 1;
 #if BK_SUPPLICANT
-		WPA_LOGI("WPA: GTK %pb\n", gtk, gtk_len);
+		WPA_LOGD("WPA: GTK %pb\n", gtk, gtk_len);
 #endif
 	} else {
 		/* WPA does not include GTK in msg 3/4 */

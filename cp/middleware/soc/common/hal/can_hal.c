@@ -1602,12 +1602,12 @@ static void can_hal_accept_filter_set(can_acc_filter_cmd_s *cmd)
 	} else {
 		//choose the addr of acc filter
 		can_hal_set_acfadr(acfadr);
-		HAL_LOGI("acfadr 0x%x\r\n", acfadr);
+		HAL_LOGD("acfadr 0x%x\r\n", acfadr);
 
 		switch (cmd->aide) {
 			case CAN_ACCEPT_BOTH:
 				can_hal_set_aidee(0);
-				HAL_LOGI("CAN_ACCEPT_BOTH 0x%x\r\n", value);
+				HAL_LOGD("CAN_ACCEPT_BOTH 0x%x\r\n", value);
 				break;
 
 			case CAN_ACCEPT_STANDARD:
@@ -1623,18 +1623,18 @@ static void can_hal_accept_filter_set(can_acc_filter_cmd_s *cmd)
 		//first set mask
 		can_hal_set_amask(cmd->mask & CAN_AID_ACODE_OR_AMASK_MASK);
 		cmd->mask = can_hal_get_amask();
-		HAL_LOGI("amask 0x%x\r\n", cmd->mask);
+		HAL_LOGD("amask 0x%x\r\n", cmd->mask);
 
 		//second set code
 		can_hal_set_acode(cmd->code & CAN_AID_ACODE_OR_AMASK_MASK);
 		cmd->code = can_hal_get_acode();
-		HAL_LOGI("acode 0x%x\r\n", cmd->code);
+		HAL_LOGD("acode 0x%x\r\n", cmd->code);
 
 		//ACF_EN
 		value = can_hal_get_acf_en();
 		value |= (1 << acfadr);
 		can_hal_set_acf_en(value);
-		HAL_LOGI("ACF_EN 0x%x\r\n", value);
+		HAL_LOGD("ACF_EN 0x%x\r\n", value);
 	}
 }
 
@@ -1746,7 +1746,7 @@ static void can_hal_trans_switch(uint32_t seq)
 static int can_hal_send_ptb(can_frame_s *frame)
 {
 	uint32_t value = 0;
-	HAL_LOGI(" %s, %d \r\n\r\n", __func__, __LINE__);
+	HAL_LOGD(" %s, %d \r\n\r\n", __func__, __LINE__);
 
 	can_hal_set_tbsel(0);
 
@@ -1830,7 +1830,7 @@ static bk_err_t can_hal_send_stb(void)
 			can_hal_trans_switch(CAN_TSONE);
 		}
 	}
-	HAL_LOGI("ide 0x%x, id0x%x, rtr0x%x, fdf0x%x, brs0x%x, ttsen0x%x, dlc0x%x, data_size0x%x\r\n",ide, id, rtr, fdf, brs, ttsen, dlc, data_size);
+	HAL_LOGD("ide 0x%x, id0x%x, rtr0x%x, fdf0x%x, brs0x%x, ttsen0x%x, dlc0x%x, data_size0x%x\r\n",ide, id, rtr, fdf, brs, ttsen, dlc, data_size);
 	return BK_OK;
 }
 

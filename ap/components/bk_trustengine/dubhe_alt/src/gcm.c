@@ -45,7 +45,7 @@
 #if defined(MBEDTLS_SELF_TEST) && defined(MBEDTLS_AES_C)
 #include <stdio.h>
 #include "mbedtls/aes.h"
-#define mbedtls_printf printf
+#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #endif /* MBEDTLS_SELF_TEST && MBEDTLS_AES_C */
 #endif /* MBEDTLS_PLATFORM_C */
 

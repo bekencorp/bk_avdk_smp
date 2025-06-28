@@ -22,7 +22,7 @@
 #if CFG_HAL_DEBUG_ICU
 void icu_struct_dump(void)
 {
-	SOC_LOGI("icu_struc_dump TODO\n");
+	SOC_LOGD("icu_struc_dump TODO\n");
 }
 #endif
 

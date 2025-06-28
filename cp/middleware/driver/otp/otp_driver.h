@@ -21,3 +21,4 @@
 #define OTP_LOGW(...) BK_LOGW(OTP_TAG, ##__VA_ARGS__)
 #define OTP_LOGE(...) BK_LOGE(OTP_TAG, ##__VA_ARGS__)
 #define OTP_LOGD(...) BK_LOGD(OTP_TAG, ##__VA_ARGS__)
+#define OTP_LOGV(...) BK_LOGV(OTP_TAG, ##__VA_ARGS__)

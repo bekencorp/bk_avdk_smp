@@ -113,6 +113,7 @@
 #define TEMPD_LOGW(...) BK_LOGW(TEMPD_TAG, ##__VA_ARGS__)
 #define TEMPD_LOGE(...) BK_LOGE(TEMPD_TAG, ##__VA_ARGS__)
 #define TEMPD_LOGD(...) BK_LOGD(TEMPD_TAG, ##__VA_ARGS__)
+#define TEMPD_LOGV(...) BK_LOGV(TEMPD_TAG, ##__VA_ARGS__)
 
 typedef struct {
 	uint16_t last_detect_val;

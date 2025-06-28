@@ -34,6 +34,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define THROUGHPUT_DEBUG 1
 
@@ -88,7 +89,7 @@ doorbell_cs2_h264_drop_info_t s_h264_drop_info = {0};
 #endif
 static void throughput_anlayse_timer_hdl(void *param)
 {
-    os_printf("cs2_tp, send bytes %d, count %d, %.3f count/s, %.3f KB/s, %.3f ms/perc, %.3fB/perc, delay count %d\n",
+    LOGD("cs2_tp, send bytes %d, count %d, %.3f count/s, %.3f KB/s, %.3f ms/perc, %.3fB/perc, delay count %d\n",
             s_send_video_bytes,
             s_send_video_count,
             1.0 * s_send_video_count / (THROUGHPUT_ANLAYSE_MS / 1000),
@@ -163,7 +164,7 @@ int doorbell_cs2_img_send_packet(uint8_t *data, uint32_t len)
 #if THROUGHPUT_DEBUG
 		    s_delay_count++;
 #endif
-			//LOGI("%s delay %d, %d\n", __func__, index, size);
+			//LOGD("%s delay %d, %d\n", __func__, index, size);
 			rtos_delay_milliseconds(CS2_P2P_TRANSFER_DELAY);
 		}
 	}
@@ -211,7 +212,7 @@ int doorbell_cs2_img_send_prepare(uint8_t *data, uint32_t length)
 #if CONFIG_MEDIA_DROP_STRATEGY_ENABLE
 void doorbell_cs2_img_h264_record_map(bool is_I_frame)
 {
-	LOGD("[map] is_I_frame %d I_num %d P_num %d drop_level %d drop_period %d\n",is_I_frame,
+	LOGV("[map] is_I_frame %d I_num %d P_num %d drop_level %d drop_period %d\n",is_I_frame,
 			s_h264_drop_info.I_num,
 			s_h264_drop_info.P_num,
 			s_h264_drop_info.drop_level,
@@ -243,8 +244,8 @@ void doorbell_cs2_h264_down_drop_level(uint32_t cur_drop_level,bool recovery,boo
 	uint32_t status_avg_size;
 	int32_t avg_drop_level;
 
-	LOGD("[dec] cur_drop_level %d recovery %d is_I_frame %d\n", cur_drop_level, recovery, is_I_frame);
-	LOGD("[dec] drop period %d total_size %d stats cnt %d\n",s_h264_drop_info.drop_period,s_h264_drop_info.status_total_size,s_h264_drop_info.status_cnt);
+	LOGV("[dec] cur_drop_level %d recovery %d is_I_frame %d\n", cur_drop_level, recovery, is_I_frame);
+	LOGV("[dec] drop period %d total_size %d stats cnt %d\n",s_h264_drop_info.drop_period,s_h264_drop_info.status_total_size,s_h264_drop_info.status_cnt);
 
 	if ((s_h264_drop_info.drop_period <= MEDIA_H264_DOWN_DROP_LEVEL_MIN_PERIOD) || !is_I_frame || !s_h264_drop_info.status_cnt)
 	{
@@ -253,7 +254,7 @@ void doorbell_cs2_h264_down_drop_level(uint32_t cur_drop_level,bool recovery,boo
 
 	status_avg_size = (s_h264_drop_info.status_total_size * 1024) / s_h264_drop_info.status_cnt;
 
-	LOGD("status_avg_size %d\n", status_avg_size);
+	LOGV("status_avg_size %d\n", status_avg_size);
 
 	if (status_avg_size < MEDIA_H264_START_DROP_THD)
 	{
@@ -265,7 +266,7 @@ void doorbell_cs2_h264_down_drop_level(uint32_t cur_drop_level,bool recovery,boo
 		if (avg_drop_level >= MEDIA_H264_MAX_DROP_LEVEL)
 			avg_drop_level = MEDIA_H264_MAX_DROP_LEVEL - 1;
 		s_h264_drop_info.drop_level = (avg_drop_level > cur_drop_level) ? avg_drop_level : cur_drop_level;
-		LOGD("[dec] avg_drop_level %d drop_level %d\n",avg_drop_level,s_h264_drop_info.drop_level);
+		LOGV("[dec] avg_drop_level %d drop_level %d\n",avg_drop_level,s_h264_drop_info.drop_level);
 	}
 
 	s_h264_drop_info.drop_period = 0;
@@ -279,9 +280,9 @@ bool doorbell_cs2_img_h264_drop_level_check(uint32_t pre_size,UINT32 WriteSize,b
 	uint32_t cur_drop_level;
 	bool need_drop = (cur_size > MEDIA_H264_START_DROP_THD) ? true : false;
 
-	LOGD("pre_size %d WriteSize %d is_I_frame %d need_drop %d\n",pre_size,WriteSize,is_I_frame,need_drop);
-	LOGD("drop_level %d drop_period %d is_I_frame %d need_drop %d\n",s_h264_drop_info.drop_level,s_h264_drop_info.drop_period);
-	LOGD("drop thd %d offset %d\n",MEDIA_H264_START_DROP_THD,MEDIA_H264_DROP_LEVEL_INTERVAL);
+	LOGV("pre_size %d WriteSize %d is_I_frame %d need_drop %d\n",pre_size,WriteSize,is_I_frame,need_drop);
+	LOGV("drop_level %d drop_period %d is_I_frame %d need_drop %d\n",s_h264_drop_info.drop_level,s_h264_drop_info.drop_period);
+	LOGV("drop thd %d offset %d\n",MEDIA_H264_START_DROP_THD,MEDIA_H264_DROP_LEVEL_INTERVAL);
 
 	if ((!s_h264_drop_info.drop_level) && !need_drop)
 	{
@@ -333,7 +334,7 @@ bool doorbell_cs2_img_h264_drop_level_check(uint32_t pre_size,UINT32 WriteSize,b
 	{
 		if((s_h264_drop_info.drop_level >= MEDIA_H264_MAX_DROP_LEVEL) && (s_h264_drop_info.I_num == MEDIA_H264_I_FRAME_MAX_NUM))
 		{
-			LOGD("Drop cur I frame\n");
+			LOGV("Drop cur I frame\n");
 			s_h264_drop_info.I_frame_droped = true;
 			return true;
 		}
@@ -343,7 +344,7 @@ bool doorbell_cs2_img_h264_drop_level_check(uint32_t pre_size,UINT32 WriteSize,b
 	{
 		if ((s_h264_drop_info.P_num >= (MEDIA_H264_MAX_DROP_LEVEL - s_h264_drop_info.drop_level)))
 		{
-			LOGD("Drop cur P frame\n");
+			LOGV("Drop cur P frame\n");
 			return true;
 		}
 	}
@@ -369,13 +370,13 @@ bool doorbell_cs2_img_h264_drop_check(frame_buffer_t *frame,uint32_t count, uint
 		{
 			s_h264_drop_info.check_type = true;
 			s_h264_drop_info.support_type = (media_config.p_frame_cnt == MEDIA_H264_SUPPORT_MAX_P_FRAME_NUM) ? true : false;
-			LOGI("check support cnt %d support type %d\n",media_config.p_frame_cnt,s_h264_drop_info.support_type);
+			LOGD("check support cnt %d support type %d\n",media_config.p_frame_cnt,s_h264_drop_info.support_type);
 		}
 	}
 
 	if (frame == NULL || !s_h264_drop_info.support_type)
 	{
-		LOGD("frame %d support_type %d\n",frame,s_h264_drop_info.support_type);
+		LOGV("frame %d support_type %d\n",frame,s_h264_drop_info.support_type);
 		return false;
 	}
 
@@ -389,7 +390,7 @@ bool doorbell_cs2_img_h264_drop_check(frame_buffer_t *frame,uint32_t count, uint
 		is_NAL_I_frame = false;
 	}
 
-	LOGD("drop_check seq:%d len:%d type:%s\n", frame->sequence, frame->length, is_NAL_I_frame?"I":"P");
+	LOGV("drop_check seq:%d len:%d type:%s\n", frame->sequence, frame->length, is_NAL_I_frame?"I":"P");
 
 	if (s_current_sessionid < 0)
 	{
@@ -416,13 +417,13 @@ bool doorbell_cs2_img_h264_drop_check(frame_buffer_t *frame,uint32_t count, uint
 	//Recovery send frame immditely when write size is less than THD/2 and one gop no drop I frame
 	if(!s_h264_drop_info.I_frame_droped && drop_other_gop_frame && (WriteSize < MEDIA_H264_START_DROP_THD / 2))
 	{
-		LOGD("[drop] restore p frame\r\n");
+		LOGV("[drop] restore p frame\r\n");
 		drop_other_gop_frame = false;
 	}
 
 	if (drop_other_gop_frame)
 	{
-		LOGD("GOP Drop frame[%s]\n", is_NAL_I_frame ? "I" : "P");
+		LOGV("GOP Drop frame[%s]\n", is_NAL_I_frame ? "I" : "P");
 		return true;
 	}
 
@@ -468,7 +469,7 @@ void *doorbell_cs2_img_get_tx_buf(void)
 		return NULL;
 	}
 
-	LOGI("doorbell_udp_img_get_tx_buf, tbuf %p\n", doorbell_cs2_info->img_channel->tbuf);
+	LOGD("doorbell_udp_img_get_tx_buf, tbuf %p\n", doorbell_cs2_info->img_channel->tbuf);
 
 	return doorbell_cs2_info->img_channel->tbuf + 1;
 }
@@ -524,7 +525,7 @@ int doorbell_cs2_aud_send_packet(uint8_t *data, uint32_t len)
 
 		if (index < size)
 		{
-			//LOGI("%s delay %d, %d\n", __func__, index, size);
+			//LOGD("%s delay %d, %d\n", __func__, index, size);
 			rtos_delay_milliseconds(CS2_P2P_TRANSFER_DELAY);
 		}
 
@@ -560,7 +561,7 @@ void *doorbell_cs2_aud_get_tx_buf(void)
 		return NULL;
 	}
 
-	//LOGI("doorbell_cs2_aud_get_tx_buf, tbuf %p\n", doorbell_cs2_info->aud_channel->tbuf);
+	//LOGD("doorbell_cs2_aud_get_tx_buf, tbuf %p\n", doorbell_cs2_info->aud_channel->tbuf);
 
 	return doorbell_cs2_info->aud_channel->tbuf + 1;
 }
@@ -734,37 +735,37 @@ static const char *get_p2p_error_code_info(int err)
 
 static void show_network(st_PPCS_NetInfo NetInfo)
 {
-	LOGI("-------------- NetInfo: -------------------\n");
-	LOGI("Internet Reachable     : %s\n", (NetInfo.bFlagInternet == 1) ? "YES" : "NO");
-	LOGI("P2P Server IP resolved : %s\n", (NetInfo.bFlagHostResolved == 1) ? "YES" : "NO");
-	LOGI("P2P Server Hello Ack   : %s\n", (NetInfo.bFlagServerHello == 1) ? "YES" : "NO");
+	LOGD("-------------- NetInfo: -------------------\n");
+	LOGD("Internet Reachable     : %s\n", (NetInfo.bFlagInternet == 1) ? "YES" : "NO");
+	LOGD("P2P Server IP resolved : %s\n", (NetInfo.bFlagHostResolved == 1) ? "YES" : "NO");
+	LOGD("P2P Server Hello Ack   : %s\n", (NetInfo.bFlagServerHello == 1) ? "YES" : "NO");
 
 	switch (NetInfo.NAT_Type)
 	{
 		case 0:
-			LOGI("Local NAT Type         : Unknow\n");
+			LOGD("Local NAT Type         : Unknow\n");
 			break;
 
 		case 1:
-			LOGI("Local NAT Type         : IP-Restricted Cone\n");
+			LOGD("Local NAT Type         : IP-Restricted Cone\n");
 			break;
 
 		case 2:
-			LOGI("Local NAT Type         : Port-Restricted Cone\n");
+			LOGD("Local NAT Type         : Port-Restricted Cone\n");
 			break;
 
 		case 3:
-			LOGI("Local NAT Type         : Symmetric\n");
+			LOGD("Local NAT Type         : Symmetric\n");
 			break;
 
 		case 4:
-			LOGI("Local NAT Type         : Different Wan IP Detected!!\n");
+			LOGD("Local NAT Type         : Different Wan IP Detected!!\n");
 			break;
 	}
 
-	LOGI("My Wan IP : %s\n", NetInfo.MyWanIP);
-	LOGI("My Lan IP : %s\n", NetInfo.MyLanIP);
-	LOGI("-------------------------------------------\n");
+	LOGD("My Wan IP : %s\n", NetInfo.MyWanIP);
+	LOGD("My Lan IP : %s\n", NetInfo.MyLanIP);
+	LOGD("-------------------------------------------\n");
 }
 
 static const char *get_listen_error_info(int ret)
@@ -913,7 +914,7 @@ static int get_session_info(int SessionID, session_info_t *MySInfo)
 		}
 	}
 
-	// else LOGI("PPCS_Check(SessionID=%d) ret=%d [%s]\n", SessionID, ret, get_p2p_error_code_info(ret));
+	// else LOGD("PPCS_Check(SessionID=%d) ret=%d [%s]\n", SessionID, ret, get_p2p_error_code_info(ret));
 	return ret;
 }
 
@@ -942,17 +943,17 @@ static int cs2_p2p_listen(const char *did, const char *APILicense, unsigned long
 	{
 		ret = PPCS_Listen(did, TimeOut_Sec, UDP_Port, bEnableInternet, APILicense);
 
-		LOGI("PPCS_Listen timeout\n");
+		LOGD("PPCS_Listen timeout\n");
 	}
 	while (ERROR_PPCS_TIME_OUT == ret && *is_run);
 
 	if (1 == Repeat)
 	{
-		LOGI("%02lu-PPCS_Listen(%s,%d,%d,%d,%s) ...\n", Repeat, did, TimeOut_Sec, UDP_Port, bEnableInternet, APILicense);
+		LOGD("%02lu-PPCS_Listen(%s,%d,%d,%d,%s) ...\n", Repeat, did, TimeOut_Sec, UDP_Port, bEnableInternet, APILicense);
 	}
 	else
 	{
-		LOGI("%02lu-PPCS_Listen(%s,%d,%d,%d,%s) ...\n", Repeat, did, TimeOut_Sec, UDP_Port, bEnableInternet, APILicense);
+		LOGD("%02lu-PPCS_Listen(%s,%d,%d,%d,%s) ...\n", Repeat, did, TimeOut_Sec, UDP_Port, bEnableInternet, APILicense);
 	}
 
 #ifdef TIME_SHOW
@@ -961,7 +962,7 @@ static int cs2_p2p_listen(const char *did, const char *APILicense, unsigned long
 
 	if (*is_run == 0)
 	{
-		LOGI("p2p", "%s is_run is 0, exit\n", __func__);
+		LOGD("p2p", "%s is_run is 0, exit\n", __func__);
 
 		if (ret >= 0)
 		{
@@ -974,9 +975,9 @@ static int cs2_p2p_listen(const char *did, const char *APILicense, unsigned long
 	if (0 > ret)
 	{
 #ifdef TIME_SHOW
-		LOGI("[%s] %02lu-PPCS_Listen failed:%d ms, ret=%d %s\n", t2.date, Repeat, TU_MS(t1, t2), ret, get_listen_error_info(ret));
+		LOGD("[%s] %02lu-PPCS_Listen failed:%d ms, ret=%d %s\n", t2.date, Repeat, TU_MS(t1, t2), ret, get_listen_error_info(ret));
 #else
-		LOGI("%02lu-PPCS_Listen failed, ret=%d %s\n", Repeat, ret, get_listen_error_info(ret));
+		LOGD("%02lu-PPCS_Listen failed, ret=%d %s\n", Repeat, ret, get_listen_error_info(ret));
 #endif
 		return ret;
 	}
@@ -985,7 +986,7 @@ static int cs2_p2p_listen(const char *did, const char *APILicense, unsigned long
 		SessionID = ret; // 每个 >=0 的 SessionID 都是一个正常的连接，本 sample 是单用户连接范例，多用户端连接注意要保留区分每一个 PPCS_Listen >=0 的 SessionID, 当连接断开或者 SessionID 不用时，必须要调 PPCS_Close(SessionID)/PPCS_ForceClose(SessionID) 关闭连线释放资源。
 //		PPCS_Share_Bandwidth(0); // 当有连接进来，关闭设备转发功能。
 
-		LOGI("PPCS_Share_Bandwidth(0) is Called!!\n");
+		LOGD("PPCS_Share_Bandwidth(0) is Called!!\n");
 	}
 
 #ifdef SESSION_PRINT
@@ -994,7 +995,7 @@ static int cs2_p2p_listen(const char *did, const char *APILicense, unsigned long
 
 		if (ERROR_PPCS_SUCCESSFUL != (ret = get_session_info(SessionID, &session_info)))
 		{
-			LOGI("%02lu-did=%s,Session=%d,RmtAddr=Unknown (PPCS_Check:%d)\n", Repeat, did, SessionID, ret);
+			LOGD("%02lu-did=%s,Session=%d,RmtAddr=Unknown (PPCS_Check:%d)\n", Repeat, did, SessionID, ret);
 			return SessionID;
 		}
 	}
@@ -1048,11 +1049,11 @@ static int32_t doorbell_cs2_p2p_write(int SessionID, uint8_t Channel, uint8_t *b
 
 		if (WriteSize <= write_not_send_thr)
 		{
-			//            os_printf("%s start write %d WriteSize %d SessionID %d channel %d\n", __func__, will_write_size, WriteSize, SessionID, Channel);
+			//            LOGD("%s start write %d WriteSize %d SessionID %d channel %d\n", __func__, will_write_size, WriteSize, SessionID, Channel);
 
-			//LOGI("channel: %d, write size: %d\n", Channel, will_write_size);
+			//LOGD("channel: %d, write size: %d\n", Channel, will_write_size);
 			ret = PPCS_Write(SessionID, Channel, (CHAR *)(buff + write_index), will_write_size);
-			//LOGI("channel: %d, return size: %d\n", Channel, ret);
+			//LOGD("channel: %d, return size: %d\n", Channel, ret);
 
 			if (0 > ret)
 			{
@@ -1096,7 +1097,7 @@ WRITE_FAIL:
 
 static int32_t doorbell_cs2_p2p_cmd_handle(uint8_t *data, uint32_t length)
 {
-	LOGI("%s, length: %d\n", __func__, length);
+	LOGD("%s, length: %d\n", __func__, length);
 	doorbell_transmission_unpack(doorbell_cs2_info->db_channel, data, length, doorbell_transmission_cmd_recive_callback);
 	return 0;
 }
@@ -1121,7 +1122,7 @@ static int doorbell_cs2_p2p_event_send(uint8_t *data, uint16_t length)
 
 		if (index < length)
 		{
-			LOGI("%s delay %d, %d\n", __func__, index, length);
+			LOGD("%s delay %d, %d\n", __func__, index, length);
 			rtos_delay_milliseconds(CS2_P2P_TRANSFER_DELAY);
 		}
 
@@ -1158,7 +1159,7 @@ static void doorbell_cs2_session_close(void)
 
 	doorbell_cs2_get_time(&t2);
 
-	LOGI("%s: (%d) done!! t:%d ms\n", __func__, s_current_sessionid, TU_MS(t1, t2));
+	LOGD("%s: (%d) done!! t:%d ms\n", __func__, s_current_sessionid, TU_MS(t1, t2));
 
 	s_current_sessionid = -1;
 
@@ -1216,7 +1217,7 @@ static int doorbell_cs2_p2p_audio_receiver(beken_thread_arg_t arg)
 
 				if (ReadSize)
 				{
-					LOGD("got audio count: %d\n", ReadSize);
+					LOGV("got audio count: %d\n", ReadSize);
 					doorbell_transmission_unpack(doorbell_cs2_info->aud_channel, tmp_read_buf, ReadSize, doorbell_cs2_voice_receiver);
 
 					continue;
@@ -1224,7 +1225,7 @@ static int doorbell_cs2_p2p_audio_receiver(beken_thread_arg_t arg)
 
 				if (ret == ERROR_PPCS_TIME_OUT)
 				{
-					LOGD("got audio data timeout\n");
+					LOGV("got audio data timeout\n");
 					continue;
 				}
 
@@ -1313,7 +1314,7 @@ static int doorbell_cs2_p2p_interface_core(p2p_cs2_key_t *key)
 
 		if (0 <= session)
 		{
-			BK_LOGI("p2p", "%s listen Sid %d\n", __func__, s_current_sessionid);
+			BK_LOGD("p2p", "%s listen Sid %d\n", __func__, s_current_sessionid);
 
 			doorbell_cs2_info->device_connected = BK_TRUE;
 
@@ -1330,20 +1331,20 @@ static int doorbell_cs2_p2p_interface_core(p2p_cs2_key_t *key)
 
 				if (ReadSize)
 				{
-					LOGI("got cmd count: %d\n", ReadSize);
+					LOGD("got cmd count: %d\n", ReadSize);
 					doorbell_cs2_p2p_cmd_handle(tmp_read_buf, ReadSize);
 					continue;
 				}
 
 				if (ret == ERROR_PPCS_TIME_OUT)
 				{
-					LOGD("got cmd data timeout, %d\n", ReadSize);
+					LOGV("got cmd data timeout, %d\n", ReadSize);
 					continue;
 				}
 
 				if (ret < 0 && ERROR_PPCS_TIME_OUT != ret)
 				{
-					LOGI("%s PPCS_Read ret err %d %s\n", __func__, ret, get_p2p_error_code_info(ret));
+					LOGD("%s PPCS_Read ret err %d %s\n", __func__, ret, get_p2p_error_code_info(ret));
 					goto READ_ERR;
 				}
 			}
@@ -1404,7 +1405,7 @@ static int doorbell_cs2_p2p_interface_init(p2p_cs2_key_t *key)
 
 	if (0 > strncmp(VerBuf, "3.5.0.0", 5))
 	{
-		LOGI("PPCS P2P API Version: %d.%d.%d.%d\n",
+		LOGD("PPCS P2P API Version: %d.%d.%d.%d\n",
 		     (APIVersion & 0xFF000000) >> 24,
 		     (APIVersion & 0x00FF0000) >> 16,
 		     (APIVersion & 0x0000FF00) >> 8,
@@ -1413,7 +1414,7 @@ static int doorbell_cs2_p2p_interface_init(p2p_cs2_key_t *key)
 	else
 	{
 		const char *pVer = PPCS_GetAPIInformation();// PPCS_GetAPIInformation: support by Version >= 3.5.0
-		LOGI("PPCS_GetAPIInformation(%u Byte):\n%s\n", (unsigned)strlen(pVer), pVer);
+		LOGD("PPCS_GetAPIInformation(%u Byte):\n%s\n", (unsigned)strlen(pVer), pVer);
 	}
 
 	time_info_t t1, t2;
@@ -1430,33 +1431,33 @@ static int doorbell_cs2_p2p_interface_init(p2p_cs2_key_t *key)
 		snprintf(InitJsonString, sizeof(InitJsonString), "{\"InitString\":\"%s\",\"MaxNumSess\":%d,\"SessAliveSec\":%d}", key->initstring, MaxNumSess, SessAliveSec);
 		// st_debug("InitJsonString=%s\n",InitJsonString);
 		doorbell_cs2_get_time(&t1);
-		LOGI("[%s] PPCS_Initialize1(%s) ...\n", t1.date, InitJsonString);
+		LOGD("[%s] PPCS_Initialize1(%s) ...\n", t1.date, InitJsonString);
 
 
 		// 如果Parameter 不是正确的JSON字串则会被当成InitString[:P2PKey]来处理, 如此以兼容旧版.
 		ret = PPCS_Initialize((char *)InitJsonString);
 
 		doorbell_cs2_get_time(&t2);
-		LOGI("[%s] PPCS_Initialize2 len(%d): ret=%d, t:%d ms\n", t2.date, strlen(key->initstring), ret, TU_MS(t1, t2));
+		LOGD("[%s] PPCS_Initialize2 len(%d): ret=%d, t:%d ms\n", t2.date, strlen(key->initstring), ret, TU_MS(t1, t2));
 
 
 		if (ERROR_PPCS_SUCCESSFUL != ret && ERROR_PPCS_ALREADY_INITIALIZED != ret)
 		{
-			LOGI("[%s] PPCS_Initialize: ret=%d\n", t2.date, ret);
+			LOGD("[%s] PPCS_Initialize: ret=%d\n", t2.date, ret);
 			return 0;
 		}
 	}
 	else
 	{
 		doorbell_cs2_get_time(&t1);
-		LOGI("[%s] PPCS_Initialize3(%s) ...\n", t1.date, key->initstring);
+		LOGD("[%s] PPCS_Initialize3(%s) ...\n", t1.date, key->initstring);
 		ret = PPCS_Initialize((char *)key->initstring);
 		doorbell_cs2_get_time(&t2);
-		LOGI("[%s] PPCS_Initialize4(%s): ret=%d, t:%d ms\n", t2.date, key->initstring, ret, TU_MS(t1, t2));
+		LOGD("[%s] PPCS_Initialize4(%s): ret=%d, t:%d ms\n", t2.date, key->initstring, ret, TU_MS(t1, t2));
 
 		if (ERROR_PPCS_SUCCESSFUL != ret && ERROR_PPCS_ALREADY_INITIALIZED != ret)
 		{
-			LOGI("[%s] PPCS_Initialize: ret=%d\n", t2.date, ret);
+			LOGD("[%s] PPCS_Initialize: ret=%d\n", t2.date, ret);
 			return 0;
 		}
 	}
@@ -1499,7 +1500,7 @@ int doorbell_cs2_service_init(void *param)
 {
 	int ret;
 
-	LOGI("%s\n", __func__);
+	LOGD("%s\n", __func__);
 
 	p2p_cs2_key_t *p2p_cs2_key = (p2p_cs2_key_t *)param;
 
@@ -1578,7 +1579,7 @@ error:
 
 void demo_doorbell_cs2_p2p_server_deinit(void)
 {
-	LOGI("%s\n", __func__);
+	LOGD("%s\n", __func__);
 }
 
 
@@ -1592,7 +1593,7 @@ static int doorbell_cs2_audio_state_changed(doorbell_state_t state)
 {
 	int ret;
 
-	LOGI("%s: %d\n", __func__, state);
+	LOGD("%s: %d\n", __func__, state);
 
 	if (state == DB_TURN_ON)
 	{

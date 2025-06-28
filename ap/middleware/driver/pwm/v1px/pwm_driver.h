@@ -21,5 +21,5 @@
 #define PWM_LOGW(...) BK_LOGW(PWM_TAG, ##__VA_ARGS__)
 #define PWM_LOGE(...) BK_LOGE(PWM_TAG, ##__VA_ARGS__)
 #define PWM_LOGD(...) BK_LOGD(PWM_TAG, ##__VA_ARGS__)
-#define PWM_LOGD(...) BK_LOGD(PWM_TAG, ##__VA_ARGS__)
+#define PWM_LOGV(...) BK_LOGV(PWM_TAG, ##__VA_ARGS__)
 

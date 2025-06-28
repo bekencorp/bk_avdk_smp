@@ -74,6 +74,7 @@ typedef union
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #if CONFIG_SOC_SMP
 #include "spinlock.h"
@@ -245,7 +246,7 @@ bk_ipc_handle_t *bk_ipc_get_handle_by_name(LIST_HEADER_T *list, char *name)
 
     if (list == NULL || list_empty(list))
     {
-        LOGD("%s invalid list\n", __func__);
+        LOGV("%s invalid list\n", __func__);
         return NULL;
     }
 
@@ -449,7 +450,7 @@ int bk_ipc_send(bk_ipc_t *ipc, void *data, uint32_t size, uint32_t flags, uint32
     bk_ipc_handle_t *bk_ipc_handle = (bk_ipc_handle_t *)(*ipc);
     bk_ipc_info_t *ipc_info = bk_ipc_handle->ipc;
 
-    LOGD("%s %d ++\n", __func__, __LINE__);
+    LOGV("%s %d ++\n", __func__, __LINE__);
 
     if (ipc_info == NULL)
     {
@@ -475,9 +476,9 @@ int bk_ipc_send(bk_ipc_t *ipc, void *data, uint32_t size, uint32_t flags, uint32
 
     if (flags & MIPC_CHAN_SEND_FLAG_SYNC)
     {
-        LOGD("%s mailbox send wait +++\n", __func__);
+        LOGV("%s mailbox send wait +++\n", __func__);
         ret = bk_ipc_send_sync(ipc_info, ipc_data);
-        LOGD("%s mailbox send wait ---\n", __func__);
+        LOGV("%s mailbox send wait ---\n", __func__);
 
         if (ret != BK_OK)
         {
@@ -509,7 +510,7 @@ out:
         *result = 0;
     }
 
-    LOGD("%s %d --\n", __func__, __LINE__);
+    LOGV("%s %d --\n", __func__, __LINE__);
 
     return ret;
 }
@@ -558,7 +559,7 @@ bk_err_t bk_ipc_obj_free(ipc_obj_t obj, uint32_t result)
 
     bk_ipc_data->result = result;
 
-    LOGD("send ack\n");
+    LOGV("send ack\n");
 
     header.source = bk_ipc_cpu_id_get();
     header.type = IPC_TYPE_ACK;
@@ -580,7 +581,7 @@ static void bk_ipc_crc_check(bk_ipc_data_t *data, uint32_t result)
         return;
     }
 
-    LOGD("%s crc check : %02X %02X\n", __func__, crc, ipc_result.crc);
+    LOGV("%s crc check : %02X %02X\n", __func__, crc, ipc_result.crc);
 }
 
 static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
@@ -594,7 +595,7 @@ static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
     flush_all_dcache();
 #endif
 
-    LOGD("%s %d\n", __func__, __LINE__);
+    LOGV("%s %d\n", __func__, __LINE__);
 
     header.data = cmd_buf->hdr.cmd;
 
@@ -625,7 +626,7 @@ static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
             bk_ipc_crc_check(data, cmd_buf->param2);
 #endif
 
-            LOGD("%s got data from CPU %d\n", __func__, cmd_buf->hdr.cmd & 0x3);
+            LOGV("%s got data from CPU %d\n", __func__, cmd_buf->hdr.cmd & 0x3);
 
             bk_ipc_data_push(&ipc_info->remote_list, data);
             bk_ipc_event_notify(ipc_info, IPC_EVENT_RECV);
@@ -640,7 +641,7 @@ static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
 
             if (data->flags & MIPC_CHAN_SEND_FLAG_SYNC)
             {
-                LOGD("%s set sync sem\n", __func__);
+                LOGV("%s set sync sem\n", __func__);
                 bk_err_t ret = rtos_set_semaphore(&data->sem);
 
                 if (ret != BK_OK)
@@ -658,7 +659,7 @@ static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
 
         case IPC_TYPE_SYS:
         {
-            LOGI("recv cpu%d state changed: %d\n", header.source, cmd_buf->param1);
+            LOGD("recv cpu%d state changed: %d\n", header.source, cmd_buf->param1);
             ipc_info->cpu_state[header.source] = cmd_buf->param1 & 0xFF;
 
             if (cmd_buf->param1 == IPC_CPU_STARTUP)
@@ -684,7 +685,7 @@ static void bk_ipc_mailbox_tx_isr(void *param)
 
 static void bk_ipc_mailbox_tx_cmpl_isr(void *param, mb_chnl_ack_t *ack_buf)
 {
-    LOGD("%s %d\n", __func__, __LINE__);
+    LOGV("%s %d\n", __func__, __LINE__);
     bk_ipc_info_t *ipc_info = (bk_ipc_info_t *)param;
 
     if (ipc_info)
@@ -743,7 +744,7 @@ static void bk_ipc_thread_entry(beken_thread_arg_t param)
 
                     if (data == NULL)
                     {
-                        LOGD("%s free data error, should not be NULL\n", __func__);
+                        LOGV("%s free data error, should not be NULL\n", __func__);
                         break;
                     }
 
@@ -871,7 +872,7 @@ bk_ipc_info_t *bk_ipc_core_init(uint8_t channel)
     bk_err_t ret = BK_OK;
     bk_ipc_info_t *ipc_info = NULL;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     ipc_info = (bk_ipc_info_t *)os_malloc(sizeof(bk_ipc_info_t));
 
@@ -926,7 +927,7 @@ bk_ipc_info_t *bk_ipc_core_init(uint8_t channel)
 
     rtos_init_mutex(&ipc_info->boot_lock);
 
-    LOGI("open channel: %d on CPU: %d\n", channel, bk_ipc_cpu_id_get());
+    LOGD("open channel: %d on CPU: %d\n", channel, bk_ipc_cpu_id_get());
     mb_chnl_open(channel, ipc_info);
     mb_chnl_ctrl(channel, MB_CHNL_SET_RX_ISR, bk_ipc_mailbox_rx_isr);
     mb_chnl_ctrl(channel, MB_CHNL_SET_TX_ISR, bk_ipc_mailbox_tx_isr);
@@ -961,7 +962,7 @@ bk_ipc_info_t *bk_ipc_core_init(uint8_t channel)
 
         bk_ipc_list_insert(&ipc_info->channel_list, &handle->list);
 
-        LOGI("channel: %s\n", cfg->name);
+        LOGD("channel: %s\n", cfg->name);
     }
 
     ret = rtos_create_thread(&ipc_info->thread,
@@ -971,7 +972,7 @@ bk_ipc_info_t *bk_ipc_core_init(uint8_t channel)
                              CONFIG_MAILBOX_IPC_API_TASK_STACK_SIZE,
                              ipc_info);
 
-    LOGI("%s success\n", __func__);
+    LOGD("%s success\n", __func__);
 
     return ipc_info;
 

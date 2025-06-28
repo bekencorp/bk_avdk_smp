@@ -102,6 +102,7 @@ static bool s_lcd_driver_is_init = false;
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 extern u64 riscv_get_mtimer(void);
 
@@ -136,13 +137,13 @@ const lcd_device_t * get_lcd_device_by_name(char * name)
 {
 	uint32_t i;
 
-	LOGI("%s, devices: %d\n", __func__, devices_size);
+	LOGD("%s, devices: %d\n", __func__, devices_size);
 
 	for (i = 0; i < devices_size; i++)
 	{
 		if (os_strcmp(devices_list[i]->name, name) == 0)
 		{
-			LOGI("%s, name: %s\n", __func__, devices_list[i]->name);
+			LOGD("%s, name: %s\n", __func__, devices_list[i]->name);
 			return devices_list[i];
 		}
 	}
@@ -153,13 +154,13 @@ const lcd_device_t *get_lcd_device_by_ppi(media_ppi_t ppi)
 {
 	uint32_t i;
 
-	LOGI("%s, devices: %d\n", __func__, devices_size);
+	LOGD("%s, devices: %d\n", __func__, devices_size);
 
 	for (i = 0; i < devices_size; i++)
 	{
 		if (devices_list[i]->ppi == ppi)
 		{
-			LOGI("%s, name: %s\n", __func__, devices_list[i]->name);
+			LOGD("%s, name: %s\n", __func__, devices_list[i]->name);
 			return devices_list[i];
 		}
 	}
@@ -268,7 +269,7 @@ int32_t lcd_driver_get_spi_gpio(LCD_SPI_GPIO_TYPE_E gpio_type)
 
 bk_err_t lcd_mcu_gpio_init(void)
 {
-	LOGD("%s\n", __func__);
+	LOGV("%s\n", __func__);
 #if 0
 	IO_FUNCTION_ENABLE_I8080(LCD_MCU_D0_PIN, LCD_MCU_D0_FUNC);
 	IO_FUNCTION_ENABLE_I8080(LCD_MCU_D1_PIN, LCD_MCU_D1_FUNC);
@@ -307,7 +308,7 @@ bk_err_t lcd_mcu_gpio_init(void)
 
 static bk_err_t lcd_rgb_gpio_init(void)
 {
-	LOGD("%s\n", __func__);
+	LOGV("%s\n", __func__);
 #if 0
 #if CONFIG_SOC_BK7236XX
 	IO_FUNCTION_ENABLE(LCD_RGB_R0_PIN, LCD_RGB_R0_FUNC);
@@ -802,7 +803,7 @@ bk_err_t bk_lcd_rgb_init(const lcd_device_t *device)
 	const lcd_rgb_t *rgb = device->rgb;
 	uint16_t x = ppi_to_pixel_x(device->ppi);  //lcd size x
 	uint16_t y = ppi_to_pixel_y(device->ppi);  //lcd size y
-	LOGD("%s\n", __func__);
+	LOGV("%s\n", __func__);
 
 	lcd_hal_rgb_display_sel(1);  //RGB display enable, and select rgb module
 	lcd_hal_set_sync_low(rgb->hsync_pulse_width, rgb->vsync_pulse_width);
@@ -831,7 +832,7 @@ bk_err_t bk_lcd_8080_init(const lcd_device_t *device)
 
 	uint16_t x = ppi_to_pixel_x(device->ppi);
 	uint16_t y = ppi_to_pixel_y(device->ppi);
-	LOGD("%s\n", __func__);
+	LOGV("%s\n", __func__);
 	lcd_hal_rgb_display_sel(0); //25bit - rgb_on = 0 select 8080 mode
 	lcd_hal_disconti_mode(DISCONTINUE_MODE);
 	lcd_hal_8080_verify_1ms_count(VERIFY_1MS_COUNT);
@@ -987,7 +988,7 @@ void lcd_driver_ppi_set(uint16_t width, uint16_t height)
 			end_y = start_y + y - 1;
 		}
 
-		LOGD("%s, offset %d, %d, %d, %d\n", __func__, start_x, end_x, start_y, end_y);
+		LOGV("%s, offset %d, %d, %d, %d\n", __func__, start_x, end_x, start_y, end_y);
 		bk_lcd_set_partical_display(1, start_x, end_x, start_y, end_y);
 	}
     else if (x == width && y == height)
@@ -1031,7 +1032,7 @@ bk_err_t lcd_driver_init(const lcd_device_t *device)
 	BK_RETURN_ON_NULL(device);
 
 	int ret = BK_OK;
-	LOGD("%s  \n", __func__);
+	LOGV("%s  \n", __func__);
 	/// LCD module power
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_VIDP_LCD, PM_POWER_MODULE_STATE_ON);
 	bk_pm_clock_ctrl(PM_CLK_ID_DISP, CLK_PWR_CTRL_PWR_UP);
@@ -1087,7 +1088,7 @@ bk_err_t lcd_driver_init(const lcd_device_t *device)
 #else
 	after = 0;
 #endif
-	LOGD("lcd init time: %lu\n", (after - before) / 26000);
+	LOGV("lcd init time: %lu\n", (after - before) / 26000);
 
 	return ret;
 }

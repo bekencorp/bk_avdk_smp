@@ -94,7 +94,7 @@ int target_wifi_ap_start(IN CONST struct demo_AP_cfg *cfg)
     os_strcpy((char *)wNetConfig.gateway_ip_addr, "192.168.10.1");
     os_strcpy((char *)wNetConfig.dnsServer_ip_addr, "192.168.10.1");
 
-    os_printf("ssid:%s	key:%s\r\n", wNetConfig.wifi_ssid, wNetConfig.wifi_key);
+    BK_LOGD(NULL,"ssid:%s	key:%s\r\n", wNetConfig.wifi_ssid, wNetConfig.wifi_key);
     bk_wlan_start_ap(&wNetConfig);
 
     return ret;
@@ -118,7 +118,7 @@ void wifi_create_softap_app_init(char *ap_ssid, char *ap_key)
     }
     else
     {
-        os_printf("SSID Or Password error\r\n");
+        BK_LOGD(NULL,"SSID Or Password error\r\n");
     }
 }
 
@@ -137,10 +137,10 @@ void wifi_delete_softap_thread( beken_thread_arg_t arg )
 
     wifi_create_softap_app_init(ap_ssid, ap_key);
 
-    os_printf("delay %d mS kill AP!\r\n", dly);
+    BK_LOGD(NULL,"delay %d mS kill AP!\r\n", dly);
     rtos_delay_milliseconds((TickType_t)dly);
 
-    os_printf("stop AP!\r\n");
+    BK_LOGD(NULL,"stop AP!\r\n");
     wifi_delete_ap_stop();
 
     rtos_delete_thread( NULL );

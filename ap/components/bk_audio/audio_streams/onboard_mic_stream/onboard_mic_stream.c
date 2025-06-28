@@ -166,7 +166,7 @@ static void aud_adc_dma_finish_isr(void)
     bk_err_t ret = rtos_set_semaphore(&gl_onboard_mic->can_process);
     if (ret != BK_OK)
     {
-        BK_LOGD(TAG, "%s, rtos_set_semaphore fail \n", __func__);
+        BK_LOGV(TAG, "%s, rtos_set_semaphore fail \n", __func__);
     }
     AUD_ADC_DMA_ISR_END();
 }
@@ -257,9 +257,9 @@ static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
 
     ring_buffer_init(&onboard_mic->mic_rb, (uint8_t *)onboard_mic->mic_ring_buff, frame_size * 2 + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL, onboard_mic->mic_dma_id, RB_DMA_TYPE_WRITE);
 
-    BK_LOGI(TAG, "adc_dma_cfg mic_dma_id: %d, transfer_len: %d \n", onboard_mic->mic_dma_id, frame_size);
-    BK_LOGI(TAG, "src_start_addr: 0x%08x, src_end_addr: 0x%08x \n", dma_config.src.start_addr, dma_config.src.end_addr);
-    BK_LOGI(TAG, "dst_start_addr: 0x%08x, dst_end_addr: 0x%08x \n", dma_config.dst.start_addr, dma_config.dst.end_addr);
+    BK_LOGD(TAG, "adc_dma_cfg mic_dma_id: %d, transfer_len: %d \n", onboard_mic->mic_dma_id, frame_size);
+    BK_LOGD(TAG, "src_start_addr: 0x%08x, src_end_addr: 0x%08x \n", dma_config.src.start_addr, dma_config.src.end_addr);
+    BK_LOGD(TAG, "dst_start_addr: 0x%08x, dst_end_addr: 0x%08x \n", dma_config.dst.start_addr, dma_config.dst.end_addr);
 
     return BK_OK;
 exit:
@@ -269,7 +269,7 @@ exit:
 
 static bk_err_t _onboard_mic_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
 
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(self);
 
@@ -303,7 +303,7 @@ static bk_err_t _onboard_mic_open(audio_element_handle_t self)
 static int _onboard_mic_read(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
     audio_element_handle_t el = (audio_element_handle_t)context;
-    BK_LOGD(TAG, "[%s] %s, len: %d \n", audio_element_get_tag(el), __func__, len);
+    BK_LOGV(TAG, "[%s] %s, len: %d \n", audio_element_get_tag(el), __func__, len);
 
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(el);
     int ret = BK_OK;
@@ -312,14 +312,14 @@ static int _onboard_mic_read(audio_port_handle_t self, char *buffer, int len, Ti
     if (len)
     {
         uint32_t fill_size = ring_buffer_get_fill_size(&onboard_mic->mic_rb);
-        BK_LOGD(TAG, "[%s] %s, fill_size: %d \n", audio_element_get_tag(el), __func__, fill_size);
+        BK_LOGV(TAG, "[%s] %s, fill_size: %d \n", audio_element_get_tag(el), __func__, fill_size);
         if (fill_size >= len)
         {
             read_size = ring_buffer_read(&onboard_mic->mic_rb, (uint8_t *)buffer, len);
             if (read_size == len)
             {
                 ret = read_size;
-                BK_LOGD(TAG, "[%s] %s, read data ok, read_size: %d, fill_size: %d\n", audio_element_get_tag(el), __func__, read_size, fill_size);
+                BK_LOGV(TAG, "[%s] %s, read data ok, read_size: %d, fill_size: %d\n", audio_element_get_tag(el), __func__, read_size, fill_size);
             }
             else
             {
@@ -371,7 +371,7 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
     }
     AUD_ONBOARD_MIC_SEM_WAIT_END();
 
-    BK_LOGD(TAG, "[%s] _onboard_mic_process \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _onboard_mic_process \n", audio_element_get_tag(self));
 
     /* read input data */
     AUD_ONBOARD_MIC_INPUT_START();
@@ -383,7 +383,7 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
     static uint32_t count = 0;
     if (count > 500)
     {
-        //BK_LOGI(TAG, "%s, count: %d\n", __func__, count);
+        //BK_LOGD(TAG, "%s, count: %d\n", __func__, count);
         rtos_delay_milliseconds(300);
     }
     else
@@ -424,7 +424,7 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
 
 static bk_err_t _onboard_mic_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
 
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(self);
 
@@ -449,7 +449,7 @@ static bk_err_t _onboard_mic_close(audio_element_handle_t self)
 
 static bk_err_t _onboard_mic_destroy(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _onboard_mic_destroy \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _onboard_mic_destroy \n", audio_element_get_tag(self));
 
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(self);
     /* deinit dma */
@@ -515,7 +515,7 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     os_memcpy(&gl_onboard_mic->adc_cfg, &config->adc_cfg, sizeof(adc_cfg_t));
     gl_onboard_mic->out_block_size = config->out_block_size;
     gl_onboard_mic->out_block_num = config->out_block_num;
-    BK_LOGI(TAG, "buffer_len: %d, out_block_size: %d, out_block_num: %d\n", cfg.buffer_len, cfg.out_block_size, cfg.out_block_num);
+    BK_LOGD(TAG, "buffer_len: %d, out_block_size: %d, out_block_num: %d\n", cfg.buffer_len, cfg.out_block_size, cfg.out_block_num);
 
     /* init audio adc */
     aud_adc_config_t aud_adc_cfg = DEFAULT_AUD_ADC_CONFIG();
@@ -538,7 +538,7 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     aud_adc_cfg.adc_gain = config->adc_cfg.dig_gain;
     aud_adc_cfg.clk_src = config->adc_cfg.clk_src;
     aud_adc_cfg.adc_mode = config->adc_cfg.mode;
-    BK_LOGI(TAG, "adc_cfg chl_num: %d, adc_gain: 0x%02x, samp_rate: %d, clk_src: %s, adc_mode: %s \n",
+    BK_LOGD(TAG, "adc_cfg chl_num: %d, adc_gain: 0x%02x, samp_rate: %d, clk_src: %s, adc_mode: %s \n",
             aud_adc_cfg.adc_chl, aud_adc_cfg.adc_gain, aud_adc_cfg.samp_rate, aud_adc_cfg.clk_src == 1 ? "APLL" : "XTAL", aud_adc_cfg.adc_mode == 1 ? "AUD_ADC_MODE_SIGNAL_END" : "AUD_ADC_MODE_DIFFEN");
     ret = bk_aud_adc_init(&aud_adc_cfg);
     if (ret != BK_OK)
@@ -626,7 +626,7 @@ bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_
 
     if (onboard_mic->adc_cfg.dig_gain == gain)
     {
-        BK_LOGI(TAG, "not need updata onboard mic digital gain \n");
+        BK_LOGD(TAG, "not need updata onboard mic digital gain \n");
         return BK_OK;
     }
 

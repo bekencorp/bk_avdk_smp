@@ -99,7 +99,7 @@ bk_err_t dma2d_hal_config(dma2d_config_t *dma2d, uint32_t src_addr, uint32_t dst
 	dma2d_ll_set_dma2d_number_of_line_pexel_line(width);
 	dma2d_ll_set_dma2d_number_of_line_number_line(height);
 	dma2d_ll_set_dma2d_out_mem_address_out_mem_address(dst_addr);
-//	os_printf("dma2d dst_addr = %p %d %d\n", dst_addr, width, height);
+//	BK_LOGD(NULL, "dma2d dst_addr = %p %d %d\n", dst_addr, width, height);
 	if (dma2d->init.mode == DMA2D_R2M) {
 		#if(0)
 		uint32_t tmp;

@@ -1673,7 +1673,7 @@ void create_log_handle_task(void)
 							 LOG_HANDLE_TASK_STACK,
 							 0);
 	if (ret != 0) {
-		os_printf("create log handler task fail!\r\n");
+		BK_LOGD(NULL,"create log handler task fail!\r\n");
 		return;
 	}
 	log_handle_init_ok = 1;
@@ -2701,8 +2701,8 @@ static void output_insert_log(u16 buf_len, char *prefix, const char *format, va_
 
 void print_dynamic_log_info(void)
 {
-	os_printf("dynamic log info:\n");
-	os_printf("mem_queue:%d, mem_comsume:%d\r\n",
+	BK_LOGD(NULL,"dynamic log info:\n");
+	BK_LOGD(NULL,"mem_queue:%d, mem_comsume:%d\r\n",
 				s_dynamic_log_num_in_mem, s_dynamic_log_total_len);
-	os_printf("dynamic log mem max: %d\r\n",s_dynamic_log_mem_max);
+	BK_LOGD(NULL,"dynamic log mem max: %d\r\n",s_dynamic_log_mem_max);
 }

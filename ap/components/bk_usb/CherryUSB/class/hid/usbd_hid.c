@@ -11,7 +11,7 @@ static uint8_t hid_idle_duration = 0;
 
 static int hid_class_interface_request_handler(struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
-    USB_LOG_DBG("HID Class request: "
+    USB_LOG_VBS("HID Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
 

@@ -21,4 +21,5 @@
 #define UART_LOGW(...) BK_LOGW(UART_TAG, ##__VA_ARGS__)
 #define UART_LOGE(...) BK_LOGE(UART_TAG, ##__VA_ARGS__)
 #define UART_LOGD(...) BK_LOGD(UART_TAG, ##__VA_ARGS__)
+#define UART_LOGV(...) BK_LOGV(UART_TAG, ##__VA_ARGS__)
 

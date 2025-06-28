@@ -127,7 +127,7 @@ void blinky(void)
 
 void main_blinky( void )
 {
-    os_printf(" Starting main_blinky.\n");
+    BK_LOGD(NULL, " Starting main_blinky.\n");
 
     /* Create the queue. */
 	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( uint32_t ) );
@@ -168,7 +168,7 @@ const unsigned long ulValueToSend = 100UL;
 		toggle the LED.  0 is used as the block time so the sending operation
 		will not block - it shouldn't need to block as the queue should always
 		be empty at this point in the code. */
-		os_printf("xQueueSend at the core[%d]\r\n", portGET_CORE_ID());
+		BK_LOGD(NULL, "xQueueSend at the core[%d]\r\n", portGET_CORE_ID());
 		xQueueSend( xQueue, &ulValueToSend, 0U );
 	}
 }
@@ -188,7 +188,7 @@ const unsigned long ulExpectedValue = 100UL;
 		indefinitely provided INCLUDE_vTaskSuspend is set to 1 in
 		FreeRTOSConfig.h. */
 		xQueueReceive( xQueue, &ulReceivedValue, portMAX_DELAY );
-		os_printf("xQueueReceive at the core[%d]\r\n", portGET_CORE_ID());
+		BK_LOGD(NULL, "xQueueReceive at the core[%d]\r\n", portGET_CORE_ID());
 
 		/*  To get here something must have been received from the queue, but
 		is it the expected value?  If it is, toggle the LED. */

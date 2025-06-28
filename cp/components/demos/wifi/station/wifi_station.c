@@ -63,28 +63,28 @@ void show_wifi_station_status(msg_sta_states sts)
     switch(sts)
     {
     case MSG_IDLE:
-        os_printf("%s\r\n", "MSG_IDLE");
+        BK_LOGD(NULL,"%s\r\n", "MSG_IDLE");
         break;
     case MSG_CONNECTING:
-        os_printf("%s\r\n", "MSG_CONNECTING");
+        BK_LOGD(NULL,"%s\r\n", "MSG_CONNECTING");
         break;
     case MSG_PASSWD_WRONG:
-        os_printf("%s\r\n", "MSG_PASSWD_WRONG");
+        BK_LOGD(NULL,"%s\r\n", "MSG_PASSWD_WRONG");
         break;
     case MSG_NO_AP_FOUND:
-        os_printf("%s\r\n", "MSG_NO_AP_FOUND");
+        BK_LOGD(NULL,"%s\r\n", "MSG_NO_AP_FOUND");
         break;
     case MSG_CONN_FAIL:
-        os_printf("%s\r\n", "MSG_CONN_FAIL");
+        BK_LOGD(NULL,"%s\r\n", "MSG_CONN_FAIL");
         break;
     case MSG_CONN_SUCCESS:
-        os_printf("%s\r\n", "MSG_CONN_SUCCESS");
+        BK_LOGD(NULL,"%s\r\n", "MSG_CONN_SUCCESS");
         break;
     case MSG_GOT_IP:
-        os_printf("%s\r\n", "MSG_GOT_IP");
+        BK_LOGD(NULL,"%s\r\n", "MSG_GOT_IP");
         break;
     default:
-        os_printf("%s\r\n", "unknow");
+        BK_LOGD(NULL,"%s\r\n", "unknow");
         break;
     }
 }
@@ -121,27 +121,27 @@ void wifi_station_connect_check(void)
         if(Sta_sts == MSG_GOT_IP)
         {
             show_wifi_station_status(Sta_sts);
-            os_printf("\r\n WIFI connect succeed!\r\n");
+            BK_LOGD(NULL,"\r\n WIFI connect succeed!\r\n");
             goto exit;
         }
         else if(Sta_sts == MSG_NO_AP_FOUND)
         {
             show_wifi_station_status(Sta_sts);
-            os_printf("\r\n none ap, stop connect!\r\n");
+            BK_LOGD(NULL,"\r\n none ap, stop connect!\r\n");
 			bk_wifi_sta_stop();
             goto exit;
         }
         else if(Sta_sts == MSG_CONN_FAIL)
         {
             show_wifi_station_status(Sta_sts);
-            os_printf("\r\nconnect failed!\r\n");
+            BK_LOGD(NULL,"\r\nconnect failed!\r\n");
 			bk_wifi_sta_stop();
             goto exit;
         }
         else if(Sta_sts == MSG_PASSWD_WRONG)
         {
             show_wifi_station_status(Sta_sts);
-            os_printf("\r\n wifi_password error!\r\n");
+            BK_LOGD(NULL,"\r\n wifi_password error!\r\n");
 			bk_wifi_sta_stop();
             goto exit;
         }
@@ -159,7 +159,7 @@ void wifi_station_connect_check(void)
     }
 
     show_wifi_station_status(Sta_sts);
-    os_printf("\r\n timeout, stop connect!\r\n");
+    BK_LOGD(NULL,"\r\n timeout, stop connect!\r\n");
 	bk_wifi_sta_stop();
 
 exit:
@@ -176,55 +176,55 @@ int wifi_station_show_scan_result(unsigned char *ssid)
     scan_rst_ap_num = bk_wlan_get_scan_ap_result_numbers();
     if(scan_rst_ap_num == 0)
     {
-        os_printf("\r\n The ssid(%s) is nothingness!\r\n", ssid);
+        BK_LOGD(NULL,"\r\n The ssid(%s) is nothingness!\r\n", ssid);
         return -1;
     }
 
     scan_rst_table = (struct sta_scan_res *)os_malloc(sizeof(struct sta_scan_res) * scan_rst_ap_num);
     if(scan_rst_table == NULL)
     {
-        os_printf("scan result table malloc failed!\r\n");
+        BK_LOGD(NULL,"scan result table malloc failed!\r\n");
         return 0;
     }
 
     bk_wlan_get_scan_ap_result(scan_rst_table, scan_rst_ap_num);
 
-    os_printf("Assign Scan %d AP:\r\n", scan_rst_ap_num);
+    BK_LOGD(NULL,"Assign Scan %d AP:\r\n", scan_rst_ap_num);
     for( i = 0; i < scan_rst_ap_num; i++ )
     {
-        os_printf("%d: %s, ", i + 1, scan_rst_table[i].ssid);
-        os_printf("Channal:%d, ", scan_rst_table[i].channel);
+        BK_LOGD(NULL,"%d: %s, ", i + 1, scan_rst_table[i].ssid);
+        BK_LOGD(NULL,"Channal:%d, ", scan_rst_table[i].channel);
         switch(scan_rst_table[i].security)
         {
         case BK_SECURITY_TYPE_NONE:
-            os_printf(" %s, ", "OPEN");
+            BK_LOGD(NULL," %s, ", "OPEN");
             break;
         case BK_SECURITY_TYPE_WEP:
-            os_printf(" %s, ", "CIPHER_WEP");
+            BK_LOGD(NULL," %s, ", "CIPHER_WEP");
             break;
         case BK_SECURITY_TYPE_WPA_TKIP:
-            os_printf(" %s, ", "WPA_TKIP");
+            BK_LOGD(NULL," %s, ", "WPA_TKIP");
             break;
         case BK_SECURITY_TYPE_WPA_AES:
-            os_printf(" %s, ", "WPA_AES");
+            BK_LOGD(NULL," %s, ", "WPA_AES");
             break;
         case BK_SECURITY_TYPE_WPA2_TKIP:
-            os_printf(" %s, ", "WPA2_TKIP");
+            BK_LOGD(NULL," %s, ", "WPA2_TKIP");
             break;
         case BK_SECURITY_TYPE_WPA2_AES:
-            os_printf(" %s, ", "WPA2_AES");
+            BK_LOGD(NULL," %s, ", "WPA2_AES");
             break;
         case BK_SECURITY_TYPE_WPA2_MIXED:
-            os_printf(" %s, ", "WPA2_MIXED");
+            BK_LOGD(NULL," %s, ", "WPA2_MIXED");
             break;
         case BK_SECURITY_TYPE_AUTO:
-            os_printf(" %s, ", "CIPHER_AUTO");
+            BK_LOGD(NULL," %s, ", "CIPHER_AUTO");
             break;
         default:
-            os_printf(" %s(%d), ", "unknown", scan_rst_table[i].security);
+            BK_LOGD(NULL," %s(%d), ", "unknown", scan_rst_table[i].security);
             break;
         }
-        os_printf("RSSI=%d \r\n", scan_rst_table[i].level);
+        BK_LOGD(NULL,"RSSI=%d \r\n", scan_rst_table[i].level);
     }
 
     if( scan_rst_table != NULL )
@@ -279,7 +279,7 @@ void wifi_station_thread( beken_thread_arg_t arg )
         goto exit;
     }
 
-    os_printf("\r\nconnect wifi_SSID:%s,wifi_Password:%s\r\n", ap_ssid, ap_key);
+    BK_LOGD(NULL,"\r\nconnect wifi_SSID:%s,wifi_Password:%s\r\n", ap_ssid, ap_key);
 
     target_wifi_station_connect(ap_ssid, ap_key);
 

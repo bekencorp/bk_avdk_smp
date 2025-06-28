@@ -76,7 +76,7 @@ void light_sck_cs_txdata_sender(int fd, unsigned char *buf, int len)
             ret = rtos_push_to_queue(&light_sck_msg_q, &txmsg, BEKEN_NO_WAIT);
             if(kNoErr != ret)
             {
-                os_printf("light_sck_msg_q tx failed\r\n");
+                BK_LOGD(NULL, "light_sck_msg_q tx failed\r\n");
                 os_free(txbuf);
             }
         }
@@ -138,7 +138,7 @@ int light_sck_cs_rxdat_sender(int fd, char *buf, int len)
     if(queue_len >= (LIGHT_SOCKET_MSG_QUEUE_LENGTH / 2))
     {
         GLOBAL_INT_RESTORE();
-        os_printf("rx discard!\r\n");
+        BK_LOGD(NULL, "rx discard!\r\n");
         return kGeneralErr;
     }
     GLOBAL_INT_RESTORE();
@@ -160,7 +160,7 @@ int light_sck_cs_rxdat_sender(int fd, char *buf, int len)
         ret = rtos_push_to_queue(&light_sck_msg_q, &RxMsg, BEKEN_NO_WAIT);
         if(kNoErr != ret)
         {
-            os_printf("light_sck_msg_q rx failed\r\n");
+            BK_LOGD(NULL, "light_sck_msg_q rx failed\r\n");
         }
 
         return kNoErr;
@@ -216,7 +216,7 @@ void light_app_main ( beken_thread_arg_t arg )
             break;
 
         default:
-            os_printf("Error msg.msgtype:%d\r\n", msg.msgtype);
+            BK_LOGD(NULL, "Error msg.msgtype:%d\r\n", msg.msgtype);
             break;
         }
     }
@@ -241,7 +241,7 @@ int demo_start( void )
                            LIGHT_SOCKET_MSG_QUEUE_LENGTH);
     if (kNoErr != err )
     {
-        os_printf("Create Lightskt_queue failed\r\n");
+        BK_LOGD(NULL, "Create Lightskt_queue failed\r\n");
         goto exit;
     }
 
@@ -252,7 +252,7 @@ int demo_start( void )
                               (beken_thread_arg_t)0 );
     if (kNoErr != err )
     {
-        os_printf("Create light failed\r\n");
+        BK_LOGD(NULL, "Create light failed\r\n");
         goto exit;
     }
 

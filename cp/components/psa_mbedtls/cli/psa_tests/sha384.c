@@ -78,17 +78,17 @@ static int hash_singlepart_sha384(void)
 	uint32_t olen;
 	psa_status_t status;
 
-	BK_LOGI(TAG, "Hashing using SHA384...\r\n");
+	BK_LOGD(TAG, "Hashing using SHA384...\r\n");
 
 	/* Calculate the SHA256 hash */
 	status = psa_hash_compute(
 		PSA_ALG_SHA_384, m_plain_text, sizeof(m_plain_text), m_hash, sizeof(m_hash), (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_hash_compute failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_hash_compute failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Hashing successful!\r\n");
+	BK_LOGD(TAG, "Hashing successful!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -100,7 +100,7 @@ static int hash_multipart_sha384(void)
 	uint8_t *input_ptr = m_plain_text;
 	psa_hash_operation_t hash_operation = {0};
 
-	BK_LOGI(TAG, "Hashing using multi-part SHA384...\r\n");
+	BK_LOGD(TAG, "Hashing using multi-part SHA384...\r\n");
 
 	/* Setup a multipart hash operation */
 	status = psa_hash_setup(&hash_operation, PSA_ALG_SHA_384);
@@ -116,7 +116,7 @@ static int hash_multipart_sha384(void)
 		return APP_ERROR;
 
 	}
-	BK_LOGI(TAG, "Added %d bytes\r\n", 42);
+	BK_LOGD(TAG, "Added %d bytes\r\n", 42);
 	input_ptr += 42;
 
 	status = psa_hash_update(&hash_operation, input_ptr, 58);
@@ -125,7 +125,7 @@ static int hash_multipart_sha384(void)
 		return APP_ERROR;
 
 	}
-	BK_LOGI(TAG, "Added %d bytes\r\n", 58);
+	BK_LOGD(TAG, "Added %d bytes\r\n", 58);
 	input_ptr += 58;
 
 	status = psa_hash_update(&hash_operation, input_ptr, 50);
@@ -133,7 +133,7 @@ static int hash_multipart_sha384(void)
 		BK_LOGE(TAG, "Could not hash the next chunk! Error %d\r\n", status);
 		return APP_ERROR;
 	}
-	BK_LOGI(TAG, "Added %d bytes\r\n", 50);
+	BK_LOGD(TAG, "Added %d bytes\r\n", 50);
 
 	status = psa_hash_finish(&hash_operation, m_hash, sizeof(m_hash), (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
@@ -141,7 +141,7 @@ static int hash_multipart_sha384(void)
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Hashing successful!\r\n");
+	BK_LOGD(TAG, "Hashing successful!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -150,17 +150,17 @@ static int verify_sha384(void)
 {
 	psa_status_t status;
 
-	BK_LOGI(TAG, "Verifying the SHA384 hash...\r\n");
+	BK_LOGD(TAG, "Verifying the SHA384 hash...\r\n");
 
 	/* Verify the hash */
 	status = psa_hash_compare(
 		PSA_ALG_SHA_384, m_plain_text, sizeof(m_plain_text), m_hash, sizeof(m_hash));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_hash_compare failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_hash_compare failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "SHA384 verification successful!\r\n");
+	BK_LOGD(TAG, "SHA384 verification successful!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -169,23 +169,23 @@ int sha384_main(void)
 {
 	int status;
 
-	BK_LOGI(TAG, "Starting SHA384 example...\r\n");
+	BK_LOGD(TAG, "Starting SHA384 example...\r\n");
 
 	status = crypto_init();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = hash_singlepart_sha384();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = verify_sha384();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
@@ -194,17 +194,17 @@ int sha384_main(void)
 
 	status = hash_multipart_sha384();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = verify_sha384();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
 
 	return APP_SUCCESS;
 }
@@ -215,7 +215,7 @@ static int hash_singlepart_sha384_perf(uint32_t data_len)
 	psa_status_t status;
 	uint64_t start, end;
 
-	BK_LOGI(TAG, "Hashing using SHA384...\r\n");
+	BK_LOGD(TAG, "Hashing using SHA384...\r\n");
 	crypto_lock();
 	start = crypto_get_time();
 
@@ -223,13 +223,13 @@ static int hash_singlepart_sha384_perf(uint32_t data_len)
 	status = psa_hash_compute(PSA_ALG_SHA_384, s_plain_text_p, data_len, m_hash, sizeof(m_hash), (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
 		crypto_unlock();
-		BK_LOGI(TAG, "psa_hash_compute failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_hash_compute failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 	end = crypto_get_time();
 	crypto_unlock();
 	crypto_perf_log("SHA384", "120M", 0, data_len, end - start);
-	BK_LOGI(TAG, "Hashing successful!\r\n");
+	BK_LOGD(TAG, "Hashing successful!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -239,7 +239,7 @@ static int verify_sha384_perf(uint32_t data_len)
 	psa_status_t status;
 	uint64_t start, end;
 
-	BK_LOGI(TAG, "Verifying the SHA384 hash...\r\n");
+	BK_LOGD(TAG, "Verifying the SHA384 hash...\r\n");
 	crypto_lock();
 	start = crypto_get_time();
 
@@ -248,14 +248,14 @@ static int verify_sha384_perf(uint32_t data_len)
 		PSA_ALG_SHA_384, s_plain_text_p, data_len, m_hash, sizeof(m_hash));
 	if (status != PSA_SUCCESS) {
 		crypto_unlock();
-		BK_LOGI(TAG, "psa_hash_compare failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_hash_compare failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	end = crypto_get_time();
 	crypto_unlock();
 	crypto_perf_log("SHA384_VERIFY", "120M", 0, data_len, end - start);
-	BK_LOGI(TAG, "SHA384 verification successful!\r\n");
+	BK_LOGD(TAG, "SHA384 verification successful!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -268,7 +268,7 @@ int sha384_perf_main(void)
 	uint32_t cpu;
 	int status;
 
-	BK_LOGI(TAG, "SHA384 perf test\r\n");
+	BK_LOGD(TAG, "SHA384 perf test\r\n");
 
 	if (test_init() != 0) {
 		goto _error;
@@ -294,14 +294,14 @@ int sha384_perf_main(void)
 		}
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
-	BK_LOGI(TAG, "SHA384 perf test OK\r\n");
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, "SHA384 perf test OK\r\n");
 	test_deinit();
 
 	return APP_SUCCESS;
 
 _error:
 	test_deinit();
-	BK_LOGI(TAG, APP_ERROR_MESSAGE);
+	BK_LOGD(TAG, APP_ERROR_MESSAGE);
 	return APP_ERROR;
 }

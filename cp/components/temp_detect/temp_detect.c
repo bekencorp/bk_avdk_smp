@@ -105,7 +105,7 @@ static void temp_sensor_disable(void)
 #if TEMPD_DISPLAY_RAW_DATA
 static void tempd_show_raw_temperature_data(void)
 {
-	TEMPD_LOGI("raw data ");
+	TEMPD_LOGD("raw data ");
 	for (int i = 0; i < ADC_TEMP_BUFFER_SIZE; i++) {
 		BK_LOG_RAW("%04x ", s_raw_temperature_data[i]);
 	}
@@ -280,7 +280,7 @@ int temp_detect_send_msg(uint32_t msg_type)
 	bk_err_t ret = BK_FAIL;
 	tempd_msg_t msg;
 
-	TEMPD_LOGD("send msg(%d)\n", msg_type);
+	TEMPD_LOGV("send msg(%d)\n", msg_type);
 	if (s_tempd_msg_queue) {
 		msg.temp_msg = msg_type;
 
@@ -296,7 +296,7 @@ int temp_detect_init(uint32_t init_temperature)
 {
 	int ret;
 
-	TEMPD_LOGI("init temperature %d\r\n", init_temperature);
+	TEMPD_LOGD("init temperature %d\r\n", init_temperature);
 	BK_RETURN_ON_ERR(tempd_init_temperature_raw_data());
 
 	if ((!s_tempd_task_handle) && (!s_tempd_msg_queue)) {
@@ -417,7 +417,7 @@ static void tempd_stop(void)
 #endif
 
 	BK_ASSERT(kNoErr == err);
-	TEMPD_LOGD("stop\n");
+	TEMPD_LOGV("stop\n");
 }
 
 static void tempd_restart(void)
@@ -430,7 +430,7 @@ static void tempd_restart(void)
     err = rtos_reload_timer(&s_tempd.detect_timer);
 #endif
 	BK_ASSERT(kNoErr == err);
-	TEMPD_LOGD("restart\n");
+	TEMPD_LOGV("restart\n");
 }
 
 static void tempd_change_config(void)
@@ -463,7 +463,7 @@ static void tempd_detect_temperature(void)
 		return; //TODO is that correct?
 	}
 
-	TEMPD_LOGD("cnt=%d, interval=%d, last=%d, cur=%d, thr=%d\r\n",
+	TEMPD_LOGV("cnt=%d, interval=%d, last=%d, cur=%d, thr=%d\r\n",
 		s_tempd.detect_cnt, s_tempd.detect_interval, s_tempd.last_detect_val,
 		temperature, s_tempd.detect_threshold);
 
@@ -497,7 +497,7 @@ static void tempd_init(uint32_t init_temperature)
     s_tempd.xtal_init_val = sddev_control(DD_DEV_TYPE_SCTRL, CMD_SCTRL_GET_XTALH_CTUNE, NULL);
     #endif
 
-	TEMPD_LOGI("xtal inital:%d, %d, %d\r\n", s_tempd.last_xtal_val,
+	TEMPD_LOGD("xtal inital:%d, %d, %d\r\n", s_tempd.last_xtal_val,
 			  s_tempd.xtal_threshold_val, s_tempd.xtal_init_val);
 
 	temp_detect_send_msg(TMPD_TIMER_EXPIRED);
@@ -615,7 +615,7 @@ void temp_detect_change_configuration(uint32_t interval, uint32_t threshold, uin
 	if (dist == 0)
 		dist = ADC_TMEP_DIST_INTIAL_VAL;
 
-	TEMPD_LOGI("change config, interval=%d, threshold=%d, dist=%d\r\n",
+	TEMPD_LOGD("change config, interval=%d, threshold=%d, dist=%d\r\n",
 		interval, threshold, dist);
 
 	if ((s_tempd.detect_threshold != threshold) || (s_tempd.dist_inital != dist)) {
@@ -710,6 +710,6 @@ int temp_detect_get_temperature(uint32_t *temperature)
 	}
 
 	*temperature = cur_temperature;
-	TEMPD_LOGI("get temperature %d\n", cur_temperature);
+	TEMPD_LOGD("get temperature %d\n", cur_temperature);
 	return err;
 }

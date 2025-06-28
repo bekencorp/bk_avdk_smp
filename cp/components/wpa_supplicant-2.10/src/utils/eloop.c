@@ -473,7 +473,7 @@ _process_signals:
 			GLOBAL_INT_DISABLE();
 
 			if ( (sig_count != eloop.signal_count) || (eloop.signaled)) {
-				WPA_LOGD("restart sig process, signal number from %d to %d, signaled=%d\n",
+				WPA_LOGV("restart sig process, signal number from %d to %d, signaled=%d\n",
 					sig_count, eloop.signal_count, eloop.signaled);
 				goto _process_signals;
 			}

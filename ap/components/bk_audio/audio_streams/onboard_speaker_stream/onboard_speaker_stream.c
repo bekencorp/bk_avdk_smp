@@ -167,7 +167,7 @@ static void aec_mic_delay_debug(int16_t *data, uint32_t size)
     {
         data[0] = 0x2FFF;
         mic_delay_num = 0;
-        BK_LOGI(TAG, "AEC_MIC_DELAY_POINTS_DEBUG \n");
+        BK_LOGD(TAG, "AEC_MIC_DELAY_POINTS_DEBUG \n");
     }
 }
 
@@ -208,12 +208,12 @@ static bk_err_t aud_dac_dma_deconfig(onboard_speaker_stream_t *onboard_spk)
 static void aud_dac_dma_finish_isr(void)
 {
     AUD_DAC_DMA_ISR_START();
-    //BK_LOGI(TAG, "%s\n", __func__);
+    //BK_LOGD(TAG, "%s\n", __func__);
 
     bk_err_t ret = rtos_set_semaphore(&gl_onboard_speaker->can_process);
     if (ret != BK_OK)
     {
-        BK_LOGD(TAG, "%s, rtos_set_semaphore fail \n", __func__);
+        BK_LOGV(TAG, "%s, rtos_set_semaphore fail \n", __func__);
 #if 0
         /* write data to speaker ring buffer immediately */
         if (onboard_spk->pool_can_read)
@@ -268,7 +268,7 @@ static bk_err_t aud_dac_dma_config(onboard_speaker_stream_t *onboard_spk)
     onboard_spk->spk_ring_buff = (int8_t *)audio_dma_mem_calloc(2, onboard_spk->frame_size + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL/2);
     AUDIO_MEM_CHECK(TAG, onboard_spk->spk_ring_buff, return BK_FAIL);
     ring_buffer_init(&onboard_spk->spk_rb, (uint8_t *)onboard_spk->spk_ring_buff, onboard_spk->frame_size * 2 + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL, onboard_spk->spk_dma_id, RB_DMA_TYPE_READ);
-    BK_LOGI(TAG, "%s, %d, spk_ring_buff: %p, spk_ring_buff size: %d \n", __func__, __LINE__, onboard_spk->spk_ring_buff, onboard_spk->frame_size * 2 + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL);
+    BK_LOGD(TAG, "%s, %d, spk_ring_buff: %p, spk_ring_buff size: %d \n", __func__, __LINE__, onboard_spk->spk_ring_buff, onboard_spk->frame_size * 2 + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL);
     /* init dma channel */
     os_memset(&dma_config, 0, sizeof(dma_config_t));
     dma_config.mode = DMA_WORK_MODE_REPEAT;
@@ -328,7 +328,7 @@ exit:
 
 static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _onboard_speaker_open \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _onboard_speaker_open \n", audio_element_get_tag(self));
     uint32_t free_size = 0;
 
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(self);
@@ -390,7 +390,7 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
 static int _onboard_speaker_write(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
     audio_element_handle_t el = (audio_element_handle_t)context;
-    BK_LOGD(TAG, "[%s] _onboard_speaker_write, len: %d \n", audio_element_get_tag(el), len);
+    BK_LOGV(TAG, "[%s] _onboard_speaker_write, len: %d \n", audio_element_get_tag(el), len);
 
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(el);
     int ret = BK_OK;
@@ -403,7 +403,7 @@ static int _onboard_speaker_write(audio_port_handle_t self, char *buffer, int le
         {
             if (ring_buffer_get_free_size(&onboard_spk->pool_rb) >= len)
             {
-                //BK_LOGD(TAG, "[%s] _onboard_speaker_write, pool_fill: %d \n", audio_element_get_tag(self), ring_buffer_get_fill_size(&onboard_spk->pool_rb));
+                //BK_LOGV(TAG, "[%s] _onboard_speaker_write, pool_fill: %d \n", audio_element_get_tag(self), ring_buffer_get_fill_size(&onboard_spk->pool_rb));
 #ifdef SPK_DATA_DEBUG
                 change_pcm_data_to_8k((uint8_t *)buffer, len);
 #endif
@@ -417,7 +417,7 @@ static int _onboard_speaker_write(audio_port_handle_t self, char *buffer, int le
                     BK_LOGE(TAG, "The error is happened in writing data. write_size: %d \n", write_size);
                     ret = -1;
                 }
-                //BK_LOGD(TAG, "[%s] _onboard_speaker_write, pool_fill: %d \n", audio_element_get_tag(self), ring_buffer_get_fill_size(&onboard_spk->pool_rb));
+                //BK_LOGV(TAG, "[%s] _onboard_speaker_write, pool_fill: %d \n", audio_element_get_tag(self), ring_buffer_get_fill_size(&onboard_spk->pool_rb));
             }
         }
     }
@@ -462,7 +462,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
         //return -1;
     }
 
-    BK_LOGD(TAG, "[%s] _onboard_speaker_process \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _onboard_speaker_process \n", audio_element_get_tag(self));
 
     /* check whether pool enable */
     if (onboard_spk->pool_ring_buff)
@@ -473,7 +473,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
             uint32_t read_size = ring_buffer_read(&onboard_spk->pool_rb, (uint8_t *)onboard_spk->temp_buff, onboard_spk->frame_size);
             if (read_size != onboard_spk->frame_size)
             {
-                BK_LOGD(TAG, "read size: %d, need_size: %d is incorrect \n", read_size, onboard_spk->frame_size);
+                BK_LOGV(TAG, "read size: %d, need_size: %d is incorrect \n", read_size, onboard_spk->frame_size);
             }
             else
             {
@@ -534,7 +534,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
             aec_mic_delay_debug((int16_t *)onboard_spk->temp_buff, onboard_spk->frame_size);
 #endif
-            BK_LOGD(TAG, "[%s] fill silence data \n", audio_element_get_tag(self));
+            BK_LOGV(TAG, "[%s] fill silence data \n", audio_element_get_tag(self));
 #ifdef SPK_DATA_DEBUG
             change_pcm_data_to_8k((uint8_t *)onboard_spk->temp_buff, onboard_spk->frame_size);
 #endif
@@ -591,7 +591,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
 
 static bk_err_t _onboard_speaker_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _onboard_speaker_close \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _onboard_speaker_close \n", audio_element_get_tag(self));
 
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(self);
 
@@ -618,7 +618,7 @@ static bk_err_t _onboard_speaker_close(audio_element_handle_t self)
 
 static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _onboard_speaker_destroy \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _onboard_speaker_destroy \n", audio_element_get_tag(self));
 
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(self);
     /* deinit dma */
@@ -678,7 +678,7 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     cfg.task_core = config->task_core;
     cfg.buffer_len = config->frame_size;
     cfg.multi_out_port_num = config->multi_out_port_num;
-    BK_LOGI(TAG, "cfg.buffer_len: %d\n", cfg.buffer_len);
+    BK_LOGD(TAG, "cfg.buffer_len: %d\n", cfg.buffer_len);
 
     cfg.tag = "onboard_speaker";
     gl_onboard_speaker->chl_num = config->chl_num;
@@ -713,7 +713,7 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     aud_dac_cfg.clk_src = config->clk_src;
     aud_dac_cfg.dac_gain = config->dig_gain;
     //aud_dac_cfg.ana_gain = config->ana_gain;
-    BK_LOGI(TAG, "dac_cfg chl_num: %s, dig_gain: 0x%02x, sample_rate: 0x%02x, clk_src: %s, dac_mode: %s \n",
+    BK_LOGD(TAG, "dac_cfg chl_num: %s, dig_gain: 0x%02x, sample_rate: 0x%02x, clk_src: %s, dac_mode: %s \n",
             aud_dac_cfg.dac_chl == AUD_DAC_CHL_L ? "AUD_DAC_CHL_L" : "AUD_DAC_CHL_LR",
             aud_dac_cfg.dac_gain,
             aud_dac_cfg.samp_rate,
@@ -825,7 +825,7 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
         }
         else
         {
-            BK_LOGI(TAG, "%s, line: %d, updata onboard speaker sample rate: %d ok \n", __func__, __LINE__, rate);
+            BK_LOGD(TAG, "%s, line: %d, updata onboard speaker sample rate: %d ok \n", __func__, __LINE__, rate);
         }
     }
 
@@ -848,7 +848,7 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
         }
         else
         {
-            BK_LOGI(TAG, "%s, line: %d, updata onboard speaker channel: %d ok \n", __func__, __LINE__, ch);
+            BK_LOGD(TAG, "%s, line: %d, updata onboard speaker channel: %d ok \n", __func__, __LINE__, ch);
         }
 
         //TODO
@@ -872,7 +872,7 @@ bk_err_t onboard_speaker_stream_set_param(audio_element_handle_t onboard_speaker
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
     audio_element_state_t state = audio_element_get_state(onboard_speaker_stream);
 
-    BK_LOGI(TAG, "%s \n", __func__);
+    BK_LOGD(TAG, "%s \n", __func__);
 
     /* check param */
     if (rate != 8000 && rate != 110250 && rate != 12000 && rate != 16000 && rate != 22050 && rate != 24000 && rate != 32000 && rate != 44100 && rate != 48000)
@@ -893,9 +893,9 @@ bk_err_t onboard_speaker_stream_set_param(audio_element_handle_t onboard_speaker
 
     if (onboard_spk->sample_rate == rate && onboard_spk->chl_num == ch && onboard_spk->bits == bits)
     {
-        BK_LOGI(TAG, "current sample_rate: %d, chl_num: %d, bits: %d \n", onboard_spk->sample_rate, onboard_spk->chl_num, onboard_spk->bits);
-        BK_LOGI(TAG, "new samp_rate: %d, chl_num: %d, bits: %d \n", rate, ch, bits);
-        BK_LOGI(TAG, "not need update onboard speaker \n");
+        BK_LOGD(TAG, "current sample_rate: %d, chl_num: %d, bits: %d \n", onboard_spk->sample_rate, onboard_spk->chl_num, onboard_spk->bits);
+        BK_LOGD(TAG, "new samp_rate: %d, chl_num: %d, bits: %d \n", rate, ch, bits);
+        BK_LOGD(TAG, "not need update onboard speaker \n");
         return BK_OK;
     }
 
@@ -954,7 +954,7 @@ bk_err_t onboard_speaker_stream_set_digital_gain(audio_element_handle_t onboard_
 
     if (onboard_spk->dig_gain == gain)
     {
-        BK_LOGI(TAG, "not need updata onboard speaker digital gain \n");
+        BK_LOGD(TAG, "not need updata onboard speaker digital gain \n");
         return BK_OK;
     }
 

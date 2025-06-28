@@ -17,6 +17,7 @@
 #define USB_DRIVER_LOGW(...) BK_LOGW(USB_DRIVER_TAG, ##__VA_ARGS__)
 #define USB_DRIVER_LOGE(...) BK_LOGE(USB_DRIVER_TAG, ##__VA_ARGS__)
 #define USB_DRIVER_LOGD(...) BK_LOGD(USB_DRIVER_TAG, ##__VA_ARGS__)
+#define USB_DRIVER_LOGV(...) BK_LOGV(USB_DRIVER_TAG, ##__VA_ARGS__)
 
 void bk_usb_driver_task_lock_mutex();
 void bk_usb_driver_task_unlock_mutex();

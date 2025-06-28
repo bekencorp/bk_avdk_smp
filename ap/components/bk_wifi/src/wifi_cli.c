@@ -34,14 +34,14 @@ void wdrv_demo_connect(char *oob_ssid, char *connect_key)
 
     len = os_strlen(oob_ssid);
     if (SSID_MAX_LEN < len) {
-        WDRV_LOGI("ssid name more than 32 Bytes\r\n");
+        WDRV_LOGD("ssid name more than 32 Bytes\r\n");
         return;
     }
     os_strcpy(sta_config.ssid, oob_ssid);
     if (connect_key)
         os_strcpy(sta_config.password, connect_key);
 
-    WDRV_LOGI("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
+    WDRV_LOGD("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
     BK_LOG_ON_ERR(bk_wifi_sta_set_config(&sta_config));
     BK_LOG_ON_ERR(bk_wifi_sta_start());
 }
@@ -94,7 +94,7 @@ int wdrv_demo_softap_init(char *ap_ssid, char *ap_key, char *ap_channel)
     }
 
     //bk_wifi_ap_init();
-    WDRV_LOGI("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+    WDRV_LOGD("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
     BK_RETURN_ON_ERR(bk_wifi_ap_set_config(&ap_config));
     BK_RETURN_ON_ERR(bk_wifi_ap_start());
 
@@ -148,7 +148,7 @@ int wdrv_demo_hidden_softap_init(char *ap_ssid, char *ap_key, char *ap_channel)
         ap_config.channel = channel;
     }
 
-    WDRV_LOGI("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+    WDRV_LOGD("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
     ap_config.hidden = true;
     BK_RETURN_ON_ERR(bk_wifi_ap_set_config(&ap_config));
     BK_RETURN_ON_ERR(bk_wifi_ap_start());
@@ -194,7 +194,7 @@ static inline const char *wdr_if_idx_name(netif_if_t ifx)
 }
 
 #define WDRV_CLI_DUMP_IP(_prompt, _ifx, _cfg) do {\
-    WDRV_LOGI("%s wdrv_netif(%s) wdrv_ip4=%s wdrv_mask=%s wdrv_gate=%s wdrv_dns=%s\n", (_prompt),\
+    WDRV_LOGD("%s wdrv_netif(%s) wdrv_ip4=%s wdrv_mask=%s wdrv_gate=%s wdrv_dns=%s\n", (_prompt),\
                 wdr_if_idx_name(_ifx),\
                 (_cfg)->ip, (_cfg)->mask, (_cfg)->gateway, (_cfg)->dns);\
 } while(0)
@@ -304,7 +304,7 @@ static int wifi_filter_cb(const uint8_t *data, uint32_t len, const wifi_frame_in
 		return BK_OK;
 	}
 
-    os_printf("%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",__func__,__LINE__,data,len,frame_info);
+    BK_LOGD(NULL, "%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",__func__,__LINE__,data,len,frame_info);
 
 	return BK_OK;
 }
@@ -351,7 +351,7 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
     } else if (!strcasecmp(argV[1], "get_config")) {
         wifi_sta_config_t config;
         bk_wifi_sta_get_config_ex(&config);
-        WDRV_LOGI("ssid:%s pw:%s\r\n", config.ssid, config.password);
+        WDRV_LOGD("ssid:%s pw:%s\r\n", config.ssid, config.password);
     } else if (!strcasecmp(argV[1], "get_mac")) {
         uint8_t base_mac[BK_MAC_ADDR_LEN] = {0};
         uint8_t sta_mac[BK_MAC_ADDR_LEN] = {0};
@@ -359,9 +359,9 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
         BK_LOG_ON_ERR(bk_wdrv_get_mac(base_mac, MAC_TYPE_BASE));
         BK_LOG_ON_ERR(bk_wifi_sta_get_mac(sta_mac));
         BK_LOG_ON_ERR(bk_wifi_ap_get_mac(ap_mac));
-        WDRV_LOGI("base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
-        WDRV_LOGI("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
-        WDRV_LOGI("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
+        WDRV_LOGD("base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+        WDRV_LOGD("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
+        WDRV_LOGD("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
     } else if (!strcasecmp(argV[1], "set_mac")) {
         uint8_t base_mac[BK_MAC_ADDR_LEN] = {0};
         if (argC == 3) {
@@ -395,11 +395,11 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
         wdrv_print_debug_info();
     }
     else if (strcasecmp(argV[1], "m_mode") == 0) {
-        WDRV_LOGI("media_mode: %d\n",os_strtoul(argV[2], NULL, 10));
+        WDRV_LOGD("media_mode: %d\n",os_strtoul(argV[2], NULL, 10));
         bk_wifi_set_wifi_media_mode(os_strtoul(argV[2], NULL, 10));
     }
     else if (strcasecmp(argV[1], "m_quality") == 0) {
-        WDRV_LOGI("media_quality: %d\n",os_strtoul(argV[2], NULL, 10));
+        WDRV_LOGD("media_quality: %d\n",os_strtoul(argV[2], NULL, 10));
         bk_wifi_set_video_quality(os_strtoul(argV[2], NULL, 10));
     }
 #if CONFIG_WIFI_SOFTAP
@@ -420,7 +420,7 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
             ap_key = argV[3];
             ap_channel = argV[4];
         } else {
-            CLI_LOGI("Invalid parameters\n");
+            CLI_LOGD("Invalid parameters\n");
             return;
         }
 
@@ -448,7 +448,7 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
             ap_key = argV[3];
             ap_channel = argV[4];
         } else {
-            CLI_LOGI("Invalid parameters\n");
+            CLI_LOGD("Invalid parameters\n");
             return;
         }
 

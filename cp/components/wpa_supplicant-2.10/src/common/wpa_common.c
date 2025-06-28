@@ -505,7 +505,7 @@ int wpa_pmk_to_ptk(const u8 *pmk, size_t pmk_len, const char *label,
 	}
 
 #if BK_SUPPLICANT
-	WPA_LOGI("WPA: TK %pb\n", ptk->tk, ptk->tk_len);
+	WPA_LOGD("WPA: TK %pb\n", ptk->tk, ptk->tk_len);
 #endif
 
 	ptk->kek2_len = 0;

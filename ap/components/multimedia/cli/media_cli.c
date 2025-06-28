@@ -29,6 +29,7 @@
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define UNKNOW_ERROR (-686)
 #define PARAMS_ERROR (-687)
@@ -59,7 +60,7 @@ uint32_t get_ppi_from_cmd(int argc, char **argv, uint32_t pre)
 		value = pre;
 	}
 
-	LOGD("%s %d-%d+++\n", __func__, value >> 16, value & 0xFFFF);
+	LOGV("%s %d-%d+++\n", __func__, value >> 16, value & 0xFFFF);
 
 	return value;
 }
@@ -78,7 +79,7 @@ uint32_t get_h26x_ppi_from_cmd(int argc, char **argv)
 			break;
 		}
 	}
-	LOGD("%s %d-%d+++\n", __func__, value >> 16, value & 0xFFFF);
+	LOGV("%s %d-%d+++\n", __func__, value >> 16, value & 0xFFFF);
 	return value;
 }
 
@@ -152,10 +153,10 @@ int open_camera_display(int camera_port, image_format_t fmt)  // uvc 1/ uvc 2/ d
         {
             node.camera_id = 0;
         }
-        LOGI("%s opened camera id:%x,  switch to id :%x\n", __func__, node.camera_id, camera_port);
+        LOGD("%s opened camera id:%x,  switch to id :%x\n", __func__, node.camera_id, camera_port);
         if(node.camera_id == camera_port)
         {
-            LOGI("%s open repetition, opened:%x,  switch:%x\n", __func__, node.camera_id, camera_port);
+            LOGD("%s open repetition, opened:%x,  switch:%x\n", __func__, node.camera_id, camera_port);
             return BK_OK;
         }
     }
@@ -163,7 +164,7 @@ int open_camera_display(int camera_port, image_format_t fmt)  // uvc 1/ uvc 2/ d
     handle = bk_camera_handle_node_get_by_id_and_fomat(1, IMAGE_MJPEG);
     if (handle != NULL)
     {
-        LOGI("%s media_app_get_camera_handle_by_id 1\n", __func__);
+        LOGD("%s media_app_get_camera_handle_by_id 1\n", __func__);
         ret = media_app_camera_close(&handle);
     }
 
@@ -171,7 +172,7 @@ int open_camera_display(int camera_port, image_format_t fmt)  // uvc 1/ uvc 2/ d
     handle = bk_camera_handle_node_get_by_id_and_fomat(2, IMAGE_MJPEG);
     if (handle != NULL)
     {
-        LOGI("%s media_app_get_camera_handle_by_id 2\n", __func__);
+        LOGD("%s media_app_get_camera_handle_by_id 2\n", __func__);
         ret = media_app_camera_close(&handle);
     }
 
@@ -183,7 +184,7 @@ int open_camera_display(int camera_port, image_format_t fmt)  // uvc 1/ uvc 2/ d
     handle = bk_camera_handle_node_get_by_id_and_fomat(0, IMAGE_YUV | IMAGE_MJPEG);
     if (handle != NULL)
     {
-        LOGI("%s media_app_get_camera_handle_by_id 0\n", __func__);
+        LOGD("%s media_app_get_camera_handle_by_id 0\n", __func__);
         ret = media_app_camera_close(&handle);
     }
 
@@ -231,7 +232,7 @@ int open_camera_display(int camera_port, image_format_t fmt)  // uvc 1/ uvc 2/ d
     }
     else
     {
-        LOGI("%s not support camera id %d\n", __func__, camera_port);
+        LOGD("%s not support camera id %d\n", __func__, camera_port);
     }
     return ret;
 }
@@ -265,7 +266,7 @@ void media_cli_display_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
         }
         open_camera_display(port, fmt);
     }
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 }
 
 void media_cli_camera_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)

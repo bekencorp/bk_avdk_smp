@@ -21,6 +21,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 typedef struct
@@ -110,11 +111,11 @@ int doorbell_sdp_generate(const char *name, uint32_t cmd_port, uint32_t img_port
 
 	if (uap_ip_is_start())
 	{
-		LOGI("%s, ap mode\n", __func__);
+		LOGD("%s, ap mode\n", __func__);
 	}
 	else if (sta_ip_is_start())
 	{
-		LOGI("%s, sta mode\n", __func__);
+		LOGD("%s, sta mode\n", __func__);
 	}
 
 	sprintf(doorbell_sdp->sdp_data, adv_temp,
@@ -125,7 +126,7 @@ int doorbell_sdp_generate(const char *name, uint32_t cmd_port, uint32_t img_port
 
 	doorbell_sdp->sdp_length = strlen(doorbell_sdp->sdp_data);
 
-	LOGI("adv_data:%s,%u\r\n", doorbell_sdp->sdp_data, doorbell_sdp->sdp_length);
+	LOGD("adv_data:%s,%u\r\n", doorbell_sdp->sdp_data, doorbell_sdp->sdp_length);
 
 	return 0;
 }
@@ -151,7 +152,7 @@ static void doorbell_sdp_timer_handler(void *data)
 		ap_set_default_netif();
 	}
 
-	LOGD("sdp: %s\n", doorbell_sdp->sdp_data);
+	LOGV("sdp: %s\n", doorbell_sdp->sdp_data);
 	sendto(doorbell_sdp->sock,
 	       doorbell_sdp->sdp_data,
 	       doorbell_sdp->sdp_length,
@@ -207,7 +208,7 @@ int doorbell_sdp_start_timer(UINT32 time_ms)
 			LOGE("start timer fail\r\n");
 			return kGeneralErr;
 		}
-		LOGI("doorbell_sdp_start_timer\r\n");
+		LOGD("doorbell_sdp_start_timer\r\n");
 
 		return kNoErr;
 	}
@@ -259,7 +260,7 @@ int doorbell_sdp_reload_timer(void)
 
 int doorbell_sdp_pub_deinit(void)
 {
-	LOGI("doorbell_sdp_deint\r\n");
+	LOGD("doorbell_sdp_deint\r\n");
 
 	if (doorbell_sdp != NULL)
 	{
@@ -279,7 +280,7 @@ int doorbell_sdp_pub_deinit(void)
 		os_free(doorbell_sdp);
 		doorbell_sdp = NULL;
 
-		LOGI("doorbell_sdp_deint ok\r\n");
+		LOGD("doorbell_sdp_deint ok\r\n");
 		return kNoErr;
 	}
 
@@ -291,7 +292,7 @@ int doorbell_sdp_pub_deinit(void)
 
 int doorbell_sdp_start(const char *name, uint32_t cmd_port, uint32_t img_port, uint32_t aud_port)
 {
-	LOGI("doorbell_sdp_start\r\n");
+	LOGD("doorbell_sdp_start\r\n");
 	int ret = 0;
 
 	if (doorbell_sdp == NULL)
@@ -331,7 +332,7 @@ int doorbell_sdp_start(const char *name, uint32_t cmd_port, uint32_t img_port, u
 		goto sdp_int_err;
 	}
 
-	LOGI("done\r\n");
+	LOGD("done\r\n");
 
 	return 0;
 
@@ -343,7 +344,7 @@ sdp_int_err:
 
 int doorbell_sdp_stop(void)
 {
-	LOGI("%s start\n", __func__);
+	LOGD("%s start\n", __func__);
 
 	if (doorbell_sdp_stop_timer() != kNoErr)
 	{
@@ -355,21 +356,21 @@ int doorbell_sdp_stop(void)
 		return -2;
 	}
 
-	LOGI("%s done\n", __func__);
+	LOGD("%s done\n", __func__);
 
 	return 0;
 }
 
 int doorbell_sdp_reload(void)
 {
-	LOGI("%s start\n", __func__);
+	LOGD("%s start\n", __func__);
 
 	if (doorbell_sdp_reload_timer() != kNoErr)
 	{
 		return -1;
 	}
 
-	LOGI("%s done\n", __func__);
+	LOGD("%s done\n", __func__);
 
 	return 0;
 }

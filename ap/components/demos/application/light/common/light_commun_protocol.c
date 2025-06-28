@@ -164,12 +164,12 @@ int regiseter_message_body_list(prtcl_msg_body_T *MsgBody)
             MONOPOLIZERESOURCEPROTECT_STOP();
             os_free(PrclMsgLst);
             status = Perror;
-            os_printf( "> max_node_num\r\n");
+            BK_LOGD(NULL,  "> max_node_num\r\n");
         }
     }
     else
     {
-        os_printf( "list struct malloc failed\r\n");
+        BK_LOGD(NULL,  "list struct malloc failed\r\n");
         status = Perror;
     }
 
@@ -223,7 +223,7 @@ unsigned char protocol_othermsg_register(int from, void *OtherMsg)
     }
     else
     {
-        os_printf( "protocol_othermsg_register failed");
+        BK_LOGD(NULL,  "protocol_othermsg_register failed");
         return Perror;
     }
 
@@ -282,7 +282,7 @@ unsigned char protocol_serial_number_register(int from, unsigned char InserNum, 
     }
     else
     {
-        os_printf( "protocol_serial_number_register failed");
+        BK_LOGD(NULL,  "protocol_serial_number_register failed");
         return Perror;
     }
 
@@ -331,7 +331,7 @@ unsigned char protocol_msg_register(int from, unsigned char InserNum, unsigned c
     }
     else
     {
-        os_printf( "protocol_serial_number_register failed");
+        BK_LOGD(NULL,  "protocol_serial_number_register failed");
         return Perror;
     }
 

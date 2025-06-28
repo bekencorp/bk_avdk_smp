@@ -172,7 +172,7 @@ static void prvPinIntEventHandler(gpio_id_t xPin)
     if((pxGpio != NULL)&&(pxGpio->xUserCallBack != NULL)&&(pxGpio->xConfig.xInterruptMode != eGpioInterruptNone))
     {
         pxGpio->xUserCallBack(bk_gpio_get_input(xPin),pxGpio->pvUserContext);
-        IOT_LOGI("RcvGpio[%d]Int\n",xPin);
+        IOT_LOGD("RcvGpio[%d]Int\n",xPin);
     }
 }
                                             
@@ -188,7 +188,7 @@ static int32_t prvConfigureInputPin(IotGpioHandle_t const pxGpio,
     if(!prvGetPullForHal(pxNewConfig->xPull,&xPull_Bk))
     {
         lRtnCode=IOT_GPIO_INVALID_VALUE;
-        IOT_LOGI("GetPullFail:%d %d",pxNewConfig->xPull,xPull_Bk);
+        IOT_LOGD("GetPullFail:%d %d",pxNewConfig->xPull,xPull_Bk);
     }
     
     gpio_int_type_t xGpioIntCfg;
@@ -212,7 +212,7 @@ static int32_t prvConfigureInputPin(IotGpioHandle_t const pxGpio,
             if(pxNewConfig->xInterruptMode!=eGpioInterruptNone)
             {
                 //check if gpio initialized first
-                IOT_LOGI("GPIO Int Mode:%d \n",xGpioIntCfg);
+                IOT_LOGD("GPIO Int Mode:%d \n",xGpioIntCfg);
                 //bk_set_printf_sync(1);//add for debug remember to delete
                 //init interrupt
                 ret=bk_gpio_register_isr(pxGpio->lGpioNumber, prvPinIntEventHandler);
@@ -223,7 +223,7 @@ static int32_t prvConfigureInputPin(IotGpioHandle_t const pxGpio,
                     {
                         BK_LOG_ON_ERR(bk_gpio_enable_interrupt(pxGpio->lGpioNumber));
                         lRtnCode=IOT_GPIO_SUCCESS;
-                        IOT_LOGI("Test Gpio Int Set Ok\n");
+                        IOT_LOGD("Test Gpio Int Set Ok\n");
                     }
                     else
                     {
@@ -285,7 +285,7 @@ static int32_t prvConfigOutputPin(IotGpioHandle_t const pxGpio,
     }
     bValidInputs=prvGetPullForHal(pxNewConfig->xPull,&xPullBk);
     bValidInputs&=prvGetDriveStrengthForHal(pxNewConfig->lDriveStrength,&xDrive_Bk);
-    IOT_LOGI("%s valid:%d\n",__func__,bValidInputs);    
+    IOT_LOGD("%s valid:%d\n",__func__,bValidInputs);    
     
     if(bValidInputs)
     {
@@ -319,7 +319,7 @@ static int32_t prvConfigurePin(IotGpioHandle_t  const pxGpio,
     if(lRtnCode==IOT_GPIO_SUCCESS)
     {
         pxGpio->xConfig=*pxNewConfig;
-//      IOT_LOGI("%s\n",__func__);
+//      IOT_LOGD("%s\n",__func__);
     }
 
     return lRtnCode;
@@ -349,7 +349,7 @@ IotGpioHandle_t iot_gpio_open( int32_t lGpioNumber )
             {
                 pxGpio->ucState=IOT_GPIO_OPENED;
                 xReturnHandle=pxGpio;
-                IOT_LOGI("%s pin[%d] ok \r\n",__func__,pxGpio->lGpioNumber);
+                IOT_LOGD("%s pin[%d] ok \r\n",__func__,pxGpio->lGpioNumber);
             }
             else
             {
@@ -387,12 +387,12 @@ int32_t iot_gpio_read_sync( IotGpioHandle_t const pxGpio,
     int32_t lRtnCd=IOT_GPIO_SUCCESS;
     if(prvIsValidHandle(pxGpio)&&(pxGpio->xConfig.xDirection==eGpioDirectionInput))
     {
-        IOT_LOGI("%s pin[%d] ok\r\n",__func__,pxGpio->lGpioNumber);
+        IOT_LOGD("%s pin[%d] ok\r\n",__func__,pxGpio->lGpioNumber);
         *pucPinState=bk_gpio_get_input(pxGpio->lGpioNumber);
     }
     else
     {
-        IOT_LOGI("%s pin[%d] Dir[%d] fail\r\n",__func__,pxGpio->lGpioNumber,pxGpio->xConfig.xDirection);
+        IOT_LOGD("%s pin[%d] Dir[%d] fail\r\n",__func__,pxGpio->lGpioNumber,pxGpio->xConfig.xDirection);
         lRtnCd=IOT_GPIO_INVALID_VALUE;
     }
     return lRtnCd;
@@ -404,7 +404,7 @@ int32_t iot_gpio_write_sync( IotGpioHandle_t const pxGpio,
     int32_t lRetCd=IOT_GPIO_SUCCESS;
     if(prvIsValidHandle(pxGpio)&&(pxGpio->xConfig.xDirection==eGpioDirectionOutput))
     {
-        IOT_LOGI("%s pin[%d] val:%d\r\n",__func__,pxGpio->lGpioNumber,ucPinState);
+        IOT_LOGD("%s pin[%d] val:%d\r\n",__func__,pxGpio->lGpioNumber,ucPinState);
         if(ucPinState)
         {
             BK_LOG_ON_ERR(bk_gpio_set_output_high(pxGpio->lGpioNumber));
@@ -416,7 +416,7 @@ int32_t iot_gpio_write_sync( IotGpioHandle_t const pxGpio,
     }
     else
     {
-        IOT_LOGI("%s pin[%d] state[%d] fail\r\n",__func__,pxGpio->lGpioNumber,ucPinState);
+        IOT_LOGD("%s pin[%d] state[%d] fail\r\n",__func__,pxGpio->lGpioNumber,ucPinState);
         lRetCd=IOT_GPIO_INVALID_VALUE;
     }
     return lRetCd;
@@ -430,7 +430,7 @@ int32_t iot_gpio_close( IotGpioHandle_t const pxGpio )
     
     if(prvIsValidHandle(pxGpio))
     {
-        IOT_LOGI("%s pin[%d] ok\r\n",__func__,pxGpio->lGpioNumber);
+        IOT_LOGD("%s pin[%d] ok\r\n",__func__,pxGpio->lGpioNumber);
         //add for debug
         if(pxGpio->xConfig.xInterruptMode!=eGpioInterruptNone)
         {
@@ -453,7 +453,7 @@ int32_t iot_gpio_close( IotGpioHandle_t const pxGpio )
         }
         else
         {
-            IOT_LOGI("%s NULL\r\n",__func__);
+            IOT_LOGD("%s NULL\r\n",__func__);
         }
          lRetCd=IOT_GPIO_INVALID_VALUE;
     }
@@ -467,7 +467,7 @@ int32_t iot_gpio_ioctl( IotGpioHandle_t const pxGpio,
 {
     int32_t lRetCd=IOT_GPIO_INVALID_VALUE;
     
-    IOT_LOGI("%s pin[%d] \r\n",__func__,pxGpio->lGpioNumber);
+    IOT_LOGD("%s pin[%d] \r\n",__func__,pxGpio->lGpioNumber);
     if(prvIsValidHandle(pxGpio))
     {
         IotGpioConfig_t xNewConfig=pxGpio->xConfig;
@@ -477,47 +477,47 @@ int32_t iot_gpio_ioctl( IotGpioHandle_t const pxGpio,
             case eSetGpioDirection:
                 os_memcpy(&xNewConfig.xDirection,pvBuffer,sizeof(xNewConfig.xDirection));
                 lRetCd=prvConfigurePin(pxGpio,&xNewConfig);
-                IOT_LOGI("eSetGpioDirection \r\n");
+                IOT_LOGD("eSetGpioDirection \r\n");
             break;
             case eGetGpioDirection:
                 os_memcpy(pvBuffer,&pxGpio->xConfig.xDirection,sizeof(pxGpio->xConfig.xDirection));
-                IOT_LOGI("eGetGpioDirection\r\n");
+                IOT_LOGD("eGetGpioDirection\r\n");
             break;
             case eSetGpioPull:
                 os_memcpy(&xNewConfig.xPull,pvBuffer,sizeof(xNewConfig.xPull));
                 lRetCd=prvConfigurePin(pxGpio,&xNewConfig);
-                IOT_LOGI("eSetGpioPull\r\n");
+                IOT_LOGD("eSetGpioPull\r\n");
             break;
             case eGetGpioPull:
                 os_memcpy(pvBuffer,&pxGpio->xConfig.xPull,sizeof(pxGpio->xConfig.xPull));
-                IOT_LOGI("eGetGpioPull\r\n");
+                IOT_LOGD("eGetGpioPull\r\n");
             break;
             case eSetGpioOutputMode:
                 os_memcpy(&xNewConfig.xOutMode,pvBuffer,sizeof(xNewConfig.xOutMode));
                 lRetCd=prvConfigurePin(pxGpio,&xNewConfig);
-                IOT_LOGI("eSetGpioOutputMode\r\n");
+                IOT_LOGD("eSetGpioOutputMode\r\n");
             break;
             case eGetGpioOutputType:
                 os_memcpy(pvBuffer,&pxGpio->xConfig.xOutMode,sizeof(pxGpio->xConfig.xOutMode));
-                IOT_LOGI("eGetGpioOutputType\r\n");
+                IOT_LOGD("eGetGpioOutputType\r\n");
             break;
             case eSetGpioInterrupt:
                 os_memcpy(&xNewConfig.xInterruptMode,pvBuffer,sizeof(xNewConfig.xInterruptMode));
                 lRetCd=prvConfigurePin(pxGpio,&xNewConfig);
-                IOT_LOGI("eSetGpioInterrupt:%d Rlt:%d Dir:%d\n",xNewConfig.xInterruptMode,pxGpio->xConfig.xInterruptMode,xNewConfig.xDirection);
+                IOT_LOGD("eSetGpioInterrupt:%d Rlt:%d Dir:%d\n",xNewConfig.xInterruptMode,pxGpio->xConfig.xInterruptMode,xNewConfig.xDirection);
             break;
             case eGetGpioInterrupt:
                 os_memcpy(pvBuffer,&pxGpio->xConfig.xInterruptMode,sizeof(pxGpio->xConfig.xInterruptMode));
-                IOT_LOGI("eGetGpioInterrupt:%d\n",pxGpio->xConfig.xInterruptMode);
+                IOT_LOGD("eGetGpioInterrupt:%d\n",pxGpio->xConfig.xInterruptMode);
             break;
             case eSetGpioDriveStrength:
                 os_memcpy(&xNewConfig.lDriveStrength,pvBuffer,sizeof(xNewConfig.lDriveStrength));
                 lRetCd=prvConfigurePin(pxGpio,&xNewConfig);
-                IOT_LOGI("eSetGpioDriveStrength\r\n");
+                IOT_LOGD("eSetGpioDriveStrength\r\n");
             break;
             case eGetGpioDriveStrength:
                 os_memcpy(pvBuffer,&pxGpio->xConfig.lDriveStrength,sizeof(pxGpio->xConfig.lDriveStrength));
-                IOT_LOGI("eGetGpioDriveStrength\r\n");
+                IOT_LOGD("eGetGpioDriveStrength\r\n");
             break;
             /*Unsupported functions*/
             case eSetGpioFunction:

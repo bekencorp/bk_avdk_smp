@@ -34,7 +34,7 @@ static HANDLE_AACENCODER aac_enc_handle = NULL;
 
 static void cli_aac_encoder_help(void)
 {
-    os_printf("aac_encoder_test {xx.pcm xx.aac} \n");
+    BK_LOGD(NULL, "aac_encoder_test {xx.pcm xx.aac} \n");
 }
 
 static HANDLE_AACENCODER aac_encoder_init(int channels, int sample_rate, int bitrate)
@@ -47,7 +47,7 @@ static HANDLE_AACENCODER aac_encoder_init(int channels, int sample_rate, int bit
     CHANNEL_MODE mode;
     HANDLE_AACENCODER handle;
 
-    os_printf("channels: %d, sample_rate: %d, bitrate: %d \n", channels, sample_rate, bitrate);
+    BK_LOGD(NULL, "channels: %d, sample_rate: %d, bitrate: %d \n", channels, sample_rate, bitrate);
 
     switch (channels)
     {
@@ -70,48 +70,48 @@ static HANDLE_AACENCODER aac_encoder_init(int channels, int sample_rate, int bit
             mode = MODE_1_2_2_1;
             break;
         default:
-            os_printf("Unsupported channels: %d\n", channels);
+            BK_LOGD(NULL, "Unsupported channels: %d\n", channels);
             return NULL;
     }
 
     if (aacEncOpen(&handle, encoder_modis, channels) != AACENC_OK)
     {
-        os_printf("open encoder fail\n");
+        BK_LOGD(NULL, "open encoder fail\n");
         return NULL;
     }
     if (aacEncoder_SetParam(handle, AACENC_AOT, aot) != AACENC_OK)
     {
-        os_printf("set the AOT fail\n");
+        BK_LOGD(NULL, "set the AOT fail\n");
         goto fail;
     }
     if (aot == 39 && eld_sbr)
     {
         if (aacEncoder_SetParam(handle, AACENC_SBR_MODE, 0) != AACENC_OK)
         {
-            os_printf("set SBR mode for ELD fail\n");
+            BK_LOGD(NULL, "set SBR mode for ELD fail\n");
             goto fail;
         }
     }
     if (aacEncoder_SetParam(handle, AACENC_SAMPLERATE, sample_rate) != AACENC_OK)
     {
-        os_printf("set the sample rate fail\n");
+        BK_LOGD(NULL, "set the sample rate fail\n");
         goto fail;
     }
     if (aacEncoder_SetParam(handle, AACENC_CHANNELMODE, mode) != AACENC_OK)
     {
-        os_printf("set the channel mode fail\n");
+        BK_LOGD(NULL, "set the channel mode fail\n");
         goto fail;
     }
     if (aacEncoder_SetParam(handle, AACENC_CHANNELORDER, 1) != AACENC_OK)
     {
-        os_printf("set the wav channel order fail\n");
+        BK_LOGD(NULL, "set the wav channel order fail\n");
         goto fail;
     }
     if (vbr)
     {
         if (aacEncoder_SetParam(handle, AACENC_BITRATEMODE, vbr) != AACENC_OK)
         {
-            os_printf("set the VBR bitrate mode fail\n");
+            BK_LOGD(NULL, "set the VBR bitrate mode fail\n");
             goto fail;
         }
     }
@@ -119,24 +119,24 @@ static HANDLE_AACENCODER aac_encoder_init(int channels, int sample_rate, int bit
     {
         if (aacEncoder_SetParam(handle, AACENC_BITRATE, bitrate) != AACENC_OK)
         {
-            os_printf("set the bitrate fail\n");
+            BK_LOGD(NULL, "set the bitrate fail\n");
             goto fail;
         }
     }
     if (aacEncoder_SetParam(handle, AACENC_TRANSMUX, TT_MP4_ADTS) != AACENC_OK)
     {
-        os_printf("set the ADTS transmux fail\n");
+        BK_LOGD(NULL, "set the ADTS transmux fail\n");
         goto fail;
     }
     if (aacEncoder_SetParam(handle, AACENC_AFTERBURNER, afterburner) != AACENC_OK)
     {
-        os_printf("set the afterburner mode fail\n");
+        BK_LOGD(NULL, "set the afterburner mode fail\n");
         goto fail;
     }
 
     if (aacEncEncode(handle, NULL, NULL, NULL, NULL) != AACENC_OK)
     {
-        os_printf("initialize the encoder\n");
+        BK_LOGD(NULL, "initialize the encoder\n");
         goto fail;
     }
 
@@ -156,7 +156,7 @@ static void aac_encoder_deinit(HANDLE_AACENCODER *aac_handle)
     {
         if (AACENC_OK != aacEncClose(aac_handle))
         {
-            os_printf("%s, %d, close aac encoder fail \n", __func__, __LINE__);
+            BK_LOGD(NULL, "%s, %d, close aac encoder fail \n", __func__, __LINE__);
         }
     }
 }
@@ -196,7 +196,7 @@ static int aac_encoder_frame_process(HANDLE_AACENCODER aac_handle, int in_bytes,
 
     *out_bytes = out_args.numOutBytes;
 
-    os_printf("[out_args] numOutBytes: %d, numInSamples: %d, numAncBytes: %d, bitResState: %d \n", out_args.numOutBytes, out_args.numInSamples, out_args.numAncBytes, out_args.bitResState);
+    BK_LOGD(NULL, "[out_args] numOutBytes: %d, numInSamples: %d, numAncBytes: %d, bitResState: %d \n", out_args.numOutBytes, out_args.numInSamples, out_args.numAncBytes, out_args.bitResState);
 
     return err;
 }
@@ -221,12 +221,12 @@ void cli_aac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
         return;
     }
 
-    os_printf("-----------start test----------- \n");
+    BK_LOGD(NULL, "-----------start test----------- \n");
     sprintf(pcm_file_name, "1:/%s", argv[1]);
     fr = f_open(&pcm_file, pcm_file_name, FA_READ);
     if (fr != FR_OK)
     {
-        os_printf("open %s fail \n", pcm_file_name);
+        BK_LOGD(NULL, "open %s fail \n", pcm_file_name);
         goto fail;
     }
 
@@ -234,16 +234,16 @@ void cli_aac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
     fr = f_open(&aac_file, aac_file_name, FA_CREATE_ALWAYS | FA_WRITE);
     if (fr != FR_OK)
     {
-        os_printf("open %s fail\n", aac_file_name);
+        BK_LOGD(NULL, "open %s fail\n", aac_file_name);
         goto fail;
     }
 
-    os_printf("-----------open file ok----------- \n");
+    BK_LOGD(NULL, "-----------open file ok----------- \n");
 
     in_buffer = (unsigned char *)os_malloc(AAC_FRAME_SIZE);
     if (!in_buffer)
     {
-        os_printf("os_malloc in_buffer: %d fail\n", AAC_FRAME_SIZE);
+        BK_LOGD(NULL, "os_malloc in_buffer: %d fail\n", AAC_FRAME_SIZE);
         goto fail;
     }
     os_memset(in_buffer, 0, AAC_FRAME_SIZE);
@@ -251,12 +251,12 @@ void cli_aac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
     out_buffer = (unsigned char *)os_malloc(AAC_FRAME_SIZE);
     if (!out_buffer)
     {
-        os_printf("os_malloc out_buffer: %d fail\n", AAC_FRAME_SIZE);
+        BK_LOGD(NULL, "os_malloc out_buffer: %d fail\n", AAC_FRAME_SIZE);
         goto fail;
     }
     os_memset(out_buffer, 0, AAC_FRAME_SIZE);
 
-    os_printf("-----------open file ok----------- \n");
+    BK_LOGD(NULL, "-----------open file ok----------- \n");
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
 
     /* init AAC encoder */
@@ -264,26 +264,26 @@ void cli_aac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
     aac_enc_handle = aac_encoder_init(AAC_CHN, AAC_SAMPLE_RATE, AAC_BITRATE);
     if (!aac_enc_handle)
     {
-        os_printf("aac_encoder_init fail\n");
+        BK_LOGD(NULL, "aac_encoder_init fail\n");
         return;
     }
-    os_printf("-----------aac_encoder_init ok----------- \n");
+    BK_LOGD(NULL, "-----------aac_encoder_init ok----------- \n");
 
     while (1)
     {
-        os_printf("-----------NeAACDecDecode----------- \n");
+        BK_LOGD(NULL, "-----------NeAACDecDecode----------- \n");
         rtos_delay_milliseconds(5);
         fr = f_read(&pcm_file, in_buffer, AAC_FRAME_SIZE, &uiTemp);
         if (fr != FR_OK)
         {
-            os_printf("read pcm file fail\n");
+            BK_LOGD(NULL, "read pcm file fail\n");
             goto fail;
         }
         else
         {
             if (uiTemp < AAC_FRAME_SIZE)
             {
-                os_printf("pcm file is empty\n");
+                BK_LOGD(NULL, "pcm file is empty\n");
                 goto fail;
             }
         }
@@ -299,7 +299,7 @@ void cli_aac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
                 fr = f_write(&aac_file, (void *)out_buffer, out_size, &uiTemp);
                 if (fr != FR_OK)
                 {
-                    os_printf("write output data %s fail\n", aac_file_name);
+                    BK_LOGD(NULL, "write output data %s fail\n", aac_file_name);
                     goto fail;
                 }
             }
@@ -307,7 +307,7 @@ void cli_aac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
         else
         {
             /* error */
-            os_printf("aac encode Error: %d \n", err);
+            BK_LOGD(NULL, "aac encode Error: %d \n", err);
         }
     }
 
@@ -318,13 +318,13 @@ fail:
     fr = f_close(&aac_file);
     if (fr != FR_OK)
     {
-        os_printf("close file %s fail \n", aac_file_name);
+        BK_LOGD(NULL, "close file %s fail \n", aac_file_name);
     }
 
     fr = f_close(&pcm_file);
     if (fr != FR_OK)
     {
-        os_printf("close file %s fail \n", pcm_file_name);
+        BK_LOGD(NULL, "close file %s fail \n", pcm_file_name);
     }
 
     if (in_buffer)
@@ -342,7 +342,7 @@ fail:
     aac_encoder_deinit(&aac_enc_handle);
     aac_enc_handle = NULL;
 
-    os_printf("test finish \n");
+    BK_LOGD(NULL, "test finish \n");
 }
 
 

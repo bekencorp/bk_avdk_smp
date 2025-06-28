@@ -560,7 +560,7 @@ bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const lcd_device_t *device)
 
 #if CONFIG_SOC_BK7236XX
     dma_repeat_once_len = lcd_qspi_get_dma_repeat_once_len(device);
-    LCD_QSPI_LOGI("dma_repeat_once_len = %d\r\n", dma_repeat_once_len);
+    LCD_QSPI_LOGD("dma_repeat_once_len = %d\r\n", dma_repeat_once_len);
     bk_dma_set_transfer_len(lcd_qspi_dma_id, dma_repeat_once_len);
     if (qspi_id == QSPI_ID_0) {
         dma_set_dst_pause_addr(lcd_qspi_dma_id, LCD_QSPI0_DATA_ADDR + device->qspi->frame_len);
@@ -754,13 +754,13 @@ uint8_t g_lcd_qspi_open_flag = 0;
 void bk_lcd_qspi_disp_open(qspi_id_t qspi_id, const lcd_device_t *device)
 {
     if(g_lcd_qspi_open_flag) {
-        LCD_QSPI_LOGI("[%s] have opened\r\n", __FUNCTION__);
+        LCD_QSPI_LOGD("[%s] have opened\r\n", __FUNCTION__);
         return;
     }
 
     bk_lcd_qspi_init(qspi_id, device);
     g_lcd_qspi_open_flag = 1;
-    LCD_QSPI_LOGI("[%s] open success, frame_len:%d\r\n", __FUNCTION__, device->qspi->frame_len);
+    LCD_QSPI_LOGD("[%s] open success, frame_len:%d\r\n", __FUNCTION__, device->qspi->frame_len);
 }
 
 void bk_lcd_qspi_disp_close(qspi_id_t qspi_id)
@@ -768,6 +768,6 @@ void bk_lcd_qspi_disp_close(qspi_id_t qspi_id)
     g_lcd_qspi_open_flag = 0;
 
     bk_lcd_qspi_deinit(qspi_id);
-    LCD_QSPI_LOGI("[%s] close success\r\n", __FUNCTION__);
+    LCD_QSPI_LOGD("[%s] close success\r\n", __FUNCTION__);
 }
 

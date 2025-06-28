@@ -36,15 +36,15 @@ can_statis_t* can_statis_get_statis()
 
 void can_statis_dump()
 {
-	BK_LOGI(TAG, "dump can statis:\r\n");
-	BK_LOGI(TAG, "isr_cnt:     %d\r\n", s_can_statis.isr_cnt);
-	BK_LOGI(TAG, "rx_cnt:       %d\r\n", s_can_statis.rx_cnt);
-	BK_LOGI(TAG, "tx_cnt:       %d\r\n", s_can_statis.tx_cnt);
-	BK_LOGI(TAG, "beif_cnt:      %d\r\n", s_can_statis.beif_cnt);
-	BK_LOGI(TAG, "alif_cnt: %d\r\n", s_can_statis.alif_cnt);
-	BK_LOGI(TAG, "epif_cnt:       %d\r\n", s_can_statis.epif_cnt);
-	BK_LOGI(TAG, "ewarn_cnt:         %d\r\n", s_can_statis.ewarn_cnt);
-	BK_LOGI(TAG, "aif_cnt:        %d\r\n", s_can_statis.aif_cnt);
+	BK_LOGD(TAG, "dump can statis:\r\n");
+	BK_LOGD(TAG, "isr_cnt:     %d\r\n", s_can_statis.isr_cnt);
+	BK_LOGD(TAG, "rx_cnt:       %d\r\n", s_can_statis.rx_cnt);
+	BK_LOGD(TAG, "tx_cnt:       %d\r\n", s_can_statis.tx_cnt);
+	BK_LOGD(TAG, "beif_cnt:      %d\r\n", s_can_statis.beif_cnt);
+	BK_LOGD(TAG, "alif_cnt: %d\r\n", s_can_statis.alif_cnt);
+	BK_LOGD(TAG, "epif_cnt:       %d\r\n", s_can_statis.epif_cnt);
+	BK_LOGD(TAG, "ewarn_cnt:         %d\r\n", s_can_statis.ewarn_cnt);
+	BK_LOGD(TAG, "aif_cnt:        %d\r\n", s_can_statis.aif_cnt);
 }
 
 #endif

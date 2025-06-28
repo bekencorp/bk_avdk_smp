@@ -28,7 +28,7 @@
 #include "common.h"
 #else
 #include <stdio.h>
-#define mbedtls_printf printf
+#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #endif /* MBEDTLS_PLATFORM_C */
 
 /* Implementation that should never be optimized out by the compiler */
@@ -831,7 +831,7 @@ int dubhe_aes_xts_self_test(int verbose)
     }
 
     if (verbose != 0) {
-        bk_printf("passed\n");
+        BK_LOGD(NULL, "passed\n");
     }
 
     mbedtls_aes_xts_free(&enc_ctx_xts);
@@ -841,7 +841,7 @@ int dubhe_aes_xts_self_test(int verbose)
 
 exit:
     if (ret != 0 && verbose != 0) {
-        bk_printf("failed\n");
+        BK_LOGD(NULL, "failed\n");
     }
 
     return ret;
@@ -867,7 +867,7 @@ int dubhe_aes_xts_self_test(int verbose)
         mode = i & 1;
 
         if (verbose != 0) {
-            bk_printf("  AES-XTS-128 (%s): ",
+            BK_LOGD(NULL, "  AES-XTS-128 (%s): ",
                            (mode == MBEDTLS_AES_DECRYPT) ? "dec" : "enc");
         }
 
@@ -905,12 +905,12 @@ int dubhe_aes_xts_self_test(int verbose)
         }
 
         if (verbose != 0) {
-            bk_printf("passed\n");
+            BK_LOGD(NULL, "passed\n");
         }
     }
 
     if (verbose != 0) {
-        bk_printf("\n");
+        BK_LOGD(NULL, "\n");
     }
 
     mbedtls_aes_xts_free(&ctx_xts);

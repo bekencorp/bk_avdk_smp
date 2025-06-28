@@ -23,22 +23,22 @@ static void alarm_auto_test_callback(aon_rtc_id_t id, uint8_t *name_p, void *par
 
 static void cli_aon_rtc_help(void)
 {
-	CLI_LOGI("aon_rtc_driver init\r\n");
-	CLI_LOGI("aon_rtc_driver deinit\r\n");
-	CLI_LOGI("aon_rtc_register {id} {name} {period_tick} {period_cnt}, {callback}\r\n");
-	CLI_LOGI("aon_rtc_unregister {id} {name}\r\n");
-	CLI_LOGI("aon_rtc_timing_test {id} {rounds} {cycles} {set tick val}\r\n");
+	CLI_LOGD("aon_rtc_driver init\r\n");
+	CLI_LOGD("aon_rtc_driver deinit\r\n");
+	CLI_LOGD("aon_rtc_register {id} {name} {period_tick} {period_cnt}, {callback}\r\n");
+	CLI_LOGD("aon_rtc_unregister {id} {name}\r\n");
+	CLI_LOGD("aon_rtc_timing_test {id} {rounds} {cycles} {set tick val}\r\n");
 }
 
 #if 0	//remove it, only one HW can't be used for many APPs.
 static void cli_aon_rtc_tick_isr(aon_rtc_id_t id, uint8_t *name_p, void *param)
 {
-	CLI_LOGI("aon_rtc_tick_isr(%d)\n", id);
+	CLI_LOGD("aon_rtc_tick_isr(%d)\n", id);
 }
 
 static void cli_aon_rtc_upper_isr(aon_rtc_id_t id, uint8_t *name_p, void *param)
 {
-	CLI_LOGI("aon_rtc_upper_isr(%d)\n", id);
+	CLI_LOGD("aon_rtc_upper_isr(%d)\n", id);
 }
 #endif
 
@@ -51,10 +51,10 @@ static void cli_aon_rtc_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_aon_rtc_driver_init());
-		CLI_LOGI("aon_rtc driver init\n");
+		CLI_LOGD("aon_rtc driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_aon_rtc_driver_deinit());
-		CLI_LOGI("aon_rtc driver deinit\n");
+		CLI_LOGD("aon_rtc driver deinit\n");
 	} else {
 		cli_aon_rtc_help();
 		return;
@@ -74,25 +74,25 @@ static void cli_aon_rtc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		tick = os_strtoul(argv[3], NULL, 10);
 		period = os_strtoul(argv[4], NULL, 10);
 		BK_LOG_ON_ERR(bk_aon_rtc_create(aon_rtc_id, tick, period));
-		CLI_LOGI("aon_rtc id:%d bk_aon_rtc_create\n", aon_rtc_id);
+		CLI_LOGD("aon_rtc id:%d bk_aon_rtc_create\n", aon_rtc_id);
 	} else 	if (os_strcmp(argv[2], "destroy") == 0) {
 		BK_LOG_ON_ERR(bk_aon_rtc_destroy(aon_rtc_id));
-		CLI_LOGI("aon_rtc id:%d bk_aon_rtc_destroy\n", aon_rtc_id);
+		CLI_LOGD("aon_rtc id:%d bk_aon_rtc_destroy\n", aon_rtc_id);
 	} else if (os_strcmp(argv[2], "init") == 0) {
 		BK_LOG_ON_ERR(bk_aon_rtc_tick_init());
-		CLI_LOGI("aon_rtc id:%d bk_aon_rtc_tick_init\n", aon_rtc_id);
+		CLI_LOGD("aon_rtc id:%d bk_aon_rtc_tick_init\n", aon_rtc_id);
 	} else if (os_strcmp(argv[2], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_aon_rtc_destroy(aon_rtc_id));
-		CLI_LOGI("aon_rtc id:%d bk_aon_rtc_deinit\n", aon_rtc_id);
+		CLI_LOGD("aon_rtc id:%d bk_aon_rtc_deinit\n", aon_rtc_id);
 	} else if (os_strcmp(argv[2], "set") == 0) {
 		tick = os_strtoul(argv[3], NULL, 10);
 		tick = bk_rtc_get_ms_tick_count() * 1000 * tick;
 		BK_LOG_ON_ERR(bk_aon_rtc_create(0, tick, 1));
-		CLI_LOGI("aon_rtc id:%d set rtc period = %d s.\n", aon_rtc_id, tick);
+		CLI_LOGD("aon_rtc id:%d set rtc period = %d s.\n", aon_rtc_id, tick);
 	} else if (os_strcmp(argv[2], "get") == 0) {
 		tick = bk_aon_rtc_get_current_tick(aon_rtc_id);
 		tick = tick / (bk_rtc_get_ms_tick_count() * 1000);
-		CLI_LOGI("aon_rtc id:%d get rtc tick time = %d s.\n", aon_rtc_id, tick);
+		CLI_LOGD("aon_rtc id:%d get rtc tick time = %d s.\n", aon_rtc_id, tick);
 	} else {
 		cli_aon_rtc_help();
 		return;
@@ -111,10 +111,10 @@ static void cli_aon_rtc_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	aon_rtc_id = os_strtoul(argv[1], NULL, 10);
 	if (os_strcmp(argv[2], "tick") == 0) {
 		BK_LOG_ON_ERR(bk_aon_rtc_register_tick_isr(aon_rtc_id, cli_aon_rtc_tick_isr, NULL));
-		CLI_LOGI("aon_rtc id:%d register tick interrupt isr\n", aon_rtc_id);
+		CLI_LOGD("aon_rtc id:%d register tick interrupt isr\n", aon_rtc_id);
 	} else if (os_strcmp(argv[2], "upper") == 0) {
 		BK_LOG_ON_ERR(bk_aon_rtc_register_upper_isr(aon_rtc_id, cli_aon_rtc_upper_isr, NULL));
-		CLI_LOGI("aon_rtc id:%d register upper interrupt isr\n", aon_rtc_id);
+		CLI_LOGD("aon_rtc id:%d register upper interrupt isr\n", aon_rtc_id);
 	} else {
 		cli_aon_rtc_help();
 		return;
@@ -138,8 +138,8 @@ static void cli_rtc_drift_calculation(void)
 
 	if (print_header) {
 		print_header = false;
-		os_printf("\r\n");
-		os_printf("%-8s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\r\n",
+		BK_LOGD(NULL,"\r\n");
+		BK_LOGD(NULL,"%-8s %-10s %-10s %-10s %-10s %-10s %-10s %-10s %-10s\r\n",
 			"id", "drift", "drift_us", "drift_t1", "drift_t2", "current", "last", "drift_min", "drift_max");
 	}
 
@@ -165,7 +165,7 @@ static void cli_rtc_drift_calculation(void)
 			s_rtc_drift_max_us = rtc_drift_us;
 		}
 	
-		os_printf("%-8u %-10d %-10d %-10d %-10u %-10u %-10u %-10d %-10d\r\n",
+		BK_LOGD(NULL,"%-8u %-10d %-10d %-10d %-10u %-10u %-10u %-10d %-10d\r\n",
 			s_rtc_timer_expired_cnt, rtc_drift, rtc_drift_us, s_rtc_total_drift_us, s_rtc_total_abs_drift_us,
 			g_26m_current_cnt, s_26m_last_cnt, s_rtc_drift_min_us, s_rtc_drift_max_us);
         }
@@ -182,7 +182,7 @@ static void alarm_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 #if CONFIG_RTC_TIMER_PRECISION_TEST
 	cli_rtc_drift_calculation();
 #else
-	CLI_LOGI("id=%d, name=%s %s\r\n", id, name_p, alarm_param);
+	CLI_LOGD("id=%d, name=%s %s\r\n", id, name_p, alarm_param);
 #endif
 }
 
@@ -195,7 +195,7 @@ static void cli_aon_rtc_clock_src(char *pcWriteBuffer, int xWriteBufferLen, int 
 	} else if (os_strcmp(argv[1], "26m") == 0) {
 		aon_pmu_drv_lpo_src_set(0);
 	} else {
-		CLI_LOGI("RTC clock source should be 26m or rosc\r\n");
+		CLI_LOGD("RTC clock source should be 26m or rosc\r\n");
 	}
 }
 
@@ -208,7 +208,7 @@ static void cli_aon_rtc_rosc_test(char *pcWriteBuffer, int xWriteBufferLen, int 
 	} else if (os_strcmp(argv[1], "disable") == 0) {
 		sys_drv_rosc_test_mode(false);
 	} else {
-		CLI_LOGI("enable/disable \r\n");
+		CLI_LOGD("enable/disable \r\n");
 	}
 }
 
@@ -226,13 +226,13 @@ static void cli_aon_rtc_rosc_cal(char *pcWriteBuffer, int xWriteBufferLen, int a
 	} else if (os_strcmp(argv[1], "disable") == 0) {
 		rosc_cal_mode = 2;
 	} else {
-		CLI_LOGI("invalid rosc calibration mode\r\n");
+		CLI_LOGD("invalid rosc calibration mode\r\n");
 		return;
 	}
 
 	uint32_t rosc_cal_interval = os_strtoul(argv[2], NULL, 10);
 	sys_drv_rosc_calibration(rosc_cal_mode, rosc_cal_interval);
-	CLI_LOGI("ROSC calibration mode: %u, interval: %u\r\n", rosc_cal_mode, rosc_cal_interval);
+	CLI_LOGD("ROSC calibration mode: %u, interval: %u\r\n", rosc_cal_mode, rosc_cal_interval);
 }
 
 static void cli_aon_rtc_get_time(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -243,8 +243,8 @@ static void cli_aon_rtc_get_time(char *pcWriteBuffer, int xWriteBufferLen, int a
 	aon_rtc_id = os_strtoul(argv[1], NULL, 10);
 	tick = bk_aon_rtc_get_current_tick(aon_rtc_id)/bk_rtc_get_ms_tick_count();
 
-	//CLI_LOGI("id=%d, tick_h=%d tick_l=%d\r\n", aon_rtc_id, (uint32_t)(tick>>32), (uint32_t)tick);
-	CLI_LOGI("id=%d, tick_h=%d tick_l=%d ms\r\n", aon_rtc_id, (uint32_t)((tick)>>32), (uint32_t)(tick));
+	//CLI_LOGD("id=%d, tick_h=%d tick_l=%d\r\n", aon_rtc_id, (uint32_t)(tick>>32), (uint32_t)tick);
+	CLI_LOGD("id=%d, tick_h=%d tick_l=%d ms\r\n", aon_rtc_id, (uint32_t)((tick)>>32), (uint32_t)(tick));
 }
 
 static void cli_aon_rtc_register_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -297,17 +297,17 @@ static void alarm_auto_test_callback(aon_rtc_id_t id, uint8_t *name_p, void *par
 	uint32_t i = 0;
 	uint32_t arr_size = sizeof(s_cli_alarm_info)/sizeof(alarm_info_t); 
 
-	CLI_LOGI("id=%d, name=%s\r\n", id, name_p);
+	CLI_LOGD("id=%d, name=%s\r\n", id, name_p);
 	for(i = 0; i < arr_size; i++)
 	{
 		if(os_strcmp((const char*)s_cli_alarm_info[i].name, (const char*)name_p) == 0)
 		{
 			//forbid unregister self in the callback
-			//CLI_LOGI("Unregister name=%s\r\n", name_p);
+			//CLI_LOGD("Unregister name=%s\r\n", name_p);
 			//bk_alarm_unregister(id, s_cli_alarm_info[i].name);
 			int index = (i+3)%arr_size;
 
-			CLI_LOGI("register name=%s\r\n", s_cli_alarm_info[index].name);
+			CLI_LOGD("register name=%s\r\n", s_cli_alarm_info[index].name);
 			bk_alarm_register(id, &s_cli_alarm_info[index]);
 
 			break;

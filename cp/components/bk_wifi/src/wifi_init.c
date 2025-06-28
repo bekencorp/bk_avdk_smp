@@ -89,7 +89,7 @@ int wifi_init(const wifi_init_config_t *config)
 	/* RF calibration */
 	ret = calibration_init();
 	if (ret != BK_OK) {
-		WIFI_LOGI("cal init failed, ret(%x)\n", ret);
+		WIFI_LOGD("cal init failed, ret(%x)\n", ret);
 		return ret;
 	}
 
@@ -104,14 +104,14 @@ int wifi_init(const wifi_init_config_t *config)
 	 */
 	ret = rwnx_intf_init();
 	if (ret != BK_OK) {
-		WIFI_LOGI("rwnx init failed, ret(%x)\n", ret);
+		WIFI_LOGD("rwnx init failed, ret(%x)\n", ret);
 		return ret;
 	}
 
 #if 0//(CONFIG_NO_HOSTED && CONFIG_RF_POLICY_SUPPORT)
 	ret = coex_init();
 	if (ret != BK_OK) {
-		WIFI_LOGI("rf task init failed, ret(%x)\n", ret);
+		WIFI_LOGD("rf task init failed, ret(%x)\n", ret);
 		return ret;
 	}
 #endif

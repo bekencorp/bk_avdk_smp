@@ -25,19 +25,19 @@
 
 static void cli_qspi_help(void)
 {
-	CLI_LOGI("qspi_driver init\r\n");
-	CLI_LOGI("qspi_driver deinit\r\n");
-	CLI_LOGI("qspi init\r\n");
-	CLI_LOGI("qspi enter_quad_mode\r\n");
-	CLI_LOGI("qspi exit_quad_mode\r\n");
-	CLI_LOGI("qspi quad_write\r\n");
-	CLI_LOGI("qspi quad_read\r\n");
-	CLI_LOGI("qspi compare\r\n");
+	CLI_LOGD("qspi_driver init\r\n");
+	CLI_LOGD("qspi_driver deinit\r\n");
+	CLI_LOGD("qspi init\r\n");
+	CLI_LOGD("qspi enter_quad_mode\r\n");
+	CLI_LOGD("qspi exit_quad_mode\r\n");
+	CLI_LOGD("qspi quad_write\r\n");
+	CLI_LOGD("qspi quad_read\r\n");
+	CLI_LOGD("qspi compare\r\n");
 #if (CONFIG_QSPI_0_MST_FLASH || CONFIG_QSPI_1_MST_FLASH)
-	CLI_LOGI("qspi_flash get_id\r\n");
-	CLI_LOGI("qspi_flash erase 0 256\r\n");
-	CLI_LOGI("qspi_flash single_write 0 256\r\n");
-	CLI_LOGI("qspi_flash single_read 0 256\r\n");
+	CLI_LOGD("qspi_flash get_id\r\n");
+	CLI_LOGD("qspi_flash erase 0 256\r\n");
+	CLI_LOGD("qspi_flash single_write 0 256\r\n");
+	CLI_LOGD("qspi_flash single_read 0 256\r\n");
 #endif
 }
 
@@ -50,10 +50,10 @@ static void cli_qspi_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_driver_init());
-		CLI_LOGI("qspi driver init\n");
+		CLI_LOGD("qspi driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_driver_deinit());
-		CLI_LOGI("qspi driver deinit\n");
+		CLI_LOGD("qspi driver deinit\n");
 	} else {
 		cli_qspi_help();
 		return;
@@ -114,7 +114,7 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	}
 
 	uint32_t qspi_id = os_strtoul(argv[1], NULL, 10);
-	CLI_LOGI("qspi_id:%08x\r\n",qspi_id);
+	CLI_LOGD("qspi_id:%08x\r\n",qspi_id);
 
 	if (os_strcmp(argv[2], "init") == 0) {
 		qspi_config_t config = {0};
@@ -122,33 +122,33 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		config.src_clk_div = os_strtoul(argv[4], NULL, 10);
 		config.clk_div = os_strtoul(argv[5], NULL, 10);
 		BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &config));
-		CLI_LOGI("qspi init\r\n");
+		CLI_LOGD("qspi init\r\n");
 #if (CONFIG_QSPI_0_MST_FLASH || CONFIG_QSPI_1_MST_FLASH)
 	} else if (os_strcmp(argv[2], "flash_test") == 0) {
 		extern void test_qspi_flash(uint32_t id, uint32_t base_addr, uint32_t buf_len);
 		uint32_t base_addr = os_strtoul(argv[3], NULL, 16);
 		uint32_t buf_len = os_strtoul(argv[4], NULL, 10);
 		test_qspi_flash(qspi_id, base_addr, buf_len);
-		CLI_LOGI("qspi flash test end\r\n");
+		CLI_LOGD("qspi flash test end\r\n");
 #endif
 	} else if (os_strcmp(argv[2], "enter_quad_mode") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_psram_enter_quad_mode(qspi_id));
-		CLI_LOGI("qspi enter quad mode\r\n");
+		CLI_LOGD("qspi enter quad mode\r\n");
 	} else if (os_strcmp(argv[2], "exit_quad_mode") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_psram_exit_quad_mode(qspi_id));
-		CLI_LOGI("qspi exit quad mode\r\n");
+		CLI_LOGD("qspi exit quad mode\r\n");
 	} else if (os_strcmp(argv[2], "quad_write") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_psram_quad_write(qspi_id));
-		CLI_LOGI("qspi psram quad write mode\r\n");
+		CLI_LOGD("qspi psram quad write mode\r\n");
 	} else if (os_strcmp(argv[2], "quad_read") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_psram_quad_read(qspi_id));
-		CLI_LOGI("qspi psram quad read mode\r\n");
+		CLI_LOGD("qspi psram quad read mode\r\n");
 	} else if (os_strcmp(argv[2], "single_write") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_psram_single_write(qspi_id));
-		CLI_LOGI("qspi psram single write mode\r\n");
+		CLI_LOGD("qspi psram single write mode\r\n");
 	} else if (os_strcmp(argv[2], "single_read") == 0) {
 		BK_LOG_ON_ERR(bk_qspi_psram_single_read(qspi_id));
-		CLI_LOGI("qspi psram single read mode\r\n");
+		CLI_LOGD("qspi psram single read mode\r\n");
 	} else if (os_strcmp(argv[2], "compare") == 0) {
 		cli_qspi_psram_8bit_increase_init_memory((uint8_t *)PSRAM_TEST_START_ADDR(qspi_id), PSRAM_TEST_LEN);
 		cli_qspi_psram_8bit_increase_compare((uint8_t *)PSRAM_TEST_START_ADDR(qspi_id), PSRAM_TEST_LEN);
@@ -158,7 +158,7 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 
 		cli_qspi_psram_8bit_init_fixed_value((uint8_t *)PSRAM_TEST_START_ADDR(qspi_id), PSRAM_TEST_LEN, 0x5a);
 		cli_qspi_psram_8bit_cmp_fixed_value((uint8_t *)PSRAM_TEST_START_ADDR(qspi_id), PSRAM_TEST_LEN, 0x5a);
-		CLI_LOGI("qspi psram write and read ok\r\n");
+		CLI_LOGD("qspi psram write and read ok\r\n");
 	} else if (os_strcmp(argv[2], "write") == 0) {
 		uint32_t base_addr = os_strtoul(argv[3], NULL, 16);
 		uint8_t write_data = os_strtoul(argv[4], NULL, 16);
@@ -174,7 +174,7 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 			os_free(wr_buf);
 			wr_buf = NULL;
 		}
-		CLI_LOGI("qspi psram write\r\n");
+		CLI_LOGD("qspi psram write\r\n");
 	} else if (os_strcmp(argv[2], "read") == 0) {
 		uint32_t base_addr = os_strtoul(argv[3], NULL, 16);
 		uint32_t read_size = os_strtoul(argv[4], NULL, 10);
@@ -191,7 +191,7 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 			os_free(rd_buf);
 			rd_buf = NULL;
 		}
-		CLI_LOGI("qspi psram read\r\n");
+		CLI_LOGD("qspi psram read\r\n");
 	} else {
 		cli_qspi_help();
 	}
@@ -222,7 +222,7 @@ static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_PAGE_SIZE) {
 			os_memset(buf, 0, FLASH_PAGE_SIZE);
 			bk_qspi_flash_read(qspi_id, addr, buf, FLASH_PAGE_SIZE);
-			CLI_LOGI("flash read addr:%x\r\n", addr);
+			CLI_LOGD("flash read addr:%x\r\n", addr);
 
 			for (uint32_t i = 0; i < 16; i++) {
 				for (uint32_t j = 0; j < 16; j++) {
@@ -245,7 +245,7 @@ static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		for (uint32_t addr = start_addr; addr < (start_addr + len); addr += FLASH_PAGE_SIZE) {
 			os_memset(buf, 0, FLASH_PAGE_SIZE);
 			bk_qspi_flash_single_read(qspi_id, addr, buf, FLASH_PAGE_SIZE);
-			CLI_LOGI("flash read addr:%x\r\n", addr);
+			CLI_LOGD("flash read addr:%x\r\n", addr);
 
 			for (uint32_t i = 0; i < 16; i++) {
 				for (uint32_t j = 0; j < 16; j++) {
@@ -268,7 +268,7 @@ static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		uint32_t flash_id = bk_qspi_flash_read_id(qspi_id);
 		bk_qspi_flash_set_protect_none(qspi_id);
 		bk_qspi_flash_quad_enable(qspi_id);
-		CLI_LOGI("flash_id:%x\r\n", flash_id);
+		CLI_LOGD("flash_id:%x\r\n", flash_id);
 	}
 }
 #endif

@@ -7,20 +7,20 @@
 
 static void cli_gpio_help(void)
 {
-	CLI_LOGI("gpio_driver [init/deinit] \r\n");
+	CLI_LOGD("gpio_driver [init/deinit] \r\n");
 
-	CLI_LOGI("gpio    [set_config/input_pulldown/input_pullup////]    only in set_sonfig:[io_mode]    [pull mode] \r\n");
-	CLI_LOGI("gpio    [output/input]    [gpio_pin]    [pullup/pulldown] \r\n");
-	CLI_LOGI("gpio    [output_high/output_low/input_get]    [gpio_pin] \r\n");
-	CLI_LOGI("gpio_map    [sdio_map/spi_map]     [mode]\r\n");
-	CLI_LOGI("gpio_int    [index]    [inttype/start/stop]    [low/high_level/rising/falling edge]\r\n");
+	CLI_LOGD("gpio    [set_config/input_pulldown/input_pullup////]    only in set_sonfig:[io_mode]    [pull mode] \r\n");
+	CLI_LOGD("gpio    [output/input]    [gpio_pin]    [pullup/pulldown] \r\n");
+	CLI_LOGD("gpio    [output_high/output_low/input_get]    [gpio_pin] \r\n");
+	CLI_LOGD("gpio_map    [sdio_map/spi_map]     [mode]\r\n");
+	CLI_LOGD("gpio_int    [index]    [inttype/start/stop]    [low/high_level/rising/falling edge]\r\n");
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
-	CLI_LOGI("gpio_wake    [index][low/high_level/rising/falling edge][enable/disable wakeup]\r\n");
-	CLI_LOGI("gpio_low_power    [simulate][param]\r\n");
-	CLI_LOGI("gpio_kpsta [register/unregister][index][io_mode][pull_mode][func_mode]\r\n");
+	CLI_LOGD("gpio_wake    [index][low/high_level/rising/falling edge][enable/disable wakeup]\r\n");
+	CLI_LOGD("gpio_low_power    [simulate][param]\r\n");
+	CLI_LOGD("gpio_kpsta [register/unregister][index][io_mode][pull_mode][func_mode]\r\n");
 #endif
 #if CONFIG_GPIO_SIMULATE_UART_WRITE
-	CLI_LOGI("gpio_uart_write    [index][div(baud_rate=1Mbps/(1+div))][string(len < 8)]\r\n");
+	CLI_LOGD("gpio_uart_write    [index][div(baud_rate=1Mbps/(1+div))][string(len < 8)]\r\n");
 #endif
 }
 
@@ -34,10 +34,10 @@ static void cli_gpio_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_gpio_driver_init());
-		CLI_LOGI("gpio init\n");
+		CLI_LOGD("gpio init\n");
 	} else if(os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_gpio_driver_deinit());
-		CLI_LOGI("gpio deinit\n");
+		CLI_LOGD("gpio deinit\n");
 	} else {
 		cli_gpio_help();
 		return;
@@ -63,7 +63,7 @@ static void cli_gpio_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		mode.pull_mode = os_strtoul(argv[4], NULL, 10);
 		BK_LOG_ON_ERR(bk_gpio_set_config(id, &mode));
 
-		CLI_LOGI("gpio io(output/disable/input): %x ,  pull(disable/down/up) : %x\n", mode.io_mode, mode.pull_mode);
+		CLI_LOGD("gpio io(output/disable/input): %x ,  pull(disable/down/up) : %x\n", mode.io_mode, mode.pull_mode);
 
 	} else if (os_strcmp(argv[1], "output") == 0) {
 		gpio_id_t id;
@@ -83,7 +83,7 @@ static void cli_gpio_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 			BK_LOG_ON_ERR(bk_gpio_disable_pull(id));
 		}
 
-		CLI_LOGI("gpio output test: %x \n", id);
+		CLI_LOGD("gpio output test: %x \n", id);
 
 	}else if (os_strcmp(argv[1], "input") == 0) {
 		gpio_id_t id;
@@ -103,7 +103,7 @@ static void cli_gpio_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 			BK_LOG_ON_ERR(bk_gpio_disable_pull(id));
 		}
 
-		CLI_LOGI("gpio input test: %d \n", id);
+		CLI_LOGD("gpio input test: %d \n", id);
 
 	}else if (os_strcmp(argv[1], "output_high") == 0) {
 		gpio_id_t id;
@@ -113,7 +113,7 @@ static void cli_gpio_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		// must set gpio mode before gpio output test
 		BK_LOG_ON_ERR(bk_gpio_set_output_high(id));
 
-		CLI_LOGI("gpio output hgih\n");
+		CLI_LOGD("gpio output hgih\n");
 	}else if (os_strcmp(argv[1], "output_low") == 0) {
 		gpio_id_t id;
 
@@ -122,7 +122,7 @@ static void cli_gpio_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		// must set gpio mode before gpio output test
 		BK_LOG_ON_ERR(bk_gpio_set_output_low(id));
 
-		CLI_LOGI("gpio output low\n");
+		CLI_LOGD("gpio output low\n");
 	} else if (os_strcmp(argv[1], "input_get") == 0) {
 		gpio_id_t id;
 
@@ -131,7 +131,7 @@ static void cli_gpio_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		// must set gpio mode before gpio output test
 		uint8_t input_value = bk_gpio_get_input(id);
 
-		CLI_LOGI("gpio input value is %x\r\n", input_value);
+		CLI_LOGD("gpio input value is %x\r\n", input_value);
 	} else {
 		cli_gpio_help();
 		return;
@@ -162,16 +162,16 @@ static void cli_gpio_map_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		gpio_dev_unmap(id);
 
 		if (os_strcmp(argv[3], "tck") == 0) {
-			CLI_LOGI("gpio set JTAG_TCK\r\n");
+			CLI_LOGD("gpio set JTAG_TCK\r\n");
 			gpio_dev_map(id, GPIO_DEV_JTAG_TCK);
 		} else if(os_strcmp(argv[3], "tms") == 0) {
-			CLI_LOGI("gpio set JTAG_TMS\r\n");
+			CLI_LOGD("gpio set JTAG_TMS\r\n");
 			gpio_dev_map(id, GPIO_DEV_JTAG_TMS);
 		} else if(os_strcmp(argv[3], "tdi") == 0) {
-			CLI_LOGI("gpio set JTAG_TDI\r\n");
+			CLI_LOGD("gpio set JTAG_TDI\r\n");
 			gpio_dev_map(id, GPIO_DEV_JTAG_TDI);
 		} else if(os_strcmp(argv[3], "tdo") == 0) {
-			CLI_LOGI("gpio set JTAG_TDO\r\n");
+			CLI_LOGD("gpio set JTAG_TDO\r\n");
 			gpio_dev_map(id, GPIO_DEV_JTAG_TDO);
 		} else {
 			cli_gpio_help();
@@ -203,7 +203,7 @@ static void cli_gpio_set_wake_source_cmd(char *pcWriteBuffer, int xWriteBufferLe
 	else if(os_strcmp(argv[1], "unregister") == 0)
 		bk_gpio_unregister_wakeup_source(id);
 	else if(os_strcmp(argv[1], "get_id") == 0)
-		CLI_LOGI("GET wakeup gpio id: %d\r\n", bk_gpio_get_wakeup_gpio_id());
+		CLI_LOGD("GET wakeup gpio id: %d\r\n", bk_gpio_get_wakeup_gpio_id());
 	else
 		return cli_gpio_help();
 }
@@ -237,10 +237,10 @@ static void cli_gpio_set_keep_status_config(char *pcWriteBuffer, int xWriteBuffe
 
 
 	if(os_strcmp(argv[1], "register") == 0) {
-		CLI_LOGI("cli_gpio_set_keep_status_config register gpio_id: %d\r\n", gpio_id);
+		CLI_LOGD("cli_gpio_set_keep_status_config register gpio_id: %d\r\n", gpio_id);
 		bk_gpio_register_lowpower_keep_status(gpio_id, &config);
 	} else if(os_strcmp(argv[1], "unregister") == 0) {
-		CLI_LOGI("cli_gpio_set_keep_status_config unregister gpio_id: %d\r\n", gpio_id);
+		CLI_LOGD("cli_gpio_set_keep_status_config unregister gpio_id: %d\r\n", gpio_id);
 		bk_gpio_unregister_lowpower_keep_status(gpio_id);
 	} else
 		return cli_gpio_help();
@@ -266,7 +266,7 @@ static void cli_gpio_simulate_low_power_cmd(char *pcWriteBuffer, int xWriteBuffe
 
 		//if param == 0x534b4950 == "SKIP" == 1,397,442,896
 		//means not switch GPIO to low power status just do save and restore
-		CLI_LOGD("mode:%d,0x%x\n", param, param);
+		CLI_LOGV("mode:%d,0x%x\n", param, param);
 		int_level = rtos_enter_critical();
 		gpio_enter_low_power((void *)param);
 		rtos_exit_critical(int_level);
@@ -305,7 +305,7 @@ static void cli_gpio_simulate_uart_write_cmd(char *pcWriteBuffer, int xWriteBuff
 
 static void cli_gpio_int_isr(gpio_id_t id)
 {
-	CLI_LOGI("gpio isr index:%d\n",id);
+	CLI_LOGD("gpio isr index:%d\n",id);
 	bk_gpio_clear_interrupt(id);
 }
 
@@ -374,12 +374,12 @@ static void cli_gpio_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		bk_gpio_register_isr(id ,cli_gpio_int_isr);
 
 		BK_LOG_ON_ERR(bk_gpio_set_interrupt_type(id, int_type));
-		CLI_LOGI("gpio[%d] set int type:%x\n", id, int_type);
+		CLI_LOGD("gpio[%d] set int type:%x\n", id, int_type);
 	} else if (os_strcmp(argv[2], "start") == 0) {
 		BK_LOG_ON_ERR(bk_gpio_enable_interrupt(id));
 	} else if (os_strcmp(argv[2], "stop") == 0) {
 		BK_LOG_ON_ERR(bk_gpio_disable_interrupt(id));
-		CLI_LOGI("gpio[%d] int  stop \r\n", id);
+		CLI_LOGD("gpio[%d] int  stop \r\n", id);
 
 	} else {
 		cli_gpio_help();

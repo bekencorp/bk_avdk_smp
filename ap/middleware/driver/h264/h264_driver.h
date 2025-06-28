@@ -21,6 +21,7 @@
 #define H264_LOGW(...) BK_LOGW(H264_TAG, ##__VA_ARGS__)
 #define H264_LOGE(...) BK_LOGE(H264_TAG, ##__VA_ARGS__)
 #define H264_LOGD(...) BK_LOGD(H264_TAG, ##__VA_ARGS__)
+#define H264_LOGV(...) BK_LOGV(H264_TAG, ##__VA_ARGS__)
 
 bk_err_t bk_h264_dma_rx_init(h264_dma_config_t *config);
 

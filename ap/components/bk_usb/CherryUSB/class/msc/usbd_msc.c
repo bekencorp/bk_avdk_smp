@@ -201,13 +201,13 @@ static void usbd_msc_reset(void)
 
 static int msc_storage_class_interface_request_handler(struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
-    USB_LOG_DBG("MSC Class request: "
+    USB_LOG_VBS("MSC Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
 
     switch (setup->bRequest) {
         case MSC_REQUEST_RESET:
-            USB_LOG_INFO("%s ,line:%d,MSC_REQUEST_RESET\r\n",__FILE__,__LINE__);
+            USB_LOG_DBG("%s ,line:%d,MSC_REQUEST_RESET\r\n",__FILE__,__LINE__);
             usbd_msc_reset();
             break;
 
@@ -217,7 +217,7 @@ static int msc_storage_class_interface_request_handler(struct usb_setup_packet *
             break;
 
         default:
-            USB_LOG_INFO("Unhandled MSC Class bRequest 0x%02x\r\n", setup->bRequest);
+            USB_LOG_DBG("Unhandled MSC Class bRequest 0x%02x\r\n", setup->bRequest);
             return -1;
     }
 
@@ -229,23 +229,23 @@ void msc_storage_notify_handler(uint8_t event, void *arg)
     switch (event) {
         case USBD_EVENT_ERROR:
         case USBD_EVENT_RESET:
-            USB_LOG_DBG("%s ,line:%d,USBD_EVENT_RESET\r\n",__FILE__,__LINE__);
+            USB_LOG_VBS("%s ,line:%d,USBD_EVENT_RESET\r\n",__FILE__,__LINE__);
             usbd_msc_reset();
             thread_op = MSC_THREAD_OP_RESET;
             usb_osal_sem_give(msc_sem);
             break;
         case USBD_EVENT_CONFIGURED:
-            USB_LOG_DBG("Start reading cbw\r\n");
+            USB_LOG_VBS("Start reading cbw\r\n");
             usbd_ep_start_read(mass_ep_data[MSD_OUT_EP_IDX].ep_addr, (uint8_t *)&usbd_msc_cfg.cbw, USB_SIZEOF_MSC_CBW);
             break;
         case USBD_EVENT_SUSPEND:
-            USB_LOG_DBG("%s ,line:%d,USBD_EVENT_SUSPEND\r\n",__FILE__,__LINE__);
+            USB_LOG_VBS("%s ,line:%d,USBD_EVENT_SUSPEND\r\n",__FILE__,__LINE__);
             thread_op = MSC_THREAD_OP_SUSPEND;
             usb_osal_sem_give(msc_sem);
             break;
         case USBD_EVENT_RESUME:
 
-            USB_LOG_DBG("%s ,line:%d,USBD_EVENT_RESUME\r\n",__FILE__,__LINE__);
+            USB_LOG_VBS("%s ,line:%d,USBD_EVENT_RESUME\r\n",__FILE__,__LINE__);
             break;
         default:
             break;
@@ -271,7 +271,7 @@ static void usbd_msc_send_csw(uint8_t CSW_Status)
 	 */
     usbd_msc_cfg.stage = MSC_WAIT_CSW;
 
-    USB_LOG_DBG("Send csw\r\n");
+    USB_LOG_VBS("Send csw\r\n");
     usbd_ep_start_write(mass_ep_data[MSD_IN_EP_IDX].ep_addr, (uint8_t *)&usbd_msc_cfg.csw, sizeof(struct CSW));
 }
 
@@ -627,10 +627,10 @@ static bool SCSI_read10(uint8_t **data, uint32_t *len)
     }
 
     usbd_msc_cfg.start_sector = GET_BE32(&usbd_msc_cfg.cbw.CB[2]); /* Logical Block Address of First Block */
-    USB_LOG_DBG("lba: 0x%04x\r\n", usbd_msc_cfg.start_sector);
+    USB_LOG_VBS("lba: 0x%04x\r\n", usbd_msc_cfg.start_sector);
 
     usbd_msc_cfg.nsectors = GET_BE16(&usbd_msc_cfg.cbw.CB[7]); /* Number of Blocks to transfer */
-    USB_LOG_DBG("nsectors: 0x%02x\r\n", usbd_msc_cfg.nsectors);
+    USB_LOG_VBS("nsectors: 0x%02x\r\n", usbd_msc_cfg.nsectors);
 
     if ((usbd_msc_cfg.start_sector + usbd_msc_cfg.nsectors) > usbd_msc_cfg.scsi_blk_nbr) {
         SCSI_SetSenseData(SCSI_KCQIR_LBAOUTOFRANGE);
@@ -654,10 +654,10 @@ static bool SCSI_read12(uint8_t **data, uint32_t *len)
     }
 
     usbd_msc_cfg.start_sector = GET_BE32(&usbd_msc_cfg.cbw.CB[2]); /* Logical Block Address of First Block */
-    USB_LOG_DBG("lba: 0x%04x\r\n", usbd_msc_cfg.start_sector);
+    USB_LOG_VBS("lba: 0x%04x\r\n", usbd_msc_cfg.start_sector);
 
     usbd_msc_cfg.nsectors = GET_BE32(&usbd_msc_cfg.cbw.CB[6]); /* Number of Blocks to transfer */
-    USB_LOG_DBG("nsectors: 0x%02x\r\n", usbd_msc_cfg.nsectors);
+    USB_LOG_VBS("nsectors: 0x%02x\r\n", usbd_msc_cfg.nsectors);
 
     if ((usbd_msc_cfg.start_sector + usbd_msc_cfg.nsectors) > usbd_msc_cfg.scsi_blk_nbr) {
         SCSI_SetSenseData(SCSI_KCQIR_LBAOUTOFRANGE);
@@ -682,10 +682,10 @@ static bool SCSI_write10(uint8_t **data, uint32_t *len)
     }
 
     usbd_msc_cfg.start_sector = GET_BE32(&usbd_msc_cfg.cbw.CB[2]); /* Logical Block Address of First Block */
-    USB_LOG_DBG("lba: 0x%04x\r\n", usbd_msc_cfg.start_sector);
+    USB_LOG_VBS("lba: 0x%04x\r\n", usbd_msc_cfg.start_sector);
 
     usbd_msc_cfg.nsectors = GET_BE16(&usbd_msc_cfg.cbw.CB[7]); /* Number of Blocks to transfer */
-    USB_LOG_DBG("nsectors: 0x%02x\r\n", usbd_msc_cfg.nsectors);
+    USB_LOG_VBS("nsectors: 0x%02x\r\n", usbd_msc_cfg.nsectors);
 
     data_len = usbd_msc_cfg.nsectors * usbd_msc_cfg.scsi_blk_size;
     if ((usbd_msc_cfg.start_sector + usbd_msc_cfg.nsectors) > usbd_msc_cfg.scsi_blk_nbr) {
@@ -711,10 +711,10 @@ static bool SCSI_write12(uint8_t **data, uint32_t *len)
     }
 
     usbd_msc_cfg.start_sector = GET_BE32(&usbd_msc_cfg.cbw.CB[2]); /* Logical Block Address of First Block */
-    USB_LOG_DBG("lba: 0x%04x\r\n", usbd_msc_cfg.start_sector);
+    USB_LOG_VBS("lba: 0x%04x\r\n", usbd_msc_cfg.start_sector);
 
     usbd_msc_cfg.nsectors = GET_BE32(&usbd_msc_cfg.cbw.CB[6]); /* Number of Blocks to transfer */
-    USB_LOG_DBG("nsectors: 0x%02x\r\n", usbd_msc_cfg.nsectors);
+    USB_LOG_VBS("nsectors: 0x%02x\r\n", usbd_msc_cfg.nsectors);
 
     data_len = usbd_msc_cfg.nsectors * usbd_msc_cfg.scsi_blk_size;
     if ((usbd_msc_cfg.start_sector + usbd_msc_cfg.nsectors) > usbd_msc_cfg.scsi_blk_nbr) {
@@ -753,14 +753,14 @@ static bool SCSI_verify10(uint8_t **data, uint32_t *len)
     }
 
     lba = GET_BE32(&usbd_msc_cfg.cbw.CB[2]);
-    USB_LOG_DBG("lba: 0x%x\r\n", lba);
+    USB_LOG_VBS("lba: 0x%x\r\n", lba);
 
     usbd_msc_cfg.scsi_blk_addr = lba * usbd_msc_cfg.scsi_blk_size;
 
     /* Number of Blocks to transfer */
     blk_num = GET_BE16(&usbd_msc_cfg.cbw.CB[7]);
 
-    USB_LOG_DBG("num (block) : 0x%x\r\n", blk_num);
+    USB_LOG_VBS("num (block) : 0x%x\r\n", blk_num);
     usbd_msc_cfg.scsi_blk_len = blk_num * usbd_msc_cfg.scsi_blk_size;
 
     if ((lba + blk_num) > usbd_msc_cfg.scsi_blk_nbr) {
@@ -781,7 +781,7 @@ static bool SCSI_processRead(void)
 {
     uint32_t transfer_len;
 
-    USB_LOG_DBG("read lba:%d\r\n", usbd_msc_cfg.start_sector);
+    USB_LOG_VBS("read lba:%d\r\n", usbd_msc_cfg.start_sector);
 
     transfer_len = MIN(usbd_msc_cfg.nsectors * usbd_msc_cfg.scsi_blk_size, CONFIG_USBDEV_MSC_BLOCK_SIZE);
 
@@ -836,7 +836,7 @@ static void usbd_msc_thread_memory_read_done(void)
 static bool SCSI_processWrite(uint32_t nbytes)
 {
     uint32_t data_len = 0;
-    USB_LOG_DBG("write lba:%d\r\n", usbd_msc_cfg.start_sector);
+    USB_LOG_VBS("write lba:%d\r\n", usbd_msc_cfg.start_sector);
 
     /* Start writing one sector */
 #ifdef CONFIG_USBDEV_MSC_THREAD
@@ -907,7 +907,7 @@ static bool SCSI_CBWDecode(uint32_t nbytes)
         SCSI_SetSenseData(SCSI_KCQIR_INVALIDCOMMAND);
         return false;
     } else {
-        USB_LOG_DBG("Decode CB:0x%02x\r\n", usbd_msc_cfg.cbw.CB[0]);
+        USB_LOG_VBS("Decode CB:0x%02x\r\n", usbd_msc_cfg.cbw.CB[0]);
         switch (usbd_msc_cfg.cbw.CB[0]) {
             case SCSI_CMD_TESTUNITREADY:
                 ret = SCSI_testUnitReady(&buf2send, &len2send);
@@ -955,7 +955,7 @@ static bool SCSI_CBWDecode(uint32_t nbytes)
 
             default:
                 SCSI_SetSenseData(SCSI_KCQIR_INVALIDCOMMAND);
-                USB_LOG_INFO("unsupported cmd:0x%02x\r\n", usbd_msc_cfg.cbw.CB[0]);
+                USB_LOG_DBG("unsupported cmd:0x%02x\r\n", usbd_msc_cfg.cbw.CB[0]);
                 ret = false;
                 break;
         }
@@ -963,7 +963,7 @@ static bool SCSI_CBWDecode(uint32_t nbytes)
     if (ret) {
         if (usbd_msc_cfg.stage == MSC_READ_CBW) {
             if (len2send) {
-                USB_LOG_DBG("Send info len:%d\r\n", len2send);
+                USB_LOG_VBS("Send info len:%d\r\n", len2send);
                 usbd_msc_send_info(buf2send, len2send);
             } else {
                 usbd_msc_send_csw(CSW_STATUS_CMD_PASSED);
@@ -1024,7 +1024,7 @@ void mass_storage_bulk_in(uint8_t ep, uint32_t nbytes)
         /*the host has received the CSW*/
         case MSC_WAIT_CSW:
             usbd_msc_cfg.stage = MSC_READ_CBW;
-            USB_LOG_DBG("Start reading cbw\r\n");
+            USB_LOG_VBS("Start reading cbw\r\n");
             usbd_ep_start_read(mass_ep_data[MSD_OUT_EP_IDX].ep_addr, (uint8_t *)&usbd_msc_cfg.cbw, USB_SIZEOF_MSC_CBW);
             break;
 
@@ -1149,7 +1149,7 @@ void usbd_msc_get_cap(uint8_t lun, uint32_t *block_num, uint16_t *block_size)
     *block_num = bk_sd_card_get_card_size();
     *block_size = 512;
 #endif
-    USB_LOG_INFO("%s ,line:%d,block_num:%d,block_size:%x\r\n",__FILE__,__LINE__,*block_num,*block_size);
+    USB_LOG_DBG("%s ,line:%d,block_num:%d,block_size:%x\r\n",__FILE__,__LINE__,*block_num,*block_size);
 }
 
 int usbd_msc_sector_read(uint32_t sector, uint8_t *buffer, uint32_t length)

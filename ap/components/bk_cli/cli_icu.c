@@ -44,8 +44,8 @@ extern gpio_driver_t s_gpio;
 
 static void cli_icu_help(void)
 {
-	CLI_LOGI("icu {init|deinit|get_int_statis}\n");
-	CLI_LOGI("icu_control {power_on_pwm| power_down_pwm|enable_pwm_int|disable_pwm_int|\
+	CLI_LOGD("icu {init|deinit|get_int_statis}\n");
+	CLI_LOGD("icu_control {power_on_pwm| power_down_pwm|enable_pwm_int|disable_pwm_int|\
 		set_pwm_26m|set_pwm_dco|enable_pwm_lpo|disable_pwm_lpo|pwm_isr_register\
 		|gpio_isr_register   chan}\n");
 }
@@ -54,7 +54,7 @@ static void cli_icu_help(void)
 static void cli_int_service_pwm_isr(void)
 {
 #if CONFIG_PWM_V1PX
-	CLI_LOGI("TODO:PWM ASIC IP V1PX\r\n");
+	CLI_LOGD("TODO:PWM ASIC IP V1PX\r\n");
 #else
 	pwm_hal_t *hal = &s_pwm.hal;
 	uint32_t int_status;
@@ -64,7 +64,7 @@ static void cli_int_service_pwm_isr(void)
 	pwm_hal_clear_interrupt_status(hal, int_status);
 	for (chan = 0; chan < SOC_PWM_CHAN_NUM_PER_UNIT; chan++) {
 		if (pwm_hal_is_interrupt_triggered(hal, chan, int_status)) {
-			CLI_LOGI("pwm change register isr test :pwm[%d] isr\r\n", chan);
+			CLI_LOGD("pwm change register isr test :pwm[%d] isr\r\n", chan);
 		}
 	}
 #endif
@@ -83,7 +83,7 @@ static void cli_int_service_gpio_isr(void)
 
 	for (gpio_id = 0; gpio_id < SOC_GPIO_NUM; gpio_id++) {
 		if (gpio_hal_is_interrupt_triggered(hal, gpio_id, &gpio_status)) {
-			CLI_LOGI("gpio change register  isr test :gpio[%d] isr\r\n", gpio_id);
+			CLI_LOGD("gpio change register  isr test :gpio[%d] isr\r\n", gpio_id);
 		}
 	}
 
@@ -98,37 +98,37 @@ static void cli_icu_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
     if (os_strcmp(argv[1], "init") == 0) {
 	    BK_LOG_ON_ERR(bk_icu_driver_init());
-	    CLI_LOGI("icu intterupt init\n");
+	    CLI_LOGD("icu intterupt init\n");
     } else if(os_strcmp(argv[1], "deinit") == 0) {
 	    BK_LOG_ON_ERR(bk_icu_driver_deinit());
-	    CLI_LOGI("icu interrupt deinit\n");
+	    CLI_LOGD("icu interrupt deinit\n");
     }
 #if CONFIG_INT_STATIS
     else if(os_strcmp(argv[1], "get_int_statis") == 0) {
 		int_statis_t *int_st = {0};
 		int_st = bk_get_int_statis();
 		BK_LOG_ON_ERR(bk_dump_int_statis(int_st));
-		CLI_LOGI("icu get interrupt statistic\n");
+		CLI_LOGD("icu get interrupt statistic\n");
     }
 #endif
     else if(os_strcmp(argv[1], "pwm_isr_register") == 0) {
 #if CONFIG_PWM
 		bk_int_isr_register(INT_SRC_PWM, cli_int_service_pwm_isr, NULL);
-		CLI_LOGI("pwm registert isr change test\n");
+		CLI_LOGD("pwm registert isr change test\n");
 #else
-		CLI_LOGI("pwm does not supported\n");
+		CLI_LOGD("pwm does not supported\n");
 #endif
 	} else if(os_strcmp(argv[1], "gpio_isr_register") == 0) {
 		bk_int_isr_register(INT_SRC_GPIO, cli_int_service_gpio_isr, NULL);
-		CLI_LOGI("gpio register isr changing test\n");
+		CLI_LOGD("gpio register isr changing test\n");
     } else if(os_strcmp(argv[1], "set_pwm_int_pri") == 0) {
 		uint32_t pri = os_strtoul(argv[2], NULL, 10);
 		bk_int_set_priority(INT_SRC_PWM, pri);
-		CLI_LOGI("pwm int priority changing test\n");
+		CLI_LOGD("pwm int priority changing test\n");
     }else if(os_strcmp(argv[1], "set_gpio_int_pri") == 0) {
 		uint32_t pri = os_strtoul(argv[2], NULL, 10);
 		bk_int_set_priority(INT_SRC_GPIO, pri);
-		CLI_LOGI("gpio int priority changing test\n");
+		CLI_LOGD("gpio int priority changing test\n");
     }else {
 	    cli_icu_help();
 	    return;
@@ -151,10 +151,10 @@ static void cli_icu_control_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	if (os_strcmp(argv[1], "power_on_pwm") == 0)
 	{
 		power_pwm_pwr_up(chan);
-		CLI_LOGI("pwr up pwm channel %d\n", chan);
+		CLI_LOGD("pwr up pwm channel %d\n", chan);
 	} else if (os_strcmp(argv[1], "power_down_pwm") == 0) {
 		power_pwm_pwr_down(chan);
-		CLI_LOGI("pwr down pwm channel %d\n", chan);
+		CLI_LOGD("pwr down pwm channel %d\n", chan);
 	} else if (os_strcmp(argv[1], "enable_pwm_int") == 0) {
 		icu_enable_pwm_interrupt();
 		icu_enable_pwm2_interrupt();

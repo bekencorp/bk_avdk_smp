@@ -301,14 +301,14 @@ static int _aac_encoder_lib_frame_process(HANDLE_AACENCODER aac_handle, int in_b
 
     *out_bytes = out_args.numOutBytes;
 
-    BK_LOGD(TAG, "[out_args] numOutBytes: %d, numInSamples: %d, numAncBytes: %d, bitResState: %d\n", out_args.numOutBytes, out_args.numInSamples, out_args.numAncBytes, out_args.bitResState);
+    BK_LOGV(TAG, "[out_args] numOutBytes: %d, numInSamples: %d, numAncBytes: %d, bitResState: %d\n", out_args.numOutBytes, out_args.numInSamples, out_args.numAncBytes, out_args.bitResState);
 
     return err;
 }
 
 static bk_err_t _aac_encoder_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
 
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
     //noting todo
@@ -318,7 +318,7 @@ static bk_err_t _aac_encoder_open(audio_element_handle_t self)
 
 static bk_err_t _aac_encoder_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
 
     //noting todo
 
@@ -327,7 +327,7 @@ static bk_err_t _aac_encoder_close(audio_element_handle_t self)
 
 static int _aac_encoder_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+    BK_LOGV(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
     aac_encoder_t *aac_enc = (aac_encoder_t *)audio_element_getdata(self);
 
     int enc_size = 0;
@@ -494,7 +494,7 @@ audio_element_handle_t aac_encoder_init(aac_encoder_cfg_t *config)
     /* frame size = one_frame_samples * bit / 8 * channel_number */
     aac_enc->frame_size = aac_enc->granule_length * aac_enc->bits / 8 * aac_enc->chl_num;
 
-    BK_LOGI(TAG, "[aac encoder] frame_size: %d, buffer_len: %d, in_pool_len: %d, out_buffer_len: %d\n", aac_enc->frame_size, aac_enc->buffer_len, aac_enc->in_pool_len, aac_enc->out_buffer_len);
+    BK_LOGD(TAG, "[aac encoder] frame_size: %d, buffer_len: %d, in_pool_len: %d, out_buffer_len: %d\n", aac_enc->frame_size, aac_enc->buffer_len, aac_enc->in_pool_len, aac_enc->out_buffer_len);
 
     /* create task to init aac encoder, avoid stack overflow */
     if (BK_OK != _aac_encoder_lib_init_by_task(aac_enc))

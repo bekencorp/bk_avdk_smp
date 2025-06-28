@@ -51,7 +51,7 @@
 
 
 #define SPP_HANDLE_INVALID                   0xFFU
-#define PRINT_FUNC os_printf("%s \n", __func__)
+#define PRINT_FUNC BK_LOGD(NULL,"%s \n", __func__)
 #define SPP_ENABLE_DATA_CNF_LOG
 #define SPP_TX_BUFF_SIZE  4096
 #define SPP_TX_BUFF_LIST_NUM 2
@@ -211,7 +211,7 @@ static void bt_at_sema_set()
     if (bt_at_cmd_sema != NULL)
     {
         sema_value++;
-//        os_printf("-->sem set%d\r\n", sema_value);
+//        BK_LOGD(NULL,"-->sem set%d\r\n", sema_value);
         rtos_set_semaphore(&bt_at_cmd_sema);
     }
 }
@@ -224,7 +224,7 @@ static bk_err_t bt_at_sema_get(uint32_t timeout_ms)
         re = rtos_get_semaphore(&bt_at_cmd_sema, timeout_ms);
         sema_value--;
     }
-//    os_printf("-->sem get%d\r\n", sema_value);
+//    BK_LOGD(NULL,"-->sem get%d\r\n", sema_value);
     return re;
 }
 
@@ -235,13 +235,13 @@ static void bt_at_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *par
         case BK_BT_GAP_DISC_RES_EVT:
             {
                 uint8_t *addr= param->disc_res.bda;
-                CLI_LOGI("BT Inquiryed addr: %x %x %x %x %x %x \r\n",addr[5], addr[4], addr[3], addr[2],addr[1],addr[0]);
+                CLI_LOGD("BT Inquiryed addr: %x %x %x %x %x %x \r\n",addr[5], addr[4], addr[3], addr[2],addr[1],addr[0]);
             }
             break;
         case BK_BT_GAP_ACL_DISCONN_CMPL_STAT_EVT:
             {
                 uint8_t *addr = param->acl_disconn_cmpl_stat.bda;
-                CLI_LOGI("Disconnected from %x %x %x %x %x %x \r\n",addr[5],addr[4],addr[3],addr[2],addr[1],addr[0]);
+                CLI_LOGD("Disconnected from %x %x %x %x %x %x \r\n",addr[5],addr[4],addr[3],addr[2],addr[1],addr[0]);
                 if (!os_memcmp(addr, spp_env.peer_addr.addr, 6))
                 {
                     bt_spp_clear();
@@ -251,14 +251,14 @@ static void bt_at_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *par
 #if 0
         case BK_DM_BT_EVENT_CMD_COMPLETE:
             {
-                CLI_LOGI("BT Event Complete!!! \r\n");
+                CLI_LOGD("BT Event Complete!!! \r\n");
             }
             break;
 #endif
         case BK_BT_GAP_ACL_CONN_CMPL_STAT_EVT:
             {
                 uint8_t *addr = param->acl_conn_cmpl_stat.bda;
-                CLI_LOGI("Connected to %02x:%02x:%02x:%02x:%02x:%02x\n",addr[5],addr[4],addr[3],addr[2],addr[1],addr[0]);
+                CLI_LOGD("Connected to %02x:%02x:%02x:%02x:%02x:%02x\n",addr[5],addr[4],addr[3],addr[2],addr[1],addr[0]);
             }
             break;
 
@@ -266,7 +266,7 @@ static void bt_at_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *par
         {
             uint8_t *addr = param->link_key_notif.bda;
 
-            os_printf("%s recv linkkey %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
+            BK_LOGD(NULL,"%s recv linkkey %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
                       addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
 
             memcpy(s_bt_linkkey.addr, addr, 6);
@@ -280,7 +280,7 @@ static void bt_at_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *par
 
             if(!memcmp(addr, s_bt_linkkey.addr, sizeof(s_bt_linkkey.addr)))
             {
-                CLI_LOGI("%s found linkkey %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
+                CLI_LOGD("%s found linkkey %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
                         addr[5],
                         addr[4],
                         addr[3],
@@ -294,7 +294,7 @@ static void bt_at_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *par
             {
                 bk_bt_linkkey_storage_t tmp;
 
-                CLI_LOGI("%s notfound linkkey %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
+                CLI_LOGD("%s notfound linkkey %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
                          addr[5],
                          addr[4],
                          addr[3],
@@ -321,7 +321,7 @@ static void bt_at_event_cb(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *par
 static void bt_at_cmd_cb(bt_cmd_t cmd, bt_cmd_param_t *param)
 {
     at_cmd_status = param->status;
-    CLI_LOGI("%s %d %d\r\n", __func__, cmd, param->status);
+    CLI_LOGD("%s %d %d\r\n", __func__, cmd, param->status);
     switch (cmd)
     {
         case BT_CMD_CREATE_CONNECT:
@@ -350,11 +350,11 @@ static void bt_at_cmd_cb(bt_cmd_t cmd, bt_cmd_param_t *param)
                 {
                     scan_enable = *(uint8_t *)(param->param+4);
                 }
-                CLI_LOGI("Read scan enable, status:%d, Scan Enable: 0x%x \r\n", param->status, scan_enable);
+                CLI_LOGD("Read scan enable, status:%d, Scan Enable: 0x%x \r\n", param->status, scan_enable);
             }
             break;
         case BT_CMD_WRITE_SCAN_ENABLE:
-            CLI_LOGI("Write scan enable, status:%d \r\n", param->status);
+            CLI_LOGD("Write scan enable, status:%d \r\n", param->status);
             break;
         default:
             break;
@@ -440,7 +440,7 @@ API_RESULT bt_spp_event_notify_cb
     UCHAR * l_data;
     l_data = (UCHAR*)( data );
 #if 0
-    CLI_LOGI("\n"\
+    CLI_LOGD("\n"\
            "SPP HANDLE : %u\n"\
            "EVENT      : %d\n"\
            "RESULT     : 0x%04X\n",
@@ -454,9 +454,9 @@ API_RESULT bt_spp_event_notify_cb
     switch(spp_event)
     {
     case SPP_CONNECT_CNF:
-        CLI_LOGI("SPP_CONNECT_CNF -> 0x%04X\n", status);
-        CLI_LOGI("SPP Instance Connected : %u\n",(unsigned int) spp_handle);
-        CLI_LOGI("Remote device " BT_DEVICE_ADDR_ONLY_FRMT_SPECIFIER " \n",
+        CLI_LOGD("SPP_CONNECT_CNF -> 0x%04X\n", status);
+        CLI_LOGD("SPP Instance Connected : %u\n",(unsigned int) spp_handle);
+        CLI_LOGD("Remote device " BT_DEVICE_ADDR_ONLY_FRMT_SPECIFIER " \n",
         BT_DEVICE_ADDR_ONLY_PRINT_STR (l_data));
         if (0x00 == status)
         {
@@ -465,9 +465,9 @@ API_RESULT bt_spp_event_notify_cb
         }
         break;
     case SPP_CONNECT_IND:
-        CLI_LOGI("SPP_CONNECT_IND -> 0x%04X\n", status);
-        CLI_LOGI("SPP Instance Connected : %u\n",(unsigned int) spp_handle);
-        CLI_LOGI("Remote device " BT_DEVICE_ADDR_ONLY_FRMT_SPECIFIER " \n",
+        CLI_LOGD("SPP_CONNECT_IND -> 0x%04X\n", status);
+        CLI_LOGD("SPP Instance Connected : %u\n",(unsigned int) spp_handle);
+        CLI_LOGD("Remote device " BT_DEVICE_ADDR_ONLY_FRMT_SPECIFIER " \n",
         BT_DEVICE_ADDR_ONLY_PRINT_STR (l_data));
 
         /* Set the global handle */
@@ -479,17 +479,17 @@ API_RESULT bt_spp_event_notify_cb
             spp_env.conn_handle = conn_handle;
             spp_env.server_spp_handle = spp_handle;
             os_memcpy(&spp_env.peer_addr.addr[0], l_data, 6);
-            CLI_LOGI("Conn Handle: 0x%02x\n, Server spp handle: 0x%02x\n", conn_handle, spp_env.server_spp_handle);
+            CLI_LOGD("Conn Handle: 0x%02x\n, Server spp handle: 0x%02x\n", conn_handle, spp_env.server_spp_handle);
         }
         break;
     case SPP_DISCONNECT_CNF:
-        CLI_LOGI("SPP_DISCONNECT_CNF -> Disconnection Successful\n");
-        CLI_LOGI("Remote device " BT_DEVICE_ADDR_ONLY_FRMT_SPECIFIER " \n",
+        CLI_LOGD("SPP_DISCONNECT_CNF -> Disconnection Successful\n");
+        CLI_LOGD("Remote device " BT_DEVICE_ADDR_ONLY_FRMT_SPECIFIER " \n",
         BT_DEVICE_ADDR_ONLY_PRINT_STR (l_data));
         break;
     case SPP_DISCONNECT_IND:
-        CLI_LOGI("SPP_DISCONNECT_IND -> Disconnection Successful\n");
-        CLI_LOGI("Remote device " BT_DEVICE_ADDR_ONLY_FRMT_SPECIFIER " \n",
+        CLI_LOGD("SPP_DISCONNECT_IND -> Disconnection Successful\n");
+        CLI_LOGD("Remote device " BT_DEVICE_ADDR_ONLY_FRMT_SPECIFIER " \n",
         BT_DEVICE_ADDR_ONLY_PRINT_STR (l_data));
         if(spp_env.conn_state == STATE_PROFILE_CONNECTED_AS_CLIENT || spp_env.conn_state == STATE_PROFILE_CONNECTED_AS_SERVER)
         {
@@ -497,7 +497,7 @@ API_RESULT bt_spp_event_notify_cb
         }
         break;
     case SPP_STOP_CNF:
-        CLI_LOGI("SPP_STOP_CNF -> Stop Successful\n");
+        CLI_LOGD("SPP_STOP_CNF -> Stop Successful\n");
         break;
     case SPP_SEND_CNF:
     {
@@ -505,10 +505,10 @@ API_RESULT bt_spp_event_notify_cb
         UCHAR * buffer;
         API_RESULT retval;
         #endif
-        CLI_LOGI("Received spp send cnf\n");
-        CLI_LOGI("   spp handle = %d\n", spp_handle);
-//            os_printf("    Buffer = %p\n", l_data);
-        CLI_LOGI("    Actual Data Length = %d\n", data_length);
+        CLI_LOGD("Received spp send cnf\n");
+        CLI_LOGD("   spp handle = %d\n", spp_handle);
+//            BK_LOGD(NULL,"    Buffer = %p\n", l_data);
+        CLI_LOGD("    Actual Data Length = %d\n", data_length);
         if (0x00 != status)
         {
             CLI_LOGE ("status: *** 0x%04X\n", status);
@@ -517,15 +517,15 @@ API_RESULT bt_spp_event_notify_cb
 
         if(spp_env.tx_confirm)
         {
-            CLI_LOGI("\n----------------CHAR DUMP-----------------------\n");
+            CLI_LOGD("\n----------------CHAR DUMP-----------------------\n");
             for (index = 0U; index < data_length; index++)
             {
-                CLI_LOGI("%c ", l_data[index]);
+                CLI_LOGD("%c ", l_data[index]);
             }
-            CLI_LOGI("\n------------------------------------------------\n");
+            CLI_LOGD("\n------------------------------------------------\n");
 
             spp_env.tx_confirm = 0;
-//            os_printf("free buff->%p \r\n", data);
+//            BK_LOGD(NULL,"free buff->%p \r\n", data);
             os_free(data);
             bt_at_sema_set();
             break;
@@ -537,12 +537,12 @@ API_RESULT bt_spp_event_notify_cb
 
             uint64_t current_time = rtos_get_time();
             float spend_time = (float)(current_time - spp_env.tx_time)/1000;
-            CLI_LOGI("---->spend time: %f s\r\n", spend_time);
+            CLI_LOGD("---->spend time: %f s\r\n", spend_time);
             float speed = (float)spp_env.tx_throught_len/1024/spend_time;
 
             spp_env.crc = calc_crc32(spp_env.crc, (uint8_t *)l_data, data_length);
             spp_env.speed = speed;
-            CLI_LOGI("Spp tx length: %d, speed: %.3fKB/s \r\n", spp_env.tx_throught_len, speed);
+            CLI_LOGD("Spp tx length: %d, speed: %.3fKB/s \r\n", spp_env.tx_throught_len, speed);
             if(spp_env.tx_throught_len < spp_env.tx_throught_total_len)
             {
                 bt_spp_through_poll(data);
@@ -558,51 +558,51 @@ API_RESULT bt_spp_event_notify_cb
             do{
                 if(!spp_env.rx_through)
                 {
-                    CLI_LOGI("SPP_RECVD_DATA_IND -> Data received successfully\n");
-                    CLI_LOGI("\n----------------CHAR DUMP-----------------------\n");
+                    CLI_LOGD("SPP_RECVD_DATA_IND -> Data received successfully\n");
+                    CLI_LOGD("\n----------------CHAR DUMP-----------------------\n");
                     for (index = 0U; index < data_length; index++)
                     {
-                        CLI_LOGI("%c ", l_data[index]);
+                        CLI_LOGD("%c ", l_data[index]);
                     }
-                    CLI_LOGI("\n------------------------------------------------\n");
+                    CLI_LOGD("\n------------------------------------------------\n");
                     #if 0
-                    CLI_LOGI("\n----------------HEX DUMP------------------------\n");
+                    CLI_LOGD("\n----------------HEX DUMP------------------------\n");
                     for (index = 0U; index < data_length; index++)
                     {
-                        CLI_LOGI("%02X ", l_data[index]);
+                        CLI_LOGD("%02X ", l_data[index]);
                     }
-                    CLI_LOGI("\n------------------------------------------------\n");
+                    CLI_LOGD("\n------------------------------------------------\n");
                     #endif
                 }else
                 {
                     if(data_length == os_strlen(tx_through_cmd_end) && !os_strncmp((char *)l_data, tx_through_cmd_end, data_length))
                     {
-                        CLI_LOGI("\n----------------CHAR DUMP-----------------------\n");
+                        CLI_LOGD("\n----------------CHAR DUMP-----------------------\n");
                         for (index = 0U; index < data_length; index++)
                         {
-                            CLI_LOGI("%c ", l_data[index]);
+                            CLI_LOGD("%c ", l_data[index]);
                         }
-                        CLI_LOGI("\n------------------------------------------------\n");
+                        CLI_LOGD("\n------------------------------------------------\n");
                         break;
                     }
 //                    for (index = 0U; index < data_length; index++)
 //                    {
-    //                    os_printf("0x%02x ", l_data[index]);
+    //                    BK_LOGD(NULL,"0x%02x ", l_data[index]);
 //                    }
                     spp_env.rx_through_len+=data_length;
                     spp_env.crc = calc_crc32(spp_env.crc, l_data, data_length);
 
                     uint64_t current_time = rtos_get_time();
                     float spend_time = (float)(current_time - spp_env.rx_time)/1000;
-                    CLI_LOGI("-----> spend time: %f s\r\n", spend_time);
+                    CLI_LOGD("-----> spend time: %f s\r\n", spend_time);
                     float speed = (float)spp_env.rx_through_len/ 1024 / spend_time;
                     spp_env.speed = speed;
-                    CLI_LOGI("Spp received data len: %d, speed :%.4fKB/s\r\n", spp_env.rx_through_len, speed);
+                    CLI_LOGD("Spp received data len: %d, speed :%.4fKB/s\r\n", spp_env.rx_through_len, speed);
                 }
             }while(0);
             if(!os_strncmp((char *)l_data, tx_through_cmd_start, data_length))
             {
-                CLI_LOGI("Spp received spp tx through start cmd \r\n");
+                CLI_LOGD("Spp received spp tx through start cmd \r\n");
                 spp_env.crc = 0xffffffff;
                 make_crc32_table();
                 spp_env.rx_through = 1;
@@ -610,8 +610,8 @@ API_RESULT bt_spp_event_notify_cb
             }
             if(!os_strncmp((char *)l_data, tx_through_cmd_end, data_length))
             {
-                CLI_LOGI("Spp received spp tx through end cmd \r\n");
-                CLI_LOGI("Spp tx through test finish, rx total len: %d, crc value: 0x%x, speed: %.4fKB/s \r\n", spp_env.rx_through_len, spp_env.crc, spp_env.speed);
+                CLI_LOGD("Spp received spp tx through end cmd \r\n");
+                CLI_LOGD("Spp tx through test finish, rx total len: %d, crc value: 0x%x, speed: %.4fKB/s \r\n", spp_env.rx_through_len, spp_env.crc, spp_env.speed);
                 spp_env.rx_through = 0;
                 spp_env.crc = 0xffffffff;
                 spp_env.rx_through_len = 0;
@@ -646,12 +646,12 @@ static void user_a2dp_connection_change(uint8_t status, uint8_t reason)
 
     }
 
-    CLI_LOGI("%s %d %d\n", __func__, status, reason);
+    CLI_LOGD("%s %d %d\n", __func__, status, reason);
 }
 
 static void user_a2dp_start_cnf(uint8_t result, uint8_t reason, uint32_t mtu)
 {
-    CLI_LOGI("%s %d %d\n", __func__, result, reason);
+    CLI_LOGD("%s %d %d\n", __func__, result, reason);
 
     if(result == 0 && a2dp_env.start_status == 0 )
     {
@@ -667,7 +667,7 @@ static void user_a2dp_start_cnf(uint8_t result, uint8_t reason, uint32_t mtu)
 
 static void user_a2dp_suspend_cnf(uint8_t result, uint8_t reason)
 {
-    CLI_LOGI("%s %d %d\n", __func__, result, reason);
+    CLI_LOGD("%s %d %d\n", __func__, result, reason);
 
     if(result == 0 && a2dp_env.start_status == 1 )
     {
@@ -920,7 +920,7 @@ static int bt_spp_connect_handle(char *pcWriteBuffer, int xWriteBufferLen, int a
             spp_env.client_spp_handle = SPP_HANDLE_INVALID;
             bk_bt_spp_start((uint32_t *)&spp_env.client_spp_handle, &spp_env.local_server_channel, &spp_env.spp_record_handle);
             spp_env.spp_init = 1;
-            CLI_LOGI("Spp init, spp handle: 0x%02x , record handle: 0x%02x  \r\n", spp_env.client_spp_handle, spp_env.spp_record_handle);
+            CLI_LOGD("Spp init, spp handle: 0x%02x , record handle: 0x%02x  \r\n", spp_env.client_spp_handle, spp_env.spp_record_handle);
         }
         if(spp_env.conn_state != STATE_DISCONNECT)
         {
@@ -959,7 +959,7 @@ static int bt_spp_connect_handle(char *pcWriteBuffer, int xWriteBufferLen, int a
             os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
             if (bt_at_cmd_sema != NULL)
                 rtos_deinit_semaphore(&bt_at_cmd_sema);
-//            os_printf("------------>spp connect cnf1 %d\r\n", spp_env.conn_state);
+//            BK_LOGD(NULL,"------------>spp connect cnf1 %d\r\n", spp_env.conn_state);
             return err;
         }else
         {
@@ -1015,9 +1015,9 @@ static int bt_spp_tx_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
         }
         uint16_t tx_len = os_strlen((char *)argv[0]);
         char * tx_data = (char *)os_malloc(tx_len);
-//        os_printf("alloc buffer->%p\r\n", tx_data);
+//        BK_LOGD(NULL,"alloc buffer->%p\r\n", tx_data);
         os_memcpy(tx_data, argv[0], tx_len);
-        CLI_LOGI("spp tx data %d: %s \r\n", tx_len, argv[0]);
+        CLI_LOGD("spp tx data %d: %s \r\n", tx_len, argv[0]);
 
         if(tx_len)
         {
@@ -1100,7 +1100,7 @@ static int bt_spp_through_test_handle(char *pcWriteBuffer, int xWriteBufferLen, 
             goto error;
         }
         uint32_t tx_data_length = os_strtoul(argv[0], NULL, 16) & 0xFFFFFFFF;
-        CLI_LOGI("spp tx throught test, data len:%d \r\n", tx_data_length);
+        CLI_LOGD("spp tx throught test, data len:%d \r\n", tx_data_length);
         if(tx_data_length == 0)
         {
             tx_data_length = 0xffff;
@@ -1108,7 +1108,7 @@ static int bt_spp_through_test_handle(char *pcWriteBuffer, int xWriteBufferLen, 
         }
         char *tx_buff = (char *)os_malloc(os_strlen(tx_through_cmd_start));
         os_memcpy(tx_buff, tx_through_cmd_start, os_strlen(tx_through_cmd_start));
-//        os_printf("alloc buffer->%p\r\n", tx_buff);
+//        BK_LOGD(NULL,"alloc buffer->%p\r\n", tx_buff);
         spp_env.tx_confirm = 1;
         uint32_t spp_hanle  = ((spp_env.conn_state == STATE_PROFILE_CONNECTED_AS_CLIENT) ? spp_env.client_spp_handle : spp_env.server_spp_handle);
         bk_bt_spp_tx(spp_hanle, tx_buff, os_strlen(tx_through_cmd_start), NULL);
@@ -1141,7 +1141,7 @@ static int bt_spp_through_test_handle(char *pcWriteBuffer, int xWriteBufferLen, 
 
         tx_buff = (char *)os_malloc(os_strlen(tx_through_cmd_end));
         os_memcpy(tx_buff, tx_through_cmd_end, os_strlen(tx_through_cmd_end));
-//        os_printf("alloc buffer->%p\r\n", tx_buff);
+//        BK_LOGD(NULL,"alloc buffer->%p\r\n", tx_buff);
         spp_env.tx_confirm = 1;
         bk_bt_spp_tx(spp_hanle, tx_buff, os_strlen(tx_through_cmd_end), NULL);
         err = bt_at_sema_get(AT_SYNC_CMD_TIMEOUT_MS);
@@ -1155,8 +1155,8 @@ static int bt_spp_through_test_handle(char *pcWriteBuffer, int xWriteBufferLen, 
             }
             goto error;
         }
-        CLI_LOGI("Spp tx thtrouth finish    \n");
-        CLI_LOGI("TX throuth CRC value: 0x%x , speed: %.3fKB/s \r\n", spp_env.crc, spp_env.speed);
+        CLI_LOGD("Spp tx thtrouth finish    \n");
+        CLI_LOGD("TX throuth CRC value: 0x%x , speed: %.3fKB/s \r\n", spp_env.crc, spp_env.speed);
         spp_env.speed = 0;
         spp_env.tx_confirm = 0;
         spp_env.tx_throught_len = 0;
@@ -1189,7 +1189,7 @@ static int bt_spp_init_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc
             bk_bt_spp_start((uint32_t *)&spp_env.client_spp_handle, &spp_env.local_server_channel, &spp_env.spp_record_handle);
             spp_env.spp_init = 1;
         }
-        CLI_LOGI("SPP INIT, SPP__HANDL:0x%x\r\n", spp_env.client_spp_handle);
+        CLI_LOGD("SPP INIT, SPP__HANDL:0x%x\r\n", spp_env.client_spp_handle);
     }
     return err;
 }
@@ -1230,7 +1230,7 @@ static int bt_write_scan_enable_handle(char *pcWriteBuffer, int xWriteBufferLen,
             CLI_LOGE("%s para error, scan_enable:%d \r\n", scan_enable);
             goto error;
         }
-//        os_printf("%s, %d \r\n", __func__, scan_enable);
+//        BK_LOGD(NULL,"%s, %d \r\n", __func__, scan_enable);
         //serr = bk_bt_write_scan_enable(scan_enable, bt_at_cmd_cb);
         //if(err) goto error;
 
@@ -1378,7 +1378,7 @@ static uint8_t opp_file_is_open = 0;
 
 void bt_opp_server_push_started(uint8_t *obj_name, uint16_t len)
 {
-    CLI_LOGI("OPP Push Object Name: %s, len %d\r\n", obj_name, len);
+    CLI_LOGD("OPP Push Object Name: %s, len %d\r\n", obj_name, len);
 
 #if CONFIG_FATFS
     os_memset(opp_file_name, 0, sizeof(opp_file_name));
@@ -1398,7 +1398,7 @@ void bt_opp_server_push_started(uint8_t *obj_name, uint16_t len)
 
 void bt_opp_server_push_finished(void)
 {
-    CLI_LOGI("OPP Push Object Finish!\r\n");
+    CLI_LOGD("OPP Push Object Finish!\r\n");
 
 #if CONFIG_FATFS
     if (opp_file_is_open)
@@ -2981,7 +2981,7 @@ unsigned int make_crc32_table(void)
 		}
 
 		crc32_table[i] = c;
-//		os_printf("crc32_table[%d] = %08x\r\n",i,crc32_table[i]);
+//		BK_LOGD(NULL,"crc32_table[%d] = %08x\r\n",i,crc32_table[i]);
 	}
 
 	return 0;
@@ -3048,7 +3048,7 @@ static dm_l2cap_env_t l2cap_env = {0};
 
 static int bt_at_param_analyze(char *str, char *match, void *param, uint8_t array_size)
 {
-//    CLI_LOGI("arv--> %s \r\n", str);
+//    CLI_LOGD("arv--> %s \r\n", str);
     char mm[100] = {0};
     char m1[10] = {0};
     char *s1 = "";
@@ -3060,9 +3060,9 @@ static int bt_at_param_analyze(char *str, char *match, void *param, uint8_t arra
     strcat(mm, s2);
     char m2[4] = "%2x";
     char type[3] = "ss";
-//    CLI_LOGI("m1: %s \r\n", mm);
+//    CLI_LOGD("m1: %s \r\n", mm);
     int sf = sscanf(str, mm, type);
-//    CLI_LOGI("sf:%d, type :%c %c \r\n", sf, type[0], type[1]);
+//    CLI_LOGD("sf:%d, type :%c %c \r\n", sf, type[0], type[1]);
     if(sf <= 0)
     {
         return sf;
@@ -3094,7 +3094,7 @@ static int bt_at_param_analyze(char *str, char *match, void *param, uint8_t arra
                 sprintf(m1, s4, (i+1)*2, m2);
                 mm[p] = 0;
                 strcat(mm, m1);
-//                CLI_LOGI("m2 : %s \r\n", mm);
+//                CLI_LOGD("m2 : %s \r\n", mm);
                 sf = sscanf(str, mm, (uint8_t *)(param+i));
                 if(sf != 1)
                 {
@@ -3111,7 +3111,7 @@ static int bt_at_param_analyze(char *str, char *match, void *param, uint8_t arra
             break;
     }
     strcat(mm, m1);
-//    CLI_LOGI("m2 : %s \r\n", mm);
+//    CLI_LOGD("m2 : %s \r\n", mm);
     sf = sscanf(str, mm, param);
     return sf;
 }
@@ -3138,13 +3138,13 @@ static void bt_l2cap_event_callback(bk_bt_l2cap_cb_event_t event, bk_bt_l2cap_cb
     switch (event)
     {
         case BK_BT_L2CAP_INIT_EVT:
-            CLI_LOGI("%s init status: %d \r\n", __func__, param->init.status);
+            CLI_LOGD("%s init status: %d \r\n", __func__, param->init.status);
             break;
         case BK_BT_L2CAP_UNINIT_EVT:
-            CLI_LOGI("%s uninit status: %d \r\n", __func__, param->uninit.status);
+            CLI_LOGD("%s uninit status: %d \r\n", __func__, param->uninit.status);
             break;
         case BK_BT_L2CAP_OPEN_EVT:
-            CLI_LOGI("%s open status: %d \r\n", __func__, param->open.status);
+            CLI_LOGD("%s open status: %d \r\n", __func__, param->open.status);
             if(param->open.status == BK_BT_L2CAP_SUCCESS)
             {
                 l2cap_env.conn_state = STATE_L2CAP_CONNECTED;
@@ -3157,19 +3157,19 @@ static void bt_l2cap_event_callback(bk_bt_l2cap_cb_event_t event, bk_bt_l2cap_cb
                         break;
                     }
                 }
-                CLI_LOGI("L2cap connection success, remote addr:0x%x,0x%x,0x%x,0x%x,0x%x,0x%x  LCID: 0x%x\r\n",
+                CLI_LOGD("L2cap connection success, remote addr:0x%x,0x%x,0x%x,0x%x,0x%x,0x%x  LCID: 0x%x\r\n",
                 param->open.rem_bda[0],param->open.rem_bda[1],param->open.rem_bda[2],param->open.rem_bda[3],param->open.rem_bda[4],param->open.rem_bda[5],
                 param->open.fd);
             }
             bt_at_sema_set();
             break;
         case BK_BT_L2CAP_CLOSE_EVT:
-            CLI_LOGI("%s stop status: %d \r\n", __func__, param->close.status);
+            CLI_LOGD("%s stop status: %d \r\n", __func__, param->close.status);
             if(l2cap_env.conn_state == STATE_L2CAP_DISCONNECTING)
             {
                 if(param->start.status == BK_BT_L2CAP_SUCCESS)
                 {
-                    CLI_LOGI("L2cap channle disconnection success, LCID: 0x%x\r\n", param->close.fd);
+                    CLI_LOGD("L2cap channle disconnection success, LCID: 0x%x\r\n", param->close.fd);
                     l2cap_env.conn_state = STATE_L2CAP_DISCONNECTED;
                 }
                 bt_at_sema_set();
@@ -3177,7 +3177,7 @@ static void bt_l2cap_event_callback(bk_bt_l2cap_cb_event_t event, bk_bt_l2cap_cb
             {
                 if(param->start.status == BK_BT_L2CAP_SUCCESS)
                 {
-                    CLI_LOGI("L2cap channle disconnection success, LCID: 0x%x\r\n", param->close.fd);
+                    CLI_LOGD("L2cap channle disconnection success, LCID: 0x%x\r\n", param->close.fd);
                     for(int i=0;i<sizeof(l2cap_env.fd)/sizeof(l2cap_env.fd[0]);i++)
                     {
                         if(l2cap_env.fd[i] == (uint16_t)param->close.fd)
@@ -3197,7 +3197,7 @@ static void bt_l2cap_event_callback(bk_bt_l2cap_cb_event_t event, bk_bt_l2cap_cb
                 //remote disconnect ind
                 if(param->start.status == BK_BT_L2CAP_SUCCESS)
                 {
-                    CLI_LOGI("L2cap channle disconnection Ind succ, LCID: 0x%x\r\n", param->close.fd);
+                    CLI_LOGD("L2cap channle disconnection Ind succ, LCID: 0x%x\r\n", param->close.fd);
                     for(int i=0;i<sizeof(l2cap_env.fd)/sizeof(l2cap_env.fd[0]);i++)
                     {
                         if(l2cap_env.fd[i] == (uint16_t)param->close.fd)
@@ -3215,17 +3215,17 @@ static void bt_l2cap_event_callback(bk_bt_l2cap_cb_event_t event, bk_bt_l2cap_cb
             }
             break;
         case BK_BT_L2CAP_START_EVT:
-            CLI_LOGI("%s start server status: %d \r\n", __func__, param->start.status);
+            CLI_LOGD("%s start server status: %d \r\n", __func__, param->start.status);
             break;
         case BK_BT_L2CAP_CL_INIT_EVT:
-            CLI_LOGI("%s client conn cnf status: %d \r\n", __func__, param->cl_init.status);
+            CLI_LOGD("%s client conn cnf status: %d \r\n", __func__, param->cl_init.status);
             if(param->cl_init.status == BK_BT_L2CAP_SUCCESS)
             {
                 l2cap_env.conn_state = STATE_L2CAP_CONNECTED;
             }
             break;
         case BK_BT_L2CAP_SRV_STOP_EVT:
-            CLI_LOGI("%s stop server status: %d, psm:0x%x \r\n", __func__, param->srv_stop.status, param->srv_stop.psm);
+            CLI_LOGD("%s stop server status: %d, psm:0x%x \r\n", __func__, param->srv_stop.status, param->srv_stop.psm);
             if(l2cap_env.conn_state == STATE_l2CAP_SRV_DISCONNECTING)
             {
                 bt_at_sema_set();
@@ -3249,8 +3249,8 @@ static void bt_l2cap_ind_data_callback(int fd, void *data, uint16_t size)
         {
             if(start)
             {
-                CLI_LOGI("<============================data ind end============================>\r\n");
-                CLI_LOGI("lcid:0x%x, total_len:%d \r\n", fd, l2cap_env.rx_len[i]);
+                CLI_LOGD("<============================data ind end============================>\r\n");
+                CLI_LOGD("lcid:0x%x, total_len:%d \r\n", fd, l2cap_env.rx_len[i]);
                 l2cap_env.rx_len[i] = 0;
             }
             else
@@ -3262,7 +3262,7 @@ static void bt_l2cap_ind_data_callback(int fd, void *data, uint16_t size)
         }
     }
     if(!start)
-        CLI_LOGI("lcid:0x%x, data:0x%x, size:%d \r\n", fd, ((uint8_t *)data)[0], t);
+        CLI_LOGD("lcid:0x%x, data:0x%x, size:%d \r\n", fd, ((uint8_t *)data)[0], t);
 }
 
 
@@ -3276,12 +3276,12 @@ static int bt_l2cap_init_handle(char *pcWriteBuffer, int xWriteBufferLen, int ar
         if(bk_bt_get_host_stack_type() != BK_BT_HOST_STACK_TYPE_ETHERMIND)
         {
             ert = BK_FAIL;
-            CLI_LOGI("Current stack does not support l2cap \r\n");
+            CLI_LOGD("Current stack does not support l2cap \r\n");
             break;
         }
         if(l2cap_env.init)
         {
-            CLI_LOGI("L2cap has been initated \r\n");
+            CLI_LOGD("L2cap has been initated \r\n");
             break;
         }
         bk_bt_gap_register_callback(bt_at_event_cb);
@@ -3339,8 +3339,8 @@ static int bt_l2cap_connect_handle(char *pcWriteBuffer, int xWriteBufferLen, int
         {
             l2cap_env.remote_addr[i] = addr[5-i];
         }
-        CLI_LOGI("Param 1 analyze :0x%x \r\n", psm);
-        CLI_LOGI("Param 2 analyze :0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x \r\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+        CLI_LOGD("Param 1 analyze :0x%x \r\n", psm);
+        CLI_LOGD("Param 2 analyze :0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x \r\n", addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
         if(l2cap_env.conn_state == STATE_ACL_DISCONNECT)
         {
             bk_bt_connect(l2cap_env.remote_addr,
@@ -3541,7 +3541,7 @@ static void l2cap_tx_fun(uint16_t lcid, uint16_t *data_len, uint16_t *tx_len)
     int w = 0;
     uint16_t tt = 0;
     if(tmp_data == NULL) goto out;
-    CLI_LOGI("%s, lcid:0x%x, len:%d \r\n", __func__, lcid, *data_len);
+    CLI_LOGD("%s, lcid:0x%x, len:%d \r\n", __func__, lcid, *data_len);
     if(*data_len)
     {
         uint8_t rand = bk_rand() & 0xff;
@@ -3553,7 +3553,7 @@ static void l2cap_tx_fun(uint16_t lcid, uint16_t *data_len, uint16_t *tx_len)
         {
             *data_len -=w;
             *tx_len += w;
-//            CLI_LOGI("L2cap write, data:0x%x , write_len:%d, total_len:%d \r\n", tmp_data[0], w, ww);
+//            CLI_LOGD("L2cap write, data:0x%x , write_len:%d, total_len:%d \r\n", tmp_data[0], w, ww);
         }else
         {
             CLI_LOGE("L2cap write error, lcid:0x%x, write_len:%d \r\n", lcid, *tx_len);
@@ -3567,8 +3567,8 @@ static void l2cap_tx_fun(uint16_t lcid, uint16_t *data_len, uint16_t *tx_len)
         os_memcpy(tmp_data, start, os_strlen(start));
         w = bk_bt_l2cap_write((int)lcid, tmp_data , os_strlen(start));
         if(w<0) goto out;
-        CLI_LOGI("======================> L2cap write end<====================== \r\n");
-        CLI_LOGI("---> L2cap write, LCID:0x%x, total_len:%d \r\n", lcid, *tx_len);
+        CLI_LOGD("======================> L2cap write end<====================== \r\n");
+        CLI_LOGD("---> L2cap write, LCID:0x%x, total_len:%d \r\n", lcid, *tx_len);
         *tx_len = 0;
     }
     out:
@@ -3577,7 +3577,7 @@ static void l2cap_tx_fun(uint16_t lcid, uint16_t *data_len, uint16_t *tx_len)
 
 static void bt_l2cap_tx_thread(void *arg)
 {
-    CLI_LOGI("%s start \r\n", __func__);
+    CLI_LOGD("%s start \r\n", __func__);
     while(l2cap_env.init)
     {
         uint32_t total_len = 0;
@@ -3601,7 +3601,7 @@ static void bt_l2cap_tx_thread(void *arg)
             rtos_delay_milliseconds(100);
         }
     }
-    CLI_LOGI("%s exit \r\n", __func__);
+    CLI_LOGD("%s exit \r\n", __func__);
     l2cap_env.l2cap_tx_thread = NULL;
     rtos_delete_thread(NULL);
 }

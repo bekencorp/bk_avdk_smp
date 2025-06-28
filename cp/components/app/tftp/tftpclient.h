@@ -25,9 +25,9 @@
 
 //#define TFTP_DEBUG
 #ifdef TFTP_DEBUG
-#define TFTP_PRT            os_printf
-#define TFTP_WARN           os_printf
-#define TFTP_FATAL          os_printf
+#define TFTP_PRT(...)      BK_LOGD(NULL, ##__VA_ARGS__)
+#define TFTP_WARN(...)     BK_LOGW(NULL, ##__VA_ARGS__)
+#define TFTP_FATAL(...)    BK_LOGE(NULL, ##__VA_ARGS__)
 #else
 #define TFTP_PRT            os_null_printf
 #define TFTP_WARN           os_null_printf

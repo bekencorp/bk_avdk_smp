@@ -184,7 +184,7 @@ bk_err_t bk_sdmadc_stop()
 bk_err_t bk_sdmadc_read_average(int16_t* average, uint32_t size)
 {
 	if (size > s_sdmadc_buf.size) {
-		os_printf("size %d too big\r\n",size);
+		BK_LOGD(NULL, "size %d too big\r\n",size);
 		return BK_FAIL;
 	} else {
 		s_sdmadc_buf.size = size;
@@ -226,7 +226,7 @@ bk_err_t bk_sdmadc_single_read(int16_t* average, uint16_t channel)
 bk_err_t bk_sdmadc_continuous_read(int16_t* average, uint32_t size, uint16_t channel)
 {
 	if (size > s_sdmadc_buf.size) {
-		os_printf("size %d too big\r\n",size);
+		BK_LOGD(NULL, "size %d too big\r\n",size);
 		return BK_FAIL;
 	} else {
 		s_sdmadc_buf.size = size;
@@ -289,7 +289,7 @@ bk_err_t bk_sdmadc_read_raw(int16_t* buf, uint32_t size)
 {
 	int32_t sum = 0;
 	if (size > s_sdmadc_buf.size) {
-		os_printf("size %d too big\r\n",size);
+		BK_LOGD(NULL, "size %d too big\r\n",size);
 		return BK_FAIL;
 	} else {
 		s_sdmadc_buf.size = size;
@@ -368,8 +368,8 @@ void bk_sdmadc_read_for_ate(uint32_t saradc_num, uint16_t *saradc_buf)
 
     BK_LOG_ON_ERR(sdmadc_hal_disable_int());
     //need check saradc fifo empty
-    //os_printf("saradc_hal_is_fifo_empty=%x\r\n",saradc_hal_is_fifo_empty());
-    //os_printf("sardata_start\r\n");
+    //BK_LOGD(NULL, "saradc_hal_is_fifo_empty=%x\r\n",saradc_hal_is_fifo_empty());
+    //BK_LOGD(NULL, "sardata_start\r\n");
     irq_level = rtos_enter_critical();
 
     for(i = 0; i < saradc_num; i++)

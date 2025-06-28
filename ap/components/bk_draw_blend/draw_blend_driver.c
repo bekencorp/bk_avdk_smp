@@ -16,6 +16,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 typedef struct {
@@ -51,7 +52,7 @@ static void dma2d_transfer_error(void)
 
 static void dma2d_transfer_complete(void)
 {
-	LOGD("%s \n", __func__);
+	LOGV("%s \n", __func__);
 	rtos_set_semaphore(&s_blend.dma2d_complete_sem);
 }
 #endif
@@ -95,7 +96,7 @@ static bk_err_t blend_check_mem(uint32_t icon_x, uint32_t icon_y, uint8_t icon_r
             LOGE("%s malloc ICON size %d*%d*2 %d in %d(0:sram, 1:psram) error\n", __func__, icon_x, icon_y, s_blend.buf1.size, s_blend.buf1.is_malloc_psram );
             return BK_FAIL;
         }
-        LOGI("%s malloc ICON size %d*%d*2 %d in %d(0:sram, 1:psram) %p-%p\n", __func__, icon_x, icon_y, s_blend.buf1.size, s_blend.buf1.is_malloc_psram, s_blend.buf1.addr, (char*)(s_blend.buf1.addr + s_blend.buf1.size));
+        LOGD("%s malloc ICON size %d*%d*2 %d in %d(0:sram, 1:psram) %p-%p\n", __func__, icon_x, icon_y, s_blend.buf1.size, s_blend.buf1.is_malloc_psram, s_blend.buf1.addr, (char*)(s_blend.buf1.addr + s_blend.buf1.size));
 
         if (icon_rotate == ROTATE_270 )
         {
@@ -620,7 +621,7 @@ bk_err_t dma2d_fill_height_head_tail(frame_buffer_t *frame, media_ppi_t jpeg_ppi
 	dma2d_fill(&fill);
 	bk_dma2d_start_transfer();
 	
-	LOGD("fill.frame_xsize,fill.frame_ysize, fill.width, fill.height= %d %d %d %d\n", fill.frame_xsize,fill.frame_ysize, fill.width, fill.height);
+	LOGV("fill.frame_xsize,fill.frame_ysize, fill.width, fill.height= %d %d %d %d\n", fill.frame_xsize,fill.frame_ysize, fill.width, fill.height);
 
 	if (rtos_get_semaphore(&s_blend.dma2d_complete_sem, BEKEN_NEVER_TIMEOUT) != BK_OK)
 	{
@@ -646,7 +647,7 @@ bk_err_t blend_free_buffer(blend_t s_blend)
 		os_free(s_blend.buf2.addr);
 		s_blend.buf2.addr = NULL;
 	}
-	LOGI("%s lcd dma2d deinit, free buffer ok\n", __func__);
+	LOGD("%s lcd dma2d deinit, free buffer ok\n", __func__);
 #endif
 	return ret;
 }
@@ -664,7 +665,7 @@ static bk_err_t blend_malloc_buffer(blend_t s_blend)
 		if (s_blend.buf1.addr == NULL)
 			LOGE("%s, blend malloc buf1 NULL\r\n", __func__);
 		else
-			LOGI("%s, blend malloc sram (default) buf1 = %p, size = %d \r\n", __func__, s_blend.buf1.addr, s_blend.buf1.size);
+			LOGD("%s, blend malloc sram (default) buf1 = %p, size = %d \r\n", __func__, s_blend.buf1.addr, s_blend.buf1.size);
 #endif
 	}
 
@@ -677,7 +678,7 @@ static bk_err_t blend_malloc_buffer(blend_t s_blend)
 		if (s_blend.buf2.addr == NULL)
 			LOGE("%s, blend malloc buf2 NULL\r\n", __func__);
 		else
-			LOGI("%s, blend malloc sram (default) buf2= %p, size = %d\r\n", __func__, s_blend.buf2.addr, s_blend.buf2.size);
+			LOGD("%s, blend malloc sram (default) buf2= %p, size = %d\r\n", __func__, s_blend.buf2.addr, s_blend.buf2.size);
 #endif
 	}
 
@@ -714,7 +715,7 @@ bk_err_t bk_blend_init(void)
 	bk_err_t ret = BK_OK;
     if (s_blend.state != false)
     {
-        LOGI("%s, already init\n", __func__);
+        LOGD("%s, already init\n", __func__);
         return ret;
     }
     s_blend.state = true;
@@ -752,7 +753,7 @@ bk_err_t bk_blend_deinit(void)
 	bk_err_t ret = BK_OK;
     if (s_blend.state == false)
     {
-        LOGI("%s, already deinit\n", __func__);
+        LOGD("%s, already deinit\n", __func__);
         return ret;
     }
 #if CONFIG_LCD_DMA2D_BLEND
@@ -774,7 +775,7 @@ bk_err_t bk_blend_deinit(void)
 #endif
     blend_free_buffer(s_blend);
     s_blend.state = false;
-    LOGI("%s, deinit complete\n", __func__);
+    LOGD("%s, deinit complete\n", __func__);
 
  	return ret;
 }

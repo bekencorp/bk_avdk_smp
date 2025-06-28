@@ -36,6 +36,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define DB_SAMPLE_RARE_8K (8000)
 #define DB_SAMPLE_RARE_16K (16000)
@@ -166,7 +167,7 @@ int doorbell_get_supported_camera_devices(int opcode, db_channel_t *channel, doo
     evt->status = EVT_STATUS_OK;
     evt->flags = EVT_FLAGS_CONTINUE;
 
-    LOGI("DBCMD_GET_CAMERA_SUPPORTED_DEVICES\n");
+    LOGD("DBCMD_GET_CAMERA_SUPPORTED_DEVICES\n");
 
 #if (CAMERA_DEVICES_REPORT == BK_TRUE)
 
@@ -188,7 +189,7 @@ int doorbell_get_supported_camera_devices(int opcode, db_channel_t *channel, doo
 
         os_memset(p, 0, DEVICE_RESPONSE_SIZE);
 
-        LOGD("sensor: %s, ppi: %uX%u\n", sensors[i]->name,
+        LOGV("sensor: %s, ppi: %uX%u\n", sensors[i]->name,
              ppi_to_pixel_x(sensors[i]->def_ppi),
              ppi_to_pixel_y(sensors[i]->def_ppi));
         sprintf(p, "{\"name\": \"%s\", \"id\": \"%d\", \"type\": \"DVP\", \"ppi\": %s}",
@@ -196,7 +197,7 @@ int doorbell_get_supported_camera_devices(int opcode, db_channel_t *channel, doo
                 sensors[i]->id,
                 ppi);
 
-        LOGI("dump: %s\n", p);
+        LOGD("dump: %s\n", p);
 
         evt->length = CHECK_ENDIAN_UINT16(strlen(p));
         doorbell_transmission_pack_send(channel, (uint8_t *)evt, sizeof(db_evt_head_t) + evt->length, cb);
@@ -243,7 +244,7 @@ int doorbell_get_supported_lcd_devices(int opcode, db_channel_t *channel, doorbe
     evt->status = EVT_STATUS_OK;
     evt->flags = EVT_FLAGS_CONTINUE;
 
-    LOGI("DBCMD_GET_LCD_SUPPORTED_DEVICES\n");
+    LOGD("DBCMD_GET_LCD_SUPPORTED_DEVICES\n");
 
     if ((uint32_t)device != kGeneralErr && device != NULL)
     {
@@ -251,7 +252,7 @@ int doorbell_get_supported_lcd_devices(int opcode, db_channel_t *channel, doorbe
         {
             os_memset(p, 0, DEVICE_RESPONSE_SIZE);
 
-            LOGD("lcd: %s, ppi: %uX%u\n", device[i]->name,
+            LOGV("lcd: %s, ppi: %uX%u\n", device[i]->name,
                  ppi_to_pixel_x(device[i]->ppi),
                  ppi_to_pixel_y(device[i]->ppi));
             sprintf(p, "{\"name\": \"%s\", \"id\": \"%d\", \"type\": \"%s\", \"ppi\":\"%uX%u\"}",
@@ -261,7 +262,7 @@ int doorbell_get_supported_lcd_devices(int opcode, db_channel_t *channel, doorbe
                     ppi_to_pixel_x(device[i]->ppi),
                     ppi_to_pixel_y(device[i]->ppi));
 
-            LOGI("dump: %s\n", p);
+            LOGD("dump: %s\n", p);
 
             evt->length = CHECK_ENDIAN_UINT16(strlen(p));
 
@@ -289,7 +290,7 @@ int doorbell_get_lcd_status(int opcode, db_channel_t *channel, doorbell_transmis
     evt->status = EVT_STATUS_OK;
     evt->flags = EVT_FLAGS_CONTINUE;
 
-    LOGI("DBCMD_GET_LCD_STATUS\n");
+    LOGD("DBCMD_GET_LCD_STATUS\n");
     os_memset(p, 0, DEVICE_RESPONSE_SIZE);
 
     if (lcd_status != LCD_STATUS_CLOSE && lcd_status != LCD_STATUS_OPEN)
@@ -297,7 +298,7 @@ int doorbell_get_lcd_status(int opcode, db_channel_t *channel, doorbell_transmis
         lcd_status = LCD_STATUS_UNKNOWN;
     }
     sprintf(p, "{\"status\": \"%u\"}", lcd_status);
-    LOGI("dump: %s\n", p);
+    LOGD("dump: %s\n", p);
     evt->length = CHECK_ENDIAN_UINT16(strlen(p));
 
     evt->flags = EVT_FLAGS_COMPLETE;
@@ -341,13 +342,13 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
     uint8_t rot_angle = 0;
     media_camera_device_t device = {0};
 
-    LOGI("%s, id: %d, %d X %d, format: %d, Protocol: %d\n", __func__,
+    LOGD("%s, id: %d, %d X %d, format: %d, Protocol: %d\n", __func__,
          parameters->id, parameters->width, parameters->height,
          parameters->format, parameters->protocol);
 
     if (db_device_info->video_handle != NULL)
     {
-        LOGI("%s, id: %d already open\n", __func__, parameters->id);
+        LOGD("%s, id: %d already open\n", __func__, parameters->id);
         return EVT_STATUS_ALREADY;
     }
 
@@ -389,7 +390,7 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
         db_device_info->h264_transfer = true;
     }
 
-    LOGI("%s, device:fmt:%d, transfer:%s\n", __func__, device.format, db_device_info->h264_transfer ? "h264" : "mjpeg");
+    LOGD("%s, device:fmt:%d, transfer:%s\n", __func__, device.format, db_device_info->h264_transfer ? "h264" : "mjpeg");
     device.width = parameters->width;
     device.height = parameters->height;
     device.fps = FPS30;
@@ -466,14 +467,14 @@ int doorbell_camera_turn_off(void)
 {
     if (db_device_info->video_handle == NULL)
     {
-        LOGI("%s, %d already close\n", __func__);
+        LOGD("%s, %d already close\n", __func__);
         return EVT_STATUS_ALREADY;
     }
 
     //if (db_device_info->pipeline_enable)
     {
         h264_jdec_pipeline_close();
-        LOGI("%s h264_pipeline close\n", __func__);
+        LOGD("%s h264_pipeline close\n", __func__);
     }
 
     do
@@ -481,7 +482,7 @@ int doorbell_camera_turn_off(void)
         db_device_info->video_handle = bk_camera_handle_node_pop();
         if (db_device_info->video_handle)
         {
-            LOGI("%s, %d, %p\n", __func__, __LINE__, db_device_info->video_handle);
+            LOGD("%s, %d, %p\n", __func__, __LINE__, db_device_info->video_handle);
             media_app_camera_close(&db_device_info->video_handle);
         }
         else
@@ -507,7 +508,7 @@ int doorbell_video_transfer_turn_on(void)
 
     if (db_device_info->transfer_enable)
     {
-        LOGI("%s, id: %d already open\n", __func__, db_device_info->transfer_enable);
+        LOGD("%s, id: %d already open\n", __func__, db_device_info->transfer_enable);
         return EVT_STATUS_ALREADY;
     }
 
@@ -541,7 +542,7 @@ int doorbell_video_transfer_turn_off(void)
 
     if (db_device_info->transfer_enable == false)
     {
-        LOGI("%s, id: %d already close\n", __func__, db_device_info->transfer_enable);
+        LOGD("%s, id: %d already close\n", __func__, db_device_info->transfer_enable);
         return EVT_STATUS_ALREADY;
     }
 
@@ -558,17 +559,17 @@ int doorbell_video_transfer_turn_off(void)
 
 int doorbell_display_turn_on(uint16_t id, uint16_t rotate, uint16_t fmt)
 {
-    LOGI("%s, id: %d, rotate: %d fmt: %d\n", __func__, id, rotate, fmt);
+    LOGD("%s, id: %d, rotate: %d fmt: %d\n", __func__, id, rotate, fmt);
 
     if (db_device_info->lcd_id != 0)
     {
-        LOGI("%s, id: %d already open\n", __func__, id);
+        LOGD("%s, id: %d already open\n", __func__, id);
         return EVT_STATUS_ALREADY;
     }
     const lcd_device_t *device = (const lcd_device_t *)get_lcd_device_by_id(id);
     if ((uint32_t)device == BK_FAIL || device == NULL)
     {
-        LOGI("%s, could not find device id: %d\n", __func__, id);
+        LOGD("%s, could not find device id: %d\n", __func__, id);
         return EVT_STATUS_ERROR;
     }
 
@@ -625,11 +626,11 @@ int doorbell_display_turn_on(uint16_t id, uint16_t rotate, uint16_t fmt)
 
 int doorbell_display_turn_off(void)
 {
-    LOGI("%s, id: %d\n", __func__, db_device_info->lcd_id);
+    LOGD("%s, id: %d\n", __func__, db_device_info->lcd_id);
 
     if (db_device_info->lcd_id == 0)
     {
-        LOGI("%s, %d already close\n", __func__);
+        LOGD("%s, %d already close\n", __func__);
         return EVT_STATUS_ALREADY;
     }
 
@@ -676,12 +677,12 @@ int doorbell_audio_turn_off(void)
 {
     if (db_device_info->audio_enable == BK_FALSE)
     {
-        LOGI("%s already turn off\n", __func__);
+        LOGD("%s already turn off\n", __func__);
 
         return BK_FAIL;
     }
 
-    LOGI("%s entry\n", __func__);
+    LOGD("%s entry\n", __func__);
 
     db_device_info->audio_enable = BK_FALSE;
 
@@ -724,7 +725,7 @@ int doorbell_audio_turn_off(void)
     db_device_info->voice_write_handle = NULL;
     db_device_info->voice_handle  = NULL;
 
-    LOGI("%s out\n", __func__);
+    LOGD("%s out\n", __func__);
     return BK_OK;
 }
 
@@ -738,7 +739,7 @@ bk_err_t doorbell_audio_event_handle(vioce_evt_t event, void *param, void *args)
         case VOC_EVT_SPK_NOT_SUPPORT:
         case VOC_EVT_ERROR_UNKNOW:
         case VOC_EVT_STOP:
-            LOGI("%s, -->>event: %d\n", __func__, event);
+            LOGD("%s, -->>event: %d\n", __func__, event);
             msg.event = DBEVT_VOICE_EVENT;
             msg.param = event;
             doorbell_send_msg(&msg);
@@ -757,12 +758,12 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
 
     if (db_device_info->audio_enable == BK_TRUE)
     {
-        LOGI("%s already turn on\n", __func__);
+        LOGD("%s already turn on\n", __func__);
 
         return BK_FAIL;
     }
 
-    LOGI("%s, AEC: %d, UAC: %d, sample rate: %d, %d, fmt: %d, %d\n", __func__,
+    LOGD("%s, AEC: %d, UAC: %d, sample rate: %d, %d, fmt: %d, %d\n", __func__,
          parameters->aec, parameters->uac, parameters->rmt_recorder_sample_rate,
          parameters->rmt_player_sample_rate, parameters->rmt_recoder_fmt, parameters->rmt_player_fmt);
 
@@ -1001,7 +1002,7 @@ error:
 
 int doorbell_audio_acoustics(uint32_t index, uint32_t param)
 {
-    LOGI("%s, %u, %u\n", __func__, index, param);
+    LOGD("%s, %u, %u\n", __func__, index, param);
 #if 0
     bk_err_t ret = BK_FAIL;
 
@@ -1038,7 +1039,7 @@ void doorbell_audio_data_callback(uint8_t *data, uint32_t length)
         ret = bk_voice_write_frame_data(db_device_info->voice_write_handle, (char *)data, length);
         if (ret != length)
         {
-            LOGD("write speaker data fail, need_write: %d, ret: %d\n", length, ret);
+            LOGV("write speaker data fail, need_write: %d, ret: %d\n", length, ret);
         }
     }
 }

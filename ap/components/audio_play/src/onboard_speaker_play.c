@@ -25,6 +25,7 @@
 #define LOGW(...) BK_LOGW(ONBOARD_SPK_PLAY_TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(ONBOARD_SPK_PLAY_TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(ONBOARD_SPK_PLAY_TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(ONBOARD_SPK_PLAY_TAG, ##__VA_ARGS__)
 
 
 #define DMA_CARRY_SPK_FRAME_NUM                (2)
@@ -203,7 +204,7 @@ static void spk_data_read_task_main(beken_thread_arg_t param_data)
                 else
                 {
                     /* fill silence data */
-                    LOGD("%s, %d, fill silence data\n", __func__, __LINE__);
+                    LOGV("%s, %d, fill silence data\n", __func__, __LINE__);
                     os_memset(spk_data_read_handle->read_buff, 0, spk_data_read_handle->frame_size);
                 }
                 ONBOARD_SPK_PLAY_WRITE_FIFO_START();
@@ -293,7 +294,7 @@ static bk_err_t spk_data_read_task_init(onboard_speaker_play_priv_t *spk_data_re
 
     rtos_get_semaphore(&spk_data_read_handle->sem, BEKEN_NEVER_TIMEOUT);
 
-    LOGI("init spk data read task complete\n");
+    LOGD("init spk data read task complete\n");
 
     return BK_OK;
 
@@ -332,7 +333,7 @@ bk_err_t spk_data_read_task_deinit(onboard_speaker_play_priv_t *spk_data_read_ha
 
     ONBOARD_SPK_PLAY_CHECK_NULL(spk_data_read_handle);
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     ret = spk_data_read_send_msg(spk_data_read_handle->spk_data_read_msg_que, SPK_DATA_READ_EXIT, NULL);
     if (ret != BK_OK)
@@ -356,7 +357,7 @@ bk_err_t spk_data_read_task_deinit(onboard_speaker_play_priv_t *spk_data_read_ha
         os_free(spk_data_read_handle->read_buff);
     }
 
-    LOGI("deinit spk data read complete\n");
+    LOGD("deinit spk data read complete\n");
 
     return BK_OK;
 }
@@ -386,7 +387,7 @@ static bk_err_t aud_dac_dma_deconfig(onboard_speaker_play_priv_t *onboard_spk)
 /* Carry one frame audio dac data(20ms) to DAC FIFO complete */
 static void aud_dac_dma_finish_isr(void)
 {
-    //LOGI("%s\n", __func__);
+    //LOGD("%s\n", __func__);
     AUD_DAC_DMA_ISR_START();
 
     bk_err_t ret = rtos_set_semaphore(&gl_onboard_speaker_play->can_process);
@@ -429,7 +430,7 @@ static bk_err_t aud_dac_dma_config(onboard_speaker_play_priv_t *onboard_spk)
     onboard_spk->dma_rb_addr = (int32_t *)os_malloc(2 * onboard_spk->frame_size + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL);
     ONBOARD_SPK_PLAY_CHECK_NULL(onboard_spk->dma_rb_addr);
     ring_buffer_init(&onboard_spk->dma_rb, (uint8_t *)onboard_spk->dma_rb_addr, onboard_spk->frame_size * onboard_spk->frame_num + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL, onboard_spk->dac_dma_id, RB_DMA_TYPE_READ);
-    LOGI("%s, %d, dma_id: %d, dma_rb_addr: %p, dma_rb_size: %d \n", __func__, __LINE__, onboard_spk->dac_dma_id, onboard_spk->dma_rb_addr, onboard_spk->frame_size * onboard_spk->frame_num + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL);
+    LOGD("%s, %d, dma_id: %d, dma_rb_addr: %p, dma_rb_size: %d \n", __func__, __LINE__, onboard_spk->dac_dma_id, onboard_spk->dma_rb_addr, onboard_spk->frame_size * onboard_spk->frame_num + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL);
     /* init dma channel */
     os_memset(&dma_config, 0, sizeof(dma_config_t));
     dma_config.mode = DMA_WORK_MODE_REPEAT;
@@ -520,7 +521,7 @@ static bk_err_t spk_dac_config(onboard_speaker_play_priv_t *onboard_spk)
     }
     aud_dac_cfg.samp_rate = onboard_spk->config.sampRate;
     aud_dac_cfg.dac_gain = onboard_spk->config.volume;
-    LOGI("dac_cfg chl_num: %s, dac_gain: 0x%02x, samp_rate: %d, clk_src: %s, dac_mode: %s \n",
+    LOGD("dac_cfg chl_num: %s, dac_gain: 0x%02x, samp_rate: %d, clk_src: %s, dac_mode: %s \n",
             aud_dac_cfg.dac_chl == AUD_DAC_CHL_L ? "AUD_DAC_CHL_L" : "AUD_DAC_CHL_LR",
             aud_dac_cfg.dac_gain,
             aud_dac_cfg.samp_rate,
@@ -616,7 +617,7 @@ static bk_err_t onboard_speaker_start(onboard_speaker_play_priv_t *onboard_spk)
 
 static bk_err_t onboard_speaker_stop(onboard_speaker_play_priv_t *onboard_spk)
 {
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
 
     ONBOARD_SPK_PLAY_CHECK_NULL(onboard_spk);
 
@@ -639,7 +640,7 @@ static bk_err_t onboard_speaker_stop(onboard_speaker_play_priv_t *onboard_spk)
 
 static bk_err_t onboard_speaker_close(onboard_speaker_play_priv_t *onboard_spk)
 {
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
 
     ONBOARD_SPK_PLAY_CHECK_NULL(onboard_spk);
 
@@ -669,7 +670,7 @@ static bk_err_t onboard_speaker_close(onboard_speaker_play_priv_t *onboard_spk)
 
 static bk_err_t onboard_speaker_mute(void)
 {
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
 
     bk_aud_dac_mute();
 
@@ -678,7 +679,7 @@ static bk_err_t onboard_speaker_mute(void)
 
 static bk_err_t onboard_speaker_unmute(void)
 {
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
 
     bk_aud_dac_unmute();
 
@@ -687,7 +688,7 @@ static bk_err_t onboard_speaker_unmute(void)
 
 static bk_err_t onboard_speaker_set_volume(int volume)
 {
-    LOGI("%s %d\n", __func__, volume);
+    LOGD("%s %d\n", __func__, volume);
 
     return bk_aud_dac_set_gain(volume);
 }
@@ -752,7 +753,7 @@ static int onboard_speaker_play_open(audio_play_t *play, audio_play_cfg_t *confi
 
     onboard_speaker_state_set(temp_onboard_speaker_play, AUDIO_PLAY_STA_RUNNING);
 
-    LOGI("onboard spk open complete \n");
+    LOGD("onboard spk open complete \n");
 
     return BK_OK;
 }
@@ -770,7 +771,7 @@ static int onboard_speaker_play_close(audio_play_t *play)
         return BK_OK;
     }
 
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
 
     ret = onboard_speaker_stop(priv);
     if (ret != BK_OK)
@@ -788,7 +789,7 @@ static int onboard_speaker_play_close(audio_play_t *play)
 
     onboard_speaker_state_set(priv, AUDIO_PLAY_STA_IDLE);
 
-    LOGD("onboard spk close complete\n");
+    LOGV("onboard spk close complete\n");
     return BK_OK;
 }
 

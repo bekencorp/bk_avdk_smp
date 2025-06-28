@@ -42,35 +42,35 @@ void json_item_show(cJSON *item)
     char *out = NULL;
 
 	if (item->string)
-		bk_printf("name:%s,", item->string);
+		BK_LOGD(NULL, "name:%s,", item->string);
     switch(item->type)
     {
     case cJSON_False:
-        bk_printf("%s\n", "false");
+        BK_LOGD(NULL, "%s\n", "false");
         break;
     case cJSON_True:
-        bk_printf("%s\n", "true");
+        BK_LOGD(NULL, "%s\n", "true");
         break;
     case cJSON_NULL:
-        bk_printf("%s\n", "JSON_NULL");
+        BK_LOGD(NULL, "%s\n", "JSON_NULL");
         break;
     case cJSON_Number:
-        bk_printf("%d\n", item->valueint);
+        BK_LOGD(NULL, "%d\n", item->valueint);
         break;
     case cJSON_String:
-        bk_printf("%s\n", item->valuestring);
+        BK_LOGD(NULL, "%s\n", item->valuestring);
         break;
     case cJSON_Array:
-        bk_printf("%s\n", item->string);
+        BK_LOGD(NULL, "%s\n", item->string);
         break;
     case cJSON_Object:
         out = cJSON_Print(item);
-        bk_printf("%s\n", out);
+        BK_LOGD(NULL, "%s\n", out);
         if(out)
             os_free(out);
         break;
     default:
-        bk_printf("error\r\n");
+        BK_LOGD(NULL, "error\r\n");
         break;
     }
 }
@@ -84,13 +84,13 @@ void doit(char *text)
     json = cJSON_Parse(text);
     if (!json)
     {
-        bk_printf("Error before: [%s]\n", cJSON_GetErrorPtr());
+        BK_LOGD(NULL, "Error before: [%s]\n", cJSON_GetErrorPtr());
     }
     else
     {
         out = cJSON_Print(json);
         cJSON_Delete(json);
-        bk_printf("%s\n", out);
+        BK_LOGD(NULL, "%s\n", out);
         if(out)
             os_free(out);
     }
@@ -130,12 +130,12 @@ void create_objects()
     cmp = cJSON_GetObjectItem(root, "fmt");
     if(!cmp)
     {
-        bk_printf("no fmt\r\n");
+        BK_LOGD(NULL, "no fmt\r\n");
         return;
     }
 
     array_size = cJSON_GetArraySize(cmp);
-    bk_printf("array size is %d\r\n", array_size);
+    BK_LOGD(NULL, "array size is %d\r\n", array_size);
 
     for(i = 0; i < array_size; i++)
     {
@@ -174,7 +174,7 @@ void create_objects()
 void cjson_test_main ( beken_thread_arg_t arg )
 {
 #if 0
-    bk_printf("\r\n\r\n cjson testing..................\r\n ");
+    BK_LOGD(NULL, "\r\n\r\n cjson testing..................\r\n ");
     rtos_delay_milliseconds( 1500 );
 
     /* Process each json textblock by parsing, then rebuilding: */
@@ -183,7 +183,7 @@ void cjson_test_main ( beken_thread_arg_t arg )
     /* Now some samplecode for building objects concisely: */
     create_objects();
 
-    bk_printf(" cjson test over..................\r\n\r\n ");
+    BK_LOGD(NULL, " cjson test over..................\r\n\r\n ");
 #else
 	create_objects();
 	rtos_delay_milliseconds( 100000 );

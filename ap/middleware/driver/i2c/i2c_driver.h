@@ -21,4 +21,5 @@
 #define I2C_LOGW(...) BK_LOGW(I2C_TAG, ##__VA_ARGS__)
 #define I2C_LOGE(...) BK_LOGE(I2C_TAG, ##__VA_ARGS__)
 #define I2C_LOGD(...) BK_LOGD(I2C_TAG, ##__VA_ARGS__)
+#define I2C_LOGV(...) BK_LOGV(I2C_TAG, ##__VA_ARGS__)
 

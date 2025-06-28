@@ -42,18 +42,18 @@ uart_statis_t* uart_statis_get_statis(uart_id_t id)
 
 void uart_statis_dump(uart_id_t id)
 {
-	BK_LOGI(TAG, "dump uart statis:\r\n");
-	BK_LOGI(TAG, "uart_isr_cnt:     %d\r\n", s_uart_statis[id].uart_isr_cnt);
-	BK_LOGI(TAG, "rx_isr_cnt:       %d\r\n", s_uart_statis[id].rx_isr_cnt);
-	BK_LOGI(TAG, "rx_fifo_cnt:      %d\r\n", s_uart_statis[id].rx_fifo_cnt);
-	BK_LOGI(TAG, "recv_timeout_cnt: %d\r\n", s_uart_statis[id].recv_timeout_cnt);
-	BK_LOGI(TAG, "kfifo_size:       %d\r\n", s_uart_statis[id].kfifo_status.size);
-	BK_LOGI(TAG, "kfifo_in:         %d\r\n", s_uart_statis[id].kfifo_status.in);
-	BK_LOGI(TAG, "kfifo_out:        %d\r\n", s_uart_statis[id].kfifo_status.out);
-	BK_LOGI(TAG, "kfifo_last_value: %x\r\n", s_uart_statis[id].kfifo_status.last_value);
-	BK_LOGI(TAG, "kfifo_put_cnt:    %d\r\n", s_uart_statis[id].kfifo_status.put_cnt);
-	BK_LOGI(TAG, "kfifo_full_cnt:   %d\r\n", s_uart_statis[id].kfifo_status.full_cnt);
-	BK_LOGI(TAG, "kfifo_empty_cnt:  %d\r\n", s_uart_statis[id].kfifo_status.empty_cnt);
+	BK_LOGD(TAG, "dump uart statis:\r\n");
+	BK_LOGD(TAG, "uart_isr_cnt:     %d\r\n", s_uart_statis[id].uart_isr_cnt);
+	BK_LOGD(TAG, "rx_isr_cnt:       %d\r\n", s_uart_statis[id].rx_isr_cnt);
+	BK_LOGD(TAG, "rx_fifo_cnt:      %d\r\n", s_uart_statis[id].rx_fifo_cnt);
+	BK_LOGD(TAG, "recv_timeout_cnt: %d\r\n", s_uart_statis[id].recv_timeout_cnt);
+	BK_LOGD(TAG, "kfifo_size:       %d\r\n", s_uart_statis[id].kfifo_status.size);
+	BK_LOGD(TAG, "kfifo_in:         %d\r\n", s_uart_statis[id].kfifo_status.in);
+	BK_LOGD(TAG, "kfifo_out:        %d\r\n", s_uart_statis[id].kfifo_status.out);
+	BK_LOGD(TAG, "kfifo_last_value: %x\r\n", s_uart_statis[id].kfifo_status.last_value);
+	BK_LOGD(TAG, "kfifo_put_cnt:    %d\r\n", s_uart_statis[id].kfifo_status.put_cnt);
+	BK_LOGD(TAG, "kfifo_full_cnt:   %d\r\n", s_uart_statis[id].kfifo_status.full_cnt);
+	BK_LOGD(TAG, "kfifo_empty_cnt:  %d\r\n", s_uart_statis[id].kfifo_status.empty_cnt);
 }
 
 #endif

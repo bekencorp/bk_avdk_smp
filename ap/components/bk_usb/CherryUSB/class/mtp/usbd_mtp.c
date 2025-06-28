@@ -25,7 +25,7 @@ static struct usbd_interface mtp_ep_data[2];
 
 static int mtp_class_interface_request_handler(struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
-    USB_LOG_DBG("MTP Class request: "
+    USB_LOG_VBS("MTP Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
 

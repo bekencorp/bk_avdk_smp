@@ -26,7 +26,7 @@
 
 #define TEST_CHECK_NULL(ptr) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "TEST_CHECK_NULL fail \n");\
+            BK_LOGD(TAG, "TEST_CHECK_NULL fail \n");\
             return BK_FAIL;\
         }\
     } while(0)
@@ -45,19 +45,19 @@ static bool test_result = true;
 
 static bk_err_t _el_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _el_open \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _el_open \n", audio_element_get_tag(self));
     return BK_OK;
 }
 
 static bk_err_t _el_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _el_close \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _el_close \n", audio_element_get_tag(self));
     return BK_OK;
 }
 
 static int _el_read(audio_element_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
-    BK_LOGD(TAG, "[%s] _el_read, len: %d \n", audio_element_get_tag(self), len);
+    BK_LOGV(TAG, "[%s] _el_read, len: %d \n", audio_element_get_tag(self), len);
 
     //the data in output_rb need to be read
     if (input_temp_data)
@@ -76,7 +76,7 @@ static int _el_read(audio_element_handle_t self, char *buffer, int len, TickType
 static int _el_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     //  vTaskDelay(100/portTICK_RATE_MS);
-    BK_LOGD(TAG, "[%s] _el_process, in_len: %d \n", audio_element_get_tag(self), in_len);
+    BK_LOGV(TAG, "[%s] _el_process, in_len: %d \n", audio_element_get_tag(self), in_len);
 
     int r_size = audio_element_input(self, in_buffer, in_len);
 
@@ -95,7 +95,7 @@ static int _el_process(audio_element_handle_t self, char *in_buffer, int in_len)
 
 static int _el_write(audio_element_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
-    BK_LOGD(TAG, "[%s] _el_write, len: %d \n", audio_element_get_tag(self), len);
+    BK_LOGV(TAG, "[%s] _el_write, len: %d \n", audio_element_get_tag(self), len);
 
     if (output_temp_data)
     {
@@ -156,19 +156,19 @@ bk_err_t adk_g711_decoder_test_case_0(void)
     //      bk_disable_mod_printf("G711_DECODER", 0);
     //      bk_disable_mod_printf("G711_DECODER_TEST", 0);
 #endif
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
     input_temp_data = os_malloc(INPUT_RINGBUF_SIZE);
     os_memset(input_temp_data, INPUT_VAL, INPUT_RINGBUF_SIZE);
     output_temp_data = os_malloc(OUTPUT_RINGBUF_SIZE);
     os_memset(output_temp_data, 0xFF, OUTPUT_RINGBUF_SIZE);
 
-    BK_LOGI(TAG, "--------- step1: pipeline init ----------\n");
+    BK_LOGD(TAG, "--------- step1: pipeline init ----------\n");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     pipeline = audio_pipeline_init(&pipeline_cfg);
     TEST_CHECK_NULL(pipeline);
 
-    BK_LOGI(TAG, "--------- step2: init elements ----------\n");
+    BK_LOGD(TAG, "--------- step2: init elements ----------\n");
     cfg.open = _el_open;
     cfg.close = _el_close;
     cfg.process = _el_process;
@@ -191,7 +191,7 @@ bk_err_t adk_g711_decoder_test_case_0(void)
     g711_dec = g711_decoder_init(&g711_decoder_cfg);
     TEST_CHECK_NULL(g711_dec);
 
-    BK_LOGI(TAG, "--------- step3: pipeline register ----------\n");
+    BK_LOGD(TAG, "--------- step3: pipeline register ----------\n");
     if (BK_OK != audio_pipeline_register(pipeline, test_stream_in, "stream_in"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
@@ -208,7 +208,7 @@ bk_err_t adk_g711_decoder_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: pipeline link ----------\n");
+    BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
     if (BK_OK != audio_pipeline_link(pipeline, (const char *[])
 {"stream_in", "g711_dec", "stream_out"
 }, 3))
@@ -217,7 +217,7 @@ bk_err_t adk_g711_decoder_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step5: init event listener ----------\n");
+    BK_LOGD(TAG, "--------- step5: init event listener ----------\n");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
 
@@ -227,7 +227,7 @@ bk_err_t adk_g711_decoder_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step6: pipeline run ----------\n");
+    BK_LOGD(TAG, "--------- step6: pipeline run ----------\n");
     if (BK_OK != audio_pipeline_run(pipeline))
     {
         BK_LOGE(TAG, "pipeline run fail, %d \n", __LINE__);
@@ -253,7 +253,7 @@ bk_err_t adk_g711_decoder_test_case_0(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step7: deinit pipeline ----------\n");
+    BK_LOGD(TAG, "--------- step7: deinit pipeline ----------\n");
     if (BK_OK != audio_pipeline_terminate(pipeline))
     {
         BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
@@ -316,7 +316,7 @@ bk_err_t adk_g711_decoder_test_case_0(void)
     os_free(input_temp_data);
     input_temp_data = NULL;
 
-    BK_LOGI(TAG, "--------- g711 decoder test complete: %s ----------\n", test_result ? "PASS" : "FAIL");
+    BK_LOGD(TAG, "--------- g711 decoder test complete: %s ----------\n", test_result ? "PASS" : "FAIL");
 
     if (test_result == false)
     {

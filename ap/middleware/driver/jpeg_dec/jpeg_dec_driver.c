@@ -38,6 +38,7 @@
 #define LOGW(...) BK_LOGW(JPEGDEC_TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(JPEGDEC_TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(JPEGDEC_TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(JPEGDEC_TAG, ##__VA_ARGS__)
 
 #if (USE_JPEG_DEC_COMPLETE_CALLBACKS == 1)
 jpeg_dec_isr_cb_t  s_jpeg_dec_isr[DEC_ISR_MAX] = {NULL};
@@ -77,7 +78,7 @@ bk_err_t bk_jpeg_dec_driver_init(void)
 #endif
 	jpg_decoder_init();
 
-	LOGI("%s complete\n", __func__);
+	LOGD("%s complete\n", __func__);
 
 	s_jpegdec_driver_is_init = true;
 	return BK_OK;
@@ -104,7 +105,7 @@ bk_err_t bk_jpeg_dec_driver_deinit(void)
 	os_memset(&result, 0, sizeof(jpeg_dec_res_t));
 	s_jpegdec_driver_is_init = false;
 
-	LOGI("%s complete\n", __func__);
+	LOGD("%s complete\n", __func__);
 
 	return BK_OK;
 }
@@ -296,7 +297,7 @@ static void jpeg_decoder_isr(void)
 
 	if(jpeg_dec_ll_get_reg0x5f_dec_huf_err_int_clr())
 	{
-		LOGI("%s int status = %x \r\n", __func__, jpeg_dec_hal_get_int_status_value());
+		LOGD("%s int status = %x \r\n", __func__, jpeg_dec_hal_get_int_status_value());
 		bk_jpeg_dec_stop();
 		jpeg_dec_ll_set_reg0x5f_dec_huf_err_int_clr(1);
 		jpeg_dec_ll_set_reg0x56_value(0xFFFFFFFF);
@@ -331,9 +332,9 @@ static void jpeg_decoder_isr(void)
 			if(!result.ok)
 			{
 				//result.ok = (result.size == jpeg_size - JPEG_TAIL_SIZE);
-				LOGD("decoder error, %u, %u, %x %x %x %x, %x %x %x %x\n", jpeg_size, result.size, jpeg_address[0], jpeg_address[1], jpeg_address[2],jpeg_address[3], jpeg_address[jpeg_size-4], jpeg_address[jpeg_size-3], jpeg_address[jpeg_size-2],jpeg_address[jpeg_size-1]);
+				LOGV("decoder error, %u, %u, %x %x %x %x, %x %x %x %x\n", jpeg_size, result.size, jpeg_address[0], jpeg_address[1], jpeg_address[2],jpeg_address[3], jpeg_address[jpeg_size-4], jpeg_address[jpeg_size-3], jpeg_address[jpeg_size-2],jpeg_address[jpeg_size-1]);
 				if(!result.ok)
-					LOGD("double check decoder error, %u, %u, %x %x %x %x, %x %x %x %x\n", jpeg_size, result.size, jpeg_address[0], jpeg_address[1], jpeg_address[2],jpeg_address[3], jpeg_address[jpeg_size-4], jpeg_address[jpeg_size-3], jpeg_address[jpeg_size-2],jpeg_address[jpeg_size-1]);
+					LOGV("double check decoder error, %u, %u, %x %x %x %x, %x %x %x %x\n", jpeg_size, result.size, jpeg_address[0], jpeg_address[1], jpeg_address[2],jpeg_address[3], jpeg_address[jpeg_size-4], jpeg_address[jpeg_size-3], jpeg_address[jpeg_size-2],jpeg_address[jpeg_size-1]);
 			}
 #else
 				result.size = jpeg_dec_ll_get_reg0x5d_value();

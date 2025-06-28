@@ -47,22 +47,22 @@ void cli_aec_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 
 	fr = f_open(&file_mic, mic_file_name, FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", mic_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", mic_file_name);
 		return;
 	}
 	fr = f_open(&file_ref, ref_file_name, FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", ref_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", ref_file_name);
 		return;
 	}
 	fr = f_open(&file_out, out_file_name, FA_CREATE_ALWAYS | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", out_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", out_file_name);
 		return;
 	}
 
 	aec_context_size = aec_size(1000);
-	os_printf("sizeof(AECContext) = %d\n", aec_context_size);
+	BK_LOGD(NULL, "sizeof(AECContext) = %d\n", aec_context_size);
 
 	//初始化
 	//需要buffer大约二十多kByte，具体值和AEC_MAX_MIC_DELAY有关, 宏设置需要大于一帧，建议400以上，并不小于实际延迟，默认写的2000
@@ -103,7 +103,7 @@ void cli_aec_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	/////////////////////////
 
 	test_data_size = f_size(&file_mic);
-	os_printf("frame_samples * 2 = %d \r\n", (frame_sample * 2));
+	BK_LOGD(NULL, "frame_samples * 2 = %d \r\n", (frame_sample * 2));
 	while(test_data_size >= (frame_sample * 2))
 	{
 		// 每帧处理前参考信号写入aec->rin，麦克风信号写入aec->sin
@@ -116,13 +116,13 @@ void cli_aec_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		//fread(aec->sin, 1, aec->frame_samples * 2, fsin);
 		fr = f_read(&file_ref, ref_addr, frame_sample * 2, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read ref file fail.\r\n");
+			BK_LOGD(NULL, "read ref file fail.\r\n");
 			break;
 		}
 
 		fr = f_read(&file_mic, mic_addr, frame_sample * 2, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read mic file fail.\r\n");
+			BK_LOGD(NULL, "read mic file fail.\r\n");
 			break;
 		}
 
@@ -133,11 +133,11 @@ void cli_aec_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		fr = f_write(&file_out, (void *)out_addr, frame_sample * 2, &uiTemp);
 		//fr = f_write(&file, (void *)PSRAM_AUD_ADDR_BASE, 10*(AUD_DMA_SIZE+1), &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("write output data %s fail.\r\n", out_file_name);
+			BK_LOGD(NULL, "write output data %s fail.\r\n", out_file_name);
 			break;
 		}
 
-		//os_printf("frame %d \r\n",aec->frame_cnt);
+		//BK_LOGD(NULL, "frame %d \r\n",aec->frame_cnt);
 		test_data_size -= frame_sample * 2;
 	}
 
@@ -145,22 +145,22 @@ void cli_aec_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 
 	fr = f_close(&file_mic);
 	if (fr != FR_OK) {
-		os_printf("close mic file %s fail!\r\n", mic_file_name);
+		BK_LOGD(NULL, "close mic file %s fail!\r\n", mic_file_name);
 		return;
 	}
 
 	fr = f_close(&file_ref);
 	if (fr != FR_OK) {
-		os_printf("close ref file %s fail!\r\n", ref_file_name);
+		BK_LOGD(NULL, "close ref file %s fail!\r\n", ref_file_name);
 		return;
 	}
 
 	fr = f_close(&file_out);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", out_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", out_file_name);
 		return;
 	}
 
-	os_printf("test finish \r\n");
+	BK_LOGD(NULL, "test finish \r\n");
 }
 

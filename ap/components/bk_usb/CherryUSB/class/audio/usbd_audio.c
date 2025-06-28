@@ -33,7 +33,7 @@ static int audio_class_endpoint_request_handler(struct usb_setup_packet *setup, 
             switch (setup->bRequest) {
                 case AUDIO_REQUEST_SET_CUR:
                     memcpy((uint8_t *)&sampling_freq, *data, *len);
-                    USB_LOG_DBG("Set ep:0x%02x %d Hz\r\n", ep, (int)sampling_freq);
+                    USB_LOG_VBS("Set ep:0x%02x %d Hz\r\n", ep, (int)sampling_freq);
                     usbd_audio_set_sampling_freq(ep, sampling_freq);
                     break;
                 case AUDIO_REQUEST_GET_CUR:
@@ -42,7 +42,7 @@ static int audio_class_endpoint_request_handler(struct usb_setup_packet *setup, 
                 case AUDIO_REQUEST_GET_RES:
                     sampling_freq = usbd_audio_get_sampling_freq(ep);
                     memcpy(*data, &sampling_freq, 3);
-                    USB_LOG_DBG("Get ep:0x%02x %d Hz\r\n", ep, (int)sampling_freq);
+                    USB_LOG_VBS("Get ep:0x%02x %d Hz\r\n", ep, (int)sampling_freq);
                     *len = 3;
                     break;
             }
@@ -57,7 +57,7 @@ static int audio_class_endpoint_request_handler(struct usb_setup_packet *setup, 
 
 static int audio_class_interface_request_handler(struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
-    USB_LOG_DBG("Audio Class request: "
+    USB_LOG_VBS("Audio Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
 
@@ -92,7 +92,7 @@ static int audio_class_interface_request_handler(struct usb_setup_packet *setup,
         return -1;
     }
 
-    USB_LOG_DBG("Audio entity_id:%02x, subtype:%02x, cs:%02x\r\n", entity_id, subtype, control_selector);
+    USB_LOG_VBS("Audio entity_id:%02x, subtype:%02x, cs:%02x\r\n", entity_id, subtype, control_selector);
 
     switch (subtype) {
         case AUDIO_CONTROL_FEATURE_UNIT:
@@ -140,7 +140,7 @@ static int audio_class_interface_request_handler(struct usb_setup_packet *setup,
                                     volume_db = (0xffff - volume + 1) / -256;
                                 }
                                 volume_db += 128; /* 0 ~ 255 */
-                                USB_LOG_DBG("Set ep:0x%02x ch:%d volume:0x%04x\r\n", ep, ch, volume);
+                                USB_LOG_VBS("Set ep:0x%02x ch:%d volume:0x%04x\r\n", ep, ch, volume);
                                 usbd_audio_set_volume(ep, ch, volume_db);
                                 break;
                             case AUDIO_REQUEST_GET_CUR:
@@ -184,7 +184,7 @@ static int audio_class_interface_request_handler(struct usb_setup_packet *setup,
                                 } else {
                                     memcpy(&volume, *data, *len);
                                     volume_db = volume;
-                                    USB_LOG_DBG("Set ep:0x%02x ch:%d volume:0x%02x\r\n", ep, ch, volume);
+                                    USB_LOG_VBS("Set ep:0x%02x ch:%d volume:0x%02x\r\n", ep, ch, volume);
                                     usbd_audio_set_volume(ep, ch, volume_db);
                                 }
                                 break;
@@ -218,11 +218,11 @@ static int audio_class_interface_request_handler(struct usb_setup_packet *setup,
                             if (setup->bmRequestType & USB_REQUEST_DIR_MASK) {
                                 sampling_freq = usbd_audio_get_sampling_freq(ep);
                                 memcpy(*data, &sampling_freq, 4);
-                                USB_LOG_DBG("Get ep:0x%02x %d Hz\r\n", ep, (int)sampling_freq);
+                                USB_LOG_VBS("Get ep:0x%02x %d Hz\r\n", ep, (int)sampling_freq);
                                 *len = 4;
                             } else {
                                 memcpy(&sampling_freq, *data, setup->wLength);
-                                USB_LOG_DBG("Set ep:0x%02x %d Hz\r\n", ep, (int)sampling_freq);
+                                USB_LOG_VBS("Set ep:0x%02x %d Hz\r\n", ep, (int)sampling_freq);
                                 usbd_audio_set_sampling_freq(ep, sampling_freq);
                             }
                             break;

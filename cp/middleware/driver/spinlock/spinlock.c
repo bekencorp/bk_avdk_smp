@@ -348,7 +348,7 @@ exit:
 	}
 	else
 	{
-		bk_printf("%s fail:spinlock doesn't free? or increase CONFIG_SPINLOCK_DYNAMIC_CNT\r\n", __func__);
+		BK_LOGD(NULL,"%s fail:spinlock doesn't free? or increase CONFIG_SPINLOCK_DYNAMIC_CNT\r\n", __func__);
 		BK_ASSERT(0);	//please check whether some spinlock doesn't free, or increases CONFIG_SPINLOCK_DYNAMIC_CNT value
 	}
 
@@ -372,7 +372,7 @@ bk_err_t spinlock_mem_dynamic_free(spinlock_t *slock)
 	}
 	else
 	{
-		bk_printf("%s:free ptr=0x%x fail\r\n", __func__, slock);
+		BK_LOGD(NULL,"%s:free ptr=0x%x fail\r\n", __func__, slock);
 		return BK_FAIL;
 	}
 

@@ -194,11 +194,11 @@ static bk_err_t _aec_algorithm_open(audio_element_handle_t self)
     uint32_t val = 0;
     uint32_t aec_context_size = 0;
 
-    BK_LOGI(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
     aec_algorithm_t *aec = (aec_algorithm_t *)audio_element_getdata(self);
 
     aec_context_size = aec_size(AEC_DELAY_SAMPLE_POINTS_MAX);
-    BK_LOGI(TAG, "sizeof(AECContext) = %d\n", aec_context_size);
+    BK_LOGD(TAG, "sizeof(AECContext) = %d\n", aec_context_size);
 
     /* init */
     aec->aec_ctx = (AECContext *)audio_malloc(aec_context_size);
@@ -224,7 +224,7 @@ static bk_err_t _aec_algorithm_open(audio_element_handle_t self)
 
     ///回声消除相关
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_MIC_DELAY, aec->aec_cfg.delay_points);      //设置参考信号延迟(采样点数，需要dump数据观察)
-    BK_LOGI(TAG, "delay_points = %d\n", aec->aec_cfg.delay_points);
+    BK_LOGD(TAG, "delay_points = %d\n", aec->aec_cfg.delay_points);
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_EC_DEPTH, aec->aec_cfg.ec_depth);           //建议取值范围1~50; 后面几个参数建议先用aec_init内的默认值，具体需要根据实际情况调试; 总得来说回声越大需要调的越大
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_TxRxThr, aec->aec_cfg.TxRxThr);             //建议取值范围10~64
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_TxRxFlr, aec->aec_cfg.TxRxFlr);             //建议取值范围1~10
@@ -236,20 +236,20 @@ static bk_err_t _aec_algorithm_open(audio_element_handle_t self)
     ///drc(输出音量相关)
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_DRC, 0x15);                                 //建议取值范围0x10~0x1f;   越大输出声音越大
 
-    BK_LOGI(TAG, "[%s] _aec_algorithm_open, frame_20ms_size: %d \n", audio_element_get_tag(self), aec->aec_cfg.fs * 2 / 1000 * 20);
+    BK_LOGD(TAG, "[%s] _aec_algorithm_open, frame_20ms_size: %d \n", audio_element_get_tag(self), aec->aec_cfg.fs * 2 / 1000 * 20);
 
     return BK_OK;
 }
 
 static bk_err_t _aec_algorithm_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
     return BK_OK;
 }
 
 static int _aec_algorithm_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    BK_LOGD(TAG, "[%s] %s, in_len: %d \n", audio_element_get_tag(self), __func__, in_len);
+    BK_LOGV(TAG, "[%s] %s, in_len: %d \n", audio_element_get_tag(self), __func__, in_len);
     aec_algorithm_t *aec = (aec_algorithm_t *)audio_element_getdata(self);
 
     AEC_PROCESS_START();
@@ -275,12 +275,12 @@ static int _aec_algorithm_process(audio_element_handle_t self, char *in_buffer, 
         int r_ref_size = audio_element_multi_input(self, (char *)aec->ref_addr, in_len, 0, 0);
         if (r_ref_size != in_len)
         {
-            BK_LOGD(TAG, "ref_data Waring: r_size=%d, in_len=%d line:%d \n", r_size, in_len, __LINE__);
+            BK_LOGV(TAG, "ref_data Waring: r_size=%d, in_len=%d line:%d \n", r_size, in_len, __LINE__);
             os_memset(aec->ref_addr, 0, in_len);
         }
         else
         {
-            //BK_LOGD(TAG, "ref_data Waring: r_size=%d, line:%d \n", r_size, __LINE__);
+            //BK_LOGV(TAG, "ref_data Waring: r_size=%d, line:%d \n", r_size, __LINE__);
         }
     }
     AEC_INPUT_END();
@@ -315,7 +315,7 @@ static int _aec_algorithm_process(audio_element_handle_t self, char *in_buffer, 
 
 static bk_err_t _aec_algorithm_destroy(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
 
     aec_algorithm_t *aec = (aec_algorithm_t *)audio_element_getdata(self);
     if (aec->aec_ctx)

@@ -328,7 +328,7 @@ static void flash_set_protect_type(flash_protect_type_t type)
 		flash_set_protect_cfg(&status_reg, protect_cfg);
 		flash_set_cmp_cfg(&status_reg, cmp_cfg);
 
-		//FLASH_LOGD("write status reg:%x, status_reg_size:%d\r\n", status_reg, s_flash.flash_cfg->status_reg_size);
+		//FLASH_LOGV("write status reg:%x, status_reg_size:%d\r\n", status_reg, s_flash.flash_cfg->status_reg_size);
 		flash_write_status_reg(status_reg);
 	}
 }
@@ -564,7 +564,7 @@ bk_err_t bk_flash_driver_init(void)
 
 	s_flash.flash_id = flash_get_id();
 
-	FLASH_LOGI("id=0x%x\r\n", s_flash.flash_id);
+	FLASH_LOGD("id=0x%x\r\n", s_flash.flash_id);
 
 	flash_get_current_config();
 

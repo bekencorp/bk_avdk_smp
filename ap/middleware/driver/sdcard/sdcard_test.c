@@ -56,7 +56,7 @@ UINT32 test_sdcard_read(UINT32 blk, UINT32 blk_cnt)
 {
 	UINT32 ret=0, j;
 	if (sdcard_hdl == DD_HANDLE_UNVALID) {
-		os_printf("no init err\r\n");
+		BK_LOGD(NULL, "no init err\r\n");
 		return 1;
 	}
 	testbuf = os_malloc(512);
@@ -69,8 +69,8 @@ UINT32 test_sdcard_read(UINT32 blk, UINT32 blk_cnt)
 		ret = ddev_read(sdcard_hdl, (char *)testbuf, 1, blk+j);
 
 		for (int i = 0; i < 512; i++)
-			os_printf("0x%x ", testbuf[i]);
-		os_printf("\r\nread over\r\n");
+			BK_LOGD(NULL, "0x%x ", testbuf[i]);
+		BK_LOGD(NULL, "\r\nread over\r\n");
 	}
 
 	os_free(testbuf);
@@ -83,7 +83,7 @@ UINT32 test_sdcard_write(UINT32 blk, UINT32 blk_cnt, UINT32 wr_val)
 
 	UINT32 i;
 	if (sdcard_hdl == DD_HANDLE_UNVALID) {
-		os_printf("no init err\r\n");
+		BK_LOGD(NULL, "no init err\r\n");
 		return 1;
 	}
 	testbuf = os_malloc(512);

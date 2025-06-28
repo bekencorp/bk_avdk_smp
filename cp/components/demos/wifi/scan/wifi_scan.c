@@ -65,55 +65,55 @@ void show_scan_ap_result(void)
     scan_rst_ap_num = bk_wlan_get_scan_ap_result_numbers();
     if(scan_rst_ap_num == 0)
     {
-        os_printf("NULL AP\r\n");
+        BK_LOGD(NULL,"NULL AP\r\n");
         return;
     }
 
     scan_rst_table = (struct sta_scan_res *)os_malloc(sizeof(struct sta_scan_res) * scan_rst_ap_num);
     if(scan_rst_table == NULL)
     {
-        os_printf("scan_rst_table malloc failed!\r\n");
+        BK_LOGD(NULL,"scan_rst_table malloc failed!\r\n");
         return;
     }
 
     bk_wlan_get_scan_ap_result(scan_rst_table, scan_rst_ap_num);
 
-    os_printf("\r\nscan ap count:%d\r\n", scan_rst_ap_num);
+    BK_LOGD(NULL,"\r\nscan ap count:%d\r\n", scan_rst_ap_num);
     for( i = 0; i < scan_rst_ap_num; i++ )
     {
-        os_printf("%d: %s, ", i + 1, scan_rst_table[i].ssid);
-        os_printf("Channal:%d, ", scan_rst_table[i].channel);
+        BK_LOGD(NULL,"%d: %s, ", i + 1, scan_rst_table[i].ssid);
+        BK_LOGD(NULL,"Channal:%d, ", scan_rst_table[i].channel);
         switch(scan_rst_table[i].security)
         {
         case BK_SECURITY_TYPE_NONE:
-            os_printf(" %s, ", "Open");
+            BK_LOGD(NULL," %s, ", "Open");
             break;
         case BK_SECURITY_TYPE_WEP:
-            os_printf(" %s, ", "CIPHER_WEP");
+            BK_LOGD(NULL," %s, ", "CIPHER_WEP");
             break;
         case BK_SECURITY_TYPE_WPA_TKIP:
-            os_printf(" %s, ", "CIPHER_WPA_TKIP");
+            BK_LOGD(NULL," %s, ", "CIPHER_WPA_TKIP");
             break;
         case BK_SECURITY_TYPE_WPA_AES:
-            os_printf(" %s, ", "CIPHER_WPA_AES");
+            BK_LOGD(NULL," %s, ", "CIPHER_WPA_AES");
             break;
         case BK_SECURITY_TYPE_WPA2_TKIP:
-            os_printf(" %s, ", "CIPHER_WPA2_TKIP");
+            BK_LOGD(NULL," %s, ", "CIPHER_WPA2_TKIP");
             break;
         case BK_SECURITY_TYPE_WPA2_AES:
-            os_printf(" %s, ", "CIPHER_WPA2_AES");
+            BK_LOGD(NULL," %s, ", "CIPHER_WPA2_AES");
             break;
         case BK_SECURITY_TYPE_WPA2_MIXED:
-            os_printf(" %s, ", "CIPHER_WPA2_MIXED");
+            BK_LOGD(NULL," %s, ", "CIPHER_WPA2_MIXED");
             break;
         case BK_SECURITY_TYPE_AUTO:
-            os_printf(" %s, ", "CIPHER_AUTO");
+            BK_LOGD(NULL," %s, ", "CIPHER_AUTO");
             break;
         default:
-            os_printf(" %s(%d), ", "unknown", scan_rst_table[i].security);
+            BK_LOGD(NULL," %s(%d), ", "unknown", scan_rst_table[i].security);
             break;
         }
-        os_printf("RSSI=%d \r\n", scan_rst_table[i].level);
+        BK_LOGD(NULL,"RSSI=%d \r\n", scan_rst_table[i].level);
     }
 
     if( scan_rst_table != NULL )
@@ -128,7 +128,7 @@ void wifi_scan_thread( beken_thread_arg_t arg )
     (void) arg;
     bk_err_t err = kNoErr;
 
-    os_printf("start scanning..............\r\n");
+    BK_LOGD(NULL,"start scanning..............\r\n");
 
     err = rtos_init_semaphore( &scan_handle, 1 );
     if(err == kNoErr)
@@ -150,7 +150,7 @@ void wifi_scan_thread( beken_thread_arg_t arg )
     }
     else
     {
-        os_printf("scan_handle init failed!\r\n");
+        BK_LOGD(NULL,"scan_handle init failed!\r\n");
     }
 
     rtos_delete_thread( NULL );
@@ -160,7 +160,7 @@ int demo_start( void )
 {
     bk_err_t err = kNoErr;
 
-    os_printf("\r\n\r\nwifi scan demo............\r\n\r\n" );
+    BK_LOGD(NULL,"\r\n\r\nwifi scan demo............\r\n\r\n" );
     err = rtos_create_thread( NULL, BEKEN_APPLICATION_PRIORITY,
                               "wifiscan",
                               (beken_thread_function_t)wifi_scan_thread,

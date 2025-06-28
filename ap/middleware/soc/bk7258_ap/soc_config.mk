@@ -1,9 +1,5 @@
 # SUPPORT_TRIPLE_CORE := true
-SUPPORT_BOOTLOADER := false
-ifeq ($(SUPPORT_BOOTLOADER),true)
-	PRE_BUILD_TARGET += bootloader
-	ARMINO_BOOTLOADER := $(ARMINO_DIR)/properties/modules/bootloader/aboot/arm_bootloader/
-endif
+SUPPORT_BOOTLOADER := true
 
 ifeq ($(WIN32), 1)
 	COMPILER_TOOLCHAIN_PATH := $(ARMINO_BASH_TOOLS_PATH)/gcc-arm-none-eabi-10.3-2021.10/bin

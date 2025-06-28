@@ -3297,7 +3297,7 @@ void sys_struct_dump(uint32_t start, uint32_t end);
 #else
 static inline void __sys_struct_dump(uint32_t start, uint32_t end)
 {
-	os_printf("start=%x, end-%x, please generate the hal_debug.c file!\r\n", start, end);
+	BK_LOGD(NULL,"start=%x, end-%x, please generate the hal_debug.c file!\r\n", start, end);
 }
 #define sys_struct_dump(start, end) __sys_struct_dump(start, end)
 #endif

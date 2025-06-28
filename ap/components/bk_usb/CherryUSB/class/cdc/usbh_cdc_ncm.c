@@ -160,7 +160,7 @@ get_mac:
         cdc_ncm_class->mac[j] = (unsigned char)byte;
     }
 
-    USB_LOG_INFO("CDC NCM MAC address %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+    USB_LOG_DBG("CDC NCM MAC address %02x:%02x:%02x:%02x:%02x:%02x\r\n",
                  cdc_ncm_class->mac[0],
                  cdc_ncm_class->mac[1],
                  cdc_ncm_class->mac[2],
@@ -171,7 +171,7 @@ get_mac:
     if (cdc_ncm_class->max_segment_size > CONFIG_USBHOST_CDC_NCM_ETH_MAX_SEGSZE) {
         USB_LOG_ERR("CDC NCM Max Segment Size is overflow, default is %u, but now %u\r\n", CONFIG_USBHOST_CDC_NCM_ETH_MAX_SEGSZE, cdc_ncm_class->max_segment_size);
     } else {
-        USB_LOG_INFO("CDC NCM Max Segment Size:%u\r\n", cdc_ncm_class->max_segment_size);
+        USB_LOG_DBG("CDC NCM Max Segment Size:%u\r\n", cdc_ncm_class->max_segment_size);
     }
 
     usbh_cdc_ncm_get_ntb_parameters(cdc_ncm_class, &cdc_ncm_class->ntb_param);
@@ -194,7 +194,7 @@ get_mac:
             }
         }
 
-        USB_LOG_INFO("Select cdc ncm altsetting: %d\r\n", altsetting);
+        USB_LOG_DBG("Select cdc ncm altsetting: %d\r\n", altsetting);
         usbh_set_interface(cdc_ncm_class->hport, cdc_ncm_class->data_intf, altsetting);
     } else {
         for (uint8_t i = 0; i < hport->config.intf[intf + 1].altsetting[0].intf_desc.bNumEndpoints; i++) {
@@ -210,7 +210,7 @@ get_mac:
 
     memcpy(hport->config.intf[intf].devname, DEV_FORMAT, CONFIG_USBHOST_DEV_NAMELEN);
 
-    USB_LOG_INFO("Register CDC NCM Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register CDC NCM Class:%s\r\n", hport->config.intf[intf].devname);
 
     usbh_cdc_ncm_run(cdc_ncm_class);
     return ret;
@@ -236,7 +236,7 @@ static int usbh_cdc_ncm_disconnect(struct usbh_hubport *hport, uint8_t intf)
         }
 
         if (hport->config.intf[intf].devname[0] != '\0') {
-            USB_LOG_INFO("Unregister CDC NCM Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister CDC NCM Class:%s\r\n", hport->config.intf[intf].devname);
             usbh_cdc_ncm_stop(cdc_ncm_class);
         }
 
@@ -254,7 +254,7 @@ void usbh_cdc_ncm_rx_thread(void *argument)
     struct pbuf *p;
     struct netif *netif = (struct netif *)argument;
 
-    USB_LOG_INFO("Create cdc ncm rx thread\r\n");
+    USB_LOG_DBG("Create cdc ncm rx thread\r\n");
     // clang-format off
 find_class:
     // clang-format on
@@ -282,7 +282,7 @@ find_class:
         g_cdc_ncm_rx_length += g_cdc_ncm_class.bulkin_urb.actual_length;
 
         if (g_cdc_ncm_class.bulkin_urb.actual_length != USB_GET_MAXPACKETSIZE(g_cdc_ncm_class.bulkin->wMaxPacketSize)) {
-            USB_LOG_DBG("rxlen:%d\r\n", g_cdc_ncm_rx_length);
+            USB_LOG_VBS("rxlen:%d\r\n", g_cdc_ncm_rx_length);
 
             struct cdc_ncm_nth16 *nth16 = (struct cdc_ncm_nth16 *)&g_cdc_ncm_rx_buffer[0];
             if ((nth16->dwSignature != CDC_NCM_NTH16_SIGNATURE) ||
@@ -302,11 +302,11 @@ find_class:
 
             uint16_t datagram_num = (ndp16->wLength - 8) / 4;
 
-            USB_LOG_DBG("datagram num:%02x\r\n", datagram_num);
+            USB_LOG_VBS("datagram num:%02x\r\n", datagram_num);
             for (uint16_t i = 0; i < datagram_num; i++) {
                 struct cdc_ncm_ndp16_datagram *ndp16_datagram = (struct cdc_ncm_ndp16_datagram *)&g_cdc_ncm_rx_buffer[nth16->wNdpIndex + 8 + 4 * i];
                 if (ndp16_datagram->wDatagramIndex && ndp16_datagram->wDatagramLength) {
-                    USB_LOG_DBG("ndp16_datagram index:%02x, length:%02x\r\n", ndp16_datagram->wDatagramIndex, ndp16_datagram->wDatagramLength);
+                    USB_LOG_VBS("ndp16_datagram index:%02x, length:%02x\r\n", ndp16_datagram->wDatagramIndex, ndp16_datagram->wDatagramLength);
 
                     p = pbuf_alloc(PBUF_RAW, ndp16_datagram->wDatagramLength, PBUF_POOL);
                     if (p != NULL) {
@@ -329,7 +329,7 @@ find_class:
     }
     // clang-format off
 delete:
-    USB_LOG_INFO("Delete cdc ncm rx thread\r\n");
+    USB_LOG_DBG("Delete cdc ncm rx thread\r\n");
     usb_osal_thread_delete(NULL);
     // clang-format on
 }
@@ -374,7 +374,7 @@ err_t usbh_cdc_ncm_linkoutput(struct netif *netif, struct pbuf *p)
         buffer += q->len;
     }
 
-    USB_LOG_DBG("txlen:%d\r\n", nth16->wBlockLength);
+    USB_LOG_VBS("txlen:%d\r\n", nth16->wBlockLength);
 
     usbh_bulk_urb_fill(&g_cdc_ncm_class.bulkout_urb, g_cdc_ncm_class.hport, g_cdc_ncm_class.bulkout, g_cdc_ncm_tx_buffer, nth16->wBlockLength, USB_OSAL_WAITING_FOREVER, NULL, NULL);
     ret = usbh_submit_urb(&g_cdc_ncm_class.bulkout_urb);

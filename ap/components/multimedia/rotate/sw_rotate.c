@@ -83,7 +83,7 @@ bk_err_t software_rotate_task_send_msg(uint32_t type, uint32_t param)
 
 static void software_rotate_task_deinit(void)
 {
-	LOGI("%s\r\n", __func__);
+	LOGD("%s\r\n", __func__);
 	if (sw_rotate_config)
 	{
 		if (sw_rotate_config->sw_rotate_queue)
@@ -101,7 +101,7 @@ static void software_rotate_task_deinit(void)
 		sw_rotate_config = NULL;
 	}
 
-	LOGI("%s complete\r\n", __func__);
+	LOGD("%s complete\r\n", __func__);
 }
 
 void memcpy_word(uint32_t *dst, uint32_t *src, uint32_t size)
@@ -279,7 +279,7 @@ static void software_rotate_main(beken_thread_arg_t data)
 	}
 
 exit:
-	LOGI("%s, exit\r\n", __func__);
+	LOGD("%s, exit\r\n", __func__);
 	rtos_set_semaphore(&sw_rotate_config->sw_rotate_sem);
 	rtos_delete_thread(NULL);
 }
@@ -299,7 +299,7 @@ bool check_software_rotate_task_is_open(void)
 bk_err_t software_rotate_task_open(void)
 {
 	int ret = BK_OK;
-	LOGI("%s\r\n", __func__);
+	LOGD("%s\r\n", __func__);
 
 	if (sw_rotate_config != NULL && sw_rotate_config->task_state)
 	{
@@ -348,7 +348,7 @@ bk_err_t software_rotate_task_open(void)
 	}
 
 	rtos_get_semaphore(&sw_rotate_config->sw_rotate_sem, BEKEN_NEVER_TIMEOUT);
-	LOGI("%s complete\r\n", __func__);
+	LOGD("%s complete\r\n", __func__);
 
 	return ret;
 
@@ -363,7 +363,7 @@ error:
 
 bk_err_t software_rotate_task_close(void)
 {
-	LOGI("%s  %d\n", __func__, __LINE__);
+	LOGD("%s  %d\n", __func__, __LINE__);
 
 	if (sw_rotate_config == NULL || !sw_rotate_config->task_state)
 	{
@@ -378,7 +378,7 @@ bk_err_t software_rotate_task_close(void)
 
 	software_rotate_task_deinit();
 
-	LOGI("%s complete, %d\n", __func__, __LINE__);
+	LOGD("%s complete, %d\n", __func__, __LINE__);
 
 	return BK_OK;
 }

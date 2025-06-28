@@ -19,7 +19,7 @@ extern "C" {
 #endif
 
 #ifdef  BK_DEEP_SLEEP_DEBUG
-#define BK_DEEP_SLEEP_PRT  bk_printf
+#define BK_DEEP_SLEEP_PRT(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #else
 #define BK_DEEP_SLEEP_PRT   os_null_printf
 #endif

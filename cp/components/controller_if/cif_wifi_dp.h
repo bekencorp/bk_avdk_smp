@@ -7,7 +7,7 @@ extern "C" {
 #include "cif_main.h"
 #include "lwip/prot/ethernet.h"
 
-#define CTRL_IF_DATA    CIF_LOGD
+#define CTRL_IF_DATA    CIF_LOGV
 
 #define LOCAL_PORT_RANGE_START      0x1000
 #define LOCAL_PORT_RANGE_END        0x1010

@@ -143,7 +143,7 @@ void on_bcn_to_evt(struct vif_info_tag *vif)
 		// notify host send arp and update last_arp_time
 		mm_send_arp_ind(vif, true);
 
-		// RWNX_LOGI("mm_keep_alive_handler\n");
+		// RWNX_LOGD("mm_keep_alive_handler\n");
 		// mm_keep_alive_null_cfm(vif,FRAME_SUCCESSFUL_TX_BIT);
 	}
 #endif
@@ -197,7 +197,7 @@ void on_beacon_receive(struct vif_info_tag *vif, void *frame, uint16_t len, uint
 		// vif->u.sta.mon_last_tx = hal_machw_time();
 		///notify host send arp and update last_arp_time
 		mm_send_arp_ind(vif, true);
-		//RWNX_LOGI("mm_keep_alive_handler\n");
+		//RWNX_LOGD("mm_keep_alive_handler\n");
 		// mm_keep_alive_null_cfm(vif,FRAME_SUCCESSFUL_TX_BIT);
 	}
 #endif
@@ -286,7 +286,7 @@ static bool txu_is_special_packet(uint8_t vif_idx, struct sk_buff *skb)
 
 #if CONFIG_DHCP_PROTECT_IN_CONNECTED
 			if (skb->cb)
-				RWNX_LOGD("Overwritten skb cb/args: %p/%p\n", skb->cb, skb->args);
+				RWNX_LOGV("Overwritten skb cb/args: %p/%p\n", skb->cb, skb->args);
 			skb->cb = sta_dhcp_tx_cb;
 			skb->args = skb;
 			sm_dhcp_check(txdesc->host.vif_idx, udphdr + 1, true);  // FIXME: bk7236 add length argment
@@ -305,11 +305,11 @@ static bool txu_is_special_packet(uint8_t vif_idx, struct sk_buff *skb)
 
 		/* TCP ACK without Data */
 		if (TCPH_FLAGS(tcphdr) == TCP_ACK && tcp_data_len == 0) {
-			// RWNX_LOGI("tcp ack!\n");
+			// RWNX_LOGD("tcp ack!\n");
 			tcp_protect_cnt = 0;
 			tcp_send_flag = 0;
 		} else {
-			// RWNX_LOGI("tcp flag: 0x%x, data len=%d.\n", TCPH_FLAGS(tcphdr), tcp_data_len);
+			// RWNX_LOGD("tcp flag: 0x%x, data len=%d.\n", TCPH_FLAGS(tcphdr), tcp_data_len);
 			tcp_send_flag = 1;
 			ret = true;
 		}
@@ -354,7 +354,7 @@ static bool sm_dhcp_check(uint8_t vif_index, void *frameptr, bool tx)
 	//   2. DHCP Request successfuly sent, and check RX
 	if (!((dhcp_state == DHCP_STATE_DONE && tx) ||
 		  (dhcp_state == DHCP_STATE_CONNECTED && !tx))) {
-		//RWNX_LOGI("sm_dhcp_check: state %d, %s\n", dhcp_state, tx ? "TX" : "RX");
+		//RWNX_LOGD("sm_dhcp_check: state %d, %s\n", dhcp_state, tx ? "TX" : "RX");
 		return check_result;
 	}
 
@@ -363,7 +363,7 @@ static bool sm_dhcp_check(uint8_t vif_index, void *frameptr, bool tx)
 		return false;
 
 	if (dhcphdr->op != DHCP_BOOTREQUEST && dhcphdr->op != DHCP_BOOTREPLY)
-		//RWNX_LOGI("bootp Operation is not right.\n");
+		//RWNX_LOGD("bootp Operation is not right.\n");
 		return check_result;
 
 	opt = (struct bootp_option *)dhcphdr->options;
@@ -377,40 +377,40 @@ static bool sm_dhcp_check(uint8_t vif_index, void *frameptr, bool tx)
 
 	switch (dhcp_tpye) {
 	case SM_DHCP_FRAME_DISCOVER:
-		//RWNX_LOGI("sm %s DHCP_DISCOVER\n", tx ? "tx" : "rx");
+		//RWNX_LOGD("sm %s DHCP_DISCOVER\n", tx ? "tx" : "rx");
 		break;
 	case SM_DHCP_FRAME_OFFER:
-		//RWNX_LOGI("sm %s DHCP_OFFER\n", tx ? "tx" : "rx");
+		//RWNX_LOGD("sm %s DHCP_OFFER\n", tx ? "tx" : "rx");
 		break;
 	case SM_DHCP_FRAME_REQUEST:
-		//RWNX_LOGI("sm %s DHCP_REQUEST\n", tx ? "tx" : "rx");
+		//RWNX_LOGD("sm %s DHCP_REQUEST\n", tx ? "tx" : "rx");
 		/// dhcp relet will send request first
 		if (tx)
-			//RWNX_LOGI("DHCP RELET\n");
+			//RWNX_LOGD("DHCP RELET\n");
 			dhcp_state = DHCP_STATE_RELET_START;
 		break;
 	case SM_DHCP_FRAME_RELET:
-		//RWNX_LOGI("sm %s DHCP_DECLINE\n", tx ? "tx" : "rx");
+		//RWNX_LOGD("sm %s DHCP_DECLINE\n", tx ? "tx" : "rx");
 		break;
 	case SM_DHCP_FRAME_ACK:
-		//RWNX_LOGI("sm %s DHCP_ACK\n", tx ? "tx" : "rx");
+		//RWNX_LOGD("sm %s DHCP_ACK\n", tx ? "tx" : "rx");
 		if (!tx) {
-			RWNX_LOGI("DHCP RELET END\n");
+			RWNX_LOGD("DHCP RELET END\n");
 			dhcp_state = DHCP_STATE_DONE;
 			dhcp_relet_life = 0;
 		}
 		break;
 	case SM_DHCP_FRAME_NAK:
-		//RWNX_LOGI("sm %s DHCP_NAK\n", tx ? "tx" : "rx");
+		//RWNX_LOGD("sm %s DHCP_NAK\n", tx ? "tx" : "rx");
 		break;
 	case SM_DHCP_FRAME_RELEASE:
-		//RWNX_LOGI("sm %s DHCP_RELEASE\n", tx ? "tx" : "rx");
+		//RWNX_LOGD("sm %s DHCP_RELEASE\n", tx ? "tx" : "rx");
 		break;
 	case SM_DHCP_FRAME_INFORM:
-		//RWNX_LOGI("sm %s DHCP_INFORM\n", tx ? "tx" : "rx");
+		//RWNX_LOGD("sm %s DHCP_INFORM\n", tx ? "tx" : "rx");
 		break;
 	default:
-		//RWNX_LOGI("sm %s DHCP NULL type\n", tx ? "tx" : "rx");
+		//RWNX_LOGD("sm %s DHCP NULL type\n", tx ? "tx" : "rx");
 		check_result = false;
 		break;
 	}
@@ -431,12 +431,12 @@ void sm_is_dhcp_relet_send(uint8_t vif_index, uint16_t type)
 {
 	if (type == S_FRAME_DHCP) {
 		if (vif_index >= NX_VIRT_DEV_MAX) {
-			RWNX_LOGI("DHCP vif err\n");
+			RWNX_LOGD("DHCP vif err\n");
 			return;
 		}
 
 		if (dhcp_state == DHCP_STATE_RELET_START) {
-			RWNX_LOGI("DHCP RELET START\n");
+			RWNX_LOGD("DHCP RELET START\n");
 			dhcp_state = DHCP_STATE_CONNECTED;
 		}
 	}
@@ -471,7 +471,7 @@ static void sm_connected_dhcp_protect_check(uint8_t vif_index)
 			dhcp_state = DHCP_STATE_DONE;
 			dhcp_relet_life = 0;
 		}
-		RWNX_LOGI("dhcp relet:%d\n", dhcp_relet_life);
+		RWNX_LOGD("dhcp relet:%d\n", dhcp_relet_life);
 	}
 }
 #endif //CONFIG_DHCP_PROTECT_IN_CONNECTED
@@ -507,7 +507,7 @@ static void mm_check_tcp_send(void)
 	if (tcp_send_flag) {
 		if (tcp_protect_cnt < MM_TCP_PROTECT_PERIOD) {
 			tcp_protect_cnt++;
-			// RWNX_LOGI("dtim1 for protect tcp %d.\n", tcp_protect_cnt);
+			// RWNX_LOGD("dtim1 for protect tcp %d.\n", tcp_protect_cnt);
 		} else {
 			tcp_protect_cnt = 0;
 			tcp_send_flag = 0;

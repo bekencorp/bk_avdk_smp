@@ -1609,7 +1609,7 @@ int p2p_connect(struct p2p_data *p2p, const u8 *peer_addr,
 		wps_method, persistent_group, pd_before_go_neg, oob_pw_id,
 		p2p->allow_6ghz);
 #else
-	WPA_LOGI("Request to start group negotiation\r\n");
+	WPA_LOGD("Request to start group negotiation\r\n");
 #endif
 
 	dev = p2p_get_device(p2p, peer_addr);
@@ -2078,7 +2078,7 @@ static void p2p_add_dev_from_probe_req(struct p2p_data *p2p, const u8 *addr,
 	{
 #ifdef BK_SUPPLICANT
 		if (p2p_debug_flag)
-			WPA_LOGI("YYYYYYYY: %s %d\n", __func__, __LINE__);
+			WPA_LOGD("YYYYYYYY: %s %d\n", __func__, __LINE__);
 #endif
 		p2p_parse_free(&msg);
 		return; /* not a P2P probe */
@@ -2094,7 +2094,7 @@ static void p2p_add_dev_from_probe_req(struct p2p_data *p2p, const u8 *addr,
 		 */
 #ifdef BK_SUPPLICANT
 		if (p2p_debug_flag)
-			WPA_LOGI("YYYYYYYY: %s %d\n", __func__, __LINE__);
+			WPA_LOGD("YYYYYYYY: %s %d\n", __func__, __LINE__);
 #endif
 		p2p_parse_free(&msg);
 		return;
@@ -2121,7 +2121,7 @@ static void p2p_add_dev_from_probe_req(struct p2p_data *p2p, const u8 *addr,
 
 #ifdef BK_SUPPLICANT
 		if (p2p_debug_flag)
-			WPA_LOGI("YYYYYYYY: %s %d\n", __func__, __LINE__);
+			WPA_LOGD("YYYYYYYY: %s %d\n", __func__, __LINE__);
 #endif
 		os_get_reltime(&dev->last_seen);
 		p2p_parse_free(&msg);
@@ -2132,7 +2132,7 @@ static void p2p_add_dev_from_probe_req(struct p2p_data *p2p, const u8 *addr,
 	if (dev == NULL) {
 #ifdef BK_SUPPLICANT
 		if (p2p_debug_flag)
-			WPA_LOGI("YYYYYYYY: %s %d\n", __func__, __LINE__);
+			WPA_LOGD("YYYYYYYY: %s %d\n", __func__, __LINE__);
 #endif
 		p2p_parse_free(&msg);
 		return;
@@ -2140,7 +2140,7 @@ static void p2p_add_dev_from_probe_req(struct p2p_data *p2p, const u8 *addr,
 
 #ifdef BK_SUPPLICANT
 	if (p2p_debug_flag)
-		WPA_LOGI("=============\n\nYYYYYYYY: AAADDDEEEDDDD %s %d\n", __func__, __LINE__);
+		WPA_LOGD("=============\n\nYYYYYYYY: AAADDDEEEDDDD %s %d\n", __func__, __LINE__);
 #endif
 
 	os_get_reltime(&dev->last_seen);
@@ -2572,7 +2572,7 @@ p2p_probe_req_rx(struct p2p_data *p2p, const u8 *addr, const u8 *dst,
 	if (p2p_lo_started) {
 		p2p_dbg(p2p,
 			"Probe Response is offloaded, do not reply Probe Request");
-		WPA_LOGI("%s %d\n", __func__, __LINE__);
+		WPA_LOGD("%s %d\n", __func__, __LINE__);
 		return P2P_PREQ_PROCESSED;
 	}
 
@@ -3589,7 +3589,7 @@ int p2p_scan_res_handler(struct p2p_data *p2p, const u8 *bssid, int freq,
 	if (os_memcmp(target_p2p_device, bssid, ETH_ALEN) == 0)
 		p2p_debug_flag = 1;
 	if (p2p_debug_flag)
-		WPA_LOGI("OOOOOOOOOOOOOOOOOOOO  ADDED \n");
+		WPA_LOGD("OOOOOOOOOOOOOOOOOOOO  ADDED \n");
 #endif
 
 	p2p_add_device(p2p, bssid, freq, rx_time, level, ies, ies_len, 1);

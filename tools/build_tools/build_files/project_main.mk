@@ -1,6 +1,6 @@
 PROJECT_PATH := $(CURDIR)
 
-PROJECT_NAME := $(shell echo "$(PROJECT_PATH)" | sed 's/.*projects\///')
+PROJECT_NAME := $(notdir $(PROJECT_PATH))
 TARGET := $(MAKECMDGOALS)
 
 ifeq ($(findstring Windows_NT,$(OS)), Windows_NT)
@@ -26,7 +26,7 @@ PROJECT_BUILD_DIR := $(PROJECT_PATH)/build
 .PHONY: clean
 
 $(SOC_TARGET):
-	make $(SOC_TARGET) PROJECT=$(PROJECT_NAME) BUILD_DIR=$(PROJECT_BUILD_DIR) -C $(SDK_DIR)
+	make $(SOC_TARGET) PROJECT=$(PROJECT_NAME) PROJECT_DIR=$(PROJECT_PATH) BUILD_DIR=$(PROJECT_BUILD_DIR) -C $(SDK_DIR)
 
 clean:
 	@echo "rm -rf ./build"

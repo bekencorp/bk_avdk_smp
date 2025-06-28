@@ -42,17 +42,17 @@ extern uint32_t s_touch_channel;
 
 static void cli_touch_help(void)
 {
-	TOUCH_LOGI("touch_single_channel_calib_mode_test {0|1|2|...|15} {0|1|2|3}\r\n");
-	TOUCH_LOGI("touch_single_channel_manul_mode_test {0|1|...|15} {calibration_value}\r\n");
-	TOUCH_LOGI("touch_multi_channel_scan_mode_test {start|stop} {0|1|2|3}\r\n");
-	TOUCH_LOGI("touch_single_channel_multi_calib_test {0|1|...|15} {0|1|2|3}");
+	TOUCH_LOGD("touch_single_channel_calib_mode_test {0|1|2|...|15} {0|1|2|3}\r\n");
+	TOUCH_LOGD("touch_single_channel_manul_mode_test {0|1|...|15} {calibration_value}\r\n");
+	TOUCH_LOGD("touch_multi_channel_scan_mode_test {start|stop} {0|1|2|3}\r\n");
+	TOUCH_LOGD("touch_single_channel_multi_calib_test {0|1|...|15} {0|1|2|3}");
 }
 
 static void cli_touch_isr(void *param)
 {
 //	uint32_t int_status = 0;
 //	int_status = bk_touch_get_int_status();
-//	TOUCH_LOGI("interrupt status = %x\r\n", int_status);
+//	TOUCH_LOGD("interrupt status = %x\r\n", int_status);
 }
 
 static void touch_cyclic_calib_timer_isr(timer_id_t chan)
@@ -64,7 +64,7 @@ static void touch_cyclic_calib_timer_isr(timer_id_t chan)
 	uint32_t multi_chann_value = 0xffff;
 	touch_config_t touch_config;
 
-	TOUCH_LOGI("multi_channel_cyclic_calib_test start!\r\n");
+	TOUCH_LOGD("multi_channel_cyclic_calib_test start!\r\n");
 
 	bk_touch_clear_int(multi_chann_value);
 	bk_touch_int_enable(multi_chann_value, 0);
@@ -106,7 +106,7 @@ static void touch_cyclic_calib_timer_isr(timer_id_t chan)
 			}
 		}
 		touch_crg[touch_id] = touch_config.detect_range;
-		TOUCH_LOGI("touch[%d] crg = %d, calibration value = %x !\r\n", touch_id, touch_crg[touch_id], cap_out);
+		TOUCH_LOGD("touch[%d] crg = %d, calibration value = %x !\r\n", touch_id, touch_crg[touch_id], cap_out);
 		delay(1000);
 	}
 
@@ -116,7 +116,7 @@ static void touch_cyclic_calib_timer_isr(timer_id_t chan)
 			touch_crg_max = touch_crg[touch_id];
 		}
 	}
-	TOUCH_LOGI("touch_crg_max = %d\r\n", touch_crg_max);
+	TOUCH_LOGD("touch_crg_max = %d\r\n", touch_crg_max);
 
 	for (touch_id = 0; touch_id < 16; touch_id++)
 	{
@@ -154,7 +154,7 @@ bk_err_t bk_touch_digital_tube_display_init(void)
 								4096,
 								NULL);
 	if (ret != kNoErr) {
-		os_printf("create touch digital tube disp task failed!\r\n");
+		BK_LOGD(NULL, "create touch digital tube disp task failed!\r\n");
 		touch_digital_tube_disp_thread_hdl = NULL;
 	}
 
@@ -176,7 +176,7 @@ void cli_touch_single_channel_calib_mode_test_cmd(char *pcWriteBuffer, int xWrit
 	touch_id = os_strtoul(argv[1], NULL, 10) & 0xFF;
 	gain_s = os_strtoul(argv[2], NULL, 10) & 0xFF;
 	if(touch_id >= 0 && touch_id < 16) {
-		TOUCH_LOGI("touch single channel calib mode test %d start!\r\n", touch_id);
+		TOUCH_LOGD("touch single channel calib mode test %d start!\r\n", touch_id);
 		bk_touch_gpio_init(1 << touch_id);
 		bk_touch_enable(1 << touch_id);
 		bk_touch_register_touch_isr(1 << touch_id, cli_touch_isr, NULL);
@@ -193,25 +193,25 @@ void cli_touch_single_channel_calib_mode_test_cmd(char *pcWriteBuffer, int xWrit
 		bk_touch_scan_mode_enable(0);
 		bk_touch_calibration_start();
 		cap_out = bk_touch_get_calib_value();
-		TOUCH_LOGI("cap_out0 = %x\r\n", cap_out);
+		TOUCH_LOGD("cap_out0 = %x\r\n", cap_out);
 		if (cap_out >= 0x1F0) {
 			touch_config.detect_range = TOUCH_DETECT_RANGE_12PF;
 			bk_touch_config(&touch_config);
 			bk_touch_calibration_start();
 			cap_out = bk_touch_get_calib_value();
-			TOUCH_LOGI("cap_out1 = %x\r\n", cap_out);
+			TOUCH_LOGD("cap_out1 = %x\r\n", cap_out);
 			if (cap_out >= 0x1F0) {
 				touch_config.detect_range = TOUCH_DETECT_RANGE_19PF;
 				bk_touch_config(&touch_config);
 				bk_touch_calibration_start();
 				cap_out = bk_touch_get_calib_value();
-				TOUCH_LOGI("cap_out2 = %x\r\n", cap_out);
+				TOUCH_LOGD("cap_out2 = %x\r\n", cap_out);
 				if (cap_out >= 0x1F0) {
 					touch_config.detect_range = TOUCH_DETECT_RANGE_27PF;
 					bk_touch_config(&touch_config);
 					bk_touch_calibration_start();
 					cap_out = bk_touch_get_calib_value();
-					TOUCH_LOGI("cap_out3 = %x\r\n", cap_out);
+					TOUCH_LOGD("cap_out3 = %x\r\n", cap_out);
 					if (cap_out >= 0x1F0) {
 						TOUCH_LOGE("Calibration value is out of the detect range, the channel cannot be used, please select the other channel!\r\n");
 						return;
@@ -239,7 +239,7 @@ void cli_touch_single_channel_manul_mode_test_cmd(char *pcWriteBuffer, int xWrit
 
 	touch_id = os_strtoul(argv[1], NULL, 16) & 0xFF;
 	if(touch_id >= 0 && touch_id < 16) {
-		TOUCH_LOGI("touch single channel manul mode test %d start!\r\n", touch_id);
+		TOUCH_LOGD("touch single channel manul mode test %d start!\r\n", touch_id);
 		bk_touch_gpio_init(1 << touch_id);
 		bk_touch_enable(1 <<touch_id);
 		bk_touch_register_touch_isr(1 << touch_id, cli_touch_isr, NULL);
@@ -251,13 +251,13 @@ void cli_touch_single_channel_manul_mode_test_cmd(char *pcWriteBuffer, int xWrit
 		bk_touch_scan_mode_enable(0);
 
 		calib_value = os_strtoul(argv[2], NULL, 16) & 0xFFF;
-		TOUCH_LOGI("calib_value = %x\r\n", calib_value);
+		TOUCH_LOGD("calib_value = %x\r\n", calib_value);
 		bk_touch_manul_mode_enable(calib_value);
 		bk_touch_int_enable(1 << touch_id, 1);
 		cap_out = bk_touch_get_calib_value();
-		TOUCH_LOGI("cap_out = %x\r\n", cap_out);
+		TOUCH_LOGD("cap_out = %x\r\n", cap_out);
 		if(calib_value == cap_out) {
-			TOUCH_LOGI("single channel manul mode test is successful!\r\n");
+			TOUCH_LOGD("single channel manul mode test is successful!\r\n");
 		} else {
 			TOUCH_LOGE("single channel manul mode test is failed!\r\n");
 			TOUCH_LOGE("please input larger calibration value!\r\n");
@@ -288,12 +288,12 @@ void cli_touch_multi_channel_scan_mode_test_cmd(char *pcWriteBuffer, int xWriteB
 
 	ret = bk_touch_digital_tube_display_init();
 	if (ret != BK_OK) {
-		os_printf("init touch digital tube display task failed!\r\n");
+		BK_LOGD(NULL, "init touch digital tube display task failed!\r\n");
 		return;
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		TOUCH_LOGI("multi_channel_scan_mode_test start!\r\n");
+		TOUCH_LOGD("multi_channel_scan_mode_test start!\r\n");
 		gain_s = os_strtoul(argv[2], NULL, 10) & 0xFF;
 		for(touch_id = 0; touch_id < 16; touch_id++)
 		{
@@ -335,7 +335,7 @@ void cli_touch_multi_channel_scan_mode_test_cmd(char *pcWriteBuffer, int xWriteB
 				}
 			}
 			touch_crg[touch_id] = touch_config.detect_range;
-			TOUCH_LOGI("touch[%d] crg = %d, calibration value = %x !\r\n", touch_id, touch_crg[touch_id], cap_out);
+			TOUCH_LOGD("touch[%d] crg = %d, calibration value = %x !\r\n", touch_id, touch_crg[touch_id], cap_out);
 			delay(1000);
 		}
 
@@ -349,7 +349,7 @@ void cli_touch_multi_channel_scan_mode_test_cmd(char *pcWriteBuffer, int xWriteB
 				touch_crg_max = touch_crg[touch_id];
 			}
 		}
-		TOUCH_LOGI("touch_crg_max = %d\r\n", touch_crg_max);
+		TOUCH_LOGD("touch_crg_max = %d\r\n", touch_crg_max);
 
 		for (touch_id = 0; touch_id < 16; touch_id++)
 		{
@@ -369,7 +369,7 @@ void cli_touch_multi_channel_scan_mode_test_cmd(char *pcWriteBuffer, int xWriteB
 		bk_touch_scan_mode_enable(1);
 		bk_touch_int_enable(multi_chann_value, 1);
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		TOUCH_LOGI("multi_channel_scan_mode_test stop!\r\n");
+		TOUCH_LOGD("multi_channel_scan_mode_test stop!\r\n");
 		bk_touch_scan_mode_enable(0);
 		bk_touch_disable();
 	}
@@ -391,7 +391,7 @@ void cli_touch_single_channel_multi_calib_test_cmd(char *pcWriteBuffer, int xWri
 	touch_id = os_strtoul(argv[1], NULL, 10) & 0xFF;
 	gain_s = os_strtoul(argv[2], NULL, 10) & 0xFF;
 	if(touch_id >= 0 && touch_id < 16) {
-		TOUCH_LOGI("touch single channel calib mode test %d start!\r\n", touch_id);
+		TOUCH_LOGD("touch single channel calib mode test %d start!\r\n", touch_id);
 		bk_touch_gpio_init(1 << touch_id);
 		bk_touch_enable(1 << touch_id);
 		bk_touch_register_touch_isr(1 << touch_id, cli_touch_isr, NULL);
@@ -404,25 +404,25 @@ void cli_touch_single_channel_multi_calib_test_cmd(char *pcWriteBuffer, int xWri
 		bk_touch_scan_mode_enable(0);
 		bk_touch_calibration_start();
 		cap_out = bk_touch_get_calib_value();
-		TOUCH_LOGI("cap_out0 = %x\r\n", cap_out);
+		TOUCH_LOGD("cap_out0 = %x\r\n", cap_out);
 		if (cap_out >= 0x1F0) {
 			touch_config.detect_range = TOUCH_DETECT_RANGE_12PF;
 			bk_touch_config(&touch_config);
 			bk_touch_calibration_start();
 			cap_out = bk_touch_get_calib_value();
-			TOUCH_LOGI("cap_out1 = %x\r\n", cap_out);
+			TOUCH_LOGD("cap_out1 = %x\r\n", cap_out);
 			if (cap_out >= 0x1F0) {
 				touch_config.detect_range = TOUCH_DETECT_RANGE_19PF;
 				bk_touch_config(&touch_config);
 				bk_touch_calibration_start();
 				cap_out = bk_touch_get_calib_value();
-				TOUCH_LOGI("cap_out2 = %x\r\n", cap_out);
+				TOUCH_LOGD("cap_out2 = %x\r\n", cap_out);
 				if (cap_out >= 0x1F0) {
 					touch_config.detect_range = TOUCH_DETECT_RANGE_27PF;
 					bk_touch_config(&touch_config);
 					bk_touch_calibration_start();
 					cap_out = bk_touch_get_calib_value();
-					TOUCH_LOGI("cap_out3 = %x\r\n", cap_out);
+					TOUCH_LOGD("cap_out3 = %x\r\n", cap_out);
 					if (cap_out >= 0x1F0) {
 						TOUCH_LOGE("Calibration value is out of the detect range, the channel cannot be used, please select the other channel!\r\n");
 						return;
@@ -435,7 +435,7 @@ void cli_touch_single_channel_multi_calib_test_cmd(char *pcWriteBuffer, int xWri
 		{
 			bk_touch_calibration_start();
 			cap_out = bk_touch_get_calib_value();
-			TOUCH_LOGI("cap_out = %x\r\n", cap_out);
+			TOUCH_LOGD("cap_out = %x\r\n", cap_out);
 			delay(10000);
 		}
 
@@ -499,7 +499,7 @@ void cli_touch_multi_channel_cyclic_calib_test_cmd(char *pcWriteBuffer, int xWri
 				}
 			}
 			touch_crg[touch_id] = touch_config.detect_range;
-			TOUCH_LOGI("touch[%d] crg = %d, calibration value = %x !\r\n", touch_id, touch_crg[touch_id], cap_out);
+			TOUCH_LOGD("touch[%d] crg = %d, calibration value = %x !\r\n", touch_id, touch_crg[touch_id], cap_out);
 			delay(1000);
 		}
 
@@ -509,7 +509,7 @@ void cli_touch_multi_channel_cyclic_calib_test_cmd(char *pcWriteBuffer, int xWri
 				touch_crg_max = touch_crg[touch_id];
 			}
 		}
-		TOUCH_LOGI("touch_crg_max = %d\r\n", touch_crg_max);
+		TOUCH_LOGD("touch_crg_max = %d\r\n", touch_crg_max);
 
 		for (touch_id = 0; touch_id < 16; touch_id++)
 		{
@@ -528,7 +528,7 @@ void cli_touch_multi_channel_cyclic_calib_test_cmd(char *pcWriteBuffer, int xWri
 
 		ret = bk_timer_start(TIMER_ID1, 10000, touch_cyclic_calib_timer_isr);
 		if (ret != BK_OK) {
-			os_printf("Timer start failed\r\n");
+			BK_LOGD(NULL, "Timer start failed\r\n");
 		}
 	}
 }
@@ -575,7 +575,7 @@ void touch_saradc_iir_iir_fillter(UINT8 chan_idx)
 
     touch_push(iir_y_y[chan_idx], y2, 1);
     y2 = y2*s2;
-    //TOUCH_LOGI("y2=%f,touch_chan=%d,num=%d\r\n",y2,chan_idx,num);
+    //TOUCH_LOGD("y2=%f,touch_chan=%d,num=%d\r\n",y2,chan_idx,num);
 
     //initial oscilation
     if(g_num >= 100)
@@ -615,7 +615,7 @@ void touch_capa_cali(void *param)
 
             bk_touch_calibration_start();
             cap_out = bk_touch_get_calib_value();
-            //TOUCH_LOGI("cap_out=%d,touch_chan=%d\r\n",cap_out,chan[j]);
+            //TOUCH_LOGD("cap_out=%d,touch_chan=%d\r\n",cap_out,chan[j]);
             bk_touch_manul_mode_enable(cap_out);
             bk_touch_manul_mode_disable();
         }
@@ -628,7 +628,7 @@ void touch_capa_cali(void *param)
     }
     else
     {
-        TOUCH_LOGI("touch saradc task executing!\r\n");
+        TOUCH_LOGD("touch saradc task executing!\r\n");
     }
 }
 
@@ -706,7 +706,7 @@ void cli_touch_adc_mode_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
         err = bk_touch_digital_tube_display_init();
         if (err != BK_OK)
         {
-            TOUCH_LOGI("init touch digital tube display task failed!\r\n");
+            TOUCH_LOGD("init touch digital tube display task failed!\r\n");
             return;
         }
     }

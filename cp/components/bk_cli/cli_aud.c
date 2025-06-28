@@ -44,25 +44,25 @@ static void cli_aud_help(void)
 {
 #if CONFIG_AUDIO_DAC
 #if CONFIG_AUDIO_DTMF
-	os_printf("aud_dtmf_mcp_test {start|stop} \r\n");
-	os_printf("aud_dtmf_loop_test {start|stop} \r\n");
+	BK_LOGD(NULL,"aud_dtmf_mcp_test {start|stop} \r\n");
+	BK_LOGD(NULL,"aud_dtmf_loop_test {start|stop} \r\n");
 #endif
 
 #if CONFIG_AUDIO_ADC
-	os_printf("aud_adc_mcp_test {start|stop sample_rate} \r\n");
-	os_printf("aud_adc_dma_test {start|stop sample_rate} \r\n");
-	os_printf("aud_adc_loop_test {start|stop sample_rate} \r\n");
-	os_printf("aud_eq_test {start|stop} \r\n");
+	BK_LOGD(NULL,"aud_adc_mcp_test {start|stop sample_rate} \r\n");
+	BK_LOGD(NULL,"aud_adc_dma_test {start|stop sample_rate} \r\n");
+	BK_LOGD(NULL,"aud_adc_loop_test {start|stop sample_rate} \r\n");
+	BK_LOGD(NULL,"aud_eq_test {start|stop} \r\n");
 #endif
 
 #if CONFIG_AUDIO_DMIC
-	os_printf("aud_dmic_mcp_test {start|stop sample_rate} \r\n");
-	os_printf("aud_dmic_dma_test {start|stop sample_rate} \r\n");
-	os_printf("aud_dmic_loop_test {start|stop sample_rate} \r\n");
+	BK_LOGD(NULL,"aud_dmic_mcp_test {start|stop sample_rate} \r\n");
+	BK_LOGD(NULL,"aud_dmic_dma_test {start|stop sample_rate} \r\n");
+	BK_LOGD(NULL,"aud_dmic_loop_test {start|stop sample_rate} \r\n");
 #endif
 
-	os_printf("aud_pcm_mcp_test {8000|16000|44100|48000} {start} \r\n");
-	os_printf("aud_pcm_dma_test {8000|16000|44100|48000} {start|stop} \r\n");
+	BK_LOGD(NULL,"aud_pcm_mcp_test {8000|16000|44100|48000} {start} \r\n");
+	BK_LOGD(NULL,"aud_pcm_dma_test {8000|16000|44100|48000} {start|stop} \r\n");
 #endif
 }
 
@@ -173,46 +173,46 @@ static void cli_aud_dtmf_mcp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("audio dtmf mcp test start\n");
+		BK_LOGD(NULL,"audio dtmf mcp test start\n");
 
 		//init audio dtmf and dac driver
 		ret = bk_aud_dtmf_init(&dtmf_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dtmf_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dtmf_init fail \n");
 			return;
 		}
-		os_printf("init audio dtmf successful\n");
+		BK_LOGD(NULL,"init audio dtmf successful\n");
 
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		//register isr
 		ret = bk_aud_dtmf_register_isr(cli_aud_dtmf_isr);
 		if (ret != BK_OK)
 			return;
-		os_printf("register dtmf isr successful\n");
+		BK_LOGD(NULL,"register dtmf isr successful\n");
 
 		//enable audio dtmf interrupt
 		bk_aud_dtmf_enable_int();
-		os_printf("enable dtmf interrupt successful\n");
+		BK_LOGD(NULL,"enable dtmf interrupt successful\n");
 
 		//start adc and dac
 		bk_aud_dtmf_start();
 		bk_aud_dac_start();
-		os_printf("enable dtmf and dac successful\n");
+		BK_LOGD(NULL,"enable dtmf and dac successful\n");
 
-		os_printf("start audio dtmf mcp test successful\r\n");
+		BK_LOGD(NULL,"start audio dtmf mcp test successful\r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio dtmf mcp test stop\n");
+		BK_LOGD(NULL,"audio dtmf mcp test stop\n");
 		bk_aud_dtmf_stop();
 		bk_aud_dac_stop();
 		bk_aud_dtmf_deinit();
 		bk_aud_dac_deinit();
-		os_printf("audio dtmf mcp test stop successful\n");
+		BK_LOGD(NULL,"audio dtmf mcp test stop successful\n");
 	} else {
 		cli_aud_help();
 		return;
@@ -231,42 +231,42 @@ static void cli_aud_dtmf_loop_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("audio dtmf loop test start\n");
+		BK_LOGD(NULL,"audio dtmf loop test start\n");
 
 		//init audio dtmf and dac driver
 		ret = bk_aud_dtmf_init(&dtmf_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dtmf_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dtmf_init fail \n");
 			return;
 		}
-		os_printf("init audio dtmf successful\n");
+		BK_LOGD(NULL,"init audio dtmf successful\n");
 
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		//start dtmf and dac
 		ret = bk_aud_dtmf_start();
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dtmf_start fail\n");
+			BK_LOGD(NULL,"bk_aud_dtmf_start fail\n");
 			return;
 		}
-		os_printf("enable dtmf and dac successful\n");
+		BK_LOGD(NULL,"enable dtmf and dac successful\n");
 		ret = bk_aud_dac_start();
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_start fail\n");
+			BK_LOGD(NULL,"bk_aud_dac_start fail\n");
 			return;
 		}
 
 		//enable dtmf to dac loop test
 		bk_aud_dtmf_start_loop_test();
 
-		os_printf("enable dtmf to dac loop test successful\n");
+		BK_LOGD(NULL,"enable dtmf to dac loop test successful\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio dtmf loop test stop\n");
+		BK_LOGD(NULL,"audio dtmf loop test stop\n");
 		//stop loop test
 		bk_aud_dtmf_stop_loop_test();
 		//disable adc and dac
@@ -276,7 +276,7 @@ static void cli_aud_dtmf_loop_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 		bk_aud_dtmf_deinit();
 		bk_aud_dac_deinit();
 
-		os_printf("audio dtmf loop test stop successful\n");
+		BK_LOGD(NULL,"audio dtmf loop test stop successful\n");
 	} else {
 		cli_aud_help();
 		return;
@@ -301,29 +301,29 @@ static void cli_aud_adc_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("audio adc dma test start\n");
+		BK_LOGD(NULL,"audio adc dma test start\n");
 		adc_config.samp_rate = strtoul(argv[2], NULL, 10);
 		dac_config.samp_rate = adc_config.samp_rate;
 
 		//init audio adc and dac driver
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		ret = bk_aud_adc_init(&adc_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_adc_init fail \n");
+			BK_LOGD(NULL,"bk_aud_adc_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		//init dma driver
 		ret = bk_dma_driver_init();
 		if (ret != BK_OK) {
-			os_printf("dma driver init failed\r\n");
+			BK_LOGD(NULL,"dma driver init failed\r\n");
 			return;
 		}
 		dma_config.mode = DMA_WORK_MODE_REPEAT;
@@ -339,7 +339,7 @@ static void cli_aud_adc_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 		dma_config.dst.width = DMA_DATA_WIDTH_32BITS;
 		//get adc fifo address
 		if (bk_aud_adc_get_fifo_addr(&adc_fifo_addr) != BK_OK) {
-			os_printf("get adc fifo address failed\r\n");
+			BK_LOGD(NULL,"get adc fifo address failed\r\n");
 			return;
 		} else {
 			dma_config.src.addr_inc_en = DMA_ADDR_INC_ENABLE;
@@ -349,7 +349,7 @@ static void cli_aud_adc_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 		}
 		//get dac fifo address
 		if (bk_aud_dac_get_fifo_addr(&dac_fifo_addr) != BK_OK) {
-			os_printf("get dac fifo address failed\r\n");
+			BK_LOGD(NULL,"get dac fifo address failed\r\n");
 			return;
 		} else {
 			dma_config.dst.addr_inc_en = DMA_ADDR_INC_ENABLE;
@@ -358,17 +358,17 @@ static void cli_aud_adc_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 			dma_config.dst.end_addr = dac_fifo_addr + 4;
 		}
 
-		os_printf("source_addr:0x%x, dest_addr:0x%x\r\n", dma_config.src.start_addr, dma_config.dst.start_addr);
+		BK_LOGD(NULL,"source_addr:0x%x, dest_addr:0x%x\r\n", dma_config.src.start_addr, dma_config.dst.start_addr);
 
 		//init dma channel
 		dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
 		if ((dma_id < DMA_ID_0) || (dma_id >= DMA_ID_MAX)) {
-			os_printf("malloc dma fail \r\n");
+			BK_LOGD(NULL,"malloc dma fail \r\n");
 			return;
 		}
 		ret = bk_dma_init(dma_id, &dma_config);
 		if (ret != BK_OK) {
-			os_printf("dma init failed\r\n");
+			BK_LOGD(NULL,"dma init failed\r\n");
 			return;
 		}
 		bk_dma_set_transfer_len(dma_id, 4);
@@ -378,17 +378,17 @@ static void cli_aud_adc_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 #endif
 		ret = bk_dma_start(dma_id);
 		if (ret != BK_OK) {
-			os_printf("dma start fail \n");
+			BK_LOGD(NULL,"dma start fail \n");
 			return;
 		}
 
 		//start adc and dac
 		bk_aud_adc_start();
 		bk_aud_dac_start();
-		os_printf("enable adc and dac successful\n");
-		os_printf("start audio adc test successful\r\n");
+		BK_LOGD(NULL,"enable adc and dac successful\n");
+		BK_LOGD(NULL,"start audio adc test successful\r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio adc test stop\n");
+		BK_LOGD(NULL,"audio adc test stop\n");
 		//disable adc and dac
 		bk_aud_adc_stop();
 		bk_aud_dac_stop();
@@ -399,8 +399,8 @@ static void cli_aud_adc_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 		bk_dma_deinit(dma_id);
 		ret = bk_dma_free(DMA_DEV_AUDIO, dma_id);
 		if (ret == BK_OK)
-			os_printf("free dma: %d success\r\n", dma_id);
-		os_printf("audio adc test stop successful\n");
+			BK_LOGD(NULL,"free dma: %d success\r\n", dma_id);
+		BK_LOGD(NULL,"audio adc test stop successful\n");
 	} else {
 		cli_aud_help();
 		return;
@@ -431,7 +431,7 @@ static void cli_aud_adc_mcp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("audio adc mcp test start\n");
+		BK_LOGD(NULL,"audio adc mcp test start\n");
 
 		adc_config.samp_rate = strtoul(argv[2], NULL, 10);
 		dac_config.samp_rate = adc_config.samp_rate;
@@ -439,44 +439,44 @@ static void cli_aud_adc_mcp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 		//init audio adc and dac driver
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		ret = bk_aud_adc_init(&adc_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_adc_init fail \n");
+			BK_LOGD(NULL,"bk_aud_adc_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 
 		//register isr
 		ret = bk_aud_register_aud_isr(AUD_ISR_ADCL, cli_aud_adcl_isr);
 		if (ret != BK_OK)
 			return;
-		os_printf("register adc isr successful\n");
+		BK_LOGD(NULL,"register adc isr successful\n");
 
 		//enable audio interrupt
 		bk_aud_adc_set_adcl_wr_threshold(8);
 		bk_aud_adc_enable_int();
-		os_printf("enable adc and dac interrupt successful\n");
+		BK_LOGD(NULL,"enable adc and dac interrupt successful\n");
 
 		//start adc and dac
 		bk_aud_adc_start();
 		bk_aud_dac_start();
-		os_printf("enable adc and dac successful\n");
-		os_printf("start audio adc mcp test successful\r\n");
+		BK_LOGD(NULL,"enable adc and dac successful\n");
+		BK_LOGD(NULL,"start audio adc mcp test successful\r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio adc mcp test stop\n");
+		BK_LOGD(NULL,"audio adc mcp test stop\n");
 		//start adc and dac
 		bk_aud_adc_stop();
 		bk_aud_dac_stop();
-		os_printf("disable adc and dac successful\n");
+		BK_LOGD(NULL,"disable adc and dac successful\n");
 		bk_aud_adc_deinit();
 		bk_aud_dac_deinit();
-		os_printf("audio adc mcp test stop successful\n");
+		BK_LOGD(NULL,"audio adc mcp test stop successful\n");
 	} else {
 		cli_aud_help();
 		return;
@@ -495,35 +495,35 @@ static void cli_aud_adc_loop_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("audio adc loop test start\n");
+		BK_LOGD(NULL,"audio adc loop test start\n");
 		adc_config.samp_rate = strtoul(argv[2], NULL, 10);
 		dac_config.samp_rate = adc_config.samp_rate;
 
 		//init audio adc and dac driver
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		ret = bk_aud_adc_init(&adc_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_adc_init fail \n");
+			BK_LOGD(NULL,"bk_aud_adc_init fail \n");
 			return;
 		}
-		os_printf("init audio adc successful\n");
+		BK_LOGD(NULL,"init audio adc successful\n");
 
 		//start adc
 		ret = bk_aud_adc_start();
 		if (ret != BK_OK) {
-			os_printf("bk_aud_adc_start fail \n");
+			BK_LOGD(NULL,"bk_aud_adc_start fail \n");
 			return;
 		}
 		//start adc
 		ret = bk_aud_dac_start();
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_start fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_start fail \n");
 			return;
 		}
 
@@ -531,9 +531,9 @@ static void cli_aud_adc_loop_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 		ret = bk_aud_adc_start_loop_test();
 		if (ret != BK_OK)
 			return;
-		os_printf("enable adc to dac loop test successful\n");
+		BK_LOGD(NULL,"enable adc to dac loop test successful\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio adc to dac loop test stop\n");
+		BK_LOGD(NULL,"audio adc to dac loop test stop\n");
 		//stop adc to dac loop test
 		ret = bk_aud_adc_stop_loop_test();
 		if (ret != BK_OK)
@@ -546,7 +546,7 @@ static void cli_aud_adc_loop_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 		//deinit adc and dac
 		bk_aud_adc_deinit();
 		bk_aud_dac_deinit();
-		os_printf("audio adc to dac loop test stop successful\n");
+		BK_LOGD(NULL,"audio adc to dac loop test stop successful\n");
 	} else {
 		cli_aud_help();
 		return;
@@ -571,7 +571,7 @@ static void cli_aud_dac_eq_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("audio adc dma test start\n");
+		BK_LOGD(NULL,"audio adc dma test start\n");
 		eq_config.flt0_A1 = ~(-2085356);
 		eq_config.flt0_A2 = ~(1036853);
 		eq_config.flt0_B0 = 1054751;
@@ -600,30 +600,30 @@ static void cli_aud_dac_eq_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 		//init audio adc and dac driver
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		ret = bk_aud_adc_init(&adc_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_adc_init fail \n");
+			BK_LOGD(NULL,"bk_aud_adc_init fail \n");
 			return;
 		}
-		os_printf("init audio adc successful\n");
+		BK_LOGD(NULL,"init audio adc successful\n");
 
 		/* eq config */
 		ret = bk_aud_dac_eq_config(&eq_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_eq_config fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_eq_config fail \n");
 			return;
 		}
-		os_printf("init audio dac eq successful\n");
+		BK_LOGD(NULL,"init audio dac eq successful\n");
 
 		//init dma driver
 		ret = bk_dma_driver_init();
 		if (ret != BK_OK) {
-			os_printf("dma driver init failed\r\n");
+			BK_LOGD(NULL,"dma driver init failed\r\n");
 			return;
 		}
 		dma_config.mode = DMA_WORK_MODE_REPEAT;
@@ -634,7 +634,7 @@ static void cli_aud_dac_eq_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 		dma_config.dst.width = DMA_DATA_WIDTH_32BITS;
 		//get adc fifo address
 		if (bk_aud_adc_get_fifo_addr(&adc_fifo_addr) != BK_OK) {
-			os_printf("get adc fifo address failed\r\n");
+			BK_LOGD(NULL,"get adc fifo address failed\r\n");
 			return;
 		} else {
 			dma_config.src.addr_inc_en = DMA_ADDR_INC_ENABLE;
@@ -644,7 +644,7 @@ static void cli_aud_dac_eq_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 		}
 		//get dac fifo address
 		if (bk_aud_dac_get_fifo_addr(&dac_fifo_addr) != BK_OK) {
-			os_printf("get dac fifo address failed\r\n");
+			BK_LOGD(NULL,"get dac fifo address failed\r\n");
 			return;
 		} else {
 			dma_config.dst.addr_inc_en = DMA_ADDR_INC_ENABLE;
@@ -656,12 +656,12 @@ static void cli_aud_dac_eq_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 		//init dma channel
 		dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
 		if ((dma_id < DMA_ID_0) || (dma_id >= DMA_ID_MAX)) {
-			os_printf("malloc dma fail \r\n");
+			BK_LOGD(NULL,"malloc dma fail \r\n");
 			return;
 		}
 		ret = bk_dma_init(dma_id, &dma_config);
 		if (ret != BK_OK) {
-			os_printf("dma init failed\r\n");
+			BK_LOGD(NULL,"dma init failed\r\n");
 			return;
 		}
 		bk_dma_set_transfer_len(dma_id, 4);
@@ -673,25 +673,25 @@ static void cli_aud_dac_eq_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 
 		ret = bk_dma_start(dma_id);
 		if (ret != BK_OK) {
-			os_printf("bk_dma_start fail\r\n");
+			BK_LOGD(NULL,"bk_dma_start fail\r\n");
 			return;
 		}
 
 		//start adc
 		ret = bk_aud_adc_start();
 		if (ret != BK_OK) {
-			os_printf("bk_aud_adc_start fail \n");
+			BK_LOGD(NULL,"bk_aud_adc_start fail \n");
 			return;
 		}
 		//start adc
 		ret = bk_aud_dac_start();
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_start fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_start fail \n");
 			return;
 		}
-		os_printf("enable adc and dac successful\n");
+		BK_LOGD(NULL,"enable adc and dac successful\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio adc test stop\n");
+		BK_LOGD(NULL,"audio adc test stop\n");
 		bk_aud_dac_eq_deconfig();
 		//disable adc and dac
 		bk_aud_adc_stop();
@@ -703,8 +703,8 @@ static void cli_aud_dac_eq_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 		bk_dma_deinit(dma_id);
 		ret = bk_dma_free(DMA_DEV_AUDIO, dma_id);
 		if (ret == BK_OK)
-			os_printf("free dma: %d success\r\n", dma_id);
-		os_printf("audio adc test stop successful\n");
+			BK_LOGD(NULL,"free dma: %d success\r\n", dma_id);
+		BK_LOGD(NULL,"audio adc test stop successful\n");
 	} else {
 		cli_aud_help();
 		return;
@@ -731,29 +731,29 @@ static void cli_aud_dmic_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("audio dmic dma test start\n");
+		BK_LOGD(NULL,"audio dmic dma test start\n");
 		dmic_config.samp_rate = strtoul(argv[2], NULL, 10);
 		dac_config.samp_rate = dmic_config.samp_rate;
 
 		//init audio dmic and dac driver
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		ret = bk_aud_dmic_init(&dmic_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dmic_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dmic_init fail \n");
 			return;
 		}
-		os_printf("init audio dmic successful\n");
+		BK_LOGD(NULL,"init audio dmic successful\n");
 
 		//init dma driver
 		ret = bk_dma_driver_init();
 		if (ret != BK_OK) {
-			os_printf("dma driver init failed\r\n");
+			BK_LOGD(NULL,"dma driver init failed\r\n");
 			return;
 		}
 		dma_config.mode = DMA_WORK_MODE_REPEAT;
@@ -764,7 +764,7 @@ static void cli_aud_dmic_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 		dma_config.dst.width = DMA_DATA_WIDTH_32BITS;
 		//get adc fifo address
 		if (bk_aud_dmic_get_fifo_addr(&dmic_fifo_addr) != BK_OK) {
-			os_printf("get dmic fifo address failed\r\n");
+			BK_LOGD(NULL,"get dmic fifo address failed\r\n");
 			return;
 		} else {
 			dma_config.src.addr_inc_en = DMA_ADDR_INC_ENABLE;
@@ -774,7 +774,7 @@ static void cli_aud_dmic_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 		}
 		//get dac fifo address
 		if (bk_aud_dac_get_fifo_addr(&dac_fifo_addr) != BK_OK) {
-			os_printf("get dac fifo address failed\r\n");
+			BK_LOGD(NULL,"get dac fifo address failed\r\n");
 			return;
 		} else {
 			dma_config.dst.addr_inc_en = DMA_ADDR_INC_ENABLE;
@@ -783,17 +783,17 @@ static void cli_aud_dmic_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 			dma_config.dst.end_addr = dac_fifo_addr + 4;
 		}
 
-		os_printf("source_addr:0x%x, dest_addr:0x%x\r\n", dma_config.src.start_addr, dma_config.dst.start_addr);
+		BK_LOGD(NULL,"source_addr:0x%x, dest_addr:0x%x\r\n", dma_config.src.start_addr, dma_config.dst.start_addr);
 
 		//init dma channel
 		dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
 		if ((dma_id < DMA_ID_0) || (dma_id >= DMA_ID_MAX)) {
-			os_printf("malloc dma fail \r\n");
+			BK_LOGD(NULL,"malloc dma fail \r\n");
 			return;
 		}
 		ret = bk_dma_init(dma_id, &dma_config);
 		if (ret != BK_OK) {
-			os_printf("dma init failed\r\n");
+			BK_LOGD(NULL,"dma init failed\r\n");
 			return;
 		}
 		bk_dma_set_transfer_len(dma_id, 4);
@@ -803,17 +803,17 @@ static void cli_aud_dmic_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 #endif
 		ret = bk_dma_start(dma_id);
 		if (ret != BK_OK) {
-			os_printf("dma start fail \n");
+			BK_LOGD(NULL,"dma start fail \n");
 			return;
 		}
 
 		//start adc and dac
 		bk_aud_dmic_start();
 		bk_aud_dac_start();
-		os_printf("enable dmic and dac successful\n");
-		os_printf("start audio dmic test successful\r\n");
+		BK_LOGD(NULL,"enable dmic and dac successful\n");
+		BK_LOGD(NULL,"start audio dmic test successful\r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio adc test stop\n");
+		BK_LOGD(NULL,"audio adc test stop\n");
 		//disable adc and dac
 		bk_aud_dmic_stop();
 		bk_aud_dac_stop();
@@ -824,8 +824,8 @@ static void cli_aud_dmic_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 		bk_dma_deinit(dma_id);
 		ret = bk_dma_free(DMA_DEV_AUDIO, dma_id);
 		if (ret == BK_OK)
-			os_printf("free dma: %d success\r\n", dma_id);
-		os_printf("audio adc test stop successful\n");
+			BK_LOGD(NULL,"free dma: %d success\r\n", dma_id);
+		BK_LOGD(NULL,"audio adc test stop successful\n");
 	} else {
 		cli_aud_help();
 		return;
@@ -842,10 +842,10 @@ static void cli_aud_dmic_isr(void)
 
 	while (1) {
 		bk_aud_dmic_get_status(&dmic_status);
-		os_printf("dmic_status: %x \n", dmic_status);
-//		os_printf("mask: %x, dmic_status: %x \n", (AUD_DMIC_NEAR_FULL_MASK | AUD_DMIC_FIFO_FULL_MASK), dmic_status & (AUD_DMIC_NEAR_FULL_MASK | AUD_DMIC_FIFO_FULL_MASK));
+		BK_LOGD(NULL,"dmic_status: %x \n", dmic_status);
+//		BK_LOGD(NULL,"mask: %x, dmic_status: %x \n", (AUD_DMIC_NEAR_FULL_MASK | AUD_DMIC_FIFO_FULL_MASK), dmic_status & (AUD_DMIC_NEAR_FULL_MASK | AUD_DMIC_FIFO_FULL_MASK));
 		if (dmic_status & (AUD_DMIC_NEAR_FULL_MASK | AUD_DMIC_FIFO_FULL_MASK)) {
-			os_printf("enter \r\n");
+			BK_LOGD(NULL,"enter \r\n");
 			bk_aud_dmic_get_fifo_data(&dmic_data);
 			bk_aud_dac_write(dmic_data);
 		} else {
@@ -873,7 +873,7 @@ static void cli_aud_dmic_mcp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("audio dmic mcp test start\n");
+		BK_LOGD(NULL,"audio dmic mcp test start\n");
 
 		dmic_config.samp_rate = strtoul(argv[2], NULL, 10);
 		dac_config.samp_rate = dmic_config.samp_rate;
@@ -881,44 +881,44 @@ static void cli_aud_dmic_mcp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 		//init audio adc and dac driver
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		ret = bk_aud_dmic_init(&dmic_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dmic_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dmic_init fail \n");
 			return;
 		}
-		os_printf("init audio dmic successful\n");
+		BK_LOGD(NULL,"init audio dmic successful\n");
 
 
 		//register isr
 		ret = bk_aud_register_aud_isr(AUD_ISR_DMIC, cli_aud_dmic_isr);
 		if (ret != BK_OK)
 			return;
-		os_printf("register dmic isr successful\n");
+		BK_LOGD(NULL,"register dmic isr successful\n");
 
 		//enable audio interrupt
 		bk_aud_dmic_set_dmic_wr_threshold(8);
 		bk_aud_dmic_enable_int();
-		os_printf("enable dmic interrupt successful\n");
+		BK_LOGD(NULL,"enable dmic interrupt successful\n");
 
 		/* start dac and dmic */
 		bk_aud_dac_start();
 		bk_aud_dmic_start();
-		os_printf("enable dmic and dac successful\n");
-		os_printf("start audio dmic mcp test successful\r\n");
+		BK_LOGD(NULL,"enable dmic and dac successful\n");
+		BK_LOGD(NULL,"start audio dmic mcp test successful\r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio dmic mcp test stop\n");
+		BK_LOGD(NULL,"audio dmic mcp test stop\n");
 		//start adc and dac
 		bk_aud_dmic_stop();
 		bk_aud_dac_stop();
-		os_printf("disable dmic and dac successful\n");
+		BK_LOGD(NULL,"disable dmic and dac successful\n");
 		bk_aud_dmic_deinit();
 		bk_aud_dac_deinit();
-		os_printf("audio dmic mcp test stop successful\n");
+		BK_LOGD(NULL,"audio dmic mcp test stop successful\n");
 	} else {
 		cli_aud_help();
 		return;
@@ -939,35 +939,35 @@ static void cli_aud_dmic_loop_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("audio dmic loop test start\n");
+		BK_LOGD(NULL,"audio dmic loop test start\n");
 		dmic_config.samp_rate = strtoul(argv[2], NULL, 10);
 		dac_config.samp_rate = dmic_config.samp_rate;
 
 		//init audio adc and dac driver
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio dac successful\n");
+		BK_LOGD(NULL,"init audio dac successful\n");
 
 		ret = bk_aud_dmic_init(&dmic_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dmic_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dmic_init fail \n");
 			return;
 		}
-		os_printf("init audio dmic successful\n");
+		BK_LOGD(NULL,"init audio dmic successful\n");
 
 		//start adc
 		ret = bk_aud_dmic_start();
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dmic_start fail \n");
+			BK_LOGD(NULL,"bk_aud_dmic_start fail \n");
 			return;
 		}
 		//start adc
 		ret = bk_aud_dac_start();
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_start fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_start fail \n");
 			return;
 		}
 
@@ -975,9 +975,9 @@ static void cli_aud_dmic_loop_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 		ret = bk_aud_dmic_start_loop_test();
 		if (ret != BK_OK)
 			return;
-		os_printf("enable dmic to dac loop test successful\n");
+		BK_LOGD(NULL,"enable dmic to dac loop test successful\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio dmic to dac loop test stop\n");
+		BK_LOGD(NULL,"audio dmic to dac loop test stop\n");
 		//stop dmic to dac loop test
 		ret = bk_aud_dmic_stop_loop_test();
 		if (ret != BK_OK)
@@ -990,7 +990,7 @@ static void cli_aud_dmic_loop_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 		//deinit dmic and dac
 		bk_aud_dmic_deinit();
 		bk_aud_dac_deinit();
-		os_printf("audio dmic to dac loop test stop successful\n");
+		BK_LOGD(NULL,"audio dmic to dac loop test stop successful\n");
 	} else {
 		cli_aud_help();
 		return;
@@ -1021,36 +1021,36 @@ static void cli_aud_dac_mcp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 	if (dac_config.samp_rate == 8000) {
 		aud_ptr = (uint32_t *)PCM_8000;
 		aud_len = sizeof(PCM_8000) / sizeof(PCM_8000[0]);
-		os_printf("audio dac test 8000 start\n");
+		BK_LOGD(NULL,"audio dac test 8000 start\n");
 	} else if (dac_config.samp_rate == 16000) {
 		aud_ptr = (uint32_t *)PCM_16000;
 		aud_len = sizeof(PCM_16000) / sizeof(PCM_16000[0]);
-		os_printf("audio dac test 16000 start\n");
+		BK_LOGD(NULL,"audio dac test 16000 start\n");
 	}else if (dac_config.samp_rate == 44100) {
 		aud_ptr = (uint32_t *)PCM_44100;
 		aud_len = sizeof(PCM_44100) / sizeof(PCM_44100[0]);
-		os_printf("audio dac test 44100 start\n");
+		BK_LOGD(NULL,"audio dac test 44100 start\n");
 	}else if (dac_config.samp_rate == 48000) {
 		aud_ptr = (uint32_t *)PCM_48000;
 		aud_len = sizeof(PCM_48000) / sizeof(PCM_48000[0]);
-		os_printf("audio dac test 48000 start\n");
+		BK_LOGD(NULL,"audio dac test 48000 start\n");
 	}else {
-		os_printf("unsupport dac test sample rate\n");
+		BK_LOGD(NULL,"unsupport dac test sample rate\n");
 	}
 
 	ret = bk_aud_dac_init(&dac_config);
 	if (ret != BK_OK) {
-		os_printf("bk_aud_dac_init fail \n");
+		BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 		return;
 	}
-	os_printf("init audio driver and dac successful\n");
+	BK_LOGD(NULL,"init audio driver and dac successful\n");
 
 	//start adc
 	ret = bk_aud_dac_start();
 	if (ret != BK_OK)
 		return;
 
-	os_printf("enable dac successful\n");
+	BK_LOGD(NULL,"enable dac successful\n");
 
 	while(1) {
 		bk_aud_dac_get_status(&dac_fifo_status);
@@ -1069,7 +1069,7 @@ static void cli_aud_dac_mcp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 	bk_aud_dac_stop();
 	bk_aud_dac_deinit();
 
-	os_printf("audio dac test complete \n");
+	BK_LOGD(NULL,"audio dac test complete \n");
 	return;
 }
 
@@ -1093,34 +1093,34 @@ static void cli_aud_dac_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 		if (dac_config.samp_rate == 8000) {
 			aud_ptr = (uint32_t *)PCM_8000;
 			aud_len = sizeof(PCM_8000) / sizeof(PCM_8000[0]);
-			os_printf("audio dac test 8000 start\n");
+			BK_LOGD(NULL,"audio dac test 8000 start\n");
 		} else if (dac_config.samp_rate == 16000) {
 			aud_ptr = (uint32_t *)PCM_16000;
 			aud_len = sizeof(PCM_16000) / sizeof(PCM_16000[0]);
-			os_printf("audio dac test 16000 start\n");
+			BK_LOGD(NULL,"audio dac test 16000 start\n");
 		}else if (dac_config.samp_rate == 44100) {
 			aud_ptr = (uint32_t *)PCM_44100;
 			aud_len = sizeof(PCM_44100) / sizeof(PCM_44100[0]);
-			os_printf("audio dac test 44100 start\n");
+			BK_LOGD(NULL,"audio dac test 44100 start\n");
 		}else if (dac_config.samp_rate == 48000) {
 			aud_ptr = (uint32_t *)PCM_48000;
 			aud_len = sizeof(PCM_48000) / sizeof(PCM_48000[0]);
-			os_printf("audio dac test 48000 start\n");
+			BK_LOGD(NULL,"audio dac test 48000 start\n");
 		}else {
-			os_printf("unsupport pcm test sample rate\n");
+			BK_LOGD(NULL,"unsupport pcm test sample rate\n");
 		}
 
 		ret = bk_aud_dac_init(&dac_config);
 		if (ret != BK_OK) {
-			os_printf("bk_aud_dac_init fail \n");
+			BK_LOGD(NULL,"bk_aud_dac_init fail \n");
 			return;
 		}
-		os_printf("init audio driver and dac successful\n");
+		BK_LOGD(NULL,"init audio driver and dac successful\n");
 
 		//init dma driver
 		ret = bk_dma_driver_init();
 		if (ret != BK_OK) {
-			os_printf("dma driver init failed\r\n");
+			BK_LOGD(NULL,"dma driver init failed\r\n");
 			return;
 		}
 		dma_config.mode = DMA_WORK_MODE_REPEAT;
@@ -1132,7 +1132,7 @@ static void cli_aud_dac_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 
 		//get dac fifo address
 		if (bk_aud_dac_get_fifo_addr(&dac_fifo_addr) != BK_OK) {
-			os_printf("get dac fifo address failed\r\n");
+			BK_LOGD(NULL,"get dac fifo address failed\r\n");
 			return;
 		} else {
 			dma_config.dst.addr_inc_en = DMA_ADDR_INC_ENABLE;
@@ -1145,17 +1145,17 @@ static void cli_aud_dac_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 		dma_config.src.start_addr = (uint32_t)aud_ptr;
 		dma_config.src.end_addr = (uint32_t)aud_ptr + aud_len*4;
 
-		//os_printf("source_addr:0x%x, dest_addr:0x%x\r\n", dma_config.src.start_addr, dma_config.src.end_addr);
+		//BK_LOGD(NULL,"source_addr:0x%x, dest_addr:0x%x\r\n", dma_config.src.start_addr, dma_config.src.end_addr);
 
 		//init dma channel
 		dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
 		if ((dma_id < DMA_ID_0) || (dma_id >= DMA_ID_MAX)) {
-			os_printf("malloc dma fail \r\n");
+			BK_LOGD(NULL,"malloc dma fail \r\n");
 			return;
 		}
 		ret = bk_dma_init(dma_id, &dma_config);
 		if (ret != BK_OK) {
-			os_printf("dma init failed\r\n");
+			BK_LOGD(NULL,"dma init failed\r\n");
 			return;
 		}
 
@@ -1176,9 +1176,9 @@ static void cli_aud_dac_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 		//start adc
 		ret = bk_aud_dac_start();
 
-		os_printf("audio dac dma dac test successful\n");
+		BK_LOGD(NULL,"audio dac dma dac test successful\n");
 	}else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("audio dac dma test stop\n");
+		BK_LOGD(NULL,"audio dac dma test stop\n");
 		//stop dma
 		bk_dma_stop(dma_id);
 
@@ -1189,8 +1189,8 @@ static void cli_aud_dac_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 		bk_dma_deinit(dma_id);
 		ret = bk_dma_free(DMA_DEV_AUDIO, dma_id);
 		if (ret == BK_OK)
-			os_printf("free dma: %d success\r\n", dma_id);
-		os_printf("audio dac dma test stop successfully\r\n");
+			BK_LOGD(NULL,"free dma: %d success\r\n", dma_id);
+		BK_LOGD(NULL,"audio dac dma test stop successfully\r\n");
 	} else {
 		cli_aud_help();
 		return;

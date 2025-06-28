@@ -21,4 +21,5 @@
 #define CAN_LOGW(...) BK_LOGW(CAN_TAG, ##__VA_ARGS__)
 #define CAN_LOGE(...) BK_LOGE(CAN_TAG, ##__VA_ARGS__)
 #define CAN_LOGD(...) BK_LOGD(CAN_TAG, ##__VA_ARGS__)
+#define CAN_LOGV(...) BK_LOGV(CAN_TAG, ##__VA_ARGS__)
 

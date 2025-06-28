@@ -21,4 +21,5 @@
 #define AON_WDT_LOGW(...) BK_LOGW(AON_WDT_TAG, ##__VA_ARGS__)
 #define AON_WDT_LOGE(...) BK_LOGE(AON_WDT_TAG, ##__VA_ARGS__)
 #define AON_WDT_LOGD(...) BK_LOGD(AON_WDT_TAG, ##__VA_ARGS__)
+#define AON_WDT_LOGV(...) BK_LOGV(AON_WDT_TAG, ##__VA_ARGS__)
 

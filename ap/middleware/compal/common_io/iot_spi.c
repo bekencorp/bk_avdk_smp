@@ -81,7 +81,7 @@ static void bk_conver_config_to_internal(IotSPIMasterConfig_t *config, spi_confi
 static void spi_rx_callback_dispatch(spi_id_t id, void *param)
 {
     IotSPIDescriptor_t *spi_ctx = (IotSPIDescriptor_t *)param;
-    BK_LOGD(COMMON_SPI_TAG, "rx_callback\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "rx_callback\r\n");
 
     spi_ctx->bytes_read = spi_ctx->trans_len;
     if (spi_ctx->func) {
@@ -106,7 +106,7 @@ static void spi_tx_callback_dispatch(spi_id_t id, void *param)
 {
     IotSPIDescriptor_t *spi_ctx = (IotSPIDescriptor_t *)param;
     spi_ctx->bytes_written = spi_ctx->trans_len;
-    BK_LOGD(COMMON_SPI_TAG, "tx_callback\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "tx_callback\r\n");
     if(spi_ctx->trans_read != NULL)
     {
         bk_spi_register_rx_finish_isr(spi_ctx->id, spi_rx_callback_dispatch, spi_ctx);
@@ -127,7 +127,7 @@ IotSPIHandle_t iot_spi_open( int32_t lSPIInstance )
         BK_LOGE(COMMON_SPI_TAG, "Invalid arguments\r\n");
         return NULL;
     }
-    BK_LOGD(COMMON_SPI_TAG, "spi_open\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "spi_open\r\n");
     bk_spi_driver_init();
     if(spi_bit_mask & BIT(lSPIInstance))
         return NULL;
@@ -156,7 +156,7 @@ void iot_spi_set_callback(IotSPIHandle_t const pxSPIPeripheral, IotSPICallback_t
     if (pxSPIPeripheral == NULL || xCallback == NULL) {
         BK_LOGE(COMMON_SPI_TAG, "Invalid arguments\r\n");
     }
-    BK_LOGD(COMMON_SPI_TAG, "set_callback\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "set_callback\r\n");
     IotSPIDescriptor_t *spi_ctx = (IotSPIDescriptor_t *) pxSPIPeripheral;
 
     spi_ctx->arg = pvUserContext;
@@ -171,7 +171,7 @@ int32_t iot_spi_ioctl( IotSPIHandle_t const pxSPIPeripheral,
         BK_LOGE(COMMON_SPI_TAG, "Invalid arguments\r\n");
         return IOT_SPI_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_SPI_TAG, "spi_ioctl\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "spi_ioctl\r\n");
     IotSPIDescriptor_t *spi_ctx = (IotSPIDescriptor_t *) pxSPIPeripheral;
     spi_config_t internal;
     IotSPIMasterConfig_t *iot_spi_cfg;
@@ -215,7 +215,7 @@ int32_t iot_spi_write_sync(IotSPIHandle_t const pxSPIPeripheral, uint8_t * const
         BK_LOGE(COMMON_SPI_TAG,"Invalid arguments\r\n");
         return IOT_SPI_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_SPI_TAG, "write_sync\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "write_sync\r\n");
 
     IotSPIDescriptor_t * spi_ctx = (IotSPIDescriptor_t *) pxSPIPeripheral;
     spi_ctx->bytes_read = 0;
@@ -237,7 +237,7 @@ int32_t iot_spi_read_sync(IotSPIHandle_t const pxSPIPeripheral, uint8_t * const 
         BK_LOGE(COMMON_SPI_TAG,"Invalid arguments\r\n");
         return IOT_SPI_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_SPI_TAG, "read_sync\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "read_sync\r\n");
 
     IotSPIDescriptor_t * spi_ctx = (IotSPIDescriptor_t *) pxSPIPeripheral;
     spi_ctx->bytes_written = 0;
@@ -265,7 +265,7 @@ int32_t iot_spi_write_async(IotSPIHandle_t const pxSPIPeripheral, uint8_t * cons
         BK_LOGE(COMMON_SPI_TAG,"Invalid arguments\r\n");
         return IOT_SPI_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_SPI_TAG, "write_async\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "write_async\r\n");
 
     IotSPIDescriptor_t * spi_ctx = (IotSPIDescriptor_t *) pxSPIPeripheral;
     spi_ctx->bytes_read = 0;
@@ -282,7 +282,7 @@ int32_t iot_spi_read_async(IotSPIHandle_t const pxSPIPeripheral, uint8_t * const
         BK_LOGE(COMMON_SPI_TAG,"Invalid arguments\r\n");
         return IOT_SPI_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_SPI_TAG, "read_async\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "read_async\r\n");
 
     IotSPIDescriptor_t * spi_ctx = (IotSPIDescriptor_t *) pxSPIPeripheral;
     spi_ctx->bytes_written = 0;
@@ -303,7 +303,7 @@ int32_t iot_spi_transfer_sync( IotSPIHandle_t const pxSPIPeripheral, uint8_t * c
         BK_LOGE(COMMON_SPI_TAG,"Invalid arguments\r\n");
         return IOT_SPI_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_SPI_TAG, "transfer_sync\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "transfer_sync\r\n");
 
     IotSPIDescriptor_t * spi_ctx = (IotSPIDescriptor_t *) pxSPIPeripheral;
     ret = bk_spi_transmit(spi_ctx->id, pvTxBuffer, xBytes, pvRxBuffer, xBytes);
@@ -330,7 +330,7 @@ int32_t iot_spi_transfer_async(IotSPIHandle_t const pxSPIPeripheral, uint8_t * c
         BK_LOGE(COMMON_SPI_TAG,"Invalid arguments\r\n");
         return IOT_SPI_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_SPI_TAG, "transfer_async\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "transfer_async\r\n");
 
     IotSPIDescriptor_t * spi_ctx = (IotSPIDescriptor_t *) pxSPIPeripheral;
     spi_ctx->trans_read = pvRxBuffer;
@@ -347,7 +347,7 @@ int32_t iot_spi_close( IotSPIHandle_t const pxSPIPeripheral )
         BK_LOGE(COMMON_SPI_TAG, "Invalid arguments\r\n");
         return IOT_SPI_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_SPI_TAG, "spi_close\r\n");
+    BK_LOGV(COMMON_SPI_TAG, "spi_close\r\n");
     if(spi_bit_mask & BIT(pxSPIPeripheral->id))
     {
         bk_spi_unregister_rx_finish_isr(pxSPIPeripheral->id);

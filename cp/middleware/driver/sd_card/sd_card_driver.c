@@ -233,7 +233,7 @@ static bk_err_t sd_card_cmd_go_idle_state(void)
 		SD_CARD_LOGW("CMD0 GO_IDLE_STATE err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD0(GO_IDLE_STATE) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD0(GO_IDLE_STATE) ok\r\n");
 
 	return error_state;
 }
@@ -275,7 +275,7 @@ static bk_err_t sd_card_cmd_send_if_cond(void)
 		return error_state;
 	}
 
-	SD_CARD_LOGD("sdio host send CMD8(SEND_IF_COND) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD8(SEND_IF_COND) ok\r\n");
 
 	/* Get Response R7 argument
 	 * - [11:8]: Voltage accepted
@@ -289,7 +289,7 @@ static bk_err_t sd_card_cmd_send_if_cond(void)
 	voltage_accpet = (rsp_arg >> 8) & 0xf;
 
 	if (check_pattern == 0xaa && voltage_accpet == 0x1) {
-		SD_CARD_LOGI("sd card support voltage 2.7-3.6 V\r\n");
+		SD_CARD_LOGD("sd card support voltage 2.7-3.6 V\r\n");
 		return BK_OK;
 	} else {
 		SD_CARD_LOGW("sd card unsupport voltage\r\n");
@@ -317,7 +317,7 @@ static bk_err_t sd_card_cmd_app_cmd(uint32_t argument)
 		SD_CARD_LOGW("CMD55 APP_CMD err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD55(APP_CMD) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD55(APP_CMD) ok\r\n");
 
 	return error_state;
 }
@@ -344,7 +344,7 @@ static bk_err_t sd_card_cmd_sd_send_op_cond(uint32_t ocr)
 		SD_CARD_LOGW("ACMD41 SD_SEND_OP_COND err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send ACMD41(SD_SEND_OP_COND) ok\r\n");
+	SD_CARD_LOGV("sdio host send ACMD41(SD_SEND_OP_COND) ok\r\n");
 
 	return error_state;
 }
@@ -367,7 +367,7 @@ static bk_err_t sd_card_cmd_all_send_cid(void)
 		SD_CARD_LOGW("CMD2 ALL_SEND_CID err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD2(ALL_SEND_CID) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD2(ALL_SEND_CID) ok\r\n");
 
 	return error_state;
 }
@@ -391,7 +391,7 @@ static bk_err_t sd_card_cmd_send_relative_addr(uint16_t *rca)
 		SD_CARD_LOGW("CMD3 SEND_RELATIVE_ADDR err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD3(SEND_RELATIVE_ADDR) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD3(SEND_RELATIVE_ADDR) ok\r\n");
 
 	/* R6
 	 * BIT[0:15] card status bits
@@ -421,7 +421,7 @@ static bk_err_t sd_card_cmd_send_csd(uint32_t argument)
 		SD_CARD_LOGW("CMD9 SEND_CSD err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD9(SEND_CSD) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD9(SEND_CSD) ok\r\n");
 
 	return error_state;
 }
@@ -452,7 +452,7 @@ static bk_err_t sd_card_cmd_select_deselect_card(uint32_t addr)
 		SD_CARD_LOGW("CMD7 SELECT_DESELECT_CARD err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD7(SELECT_DESELECT_CARD) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD7(SELECT_DESELECT_CARD) ok\r\n");
 
 	return error_state;
 }
@@ -475,7 +475,7 @@ static bk_err_t sd_card_cmd_set_bus_width(bool four_lines)
 	bk_sdio_host_send_command(&cmd_cfg);
 	error_state = bk_sdio_host_wait_cmd_response(cmd_cfg.cmd_index);
 	if (error_state != BK_OK) {
-		SD_CARD_LOGD("CMD55 SET_BUS_WIDTH err:-%x\r\n", -error_state);
+		SD_CARD_LOGV("CMD55 SET_BUS_WIDTH err:-%x\r\n", -error_state);
 		return error_state;
 	}
 
@@ -495,10 +495,10 @@ static bk_err_t sd_card_cmd_set_bus_width(bool four_lines)
 	bk_sdio_host_send_command(&cmd_cfg);
 	error_state = bk_sdio_host_wait_cmd_response(cmd_cfg.cmd_index);
 	if (error_state != BK_OK) {
-		SD_CARD_LOGD("ACMD6 SET_BUS_WIDTH err:-%x\r\n", -error_state);
+		SD_CARD_LOGV("ACMD6 SET_BUS_WIDTH err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send ACMD6(SET_BUS_WIDTH) = %d\r\n", four_lines);
+	SD_CARD_LOGV("sdio host send ACMD6(SET_BUS_WIDTH) = %d\r\n", four_lines);
 
 	return error_state;
 }
@@ -521,7 +521,7 @@ static bk_err_t sd_card_cmd_set_block_len(uint32_t block_size)
 		SD_CARD_LOGW("CMD16 SET_BLOCK_LEN err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD16(SET_BLOCK_LEN) ok, set_block_len:%d\r\n", block_size);
+	SD_CARD_LOGV("sdio host send CMD16(SET_BLOCK_LEN) ok, set_block_len:%d\r\n", block_size);
 
 	return error_state;
 }
@@ -554,7 +554,7 @@ static bk_err_t sd_card_cmd_write_multiple_block(uint32_t write_addr)
 		SD_CARD_LOGW("CMD25 WRITE_MULTIPLE_BLOCK err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD25(WRITE_MULTIPLE_BLOCK) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD25(WRITE_MULTIPLE_BLOCK) ok\r\n");
 
 	return error_state;
 }
@@ -580,7 +580,7 @@ static bk_err_t sd_card_cmd_write_single_block(uint32_t write_addr)
 		SD_CARD_LOGW("CMD24 WRITE_BLOCK err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD24(WRITE_BLOCK) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD24(WRITE_BLOCK) ok\r\n");
 
 	return error_state;
 }
@@ -614,7 +614,7 @@ static bk_err_t sd_card_cmd_read_multiple_block(uint32 addr)
 		SD_CARD_LOGW("CMD18 READ_MULTIPLE_BLOCK err:-%x\r\n", -error_state);
 			return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD18(READ_MULTIPLE_BLOCK) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD18(READ_MULTIPLE_BLOCK) ok\r\n");
 
 	return error_state;
 }
@@ -640,7 +640,7 @@ static bk_err_t sd_card_cmd_read_single_block(uint32 addr)
 		SD_CARD_LOGW("CMD17 READ_SINGLE_BLOCK err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD17(READ_SINGLE_BLOCK) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD17(READ_SINGLE_BLOCK) ok\r\n");
 
 	return error_state;
 }
@@ -709,7 +709,7 @@ bk_err_t sd_card_cmd_stop_transmission(void)
 
 	//bk_sdio_clock_en(0);
 
-	SD_CARD_LOGD("sdio host send CMD12(STOP_TRANSMISSION) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD12(STOP_TRANSMISSION) ok\r\n");
 
 	return error_state;
 }
@@ -732,7 +732,7 @@ bk_err_t sd_card_cmd_stop_transmission(void)
 		SD_CARD_LOGW("CMD12 STOP_TRANSMISSION err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD12(STOP_TRANSMISSION) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD12(STOP_TRANSMISSION) ok\r\n");
 
 	return error_state;
 }
@@ -756,7 +756,7 @@ static bk_err_t sd_card_cmd_set_erase_start_addr(uint32_t start_addr)
 		SD_CARD_LOGW("CMD32 ERASE_WR_BLK_START err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD32(ERASE_WR_BLK_START) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD32(ERASE_WR_BLK_START) ok\r\n");
 
 	return error_state;
 }
@@ -779,7 +779,7 @@ static bk_err_t sd_card_cmd_set_erase_end_addr(uint32_t end_addr)
 		SD_CARD_LOGW("CMD33 ERASE_WR_BLK_END err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD33(ERASE_WR_BLK_END) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD33(ERASE_WR_BLK_END) ok\r\n");
 
 	return error_state;
 }
@@ -802,7 +802,7 @@ static bk_err_t sd_card_cmd_erase(void)
 		SD_CARD_LOGW("CMD38 ERASE err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD38(ERASE) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD38(ERASE) ok\r\n");
 
 	return error_state;
 }
@@ -825,7 +825,7 @@ static bk_err_t sd_card_cmd_send_status(uint32_t argument, uint32_t *card_status
 		SD_CARD_LOGW("CMD13 SEND_STATUS err:-%x\r\n", -error_state);
 		return error_state;
 	}
-	SD_CARD_LOGD("sdio host send CMD13(SEND_STATUS) ok\r\n");
+	SD_CARD_LOGV("sdio host send CMD13(SEND_STATUS) ok\r\n");
 
 	*card_status = bk_sdio_host_get_cmd_rsp_argument(SDIO_HOST_RSP0);
 
@@ -895,11 +895,11 @@ static bk_err_t sd_card_power_on(void)
 
 	/* OCR register BIT[30] */
 	if ((response & SD_OCR_HIGH_CAPACITY) == SD_OCR_HIGH_CAPACITY) {
-		SD_CARD_LOGI("card capacity SDHC_SDXC\r\n");
+		SD_CARD_LOGD("card capacity SDHC_SDXC\r\n");
 		s_sd_card_obj.sd_card.card_type = SD_CARD_TYPE_SDHC_SDXC;
 	} else {
 		s_sd_card_obj.sd_card.card_type = SD_CARD_TYPE_SDSC;
-		SD_CARD_LOGI("card capacity SDSC\r\n");
+		SD_CARD_LOGD("card capacity SDSC\r\n");
 	}
 
 	return BK_OK;
@@ -945,13 +945,13 @@ static bk_err_t sd_card_init_card(void)
 		s_sd_card_obj.csd.csd_2.v = bk_sdio_host_get_cmd_rsp_argument(SDIO_HOST_RSP1);
 		s_sd_card_obj.csd.csd_1.v = bk_sdio_host_get_cmd_rsp_argument(SDIO_HOST_RSP2);
 		s_sd_card_obj.csd.csd_0.v = bk_sdio_host_get_cmd_rsp_argument(SDIO_HOST_RSP3);
-		SD_CARD_LOGD("csd[0]=0x%x, csd[1]=0x%x, csd[2]=0x%x, csd[3]=0x%x\r\n",
+		SD_CARD_LOGV("csd[0]=0x%x, csd[1]=0x%x, csd[2]=0x%x, csd[3]=0x%x\r\n",
 			s_sd_card_obj.csd.csd_0.v,s_sd_card_obj.csd.csd_1.v,s_sd_card_obj.csd.csd_2.v,s_sd_card_obj.csd.csd_3.v);
 	}
 
 	/* Get the card class */
 	s_sd_card_obj.sd_card.class = ((bk_sdio_host_get_cmd_rsp_argument(SDIO_HOST_RSP1)) >> 20);
-	SD_CARD_LOGI("sd card class:0x%x\r\n", s_sd_card_obj.sd_card.class);
+	SD_CARD_LOGD("sd card class:0x%x\r\n", s_sd_card_obj.sd_card.class);
 
 	/* TODO: Get CSD parameters */
 
@@ -984,11 +984,11 @@ static bk_err_t sd_card_init_card(void)
 #if CONFIG_SDIO_V2P0
 	s_sd_card_obj.clock_freq = CONFIG_SDCARD_DEFAULT_CLOCK_FREQ;
 	bk_sdio_host_set_clock_freq(s_sd_card_obj.clock_freq);
-	SD_CARD_LOGI("sdio clock freq:%d->%d\r\n", CONFIG_SDIO_HOST_DEFAULT_CLOCK_FREQ, s_sd_card_obj.clock_freq);
+	SD_CARD_LOGD("sdio clock freq:%d->%d\r\n", CONFIG_SDIO_HOST_DEFAULT_CLOCK_FREQ, s_sd_card_obj.clock_freq);
 #else
 	s_sd_card_obj.clock_freq = SDIO_HOST_CLK_13M;
 	bk_sdio_host_set_clock_freq(SDIO_HOST_CLK_13M);
-	SD_CARD_LOGI("sdio clock freq:%d->%d\r\n", CONFIG_SDIO_HOST_DEFAULT_CLOCK_FREQ, SDIO_HOST_CLK_13M);
+	SD_CARD_LOGD("sdio clock freq:%d->%d\r\n", CONFIG_SDIO_HOST_DEFAULT_CLOCK_FREQ, SDIO_HOST_CLK_13M);
 #endif
 	rtos_delay_milliseconds(2);
 
@@ -1026,7 +1026,7 @@ bk_err_t bk_sd_card_init(void)
 	if(s_mutex_sdcard == NULL) {
 		error_state = rtos_init_mutex(&s_mutex_sdcard);
 		if (error_state != BK_OK) {
-			SD_CARD_LOGI("s_mutex_sdcard init failed\r\n");
+			SD_CARD_LOGD("s_mutex_sdcard init failed\r\n");
 			rtos_exit_critical(int_level);
 			return error_state;
 		}
@@ -1037,7 +1037,7 @@ bk_err_t bk_sd_card_init(void)
 #endif
 
 	if (s_sd_card_is_init) {
-		SD_CARD_LOGI("sd card has inited\r\n");
+		SD_CARD_LOGD("sd card has inited\r\n");
 #if CONFIG_SDIO_V2P0
 		rtos_unlock_mutex(&s_mutex_sdcard);
 #endif
@@ -1069,7 +1069,7 @@ bk_err_t bk_sd_card_init(void)
 #endif
 	/* Initialize SDIO peripheral interface with default configuration */
 	BK_RETURN_ON_ERR(bk_sdio_host_init(&sdio_cfg));
-	SD_CARD_LOGI("sdio host init ok, clock_freq:%d\r\n", sdio_cfg.clock_freq);
+	SD_CARD_LOGD("sdio host init ok, clock_freq:%d\r\n", sdio_cfg.clock_freq);
 	rtos_delay_milliseconds(30);
 
 #if CONFIG_SDCARD_OPS_TRACE_EN
@@ -1126,7 +1126,7 @@ bk_err_t bk_sd_card_deinit(void)
 		rtos_lock_mutex(&s_mutex_sdcard);
 	}
 	else {
-		SD_CARD_LOGI("lock no init\r\n");
+		SD_CARD_LOGD("lock no init\r\n");
 		return BK_FAIL;
 	}
 #endif
@@ -1137,7 +1137,7 @@ bk_err_t bk_sd_card_deinit(void)
 #endif
 
 	if (!s_sd_card_is_init) {
-		SD_CARD_LOGI("hasn't init\r\n");
+		SD_CARD_LOGD("hasn't init\r\n");
 #if CONFIG_SDIO_V2P0
 		rtos_unlock_mutex(&s_mutex_sdcard);
 #endif
@@ -1173,7 +1173,7 @@ bk_err_t bk_sd_card_erase(uint32_t start_block_addr, uint32_t end_block_addr)
 
 	/* Check if the card command class supports erase command */
 	if ((s_sd_card_obj.sd_card.class & SD_SUPPORT_ERASE_CMD) == 0) {
-		SD_CARD_LOGI("the card command class not support erase command\r\n");
+		SD_CARD_LOGD("the card command class not support erase command\r\n");
 		//return BK_FAIL;
 	}
 	if (s_sd_card_obj.sd_card.card_type != SD_CARD_TYPE_SDHC_SDXC) {
@@ -1209,7 +1209,7 @@ static void sdcard_dump_transfer_data(UINT8 *write_buff, uint32_t first_block, u
 {
 	uint32_t i = 0;
 
-	SD_CARD_LOGD("[+]sdcard_dump_transfer_data:addr=0x%x,cnt=%d\r\n", write_buff, cnt);
+	SD_CARD_LOGV("[+]sdcard_dump_transfer_data:addr=0x%x,cnt=%d\r\n", write_buff, cnt);
 
 #if 1	//the format the same with bk_mem_dump_ex:avoid 4 bytes un-align issue
 	for (i = 0;  i < cnt * 512; i++) {
@@ -1225,7 +1225,7 @@ static void sdcard_dump_transfer_data(UINT8 *write_buff, uint32_t first_block, u
 #else
 	for(i = 0; i < cnt * 512; i+=16)
 	{
-		SD_CARD_LOGD("0x%08x, 0x%08x, 0x%08x, 0x%08x\r\n",
+		SD_CARD_LOGV("0x%08x, 0x%08x, 0x%08x, 0x%08x\r\n",
 			(uint32_t)(*(uint32_t *)&write_buff[i]),
 			(uint32_t)(*(uint32_t *)&write_buff[i+4]),
 			(uint32_t)(*(uint32_t *)&write_buff[i+8]),
@@ -1233,7 +1233,7 @@ static void sdcard_dump_transfer_data(UINT8 *write_buff, uint32_t first_block, u
 	}
 #endif
 
-	SD_CARD_LOGD("[-]sdcard_dump_transfer_data:addr=0x%x,cnt=%d\r\n", first_block, cnt);
+	SD_CARD_LOGV("[-]sdcard_dump_transfer_data:addr=0x%x,cnt=%d\r\n", first_block, cnt);
 }
 #endif
 
@@ -1302,8 +1302,8 @@ static sdcard_rw_state_t sd_card_check_continious_rw(sdcard_rw_ops_t ops, uint32
 	static uint32_t s_total_cnt = 0;
 #endif
 
-	SD_CARD_LOGD("s_baked_state=%d,s_baked_addr=%d\r\n", s_baked_state, s_baked_addr);
-	SD_CARD_LOGD("cur_ops=%d,cur_addr=%d,cnt=%d\r\n", ops, addr, blk_cnt);
+	SD_CARD_LOGV("s_baked_state=%d,s_baked_addr=%d\r\n", s_baked_state, s_baked_addr);
+	SD_CARD_LOGV("cur_ops=%d,cur_addr=%d,cnt=%d\r\n", ops, addr, blk_cnt);
 
 	int_level = rtos_enter_critical();
 
@@ -1331,7 +1331,7 @@ static sdcard_rw_state_t sd_card_check_continious_rw(sdcard_rw_ops_t ops, uint32
 			else if(ops == SDCARD_OPS_SYNC_RW)
 			{
 				//do nothing
-				SD_CARD_LOGD("no need sync\r\n");
+				SD_CARD_LOGV("no need sync\r\n");
 			}
 
 			break;
@@ -1415,9 +1415,9 @@ static sdcard_rw_state_t sd_card_check_continious_rw(sdcard_rw_ops_t ops, uint32
 
 	rtos_exit_critical(int_level);
 
-	SD_CARD_LOGD("[-]current_state = %d, s_baked_state=%d,s_baked_addr=%d\r\n", current_state, s_baked_state, s_baked_addr);
+	SD_CARD_LOGV("[-]current_state = %d, s_baked_state=%d,s_baked_addr=%d\r\n", current_state, s_baked_state, s_baked_addr);
 #if 0	//just debug
-	SD_CARD_LOGD("s_continious_cnt=%d,s_total_cnt=%d\r\n", s_continious_cnt, s_total_cnt);
+	SD_CARD_LOGV("s_continious_cnt=%d,s_total_cnt=%d\r\n", s_continious_cnt, s_total_cnt);
 #endif
 	//move out, avoid disable IRQ too much time
 	if(current_state == SDCARD_RW_STATE_ENDED)
@@ -1440,7 +1440,7 @@ bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint3
 	uint32_t addr = block_addr;
 	sdio_host_data_config_t data_config = {0};
 
-	SD_CARD_LOGD("write[+]:tx data=0x%08x,block_addr=%08d,block_cnt=%08d\r\n", data, block_addr, block_num);
+	SD_CARD_LOGV("write[+]:tx data=0x%08x,block_addr=%08d,block_cnt=%08d\r\n", data, block_addr, block_num);
 
 #if (CONFIG_SDCARD_DEBUG_SUPPORT)
 	sdcard_dump_transfer_data((uint8_t *)data, block_addr, block_num);
@@ -1450,7 +1450,7 @@ bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint3
 		rtos_lock_mutex(&s_mutex_sdcard);
 	}
 	else {
-		SD_CARD_LOGI("sd card lock no init\r\n");
+		SD_CARD_LOGD("sd card lock no init\r\n");
 		return BK_FAIL;
 	}
 
@@ -1524,7 +1524,7 @@ bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint3
 
 	rtos_unlock_mutex(&s_mutex_sdcard);
 
-	SD_CARD_LOGD("write[-]error_state=%d\r\n", error_state);
+	SD_CARD_LOGV("write[-]error_state=%d\r\n", error_state);
 
 	return error_state;
 }
@@ -1539,7 +1539,7 @@ bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t blo
 		rtos_lock_mutex(&s_mutex_sdcard);
 	}
 	else {
-		SD_CARD_LOGI("sd card lock no init\r\n");
+		SD_CARD_LOGD("sd card lock no init\r\n");
 		return BK_FAIL;
 	}
 
@@ -1554,7 +1554,7 @@ bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t blo
 		return BK_ERR_SDIO_HOST_NOT_INIT;
 	}
 
-	SD_CARD_LOGD("read[+]:rx data=0x%x,block_addr=0x%x,block_cnt=%d\r\n", data, block_addr, block_num);
+	SD_CARD_LOGV("read[+]:rx data=0x%x,block_addr=0x%x,block_cnt=%d\r\n", data, block_addr, block_num);
 
 	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SDIO, true);
 
@@ -1587,7 +1587,7 @@ bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t blo
 		data_config.data_dir = SDIO_HOST_DATA_DIR_RD;
 
 		bk_sdio_host_config_data(&data_config);
-		SD_CARD_LOGD("sdio host config data ok, data_len:%d\r\n", data_config.data_len);
+		SD_CARD_LOGV("sdio host config data ok, data_len:%d\r\n", data_config.data_len);
 		if (s_sd_card_obj.sd_card.card_type != SD_CARD_TYPE_SDHC_SDXC) {
 			addr *= 512;
 		}
@@ -1633,7 +1633,7 @@ bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t blo
 	sdcard_dump_transfer_data(data, block_addr, block_num);
 #endif
 
-	SD_CARD_LOGD("read[-]\r\n");
+	SD_CARD_LOGV("read[-]\r\n");
 
 	return error_state;
 }
@@ -1641,7 +1641,7 @@ bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t blo
 #else
 bk_err_t bk_sd_card_rw_sync(void)
 {
-	SD_CARD_LOGD("TODO:no implement[-]\r\n");
+	SD_CARD_LOGV("TODO:no implement[-]\r\n");
 	return BK_OK;
 }
 
@@ -1698,7 +1698,7 @@ bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t blo
 	data_config.data_dir = SDIO_HOST_DATA_DIR_RD;
 
 	bk_sdio_host_config_data(&data_config);
-	SD_CARD_LOGI("sdio host config data ok, data_len:%d\r\n", data_config.data_len);
+	SD_CARD_LOGD("sdio host config data ok, data_len:%d\r\n", data_config.data_len);
 	/* such delay is important, otherwise sdio recv_end_int will not triggered */
 	rtos_delay_milliseconds(2);
 
@@ -1728,7 +1728,7 @@ bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t blo
 				data[index++] = (read_data >> 8) & 0xff;
 				data[index++] = (read_data >> 16) & 0xff;
 				data[index++] = (read_data >> 24) & 0xff;
-				//SD_CARD_LOGD("read_data:%x, index:%d\r\n", read_data, index);
+				//SD_CARD_LOGV("read_data:%x, index:%d\r\n", read_data, index);
 			}
 			else
 			{
@@ -1807,7 +1807,7 @@ uint32_t bk_sd_card_get_card_size(void)
 			break;
 	}
 
-	SD_CARD_LOGI("card ver=%d.0,size:0x%08x sector(sector=512bytes)\r\n", ver, (uint32_t)size);
+	SD_CARD_LOGD("card ver=%d.0,size:0x%08x sector(sector=512bytes)\r\n", ver, (uint32_t)size);
 	return size;
 }
 

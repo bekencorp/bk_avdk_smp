@@ -13,7 +13,7 @@ struct printer_cfg_priv {
 
 static int printer_class_interface_request_handler(struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
-    USB_LOG_DBG("Printer Class request: "
+    USB_LOG_VBS("Printer Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
 

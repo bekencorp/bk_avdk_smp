@@ -21,4 +21,5 @@
 #define LIN_LOGW(...) BK_LOGW(LIN_TAG, ##__VA_ARGS__)
 #define LIN_LOGE(...) BK_LOGE(LIN_TAG, ##__VA_ARGS__)
 #define LIN_LOGD(...) BK_LOGD(LIN_TAG, ##__VA_ARGS__)
+#define LIN_LOGV(...) BK_LOGV(LIN_TAG, ##__VA_ARGS__)
 

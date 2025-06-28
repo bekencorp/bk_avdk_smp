@@ -28,6 +28,7 @@ extern "C" {
 #define USB_CDC_LOGW(...) BK_LOGW(USB_CDC_TAG, ##__VA_ARGS__)
 #define USB_CDC_LOGE(...) BK_LOGE(USB_CDC_TAG, ##__VA_ARGS__)
 #define USB_CDC_LOGD(...) BK_LOGD(USB_CDC_TAG, ##__VA_ARGS__)
+#define USB_CDC_LOGV(...) BK_LOGV(USB_CDC_TAG, ##__VA_ARGS__)
 
 
 

@@ -28,7 +28,7 @@
 
 #define TEST_CHECK_NULL(ptr) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "TEST_CHECK_NULL fail \n");\
+            BK_LOGD(TAG, "TEST_CHECK_NULL fail \n");\
             return BK_FAIL;\
         }\
     } while(0)
@@ -68,15 +68,15 @@ bk_err_t adk_aac_encoder_test_case_0(void)
     //      bk_disable_mod_printf("AUDIO_EVENT", 0);
     //      bk_disable_mod_printf("AUDIO_MEM", 0);
 #endif
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: pipeline init ----------\n");
+    BK_LOGD(TAG, "--------- step1: pipeline init ----------\n");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     pipeline = audio_pipeline_init(&pipeline_cfg);
     TEST_CHECK_NULL(pipeline);
 
-    BK_LOGI(TAG, "--------- step2: init elements ----------\n");
+    BK_LOGD(TAG, "--------- step2: init elements ----------\n");
     onboard_mic_stream_cfg_t onboard_mic_cfg = ONBOARD_MIC_ADC_STREAM_CFG_DEFAULT();
     onboard_mic = onboard_mic_stream_init(&onboard_mic_cfg);
     TEST_CHECK_NULL(onboard_mic);
@@ -91,7 +91,7 @@ bk_err_t adk_aac_encoder_test_case_0(void)
     uart_out = uart_stream_init(&uart_stream_cfg);
     TEST_CHECK_NULL(uart_out);
 
-    BK_LOGI(TAG, "--------- step3: pipeline register ----------\n");
+    BK_LOGD(TAG, "--------- step3: pipeline register ----------\n");
     if (BK_OK != audio_pipeline_register(pipeline, onboard_mic, "onboard_mic"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
@@ -108,7 +108,7 @@ bk_err_t adk_aac_encoder_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: pipeline link ----------\n");
+    BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
     if (BK_OK != audio_pipeline_link(pipeline, (const char *[])
 {"onboard_mic", "aac_enc", "uart_out"
 }, 3))
@@ -117,7 +117,7 @@ bk_err_t adk_aac_encoder_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step5: init event listener ----------\n");
+    BK_LOGD(TAG, "--------- step5: init event listener ----------\n");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
 
@@ -127,7 +127,7 @@ bk_err_t adk_aac_encoder_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step6: pipeline run ----------\n");
+    BK_LOGD(TAG, "--------- step6: pipeline run ----------\n");
     if (BK_OK != audio_pipeline_run(pipeline))
     {
         BK_LOGE(TAG, "pipeline run fail, %d \n", __LINE__);
@@ -158,7 +158,7 @@ bk_err_t adk_aac_encoder_test_case_0(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step7: deinit pipeline ----------\n");
+    BK_LOGD(TAG, "--------- step7: deinit pipeline ----------\n");
     if (BK_OK != audio_pipeline_stop(pipeline))
     {
         BK_LOGE(TAG, "pipeline stop fail, %d \n", __LINE__);
@@ -228,7 +228,7 @@ bk_err_t adk_aac_encoder_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- aac encoder test complete ----------\n");
+    BK_LOGD(TAG, "--------- aac encoder test complete ----------\n");
 
     AUDIO_MEM_SHOW("end \n");
 

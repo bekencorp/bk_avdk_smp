@@ -244,7 +244,7 @@ int key_item_configure(uint32_t gpio, uint8_t active_level, void short_press(voi
 		os_free(handle);
 		return kGeneralErr;
 	}
-	os_printf("key_item_configure\r\n");
+	BK_LOGD(NULL, "key_item_configure\r\n");
 
 	return kNoErr;
 }

@@ -18,7 +18,7 @@
 
 static void cli_int_target_help(void)
 {
-	CLI_LOGI("target {inttype} {s|ns}\r\n");
+	CLI_LOGD("target {inttype} {s|ns}\r\n");
 }
 
 static void cli_int_target_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)

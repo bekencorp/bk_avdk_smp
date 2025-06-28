@@ -32,6 +32,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 static bool s_rott_driver_is_init = false;
 
@@ -191,7 +192,7 @@ bk_err_t bk_rott_driver_init(void)
 #if (USE_ROTT_REGISTER_CALLBACKS == 1)
 	bk_int_isr_register(INT_SRC_ROTT, rott_cb_isr, NULL);
 #endif
-	LOGD("%s ok. \n", __func__);
+	LOGV("%s ok. \n", __func__);
 
 	s_rott_driver_is_init = true;
 	return ret;
@@ -211,7 +212,7 @@ bk_err_t bk_rott_driver_deinit(void)
 	rott_ll_set_module_contol_clk_gate(0);
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_VIDP_ROTT, PM_POWER_MODULE_STATE_OFF);
 
-	LOGD("%s ok. \n", __func__);
+	LOGV("%s ok. \n", __func__);
 	s_rott_driver_is_init = false;
 	return BK_OK;
 }
@@ -385,7 +386,7 @@ bk_err_t bk_rott_wartermark_block_config(uint16_t wtmk_block)
 	{
 		if (0 == wtmk_block)
 		{
-			LOGD("%s: block num is 0, so disable watermark int\n", __func__);
+			LOGV("%s: block num is 0, so disable watermark int\n", __func__);
 			rott_ll_set_rotate_ctrl_rotate_wtmk_int_ena(0);
 		}
 		else

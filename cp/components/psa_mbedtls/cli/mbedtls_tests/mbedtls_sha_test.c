@@ -42,7 +42,7 @@ int te200_sha256_test(uint8_t *encrypt_buf, uint32_t encrypt_len)
 
     // buf = mbedtls_calloc( encrypt_len, sizeof(unsigned char) );
     // if( NULL == buf ) {
-    //     os_printf( "Buffer allocation failed\n" );
+    //     BK_LOGD(NULL, "Buffer allocation failed\n" );
     //     return 1;
     // }
 
@@ -91,7 +91,7 @@ int te200_sha256_loop_test(uint32_t encrypt_len, uint32_t test_cnt)
 
     buf = mbedtls_calloc( encrypt_len, sizeof(unsigned char) );
     if( NULL == buf ) {
-        os_printf( "Buffer allocation failed\n" );
+        BK_LOGD(NULL, "Buffer allocation failed\n" );
         return 1;
     }
 

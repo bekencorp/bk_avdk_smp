@@ -47,7 +47,7 @@ extern u32 airkiss_process(u8 start);
 
 void demo_start( void )
 {
-    os_printf("\r\n-Airkiss connect SoftAP\r\n");
+    BK_LOGD(NULL,"\r\n-Airkiss connect SoftAP\r\n");
 
     airkiss_process(1);
 }

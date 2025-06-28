@@ -481,7 +481,7 @@ void ap_handle_timer(void *eloop_ctx, void *timeout_ctx)
 		   hapd->conf->iface, __func__, MAC2STR(sta->addr), sta->flags,
 		   sta->timeout_next);
 #endif
-	WPA_LOGI("ap_handle_timer\n");
+	WPA_LOGD("ap_handle_timer\n");
 	if (sta->timeout_next == STA_REMOVE) {
 		hostapd_logger(hapd, sta->addr, HOSTAPD_MODULE_IEEE80211,
 			       HOSTAPD_LEVEL_INFO, "deauthenticated due to "
@@ -505,7 +505,7 @@ void ap_handle_timer(void *eloop_ctx, void *timeout_ctx)
 		int fuzz = os_random() % 20;
 #endif
 		inactive_sec = hostapd_drv_get_inact_sec(hapd, sta->addr);
-		// WPA_LOGI("inactive_sec:%d fuzz:%d\n", inactive_sec, fuzz);
+		// WPA_LOGD("inactive_sec:%d fuzz:%d\n", inactive_sec, fuzz);
 		if (inactive_sec == -1) {
 			wpa_msg(hapd->msg_ctx, MSG_DEBUG,
 				"Check inactivity: Could not "
@@ -536,7 +536,7 @@ void ap_handle_timer(void *eloop_ctx, void *timeout_ctx)
 #ifdef BK_SUPPLICANT
 		} else if (STA_DISASSOC == sta->timeout_next) {
 			sta->timeout_next = STA_REMOVE;
-			WPA_LOGI("STA_REMOVE\r\n");
+			WPA_LOGD("STA_REMOVE\r\n");
 #endif
 		} else {
 			wpa_msg(hapd->msg_ctx, MSG_DEBUG,
@@ -601,7 +601,7 @@ skip_poll:
 			reason = (sta->timeout_next == STA_DISASSOC) ?
 				WLAN_REASON_DISASSOC_DUE_TO_INACTIVITY :
 				WLAN_REASON_PREV_AUTH_NOT_VALID;
-			WPA_LOGI("hostapd_drv_sta_disassoc: %pm\r\n", sta->addr);
+			WPA_LOGD("hostapd_drv_sta_disassoc: %pm\r\n", sta->addr);
 			hostapd_drv_sta_disassoc(hapd, sta->addr, reason);
 		}
 	}
@@ -654,7 +654,7 @@ skip_poll:
 			sta->acct_terminate_cause =
 				RADIUS_ACCT_TERMINATE_CAUSE_IDLE_TIMEOUT;
 #endif
-		WPA_LOGI("ap_free_sta\r\n");
+		WPA_LOGD("ap_free_sta\r\n");
 		mlme_deauthenticate_indication(
 			hapd, sta,
 			WLAN_REASON_PREV_AUTH_NOT_VALID);
@@ -765,7 +765,7 @@ struct sta_info * ap_sta_add(struct hostapd_data *hapd, const u8 *addr)
 	if (hapd->num_sta >= hapd->conf->max_num_sta) {
 		/* FIX: might try to remove some old STAs first? */
 #ifdef CONFIG_NO_STDOUT_DEBUG
-		WPA_LOGI("no more room for new STAs (%d/%d), mac %pm\n",
+		WPA_LOGD("no more room for new STAs (%d/%d), mac %pm\n",
 			   hapd->num_sta, hapd->conf->max_num_sta, addr);
 #else
 		wpa_printf(MSG_DEBUG, "no more room for new STAs (%d/%d)",
@@ -1450,7 +1450,7 @@ void ap_sta_disconnect(struct hostapd_data *hapd, struct sta_info *sta,
 #if BK_SUPPLICANT && CONFIG_P2P_GO
 	if (!(sta->flags & (WLAN_STA_AUTH | WLAN_STA_ASSOC |
 			WLAN_STA_ASSOC_REQ_OK))) {
-		WPA_LOGI("%s, already disconnected %d\r\n", __func__, __LINE__);
+		WPA_LOGD("%s, already disconnected %d\r\n", __func__, __LINE__);
 		return;
 	}
 #endif
@@ -1487,7 +1487,7 @@ void ap_sta_disconnect(struct hostapd_data *hapd, struct sta_info *sta,
 	sta->flags |= WLAN_STA_PENDING_DEAUTH_CB;
 #if BK_SUPPLICANT && CONFIG_P2P_GO
 	if (!(sta->flags & WLAN_STA_PENDING_DEAUTH_CB)) {
-		WPA_LOGI("%s, already disconnected %d\n", __func__, __LINE__);
+		WPA_LOGD("%s, already disconnected %d\n", __func__, __LINE__);
 		return;
 	}
 #endif

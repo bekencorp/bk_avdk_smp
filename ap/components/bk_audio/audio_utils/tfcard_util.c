@@ -87,7 +87,7 @@ tfcard_util_handle_t tfcard_util_create(char *name)
         goto fail;
     }
 
-    LOGI("open %s ok \n", tfcard_util_handle->file_name);
+    LOGD("open %s ok \n", tfcard_util_handle->file_name);
 
     return tfcard_util_handle;
 

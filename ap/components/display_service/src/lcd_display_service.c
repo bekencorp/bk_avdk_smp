@@ -42,6 +42,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #ifdef DISP_DIAG_DEBUG
 #define DISPLAY_START()         do { GPIO_UP(GPIO_DVP_D6); } while (0)
@@ -242,7 +243,7 @@ static bk_err_t lcd_display_frame(frame_buffer_t *frame)
 
         lcd_driver_set_display_base_addr((uint32_t)frame->frame);
         lcd_driver_display_enable();
-        LOGI("display start, frame width, height %d, %d\n", frame->width, frame->height);
+        LOGD("display start, frame width, height %d, %d\n", frame->width, frame->height);
     }
     else
     {
@@ -428,7 +429,7 @@ static bk_err_t lcd_display_task_stop(void)
     bk_err_t ret = BK_OK;
     if (!lcd_disp_config || lcd_disp_config->disp_task_running == false)
     {
-        LOGI("%s already stop\n", __func__);
+        LOGD("%s already stop\n", __func__);
         return ret;
     }
 
@@ -447,7 +448,7 @@ static bk_err_t lcd_display_task_stop(void)
         lcd_disp_config->queue = NULL;
     }
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 
     return ret;
 }
@@ -475,14 +476,14 @@ bk_err_t lcd_display_config_free(void)
 
         if (lcd_disp_config->pingpong_frame)
         {
-            LOGI("%s pingpong_frame free\n", __func__);
+            LOGD("%s pingpong_frame free\n", __func__);
             lcd_display_free(lcd_disp_config->pingpong_frame);
             lcd_disp_config->pingpong_frame = NULL;
         }
 
         if (lcd_disp_config->display_frame)
         {
-            LOGI("%s display_frame free\n", __func__);
+            LOGD("%s display_frame free\n", __func__);
             lcd_display_free(lcd_disp_config->display_frame);
             lcd_disp_config->display_frame = NULL;
         }
@@ -493,7 +494,7 @@ bk_err_t lcd_display_config_free(void)
             lcd_disp_config = NULL;
         }
     }
-    LOGD("%s %d\n", __func__, __LINE__);
+    LOGV("%s %d\n", __func__, __LINE__);
     return ret;
 }
 
@@ -514,7 +515,7 @@ uint8_t lcd_display_get_type(void)
 {
     if (lcd_disp_config == NULL)
     {
-        LOGI("%s lcd_disp_config is null\r\n", __func__);
+        LOGD("%s lcd_disp_config is null\r\n", __func__);
         return 0;
     }
     else
@@ -579,7 +580,7 @@ bk_err_t lcd_display_open(lcd_open_t *config)
     lcd_disp_config->lcd_type = lcd_device->type;
 
     // step 4: init frame buffer
-    LOGI("%s %d lcd ppi:%d %d\n", __func__, __LINE__, lcd_disp_config->lcd_width, lcd_disp_config->lcd_height);
+    LOGD("%s %d lcd ppi:%d %d\n", __func__, __LINE__, lcd_disp_config->lcd_width, lcd_disp_config->lcd_height);
 
     // step 5: init lcd display
     ret = lcd_driver_init(lcd_device);
@@ -626,7 +627,7 @@ bk_err_t lcd_display_open(lcd_open_t *config)
 
     lcd_driver_backlight_open();
 
-    LOGI("%s %d complete\n", __func__, __LINE__);
+    LOGD("%s %d complete\n", __func__, __LINE__);
 
     return ret;
 
@@ -641,7 +642,7 @@ out:
 
 bk_err_t lcd_display_close(void)
 {
-    LOGD("%s, %d\n", __func__, __LINE__);
+    LOGV("%s, %d\n", __func__, __LINE__);
 
     if (lcd_disp_config == NULL)
     {
@@ -670,7 +671,7 @@ bk_err_t lcd_display_close(void)
     }
 
     lcd_display_config_free();
-    LOGI("%s complete, %d\n", __func__, __LINE__);
+    LOGD("%s complete, %d\n", __func__, __LINE__);
     return BK_OK;
 }
 

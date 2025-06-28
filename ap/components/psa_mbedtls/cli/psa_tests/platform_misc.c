@@ -65,5 +65,5 @@ void crypto_perf_log(const char* type, const char* cpu_freq, uint32_t key_len, u
 	uint32_t throughput = (data_len * 8 * 1000) / time;
 
 	(void*)cpu_freq;
-	BK_LOGI("crypto_perf", "@%s@%s@%u@%u@%u@%u@\r\n", type, cpu_freq_str[s_cpu_freq_idx], key_len, data_len, time, throughput);
+	BK_LOGD("crypto_perf", "@%s@%s@%u@%u@%u@%u@\r\n", type, cpu_freq_str[s_cpu_freq_idx], key_len, data_len, time, throughput);
 }

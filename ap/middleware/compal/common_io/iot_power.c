@@ -55,7 +55,7 @@ static int iot_power_idle_enter_cb(uint64_t expected_time_ms, void *args)
         power_descriptor.idle_mode = eIdleNoneMode;
         return -1;
     }
-    os_printf("th = %d, delay = %d \r\n", power_descriptor.PCWake_ms, (uint32_t)expected_time_ms);
+    BK_LOGD(NULL, "th = %d, delay = %d \r\n", power_descriptor.PCWake_ms, (uint32_t)expected_time_ms);
     
     if(power_descriptor.idle_cb != NULL) {
         power_descriptor.idle_cb(true, power_descriptor.cb_args);
@@ -87,12 +87,12 @@ IotPowerHandle_t iot_power_open(void)
         BK_LOGE(COMMON_POWER_TAG, "iot_power_open err,already open\r\n");
         return NULL;
     }
-    BK_LOGD(COMMON_POWER_TAG, "iot_power_open\r\n");
+    BK_LOGV(COMMON_POWER_TAG, "iot_power_open\r\n");
     //to do reg
     pm_cb_conf_t enter_config={iot_power_idle_enter_cb, NULL};
     pm_cb_conf_t exit_config={iot_power_idle_exit_cb, NULL};
     if(bk_pm_light_sleep_register_cb(&enter_config, &exit_config) != BK_OK){
-        BK_LOGD(COMMON_POWER_TAG, "iot_power sleep_register err\r\n");
+        BK_LOGV(COMMON_POWER_TAG, "iot_power sleep_register err\r\n");
         return NULL;
     }
     
@@ -112,7 +112,7 @@ int32_t iot_power_set_mode(IotPowerHandle_t const pxPowerHandle, IotPowerMode_t 
         BK_LOGE(COMMON_POWER_TAG, "iot_power_set_mode err,invalid ptr\r\n");
         return IOT_POWER_SET_FAILED;
     }
-    BK_LOGD(COMMON_POWER_TAG, "iot_power_set_mode\r\n");
+    BK_LOGV(COMMON_POWER_TAG, "iot_power_set_mode\r\n");
     if (pxPowerHandle->power_mode == xMode) {
         return IOT_POWER_SUCCESS;
     }
@@ -140,7 +140,7 @@ int32_t iot_power_reset_mode(IotPowerHandle_t const pxPowerHandle)
         BK_LOGE(COMMON_POWER_TAG, "iot_power_reset_mode err,invalid ptr\r\n");
         return IOT_POWER_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_POWER_TAG, "iot_power_reset_mode\r\n");
+    BK_LOGV(COMMON_POWER_TAG, "iot_power_reset_mode\r\n");
     pxPowerHandle->prev_power_mode = pxPowerHandle->power_mode;
     pxPowerHandle->power_mode = eUnknownPowerMode;
     return IOT_POWER_SUCCESS;
@@ -152,7 +152,7 @@ void iot_power_set_callback(IotPowerHandle_t const pxPowerHandle, IotPowerCallba
         BK_LOGE(COMMON_POWER_TAG, "iot_power_set_callback err,invalid ptr\r\n");
         return;
     }
-    BK_LOGD(COMMON_POWER_TAG, "iot_power_set_callback\r\n");
+    BK_LOGV(COMMON_POWER_TAG, "iot_power_set_callback\r\n");
     pxPowerHandle->idle_cb = xCallback;
     pxPowerHandle->cb_args = pvUserContext;
     return;
@@ -222,7 +222,7 @@ int32_t iot_power_ioctl(IotPowerHandle_t const pxPowerHandle, IotPowerIoctlReque
         BK_LOGE(COMMON_POWER_TAG, "iot_power_ioctl err,invalid ptr\r\n");
         return IOT_POWER_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_POWER_TAG, "iot_power_ioctl\r\n");
+    BK_LOGV(COMMON_POWER_TAG, "iot_power_ioctl\r\n");
     switch(xRequest) {
         case eSetPCWakeThreshold: {
             pxPowerHandle->PCWake_ms = (*(uint32_t *)pvBuffer);
@@ -265,7 +265,7 @@ int32_t iot_power_get_mode(IotPowerHandle_t const pxPowerHandle, IotPowerMode_t 
         BK_LOGE(COMMON_POWER_TAG, "iot_power_get_mode err,invalid ptr\r\n");
         return IOT_POWER_GET_FAILED;
     }
-    BK_LOGD(COMMON_POWER_TAG, "iot_power_get_mode\r\n");
+    BK_LOGV(COMMON_POWER_TAG, "iot_power_get_mode\r\n");
     *xMode = pxPowerHandle->power_mode;
     return IOT_POWER_SUCCESS;
 }
@@ -280,7 +280,7 @@ int32_t iot_power_close(IotPowerHandle_t const pxPowerHandle)
         BK_LOGE(COMMON_POWER_TAG, "iot_power_close err,already close\r\n");
         return IOT_POWER_NOT_INITIALIZED;
     }
-    BK_LOGD(COMMON_POWER_TAG, "iot_power_close\r\n");
+    BK_LOGV(COMMON_POWER_TAG, "iot_power_close\r\n");
     pxPowerHandle->status = 0;
     pxPowerHandle->idle_cb = NULL; 
     bk_pm_light_sleep_unregister_cb(true, true);

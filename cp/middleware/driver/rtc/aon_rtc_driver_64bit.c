@@ -199,13 +199,13 @@ void bk_rtc_update_base_time(void) {
 
 	s_time_base_tick = time_tick;
 	s_time_base_us += time_diff;
-	// AON_RTC_LOGI("s_time_base_tick: 0x%x:0x%08x\r\n", (u32)(s_time_base_tick >> 32), (u32)(s_time_base_tick & 0xFFFFFFFF));
-	// AON_RTC_LOGI("s_time_base_us: 0x%x:0x%08x\r\n", (u32)(s_time_base_us >> 32), (u32)(s_time_base_us & 0xFFFFFFFF));
+	// AON_RTC_LOGD("s_time_base_tick: 0x%x:0x%08x\r\n", (u32)(s_time_base_tick >> 32), (u32)(s_time_base_tick & 0xFFFFFFFF));
+	// AON_RTC_LOGD("s_time_base_us: 0x%x:0x%08x\r\n", (u32)(s_time_base_us >> 32), (u32)(s_time_base_us & 0xFFFFFFFF));
 }
 
 void bk_rtc_set_clock_freq(uint32_t clock_freq){
 #if CONFIG_AON_RTC_DYNAMIC_CLOCK_SUPPORT
-	AON_RTC_LOGI("Set clock freq: %d\n", clock_freq);
+	AON_RTC_LOGD("Set clock freq: %d\n", clock_freq);
 	if (clock_freq == s_aon_rtc_clock_freq) {
 		return;
 	}
@@ -235,20 +235,20 @@ void bk_rtc_set_clock_freq(uint32_t clock_freq){
 static void alarm_dump_node(alarm_node_t *node_p)
 {
 #if CONFIG_AON_RTC_DEBUG
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
-	AON_RTC_LOGD("node_p=0x%x\r\n", node_p);
+	AON_RTC_LOGV("node_p=0x%x\r\n", node_p);
 	if(node_p)
 	{		
-		AON_RTC_LOGD("next=0x%x\r\n", node_p->next);
-		AON_RTC_LOGD("name=%s\r\n", node_p->name);
-		AON_RTC_LOGD("period_tick=0x%x\r\n", node_p->period_tick);
-		AON_RTC_LOGD("period_cnt=%d\r\n", node_p->period_cnt);
-		AON_RTC_LOGD("start_tick=0x%x\r\n", node_p->start_tick);
-		AON_RTC_LOGD("expired_tick=0x%x\r\n", node_p->expired_tick);
+		AON_RTC_LOGV("next=0x%x\r\n", node_p->next);
+		AON_RTC_LOGV("name=%s\r\n", node_p->name);
+		AON_RTC_LOGV("period_tick=0x%x\r\n", node_p->period_tick);
+		AON_RTC_LOGV("period_cnt=%d\r\n", node_p->period_cnt);
+		AON_RTC_LOGV("start_tick=0x%x\r\n", node_p->start_tick);
+		AON_RTC_LOGV("expired_tick=0x%x\r\n", node_p->expired_tick);
 	}
 
-	AON_RTC_LOGD("%s[-]\r\n", __func__);
+	AON_RTC_LOGV("%s[-]\r\n", __func__);
 #endif
 }
 
@@ -259,7 +259,7 @@ static void alarm_dump_list(alarm_node_t *head_p)
 	uint32_t count = 0;
 	uint32_t int_level = 0;
 
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 	int_level = rtc_enter_critical();
 	while(cur_p)
@@ -271,9 +271,9 @@ static void alarm_dump_list(alarm_node_t *head_p)
 	}
 	rtc_exit_critical(int_level);
 
-	AON_RTC_LOGD("node cnt=%d\r\n", count);
+	AON_RTC_LOGV("node cnt=%d\r\n", count);
 
-	AON_RTC_LOGD("%s[-]\r\n", __func__);
+	AON_RTC_LOGV("%s[-]\r\n", __func__);
 #endif
 }
 
@@ -281,13 +281,13 @@ static alarm_node_t* aon_rtc_request_node(aon_rtc_id_t id)
 {
 	uint32_t i = 0; 
 
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 	for(i = 0; i < AON_RTC_MAX_ALARM_CNT; i++)
 	{
 		if((s_aon_rtc_nodes_p[id]->busy_bits & (0x1<<i)) == 0)
 		{
-			AON_RTC_LOGD("%s[-]:node[%d]=0x%x\r\n", __func__, i, &s_aon_rtc_nodes_p[id]->nodes[i]);
+			AON_RTC_LOGV("%s[-]:node[%d]=0x%x\r\n", __func__, i, &s_aon_rtc_nodes_p[id]->nodes[i]);
 			s_aon_rtc_nodes_p[id]->busy_bits |= (0x1<<i);
 			return &s_aon_rtc_nodes_p[id]->nodes[i];
 		}
@@ -300,7 +300,7 @@ static void aon_rtc_release_node(aon_rtc_id_t id, alarm_node_t *node_p)
 {
 	uint32_t i = 0; 
 
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 	for(i = 0; i < AON_RTC_MAX_ALARM_CNT; i++)
 	{
@@ -308,7 +308,7 @@ static void aon_rtc_release_node(aon_rtc_id_t id, alarm_node_t *node_p)
 		{
 			s_aon_rtc_nodes_p[id]->busy_bits &= ~(0x1<<i);
 			os_memset(&s_aon_rtc_nodes_p[id]->nodes[i], 0, sizeof(alarm_info_t));
-			AON_RTC_LOGD("%s[-]:node[%d]=0x%x\r\n", __func__, i, &s_aon_rtc_nodes_p[id]->nodes[i]);
+			AON_RTC_LOGV("%s[-]:node[%d]=0x%x\r\n", __func__, i, &s_aon_rtc_nodes_p[id]->nodes[i]);
 			break;
 		}
 	}
@@ -325,7 +325,7 @@ static int32_t alarm_insert_node(aon_rtc_id_t id, alarm_node_t *node_p)
 	alarm_node_t *next_p = NULL;
 	uint32_t int_level = 0;
 
-	AON_RTC_LOGD("%s[+]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
+	AON_RTC_LOGV("%s[+]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
 
 	alarm_dump_list(s_aon_rtc[id].alarm_head_p);
 
@@ -353,7 +353,7 @@ static int32_t alarm_insert_node(aon_rtc_id_t id, alarm_node_t *node_p)
 	{
 		s_aon_rtc[id].alarm_head_p = node_p;
 		s_aon_rtc[id].alarm_node_cnt++;
-		AON_RTC_LOGD("insert first node 0x%x,name=%s\r\n", node_p, node_p->name);
+		AON_RTC_LOGV("insert first node 0x%x,name=%s\r\n", node_p, node_p->name);
 		
 		rtc_exit_critical(int_level);
 		return 0;
@@ -374,7 +374,7 @@ static int32_t alarm_insert_node(aon_rtc_id_t id, alarm_node_t *node_p)
 		rtc_exit_critical(int_level);
 
 		//TODO:log debug
-		AON_RTC_LOGD("list total has two nodes\r\n");
+		AON_RTC_LOGV("list total has two nodes\r\n");
 
 		return 0;
 	}
@@ -417,7 +417,7 @@ static int32_t alarm_insert_node(aon_rtc_id_t id, alarm_node_t *node_p)
 	//dump list info
 	alarm_dump_list(s_aon_rtc[id].alarm_head_p);
 
-	AON_RTC_LOGD("%s[-]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
+	AON_RTC_LOGV("%s[-]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
 
 	return 0;
 }
@@ -430,7 +430,7 @@ static alarm_node_t *alarm_remove_node(aon_rtc_id_t id, uint8_t *name_p)
 	uint32_t int_level = 0;
 	uint32_t node_cnt = 0;
 
-	AON_RTC_LOGD("%s[+]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
+	AON_RTC_LOGV("%s[+]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
 
 	int_level = rtc_enter_critical();
 	//
@@ -450,7 +450,7 @@ static alarm_node_t *alarm_remove_node(aon_rtc_id_t id, uint8_t *name_p)
 				s_aon_rtc[id].alarm_head_p = cur_p->next;
 				s_aon_rtc[id].alarm_node_cnt--;
 
-				AON_RTC_LOGD("free=0x%x,name=%s\r\n", cur_p, cur_p->name);
+				AON_RTC_LOGV("free=0x%x,name=%s\r\n", cur_p, cur_p->name);
 				aon_rtc_release_node(id, cur_p);
 				break;
 			}
@@ -459,7 +459,7 @@ static alarm_node_t *alarm_remove_node(aon_rtc_id_t id, uint8_t *name_p)
 				remove_node_p = cur_p;
 				previous_p->next = cur_p->next;
 				s_aon_rtc[id].alarm_node_cnt--;
-				AON_RTC_LOGD("free=0x%x,name=%s\r\n", cur_p, cur_p->name);
+				AON_RTC_LOGV("free=0x%x,name=%s\r\n", cur_p, cur_p->name);
 				aon_rtc_release_node(id, cur_p);
 				break;
 			}
@@ -473,13 +473,13 @@ static alarm_node_t *alarm_remove_node(aon_rtc_id_t id, uint8_t *name_p)
 
 	if(remove_node_p == NULL)
 	{
-		AON_RTC_LOGD("%s:can't find %s alarm\r\n", __func__, name_p);
+		AON_RTC_LOGV("%s:can't find %s alarm\r\n", __func__, name_p);
 	}
 
 	//dump list info
 	alarm_dump_list(s_aon_rtc[id].alarm_head_p);
 
-	AON_RTC_LOGD("%s[-]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
+	AON_RTC_LOGV("%s[-]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
 
 	return remove_node_p;
 }
@@ -492,7 +492,7 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
 	uint64_t cur_tick = 0;
 	uint32_t int_level = 0;
 
-	AON_RTC_LOGD("%s[+]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
+	AON_RTC_LOGV("%s[+]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
 	
 	alarm_dump_list(s_aon_rtc[id].alarm_head_p);
 
@@ -533,7 +533,7 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
  * returns by bk_alarm_register.
  */
 #if 0
-				AON_RTC_LOGD("last alarm:free=0x%x,name=%s\r\n", cur_p, cur_p->name);
+				AON_RTC_LOGV("last alarm:free=0x%x,name=%s\r\n", cur_p, cur_p->name);
 				os_free(cur_p);
 #endif
 				aon_rtc_release_node(id, cur_p);
@@ -544,7 +544,7 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
 				if(cur_p->period_cnt != ALARM_LOOP_FOREVER)
 				{
 					cur_p->period_cnt--;
-					AON_RTC_LOGD("%s left %d times \r\n", cur_p->name, cur_p->period_cnt);
+					AON_RTC_LOGV("%s left %d times \r\n", cur_p->name, cur_p->period_cnt);
 				}
 
 				//has next
@@ -565,7 +565,7 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
 				{
 					//just update self expired time
 					cur_p->expired_tick += cur_p->period_tick;
-					AON_RTC_LOGD("%s update next expired time %d \r\n", cur_p->name, cur_p->expired_tick);
+					AON_RTC_LOGV("%s update next expired time %d \r\n", cur_p->name, cur_p->expired_tick);
 				}
 			}
 		}
@@ -583,7 +583,7 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
 
 	alarm_dump_list(s_aon_rtc[id].alarm_head_p);
 
-	AON_RTC_LOGD("%s[-]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
+	AON_RTC_LOGV("%s[-]cnt=%d\r\n", __func__, s_aon_rtc[id].alarm_node_cnt);
 }
 
 bk_err_t bk_aon_rtc_register_tick_isr(aon_rtc_id_t id, aon_rtc_isr_t isr, void *param)
@@ -675,7 +675,7 @@ static bk_err_t aon_rtc_isr_handler(aon_rtc_id_t id)
 	s_isr_debug_in_tick[(s_isr_cnt)%AON_RTC_ISR_DEBUG_MAX_CNT] = bk_aon_rtc_get_current_tick(id);
 #endif
 
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 	//uses tick as one time timer
 	if(aon_rtc_hal_get_tick_int_status(&s_aon_rtc[id].hal))
@@ -700,18 +700,18 @@ static bk_err_t aon_rtc_isr_handler(aon_rtc_id_t id)
 #if CONFIG_AON_RTC_DEBUG
 			s_isr_debug_set_tick[(s_isr_cnt)%AON_RTC_ISR_DEBUG_MAX_CNT] = s_aon_rtc[id].alarm_head_p->expired_tick;
 #endif
-			AON_RTC_LOGD("next tick=0x%x, cur_tick=0x%x\r\n", (uint32_t)s_aon_rtc[id].alarm_head_p->expired_tick, (uint32_t)bk_aon_rtc_get_current_tick(id));
+			AON_RTC_LOGV("next tick=0x%x, cur_tick=0x%x\r\n", (uint32_t)s_aon_rtc[id].alarm_head_p->expired_tick, (uint32_t)bk_aon_rtc_get_current_tick(id));
 		}
 		else
 		{
 			aon_rtc_set_tick(&s_aon_rtc[id].hal, AON_RTC_ROUND_TICK);
-			AON_RTC_LOGD("no alarm:cur_tick=0x%x\r\n", (uint32_t)bk_aon_rtc_get_current_tick(id));
+			AON_RTC_LOGV("no alarm:cur_tick=0x%x\r\n", (uint32_t)bk_aon_rtc_get_current_tick(id));
 		}
 	}
 
 	//TODO: clear NVIC/INTC/PLIC int pending status
 
-	AON_RTC_LOGD("%s[-]\r\n", __func__);
+	AON_RTC_LOGV("%s[-]\r\n", __func__);
 #if CONFIG_AON_RTC_DEBUG
 	s_isr_debug_out_tick[(s_isr_cnt)%AON_RTC_ISR_DEBUG_MAX_CNT] = bk_aon_rtc_get_current_tick(id);
 	s_isr_cnt++;
@@ -791,7 +791,7 @@ static void aon_rtc_hw_init(aon_rtc_id_t id)
 	aon_rtc_int_config_t int_config_table[] = AON_RTC_INT_CONFIG_TABLE;
 	aon_rtc_int_config_t *cur_int_cfg = &int_config_table[id];
 
-	AON_RTC_LOGD("%s[+]cur_tick=%d\r\n", __func__, (uint32_t)bk_aon_rtc_get_current_tick(id));
+	AON_RTC_LOGV("%s[+]cur_tick=%d\r\n", __func__, (uint32_t)bk_aon_rtc_get_current_tick(id));
 
 	if(!aon_rtc_hal_is_enable(&s_aon_rtc[id].hal))
 	{
@@ -807,12 +807,12 @@ static void aon_rtc_hw_init(aon_rtc_id_t id)
 #endif
 	aon_rtc_hal_start_counter(&s_aon_rtc[id].hal);
 
-	AON_RTC_LOGD("%s[-]cur_tick=%d\r\n", __func__, (uint32_t)bk_aon_rtc_get_current_tick(id));
+	AON_RTC_LOGV("%s[-]cur_tick=%d\r\n", __func__, (uint32_t)bk_aon_rtc_get_current_tick(id));
 }
 
 bk_err_t bk_aon_rtc_driver_init(void)
 {
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 	//TOTO: Enter critical protect
 	for (int id = AON_RTC_ID_1; id < AON_RTC_ID_MAX; id++) {
@@ -826,7 +826,7 @@ bk_err_t bk_aon_rtc_driver_init(void)
 	}
 
 	//TOTO: exit critical protect
-	AON_RTC_LOGD("%s[-]\r\n", __func__);
+	AON_RTC_LOGV("%s[-]\r\n", __func__);
 
 	return BK_OK;
 }
@@ -835,7 +835,7 @@ bk_err_t bk_aon_rtc_driver_deinit(void)
 {
 	aon_rtc_int_config_t int_cfg_table[] = AON_RTC_INT_CONFIG_TABLE;
 
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 	for (int id = AON_RTC_ID_1; id < AON_RTC_ID_MAX; id++) {
 		if(s_aon_rtc[id].inited)
@@ -857,7 +857,7 @@ bk_err_t bk_aon_rtc_driver_deinit(void)
 	}
 
 
-	AON_RTC_LOGD("%s[-]\r\n", __func__);
+	AON_RTC_LOGV("%s[-]\r\n", __func__);
 	return BK_OK;
 }
 
@@ -946,7 +946,7 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 	alarm_node_t *node_p = NULL;
 	uint32_t int_level = 0;
 
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 	if(id >= AON_RTC_ID_MAX)
 	{
@@ -1026,11 +1026,11 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 	}
 
 	aon_rtc_hal_enable_tick_int(&s_aon_rtc[id].hal);
-	AON_RTC_LOGD("next tick=0x%x, cur_tick=0x%x\r\n", (uint32_t)s_aon_rtc[id].alarm_head_p->expired_tick, (uint32_t)bk_aon_rtc_get_current_tick(id));
+	AON_RTC_LOGV("next tick=0x%x, cur_tick=0x%x\r\n", (uint32_t)s_aon_rtc[id].alarm_head_p->expired_tick, (uint32_t)bk_aon_rtc_get_current_tick(id));
 
 	rtc_exit_critical(int_level);
 
-	AON_RTC_LOGD("%s[-]\r\n", __func__);
+	AON_RTC_LOGV("%s[-]\r\n", __func__);
 
 	return BK_OK;
 }
@@ -1043,7 +1043,7 @@ bk_err_t bk_alarm_unregister(aon_rtc_id_t id, uint8_t *name_p)
 	alarm_node_t *previous_head_node_p = NULL;
 	uint32_t int_level = 0;
 
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 	if(id >= AON_RTC_ID_MAX)
 	{
@@ -1070,18 +1070,18 @@ bk_err_t bk_alarm_unregister(aon_rtc_id_t id, uint8_t *name_p)
 			}
 
 			aon_rtc_set_tick(&s_aon_rtc[id].hal, s_aon_rtc[id].alarm_head_p->expired_tick);
-			AON_RTC_LOGD("next tick=0x%x, cur_tick=0x%x\r\n", s_aon_rtc[id].alarm_head_p->expired_tick, bk_aon_rtc_get_current_tick(id));
+			AON_RTC_LOGV("next tick=0x%x, cur_tick=0x%x\r\n", s_aon_rtc[id].alarm_head_p->expired_tick, bk_aon_rtc_get_current_tick(id));
 		}
 		else	//has no nodes now
 		{
 			// aon_rtc_set_tick(&s_aon_rtc[id].hal, AON_RTC_ROUND_TICK);
-			// AON_RTC_LOGD("no alarm:cur_tick=0x%x\r\n", bk_aon_rtc_get_current_tick(id));
+			// AON_RTC_LOGV("no alarm:cur_tick=0x%x\r\n", bk_aon_rtc_get_current_tick(id));
 		}
 	}
 
 	rtc_exit_critical(int_level);
 
-	AON_RTC_LOGD("%s[-]\r\n", __func__);
+	AON_RTC_LOGV("%s[-]\r\n", __func__);
 	return BK_OK;
 }
 
@@ -1146,7 +1146,7 @@ bk_err_t bk_rtc_ana_register_wakeup_source(rtc_tick_t period)
 	pm_cb_conf_t enter_conf;
 
 	s_wkup_time_period = period;
-	AON_RTC_LOGI("regist wakeup source rtc period: %d\r\n", period);
+	AON_RTC_LOGD("regist wakeup source rtc period: %d\r\n", period);
 
 	enter_conf.cb = ana_wakesource_rtc_enter_cb;
 	enter_conf.args = NULL;
@@ -1165,7 +1165,7 @@ void bk_aon_rtc_timing_test(aon_rtc_id_t id, uint32_t round, uint32_t cycles, rt
 	uint32_t max_offset_tick = 0, min_offset_tick = 0xffffffff;
 	uint32_t fail_cnt = 0;
 
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 	int_level = rtc_enter_critical();
 	
@@ -1184,7 +1184,7 @@ void bk_aon_rtc_timing_test(aon_rtc_id_t id, uint32_t round, uint32_t cycles, rt
 		if(max_offset_tick < end_tick - start_tick)
 			max_offset_tick = end_tick - start_tick;
 	}
-	AON_RTC_LOGI("Gettick uint32:%d rounds*%d times:max=%d,min=%d\r\n", i, j, max_offset_tick, min_offset_tick);
+	AON_RTC_LOGD("Gettick uint32:%d rounds*%d times:max=%d,min=%d\r\n", i, j, max_offset_tick, min_offset_tick);
 
 	//get uint64_t tick counter check
 	max_offset_tick = 0;
@@ -1203,7 +1203,7 @@ void bk_aon_rtc_timing_test(aon_rtc_id_t id, uint32_t round, uint32_t cycles, rt
 		if(max_offset_tick < u64_end_tick - u64_start_tick)
 			max_offset_tick = u64_end_tick - u64_start_tick;
 	}
-	AON_RTC_LOGI("Gettick uint64:%d rounds*%d times:max=%d,min=%d\r\n", i, j, max_offset_tick, min_offset_tick);
+	AON_RTC_LOGD("Gettick uint64:%d rounds*%d times:max=%d,min=%d\r\n", i, j, max_offset_tick, min_offset_tick);
 
 	//set tick val check
 	max_offset_tick = 0;
@@ -1222,7 +1222,7 @@ void bk_aon_rtc_timing_test(aon_rtc_id_t id, uint32_t round, uint32_t cycles, rt
 		if(max_offset_tick < end_tick - start_tick)
 			max_offset_tick = end_tick - start_tick;
 	}
-	AON_RTC_LOGI("Settick:%d rounds*%d times:max=%d,min=%d\r\n", i, j, max_offset_tick, min_offset_tick);
+	AON_RTC_LOGD("Settick:%d rounds*%d times:max=%d,min=%d\r\n", i, j, max_offset_tick, min_offset_tick);
 
 	fail_cnt = 0;
 	max_offset_tick = 0;
@@ -1245,11 +1245,11 @@ void bk_aon_rtc_timing_test(aon_rtc_id_t id, uint32_t round, uint32_t cycles, rt
 		if(max_offset_tick < end_tick - start_tick)
 			max_offset_tick = end_tick - start_tick;
 	}
-	AON_RTC_LOGI("Settick:%d rounds*%d times:max=%d,min=%d\r\n", i, j, max_offset_tick, min_offset_tick);
-	AON_RTC_LOGI("Settick:%d rounds*%d times:check fail_cnt=%d\r\n", i, j, fail_cnt);
+	AON_RTC_LOGD("Settick:%d rounds*%d times:max=%d,min=%d\r\n", i, j, max_offset_tick, min_offset_tick);
+	AON_RTC_LOGD("Settick:%d rounds*%d times:check fail_cnt=%d\r\n", i, j, fail_cnt);
 
 	rtc_exit_critical(int_level);
-	AON_RTC_LOGD("%s[-]\r\n", __func__);
+	AON_RTC_LOGV("%s[-]\r\n", __func__);
 }
 #endif
 
@@ -1264,7 +1264,7 @@ void bk_aon_rtc_dump(aon_rtc_id_t id)
 
 		for(volatile uint32_t j = 0; j < 1800; j++);	//confirm log output normarlly
 		
-		AON_RTC_LOGI("isr_in[%d]=0x%llx,out=0x%llx,set=0x%llx\r\n", index, s_isr_debug_in_tick[index], s_isr_debug_out_tick[index], s_isr_debug_set_tick[index]);
+		AON_RTC_LOGD("isr_in[%d]=0x%llx,out=0x%llx,set=0x%llx\r\n", index, s_isr_debug_in_tick[index], s_isr_debug_out_tick[index], s_isr_debug_set_tick[index]);
 	}
 #endif
 	aon_rtc_struct_dump();
@@ -1288,75 +1288,75 @@ void bk_64bits_test(void)
 	t += xl1;
 	if (t == 0x111111111)
 	{
-		AON_RTC_LOGD("left move 0x1<<32 is right\r\n");
+		AON_RTC_LOGV("left move 0x1<<32 is right\r\n");
 	}
 
 	if (t == x1)
 	{
-		AON_RTC_LOGD("uint64 compare is right\r\n");
+		AON_RTC_LOGV("uint64 compare is right\r\n");
 	}
 
 	if ((t & 0xffffffff) == xl1)
 	{
-		AON_RTC_LOGD("uint64 low 32bits is right\r\n");
+		AON_RTC_LOGV("uint64 low 32bits is right\r\n");
 	}
 
 	if ((t >> 32) == xh1)
 	{
-		AON_RTC_LOGD("right move uint64 high 32bits is right\r\n");
+		AON_RTC_LOGV("right move uint64 high 32bits is right\r\n");
 	}
 
 	if(x1 + x2 == x3)
 	{
-		AON_RTC_LOGD("uint64 add is right\r\n");
+		AON_RTC_LOGV("uint64 add is right\r\n");
 	}
 
 	if(x3 - x2 == x1)
 	{
-		AON_RTC_LOGD("uint64 minus is right\r\n");
+		AON_RTC_LOGV("uint64 minus is right\r\n");
 	}
 
 	if((x1 * 2) == x2)
 	{
-		AON_RTC_LOGD("uint64 multi is right\r\n");
+		AON_RTC_LOGV("uint64 multi is right\r\n");
 	}	
 
 	if((x2 / 2) == x1)
 	{
-		AON_RTC_LOGD("uint64 divide2 is right\r\n");
+		AON_RTC_LOGV("uint64 divide2 is right\r\n");
 	}	
 
 	if((x2 / 32) == 0x11111111)
 	{
-		AON_RTC_LOGD("uint64 divide32 is right\r\n");
+		AON_RTC_LOGV("uint64 divide32 is right\r\n");
 	}	
 
 	//pass:only output low 32 bits valid data
 	for(uint32_t i = 0; i < 64; i++)
-		AON_RTC_LOGD("0xffffffffffff>>%d == 0x%llx\r\n", i, val_64bits>>i);		//64 bits printf is error
+		AON_RTC_LOGV("0xffffffffffff>>%d == 0x%llx\r\n", i, val_64bits>>i);		//64 bits printf is error
 
 	//print:BIT64(i) low 32 bits
 	for(uint32_t i = 0; i < 64; i++)
-		AON_RTC_LOGD("Bit[%d] = 0x%llx, &=0x%llx\r\n", i, BIT64(i), (val_64bits & BIT64(i)));
+		AON_RTC_LOGV("Bit[%d] = 0x%llx, &=0x%llx\r\n", i, BIT64(i), (val_64bits & BIT64(i)));
 
-	AON_RTC_LOGD("64bits move\r\n");
+	AON_RTC_LOGV("64bits move\r\n");
 	for(uint64_t i = 0; i < 64; i++)
-		AON_RTC_LOGD("Bit[%d] = 0x%llx, &=0x%llx\r\n", i, BIT64(i), (val_64bits & BIT64(i)));
+		AON_RTC_LOGV("Bit[%d] = 0x%llx, &=0x%llx\r\n", i, BIT64(i), (val_64bits & BIT64(i)));
 
-	AON_RTC_LOGD("32bits move\r\n");
+	AON_RTC_LOGV("32bits move\r\n");
 	val_64bits = 0xa0a0a0a0a0a0a0a0;
 	for(uint32_t i = 0; i < 64; i++)
 	{
 		uint64_t ret = val_64bits & BIT64(i);
-		AON_RTC_LOGD("ret[%d] = 0x%llx = 0x%llx \r\n", i, ret, ret);	//print ret twice as 64 bits
+		AON_RTC_LOGV("ret[%d] = 0x%llx = 0x%llx \r\n", i, ret, ret);	//print ret twice as 64 bits
 	}
 
-	AON_RTC_LOGD("64bits move\r\n");
+	AON_RTC_LOGV("64bits move\r\n");
 	val_64bits = 0xa0a0a0a0a0a0a0a0;
 	for(uint64_t i = 0; i < 64; i++)
 	{
 		uint64_t ret = val_64bits & BIT64(i);
-		AON_RTC_LOGD("ret[%d] = 0x%llx = 0x%llx \r\n", i, i, ret);		//print i twice as 64 bits
+		AON_RTC_LOGV("ret[%d] = 0x%llx = 0x%llx \r\n", i, i, ret);		//print i twice as 64 bits
 	}
 }
 #endif

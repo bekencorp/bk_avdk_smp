@@ -29,10 +29,10 @@
 
 #define TAG "aud_adc_drv"
 
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 #define AUD_ADC_RETURN_ON_NOT_INIT() do {\
@@ -111,7 +111,7 @@ bk_err_t bk_aud_adc_init(aud_adc_config_t *adc_config)
 	aud_hal_set_adc_config0_adc_hpf1_bypass(1);
 	aud_hal_set_adc_config0_adc_hpf2_bypass(1);
 
-	LOGI("configure mic and adc\r\n");
+	LOGD("configure mic and adc\r\n");
 
 	if (BK_OK != bk_aud_adc_set_samp_rate(adc_config->samp_rate)) {
 		ret = BK_FAIL;

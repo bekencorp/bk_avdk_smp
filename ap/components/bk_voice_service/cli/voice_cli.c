@@ -45,7 +45,7 @@ int voice_send_callback(unsigned char *data, unsigned int len, void *args)
     }
     else
     {
-        //LOGI("%s, %d, len: %d\n", __func__, __LINE__, len);
+        //LOGD("%s, %d, len: %d\n", __func__, __LINE__, len);
     }
 
     return len;
@@ -53,7 +53,7 @@ int voice_send_callback(unsigned char *data, unsigned int len, void *args)
 
 void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-    LOGI("%s +++\n", __func__);
+    LOGD("%s +++\n", __func__);
 
     if (argc != 9)
     {
@@ -404,7 +404,7 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
     }
     else if (os_strcmp(argv[1], "stop") == 0)
     {
-        LOGI("voice stop\n");
+        LOGD("voice stop\n");
         goto fail;
     }
     else
@@ -412,7 +412,7 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         LOGE("%s, %d, cmd not support\n", __func__, __LINE__);
     }
 
-    LOGI("%s ---complete\n", __func__);
+    LOGD("%s ---complete\n", __func__);
 
     return;
 

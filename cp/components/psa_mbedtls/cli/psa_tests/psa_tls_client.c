@@ -126,17 +126,17 @@ int psa_tls_client_main(void)
     mbedtls_entropy_init(&entropy);
 
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
-    BK_LOGI(TAG, "psa_crypto_init...");
+    BK_LOGD(TAG, "psa_crypto_init...");
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) {
         mbedtls_fprintf(stderr, "Failed to initialize PSA Crypto implementation: %d\n",
                         (int) status);
         goto exit;
     }
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
 
-    BK_LOGI(TAG, "Seeding the random number generator...");
+    BK_LOGD(TAG, "Seeding the random number generator...");
     mbedtls_entropy_add_source(&entropy, mbedtls_bk_entropy_poll, NULL,
                                MBEDTLS_ENTROPY_MAX_GATHER,
                                MBEDTLS_ENTROPY_SOURCE_STRONG);
@@ -147,9 +147,9 @@ int psa_tls_client_main(void)
         BK_LOGE(TAG, " failed\n    mbedtls_ctr_drbg_seed returned %d\n", ret);
         goto exit;
     }
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 
-    BK_LOGI(TAG, "mbedtls_x509_crt_parse, cacert_len: %d ...", mbedtls_test_cas_pem_len);
+    BK_LOGD(TAG, "mbedtls_x509_crt_parse, cacert_len: %d ...", mbedtls_test_cas_pem_len);
     ret = mbedtls_x509_crt_parse(&cacert, (const unsigned char *) mbedtls_test_cas_pem,
                                  mbedtls_test_cas_pem_len);
     if (ret < 0) {
@@ -157,16 +157,16 @@ int psa_tls_client_main(void)
                        (unsigned int) -ret);
         goto exit;
     }
-    BK_LOGI(TAG, " ok\n", ret);
+    BK_LOGD(TAG, " ok\n", ret);
 
-    BK_LOGI(TAG, "mbedtls_ssl_set_hostname use_host: %s ...", SERVER_NAME);
+    BK_LOGD(TAG, "mbedtls_ssl_set_hostname use_host: %s ...", SERVER_NAME);
     if ((ret = mbedtls_ssl_set_hostname(&ssl, SERVER_NAME)) != 0) {
         BK_LOGE(TAG, " failed\n    mbedtls_ssl_set_hostname returned -0x%04X\n", -ret);
         goto exit;
     }
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 
-    BK_LOGI(TAG, "mbedtls_ssl_config_defaults...");
+    BK_LOGD(TAG, "mbedtls_ssl_config_defaults...");
     if ((ret = mbedtls_ssl_config_defaults(&conf,
                                            MBEDTLS_SSL_IS_CLIENT,
                                            MBEDTLS_SSL_TRANSPORT_STREAM,
@@ -174,55 +174,55 @@ int psa_tls_client_main(void)
         BK_LOGE(TAG, " failed\n  ! mbedtls_ssl_config_defaults returned 0x%x\n\n", -ret);
         goto exit;
     }
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 
-    BK_LOGI(TAG, "mbedtls_ssl_conf_authmode\r\n");
+    BK_LOGD(TAG, "mbedtls_ssl_conf_authmode\r\n");
     mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
 
-    BK_LOGI(TAG, "mbedtls_ssl_conf_ca_chain\r\n");
+    BK_LOGD(TAG, "mbedtls_ssl_conf_ca_chain\r\n");
     mbedtls_ssl_conf_ca_chain(&conf, &cacert, NULL);
 
-    BK_LOGI(TAG, "mbedtls_ssl_conf_rng...");
+    BK_LOGD(TAG, "mbedtls_ssl_conf_rng...");
     mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 
-    BK_LOGI(TAG, "mbedtls_ssl_conf_ciphersuites...");
+    BK_LOGD(TAG, "mbedtls_ssl_conf_ciphersuites...");
     mbedtls_ssl_conf_ciphersuites(&conf, ssl_default_ciphersuites);
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 
-    BK_LOGI(TAG, "mbedtls_ssl_setup...");
+    BK_LOGD(TAG, "mbedtls_ssl_setup...");
     if ((ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
         BK_LOGE(TAG, " failed\n  ! mbedtls_ssl_setup returned -0x%04X\r\n", -ret);
         goto exit;
     }
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 
-    BK_LOGI(TAG, "Connecting to tcp/%s/%s...", SERVER_NAME, SERVER_PORT);
+    BK_LOGD(TAG, "Connecting to tcp/%s/%s...", SERVER_NAME, SERVER_PORT);
     if ((ret = mbedtls_net_connect(&server_fd, SERVER_NAME,
                                    SERVER_PORT, MBEDTLS_NET_PROTO_TCP)) != 0) {
-        BK_LOGI(TAG, " failed\n  ! mbedtls_net_connect returned -%x\n\n", -ret);
+        BK_LOGD(TAG, " failed\n  ! mbedtls_net_connect returned -%x\n\n", -ret);
         goto exit;
     }
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 
-    BK_LOGI(TAG, "mbedtls_ssl_set_bio...");
+    BK_LOGD(TAG, "mbedtls_ssl_set_bio...");
     mbedtls_ssl_set_bio(&ssl, &server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 
-    BK_LOGI(TAG, "Performing the SSL/TLS handshake...");
+    BK_LOGD(TAG, "Performing the SSL/TLS handshake...");
     while ((ret = mbedtls_ssl_handshake(&ssl)) != 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-            BK_LOGI(TAG, " failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n",
+            BK_LOGD(TAG, " failed\n  ! mbedtls_ssl_handshake returned -0x%x\n\n",
                            (unsigned int) -ret);
             goto exit;
         }
     }
-    BK_LOGI(TAG, " ok\n");
+    BK_LOGD(TAG, " ok\n");
 
     /*
      * Verify the server certificate
      */
-    BK_LOGI(TAG, "Verifying peer X.509 certificate...");
+    BK_LOGD(TAG, "Verifying peer X.509 certificate...");
 
     /* In real life, we probably want to bail out when ret != 0 */
     if ((flags = mbedtls_ssl_get_verify_result(&ssl)) != 0) {
@@ -235,35 +235,35 @@ int psa_tls_client_main(void)
 #if !defined(MBEDTLS_X509_REMOVE_INFO)
         mbedtls_x509_crt_verify_info(vrfy_buf, sizeof(vrfy_buf), "  ! ", flags);
 
-        BK_LOGI(TAG, "%s\n", vrfy_buf);
+        BK_LOGD(TAG, "%s\n", vrfy_buf);
 #endif
     } else {
-        BK_LOGI(TAG, " ok\n");
+        BK_LOGD(TAG, " ok\n");
     }
 
-    BK_LOGI(TAG, "Cipher suite is %s\n", mbedtls_ssl_get_ciphersuite(&ssl));
+    BK_LOGD(TAG, "Cipher suite is %s\n", mbedtls_ssl_get_ciphersuite(&ssl));
 
     /*
      * Write the GET request
      */
-    BK_LOGI(TAG, "  > Write to server:");
+    BK_LOGD(TAG, "  > Write to server:");
 
     len = sprintf((char *) buf, GET_REQUEST);
 
     while ((ret = mbedtls_ssl_write(&ssl, buf, len)) <= 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
-            BK_LOGI(TAG, " failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
+            BK_LOGD(TAG, " failed\n  ! mbedtls_ssl_write returned %d\n\n", ret);
             goto exit;
         }
     }
 
     len = ret;
-    BK_LOGI(TAG, " %d bytes written\n\n%s", len, (char *) buf);
+    BK_LOGD(TAG, " %d bytes written\n\n%s", len, (char *) buf);
 
     /*
      * Read the HTTP response
      */
-    BK_LOGI(TAG, "  < Read from server:");
+    BK_LOGD(TAG, "  < Read from server:");
 
     do {
         len = sizeof(buf) - 1;
@@ -279,17 +279,17 @@ int psa_tls_client_main(void)
         }
 
         if (ret < 0) {
-            BK_LOGI(TAG, "failed\n  ! mbedtls_ssl_read returned %d\n\n", ret);
+            BK_LOGD(TAG, "failed\n  ! mbedtls_ssl_read returned %d\n\n", ret);
             break;
         }
 
         if (ret == 0) {
-            BK_LOGI(TAG, "\n\nEOF\n\n");
+            BK_LOGD(TAG, "\n\nEOF\n\n");
             break;
         }
 
         len = ret;
-        BK_LOGI(TAG, " %d bytes read\n\n%s", len, (char *) buf);
+        BK_LOGD(TAG, " %d bytes read\n\n%s", len, (char *) buf);
     } while (1);
 
     mbedtls_ssl_close_notify(&ssl);
@@ -304,7 +304,7 @@ exit:
     if (exit_code != MBEDTLS_EXIT_SUCCESS) {
         char error_buf[100];
         mbedtls_strerror(ret, error_buf, 100);
-        BK_LOGI(TAG, "Last error was: %d - %s\n\n", ret, error_buf);
+        BK_LOGD(TAG, "Last error was: %d - %s\n\n", ret, error_buf);
     }
 #endif
 

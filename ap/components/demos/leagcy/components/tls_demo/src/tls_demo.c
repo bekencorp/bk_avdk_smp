@@ -19,7 +19,7 @@ static void tls_demo_ssl_client_main( UINT32 data )
 	fd_set exceptset;
 	struct timeval timeout;
 
-	bk_printf("-------------------  %s  -------------------\r\n",__FUNCTION__);
+	BK_LOGD(NULL, "-------------------  %s  -------------------\r\n",__FUNCTION__);
 	
 	if(session->host)
 	{
@@ -45,13 +45,13 @@ static void tls_demo_ssl_client_main( UINT32 data )
 		
 		ret = select( session->server_fd.fd+1, &readfds, NULL, &exceptset, &timeout);
 		if( ret <= -1 ) 
-		{  ///-1£º³ö´í
-            bk_printf("[TLS]select error:%d\r\n",ret); 
+		{  ///-1ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+            BK_LOGD(NULL, "[TLS]select error:%d\r\n",ret); 
             goto __exit;
         }
 		else if( 0 == ret ) 
 		{  
-			///0 £º³¬Ê±
+			///0 ï¿½ï¿½ï¿½ï¿½Ê±
             continue;
         }
 		if ( FD_ISSET( session->server_fd.fd, &readfds ) ) /*one client has data*/
@@ -65,42 +65,42 @@ static void tls_demo_ssl_client_main( UINT32 data )
 			
 			if(ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)
 			{
-				bk_printf("[AS]MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY\r\n");
+				BK_LOGD(NULL, "[AS]MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY\r\n");
 				break;
 			}
 			
 			if(ret == 0) 
 			{
-				bk_printf("[AS]connection closed\n");
+				BK_LOGD(NULL, "[AS]connection closed\n");
 				break;
 			}
 
 			if(ret < 0) 
 			{
-				bk_printf("[AS]mbedtls_ssl_read returned -0x%x\r\n", -ret);
+				BK_LOGD(NULL, "[AS]mbedtls_ssl_read returned -0x%x\r\n", -ret);
 				break;
 			}
 			len = ret;
 		#if 1
-			bk_printf("[TLS]ssl_RX(%d):\r\n",len);
+			BK_LOGD(NULL, "[TLS]ssl_RX(%d):\r\n",len);
 			for(i = 0; i<len; i++)
 			{
-				bk_printf("%c", session->buffer[i]);
+				BK_LOGD(NULL, "%c", session->buffer[i]);
 			}
-			bk_printf("\r\n");
+			BK_LOGD(NULL, "\r\n");
 		#else
-			bk_printf("[TLS]ssl_RX(%d):\r\n",len);
+			BK_LOGD(NULL, "[TLS]ssl_RX(%d):\r\n",len);
 			for(i = 0; i<len; i++)
 			{
-				bk_printf("%x", session->buffer[i]);
+				BK_LOGD(NULL, "%x", session->buffer[i]);
 			}
-			bk_printf("\r\n");
+			BK_LOGD(NULL, "\r\n");
 		#endif
 		}
 		
 		if(( FD_ISSET( session->server_fd.fd, &exceptset )) )
         {
-        	bk_printf( "[TLS]client fd(%d) exceptset\r\n", session->server_fd.fd );
+        	BK_LOGE(NULL, "[TLS]client fd(%d) exceptset\r\n", session->server_fd.fd );
             goto __exit;
         }
 	}while(1);
@@ -109,7 +109,7 @@ __exit:
 	mbedtls_client_close(session);
 	session = NULL;
 	tls_demo_session = NULL;
-	bk_printf("\r\n[TLS demo main]exit   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
+	BK_LOGD(NULL, "\r\n[TLS demo main]exit   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\r\n");
 	
 	rtos_delete_thread(NULL);
 }
@@ -145,11 +145,11 @@ void tls_demo_ssl_send_handler(MbedTLSSession *tls_session, int len, char *dat)
 
 	if(ssl_txdat_sender(tls_session,length,dat) > 0)
 	{
-		bk_printf("[TLS]send OK\r\n");
+		BK_LOGD(NULL, "[TLS]send OK\r\n");
 	}
 	else
 	{
-		bk_printf("[TLS]send failed\r\n");
+		BK_LOGD(NULL, "[TLS]send failed\r\n");
 	}
 }
 
@@ -206,7 +206,7 @@ static void tls_demo_command(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 			                     (void*)tls_session);
 			if (ret != kNoErr)
 			{
-				bk_printf("Error: Failed to create at_ssl thread: %d\r\n",ret);
+				BK_LOGD(NULL, "Error: Failed to create at_ssl thread: %d\r\n",ret);
 				mbedtls_client_close(tls_session);
 				return;
 		    }
@@ -214,7 +214,7 @@ static void tls_demo_command(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		}
 		else
 		{
-			bk_printf("ssl build failed\r\n");
+			BK_LOGD(NULL, "ssl build failed\r\n");
 		}
 	}
 	else if(flag == 3 && tls_demo_session != NULL)  ///send
@@ -230,7 +230,7 @@ static const struct cli_command tls_cli_cmd[] =
 
 void app_demo_init(void)
 {
-	bk_printf("------>%s:%d\r\n",__FUNCTION__,__LINE__);
+	BK_LOGD(NULL, "------>%s:%d\r\n",__FUNCTION__,__LINE__);
 	
 	cli_register_commands(tls_cli_cmd, sizeof(tls_cli_cmd) / sizeof(struct cli_command));
 

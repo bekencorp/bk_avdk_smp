@@ -60,7 +60,7 @@ static uint32_t timer_ms = 4000;
 
 static void timer0_examples_isr(timer_id_t timer_id)
 {
-    BK_LOGI(TAG, "timer0(%d) enter timer0_example_isr\r\n", timer_id);
+    BK_LOGD(TAG, "timer0(%d) enter timer0_example_isr\r\n", timer_id);
     /* set event in interruption context */
     rtos_set_event_flags(&event_handler, EVENT_BIT_0);
 }
@@ -74,13 +74,13 @@ static void thread1_function( beken_thread_arg_t arg )
         rtos_set_event_flags(&event_handler, EVENT_BIT_3);
 
         rtos_delay_milliseconds(2000);
-        BK_LOGI(TAG, "thread1 set EVENT_BIT_3\r\n");
+        BK_LOGD(TAG, "thread1 set EVENT_BIT_3\r\n");
 
         /* send EVENT_BIT_4 and  wait a sync event */
         uxReturn = rtos_sync_event_flags(&event_handler, EVENT_BIT_4, ALL_SYNC_BITS, BEKEN_WAIT_FOREVER);
         if ((uxReturn & ALL_SYNC_BITS) == ALL_SYNC_BITS)
         {
-            BK_LOGI(TAG, "thread1 wait sync event ok\r\n");
+            BK_LOGD(TAG, "thread1 wait sync event ok\r\n");
         }
     }
 }
@@ -95,14 +95,14 @@ static void thread2_function( beken_thread_arg_t arg )
 
         if( ( wait_event & ( EVENT_BIT_0 | EVENT_BIT_3 ) ) == ( EVENT_BIT_0 | EVENT_BIT_3 ) ) 
         {
-            BK_LOGI(TAG, "thread2 wait event EVENT_BIT_0 & EVENT_BIT_3 ok!\r\n");
+            BK_LOGD(TAG, "thread2 wait event EVENT_BIT_0 & EVENT_BIT_3 ok!\r\n");
         }
 
         /* send EVENT_BIT_8 and  wait a sync event */
         wait_event = rtos_sync_event_flags(&event_handler, EVENT_BIT_8, ALL_SYNC_BITS, BEKEN_WAIT_FOREVER);
         if ((wait_event & ALL_SYNC_BITS) == ALL_SYNC_BITS)
         {
-            BK_LOGI(TAG, "thread2 wait sync event ok\r\n");
+            BK_LOGD(TAG, "thread2 wait sync event ok\r\n");
         }
 
     }
@@ -118,15 +118,15 @@ static void thread3_function( beken_thread_arg_t arg )
 
         if( ( wait_event & ( EVENT_BIT_0 | EVENT_BIT_3 ) ) == ( EVENT_BIT_0 | EVENT_BIT_3 ) ) 
         {
-            BK_LOGI(TAG, "thread3 wait event EVENT_BIT_0 & EVENT_BIT_3 ok!\r\n");
+            BK_LOGD(TAG, "thread3 wait event EVENT_BIT_0 & EVENT_BIT_3 ok!\r\n");
         }
         else if( ( wait_event &  EVENT_BIT_0 ) != 0) 
         {
-            BK_LOGI(TAG, "thread3 wait event EVENT_BIT_0 ok!\r\n");
+            BK_LOGD(TAG, "thread3 wait event EVENT_BIT_0 ok!\r\n");
         }
         else if (( wait_event &  EVENT_BIT_3 ) != 0)
         {
-            BK_LOGI(TAG, "thread3 wait event EVENT_BIT_3 ok!\r\n");
+            BK_LOGD(TAG, "thread3 wait event EVENT_BIT_3 ok!\r\n");
         }
 
         rtos_delay_milliseconds(1000);
@@ -135,7 +135,7 @@ static void thread3_function( beken_thread_arg_t arg )
         wait_event = rtos_sync_event_flags(&event_handler, EVENT_BIT_15, ALL_SYNC_BITS, BEKEN_WAIT_FOREVER);
         if ((wait_event & ALL_SYNC_BITS) == ALL_SYNC_BITS)
         {
-            BK_LOGI(TAG, "thread3 wait sync event ok\r\n");
+            BK_LOGD(TAG, "thread3 wait sync event ok\r\n");
         }
     }
 }
@@ -144,7 +144,7 @@ void os_event_demo_start( void )
 {
     bk_err_t err = kNoErr;
 
-    BK_LOGI(TAG,"\r\n\r\noperating rtos event group demo............\r\n" );
+    BK_LOGD(TAG,"\r\n\r\noperating rtos event group demo............\r\n" );
 
     BK_LOG_ON_ERR(bk_timer_driver_init());
     BK_LOG_ON_ERR(bk_timer_start(timer_id, timer_ms, timer0_examples_isr));
@@ -152,7 +152,7 @@ void os_event_demo_start( void )
     err = rtos_init_event_flags(&event_handler);
     if(err != kNoErr)
     {
-        BK_LOGI(TAG,"ERROR: Unable to init event flag.\r\n" );
+        BK_LOGD(TAG,"ERROR: Unable to init event flag.\r\n" );
     }
 #if CONFIG_FREERTOS_SMP
     err = rtos_core1_create_thread( &t_handler_1, 
@@ -171,7 +171,7 @@ void os_event_demo_start( void )
 #endif
     if(err != kNoErr)
     {
-        BK_LOGI(TAG,"ERROR: Unable to start the thread 1.\r\n" );
+        BK_LOGD(TAG,"ERROR: Unable to start the thread 1.\r\n" );
     }
 
     err = rtos_create_thread( &t_handler_2, 
@@ -182,7 +182,7 @@ void os_event_demo_start( void )
                               0);
     if(err != kNoErr)
     {
-        BK_LOGI(TAG,"ERROR: Unable to start the thread 2.\r\n" );
+        BK_LOGD(TAG,"ERROR: Unable to start the thread 2.\r\n" );
     }
 
     err = rtos_create_thread( &t_handler_3, 
@@ -193,7 +193,7 @@ void os_event_demo_start( void )
                               0);
     if(err != kNoErr)
     {
-        BK_LOGI(TAG,"ERROR: Unable to start the thread 3.\r\n" );
+        BK_LOGD(TAG,"ERROR: Unable to start the thread 3.\r\n" );
     }
 }
 

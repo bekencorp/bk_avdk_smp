@@ -243,7 +243,7 @@ void HAL_ETH_ErrorCallback(ETH_HandleTypeDef *handlerEth)
 
 void ETH_IRQHandler(void)
 {
-  //LWIP_LOGI("%s\n", __func__);
+  //LWIP_LOGD("%s\n", __func__);
   HAL_ETH_IRQHandler(&heth);
 }
 
@@ -323,7 +323,7 @@ static bk_err_t low_level_init(struct netif *netif)
   bk_err_t ret = BK_OK;
   struct eth_mac_priv *priv;
 
-  LWIP_LOGI("ETH %s start XXX\n", __func__);
+  LWIP_LOGD("ETH %s start XXX\n", __func__);
 
   // Allocate eth_mac priv data
   priv = heth.priv = os_zalloc(sizeof(struct eth_mac_priv));
@@ -374,7 +374,7 @@ static bk_err_t low_level_init(struct netif *netif)
   if (!priv->mii) {
     priv->mii = mdio_alloc();
     if (!priv->mii) {
-      os_printf("mdio_alloc() failed");
+      BK_LOGD(NULL,"mdio_alloc() failed");
       ret = -1;
       goto fail;
     }
@@ -386,7 +386,7 @@ static bk_err_t low_level_init(struct netif *netif)
 
     ret = mdio_register(priv->mii);
     if (ret < 0) {
-      os_printf("mdio_register() failed: %d", ret);
+      BK_LOGD(NULL,"mdio_register() failed: %d", ret);
       goto fail;
     }
   }
@@ -396,7 +396,7 @@ static bk_err_t low_level_init(struct netif *netif)
 
     priv->phy = phy_connect(priv->mii, addr, netif, PHY_INTERFACE_MODE_RMII);  // for BK7236, RMII, for BK7286, RGMII
     if (!priv->phy) {
-      os_printf("phy_connect() failed\n");
+      BK_LOGD(NULL,"phy_connect() failed\n");
       ret = -1;
       goto fail;
     }
@@ -413,11 +413,11 @@ static bk_err_t low_level_init(struct netif *netif)
 
   if (LAN8742_GetAutoNego(&LAN8742))
   {
-    LWIP_LOGI("AutoNego enabled\n");
+    LWIP_LOGD("AutoNego enabled\n");
   }
   else
   {
-    LWIP_LOGI("AutoNego disabled\n");
+    LWIP_LOGD("AutoNego disabled\n");
   }
 #endif // ETH_MULTI_PHY_SUPPORT
 
@@ -434,13 +434,13 @@ static bk_err_t low_level_init(struct netif *netif)
 
   if (hal_eth_init_status != HAL_OK)
   {
-    LWIP_LOGI("%s: Init ETH failed\n", __func__);
+    LWIP_LOGD("%s: Init ETH failed\n", __func__);
 
     ret = BK_FAIL;
     goto fail;
   }
 
-  LWIP_LOGI("ETH %s end, ret %d\n", __func__, ret);
+  LWIP_LOGD("ETH %s end, ret %d\n", __func__, ret);
 
   return ret;
 
@@ -666,7 +666,7 @@ static void bmsg_eth_rx_handler(BUS_MSG_T *msg, struct netif *netif)
         break;
       }
     } else {
-      // os_printf("%s: no rx pbuf, RxAllocStatus %d\n", __func__, RxAllocStatus);
+      // BK_LOGD(NULL,"%s: no rx pbuf, RxAllocStatus %d\n", __func__, RxAllocStatus);
     }
   } while (p != NULL);
 }
@@ -717,7 +717,7 @@ static void bmsg_eth_tx_handler(BUS_MSG_T *msg)
 
   if (HAL_ETH_Transmit_IT(&heth, txconfig))  // FIXME: may failed, revise me
   {
-    LWIP_LOGD("HAL_ETH_Transmit_IT failed\n");
+    LWIP_LOGV("HAL_ETH_Transmit_IT failed\n");
     pbuf_free(p);
   }
   else
@@ -815,7 +815,7 @@ static void ethernetif_core_thread(void *argument)
 
     // check ethernet wakeup
     if (ret != kNoErr) {
-      os_printf("pop queue failed\n");
+      BK_LOGD(NULL,"pop queue failed\n");
       continue;
     }
 
@@ -823,7 +823,7 @@ static void ethernetif_core_thread(void *argument)
     eth_wakeup_check(&msg);
 #endif
 
-    //os_printf("enter: msg.type %d\n", msg.type);
+    //BK_LOGD(NULL,"enter: msg.type %d\n", msg.type);
     switch (msg.type) {
     case BMSG_RX_TYPE:
       bmsg_eth_rx_handler(&msg, netif);
@@ -972,7 +972,7 @@ static int HAL_ETH_Enter_LP(uint64_t sleep_time, void *args)
   // disable AHB Power Domain
   bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_ENET, PM_POWER_MODULE_STATE_OFF);
 
-  LWIP_LOGD("ETH Enter LP done\n");
+  LWIP_LOGV("ETH Enter LP done\n");
 
   // Eth enters low voltage
   priv->hw_in_doze = true;
@@ -982,7 +982,7 @@ static int HAL_ETH_Enter_LP(uint64_t sleep_time, void *args)
 
 static int HAL_ETH_Exit_LP(uint64_t sleep_time, void *args)
 {
-  LWIP_LOGD("%s\n", __func__);
+  LWIP_LOGV("%s\n", __func__);
 
   struct eth_mac_priv *priv = heth.priv;
 
@@ -1027,7 +1027,7 @@ static int __HAL_ETH_Exit_LP()
   HAL_ETH_Start_IT(&heth);
   priv->hw_in_doze = false;
 
-  LWIP_LOGI("ETH exits LP\n");
+  LWIP_LOGD("ETH exits LP\n");
 
   return 0;
 }
@@ -1035,8 +1035,8 @@ static int __HAL_ETH_Exit_LP()
 
 void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
 {
-  //LWIP_LOGI("HW DeviceID: 0x%x\n", REG_READ((ETH_BASE + 0x800*4)));
-  //LWIP_LOGI("HW VersionID: 0x%x\n", REG_READ((ETH_BASE + 0x801*4)));
+  //LWIP_LOGD("HW DeviceID: 0x%x\n", REG_READ((ETH_BASE + 0x800*4)));
+  //LWIP_LOGD("HW VersionID: 0x%x\n", REG_READ((ETH_BASE + 0x801*4)));
 
   // GPIO PinMUX: group0(27, 29-39), or group2(46-55)
   // FIXME: BK7236, use dts instead of hard coding.
@@ -1095,7 +1095,7 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_ENET, 0x0, 0x0);
 #endif
 
-  LWIP_LOGI("ETH SoftRest\n");
+  LWIP_LOGD("ETH SoftRest\n");
   // ETH soft reset
   SET_BIT(ETH_RESET_CTRL, 0x1);
 
@@ -1281,7 +1281,7 @@ void ethernet_link_thread(void *argument)
 #endif
 
     if (netif_is_link_up(netif) && !phydev->link) {
-    LWIP_LOGI("ETH link down\n");
+    LWIP_LOGD("ETH link down\n");
     HAL_ETH_Stop_IT(&heth);
 
     // stop dynamic address or static ip address
@@ -1315,7 +1315,7 @@ void ethernet_link_thread(void *argument)
 
       if(linkchanged)
       {
-        LWIP_LOGI("ETH link up, speed %dM, %s-duplex\n", phydev->speed, phydev->duplex ? "Full" : "Half");
+        LWIP_LOGD("ETH link up, speed %dM, %s-duplex\n", phydev->speed, phydev->duplex ? "Full" : "Half");
 
         /* Get MAC Config MAC */
         HAL_ETH_GetMACConfig(&heth, &MACConf);
@@ -1384,7 +1384,7 @@ void ethernet_link_thread(void *argument)
 
     if(netif_is_link_up(netif) && (PHYLinkState <= LAN8742_STATUS_LINK_DOWN))
     {
-      LWIP_LOGI("ETH link down\n");
+      LWIP_LOGD("ETH link down\n");
       HAL_ETH_Stop_IT(&heth);
 
       // stop dynamic address or static ip address
@@ -1420,7 +1420,7 @@ void ethernet_link_thread(void *argument)
 
       if(linkchanged)
       {
-        LWIP_LOGI("ETH link up, speed %d, duplex %d\n", speed, duplex);
+        LWIP_LOGD("ETH link up, speed %d, duplex %d\n", speed, duplex);
 
         /* Get MAC Config MAC */
         HAL_ETH_GetMACConfig(&heth, &MACConf);

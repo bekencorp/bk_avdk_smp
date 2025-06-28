@@ -35,15 +35,15 @@ spi_statis_t* spi_statis_get_statis(spi_id_t id)
 
 void spi_statis_dump(spi_id_t id)
 {
-	BK_LOGI(TAG, "dump spi statis:\r\n");
-	BK_LOGI(TAG, "spi_isr_cnt:           %d\r\n", s_spi_statis[id].spi_isr_cnt);
-	BK_LOGI(TAG, "tx_fifo_isr_cnt:       %d\r\n", s_spi_statis[id].tx_fifo_isr_cnt);
-	BK_LOGI(TAG, "rx_fifo_isr_cnt:       %d\r\n", s_spi_statis[id].rx_fifo_isr_cnt);
-	BK_LOGI(TAG, "tx_finish_isr_cnt:     %d\r\n", s_spi_statis[id].tx_finish_isr_cnt);
-	BK_LOGI(TAG, "rx_finish_isr_cnt:     %d\r\n", s_spi_statis[id].rx_finish_isr_cnt);
-	BK_LOGI(TAG, "tx_underflow_isr_cnt:  %d\r\n", s_spi_statis[id].tx_underflow_isr_cnt);
-	BK_LOGI(TAG, "rx_overflow_isr_cnt:   %d\r\n", s_spi_statis[id].rx_overflow_isr_cnt);
-	BK_LOGI(TAG, "slave_release_isr_cnt: %d\r\n", s_spi_statis[id].slave_release_isr_cnt);
+	BK_LOGD(TAG, "dump spi statis:\r\n");
+	BK_LOGD(TAG, "spi_isr_cnt:           %d\r\n", s_spi_statis[id].spi_isr_cnt);
+	BK_LOGD(TAG, "tx_fifo_isr_cnt:       %d\r\n", s_spi_statis[id].tx_fifo_isr_cnt);
+	BK_LOGD(TAG, "rx_fifo_isr_cnt:       %d\r\n", s_spi_statis[id].rx_fifo_isr_cnt);
+	BK_LOGD(TAG, "tx_finish_isr_cnt:     %d\r\n", s_spi_statis[id].tx_finish_isr_cnt);
+	BK_LOGD(TAG, "rx_finish_isr_cnt:     %d\r\n", s_spi_statis[id].rx_finish_isr_cnt);
+	BK_LOGD(TAG, "tx_underflow_isr_cnt:  %d\r\n", s_spi_statis[id].tx_underflow_isr_cnt);
+	BK_LOGD(TAG, "rx_overflow_isr_cnt:   %d\r\n", s_spi_statis[id].rx_overflow_isr_cnt);
+	BK_LOGD(TAG, "slave_release_isr_cnt: %d\r\n", s_spi_statis[id].slave_release_isr_cnt);
 }
 
 #endif

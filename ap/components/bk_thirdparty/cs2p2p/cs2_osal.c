@@ -14,7 +14,7 @@ void *cs2_psram_malloc(size_t size)
     void *tmp = psram_malloc(size);
 
 #if MALLOC_DEBUG
-    os_printf("%s %p %d\n", __func__, tmp, size);
+    BK_LOGD(NULL, "%s %p %d\n", __func__, tmp, size);
 
     if (!tmp)
     {
@@ -28,7 +28,7 @@ void *cs2_psram_malloc(size_t size)
 void cs2_psram_free(void *ptr)
 {
 #if MALLOC_DEBUG
-    os_printf("%s %p\n", __func__, ptr);
+    BK_LOGD(NULL, "%s %p\n", __func__, ptr);
 #endif
 
     psram_free(ptr);
@@ -44,7 +44,7 @@ void *cs2_malloc(size_t size)
     void *tmp = os_malloc(size);
 
 #if MALLOC_DEBUG
-    os_printf("%s %p %d\n", __func__, tmp, size);
+    BK_LOGD(NULL, "%s %p %d\n", __func__, tmp, size);
 
     if (!tmp)
     {
@@ -63,7 +63,7 @@ void cs2_free(void *ptr)
 #else
 
 #if MALLOC_DEBUG
-    os_printf("%s %p\n", __func__, ptr);
+    BK_LOGD(NULL, "%s %p\n", __func__, ptr);
 #endif
 
     os_free(ptr);
@@ -90,7 +90,7 @@ bk_err_t cs2_create_thread(beken_thread_t *thread, uint8_t priority, const char 
         size = stack_size;
     }
 
-    os_printf("%s %s %d\n", __func__, name, size);
+    BK_LOGD(NULL, "%s %s %d\n", __func__, name, size);
 
     return rtos_create_thread(thread, priority, name, function, size, arg);
 }
@@ -161,7 +161,7 @@ int pthread_create_ext(cs2_pthread_t *thread, const cs2_pthread_attr_t *attr, vo
 
     if (!targ)
     {
-        os_printf("%s malloc fail\n");
+        BK_LOGD(NULL, "%s malloc fail\n");
         return -1;
     }
 
@@ -178,7 +178,7 @@ int pthread_create_ext(cs2_pthread_t *thread, const cs2_pthread_attr_t *attr, vo
 
     if (ret != 0)
     {
-        os_printf("%s rtos_create_thread fail %d\n", __func__, ret);
+        BK_LOGD(NULL, "%s rtos_create_thread fail %d\n", __func__, ret);
         goto PTH_FAIL;
     }
 
@@ -209,7 +209,7 @@ int pthread_join(cs2_pthread_t thread, void **retval)
 
 int pthread_detach(cs2_pthread_t thread)
 {
-    os_printf("\n!!!! %s not impl, please impl with armino api or remodify sample code !!!!\n", __func__);
+    BK_LOGD(NULL, "\n!!!! %s not impl, please impl with armino api or remodify sample code !!!!\n", __func__);
     return 0;
 }
 

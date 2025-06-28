@@ -178,12 +178,12 @@ bk_err_t bk_netif_get_ip6_addr_info(netif_if_t ifx)
                        u8 *ipv6_addr;
                        ipv6_addr = (u8*)ip_2_ip6(&netif->ip6_addr[i])->addr;///&addr->ipv6[i].address;
 
-                       bk_printf("ipv6_addr[%d] %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\r\n", i,
+                       BK_LOGD(NULL, "ipv6_addr[%d] %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\r\n", i,
                                        ipv6_addr[0], ipv6_addr[1], ipv6_addr[2], ipv6_addr[3],
                                        ipv6_addr[4], ipv6_addr[5], ipv6_addr[6], ipv6_addr[7],
                                        ipv6_addr[8], ipv6_addr[9], ipv6_addr[10], ipv6_addr[11],
                                        ipv6_addr[12], ipv6_addr[13], ipv6_addr[14], ipv6_addr[15]);
-                       bk_printf("ipv6_state[%d] 0x%x\r\n", i, netif->ip6_addr_state[i]);
+                       BK_LOGD(NULL, "ipv6_state[%d] 0x%x\r\n", i, netif->ip6_addr_state[i]);
                        num++;
        }
 

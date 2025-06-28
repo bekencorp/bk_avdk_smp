@@ -229,7 +229,7 @@ static int wpa_supplicant_ctrl_iface_select_network(
 		wpa_s->num_ssids_from_scan_req = 1;
 		wpa_s->ssids_from_scan_req = wpas_connect_ssid;
 		wpa_s->scan_req = MANUAL_SCAN_REQ;
-		WPA_LOGI("MANUAL_SCAN_REQ\r\n");
+		WPA_LOGD("MANUAL_SCAN_REQ\r\n");
 	}
 #endif
 
@@ -514,7 +514,7 @@ static int wpas_ctrl_scan(struct wpa_supplicant *wpa_s, wlan_sta_scan_param_t *p
 			}
 
 #ifdef CONFIG_NO_STDOUT_DEBUG
-			WPA_LOGI("Assigned scan id 0x%x\n", wpa_s->manual_scan_id);
+			WPA_LOGD("Assigned scan id 0x%x\n", wpa_s->manual_scan_id);
 #else
 			wpa_dbg(wpa_s, MSG_DEBUG, "Assigned scan id %u",
 				wpa_s->manual_scan_id);
@@ -674,7 +674,7 @@ int wpa_supplicant_ctrl_iface_set_network(struct wpa_supplicant *wpa_s, wlan_sta
 
 	switch (config->field) {
 	case WLAN_STA_FIELD_SSID:
-		//WPA_LOGI("ssid: |%s|\n", config->u.ssid.ssid);
+		//WPA_LOGD("ssid: |%s|\n", config->u.ssid.ssid);
 		if ((ssid->ssid_len != config->u.ssid.ssid_len) ||
 			os_memcmp(ssid->ssid, config->u.ssid.ssid, ssid->ssid_len)) {
 			ssid->psk_set = 0;	// recalc psk
@@ -692,7 +692,7 @@ int wpa_supplicant_ctrl_iface_set_network(struct wpa_supplicant *wpa_s, wlan_sta
 		}
 		if (bk_feature_bssid_connect_enable()) {
 			if (ssid->bssid) {
-				WPA_LOGD("clear bssid\r\n");
+				WPA_LOGV("clear bssid\r\n");
 				os_memset(ssid->bssid, 0, ETH_ALEN);
 				ssid->bssid_set = 0;
 			}
@@ -701,18 +701,18 @@ int wpa_supplicant_ctrl_iface_set_network(struct wpa_supplicant *wpa_s, wlan_sta
 		break;
 
 	case WLAN_STA_FIELD_BSSID:
-		//WPA_LOGI("bssid set\n");
+		//WPA_LOGD("bssid set\n");
 		os_memcpy(ssid->bssid, config->u.bssid, ETH_ALEN);
 		ssid->bssid_set = 1;
 		break;
 
 	case WLAN_STA_FIELD_FREQ:
 		//ssid->frequency = ieee80211_chan_to_freq("CN", 7, config->u.channel);
-		//WPA_LOGI("ssid->freq = %d\n", ssid->frequency);
+		//WPA_LOGD("ssid->freq = %d\n", ssid->frequency);
 		break;
 
 	case WLAN_STA_FIELD_PSK:
-		//WPA_LOGI("psk: |%s|\n", config->u.psk);
+		//WPA_LOGD("psk: |%s|\n", config->u.psk);
 		if (config->u.psk[0] != '\0') {
 #if CONFIG_WAPI_SUPPORT
 			if (ssid->key_mgmt && WPA_KEY_MGMT_WAPI_PSK) {
@@ -759,7 +759,7 @@ int wpa_supplicant_ctrl_iface_set_network(struct wpa_supplicant *wpa_s, wlan_sta
 		ssid->wep_tx_keyidx = config->u.wep_tx_keyidx;
 		break;
 	case WLAN_STA_FIELD_KEY_MGMT:
-		//WPA_LOGI("key_mgmt: %d\n", __func__, config->u.key_mgmt);
+		//WPA_LOGD("key_mgmt: %d\n", __func__, config->u.key_mgmt);
 		ssid->key_mgmt = config->u.key_mgmt;
 #if CONFIG_WAPI_SUPPORT
 		if ((ssid->key_mgmt && WPA_KEY_MGMT_WAPI_PSK)
@@ -774,27 +774,27 @@ int wpa_supplicant_ctrl_iface_set_network(struct wpa_supplicant *wpa_s, wlan_sta
 #endif
 		break;
 	case WLAN_STA_FIELD_PAIRWISE_CIPHER:
-		//WPA_LOGI("pairwise_cipher: %d\n", __func__, config->u.pairwise_cipher);
+		//WPA_LOGD("pairwise_cipher: %d\n", __func__, config->u.pairwise_cipher);
 		ssid->pairwise_cipher = config->u.pairwise_cipher;
 		break;
 	case WLAN_STA_FIELD_GROUP_CIPHER:
-		//WPA_LOGI("group_cipher: %d\n", __func__, config->u.group_cipher);
+		//WPA_LOGD("group_cipher: %d\n", __func__, config->u.group_cipher);
 		ssid->group_cipher = config->u.group_cipher;
 		break;
 	case WLAN_STA_FIELD_PROTO:
-		//WPA_LOGI("proto: %d\n", __func__, config->u.proto);
+		//WPA_LOGD("proto: %d\n", __func__, config->u.proto);
 		ssid->proto = config->u.proto;
 		break;
 	case WLAN_STA_FIELD_AUTH_ALG:
-		//WPA_LOGI("auth_alg: %d\n", __func__, config->u.auth_alg);
+		//WPA_LOGD("auth_alg: %d\n", __func__, config->u.auth_alg);
 		ssid->auth_alg = config->u.auth_alg;
 		break;
 	case WLAN_STA_FIELD_WPA_PTK_REKEY:
-		//WPA_LOGI("wpa_ptk_rekey: %d\n", __func__, config->u.wpa_ptk_rekey);
+		//WPA_LOGD("wpa_ptk_rekey: %d\n", __func__, config->u.wpa_ptk_rekey);
 		ssid->wpa_ptk_rekey = config->u.wpa_ptk_rekey;
 		break;
 	case WLAN_STA_FIELD_SCAN_SSID:
-		//WPA_LOGI("scan_ssid: %d\n", __func__, config->u.scan_ssid);
+		//WPA_LOGD("scan_ssid: %d\n", __func__, config->u.scan_ssid);
 		ssid->scan_ssid = config->u.scan_ssid;
 		break;
 
@@ -805,7 +805,7 @@ int wpa_supplicant_ctrl_iface_set_network(struct wpa_supplicant *wpa_s, wlan_sta
 			os_memcpy(groups, config->u.sae_groups, sizeof(config->u.sae_groups));
 			wpa_s->conf->sae_groups = groups;
 			//while (*groups) {
-			//	WPA_LOGI("\t sae_group: %d\n", *groups);
+			//	WPA_LOGD("\t sae_group: %d\n", *groups);
 			//	groups++;
 			//}
 		}
@@ -1230,7 +1230,7 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 
 
 #if CONFIG_QUICK_TRACK
-	WPA_LOGI("%s: cmd %d\n", __func__, msg->cmd);
+	WPA_LOGD("%s: cmd %d\n", __func__, msg->cmd);
 #endif
 	switch (msg->cmd) {
 #ifdef CONFIG_WPA_SUPPLICANT_MULTI_NETWORK
@@ -1262,7 +1262,7 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 			res = -1;
 			break;
 		}
-		//WPA_LOGI("set scan interval from %d to %d\n", wpa_s->scan_interval, sec);
+		//WPA_LOGD("set scan interval from %d to %d\n", wpa_s->scan_interval, sec);
 		wpa_supplicant_update_scan_int(wpa_s, sec);
 		if (wpa_s->conf)
 			wpa_s->conf->auth_dur = sec;
@@ -1342,7 +1342,7 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 		wpa_s->auto_reconnect_max_count = config->max_count;
 		wpa_s->auto_reconnect_timeout = config->timeout;
 		wpa_s->disable_auto_reconnect_after_disconnect = config->disable_reconnect_when_disconnect;
-		WPA_LOGI("auto_reconnect: count %d, timeout %d, disable_auto_reconnect_after_disconnect %d\n",
+		WPA_LOGD("auto_reconnect: count %d, timeout %d, disable_auto_reconnect_after_disconnect %d\n",
 			wpa_s->auto_reconnect_max_count, wpa_s->auto_reconnect_timeout,
 			wpa_s->disable_auto_reconnect_after_disconnect);
 #endif
@@ -1818,7 +1818,7 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 	struct hapd_interfaces *interfaces = hostapd_ctrl_get_interfaces();
 	int res = 0;
 
-	// WPA_LOGI("%s: evt %d\r\n", __func__, msg->cmd);
+	// WPA_LOGD("%s: evt %d\r\n", __func__, msg->cmd);
 
 #define CHECK_WPA_S()				\
 	do {							\
@@ -1887,7 +1887,7 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 			data.auth.ies = ind->ie_buf;
 			data.auth.ies_len = ind->ie_len;
 
-			//WPA_LOGI("%s: WPA_CTRL_EVENT_AUTH_IND\n", __func__);
+			//WPA_LOGD("%s: WPA_CTRL_EVENT_AUTH_IND\n", __func__);
 			wpa_supplicant_event_sta(wpa_s, EVENT_AUTH, &data);
 		} else {
 			WPA_LOGE("%s %d: null\n", __func__, __LINE__);
@@ -2000,7 +2000,7 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 		if (ind) {
 			union wpa_event_data data;
 
-			//WPA_LOGI("%s: WPA_CTRL_EVENT_MGMT_IND\n", __func__);
+			//WPA_LOGD("%s: WPA_CTRL_EVENT_MGMT_IND\n", __func__);
 
 			os_memset(&data, 0, sizeof(data));
 			data.rx_mgmt.ssi_signal = ind->rssi;
@@ -2011,7 +2011,7 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 			//print_hex_dump("MGMT: ", ind->payload, ind->length);
 			wpa_supplicant_event_sta(wpa_s, EVENT_RX_MGMT, &data);
 		} else {
-			WPA_LOGI("%s %d: null\n", __func__, __LINE__);
+			WPA_LOGD("%s %d: null\n", __func__, __LINE__);
 		}
 	}	break;
 
@@ -2095,7 +2095,7 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 		struct p2p_event_go_req *req = (struct p2p_event_go_req *)msg->argu;
 		struct wlan_p2p_connect_param param;
 
-		WPA_LOGI("WPA_CTRL_EVENT_P2P_GO_NEG_REQUEST: peer_addr %pm\n", req->src);
+		WPA_LOGD("WPA_CTRL_EVENT_P2P_GO_NEG_REQUEST: peer_addr %pm\n", req->src);
 		os_memcpy(param.addr, req->src, ETH_ALEN);
 		//param.intent = bk_rand()%5 + 1;
 		param.intent = 0;
@@ -2136,23 +2136,23 @@ static int wpa_ctrl_debug_info_dump_scan(struct wpa_supplicant *wpas)
 	if (!wpas)
 		return WPA_ERR_PARAM;
 
-	WPA_LOGI("wpa_state=%d\n", wpas->wpa_state);
-	WPA_LOGI("scan_prev_wpa_state=%d\n", wpas->scan_prev_wpa_state);
+	WPA_LOGD("wpa_state=%d\n", wpas->wpa_state);
+	WPA_LOGD("scan_prev_wpa_state=%d\n", wpas->scan_prev_wpa_state);
 	struct wpa_radio_work *scan_work = wpas->scan_work;
 	if (scan_work) {
 		os_get_reltime(&now);
-		WPA_LOGI("scan_work: freq=%d type=%s start=%d bands=%d time(%d.%d) now(%d.%d)\n",
+		WPA_LOGD("scan_work: freq=%d type=%s start=%d bands=%d time(%d.%d) now(%d.%d)\n",
 			scan_work->freq, scan_work->type, scan_work->started, scan_work->bands,
 			scan_work->time.sec, scan_work->time.usec);
 	}
-	WPA_LOGI("scanning=%d\n", wpas->scanning);
-	WPA_LOGI("sched_scanning=%d\n", wpas->sched_scanning);
-	WPA_LOGI("sched_scan_stop_req=%d\n", wpas->sched_scan_stop_req);
-	WPA_LOGI("disconnected=%d\n", wpas->disconnected);
-	WPA_LOGI("scan_req=%d\n", wpas->scan_req);
-	WPA_LOGI("last_scan_req=%d\n", wpas->last_scan_req);
-	WPA_LOGI("enabled_networks=%d\n", wpa_supplicant_enabled_networks(wpas));
-	WPA_LOGI("scan_for_connection=%d\n", wpas->scan_for_connection);
+	WPA_LOGD("scanning=%d\n", wpas->scanning);
+	WPA_LOGD("sched_scanning=%d\n", wpas->sched_scanning);
+	WPA_LOGD("sched_scan_stop_req=%d\n", wpas->sched_scan_stop_req);
+	WPA_LOGD("disconnected=%d\n", wpas->disconnected);
+	WPA_LOGD("scan_req=%d\n", wpas->scan_req);
+	WPA_LOGD("last_scan_req=%d\n", wpas->last_scan_req);
+	WPA_LOGD("enabled_networks=%d\n", wpa_supplicant_enabled_networks(wpas));
+	WPA_LOGD("scan_for_connection=%d\n", wpas->scan_for_connection);
 
 	return WPA_OK;
 }

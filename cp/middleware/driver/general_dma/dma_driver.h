@@ -31,6 +31,7 @@
 #define DMA_LOGW(...) BK_LOGW(DMA_TAG, ##__VA_ARGS__)
 #define DMA_LOGE(...) BK_LOGE(DMA_TAG, ##__VA_ARGS__)
 #define DMA_LOGD(...) BK_LOGD(DMA_TAG, ##__VA_ARGS__)
+#define DMA_LOGV(...) BK_LOGV(DMA_TAG, ##__VA_ARGS__)
 
 typedef struct
 {

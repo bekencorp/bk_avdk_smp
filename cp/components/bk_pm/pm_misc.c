@@ -23,10 +23,11 @@
 
 #define TAG "pm"
 
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define PM_SOC_SYS_REG_BASE                  (SOC_SYS_REG_BASE)
 #define PM_SYS_REG_0x8                       (SOC_SYS_REG_BASE + 0x8*4)
@@ -88,7 +89,7 @@ void pm_printf_current_temperature(void)
 	float temp;
 
 	bk_sensor_get_current_temperature(&temp);
-	os_printf("current chip temperature about %.2f\r\n",temp);
+	BK_LOGD(NULL,"current chip temperature about %.2f\r\n",temp);
 #endif
 }
 
@@ -124,15 +125,15 @@ bk_err_t bk_pm_cpu_freq_dump()
 	switch((value_8 >> PM_CPU_SRC_POS)&PM_CPU_SRC_MASK)
 	{
 		case PM_CPU_SRC_480M:
-			LOGI("Curfreq CPU0:(480/%d)M,CPU1/CPU2:(480/%d)M\r\n",cp0_div,cp1_div);
+			LOGD("Curfreq CPU0:(480/%d)M,CPU1/CPU2:(480/%d)M\r\n",cp0_div,cp1_div);
 			break;
 		case PM_CPU_SRC_320M:
-			LOGI("Curfreq:CPU0:(320/%d)M,CPU1/CPU2:(320/%d)M\r\n",cp0_div,cp1_div);
+			LOGD("Curfreq:CPU0:(320/%d)M,CPU1/CPU2:(320/%d)M\r\n",cp0_div,cp1_div);
 			break;
 		default:
 			break;
 	}
-	LOGI("Freq_reg:0x%x,0x%x,0x%x\r\n",value_8,value_4,value_5);
+	LOGD("Freq_reg:0x%x,0x%x,0x%x\r\n",value_8,value_4,value_5);
 	return BK_OK;
 }
 

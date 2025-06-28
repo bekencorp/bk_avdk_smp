@@ -29,7 +29,7 @@
 
 static void cli_aud_ns_help(void)
 {
-	os_printf("aud_ns_test {8000|16000|32000|48000 xxx.pcm xxx.pcm noise_value} \r\n");
+	BK_LOGD(NULL, "aud_ns_test {8000|16000|32000|48000 xxx.pcm xxx.pcm noise_value} \r\n");
 }
 
 void cli_aud_ns_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -57,13 +57,13 @@ void cli_aud_ns_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	sprintf(in_file_name, "1:/%s", argv[2]);
 	fr = f_open(&file_in, in_file_name, FA_OPEN_EXISTING | FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", in_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", in_file_name);
 		return;
 	}
 	sprintf(out_file_name, "1:/%s", argv[3]);
 	fr = f_open(&file_out, out_file_name, FA_CREATE_ALWAYS | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", out_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", out_file_name);
 		return;
 	}
 	nosie_value = os_strtoul(argv[4], NULL, 10);
@@ -71,28 +71,28 @@ void cli_aud_ns_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	/* init audio ns */
 	ret = bk_aud_ns_init(FARME_SIZE/2, samp_rate);
 	if (ret != BK_OK) {
-		os_printf("init ns fail \r\n");
+		BK_LOGD(NULL, "init ns fail \r\n");
 		return;
 	}
 
 	in_addr = (int16_t *)os_malloc(FARME_SIZE);
 	if (in_addr != NULL)
-		os_printf("malloc ok \r\n");
+		BK_LOGD(NULL, "malloc ok \r\n");
 	else {
-		os_printf("malloc fail \r\n");
+		BK_LOGD(NULL, "malloc fail \r\n");
 		return;
 	}
 	os_memset(in_addr, 0, FARME_SIZE);
 
-	os_printf("nosie_value:%d \r\n", nosie_value);
+	BK_LOGD(NULL, "nosie_value:%d \r\n", nosie_value);
 	bk_aud_ns_set_suprs(nosie_value);
 
 	ns_size = f_size(&file_in);
-	os_printf("rsp_size = %d \r\n", ns_size);
+	BK_LOGD(NULL, "rsp_size = %d \r\n", ns_size);
 	while (!file_empty_flag) {
 		fr = f_read(&file_in, in_addr, FARME_SIZE, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read in data fail.\r\n");
+			BK_LOGD(NULL, "read in data fail.\r\n");
 			break;
 		}
 
@@ -104,35 +104,35 @@ void cli_aud_ns_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		ret = bk_aud_ns_process(in_addr);
 //		addAON_GPIO_Reg0x8 = 0;
 		if (ret == BK_FAIL) {
-			os_printf("bk_aud_ns_process fail %d\r\n", ret);
+			BK_LOGD(NULL, "bk_aud_ns_process fail %d\r\n", ret);
 			break;
 		}
 
 		fr = f_write(&file_out, (void *)in_addr, in_len, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("write output data %s fail.\r\n", out_file_name);
+			BK_LOGD(NULL, "write output data %s fail.\r\n", out_file_name);
 			break;
 		}
 	}
 
-	os_printf("break while \r\n");
+	BK_LOGD(NULL, "break while \r\n");
 	fr = f_close(&file_out);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", out_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", out_file_name);
 		return;
 	}
 
 	fr = f_close(&file_in);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", in_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", in_file_name);
 		return;
 	}
 
     bk_aud_ns_deinit();
 
-	os_printf("ns test complete \r\n");
+	BK_LOGD(NULL, "ns test complete \r\n");
 
-	os_printf("test finish \r\n");
+	BK_LOGD(NULL, "test finish \r\n");
 }
 
 

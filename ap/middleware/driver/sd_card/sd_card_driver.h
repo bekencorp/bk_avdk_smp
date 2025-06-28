@@ -21,6 +21,7 @@
 #define SD_CARD_LOGW(...) BK_LOGW(SD_CARD_TAG, ##__VA_ARGS__)
 #define SD_CARD_LOGE(...) BK_LOGE(SD_CARD_TAG, ##__VA_ARGS__)
 #define SD_CARD_LOGD(...) BK_LOGD(SD_CARD_TAG, ##__VA_ARGS__)
+#define SD_CARD_LOGV(...) BK_LOGV(SD_CARD_TAG, ##__VA_ARGS__)
 
 /* sd card supported version */
 #define SD_CARD_V1_X     0x0

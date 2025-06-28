@@ -21,3 +21,4 @@
 #define QSPI_LOGW(...) BK_LOGW(QSPI_TAG, ##__VA_ARGS__)
 #define QSPI_LOGE(...) BK_LOGE(QSPI_TAG, ##__VA_ARGS__)
 #define QSPI_LOGD(...) BK_LOGD(QSPI_TAG, ##__VA_ARGS__)
+#define QSPI_LOGV(...) BK_LOGV(QSPI_TAG, ##__VA_ARGS__)

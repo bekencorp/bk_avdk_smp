@@ -199,7 +199,7 @@ etharp_free_entry(int i)
 int set_etharp_timeout (int timeout)
 {
     if(timeout < 30) {
-        bk_printf("set_etharp_timeout: warning please set timeout > 30\n");
+        BK_LOGD(NULL,"set_etharp_timeout: warning please set timeout > 30\n");
         return 0;
     } else {
         arp_timeout = timeout;
@@ -824,7 +824,7 @@ etharp_input(struct pbuf *p, struct netif *netif)
 
 #if (CONFIG_WIFI_FAST_DHCP) && (CONFIG_STA_USE_STATIC_IP)
       if (ip4_addr_cmp(&sipaddr, netif_ip4_addr(netif))) {
-        bk_printf("ip conflict!!!\r\n");	 //check for conflict
+        BK_LOGD(NULL,"ip conflict!!!\r\n");	 //check for conflict
         if (rtos_is_oneshot_timer_init(&arp_conflict_tmr) == 0) {
           int clk_time = 1000;
           rtos_init_oneshot_timer(&arp_conflict_tmr,

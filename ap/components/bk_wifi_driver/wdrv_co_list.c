@@ -480,13 +480,13 @@ void print_unreleased_pbufs(void) {
 int print_unreleased_pbufs_cnt(void) {
     PbufTrackNode* curr = pbuf_head;
     int count = 0;
-    //os_printf("=== Unreleased pbufs ===\n");
+    //BK_LOGD(NULL, "=== Unreleased pbufs ===\n");
     while (curr) {
-        //os_printf("pbuf: %p allocated at %s:%d\n", curr->pbuf_addr, curr->file, curr->line);
+        //BK_LOGD(NULL, "pbuf: %p allocated at %s:%d\n", curr->pbuf_addr, curr->file, curr->line);
         curr = curr->next;
         count++;
     }
     return count;
-    //os_printf("Total unreleased pbufs: %d\n", count);
+    //BK_LOGD(NULL, "Total unreleased pbufs: %d\n", count);
 }
 /// @}

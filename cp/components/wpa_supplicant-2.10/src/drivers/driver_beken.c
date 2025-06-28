@@ -1181,7 +1181,7 @@ static void *hostap_init(struct hostapd_data *hapd,
 
     ret = wpa_driver_hostap_init_vif(drv, NL80211_IFTYPE_AP);
     if(ret || (drv->vif_index == 0xff)) {
-        WPA_LOGI("Could not found vif indix: %d\n", drv->vif_index);
+        WPA_LOGD("Could not found vif indix: %d\n", drv->vif_index);
         os_free(drv);
         return NULL;
     }
@@ -1594,7 +1594,7 @@ static struct hostapd_hw_modes *hostap_get_hw_feature_data(void *priv,
 		mode->channels[i].chan = channels->hw_value;
 		mode->channels[i].freq = channels->center_freq;
 		mode->channels[i].allowed_bw = HOSTAPD_CHAN_WIDTH_20 /* | HOSTAPD_CHAN_WIDTH_40P | HOSTAPD_CHAN_WIDTH_40M */;
-		// os_printf("chan %d, freq %d\n", mode->channels[i].chan, mode->channels[i].freq);
+		// BK_LOGD(NULL,"chan %d, freq %d\n", mode->channels[i].chan, mode->channels[i].freq);
 	}
 
 	/* rates */
@@ -1804,11 +1804,11 @@ static void wpa_driver_deinit(void *priv)
 	/* wait hw cleanup complete */
 	while (ke_state_get(TASK_SCANU) == SCANU_SCANNING) {
 		rtos_delay_milliseconds(100);
-		WPA_LOGI("wait scan complete\r\n");
+		WPA_LOGD("wait scan complete\r\n");
 		if (retries++ > 50)
 			break;
 	}
-	WPA_LOGI("scanu completed\r\n");
+	WPA_LOGD("scanu completed\r\n");
     eloop_cancel_timeout(wpa_driver_scan_timeout, drv->wpa_s, NULL);
 
     if(wpa_driver_hostap_deinit_vif(drv))
@@ -1850,7 +1850,7 @@ void wpa_handler_signal(void *arg, u8 vif_idx)
 		WPA_LOGE("%s: sig %d invalid\r\n", __func__, sig);
 	}
 
-	//WPA_LOGI("%s: sig %d\r\n", __func__, sig);
+	//WPA_LOGD("%s: sig %d\r\n", __func__, sig);
 	ret = eloop_handle_signal(sig);
 	if(ret)
 	{
@@ -1912,7 +1912,7 @@ int wpa_driver_scan2(void *priv, struct wpa_driver_scan_params *params)
 				os_memcpy(param->u.scan_req.bssid, params->bssid, sizeof(param->u.scan_req.bssid));
 			}
 		}
-		WPA_LOGD("%s: Scan specified BSSID " MACSTR  "\n", __func__, MAC2STR(param->u.scan_req.bssid));
+		WPA_LOGV("%s: Scan specified BSSID " MACSTR  "\n", __func__, MAC2STR(param->u.scan_req.bssid));
 	}
 
 	freqs = params->freqs;
@@ -2034,7 +2034,7 @@ int wpa_driver_associate(void *priv, struct wpa_driver_associate_params *params)
 		return -1;
 
 	if (nlmode != NL80211_IFTYPE_P2P_GO) {
-		WPA_LOGD("wpa_driver_associate: auth_alg 0x%x\r\n", params->auth_alg);
+		WPA_LOGV("wpa_driver_associate: auth_alg 0x%x\r\n", params->auth_alg);
 		param = (struct prism2_hostapd_param *)buf;
 		param->cmd = PRISM2_HOSTAPD_ASSOC_REQ;
 		param->vif_idx = drv->vif_index;
@@ -2079,7 +2079,7 @@ int wpa_driver_associate(void *priv, struct wpa_driver_associate_params *params)
 #if defined(CONFIG_P2P) || CONFIG_WLAN_FAST_CONNECT_WITHOUT_SCAN
 		param->u.assoc_req.freq = params->freq_hint;
 #endif
-		//WPA_LOGI("%s: bcn_len %d\n", __func__, params->bcn_len);
+		//WPA_LOGD("%s: bcn_len %d\n", __func__, params->bcn_len);
 		if (params->bcn_len) {
 			os_memcpy(param->u.assoc_req.bcn_buf, params->bcn_ie, params->bcn_len);
 			//BK_ASSERT(sizeof(param->u.assoc_req.bcn_buf) >= params->bcn_len);
@@ -2464,7 +2464,7 @@ int wpa_driver_update_ft_ies(void *priv, const u8 *md, const u8 *ies, size_t ies
 	drv->ft_ie_len = ies_len;
 
 	if (drv->flags & RWNX_STA_FT_OVER_AIR) {
-		WPA_LOGI("%s: update ft ie for FT_OVER_AIR\n", __func__);
+		WPA_LOGD("%s: update ft ie for FT_OVER_AIR\n", __func__);
 		drv->flags &= ~RWNX_STA_FT_OVER_AIR;
 
 		blen = sizeof(*param);

@@ -382,12 +382,12 @@ static int process_dhcp_message(char *msg, int len)
 			dhcp_d("found DHCP message option\r\n");
 			switch (*(uint8_t *) opt->value) {
 			case DHCP_MESSAGE_DISCOVER:
-				LWIP_LOGD("DHCP discover\r\n");
+				LWIP_LOGV("DHCP discover\r\n");
 				response_type = DHCP_MESSAGE_OFFER;
 				break;
 
 			case DHCP_MESSAGE_REQUEST:
-				LWIP_LOGD("DHCP request\r\n");
+				LWIP_LOGV("DHCP request\r\n");
 				need_ip = 1;
 				if (hdr->ciaddr != 0x0000000) {
 					dhcps.client_ip = hdr->ciaddr;
@@ -396,7 +396,7 @@ static int process_dhcp_message(char *msg, int len)
 				break;
 
 			default:
-				LWIP_LOGI("ignoring message type %d\r\n",
+				LWIP_LOGD("ignoring message type %d\r\n",
 				    *(uint8_t *) opt->value);
 				break;
 			}
@@ -470,9 +470,9 @@ static int process_dhcp_message(char *msg, int len)
         int send_byte;
     	struct bootp_header *hdr;
         if (response_type == DHCP_MESSAGE_OFFER)
-			LWIP_LOGI("ap:DHCP should send offer\r\n");
+			LWIP_LOGD("ap:DHCP should send offer\r\n");
 		else if (response_type == DHCP_MESSAGE_ACK)
-			LWIP_LOGI("ap:DHCP should send ack\r\n");
+			LWIP_LOGD("ap:DHCP should send ack\r\n");
 		send_byte = make_response(msg, (enum dhcp_message_type)response_type);
         hdr = (struct bootp_header *)msg;
 
@@ -766,7 +766,7 @@ int dhcp_server_init(void *intrfc_handle)
     dhcps.prv = intrfc_handle;
     
 	dhcps.current_ip = ntohl(dhcps.my_ip & dhcps.netmask) | ((99) & ntohl(~dhcps.netmask));
-    //LWIP_LOGI("[abc] %x, %x, %x\r\n", dhcps.current_ip, dhcps.my_ip, dhcps.router_ip);
+    //LWIP_LOGD("[abc] %x, %x, %x\r\n", dhcps.current_ip, dhcps.my_ip, dhcps.router_ip);
 
 	return 0;
 

@@ -23,13 +23,13 @@ bk_err_t wdrv_deinit();
 
 void wdrv_print_debug_info()
 {
-    WDRV_LOGI("wdrv rx_alloc cnt:%d,rx win:%d,tx cnt:%d,process:%d,eth_num:%d,tx_free_total:%d\n rx recv:%d, ipc tx cnt:%d, ipc txc cnt:%d, ipc tx fail cnt:%d \n", 
+    WDRV_LOGD("wdrv rx_alloc cnt:%d,rx win:%d,tx cnt:%d,process:%d,eth_num:%d,tx_free_total:%d\n rx recv:%d, ipc tx cnt:%d, ipc txc cnt:%d, ipc tx fail cnt:%d \n", 
     wdrv_stats_ptr->rx_alloc_num,wdrv_stats_ptr->rx_win,wdrv_stats_ptr->tx_alloc_num,
     wdrv_stats_ptr->tx_process_num,wdrv_stats_ptr->tx_eth_num,wdrv_stats_ptr->tx_free_total,
     wdrv_stats_ptr->rx_total_recv,
     wdrv_stats_ptr->ipc_tx_cnt,wdrv_stats_ptr->ipc_txc_cnt,wdrv_stats_ptr->ipc_tx_fail_cnt);
 
-    WDRV_LOGI("wdrv tx_list_num:%d,first:0x%x,last:0x%x\n", 
+    WDRV_LOGD("wdrv tx_list_num:%d,first:0x%x,last:0x%x\n", 
         wdrv_stats_ptr->tx_list_num,wdrv_ipc_env[IPC_DATA].tx_list.first,wdrv_ipc_env[IPC_DATA].tx_list.last);
 }
 bk_err_t wdrv_msg_sender(uint32_t head,enum wdrv_task_msg_evt type,uint8_t retry)
@@ -39,7 +39,7 @@ bk_err_t wdrv_msg_sender(uint32_t head,enum wdrv_task_msg_evt type,uint8_t retry
 
     msg.type = type;
     msg.arg = (uint32_t)head;
-    WDRV_LOGD("%s,%d,head:0x%x\n",__func__,__LINE__,head);
+    WDRV_LOGV("%s,%d,head:0x%x\n",__func__,__LINE__,head);
     msg.retry_flag = retry;
     ret = rtos_push_to_queue(&wdrv_env.io_queue, &msg, BEKEN_NO_WAIT);
     if (BK_OK != ret) {
@@ -95,7 +95,7 @@ void wdrv_send_buffer_bank(uint16_t num)
 
         temp_addr = PTR_TO_U32(p);
 
-        WDRV_LOGD("%s,%d i:%d p:%p next:%p payload:%p len:%d\r\n",
+        WDRV_LOGV("%s,%d i:%d p:%p next:%p payload:%p len:%d\r\n",
             __func__,__LINE__, i, p, p->next, p->payload, p->tot_len);
         
         //bk_mem_dump("Abank p",(uint32_t)p,sizeof(struct pbuf)+8);
@@ -116,7 +116,7 @@ void wdrv_send_buffer_bank(uint16_t num)
     //bk_mem_dump("wdrv_rx_bank",PTR_TO_U32(bank+1),i*4 );
     //bk_mem_dump("wdrv_rx_bank",PTR_TO_U32(bank),(i+3)*4 );
     
-    WDRV_LOGD("%s attach num:%d,rx_alloc_num = %d\r\n",__func__,i,wdrv_stats_ptr->rx_alloc_num );
+    WDRV_LOGV("%s attach num:%d,rx_alloc_num = %d\r\n",__func__,i,wdrv_stats_ptr->rx_alloc_num );
     
     ret = wdrv_msg_sender((uint32_t)bank,WDRV_TASK_MSG_CMD, 0);
     //ret = wdrv_txbuf_push(TX_BK_CMD_DATA,bank,bank,1);
@@ -197,7 +197,7 @@ uint8_t* wdrv_get_cmd_buffer(uint8_t type)
                     uint32_t pattern_addr = wdrv_env.cmd_addr[i] - EVENT_HEAD_LEN;
                     *((PTR_FROM_U32(uint32_t,pattern_addr))) = PATTERN_BUSY;
                     
-                    WDRV_LOGD("%s,buffer=0x%x \n",__func__,&wdrv_env.cmd_addr[i]);
+                    WDRV_LOGV("%s,buffer=0x%x \n",__func__,&wdrv_env.cmd_addr[i]);
 
                     // cppcheck-suppress sizeofwithnumericparameter
                     memset(PTR_FROM_U32(void,wdrv_env.cmd_addr[i]),0,20);
@@ -219,7 +219,7 @@ uint8_t* wdrv_get_cmd_buffer(uint8_t type)
                     uint32_t pattern_addr = wdrv_env.cmd_bank[i] - EVENT_HEAD_LEN;
                     *((PTR_FROM_U32(uint32_t,pattern_addr))) = PATTERN_BUSY;
                     
-                    WDRV_LOGD("%s,buffer=0x%x \n",__func__,&wdrv_env.cmd_bank[i]);
+                    WDRV_LOGV("%s,buffer=0x%x \n",__func__,&wdrv_env.cmd_bank[i]);
 
                     // cppcheck-suppress sizeofwithnumericparameter
                     memset(PTR_FROM_U32(void,wdrv_env.cmd_bank[i]),0,MAX_CMD_BANK_LENGTH);
@@ -281,12 +281,12 @@ void wdrv_tx_cmd_buffer_init()
         uint32_t * temp = (uint32_t *)(&wdrv_cmd_bank[i][0]);
         *temp = (uint32_t)PATTERN_FREE;
 
-        WDRV_LOGD("%s, addr[%d]=0x%x, pattern_addr=0x%x\n",__func__, i,wdrv_env.cmd_bank[i],temp);
+        WDRV_LOGV("%s, addr[%d]=0x%x, pattern_addr=0x%x\n",__func__, i,wdrv_env.cmd_bank[i],temp);
     }
 
     wdrv_stats_ptr->rx_win = INIT_NUM_RX_BUFFERS;
 
-    WDRV_LOGD("%s\n", __func__);
+    WDRV_LOGV("%s\n", __func__);
 }
 
 void wdrv_main(void *arg)
@@ -302,15 +302,15 @@ void wdrv_main(void *arg)
             continue;
         }
 
-        WDRV_LOGD("%s,%d, msg.type:%d\n",__func__,__LINE__,msg.type);
+        WDRV_LOGV("%s,%d, msg.type:%d\n",__func__,__LINE__,msg.type);
         switch (msg.type)
         {
             case WDRV_TASK_MSG_CMD:
-                WDRV_LOGD("Wi-Fi Driver receive cmd\r\n");
+                WDRV_LOGV("Wi-Fi Driver receive cmd\r\n");
                 wdrv_txdata_pre_process(TX_BK_CMD_DATA,(void*)msg.arg,msg.retry_flag);
                 break;
             case WDRV_TASK_MSG_EVENT:
-                WDRV_LOGD("Wi-Fi Driver receive event\r\n");
+                WDRV_LOGV("Wi-Fi Driver receive event\r\n");
                 wdrv_rx_handle_msg((void*)msg.arg);
                 break;
             case WDRV_TASK_MSG_TXDATA:

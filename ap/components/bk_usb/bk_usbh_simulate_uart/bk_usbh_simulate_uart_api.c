@@ -25,6 +25,7 @@
 #define USBH_TO_UART_LOGW(...) BK_LOGW(USBH_TO_UART_TAG, ##__VA_ARGS__)
 #define USBH_TO_UART_LOGE(...) BK_LOGE(USBH_TO_UART_TAG, ##__VA_ARGS__)
 #define USBH_TO_UART_LOGD(...) BK_LOGD(USBH_TO_UART_TAG, ##__VA_ARGS__)
+#define USBH_TO_UART_LOGV(...) BK_LOGV(USBH_TO_UART_TAG, ##__VA_ARGS__)
 
 #define USBTUART_FORMAT "/dev/ttyUSB%d"
 #define KFIFO_RX_SIZE 1024
@@ -242,7 +243,7 @@ static void bk_usbh_to_uart_rx_fifo_clr(usbh_simulate_uart_id_config_t *serial_i
 
 static void bk_usbh_to_uart_simulate_rxed_callback(void *pCompleteParam, int nbytes)
 {
-    USBH_TO_UART_LOGD("%s pCompleteParam:%x nbytes:%d\r\n", __func__, pCompleteParam, nbytes);
+    USBH_TO_UART_LOGV("%s pCompleteParam:%x nbytes:%d\r\n", __func__, pCompleteParam, nbytes);
     usbh_simulate_uart_id_config_t *serial_id = pCompleteParam;
     if(!serial_id->connect_flag) {
         return;
@@ -357,7 +358,7 @@ bk_err_t bk_usbh_to_uart_simulate_read(usb_simulate_uart_id_t id, uint8_t *data,
 
 static void bk_usbh_to_uart_simulate_txed_callback(void *pCompleteParam, int nbytes)
 {
-    USBH_TO_UART_LOGD("%s pCompleteParam:%x nbytes:%d\r\n", __func__, pCompleteParam, nbytes);
+    USBH_TO_UART_LOGV("%s pCompleteParam:%x nbytes:%d\r\n", __func__, pCompleteParam, nbytes);
     usbh_simulate_uart_id_config_t *serial_id = pCompleteParam;
     struct usbh_ch34x *device = serial_id->device;
     struct usbh_urb *urb = &device->bulkout_urb;

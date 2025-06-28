@@ -382,7 +382,7 @@ bk_err_t bk_pwm_init(pwm_chan_t chan, const pwm_init_config_t *config)
 	if (config->duty3_cycle > 0)
 		hal_config.t3 = hal_config.t2 + config->duty3_cycle;
 
-	PWM_LOGI("init, chan(%d), t1=%x, t2=%x, t3=%x, t4=%x\n",
+	PWM_LOGD("init, chan(%d), t1=%x, t2=%x, t3=%x, t4=%x\n",
 			 chan, hal_config.t1, hal_config.t2, hal_config.t3, hal_config.t4);
 	s_pwm.init_level[unit_id][drv_ch]=0;
 	return pwm_hal_init_pwm(&s_pwm.hal[unit_id], drv_ch, &hal_config);
@@ -441,7 +441,7 @@ bk_err_t bk_pwm_enable_interrupt(pwm_chan_t chan)
 	uint32_t drv_ch = PWM_APP_CHAN_ID_TO_DRV_CHAN_ID(chan);
 	PWM_RETURN_ON_CHAN_NOT_INIT(unit_id, drv_ch);
 
-	//BK_LOGI("TODO:PWM:why enable INT has to check channel started?\r\n");	
+	//BK_LOGD("TODO:PWM:why enable INT has to check channel started?\r\n");	
 	if (pwm_hal_is_chan_started(&s_pwm.hal[unit_id], drv_ch)) {
 		pwm_chan_enable_interrupt_common(chan);
 		return BK_OK;
@@ -787,9 +787,9 @@ bk_err_t bk_pwm_group_init(const pwm_group_init_config_t *config, pwm_group_t *g
 
 	*group = pwm_group_add(config->chan1, config->chan2);
 
-	PWM_LOGI("group period=%x chan1_duty=%x chan2_duty=%x\n",
+	PWM_LOGD("group period=%x chan1_duty=%x chan2_duty=%x\n",
 			 config->period_cycle, config->chan1_duty_cycle, config->chan2_duty_cycle);
-	PWM_LOGI("group T21=%x T22=%x\n", pwm_config.duty_cycle, pwm_config.duty2_cycle);
+	PWM_LOGD("group T21=%x T22=%x\n", pwm_config.duty_cycle, pwm_config.duty2_cycle);
 
 	return BK_OK;
 }

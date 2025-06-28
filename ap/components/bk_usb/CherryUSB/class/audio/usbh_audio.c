@@ -105,7 +105,7 @@ freq_found:
             ep_desc->wMaxPacketSize = 0x60;
         }
     } else {
-        USB_LOG_INFO("please check samp_freq:%d ?\r\n", samp_freq);
+        USB_LOG_DBG("please check samp_freq:%d ?\r\n", samp_freq);
     }
 
     mult = (ep_desc->wMaxPacketSize & USB_MAXPACKETSIZE_ADDITIONAL_TRANSCATION_MASK) >> USB_MAXPACKETSIZE_ADDITIONAL_TRANSCATION_SHIFT;
@@ -216,7 +216,7 @@ freq_found:
             ep_desc->wMaxPacketSize = 0x60;
         }
     } else {
-        USB_LOG_INFO("please check samp_freq:%d ?\r\n", samp_freq);
+        USB_LOG_DBG("please check samp_freq:%d ?\r\n", samp_freq);
     }
 
     mult = (ep_desc->wMaxPacketSize & USB_MAXPACKETSIZE_ADDITIONAL_TRANSCATION_MASK) >> USB_MAXPACKETSIZE_ADDITIONAL_TRANSCATION_SHIFT;
@@ -229,7 +229,7 @@ freq_found:
         usbh_hport_activate_epx(&audio_class->isoout, audio_class->hport, ep_desc);
     }
 
-    USB_LOG_INFO("Open audio module :%s, altsetting: %u\r\n", name, altsetting);
+    USB_LOG_DBG("Open audio module :%s, altsetting: %u\r\n", name, altsetting);
     //audio_class->is_opened = true;
     return ret;
 }
@@ -252,7 +252,7 @@ int usbh_audio_close(struct usbh_audio *audio_class, const char *name)
         return -ENODEV;
     }
 
-    USB_LOG_DBG("Close audio module :%s\r\n", name);
+    USB_LOG_VBS("Close audio module :%s\r\n", name);
     audio_class->is_opened = false;
 
     ep_desc = &audio_class->hport->config.intf[intf].altsetting[altsetting].ep[0].ep_desc;
@@ -275,7 +275,7 @@ int usbh_audio_close(struct usbh_audio *audio_class, const char *name)
     setup->wLength = 0;
 
     ret = usbh_control_transfer(audio_class->hport->ep0, setup, NULL);
-	USB_LOG_INFO("Close audio module :%s\r\n", name);
+	USB_LOG_DBG("Close audio module :%s\r\n", name);
 
     return ret;
 }
@@ -345,33 +345,33 @@ int usbh_audio_set_mute(struct usbh_audio *audio_class, const char *name, uint8_
 
 void usbh_audio_list_module(struct usbh_audio *audio_class)
 {
-    USB_LOG_DBG("============= Audio module information ===================\r\n");
-    USB_LOG_DBG("bcdADC :%04x\r\n", audio_class->bcdADC);
-    USB_LOG_DBG("Num of modules :%u\r\n", audio_class->module_num);
-    USB_LOG_DBG("Num of altsettings:%u\r\n", audio_class->num_of_intf_altsettings);
+    USB_LOG_VBS("============= Audio module information ===================\r\n");
+    USB_LOG_VBS("bcdADC :%04x\r\n", audio_class->bcdADC);
+    USB_LOG_VBS("Num of modules :%u\r\n", audio_class->module_num);
+    USB_LOG_VBS("Num of altsettings:%u\r\n", audio_class->num_of_intf_altsettings);
 
     for (uint8_t i = 0; i < audio_class->module_num; i++) {
-        USB_LOG_DBG("  module name :%s\r\n", audio_class->module[i].name);
-        USB_LOG_DBG("  module feature unit id :%d\r\n", audio_class->module[i].feature_unit_id);
+        USB_LOG_VBS("  module name :%s\r\n", audio_class->module[i].name);
+        USB_LOG_VBS("  module feature unit id :%d\r\n", audio_class->module[i].feature_unit_id);
 
         for (uint8_t j = 0; j < audio_class->num_of_intf_altsettings; j++) {
             if (j == 0) {
-                USB_LOG_DBG("      Ingore altsetting 0\r\n");
+                USB_LOG_VBS("      Ingore altsetting 0\r\n");
                 continue;
             }
-            USB_LOG_DBG("      Altsetting %u\r\n", j);
-            USB_LOG_DBG("          module channels :%u\r\n", audio_class->module[i].altsetting[0].channels);
-            USB_LOG_DBG("          module format_type :%u\r\n",audio_class->module[i].altsetting[0].format_type);
-            USB_LOG_DBG("          module bitresolution :%u\r\n", audio_class->module[i].altsetting[0].bitresolution);
-            USB_LOG_INFO("          module sampfreq num :%u\r\n", audio_class->module[i].altsetting[0].sampfreq_num);
+            USB_LOG_VBS("      Altsetting %u\r\n", j);
+            USB_LOG_VBS("          module channels :%u\r\n", audio_class->module[i].altsetting[0].channels);
+            USB_LOG_VBS("          module format_type :%u\r\n",audio_class->module[i].altsetting[0].format_type);
+            USB_LOG_VBS("          module bitresolution :%u\r\n", audio_class->module[i].altsetting[0].bitresolution);
+            USB_LOG_DBG("          module sampfreq num :%u\r\n", audio_class->module[i].altsetting[0].sampfreq_num);
 
             for (uint8_t k = 0; k < audio_class->module[i].altsetting[0].sampfreq_num; k++) {
-                USB_LOG_INFO("              module sampfreq :%d hz\r\n", audio_class->module[i].altsetting[0].sampfreq[k]);
+                USB_LOG_DBG("              module sampfreq :%d hz\r\n", audio_class->module[i].altsetting[0].sampfreq[k]);
             }
         }
     }
 
-    USB_LOG_DBG("============= Audio module information ===================\r\n");
+    USB_LOG_VBS("============= Audio module information ===================\r\n");
 }
 
 static int usbh_audio_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
@@ -535,10 +535,10 @@ static int usbh_audio_ctrl_connect(struct usbh_hubport *hport, uint8_t intf)
     usbh_audio_list_module(audio_class);
 
     snprintf(hport->config.intf[intf].devname, CONFIG_USBHOST_DEV_NAMELEN, DEV_FORMAT, audio_class->minor);
-    USB_LOG_INFO("Register Audio Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register Audio Class:%s\r\n", hport->config.intf[intf].devname);
 
     usbh_audio_run(audio_class);
-	USB_LOG_DBG("[-]%s\r\n", __func__);
+	USB_LOG_VBS("[-]%s\r\n", __func__);
 #if CONFIG_USB_HUB_MULTIPLE_DEVICES
 	extern void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t intf, uint32_t class);
 	bk_usbh_hub_class_connect_notification(hport, intf, USB_DEVICE_CLASS_AUDIO);
@@ -575,7 +575,7 @@ static int usbh_audio_ctrl_disconnect(struct usbh_hubport *hport, uint8_t intf)
         }
 
         if (hport->config.intf[intf].devname[0] != '\0') {
-            USB_LOG_INFO("Unregister Audio Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister Audio Class:%s\r\n", hport->config.intf[intf].devname);
             usbh_audio_stop(audio_class);
         }
 
@@ -609,7 +609,7 @@ void bk_usbh_audio_sw_init(struct usbh_hubport *hport, uint8_t interface_num, ui
 	if(!hport)
 		return;
 
-	USB_LOG_DBG("[+]%s\r\n", __func__);
+	USB_LOG_VBS("[+]%s\r\n", __func__);
 
 	if(interface_sub_class == AUDIO_SUBCLASS_AUDIOCONTROL)
 		usbh_audio_ctrl_connect(hport, interface_num);
@@ -617,7 +617,7 @@ void bk_usbh_audio_sw_init(struct usbh_hubport *hport, uint8_t interface_num, ui
 	if(interface_sub_class == AUDIO_SUBCLASS_AUDIOSTREAMING)
 		usbh_audio_data_connect(hport, interface_num);
 
-	USB_LOG_DBG("[-]%s\r\n", __func__);
+	USB_LOG_VBS("[-]%s\r\n", __func__);
 
 }
 
@@ -627,7 +627,7 @@ void bk_usbh_audio_sw_deinit(struct usbh_hubport *hport, uint8_t interface_num, 
 	if(!hport)
 		return;
 
-	USB_LOG_DBG("[+]%s\r\n", __func__);
+	USB_LOG_VBS("[+]%s\r\n", __func__);
 
 	if(interface_sub_class == AUDIO_SUBCLASS_AUDIOCONTROL)
 		usbh_audio_ctrl_disconnect(hport, interface_num);
@@ -635,7 +635,7 @@ void bk_usbh_audio_sw_deinit(struct usbh_hubport *hport, uint8_t interface_num, 
 	if(interface_sub_class == AUDIO_SUBCLASS_AUDIOSTREAMING)
 		usbh_audio_data_disconnect(hport, interface_num);
 
-	USB_LOG_DBG("[-]%s\r\n", __func__);
+	USB_LOG_VBS("[-]%s\r\n", __func__);
 
 }
 
@@ -659,7 +659,7 @@ void bk_usbh_audio_unregister_dev(void)
                     usbh_pipe_free(audio_class->isoout);
                 }
 
-                USB_LOG_INFO("%s Check Unregister Audio Class:%s\r\n", __func__, undevname);
+                USB_LOG_DBG("%s Check Unregister Audio Class:%s\r\n", __func__, undevname);
 
                 usbh_audio_class_free(audio_class);
             }

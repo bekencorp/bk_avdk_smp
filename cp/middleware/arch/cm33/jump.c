@@ -36,12 +36,12 @@ void jump_to_s(uint32_t addr)
 	uint32_t msp = 0;
 	uint32_t pc  = 0;
 
-	BK_LOGI(TAG, "Next Image Addr: 0x%x\n", addr);
+	BK_LOGD(TAG, "Next Image Addr: 0x%x\n", addr);
 	msp = *(uint32_t *)addr;
 	pc  = *(uint32_t *)(addr + 4);
 
-	BK_LOGI(TAG, "Set MSP: 0x%x\n", (unsigned int)msp);
-	BK_LOGI(TAG, "Jump to S: 0x%x\n", (unsigned int)pc);
+	BK_LOGD(TAG, "Set MSP: 0x%x\n", (unsigned int)msp);
+	BK_LOGD(TAG, "Jump to S: 0x%x\n", (unsigned int)pc);
 
 	__set_MSP(msp);
 	__DSB();

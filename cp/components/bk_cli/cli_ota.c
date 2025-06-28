@@ -13,14 +13,14 @@ static void tftp_ota_get_Command(char *pcWriteBuffer, int xWriteBufferLen, int a
 	extern char     BootFile[] ;
 
 	if (argc > 3) {
-		os_printf("ota server_ip ota_file\r\n");
+		BK_LOGD(NULL,"ota server_ip ota_file\r\n");
 		return;
 	}
 
-	os_printf("%s\r\n", argv[1]);
+	BK_LOGD(NULL,"%s\r\n", argv[1]);
 
 	os_strcpy(BootFile, argv[2]);
-	os_printf("%s\r\n", BootFile);
+	BK_LOGD(NULL,"%s\r\n", BootFile);
 	string_to_ip(argv[1]);
 
 
@@ -39,21 +39,21 @@ void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	ret_partition = bk_ota_get_current_partition();
 	if(ret_partition == 0x0)
 	{
-    	os_printf("partition A\r\n");
+    	BK_LOGD(NULL,"partition A\r\n");
     }
 	else
 	{
-    	os_printf("partition B\r\n");
+    	BK_LOGD(NULL,"partition B\r\n");
     }
 #else
 	ret_partition = bk_ota_get_current_partition();
 	if((ret_partition == 0xFF) ||(ret_partition == EXEX_A_PART))
 	{
-    	os_printf("partition A\r\n");
+    	BK_LOGD(NULL,"partition A\r\n");
     }
 	else
 	{
-    	os_printf("partition B\r\n");
+    	BK_LOGD(NULL,"partition B\r\n");
     }
 #endif
 }
@@ -65,9 +65,9 @@ void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	extern uint32_t flash_get_excute_enable();
 	uint32_t id = flash_get_excute_enable();
 	if(id == 0){
-		os_printf("partition A\r\n");
+		BK_LOGD(NULL,"partition A\r\n");
 	} else if (id == 1){
-		os_printf("partition B\r\n");
+		BK_LOGD(NULL,"partition B\r\n");
 	}
 }
 #endif
@@ -81,12 +81,12 @@ void http_ota_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	ret = bk_http_ota_download(argv[1]);
 
 	if (0 != ret)
-		os_printf("http_ota download failed.");
+		BK_LOGD(NULL,"http_ota download failed.");
 
 	return;
 
 HTTP_CMD_ERR:
-	os_printf("Usage:http_ota [url:]\r\n");
+	BK_LOGD(NULL,"Usage:http_ota [url:]\r\n");
 }
 #endif
 
@@ -97,7 +97,7 @@ void bk_https_start_download(beken_thread_arg_t arg) {
 	int ret;
 	ret = bk_https_ota_download(https_url);
 	if(ret != BK_OK) {
-		os_printf("%s download fail, ret:%d\r\n", __func__, ret);
+		BK_LOGD(NULL,"%s download fail, ret:%d\r\n", __func__, ret);
 	}
 	rtos_delete_thread(NULL);
 }
@@ -106,7 +106,7 @@ void https_ota_start(void)
 {
 	UINT32 ret;
 
-	os_printf("https_ota_start\r\n");
+	BK_LOGD(NULL,"https_ota_start\r\n");
 	ret = rtos_create_thread(NULL, BEKEN_APPLICATION_PRIORITY,
 							 "https_ota",
 							 (beken_thread_function_t)bk_https_start_download,
@@ -114,7 +114,7 @@ void https_ota_start(void)
 							 0);
 
 	if (kNoErr != ret)
-		os_printf("https_ota_start failed\r\n");
+		BK_LOGD(NULL,"https_ota_start failed\r\n");
 
 }
 
@@ -130,7 +130,7 @@ void https_ota_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	return;
 
 HTTP_CMD_ERR:
-	os_printf("%s,Usage:http_ota [url:]\r\n",__func__);
+	BK_LOGD(NULL,"%s,Usage:http_ota [url:]\r\n",__func__);
 }
 #endif
 

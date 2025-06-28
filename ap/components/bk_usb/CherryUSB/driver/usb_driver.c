@@ -128,7 +128,7 @@ bk_err_t bk_usb_power_ops(uint32_t gpio_id, bool ops)
 bk_err_t bk_usb_driver_init(void)
 {
 	USB_DRIVER_RETURN_NOT_DEINIT();
-	USB_DRIVER_LOGD("[+]%s\r\n",__func__);
+	USB_DRIVER_LOGV("[+]%s\r\n",__func__);
 
 	bk_usb_init_all_device_driver_sw();
 
@@ -138,7 +138,7 @@ bk_err_t bk_usb_driver_init(void)
 
 	s_usb_driver_init_flag = 1;
 
-	USB_DRIVER_LOGD("[-]%s\r\n",__func__);
+	USB_DRIVER_LOGV("[-]%s\r\n",__func__);
 
 	return BK_OK;
 }
@@ -246,12 +246,12 @@ void bk_usb_phy_register_refresh()
 
 bk_err_t bk_usb_open(uint32_t usb_mode)
 {
-	USB_DRIVER_LOGD("[+]%s\r\n", __func__);
+	USB_DRIVER_LOGV("[+]%s\r\n", __func__);
 
 	USB_DRIVER_RETURN_NOT_INIT();
 	USB_RETURN_NOT_CLOSED();
 
-	USB_DRIVER_LOGI("USB_DRV_USB_OPEN!\r\n");
+	USB_DRIVER_LOGV("USB_DRV_USB_OPEN!\r\n");
 	if(usb_mode == USB_HOST_MODE) {
 #if CONFIG_USB_HOST	
 		bk_analog_layer_usb_sys_related_ops(USB_HOST_MODE, true);
@@ -268,7 +268,7 @@ bk_err_t bk_usb_open(uint32_t usb_mode)
 
 	s_usb_open_close_flag = 1;
 
-	USB_DRIVER_LOGD("[-]%s\r\n", __func__);
+	USB_DRIVER_LOGV("[-]%s\r\n", __func__);
 
 	return BK_OK;
 }

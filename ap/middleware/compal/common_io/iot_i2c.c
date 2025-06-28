@@ -90,7 +90,7 @@ IotI2CHandle_t iot_i2c_open(int32_t lI2CInstance)
 int32_t iot_i2c_ioctl( IotI2CHandle_t const pxI2CPeripheral, IotI2CIoctlRequest_t xI2CRequest, void *const pvBuffer)
 {
     bk_err_t ret;
-	I2C_LOGI ("iot_i2c_ioctl %d.\n",xI2CRequest);
+	I2C_LOGD ("iot_i2c_ioctl %d.\n",xI2CRequest);
     if (xI2CRequest != eI2CSendNoStopFlag) {
         if (pxI2CPeripheral == NULL || pvBuffer == NULL) {
             I2C_LOGE("Invalid arguments %d.\n",xI2CRequest);
@@ -117,7 +117,7 @@ int32_t iot_i2c_ioctl( IotI2CHandle_t const pxI2CPeripheral, IotI2CIoctlRequest_
                 return IOT_I2C_INVALID_VALUE;
             }
             i2c_ctx->driver_installed = false;
-            I2C_LOGI( "i2c driver delete success.\n");
+            I2C_LOGD( "i2c driver delete success.\n");
         }
         i2c_config_t i2c_conf = {
             .baud_rate = i2c_ctx->iot_i2c_config.ulBusFreq,
@@ -129,7 +129,7 @@ int32_t iot_i2c_ioctl( IotI2CHandle_t const pxI2CPeripheral, IotI2CIoctlRequest_
             return IOT_I2C_INVALID_VALUE;
         }
         i2c_ctx->driver_installed = true;
-		I2C_LOGI("I2C(%d) init ok, baud_rate:%d ,timeout : %d \r\n", i2c_port_num,
+		I2C_LOGD("I2C(%d) init ok, baud_rate:%d ,timeout : %d \r\n", i2c_port_num,
 			i2c_ctx->iot_i2c_config.ulBusFreq ,i2c_ctx->iot_i2c_config.ulMasterTimeout);
         return IOT_I2C_SUCCESS;
     }
@@ -151,7 +151,7 @@ int32_t iot_i2c_ioctl( IotI2CHandle_t const pxI2CPeripheral, IotI2CIoctlRequest_
     case eI2CGetBusState : {
         IotI2CBusStatus_t *bus_state = (IotI2CBusStatus_t *) pvBuffer;
         *bus_state = (bk_i2c_get_busstate(i2c_port_num)== pdFALSE) ? eI2cBusBusy : eI2CBusIdle;
-	    I2C_LOGI( "Get bus state [%d].\n" ,*bus_state );
+	    I2C_LOGD( "Get bus state [%d].\n" ,*bus_state );
 
         return IOT_I2C_SUCCESS;
     }
@@ -196,14 +196,14 @@ void iot_i2c_set_callback(IotI2CHandle_t const pxI2CPeripheral, IotI2CCallback_t
 	} else {
 	    bk_i2c_timer_callback(i2c_id, &iottimercallback[i2c_id].myTimer);
 	}
-    I2C_LOGD( "iot_i2c_set_callback ok.\n");
+    I2C_LOGV( "iot_i2c_set_callback ok.\n");
 }
 
 int32_t iot_i2c_read_async( IotI2CHandle_t const pxI2CPeripheral, uint8_t *const pvBuffer, size_t xBytes)
 {
     bk_err_t ret = BK_OK;
     if (pxI2CPeripheral == NULL || pvBuffer == NULL) {
-        I2C_LOGD( "Invalid arguments.\n");
+        I2C_LOGV( "Invalid arguments.\n");
         return IOT_I2C_INVALID_VALUE;
     }
     IotI2CDescriptor_t *iot_i2c_handler = (IotI2CDescriptor_t *) pxI2CPeripheral;
@@ -228,7 +228,7 @@ int32_t iot_i2c_read_async( IotI2CHandle_t const pxI2CPeripheral, uint8_t *const
     iot_i2c_handler->is_send_no_stop_flag_set = false;
     iot_i2c_handler->bytes_to_read = xBytes;
 	
-	I2C_LOGD( "iot_i2c_read_async.\n");
+	I2C_LOGV( "iot_i2c_read_async.\n");
     return (ret == BK_OK) ?  IOT_I2C_SUCCESS : IOT_I2C_READ_FAILED;
 }
 
@@ -260,7 +260,7 @@ int32_t iot_i2c_write_async( IotI2CHandle_t const pxI2CPeripheral, uint8_t *cons
     }
 	iot_i2c_handler->bytes_to_write = xBytes;
     iot_i2c_handler->is_send_no_stop_flag_set = false;
-	I2C_LOGD( "iot_i2c_write_async.\n");
+	I2C_LOGV( "iot_i2c_write_async.\n");
     return (ret == BK_OK) ?  IOT_I2C_SUCCESS : IOT_I2C_WRITE_FAILED;
 }
 
@@ -268,7 +268,7 @@ int32_t iot_i2c_read_sync( IotI2CHandle_t const pxI2CPeripheral, uint8_t *const 
 {
     bk_err_t ret = BK_OK;
     if (pxI2CPeripheral == NULL || pvBuffer == NULL) {
-        I2C_LOGD( "Invalid arguments");
+        I2C_LOGV( "Invalid arguments");
         return IOT_I2C_INVALID_VALUE;
     }
     IotI2CDescriptor_t *iot_i2c_handler = (IotI2CDescriptor_t *) pxI2CPeripheral;
@@ -291,7 +291,7 @@ int32_t iot_i2c_read_sync( IotI2CHandle_t const pxI2CPeripheral, uint8_t *const 
     iot_i2c_handler->is_send_no_stop_flag_set = false;
     iot_i2c_handler->bytes_to_read = xBytes;
 
-	I2C_LOGI( "iot_i2c_read_sync.\n");
+	I2C_LOGD( "iot_i2c_read_sync.\n");
     return (ret == BK_OK) ?  IOT_I2C_SUCCESS : IOT_I2C_READ_FAILED;
 }
 
@@ -322,7 +322,7 @@ int32_t iot_i2c_write_sync( IotI2CHandle_t const pxI2CPeripheral, uint8_t *const
     iot_i2c_handler->bytes_to_write = xBytes;
     iot_i2c_handler->is_send_no_stop_flag_set = false;
 
-    I2C_LOGI( "iot_i2c_write_sync.\n");
+    I2C_LOGD( "iot_i2c_write_sync.\n");
     return (ret == BK_OK) ?  IOT_I2C_SUCCESS : IOT_I2C_WRITE_FAILED;
 }
 
@@ -351,7 +351,7 @@ int32_t iot_i2c_close(IotI2CHandle_t const pxI2CPeripheral)
            return IOT_I2C_INVALID_VALUE;
         }
 		//os_memset(&iottimercallback[i2c_port_num],0,sizeof(IotCallback_t));
-		I2C_LOGI( "bk_i2c_deinit ok.\n");
+		I2C_LOGD( "bk_i2c_deinit ok.\n");
     }
 
     os_free(pxI2CPeripheral);

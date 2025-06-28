@@ -26,6 +26,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define BLOCK_LINE_COUNT    (16)
 
@@ -136,7 +137,7 @@ bk_err_t bk_scale_block_fill(uint8_t type, scale_block_t *block)
 static void inline print_reuslt(void)
 {
 #if 0
-    LOGI("[I %d, B %d, C %d-%d, N %d-%d], [I %d, B %d, C %d-%d, N %d-%d]\n",
+    LOGD("[I %d, B %d, C %d-%d, N %d-%d], [I %d, B %d, C %d-%d, N %d-%d]\n",
          g_scale_param.src_block.line_index,
          g_scale_param.src_result.complete_block_count,
          g_scale_param.src_result.current_frame_line,
@@ -156,7 +157,7 @@ static void scale_main_entry(beken_thread_arg_t data)
 {
     int ret = BK_OK;
     task_running = true;
-    LOGI("%s %d\n", __func__, __LINE__);
+    LOGD("%s %d\n", __func__, __LINE__);
 
     rtos_set_semaphore(&scale_sem);
 
@@ -420,7 +421,7 @@ bk_err_t bk_hw_scale(frame_buffer_t *src, frame_buffer_t *dst)
 
         if (event & SCALE_EVT_FRAME_COMPLETE)
         {
-            LOGD("%s, frame complete\n", __func__);
+            LOGV("%s, frame complete\n", __func__);
             ret = BK_OK;
             break;
         }
@@ -452,7 +453,7 @@ bk_err_t bk_scale_init(void)
 {
     bk_err_t ret = BK_OK;
 
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
     ret = rtos_init_semaphore_ex(&s_scale.scale_sem, 1, 0);
 
     if (ret != BK_OK)

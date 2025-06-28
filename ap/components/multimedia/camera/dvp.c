@@ -75,7 +75,7 @@ bk_err_t bk_dvp_frame_buffer_fb_free(uint16_t image_format, void *node, frame_bu
 {
     if (image_format & IMAGE_YUV)
     {
-        LOGI("%s, %d\n", __func__, __LINE__);
+        LOGD("%s, %d\n", __func__, __LINE__);
         frame_buffer_display_free(frame);
     }
     else

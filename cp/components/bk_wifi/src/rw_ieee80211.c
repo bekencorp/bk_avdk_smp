@@ -316,7 +316,7 @@ static void rwnx_csa_finish(void *arg)
 		wpa_ctrl_event_copy(WPA_CTRL_EVENT_CHAN_SWITCH_IND, &rwnx_hw->freq_params,
 				sizeof(rwnx_hw->freq_params));
 	} else {
-		RWNX_LOGI("CSA finish indication but no active CSA\n");
+		RWNX_LOGD("CSA finish indication but no active CSA\n");
 	}
 }
 
@@ -475,7 +475,7 @@ static UINT32 rw_ieee80211_set_chan_power(void)
 		}
 	}
     manual_cal_set_cc_backoff_flag(true);
-	RWNX_LOGI("set regulation %d chan maxpower:%ddbm\r\n", regulation,txpwr);
+	RWNX_LOGD("set regulation %d chan maxpower:%ddbm\r\n", regulation,txpwr);
 
 	return kNoErr;
 }
@@ -514,13 +514,13 @@ int rw_ieee80211_set_country(const wifi_country_t *country)
 	prev_policy = g_country_code.cfg.policy;
 
 	os_memcpy(&g_country_code.cfg, country, sizeof(wifi_country_t));
-	RWNX_LOGI("set country code {cc=%s, chan=<%d-%d> policy=%s}\r\n", country->cc,
+	RWNX_LOGD("set country code {cc=%s, chan=<%d-%d> policy=%s}\r\n", country->cc,
 			  country->schan, (country->schan + country->nchan - 1),
 			  country->policy == WIFI_COUNTRY_POLICY_MANUAL ? "manual" : "auto");
 
 	if (g_country_code.cfg.policy == WIFI_COUNTRY_POLICY_AUTO) {
 		if (prev_policy != g_country_code.cfg.policy) {
-			RWNX_LOGI("need change softap beacon\r\n");
+			RWNX_LOGD("need change softap beacon\r\n");
 			//TODO
 		}
 	}
@@ -567,7 +567,7 @@ UINT32 rw_ieee80211_get_centre_frequency(UINT32 chan_id)
 	if (freq != 0) {
 		return freq;
 	} else {
-		RWNX_LOGI("centre freq is 0, chan_id %d\n", chan_id);
+		RWNX_LOGD("centre freq is 0, chan_id %d\n", chan_id);
 		return 0;
 	}
 }
@@ -657,7 +657,7 @@ UINT8 rw_ieee80211_init_scan_chan(void *request)
 		if ((g_country_code.cfg.policy == WIFI_COUNTRY_POLICY_AUTO) &&
 			(freq == 2467 || freq == 2472 || freq == 2484)) {
 			req->chan[i].flags |= CHAN_NO_IR;
-			// os_printf("XXX disable IR for freq %d\n", freq);
+			// BK_LOGD(NULL,"XXX disable IR for freq %d\n", freq);
 		}
 #endif // CONFIG_WIFI_AUTO_COUNTRY_CODE
 	}

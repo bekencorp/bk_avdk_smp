@@ -56,18 +56,18 @@ void receiver_thread( beken_thread_arg_t arg )
         err = rtos_pop_from_queue( &os_queue, &received, BEKEN_NEVER_TIMEOUT);
         if(err == kNoErr)
         {
-            os_printf( "Received data from queue:value = %d\r\n", received.value );
+            BK_LOGD(NULL, "Received data from queue:value = %d\r\n", received.value );
         }
         else
         {
-            os_printf("Received data from queue failed:Err = %d\r\n", err);
+            BK_LOGD(NULL,"Received data from queue failed:Err = %d\r\n", err);
             goto exit;
         }
     }
 
 exit:
     if ( err != kNoErr )
-        os_printf( "Receiver exit with err: %d\r\n", err );
+        BK_LOGD(NULL, "Receiver exit with err: %d\r\n", err );
 
     rtos_delete_thread( NULL );
 }
@@ -84,11 +84,11 @@ void sender_thread( beken_thread_arg_t arg )
         err = rtos_push_to_queue(&os_queue, &my_message, BEKEN_NEVER_TIMEOUT);
         if(err == kNoErr)
         {
-            os_printf( "send data to queue\r\n" );
+            BK_LOGD(NULL, "send data to queue\r\n" );
         }
         else
         {
-            os_printf("send data to queue failed:Err = %d\r\n", err);
+            BK_LOGD(NULL,"send data to queue failed:Err = %d\r\n", err);
             goto exit;
         }
         rtos_delay_milliseconds( 100 );
@@ -97,7 +97,7 @@ void sender_thread( beken_thread_arg_t arg )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "Sender exit with err: %d\r\n", err );
+        BK_LOGD(NULL, "Sender exit with err: %d\r\n", err );
     }
 
     rtos_delete_thread( NULL );
@@ -137,7 +137,7 @@ int demo_start( void )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "Thread exit with err: %d\r\n", err );
+        BK_LOGD(NULL, "Thread exit with err: %d\r\n", err );
     }
     return err;
 }

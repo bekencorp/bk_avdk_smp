@@ -79,7 +79,7 @@ static void get_current_time(st_time_info *pt)
 
     if (0 != ret)
     {
-        os_printf("gettimeofday failed!! errno=%d\n", errno);
+        BK_LOGD(NULL, "gettimeofday failed!! errno=%d\n", errno);
         memset(pt, 0, sizeof(st_time_info));
         return ;
     }
@@ -90,7 +90,7 @@ static void get_current_time(st_time_info *pt)
 
     if (!ptm)
     {
-        os_printf("localtime_r failed!!\n");
+        BK_LOGD(NULL, "localtime_r failed!!\n");
         memset(pt, 0, sizeof(st_time_info));
         pt->Tick_mSec = ((unsigned long long)tmv.tv_sec) * 1000 + tmv.tv_usec / 1000; // ->ms
     }
@@ -346,7 +346,7 @@ static int32_t cs2_p2p_send_raw_internal(int SessionID, uint8_t Channel, uint8_t
         {
             if (s_log_level >= CS2_P2P_LOG_LEVEL_DEBUG)
             {
-                BK_LOGI("p2p", "%s start write %d WriteSize %d SessionID %d channel %d\n", __func__, will_write_size, WriteSize, SessionID, Channel);
+                BK_LOGD("p2p", "%s start write %d WriteSize %d SessionID %d channel %d\n", __func__, will_write_size, WriteSize, SessionID, Channel);
             }
 
             ret = PPCS_Write(SessionID, Channel, (CHAR *)(buff + write_index), will_write_size);
@@ -373,7 +373,7 @@ static int32_t cs2_p2p_send_raw_internal(int SessionID, uint8_t Channel, uint8_t
             {
                 if (s_log_level >= CS2_P2P_LOG_LEVEL_DEBUG)
                 {
-                    BK_LOGI("p2p", "%s end write %d\n", __func__, ret);
+                    BK_LOGD("p2p", "%s end write %d\n", __func__, ret);
                 }
             }
 
@@ -383,7 +383,7 @@ static int32_t cs2_p2p_send_raw_internal(int SessionID, uint8_t Channel, uint8_t
         {
             if (s_log_level >= CS2_P2P_LOG_LEVEL_DEBUG)
             {
-                BK_LOGI("p2p", "%s WriteSize %d\n", __func__, WriteSize);
+                BK_LOGD("p2p", "%s WriteSize %d\n", __func__, WriteSize);
             }
 
             break;
@@ -426,7 +426,7 @@ static int cs2_p2p_listen(const char *DID, const char *APILicense, unsigned long
 
     if (is_run && *is_run == 0)
     {
-        BK_LOGI("p2p", "%s is_run is 0, exit\n", __func__);
+        BK_LOGD("p2p", "%s is_run is 0, exit\n", __func__);
 
         if (ret >= 0)
         {
@@ -501,7 +501,7 @@ static int do_server_job(char *DIDString, char *APILicense, int32_t (*recv_callb
 
         if (0)//!s_cs2_p2p_networkinfo.bFlagInternet)
         {
-            BK_LOGI("p2p", "%s internet not ready, sleep\n", __func__);
+            BK_LOGD("p2p", "%s internet not ready, sleep\n", __func__);
             ms_sleep(1000);
             continue;
         }
@@ -519,7 +519,7 @@ static int do_server_job(char *DIDString, char *APILicense, int32_t (*recv_callb
 
             if (0 <= SessionID)
             {
-                BK_LOGI("p2p", "%s listen Sid %d\n", __func__, s_current_sessionid);
+                BK_LOGD("p2p", "%s listen Sid %d\n", __func__, s_current_sessionid);
 
                 do
                 {
@@ -635,7 +635,7 @@ static int do_client_job(char *DIDString, char *APILicense, char *InitString, in
     st_PPCS_Session Sinfo;
     uint8_t *tmp_read_buf = NULL;
 
-    BK_LOGI("p2p", "%s didstring %p\n", __func__, DIDString);
+    BK_LOGD("p2p", "%s didstring %p\n", __func__, DIDString);
     tmp_read_buf = os_malloc(RECV_TMP_BUFF_SIZE);
 
     if (!tmp_read_buf)
@@ -669,23 +669,23 @@ static int do_client_job(char *DIDString, char *APILicense, char *InitString, in
 
         if (0 <= strncmp(VerBuf, "5.0.1.0", 5)) //// PPCS_ConnectByServer AllowRP2P parameter support by P2P API Version >= 5.0.1
         {
-            BK_LOGI("p2p", "%s use timeout %d AllowRP2P %d\n", __func__, connTimeout, AllowRP2P);
+            BK_LOGD("p2p", "%s use timeout %d AllowRP2P %d\n", __func__, connTimeout, AllowRP2P);
             SNPRINTF(ByServerString, sizeof(ByServerString), "{\"InitString\":\"%s\",\"0x7X_Timeout\":%d,\"AllowRP2P\":%d}", InitString, connTimeout, AllowRP2P);
         }
         else if (0)
         {
-            BK_LOGI("p2p", "%s use timeout %d\n", __func__, connTimeout);
+            BK_LOGD("p2p", "%s use timeout %d\n", __func__, connTimeout);
             SNPRINTF(ByServerString, sizeof(ByServerString), "{\"InitString\":\"%s\",\"0x7X_Timeout\":%d}", InitString, connTimeout);
         }
         else
         {
-            BK_LOGI("p2p", "%s use InitString json\n", __func__);
+            BK_LOGD("p2p", "%s use InitString json\n", __func__);
             SNPRINTF(ByServerString, sizeof(ByServerString), "{\"InitString\":\"%s\"}", InitString);
         }
     }
     else
     {
-        BK_LOGI("p2p", "%s use none\n", __func__);
+        BK_LOGD("p2p", "%s use none\n", __func__);
         SNPRINTF(ByServerString, sizeof(ByServerString), "%s", InitString);
     }
 
@@ -707,7 +707,7 @@ static int do_client_job(char *DIDString, char *APILicense, char *InitString, in
 
         if (0)//!s_cs2_p2p_networkinfo.bFlagInternet)
         {
-            BK_LOGI("p2p", "%s internet not ready, sleep\n", __func__);
+            BK_LOGD("p2p", "%s internet not ready, sleep\n", __func__);
             ms_sleep(1000);
             continue;
         }
@@ -1107,16 +1107,16 @@ bk_err_t cs2_p2p_main_task_create_ext(char *did_dskey, char *apilicense_crckey, 
 
 
 #if CONFIG_CS2_P2P_SERVER && !CONFIG_CS2_P2P_CLIENT
-    os_printf("%s is Server\n", __func__);
+    BK_LOGD(NULL, "%s is Server\n", __func__);
 #elif !CONFIG_CS2_P2P_SERVER && CONFIG_CS2_P2P_CLIENT
-    os_printf("%s is Client\n", __func__);
+    BK_LOGD(NULL, "%s is Client\n", __func__);
 #else
 #error "CONFIG_CS2_P2P_SERVER or CONFIG_CS2_P2P_CLIENT"
 #endif
 
     if (s_cs2_p2p_main_tid)
     {
-        os_printf("%s already create\n", __func__);
+        BK_LOGD(NULL, "%s already create\n", __func__);
         return -1;
     }
 
@@ -1124,7 +1124,7 @@ bk_err_t cs2_p2p_main_task_create_ext(char *did_dskey, char *apilicense_crckey, 
 
     if (!targ)
     {
-        os_printf("%s malloc fail\n");
+        BK_LOGD(NULL, "%s malloc fail\n");
         goto CREATE_FAIL;
     }
 
@@ -1135,7 +1135,7 @@ bk_err_t cs2_p2p_main_task_create_ext(char *did_dskey, char *apilicense_crckey, 
 
     if (!targ->did_dskey)
     {
-        os_printf("%s malloc fail %d\n", __func__, ret);
+        BK_LOGD(NULL, "%s malloc fail %d\n", __func__, ret);
         goto CREATE_FAIL;
     }
 
@@ -1146,7 +1146,7 @@ bk_err_t cs2_p2p_main_task_create_ext(char *did_dskey, char *apilicense_crckey, 
 
     if (!targ->apilicense_crckey)
     {
-        os_printf("%s malloc fail %d\n", __func__, ret);
+        BK_LOGD(NULL, "%s malloc fail %d\n", __func__, ret);
         goto CREATE_FAIL;
     }
 
@@ -1157,7 +1157,7 @@ bk_err_t cs2_p2p_main_task_create_ext(char *did_dskey, char *apilicense_crckey, 
 
     if (!targ->initstring_p2pkey)
     {
-        os_printf("%s malloc fail %d\n", __func__, ret);
+        BK_LOGD(NULL, "%s malloc fail %d\n", __func__, ret);
         goto CREATE_FAIL;
     }
 
@@ -1169,7 +1169,7 @@ bk_err_t cs2_p2p_main_task_create_ext(char *did_dskey, char *apilicense_crckey, 
     targ->before_start = before_start;
     targ->after_end = after_end;
 
-    os_printf("%s create task %d\n", __func__, ret);
+    BK_LOGD(NULL, "%s create task %d\n", __func__, ret);
     ret = rtos_create_thread(&tid,
                              4,
                              "cs2_p2p_main",
@@ -1179,7 +1179,7 @@ bk_err_t cs2_p2p_main_task_create_ext(char *did_dskey, char *apilicense_crckey, 
 
     if (ret != 0)
     {
-        os_printf("%s create task fail %d\n", __func__, ret);
+        BK_LOGD(NULL, "%s create task fail %d\n", __func__, ret);
         goto CREATE_FAIL;
     }
 
@@ -1240,13 +1240,13 @@ int32_t cs2_p2p_send_raw(uint8_t channel, uint8_t *buff, uint32_t size)
 {
     if (channel >= NUMBER_OF_P2PCHANNEL)
     {
-        os_printf("%s channel %d is large than NUMBER_OF_P2PCHANNEL %d!!\n", __func__, channel, NUMBER_OF_P2PCHANNEL);
+        BK_LOGD(NULL, "%s channel %d is large than NUMBER_OF_P2PCHANNEL %d!!\n", __func__, channel, NUMBER_OF_P2PCHANNEL);
         return -1;
     }
 
     if (s_current_sessionid >= 0)
     {
-        //        os_printf("%s channel %d len %d\n", __func__, channel, size);
+        //        BK_LOGD(NULL, "%s channel %d len %d\n", __func__, channel, size);
         return cs2_p2p_send_raw_internal(s_current_sessionid, channel, buff, size);
     }
 

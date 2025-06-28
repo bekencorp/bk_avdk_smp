@@ -61,26 +61,26 @@ typedef struct g711_encoder
 
 static bk_err_t _g711_encoder_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _g711_encoder_open \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _g711_encoder_open \n", audio_element_get_tag(self));
 
     return BK_OK;
 }
 
 static bk_err_t _g711_encoder_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _g711_encoder_close \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _g711_encoder_close \n", audio_element_get_tag(self));
     return BK_OK;
 }
 
 static int _g711_encoder_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    BK_LOGD(TAG, "[%s] _g711_encoder_process \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _g711_encoder_process \n", audio_element_get_tag(self));
     g711_encoder_t *g711_enc = (g711_encoder_t *)audio_element_getdata(self);
 
     //  addAON_GPIO_Reg0x3 = 2;
 
     int r_size = audio_element_input(self, in_buffer, in_len);
-    //  BK_LOGI(TAG, "[%s] r_size: %d \n", audio_element_get_tag(self), r_size);
+    //  BK_LOGD(TAG, "[%s] r_size: %d \n", audio_element_get_tag(self), r_size);
 
     int w_size = 0;
     if (r_size > 0)
@@ -103,7 +103,7 @@ static int _g711_encoder_process(audio_element_handle_t self, char *in_buffer, i
                 g711_out_ptr[i] = linear2alaw(linear[i]);
             }
         }
-        //      BK_LOGI(TAG, "[%s] r_size>>1: %d \n", audio_element_get_tag(self), r_size>1);
+        //      BK_LOGD(TAG, "[%s] r_size>>1: %d \n", audio_element_get_tag(self), r_size>1);
 
         G711_ENC_DATA_DUMP_BY_UART_DATA(g711_out_ptr, r_size >> 1);
 

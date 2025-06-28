@@ -36,31 +36,31 @@ extern int hexstr2bin_cli(const char *hex, u8 *buf, size_t len);
 
 static void cli_otp_help(void)
 {
-	CLI_LOGI("write data must be string like 01ab03, you can use pre-write to check data\r\n");
+	CLI_LOGD("write data must be string like 01ab03, you can use pre-write to check data\r\n");
 
-	CLI_LOGI("otp_apb self_test \r\n");
-	CLI_LOGI("otp_apb read  [item_id][size] \r\n");
-	CLI_LOGI("otp_apb write [item_id][size][data] \r\n");
+	CLI_LOGD("otp_apb self_test \r\n");
+	CLI_LOGD("otp_apb read  [item_id][size] \r\n");
+	CLI_LOGD("otp_apb write [item_id][size][data] \r\n");
 
-	CLI_LOGI("otp_apb read_mask/read_permission [item_id] \r\n");
-	CLI_LOGI("otp_apb write_mask/write_permission [item_id][permission] \r\n");
+	CLI_LOGD("otp_apb read_mask/read_permission [item_id] \r\n");
+	CLI_LOGD("otp_apb write_mask/write_permission [item_id][permission] \r\n");
 
-	CLI_LOGI("otp_apb read_random [size] \r\n");
-	CLI_LOGI("otp_apb pre-write  [size][data] \r\n");
+	CLI_LOGD("otp_apb read_random [size] \r\n");
+	CLI_LOGD("otp_apb pre-write  [size][data] \r\n");
 
-	CLI_LOGI("otp_ahb read [item_id][size] \r\n");
-	CLI_LOGI("otp_ahb write [item_id][size][data] \r\n");
+	CLI_LOGD("otp_ahb read [item_id][size] \r\n");
+	CLI_LOGD("otp_ahb write [item_id][size][data] \r\n");
 
-	CLI_LOGI("otp_ahb read_permission [item_id] \r\n");
-	CLI_LOGI("otp_ahb write_permission [item_id][permission] \r\n");
+	CLI_LOGD("otp_ahb read_permission [item_id] \r\n");
+	CLI_LOGD("otp_ahb write_permission [item_id][permission] \r\n");
 
-	CLI_LOGI("otp_ahb read_random [size] \r\n");
-	CLI_LOGI("otp_ahb pre-write  [size][data] \r\n");
+	CLI_LOGD("otp_ahb read_random [size] \r\n");
+	CLI_LOGD("otp_ahb pre-write  [size][data] \r\n");
 
 #if CONFIG_TFM_OTP_NSC
-	CLI_LOGI("otp_nsc read [item_id] \r\n");
-	CLI_LOGI("otp_nsc write [map_id][item_id][size][data] \r\n");
-	CLI_LOGI("otp_nsc read_permission/write_permission [map_id][item_id][permission] \r\n");
+	CLI_LOGD("otp_nsc read [item_id] \r\n");
+	CLI_LOGD("otp_nsc write [map_id][item_id][size][data] \r\n");
+	CLI_LOGD("otp_nsc read_permission/write_permission [map_id][item_id][permission] \r\n");
 #endif
 }
 
@@ -75,19 +75,19 @@ static void cli_otp_apb_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	if (os_strcmp(argv[1], "self_test") == 0){
 #if CONFIG_ATE_TEST
 		uint32_t ret = bk_otp_fully_flow_test();
-		BK_RAW_LOGI(NULL, "ret = %u\r\n",ret);
+		BK_RAW_LOGD(NULL, "ret = %u\r\n",ret);
 #endif
-		BK_RAW_LOGI(NULL,"Enable ATE_TEST\r\n");
+		BK_RAW_LOGD(NULL,"Enable ATE_TEST\r\n");
 	} else if (os_strcmp(argv[1], "read") == 0){
 		uint32_t item = os_strtoul(argv[2], NULL, 10);
 		uint32_t size = os_strtoul(argv[3], NULL, 10);
 		uint8_t* data = (uint8_t*)os_malloc(size*sizeof(uint8_t));
 		memset(data, 0xFF, size);
 		int ret = bk_otp_apb_read(item,data,size);
-		BK_RAW_LOGI(NULL, "read ret = %d, data in little endian:\r\n",ret);
+		BK_RAW_LOGD(NULL, "read ret = %d, data in little endian:\r\n",ret);
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x ",data[i]);
-			if(i % 8 == 7) BK_RAW_LOGI(NULL,"\r\n");
+			BK_RAW_LOGD(NULL, "%x ",data[i]);
+			if(i % 8 == 7) BK_RAW_LOGD(NULL,"\r\n");
 		}
 		os_free(data);
 		data = NULL;
@@ -97,17 +97,17 @@ static void cli_otp_apb_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint8_t* data = (uint8_t*)os_malloc(size*sizeof(uint8_t));
 		memset(data, 0, size);
 		hexstr2bin_cli(argv[4], data, size);
-		BK_RAW_LOGI(NULL, "data to be written:\r\n");
+		BK_RAW_LOGD(NULL, "data to be written:\r\n");
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x ",data[i]);
-			if(i % 8 == 7) BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "%x ",data[i]);
+			if(i % 8 == 7) BK_RAW_LOGD(NULL, "\r\n");
 		}
 		uint32_t ret = bk_otp_apb_update(item,data,size);
 		bk_otp_apb_read(item,data,size);
-		BK_RAW_LOGI(NULL, "\r\nwrite ret = %d, after write data:\r\n",ret);
+		BK_RAW_LOGD(NULL, "\r\nwrite ret = %d, after write data:\r\n",ret);
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x ",data[i]);
-			if(i % 8 == 7) BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "%x ",data[i]);
+			if(i % 8 == 7) BK_RAW_LOGD(NULL, "\r\n");
 		}
 		os_free(data);
 		data = NULL;
@@ -115,46 +115,46 @@ static void cli_otp_apb_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint32_t item = os_strtoul(argv[2], NULL, 10);
 		uint32_t value;
 		value = bk_otp_apb_read_mask(item);
-		os_printf("permission value = %#x\r\n",value);
+		BK_LOGD(NULL, "permission value = %#x\r\n",value);
 	} else if (os_strcmp(argv[1], "write_mask") == 0){
 		uint32_t item = os_strtoul(argv[2], NULL, 10);
 		otp_privilege_t permission = os_strtoul(argv[3], NULL, 16);
 		uint32_t value;
 		int ret = bk_otp_apb_write_mask(item, permission);
 		value = bk_otp_apb_read_permission(item);
-		os_printf("permission value = %#x,ret = %d\r\n",value, ret);
+		BK_LOGD(NULL, "permission value = %#x,ret = %d\r\n",value, ret);
 	}else if (os_strcmp(argv[1], "read_permission") == 0){
 		uint32_t item = os_strtoul(argv[2], NULL, 10);
 		uint32_t value;
 		value = bk_otp_apb_read_permission(item);
-		os_printf("permission value = %#x\r\n",value);
+		BK_LOGD(NULL, "permission value = %#x\r\n",value);
 	} else if (os_strcmp(argv[1], "write_permission") == 0){
 		uint32_t item = os_strtoul(argv[2], NULL, 10);
 		otp_privilege_t permission = os_strtoul(argv[3], NULL, 16);
 		uint32_t value;
 		int ret = bk_otp_apb_write_permission(item, permission);
 		value = bk_otp_apb_read_permission(item);
-		os_printf("permission value = %#x,ret = %d\r\n",value, ret);
+		BK_LOGD(NULL, "permission value = %#x,ret = %d\r\n",value, ret);
 	} else if (os_strcmp(argv[1], "read_random") == 0){
 		uint32_t size = os_strtoul(argv[2], NULL, 10);
 		uint32_t* data = (uint32_t*)os_malloc(size*sizeof(uint32_t));
 		memset(data, 0, size);
 		bk_otp_read_random_number(data, size);
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x\r\n",data[i]);
+			BK_RAW_LOGD(NULL, "%x\r\n",data[i]);
 		}
 		os_free(data);
 		data = NULL;
-		BK_RAW_LOGI(NULL, "\r\n");
+		BK_RAW_LOGD(NULL, "\r\n");
 	} else if (os_strcmp(argv[1], "pre-write") == 0){
 		uint32_t size = os_strtoul(argv[2], NULL, 10);
 		uint8_t* data = (uint8_t*)os_malloc(size*sizeof(uint8_t));
 		memset(data, 0, size);
 		hexstr2bin_cli(argv[3], data, size);
-		BK_RAW_LOGI(NULL, "please check write data:\r\n");
+		BK_RAW_LOGD(NULL, "please check write data:\r\n");
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x ",data[i]);
-			if(i % 8 == 7) BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "%x ",data[i]);
+			if(i % 8 == 7) BK_RAW_LOGD(NULL, "\r\n");
 		}
 		os_free(data);
 		data = NULL;
@@ -178,10 +178,10 @@ static void cli_otp_ahb_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint8_t* data = (uint8_t*)os_malloc(size*sizeof(uint8_t));
 		memset(data, 0xFF, size);
 		int ret = bk_otp_ahb_read(item,data,size);
-		BK_RAW_LOGI(NULL, "read ret = %d, data in little endian:\r\n",ret);
+		BK_RAW_LOGD(NULL, "read ret = %d, data in little endian:\r\n",ret);
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x ",data[i]);
-			if(i % 8 == 7) BK_RAW_LOGI(NULL,"\r\n");
+			BK_RAW_LOGD(NULL, "%x ",data[i]);
+			if(i % 8 == 7) BK_RAW_LOGD(NULL,"\r\n");
 		}
 		os_free(data);
 		data = NULL;
@@ -191,17 +191,17 @@ static void cli_otp_ahb_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint8_t* data = (uint8_t*)os_malloc(size*sizeof(uint8_t));
 		memset(data, 0, size);
 		hexstr2bin_cli(argv[4], data, size);
-		BK_RAW_LOGI(NULL, "data to be written:\r\n");
+		BK_RAW_LOGD(NULL, "data to be written:\r\n");
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x ",data[i]);
-			if(i % 8 == 7) BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "%x ",data[i]);
+			if(i % 8 == 7) BK_RAW_LOGD(NULL, "\r\n");
 		}
 		uint32_t ret = bk_otp_ahb_update(item,data,size);
 		bk_otp_ahb_read(item,data,size);
-		BK_RAW_LOGI(NULL, "\r\nwrite ret = %d, after write data:\r\n",ret);
+		BK_RAW_LOGD(NULL, "\r\nwrite ret = %d, after write data:\r\n",ret);
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x ",data[i]);
-			if(i % 8 == 7) BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "%x ",data[i]);
+			if(i % 8 == 7) BK_RAW_LOGD(NULL, "\r\n");
 		}
 		os_free(data);
 		data = NULL;
@@ -209,23 +209,23 @@ static void cli_otp_ahb_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint32_t item = os_strtoul(argv[2], NULL, 10);
 		uint32_t value;
 		value = bk_otp_ahb_read_permission(item);
-		os_printf("permission value = %#x\r\n",value);
+		BK_LOGD(NULL, "permission value = %#x\r\n",value);
 	} else if (os_strcmp(argv[1], "write_permission") == 0){
 		uint32_t item = os_strtoul(argv[2], NULL, 10);
 		otp_privilege_t permission = os_strtoul(argv[3], NULL, 16);
 		uint32_t value;
 		int ret = bk_otp_ahb_write_permission(item, permission);
 		value = bk_otp_ahb_read_permission(item);
-		os_printf("after write permission value = %#x,ret = %d\r\n",value, ret);
+		BK_LOGD(NULL, "after write permission value = %#x,ret = %d\r\n",value, ret);
 	} else if (os_strcmp(argv[1], "pre-write") == 0){
 		uint32_t size = os_strtoul(argv[2], NULL, 10);
 		uint8_t* data = (uint8_t*)os_malloc(size*sizeof(uint8_t));
 		memset(data, 0, size);
 		hexstr2bin_cli(argv[3], data, size);
-		BK_RAW_LOGI(NULL, "please check write data:\r\n");
+		BK_RAW_LOGD(NULL, "please check write data:\r\n");
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x ",data[i]);
-			if(i % 8 == 7) BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "%x ",data[i]);
+			if(i % 8 == 7) BK_RAW_LOGD(NULL, "\r\n");
 		}
 		os_free(data);
 		data = NULL;
@@ -239,7 +239,7 @@ static void cli_otp_nsc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	if (os_strcmp(argv[1], "read") == 0) {
 		uint32_t item = os_strtoul(argv[2], NULL, 10);
 		int ret = bk_otp_read_nsc(item);
-		BK_RAW_LOGI(NULL, "read ret = %d\r\n",ret);
+		BK_RAW_LOGD(NULL, "read ret = %d\r\n",ret);
 	} else if (os_strcmp(argv[1], "write") == 0) {
 		uint32_t map_id = os_strtoul(argv[2], NULL, 10);
 		uint32_t item = os_strtoul(argv[3], NULL, 10);
@@ -247,13 +247,13 @@ static void cli_otp_nsc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint8_t* data = (uint8_t*)os_malloc(size*sizeof(uint8_t));
 		memset(data, 0, size);
 		hexstr2bin_cli(argv[5], data, size);
-		BK_RAW_LOGI(NULL, "data to be written:\r\n");
+		BK_RAW_LOGD(NULL, "data to be written:\r\n");
 		for(int i = 0;i < size; i++){
-			BK_RAW_LOGI(NULL, "%x ",data[i]);
-			if(i % 8 == 7) BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "%x ",data[i]);
+			if(i % 8 == 7) BK_RAW_LOGD(NULL, "\r\n");
 		}
 		int ret = bk_otp_update_nsc(map_id,item,data,size);
-		BK_RAW_LOGI(NULL, "write ret = %d\r\n",ret);
+		BK_RAW_LOGD(NULL, "write ret = %d\r\n",ret);
 		os_free(data);
 		data = NULL;
 	} else if (os_strcmp(argv[1], "read_permission") == 0) {
@@ -261,21 +261,21 @@ static void cli_otp_nsc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint32_t item = os_strtoul(argv[3], NULL, 10);
 		uint32_t permission;
 		int ret = bk_otp_read_permission_nsc(map_id, item, &permission);
-		BK_RAW_LOGI(NULL, "read ret = %d, permission = %#x\r\n",ret, permission);
+		BK_RAW_LOGD(NULL, "read ret = %d, permission = %#x\r\n",ret, permission);
 	} else if (os_strcmp(argv[1], "write_permission") == 0) {
 		uint32_t map_id = os_strtoul(argv[2], NULL, 10);
 		uint32_t item = os_strtoul(argv[3], NULL, 10);
 		uint32_t permission = os_strtoul(argv[4], NULL, 16);
 		int ret = bk_otp_write_permission_nsc(map_id, item, permission);
 		bk_otp_read_permission_nsc(map_id, item, &permission);
-		BK_RAW_LOGI(NULL, "write ret = %d, permission = %#x\r\n",ret, permission);
+		BK_RAW_LOGD(NULL, "write ret = %d, permission = %#x\r\n",ret, permission);
 	} else if (os_strcmp(argv[1], "write_mask") == 0) {
 		uint32_t map_id = os_strtoul(argv[2], NULL, 10);
 		uint32_t item = os_strtoul(argv[3], NULL, 10);
 		uint32_t permission = os_strtoul(argv[4], NULL, 16);
 		int ret = bk_otp_write_mask_nsc(map_id, item, permission);
 		bk_otp_read_permission_nsc(map_id, item, &permission);
-		BK_RAW_LOGI(NULL, "write ret = %d, permission = %#x\r\n",ret, permission);
+		BK_RAW_LOGD(NULL, "write ret = %d, permission = %#x\r\n",ret, permission);
 	} else {
 		cli_otp_help();
 	}
@@ -287,7 +287,7 @@ static void cli_otp_nsc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 #define OTP_BANK_SIZE   (0x800)
 static void cli_otp_help(void)
 {
-	CLI_LOGI("otp_test read [addr] [length]\r\n");
+	CLI_LOGD("otp_test read [addr] [length]\r\n");
 }
 
 static void cli_otp_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -306,7 +306,7 @@ static void cli_otp_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 		if((addr > OTP_BANK_SIZE) || ((addr + length) > OTP_BANK_SIZE))
 		{
-			CLI_LOGI("\r\n addr or length invalid! \r\n");
+			CLI_LOGD("\r\n addr or length invalid! \r\n");
 			return ;
 		}
 
@@ -316,11 +316,11 @@ static void cli_otp_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		BK_LOG_ON_ERR(bk_otp_read_bytes_nonsecure(buff_p, addr, length));
 
 		for(int i=0; i<length; i++){
-			bk_printf("%02x",*buff_p);
+			BK_LOGD(NULL, "%02x",*buff_p);
 			buff_p++;
 		}
 		free(record_p);
-		CLI_LOGI("\r\n read OTP suc! \r\n");
+		CLI_LOGD("\r\n read OTP suc! \r\n");
 	} else {
 		cli_otp_help();
 		return;

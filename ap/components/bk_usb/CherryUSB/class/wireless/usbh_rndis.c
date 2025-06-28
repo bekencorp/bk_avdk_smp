@@ -254,14 +254,14 @@ static int usbh_rndis_connect(struct usbh_hubport *hport, uint8_t intf)
     if (ret < 0) {
         return ret;
     }
-    USB_LOG_INFO("rndis init success\r\n");
+    USB_LOG_DBG("rndis init success\r\n");
 
     ret = usbh_rndis_query_msg_transfer(rndis_class, OID_GEN_SUPPORTED_LIST, 0, tmp_buffer, &data_len);
     if (ret < 0) {
         return ret;
     }
     oid_num = (data_len / 4);
-    USB_LOG_INFO("rndis query OID_GEN_SUPPORTED_LIST success,oid num :%d\r\n", oid_num);
+    USB_LOG_DBG("rndis query OID_GEN_SUPPORTED_LIST success,oid num :%d\r\n", oid_num);
 
     oid_support_list = (uint32_t *)tmp_buffer;
 
@@ -314,7 +314,7 @@ static int usbh_rndis_connect(struct usbh_hubport *hport, uint8_t intf)
                 USB_LOG_WRN("Ignore rndis query iod:%08x\r\n", oid);
                 continue;
         }
-        USB_LOG_INFO("rndis query iod:%08x success\r\n", oid);
+        USB_LOG_DBG("rndis query iod:%08x success\r\n", oid);
     }
 
     uint32_t packet_filter = 0x0f;
@@ -322,18 +322,18 @@ static int usbh_rndis_connect(struct usbh_hubport *hport, uint8_t intf)
     if (ret < 0) {
         return ret;
     }
-    USB_LOG_INFO("rndis set OID_GEN_CURRENT_PACKET_FILTER success\r\n");
+    USB_LOG_DBG("rndis set OID_GEN_CURRENT_PACKET_FILTER success\r\n");
 
     uint8_t multicast_list[6] = { 0x01, 0x00, 0x5E, 0x00, 0x00, 0x01 };
     usbh_rndis_set_msg_transfer(rndis_class, OID_802_3_MULTICAST_LIST, multicast_list, 6);
     if (ret < 0) {
         return ret;
     }
-    USB_LOG_INFO("rndis set OID_802_3_MULTICAST_LIST success\r\n");
+    USB_LOG_DBG("rndis set OID_802_3_MULTICAST_LIST success\r\n");
 
     strncpy(hport->config.intf[intf].devname, DEV_FORMAT, CONFIG_USBHOST_DEV_NAMELEN);
 
-    USB_LOG_INFO("Register RNDIS Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register RNDIS Class:%s\r\n", hport->config.intf[intf].devname);
     return ret;
 query_errorout:
     USB_LOG_ERR("rndis query iod:%08x error\r\n", oid);
@@ -358,7 +358,7 @@ static int usbh_rndis_disconnect(struct usbh_hubport *hport, uint8_t intf)
         usb_free(rndis_class);
 
         if (hport->config.intf[intf].devname[0] != '\0')
-            USB_LOG_INFO("Unregister RNDIS Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister RNDIS Class:%s\r\n", hport->config.intf[intf].devname);
     }
 
     return ret;

@@ -23,6 +23,7 @@
 #define I2S_LOGW(...) BK_LOGW(I2S_TAG, ##__VA_ARGS__)
 #define I2S_LOGE(...) BK_LOGE(I2S_TAG, ##__VA_ARGS__)
 #define I2S_LOGD(...) BK_LOGD(I2S_TAG, ##__VA_ARGS__)
+#define I2S_LOGV(...) BK_LOGV(I2S_TAG, ##__VA_ARGS__)
 
 typedef struct {
 	uint8_t *buff_addr;

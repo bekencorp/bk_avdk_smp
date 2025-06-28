@@ -116,7 +116,7 @@ static int codec_mp3_skip_idtag(audio_element_handle_t self)
 
 static bk_err_t _mp3_decoder_open(audio_element_handle_t self)
 {
-    BK_LOGD(TAG, "[%s] _mp3_decoder_open \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _mp3_decoder_open \n", audio_element_get_tag(self));
     mp3_decoder_t *mp3_dec = (mp3_decoder_t *)audio_element_getdata(self);
     mp3_dec->main_buff_readptr = mp3_dec->main_buff;
 
@@ -132,7 +132,7 @@ static bk_err_t _mp3_decoder_open(audio_element_handle_t self)
 
 static bk_err_t _mp3_decoder_close(audio_element_handle_t self)
 {
-    BK_LOGD(TAG, "[%s] _mp3_decoder_close \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _mp3_decoder_close \n", audio_element_get_tag(self));
 
     return BK_OK;
 }
@@ -216,7 +216,7 @@ static int _mp3_decoder_process(audio_element_handle_t self, char *in_buffer, in
     bk_err_t ret = BK_OK;
     int r_size = 0;
 
-    BK_LOGD(TAG, "[%s] _mp3_decoder_process \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _mp3_decoder_process \n", audio_element_get_tag(self));
     mp3_decoder_t *mp3_dec = (mp3_decoder_t *)audio_element_getdata(self);
 
 __retry:
@@ -264,11 +264,11 @@ __retry:
         else
         {
             MP3GetLastFrameInfo(mp3_dec->dec_handle, &mp3_dec->frame_info);
-            BK_LOGD(TAG, "bitsPerSample: %d, Samprate: %d\r\n", mp3_dec->frame_info.bitsPerSample, mp3_dec->frame_info.samprate);
-            BK_LOGD(TAG, "Channel: %d, Version: %d, Layer: %d\r\n", mp3_dec->frame_info.nChans, mp3_dec->frame_info.version, mp3_dec->frame_info.layer);
-            BK_LOGD(TAG, "OutputSamps: %d\r\n", mp3_dec->frame_info.outputSamps);
+            BK_LOGV(TAG, "bitsPerSample: %d, Samprate: %d\r\n", mp3_dec->frame_info.bitsPerSample, mp3_dec->frame_info.samprate);
+            BK_LOGV(TAG, "Channel: %d, Version: %d, Layer: %d\r\n", mp3_dec->frame_info.nChans, mp3_dec->frame_info.version, mp3_dec->frame_info.layer);
+            BK_LOGV(TAG, "OutputSamps: %d\r\n", mp3_dec->frame_info.outputSamps);
             r_size = mp3_dec->frame_info.outputSamps * mp3_dec->frame_info.bitsPerSample / 8;
-            BK_LOGD(TAG, "MP3Decode complete, r_size: %d \n", r_size);
+            BK_LOGV(TAG, "MP3Decode complete, r_size: %d \n", r_size);
         }
     }
 

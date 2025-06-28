@@ -85,12 +85,12 @@ bk_err_t bk_usb_ate_bist_test(uint32_t state)
 	while(1){
 		reg = REG_USB_USR_70C;
 		if(reg & 0x100){
-			USB_ATE_LOGI("SelfTest Fin!\r\n");
-			USB_ATE_LOGI("test end!\r\n");
+			USB_ATE_LOGD("SelfTest Fin!\r\n");
+			USB_ATE_LOGD("test end!\r\n");
 			break;
 		} else {
 			if(waitready_count > 20) return BK_FAIL;
-			USB_ATE_LOGI("70c_reg:0x%x\r\n", reg);
+			USB_ATE_LOGD("70c_reg:0x%x\r\n", reg);
 			waitready_count++;
 			delay(10000);
 		}
@@ -310,12 +310,12 @@ bk_err_t bk_usb_ate_rx_dc_input_test(uint32_t state)
 		while(1){
 			reg = NANENG_REG_USB_PHY_1C;
 			if(reg & 0x4){
-				USB_ATE_LOGI("SelfTest Fin!\r\n");
-				USB_ATE_LOGI("test end!\r\n");
+				USB_ATE_LOGD("SelfTest Fin!\r\n");
+				USB_ATE_LOGD("test end!\r\n");
 				break;
 			} else {
 				if(waitready_count > 20) return BK_FAIL;
-				USB_ATE_LOGI("70c_reg:0x%x\r\n", reg);
+				USB_ATE_LOGD("70c_reg:0x%x\r\n", reg);
 				waitready_count++;
 				delay(10000);
 			}

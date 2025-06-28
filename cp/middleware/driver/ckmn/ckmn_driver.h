@@ -21,4 +21,4 @@
 #define CKMN_LOGW(...) BK_LOGW(CKMN_TAG, ##__VA_ARGS__)
 #define CKMN_LOGE(...) BK_LOGE(CKMN_TAG, ##__VA_ARGS__)
 #define CKMN_LOGD(...) BK_LOGD(CKMN_TAG, ##__VA_ARGS__)
-
+#define CKMN_LOGV(...) BK_LOGV(CKMN_TAG, ##__VA_ARGS__)

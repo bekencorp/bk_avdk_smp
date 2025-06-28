@@ -58,7 +58,7 @@ static void l2_packet_tx_cb(struct ieee80211_tx_cb *cb, bool success)
 	//if semaphore is null, do nothing
 	if (cb->sema == NULL)
 	{
-		WPA_LOGI("l2_packet_tx_cb, semaphore is null\n");
+		WPA_LOGD("l2_packet_tx_cb, semaphore is null\n");
 		return;
 	}
 

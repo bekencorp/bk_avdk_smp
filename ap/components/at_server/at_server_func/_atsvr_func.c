@@ -46,7 +46,8 @@ static int _atsvr_at_echo_command(int sync,int argc, char **argv)
 		_set_atsvr_echo_mode(p_env,ATSVR_ECHO_NONE);
 	}else{
 		_atsvr_cmd_rsp_error(p_env);
-		return 0;	
+		return 0;	
+
 	}
 	}
 	_atsvr_cmd_rsp_ok(p_env);

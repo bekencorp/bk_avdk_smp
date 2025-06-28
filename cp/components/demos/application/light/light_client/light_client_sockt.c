@@ -37,7 +37,7 @@ int light_tcp_connect_server_fd_register(int fd)
     }
     else
     {
-        os_printf( "add node failed");
+        BK_LOGD(NULL, "add node failed");
         return t_error;
     }
 
@@ -98,7 +98,7 @@ int tcp_client_get_remote_server_addr(struct sockaddr_in *svr_addr, remote_serve
 
     if(!inet_aton((*rm_svr_addr)->ip4, &remote_ip.addr))
     {
-        os_printf( "server ip err\r\n" );
+        BK_LOGD(NULL, "server ip err\r\n" );
         return t_error;
     }
 
@@ -121,11 +121,11 @@ int tcp_client_connect_remote_server(int skt_fd, struct sockaddr_in *svr_addr)
     err = connect(skt_fd, (struct sockaddr *)svr_addr, sizeof(struct sockaddr));
     if(!err)
     {
-        os_printf( "connect ok\r\n");
+        BK_LOGD(NULL, "connect ok\r\n");
         return t_ok;
     }
 
-    os_printf( "connect err: %d\r\n", err );
+    BK_LOGD(NULL, "connect err: %d\r\n", err );
     return t_error;
 }
 
@@ -137,7 +137,7 @@ int tcp_client_receive_remote_server_data(int skt_fd)
     buf = (char *) os_malloc( 1024 );
     if(buf == NULL)
     {
-        os_printf( "client malloc failed\r\n");
+        BK_LOGD(NULL, "client malloc failed\r\n");
         goto exit;
     }
 
@@ -149,7 +149,7 @@ int tcp_client_receive_remote_server_data(int skt_fd)
         len = recv(skt_fd, buf, 1024, 0 );
         if ( len <= 0 )
         {
-            os_printf( "tcp is disconnected, fd: %d\r\n", skt_fd );
+            BK_LOGD(NULL, "tcp is disconnected, fd: %d\r\n", skt_fd );
             goto exit;
         }
         light_client_input_msg_sender(skt_fd | CLIENT_SOCKET_MSG, buf, len);
@@ -187,13 +187,13 @@ int tcp_client_send_remote_server_data(int skt_fd, char *buf, int len)
         if ( ret < 0 )
         {
             light_tcp_connect_server_fd_unregister(skt_fd);
-            os_printf( "fd(%d) disconnected\r\n", skt_fd );
+            BK_LOGD(NULL, "fd(%d) disconnected\r\n", skt_fd );
             return t_error;
         }
     }
     else
     {
-        os_printf( "fd(%d) disconnected\r\n", skt_fd );
+        BK_LOGD(NULL, "fd(%d) disconnected\r\n", skt_fd );
         return t_error;
     }
     return t_ok;
@@ -259,7 +259,7 @@ void tcp_connect_remote_server_thread( beken_thread_arg_t arg )
     socket_fd = tcp_client_create_new_socket();
     if(socket_fd < 0)
     {
-        os_printf("socket failed\r\n");
+        BK_LOGD(NULL,"socket failed\r\n");
         goto exit;
     }
 
@@ -278,7 +278,7 @@ void tcp_connect_remote_server_thread( beken_thread_arg_t arg )
     err = light_tcp_connect_keep_active(socket_fd);
     if(t_ok != err)
     {
-        os_printf( "socket keep active error\r\n");
+        BK_LOGD(NULL, "socket keep active error\r\n");
         goto exit;
     }
 
@@ -288,7 +288,7 @@ exit:
     rtos_start_timer(tcp_connect_timer);
     if ( err != kNoErr )
     {
-        os_printf( "light tcp connect server thread exit!\r\n" );
+        BK_LOGD(NULL, "light tcp connect server thread exit!\r\n" );
     }
 
     if(socket_fd > 0)
@@ -306,7 +306,7 @@ void light_start_connect_remote_server(void)
     s_add = (remote_server_addr_T *)os_malloc(sizeof(remote_server_addr_T));
     if(s_add == NULL)
     {
-        os_printf("s_add malloc failed\r\n");
+        BK_LOGD(NULL,"s_add malloc failed\r\n");
         goto exit;
     }
 
@@ -320,7 +320,7 @@ void light_start_connect_remote_server(void)
                               (beken_thread_arg_t)s_add);
     if(kNoErr != err )
     {
-        os_printf("tcp_connect_remote_server_thread failed\r\n");
+        BK_LOGD(NULL,"tcp_connect_remote_server_thread failed\r\n");
         goto exit;
     }
     return;
@@ -358,7 +358,7 @@ int create_light_client_check_net_timer(void)
 
     if(tcp_connect_timer == NULL)
     {
-        os_printf("tcp_connect_timer error!\r\n");
+        BK_LOGD(NULL,"tcp_connect_timer error!\r\n");
     }
 
     err = rtos_init_timer(tcp_connect_timer, 1000, tcp_connect_timer_alarm, 0);
@@ -369,7 +369,7 @@ int create_light_client_check_net_timer(void)
             os_free(tcp_connect_timer);
             tcp_connect_timer = NULL;
         }
-        os_printf("tcp_connect_timer error!\r\n");
+        BK_LOGD(NULL,"tcp_connect_timer error!\r\n");
         return t_error;
     }
     return t_ok;
@@ -387,7 +387,7 @@ int light_net_connect_start(void)
             os_free(tcp_connect_timer);
             tcp_connect_timer = NULL;
         }
-        os_printf("tcp_connect_timer error!\r\n");
+        BK_LOGD(NULL,"tcp_connect_timer error!\r\n");
 
         return t_error;
     }
@@ -396,7 +396,7 @@ int light_net_connect_start(void)
     if(kNoErr != err)
     {
         tcp_connect_timer_destroy();
-        os_printf("tcp_connect_timer start failed!\r\n");
+        BK_LOGD(NULL,"tcp_connect_timer start failed!\r\n");
 
         return t_error;
     }

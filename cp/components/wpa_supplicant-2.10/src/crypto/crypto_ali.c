@@ -9,7 +9,7 @@
 #include "crypto.h"
 
 #if 0
-#define CRYPTO_DBG WPA_LOGI
+#define CRYPTO_DBG WPA_LOGD
 #else
 #define CRYPTO_DBG(...)
 #endif

@@ -118,7 +118,7 @@ audio_port_handle_t callback_port_init(callback_port_cfg_t *config)
     audio_port_set_type(port, PORT_TYPE_CB);
     audio_port_set_data(port, cb_port);
 
-    BK_LOGI(TAG, "callback port init, port:%p\n", port);
+    BK_LOGD(TAG, "callback port init, port:%p\n", port);
     return port;
 
 fail:

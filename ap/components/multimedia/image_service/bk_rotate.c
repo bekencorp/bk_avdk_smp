@@ -23,6 +23,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 
@@ -38,18 +39,18 @@ static rotate_t  s_rot = {0};
 
 static void rotate_complete_cb(void)
 {
-    LOGD("rotate_complete_cb\r\n");
+    LOGV("rotate_complete_cb\r\n");
     rtos_set_semaphore(&s_rot.rot_sem);
 }
 
 static void rotate_watermark_cb(void)
 {
-    LOGD("rotate_watermark_cb\r\n");
+    LOGV("rotate_watermark_cb\r\n");
 
 }
 static void rotate_cfg_err_cb(void)
 {
-    LOGI("rotate_cfg_err_cb\r\n");
+    LOGD("rotate_cfg_err_cb\r\n");
 }
 
 
@@ -57,7 +58,7 @@ static void rotate_cfg_err_cb(void)
 
 static void rott_pfc_complete_cb(void)
 {
-    LOGD("rott_pfc_complete_cb\r\n");
+    LOGV("rott_pfc_complete_cb\r\n");
     rtos_set_semaphore(&s_rot.rot_sem);
 }
 

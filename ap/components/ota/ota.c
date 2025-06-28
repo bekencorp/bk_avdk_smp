@@ -33,7 +33,7 @@ static uint8 ota_get_flash_offset_enable_value(void)
 	uint8 ret_val;
 
 	ret_val = (REG_READ((FLASH_BASE_ADDRESS + FLASH_OFFSET_ENABLE*4)) & 0x1);
-	OTA_LOGI("ret_val  :0x%x\r\n",ret_val);
+	OTA_LOGD("ret_val  :0x%x\r\n",ret_val);
 
 	return ret_val;
 }
@@ -45,12 +45,12 @@ void bk_ota_double_check_for_execution(void)
 	ret = bk_ota_get_current_partition();
 	if(ret == 0)
 	{
-		OTA_LOGI("confirm exec pos_ind part a \r\n");
+		OTA_LOGD("confirm exec pos_ind part a \r\n");
 		bk_ota_confirm_update_partition(CONFIRM_EXEC_A);
 	}
 	else
 	{
-		OTA_LOGI("confirm exec pos_ind part b \r\n");
+		OTA_LOGD("confirm exec pos_ind part b \r\n");
 		bk_ota_confirm_update_partition(CONFIRM_EXEC_B);
 	}
 }
@@ -69,7 +69,7 @@ uint8 bk_ota_get_current_partition(void)
 	bk_logic_partition_t *bk_ptr = NULL;
 
 	bk_ptr = bk_flash_partition_get_info(BK_PARTITION_OTA_FINA_EXECUTIVE); 
-	OTA_LOGI("bk_ptr->partition_start_addr  :0x%x\r\n",bk_ptr->partition_start_addr);
+	OTA_LOGD("bk_ptr->partition_start_addr  :0x%x\r\n",bk_ptr->partition_start_addr);
 	bk_flash_read_bytes(bk_ptr->partition_start_addr ,(uint8_t *)&ota_exec_flag, sizeof(u8));
 
 	return ota_exec_flag ;  // ota_exec_flag :0x0/0xFF represents A 0x1 :represents B 
@@ -87,11 +87,11 @@ void ota_write_flash(bk_partition_t ota_partition_flag, u8 flag, u8 offset)
 
 	flash_protect_type_t protect_type;
 	bk_ptr = bk_flash_partition_get_info(ota_partition_flag);
-	OTA_LOGD("ota_write_flash:partition_start_addr:0x%x--0x%x\r\n",(bk_ptr->partition_start_addr) ,sizeof(ota_flag_buff));
+	OTA_LOGV("ota_write_flash:partition_start_addr:0x%x--0x%x\r\n",(bk_ptr->partition_start_addr) ,sizeof(ota_flag_buff));
 
 	os_memset(ota_flag_buff, 0xFF, sizeof(ota_flag_buff));
 	bk_flash_read_bytes((bk_ptr->partition_start_addr), (uint8_t *)ota_flag_buff, sizeof(ota_flag_buff));
-	OTA_LOGD("before:ota_final_buff:0x%x,ota_temp_buff:0x%x,ota_cconfirm_buff:0x%x\r\n",
+	OTA_LOGV("before:ota_final_buff:0x%x,ota_temp_buff:0x%x,ota_cconfirm_buff:0x%x\r\n",
 		ota_flag_buff[0],ota_flag_buff[4],ota_flag_buff[8]);
     
 	protect_type = bk_flash_get_protect_type();
@@ -115,7 +115,7 @@ void ota_write_flash(bk_partition_t ota_partition_flag, u8 flag, u8 offset)
 	#if OTA_DEBUG_TEST
 	os_memset(ota_temp_buff, 0xFF, sizeof(ota_temp_buff));
 	bk_flash_read_bytes((bk_ptr->partition_start_addr),(uint8_t *)ota_temp_buff, sizeof(ota_temp_buff));
-	OTA_LOGD("ota_final_buff:0x%x,ota_temp_buff:0x%x,ota_cconfirm_buff:0x%x,ota_download_status_buff:0x%x\r\n",
+	OTA_LOGV("ota_final_buff:0x%x,ota_temp_buff:0x%x,ota_cconfirm_buff:0x%x,ota_download_status_buff:0x%x\r\n",
 		ota_temp_buff[0],ota_temp_buff[4],temp3_buff[8],temp4_buff[12]);
     #endif
     bk_flash_set_protect_type(protect_type);
@@ -130,7 +130,7 @@ void bk_ota_confirm_update_partition(ota_confirm_flag ota_confirm_val)
 
     bk_ptr = bk_flash_partition_get_info(BK_PARTITION_OTA_FINA_EXECUTIVE);
     bk_flash_read_bytes((bk_ptr->partition_start_addr + 8) ,(uint8_t *)&last_exec_flag, sizeof(u8));
-    OTA_LOGI("bk_ptr->partition_start_addr:0x%x,last_exec_flag:0x%x\r\n",bk_ptr->partition_start_addr,last_exec_flag);
+    OTA_LOGD("bk_ptr->partition_start_addr:0x%x,last_exec_flag:0x%x\r\n",bk_ptr->partition_start_addr,last_exec_flag);
 
     if(last_exec_flag != ota_confirm_val)
     {
@@ -181,7 +181,7 @@ int32_t ota_do_hash_check(void)
 		bk_ptr = bk_flash_partition_get_info(BK_PARTITION_APPLICATION);
 	}
 	partition_length = bk_flash_partition_get_info(BK_PARTITION_S_APP)->partition_length;
-	OTA_LOGD("partition_length :0x%x",partition_length);
+	OTA_LOGV("partition_length :0x%x",partition_length);
 	if((bk_ptr == NULL))
 	{
 		OTA_LOGE(" get %s fail \r\n",bk_ptr->partition_owner);
@@ -193,7 +193,7 @@ int32_t ota_do_hash_check(void)
 	ret = ota_hash_verify(bk_ptr, &rbl_hdr);
 	if(ret == BK_OK)
 	{
-		OTA_LOGI("hash sucess!!!! \r\n");
+		OTA_LOGD("hash sucess!!!! \r\n");
 	}
 
 	return ret;
@@ -242,12 +242,12 @@ int bk_ota_update_partition_flag(int input_val)
 #else
 	temp_exec_flag = ota_temp_execute_partition(input_val); //temp_exec_flag :3 :A ,4:B
 #endif
-	OTA_LOGD("from cus temp_exec_flag:0x%x \r\n",temp_exec_flag);
+	OTA_LOGV("from cus temp_exec_flag:0x%x \r\n",temp_exec_flag);
 	if(temp_exec_flag == CONFIRM_EXEC_A){
-		OTA_LOGI("B>>A \r\n");
+		OTA_LOGD("B>>A \r\n");
 		exec_temp_part = EXEX_A_PART;
 	}else if(temp_exec_flag == CONFIRM_EXEC_B){
-		OTA_LOGI("A>>B \r\n");
+		OTA_LOGD("A>>B \r\n");
 		exec_temp_part = EXEC_B_PART;
 	}else{
 		OTA_LOGE("temp_exec_flag is error \r\n");
@@ -258,7 +258,7 @@ int bk_ota_update_partition_flag(int input_val)
 #if CONFIG_OTA_EVADE_METHOD
 	uint8_t download_status_flag = DOWNLOAD_SUCCESS_FLAG;
 #endif
-	OTA_LOGI("ota_exec_flag :0x%x, exec_temp_part :0x%x,cust_confirm_flag :0x%x ,download_status_flag :0x%x\r\n",\
+	OTA_LOGD("ota_exec_flag :0x%x, exec_temp_part :0x%x,cust_confirm_flag :0x%x ,download_status_flag :0x%x\r\n",\
 		ota_exec_flag ,exec_temp_part, cust_confirm_flag,download_status_flag);
 
 	uint8_t input_flag_buf[16]= {0};  //{ota_exec_flag,0xFF,0xFF,0xFF,exec_temp_part,0xFF,0xFF,0xFF,cust_confirm_flag,0,0,0,download_status_flag,0,0,0};
@@ -286,15 +286,15 @@ int bk_ota_swap_execute_partition(void)
 	bk_ota_ptr = bk_flash_partition_get_info(BK_PARTITION_OTA_FINA_EXECUTIVE);
 	if((bk_ota_ptr == NULL)||(a_app_ptr == NULL) ||(b_app_ptr == NULL))
 	{
-		os_printf("get partition fail! \r\n");
+		BK_LOGD(NULL, "get partition fail! \r\n");
 		return BK_FAIL;
 	}
 	bk_flash_read_bytes((a_app_ptr->partition_start_addr), (uint8_t *)&a_app_head, sizeof(uint32_t));
 	bk_flash_read_bytes((b_app_ptr->partition_start_addr), (uint8_t *)&b_app_head, sizeof(uint32_t));
-	//os_printf("a_app_head :0x%x ,b_app_head :0x%x \r\n", a_app_head, b_app_head);
+	//BK_LOGD(NULL, "a_app_head :0x%x ,b_app_head :0x%x \r\n", a_app_head, b_app_head);
     if ((a_app_head == FLASH_DEFAULT_VALUE)||(b_app_head == FLASH_DEFAULT_VALUE))
 	{
-		os_printf("only one execute partition and forbid swap! \r\n");
+		BK_LOGD(NULL, "only one execute partition and forbid swap! \r\n");
 		return BK_FAIL;
 	}
 	else
@@ -304,7 +304,7 @@ int bk_ota_swap_execute_partition(void)
 		exec_flag ret = bk_ota_get_current_partition();
 		if(ret == EXEX_A_PART)        //execute A 
 		{
-			os_printf("execute A, swap to B \r\n");
+			BK_LOGD(NULL, "execute A, swap to B \r\n");
 			bk_flash_erase_sector(bk_ota_ptr->partition_start_addr);
 			exec_flag   ota_exec_flag = EXEC_B_PART;
 			os_memset(&ota_flag_buf[0], 0xFF, sizeof(ota_flag_buf));
@@ -313,12 +313,12 @@ int bk_ota_swap_execute_partition(void)
 		}
 		else if(ret == EXEC_B_PART)    //execute B
 		{
-			os_printf("execute B, swap to A \r\n");
+			BK_LOGD(NULL, "execute B, swap to A \r\n");
 			bk_flash_erase_sector(bk_ota_ptr->partition_start_addr);
 		}
 		else
 		{
-			os_printf("swap partition fail! \r\n");
+			BK_LOGD(NULL, "swap partition fail! \r\n");
 		}
 		bk_flash_set_protect_type(protect_type);
 
@@ -341,10 +341,10 @@ int bk_http_ota_download(const char *uri)
 		OTA_LOGE( "uri is NULL\r\n");
 		return ret;
 	}
-    OTA_LOGD("http_ota_download :0x%x",bk_http_ota_download);
+    OTA_LOGV("http_ota_download :0x%x",bk_http_ota_download);
 #ifdef CONFIG_HTTP_AB_PARTITION
     ret = bk_ota_get_current_partition();
-    OTA_LOGI("ret :0x%x \r\n",ret);
+    OTA_LOGD("ret :0x%x \r\n",ret);
     if(ret == EXEC_B_PART){
         update_part_flag = UPDATE_A_PART;
     } else{
@@ -394,10 +394,10 @@ int bk_http_ota_download(const char *uri)
 		{
 			return ret_val;
 		}
-		OTA_LOGI("success.\r\n");
+		OTA_LOGD("success.\r\n");
 		bk_reboot();
 #else
-		OTA_LOGI("success.\r\n");
+		OTA_LOGD("success.\r\n");
 		bk_reboot();
 #endif /*CONFIG_HTTP_AB_PARTITION*/
 	}

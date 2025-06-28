@@ -144,7 +144,7 @@ void bt_ipc_hci_send_vendor_cmd(uint8_t *data, uint16_t len)
     uint16_t data_len = sizeof(cmd_hdr_t) + len;
     cmd_hdr_t *cmd_hdr = (cmd_hdr_t *)os_malloc(data_len);
 
-    LOGI("malloc ptr %p\n",cmd_hdr);
+    LOGD("malloc ptr %p\n",cmd_hdr);
 
     if (cmd_hdr == NULL)
     {
@@ -168,7 +168,7 @@ void bt_ipc_hci_send_vendor_event(uint8_t *data, uint16_t len)
     uint16_t data_len = sizeof(event_hdr_t) + len;
     event_hdr_t *event_hdr = (event_hdr_t *)os_malloc(data_len);
 
-    LOGI("malloc ptr %p\n",event_hdr);
+    LOGD("malloc ptr %p\n",event_hdr);
 
     if (event_hdr == NULL)
     {
@@ -199,7 +199,7 @@ static void bt_ipc_mailbox_config(uint8_t channel)
 {
     bk_err_t ret;
 
-    LOGI("open channel: %d on CPU\n", channel);
+    LOGD("open channel: %d on CPU\n", channel);
     /* reigster a mailbox logical channel */
     ret = mb_chnl_open(channel, NULL);
     if (ret != BK_OK) {
@@ -229,24 +229,24 @@ static void bt_ipc_message_handle(void)
             {
                 case BT_IPC_CMD_IND_MSG:
                 {
-                    LOGI("BT_IPC_CMD_IND_MSG\n");
+                    LOGD("BT_IPC_CMD_IND_MSG\n");
                     cmd_hdr_t *cmd_hdr = (cmd_hdr_t *)(uintptr_t)msg.param;
-                    LOGI("opcode 0x%04x, param_len %d\n",cmd_hdr->opcode, cmd_hdr->param_len);
+                    LOGD("opcode 0x%04x, param_len %d\n",cmd_hdr->opcode, cmd_hdr->param_len);
                     bt_ipc_hci_free_pkt(msg.param);
                 }
                 break;
 
                 case BT_IPC_EVNET_IND_MSG:
                 {
-                    LOGI("BT_IPC_EVNET_IND_MSG\n");
+                    LOGD("BT_IPC_EVNET_IND_MSG\n");
                     event_hdr_t *event_hdr = (event_hdr_t *)(uintptr_t)msg.param;
-                    LOGI("evt_code 0x%02x, param_len %d\n",event_hdr->event_code, event_hdr->param_len);
+                    LOGD("evt_code 0x%02x, param_len %d\n",event_hdr->event_code, event_hdr->param_len);
                     if(event_hdr->event_code == HCI_COMMAND_COMPLETE_EVT_CODE)
                     {
                         if(event_hdr->param_len >= 4) //init deinit opcode
                         {
                             uint16_t op = (event_hdr->param[0]<<8)|(event_hdr->param[1]);
-                            LOGI("op :0x%04x\n", op);
+                            LOGD("op :0x%04x\n", op);
                             if(op == BT_INIT_VENDOR_SUB_OPCODE || op == BT_DEINIT_VENDOR_SUB_OPCODE)
                             {
                                 if(event_hdr->param[3] == BT_EVENT_STATUS_NOERROR)//status
@@ -264,8 +264,8 @@ static void bt_ipc_message_handle(void)
 
                 case BT_IPC_FREE_MSG:
                 {
-                    LOGI("BT_IPC_FREE_MSG\n");
-                    LOGI("free ptr %p\n",msg.param);
+                    LOGD("BT_IPC_FREE_MSG\n");
+                    LOGD("free ptr %p\n",msg.param);
                     os_free((void*)(uintptr_t)msg.param);
                 }
                 break;
@@ -345,6 +345,6 @@ void bt_ipc_init(void)
     }
 
     bt_ipc_env.state = BT_IPC_STATE_READY;
-    LOGI("%s success\n", __func__);
+    LOGD("%s success\n", __func__);
 }
 

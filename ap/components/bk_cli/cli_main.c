@@ -366,7 +366,7 @@ static void ate_uart_rx_isr(uart_id_t id, void *param)
 
 	ret = rtos_set_semaphore(&ate_test_semaphore);
 	if(kNoErr !=ret)
-		os_printf("ate_uart_rx_isr: ATE set sema failed\r\n");
+		BK_LOGE(NULL, "ate_uart_rx_isr: ATE set sema failed\r\n");
 }
 
 static void ate_uart_tx_isr(uart_id_t id, void *param)
@@ -386,7 +386,7 @@ static void cli_ate_main(uint32_t data)
 	{
 		ret = rtos_init_semaphore(&ate_test_semaphore, 1);
 		if (kNoErr != ret)
-			os_printf("cli_ate_main: ATE create background sema failed\r\n");
+			BK_LOGE(NULL, "cli_ate_main: ATE create background sema failed\r\n");
 	}
 
 	bk_uart_disable_sw_fifo(bk_get_printf_port());
@@ -431,7 +431,7 @@ static void cli_ate_main(uint32_t data)
 				break;
 	}
 
-	os_printf("CLI exited\r\n");
+	BK_LOGD(NULL, "CLI exited\r\n");
 	os_free(pCli);
 	pCli = NULL;
 
@@ -523,7 +523,7 @@ static int handle_input(char *inbuf)
                 stat.isD = 1;
             }
             else if(argc == 0){
-                os_printf("The data does not conform to the regulations %d\r\n",__LINE__);
+                BK_LOGE(NULL, "The data does not conform to the regulations %d\r\n",__LINE__);
                 return 2;
             }
             break;
@@ -531,7 +531,7 @@ static int handle_input(char *inbuf)
         case ',':
             if((stat.isD == 1)&&(argc == 1))  ///=,
             {
-                os_printf("The data does not conform to the regulations %d\r\n",__LINE__);
+                BK_LOGE(NULL, "The data does not conform to the regulations %d\r\n",__LINE__);
                 return 2;
             }
             if(!stat.inQuote && stat.inArg) {
@@ -562,7 +562,7 @@ static int handle_input(char *inbuf)
 		return 0;
 
 	if (!pCli->echo_disabled)
-		os_printf("\r\n");
+		BK_LOGD(NULL, "\r\n");
 
 	/*
 	* Some comamands can allow extensions like foo.a, foo.b and hence
@@ -602,7 +602,7 @@ static void tab_complete(char *inbuf, unsigned int *bp)
 	int i, n, m;
 	const char *fm = NULL;
 
-	os_printf("\r\n");
+	BK_LOGD(NULL, "\r\n");
 
 	/* show matching commands */
 	for (i = 0, n = 0, m = 0; i < MAX_COMMANDS && n < pCli->num_commands;
@@ -613,10 +613,10 @@ static void tab_complete(char *inbuf, unsigned int *bp)
 				if (m == 1)
 					fm = pCli->commands[i]->name;
 				else if (m == 2)
-					os_printf("%s %s ", fm,
+					BK_LOGD(NULL, "%s %s ", fm,
 							  pCli->commands[i]->name);
 				else
-					os_printf("%s ",
+					BK_LOGD(NULL, "%s ",
 							  pCli->commands[i]->name);
 			}
 			n++;
@@ -643,7 +643,7 @@ static void tab_complete(char *inbuf, unsigned int *bp)
 static int get_input(char *inbuf, unsigned int *bp)
 {
 	if (inbuf == NULL) {
-		os_printf("inbuf_null\r\n");
+		BK_LOGE(NULL, "inbuf_null\r\n");
 		return 0;
 	}
 
@@ -669,7 +669,7 @@ static int get_input(char *inbuf, unsigned int *bp)
 				(*bp)++;
 
 				if (ch >= INBUF_SIZE) {
-					os_printf("Error: input buffer overflow\r\n");
+					BK_LOGE(NULL, "Error: input buffer overflow\r\n");
 					os_printf(PROMPT);
 					*bp = 0;
 					return 0;
@@ -719,11 +719,11 @@ static int get_input(char *inbuf, unsigned int *bp)
 		}
 
 		if (!pCli->echo_disabled)
-			os_printf("%c", inbuf[*bp]);
+			BK_LOGD(NULL, "%c", inbuf[*bp]);
 
 		(*bp)++;
 		if (*bp >= INBUF_SIZE) {
-			os_printf("Error: input buffer overflow\r\n");
+			BK_LOGE(NULL, "Error: input buffer overflow\r\n");
 			os_printf(PROMPT);
 			*bp = 0;
 			return 0;
@@ -793,13 +793,13 @@ static void cli_main(uint32_t data)
 			if (ret == 1)
 				print_bad_command(msg);
 			else if (ret == 2)
-				os_printf("syntax error\r\n");
+				BK_LOGE(NULL, "syntax error\r\n");
 
 			os_printf(prompt);
 		}
 	}
 
-	os_printf("CLI exited\r\n");
+	BK_LOGD(NULL, "CLI exited\r\n");
 	os_free(pCli);
 	pCli = NULL;
 
@@ -934,13 +934,13 @@ void cli_log_statist(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 		return;
 	}
 
-	os_printf("log overflow: %d.\r\n", log_statist[0]);
+	BK_LOGD(NULL, "log overflow: %d.\r\n", log_statist[0]);
 
-	os_printf("log out count: %d.\r\n", log_statist[1]);
+	BK_LOGD(NULL, "log out count: %d.\r\n", log_statist[1]);
 
 	for(i = 2; i < data_cnt; i++)
 	{
-		os_printf("Buffer[%d] run out count: %d.\r\n", i - 2, log_statist[i]);
+		BK_LOGD(NULL, "Buffer[%d] run out count: %d.\r\n", i - 2, log_statist[i]);
 	}
 	
 	print_dynamic_log_info();
@@ -1080,7 +1080,7 @@ void cli_sort_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 
 	build_in_count = sizeof(built_ins) / sizeof(struct cli_command);
 
-	//os_printf("cmd_count:%d, built_in_count:%d\r\n", pCli->num_commands, build_in_count);
+	//BK_LOGD(NULL, "cmd_count:%d, built_in_count:%d\r\n", pCli->num_commands, build_in_count);
 
 	GLOBAL_INT_DISABLE();
 	qsort(&pCli->commands[build_in_count], pCli->num_commands - build_in_count, sizeof(struct cli_command *), _cli_name_cmp);
@@ -1704,7 +1704,7 @@ int bk_cli_init(void)
 							 0);
 #endif // #if CONFIG_SHELL_ASYNCLOG
 	if (ret != kNoErr) {
-		os_printf("Error: Failed to create cli thread: %d\r\n",
+		BK_LOGD(NULL, "Error: Failed to create cli thread: %d\r\n",
 				  ret);
 		goto init_general_err;
 	}
@@ -1739,12 +1739,12 @@ void cli_show_running_command(void)
 	if (s_running_command_index < MAX_COMMANDS) {
 		const struct cli_command *cmd = pCli->commands[s_running_command_index];
 
-		CLI_LOGI("last cli command[%d]: %s(%s)\n", s_running_command_index, cmd->name,
+		CLI_LOGD("last cli command[%d]: %s(%s)\n", s_running_command_index, cmd->name,
 				 (s_running_status & CLI_COMMAND_IS_RUNNING) ? "running" : "stopped");
 		rtos_dump_task_list();
 		rtos_dump_backtrace();
 	} else
-		CLI_LOGI("no command running\n");
+		CLI_LOGD("no command running\n");
 }
 #endif
 

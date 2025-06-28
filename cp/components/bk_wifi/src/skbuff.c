@@ -48,7 +48,7 @@ void skb_append(struct sk_buff *old, struct sk_buff *newsk, struct sk_buff_head 
 	unsigned long flags;
 
 	spin_lock_irqsave(&list->lock, flags);
-	//os_printf("old %p, newsk %p, list %p\n", old, newsk, list);
+	//BK_LOGD(NULL,"old %p, newsk %p, list %p\n", old, newsk, list);
 	__skb_queue_after(list, old, newsk);
 	spin_unlock_irqrestore(&list->lock, flags);
 }

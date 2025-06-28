@@ -148,7 +148,7 @@ UINT8 *sr_malloc_shell(void)
 	if (ptr)
 		return ptr;
 	else {
-		RWNX_LOGI("sr_malloc fail \r\n");
+		RWNX_LOGD("sr_malloc fail \r\n");
 		return 0;
 	}
 }
@@ -216,14 +216,14 @@ void sr_release_scan_results(SCAN_RST_UPLOAD_PTR ptr)
 {
 	rtos_lock_mutex(&sr_mutex);
 	if ((0 == ptr) || (0 == ptr->ref)) {
-		RWNX_LOGI("released_scan_results\r\n");
+		RWNX_LOGD("released_scan_results\r\n");
 		goto release_exit;
 	}
 
 	ptr->ref -= 1;
 
 	if (ptr->ref) {
-		RWNX_LOGI("release_scan_results later\r\n");
+		RWNX_LOGD("release_scan_results later\r\n");
 		goto release_exit;
 	}
 
@@ -452,7 +452,7 @@ void mhdr_connect_ind(void *msg, UINT32 len)
 	ind = (struct sm_connect_ind *)msg_ptr->param;
 
 	if (!ind->status_code) {
-		RWNX_LOGD("connect ok\n");
+		RWNX_LOGV("connect ok\n");
 
 		bk7011_default_rxsens_setting();
 
@@ -463,7 +463,7 @@ void mhdr_connect_ind(void *msg, UINT32 len)
 		if (wlan_connect_user_cb.cb)
 			(*wlan_connect_user_cb.cb)(wlan_connect_user_cb.ctxt_arg, 0);
 	} else
-		RWNX_LOGD("connect fail\n");
+		RWNX_LOGV("connect fail\n");
 
 	/* Send to wpa_supplicant */
 	/* ind->assoc_ie_buf is a flexible array */
@@ -1076,7 +1076,7 @@ UINT32 mhdr_scanu_result_ind(SCAN_RST_UPLOAD_T *scan_rst, void *msg, UINT32 len)
 					ssid_len = MAC_SSID_LEN;
 
 				os_memcpy(ssid_b, elmt_addr + 2, ssid_len);
-				RWNX_LOGI("drop: %s, chan:%d\r\n", ssid_b, chann);
+				RWNX_LOGD("drop: %s, chan:%d\r\n", ssid_b, chann);
 			}
 
 			goto scan_rst_exit;
@@ -1091,7 +1091,7 @@ UINT32 mhdr_scanu_result_ind(SCAN_RST_UPLOAD_T *scan_rst, void *msg, UINT32 len)
         elmt_addr = (UINT8 *)mac_ie_he_capa_find((UINT32)var_part_addr, vies_len, &elmt_length);
         if (elmt_addr && (LOCAL_CAPA(HE)))
         {
-            RWNX_LOGI("he+he,scan rst no ds param, not drop it?\r\n");
+            RWNX_LOGD("he+he,scan rst no ds param, not drop it?\r\n");
             chann = rw_ieee80211_get_chan_id(scanu_ret_ptr->center_freq);
             if (rw_ieee80211_is_scan_rst_in_countrycode(chann) == 0)
             {
@@ -1105,7 +1105,7 @@ UINT32 mhdr_scanu_result_ind(SCAN_RST_UPLOAD_T *scan_rst, void *msg, UINT32 len)
                         ssid_len = MAC_SSID_LEN;
 
                     os_memcpy(ssid_b, elmt_addr + 2, ssid_len);
-                    RWNX_LOGI("drop: %s, chan:%d\r\n", ssid_b, chann);
+                    RWNX_LOGD("drop: %s, chan:%d\r\n", ssid_b, chann);
                 }
                 goto scan_rst_exit;
             }
@@ -1115,7 +1115,7 @@ UINT32 mhdr_scanu_result_ind(SCAN_RST_UPLOAD_T *scan_rst, void *msg, UINT32 len)
         {
             chann = rw_ieee80211_get_chan_id(scanu_ret_ptr->center_freq);
             on_channel = 0;
-            RWNX_LOGI("scan rst no ds param, drop it?\r\n");
+            RWNX_LOGD("scan rst no ds param, drop it?\r\n");
         }
     }
 
@@ -1149,7 +1149,7 @@ UINT32 mhdr_scanu_result_ind(SCAN_RST_UPLOAD_T *scan_rst, void *msg, UINT32 len)
 
 		os_memcpy(item->ssid, elmt_addr + 2, ssid_len);
 	} else {
-		RWNX_LOGI("No ssid\r\n");
+		RWNX_LOGD("No ssid\r\n");
 	}
 
 
@@ -1314,7 +1314,7 @@ static inline int rwnx_rx_ps_change_ind(struct ke_msg *msg)
 
 	sta = sta_mgmt_get_entry(ind->sta_idx);
 
-	//os_printf("Sta %d, change PS mode to %s\n", ind->sta_idx,
+	//BK_LOGD(NULL,"Sta %d, change PS mode to %s\n", ind->sta_idx,
 	//		  ind->ps_state ? "ON" : "OFF");
 
 	// sta->mac_addr.array[0] == 0x1 means BCMC virtual sta.
@@ -1386,11 +1386,11 @@ static inline int rwnx_rx_twt_ps_change_ind(struct ke_msg *msg)
 
 	if (ind->twt_ps_state) {
 		// Stop TX queues for provided VIF
-		RWNX_LOGD("TWT PS stop! state %d\n",ind->twt_ps_state);
+		RWNX_LOGV("TWT PS stop! state %d\n",ind->twt_ps_state);
 		rwnx_txq_vif_stop(vif_entry, RWNX_TXQ_STOP_TWT_PS);
 	} else {
 		// Start TX queues for provided VIF
-		RWNX_LOGD("TWT PS start! state %d\n",ind->twt_ps_state);
+		RWNX_LOGV("TWT PS start! state %d\n",ind->twt_ps_state);
 		rwnx_txq_vif_start(vif_entry, RWNX_TXQ_STOP_TWT_PS);
 	}
 	GLOBAL_INT_RESTORE();
@@ -1452,7 +1452,7 @@ void rwnx_chan_survey_ind_handler(void *msg)
 
 	ind = (struct mm_channel_survey_ind *)msg_ptr->param;
 
-	RWNX_LOGD("chan_survey busy %d ms time %d ms noise %d freq %d\r\n",
+	RWNX_LOGV("chan_survey busy %d ms time %d ms noise %d freq %d\r\n",
 			 ind->chan_time_busy_ms,ind->chan_time_ms,ind->noise_dbm,ind->freq);
 
 	if((ind->freq < CHANNEL_ONE_FREQUENCY_FOR_2_4G) || (ind->freq >= CHANNEL_FOURTEEN_FREQUENCY_FOR_2_4G))
@@ -1461,7 +1461,7 @@ void rwnx_chan_survey_ind_handler(void *msg)
 	}
 
 	chan_idx = (ind->freq - CHANNEL_ONE_FREQUENCY_FOR_2_4G) / 5;
-	RWNX_LOGD("%s chan_idx %d\r\n",__func__,chan_idx);
+	RWNX_LOGV("%s chan_idx %d\r\n",__func__,chan_idx);
 
 	if((chan_idx != 0xFF) && (chan_idx < MAX_CHANNEL_SUPPORT_INDEX_FOR_2_4G))
 	{
@@ -1475,12 +1475,12 @@ void rwnx_chan_survey_ind_handler(void *msg)
 void rwnx_set_wifi_rlk_start(uint32_t start)
 {
 	wifi_rlk_info.wifi_rlk_start = start;
-	RWNX_LOGD("%s start %d\r\n",__func__,wifi_rlk_info.wifi_rlk_start);
+	RWNX_LOGV("%s start %d\r\n",__func__,wifi_rlk_info.wifi_rlk_start);
 }
 
 uint32_t rwnx_get_wifi_rlk_start(void)
 {
-	RWNX_LOGD("%s start %d\r\n",__func__,wifi_rlk_info.wifi_rlk_start);
+	RWNX_LOGV("%s start %d\r\n",__func__,wifi_rlk_info.wifi_rlk_start);
 	return wifi_rlk_info.wifi_rlk_start;
 }
 
@@ -1544,7 +1544,7 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 				scan_rst_set_ptr->res = (SCAN_RST_ITEM_PTR *)&scan_rst_set_ptr[1];
 				mhdr_scanu_result_ind(scan_rst_set_ptr, rx_msg, rx_msg->param_len);
 			} else
-				RWNX_LOGI("scan_rst_set_ptr malloc fail\r\n");
+				RWNX_LOGD("scan_rst_set_ptr malloc fail\r\n");
 		} else {
 			mhdr_scanu_result_ind(scan_rst_set_ptr, rx_msg, rx_msg->param_len);
 		}
@@ -1583,7 +1583,7 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 		msg_ptr = (struct ke_msg *)rx_msg;
 		ind = (struct sm_disconnect_ind *)msg_ptr->param;
 
-		RWNX_LOGD("disconnect\r\n");
+		RWNX_LOGV("disconnect\r\n");
 
 #if defined(CONFIG_IEEE80211R) || defined(CONFIG_WNM)
 				if (!ind->reassoc)
@@ -1637,7 +1637,7 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 	/*							mm_hdlrs									  */
 	/**************************************************************************/
 	case MM_TAGGED_PARAM_CHANGE: {
-		RWNX_LOGD("MM_TAGGED_PARAM_CHANGE\r\n");
+		RWNX_LOGV("MM_TAGGED_PARAM_CHANGE\r\n");
 	}
 		break;
 
@@ -1782,7 +1782,7 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 #endif
 
 	default:
-		//RWNX_LOGI("unknown msg 0x%x\n", rx_msg->id);
+		//RWNX_LOGD("unknown msg 0x%x\n", rx_msg->id);
 		break;
 	}
 }

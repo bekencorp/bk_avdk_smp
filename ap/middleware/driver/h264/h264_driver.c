@@ -546,7 +546,7 @@ static void h264_isr(void)
 	uint32_t int_status = h264_hal_get_int_stat(&s_h264.hal);
 	h264_hal_int_clear(&s_h264.hal, int_status);
 
-	H264_LOGD("h264 int status: %x \r\n ", int_status);
+	H264_LOGV("h264 int status: %x \r\n ", int_status);
 
 	if (int_status & INT_SKIP_FRAME)
 	{

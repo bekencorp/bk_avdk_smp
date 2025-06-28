@@ -78,7 +78,7 @@ static void ppm_statistic_callback(timer_id_t timer_id)
 		// timer overflow
 	}
 
-	//bk_printf("count = %d ,  cur - record = %d\r\n", s_rosc_ppm.cycle_count+1, diff_val);
+	//BK_LOGD(NULL,"count = %d ,  cur - record = %d\r\n", s_rosc_ppm.cycle_count+1, diff_val);
 	if (s_rosc_ppm.cycle_count == 0)
 	{
 		bk_timer_stop(timer_id);

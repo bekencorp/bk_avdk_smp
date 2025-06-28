@@ -22,7 +22,7 @@ static inline const char *if_idx_name(netif_if_t ifx)
 }
 
 #define CLI_DUMP_IP(_prompt, _ifx, _cfg) do {\
-	CLI_LOGI("%s netif(%s) ip4=%s mask=%s gate=%s dns=%s\n", (_prompt),\
+	CLI_LOGD("%s netif(%s) ip4=%s mask=%s gate=%s dns=%s\n", (_prompt),\
 			if_idx_name(_ifx),\
 			(_cfg)->ip, (_cfg)->mask, (_cfg)->gateway, (_cfg)->dns);\
 } while(0)
@@ -113,9 +113,9 @@ static void ip6_cmd_show_ip(int ifx)
 	if (ifx == NETIF_IF_STA || ifx == NETIF_IF_AP) {
 		bk_netif_get_ip6_addr_info(ifx);
 	} else {
-		CLI_LOGI("[sta]\n");
+		CLI_LOGD("[sta]\n");
 		bk_netif_get_ip6_addr_info(NETIF_IF_STA);
-		CLI_LOGI("[ap]\n");
+		CLI_LOGD("[ap]\n");
 		bk_netif_get_ip6_addr_info(NETIF_IF_AP);
 	}
 }
@@ -162,7 +162,7 @@ void cli_dhcpc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **ar
 	char *msg = NULL;
 
 	ret = bk_netif_dhcpc_start(NETIF_IF_STA);
-	CLI_LOGI("STA start dhcp client\n");
+	CLI_LOGD("STA start dhcp client\n");
 
 	if(ret == 0)
 		msg = WIFI_CMD_RSP_SUCCEED;
@@ -174,7 +174,7 @@ void cli_dhcpc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **ar
 void arp_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	char *msg = NULL;
-	os_printf("arp_Command\r\n");
+	BK_LOGD(NULL,"arp_Command\r\n");
 
 	msg = WIFI_CMD_RSP_SUCCEED;
 	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
@@ -187,7 +187,7 @@ void cli_ping_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 	char *msg = NULL;
 	uint32_t cnt = 4;
 	if (argc == 1) {
-		os_printf("Please input: ping <host address>\n");
+		BK_LOGD(NULL,"Please input: ping <host address>\n");
 		goto error;
 	}
 	if (argc == 2 && (os_strcmp("--stop", argv[1]) == 0)) {
@@ -199,7 +199,7 @@ void cli_ping_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 	if (argc > 2)
 		cnt = os_strtoul(argv[2], NULL, 10);
 
-	os_printf("ping IP address:%s\n", argv[1]);
+	BK_LOGD(NULL,"ping IP address:%s\n", argv[1]);
 	ping_start(argv[1], cnt, 0);
 
 	if (!ret) {
@@ -224,7 +224,7 @@ void cli_ali_mqtt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	char *msg = NULL;
 	int ret = 0;
 
-	os_printf("start test mqtt...\n");
+	BK_LOGD(NULL,"start test mqtt...\n");
 	if (argc == 4) {
 		test_mqtt_start(argv[1], argv[2], argv[3], NULL);
 	} else if (argc == 5) {
@@ -261,7 +261,7 @@ void cli_ali_mqtt_send_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		return;
 	}
 
-	os_printf("send mqtt topic...%d.\n", ret);
+	BK_LOGD(NULL,"send mqtt topic...%d.\n", ret);
 }
 #endif
 
@@ -309,7 +309,7 @@ void cli_websocket_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 			return;
 		}
 		else {
-			//CLI_LOGI("%s, uri:%s\r\n", __func__, argv[1]);
+			//CLI_LOGD("%s, uri:%s\r\n", __func__, argv[1]);
 			websocket_client_input_t websocket_cfg = {0};
 			websocket_cfg.uri = argv[1];
 			websocket_send_ping_pong(&websocket_cfg);
@@ -319,12 +319,12 @@ void cli_websocket_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	} else if (argc == 3) {
 		websocket_client_input_t websocket_cfg = {0};
 		if (os_strcmp("connect", argv[1]) == 0) {
-			//CLI_LOGI("%s, connect uri:%s\r\n", __func__, argv[2]);
+			//CLI_LOGD("%s, connect uri:%s\r\n", __func__, argv[2]);
 			websocket_cfg.uri = argv[2];
 			websocket_start(&websocket_cfg);
 		}
 		if (os_strcmp("text", argv[1]) == 0) {
-			CLI_LOGI("%s, text:%s\r\n", __func__, argv[2]);
+			CLI_LOGD("%s, text:%s\r\n", __func__, argv[2]);
 			websocket_cfg.user_context = argv[2];
 			websocket_send_text(&websocket_cfg);
 		}
@@ -346,7 +346,7 @@ int demo_webclient_get(char *url)
 	if(!url)
 	{
 		err = BK_FAIL;
-		CLI_LOGI( "url is NULL\r\n");
+		CLI_LOGD( "url is NULL\r\n");
 
 		return err;
 	}
@@ -358,10 +358,10 @@ int demo_webclient_get(char *url)
 
 	err = bk_webclient_get(&config);
 	if(err == BK_OK){
-		CLI_LOGI("bk_webclient_get ok\r\n");
+		CLI_LOGD("bk_webclient_get ok\r\n");
 	}
 	else{
-		CLI_LOGI("bk_webclient_get fail, err:%x\r\n", err);
+		CLI_LOGD("bk_webclient_get fail, err:%x\r\n", err);
 	}
 
 	return err;
@@ -374,14 +374,14 @@ int demo_webclient_post(char *url, char *post_data)
 	if(!url)
 	{
 		err = BK_FAIL;
-		CLI_LOGI( "url is NULL\r\n");
+		CLI_LOGD( "url is NULL\r\n");
 
 		return err;
 	}
 	if (post_data==NULL)
 	{
 		err = BK_FAIL;
-		CLI_LOGI( "post_data is NULL\r\n");
+		CLI_LOGD( "post_data is NULL\r\n");
 
 		return err;
 	}
@@ -395,10 +395,10 @@ int demo_webclient_post(char *url, char *post_data)
 
 	err = bk_webclient_post(&config);
 	if(err == BK_OK){
-		CLI_LOGI("bk_webclient_post ok\r\n");
+		CLI_LOGD("bk_webclient_post ok\r\n");
 	}
 	else{
-		CLI_LOGI("bk_webclient_post fail, err:%x\r\n", err);
+		CLI_LOGD("bk_webclient_post fail, err:%x\r\n", err);
 	}
 
 	return err;
@@ -411,7 +411,7 @@ void cli_webclient_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 
 	if (argc == 3) {
 		if (strncmp(argv[1], "get", 3) == 0) {
-			CLI_LOGI("starting http(s) get url:%s\n", argv[2]);
+			CLI_LOGD("starting http(s) get url:%s\n", argv[2]);
 			demo_webclient_get(argv[2]);
 		} else {
 			CLI_LOGE("usage: webclient [get/post].\n");
@@ -419,7 +419,7 @@ void cli_webclient_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 		}
 	}
 	else if ((argc == 4) && (strncmp(argv[1], "post", 4) == 0)) {
-		CLI_LOGI("starting http(s) post url:%s\n", argv[2]);
+		CLI_LOGD("starting http(s) post url:%s\n", argv[2]);
 		demo_webclient_post(argv[2], argv[3]);
 	}
 	else {
@@ -447,7 +447,7 @@ void set_per_packet_info_output_bitmap(const char *bitmap)
 	uint32 output_bitmap = os_strtoul(bitmap, NULL, 16);
 
 	set_output_bitmap(output_bitmap);
-	CLI_LOGI("set per_packet_info_output_bitmap:0x%x\n", output_bitmap);
+	CLI_LOGD("set per_packet_info_output_bitmap:0x%x\n", output_bitmap);
 }
 
 void cli_per_packet_info_output_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)

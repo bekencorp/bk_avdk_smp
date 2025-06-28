@@ -261,7 +261,7 @@ static uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_t
 		{
 			if (s_debug_en & 0x1)
 			{
-				os_printf("protect_time1 %lld %lld %d\r\n", s_bt_need_wakeup_time, current_tick, s_bt_system_wakeup_param.sleep_time);
+				BK_LOGD(NULL,"protect_time1 %lld %lld %d\r\n", s_bt_need_wakeup_time, current_tick, s_bt_system_wakeup_param.sleep_time);
 			}
 			return 0;
 		}
@@ -270,7 +270,7 @@ static uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_t
 	{
 		if (s_debug_en & 0x1)
 		{
-			os_printf("protect_time2 %lld %lld %d\r\n", s_bt_need_wakeup_time, current_tick, s_bt_system_wakeup_param.sleep_time);
+			BK_LOGD(NULL,"protect_time2 %lld %lld %d\r\n", s_bt_need_wakeup_time, current_tick, s_bt_system_wakeup_param.sleep_time);
 		}
 		return 0; // do something
 	}
@@ -293,8 +293,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 		if (s_debug_en & 0x1)
 		{
 #if 1
-			os_printf("lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
-			os_printf("lowvol2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
+			BK_LOGD(NULL,"lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
+			BK_LOGD(NULL,"lowvol2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
 #endif
 		}
 		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
@@ -327,8 +327,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 		if (s_debug_en & 0x2)
 		{
 #if 1
-			os_printf("deepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
-			os_printf("deepsleep2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
+			BK_LOGD(NULL,"deepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
+			BK_LOGD(NULL,"deepsleep2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
 #endif
 		}
 
@@ -347,8 +347,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 		if (s_debug_en & 0x2)
 		{
 #if 1
-			os_printf("superdeepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
-			os_printf("superdeepsleep2 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state);
+			BK_LOGD(NULL,"superdeepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
+			BK_LOGD(NULL,"superdeepsleep2 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state);
 #endif
 		}
 
@@ -367,8 +367,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 		if (s_debug_en & 0x1)
 		{
 #if 1
-			os_printf("lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
-			os_printf("lowvol2 0x%X 0x%X\r\n", s_pm_video_pm_state, s_pm_audio_pm_state);
+			BK_LOGD(NULL,"lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
+			BK_LOGD(NULL,"lowvol2 0x%X 0x%X\r\n", s_pm_video_pm_state, s_pm_audio_pm_state);
 #endif
 		}
 		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
@@ -444,7 +444,7 @@ bk_err_t pm_management(uint32_t sleep_ticks)
 		current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 	}
 
-	// os_printf("idle task after:%d \r\n",sleep_ticks);
+	// BK_LOGD(NULL,"idle task after:%d \r\n",sleep_ticks);
 	missed_ticks = pm_state_machine();
 	missed_ticks = sleep_ticks;
 	// bk_update_tick(missed_ticks);
@@ -615,7 +615,7 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 			if ((0x0 == sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY)) && (s_pm_phy_calibration_state == 0x1))
 			{
 				if (s_debug_en & 0x2)
-					os_printf("phy power on already\r\n");
+					BK_LOGD(NULL,"phy power on already\r\n");
 				return BK_OK;
 			}
 			else
@@ -651,7 +651,7 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 				{
 					if (s_debug_en & 0x2)
 					{
-						os_printf("phy power on fail 0x%x\r\n", sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY));
+						BK_LOGD(NULL,"phy power on fail 0x%x\r\n", sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_PHY));
 					}
 					return BK_FAIL;
 				}
@@ -809,7 +809,7 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 			{
 				// GLOBAL_INT_RESTORE();
 				if (s_debug_en & 0x2)
-					os_printf("module[%d] can not directly power off\r\n", module);
+					BK_LOGD(NULL,"module[%d] can not directly power off\r\n", module);
 				return BK_FAIL;
 			}
 
@@ -821,7 +821,7 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 					{
 						// GLOBAL_INT_RESTORE();
 						if (s_debug_en & 0x2)
-							os_printf("module[%d] can not directly power off\r\n", module);
+							BK_LOGD(NULL,"module[%d] can not directly power off\r\n", module);
 						return BK_FAIL;
 					}
 				}
@@ -845,7 +845,7 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 		}
 	}
 	if (s_debug_en & 0x2)
-		os_printf("cpu0 vote power 0x%X 0x%X\r\n", s_pm_on_modules, s_pm_off_modules);
+		BK_LOGD(NULL,"cpu0 vote power 0x%X 0x%X\r\n", s_pm_on_modules, s_pm_off_modules);
 	return BK_OK;
 
 }
@@ -881,8 +881,8 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 	{
 		if(s_pm_cp1_psram_malloc_count_state > 0)
 		{
-			os_printf("CP1 psram malloc count[%d] > 0\r\n",cp1_psram_malloc_count);
-			os_printf("Power consumption will get higher,free them\r\n");
+			BK_LOGD(NULL,"CP1 psram malloc count[%d] > 0\r\n",cp1_psram_malloc_count);
+			BK_LOGD(NULL,"Power consumption will get higher,free them\r\n");
 
 			bk_pm_dump_cp1_psram_malloc_info();
 		}
@@ -894,8 +894,8 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 	{
 		if(cp0_psram_malloc_count > 0)
 		{
-			os_printf("CP0 psram malloc count[%d] > 0\r\n",cp0_psram_malloc_count);
-			os_printf("Power consumption will get higher,free them\r\n");
+			BK_LOGD(NULL,"CP0 psram malloc count[%d] > 0\r\n",cp0_psram_malloc_count);
+			BK_LOGD(NULL,"Power consumption will get higher,free them\r\n");
 
 			bk_psram_heap_get_used_state();
 		}
@@ -960,7 +960,7 @@ bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module, uint32_t sl
 		s_pm_sleeped_modules &= ~(0x1ULL << module);
 	}
 	if (s_debug_en & 0x1)
-		os_printf("pm sleep state 0x%llX 0x%x %d\r\n", s_pm_sleeped_modules, s_pm_on_modules, module);
+		BK_LOGD(NULL,"pm sleep state 0x%llX 0x%x %d\r\n", s_pm_sleeped_modules, s_pm_on_modules, module);
 	GLOBAL_INT_RESTORE();
 
 	return BK_OK;
@@ -988,7 +988,7 @@ bk_err_t bk_pm_sleep_mode_set(pm_sleep_mode_e sleep_mode)
 		{
 			if (s_pm_superdeep_enter_cb_conf[i].cfg.cb != NULL)
 			{
-				// os_printf("%d %d\r\n", i, s_pm_superdeep_enter_cb_conf[i].id);
+				// BK_LOGD(NULL,"%d %d\r\n", i, s_pm_superdeep_enter_cb_conf[i].id);
 				s_pm_superdeep_enter_cb_conf[i].cfg.cb(0, s_pm_superdeep_enter_cb_conf[i].cfg.args);
 			}
 		}
@@ -1107,28 +1107,28 @@ static void pm_check_power_on_module()
 	{
 		s_pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_BTSP;
 		s_pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_BTSP;
-		// os_printf("bt not power on \r\n");
+		// BK_LOGD(NULL,"bt not power on \r\n");
 	}
 
 	if (!(s_pm_on_modules & (0x1 << PM_POWER_MODULE_NAME_WIFIP_MAC))) // when the module not power on , set the module sleep state
 	{
 		s_pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_WIFIP_MAC;
 		s_pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_WIFIP_MAC;
-		// os_printf("wifi not power on \r\n");
+		// BK_LOGD(NULL,"wifi not power on \r\n");
 	}
 
 	if (!(s_pm_on_modules & (0x1 << PM_POWER_MODULE_NAME_AUDP))) // when the module not power on , set the module sleep state
 	{
 		s_pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_AUDP;
 		s_pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_AUDP;
-		// os_printf("audio not power on \r\n");
+		// BK_LOGD(NULL,"audio not power on \r\n");
 	}
 
 	if (!(s_pm_on_modules & (0x1 << PM_POWER_MODULE_NAME_VIDP))) // when the module not power on , set the module sleep state
 	{
 		s_pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_VIDP;
 		s_pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_VIDP;
-		// os_printf("video not power on \r\n");
+		// BK_LOGD(NULL,"video not power on \r\n");
 	}
 
 #if 1
@@ -1238,7 +1238,7 @@ int32 bk_pm_module_power_state_get(pm_power_module_name_e module)
 	{
 		if (module >= PM_POWER_MODULE_NAME_NONE)
 		{
-			os_printf("pm module[%d] not support ,get power state fail %d\r\n", module);
+			BK_LOGD(NULL,"pm module[%d] not support ,get power state fail %d\r\n", module);
 			return BK_ERR_NOT_SUPPORT;
 		}
 		else
@@ -1292,7 +1292,7 @@ static void pm_module_check_power_off(pm_power_module_name_e module)
 		}
 		if (s_debug_en & 0x2)
 		{
-			os_printf("pm_module_check_power_off module[%d][%d]\r\n", module, sys_drv_module_power_state_get(module));
+			BK_LOGD(NULL,"pm_module_check_power_off module[%d][%d]\r\n", module, sys_drv_module_power_state_get(module));
 		}
 		sys_drv_module_power_ctrl(module, PM_POWER_MODULE_STATE_OFF);
 
@@ -1569,7 +1569,7 @@ static void pm_low_voltage_resource_restore()
 					s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].cb(0, s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].args);
 					if (s_debug_en & 0x2)
 					{
-						os_printf("wifi exit low vol arg:%d\r\n", s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].args);
+						BK_LOGD(NULL,"wifi exit low vol arg:%d\r\n", s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].args);
 					}
 				}
 				else
@@ -1628,7 +1628,7 @@ static uint32_t pm_low_voltage_process()
 	/*Debug pd,lpo,psram end*/
 	pm_low_voltage_resource_restore();
 	if (s_debug_en & 0x2)
-		os_printf("low voltage int open before\r\n");
+		BK_LOGD(NULL,"low voltage int open before\r\n");
 
 
 #if CONFIG_AON_RTC
@@ -1639,7 +1639,7 @@ static uint32_t pm_low_voltage_process()
 	rtos_exit_critical(int_level);
 
 	if (s_debug_en & 0x2)
-		os_printf("low voltage int open after 0x%x 0x%x \r\n", /*int_mie,*/ int_level, bk_pm_lp_vol_get());
+		BK_LOGD(NULL,"low voltage int open after 0x%x 0x%x \r\n", /*int_mie,*/ int_level, bk_pm_lp_vol_get());
 
 	return sleep_tick;
 }
@@ -1704,18 +1704,18 @@ static void pm_sleep_cb_push_item(pm_sleep_cb_t cb_arr[], uint8_t *cb_cnt_p, pm_
 	if (*cb_cnt_p == PM_DEEPSLEEP_CB_SIZE)
 	{
 		if (s_debug_en & 0x2)
-			os_printf("call back function overflow, dev %d regist fail!\r\n", cb_item.id);
+			BK_LOGD(NULL,"call back function overflow, dev %d regist fail!\r\n", cb_item.id);
 		if (s_debug_en & 0x1)
 		{
-			os_printf("cb functions dump: [ ");
+			BK_LOGD(NULL,"cb functions dump: [ ");
 			for (uint8_t i = 0; i < PM_DEEPSLEEP_CB_SIZE; i++)
-				os_printf("%d ", cb_arr[i].id);
-			os_printf("]\r\n");
+				BK_LOGD(NULL,"%d ", cb_arr[i].id);
+			BK_LOGD(NULL,"]\r\n");
 		}
 		return;
 	} else if (cb_arr[*cb_cnt_p].cfg.cb != NULL) {
 		if (s_debug_en & 0x2)
-			os_printf("cb functions have overlap warning, dev %d -> %d\r\n", cb_item.id, cb_arr[*cb_cnt_p].id);
+			BK_LOGD(NULL,"cb functions have overlap warning, dev %d -> %d\r\n", cb_item.id, cb_arr[*cb_cnt_p].id);
 	}
 
 	for (uint8_t i = 0; i < *cb_cnt_p; i++)
@@ -1813,7 +1813,7 @@ bk_err_t bk_pm_sleep_register_cb(pm_sleep_mode_e sleep_mode, pm_dev_id_e dev_id,
 #endif
 	else
 	{
-		os_printf("The sleep mode[%d] not support register call back \r\n", sleep_mode);
+		BK_LOGD(NULL,"The sleep mode[%d] not support register call back \r\n", sleep_mode);
 	}
 	GLOBAL_INT_RESTORE();
 	return BK_OK;
@@ -1891,7 +1891,7 @@ bk_err_t bk_pm_sleep_unregister_cb(pm_sleep_mode_e sleep_mode, pm_dev_id_e dev_i
 #endif
 	else
 	{
-		os_printf("The sleep mode[%d] not support unregister call back \r\n", sleep_mode);
+		BK_LOGD(NULL,"The sleep mode[%d] not support unregister call back \r\n", sleep_mode);
 	}
 	GLOBAL_INT_RESTORE();
 
@@ -2075,11 +2075,11 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 
 	if (ret != BK_OK)
 	{
-		os_printf("cpu0 switch cpu freq error\r\n");
+		BK_LOGD(NULL,"cpu0 switch cpu freq error\r\n");
 		return ret;
 	}
 	if (s_debug_en & 0x2)
-		os_printf("cpu0 switch cpu freq %d %d\r\n", freq_max, freq_max_index);
+		BK_LOGD(NULL,"cpu0 switch cpu freq %d %d\r\n", freq_max, freq_max_index);
 	return BK_OK;
 
 }
@@ -2110,7 +2110,7 @@ bk_err_t bk_pm_rosc_calibration(pm_rosc_cali_mode_e rosc_cali_mode, uint32_t cal
 	ret = sys_drv_rosc_calibration(rosc_cali_mode, cali_interval);
 	if (ret != BK_OK)
 	{
-		os_printf("set rosc calibration parameter error %d %d \r\n", rosc_cali_mode, cali_interval);
+		BK_LOGD(NULL,"set rosc calibration parameter error %d %d \r\n", rosc_cali_mode, cali_interval);
 		return ret;
 	}
 	return BK_OK;
@@ -2174,7 +2174,7 @@ bk_err_t pm_clk_32k_source_switch(pm_lpo_src_e lpo_src)
 
 	if (s_debug_en & 0x2)
 	{
-		os_printf("customer set clk %d\r\n", clk_src);
+		BK_LOGD(NULL,"customer set clk %d\r\n", clk_src);
 	}
 
 	if (clk_src != PM_LPO_SRC_X32K)
@@ -2185,7 +2185,7 @@ bk_err_t pm_clk_32k_source_switch(pm_lpo_src_e lpo_src)
 	clk_src = bk_pm_lpo_src_get();
 	if (s_debug_en & 0x2)
 	{
-		os_printf("current clk %d,set clk %d\r\n", clk_src, lpo_src);
+		BK_LOGD(NULL,"current clk %d,set clk %d\r\n", clk_src, lpo_src);
 	}
 
 	if (clk_src == lpo_src)
@@ -2215,7 +2215,7 @@ bk_err_t pm_clk_32k_source_switch(pm_lpo_src_e lpo_src)
 		ret = rtos_get_semaphore(&s_sync_sema, SWITCH_32K_WAIT);
 		if (ret < 0)
 		{
-			os_printf(" ERR: wait sema timeout\r\n");
+			BK_LOGD(NULL," ERR: wait sema timeout\r\n");
 			rtos_deinit_semaphore(&s_sync_sema);
 			return BK_FAIL;
 		}
@@ -2257,21 +2257,21 @@ bk_err_t pm_debug_module_state()
 #if 1
 	if(s_pm_video_pm_state > 0)
 	{
-		os_printf("Video not PD[modulue:0x%x]\r\n",s_pm_video_pm_state);
+		BK_LOGD(NULL,"Video not PD[modulue:0x%x]\r\n",s_pm_video_pm_state);
 	}
 	if(s_pm_audio_pm_state > 0)
 	{
-		os_printf("Audio not PD[modulue:0x%x]\r\n",s_pm_audio_pm_state);
+		BK_LOGD(NULL,"Audio not PD[modulue:0x%x]\r\n",s_pm_audio_pm_state);
 	}
 
 	if(!bk_pm_module_power_state_get(PM_POWER_MODULE_NAME_CPU1))
 	{
-		os_printf("Cp1 not PD[state:0x%x]\r\n",bk_pm_module_power_state_get(PM_POWER_MODULE_NAME_CPU1));
+		BK_LOGD(NULL,"Cp1 not PD[state:0x%x]\r\n",bk_pm_module_power_state_get(PM_POWER_MODULE_NAME_CPU1));
 	}
 
 	if(!(REG_READ(PM_DEBUG_SYS_REG_BASE+0x6*4)&0x2))
 	{
-		os_printf("Cp2 not PD[state:0x%x]\r\n",REG_READ(PM_DEBUG_SYS_REG_BASE+0x6*4));
+		BK_LOGD(NULL,"Cp2 not PD[state:0x%x]\r\n",REG_READ(PM_DEBUG_SYS_REG_BASE+0x6*4));
 	}
 
 	#if CONFIG_PSRAM_AS_SYS_MEMORY
@@ -2281,8 +2281,8 @@ bk_err_t pm_debug_module_state()
 	uint32_t cp1_psram_malloc_count = s_pm_cp1_psram_malloc_count_state;
 	if(cp1_psram_malloc_count > 0)
 	{
-		os_printf("CP1 psram malloc count[%d] > 0\r\n",cp1_psram_malloc_count);
-		os_printf("Power consumption will get higher, please free them\r\n");
+		BK_LOGD(NULL,"CP1 psram malloc count[%d] > 0\r\n",cp1_psram_malloc_count);
+		BK_LOGD(NULL,"Power consumption will get higher, please free them\r\n");
 		bk_pm_dump_cp1_psram_malloc_info();
 	}
 	#endif
@@ -2290,8 +2290,8 @@ bk_err_t pm_debug_module_state()
 	cp0_psram_malloc_count = bk_psram_heap_get_used_count();
 	if(cp0_psram_malloc_count > 0)
 	{
-		os_printf("CP0 psram malloc count[%d] > 0\r\n",cp0_psram_malloc_count);
-		os_printf("power consumption will get higher,free them\r\n");
+		BK_LOGD(NULL,"CP0 psram malloc count[%d] > 0\r\n",cp0_psram_malloc_count);
+		BK_LOGD(NULL,"power consumption will get higher,free them\r\n");
 		bk_psram_heap_get_used_state();
 	}
 	#endif
@@ -2304,27 +2304,27 @@ void pm_debug_ctrl(uint32_t debug_en)
 #if 1
 	if(debug_en == PM_DEBUG_CTRL_STATE)
 	{
-		os_printf("pm video,audio:0x%x 0x%x \r\n",s_pm_video_pm_state,s_pm_audio_pm_state);
-		os_printf("pm ahpb,bakp:0x%x 0x%x\r\n",s_pm_ahpb_pm_state,s_pm_bakp_pm_state);
-		os_printf("pm low vol[module:0x%llx] [need module:0x%llx]\r\n",s_pm_sleeped_modules,s_pm_enter_low_vol_modules);
-		os_printf("pm deepsleep[module:0x%x][need module:0x%x]\r\n",s_pm_off_modules,s_pm_enter_deep_sleep_modules);
-		os_printf("pm power,pmu[0x%x][0x%x][%d],[0x%x][0x%x][0x%x],[0x%x][0x%x][0x%x]\r\n",REG_READ(PM_DEBUG_SYS_REG_BASE+0x10*4),REG_READ(PM_DEBUG_PMU_REG_BASE+0x41*4),s_pm_exit_low_vol_wakeup_source,
+		BK_LOGD(NULL,"pm video,audio:0x%x 0x%x \r\n",s_pm_video_pm_state,s_pm_audio_pm_state);
+		BK_LOGD(NULL,"pm ahpb,bakp:0x%x 0x%x\r\n",s_pm_ahpb_pm_state,s_pm_bakp_pm_state);
+		BK_LOGD(NULL,"pm low vol[module:0x%llx] [need module:0x%llx]\r\n",s_pm_sleeped_modules,s_pm_enter_low_vol_modules);
+		BK_LOGD(NULL,"pm deepsleep[module:0x%x][need module:0x%x]\r\n",s_pm_off_modules,s_pm_enter_deep_sleep_modules);
+		BK_LOGD(NULL,"pm power,pmu[0x%x][0x%x][%d],[0x%x][0x%x][0x%x],[0x%x][0x%x][0x%x]\r\n",REG_READ(PM_DEBUG_SYS_REG_BASE+0x10*4),REG_READ(PM_DEBUG_PMU_REG_BASE+0x41*4),s_pm_exit_low_vol_wakeup_source,
 																	s_before_low_vol_pd,s_before_low_vol_lpo,s_before_low_vol_psram,
 																	s_after_low_vol_pd,s_after_low_vol_lpo,s_after_low_vol_psram);
-		os_printf("pm subcores state:0x%x\r\n",REG_READ(PM_DEBUG_PMU_REG_BASE+0x3*4));
+		BK_LOGD(NULL,"pm subcores state:0x%x\r\n",REG_READ(PM_DEBUG_PMU_REG_BASE+0x3*4));
 		#if CONFIG_PM_LV_TIME_COST_DEBUG
-		os_printf("pm lv time[%lld][%lld][%lld][%lld]\r\n"	,pm_lv_rtc_interval_get(PM_LV_WAKEUP_STEP_1)
+		BK_LOGD(NULL,"pm lv time[%lld][%lld][%lld][%lld]\r\n"	,pm_lv_rtc_interval_get(PM_LV_WAKEUP_STEP_1)
 			                                                ,pm_lv_rtc_interval_get(PM_LV_WAKEUP_STEP_2)
 			                                                ,pm_lv_rtc_interval_get(PM_LV_ENTER_STEP_1)
 			                                                ,pm_lv_rtc_interval_get(PM_LV_ENTER_STEP_2));
 		#endif
 		if(s_pm_ahpb_pm_state > 0)
 		{
-			os_printf("Ahbp not PD[module:0x%x]\r\n",s_pm_ahpb_pm_state);
+			BK_LOGD(NULL,"Ahbp not PD[module:0x%x]\r\n",s_pm_ahpb_pm_state);
 		}
 		if(s_pm_bakp_pm_state > 0)
 		{
-			os_printf("Bakp not PD[module:0x%x]\r\n",s_pm_bakp_pm_state);
+			BK_LOGD(NULL,"Bakp not PD[module:0x%x]\r\n",s_pm_bakp_pm_state);
 		}
 		pm_cp1_psram_malloc_state_get();
 		pm_debug_module_state();

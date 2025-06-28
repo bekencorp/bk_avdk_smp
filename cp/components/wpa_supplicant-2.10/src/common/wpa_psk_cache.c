@@ -104,7 +104,7 @@ int __wpa_get_psk_from_cache(u8 *ssid, size_t ssid_len, char *passphrase, u8 *ps
 	struct wpa_psk_cache_item *item;
 	struct wpa_psk_cache *cache = psk_cache;
 
-	//WPA_LOGI("ssid: %s, passphase: %s\r\n", wpa_ssid_txt(ssid, ssid_len), passphrase);
+	//WPA_LOGD("ssid: %s, passphase: %s\r\n", wpa_ssid_txt(ssid, ssid_len), passphrase);
 
 	rtos_get_semaphore(&cache->sema, BEKEN_WAIT_FOREVER);
 
@@ -258,9 +258,9 @@ void wpa_psk_cal_thread(void *arg)
 
 		// caculate psk on pending list
 		dl_list_for_each_safe(item, n, &cache->pending, struct wpa_psk_cache_item, node) {
-			WPA_LOGI("PSKC: start, ssid %s\n", wpa_ssid_txt((u8 *)item->ssid, item->ssid_len));
+			WPA_LOGD("PSKC: start, ssid %s\n", wpa_ssid_txt((u8 *)item->ssid, item->ssid_len));
 			pbkdf2_sha1(item->passphrase, (u8 *)item->ssid, item->ssid_len, 4096, item->psk, sizeof(item->psk));
-			WPA_LOGI("PSKC: end\n");
+			WPA_LOGD("PSKC: end\n");
 
 			// requeue to complete list.
 			rtos_get_semaphore(&cache->sema, BEKEN_WAIT_FOREVER);
@@ -282,7 +282,7 @@ int __wpa_get_psk_from_cache(u8 *ssid, size_t ssid_len, char *passphrase, u8 *ps
 {
 	struct wpa_psk_cache *cache = psk_cache;
 
-	//WPA_LOGI("ssid: %s, passphase: %s\r\n", wpa_ssid_txt(ssid, ssid_len), passphrase);
+	//WPA_LOGD("ssid: %s, passphase: %s\r\n", wpa_ssid_txt(ssid, ssid_len), passphrase);
 
 	rtos_get_semaphore(&cache->sema, BEKEN_WAIT_FOREVER);
 
@@ -409,9 +409,9 @@ void wpa_psk_cal_thread(void *arg)
 			break;
 		}
 
-		WPA_LOGI("PSKC: ssid %s, passphrase %s\n", wpa_ssid_txt((uint8_t*)ssid, ssid_len), passphrase);
+		WPA_LOGD("PSKC: ssid %s, passphrase %s\n", wpa_ssid_txt((uint8_t*)ssid, ssid_len), passphrase);
 		pbkdf2_sha1(passphrase, (u8 *)ssid, ssid_len, 4096, psk, sizeof(psk));
-		WPA_LOGI("PSKC: end\n");
+		WPA_LOGD("PSKC: end\n");
 
 		/* determine ssid & passphrase have been changed */
 		rtos_get_semaphore(&cache->sema, BEKEN_WAIT_FOREVER);

@@ -93,7 +93,7 @@ static int symmetric_algo_test(void)
 	{
 		if( in_buf[i] != i%0xff )
 		{
-			os_printf("Err:sym algo test fail\r\n");
+			BK_LOGD(NULL,"Err:sym algo test fail\r\n");
 			return -1;
 		}
 	}
@@ -128,7 +128,7 @@ static int asymmetric_algo_test(void)
 	ret = mbedtls_ecdsa_read_signature( &ctx_verify, &digest[0], sizeof(digest),sig, sig_len );
 	if(ret != 0)
 	{
-		os_printf("Err:asym algo test fail\r\n");
+		BK_LOGD(NULL,"Err:asym algo test fail\r\n");
 	}
 
 	mbedtls_ecdsa_free( &ctx_verify );
@@ -155,7 +155,7 @@ void te200_muti_task_test( void *para )
 
 		if( ++count > max_count )
 		{
-			os_printf("Suc: mbedtls multi test pass \r\n");
+			BK_LOGD(NULL,"Suc: mbedtls multi test pass \r\n");
 			goto exit;
 		}
 	}

@@ -25,6 +25,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define TAG "db-core"
 
@@ -73,12 +74,12 @@ static void doorbell_message_handle(void)
 
         if (kNoErr == ret)
         {
-            LOGI("######%s, event:%d\n", __func__, msg.event);
+            LOGD("######%s, event:%d\n", __func__, msg.event);
             switch (msg.event)
             {
                 case DBEVT_WIFI_STATION_CONNECT:
                 {
-                    LOGI("DBEVT_WIFI_STATION_CONNECT\n");
+                    LOGD("DBEVT_WIFI_STATION_CONNECT\n");
 
                     doorbell_boarding_info_t *doorbell_boarding_info = (doorbell_boarding_info_t *) msg.param;
                     doorbell_wifi_sta_connect(doorbell_boarding_info->boarding_info.ssid_value,
@@ -88,7 +89,7 @@ static void doorbell_message_handle(void)
 
                 case DBEVT_WIFI_STATION_CONNECTED:
                 {
-                    LOGI("DBEVT_WIFI_STATION_CONNECTED\n");
+                    LOGD("DBEVT_WIFI_STATION_CONNECTED\n");
 
                     netif_ip4_config_t ip4_config;
                     extern uint32_t uap_ip_is_start(void);
@@ -104,7 +105,7 @@ static void doorbell_message_handle(void)
                         bk_netif_get_ip4_config(NETIF_IF_STA, &ip4_config);
                     }
 
-                    LOGI("ip: %s\n", ip4_config.ip);
+                    LOGD("ip: %s\n", ip4_config.ip);
 
                     doorbell_boarding_event_notify_with_data(BOARDING_OP_STATION_START, BK_OK, ip4_config.ip, strlen(ip4_config.ip));
                 }
@@ -112,13 +113,13 @@ static void doorbell_message_handle(void)
 
                 case DBEVT_WIFI_STATION_DISCONNECTED:
                 {
-                    LOGI("DBEVT_WIFI_STATION_DISCONNECTED\n");
+                    LOGD("DBEVT_WIFI_STATION_DISCONNECTED\n");
                 }
                 break;
 
                 case DBEVT_WIFI_SOFT_AP_TURNING_ON:
                 {
-                    LOGI("%s, DBEVT_WIFI_SOFT_AP_TURNING_ON, warning: not adapt\n", __func__);
+                    LOGD("%s, DBEVT_WIFI_SOFT_AP_TURNING_ON, warning: not adapt\n", __func__);
 #if 0
                     doorbell_boarding_info_t *doorbell_boarding_info = (doorbell_boarding_info_t *) msg.param;
                     int ret = doorbell_wifi_soft_ap_start(doorbell_boarding_info->boarding_info.ssid_value,
@@ -139,7 +140,7 @@ static void doorbell_message_handle(void)
 
                 case DBEVT_LAN_UDP_SERVICE_START_REQUEST:
                 {
-                    LOGI("DBEVT_LAN_UDP_SERVICE_START_REQUEST\n");
+                    LOGD("DBEVT_LAN_UDP_SERVICE_START_REQUEST\n");
 
                     if (db_info->service != DOORBELL_SERVICE_NONE)
                     {
@@ -156,7 +157,7 @@ static void doorbell_message_handle(void)
 
                 case DBEVT_LAN_UDP_SERVICE_START_RESPONSE:
                 {
-                    LOGI("DBEVT_LAN_UDP_SERVICE_START_RESPONSE\n");
+                    LOGD("DBEVT_LAN_UDP_SERVICE_START_RESPONSE\n");
 
                     doorbell_sdp_start("doorbell-udp", DOORBELL_CMD_PORT, DOORBELL_UDP_IMG_PORT, DOORBELL_UDP_AUD_PORT);
 
@@ -166,7 +167,7 @@ static void doorbell_message_handle(void)
 
                 case DBEVT_LAN_TCP_SERVICE_START_REQUEST:
                 {
-                    LOGI("DBEVT_LAN_TCP_SERVICE_START_REQUEST\n");
+                    LOGD("DBEVT_LAN_TCP_SERVICE_START_REQUEST\n");
 
                     if (db_info->service != DOORBELL_SERVICE_NONE)
                     {
@@ -184,7 +185,7 @@ static void doorbell_message_handle(void)
 
                 case DBEVT_LAN_TCP_SERVICE_START_RESPONSE:
                 {
-                    LOGI("DBEVT_LAN_TCP_SERVICE_START_RESPONSE\n");
+                    LOGD("DBEVT_LAN_TCP_SERVICE_START_RESPONSE\n");
 
                     doorbell_sdp_start("doorbell-tcp", DOORBELL_CMD_PORT, DOORBELL_TCP_IMG_PORT, DOORBELL_TCP_AUD_PORT);
 
@@ -195,7 +196,7 @@ static void doorbell_message_handle(void)
                 case DBEVT_P2P_CS2_SERVICE_START_REQUEST:
                 {
 #ifdef CONFIG_INTEGRATION_DOORBELL_CS2
-                    LOGI("DBEVT_P2P_CS2_SERVICE_START_REQUEST\n");
+                    LOGD("DBEVT_P2P_CS2_SERVICE_START_REQUEST\n");
 
                     if (db_info->service != DOORBELL_SERVICE_NONE)
                     {
@@ -232,7 +233,7 @@ static void doorbell_message_handle(void)
                 {
 #if CONFIG_BLUETOOTH_AP
                     bk_bluetooth_deinit();
-                    LOGI("close bluetooth finish!\r\n");
+                    LOGD("close bluetooth finish!\r\n");
 #endif
                 }
                 break;
@@ -377,7 +378,7 @@ void doorbell_core_init(void)
 
     db_info->enabled = BK_TRUE;
 
-    LOGI("%s success\n", __func__);
+    LOGD("%s success\n", __func__);
 
     return;
 

@@ -77,29 +77,29 @@ static void ckmn_isr(void)
 {
 	ckmn_hal_t *hal = &s_ckmn.hal;
 	if (ckmn_hal_get_ckest_intr_status(hal)) {
-		CKMN_LOGD("ckmn_isr CKEST FINISH TRIGGERED!\r\n");
+		CKMN_LOGV("ckmn_isr CKEST FINISH TRIGGERED!\r\n");
 		//NOTES:clear intrrupt in condition because maybe multi-core(two CPU) access one CKMN
 		//it can't cleared peer-side channels status.
 		if (s_ckmn_isr[CKMN_INT_CKEST]) {
-			CKMN_LOGD("ckmn_isr CLSET_finish_isr!\r\n");
+			CKMN_LOGV("ckmn_isr CLSET_finish_isr!\r\n");
 			ckmn_hal_clear_ckest_intr_status(hal);
 			s_ckmn_isr[CKMN_INT_CKEST]();
 		}
 	}
 
 	if (ckmn_hal_get_cor26m_intr_status(hal)) {
-		CKMN_LOGD("ckmn_isr cor26m_intr TRIGGERED!\r\n");
+		CKMN_LOGV("ckmn_isr cor26m_intr TRIGGERED!\r\n");
 		if (s_ckmn_isr[CKMN_INT_26M]) {
-			CKMN_LOGD("ckmn_isr cor26m_isr!\r\n");
+			CKMN_LOGV("ckmn_isr cor26m_isr!\r\n");
 			ckmn_hal_clear_cor26m_intr_status(hal);
 			s_ckmn_isr[CKMN_INT_26M]();
 		}
 	}
 
 	if (ckmn_hal_get_cor32k_intr_status(hal)) {
-		CKMN_LOGD("ckmn_isr cor32k_intr TRIGGERED!\r\n");
+		CKMN_LOGV("ckmn_isr cor32k_intr TRIGGERED!\r\n");
 		if (s_ckmn_isr[CKMN_INT_32K]) {
-			CKMN_LOGD("ckmn_isr cor32k_isr!\r\n");
+			CKMN_LOGV("ckmn_isr cor32k_isr!\r\n");
 			ckmn_hal_clear_cor32k_intr_status(hal);
 			s_ckmn_isr[CKMN_INT_32K]();
 		}

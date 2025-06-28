@@ -32,6 +32,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 static pixel_format_t lcd_fmt = PIXEL_FMT_UNKNOW;
 static media_rotate_t pipeline_rotate = ROTATE_90;
@@ -57,6 +58,8 @@ bk_err_t h264_jdec_pipeline_open(void)
 {
 	int ret = BK_OK;
 
+	uvc_pipeline_init();
+
 	media_camera_device_t device = DEFAULT_CAMERA_CONFIG();
 	// step 1: init h264_encode_task
 	device.type = UVC_CAMERA;
@@ -78,33 +81,33 @@ bk_err_t h264_jdec_pipeline_open(void)
 			goto error;
 		}
 		bk_jdec_buffer_request_register(PIPELINE_MOD_H264, bk_h264_encode_request, bk_h264_reset_request);
-		LOGD("%s, jdec_h264_enc_en \n", __func__);
+		LOGV("%s, jdec_h264_enc_en \n", __func__);
 	}
 	else
 	{
 		bk_jdec_buffer_request_register(PIPELINE_MOD_H264, bk_h264_encode_request, bk_h264_reset_request);
-		LOGD("%s, jdec_h264_enc_en \n", __func__);
+		LOGV("%s, jdec_h264_enc_en \n", __func__);
 	}
 	return ret;
 
 error:
 	bk_jdec_buffer_request_deregister(PIPELINE_MOD_H264);
 	h264_encode_task_close();
-    if (check_rotate_task_is_open() == false)
-    {
-        jpeg_decode_task_close();
-    }
+	if (check_rotate_task_is_open() == false)
+	{
+		jpeg_decode_task_close();
+	}
 	return BK_FAIL;
 }
 
 bk_err_t h264_jdec_pipeline_close(void)
 {
-	LOGD("%s %d\n", __func__, __LINE__);
+	LOGV("%s %d\n", __func__, __LINE__);
 
 	if (check_rotate_task_is_open())
 	{
 		bk_jdec_buffer_request_deregister(PIPELINE_MOD_H264);
-		LOGD("%s jdec_h264_enc_en = 0 %d \n", __func__, __LINE__);
+		LOGV("%s jdec_h264_enc_en = 0 %d \n", __func__, __LINE__);
 		//rtos_delay_milliseconds(200);
 		h264_encode_task_close();
 	}
@@ -113,9 +116,9 @@ bk_err_t h264_jdec_pipeline_close(void)
 		bk_jdec_buffer_request_deregister(PIPELINE_MOD_H264);
 		h264_encode_task_close();
 		jpeg_decode_task_close();
-		LOGD("%s decode task close complete \n", __func__);
+		LOGV("%s decode task close complete \n", __func__);
 	}
-	LOGI("%s complete, %d \n", __func__, __LINE__);
+	LOGD("%s complete, %d \n", __func__, __LINE__);
 
 	return BK_OK;
 }
@@ -124,32 +127,32 @@ bk_err_t lcd_set_fmt(uint32_t fmt)
 {
 	lcd_fmt = fmt;
 	LOGE("%s, fmt %x\n", __func__, lcd_fmt);
-
 	return BK_OK;
 }
 
 bk_err_t pipeline_set_rotate(media_rotate_t rotate)
 {
 	pipeline_rotate = rotate;
-	LOGI("%s, rotate angle = %d (0:0, 1:90,2:180,3:270)\r\n", __func__, pipeline_rotate);
+	LOGD("%s, rotate angle = %d (0:0, 1:90,2:180,3:270)\r\n", __func__, pipeline_rotate);
 	jpeg_decode_set_rotate_angle(pipeline_rotate);
 	return BK_OK;
 }
 
-
 bk_err_t lcd_disp_pipeline_close(void)
 {
-    int ret = BK_OK;
+	int ret = BK_OK;
 
-    ret = lcd_display_close();
+	ret = lcd_display_close();
 
-    return ret;
+	return ret;
 }
 
 bk_err_t lcd_jdec_pipeline_open(void)
 {
 	int ret = BK_OK;
 	rot_open_t rot_open = {0};
+
+	uvc_pipeline_init();
 
 #if SUPPORTED_IMAGE_MAX_720P
 	lcd_scale_t local_lcd_scale = {PPI_1280X720, PPI_864X480};  // {PPI_864X480, PPI_480X480}, {PPI_1280X720, PPI_864X480}, {PPI_640X480, PPI_480X800};{PPI_480X320, PPI_480X864};
@@ -204,16 +207,16 @@ bk_err_t lcd_jdec_pipeline_open(void)
 		bk_jdec_buffer_request_register(PIPELINE_MOD_ROTATE, bk_rotate_encode_request, bk_rotate_reset_request);
 #endif
 	}
-	LOGD("%s %d\n", __func__, __LINE__);
+	LOGV("%s %d\n", __func__, __LINE__);
 	return ret;
 
 error:
-	LOGI("%s fail\n", __func__, __LINE__);
+	LOGD("%s fail\n", __func__, __LINE__);
 	rotate_task_close();
 	if (check_h264_task_is_open() == false)
-    {
-        jpeg_decode_task_close();
-    }
+	{
+		jpeg_decode_task_close();
+	}
 	return BK_FAIL;
 }
 
@@ -221,17 +224,17 @@ bk_err_t lcd_jdec_pipeline_close(void)
 {
 	int ret = BK_OK;
 
-	LOGD("%s %d\n", __func__, __LINE__);
+	LOGV("%s %d\n", __func__, __LINE__);
 
 	if (check_h264_task_is_open())
 	{
 #if SUPPORTED_IMAGE_MAX_720P
-		LOGD("%s deregister scale, %d \n", __func__, __LINE__);
+		LOGV("%s deregister scale, %d \n", __func__, __LINE__);
 		rotate_task_close();
 		bk_jdec_buffer_request_deregister(PIPELINE_MOD_SCALE);
 		scale_task_close();
 #else
-		LOGD("%s deregister rotate, %d \n", __func__, __LINE__);
+		LOGV("%s deregister rotate, %d \n", __func__, __LINE__);
 		bk_jdec_buffer_request_deregister(PIPELINE_MOD_ROTATE);
 		rotate_task_close();
 #endif
@@ -239,12 +242,12 @@ bk_err_t lcd_jdec_pipeline_close(void)
 	else
 	{
 #if SUPPORTED_IMAGE_MAX_720P
-		LOGD("%s deregister scale, %d \n", __func__, __LINE__);
+		LOGV("%s deregister scale, %d \n", __func__, __LINE__);
 		rotate_task_close();
 		bk_jdec_buffer_request_deregister(PIPELINE_MOD_SCALE);
 		scale_task_close();
 #else
-		LOGD("%s deregister rotate, %d \n", __func__, __LINE__);
+		LOGV("%s deregister rotate, %d \n", __func__, __LINE__);
 		bk_jdec_buffer_request_deregister(PIPELINE_MOD_ROTATE);
 		rotate_task_close();
 #endif
@@ -257,46 +260,51 @@ bk_err_t lcd_jdec_pipeline_close(void)
 		}
 	}
 
-	LOGD("%s complete, %d \n", __func__, __LINE__);
+	LOGV("%s complete, %d \n", __func__, __LINE__);
 
 	return BK_OK;
 }
 
-
 void pipeline_mem_show(void)
 {
 	uint32_t total_size,free_size,mini_size;
-//	LOGI("================Static memory================\r\n");
-//	os_show_memory_config_info();
+	//LOGD("================Static memory================\r\n");
+	//os_show_memory_config_info();
 
-	LOGI("================Dynamic memory================\r\n");
-	LOGI("%-5s   %-5s   %-5s	 %-5s	%-5s\r\n",
+	LOGD("================Dynamic memory================\r\n");
+	LOGD("%-5s   %-5s   %-5s	 %-5s	%-5s\r\n",
 		"name", "total", "free", "minimum", "peak");
 
 	total_size = rtos_get_total_heap_size();
 	free_size  = rtos_get_free_heap_size();
 	mini_size  = rtos_get_minimum_free_heap_size();
-	LOGI("heap\t%d\t%d\t%d\t%d\r\n",	total_size,free_size,mini_size,total_size-mini_size);
+	LOGD("heap\t%d\t%d\t%d\t%d\r\n",	total_size,free_size,mini_size,total_size-mini_size);
 
 #if CONFIG_PSRAM_AS_SYS_MEMORY
 	total_size = rtos_get_psram_total_heap_size();
 	free_size  = rtos_get_psram_free_heap_size();
 	mini_size  = rtos_get_psram_minimum_free_heap_size();
-	LOGI("psram\t%d\t%d\t%d\t%d\r\n", total_size,free_size,mini_size,total_size-mini_size);
+	LOGD("psram\t%d\t%d\t%d\t%d\r\n", total_size,free_size,mini_size,total_size-mini_size);
 #endif
 }
 
 void pipeline_mem_leak(void)
 {
-	LOGI("%s %d\n", __func__, __LINE__);
+	LOGD("%s %d\n", __func__, __LINE__);
 #if CONFIG_MEM_DEBUG
 	os_dump_memory_stats(0, 0, NULL);
 #endif
 }
 
-
 bk_err_t uvc_pipeline_init(void)
 {
+	static uint8_t pipeline_init = false;
+
+	if (pipeline_init)
+	{
+		return BK_OK;
+	}
+
 	mux_sram_buffer = (mux_sram_buffer_t *)media_bt_share_buffer;
 	if (mux_sram_buffer == NULL)
 	{
@@ -307,11 +315,11 @@ bk_err_t uvc_pipeline_init(void)
 
 		if (mux_sram_buffer == NULL)
 		{
-			LOGE("%s, malloc mux_sram_buffer failed\r\n", __func__);
+			BK_ASSERT_EX(0, "%s, malloc mux_sram_buffer failed\r\n", __func__);
 		}
 	}
 
-	LOGI("%s mux_sram_buffer_t: %d\n", __func__, sizeof(mux_sram_buffer_t));
+	LOGD("%s mux_sram_buffer_t: %d\n", __func__, sizeof(mux_sram_buffer_t));
 
 	bk_jdec_pipeline_init();
 
@@ -322,6 +330,8 @@ bk_err_t uvc_pipeline_init(void)
 	bk_rotate_pipeline_init();
 
 	bk_h264_pipeline_init();
+
+	pipeline_init = true;
 
 	return BK_OK;
 }

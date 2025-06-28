@@ -285,8 +285,8 @@ int genphy_parse_link(struct phy_device *phydev)  // genphy_read_status
 			 */
 			gblpa = phy_read(phydev, MDIO_DEVAD_NONE, MII_STAT1000);
 			if (gblpa < 0) {
-				os_printf("Could not read MII_STAT1000. ");
-				os_printf("Ignoring gigabit capability\n");
+				BK_LOGD(NULL, "Could not read MII_STAT1000. ");
+				BK_LOGD(NULL, "Ignoring gigabit capability\n");
 				gblpa = 0;
 			}
 			gblpa &= phy_read(phydev,
@@ -567,7 +567,7 @@ struct phy_device *phy_device_create(struct mii_dev *bus, int addr,
 	 */
 	dev = os_malloc(sizeof(*dev));
 	if (!dev) {
-		os_printf("Failed to allocate PHY device for %s:%d\n",
+		BK_LOGD(NULL, "Failed to allocate PHY device for %s:%d\n",
 		       bus ? bus->name : "(null bus)", addr);
 		return NULL;
 	}
@@ -593,7 +593,7 @@ struct phy_device *phy_device_create(struct mii_dev *bus, int addr,
 	dev->drv = get_phy_driver(dev);
 
 	if (phy_probe(dev)) {
-		os_printf("%s, PHY probe failed\n", __func__);
+		BK_LOGD(NULL, "%s, PHY probe failed\n", __func__);
 		return NULL;
 	}
 
@@ -710,7 +710,7 @@ static struct phy_device *get_phy_device_by_mask(struct mii_dev *bus,
 			return phydev;
 	}
 
-	os_printf("%s PHY: ", bus->name);
+	BK_LOGD(NULL, "%s PHY: ", bus->name);
 	while (phy_mask) {
 		int addr = ffs(phy_mask) - 1;
 
@@ -746,7 +746,7 @@ int phy_reset(struct phy_device *phydev)
 		return 0;
 
 	if (phy_write(phydev, devad, MII_BMCR, BMCR_RESET) < 0) {
-		os_printf("PHY reset failed\n");
+		BK_LOGD(NULL, "PHY reset failed\n");
 		return -1;
 	}
 
@@ -763,14 +763,14 @@ int phy_reset(struct phy_device *phydev)
 		reg = phy_read(phydev, devad, MII_BMCR);
 
 		if (reg < 0) {
-			os_printf("PHY status read failed\n");
+			BK_LOGD(NULL, "PHY status read failed\n");
 			return -1;
 		}
 		bk_delay_us(1000);
 	}
 
 	if (reg & BMCR_RESET) {
-		os_printf("PHY reset timed out\n");
+		BK_LOGD(NULL, "PHY reset timed out\n");
 		return -1;
 	}
 
@@ -814,7 +814,7 @@ void phy_connect_dev(struct phy_device *phydev, struct netif *dev,
 
 	if (phydev->dev && phydev->dev != dev) {
 		char *old_name = netif_name(phydev->dev);
-		os_printf("%s:%d is connected to %c%c.  Reconnecting to %c%c\n",
+		BK_LOGD(NULL, "%s:%d is connected to %c%c.  Reconnecting to %c%c\n",
 		       phydev->bus->name, phydev->addr,
 		       old_name[0], old_name[1],
 		       dev_name[0], dev_name[1]);
@@ -823,7 +823,7 @@ void phy_connect_dev(struct phy_device *phydev, struct netif *dev,
 	phydev->dev = dev;
 	phydev->interface = interface;
 
-	os_printf("netif %c%c connected to %s, mode %s, phyad %d\n", dev_name[0], dev_name[1],
+	BK_LOGD(NULL, "netif %c%c connected to %s, mode %s, phyad %d\n", dev_name[0], dev_name[1],
 		phydev->drv->name, phy_string_for_interface(interface), phydev->addr);
 }
 
@@ -845,7 +845,7 @@ struct phy_device *phy_connect(struct mii_dev *bus, int addr,
 	if (phydev)
 		phy_connect_dev(phydev, dev, interface);
 	else
-		os_printf("Could not get PHY for %s: addr %d\n", bus->name, addr);
+		BK_LOGD(NULL, "Could not get PHY for %s: addr %d\n", bus->name, addr);
 	return phydev;
 }
 
@@ -913,7 +913,7 @@ int phy_read(struct phy_device *phydev, int devad, int regnum)
 	struct mii_dev *bus = phydev->bus;
 
 	if (!bus || !bus->read) {
-		os_printf("%s: No bus configured\n", __func__);
+		BK_LOGD(NULL, "%s: No bus configured\n", __func__);
 		return -1;
 	}
 
@@ -933,7 +933,7 @@ int phy_write(struct phy_device *phydev, int devad, int regnum, u16 val)
 	struct mii_dev *bus = phydev->bus;
 
 	if (!bus || !bus->write) {
-		os_printf("%s: No bus configured\n", __func__);
+		BK_LOGD(NULL, "%s: No bus configured\n", __func__);
 		return -1;
 	}
 

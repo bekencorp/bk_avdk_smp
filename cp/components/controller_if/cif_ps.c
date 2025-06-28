@@ -64,7 +64,7 @@ void cif_update_ps_state(uint8_t cif_fsm_evt)
             next_state = CIF_FSM_STATE_ACTIVE;
         }
     }
-    CIF_LOGI("CIF FSM evt:%d cur state:%d next:%d\n", cif_fsm_evt, cif_env.pre_ps_state, next_state);
+    CIF_LOGD("CIF FSM evt:%d cur state:%d next:%d\n", cif_fsm_evt, cif_env.pre_ps_state, next_state);
     cif_env.pre_ps_state = cif_env.cur_ps_state;
     cif_env.cur_ps_state = next_state;
     GLOBAL_INT_RESTORE();
@@ -219,6 +219,6 @@ void cif_battery_test_mode(bool test_mode)
     {
         battery_test_mode = false;
     }
-    os_printf("test_mode is:%d\r\n",battery_test_mode);
+    BK_LOGD(NULL,"test_mode is:%d\r\n",battery_test_mode);
 }
 

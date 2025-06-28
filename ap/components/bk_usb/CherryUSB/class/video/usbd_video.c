@@ -313,7 +313,7 @@ static int usbd_video_control_unit_terminal_request_handler(struct usb_setup_pac
                             switch (setup->bRequest) {
                                 case VIDEO_REQUEST_SET_CUR: {
                                     uint16_t wBrightness = (uint16_t)(*data)[1] << 8 | (uint16_t)(*data)[0];
-                                    USB_LOG_INFO("Video set brightness:%d\r\n", wBrightness);
+                                    USB_LOG_DBG("Video set brightness:%d\r\n", wBrightness);
                                 } break;
                                 case VIDEO_REQUEST_GET_CUR: {
                                     uint16_t wBrightness = 0x0080;
@@ -674,7 +674,7 @@ static int usbd_video_stream_request_handler(struct usb_setup_packet *setup, uin
 
 static int video_class_interface_request_handler(struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
-    USB_LOG_DBG("Video Class request: "
+    USB_LOG_VBS("Video Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
 
@@ -835,7 +835,7 @@ uint32_t usbd_video_h264_payload_fill(uint8_t *input, uint32_t input_len, uint8_
             (input_len / max_payload_transfer_size + 1) :
             (input_len / max_payload_transfer_size);
 
-    // USB_LOG_INFO("input_len:%d, packets:%d, max_size:%d\r\n", input_len, packets, max_payload_transfer_size);
+    // USB_LOG_DBG("input_len:%d, packets:%d, max_size:%d\r\n", input_len, packets, max_payload_transfer_size);
     last_packet_size = input_len -
                        ((packets - 1) * (max_payload_transfer_size - H264_PAYLOAD_HEADER_LENGTH)) +
                        H264_PAYLOAD_HEADER_LENGTH;
@@ -856,11 +856,11 @@ uint32_t usbd_video_h264_payload_fill(uint8_t *input, uint32_t input_len, uint8_
             picture_pos += max_payload_transfer_size - H264_PAYLOAD_HEADER_LENGTH;
         }
 #if 0
-        os_printf("=======dump output raw data========\r\n");
+        BK_LOGD(NULL, "=======dump output raw data========\r\n");
         for (int index = 0; index < 20; index++) {
-            os_printf("%02x ", output[max_payload_transfer_size * i + index]);
+            BK_LOGD(NULL, "%02x ", output[max_payload_transfer_size * i + index]);
         }
-        os_printf("\r\n");
+        BK_LOGD(NULL, "\r\n");
 #endif
     }
     uvc_h264_header[1] ^= 1; //0x8c->0x8d, 0x8d->0x8c
@@ -873,7 +873,7 @@ int usbd_video_common_frame_payload_fill(uint8_t *input, uint32_t input_len, uin
     const uint32_t max_payload_transfer_size = usbd_video_cfg.probe.dwMaxPayloadTransferSize;
 
     if (input_len >= max_payload_transfer_size) {
-        os_printf("usbd_video__frame_payload_fill failed, input len:%d\r\n", input_len);
+        BK_LOGD(NULL, "usbd_video__frame_payload_fill failed, input len:%d\r\n", input_len);
         return -1;
     }
 

@@ -111,7 +111,7 @@ bk_err_t bk_aud_adc_init(aud_adc_config_t *adc_config)
 	aud_hal_set_adc_config0_adc_hpf1_bypass(1);
 	aud_hal_set_adc_config0_adc_hpf2_bypass(1);
 
-	LOGI("configure mic and adc\r\n");
+	LOGD("configure mic and adc\r\n");
 
 	if (BK_OK != bk_aud_adc_set_samp_rate(adc_config->samp_rate)) {
 		ret = BK_FAIL;

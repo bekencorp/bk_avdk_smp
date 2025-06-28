@@ -134,7 +134,7 @@ static int rwnx_check_fw_hw_feature(struct rwnx_hw *rwnx_hw,
 	}
 
 	if (!(sys_feat & BIT(MM_FEAT_UMAC_BIT))) {
-		RWNX_LOGI("Loading softmac firmware with fullmac driver\n");
+		RWNX_LOGD("Loading softmac firmware with fullmac driver\n");
 		res = -1;
 	}
 
@@ -275,7 +275,7 @@ static int rwnx_check_fw_hw_feature(struct rwnx_hw *rwnx_hw,
 #define PRINT_RWNX_PHY_FEAT(feat)                                   \
 	(phy_feat & MDM_##feat##_BIT ? "["#feat"]" : "")
 
-	RWNX_LOGD("PHY features: [NSS=%d][CHBW=%d]%s%s%s%s%s%s%s%s\n",
+	RWNX_LOGV("PHY features: [NSS=%d][CHBW=%d]%s%s%s%s%s%s%s%s\n",
 			  (phy_feat & MDM_NSS_MASK) >> MDM_NSS_LSB,
 			  20 * (1 << ((phy_feat & MDM_CHBW_MASK) >> MDM_CHBW_LSB)),
 			  (phy_feat & (MDM_LDPCDEC_BIT | MDM_LDPCENC_BIT)) ==
@@ -291,7 +291,7 @@ static int rwnx_check_fw_hw_feature(struct rwnx_hw *rwnx_hw,
 #define PRINT_RWNX_FEAT(feat)                                   \
 	(sys_feat & (1ULL << MM_FEAT_##feat##_BIT) ? "["#feat"]" : "")
 
-	RWNX_LOGI("FW features: %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+	RWNX_LOGD("FW features: %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
 			  PRINT_RWNX_FEAT(BCN),
 #if NX_VERSION >= NX_VERSION_PACK(6, 22, 0, 0)
 			  "", "", "", "", /* enabled by default */

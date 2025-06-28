@@ -72,7 +72,7 @@ bk_err_t tfcard_util_create(tfcard_util_t      *tfcard_util, char *name)
         return BK_FAIL;
     }
 
-    LOGI("open %s ok \n", tfcard_util->file_name);
+    LOGD("open %s ok \n", tfcard_util->file_name);
 
     return BK_OK;
 }

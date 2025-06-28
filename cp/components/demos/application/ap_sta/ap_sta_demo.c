@@ -68,7 +68,7 @@ void ap_sta_softap_app_init(char *ap_ssid, char *ap_key)
     os_strcpy((char *)wNetConfig.net_mask, "255.255.255.0");
     os_strcpy((char *)wNetConfig.dnsServer_ip_addr, "192.168.10.1");
 
-    bk_printf("SSID:%s , KEY:%s\r\n", wNetConfig.wifi_ssid, wNetConfig.wifi_key);
+    BK_LOGD(NULL,"SSID:%s , KEY:%s\r\n", wNetConfig.wifi_ssid, wNetConfig.wifi_key);
     bk_wlan_start(&wNetConfig);
 }
 
@@ -231,7 +231,7 @@ void ap_sta_tcp_client_connect_thread( beken_thread_arg_t arg )
 
             if ( len == 0 )
             {
-                os_printf( "TCP Client is disconnected, fd: %d\r\n", fd );
+                BK_LOGD(NULL, "TCP Client is disconnected, fd: %d\r\n", fd );
                 goto exit;
             }
 
@@ -241,12 +241,12 @@ void ap_sta_tcp_client_connect_thread( beken_thread_arg_t arg )
                 len = send( fd, RtMsg->msg, RtMsg->MsgLen, 0 );
                 if ( len == 0 )
                 {
-                    os_printf( "TCP Client is disconnected, fd: %d\r\n", fd );
+                    BK_LOGD(NULL, "TCP Client is disconnected, fd: %d\r\n", fd );
                     goto exit;
                 }
                 if(RtMsg->CloseAP)
                 {
-                    os_printf("delete Softap!\r\n");
+                    BK_LOGD(NULL,"delete Softap!\r\n");
                     rtos_delay_milliseconds((TickType_t)3000);
                     ap_sta_stop_Softap();
                     goto exit;
@@ -259,7 +259,7 @@ void ap_sta_tcp_client_connect_thread( beken_thread_arg_t arg )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "TCP client thread exit with err: %d\r\n", err );
+        BK_LOGD(NULL, "TCP client thread exit with err: %d\r\n", err );
     }
 
     if ( buf != NULL )
@@ -316,7 +316,7 @@ void ap_sta_tcp_server_listener_thread( beken_thread_arg_t arg )
 
                 g_Clietfd = client_fd;
                 os_strcpy( client_ip_str, inet_ntoa( client_addr.sin_addr ) );
-                os_printf( "TCP Client %s:%d connected, fd: %d\r\n", client_ip_str, client_addr.sin_port, client_fd );
+                BK_LOGD(NULL, "TCP Client %s:%d connected, fd: %d\r\n", client_ip_str, client_addr.sin_port, client_fd );
 
                 if( kNoErr != rtos_create_thread( NULL, BEKEN_APPLICATION_PRIORITY,
                                                   "TCP Clients",
@@ -334,7 +334,7 @@ void ap_sta_tcp_server_listener_thread( beken_thread_arg_t arg )
 
     if ( err != kNoErr )
     {
-        os_printf( "Server listerner thread exit with err: %d", err );
+        BK_LOGD(NULL, "Server listerner thread exit with err: %d", err );
     }
 
     close( tcp_listen_fd );

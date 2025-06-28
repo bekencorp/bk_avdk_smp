@@ -48,11 +48,11 @@ void set_semaphore_thread( beken_thread_arg_t arg )
         err = rtos_set_semaphore( &os_sem );
         if(err == kNoErr)
         {
-            os_printf("Set_Sem Succend!\r\n");
+            BK_LOGD(NULL, "Set_Sem Succend!\r\n");
         }
         else
         {
-            os_printf("Set_Sem Err:%d\r\n", err);
+            BK_LOGD(NULL, "Set_Sem Err:%d\r\n", err);
             goto exit;
         }
         rtos_delay_milliseconds( 500 );
@@ -75,11 +75,11 @@ void get_semaphore_thread( beken_thread_arg_t arg )
         err = rtos_get_semaphore(&os_sem, BEKEN_NEVER_TIMEOUT);
         if(err == kNoErr)
         {
-            os_printf("Get_Sem Succend!\r\n");
+            BK_LOGD(NULL, "Get_Sem Succend!\r\n");
         }
         else
         {
-            os_printf("Get_Sem Err:%d\r\n", err);
+            BK_LOGD(NULL, "Get_Sem Err:%d\r\n", err);
             goto exit;
         }
     }
@@ -96,7 +96,7 @@ exit:
 int demo_start( void )
 {
     bk_err_t err = kNoErr;
-    os_printf( "test binary semaphore\r\n" );
+    BK_LOGD(NULL,  "test binary semaphore\r\n" );
 
     err = rtos_init_semaphore( &os_sem, 1 ); //0/1 binary semaphore || 0/N semaphore
 
@@ -130,7 +130,7 @@ int demo_start( void )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "Thread exit with err: %d\r\n", err );
+        BK_LOGD(NULL,  "Thread exit with err: %d\r\n", err );
     }
     return err;
 }

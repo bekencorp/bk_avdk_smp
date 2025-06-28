@@ -62,7 +62,7 @@ int check_connect_wifi(void)
 
     if(strcmp(ipStatus.ip, "0.0.0.0") != 0)
     {
-        os_printf("ip:%s \r\n", ipStatus.ip);
+        BK_LOGD(NULL, "ip:%s \r\n", ipStatus.ip);
         return 0;
     }
     return 1;
@@ -82,14 +82,14 @@ void udp_client_demo_thread( beken_thread_arg_t arg )
     buf = (char *) os_malloc( 1024 );
     if(buf == NULL)
     {
-        os_printf("buf == NULL\r\n");
+        BK_LOGD(NULL, "buf == NULL\r\n");
         goto exit;
     }
 
     SkFd = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );//Make UDP socket
     if(SkFd == -1)
     {
-        os_printf("SkFd == -1\r\n");
+        BK_LOGD(NULL, "SkFd == -1\r\n");
         goto exit;
     }
 
@@ -97,7 +97,7 @@ void udp_client_demo_thread( beken_thread_arg_t arg )
     server_addr.sin_addr.s_addr = IPADDR_BROADCAST;
     //server_addr.sin_addr.s_addr = inet_addr("192.168.5.103");
     server_addr.sin_port = htons(UDP_Client_Port);
-    os_printf("UDP Client Run\r\n");
+    BK_LOGD(NULL, "UDP Client Run\r\n");
 
     while ( 1 )
     {
@@ -113,7 +113,7 @@ void udp_client_demo_thread( beken_thread_arg_t arg )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "udp client thread exit with err: %d", err );
+        BK_LOGD(NULL,  "udp client thread exit with err: %d", err );
     }
 
     if(SkFd)
@@ -161,7 +161,7 @@ int create_udp_client_check_net_timer(void)
 
     if(udp_client_connect_timer == NULL)
     {
-        os_printf("tcp_connect_timer error!\r\n");
+        BK_LOGD(NULL, "tcp_connect_timer error!\r\n");
         return kGeneralErr;
     }
 
@@ -173,7 +173,7 @@ int create_udp_client_check_net_timer(void)
             os_free(udp_client_connect_timer);
             udp_client_connect_timer = NULL;
         }
-        os_printf("tcp_connect_timer error!\r\n");
+        BK_LOGD(NULL, "tcp_connect_timer error!\r\n");
     }
 
     return err;
@@ -203,7 +203,7 @@ int demo_start( void )
     if(kNoErr != err)
     {
         udp_client_connect_timer_destroy();
-        os_printf("timer start failed!\r\n");
+        BK_LOGD(NULL, "timer start failed!\r\n");
 
         return err;
     }

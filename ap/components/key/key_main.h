@@ -8,8 +8,8 @@
 #define KEY_DEBUG
 
 #ifdef KEY_DEBUG
-#define KEY_PRT                 os_printf
-#define KEY_WPRT                warning_prf
+#define KEY_PRT(...) BK_LOGD(NULL, ##__VA_ARGS__)
+#define KEY_WPRT(...) BK_LOGW(NULL, ##__VA_ARGS__)
 #else
 #define KEY_PRT                 os_null_printf
 #define KEY_WPRT                os_null_printf

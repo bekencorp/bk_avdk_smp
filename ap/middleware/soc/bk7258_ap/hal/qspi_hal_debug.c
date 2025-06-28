@@ -22,7 +22,7 @@
 void qspi_struct_dump(uint32_t id)
 {
 	qspi_hw_t *hw = (qspi_hw_t *)QSPI_LL_REG_BASE(id);
-	SOC_LOGI("base=%x\r\n", (uint32_t)hw);
+	SOC_LOGD("base=%x\r\n", (uint32_t)hw);
 }
 
 #endif

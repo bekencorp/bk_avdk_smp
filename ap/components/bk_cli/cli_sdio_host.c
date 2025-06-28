@@ -25,9 +25,9 @@
 
 static void cli_sdio_host_help(void)
 {
-	CLI_LOGI("sdio_host_driver init\r\n");
-	CLI_LOGI("sdio_host driver deinit\r\n");
-	CLI_LOGI("sdio send_cmd Index Arg(hex-decimal) RSP_Type Timeout_Value\r\n");
+	CLI_LOGD("sdio_host_driver init\r\n");
+	CLI_LOGD("sdio_host driver deinit\r\n");
+	CLI_LOGD("sdio send_cmd Index Arg(hex-decimal) RSP_Type Timeout_Value\r\n");
 }
 
 static void cli_sdio_host_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -39,10 +39,10 @@ static void cli_sdio_host_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_sdio_host_driver_init());
-		CLI_LOGI("sdio_host driver init\n");
+		CLI_LOGD("sdio_host driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_sdio_host_driver_deinit());
-		CLI_LOGI("sdio_host driver deinit\n");
+		CLI_LOGD("sdio_host driver deinit\n");
 	} else {
 		cli_sdio_host_help();
 		return;
@@ -67,10 +67,10 @@ static void cli_sdio_host_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		sdio_cfg.bus_width = SDIO_HOST_BUS_WIDTH_1LINE;
 
 		BK_LOG_ON_ERR(bk_sdio_host_init(&sdio_cfg));
-		CLI_LOGI("sdio host init\r\n");
+		CLI_LOGD("sdio host init\r\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_sdio_host_deinit());
-		CLI_LOGI("sdio host deinit\r\n");
+		CLI_LOGD("sdio host deinit\r\n");
 	} else if (os_strcmp(argv[1], "send_cmd") == 0) {
 		bk_err_t error_state = BK_OK;
 		sdio_host_cmd_cfg_t cmd_cfg = {0};
@@ -95,7 +95,7 @@ static void cli_sdio_host_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		data_config.data_dir = SDIO_HOST_DATA_DIR_RD;
 
 		BK_LOG_ON_ERR(bk_sdio_host_config_data(&data_config));
-		CLI_LOGI("sdio host config data ok\r\n");
+		CLI_LOGD("sdio host config data ok\r\n");
 	} else {
 		cli_sdio_host_help();
 		return;
@@ -111,10 +111,10 @@ static void cli_sd_card_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_sd_card_init());
-		CLI_LOGI("sd card init ok\r\n");
+		CLI_LOGD("sd card init ok\r\n");
 	} else if(os_strcmp(argv[1], "deinit") == 0){
 		BK_LOG_ON_ERR(bk_sd_card_deinit());
-		CLI_LOGI("sd card deinit ok\r\n");
+		CLI_LOGD("sd card deinit ok\r\n");
 	} else if (os_strcmp(argv[1], "read") == 0) {
 		uint32_t block_num = os_strtoul(argv[2], NULL, 10);
 		uint8_t *buf = os_malloc(SD_CARD_READ_BUFFER_SIZE * block_num);
@@ -125,13 +125,13 @@ static void cli_sd_card_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		BK_LOG_ON_ERR(bk_sd_card_read_blocks(buf, 0, block_num));
 		while (bk_sd_card_get_card_state() != SD_CARD_TRANSFER);
 		for (int i = 0; i < SD_CARD_READ_BUFFER_SIZE * block_num; i++) {
-			CLI_LOGI("buf[%d]=%x\r\n", i, buf[i]);
+			CLI_LOGD("buf[%d]=%x\r\n", i, buf[i]);
 		}
 		if (buf) {
 			os_free(buf);
 			buf = NULL;
 		}
-		CLI_LOGI("sd card read ok\r\n");
+		CLI_LOGD("sd card read ok\r\n");
 	} else if (os_strcmp(argv[1], "write") == 0) {
 		uint32_t block_num = os_strtoul(argv[2], NULL, 10);
 		uint8_t *buf = os_malloc(SD_CARD_READ_BUFFER_SIZE * block_num);
@@ -148,12 +148,12 @@ static void cli_sd_card_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 			os_free(buf);
 			buf = NULL;
 		}
-		CLI_LOGI("sd card write ok\r\n");
+		CLI_LOGD("sd card write ok\r\n");
 	} else if (os_strcmp(argv[1], "erase") == 0) {
 		uint32_t block_num = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_sd_card_erase(0, block_num));
 		while (bk_sd_card_get_card_state() != SD_CARD_TRANSFER);
-		CLI_LOGI("sd card erase ok\r\n");
+		CLI_LOGD("sd card erase ok\r\n");
 	} else if (os_strcmp(argv[1], "cmp") == 0) {
 		BK_LOG_ON_ERR(bk_sd_card_erase(0, 2));
 		while (bk_sd_card_get_card_state() != SD_CARD_TRANSFER);
@@ -179,7 +179,7 @@ static void cli_sd_card_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 		int ret = os_memcmp(write_buf, read_buf, SD_CARD_READ_BUFFER_SIZE * 2);
 		if (ret == 0) {
-			CLI_LOGI("sd card test ok\r\n");
+			CLI_LOGD("sd card test ok\r\n");
 		}
 
 		if (write_buf) {

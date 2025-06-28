@@ -40,6 +40,7 @@
 
 #define TAG "st7796s"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 uint8_t madctl_val = 0x48;
 
 const static uint32_t param_sleep_out[1]  = {0x00};
@@ -149,7 +150,7 @@ bk_err_t st7796s_swreset(void)
 
 void lcd_st7796s_init(void)
 {
-	LOGI("%s\n", __func__);
+	LOGD("%s\n", __func__);
 
 	rtos_delay_milliseconds(131);
 	rtos_delay_milliseconds(10);

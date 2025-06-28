@@ -106,7 +106,7 @@ bk_err_t software_decode_minor_task_send_msg(uint32_t type, uint32_t param)
 
 static void software_decode_task_deinit(void)
 {
-	LOGI("%s\r\n", __func__);
+	LOGD("%s\r\n", __func__);
 	if (sw_dec_config_cp2)
 	{
 		if (sw_dec_config_cp2->sw_dec_queue)
@@ -134,7 +134,7 @@ static void software_decode_task_deinit(void)
 		sw_dec_config_cp2 = NULL;
 	}
 
-	LOGI("%s complete\r\n", __func__);
+	LOGD("%s complete\r\n", __func__);
 }
 
 #if CONFIG_SOFTWARE_DECODE_SRAM_MAPPING
@@ -271,7 +271,7 @@ static void software_decode_main(beken_thread_arg_t data)
 					media_software_decode_info_t *sw_dec_info = NULL;
 					if (media_msg == NULL)
 					{
-						LOGI("%s %d param error\r\n", __func__, __LINE__);
+						LOGD("%s %d param error\r\n", __func__, __LINE__);
 						break;
 					}
 					sw_dec_info = (media_software_decode_info_t *)media_msg->param;
@@ -319,7 +319,7 @@ static void software_decode_main(beken_thread_arg_t data)
 	}
 
 exit:
-	LOGI("%s, exit\r\n", __func__);
+	LOGD("%s, exit\r\n", __func__);
 	bk_jpeg_dec_sw_deinit_by_handle(jpeg_decode_cp2_handle);
 	jpeg_decode_cp2_handle = NULL;
 
@@ -380,7 +380,7 @@ static void create_thread_on_cp2(beken_thread_arg_t data)
 bk_err_t software_decode_minor_task_open(uint32_t rotate_buffer)
 {
 	int ret = BK_OK;
-	LOGI("%s\r\n", __func__);
+	LOGD("%s\r\n", __func__);
 
 	if (sw_dec_config_cp2 != NULL && sw_dec_config_cp2->task_state)
 	{
@@ -437,7 +437,7 @@ bk_err_t software_decode_minor_task_open(uint32_t rotate_buffer)
 		goto error;
 	}
 
-	LOGI("%s complete\r\n", __func__);
+	LOGD("%s complete\r\n", __func__);
 
 	return ret;
 
@@ -452,7 +452,7 @@ error:
 
 bk_err_t software_decode_minor_task_close()
 {
-	LOGI("%s  %d\n", __func__, __LINE__);
+	LOGD("%s  %d\n", __func__, __LINE__);
 
 	if (sw_dec_config_cp2 == NULL || !sw_dec_config_cp2->task_state)
 	{
@@ -467,7 +467,7 @@ bk_err_t software_decode_minor_task_close()
 
 	software_decode_task_deinit();
 
-	LOGI("%s complete, %d\n", __func__, __LINE__);
+	LOGD("%s complete, %d\n", __func__, __LINE__);
 
 	return BK_OK;
 }

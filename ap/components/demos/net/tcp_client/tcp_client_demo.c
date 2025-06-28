@@ -62,7 +62,7 @@ void tcp_connect_server_thread( beken_thread_arg_t arg )
     i_pMsg = (struct ip_port_msg *)arg;
     if(i_pMsg == NULL)
     {
-        os_printf( "arg err!\r\n" );
+        BK_LOGD(NULL,  "arg err!\r\n" );
         goto exit;
     }
 
@@ -80,14 +80,14 @@ void tcp_connect_server_thread( beken_thread_arg_t arg )
     err = connect(SkFd, (struct sockaddr *) &server_addr, sizeof(server_addr));
     if(err < 0)
     {
-        os_printf( "connect err: %d\r\n", err );
+        BK_LOGD(NULL,  "connect err: %d\r\n", err );
         goto exit;
     }
 
     buf = (char *) os_malloc( 1024 );
     if(buf == NULL)
     {
-        os_printf( "buf == NULL\r\n");
+        BK_LOGD(NULL,  "buf == NULL\r\n");
         goto exit;
     }
 
@@ -97,7 +97,7 @@ void tcp_connect_server_thread( beken_thread_arg_t arg )
 
         if ( len <= 0 )
         {
-            os_printf( "TCP Client is disconnected, fd: %d\r\n", SkFd );
+            BK_LOGD(NULL,  "TCP Client is disconnected, fd: %d\r\n", SkFd );
             goto exit;
         }
 
@@ -108,7 +108,7 @@ exit:
 
     if ( err != kNoErr )
     {
-        os_printf( "tcp_connect_server_thread exit with err: %d\r\n", err );
+        BK_LOGD(NULL,  "tcp_connect_server_thread exit with err: %d\r\n", err );
     }
 
     if ( buf != NULL )
@@ -141,20 +141,20 @@ void tcp_make_connect_server_command(char *pcWriteBuffer, int xWriteBufferLen, i
 
     if(i_pMsg == NULL)
     {
-        os_printf("i_pMsg Failed\r\n");
+        BK_LOGD(NULL, "i_pMsg Failed\r\n");
         return;
     }
 
     if(!inet_aton(argv[1], &i_pMsg->IP.addr))
     {
-        os_printf("inet_aton Failed\r\n");
+        BK_LOGD(NULL, "inet_aton Failed\r\n");
         goto exit;
     }
 
     port = num_string2uint16num(argv[2]);
     if(port < 0)
     {
-        os_printf("port err:%d\r\n", port);
+        BK_LOGD(NULL, "port err:%d\r\n", port);
     }
 
     i_pMsg->sin_port = port;
@@ -167,7 +167,7 @@ void tcp_make_connect_server_command(char *pcWriteBuffer, int xWriteBufferLen, i
                               i_pMsg );
     if(kNoErr != err)
     {
-        os_printf("rtos_create_thread Failed(%d)\r\n", err);
+        BK_LOGD(NULL, "rtos_create_thread Failed(%d)\r\n", err);
         goto exit;
     }
 

@@ -22,6 +22,7 @@
 #define FFT_LOGW(...) BK_LOGW(FFT_TAG, ##__VA_ARGS__)
 #define FFT_LOGE(...) BK_LOGE(FFT_TAG, ##__VA_ARGS__)
 #define FFT_LOGD(...) BK_LOGD(FFT_TAG, ##__VA_ARGS__)
+#define FFT_LOGV(...) BK_LOGV(FFT_TAG, ##__VA_ARGS__)
 
 /**
  * @brief     Enable fft module to process fir function

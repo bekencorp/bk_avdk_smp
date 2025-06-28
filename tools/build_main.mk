@@ -1,4 +1,4 @@
-export ARMINO_AVDK_DIR := $(shell pwd)
+export ARMINO_AVDK_DIR := $(CURDIR)
 
 
 export ARMINO_AP_DIR := $(ARMINO_AVDK_DIR)/ap
@@ -61,7 +61,7 @@ endif
 
 export PROJECT_NAME := $(notdir $(PROJECT_DIR))
 ifneq ("$(BUILD_DIR)", "")
-	export PROJECT_BUILD_DIR := $(BUILD_DIR)
+	export PROJECT_BUILD_DIR := $(BUILD_DIR)/$(ARMINO_SOC)/$(PROJECT_NAME)
 else
 	export PROJECT_BUILD_DIR := $(CURDIR)/build/$(ARMINO_SOC)/$(PROJECT_NAME)
 endif
@@ -128,10 +128,11 @@ ifneq ("$(DOCS_VERSION)", "")
 endif
 
 ifeq ($(findstring Windows_NT,$(OS)), Windows_NT)
-    WIN32 := 1
+	export WIN32 := 1
+	PRINT_SUMMARY := 0
 	export PYTHONPATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs;$(PYTHONPATH)
 else
-	WIN32 := 0
+	export WIN32 := 0
 	export PYTHONPATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs:$(PYTHONPATH)
 endif
 

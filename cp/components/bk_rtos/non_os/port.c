@@ -185,7 +185,7 @@ void printf_lr_register(void)
 		:"memory"
 	);
 
-	BK_LOGI(TAG, "lr:%x\r\n", value);
+	BK_LOGD(TAG, "lr:%x\r\n", value);
 }
 
 uint32_t platform_is_in_irq_context( void )
@@ -325,7 +325,7 @@ void platform_enable_intc_at_restore_context(void)
 
 void rtos_stack_overflow(char *taskname)
 {
-	BK_LOGI(TAG, "stack overflow: %s\r\n", taskname);
+	BK_LOGD(TAG, "stack overflow: %s\r\n", taskname);
 	while(1);
 }
 

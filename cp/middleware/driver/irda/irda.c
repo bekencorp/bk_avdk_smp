@@ -201,7 +201,7 @@ void Irda_init_app(void)
 	IR_key.valid_flag = 0;
 	ret = rtos_init_queue(&IR_key.IRkey_mq, "ir_mq", 4, 3);
 	if (kNoErr != ret) {
-		os_printf("create ir mq error!!\r\n");
+		BK_LOGD(NULL,"create ir mq error!!\r\n");
 		return;
 	}
 

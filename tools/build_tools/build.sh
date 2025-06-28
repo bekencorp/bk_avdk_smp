@@ -77,6 +77,12 @@ fi
 PROPERTIES_LIB_BUILD_DIR=${SDK_BUILD_DIR}/properties_libs/${ARMINO_SOC}
 PROPERTIES_LIB_DIR=${PROPERTIES_PROJECT_DIR}
 
+# not to build properties repeatedly when verify.
+if [ -n "${BK_JENKINS_ID:-}" ]; then
+	if [ -d "$PROPERTIES_LIB_BUILD_DIR" ]; then
+		need_build_properties_lib=0
+	fi
+fi
 
 if [ "${need_clean}" == "1" ]; then
 	echo "remove ${ARMINO_DIR}/components/bk_libs/${ARMINO_SOC}"

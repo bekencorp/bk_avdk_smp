@@ -35,9 +35,9 @@ qspi_statis_t* qspi_statis_get_statis(void)
 
 void qspi_statis_dump(void)
 {
-	BK_LOGI(TAG, "dump qspi statis:\r\n");
-	BK_LOGI(TAG, "qspi_int_cnt    %d\r\n", s_qspi_statis.qspi_int_cnt);
-	BK_LOGI(TAG, "sw_op_int_cnt:  %d\r\n", s_qspi_statis.sw_op_int_cnt);
+	BK_LOGD(TAG, "dump qspi statis:\r\n");
+	BK_LOGD(TAG, "qspi_int_cnt    %d\r\n", s_qspi_statis.qspi_int_cnt);
+	BK_LOGD(TAG, "sw_op_int_cnt:  %d\r\n", s_qspi_statis.sw_op_int_cnt);
 }
 
 #endif

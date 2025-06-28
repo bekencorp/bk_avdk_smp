@@ -21,4 +21,5 @@
 #define EFUSE_LOGW(...) BK_LOGW(EFUSE_TAG, ##__VA_ARGS__)
 #define EFUSE_LOGE(...) BK_LOGE(EFUSE_TAG, ##__VA_ARGS__)
 #define EFUSE_LOGD(...) BK_LOGD(EFUSE_TAG, ##__VA_ARGS__)
+#define EFUSE_LOGV(...) BK_LOGV(EFUSE_TAG, ##__VA_ARGS__)
 

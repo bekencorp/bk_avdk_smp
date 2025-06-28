@@ -335,7 +335,7 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 			s_mailbox_tx_ack_fault_mask |= 0x80;
 			return;
 		}
-		os_printf("====mailbox reset!!%x, %x\r\n", log_chnl, phy_chnl_ptr->tx_log_chnl);
+		BK_LOGD(NULL,"====mailbox reset!!%x, %x\r\n", log_chnl, phy_chnl_ptr->tx_log_chnl);
 		
 		ack_ptr->hdr.tx_seq = phy_chnl_ptr->tx_seq;
 

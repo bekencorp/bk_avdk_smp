@@ -24,6 +24,7 @@
 
 #define TAG "gc2145"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 
 #define SENSOR_I2C_READ(reg, value)\
@@ -1191,12 +1192,12 @@ bool gc2145_detect(void)
     SENSOR_I2C_READ(CHIP_ID_ADDR_HB, &hb_id);
     SENSOR_I2C_READ(CHIP_ID_ADDR_LB, &lb_id);
 
-    LOGI("%s, id: 0x%02X%02X\n", __func__, hb_id, lb_id);
+    LOGD("%s, id: 0x%02X%02X\n", __func__, hb_id, lb_id);
 
     if (hb_id == CHIP_ID_VAL_HB
         && lb_id == CHIP_ID_VAL_LB)
     {
-        LOGI("%s success\n", __func__);
+        LOGD("%s success\n", __func__);
         return true;
     }
 
@@ -1212,7 +1213,7 @@ void gc2145_read_register(uint8_t addr, uint8_t data)
         SENSOR_I2C_READ(addr, &value);
         if (value != data)
         {
-            LOGI("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
+            LOGD("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
         }
     }
 }
@@ -1221,7 +1222,7 @@ int gc2145_init(void)
 {
     uint32_t size = sizeof(sensor_gc2145_init_talbe) / 2, i;
 
-    LOGI("%s start\n", __func__);
+    LOGD("%s start\n", __func__);
 
     for (i = 0; i < size; i++)
     {
@@ -1238,7 +1239,7 @@ int gc2145_set_ppi(media_ppi_t ppi)
     uint32_t size, i;
     int ret = -1;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     switch (ppi)
     {
@@ -1324,7 +1325,7 @@ int gc2145_set_ppi(media_ppi_t ppi)
         break;
 
         default:
-            LOGI("use default ppi:800X480\r\n");
+            LOGD("use default ppi:800X480\r\n");
             ret = 0;
             break;
 
@@ -1571,14 +1572,14 @@ int gc2145_dump(media_ppi_t ppi)
     int ret = -1;
     uint8_t value = 0;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     size = sizeof(sensor_gc2145_init_talbe) / 2;
 
     for (i = 0; i < size; i++)
     {
         SENSOR_I2C_READ(sensor_gc2145_init_talbe[i][0], &value);
-        LOGI("[0x%02x, 0x%02x]\r\n", sensor_gc2145_init_talbe[i][0], value);
+        LOGD("[0x%02x, 0x%02x]\r\n", sensor_gc2145_init_talbe[i][0], value);
     }
 
     ret = kNoErr;

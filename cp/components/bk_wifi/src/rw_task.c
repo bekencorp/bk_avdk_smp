@@ -231,7 +231,7 @@ int bmsg_tx_raw_cb_sender(uint8_t *buffer, int length, void *cb, void *param)
 
 	ret = rtos_push_to_queue(&g_wifi_core.io_queue, &msg, 1 * SECONDS);
 	if (ret != kNoErr)
-		RWNX_LOGD("bmsg_tx_sender failed\r\n");
+		RWNX_LOGV("bmsg_tx_sender failed\r\n");
 
 	return ret;
 }
@@ -261,7 +261,7 @@ int bmsg_tx_raw_ex_sender(wifi_raw_tx_info_t *raw_tx, void *cb, void *param)
 
 	ret = rtos_push_to_queue(&g_wifi_core.io_queue, &msg, 1 * SECONDS);
 	if (ret != kNoErr) {
-		RWNX_LOGD("bmsg_tx_sender failed\r\n");
+		RWNX_LOGV("bmsg_tx_sender failed\r\n");
 		os_free(raw_tx);
 	}
 
@@ -291,7 +291,7 @@ void bmsg_tx_raw_ex_handler(BUS_MSG_T *msg)
 	rwm_transfer_raw_ex_node(node, &raw_tx->tx_cntrl);
 
 #else /* CONFIG_RWNX_SW_TXQ */
-	//os_printf("tx_raw_ex interface\n");
+	//BK_LOGD(NULL,"tx_raw_ex interface\n");
 	wifi_raw_tx_info_t *raw_tx = (wifi_raw_tx_info_t *)msg->arg;
 	struct wifi_mac_hdr *mac_hdr = (struct wifi_mac_hdr *)raw_tx->pkt;
 	uint8_t *dest_mac = (uint8_t *)mac_hdr->addr1.array;
@@ -647,9 +647,9 @@ int bmsg_ioctl_sender(void *arg)
 
 	ret = rtos_push_to_queue(&g_wifi_core.io_queue, &msg, BEKEN_NO_WAIT);
 	if (kNoErr != ret)
-		RWNX_LOGD("bmsg_ioctl_sender_failed\r\n");
+		RWNX_LOGV("bmsg_ioctl_sender_failed\r\n");
 	else
-		RWNX_LOGD("bmsg_ioctl_sender\r\n");
+		RWNX_LOGV("bmsg_ioctl_sender\r\n");
 
 	return ret;
 }
@@ -666,9 +666,9 @@ int bmsg_software_para_ioctl_sender(void *arg)
 
 	ret = rtos_push_to_queue(&g_wifi_core.io_queue, &msg, BEKEN_NO_WAIT);
 	if (kNoErr != ret)
-		RWNX_LOGD("bmsg_software_ioctl_sender_failed\r\n");
+		RWNX_LOGV("bmsg_software_ioctl_sender_failed\r\n");
 	else
-		RWNX_LOGD("bmsg_software_ioctl_sender\r\n");
+		RWNX_LOGV("bmsg_software_ioctl_sender\r\n");
 
 	return ret;
 }
@@ -685,9 +685,9 @@ int bmsg_hardware_para_ioctl_sender(void *arg)
 
 	ret = rtos_push_to_queue(&g_wifi_core.io_queue, &msg, BEKEN_NO_WAIT);
 	if (kNoErr != ret)
-		RWNX_LOGD("bmsg_hardware_ioctl_sender_failed\r\n");
+		RWNX_LOGV("bmsg_hardware_ioctl_sender_failed\r\n");
 	else
-		RWNX_LOGD("bmsg_hardware_ioctl_sender\r\n");
+		RWNX_LOGV("bmsg_hardware_ioctl_sender\r\n");
 
 	return ret;
 }
@@ -704,7 +704,7 @@ void bmsg_music_sender(void *arg)
 
 	ret = rtos_push_to_queue(&g_wifi_core.io_queue, &msg, BEKEN_NO_WAIT);
 	if (kNoErr != ret)
-		RWNX_LOGD("bmsg_media_sender_failed\r\n");
+		RWNX_LOGV("bmsg_media_sender_failed\r\n");
 }
 
 #if CONFIG_TX_BUFING
@@ -720,7 +720,7 @@ void bmsg_tx_bufing_sender(uint32_t cid_and_flag)
 
 	ret = rtos_push_to_queue(&g_wifi_core.io_queue, &msg, BEKEN_NO_WAIT);
 	if (kNoErr != ret)
-		RWNX_LOGD("bmsg_txing_sender failed\r\n");
+		RWNX_LOGV("bmsg_txing_sender failed\r\n");
 }
 
 
@@ -811,13 +811,13 @@ static void core_thread_main(void *arg)
 		if (kNoErr == ret) {
 			switch (msg.type) {
 			case BMSG_STA_PS_TYPE:
-				RWNX_LOGD("bmsg_ioctl_handler\r\n");
+				RWNX_LOGV("bmsg_ioctl_handler\r\n");
 				bmsg_ps_handler(&msg);
 				break;
 
 			case BMSG_RX_TYPE:
 				/* ieee 802.11 rx handler */
-				RWNX_LOGD("bmsg_rx_handler\r\n");
+				RWNX_LOGV("bmsg_rx_handler\r\n");
 				bmsg_rx_handler(&msg);
 				break;
 
@@ -825,7 +825,7 @@ static void core_thread_main(void *arg)
 			case BMSG_SPECIAL_TX_TYPE:
 			case BMSG_TX_TYPE:
 				/* ieee 802.3 data tx handler */
-				RWNX_LOGD("bmsg_tx_handler\r\n");
+				RWNX_LOGV("bmsg_tx_handler\r\n");
 				bmsg_tx_handler(&msg);
 #if CONFIG_RWNX_SW_TXQ
 				rwnx_hwq_process_all(0);
@@ -842,7 +842,7 @@ static void core_thread_main(void *arg)
 #if !CONFIG_FULLY_HOSTED
 			case BMSG_SKT_TX_TYPE:
 				/* ieee 802.11 mlme frame tx handler, used by wpa_s/hapd */
-				RWNX_LOGD("bmsg_skt_tx_handler\r\n");
+				RWNX_LOGV("bmsg_skt_tx_handler\r\n");
 				bmsg_skt_tx_handler(&msg);
 				break;
 
@@ -867,18 +867,18 @@ static void core_thread_main(void *arg)
 
 			case BMSG_IOCTL_TYPE:
 				/* ke_msg tx handler */
-				RWNX_LOGD("bmsg_ioctl_handler\r\n");
+				RWNX_LOGV("bmsg_ioctl_handler\r\n");
 				bmsg_ioctl_handler(&msg);
 
 				break;
 
 			case BMSG_SOFTWARE_IOCTL_TYPE:
-				RWNX_LOGD("bmsg_software_ioctl_handler\r\n");
+				RWNX_LOGV("bmsg_software_ioctl_handler\r\n");
 				bmsg_ioctl_handler(&msg);
 				break;
 
 			case BMSG_HARDWARE_IOCTL_TYPE:
-				RWNX_LOGD("bmsg_hardware_ioctl_handler\r\n");
+				RWNX_LOGV("bmsg_hardware_ioctl_handler\r\n");
 				bmsg_ioctl_handler(&msg);
 				break;
 #if 0
@@ -933,14 +933,14 @@ static void core_thread_main(void *arg)
 
 			case BMSG_RX_TYPE:
 				/* ieee 802.11 rx handler */
-				RWNX_LOGD("bmsg_rx_handler\r\n");
+				RWNX_LOGV("bmsg_rx_handler\r\n");
 				bmsg_rx_handler(&msg);
 				break;
 
 #if !CONFIG_FULLY_HOSTED
 			case BMSG_TX_TYPE:
 				/* ieee 802.3 data tx handler */
-				RWNX_LOGD("bmsg_tx_handler\r\n");
+				RWNX_LOGV("bmsg_tx_handler\r\n");
 				bmsg_tx_handler(&msg);
 #if CONFIG_RWNX_SW_TXQ
 				rwnx_hwq_process_all(0);
@@ -957,7 +957,7 @@ static void core_thread_main(void *arg)
 #if !CONFIG_FULLY_HOSTED
 			case BMSG_SKT_TX_TYPE:
 				/* ieee 802.11 mlme frame tx handler, used by wpa_s/hapd */
-				RWNX_LOGD("bmsg_skt_tx_handler\r\n");
+				RWNX_LOGV("bmsg_skt_tx_handler\r\n");
 				bmsg_skt_tx_handler(&msg);
 				break;
 
@@ -979,7 +979,7 @@ static void core_thread_main(void *arg)
 
 			case BMSG_IOCTL_TYPE:
 				/* ke_msg tx handler */
-				RWNX_LOGD("bmsg_ioctl_handler\r\n");
+				RWNX_LOGV("bmsg_ioctl_handler\r\n");
 				bmsg_ioctl_handler(&msg);
 				break;
 
@@ -995,7 +995,7 @@ static void core_thread_main(void *arg)
 				break;
 #endif
 			default:
-				RWNX_LOGD("unknown_msg\r\n");
+				RWNX_LOGV("unknown_msg\r\n");
 				break;
 			}
 

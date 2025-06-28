@@ -404,7 +404,7 @@ void rwm_tx_bufing_restore_data(uint32_t cid_and_flag)
     }
 
     bufing_cnt = rwm_get_client_bufing_count(client_idx,flag);
-    RWNX_LOGI("tx buffer: bufing_cnt %d restore node %x\n",bufing_cnt,node);
+    RWNX_LOGD("tx buffer: bufing_cnt %d restore node %x\n",bufing_cnt,node);
     rwm_transfer_node(node, TXU_CNTRL_MORE_DATA
         #if CONFIG_SPECIAL_TX_TYPE
         ,0
@@ -422,7 +422,7 @@ void rwm_tx_bufing_restore_data(uint32_t cid_and_flag)
         u16 aid = sta_mgmt_get_aid(client_idx);
         if (flag == VIF_AP)
         {
-            //RWNX_LOGI("tx buffer: flag %x\n",flag);
+            //RWNX_LOGD("tx buffer: flag %x\n",flag);
             rw_msg_send_tim_update(vif_idx, aid, 0);
         }
     }

@@ -123,14 +123,14 @@ static void cli_test_stack_guard_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 {
 #if CONFIG_DEBUG_VERSION
     uint32_t override_len = 16;
-    os_printf("Test stack guard beging.\r\n");
+    BK_LOGD(NULL,"Test stack guard beging.\r\n");
     if (argc >= 2) {
         override_len = strtoll(argv[1], NULL, 16);
-        os_printf("Test stack guard, override_len: %d.\r\n", override_len);
+        BK_LOGD(NULL,"Test stack guard, override_len: %d.\r\n", override_len);
 
         os_test_stack_guard(override_len);
     } else {
-        os_printf("stackguard <override_len>\r\n");
+        BK_LOGD(NULL,"stackguard <override_len>\r\n");
     }
 #endif
 }

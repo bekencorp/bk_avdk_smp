@@ -156,6 +156,7 @@ uint8_t *ucHeap;
  * Using other logging API may lead to unstable situations.
  */
 #define MEM_STATIC_LOGI( tag, format, ... ) bk_printf_static_nonblock(BK_LOG_INFO, tag, format, ##__VA_ARGS__)
+#define MEM_STATIC_LOGD( tag, format, ... ) bk_printf_static_nonblock(BK_LOG_DEBUG, tag, format, ##__VA_ARGS__)
 
 #if CONFIG_FREERTOS_SMP
 #include "spinlock.h"
@@ -313,7 +314,7 @@ __attribute__((section(".itcm_sec_code"))) void bk_psram_heap_init(void) {
 	xTotalHeapSize = PSRAM_HEAP_SIZE;
 	psram_ucHeap = PSRAM_START_ADDRESS;
 
-	MEM_STATIC_LOGI(TAG, "psram:0x%x,size:%d\r\n", psram_ucHeap, xTotalHeapSize);
+	MEM_STATIC_LOGD(TAG, "psram:0x%x,size:%d\r\n", psram_ucHeap, xTotalHeapSize);
 
 #if CONFIG_PSRAM_HEAP_INIT_SET_ZERO
 	os_memset_word((uint32_t *)psram_ucHeap, 0x0, xTotalHeapSize);
@@ -607,7 +608,7 @@ void *psram_malloc( size_t xWantedSize )
 	uint32_t mem_end_len = 0;
 
     if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		os_printf("malloc_risk\r\n");
+		BK_LOGD(NULL, "malloc_risk\r\n");
 		BK_ASSERT(false);
 	}
 #endif
@@ -637,7 +638,7 @@ void *psram_malloc( size_t xWantedSize )
 		BlockLink_t *pxLink = (BlockLink_t *)((u8*)pvReturn - xHeapStructSize);
 		if(pvReturn && call_func_name) {
 #if CONFIG_MALLOC_STATIS
-			MEM_STATIC_LOGI(TAG, "m:%p,%d|%s,%d\r\n", pxLink, (pxLink->xBlockSize & ~xBlockAllocatedBit), call_func_name, line);
+			MEM_STATIC_LOGD(TAG, "m:%p,%d|%s,%d\r\n", pxLink, (pxLink->xBlockSize & ~xBlockAllocatedBit), call_func_name, line);
 #endif
 		}
 #if CONFIG_MEM_DEBUG
@@ -1010,7 +1011,7 @@ void * bk_wrap_sram_malloc(size_t xWantedSize)
 		BlockLink_t *pxLink = (BlockLink_t *)((u8*)pvReturn - xHeapStructSize);
 		if(pvReturn && call_func_name) {
 #if CONFIG_MALLOC_STATIS
-			MEM_STATIC_LOGI(TAG, "m:%p,%d|%s,%d\r\n", pxLink, (pxLink->xBlockSize & ~xBlockAllocatedBit), call_func_name, line);
+			MEM_STATIC_LOGD(TAG, "m:%p,%d|%s,%d\r\n", pxLink, (pxLink->xBlockSize & ~xBlockAllocatedBit), call_func_name, line);
 #endif
 		}
 #if CONFIG_MEM_DEBUG
@@ -1080,7 +1081,7 @@ void *pvPortMalloc( size_t xWantedSize )
 
 #if CONFIG_MEM_DEBUG
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		os_printf("malloc_risk\r\n");
+		BK_LOGD(NULL, "malloc_risk\r\n");
 		BK_ASSERT(false);
 	}
 #endif
@@ -1132,7 +1133,7 @@ void vPortFree( void *pv )
 
 #if CONFIG_MEM_DEBUG
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		os_printf("free_risk\r\n");
+		BK_LOGD(NULL, "free_risk\r\n");
 		BK_ASSERT(false);
 	}
 #endif
@@ -1182,7 +1183,7 @@ void vPortFree( void *pv )
 #if CONFIG_MALLOC_STATIS
                 if (call_func_name)
                 {
-                    MEM_STATIC_LOGI(TAG, "f:%p,%d|%s,%d\r\n", pxLink, pxLink->xBlockSize, call_func_name, line);
+                    MEM_STATIC_LOGD(TAG, "f:%p,%d|%s,%d\r\n", pxLink, pxLink->xBlockSize, call_func_name, line);
                 }
 #endif
 #if CONFIG_MEM_DEBUG
@@ -1528,7 +1529,7 @@ static void prvHeapInit( void )
 	xTotalHeapSize = configTOTAL_HEAP_SIZE;
 	#endif
 
-	MEM_STATIC_LOGI(TAG, "prvHeapInit-start addr:0x%x, size:%d\r\n", ucHeap, xTotalHeapSize);
+	MEM_STATIC_LOGD(TAG, "prvHeapInit-start addr:0x%x, size:%d\r\n", ucHeap, xTotalHeapSize);
 
 	/* Ensure the heap starts on a correctly aligned boundary. */
 	uxAddress = ( size_t ) ucHeap;
@@ -1858,19 +1859,19 @@ extern unsigned char __iram_end__;
 void pvShowMemoryConfigInfo(void)
 {
 #if configDYNAMIC_HEAP_SIZE
-	BK_LOGI(TAG, "\n");
-	BK_LOGI(TAG, "%-8s %-8s %-8s %-8s\n", "mem_type", "start", "end", "size");
-	BK_LOGI(TAG, "%-8s %-8s %-8s %-8s\n", "--------", "--------", "--------", "--------");
-	BK_LOGI(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "itcm", ITCM_START_ADDRESS, ITCM_END_ADDRESS, (ITCM_END_ADDRESS - ITCM_START_ADDRESS));
-	BK_LOGI(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "dtcm", DTCM_START_ADDRESS, DTCM_END_ADDRESS, (DTCM_END_ADDRESS - DTCM_START_ADDRESS));
-	BK_LOGI(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "ram", RAM_START_ADDRESS, HEAP_END_ADDRESS, (HEAP_END_ADDRESS - RAM_START_ADDRESS));
-	BK_LOGI(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "non_heap", RAM_START_ADDRESS, HEAP_START_ADDRESS, (HEAP_START_ADDRESS - RAM_START_ADDRESS));
-	BK_LOGI(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "iram", IRAM_START_ADDRESS, IRAM_END_ADDRESS, (IRAM_END_ADDRESS - IRAM_START_ADDRESS));
-	BK_LOGI(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "data", DATA_START_ADDRESS, DATA_END_ADDRESS, (DATA_END_ADDRESS - DATA_START_ADDRESS));
-	BK_LOGI(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "bss", BSS_START_ADDRESS, BSS_END_ADDRESS, (BSS_END_ADDRESS - BSS_START_ADDRESS));
-	BK_LOGI(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "heap", HEAP_START_ADDRESS, HEAP_END_ADDRESS, (HEAP_END_ADDRESS - HEAP_START_ADDRESS));
+	BK_LOGD(TAG, "\n");
+	BK_LOGD(TAG, "%-8s %-8s %-8s %-8s\n", "mem_type", "start", "end", "size");
+	BK_LOGD(TAG, "%-8s %-8s %-8s %-8s\n", "--------", "--------", "--------", "--------");
+	BK_LOGD(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "itcm", ITCM_START_ADDRESS, ITCM_END_ADDRESS, (ITCM_END_ADDRESS - ITCM_START_ADDRESS));
+	BK_LOGD(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "dtcm", DTCM_START_ADDRESS, DTCM_END_ADDRESS, (DTCM_END_ADDRESS - DTCM_START_ADDRESS));
+	BK_LOGD(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "ram", RAM_START_ADDRESS, HEAP_END_ADDRESS, (HEAP_END_ADDRESS - RAM_START_ADDRESS));
+	BK_LOGD(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "non_heap", RAM_START_ADDRESS, HEAP_START_ADDRESS, (HEAP_START_ADDRESS - RAM_START_ADDRESS));
+	BK_LOGD(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "iram", IRAM_START_ADDRESS, IRAM_END_ADDRESS, (IRAM_END_ADDRESS - IRAM_START_ADDRESS));
+	BK_LOGD(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "data", DATA_START_ADDRESS, DATA_END_ADDRESS, (DATA_END_ADDRESS - DATA_START_ADDRESS));
+	BK_LOGD(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "bss", BSS_START_ADDRESS, BSS_END_ADDRESS, (BSS_END_ADDRESS - BSS_START_ADDRESS));
+	BK_LOGD(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "heap", HEAP_START_ADDRESS, HEAP_END_ADDRESS, (HEAP_END_ADDRESS - HEAP_START_ADDRESS));
 #if (CONFIG_PSRAM_AS_SYS_MEMORY)
-	BK_LOGI(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "psram", PSRAM_START_ADDRESS, (PSRAM_START_ADDRESS + PSRAM_HEAP_SIZE), PSRAM_HEAP_SIZE);
+	BK_LOGD(TAG, "%-8s 0x%-6x 0x%-6x %-8d\r\n", "psram", PSRAM_START_ADDRESS, (PSRAM_START_ADDRESS + PSRAM_HEAP_SIZE), PSRAM_HEAP_SIZE);
 #endif
 #endif
 }

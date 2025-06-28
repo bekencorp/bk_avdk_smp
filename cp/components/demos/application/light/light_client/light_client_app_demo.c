@@ -71,7 +71,7 @@ int light_client_input_msg_sender(int from, char *msg, unsigned int len)
     if(queue_len > (LIGHT_CLIENT_SOCKET_MSG_QUEUE_LENGTH / 2))
     {
         GLOBAL_INT_RESTORE();
-        os_printf("rx discard!\r\n");
+        BK_LOGD(NULL,"rx discard!\r\n");
         return kGeneralErr;
     }
     GLOBAL_INT_RESTORE();
@@ -81,7 +81,7 @@ int light_client_input_msg_sender(int from, char *msg, unsigned int len)
         rxbuf = (char *) os_malloc( len );
         if(rxbuf == NULL)
         {
-            os_printf("malloc failed\r\n");
+            BK_LOGD(NULL,"malloc failed\r\n");
             return t_error;
         }
 
@@ -96,7 +96,7 @@ int light_client_input_msg_sender(int from, char *msg, unsigned int len)
     ret = rtos_push_to_queue(&light_client_msg_q, &rxmsg, BEKEN_NO_WAIT);
     if(kNoErr != ret)
     {
-        os_printf("light rec queue failed\r\n");
+        BK_LOGD(NULL,"light rec queue failed\r\n");
         if(rxbuf)
         {
             os_free(rxbuf);
@@ -123,7 +123,7 @@ void light_client_input_msg_handler(light_client_msg_T *msg)
         break;
 
     default:
-        os_printf("unknown input msg destination!\r\n");
+        BK_LOGD(NULL,"unknown input msg destination!\r\n");
         break;
     }
 
@@ -148,7 +148,7 @@ int light_client_output_msg_sender(int to, char *msg, unsigned int len)
         txbuf = (char *) os_malloc( len );
         if(txbuf == NULL)
         {
-            os_printf("malloc failed\r\n");
+            BK_LOGD(NULL,"malloc failed\r\n");
             return t_error;
         }
 
@@ -163,7 +163,7 @@ int light_client_output_msg_sender(int to, char *msg, unsigned int len)
     ret = rtos_push_to_queue(&light_client_msg_q, &txmsg, 100);
     if(kNoErr != ret)
     {
-        os_printf("light send queue failed\r\n");
+        BK_LOGD(NULL,"light send queue failed\r\n");
         if(txbuf)
         {
             os_free(txbuf);
@@ -187,7 +187,7 @@ void light_client_output_msg_handler(light_client_msg_T *msg)
         break;
 
     default:
-        os_printf("unknown out msg destination!\r\n");
+        BK_LOGD(NULL,"unknown out msg destination!\r\n");
         break;
     }
 
@@ -208,7 +208,7 @@ int create_light_client_msg_queue(beken_queue_t *queue)
                             LIGHT_CLIENT_SOCKET_MSG_QUEUE_LENGTH);
     if (kNoErr != err )
     {
-        os_printf("create queue failed\r\n");
+        BK_LOGD(NULL,"create queue failed\r\n");
         return t_error;
     }
 
@@ -226,7 +226,7 @@ void light_client_app_main ( beken_thread_arg_t arg )
     ret = create_light_client_msg_queue(&light_client_msg_q);
     if(ret != t_ok)
     {
-        os_printf("create light_client_msg_q error\r\n");
+        BK_LOGD(NULL,"create light_client_msg_q error\r\n");
         goto exit;
     }
 
@@ -249,7 +249,7 @@ void light_client_app_main ( beken_thread_arg_t arg )
             break;
 
         default:
-            os_printf("Error msgtype:%d\r\n", msg.type);
+            BK_LOGD(NULL,"Error msgtype:%d\r\n", msg.type);
             break;
         }
     }
@@ -271,7 +271,7 @@ int demo_start( void )
                               (beken_thread_arg_t)0 );
     if (kNoErr != err )
     {
-        os_printf("create light_Client thread failed\r\n");
+        BK_LOGD(NULL,"create light_Client thread failed\r\n");
     }
 
     return err;

@@ -42,7 +42,7 @@ static char resultc[13] = {0xE5,0x9B,0x9E,0xE5,0xAE,0xB6,0xE6,0xA8,0xA1,0xE5,0xB
 
 static void cli_audio_asr_help(void)
 {
-	os_printf("asr_file_test {xxx.pcm} \r\n");
+	BK_LOGD(NULL, "asr_file_test {xxx.pcm} \r\n");
 }
 
 /* mic file format: signal channel, 16K sample rate, 16bit width */
@@ -64,23 +64,23 @@ void cli_asr_file_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 	sprintf(mic_file_name, "1:/%s", argv[1]);
 	fr = f_open(&file_mic, mic_file_name, FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", mic_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", mic_file_name);
 		return;
 	}
 
 	if (Wanson_ASR_Init() < 0)
 	{
-		os_printf("Wanson_ASR_Init Failed!\n");
+		BK_LOGD(NULL, "Wanson_ASR_Init Failed!\n");
 		return;
 	}
 	Wanson_ASR_Reset();
-	os_printf("Wanson_ASR_Init OK!\n");
+	BK_LOGD(NULL, "Wanson_ASR_Init OK!\n");
 
 	while (!empty_flag)
 	{
 		fr = f_read(&file_mic, (uint8_t *)ucInBuff, 960, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read ref file fail.\r\n");
+			BK_LOGD(NULL, "read ref file fail.\r\n");
 			break;
 		}
 
@@ -92,21 +92,21 @@ void cli_asr_file_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 			rs = Wanson_ASR_Recog((short*)ucInBuff, 480, &text, &score);
 //			GPIO_DOWN(44);
 			if (rs == 1) {
-				os_printf(" ASR Result: %s\n", text);    //识别结果打印
+				BK_LOGD(NULL, " ASR Result: %s\n", text);    //识别结果打印
 				if (os_strcmp(text, result0) == 0) {    //识别出唤醒词 小蜂管家
-					os_printf("%s \n", "xiao feng guan jia ");
+					BK_LOGD(NULL, "%s \n", "xiao feng guan jia ");
 				} else if (os_strcmp(text, result1) == 0) {    //识别出唤醒词 阿尔米诺
-					os_printf("%s \n", "a er mi nuo ");
+					BK_LOGD(NULL, "%s \n", "a er mi nuo ");
 				} else if (os_strcmp(text, result2) == 0) {    //识别出 会客模式
-					os_printf("%s \n", "hui ke mo shi ");
+					BK_LOGD(NULL, "%s \n", "hui ke mo shi ");
 				} else if (os_strcmp(text, result3) == 0) {	 //识别出 用餐模式
-					os_printf("%s \n", "yong can mo shi ");
+					BK_LOGD(NULL, "%s \n", "yong can mo shi ");
 				} else if (os_strcmp(text, resulta) == 0) {  //识别出 离开模式
-					os_printf("%s \n", "li kai mo shi ");
+					BK_LOGD(NULL, "%s \n", "li kai mo shi ");
 				} else if (os_strcmp(text, resultc) == 0) {  //识别出 回家模式
-					os_printf("%s \n", "hui jia mo shi ");
+					BK_LOGD(NULL, "%s \n", "hui jia mo shi ");
 				} else {
-					//os_printf(" \n");
+					//BK_LOGD(NULL, " \n");
 				}
 			}
 		}
@@ -118,12 +118,12 @@ void cli_asr_file_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
 	fr = f_close(&file_mic);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", mic_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", mic_file_name);
 		return;
 	}
-	os_printf("wanson asr test complete \r\n");
+	BK_LOGD(NULL, "wanson asr test complete \r\n");
 
-	os_printf("test finish \r\n");
+	BK_LOGD(NULL, "test finish \r\n");
 }
 
 

@@ -51,7 +51,7 @@ UINT32 test_sdcard_read(UINT32 blk, UINT32 blk_cnt)
 	UINT32 ret=0, j;
 	uint8_t *testbuf;
 
-	os_printf("%s[+]\r\n", __func__);
+	BK_LOGD(NULL,"%s[+]\r\n", __func__);
 
 	testbuf = os_malloc(SDCARD_TEST_BUFFER_SIZE);
 	os_memset(testbuf, 0, SDCARD_TEST_BUFFER_SIZE);
@@ -64,7 +64,7 @@ UINT32 test_sdcard_read(UINT32 blk, UINT32 blk_cnt)
 
 		for (int i = 0; i < SDCARD_TEST_BUFFER_SIZE; i+=16)
 		{
-			os_printf("0x%08x,0x%08x,0x%08x,0x%08x\r\n",
+			BK_LOGD(NULL,"0x%08x,0x%08x,0x%08x,0x%08x\r\n",
 							   *(uint32_t *)&testbuf[i], 
 							   *(uint32_t *)&testbuf[i+4],
 							   *(uint32_t *)&testbuf[i+8],
@@ -73,7 +73,7 @@ UINT32 test_sdcard_read(UINT32 blk, UINT32 blk_cnt)
 	}
 
 	os_free(testbuf);
-	os_printf("%s[-]\r\n", __func__);
+	BK_LOGD(NULL,"%s[-]\r\n", __func__);
 	return ret;
 }
 
@@ -87,7 +87,7 @@ UINT32 test_sdcard_write(UINT32 blk, UINT32 blk_cnt, UINT32 wr_val)
 	if (testbuf == NULL)
 		return 1;
 
-	os_printf("%s[+]\r\n", __func__);
+	BK_LOGD(NULL,"%s[+]\r\n", __func__);
 	for (int i = 0; i < SDCARD_TEST_BUFFER_SIZE; i+=16)
 	{
 		if(wr_val != 0x12345678)
@@ -109,7 +109,7 @@ UINT32 test_sdcard_write(UINT32 blk, UINT32 blk_cnt, UINT32 wr_val)
 			j++;
 		}
 
-		os_printf("0x%08x,0x%08x,0x%08x,0x%08x\r\n",
+		BK_LOGD(NULL,"0x%08x,0x%08x,0x%08x,0x%08x\r\n",
 					   *(uint32_t *)&testbuf[i], 
 					   *(uint32_t *)&testbuf[i+4],
 					   *(uint32_t *)&testbuf[i+8],
@@ -122,7 +122,7 @@ UINT32 test_sdcard_write(UINT32 blk, UINT32 blk_cnt, UINT32 wr_val)
 	}
 
 	os_free(testbuf);
-	os_printf("%s[-]\r\n", __func__);
+	BK_LOGD(NULL,"%s[-]\r\n", __func__);
 	return ret;
 }
 

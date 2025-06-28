@@ -262,7 +262,7 @@ void wpa_supplicant_auto_reconnect_timeout(void *eloop_ctx, void *timeout_ctx)
 	     wpa_s->wpa_state == WPA_ASSOCIATING))
 		bssid = wpa_s->pending_bssid;
 #ifdef CONFIG_NO_STDOUT_DEBUG
-	WPA_LOGI("Overall connection with " MACSTR " timed out.\n",
+	WPA_LOGD("Overall connection with " MACSTR " timed out.\n",
 		MAC2STR(bssid));
 #endif
 	wpa_msg(wpa_s, MSG_INFO, "Overall connection with " MACSTR " timed out.",
@@ -1059,7 +1059,7 @@ void wpa_supplicant_set_state(struct wpa_supplicant *wpa_s,
 		wpa_supplicant_state_txt(wpa_s->wpa_state),
 		wpa_supplicant_state_txt(state));
 #else
-	WPA_LOGI("State: %s -> %s\n",
+	WPA_LOGD("State: %s -> %s\n",
 		wpa_supplicant_state_txt(wpa_s->wpa_state),
 		wpa_supplicant_state_txt(state));
 #endif
@@ -3882,7 +3882,7 @@ static void wpas_start_assoc_cb(struct wpa_radio_work *work, int deinit)
 	if (!wpa_ie) {
 		wpas_connect_work_done(wpa_s);
 #if BK_SUPPLICANT
-		WPA_LOGI("terminate current connection and rescan after 5 secs\r\n");
+		WPA_LOGD("terminate current connection and rescan after 5 secs\r\n");
 		wpa_supplicant_req_scan(wpa_s, 5, 0);
 #endif
 		return;
@@ -4236,7 +4236,7 @@ static void wpas_start_assoc_cb(struct wpa_radio_work *work, int deinit)
 
 #ifdef BK_SUPPLICANT
 	/* append bcn ie */
-	// WPA_LOGI("%s: bss %p, ie_len %d\n", __func__, bss, bss ? bss->ie_len : -1);
+	// WPA_LOGD("%s: bss %p, ie_len %d\n", __func__, bss, bss ? bss->ie_len : -1);
 	if (bss && bss->ie_len && get_ie(bss->ies, bss->ie_len, WLAN_EID_SUPP_RATES)) {
 		params.bcn_ie = bss->ies;
 		params.bcn_len = bss->ie_len;
@@ -5299,7 +5299,7 @@ void wpa_supplicant_rx_eapol(void *ctx, const u8 *src_addr,
 			wpa_supplicant_state_txt(wpa_s->wpa_state),
 			MAC2STR(wpa_s->bssid));
 #else
-		WPA_LOGI("Not associated - Delay processing "
+		WPA_LOGD("Not associated - Delay processing "
 			"of received EAPOL frame (state=%s bssid=" MACSTR ")\r\n",
 			wpa_supplicant_state_txt(wpa_s->wpa_state),
 			MAC2STR(wpa_s->bssid));
@@ -5571,7 +5571,7 @@ int wpa_supplicant_driver_init(struct wpa_supplicant *wpa_s)
 	static int interface_count = 0;
 #endif
 
-	WPA_LOGD("wpa_dInit\r\n");
+	WPA_LOGV("wpa_dInit\r\n");
 	if (wpa_supplicant_update_mac_addr(wpa_s) < 0)
 		return -1;
 

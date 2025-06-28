@@ -538,6 +538,10 @@ extern uint32_t rtos_get_time_diff(void);
             if( xModifiableIdleTime > 0 )
             {
                 bk_pm_suppress_ticks_and_sleep(xModifiableIdleTime);
+            	BaseType_t xCoreID = portGET_CORE_ID();
+                if (xCoreID == CPU0_CORE_ID) {
+                    portYIELD_CORE(!xCoreID);
+                }
             }
 
             configPOST_SLEEP_PROCESSING( xExpectedIdleTime );
@@ -660,10 +664,6 @@ extern uint32_t rtos_get_time_diff(void);
             #endif /* portNVIC_SYSTICK_CLK_BIT_CONFIG */
 
             /* Step the tick to account for any tick periods that elapsed. */
-            BaseType_t xCoreID = portGET_CORE_ID();   
-            if (xCoreID == CPU0_CORE_ID) {
-                vTaskStepTick( ulCompleteTickPeriods );
-            }
             /* Exit with interrupts enabled. */
             __asm volatile ( "cpsie i" ::: "memory" );
         }
@@ -1131,7 +1131,7 @@ void vPortSVCHandler_C( uint32_t * pulCallerStackAddress ) /* PRIVILEGED_FUNCTIO
 #if configDEBUG_SMP
 void xPortDebug(const char *str)
 {
-    os_printf("#%d %s  NVIC_SHPR3: 0x%x, PRIMASK 0x%x\n", portGET_CORE_ID(), str, portNVIC_SHPR3_REG, __get_PRIMASK());
+    BK_LOGD(NULL, "#%d %s  NVIC_SHPR3: 0x%x, PRIMASK 0x%x\n", portGET_CORE_ID(), str, portNVIC_SHPR3_REG, __get_PRIMASK());
 }
 #endif
 
@@ -1150,7 +1150,7 @@ BaseType_t xPortStartSchedulerOnCore( void ) /* PRIVILEGED_FUNCTION */
     portNVIC_SHPR3_REG |= portNVIC_PENDSV_PRI;
 
     #if configDEBUG_SMP
-        os_printf("#%d NVIC_SHPR3: 0x%x, PRIMASK 0x%x\n", portGET_CORE_ID(), portNVIC_SHPR3_REG, __get_PRIMASK());
+        BK_LOGD(NULL, "#%d NVIC_SHPR3: 0x%x, PRIMASK 0x%x\n", portGET_CORE_ID(), portNVIC_SHPR3_REG, __get_PRIMASK());
     #endif
     #if ( configENABLE_MPU == 1 )
     {
@@ -1234,7 +1234,7 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
         /* check mailbox msg and send msg to task */
         if (portGET_CORE_ID() == 0)
         {
-            // os_printf("XXX: %s\n", __func__);
+            // BK_LOGD(NULL, "XXX: %s\n", __func__);
             REG_WRITE(GPIO_14_DEBUG, 0);
         }
         else
@@ -1320,7 +1320,7 @@ void vPortYieldCore(int xCoreID)
     #if configDEBUG_SMP
         if (xCoreID == 0)
         {
-            // os_printf("XXX: %s, core id %d\n", __func__, xCoreID);
+            // BK_LOGD(NULL, "XXX: %s, core id %d\n", __func__, xCoreID);
             REG_WRITE(GPIO_14_DEBUG, 2);
         }
         else

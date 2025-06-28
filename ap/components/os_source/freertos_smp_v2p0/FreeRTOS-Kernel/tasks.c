@@ -901,7 +901,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
 {
     StackType_t * pxTopOfStack;
 
-    BK_LOGI("OS", "create %s, tcb=%x, stack=[%x-%x:%d], prio=%d, xCoreID=%d\r\n",
+    BK_LOGD("OS", "create %s, tcb=%x, stack=[%x-%x:%d], prio=%d, xCoreID=%d\r\n",
                 pcName,
                 pxNewTCB,
                 pxNewTCB->pxStack,
@@ -3021,7 +3021,7 @@ char * pcTaskGetName( TaskHandle_t xTaskToQuery ) /*lint !e971 Unqualified char 
 
         /* SINGLE-CORE MODIFICATION: Expanded critical section so that SMP
          * accesses xTickCount inside a critical section. */
-        taskENTER_CRITICAL( &xKernelLock );
+        prvENTER_CRITICAL_SAFE( &xKernelLock );
         {
             /* Correct the tick count value after a period during which the tick
              * was suppressed.  Note this does *not* call the tick hook function for
@@ -3062,7 +3062,7 @@ char * pcTaskGetName( TaskHandle_t xTaskToQuery ) /*lint !e971 Unqualified char 
             traceINCREASE_TICK_COUNT( xTicksToJump );
         }
         /* SINGLE-CORE MODIFICATION: Expanded critical section */
-        taskEXIT_CRITICAL( &xKernelLock );
+        portEXIT_CRITICAL_SAFE( &xKernelLock );
     }
 
 #endif

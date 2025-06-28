@@ -28,6 +28,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define APP_DEMO_UDP_SOCKET_TIMEOUT     100  // ms
 
@@ -55,7 +56,7 @@ db_udp_service_t *db_udp_service = NULL;
 
 void doorbell_udp_update_remote_address(in_addr_t address)
 {
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
     db_udp_service->img_remote.sin_addr.s_addr = address;
     db_udp_service->aud_remote.sin_addr.s_addr = address;
 }
@@ -92,7 +93,7 @@ void *doorbell_udp_img_get_tx_buf(void)
         return NULL;
     }
 
-    LOGI("doorbell_udp_img_get_tx_buf, tbuf %p\n", db_udp_service->img_channel->tbuf);
+    LOGD("doorbell_udp_img_get_tx_buf, tbuf %p\n", db_udp_service->img_channel->tbuf);
 
     return db_udp_service->img_channel->tbuf + 1;
 }
@@ -146,7 +147,7 @@ void *doorbell_udp_aud_get_tx_buf(void)
         return NULL;
     }
 
-    //LOGI("doorbell_udp_aud_get_tx_buf, tbuf %p\n", db_udp_service->aud_channel->tbuf);
+    //LOGD("doorbell_udp_aud_get_tx_buf, tbuf %p\n", db_udp_service->aud_channel->tbuf);
 
     return db_udp_service->aud_channel->tbuf + 1;
 }
@@ -186,7 +187,7 @@ static const media_transfer_cb_t doorbell_udp_aud_channel =
 
 static inline void doorbell_udp_voice_receiver(db_channel_t *channel, uint16_t sequence, uint16_t flags, uint32_t timestamp, uint8_t sequences, uint8_t *data, uint16_t length)
 {
-    LOGD("%s %d\n", __func__, length);
+    LOGV("%s %d\n", __func__, length);
     doorbell_audio_data_callback(data, length);
 }
 
@@ -200,7 +201,7 @@ static void doorbell_udp_service_main(beken_thread_arg_t data)
     u8 *rcv_buf = NULL;
     in_addr_t remote = doorbell_cmd_get_socket_address();
 
-    LOGI("doorbell_udp_service, img: %d, aud: %d\n", DOORBELL_UDP_IMG_PORT, DOORBELL_UDP_AUD_PORT);
+    LOGD("doorbell_udp_service, img: %d, aud: %d\n", DOORBELL_UDP_IMG_PORT, DOORBELL_UDP_AUD_PORT);
     (void)(data);
 
     rcv_buf = (u8 *)os_malloc((DOORBELL_NETWORK_MAX_SIZE + 1) * sizeof(u8));
@@ -377,7 +378,7 @@ bk_err_t doorbell_udp_service_init(void)
 {
     int ret;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     if (db_udp_service != NULL)
     {
@@ -427,8 +428,8 @@ bk_err_t doorbell_udp_service_init(void)
         return BK_FAIL;
     }
 
-    LOGI("db_udp_service->img_channel %p\n", db_udp_service->img_channel);
-    LOGI("db_udp_service->aud_channel %p\n", db_udp_service->aud_channel);
+    LOGD("db_udp_service->img_channel %p\n", db_udp_service->img_channel);
+    LOGD("db_udp_service->aud_channel %p\n", db_udp_service->aud_channel);
 
     return BK_OK;
 error:
@@ -453,7 +454,7 @@ error:
 
 void doorbell_udp_service_deinit(void)
 {
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     if (db_udp_service == NULL)
     {

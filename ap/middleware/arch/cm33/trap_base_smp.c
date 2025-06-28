@@ -96,9 +96,6 @@ static void rtos_dump_plat_memory(void) {
 #if CONFIG_SOC_BK7236XX
     stack_mem_dump((uint32_t)SOC_MEM_CHECK_REG_BASE, (uint32_t)(SOC_MEM_CHECK_REG_BASE + 0x81 * 4));
 #endif
-
-    uint32_t ENCODE_PSRAM_BASE_ADDR = (uint32_t)(SOC_PSRAM_DATA_BASE + CONFIG_PSRAM_MEM_SLAB_USER_SIZE + CONFIG_PSRAM_MEM_SLAB_AUDIO_SIZE);
-    stack_mem_dump(ENCODE_PSRAM_BASE_ADDR, ENCODE_PSRAM_BASE_ADDR + CONFIG_PSRAM_MEM_SLAB_ENCODE_SIZE);
 }
 
 //NOTES:temperary codes for BK7236XX debug, we'd better optimize it for other SOC/projects...

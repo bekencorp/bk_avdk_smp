@@ -617,10 +617,10 @@ static UBaseType_t uxLoopCount = 0;
 void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, SemaphoreHandle_t xLocalMutex )
 {
 	/* Take the mutex.  It should be available now. */
-	bk_printf("[core%d]lpmt-xSemaphoreTakeM\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lpmt-xSemaphoreTakeM\r\n", (*((volatile uint32_t *)(0x20000000))));
 	if( xSemaphoreTake( xMutex, intsemNO_BLOCK ) != pdPASS )
 	{
-		bk_printf("[core%d]xErrorDetected0\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected0\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -629,16 +629,16 @@ void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, Semaphor
 
 	/* This task's priority should be as per that assigned when the task was
 	created. */
-	bk_printf("[core%d]lpmt1-prio:%d\r\n", (*((volatile uint32_t *)(0x20000000))), uxTaskPriorityGet(NULL));
+	BK_LOGD(NULL,"[core%d]lpmt1-prio:%d\r\n", (*((volatile uint32_t *)(0x20000000))), uxTaskPriorityGet(NULL));
 	if( uxTaskPriorityGet( NULL ) != genqMUTEX_LOW_PRIORITY )
 	{
-		bk_printf("[core%d]xErrorDetected1\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected1\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
 	/* Now unsuspend the high priority task.  This will attempt to take the
 	mutex, and block when it finds it cannot obtain it. */
-	bk_printf("[core%d]lpmt-resume-high\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lpmt-resume-high\r\n", (*((volatile uint32_t *)(0x20000000))));
 	vTaskResume( xHighPriorityMutexTask );
 
 	#if configUSE_PREEMPTION == 0
@@ -656,10 +656,10 @@ void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, Semaphor
 	/* This task should now have inherited the priority of the high priority
 	task as by now the high priority task will have attempted to obtain the
 	mutex. */
-	bk_printf("[core%d]lpmt2-prio:%d\r\n", (*((volatile uint32_t *)(0x20000000))), uxTaskPriorityGet(NULL));
+	BK_LOGD(NULL,"[core%d]lpmt2-prio:%d\r\n", (*((volatile uint32_t *)(0x20000000))), uxTaskPriorityGet(NULL));
 	if( uxTaskPriorityGet( NULL ) != genqMUTEX_HIGH_PRIORITY )
 	{
-		bk_printf("[core%d]xErrorDetected2\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected2\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -669,29 +669,29 @@ void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, Semaphor
 	vTaskPrioritySet( NULL, genqMUTEX_TEST_PRIORITY );
 	if( uxTaskPriorityGet( NULL ) != genqMUTEX_HIGH_PRIORITY )
 	{
-		bk_printf("[core%d]xErrorDetected3\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected3\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
 	/* Now unsuspend the medium priority task.  This should not run as the
 	inherited priority of this task is above that of the medium priority
 	task. */
-	bk_printf("[p:%d][core%d]lpmt-resume-medium\r\n", uxTaskPriorityGet( NULL ), (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[p:%d][core%d]lpmt-resume-medium\r\n", uxTaskPriorityGet( NULL ), (*((volatile uint32_t *)(0x20000000))));
 	vTaskResume( xMediumPriorityMutexTask );
 
 	/* If the medium priority task did run then it will have incremented the
 	guarded variable. */
 	if( ulGuardedVariable != 0 )
 	{
-		bk_printf("[core%d]xErrorDetected4\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected4\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
 	/* Take the local mutex too, so two mutexes are now held. */
-	bk_printf("[p:%d][core%d]lpmt-xSemaphoreTakeLM\r\n", uxTaskPriorityGet( NULL ), (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[p:%d][core%d]lpmt-xSemaphoreTakeLM\r\n", uxTaskPriorityGet( NULL ), (*((volatile uint32_t *)(0x20000000))));
 	if( xSemaphoreTake( xLocalMutex, intsemNO_BLOCK ) != pdPASS )
 	{
-		bk_printf("[core%d]xErrorDetected5\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected5\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -701,10 +701,10 @@ void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, Semaphor
 	attempts to hold multiple mutexes without bloating the code with complex
 	algorithms.  It is possible that the high priority mutex task will
 	execute as it shares a priority with this task. */
-	bk_printf("[core%d]lpmt-xSemaphoreGiveM\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lpmt-xSemaphoreGiveM\r\n", (*((volatile uint32_t *)(0x20000000))));
 	if( xSemaphoreGive( xMutex ) != pdPASS )
 	{
-		bk_printf("[core%d]xErrorDetected6\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected6\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -717,13 +717,13 @@ void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, Semaphor
 	higher priority, ensure this is the case. */
 	if( ulGuardedVariable != 0 )
 	{
-		bk_printf("[core%d]xErrorDetected7\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected7\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
 	if( uxTaskPriorityGet( NULL ) != genqMUTEX_HIGH_PRIORITY )
 	{
-		bk_printf("[core%d]xErrorDetected8\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected8\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -733,10 +733,10 @@ void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, Semaphor
 	the medium priority task should execute and increment the guarded
 	variable.   When this task next	runs both the high and medium priority
 	tasks will have been suspended again. */
-	bk_printf("[core%d]lpmt-xSemaphoreGiveLM\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lpmt-xSemaphoreGiveLM\r\n", (*((volatile uint32_t *)(0x20000000))));
 	if( xSemaphoreGive( xLocalMutex ) != pdPASS )
 	{
-		bk_printf("[core%d]xErrorDetected9\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected9\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -747,7 +747,7 @@ void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, Semaphor
 	/* Check the guarded variable did indeed increment... */
 	if( ulGuardedVariable != 1 )
 	{
-		bk_printf("[core%d]xErrorDetected10\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected10\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -755,7 +755,7 @@ void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, Semaphor
 	genqMUTEX_TEST_PRIORITY. */
 	if( uxTaskPriorityGet( NULL ) != genqMUTEX_TEST_PRIORITY )
 	{
-		bk_printf("[core%d]xErrorDetected11\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected11\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -768,10 +768,10 @@ void prvTakeTwoMutexesReturnInDifferentOrder( SemaphoreHandle_t xMutex, Semaphor
 void prvTakeTwoMutexesReturnInSameOrder( SemaphoreHandle_t xMutex, SemaphoreHandle_t xLocalMutex )
 {
 	/* Take the mutex.  It should be available now. */
-	bk_printf("[core%d]lp_task-xSemaphoreTakeM\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lp_task-xSemaphoreTakeM\r\n", (*((volatile uint32_t *)(0x20000000))));
 	if( xSemaphoreTake( xMutex, intsemNO_BLOCK ) != pdPASS )
 	{
-		bk_printf("[core%d]xErrorDetected12\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected12\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -782,13 +782,13 @@ void prvTakeTwoMutexesReturnInSameOrder( SemaphoreHandle_t xMutex, SemaphoreHand
 	created. */
 	if( uxTaskPriorityGet( NULL ) != genqMUTEX_LOW_PRIORITY )
 	{
-		bk_printf("[core%d]xErrorDetected13\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected13\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
 	/* Now unsuspend the high priority task.  This will attempt to take the
 	mutex, and block when it finds it cannot obtain it. */
-	bk_printf("[core%d]lp_task-vTaskResumeHT\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lp_task-vTaskResumeHT\r\n", (*((volatile uint32_t *)(0x20000000))));
 	vTaskResume( xHighPriorityMutexTask );
 
 	#if configUSE_PREEMPTION == 0
@@ -808,29 +808,29 @@ void prvTakeTwoMutexesReturnInSameOrder( SemaphoreHandle_t xMutex, SemaphoreHand
 	mutex. */
 	if( uxTaskPriorityGet( NULL ) != genqMUTEX_HIGH_PRIORITY )
 	{
-		bk_printf("[core%d]xErrorDetected14\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected14\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
 	/* Now unsuspend the medium priority task.  This should not run as the
 	inherited priority of this task is above that of the medium priority
 	task. */
-	bk_printf("[core%d]lp_task-xTaskResumeMT\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lp_task-xTaskResumeMT\r\n", (*((volatile uint32_t *)(0x20000000))));
 	vTaskResume( xMediumPriorityMutexTask );
 
 	/* If the medium priority task did run then it will have incremented the
 	guarded variable. */
 	if( ulGuardedVariable != 0 )
 	{
-		bk_printf("[core%d]xErrorDetected15\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected15\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
 	/* Take the local mutex too, so two mutexes are now held. */
-	bk_printf("[core%d]lp_task-xSemaphoreTakeLM\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lp_task-xSemaphoreTakeLM\r\n", (*((volatile uint32_t *)(0x20000000))));
 	if( xSemaphoreTake( xLocalMutex, intsemNO_BLOCK ) != pdPASS )
 	{
-		bk_printf("[core%d]xErrorDetected16\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected16\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -840,10 +840,10 @@ void prvTakeTwoMutexesReturnInSameOrder( SemaphoreHandle_t xMutex, SemaphoreHand
 	attempts to hold multiple mutexes without bloating the code with complex
 	algorithms.  It is possible that the high priority mutex task will
 	execute as it shares a priority with this task. */
-	bk_printf("[core%d]lp_task-xSemaphoreGiveLM\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lp_task-xSemaphoreGiveLM\r\n", (*((volatile uint32_t *)(0x20000000))));
 	if( xSemaphoreGive( xLocalMutex ) != pdPASS )
 	{
-		bk_printf("[core%d]xErrorDetected17\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected17\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -856,13 +856,13 @@ void prvTakeTwoMutexesReturnInSameOrder( SemaphoreHandle_t xMutex, SemaphoreHand
 	higher priority, ensure this is the case. */
 	if( ulGuardedVariable != 0 )
 	{
-		bk_printf("[core%d]xErrorDetected18\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected18\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
 	if( uxTaskPriorityGet( NULL ) != genqMUTEX_HIGH_PRIORITY )
 	{
-		bk_printf("[core%d]xErrorDetected19\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected19\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -871,10 +871,10 @@ void prvTakeTwoMutexesReturnInSameOrder( SemaphoreHandle_t xMutex, SemaphoreHand
 	priority at which it was created.  This means the medium priority task
 	should execute and increment the guarded variable.  When this task next runs
 	both the high and medium priority tasks will have been suspended again. */
-	bk_printf("[core%d]lp_task-xSemaphoreGiveM\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]lp_task-xSemaphoreGiveM\r\n", (*((volatile uint32_t *)(0x20000000))));
 	if( xSemaphoreGive( xMutex ) != pdPASS )
 	{
-		bk_printf("[core%d]xErrorDetected20\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected20\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -885,7 +885,7 @@ void prvTakeTwoMutexesReturnInSameOrder( SemaphoreHandle_t xMutex, SemaphoreHand
 	/* Check the guarded variable did indeed increment... */
 	if( ulGuardedVariable != 1 )
 	{
-		bk_printf("[core%d]xErrorDetected21\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected21\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 
@@ -893,7 +893,7 @@ void prvTakeTwoMutexesReturnInSameOrder( SemaphoreHandle_t xMutex, SemaphoreHand
 	genqMUTEX_LOW_PRIORITY. */
 	if( uxTaskPriorityGet( NULL ) != genqMUTEX_LOW_PRIORITY )
 	{
-		bk_printf("[core%d]xErrorDetected22\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]xErrorDetected22\r\n", (*((volatile uint32_t *)(0x20000000))));
 		X_ERROR_DETECTED();
 	}
 }
@@ -903,7 +903,7 @@ static void prvLowPriorityMutexTask( void *pvParameters )
 {
 SemaphoreHandle_t xMutex = ( SemaphoreHandle_t ) pvParameters, xLocalMutex;
 
-	bk_printf("[core%d]Mutex with priority inheritance test started.\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]Mutex with priority inheritance test started.\r\n", (*((volatile uint32_t *)(0x20000000))));
 
 	/* The local mutex is used to check the 'mutexs held' count. */
 	xLocalMutex = xSemaphoreCreateMutex();
@@ -915,7 +915,7 @@ SemaphoreHandle_t xMutex = ( SemaphoreHandle_t ) pvParameters, xLocalMutex;
 		are taken then returned in a different order to which they were
 		taken. */
 
-		bk_printf("[core%d]lpmt-prvTakeTwoMutexesReturnInDifferentOrder\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]lpmt-prvTakeTwoMutexesReturnInDifferentOrder\r\n", (*((volatile uint32_t *)(0x20000000))));
 		prvTakeTwoMutexesReturnInDifferentOrder( xMutex, xLocalMutex );
 
 		/* Just to show this task is still running. */
@@ -927,7 +927,7 @@ SemaphoreHandle_t xMutex = ( SemaphoreHandle_t ) pvParameters, xLocalMutex;
 
 		/* The second tests exercise the priority inheritance when two mutexes
 		are taken then returned in the same order in which they were taken. */
-		bk_printf("[core%d]lpmt-prvTakeTwoMutexesReturnInSameOrder\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]lpmt-prvTakeTwoMutexesReturnInSameOrder\r\n", (*((volatile uint32_t *)(0x20000000))));
 		prvTakeTwoMutexesReturnInSameOrder( xMutex, xLocalMutex );
 
 		/* Just to show this task is still running. */
@@ -943,13 +943,13 @@ SemaphoreHandle_t xMutex = ( SemaphoreHandle_t ) pvParameters, xLocalMutex;
 static void prvMediumPriorityMutexTask( void *pvParameters )
 {
 	( void ) pvParameters;
-	bk_printf("[core%d]prvMediumPriorityMutexTask.\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]prvMediumPriorityMutexTask.\r\n", (*((volatile uint32_t *)(0x20000000))));
 
 	for( ;; )
 	{
 		/* The medium priority task starts by suspending itself.  The low
 		priority task will unsuspend this task when required. */
-		bk_printf("[core%d]mpmt-vTaskSuspend\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]mpmt-vTaskSuspend\r\n", (*((volatile uint32_t *)(0x20000000))));
 		vTaskSuspend( NULL );
 
 		/* When this task unsuspends all it does is increment the guarded
@@ -964,30 +964,30 @@ static void prvHighPriorityMutexTask( void *pvParameters )
 {
 SemaphoreHandle_t xMutex = ( SemaphoreHandle_t ) pvParameters;
 
-	bk_printf("[core%d]prvHighPriorityMutexTask.\r\n", (*((volatile uint32_t *)(0x20000000))));
+	BK_LOGD(NULL,"[core%d]prvHighPriorityMutexTask.\r\n", (*((volatile uint32_t *)(0x20000000))));
 	for( ;; )
 	{
 		/* The high priority task starts by suspending itself.  The low
 		priority task will unsuspend this task when required. */
-		bk_printf("[core%d]hpmt-vTaskSuspend\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]hpmt-vTaskSuspend\r\n", (*((volatile uint32_t *)(0x20000000))));
 		vTaskSuspend( NULL );
 
 		/* When this task unsuspends all it does is attempt to obtain the
 		mutex.  It should find the mutex is not available so a block time is
 		specified. */
-		bk_printf("[core%d]hpmt-xSemaphoreTake\r\n", (*((volatile uint32_t *)(0x20000000))));
+		BK_LOGD(NULL,"[core%d]hpmt-xSemaphoreTake\r\n", (*((volatile uint32_t *)(0x20000000))));
 		if( xSemaphoreTake( xMutex, portMAX_DELAY ) != pdPASS )
 		{
 			/* This task would expect to obtain the mutex unless its wait for
 			the mutex was aborted. */
 			if( xBlockWasAborted == pdFALSE )
 			{
-				bk_printf("[core%d]hpmt-TakeError\r\n", (*((volatile uint32_t *)(0x20000000))));
+				BK_LOGD(NULL,"[core%d]hpmt-TakeError\r\n", (*((volatile uint32_t *)(0x20000000))));
 				X_ERROR_DETECTED();
 			}
 			else
 			{
-				bk_printf("[core%d]hpmt-xBlockWasAborted\r\n", (*((volatile uint32_t *)(0x20000000))));
+				BK_LOGD(NULL,"[core%d]hpmt-xBlockWasAborted\r\n", (*((volatile uint32_t *)(0x20000000))));
 				xBlockWasAborted = pdFALSE;
 			}
 		}
@@ -995,10 +995,10 @@ SemaphoreHandle_t xMutex = ( SemaphoreHandle_t ) pvParameters;
 		{
 			/* When the mutex is eventually obtained it is just given back before
 			returning to suspend ready for the next cycle. */
-			bk_printf("[core%d]hpmt-xSemaphoreGive\r\n", (*((volatile uint32_t *)(0x20000000))));
+			BK_LOGD(NULL,"[core%d]hpmt-xSemaphoreGive\r\n", (*((volatile uint32_t *)(0x20000000))));
 			if( xSemaphoreGive( xMutex ) != pdPASS )
 			{
-				bk_printf("[core%d]hpmt-xSemaphoreGiveError\r\n", (*((volatile uint32_t *)(0x20000000))));
+				BK_LOGD(NULL,"[core%d]hpmt-xSemaphoreGiveError\r\n", (*((volatile uint32_t *)(0x20000000))));
 				X_ERROR_DETECTED();
 			}
 		}

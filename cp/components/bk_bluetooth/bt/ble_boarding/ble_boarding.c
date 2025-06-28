@@ -39,10 +39,11 @@
 #include "mbedtls/aes.h"
 #endif
 
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 
 #define TAG "ble_boarding"
 
@@ -206,7 +207,7 @@ static uint8_t ble_check_random_bda_is_resolvable(uint8_t *addr, uint8_t addr_ty
     if ((encrypt_data[13] == addr[2]) && (encrypt_data[14] == addr[1]) && (encrypt_data[15] == addr[0]))
     {
         ret = 1;
-        LOGI("the random bda is resolvable!\r\n");
+        LOGD("the random bda is resolvable!\r\n");
     }
 
     mbedtls_aes_free(&aes);
@@ -219,12 +220,12 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
     switch (notice)
     {
         case BLE_5_STACK_OK:
-            os_printf("ble stack ok");
+            BK_LOGD(NULL,"ble stack ok");
             break;
         case BLE_5_WRITE_EVENT:
         {
             ble_write_req_t *w_req = (ble_write_req_t *)param;
-            os_printf("write_cb:conn_idx:%d, prf_id:%d, att_idx:%d, len:%d, data[0]:0x%02x\r\n",
+            BK_LOGD(NULL,"write_cb:conn_idx:%d, prf_id:%d, att_idx:%d, len:%d, data[0]:0x%02x\r\n",
                       w_req->conn_idx, w_req->prf_id, w_req->att_idx, w_req->len, w_req->value[0]);
             //#if (CONFIG_BTDM_5_2)
 
@@ -246,7 +247,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
                         //value[2] = 0x56;
                         //bk_ble_send_noti_value(con_idx, 3, value, PRF_TASK_ID_BOARDING, BOARDING_IDX_CHAR_VALUE);
                         os_memcpy(&ble_boarding_info->boarding_notify[0], &w_req->value[0], sizeof(ble_boarding_info->boarding_notify));
-                        LOGI("write notify: %02X %02X, length: %d\n", w_req->value[0], w_req->value[1], w_req->len);
+                        LOGD("write notify: %02X %02X, length: %d\n", w_req->value[0], w_req->value[1], w_req->len);
                         break;
                     }
 
@@ -310,7 +311,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
                         os_memset((uint8_t *)ble_boarding_info->ssid_value, 0, ble_boarding_info->ssid_length + 1);
                         os_memcpy((uint8_t *)ble_boarding_info->ssid_value, w_req->value, ble_boarding_info->ssid_length);
 
-                        LOGI("write ssid: %s, length: %d\n", ble_boarding_info->ssid_value, ble_boarding_info->ssid_length);
+                        LOGD("write ssid: %s, length: %d\n", ble_boarding_info->ssid_value, ble_boarding_info->ssid_length);
                     }
                     break;
 
@@ -336,7 +337,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
                         os_memset((uint8_t *)ble_boarding_info->password_value, 0, ble_boarding_info->password_length + 1);
                         os_memcpy((uint8_t *)ble_boarding_info->password_value, w_req->value, ble_boarding_info->password_length);
 
-                        LOGI("write password: %s, length: %d\n", ble_boarding_info->password_value, ble_boarding_info->password_length);
+                        LOGD("write password: %s, length: %d\n", ble_boarding_info->password_value, ble_boarding_info->password_length);
                     }
                     break;
 
@@ -350,7 +351,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_READ_EVENT:
         {
             ble_read_req_t *r_req = (ble_read_req_t *)param;
-            os_printf("read_cb:conn_idx:%d, prf_id:%d, att_idx:%d\r\n",
+            BK_LOGD(NULL,"read_cb:conn_idx:%d, prf_id:%d, att_idx:%d\r\n",
                       r_req->conn_idx, r_req->prf_id, r_req->att_idx);
 
             if (r_req->prf_id == PRF_TASK_ID_BOARDING)
@@ -369,16 +370,16 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
                         break;
                     case BOARDING_IDX_CHAR_SSID_VALUE:
                         bk_ble_read_response_value(r_req->conn_idx, ble_boarding_info->ssid_length, (uint8_t *)ble_boarding_info->ssid_value, r_req->prf_id, r_req->att_idx);
-                        //os_printf("len:%d, data[0]:0x%02x, data[1]:0x%02x, data[2]:0x%02x\r\n", s_boarding_ssid_len, s_boarding_ssid[0], s_boarding_ssid[1], s_boarding_ssid[2]);
-                        LOGI("read ssid: %s, length: %d\n", ble_boarding_info->ssid_value, ble_boarding_info->ssid_length);
+                        //BK_LOGD(NULL,"len:%d, data[0]:0x%02x, data[1]:0x%02x, data[2]:0x%02x\r\n", s_boarding_ssid_len, s_boarding_ssid[0], s_boarding_ssid[1], s_boarding_ssid[2]);
+                        LOGD("read ssid: %s, length: %d\n", ble_boarding_info->ssid_value, ble_boarding_info->ssid_length);
                         break;
 
                     case BOARDING_IDX_CHAR_PASSWORD_DECL:
                         break;
                     case BOARDING_IDX_CHAR_PASSWORD_VALUE:
                         bk_ble_read_response_value(r_req->conn_idx, ble_boarding_info->password_length, (uint8_t *)ble_boarding_info->password_value, r_req->prf_id, r_req->att_idx);
-                        //os_printf("len:%d, data[0]:0x%02x, data[1]:0x%02x, data[2]:0x%02x\r\n", s_boarding_password_len, s_boarding_password[0], s_boarding_password[1], s_boarding_password[2]);
-                        LOGI("read password: %s, length: %d\n", ble_boarding_info->password_value, ble_boarding_info->password_length);
+                        //BK_LOGD(NULL,"len:%d, data[0]:0x%02x, data[1]:0x%02x, data[2]:0x%02x\r\n", s_boarding_password_len, s_boarding_password[0], s_boarding_password[1], s_boarding_password[2]);
+                        LOGD("read password: %s, length: %d\n", ble_boarding_info->password_value, ble_boarding_info->password_length);
                         break;
 
                     default:
@@ -391,48 +392,48 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         {
             ble_recv_adv_t *r_ind = (ble_recv_adv_t *)param;
             uint8_t adv_type = r_ind->evt_type & REPORT_INFO_REPORT_TYPE_MASK;
-            os_printf("r_ind:actv_idx:%d,", r_ind->actv_idx);
+            BK_LOGD(NULL,"r_ind:actv_idx:%d,", r_ind->actv_idx);
             switch (adv_type)
             {
                 case REPORT_TYPE_ADV_EXT:
-                    os_printf("evt_type:EXT_ADV,");
+                    BK_LOGD(NULL,"evt_type:EXT_ADV,");
                     break;
                 case REPORT_TYPE_ADV_LEG:
                 {
                     switch (r_ind->evt_type)
                     {
                         case (REPORT_INFO_SCAN_ADV_BIT | REPORT_INFO_CONN_ADV_BIT | REPORT_INFO_COMPLETE_BIT | REPORT_TYPE_ADV_LEG):
-                            os_printf("evt_type:ADV_IND,");
+                            BK_LOGD(NULL,"evt_type:ADV_IND,");
                             break;
                         case (REPORT_INFO_DIR_ADV_BIT | REPORT_INFO_CONN_ADV_BIT | REPORT_INFO_COMPLETE_BIT | REPORT_TYPE_ADV_LEG):
-                            os_printf("evt_type:ADV_DIRECT_IND,");
+                            BK_LOGD(NULL,"evt_type:ADV_DIRECT_IND,");
                             break;
                         case (REPORT_INFO_SCAN_ADV_BIT | REPORT_INFO_COMPLETE_BIT | REPORT_TYPE_ADV_LEG):
-                            os_printf("evt_type:ADV_SCAN_IND,");
+                            BK_LOGD(NULL,"evt_type:ADV_SCAN_IND,");
                             break;
                         case (REPORT_INFO_COMPLETE_BIT | REPORT_TYPE_ADV_LEG):
-                            os_printf("evt_type:ADV_NONCONN_IND,");
+                            BK_LOGD(NULL,"evt_type:ADV_NONCONN_IND,");
                             break;
                         default:
-                            os_printf("evt_type:ERR_LEG_ADV,");
+                            BK_LOGD(NULL,"evt_type:ERR_LEG_ADV,");
                             break;
                     }
                 }
                 break;
                 case REPORT_TYPE_SCAN_RSP_LEG:
-                    os_printf("evt_type:SCAN_RSP,");
+                    BK_LOGD(NULL,"evt_type:SCAN_RSP,");
                     break;
                 case REPORT_TYPE_SCAN_RSP_EXT:
-                    os_printf("evt_type:AUX_SCAN_RSP,");
+                    BK_LOGD(NULL,"evt_type:AUX_SCAN_RSP,");
                     break;
                 case REPORT_TYPE_PER_ADV:
-                    os_printf("evt_type:PER_ADV,");
+                    BK_LOGD(NULL,"evt_type:PER_ADV,");
                     break;
                 default:
-                    os_printf("evt_type:ERR_ADV,");
+                    BK_LOGD(NULL,"evt_type:ERR_ADV,");
                     break;
             }
-            os_printf(" adv_addr_type:%d, adv_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
+            BK_LOGD(NULL," adv_addr_type:%d, adv_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
                       r_ind->adv_addr_type, r_ind->adv_addr[0], r_ind->adv_addr[1], r_ind->adv_addr[2],
                       r_ind->adv_addr[3], r_ind->adv_addr[4], r_ind->adv_addr[5]);
             break;
@@ -440,13 +441,13 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_MTU_CHANGE:
         {
             ble_mtu_change_t *m_ind = (ble_mtu_change_t *)param;
-            os_printf("%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
+            BK_LOGD(NULL,"%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
             break;
         }
         case BLE_5_CONNECT_EVENT:
         {
             ble_conn_ind_t *c_ind = (ble_conn_ind_t *)param;
-            os_printf("c_ind:conn_idx:%d, addr_type:%d, peer_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
+            BK_LOGD(NULL,"c_ind:conn_idx:%d, addr_type:%d, peer_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
                       c_ind->conn_idx, c_ind->peer_addr_type, c_ind->peer_addr[0], c_ind->peer_addr[1],
                       c_ind->peer_addr[2], c_ind->peer_addr[3], c_ind->peer_addr[4], c_ind->peer_addr[5]);
             s_conn_ind = c_ind->conn_idx;
@@ -455,16 +456,16 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_DISCONNECT_EVENT:
         {
             ble_discon_ind_t *d_ind = (ble_discon_ind_t *)param;
-            os_printf("d_ind:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
+            BK_LOGD(NULL,"d_ind:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
             s_conn_ind = ~0;
             #if CONFIG_WIFI_CSI_EN
             extern beken_semaphore_t bk_csi_ble_provisioning_sema;
             extern uint8_t bk_csi_ble_send_flag;
             extern void bk_wifi_csi_ble_disconnect_ind(void);
-            LOGI("BLE_5_DISCONNECT1\r\n");
+            LOGD("BLE_5_DISCONNECT1\r\n");
             if (bk_csi_ble_send_flag && (rtos_get_semaphore_count(&bk_csi_ble_provisioning_sema) == 0))
             {
-                LOGI("BLE_5_DISCONNECT2\r\n");
+                LOGD("BLE_5_DISCONNECT2\r\n");
                 rtos_set_semaphore(&bk_csi_ble_provisioning_sema);
             }
             bk_wifi_csi_ble_disconnect_ind();
@@ -474,7 +475,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_ATT_INFO_REQ:
         {
             ble_att_info_req_t *a_ind = (ble_att_info_req_t *)param;
-            os_printf("a_ind:conn_idx:%d\r\n", a_ind->conn_idx);
+            BK_LOGD(NULL,"a_ind:conn_idx:%d\r\n", a_ind->conn_idx);
             a_ind->length = 128;
             a_ind->status = BK_ERR_BLE_SUCCESS;
             break;
@@ -483,7 +484,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         {
             ble_create_db_t *cd_ind = (ble_create_db_t *)param;
 
-            os_printf("cd_ind:prf_id:%d, status:%d\r\n", cd_ind->prf_id, cd_ind->status);
+            BK_LOGD(NULL,"cd_ind:prf_id:%d, status:%d\r\n", cd_ind->prf_id, cd_ind->status);
             s_at_cmd_status = cd_ind->status;
             if (ble_boarding_sema != NULL)
             {
@@ -494,7 +495,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_INIT_CONNECT_EVENT:
         {
             ble_conn_ind_t *c_ind = (ble_conn_ind_t *)param;
-            os_printf("BLE_5_INIT_CONNECT_EVENT:conn_idx:%d, addr_type:%d, peer_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
+            BK_LOGD(NULL,"BLE_5_INIT_CONNECT_EVENT:conn_idx:%d, addr_type:%d, peer_addr:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
                       c_ind->conn_idx, c_ind->peer_addr_type, c_ind->peer_addr[0], c_ind->peer_addr[1],
                       c_ind->peer_addr[2], c_ind->peer_addr[3], c_ind->peer_addr[4], c_ind->peer_addr[5]);
             break;
@@ -502,16 +503,16 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_INIT_DISCONNECT_EVENT:
         {
             ble_discon_ind_t *d_ind = (ble_discon_ind_t *)param;
-            os_printf("BLE_5_INIT_DISCONNECT_EVENT:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
+            BK_LOGD(NULL,"BLE_5_INIT_DISCONNECT_EVENT:conn_idx:%d,reason:%d\r\n", d_ind->conn_idx, d_ind->reason);
             break;
         }
         case BLE_5_SDP_REGISTER_FAILED:
-            os_printf("BLE_5_SDP_REGISTER_FAILED\r\n");
+            BK_LOGD(NULL,"BLE_5_SDP_REGISTER_FAILED\r\n");
             break;
         case BLE_5_READ_PHY_EVENT:
         {
             ble_read_phy_t *phy_param = (ble_read_phy_t *)param;
-            os_printf("BLE_5_READ_PHY_EVENT:tx_phy:0x%02x, rx_phy:0x%02x\r\n", phy_param->tx_phy, phy_param->rx_phy);
+            BK_LOGD(NULL,"BLE_5_READ_PHY_EVENT:tx_phy:0x%02x, rx_phy:0x%02x\r\n", phy_param->tx_phy, phy_param->rx_phy);
             break;
         }
         case BLE_5_TX_DONE:
@@ -519,10 +520,10 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
             #if CONFIG_WIFI_CSI_EN
             extern beken_semaphore_t bk_csi_ble_provisioning_sema;
             extern uint8_t bk_csi_ble_send_flag;
-            LOGI("BLE_5_TX_DONE1\r\n");
+            LOGD("BLE_5_TX_DONE1\r\n");
             if (bk_csi_ble_send_flag && (rtos_get_semaphore_count(&bk_csi_ble_provisioning_sema) == 0))
             {
-                LOGI("BLE_5_TX_DONE2\r\n");
+                LOGD("BLE_5_TX_DONE2\r\n");
                 rtos_set_semaphore(&bk_csi_ble_provisioning_sema);
             }
             #endif
@@ -531,38 +532,38 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         case BLE_5_CONN_UPDATA_EVENT:
         {
             ble_conn_param_t *updata_param = (ble_conn_param_t *)param;
-            os_printf("BLE_5_CONN_UPDATA_EVENT:conn_interval:0x%04x, con_latency:0x%04x, sup_to:0x%04x\r\n", updata_param->intv_max,
+            BK_LOGD(NULL,"BLE_5_CONN_UPDATA_EVENT:conn_interval:0x%04x, con_latency:0x%04x, sup_to:0x%04x\r\n", updata_param->intv_max,
                       updata_param->con_latency, updata_param->sup_to);
             break;
         }
         case BLE_5_PAIRING_REQ:
-            bk_printf("BLE_5_PAIRING_REQ\r\n");
+            BK_LOGD(NULL,"BLE_5_PAIRING_REQ\r\n");
             ble_smp_ind_t *s_ind = (ble_smp_ind_t *)param;
             bk_ble_sec_send_auth_mode(s_ind->conn_idx, GAP_AUTH_REQ_NO_MITM_BOND, BK_BLE_GAP_IO_CAP_NO_INPUT_NO_OUTPUT,
                                       GAP_SEC1_NOAUTH_PAIR_ENC, GAP_OOB_AUTH_DATA_NOT_PRESENT);
             break;
 
         case BLE_5_PARING_PASSKEY_REQ:
-            bk_printf("BLE_5_PARING_PASSKEY_REQ\r\n");
+            BK_LOGD(NULL,"BLE_5_PARING_PASSKEY_REQ\r\n");
             break;
 
         case BLE_5_ENCRYPT_EVENT:
-            bk_printf("BLE_5_ENCRYPT_EVENT\r\n");
+            BK_LOGD(NULL,"BLE_5_ENCRYPT_EVENT\r\n");
             break;
 
         case BLE_5_PAIRING_SUCCEED:
-            bk_printf("BLE_5_PAIRING_SUCCEED\r\n");
+            BK_LOGD(NULL,"BLE_5_PAIRING_SUCCEED\r\n");
             break;
         case BLE_5_KEY_EVENT:
         {
-            bk_printf("BLE_5_KEY_EVENT\r\n");
+            BK_LOGD(NULL,"BLE_5_KEY_EVENT\r\n");
             s_ble_enc_key = *((bk_ble_key_t *)param);
             break;
         }
 
         case BLE_5_BOND_INFO_REQ_EVENT:
         {
-            bk_printf("BLE_5_BOND_INFO_REQ_EVENT\r\n");
+            BK_LOGD(NULL,"BLE_5_BOND_INFO_REQ_EVENT\r\n");
             bk_ble_bond_info_req_t *bond_info_req = (bk_ble_bond_info_req_t *)param;
             if (((bond_info_req->key.peer_addr_type == s_ble_enc_key.peer_addr_type)
                  && (!os_memcmp(bond_info_req->key.peer_addr, s_ble_enc_key.peer_addr, 6)))
@@ -575,7 +576,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         }
         case BLE_5_PAIRING_FAILED:
         {
-            bk_printf("BLE_5_PAIRING_FAILED\r\n");
+            BK_LOGD(NULL,"BLE_5_PAIRING_FAILED\r\n");
             os_memset(&s_ble_enc_key, 0, sizeof(s_ble_enc_key));
             break;
         }
@@ -587,7 +588,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
             {
                 case BLE_CONN_ENCRYPT:
                 {
-                    bk_printf("BLE_5_GAP_CMD_CMP_EVENT(BLE_CONN_ENCRYPT) , status %x\r\n", event->status);
+                    BK_LOGD(NULL,"BLE_5_GAP_CMD_CMP_EVENT(BLE_CONN_ENCRYPT) , status %x\r\n", event->status);
                     if (event->status)
                     {
                         os_memset(&s_ble_enc_key, 0, sizeof(s_ble_enc_key));
@@ -635,7 +636,7 @@ int ble_boarding_notify(uint8_t *data, uint16_t length)
 {
     if (s_conn_ind == 0xFF)
     {
-        os_printf("BLE is disconnected, can not send data !!!\r\n");
+        BK_LOGD(NULL,"BLE is disconnected, can not send data !!!\r\n");
         return BK_FAIL;
     }
     else
@@ -685,7 +686,7 @@ int ble_boarding_init(ble_boarding_info_t *info)
     }
     else
     {
-        LOGI("create gatt db success\n");
+        LOGD("create gatt db success\n");
     }
 
     return ret;
@@ -719,7 +720,7 @@ int ble_boarding_adv_only_start_csi(void)
     }
     else
     {
-        LOGI("sart adv success\n");
+        LOGD("sart adv success\n");
     }
 
     return ret;
@@ -767,7 +768,7 @@ int ble_boarding_adv_start(uint8_t *adv_data, uint16_t adv_len)
     }
     else
     {
-        LOGI("set adv paramters success\n");
+        LOGD("set adv paramters success\n");
     }
 
     /* set adv paramters */
@@ -788,7 +789,7 @@ int ble_boarding_adv_start(uint8_t *adv_data, uint16_t adv_len)
     }
     else
     {
-        LOGI("set adv data success\n");
+        LOGD("set adv data success\n");
     }
 
     /* start adv */
@@ -809,7 +810,7 @@ int ble_boarding_adv_start(uint8_t *adv_data, uint16_t adv_len)
     }
     else
     {
-        LOGI("start adv success\n");
+        LOGD("start adv success\n");
     }
 
     return ret;
@@ -835,7 +836,7 @@ int ble_boarding_legacy_handle(int sync, int argc, char **argv)
 
     if (argc != 2)
     {
-        os_printf("\nThe number of param is wrong!\n");
+        BK_LOGD(NULL,"\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -898,7 +899,7 @@ int ble_boarding_legacy_handle(int sync, int argc, char **argv)
             }
         }
     }
-    os_printf("creat boarding service successfully!\r\n");
+    BK_LOGD(NULL,"creat boarding service successfully!\r\n");
 
     os_memset(&adv_param, 0, sizeof(ble_adv_param_t));
     adv_param.chnl_map = 7;
@@ -936,12 +937,12 @@ int ble_boarding_legacy_handle(int sync, int argc, char **argv)
             }
         }
     }
-    os_printf("set adv param and creat adv successfully!\r\n");
+    BK_LOGD(NULL,"set adv param and creat adv successfully!\r\n");
 
     adv_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (adv_len > 31 || adv_len != os_strlen(argv[0]) / 2)
     {
-        os_printf("input adv len over limited\n");
+        BK_LOGD(NULL,"input adv len over limited\n");
         err = kParamErr;
         goto error;
     }
@@ -973,7 +974,7 @@ int ble_boarding_legacy_handle(int sync, int argc, char **argv)
             }
         }
     }
-    os_printf("set adv data successfully!\r\n");
+    BK_LOGD(NULL,"set adv data successfully!\r\n");
 
     err = bk_ble_start_advertising(actv_idx, 0, ble_at_cmd_cb);
     if (err != BK_ERR_BLE_SUCCESS)
@@ -986,7 +987,7 @@ int ble_boarding_legacy_handle(int sync, int argc, char **argv)
         {
             atsvr_cmd_rsp_ok();
             rtos_deinit_semaphore(&ble_boarding_sema);
-            os_printf("start adv successfully!\r\n");
+            BK_LOGD(NULL,"start adv successfully!\r\n");
             return err;
         }
         else
@@ -1023,7 +1024,7 @@ int ble_boarding_legacy_handle(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
     if (argc != 2)
     {
-        os_printf("\nThe number of param is wrong!\n");
+        BK_LOGD(NULL,"\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -1087,7 +1088,7 @@ int ble_boarding_legacy_handle(char *pcWriteBuffer, int xWriteBufferLen, int arg
             }
         }
     }
-    os_printf("creat boarding service successfully!\r\n");
+    BK_LOGD(NULL,"creat boarding service successfully!\r\n");
 
     os_memset(&adv_param, 0, sizeof(ble_adv_param_t));
     adv_param.chnl_map = 7;
@@ -1126,12 +1127,12 @@ int ble_boarding_legacy_handle(char *pcWriteBuffer, int xWriteBufferLen, int arg
             }
         }
     }
-    os_printf("set adv param and creat adv successfully!\r\n");
+    BK_LOGD(NULL,"set adv param and creat adv successfully!\r\n");
 
     adv_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (adv_len > 31 || adv_len != os_strlen(argv[0]) / 2)
     {
-        os_printf("input adv len over limited\n");
+        BK_LOGD(NULL,"input adv len over limited\n");
         err = kParamErr;
         goto error;
     }
@@ -1164,7 +1165,7 @@ int ble_boarding_legacy_handle(char *pcWriteBuffer, int xWriteBufferLen, int arg
             }
         }
     }
-    os_printf("set adv data successfully!\r\n");
+    BK_LOGD(NULL,"set adv data successfully!\r\n");
 
     err = bk_ble_start_advertising(actv_idx, 0, ble_at_cmd_cb);
     if (err != BK_ERR_BLE_SUCCESS)
@@ -1178,7 +1179,7 @@ int ble_boarding_legacy_handle(char *pcWriteBuffer, int xWriteBufferLen, int arg
             msg = AT_CMD_RSP_SUCCEED;
             os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
             rtos_deinit_semaphore(&ble_boarding_sema);
-            os_printf("start adv successfully!\r\n");
+            BK_LOGD(NULL,"start adv successfully!\r\n");
             return err;
         }
         else

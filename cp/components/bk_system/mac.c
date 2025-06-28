@@ -65,15 +65,15 @@ static int write_base_mac_to_efuse(const uint8_t *mac)
 
 		ret = bk_efuse_write_byte(efuse_addr, efuse_data);
 		if (ret != BK_OK) {
-			BK_LOGI(TAG, "efuse set mac failed(%x)\r\n", ret);
+			BK_LOGD(TAG, "efuse set mac failed(%x)\r\n", ret);
 			return ret;
 		}
 	}
 
-	BK_LOGI(TAG, "efuse set mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
+	BK_LOGD(TAG, "efuse set mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
 	return BK_OK;
 #else
-	BK_LOGI(TAG, "write mac to eufse stub");
+	BK_LOGD(TAG, "write mac to eufse stub");
 	return BK_OK;
 #endif
 }
@@ -102,7 +102,7 @@ static int read_base_mac_from_efuse(uint8_t *mac)
 		}
 	}
 
-	BK_LOGI(TAG, "efuse get mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
+	BK_LOGD(TAG, "efuse get mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
 
 	if (BK_IS_ZERO_MAC(mac)) {
 		BK_LOGE(TAG, "efuse MAC all zero, see as error\r\n");
@@ -208,10 +208,10 @@ static void random_mac_address(u8 *mac)
 	mac[4] = bk_rand() & 0xff;
 	mac[5] = bk_rand() & 0xff;
 
-	os_printf("mac:");
+	BK_LOGD(NULL,"mac:");
 	for (i = 0; i < 6; i++)
-	    os_printf("%02X ", mac[i]);
-	os_printf("\n");
+	    BK_LOGD(NULL,"%02X ", mac[i]);
+	BK_LOGD(NULL,"\n");
 }
 
 static int bk_check_mac_address(u8 *mac)
@@ -325,7 +325,7 @@ static int get_latest_valid_mac_record(base_mac_record_t *mac_rec_p, int count, 
 
 	while (valid_index >= 0) {
 		if(is_valid_mac_record(&mac_rec_p[valid_index])) {
-			// BK_LOGI(TAG, "get_latest_valid_mac_record: free index(%d), valid index(%d).\n",
+			// BK_LOGD(TAG, "get_latest_valid_mac_record: free index(%d), valid index(%d).\n",
 			// 	free_index, valid_index);
 			return valid_index;
 		}
@@ -361,8 +361,8 @@ static int sync_base_mac_record(uint8_t *mac, int mode)
 	// }
 
 	if (BASE_MAC_RECORD_OPT_WRITE == mode) {
-		BK_LOGI(TAG, "sync_base_mac_record, mac:"BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
-		BK_LOGI(TAG, "sync_base_mac_record, mode: %d. \n", mode);
+		BK_LOGD(TAG, "sync_base_mac_record, mac:"BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
+		BK_LOGD(TAG, "sync_base_mac_record, mode: %d. \n", mode);
 	}
 
 	base_mac_record_t *mac_rec_p = os_zalloc(BASE_MAC_RECORD_SIZE);
@@ -437,12 +437,12 @@ static int sync_mac_record(void) {
 	int ret = BK_OK;
 	uint8_t base_mac[BASE_MAC_LEN] = {0};
 
-	BK_LOGI(TAG, "sync_mac_record, base mac:"BK_MAC_FORMAT"\n", BK_MAC_STR(s_base_mac));
+	BK_LOGD(TAG, "sync_mac_record, base mac:"BK_MAC_FORMAT"\n", BK_MAC_STR(s_base_mac));
 
 	ret = sync_base_mac_record(base_mac, BASE_MAC_RECORD_OPT_READ);
 
 	if (BK_OK == ret) {
-		BK_LOGI(TAG, "sync_mac_record, saved base mac:"BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+		BK_LOGD(TAG, "sync_mac_record, saved base mac:"BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
 	}
 
 	if (!is_valid_mac_addr(s_base_mac)) {
@@ -502,7 +502,7 @@ static int mac_init(void)
 #elif (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
 		ret = write_base_mac_to_rf_otp_flash(s_base_mac);
 #endif
-		BK_LOGI(TAG, "use random mac "BK_MAC_FORMAT" as base mac\n", BK_MAC_STR(s_base_mac));
+		BK_LOGD(TAG, "use random mac "BK_MAC_FORMAT" as base mac\n", BK_MAC_STR(s_base_mac));
 	}
 #else //#if (CONFIG_RANDOM_MAC_ADDR)
 	if (BK_OK != ret) {
@@ -511,10 +511,10 @@ static int mac_init(void)
                         BK_LOGE(TAG, "base mac is group mac"BK_MAC_FORMAT"\n", BK_MAC_STR(s_base_mac));
 			return BK_ERR_GROUP_MAC;
 		} else {
-			BK_LOGI(TAG, "use default mac "BK_MAC_FORMAT" as base mac\n", BK_MAC_STR(s_base_mac));
+			BK_LOGD(TAG, "use default mac "BK_MAC_FORMAT" as base mac\n", BK_MAC_STR(s_base_mac));
 		}
         } else {
-		BK_LOGI(TAG, "base mac "BK_MAC_FORMAT"\n", BK_MAC_STR(s_base_mac));
+		BK_LOGD(TAG, "base mac "BK_MAC_FORMAT"\n", BK_MAC_STR(s_base_mac));
 	}
 #endif //#if (CONFIG_RANDOM_MAC_ADDR)
 

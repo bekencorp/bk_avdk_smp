@@ -226,8 +226,8 @@ typedef struct {
 //#define SDIO_MEM_DEBUG
 
 #ifdef SDIO_DEBUG
-#define SDIO_PRT                 os_printf
-#define SDIO_WPRT                os_printf
+#define SDIO_PRT(...)    BK_LOGD(NULL, ##__VA_ARGS__)
+#define SDIO_WPRT(...)   BK_LOGW(NULL, ##__VA_ARGS__)
 #define STATIC
 #else
 #define SDIO_PRT                 os_null_printf

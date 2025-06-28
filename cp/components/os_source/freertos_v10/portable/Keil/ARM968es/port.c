@@ -218,7 +218,7 @@ StackType_t *pxPortInitialiseStack( StackType_t *pxTopOfStack, TaskFunction_t px
 extern void vPortStartFirstTask( void );
 BaseType_t xPortStartScheduler( void )
 {
-	BK_LOGI(TAG, "OSK Rev: %s\r\n", BEKEN_OSK_REV);
+	BK_LOGD(TAG, "OSK Rev: %s\r\n", BEKEN_OSK_REV);
 
 	/* Start the timer that generates the tick ISR.
 	   Interrupts are disabled here already. */
@@ -314,7 +314,7 @@ void printf_lr_register(void)
 		:"memory"
 	);
 
-	BK_LOGI(TAG, "lr:%x\r\n", value);
+	BK_LOGD(TAG, "lr:%x\r\n", value);
 }
 
 uint32_t platform_is_in_irq_context( void )

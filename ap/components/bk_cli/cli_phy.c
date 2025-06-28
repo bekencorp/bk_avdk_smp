@@ -10,24 +10,24 @@ extern void pwr_tbl_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 static void phy_cca_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if (argc != 2) {
-		os_printf("cca open\r\n");
-		os_printf("cca close\r\n");
-		os_printf("cca show\r\n");
+		BK_LOGD(NULL, "cca open\r\n");
+		BK_LOGD(NULL, "cca close\r\n");
+		BK_LOGD(NULL, "cca show\r\n");
 		return;
 	}
 
 	if (os_strncmp(argv[1], "open", 4) == 0) {
 		phy_open_cca();
-		os_printf("cca opened\r\n");
+		BK_LOGD(NULL, "cca opened\r\n");
 	} else if (os_strncmp(argv[1], "close", 4) == 0) {
 		phy_close_cca();
-		os_printf("cca closed\r\n");
+		BK_LOGD(NULL, "cca closed\r\n");
 	} else if (os_strncmp(argv[1], "show", 4) == 0)
 		phy_show_cca();
 	else {
-		os_printf("cca open\r\n");
-		os_printf("cca close\r\n");
-		os_printf("cca show\r\n");
+		BK_LOGD(NULL, "cca open\r\n");
+		BK_LOGD(NULL, "cca close\r\n");
+		BK_LOGD(NULL, "cca show\r\n");
 	}
 }
 

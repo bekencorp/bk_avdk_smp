@@ -9,7 +9,7 @@
 #include "mbedtls/platform.h"
 #else
 #include <stdio.h>
-#define mbedtls_printf printf
+#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #endif /* MBEDTLS_PLATFORM_C */
 
 #if defined( ARM_CE_DUBHE_SCA )

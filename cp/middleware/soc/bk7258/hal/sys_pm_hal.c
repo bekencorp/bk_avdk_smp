@@ -311,13 +311,13 @@ void sys_hal_buck_switch(uint32_t flag)
 	volatile uint8_t cksel_core = 0, clkdiv_core = 0, clkdiv_bus = 0;
 
 	if (flag == 0) {
-		os_printf("disable buckA and buckD.\r\n");
+		BK_LOGD(NULL,"disable buckA and buckD.\r\n");
 		sys_hal_enable_spi_latch();
 		sys_ll_set_ana_reg11_aldosel(1);
 		sys_ll_set_ana_reg12_dldosel(1);
 		sys_hal_disable_spi_latch();
 	} else if (flag == 1){
-		os_printf("enable buckA and buckD.\r\n");
+		BK_LOGD(NULL,"enable buckA and buckD.\r\n");
 		//let the cpu frequency to 26m, in order to be successfully switch voltage provide from ldo to buck
 		sys_hal_backup_set_core_26m(&cksel_core, &clkdiv_core, &clkdiv_bus);
 
@@ -328,7 +328,7 @@ void sys_hal_buck_switch(uint32_t flag)
 
 		sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
 	} else if (flag == 2){
-		os_printf("enable buckA and disable buckD.\r\n");
+		BK_LOGD(NULL,"enable buckA and disable buckD.\r\n");
 		//let the cpu frequency to 26m, in order to be successfully switch voltage provide from ldo to buck
 		sys_hal_backup_set_core_26m(&cksel_core, &clkdiv_core, &clkdiv_bus);
 
@@ -339,7 +339,7 @@ void sys_hal_buck_switch(uint32_t flag)
 
 		sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
 	} else if (flag == 3){
-		os_printf("disable buckA and enable buckD.\r\n");
+		BK_LOGD(NULL,"disable buckA and enable buckD.\r\n");
 		//let the cpu frequency to 26m, in order to be successfully switch voltage provide from ldo to buck
 		sys_hal_backup_set_core_26m(&cksel_core, &clkdiv_core, &clkdiv_bus);
 		//disable buckA enable buckD
@@ -351,7 +351,7 @@ void sys_hal_buck_switch(uint32_t flag)
 		sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
 	}
 	else {
-		os_printf("set buck power supply param %d must < 4 \r\n",flag);
+		BK_LOGD(NULL,"set buck power supply param %d must < 4 \r\n",flag);
 	}
 }
 
@@ -1211,7 +1211,7 @@ void sys_hal_wakeup_interrupt_clear(wakeup_source_t interrupt_source)
 
 int sys_hal_set_lpo_src(sys_lpo_src_t src)
 {
-	PM_HAL_LOGD("set lpo src: %u\r\n", src);
+	PM_HAL_LOGV("set lpo src: %u\r\n", src);
 	//TODO
 	return BK_OK;
 }

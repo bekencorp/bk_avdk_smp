@@ -161,14 +161,14 @@ void cli_scr_cold_reset_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	while (!g_scr_ATR_flag);
 
 	if (g_scr_ATR_flag == 1) {
-		BK_RAW_LOGI(NULL, "ATR done: ");
+		BK_RAW_LOGD(NULL, "ATR done: ");
 		read_len = bk_scr_read_data(read_buf, SCR_MAX_LEN);
 		for (i = 0; i < read_len; i++) {
-			BK_RAW_LOGI(NULL, "%02x ", read_buf[i]);
+			BK_RAW_LOGD(NULL, "%02x ", read_buf[i]);
 		}
-		BK_RAW_LOGI(NULL, "\r\n");
+		BK_RAW_LOGD(NULL, "\r\n");
 	} else {
-		BK_RAW_LOGI(NULL, "cold reset fail\r\n");
+		BK_RAW_LOGD(NULL, "cold reset fail\r\n");
 	}
 	bk_scr_flush_fifo(BK_SCR_TYPE_RX);
 	bk_scr_set_intr(BK_SCR_INTR_ATR_FAIL, 0, NULL, NULL);
@@ -189,14 +189,14 @@ void cli_scr_warm_reset_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	while (!g_scr_ATR_flag);
 
 	if (g_scr_ATR_flag == 1) {
-		BK_RAW_LOGI(NULL, "ATR done: ");
+		BK_RAW_LOGD(NULL, "ATR done: ");
 		read_len = bk_scr_read_data(read_buf, SCR_MAX_LEN);
 		for (i = 0; i < read_len; i++) {
-			BK_RAW_LOGI(NULL, "%02x ", read_buf[i]);
+			BK_RAW_LOGD(NULL, "%02x ", read_buf[i]);
 		}
-		BK_RAW_LOGI(NULL, "\r\n");
+		BK_RAW_LOGD(NULL, "\r\n");
 	} else {
-		BK_RAW_LOGI(NULL, "warm reset fail\r\n");
+		BK_RAW_LOGD(NULL, "warm reset fail\r\n");
 	}
 	bk_scr_flush_fifo(BK_SCR_TYPE_RX);
 	bk_scr_set_intr(BK_SCR_INTR_ATR_FAIL, 0, NULL, NULL);
@@ -243,11 +243,11 @@ void cli_scr_process_t0_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 	read_len = bk_scr_read_data(scr_recv_data.data + scr_recv_data.len, SCR_MAX_LEN - scr_recv_data.len);
 	scr_recv_data.len += read_len;
-	BK_RAW_LOGI(NULL, "recv: ");
+	BK_RAW_LOGD(NULL, "recv: ");
 	for (i = 0; i < scr_recv_data.len; i++) {
-		BK_RAW_LOGI(NULL, "%02x ", scr_recv_data.data[i]);
+		BK_RAW_LOGD(NULL, "%02x ", scr_recv_data.data[i]);
 	}
-	BK_RAW_LOGI(NULL, "\r\n");
+	BK_RAW_LOGD(NULL, "\r\n");
 	bk_scr_flush_fifo(BK_SCR_TYPE_RX);
 
 	/*send command body*/
@@ -261,11 +261,11 @@ void cli_scr_process_t0_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 			read_len = bk_scr_read_data(scr_recv_data.data + scr_recv_data.len, SCR_MAX_LEN - scr_recv_data.len);
 			scr_recv_data.len += read_len;
-			BK_RAW_LOGI(NULL, "recv: ");
+			BK_RAW_LOGD(NULL, "recv: ");
 			for (i = 0; i < scr_recv_data.len; i++) {
-				BK_RAW_LOGI(NULL, "%02x ", scr_recv_data.data[i]);
+				BK_RAW_LOGD(NULL, "%02x ", scr_recv_data.data[i]);
 			}
-			BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "\r\n");
 			bk_scr_flush_fifo(BK_SCR_TYPE_RX);
 		}
 	}

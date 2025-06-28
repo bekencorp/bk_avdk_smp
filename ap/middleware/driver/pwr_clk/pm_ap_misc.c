@@ -76,7 +76,7 @@ bk_err_t bk_pm_ap_close_ap_register_callback(pm_ap_close_ap_callback_info_t * p_
     {
         return BK_FAIL;
     }
-    LOGI("Reg close ap_cb:0x%x,%d,0x%x,%d\r\n",p_close_ap_callback_info->close_ap_cb_fn,p_close_ap_callback_info->module,p_close_ap_callback_info->param1,p_close_ap_callback_info->param2);
+    LOGD("Reg close ap_cb:0x%x,%d,0x%x,%d\r\n",p_close_ap_callback_info->close_ap_cb_fn,p_close_ap_callback_info->module,p_close_ap_callback_info->param1,p_close_ap_callback_info->param2);
 	s_close_ap_cb_arry[p_close_ap_callback_info->module].close_ap_cb_fn = p_close_ap_callback_info->close_ap_cb_fn;
     s_close_ap_cb_arry[p_close_ap_callback_info->module].module= p_close_ap_callback_info->module;
     s_close_ap_cb_arry[p_close_ap_callback_info->module].param1 = p_close_ap_callback_info->param1;
@@ -114,7 +114,7 @@ bk_err_t bk_pm_ap_close_ap_handle_callback()
         if(s_close_ap_cb_arry[i].close_ap_cb_fn != NULL)
         {
             s_close_ap_cb_arry[i].close_ap_cb_fn(s_close_ap_cb_arry[i].param1,s_close_ap_cb_arry[i].param2);
-            //LOGI("Handle close ap cb:%d,0x%x\r\n",i,s_close_ap_cb_arry[i].close_ap_cb_fn);
+            //LOGD("Handle close ap cb:%d,0x%x\r\n",i,s_close_ap_cb_arry[i].close_ap_cb_fn);
         }
     }
     return BK_OK;
@@ -130,7 +130,7 @@ bk_err_t bk_pm_ap_system_wakeup_register_callback(pm_ap_system_wakeup_cb_info_t 
     {
         return BK_FAIL;
     }
-    LOGI("Reg system_wakeup_cb:0x%x,%d,0x%x,%d\r\n",p_sys_wakeup_callback_info->sys_wakeup_fn,p_sys_wakeup_callback_info->dev_id,p_sys_wakeup_callback_info->sleep_mode,p_sys_wakeup_callback_info->wakeup_source);
+    LOGD("Reg system_wakeup_cb:0x%x,%d,0x%x,%d\r\n",p_sys_wakeup_callback_info->sys_wakeup_fn,p_sys_wakeup_callback_info->dev_id,p_sys_wakeup_callback_info->sleep_mode,p_sys_wakeup_callback_info->wakeup_source);
 
     s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][p_sys_wakeup_callback_info->dev_id].sys_wakeup_fn = p_sys_wakeup_callback_info->sys_wakeup_fn;
     s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][p_sys_wakeup_callback_info->dev_id].dev_id= p_sys_wakeup_callback_info->dev_id;

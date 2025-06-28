@@ -17,7 +17,7 @@
 static int netif_at_demo(int sync,int argc, char **argv)
 {
 
-	BK_LOGI(TAG,"This is NETIF AT DEMO\r\n");
+	BK_LOGD(TAG,"This is NETIF AT DEMO\r\n");
 	return 0;
 }
 
@@ -33,6 +33,6 @@ void netif_at_cmd_init(void)
 	int ret;
 	ret = atsvr_register_commands(netif_cmds_table, sizeof(netif_cmds_table) / sizeof(netif_cmds_table[0]),"netif",NULL);
 	if(0 == ret)
-		BK_LOGI(TAG,"NETIF AT CMDS INIT OK\r\n");
+		BK_LOGD(TAG,"NETIF AT CMDS INIT OK\r\n");
 }
 

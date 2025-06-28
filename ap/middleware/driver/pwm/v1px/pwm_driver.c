@@ -475,7 +475,7 @@ static void pwm_group_set_complementary_mode(pwm_chan_t sw_chan)
 	pwm_ch_t hw_ch = 0;
 
 	pwm_sw_ch_to_hw_id_ch(sw_chan, &id, &hw_ch);
-	PWM_LOGI("group pwm_id:%d, chan:%d\r\n", id, hw_ch);
+	PWM_LOGD("group pwm_id:%d, chan:%d\r\n", id, hw_ch);
 
 	switch (hw_ch) {
 		case PWM_CH_0:	//PWM_CHANNEL0:
@@ -513,7 +513,7 @@ static void pwm_set_channel_config(pwm_ch_t sw_ch, const pwm_period_duty_config_
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
 
-	PWM_LOGD("hw:%d, period_cycle:%d, duty_cycle:%d, duty2_cycle:%d, duty3_cycle:%d\r\n",
+	PWM_LOGV("hw:%d, period_cycle:%d, duty_cycle:%d, duty2_cycle:%d, duty3_cycle:%d\r\n",
 			hw_ch,
 			config->period_cycle,
 			config->duty_cycle,
@@ -1297,18 +1297,18 @@ bk_err_t bk_pwm_group_init(const pwm_group_init_config_t *config, pwm_group_t *g
 	pwm_chan_init_common(config->chan1);
 	pwm_chan_init_common(config->chan2);
 	if (pwm_chan_is_default_group(config->chan1, config->chan2)) {
-		PWM_LOGI("use hardware default group\r\n");
+		PWM_LOGD("use hardware default group\r\n");
 		if (dead_cycle >= 0x400) {
 			PWM_LOGE("pwm_group_validate_dead_cycle, dead_cycle:%d\r\n", dead_cycle);
 			return BK_ERR_PWM_GROUP_DUTY;
 		}
 		pwm_group_output_mode_config(config, 0, dead_cycle);
 	} else {
-		PWM_LOGI("configure channels into group mode manually\r\n");
+		PWM_LOGD("configure channels into group mode manually\r\n");
 		pwm_group_init_with_any_channel(config, dead_cycle);
 	}
 	*group = pwm_group_add(config->chan1, config->chan2);
-	PWM_LOGI("group(%d) period=%d chan1_duty=%d chan2_duty=%d, dead_cycle=%d\n",
+	PWM_LOGD("group(%d) period=%d chan1_duty=%d chan2_duty=%d, dead_cycle=%d\n",
 			 *group, config->period_cycle, config->chan1_duty_cycle, config->chan2_duty_cycle, dead_cycle);
 
 	s_pwm_groups[*group].period_cycle = config->period_cycle;
@@ -1326,7 +1326,7 @@ bk_err_t bk_pwm_group_deinit(pwm_group_t group)
 	if (!pwm_group_is_existed(group))
 		return BK_ERR_PWM_GROUP_NOT_EXIST;
 
-	PWM_LOGI("group(%d) deinit\r\n", group);
+	PWM_LOGD("group(%d) deinit\r\n", group);
 
 	s_pwm_mode &= ~PWM_GROUP_MODE;
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_PWM_2, PM_CPU_FRQ_DEFAULT);
@@ -1346,7 +1346,7 @@ bk_err_t bk_pwm_group_start(pwm_group_t group)
 	}
 	PWM_PM_CHECK_RESTORE(PWM_ID_0);
 	PWM_PM_CHECK_RESTORE(PWM_ID_1);
-	PWM_LOGI("group(%d) start\r\n", group);
+	PWM_LOGD("group(%d) start\r\n", group);
 
 	pwm_id_t id1, id2;
 	pwm_ch_t hw_ch1, hw_ch2;
@@ -1354,7 +1354,7 @@ bk_err_t bk_pwm_group_start(pwm_group_t group)
 	pwm_sw_ch_to_hw_id_ch(s_pwm_groups[group].chan1, &id1, &hw_ch1);
 	pwm_sw_ch_to_hw_id_ch(s_pwm_groups[group].chan2, &id2, &hw_ch2);
 
-	PWM_LOGI("group(%d) chan1:%d, chan2:%d\r\n", group, s_pwm_groups[group].chan1, s_pwm_groups[group].chan2);
+	PWM_LOGD("group(%d) chan1:%d, chan2:%d\r\n", group, s_pwm_groups[group].chan1, s_pwm_groups[group].chan2);
 
 	pwm_hal_group_start(id1, id2, hw_ch1, hw_ch2);
 
@@ -1368,7 +1368,7 @@ bk_err_t bk_pwm_group_stop(pwm_group_t group)
 	}
 	PWM_PM_CHECK_RESTORE(PWM_ID_0);
 	PWM_PM_CHECK_RESTORE(PWM_ID_1);
-	PWM_LOGI("group(%d) stop\r\n", group);
+	PWM_LOGD("group(%d) stop\r\n", group);
 
 	pwm_id_t id1, id2;
 	pwm_ch_t hw_ch1, hw_ch2;
@@ -2071,12 +2071,12 @@ static void pwm_isr_common(pwm_id_t id)
 
 static void pwm0_isr(void)
 {
-	PWM_LOGD("%s\n", __func__);
+	PWM_LOGV("%s\n", __func__);
 	pwm_isr_common(0);
 }
 
 static void pwm1_isr(void)
 {
-	PWM_LOGD("%s\n", __func__);
+	PWM_LOGV("%s\n", __func__);
 	pwm_isr_common(1);
 }

@@ -4,7 +4,7 @@
 #define SDMA_DEBUG
 
 #ifdef SDMA_DEBUG
-#define SDMA_PRT           os_printf
+#define SDMA_PRT(...) BK_LOGD(NULL, ##__VA_ARGS__)(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #else
 #define SDMA_PRT           os_null_printf
 #define SDMA_WPRT          warning_prf

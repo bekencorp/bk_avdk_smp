@@ -6,22 +6,22 @@
 
 static void dwt_command_usage(void)
 {
-    os_printf("dwti instruction_addr\r\n");
-    os_printf("     instruction_addr: hex format, and it is a valid instruction address\r\n");
+    BK_LOGD(NULL, "dwti instruction_addr\r\n");
+    BK_LOGD(NULL, "     instruction_addr: hex format, and it is a valid instruction address\r\n");
 
-    os_printf("dwtd r/w/b data_address\r\n");
-    os_printf("     r: read this data address\r\n");
-    os_printf("     w: write this data address\r\n");
-    os_printf("     b: access this data address\r\n");
-    os_printf("     data_address: watch this data address, hex format\r\n");
+    BK_LOGD(NULL, "dwtd r/w/b data_address\r\n");
+    BK_LOGD(NULL, "     r: read this data address\r\n");
+    BK_LOGD(NULL, "     w: write this data address\r\n");
+    BK_LOGD(NULL, "     b: access this data address\r\n");
+    BK_LOGD(NULL, "     data_address: watch this data address, hex format\r\n");
 
-    os_printf("dwtdr data_address data_address_limit\r\n");
-    os_printf("     data_address: watch this data start address, hex format\r\n");
-    os_printf("     data_address_limit: watch this data end address, hex format\r\n");
+    BK_LOGD(NULL, "dwtdr data_address data_address_limit\r\n");
+    BK_LOGD(NULL, "     data_address: watch this data start address, hex format\r\n");
+    BK_LOGD(NULL, "     data_address_limit: watch this data end address, hex format\r\n");
 
-    os_printf("dwtdd data_address data_value\r\n");
-    os_printf("     data_address: watch this data address, hex format\r\n");
-    os_printf("     data_value: match the data value with watching this data address, hex format\r\n");
+    BK_LOGD(NULL, "dwtdd data_address data_value\r\n");
+    BK_LOGD(NULL, "     data_address: watch this data address, hex format\r\n");
+    BK_LOGD(NULL, "     data_value: match the data value with watching this data address, hex format\r\n");
 }
 
 static void dwti_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)

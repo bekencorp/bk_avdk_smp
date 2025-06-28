@@ -244,7 +244,7 @@ static int8_t dfu_getstatus_special_handler(void)
                     usbd_dfu_cfg.data_ptr += (uint32_t)usbd_dfu_cfg.buffer.d8[3] << 16;
                     usbd_dfu_cfg.data_ptr += (uint32_t)usbd_dfu_cfg.buffer.d8[4] << 24;
 
-                    USB_LOG_DBG("Erase start add %08x \r\n", usbd_dfu_cfg.data_ptr);
+                    USB_LOG_VBS("Erase start add %08x \r\n", usbd_dfu_cfg.data_ptr);
                     /*!< Erase */
                     dfu_erase_flash(usbd_dfu_cfg.data_ptr);
                 } else {
@@ -266,7 +266,7 @@ static int8_t dfu_getstatus_special_handler(void)
 
                 /* Perform the write operation */
                 /* Write flash */
-                USB_LOG_DBG("Write start add %08x length %d\r\n", addr, usbd_dfu_cfg.wlength);
+                USB_LOG_VBS("Write start add %08x length %d\r\n", addr, usbd_dfu_cfg.wlength);
                 dfu_write_flash(usbd_dfu_cfg.buffer.d8, (uint8_t *)addr, usbd_dfu_cfg.wlength);
             }
         }
@@ -432,7 +432,7 @@ void dfu_request_abort(void)
 
 static int dfu_class_interface_request_handler(struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
-    USB_LOG_DBG("DFU Class request: "
+    USB_LOG_VBS("DFU Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
 

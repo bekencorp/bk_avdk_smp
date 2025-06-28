@@ -8,7 +8,6 @@ import shutil
 from pathlib import Path
 
 import bk_packager
-from bk_bootloader_post import backup_bootloader_path
 from bk_build_summary import bk_build_summary
 from bk_misc import parse_format_size
 from bk_sdk.bk_curr_project import curr_project
@@ -21,6 +20,22 @@ logger = logging.getLogger(Path(__file__).name)
 def set_logging():
     log_format = "[%(name)s|%(levelname)s] %(message)s"
     logging.basicConfig(format=log_format, level=logging.INFO)
+
+
+def backup_bootloader_path():
+    # copy bootloader elf-map-asm to build directory
+    bootloader_build_dir = curr_project.bootloader_build_path.parent
+    if not bootloader_build_dir.exists():
+        logger.debug("bootloader not build, not backup.")
+        return
+
+    bootloader_backup_path = curr_project.bootloader_backup_dir
+    bootloader_backup_path.parent.mkdir(parents=True, exist_ok=True)
+    if bootloader_backup_path.exists():
+        shutil.rmtree(bootloader_backup_path)
+
+    shutil.copytree(bootloader_build_dir, bootloader_backup_path)
+    logger.info(f"backup bootloader to {bootloader_backup_path}")
 
 
 class bk_smp_packager:
@@ -171,7 +186,10 @@ def main():
     all_app_bin = firmware_package()
     ota_bin = ota_pack()
     output_info = f"firmware: {all_app_bin}\n" + f"ota binary: {ota_bin}\n"
-    gen_build_summary(output_info)
+    try:
+        gen_build_summary(output_info)
+    except Exception:
+        logger.warning("skip generating build summary info")
 
 
 if __name__ == "__main__":

@@ -395,7 +395,7 @@ dhcp_select(struct netif *netif)
   dhcp = netif_dhcp_data(netif);
   LWIP_ERROR("dhcp_select: dhcp != NULL", (dhcp != NULL), return ERR_VAL;);
 
-  LWIP_LOGI("[KW:]sta:DHCP_REQUEST(netif=%p) %c%c%"U16_F"\n", (void *)netif, netif->name[0], netif->name[1], (u16_t)netif->num);
+  LWIP_LOGD("[KW:]sta:DHCP_REQUEST(netif=%p) %c%c%"U16_F"\n", (void *)netif, netif->name[0], netif->name[1], (u16_t)netif->num);
   dhcp_set_state(dhcp, DHCP_STATE_REQUESTING);
 
   /* create and initialize the DHCP message header */
@@ -804,7 +804,7 @@ void dhcp_start_timeout_check(u32_t secs, u32_t usecs)
   clk_time = (secs * 1000 + usecs / 1000 );
 
   if (rtos_is_oneshot_timer_init(&dhcp_tmr)) {
-    LWIP_LOGI("dhcp status timer reload\n");
+    LWIP_LOGD("dhcp status timer reload\n");
     rtos_oneshot_reload_timer(&dhcp_tmr);
   } else {
     err = rtos_init_oneshot_timer(&dhcp_tmr, clk_time, (timer_2handler_t)dhcp_check_status, NULL, NULL);
@@ -812,7 +812,7 @@ void dhcp_start_timeout_check(u32_t secs, u32_t usecs)
 
     err = rtos_start_oneshot_timer(&dhcp_tmr);
     BK_ASSERT(kNoErr == err);
-    LWIP_LOGD("dhcp status timer:%d\n", clk_time);
+    LWIP_LOGV("dhcp status timer:%d\n", clk_time);
   }
 
   return;
@@ -904,7 +904,7 @@ dhcp_start(struct netif *netif)
     ip4_addr_set_u32(&dhcp->offered_ip_addr, n->address);
     ip4_addr_set_u32(&dhcp->offered_gw_addr, n->gw);
     ip4_addr_set_u32(&dhcp->offered_sn_mask, n->netmask);
-    LWIP_LOGI("fast dhcp rebind ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip4_addr_get_u32(&dhcp->offered_ip_addr)));
+    LWIP_LOGD("fast dhcp rebind ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip4_addr_get_u32(&dhcp->offered_ip_addr)));
     result = dhcp_reboot(netif);
   } else {
     result = dhcp_discover(netif);
@@ -1108,7 +1108,7 @@ dhcp_discover(struct netif *netif)
   struct pbuf *p_out;
   u16_t options_out_len;
 
-  LWIP_LOGI("[KW:]sta:DHCP_DISCOVER()\n");
+  LWIP_LOGD("[KW:]sta:DHCP_DISCOVER()\n");
 
   ip4_addr_set_any(&dhcp->offered_ip_addr);
   dhcp_set_state(dhcp, DHCP_STATE_SELECTING);
@@ -1967,7 +1967,7 @@ dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr,
     #if CONFIG_DHCP_ONGOING_OPTIM
     dhcp_stop_ongoing_timeout_check();
     #endif
-    LWIP_LOGI("[KW:]sta:DHCP_ACK received\n");
+    LWIP_LOGD("[KW:]sta:DHCP_ACK received\n");
     /* in requesting state? */
     if (dhcp->state == DHCP_STATE_REQUESTING) {
       dhcp_handle_ack(netif, msg_in);
@@ -2003,7 +2003,7 @@ dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr,
   }
   /* received a DHCP_OFFER in DHCP_STATE_SELECTING state? */
   else if ((msg_type == DHCP_OFFER) && (dhcp->state == DHCP_STATE_SELECTING)) {
-    LWIP_LOGI("[KW:]sta:DHCP_OFFER received in DHCP_STATE_SELECTING state\n");
+    LWIP_LOGD("[KW:]sta:DHCP_OFFER received in DHCP_STATE_SELECTING state\n");
     /* remember offered lease */
     dhcp_handle_offer(netif, msg_in);
   }
@@ -2154,7 +2154,7 @@ void dhcp_stop_ongoing_timeout_check(void)
 
     ret = rtos_deinit_oneshot_timer(&dhcp_ongoing_tmr);
     BK_ASSERT(kNoErr == ret);
-    LWIP_LOGD("dhcp ongoing timer deinit\n");
+    LWIP_LOGV("dhcp ongoing timer deinit\n");
 
     ps_clear_dhcp_ongoing_prevent();
   }
@@ -2168,7 +2168,7 @@ void dhcp_start_ongoing_timeout_check(u32_t milliseconds)
   clk_time = milliseconds;
 
   if (rtos_is_oneshot_timer_init(&dhcp_ongoing_tmr)) {
-    LWIP_LOGI("dhcp ongoing timer reload\n");
+    LWIP_LOGD("dhcp ongoing timer reload\n");
     rtos_oneshot_reload_timer(&dhcp_ongoing_tmr);
   } else {
     err = rtos_init_oneshot_timer(&dhcp_ongoing_tmr, clk_time, (timer_2handler_t)dhcp_ongoing_timeout_check, NULL, NULL);
@@ -2176,7 +2176,7 @@ void dhcp_start_ongoing_timeout_check(u32_t milliseconds)
 
     err = rtos_start_oneshot_timer(&dhcp_ongoing_tmr);
     BK_ASSERT(kNoErr == err);
-    LWIP_LOGD("dhcp ongoing timer:%d\n", clk_time);
+    LWIP_LOGV("dhcp ongoing timer:%d\n", clk_time);
   }
 
   ps_set_dhcp_ongoing_prevent();

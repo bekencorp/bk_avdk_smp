@@ -76,21 +76,21 @@ int hexstr2bin_cli(const char *hex, u8 *buf, size_t len)
 __maybe_unused static void cli_misc_help(void)
 {
 #if (CONFIG_WIFI_ENABLE)
-	CLI_LOGI("mac <mac>, get/set mac. e.g. mac c89346000001\r\n");
+	CLI_LOGD("mac <mac>, get/set mac. e.g. mac c89346000001\r\n");
 #endif
 
 #if (CONFIG_EFUSE)
-	CLI_LOGI("efuse [-r addr] [-w addr data]\r\n");
-	CLI_LOGI("efusemac [-r] [-w] [mac]\r\n");
+	CLI_LOGD("efuse [-r addr] [-w addr data]\r\n");
+	CLI_LOGD("efusemac [-r] [-w] [mac]\r\n");
 #endif
 
 #if (CONFIG_CPU_CNT > 1)
-	CLI_LOGI("bootcore1 boot slave core,1:start,0:stop,others:start and stop many times\r\n");
+	CLI_LOGD("bootcore1 boot slave core,1:start,0:stop,others:start and stop many times\r\n");
 #endif
-	CLI_LOGI("setjtagmode set jtag mode [cpu0|cpu1] [group1|group2]\r\n");
-	CLI_LOGI("setcpufreq [cksel] [ckdiv_core] [ckdiv_bus] [ckdiv_cpu]\r\n");
+	CLI_LOGD("setjtagmode set jtag mode [cpu0|cpu1] [group1|group2]\r\n");
+	CLI_LOGD("setcpufreq [cksel] [ckdiv_core] [ckdiv_bus] [ckdiv_cpu]\r\n");
 #if CONFIG_COMMON_IO
-	CLI_LOGI("testcommonio test common io\r\n");
+	CLI_LOGD("testcommonio test common io\r\n");
 #endif
 
 }
@@ -99,11 +99,11 @@ extern volatile const uint8_t build_version[];
 
 void get_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	CLI_LOGI("get_version\r\n");
-	//os_printf("firmware version : %s", BEKEN_SDK_REV);
-	CLI_LOGI("firmware version : %s\r\n", build_version);
-	CLI_LOGI("chip id : %x \r\n", sys_drv_get_chip_id());
-	CLI_LOGI("soc: %s\n", CONFIG_SOC_STR);
+	CLI_LOGD("get_version\r\n");
+	//BK_LOGD(NULL,"firmware version : %s", BEKEN_SDK_REV);
+	CLI_LOGD("firmware version : %s\r\n", build_version);
+	CLI_LOGD("chip id : %x \r\n", sys_drv_get_chip_id());
+	CLI_LOGD("soc: %s\n", CONFIG_SOC_STR);
 }
 
 void cli_show_reset_reason(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -114,19 +114,19 @@ void cli_show_reset_reason(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
 void get_id(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	CLI_LOGI("get_id\r\n");
-	//os_printf("id : %x_%x",sddev_control(DD_DEV_TYPE_SCTRL,CMD_GET_DEVICE_ID, NULL), sddev_control(DD_DEV_TYPE_SCTRL,CMD_GET_CHIP_ID, NULL));
-	CLI_LOGI("id : %x_%x",sys_drv_get_device_id(), sys_drv_get_chip_id());
+	CLI_LOGD("get_id\r\n");
+	//BK_LOGD(NULL,"id : %x_%x",sddev_control(DD_DEV_TYPE_SCTRL,CMD_GET_DEVICE_ID, NULL), sddev_control(DD_DEV_TYPE_SCTRL,CMD_GET_CHIP_ID, NULL));
+	CLI_LOGD("id : %x_%x",sys_drv_get_device_id(), sys_drv_get_chip_id());
 }
 
 static void uptime_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	CLI_LOGI("OS time %ldms\r\n", rtos_get_time());
+	CLI_LOGD("OS time %ldms\r\n", rtos_get_time());
 
 #if CONFIG_AON_RTC
 	uint64_t rtc_time_us = bk_aon_rtc_get_us();
-	CLI_LOGI("Aon rtc time_h:%u, time_l:%u us\n", (uint32_t)((rtc_time_us)>>32), (uint32_t)(rtc_time_us));
-	CLI_LOGI("Aon rtc clock freq:%d\n", bk_rtc_get_clock_freq());
+	CLI_LOGD("Aon rtc time_h:%u, time_l:%u us\n", (uint32_t)((rtc_time_us)>>32), (uint32_t)(rtc_time_us));
+	CLI_LOGD("Aon rtc clock freq:%d\n", bk_rtc_get_clock_freq());
 #endif
 }
 
@@ -145,14 +145,14 @@ static void efuse_cmd_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		if (os_strncmp(argv[1], "-r", 2) == 0) {
 			hexstr2bin_cli(argv[2], &addr, 1);
 			bk_efuse_read_byte(addr, &data);
-			CLI_LOGI("efuse read: addr-0x%02x, data-0x%02x\r\n",
+			CLI_LOGD("efuse read: addr-0x%02x, data-0x%02x\r\n",
 					  addr, data);
 		}
 	} else if (argc == 4) {
 		if (os_strncmp(argv[1], "-w", 2) == 0)  {
 			hexstr2bin_cli(argv[2], &addr, 1);
 			hexstr2bin_cli(argv[3], &data, 6);
-			CLI_LOGI("efuse write: addr-0x%02x, data-0x%02x, ret:%d\r\n",
+			CLI_LOGD("efuse write: addr-0x%02x, data-0x%02x, ret:%d\r\n",
 					  addr, data, bk_efuse_write_byte(addr, data));
 		}
 	} else
@@ -166,24 +166,24 @@ static void efuse_mac_cmd_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
 	if (argc == 1) {
 		if (bk_get_mac(mac, MAC_TYPE_BASE) == BK_OK)
-			CLI_LOGI("MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
+			CLI_LOGD("MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
 					  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 	} else if (argc == 2) {
 		if (os_strncmp(argv[1], "-r", 2) == 0) {
 			if (bk_get_mac(mac, MAC_TYPE_BASE) == BK_OK)
-				CLI_LOGI("MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
+				CLI_LOGD("MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
 						  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 		}
 	} else if (argc == 3) {
 		if (os_strncmp(argv[1], "-w", 2) == 0)  {
 			hexstr2bin_cli(argv[2], mac, 6);
-			CLI_LOGI("Set MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
+			CLI_LOGD("Set MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
 					  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 		}
 	} else
-		CLI_LOGI("efusemac [-r] [-w] [mac]\r\n");
+		CLI_LOGD("efusemac [-r] [-w] [mac]\r\n");
 #else
-	CLI_LOGI("base mac is not from efuse\n");
+	CLI_LOGD("base mac is not from efuse\n");
 #endif
 }
 #endif //#if (CONFIG_EFUSE)
@@ -211,26 +211,26 @@ static void mac_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		BK_LOG_ON_ERR(bk_get_mac(eth_mac, MAC_TYPE_ETH));
 #endif
 		if (ate_is_enabled()) {
-			os_printf("MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
+			BK_LOGD(NULL,"MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
 						base_mac[0],base_mac[1],base_mac[2],base_mac[3],base_mac[4],base_mac[5]);
 		} else {
 #if CONFIG_WIFI_ENABLE
-			CLI_LOGI("base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
-			CLI_LOGI("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
-			CLI_LOGI("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
+			CLI_LOGD("base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+			CLI_LOGD("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
+			CLI_LOGD("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
 #endif
 #if CONFIG_ETH
-			CLI_LOGI("eth mac: %pm\n", eth_mac);
+			CLI_LOGD("eth mac: %pm\n", eth_mac);
 #endif
 		}
 	} else if (argc == 2) {
 		hexstr2bin_cli(argv[1], base_mac, BK_MAC_ADDR_LEN);
 		bk_set_base_mac(base_mac);
 		if (ate_is_enabled())
-			os_printf("Set MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
+			BK_LOGD(NULL,"Set MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
 						base_mac[0],base_mac[1],base_mac[2],base_mac[3],base_mac[4],base_mac[5]);
 		else
-			CLI_LOGI("set base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+			CLI_LOGD("set base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
 	} else
 		cli_misc_help();
 
@@ -253,7 +253,7 @@ static void boot_cpu_core(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	if (argc == 3) {
 		core = os_strtoul(argv[1], NULL, 10);
 		mode = os_strtoul(argv[2], NULL, 10);
-		CLI_LOGI("boot_core id(%d), mode(%d).\r\n", core, mode);
+		CLI_LOGD("boot_core id(%d), mode(%d).\r\n", core, mode);
 		
 		if(mode == 1)
 		{
@@ -311,14 +311,14 @@ static void boot_cpu_core(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 				if(i == mode)
 					break;
 			}
-			CLI_LOGI("boot on/off %d times.\r\n", mode);
+			CLI_LOGD("boot on/off %d times.\r\n", mode);
 		}
 	} else {
-		CLI_LOGI("bootcore [core id] [mode: 1:start,2:stop].\r\n");
+		CLI_LOGD("bootcore [core id] [mode: 1:start,2:stop].\r\n");
 	}
 
 
-	CLI_LOGI("boot_cpu_core end.\r\n");
+	CLI_LOGD("boot_cpu_core end.\r\n");
 }
 #endif
 
@@ -335,29 +335,29 @@ static void set_jtag_mode(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 
 	if (os_strcmp(argv[1], "cpu0") == 0) {
 		cpu_id = 0;
-		CLI_LOGI("gpio Jtag CPU0\r\n");
+		CLI_LOGD("gpio Jtag CPU0\r\n");
 	} else if (os_strcmp(argv[1], "cpu1") == 0) {
 		cpu_id = 1;
-		CLI_LOGI("gpio Jtag CPU1\r\n");
+		CLI_LOGD("gpio Jtag CPU1\r\n");
 	} else if (os_strcmp(argv[1], "cpu2") == 0) {
 		cpu_id = 2;
-		CLI_LOGI("gpio Jtag CPU2\r\n");
+		CLI_LOGD("gpio Jtag CPU2\r\n");
 	} else {
 		cli_misc_help();
 	}
 
 	if (os_strcmp(argv[2], "group1") == 0) {
 		group_id = 0;
-		CLI_LOGI("gpio Jtag group1\r\n");
+		CLI_LOGD("gpio Jtag group1\r\n");
 	} else if (os_strcmp(argv[2], "group2") == 0) {
 		group_id = 1;
-		CLI_LOGI("gpio Jtag group2\r\n");
+		CLI_LOGD("gpio Jtag group2\r\n");
 	} else
 		cli_misc_help();
 
 	bk_set_jtag_mode(cpu_id, group_id);
 
-	CLI_LOGI("set_jtag_mode end.\r\n");
+	CLI_LOGD("set_jtag_mode end.\r\n");
 }
 
 
@@ -403,12 +403,12 @@ static void set_cpu_clock_freq(char *pcWriteBuffer, int xWriteBufferLen, int arg
 #endif
 	ckdiv_cpu1  = os_strtoul(argv[5], NULL, 10);
 
-	CLI_LOGI("set_cpu_clock_freq: [cksel_core:%d] [ckdiv_core:%d] [ckdiv_bus:%d] [ckdiv_cpu0:%d] [ckdiv_cpu1:%d]\r\n",
+	CLI_LOGD("set_cpu_clock_freq: [cksel_core:%d] [ckdiv_core:%d] [ckdiv_bus:%d] [ckdiv_cpu0:%d] [ckdiv_cpu1:%d]\r\n",
 			cksel_core, ckdiv_core, ckdiv_bus, ckdiv_cpu0, ckdiv_cpu1);
 	pm_core_bus_clock_ctrl(cksel_core, ckdiv_core, ckdiv_bus, ckdiv_cpu0, ckdiv_cpu1);
 
 
-	CLI_LOGI("set_cpu_clock_freq end.\r\n");
+	CLI_LOGD("set_cpu_clock_freq end.\r\n");
 }
 
 
@@ -416,9 +416,9 @@ static void set_cpu_clock_freq(char *pcWriteBuffer, int xWriteBufferLen, int arg
 extern int common_io_test_main(int argc, const char * argv[]);
 void test_common_io(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	CLI_LOGI("common io test begin.===================.\r\n");
+	CLI_LOGD("common io test begin.===================.\r\n");
 	common_io_test_main(0, NULL);
-	CLI_LOGI("common io test end.====================.\r\n");
+	CLI_LOGD("common io test end.====================.\r\n");
 }
 #endif
 
@@ -428,12 +428,12 @@ void set_printf_uart_port(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	unsigned char uart_port = 0;
 
 	if (argc != 2) {
-		os_printf("set log/shell uart port 0/1/2");
+		BK_LOGD(NULL,"set log/shell uart port 0/1/2");
 		return;
 	}
 
 	uart_port = os_strtoul(argv[1], NULL, 10);
-	os_printf("set_printf_uart_port: %d.\r\n", uart_port);
+	BK_LOGD(NULL,"set_printf_uart_port: %d.\r\n", uart_port);
 
 	if (uart_port < UART_ID_MAX) {
 #if CONFIG_SHELL_ASYNCLOG
@@ -442,10 +442,10 @@ void set_printf_uart_port(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		bk_set_printf_port(uart_port);
 #endif
 	} else {
-		os_printf("uart_port must be 0/1/2.\r\n");
+		BK_LOGD(NULL,"uart_port must be 0/1/2.\r\n");
 	}
 
-	os_printf("uart_port end.\r\n");
+	BK_LOGD(NULL,"uart_port end.\r\n");
 }
 
 #if CONFIG_CACHE_ENABLE
@@ -456,10 +456,10 @@ static void prvBUS(void) {
 	} u;
 
 	int *p = (int *) &(u.a[1]);
-	os_printf("prvBUS() enter(%x).\n", &(u.a[1]));
-	os_printf("prvBUS() p(%x).\n", p);
+	BK_LOGD(NULL,"prvBUS() enter(%x).\n", &(u.a[1]));
+	BK_LOGD(NULL,"prvBUS() p(%x).\n", p);
 	*p = 17;
-	os_printf("prvBUS() left().\n");
+	BK_LOGD(NULL,"prvBUS() left().\n");
 }
 
 __attribute__ ((__optimize__ ("-fno-tree-loop-distribute-patterns"))) \
@@ -502,7 +502,7 @@ void cli_cache_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **ar
 	}
 
 	uint32_t mode = os_strtoul(argv[1], NULL, 10);
-	os_printf("cache mode(%d).\n", mode);
+	BK_LOGD(NULL,"cache mode(%d).\n", mode);
 
 	if (mode == 0) {
 		enable_dcache(0);
@@ -533,7 +533,7 @@ int32_t cpu_test(uint32_t count) {
     }
 
     time_end = portNVIC_SYSTICK_CURRENT_VALUE_REG;
-    CLI_LOGI("cpu_test: count[%d], begin[%d], end[%d], duration[%d].\r\n", count, time_begin, time_end, time_end - time_begin);
+    CLI_LOGD("cpu_test: count[%d], begin[%d], end[%d], duration[%d].\r\n", count, time_begin, time_end, time_end - time_begin);
 #endif
 
     return 0;
@@ -543,12 +543,12 @@ static void cli_cpu_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 {
 	uint32_t count = 0;
 	if (argc < 2) {
-		CLI_LOGI("cputest [count]\r\n");
+		CLI_LOGD("cputest [count]\r\n");
 		return;
 	}
 	count = os_strtoul(argv[1], NULL, 10);
 	cpu_test(count);
-	CLI_LOGI("cputest end.\r\n");
+	CLI_LOGD("cputest end.\r\n");
 }
 
 #if CONFIG_EXTERN_32K
@@ -558,7 +558,7 @@ void cli_set_clock_source(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	unsigned char clock_source = 0;
 
 	if (argc != 2) {
-		os_printf("set clock source, 0: PM_LPO_SRC_DIVD, 1: PM_LPO_SRC_X32K.\r\n");
+		BK_LOGD(NULL,"set clock source, 0: PM_LPO_SRC_DIVD, 1: PM_LPO_SRC_X32K.\r\n");
 		return;
 	}
 
@@ -569,7 +569,7 @@ void cli_set_clock_source(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		pm_clk_32k_source_switch(PM_LPO_SRC_X32K);
 	}
 
-	os_printf("set clock source end.\r\n");
+	BK_LOGD(NULL,"set clock source end.\r\n");
 }
 #endif
 

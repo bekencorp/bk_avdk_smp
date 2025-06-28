@@ -78,7 +78,7 @@ static int fast_connect_cb(void *arg, event_module_t event_module,
 	bk_logic_partition_t *pt = bk_flash_partition_get_info(BK_PARTITION_USR_CONFIG);
 	BK_FAST_CONNECT_T info_tmp;
 
-	CLI_LOGI("%s, flag:%x\r\n", __func__, info_t.flag);
+	CLI_LOGD("%s, flag:%x\r\n", __func__, info_t.flag);
 	bk_flash_read_bytes(pt->partition_start_addr + pt->partition_length -4096,
 						(uint8_t *)&info_tmp, sizeof(BK_FAST_CONNECT_T));
 
@@ -123,7 +123,7 @@ static int  demo_tcp_send(void *arg, event_module_t event_module,
 
 	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock < 0) {
-		CLI_LOGI("create socket failed, err=%d!\n", errno);
+		CLI_LOGD("create socket failed, err=%d!\n", errno);
 		return -1;
 	}
 	addr.sin_family = PF_INET;
@@ -132,7 +132,7 @@ static int  demo_tcp_send(void *arg, event_module_t event_module,
 
 	ret = connect(sock, (const struct sockaddr *)&addr, sizeof(addr));
 	if (ret == -1) {
-		CLI_LOGI("connect failed, err=%d!\n", errno);
+		CLI_LOGD("connect failed, err=%d!\n", errno);
 		closesocket(sock);
 		return -1;
 	}
@@ -163,7 +163,7 @@ void demo_wifi_fast_connect(void)
 
 	bk_flash_read_bytes(pt->partition_start_addr + pt->partition_length -4096,
 						(uint8_t *)&info, sizeof(BK_FAST_CONNECT_T));
-	CLI_LOGD("%s, flag:%x\r\n", __func__, info.flag);
+	CLI_LOGV("%s, flag:%x\r\n", __func__, info.flag);
 	if (info.flag == 0x71l) {
 		demo_sta_app_init((char *)info.sta_ssid, (char *)info.sta_pwd);
 #if 0
@@ -240,7 +240,7 @@ void cli_wifi_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 			ap_key = argv[2];
 			ap_channel = argv[3];
 		}else{
-			CLI_LOGI("Invalid parameters\n");
+			CLI_LOGD("Invalid parameters\n");
 			return;
 		}
 #if CONFIG_ENABLE_WIFI_DEFAULT_CONNECT
@@ -318,7 +318,7 @@ void cli_wifi_hidden_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		ap_key = argv[2];
 		ap_channel = argv[3];
 	}else{
-		CLI_LOGI("Invalid parameters\n");
+		CLI_LOGD("Invalid parameters\n");
 		return;
 	}
 
@@ -350,7 +350,7 @@ void cli_wifi_hidden_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 			ap_config.channel = channel;
 		}
 
-		CLI_LOGI("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+		CLI_LOGD("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
 		ap_config.hidden = true;
 		ret = bk_wifi_ap_set_config(&ap_config);
 		ret = bk_wifi_ap_start();
@@ -380,11 +380,11 @@ void cli_wifi_stop_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 		} else if (os_strcmp(argv[1], "ap") == 0)
 			ret = bk_wifi_ap_stop();
 		else {
-			CLI_LOGI("unknown WiFi interface\n");
+			CLI_LOGD("unknown WiFi interface\n");
 			goto error;
 		}
 	} else {
-		CLI_LOGI("bad parameters\r\n");
+		CLI_LOGD("bad parameters\r\n");
 		goto error;
 	}
 
@@ -425,7 +425,7 @@ void cli_wifi_iplog_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	}
 	else
 	{
-		CLI_LOGI("cli_wifi_iplog_cmd:invalid argc num\r\n");
+		CLI_LOGD("cli_wifi_iplog_cmd:invalid argc num\r\n");
 		goto error;
 	}
 
@@ -455,7 +455,7 @@ void cli_wifi_ipdbg_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	}
 	else
 	{
-		CLI_LOGI("cli_wifi_ipdbg_cmd:invalid argc num\r\n");
+		CLI_LOGD("cli_wifi_ipdbg_cmd:invalid argc num\r\n");
 		goto error;
 	}
 
@@ -479,7 +479,7 @@ void cli_wifi_mem_apply_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 	if (argc < 3)
 	{
-		CLI_LOGI("cli_wifi_mem_cmd_cmd:invalid argc num");
+		CLI_LOGD("cli_wifi_mem_cmd_cmd:invalid argc num");
 		goto error;
 	}
 	else if(3 == argc)
@@ -490,7 +490,7 @@ void cli_wifi_mem_apply_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	}
 	else
 	{
-		CLI_LOGI("cli_wifi_mem_cmd_cmd:invalid argc num\r\n");
+		CLI_LOGD("cli_wifi_mem_cmd_cmd:invalid argc num\r\n");
 		goto error;
 	}
 
@@ -568,7 +568,7 @@ void cli_wifi_set_proto_debug_flag(char *pcWriteBuffer, int xWriteBufferLen, int
 	char *msg = NULL;
 
 	if (argc < 2) {
-		CLI_LOGI("invalid argc num");
+		CLI_LOGD("invalid argc num");
 		goto error;
 	}
 
@@ -577,29 +577,29 @@ void cli_wifi_set_proto_debug_flag(char *pcWriteBuffer, int xWriteBufferLen, int
 		ret = bk_wifi_enable_proto_debug(pd_flag);
 
 		if (!ret) {
-			CLI_LOGI("enable proto debug ok");
+			CLI_LOGD("enable proto debug ok");
 			msg = WIFI_CMD_RSP_SUCCEED;
 			os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 			return;
 		}
 		else {
-			CLI_LOGI("enable proto debug failed");
+			CLI_LOGD("enable proto debug failed");
 			goto error;
 		}
 	} else if(pd_flag == 0){
 		ret = bk_wifi_disable_proto_debug(pd_flag);
 		if (!ret) {
-			CLI_LOGI("disable proto debug ok");
+			CLI_LOGD("disable proto debug ok");
 			msg = WIFI_CMD_RSP_SUCCEED;
 			os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 			return;
 		}
 		else {
-			CLI_LOGI("disable proto debug failed");
+			CLI_LOGD("disable proto debug failed");
 			goto error;
 		}
 	} else {
-		CLI_LOGI("invalid argv of pd_flag");
+		CLI_LOGD("invalid argv of pd_flag");
 		goto error;
 	}
 
@@ -618,7 +618,7 @@ void cli_wifi_set_arp_rate_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	char *msg = NULL;
 
 	if (argc < 2) {
-		CLI_LOGI("invalid argc num");
+		CLI_LOGD("invalid argc num");
 		goto error;
 	}
 
@@ -627,13 +627,13 @@ void cli_wifi_set_arp_rate_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	ret = bk_wifi_send_arp_set_rate_req(set_arp_tx_rate);
 
 	if (!ret) {
-		CLI_LOGI("set_arp_tx_rate ok");
+		CLI_LOGD("set_arp_tx_rate ok");
 		msg = WIFI_CMD_RSP_SUCCEED;
 		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 		return;
 	}
 	else {
-		CLI_LOGI("set_arp_tx_rate failed");
+		CLI_LOGD("set_arp_tx_rate failed");
 		goto error;
 	}
 
@@ -650,7 +650,7 @@ void cli_wifi_set_interval_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	char *msg = NULL;
 
 	if (argc < 2) {
-		CLI_LOGI("invalid argc num");
+		CLI_LOGD("invalid argc num");
 		goto error;
 	}
 
@@ -658,13 +658,13 @@ void cli_wifi_set_interval_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	ret = bk_wifi_send_listen_interval_req(interval);
 
 	if (!ret) {
-		CLI_LOGI("set_interval ok");
+		CLI_LOGD("set_interval ok");
 		msg = WIFI_CMD_RSP_SUCCEED;
 		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 		return;
 	}
 	else {
-		CLI_LOGI("set_interval failed");
+		CLI_LOGD("set_interval failed");
 		goto error;
 	}
 
@@ -682,7 +682,7 @@ void cli_wifi_bcn_loss_intv_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	char *msg = NULL;
 
 	if (argc < 3) {
-		CLI_LOGI("invalid argc num");
+		CLI_LOGD("invalid argc num");
 		goto error;
 	}
 
@@ -691,13 +691,13 @@ void cli_wifi_bcn_loss_intv_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	ret = bk_wifi_send_bcn_loss_int_req(interval, repeat_num);
 
 	if (!ret) {
-		CLI_LOGI("set_bcn_loss_int ok");
+		CLI_LOGD("set_bcn_loss_int ok");
 		msg = WIFI_CMD_RSP_SUCCEED;
 		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 		return;
 	}
 	else {
-		CLI_LOGI("set_bcn_loss_int failed");
+		CLI_LOGD("set_bcn_loss_int failed");
 		goto error;
 	}
 
@@ -715,7 +715,7 @@ void cli_wifi_set_bcn_loss_time_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	char *msg = NULL;
 
 	if (argc < 3) {
-		CLI_LOGI("invalid argc num");
+		CLI_LOGD("invalid argc num");
 		goto error;
 	}
 
@@ -724,13 +724,13 @@ void cli_wifi_set_bcn_loss_time_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	ret = bk_wifi_set_bcn_loss_time(wait_cnt, wake_cnt);
 
 	if (!ret) {
-		CLI_LOGI("set_bcn_loss_time ok");
+		CLI_LOGD("set_bcn_loss_time ok");
 		msg = WIFI_CMD_RSP_SUCCEED;
 		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 		return;
 	}
 	else {
-		CLI_LOGI("set_bcn_loss_time failed");
+		CLI_LOGD("set_bcn_loss_time failed");
 		goto error;
 	}
 
@@ -749,7 +749,7 @@ void cli_wifi_set_bcn_recv_win_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
 	char *msg = NULL;
 
 	if (argc < 4) {
-		CLI_LOGI("invalid argc num");
+		CLI_LOGD("invalid argc num");
 		goto error;
 	}
 
@@ -759,13 +759,13 @@ void cli_wifi_set_bcn_recv_win_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
 	ret = bk_wifi_set_bcn_recv_win(default_win, max_win, step);
 
 	if (!ret) {
-		CLI_LOGI("set_bcn_recv_win ok");
+		CLI_LOGD("set_bcn_recv_win ok");
 		msg = WIFI_CMD_RSP_SUCCEED;
 		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 		return;
 	}
 	else {
-		CLI_LOGI("set_bcn_recv_win failed");
+		CLI_LOGD("set_bcn_recv_win failed");
 		goto error;
 	}
 
@@ -782,7 +782,7 @@ void cli_wifi_set_bcn_miss_time_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	char *msg = NULL;
 
 	if (argc < 2) {
-		CLI_LOGI("invalid argc num");
+		CLI_LOGD("invalid argc num");
 		goto error;
 	}
 
@@ -790,13 +790,13 @@ void cli_wifi_set_bcn_miss_time_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	ret = bk_wifi_set_bcn_miss_time(bcnmiss_time);
 
 	if (!ret) {
-		CLI_LOGI("set_bcn_miss_time ok");
+		CLI_LOGD("set_bcn_miss_time ok");
 		msg = WIFI_CMD_RSP_SUCCEED;
 		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 		return;
 	}
 	else {
-		CLI_LOGI("set_bcn_miss_time failed");
+		CLI_LOGD("set_bcn_miss_time failed");
 		goto error;
 	}
 
@@ -825,7 +825,7 @@ void cli_monitor_start(uint32_t primary_channel)
 	if (!s_monitor_result) {
 		s_monitor_result = os_zalloc(sizeof(cli_monitor_result_t));
 		if (!s_monitor_result)
-			CLI_LOGI("failed to alloc monitor result\n");
+			CLI_LOGD("failed to alloc monitor result\n");
 	}
 
 	BK_LOG_ON_ERR(bk_wifi_monitor_register_cb(cli_monitor_cb));
@@ -840,7 +840,7 @@ void cli_wifi_monitor_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	char *msg = NULL;
 
 	if (argc != 2) {
-		CLI_LOGI("monitor_parameter invalid\r\n");
+		CLI_LOGD("monitor_parameter invalid\r\n");
 		goto error;
 	}
 
@@ -874,7 +874,7 @@ void cli_wifi_sta_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	int ret;
 
 	if ((argc < 2) || (argc > 6)) {
-		CLI_LOGI("invalid argc number\n");
+		CLI_LOGD("invalid argc number\n");
 		goto error;
 	}
 
@@ -1025,7 +1025,7 @@ void cli_wifi_sta_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		}
 #endif
 	} else {
-		CLI_LOGI("not buf for utf8\r\n");
+		CLI_LOGD("not buf for utf8\r\n");
 		goto error;
 	}
 
@@ -1096,7 +1096,7 @@ void cli_wifi_sta_vsie_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 	strncpy(sta_config.ssid, ssid, WIFI_SSID_STR_LEN);
 	strncpy(sta_config.password, password, WIFI_PASSWORD_LEN);
 
-	BK_LOGI(TAG, "ssid:%s password:%s\n", sta_config.ssid, sta_config.password);
+	BK_LOGD(TAG, "ssid:%s password:%s\n", sta_config.ssid, sta_config.password);
 	BK_LOG_ON_ERR(bk_wifi_sta_set_config(&sta_config));
 	BK_LOG_ON_ERR(bk_wifi_sta_start());
 	if (sta_config.vsies[WIFI_VENDOR_ELEM_ASSOC_REQ])
@@ -1142,7 +1142,7 @@ void cli_wifi_ap_vsie_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	strncpy(ap_config.ssid, ap_ssid, WIFI_SSID_STR_LEN);
 	strncpy(ap_config.password, ap_key, WIFI_PASSWORD_LEN);
 
-	BK_LOGI(TAG, "ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+	BK_LOGD(TAG, "ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
 	BK_LOG_ON_ERR(bk_wifi_ap_set_config(&ap_config));
 	BK_LOG_ON_ERR(bk_wifi_ap_start());
 
@@ -1172,7 +1172,7 @@ void cli_wifi_sta_eap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	char *msg = NULL;
 
 	if ((argc < 2) || (argc > 5)) {
-		CLI_LOGI("invalid argc number\n");
+		CLI_LOGD("invalid argc number\n");
 		goto error;
 	}
 
@@ -1189,13 +1189,13 @@ void cli_wifi_sta_eap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 
 		len = os_strlen((char *)oob_ssid_tp);
 		if (WLAN_SSID_MAX_LEN < len) {
-			CLI_LOGI("ssid name more than 32 Bytes\n");
+			CLI_LOGD("ssid name more than 32 Bytes\n");
 			goto error;
 		}
 
 		sta_config = os_zalloc(sizeof(*sta_config));
 		if (!sta_config) {
-			CLI_LOGI("Cannot alloc STA config\n");
+			CLI_LOGD("Cannot alloc STA config\n");
 			goto error;
 		}
 
@@ -1209,10 +1209,10 @@ void cli_wifi_sta_eap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		os_strlcpy(sta_config->private_key_passwd, private_key_passwd, sizeof(sta_config->private_key_passwd));
 		os_strlcpy(sta_config->phase1, "tls_disable_time_checks=1", sizeof(sta_config->phase1));
 
-		CLI_LOGI("ssid:%s key:%s\n", sta_config->ssid, sta_config->password);
-		CLI_LOGI("eap:%s identity:%s\n", sta_config->eap, sta_config->identity);
-		CLI_LOGI("ca:%s client_cert:%s\n", sta_config->ca, sta_config->client_cert);
-		CLI_LOGI("private_key:%s\n", sta_config->private_key);
+		CLI_LOGD("ssid:%s key:%s\n", sta_config->ssid, sta_config->password);
+		CLI_LOGD("eap:%s identity:%s\n", sta_config->eap, sta_config->identity);
+		CLI_LOGD("ca:%s client_cert:%s\n", sta_config->ca, sta_config->client_cert);
+		CLI_LOGD("private_key:%s\n", sta_config->private_key);
 		ret = bk_wifi_sta_set_config(sta_config);
 		err = bk_wifi_sta_start();
 
@@ -1222,7 +1222,7 @@ void cli_wifi_sta_eap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		os_free(oob_ssid_tp);
 #endif
 	} else {
-		CLI_LOGI("not buf for utf8\r\n");
+		CLI_LOGD("not buf for utf8\r\n");
 		goto error;
 	}
 
@@ -1270,7 +1270,7 @@ static void cli_wifi_sensor_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	char *msg = NULL;
 
 	if (argc != 2) {
-		bk_printf("param error");
+		BK_LOGD(NULL, "param error");
 		goto error;
 	}
 
@@ -1284,10 +1284,10 @@ static void cli_wifi_sensor_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 		status = bk_get_movement_status();
 
 		if (status == 0) {
-			bk_printf("detect something");
+			BK_LOGD(NULL, "detect something");
 		}
 		else {
-			bk_printf("detect nothing");
+			BK_LOGD(NULL, "detect nothing");
 		}
 	}
 
@@ -1314,7 +1314,7 @@ void cli_wifi_wfa_ca_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	char *msg = NULL;
 
 	if (argc != 2) {
-		os_printf("param error");
+		BK_LOGD(NULL, "param error");
 		goto error;
 	}
 
@@ -1389,28 +1389,28 @@ static void wifi_filter_result_dump(void)
 	if (!s_filter_result)
 		return;
 
-	bk_printf("filter result:\n");
-	bk_printf("total: %u\n", s_filter_result->cnt_total);
-	bk_printf("beacon: %u\n", s_filter_result->cnt_beacon);
-	bk_printf("probe req: %u\n", s_filter_result->cnt_probe_req);
-	bk_printf("probe rsp: %u\n", s_filter_result->cnt_probe_rsp);
-	bk_printf("auth: %u\n", s_filter_result->cnt_auth);
-	bk_printf("assoc req: %u\n", s_filter_result->cnt_assoc_req);
-	bk_printf("assoc rsp: %u\n", s_filter_result->cnt_assoc_rsp);
-	bk_printf("action: %u\n", s_filter_result->cnt_action);
-	bk_printf("others: %u\n", s_filter_result->cnt_others);
+	BK_LOGD(NULL, "filter result:\n");
+	BK_LOGD(NULL, "total: %u\n", s_filter_result->cnt_total);
+	BK_LOGD(NULL, "beacon: %u\n", s_filter_result->cnt_beacon);
+	BK_LOGD(NULL, "probe req: %u\n", s_filter_result->cnt_probe_req);
+	BK_LOGD(NULL, "probe rsp: %u\n", s_filter_result->cnt_probe_rsp);
+	BK_LOGD(NULL, "auth: %u\n", s_filter_result->cnt_auth);
+	BK_LOGD(NULL, "assoc req: %u\n", s_filter_result->cnt_assoc_req);
+	BK_LOGD(NULL, "assoc rsp: %u\n", s_filter_result->cnt_assoc_rsp);
+	BK_LOGD(NULL, "action: %u\n", s_filter_result->cnt_action);
+	BK_LOGD(NULL, "others: %u\n", s_filter_result->cnt_others);
 }
 
 static void wifi_mgmt_filter_help(void)
 {
-	bk_printf("filter {filter_bitmap}\n");
-	bk_printf("    bit0 - default management\n");
-	bk_printf("    bit1 - probe req\n");
-	bk_printf("    bit2 - probe rsp\n");
-	bk_printf("    bit3 - all beacon\n");
-	bk_printf("    bit4 - action\n");
-	bk_printf("       0 - stop filter\n");
-	bk_printf("      -1 - display result\n");
+	BK_LOGD(NULL, "filter {filter_bitmap}\n");
+	BK_LOGD(NULL, "    bit0 - default management\n");
+	BK_LOGD(NULL, "    bit1 - probe req\n");
+	BK_LOGD(NULL, "    bit2 - probe rsp\n");
+	BK_LOGD(NULL, "    bit3 - all beacon\n");
+	BK_LOGD(NULL, "    bit4 - action\n");
+	BK_LOGD(NULL, "       0 - stop filter\n");
+	BK_LOGD(NULL, "      -1 - display result\n");
 }
 
 static void cli_wifi_filter_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -1517,19 +1517,19 @@ static void wifi_raw_tx_thread(void *arg)
 	int ret;
 
 	tx_param = (wifi_raw_tx_param_t *)arg;
-	CLI_LOGI("wifi raw tx begin, interval=%u counter=%d\n", tx_param->interval,
+	CLI_LOGD("wifi raw tx begin, interval=%u counter=%d\n", tx_param->interval,
 			 tx_param->counter);
 
 	for (uint32_t i = 0; i < tx_param->counter; i++) {
 		ret = bk_wlan_send_80211_raw_frame((unsigned char *)frame, sizeof(frame));
 		if (ret != kNoErr)
-			CLI_LOGI("raw tx error, ret=%d\n", ret);
+			CLI_LOGD("raw tx error, ret=%d\n", ret);
 
 		rtos_delay_milliseconds(tx_param->interval);
 	}
 
 	os_free(arg);
-	CLI_LOGI("wifi raw tx end\n");
+	CLI_LOGD("wifi raw tx end\n");
 	rtos_delete_thread(NULL);
 }
 
@@ -1540,7 +1540,7 @@ static void cli_wifi_raw_tx_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 	char *msg = NULL;
 	if (argc != 3) {
 		CLI_LOGE("param error");
-		CLI_LOGI("usage: wifi_raw_tx interval counter");
+		CLI_LOGD("usage: wifi_raw_tx interval counter");
 		goto error;
 	}
 
@@ -1558,7 +1558,7 @@ static void cli_wifi_raw_tx_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 		2048, tx_param);
 	if (kNoErr != ret) {
 		os_free(tx_param);
-		CLI_LOGI("Create raw tx thread failed, ret=%d\r\n", ret);
+		CLI_LOGD("Create raw tx thread failed, ret=%d\r\n", ret);
 		goto error;
 	}
 	else {
@@ -1582,7 +1582,7 @@ static void cli_wifi_monitor_channel_cmd(char *pcWriteBuffer, int xWriteBufferLe
 	char *msg = NULL;
 
 	if (argc == 1) {
-		CLI_LOGI("Usage: channel [1~13].");
+		CLI_LOGD("Usage: channel [1~13].");
 		goto error;
 	}
 
@@ -1631,10 +1631,10 @@ int cli_netif_event_cb(void *arg, event_module_t event_module,
 			rtos_set_semaphore(&wifi_cmd_sema);
 		}
 		got_ip = (netif_event_got_ip4_t *)event_data;
-		CLI_LOGI("%s got ip\n", got_ip->netif_if == NETIF_IF_STA ? "BK STA" : "unknown netif");
+		CLI_LOGD("%s got ip\n", got_ip->netif_if == NETIF_IF_STA ? "BK STA" : "unknown netif");
 		break;
 	default:
-		CLI_LOGI("rx event <%d %d>\n", event_module, event_id);
+		CLI_LOGD("rx event <%d %d>\n", event_module, event_id);
 		break;
 	}
 
@@ -1653,28 +1653,28 @@ int cli_wifi_event_cb(void *arg, event_module_t event_module,
 	switch (event_id) {
 	case EVENT_WIFI_STA_CONNECTED:
 		sta_connected = (wifi_event_sta_connected_t *)event_data;
-		CLI_LOGI("BK STA connected %s\n", sta_connected->ssid);
+		CLI_LOGD("BK STA connected %s\n", sta_connected->ssid);
 		break;
 
 	case EVENT_WIFI_STA_DISCONNECTED:
 		sta_disconnected = (wifi_event_sta_disconnected_t *)event_data;
-		CLI_LOGI("BK STA disconnected, reason(%d)%s\n", sta_disconnected->disconnect_reason,
+		CLI_LOGD("BK STA disconnected, reason(%d)%s\n", sta_disconnected->disconnect_reason,
 			sta_disconnected->local_generated ? ", local_generated" : "");
 		break;
 
 	case EVENT_WIFI_AP_CONNECTED:
 		ap_connected = (wifi_event_ap_connected_t *)event_data;
-		CLI_LOGI(BK_MAC_FORMAT" connected to BK AP\n", BK_MAC_STR(ap_connected->mac));
+		CLI_LOGD(BK_MAC_FORMAT" connected to BK AP\n", BK_MAC_STR(ap_connected->mac));
 		break;
 
 	case EVENT_WIFI_AP_DISCONNECTED:
 		ap_disconnected = (wifi_event_ap_disconnected_t *)event_data;
-		CLI_LOGI(BK_MAC_FORMAT" disconnected from BK AP\n", BK_MAC_STR(ap_disconnected->mac));
+		CLI_LOGD(BK_MAC_FORMAT" disconnected from BK AP\n", BK_MAC_STR(ap_disconnected->mac));
 		break;
 
 	case EVENT_WIFI_NETWORK_FOUND:
 		network_found = (wifi_event_network_found_t *)event_data;
-		CLI_LOGI(" target AP: %s, bssid %pm found\n", network_found->ssid, network_found->bssid);
+		CLI_LOGD(" target AP: %s, bssid %pm found\n", network_found->ssid, network_found->bssid);
 		break;
 
 	#if CONFIG_WIFI_CSI_EN
@@ -1683,7 +1683,7 @@ int cli_wifi_event_cb(void *arg, event_module_t event_module,
 	#endif
 
 	default:
-		CLI_LOGI("rx event <%d %d>\n", event_module, event_id);
+		CLI_LOGD("rx event <%d %d>\n", event_module, event_id);
 		break;
 	}
 
@@ -1699,7 +1699,7 @@ void cli_wifi_net_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	// net sta xxx
 	// net ap xxx
 	if (argc <= 2) {
-		CLI_LOGI("Usage: net sta/ap <param...>\n");
+		CLI_LOGD("Usage: net sta/ap <param...>\n");
 		goto error;
 	}
 
@@ -1709,7 +1709,7 @@ void cli_wifi_net_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		snprintf(buf + len, left - len, "%s ", argv[i]);
 	}
 	buf[strlen(buf) - 1] = 0;
-	//CLI_LOGI("CMD: |%s|\n", buf);
+	//CLI_LOGD("CMD: |%s|\n", buf);
 
 #if 1
 	if (os_strcmp(argv[1], "sta") == 0)
@@ -1721,7 +1721,7 @@ void cli_wifi_net_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		ret = cmd_wlan_p2p_exec(buf);
 #endif
 	else {
-		CLI_LOGI("Usage: net sta/ap <param...>\n");
+		CLI_LOGD("Usage: net sta/ap <param...>\n");
 		goto error;
 	}
 #endif
@@ -1748,7 +1748,7 @@ void cli_wifi_get_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	// get pm status
 	// get xx status
 	if (argc <= 2) {
-		CLI_LOGI("Usage get xx status\n");
+		CLI_LOGD("Usage get xx status\n");
 		goto error;
 	}
 
@@ -1756,9 +1756,9 @@ void cli_wifi_get_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		int state = 0;
 		if(os_strcmp(argv[2], "status") == 0) {
 			state = cmd_wlan_get_ps_status();
-			CLI_LOGI("ps status: %s \n", (state?"sleep":"active"));
+			CLI_LOGD("ps status: %s \n", (state?"sleep":"active"));
 		} else {
-			CLI_LOGI("Usage get ps status\n");
+			CLI_LOGD("Usage get ps status\n");
 			goto error;
 		}
 	}
@@ -1774,17 +1774,17 @@ void cli_wifi_get_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		if(os_strcmp(argv[2], "status") == 0) {
 			bk_wifi_get_mac_trx_status(reset_status);
 		} else {
-			CLI_LOGI("Usage get MAC TRX status\n");
+			CLI_LOGD("Usage get MAC TRX status\n");
 			goto error;
 		}
 	}
 	else if (os_strcmp(argv[1], "wifi") == 0) {
 
 		if(os_strcmp(argv[2], "config") == 0) {
-			CLI_LOGI("wifi config: \n");
+			CLI_LOGD("wifi config: \n");
 			bk_wifi_get_wifi_config();
 		} else {
-			CLI_LOGI("Usage get ps status\n");
+			CLI_LOGD("Usage get ps status\n");
 			goto error;
 		}
 	}
@@ -1809,7 +1809,7 @@ void cli_rlk_cfg_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 	char *msg = NULL;
 
 	if (argc <= 2) {
-		CLI_LOGI("invalid RLK command\n");
+		CLI_LOGD("invalid RLK command\n");
 		goto error;
 	}
 
@@ -1830,7 +1830,7 @@ void cli_rlk_cfg_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 		bk_rlk_set_tx_timeout_ms(rlk_cfg);
 	}
 	else {
-		CLI_LOGI("invalid RLK paramter\n");
+		CLI_LOGD("invalid RLK paramter\n");
 		goto error;
 	}
 
@@ -1848,10 +1848,10 @@ error:
 
 static void wifi_mgmt_rc_help(void)
 {
-	bk_printf("rc {param1} {param2} ...\n");
-	bk_printf("param1: fix/rssi_of/media/max_rc \n");
-	bk_printf("param1: /idx_min/he_gi/ht_gi/prb_type \n");
-	bk_printf("param1: /tx_cnt/max_tot_ms/wait_num\n");
+	BK_LOGD(NULL, "rc {param1} {param2} ...\n");
+	BK_LOGD(NULL, "param1: fix/rssi_of/media/max_rc \n");
+	BK_LOGD(NULL, "param1: /idx_min/he_gi/ht_gi/prb_type \n");
+	BK_LOGD(NULL, "param1: /tx_cnt/max_tot_ms/wait_num\n");
 }
 
 void cli_wifi_rc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -1863,63 +1863,63 @@ void cli_wifi_rc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 
 	if (argc <= 2) {
 		wifi_mgmt_rc_help();
-		CLI_LOGI("invalid RC command\n");
+		CLI_LOGD("invalid RC command\n");
 		goto error;
 	}
 
 	if(os_strcmp(argv[1], "fix") == 0) {
 		sta_idx = os_strtoul(argv[2], NULL, 10) & 0xFFFF;
 		rate_cfg = os_strtoul(argv[3], NULL, 10) & 0xFFFF;
-		CLI_LOGI("rc fix: %x\n",rate_cfg);
+		CLI_LOGD("rc fix: %x\n",rate_cfg);
 		bk_wifi_rc_config(sta_idx, rate_cfg);
 	}
 	else if (os_strcmp(argv[1], "rssi_of") == 0) {
-			CLI_LOGI("rc rssi offset: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc rssi offset: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_set_rc_rssi_offset(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "media") == 0) {
-			CLI_LOGI("rc media: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc media: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_set_wifi_media_mode(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "max_rc") == 0) {
-			CLI_LOGI("rc max_rc: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc max_rc: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_set_video_quality(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "idx_min") == 0) {
-			CLI_LOGI("rc idx_min: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc idx_min: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_set_idx_min(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "he_gi") == 0) {
-			CLI_LOGI("rc he_gi: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc he_gi: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_rc_set_he_gi(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "ht_gi") == 0) {
-			CLI_LOGI("rc ht_gi: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc ht_gi: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_rc_set_ht_gi(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "prb_type") == 0) {
-			CLI_LOGI("rc prb_type: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc prb_type: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_rc_set_type(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "tx_cnt") == 0) {
-			CLI_LOGI("rc tx_cnt: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc tx_cnt: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_set_stats_tx_count(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "max_tot_ms") == 0) {
-			CLI_LOGI("rc max_tot_ms: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc max_tot_ms: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_set_stats_max_tot(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "wait_num") == 0) {
-			CLI_LOGI("rc wait_num: %d\n",os_strtoul(argv[2], NULL, 10));
+			CLI_LOGD("rc wait_num: %d\n",os_strtoul(argv[2], NULL, 10));
 			bk_wifi_set_wait_num(os_strtoul(argv[2], NULL, 10));
 	}
 	else if (os_strcmp(argv[1], "def_ac") == 0) {
 			uint32_t def_ac = os_strtoul(argv[2], NULL, 0) & 0xFFFFFFFF;
-			CLI_LOGI("rc def_ac: %x\n",def_ac);
+			CLI_LOGD("rc def_ac: %x\n",def_ac);
 			bk_wifi_set_default_ac(def_ac);
 	}
 	else {
-		CLI_LOGI("invalid RC paramter\n");
+		CLI_LOGD("invalid RC paramter\n");
 		goto error;
 	}
 
@@ -1951,7 +1951,7 @@ void cli_wifi_ps_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 		ps_val = os_strtoul(argv[2], NULL, 10) & 0xFFFF;
 	} else if (os_strcmp(argv[1], "set_td") == 0){
 		if (argc <= 3) {
-			CLI_LOGI("error need 2 info\n");
+			CLI_LOGD("error need 2 info\n");
 			goto error;
 		}
 		ps_id = 3;
@@ -1960,7 +1960,7 @@ void cli_wifi_ps_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 	} else if (os_strcmp(argv[1], "mask_td") == 0){
 		ps_id = 4;
 	} else {
-		CLI_LOGI("invalid ps paramter\n");
+		CLI_LOGD("invalid ps paramter\n");
 		goto error;
 	}
 
@@ -1972,9 +1972,9 @@ void cli_wifi_ps_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 		return;
 	}
 error:
-	CLI_LOGI("ps {open|close|debug [1|...|]|}\n");
-	CLI_LOGI("ps debug 0	[close ps debug]\r\n");
-	CLI_LOGI("ps debug 1	[show ps fail reason]\r\n");
+	CLI_LOGD("ps {open|close|debug [1|...|]|}\n");
+	CLI_LOGD("ps debug 0	[close ps debug]\r\n");
+	CLI_LOGD("ps debug 1	[show ps fail reason]\r\n");
 	msg = WIFI_CMD_RSP_ERROR;
 	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 	return;
@@ -1989,7 +1989,7 @@ void cli_wifi_capa_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	char *msg = NULL;
 
 	if (argc <= 2) {
-		CLI_LOGI("invalid CAPA command\n");
+		CLI_LOGD("invalid CAPA command\n");
 		goto error;
 	}
 
@@ -2026,7 +2026,7 @@ void cli_wifi_capa_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	} else if (os_strcmp(argv[1], "11b_only") == 0) {
 		capa_id = WIFI_CAPA_ID_11B_ONLY_EN;
 	} else {
-		CLI_LOGI("invalid CAPA paramter\n");
+		CLI_LOGD("invalid CAPA paramter\n");
 		goto error;
 	}
 
@@ -2059,30 +2059,30 @@ void cli_pkt_debug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
     int ret = 0;
 
     if (argc != 2) {
-        CLI_LOGI("invalid debug command %d\n",argc);
+        CLI_LOGD("invalid debug command %d\n",argc);
         goto error;
     }
     else if (os_strcmp(argv[1], "help") == 0)
     {
-        CLI_LOGI("WIFI_TX_DBG_LOG_DATA_PKT     (1<<0)\r\n");
-        CLI_LOGI("WIFI_TX_DBG_LOG_MGMT_PKT     (1<<1)\r\n");
-        CLI_LOGI("WIFI_TX_DBG_LOG_PUSH_PKT     (1<<2)\r\n");
-        CLI_LOGI("WIFI_RX_DBG_LOG_DATA_PKT     (1<<8)\r\n");
-        CLI_LOGI("WIFI_RX_DBG_LOG_MGMT_PKT     (1<<9)\r\n");
-        CLI_LOGI("LWIP_TX_DBG_LOG_SOCKET       (1<<16)\r\n");
-        CLI_LOGI("LWIP_TX_DBG_LOG_IP           (1<<17)\r\n");
-        CLI_LOGI("LWIP_TX_DBG_LOG_TCP          (1<<18)\r\n");
-        CLI_LOGI("LWIP_RX_DBG_LOG_SOCKET       (1<<20)\r\n");
-        CLI_LOGI("LWIP_RX_DBG_LOG_IP           (1<<21)\r\n");
-        CLI_LOGI("LWIP_RX_DBG_LOG_TCP          (1<<22)\r\n");
-        CLI_LOGI("LWIP_TX_DBG_LOG_PING         (1<<24)\r\n");
-        CLI_LOGI("LWIP_RX_DBG_LOG_PING         (1<<25)\r\n");
+        CLI_LOGD("WIFI_TX_DBG_LOG_DATA_PKT     (1<<0)\r\n");
+        CLI_LOGD("WIFI_TX_DBG_LOG_MGMT_PKT     (1<<1)\r\n");
+        CLI_LOGD("WIFI_TX_DBG_LOG_PUSH_PKT     (1<<2)\r\n");
+        CLI_LOGD("WIFI_RX_DBG_LOG_DATA_PKT     (1<<8)\r\n");
+        CLI_LOGD("WIFI_RX_DBG_LOG_MGMT_PKT     (1<<9)\r\n");
+        CLI_LOGD("LWIP_TX_DBG_LOG_SOCKET       (1<<16)\r\n");
+        CLI_LOGD("LWIP_TX_DBG_LOG_IP           (1<<17)\r\n");
+        CLI_LOGD("LWIP_TX_DBG_LOG_TCP          (1<<18)\r\n");
+        CLI_LOGD("LWIP_RX_DBG_LOG_SOCKET       (1<<20)\r\n");
+        CLI_LOGD("LWIP_RX_DBG_LOG_IP           (1<<21)\r\n");
+        CLI_LOGD("LWIP_RX_DBG_LOG_TCP          (1<<22)\r\n");
+        CLI_LOGD("LWIP_TX_DBG_LOG_PING         (1<<24)\r\n");
+        CLI_LOGD("LWIP_RX_DBG_LOG_PING         (1<<25)\r\n");
     }
     else
     {
         cfg_bit = os_strtoul(argv[1], NULL, 0);
         cli_set_pkt_trx_dbg_cfg(cfg_bit);
-        CLI_LOGI("open debug log\n");
+        CLI_LOGD("open debug log\n");
     }
 
     if (!ret) {
@@ -2104,16 +2104,16 @@ void cli_wifi_diag_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
     uint16_t diag_no = 0;
 
     if (argc > 4) {
-        CLI_LOGI("invalid debug command %d\n",argc);
+        CLI_LOGD("invalid debug command %d\n",argc);
         goto error;
     }
     else if (os_strcmp(argv[1], "help") == 0)
     {
-        CLI_LOGI("wifi_diag test                                \r\n");
-        CLI_LOGI("--test the connection of GPIO with diagnostics\r\n");
-        CLI_LOGI("wifi_diag set [diag_type] [diag_no]           \r\n");
-        CLI_LOGI("--diag_type - mac/phy                         \r\n");
-        CLI_LOGI("--diag_no - HW diagnostics no                 \r\n");
+        CLI_LOGD("wifi_diag test                                \r\n");
+        CLI_LOGD("--test the connection of GPIO with diagnostics\r\n");
+        CLI_LOGD("wifi_diag set [diag_type] [diag_no]           \r\n");
+        CLI_LOGD("--diag_type - mac/phy                         \r\n");
+        CLI_LOGD("--diag_no - HW diagnostics no                 \r\n");
     }
     else if (os_strcmp(argv[1], "test") == 0)
     {
@@ -2133,7 +2133,7 @@ void cli_wifi_diag_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
     }
     else
     {
-        CLI_LOGI("invalid debug command %d\n",argc);
+        CLI_LOGD("invalid debug command %d\n",argc);
         goto error;
     }
 
@@ -2143,11 +2143,11 @@ void cli_wifi_diag_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 
 error:
 
-    CLI_LOGI("wifi_diag test                                \r\n");
-    CLI_LOGI("--test the connection of GPIO with diagnostics\r\n");
-    CLI_LOGI("wifi_diag set [diag_type] [diag_no]           \r\n");
-    CLI_LOGI("--diag_type - mac/phy                         \r\n");
-    CLI_LOGI("--diag_no - HW diagnostics no                 \r\n");
+    CLI_LOGD("wifi_diag test                                \r\n");
+    CLI_LOGD("--test the connection of GPIO with diagnostics\r\n");
+    CLI_LOGD("wifi_diag set [diag_type] [diag_no]           \r\n");
+    CLI_LOGD("--diag_type - mac/phy                         \r\n");
+    CLI_LOGD("--diag_no - HW diagnostics no                 \r\n");
 
     msg = WIFI_CMD_RSP_ERROR;
     os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
@@ -2172,7 +2172,7 @@ void cli_wifi_twt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			setup_command = 2;
 		}
 		else {
-			CLI_LOGI("Usage: twt setup suggest/demand <param...>\n");
+			CLI_LOGD("Usage: twt setup suggest/demand <param...>\n");
 			goto error;
 		}
 		mantissa = os_strtoul(argv[3], NULL, 10) & 0xFF;
@@ -2182,7 +2182,7 @@ void cli_wifi_twt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	else if (os_strcmp(argv[1], "teardown") == 0)
 		ret = bk_wifi_twt_teardown();
 	else {
-		CLI_LOGI("Usage: twt setup/teardown \n");
+		CLI_LOGD("Usage: twt setup/teardown \n");
 		goto error;
 	}
 
@@ -2208,7 +2208,7 @@ void blacklist_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 
     if (argc != 2)
     {
-        os_printf("blacklist <0|1>\n");
+        BK_LOGD(NULL, "blacklist <0|1>\n");
     }
     else
     {
@@ -2219,7 +2219,7 @@ void blacklist_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
         else {
             wlan_sta_disable_ssid_blacklist();
         }
-        os_printf("blacklist %s\n", blacklist_ena ? "enabled" : "disabled");
+        BK_LOGD(NULL, "blacklist %s\n", blacklist_ena ? "enabled" : "disabled");
     }
 }
 
@@ -2259,7 +2259,7 @@ void cli_wifi_close_coex_csa_cmd(char * pcWriteBuffer, int xWriteBufferLen, int 
 	int ret = 0;
 
 	if (argc != 2) {
-		CLI_LOGI("invalid close_coex_csa command %d\n");
+		CLI_LOGD("invalid close_coex_csa command %d\n");
 		return;
 	}
 
@@ -2269,11 +2269,11 @@ void cli_wifi_close_coex_csa_cmd(char * pcWriteBuffer, int xWriteBufferLen, int 
 		ret = bk_wifi_set_csa_coexist_mode_flag(!!close_csa);
 
 		if (ret)
-			CLI_LOGI("bad state\r\n");
+			CLI_LOGD("bad state\r\n");
 	}
 	else
 	{
-		CLI_LOGI("bad parameters\r\n",close_csa);
+		CLI_LOGD("bad parameters\r\n",close_csa);
 	}
 
 }
@@ -2303,7 +2303,7 @@ void bk_bridge_start(char *bridge_ssid, char *ext_ssid, char *key) {
 	while(1) {
 		bk_wifi_sta_get_linkstate_with_reason(&info);
 		if (info.state != WIFI_LINKSTATE_STA_GOT_IP) {
-			BK_LOGI("br","waiting fot sta getting ip\r\n");
+			BK_LOGD("br","waiting fot sta getting ip\r\n");
 			rtos_delay_milliseconds(500);
 		} else
 			break;
@@ -2340,9 +2340,9 @@ void bk_wifi_bridge_stop() {
 
 void bk_bridge_stop() {
 	if(bk_wifi_sta_stop())
-		bk_printf("bridge stop sta fail\r\n");
+		BK_LOGD(NULL, "bridge stop sta fail\r\n");
 	if(bk_wifi_ap_stop())
-		bk_printf("bridge stop ap fail\r\n");
+		BK_LOGD(NULL, "bridge stop ap fail\r\n");
 	bk_wifi_bridge_stop();
 }
 
@@ -2352,13 +2352,13 @@ void cli_wifi_open_bridge_cmd(char * pcWriteBuffer, int xWriteBufferLen, int arg
     char *bridge_ssid = NULL;
     char *connect_key = NULL;
 
-    os_printf("bridge_Command\r\n");
+    BK_LOGD(NULL, "bridge_Command\r\n");
 
     if (argc < 2) {
 usage:
-		bk_printf("Usage: \n");
-		bk_printf("  %s open bridge_ssid extap_ssid key\n", argv[0]);
-		bk_printf("  %s close\n", argv[0]);
+		BK_LOGD(NULL, "Usage: \n");
+		BK_LOGD(NULL, "  %s open bridge_ssid extap_ssid key\n", argv[0]);
+		BK_LOGD(NULL, "  %s close\n", argv[0]);
 		return;
 	}
 
@@ -2429,11 +2429,11 @@ void cli_wifi_csi_alg_config_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
 		#endif
 
 		if (ret)
-			CLI_LOGI("bad state\r\n");
+			CLI_LOGD("bad state\r\n");
 	}
 	else
 	{
-		CLI_LOGI("invalid cli_wifi_csi_start_cmd %d\n",argc);
+		CLI_LOGD("invalid cli_wifi_csi_start_cmd %d\n",argc);
 		return;
 	}
 
@@ -2449,7 +2449,7 @@ bool cli_wifi_csi_read_addr(char *mac_str,uint8_t *base_mac)
 		{
 			if(mac_str[i] != ':')
 			{
-				CLI_LOGI("Input mac error,need ':'\r\n");
+				CLI_LOGD("Input mac error,need ':'\r\n");
 				return false;
 			}
 		}
@@ -2464,7 +2464,7 @@ bool cli_wifi_csi_read_addr(char *mac_str,uint8_t *base_mac)
 			}
 			else
 			{
-				CLI_LOGI("Input mac info error!\r\n");
+				CLI_LOGD("Input mac info error!\r\n");
 				return false;
 			}
 		}
@@ -2521,13 +2521,13 @@ void cli_wifi_csi_start_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 						os_memcpy((mac+i*6),base_mac,6);
 					else
 					{
-						CLI_LOGI("err param\r\n");
+						CLI_LOGD("err param\r\n");
 						return;
 					}
 				}
 				else
 				{
-					CLI_LOGI("err param\r\n");
+					CLI_LOGD("err param\r\n");
 					return;
 				}
 			}
@@ -2546,11 +2546,11 @@ void cli_wifi_csi_start_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		ret = bk_wifi_csi_start_req_internal(work_type,mode,work_identity,format,interval,delay,debug_param);
 
 		if (ret)
-			CLI_LOGI("bad state\r\n");
+			CLI_LOGD("bad state\r\n");
 	}
 	else
 	{
-		CLI_LOGI("invalid cli_wifi_csi_start_cmd %d\n",argc);
+		CLI_LOGD("invalid cli_wifi_csi_start_cmd %d\n",argc);
 		return;
 	}
 }
@@ -2571,7 +2571,7 @@ void cli_wifi_csi_config_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	}
 	else
 	{
-		CLI_LOGI("invalid cli_wifi_csi_start_cmd %d\n",argc);
+		CLI_LOGD("invalid cli_wifi_csi_start_cmd %d\n",argc);
 	}
 }
 

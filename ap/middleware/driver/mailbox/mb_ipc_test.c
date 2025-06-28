@@ -94,13 +94,13 @@ static void svr_connect_handler(u32 handle)
 	int ret_val = mb_ipc_get_recv_event(handle, &cmd_id);
 	if(ret_val != 0)  // failed
 	{
-		bk_printf("get evt fail %x %d.\r\n", handle, ret_val);
+		BK_LOGD(NULL, "get evt fail %x %d.\r\n", handle, ret_val);
 		return;
 	}
 
 	if(cmd_id > MB_IPC_CMD_MAX)
 	{
-		bk_printf("cmd-id error %d.\r\n", cmd_id);
+		BK_LOGD(NULL, "cmd-id error %d.\r\n", cmd_id);
 		return;
 	}
 	
@@ -110,17 +110,17 @@ static void svr_connect_handler(u32 handle)
 
 	if(cmd_id == MB_IPC_DISCONNECT_CMD)
 	{
-		bk_printf("disconnect 0x%x, %x-%x.\r\n", handle, src, dst);
+		BK_LOGD(NULL, "disconnect 0x%x, %x-%x.\r\n", handle, src, dst);
 	}
 	else if(cmd_id == MB_IPC_CONNECT_CMD)
 	{
-		bk_printf("connect 0x%x, %x-%x.\r\n", handle, src, dst);
+		BK_LOGD(NULL, "connect 0x%x, %x-%x.\r\n", handle, src, dst);
 	}
 	else if(cmd_id == MB_IPC_SEND_CMD)
 	{
 		int   rem_len = mb_ipc_get_recv_data_len(handle);
 		
-		bk_printf("==recv 0x%x, %x-%x,  %d bytes.\r\n", handle, src, dst, rem_len);
+		BK_LOGD(NULL, "==recv 0x%x, %x-%x,  %d bytes.\r\n", handle, src, dst, rem_len);
 
 		u8       data_buff[32];
 		int      read_len = 0;
@@ -131,11 +131,11 @@ static void svr_connect_handler(u32 handle)
 			read_len = mb_ipc_recv(handle, &user_cmd, data_buff, 0, 0);
 			if(read_len < 0)
 			{
-				bk_printf("==recv cmd failed! %d\r\n", read_len);
+				BK_LOGD(NULL, "==recv cmd failed! %d\r\n", read_len);
 			}
 			else
 			{
-				bk_printf("==recv cmd= %d\r\n", user_cmd);
+				BK_LOGD(NULL, "==recv cmd= %d\r\n", user_cmd);
 			}
 		}
 
@@ -145,13 +145,13 @@ static void svr_connect_handler(u32 handle)
 
 			if(read_len < 0)
 			{
-				bk_printf("==recv failed! %d\r\n", read_len);
+				BK_LOGD(NULL, "==recv failed! %d\r\n", read_len);
 				break;
 			}
 			else if(read_len > 0)
 			{
 				rem_len -= read_len;
-			//	bk_printf("==> recv %d bytes\r\n", read_len);
+			//	BK_LOGD(NULL, "==> recv %d bytes\r\n", read_len);
 				// for(int i = 0; i < read_len; i++)
 				{
 				//	BK_LOG_RAW("%02x ", data_buff[i]);
@@ -159,13 +159,13 @@ static void svr_connect_handler(u32 handle)
 			
 				if(read_len < sizeof(data_buff))
 				{
-				//	bk_printf("recv complete!\r\n");
+				//	BK_LOGD(NULL, "recv complete!\r\n");
 					break;
 				}
 			}
 			else
 			{
-			//	bk_printf("recv failed!\r\n");
+			//	BK_LOGD(NULL, "recv failed!\r\n");
 				break;
 			}
 		}
@@ -175,7 +175,7 @@ static void svr_connect_handler(u32 handle)
 		#ifdef TEST_SERVER_SEND
 		int      send_result = mb_ipc_send(handle, 0x80+SRC_CPU, data_buff, 16, 500);
 
-		bk_printf("--->send  0x%x, %x-%x, result %d.\r\n", handle, src, dst, send_result);
+		BK_LOGD(NULL, "--->send  0x%x, %x-%x, result %d.\r\n", handle, src, dst, send_result);
 		#endif
 
 	}
@@ -243,7 +243,7 @@ void mb_ipc_test_client(void * param)
 	// wait start.
 	while(client_start == 0)
 	{
-		bk_printf("==> client_start addr=0x%x.\r\n", &client_start);
+		BK_LOGD(NULL, "==> client_start addr=0x%x.\r\n", &client_start);
 		rtos_delay_milliseconds(500);
 	}
 
@@ -252,7 +252,7 @@ void mb_ipc_test_client(void * param)
 	u32 handle = mb_ipc_socket(IPC_GET_ID_PORT(clnt_id[client_id]), NULL);
 	if(handle == 0)
 	{
-		bk_printf("client-%d create socket failed\r\n", client_id);
+		BK_LOGD(NULL, "client-%d create socket failed\r\n", client_id);
 		goto client_exit;
 	}
 	
@@ -260,7 +260,7 @@ void mb_ipc_test_client(void * param)
 
 	if(ret_val != 0)
 	{
-		bk_printf("client-%d connect failed %d\r\n", client_id, ret_val);
+		BK_LOGD(NULL, "client-%d connect failed %d\r\n", client_id, ret_val);
 		goto client_exit;
 	}
 
@@ -281,14 +281,14 @@ void mb_ipc_test_client(void * param)
 		ret_val = mb_ipc_send(handle, user_cmd, test_data + user_cmd, 16 + user_cmd, 200);
 		if(ret_val != 0)
 		{
-			bk_printf("client-%d %x-%x handle-%x, send %d failed %d.\r\n", client_id, src, dst, handle, user_cmd, ret_val);
+			BK_LOGD(NULL, "client-%d %x-%x handle-%x, send %d failed %d.\r\n", client_id, src, dst, handle, user_cmd, ret_val);
 			i--;  // retry...
 			rtos_delay_milliseconds(100);
 			continue;
 		}
 		else
 		{
-			bk_printf("client-%d send successfully, cmd=0x%02x.\r\n", client_id, user_cmd);
+			BK_LOGD(NULL, "client-%d send successfully, cmd=0x%02x.\r\n", client_id, user_cmd);
 		}
 
 		#ifdef TEST_SERVER_SEND
@@ -303,7 +303,7 @@ void mb_ipc_test_client(void * param)
 
 			if(read_len < 0)
 			{
-				bk_printf("--recv failed! %d\r\n", read_len);
+				BK_LOGD(NULL, "--recv failed! %d\r\n", read_len);
 				break;
 			}
 			else if(read_len == 0)
@@ -311,15 +311,15 @@ void mb_ipc_test_client(void * param)
 				// if it is the first loop!
 				if((user_cmd == INVALID_USER_CMD_ID) && (time_out != 0))
 				{
-					bk_printf("--recv cmd failed!\r\n");
+					BK_LOGD(NULL, "--recv cmd failed!\r\n");
 				}
 
-				bk_printf("--recv complete! cmd= %d\r\n", user_cmd);
+				BK_LOGD(NULL, "--recv complete! cmd= %d\r\n", user_cmd);
 				break;
 			}
 			else // (read_len > 0)
 			{
-				bk_printf("--recv %d bytes\r\n", read_len);
+				BK_LOGD(NULL, "--recv %d bytes\r\n", read_len);
 				for(int i = 0; i < read_len; i++)
 				{
 				//	BK_LOG_RAW("%02x ", data_buff[i]);
@@ -342,7 +342,7 @@ client_exit:
 
 		if(ret_val != 0)
 		{
-			bk_printf("close failed, client-%d, %x-%x handle-%x, ret: %d.\r\n", client_id, src, dst, handle, ret_val);
+			BK_LOGD(NULL, "close failed, client-%d, %x-%x handle-%x, ret: %d.\r\n", client_id, src, dst, handle, ret_val);
 		}
 	}
 	

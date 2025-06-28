@@ -30,7 +30,7 @@
 
 #define TEST_CHECK_NULL(ptr) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "TEST_CHECK_NULL fail \n");\
+            BK_LOGD(TAG, "TEST_CHECK_NULL fail \n");\
             return BK_FAIL;\
         }\
     } while(0)
@@ -48,7 +48,7 @@ static bk_err_t tf_mount(FATFS *pfs)
     pfs = os_malloc(sizeof(FATFS));
     if (NULL == pfs)
     {
-        BK_LOGI(TAG, "f_mount malloc failed!\r\n");
+        BK_LOGD(TAG, "f_mount malloc failed!\r\n");
         return BK_FAIL;
     }
 
@@ -60,7 +60,7 @@ static bk_err_t tf_mount(FATFS *pfs)
     }
     else
     {
-        BK_LOGI(TAG, "f_mount OK!\r\n");
+        BK_LOGD(TAG, "f_mount OK!\r\n");
     }
 
     return BK_OK;
@@ -77,7 +77,7 @@ static bk_err_t tf_unmount(FATFS *pfs)
     }
     else
     {
-        BK_LOGI(TAG, "f_unmount OK!\r\n");
+        BK_LOGD(TAG, "f_unmount OK!\r\n");
     }
 
     if (pfs)
@@ -109,14 +109,14 @@ static void file_size_comparison(const char *file1, const char *file2)
 {
     uint64_t size1 = get_file_size(file1);
     uint64_t size2 = get_file_size(file2);
-    BK_LOGI(TAG, "%s size is 0x%x%x, %s size is 0x%x%x \n", file1, (uint32_t)(size1 >> 32), (uint32_t)size1, file2, (uint32_t)(size2 >> 32), (uint32_t)size2);
+    BK_LOGD(TAG, "%s size is 0x%x%x, %s size is 0x%x%x \n", file1, (uint32_t)(size1 >> 32), (uint32_t)size1, file2, (uint32_t)(size2 >> 32), (uint32_t)size2);
     if (size1 == size2)
     {
-        BK_LOGI(TAG, "The two files are the same size \n");
+        BK_LOGD(TAG, "The two files are the same size \n");
     }
     else
     {
-        BK_LOGI(TAG, "The two files are not the same size \n");
+        BK_LOGD(TAG, "The two files are not the same size \n");
     }
 }
 #endif
@@ -124,7 +124,7 @@ static void file_size_comparison(const char *file1, const char *file2)
 /* The case check fatfs stream memory leaks. */
 bk_err_t adk_fatfs_stream_test_case_0(void)
 {
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
 #if 0
     bk_set_printf_sync(true);
     extern void bk_enable_white_list(int enabled);
@@ -144,7 +144,7 @@ bk_err_t adk_fatfs_stream_test_case_0(void)
     while (cnt--)
     {
         rtos_delay_milliseconds(1000);
-        BK_LOGI(TAG, "--------- step1: element init ----------\n");
+        BK_LOGD(TAG, "--------- step1: element init ----------\n");
         fatfs_stream_reader = fatfs_stream_init(&fatfs_cfg);
 #if 0
         rtos_delay_milliseconds(1000);
@@ -154,14 +154,14 @@ bk_err_t adk_fatfs_stream_test_case_0(void)
             return BK_FAIL;
         }
         rtos_delay_milliseconds(1000);
-        BK_LOGI(TAG, "--------- step222: element run ----------\n");
+        BK_LOGD(TAG, "--------- step222: element run ----------\n");
         if (BK_OK != audio_element_run(fatfs_stream_reader))
         {
             BK_LOGE(TAG, "audio_element_run fail \n");
             return BK_FAIL;
         }
         rtos_delay_milliseconds(1000);
-        BK_LOGI(TAG, "--------- step333: element resume ----------\n");
+        BK_LOGD(TAG, "--------- step333: element resume ----------\n");
         if (BK_OK != audio_element_resume(fatfs_stream_reader, 0, 4000 / portTICK_RATE_MS))
         {
             BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -169,12 +169,12 @@ bk_err_t adk_fatfs_stream_test_case_0(void)
         }
 #endif
         rtos_delay_milliseconds(1000);
-        BK_LOGI(TAG, "--------- step2: element deinit ----------\n");
+        BK_LOGD(TAG, "--------- step2: element deinit ----------\n");
         audio_element_deinit(fatfs_stream_reader);
     }
     AUDIO_MEM_SHOW("AFTER FATFS_STREAM_INIT MEMORY TEST \n");
 
-    BK_LOGI(TAG, "--------- fatfs stream test complete ----------\n");
+    BK_LOGD(TAG, "--------- fatfs stream test complete ----------\n");
 
     return BK_OK;
 }
@@ -213,14 +213,14 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
     bk_disable_mod_printf("FTFS_STR", 0);
     bk_disable_mod_printf("FTFS_STR_TEST", 0);
 #endif
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
 
-    BK_LOGI(TAG, "--------- step1: pipeline init ----------\n");
+    BK_LOGD(TAG, "--------- step1: pipeline init ----------\n");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     pipeline = audio_pipeline_init(&pipeline_cfg);
     TEST_CHECK_NULL(pipeline);
 
-    BK_LOGI(TAG, "--------- step2: init elements ----------\n");
+    BK_LOGD(TAG, "--------- step2: init elements ----------\n");
     fatfs_stream_cfg_t fatfs_reader_cfg = FATFS_STREAM_CFG_DEFAULT();
     fatfs_reader_cfg.type = AUDIO_STREAM_READER;
     fatfs_stream_reader = fatfs_stream_init(&fatfs_reader_cfg);
@@ -231,7 +231,7 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
     fatfs_stream_writer = fatfs_stream_init(&fatfs_writer_cfg);
     TEST_CHECK_NULL(fatfs_stream_writer);
 
-    BK_LOGI(TAG, "--------- step3: pipeline register ----------\n");
+    BK_LOGD(TAG, "--------- step3: pipeline register ----------\n");
     if (BK_OK != audio_pipeline_register(pipeline, fatfs_stream_reader, "file_reader"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
@@ -244,7 +244,7 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: pipeline link ----------\n");
+    BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
     if (BK_OK != audio_pipeline_link(pipeline, (const char *[])
 {"file_reader", "file_writer"
 }, 2))
@@ -253,7 +253,7 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step5: set element uri ----------\n");
+    BK_LOGD(TAG, "--------- step5: set element uri ----------\n");
     if (BK_OK != audio_element_set_uri(fatfs_stream_reader, TEST_FATFS_READER))
     {
         BK_LOGE(TAG, "set uri fail, %d \n", __LINE__);
@@ -266,7 +266,7 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step6: init event listener ----------\n");
+    BK_LOGD(TAG, "--------- step6: init event listener ----------\n");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
 
@@ -276,7 +276,7 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
         return BK_FAIL;
     }
 #if 1
-    BK_LOGI(TAG, "--------- step7: pipeline run ----------\n");
+    BK_LOGD(TAG, "--------- step7: pipeline run ----------\n");
     if (BK_OK != audio_pipeline_run(pipeline))
     {
         BK_LOGE(TAG, "pipeline run fail, %d \n", __LINE__);
@@ -302,7 +302,7 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step8: stop pipeline ----------\n");
+    BK_LOGD(TAG, "--------- step8: stop pipeline ----------\n");
     if (BK_OK != audio_pipeline_stop(pipeline))
     {
         BK_LOGE(TAG, "pipeline stop fail, %d \n", __LINE__);
@@ -314,12 +314,12 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step9: check test result ----------\n");
+    BK_LOGD(TAG, "--------- step9: check test result ----------\n");
 #if CONFIG_SYS_CPU0
     file_size_comparison(TEST_FATFS_READER, TEST_FATFS_WRITER);
 #endif
 
-    BK_LOGI(TAG, "--------- step10: deinit pipeline ----------\n");
+    BK_LOGD(TAG, "--------- step10: deinit pipeline ----------\n");
     if (BK_OK != audio_pipeline_terminate(pipeline))
     {
         BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
@@ -367,7 +367,7 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- audio event test complete ----------\n");
+    BK_LOGD(TAG, "--------- audio event test complete ----------\n");
 
     return BK_OK;
 }

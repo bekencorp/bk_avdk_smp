@@ -25,10 +25,10 @@ int bk_http_ota_download(const char *uri)
 	if(!uri)
 	{
 		ret = BK_FAIL;
-		BK_LOGI(TAG,  "uri is NULL\r\n");
+		BK_LOGD(TAG,  "uri is NULL\r\n");
 		return ret;
 	}
-	BK_LOGI(TAG, "http_ota_download :0x%x",bk_http_ota_download);
+	BK_LOGD(TAG, "http_ota_download :0x%x",bk_http_ota_download);
 
 #if CONFIG_SYSTEM_CTRL
 	bk_wifi_ota_dtim(1);
@@ -53,14 +53,14 @@ int bk_http_ota_download(const char *uri)
 	ota_flag = 0;
 	if (0 != ret)
 	{
-		BK_LOGI(TAG, "request epoch time from remote server failed.ret:%d\r\n",ret);
+		BK_LOGD(TAG, "request epoch time from remote server failed.ret:%d\r\n",ret);
 #if CONFIG_SYSTEM_CTRL
 		bk_wifi_ota_dtim(0);
 #endif
 	}
 	else
 	{
-		BK_LOGI(TAG, "sucess.\r\n");
+		BK_LOGD(TAG, "sucess.\r\n");
 		ret = security_ota_finish();
 	}
 

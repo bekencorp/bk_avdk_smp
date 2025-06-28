@@ -65,7 +65,7 @@ static psa_status_t generate_aes_key(uint32_t key_id, uint16_t type, uint16_t bi
 {
 	psa_status_t status;
 
-	BK_LOGI(TAG, "Generating random AES key...\r\n");
+	BK_LOGD(TAG, "Generating random AES key...\r\n");
 
 	status = psa_crypto_init();
 	if (status != APP_SUCCESS) {
@@ -95,7 +95,7 @@ static psa_status_t generate_aes_key(uint32_t key_id, uint16_t type, uint16_t bi
 	/* After the key handle is acquired the attributes are not needed */
 	psa_reset_key_attributes(&key_attributes);
 
-	BK_LOGI(TAG, "AES key generated successfully keyid = 0x%x \r\n", key_id);
+	BK_LOGD(TAG, "AES key generated successfully keyid = 0x%x \r\n", key_id);
 
 	return APP_SUCCESS;
 }
@@ -130,7 +130,7 @@ int generate_key_manage(void)
 			psa_key_usage_t usage   = psa_get_key_usage_flags(&key_attributes);
 			psa_algorithm_t alg     = psa_get_key_algorithm(&key_attributes);
 
-			BK_LOGI(TAG, "key 0x%x already exist, type = 0x%x,bits = 0x%x, usage = 0x%x, alg = 0x%x, life = 0x%x\r\n",
+			BK_LOGD(TAG, "key 0x%x already exist, type = 0x%x,bits = 0x%x, usage = 0x%x, alg = 0x%x, life = 0x%x\r\n",
 				id, type, bits, usage, alg, life);
 		}
 	}
@@ -190,7 +190,7 @@ int aes_encrypt_decrypt(void)
 			return APP_ERROR;
 		}
 
-		BK_LOGI(TAG, "Encryption successful!\r\n");
+		BK_LOGD(TAG, "Encryption successful!\r\n");
 
 		/* Setup the decryption operation */
 		memset(&operation, 0x0, sizeof(psa_cipher_operation_t));
@@ -234,7 +234,7 @@ int aes_encrypt_decrypt(void)
 			return APP_ERROR;
 		}
 
-		BK_LOGI(TAG, "Decryption successful!\r\n");
+		BK_LOGD(TAG, "Decryption successful!\r\n");
 	}
 
 	return APP_SUCCESS;
@@ -265,7 +265,7 @@ int get_key_attributes(void)
 			psa_key_usage_t usage   = psa_get_key_usage_flags(&key_attributes);
 			psa_algorithm_t alg     = psa_get_key_algorithm(&key_attributes);
 
-			BK_LOGI(TAG, "key 0x%x already exist, type = 0x%x,bits = 0x%x, usage = 0x%x, alg = 0x%x, life = 0x%x\r\n",
+			BK_LOGD(TAG, "key 0x%x already exist, type = 0x%x,bits = 0x%x, usage = 0x%x, alg = 0x%x, life = 0x%x\r\n",
 				id, type, bits, usage, alg, life);
 		}
 	}

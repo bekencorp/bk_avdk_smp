@@ -31,7 +31,7 @@ static void semi_host_main(struct semi_host_env *sh)
 		rtos_get_semaphore(&sh->sema, SEMI_HOST_UART);
 
 		while ((ret = recv_packet(sh)) > 0) {
-			//os_printf("ret: %d\n", ret);
+			//BK_LOGD(NULL,"ret: %d\n", ret);
 			// overflow
 			if (ret == 2) {
 				sh->received = 0;
@@ -48,7 +48,7 @@ static void semi_host_main(struct semi_host_env *sh)
 				uint8_t vif_idx;
 				os_memcpy(p->payload, sh->buf, len);
 				vif_idx = rwm_mgmt_vif_mac2idx(&p->payload[6]);	// get vif index based on source mac address
-				//os_printf("vif_idx: %d\n", vif_idx);
+				//BK_LOGD(NULL,"vif_idx: %d\n", vif_idx);
 				if (vif_idx != 0xff)
 					bmsg_tx_sender(p, vif_idx);
 			}
@@ -57,7 +57,7 @@ static void semi_host_main(struct semi_host_env *sh)
 		}
 	}
 
-	os_printf("Semi host exited\r\n");
+	BK_LOGD(NULL,"Semi host exited\r\n");
 
 	bk_uart_set_rx_callback(SEMI_HOST_UART, NULL, NULL);
 	rtos_delete_thread(NULL);
@@ -81,7 +81,7 @@ int semi_host_init(void)
                              4096,
                              sh);
     if (ret != kNoErr)
-        os_printf("Error: Failed to create semi host thread: %d\r\n", ret);
+        BK_LOGD(NULL,"Error: Failed to create semi host thread: %d\r\n", ret);
 
 
     return kNoErr;

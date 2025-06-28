@@ -139,7 +139,7 @@ bk_err_t spi_hal_set_baud_rate(spi_hal_t *hal, uint32_t baud_rate)
 #else
 	if (binary_search(s_spi_clk_list, ARRAY_SIZE(s_spi_clk_list), baud_rate) >= 0) {
 #endif
-		HAL_LOGI("spi select src_clk xtal\r\n");
+		HAL_LOGD("spi select src_clk xtal\r\n");
 		src_clk = CONFIG_XTAL_FREQ;
 #if (CONFIG_SYSTEM_CTRL)
 		sys_hal_spi_select_clock(hal->id, SPI_CLK_XTAL);
@@ -150,7 +150,7 @@ bk_err_t spi_hal_set_baud_rate(spi_hal_t *hal, uint32_t baud_rate)
 #endif
 	} else {
 #if (CONFIG_SYSTEM_CTRL)
-		HAL_LOGI("spi select src_clk apll\r\n");
+		HAL_LOGD("spi select src_clk apll\r\n");
 #if CONFIG_SOC_BK7256XX
 		//enable apll clock and set clock config
 		sys_hal_apll_en(true);
@@ -170,13 +170,13 @@ bk_err_t spi_hal_set_baud_rate(spi_hal_t *hal, uint32_t baud_rate)
 		sys_hal_spi_select_clock(hal->id, SPI_CLK_APLL);
 		clk_div = (src_clk / (2 * spi_clk)) & SPI_F_CLK_DIV_M;
 #else
-		HAL_LOGI("spi select src_clk dco\r\n");
+		HAL_LOGD("spi select src_clk dco\r\n");
 		src_clk = CONFIG_DCO_FREQ >> 1; /* The spi clock is derived from the dco clock divided by 2 */
 		clk_set_spi_clk_dco(hal->id);
 		clk_div = (src_clk / spi_clk) & SPI_F_CLK_DIV_M;
 #endif
 	}
-	HAL_LOGD("baud_rate = %d, src_clk = %d, clk_div = 0x%x.\r\n", baud_rate, src_clk, clk_div);
+	HAL_LOGV("baud_rate = %d, src_clk = %d, clk_div = 0x%x.\r\n", baud_rate, src_clk, clk_div);
 	spi_ll_set_clk_div(hal->hw, clk_div);
 
 	return BK_OK;

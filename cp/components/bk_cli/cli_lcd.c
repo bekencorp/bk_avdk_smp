@@ -31,9 +31,9 @@ static void h264_print(uint8_t *buffer, int length)
 {
 	for (int i = 0; i < length; i++)
 	{
-		os_printf("%02x ", *(buffer+i));
+		BK_LOGD(NULL,"%02x ", *(buffer+i));
 	}
-	os_printf("\r\n");
+	BK_LOGD(NULL,"\r\n");
 }
 
 static void frame_push_entry(void)
@@ -45,7 +45,7 @@ static void frame_push_entry(void)
 		frame->width = 320;
 		frame->height = 480;
 		frame_buffer_fb_display_push(frame);
-		os_printf("push count is %d \r\n", push_count++);
+		BK_LOGD(NULL,"push count is %d \r\n", push_count++);
 		frame = NULL;
 		frame = frame_buffer_fb_display_malloc_wait();
 	}
@@ -76,7 +76,7 @@ static void st7796s_lcd_driver_partial_set(uint16_t width, uint16_t height)
 			end_y = start_y + y - 1;
 		}
 
-		CLI_LOGD("%s, offset %d, %d, %d, %d\n", __func__, start_x, end_x, start_y, end_y);
+		CLI_LOGV("%s, offset %d, %d, %d, %d\n", __func__, start_x, end_x, start_y, end_y);
 	}
 
 	bk_lcd_set_partical_display(1, start_x, end_x, start_y, end_y);
@@ -102,10 +102,10 @@ static void frame_read_entry(void)
 		lcd_show = frame_buffer_fb_display_pop_wait();
 		if (lcd_show == NULL)
 		{
-			os_printf("read display frame NULL\n");
+			BK_LOGD(NULL,"read display frame NULL\n");
 			continue;
 		}
-		os_printf("read count is %d \r\n", read_count++);
+		BK_LOGD(NULL,"read count is %d \r\n", read_count++);
 		lcd_driver_set_display_base_addr((uint32_t)lcd_show->frame);
 		bk_lcd_set_yuv_mode(lcd_show->fmt);
 		st7796s_lcd_driver_partial_set(lcd_show->width, lcd_show->height);
@@ -117,12 +117,12 @@ static void frame_read_entry(void)
 
 static void lcd_cpy_yuv(int width, int height, uint32_t fb_yuv_buffer_size)
 {
-	os_printf("flash copy start! \r\n");
+	BK_LOGD(NULL,"flash copy start! \r\n");
 	uint8_t *yuv_data = (uint8_t *)0x60000000;
 
 	int length = length = width * height * 2;
 	int length_k = length / 1024;
-	os_printf("offset:%x ... KB:%d \r\n", length, length_k);
+	BK_LOGD(NULL,"offset:%x ... KB:%d \r\n", length, length_k);
 
 	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 	uint8_t read_buffer[1024];

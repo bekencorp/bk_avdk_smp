@@ -143,7 +143,7 @@ int supplicant_main_entry(char *oob_ssid)
 	iface->ifname = bss_iface;
 	exitcode = 0;
 
-	WPA_LOGD("sizeof(wpa_supplicant)=%d\n", sizeof(*wpa_s));
+	WPA_LOGV("sizeof(wpa_supplicant)=%d\n", sizeof(*wpa_s));
 	wpa_global_ptr = wpa_supplicant_init(&params);
 	if (wpa_global_ptr == NULL) {
 		wpa_printf(MSG_ERROR, "Failed to initialize wpa_supplicant");

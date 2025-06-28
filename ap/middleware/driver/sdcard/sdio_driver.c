@@ -108,7 +108,7 @@ void sdio_clk_gate_config(uint8_t enable)
 {
 	uint32_t reg = REG_READ(REG_SDCARD_FIFO_THRESHOLD);
 
-	//os_printf("%s:reg=0x%x, en=%d\r\n", __func__, reg, enable);
+	//BK_LOGD(NULL, "%s:reg=0x%x, en=%d\r\n", __func__, reg, enable);
 	if(enable)
 		reg |= (1<<SDIO_REG0XD_CLK_GATE_ON_POS);
 	else
@@ -274,7 +274,7 @@ SDIO_Error sdio_wait_cmd_response(UINT32 cmd)
 		}
 	}
 
-	//os_printf("%s cmd=%d\r\n", __func__, cmd);
+	//BK_LOGD(NULL, "%s cmd=%d\r\n", __func__, cmd);
 
 	return SD_OK;
 }
@@ -505,7 +505,7 @@ int wait_Receive_Data(void)
 		status = REG_READ(REG_SDCARD_CMD_RSP_INT_SEL);
 		if (status & SDCARD_CMDRSP_DATA_REC_END_INT) {
 			if (status & SDCARD_CMDRSP_DATA_CRC_FAIL) {
-				os_printf("aaa\r\n");
+				BK_LOGD(NULL, "aaa\r\n");
 				//ret = SD_DATA_CRC_FAIL;
 				ret = SD_OK;
 			} else

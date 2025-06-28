@@ -25,7 +25,7 @@
 #define mbedtls_time            time
 #define mbedtls_time_t          time_t
 #endif
-#define mbedtls_printf          printf
+#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #define mbedtls_calloc          calloc
 #define mbedtls_free            free
 #define mbedtls_exit            exit

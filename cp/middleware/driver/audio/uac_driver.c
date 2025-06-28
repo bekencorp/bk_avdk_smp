@@ -27,10 +27,10 @@
 
 #define AUD_UAC_DRV_TAG "aud_uac_drv"
 
-#define LOGI(...) BK_LOGI(AUD_UAC_DRV_TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(AUD_UAC_DRV_TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(AUD_UAC_DRV_TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(AUD_UAC_DRV_TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(AUD_UAC_DRV_TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(AUD_UAC_DRV_TAG, ##__VA_ARGS__)
 
 
 bk_err_t bk_aud_uac_register_disconnect_cb(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVICE_T class_dev_index, void *disconnect_cb)

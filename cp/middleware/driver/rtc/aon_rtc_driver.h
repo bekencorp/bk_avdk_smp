@@ -26,6 +26,7 @@ extern "C" {
 #define AON_RTC_LOGW(...) BK_LOGW(AON_RTC_TAG, ##__VA_ARGS__)
 #define AON_RTC_LOGE(...) BK_LOGE(AON_RTC_TAG, ##__VA_ARGS__)
 #define AON_RTC_LOGD(...) BK_LOGD(AON_RTC_TAG, ##__VA_ARGS__)
+#define AON_RTC_LOGV(...) BK_LOGV(AON_RTC_TAG, ##__VA_ARGS__)
 
 #ifdef __cplusplus
 }

@@ -133,18 +133,18 @@ static char *misc_get_start_type_str(uint32_t start_type)
 
 void show_reset_reason(void)
 {
-	BK_LOGI(TAG, "reason - %s\r\n", misc_get_start_type_str(s_start_type));
+	BK_LOGD(TAG, "reason - %s\r\n", misc_get_start_type_str(s_start_type));
 	if(RESET_SOURCE_DEEPPS_GPIO == s_start_type)
 	{
 #if CONFIG_DEEP_PS
-		BK_LOGI(TAG, "by gpio - %d\r\n", bk_misc_wakeup_get_gpio_num());
+		BK_LOGD(TAG, "by gpio - %d\r\n", bk_misc_wakeup_get_gpio_num());
 #else
 #ifdef CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
-		BK_LOGI(TAG, "by gpio - %d\r\n", bk_gpio_get_wakeup_gpio_id());
+		BK_LOGD(TAG, "by gpio - %d\r\n", bk_gpio_get_wakeup_gpio_id());
 #endif
 #endif
 	}
-	BK_LOGI(TAG, "regs - %x, %x, %x\r\n", s_start_type, s_misc_value_save, s_mem_value_save);
+	BK_LOGD(TAG, "regs - %x, %x, %x\r\n", s_start_type, s_misc_value_save, s_mem_value_save);
 }
 
 #if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX)

@@ -20,6 +20,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define TAG "db-bd"
 
@@ -50,7 +51,7 @@ void doorbell_boarding_event_notify(uint16_t opcode, int status)
                                0, 0,                                                                   /* payload length   */
      };
 
-     LOGI("%s: %d, %d\n", __func__, opcode, status);
+     LOGD("%s: %d, %d\n", __func__, opcode, status);
      os_memcpy(&cust_req.data, data, sizeof(data));
      bk_wdrv_customer_transfer(CIFD_CMD_BLE_DATA_TO_APK, (uint8_t *)cust_req.data, sizeof(data));
 }
@@ -66,7 +67,7 @@ void doorbell_boarding_event_message(uint16_t opcode, int status)
 
 void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_t *data)
 {
-    LOGI("%s, opcode: %04X, length: %u\n", __func__, opcode, length);
+    LOGD("%s, opcode: %04X, length: %u\n", __func__, opcode, length);
 
     switch (opcode)
     {
@@ -154,7 +155,7 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
 
             os_memcpy(p2p_cs2_key->did, data, length);
 
-            LOGI("did: %s\n", p2p_cs2_key->did);
+            LOGD("did: %s\n", p2p_cs2_key->did);
 
             doorbell_boarding_event_message(opcode, BK_OK);
         }
@@ -189,7 +190,7 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
 
             os_memcpy(p2p_cs2_key->apilicense, data, length);
 
-            LOGI("apilicense: %s\n", p2p_cs2_key->apilicense);
+            LOGD("apilicense: %s\n", p2p_cs2_key->apilicense);
 
             doorbell_boarding_event_message(opcode, BK_OK);
         }
@@ -224,7 +225,7 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
 
             os_memcpy(p2p_cs2_key->key, data, length);
 
-            LOGI("key: %s\n", p2p_cs2_key->key);
+            LOGD("key: %s\n", p2p_cs2_key->key);
 
             doorbell_boarding_event_message(opcode, BK_OK);
         }
@@ -259,7 +260,7 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
 
             os_memcpy(p2p_cs2_key->initstring, data, length);
 
-            LOGI("initstring: %s\n", p2p_cs2_key->initstring);
+            LOGD("initstring: %s\n", p2p_cs2_key->initstring);
 
             doorbell_boarding_event_message(opcode, BK_OK);
         }
@@ -305,7 +306,7 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
         case BOARDING_OP_SET_WIFI_CHANNEL:
         {
             STREAM_TO_UINT16(doorbell_boarding_info->channel, data);
-            LOGI("%s, BOARDING_OP_SET_WIFI_CHANNEL: %u\n", __func__, doorbell_boarding_info->channel);
+            LOGD("%s, BOARDING_OP_SET_WIFI_CHANNEL: %u\n", __func__, doorbell_boarding_info->channel);
         }
         break;
     }
@@ -321,7 +322,7 @@ int doorbell_boarding_init(void)
     //     int ret;
 
 
-    //     LOGI("%s\n", __func__);
+    //     LOGD("%s\n", __func__);
 
     //     /* flags */
     //     len_index = adv_index;
@@ -360,15 +361,15 @@ int doorbell_boarding_init(void)
     //     adv_data[len_index] = 3;
 
 	/*
-	os_printf("adv data:\n");
+	LOGD("adv data:\n");
 
 	int i = 0;
 	for (i = 0; i < adv_index; i++)
 	{
-	    os_printf("%02X ", adv_data[i]);
+	    LOGD("%02X ", adv_data[i]);
 	}
 
-	os_printf("\n");
+	LOGD("\n");
 	*/
 
     //     if (doorbell_boarding_info == NULL)
@@ -416,7 +417,7 @@ void doorbell_boarding_event_notify_with_data(uint16_t opcode, int status, char 
 
     os_memcpy(&cust_req.data, data, length + 5);
 
-    LOGD("%s: %d, %d, %d\n", __func__, opcode, status, length);
+    LOGV("%s: %d, %d, %d\n", __func__, opcode, status, length);
 
     bk_wdrv_customer_transfer(CIFD_CMD_BLE_DATA_TO_APK, (uint8_t *)cust_req.data, length + 5);
 }

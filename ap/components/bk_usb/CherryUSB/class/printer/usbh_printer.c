@@ -88,7 +88,7 @@ static int usbh_printer_connect(struct usbh_hubport *hport, uint8_t intf)
     // ret = usbh_printer_get_device_id(printer_class, device_id);
     strncpy(hport->config.intf[intf].devname, DEV_FORMAT, CONFIG_USBHOST_DEV_NAMELEN);
 
-    USB_LOG_INFO("Register Printer Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register Printer Class:%s\r\n", hport->config.intf[intf].devname);
 
     return ret;
 }
@@ -111,7 +111,7 @@ static int usbh_printer_disconnect(struct usbh_hubport *hport, uint8_t intf)
         usb_free(printer_class);
 
         if (hport->config.intf[intf].devname[0] != '\0')
-            USB_LOG_INFO("Unregister Printer Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister Printer Class:%s\r\n", hport->config.intf[intf].devname);
 
         memset(hport->config.intf[intf].devname, 0, CONFIG_USBHOST_DEV_NAMELEN);
         hport->config.intf[intf].priv = NULL;

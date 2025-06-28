@@ -32,9 +32,9 @@ static void hid_print(uint8_t *buffer, int length)
 {
 	for (int i = 0; i < length; i++)
 	{
-		os_printf("%02x ", *(buffer+i));
+		BK_LOGD(NULL, "%02x ", *(buffer+i));
 	}
-	os_printf("\r\n");
+	BK_LOGD(NULL, "\r\n");
 }
 //#define USB_DEVICE_DESCRIPTOR_INIT(bcdUSB, bDeviceClass, bDeviceSubClass, bDeviceProtocol, idVendor, idProduct, bcdDevice, bNumConfigurations) 
 //#define USB_CONFIG_DESCRIPTOR_INIT(wTotalLength, bNumInterfaces, bConfigurationValue, bmAttributes, bMaxPower)

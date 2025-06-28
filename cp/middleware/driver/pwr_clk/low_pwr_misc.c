@@ -27,10 +27,10 @@
 /*=====================DEFINE  SECTION  START=====================*/
 
 #define PWR_MISC_TAG "pwr_misc"
-#define PWR_MISC_LOGI(...) BK_LOGI(PWR_MISC_TAG, ##__VA_ARGS__)
+#define PWR_MISC_LOGD(...) BK_LOGD(PWR_MISC_TAG, ##__VA_ARGS__)
 #define PWR_MISC_LOGW(...) BK_LOGW(PWR_MISC_TAG, ##__VA_ARGS__)
 #define PWR_MISC_LOGE(...) BK_LOGE(PWR_MISC_TAG, ##__VA_ARGS__)
-#define PWR_MISC_LOGD(...) BK_LOGD(PWR_MISC_TAG, ##__VA_ARGS__)
+#define PWR_MISC_LOGV(...) BK_LOGV(PWR_MISC_TAG, ##__VA_ARGS__)
 
 /*=====================DEFINE  SECTION  END=====================*/
 

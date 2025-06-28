@@ -21,5 +21,6 @@
 #define TIMER_LOGW(...) BK_LOGW(TIMER_TAG, ##__VA_ARGS__)
 #define TIMER_LOGE(...) BK_LOGE(TIMER_TAG, ##__VA_ARGS__)
 #define TIMER_LOGD(...) BK_LOGD(TIMER_TAG, ##__VA_ARGS__)
+#define TIMER_LOGV(...) BK_LOGV(TIMER_TAG, ##__VA_ARGS__)
 
 void bk_timer_delay_us(uint32_t us);

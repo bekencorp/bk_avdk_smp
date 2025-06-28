@@ -125,13 +125,13 @@ static void cli_reg_write_read_cmd_common(char *pcWriteBuffer, int xWriteBufferL
 
 	if (os_strncmp(argv[1], "-r", 2) == 0) {
 		if (argc != 3) {
-			os_printf("regshow -r addr\r\n");
+			BK_LOGD(NULL, "regshow -r addr\r\n");
 			return;
 		}
 
 		optr_len = os_strlen(argv[2]);
 		if (optr_len > 8) {
-			os_printf("addr 0-FFFFFFFF\r\n");
+			BK_LOGD(NULL, "addr 0-FFFFFFFF\r\n");
 			return;
 		}
 		optr_len = 8 - optr_len;
@@ -140,21 +140,21 @@ static void cli_reg_write_read_cmd_common(char *pcWriteBuffer, int xWriteBufferL
 		cli_hexstr2bin((char *)optr_tab, (u8 *)&reg_addr, 4);
 		reg_addr = __ntohl(reg_addr);
 		if (is_secure) {
-			os_printf("regshow R: addr:0x%08x, value:0x%08x\r\n", reg_addr, REG_READ(reg_addr));
+			BK_LOGD(NULL, "regshow R: addr:0x%08x, value:0x%08x\r\n", reg_addr, REG_READ(reg_addr));
 		} else {
 #if CONFIG_TFM_REG_ACCESS_NSC
-			os_printf("regshow R: addr:0x%08x, value:0x%08x\r\n", reg_addr, psa_reg_read(reg_addr));
+			BK_LOGD(NULL, "regshow R: addr:0x%08x, value:0x%08x\r\n", reg_addr, psa_reg_read(reg_addr));
 #endif
 		}
 	} else if (os_strncmp(argv[1], "-w", 2) == 0) {
 		if (argc != 4) {
-			os_printf("regshow -w addr value\r\n");
+			BK_LOGD(NULL, "regshow -w addr value\r\n");
 			return;
 		}
 
 		optr_len = os_strlen(argv[2]);
 		if (optr_len > 8) {
-			os_printf("addr 0-FFFFFFFF\r\n");
+			BK_LOGD(NULL, "addr 0-FFFFFFFF\r\n");
 			return;
 		}
 		optr_len = 8 - optr_len;
@@ -167,7 +167,7 @@ static void cli_reg_write_read_cmd_common(char *pcWriteBuffer, int xWriteBufferL
 		os_memset(optr_tab, 0x30, 8);
 		optr_len = os_strlen(argv[3]);
 		if (optr_len > 8) {
-			os_printf("value 0-FFFFFFFF\r\n");
+			BK_LOGD(NULL, "value 0-FFFFFFFF\r\n");
 			return;
 		}
 		optr_len = 8 - optr_len;
@@ -191,10 +191,10 @@ static void cli_reg_write_read_cmd_common(char *pcWriteBuffer, int xWriteBufferL
 			rwnx_cal_save_trx_rcbekn_reg_val();
 #endif
 
-		os_printf("regshow W: addr:0x%08x, value:0x%08x - check:0x%08x\r\n",
+		BK_LOGD(NULL, "regshow W: addr:0x%08x, value:0x%08x - check:0x%08x\r\n",
 				  reg_addr, reg_value, REG_READ(reg_addr));
 	} else
-		os_printf("regshow -w/r addr [value]\r\n");
+		BK_LOGD(NULL, "regshow -w/r addr [value]\r\n");
 }
 
 static void cli_reg_write_read_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -214,18 +214,18 @@ static void cli_reg_write_read_s_cmd(char *pcWriteBuffer, int xWriteBufferLen, i
 
 static void cli_reg_dump_help(void)
 {
-	CLI_LOGI("regdump icu\n");
-	CLI_LOGI("        pwm\n");
-	CLI_LOGI("        gpio [index]\n");
-	CLI_LOGI("        timer\n");
-	CLI_LOGI("        dma [channel]\n");
-	CLI_LOGI("        uart id\n");
-	CLI_LOGI("        wdt\n");
-	CLI_LOGI("        trng\n");
-	CLI_LOGI("        efuse\n");
-	CLI_LOGI("        adc\n");
-	CLI_LOGI("        sdmadc\n");
-	CLI_LOGI("        spi\n");
+	CLI_LOGD("regdump icu\n");
+	CLI_LOGD("        pwm\n");
+	CLI_LOGD("        gpio [index]\n");
+	CLI_LOGD("        timer\n");
+	CLI_LOGD("        dma [channel]\n");
+	CLI_LOGD("        uart id\n");
+	CLI_LOGD("        wdt\n");
+	CLI_LOGD("        trng\n");
+	CLI_LOGD("        efuse\n");
+	CLI_LOGD("        adc\n");
+	CLI_LOGD("        sdmadc\n");
+	CLI_LOGD("        spi\n");
 }
 
 

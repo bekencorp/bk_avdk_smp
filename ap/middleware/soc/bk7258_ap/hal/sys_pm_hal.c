@@ -825,7 +825,7 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 				sys_ll_set_cpu1_int_0_31_en_value(int_state1);
 				sys_ll_set_cpu1_int_32_63_en_value(int_state2);
 				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
-				//bk_printf("Core0 pending irq:0x%llx,0x%x\r\n",check_IRQ_pending(),bk_dma_check_chn_status());
+				//BK_LOGD(NULL, "Core0 pending irq:0x%llx,0x%x\r\n",check_IRQ_pending(),bk_dma_check_chn_status());
 				return;
 			}
 			/*Disable Int exclude mailbox,mailbox int for wakeup*/
@@ -867,7 +867,7 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 				sys_ll_set_cpu2_int_0_31_en_value(int1_state1);
 				sys_ll_set_cpu2_int_32_63_en_value(int1_state2);
 				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
-				//bk_printf("Core1 pending irq:0x%llx,0x%x\r\n",check_IRQ_pending(),bk_dma_check_chn_status());
+				//BK_LOGD(NULL, "Core1 pending irq:0x%llx,0x%x\r\n",check_IRQ_pending(),bk_dma_check_chn_status());
 				return;
 			}
 			/*Disable Int exclude mailbox,mailbox int for wakeup*/
@@ -927,7 +927,7 @@ void sys_hal_wakeup_interrupt_clear(wakeup_source_t interrupt_source)
 
 int sys_hal_set_lpo_src(sys_lpo_src_t src)
 {
-	PM_HAL_LOGD("set lpo src: %u\r\n", src);
+	PM_HAL_LOGV("set lpo src: %u\r\n", src);
 	//TODO
 	return BK_OK;
 }

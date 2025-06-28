@@ -42,12 +42,12 @@ static lin_config_t s_lin_cfg_test;
 
 static void cli_lin_help(void)
 {
-	CLI_LOGI("lin_cfg {master|slave} {channel} {checksum} {rate} {bus_inactiv_time} {wup_repeat_time}\r\n");
-	CLI_LOGI("lin {id} {tx|rx} {data}\r\n");
-	CLI_LOGI("lin_stress {master|slaver}\r\n");
-	CLI_LOGI("lin_chn {0|1|2}\r\n");
-	CLI_LOGI("lin_sleep_mode {wake|sleep}");
-	CLI_LOGI("lin_statis {id} {dump|reset}\r\n");
+	CLI_LOGD("lin_cfg {master|slave} {channel} {checksum} {rate} {bus_inactiv_time} {wup_repeat_time}\r\n");
+	CLI_LOGD("lin {id} {tx|rx} {data}\r\n");
+	CLI_LOGD("lin_stress {master|slaver}\r\n");
+	CLI_LOGD("lin_chn {0|1|2}\r\n");
+	CLI_LOGD("lin_sleep_mode {wake|sleep}");
+	CLI_LOGD("lin_statis {id} {dump|reset}\r\n");
 }
 
 static void cli_lin_cfg(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -58,13 +58,13 @@ static void cli_lin_cfg(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	}
 
 	if (os_strcmp(argv[1], "master") == 0) {
-		CLI_LOGI("lin master config\r\n");
+		CLI_LOGD("lin master config\r\n");
 		s_lin_cfg_test.dev = LIN_MASTER;
 		s_lin_cfg_test.chn = os_strtoul(argv[2], NULL, 10);
 		s_lin_cfg_test.rate = os_strtoul(argv[4], NULL, 10);
 		s_lin_cfg_test.checksum = os_strtoul(argv[3], NULL, 10);
 	} else if (os_strcmp(argv[1], "slave") == 0) {
-		CLI_LOGI("lin slave config\r\n");
+		CLI_LOGD("lin slave config\r\n");
 		s_lin_cfg_test.dev = LIN_SLAVE;
 		s_lin_cfg_test.chn = os_strtoul(argv[2], NULL, 10);
 		s_lin_cfg_test.checksum = os_strtoul(argv[3], NULL, 10);
@@ -87,26 +87,26 @@ static void cli_lin_trans(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	}
 	BK_LOG_ON_ERR(bk_lin_driver_init());
 
-	LIN_LOGI("dev = %s\r\n", bk_lin_get_dev() ? "master" : "slave");
-	LIN_LOGI("length = %d\r\n", bk_lin_get_data_length());
-	LIN_LOGI("enc_check = %d\r\n", bk_lin_get_enh_check());
-	LIN_LOGI("rate = %lf\r\n", bk_lin_get_rate());
-	LIN_LOGI("bus_inactiv_time = %d\r\n", bk_lin_get_bus_inactivity_time());
-	LIN_LOGI("wup_repeat_time = %d\r\n", bk_lin_get_wup_repeat_time());
+	LIN_LOGD("dev = %s\r\n", bk_lin_get_dev() ? "master" : "slave");
+	LIN_LOGD("length = %d\r\n", bk_lin_get_data_length());
+	LIN_LOGD("enc_check = %d\r\n", bk_lin_get_enh_check());
+	LIN_LOGD("rate = %lf\r\n", bk_lin_get_rate());
+	LIN_LOGD("bus_inactiv_time = %d\r\n", bk_lin_get_bus_inactivity_time());
+	LIN_LOGD("wup_repeat_time = %d\r\n", bk_lin_get_wup_repeat_time());
 
 	uint32_t id = os_strtoul(argv[1], NULL, 10);
 	os_strncpy((char *)tx_buf, argv[3], LIN_DATA_LEN_8BYTES);
 	if (os_strcmp(argv[2], "tx") == 0) {
 		size = os_strlen(argv[3]);
-		CLI_LOGI("tx_buf:[%s]\r\n", tx_buf);
+		CLI_LOGD("tx_buf:[%s]\r\n", tx_buf);
 		bk_lin_tx(id, tx_buf, size);
 	} else if (os_strcmp(argv[2], "rx") == 0) {
 		size = os_strtoul(argv[3], NULL, 10);
 		os_memset(rx_buf, 0 ,LIN_DATA_LEN_MAX);
 		bk_lin_rx(id, rx_buf, size, 15000);
-		CLI_LOGI("rx_buf:[%s]\r\n", rx_buf);
+		CLI_LOGD("rx_buf:[%s]\r\n", rx_buf);
 	} else {
-		CLI_LOGI("input format or para error\r\n ");
+		CLI_LOGD("input format or para error\r\n ");
 	}
 
 }
@@ -119,24 +119,24 @@ void cli_lin_master_stress_test(void)
 	bk_trng_driver_init();
 	bk_trng_start();
 	BK_LOG_ON_ERR(bk_lin_driver_init());
-	CLI_LOGI("master stress begin*******************************\r\n");
+	CLI_LOGD("master stress begin*******************************\r\n");
 	while (1) {
-		CLI_LOGI("++++++++++++++++++++case[%d] master start+++++++++\r\n", i);
+		CLI_LOGD("++++++++++++++++++++case[%d] master start+++++++++\r\n", i);
 		rand_count = bk_rand() % 10 + 1;
 		os_memset(tx_buf, 0 ,LIN_DATA_LEN_MAX);
 		os_memset(rx_buf, 0 ,LIN_DATA_LEN_MAX);
 		sprintf((char *)tx_buf, "%08d", rand_count);
-		CLI_LOGI("tx_buf:[%s]\r\n", tx_buf);
+		CLI_LOGD("tx_buf:[%s]\r\n", tx_buf);
 		bk_lin_tx(1, tx_buf, LIN_DATA_LEN_8BYTES);
 
 		rtos_delay_milliseconds(LIN_DELAY);
 		bk_lin_rx(1, rx_buf, LIN_DATA_LEN_8BYTES, LIN_MAX_DELAY);
 		len = os_strlen((char *)rx_buf);
-		CLI_LOGI("rx_buf:[%s]\r\n", rx_buf);
+		CLI_LOGD("rx_buf:[%s]\r\n", rx_buf);
 		if (len == 0) {
-			CLI_LOGI("-------------------case[%d] master result:FAILED---\r\n", i++);
+			CLI_LOGD("-------------------case[%d] master result:FAILED---\r\n", i++);
 		} else {
-			CLI_LOGI("-------------------case[%d] master result:PASS---\r\n", i++);
+			CLI_LOGD("-------------------case[%d] master result:PASS---\r\n", i++);
 		}
 		rtos_delay_milliseconds((bk_rand() % 10 + 1) * 1000);
 	}
@@ -150,20 +150,20 @@ void cli_lin_slave_stress_test(void)
 	bk_trng_driver_init();
 	bk_trng_start();
 	BK_LOG_ON_ERR(bk_lin_driver_init());
-	CLI_LOGI("slave stress begin*******************************\r\n");
+	CLI_LOGD("slave stress begin*******************************\r\n");
 	while (1) {
-		CLI_LOGI("++++++++++++++++++++case[%d] slave start++++++++++\r\n", i);
+		CLI_LOGD("++++++++++++++++++++case[%d] slave start++++++++++\r\n", i);
 		rand_count = bk_rand() % 10 + 11;
 		os_memset(tx_buf, 0 ,LIN_DATA_LEN_MAX);
 		os_memset(rx_buf, 0 ,LIN_DATA_LEN_MAX);
 		bk_lin_rx(1, rx_buf, LIN_DATA_LEN_8BYTES, LIN_MAX_DELAY);
-		CLI_LOGI("rx_buf:[%s]\r\n", rx_buf);
+		CLI_LOGD("rx_buf:[%s]\r\n", rx_buf);
 
 		sprintf((char *)tx_buf, "%08d", rand_count);
-		CLI_LOGI("tx_buf:[%s]\r\n", tx_buf);
+		CLI_LOGD("tx_buf:[%s]\r\n", tx_buf);
 		bk_lin_tx(1, tx_buf, LIN_DATA_LEN_8BYTES);
 		rtos_delay_milliseconds(LIN_DELAY);
-		CLI_LOGI("-------------------case[%d] slave result:PASS----\r\n", i++);
+		CLI_LOGD("-------------------case[%d] slave result:PASS----\r\n", i++);
 	}
 }
 
@@ -190,7 +190,7 @@ static void cli_lin_chn(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	}
 
 	uint32_t chn = os_strtoul(argv[1], NULL, 10);
-	CLI_LOGI("chn=%d\r\n", chn);
+	CLI_LOGD("chn=%d\r\n", chn);
 	bk_lin_gpio_init(chn);
 
 	return;
@@ -222,10 +222,10 @@ static void cli_lin_statis(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 	lin_id = os_strtoul(argv[1], NULL, 10);
 	if (os_strcmp(argv[2], "dump") == 0) {
 		lin_statis_dump(lin_id);
-		CLI_LOGI("lin dump statis ok\r\n");
+		CLI_LOGD("lin dump statis ok\r\n");
 	} else if (os_strcmp(argv[2], "reset") == 0) {
 		lin_statis_id_init(lin_id);
-		CLI_LOGI("lin reset statis ok\r\n");
+		CLI_LOGD("lin reset statis ok\r\n");
 	}
 #endif
 

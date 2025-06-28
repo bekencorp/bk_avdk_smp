@@ -22,6 +22,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define PSRAM_FRAME_BUFFER ((0x60000000UL) + 5 * 1024 * 1024)
 
@@ -76,7 +77,7 @@ bk_err_t lvgl_app_widgets_init(void)
 
 void cli_widgets_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-    os_printf("%s %d\r\n", __func__, __LINE__);
+    LOGD("%s %d\r\n", __func__, __LINE__);
 }
 
 static const struct cli_command s_widgets_commands[] =

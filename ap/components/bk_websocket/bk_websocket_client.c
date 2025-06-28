@@ -126,10 +126,10 @@ static char *get_http_header(const char *buffer, const char *key)
 
 static void bk_hex_dump(char *s, int length)
 {
-       //os_printf("bk begin dump:\r\n");
+       //BK_LOGD(NULL, "bk begin dump:\r\n");
        for (int i = 0; i < length; i++)
-              os_printf("%c", *(u8 *)(s+i));
-       os_printf("\r\n");
+              BK_LOGD(NULL, "%c", *(u8 *)(s+i));
+       BK_LOGD(NULL, "\r\n");
 }
 
 static int ws_tcp_close(transport client)
@@ -163,7 +163,7 @@ static int ws_tcp_poll_read(int *sockfd, int timeout_ms)
 		BK_LOGE(TAG, "poll_read select error %d, errno = %s, fd = %d", sock_errno, strerror(sock_errno), sockfd);
 		ret = BK_FAIL;
 	}
-	//BK_LOGD(TAG, "%s, ret = %d\r\n", __func__, ret);
+	//BK_LOGV(TAG, "%s, ret = %d\r\n", __func__, ret);
 	return ret;
 }
 
@@ -304,7 +304,7 @@ static int ws_read_header(transport client, char *buffer, int len, int timeout_m
 		} else {
 			payload_len = data_ptr[4] << 24 | data_ptr[5] << 16 | data_ptr[6] << 8 | data_ptr[7];
 		}
-		//BK_LOGD(TAG, "%s, 127, payload_len:%d\r\n", __func__, payload_len);
+		//BK_LOGV(TAG, "%s, 127, payload_len:%d\r\n", __func__, payload_len);
 	}
 
 	if (mask) {
@@ -474,7 +474,7 @@ static bk_err_t hostname_to_fd(const char *host, size_t hostlen, int port, struc
 	   return BK_FAIL;
 	}
 
-	BK_LOGD(TAG, "host:%s: strlen %lu\r\n", use_host, (unsigned long)hostlen);
+	BK_LOGV(TAG, "host:%s: strlen %lu\r\n", use_host, (unsigned long)hostlen);
 	int res = getaddrinfo(use_host, NULL, &hints, &address_info);
 	if (res != 0 || address_info == NULL) {
 	   BK_LOGE(TAG, "couldn't get hostname for :%s: "
@@ -674,7 +674,7 @@ static int ws_connect(transport client, const char *host, int port, int timeout_
 						ws->path,
 						host, port, host, user_agent_ptr,
 						client_key);
-	os_printf("http request:\r\n");
+	BK_LOGD(NULL, "http request:\r\n");
 	bk_hex_dump(ws->buffer, 200);
 
 	//BK_LOGE(TAG, "len: %d\r\n", len);
@@ -727,7 +727,7 @@ static int ws_connect(transport client, const char *host, int port, int timeout_
 		ws->buffer[header_len] = '\0';
 		BK_LOGE(TAG, "Read header chunk %d, current header size: %d\r\n", len, header_len);
 	} while (NULL == os_strstr(ws->buffer, "\r\n\r\n") && header_len < WS_BUFFER_SIZE);
-	os_printf("server buffer:\r\n");
+	BK_LOGD(NULL, "server buffer:\r\n");
 	bk_hex_dump(ws->buffer, 200);
 
 
@@ -786,7 +786,7 @@ int ws_poll_connection_closed(int *sockfd, int timeout_ms)
 			int sock_errno = 0;
 			uint32_t optlen = sizeof(sock_errno);
 			getsockopt(*sockfd, SOL_SOCKET, SO_ERROR, &sock_errno, &optlen);
-			BK_LOGD(TAG, "ws_poll_connection_closed select error %d, errno = %s, fd = %d", sock_errno, strerror(sock_errno), *sockfd);
+			BK_LOGV(TAG, "ws_poll_connection_closed select error %d, errno = %s, fd = %d", sock_errno, strerror(sock_errno), *sockfd);
 			if (sock_errno == ENOTCONN || sock_errno == ECONNRESET || sock_errno == ECONNABORTED) {
 				return BK_OK;
 			}
@@ -1194,7 +1194,7 @@ void websocket_client_task(beken_thread_arg_t *thread_param)
 				bk_websocket_push_cb(WEBSOCKET_EVENT_CONNECTED, NULL, 0);
 				break;
 			case WEBSOCKET_STATE_CONNECTED:
-				BK_LOGD(TAG, "%s, status:%02x\r\n", __func__, status_bits);
+				BK_LOGV(TAG, "%s, status:%02x\r\n", __func__, status_bits);
 				if (bk_tick_get_ms() - client->ping_tick_ms > WEBSOCKET_PING_INTERVAL_SEC*1000) {
 					client->ping_tick_ms = bk_tick_get_ms();
 
@@ -1218,7 +1218,7 @@ void websocket_client_task(beken_thread_arg_t *thread_param)
 				 }
 
 				 if (read_select == 0) {
-					BK_LOGD(TAG, "Read poll timeout: skipping read()...\r\n");
+					BK_LOGV(TAG, "Read poll timeout: skipping read()...\r\n");
 					break;
 				 }
 				 client->ping_tick_ms = bk_tick_get_ms();

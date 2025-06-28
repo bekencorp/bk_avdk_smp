@@ -29,6 +29,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define DOORBELL_CMD_BUFFER (1460)
 #define DOORBELL_NOTIFY_FLAGS (0xFF << 24)
@@ -116,7 +117,7 @@ static const db_channel_cb_t db_channel_callback =
 
 void doorbell_transmission_event_report(db_channel_t *channel, uint32_t opcode, uint8_t status, uint16_t flags)
 {
-    LOGI("%s, %d\n", __func__, opcode);
+    LOGD("%s, %d\n", __func__, opcode);
 
     db_evt_head_t evt;
     evt.opcode = CHECK_ENDIAN_UINT16(opcode);
@@ -136,7 +137,7 @@ static void doorbell_keep_alive_timer_handler(void *data)
         return;
     }
 
-    LOGI("doorbell_keep_alive_timer_handler\n");
+    LOGD("doorbell_keep_alive_timer_handler\n");
 
     db_evt_head_t evt;
     evt.opcode = CHECK_ENDIAN_UINT16(DBNOTIFY_HEARTBEAT);
@@ -193,7 +194,7 @@ int doorbell_keep_alive_start_timer(UINT32 time_ms)
             LOGE("start timer fail\r\n");
             return BK_FAIL;
         }
-        LOGI("doorbell_keep_alive_start_timer\r\n");
+        LOGD("doorbell_keep_alive_start_timer\r\n");
 
         return BK_OK;
     }
@@ -234,13 +235,13 @@ void doorbell_transmission_cmd_recive_callback(db_channel_t *channel, uint16_t s
     cmd.param = CHECK_ENDIAN_UINT32(ptr->param);
     cmd.length = CHECK_ENDIAN_UINT32(ptr->length);
 
-    LOGI("%s, opcode: %u, param: %u, length: %u, time: %u, sequence: %u\n", __func__, cmd.opcode, cmd.param, cmd.length, timestamp, sequences);
+    LOGD("%s, opcode: %u, param: %u, length: %u, time: %u, sequence: %u\n", __func__, cmd.opcode, cmd.param, cmd.length, timestamp, sequences);
 
     switch (cmd.opcode)
     {
         case DBCMD_SET_SERVICE_TYPE:
         {
-            LOGI("DBCMD_SET_SOLUTION: %d, %s(%d)\n", cmd.opcode, ptr->payload, strlen((char *)ptr->payload));
+            LOGD("DBCMD_SET_SOLUTION: %d, %s(%d)\n", cmd.opcode, ptr->payload, strlen((char *)ptr->payload));
             db_evt_head_t evt;
             doorbell_msg_t msg;
 
@@ -272,7 +273,7 @@ void doorbell_transmission_cmd_recive_callback(db_channel_t *channel, uint16_t s
 
         case DBCMD_SET_KEEP_ALIVE:
         {
-            LOGI("DBCMD_SET_KEEP_ALIVE: %u\n", cmd.param);
+            LOGD("DBCMD_SET_KEEP_ALIVE: %u\n", cmd.param);
 
             if (cmd.param)
             {
@@ -303,7 +304,7 @@ void doorbell_transmission_cmd_recive_callback(db_channel_t *channel, uint16_t s
         {
             if (cmd.length != sizeof(camera_parameters_t))
             {
-                LOGD("error\n");
+                LOGV("error\n");
             }
 
             camera_parameters_t parameters = {0};
@@ -373,7 +374,7 @@ void doorbell_transmission_cmd_recive_callback(db_channel_t *channel, uint16_t s
 
         case DBCMD_SET_AUDIO_TURN_OFF:
         {
-            LOGI("DBCMD_SET_AUDIO_TURN_OFF\n");
+            LOGD("DBCMD_SET_AUDIO_TURN_OFF\n");
 
             int ret = doorbell_audio_turn_off();
 
@@ -452,7 +453,7 @@ static void doorbell_cmd_set_keepalive(int fd)
 
     opt = 3;  // 3 times
     ret = setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &opt, sizeof(int));
-    LOGD("%s %d\n", __func__, ret);
+    LOGV("%s %d\n", __func__, ret);
 }
 
 static void doorbell_cmd_server_thread(beken_thread_arg_t data)
@@ -463,7 +464,7 @@ static void doorbell_cmd_server_thread(beken_thread_arg_t data)
     u8 *rcv_buf = NULL;
     fd_set watchfd;
 
-    LOGI("%s entry\n", __func__);
+    LOGD("%s entry\n", __func__);
     (void)(data);
 
     rcv_buf = (u8 *) os_malloc((DOORBELL_NETWORK_MAX_SIZE + 1) * sizeof(u8));
@@ -497,14 +498,14 @@ static void doorbell_cmd_server_thread(beken_thread_arg_t data)
         goto out;
     }
 
-    LOGI("%s: start listen \n", __func__);
+    LOGD("%s: start listen \n", __func__);
 
     while (1)
     {
         FD_ZERO(&watchfd);
         FD_SET(db_cmd_info->server_fd, &watchfd);
 
-        LOGI("waiting for a new connection\n");
+        LOGD("waiting for a new connection\n");
         ret = select(db_cmd_info->server_fd + 1, &watchfd, NULL, NULL, NULL);
         if (ret <= 0)
         {
@@ -531,7 +532,7 @@ static void doorbell_cmd_server_thread(beken_thread_arg_t data)
 
                 uint8_t *src_ipaddr = (UINT8 *)&client_addr.sin_addr.s_addr;
 
-                LOGI("accept a new connection fd:%d, %d.%d.%d.%d\n", db_cmd_info->client_fd, src_ipaddr[0], src_ipaddr[1],
+                LOGD("accept a new connection fd:%d, %d.%d.%d.%d\n", db_cmd_info->client_fd, src_ipaddr[0], src_ipaddr[1],
                      src_ipaddr[2], src_ipaddr[3]);
 
                 db_cmd_info->remote_address = client_addr.sin_addr.s_addr;
@@ -557,13 +558,13 @@ static void doorbell_cmd_server_thread(beken_thread_arg_t data)
                     if (rcv_len > 0)
                     {
                         //bk_net_send_data(rcv_buf, rcv_len, TVIDEO_SND_TCP);
-                        LOGI("%s, got length: %d\n", __func__, rcv_len);
+                        LOGD("%s, got length: %d\n", __func__, rcv_len);
                         doorbell_transmission_unpack(db_cmd_info->db_channel, rcv_buf, rcv_len, doorbell_transmission_cmd_recive_callback);
                     }
                     else
                     {
                         // close this socket
-                        LOGI("%s, recv close fd:%d, rcv_len:%d, error:%d\n", __func__, db_cmd_info->client_fd, rcv_len, errno);
+                        LOGD("%s, recv close fd:%d, rcv_len:%d, error:%d\n", __func__, db_cmd_info->client_fd, rcv_len, errno);
                         close(db_cmd_info->client_fd);
                         db_cmd_info->client_fd = -1;
 

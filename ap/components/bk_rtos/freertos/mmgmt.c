@@ -137,7 +137,7 @@ void *mmgmt_malloc(uint32_t size)
 	( void ) xTaskResumeAll();
 
 #if CONFIG_MALLOC_STATIS || CONFIG_MEM_DEBUG
-	bk_printf("\r\nm:%p,%ld|%s,%d\r\n", alloc - 1, totalsize, call_func_name, line);
+	BK_LOGD(NULL, "\r\nm:%p,%ld|%s,%d\r\n", alloc - 1, totalsize, call_func_name, line);
 #endif
 
 
@@ -205,7 +205,7 @@ void mmgmt_free(void *mem_ptr)
 	BK_ASSERT((uint32_t)mem_ptr > (uint32_t)node); /* ASSERT VERIFIED */
 
 #if CONFIG_MALLOC_STATIS || CONFIG_MEM_DEBUG
-	bk_printf("\r\nf:%p,%ld|%s,%d\r\n", freed, freed->size, call_func_name, line);
+	BK_LOGD(NULL, "\r\nf:%p,%ld|%s,%d\r\n", freed, freed->size, call_func_name, line);
 #endif
 
 	// protect accesses to descriptors

@@ -20,10 +20,10 @@
 #include "dwt.h"
 #include "components/log.h"
 
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 BIT_CAP_STR_T cap_str_array[CAP_MAX_CNT] = STR_CAP_TABLE;
 ID_CAP_T id_cap_array[ID_MAX_CNT] = ID_CAP_TABLE;
@@ -48,10 +48,10 @@ void dwt_get_cap_info(uint32_t comparator_id)
     if(-1 == cap)
         return;
 
-    LOGI("comparator id:%d, the following is the capability string:\r\n", comparator_id);
+    LOGD("comparator id:%d, the following is the capability string:\r\n", comparator_id);
     for(i = 0; i < CAP_MAX_CNT; i ++){
         if(cap & (cap_str_array[i].bit_val)){
-            LOGI("    %s\r\n", cap_str_array[i].cap_desc);
+            LOGD("    %s\r\n", cap_str_array[i].cap_desc);
         }
     }
 }

@@ -575,14 +575,14 @@ static rt_err_t rt_rndis_eth_control(rt_device_t dev, int cmd, void *args)
 {
     usbnet_t rndis_eth_dev = (usbnet_t)dev;
 
-    USB_LOG_INFO("%s L%d\r\n", __FUNCTION__, __LINE__);
+    USB_LOG_DBG("%s L%d\r\n", __FUNCTION__, __LINE__);
     switch(cmd)
     {
     case NIOCTL_GADDR:
         /* get mac address */
         if(args)
         {
-            USB_LOG_INFO("%s L%d NIOCTL_GADDR\r\n", __FUNCTION__, __LINE__);
+            USB_LOG_DBG("%s L%d NIOCTL_GADDR\r\n", __FUNCTION__, __LINE__);
             rt_memcpy(args, rndis_eth_dev->dev_addr, MAX_ADDR_LEN);
         }
         else
@@ -602,7 +602,7 @@ static struct pbuf *rt_rndis_eth_rx(rt_device_t dev)
 {
     struct pbuf* p = RT_NULL;
 
-    // USB_LOG_INFO("%s L%d\r\n", __FUNCTION__, __LINE__);
+    // USB_LOG_DBG("%s L%d\r\n", __FUNCTION__, __LINE__);
 
     return p;
 }
@@ -624,7 +624,7 @@ static rt_err_t rt_rndis_eth_tx(rt_device_t dev, struct pbuf* p)
 
     tmp_buf = (uint8_t *)rt_malloc(16 + p->tot_len );
     if (!tmp_buf) {
-        USB_LOG_INFO("[%s L%d], no memory for pbuf, len=%d.", __FUNCTION__, __LINE__, p->tot_len);
+        USB_LOG_DBG("[%s L%d], no memory for pbuf, len=%d.", __FUNCTION__, __LINE__, p->tot_len);
         goto _exit;
     }
 
@@ -688,9 +688,9 @@ static void rt_thread_axusbnet_entry(void *parameter)
     uint8_t intf;
     uint8_t buf[2+8];
 
-    USB_LOG_INFO("%s L%d\r\n", __FUNCTION__, __LINE__);
+    USB_LOG_DBG("%s L%d\r\n", __FUNCTION__, __LINE__);
     rt_thread_delay(200);
-    USB_LOG_INFO("%s L%d\r\n\r\n\r\n\r\n", __FUNCTION__, __LINE__);
+    USB_LOG_DBG("%s L%d\r\n\r\n\r\n\r\n", __FUNCTION__, __LINE__);
 
     const char *dname = "/dev/u0";
     struct usbh_axusbnet *class = (struct usbh_axusbnet *)usbh_find_class_instance(dname);
@@ -698,7 +698,7 @@ static void rt_thread_axusbnet_entry(void *parameter)
         USB_LOG_ERR("do not find %s\r\n", dname);
         return;
     }
-    USB_LOG_INFO("axusbnet=%p\r\n", dname);
+    USB_LOG_DBG("axusbnet=%p\r\n", dname);
 
     usbh_axusbnet_eth_device.class = class;
 
@@ -724,13 +724,13 @@ static void rt_thread_axusbnet_entry(void *parameter)
         // dev->OperationMode = OPERATION_PHY_MODE;
         // dev->PhySelect = 0x00;
     } else if (tempphyselect == AX_PHYSEL_SSMII) {
-        USB_LOG_INFO("%s L%d internalphy AX_PHYSEL_SSMII & OPERATION_MAC_MODE\r\n", __FUNCTION__, __LINE__);
+        USB_LOG_DBG("%s L%d internalphy AX_PHYSEL_SSMII & OPERATION_MAC_MODE\r\n", __FUNCTION__, __LINE__);
         dev->internalphy = true;
         dev->OperationMode = OPERATION_MAC_MODE;
         dev->PhySelect = 0x01;
     } else {
         // deverr(dev, "Unknown MII type\n");
-        USB_LOG_INFO("%s L%d Unknown MII type\r\n", __FUNCTION__, __LINE__);
+        USB_LOG_DBG("%s L%d Unknown MII type\r\n", __FUNCTION__, __LINE__);
         return;
     }
 
@@ -747,7 +747,7 @@ static void rt_thread_axusbnet_entry(void *parameter)
 		USB_LOG_ERR("read SROM address 18h failed: %d\r\n", ret);
 		goto err_out;
 	}
-    USB_LOG_INFO("reading AX88772C psc: %02x %02x\r\n", buf[0], buf[1]);
+    USB_LOG_DBG("reading AX88772C psc: %02x %02x\r\n", buf[0], buf[1]);
 	// le16_to_cpus(tmp16);
 	// ax772b_data->psc = *tmp16 & 0xFF00;
 	/* End of get EEPROM data */
@@ -799,7 +799,7 @@ static void rt_thread_axusbnet_entry(void *parameter)
     } else {
         dev->mii.phy_id = *((u8 *)buf);
     }
-    USB_LOG_INFO("reading %s PHY ID: %02x\r\n", dev->internalphy?"internal":"external", dev->mii.phy_id);
+    USB_LOG_DBG("reading %s PHY ID: %02x\r\n", dev->internalphy?"internal":"external", dev->mii.phy_id);
 
     ret = ax8817x_write_cmd(dev, AX_CMD_SW_PHY_SELECT, dev->PhySelect, 0, 0, NULL);
     if (ret < 0) {
@@ -1000,7 +1000,7 @@ static void rt_thread_axusbnet_entry(void *parameter)
 
     while (1)
     {
-        // USB_LOG_INFO("%s L%d\r\n", __FUNCTION__, __LINE__);
+        // USB_LOG_DBG("%s L%d\r\n", __FUNCTION__, __LINE__);
 
         ret = usbh_ep_bulk_transfer(class->bulkin, class->bulkin_buf, sizeof(class->bulkin_buf), 1000);
         if (ret < 0) {
@@ -1017,7 +1017,7 @@ static void rt_thread_axusbnet_entry(void *parameter)
             len1 = data[0] | ((uint16_t)(data[1])<<8);
             len2 = data[2] | ((uint16_t)(data[3])<<8);
 
-            // USB_LOG_INFO("transfer bulkin len1:%04X, len2:%04X, len2':%04X.\r\n", len1, len2, ~len2);
+            // USB_LOG_DBG("transfer bulkin len1:%04X, len2:%04X, len2':%04X.\r\n", len1, len2, ~len2);
 
             len1 &= 0x07ff;
 
@@ -1031,7 +1031,7 @@ static void rt_thread_axusbnet_entry(void *parameter)
 #if !USE_RTTHREAD
             {
                 static uint32_t count = 0;
-                USB_LOG_INFO("recv: #%d, len=%d\r\n", count, ret);
+                USB_LOG_DBG("recv: #%d, len=%d\r\n", count, ret);
                 dump_hex(data+4, 32);
 
                 if ((count % 10) == 0) {
@@ -1057,7 +1057,7 @@ static void rt_thread_axusbnet_entry(void *parameter)
                     memcpy(send_buf+4+6, dev->dev_addr, 6);// update src mac.
 
                     ret = usbh_ep_bulk_transfer(class->bulkout, send_buf, 4 + sizeof(packet_bytes), 500);
-                    USB_LOG_INFO("bulkout, ret=%d\r\n", ret);
+                    USB_LOG_DBG("bulkout, ret=%d\r\n", ret);
                     dump_hex(send_buf, 64);
                 }
 
@@ -1087,11 +1087,11 @@ static void rt_thread_axusbnet_entry(void *parameter)
 #endif /* RX_DUMP */
                 struct eth_device *eth_dev = &usbh_axusbnet_eth_device.parent;
                 if ((eth_dev->netif->input(p, eth_dev->netif)) != ERR_OK) {
-                    USB_LOG_INFO("F:%s L:%d IP input error\r\n", __FUNCTION__, __LINE__);
+                    USB_LOG_DBG("F:%s L:%d IP input error\r\n", __FUNCTION__, __LINE__);
                     pbuf_free(p);
                     p = RT_NULL;
                 }
-                // USB_LOG_INFO("%s L%d input OK\r\n", __FUNCTION__, __LINE__);
+                // USB_LOG_DBG("%s L%d input OK\r\n", __FUNCTION__, __LINE__);
             } else {
                 USB_LOG_ERR("%s L%d pbuf_alloc NULL\r\n", __FUNCTION__, __LINE__);
             }
@@ -1124,7 +1124,7 @@ static int usbh_axusbnet_connect(struct usbh_hubport *hport, uint8_t intf)
     struct usbh_endpoint_cfg ep_cfg = { 0 };
     struct usb_endpoint_descriptor *ep_desc;
 
-    USB_LOG_INFO("%s %d\r\n", __FUNCTION__, __LINE__);
+    USB_LOG_DBG("%s %d\r\n", __FUNCTION__, __LINE__);
 
     struct usbh_axusbnet *class = usb_malloc(sizeof(struct usbh_axusbnet));
     if (class == NULL)
@@ -1138,18 +1138,18 @@ static int usbh_axusbnet_connect(struct usbh_hubport *hport, uint8_t intf)
     class->intf = intf;
 
     snprintf(hport->config.intf[intf].devname, CONFIG_USBHOST_DEV_NAMELEN, DEV_FORMAT, intf);
-    USB_LOG_INFO("Register axusbnet Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register axusbnet Class:%s\r\n", hport->config.intf[intf].devname);
     hport->config.intf[intf].priv = class;
 
 #if 1
-    USB_LOG_INFO("hport=%p, intf=%d, intf_desc.bNumEndpoints:%d\r\n", hport, intf, hport->config.intf[intf].intf_desc.bNumEndpoints);
+    USB_LOG_DBG("hport=%p, intf=%d, intf_desc.bNumEndpoints:%d\r\n", hport, intf, hport->config.intf[intf].intf_desc.bNumEndpoints);
     for (uint8_t i = 0; i < hport->config.intf[intf].intf_desc.bNumEndpoints; i++)
     {
         ep_desc = &hport->config.intf[intf].ep[i].ep_desc;
 
-        USB_LOG_INFO("ep[%d] bLength=%d, type=%d\r\n", i, ep_desc->bLength, ep_desc->bDescriptorType);
-        USB_LOG_INFO("ep_addr=%02X, attr=%02X\r\n", ep_desc->bEndpointAddress, ep_desc->bmAttributes & USB_ENDPOINT_TYPE_MASK);
-        USB_LOG_INFO("wMaxPacketSize=%d, bInterval=%d\r\n\r\n", ep_desc->wMaxPacketSize, ep_desc->bInterval);
+        USB_LOG_DBG("ep[%d] bLength=%d, type=%d\r\n", i, ep_desc->bLength, ep_desc->bDescriptorType);
+        USB_LOG_DBG("ep_addr=%02X, attr=%02X\r\n", ep_desc->bEndpointAddress, ep_desc->bmAttributes & USB_ENDPOINT_TYPE_MASK);
+        USB_LOG_DBG("wMaxPacketSize=%d, bInterval=%d\r\n\r\n", ep_desc->wMaxPacketSize, ep_desc->bInterval);
     }
 #endif
 

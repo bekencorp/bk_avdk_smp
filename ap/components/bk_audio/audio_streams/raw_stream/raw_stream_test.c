@@ -26,7 +26,7 @@
 
 #define TEST_CHECK_NULL(ptr) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "TEST_CHECK_NULL fail \n");\
+            BK_LOGD(TAG, "TEST_CHECK_NULL fail \n");\
             return BK_FAIL;\
         }\
     } while(0)
@@ -68,13 +68,13 @@ bk_err_t adk_raw_test_case_0(void)
     bk_disable_mod_printf("ONBOARD_MIC", 0);
     bk_disable_mod_printf("ONBOARD_MIC_TEST", 0);
 #endif
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
     char *buf = audio_calloc(1, 960);
     AUDIO_MEM_CHECK(TAG, buf, return BK_FAIL;);
 
-    BK_LOGI(TAG, "--------- step1: pipeline init ----------\n");
+    BK_LOGD(TAG, "--------- step1: pipeline init ----------\n");
     audio_pipeline_cfg_t record_pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     record_pipeline = audio_pipeline_init(&record_pipeline_cfg);
     TEST_CHECK_NULL(record_pipeline);
@@ -83,7 +83,7 @@ bk_err_t adk_raw_test_case_0(void)
     play_pipeline = audio_pipeline_init(&play_pipeline_cfg);
     TEST_CHECK_NULL(play_pipeline);
 
-    BK_LOGI(TAG, "--------- step2: init elements ----------\n");
+    BK_LOGD(TAG, "--------- step2: init elements ----------\n");
     onboard_mic_stream_cfg_t onboard_mic_cfg = ONBOARD_MIC_ADC_STREAM_CFG_DEFAULT();
     onboard_mic_cfg.frame_size = 960;
     onboard_mic_cfg.out_block_size = 960;
@@ -105,7 +105,7 @@ bk_err_t adk_raw_test_case_0(void)
     onboard_speaker = onboard_speaker_stream_init(&onboard_speaker_cfg);
     TEST_CHECK_NULL(onboard_speaker);
 
-    BK_LOGI(TAG, "--------- step3: pipeline register ----------\n");
+    BK_LOGD(TAG, "--------- step3: pipeline register ----------\n");
     if (BK_OK != audio_pipeline_register(record_pipeline, onboard_mic, "onboard_mic"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
@@ -128,7 +128,7 @@ bk_err_t adk_raw_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: pipeline link ----------\n");
+    BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
     if (BK_OK != audio_pipeline_link(record_pipeline, (const char *[])
 {"onboard_mic", "raw_read"
 }, 2))
@@ -145,7 +145,7 @@ bk_err_t adk_raw_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step5: init event listener ----------\n");
+    BK_LOGD(TAG, "--------- step5: init event listener ----------\n");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     audio_event_iface_handle_t record_evt = audio_event_iface_init(&evt_cfg);
     if (BK_OK != audio_pipeline_set_listener(record_pipeline, record_evt))
@@ -165,7 +165,7 @@ bk_err_t adk_raw_test_case_0(void)
     audio_event_iface_set_listener(record_evt, evt);
     audio_event_iface_set_listener(play_evt, evt);
 
-    BK_LOGI(TAG, "--------- step6: pipeline run ----------\n");
+    BK_LOGD(TAG, "--------- step6: pipeline run ----------\n");
     if (BK_OK != audio_pipeline_run(record_pipeline))
     {
         BK_LOGE(TAG, "record_pipeline run fail, %d \n", __LINE__);
@@ -196,7 +196,7 @@ bk_err_t adk_raw_test_case_0(void)
         int size = raw_stream_read(raw_read, buf, 960);
         if (size > 0)
         {
-            //BK_LOGI(TAG, "raw_stream_read size: %d \n", size);
+            //BK_LOGD(TAG, "raw_stream_read size: %d \n", size);
             size = raw_stream_write(raw_write, buf, size);
             if (size <= 0)
             {
@@ -205,7 +205,7 @@ bk_err_t adk_raw_test_case_0(void)
             }
             else
             {
-                //BK_LOGI(TAG, "raw_stream_write size: %d \n", size);
+                //BK_LOGD(TAG, "raw_stream_write size: %d \n", size);
                 read_count++;
                 if (read_count == TEST_NUM)
                     //read_count = 0;
@@ -246,7 +246,7 @@ bk_err_t adk_raw_test_case_0(void)
 #endif
     }
 
-    BK_LOGI(TAG, "--------- step7: deinit pipeline ----------\n");
+    BK_LOGD(TAG, "--------- step7: deinit pipeline ----------\n");
     if (BK_OK != audio_pipeline_stop(play_pipeline))
     {
         BK_LOGE(TAG, "play_pipeline stop fail, %d \n", __LINE__);
@@ -362,7 +362,7 @@ bk_err_t adk_raw_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- raw test complete ----------\n");
+    BK_LOGD(TAG, "--------- raw test complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
     read_count = 0;
 

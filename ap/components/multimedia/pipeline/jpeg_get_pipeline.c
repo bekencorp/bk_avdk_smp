@@ -29,6 +29,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 typedef struct {
 	uint8_t task_state : 1;
@@ -118,7 +119,7 @@ static void jpeg_get_start_handle(frame_module_t frame_module)
 		{
 			if (jpeg_get_config->stream == NULL)
 			{
-				LOGI("%s, main_stream:%p %d\n", __func__, stream, stream->camera_id);
+				LOGD("%s, main_stream:%p %d\n", __func__, stream, stream->camera_id);
 				jpeg_get_config->stream = stream;
 				jpeg_decode_task_send_more_msg(JPEGDEC_STREAM, (uint32_t)stream, 0);
 				frame_buffer_fb_register(jpeg_get_config->stream, MODULE_DECODER);
@@ -184,7 +185,7 @@ static void jpeg_get_start_handle(frame_module_t frame_module)
 		}
 		else
 		{
-			LOGD("%s, %d module:%d read frame timeout\n", __func__, __LINE__, frame_module);
+			LOGV("%s, %d module:%d read frame timeout\n", __func__, __LINE__, frame_module);
 		}
 	}
 }
@@ -256,7 +257,7 @@ static void jpeg_get_main(beken_thread_arg_t data)
 
 exit:
 	rtos_set_semaphore(&jpeg_get_config->jdec_sem);
-	LOGI("%s, exit\r\n", __func__);
+	LOGD("%s, exit\r\n", __func__);
 	rtos_delete_thread(NULL);
 }
 
@@ -275,7 +276,7 @@ bool check_jpeg_get_task_is_open(void)
 bk_err_t jpeg_get_task_open(void)
 {
 	int ret = BK_OK;
-	LOGD("%s(%d)\n", __func__, __LINE__);
+	LOGV("%s(%d)\n", __func__, __LINE__);
 
 	if (jpeg_get_config != NULL && jpeg_get_config->task_state)
 	{
@@ -331,7 +332,7 @@ bk_err_t jpeg_get_task_open(void)
 	}
 
 	rtos_get_semaphore(&jpeg_get_config->jdec_sem, BEKEN_NEVER_TIMEOUT);
-	LOGI("%s(%d) complete\n", __func__, __LINE__);
+	LOGD("%s(%d) complete\n", __func__, __LINE__);
 
 	return ret;
 
@@ -346,7 +347,7 @@ error:
 
 bk_err_t jpeg_get_task_close()
 {
-	LOGD("%s(%d)\n", __func__, __LINE__);
+	LOGV("%s(%d)\n", __func__, __LINE__);
 
 	if (jpeg_get_config == NULL || !jpeg_get_config->task_state)
 	{
@@ -360,7 +361,7 @@ bk_err_t jpeg_get_task_close()
 
 	jpeg_get_task_deinit();
 
-	LOGI("%s(%d) complete\n", __func__, __LINE__);
+	LOGD("%s(%d) complete\n", __func__, __LINE__);
 
 	return BK_OK;
 }

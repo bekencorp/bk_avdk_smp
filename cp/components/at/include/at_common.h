@@ -43,6 +43,7 @@ extern uint8_t atcmd_updated;
 #define AT_LOGW(...) BK_LOGW(AT_TAG, ##__VA_ARGS__)
 #define AT_LOGE(...) BK_LOGE(AT_TAG, ##__VA_ARGS__)
 #define AT_LOGD(...) BK_LOGD(AT_TAG, ##__VA_ARGS__)
+#define AT_LOGV(...) BK_LOGV(AT_TAG, ##__VA_ARGS__)
 
 typedef struct
 {

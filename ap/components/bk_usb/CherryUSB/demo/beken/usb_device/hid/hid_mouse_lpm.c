@@ -239,7 +239,7 @@ static volatile uint8_t hid_state = HID_STATE_IDLE;
 /* function ------------------------------------------------------------------*/
 static void usbd_hid_int_callback(uint8_t ep, uint32_t nbytes)
 {
-    //USB_LOG_INFO("%s ep:0x%x nbyres:%d\n", __func__, ep, nbytes);
+    //USB_LOG_DBG("%s ep:0x%x nbyres:%d\n", __func__, ep, nbytes);
 
     hid_state = HID_STATE_IDLE;
 }
@@ -786,18 +786,18 @@ void bk_usbd_hid_mouse_cps_check_test(uint8_t c_button)
 
     switch (c_button) {
         case HID_MOUSE_INPUT_BUTTON_LEFT: {
-            USB_LOG_INFO("USB TEST HID_MOUSE_INPUT_BUTTON_LEFT\r\n");
+            USB_LOG_DBG("USB TEST HID_MOUSE_INPUT_BUTTON_LEFT\r\n");
             button = HID_MOUSE_INPUT_BUTTON_LEFT;
         } break;
 
         case HID_MOUSE_INPUT_BUTTON_RIGHT: {
-            USB_LOG_INFO("USB TEST HID_MOUSE_INPUT_BUTTON_RIGHT\r\n");
+            USB_LOG_DBG("USB TEST HID_MOUSE_INPUT_BUTTON_RIGHT\r\n");
             button = HID_MOUSE_INPUT_BUTTON_RIGHT;
 
         } break;
 
         case HID_MOUSE_INPUT_BUTTON_MIDDLE: {
-            USB_LOG_INFO("USB TEST HID_MOUSE_INPUT_BUTTON_MIDDLE\r\n");
+            USB_LOG_DBG("USB TEST HID_MOUSE_INPUT_BUTTON_MIDDLE\r\n");
             button = HID_MOUSE_INPUT_BUTTON_MIDDLE;
         } break;
 

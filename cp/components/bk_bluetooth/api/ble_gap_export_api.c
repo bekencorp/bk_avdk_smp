@@ -150,7 +150,7 @@ ble_err_t bk_ble_gap_set_adv_data_ex(
     ret = set_cmd_type(ADV_DATA_CMD, cmd_type);
     if (ret)
     {
-        os_printf("%s err\n", __func__);
+        BK_LOGD(NULL,"%s err\n", __func__);
         return BK_ERR_BLE_FAIL;
     }
 
@@ -479,7 +479,7 @@ ble_err_t bk_ble_gap_set_security_param(bk_ble_sm_param_t param_type,
 
     if (!param.data)
     {
-        os_printf("%s malloc err\n", __func__);
+        BK_LOGD(NULL,"%s malloc err\n", __func__);
         return -1;
     }
 
@@ -611,7 +611,7 @@ ble_err_t bk_ble_gap_connect(bk_gap_create_conn_params_t *param)
 
     if (!real.param_array)
     {
-        os_printf("%s alloc err\n", __func__);
+        BK_LOGD(NULL,"%s alloc err\n", __func__);
         return BK_ERR_BLE_NO_MEM;
     }
 

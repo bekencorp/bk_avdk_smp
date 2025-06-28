@@ -74,7 +74,7 @@ static void assert_wrapper(uint8_t expr, char *expr_s, const char *func)
 {
 	if (!(expr))
 	{
-		bk_printf("(%s) has assert failed at %s.\n", expr_s, func);
+		BK_LOGD(NULL, "(%s) has assert failed at %s.\n", expr_s, func);
 		while (1);
 	}
 }

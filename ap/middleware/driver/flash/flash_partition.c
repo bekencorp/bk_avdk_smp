@@ -370,7 +370,7 @@ bk_err_t bk_flash_partition_write_cbus(bk_partition_t partition, const uint8_t *
 	bk_logic_partition_t *partition_info;
 
 	GLOBAL_INT_DECLARATION();
-	FLASH_LOGI("bk_flash_partition_write_enhanced:0x%x\r\n", buffer_len);
+	FLASH_LOGD("bk_flash_partition_write_enhanced:0x%x\r\n", buffer_len);
 	partition_info = bk_flash_partition_get_info(partition);
 	if (NULL == partition_info) {
 		FLASH_LOGW("%s partition not found\r\n", __func__);

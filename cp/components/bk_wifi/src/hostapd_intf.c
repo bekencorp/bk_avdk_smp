@@ -179,7 +179,7 @@ int rwnx_build_bcn(BCN_PARAM_ST *csa, uint8_t vif_idx, struct beacon_data *bcn_i
 	}
 
 	//print_hex_dump("XXX BCN_BUILD: ", beacon_ptr, bcn_len);
-	//os_printf("%s %d: csa %d ecsa %d\n", __func__, __LINE__, csa->csa_oft[0], csa->csa_oft[1]);
+	//BK_LOGD(NULL,"%s %d: csa %d ecsa %d\n", __func__, __LINE__, csa->csa_oft[0], csa->csa_oft[1]);
 
 	return 0;
 
@@ -246,11 +246,11 @@ int wpa_intf_channel_switch(struct prism2_hostapd_param *param, int len)
 
 	ieee80211_freq_to_chan(freq, &chann);
 	if (chann == bk_wlan_ap_get_channel_config()) {
-		BK_LOGI(TAG, "CSA over same channel\r\n");
+		BK_LOGD(TAG, "CSA over same channel\r\n");
 		return BK_ERR_HITF_CSA_SAME_CHAN;
 	}
 
-	BK_LOGI(TAG, "CSA vif=%d vif_id=%d csa_cnt=%d\r\n", vif, param->vif_idx, csa_count);
+	BK_LOGD(TAG, "CSA vif=%d vif_id=%d csa_cnt=%d\r\n", vif, param->vif_idx, csa_count);
 	settings = param->u.chan_switch.settings;
 
 	rwnx_cfg80211_channel_switch(param->vif_idx, settings);
@@ -279,7 +279,7 @@ int hapd_intf_sta_add(struct prism2_hostapd_param *param, int len)
 
 	ret = rw_msg_send_me_sta_add(&add_sta, cfm);
 	if (!ret && (cfm->status == CO_OK)) {
-		BK_LOGI(TAG, "add sta, sta=%d, pm state=%d\r\n", cfm->sta_idx, cfm->pm_state);
+		BK_LOGD(TAG, "add sta, sta=%d, pm state=%d\r\n", cfm->sta_idx, cfm->pm_state);
 
 #if CONFIG_TX_BUFING
         rwm_tx_bufing_end(cfm->sta_idx);
@@ -319,7 +319,7 @@ int hapd_intf_sta_del(struct prism2_hostapd_param *param, int len)
 	sta_idx = rwm_mgmt_sta_mac2idx(param->sta_addr);
 	int ret;
 
-	BK_LOGI(TAG, "del sta %d, mac %pm, sta_idx %d\r\n",
+	BK_LOGD(TAG, "del sta %d, mac %pm, sta_idx %d\r\n",
 		sta_idx, param->sta_addr, sta_idx);
 
 	if (sta_idx == 0xff)
@@ -351,37 +351,37 @@ int hapd_intf_add_key(struct prism2_hostapd_param *param, int len)
 	}
 
 	if (os_strcmp((char *)param->u.crypt.alg, "WEP40") == 0) {
-		BK_LOGI(TAG, "add WEP40\r\n");
+		BK_LOGD(TAG, "add WEP40\r\n");
 		key_param.cipher_suite = MAC_CIPHER_WEP40;
 	} else if (os_strcmp((char *)param->u.crypt.alg, "WEP104") == 0) {
-		BK_LOGI(TAG, "add WEP104\r\n");
+		BK_LOGD(TAG, "add WEP104\r\n");
 		key_param.cipher_suite = MAC_CIPHER_WEP104;
 	} else if (os_strcmp((char *)param->u.crypt.alg, "TKIP") == 0) {
-		BK_LOGI(TAG, "add TKIP\r\n");
+		BK_LOGD(TAG, "add TKIP\r\n");
 		key_param.cipher_suite = MAC_CIPHER_TKIP;
 	} else if (os_strcmp((char *)param->u.crypt.alg, "CCMP") == 0) {
-		BK_LOGI(TAG, "add CCMP\r\n");
+		BK_LOGD(TAG, "add CCMP\r\n");
 		key_param.cipher_suite = MAC_CIPHER_CCMP;
 	}
 #if CONFIG_PMF
 	else if (os_strcmp((char *)param->u.crypt.alg, "BIP") == 0) {
-		BK_LOGI(TAG, "add BIP\r\n");
+		BK_LOGD(TAG, "add BIP\r\n");
 		key_param.cipher_suite = MAC_CIPHER_BIP_CMAC_128;
 	}
 #endif
 #if CONFIG_WAPI_SUPPORT
 	else if (os_strcmp((char *)param->u.crypt.alg, "WPI-SMS4") == 0) {
-		BK_LOGI(TAG, "add WPI-SMS4\r\n");
+		BK_LOGD(TAG, "add WPI-SMS4\r\n");
 		key_param.cipher_suite = MAC_CIPHER_WPI_SMS4;
 	}
 #endif
 
 	if (is_broadcast_ether_addr(param->sta_addr)) {
-		BK_LOGD(TAG, "add is_broadcast_ether_addr\r\n");
+		BK_LOGV(TAG, "add is_broadcast_ether_addr\r\n");
 		key_param.sta_idx = 0xFF;
 		key_param.inst_nbr = param->vif_idx;
 	} else {
-		BK_LOGD(TAG, "add sta_mgmt_get_sta\r\n");
+		BK_LOGV(TAG, "add sta_mgmt_get_sta\r\n");
 		key_param.sta_idx = rwm_mgmt_sta_mac2idx(param->sta_addr);
 		key_param.inst_nbr = param->vif_idx;
 	}
@@ -390,12 +390,12 @@ int hapd_intf_add_key(struct prism2_hostapd_param *param, int len)
 	key_param.key.length = param->u.crypt.key_len;
 	os_memcpy((u8 *) & (key_param.key.array[0]), (u8 *)&param[1], key_param.key.length);
 
-	BK_LOGD(TAG, "add key, sta=%d, vif=%d, key=%d\r\n",
+	BK_LOGV(TAG, "add key, sta=%d, vif=%d, key=%d\r\n",
 			key_param.sta_idx, key_param.inst_nbr, key_param.key_idx);
 
 	ret = rw_msg_send_key_add(&key_param, cfm);
 	if (!ret && (cfm->status == CO_OK))
-		BK_LOGD(TAG, "add hw key idx=%d\r\n", cfm->hw_key_idx);
+		BK_LOGV(TAG, "add hw key idx=%d\r\n", cfm->hw_key_idx);
 	else if (!ret)
 		ret = BK_ERR_HITF_ADD_KEY;
 
@@ -422,7 +422,7 @@ int hapd_intf_del_key(struct prism2_hostapd_param *param, int len)
 	if (hw_key_idx > max_mm_sec_key_nbr())
 		return BK_ERR_HITF_HW_KEY_ID;
 
-	BK_LOGD(TAG, "del hw key idx=%d\r\n", hw_key_idx);
+	BK_LOGV(TAG, "del hw key idx=%d\r\n", hw_key_idx);
 
 	return rw_msg_send_key_del(hw_key_idx);
 }
@@ -447,7 +447,7 @@ int hapd_intf_add_vif(struct prism2_hostapd_param *param, int len)
 		return BK_ERR_HITF_ADD_VIF;
 	}
 
-	BK_LOGD(TAG, "add vif%d, type=%d, status=%d\r\n",
+	BK_LOGV(TAG, "add vif%d, type=%d, status=%d\r\n",
 			cfm->inst_nbr, param->u.add_if.type, cfm->status);
 
 	if (cfm->inst_nbr >= NX_VIRT_DEV_MAX)
@@ -469,7 +469,7 @@ int hapd_intf_remove_vif(struct prism2_hostapd_param *param, int len)
 		return BK_ERR_HITF_VIF_ID;
 
 	ret = rw_msg_send_remove_if(vif_index);
-	BK_LOGD(TAG, "del vif%d ret=%d\r\n", vif_index, ret);
+	BK_LOGV(TAG, "del vif%d ret=%d\r\n", vif_index, ret);
 	return ret;
 }
 
@@ -492,7 +492,7 @@ int hapd_intf_start_apm(struct prism2_hostapd_param *param, int len)
 	}
 
 	if (cfm->status == CO_OK) {
-		BK_LOGI(TAG, "start apm success, vif%d, channel%d, bcmc%d\r\n", cfm->vif_idx,
+		BK_LOGD(TAG, "start apm success, vif%d, channel%d, bcmc%d\r\n", cfm->vif_idx,
 				cfm->ch_idx, cfm->bcmc_idx);
 	}
 
@@ -560,11 +560,11 @@ int wpa_send_scan_req(struct prism2_hostapd_param *param, int len)
 	int ret;
 	SCAN_PARAM_T *scan_param;
 
-	BK_LOGD(TAG, "send scan req to driver\r\n");
+	BK_LOGV(TAG, "send scan req to driver\r\n");
 
 	scan_param = (SCAN_PARAM_T *)(os_zalloc(sizeof(*scan_param) + param->u.scan_req.extra_ies_len));
 	if (!scan_param) {
-		BK_LOGI(TAG, "send scan req OOM\n");
+		BK_LOGD(TAG, "send scan req OOM\n");
 		return BK_ERR_NO_MEM;
 	}
 	scan_param->num_ssids = param->u.scan_req.ssids_num;
@@ -666,7 +666,7 @@ int wpa_get_scan_rst(struct prism2_hostapd_param *param, int len)
 		return 0;
 	}
 
-	BK_LOGI(TAG, "get scan result:%d\r\n", s_scan_result_upload_ptr->scanu_num);
+	BK_LOGD(TAG, "get scan result:%d\r\n", s_scan_result_upload_ptr->scanu_num);
 
 	if (reduce_ie && !reduce_scan_result)
 		ies = wpabuf_alloc(128);
@@ -677,7 +677,7 @@ int wpa_get_scan_rst(struct prism2_hostapd_param *param, int len)
 		if (reduce_ie && !reduce_scan_result && ies) {
 			wlan_get_bss_beacon_ies(ies, (u8 *)(scan_rst_ptr + 1), scan_rst_ptr->ie_len);
 			ie_len = wpabuf_len(ies);
-			//bk_printf("ie_len: %d -> %d\n", scan_rst_ptr->ie_len, ie_len);
+			//BK_LOGD(NULL,"ie_len: %d -> %d\n", scan_rst_ptr->ie_len, ie_len);
 		} else {
 			ie_len = scan_rst_ptr->ie_len;
 		}
@@ -709,8 +709,8 @@ int wpa_get_scan_rst(struct prism2_hostapd_param *param, int len)
 			total_size = rtos_get_total_heap_size();
 			free_size  = rtos_get_free_heap_size();
 			mini_size  = rtos_get_minimum_free_heap_size();
-			BK_LOGI(TAG, "%-5s   %-5s   %-5s   %-5s   %-5s\r\n","name", "total", "free", "minimum", "peak");
-			BK_LOGI(TAG, "heap\t%d\t%d\t%d\t%d\r\n",total_size,free_size,mini_size,total_size-mini_size);
+			BK_LOGD(TAG, "%-5s   %-5s   %-5s   %-5s   %-5s\r\n","name", "total", "free", "minimum", "peak");
+			BK_LOGD(TAG, "heap\t%d\t%d\t%d\t%d\r\n",total_size,free_size,mini_size,total_size-mini_size);
 
 			ret = BK_ERR_NO_MEM;
 			BK_LOGE(TAG, "get scan result fail: oom\n");
@@ -774,7 +774,7 @@ int wpa_send_auth_req(struct prism2_hostapd_param *param, int len)
 	}
 
 	os_memcpy((UINT8 *)&auth_param->bssid, param->u.authen_req.bssid, ETH_ALEN);
-	BK_LOGI(TAG, "send auth req: ie_len %d, sae_data_len %d\n",
+	BK_LOGD(TAG, "send auth req: ie_len %d, sae_data_len %d\n",
 			param->u.authen_req.ie_len, param->u.authen_req.sae_data_len);
 
 	auth_param->vif_idx = param->vif_idx;
@@ -1080,15 +1080,15 @@ uint32_t wpa_hostapd_no_password_connected(const uint8_t *addr)
 	if (!cfg_ap_is_open_system())
 		goto is_connected_exit;
 
-	BK_LOGI(TAG, "no password connected\r\n");
+	BK_LOGD(TAG, "no password connected\r\n");
 	ap_index = vif_mgmt_get_first_ap_index();
 	if (INVALID_VIF_IDX == ap_index)
 		goto is_connected_exit;
 
-	BK_LOGI(TAG, "ap_index:%d\r\n", ap_index);
+	BK_LOGD(TAG, "ap_index:%d\r\n", ap_index);
 
 	sta_id = sta_mgmt_get_staid(ap_index, addr);
-	BK_LOGI(TAG, "sta_id:%d\r\n", sta_id);
+	BK_LOGD(TAG, "sta_id:%d\r\n", sta_id);
 	if (INVALID_STA_IDX != sta_id)
 		connected_flag = 1;
 
@@ -1115,7 +1115,7 @@ int wpa_hostapd_set_sta_flag(struct prism2_hostapd_param *param, int len)
 
 	// Port already open
 	if (rwm_mgmt_sta_mac2port(param->sta_addr)) {
-		BK_LOGI(TAG, "STA " MACSTR "already opened\n", MAC2STR(param->sta_addr));
+		BK_LOGD(TAG, "STA " MACSTR "already opened\n", MAC2STR(param->sta_addr));
 		return 0;
 	}
 

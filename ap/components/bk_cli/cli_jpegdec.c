@@ -50,9 +50,9 @@ static JPEG_DTCM uint64_t volatile	cur_inst_cnt = 0;
 	saved_inst_cnt = cur_inst_cnt - saved_inst_cnt; \
  \
 	if (1 == (flag)) { \
-		os_printf("=====elapse time(%d us).\r\n", (u32)((saved_time) & 0xFFFFFFFF)); \
-		os_printf("=====diff inst_cnt: %d:%d\r\n", (u32)(saved_inst_cnt >> 32), (u32)(saved_inst_cnt & 0xFFFFFFFF)); \
-		os_printf("=====diff sycle_cnt: %d:%d\r\n", (u32)(saved_sycle_cnt >> 32), (u32)(saved_sycle_cnt & 0xFFFFFFFF)); \
+		BK_LOGD(NULL, "=====elapse time(%d us).\r\n", (u32)((saved_time) & 0xFFFFFFFF)); \
+		BK_LOGD(NULL, "=====diff inst_cnt: %d:%d\r\n", (u32)(saved_inst_cnt >> 32), (u32)(saved_inst_cnt & 0xFFFFFFFF)); \
+		BK_LOGD(NULL, "=====diff sycle_cnt: %d:%d\r\n", (u32)(saved_sycle_cnt >> 32), (u32)(saved_sycle_cnt & 0xFFFFFFFF)); \
 	} \
  \
 	saved_time = riscv_get_mtimer(); \
@@ -103,11 +103,11 @@ uint32_t g_rgb_line_word_count = RGB_WIDTH_MAX/2;
 //Note the count n is the word count n == sizeof(buf)/sizeof(word)
 JPEG_ITCM int memcmp32(uint32_t *out, const uint32_t *in, uint32_t n)
 {
-	// os_printf("Start Check memroy size(%d), src addr(0x%x), dest addr(0x%x)\r\n", n, in, out);
+	// BK_LOGD(NULL, "Start Check memroy size(%d), src addr(0x%x), dest addr(0x%x)\r\n", n, in, out);
        for(int i = 0; i < n; i++)
        {
           if((get_addr_data(out+i) != get_addr_data(in+i))) {
-          	 os_printf("****************Faild, src addr(0x%x). dest addr(0x%x)\r\n",in+i, out+i);
+          	 BK_LOGD(NULL, "****************Faild, src addr(0x%x). dest addr(0x%x)\r\n",in+i, out+i);
           	 // bk_mem_dump_ex("src data", (unsigned char *)in, 64);
           	 // bk_mem_dump_ex("dst data", (unsigned char *)out, 64);
           	 return -1;
@@ -286,19 +286,19 @@ void test_yuv_rotate(uint32_t *src_psram,
 		// inbuf = os_malloc(YUV_BUF_SIZE);
 		// if(NULL == inbuf)
 		// {
-		// 	os_printf("Faild, malloc inbuf mem oom.\r\n");
+		// 	BK_LOGD(NULL, "Faild, malloc inbuf mem oom.\r\n");
 		// 	break;
 		// }
 		// outbuf = os_malloc(YUV_BUF_SIZE);
 		// if(NULL == outbuf)
 		// {
-		// 	os_printf("Faild, malloc outbuf mem oom.\r\n");
+		// 	BK_LOGD(NULL, "Faild, malloc outbuf mem oom.\r\n");
 		// 	break;
 		// }
 
 		if(width > BUF_WIDTH_PIXEL || height > BUF_HEIGHT_PIXEL)
 		{
-			os_printf("Invalid paramter.width(%d),height(%d).\r\n", width,height);
+			BK_LOGD(NULL, "Invalid paramter.width(%d),height(%d).\r\n", width,height);
 			return;
 		}
 
@@ -309,15 +309,15 @@ void test_yuv_rotate(uint32_t *src_psram,
 
 		memcpy32(inbuf, src_psram, YUV_BUF_SIZE_WORD);
 
-		// os_printf("YUB test begin. psram->dtcm===========\r\n");
+		// BK_LOGD(NULL, "YUB test begin. psram->dtcm===========\r\n");
 		// jpeg_perfmon(0);
 		// for(i = 0; i < test_count; i++) {
 		// 	memcpy32_from_psram(inbuf, src_psram + i * YUV_BUF_SIZE_WORD, YUV_BUF_SIZE_WORD);
 		// }
 		// jpeg_perfmon(1);
-		// os_printf("YUB test end.psram->dtcm===========\r\n");
+		// BK_LOGD(NULL, "YUB test end.psram->dtcm===========\r\n");
 
-		// os_printf("YUB test move data full begin.===========\r\n");
+		// BK_LOGD(NULL, "YUB test move data full begin.===========\r\n");
 		// jpeg_perfmon(0);
 		// offset = 0;
 		// for(k = 0; k < test_count/32; k++){
@@ -332,33 +332,33 @@ void test_yuv_rotate(uint32_t *src_psram,
 		// }
 		// jpeg_perfmon(1);
 		// memcmp32(dest_psram, src_psram, YUV_BUF_SIZE_WORD*32);
-		// os_printf("YUB test move data end.===========\r\n");
+		// BK_LOGD(NULL, "YUB test move data end.===========\r\n");
 
-		os_printf("YUB test begin.===========\r\n");
+		BK_LOGD(NULL, "YUB test begin.===========\r\n");
 		jpeg_perfmon(0);
 		for(i = 0; i < test_count; i++) {
 			YUV422ToRGB565(inbuf, outbuf, width, height);
 		}
 		jpeg_perfmon(1);
-		os_printf("YUB test end.===========\r\n");
+		BK_LOGD(NULL, "YUB test end.===========\r\n");
 
-		os_printf("YUB test rotate begin.===========\r\n");
+		BK_LOGD(NULL, "YUB test rotate begin.===========\r\n");
 		jpeg_perfmon(0);
 		// for(i = 0; i < test_count; i++) {
 			YUV422ToRGB565_Rotate90(inbuf, outbuf, width, height);
 		// }
 		jpeg_perfmon(1);
-		os_printf("YUB test rotate end.===========\r\n");
+		BK_LOGD(NULL, "YUB test rotate end.===========\r\n");
 
-		// os_printf("YUB test begin. dtcm->psram. ==========\r\n");
+		// BK_LOGD(NULL, "YUB test begin. dtcm->psram. ==========\r\n");
 		// jpeg_perfmon(0);
 		// for(i = 0; i < test_count; i++) {
 		// 	memcpy32_to_psram(dest_psram + i * YUV_BUF_SIZE_WORD, outbuf, YUV_BUF_SIZE_WORD);
 		// }
 		// jpeg_perfmon(1);
-		// os_printf("YUB test end. dtcm->psram.===========\r\n");
+		// BK_LOGD(NULL, "YUB test end. dtcm->psram.===========\r\n");
 
-		// os_printf("YUB test rotate full begin.===========\r\n");
+		// BK_LOGD(NULL, "YUB test rotate full begin.===========\r\n");
 		// jpeg_perfmon(0);
 		// offset = 0;
 		// for(k = 0; k < test_count/32; k++){
@@ -372,7 +372,7 @@ void test_yuv_rotate(uint32_t *src_psram,
 		// 	}
 		// }
 		// jpeg_perfmon(1);
-		// os_printf("YUB test rotate full end.===========\r\n");
+		// BK_LOGD(NULL, "YUB test rotate full end.===========\r\n");
 
 
 	} while(0);
@@ -399,12 +399,12 @@ void cli_yuv_rotate_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	height = strtoul(argv[2], NULL, 10);
 	test_count = strtoul(argv[3], NULL, 10);
 
-	os_printf("Yuvtest start: ========= width(%d),height(%d),test_count(%d).\r\n", width,height,test_count);
-	os_printf("g_yuv_line_word_count(%d),YUV_BUF_SIZE_WORD(%d).\r\n", g_yuv_line_word_count,YUV_BUF_SIZE_WORD);
+	BK_LOGD(NULL, "Yuvtest start: ========= width(%d),height(%d),test_count(%d).\r\n", width,height,test_count);
+	BK_LOGD(NULL, "g_yuv_line_word_count(%d),YUV_BUF_SIZE_WORD(%d).\r\n", g_yuv_line_word_count,YUV_BUF_SIZE_WORD);
 
 	test_yuv_rotate(src_psram, dest_psram, width, height, test_count);
 
-	// os_printf("Yuvtest start:=========== Enable psram dcache.\r\n");
+	// BK_LOGD(NULL, "Yuvtest start:=========== Enable psram dcache.\r\n");
 	// src_psram = (uint32_t *)PSRAM_SRC_CACHE_ADDR;
 	// dest_psram = (uint32_t *)PSRAM_DEST_CACHE_ADDR;
 	// test_yuv_rotate(src_psram, dest_psram, width, height, test_count);
@@ -423,11 +423,11 @@ void jpeg_dec_read_sdcard_to_psram(char *pcWriteBuffer, int xWriteBufferLen, int
 	uint32_t total_word_size = 0;
 
 	filename = argv[1]; //saved file name
-	os_printf("filename  = %s \r\n", filename);
+	BK_LOGD(NULL, "filename  = %s \r\n", filename);
 	srcaddr = os_strtoul(argv[2], NULL, 16) & 0xFFFFFFFF;
-	os_printf("image p_srcaddr  = %X \r\n", srcaddr);
+	BK_LOGD(NULL, "image p_srcaddr  = %X \r\n", srcaddr);
 	// dstaddr = os_strtoul(argv[3], NULL, 16) & 0xFFFFFFFF;
-	// os_printf("image p_dstaddr  = %X \r\n", dstaddr);
+	// BK_LOGD(NULL, "image p_dstaddr  = %X \r\n", dstaddr);
 	// uint8_t * p_srcaddr = (uint8_t *)srcaddr;
 	// uint8_t * p_dstaddr = (uint8_t *)dstaddr;
 
@@ -440,29 +440,29 @@ void jpeg_dec_read_sdcard_to_psram(char *pcWriteBuffer, int xWriteBufferLen, int
 	// step 1: read picture from sd to psram
 	sprintf(cFileName, "%d:/%s", DISK_NUMBER_SDIO_SD, filename);
 	char *ucRdTemp = NULL; //(char *)p_srcaddr;
-	os_printf("write to psram addr:  %x \r\n", srcaddr);
+	BK_LOGD(NULL, "write to psram addr:  %x \r\n", srcaddr);
 
 	/*open jpeg file*/
 	fr = f_open(&file, cFileName, FA_OPEN_EXISTING | FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", filename);
+		BK_LOGD(NULL, "open %s fail.\r\n", filename);
 		return;
 	}
 
 	do {
 		size_64bit = f_size(&file);
 		total_size = (uint32_t)size_64bit;// total byte
-		os_printf("read file total_size = %d.\r\n", total_size);
+		BK_LOGD(NULL, "read file total_size = %d.\r\n", total_size);
 
 		ucRdTemp = os_malloc(total_size + 4);
 		if(NULL == ucRdTemp) {
-			os_printf("os malloc fail. oom \r\n");
+			BK_LOGD(NULL, "os malloc fail. oom \r\n");
 			ret = -1;
 			break;
 		}
 		fr = f_read(&file, ucRdTemp, total_size, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read file fail.\r\n");
+			BK_LOGD(NULL, "read file fail.\r\n");
 			ret = -2;
 			break;
 		}
@@ -474,7 +474,7 @@ void jpeg_dec_read_sdcard_to_psram(char *pcWriteBuffer, int xWriteBufferLen, int
 
 	fr = f_close(&file);
 	if (fr != FR_OK) {
-		os_printf("close %s fail!\r\n", filename);
+		BK_LOGD(NULL, "close %s fail!\r\n", filename);
 	}
 
 	if(NULL != ucRdTemp) {
@@ -483,11 +483,11 @@ void jpeg_dec_read_sdcard_to_psram(char *pcWriteBuffer, int xWriteBufferLen, int
 	}
 
 	if(0 == ret) {
-		os_printf("file read ok\r\n");
+		BK_LOGD(NULL, "file read ok\r\n");
 	}
 
 #else
-	os_printf("Not support\r\n");
+	BK_LOGD(NULL, "Not support\r\n");
 #endif
 
 }
@@ -503,15 +503,15 @@ void jpeg_sw_dec_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	uint8_t  format = 3;
 
 	srcaddr = os_strtoul(argv[1], NULL, 16) & 0xFFFFFFFF;
-	os_printf("image p_srcaddr  = 0x%X \r\n", srcaddr);
+	BK_LOGD(NULL, "image p_srcaddr  = 0x%X \r\n", srcaddr);
 	dstaddr = os_strtoul(argv[2], NULL, 16) & 0xFFFFFFFF;
-	os_printf("image p_dstaddr  = 0x%X \r\n", dstaddr);
+	BK_LOGD(NULL, "image p_dstaddr  = 0x%X \r\n", dstaddr);
 	total_size = os_strtoul(argv[3], NULL, 10) & 0xFFFFFFFF;
-	os_printf("image total_size  = %d \r\n", total_size);
+	BK_LOGD(NULL, "image total_size  = %d \r\n", total_size);
 
 	if (argc > 4) {
 		format = os_strtoul(argv[4], NULL, 10) & 0xFFFFFFFF;
-		os_printf("image out format  = %d \r\n", format);
+		BK_LOGD(NULL, "image out format  = %d \r\n", format);
 	}
 
 	uint8_t * p_srcaddr = (uint8_t *)srcaddr;
@@ -520,7 +520,7 @@ void jpeg_sw_dec_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	// init jpeg_dec
 	err = bk_jpeg_dec_sw_init();
 	if (err != kNoErr) {
-		os_printf("init jpeg_decoder failed\r\n");
+		BK_LOGD(NULL, "init jpeg_decoder failed\r\n");
 		return;
 	}
 
@@ -528,22 +528,22 @@ void jpeg_sw_dec_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 //	bk_jpeg_dec_sw_set_out_format(format);
 
 	// start jpeg_dec
-	os_printf("start jpeg_dec.\r\n");
+	BK_LOGD(NULL, "start jpeg_dec.\r\n");
 	jpeg_perfmon(0);
 
 	bk_jpeg_dec_sw_register_finish_callback(NULL);
 	err = bk_jpeg_dec_sw_start(JPEGDEC_BY_FRAME, p_srcaddr, p_dstaddr, total_size, 0, NULL);
 	if (err != kNoErr) {
-		os_printf("jpeg_decoder failed\r\n");
+		BK_LOGD(NULL, "jpeg_decoder failed\r\n");
 		return;
 	}
 
 	jpeg_perfmon(1);
-	os_printf("jpeg_dec ok.\r\n");
+	BK_LOGD(NULL, "jpeg_dec ok.\r\n");
 
 	bk_jpeg_dec_sw_deinit();
 #else
-	os_printf("Not support\r\n");
+	BK_LOGD(NULL, "Not support\r\n");
 #endif
 
 
@@ -564,27 +564,27 @@ void jpeg_dec_write_psram_to_sdcard(char *pcWriteBuffer, int xWriteBufferLen, in
 	char *ucRdTemp = NULL;
 
 	filename = argv[1]; //saved file name
-	os_printf("filename  = %s \r\n", filename);
+	BK_LOGD(NULL, "filename  = %s \r\n", filename);
 
 	total_size = os_strtoul(argv[2], NULL, 10) & 0xFFFFFFFF;
-	os_printf("image total_size	= %d \r\n", total_size);
+	BK_LOGD(NULL, "image total_size	= %d \r\n", total_size);
 
 	uint32_t paddr = os_strtoul(argv[3], NULL, 16) & 0xFFFFFFFF;
-	os_printf("read from psram addr = %x \r\n", paddr);
+	BK_LOGD(NULL, "read from psram addr = %x \r\n", paddr);
 
 	//	save data to sdcard
 	sprintf(cFileName, "%d:/%s", DISK_NUMBER_SDIO_SD, filename);
 
 	fr = f_open(&file, cFileName, FA_OPEN_APPEND | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", filename);
+		BK_LOGD(NULL, "open %s fail.\r\n", filename);
 		return;
 	}
 
 	do {
 		ucRdTemp = (char *)paddr;//os_malloc(total_size + 4);
 		// if(NULL == ucRdTemp) {
-		// 	os_printf("os malloc fail. oom \r\n");
+		// 	BK_LOGD(NULL, "os malloc fail. oom \r\n");
 		// 	ret = -1;
 		// 	break;
 		// }
@@ -593,17 +593,17 @@ void jpeg_dec_write_psram_to_sdcard(char *pcWriteBuffer, int xWriteBufferLen, in
 
 		fr = f_write(&file, (char *)ucRdTemp, total_size , &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("write %s fail.\r\n", filename);
+			BK_LOGD(NULL, "write %s fail.\r\n", filename);
 			ret = -1;
 			break;
 		}
-		os_printf("\n");
+		BK_LOGD(NULL, "\n");
 	}while(0);
 
 
 	fr = f_close(&file);
 	if (fr != FR_OK) {
-		os_printf("close %s fail!\r\n", filename);
+		BK_LOGD(NULL, "close %s fail!\r\n", filename);
 	}
 
 	// if(NULL != ucRdTemp) {
@@ -612,11 +612,11 @@ void jpeg_dec_write_psram_to_sdcard(char *pcWriteBuffer, int xWriteBufferLen, in
 	// }
 
 	if(0 == ret) {
-		os_printf("sd card write data to file successful\r\n");
+		BK_LOGD(NULL, "sd card write data to file successful\r\n");
 	}
 
 #else
-	os_printf("Not support\r\n");
+	BK_LOGD(NULL, "Not support\r\n");
 #endif
 }
 

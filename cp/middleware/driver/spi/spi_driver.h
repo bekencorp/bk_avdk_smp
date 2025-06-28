@@ -21,4 +21,5 @@
 #define SPI_LOGW(...) BK_LOGW(SPI_TAG, ##__VA_ARGS__)
 #define SPI_LOGE(...) BK_LOGE(SPI_TAG, ##__VA_ARGS__)
 #define SPI_LOGD(...) BK_LOGD(SPI_TAG, ##__VA_ARGS__)
+#define SPI_LOGV(...) BK_LOGV(SPI_TAG, ##__VA_ARGS__)
 

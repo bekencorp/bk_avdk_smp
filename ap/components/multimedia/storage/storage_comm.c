@@ -36,6 +36,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 storage_flash_t storge_flash;
 
@@ -70,7 +71,7 @@ bk_err_t bk_sdcard_read_to_mem(char *filename, uint32_t* paddr, uint32_t *total_
 	char *ucRdTemp = (char *)sram_addr;
 	size_64bit = f_size(&file);
 	uint32_t total_size = (uint32_t)size_64bit;// total byte
-	LOGI("read file total_size = %d.\r\n", total_size);
+	LOGD("read file total_size = %d.\r\n", total_size);
 	*total_len = total_size;
 
 	while(1)
@@ -82,7 +83,7 @@ bk_err_t bk_sdcard_read_to_mem(char *filename, uint32_t* paddr, uint32_t *total_
 		}
 		if (uiTemp == 0)
 		{
-			LOGI("read file complete.\r\n");
+			LOGD("read file complete.\r\n");
 			ret = BK_OK;
 			break;
 		}
@@ -138,7 +139,7 @@ bk_err_t bk_mem_save_to_sdcard(char *filename, uint8_t *paddr, uint32_t total_le
 		return ret;
 	}
 
-	LOGD("open file:%s!\n", file_name);
+	LOGV("open file:%s!\n", file_name);
 
 	fr = f_write(&fp1, (char *)paddr, total_len, &uiTemp);
 	if (fr != FR_OK)
@@ -163,7 +164,7 @@ bk_err_t bk_mem_save_to_flash(char *filename, uint8_t *paddr, uint32_t total_len
 	bk_err_t ret = BK_FAIL;
 
 	bk_logic_partition_t *pt = bk_flash_partition_get_info(BK_PARTITION_USR_CONFIG);
-	LOGI("flash addr %x \n", pt->partition_start_addr);
+	LOGD("flash addr %x \n", pt->partition_start_addr);
 
 	storge_flash.flash_image_addr = pt->partition_start_addr;
 	storge_flash.flasg_img_length = total_len;
@@ -177,7 +178,7 @@ bk_err_t bk_mem_save_to_flash(char *filename, uint8_t *paddr, uint32_t total_len
 	ret = bk_flash_write_bytes(pt->partition_start_addr, (uint8_t *)paddr, total_len);
 	if (ret != BK_OK)
 	{
-		LOGI("%s: storge to flsah error \n", __func__);
+		LOGD("%s: storge to flsah error \n", __func__);
 	}
 
 	*info = &storge_flash;

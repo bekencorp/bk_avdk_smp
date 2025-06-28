@@ -46,7 +46,7 @@ static inline int otp_check_busy(otp_hw_t *hw)
 	}
 	if(retry_count == -1){
 		for(int i=0;i<20;i++)
-			os_printf("WARNING:OTP init fail!\r\n");
+			BK_LOGD(NULL,"WARNING:OTP init fail!\r\n");
 		return -1;
 	}
 	return -1;

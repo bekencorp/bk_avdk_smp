@@ -159,9 +159,9 @@ static int show_file(int fd) {
 			if (!ptr2)	//impossible
 				break;
 			if (ptr2 < buffer + len) {
-				os_printf("%s\n", ptr);
+				BK_LOGD(NULL, "%s\n", ptr);
 			} else {
-				os_printf("%s", ptr);
+				BK_LOGD(NULL, "%s", ptr);
 			}
 			ptr = ptr2 + 1;
 		}
@@ -178,12 +178,12 @@ static int test_read_vfs(char *file_name)
 
 	fd = open(file_name, O_RDONLY);
 	if (fd < 0) {
-		os_printf("can't open %s\n", file_name);
+		BK_LOGD(NULL, "can't open %s\n", file_name);
 		return -1;
 	}
 	
 	ret = show_file(fd);
-	//os_printf("read from %s, ret=%d\n", file_name, ret);
+	//BK_LOGD(NULL, "read from %s, ret=%d\n", file_name, ret);
 	close(fd);
 	return ret;
 }
@@ -195,12 +195,12 @@ static int test_write_vfs(char *file_name, char *content)
 
 	fd = open(file_name, O_RDWR | O_CREAT | O_APPEND);
 	if (fd < 0) {
-		os_printf("can't open %s\n", file_name);
+		BK_LOGD(NULL, "can't open %s\n", file_name);
 		return -1;
 	}
 	
 	ret = write(fd, content, strlen(content) + 1);
-	//os_printf("write to %s, ret=%d\n", file_name, ret);
+	//BK_LOGD(NULL, "write to %s, ret=%d\n", file_name, ret);
 	close(fd);
 	return ret;
 }
@@ -219,13 +219,13 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 	int ret;
 
 	if (argc < 2) {
-		os_printf("usage : vfs format|mount|umount|read|write|unlink\n");
+		BK_LOGD(NULL, "usage : vfs format|mount|umount|read|write|unlink\n");
 		return;
 	}
 
 	if (os_strcmp(argv[1], "format") == 0) {
 		if (argc < 3) {
-			os_printf("usage : vfs format lfs|fatfs\n");
+			BK_LOGD(NULL, "usage : vfs format lfs|fatfs\n");
 			return;
 		}
 		if (os_strcmp(argv[2], "lfs") == 0)
@@ -235,15 +235,15 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 		else if (os_strcmp(argv[2], "fatfs") == 0)
 			ret = test_format_fatfs();
 		else {
-			os_printf("usage : vfs format lfs|fatfs\n");
+			BK_LOGD(NULL, "usage : vfs format lfs|fatfs\n");
 			return;
 		}
-		os_printf("format ret=%d\n", ret);
+		BK_LOGD(NULL, "format ret=%d\n", ret);
 	} else if (os_strcmp(argv[1], "mount") == 0) {
 		char *mount_point;
 		
 		if (argc < 4) {
-			os_printf("usage : vfs mount lfs|fatfs MOUNT_POINT\n");
+			BK_LOGD(NULL, "usage : vfs mount lfs|fatfs MOUNT_POINT\n");
 			return;
 		}
 		mount_point = argv[3];
@@ -255,59 +255,59 @@ void cli_vfs_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 		else if (os_strcmp(argv[2], "fatfs") == 0)
 			ret = test_mount_fatfs(mount_point);
 		else {
-			os_printf("usage : vfs mount lfs|fatfs MOUNT_POINT\n");
+			BK_LOGD(NULL, "usage : vfs mount lfs|fatfs MOUNT_POINT\n");
 			return;
 		}
-		os_printf("mount ret=%d\n", ret);
+		BK_LOGD(NULL, "mount ret=%d\n", ret);
 	} else if (os_strcmp(argv[1], "umount") == 0) {
 		char *mount_point;
 
 		if (argc < 3) {
-			os_printf("usage : vfs umount MOUNT_POINT\n");
+			BK_LOGD(NULL, "usage : vfs umount MOUNT_POINT\n");
 			return;
 		}
 		
 		mount_point = argv[2];
 
 		ret = test_umount_vfs(mount_point);
-		os_printf("umount ret=%d\n", ret);
+		BK_LOGD(NULL, "umount ret=%d\n", ret);
 	} else if (os_strcmp(argv[1], "read") == 0) {
 		char *file_name;
 		
 		if (argc < 3) {
-			os_printf("usage : vfs read FULL_FILE_NAME\n");
+			BK_LOGD(NULL, "usage : vfs read FULL_FILE_NAME\n");
 			return;
 		}
 		file_name = argv[2];
 
 		ret = test_read_vfs(file_name);
-		os_printf("read ret=%d\n", ret);
+		BK_LOGD(NULL, "read ret=%d\n", ret);
 	} else if (os_strcmp(argv[1], "write") == 0) {
 		char *file_name;
 		char *content;
 		
 		if (argc < 4) {
-			os_printf("usage : vfs write FULL_FILE_NAME CONTENT\n");
+			BK_LOGD(NULL, "usage : vfs write FULL_FILE_NAME CONTENT\n");
 			return;
 		}
 		file_name = argv[2];
 		content = argv[3];
 
 		ret = test_write_vfs(file_name, content);
-		os_printf("write ret=%d\n", ret);
+		BK_LOGD(NULL, "write ret=%d\n", ret);
 	} else if (os_strcmp(argv[1], "unlink") == 0) {
 		char *file_name;
 		
 		if (argc < 3) {
-			os_printf("usage : vfs unlink FULL_FILE_NAME\n");
+			BK_LOGD(NULL, "usage : vfs unlink FULL_FILE_NAME\n");
 			return;
 		}
 		file_name = argv[2];
 
 		ret = test_unlink_vfs(file_name);
-		os_printf("unlink ret=%d\n", ret);
+		BK_LOGD(NULL, "unlink ret=%d\n", ret);
 	} else {
-		os_printf("vfs unknown sub cmd %s\n", argv[1]);
+		BK_LOGD(NULL, "vfs unknown sub cmd %s\n", argv[1]);
 	}
 }
 

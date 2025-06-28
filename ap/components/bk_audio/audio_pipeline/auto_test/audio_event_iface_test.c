@@ -25,7 +25,7 @@
 
 #define TEST_CHECK_NULL(ptr) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "TEST_CHECK_NULL fail \n");\
+            BK_LOGD(TAG, "TEST_CHECK_NULL fail \n");\
             return BK_FAIL;\
         }\
     } while(0)
@@ -35,7 +35,7 @@ static int queue_size = 5;
 
 static bk_err_t event_on_cmd(audio_event_iface_msg_t *msg, void *context)
 {
-    BK_LOGI(TAG, "receive internal evt msg cmd = %d, source addr = %x, type = %d \n", msg->cmd, (int)(uintptr_t)msg->source, msg->source_type);
+    BK_LOGD(TAG, "receive internal evt msg cmd = %d, source addr = %x, type = %d \n", msg->cmd, (int)(uintptr_t)msg->source, msg->source_type);
     if (msg->cmd == (queue_size - 1))
     {
         return BK_FAIL;
@@ -56,10 +56,10 @@ bk_err_t adk_event_test_case_0(void)
     bk_disable_mod_printf("AUD_EVT_TEST", 0);
 #endif
 
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: init event1 ----------\n");
+    BK_LOGD(TAG, "--------- step1: init event1 ----------\n");
 
     audio_event_iface_handle_t evt1;
     audio_event_iface_cfg_t cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
@@ -69,7 +69,7 @@ bk_err_t adk_event_test_case_0(void)
     evt1 = audio_event_iface_init(&cfg);
     TEST_CHECK_NULL(evt1);
 
-    BK_LOGI(TAG, "--------- step2: send internal msg to event1 ----------\n");
+    BK_LOGD(TAG, "--------- step2: send internal msg to event1 ----------\n");
     audio_event_iface_msg_t msg;
     int i;
     for (i = 0; i < 5; i++)
@@ -89,10 +89,10 @@ bk_err_t adk_event_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: listening 5 event from event1 ----------\n");
+    BK_LOGD(TAG, "--------- step3: listening 5 event from event1 ----------\n");
     while (audio_event_iface_waiting_cmd_msg(evt1) == BK_OK);
 
-    BK_LOGI(TAG, "--------- step4: init event2 and event3 ----------\n");
+    BK_LOGD(TAG, "--------- step4: init event2 and event3 ----------\n");
     audio_event_iface_handle_t evt2;
     cfg.context = &evt2;
     //    cfg.type = AUDIO_ELEMENT_TYPE_PLAYER;
@@ -105,7 +105,7 @@ bk_err_t adk_event_test_case_0(void)
     evt3 = audio_event_iface_init(&cfg);
     TEST_CHECK_NULL(evt3);
 
-    BK_LOGI(TAG, "--------- step5: listen event2 and event3 from event1 ----------\n");
+    BK_LOGD(TAG, "--------- step5: listen event2 and event3 from event1 ----------\n");
     if (BK_OK != audio_event_iface_set_listener(evt2, evt1))
     {
         BK_LOGE(TAG, "add event2 to event1 fail, %d \n", __LINE__);
@@ -118,7 +118,7 @@ bk_err_t adk_event_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step6: dispatch 2 msg to event1 ----------\n");
+    BK_LOGD(TAG, "--------- step6: dispatch 2 msg to event1 ----------\n");
     for (i = 0; i < 2; i++)
     {
         msg.source = evt1;
@@ -130,7 +130,7 @@ bk_err_t adk_event_test_case_0(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step7: sendout 3 msg from event2 to event1 ----------\n");
+    BK_LOGD(TAG, "--------- step7: sendout 3 msg from event2 to event1 ----------\n");
     for (i = 2; i < 5; i++)
     {
         msg.source = evt2;
@@ -142,7 +142,7 @@ bk_err_t adk_event_test_case_0(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step8: sendout 5 msg from event3 to event1 ----------\n");
+    BK_LOGD(TAG, "--------- step8: sendout 5 msg from event3 to event1 ----------\n");
     for (i = 5; i < 10; i++)
     {
         msg.source = evt3;
@@ -154,11 +154,11 @@ bk_err_t adk_event_test_case_0(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step9: listening 10 event have dispatched from event1, event2 and event3 ----------\n");
+    BK_LOGD(TAG, "--------- step9: listening 10 event have dispatched from event1, event2 and event3 ----------\n");
     queue_size = 2;
     while (audio_event_iface_listen(evt1, &msg, 0) == BK_OK)
     {
-        BK_LOGI(TAG, "receive listener evt msg cmd = %d, source addr = %x, type = %d \n", msg.cmd, (int)(uintptr_t)msg.source, msg.source_type);
+        BK_LOGD(TAG, "receive listener evt msg cmd = %d, source addr = %x, type = %d \n", msg.cmd, (int)(uintptr_t)msg.source, msg.source_type);
         if (msg.cmd != queue_size++)
         {
             BK_LOGE(TAG, "cmd check fail, cmd:%d != queue_size:%d, %d \n", __LINE__, msg.cmd, queue_size - 1);
@@ -175,7 +175,7 @@ bk_err_t adk_event_test_case_0(void)
     queue_size = 2;
     while (audio_event_iface_waiting_cmd_msg(evt1) == BK_OK);
 
-    BK_LOGI(TAG, "--------- step10: remove event2 and event3 from listener event1 ----------\n");
+    BK_LOGD(TAG, "--------- step10: remove event2 and event3 from listener event1 ----------\n");
     if (BK_OK != audio_event_iface_remove_listener(evt1, evt2))
     {
         BK_LOGE(TAG, "remove event from listener event1 fail, %d \n", __LINE__);
@@ -188,7 +188,7 @@ bk_err_t adk_event_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step12: dispatch 5 msg to event1 ----------\n");
+    BK_LOGD(TAG, "--------- step12: dispatch 5 msg to event1 ----------\n");
     for (i = 0; i < 5; i++)
     {
         msg.source = evt1;
@@ -200,7 +200,7 @@ bk_err_t adk_event_test_case_0(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step11: sendout 5 msg from event2 to event1 ----------\n");
+    BK_LOGD(TAG, "--------- step11: sendout 5 msg from event2 to event1 ----------\n");
     for (i = 5; i < 10; i++)
     {
         msg.source = evt2;
@@ -212,21 +212,21 @@ bk_err_t adk_event_test_case_0(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step13: listening 10 event have dispatched from event1 and event2 ----------\n");
+    BK_LOGD(TAG, "--------- step13: listening 10 event have dispatched from event1 and event2 ----------\n");
     while (audio_event_iface_listen(evt1, &msg, 0) == BK_OK)
     {
-        BK_LOGI(TAG, "receive listener evt msg cmd = %d, source addr = %x, type = %d \n", msg.cmd, (int)(uintptr_t)msg.source, msg.source_type);
+        BK_LOGD(TAG, "receive listener evt msg cmd = %d, source addr = %x, type = %d \n", msg.cmd, (int)(uintptr_t)msg.source, msg.source_type);
     }
     //receive internal message
     queue_size = 5;
     while (audio_event_iface_waiting_cmd_msg(evt1) == BK_OK);
 
-    BK_LOGI(TAG, "--------- step14: destroy all events ----------\n");
+    BK_LOGD(TAG, "--------- step14: destroy all events ----------\n");
     audio_event_iface_destroy(evt1);
     audio_event_iface_destroy(evt2);
     audio_event_iface_destroy(evt3);
 
-    BK_LOGI(TAG, "--------- audio event test complete ----------\n");
+    BK_LOGD(TAG, "--------- audio event test complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;

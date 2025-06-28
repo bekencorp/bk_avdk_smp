@@ -65,12 +65,12 @@ static bk_err_t _ringbuf_port_read(audio_port_handle_t self, char *buffer, int l
 {
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
 
-    //BK_LOGI(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->buff_size);
+    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->buff_size);
 
     int ret = rb_read(rb_port->rb, buffer, len, ticks_to_wait);
     if (ret < 0)
     {
-        BK_LOGD(TAG, "[%s] ringbuf port read fail, ret:%d\n", audio_port_get_tag(self), ret);
+        BK_LOGV(TAG, "[%s] ringbuf port read fail, ret:%d\n", audio_port_get_tag(self), ret);
     }
 
     return ret;
@@ -80,12 +80,12 @@ static bk_err_t _ringbuf_port_write(audio_port_handle_t self, char *buffer, int 
 {
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
 
-    //BK_LOGI(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
 
     int ret = rb_write(rb_port->rb, (char *)buffer, len, ticks_to_wait);
     if (ret != len)
     {
-        BK_LOGD(TAG, "[%s] ringbuf port write fail, ret:%d != leng:%d\n", audio_port_get_tag(self), ret, len);
+        BK_LOGV(TAG, "[%s] ringbuf port write fail, ret:%d != leng:%d\n", audio_port_get_tag(self), ret, len);
     }
 
     return ret;
@@ -95,7 +95,7 @@ static bk_err_t _ringbuf_port_write_done(audio_port_handle_t self)
 {
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
 
-    //BK_LOGI(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
 
     return rb_done_write(rb_port->rb);
 }
@@ -104,7 +104,7 @@ static bk_err_t _ringbuf_port_get_size(audio_port_handle_t self)
 {
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
 
-    //BK_LOGI(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
 
     return rb_get_size(rb_port->rb);
 }
@@ -113,7 +113,7 @@ static bk_err_t _ringbuf_port_get_filled_size(audio_port_handle_t self)
 {
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
 
-    //BK_LOGI(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
 
     return rb_bytes_filled(rb_port->rb);
 }
@@ -163,7 +163,7 @@ audio_port_handle_t ringbuf_port_init(ringbuf_port_cfg_t *config)
     audio_port_set_type(port, PORT_TYPE_RB);
     audio_port_set_data(port, rb_port);
 
-    BK_LOGI(TAG, "ringbuf port init, port:%p\n", port);
+    BK_LOGD(TAG, "ringbuf port init, port:%p\n", port);
     return port;
 
 fail:

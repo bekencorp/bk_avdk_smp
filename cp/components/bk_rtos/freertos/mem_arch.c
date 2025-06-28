@@ -52,7 +52,7 @@ void *os_realloc(void *ptr, size_t size)
 	void *tmp;
 
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		os_printf("realloc_risk\r\n");
+		BK_LOGD(NULL,"realloc_risk\r\n");
 		BK_ASSERT(false);
 	}
 
@@ -71,7 +71,7 @@ void *bk_psram_realloc(void *ptr, size_t size)
 	void *tmp;
 
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		os_printf("psram_realloc_risk\r\n");
+		BK_LOGD(NULL,"psram_realloc_risk\r\n");
 		BK_ASSERT(false);
 	}
 
@@ -98,7 +98,7 @@ void *os_malloc(size_t size)
 {
 #if !CONFIG_FULLY_HOSTED
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		os_printf("malloc_risk\r\n");
+		BK_LOGD(NULL,"malloc_risk\r\n");
 		BK_ASSERT(false);
 	}
 #endif
@@ -119,7 +119,7 @@ void os_free(void *ptr)
 {
 #if !CONFIG_FULLY_HOSTED
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		os_printf("free_risk\r\n");
+		BK_LOGD(NULL,"free_risk\r\n");
 		BK_ASSERT(false);
 	}
 #endif

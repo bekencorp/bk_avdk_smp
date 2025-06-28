@@ -890,7 +890,7 @@ static int shell_assert_out_wrapper(bool bContinue, char * format, ...)
 
 static void bk_printf_wrapper(const char *fmt, ...)
 {
-	bk_printf(fmt, ...);
+	BK_LOGD(NULL,fmt, ...);
 }
 
 static void bk_null_printf_wrapper(const char *fmt, ...)
@@ -1141,7 +1141,7 @@ static void bk_airkiss_start_udp_boardcast_wrapper(u8 random_data)
 	int udp_broadcast_fd = -1;
 	struct sockaddr_in remote_skt;
 
-	BK_LOGI(TAG, "start_udp_boardcast\n");
+	BK_LOGD(TAG, "start_udp_boardcast\n");
 	udp_broadcast_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (udp_broadcast_fd == -1) {
 		BK_LOGE(TAG, "Socket failed\r\n");
@@ -1154,7 +1154,7 @@ static void bk_airkiss_start_udp_boardcast_wrapper(u8 random_data)
 
 	i = 20;
 	while (i --) {
-		BK_LOGI(TAG, "udp-sendto:%d\r\n", i);
+		BK_LOGD(TAG, "udp-sendto:%d\r\n", i);
 
 		err = sendto(udp_broadcast_fd, &random_data, 1, 0, (struct sockaddr *)&remote_skt, sizeof(remote_skt));
 		rtos_delay_milliseconds(2);
@@ -1163,7 +1163,7 @@ static void bk_airkiss_start_udp_boardcast_wrapper(u8 random_data)
 			BK_LOGE(TAG, "send udp boardcast failed\r\n");
 	}
 
-	BK_LOGI(TAG, "close socket\r\n");
+	BK_LOGD(TAG, "close socket\r\n");
 	close(udp_broadcast_fd);
 }
 

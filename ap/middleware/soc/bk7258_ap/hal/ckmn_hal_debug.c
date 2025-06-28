@@ -24,13 +24,13 @@
 void ckmn_struct_dump(void)
 {
 	ckmn_hw_t *ckmn = (ckmn_hw_t *)CKMN_LL_REG_BASE;
-	SOC_LOGI("device_id: %8x\r\n", ckmn->deviceid);
-	SOC_LOGI("versionid: %8x\r\n", ckmn->versionid);
-	SOC_LOGI("global_ctrl: %8x\r\n", ckmn->global_ctrl.v);
-	SOC_LOGI("rc32k_count: %8x\r\n", ckmn->rc32k_count.v);
-	SOC_LOGI("rc32k_ctrl: %8x\r\n", ckmn->rc32k_ctrl.v);
-	SOC_LOGI("rc26m_count: %8x\r\n", ckmn->rc26m_count.v);
-	SOC_LOGI("corr_cfg: %8x\r\n", ckmn->corr_cfg.v);
-	SOC_LOGI("intr: %8x\r\n", ckmn->intr.v);
+	SOC_LOGD("device_id: %8x\r\n", ckmn->deviceid);
+	SOC_LOGD("versionid: %8x\r\n", ckmn->versionid);
+	SOC_LOGD("global_ctrl: %8x\r\n", ckmn->global_ctrl.v);
+	SOC_LOGD("rc32k_count: %8x\r\n", ckmn->rc32k_count.v);
+	SOC_LOGD("rc32k_ctrl: %8x\r\n", ckmn->rc32k_ctrl.v);
+	SOC_LOGD("rc26m_count: %8x\r\n", ckmn->rc26m_count.v);
+	SOC_LOGD("corr_cfg: %8x\r\n", ckmn->corr_cfg.v);
+	SOC_LOGD("intr: %8x\r\n", ckmn->intr.v);
 }
 #endif

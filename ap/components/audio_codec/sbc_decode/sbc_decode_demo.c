@@ -47,7 +47,7 @@ static beken_semaphore_t sbc_play_sem = NULL;
 
 static void cli_sbc_decoder_help(void)
 {
-	LOGI("sbc_decoder_test {start|stop} {xxx.sbc}\n");
+	LOGD("sbc_decoder_test {start|stop} {xxx.sbc}\n");
 }
 
 
@@ -163,7 +163,7 @@ static void sbc_play_main(beken_thread_arg_t param_data)
     while (sbc_play_run)
     {
         if (sbc_file_is_empty) {
-            LOGI("sbc file is empty, stop play\n");
+            LOGD("sbc file is empty, stop play\n");
             goto exit;
         }
 
@@ -176,7 +176,7 @@ static void sbc_play_main(beken_thread_arg_t param_data)
 
         if (uiTemp == 0) {
             sbc_file_is_empty = true;
-            LOGI("the %s is empty\n", sbc_file_name);
+            LOGD("the %s is empty\n", sbc_file_name);
         }
 
         ret = bk_sbc_decoder_frame_decode(&g_sbc_decoder, sbc_data_buffer, uiTemp);
@@ -253,7 +253,7 @@ bk_err_t sbc_play_start(char *file_name)
 
     rtos_get_semaphore(&sbc_play_sem, BEKEN_NEVER_TIMEOUT);
 
-    LOGI("init sbc play task complete\n");
+    LOGD("init sbc play task complete\n");
 
     return BK_OK;
 
@@ -294,9 +294,9 @@ void cli_sbc_decoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
 	if (os_strcmp(argv[1], "start") == 0) {
         if (BK_OK != sbc_play_start(argv[2])) {
-            LOGI("start sbc play fail\n");
+            LOGD("start sbc play fail\n");
         } else {
-            LOGI("start sbc play ok\n");
+            LOGD("start sbc play ok\n");
         }
 	}else if (os_strcmp(argv[1], "stop") == 0) {
         sbc_play_stop();

@@ -500,7 +500,12 @@ macro(project project_name)
     target_link_libraries(${project_elf} ${build_components})
 
     set(mapfile "${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.map")
-    target_link_libraries(${project_elf} "-Wl,--cref -Wl,--print-memory-usage,--Map=${mapfile}>app_memory.txt")
+
+    if (CMAKE_HOST_WIN32)
+        target_link_libraries(${project_elf} "-Wl,--cref -Wl,--print-memory-usage,--Map=${mapfile}")
+    else()
+        target_link_libraries(${project_elf} "-Wl,--cref -Wl,--print-memory-usage,--Map=${mapfile}>app_memory.txt")
+    endif()
 
     set_property(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" APPEND PROPERTY
         ADDITIONAL_MAKE_CLEAN_FILES

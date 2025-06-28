@@ -4,9 +4,10 @@
 #define FFT_DEBUG
 
 #ifdef FFT_DEBUG
-#define FFT_PRT      os_printf
-#define FFT_WARN     warning_prf
-#define FFT_FATAL    fatal_prf
+#define TAG "fft"
+#define FFT_PRT(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define FFT_WARN(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define FFT_FATAL(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #else
 #define FFT_PRT      null_prf
 #define FFT_WARN     null_prf

@@ -146,7 +146,7 @@ static uint32_t dsp_atoi(char *src)
 void dsp_wake_up_cb(mailbox_data_t *param)
 {
 	if (param->param0 == MAILBOX_CMD_AUDIO_WIFI_WAKEUP)
-		CLI_LOGI("recv wake up from dsp!!!!\r\n");
+		CLI_LOGD("recv wake up from dsp!!!!\r\n");
 }
 
 void mic_test_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -173,7 +173,7 @@ void usb_mount_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 
 	pfs = os_malloc(sizeof(FATFS));
 	if (NULL == pfs) {
-		CLI_LOGI("f_mount malloc failed!\r\n");
+		CLI_LOGD("f_mount malloc failed!\r\n");
 		return;
 	}
 
@@ -182,10 +182,10 @@ void usb_mount_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	fr = f_mount(pfs, sys_path, 1);
 	if (fr != FR_OK) {
 		mount_flag = 0;
-		CLI_LOGI("usb mount failed:%d\r\n", fr);
+		CLI_LOGD("usb mount failed:%d\r\n", fr);
 	} else {
 		mount_flag = 1;
-		CLI_LOGI("usb mount OK!\r\n");
+		CLI_LOGD("usb mount OK!\r\n");
 	}
 }
 
@@ -198,7 +198,7 @@ void usb_unmount_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	int number = DISK_NUMBER_UDISK;
 
 	if (mount_flag != 1) {
-		CLI_LOGI("usb hasn't initialization!\r\n");
+		CLI_LOGD("usb hasn't initialization!\r\n");
 		return;
 	}
 
@@ -206,7 +206,7 @@ void usb_unmount_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	sprintf(sys_path, "%d:", number);
 	fr = f_mount(NULL, sys_path, 1);
 	if (fr != FR_OK) {
-		CLI_LOGI("unmount %s fail.\r\n", sys_path);
+		CLI_LOGD("unmount %s fail.\r\n", sys_path);
 		return;
 	}
 
@@ -216,7 +216,7 @@ void usb_unmount_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	}
 
 	mount_flag = 0;
-	CLI_LOGI("usb unmount OK!\r\n");
+	CLI_LOGD("usb unmount OK!\r\n");
 }
 
 static FRESULT usb_scan_files(char *path)
@@ -242,12 +242,12 @@ static FRESULT usb_scan_files(char *path)
 				if (fr != FR_OK) break;
 			} else {
 				/* It is a file. */
-				CLI_LOGI("%s/%s\r\n", path, fno.fname);
+				CLI_LOGD("%s/%s\r\n", path, fno.fname);
 			}
 		}
 		f_closedir(&dir);
 	} else
-		CLI_LOGI("f_opendir failed\r\n");
+		CLI_LOGD("f_opendir failed\r\n");
 
 	return fr;
 }
@@ -259,7 +259,7 @@ void usb_ls_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **a
 	int number = DISK_NUMBER_UDISK;
 
 	if (mount_flag != 1) {
-		CLI_LOGI("usb hasn't initialization!\r\n");
+		CLI_LOGD("usb hasn't initialization!\r\n");
 		return;
 	}
 
@@ -267,7 +267,7 @@ void usb_ls_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **a
 	sprintf(sys_path, "%d:", number);
 	fr = usb_scan_files(sys_path);
 	if (fr != FR_OK)
-		CLI_LOGI("scan_files failed!\r\n");
+		CLI_LOGD("scan_files failed!\r\n");
 }
 
 void pcm_test_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -280,7 +280,7 @@ void pcm_test_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	mailbox_data_t mailbox;
 
 	if (argc < 2) {
-		CLI_LOGI("pcm_test <8000|16000|44100|48000>\r\n");
+		CLI_LOGD("pcm_test <8000|16000|44100|48000>\r\n");
 		return;
 	}
 
@@ -303,7 +303,7 @@ void pcm_test_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			aud_ptr = (uint32_t *)PCM_48000;
 			aud_len = sizeof(PCM_48000) / sizeof(PCM_48000[0]);
 		} else
-			CLI_LOGI("rate error: %d.\r\n", rate);
+			CLI_LOGD("rate error: %d.\r\n", rate);
 
 		sddev_control(DD_DEV_TYPE_SCTRL, CMD_SCTRL_AUDIO_PLL, &rate);
 
@@ -331,12 +331,12 @@ void record2dac_cb(mailbox_data_t *param)
 	switch (param->param0) {
 	case MAILBOX_CMD_AUDIO_ADC_PCM_READ:
 		if (NULL == (uint8_t *)param->param1) {
-			CLI_LOGI("%s:%d param1 is invalid\r\n", __FUNCTION__, __LINE__);
+			CLI_LOGD("%s:%d param1 is invalid\r\n", __FUNCTION__, __LINE__);
 			break;
 		}
 		node = (dma_buffer_node *)co_list_pop_front(&g_record_context.free_list);
 		if (NULL == node) {
-			CLI_LOGI("free_list is empty\r\n");
+			CLI_LOGD("free_list is empty\r\n");
 			break;
 		}
 
@@ -349,12 +349,12 @@ void record2dac_cb(mailbox_data_t *param)
 
 	case MAILBOX_CMD_AUDIO_DAC_PCM_WRITE_DONE:
 		if (NULL == (uint8_t *)param->param1) {
-			CLI_LOGI("%s:%d param1 is invalid\r\n", __FUNCTION__, __LINE__);
+			CLI_LOGD("%s:%d param1 is invalid\r\n", __FUNCTION__, __LINE__);
 			break;
 		}
 		node = (dma_buffer_node *)co_list_pick(&g_record_context.using_list);
 		if (NULL == node) {
-			CLI_LOGI("using_list is empty\r\n");
+			CLI_LOGD("using_list is empty\r\n");
 			break;
 		}
 
@@ -366,7 +366,7 @@ void record2dac_cb(mailbox_data_t *param)
 		}
 
 		if (node == NULL)
-			CLI_LOGI("can't find 0x%x in dac_list\r\n", param->param1);
+			CLI_LOGD("can't find 0x%x in dac_list\r\n", param->param1);
 		else {
 			co_list_push_back(&g_record_context.free_list, (struct co_list_hdr *)node);
 			bk_mailbox_set_param(&mailbox, MAILBOX_CMD_AUDIO_ADC_PCM_READ_DONE, param->param1, param->param2, 0);
@@ -375,7 +375,7 @@ void record2dac_cb(mailbox_data_t *param)
 		break;
 
 	default:
-		CLI_LOGI("%s:%d cmd=0x%x\r\n", __FUNCTION__, __LINE__, param->param0);
+		CLI_LOGD("%s:%d cmd=0x%x\r\n", __FUNCTION__, __LINE__, param->param0);
 		break;
 	}
 }
@@ -386,14 +386,14 @@ void record2dac_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	mailbox_data_t mailbox;
 
 	if (argc < 2) {
-		CLI_LOGI("record2dac <start> <adcx|adc1|adc2>\r\n");
-		CLI_LOGI("record2dac <stop>\r\n");
+		CLI_LOGD("record2dac <start> <adcx|adc1|adc2>\r\n");
+		CLI_LOGD("record2dac <stop>\r\n");
 		return;
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
 		if (argc < 3) {
-			CLI_LOGI("record2dac <start> <adcx|adc1|adc2>\r\n");
+			CLI_LOGD("record2dac <start> <adcx|adc1|adc2>\r\n");
 			return;
 		}
 		co_list_init(&g_record_context.using_list);
@@ -429,7 +429,7 @@ void record2dac_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		bk_mailbox_send(&mailbox, MAILBOX_CPU0, MAILBOX_DSP, NULL);
 		bk_mailbox_recv_callback_unregister(MAILBOX_CPU0, MAILBOX_DSP);
 	} else
-		CLI_LOGI("NOT support command %s.\r\n", argv[1]);
+		CLI_LOGD("NOT support command %s.\r\n", argv[1]);
 }
 
 static void usb_record_thread_main(void *arg)
@@ -443,7 +443,7 @@ static void usb_record_thread_main(void *arg)
 	while (record_flag) {
 		ret = rtos_get_semaphore(&usb_record_sem, BEKEN_WAIT_FOREVER);
 		if (ret) {
-			CLI_LOGI("get usb record semaphore fail.\r\n");
+			CLI_LOGD("get usb record semaphore fail.\r\n");
 			break;
 		}
 
@@ -454,9 +454,9 @@ static void usb_record_thread_main(void *arg)
 				co_list_extract(&g_record_context.using_list, (struct co_list_hdr *)node);
 				fr = f_write(&record_file, node->buffer, node->size, &bw);
 				if (fr != FR_OK)
-					CLI_LOGI("write %x to usb fail.\r\n", (uint32_t)node->buffer);
+					CLI_LOGD("write %x to usb fail.\r\n", (uint32_t)node->buffer);
 				if (node->size != bw)
-					CLI_LOGI("write %x to usb bytes %d/%d.\r\n", (uint32_t)node->buffer, bw, node->size);
+					CLI_LOGD("write %x to usb bytes %d/%d.\r\n", (uint32_t)node->buffer, bw, node->size);
 				co_list_push_back(&g_record_context.free_list, (struct co_list_hdr *)node);
 				bk_mailbox_set_param(&mailbox, MAILBOX_CMD_AUDIO_ADC_PCM_READ_DONE, ((uint32_t)node->buffer) - W_DSP_DMEM_64KB_BASE_ADDR, node->size, 0);
 				bk_mailbox_send(&mailbox, MAILBOX_CPU0, MAILBOX_DSP, NULL);
@@ -477,13 +477,13 @@ static void usb_record_cb_hdl(mailbox_data_t *param)
 	switch (param->param0) {
 	case MAILBOX_CMD_AUDIO_ADC_PCM_READ:
 		if ((uint8_t *)param->param1 == NULL) {
-			CLI_LOGI("%s:%d param1 is invalid!\r\n", __FUNCTION__, __LINE__);
+			CLI_LOGD("%s:%d param1 is invalid!\r\n", __FUNCTION__, __LINE__);
 			break;
 		}
 
 		node = (dma_buffer_node *)co_list_pop_front(&g_record_context.free_list);
 		if (node == NULL) {
-			CLI_LOGI("free_list is empty!\r\n");
+			CLI_LOGD("free_list is empty!\r\n");
 			break;
 		}
 
@@ -492,10 +492,10 @@ static void usb_record_cb_hdl(mailbox_data_t *param)
 		co_list_push_back(&g_record_context.using_list, (struct co_list_hdr *)node);
 		ret = rtos_set_semaphore(&usb_record_sem);
 		if (ret)
-			CLI_LOGI("set usb record semaphore fail.\r\n");
+			CLI_LOGD("set usb record semaphore fail.\r\n");
 		break;
 	default:
-		CLI_LOGI("%s:%d cmd=0x%x!\r\n", __FUNCTION__, __LINE__, param->param0);
+		CLI_LOGD("%s:%d cmd=0x%x!\r\n", __FUNCTION__, __LINE__, param->param0);
 		break;
 	}
 }
@@ -510,19 +510,19 @@ void record2usb_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	int number = DISK_NUMBER_UDISK;
 
 	if (argc < 2) {
-		CLI_LOGI("record2usb <start> <adcx|adc1|adc2> [file name]\r\n");
-		CLI_LOGI("record2usb <stop>\r\n");
+		CLI_LOGD("record2usb <start> <adcx|adc1|adc2> [file name]\r\n");
+		CLI_LOGD("record2usb <stop>\r\n");
 		return;
 	}
 
 	if (mount_flag != 1) {
-		CLI_LOGI("usb hasn't initialization!\r\n");
+		CLI_LOGD("usb hasn't initialization!\r\n");
 		return;
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
 		if (argc < 3) {
-			CLI_LOGI("record2usb <start> <adcx|adc1|adc2> [file name]\r\n");
+			CLI_LOGD("record2usb <start> <adcx|adc1|adc2> [file name]\r\n");
 			return;
 		}
 
@@ -539,7 +539,7 @@ void record2usb_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			sprintf(file_name, "%d:/record.pcm", number);
 		fr = f_open(&record_file, file_name, FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
 		if (fr != FR_OK) {
-			CLI_LOGI("open %s fail.\r\n", file_name);
+			CLI_LOGD("open %s fail.\r\n", file_name);
 			return;
 		}
 
@@ -555,7 +555,7 @@ void record2usb_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		/*create thread to write usb*/
 		ret = rtos_init_semaphore(&usb_record_sem, 10);
 		if (ret) {
-			CLI_LOGI("create usb record semaphore fail.\r\n");
+			CLI_LOGD("create usb record semaphore fail.\r\n");
 			return;
 		}
 		record_flag = 1;
@@ -567,7 +567,7 @@ void record2usb_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 								 2048,
 								 (beken_thread_arg_t)0);
 		if (ret) {
-			CLI_LOGI("create usb record thread fail.\r\n");
+			CLI_LOGD("create usb record thread fail.\r\n");
 			return;
 		}
 
@@ -598,20 +598,20 @@ void record2usb_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		record_flag = 0;
 		ret = rtos_set_semaphore(&usb_record_sem);
 		if (ret) {
-			CLI_LOGI("set usb record semaphore fail.\r\n");
+			CLI_LOGD("set usb record semaphore fail.\r\n");
 			return;
 		}
 		while (thread_flag)
 			rtos_delay_milliseconds(2);
 		ret = rtos_deinit_semaphore(&usb_record_sem);
 		if (ret)
-			CLI_LOGI("delete usb record semaphore fail.\r\n");
+			CLI_LOGD("delete usb record semaphore fail.\r\n");
 		bk_mailbox_recv_callback_unregister(MAILBOX_CPU0, MAILBOX_DSP);
 
 		/*close record file*/
 		fr = f_close(&record_file);
 		if (fr != FR_OK)
-			CLI_LOGI("close record file fail.\r\n");
+			CLI_LOGD("close record file fail.\r\n");
 	}
 }
 
@@ -624,7 +624,7 @@ static void usb_play_cb_hdl(mailbox_data_t *param)
 	case MAILBOX_CMD_AUDIO_DAC_PCM_WRITE_DONE:
 		node = (dma_buffer_node *)co_list_pick(&g_record_context.using_list);
 		if (node == NULL) {
-			CLI_LOGI("%s:%d using list is empty!\r\n", __FUNCTION__, __LINE__);
+			CLI_LOGD("%s:%d using list is empty!\r\n", __FUNCTION__, __LINE__);
 			break;
 		}
 
@@ -636,19 +636,19 @@ static void usb_play_cb_hdl(mailbox_data_t *param)
 		}
 
 		if (node == NULL)
-			CLI_LOGI("can not find 0x%x in dac_list!\r\n", param->param1);
+			CLI_LOGD("can not find 0x%x in dac_list!\r\n", param->param1);
 		else
 			co_list_push_back(&g_record_context.free_list, (struct co_list_hdr *)node);
 
 		if (param->param2 == 0) {
 			ret = rtos_set_semaphore(&usb_play_sem);
 			if (ret)
-				CLI_LOGI("set usb play semaphore fail.\r\n");
+				CLI_LOGD("set usb play semaphore fail.\r\n");
 		}
 		break;
 
 	default:
-		CLI_LOGI("%s:%d cmd=0x%x!\r\n", __FUNCTION__, __LINE__, param->param0);
+		CLI_LOGD("%s:%d cmd=0x%x!\r\n", __FUNCTION__, __LINE__, param->param0);
 		break;
 	}
 }
@@ -669,26 +669,26 @@ void usb_play_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	uint32_t chann;
 
 	if (mount_flag != 1) {
-		CLI_LOGI("usb hasn't initialization!\r\n");
+		CLI_LOGD("usb hasn't initialization!\r\n");
 		return;
 	}
 
 	if (argc < 2) {
-		CLI_LOGI("usb_play <mono:1|stereo:2> [filename]\r\n");
+		CLI_LOGD("usb_play <mono:1|stereo:2> [filename]\r\n");
 		return;
 	}
 
 	/*init usb play semaphore*/
 	ret = rtos_init_semaphore(&usb_play_sem, 1);
 	if (ret) {
-		CLI_LOGI("create usb play semaphore fail.\r\n");
+		CLI_LOGD("create usb play semaphore fail.\r\n");
 		return;
 	}
 
 	/*get play mono or stereo*/
 	chann = dsp_atoi(argv[1]);
 	if (chann != 1 && chann != 2) {
-		CLI_LOGI("usb_play <mono:1|stereo:2> [filename]\r\n");
+		CLI_LOGD("usb_play <mono:1|stereo:2> [filename]\r\n");
 		return;
 	}
 
@@ -701,7 +701,7 @@ void usb_play_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 
 	fr = f_open(&record_file, file_name, FA_OPEN_EXISTING | FA_READ);
 	if (fr != FR_OK) {
-		CLI_LOGI("open %s fail.\r\n", file_name);
+		CLI_LOGD("open %s fail.\r\n", file_name);
 		return;
 	}
 
@@ -727,7 +727,7 @@ void usb_play_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		bk_mailbox_set_param(&mailbox, MAILBOX_CMD_AUDIO_DAC_ENABLE, 1, chann, 1);
 		bk_mailbox_send(&mailbox, MAILBOX_CPU0, MAILBOX_DSP, NULL);
 	} else {
-		CLI_LOGI("unknown file type: %s.\r\n", file_name);
+		CLI_LOGD("unknown file type: %s.\r\n", file_name);
 	}
 
 	/*play record file*/
@@ -737,7 +737,7 @@ void usb_play_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			retry_cnt++;
 			if (retry_cnt > 10000) {
 				retry_cnt = 0;
-				CLI_LOGI("get free list fail.\r\n");
+				CLI_LOGD("get free list fail.\r\n");
 			}
 			rtos_delay_milliseconds(2);
 			continue;
@@ -748,7 +748,7 @@ void usb_play_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 
 		fr = f_read(&record_file, node->buffer, DAC_PLAY_NODE_SIZE, &br);
 		if (fr != FR_OK) {
-			CLI_LOGI("read record file fail.\r\n");
+			CLI_LOGD("read record file fail.\r\n");
 			break;
 		}
 
@@ -763,7 +763,7 @@ void usb_play_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	/*wait for play stop*/
 	ret = rtos_get_semaphore(&usb_play_sem, BEKEN_WAIT_FOREVER);
 	if (ret)
-		CLI_LOGI("get usb play semaphore fail.\r\n");
+		CLI_LOGD("get usb play semaphore fail.\r\n");
 
 	/*send play stop to dsp*/
 	bk_mailbox_set_param(&mailbox, MAILBOX_CMD_AUDIO_DAC_ENABLE, 0, 0, 0);
@@ -773,7 +773,7 @@ void usb_play_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	/*close record file*/
 	fr = f_close(&record_file);
 	if (fr != FR_OK)
-		CLI_LOGI("close %s fail.\r\n", file_name);
+		CLI_LOGD("close %s fail.\r\n", file_name);
 }
 
 void line_in_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -797,7 +797,7 @@ void adc_analog_gain_command(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	mailbox_data_t mailbox;
 
 	if (argc < 2) {
-		CLI_LOGI("please input gain.\r\n");
+		CLI_LOGD("please input gain.\r\n");
 		return;
 	}
 	param = dsp_atoi(argv[1]);
@@ -811,7 +811,7 @@ void adc_digital_gain_command(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	mailbox_data_t mailbox;
 
 	if (argc < 2) {
-		CLI_LOGI("please input gain.\r\n");
+		CLI_LOGD("please input gain.\r\n");
 		return;
 	}
 	param = dsp_atoi(argv[1]);
@@ -825,7 +825,7 @@ void adc_sample_rate_command(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	mailbox_data_t mailbox;
 
 	if (argc < 2) {
-		CLI_LOGI("please input sample rate.\r\n");
+		CLI_LOGD("please input sample rate.\r\n");
 		return;
 	}
 	param = dsp_atoi(argv[1]);
@@ -839,7 +839,7 @@ void dac_analog_gain_command(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	uint32_t param;
 
 	if (argc < 2) {
-		CLI_LOGI("please input gain.\r\n");
+		CLI_LOGD("please input gain.\r\n");
 		return;
 	}
 	param = dsp_atoi(argv[1]);
@@ -852,7 +852,7 @@ void dac_digital_gain_command(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	mailbox_data_t mailbox;
 
 	if (argc < 2) {
-		CLI_LOGI("please input gain.\r\n");
+		CLI_LOGD("please input gain.\r\n");
 		return;
 	}
 	param = dsp_atoi(argv[1]);
@@ -866,7 +866,7 @@ void dac_sample_rate_command(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	mailbox_data_t mailbox;
 
 	if (argc < 2) {
-		CLI_LOGI("please input sample rate.\r\n");
+		CLI_LOGD("please input sample rate.\r\n");
 		return;
 	}
 	param = dsp_atoi(argv[1]);
@@ -900,6 +900,6 @@ void bk7271_dsp_cli_init(void)
 	bk_mailbox_recv_callback_register(MAILBOX_DSP, MAILBOX_CPU0, (mailbox_callback_t)dsp_wake_up_cb);
 	ret = cli_register_commands(dsp_clis, sizeof(dsp_clis) / sizeof(struct cli_command));
 	if (ret)
-		CLI_LOGI("register dsp commands fail.\r\n");
+		CLI_LOGD("register dsp commands fail.\r\n");
 }
 #endif

@@ -61,7 +61,7 @@ struct spi_message
 
 static int bk_spi_master_xfer(spi_id_t id, struct spi_message *msg)
 {
-	SPI_LOGD("tx_size:%d,rx_size:%d\r\n", msg->send_len, msg->recv_len);
+	SPI_LOGV("tx_size:%d,rx_size:%d\r\n", msg->send_len, msg->recv_len);
 	uint32_t buf_len = msg->send_len + msg->recv_len;
 
 	uint8_t *send_data = (uint8_t *)os_zalloc(buf_len);
@@ -122,7 +122,7 @@ uint32_t bk_spi_flash_read_id(spi_id_t id)
 
     uid = (uid_buf[0] << 16) | (uid_buf[1] << 8) | (uid_buf[2]);
 
-    SPI_LOGI("spi flash id:%08x\r\n", uid);
+    SPI_LOGD("spi flash id:%08x\r\n", uid);
 
     return uid;
 }
@@ -360,7 +360,7 @@ bk_err_t bk_spi_flash_erase(spi_id_t id, uint32_t base_addr, uint32_t size)
             size = erase_size;
         }
 
-        SPI_LOGD("base_addr:%d,erase_mode:%d,left_size:%d,size:%d\r\n",base_addr,erase_mode,left_size,size);
+        SPI_LOGV("base_addr:%d,erase_mode:%d,left_size:%d,size:%d\r\n",base_addr,erase_mode,left_size,size);
 
         left_size -= size;
         base_addr += size;

@@ -12,7 +12,7 @@
 #define SYS_DRV_DEBUG   0
 
 #if SYS_DRV_DEBUG
-#define SYS_DRV_PRT      os_printf
+#define SYS_DRV_PRT(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #else
 #define SYS_DRV_PRT      os_null_printf
 #endif

@@ -61,7 +61,7 @@ void app_led_send_msg(DEV_STATE new_msg)
 
 		ret = rtos_push_to_queue(&led_msg_que, &msg, BEKEN_NO_WAIT);
 		if (kNoErr != ret)
-			os_printf("app_led_send_msg failed\r\n");
+			BK_LOGD(NULL, "app_led_send_msg failed\r\n");
 	}
 }
 

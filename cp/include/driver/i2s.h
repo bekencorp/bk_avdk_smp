@@ -627,7 +627,7 @@ bk_err_t bk_i2s_chl_deinit(i2s_channel_id_t chl, i2s_txrx_type_t type);
  *     uint8_t *temp_data = (uint8_t *)os_malloc(640);
  *     os_memset(temp_data, 0x00, 640);
  *     size = ring_buffer_write(ch1_tx_rb, temp_data, 640);
- *     os_printf("ring_buffer_write, size: %d \n", size);
+ *     BK_LOGD(NULL,"ring_buffer_write, size: %d \n", size);
  *     os_free(temp_data);
  *     bk_i2s_start();
  *

@@ -295,7 +295,7 @@ bk_err_t bk_yuv_buf_deinit_partial_display(void)
 
 bk_err_t bk_yuv_buf_soft_reset(void)
 {
-	YUV_BUF_LOGD("yuv soft reset \r\n");
+	YUV_BUF_LOGV("yuv soft reset \r\n");
 	YUV_BUF_RETURN_ON_DRIVER_NOT_INIT();
 
 	uint32_t int_level = rtos_enter_critical();
@@ -312,7 +312,7 @@ static void yuv_buf_isr(void)
 	yuv_buf_hal_t *hal = &s_yuv_buf.hal;
 	uint32_t int_status = yuv_buf_hal_get_interrupt_status(hal);
 
-	YUV_BUF_LOGD("[yuv_buf_isr] int_status:%x\r\n", int_status);
+	YUV_BUF_LOGV("[yuv_buf_isr] int_status:%x\r\n", int_status);
 	yuv_buf_hal_clear_interrupt_status(hal, int_status);
 
 	if (yuv_buf_hal_is_vsync_negedge_int_triggered(hal, int_status)) {

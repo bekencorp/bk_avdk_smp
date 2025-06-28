@@ -135,7 +135,7 @@ void deep_low_voltage_test( void )
 {
 	UBaseType_t uxCoreAffinityMask;
 
-    os_printf(" Starting core_affinity.\n");
+    BK_LOGD(NULL," Starting core_affinity.\n");
 	BK_ASSERT(configUSE_CORE_AFFINITY);
 	BK_ASSERT(configNUM_CORES > 1);
 
@@ -176,17 +176,17 @@ static void prvDlvTask( void *pvParameters )
 
 	for( ;; )
 	{
-		os_printf("dlv_trigger_backup_context[%d]\r\n", portGET_CORE_ID());
+		BK_LOGD(NULL,"dlv_trigger_backup_context[%d]\r\n", portGET_CORE_ID());
 		dlv_trigger_backup_context();
-		os_printf("dlv_stack_frame_save_and_dlv[%d]\r\n", portGET_CORE_ID());
+		BK_LOGD(NULL,"dlv_stack_frame_save_and_dlv[%d]\r\n", portGET_CORE_ID());
 		dlv_stack_frame_save_and_dlv();
 
 		while(g_debug_scene_flag)
 		{
-			os_printf("prvDlvTask at the core[%d]\r\n", portGET_CORE_ID());
+			BK_LOGD(NULL,"prvDlvTask at the core[%d]\r\n", portGET_CORE_ID());
 		}
 
-		os_printf("prvDlvTask at the core[%d]\r\n", portGET_CORE_ID());
+		BK_LOGD(NULL,"prvDlvTask at the core[%d]\r\n", portGET_CORE_ID());
 	}
 }
 /*-----------------------------------------------------------*/
@@ -205,7 +205,7 @@ const unsigned long ulExpectedValue = 100UL;
 		indefinitely provided INCLUDE_vTaskSuspend is set to 1 in
 		FreeRTOSConfig.h. */
 		xQueueReceive( xQueue, &ulReceivedValue, portMAX_DELAY );
-		os_printf("xQueueReceive at the core[%d]\r\n", portGET_CORE_ID());
+		BK_LOGD(NULL,"xQueueReceive at the core[%d]\r\n", portGET_CORE_ID());
 
 		/*  To get here something must have been received from the queue, but
 		is it the expected value?  If it is, toggle the LED. */

@@ -28,6 +28,7 @@ extern "C" {
 #define SLCD_LOGW(...) BK_LOGW(SLCD_TAG, ##__VA_ARGS__)
 #define SLCD_LOGE(...) BK_LOGE(SLCD_TAG, ##__VA_ARGS__)
 #define SLCD_LOGD(...) BK_LOGD(SLCD_TAG, ##__VA_ARGS__)
+#define SLCD_LOGV(...) BK_LOGV(SLCD_TAG, ##__VA_ARGS__)
 
 
 #define SLCD_COM_NUM    4

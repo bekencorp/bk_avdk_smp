@@ -43,7 +43,7 @@ extern u64 riscv_get_mtimer(void);
 
 static void cli_psram_help(void)
 {
-	CLI_LOGI("psram_test {start|stop}\n");
+	CLI_LOGD("psram_test {start|stop}\n");
 }
 
 #define PSRAM_TEST_LEN               (1024 * 4)
@@ -124,7 +124,7 @@ static void psram_cpu_write_test(void)
 
 	uint32_t test_len = 1024 * 1024 * 8;
 
-	CLI_LOGI("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
+	CLI_LOGD("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
 
 	timer0 = bk_get_current_timer();
 
@@ -147,11 +147,11 @@ static void psram_cpu_write_test(void)
 	{
 		total_time = bk_get_spend_time_us(timer0, timer1);
 		rate = ((uint64_t)test_len) * 1000000 / total_time;
-		CLI_LOGI("finish write, use time: %ld ms, write_rate:%ld%ld byte/s\r\n", (uint32_t)(total_time / 1000),
+		CLI_LOGD("finish write, use time: %ld ms, write_rate:%ld%ld byte/s\r\n", (uint32_t)(total_time / 1000),
 			(uint32_t)(rate >> 32), (uint32_t)(rate & 0xFFFFFFFF));
 	}
 
-	CLI_LOGI("begin read %08x-%08x test\r\n", base_addr, base_addr + test_len);
+	CLI_LOGD("begin read %08x-%08x test\r\n", base_addr, base_addr + test_len);
 
 	timer0 = bk_get_current_timer();
 
@@ -163,11 +163,11 @@ static void psram_cpu_write_test(void)
 	{
 		total_time = bk_get_spend_time_us(timer0, timer1);
 		rate = ((uint64_t)test_len) * 1000000 / total_time;
-		CLI_LOGI("finish read, use time: %ld ms, read_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
+		CLI_LOGD("finish read, use time: %ld ms, read_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
 			(uint32_t)(rate >> 32), (uint32_t)(rate & 0xFFFFFFFF));
 	}
 
-	CLI_LOGI("%s, %d\r\n", __func__, value);
+	CLI_LOGD("%s, %d\r\n", __func__, value);
 
 #if TEST_PSRAM_ACCURACY
 	for (i = 0; i < test_len / 4; i++)
@@ -175,12 +175,12 @@ static void psram_cpu_write_test(void)
 		value = get_addr_data(base_addr + i * 0x4);
 		if (value != (psram_debug->data[i & 0x1FFF]))
 		{
-			CLI_LOGI("==========%08x %08x %08x=======\n", value, psram_debug->data[i & 0x1FFF], value^psram_debug->data[i & 0x1FFF]);
+			CLI_LOGD("==========%08x %08x %08x=======\n", value, psram_debug->data[i & 0x1FFF], value^psram_debug->data[i & 0x1FFF]);
 			error_num++;
 		}
 	}
 
-	CLI_LOGI("finish compare, error_num: %ld, corr_rate: %ld.\r\n", error_num, ((test_len / 4 - error_num) * 100 / (test_len / 4)));
+	CLI_LOGD("finish compare, error_num: %ld, corr_rate: %ld.\r\n", error_num, ((test_len / 4 - error_num) * 100 / (test_len / 4)));
 #endif
 
 	rtos_delay_milliseconds(psram_debug->delay_time);
@@ -247,7 +247,7 @@ static void psram_dma_write_test(void)
 
 	uint32_t test_len = 1024 * 1024 * 8;
 
-	CLI_LOGI("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
+	CLI_LOGD("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
 
 	timer0 = bk_get_current_timer();
 
@@ -261,10 +261,10 @@ static void psram_dma_write_test(void)
 	{
 		total_time = bk_get_spend_time_us(timer0, timer1);
 		rate = (test_len) * 8 / total_time;
-		CLI_LOGI("finish write, use time: %ld ms, write_rate:%d Mbps\r\n", (uint32_t)(total_time / 1000), rate);
+		CLI_LOGD("finish write, use time: %ld ms, write_rate:%d Mbps\r\n", (uint32_t)(total_time / 1000), rate);
 	}
 
-	CLI_LOGI("begin read %08x-%08x test\r\n", base_addr, base_addr + test_len);
+	CLI_LOGD("begin read %08x-%08x test\r\n", base_addr, base_addr + test_len);
 
 	timer0 = bk_get_current_timer();
 
@@ -276,7 +276,7 @@ static void psram_dma_write_test(void)
 	{
 		total_time = bk_get_spend_time_us(timer0, timer1);
 		rate = ((uint64_t)test_len) * 8/ total_time;
-		CLI_LOGI("finish read, use time: %ld ms, read_rate:%d Mbps\r\n", (uint32_t)(total_time / 1000), rate);
+		CLI_LOGD("finish read, use time: %ld ms, read_rate:%d Mbps\r\n", (uint32_t)(total_time / 1000), rate);
 	}
 
 	for (i = 0; i < test_len / psram_debug->length; i++)
@@ -287,13 +287,13 @@ static void psram_dma_write_test(void)
 
 			if (value != psram_debug->data[k])
 			{
-				CLI_LOGI("==========%08x %08x %08x=======\n", value, psram_debug->data[k], value^psram_debug->data[k]);
+				CLI_LOGD("==========%08x %08x %08x=======\n", value, psram_debug->data[k], value^psram_debug->data[k]);
 				error_num++;
 			}
 		}
 	}
 
-	CLI_LOGI("finish compare, error_num: %ld, corr_rate: %ld.\r\n", error_num, ((test_len / 4 - error_num) * 100 / (test_len / 4)));
+	CLI_LOGD("finish compare, error_num: %ld, corr_rate: %ld.\r\n", error_num, ((test_len / 4 - error_num) * 100 / (test_len / 4)));
 
 	rtos_delay_milliseconds(psram_debug->delay_time);
 
@@ -319,7 +319,7 @@ static void psram_write_continue_test(void)
 
 	uint32_t test_len = 1024 * 1024 * 8;
 
-	CLI_LOGI("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
+	CLI_LOGD("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
 	timer0 = bk_get_current_timer();
 	for (i = 0; i < test_len; i += psram_debug->length)
 	{
@@ -331,12 +331,12 @@ static void psram_write_continue_test(void)
 	{
 		total_time = bk_get_spend_time_us(timer0, timer1);
 		rate = ((uint64_t)test_len) * 1000000 / total_time;
-		CLI_LOGI("finish write, use time: %ld ms, write_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
+		CLI_LOGD("finish write, use time: %ld ms, write_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
 			(uint32_t)(rate >> 32), (uint32_t)(rate & 0xFFFFFFFF));
 	}
 
 
-	CLI_LOGI("begin read %08x-%08x test\r\n", base_addr, base_addr + test_len);
+	CLI_LOGD("begin read %08x-%08x test\r\n", base_addr, base_addr + test_len);
 	timer0 = bk_get_current_timer();
 	for (i = 0; i < test_len / 4; i++)
 		read_data((base_addr + i * 0x4), value);
@@ -346,7 +346,7 @@ static void psram_write_continue_test(void)
 	{
 		total_time = bk_get_spend_time_us(timer0, timer1);
 		rate = ((uint64_t)test_len) * 1000000 / total_time;
-		CLI_LOGI("finish read, use time: %ld ms, read_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
+		CLI_LOGD("finish read, use time: %ld ms, read_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
 			(uint32_t)(rate >> 32), (uint32_t)(rate & 0xFFFFFFFF));
 	}
 
@@ -363,7 +363,7 @@ static void psram_write_continue_test(void)
 		}
 	}
 
-	CLI_LOGI("finish compare, error_num: %ld, corr_rate: %ld.\r\n", error_num, (test_len / 4 - error_num) * 100 / (test_len / 4));
+	CLI_LOGD("finish compare, error_num: %ld, corr_rate: %ld.\r\n", error_num, (test_len / 4 - error_num) * 100 / (test_len / 4));
 
 	rtos_delay_milliseconds(psram_debug->delay_time);
 
@@ -384,7 +384,7 @@ static void psram_test_unit(void)
 	uint32_t test_len = end_address - start_address;
 
 	uint32_t value = 0;
-	CLI_LOGI("begin write %08X-%08X, count: %d\n", start_address, end_address, test_len / 4);
+	CLI_LOGD("begin write %08X-%08X, count: %d\n", start_address, end_address, test_len / 4);
 
 	timer0 = bk_get_current_timer();
 
@@ -396,13 +396,13 @@ static void psram_test_unit(void)
 	{
 		total_time = bk_get_spend_time_us(timer0, timer1);
 		rate = ((uint64_t)test_len) * 1000000 / total_time;
-		CLI_LOGI("finish write, use time: %ld ms, write_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
+		CLI_LOGD("finish write, use time: %ld ms, write_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
 			(uint32_t)(rate >> 32), (uint32_t)(rate & 0xFFFFFFFF));
 	}
 
 
 
-	CLI_LOGI("begin write %08X-%08X, count: %d\n", start_address, end_address, test_len);
+	CLI_LOGD("begin write %08X-%08X, count: %d\n", start_address, end_address, test_len);
 	timer0 = bk_get_current_timer();
 	for (i = 0; i < test_len / 4; i++)
 		read_data((start_address + i * 0x4), value);
@@ -412,13 +412,13 @@ static void psram_test_unit(void)
 	{
 		total_time = bk_get_spend_time_us(timer0, timer1);
 		rate = ((uint64_t)test_len) * 1000000 / total_time;
-		CLI_LOGI("finish read, use time: %ld ms, read_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
+		CLI_LOGD("finish read, use time: %ld ms, read_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
 			(uint32_t)(rate >> 32), (uint32_t)(rate & 0xFFFFFFFF));
 	}
 
 
 
-	CLI_LOGI("begin write %08X-%08X, count: %d\n", start_address, end_address, test_len);
+	CLI_LOGD("begin write %08X-%08X, count: %d\n", start_address, end_address, test_len);
 
 	for (i = 0; i < test_len / 4; i++)
 	{
@@ -427,7 +427,7 @@ static void psram_test_unit(void)
 			error_num++;
 	}
 
-	CLI_LOGI("finish compare, error_num: %ld, corr_rate: %ld\n", error_num, ((test_len / 4 - error_num) * 100 / (test_len / 4 ));
+	CLI_LOGD("finish compare, error_num: %ld, corr_rate: %ld\n", error_num, ((test_len / 4 - error_num) * 100 / (test_len / 4 ));
 
 	rtos_delay_milliseconds(psram_debug->delay_time);
 #endif
@@ -473,7 +473,7 @@ static void psram_calibrate_test(void)
 			REG_WRITE(0x46080000 + (5 << 2), v);
 			err_cnt = psram_calibrate_read_write_test(0x60000000, 10240);
 			if (err_cnt) {
-				os_printf("%d %d %d %d %d\r\n", cur_temperature, (i & 7), (i >> 6) & 3, (i >> 8) & 3, err_cnt);
+				BK_LOGD(NULL, "%d %d %d %d %d\r\n", cur_temperature, (i & 7), (i >> 6) & 3, (i >> 8) & 3, err_cnt);
 			}
 		}
 	}
@@ -498,7 +498,7 @@ static void psram_test_main(void)
 		}
 	}
 
-	CLI_LOGI("psram_test task exit\n");
+	CLI_LOGD("psram_test task exit\n");
 
 	if (psram_debug)
 	{
@@ -632,7 +632,7 @@ static void cli_psram_cmd_handle(char *pcWriteBuffer, int xWriteBufferLen, int a
 			return;
 		}
 
-		CLI_LOGI("psram test start success!\r\n");
+		CLI_LOGD("psram test start success!\r\n");
 		msg = CLI_CMD_RSP_SUCCEED;
 	}
 	else if (os_strcmp(argv[1], "stop") == 0)
@@ -648,7 +648,7 @@ static void cli_psram_cmd_handle(char *pcWriteBuffer, int xWriteBufferLen, int a
 		}
 
 		bk_psram_deinit();
-		CLI_LOGI("psram test stop success!\r\n");
+		CLI_LOGD("psram test stop success!\r\n");
 		msg = CLI_CMD_RSP_SUCCEED;
 	}
 	else if (os_strcmp(argv[1], "strcat") == 0)
@@ -656,7 +656,7 @@ static void cli_psram_cmd_handle(char *pcWriteBuffer, int xWriteBufferLen, int a
 		uint8_t *data = psram_malloc(20);
 		if (data == NULL)
 		{
-			CLI_LOGI("psram malloc error!\r\n");
+			CLI_LOGD("psram malloc error!\r\n");
 			msg = CLI_CMD_RSP_ERROR;
 			os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 			return;
@@ -686,7 +686,7 @@ static uint32_t test_frame_strip(uint8_t *src, uint32_t size)
 	sram_tmp[0] += flag;
 
 	{
-		os_printf("1====>>>> %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %p %d\n",
+		BK_LOGD(NULL, "1====>>>> %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %p %d\n",
 			src[size - 16], src[size - 15], src[size - 14], src[size - 13],
 			src[size - 12], src[size - 11], src[size - 10], src[size - 9],
 			src[size - 8], src[size - 7], src[size - 6], src[size - 5],
@@ -697,7 +697,7 @@ static uint32_t test_frame_strip(uint8_t *src, uint32_t size)
 //		}
 		bk_psram_word_memcpy(src, sram_tmp, 16);
 
-		os_printf("2===>>> %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %p %d\n",
+		BK_LOGD(NULL, "2===>>> %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %p %d\n",
 			src[size - 16], src[size - 15], src[size - 14], src[size - 13],
 			src[size - 12], src[size - 11], src[size - 10], src[size - 9],
 			src[size - 8], src[size - 7], src[size - 6], src[size - 5],
@@ -707,7 +707,7 @@ static uint32_t test_frame_strip(uint8_t *src, uint32_t size)
 		flush_dcache(src, 16);
 #endif
 
-		os_printf("3==>> %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %p %d\n",
+		BK_LOGD(NULL, "3==>> %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %p %d\n",
 			src[size - 16], src[size - 15], src[size - 14], src[size - 13],
 			src[size - 12], src[size - 11], src[size - 10], src[size - 9],
 			src[size - 8], src[size - 7], src[size - 6], src[size - 5],
@@ -715,7 +715,7 @@ static uint32_t test_frame_strip(uint8_t *src, uint32_t size)
 
 		bk_psram_word_memcpy(src, sram_tmp, 16);
 
-		os_printf("4=> %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %p %d\n",
+		BK_LOGD(NULL, "4=> %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %p %d\n",
 			src[size - 16], src[size - 15], src[size - 14], src[size - 13],
 			src[size - 12], src[size - 11], src[size - 10], src[size - 9],
 			src[size - 8], src[size - 7], src[size - 6], src[size - 5],
@@ -730,16 +730,16 @@ void cli_test_psram_cache_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 {
 #if CONFIG_DEBUG_VERSION
 	uint32_t address, size;
-	os_printf("cli_test_psram_cache_cmd\r\n");
+	BK_LOGD(NULL, "cli_test_psram_cache_cmd\r\n");
 	if (argc >= 3)
 	{
 		address = strtoll(argv[1], NULL, 16);
 		size = strtoll(argv[2], NULL, 16);
-		os_printf("test psram cache, address: 0x%08X size: 0x%08X\r\n", address, 16);
+		BK_LOGD(NULL, "test psram cache, address: 0x%08X size: 0x%08X\r\n", address, 16);
 
 		test_frame_strip((uint8_t *)address, size);
 	} else {
-		os_printf("psram_cache <addr> <size>\r\n");
+		BK_LOGD(NULL, "psram_cache <addr> <size>\r\n");
 	}
 #endif
 }
@@ -780,9 +780,9 @@ static void cli_psram_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 	bk_psram_memread(test_addr_sec, psram_rx_buffer, BUFFER_SIZE);
 
 	for (i = 0; i < BUFFER_SIZE; i++) {
-		bk_printf("%02x ", psram_rx_buffer[i]);
+		BK_LOGD(NULL, "%02x ", psram_rx_buffer[i]);
 	}
-	bk_printf("\r\n");
+	BK_LOGD(NULL, "\r\n");
 	msg = CLI_CMD_RSP_SUCCEED;
 	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 }
@@ -879,7 +879,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 
 				if (value != (i % 256))
 				{
-					CLI_LOGI("index:%d, value:%d\r\n", i, value);
+					CLI_LOGD("index:%d, value:%d\r\n", i, value);
 					break;
 				}
 			}
@@ -952,7 +952,7 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 
 		for (i = 0; i < length; i ++)
 		{
-			CLI_LOGI("0x%08x\r\n", *((volatile uint32_t *)(addr + i * 4)));
+			CLI_LOGD("0x%08x\r\n", *((volatile uint32_t *)(addr + i * 4)));
 		}
 
 		msg = CLI_CMD_RSP_SUCCEED;
@@ -984,12 +984,12 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 			{
 				if ((i % 32) == 0)
 				{
-					CLI_LOGI("\r\n");
+					CLI_LOGD("\r\n");
 				}
 
-				CLI_LOGI("%02x ", *(src + i));
+				CLI_LOGD("%02x ", *(src + i));
 			}
-			CLI_LOGI("\r\n");
+			CLI_LOGD("\r\n");
 			msg = CLI_CMD_RSP_SUCCEED;
 		}
 	}
@@ -1078,7 +1078,7 @@ static void psram_task_main(void)
 {
 	while (1) {
 		rtos_delay_milliseconds(3000);
-		CLI_LOGI("psram_task_main is running.\r\n");
+		CLI_LOGD("psram_task_main is running.\r\n");
 	}
 
 	psram_task_hdl = NULL;

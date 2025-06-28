@@ -55,7 +55,7 @@ void rtos_user_app_preinit(void)
 {
     int ret = rtos_init_semaphore(&user_app_sema, 1);
 	if(ret < 0){
-		os_printf("init queue failed");
+		BK_LOGD(NULL,"init queue failed");
 	}
 }
 
@@ -65,7 +65,7 @@ void rtos_user_app_launch_over(void)
 
 	ret = rtos_set_semaphore(&user_app_sema);
 	if(ret < 0){
-		os_printf("set sema failed");
+		BK_LOGD(NULL,"set sema failed");
 	}
 }
 
@@ -75,7 +75,7 @@ void rtos_user_app_waiting_for_launch(void)
 
 	ret = rtos_get_semaphore(&user_app_sema, BEKEN_WAIT_FOREVER);
 	if(ret < 0){
-		os_printf("get sema failed");
+		BK_LOGD(NULL,"get sema failed");
 	}
 
 #if CONFIG_SAVE_BOOT_TIME_POINT
@@ -108,7 +108,7 @@ void stop_cpu1_register_notification(stop_cpu1_notification notification, void *
 	}
 
 	if(i >= MAX_STOP_CPU1_NOTIFICATION_CNT)
-		os_printf("Err:%s:%p", __func__, notification);
+		BK_LOGD(NULL,"Err:%s:%p", __func__, notification);
 }
 
 void stop_cpu1_unregister_notification(stop_cpu1_notification notification)
@@ -125,7 +125,7 @@ void stop_cpu1_unregister_notification(stop_cpu1_notification notification)
 	}
 
 	if(i >= MAX_STOP_CPU1_NOTIFICATION_CNT)
-		os_printf("Err:%s:%p", __func__, notification);
+		BK_LOGD(NULL,"Err:%s:%p", __func__, notification);
 }
 
 void stop_cpu1_handle_notifications()		//CPU1 handle stop notications
@@ -164,7 +164,7 @@ static uint32 get_partition_addr(uint32 cpu_id)
 	}
 	else
 	{
-		os_printf("slave core start addr not valid.\r\n");
+		BK_LOGD(NULL,"slave core start addr not valid.\r\n");
 	}
 
 	return addr;
@@ -172,7 +172,7 @@ static uint32 get_partition_addr(uint32 cpu_id)
 
 void reset_cpu1_core(uint32 offset, uint32_t start_flag)
 {
-	os_printf("reset_cpu1_core at: %08x, start=%d\r\n", offset, start_flag);
+	BK_LOGD(NULL,"reset_cpu1_core at: %08x, start=%d\r\n", offset, start_flag);
 	
 	sys_drv_set_cpu1_pwr_dw(0);
 	sys_drv_set_cpu1_rxevt_sel(1); // for cpu0 + smp(cpu1,cpu2)
@@ -202,7 +202,7 @@ void stop_cpu1_core(void)
 
 void reset_cpu2_core(uint32 offset, uint32_t start_flag)
 {
-	os_printf("reset_cpu2_core at: %08x, start=%d\r\n", offset, start_flag);
+	BK_LOGD(NULL,"reset_cpu2_core at: %08x, start=%d\r\n", offset, start_flag);
 
 	sys_drv_set_cpu2_pwr_dw(0);
 	sys_drv_set_cpu2_rxevt_sel(1); // for cpu0 + smp(cpu1,cpu2)
@@ -294,7 +294,7 @@ void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {
 	} else if (cpu_id == 2) {
 		(void)sys_drv_set_jtag_mode(2);
 	} else {
-		os_printf("Unsupported cpu id(%d).\r\n", cpu_id);
+		BK_LOGD(NULL,"Unsupported cpu id(%d).\r\n", cpu_id);
 		return;
 	}
 
@@ -313,7 +313,7 @@ void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {
 	} else if (group_id == 1) {
 		gpio_jtag_sel(1);
 	} else {
-		os_printf("Unsupported group id(%d).\r\n", group_id);
+		BK_LOGD(NULL,"Unsupported group id(%d).\r\n", group_id);
 		return;
 	}
 #endif
@@ -323,7 +323,7 @@ static void user_app_thread( void *arg )
 {
 	rtos_user_app_waiting_for_launch();
 	/* add your user_main*/
-	os_printf("user app entry(0x%0x)\r\n", s_user_app_entry);
+	BK_LOGD(NULL,"user app entry(0x%0x)\r\n", s_user_app_entry);
 	if(NULL != s_user_app_entry) {
 		s_user_app_entry(0);
 	}
@@ -339,7 +339,7 @@ static void user_app_thread( void *arg )
 
 static void start_user_app_thread(void)
 {
-	os_printf("start user app thread.\r\n");
+	BK_LOGD(NULL,"start user app thread.\r\n");
 	rtos_create_sram_thread(NULL,
 					BEKEN_APPLICATION_PRIORITY,
 					"app",
@@ -375,7 +375,7 @@ static void app_main_thread(void *arg)
 	extern void ChipTest(void);
     beken_thread_t matter_thread_handle = NULL;
 
-    os_printf("start matter\r\n");
+    BK_LOGD(NULL,"start matter\r\n");
     rtos_create_thread(&matter_thread_handle,
 		BEKEN_DEFAULT_WORKER_PRIORITY,
 		 "matter",
@@ -385,7 +385,7 @@ static void app_main_thread(void *arg)
 #endif
     if(ate_is_enabled())
     {
-        os_printf("ATE enabled = 1\r\n");
+        BK_LOGD(NULL,"ATE enabled = 1\r\n");
     }
 
 #if CONFIG_SAVE_BOOT_TIME_POINT

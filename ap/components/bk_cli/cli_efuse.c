@@ -18,10 +18,10 @@
 
 static void cli_efuse_help(void)
 {
-	CLI_LOGI("efuse_driver init\r\n");
-	CLI_LOGI("efuse_driver deinit\r\n");
-	CLI_LOGI("efuse_test write [addr] [data]\r\n");
-	CLI_LOGI("efuse_test read [addr]\r\n");
+	CLI_LOGD("efuse_driver init\r\n");
+	CLI_LOGD("efuse_driver deinit\r\n");
+	CLI_LOGD("efuse_test write [addr] [data]\r\n");
+	CLI_LOGD("efuse_test read [addr]\r\n");
 }
 
 static void cli_efuse_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -33,10 +33,10 @@ static void cli_efuse_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_efuse_driver_init());
-		CLI_LOGI("efuse driver init\n");
+		CLI_LOGD("efuse driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_efuse_driver_deinit());
-		CLI_LOGI("efuse driver deinit\n");
+		CLI_LOGD("efuse driver deinit\n");
 	} else {
 		cli_efuse_help();
 		return;
@@ -56,12 +56,12 @@ static void cli_efuse_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		addr = os_strtoul(argv[2], NULL, 16);
 		data = os_strtoul(argv[3], NULL, 16);
 		BK_LOG_ON_ERR(bk_efuse_write_byte(addr, data));
-		CLI_LOGI("efuse write addr:0x%02x, data:0x%02x\r\n", addr, data);
+		CLI_LOGD("efuse write addr:0x%02x, data:0x%02x\r\n", addr, data);
 	} else if (os_strcmp(argv[1], "read") == 0) {
 		addr = os_strtoul(argv[2], NULL, 16);
 		data = 0;
 		BK_LOG_ON_ERR(bk_efuse_read_byte(addr, &data));
-		CLI_LOGI("efuse read addr:0x%02x, data:0x%02x\r\n", addr, data);
+		CLI_LOGD("efuse read addr:0x%02x, data:0x%02x\r\n", addr, data);
 	} else {
 		cli_efuse_help();
 		return;

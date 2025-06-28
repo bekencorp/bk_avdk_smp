@@ -77,7 +77,7 @@ bk_err_t uart_util_create(uart_util_t *uart_util, uart_id_t id, uint32_t baud_ra
         uart_util = NULL;
         return BK_FAIL;
     }
-    LOGI("init uart: %d ok \n", uart_util->id);
+    LOGD("init uart: %d ok \n", uart_util->id);
 
     return BK_OK;
 }
@@ -109,7 +109,7 @@ bk_err_t uart_util_destroy(uart_util_t *uart_util)
     {
         LOGE("%s, %d, deinit uart: %d fail \n", __func__, __LINE__, uart_util->id);
     }
-    LOGI("deinit uart: %d ok \n", uart_util->id);
+    LOGD("deinit uart: %d ok \n", uart_util->id);
 
     os_free(uart_util);
 

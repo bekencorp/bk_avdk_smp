@@ -229,7 +229,7 @@ int volt_daemon_restart(void)
 #else
     err = rtos_reload_timer(&s_voltd.detect_timer);
 #endif
-	TEMPD_LOGD("restart err=%d\n", err);
+	TEMPD_LOGV("restart err=%d\n", err);
 
 	return err;
 }
@@ -244,7 +244,7 @@ int volt_daemon_stop(void)
     err = rtos_stop_timer(&s_voltd.detect_timer);
 #endif
 
-	TEMPD_LOGD("stop err=%d\n", err);
+	TEMPD_LOGV("stop err=%d\n", err);
 
 	return err;
 }
@@ -270,7 +270,7 @@ void volt_daemon_polling_handler(void)
 	}
 
     volt_adc = _volt_detect_calculate_voltage(s_raw_voltage_data);
-	TEMPD_LOGD("cnt=%d, interval=%d, last=%d, cur=%d, thr=%d\r\n",
+	TEMPD_LOGV("cnt=%d, interval=%d, last=%d, cur=%d, thr=%d\r\n",
 		s_voltd.detect_cnt, s_voltd.detect_interval, s_voltd.last_detect_val,
 		volt_adc, s_voltd.detect_threshold);
 

@@ -51,7 +51,7 @@ int at_wifi_scan_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 		demo_scan_adv_app_init(ap_ssid);
 	}
 	else {
-		os_printf("input param error\n");
+		BK_LOGD(NULL,"input param error\n");
 		err = kParamErr;
 		goto error;
 	}
@@ -80,10 +80,10 @@ int at_netif_event_cb(void *arg, event_module_t event_module,
 			rtos_set_semaphore(&wifi_at_cmd_sema);
 		}
 		got_ip = (netif_event_got_ip4_t *)event_data;
-		os_printf("%s: %s got ip\n", __func__, got_ip->netif_if == NETIF_IF_STA ? "BK STA" : "unknown netif");
+		BK_LOGD(NULL,"%s: %s got ip\n", __func__, got_ip->netif_if == NETIF_IF_STA ? "BK STA" : "unknown netif");
 		break;
 	default:
-		os_printf("rx event <%d %d>\n", event_module, event_id);
+		BK_LOGD(NULL,"rx event <%d %d>\n", event_module, event_id);
 		break;
 	}
 
@@ -99,7 +99,7 @@ int at_wifi_staconn_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	char *password = "";
 	
 	if ((argc < 1) || (argc > 4)) {
-		os_printf("invalid argc number\n");
+		BK_LOGD(NULL,"invalid argc number\n");
 		err = kParamErr;
 		goto error;
 	}
@@ -135,7 +135,7 @@ int at_wifi_staconn_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		os_free(oob_ssid_tp);
 #endif
 	} else {
-		os_printf("not buf for utf8\r\n");
+		BK_LOGD(NULL,"not buf for utf8\r\n");
 	}
 	bk_event_register_cb(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
 			at_netif_event_cb, NULL);
@@ -184,7 +184,7 @@ int at_wifi_stadisconn_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 	int err = kNoErr;
 	if (argc != 0)
 	{
-		os_printf("input param error\n");
+		BK_LOGD(NULL,"input param error\n");
 		err = kParamErr;
 		goto error;
 	}
@@ -224,7 +224,7 @@ int at_wifi_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **ar
 		ap_channel = argv[2];
 	}
 	else {
-		os_printf("input param error\n");
+		BK_LOGD(NULL,"input param error\n");
 		err = kParamErr;
 		goto error;
 	}
@@ -264,12 +264,12 @@ int at_wifi_stop_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 		else if (os_strcmp(argv[0], "AP") == 0)
 			err = bk_wifi_ap_stop();
 		else {
-			os_printf("unknown WiFi interface\n");
+			BK_LOGD(NULL,"unknown WiFi interface\n");
 			err = kParamErr;
 			goto error;
 		}
 	} else {
-		os_printf("bad parameters\r\n");
+		BK_LOGD(NULL,"bad parameters\r\n");
 		err = kParamErr;
 		goto error;
 	}
@@ -299,7 +299,7 @@ int at_wifi_state_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			return err;
 		}
 		else {
-			os_printf("get link status fail!\n");
+			BK_LOGD(NULL,"get link status fail!\n");
 			err = kGeneralErr;
 			goto error;
 		}
@@ -333,7 +333,7 @@ int at_wifi_state_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 				os_memset(&link_status, 0x0, sizeof(link_status));
 				err = bk_wifi_sta_get_link_status(&link_status);
 				if(err != kNoErr) {
-					os_printf("get sta link status fail!\n");
+					BK_LOGD(NULL,"get sta link status fail!\n");
 					err = kGeneralErr;
 					goto error;
 				}
@@ -357,7 +357,7 @@ int at_wifi_state_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 					netif_ip4_config_t sta_ip4_info = {0};
 					err = bk_netif_get_ip4_config(NETIF_IF_STA, &sta_ip4_info);
 					if(err != kNoErr) {
-						os_printf("get ip fail!\n");
+						BK_LOGD(NULL,"get ip fail!\n");
 						err = kGeneralErr;
 						goto error;
 					}
@@ -365,7 +365,7 @@ int at_wifi_state_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 				}
 
 				else {
-					os_printf("bad parameters\r\n");
+					BK_LOGD(NULL,"bad parameters\r\n");
 					err = kParamErr;
 					goto error;
 				}
@@ -382,7 +382,7 @@ int at_wifi_state_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 				os_memset(&ap_info, 0x0, sizeof(ap_info));
 				err = bk_wifi_ap_get_config(&ap_info);
 				if(err != kNoErr) {
-					os_printf("get ap link status fail!\n");
+					BK_LOGD(NULL,"get ap link status fail!\n");
 					err = kGeneralErr;
 					goto error;
 				}
@@ -401,14 +401,14 @@ int at_wifi_state_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 					netif_ip4_config_t ap_ip4_info = {0};
 					err = bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info);
 					if(err != kNoErr) {
-						os_printf("get ip fail!\n");
+						BK_LOGD(NULL,"get ip fail!\n");
 						err = kGeneralErr;
 						goto error;
 					}
 					sprintf(pcWriteBuffer, "%s:IP=%s,GATE=%s,MASK=%s,DNS=%s\r\n%s", AT_CMDRSP_HEAD, ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns, AT_CMD_RSP_SUCCEED);
 				}
 				else {
-					os_printf("bad parameters\r\n");
+					BK_LOGD(NULL,"bad parameters\r\n");
 					err = kParamErr;
 					goto error;
 				}
@@ -420,13 +420,13 @@ int at_wifi_state_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			return err;
 		}
 		else {
-			os_printf("bad parameters\r\n");
+			BK_LOGD(NULL,"bad parameters\r\n");
 			err = kParamErr;
 			goto error;
 		}
 	}
 	else {
-		os_printf("bad parameters\r\n");
+		BK_LOGD(NULL,"bad parameters\r\n");
 		err = kParamErr;
 		goto error;
 	}
@@ -444,7 +444,7 @@ int at_wifi_ping_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 	uint32_t cnt = 4;
 	uint32_t size = 0;
 	if (argc == 0) {
-		os_printf("Please input: ping <host address>\n");
+		BK_LOGD(NULL,"Please input: ping <host address>\n");
 		goto error;
 	}
 
@@ -461,7 +461,7 @@ int at_wifi_ping_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 		cnt = os_strtoul(argv[1], NULL, 10);
 	if (argc > 2)
 		size = os_strtoul(argv[2], NULL, 10);
-	os_printf("ping IP address:%s\n", argv[0]);
+	BK_LOGD(NULL,"ping IP address:%s\n", argv[0]);
 	ping_start(argv[0], cnt, size);
 	if(err == kNoErr) {
 		msg = AT_CMD_RSP_SUCCEED;

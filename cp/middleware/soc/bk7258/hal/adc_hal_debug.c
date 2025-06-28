@@ -21,38 +21,38 @@
 void adc_struct_dump(void)
 {
 	adc_hw_t *hw = (adc_hw_t *)ADC_LL_REG_BASE();
-	SOC_LOGI("base=0x%x\n", (uint32_t)hw);
+	SOC_LOGD("base=0x%x\n", (uint32_t)hw);
 
-	SOC_LOGI("  ctrl=0x%x , v =0x%x\n", &hw->ctrl, hw->ctrl.v);
-	SOC_LOGI("  adc_mode=%x\n", hw->ctrl.adc_mode);
-	SOC_LOGI("  adc_enable: %x\n", hw->ctrl.adc_en);
-	SOC_LOGI("  adc_channel=%x\n", hw->ctrl.adc_channel);
-	SOC_LOGI("  adc_setting=%x\n", hw->ctrl.adc_setting);
-	SOC_LOGI("  adc_int_clear=%x\n", hw->ctrl.adc_int_clear);
-	SOC_LOGI("  adc_div=0x%x\n", hw->ctrl.adc_div);
-	SOC_LOGI("  adc_32m_mode_enable=%x\n", hw->ctrl.adc_32m_mode);
-	SOC_LOGI("  adc_sample_rate=0x%x\n", hw->ctrl.adc_samp_rate);
-	SOC_LOGI("  adc_filter=%x\n", hw->ctrl.adc_filter);
-	SOC_LOGI("  adc_busy=%x\n", hw->ctrl.adc_busy);
-	SOC_LOGI("  adc_fifo_empty=%x\n", hw->ctrl.fifo_empty);
-	SOC_LOGI("  adc_fifo_full=%x\r\n", hw->ctrl.fifo_full);
+	SOC_LOGD("  ctrl=0x%x , v =0x%x\n", &hw->ctrl, hw->ctrl.v);
+	SOC_LOGD("  adc_mode=%x\n", hw->ctrl.adc_mode);
+	SOC_LOGD("  adc_enable: %x\n", hw->ctrl.adc_en);
+	SOC_LOGD("  adc_channel=%x\n", hw->ctrl.adc_channel);
+	SOC_LOGD("  adc_setting=%x\n", hw->ctrl.adc_setting);
+	SOC_LOGD("  adc_int_clear=%x\n", hw->ctrl.adc_int_clear);
+	SOC_LOGD("  adc_div=0x%x\n", hw->ctrl.adc_div);
+	SOC_LOGD("  adc_32m_mode_enable=%x\n", hw->ctrl.adc_32m_mode);
+	SOC_LOGD("  adc_sample_rate=0x%x\n", hw->ctrl.adc_samp_rate);
+	SOC_LOGD("  adc_filter=%x\n", hw->ctrl.adc_filter);
+	SOC_LOGD("  adc_busy=%x\n", hw->ctrl.adc_busy);
+	SOC_LOGD("  adc_fifo_empty=%x\n", hw->ctrl.fifo_empty);
+	SOC_LOGD("  adc_fifo_full=%x\r\n", hw->ctrl.fifo_full);
 
-	SOC_LOGI("  adc_raw_data=0x%x\r\n", hw->adc_raw_data);
+	SOC_LOGD("  adc_raw_data=0x%x\r\n", hw->adc_raw_data);
 
-	SOC_LOGI("  steady_ctrl=0x%x, v = 0x%x \n", &hw->steady_ctrl, hw->steady_ctrl.v);
-	SOC_LOGI("  fifo_level=%x\n", hw->steady_ctrl.fifo_level);
-	SOC_LOGI("  steady_ctrl: %x\n", hw->steady_ctrl.steady_ctrl);
-	SOC_LOGI("  calibration_triggle=%x\r\n", hw->steady_ctrl.calibration_triggle);
-	SOC_LOGI("  calibration_done=%x\r\n", hw->steady_ctrl.calibration_done);
-	SOC_LOGI("  bypass_calibration=%x\r\n", hw->steady_ctrl.bypass_calibration);
-	SOC_LOGI("  rfu=%x\r\n", hw->steady_ctrl.rfu);
+	SOC_LOGD("  steady_ctrl=0x%x, v = 0x%x \n", &hw->steady_ctrl, hw->steady_ctrl.v);
+	SOC_LOGD("  fifo_level=%x\n", hw->steady_ctrl.fifo_level);
+	SOC_LOGD("  steady_ctrl: %x\n", hw->steady_ctrl.steady_ctrl);
+	SOC_LOGD("  calibration_triggle=%x\r\n", hw->steady_ctrl.calibration_triggle);
+	SOC_LOGD("  calibration_done=%x\r\n", hw->steady_ctrl.calibration_done);
+	SOC_LOGD("  bypass_calibration=%x\r\n", hw->steady_ctrl.bypass_calibration);
+	SOC_LOGD("  rfu=%x\r\n", hw->steady_ctrl.rfu);
 
-	SOC_LOGI("  sat_ctrl=0x%x, v = 0x%x \n", &hw->sat_ctrl, hw->sat_ctrl.v);
-	SOC_LOGI("  sat_ctrl=%x\n", hw->sat_ctrl.sat_ctrl);
-	SOC_LOGI("  sat_ctrl_en=%x\n", hw->sat_ctrl.sat_enable);
-	SOC_LOGI("  over_flow_flag: %x\r\n", hw->sat_ctrl.over_flow);
+	SOC_LOGD("  sat_ctrl=0x%x, v = 0x%x \n", &hw->sat_ctrl, hw->sat_ctrl.v);
+	SOC_LOGD("  sat_ctrl=%x\n", hw->sat_ctrl.sat_ctrl);
+	SOC_LOGD("  sat_ctrl_en=%x\n", hw->sat_ctrl.sat_enable);
+	SOC_LOGD("  over_flow_flag: %x\r\n", hw->sat_ctrl.over_flow);
 
-	SOC_LOGI("  adc_data=0x%x\r\n", hw->adc_data);
+	SOC_LOGD("  adc_data=0x%x\r\n", hw->adc_data);
 }
 
 #endif

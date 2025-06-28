@@ -111,7 +111,7 @@ static isr_t* int_isr_del(icu_int_src_t src)
 
 	int_list = &s_int_lists[group_id];
 
-	ICU_LOGD("delete:src: %d pri=tem_ptr->pri, int_num = %d\r\n", src, int_num);
+	ICU_LOGV("delete:src: %d pri=tem_ptr->pri, int_num = %d\r\n", src, int_num);
 	GLOBAL_INT_DECLARATION();
 
 	GLOBAL_INT_DISABLE();
@@ -124,7 +124,7 @@ static isr_t* int_isr_del(icu_int_src_t src)
 		cur_ptr = list_entry(pos, isr_t, list);
 
 		if (int_num == cur_ptr->int_num) {
-			ICU_LOGD("delete:src: %d pri=tem_ptr->pri, int_num = %d\r\n", src, int_num);
+			ICU_LOGV("delete:src: %d pri=tem_ptr->pri, int_num = %d\r\n", src, int_num);
 			list_del(&cur_ptr->list);
 			GLOBAL_INT_RESTORE();
 			return cur_ptr;
@@ -166,17 +166,17 @@ bk_err_t int_isr_add(isr_t *new_isr, int group_id)
 	list_for_each_safe(pos, next, &int_list->isr) {
 		cur_ptr = list_entry(pos, isr_t, list);
 
-		ICU_LOGD("cur isr: num = %d, pri=%d\n", cur_ptr->int_num, cur_ptr->pri);
+		ICU_LOGV("cur isr: num = %d, pri=%d\n", cur_ptr->int_num, cur_ptr->pri);
 		if (new_isr->pri <= cur_ptr->pri) {
 			/* add entry at the head of the queue */
-			ICU_LOGD("add new isr: num = %d, pri=%d\n", new_isr->int_num, new_isr->pri);
+			ICU_LOGV("add new isr: num = %d, pri=%d\n", new_isr->int_num, new_isr->pri);
 			list_add_tail(&new_isr->list, &cur_ptr->list);
 			goto int_isr_add_exit;
 		}
 	}
 
 	list_add_tail(&new_isr->list, &int_list->isr);
-	ICU_LOGD("add new isr: num = %d, pri=%d\n", new_isr->int_num, new_isr->pri);
+	ICU_LOGV("add new isr: num = %d, pri=%d\n", new_isr->int_num, new_isr->pri);
 
 int_isr_add_exit:
 	s_isr_mask[group_id] |= BIT(new_isr->int_num);
@@ -203,7 +203,7 @@ bk_err_t bk_int_isr_register(icu_int_src_t src, int_group_isr_t isr, void*arg)
 	uint8_t group_id = icu_int_map->group;
 	isr_t *new_isr;
 
-	ICU_LOGD("register isr: src=%d, num=%d, pri=%d, group=%d\r\n", src, int_num, int_pri, group_id );
+	ICU_LOGV("register isr: src=%d, num=%d, pri=%d, group=%d\r\n", src, int_num, int_pri, group_id );
 	new_isr = (isr_t*)os_malloc(sizeof(isr_t));
 	if(!new_isr) {
 		ICU_LOGE("cur_ptr malloc error\r\n");
@@ -232,7 +232,7 @@ void group_isr(uint32_t group_id, uint32_t int_status)
 	LIST_HEADER_T *pos;
 
 	status = int_status & s_isr_mask[group_id];
-	// ICU_LOGD("group_isr:%x:%x\r\n", int_status, status);
+	// ICU_LOGV("group_isr:%x:%x\r\n", int_status, status);
 
 	if (s_int_mac_ps_callback) {
 		s_int_mac_ps_callback(status);
@@ -286,7 +286,7 @@ bk_err_t bk_int_set_priority(icu_int_src_t int_src, uint32_t int_priority)
 	const icu_int_map_t *icu_int_map = &icu_int_map_table[int_src];
 	uint8_t group_id = icu_int_map->group;
 
-	ICU_LOGI("set int prioty: from %d to %d\n", update_isr->pri, int_priority);
+	ICU_LOGD("set int prioty: from %d to %d\n", update_isr->pri, int_priority);
 	update_isr->pri = int_priority;
 	int_isr_add(update_isr, group_id);
 

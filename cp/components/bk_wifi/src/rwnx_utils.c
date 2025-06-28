@@ -168,7 +168,7 @@ void rwm_mgmt_set_vif_netif(uint8_t *mac, void *net_if)
 		vif_entry->priv = net_if;
 		net_if->state = (void *)vif_entry;
 	} else
-		RWNX_LOGI("warnning: set_vif_netif failed\r\n");
+		RWNX_LOGD("warnning: set_vif_netif failed\r\n");
 }
 
 
@@ -256,7 +256,7 @@ void rwn_mgmt_show_vif_peer_sta_list(UINT8 role)
 					ipptr = (UINT8 *)inet_ntoa(netif->gw);
 				}
 
-				RWNX_LOGI("%d: mac:%02x-%02x-%02x-%02x-%02x-%02x, ip:%s\r\n", num++,
+				RWNX_LOGD("%d: mac:%02x-%02x-%02x-%02x-%02x-%02x, ip:%s\r\n", num++,
 						  macptr[0], macptr[1], macptr[2],
 						  macptr[3], macptr[4], macptr[5], ipptr);
 

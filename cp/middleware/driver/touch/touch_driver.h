@@ -23,6 +23,7 @@
 #define TOUCH_LOGW(...) BK_LOGW(TOUCH_TAG, ##__VA_ARGS__)
 #define TOUCH_LOGE(...) BK_LOGE(TOUCH_TAG, ##__VA_ARGS__)
 #define TOUCH_LOGD(...) BK_LOGD(TOUCH_TAG, ##__VA_ARGS__)
+#define TOUCH_LOGV(...) BK_LOGV(TOUCH_TAG, ##__VA_ARGS__)
 
 #define SOC_TOUCH_ID_NUM		16
 

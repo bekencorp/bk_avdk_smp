@@ -19,7 +19,7 @@
 #if 0
 static void cli_sdio_slave_help(void)
 {
-	CLI_LOGI("sdio_slave_test {main case}{sub case}{param1}{param2}{param3}{param4}\r\n");
+	CLI_LOGD("sdio_slave_test {main case}{sub case}{param1}{param2}{param3}{param4}\r\n");
 }
 #endif
 
@@ -33,7 +33,7 @@ static void loop_test(void *arg) {
 		bk_sdio_set_test_case(1, 1, 0, 1024, 80, 1); //1 1 0 1024 80   rx, single_packet, chan_id, len, value, packet_cnt
 		bk_sdio_set_test_case(0, 0, 0, 1024, 1, 1);  //0 0 0 1024 1
 		bk_sdio_set_test_case(0, 1, 0, 1024, 12345678, 1);
-		os_printf("======delay %d ms.=======\n", delay_time);
+		BK_LOGD(NULL, "======delay %d ms.=======\n", delay_time);
 		rtos_delay_milliseconds(delay_time);
 	}
 	rtos_delete_thread(&loop_test_handle);
@@ -46,7 +46,7 @@ static void cli_sdio_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 
 	if (os_strcmp(argv[1], "loopstart") == 0) {
 		uint32_t task_prio = 5;
-		os_printf("loop_test task start: task_prio = %u.\n", task_prio);
+		BK_LOGD(NULL, "loop_test task start: task_prio = %u.\n", task_prio);
 		rtos_create_thread(&loop_test_handle, task_prio,
 			"loop_test",
 			(beken_thread_function_t) loop_test,
@@ -58,7 +58,7 @@ static void cli_sdio_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 		if (loop_test_handle) {
 			rtos_delete_thread(&loop_test_handle);
 			loop_test_handle = NULL;
-			os_printf("loop_test task stop\n");
+			BK_LOGD(NULL, "loop_test task stop\n");
 		}
 		looptest_flag = 0;
 		return;

@@ -278,12 +278,12 @@ static int usbh_ch34x_connect(struct usbh_hubport *hport, uint8_t intf)
 
     snprintf(hport->config.intf[intf].devname, CONFIG_USBHOST_DEV_NAMELEN, DEV_FORMAT, ch34x_class->minor);
 
-    USB_LOG_INFO("Register CH34X Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register CH34X Class:%s\r\n", hport->config.intf[intf].devname);
     if(s_con_disc_cb) {
         s_con_disc_cb(1, (void *)ch34x_class);
     }
 #if 0
-    USB_LOG_INFO("Test ch34x rx and tx and rx for 5 times, baudrate is 115200\r\n");
+    USB_LOG_DBG("Test ch34x rx and tx and rx for 5 times, baudrate is 115200\r\n");
 
     struct cdc_line_coding linecoding;
     uint8_t count = 5;
@@ -332,7 +332,7 @@ static int usbh_ch34x_disconnect(struct usbh_hubport *hport, uint8_t intf)
         }
 
         if (hport->config.intf[intf].devname[0] != '\0') {
-            USB_LOG_INFO("Unregister CH34X Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister CH34X Class:%s\r\n", hport->config.intf[intf].devname);
             usbh_ch34x_stop(ch34x_class);
         }
 

@@ -126,7 +126,7 @@ int wdrv_get_mac_addr()
     cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
     cmd_cfm.cfm_id = 0;
 
-    WDRV_LOGI("wdrv_host_cmd_id : %d\n", req.cmd_id);
+    WDRV_LOGD("wdrv_host_cmd_id : %d\n", req.cmd_id);
     //ToDo
     wdrv_tx_msg((uint8_t *)&req, sizeof(req), &cmd_cfm, NULL);
     return 0;
@@ -156,7 +156,7 @@ void wdrv_notify_sta_disconnected(void *data, uint16_t len)
     os_memcpy(&sta_disconnected, data, len);
 
     /* post event */
-    WDRV_LOGD("sta disconnect reason %d,local %d\n",
+    WDRV_LOGV("sta disconnect reason %d,local %d\n",
     sta_disconnected.disconnect_reason, sta_disconnected.local_generated);
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
                              &sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
@@ -251,13 +251,13 @@ int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len)
     cmd_cfm.cfm_id = 0;
 
     os_memcpy(cust_req.data, data, len);
-    WDRV_LOGD("bk_wdrv_send_customer_data : %d, len: %d\n", cust_req.cmd_hdr.cmd_id, len + sizeof(wdrv_cmd_hdr));
+    WDRV_LOGV("bk_wdrv_send_customer_data : %d, len: %d\n", cust_req.cmd_hdr.cmd_id, len + sizeof(wdrv_cmd_hdr));
 #if 0
-    WDRV_LOGI("customer_data: ");
+    WDRV_LOGD("customer_data: ");
     for (int i = 0; i < len + sizeof(wdrv_cmd_hdr); i++) {
-        WDRV_LOGI("%02x ", cust_req.data[i]);
+        WDRV_LOGD("%02x ", cust_req.data[i]);
     }
-    WDRV_LOGI("\n");
+    WDRV_LOGD("\n");
 #endif
     wdrv_tx_msg((uint8_t *)&cust_req, len + sizeof(wdrv_cmd_hdr) , &cmd_cfm, NULL);
     return 0;
@@ -277,7 +277,7 @@ int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
     cust_trans->cmd_id = cmd_id;
     cust_trans->len = len;
 
-    WDRV_LOGD("bk_wdrv_customer_transfer : %d, len: %d\n", cust_trans->cmd_id, sizeof(cifd_cust_msg_hdr_t) + cust_trans->len);
+    WDRV_LOGV("bk_wdrv_customer_transfer : %d, len: %d\n", cust_trans->cmd_id, sizeof(cifd_cust_msg_hdr_t) + cust_trans->len);
     os_memcpy((uint8_t*)cust_trans + sizeof(cifd_cust_msg_hdr_t), data, len);
     ret = bk_wdrv_send_customer_data((uint8_t*)cust_trans, sizeof(cifd_cust_msg_hdr_t) + cust_trans->len);
 
@@ -298,7 +298,7 @@ bk_err_t wdrv_cntrl_get_cif_stats()
     req.cmd_hdr.cmd_id =  BK_INTERFACE_DEBUG_CMD;
     req.cmd_cfm.waitcfm = WDRV_CMD_NOWAITCFM;
     req.cmd_cfm.cfm_id = 0;
-    WDRV_LOGI("%s,%d\n",__func__,__LINE__);
+    WDRV_LOGD("%s,%d\n",__func__,__LINE__);
 
     wdrv_tx_msg((uint8_t *)&req, sizeof(req), &req.cmd_cfm, NULL);
 
@@ -307,12 +307,12 @@ bk_err_t wdrv_cntrl_get_cif_stats()
 
 void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
 {
-    WDRV_LOGD("%s,%d\n",__func__,__LINE__);
+    WDRV_LOGV("%s,%d\n",__func__,__LINE__);
 
     switch(BK_CFM_GET_CMD_ID(msg->id)) {
         case BK_CMD_GET_MAC_ADDR:
             os_memcpy(&wdrv_host_env.macaddr_cfm, msg->param, sizeof(struct wdrv_mac_addr_cfm));
-            WDRV_LOGD("MAC addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
+            WDRV_LOGV("MAC addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
             wdrv_host_env.macaddr_cfm.mac_addr[0], wdrv_host_env.macaddr_cfm.mac_addr[1],
             wdrv_host_env.macaddr_cfm.mac_addr[2], wdrv_host_env.macaddr_cfm.mac_addr[3],
             wdrv_host_env.macaddr_cfm.mac_addr[4], wdrv_host_env.macaddr_cfm.mac_addr[5]);
@@ -320,22 +320,22 @@ void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
         case BK_CMD_GET_WLAN_STATUS:
             break;
         case BK_CMD_CONNECT:
-            WDRV_LOGI("SET-MCU-WLAN: start connect\r\n");
+            WDRV_LOGD("SET-MCU-WLAN: start connect\r\n");
             break;
         case BK_CMD_DISCONNECT:
-            WDRV_LOGD("SET-MCU-WLAN: start disconnect\r\n");
+            WDRV_LOGV("SET-MCU-WLAN: start disconnect\r\n");
             break;
         case BK_CMD_SET_MEDIA_MODE:
-            WDRV_LOGD("SET-MCU-WLAN: set media mode\r\n");
+            WDRV_LOGV("SET-MCU-WLAN: set media mode\r\n");
             break;
         case BK_CMD_SET_MEDIA_QUALITY:
-            WDRV_LOGD("SET-MCU-WLAN: set media quality\r\n");
+            WDRV_LOGV("SET-MCU-WLAN: set media quality\r\n");
             break;
         case BK_CMD_START_AP:
-            WDRV_LOGD("MCU-AP-STATE: start AP\r\n");
+            WDRV_LOGV("MCU-AP-STATE: start AP\r\n");
             break;
         default:
-            WDRV_LOGD("%s,%d\n",__func__,__LINE__);
+            WDRV_LOGV("%s,%d\n",__func__,__LINE__);
             break;
     }
     wdrv_rx_confirm_tx_msg(msg);
@@ -347,7 +347,7 @@ void wdrv_rx_handle_wifi_api_event(wdrv_rx_msg *msg)
 }
 void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
 {
-    WDRV_LOGI("%s,%d\n",__func__,__LINE__);
+    WDRV_LOGD("%s,%d\n",__func__,__LINE__);
     //int loop_idx = 0;
     switch(msg->id) {
         case BK_EVT_CONNECT_IND:
@@ -356,9 +356,9 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
             os_memcpy(&wdrv_host_env.connect_ind, msg->param, sizeof(struct wdrv_connect_ind));
             WDRV_LOGD(TAG, "WLAN-INDICATE: connected\n");
 #if 0
-            os_printf("WLAN-INDICATE: connect to \'%s\' (%3d dBm)\r\n",
+            BK_LOGD(NULL, "WLAN-INDICATE: connect to \'%s\' (%3d dBm)\r\n",
                 wdrv_host_env.connect_ind.ussid, wdrv_host_env.connect_ind.rssi);
-            os_printf("ip: %d.%d.%d.%d, mk: %d.%d.%d.%d, gw: %d.%d.%d.%d, dns: %d.%d.%d.%d\n",
+            BK_LOGD(NULL, "ip: %d.%d.%d.%d, mk: %d.%d.%d.%d, gw: %d.%d.%d.%d, dns: %d.%d.%d.%d\n",
                 (wdrv_host_env.connect_ind.ip >> 0 ) & 0xff, (wdrv_host_env.connect_ind.ip >> 8 ) & 0xff,
                 (wdrv_host_env.connect_ind.ip >> 16) & 0xff, (wdrv_host_env.connect_ind.ip >> 24) & 0xff,
                 (wdrv_host_env.connect_ind.mk >> 0 ) & 0xff, (wdrv_host_env.connect_ind.mk >> 8 ) & 0xff,
@@ -374,7 +374,7 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
         case BK_EVT_DISCONNECT_IND:
             wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_DISCONNECTED;
             wdrv_host_env.wlan_mode = WIFI_MODE_IDLE;
-            WDRV_LOGI("WLAN-INDICATE: disconected and stop send data\n");
+            WDRV_LOGD("WLAN-INDICATE: disconected and stop send data\n");
             wdrv_notify_sta_disconnected(msg->param, msg->param_len);
             break;
         case BK_EVT_CUSTOMER_IND:
@@ -384,9 +384,9 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
         case BK_EVT_START_AP_IND:
             os_memcpy(&wdrv_host_env.ap_status_cfm, msg->param, sizeof(struct wdrv_ap_status_cfm));
             if (wdrv_host_env.ap_status_cfm.status == CONTROLLER_AP_START) {
-                WDRV_LOGI("MCU-AP-STATE: start AP Success\n");
+                WDRV_LOGD("MCU-AP-STATE: start AP Success\n");
 #if 0
-                os_printf("ip: %d.%d.%d.%d, mk: %d.%d.%d.%d, gw: %d.%d.%d.%d, dns: %d.%d.%d.%d\n",
+                BK_LOGD(NULL, "ip: %d.%d.%d.%d, mk: %d.%d.%d.%d, gw: %d.%d.%d.%d, dns: %d.%d.%d.%d\n",
                     (wdrv_host_env.ap_status_cfm.ip >> 0 ) & 0xff, (wdrv_host_env.ap_status_cfm.ip >> 8 ) & 0xff,
                     (wdrv_host_env.ap_status_cfm.ip >> 16) & 0xff, (wdrv_host_env.ap_status_cfm.ip >> 24) & 0xff,
                     (wdrv_host_env.ap_status_cfm.mk >> 0 ) & 0xff, (wdrv_host_env.ap_status_cfm.mk >> 8 ) & 0xff,
@@ -400,13 +400,13 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
             }
             break;
         case BK_EVT_SCAN_WIFI_IND:
-            WDRV_LOGD("BK_EVT_SCAN_WIFI_IND\n");
+            WDRV_LOGV("BK_EVT_SCAN_WIFI_IND\n");
             wdrv_notify_scan_done(msg->param, msg->param_len);
 #if 0
             os_memcpy(&wdrv_host_env.scan_wifi_cfm, msg->param, sizeof(struct wdrv_scan_result_cfm) * MAX_SCAN_AP_NUM);
             wdrv_host_env.scan_wifi_cfm_ptr = wdrv_host_env.scan_wifi_cfm;
             do {
-                os_printf("%2d:(%3d dBm) CH=%3d AKM=%3d BSSID=%02x:%02x:%02x:%02x:%02x:%02x SSID=%s\n",
+                BK_LOGD(NULL, "%2d:(%3d dBm) CH=%3d AKM=%3d BSSID=%02x:%02x:%02x:%02x:%02x:%02x SSID=%s\n",
                 wdrv_host_env.scan_wifi_cfm_ptr->scan_num, wdrv_host_env.scan_wifi_cfm_ptr->rssi,
                 wdrv_host_env.scan_wifi_cfm_ptr->channal,  wdrv_host_env.scan_wifi_cfm_ptr->akm,
                 wdrv_host_env.scan_wifi_cfm_ptr->bssid[0], wdrv_host_env.scan_wifi_cfm_ptr->bssid[1],
@@ -420,7 +420,7 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
             break;
         case BK_EVT_ASSOC_AP_IND:
             os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
-            WDRV_LOGI("AP-INDICATE: %x:%x:%x:%x:%x:%x connected\n",
+            WDRV_LOGD("AP-INDICATE: %x:%x:%x:%x:%x:%x connected\n",
                       wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[0], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[1],
                       wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[2], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[3],
                       wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[4], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[5]);
@@ -428,9 +428,9 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
             wdrv_notify_sap_sta_connected();
             break;
         case BK_EVT_DISASSOC_AP_IND:
-            WDRV_LOGD("AP-INDICATE: disassoc\n");
+            WDRV_LOGV("AP-INDICATE: disassoc\n");
             os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
-            WDRV_LOGD("%x:%x:%x:%x:%x:%x\n",
+            WDRV_LOGV("%x:%x:%x:%x:%x:%x\n",
                       wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[0], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[1],
                       wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[2], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[3],
                       wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[4], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[5]);
@@ -440,16 +440,16 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
         case BK_EVT_STOP_AP_IND:
             wdrv_host_env.ap_status_cfm.status = CONTROLLER_AP_CLOSE;
             wdrv_host_env.wlan_mode = WIFI_MODE_IDLE;
-            WDRV_LOGD("MCU-AP-STATE: stop AP success\n");
+            WDRV_LOGV("MCU-AP-STATE: stop AP success\n");
             break;
         default:
-            WDRV_LOGI("%s msg %x invaild\n", __func__, msg->id);
+            WDRV_LOGD("%s msg %x invaild\n", __func__, msg->id);
             return;
     }
 }
 void wdrv_rx_handle_event(wdrv_rx_msg *msg)
 {
-    WDRV_LOGI("%s,%d\n",__func__,__LINE__);
+    WDRV_LOGD("%s,%d\n",__func__,__LINE__);
     if ((msg->id >= BK_EVT_WIFI_API_START) && (msg->id <= BK_EVT_WIFI_API_END))
     {
         wdrv_rx_handle_wifi_api_event(msg);
@@ -462,7 +462,7 @@ void wdrv_rx_handle_event(wdrv_rx_msg *msg)
 
 void wdrv_host_init(void)
 {
-    WDRV_LOGD("%s, %d\r\n", __func__, __LINE__);
+    WDRV_LOGV("%s, %d\r\n", __func__, __LINE__);
 
     co_list_init((struct co_list *)&wdrv_host_env.cfm_pending_list);
     rtos_init_mutex(&wdrv_host_env.cfm_lock);

@@ -381,7 +381,7 @@ int te200_aes_cbc_large_data_test(uint32_t encrypt_len)
 	for(i =0; i < encrypt_len; i++)
 	{
 		if(input_p[i] != (i%0xff)){
-			bk_printf("aes-cbc test fail i=%d val=%2x \r\n",i, input_p[i]);
+			BK_LOGD(NULL,"aes-cbc test fail i=%d val=%2x \r\n",i, input_p[i]);
 			ret = 2;
 			goto exit;
 		}
@@ -545,7 +545,7 @@ int te200_aes_gcm_large_data_test(uint32_t encrypt_len)
 	for(i = 0; i < encrypt_len; i++)
 	{
 		if(input_p[i] != (i%0xff)){
-			bk_printf("aes-gcm test fail i=%d val=%2x \r\n",i, input_p[i]);
+			BK_LOGD(NULL,"aes-gcm test fail i=%d val=%2x \r\n",i, input_p[i]);
 			ret = 2;
 			goto exit;
 		}

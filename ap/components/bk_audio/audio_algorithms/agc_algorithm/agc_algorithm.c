@@ -43,7 +43,7 @@ typedef struct agc_algorithm
 
 static bk_err_t _agc_algorithm_open(audio_element_handle_t self)
 {
-    BK_LOGD(TAG, "[%s] _agc_algorithm_open \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _agc_algorithm_open \n", audio_element_get_tag(self));
     agc_algorithm_t *agc = (agc_algorithm_t *)audio_element_getdata(self);
 
     if (BK_OK != bk_aud_agc_create(&agc->agcInst))
@@ -64,20 +64,20 @@ static bk_err_t _agc_algorithm_open(audio_element_handle_t self)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "[%s] _agc_algorithm_open, frame_10ms_size: %d \n", audio_element_get_tag(self), agc->fs * 2 / 100);
+    BK_LOGD(TAG, "[%s] _agc_algorithm_open, frame_10ms_size: %d \n", audio_element_get_tag(self), agc->fs * 2 / 100);
 
     return BK_OK;
 }
 
 static bk_err_t _agc_algorithm_close(audio_element_handle_t self)
 {
-    BK_LOGD(TAG, "[%s] _agc_algorithm_close \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _agc_algorithm_close \n", audio_element_get_tag(self));
     return BK_OK;
 }
 
 static int _agc_algorithm_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    BK_LOGD(TAG, "[%s] _agc_algorithm_process, in_len: %d \n", audio_element_get_tag(self), in_len);
+    BK_LOGV(TAG, "[%s] _agc_algorithm_process, in_len: %d \n", audio_element_get_tag(self), in_len);
     agc_algorithm_t *agc = (agc_algorithm_t *)audio_element_getdata(self);
 
     int r_size = audio_element_input(self, in_buffer, in_len);

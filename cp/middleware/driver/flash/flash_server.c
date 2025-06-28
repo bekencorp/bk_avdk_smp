@@ -35,7 +35,7 @@
 #define LOCAL_TRACE_I     (0)
 
 #define TRACE_E(...)        do { if(LOCAL_TRACE_E) BK_LOGE(__VA_ARGS__); } while(0)
-#define TRACE_I(...)        do { if(LOCAL_TRACE_I) BK_LOGI(__VA_ARGS__); } while(0)
+#define TRACE_I(...)        do { if(LOCAL_TRACE_I) BK_LOGD(__VA_ARGS__); } while(0)
 
 #define FLASH_SVR_PRIORITY               BEKEN_DEFAULT_WORKER_PRIORITY
 #define FLASH_SVR_STACK_SIZE             1536

@@ -3715,7 +3715,7 @@ void hostapd_cleanup_cs_params(struct hostapd_data *hapd)
 	hapd->cs_c_off_ecsa_beacon = 0;
 	hapd->cs_c_off_ecsa_proberesp = 0;
 
-	WPA_LOGI("wpa csa finished\n");
+	WPA_LOGD("wpa csa finished\n");
 }
 
 
@@ -3750,11 +3750,11 @@ int hostapd_switch_channel(struct hostapd_data *hapd,
 		return -1;
 	}
 
-	WPA_LOGI("hostapd_switch_channel\r\n");
+	WPA_LOGD("hostapd_switch_channel\r\n");
 
 #ifdef BK_SUPPLICANT
 	if (hapd->csa_in_progress) {
-		WPA_LOGI("CSA in progress\r\n");
+		WPA_LOGD("CSA in progress\r\n");
 		if (hapd->csa_settings_pending)
 			os_free(hapd->csa_settings_pending);
 		hapd->csa_settings_pending = os_memdup(settings, sizeof(*settings));
@@ -3772,13 +3772,13 @@ int hostapd_switch_channel(struct hostapd_data *hapd,
 	free_beacon_data(&settings->beacon_after);
 
 	if (ret) {
-		WPA_LOGI("CSA failed\r\n");
+		WPA_LOGD("CSA failed\r\n");
 		/* if we failed, clean cs parameters */
 		hostapd_cleanup_cs_params(hapd);
 		return ret;
 	}
 
-	WPA_LOGI("wpa csa started\n");
+	WPA_LOGD("wpa csa started\n");
 	hapd->csa_in_progress = 1;
 
 	return 0;

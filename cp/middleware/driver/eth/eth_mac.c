@@ -203,10 +203,10 @@
 
 #define ETH_TAG   "eth"
 
-#define ETH_LOGI(...) BK_LOGI(ETH_TAG, ##__VA_ARGS__)
+#define ETH_LOGD(...) BK_LOGD(ETH_TAG, ##__VA_ARGS__)
 #define ETH_LOGW(...) BK_LOGW(ETH_TAG, ##__VA_ARGS__)
 #define ETH_LOGE(...) BK_LOGE(ETH_TAG, ##__VA_ARGS__)
-#define ETH_LOGD(...) BK_LOGD(ETH_TAG, ##__VA_ARGS__)
+#define ETH_LOGV(...) BK_LOGV(ETH_TAG, ##__VA_ARGS__)
 
 /** @defgroup ETH ETH
   * @brief ETH HAL module driver
@@ -387,7 +387,7 @@ HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
   /* After reset all the registers holds their respective reset values */
   SET_BIT(heth->Instance->DMAMR, ETH_DMAMR_SWR);
 
-  ETH_LOGI("Eth resetting\n");
+  ETH_LOGD("Eth resetting\n");
 
   /* Get tick */
   tickstart = HAL_ETH_GetTick();
@@ -408,7 +408,7 @@ HAL_StatusTypeDef HAL_ETH_Init(ETH_HandleTypeDef *heth)
       return HAL_ERROR;
     }
   }
-  ETH_LOGI("Eth reset done\n");
+  ETH_LOGD("Eth reset done\n");
 
   /*------------------ MDIO CSR Clock Range Configuration --------------------*/
   HAL_ETH_SetMDIOClockRange(heth);
@@ -467,7 +467,7 @@ HAL_StatusTypeDef HAL_ETH_ReInit(ETH_HandleTypeDef *heth)
   /* After reset all the registers holds their respective reset values */
   SET_BIT(heth->Instance->DMAMR, ETH_DMAMR_SWR);
 
-  //ETH_LOGI("Eth resetting\n");
+  //ETH_LOGD("Eth resetting\n");
 
   /* Get tick */
   tickstart = HAL_ETH_GetTick();
@@ -488,7 +488,7 @@ HAL_StatusTypeDef HAL_ETH_ReInit(ETH_HandleTypeDef *heth)
       return HAL_ERROR;
     }
   }
-  //ETH_LOGI("Eth reset done\n");
+  //ETH_LOGD("Eth reset done\n");
 
   /*------------------ MDIO CSR Clock Range Configuration --------------------*/
   HAL_ETH_SetMDIOClockRange(heth);
@@ -2321,7 +2321,7 @@ HAL_StatusTypeDef HAL_ETH_WritePHYRegister(ETH_HandleTypeDef *heth, uint32_t PHY
   uint32_t tickstart;
   uint32_t tmpreg;
 
-  ETH_LOGD("%s addr %d, reg %d, value 0x%x\n", __func__, PHYAddr, PHYReg, RegValue);
+  ETH_LOGV("%s addr %d, reg %d, value 0x%x\n", __func__, PHYAddr, PHYReg, RegValue);
 
   /* Check for the Busy flag */
   if (READ_BIT(heth->Instance->MACMDIOAR, ETH_MACMDIOAR_MB) != (uint32_t)RESET)
@@ -2362,7 +2362,7 @@ HAL_StatusTypeDef HAL_ETH_WritePHYRegister(ETH_HandleTypeDef *heth, uint32_t PHY
     }
   }
 
-  ETH_LOGD("%s done\n", __func__);
+  ETH_LOGV("%s done\n", __func__);
   return HAL_OK;
 }
 
@@ -2601,7 +2601,7 @@ void HAL_ETH_SetMDIOClockRange(ETH_HandleTypeDef *heth)
   tmpreg |= (uint32_t)ETH_MACMDIOAR_CR_DIV62;
 #endif
 
-  //ETH_LOGI("set mdio clk 0x%x\n", tmpreg);
+  //ETH_LOGD("set mdio clk 0x%x\n", tmpreg);
 
   /* Configure the CSR Clock Range */
   (heth->Instance)->MACMDIOAR = (uint32_t)tmpreg;
@@ -2914,130 +2914,130 @@ uint32_t HAL_ETH_GetMACWakeUpSource(ETH_HandleTypeDef *heth)
   */
 void HAL_ETH_DumpAllRegisters(ETH_HandleTypeDef *heth)
 {
-    os_printf("%x=%x, MACCR\n", &heth->Instance->MACCR, heth->Instance->MACCR);                       /* Operating mode configuration register (ETH_MACCR) */
-    os_printf("%x=%x, MACECR\n", &heth->Instance->MACECR, heth->Instance->MACECR);                    /* Extended operating mode configuration register (ETH_MACECR) */
-    os_printf("%x=%x, MACPFR\n", &heth->Instance->MACPFR, heth->Instance->MACPFR);                    /* Packet filtering control register (ETH_MACPFR) */
-    os_printf("%x=%x, MACWTR\n", &heth->Instance->MACWTR, heth->Instance->MACWTR);                    /* Watchdog timeout register (ETH_MACWTR) */
-    os_printf("%x=%x, MACHT0R\n", &heth->Instance->MACHT0R, heth->Instance->MACHT0R);                 /* Hash Table 0 register (ETH_MACHT0R) */
-    os_printf("%x=%x, MACHT1R\n", &heth->Instance->MACHT1R, heth->Instance->MACHT1R);                 /* Hash Table 1 register (ETH_MACHT1R) */
-    os_printf("%x=%x, MACVTR\n", &heth->Instance->MACVTR, heth->Instance->MACVTR);                    /* VLAN tag register (ETH_MACVTR) */
-    os_printf("%x=%x, MACVHTR\n", &heth->Instance->MACVHTR, heth->Instance->MACVHTR);                 /* VLAN Hash table register (ETH_MACVHTR) */
-    os_printf("%x=%x, MACVIR\n", &heth->Instance->MACVIR, heth->Instance->MACVIR);                    /* VLAN inclusion register (ETH_MACVIR) */
-    os_printf("%x=%x, MACIVIR\n", &heth->Instance->MACIVIR, heth->Instance->MACIVIR);                 /* Inner VLAN inclusion register (ETH_MACIVIR) */
-    os_printf("%x=%x, MACTFCR\n", &heth->Instance->MACTFCR, heth->Instance->MACTFCR);                 /* Tx Queue flow control register (ETH_MACQTXFCR) */
-    os_printf("%x=%x, MACRFCR\n", &heth->Instance->MACRFCR, heth->Instance->MACRFCR);                 /* Rx flow control register (ETH_MACRXFCR) */
-    os_printf("%x=%x, MACISR\n", &heth->Instance->MACISR, heth->Instance->MACISR);                    /* Interrupt status register (ETH_MACISR) */
-    os_printf("%x=%x, MACIER\n", &heth->Instance->MACIER, heth->Instance->MACIER);                    /* Interrupt enable register (ETH_MACIER) */
-    os_printf("%x=%x, MACRXTXSR\n", &heth->Instance->MACRXTXSR, heth->Instance->MACRXTXSR);           /* Rx Tx status register (ETH_MACRXTXSR) */
-    os_printf("%x=%x, MACPCSR\n", &heth->Instance->MACPCSR, heth->Instance->MACPCSR);                 /* PMT control status register (ETH_MACPCSR) */
-    os_printf("%x=%x, MACRWKPFR\n", &heth->Instance->MACRWKPFR, heth->Instance->MACRWKPFR);           /* Remote wakeup packet filter register (ETH_MACRWKPFR) */
-    os_printf("%x=%x, MACLCSR\n", &heth->Instance->MACLCSR, heth->Instance->MACLCSR);                 /* LPI control status register (ETH_MACLCSR) */
-    os_printf("%x=%x, MACLTCR\n", &heth->Instance->MACLTCR, heth->Instance->MACLTCR);                 /* LPI timers control register (ETH_MACLTCR) */
-    os_printf("%x=%x, MACLETR\n", &heth->Instance->MACLETR, heth->Instance->MACLETR);                 /* LPI entry timer register (ETH_MACLETR) */
-    os_printf("%x=%x, MAC1USTCR\n", &heth->Instance->MAC1USTCR, heth->Instance->MAC1USTCR);           /* 1-microsecond-tick counter register (ETH_MAC1USTCR) */
-    os_printf("%x=%x, MACVR\n", &heth->Instance->MACVR, heth->Instance->MACVR);                       /* Version register (ETH_MACVR) */
-    os_printf("%x=%x, MACDR\n", &heth->Instance->MACDR, heth->Instance->MACDR);                       /* Debug register (ETH_MACDR) */
-    os_printf("%x=%x, MACHWF0R\n", &heth->Instance->MACHWF0R, heth->Instance->MACHWF0R);              /* HW feature 0 register (ETH_MACHWF0R) */
-    os_printf("%x=%x, MACHWF1R\n", &heth->Instance->MACHWF1R, heth->Instance->MACHWF1R);              /* HW feature 1 register (ETH_MACHWF1R) */
-    os_printf("%x=%x, MACHWF2R\n", &heth->Instance->MACHWF2R, heth->Instance->MACHWF2R);              /* HW feature 2 register (ETH_MACHWF2R) */
-    os_printf("%x=%x, MACMDIOAR\n", &heth->Instance->MACMDIOAR, heth->Instance->MACMDIOAR);           /* MDIO address register (ETH_MACMDIOAR) */
-    os_printf("%x=%x, MACMDIODR\n", &heth->Instance->MACMDIODR, heth->Instance->MACMDIODR);           /* MDIO data register (ETH_MACMDIODR) */
-    os_printf("%x=%x, MACARPAR\n", &heth->Instance->MACARPAR, heth->Instance->MACARPAR);              /* ARP address register (ETH_MACARPAR) */
-    os_printf("%x=%x, MACA0HR\n", &heth->Instance->MACA0HR, heth->Instance->MACA0HR);                 /* Address 0 high register (ETH_MACA0HR) */
-    os_printf("%x=%x, MACA0LR\n", &heth->Instance->MACA0LR, heth->Instance->MACA0LR);                 /* Address 0 low register (ETH_MACA0LR) */
-    os_printf("%x=%x, MACA1HR\n", &heth->Instance->MACA1HR, heth->Instance->MACA1HR);                 /* Address 1 high register (ETH_MACA1HR) */
-    os_printf("%x=%x, MACA1LR\n", &heth->Instance->MACA1LR, heth->Instance->MACA1LR);                 /* Address 1 low register (ETH_MACA1LR) */
-    os_printf("%x=%x, MACA2HR\n", &heth->Instance->MACA2HR, heth->Instance->MACA2HR);                 /* Address 2 high register (ETH_MACA2HR) */
-    os_printf("%x=%x, MACA2LR\n", &heth->Instance->MACA2LR, heth->Instance->MACA2LR);                 /* Address 2 low register (ETH_MACA2LR) */
-    os_printf("%x=%x, MACA3HR\n", &heth->Instance->MACA3HR, heth->Instance->MACA3HR);                 /* Address 3 high register (ETH_MACA3HR) */
-    os_printf("%x=%x, MACA3LR\n", &heth->Instance->MACA3LR, heth->Instance->MACA3LR);                 /* Address 3 low register (ETH_MACA3LR) */
-    os_printf("%x=%x, MMCCR\n", &heth->Instance->MMCCR, heth->Instance->MMCCR);                       /* MMC control register (ETH_MMC_CONTROL) */
-    os_printf("%x=%x, MMCRIR\n", &heth->Instance->MMCRIR, heth->Instance->MMCRIR);                    /* MMC Rx interrupt register (ETH_MMC_RX_INTERRUPT) */
-    os_printf("%x=%x, MMCTIR\n", &heth->Instance->MMCTIR, heth->Instance->MMCTIR);                    /* MMC Tx interrupt register (ETH_MMC_TX_INTERRUPT) */
-    os_printf("%x=%x, MMCRIMR\n", &heth->Instance->MMCRIMR, heth->Instance->MMCRIMR);                 /* MMC Rx interrupt mask register (ETH_MMC_RX_INTERRUPT_MASK) */
-    os_printf("%x=%x, MMCTIMR\n", &heth->Instance->MMCTIMR, heth->Instance->MMCTIMR);                 /* MMC Tx interrupt mask register (ETH_MMC_TX_INTERRUPT_MASK) */
-    os_printf("%x=%x, MMCTSCGPR\n", &heth->Instance->MMCTSCGPR, heth->Instance->MMCTSCGPR);           /* Tx single collision good packets register (ETH_TX_SINGLE_COLLISION_GOOD_PACKETS)*/
-    os_printf("%x=%x, MMCTMCGPR\n", &heth->Instance->MMCTMCGPR, heth->Instance->MMCTMCGPR);           /* Tx multiple collision good packets register (ETH_TX_MULTIPLE_COLLISION_GOOD_PACKETS) */
-    os_printf("%x=%x, MMCTPCGR\n", &heth->Instance->MMCTPCGR, heth->Instance->MMCTPCGR);              /* Tx packet count good register (ETH_TX_PACKET_COUNT_GOOD) */
-    os_printf("%x=%x, MMCRCRCEPR\n", &heth->Instance->MMCRCRCEPR, heth->Instance->MMCRCRCEPR);        /* Rx CRC error packets register (ETH_RX_CRC_ERROR_PACKETS) */
-    os_printf("%x=%x, MMCRAEPR\n", &heth->Instance->MMCRAEPR, heth->Instance->MMCRAEPR);              /* Rx alignment error packets register (ETH_RX_ALIGNMENT_ERROR_PACKETS) */
-    os_printf("%x=%x, MMCRUPGR\n", &heth->Instance->MMCRUPGR, heth->Instance->MMCRUPGR);              /* Rx unicast packets good register (ETH_RX_UNICAST_PACKETS_GOOD) */
-    os_printf("%x=%x, MMCTLPIMSTR\n", &heth->Instance->MMCTLPIMSTR, heth->Instance->MMCTLPIMSTR);     /* Tx LPI microsecond timer register (ETH_TX_LPI_USEC_CNTR) */
-    os_printf("%x=%x, MMCTLPITCR\n", &heth->Instance->MMCTLPITCR, heth->Instance->MMCTLPITCR);        /* Tx LPI transition counter register (ETH_TX_LPI_TRAN_CNTR) */
-    os_printf("%x=%x, MMCRLPIMSTR\n", &heth->Instance->MMCRLPIMSTR, heth->Instance->MMCRLPIMSTR);     /* Rx LPI microsecond counter register (ETH_RX_LPI_USEC_CNTR) */
-    os_printf("%x=%x, MMCRLPITCR\n", &heth->Instance->MMCRLPITCR, heth->Instance->MMCRLPITCR);        /* Rx LPI transition counter register (ETH_RX_LPI_TRAN_CNTR) */
-    os_printf("%x=%x, MACL3L4C0R\n", &heth->Instance->MACL3L4C0R, heth->Instance->MACL3L4C0R);        /* L3 and L4 control 0 register (ETH_MACL3L4C0R) */
-    os_printf("%x=%x, MACL4A0R\n", &heth->Instance->MACL4A0R, heth->Instance->MACL4A0R);              /* Layer4 address filter 0 register (ETH_MACL4A0R) */
-    os_printf("%x=%x, MACL3A0R0R\n", &heth->Instance->MACL3A0R0R, heth->Instance->MACL3A0R0R);        /* Layer 3 Address 0 filter 0 register (ETH_MACL3A00R) */
-    os_printf("%x=%x, MACL3A1R0R\n", &heth->Instance->MACL3A1R0R, heth->Instance->MACL3A1R0R);        /* Layer3 address 1 filter 0 register (ETH_MACL3A10R) */
-    os_printf("%x=%x, MACL3A2R0R\n", &heth->Instance->MACL3A2R0R, heth->Instance->MACL3A2R0R);        /* Layer3 address 2 filter 0 register (ETH_MACL3A20R) */
-    os_printf("%x=%x, MACL3A3R0R\n", &heth->Instance->MACL3A3R0R, heth->Instance->MACL3A3R0R);        /* Layer3 address 3 filter 0 register (ETH_MACL3A30R) */
-    os_printf("%x=%x, MACL3L4C1R\n", &heth->Instance->MACL3L4C1R, heth->Instance->MACL3L4C1R);        /* L3 and L4 control 1 register (ETH_MACL3L4C1R) */
-    os_printf("%x=%x, MACL4A1R\n", &heth->Instance->MACL4A1R, heth->Instance->MACL4A1R);              /* Layer 4 address filter 1 register (ETH_MACL4A1R) */
-    os_printf("%x=%x, MACL3A0R1R\n", &heth->Instance->MACL3A0R1R, heth->Instance->MACL3A0R1R);        /* Layer3 address 0 filter 1 Register (ETH_MACL3A01R) */
-    os_printf("%x=%x, MACL3A1R1R\n", &heth->Instance->MACL3A1R1R, heth->Instance->MACL3A1R1R);        /* Layer3 address 1 filter 1 Register (ETH_MACL3A11R) */
-    os_printf("%x=%x, MACL3A2R1R\n", &heth->Instance->MACL3A2R1R, heth->Instance->MACL3A2R1R);        /* Layer3 address 2 filter 1 Register (ETH_MACL3A21R) */
-    os_printf("%x=%x, MACL3A3R1R\n", &heth->Instance->MACL3A3R1R, heth->Instance->MACL3A3R1R);        /* Layer3 address 3 filter 1 Register (ETH_MACL3A31R) */
-    os_printf("%x=%x, MACTSCR\n", &heth->Instance->MACTSCR, heth->Instance->MACTSCR);                 /* Timestamp control Register (ETH_MACTSCR) */
-    os_printf("%x=%x, MACSSIR\n", &heth->Instance->MACSSIR, heth->Instance->MACSSIR);                 /* Sub-second increment register (ETH_MACSSIR) */
-    os_printf("%x=%x, MACSTSR\n", &heth->Instance->MACSTSR, heth->Instance->MACSTSR);                 /* System time seconds register (ETH_MACSTSR) */
-    os_printf("%x=%x, MACSTNR\n", &heth->Instance->MACSTNR, heth->Instance->MACSTNR);                 /* System time nanoseconds register (ETH_MACSTNR) */
-    os_printf("%x=%x, MACSTSUR\n", &heth->Instance->MACSTSUR, heth->Instance->MACSTSUR);              /* System time seconds update register (ETH_MACSTSUR) */
-    os_printf("%x=%x, MACSTNUR\n", &heth->Instance->MACSTNUR, heth->Instance->MACSTNUR);              /* System time nanoseconds update register (ETH_MACSTNUR) */
-    os_printf("%x=%x, MACTSAR\n", &heth->Instance->MACTSAR, heth->Instance->MACTSAR);                 /* Timestamp addend register (ETH_MACTSAR) */
-    os_printf("%x=%x, MACTSSR\n", &heth->Instance->MACTSSR, heth->Instance->MACTSSR);                 /* Timestamp status register (ETH_MACTSSR) */
-    os_printf("%x=%x, MACTTSSNR\n", &heth->Instance->MACTTSSNR, heth->Instance->MACTTSSNR);           /* Tx timestamp status nanoseconds register (ETH_MACTXTSSNR) */
-    os_printf("%x=%x, MACTTSSSR\n", &heth->Instance->MACTTSSSR, heth->Instance->MACTTSSSR);           /* Tx timestamp status seconds register (ETH_MACTXTSSSR) */
-    os_printf("%x=%x, MACACR\n", &heth->Instance->MACACR, heth->Instance->MACACR);                    /* Auxiliary control register (ETH_MACACR) */
-    os_printf("%x=%x, MACATSNR\n", &heth->Instance->MACATSNR, heth->Instance->MACATSNR);              /* Auxiliary timestamp nanoseconds register (ETH_MACATSNR) */
-    os_printf("%x=%x, MACATSSR\n", &heth->Instance->MACATSSR, heth->Instance->MACATSSR);              /* Auxiliary timestamp seconds register (ETH_MACATSSR) */
-    os_printf("%x=%x, MACTSIACR\n", &heth->Instance->MACTSIACR, heth->Instance->MACTSIACR);           /* Timestamp Ingress asymmetric correction register (ETH_MACTSIACR) */
-    os_printf("%x=%x, MACTSEACR\n", &heth->Instance->MACTSEACR, heth->Instance->MACTSEACR);           /* Timestamp Egress asymmetric correction register (ETH_MACTSEACR) */
-    os_printf("%x=%x, MACTSICNR\n", &heth->Instance->MACTSICNR, heth->Instance->MACTSICNR);           /* Timestamp Ingress correction nanosecond register (ETH_MACTSICNR) */
-    os_printf("%x=%x, MACTSECNR\n", &heth->Instance->MACTSECNR, heth->Instance->MACTSECNR);           /* Timestamp Egress correction nanosecond register (ETH_MACTSECNR) */
-    os_printf("%x=%x, MACPPSCR\n", &heth->Instance->MACPPSCR, heth->Instance->MACPPSCR);              /* PPS control register [alternate] (ETH_MACPPSCR) */
-    os_printf("%x=%x, MACPPSTTSR\n", &heth->Instance->MACPPSTTSR, heth->Instance->MACPPSTTSR);        /* PPS target time seconds register (ETH_MACPPSTTSR) */
-    os_printf("%x=%x, MACPPSTTNR\n", &heth->Instance->MACPPSTTNR, heth->Instance->MACPPSTTNR);        /* PPS target time nanoseconds register (ETH_MACPPSTTNR) */
-    os_printf("%x=%x, MACPPSIR\n", &heth->Instance->MACPPSIR, heth->Instance->MACPPSIR);              /* PPS interval register (ETH_MACPPSIR) */
-    os_printf("%x=%x, MACPPSWR\n", &heth->Instance->MACPPSWR, heth->Instance->MACPPSWR);              /* PPS width register (ETH_MACPPSWR) */
-    os_printf("%x=%x, MACPOCR\n", &heth->Instance->MACPOCR, heth->Instance->MACPOCR);                 /* PTP Offload control register (ETH_MACPOCR) */
-    os_printf("%x=%x, MACSPI0R\n", &heth->Instance->MACSPI0R, heth->Instance->MACSPI0R);              /* PTP Source Port Identity 0 Register (ETH_MACSPI0R) */
-    os_printf("%x=%x, MACSPI1R\n", &heth->Instance->MACSPI1R, heth->Instance->MACSPI1R);              /* PTP Source Port Identity 1 Register (ETH_MACSPI1R) */
-    os_printf("%x=%x, MACSPI2R\n", &heth->Instance->MACSPI2R, heth->Instance->MACSPI2R);              /* PTP Source Port Identity 2 Register (ETH_MACSPI2R) */
-    os_printf("%x=%x, MACLMIR\n", &heth->Instance->MACLMIR, heth->Instance->MACLMIR);                 /* Log message interval register (ETH_MACLMIR) */
+    BK_LOGD(NULL,"%x=%x, MACCR\n", &heth->Instance->MACCR, heth->Instance->MACCR);                       /* Operating mode configuration register (ETH_MACCR) */
+    BK_LOGD(NULL,"%x=%x, MACECR\n", &heth->Instance->MACECR, heth->Instance->MACECR);                    /* Extended operating mode configuration register (ETH_MACECR) */
+    BK_LOGD(NULL,"%x=%x, MACPFR\n", &heth->Instance->MACPFR, heth->Instance->MACPFR);                    /* Packet filtering control register (ETH_MACPFR) */
+    BK_LOGD(NULL,"%x=%x, MACWTR\n", &heth->Instance->MACWTR, heth->Instance->MACWTR);                    /* Watchdog timeout register (ETH_MACWTR) */
+    BK_LOGD(NULL,"%x=%x, MACHT0R\n", &heth->Instance->MACHT0R, heth->Instance->MACHT0R);                 /* Hash Table 0 register (ETH_MACHT0R) */
+    BK_LOGD(NULL,"%x=%x, MACHT1R\n", &heth->Instance->MACHT1R, heth->Instance->MACHT1R);                 /* Hash Table 1 register (ETH_MACHT1R) */
+    BK_LOGD(NULL,"%x=%x, MACVTR\n", &heth->Instance->MACVTR, heth->Instance->MACVTR);                    /* VLAN tag register (ETH_MACVTR) */
+    BK_LOGD(NULL,"%x=%x, MACVHTR\n", &heth->Instance->MACVHTR, heth->Instance->MACVHTR);                 /* VLAN Hash table register (ETH_MACVHTR) */
+    BK_LOGD(NULL,"%x=%x, MACVIR\n", &heth->Instance->MACVIR, heth->Instance->MACVIR);                    /* VLAN inclusion register (ETH_MACVIR) */
+    BK_LOGD(NULL,"%x=%x, MACIVIR\n", &heth->Instance->MACIVIR, heth->Instance->MACIVIR);                 /* Inner VLAN inclusion register (ETH_MACIVIR) */
+    BK_LOGD(NULL,"%x=%x, MACTFCR\n", &heth->Instance->MACTFCR, heth->Instance->MACTFCR);                 /* Tx Queue flow control register (ETH_MACQTXFCR) */
+    BK_LOGD(NULL,"%x=%x, MACRFCR\n", &heth->Instance->MACRFCR, heth->Instance->MACRFCR);                 /* Rx flow control register (ETH_MACRXFCR) */
+    BK_LOGD(NULL,"%x=%x, MACISR\n", &heth->Instance->MACISR, heth->Instance->MACISR);                    /* Interrupt status register (ETH_MACISR) */
+    BK_LOGD(NULL,"%x=%x, MACIER\n", &heth->Instance->MACIER, heth->Instance->MACIER);                    /* Interrupt enable register (ETH_MACIER) */
+    BK_LOGD(NULL,"%x=%x, MACRXTXSR\n", &heth->Instance->MACRXTXSR, heth->Instance->MACRXTXSR);           /* Rx Tx status register (ETH_MACRXTXSR) */
+    BK_LOGD(NULL,"%x=%x, MACPCSR\n", &heth->Instance->MACPCSR, heth->Instance->MACPCSR);                 /* PMT control status register (ETH_MACPCSR) */
+    BK_LOGD(NULL,"%x=%x, MACRWKPFR\n", &heth->Instance->MACRWKPFR, heth->Instance->MACRWKPFR);           /* Remote wakeup packet filter register (ETH_MACRWKPFR) */
+    BK_LOGD(NULL,"%x=%x, MACLCSR\n", &heth->Instance->MACLCSR, heth->Instance->MACLCSR);                 /* LPI control status register (ETH_MACLCSR) */
+    BK_LOGD(NULL,"%x=%x, MACLTCR\n", &heth->Instance->MACLTCR, heth->Instance->MACLTCR);                 /* LPI timers control register (ETH_MACLTCR) */
+    BK_LOGD(NULL,"%x=%x, MACLETR\n", &heth->Instance->MACLETR, heth->Instance->MACLETR);                 /* LPI entry timer register (ETH_MACLETR) */
+    BK_LOGD(NULL,"%x=%x, MAC1USTCR\n", &heth->Instance->MAC1USTCR, heth->Instance->MAC1USTCR);           /* 1-microsecond-tick counter register (ETH_MAC1USTCR) */
+    BK_LOGD(NULL,"%x=%x, MACVR\n", &heth->Instance->MACVR, heth->Instance->MACVR);                       /* Version register (ETH_MACVR) */
+    BK_LOGD(NULL,"%x=%x, MACDR\n", &heth->Instance->MACDR, heth->Instance->MACDR);                       /* Debug register (ETH_MACDR) */
+    BK_LOGD(NULL,"%x=%x, MACHWF0R\n", &heth->Instance->MACHWF0R, heth->Instance->MACHWF0R);              /* HW feature 0 register (ETH_MACHWF0R) */
+    BK_LOGD(NULL,"%x=%x, MACHWF1R\n", &heth->Instance->MACHWF1R, heth->Instance->MACHWF1R);              /* HW feature 1 register (ETH_MACHWF1R) */
+    BK_LOGD(NULL,"%x=%x, MACHWF2R\n", &heth->Instance->MACHWF2R, heth->Instance->MACHWF2R);              /* HW feature 2 register (ETH_MACHWF2R) */
+    BK_LOGD(NULL,"%x=%x, MACMDIOAR\n", &heth->Instance->MACMDIOAR, heth->Instance->MACMDIOAR);           /* MDIO address register (ETH_MACMDIOAR) */
+    BK_LOGD(NULL,"%x=%x, MACMDIODR\n", &heth->Instance->MACMDIODR, heth->Instance->MACMDIODR);           /* MDIO data register (ETH_MACMDIODR) */
+    BK_LOGD(NULL,"%x=%x, MACARPAR\n", &heth->Instance->MACARPAR, heth->Instance->MACARPAR);              /* ARP address register (ETH_MACARPAR) */
+    BK_LOGD(NULL,"%x=%x, MACA0HR\n", &heth->Instance->MACA0HR, heth->Instance->MACA0HR);                 /* Address 0 high register (ETH_MACA0HR) */
+    BK_LOGD(NULL,"%x=%x, MACA0LR\n", &heth->Instance->MACA0LR, heth->Instance->MACA0LR);                 /* Address 0 low register (ETH_MACA0LR) */
+    BK_LOGD(NULL,"%x=%x, MACA1HR\n", &heth->Instance->MACA1HR, heth->Instance->MACA1HR);                 /* Address 1 high register (ETH_MACA1HR) */
+    BK_LOGD(NULL,"%x=%x, MACA1LR\n", &heth->Instance->MACA1LR, heth->Instance->MACA1LR);                 /* Address 1 low register (ETH_MACA1LR) */
+    BK_LOGD(NULL,"%x=%x, MACA2HR\n", &heth->Instance->MACA2HR, heth->Instance->MACA2HR);                 /* Address 2 high register (ETH_MACA2HR) */
+    BK_LOGD(NULL,"%x=%x, MACA2LR\n", &heth->Instance->MACA2LR, heth->Instance->MACA2LR);                 /* Address 2 low register (ETH_MACA2LR) */
+    BK_LOGD(NULL,"%x=%x, MACA3HR\n", &heth->Instance->MACA3HR, heth->Instance->MACA3HR);                 /* Address 3 high register (ETH_MACA3HR) */
+    BK_LOGD(NULL,"%x=%x, MACA3LR\n", &heth->Instance->MACA3LR, heth->Instance->MACA3LR);                 /* Address 3 low register (ETH_MACA3LR) */
+    BK_LOGD(NULL,"%x=%x, MMCCR\n", &heth->Instance->MMCCR, heth->Instance->MMCCR);                       /* MMC control register (ETH_MMC_CONTROL) */
+    BK_LOGD(NULL,"%x=%x, MMCRIR\n", &heth->Instance->MMCRIR, heth->Instance->MMCRIR);                    /* MMC Rx interrupt register (ETH_MMC_RX_INTERRUPT) */
+    BK_LOGD(NULL,"%x=%x, MMCTIR\n", &heth->Instance->MMCTIR, heth->Instance->MMCTIR);                    /* MMC Tx interrupt register (ETH_MMC_TX_INTERRUPT) */
+    BK_LOGD(NULL,"%x=%x, MMCRIMR\n", &heth->Instance->MMCRIMR, heth->Instance->MMCRIMR);                 /* MMC Rx interrupt mask register (ETH_MMC_RX_INTERRUPT_MASK) */
+    BK_LOGD(NULL,"%x=%x, MMCTIMR\n", &heth->Instance->MMCTIMR, heth->Instance->MMCTIMR);                 /* MMC Tx interrupt mask register (ETH_MMC_TX_INTERRUPT_MASK) */
+    BK_LOGD(NULL,"%x=%x, MMCTSCGPR\n", &heth->Instance->MMCTSCGPR, heth->Instance->MMCTSCGPR);           /* Tx single collision good packets register (ETH_TX_SINGLE_COLLISION_GOOD_PACKETS)*/
+    BK_LOGD(NULL,"%x=%x, MMCTMCGPR\n", &heth->Instance->MMCTMCGPR, heth->Instance->MMCTMCGPR);           /* Tx multiple collision good packets register (ETH_TX_MULTIPLE_COLLISION_GOOD_PACKETS) */
+    BK_LOGD(NULL,"%x=%x, MMCTPCGR\n", &heth->Instance->MMCTPCGR, heth->Instance->MMCTPCGR);              /* Tx packet count good register (ETH_TX_PACKET_COUNT_GOOD) */
+    BK_LOGD(NULL,"%x=%x, MMCRCRCEPR\n", &heth->Instance->MMCRCRCEPR, heth->Instance->MMCRCRCEPR);        /* Rx CRC error packets register (ETH_RX_CRC_ERROR_PACKETS) */
+    BK_LOGD(NULL,"%x=%x, MMCRAEPR\n", &heth->Instance->MMCRAEPR, heth->Instance->MMCRAEPR);              /* Rx alignment error packets register (ETH_RX_ALIGNMENT_ERROR_PACKETS) */
+    BK_LOGD(NULL,"%x=%x, MMCRUPGR\n", &heth->Instance->MMCRUPGR, heth->Instance->MMCRUPGR);              /* Rx unicast packets good register (ETH_RX_UNICAST_PACKETS_GOOD) */
+    BK_LOGD(NULL,"%x=%x, MMCTLPIMSTR\n", &heth->Instance->MMCTLPIMSTR, heth->Instance->MMCTLPIMSTR);     /* Tx LPI microsecond timer register (ETH_TX_LPI_USEC_CNTR) */
+    BK_LOGD(NULL,"%x=%x, MMCTLPITCR\n", &heth->Instance->MMCTLPITCR, heth->Instance->MMCTLPITCR);        /* Tx LPI transition counter register (ETH_TX_LPI_TRAN_CNTR) */
+    BK_LOGD(NULL,"%x=%x, MMCRLPIMSTR\n", &heth->Instance->MMCRLPIMSTR, heth->Instance->MMCRLPIMSTR);     /* Rx LPI microsecond counter register (ETH_RX_LPI_USEC_CNTR) */
+    BK_LOGD(NULL,"%x=%x, MMCRLPITCR\n", &heth->Instance->MMCRLPITCR, heth->Instance->MMCRLPITCR);        /* Rx LPI transition counter register (ETH_RX_LPI_TRAN_CNTR) */
+    BK_LOGD(NULL,"%x=%x, MACL3L4C0R\n", &heth->Instance->MACL3L4C0R, heth->Instance->MACL3L4C0R);        /* L3 and L4 control 0 register (ETH_MACL3L4C0R) */
+    BK_LOGD(NULL,"%x=%x, MACL4A0R\n", &heth->Instance->MACL4A0R, heth->Instance->MACL4A0R);              /* Layer4 address filter 0 register (ETH_MACL4A0R) */
+    BK_LOGD(NULL,"%x=%x, MACL3A0R0R\n", &heth->Instance->MACL3A0R0R, heth->Instance->MACL3A0R0R);        /* Layer 3 Address 0 filter 0 register (ETH_MACL3A00R) */
+    BK_LOGD(NULL,"%x=%x, MACL3A1R0R\n", &heth->Instance->MACL3A1R0R, heth->Instance->MACL3A1R0R);        /* Layer3 address 1 filter 0 register (ETH_MACL3A10R) */
+    BK_LOGD(NULL,"%x=%x, MACL3A2R0R\n", &heth->Instance->MACL3A2R0R, heth->Instance->MACL3A2R0R);        /* Layer3 address 2 filter 0 register (ETH_MACL3A20R) */
+    BK_LOGD(NULL,"%x=%x, MACL3A3R0R\n", &heth->Instance->MACL3A3R0R, heth->Instance->MACL3A3R0R);        /* Layer3 address 3 filter 0 register (ETH_MACL3A30R) */
+    BK_LOGD(NULL,"%x=%x, MACL3L4C1R\n", &heth->Instance->MACL3L4C1R, heth->Instance->MACL3L4C1R);        /* L3 and L4 control 1 register (ETH_MACL3L4C1R) */
+    BK_LOGD(NULL,"%x=%x, MACL4A1R\n", &heth->Instance->MACL4A1R, heth->Instance->MACL4A1R);              /* Layer 4 address filter 1 register (ETH_MACL4A1R) */
+    BK_LOGD(NULL,"%x=%x, MACL3A0R1R\n", &heth->Instance->MACL3A0R1R, heth->Instance->MACL3A0R1R);        /* Layer3 address 0 filter 1 Register (ETH_MACL3A01R) */
+    BK_LOGD(NULL,"%x=%x, MACL3A1R1R\n", &heth->Instance->MACL3A1R1R, heth->Instance->MACL3A1R1R);        /* Layer3 address 1 filter 1 Register (ETH_MACL3A11R) */
+    BK_LOGD(NULL,"%x=%x, MACL3A2R1R\n", &heth->Instance->MACL3A2R1R, heth->Instance->MACL3A2R1R);        /* Layer3 address 2 filter 1 Register (ETH_MACL3A21R) */
+    BK_LOGD(NULL,"%x=%x, MACL3A3R1R\n", &heth->Instance->MACL3A3R1R, heth->Instance->MACL3A3R1R);        /* Layer3 address 3 filter 1 Register (ETH_MACL3A31R) */
+    BK_LOGD(NULL,"%x=%x, MACTSCR\n", &heth->Instance->MACTSCR, heth->Instance->MACTSCR);                 /* Timestamp control Register (ETH_MACTSCR) */
+    BK_LOGD(NULL,"%x=%x, MACSSIR\n", &heth->Instance->MACSSIR, heth->Instance->MACSSIR);                 /* Sub-second increment register (ETH_MACSSIR) */
+    BK_LOGD(NULL,"%x=%x, MACSTSR\n", &heth->Instance->MACSTSR, heth->Instance->MACSTSR);                 /* System time seconds register (ETH_MACSTSR) */
+    BK_LOGD(NULL,"%x=%x, MACSTNR\n", &heth->Instance->MACSTNR, heth->Instance->MACSTNR);                 /* System time nanoseconds register (ETH_MACSTNR) */
+    BK_LOGD(NULL,"%x=%x, MACSTSUR\n", &heth->Instance->MACSTSUR, heth->Instance->MACSTSUR);              /* System time seconds update register (ETH_MACSTSUR) */
+    BK_LOGD(NULL,"%x=%x, MACSTNUR\n", &heth->Instance->MACSTNUR, heth->Instance->MACSTNUR);              /* System time nanoseconds update register (ETH_MACSTNUR) */
+    BK_LOGD(NULL,"%x=%x, MACTSAR\n", &heth->Instance->MACTSAR, heth->Instance->MACTSAR);                 /* Timestamp addend register (ETH_MACTSAR) */
+    BK_LOGD(NULL,"%x=%x, MACTSSR\n", &heth->Instance->MACTSSR, heth->Instance->MACTSSR);                 /* Timestamp status register (ETH_MACTSSR) */
+    BK_LOGD(NULL,"%x=%x, MACTTSSNR\n", &heth->Instance->MACTTSSNR, heth->Instance->MACTTSSNR);           /* Tx timestamp status nanoseconds register (ETH_MACTXTSSNR) */
+    BK_LOGD(NULL,"%x=%x, MACTTSSSR\n", &heth->Instance->MACTTSSSR, heth->Instance->MACTTSSSR);           /* Tx timestamp status seconds register (ETH_MACTXTSSSR) */
+    BK_LOGD(NULL,"%x=%x, MACACR\n", &heth->Instance->MACACR, heth->Instance->MACACR);                    /* Auxiliary control register (ETH_MACACR) */
+    BK_LOGD(NULL,"%x=%x, MACATSNR\n", &heth->Instance->MACATSNR, heth->Instance->MACATSNR);              /* Auxiliary timestamp nanoseconds register (ETH_MACATSNR) */
+    BK_LOGD(NULL,"%x=%x, MACATSSR\n", &heth->Instance->MACATSSR, heth->Instance->MACATSSR);              /* Auxiliary timestamp seconds register (ETH_MACATSSR) */
+    BK_LOGD(NULL,"%x=%x, MACTSIACR\n", &heth->Instance->MACTSIACR, heth->Instance->MACTSIACR);           /* Timestamp Ingress asymmetric correction register (ETH_MACTSIACR) */
+    BK_LOGD(NULL,"%x=%x, MACTSEACR\n", &heth->Instance->MACTSEACR, heth->Instance->MACTSEACR);           /* Timestamp Egress asymmetric correction register (ETH_MACTSEACR) */
+    BK_LOGD(NULL,"%x=%x, MACTSICNR\n", &heth->Instance->MACTSICNR, heth->Instance->MACTSICNR);           /* Timestamp Ingress correction nanosecond register (ETH_MACTSICNR) */
+    BK_LOGD(NULL,"%x=%x, MACTSECNR\n", &heth->Instance->MACTSECNR, heth->Instance->MACTSECNR);           /* Timestamp Egress correction nanosecond register (ETH_MACTSECNR) */
+    BK_LOGD(NULL,"%x=%x, MACPPSCR\n", &heth->Instance->MACPPSCR, heth->Instance->MACPPSCR);              /* PPS control register [alternate] (ETH_MACPPSCR) */
+    BK_LOGD(NULL,"%x=%x, MACPPSTTSR\n", &heth->Instance->MACPPSTTSR, heth->Instance->MACPPSTTSR);        /* PPS target time seconds register (ETH_MACPPSTTSR) */
+    BK_LOGD(NULL,"%x=%x, MACPPSTTNR\n", &heth->Instance->MACPPSTTNR, heth->Instance->MACPPSTTNR);        /* PPS target time nanoseconds register (ETH_MACPPSTTNR) */
+    BK_LOGD(NULL,"%x=%x, MACPPSIR\n", &heth->Instance->MACPPSIR, heth->Instance->MACPPSIR);              /* PPS interval register (ETH_MACPPSIR) */
+    BK_LOGD(NULL,"%x=%x, MACPPSWR\n", &heth->Instance->MACPPSWR, heth->Instance->MACPPSWR);              /* PPS width register (ETH_MACPPSWR) */
+    BK_LOGD(NULL,"%x=%x, MACPOCR\n", &heth->Instance->MACPOCR, heth->Instance->MACPOCR);                 /* PTP Offload control register (ETH_MACPOCR) */
+    BK_LOGD(NULL,"%x=%x, MACSPI0R\n", &heth->Instance->MACSPI0R, heth->Instance->MACSPI0R);              /* PTP Source Port Identity 0 Register (ETH_MACSPI0R) */
+    BK_LOGD(NULL,"%x=%x, MACSPI1R\n", &heth->Instance->MACSPI1R, heth->Instance->MACSPI1R);              /* PTP Source Port Identity 1 Register (ETH_MACSPI1R) */
+    BK_LOGD(NULL,"%x=%x, MACSPI2R\n", &heth->Instance->MACSPI2R, heth->Instance->MACSPI2R);              /* PTP Source Port Identity 2 Register (ETH_MACSPI2R) */
+    BK_LOGD(NULL,"%x=%x, MACLMIR\n", &heth->Instance->MACLMIR, heth->Instance->MACLMIR);                 /* Log message interval register (ETH_MACLMIR) */
 
-    os_printf("%x=%x, MTLOMR\n", &heth->Instance->MTLOMR, heth->Instance->MTLOMR);                    /* Operating mode Register (ETH_MTLOMR) */
-    os_printf("%x=%x, MTLISR\n", &heth->Instance->MTLISR, heth->Instance->MTLISR);                    /* Interrupt status Register (ETH_MTLISR) */
-    os_printf("%x=%x, MTLTQOMR\n", &heth->Instance->MTLTQOMR, heth->Instance->MTLTQOMR);              /* Tx queue operating mode Register (ETH_MTLTXQOMR) */
-    os_printf("%x=%x, MTLTQUR\n", &heth->Instance->MTLTQUR, heth->Instance->MTLTQUR);                 /* Tx queue underflow register (ETH_MTLTXQUR) */
-    os_printf("%x=%x, MTLTQDR\n", &heth->Instance->MTLTQDR, heth->Instance->MTLTQDR);                 /* Tx queue debug Register (ETH_MTLTXQDR) */
-    os_printf("%x=%x, MTLQICSR\n", &heth->Instance->MTLQICSR, heth->Instance->MTLQICSR);              /* Queue interrupt control status Register (ETH_MTLQICSR) */
-    os_printf("%x=%x, MTLRQOMR\n", &heth->Instance->MTLRQOMR, heth->Instance->MTLRQOMR);              /* Rx queue operating mode register (ETH_MTLRXQOMR) */
-    os_printf("%x=%x, MTLRQMPOCR\n", &heth->Instance->MTLRQMPOCR, heth->Instance->MTLRQMPOCR);        /* Rx queue missed packet and overflow counter register (ETH_MTLRXQMPOCR) */
-    os_printf("%x=%x, MTLRQDR\n", &heth->Instance->MTLRQDR, heth->Instance->MTLRQDR);                 /* Rx queue debug register (ETH_MTLRXQDR) */
+    BK_LOGD(NULL,"%x=%x, MTLOMR\n", &heth->Instance->MTLOMR, heth->Instance->MTLOMR);                    /* Operating mode Register (ETH_MTLOMR) */
+    BK_LOGD(NULL,"%x=%x, MTLISR\n", &heth->Instance->MTLISR, heth->Instance->MTLISR);                    /* Interrupt status Register (ETH_MTLISR) */
+    BK_LOGD(NULL,"%x=%x, MTLTQOMR\n", &heth->Instance->MTLTQOMR, heth->Instance->MTLTQOMR);              /* Tx queue operating mode Register (ETH_MTLTXQOMR) */
+    BK_LOGD(NULL,"%x=%x, MTLTQUR\n", &heth->Instance->MTLTQUR, heth->Instance->MTLTQUR);                 /* Tx queue underflow register (ETH_MTLTXQUR) */
+    BK_LOGD(NULL,"%x=%x, MTLTQDR\n", &heth->Instance->MTLTQDR, heth->Instance->MTLTQDR);                 /* Tx queue debug Register (ETH_MTLTXQDR) */
+    BK_LOGD(NULL,"%x=%x, MTLQICSR\n", &heth->Instance->MTLQICSR, heth->Instance->MTLQICSR);              /* Queue interrupt control status Register (ETH_MTLQICSR) */
+    BK_LOGD(NULL,"%x=%x, MTLRQOMR\n", &heth->Instance->MTLRQOMR, heth->Instance->MTLRQOMR);              /* Rx queue operating mode register (ETH_MTLRXQOMR) */
+    BK_LOGD(NULL,"%x=%x, MTLRQMPOCR\n", &heth->Instance->MTLRQMPOCR, heth->Instance->MTLRQMPOCR);        /* Rx queue missed packet and overflow counter register (ETH_MTLRXQMPOCR) */
+    BK_LOGD(NULL,"%x=%x, MTLRQDR\n", &heth->Instance->MTLRQDR, heth->Instance->MTLRQDR);                 /* Rx queue debug register (ETH_MTLRXQDR) */
 
-    os_printf("%x=%x, DMAMR\n", &heth->Instance->DMAMR, heth->Instance->DMAMR);                       /* DMA mode register (ETH_DMAMR) */
-    os_printf("%x=%x, DMASBMR\n", &heth->Instance->DMASBMR, heth->Instance->DMASBMR);                 /* System bus mode register (ETH_DMASBMR) */
-    os_printf("%x=%x, DMAISR\n", &heth->Instance->DMAISR, heth->Instance->DMAISR);                    /* Interrupt status register (ETH_DMAISR) */
-    os_printf("%x=%x, DMADSR\n", &heth->Instance->DMADSR, heth->Instance->DMADSR);                    /* Debug status register (ETH_DMADSR) */
-    os_printf("%x=%x, DMACCR\n", &heth->Instance->DMACCR, heth->Instance->DMACCR);                    /* Channel control register (ETH_DMACCR) */
-    os_printf("%x=%x, DMACTCR\n", &heth->Instance->DMACTCR, heth->Instance->DMACTCR);                 /* Channel transmit control register (ETH_DMACTXCR) */
-    os_printf("%x=%x, DMACRCR\n", &heth->Instance->DMACRCR, heth->Instance->DMACRCR);                 /* Channel receive control register (ETH_DMACRXCR) */
-    os_printf("%x=%x, DMACTDLAR\n", &heth->Instance->DMACTDLAR, heth->Instance->DMACTDLAR);           /* Channel Tx descriptor list address register (ETH_DMACTXDLAR) */
-    os_printf("%x=%x, DMACRDLAR\n", &heth->Instance->DMACRDLAR, heth->Instance->DMACRDLAR);           /* Channel Rx descriptor list address register (ETH_DMACRXDLAR) */
-    os_printf("%x=%x, DMACTDTPR\n", &heth->Instance->DMACTDTPR, heth->Instance->DMACTDTPR);           /* Channel Tx descriptor tail pointer register (ETH_DMACTXDTPR) */
-    os_printf("%x=%x, DMACRDTPR\n", &heth->Instance->DMACRDTPR, heth->Instance->DMACRDTPR);           /* Channel Rx descriptor tail pointer register (ETH_DMACRXDTPR) */
-    os_printf("%x=%x, DMACTDRLR\n", &heth->Instance->DMACTDRLR, heth->Instance->DMACTDRLR);           /* Channel Tx descriptor ring length register (ETH_DMACTXRLR) */
-    os_printf("%x=%x, DMACRDRLR\n", &heth->Instance->DMACRDRLR, heth->Instance->DMACRDRLR);           /* Channel Rx descriptor ring length register (ETH_DMACRXRLR) */
-    os_printf("%x=%x, DMACIER\n", &heth->Instance->DMACIER, heth->Instance->DMACIER);                 /* Channel interrupt enable register (ETH_DMACIER) */
-    os_printf("%x=%x, DMACRIWTR\n", &heth->Instance->DMACRIWTR, heth->Instance->DMACRIWTR);           /* Channel Rx interrupt watchdog timer register (ETH_DMACRXIWTR) */
-    os_printf("%x=%x, DMACSFCSR\n", &heth->Instance->DMACSFCSR, heth->Instance->DMACSFCSR);           /* Channel Tx Slot Function Control Status Register */
-    os_printf("%x=%x, DMACCATDR\n", &heth->Instance->DMACCATDR, heth->Instance->DMACCATDR);           /* Channel current application transmit descriptor register (ETH_DMACCATXDR) */
-    os_printf("%x=%x, DMACCARDR\n", &heth->Instance->DMACCARDR, heth->Instance->DMACCARDR);           /* Channel current application receive descriptor register (ETH_DMACCARXDR) */
-    os_printf("%x=%x, DMACCATBR\n", &heth->Instance->DMACCATBR, heth->Instance->DMACCATBR);           /* Channel current application transmit buffer register (ETH_DMACCATXBR) */
-    os_printf("%x=%x, DMACCARBR\n", &heth->Instance->DMACCARBR, heth->Instance->DMACCARBR);           /* Channel current application receive buffer register (ETH_DMACCARXBR) */
-    os_printf("%x=%x, DMACSR\n", &heth->Instance->DMACSR, heth->Instance->DMACSR);                    /* Channel status register (ETH_DMACSR) */
-    os_printf("%x=%x, DMACMFCR\n", &heth->Instance->DMACMFCR, heth->Instance->DMACMFCR);              /* Channel missed frame count register (ETH_DMACMFCR) */
+    BK_LOGD(NULL,"%x=%x, DMAMR\n", &heth->Instance->DMAMR, heth->Instance->DMAMR);                       /* DMA mode register (ETH_DMAMR) */
+    BK_LOGD(NULL,"%x=%x, DMASBMR\n", &heth->Instance->DMASBMR, heth->Instance->DMASBMR);                 /* System bus mode register (ETH_DMASBMR) */
+    BK_LOGD(NULL,"%x=%x, DMAISR\n", &heth->Instance->DMAISR, heth->Instance->DMAISR);                    /* Interrupt status register (ETH_DMAISR) */
+    BK_LOGD(NULL,"%x=%x, DMADSR\n", &heth->Instance->DMADSR, heth->Instance->DMADSR);                    /* Debug status register (ETH_DMADSR) */
+    BK_LOGD(NULL,"%x=%x, DMACCR\n", &heth->Instance->DMACCR, heth->Instance->DMACCR);                    /* Channel control register (ETH_DMACCR) */
+    BK_LOGD(NULL,"%x=%x, DMACTCR\n", &heth->Instance->DMACTCR, heth->Instance->DMACTCR);                 /* Channel transmit control register (ETH_DMACTXCR) */
+    BK_LOGD(NULL,"%x=%x, DMACRCR\n", &heth->Instance->DMACRCR, heth->Instance->DMACRCR);                 /* Channel receive control register (ETH_DMACRXCR) */
+    BK_LOGD(NULL,"%x=%x, DMACTDLAR\n", &heth->Instance->DMACTDLAR, heth->Instance->DMACTDLAR);           /* Channel Tx descriptor list address register (ETH_DMACTXDLAR) */
+    BK_LOGD(NULL,"%x=%x, DMACRDLAR\n", &heth->Instance->DMACRDLAR, heth->Instance->DMACRDLAR);           /* Channel Rx descriptor list address register (ETH_DMACRXDLAR) */
+    BK_LOGD(NULL,"%x=%x, DMACTDTPR\n", &heth->Instance->DMACTDTPR, heth->Instance->DMACTDTPR);           /* Channel Tx descriptor tail pointer register (ETH_DMACTXDTPR) */
+    BK_LOGD(NULL,"%x=%x, DMACRDTPR\n", &heth->Instance->DMACRDTPR, heth->Instance->DMACRDTPR);           /* Channel Rx descriptor tail pointer register (ETH_DMACRXDTPR) */
+    BK_LOGD(NULL,"%x=%x, DMACTDRLR\n", &heth->Instance->DMACTDRLR, heth->Instance->DMACTDRLR);           /* Channel Tx descriptor ring length register (ETH_DMACTXRLR) */
+    BK_LOGD(NULL,"%x=%x, DMACRDRLR\n", &heth->Instance->DMACRDRLR, heth->Instance->DMACRDRLR);           /* Channel Rx descriptor ring length register (ETH_DMACRXRLR) */
+    BK_LOGD(NULL,"%x=%x, DMACIER\n", &heth->Instance->DMACIER, heth->Instance->DMACIER);                 /* Channel interrupt enable register (ETH_DMACIER) */
+    BK_LOGD(NULL,"%x=%x, DMACRIWTR\n", &heth->Instance->DMACRIWTR, heth->Instance->DMACRIWTR);           /* Channel Rx interrupt watchdog timer register (ETH_DMACRXIWTR) */
+    BK_LOGD(NULL,"%x=%x, DMACSFCSR\n", &heth->Instance->DMACSFCSR, heth->Instance->DMACSFCSR);           /* Channel Tx Slot Function Control Status Register */
+    BK_LOGD(NULL,"%x=%x, DMACCATDR\n", &heth->Instance->DMACCATDR, heth->Instance->DMACCATDR);           /* Channel current application transmit descriptor register (ETH_DMACCATXDR) */
+    BK_LOGD(NULL,"%x=%x, DMACCARDR\n", &heth->Instance->DMACCARDR, heth->Instance->DMACCARDR);           /* Channel current application receive descriptor register (ETH_DMACCARXDR) */
+    BK_LOGD(NULL,"%x=%x, DMACCATBR\n", &heth->Instance->DMACCATBR, heth->Instance->DMACCATBR);           /* Channel current application transmit buffer register (ETH_DMACCATXBR) */
+    BK_LOGD(NULL,"%x=%x, DMACCARBR\n", &heth->Instance->DMACCARBR, heth->Instance->DMACCARBR);           /* Channel current application receive buffer register (ETH_DMACCARXBR) */
+    BK_LOGD(NULL,"%x=%x, DMACSR\n", &heth->Instance->DMACSR, heth->Instance->DMACSR);                    /* Channel status register (ETH_DMACSR) */
+    BK_LOGD(NULL,"%x=%x, DMACMFCR\n", &heth->Instance->DMACMFCR, heth->Instance->DMACMFCR);              /* Channel missed frame count register (ETH_DMACMFCR) */
 }
 
 /**

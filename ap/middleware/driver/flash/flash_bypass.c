@@ -475,7 +475,7 @@ static bool flash_bypass_otp_test_is_flag(void)
 	if (flash_bypass_otp_test_flag) {
 		FLASH_BYPASS_LOGW("flash_bypass_otp is working, maybe wait it finish.\r\n");
 	} else {
-		// os_printf("flash_bypass_otp is free now, you can use it.\r\n");
+		// BK_LOGD(NULL, "flash_bypass_otp is free now, you can use it.\r\n");
 	}
 	return flash_bypass_otp_test_flag;
 }
@@ -586,7 +586,7 @@ static void flash_bypass_wait_work_in_progress_end(void)
 		flash_bypass_status_read(&flash_bypass_sta_reg_val);
 		bk_delay_us(5000);
 
-		FLASH_BYPASS_LOGD("flash_bypass_sta_reg_val = 0x%x\n", flash_bypass_sta_reg_val);
+		FLASH_BYPASS_LOGV("flash_bypass_sta_reg_val = 0x%x\n", flash_bypass_sta_reg_val);
 
 		if (flash_bypass_sta_reg_val & FLASH_STA_REG_WIP_BIT) {
 			bk_delay_us(5000);
@@ -703,13 +703,13 @@ static bk_err_t flash_bypass_otp_read(flash_bypass_otp_ctrl_t *otp_cfg, bool pri
 	if (printf_flag) {
 		uint8_t printf_div = 16;
 		for (uint32_t i = 0; i < rx_len; i++) {
-			FLASH_BYPASS_RAWI("%02x ", rx_buf[i]);
+			FLASH_BYPASS_RAWD("%02x ", rx_buf[i]);
 			if ((i + 1) % printf_div == 0) {
-				FLASH_BYPASS_RAWI("\n");
+				FLASH_BYPASS_RAWD("\n");
 			}
 		}
 		if (rx_len % printf_div != 0) {
-			FLASH_BYPASS_RAWI("\n");
+			FLASH_BYPASS_RAWD("\n");
 		}
 	}
 

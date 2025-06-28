@@ -18,20 +18,20 @@ static beken_semaphore_t app_semaphore;
 
 static void cpu1_test_task(void *arg)
 {
-    os_printf("===cpu1_test_task===:\r\n");
+    BK_LOGD(NULL, "===cpu1_test_task===:\r\n");
     for(;;) {
         rtos_get_semaphore(&app_semaphore, BEKEN_WAIT_FOREVER);
-        os_printf("cpu1_test_task run core: %d\r\n", rtos_get_core_id());
+        BK_LOGD(NULL, "cpu1_test_task run core: %d\r\n", rtos_get_core_id());
     }
 }
 
 static void cpu2_test_task(void *arg)
 {
-    os_printf("cpu2_test_task run core: %d\r\n", rtos_get_core_id());
+    BK_LOGD(NULL, "cpu2_test_task run core: %d\r\n", rtos_get_core_id());
   
     for(;;) {
         rtos_set_semaphore(&app_semaphore);
-        os_printf("cpu2_test_task run core: %d\r\n", rtos_get_core_id());
+        BK_LOGD(NULL, "cpu2_test_task run core: %d\r\n", rtos_get_core_id());
         rtos_delay_milliseconds(1000);
     }
 }
@@ -44,7 +44,7 @@ void app_test_smp_core0(void)
     /* create a semaphore */
     ret = rtos_init_semaphore(&app_semaphore, 5);
     if (ret != kNoErr) {
-        os_printf("Error: Failed to init app_semaphore: %d\r\n",ret);
+        BK_LOGD(NULL, "Error: Failed to init app_semaphore: %d\r\n",ret);
     }
 
     /* create a thread on core 0 */
@@ -55,7 +55,7 @@ void app_test_smp_core0(void)
                              2048,
                              0);
     if (ret != kNoErr) {
-        os_printf("Error: Failed to create cpu1_test_task: %d\r\n",ret);
+        BK_LOGE(NULL, "Error: Failed to create cpu1_test_task: %d\r\n",ret);
     }
 }
 
@@ -72,7 +72,7 @@ void app_test_smp_core1(void)
                              2048,
                              0);
     if (ret != kNoErr) {
-        os_printf("Error: Failed to create cpu1_test_task: %d\r\n",ret);
+        BK_LOGE(NULL, "Error: Failed to create cpu1_test_task: %d\r\n",ret);
     }
 }
 #endif

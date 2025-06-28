@@ -20,13 +20,13 @@
 
 static void cli_interrupt_help(void)
 {
-	CLI_LOGI("int help - display this message\n");
-	CLI_LOGI("int enable {irq} {0|1} - enable irq\n");
-	CLI_LOGI("int enable bits {irq_group0} {irq_group1} - enable irq by bits\n");
-	CLI_LOGI("int target {irq} {0|1} - target irq\n");
-	CLI_LOGI("int target bits {irq_group0} {irq_group1} - target irq by bits\n");
-	CLI_LOGI("int state - dump irq enable/target state\n");
-	CLI_LOGI("int statis - dump irq statis\n");
+	CLI_LOGD("int help - display this message\n");
+	CLI_LOGD("int enable {irq} {0|1} - enable irq\n");
+	CLI_LOGD("int enable bits {irq_group0} {irq_group1} - enable irq by bits\n");
+	CLI_LOGD("int target {irq} {0|1} - target irq\n");
+	CLI_LOGD("int target bits {irq_group0} {irq_group1} - target irq by bits\n");
+	CLI_LOGD("int state - dump irq enable/target state\n");
+	CLI_LOGD("int statis - dump irq statis\n");
 }
 
 static void cli_dump_int_state(void)
@@ -44,13 +44,13 @@ static void cli_dump_int_state(void)
 		}
     }
 
-	CLI_LOGI("irq enabled state: "BK_U64_FORMAT"\r\n", BK_U64_TO_U32(int_ena_st));
-	CLI_LOGI("irq target state: "BK_U64_FORMAT"\r\n", BK_U64_TO_U32(int_target_st));
+	CLI_LOGD("irq enabled state: "BK_U64_FORMAT"\r\n", BK_U64_TO_U32(int_ena_st));
+	CLI_LOGD("irq target state: "BK_U64_FORMAT"\r\n", BK_U64_TO_U32(int_target_st));
 }
 
 static void cli_interrupt_enable_irq_by_bits(uint64_t irq_bits)
 {
-	CLI_LOGI("enable irq by bits: "BK_U64_FORMAT"\r\n", BK_U64_TO_U32(irq_bits));
+	CLI_LOGD("enable irq by bits: "BK_U64_FORMAT"\r\n", BK_U64_TO_U32(irq_bits));
     for (uint32_t irq_type = 0; irq_type < INT_ID_MAX; irq_type++) {
 		if (irq_bits & (BIT(irq_type))) {
         	arch_int_enable_irq(irq_type);
@@ -62,7 +62,7 @@ static void cli_interrupt_enable_irq_by_bits(uint64_t irq_bits)
 
 static void cli_interrupt_set_target_by_bits(uint64_t target_bits)
 {
-	CLI_LOGI("set target by bits: "BK_U64_FORMAT"\r\n", BK_U64_TO_U32(target_bits));
+	CLI_LOGD("set target by bits: "BK_U64_FORMAT"\r\n", BK_U64_TO_U32(target_bits));
     for (uint32_t irq_type = 0; irq_type < INT_ID_MAX; irq_type++) {
 		if (target_bits & (BIT(irq_type))) {
         	arch_int_set_target_state(irq_type);
@@ -92,7 +92,7 @@ static void cli_interrupt_target_cmd(int argc, char **argv)
 	} else {
 		uint32_t irq = os_strtoul(argv[2], NULL, 10);
 		uint32_t state = os_strtoul(argv[3], NULL, 10);
-		CLI_LOGI("set irq=%d target=%d\r\n", irq, state);
+		CLI_LOGD("set irq=%d target=%d\r\n", irq, state);
 		if (state)
 			arch_int_set_target_state(irq);
 		else
@@ -115,7 +115,7 @@ static void cli_interrupt_enable_cmd(int argc, char **argv)
 	} else {
 		uint32_t irq = os_strtoul(argv[2], NULL, 10);
 		uint32_t state = os_strtoul(argv[3], NULL, 10);
-		CLI_LOGI("enable irq=%d target=%d\r\n", irq, state);
+		CLI_LOGD("enable irq=%d target=%d\r\n", irq, state);
 		if (state)
 			arch_int_enable_irq(irq);
 		else

@@ -315,7 +315,7 @@ static void wpas_p2p_scan_res_handler(struct wpa_supplicant *wpa_s,
 		}
 
 #if BK_SUPPLICANT
-		WPA_LOGI("%s: BSSID %pM\n", __func__, bss->bssid);
+		WPA_LOGD("%s: BSSID %pM\n", __func__, bss->bssid);
 #endif
 		if (p2p_scan_res_handler(wpa_s->global->p2p, bss->bssid,
 					 bss->freq, &entry_ts, bss->level,
@@ -2467,7 +2467,7 @@ static void wpas_go_neg_completed(void *ctx, struct p2p_go_neg_results *res)
 		       MAC2STR(res->peer_interface_addr),
 		       p2p_wps_method_text(res->wps_method));
 #else
-	WPA_LOGI(P2P_EVENT_GO_NEG_SUCCESS "role=%s "
+	WPA_LOGD(P2P_EVENT_GO_NEG_SUCCESS "role=%s "
 		  "freq=%d ", res->role_go ? "GO" : "client", res->freq);
 #endif
 

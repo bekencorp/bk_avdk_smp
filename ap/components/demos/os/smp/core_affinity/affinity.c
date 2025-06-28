@@ -120,7 +120,7 @@ static beken_thread_t xLogHandle;
 
 void core_affinity_test(void)
 {
-    os_printf(" Starting core_affinity.\n");
+    BK_LOGD(NULL, " Starting core_affinity.\n");
 	BK_ASSERT(configUSE_CORE_AFFINITY);
 	BK_ASSERT(configNUM_CORES > 1);
 
@@ -185,7 +185,7 @@ const unsigned long ulValueToSend = 100UL;
 		toggle the LED.  0 is used as the block time so the sending operation
 		will not block - it shouldn't need to block as the queue should always
 		be empty at this point in the code. */
-		os_printf("[%d]xQueueSend\r\n", portGET_CORE_ID());
+		BK_LOGD(NULL, "[%d]xQueueSend\r\n", portGET_CORE_ID());
 		xQueueSend( xQueue, &ulValueToSend, 0U );
 	}
 }
@@ -205,7 +205,7 @@ const unsigned long ulExpectedValue = 100UL;
 		indefinitely provided INCLUDE_vTaskSuspend is set to 1 in
 		FreeRTOSConfig.h. */
 		xQueueReceive( xQueue, &ulReceivedValue, portMAX_DELAY );
-		os_printf("[%d]xQueueReceiver\n", portGET_CORE_ID());
+		BK_LOGD(NULL, "[%d]xQueueReceiver\n", portGET_CORE_ID());
 
 		DEBUG_GPIO_UP(GPIO13);
 		DEBUG_GPIO_DOWN(GPIO13);
@@ -226,7 +226,7 @@ static void prvLogTask( void *pvParameters )
 
 	for( ;; )
 	{
-		os_printf("prvLogTask at the core[%d]\r\n", portGET_CORE_ID());
+		BK_LOGD(NULL, "prvLogTask at the core[%d]\r\n", portGET_CORE_ID());
 		rtos_delay_milliseconds(500);
 
 		DEBUG_GPIO_UP(GPIO28);

@@ -43,8 +43,8 @@ static bk_err_t bk_sensor_load_adc_cali_value(void)
         goto LOAD_SDMADC;
     }
 
-    BK_LOGI(TAG, "saradc low value:[%x]\r\n", values[0]);
-    BK_LOGI(TAG, "saradc high value:[%x]\r\n", values[1]);
+    BK_LOGD(TAG, "saradc low value:[%x]\r\n", values[0]);
+    BK_LOGD(TAG, "saradc high value:[%x]\r\n", values[1]);
     saradc_set_calibrate_val(&values[0], SARADC_CALIBRATE_LOW);
     saradc_set_calibrate_val(&values[1], SARADC_CALIBRATE_HIGH);
 
@@ -55,8 +55,8 @@ LOAD_SDMADC:
         goto FAILURE;
     }
 
-    BK_LOGI(TAG, "sdmadc low value:[%x]\r\n", values[0]);
-    BK_LOGI(TAG, "sdmadc high value:[%x]\r\n", values[1]);
+    BK_LOGD(TAG, "sdmadc low value:[%x]\r\n", values[0]);
+    BK_LOGD(TAG, "sdmadc high value:[%x]\r\n", values[1]);
     bk_sdmadc_set_calibrate_val(values[0], SARADC_CALIBRATE_LOW);
     bk_sdmadc_set_calibrate_val(values[1], SARADC_CALIBRATE_HIGH);
 
@@ -131,8 +131,8 @@ static bk_err_t bk_sensor_load_adc_cali_value(void)
     else
         g_saradc_flag = 0x0;
 
-    BK_LOGI(TAG, "saradc low value:[%x]\r\n", saradc_val.low);
-    BK_LOGI(TAG, "saradc high value:[%x]\r\n", saradc_val.high);
+    BK_LOGD(TAG, "saradc low value:[%x]\r\n", saradc_val.low);
+    BK_LOGD(TAG, "saradc high value:[%x]\r\n", saradc_val.high);
     saradc_set_calibrate_val(&saradc_val.low, SARADC_CALIBRATE_LOW);
     saradc_set_calibrate_val(&saradc_val.high, SARADC_CALIBRATE_HIGH);
 

@@ -81,7 +81,7 @@ void usbd_cdc_ecm_send_notify(uint8_t notifycode, uint8_t value, uint32_t *speed
 
 static int cdc_ecm_class_interface_request_handler(uint8_t busid, struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
-    USB_LOG_DBG("CDC ECM Class request: "
+    USB_LOG_VBS("CDC ECM Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
 
@@ -165,7 +165,7 @@ int usbd_cdc_ecm_start_write(uint8_t *buf, uint32_t len)
 
     g_cdc_ecm_tx_data_length = len;
 
-    USB_LOG_DBG("txlen:%d\r\n", g_cdc_ecm_tx_data_length);
+    USB_LOG_VBS("txlen:%d\r\n", g_cdc_ecm_tx_data_length);
     return usbd_ep_start_write(0, cdc_ecm_ep_data[CDC_ECM_IN_EP_IDX].ep_addr, buf, g_cdc_ecm_tx_data_length);
 }
 
@@ -192,7 +192,7 @@ struct pbuf *usbd_cdc_ecm_eth_rx(void)
     memcpy(p->payload, (uint8_t *)g_cdc_ecm_rx_buffer, g_cdc_ecm_rx_data_length);
     p->len = g_cdc_ecm_rx_data_length;
 
-    USB_LOG_DBG("rxlen:%d\r\n", g_cdc_ecm_rx_data_length);
+    USB_LOG_VBS("rxlen:%d\r\n", g_cdc_ecm_rx_data_length);
     usbd_cdc_ecm_start_read_next();
     return p;
 }

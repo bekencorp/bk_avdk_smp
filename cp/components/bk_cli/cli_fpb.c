@@ -8,7 +8,7 @@ static void fpb_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 {
     uint32_t instruction_addr;
     if (2 != argc) {
-        os_printf("Usage: fpb instruction_addr\r\n");
+        BK_LOGD(NULL,"Usage: fpb instruction_addr\r\n");
         return;
     }
 

@@ -71,7 +71,7 @@ IotPwmHandle_t iot_pwm_open( int32_t lPwmInstance )
         BK_LOGE(COMMON_PWM_TAG, "Invalid arguments\r\n");
         return NULL;
     }
-    BK_LOGD(COMMON_PWM_TAG, "pwm_open\r\n");
+    BK_LOGV(COMMON_PWM_TAG, "pwm_open\r\n");
     bk_pwm_driver_init();
     if(pwm_bit_mask & BIT(lPwmInstance))
         return NULL;
@@ -109,7 +109,7 @@ int32_t iot_pwm_set_config( IotPwmHandle_t const pxPwmHandle, const IotPwmConfig
         BK_LOGE(COMMON_PWM_TAG, "Invalid arguments\r\n");
         return IOT_PWM_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_PWM_TAG, "pwm_set\r\n");
+    BK_LOGV(COMMON_PWM_TAG, "pwm_set\r\n");
     pwm_period_duty_config_t internal;
     memset(&internal, 0 , sizeof(pwm_period_duty_config_t));
     if(bk_conver_config_to_internal(&xConfig, &internal, 0))
@@ -136,7 +136,7 @@ IotPwmConfig_t * iot_pwm_get_config( IotPwmHandle_t const pxPwmHandle )
         BK_LOGE(COMMON_PWM_TAG, "Invalid arguments\r\n");
         return NULL;
     }
-    BK_LOGD(COMMON_PWM_TAG, "pwm_get\r\n");
+    BK_LOGV(COMMON_PWM_TAG, "pwm_get\r\n");
     if(pxPwmHandle->set_flag)
         return &(pxPwmHandle->config);
     else
@@ -150,7 +150,7 @@ int32_t iot_pwm_start( IotPwmHandle_t const pxPwmHandle )
         BK_LOGE(COMMON_PWM_TAG, "Invalid arguments\r\n");
         return IOT_PWM_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_PWM_TAG, "pwm_start\r\n");
+    BK_LOGV(COMMON_PWM_TAG, "pwm_start\r\n");
     if(pxPwmHandle->set_flag)
     {
         bk_pwm_start(pxPwmHandle->id);
@@ -167,7 +167,7 @@ int32_t iot_pwm_stop( IotPwmHandle_t const pxPwmHandle )
         BK_LOGE(COMMON_PWM_TAG, "Invalid arguments\r\n");
         return IOT_PWM_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_PWM_TAG, "pwm_stop\r\n");
+    BK_LOGV(COMMON_PWM_TAG, "pwm_stop\r\n");
     bk_pwm_stop(pxPwmHandle->id);
     return IOT_PWM_SUCCESS;
 }
@@ -179,7 +179,7 @@ int32_t iot_pwm_close( IotPwmHandle_t const pxPwmHandle )
         BK_LOGE(COMMON_PWM_TAG, "Invalid arguments\r\n");
         return IOT_PWM_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_PWM_TAG, "pwm_close\r\n");
+    BK_LOGV(COMMON_PWM_TAG, "pwm_close\r\n");
     if(pwm_bit_mask & BIT(pxPwmHandle->id))
     {
         bk_pwm_deinit(pxPwmHandle->id);

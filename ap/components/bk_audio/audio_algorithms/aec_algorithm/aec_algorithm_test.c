@@ -29,7 +29,7 @@
 
 #define TEST_CHECK_NULL(ptr) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "TEST_CHECK_NULL fail \n");\
+            BK_LOGD(TAG, "TEST_CHECK_NULL fail \n");\
             return BK_FAIL;\
         }\
     } while(0)
@@ -55,7 +55,7 @@ static bk_err_t tf_mount(void)
     pfs = os_malloc(sizeof(FATFS));
     if (NULL == pfs)
     {
-        BK_LOGI(TAG, "f_mount malloc failed!\r\n");
+        BK_LOGD(TAG, "f_mount malloc failed!\r\n");
         return BK_FAIL;
     }
 
@@ -67,7 +67,7 @@ static bk_err_t tf_mount(void)
     }
     else
     {
-        BK_LOGI(TAG, "f_mount OK!\r\n");
+        BK_LOGD(TAG, "f_mount OK!\r\n");
     }
 
     return BK_OK;
@@ -84,7 +84,7 @@ static bk_err_t tf_unmount(void)
     }
     else
     {
-        BK_LOGI(TAG, "f_unmount OK!\r\n");
+        BK_LOGD(TAG, "f_unmount OK!\r\n");
     }
 
     if (pfs)
@@ -128,7 +128,7 @@ bk_err_t adk_aec_algorithm_test_case_0(void)
     //      bk_disable_mod_printf("AEC_ALGORITHM", 0);
     //      bk_disable_mod_printf("AEC_ALGORITHM_TEST", 0);
 #endif
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
     if (BK_OK != tf_mount())
@@ -137,12 +137,12 @@ bk_err_t adk_aec_algorithm_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step1: pipeline init ----------\n");
+    BK_LOGD(TAG, "--------- step1: pipeline init ----------\n");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     pipeline = audio_pipeline_init(&pipeline_cfg);
     TEST_CHECK_NULL(pipeline);
 
-    BK_LOGI(TAG, "--------- step2: init elements ----------\n");
+    BK_LOGD(TAG, "--------- step2: init elements ----------\n");
     aec_algorithm_cfg_t aec_alg_cfg = DEFAULT_AEC_ALGORITHM_CONFIG();
     aec_alg_cfg.aec_cfg.fs = 16000;
     aec_alg = aec_algorithm_init(&aec_alg_cfg);
@@ -171,7 +171,7 @@ bk_err_t adk_aec_algorithm_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: pipeline register ----------\n");
+    BK_LOGD(TAG, "--------- step3: pipeline register ----------\n");
     if (BK_OK != audio_pipeline_register(pipeline, fatfs_stream_reader, "file_reader"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
@@ -188,7 +188,7 @@ bk_err_t adk_aec_algorithm_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: pipeline link ----------\n");
+    BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
     if (BK_OK != audio_pipeline_link(pipeline, (const char *[])
 {"file_reader", "aec_alg", "file_writer"
 }, 3))
@@ -197,7 +197,7 @@ bk_err_t adk_aec_algorithm_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step5: init event listener ----------\n");
+    BK_LOGD(TAG, "--------- step5: init event listener ----------\n");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
 
@@ -207,7 +207,7 @@ bk_err_t adk_aec_algorithm_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step6: pipeline run ----------\n");
+    BK_LOGD(TAG, "--------- step6: pipeline run ----------\n");
     if (BK_OK != audio_pipeline_run(pipeline))
     {
         BK_LOGE(TAG, "pipeline run fail, %d \n", __LINE__);
@@ -232,7 +232,7 @@ bk_err_t adk_aec_algorithm_test_case_0(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step7: deinit pipeline ----------\n");
+    BK_LOGD(TAG, "--------- step7: deinit pipeline ----------\n");
     if (BK_OK != audio_pipeline_stop(pipeline))
     {
         BK_LOGE(TAG, "pipeline stop fail, %d \n", __LINE__);
@@ -302,7 +302,7 @@ bk_err_t adk_aec_algorithm_test_case_0(void)
 
     tf_unmount();
 
-    BK_LOGI(TAG, "--------- audio aec algorithm test complete ----------\n");
+    BK_LOGD(TAG, "--------- audio aec algorithm test complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
@@ -371,7 +371,7 @@ bk_err_t adk_aec_algorithm_test_case_1(void)
     bk_disable_mod_printf("AEC_ALGORITHM_TEST", 0);
 #endif
 #endif
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
     if (BK_OK != tf_mount())
@@ -380,13 +380,13 @@ bk_err_t adk_aec_algorithm_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step1: pipeline init ----------\n");
+    BK_LOGD(TAG, "--------- step1: pipeline init ----------\n");
     /* pipeline 1 record */
     audio_pipeline_cfg_t record_pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     record_pipeline = audio_pipeline_init(&record_pipeline_cfg);
     TEST_CHECK_NULL(record_pipeline);
 
-    BK_LOGI(TAG, "--------- step2: init elements ----------\n");
+    BK_LOGD(TAG, "--------- step2: init elements ----------\n");
     /* pipeline 1 record */
     fatfs_stream_cfg_t src_stream_in_cfg = FATFS_STREAM_CFG_DEFAULT();
     src_stream_in_cfg.type = AUDIO_STREAM_READER;
@@ -427,7 +427,7 @@ bk_err_t adk_aec_algorithm_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: pipeline register ----------\n");
+    BK_LOGD(TAG, "--------- step3: pipeline register ----------\n");
     /* pipeline 1 record */
     if (BK_OK != audio_pipeline_register(record_pipeline, src_stream_in, "src_stream_in"))
     {
@@ -445,7 +445,7 @@ bk_err_t adk_aec_algorithm_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: pipeline link ----------\n");
+    BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
     /* pipeline 1 record */
     if (BK_OK != audio_pipeline_link(record_pipeline, (const char *[])
 {"src_stream_in", "aec_alg", "stream_out"
@@ -467,7 +467,7 @@ bk_err_t adk_aec_algorithm_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step5: init event listener ----------\n");
+    BK_LOGD(TAG, "--------- step5: init event listener ----------\n");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
     if (BK_OK != audio_pipeline_set_listener(record_pipeline, evt))
@@ -476,7 +476,7 @@ bk_err_t adk_aec_algorithm_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step6: pipeline run ----------\n");
+    BK_LOGD(TAG, "--------- step6: pipeline run ----------\n");
     if (BK_OK != audio_pipeline_run(record_pipeline))
     {
         BK_LOGE(TAG, "pipeline run fail, %d \n", __LINE__);
@@ -512,7 +512,7 @@ bk_err_t adk_aec_algorithm_test_case_1(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step7: deinit pipeline ----------\n");
+    BK_LOGD(TAG, "--------- step7: deinit pipeline ----------\n");
     if (BK_OK != audio_pipeline_stop(record_pipeline))
     {
         BK_LOGE(TAG, "pipeline stop fail, %d \n", __LINE__);
@@ -602,7 +602,7 @@ bk_err_t adk_aec_algorithm_test_case_1(void)
 
     tf_unmount();
 
-    BK_LOGI(TAG, "--------- agc algorithm test complete ----------\n");
+    BK_LOGD(TAG, "--------- agc algorithm test complete ----------\n");
 
     AUDIO_MEM_SHOW("end \n");
 
@@ -633,19 +633,19 @@ void aec_hardware_test_file_combine(void)
     fr = f_open(&file_mic, mic_file_name, FA_READ);
     if (fr != FR_OK)
     {
-        os_printf("open %s fail.\r\n", mic_file_name);
+        BK_LOGD(NULL, "open %s fail.\r\n", mic_file_name);
         return;
     }
     fr = f_open(&file_ref, ref_file_name, FA_READ);
     if (fr != FR_OK)
     {
-        os_printf("open %s fail.\r\n", ref_file_name);
+        BK_LOGD(NULL, "open %s fail.\r\n", ref_file_name);
         return;
     }
     fr = f_open(&file_out, out_file_name, FA_CREATE_ALWAYS | FA_WRITE);
     if (fr != FR_OK)
     {
-        os_printf("open %s fail.\r\n", out_file_name);
+        BK_LOGD(NULL, "open %s fail.\r\n", out_file_name);
         return;
     }
 
@@ -657,20 +657,20 @@ void aec_hardware_test_file_combine(void)
     os_memset(out_addr, 0x00, 320 * 4);
 
     test_data_size = f_size(&file_mic);
-    os_printf("frame_samples * 2 = %d \r\n", (320 * 2));
+    BK_LOGD(NULL, "frame_samples * 2 = %d \r\n", (320 * 2));
     while (test_data_size >= (320 * 2))
     {
         fr = f_read(&file_ref, ref_addr, 320 * 2, &uiTemp);
         if (fr != FR_OK)
         {
-            os_printf("read ref file fail.\r\n");
+            BK_LOGD(NULL, "read ref file fail.\r\n");
             break;
         }
 
         fr = f_read(&file_mic, mic_addr, 320 * 2, &uiTemp);
         if (fr != FR_OK)
         {
-            os_printf("read mic file fail.\r\n");
+            BK_LOGD(NULL, "read mic file fail.\r\n");
             break;
         }
 
@@ -683,7 +683,7 @@ void aec_hardware_test_file_combine(void)
         fr = f_write(&file_out, (void *)out_addr, 320 * 4, &uiTemp);
         if (fr != FR_OK)
         {
-            os_printf("write output data %s fail.\r\n", out_file_name);
+            BK_LOGD(NULL, "write output data %s fail.\r\n", out_file_name);
             break;
         }
 
@@ -693,21 +693,21 @@ void aec_hardware_test_file_combine(void)
     fr = f_close(&file_mic);
     if (fr != FR_OK)
     {
-        os_printf("close mic file %s fail!\r\n", mic_file_name);
+        BK_LOGD(NULL, "close mic file %s fail!\r\n", mic_file_name);
         return;
     }
 
     fr = f_close(&file_ref);
     if (fr != FR_OK)
     {
-        os_printf("close ref file %s fail!\r\n", ref_file_name);
+        BK_LOGD(NULL, "close ref file %s fail!\r\n", ref_file_name);
         return;
     }
 
     fr = f_close(&file_out);
     if (fr != FR_OK)
     {
-        os_printf("close out file %s fail!\r\n", out_file_name);
+        BK_LOGD(NULL, "close out file %s fail!\r\n", out_file_name);
         return;
     }
 
@@ -716,6 +716,6 @@ void aec_hardware_test_file_combine(void)
     os_free(out_addr);
     tf_unmount();
 
-    os_printf("test finish \r\n");
+    BK_LOGD(NULL, "test finish \r\n");
 }
 

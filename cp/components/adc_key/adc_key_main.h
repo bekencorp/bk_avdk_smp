@@ -33,6 +33,7 @@ extern "C" {
 #define ADC_KEY_LOGW(...) BK_LOGW(ADC_KEY_TAG, ##__VA_ARGS__)
 #define ADC_KEY_LOGE(...) BK_LOGE(ADC_KEY_TAG, ##__VA_ARGS__)
 #define ADC_KEY_LOGD(...) BK_LOGD(ADC_KEY_TAG, ##__VA_ARGS__)
+#define ADC_KEY_LOGV(...) BK_LOGV(ADC_KEY_TAG, ##__VA_ARGS__)
 
 #define ADC_KEY_GPIO_ID   GPIO_28
 #define ADC_KEY_SADC_CHAN_ID   4

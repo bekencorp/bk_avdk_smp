@@ -10,17 +10,17 @@ static UINT8 flag = 0;
 
 static void cli_adc_help(void)
 {
-	CLI_LOGI("adc_driver init/deinit\n");
-	CLI_LOGI("adc_test [channel] [init/deinit/start/stop/dump_statis/get_value/single_step_mode_read\n");
-	CLI_LOGI("adc_test [channel] [config] [mode] [src_clk] [adc_clk] [sature_mode] [sampl_rate]\n");
-	CLI_LOGI("adc_test [channel] [read/rag_cb] [size] [time_out]\n");
-	CLI_LOGI("adc_api_test [set_mode/get_mode/set_clk/set_sample_rate/set_channel/set_filter/\
+	CLI_LOGD("adc_driver init/deinit\n");
+	CLI_LOGD("adc_test [channel] [init/deinit/start/stop/dump_statis/get_value/single_step_mode_read\n");
+	CLI_LOGD("adc_test [channel] [config] [mode] [src_clk] [adc_clk] [sature_mode] [sampl_rate]\n");
+	CLI_LOGD("adc_test [channel] [read/rag_cb] [size] [time_out]\n");
+	CLI_LOGD("adc_api_test [set_mode/get_mode/set_clk/set_sample_rate/set_channel/set_filter/\
 		set_steady_time/set_sample_cnt/set_saturate\n");
 }
 
 static void cli_adc_register_cb(uint32_t param)
 {
-	CLI_LOGI("param:%d , adc isr cb \r\n", param);
+	CLI_LOGD("param:%d , adc isr cb \r\n", param);
 }
 
 static void cli_adc_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -32,10 +32,10 @@ static void cli_adc_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_adc_driver_init());
-		CLI_LOGI("adc driver init\n");
+		CLI_LOGD("adc driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_adc_driver_deinit());
-		CLI_LOGI("adc driver deinit\n");
+		CLI_LOGD("adc driver deinit\n");
 	} else {
 		cli_adc_help();
 		return;
@@ -52,7 +52,7 @@ static float cli_adc_read_multi_chan(void)
 
     if(flag == 1)
     {
-        CLI_LOGI("adc_read is running\r\n");
+        CLI_LOGD("adc_read is running\r\n");
         return 0;
     }
 
@@ -84,7 +84,7 @@ static float cli_adc_read_multi_chan(void)
             BK_LOG_ON_ERR(bk_adc_read(&value, ADC_READ_SEMAPHORE_WAIT_TIME));
 
             cali_value = bk_adc_data_calculate(value, config.chan);
-            CLI_LOGI("volt:%d mv,chan=%d\n",(uint32_t)(cali_value*1000),config.chan);
+            CLI_LOGD("volt:%d mv,chan=%d\n",(uint32_t)(cali_value*1000),config.chan);
         }
 
         bk_adc_stop();
@@ -103,7 +103,7 @@ static float cli_adc_read_single_chan(UINT8 adc_chan)
 
     if(flag == 1)
     {
-        CLI_LOGI("adc_read is running\r\n");
+        CLI_LOGD("adc_read is running\r\n");
         return 0;
     }
 
@@ -136,7 +136,7 @@ static float cli_adc_read_single_chan(UINT8 adc_chan)
     sys_drv_set_ana_pwd_gadc_buf(0);
     bk_adc_deinit(adc_chan);
     bk_adc_release();
-    CLI_LOGI("volt value:%d mv\n",(uint32_t)(cali_value*1000));
+    CLI_LOGD("volt value:%d mv\n",(uint32_t)(cali_value*1000));
     flag = 0;
     return cali_value;
 }
@@ -170,20 +170,20 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 		BK_LOG_ON_ERR(bk_adc_init(adc_chan));
 		BK_LOG_ON_ERR(bk_adc_set_config(&config));
-		CLI_LOGI("adc init test:adc_channel:%x, adc_mode:%x,src_clk:%x,adc_clk:%x, saturate_mode:%x, sample_rate:%x",
+		CLI_LOGD("adc init test:adc_channel:%x, adc_mode:%x,src_clk:%x,adc_clk:%x, saturate_mode:%x, sample_rate:%x",
 			adc_chan, config.adc_mode, config.src_clk, config.clk, config.saturate_mode, config.sample_rate);
 	} else if (os_strcmp(argv[2], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_adc_deinit(adc_chan));
-		CLI_LOGI("adc deinit test");
+		CLI_LOGD("adc deinit test");
 	} else if (os_strcmp(argv[2], "start") == 0) {
 		BK_LOG_ON_ERR(bk_adc_set_channel(adc_chan));
 		BK_LOG_ON_ERR(bk_adc_enable_bypass_clalibration());
 		BK_LOG_ON_ERR(bk_adc_start());
-		CLI_LOGI("start adc test\n");
+		CLI_LOGD("start adc test\n");
 	} else if (os_strcmp(argv[2], "stop") == 0) {
 		BK_LOG_ON_ERR(bk_adc_stop());
 		bk_adc_release();
-		CLI_LOGI("adc_stop test: %d\n", adc_chan);
+		CLI_LOGD("adc_stop test: %d\n", adc_chan);
 	} else if (os_strcmp(argv[2], "get_value") == 0) {
 		uint16_t value = 0;
 		float cali_value = 0;
@@ -195,7 +195,7 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 		BK_LOG_ON_ERR(bk_adc_read(&value, ADC_READ_SEMAPHORE_WAIT_TIME));
 		cali_value = saradc_calculate(value);
-		CLI_LOGI("adc value:%d mv\n", (uint32_t)(cali_value * 1000));
+		CLI_LOGD("adc value:%d mv\n", (uint32_t)(cali_value * 1000));
 	} else if (os_strcmp(argv[2], "read") == 0) {
 		uint32_t sum = 0;
 		uint32_t size = os_strtoul(argv[3], NULL, 10);
@@ -228,18 +228,18 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		if (!recv_data) {
 			CLI_LOGE("adc read failed, recv_data is null \r\n");
 		}
-		CLI_LOGI("adc: read length :time_out:%d read_size:%d\n",time_out, size);
+		CLI_LOGD("adc: read length :time_out:%d read_size:%d\n",time_out, size);
 
 		for (int i = 0; i < size; i++) {
 			sum = sum + recv_data[i];
-			CLI_LOGI("recv_buffer[%d]=%02x, sum =%d\n", i, recv_data[i], sum);
+			CLI_LOGD("recv_buffer[%d]=%02x, sum =%d\n", i, recv_data[i], sum);
 		}
 		sum = sum / size;
-		CLI_LOGI("adc read size:%d, adc_result_from _data_reg:%d\n", size, sum);
+		CLI_LOGD("adc read size:%d, adc_result_from _data_reg:%d\n", size, sum);
 		os_free(recv_data);
 	} else if (os_strcmp(argv[2], "dump_statis") == 0) {
 		adc_statis_dump();
-		CLI_LOGI("adc dump statis ok\r\n");
+		CLI_LOGD("adc dump statis ok\r\n");
 	} else if (os_strcmp(argv[2], "single_step_mode_read") == 0) {
 		bk_adc_acquire();
 		bk_adc_set_channel(adc_chan);
@@ -251,11 +251,11 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		uint16_t data = 0;
 		bk_adc_single_read(&data);
 		bk_adc_release();
-		CLI_LOGI("adc single step mode: adc value is 0x%x\n", data);
+		CLI_LOGD("adc single step mode: adc value is 0x%x\n", data);
 	} else if (os_strcmp(argv[2], "reg_cb") == 0) {
 		uint32_t size = os_strtoul(argv[3], NULL, 10);
 		BK_LOG_ON_ERR(bk_adc_register_isr(cli_adc_register_cb, size));
-		CLI_LOGI("adc isr cb register\r\n");
+		CLI_LOGD("adc isr cb register\r\n");
     }
     else if (0 == os_strcmp(argv[2], "saradc_val_read"))
     {
@@ -264,9 +264,9 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         //status = manual_cal_load_adc_cali_flash();
         if (status != 0)
         {
-            os_printf("Can't read cali value, use default!\r\n");
-            os_printf("calibrate low value:[%x]\r\n", saradc_val.low);
-            os_printf("calibrate high value:[%x]\r\n", saradc_val.high);
+            BK_LOGD(NULL, "Can't read cali value, use default!\r\n");
+            BK_LOGD(NULL, "calibrate low value:[%x]\r\n", saradc_val.low);
+            BK_LOGD(NULL, "calibrate high value:[%x]\r\n", saradc_val.high);
         }
     }
     else if(0 == os_strcmp(argv[2], "use_sample_set_saradc_val"))
@@ -292,7 +292,7 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         }
         BK_LOG_ON_ERR(bk_adc_init(adc_chan));
         BK_LOG_ON_ERR(bk_adc_set_config(&config));
-        CLI_LOGI("adc init test:adc_channel:%x, adc_mode:%x,src_clk:%x,adc_clk:%x, saturate_mode:%x, sample_rate:%x",
+        CLI_LOGD("adc init test:adc_channel:%x, adc_mode:%x,src_clk:%x,adc_clk:%x, saturate_mode:%x, sample_rate:%x",
             adc_chan, config.adc_mode, config.src_clk, config.clk, config.saturate_mode, config.sample_rate);
 
         BK_LOG_ON_ERR(bk_adc_set_channel(adc_chan));
@@ -307,13 +307,13 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         }
         else
         {
-            os_printf("invalid parameter\r\n");
+            BK_LOGD(NULL, "invalid parameter\r\n");
             return;
         }
 
         BK_LOG_ON_ERR(bk_adc_start());
         BK_LOG_ON_ERR(bk_adc_enable_bypass_clalibration());
-        CLI_LOGI("start adc test\n");
+        CLI_LOGD("start adc test\n");
 
         bk_adc_acquire();
         BK_LOG_ON_ERR(bk_adc_read(&sample_value, ADC_READ_SEMAPHORE_WAIT_TIME));
@@ -321,10 +321,10 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         ret = saradc_set_calibrate_val(&sample_value, saradc_cal_mode);
         if(ret == SARADC_FAILURE)
         {
-            os_printf("saradc_set_calibrate_val fail\r\n");
+            BK_LOGD(NULL, "saradc_set_calibrate_val fail\r\n");
         }
-        os_printf("saradc_set_calibrate_val success\r\n");
-        os_printf("mode:[%s] value:[%d]\r\n", (saradc_cal_mode ? "high" : "low"), sample_value);
+        BK_LOGD(NULL, "saradc_set_calibrate_val success\r\n");
+        BK_LOGD(NULL, "mode:[%s] value:[%d]\r\n", (saradc_cal_mode ? "high" : "low"), sample_value);
         //BK_LOG_ON_ERR(bk_adc_stop());
     }
     else if(os_strcmp(argv[2], "single_adc_example") == 0)
@@ -353,39 +353,39 @@ static void cli_adc_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		uint32_t clk = os_strtoul(argv[2], NULL, 10);
 		uint32_t src_clk = os_strtoul(argv[3], NULL, 10);
 		BK_LOG_ON_ERR(bk_adc_set_clk(src_clk, clk));
-		CLI_LOGI("adc set clk: clk_src:%d, clk:%d", src_clk, clk);
+		CLI_LOGD("adc set clk: clk_src:%d, clk:%d", src_clk, clk);
 	} else if (os_strcmp(argv[1], "set_mode") == 0) {
 		uint32_t mode = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_adc_set_mode(mode));
-		CLI_LOGI("adc set_mode: %x", mode);
+		CLI_LOGD("adc set_mode: %x", mode);
 	} else if (os_strcmp(argv[1], "set_channel") == 0) {
 		uint32_t adc_chan = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_adc_set_channel(adc_chan));
-		CLI_LOGI("adc %d test", adc_chan);
+		CLI_LOGD("adc %d test", adc_chan);
 	}else if (os_strcmp(argv[1], "set_sample_rate") == 0) {
 		uint32_t sample_rate = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_adc_set_sample_rate(sample_rate));
-		CLI_LOGI("adc sample rate: %x", sample_rate);
+		CLI_LOGD("adc sample rate: %x", sample_rate);
 	} else if (os_strcmp(argv[1], "set_filter") == 0) {
 		uint32_t filter = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_adc_set_filter(filter));
-		CLI_LOGI("adc set_filter : %x", filter);
+		CLI_LOGD("adc set_filter : %x", filter);
 	} else if (os_strcmp(argv[1], "set_steady_time") == 0) {
 		uint32_t time = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_adc_set_steady_time(time));
-		CLI_LOGI("adc set_steady time : %x", time);
+		CLI_LOGD("adc set_steady time : %x", time);
 	}else if (os_strcmp(argv[1], "set_sample_cnt") == 0) {
 		uint32_t sample_cnt = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_adc_set_sample_cnt(sample_cnt));
-		CLI_LOGI("adc set_sample_cnt: %x", sample_cnt);
+		CLI_LOGD("adc set_sample_cnt: %x", sample_cnt);
 	} else if (os_strcmp(argv[1], "set_saturate") == 0) {
 		uint32_t saturate = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_adc_set_saturate_mode(saturate));
-		CLI_LOGI("adc set_set_saturate: %x", saturate);
+		CLI_LOGD("adc set_set_saturate: %x", saturate);
 	} else if (os_strcmp(argv[1], "get_mode") == 0) {
 		uint32_t mode = 0;
 		mode = bk_adc_get_mode();
-		CLI_LOGI("adc get_mode: %x", mode);
+		CLI_LOGD("adc get_mode: %x", mode);
 	} else {
 		cli_adc_help();
 		return;

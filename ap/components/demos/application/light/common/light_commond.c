@@ -112,7 +112,7 @@ void *open_light_commond(void *inmsg, void *inmsg2)
         Msg->Msg[0] = 0xA1;
         Msg->Msg[1] = 0x00;
         Msg->Msg[2] =  get_light_hardware_status();
-        //os_printf("OpnLight:%01x\r\n",Msg->Msg[2]);
+        //BK_LOGD(NULL, "OpnLight:%01x\r\n",Msg->Msg[2]);
     }
 
     return Msg;
@@ -133,7 +133,7 @@ void *close_light_commond(void *inmsg, void *inmsg2)
         Msg->Msg[0] = 0xB1;
         Msg->Msg[1] = 0x00;
         Msg->Msg[2] =  get_light_hardware_status();
-        //os_printf("ClsLight:%01x\r\n",Msg->Msg[2]);
+        //BK_LOGD(NULL, "ClsLight:%01x\r\n",Msg->Msg[2]);
     }
 
     return Msg;

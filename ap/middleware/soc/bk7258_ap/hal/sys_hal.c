@@ -401,30 +401,30 @@ bk_err_t sys_hal_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,ui
 	uint32_t     h_vol  = 0;
 	if(cksel_core > 3)
 	{
-		os_printf("set dvfs cksel core > 3 invalid %d\r\n",cksel_core);
+		BK_LOGD(NULL, "set dvfs cksel core > 3 invalid %d\r\n",cksel_core);
 		return BK_FAIL;
 	}
 
 	if((ckdiv_core > PM_FREQUNCY_DIV_MAX) || (ckdiv_bus > PM_FREQUNCY_DIV_BUS_MAX)||(ckdiv_cpu1 > PM_FREQUNCY_DIV_CPU1_MAX))
 	{
-		os_printf("set dvfs ckdiv_core ckdiv_bus ckdiv_cpu0  ckdiv_cpu0  > 15 invalid\r\n");
+		BK_LOGD(NULL, "set dvfs ckdiv_core ckdiv_bus ckdiv_cpu0  ckdiv_cpu0  > 15 invalid\r\n");
 		return BK_FAIL;
 	}
 	if((cksel_core == PM_CLKSEL_CORE_320M)&&(ckdiv_core == PM_CLKDIV_CORE_0)&&(ckdiv_cpu1 != PM_CLKDV_CPU1_1))
 	{
-		os_printf("unsupport the cpu freq setting %d %d %d\r\n",cksel_core,ckdiv_core,ckdiv_cpu1);
+		BK_LOGD(NULL, "unsupport the cpu freq setting %d %d %d\r\n",cksel_core,ckdiv_core,ckdiv_cpu1);
 		return BK_FAIL;
 	}
 
 	if((cksel_core == PM_CLKSEL_CORE_480M)&&(ckdiv_core == PM_CLKDIV_CORE_0))
 	{
-		os_printf("unsupport the cpu freq setting %d %d %d\r\n",cksel_core,ckdiv_core,ckdiv_cpu1);
+		BK_LOGD(NULL, "unsupport the cpu freq setting %d %d %d\r\n",cksel_core,ckdiv_core,ckdiv_cpu1);
 		return BK_FAIL;
 	}
 
 	if((cksel_core == PM_CLKSEL_CORE_480M)&&(ckdiv_core == PM_CLKDIV_CORE_1)&&(ckdiv_cpu1 != PM_CLKDV_CPU1_1))
 	{
-		os_printf("unsupport the cpu freq setting %d %d %d\r\n",cksel_core,ckdiv_core,ckdiv_cpu1);
+		BK_LOGD(NULL, "unsupport the cpu freq setting %d %d %d\r\n",cksel_core,ckdiv_core,ckdiv_cpu1);
 		return BK_FAIL;
 	}
 
@@ -1135,7 +1135,7 @@ void sys_hal_set_clksel_spi(uint32_t value)
     }
     else
     {
-        //os_printf("spi cksel is not support on BK7256 in function:%s, line:%d\n", __FUNCTION__, __LINE__);
+        //BK_LOGD(NULL, "spi cksel is not support on BK7256 in function:%s, line:%d\n", __FUNCTION__, __LINE__);
     }
 
 }

@@ -26,6 +26,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 #ifdef DRAW_DIAG_DEBUG
@@ -95,7 +96,7 @@ bk_err_t bk_display_blend_font_handle(frame_buffer_t *frame, uint16_t lcd_width,
 {
     if ((frame == NULL) && (font_info == NULL) && (font_info->addr == NULL))
     {
-        LOGI("%s %d ERROR \n", __func__, __LINE__);
+        LOGD("%s %d ERROR \n", __func__, __LINE__);
         return BK_FAIL;
     }
 
@@ -110,12 +111,12 @@ bk_err_t bk_display_blend_font_handle(frame_buffer_t *frame, uint16_t lcd_width,
     {
         if (font_strings->xpos + font_strings->width > lcd_width)
         {
-            LOGD("content: %s, xpos %d + width %d > lcd_width %d\n", __func__, font_strings->xpos, font_strings->width, lcd_width);
+            LOGV("content: %s, xpos %d + width %d > lcd_width %d\n", __func__, font_strings->xpos, font_strings->width, lcd_width);
             cfg.xsize = lcd_width - font_strings->xpos;
         }
         if (font_strings->ypos  + font_strings->height > lcd_height)
         {
-            LOGD("content: %s, ypos %d + height %d > lcd_width %d\n", __func__, font_strings->ypos, font_strings->height, lcd_height);
+            LOGV("content: %s, ypos %d + height %d > lcd_width %d\n", __func__, font_strings->ypos, font_strings->height, lcd_height);
             cfg.ysize = lcd_height - font_strings->ypos;
         }
 //        os_memset((void *)font_info->content, 0, sizeof(font_info->content));
@@ -173,9 +174,9 @@ bk_err_t bk_display_blend_img_handle(frame_buffer_t *frame, uint16_t lcd_width, 
     {
         LOGW("%s %d img  size is beyond the boundaries of lcd\n", __func__, __LINE__);
         if (img_dsc->width + img_dsc->xpos > lcd_width)
-            LOGI("content: %s, xpos %d + width %d > lcd_width %d\n", __func__, img_dsc->xpos, img_dsc->width, lcd_width);
+            LOGD("content: %s, xpos %d + width %d > lcd_width %d\n", __func__, img_dsc->xpos, img_dsc->width, lcd_width);
         if (img_dsc->height + img_dsc->ypos > lcd_height)
-            LOGI("content: %s, ypos %d + height %d > lcd_width %d\n", __func__, img_dsc->ypos, img_dsc->height, lcd_height);
+            LOGD("content: %s, ypos %d + height %d > lcd_width %d\n", __func__, img_dsc->ypos, img_dsc->height, lcd_height);
 
         return BK_FAIL;
     }
@@ -259,7 +260,7 @@ bk_err_t bk_display_blend_handle_by_array(frame_buffer_t *frame, uint16_t lcd_wi
             }
             else
             {
-                LOGI("%s %d, i=%d, j=%d not find img %s \n", __func__, __LINE__, i,j, array[i].content);
+                LOGD("%s %d, i=%d, j=%d not find img %s \n", __func__, __LINE__, i,j, array[i].content);
             }
         }
         #endif
@@ -316,7 +317,7 @@ bk_err_t blend_task_send_msg(uint8_t type, uint32_t param)
     {
         info = os_malloc(sizeof(blend_info_t));
         os_memcpy(info, (blend_info_t *)param, sizeof(blend_info_t));
-        LOGD("%s %d %p %s %s\n", __func__,__LINE__, info, info->name, info->content);
+        LOGV("%s %d %p %s %s\n", __func__,__LINE__, info, info->name, info->content);
     }
 
     if (blend && blend->task_running)
@@ -371,7 +372,7 @@ void copy_existing_blend_info_to_dynamic_array(dynamic_array_t * dyn_array)
         dyn_array->entry = os_realloc(dyn_array->entry, dyn_array->capacity * sizeof(blend_info_t));
         if (dyn_array->entry == NULL)
         {
-            LOGI("%s realloc fail \n", __func__);
+            LOGD("%s realloc fail \n", __func__);
             return;
         }
     }
@@ -494,7 +495,7 @@ void add_or_update_blend_info_to_dynamic_array(dynamic_array_t * dyn_array, cons
         dyn_array->entry = os_realloc(dyn_array->entry, dyn_array->capacity * sizeof(blend_info_t));
         if (dyn_array->entry == NULL)
         {
-            LOGI("%s realloc fail \n", __func__);
+            LOGD("%s realloc fail \n", __func__);
             return;
         }
         for(int i = dyn_array_size; i < dyn_array->capacity; i++)
@@ -502,7 +503,7 @@ void add_or_update_blend_info_to_dynamic_array(dynamic_array_t * dyn_array, cons
             dyn_array->entry[i].name[0] = '\0';
             dyn_array->entry[i].addr = NULL;
         }
-        LOGI("%s extend dyn_array capacity * 2\n", __func__);
+        LOGD("%s extend dyn_array capacity * 2\n", __func__);
     }
     dyn_array->entry[dyn_array_size] = *assets_info;
 
@@ -620,7 +621,7 @@ static bk_err_t blend_task_stop(void)
     bk_err_t ret = BK_OK;
     if (!blend || blend->task_running == false)
     {
-        LOGI("%s already stop\n", __func__);
+        LOGD("%s already stop\n", __func__);
         return ret;
     }
 
@@ -638,7 +639,7 @@ static bk_err_t blend_task_stop(void)
         blend->queue = NULL;
     }
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 
     return ret;
 }
@@ -647,13 +648,13 @@ void get_blend_assets_array(const blend_info_t *assets)
 {
     bk_blend_assets = assets;
     blend_assets_size = BLEND_ARRAY_LENGTH(bk_blend_assets);
-    LOGD("%s bk_blend_assets=%p blend_assets_size=%d \n", __func__,bk_blend_assets, blend_assets_size);
+    LOGV("%s bk_blend_assets=%p blend_assets_size=%d \n", __func__,bk_blend_assets, blend_assets_size);
 }
 
 void get_blend_default_array(const blend_info_t *assets)
 {
     bk_blend_info = assets;
-    LOGD("%s bk_blend_info=%p \n", __func__, bk_blend_info);
+    LOGV("%s bk_blend_info=%p \n", __func__, bk_blend_info);
 }
 
 bk_err_t bk_draw_blend_init(void)
@@ -661,7 +662,7 @@ bk_err_t bk_draw_blend_init(void)
     bk_err_t ret = BK_OK;
     if (NULL != blend && blend->task_running)
     {
-        LOGD("%s already init\n", __func__);
+        LOGV("%s already init\n", __func__);
         return ret;
     }
      blend = (blend_t *)os_malloc(sizeof(blend_t));
@@ -695,7 +696,7 @@ bk_err_t bk_draw_blend_init(void)
     copy_existing_blend_info_to_dynamic_array(&g_dyn_array);
     blend->enable = true;
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
     return BK_OK;
 
 error:
@@ -744,7 +745,7 @@ bk_err_t bk_draw_blend_deinit(void)
        blend = NULL;
    }
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
     return BK_OK;
 }
 

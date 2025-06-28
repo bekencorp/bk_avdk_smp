@@ -19,11 +19,11 @@
 
 static void cli_wdt_help(void)
 {
-	CLI_LOGI("wdt_driver init\n");
-	CLI_LOGI("wdt_driver deinit\n");
-	CLI_LOGI("wdt start [timeout]\n");
-	CLI_LOGI("wdt stop\n");
-	CLI_LOGI("wdt feed\n");
+	CLI_LOGD("wdt_driver init\n");
+	CLI_LOGD("wdt_driver deinit\n");
+	CLI_LOGD("wdt start [timeout]\n");
+	CLI_LOGD("wdt stop\n");
+	CLI_LOGD("wdt feed\n");
 }
 
 static void cli_wdt_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -35,10 +35,10 @@ static void cli_wdt_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_wdt_driver_init());
-		CLI_LOGI("wdt driver init\n");
+		CLI_LOGD("wdt driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_wdt_driver_deinit());
-		CLI_LOGI("wdt driver deinit\n");
+		CLI_LOGD("wdt driver deinit\n");
 	} else {
 		cli_wdt_help();
 		return;
@@ -55,30 +55,30 @@ static void cli_wdt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	if (os_strcmp(argv[1], "start") == 0) {
 		uint32_t timeout = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_wdt_start(timeout));
-		CLI_LOGI("wdt start, timeout=%d\n", timeout);
+		CLI_LOGD("wdt start, timeout=%d\n", timeout);
 	} else if (os_strcmp(argv[1], "stop") == 0) {
 		BK_LOG_ON_ERR(bk_wdt_stop());
 #if (CONFIG_TASK_WDT)
 		bk_task_wdt_stop();
 #endif
-		CLI_LOGI("wdt stop\n");
+		CLI_LOGD("wdt stop\n");
 	}else if (os_strcmp(argv[1], "feed") == 0) {
 		BK_LOG_ON_ERR(bk_wdt_feed());
-		CLI_LOGI("wdt feed\n");
+		CLI_LOGD("wdt feed\n");
 	}else if (os_strcmp(argv[1], "disable") == 0) {
 		bk_wdt_stop();
 #if (CONFIG_TASK_WDT)
 		bk_task_wdt_stop();
 #endif
-		CLI_LOGI("wdt debug disabled\n");
+		CLI_LOGD("wdt debug disabled\n");
 	}else if (os_strcmp(argv[1], "enable") == 0) {
 		extern void wdt_init(void);
 		wdt_init();
-		CLI_LOGI("wdt debug enabled\n");
+		CLI_LOGD("wdt debug enabled\n");
 	}else if (os_strcmp(argv[1], "while") == 0) {
 		GLOBAL_INT_DECLARATION();
 		GLOBAL_INT_DISABLE();
-		CLI_LOGI("wdt enter while1\n");
+		CLI_LOGD("wdt enter while1\n");
 		while(1);
 		GLOBAL_INT_RESTORE();
 	} else {

@@ -172,14 +172,14 @@ static void printf_transfer_bw(uint64_t amount, float start, float end)
 		unit = IPERF_THOUSAND_UNIT; /* Kbps */
 	}
 
-	os_printf("%4.1f-%4.1f sec	 %6.2f %cBytes	  %.2f %cbits/sec\r\n", start,end,
+	BK_LOGD(NULL,"%4.1f-%4.1f sec	 %6.2f %cBytes	  %.2f %cbits/sec\r\n", start,end,
 				trans, numeralSuffix, (((float)amount * 8) / gaps / (float)unit), speedSuffix);
 }
 
 static int32_t iperf_udpServer_process_firstData(int sock,const struct sockaddr *from,socklen_t len)
 {
 	if (connect(sock, from, len) < 0) {
-		os_printf("connect failed %d\r\n", errno);
+		BK_LOGD(NULL,"connect failed %d\r\n", errno);
 		return -1;
 	}
 
@@ -254,7 +254,7 @@ static void iperf_report_avg_bandwidth(uint64_t pkt_len)
 		double total_f;
 		total_f = (double)pkt_len * 8;
 		total_f /= (double)(IPERF_MILLION_UNIT * s_tick_delta);
-		os_printf("[%d-%d] sec bandwidth: %.2f  Mbits/sec.\r\n",
+		BK_LOGD(NULL,"[%d-%d] sec bandwidth: %.2f  Mbits/sec.\r\n",
 				0, s_tick_delta , total_f);
 	}
 }
@@ -290,7 +290,7 @@ static int iperf_bw_delay(int send_size)
     if (speed_limit > 0) {
 		pkts_per_tick = speed_limit * 1.0 / (send_size * 8) / 500;
 		period_us = 2000 / pkts_per_tick;
-		os_printf("iperf_size:%d, speed_limit:%d, period_us:%d pkts_per_tick:%d\n",
+		BK_LOGD(NULL,"iperf_size:%d, speed_limit:%d, period_us:%d pkts_per_tick:%d\n",
 			send_size, speed_limit, period_us, pkts_per_tick);
 	}
 	return period_us;
@@ -319,7 +319,7 @@ static void iperf_report_task_handler(void *arg)
 
 			if (s_pkt_delta >= 0)
 			{
-				os_printf("[%d-%d] sec bandwidth: %d Kbits/sec.\r\n",
+				BK_LOGD(NULL,"[%d-%d] sec bandwidth: %d Kbits/sec.\r\n",
 						  s_tick_delta, s_tick_delta + IPERF_REPORT_INTERVAL, f);
 			}
 			s_tick_delta = s_tick_delta + IPERF_REPORT_INTERVAL;
@@ -389,7 +389,7 @@ static void iperf_client(void *thread_param)
 	while (s_param.state == IPERF_STATE_STARTED) {
 		sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (sock < 0) {
-			os_printf("iperf: create socket failed, err=%d!\n", errno);
+			BK_LOGD(NULL,"iperf: create socket failed, err=%d!\n", errno);
 			rtos_delay_milliseconds(1000);
 			continue;
 		}
@@ -409,10 +409,10 @@ static void iperf_client(void *thread_param)
 #endif
 		ret = connect(sock, (const struct sockaddr *)&addr, sizeof(addr));
 		if (ret == -1) {
-			os_printf("iperf: connect failed, err=%d!\n", errno);
+			BK_LOGD(NULL,"iperf: connect failed, err=%d!\n", errno);
 				connect_retry_cnt ++;
 			if (connect_retry_cnt >= IPERF_MAX_TX_CONNECT_RETRY) {
-				os_printf("iperf: tx connect max retry(%u)\n", connect_retry_cnt);
+				BK_LOGD(NULL,"iperf: tx connect max retry(%u)\n", connect_retry_cnt);
 				goto _exit;
 			}
 		}else{
@@ -420,7 +420,7 @@ static void iperf_client(void *thread_param)
 		}
 	}
 
-	os_printf("iperf: connect to iperf server successful!\n");
+	BK_LOGD(NULL,"iperf: connect to iperf server successful!\n");
 	iperf_set_sock_opt(sock);
 
 	iperf_report_task_start();
@@ -456,7 +456,7 @@ _tx_retry:
 			if (errno == EWOULDBLOCK) {
 				retry_cnt ++;
 				if (retry_cnt >= IPERF_MAX_TX_RETRY) {
-					os_printf("iperf: tx reaches max retry(%u)\n", retry_cnt);
+					BK_LOGD(NULL,"iperf: tx reaches max retry(%u)\n", retry_cnt);
 					break;
 				} else
 					goto _tx_retry;
@@ -478,7 +478,7 @@ _exit:
 	if (send_buf)
 		os_free(send_buf);
 	iperf_reset();
-	os_printf("iperf: is stopped\n");
+	BK_LOGD(NULL,"iperf: is stopped\n");
 	rtos_delete_thread(NULL);
 }
 
@@ -492,13 +492,13 @@ void iperf_server(void *thread_param)
 
 	recv_data = (uint8_t *) os_malloc(iperf_size);
 	if (recv_data == NULL) {
-		os_printf("iperf: no memory\n");
+		BK_LOGD(NULL,"iperf: no memory\n");
 		goto __exit;
 	}
 
 	sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (sock < 0) {
-		os_printf("iperf: socket error\n");
+		BK_LOGD(NULL,"iperf: socket error\n");
 		goto __exit;
 	}
 
@@ -508,12 +508,12 @@ void iperf_server(void *thread_param)
 	os_memset(&(server_addr.sin_zero), 0x0, sizeof(server_addr.sin_zero));
 
 	if (bind(sock, (struct sockaddr *)&server_addr, sizeof(struct sockaddr)) == -1) {
-		os_printf("iperf: unable to bind, err=%d\n", errno);
+		BK_LOGD(NULL,"iperf: unable to bind, err=%d\n", errno);
 		goto __exit;
 	}
 
 	if (listen(sock, 5) == -1) {
-		os_printf("iperf: listen error, err=%d\n", errno);
+		BK_LOGD(NULL,"iperf: listen error, err=%d\n", errno);
 		goto __exit;
 	}
 	iperf_set_sock_opt(sock);
@@ -529,7 +529,7 @@ _accept_retry:
 			if (errno == EWOULDBLOCK)
 				goto _accept_retry;
 		}
-		os_printf("iperf: new client connected from (%s, %d)\n",
+		BK_LOGD(NULL,"iperf: new client connected from (%s, %d)\n",
 				  inet_ntoa(client_addr.sin_addr),
 				  ntohs(client_addr.sin_port));
 
@@ -547,7 +547,7 @@ _rx_retry:
 				if (errno == EWOULDBLOCK) {
 					retry_cnt ++;
 					if (retry_cnt >= IPERF_MAX_RX_RETRY) {
-						os_printf("iperf: rx reaches max retry(%d)\n", retry_cnt);
+						BK_LOGD(NULL,"iperf: rx reaches max retry(%d)\n", retry_cnt);
 						break;
 					} else
 						goto _rx_retry;
@@ -581,7 +581,7 @@ __exit:
 	}
 
 	iperf_reset();
-	os_printf("iperf: iperf is stopped\n");
+	BK_LOGD(NULL,"iperf: iperf is stopped\n");
 	rtos_delete_thread(NULL);
 }
 
@@ -613,7 +613,7 @@ static void iperf_udp_client(void *thread_param)
 	while (IPERF_STATE_STARTED == s_param.state) {
 		sock = socket(PF_INET, SOCK_DGRAM, 0);
 		if (sock < 0) {
-			os_printf("iperf: create socket failed, err=%d!\n", errno);
+			BK_LOGD(NULL,"iperf: create socket failed, err=%d!\n", errno);
 			rtos_delay_milliseconds(1000);
 			continue;
 		}
@@ -621,7 +621,7 @@ static void iperf_udp_client(void *thread_param)
 		server.sin_family = PF_INET;
 		server.sin_port = htons(s_param.port);
 		server.sin_addr.s_addr = inet_addr(s_param.host);
-		os_printf("iperf udp mode run...\n");
+		BK_LOGD(NULL,"iperf udp mode run...\n");
 #ifndef CONFIG_IPV6
 		{
 			struct netif *netif;
@@ -732,7 +732,7 @@ udp_exit:
 		buffer = NULL;
 	}
 	iperf_reset();
-	os_printf("iperf_udp: is stopped\n");
+	BK_LOGD(NULL,"iperf_udp: is stopped\n");
 	rtos_delete_thread(NULL);
 }
 
@@ -760,7 +760,7 @@ static void iperf_udp_server(void *thread_param)
 		return;
 	sock = socket(PF_INET, SOCK_DGRAM, 0);
 	if (sock < 0) {
-		os_printf("can't create socket!! exit\n");
+		BK_LOGD(NULL,"can't create socket!! exit\n");
 		goto userver_exit;
 	}
 	server.sin_family = PF_INET;
@@ -770,12 +770,12 @@ static void iperf_udp_server(void *thread_param)
 	timeout.tv_sec = 2;
 	timeout.tv_usec = 0;
 	if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == -1) {
-		os_printf("setsockopt failed!!");
+		BK_LOGD(NULL,"setsockopt failed!!");
 		goto userver_exit;
 	}
 
 	if (bind(sock, (struct sockaddr *)&server, sizeof(struct sockaddr_in)) < 0) {
-		os_printf("iperf server bind failed!! exit\n");
+		BK_LOGD(NULL,"iperf server bind failed!! exit\n");
 		goto userver_exit;
 	}
 
@@ -848,7 +848,7 @@ userver_exit:
 	}
 
 	iperf_reset();
-	os_printf("iperf_udp: iperf is stopped\n");
+	BK_LOGD(NULL,"iperf_udp: iperf is stopped\n");
 	rtos_delete_thread(NULL);
 }
 
@@ -886,23 +886,23 @@ int iperf_param_find(int argc, char **argv, char *param)
 
 void iperf_usage(void)
 {
-	os_printf("Usage: iperf [-s|-c host] [options]\n");
-	os_printf("       iperf [-h|--stop]\n");
-	os_printf("\n");
-	os_printf("Client/Server:\n");
-	os_printf("  -p #         server port to listen on/connect to\n");
-	os_printf("\n");
-	os_printf("Server specific:\n");
-	os_printf("  -s           run in server mode\n");
-	os_printf("\n");
-	os_printf("Client specific:\n");
-	os_printf("  -c <host>    run in client mode, connecting to <host>\n");
-	os_printf("\n");
-	os_printf("Miscellaneous:\n");
-	os_printf("  -u           udp support, and the default mode is tcp\n");
-	os_printf("  -t #[time]      time in seconds to transmit for (default 30 secs)\n");
-	os_printf("  -h           print this message and quit\n");
-	os_printf("  --stop       stop iperf program\n");
+	BK_LOGD(NULL,"Usage: iperf [-s|-c host] [options]\n");
+	BK_LOGD(NULL,"       iperf [-h|--stop]\n");
+	BK_LOGD(NULL,"\n");
+	BK_LOGD(NULL,"Client/Server:\n");
+	BK_LOGD(NULL,"  -p #         server port to listen on/connect to\n");
+	BK_LOGD(NULL,"\n");
+	BK_LOGD(NULL,"Server specific:\n");
+	BK_LOGD(NULL,"  -s           run in server mode\n");
+	BK_LOGD(NULL,"\n");
+	BK_LOGD(NULL,"Client specific:\n");
+	BK_LOGD(NULL,"  -c <host>    run in client mode, connecting to <host>\n");
+	BK_LOGD(NULL,"\n");
+	BK_LOGD(NULL,"Miscellaneous:\n");
+	BK_LOGD(NULL,"  -u           udp support, and the default mode is tcp\n");
+	BK_LOGD(NULL,"  -t #[time]      time in seconds to transmit for (default 30 secs)\n");
+	BK_LOGD(NULL,"  -h           print this message and quit\n");
+	BK_LOGD(NULL,"  --stop       stop iperf program\n");
 
 	return;
 }
@@ -911,7 +911,7 @@ static void iperf_stop(void)
 {
 	if (s_param.state == IPERF_STATE_STARTED) {
 		s_param.state = IPERF_STATE_STOPPING;
-		os_printf("iperf: iperf is stopping...\n");
+		BK_LOGD(NULL,"iperf: iperf is stopping...\n");
 	}
 }
 
@@ -970,11 +970,11 @@ static void iperf_start(int mode, char *host, int port)
 							   (beken_thread_arg_t) 0);
 #endif
 		} else
-			os_printf("iperf: invalid iperf mode=%d\n", mode);
+			BK_LOGD(NULL,"iperf: invalid iperf mode=%d\n", mode);
 	} else if (s_param.state == IPERF_STATE_STOPPING)
-		os_printf("iperf: iperf is stopping, try again later!\n");
+		BK_LOGD(NULL,"iperf: iperf is stopping, try again later!\n");
 	else
-		os_printf("iperf: iperf is running, stop first!\n");
+		BK_LOGD(NULL,"iperf: iperf is running, stop first!\n");
 }
 void iperf_config(int argc, char **argv)
 {
@@ -987,21 +987,21 @@ void iperf_config(int argc, char **argv)
     if(os_strcmp(argv[2], "-pri") == 0)
     {
         iperf_priority = os_strtoul(argv[3], NULL, 10);
-        os_printf("iperf config iperf_priority to %d !\n", iperf_priority);
+        BK_LOGD(NULL,"iperf config iperf_priority to %d !\n", iperf_priority);
     }
     else if(os_strcmp(argv[2], "-ips") == 0)
     {
         iperf_size = os_strtoul(argv[3], NULL, 10);
-        os_printf("iperf config iperf_size to %d !\n", iperf_size);
+        BK_LOGD(NULL,"iperf config iperf_size to %d !\n", iperf_size);
     }
     else if(os_strcmp(argv[2], "-tos") == 0)
     {
         iperf_tos = os_strtoul(argv[3], NULL, 10);
-        os_printf("iperf config iperf_tos to %d !\n", iperf_tos);
+        BK_LOGD(NULL,"iperf config iperf_tos to %d !\n", iperf_tos);
     }
     else
     {
-        os_printf("iperf config INVALID PRAMATER !\n");
+        BK_LOGD(NULL,"iperf config INVALID PRAMATER !\n");
     }
 }
 

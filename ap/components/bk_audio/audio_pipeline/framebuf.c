@@ -108,7 +108,7 @@ bk_err_t fb_destroy(framebuf_handle_t fb)
     framebuf_node_item_t *fb_node_item_ptr, *fb_node_tmp;
 
     STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->free_fb_node_list, next, fb_node_tmp) {
-        BK_LOGD(TAG, "%d, fb_node_buffer:%p size:%d \n", __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
+        BK_LOGV(TAG, "%d, fb_node_buffer:%p size:%d \n", __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
         STAILQ_REMOVE(&fb->free_fb_node_list, fb_node_item_ptr, framebuf_node_item, next);
         if (fb_node_item_ptr->fb_node && fb_node_item_ptr->fb_node->buffer) {
             audio_free(fb_node_item_ptr->fb_node->buffer);
@@ -129,7 +129,7 @@ bk_err_t fb_destroy(framebuf_handle_t fb)
     }
 
     STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->ready_fb_node_list, next, fb_node_tmp) {
-        BK_LOGD(TAG, "%d, fb_node_buffer:%p size:%d \n", __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
+        BK_LOGV(TAG, "%d, fb_node_buffer:%p size:%d \n", __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
         STAILQ_REMOVE(&fb->ready_fb_node_list, fb_node_item_ptr, framebuf_node_item, next);
         if (fb_node_item_ptr->fb_node && fb_node_item_ptr->fb_node->buffer) {
             audio_free(fb_node_item_ptr->fb_node->buffer);
@@ -176,7 +176,7 @@ bk_err_t fb_reset(framebuf_handle_t fb)
 
     /* move frame_buffer node from ready_fb_node_list to free_fb_node_list */
     STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->ready_fb_node_list, next, fb_node_tmp) {
-        BK_LOGD(TAG, "%d, fb_node_buffer:%p size:%d \n", __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
+        BK_LOGV(TAG, "%d, fb_node_buffer:%p size:%d \n", __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
         STAILQ_REMOVE(&fb->free_fb_node_list, fb_node_item_ptr, framebuf_node_item, next);
 
         fb_node_item_ptr->fb_node->length = 0;
@@ -213,7 +213,7 @@ int fb_read(framebuf_handle_t fb, framebuf_node_item_t **fb_node_item, TickType_
 
         /* check whether frame_buffer node is exists in ready_fb_node_list */
         STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->ready_fb_node_list, next, fb_node_tmp) {
-            BK_LOGD(TAG, "%d, fb_node_buffer:%p size:%d \n", __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
+            BK_LOGV(TAG, "%d, fb_node_buffer:%p size:%d \n", __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
             if (fb_node_item_ptr) {
                 STAILQ_REMOVE(&fb->ready_fb_node_list, fb_node_item_ptr, framebuf_node_item, next);
                 *fb_node_item = fb_node_item_ptr;
@@ -293,7 +293,7 @@ int fb_malloc(framebuf_handle_t fb, framebuf_node_item_t **fb_node_item, TickTyp
 
         /* check whether frame_buffer node is exists in free_fb_node_list */
         STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->free_fb_node_list, next, fb_node_tmp) {
-            BK_LOGD(TAG, "%s, %d, fb_node_buffer:%p size:%d \n", __func__, __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
+            BK_LOGV(TAG, "%s, %d, fb_node_buffer:%p size:%d \n", __func__, __LINE__, fb_node_item_ptr->fb_node->buffer, fb_node_item_ptr->fb_node->size);
             if (fb_node_item_ptr) {
                 STAILQ_REMOVE(&fb->free_fb_node_list, fb_node_item_ptr, framebuf_node_item, next);
                 *fb_node_item = fb_node_item_ptr;
@@ -417,13 +417,13 @@ void debug_fb_node_lists(framebuf_handle_t fb, int line, const char *func)
         return;
     }
 
-    BK_LOGI(TAG, "FUNC:%s, LINE:%d \n", func, line);
+    BK_LOGD(TAG, "FUNC:%s, LINE:%d \n", func, line);
 
-    BK_LOGI(TAG, "fb: %p, fb_total_node_num: %d, fb_total_node_size:%d \n", fb, fb->fb_total_node_num, fb->fb_node_size);
+    BK_LOGD(TAG, "fb: %p, fb_total_node_num: %d, fb_total_node_size:%d \n", fb, fb->fb_total_node_num, fb->fb_node_size);
 
-    BK_LOGI(TAG, "free-node-list: \n");
+    BK_LOGD(TAG, "free-node-list: \n");
     STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->free_fb_node_list, next, fb_node_tmp) {
-        BK_LOGI(TAG, "node_ptr:%p, length:%d, buffer:%p, size: %d, info:%p, info_size:%d\n",
+        BK_LOGD(TAG, "node_ptr:%p, length:%d, buffer:%p, size: %d, info:%p, info_size:%d\n",
                 fb_node_item_ptr,
                 fb_node_item_ptr->fb_node->length,
                 fb_node_item_ptr->fb_node->buffer,
@@ -431,11 +431,11 @@ void debug_fb_node_lists(framebuf_handle_t fb, int line, const char *func)
                 fb_node_item_ptr->fb_node->info,
                 fb_node_item_ptr->fb_node->info_size);
     }
-    BK_LOGI(TAG, "\n");
+    BK_LOGD(TAG, "\n");
 
-    BK_LOGI(TAG, "ready-node-list: \n");
+    BK_LOGD(TAG, "ready-node-list: \n");
     STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->free_fb_node_list, next, fb_node_tmp) {
-        BK_LOGI(TAG, "node_ptr:%p, length:%d, buffer:%p, size: %d, info:%p, info_size:%d\n",
+        BK_LOGD(TAG, "node_ptr:%p, length:%d, buffer:%p, size: %d, info:%p, info_size:%d\n",
                 fb_node_item_ptr,
                 fb_node_item_ptr->fb_node->length,
                 fb_node_item_ptr->fb_node->buffer,
@@ -443,7 +443,7 @@ void debug_fb_node_lists(framebuf_handle_t fb, int line, const char *func)
                 fb_node_item_ptr->fb_node->info,
                 fb_node_item_ptr->fb_node->info_size);
     }
-    BK_LOGI(TAG, "\n");
+    BK_LOGD(TAG, "\n");
 }
 
 void debug_fb_node(framebuf_node_item_t *fb_node_item, int line, const char *func)
@@ -452,9 +452,9 @@ void debug_fb_node(framebuf_node_item_t *fb_node_item, int line, const char *fun
         return;
     }
 
-    BK_LOGI(TAG, "FUNC:%s, LINE:%d \n", func, line);
+    BK_LOGD(TAG, "FUNC:%s, LINE:%d \n", func, line);
 
-    BK_LOGI(TAG, "node_ptr:%p, length:%d, buffer:%p, size: %d, info:%p, info_size:%d\n",
+    BK_LOGD(TAG, "node_ptr:%p, length:%d, buffer:%p, size: %d, info:%p, info_size:%d\n",
             fb_node_item,
             fb_node_item->fb_node->length,
             fb_node_item->fb_node->buffer,

@@ -43,6 +43,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 #define PM_SEND_CMD_CP1_RESPONSE_TIEM        (100)  //100ms
 #define PM_BOOT_CP1_WAITING_TIEM             (500) // 0.5s
 #define PM_CP1_RECOVERY_DEFAULT_VALUE        (0xFFFFFFFFFFFFFFFF)
@@ -404,13 +405,13 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 
 	if(ret != BK_OK)
 	{
-		LOGD("cp1 response: cp0 handle msg error\r\n");
+		LOGV("cp1 response: cp0 handle msg error\r\n");
 	}
 	//if(pm_debug_mode()&0x2)
 	{
       if(cmd_buf->hdr.cmd != PM_CP1_PSRAM_MALLOC_STATE_CMD)
       {
-		LOGD("enter cp1_mailbox_rx_isr %d %d %d \r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2);
+		LOGV("enter cp1_mailbox_rx_isr %d %d %d \r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2);
       }
 	}
 }
@@ -463,7 +464,7 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 	    LOGE("cp1 get psram state time out\r\n");
 	}
 
-	LOGI("cp1 vote psram_P E\r\n");
+	LOGD("cp1 vote psram_P E\r\n");
 #endif
 	return BK_OK;
 
@@ -498,7 +499,7 @@ bk_err_t bk_pm_module_vote_ctrl_external_ldo(gpio_ctrl_ldo_module_e module,gpio_
 	    LOGE("cp1 ctr extLdo timeout\r\n");
 	}
 
-	LOGI("cp1 vote ctr_extLdo\r\n");
+	LOGD("cp1 vote ctr_extLdo\r\n");
 #endif
 	return BK_OK;
 }
@@ -567,7 +568,7 @@ bk_err_t bk_pm_ap_misc_get_time_interval_from_startup(uint32_t* time_interval)
         LOGE("ap get startup time time out\r\n");
     }
     *time_interval = s_chip_startup_time;
-    LOGI("ap get startup time\r\n");
+    LOGD("ap get startup time\r\n");
 #endif//CONFIG_MAILBOX
 	return BK_OK;
 }
@@ -646,7 +647,7 @@ static bk_err_t pm_wakeup_source_config(pm_sleep_mode_e sleep_mode,pm_wakeup_sou
     uint64_t current_tick   = 0;
     int ret                 = 0;
     bk_pm_ap_wakeup_source_config_state_set(PM_MAILBOX_COMMUNICATION_INIT);
-	LOGI("wakeup data:%d\r\n",data);
+	LOGD("wakeup data:%d\r\n",data);
     ret = pm_cp1_mailbox_send_data(PM_WAKEUP_CONFIG_CMD, sleep_mode,wakeup_source,data);
     if(ret != BK_OK)
     {

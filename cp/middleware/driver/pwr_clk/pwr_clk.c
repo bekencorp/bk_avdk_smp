@@ -46,10 +46,10 @@
 #define PM_BOOT_CP1_TRY_COUNT                (3)
 
 #define TAG "CP"
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 /*=====================DEFINE  SECTION  END=====================*/
 
@@ -221,7 +221,7 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 				s_pm_cp1_boot_ready = PM_MAILBOX_COMMUNICATION_FINISH;
 			}
 			//if(pm_debug_mode()&0x2)//for temp debug
-				os_printf("cpu0 receive the cpu1 boot success event [%d]\r\n",cmd_buf->param1);
+				BK_LOGD(NULL,"cpu0 receive the cpu1 boot success event [%d]\r\n",cmd_buf->param1);
 			break;
 		case PM_CP1_PSRAM_MALLOC_STATE_CMD:
 			if(cmd_buf->param1 == 0x1)
@@ -254,14 +254,14 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 	GLOBAL_INT_RESTORE();
 	if(ret != BK_OK)
 	{
-		os_printf("cp0 handle cp1 message error\r\n");
+		BK_LOGD(NULL,"cp0 handle cp1 message error\r\n");
 	}
 
 	//if(pm_debug_mode()&0x2)
 	{
 		if(cmd_buf->hdr.cmd != PM_CP1_PSRAM_MALLOC_STATE_CMD)
 		{
-			os_printf("cp0_mb_rx_isr %d %d %d %d %d\r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2,cmd_buf->param3,ret);
+			BK_LOGD(NULL,"cp0_mb_rx_isr %d %d %d %d %d\r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2,cmd_buf->param3,ret);
 		}
 	}
 
@@ -298,7 +298,7 @@ bk_err_t bk_pm_cp1_recovery_module_state_ctrl(pm_cp1_prepare_close_module_name_e
 	{
 		s_pm_cp1_module_recovery_state |= (0x1ULL << module);
 	}
-	LOGI("pm_cp1_rcv:0x%llx %d %d %d\r\n",s_pm_cp1_module_recovery_state,bk_pm_cp1_work_state_get(),bk_pm_cp1_recovery_all_state_get(),s_pm_cp1_ctrl_state);
+	LOGD("pm_cp1_rcv:0x%llx %d %d %d\r\n",s_pm_cp1_module_recovery_state,bk_pm_cp1_work_state_get(),bk_pm_cp1_recovery_all_state_get(),s_pm_cp1_ctrl_state);
 	if(bk_pm_cp1_recovery_all_state_get())
 	{
 		bk_pm_module_check_cp1_shutdown();
@@ -349,7 +349,7 @@ boot_cp1:
 
 			if(!bk_pm_cp1_work_state_get())
 			{
-				os_printf("cp0 boot cp1[%d] time out, boot cp1 fail!!!\r\n",s_pm_cp1_boot_try_count);
+				BK_LOGD(NULL,"cp0 boot cp1[%d] time out, boot cp1 fail!!!\r\n",s_pm_cp1_boot_try_count);
 
 				/*Reset psram*/
 				bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
@@ -403,7 +403,7 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			}
 
 			//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
-			os_printf("Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count);
+			BK_LOGD(NULL,"Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count);
 		}
 	}
 }
@@ -413,7 +413,7 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 	bk_err_t ret = BK_OK;
 	GLOBAL_INT_DECLARATION();
 
-	os_printf("boot_cp1 %d %d 0x%x [%d][0x%x]E_1\r\n",module, power_state,s_pm_cp1_ctrl_state,s_pm_cp1_closing,&s_sync_cp1_open_sema);
+	BK_LOGD(NULL,"boot_cp1 %d %d 0x%x [%d][0x%x]E_1\r\n",module, power_state,s_pm_cp1_ctrl_state,s_pm_cp1_closing,&s_sync_cp1_open_sema);
 	if (NULL == s_sync_cp1_open_sema)
 	{
 		rtos_init_semaphore(&s_sync_cp1_open_sema, 1);
@@ -423,7 +423,7 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 		GLOBAL_INT_DISABLE();
 		s_pm_cp1_sema_count++;
 		GLOBAL_INT_RESTORE();
-		os_printf("boot_cp1 get sema[%d][0x%x]\r\n",s_pm_cp1_sema_count,&s_sync_cp1_open_sema);
+		BK_LOGD(NULL,"boot_cp1 get sema[%d][0x%x]\r\n",s_pm_cp1_sema_count,&s_sync_cp1_open_sema);
 
 		/*add protect:init again when the s_sync_cp1_open_sema free*/
 		if (NULL == s_sync_cp1_open_sema)
@@ -437,14 +437,14 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 		GLOBAL_INT_RESTORE();
 		if(ret == kTimeoutErr)
 		{
-			os_printf("boot_cp1[%d]0x%llx %d %d %d\r\n",ret,s_pm_cp1_module_recovery_state,bk_pm_cp1_work_state_get(),bk_pm_cp1_recovery_all_state_get(),s_pm_cp1_ctrl_state);
+			BK_LOGD(NULL,"boot_cp1[%d]0x%llx %d %d %d\r\n",ret,s_pm_cp1_module_recovery_state,bk_pm_cp1_work_state_get(),bk_pm_cp1_recovery_all_state_get(),s_pm_cp1_ctrl_state);
 			if(bk_pm_cp1_recovery_all_state_get())
 			{
 				bk_pm_module_check_cp1_shutdown();
 			}
 		}
 	}
-	os_printf("boot_cp1 %d %d 0x%x [%d]E_2\r\n",module, power_state,s_pm_cp1_ctrl_state,ret);
+	BK_LOGD(NULL,"boot_cp1 %d %d 0x%x [%d]E_2\r\n",module, power_state,s_pm_cp1_ctrl_state,ret);
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on
     {
 		bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_480M);
@@ -464,7 +464,7 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 			if(0x0 == s_pm_cp1_ctrl_state)
 			{
 				s_pm_cp1_closing = 1;
-				os_printf("boot_cp1 %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,s_pm_cp1_boot_ready);
+				BK_LOGD(NULL,"boot_cp1 %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,s_pm_cp1_boot_ready);
 				pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
 				//pm_module_shutdown_cpu1(PM_POWER_MODULE_NAME_CPU1);
 			}
@@ -521,7 +521,7 @@ uint32_t bk_pm_get_cp1_psram_malloc_count()
 		}
 		if(!bk_pm_cp0_psram_malloc_state_get())
 		{
-			os_printf("cp0 get the psram malloc state time out > 100ms\r\n");
+			BK_LOGD(NULL,"cp0 get the psram malloc state time out > 100ms\r\n");
 		}
 
 	    return s_pm_cp1_psram_malloc_count;
@@ -609,7 +609,7 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 #if CONFIG_PSRAM
 	bk_err_t ret = BK_OK;
 	GLOBAL_INT_DECLARATION();
-	//os_printf("%s %d %d 0x%x\r\n",__func__, module, power_state,s_pm_psram_ctrl_state);
+	//BK_LOGD(NULL,"%s %d %d 0x%x\r\n",__func__, module, power_state,s_pm_psram_ctrl_state);
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on
     {
         GLOBAL_INT_DISABLE();
@@ -656,12 +656,12 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 bk_err_t pm_debug_pwr_clk_state()
 {
 #if CONFIG_PSRAM
-	os_printf("pm_psram:0x%x 0x%x\r\n",s_pm_psram_ctrl_state,bk_psram_heap_init_flag_get());
+	BK_LOGD(NULL,"pm_psram:0x%x 0x%x\r\n",s_pm_psram_ctrl_state,bk_psram_heap_init_flag_get());
 #endif
 #if (CONFIG_CPU_CNT > 1)
-	os_printf("pm_cp1_ctr:0x%x \r\n",s_pm_cp1_ctrl_state);
+	BK_LOGD(NULL,"pm_cp1_ctr:0x%x \r\n",s_pm_cp1_ctrl_state);
 #endif
-	os_printf("pm_cp1_boot_ready:0x%x 0x%x\r\n",s_pm_cp1_boot_ready,s_pm_cp1_module_recovery_state);
+	BK_LOGD(NULL,"pm_cp1_boot_ready:0x%x 0x%x\r\n",s_pm_cp1_boot_ready,s_pm_cp1_module_recovery_state);
 	return BK_OK;
 }
 

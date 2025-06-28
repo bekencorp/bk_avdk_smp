@@ -21,6 +21,7 @@
 //#if CONFIG_LCD_nt35510_mcu
 
 #define TAG "nt35510_mcu"
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
@@ -121,7 +122,7 @@ bk_err_t nt35510_mcu_swreset(void)
 
 void lcd_nt35510_mcu_init(void)
 {
-	LOGI("%s\n", __func__);
+	LOGD("%s\n", __func__);
 
 	rtos_delay_milliseconds(131);
 	rtos_delay_milliseconds(10);

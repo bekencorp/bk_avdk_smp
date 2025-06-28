@@ -179,7 +179,7 @@ struct hostapd_config *hostapd_config_read(const char *fname)
 	if (g_ap_param_ptr->cipher_suite > BK_SECURITY_TYPE_WEP) {
 		const char *wpa_key = (char *)g_ap_param_ptr->key;
 		if (os_strlen(wpa_key) == 2 * PMK_LEN) {
-			WPA_LOGI("Use PSK instead of passphrase for softap\n");
+			WPA_LOGD("Use PSK instead of passphrase for softap\n");
 			hostapd_config_clear_wpa_psk(&bss->ssid.wpa_psk);
 			bss->ssid.wpa_psk = os_zalloc(sizeof(struct hostapd_wpa_psk));
 			if (!bss->ssid.wpa_psk) {
@@ -258,7 +258,7 @@ struct hostapd_config *hostapd_config_read(const char *fname)
 	} else if (g_ap_param_ptr->cipher_suite == BK_SECURITY_TYPE_WPA3_WPA2_MIXED) {
 		bss->wpa_key_mgmt |= WPA_KEY_MGMT_SAE;
 	}
-	//WPA_LOGI("%s: wpa_key_mgmt 0x%x, cipher_suite %d\n", __func__,
+	//WPA_LOGD("%s: wpa_key_mgmt 0x%x, cipher_suite %d\n", __func__,
 	//			bss->wpa_key_mgmt, g_ap_param_ptr->cipher_suite);
 
 	for (i = 0; i < conf->num_bss; i++)
@@ -788,7 +788,7 @@ static int hostapd_driver_init(struct hostapd_iface *iface)
 			params.bridge[i] = bss->conf->bridge;
 		}
 #endif
-		WPA_LOGD("clear CSA in progress flag [%d:%d]\r\n", i, bss->csa_in_progress);
+		WPA_LOGV("clear CSA in progress flag [%d:%d]\r\n", i, bss->csa_in_progress);
 		bss->csa_in_progress = 0;
 	}
 

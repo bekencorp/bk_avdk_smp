@@ -149,7 +149,7 @@ __IRAM_SEC bk_err_t bk_wdt_start(uint32_t timeout_ms)
 	wdt_init_common();
 	wdt_hal_init_wdt(&s_wdt.hal, timeout_ms);
 	s_wdt.init_bits |= BIT(0);
-	WDT_LOGD("bk_wdt_start, s_wdt.init_bits:%x\n", s_wdt.init_bits);
+	WDT_LOGV("bk_wdt_start, s_wdt.init_bits:%x\n", s_wdt.init_bits);
 
 	return BK_OK;
 }
@@ -159,7 +159,7 @@ __attribute__((section(".itcm_sec_code"))) bk_err_t bk_wdt_stop(void)
 	WDT_RETURN_ON_DRIVER_NOT_INIT();
 	wdt_deinit_common();
 	s_wdt.init_bits &= ~BIT(0);
-	//WDT_LOGD("bk_wdt_stop, s_wdt.init_bits:%x\n", s_wdt.init_bits);
+	//WDT_LOGV("bk_wdt_stop, s_wdt.init_bits:%x\n", s_wdt.init_bits);
 	return BK_OK;
 }
 
@@ -182,7 +182,7 @@ void bk_int_wdt_feed(void)
 	if ((current_tick - s_last_int_wdt_feed_tick) >= s_feed_watchdog_time) {
 		bk_wdt_feed();
 		s_last_int_wdt_feed_tick = current_tick;
-		//WDT_LOGD("feed interrupt watchdog, s_feed_watchdog_time = %u ms.\n", s_feed_watchdog_time);
+		//WDT_LOGV("feed interrupt watchdog, s_feed_watchdog_time = %u ms.\n", s_feed_watchdog_time);
 	}
 }
 

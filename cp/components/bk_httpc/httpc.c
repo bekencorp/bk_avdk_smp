@@ -451,7 +451,7 @@ static void bk_httpc_hex_dump(char *s, int length) {
 	{
 		BK_LOG_RAW("%c", s[index]);
 	}
-	os_printf("\r\n");
+	BK_LOGD(NULL,"\r\n");
 }
 
 static bk_err_t httpc_tls_hostname_to_fd(const char *host, size_t hostlen, int port, struct sockaddr_storage *address, int* fd)
@@ -467,7 +467,7 @@ static bk_err_t httpc_tls_hostname_to_fd(const char *host, size_t hostlen, int p
 		return -1;
 	}
 
-	BK_LOGD(TAG, "host:%s: strlen %lu\r\n", use_host, (unsigned long)hostlen);
+	BK_LOGV(TAG, "host:%s: strlen %lu\r\n", use_host, (unsigned long)hostlen);
 	int res = getaddrinfo(use_host, NULL, &hints, &address_info);
 	if (res != 0 || address_info == NULL) {
 		BK_LOGE(TAG, "couldn't get hostname for :%s: "
@@ -494,7 +494,7 @@ static bk_err_t httpc_tls_hostname_to_fd(const char *host, size_t hostlen, int p
 		struct sockaddr_in6 *p = (struct sockaddr_in6 *)address_info->ai_addr;
 		p->sin6_port = htons(port);
 		p->sin6_family = AF_INET6;
-		BK_LOGD(TAG, "[sock=%d] Resolved IPv6 address: %s\r\n", *fd, ip6addr_ntoa((const ip6_addr_t*)&p->sin6_addr));
+		BK_LOGV(TAG, "[sock=%d] Resolved IPv6 address: %s\r\n", *fd, ip6addr_ntoa((const ip6_addr_t*)&p->sin6_addr));
 		memcpy(address, p, sizeof(struct sockaddr_in6 ));
 	}
 #endif
@@ -670,7 +670,7 @@ int httpc_conn_setup_user_password_v2(struct httpc_conn *conn, char *user, char 
 void httpc_setup_debug(uint8_t debug)
 {
 	if (debug)
-		bk_printf("%s\r\n", __func__);
+		BK_LOGD(NULL,"%s\r\n", __func__);
 }
 
 void httpc_conn_dump_header(struct httpc_conn *conn)
@@ -745,11 +745,11 @@ static int httpc_ssl_base_poll_read(struct httpc_conn *conn, int timeout_ms)
 	FD_SET(conn->sock, &errset);
 
 	if (tls && (remain = mbedtls_ssl_get_bytes_avail(&tls->ctx)) > 0) {
-		BK_LOGD(TAG, "remain data in cache, need to read again\r\n");
+		BK_LOGV(TAG, "remain data in cache, need to read again\r\n");
 		return remain;
 	}
 	else
-		BK_LOGD(TAG, "NO data available\r\n");
+		BK_LOGV(TAG, "NO data available\r\n");
 	ret = select(conn->sock + 1, &readset, NULL, &errset, bk_utils_ms_to_timeval(timeout_ms, &timeout));
 	if (ret > 0 && FD_ISSET(conn->sock, &errset)) {
 		int sock_errno = 0;
@@ -1051,7 +1051,7 @@ int httpc_response_read_data(struct httpc_conn *conn, uint8_t *data, size_t data
 			return total_read;;
 		}
 		else
-			BK_LOGD(TAG, "ssl_base_poll_read:%d\r\n", poll);
+			BK_LOGV(TAG, "ssl_base_poll_read:%d\r\n", poll);
 
         bytes_read = httpc_tls_read(conn->tls, (void *)((char *)data + total_read), left);
         if (bytes_read <= 0)
@@ -1076,7 +1076,7 @@ int httpc_response_read_data(struct httpc_conn *conn, uint8_t *data, size_t data
                 if (errno == EWOULDBLOCK || errno == EAGAIN)
                 {
                     /* recv timeout */
-                    BK_LOGI(TAG,"receive data timeout.\r\n");
+                    BK_LOGD(TAG,"receive data timeout.\r\n");
                     return -1;
                 }
                 else
@@ -1239,7 +1239,7 @@ static void example_httpc_post(char *url)
 			}
 		}
 		else {
-			os_printf("\nERROR: httpc_conn_connect\n");
+			BK_LOGD(NULL,"\nERROR: httpc_conn_connect\n");
 		}
 	}
 	BK_LOGE(TAG,"----------------BEGIN CLOSE---------------\r\n");
@@ -1403,7 +1403,7 @@ void example_httpc(void)
 {
 	if( rtos_create_thread(NULL, 7, "example_httpc_thread",
 		(beken_thread_function_t)example_httpc_thread, 6*1024, 0) != 0) {
-		os_printf("%s (example_httpc_thread) failed\r\n", __func__);
+		BK_LOGD(NULL,"%s (example_httpc_thread) failed\r\n", __func__);
 	}
 }
 #endif

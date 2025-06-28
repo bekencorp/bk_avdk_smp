@@ -80,17 +80,17 @@ bk_err_t h264_hal_filter_config(h264_hal_t *hal,const h264_config_t *config,uint
 {
 	if(!config)
 	{
-		HAL_LOGI("h264 configuration is not initialized! \r\n");
+		HAL_LOGD("h264 configuration is not initialized! \r\n");
 		return -1;
 	}
 	if(config->filter_mode)
 	{
-		HAL_LOGI("deblocking filter is disabled! \r\n");
+		HAL_LOGD("deblocking filter is disabled! \r\n");
 		return -1;
 	}
 	if(config->num_pframe!=0)
 	{
-		HAL_LOGI("deblocking filter is enbaled only when numpframe is 0! \r\n");
+		HAL_LOGD("deblocking filter is enbaled only when numpframe is 0! \r\n");
 		return -1;
 	}
 	h264_ll_set_alpha_off(hal->hw,alpha_off);
@@ -164,7 +164,7 @@ void h264_hal_local_info(h264_hal_t *hal)
 	uint32_t device_id,version_id;
 	device_id = h264_ll_devid(hal->hw);
 	version_id = h264_ll_verid(hal->hw);
-	HAL_LOGI("device id is: %d , version id is: %d \r\n",device_id,version_id);
+	HAL_LOGD("device id is: %d , version id is: %d \r\n",device_id,version_id);
 }
 
 void h264_hal_int_config(h264_hal_t *hal,uint32_t int_mode)

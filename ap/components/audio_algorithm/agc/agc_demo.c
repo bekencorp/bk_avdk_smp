@@ -29,7 +29,7 @@
 
 static void cli_audio_agc_help(void)
 {
-	os_printf("agc_file_test {xxx.pcm, xxx.pcm, sample_rate} \r\n");
+	BK_LOGD(NULL, "agc_file_test {xxx.pcm, xxx.pcm, sample_rate} \r\n");
 }
 
 /* input audio data: 16bits, mono */
@@ -56,25 +56,25 @@ void cli_agc_file_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 	sprintf(in_file_name, "1:/%s", argv[1]);
 	fr = f_open(&file_in, in_file_name, FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", in_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", in_file_name);
 		goto exit;
 	}
 
 	sprintf(out_file_name, "1:/%s", argv[2]);
 	fr = f_open(&file_out, out_file_name, FA_CREATE_ALWAYS | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", out_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", out_file_name);
 		goto exit;
 	}
 
-	os_printf("open file ok \n");
+	BK_LOGD(NULL, "open file ok \n");
 
 	sample_rate = strtoul(argv[3], NULL, 10);
 	if (sample_rate == 0) {
-		os_printf("sample_rate: %d is error \n", sample_rate);
+		BK_LOGD(NULL, "sample_rate: %d is error \n", sample_rate);
 		goto exit;
 	} else {
-		os_printf("sample_rate: %d \n", sample_rate);
+		BK_LOGD(NULL, "sample_rate: %d \n", sample_rate);
 	}
 
 	if (sample_rate ==8000) frameSize = 80;
@@ -82,19 +82,19 @@ void cli_agc_file_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
 	ucInBuff = os_malloc(frameSize * 2);
 	if (ucInBuff == NULL) {
-		os_printf("malloc ucInBuff fail, size: %d \n", frameSize * 2);
+		BK_LOGD(NULL, "malloc ucInBuff fail, size: %d \n", frameSize * 2);
 		goto exit;
 	}
 
 	ucOutBuff = os_malloc(frameSize * 2);
 	if (ucOutBuff == NULL) {
-		os_printf("malloc ucOutBuff fail, size: %d \n", frameSize * 2);
+		BK_LOGD(NULL, "malloc ucOutBuff fail, size: %d \n", frameSize * 2);
 		goto exit;
 	}
 
 	/* init agc */
 	if (0 != bk_aud_agc_create(&agc)) {
-		os_printf("create agc fail \r\n");
+		BK_LOGD(NULL, "create agc fail \r\n");
 		goto exit;
 	}
 
@@ -104,21 +104,21 @@ void cli_agc_file_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 	agc_config.limiterEnable = 1;			// 最大值限制开启
 	agc_config.targetLevelDbfs = 3;			// 最大分贝值限制, 值越大幅度越小
 	bk_aud_agc_set_config(agc, agc_config);
-	os_printf("Init agc ok \n");
+	BK_LOGD(NULL, "Init agc ok \n");
 
 	uint32_t total_data_size = f_size(&file_in);
 	while(total_data_size >= (frameSize * 2))
 	{
 		fr = f_read(&file_in, (uint8_t *)ucInBuff, frameSize * 2, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read ref file fail.\r\n");
+			BK_LOGD(NULL, "read ref file fail.\r\n");
 			break;
 		}
 
 //		addAON_GPIO_Reg0x8 = 2;
 		int res = bk_aud_agc_process(agc, ucInBuff, frameSize, ucOutBuff);
 		if (0 != res) {
-			os_printf("failed in WebRtcAgc_Process, res: %d \n", res);
+			BK_LOGD(NULL, "failed in WebRtcAgc_Process, res: %d \n", res);
 			break;
 		}
 //		addAON_GPIO_Reg0x8 = 0;
@@ -126,7 +126,7 @@ void cli_agc_file_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		//write output data to sd
 		fr = f_write(&file_out, (void *)ucOutBuff, frameSize * 2, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("write output data %s fail.\r\n", out_file_name);
+			BK_LOGD(NULL, "write output data %s fail.\r\n", out_file_name);
 			break;
 		}
 		total_data_size -= frameSize * 2;
@@ -136,13 +136,13 @@ exit:
 	//close file
 	fr = f_close(&file_in);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", in_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", in_file_name);
 	}
 	fr = f_close(&file_out);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", out_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", out_file_name);
 	}
-	os_printf("close files complete \r\n");
+	BK_LOGD(NULL, "close files complete \r\n");
 
 	//free source
 	if (ucInBuff) {
@@ -153,15 +153,15 @@ exit:
 		os_free(ucOutBuff);
 		ucOutBuff = NULL;
 	}
-	os_printf("free buffers complete \r\n");
+	BK_LOGD(NULL, "free buffers complete \r\n");
 
 	if (agc) {
 		bk_aud_agc_free(agc);
 		agc = NULL;
 	}
-	os_printf("free agc complete \r\n");
+	BK_LOGD(NULL, "free agc complete \r\n");
 
-	os_printf("agc test complete \r\n");
+	BK_LOGD(NULL, "agc test complete \r\n");
 }
 
 #define AGC_CMD_CNT (sizeof(s_agc_commands) / sizeof(struct cli_command))

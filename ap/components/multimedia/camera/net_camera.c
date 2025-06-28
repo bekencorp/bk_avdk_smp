@@ -27,6 +27,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 bk_err_t bk_net_camera_open(camera_handle_t *handle, media_camera_device_t *device)
 {
@@ -128,7 +129,7 @@ frame_buffer_t *bk_net_camera_frame_buffer_malloc(camera_handle_t *handle)
 
 	frame = frame_buffer_fb_malloc(config->arg, size);
 
-	LOGD("%s, %d, %p\n", __func__, __LINE__, frame);
+	LOGV("%s, %d, %p\n", __func__, __LINE__, frame);
 
 	return frame;
 }

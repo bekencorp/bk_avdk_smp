@@ -28,7 +28,7 @@ extern "C" {
 // default mgmt retry value
 #define WIFI_CFG_MGMT_RTY_NUM					0x0704
 // default AC
-#define WIFI_CFG_DEFAULT_AC					0x0
+#define WIFI_CFG_DEFAULT_AC					0x1
 
 typedef struct wifi_mac_config {
 	// raw tx interface AC

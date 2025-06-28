@@ -46,10 +46,10 @@
 
 static void bk_webclient_hex_dump(const char *s, int length)
 {
-		BK_RAW_LOGI(NULL, "begin print data:");
+		BK_RAW_LOGD(NULL, "begin print data:");
 		for (int i = 0; i < length; i++)
-			BK_RAW_LOGI(NULL, "%c", *(u8 *)(s+i));
-		BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "%c", *(u8 *)(s+i));
+		BK_RAW_LOGD(NULL, "\r\n");
 }
 
 extern long int strtol(const char *nptr, char **endptr, int base);
@@ -273,7 +273,7 @@ int webclient_resolve_address(struct webclient_session *session, struct addrinfo
         session->host = host_addr_new;
     }
 
-    // BK_LOGI(TAG,"host address: %s , port: %s\r\n", session->host, port_str);
+    // BK_LOGD(TAG,"host address: %s , port: %s\r\n", session->host, port_str);
 
 #ifdef WEBCLIENT_USING_MBED_TLS
     if (session->tls_session)
@@ -727,7 +727,7 @@ int webclient_send_header(struct webclient_session *session, int method)
     {
         char *header_str, *header_ptr;
         int header_line_len;
-        BK_LOGI(TAG,"request header:\r\n");
+        BK_LOGD(TAG,"request header:\r\n");
 
         for(header_str = session->header->buffer; (header_ptr = strstr(header_str, "\r\n")) != RT_NULL; )
         {
@@ -735,7 +735,7 @@ int webclient_send_header(struct webclient_session *session, int method)
 
             if (header_line_len > 0)
             {
-                BK_LOGI(TAG,"%.*s\r\n", header_line_len, header_str);
+                BK_LOGD(TAG,"%.*s\r\n", header_line_len, header_str);
             }
             header_str = header_ptr + strlen("\r\n");
         }
@@ -771,7 +771,7 @@ int webclient_handle_response(struct webclient_session *session)
     memset(session->header->buffer, 0x00, session->header->size);
     session->header->length = 0;
 
-    BK_LOGI(TAG,"response header:\r\n");
+    BK_LOGD(TAG,"response header:\r\n");
     /* We now need to read the header information */
     while (1)
     {
@@ -794,7 +794,7 @@ int webclient_handle_response(struct webclient_session *session)
         mime_buffer[rc - 1] = '\0';
 
         /* echo response header data */
-        BK_LOGI(TAG,"%s\r\n", mime_buffer);
+        BK_LOGD(TAG,"%s\r\n", mime_buffer);
 
         session->header->length += rc;
 
@@ -952,7 +952,7 @@ int webclient_get(struct webclient_session *session, const char *URI)
     /* handle the response header of webclient server */
     resp_status = webclient_handle_response(session);
 
-    BK_LOGI(TAG,"get position handle response(%d).\r\n", resp_status);
+    BK_LOGD(TAG,"get position handle response(%d).\r\n", resp_status);
 
     if (resp_status > 0)
     {
@@ -1022,7 +1022,7 @@ int webclient_get_position(struct webclient_session *session, const char *URI, i
     /* handle the response header of webclient server */
     resp_status = webclient_handle_response(session);
 
-    BK_LOGI(TAG,"get position handle response(%d).\r\n", resp_status);
+    BK_LOGD(TAG,"get position handle response(%d).\r\n", resp_status);
 
     if (resp_status > 0)
     {
@@ -1100,7 +1100,7 @@ int webclient_post(struct webclient_session *session, const char *URI, const voi
 
         /* resolve response data, get http status code */
         resp_status = webclient_handle_response(session);
-        BK_LOGI(TAG,"post handle response(%d).\r\n", resp_status);
+        BK_LOGD(TAG,"post handle response(%d).\r\n", resp_status);
     }
 
     return resp_status;
@@ -1136,7 +1136,7 @@ int webclient_post_extern(struct webclient_session *session, const char *URI, co
 
         /* resolve response data, get http status code */
         resp_status = webclient_handle_response(session);
-        BK_LOGI(TAG,"post handle response(%d).\r\n", resp_status);
+        BK_LOGD(TAG,"post handle response(%d).\r\n", resp_status);
     }
 
     return resp_status;
@@ -1313,7 +1313,7 @@ int webclient_read(struct webclient_session *session, void *buffer, size_t lengt
             }
 
 #endif
-            BK_LOGI(TAG,"receive data error(%d).\r\n", bytes_read);
+            BK_LOGD(TAG,"receive data error(%d).\r\n", bytes_read);
 
             if (total_read)
             {
@@ -1324,7 +1324,7 @@ int webclient_read(struct webclient_session *session, void *buffer, size_t lengt
                 if (errno == EWOULDBLOCK || errno == EAGAIN)
                 {
                     /* recv timeout */
-                    BK_LOGI(TAG,"receive data timeout.\r\n");
+                    BK_LOGD(TAG,"receive data timeout.\r\n");
                     return -WEBCLIENT_TIMEOUT;
                 }
                 else
@@ -1842,12 +1842,12 @@ int bk_webclient_get(bk_webclient_input_t *input) {
 		goto __exit;
 	}
 
-	BK_LOGI(TAG,"webclient get response data: \n");
+	BK_LOGD(TAG,"webclient get response data: \n");
 
 	content_length = webclient_content_length_get(session);
 	if (content_length < 0)
 	{
-		BK_LOGI(TAG,"webclient GET request type is chunked.\n");
+		BK_LOGD(TAG,"webclient GET request type is chunked.\n");
 		do
 		{
 			bytes_read = webclient_read(session, (void *)buffer, input->rx_buffer_size);
@@ -1858,7 +1858,7 @@ int bk_webclient_get(bk_webclient_input_t *input) {
 
 		} while (1);
 
-		BK_LOGI(TAG,"\n");
+		BK_LOGD(TAG,"\n");
 	}
 	else
 	{
@@ -1874,11 +1874,11 @@ int bk_webclient_get(bk_webclient_input_t *input) {
 				break;
 			}
 			content_pos += bytes_read;
-			BK_LOGI(TAG,"%s bytes_read:%d content_pos:%d\n", __func__, bytes_read, content_pos);
+			BK_LOGD(TAG,"%s bytes_read:%d content_pos:%d\n", __func__, bytes_read, content_pos);
 		} while (content_pos < content_length);
 
 		if (content_pos != content_length) {
-			BK_LOGI(TAG,"%s error! recv:%d content_length:%d\n", __func__, content_pos, content_length);
+			BK_LOGD(TAG,"%s error! recv:%d content_length:%d\n", __func__, content_pos, content_length);
 			ret = BK_ERR_STATE;
 		}
 	}
@@ -1955,7 +1955,7 @@ int bk_webclient_post(bk_webclient_input_t *input) {
 		goto __exit;
 	}
 
-	BK_LOGI(TAG,"webclient post response data: \n");
+	BK_LOGD(TAG,"webclient post response data: \n");
 	do
 	{
 		bytes_read = webclient_read(session, buffer, rx_buffer_size);
@@ -1966,7 +1966,7 @@ int bk_webclient_post(bk_webclient_input_t *input) {
 		strncat(rep_data,(char*)buffer,bytes_read);
 	} while (1);
 
-	BK_LOGI(TAG,"%s.\n", rep_data);
+	BK_LOGD(TAG,"%s.\n", rep_data);
 
 __exit:
 	if (session)
@@ -1994,7 +1994,7 @@ __exit:
 
 	return ret;
 
-    BK_LOGI(TAG,"demo_webclient post case result(%d).\n", ret);
+    BK_LOGD(TAG,"demo_webclient post case result(%d).\n", ret);
     return ret;
 }
 
@@ -2040,12 +2040,12 @@ int bk_webclient_ota_get_comm(bk_webclient_input_t *input)
         goto __exit;
     }
 
-    BK_LOGI(TAG,"webclient get response data: \n");
+    BK_LOGD(TAG,"webclient get response data: \n");
 
     content_length = webclient_content_length_get(session);
     if (content_length < 0)
     {
-        BK_LOGI(TAG,"webclient GET request type is chunked.\n");
+        BK_LOGD(TAG,"webclient GET request type is chunked.\n");
         do
         {
             bytes_read = webclient_read(session, (void *)buffer, input->rx_buffer_size);
@@ -2056,7 +2056,7 @@ int bk_webclient_ota_get_comm(bk_webclient_input_t *input)
 
         } while (1);
 
-        BK_LOGI(TAG,"\n");
+        BK_LOGD(TAG,"\n");
     }
     else
     {
@@ -2073,11 +2073,11 @@ int bk_webclient_ota_get_comm(bk_webclient_input_t *input)
             }
           	bk_webclient_dispatch_event(input, HTTP_EVENT_ON_DATA, buffer, bytes_read);
             content_pos += bytes_read;
-			BK_LOGI(TAG,"%s bytes_read:%d content_pos:%d\n", __func__, bytes_read, content_pos);
+			BK_LOGD(TAG,"%s bytes_read:%d content_pos:%d\n", __func__, bytes_read, content_pos);
         } while (content_pos < content_length);
 
 		if (content_pos != content_length) {
-			BK_LOGI(TAG,"%s error! recv:%d content_length:%d\n", __func__, content_pos, content_length);
+			BK_LOGD(TAG,"%s error! recv:%d content_length:%d\n", __func__, content_pos, content_length);
 			bk_webclient_dispatch_event(input, HTTP_EVENT_ERROR, NULL, 0);
 		 	ret = BK_ERR_STATE;
 		}
@@ -2114,26 +2114,26 @@ bk_err_t demo_webclient_ota_event_cb(bk_webclient_event_t *evt)
 
     switch (evt->event_id) {
     case HTTP_EVENT_ERROR:
-	BK_LOGD(TAG, "HTTPS_EVENT_ERROR\r\n");
+	BK_LOGV(TAG, "HTTPS_EVENT_ERROR\r\n");
 	break;
     case HTTP_EVENT_ON_CONNECTED:
-	BK_LOGD(TAG, "HTTPS_EVENT_ON_CONNECTED\r\n");
+	BK_LOGV(TAG, "HTTPS_EVENT_ON_CONNECTED\r\n");
 	break;
     case HTTP_EVENT_HEADERS_SENT:
-	BK_LOGD(TAG, "HTTPS_EVENT_HEADER_SENT\r\n");
+	BK_LOGV(TAG, "HTTPS_EVENT_HEADER_SENT\r\n");
 	break;
     case HTTP_EVENT_ON_HEADER:
-	BK_LOGD(TAG, "HTTPS_EVENT_ON_HEADER\r\n");
+	BK_LOGV(TAG, "HTTPS_EVENT_ON_HEADER\r\n");
 	break;
     case HTTP_EVENT_ON_DATA:
 	//do something: evt->data, evt->data_len
-	BK_LOGD(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
+	BK_LOGV(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
 	break;
     case HTTP_EVENT_ON_FINISH:
-	BK_LOGD(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
+	BK_LOGV(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
 	break;
     case HTTP_EVENT_DISCONNECTED:
-	BK_LOGD(TAG, "HTTPS_EVENT_DISCONNECTED\r\n");
+	BK_LOGV(TAG, "HTTPS_EVENT_DISCONNECTED\r\n");
 	break;
 
     }
@@ -2147,7 +2147,7 @@ int demo_webclient_ota_get(char *webclient_url)
 	if(!webclient_url)
 	{
 		err = BK_FAIL;
-		BK_LOGD(TAG, "url is NULL\r\n");
+		BK_LOGV(TAG, "url is NULL\r\n");
 
 		return err;
 	}
@@ -2160,11 +2160,11 @@ int demo_webclient_ota_get(char *webclient_url)
 
 	err = bk_webclient_ota_get_comm(&config);
 	if(err == BK_OK){
-		BK_LOGD(TAG, "webclient_ota_get_comm ok\r\n");
+		BK_LOGV(TAG, "webclient_ota_get_comm ok\r\n");
         bk_reboot();
 	}
 	else{
-		BK_LOGD(TAG, "webclient_ota_get_comm fail, err:%x\r\n", err);
+		BK_LOGV(TAG, "webclient_ota_get_comm fail, err:%x\r\n", err);
 	}
 
 	return err;
@@ -2217,7 +2217,7 @@ int test_http_post_case1(void)
         goto __exit;
     }
 
-    BK_LOGI(TAG,"webclient post response data: \n");
+    BK_LOGD(TAG,"webclient post response data: \n");
     do
     {
         bytes_read = webclient_read(session, buffer, RCV_BUF_SIZE);
@@ -2228,7 +2228,7 @@ int test_http_post_case1(void)
         strncat(rep_data,(char*)buffer,bytes_read);
     } while (1);
 
-    BK_LOGI(TAG,"rep_data %s.\n", rep_data);
+    BK_LOGD(TAG,"rep_data %s.\n", rep_data);
 
 __exit:
     if (session)
@@ -2283,12 +2283,12 @@ static int webclient_get_comm(const char *uri)
         goto __exit;
     }
 
-    BK_LOGI(TAG,"webclient get response data: \n");
+    BK_LOGD(TAG,"webclient get response data: \n");
 
     content_length = webclient_content_length_get(session);
     if (content_length < 0)
     {
-        BK_LOGI(TAG,"webclient GET request type is chunked.\n");
+        BK_LOGD(TAG,"webclient GET request type is chunked.\n");
         do
         {
             bytes_read = webclient_read(session, (void *)buffer, GET_RESP_BUFSZ);
@@ -2303,7 +2303,7 @@ static int webclient_get_comm(const char *uri)
             }
         } while (1);
 
-        BK_LOGI(TAG,"\n");
+        BK_LOGD(TAG,"\n");
     }
     else
     {
@@ -2327,7 +2327,7 @@ static int webclient_get_comm(const char *uri)
             content_pos += bytes_read;
         } while (content_pos < content_length);
 
-        BK_LOGI(TAG,"\n");
+        BK_LOGD(TAG,"\n");
     }
 
 __exit:
@@ -2382,13 +2382,13 @@ static int webclient_get_smpl(const char *uri)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG,"webclient send get request by simplify request interface.\n");
-    BK_LOGI(TAG,"webclient get response data: \n");
+    BK_LOGD(TAG,"webclient send get request by simplify request interface.\n");
+    BK_LOGD(TAG,"webclient get response data: \n");
     for (index = 0; index < os_strlen(response); index++)
     {
         BK_LOG_RAW("%c", response[index]);
     }
-    BK_LOGI(TAG,"\n");
+    BK_LOGD(TAG,"\n");
 
     if (response)
     {
@@ -2425,13 +2425,14 @@ int test_http(void) {
     int ret = 0;
 
     ret = test_http_post_case1();
-    BK_LOGI(TAG,"http test post case1 result(%d).\n", ret);
+    BK_LOGD(TAG,"http test post case1 result(%d).\n", ret);
     ret |= test_http_get_case1();
-    BK_LOGI(TAG,"http test get case1 result(%d).\n", ret);
+    BK_LOGD(TAG,"http test get case1 result(%d).\n", ret);
     ret |= test_http_get_case2();
-    BK_LOGI(TAG,"http test get case2 result(%d).\n", ret);
+    BK_LOGD(TAG,"http test get case2 result(%d).\n", ret);
     return ret;
 }
 
-#endif
+#endif
+
 #endif

@@ -71,7 +71,7 @@ static void _flashdb_init(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
     }
     else
     {
-        CLI_LOGI("kvdb init success, start addr:0x%x, size:%d\r\n", CONFIG_FLASHDB_KVDB_START_ADDR, CONFIG_FLASHDB_KVDB_SIZE);
+        CLI_LOGD("kvdb init success, start addr:0x%x, size:%d\r\n", CONFIG_FLASHDB_KVDB_START_ADDR, CONFIG_FLASHDB_KVDB_SIZE);
     }
 #endif
 
@@ -88,7 +88,7 @@ static void _flashdb_init(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
     }
     else
     {
-        CLI_LOGI("tsdb init success, start addr:0x%x, size:%d\r\n", CONFIG_FLASHDB_TSDB_START_ADDR, CONFIG_FLASHDB_TSDB_SIZE);
+        CLI_LOGD("tsdb init success, start addr:0x%x, size:%d\r\n", CONFIG_FLASHDB_TSDB_START_ADDR, CONFIG_FLASHDB_TSDB_SIZE);
     }
 #endif
 }

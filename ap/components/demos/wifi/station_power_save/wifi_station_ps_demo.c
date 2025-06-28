@@ -103,13 +103,13 @@ void station_ps_stop_timer_alarm( void *arg )
     if(!wifi_station_ps_connect_check())
     {
         rtos_stop_timer(&station_ps_stop_timer_handle);
-        os_printf("\r\nps dtim stop!\r\n");
+        BK_LOGD(NULL, "\r\nps dtim stop!\r\n");
         bk_wlan_ps_dtim_disable();
 
         err = rtos_start_timer(&station_ps_timer_handle);
         if(kNoErr != err)
         {
-            os_printf("ps_timer start failed!\r\n");
+            BK_LOGD(NULL, "ps_timer start failed!\r\n");
         }
     }
 }
@@ -121,13 +121,13 @@ void station_ps_timer_alarm( void *arg )
     if(wifi_station_ps_connect_check())
     {
         rtos_stop_timer(&station_ps_timer_handle);
-        os_printf("\r\nps dtim start!\r\n");
+        BK_LOGD(NULL, "\r\nps dtim start!\r\n");
         bk_wlan_ps_dtim_enable(DATA_WAKEUP_TIME , UART_WAKEUP_TIME);
 
         err = rtos_start_timer(&station_ps_stop_timer_handle);
         if(kNoErr != err)
         {
-            os_printf("ps_stop_timer start failed!\r\n");
+            BK_LOGD(NULL, "ps_stop_timer start failed!\r\n");
         }
     }
 }
@@ -139,21 +139,21 @@ void wifi_station_ps_start(void)
     err = rtos_init_timer(&station_ps_timer_handle, 1000, station_ps_timer_alarm, 0);
     if(kNoErr != err)
     {
-        os_printf("ps_timer init failed!\r\n");
+        BK_LOGD(NULL, "ps_timer init failed!\r\n");
         return;
     }
 
     err = rtos_init_timer(&station_ps_stop_timer_handle, 1000, station_ps_stop_timer_alarm, 0);
     if(kNoErr != err)
     {
-        os_printf("ps_timer stop init failed!\r\n");
+        BK_LOGD(NULL, "ps_timer stop init failed!\r\n");
         return;
     }
 
     err = rtos_start_timer(&station_ps_timer_handle);
     if(kNoErr != err)
     {
-        os_printf("ps_timer start failed!\r\n");
+        BK_LOGD(NULL, "ps_timer start failed!\r\n");
     }
 }
 
@@ -174,11 +174,11 @@ void wifi_station_ps_main( beken_thread_arg_t arg )
     status = wifi_station_ps_scan_ap(ap_ssid);
     if(status < 0)
     {
-        os_printf("The ssid(%s) is nothingness\r\n", ap_ssid);
+        BK_LOGD(NULL, "The ssid(%s) is nothingness\r\n", ap_ssid);
         goto exit;
     }
 
-    os_printf("\r\nconnect wifi_SSID:%s,wifi_Password:%s\r\n", ap_ssid, ap_key);
+    BK_LOGD(NULL, "\r\nconnect wifi_SSID:%s,wifi_Password:%s\r\n", ap_ssid, ap_key);
 
     wifi_station_ps_connect_wifi(ap_ssid, ap_key);
 

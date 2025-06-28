@@ -8,8 +8,8 @@
 #define TAG "drv_tp"
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 static tp_dev_t g_tp_dev = {0};
@@ -30,7 +30,7 @@ static tp_mirror_type_t tp_mirror_type = TP_MIRROR_NONE;
  */
 int drv_tp_open(int hor_size, int ver_size, tp_mirror_type_t tp_mirror)
 {
-	LOGI("%s, start.\r\n", __func__);
+	LOGD("%s, start.\r\n", __func__);
 
 	int ret = kNoErr;
 
@@ -71,7 +71,7 @@ int drv_tp_open(int hor_size, int ver_size, tp_mirror_type_t tp_mirror)
  */
 int drv_tp_close(void)
 {
-	LOGI("%s, start.\r\n", __func__);
+	LOGD("%s, start.\r\n", __func__);
 
 	int ret = kNoErr;
 

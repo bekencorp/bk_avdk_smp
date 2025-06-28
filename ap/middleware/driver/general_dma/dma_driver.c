@@ -347,8 +347,8 @@ bk_err_t bk_dma_init(dma_id_t id, const dma_config_t *config)
 #endif
 
     dma_id_init_common(id);
-    DMA_LOGD("%s and %d 0x%x\r\n",__func__,__LINE__,s_dma[dma_num].hal);
-    DMA_LOGD("%s and %d %d\r\n",__func__,__LINE__,dma_channel);
+    DMA_LOGV("%s and %d 0x%x\r\n",__func__,__LINE__,s_dma[dma_num].hal);
+    DMA_LOGV("%s and %d %d\r\n",__func__,__LINE__,dma_channel);
     return dma_hal_init_dma(&s_dma[dma_num].hal, dma_channel, config);
 }
 
@@ -607,7 +607,7 @@ bk_err_t bk_dma_register_isr(dma_id_t id, dma_isr_t half_finish_isr, dma_isr_t f
     DMA_RETURN_ON_NOT_INIT();
 	dma_id_to_hw_id_ch(id,&dma_num,&dma_channel);
     DMA_RETURN_ON_INVALID_ID(id);
-    DMA_LOGD("bk_dma_register_isr %d and %d\r\n",dma_num,dma_channel);
+    DMA_LOGV("bk_dma_register_isr %d and %d\r\n",dma_num,dma_channel);
     GLOBAL_INT_DECLARATION();
     GLOBAL_INT_DISABLE();
     s_dma_half_finish_isr[dma_num][dma_channel] = half_finish_isr;
@@ -623,7 +623,7 @@ bk_err_t bk_dma_register_bus_err_isr(dma_id_t id, dma_isr_t bus_err_isr)
     DMA_RETURN_ON_NOT_INIT();
     dma_id_to_hw_id_ch(id,&dma_num,&dma_channel);
     DMA_RETURN_ON_INVALID_ID(id);
-    DMA_LOGD("bk_dma_register_isr %d and %d\r\n",dma_num,dma_channel);
+    DMA_LOGV("bk_dma_register_isr %d and %d\r\n",dma_num,dma_channel);
     GLOBAL_INT_DECLARATION();
     GLOBAL_INT_DISABLE();
     s_dma_bus_err_isr[dma_num][dma_channel] = bus_err_isr;
@@ -1156,7 +1156,7 @@ bk_err_t dma_memcpy_by_chnl(void *out, const void *in, uint32_t len, dma_id_t cp
     dma_config.dst.start_addr = (uint32_t)out;
     dma_config.dst.end_addr = (uint32_t)(out + len);
 
-    DMA_LOGD("dma_memcpy cpy_chnl: %d\r\n", cpy_chnl);
+    DMA_LOGV("dma_memcpy cpy_chnl: %d\r\n", cpy_chnl);
 
     GLOBAL_INT_DECLARATION();
     GLOBAL_INT_DISABLE();
@@ -1234,27 +1234,27 @@ static void dma_isr_common(dma_unit_t dma_unit_id)
         error_arg = s_dma_arg_isr[dma_unit_id][id].error_arg;
 
         if (dma_hal_is_half_finish_interrupt_triggered(hal, id)) {
-            DMA_LOGD("dma_isr HALF FINISH TRIGGERED! id: %d\r\n", id);
+            DMA_LOGV("dma_isr HALF FINISH TRIGGERED! id: %d\r\n", id);
             //NOTES:clear intrrupt in condition because maybe multi-core(two CPU) access one DMA
             //it can't cleared peer-side channels status.
             if (half_finish_isr_arg) {
-                DMA_LOGD("dma_isr HALF_finish_isr! id: %d\r\n", id);
+                DMA_LOGV("dma_isr HALF_finish_isr! id: %d\r\n", id);
                 dma_hal_clear_half_finish_interrupt_status(hal, id);
                 half_finish_isr_arg(channel, half_finish_arg);
             } else if (s_dma_half_finish_isr[dma_unit_id][id]) {
-                DMA_LOGD("dma_isr HALF_finish_isr! id: %d\r\n", id);
+                DMA_LOGV("dma_isr HALF_finish_isr! id: %d\r\n", id);
                 dma_hal_clear_half_finish_interrupt_status(hal, id);
                 s_dma_half_finish_isr[dma_unit_id][id](channel);
             }
         }
         if (dma_hal_is_finish_interrupt_triggered(hal, id)) {
-            DMA_LOGD("dma_isr ALL FINISH TRIGGERED! id: %d\r\n", id);
+            DMA_LOGV("dma_isr ALL FINISH TRIGGERED! id: %d\r\n", id);
             if (finish_isr_arg) {
-                DMA_LOGD("dma_isr ALL_finish_isr! id: %d\r\n", id);
+                DMA_LOGV("dma_isr ALL_finish_isr! id: %d\r\n", id);
                 dma_hal_clear_finish_interrupt_status(hal, id);
                 finish_isr_arg(channel, finish_arg);
             } else if (s_dma_finish_isr[dma_unit_id][id]) {
-                DMA_LOGD("dma_isr ALL_finish_isr! id: %d\r\n", id);
+                DMA_LOGV("dma_isr ALL_finish_isr! id: %d\r\n", id);
                 dma_hal_clear_finish_interrupt_status(hal, id);
                 s_dma_finish_isr[dma_unit_id][id](channel);
             }
@@ -1278,12 +1278,12 @@ static void dma_isr_common(dma_unit_t dma_unit_id)
 
 static void dma_isr(void)
 {
-	DMA_LOGD("dma_isr hw 0\r\n");
+	DMA_LOGV("dma_isr hw 0\r\n");
 	dma_isr_common(0);
 }
 static void dma1_isr(void)
 {
-	DMA_LOGD("dma_isr hw 1\r\n");
+	DMA_LOGV("dma_isr hw 1\r\n");
 	dma_isr_common(1);
 }
 

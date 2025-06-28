@@ -27,29 +27,29 @@ static uint8_t demo_send_buf[CLI_CAN_SEND_BUF_SIZE];
 
 static void cli_can_help(void)
 {
-	CLI_LOGI("can_transmit {rx|tx} {rx size|stb|ptb} {tx szie}");
-	CLI_LOGI("can_init");
-	CLI_LOGI("can_exit");
-	CLI_LOGI("can_filter_cfg {aid} {acode} {amask}");
-	CLI_LOGI("can_loop {i|e}");
-	CLI_LOGI("can_speed {s_spend} {f_speed}");
-	CLI_LOGI("can_statis {dump|reset}");
+	CLI_LOGD("can_transmit {rx|tx} {rx size|stb|ptb} {tx szie}");
+	CLI_LOGD("can_init");
+	CLI_LOGD("can_exit");
+	CLI_LOGD("can_filter_cfg {aid} {acode} {amask}");
+	CLI_LOGD("can_loop {i|e}");
+	CLI_LOGD("can_speed {s_spend} {f_speed}");
+	CLI_LOGD("can_statis {dump|reset}");
 
 }
 
 static void cli_can_driver_init(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if (bk_can_driver_init() == BK_OK) {
-		CLI_LOGI("init success\r\n");
+		CLI_LOGD("init success\r\n");
 	} else {
-		CLI_LOGI("init failed\r\n");
+		CLI_LOGD("init failed\r\n");
 	}
 }
 
 static void cli_can_driver_exit(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	bk_can_driver_deinit();
-	CLI_LOGI("exit success\r\n");
+	CLI_LOGD("exit success\r\n");
 }
 
 static void cli_can_recevie(void *param)
@@ -60,21 +60,21 @@ static void cli_can_recevie(void *param)
 	while (1) {
 		bk_can_receive(demo_rcv_buf, ex_size, &rec_size, 1000);
 		if (rec_size) {
-			CLI_LOGI("recev data %d\r\n", rec_size);
-			CLI_LOGI("dlc is 0x%02x\r\n", demo_rcv_buf[0]);
+			CLI_LOGD("recev data %d\r\n", rec_size);
+			CLI_LOGD("dlc is 0x%02x\r\n", demo_rcv_buf[0]);
 			id = (demo_rcv_buf[4] << 24) | \
 				(demo_rcv_buf[3] << 16) | \
 				(demo_rcv_buf[2] << 8) | \
 				(demo_rcv_buf[1]);
-			CLI_LOGI("id is 0x%02x\r\n", id);
+			CLI_LOGD("id is 0x%02x\r\n", id);
 			for (i = 5; i < rec_size; i++) {
-				CLI_LOGI("data[%02d]:0x%02x\r\n", i, demo_rcv_buf[i]);
+				CLI_LOGD("data[%02d]:0x%02x\r\n", i, demo_rcv_buf[i]);
 			}
 		}
 		os_memset(demo_rcv_buf, 0, sizeof(demo_rcv_buf));
 		rtos_delay_milliseconds(100);
 	}
-	CLI_LOGI("recev end\r\n");
+	CLI_LOGD("recev end\r\n");
 }
 
 static void cli_can_send(void *param)
@@ -102,7 +102,7 @@ static void cli_can_send(void *param)
 static void cli_can_transmit(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if (argc < 3) {
-		CLI_LOGI("param too few \r\n");
+		CLI_LOGD("param too few \r\n");
 		cli_can_help();
 		return;
 	}
@@ -120,7 +120,7 @@ static void cli_can_transmit(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		ex_size = os_strtoul(argv[3], NULL, 10);
 		cli_can_send((void *)ex_size);
 	} else {
-		CLI_LOGI("param err \r\n");
+		CLI_LOGD("param err \r\n");
 	}
 }
 
@@ -128,7 +128,7 @@ static void can_filter_cfg(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 {
 	can_acc_filter_cmd_s cmd;
 	if (argc < 4) {
-		CLI_LOGI("param too few \r\n");
+		CLI_LOGD("param too few \r\n");
 		cli_can_help();
 		return;
 	}
@@ -146,7 +146,7 @@ static void can_loop(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 	int ret;
 	uint32_t ex_size = 2;
 	if (argc < 2) {
-		CLI_LOGI("param too few \r\n");
+		CLI_LOGD("param too few \r\n");
 		cli_can_help();
 		return;
 	}
@@ -160,7 +160,7 @@ static void can_loop(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 
 	ret = rtos_create_thread(&rcv_thread, 2, "can_rcv", cli_can_recevie, configMINIMAL_STACK_SIZE * 20, (void *)(ex_size + 5));
 	if (ret != kNoErr) {
-		CLI_LOGI("rtos_create_thread failed!!!\r\n");
+		CLI_LOGD("rtos_create_thread failed!!!\r\n");
 		return;
 	}
 
@@ -205,10 +205,10 @@ static void cli_can_statis(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 #if CONFIG_LIN_STATIS
 	if (os_strcmp(argv[1], "dump") == 0) {
 		can_statis_dump();
-		CLI_LOGI("lin dump statis ok\r\n");
+		CLI_LOGD("lin dump statis ok\r\n");
 	} else if (os_strcmp(argv[1], "reset") == 0) {
 		can_statis_init();
-		CLI_LOGI("lin reset statis ok\r\n");
+		CLI_LOGD("lin reset statis ok\r\n");
 	}
 #endif
 

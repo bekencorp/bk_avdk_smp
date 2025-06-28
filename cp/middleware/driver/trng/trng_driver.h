@@ -21,4 +21,5 @@
 #define TRNG_LOGW(...) BK_LOGW(TRNG_TAG, ##__VA_ARGS__)
 #define TRNG_LOGE(...) BK_LOGE(TRNG_TAG, ##__VA_ARGS__)
 #define TRNG_LOGD(...) BK_LOGD(TRNG_TAG, ##__VA_ARGS__)
+#define TRNG_LOGV(...) BK_LOGV(TRNG_TAG, ##__VA_ARGS__)
 

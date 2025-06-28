@@ -44,7 +44,7 @@ typedef struct uart_stream
 
 static int _uart_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _uart_open \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _uart_open \n", audio_element_get_tag(self));
 
     uart_stream_t *uart_stream = (uart_stream_t *)audio_element_getdata(self);
 
@@ -92,7 +92,7 @@ static int _uart_open(audio_element_handle_t self)
 static int _uart_read(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
     audio_element_handle_t el = (audio_element_handle_t)context;
-    BK_LOGD(TAG, "[%s] _uart_read, len: %d \n", audio_element_get_tag(el), len);
+    BK_LOGV(TAG, "[%s] _uart_read, len: %d \n", audio_element_get_tag(el), len);
 
     uart_stream_t *uart_stream = (uart_stream_t *)audio_element_getdata(el);
 
@@ -110,7 +110,7 @@ static int _uart_write(audio_port_handle_t self, char *buffer, int len, TickType
 {
     audio_element_handle_t el = (audio_element_handle_t)context;
 
-    BK_LOGD(TAG, "[%s] _uart_write, len: %d \n", audio_element_get_tag(el), len);
+    BK_LOGV(TAG, "[%s] _uart_write, len: %d \n", audio_element_get_tag(el), len);
 
     uart_stream_t *uart_stream = (uart_stream_t *)audio_element_getdata(el);
 
@@ -128,7 +128,7 @@ static int _uart_write(audio_port_handle_t self, char *buffer, int len, TickType
 
 static int _uart_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    BK_LOGD(TAG, "[%s] _uart_process, in_len: %d \n", audio_element_get_tag(self), in_len);
+    BK_LOGV(TAG, "[%s] _uart_process, in_len: %d \n", audio_element_get_tag(self), in_len);
 
     //  uart_stream_t *uart_stream = (uart_stream_t *)audio_element_getdata(self);
 
@@ -157,7 +157,7 @@ static int _uart_process(audio_element_handle_t self, char *in_buffer, int in_le
 
 static int _uart_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _uart_close \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _uart_close \n", audio_element_get_tag(self));
 
     uart_stream_t *uart_stream = (uart_stream_t *)audio_element_getdata(self);
 
@@ -174,7 +174,7 @@ static int _uart_close(audio_element_handle_t self)
 
 static int _uart_destroy(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _uart_destroy \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _uart_destroy \n", audio_element_get_tag(self));
 
     uart_stream_t *uart_stream = (uart_stream_t *)audio_element_getdata(self);
 
@@ -227,7 +227,7 @@ audio_element_handle_t uart_stream_init(uart_stream_cfg_t *config)
     }
 
     cfg.tag = "uart_stream";
-    BK_LOGI(TAG, "buffer_len: %d, out_block_size: %d, out_block_num: %d\n", cfg.buffer_len, cfg.out_block_size, cfg.out_block_num);
+    BK_LOGD(TAG, "buffer_len: %d, out_block_size: %d, out_block_num: %d\n", cfg.buffer_len, cfg.out_block_size, cfg.out_block_num);
 
     /* config uart */
     uart_stream->uart_id = config->uart_id;
@@ -241,7 +241,7 @@ audio_element_handle_t uart_stream_init(uart_stream_cfg_t *config)
     uart_stream->config.stop_bits = UART_STOP_BITS_1;
     uart_stream->config.flow_ctrl = UART_FLOWCTRL_DISABLE;
     uart_stream->config.src_clk = UART_SCLK_XTAL_26M;
-    BK_LOGI(TAG, "uart_id: %d, baud_rate: %d \n", uart_stream->uart_id, uart_stream->config.baud_rate);
+    BK_LOGD(TAG, "uart_id: %d, baud_rate: %d \n", uart_stream->uart_id, uart_stream->config.baud_rate);
 
     el = audio_element_init(&cfg);
     AUDIO_MEM_CHECK(TAG, el, goto _uart_init_exit);

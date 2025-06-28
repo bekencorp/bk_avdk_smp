@@ -104,7 +104,7 @@ bk_err_t software_decode_task_send_msg(uint32_t type, uint32_t param)
 
 static void software_decode_task_deinit(void)
 {
-	LOGI("%s\r\n", __func__);
+	LOGD("%s\r\n", __func__);
 	if (sw_dec_config)
 	{
 		if (sw_dec_config->sw_dec_queue)
@@ -131,7 +131,7 @@ static void software_decode_task_deinit(void)
 		sw_dec_config = NULL;
 	}
 
-	LOGI("%s complete\r\n", __func__);
+	LOGD("%s complete\r\n", __func__);
 }
 
 #if CONFIG_SOFTWARE_DECODE_SRAM_MAPPING
@@ -327,7 +327,7 @@ static void software_decode_main(beken_thread_arg_t data)
 	}
 
 exit:
-	LOGI("%s, exit\r\n", __func__);
+	LOGD("%s, exit\r\n", __func__);
 	bk_jpeg_dec_sw_deinit_by_handle(jpeg_decode_handle);
     jpeg_decode_handle = NULL;
 	rtos_set_semaphore(&sw_dec_config->sw_dec_sem);
@@ -388,7 +388,7 @@ static void create_thread_on_cp1(beken_thread_arg_t data)
 bk_err_t software_decode_task_open(uint32_t rotate_buffer)
 {
 	int ret = BK_OK;
-	LOGI("%s\r\n", __func__);
+	LOGD("%s\r\n", __func__);
 
 	if (sw_dec_config != NULL && sw_dec_config->task_state)
 	{
@@ -444,7 +444,7 @@ bk_err_t software_decode_task_open(uint32_t rotate_buffer)
 	{
 		goto error;
 	}
-	LOGI("%s complete\r\n", __func__);
+	LOGD("%s complete\r\n", __func__);
 
 	return ret;
 
@@ -459,7 +459,7 @@ error:
 
 bk_err_t software_decode_task_close()
 {
-	LOGI("%s  %d\n", __func__, __LINE__);
+	LOGD("%s  %d\n", __func__, __LINE__);
 
 	if (sw_dec_config == NULL || !sw_dec_config->task_state)
 	{
@@ -474,7 +474,7 @@ bk_err_t software_decode_task_close()
 
 	software_decode_task_deinit();
 
-	LOGI("%s complete, %d\n", __func__, __LINE__);
+	LOGD("%s complete, %d\n", __func__, __LINE__);
 
 	return BK_OK;
 }

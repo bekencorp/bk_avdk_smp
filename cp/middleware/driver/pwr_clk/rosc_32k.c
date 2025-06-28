@@ -78,7 +78,7 @@ static void rosc_ckmn_isr(void)
 	theta = s_rosc_freq_hz / ROSC_CLK_32K;
 	s_rosc_ppm = (int32_t)(1e6 * (1 - theta) + ROSC_CKMN_PPM * theta);
 	// GPIO_DOWN(16);
-	// CKMN_LOGI("ckmn_rosc_isr rosc_freq:%7.2f\r\n", s_rosc_freq_hz);
+	// CKMN_LOGD("ckmn_rosc_isr rosc_freq:%7.2f\r\n", s_rosc_freq_hz);
 	bk_ckmn_ckest_disable();
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_ROSC_PROG,1,0);
 }
@@ -119,7 +119,7 @@ static void rosc_calib_ckmn_isr(void)
 	rosc_count = bk_ckmn_get_rc32k_count();
 
 	if (rc26m_count <= 0 || rosc_count <= 0) {
-		ROSC_LOGI("ckmn get rc26m cycle failed!\n");
+		ROSC_LOGD("ckmn get rc26m cycle failed!\n");
 		return;
 	}
 
@@ -136,7 +136,7 @@ static void rosc_calib_thread(void *args)
 	float loss, _loss = 0.0;
 
 	// init
-	ROSC_LOGI("ckmn calib rosc thread start\r\n");
+	ROSC_LOGD("ckmn calib rosc thread start\r\n");
 	sys_drv_rosc_calibration(ROSC_CALIB_MANUAL_MODE, cin0 + (cin1 << 16)); // manual mode
 	// calibration progress
 	while (1)
@@ -205,7 +205,7 @@ static void rosc_calib_thread(void *args)
 	if (ret) {
 		ROSC_LOGE("rosc calib failed reason code: %d\r\n", ret);
 	} else {
-		ROSC_LOGI("rosc calib complete %d %d\r\n", cin0, cin1);
+		ROSC_LOGD("rosc calib complete %d %d\r\n", cin0, cin1);
 	}
 
 #if ROSC_CALIB_DEBUG
@@ -300,7 +300,7 @@ int64_t bk_rosc_32k_get_tick_diff(uint64_t tick)
 		{
 			ROSC_LOGE("should not be here: %s %d\r\n", __func__, __LINE__);
 		}
-		ROSC_LOGI("rosc rtc tick compensation start\r\n");
+		ROSC_LOGD("rosc rtc tick compensation start\r\n");
 	}
 
 	GLOBAL_INT_DECLARATION();
@@ -312,7 +312,7 @@ int64_t bk_rosc_32k_get_tick_diff(uint64_t tick)
 		{
 #if ROSC_COMPE_DEBUG
 			if (tick - s_base_tick >= ROSC_COMPE_DEBUG_INTV)
-			ROSC_LOGI("rosc rtc tick compe: %d+%d->%d\r\n", (int32_t)s_tick_diff, (uint32_t)s_base_tick, (uint32_t)(s_base_tick + s_tick_diff));
+			ROSC_LOGD("rosc rtc tick compe: %d+%d->%d\r\n", (int32_t)s_tick_diff, (uint32_t)s_base_tick, (uint32_t)(s_base_tick + s_tick_diff));
 #endif
 			if (tick < s_base_tick)
 			{
@@ -366,7 +366,7 @@ static bk_err_t rosc_calib_records_insert(rosc_calib_record_t* record)
 
 	if (s_records_cnt >= ROSC_CAL_s_records_cnt_MAX)
 	{
-		// ROSC_LOGI("records array is full\r\n");
+		// ROSC_LOGD("records array is full\r\n");
 		return BK_FAIL;
 	}
 
@@ -384,17 +384,17 @@ static void rosc_calib_records_dump(void)
 	uint32_t i;
 	rosc_calib_record_t* records_node;
 
-	ROSC_LOGI("rosc calib records dump start\r\n");
+	ROSC_LOGD("rosc calib records dump start\r\n");
 
 	for (i = 0; i < s_records_cnt; i++)
 	{
 		records_node = &s_records_array[i];
-		ROSC_LOGI("%d %d %d %f\r\n", 	records_node->progress_count,
+		ROSC_LOGD("%d %d %d %f\r\n", 	records_node->progress_count,
 											records_node->cin0,
 											records_node->cin1,
 											records_node->loss);
 	}
 
-	ROSC_LOGI("rosc calib records dump end\r\n");
+	ROSC_LOGD("rosc calib records dump end\r\n");
 }
 #endif

@@ -52,7 +52,7 @@ bk_err_t mutex_printf_msg(char *s)
     {
         return err;
     }
-    os_printf( "%s\r\n", s);
+    BK_LOGD(NULL, "%s\r\n", s);
     err = rtos_unlock_mutex(&os_mutex);
     if(err != kNoErr)
     {
@@ -74,7 +74,7 @@ void os_mutex_sender_thread( beken_thread_arg_t arg )
         err = mutex_printf_msg(strprt);
         if(err != kNoErr)
         {
-            os_printf( "%s printf_msg error!\r\n", taskname);
+            BK_LOGD(NULL, "%s printf_msg error!\r\n", taskname);
             goto exit;
         }
         rtos_delay_milliseconds( rd );
@@ -83,7 +83,7 @@ void os_mutex_sender_thread( beken_thread_arg_t arg )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "Sender exit with err: %d\r\n", err );
+        BK_LOGD(NULL, "Sender exit with err: %d\r\n", err );
     }
     if(os_mutex != NULL)
     {
@@ -100,7 +100,7 @@ int demo_start( void )
 
     if(err != kNoErr)
     {
-        os_printf( "rtos_init_mutex err: %d\r\n", err );
+        BK_LOGD(NULL, "rtos_init_mutex err: %d\r\n", err );
         goto exit;
     }
 
@@ -128,7 +128,7 @@ int demo_start( void )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "Thread exit with err: %d\r\n", err );
+        BK_LOGD(NULL, "Thread exit with err: %d\r\n", err );
     }
     return err;
 }

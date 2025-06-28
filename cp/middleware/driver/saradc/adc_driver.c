@@ -325,13 +325,13 @@ bk_err_t bk_adc_driver_init(void)
 
 bk_err_t bk_adc_acquire(void)
 {
-	ADC_LOGD("acquire\n");
+	ADC_LOGV("acquire\n");
 	return rtos_lock_mutex(&s_adc_dev.adc_mutex);
 }
 
 bk_err_t bk_adc_release(void)
 {
-	ADC_LOGD("release\n");
+	ADC_LOGV("release\n");
 	return rtos_unlock_mutex(&s_adc_dev.adc_mutex);
 }
 
@@ -650,7 +650,7 @@ bk_err_t bk_saradc_set_config(adc_config_t *config, uint32_t div)
     adc_hal_set_saturate_mode(&s_adc.hal, config->saturate_mode);
     if(config->adc_mode == ADC_CONTINUOUS_MODE)
     {
-        os_printf("config->sample_rate = %d\r\n",config->sample_rate);
+        BK_LOGD(NULL,"config->sample_rate = %d\r\n",config->sample_rate);
         adc_hal_set_sample_rate(&s_adc.hal, config->sample_rate);
         adc_hal_set_adc_filter(&s_adc.hal, config->adc_filter);
     }
@@ -753,7 +753,7 @@ bk_err_t bk_adc_en(void)
 {
 	if(adc_hal_check_adc_busy(&s_adc.hal))
     {   
-        os_printf("adc_start:adc busy\n");
+        BK_LOGD(NULL,"adc_start:adc busy\n");
 		return BK_ERR_ADC_BUSY;
     }
 
@@ -762,7 +762,7 @@ bk_err_t bk_adc_en(void)
 	int ret = rtos_get_semaphore(&(s_adc_dev.adc_read_sema), 1000);
 	if(ret != kNoErr)
     {   
-        os_printf("adc_start:rtos_get_semaphore fail\n");
+        BK_LOGD(NULL,"adc_start:rtos_get_semaphore fail\n");
 		return BK_ERR_ADC_GET_READ_SEMA;
     }
 
@@ -845,7 +845,7 @@ float bk_adc_data_calculate(UINT16 adc_val, UINT8 adc_chan)
     }
     else if(adc_chan == 7 || adc_chan == 8 || adc_chan == 9 || adc_chan == 11)
     {
-        ADC_LOGI("adc_chan %d has been used\r\n", adc_chan);
+        ADC_LOGD("adc_chan %d has been used\r\n", adc_chan);
     }
     else
     {
@@ -896,8 +896,8 @@ void bk_adc_read_for_ate(uint32_t saradc_num, uint16_t *saradc_buf)
     //saradc enable
     saradc_hal_start_enable();
     //need check saradc fifo empty
-    //os_printf("saradc_hal_is_fifo_empty=%x\r\n",saradc_hal_is_fifo_empty());
-    //os_printf("sardata_start\r\n");
+    //BK_LOGD(NULL,"saradc_hal_is_fifo_empty=%x\r\n",saradc_hal_is_fifo_empty());
+    //BK_LOGD(NULL,"sardata_start\r\n");
     irq_level = rtos_disable_int();
 
     #ifdef CONFIG_FREERTOS_SMP

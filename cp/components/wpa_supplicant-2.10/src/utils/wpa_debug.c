@@ -18,7 +18,7 @@ void wpa_set_debug_level(int level)
 {
 	if (level >= 0 && level <= MSG_ERROR) {
 		wpa_debug_level = level;
-		WPA_LOGI("set wpa debug level to %d\r\n", wpa_debug_level);
+		WPA_LOGD("set wpa debug level to %d\r\n", wpa_debug_level);
 	}
 }
 
@@ -32,7 +32,7 @@ void wpa_debug_print_timestamp(void)
 		return;
 
 	os_get_time(&tv);
-	WPA_LOGI("%ld.%06u: ", (long) tv.sec, (unsigned int) tv.usec);
+	WPA_LOGD("%ld.%06u: ", (long) tv.sec, (unsigned int) tv.usec);
 #endif
 }
 
@@ -68,7 +68,7 @@ void wpa_dbg(void *ctx, int level, const char *fmt, ...)
 
 		vsnprintf(buf, buflen, fmt, ap);
 		va_end(ap);
-		WPA_LOGI("%s\n", buf);
+		WPA_LOGD("%s\n", buf);
 		os_free(buf);
 	}
 }
@@ -81,16 +81,16 @@ static void _wpa_hexdump(int level, const char *title, const u8 *buf,
 	if (level < wpa_debug_level)
 		return;
 	wpa_debug_print_timestamp();
-	WPA_LOGI("%s - hexdump(len=%lu):", title, (unsigned long) len);
+	WPA_LOGD("%s - hexdump(len=%lu):", title, (unsigned long) len);
 	if (buf == NULL) {
-		WPA_LOGI(" [NULL]");
+		WPA_LOGD(" [NULL]");
 	} else if (show) {
 		for (i = 0; i < len; i++)
-			bk_printf(" %02x", buf[i]);
+			BK_LOGD(NULL," %02x", buf[i]);
 	} else {
-		WPA_LOGI(" [REMOVED]");
+		WPA_LOGD(" [REMOVED]");
 	}
-	WPA_LOGI("\r\n");
+	WPA_LOGD("\r\n");
 }
 
 void wpa_hexdump(int level, const char *title, const void *buf, size_t len)
@@ -114,33 +114,33 @@ static void _wpa_hexdump_ascii(int level, const char *title, const void *buf,
 		return;
 	wpa_debug_print_timestamp();
 	if (!show) {
-		WPA_LOGI("%s - hexdump_ascii(len=%lu): [REMOVED]\r\n",
+		WPA_LOGD("%s - hexdump_ascii(len=%lu): [REMOVED]\r\n",
 		       title, (unsigned long) len);
 		return;
 	}
 	if (buf == NULL) {
-		WPA_LOGI("%s - hexdump_ascii(len=%lu): [NULL]\r\n",
+		WPA_LOGD("%s - hexdump_ascii(len=%lu): [NULL]\r\n",
 		       title, (unsigned long) len);
 		return;
 	}
-	WPA_LOGI("%s - hexdump_ascii(len=%lu):\r\n", title, (unsigned long) len);
+	WPA_LOGD("%s - hexdump_ascii(len=%lu):\r\n", title, (unsigned long) len);
 	while (len) {
 		llen = len > line_len ? line_len : len;
-		WPA_LOGI("    ");
+		WPA_LOGD("    ");
 		for (i = 0; i < llen; i++)
-			bk_printf(" %02x", pos[i]);
+			BK_LOGD(NULL," %02x", pos[i]);
 		for (i = llen; i < line_len; i++)
-			bk_printf("   ");
-		bk_printf("   ");
+			BK_LOGD(NULL,"   ");
+		BK_LOGD(NULL,"   ");
 		for (i = 0; i < llen; i++) {
 			if (isprint(pos[i]))
-				bk_printf("%c", pos[i]);
+				BK_LOGD(NULL,"%c", pos[i]);
 			else
-				bk_printf("_");
+				BK_LOGD(NULL,"_");
 		}
 		for (i = llen; i < line_len; i++)
-			bk_printf(" ");
-		WPA_LOGI("\r\n");
+			BK_LOGD(NULL," ");
+		WPA_LOGD("\r\n");
 		pos += llen;
 		len -= llen;
 	}
@@ -228,7 +228,7 @@ void wpa_msg(void *ctx, int level, const char *fmt, ...)
 	va_end(ap);
 
 #ifndef CONFIG_NO_STDOUT_DEBUG
-	WPA_LOGI("%s\r\n", buf);
+	WPA_LOGD("%s\r\n", buf);
 	//wpa_printf(level, "%s%s", prefix, buf);
 #endif
 

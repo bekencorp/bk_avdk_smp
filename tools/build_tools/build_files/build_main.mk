@@ -1,7 +1,6 @@
 
 export ARMINO_DIR := $(CURDIR)
 export PROPERTIES_PROJECT_DIR := $(ARMINO_DIR)/properties/projects/properties_libs
-ARMINO_BOOTLOADER := $(ARMINO_DIR)/properties/modules/bootloader/aboot/monitor_bootloader/
 
 export ARMINO_PATH := $(ARMINO_DIR)
 
@@ -115,17 +114,6 @@ common:
 
 has_lib_src := $(shell python3 $(ARMINO_TOOLS_PATH)/build_tools/detect_internal_lib_src.py)
 
-bootloader_post_script := $(ARMINO_TOOLS_PATH)/build_tools/build_process/bk_bootloader_post.py
-BOOTLOADER_JSON_OLD := $(ARMINO_BOOTLOADER)/tools/partition_ota.json
-BOOTLOADER_OTA_JSON := $(PARTITIONS_DIR)/bk_ota_partitions.json
-bootloader:
-ifeq ($(has_lib_src), 1)
-	@cp $(BOOTLOADER_OTA_JSON) $(BOOTLOADER_JSON_OLD)
-	make clean -C ${ARMINO_BOOTLOADER}
-	make -C ${ARMINO_BOOTLOADER}
-	@python3 $(bootloader_post_script)
-endif
-
 ifeq ($(has_lib_src), 1)
 ifneq ("$(APP_VERSION)", "verify")
 $(properties_lib_targets): common
@@ -136,7 +124,7 @@ endif
 liball: $(properties_lib_targets)
 
 
-$(soc_targets): ${PRE_BUILD_TARGET}
+$(soc_targets):
 	@$(ARMINO_TOOL_WRAPPER) $(ARMINO_DIR) $(PROJECT_DIR) $(PROJECT_BUILD_DIR) $(ARMINO_TOOLS_PATH) $@
 
 all: $(soc_targets)

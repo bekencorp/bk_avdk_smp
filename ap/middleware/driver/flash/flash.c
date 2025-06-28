@@ -73,7 +73,7 @@ static void flash_get_current_flash_config(void)
 
 	if (i == (sizeof(flash_config) / sizeof(flash_config_t) - 1)) {
 		flash_current_config = &flash_config[i];
-		BK_LOGI(TAG, "don't config this flash, choose default config\r\n");
+		BK_LOGD(TAG, "don't config this flash, choose default config\r\n");
 	}
 }
 
@@ -191,7 +191,7 @@ UINT16 flash_read_sr(UINT8 sr_width)
 		sr |= (value & 0x00FF) << 8;
 	}
 
-	BK_LOGD(TAG, "--read sr:%x--\r\n",sr);
+	BK_LOGV(TAG, "--read sr:%x--\r\n",sr);
 
 	return sr;
 }
@@ -502,7 +502,7 @@ static void set_flash_protect(PROTECT_TYPE type)
 		value &= ~(1 << flash_current_config->cmp_post);
 		value |= ((cmp & 0x01) << flash_current_config->cmp_post);
 
-		BK_LOGD(TAG, "--write status reg:%x,%x--\r\n", value, flash_current_config->sr_size);
+		BK_LOGV(TAG, "--write status reg:%x,%x--\r\n", value, flash_current_config->sr_size);
 		flash_write_sr(flash_current_config->sr_size, value);
 	}
 }
@@ -662,7 +662,7 @@ void flash_init(void)
 	while (REG_READ(REG_FLASH_OPERATE_SW) & BUSY_SW);
 
 	id = flash_get_id();
-	BK_LOGI(TAG, "id=0x%x\r\n", id);
+	BK_LOGD(TAG, "id=0x%x\r\n", id);
 	flash_get_current_flash_config();
 
 	set_flash_protect(FLASH_UNPROTECT_LAST_BLOCK);
@@ -677,7 +677,7 @@ void flash_init(void)
 
 	ddev_register_dev(DD_DEV_TYPE_FLASH, (DD_OPERATIONS *)&flash_op);
 
-	BK_LOGD(TAG, "init over\r\n");
+	BK_LOGV(TAG, "init over\r\n");
 }
 
 void flash_exit(void)
@@ -825,7 +825,7 @@ UINT32 flash_ctrl(UINT32 cmd, void *parm)
 
 	if (4 == flash_current_config->line_mode) {
 		flash_set_line_mode(LINE_MODE_FOUR);
-		//BK_LOGI(TAG, "change line mode 4\r\n");
+		//BK_LOGD(TAG, "change line mode 4\r\n");
 	}
 
 	peri_busy_count_dec();

@@ -49,19 +49,19 @@ static uint8_t *ch3_temp = NULL;
 
 static void cli_i2s_help(void)
 {
-	os_printf("i2s_master_test {start|stop} \r\n");
-	os_printf("i2s_slave_test {start|stop} \r\n");
-	os_printf("pcm_master_test {start|stop} \r\n");
-	os_printf("pcm_slave_test {start|stop} \r\n");
-	os_printf("dtm_master_test {start|stop} \r\n");
-	os_printf("dtm_slave_test {start|stop} \r\n");
-	os_printf("2bd_master_test {start|stop} \r\n");
-	os_printf("2bd_slave_test {start|stop} \r\n");
+	BK_LOGD(NULL,"i2s_master_test {start|stop} \r\n");
+	BK_LOGD(NULL,"i2s_slave_test {start|stop} \r\n");
+	BK_LOGD(NULL,"pcm_master_test {start|stop} \r\n");
+	BK_LOGD(NULL,"pcm_slave_test {start|stop} \r\n");
+	BK_LOGD(NULL,"dtm_master_test {start|stop} \r\n");
+	BK_LOGD(NULL,"dtm_slave_test {start|stop} \r\n");
+	BK_LOGD(NULL,"2bd_master_test {start|stop} \r\n");
+	BK_LOGD(NULL,"2bd_slave_test {start|stop} \r\n");
 }
 
 static int ch1_tx_data_handle_cb(uint32_t size)
 {
-	//os_printf("%s, size: %d \n", __func__, size);
+	//BK_LOGD(NULL,"%s, size: %d \n", __func__, size);
 	ring_buffer_write(ch1_tx_rb, ch1_temp, size);
 
 	return size;
@@ -69,9 +69,9 @@ static int ch1_tx_data_handle_cb(uint32_t size)
 
 static int ch1_rx_data_handle_cb(uint32_t size)
 {
-	//os_printf("%s, size: %d \n", __func__, size);
+	//BK_LOGD(NULL,"%s, size: %d \n", __func__, size);
 	ring_buffer_read(ch1_rx_rb, ch1_temp, size);
-	os_printf("rx ch1_temp[0]: 0x%2x \n", ch1_temp[0]);
+	BK_LOGD(NULL,"rx ch1_temp[0]: 0x%2x \n", ch1_temp[0]);
 
 	return size;
 }
@@ -86,7 +86,7 @@ static int ch2_tx_data_handle_cb(uint32_t size)
 static int ch2_rx_data_handle_cb(uint32_t size)
 {
 	ring_buffer_read(ch2_rx_rb, ch2_temp, size);
-	os_printf("rx ch2_temp[0]: 0x%2x \n", ch2_temp[0]);
+	BK_LOGD(NULL,"rx ch2_temp[0]: 0x%2x \n", ch2_temp[0]);
 
 	return size;
 }
@@ -101,7 +101,7 @@ static int ch3_tx_data_handle_cb(uint32_t size)
 static int ch3_rx_data_handle_cb(uint32_t size)
 {
 	ring_buffer_read(ch3_rx_rb, ch3_temp, size);
-	os_printf("rx ch3_temp[0]: 0x%2x \n", ch3_temp[0]);
+	BK_LOGD(NULL,"rx ch3_temp[0]: 0x%2x \n", ch3_temp[0]);
 
 	return size;
 }
@@ -474,7 +474,7 @@ void cli_i2s_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("i2s master test start \r\n");
+		BK_LOGD(NULL,"i2s master test start \r\n");
 
 		ch1_temp = os_malloc(320);
 		os_memset(ch1_temp, 0xF1, 320);
@@ -485,24 +485,24 @@ void cli_i2s_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		//init i2s configure
 		i2s_config.samp_rate = I2S_SAMP_RATE_48000;
 		bk_i2s_init(I2S_GPIO_GROUP_2, &i2s_config);
-		os_printf("init i2s driver and config successful \r\n");
+		BK_LOGD(NULL,"init i2s driver and config successful \r\n");
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_1, I2S_TXRX_TYPE_TX, 640, ch1_tx_data_handle_cb, &ch1_tx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		uint8_t *temp_data = (uint8_t *)os_malloc(640);
 		os_memset(temp_data, 0x00, 640);
 		size = ring_buffer_write(ch1_tx_rb, temp_data, 640);
-		os_printf("ring_buffer_write, size: %d \n", size);
+		BK_LOGD(NULL,"ring_buffer_write, size: %d \n", size);
 		os_free(temp_data);
 		bk_i2s_start();
 
-		os_printf("i2s master test complete \r\n");
+		BK_LOGD(NULL,"i2s master test complete \r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("i2s master test stop \r\n");
+		BK_LOGD(NULL,"i2s master test stop \r\n");
 		bk_i2s_stop();
 		bk_i2s_chl_deinit(I2S_CHANNEL_1, I2S_TXRX_TYPE_TX);
 		bk_i2s_deinit();
@@ -510,7 +510,7 @@ void cli_i2s_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 
 		os_free(ch1_temp);
 		ch1_temp = NULL;
-		os_printf("i2s master test stop successful \r\n");
+		BK_LOGD(NULL,"i2s master test stop successful \r\n");
 	}
 	#if CLI_FOR_AUDIO_ATE_TEST
 	/*
@@ -525,7 +525,7 @@ void cli_i2s_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		cli_audio_adc_config(1, 0);
 		uint32_t mic1_config = 0;
 		mic1_config = sys_ll_get_ana_reg19_value();
-		os_printf("mic1_config: %x\n\r", mic1_config);
+		BK_LOGD(NULL,"mic1_config: %x\n\r", mic1_config);
 		sys_hal_set_ana_reg27_value(mic1_config);
 		cli_i2s_config(1, 0);
 		cli_adc_dma_id = cli_aud_i2s_dma_config(1);
@@ -542,13 +542,13 @@ void cli_i2s_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		cli_dac_dma_id = cli_aud_i2s_dma_config(0);
 		cli_aud_i2s_dma_ctrl(1, cli_adc_dma_id, cli_dac_dma_id);
 
-		os_printf("init i2s driver and config successful \r\n");
+		BK_LOGD(NULL,"init i2s driver and config successful \r\n");
 	}
 	else if (os_strcmp(argv[1], "mic_conf") == 0)
 	{
 		uint32_t mic1_config = 0;
 		mic1_config = sys_ll_get_ana_reg27_value();
-		os_printf("mic1_config: %x\n\r", mic1_config);
+		BK_LOGD(NULL,"mic1_config: %x\n\r", mic1_config);
 	}
 	#endif
 	else {
@@ -569,7 +569,7 @@ void cli_i2s_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("i2s slave test start \r\n");
+		BK_LOGD(NULL,"i2s slave test start \r\n");
 
 		ch1_temp = os_malloc(320);
 
@@ -580,19 +580,19 @@ void cli_i2s_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		i2s_config.role = I2S_ROLE_SLAVE;
 		i2s_config.samp_rate = I2S_SAMP_RATE_48000;
 		bk_i2s_init(I2S_GPIO_GROUP_0, &i2s_config);
-		os_printf("init i2s driver and config successful \r\n");
+		BK_LOGD(NULL,"init i2s driver and config successful \r\n");
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_1, I2S_TXRX_TYPE_RX, 640, ch1_rx_data_handle_cb, &ch1_rx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		bk_i2s_start();
 
-		os_printf("i2s slave test complete \r\n");
+		BK_LOGD(NULL,"i2s slave test complete \r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("i2s slave test stop \r\n");
+		BK_LOGD(NULL,"i2s slave test stop \r\n");
 		bk_i2s_stop();
 		bk_i2s_chl_deinit(I2S_CHANNEL_1, I2S_TXRX_TYPE_RX);
 		bk_i2s_deinit();
@@ -600,7 +600,7 @@ void cli_i2s_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 		os_free(ch1_temp);
 		ch1_temp = NULL;
-		os_printf("i2s slave test stop successful \r\n");
+		BK_LOGD(NULL,"i2s slave test stop successful \r\n");
 	} else {
 		//bk_i2s_start_test();
 		cli_i2s_help();
@@ -621,7 +621,7 @@ void cli_pcm_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("pcm master test start \r\n");
+		BK_LOGD(NULL,"pcm master test start \r\n");
 
 		ch1_temp = os_malloc(320);
 		os_memset(ch1_temp, 0xF1, 320);
@@ -632,24 +632,24 @@ void cli_pcm_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		//init i2s configure
 		i2s_config.samp_rate = I2S_SAMP_RATE_48000;
 		bk_i2s_init(I2S_GPIO_GROUP_0, &i2s_config);
-		os_printf("init i2s driver and config successful \r\n");
+		BK_LOGD(NULL,"init i2s driver and config successful \r\n");
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_1, I2S_TXRX_TYPE_TX, 640, ch1_tx_data_handle_cb, &ch1_tx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		uint8_t *temp_data = (uint8_t *)os_malloc(640);
 		os_memset(temp_data, 0xF1, 640);
 		size = ring_buffer_write(ch1_tx_rb, temp_data, 640);
-		os_printf("ring_buffer_write, size: %d \n", size);
+		BK_LOGD(NULL,"ring_buffer_write, size: %d \n", size);
 		os_free(temp_data);
 		bk_i2s_start();
 
-		os_printf("pcm master test complete \r\n");
+		BK_LOGD(NULL,"pcm master test complete \r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("pcm master test stop \r\n");
+		BK_LOGD(NULL,"pcm master test stop \r\n");
 		bk_i2s_stop();
 		bk_i2s_chl_deinit(I2S_CHANNEL_1, I2S_TXRX_TYPE_TX);
 		bk_i2s_deinit();
@@ -657,7 +657,7 @@ void cli_pcm_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 
 		os_free(ch1_temp);
 		ch1_temp = NULL;
-		os_printf("pcm master test stop successful \r\n");
+		BK_LOGD(NULL,"pcm master test stop successful \r\n");
 	} else {
 		cli_i2s_help();
 		return;
@@ -675,7 +675,7 @@ void cli_pcm_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("pcm slave test start \r\n");
+		BK_LOGD(NULL,"pcm slave test start \r\n");
 
 		ch1_temp = os_malloc(320);
 
@@ -686,17 +686,17 @@ void cli_pcm_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		i2s_config.samp_rate = I2S_SAMP_RATE_48000;
 		i2s_config.role = I2S_ROLE_SLAVE;
 		bk_i2s_init(I2S_GPIO_GROUP_0, &i2s_config);
-		os_printf("init i2s driver and config successful \r\n");
+		BK_LOGD(NULL,"init i2s driver and config successful \r\n");
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_1, I2S_TXRX_TYPE_RX, 640, ch1_rx_data_handle_cb, &ch1_rx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 		bk_i2s_start();
-		os_printf("pcm slave test complete \r\n");
+		BK_LOGD(NULL,"pcm slave test complete \r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("pcm slave test stop \r\n");
+		BK_LOGD(NULL,"pcm slave test stop \r\n");
 		bk_i2s_stop();
 		bk_i2s_chl_deinit(I2S_CHANNEL_1, I2S_TXRX_TYPE_RX);
 		bk_i2s_deinit();
@@ -704,7 +704,7 @@ void cli_pcm_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 		os_free(ch1_temp);
 		ch1_temp = NULL;
-		os_printf("pcm slave test stop successful \r\n");
+		BK_LOGD(NULL,"pcm slave test stop successful \r\n");
 	} else {
 		cli_i2s_help();
 		return;
@@ -723,7 +723,7 @@ void cli_dtm_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("pcm master test start \r\n");
+		BK_LOGD(NULL,"pcm master test start \r\n");
 
 		ch1_temp = os_malloc(320);
 		os_memset(ch1_temp, 0xF1, 320);
@@ -738,23 +738,23 @@ void cli_dtm_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		//init i2s configure
 		//i2s_config.samp_rate = I2S_SAMP_RATE_16000;
 		bk_i2s_init(I2S_GPIO_GROUP_0, &i2s_config);
-		os_printf("init i2s driver and config successful \r\n");
+		BK_LOGD(NULL,"init i2s driver and config successful \r\n");
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_1, I2S_TXRX_TYPE_TX, 640, ch1_tx_data_handle_cb, &ch1_tx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_2, I2S_TXRX_TYPE_TX, 640, ch2_tx_data_handle_cb, &ch2_tx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_3, I2S_TXRX_TYPE_TX, 640, ch3_tx_data_handle_cb, &ch3_tx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
@@ -766,12 +766,12 @@ void cli_dtm_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		os_memset(temp_data, 0xF1, 640);
 		ring_buffer_write(ch3_tx_rb, temp_data, 640);
 		os_free(temp_data);
-		os_printf("write data ok \r\n");
+		BK_LOGD(NULL,"write data ok \r\n");
 		bk_i2s_start();
 
-		os_printf("pcm master test complete \r\n");
+		BK_LOGD(NULL,"pcm master test complete \r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("pcm master test stop \r\n");
+		BK_LOGD(NULL,"pcm master test stop \r\n");
 		bk_i2s_stop();
 		bk_i2s_chl_deinit(I2S_CHANNEL_1, I2S_TXRX_TYPE_TX);
 		bk_i2s_chl_deinit(I2S_CHANNEL_2, I2S_TXRX_TYPE_TX);
@@ -785,7 +785,7 @@ void cli_dtm_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		ch2_temp = NULL;
 		os_free(ch3_temp);
 		ch3_temp = NULL;
-		os_printf("pcm master test stop successful \r\n");
+		BK_LOGD(NULL,"pcm master test stop successful \r\n");
 	} else {
 		cli_i2s_help();
 		return;
@@ -803,7 +803,7 @@ void cli_dtm_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("dtm slave test start \r\n");
+		BK_LOGD(NULL,"dtm slave test start \r\n");
 
 		ch1_temp = os_malloc(320);
 		ch2_temp = os_malloc(320);
@@ -816,30 +816,30 @@ void cli_dtm_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		//i2s_config.samp_rate = I2S_SAMP_RATE_48000;
 		i2s_config.role = I2S_ROLE_SLAVE;
 		bk_i2s_init(I2S_GPIO_GROUP_0, &i2s_config);
-		os_printf("init i2s driver and config successful \r\n");
+		BK_LOGD(NULL,"init i2s driver and config successful \r\n");
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_1, I2S_TXRX_TYPE_RX, 640, ch1_rx_data_handle_cb, &ch1_rx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_2, I2S_TXRX_TYPE_RX, 640, ch2_rx_data_handle_cb, &ch2_rx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_3, I2S_TXRX_TYPE_RX, 640, ch3_rx_data_handle_cb, &ch3_rx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		bk_i2s_start();
-		os_printf("dtm slave test complete \r\n");
+		BK_LOGD(NULL,"dtm slave test complete \r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("dtm slave test stop \r\n");
+		BK_LOGD(NULL,"dtm slave test stop \r\n");
 		bk_i2s_stop();
 		bk_i2s_chl_deinit(I2S_CHANNEL_1, I2S_TXRX_TYPE_RX);
 		bk_i2s_chl_deinit(I2S_CHANNEL_2, I2S_TXRX_TYPE_RX);
@@ -853,7 +853,7 @@ void cli_dtm_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		ch2_temp = NULL;
 		os_free(ch3_temp);
 		ch3_temp = NULL;
-		os_printf("pcm slave test stop successful \r\n");
+		BK_LOGD(NULL,"pcm slave test stop successful \r\n");
 	} else {
 		cli_i2s_help();
 		return;
@@ -872,7 +872,7 @@ void cli_2bd_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("2B+D master test start \r\n");
+		BK_LOGD(NULL,"2B+D master test start \r\n");
 
 		ch1_temp = os_malloc(320);
 		os_memset(ch1_temp, 0xF1, 320);
@@ -883,24 +883,24 @@ void cli_2bd_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		//init i2s configure
 		i2s_config.samp_rate = I2S_SAMP_RATE_48000;
 		bk_i2s_init(I2S_GPIO_GROUP_0, &i2s_config);
-		os_printf("init i2s driver and config successful \r\n");
+		BK_LOGD(NULL,"init i2s driver and config successful \r\n");
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_1, I2S_TXRX_TYPE_TX, 640, ch1_tx_data_handle_cb, &ch1_tx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		uint8_t *temp_data = (uint8_t *)os_malloc(640);
 		os_memset(temp_data, 0xF1, 640);
 		size = ring_buffer_write(ch1_tx_rb, temp_data, 640);
-		os_printf("ring_buffer_write, size: %d \n", size);
+		BK_LOGD(NULL,"ring_buffer_write, size: %d \n", size);
 		os_free(temp_data);
 		bk_i2s_start();
 
-		os_printf("2B+D master test complete \r\n");
+		BK_LOGD(NULL,"2B+D master test complete \r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("2B+D master test stop \r\n");
+		BK_LOGD(NULL,"2B+D master test stop \r\n");
 		bk_i2s_stop();
 		bk_i2s_chl_deinit(I2S_CHANNEL_1, I2S_TXRX_TYPE_TX);
 		bk_i2s_deinit();
@@ -908,7 +908,7 @@ void cli_2bd_master_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 
 		os_free(ch1_temp);
 		ch1_temp = NULL;
-		os_printf("2B+D master test stop successful \r\n");
+		BK_LOGD(NULL,"2B+D master test stop successful \r\n");
 	} else {
 		cli_i2s_help();
 		return;
@@ -926,7 +926,7 @@ void cli_2bd_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	}
 
 	if (os_strcmp(argv[1], "start") == 0) {
-		os_printf("2B+D slave test start \r\n");
+		BK_LOGD(NULL,"2B+D slave test start \r\n");
 
 		ch1_temp = os_malloc(320);
 
@@ -937,19 +937,19 @@ void cli_2bd_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		i2s_config.role = I2S_ROLE_SLAVE;
 		i2s_config.samp_rate = I2S_SAMP_RATE_48000;
 		bk_i2s_init(I2S_GPIO_GROUP_0, &i2s_config);
-		os_printf("init i2s driver and config successful \r\n");
+		BK_LOGD(NULL,"init i2s driver and config successful \r\n");
 
 		ret = bk_i2s_chl_init(I2S_CHANNEL_1, I2S_TXRX_TYPE_RX, 640, ch1_rx_data_handle_cb, &ch1_rx_rb);
 		if (ret != BK_OK) {
-			os_printf("bk_i2s_chl_init fail \n");
+			BK_LOGD(NULL,"bk_i2s_chl_init fail \n");
 			return;
 		}
 
 		bk_i2s_start();
 
-		os_printf("2B+D slave test complete \r\n");
+		BK_LOGD(NULL,"2B+D slave test complete \r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
-		os_printf("2B+D slave test stop \r\n");
+		BK_LOGD(NULL,"2B+D slave test stop \r\n");
 		bk_i2s_stop();
 		bk_i2s_chl_deinit(I2S_CHANNEL_1, I2S_TXRX_TYPE_RX);
 		bk_i2s_deinit();
@@ -957,7 +957,7 @@ void cli_2bd_slave_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 		os_free(ch1_temp);
 		ch1_temp = NULL;
-		os_printf("2B+D slave test stop successful \r\n");
+		BK_LOGD(NULL,"2B+D slave test stop successful \r\n");
 	} else {
 		cli_i2s_help();
 		return;

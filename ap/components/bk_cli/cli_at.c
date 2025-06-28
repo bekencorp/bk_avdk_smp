@@ -62,8 +62,8 @@ static void at_version_command(char *pcWriteBuffer, int xWriteBufferLen, int arg
     }
     else
     {
-        os_printf("get_version\r\n");
-        os_printf("firmware version : %s\n", build_version);
+        BK_LOGD(NULL, "get_version\r\n");
+        BK_LOGD(NULL, "firmware version : %s\n", build_version);
         msg = AT_CMD_RSP_SUCCEED;
     }
 
@@ -80,8 +80,8 @@ static void at_atversion_command(char *pcWriteBuffer, int xWriteBufferLen, int a
     }
     else
     {	
-        os_printf("get_at-version\r\n");
-        os_printf("AT-VERSION:%s\r\n",AT_VERSION_NUM);
+        BK_LOGD(NULL, "get_at-version\r\n");
+        BK_LOGD(NULL, "AT-VERSION:%s\r\n",AT_VERSION_NUM);
         msg = AT_CMD_RSP_SUCCEED;
     }
 
@@ -102,13 +102,13 @@ static void bleat_command_handler(char *pcWriteBuffer, int xWriteBufferLen, int 
     if(type != BK_BLE_CONTROLLER_STACK_TYPE_BLE_5_X &&
         type != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
     {
-        os_printf("%s stack type %d not support\n", __func__, type);
+        BK_LOGD(NULL, "%s stack type %d not support\n", __func__, type);
         return;
     }
 
     command = lookup_ble_at_command(argv[1]);
     if (command == NULL) {
-        bk_printf("cannot find this cmd, please check again!!!\n");
+        BK_LOGD(NULL, "cannot find this cmd, please check again!!!\n");
         msg = AT_CMD_RSP_ERROR;
         os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
         return;
@@ -126,13 +126,13 @@ static void bt_at_command_handler(char *pcWriteBuffer, int xWriteBufferLen, int 
     uint8_t type = bk_bt_get_controller_stack_type();
     if(type != BK_BT_CONTROLLER_STACK_TYPE_BTDM_5_2)
     {
-        os_printf("%s stack type %d not support\n", __func__, type);
+        BK_LOGD(NULL, "%s stack type %d not support\n", __func__, type);
         return;
     }
 
     command = lookup_bt_at_command(argv[1]);
     if (command == NULL) {
-        bk_printf("cannot find this cmd, please check again!!!\n");
+        BK_LOGD(NULL, "cannot find this cmd, please check again!!!\n");
         msg = AT_CMD_RSP_ERROR;
         os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
         return;
@@ -150,7 +150,7 @@ static void wifi_Command_handler(char *pcWriteBuffer, int xWriteBufferLen, int a
 
 	command = lookup_wifi_at_command(argv[1]);
     if (command == NULL) {
-        bk_printf("cannot find this cmd, please check again!!!\n");
+        BK_LOGD(NULL, "cannot find this cmd, please check again!!!\n");
         msg = AT_CMD_RSP_ERROR;
         os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
         return;
@@ -177,21 +177,21 @@ void at_mac_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **a
 			msg = AT_CMD_RSP_ERROR;
 		else
 			msg = AT_CMD_RSP_SUCCEED;
-		os_printf("base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
-		os_printf("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
-		os_printf("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
+		BK_LOGD(NULL, "base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+		BK_LOGD(NULL, "sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
+		BK_LOGD(NULL, "ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
 
 	} else if (argc == 2) {
 		hexstr2bin_cli(argv[1], base_mac, BK_MAC_ADDR_LEN);
 		ret4 = bk_set_base_mac(base_mac);
-		os_printf("set base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+		BK_LOGD(NULL, "set base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
 		if (ret4 != BK_OK)
 			msg = AT_CMD_RSP_ERROR;
 		else
 			msg = AT_CMD_RSP_SUCCEED;
 
 	} else {
-		os_printf("invalid cmd\r\n");
+		BK_LOGD(NULL, "invalid cmd\r\n");
 		msg = AT_CMD_RSP_ERROR;
 	}
     os_memcpy(pcWriteBuffer, msg, os_strlen(msg));

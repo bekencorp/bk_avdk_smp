@@ -54,7 +54,7 @@ void cli_pm_touch_callback(void *param)
 		bk_pm_module_vote_sleep_ctrl(s_pm_vote2,0x0,0x0);
 		bk_pm_module_vote_sleep_ctrl(s_pm_vote3,0x0,0x0);
 	}
-	os_printf("cli_pm_touch_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
+	BK_LOGD(NULL, "cli_pm_touch_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
 }
 #endif
 void cli_pm_gpio_callback(gpio_id_t gpio_id)
@@ -75,7 +75,7 @@ void cli_pm_gpio_callback(gpio_id_t gpio_id)
 		bk_pm_module_vote_sleep_ctrl(s_pm_vote2,0x0,0x0);
 		bk_pm_module_vote_sleep_ctrl(s_pm_vote3,0x0,0x0);
 	}
-	os_printf("cli_pm_gpio_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
+	BK_LOGD(NULL, "cli_pm_gpio_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
 }
 
 #define PM_MANUAL_LOW_VOL_VOTE_ENABLE    (0)
@@ -99,7 +99,7 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 
 	if (argc != 9) 
 	{
-		os_printf("set low power parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set low power parameter invalid %d\r\n",argc);
 		return;
 	}
 	pm_sleep_mode  = os_strtoul(argv[1], NULL, 10);
@@ -111,7 +111,7 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	pm_param2      = os_strtoul(argv[7], NULL, 10);
 	pm_param3      = os_strtoul(argv[8], NULL, 10);
 
-	os_printf("cli_pm_cmd %d %d %d %d %d %d %d!!! \r\n",
+	BK_LOGD(NULL, "cli_pm_cmd %d %d %d %d %d %d %d!!! \r\n",
 				pm_sleep_mode,
 				pm_wake_source,
 				pm_vote1,
@@ -121,7 +121,7 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 				pm_param2);
 	if((pm_sleep_mode > PM_MODE_DEFAULT)||(pm_wake_source > PM_WAKEUP_SOURCE_INT_NONE))
 	{
-		os_printf("set low power  parameter value  invalid\r\n");
+		BK_LOGD(NULL, "set low power  parameter value  invalid\r\n");
 		return;
 	}
 
@@ -129,7 +129,7 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	{
 		if((pm_vote1 > PM_POWER_MODULE_NAME_NONE) ||(pm_vote2 > PM_POWER_MODULE_NAME_NONE) ||(pm_vote3 > PM_POWER_MODULE_NAME_NONE))
 		{
-			os_printf("set pm vote deepsleep parameter value invalid\r\n");
+			BK_LOGD(NULL, "set pm vote deepsleep parameter value invalid\r\n");
 			return;
 		}
 	}
@@ -138,7 +138,7 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	{
 		if((pm_vote1 > PM_SLEEP_MODULE_NAME_MAX) ||(pm_vote2 > PM_SLEEP_MODULE_NAME_MAX) ||(pm_vote3 > PM_SLEEP_MODULE_NAME_MAX))
 		{
-			os_printf("set pm vote low vol parameter value invalid\r\n");
+			BK_LOGD(NULL, "set pm vote low vol parameter value invalid\r\n");
 			return;
 		}
 	}
@@ -156,7 +156,7 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 			#if CONFIG_RTC_ANA_WAKEUP_SUPPORT
 			if(pm_param1 < PM_SHUTDOWN_RTC_THRESHOLD)
 			{
-				os_printf("param %d invalid ! must > %d which means 500ms.\r\n",pm_param1,PM_SHUTDOWN_RTC_THRESHOLD);
+				BK_LOGD(NULL, "param %d invalid ! must > %d which means 500ms.\r\n",pm_param1,PM_SHUTDOWN_RTC_THRESHOLD);
 				return;
 			}
 			bk_rtc_ana_register_wakeup_source(pm_param1);
@@ -286,7 +286,7 @@ static void cli_pm_debug(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	UINT32 pm_debug  = 0;
 	if (argc != 2)
 	{
-		os_printf("set low power debug parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set low power debug parameter invalid %d\r\n",argc);
 		return;
 	}
 
@@ -318,7 +318,7 @@ static void cli_pm_vote_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	UINT32 pm_sleep_time   = 0;
 	if (argc != 5)
 	{
-		os_printf("set low power vote parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set low power vote parameter invalid %d\r\n",argc);
 		return;
 	}
 	pm_sleep_mode        = os_strtoul(argv[1], NULL, 10);
@@ -327,7 +327,7 @@ static void cli_pm_vote_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	pm_sleep_time        = os_strtoul(argv[4], NULL, 10);
 	if((pm_sleep_mode > PM_MODE_DEFAULT)|| (pm_vote > PM_SLEEP_MODULE_NAME_MAX)||(pm_vote_value > 1))
 	{
-		os_printf("set low power vote parameter value  invalid\r\n");
+		BK_LOGD(NULL, "set low power vote parameter value  invalid\r\n");
 		return;
 	}
 	/*vote*/
@@ -354,14 +354,14 @@ static void cli_pm_vol(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	UINT32 pm_vol  = 0;
 	if (argc != 2)
 	{
-		os_printf("set pm voltage parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set pm voltage parameter invalid %d\r\n",argc);
 		return;
 	}
 
 	pm_vol = os_strtoul(argv[1], NULL, 10);
 	if ((pm_vol < 0) || (pm_vol > 7))
 	{
-		os_printf("set pm voltage value invalid %d\r\n",pm_vol);
+		BK_LOGD(NULL, "set pm voltage value invalid %d\r\n",pm_vol);
 		return;
 	}
 
@@ -374,7 +374,7 @@ static void cli_pm_clk(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	UINT32 pm_module_id  = 0;
 	if (argc != 3)
 	{
-		os_printf("set pm clk parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set pm clk parameter invalid %d\r\n",argc);
 		return;
 	}
 
@@ -382,7 +382,7 @@ static void cli_pm_clk(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	pm_clk_state = os_strtoul(argv[2], NULL, 10);
 	if ((pm_clk_state < 0) || (pm_clk_state > 1) || (pm_module_id < 0) || (pm_module_id > 31))
 	{
-		os_printf("set pm clk value invalid %d %d\r\n",pm_clk_state,pm_module_id);
+		BK_LOGD(NULL, "set pm clk value invalid %d %d\r\n",pm_clk_state,pm_module_id);
 		return;
 	}
 	bk_pm_clock_ctrl(pm_module_id,pm_clk_state);
@@ -394,7 +394,7 @@ static void cli_pm_power(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	UINT32 pm_module_id  = 0;
 	if (argc != 3)
 	{
-		os_printf("set pm power parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set pm power parameter invalid %d\r\n",argc);
 		return;
 	}
 
@@ -402,7 +402,7 @@ static void cli_pm_power(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	pm_power_state = os_strtoul(argv[2], NULL, 10);
 	if (pm_power_state > 1)
 	{
-		os_printf("set pm power value invalid %d %d \r\n",pm_power_state,pm_module_id);
+		BK_LOGD(NULL, "set pm power value invalid %d %d \r\n",pm_power_state,pm_module_id);
 		return;
 	}
 
@@ -417,7 +417,7 @@ static void cli_pm_freq(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	pm_cpu_freq_e current_max_freq = 0;
 	if (argc != 3)
 	{
-		os_printf("set pm freq parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set pm freq parameter invalid %d\r\n",argc);
 		return;
 	}
 
@@ -425,7 +425,7 @@ static void cli_pm_freq(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	pm_freq = os_strtoul(argv[2], NULL, 10);
 	if ((pm_freq > PM_CPU_FRQ_DEFAULT) || (pm_module_id > PM_DEV_ID_MAX))
 	{
-		os_printf("set pm freq value invalid %d %d \r\n",pm_freq,pm_module_id);
+		BK_LOGD(NULL, "set pm freq value invalid %d %d \r\n",pm_freq,pm_module_id);
 		return;
 	}
 
@@ -435,7 +435,7 @@ static void cli_pm_freq(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 	current_max_freq = bk_pm_current_max_cpu_freq_get();
 
-	os_printf("pm cpu freq test id: %d; freq: %d; current max cpu freq: %d;\r\n",pm_module_id,module_freq,current_max_freq);
+	BK_LOGD(NULL, "pm cpu freq test id: %d; freq: %d; current max cpu freq: %d;\r\n",pm_module_id,module_freq,current_max_freq);
 
 }
 static void cli_pm_lpo(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -444,14 +444,14 @@ static void cli_pm_lpo(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	UINT32 pm_lpo  = 0;
 	if (argc != 2)
 	{
-		os_printf("set pm lpo parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set pm lpo parameter invalid %d\r\n",argc);
 		return;
 	}
 
 	pm_lpo = os_strtoul(argv[1], NULL, 10);
 	if ((pm_lpo < 0) || (pm_lpo > 3))
 	{
-		os_printf("set  pm lpo value invalid %d\r\n",pm_lpo);
+		BK_LOGD(NULL, "set  pm lpo value invalid %d\r\n",pm_lpo);
 		return;
 	}
 
@@ -463,14 +463,14 @@ static void cli_pm_ctrl(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	UINT32 pm_ctrl  = 0;
 	if (argc != 2)
 	{
-		os_printf("set pm ctrl parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set pm ctrl parameter invalid %d\r\n",argc);
 		return;
 	}
 
 	pm_ctrl = os_strtoul(argv[1], NULL, 10);
 	if ((pm_ctrl < 0) || (pm_ctrl > 1))
 	{
-		os_printf("set pm ctrl value invalid %d\r\n",pm_ctrl);
+		BK_LOGD(NULL, "set pm ctrl value invalid %d\r\n",pm_ctrl);
 		return;
 	}
 
@@ -483,19 +483,19 @@ static void cli_pm_pwr_state(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	UINT32 pm_pwr_module_state  = 0;
 	if (argc != 2)
 	{
-		os_printf("set pm pwr state parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set pm pwr state parameter invalid %d\r\n",argc);
 		return;
 	}
 
 	pm_pwr_module = os_strtoul(argv[1], NULL, 10);
 	if ((pm_pwr_module < 0) || (pm_pwr_module >= PM_POWER_MODULE_NAME_NONE))
 	{
-		os_printf("pm module[%d] not support ,get power state fail\r\n",pm_pwr_module);
+		BK_LOGD(NULL, "pm module[%d] not support ,get power state fail\r\n",pm_pwr_module);
 		return;
 	}
 
 	pm_pwr_module_state = bk_pm_module_power_state_get(pm_pwr_module);
-	os_printf("Get module[%d] power state[%d] \r\n",pm_pwr_module,pm_pwr_module_state);
+	BK_LOGD(NULL, "Get module[%d] power state[%d] \r\n",pm_pwr_module,pm_pwr_module_state);
 
 }
 static void cli_pm_auto_vote(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -503,14 +503,14 @@ static void cli_pm_auto_vote(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	UINT32 pm_ctrl  = 0;
 	if (argc != 2)
 	{
-		os_printf("set pm auto_vote parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set pm auto_vote parameter invalid %d\r\n",argc);
 		return;
 	}
 
 	pm_ctrl = os_strtoul(argv[1], NULL, 10);
 	if ((pm_ctrl < 0) || (pm_ctrl > 1))
 	{
-		os_printf("set pm auto vote value invalid %d\r\n",pm_ctrl);
+		BK_LOGD(NULL, "set pm auto vote value invalid %d\r\n",pm_ctrl);
 		return;
 	}
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP,0x0,0x0);
@@ -528,7 +528,7 @@ static void cli_dvfs_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 
 	if (argc != 6) 
 	{
-		os_printf("set dvfs parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set dvfs parameter invalid %d\r\n",argc);
 		return;
 	}
 
@@ -539,7 +539,7 @@ static void cli_dvfs_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	ckdiv_cpu0   = os_strtoul(argv[4], NULL, 10);
 	ckdiv_cpu1   = os_strtoul(argv[5], NULL, 10);
 
-	os_printf("cli_dvfs_cmd %d %d %d %d %d !!! \r\n",
+	BK_LOGD(NULL, "cli_dvfs_cmd %d %d %d %d %d !!! \r\n",
 				cksel_core,
 				ckdiv_core,
 				ckdiv_bus,
@@ -548,20 +548,20 @@ static void cli_dvfs_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	GLOBAL_INT_DISABLE();
 	if(cksel_core > 3)
 	{
-		os_printf("set dvfs cksel core > 3 invalid %d\r\n",cksel_core);
+		BK_LOGD(NULL, "set dvfs cksel core > 3 invalid %d\r\n",cksel_core);
 		GLOBAL_INT_RESTORE();
 		return;
 	}
 
 	if((ckdiv_core > CLI_DVFS_FREQUNCY_DIV_MAX) || (ckdiv_bus > CLI_DVFS_FREQUNCY_DIV_BUS_MAX)||(ckdiv_cpu0 > CLI_DVFS_FREQUNCY_DIV_MAX)||(ckdiv_cpu0 > CLI_DVFS_FREQUNCY_DIV_MAX))
 	{
-		os_printf("set dvfs ckdiv_core ckdiv_bus ckdiv_cpu0  ckdiv_cpu0  > 15 invalid\r\n");
+		BK_LOGD(NULL, "set dvfs ckdiv_core ckdiv_bus ckdiv_cpu0  ckdiv_cpu0  > 15 invalid\r\n");
 		GLOBAL_INT_RESTORE();
 		return;
 	}
 	pm_core_bus_clock_ctrl(cksel_core, ckdiv_core,ckdiv_bus, ckdiv_cpu0,ckdiv_cpu1);
 	GLOBAL_INT_RESTORE();
-	os_printf("switch cpu frequency ok 0x%x 0x%x 0x%x\r\n",sys_drv_all_modules_clk_div_get(CLK_DIV_REG0),sys_drv_cpu_clk_div_get(0),sys_drv_cpu_clk_div_get(1));
+	BK_LOGD(NULL, "switch cpu frequency ok 0x%x 0x%x 0x%x\r\n",sys_drv_all_modules_clk_div_get(CLK_DIV_REG0),sys_drv_cpu_clk_div_get(0),sys_drv_cpu_clk_div_get(1));
 }
 
 typedef struct{
@@ -656,7 +656,7 @@ static void cli_dvfs_auto_test_timer_isr(timer_id_t chan)
 	// for(i=0; i<DVFS_AUTO_TEST_COUNT; i++)
 	// {
 	// 	rand_num = (uint32_t)bk_rand()%PM_CPU_FRQ_DEFAULT;
-	// 	//os_printf("dvfs random %d \r\n",rand_num);
+	// 	//BK_LOGD(NULL, "dvfs random %d \r\n",rand_num);
 	// 	bk_delay_us(5);
 	// 	sys_drv_switch_cpu_bus_freq(rand_num);
 	// }
@@ -672,8 +672,8 @@ static void cli_dvfs_auto_test_all_timer_isr(timer_id_t chan)
 	for(i=0; i<DVFS_AUTO_TEST_COUNT; i++)
 	{
 		rand_num = (uint32_t)bk_rand()%(sizeof(core_bus_clock)/sizeof(core_bus_clock_ctrl_t));
-		//os_printf("dvfs random %d \r\n",rand_num);
-		//os_printf("[cksel:%d] [ckdiv_core:%d] [ckdiv_bus:%d] [ckdiv_cpu0:%d] [ckdiv_cpu1:%d]\r\n",
+		//BK_LOGD(NULL, "dvfs random %d \r\n",rand_num);
+		//BK_LOGD(NULL, "[cksel:%d] [ckdiv_core:%d] [ckdiv_bus:%d] [ckdiv_cpu0:%d] [ckdiv_cpu1:%d]\r\n",
 			//core_bus_clock[rand_num].cksel_core, core_bus_clock[rand_num].ckdiv_core, core_bus_clock[rand_num].ckdiv_bus, core_bus_clock[rand_num].ckdiv_cpu0, core_bus_clock[rand_num].ckdiv_cpu1);
 		bk_delay_us(5);
 		pm_core_bus_clock_ctrl(core_bus_clock[rand_num].cksel_core, core_bus_clock[rand_num].ckdiv_core, core_bus_clock[rand_num].ckdiv_bus, core_bus_clock[rand_num].ckdiv_cpu0, core_bus_clock[rand_num].ckdiv_cpu1);
@@ -687,11 +687,11 @@ static void cli_dvfs_auto_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	
 	if (argc != 3)
 	{
-		os_printf("set dvfs_auto_test parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set dvfs_auto_test parameter invalid %d\r\n",argc);
 		return;
 	}
 	period_us = os_strtoul(argv[1], NULL, 10);
-	os_printf("dvfs auto test period set %d us!\r\n",period_us);
+	BK_LOGD(NULL, "dvfs auto test period set %d us!\r\n",period_us);
 
 	//bk_trng_driver_init();
 	//bk_trng_start();
@@ -716,7 +716,7 @@ static void cli_pm_wakeup_source(char *pcWriteBuffer, int xWriteBufferLen, int a
 
 	if (argc != 2)
 	{
-		os_printf("set get wakeup source parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "set get wakeup source parameter invalid %d\r\n",argc);
 		return;
 	}
 
@@ -724,18 +724,18 @@ static void cli_pm_wakeup_source(char *pcWriteBuffer, int xWriteBufferLen, int a
 	if(sleep_mode == PM_MODE_LOW_VOLTAGE)
 	{
 		#if 0
-		os_printf("low voltage wakeup source [%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
+		BK_LOGD(NULL, "low voltage wakeup source [%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
 		#endif
 	}
 	else if(sleep_mode == PM_MODE_DEEP_SLEEP)
 	{
 		#if 0
-		os_printf("deepsleep wakeup source [%d]\r\n",bk_pm_deep_sleep_wakeup_source_get());
+		BK_LOGD(NULL, "deepsleep wakeup source [%d]\r\n",bk_pm_deep_sleep_wakeup_source_get());
 		#endif
 	}
 	else
 	{
-		os_printf("it not support the sleep mode[%d] for wakeup source \r\n",sleep_mode);
+		BK_LOGD(NULL, "it not support the sleep mode[%d] for wakeup source \r\n",sleep_mode);
 	}
 
 }
@@ -747,7 +747,7 @@ static void cli_pm_boot_cp2(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	UINT32 module_name    = 0;
 	if (argc != 3)
 	{
-		os_printf("cp2 ctrl parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "cp2 ctrl parameter invalid %d\r\n",argc);
 		return;
 	}
 	module_name   = os_strtoul(argv[1], NULL, 10);
@@ -762,7 +762,7 @@ static void cli_pm_boot_cp1(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	UINT32 module_name    = 0;
 	if (argc != 3)
 	{
-		os_printf("cp1 ctrl parameter invalid %d\r\n",argc);
+		BK_LOGD(NULL, "cp1 ctrl parameter invalid %d\r\n",argc);
 		return;
 	}
 	module_name   = os_strtoul(argv[1], NULL, 10);
@@ -778,12 +778,12 @@ static void cli_pm_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 {
 	if (os_strcmp(argv[1], "init") == 0)
 	{
-		CLI_LOGI("pm demo init\r\n");
+		CLI_LOGD("pm demo init\r\n");
 		pm_demo_thread_main();
 	} 
 	else if (os_strcmp(argv[1], "deep_sleep") == 0) 
 	{
-		CLI_LOGI("pm demo deep sleep\r\n");
+		CLI_LOGD("pm demo deep sleep\r\n");
 		#if CONFIG_PM_DEMO_ENABLE
 		pm_ap_core_msg_t msg = {0};
 		msg.event = PM_DEMO_ENTER_DEEP_SLEEP;
@@ -792,7 +792,7 @@ static void cli_pm_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	} 
 	else if (os_strcmp(argv[1], "low_vol") == 0)
 	{
-		CLI_LOGI("pm demo low vol\r\n");
+		CLI_LOGD("pm demo low vol\r\n");
 		#if CONFIG_PM_DEMO_ENABLE
 		pm_ap_core_msg_t msg = {0};
 		msg.event = PM_DEMO_ENTER_LOW_VOLTAGE;
@@ -801,7 +801,7 @@ static void cli_pm_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	} 
 	else 
 	{
-		CLI_LOGI("pm demo unknown cmd\r\n");
+		CLI_LOGD("pm demo unknown cmd\r\n");
 		return;
 	}
 }

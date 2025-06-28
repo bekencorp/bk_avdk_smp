@@ -403,7 +403,7 @@ extern void aon_rtc_update_boot_time();
 
 //call it after LOG is valid.
 #if CONFIG_ATE
-	os_printf("ate enabled is %d\r\n", ate_is_enabled());
+	BK_LOGD(NULL, "ate enabled is %d\r\n", ate_is_enabled());
 #endif
 
 #if CONFIG_TOUCH_PM_SUPPORT
@@ -433,7 +433,7 @@ extern void aon_rtc_update_boot_time();
 #if CONFIG_GET_UID_ENABLE
 	bk_uid_driver_init();
 #endif
-	os_printf("driver_init end\r\n");
+	BK_LOGD(NULL, "driver_init end\r\n");
 
 	return 0;
 }

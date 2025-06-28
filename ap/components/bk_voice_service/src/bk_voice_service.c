@@ -40,7 +40,7 @@
 
 #define VOICE_CHECK_NULL(ptr, act) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "%s, %d, VOICE_CHECK_NULL fail \n", __func__, __LINE__);\
+            BK_LOGD(TAG, "%s, %d, VOICE_CHECK_NULL fail \n", __func__, __LINE__);\
             {act;};\
         }\
     } while(0)
@@ -94,7 +94,7 @@ struct voice
 
 static bk_err_t record_pipeline_deinit(voice_handle_t voice_handle)
 {
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
 
@@ -211,17 +211,17 @@ static bk_err_t record_pipeline_deinit(voice_handle_t voice_handle)
 static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg)
 {
     bk_err_t ret = BK_OK;
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "step1: record pipeline init\n");
+    BK_LOGD(TAG, "step1: record pipeline init\n");
     audio_pipeline_cfg_t record_pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     record_pipeline_cfg.rb_size = 320;
     voice_handle->record_pipeline = audio_pipeline_init(&record_pipeline_cfg);
     VOICE_CHECK_NULL(voice_handle->record_pipeline, goto fail);
 
-    BK_LOGI(TAG, "step2: init record elements\n");
+    BK_LOGD(TAG, "step2: init record elements\n");
     if (voice_handle->mic_type == MIC_TYPE_ONBOARD)
     {
         voice_handle->mic_str = onboard_mic_stream_init(&cfg->mic_cfg.onboard_mic_cfg);
@@ -281,7 +281,7 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
     voice_handle->raw_read = raw_stream_init(&raw_read_cfg);
     VOICE_CHECK_NULL(voice_handle->raw_read, goto fail);
 
-    BK_LOGI(TAG, "step3: record pipeline register\n");
+    BK_LOGD(TAG, "step3: record pipeline register\n");
     if (BK_OK != audio_pipeline_register(voice_handle->record_pipeline, voice_handle->mic_str, "mic"))
     {
         BK_LOGE(TAG, "%s, %d, register mic_stream fail\n", __func__, __LINE__);
@@ -309,7 +309,7 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
         goto fail;
     }
 
-    BK_LOGI(TAG, "step4: record pipeline link\n");
+    BK_LOGD(TAG, "step4: record pipeline link\n");
     /* pipeline record */
     if (voice_handle->aec_en)
     {
@@ -350,7 +350,7 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
 
     if (voice_handle->event_handle)
     {
-        BK_LOGI(TAG, "step5: init record event listener\n");
+        BK_LOGD(TAG, "step5: init record event listener\n");
         audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
         voice_handle->record_evt = audio_event_iface_init(&evt_cfg);
         if (voice_handle->record_evt == NULL)
@@ -391,7 +391,7 @@ static bk_err_t record_pipeline_stop(audio_pipeline_handle_t record_pipeline)
 {
     VOICE_CHECK_NULL(record_pipeline, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     if (BK_OK != audio_pipeline_stop(record_pipeline))
     {
@@ -410,7 +410,7 @@ static bk_err_t record_pipeline_stop(audio_pipeline_handle_t record_pipeline)
 
 static bk_err_t play_pipeline_deinit(voice_handle_t voice_handle)
 {
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
 
@@ -508,16 +508,16 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
 {
     bk_err_t ret = BK_OK;
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
     VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "step1: play pipeline init\n");
+    BK_LOGD(TAG, "step1: play pipeline init\n");
     audio_pipeline_cfg_t play_pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     play_pipeline_cfg.rb_size = 320;
     voice_handle->play_pipeline = audio_pipeline_init(&play_pipeline_cfg);
     VOICE_CHECK_NULL(voice_handle->play_pipeline, return BK_FAIL);
 
-    BK_LOGI(TAG, "step2: init play elements\n");
+    BK_LOGD(TAG, "step2: init play elements\n");
     raw_stream_cfg_t raw_write_cfg = RAW_STREAM_CFG_DEFAULT();
     raw_write_cfg.type = AUDIO_STREAM_WRITER;
     raw_write_cfg.out_block_size = cfg->write_pool_size;
@@ -570,7 +570,7 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
     }
     VOICE_CHECK_NULL(voice_handle->spk_str, goto fail);
 
-    BK_LOGI(TAG, "step3: play pipeline register\n");
+    BK_LOGD(TAG, "step3: play pipeline register\n");
     if (BK_OK != audio_pipeline_register(voice_handle->play_pipeline, voice_handle->raw_write, "raw_write"))
     {
         BK_LOGE(TAG, "%s, %d, register raw_write stream fail", __func__, __LINE__);
@@ -589,7 +589,7 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
         goto fail;
     }
 
-    BK_LOGI(TAG, "step4: play pipeline link\n");
+    BK_LOGD(TAG, "step4: play pipeline link\n");
     if (voice_handle->spk_dec)
     {
         ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[])
@@ -610,7 +610,7 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
 
     if (voice_handle->event_handle)
     {
-        BK_LOGI(TAG, "step5: init play event listener\n");
+        BK_LOGD(TAG, "step5: init play event listener\n");
         audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
         voice_handle->play_evt = audio_event_iface_init(&evt_cfg);
         if (voice_handle->play_evt == NULL)
@@ -651,7 +651,7 @@ static bk_err_t play_pipeline_stop(audio_pipeline_handle_t play_pipeline)
 {
     VOICE_CHECK_NULL(play_pipeline, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     if (BK_OK != audio_pipeline_stop(play_pipeline))
     {
@@ -906,7 +906,7 @@ static bk_err_t listener_init(voice_handle_t voice_handle)
 
     rtos_get_semaphore(&voice_handle->listener_sem, BEKEN_NEVER_TIMEOUT);
 
-    BK_LOGI(TAG, "init voice listener task complete\n");
+    BK_LOGD(TAG, "init voice listener task complete\n");
 
     return BK_OK;
 
@@ -938,7 +938,7 @@ static bk_err_t listener_deinit(voice_handle_t voice_handle)
         return BK_OK;
     }
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     if (BK_OK != listener_send_msg(voice_handle->listener_msg_que, LISTENER_EXIT, NULL))
     {
@@ -950,7 +950,7 @@ static bk_err_t listener_deinit(voice_handle_t voice_handle)
     rtos_deinit_semaphore(&voice_handle->listener_sem);
     voice_handle->listener_sem = NULL;
 
-    BK_LOGI(TAG, "deinit voice listener complete\n");
+    BK_LOGD(TAG, "deinit voice listener complete\n");
 
     return BK_OK;
 }
@@ -964,7 +964,7 @@ static bk_err_t listener_start(voice_handle_t voice_handle)
         return BK_OK;
     }
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     bk_err_t ret = listener_send_msg(voice_handle->listener_msg_que, LISTENER_START, NULL);
     if (ret != BK_OK)
@@ -984,7 +984,7 @@ static bk_err_t listener_stop(voice_handle_t voice_handle)
         return BK_OK;
     }
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     bk_err_t ret = listener_send_msg(voice_handle->listener_msg_que, LISTENER_IDLE, NULL);
     if (ret != BK_OK)
@@ -1256,7 +1256,7 @@ bk_err_t bk_voice_deinit(voice_handle_t voice_handle)
 {
     VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     if (voice_handle->status == VOICE_STA_RUNNING)
     {
@@ -1266,9 +1266,9 @@ bk_err_t bk_voice_deinit(voice_handle_t voice_handle)
     listener_stop(voice_handle);
 
     record_pipeline_deinit(voice_handle);
-    BK_LOGI(TAG, "%s, record_pipeline deinit complete\n", __func__);
+    BK_LOGD(TAG, "%s, record_pipeline deinit complete\n", __func__);
     play_pipeline_deinit(voice_handle);
-    BK_LOGI(TAG, "%s, play_pipeline deinit complete\n", __func__);
+    BK_LOGD(TAG, "%s, play_pipeline deinit complete\n", __func__);
 
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
@@ -1299,7 +1299,7 @@ bk_err_t bk_voice_start(voice_handle_t voice_handle)
 {
     VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     if (voice_handle->status == VOICE_STA_RUNNING)
     {
@@ -1345,7 +1345,7 @@ bk_err_t bk_voice_stop(voice_handle_t voice_handle)
 {
     VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     if (voice_handle->status == VOICE_STA_IDLE || voice_handle->status == VOICE_STA_STOPED)
     {

@@ -168,7 +168,7 @@ void sdio_cmd_handler(void *buf, UINT32 len)
 		count = su_get_node_count(&sdio.rxing_list);
 #ifdef SDIO_MEM_DEBUG
 		if (rnf)
-			os_printf("rc %d\n", count);
+			BK_LOGD(NULL, "rc %d\n", count);
 #endif
 
 		if (count) {
@@ -529,7 +529,7 @@ UINT32 sdio_open(UINT32 op_flag)
 	reg = *((volatile UINT32 *)((0x00802000 + 16 * 4)));
 	if (reg & (1 << FIQ_SDIO_DMA)) {
 		//BK_ASSERT(0);
-		os_printf("already enabled sdio fiq\n");
+		BK_LOGD(NULL, "already enabled sdio fiq\n");
 	}
 
 	icu_enable_sdio_dma_interrupt();

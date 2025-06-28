@@ -56,16 +56,16 @@ bk_err_t wifi_send_com_api_cmd(uint32_t cmd_id, uint32_t argc, ...)
         for (int i = 0; i < argc; i++)
         {
             com_req.arg_info.args[i] = va_arg(args, uint32_t);
-            //WIFI_LOGI("arg[%d]:%x\n", i, com_req.arg_info.args[i]);
+            //WIFI_LOGD("arg[%d]:%x\n", i, com_req.arg_info.args[i]);
         }
         va_end(args);
     }
     wdrv_ret = wdrv_tx_msg((uint8_t *)&com_req, sizeof(com_req), &com_req.cmd_cfm, (uint8_t *)&ret);
 
-    //WIFI_LOGI("wifi_send_com_api_cmd cmd_id:%x argc:%d ret:%d\n", cmd_id, com_req.arg_info.argc, ret);
+    //WIFI_LOGD("wifi_send_com_api_cmd cmd_id:%x argc:%d ret:%d\n", cmd_id, com_req.arg_info.argc, ret);
     if (wdrv_ret < 0)
     {
-        WIFI_LOGI("wifi_send_com_api_cmd FAILED, cmd_id:%x argc:%d ret:%d\n", cmd_id, com_req.arg_info.argc, ret);
+        WIFI_LOGD("wifi_send_com_api_cmd FAILED, cmd_id:%x argc:%d ret:%d\n", cmd_id, com_req.arg_info.argc, ret);
         return BK_ERR_TIMEOUT;
     }
 

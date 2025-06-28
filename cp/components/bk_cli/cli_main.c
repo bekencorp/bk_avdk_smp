@@ -218,40 +218,53 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
 
     /* If you send  cli commands too quickly,it may cause memory exhaustion.
     Here we wait for enough memory before responding to command */
-    while ((rtos_get_free_heap_size() <= SHELL_CHECK_MINI_REMAIN_STACK) && (CheckBlockSizeValid(SHELL_CHECK_MINI_REMAIN_STACK) == 0))
-    {
-        rtos_delay_milliseconds(50);
-        shell_wait_cnt++;
-        if(shell_wait_cnt >= SHELL_TASK_CHECK_CNT) {
-            shell_wait_cnt = 0;
-            BK_ASSERT(0);
-        }
-    }
 
+    while (1) {
 #if CONFIG_PSRAM_AS_SYS_MEMORY		//try again in PSRAM
-    ret = rtos_create_psram_thread(&shell_handle_thread_handle,
-                                4,
-                                "shell_handle",
-                                (beken_thread_function_t)handle_shell_input_proxy,
-                                1024*7,
-                                (beken_thread_arg_t)(&cmd_par));
+        ret = rtos_create_psram_thread(&shell_handle_thread_handle,
+                                    4,
+                                    "shell_handle",
+                                    (beken_thread_function_t)handle_shell_input_proxy,
+                                    1024*7,
+                                    (beken_thread_arg_t)(&cmd_par));
+        if (ret != kNoErr) {
+            ret = rtos_create_thread(&shell_handle_thread_handle,
+                                    4,
+                                    "shell_handle",
+                                    (beken_thread_function_t)handle_shell_input_proxy,
+                                    1024*7,
+                                    (beken_thread_arg_t)(&cmd_par));
+        }
 #else
-    ret = rtos_create_thread(&shell_handle_thread_handle,
-                                4,
-                                "shell_handle",
-                                (beken_thread_function_t)handle_shell_input_proxy,
-                                1024*7,
-                                (beken_thread_arg_t)(&cmd_par));
+        ret = rtos_create_thread(&shell_handle_thread_handle,
+                                    4,
+                                    "shell_handle",
+                                    (beken_thread_function_t)handle_shell_input_proxy,
+                                    1024*7,
+                                    (beken_thread_arg_t)(&cmd_par));
 #endif
-    if (ret != kNoErr) {
-        os_printf("Error: Failed to create shell_handle_thread_handle thread in SRAM: %d\r\n", ret);
-        BK_ASSERT(0);
+        if (ret == kNoErr) 
+        {
+            break;
+        } 
+        else 
+        {       
+            shell_wait_cnt++;
+            if(shell_wait_cnt >= SHELL_TASK_CHECK_CNT) 
+            {
+                BK_LOGD(NULL,"Error: Failed to create shell_handle_thread_handle thread: %d\r\n", ret);
+                BK_ASSERT(0);
+            }
+
+            rtos_delay_milliseconds(20);
+        }
+
     }
 
 	err = rtos_get_semaphore(&wait_shell_handle_semaphore,BEKEN_WAIT_FOREVER);
 	if(err)
 	{
-		os_printf("get wait_shell_handle_semaphore fail\r\n");
+		BK_LOGD(NULL,"get wait_shell_handle_semaphore fail\r\n");
 	}
 	rtos_deinit_semaphore(&wait_shell_handle_semaphore);
 
@@ -447,7 +460,7 @@ static void ate_uart_rx_isr(uart_id_t id, void *param)
 
 	ret = rtos_set_semaphore(&ate_test_semaphore);
 	if(kNoErr !=ret)
-		os_printf("ate_uart_rx_isr: ATE set sema failed\r\n");
+		BK_LOGD(NULL,"ate_uart_rx_isr: ATE set sema failed\r\n");
 }
 
 static void ate_uart_tx_isr(uart_id_t id, void *param)
@@ -467,7 +480,7 @@ static void cli_ate_main(uint32_t data)
 	{
 		ret = rtos_init_semaphore(&ate_test_semaphore, 1);
 		if (kNoErr != ret)
-			os_printf("cli_ate_main: ATE create background sema failed\r\n");
+			BK_LOGD(NULL,"cli_ate_main: ATE create background sema failed\r\n");
 	}
 
 	bk_pm_cp1_auto_power_down_state_set(0x0);
@@ -522,7 +535,7 @@ static void cli_ate_main(uint32_t data)
 				break;
 	}
 
-	os_printf("CLI exited\r\n");
+	BK_LOGD(NULL,"CLI exited\r\n");
 	os_free(pCli);
 	pCli = NULL;
 
@@ -614,7 +627,7 @@ static int handle_input(char *inbuf)
                 stat.isD = 1;
             }
             else if(argc == 0){
-                os_printf("The data does not conform to the regulations %d\r\n",__LINE__);
+                BK_LOGD(NULL,"The data does not conform to the regulations %d\r\n",__LINE__);
                 return 2;
             }
             break;
@@ -622,7 +635,7 @@ static int handle_input(char *inbuf)
         case ',':
             if((stat.isD == 1)&&(argc == 1))  ///=,
             {
-                os_printf("The data does not conform to the regulations %d\r\n",__LINE__);
+                BK_LOGD(NULL,"The data does not conform to the regulations %d\r\n",__LINE__);
                 return 2;
             }
             if(!stat.inQuote && stat.inArg) {
@@ -653,7 +666,7 @@ static int handle_input(char *inbuf)
 		return 0;
 
 	if (!pCli->echo_disabled)
-		os_printf("\r\n");
+		BK_LOGD(NULL,"\r\n");
 
 	/*
 	* Some comamands can allow extensions like foo.a, foo.b and hence
@@ -693,7 +706,7 @@ static void tab_complete(char *inbuf, unsigned int *bp)
 	int i, n, m;
 	const char *fm = NULL;
 
-	os_printf("\r\n");
+	BK_LOGD(NULL,"\r\n");
 
 	/* show matching commands */
 	for (i = 0, n = 0, m = 0; i < MAX_COMMANDS && n < pCli->num_commands;
@@ -704,10 +717,10 @@ static void tab_complete(char *inbuf, unsigned int *bp)
 				if (m == 1)
 					fm = pCli->commands[i]->name;
 				else if (m == 2)
-					os_printf("%s %s ", fm,
+					BK_LOGD(NULL,"%s %s ", fm,
 							  pCli->commands[i]->name);
 				else
-					os_printf("%s ",
+					BK_LOGD(NULL,"%s ",
 							  pCli->commands[i]->name);
 			}
 			n++;
@@ -726,7 +739,7 @@ static void tab_complete(char *inbuf, unsigned int *bp)
 	}
 
 	/* just redraw input line */
-	os_printf("%s%s", PROMPT, inbuf);
+	BK_LOGD(NULL,"%s%s", PROMPT, inbuf);
 }
 /* Get an input line.
 *
@@ -734,7 +747,7 @@ static void tab_complete(char *inbuf, unsigned int *bp)
 static int get_input(char *inbuf, unsigned int *bp)
 {
 	if (inbuf == NULL) {
-		os_printf("inbuf_null\r\n");
+		BK_LOGD(NULL,"inbuf_null\r\n");
 		return 0;
 	}
 
@@ -760,8 +773,8 @@ static int get_input(char *inbuf, unsigned int *bp)
 				(*bp)++;
 
 				if (ch >= INBUF_SIZE) {
-					os_printf("Error: input buffer overflow\r\n");
-					os_printf(PROMPT);
+					BK_LOGD(NULL,"Error: input buffer overflow\r\n");
+					BK_LOGD(NULL,PROMPT);
 					*bp = 0;
 					return 0;
 				}
@@ -798,7 +811,7 @@ static int get_input(char *inbuf, unsigned int *bp)
 			if (*bp > 0) {
 				(*bp)--;
 				if (!pCli->echo_disabled)
-					os_printf("%c %c", 0x08, 0x08);
+					BK_LOGD(NULL,"%c %c", 0x08, 0x08);
 			}
 			continue;
 		}
@@ -810,12 +823,12 @@ static int get_input(char *inbuf, unsigned int *bp)
 		}
 
 		if (!pCli->echo_disabled)
-			os_printf("%c", inbuf[*bp]);
+			BK_LOGD(NULL,"%c", inbuf[*bp]);
 
 		(*bp)++;
 		if (*bp >= INBUF_SIZE) {
-			os_printf("Error: input buffer overflow\r\n");
-			os_printf(PROMPT);
+			BK_LOGD(NULL,"Error: input buffer overflow\r\n");
+			BK_LOGD(NULL,PROMPT);
 			*bp = 0;
 			return 0;
 		}
@@ -832,15 +845,15 @@ static void print_bad_command(char *cmd_string)
 {
 	if (cmd_string != NULL) {
 		char *c = cmd_string;
-		os_printf("command '");
+		BK_LOGD(NULL,"command '");
 		while (*c != '\0') {
 			if (is_print(*c))
-				os_printf("%c", *c);
+				BK_LOGD(NULL,"%c", *c);
 			else
-				os_printf("\\0x%x", *c);
+				BK_LOGD(NULL,"\\0x%x", *c);
 			++c;
 		}
-		os_printf("' not found\r\n");
+		BK_LOGD(NULL,"' not found\r\n");
 	}
 }
 
@@ -884,13 +897,13 @@ static void cli_main(uint32_t data)
 			if (ret == 1)
 				print_bad_command(msg);
 			else if (ret == 2)
-				os_printf("syntax error\r\n");
+				BK_LOGD(NULL,"syntax error\r\n");
 
-			os_printf(prompt);
+			BK_LOGD(NULL,prompt);
 		}
 	}
 
-	os_printf("CLI exited\r\n");
+	BK_LOGD(NULL,"CLI exited\r\n");
 	os_free(pCli);
 	pCli = NULL;
 
@@ -1071,13 +1084,13 @@ void cli_log_statist(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 		return;
 	}
 
-	os_printf("log overflow: %d.\r\n", log_statist[0]);
+	BK_LOGD(NULL,"log overflow: %d.\r\n", log_statist[0]);
 
-	os_printf("log out count: %d.\r\n", log_statist[1]);
+	BK_LOGD(NULL,"log out count: %d.\r\n", log_statist[1]);
 
 	for(i = 2; i < data_cnt; i++)
 	{
-		os_printf("Buffer[%d] run out count: %d.\r\n", i - 2, log_statist[i]);
+		BK_LOGD(NULL,"Buffer[%d] run out count: %d.\r\n", i - 2, log_statist[i]);
 	}
 
 	print_dynamic_log_info();
@@ -1221,7 +1234,7 @@ void cli_sort_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 
 	build_in_count = sizeof(built_ins) / sizeof(struct cli_command);
 
-	//os_printf("cmd_count:%d, built_in_count:%d\r\n", pCli->num_commands, build_in_count);
+	//BK_LOGD(NULL,"cmd_count:%d, built_in_count:%d\r\n", pCli->num_commands, build_in_count);
 
 	GLOBAL_INT_DISABLE();
 	qsort(&pCli->commands[build_in_count], pCli->num_commands - build_in_count, sizeof(struct cli_command *), _cli_name_cmp);
@@ -1799,7 +1812,7 @@ int bk_cli_init(void)
 							 0);
 #endif // #if CONFIG_SHELL_ASYNCLOG
 	if (ret != kNoErr) {
-		os_printf("Error: Failed to create cli thread: %d\r\n",
+		BK_LOGD(NULL,"Error: Failed to create cli thread: %d\r\n",
 				  ret);
 		goto init_general_err;
 	}
@@ -1834,12 +1847,12 @@ void cli_show_running_command(void)
 	if (s_running_command_index < MAX_COMMANDS) {
 		const struct cli_command *cmd = pCli->commands[s_running_command_index];
 
-		CLI_LOGI("last cli command[%d]: %s(%s)\n", s_running_command_index, cmd->name,
+		CLI_LOGD("last cli command[%d]: %s(%s)\n", s_running_command_index, cmd->name,
 				 (s_running_status & CLI_COMMAND_IS_RUNNING) ? "running" : "stopped");
 		rtos_dump_task_list();
 		rtos_dump_backtrace();
 	} else
-		CLI_LOGI("no command running\n");
+		CLI_LOGD("no command running\n");
 }
 #endif
 

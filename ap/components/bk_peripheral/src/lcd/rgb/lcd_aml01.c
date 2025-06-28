@@ -246,7 +246,7 @@ static void lcd_nv3052_config(void)
 
 static void lcd_nv3052cgrb_init(void)
 {
-	os_printf("lcd_nv3052cgrb: init.\r\n");
+	BK_LOGD(NULL, "lcd_nv3052cgrb: init.\r\n");
 	lcd_spi_init_gpio();
 	lcd_nv3052_config();
 }

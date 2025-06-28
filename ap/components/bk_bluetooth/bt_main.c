@@ -63,7 +63,7 @@ bt_err_t bk_bluetooth_init(void)
 {
     bt_err_t ret = 0;
 
-    LOGI("%s start, %d \r\n", __func__, bluetooth_already_init);
+    LOGD("%s start, %d \r\n", __func__, bluetooth_already_init);
     if (bluetooth_already_init)
     {
         LOGE("%s bluetooth already initialised\r\n", __func__);
@@ -84,7 +84,7 @@ bt_err_t bk_bluetooth_init(void)
 
     bluetooth_already_init = 1;
 
-    LOGI("%s ok\r\n", __func__);
+    LOGD("%s ok\r\n", __func__);
     return ret;
 }
 
@@ -92,7 +92,7 @@ bt_err_t bk_bluetooth_deinit(void)
 {
     bt_err_t ret = 0;
 
-    LOGI("%s start, %d \r\n", __func__, bluetooth_already_init);
+    LOGD("%s start, %d \r\n", __func__, bluetooth_already_init);
     if (!bluetooth_already_init)
     {
         LOGE("%s bluetooth already de-initialised\r\n", __func__);
@@ -109,7 +109,7 @@ bt_err_t bk_bluetooth_deinit(void)
         bt_sem = NULL;
     }
 
-    LOGI("%s ok\r\n", __func__);
+    LOGD("%s ok\r\n", __func__);
     return ret;
 }
 

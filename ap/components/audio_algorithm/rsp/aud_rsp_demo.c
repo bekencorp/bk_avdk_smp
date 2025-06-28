@@ -33,7 +33,7 @@ static uint32_t out_len = 0;
 
 static void cli_aud_rsp_help(void)
 {
-	os_printf("cli_aud_rsp_test_cmd {8000|16000|32000|48000 1 16 xxx.pcm 8000|16000|32000|48000 0|1 16 xxx.pcm 0~10} \r\n");
+	BK_LOGD(NULL, "cli_aud_rsp_test_cmd {8000|16000|32000|48000 1 16 xxx.pcm 8000|16000|32000|48000 0|1 16 xxx.pcm 0~10} \r\n");
 }
 
 void cli_aud_rsp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -63,7 +63,7 @@ void cli_aud_rsp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	sprintf(in_file_name, "1:/%s", argv[4]);
 	fr = f_open(&file_in, in_file_name, FA_OPEN_EXISTING | FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", in_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", in_file_name);
 		return;
 	}
 
@@ -74,10 +74,10 @@ void cli_aud_rsp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	sprintf(out_file_name, "1:/%s", argv[8]);
 	fr = f_open(&file_out, out_file_name, FA_CREATE_ALWAYS | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", out_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", out_file_name);
 		fr = f_close(&file_in);
 		if (fr != FR_OK) {
-			os_printf("close out file %s fail!\r\n", in_file_name);
+			BK_LOGD(NULL, "close out file %s fail!\r\n", in_file_name);
 			return;
 		}
 		return;
@@ -88,15 +88,15 @@ void cli_aud_rsp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
     /* init audio resample */
 	ret = bk_aud_rsp_init(rsp_cfg);
 	if (ret != BK_OK) {
-		os_printf("init rsp fail \r\n");
+		BK_LOGD(NULL, "init rsp fail \r\n");
 		fr = f_close(&file_out);
 		if (fr != FR_OK) {
-			os_printf("close out file %s fail!\r\n", out_file_name);
+			BK_LOGD(NULL, "close out file %s fail!\r\n", out_file_name);
 			return;
 		}
 		fr = f_close(&file_in);
 		if (fr != FR_OK) {
-			os_printf("close out file %s fail!\r\n", in_file_name);
+			BK_LOGD(NULL, "close out file %s fail!\r\n", in_file_name);
 			return;
 		}
 		return;
@@ -105,7 +105,7 @@ void cli_aud_rsp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	in_addr = (int16_t *)os_malloc(FARME_LEN);
 	out_addr = (int16_t *)os_malloc(FARME_LEN);
 	if (in_addr != NULL && out_addr != NULL)
-		os_printf("malloc ok \r\n");
+		BK_LOGD(NULL, "malloc ok \r\n");
 	else {
 		if (in_addr != NULL)
 		{
@@ -115,7 +115,7 @@ void cli_aud_rsp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		{
 			os_free(out_addr);
 		}
-		os_printf("malloc fail \r\n");
+		BK_LOGD(NULL, "malloc fail \r\n");
 		bk_aud_rsp_deinit();
 		return;
 	}
@@ -123,11 +123,11 @@ void cli_aud_rsp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	os_memset(out_addr, 0, FARME_LEN);
 
 	rsp_size = f_size(&file_in);
-	os_printf("rsp_size = %d \r\n", rsp_size);
+	BK_LOGD(NULL, "rsp_size = %d \r\n", rsp_size);
 	while (!file_empty_flag) {
 		fr = f_read(&file_in, in_addr, FARME_LEN, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read in data fail.\r\n");
+			BK_LOGD(NULL, "read in data fail.\r\n");
 			break;
 		}
 
@@ -141,14 +141,14 @@ void cli_aud_rsp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		ret = bk_aud_rsp_process(in_addr, &in_len, out_addr, &out_len);
 //		addAON_GPIO_Reg0x8 = 0;
 		if (ret == BK_FAIL) {
-			os_printf("bk_aud_rsp_process fail \r\n");
+			BK_LOGD(NULL, "bk_aud_rsp_process fail \r\n");
 			break;
 		}
-		//os_printf("err:%d, in_len:%d, out_len:%d \r\n", err, in_len, out_len);
+		//BK_LOGD(NULL, "err:%d, in_len:%d, out_len:%d \r\n", err, in_len, out_len);
 
 		fr = f_write(&file_out, (void *)out_addr, out_len*2, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("write output data %s fail.\r\n", out_file_name);
+			BK_LOGD(NULL, "write output data %s fail.\r\n", out_file_name);
 			break;
 		}
 	}
@@ -157,22 +157,22 @@ void cli_aud_rsp_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	os_free(in_addr);
 	os_free(out_addr);
 
-	os_printf("break while \r\n");
+	BK_LOGD(NULL, "break while \r\n");
 	fr = f_close(&file_out);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", out_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", out_file_name);
 		return;
 	}
 
 	fr = f_close(&file_in);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", in_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", in_file_name);
 		return;
 	}
 
-	os_printf("resample test complete \r\n");
+	BK_LOGD(NULL, "resample test complete \r\n");
 
-	os_printf("test finish \r\n");
+	BK_LOGD(NULL, "test finish \r\n");
 
 }
 

@@ -492,7 +492,7 @@ void hapd_notify_sta_connected(struct hostapd_data *hapd, const u8 *mac)
 	}
 
 	if (wpa_hostapd_no_password_connected(mac)) {
-		WPA_LOGD("send connected msg\r\n"); // the position is for wangxuejun momentarily
+		WPA_LOGV("send connected msg\r\n"); // the position is for wangxuejun momentarily
 	}
 #endif
 #if CONFIG_WIFI_VNET_CONTROLLER

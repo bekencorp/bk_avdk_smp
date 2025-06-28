@@ -1082,7 +1082,7 @@ void wpa_supplicant_external_auth_timeout(void *eloop_ctx, void *timeout_ctx)
 	struct wpa_supplicant *wpa_s = eloop_ctx;
 
 #ifdef CONFIG_NO_STDOUT_DEBUG
-	WPA_LOGI("%s\n", __func__);
+	WPA_LOGD("%s\n", __func__);
 #else
 	wpa_printf(MSG_INFO, "%s", __func__);
 #endif
@@ -1416,7 +1416,7 @@ static int sme_sae_auth(struct wpa_supplicant *wpa_s, u16 auth_transaction,
 	int *groups;
 
 #ifdef CONFIG_NO_STDOUT_DEBUG
-	WPA_LOGI("SME: SAE authentication transaction %u "
+	WPA_LOGD("SME: SAE authentication transaction %u "
 		"status code %u\n", auth_transaction, status_code);
 #else
 	wpa_dbg(wpa_s, MSG_DEBUG, "SME: SAE authentication transaction %u "
@@ -1670,7 +1670,7 @@ void sme_event_auth(struct wpa_supplicant *wpa_s, union wpa_event_data *data)
 
 #ifdef CONFIG_NO_STDOUT_DEBUG
 	if (data->auth.status_code)
-		WPA_LOGI("SME: AuthRSP: peer=" MACSTR
+		WPA_LOGD("SME: AuthRSP: peer=" MACSTR
 			" auth_type=%d auth_transaction=%d status_code=%d\n",
 			MAC2STR(data->auth.peer), data->auth.auth_type,
 			data->auth.auth_transaction, data->auth.status_code);
@@ -2251,7 +2251,7 @@ mscs_fail:
 
 #ifdef BK_SUPPLICANT
 	/* append bcn ie */
-	//WPA_LOGI("%s: bss %p, ie_len %d\n", __func__, wpa_s->current_bss, wpa_s->current_bss ? wpa_s->current_bss->ie_len : -1);
+	//WPA_LOGD("%s: bss %p, ie_len %d\n", __func__, wpa_s->current_bss, wpa_s->current_bss ? wpa_s->current_bss->ie_len : -1);
 	if (wpa_s->current_bss && wpa_s->current_bss->ie_len) {
 		params.bcn_ie = wpa_s->current_bss->ies;
 		params.bcn_len = wpa_s->current_bss->ie_len;

@@ -43,7 +43,7 @@ bk_err_t bk_spec_flash_write_bytes(bk_partition_t partition, const uint8_t *user
 	save_flashdata_buff= os_malloc(bk_ptr->partition_length);
 	if(save_flashdata_buff == NULL)
 	{
-		os_printf("save_flashdata_buff malloc err\r\n");
+		BK_LOGD(NULL, "save_flashdata_buff malloc err\r\n");
 		return BK_FAIL;
 	}
 
@@ -140,15 +140,15 @@ bk_err_t bk_flash_erase_fast(uint32_t erase_off, uint32_t len)
 
 	while (erase_remain > 0) {
 		if ((erase_remain >= KB(64)) && is_64k_aligned(erase_off)) {
-			FLASH_LOGD("64k erase: off=%x remain=%x\r\n", erase_off, erase_remain);
+			FLASH_LOGV("64k erase: off=%x remain=%x\r\n", erase_off, erase_remain);
 			bk_flash_erase_block(erase_off);
 			erase_size = KB(64);
 		} else if ((erase_remain >= KB(32)) && is_32k_aligned(erase_off)) {
-			FLASH_LOGD("32k erase: off=%x remain=%x\r\n", erase_off, erase_remain);
+			FLASH_LOGV("32k erase: off=%x remain=%x\r\n", erase_off, erase_remain);
 			bk_flash_erase_32k(erase_off);
 			erase_size = KB(32);
 		} else {
-			FLASH_LOGD("4k erase: off=%x remain=%x\r\n", erase_off, erase_remain);
+			FLASH_LOGV("4k erase: off=%x remain=%x\r\n", erase_off, erase_remain);
 			bk_flash_erase_sector(erase_off);
 			erase_size = KB(4);
 		}

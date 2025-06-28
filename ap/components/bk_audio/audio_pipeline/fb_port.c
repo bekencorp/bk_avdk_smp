@@ -74,7 +74,7 @@ static bk_err_t _framebuf_port_read(audio_port_handle_t self, char *buffer, int 
     {
         if (ret > len)
         {
-            BK_LOGI(TAG, "%s, frame size:%d > buffer len:%d\n", __func__, ret, len);
+            BK_LOGD(TAG, "%s, frame size:%d > buffer len:%d\n", __func__, ret, len);
             ret = PORT_SIZE_OUT_RANGE;
         }
         else
@@ -85,7 +85,7 @@ static bk_err_t _framebuf_port_read(audio_port_handle_t self, char *buffer, int 
 
     fb_free(fb_port->fb, fb_node_item, 0);
 
-    BK_LOGD(TAG, "%s, ret:%d\n", __func__, ret);
+    BK_LOGV(TAG, "%s, ret:%d\n", __func__, ret);
     return ret;
 }
 
@@ -99,7 +99,7 @@ static bk_err_t _framebuf_port_write(audio_port_handle_t self, char *buffer, int
     {
         if (ret < len)
         {
-            BK_LOGI(TAG, "%s, frame size:%d < buffer len:%d\n", __func__, ret, len);
+            BK_LOGD(TAG, "%s, frame size:%d < buffer len:%d\n", __func__, ret, len);
             /* push framebuf to free list */
             fb_free(fb_port->fb, fb_node_item, 0);
             ret = PORT_SIZE_OUT_RANGE;
@@ -112,7 +112,7 @@ static bk_err_t _framebuf_port_write(audio_port_handle_t self, char *buffer, int
         }
     }
 
-    BK_LOGD(TAG, "%s, ret:%d\n", __func__, ret);
+    BK_LOGV(TAG, "%s, ret:%d\n", __func__, ret);
     return ret;
 }
 
@@ -172,7 +172,7 @@ audio_port_handle_t framebuf_port_init(framebuf_port_cfg_t *config)
     audio_port_set_type(port, PORT_TYPE_FB);
     audio_port_set_data(port, fb_port);
 
-    BK_LOGI(TAG, "framebuf port init, port:%p\n", port);
+    BK_LOGD(TAG, "framebuf port init, port:%p\n", port);
     return port;
 
 fail:

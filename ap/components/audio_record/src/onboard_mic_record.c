@@ -25,6 +25,7 @@
 #define LOGW(...) BK_LOGW(ONBOARD_MIC_RECORD_TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(ONBOARD_MIC_RECORD_TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(ONBOARD_MIC_RECORD_TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(ONBOARD_MIC_RECORD_TAG, ##__VA_ARGS__)
 
 
 #define DMA_CARRY_MIC_FRAME_NUM                (2)
@@ -227,7 +228,7 @@ static void mic_data_write_task_main(beken_thread_arg_t param_data)
                 else
                 {
                     /* not write mic data */
-                    LOGD("%s, %d, mic data full and not write\n", __func__, __LINE__);
+                    LOGV("%s, %d, mic data full and not write\n", __func__, __LINE__);
                     //os_memset(spk_data_read_handle->read_buff, 0, spk_data_read_handle->frame_size);
                 }
             }
@@ -314,7 +315,7 @@ static bk_err_t mic_data_write_task_init(onboard_mic_record_priv_t *mic_data_wri
 
     rtos_get_semaphore(&mic_data_write_handle->sem, BEKEN_NEVER_TIMEOUT);
 
-    LOGI("init mic data write task complete\n");
+    LOGD("init mic data write task complete\n");
 
     return BK_OK;
 
@@ -353,7 +354,7 @@ bk_err_t mic_data_write_task_deinit(onboard_mic_record_priv_t *mic_data_write_ha
 
     ONBOARD_MIC_RECORD_CHECK_NULL(mic_data_write_handle);
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     ret = mic_data_write_send_msg(mic_data_write_handle->mic_data_write_msg_que, MIC_DATA_WRITE_EXIT, NULL);
     if (ret != BK_OK)
@@ -377,7 +378,7 @@ bk_err_t mic_data_write_task_deinit(onboard_mic_record_priv_t *mic_data_write_ha
         os_free(mic_data_write_handle->write_buff);
     }
 
-    LOGI("deinit mic data write complete\n");
+    LOGD("deinit mic data write complete\n");
 
     return BK_OK;
 }
@@ -448,7 +449,7 @@ static bk_err_t aud_adc_dma_config(onboard_mic_record_priv_t *onboard_mic)
     onboard_mic->dma_rb_addr = (int32_t *)os_malloc(2 * onboard_mic->frame_size + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL);
     ONBOARD_MIC_RECORD_CHECK_NULL(onboard_mic->dma_rb_addr);
     ring_buffer_init(&onboard_mic->dma_rb, (uint8_t *)onboard_mic->dma_rb_addr, onboard_mic->frame_size * onboard_mic->frame_num + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL, onboard_mic->adc_dma_id, RB_DMA_TYPE_WRITE);
-    LOGI("%s, %d, dma_id: %d, dma_rb_addr: %p, dma_rb_size: %d \n", __func__, __LINE__, onboard_mic->adc_dma_id, onboard_mic->dma_rb_addr, onboard_mic->frame_size * onboard_mic->frame_num + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL);
+    LOGD("%s, %d, dma_id: %d, dma_rb_addr: %p, dma_rb_size: %d \n", __func__, __LINE__, onboard_mic->adc_dma_id, onboard_mic->dma_rb_addr, onboard_mic->frame_size * onboard_mic->frame_num + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL);
     /* init dma channel */
     os_memset(&dma_config, 0, sizeof(dma_config_t));
 
@@ -539,7 +540,7 @@ static bk_err_t mic_adc_config(onboard_mic_record_priv_t *onboard_mic)
     aud_adc_cfg.samp_rate = onboard_mic->config.sampRate;
     aud_adc_cfg.adc_gain = onboard_mic->config.adc_gain;
     aud_adc_cfg.clk_src = AUD_CLK_XTAL;
-    LOGI("adc_cfg chl_num: %s, adc_gain: 0x%02x, samp_rate: %d, clk_src: %s, adc_mode: %s \n",
+    LOGD("adc_cfg chl_num: %s, adc_gain: 0x%02x, samp_rate: %d, clk_src: %s, adc_mode: %s \n",
             aud_adc_cfg.adc_chl == AUD_ADC_CHL_L ? "AUD_ADC_CHL_L" : "AUD_ADC_CHL_LR",
             aud_adc_cfg.adc_gain,
             aud_adc_cfg.samp_rate,
@@ -630,7 +631,7 @@ static bk_err_t onboard_mic_start(onboard_mic_record_priv_t *onboard_mic)
 
 static bk_err_t onboard_mic_stop(onboard_mic_record_priv_t *onboard_mic)
 {
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
 
     bk_err_t ret = bk_dma_stop(onboard_mic->adc_dma_id);
     if (ret != BK_OK)
@@ -651,7 +652,7 @@ static bk_err_t onboard_mic_stop(onboard_mic_record_priv_t *onboard_mic)
 
 static bk_err_t onboard_mic_close(onboard_mic_record_priv_t *onboard_mic)
 {
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
 
     ONBOARD_MIC_RECORD_CHECK_NULL(onboard_mic);
 
@@ -681,7 +682,7 @@ static bk_err_t onboard_mic_close(onboard_mic_record_priv_t *onboard_mic)
 
 static bk_err_t onboard_mic_set_adc_gain(int value)
 {
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
 
     return bk_aud_adc_set_gain(value);
 }
@@ -748,7 +749,7 @@ static int onboard_mic_record_open(audio_record_t *record, audio_record_cfg_t *c
 
     AUD_MIC_DATA_DUMP_OPEN();
 
-    LOGI("onboard mic open complete \n");
+    LOGD("onboard mic open complete \n");
 
     return BK_OK;
 }
@@ -766,7 +767,7 @@ static int onboard_mic_record_close(audio_record_t *record)
         return BK_OK;
     }
 
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
 
     ret = onboard_mic_stop(priv);
     if (ret != BK_OK)
@@ -786,7 +787,7 @@ static int onboard_mic_record_close(audio_record_t *record)
 
     AUD_MIC_DATA_DUMP_CLOSE();
 
-    LOGD("onboard mic close complete\n");
+    LOGV("onboard mic close complete\n");
     return BK_OK;
 }
 

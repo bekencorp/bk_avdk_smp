@@ -22,42 +22,42 @@
 void i2c_struct_dump(i2c_id_t id)
 {
 	i2c_typedef_t *hw = (i2c_typedef_t *)I2C_LL_REG_BASE(id);
-	SOC_LOGI("base=%x\r\n", (uint32_t)hw);
+	SOC_LOGD("base=%x\r\n", (uint32_t)hw);
 
-	SOC_LOGI("  sm_bus_cfg=0x%x value=0x%x\n", &hw->sm_bus_cfg, hw->sm_bus_cfg.v);
-	SOC_LOGI("    idle_cr:     %x\n", hw->sm_bus_cfg.idle_cr);
-	SOC_LOGI("    scl_cr:      %x\n", hw->sm_bus_cfg.scl_cr);
-	SOC_LOGI("    freq_div:    %x\n", hw->sm_bus_cfg.freq_div);
-	SOC_LOGI("    slave_addr:  %x\n", hw->sm_bus_cfg.slave_addr);
-	SOC_LOGI("    clk_src:     %x\n", hw->sm_bus_cfg.clk_src);
-	SOC_LOGI("    timeout_en:  %x\n", hw->sm_bus_cfg.timeout_en);
-	SOC_LOGI("    idle_det_en: %x\n", hw->sm_bus_cfg.idle_det_en);
-	SOC_LOGI("    inh:         %x\n", hw->sm_bus_cfg.inh);
-	SOC_LOGI("    en:          %x\n", hw->sm_bus_cfg.en);
+	SOC_LOGD("  sm_bus_cfg=0x%x value=0x%x\n", &hw->sm_bus_cfg, hw->sm_bus_cfg.v);
+	SOC_LOGD("    idle_cr:     %x\n", hw->sm_bus_cfg.idle_cr);
+	SOC_LOGD("    scl_cr:      %x\n", hw->sm_bus_cfg.scl_cr);
+	SOC_LOGD("    freq_div:    %x\n", hw->sm_bus_cfg.freq_div);
+	SOC_LOGD("    slave_addr:  %x\n", hw->sm_bus_cfg.slave_addr);
+	SOC_LOGD("    clk_src:     %x\n", hw->sm_bus_cfg.clk_src);
+	SOC_LOGD("    timeout_en:  %x\n", hw->sm_bus_cfg.timeout_en);
+	SOC_LOGD("    idle_det_en: %x\n", hw->sm_bus_cfg.idle_det_en);
+	SOC_LOGD("    inh:         %x\n", hw->sm_bus_cfg.inh);
+	SOC_LOGD("    en:          %x\n", hw->sm_bus_cfg.en);
 
-	SOC_LOGI("\n");
-	SOC_LOGI("  sm_bus_status=0x%x value=0x%x\n", &hw->sm_bus_status, hw->sm_bus_status.v);
-	SOC_LOGI("    sm_int:        %x\n", hw->sm_bus_status.sm_int);
-	SOC_LOGI("    scl_timeout:   %x\n", hw->sm_bus_status.scl_timeout);
-	SOC_LOGI("    reserved0:     %x\n", hw->sm_bus_status.reserved0);
-	SOC_LOGI("    arb_lost:      %x\n", hw->sm_bus_status.arb_lost);
-	SOC_LOGI("    rx_fifo_empty: %x\n", hw->sm_bus_status.rx_fifo_empty);
-	SOC_LOGI("    tx_fifo_full:  %x\n", hw->sm_bus_status.tx_fifo_full);
-	SOC_LOGI("    int_mode:      %x\n", hw->sm_bus_status.int_mode);
-	SOC_LOGI("    ack:           %x\n", hw->sm_bus_status.ack);
-	SOC_LOGI("    stop:          %x\n", hw->sm_bus_status.stop);
-	SOC_LOGI("    start:         %x\n", hw->sm_bus_status.start);
-	SOC_LOGI("    addr_match:    %x\n", hw->sm_bus_status.addr_match);
-	SOC_LOGI("    ack_req:       %x\n", hw->sm_bus_status.ack_req);
-	SOC_LOGI("    tx_mode:       %x\n", hw->sm_bus_status.tx_mode);
-	SOC_LOGI("    master:        %x\n", hw->sm_bus_status.master);
-	SOC_LOGI("    busy:          %x\n", hw->sm_bus_status.busy);
-	SOC_LOGI("    reserved1:     %x\n", hw->sm_bus_status.reserved1);
+	SOC_LOGD("\n");
+	SOC_LOGD("  sm_bus_status=0x%x value=0x%x\n", &hw->sm_bus_status, hw->sm_bus_status.v);
+	SOC_LOGD("    sm_int:        %x\n", hw->sm_bus_status.sm_int);
+	SOC_LOGD("    scl_timeout:   %x\n", hw->sm_bus_status.scl_timeout);
+	SOC_LOGD("    reserved0:     %x\n", hw->sm_bus_status.reserved0);
+	SOC_LOGD("    arb_lost:      %x\n", hw->sm_bus_status.arb_lost);
+	SOC_LOGD("    rx_fifo_empty: %x\n", hw->sm_bus_status.rx_fifo_empty);
+	SOC_LOGD("    tx_fifo_full:  %x\n", hw->sm_bus_status.tx_fifo_full);
+	SOC_LOGD("    int_mode:      %x\n", hw->sm_bus_status.int_mode);
+	SOC_LOGD("    ack:           %x\n", hw->sm_bus_status.ack);
+	SOC_LOGD("    stop:          %x\n", hw->sm_bus_status.stop);
+	SOC_LOGD("    start:         %x\n", hw->sm_bus_status.start);
+	SOC_LOGD("    addr_match:    %x\n", hw->sm_bus_status.addr_match);
+	SOC_LOGD("    ack_req:       %x\n", hw->sm_bus_status.ack_req);
+	SOC_LOGD("    tx_mode:       %x\n", hw->sm_bus_status.tx_mode);
+	SOC_LOGD("    master:        %x\n", hw->sm_bus_status.master);
+	SOC_LOGD("    busy:          %x\n", hw->sm_bus_status.busy);
+	SOC_LOGD("    reserved1:     %x\n", hw->sm_bus_status.reserved1);
 
-	SOC_LOGI("\n");
-	SOC_LOGI("  sm_bus_data=0x%x value=0x%x\n", &hw->sm_bus_data, hw->sm_bus_data.v);
-	SOC_LOGI("    data:     %x\n", hw->sm_bus_data.data);
-	SOC_LOGI("    reserved: %x\n", hw->sm_bus_data.reserved);
+	SOC_LOGD("\n");
+	SOC_LOGD("  sm_bus_data=0x%x value=0x%x\n", &hw->sm_bus_data, hw->sm_bus_data.v);
+	SOC_LOGD("    data:     %x\n", hw->sm_bus_data.data);
+	SOC_LOGD("    reserved: %x\n", hw->sm_bus_data.reserved);
 }
 
 #endif

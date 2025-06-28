@@ -22,6 +22,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 //#define DEBUG_DUMP
 //#define DEBUG_HEAD
@@ -63,14 +64,14 @@ void doorbell_hex_dump(uint8_t *data, uint32_t length)
 #ifdef DUMP_DEBUG
 	for (int i = 0; i < length; i++)
 	{
-		os_printf("%02X ", data[i]);
+		BK_RAW_LOGD(TAG, "%02X ", data[i]);
 
 		if ((i + 1) % 20 == 0)
 		{
-			os_printf("\n");
+			BK_RAW_LOGD(TAG, "\r\n");
 		}
 	}
-	os_printf("\n");
+	BK_RAW_LOGD(TAG, "\r\n");
 #endif
 }
 
@@ -106,7 +107,7 @@ db_channel_t *doorbell_transmission_malloc(uint16_t max_rx_size, uint16_t max_tx
 
 	db_channel->tsize = max_tx_size;
 
-	LOGI("%s, %p, %p %d, %p %d\n", __func__, db_channel, db_channel->cbuf, db_channel->csize, db_channel->tbuf, db_channel->tsize);
+	LOGD("%s, %p, %p %d, %p %d\n", __func__, db_channel, db_channel->cbuf, db_channel->csize, db_channel->tbuf, db_channel->tsize);
 
 	return db_channel;
 
@@ -138,11 +139,11 @@ void doorbell_transmission_unpack(db_channel_t *channel, uint8_t *data, uint32_t
 #ifdef DUMP_DEBUG
 	static uint32_t count = 0;
 
-	LOGD("DUMP DATA %u, size: %u\n", count++, length);
+	LOGV("DUMP DATA %u, size: %u\n", count++, length);
 
 	doorbell_hex_dump(data, length);
 #else
-	LOGD("recv unpack: %u\n", length);
+	LOGV("recv unpack: %u\n", length);
 #endif
 
 	while (left != 0)
@@ -182,8 +183,8 @@ void doorbell_transmission_unpack(db_channel_t *channel, uint8_t *data, uint32_t
 				head.reserved[1] = ptr->reserved[1];
 				head.reserved[2] = ptr->reserved[2];
 #ifdef DEBUG_HEAD
-				LOGI("head size: %d, %d, flags: %04X\n", HEAD_SIZE_TOTAL, sizeof(db_trans_head_t), head.flags);
-				LOGI("time: %u, len: %u, seq: %u, crc: %02X\n",
+				LOGD("head size: %d, %d, flags: %04X\n", HEAD_SIZE_TOTAL, sizeof(db_trans_head_t), head.flags);
+				LOGD("time: %u, len: %u, seq: %u, crc: %02X\n",
 					head.timestamp, head.length, head.sequence, head.crc);
 #endif
 			}
@@ -213,10 +214,10 @@ void doorbell_transmission_unpack(db_channel_t *channel, uint8_t *data, uint32_t
 
 				if (ret_crc != head.crc)
 				{
-					LOGI("check crc failed\n");
+					LOGD("check crc failed\n");
 				}
 
-				LOGI("CRC SRC: %02X,  CALC: %02X\n", head.crc, ret_crc);
+				LOGD("CRC SRC: %02X,  CALC: %02X\n", head.crc, ret_crc);
 			}
 #endif
 
@@ -284,8 +285,8 @@ void doorbell_transmission_unpack(db_channel_t *channel, uint8_t *data, uint32_t
 				head.reserved[2] = ptr->reserved[2];
 
 #ifdef DEBUG_HEAD
-				LOGI("head size: %d, %d, flags: %04X\n", HEAD_SIZE_TOTAL, sizeof(db_trans_head_t), head.flags);
-				LOGI("time: %u, len: %u, seq: %u, crc: %02X\n",
+				LOGD("head size: %d, %d, flags: %04X\n", HEAD_SIZE_TOTAL, sizeof(db_trans_head_t), head.flags);
+				LOGD("time: %u, len: %u, seq: %u, crc: %02X\n",
 					head.timestamp, head.length, head.sequence, head.crc);
 #endif
 			}
@@ -331,10 +332,10 @@ void doorbell_transmission_unpack(db_channel_t *channel, uint8_t *data, uint32_t
 
 					if (ret_crc != head.crc)
 					{
-						LOGI("check crc failed\n");
+						LOGD("check crc failed\n");
 					}
 
-					LOGI("CRC SRC: %02X,  CALC: %02X\n", head.crc, ret_crc);
+					LOGD("CRC SRC: %02X,  CALC: %02X\n", head.crc, ret_crc);
 				}
 #endif
 
@@ -343,7 +344,7 @@ void doorbell_transmission_unpack(db_channel_t *channel, uint8_t *data, uint32_t
 					cb(channel, head.sequence, head.flags, head.timestamp, head.sequence, ptr->payload, head.length);
 				}
 
-				//LOGI("cached: %d, left: %d\n", channel->ccount, left);
+				//LOGD("cached: %d, left: %d\n", channel->ccount, left);
 
 				channel->ccount = 0;
 			}
@@ -358,7 +359,7 @@ void doorbell_transmission_unpack(db_channel_t *channel, uint8_t *data, uint32_t
 		}
 	}
 
-	//LOGI("next cached: %d\n", channel->ccount);
+	//LOGD("next cached: %d\n", channel->ccount);
 }
 
 uint32_t doorbell_transmission_get_milliseconds(void)
@@ -380,7 +381,7 @@ uint32_t doorbell_transmission_get_milliseconds(void)
 
     if (g_doorbell_trans_info.tv.tv_sec < time_offset)
     {
-        //os_printf(" local time sec: %ld \r\n",g_doorbell_trans_info.tv.tv_sec);
+        //LOGD(" local time sec: %ld \r\n",g_doorbell_trans_info.tv.tv_sec);
         time_ms = (g_doorbell_trans_info.tv.tv_sec * 1000) + ms_time;
     }
     else
@@ -390,7 +391,7 @@ uint32_t doorbell_transmission_get_milliseconds(void)
 
     time = (time_ms & 0xFFFFFFFF);
 
-    //os_printf("sec: %ld time %d\r\n", g_doorbell_trans_info.tv.tv_sec ,time);
+    //LOGD("sec: %ld time %d\r\n", g_doorbell_trans_info.tv.tv_sec ,time);
 #endif
 
 	return time;

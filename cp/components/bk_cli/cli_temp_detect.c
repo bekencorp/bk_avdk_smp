@@ -7,7 +7,7 @@ void cli_temp_detect_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 
 	if (argc == 1) {
 		BK_LOG_ON_ERR(temp_detect_get_temperature(&temperature));
-		CLI_LOGI("current temperature is %d\n", temperature);
+		CLI_LOGD("current temperature is %d\n", temperature);
 		return;
 	}
 

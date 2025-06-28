@@ -115,7 +115,7 @@ static int usbh_cdc_acm_connect(struct usbh_hubport *hport, uint8_t intf)
 #endif
     snprintf(hport->config.intf[intf].devname, CONFIG_USBHOST_DEV_NAMELEN, DEV_FORMAT, cdc_acm_class->minor);
 
-    USB_LOG_INFO("Register CDC ACM Class:%s %d\r\n", hport->config.intf[intf].devname, cdc_acm_class->data_intf);
+    USB_LOG_DBG("Register CDC ACM Class:%s %d\r\n", hport->config.intf[intf].devname, cdc_acm_class->data_intf);
 
 #if CONFIG_USB_HUB_MULTIPLE_DEVICES
 	extern void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t intf, uint32_t class);
@@ -151,7 +151,7 @@ static int usbh_cdc_acm_disconnect(struct usbh_hubport *hport, uint8_t intf)
 #endif
 
         if (hport->config.intf[intf].devname[0] != '\0') {
-            USB_LOG_INFO("Unregister CDC ACM Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister CDC ACM Class:%s\r\n", hport->config.intf[intf].devname);
             //usbh_cdc_acm_stop(cdc_acm_class);
         }
 
@@ -257,24 +257,24 @@ void bk_usbh_cdc_sw_init(struct usbh_hubport *hport, uint8_t interface_num, uint
 {
 	if(!hport)
 		return;
-	USB_LOG_DBG("[+]%s\r\n", __func__);
+	USB_LOG_VBS("[+]%s\r\n", __func__);
 
 	if (interface_sub_class == CDC_SUBCLASS_ACM)
 	{
 		usbh_cdc_acm_connect(hport, interface_num);
 	}
 
-	USB_LOG_DBG("[-]%s\r\n", __func__);
+	USB_LOG_VBS("[-]%s\r\n", __func__);
 }
 
 void bk_usbh_cdc_sw_deinit(struct usbh_hubport *hport, uint8_t interface_num, uint8_t interface_sub_class)
 {
 	if(!hport)
 		return;
-	USB_LOG_DBG("[+]%s\r\n", __func__);
+	USB_LOG_VBS("[+]%s\r\n", __func__);
 
 	if(interface_sub_class == CDC_SUBCLASS_ACM)
 		usbh_cdc_acm_disconnect(hport, interface_num);
 
-	USB_LOG_DBG("[-]%s\r\n", __func__);
+	USB_LOG_VBS("[-]%s\r\n", __func__);
 }

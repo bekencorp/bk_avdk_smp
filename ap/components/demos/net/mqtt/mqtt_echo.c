@@ -27,14 +27,14 @@ void echo_waiting_for_wifi_connected(void)
 {
 	while (!echo_is_wifi_connected())
 	{
-		os_printf("reposing......\r\n");
+		BK_LOGD(NULL, "reposing......\r\n");
 		rtos_delay_milliseconds(ECHO_REPOSE_COUNT);
 	}
 }
 
 void echo_msg_arrived_cb(MessageData* data)
 {
-	os_printf("Message arrived on topic %.*s: %.*s\n",
+	BK_LOGD(NULL, "Message arrived on topic %.*s: %.*s\n",
 		data->topicName->lenstring.len, data->topicName->lenstring.data,
 		data->message->payloadlen, data->message->payload);
 }
@@ -48,18 +48,18 @@ static int echo_wifi_event_cb(void *arg, event_module_t event_module,
 	switch (event_id) {
 	case EVENT_WIFI_STA_CONNECTED:
 		sta_connected = (wifi_event_sta_connected_t *)event_data;
-		os_printf("BK STA connected %s\n", sta_connected->ssid);
+		BK_LOGD(NULL, "BK STA connected %s\n", sta_connected->ssid);
 		g_echo_wifi_flag = true;
 		break;
 
 	case EVENT_WIFI_STA_DISCONNECTED:
 		sta_disconnected = (wifi_event_sta_disconnected_t *)event_data;
-		os_printf("BK STA disconnected, reason(%d)\n", sta_disconnected->disconnect_reason);
+		BK_LOGD(NULL, "BK STA disconnected, reason(%d)\n", sta_disconnected->disconnect_reason);
 		g_echo_wifi_flag = false;
 		break;
 
 	default:
-		os_printf("rx event <%d %d>\n", event_module, event_id);
+		BK_LOGD(NULL, "rx event <%d %d>\n", event_module, event_id);
 		break;
 	}
 
@@ -96,37 +96,37 @@ static void echo_task_handler(void *pvParameters)
 	pvParameters = 0;
 
 	NetworkInit(&network);
-	os_printf("[MQTT]mqtt_client_init\r\n");
+	BK_LOGD(NULL, "[MQTT]mqtt_client_init\r\n");
 	mqtt_client_init(&client, &network, 30000, sendbuf, sizeof(sendbuf), readbuf, sizeof(readbuf));
 
-	os_printf("[MQTT]NetworkConnect\r\n");
+	BK_LOGD(NULL, "[MQTT]NetworkConnect\r\n");
 	if ((rc = NetworkConnect(&network, link_name, 1883)) != 0)
 	{
-		os_printf("[MQTT]NetworkConnect failed:%d\n", rc);
+		BK_LOGD(NULL, "[MQTT]NetworkConnect failed:%d\n", rc);
 		goto failed_exit;
 	}
 
 #if MQTT_TASK
-	os_printf("[MQTT]StartTask\r\n");
+	BK_LOGD(NULL, "[MQTT]StartTask\r\n");
 	if ((rc = mqtt_start_task(&client)) != pdPASS)
-		os_printf("[MQTT]Return code from start tasks is %d\n", rc);
+		BK_LOGD(NULL, "[MQTT]Return code from start tasks is %d\n", rc);
 #endif
 
 	connectData.MQTTVersion = 3;
 	connectData.clientID.cstring = "FreeRTOS_sample";
 
-	os_printf("[MQTT]Connecting\r\n");
+	BK_LOGD(NULL, "[MQTT]Connecting\r\n");
 	if ((rc = mqtt_connect(&client, &connectData)) != 0)
 	{
-		os_printf("[MQTT]Return code from connect is %d\n", rc);
+		BK_LOGD(NULL, "[MQTT]Return code from connect is %d\n", rc);
 		goto failed_exit;
 	}
 	else
-		os_printf("[MQTT]Connected\n");
+		BK_LOGD(NULL, "[MQTT]Connected\n");
 
-	os_printf("[MQTT]Subscribe\r\n");
+	BK_LOGD(NULL, "[MQTT]Subscribe\r\n");
 	if ((rc = mqtt_subscribe(&client, "FreeRTOS/sample/#", 2, echo_msg_arrived_cb)) != 0)
-		os_printf("[MQTT]Return code from subscribe is %d\n", rc);
+		BK_LOGD(NULL, "[MQTT]Return code from subscribe is %d\n", rc);
 
 	fail_cnt = 0;
 	while (++ count)
@@ -140,10 +140,10 @@ static void echo_task_handler(void *pvParameters)
 		sprintf(payload, "message number %d", count);
 		message.payloadlen = strlen(payload);
 
-		os_printf("[MQTT]Publish\r\n");
+		BK_LOGD(NULL, "[MQTT]Publish\r\n");
 		if ((rc = mqtt_publish(&client, "FreeRTOS/sample/a", &message)) != 0)
 		{
-			os_printf("[MQTT]Return code from publish is %d\n", rc);
+			BK_LOGD(NULL, "[MQTT]Return code from publish is %d\n", rc);
 			fail_cnt ++;
 
 			if(fail_cnt > 20)
@@ -154,12 +154,12 @@ static void echo_task_handler(void *pvParameters)
 
 #if !defined(MQTT_TASK)
 		if ((rc = mqtt_yield(&client, 1000)) != 0)
-			os_printf("[MQTT]Return code from yield is %d\n", rc);
+			BK_LOGD(NULL, "[MQTT]Return code from yield is %d\n", rc);
 #endif
 	}
 
 failed_exit:
-	os_printf("[MQTT]exit\r\n\n");
+	BK_LOGD(NULL, "[MQTT]exit\r\n\n");
 
 	vTaskDelete( NULL );
 	/* do not return */

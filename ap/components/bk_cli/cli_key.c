@@ -5,29 +5,29 @@
 #include "key_main.h"
 static void gpio_key_short_press_cb()
 {
-	CLI_LOGI("SHORTDemo: GPIO Key Short Press\r\n");
+	CLI_LOGD("SHORTDemo: GPIO Key Short Press\r\n");
 }
 static void gpio_key_double_press_cb()
 {
-	CLI_LOGI("DOUBLE Demo: GPIO Key Double Press\r\n");
+	CLI_LOGD("DOUBLE Demo: GPIO Key Double Press\r\n");
 }
 static void gpio_key_long_press_cb()
 {
-	CLI_LOGI("LONG Demo: GPIO Key Long Press\r\n");
+	CLI_LOGD("LONG Demo: GPIO Key Long Press\r\n");
 }
 static void gpio_key_hold_press_cb()
 {
-	CLI_LOGI("HOLD Demo: GPIO Key Hold Press\r\n");
+	CLI_LOGD("HOLD Demo: GPIO Key Hold Press\r\n");
 }
 static void cli_gpio_key_demo_test(char * pcWriteBuffer, int xWriteBufferLen, int argc, char * *argv)
 {
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		key_initialization();
-		CLI_LOGI("gpio_key Init\n");
+		CLI_LOGD("gpio_key Init\n");
 	} else if(os_strcmp(argv[1], "deinit") == 0) {
 		key_uninitialization();
-		CLI_LOGI("gpio_key Deinit\n");
+		CLI_LOGD("gpio_key Deinit\n");
 	} else if(os_strcmp(argv[1], "configure") == 0) {
 		uint32_t gpio_id = SOC_GPIO_NUM;
 		uint32_t ret = 0;
@@ -42,11 +42,11 @@ static void cli_gpio_key_demo_test(char * pcWriteBuffer, int xWriteBufferLen, in
 			} else if(os_strcmp(argv[3], "high_trigger") == 0) {
 				avtive_level = HIGH_LEVEL_TRIGGER;
 			} else {
-				CLI_LOGI("gpio_key Please fill in the correct information\n");
+				CLI_LOGD("gpio_key Please fill in the correct information\n");
 			}
 		}
 		ret = key_item_configure(gpio_id,avtive_level,gpio_key_short_press_cb,gpio_key_double_press_cb,gpio_key_long_press_cb,gpio_key_hold_press_cb);
-		CLI_LOGI("gpio_key Configure gpio:%d ret:%d\n", gpio_id, ret);
+		CLI_LOGD("gpio_key Configure gpio:%d ret:%d\n", gpio_id, ret);
 	} else if(os_strcmp(argv[1], "unconfigure") == 0) {
 		uint32_t gpio_id = SOC_GPIO_NUM;
 
@@ -54,7 +54,7 @@ static void cli_gpio_key_demo_test(char * pcWriteBuffer, int xWriteBufferLen, in
 			gpio_id = os_strtoul(argv[2], NULL, 10);
 		
 		key_item_unconfigure(gpio_id);
-		CLI_LOGI("gpio_key UNconfigure gpio:%d\n", gpio_id);
+		CLI_LOGD("gpio_key UNconfigure gpio:%d\n", gpio_id);
 	}else {
 		return;
 	}
@@ -65,26 +65,26 @@ static void cli_gpio_key_demo_test(char * pcWriteBuffer, int xWriteBufferLen, in
 #include "adc_key_main.h"
 static void adc_key_short_press_cb()
 {
-	CLI_LOGI("SHORTDemo: ADC Key Short Press\r\n");
+	CLI_LOGD("SHORTDemo: ADC Key Short Press\r\n");
 }
 static void adc_key_double_press_cb()
 {
-	CLI_LOGI("DOUBLE Demo: ADC Key Double Press\r\n");
+	CLI_LOGD("DOUBLE Demo: ADC Key Double Press\r\n");
 }
 static void adc_key_long_press_cb()
 {
-	CLI_LOGI("LONG Demo: ADC Key Long Press\r\n");
+	CLI_LOGD("LONG Demo: ADC Key Long Press\r\n");
 }
 static void adc_key_hold_press_cb()
 {
-	CLI_LOGI("HOLD Demo: ADC Key Hold Press\r\n");
+	CLI_LOGD("HOLD Demo: ADC Key Hold Press\r\n");
 }
 
 
 static void cli_adc_key_op(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if (argc < 2) {
-		CLI_LOGI("cli_adc_key_op please init/deinit");
+		CLI_LOGD("cli_adc_key_op please init/deinit");
 		return;
 	}
 
@@ -104,13 +104,13 @@ static void cli_adc_key_op(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 			adc_id = 4;
 
 		bk_adc_key_init(gpio_id, adc_id);
-		CLI_LOGI("adc_key init\n");
+		CLI_LOGD("adc_key init\n");
 	} else if(os_strcmp(argv[1], "deinit") == 0) {
 		bk_adc_key_deinit();
-		CLI_LOGI("adc_key deinit\n");
+		CLI_LOGD("adc_key deinit\n");
 	} else if(os_strcmp(argv[1], "configure") == 0) {
 		if (argc < 4) {
-			CLI_LOGI("Configure More parameters required");
+			CLI_LOGD("Configure More parameters required");
 			return;
 		}
 		adckey_configure_t config;
@@ -124,7 +124,7 @@ static void cli_adc_key_op(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		} else if(os_strcmp(argv[2], "PLAY_PAUSE") == 0) {
 			config.user_index = ADCKEY_PLAY_PAUSE;
 		}else {
-			CLI_LOGI("adc_key Configure fail STRING\n");
+			CLI_LOGD("adc_key Configure fail STRING\n");
 			return;
 		}
 
@@ -137,7 +137,7 @@ static void cli_adc_key_op(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		config.hold_press_cb = (void *)adc_key_hold_press_cb;
 
 		bk_adckey_item_configure(&config);
-		CLI_LOGI("adc_key Configure\n");
+		CLI_LOGD("adc_key Configure\n");
 	} else if(os_strcmp(argv[1], "unconfigure") == 0) {
 		if(os_strcmp(argv[2], "PEV") == 0) {
 			index = ADCKEY_PEV;
@@ -150,7 +150,7 @@ static void cli_adc_key_op(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		}else
 			return;
 		bk_adckey_item_unconfigure(index);
-		CLI_LOGI("adc_key Unconfigure\n");
+		CLI_LOGD("adc_key Unconfigure\n");
 	} else {
 		return;
 	}

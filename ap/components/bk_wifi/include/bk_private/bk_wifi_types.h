@@ -1417,8 +1417,8 @@ typedef struct vif_addcfg_st {
 #define SASTA_DEBUG
 
 #ifdef SASTA_DEBUG
-#define SASTA_PRT                 os_printf
-#define SASTA_WPRT                warning_prf
+#define SASTA_PRT(...) BK_LOGD(NULL, ##__VA_ARGS__)
+#define SASTA_WPRT(...) BK_LOGW(NULL, ##__VA_ARGS__)
 #else
 #define SASTA_PRT                 os_null_printf
 #define SASTA_WPRT                os_null_printf

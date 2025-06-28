@@ -22,5 +22,6 @@
 #define USB_HUB_MD_LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define USB_HUB_MD_LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define USB_HUB_MD_LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define USB_HUB_MD_LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 

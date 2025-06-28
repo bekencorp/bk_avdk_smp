@@ -152,7 +152,7 @@ static void sdio_dma_tx_start(dma_id_t id)
 
 	if(s_sdio_host.tx_transfered_len >= s_sdio_host.tx_total_len)
 	{
-		SDIO_HOST_LOGD("%s:id=%d,total_len=%d,transfered_len=%d\r\n", __func__, id, s_sdio_host.tx_total_len, s_sdio_host.tx_transfered_len);
+		SDIO_HOST_LOGV("%s:id=%d,total_len=%d,transfered_len=%d\r\n", __func__, id, s_sdio_host.tx_total_len, s_sdio_host.tx_transfered_len);
 		return;
 	}
 
@@ -180,7 +180,7 @@ void sdio_dma_tx_finish(dma_id_t id)
 	if(s_sdio_host.tx_total_len <= s_sdio_host.tx_transfered_len)
 	{
 		//s_dma_tx_finish_cnt++;
-		//SDIO_HOST_LOGD("%s:s_dma_tx_finish_cnt=%d\r\n", __func__, s_dma_tx_finish_cnt);
+		//SDIO_HOST_LOGV("%s:s_dma_tx_finish_cnt=%d\r\n", __func__, s_dma_tx_finish_cnt);
 		sdio_host_hal_enable_tx_fifo_empty_mask(&s_sdio_host.hal);
 	}
 }
@@ -204,11 +204,11 @@ static bk_err_t sdio_dma_tx_init(void)
 
 	dma_config.dst.start_addr = (uint32_t) SDIO_REG0XF_ADDR;
 	dma_config.dst.end_addr = (uint32_t) SDIO_REG0XF_ADDR;
-	SDIO_HOST_LOGI("dst start addr=0x%8x\n", (uint32_t) SDIO_REG0XF_ADDR);
+	SDIO_HOST_LOGD("dst start addr=0x%8x\n", (uint32_t) SDIO_REG0XF_ADDR);
 	if(s_sdio_host.dma_tx_id != DMA_ID_MAX)
-		SDIO_HOST_LOGI("s_sdio_host.dma_tx_id = %d.\n", (dma_id_t)s_sdio_host.dma_tx_id);
+		SDIO_HOST_LOGD("s_sdio_host.dma_tx_id = %d.\n", (dma_id_t)s_sdio_host.dma_tx_id);
 	s_sdio_host.dma_tx_id = bk_dma_alloc(DMA_DEV_SDIO);
-	SDIO_HOST_LOGI("s_sdio_host.dma_tx_id = %d.\n", (dma_id_t)s_sdio_host.dma_tx_id);
+	SDIO_HOST_LOGD("s_sdio_host.dma_tx_id = %d.\n", (dma_id_t)s_sdio_host.dma_tx_id);
 	if(DMA_ID_MAX == (dma_id_t)s_sdio_host.dma_tx_id)
 	{
 		return BK_ERR_DMA_ID;
@@ -236,7 +236,7 @@ static void sdio_dma_rx_start(dma_id_t id)
 
 	if(s_sdio_host.rx_transfered_len >= s_sdio_host.rx_total_len)
 	{
-		SDIO_HOST_LOGD("%s:id=%d,total_len=%d,transfered_len=%d\r\n", __func__, id, s_sdio_host.rx_total_len, s_sdio_host.rx_transfered_len);
+		SDIO_HOST_LOGV("%s:id=%d,total_len=%d,transfered_len=%d\r\n", __func__, id, s_sdio_host.rx_total_len, s_sdio_host.rx_transfered_len);
 		return;
 	}
 
@@ -263,7 +263,7 @@ void sdio_dma_rx_finish(dma_id_t id)
 	{
 		rtos_set_semaphore(&s_sdio_host.rx_sema);
 		s_dma_rx_finish_cnt++;
-		SDIO_HOST_LOGD("%s:s_dma_rx_finish_cnt=%d\r\n", __func__, s_dma_rx_finish_cnt);
+		SDIO_HOST_LOGV("%s:s_dma_rx_finish_cnt=%d\r\n", __func__, s_dma_rx_finish_cnt);
 	}
 }
 
@@ -288,7 +288,7 @@ static bk_err_t sdio_dma_rx_init()
 	dma_config.dst.addr_inc_en = DMA_ADDR_INC_ENABLE;
 
 	s_sdio_host.dma_rx_id = bk_dma_alloc(DMA_DEV_SDIO_RX);
-	SDIO_HOST_LOGI("s_sdio_host.dma_rx_id = %d.\n", s_sdio_host.dma_rx_id);
+	SDIO_HOST_LOGD("s_sdio_host.dma_rx_id = %d.\n", s_sdio_host.dma_rx_id);
 	if(DMA_ID_MAX == s_sdio_host.dma_rx_id)
 	{
 		return BK_ERR_DMA_ID;
@@ -411,7 +411,7 @@ bk_err_t bk_sdio_host_driver_init(void)
 {
 	bk_err_t ret = BK_OK;
 	if (s_sdio_host_driver_is_init) {
-		SDIO_HOST_LOGD("bk_sdio_host_driver_init has inited\r\n");
+		SDIO_HOST_LOGV("bk_sdio_host_driver_init has inited\r\n");
 		return BK_OK;
 	}
 
@@ -530,7 +530,7 @@ bk_err_t bk_sdio_host_init(const sdio_host_config_t *config)
 	{
 		if(sdio_dma_tx_init() != BK_OK)
 		{
-			SDIO_HOST_LOGI("sdio tx dma enable failed\r\n");
+			SDIO_HOST_LOGD("sdio tx dma enable failed\r\n");
 			s_sdio_host.dma_tx_en = 0;
 		}
 
@@ -545,7 +545,7 @@ bk_err_t bk_sdio_host_init(const sdio_host_config_t *config)
 	{
 		if(sdio_dma_rx_init() != BK_OK)
 		{
-			SDIO_HOST_LOGI("sdio rx dma enable failed\r\n");
+			SDIO_HOST_LOGD("sdio rx dma enable failed\r\n");
 			s_sdio_host.dma_rx_en = 0;
 		}
 
@@ -686,8 +686,8 @@ bk_err_t bk_sdio_host_set_clock_freq(sdio_host_clock_freq_t clock_freq)
 static void sdio_dump_cmd_info(const sdio_host_cmd_cfg_t *command)
 {
 #if 0
-	SDIO_HOST_LOGI("cmd_index=%d,argument=0x%08x,response=0x%08x\r\n", command->cmd_index, command->argument, command->response );
-	SDIO_HOST_LOGI("wait_rsp_timeout=%d, crc_check=%d\r\n", command->wait_rsp_timeout, command->crc_check);
+	SDIO_HOST_LOGD("cmd_index=%d,argument=0x%08x,response=0x%08x\r\n", command->cmd_index, command->argument, command->response );
+	SDIO_HOST_LOGD("wait_rsp_timeout=%d, crc_check=%d\r\n", command->wait_rsp_timeout, command->crc_check);
 #endif
 }
 
@@ -727,7 +727,7 @@ bk_err_t bk_sdio_host_wait_cmd_response(uint32_t cmd_index)
 		ret = rtos_pop_from_queue(&s_sdio_host.irq_cmd_msg, &msg, SDIO_CMD_WAIT_TIME);
 		if(ret)
 		{
-			SDIO_HOST_LOGD("sdio wait slave CMD%d timeout, int_status=0x%x, ret=%d\r\n", cmd_index, int_status, ret);
+			SDIO_HOST_LOGV("sdio wait slave CMD%d timeout, int_status=0x%x, ret=%d\r\n", cmd_index, int_status, ret);
 			return BK_ERR_SDIO_HOST_CMD_RSP_TIMEOUT;
 		}
 	}
@@ -940,11 +940,11 @@ static bk_err_t sdio_host_cpu_write_fifo(const uint8_t *write_data, uint32_t dat
 #if (CONFIG_SDIO_DEBUG_SUPPORT)
 		if(index < 16)
 		{
-			SDIO_HOST_LOGD("data_tmp=0x%08x", data_tmp);
+			SDIO_HOST_LOGV("data_tmp=0x%08x", data_tmp);
 		}
 		if(index == 16)
 		{
-			SDIO_HOST_LOGD("0x%08x\r\n", data_tmp);
+			SDIO_HOST_LOGV("0x%08x\r\n", data_tmp);
 		}
 #endif
 		//first block finish, enable tx fifo clock gate and then start write data to sdio wires(sdcard)
@@ -1010,13 +1010,13 @@ bk_err_t bk_sdio_host_wait_receive_data(void)
 	error_state = rtos_get_semaphore(&(s_sdio_host.rx_sema), SDIO_MAX_RX_WAIT_TIME);
 	if(error_state != BK_OK)
 	{
-		SDIO_HOST_LOGI("rx fail\r\n");
+		SDIO_HOST_LOGD("rx fail\r\n");
 	}
 
 	if(s_sdio_host_data_crc_error == true) {
 		error_state = BK_ERR_SDIO_HOST_DATA_CRC_FAIL;
 		s_sdio_host_data_crc_error = false;
-		SDIO_HOST_LOGI("func %s, line %d, return crc error.\r\n", __func__, __LINE__);
+		SDIO_HOST_LOGD("func %s, line %d, return crc error.\r\n", __func__, __LINE__);
 	}
 
 
@@ -1076,7 +1076,7 @@ bk_err_t bk_sdio_host_wait_receive_data(void)
 	do {
 		int_status = sdio_host_hal_get_interrupt_status(hal);
 		sdio_host_hal_clear_data_interrupt_status(hal, int_status);
-		SDIO_HOST_LOGI("int_status:%x\r\n", int_status);
+		SDIO_HOST_LOGD("int_status:%x\r\n", int_status);
 	} while (!sdio_host_hal_is_recv_data_interrupt_triggered(hal, int_status));
 
 	if (sdio_host_hal_is_data_recv_end_int_triggered(hal, int_status)) {
@@ -1162,7 +1162,7 @@ static bk_err_t sdio_host_cpu_read_blks_fifo(uint8_t *data, uint32_t blk_cnt)
 				data[index++] = (read_data >> 8) & 0xff;
 				data[index++] = (read_data >> 16) & 0xff;
 				data[index++] = (read_data >> 24) & 0xff;
-				//SDIO_HOST_LOGD("read_data:%x, index:%d\r\n", read_data, index);
+				//SDIO_HOST_LOGV("read_data:%x, index:%d\r\n", read_data, index);
 			}
 			else
 			{
@@ -1172,7 +1172,7 @@ static bk_err_t sdio_host_cpu_read_blks_fifo(uint8_t *data, uint32_t blk_cnt)
 		} while ((index % SDIO_BLOCK_SIZE) != 0);
 
 		if (index >= data_size) {
-			SDIO_HOST_LOGD("rx data finish bytes:%d\r\n", index);
+			SDIO_HOST_LOGV("rx data finish bytes:%d\r\n", index);
 			break;
 		}
 
@@ -1219,7 +1219,7 @@ static void sdio_host_isr(void)
 	//sdio_host_hal_clear_data_interrupt_status(hal, int_status);
 
 	//TODO:WARNING:sdio_host_hal_is_data_crc_fail_int_triggered should check
-	SDIO_HOST_LOGD("sdio isr, cmd_index=%d,int_status:%x\r\n", cmd_index, int_status);
+	SDIO_HOST_LOGV("sdio isr, cmd_index=%d,int_status:%x\r\n", cmd_index, int_status);
 
 	//CMD:RESP, NO RESP, TIMEOUT
 	if(sdio_host_hal_is_cmd_rsp_interrupt_triggered(hal, int_status))
@@ -1262,7 +1262,7 @@ static void sdio_host_isr(void)
 		else if(sdio_host_hal_is_cmd_rsp_timeout_interrupt_triggered(hal, int_status))	//timeout
 		{
 			if ((cmd_index != SEND_OP_COND) && (s_sdio_cmd_index != 6)) {
-				SDIO_HOST_LOGD("isr sdio wait CMD RSP timeout, int_status=0x%x,cmd_index=%d,s_sdio_cmd_index=%d\r\n", int_status,cmd_index,s_sdio_cmd_index);
+				SDIO_HOST_LOGV("isr sdio wait CMD RSP timeout, int_status=0x%x,cmd_index=%d,s_sdio_cmd_index=%d\r\n", int_status,cmd_index,s_sdio_cmd_index);
 			}
 		}
 
@@ -1298,7 +1298,7 @@ static void sdio_host_isr(void)
 		if (sdio_host_hal_get_wr_status(&s_sdio_host.hal) != 2) {
 			for (int sts_index = 0; sts_index < SDIO_GET_WR_STS_MAX_COUNT; sts_index++ ) {
 				if (sdio_host_hal_get_wr_status(&s_sdio_host.hal) == 2) {
-					SDIO_HOST_LOGD("wr_status ok, i = %d.\r\n", sts_index);
+					SDIO_HOST_LOGV("wr_status ok, i = %d.\r\n", sts_index);
 					break;
 				}
 				if(sts_index == (SDIO_GET_WR_STS_MAX_COUNT - 1) ) {
@@ -1308,7 +1308,7 @@ static void sdio_host_isr(void)
 		}
 
 		{
-			SDIO_HOST_LOGD("write blk end\r\n");
+			SDIO_HOST_LOGV("write blk end\r\n");
 #if CONFIG_SDIO_GDMA_EN
 #if 0
 			if(s_sdio_host.dma_tx_en)	//WARNING:DMA enable: SDIO,DMA,Software at a-sync status,maybe software loses end isr.
@@ -1346,7 +1346,7 @@ static void sdio_host_isr(void)
 		{
 #if CONFIG_SDIO_GDMA_EN
 			if(s_sdio_host.dma_rx_en)
-				SDIO_HOST_LOGD("DMA read blk end\r\n");	//do nothing
+				SDIO_HOST_LOGV("DMA read blk end\r\n");	//do nothing
 			else
 				rtos_set_semaphore(&s_sdio_host.rx_sema);			
 #else
@@ -1391,7 +1391,7 @@ static void sdio_host_isr(void)
 		}
 	}
 	else {
-		SDIO_HOST_LOGD("sdio isr no deal:cmd_index=%d,int_status=%x\r\n", cmd_index, int_status);
+		SDIO_HOST_LOGV("sdio isr no deal:cmd_index=%d,int_status=%x\r\n", cmd_index, int_status);
 	}
 }
 
@@ -1402,7 +1402,7 @@ static void sdio_host_isr(void)
 	uint32_t int_status = sdio_host_hal_get_interrupt_status(hal);
 	s_sdio_host.int_status = int_status;
 
-	SDIO_HOST_LOGD("enter sdio_host isr, int_status:%x\r\n", int_status);
+	SDIO_HOST_LOGV("enter sdio_host isr, int_status:%x\r\n", int_status);
 	sdio_host_hal_clear_data_interrupt_status(hal, int_status);
 
 	if (sdio_host_hal_is_data_write_end_int_triggered(hal, int_status) ||

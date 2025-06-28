@@ -21,4 +21,5 @@
 #define YUV_BUF_LOGW(...) BK_LOGW(YUV_BUF_TAG, ##__VA_ARGS__)
 #define YUV_BUF_LOGE(...) BK_LOGE(YUV_BUF_TAG, ##__VA_ARGS__)
 #define YUV_BUF_LOGD(...) BK_LOGD(YUV_BUF_TAG, ##__VA_ARGS__)
+#define YUV_BUF_LOGV(...) BK_LOGV(YUV_BUF_TAG, ##__VA_ARGS__)
 

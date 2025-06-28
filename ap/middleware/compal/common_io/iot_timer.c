@@ -105,9 +105,9 @@ int32_t iot_timer_close( IotTimerHandle_t const pxTimerHandle )
 static void timer_callback(timer_id_t id)
 {
     IotTimerHandle_t TimerDesc = &xDefaultTimerDesc;
-    BK_LOGD(IOT_TIMER_TAG, "Timer %d callback\n", id);
+    BK_LOGV(IOT_TIMER_TAG, "Timer %d callback\n", id);
     if(NULL == TimerDesc->xTimerCallback){
-        BK_LOGD(IOT_TIMER_TAG, "Null callback %s\n", __func__);
+        BK_LOGV(IOT_TIMER_TAG, "Null callback %s\n", __func__);
         return;        
     }
     TimerDesc->xTimerCallback(TimerDesc->pvUserContext);

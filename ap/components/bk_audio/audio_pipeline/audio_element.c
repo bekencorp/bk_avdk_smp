@@ -157,7 +157,7 @@ static bk_err_t audio_element_cmd_send(audio_element_handle_t el, audio_element_
         .source_type = AUDIO_ELEMENT_TYPE_ELEMENT,
         .cmd = cmd,
     };
-    BK_LOGI(TAG, "[%s]evt internal cmd = %d \n", el->tag, msg.cmd);
+    BK_LOGD(TAG, "[%s]evt internal cmd = %d \n", el->tag, msg.cmd);
     return audio_event_iface_cmd(el->iface_event, &msg);
 }
 
@@ -185,7 +185,7 @@ bk_err_t audio_element_process_init(audio_element_handle_t el)
     bk_err_t ret = el->open(el);
     if (ret == BK_OK)
     {
-        BK_LOGD(TAG, "[%s] el opened \n", el->tag);
+        BK_LOGV(TAG, "[%s] el opened \n", el->tag);
         audio_element_force_set_state(el, AEL_STATE_RUNNING);
         audio_element_report_status(el, AEL_STATUS_STATE_RUNNING);
         xEventGroupSetBits(el->state_event, STARTED_BIT);
@@ -217,7 +217,7 @@ bk_err_t audio_element_process_deinit(audio_element_handle_t el)
 {
     if (el->is_open && el->close)
     {
-        BK_LOGI(TAG, "[%s] will be closed, line %d \n", el->tag, __LINE__);
+        BK_LOGD(TAG, "[%s] will be closed, line %d \n", el->tag, __LINE__);
         el->close(el);
     }
     el->is_open = false;
@@ -248,14 +248,14 @@ static bk_err_t audio_element_on_cmd_stop(audio_element_handle_t el)
         audio_element_report_status(el, AEL_STATUS_STATE_STOPPED);
         el->is_running = false;
         el->stopping = false;
-        BK_LOGD(TAG, "[%s] audio_element_on_cmd_stop \n", el->tag);
+        BK_LOGV(TAG, "[%s] audio_element_on_cmd_stop \n", el->tag);
         xEventGroupSetBits(el->state_event, STOPPED_BIT);
     }
     else
     {
         // Change element state to AEL_STATE_STOPPED, even if AEL_STATE_ERROR or AEL_STATE_FINISHED
         // Except AEL_STATE_STOPPED and is not running
-        BK_LOGD(TAG, "[%s] audio_element_on_cmd_stop, state:%d \n", el->tag, el->state);
+        BK_LOGV(TAG, "[%s] audio_element_on_cmd_stop, state:%d \n", el->tag, el->state);
         if ((el->is_running == false) && (el->state == AEL_STATE_STOPPED))
         {
             el->stopping = false;
@@ -275,7 +275,7 @@ static bk_err_t audio_element_on_cmd_finish(audio_element_handle_t el)
     if ((el->state == AEL_STATE_ERROR)
         || (el->state == AEL_STATE_STOPPED))
     {
-        BK_LOGD(TAG, "[%s] audio_element_on_cmd_finish, state:%d \n", el->tag, el->state);
+        BK_LOGV(TAG, "[%s] audio_element_on_cmd_finish, state:%d \n", el->tag, el->state);
         return BK_OK;
     }
     audio_element_process_deinit(el);
@@ -284,7 +284,7 @@ static bk_err_t audio_element_on_cmd_finish(audio_element_handle_t el)
     audio_element_report_status(el, AEL_STATUS_STATE_FINISHED);
     el->is_running = false;
     xEventGroupSetBits(el->state_event, STOPPED_BIT);
-    BK_LOGD(TAG, "[%s] audio_element_on_cmd_finish \n", el->tag);
+    BK_LOGV(TAG, "[%s] audio_element_on_cmd_finish \n", el->tag);
     return BK_OK;
 }
 
@@ -331,11 +331,11 @@ static bk_err_t audio_element_on_cmd(audio_event_iface_msg_t *msg, void *context
     switch (msg->cmd)
     {
         case AEL_MSG_CMD_FINISH:
-            BK_LOGD(TAG, "[%s] AEL_MSG_CMD_FINISH, state:%d \n", el->tag, el->state);
+            BK_LOGV(TAG, "[%s] AEL_MSG_CMD_FINISH, state:%d \n", el->tag, el->state);
             ret = audio_element_on_cmd_finish(el);
             break;
         case AEL_MSG_CMD_STOP:
-            BK_LOGD(TAG, "[%s] AEL_MSG_CMD_STOP, state:%d \n", el->tag, el->state);
+            BK_LOGV(TAG, "[%s] AEL_MSG_CMD_STOP, state:%d \n", el->tag, el->state);
             ret = audio_element_on_cmd_stop(el);
             break;
         case AEL_MSG_CMD_PAUSE:
@@ -344,17 +344,17 @@ static bk_err_t audio_element_on_cmd(audio_event_iface_msg_t *msg, void *context
             audio_event_iface_set_cmd_waiting_timeout(el->iface_event, portMAX_DELAY);
             audio_element_report_status(el, AEL_STATUS_STATE_PAUSED);
             el->is_running = false;
-            BK_LOGI(TAG, "[%s] AEL_MSG_CMD_PAUSE \n", el->tag);
+            BK_LOGD(TAG, "[%s] AEL_MSG_CMD_PAUSE \n", el->tag);
             xEventGroupSetBits(el->state_event, PAUSED_BIT);
             break;
         case AEL_MSG_CMD_RESUME:
             //调用命令处理函数
-            BK_LOGI(TAG, "[%s] AEL_MSG_CMD_RESUME,state:%d \n", el->tag, el->state);
+            BK_LOGD(TAG, "[%s] AEL_MSG_CMD_RESUME,state:%d \n", el->tag, el->state);
             ret = audio_element_on_cmd_resume(el);
             break;
         case AEL_MSG_CMD_DESTROY:
             el->is_running = false;
-            BK_LOGD(TAG, "[%s] AEL_MSG_CMD_DESTROY \n", el->tag);
+            BK_LOGV(TAG, "[%s] AEL_MSG_CMD_DESTROY \n", el->tag);
             ret = AEL_IO_ABORT;
     }
     return ret;
@@ -374,7 +374,7 @@ static bk_err_t audio_element_process_running(audio_element_handle_t el)
         switch (process_len)
         {
             case AEL_IO_ABORT:
-                BK_LOGD(TAG, "[%s] ERROR_PROCESS, AEL_IO_ABORT \n", el->tag);
+                BK_LOGV(TAG, "[%s] ERROR_PROCESS, AEL_IO_ABORT \n", el->tag);
                 audio_element_on_cmd_stop(el);
                 break;
             case AEL_IO_DONE:
@@ -393,7 +393,7 @@ static bk_err_t audio_element_process_running(audio_element_handle_t el)
                 audio_element_on_cmd_error(el);
                 break;
             case AEL_IO_TIMEOUT:
-                BK_LOGD(TAG, "[%s] ERROR_PROCESS, AEL_IO_TIMEOUT \n", el->tag);
+                BK_LOGV(TAG, "[%s] ERROR_PROCESS, AEL_IO_TIMEOUT \n", el->tag);
                 break;
             case AEL_PROCESS_FAIL:
                 BK_LOGE(TAG, "[%s] ERROR_PROCESS, AEL_PROCESS_FAIL \n", el->tag);
@@ -431,14 +431,14 @@ int audio_element_input(audio_element_handle_t el, char *buffer, int wanted_size
                 break;
             case AEL_IO_DONE:
             case AEL_IO_OK:
-                BK_LOGI(TAG, "IN-[%s] AEL_IO_DONE,%d \n", el->tag, in_len);
+                BK_LOGD(TAG, "IN-[%s] AEL_IO_DONE,%d \n", el->tag, in_len);
                 break;
             case AEL_IO_FAIL:
                 BK_LOGE(TAG, "IN-[%s] AEL_STATUS_ERROR_INPUT \n", el->tag);
                 audio_element_report_status(el, AEL_STATUS_ERROR_INPUT);
                 break;
             case AEL_IO_TIMEOUT:
-                BK_LOGD(TAG, "IN-[%s] AEL_IO_TIMEOUT", el->tag);
+                BK_LOGV(TAG, "IN-[%s] AEL_IO_TIMEOUT", el->tag);
                 break;
             default:
                 BK_LOGE(TAG, "IN-[%s] Input return not support,ret:%d \n", el->tag, in_len);
@@ -484,7 +484,7 @@ int audio_element_output(audio_element_handle_t el, char *buffer, int write_size
                 break;
             case AEL_IO_DONE:
             case AEL_IO_OK:
-                BK_LOGI(TAG, "OUT-[%s] AEL_IO_DONE,%d \n", el->tag, output_len);
+                BK_LOGD(TAG, "OUT-[%s] AEL_IO_DONE,%d \n", el->tag, output_len);
                 break;
             case AEL_IO_FAIL:
                 BK_LOGE(TAG, "OUT-[%s] AEL_STATUS_ERROR_OUTPUT \n", el->tag);
@@ -542,7 +542,7 @@ void audio_element_task(void *pv)
 
     if (el->is_open && el->close)
     {
-        BK_LOGD(TAG, "[%s-%p] el closed \n", el->tag, el);
+        BK_LOGV(TAG, "[%s-%p] el closed \n", el->tag, el);
         el->close(el);
         audio_element_force_set_state(el, AEL_STATE_STOPPED);
     }
@@ -551,8 +551,8 @@ void audio_element_task(void *pv)
     el->buf = NULL;
     el->stopping = false;
     el->task_run = false;
-    //    BK_LOGD(TAG, "[%s-%p] el task deleted,%d \n", el->tag, el, uxTaskGetStackHighWaterMark(NULL));
-    BK_LOGD(TAG, "[%s-%p] el task deleted \n", el->tag, el);
+    //    BK_LOGV(TAG, "[%s-%p] el task deleted,%d \n", el->tag, el, uxTaskGetStackHighWaterMark(NULL));
+    BK_LOGV(TAG, "[%s-%p] el task deleted \n", el->tag, el);
     xEventGroupSetBits(el->state_event, STOPPED_BIT);
     xEventGroupSetBits(el->state_event, RESUMED_BIT);
     xEventGroupSetBits(el->state_event, TASK_DESTROYED_BIT);
@@ -698,7 +698,7 @@ bk_err_t audio_element_report_info(audio_element_handle_t el)
         audio_event_iface_msg_t msg = { 0 };
         msg.cmd = AEL_MSG_CMD_REPORT_MUSIC_INFO;
         msg.data = NULL;
-        BK_LOGI(TAG, "REPORT_INFO,[%s]evt out cmd:%d, \n", el->tag, msg.cmd);
+        BK_LOGD(TAG, "REPORT_INFO,[%s]evt out cmd:%d, \n", el->tag, msg.cmd);
         audio_element_msg_sendout(el, &msg);
         return BK_OK;
     }
@@ -712,7 +712,7 @@ bk_err_t audio_element_report_codec_fmt(audio_element_handle_t el)
         audio_event_iface_msg_t msg = { 0 };
         msg.cmd = AEL_MSG_CMD_REPORT_CODEC_FMT;
         msg.data = NULL;
-        BK_LOGD(TAG, "REPORT_FMT,[%s]evt out cmd:%d, \n", el->tag, msg.cmd);
+        BK_LOGV(TAG, "REPORT_FMT,[%s]evt out cmd:%d, \n", el->tag, msg.cmd);
         audio_element_msg_sendout(el, &msg);
         return BK_OK;
     }
@@ -727,7 +727,7 @@ bk_err_t audio_element_report_status(audio_element_handle_t el, audio_element_st
         msg.cmd = AEL_MSG_CMD_REPORT_STATUS;
         msg.data = (void *)status;
         msg.data_len = sizeof(status);
-        BK_LOGD(TAG, "REPORT_STATUS,[%s]evt out cmd = %d,status:%d \n", el->tag, msg.cmd, status);
+        BK_LOGV(TAG, "REPORT_STATUS,[%s]evt out cmd = %d,status:%d \n", el->tag, msg.cmd, status);
         return audio_element_msg_sendout(el, &msg);
     }
     return BK_FAIL;
@@ -748,7 +748,7 @@ bk_err_t audio_element_report_pos(audio_element_handle_t el)
         audio_element_getinfo(el, el->report_info);
         msg.data = el->report_info;
         msg.data_len = sizeof(audio_element_info_t);
-        BK_LOGD(TAG, "REPORT_POS,[%s]evt out cmd:%d, \n", el->tag, msg.cmd);
+        BK_LOGV(TAG, "REPORT_POS,[%s]evt out cmd:%d, \n", el->tag, msg.cmd);
         audio_element_msg_sendout(el, &msg);
         return BK_OK;
     }
@@ -973,7 +973,7 @@ bk_err_t audio_element_wait_for_stop(audio_element_handle_t el)
 {
     if (el->is_running == false)
     {
-        BK_LOGD(TAG, "[%s] Element already stopped, return without waiting \n", el->tag);
+        BK_LOGV(TAG, "[%s] Element already stopped, return without waiting \n", el->tag);
         return BK_FAIL;
     }
     EventBits_t uxBits = xEventGroupWaitBits(el->state_event, STOPPED_BIT, false, true, DEFAULT_MAX_WAIT_TIME);
@@ -1143,7 +1143,7 @@ audio_element_handle_t audio_element_init(audio_element_cfg_t *config)
         char *in_port_tag = audio_malloc(os_strlen(config->tag) + 7);
         AUDIO_MEM_CHECK(TAG, in_port_tag, goto _element_init_failed);
         os_snprintf(in_port_tag, os_strlen(config->tag) + 7, "%s_in_cb", config->tag);
-        os_printf("in_port_tag tag: %s \n", in_port_tag);
+        BK_LOGD(NULL, "in_port_tag tag: %s \n", in_port_tag);
         audio_port_set_tag(el->in, in_port_tag);
         audio_free(in_port_tag);
         in_port_tag = NULL;
@@ -1274,10 +1274,10 @@ bk_err_t audio_element_run(audio_element_handle_t el)
     bk_err_t ret = BK_FAIL;
     if (el->task_run)
     {
-        BK_LOGD(TAG, "[%s-%p] Element already created \n", el->tag, el);
+        BK_LOGV(TAG, "[%s-%p] Element already created \n", el->tag, el);
         return BK_OK;
     }
-    BK_LOGI(TAG, "[%s] Element starting... \n", el->tag);
+    BK_LOGD(TAG, "[%s] Element starting... \n", el->tag);
     snprintf(task_name, 32, "el-%s", el->tag);
     audio_event_iface_discard(el->iface_event);
     xEventGroupClearBits(el->state_event, TASK_CREATED_BIT);
@@ -1312,7 +1312,7 @@ bk_err_t audio_element_run(audio_element_handle_t el)
         audio_element_report_status(el, AEL_STATUS_STATE_RUNNING);
         ret = BK_OK;
     }
-    BK_LOGI(TAG, "[%s-%p] Element task created \n", el->tag, el);
+    BK_LOGD(TAG, "[%s-%p] Element task created \n", el->tag, el);
     return ret;
 }
 
@@ -1328,7 +1328,7 @@ static inline bk_err_t __audio_element_term(audio_element_handle_t el, TickType_
     bk_err_t ret = BK_FAIL;
     if (uxBits & TASK_DESTROYED_BIT)
     {
-        BK_LOGD(TAG, "[%s-%p] Element task destroyed \n", el->tag, el);
+        BK_LOGV(TAG, "[%s-%p] Element task destroyed \n", el->tag, el);
         ret = BK_OK;
     }
     else
@@ -1380,7 +1380,7 @@ bk_err_t audio_element_pause(audio_element_handle_t el)
     if ((el->state >= AEL_STATE_PAUSED))
     {
         audio_element_force_set_state(el, AEL_STATE_PAUSED);
-        BK_LOGD(TAG, "[%s] Element already paused, state:%d \n", el->tag, el->state);
+        BK_LOGV(TAG, "[%s] Element already paused, state:%d \n", el->tag, el->state);
         return BK_OK;
     }
     xEventGroupClearBits(el->state_event, PAUSED_BIT);
@@ -1414,7 +1414,7 @@ bk_err_t audio_element_resume(audio_element_handle_t el, float wait_for_rb_thres
     if (el->state == AEL_STATE_RUNNING)
     {
         audio_element_report_status(el, AEL_STATUS_STATE_RUNNING);
-        BK_LOGD(TAG, "[%s] RESUME: Element is already running, state:%d, task_run:%d, is_running:%d \n",
+        BK_LOGV(TAG, "[%s] RESUME: Element is already running, state:%d, task_run:%d, is_running:%d \n",
                 el->tag, el->state, el->task_run, el->is_running);
         return BK_OK;
     }
@@ -1433,7 +1433,7 @@ bk_err_t audio_element_resume(audio_element_handle_t el, float wait_for_rb_thres
     }
     if (el->state == AEL_STATE_FINISHED)
     {
-        BK_LOGI(TAG, "[%s] RESUME: Element has finished, state:%d \n", el->tag, el->state);
+        BK_LOGD(TAG, "[%s] RESUME: Element has finished, state:%d \n", el->tag, el->state);
         audio_element_report_status(el, AEL_STATUS_STATE_FINISHED);
         return BK_OK;
     }
@@ -1472,7 +1472,7 @@ bk_err_t audio_element_stop(audio_element_handle_t el)
 {
     if (!el->task_run)
     {
-        BK_LOGD(TAG, "[%s] Element has not create when AUDIO_ELEMENT_STOP \n", el->tag);
+        BK_LOGV(TAG, "[%s] Element has not create when AUDIO_ELEMENT_STOP \n", el->tag);
         return BK_FAIL;
     }
     if (el->is_running == false)
@@ -1502,7 +1502,7 @@ bk_err_t audio_element_stop(audio_element_handle_t el)
     }
     if (el->stopping)
     {
-        BK_LOGD(TAG, "[%s] Stop command has already sent, %d \n", el->tag, el->stopping);
+        BK_LOGV(TAG, "[%s] Stop command has already sent, %d \n", el->tag, el->stopping);
         return BK_OK;
     }
     el->stopping = true;
@@ -1512,7 +1512,7 @@ bk_err_t audio_element_stop(audio_element_handle_t el)
         BK_LOGW(TAG, "[%s-%p] Send stop command failed \n", el->tag, el);
         return BK_FAIL;
     }
-    BK_LOGD(TAG, "[%s-%p] Send stop command \n", el->tag, el);
+    BK_LOGV(TAG, "[%s-%p] Send stop command \n", el->tag, el);
     return BK_OK;
 }
 
@@ -1520,7 +1520,7 @@ bk_err_t audio_element_wait_for_stop_ms(audio_element_handle_t el, TickType_t ti
 {
     if (el->is_running == false)
     {
-        BK_LOGD(TAG, "[%s] Element already stopped, return without waiting \n", el->tag);
+        BK_LOGV(TAG, "[%s] Element already stopped, return without waiting \n", el->tag);
         return BK_OK;
     }
     EventBits_t uxBits = xEventGroupWaitBits(el->state_event, STOPPED_BIT, false, true, ticks_to_wait);

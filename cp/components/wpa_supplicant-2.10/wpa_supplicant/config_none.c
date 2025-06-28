@@ -197,14 +197,14 @@ int wpa_config_set_wpa(struct wpa_bss *bss, struct wpa_ssid *ssid, struct wpa_ie
 #endif
 
 	if (ssid->psk_set) {
-		WPA_LOGD("cipher2security %d %d %d %d\n", ie->key_mgmt, ie->proto, ie->pairwise_cipher, ie->group_cipher);
+		WPA_LOGV("cipher2security %d %d %d %d\n", ie->key_mgmt, ie->proto, ie->pairwise_cipher, ie->group_cipher);
 		g_sta_param_ptr->cipher_suite = get_security_type_from_ie(bss->ies, bss->ie_len, bss->caps);
 		return 0;
 	}
 
 	ret = set_wpa_psk(ssid, ie);
 	if (!ret) {
-		WPA_LOGD("cipher2security %d %d %d %d\n", ie->key_mgmt, ie->proto, ie->pairwise_cipher, ie->group_cipher);
+		WPA_LOGV("cipher2security %d %d %d %d\n", ie->key_mgmt, ie->proto, ie->pairwise_cipher, ie->group_cipher);
 		g_sta_param_ptr->cipher_suite = get_security_type_from_ie(bss->ies, bss->ie_len, bss->caps);
 
 		if (ssid->passphrase && (ssid->psk_set == 0)) {

@@ -11,6 +11,7 @@ from bk_project import app_info, bk_project
 class bk_project_info:
     project_name: str
     project_path: Path
+    build_dir: Path
     soc_name: str
     flash_crc_enable: bool
     apps: list[str]
@@ -32,6 +33,8 @@ class bk_sdk_project(bk_project):
             raise RuntimeError("get project name error")
         if not self._project_info.project_path.is_dir():
             raise RuntimeError("project dir not exist")
+        if not self._project_info.build_dir.is_dir():
+            raise RuntimeError("project build dir not exist")
         if len(self._project_info.apps) == 0:
             raise RuntimeError(
                 f"project {self._project_info.project_name} app num is 0"
@@ -65,12 +68,7 @@ class bk_sdk_project(bk_project):
 
     @property
     def project_build_dir(self) -> Path:
-        return (
-            self.sdk_path
-            / "build"
-            / self._project_info.soc_name
-            / self._project_info.project_name
-        )
+        return self._project_info.build_dir
 
     @property
     def project_build_parititons_dir(self) -> Path:

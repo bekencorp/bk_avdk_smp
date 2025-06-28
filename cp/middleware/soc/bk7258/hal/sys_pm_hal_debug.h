@@ -16,7 +16,7 @@
 
 #include <soc/soc.h>
 
-#define PM_HAL_LOGD HAL_LOGD
+#define PM_HAL_LOGV HAL_LOGV
 
 #define LV_DEBUG_GPIO 18
 

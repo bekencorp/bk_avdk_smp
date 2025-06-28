@@ -6829,14 +6829,14 @@ void ieee802_11_mgmt_cb(struct hostapd_data *hapd, const u8 *buf, size_t len,
 	case WLAN_FC_STYPE_ASSOC_RESP:
 		wpa_printf(MSG_DEBUG, "mgmt::assoc_resp cb");
 #if defined(BK_SUPPLICANT) && defined(CONFIG_MOBILE_CONNECT_SAP_STATISTICS)
-		WPA_LOGD("SapConnTimeStat::assoc_resp cb\r\n");
+		WPA_LOGV("SapConnTimeStat::assoc_resp cb\r\n");
 #endif
 		handle_assoc_cb(hapd, mgmt, len, 0, ok);
 		break;
 	case WLAN_FC_STYPE_REASSOC_RESP:
 		wpa_printf(MSG_DEBUG, "mgmt::reassoc_resp cb");
 #if defined(BK_SUPPLICANT) && defined(CONFIG_MOBILE_CONNECT_SAP_STATISTICS)
-		WPA_LOGD("SapConnTimeStat::reassoc_resp cb\r\n");
+		WPA_LOGV("SapConnTimeStat::reassoc_resp cb\r\n");
 #endif
 		handle_assoc_cb(hapd, mgmt, len, 1, ok);
 		break;

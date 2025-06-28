@@ -40,6 +40,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #ifdef ENCODE_DIAG_DEBUG
 
@@ -222,9 +223,9 @@ static void h264_encode_reset_handle(void)
 	h264_encode_config->h264_init = false;
 	h264_encode_config->encode_offset = 0;
 	h264_encode_config->encode_dma_length = 0;
-	LOGD("%s, %d-%d\r\n", __func__, h264_encode_config->line_done_index, h264_encode_config->line_done_cnt);
+	LOGV("%s, %d-%d\r\n", __func__, h264_encode_config->line_done_index, h264_encode_config->line_done_cnt);
 
-	LOGI("%s, complete\r\n", __func__);
+	LOGD("%s, complete\r\n", __func__);
 
 	if(h264_encode_config->reset_cb)
 		h264_encode_config->reset_cb(NULL);
@@ -233,7 +234,7 @@ static void h264_encode_reset_handle(void)
 static void h264_dump_head_eof(frame_buffer_t * frame)
 {
 	uint32_t length = frame->size;
-	LOGI("%s, %d-%d, sof:%02x-%02x-%02x-%02x, eof:%02x-%02x-%02x-%02x\r\n", __func__, frame->length, length, frame->frame[0], frame->frame[1], frame->frame[2],
+	LOGD("%s, %d-%d, sof:%02x-%02x-%02x-%02x, eof:%02x-%02x-%02x-%02x\r\n", __func__, frame->length, length, frame->frame[0], frame->frame[1], frame->frame[2],
 		frame->frame[3], frame->frame[length - 4], frame->frame[length -3], frame->frame[length - 2],
 		frame->frame[length - 1]);
 }
@@ -386,7 +387,7 @@ static void h264_encode_start_handle(uint32_t param)
 		|| h264_notify->width != h264_encode_config->width
 		|| h264_notify->height != h264_encode_config->height)
 	{
-		LOGD("%s, %d\n", __func__, __LINE__);
+		LOGV("%s, %d\n", __func__, __LINE__);
 		h264_encode_reset_handle();
 	}
 
@@ -414,7 +415,7 @@ static void h264_encode_start_handle(uint32_t param)
 		if (h264_notify->buffer->index == 1)
 		{
 			h264_encode_config->h264_init = true;
-			LOGI("%s, %d, %d-%d,%d, %p\r\n", __func__, __LINE__, h264_notify->width, h264_notify->height, h264_notify->buffer->index,  h264_notify->buffer->data);
+			LOGD("%s, %d, %d-%d,%d, %p\r\n", __func__, __LINE__, h264_notify->width, h264_notify->height, h264_notify->buffer->index,  h264_notify->buffer->data);
 			yuv_buf_config_t yuv_buf_config = {0};
 			yuv_buf_config.x_pixel = h264_notify->width / 8;
 			yuv_buf_config.y_pixel = h264_notify->height / 8;
@@ -460,7 +461,7 @@ static void h264_encode_start_handle(uint32_t param)
 				h264_encode_config->state = H264_STATE_IDLE;
 				h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
 				h264_encode_config->decoder_buffer = NULL;
-				LOGI("%s, %d, %d\r\n", __func__, h264_notify->buffer->index, h264_encode_config->line_done_index);
+				LOGD("%s, %d, %d\r\n", __func__, h264_notify->buffer->index, h264_encode_config->line_done_index);
 				goto out;
 			}
 		}
@@ -487,7 +488,7 @@ static void h264_encode_start_handle(uint32_t param)
 	{
 		if (!h264_notify->buffer->ok)
 		{
-			LOGD("%s, yuv frame error\r\n", __func__);
+			LOGV("%s, yuv frame error\r\n", __func__);
 			h264_encode_config->frame_err = true;
 		}
 	}
@@ -664,7 +665,7 @@ error:
 		h264_encode_config->h264_frame->h264_type |= 1 << H264_NAL_P_FRAME;
 	}
 
-	LOGD("%s, I:%d, p:%d\r\n", __func__, (h264_encode_config->h264_frame->h264_type & 0x1000020) > 0 ? 1 : 0, (h264_encode_config->h264_frame->h264_type >> 23) & 0x1);
+	LOGV("%s, I:%d, p:%d\r\n", __func__, (h264_encode_config->h264_frame->h264_type & 0x1000020) > 0 ? 1 : 0, (h264_encode_config->h264_frame->h264_type >> 23) & 0x1);
 
 	frame_buffer_fb_push(h264_encode_config->stream, h264_encode_config->h264_frame);
 
@@ -727,12 +728,12 @@ static void h264_encode_task_deinit(void)
 		// step 3.2: free frame_buffer
 		if (h264_encode_config->h264_frame)
 		{
-			LOGD("%s, frame free start\r\n", __func__);
+			LOGV("%s, frame free start\r\n", __func__);
 			bk_psram_disable_write_through(h264_encode_config->psram_overwrite_id);
 			bk_psram_free_write_through_channel(h264_encode_config->psram_overwrite_id);
 			frame_buffer_fb_free(h264_encode_config->stream, h264_encode_config->h264_frame);
 			h264_encode_config->h264_frame = NULL;
-			LOGD("%s, frame free success\r\n", __func__);
+			LOGV("%s, frame free success\r\n", __func__);
 		}
 
 		if (!list_empty(&h264_encode_config->request_list))
@@ -779,7 +780,7 @@ static void h264_encode_task_deinit(void)
 		{
 			if (h264_encode_config->decoder_buffer)
 			{
-				LOGI("clear decoder_buffer: %d\n", h264_encode_config->decoder_buffer->index);
+				LOGD("clear decoder_buffer: %d\n", h264_encode_config->decoder_buffer->index);
 
 				h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
 				h264_encode_config->decoder_buffer = NULL;
@@ -789,7 +790,7 @@ static void h264_encode_task_deinit(void)
 		{
 			if (h264_encode_config->decoder_buffer)
 			{
-				LOGI("clear decoder_buffer: %d\n", h264_encode_config->decoder_buffer->index);
+				LOGD("clear decoder_buffer: %d\n", h264_encode_config->decoder_buffer->index);
 				h264_encode_config->decoder_free_cb(NULL);
 				os_free(h264_encode_config->decoder_buffer);
 				h264_encode_config->decoder_buffer = NULL;
@@ -847,7 +848,7 @@ static void h264_encode_main(beken_thread_arg_t data)
 				{
 					beken_semaphore_t *beken_semaphore = (beken_semaphore_t*)msg.param;
 
-					LOGI("%s H264_ENCODE_STOP\n", __func__);
+					LOGD("%s H264_ENCODE_STOP\n", __func__);
 
 					if (rtos_is_oneshot_timer_running(&h264_encode_config->h264_timer))
 					{
@@ -910,7 +911,7 @@ static void h264_encode_main(beken_thread_arg_t data)
 
 exit:
 
-	LOGI("%s exit, %d\r\n", __func__, __LINE__);
+	LOGD("%s exit, %d\r\n", __func__, __LINE__);
 
 	rtos_delete_thread(NULL);
 }
@@ -929,7 +930,7 @@ bool check_h264_task_is_open(void)
 
 static void h264_timer_handle(void *arg1, void *arg2)
 {
-	LOGI("%s, timeout\n", __func__);
+	LOGD("%s, timeout\n", __func__);
 
 	h264_encode_reset_handle();
 
@@ -966,7 +967,7 @@ bk_err_t h264_encode_task_open(media_camera_device_t *device)
 	// step 1: check h264_encode_task
 	if (h264_encode_config)
 	{
-		LOGI("%s have been opened\r\n", __func__);
+		LOGD("%s have been opened\r\n", __func__);
 		return ret;
 	}
 
@@ -996,7 +997,7 @@ bk_err_t h264_encode_task_open(media_camera_device_t *device)
 		}
 
 		h264_encode_config->dma_channel = bk_fixed_dma_alloc(DMA_DEV_H264, DMA_ID_8);
-		LOGI("dma for encode is %x \r\n", h264_encode_config->dma_channel);
+		LOGD("dma for encode is %x \r\n", h264_encode_config->dma_channel);
 
 		rtos_init_semaphore(&h264_encode_config->h264_sem, 1);
 		if (h264_encode_config->h264_sem == NULL)
@@ -1017,7 +1018,7 @@ bk_err_t h264_encode_task_open(media_camera_device_t *device)
 	}
 	else
 	{
-		LOGI("%s, %d, %p\n", __func__, __LINE__, h264_encode_config->stream);
+		LOGD("%s, %d, %p\n", __func__, __LINE__, h264_encode_config->stream);
 	}
 
 	h264_encode_config->h264_frame = frame_buffer_fb_malloc(h264_encode_config->stream, CONFIG_H264_FRAME_SIZE);
@@ -1131,10 +1132,9 @@ bk_err_t h264_encode_task_close(void)
 
 	h264_encode_task_deinit();
 
-	LOGI("%s complete\n", __func__);
+	LOGD("%s complete\n", __func__);
 	return BK_OK;
 }
-
 
 bk_err_t bk_h264_encode_request(pipeline_encode_request_t *request, mux_callback_t cb)
 {
@@ -1143,7 +1143,7 @@ bk_err_t bk_h264_encode_request(pipeline_encode_request_t *request, mux_callback
 
 	if (h264_encode_config == NULL || h264_encode_config->task_state == false)
 	{
-		LOGI("%s not open\n", __func__);
+		LOGD("%s not open\n", __func__);
 		goto error1;
 	}
 
@@ -1151,7 +1151,7 @@ bk_err_t bk_h264_encode_request(pipeline_encode_request_t *request, mux_callback
 
 	if (h264_request == NULL)
 	{
-		LOGI("%s malloc failed\n", __func__);
+		LOGD("%s malloc failed\n", __func__);
 		goto error1;
 	}
 
@@ -1160,7 +1160,7 @@ bk_err_t bk_h264_encode_request(pipeline_encode_request_t *request, mux_callback
 	h264_encode_config->decoder_free_cb = cb;
 	if (BK_OK != h264_encode_task_send_msg(H264_ENCODE_START, (uint32_t)h264_request))
 	{
-		LOGI("%s send failed\n", __func__);
+		LOGD("%s send failed\n", __func__);
 		goto error;
 	}
 

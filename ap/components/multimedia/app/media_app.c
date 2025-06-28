@@ -64,7 +64,7 @@ uint32_t media_app_get_lcd_devices_num(void)
 uint32_t media_app_get_lcd_devices_list(void)
 {
     const lcd_device_t **device_addr = get_lcd_devices_list();
-    LOGI("%s, lcd device addr = %p\n", __func__, device_addr);
+    LOGD("%s, lcd device addr = %p\n", __func__, device_addr);
     return (uint32_t)device_addr;
 }
 
@@ -91,7 +91,7 @@ bk_err_t media_app_set_rotate(media_rotate_t rotate)
     int ret = BK_FAIL;
     ret = pipeline_set_rotate(rotate);
     ret = image_rotate_set(rotate);
-    LOGI("%s %d %d(0:0, 1:90, 2:180,3:270)\n", __func__, __LINE__, rotate);
+    LOGD("%s %d %d(0:0, 1:90, 2:180,3:270)\n", __func__, __LINE__, rotate);
     return ret;
 }
 
@@ -101,13 +101,13 @@ bk_err_t media_app_get_main_camera_stream(frame_list_node_t *node)
 
     if (list_empty(&media_modules_state->cam_list))
     {
-        LOGI("%s camera not open!\n", __func__);
+        LOGD("%s camera not open!\n", __func__);
         return ret;
     }
 
     node = frame_buffer_list_get_main_stream();
 
-    LOGI("%s complete %p %x\n", __func__, node, node->camera_id);
+    LOGD("%s complete %p %x\n", __func__, node, node->camera_id);
 
     return ret;
 }
@@ -130,7 +130,7 @@ bk_err_t media_app_lcd_disp_open(void *config)
 
     ret = lcd_display_open(config);
 
-    LOGI("%s complete %x\n", __func__, ret);
+    LOGD("%s complete %x\n", __func__, ret);
 
     return ret;
 }
@@ -143,7 +143,7 @@ bk_err_t media_app_lcd_disp_close(void)
 
     bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VIDP_LCD, PM_POWER_MODULE_STATE_OFF);
 
-    LOGI("%s complete %x\n", __func__, ret);
+    LOGD("%s complete %x\n", __func__, ret);
 
     return ret;
 }
@@ -152,7 +152,7 @@ bk_err_t media_app_camera_open(camera_handle_t *handle, media_camera_device_t *d
 {
     int ret = BK_FAIL;
 
-    LOGI("%s, type:%d, id:%d, W*H:%d*%d, format:%d\n",
+    LOGD("%s, type:%d, id:%d, W*H:%d*%d, format:%d\n",
          __func__, device->type, device->port, device->width,
          device->height, device->format);
 
@@ -170,7 +170,7 @@ bk_err_t media_app_camera_open(camera_handle_t *handle, media_camera_device_t *d
     if (tmp)
     {
         ret = BK_OK;
-        LOGI("%s already opened, %p\n", __func__, tmp);
+        LOGD("%s already opened, %p\n", __func__, tmp);
         *handle = tmp;
         return ret;
     }
@@ -206,7 +206,7 @@ bk_err_t media_app_camera_open(camera_handle_t *handle, media_camera_device_t *d
         LOGW("%s, %d, open failed...\n", __func__, __LINE__);
     }
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 
     return ret;
 }
@@ -217,7 +217,7 @@ bk_err_t media_app_camera_close(camera_handle_t *handle)
 
     if (*handle == NULL)
     {
-        LOGI("%s already closed\n", __func__);
+        LOGD("%s already closed\n", __func__);
         return BK_OK;
     }
 
@@ -226,7 +226,7 @@ bk_err_t media_app_camera_close(camera_handle_t *handle)
     camera_handle_t tmp = bk_camera_handle_node_get_by_id_and_fomat(config->id, config->image_format);
     if (tmp == NULL)
     {
-        LOGI("%s already closed\n", __func__);
+        LOGD("%s already closed\n", __func__);
         return BK_OK;
     }
     ret = camera_close_handle(handle);
@@ -238,11 +238,11 @@ bk_err_t media_app_camera_close(camera_handle_t *handle)
 
     if (list_empty(&media_modules_state->cam_list))
     {
-        LOGI("%s list_empty \n", __func__);
+        LOGD("%s list_empty \n", __func__);
         bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VIDP_JPEG_EN,PM_POWER_MODULE_STATE_OFF);
     }
 
-    LOGI("%s complete %d\n", __func__, ret);
+    LOGD("%s complete %d\n", __func__, ret);
 
     return ret;
 }
@@ -251,11 +251,11 @@ bk_err_t media_app_register_read_frame_callback(image_format_t fmt, frame_cb_t c
 {
     int ret = BK_OK;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 #ifdef CONFIG_WIFI_TRANSFER
     if (media_modules_state->trs_state)
     {
-        LOGI("%s, transfer have been opened!\r\n", __func__);
+        LOGD("%s, transfer have been opened!\r\n", __func__);
         return ret;
     }
 
@@ -268,7 +268,7 @@ bk_err_t media_app_register_read_frame_callback(image_format_t fmt, frame_cb_t c
     media_modules_state->trs_state = true;
 
 #endif
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 
     return ret;
 }
@@ -280,11 +280,11 @@ bk_err_t media_app_unregister_read_frame_callback(void)
 
     if (media_modules_state->trs_state == false)
     {
-        LOGI("%s, transfer have been closed!\r\n", __func__);
+        LOGD("%s, transfer have been closed!\r\n", __func__);
         return ret;
     }
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     ret = transfer_app_task_deinit();
     if (ret == BK_OK)
@@ -293,7 +293,7 @@ bk_err_t media_app_unregister_read_frame_callback(void)
     }
 
 #endif
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 
     return ret;
 }
@@ -306,7 +306,7 @@ bk_err_t media_app_storage_open(frame_cb_t cb)
 
     if (media_state->stor_state)
     {
-        LOGI("%s, %d already open\n", __func__, __LINE__);
+        LOGD("%s, %d already open\n", __func__, __LINE__);
         ret = BK_OK;
         return ret;
     }
@@ -330,7 +330,7 @@ bk_err_t media_app_storage_close(void)
 
     if (media_state->stor_state == false)
     {
-        LOGI("%s, %d already close\n", __func__, __LINE__);
+        LOGD("%s, %d already close\n", __func__, __LINE__);
         return ret;
     }
 
@@ -437,7 +437,7 @@ bk_err_t media_app_init(void)
         goto error;
     }
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 
     return ret;
 
@@ -449,6 +449,6 @@ error:
         media_modules_state = NULL;
     }
 
-    LOGI("%s error\n");
+    LOGD("%s error\n");
     return ret;
 }

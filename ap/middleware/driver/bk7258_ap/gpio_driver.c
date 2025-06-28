@@ -177,7 +177,7 @@ bk_err_t gpio_jtag_sel(gpio_jtag_map_group_t group_id)
 		gpio_hal_func_map(&s_gpio.hal,GPIO_0, GPIO_DEV_JTAG_TCK);
 		gpio_hal_func_map(&s_gpio.hal,GPIO_1, GPIO_DEV_JTAG_TMS);
 	} else {
-		GPIO_LOGI("Unsupported group id(%d).\r\n", group_id);
+		GPIO_LOGD("Unsupported group id(%d).\r\n", group_id);
 		return BK_FAIL;
 	}
 

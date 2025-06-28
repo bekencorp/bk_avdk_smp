@@ -26,4 +26,5 @@ typedef struct {
 #define GPIO_LOGW(...) BK_LOGW(GPIO_TAG, ##__VA_ARGS__)
 #define GPIO_LOGE(...) BK_LOGE(GPIO_TAG, ##__VA_ARGS__)
 #define GPIO_LOGD(...) BK_LOGD(GPIO_TAG, ##__VA_ARGS__)
+#define GPIO_LOGV(...) BK_LOGV(GPIO_TAG, ##__VA_ARGS__)
 

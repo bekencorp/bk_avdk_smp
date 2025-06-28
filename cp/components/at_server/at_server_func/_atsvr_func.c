@@ -46,7 +46,8 @@ static int _atsvr_at_echo_command(int sync,int argc, char **argv)
 		_set_atsvr_echo_mode(p_env,ATSVR_ECHO_NONE);
 	}else{
 		_atsvr_cmd_rsp_error(p_env);
-		return 0;	
+		return 0;	
+
 	}
 	}
 	_atsvr_cmd_rsp_ok(p_env);
@@ -115,21 +116,21 @@ static int atsvr_timeout_test(int sync,int argc, char **argv)
 {
 	/*full HELP print*/
 	if(argc == 0)
-	{	
-		os_printf("wrong!\r\n");
+	{
+		BK_LOGD(NULL,"wrong!\r\n");
 		return -1;
 	}
 	else
 	{
 		if(argc == 0)
-		{	
-			os_printf("%s\r\n",argv[0]);
+		{
+			BK_LOGD(NULL,"%s\r\n",argv[0]);
 			return 0;
 		}
 		else
-		{	
-			os_printf("%s\r\n",argv[0]);
-			os_printf("%s\r\n",argv[1]);
+		{
+			BK_LOGD(NULL,"%s\r\n",argv[0]);
+			BK_LOGD(NULL,"%s\r\n",argv[1]);
 			return 0;
 		}
 

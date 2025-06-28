@@ -51,7 +51,7 @@ bk_err_t bk_aon_wdt_set_period(uint32_t timeout_ms)
 
 	s_aon_wdt_period = timeout_ms;
 	aon_wdt_hal_set_period(timeout_ms);
-	AON_WDT_LOGD("bk_aon_wdt set period: %d.\r\n", timeout_ms);
+	AON_WDT_LOGV("bk_aon_wdt set period: %d.\r\n", timeout_ms);
 
 	return BK_OK;
 }
@@ -67,7 +67,7 @@ static void aon_wdt_deinit_common(void)
 bk_err_t bk_aon_wdt_stop(void)
 {
 	aon_wdt_deinit_common();
-	AON_WDT_LOGD("bk_aon_wdt_stop.\r\n");
+	AON_WDT_LOGV("bk_aon_wdt_stop.\r\n");
 
 	return BK_OK;
 }
@@ -89,7 +89,7 @@ void bk_int_aon_wdt_feed(void)
 	if ((current_tick - s_last_int_aon_wdt_feed_tick) >= s_feed_aon_watchdog_time) {
 		bk_aon_wdt_feed();
 		s_last_int_aon_wdt_feed_tick = current_tick;
-		AON_WDT_LOGD("feed interrupt watchdog\n");
+		AON_WDT_LOGV("feed interrupt watchdog\n");
 	}
 }
 

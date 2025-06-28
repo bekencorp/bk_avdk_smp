@@ -47,6 +47,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 //#define IMG_DIAG_DEBUG
 
@@ -191,7 +192,7 @@ static void img_service_task_entry(beken_thread_arg_t data)
 exit:
     img_service_task = NULL;
     rtos_set_semaphore(&img_info.sem);
-    LOGI("lcd display task exit\n");
+    LOGD("lcd display task exit\n");
     rtos_delete_thread(NULL);
 }
 
@@ -266,7 +267,7 @@ static void img_service_task_stop(void)
 
     if (img_service_task_running == false)
     {
-        LOGI("%s already stop\n", __func__);
+        LOGD("%s already stop\n", __func__);
         return;
     }
     img_service_task_running = false;
@@ -294,7 +295,7 @@ static void img_service_task_stop(void)
         {
             if (msg.event == IMG_DISPLAY_REQUEST)
             {
-                LOGI("%s %d free IMG_DISPLAY_REQUEST frame\n", __func__, __LINE__);
+                LOGD("%s %d free IMG_DISPLAY_REQUEST frame\n", __func__, __LINE__);
                 img_info.fb_free((frame_buffer_t *)msg.ptr);
             }
         }
@@ -312,7 +313,7 @@ static void img_service_task_stop(void)
         rtos_deinit_queue(&img_info.queue);
         img_info.queue = NULL;
     }
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 }
 
 static void decoder_task_entry(beken_thread_arg_t data)
@@ -334,7 +335,7 @@ static void decoder_task_entry(beken_thread_arg_t data)
         jpeg_frame = frame_buffer_fb_read(jpeg_frame_node, MODULE_DECODER, 50);
         if (jpeg_frame == NULL)
         {
-            LOGD("%s read jpeg frame NULL\n", __func__);
+            LOGV("%s read jpeg frame NULL\n", __func__);
             continue;
         }
 
@@ -343,7 +344,7 @@ static void decoder_task_entry(beken_thread_arg_t data)
         frame_buffer_fb_read_free(jpeg_frame_node, jpeg_frame, MODULE_DECODER);
         if (dec_frame == NULL)
         {
-            LOGD("jpeg decoder frame NULL\n");
+            LOGV("jpeg decoder frame NULL\n");
             continue;
         }
 
@@ -358,7 +359,7 @@ static void decoder_task_entry(beken_thread_arg_t data)
             img_info.fb_free(dec_frame);
         }
     }
-    LOGI("camera display task exit\n");
+    LOGD("camera display task exit\n");
     jpeg_decoder_task = NULL;
     rtos_set_semaphore(&jpeg_decoder_sem);
     rtos_delete_thread(NULL);
@@ -431,7 +432,7 @@ void decoder_task_stop(void)
     bk_err_t ret;
     if (jpeg_decoder_task_running == false)
     {
-        LOGI("%s already stop\n", __func__);
+        LOGD("%s already stop\n", __func__);
         return;
     }
     jpeg_decoder_task_running = false;
@@ -451,7 +452,7 @@ void decoder_task_stop(void)
         LOGE("%s decoder_sem deinit failed\n", __func__);
     }
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 }
 
 
@@ -492,12 +493,12 @@ frame_buffer_t *decoder_frame_handler(frame_buffer_t *frame)
         yuv_enc_fmt_t yuv_fmt = bk_get_original_jpeg_encode_data_format(frame->frame, frame->length);
         if (yuv_fmt == YUV_422)
         {
-            LOGI("%s, FMT:YUV422, use HARDWARE DECODE\r\n", __func__);
+            LOGD("%s, FMT:YUV422, use HARDWARE DECODE\r\n", __func__);
             img_info.decode_mode = JPEGDEC_HW_MODE;
         }
         else if (yuv_fmt == YUV_ERR)
         {
-            LOGI("%s, FMT:ERR\r\n", __func__);
+            LOGD("%s, FMT:ERR\r\n", __func__);
             img_info.decode_mode = NONE_DECODE;
             img_info.decoder_frame->fmt = PIXEL_FMT_YUYV;
             img_info.fb_free(img_info.decoder_frame);
@@ -507,7 +508,7 @@ frame_buffer_t *decoder_frame_handler(frame_buffer_t *frame)
         }
         else
         {
-            LOGI("%s, FMT:YUV420, use SOFTWARE DECODE\r\n", __func__);
+            LOGD("%s, FMT:YUV420, use SOFTWARE DECODE\r\n", __func__);
             img_info.decode_mode = SOFTWARE_DECODING_MAJOR;
             bk_jpeg_dec_sw_init(NULL, 0);
         }
@@ -519,7 +520,7 @@ frame_buffer_t *decoder_frame_handler(frame_buffer_t *frame)
         ret = bk_hw_decode_start(frame, img_info.decoder_frame);
         if (ret != BK_OK)
         {
-            LOGD("%s hw decoder error\n", __func__);
+            LOGV("%s hw decoder error\n", __func__);
             img_info.fb_free(img_info.decoder_frame);
             img_info.decoder_frame = NULL;
             goto out;
@@ -570,7 +571,7 @@ out:
 
     if (img_info.decoder_frame == NULL)
     {
-        LOGD("%s decoder failed\n", __func__);
+        LOGV("%s decoder failed\n", __func__);
         ret = BK_FAIL;
     }
     else
@@ -581,7 +582,7 @@ out:
 
     rtos_unlock_mutex(&img_info.dec_lock);
     after = get_current_timestamp();
-    LOGD("decoder time: %lu\n", (after - before) / 26000);
+    LOGV("decoder time: %lu\n", (after - before) / 26000);
 
     return dec_frame;
 }
@@ -621,7 +622,7 @@ frame_buffer_t *scale_frame_handler(frame_buffer_t *frame, media_ppi_t ppi)
         LOGE("%s, malloc scale_frame NULL\n", __func__);
         goto out;
     }
-    LOGD("scale_ppi: width height %d %d\n", (img_info.scale_ppi >> 16), (img_info.scale_ppi & 0xFFFF));
+    LOGV("scale_ppi: width height %d %d\n", (img_info.scale_ppi >> 16), (img_info.scale_ppi & 0xFFFF));
 
     img_info.scale_frame->width = (img_info.scale_ppi >> 16);
     img_info.scale_frame->height = (img_info.scale_ppi & 0xFFFF);
@@ -637,7 +638,7 @@ frame_buffer_t *scale_frame_handler(frame_buffer_t *frame, media_ppi_t ppi)
         goto out;
     }
     after = get_current_timestamp();
-    LOGD("rotate time: %lu\n", (after - before) / 26000);
+    LOGV("rotate time: %lu\n", (after - before) / 26000);
 
     IMG_RESIZE_END();
 
@@ -658,12 +659,12 @@ frame_buffer_t *rotate_frame_handler(frame_buffer_t *frame, media_rotate_t rotat
 
     if (rotate == ROTATE_NONE)
     {
-        LOGD("%s rotate 0 \n", __func__);
+        LOGV("%s rotate 0 \n", __func__);
         return frame;
     }
     if (frame->height == 720 && frame->width == 1280)
     {
-        LOGD("%s 720p is not support rotate\n", __func__);
+        LOGV("%s 720p is not support rotate\n", __func__);
         return frame;
     }
     IMG_ROTATE_START();
@@ -725,7 +726,7 @@ frame_buffer_t *rotate_frame_handler(frame_buffer_t *frame, media_rotate_t rotat
     }
 
     after = get_current_timestamp();
-    LOGD("rotate time: %lu\n", (after - before) / 26000);
+    LOGV("rotate time: %lu\n", (after - before) / 26000);
 
     IMG_ROTATE_END();
 
@@ -750,7 +751,7 @@ bk_err_t image_rotate_set(media_rotate_t rotate)
     int ret = BK_OK;
     img_info.rotate_en = true;
     img_info.rotate = rotate;
-    LOGD("%s rotate angle = %d \n", __func__, img_info.rotate);
+    LOGV("%s rotate angle = %d \n", __func__, img_info.rotate);
     return ret;
 }
 
@@ -771,7 +772,7 @@ bk_err_t img_service_open(void)
     {
         LOGE("%s, bk_rotate_init fail\r\n", __func__);
     }
-    LOGD("rotate mode(1-sw, 2-hw) = %d, rotate angle(0/1/2/3 -->0/90/180/270) = %d\r\n", img_info.rotate_mode, img_info.rotate);
+    LOGV("rotate mode(1-sw, 2-hw) = %d, rotate angle(0/1/2/3 -->0/90/180/270) = %d\r\n", img_info.rotate_mode, img_info.rotate);
 
 #if CONFIG_MEDIA_SCALE
     if (img_info.scale_en)
@@ -782,7 +783,7 @@ bk_err_t img_service_open(void)
             LOGE("%s, bk_hw_scale_driver_init fail\r\n", __func__);
         }
         img_info.scale_ppi = img_info.lcd_device->ppi;
-        LOGI("%s, scale ppi: %dX%d %s\n", __func__, img_info.scale_ppi >> 16, img_info.scale_ppi & 0xFFFF, img_info.lcd_device->name);
+        LOGD("%s, scale ppi: %dX%d %s\n", __func__, img_info.scale_ppi >> 16, img_info.scale_ppi & 0xFFFF, img_info.lcd_device->name);
     }
 #endif
 
@@ -806,7 +807,7 @@ bk_err_t img_service_open(void)
 
     img_info.enable = true;
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
     return ret;
 }
 
@@ -815,7 +816,7 @@ bk_err_t img_service_close(void)
 {
     int ret = BK_OK;
 
-    LOGD("%s\n", __func__);
+    LOGV("%s\n", __func__);
 
     if (false == img_info.enable)
     {
@@ -869,7 +870,7 @@ bk_err_t img_service_close(void)
     img_info.rotate = ROTATE_NONE;
     img_info.jpg_fmt_check = false;
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 out:
     return ret;
 }

@@ -11,10 +11,10 @@
 
 #define TAG "pwr_core"
 
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define LOW_PWR_CORE_STACK_SIZE              (1536)
 #define LOW_PWR_CORE_QUEUE_NUMBER_OF_MESSAGE (10)
@@ -46,13 +46,13 @@ static void low_pwr_core_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *pa
 	low_pwr_core_msg_t msg = {0};
 	msg.event= LOW_PWR_CORE_RTC_WAKEUPED;
 	bk_low_pwr_core_send_msg(&msg);
-	LOGI("rtc_cb[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
+	LOGD("rtc_cb[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
 	bk_pm_cp0_response_cp1(PM_SLEEP_WAKEUP_NOTIFY_CMD,PM_MODE_LOW_VOLTAGE,PM_WAKEUP_SOURCE_INT_RTC,0);
 }
 static void low_pwr_core_gpio_callback(gpio_id_t gpio_id)
 {
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP,0x0,0x0);
-	LOGI("gpio_cb[%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),gpio_id);
+	LOGD("gpio_cb[%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),gpio_id);
 	low_pwr_core_msg_t msg = {0};
 	msg.event= LOW_PWR_CORE_GPIO_WAKEUPED;
 	bk_low_pwr_core_send_msg(&msg);
@@ -62,7 +62,7 @@ static bk_err_t low_pwr_core_rtc_wakeup_config(low_pwr_core_msg_t* msg)
 {
 	bk_err_t ret = BK_OK;
 	uint32_t rtc_period = msg->param3;
-	LOGI("rtc cfg[%d]\r\n",rtc_period);
+	LOGD("rtc cfg[%d]\r\n",rtc_period);
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	alarm_info_t lv_alarm = {
 						"lv_rtc",
@@ -89,7 +89,7 @@ static bk_err_t low_pwr_core_gpio_wakeup_config(low_pwr_core_msg_t* msg)
 	}
 	gpio_id = msg->param3&0xFFFF;
 	int_type = (msg->param3 >> 16)&0xFFFF;
-	LOGI("gpio cfg[%d][%d]\r\n",gpio_id,int_type);
+	LOGD("gpio cfg[%d][%d]\r\n",gpio_id,int_type);
 	#if CONFIG_GPIO_WAKEUP_SUPPORT || CONFIG_ANA_GPIO
 	bk_gpio_register_isr(gpio_id , low_pwr_core_gpio_callback);
 	bk_gpio_register_wakeup_source(gpio_id ,int_type);
@@ -167,7 +167,7 @@ static bk_err_t low_pwr_core_message_handle(void)
     while (1)
     {
         ret = rtos_pop_from_queue(&s_pm_info->queue, &msg, BEKEN_WAIT_FOREVER);
-		LOGI("LP event:%d\n", msg.event);
+		LOGD("LP event:%d\n", msg.event);
         if (kNoErr == ret)
         {
             switch (msg.event)

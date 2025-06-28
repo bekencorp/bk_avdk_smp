@@ -25,6 +25,7 @@ extern int wpa_debug_syslog;
 #define WPA_LOGW(...) BK_LOGW("wpa", ##__VA_ARGS__)
 #define WPA_LOGE(...) BK_LOGE("wpa", ##__VA_ARGS__)
 #define WPA_LOGD(...) BK_LOGD("wpa", ##__VA_ARGS__)
+#define WPA_LOGV(...) BK_LOGV("wpa", ##__VA_ARGS__)
 #endif
 
 /* Debugging function - conditional printf and hex dump. Driver wrappers can

@@ -150,8 +150,8 @@ static bool sdcard_check_inserted(void)
 		i++;
 		if(i > 80000)	//240M CPU clock, 60M * 4wire flash:i++ is 125ns,total is about ~~10ms
 		{
-			os_printf("sdcard isn't insert\r\n");
-			os_printf("WARNIG:HW will change detect pin, do not forget to modify code\r\n");
+			BK_LOGD(NULL, "sdcard isn't insert\r\n");
+			BK_LOGD(NULL, "WARNIG:HW will change detect pin, do not forget to modify code\r\n");
 			is_inserted = false;
 			break;
 		}
@@ -227,7 +227,7 @@ static void sdio_hw_init(void)
 	/* set sdcard  clk enable*/
 	sdio_clk_config(1);
 
-	os_printf("%s exit\r\n", __func__);
+	BK_LOGD(NULL, "%s exit\r\n", __func__);
 }
 
 static void sdio_send_cmd(SDIO_CMD_PTR sdio_cmd_ptr)
@@ -602,7 +602,7 @@ static SDIO_Error sdcard_cmd9_process(uint8 card_type)
 	sdio_get_cmdresponse_argument(2, &cmd.resp[2]);
 
 	sdcard.block_size = 1 << ((cmd.resp[1] >> 16) & 0xf);
-	//os_printf("arg:%x %x %x %x size:%x\r\n", cmd.resp[0],
+	//BK_LOGD(NULL, "arg:%x %x %x %x size:%x\r\n", cmd.resp[0],
 	//          cmd.resp[1], cmd.resp[2], cmd.resp[3], sdcard.block_size);
 
 	if (card_type == SD_CARD) {
@@ -618,7 +618,7 @@ static SDIO_Error sdcard_cmd9_process(uint8 card_type)
 			sdcard.total_block = (csize + 1) * 1024;
 		}
 
-		os_printf("size:%x total_block:%x\r\n", sdcard.block_size, sdcard.total_block);
+		BK_LOGD(NULL, "size:%x total_block:%x\r\n", sdcard.block_size, sdcard.total_block);
 	} else {
 		if (sdcard.Addr_shift_bit != 0) {
 			csize = (((cmd.resp[1] & 0x3FF) << 2)
@@ -792,7 +792,7 @@ SDIO_Error sdcard_initialize(void)
 
 	rtos_delay_milliseconds(50);
 	err = sdcard_cmd1_process();
-	os_printf("cmd 1:%x \r\n", err);
+	BK_LOGD(NULL, "cmd 1:%x \r\n", err);
 	if (err == SD_OK)
 		goto MMC_init;
 
@@ -916,11 +916,11 @@ SDIO_Error sdcard_initialize(void)
 
 MMC_init:
 	err = sdcard_cmd2_process();
-	os_printf("cmd 2 :%x\r\n", err);
+	BK_LOGD(NULL, "cmd 2 :%x\r\n", err);
 	if (err != SD_OK)
 		goto err_return;
 	err = sdcard_mmc_cmd3_process();
-	os_printf("cmd 3 :%x\r\n", err);
+	BK_LOGD(NULL, "cmd 3 :%x\r\n", err);
 
 #if (CONFIG_SOC_BK7256XX)	//temp code, will be switch to sdcard_driver.c
 	sdcard_clock_set(CLK_80M);
@@ -929,10 +929,10 @@ MMC_init:
 #endif
 
 	err = sdcard_cmd9_process(MMC_CARD);
-	os_printf("cmd 9 :%x\r\n", err);
+	BK_LOGD(NULL, "cmd 9 :%x\r\n", err);
 	if (sdcard.Addr_shift_bit == 0) {
 		err = sdcard_mmc_cmd8_process();
-		os_printf("cmd 8 :%x\r\n", err);
+		BK_LOGD(NULL, "cmd 8 :%x\r\n", err);
 	}
 	if (err != SD_OK)
 		goto err_return;
@@ -1330,7 +1330,7 @@ SDIO_Error sdcard_read_multi_block(UINT8 *read_buff, int first_block, int block_
 	sdio_clk_config(0);
 
 	if (Ret != SD_OK)
-		os_printf("SD Ret:%d\r\n", Ret);
+		BK_LOGD(NULL, "SD Ret:%d\r\n", Ret);
 	return Ret;
 }
 #endif
@@ -1430,7 +1430,7 @@ SDIO_Error sdcard_write_single_block(UINT8 *writebuff, UINT32 writeaddr)
 	}
 
 	if (ret != SD_OK)
-		os_printf("--single blk write err:%d---\r\n", ret);
+		BK_LOGD(NULL, "--single blk write err:%d---\r\n", ret);
 	sdio_clk_config(0);
 
 	return ret;
@@ -1579,7 +1579,7 @@ static SDIO_Error sdcard_write_data(UINT8 *write_buff, UINT32 block_num, UINT8 f
 #endif
 		if (2 != ((reg & SDCARD_CMDRSP_WR_STATU) >> 20)) {
 			ret = SD_ERROR;
-			os_printf("write data error !!!\r\n");
+			BK_LOGD(NULL, "write data error !!!\r\n");
 			break;
 		}
 	}
@@ -1675,7 +1675,7 @@ SDIO_Error sdcard_write_multi_block(UINT8 *write_buff, UINT32 first_block, UINT3
 	if (1 == no_need_send_cmd12_flag)
 		op_flag = 3;//stop has send
 
-	//os_printf("===sd write: start = %d,block_num = %d,op_flag = %d=====\r\n", first_block, block_num, op_flag);
+	//BK_LOGD(NULL, "===sd write: start = %d,block_num = %d,op_flag = %d=====\r\n", first_block, block_num, op_flag);
 
 	no_need_send_cmd12_flag = 0;
 	if (0 == op_flag)//continue write
@@ -1923,7 +1923,7 @@ UINT32 sdcard_open(UINT32 op_flag)
 {
 	UINT8 cnt;
 
-	os_printf("===sd card open:%d===\r\n", NoneedInitflag);
+	BK_LOGD(NULL, "===sd card open:%d===\r\n", NoneedInitflag);
 	cnt = 3;
 	while (1) {
 		if (sdcard_initialize() == SD_OK)
@@ -1947,10 +1947,10 @@ UINT32 sdcard_read(char *user_buf, UINT32 count, UINT32 op_flag)
 {
 	UINT32 result = SD_OK;
 #if 1
-	//os_printf("sd_read:buf = %x, count=%d,sector num=%d\r\n", user_buf, count, op_flag);
+	//BK_LOGD(NULL, "sd_read:buf = %x, count=%d,sector num=%d\r\n", user_buf, count, op_flag);
 	result = sdcard_read_multi_block((uint8 *)user_buf, op_flag, count);
 	if(result)
-		os_printf("read err:%d\r\n", result);
+		BK_LOGD(NULL, "read err:%d\r\n", result);
 	return result;
 #else
 
@@ -1963,7 +1963,7 @@ UINT32 sdcard_read(char *user_buf, UINT32 count, UINT32 op_flag)
 	read_blk_numb = count;
 	read_data_buf = (UINT8 *)user_buf;
 
-	os_printf("sd_read:buf = %x, count=%d,op_flag=%d\r\n", user_buf, count, op_flag);
+	BK_LOGD(NULL, "sd_read:buf = %x, count=%d,op_flag=%d\r\n", user_buf, count, op_flag);
 
 
 
@@ -1972,7 +1972,7 @@ UINT32 sdcard_read(char *user_buf, UINT32 count, UINT32 op_flag)
 			result = sdcard_read_single_block(read_data_buf, start_blk_addr,
 											  SD_DEFAULT_BLOCK_SIZE);
 			if (result != SD_OK) {
-				os_printf("sdcard_read err:%d, curblk:0x%x\r\n", result, start_blk_addr);
+				BK_LOGD(NULL, "sdcard_read err:%d, curblk:0x%x\r\n", result, start_blk_addr);
 				count = 0;
 				goto exit;
 			}

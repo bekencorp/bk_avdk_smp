@@ -31,7 +31,7 @@ struct mii_dev *miiphy_get_dev_by_name(const char *devname)
 	struct mii_dev *dev;
 
 	if (!devname) {
-		os_printf("NULL device name!\n");
+		BK_LOGD(NULL,"NULL device name!\n");
 		return NULL;
 	}
 
@@ -82,7 +82,7 @@ int mdio_register(struct mii_dev *bus)
 
 	/* check if we have unique name */
 	if (miiphy_get_dev_by_name(bus->name)) {
-		os_printf("mdio_register: non unique device name '%s'\n",
+		BK_LOGD(NULL,"mdio_register: non unique device name '%s'\n",
 			bus->name);
 		return -1;
 	}
@@ -130,18 +130,18 @@ void mdio_list_devices(void)
 		int i;
 		struct mii_dev *bus = list_entry(entry, struct mii_dev, link);
 
-		os_printf("%s:\n", bus->name);
+		BK_LOGD(NULL,"%s:\n", bus->name);
 
 		for (i = 0; i < PHY_MAX_ADDR; i++) {
 			struct phy_device *phydev = bus->phymap[i];
 
 			if (phydev) {
-				os_printf("%x - %s", i, phydev->drv->name);
+				BK_LOGD(NULL,"%x - %s", i, phydev->drv->name);
 
 				if (phydev->dev)
-					os_printf(" <--> %s\n", netif_name(phydev->dev));
+					BK_LOGD(NULL," <--> %s\n", netif_name(phydev->dev));
 				else
-					os_printf("\n");
+					BK_LOGD(NULL,"\n");
 			}
 		}
 	}
@@ -157,7 +157,7 @@ int miiphy_set_current_dev(const char *devname)
 		return 0;
 	}
 
-	os_printf("No such device: %s\n", devname);
+	BK_LOGD(NULL,"No such device: %s\n", devname);
 
 	return 1;
 }
@@ -190,7 +190,7 @@ struct phy_device *mdio_phydev_for_ethname(const char *ethname)
 		}
 	}
 
-	os_printf("%s is not a known ethernet\n", ethname);
+	BK_LOGD(NULL,"%s is not a known ethernet\n", ethname);
 	return NULL;
 }
 
@@ -275,15 +275,15 @@ void miiphy_listdev(void)
 	struct list_head *entry;
 	struct mii_dev *dev;
 
-	os_printf("MII devices: ");
+	BK_LOGD(NULL,"MII devices: ");
 	list_for_each(entry, &mii_devs) {
 		dev = list_entry(entry, struct mii_dev, link);
-		os_printf("'%s' ", dev->name);
+		BK_LOGD(NULL,"'%s' ", dev->name);
 	}
-	os_printf("\n");
+	BK_LOGD(NULL,"\n");
 
 	if (current_mii)
-		os_printf("Current device: '%s'\n", current_mii->name);
+		BK_LOGD(NULL,"Current device: '%s'\n", current_mii->name);
 }
 
 /*****************************************************************************
@@ -306,12 +306,12 @@ int miiphy_info(const char *devname, unsigned char addr, unsigned int *oui,
 	unsigned short tmp;
 
 	if (miiphy_read(devname, addr, MII_PHYSID2, &tmp) != 0) {
-		os_printf("PHY ID register 2 read failed\n");
+		BK_LOGD(NULL,"PHY ID register 2 read failed\n");
 		return -1;
 	}
 	reg = tmp;
 
-	os_printf("MII_PHYSID2 @ 0x%x = 0x%04x\n", addr, reg);
+	BK_LOGD(NULL,"MII_PHYSID2 @ 0x%x = 0x%04x\n", addr, reg);
 
 	if (reg == 0xFFFF) {
 		/* No physical device present at this address */
@@ -319,11 +319,11 @@ int miiphy_info(const char *devname, unsigned char addr, unsigned int *oui,
 	}
 
 	if (miiphy_read(devname, addr, MII_PHYSID1, &tmp) != 0) {
-		os_printf("PHY ID register 1 read failed\n");
+		BK_LOGD(NULL,"PHY ID register 1 read failed\n");
 		return -1;
 	}
 	reg |= tmp << 16;
-	os_printf("PHY_PHYIDR[1,2] @ 0x%x = 0x%08x\n", addr, reg);
+	BK_LOGD(NULL,"PHY_PHYIDR[1,2] @ 0x%x = 0x%08x\n", addr, reg);
 
 	*oui = (reg >> 10);
 	*model = (unsigned char)((reg >> 4) & 0x0000003F);
@@ -347,11 +347,11 @@ int miiphy_reset(const char *devname, unsigned char addr)
 	int timeout = 500;
 
 	if (miiphy_read(devname, addr, MII_BMCR, &reg) != 0) {
-		os_printf("PHY status read failed\n");
+		BK_LOGD(NULL,"PHY status read failed\n");
 		return -1;
 	}
 	if (miiphy_write(devname, addr, MII_BMCR, reg | BMCR_RESET) != 0) {
-		os_printf("PHY reset failed\n");
+		BK_LOGD(NULL,"PHY reset failed\n");
 		return -1;
 	}
 #if CONFIG_PHY_RESET_DELAY > 0
@@ -365,7 +365,7 @@ int miiphy_reset(const char *devname, unsigned char addr)
 	reg = 0x8000;
 	while (((reg & 0x8000) != 0) && timeout--) {
 		if (miiphy_read(devname, addr, MII_BMCR, &reg) != 0) {
-			os_printf("PHY status read failed\n");
+			BK_LOGD(NULL,"PHY status read failed\n");
 			return -1;
 		}
 		bk_delay_us(1000);
@@ -373,7 +373,7 @@ int miiphy_reset(const char *devname, unsigned char addr)
 	if ((reg & 0x8000) == 0) {
 		return 0;
 	} else {
-		os_printf("PHY reset timed out\n");
+		BK_LOGD(NULL,"PHY reset timed out\n");
 		return -1;
 	}
 	return 0;
@@ -403,7 +403,7 @@ int miiphy_speed(const char *devname, unsigned char addr)
 	 */
 	/* Check for 1000BASE-T. */
 	if (miiphy_read(devname, addr, MII_STAT1000, &btsr)) {
-		os_printf("PHY 1000BT status");
+		BK_LOGD(NULL,"PHY 1000BT status");
 		goto miiphy_read_failed;
 	}
 	if (btsr != 0xFFFF &&
@@ -413,19 +413,19 @@ int miiphy_speed(const char *devname, unsigned char addr)
 
 	/* Check Basic Management Control Register first. */
 	if (miiphy_read(devname, addr, MII_BMCR, &bmcr)) {
-		os_printf("PHY speed");
+		BK_LOGD(NULL,"PHY speed");
 		goto miiphy_read_failed;
 	}
 	/* Check if auto-negotiation is on. */
 	if (bmcr & BMCR_ANENABLE) {
 		/* Get auto-negotiation results. */
 		if (miiphy_read(devname, addr, MII_LPA, &anlpar)) {
-			os_printf("PHY AN speed");
+			BK_LOGD(NULL,"PHY AN speed");
 			goto miiphy_read_failed;
 		}
 
 		if (miiphy_read(devname, addr, MII_ADVERTISE, &adv)) {
-			os_printf("PHY AN adv speed");
+			BK_LOGD(NULL,"PHY AN adv speed");
 			goto miiphy_read_failed;
 		}
 		return ((anlpar & adv) & LPA_100) ? _100BASET : _10BASET;
@@ -434,7 +434,7 @@ int miiphy_speed(const char *devname, unsigned char addr)
 	return (bmcr & BMCR_SPEED100) ? _100BASET : _10BASET;
 
 miiphy_read_failed:
-	os_printf(" read failed, assuming 10BASE-T\n");
+	BK_LOGD(NULL," read failed, assuming 10BASE-T\n");
 	return _10BASET;
 }
 
@@ -453,7 +453,7 @@ int miiphy_duplex(const char *devname, unsigned char addr)
 	if (miiphy_is_1000base_x(devname, addr)) {
 		/* 1000BASE-X */
 		if (miiphy_read(devname, addr, MII_LPA, &anlpar)) {
-			os_printf("1000BASE-X PHY AN duplex");
+			BK_LOGD(NULL,"1000BASE-X PHY AN duplex");
 			goto miiphy_read_failed;
 		}
 	}
@@ -462,7 +462,7 @@ int miiphy_duplex(const char *devname, unsigned char addr)
 	 */
 	/* Check for 1000BASE-T. */
 	if (miiphy_read(devname, addr, MII_STAT1000, &btsr)) {
-		os_printf("PHY 1000BT status");
+		BK_LOGD(NULL,"PHY 1000BT status");
 		goto miiphy_read_failed;
 	}
 	if (btsr != 0xFFFF) {
@@ -476,19 +476,19 @@ int miiphy_duplex(const char *devname, unsigned char addr)
 
 	/* Check Basic Management Control Register first. */
 	if (miiphy_read(devname, addr, MII_BMCR, &bmcr)) {
-		os_printf("PHY duplex");
+		BK_LOGD(NULL,"PHY duplex");
 		goto miiphy_read_failed;
 	}
 	/* Check if auto-negotiation is on. */
 	if (bmcr & BMCR_ANENABLE) {
 		/* Get auto-negotiation results. */
 		if (miiphy_read(devname, addr, MII_LPA, &anlpar)) {
-			os_printf("PHY AN duplex");
+			BK_LOGD(NULL,"PHY AN duplex");
 			goto miiphy_read_failed;
 		}
 
 		if (miiphy_read(devname, addr, MII_ADVERTISE, &adv)) {
-			os_printf("PHY AN adv duplex");
+			BK_LOGD(NULL,"PHY AN adv duplex");
 			goto miiphy_read_failed;
 		}
 		return ((anlpar & adv) & (LPA_10FULL | LPA_100FULL)) ?
@@ -498,7 +498,7 @@ int miiphy_duplex(const char *devname, unsigned char addr)
 	return (bmcr & BMCR_FULLDPLX) ? FULL : HALF;
 
 miiphy_read_failed:
-	os_printf(" read failed, assuming half duplex\n");
+	BK_LOGD(NULL," read failed, assuming half duplex\n");
 	return HALF;
 }
 
@@ -513,7 +513,7 @@ int miiphy_is_1000base_x(const char *devname, unsigned char addr)
 	u16 exsr;
 
 	if (miiphy_read(devname, addr, MII_ESTATUS, &exsr)) {
-		os_printf("PHY extended status read failed, assuming no "
+		BK_LOGD(NULL,"PHY extended status read failed, assuming no "
 			"1000BASE-X\n");
 		return 0;
 	}
@@ -535,7 +535,7 @@ int miiphy_link(const char *devname, unsigned char addr)
 	/* dummy read; needed to latch some phys */
 	(void)miiphy_read(devname, addr, MII_BMSR, &reg);
 	if (miiphy_read(devname, addr, MII_BMSR, &reg)) {
-		os_printf("MII_BMSR read failed, assuming no link\n");
+		BK_LOGD(NULL,"MII_BMSR read failed, assuming no link\n");
 		return 0;
 	}
 

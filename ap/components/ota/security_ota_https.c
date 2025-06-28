@@ -130,7 +130,7 @@ bk_err_t https_ota_event_cb(bk_http_client_event_t *evt)
 		BK_LOGE(TAG, "HTTP_EVENT_ON_DATA err, ret:-0x%x\r\n", -ret);
 		return BK_FAIL;
 	}
-	BK_LOGD(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
+	BK_LOGV(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
 	break;
     case HTTP_EVENT_ON_FINISH:
 	if (security_ota_parse_data((char*)bk_http_ptr->wr_buf, bk_http_ptr->wr_last_len) !=0) {
@@ -138,7 +138,7 @@ bk_err_t https_ota_event_cb(bk_http_client_event_t *evt)
 	}
 
 	bk_https_client_flash_deinit(evt->client);
-	BK_LOGI(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
+	BK_LOGD(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
 	break;
     case HTTP_EVENT_DISCONNECTED:
 	BK_LOGE(TAG, "HTTPS_EVENT_DISCONNECTED\r\n");
@@ -155,7 +155,7 @@ int bk_https_ota_download(const char *url)
       if(!url)
       {
           err = BK_FAIL;
-          BK_LOGI(TAG, "url is NULL\r\n");
+          BK_LOGD(TAG, "url is NULL\r\n");
 
           return err;
       }
@@ -169,17 +169,17 @@ int bk_https_ota_download(const char *url)
 
 	bk_http_client_handle_t client = bk_https_client_flash_init(config);
 	if (client == NULL) {
-		BK_LOGI(TAG, "client is NULL\r\n");
+		BK_LOGD(TAG, "client is NULL\r\n");
 		err = BK_FAIL;
 		return err;
 	}
 	err = bk_http_client_perform(client);
 	if(err == BK_OK){
-		BK_LOGI(TAG, "bk_http_client_perform ok\r\n");
+		BK_LOGD(TAG, "bk_http_client_perform ok\r\n");
 		err = security_ota_finish();
 	} else {
 		bk_https_client_flash_deinit(client);
-		BK_LOGI(TAG, "bk_http_client_perform fail, err:%x\r\n", err);
+		BK_LOGD(TAG, "bk_http_client_perform fail, err:%x\r\n", err);
 	}
 
 	return err;

@@ -18,9 +18,9 @@
 
 static void cli_psa_help(void)
 {
-	CLI_LOGI("psa_crypto [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|tls_client\r\n");
-	CLI_LOGI("psa_crypto_perf [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|tls_client\r\n");
-	CLI_LOGI("psa_aes_key [genkey|encdec|attr|destroy\r\n");
+	CLI_LOGD("psa_crypto [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|tls_client\r\n");
+	CLI_LOGD("psa_crypto_perf [aes_cbc|aes_gcm|ecdh|ecdsa|hmac|tls_client\r\n");
+	CLI_LOGD("psa_aes_key [genkey|encdec|attr|destroy\r\n");
 }
 
 static void cli_psa_crypto_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -75,9 +75,9 @@ static void cli_psa_crypto_perf_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	}
 
 	if (ret == 0) {
-		CLI_LOGI("crypto perf test OK\r\n");
+		CLI_LOGD("crypto perf test OK\r\n");
 	} else {
-		CLI_LOGI("crypto perf test NOK\r\n");
+		CLI_LOGD("crypto perf test NOK\r\n");
 	}
 }
 

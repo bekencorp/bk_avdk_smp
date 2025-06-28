@@ -221,7 +221,7 @@ __inline static void bk_gpio_config_input(GPIO_INDEX id)
     ret = sddev_control(DD_DEV_TYPE_GPIO, CMD_GPIO_CFG, &param);
 
 	if(ret !=0 )
-		os_printf("gpio config fail\r\n");
+		BK_LOGE(NULL, "gpio config fail\r\n");
 }
 
 __inline static void bk_gpio_config_input_pup(GPIO_INDEX id)
@@ -233,7 +233,7 @@ __inline static void bk_gpio_config_input_pup(GPIO_INDEX id)
     ret = sddev_control(DD_DEV_TYPE_GPIO, CMD_GPIO_CFG, &param);
 
 	if(ret !=0 )
-		os_printf("gpio config fail\r\n");
+		BK_LOGE(NULL, "gpio config fail\r\n");
 
 }
 
@@ -246,7 +246,7 @@ __inline static void bk_gpio_config_input_pdwn(GPIO_INDEX id)
 	ret = sddev_control(DD_DEV_TYPE_GPIO, CMD_GPIO_CFG, &param);
 
 	if(ret !=0 )
-		os_printf("gpio config fail\r\n");
+		BK_LOGE(NULL, "gpio config fail\r\n");
 
 }
 

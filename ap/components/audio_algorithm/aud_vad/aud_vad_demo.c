@@ -54,8 +54,8 @@ typedef struct {
 
 static void cli_aud_vad_help(void)
 {
-	LOGI("aud_vad_test {8000|16000|32000|48000 xxx.pcm}\n");
-	LOGI("aud_vad_all_test {start|stop|set_start|set_continue xx}\n");
+	LOGD("aud_vad_test {8000|16000|32000|48000 xxx.pcm}\n");
+	LOGD("aud_vad_all_test {start|stop|set_start|set_continue xx}\n");
 }
 
 bk_err_t vad_send_msg(vad_ctrl_op_t op, int param)
@@ -94,7 +94,7 @@ static void vad_test_task_main(beken_thread_arg_t param_data)
     /* init audio vad */
 	ret = bk_aud_vad_init(FARME_SIZE/2, 8000);
 	if (ret != BK_OK) {
-		LOGI("init vad fail\n");
+		LOGD("init vad fail\n");
 		goto vad_exit;
 	}
 
@@ -123,17 +123,17 @@ static void vad_test_task_main(beken_thread_arg_t param_data)
 		if (kNoErr == ret) {
 			switch (msg.op) {
 				case VAD_CTRL_OP_SET_START:
-					LOGI("goto: VAD_CTRL_OP_SET_START\n");
+					LOGD("goto: VAD_CTRL_OP_SET_START\n");
 					bk_aud_vad_set_start(msg.value);
 					break;
 
 				case VAD_CTRL_OP_SET_CONTINUE:
-					LOGI("goto: VAD_CTRL_OP_SET_CONTINUE\n");
+					LOGD("goto: VAD_CTRL_OP_SET_CONTINUE\n");
 					bk_aud_vad_set_continue(msg.value);
 					break;
 
 				case VAD_CTRL_OP_EXIT:
-					LOGI("goto: VAD_CTRL_OP_EXIT\n");
+					LOGD("goto: VAD_CTRL_OP_EXIT\n");
 					goto vad_exit;
 					break;
 
@@ -146,9 +146,9 @@ static void vad_test_task_main(beken_thread_arg_t param_data)
         if (read_size == FARME_SIZE) {
             int result = bk_aud_vad_process((int16_t *)aud_temp_data);
             if (result == 1) {
-                LOGI("speech\n");
+                LOGD("speech\n");
             } else if (result == 0) {
-                LOGI("noise/silence\n");
+                LOGD("noise/silence\n");
             }
         } else {
             LOGE("vad_read_mic_data fail, read_size: %d\n", read_size);
@@ -173,10 +173,10 @@ vad_exit:
 	/* delete msg queue */
 	ret = rtos_deinit_queue(&vad_int_msg_que);
 	if (ret != kNoErr) {
-		LOGI("delete message queue fail\n");
+		LOGD("delete message queue fail\n");
 	}
 	vad_int_msg_que = NULL;
-	LOGI("delete message queue complete\n");
+	LOGD("delete message queue complete\n");
 
     rtos_set_semaphore(&vad_sem);
 
@@ -226,7 +226,7 @@ void cli_aud_vad_all_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
         rtos_get_semaphore(&vad_sem, BEKEN_NEVER_TIMEOUT);
 
-		LOGI("start vad test\n");
+		LOGD("start vad test\n");
 
 fail:
         if (vad_sem)
@@ -241,18 +241,18 @@ fail:
             vad_int_msg_que = NULL;
         }
 
-        LOGI("start vad test fail\n");
+        LOGD("start vad test fail\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
 		vad_send_msg(VAD_CTRL_OP_EXIT, 0);
-		LOGI("stop vad test\n");
+		LOGD("stop vad test\n");
 	} else if (os_strcmp(argv[1], "set_start") == 0) {
 		param = os_strtoul(argv[2], NULL, 10);
 		vad_send_msg(VAD_CTRL_OP_SET_START, param);
-		LOGI("set start\n");
+		LOGD("set start\n");
 	} else if (os_strcmp(argv[1], "set_continue") == 0) {
 		param = os_strtoul(argv[2], NULL, 10);
 		vad_send_msg(VAD_CTRL_OP_SET_CONTINUE, param);
-		LOGI("set continue\n");
+		LOGD("set continue\n");
 	} else {
 		cli_aud_vad_help();
 		return;
@@ -300,11 +300,11 @@ void cli_aud_vad_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	os_memset(in_addr, 0, FARME_SIZE);
 
 	rsp_size = f_size(&file_in);
-	LOGI("rsp_size = %d\n", rsp_size);
+	LOGD("rsp_size = %d\n", rsp_size);
 	while (1) {
 		fr = f_read(&file_in, in_addr, FARME_SIZE, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read in data fail.\r\n");
+			BK_LOGD(NULL, "read in data fail.\r\n");
 			break;
 		}
 
@@ -313,18 +313,18 @@ void cli_aud_vad_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 
         result = bk_aud_vad_process(in_addr);
 		if (result == 1) {
-			LOGI("speech\n");
+			LOGD("speech\n");
 		} else if (result == 0) {
-			LOGI("noise/silence\n");
+			LOGD("noise/silence\n");
 		}
 		else if (result == BK_FAIL)
 		{
-			LOGI("bk_aud_vad_process fail %d\n", result);
+			LOGD("bk_aud_vad_process fail %d\n", result);
 			break;
 		}
 	}
 
-	LOGI("break while\n");
+	LOGD("break while\n");
 
 	fr = f_close(&file_in);
 	if (fr != FR_OK) {
@@ -334,7 +334,7 @@ void cli_aud_vad_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 
     bk_aud_vad_deinit();
 
-	LOGI("vad test complete\n");
+	LOGD("vad test complete\n");
 }
 
 #define AUD_VAD_CMD_CNT (sizeof(s_aud_vad_commands) / sizeof(struct cli_command))

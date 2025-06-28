@@ -23,8 +23,8 @@
 
 static void cli_audio_g711_help(void)
 {
-	os_printf("g711_encoder_test {xxx.pcm xxx.pcm} \r\n");
-	os_printf("g711_decoder_test {xxx.pcm xxx.pcm} \r\n");
+	BK_LOGD(NULL, "g711_encoder_test {xxx.pcm xxx.pcm} \r\n");
+	BK_LOGD(NULL, "g711_decoder_test {xxx.pcm xxx.pcm} \r\n");
 }
 
 void cli_g711_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -49,47 +49,47 @@ void cli_g711_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	sprintf(mic_file_name, "1:/%s", argv[1]);
 	fr = f_open(&file_mic, mic_file_name, FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", mic_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", mic_file_name);
 		return;
 	}
 
 	sprintf(out_encoder_file_name, "1:/%s", argv[2]);
 	fr = f_open(&file_encoder_out, out_encoder_file_name, FA_CREATE_ALWAYS | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", out_encoder_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", out_encoder_file_name);
 		return;
 	}
 
 	encoder_size = f_size(&file_mic);
-	os_printf("encoder_size = %d \r\n", encoder_size);
+	BK_LOGD(NULL, "encoder_size = %d \r\n", encoder_size);
 	for (i=0; i<encoder_size/2; i++) {
 		fr = f_read(&file_mic, &mic_addr, 2, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read ref file fail.\r\n");
+			BK_LOGD(NULL, "read ref file fail.\r\n");
 			break;
 		}
 
 		encoder_temp = linear2alaw(mic_addr);
 		fr = f_write(&file_encoder_out, (void *)&encoder_temp, 1, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("write output data %s fail.\r\n", out_encoder_file_name);
+			BK_LOGD(NULL, "write output data %s fail.\r\n", out_encoder_file_name);
 			break;
 		}
 	}
 
 	fr = f_close(&file_encoder_out);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", out_encoder_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", out_encoder_file_name);
 		return;
 	}
 	fr = f_close(&file_mic);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", mic_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", mic_file_name);
 		return;
 	}
-	os_printf("encoder test complete \r\n");
+	BK_LOGD(NULL, "encoder test complete \r\n");
 
-	os_printf("test finish \r\n");
+	BK_LOGD(NULL, "test finish \r\n");
 }
 
 void cli_g711_decoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -115,14 +115,14 @@ void cli_g711_decoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	sprintf(encoder_file_name, "1:/%s", argv[1]);
 	fr = f_open(&file_encoder_mic, encoder_file_name, FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", encoder_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", encoder_file_name);
 		return;
 	}
 
 	sprintf(out_decoder_file_name, "1:/%s", argv[2]);
 	fr = f_open(&file_decoder_out, out_decoder_file_name, FA_OPEN_APPEND | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", out_decoder_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", out_decoder_file_name);
 		return;
 	}
 
@@ -131,36 +131,36 @@ void cli_g711_decoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
 
 	decoder_size = f_size(&file_encoder_mic);
-	os_printf("decoder_size = %d \r\n", decoder_size);
+	BK_LOGD(NULL, "decoder_size = %d \r\n", decoder_size);
 	for (i=0; i<decoder_size; i++) {
 		fr = f_read(&file_encoder_mic, &encoder_addr, 1, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read file fail.\r\n");
+			BK_LOGD(NULL, "read file fail.\r\n");
 			break;
 		}
 
 		decoder_temp = alaw2linear((unsigned char)encoder_addr);
-		//os_printf("decoder_temp = %d \r\n", decoder_temp);
+		//BK_LOGD(NULL, "decoder_temp = %d \r\n", decoder_temp);
 		fr = f_write(&file_decoder_out, (void *)&decoder_temp, 2, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("write output data %s fail.\r\n", out_decoder_file_name);
+			BK_LOGD(NULL, "write output data %s fail.\r\n", out_decoder_file_name);
 			break;
 		}
 	}
 
 	fr = f_close(&file_decoder_out);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", out_decoder_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", out_decoder_file_name);
 		return;
 	}
 	fr = f_close(&file_encoder_mic);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", encoder_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", encoder_file_name);
 		return;
 	}
-	os_printf("decoder test complete \r\n");
+	BK_LOGD(NULL, "decoder test complete \r\n");
 
-	os_printf("test finish \r\n");
+	BK_LOGD(NULL, "test finish \r\n");
 }
 
 #define G711_CMD_CNT (sizeof(s_g711_commands) / sizeof(struct cli_command))

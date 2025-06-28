@@ -75,9 +75,9 @@ unsigned char *conv_utf8(unsigned char *input)
 
 
 	//for(i=0; out_bak[i] != 0; i++)
-	//    os_printf("%02x", out_bak[i]);
+	//    BK_LOGD(NULL,"%02x", out_bak[i]);
 
-	//os_printf("\r\n");
+	//BK_LOGD(NULL,"\r\n");
 
 	return out_bak;
 }
@@ -134,7 +134,7 @@ char *Utf8ToGb2312(char *utf8)
 	if (!temp)
 		return NULL;
 
-	//Ñ­»·½âÎö
+	//Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	while (i < len) {
 		int nbyte = GetUtf8ByteNumForWord((uint8_t)utf8[i]);
 		switch (nbyte) {
@@ -152,14 +152,14 @@ char *Utf8ToGb2312(char *utf8)
 			break;
 
 		case 3:
-			//ÕâÀï¾Í¿ªÊ¼½øÐÐUTF8->Unicode
+			//ï¿½ï¿½ï¿½ï¿½Í¿ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½UTF8->Unicode
 			temp[j + 1] = ((utf8[i] & 0x0F) << 4) | ((utf8[i + 1] >> 2) & 0x0F);
 			temp[j] = ((utf8[i + 1] & 0x03) << 6) + (utf8[i + 2] & 0x3F);
 
-			//È¡µÃUnicodeµÄÖµ
+			//È¡ï¿½ï¿½Unicodeï¿½ï¿½Öµ
 			memcpy(&unicodeKey, (temp + j), 2);
 
-			//¸ù¾ÝÕâ¸öÖµ²é±íÈ¡µÃ¶ÔÓ¦µÄGB2312µÄÖµ
+			//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½È¡ï¿½Ã¶ï¿½Ó¦ï¿½ï¿½GB2312ï¿½ï¿½Öµ
 			gbKey = SearchCodeTable(unicodeKey);
 			temp[j] = (gbKey & 0xff00) >> 8;
 			temp[j + 1] = (gbKey & 0x00ff);

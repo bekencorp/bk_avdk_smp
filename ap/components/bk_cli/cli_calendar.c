@@ -18,9 +18,9 @@
 
 static void cli_calendar_help(void)
 {
-	CLI_LOGI("calendar_driver init\r\n");
-	CLI_LOGI("calendar_driver deinit\r\n");
-	CLI_LOGI("calendar get_time_us\r\n");
+	CLI_LOGD("calendar_driver init\r\n");
+	CLI_LOGD("calendar_driver deinit\r\n");
+	CLI_LOGD("calendar get_time_us\r\n");
 }
 
 static void cli_calendar_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -32,10 +32,10 @@ static void cli_calendar_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_calendar_driver_init());
-		CLI_LOGI("calendar driver init\n");
+		CLI_LOGD("calendar driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_calendar_driver_deinit());
-		CLI_LOGI("calendar driver deinit\n");
+		CLI_LOGD("calendar driver deinit\n");
 	} else {
 		cli_calendar_help();
 		return;
@@ -51,7 +51,7 @@ static void cli_calendar_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 
 	if (os_strcmp(argv[1], "get_time_us") == 0) {
 		uint64_t time_us = bk_calendar_get_time_us();
-		CLI_LOGI("calendar get time_us:%d\r\n", time_us);
+		CLI_LOGD("calendar get time_us:%d\r\n", time_us);
 	} else {
 		cli_calendar_help();
 		return;

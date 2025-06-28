@@ -173,15 +173,15 @@ static int parse_hub_descriptor(struct usb_hub_descriptor *desc, uint16_t length
         USB_LOG_ERR("unexpected descriptor 0x%02x\r\n", desc->bDescriptorType);
         return -2;
     } else {
-        USB_LOG_DBG("Hub Descriptor:\r\n");
-        USB_LOG_DBG("bLength: 0x%02x             \r\n", desc->bLength);
-        USB_LOG_DBG("bDescriptorType: 0x%02x     \r\n", desc->bDescriptorType);
-        USB_LOG_DBG("bNbrPorts: 0x%02x           \r\n", desc->bNbrPorts);
-        USB_LOG_DBG("wHubCharacteristics: 0x%04x \r\n", desc->wHubCharacteristics);
-        USB_LOG_DBG("bPwrOn2PwrGood: 0x%02x      \r\n", desc->bPwrOn2PwrGood);
-        USB_LOG_DBG("bHubContrCurrent: 0x%02x    \r\n", desc->bHubContrCurrent);
-        USB_LOG_DBG("DeviceRemovable: 0x%02x     \r\n", desc->DeviceRemovable);
-        USB_LOG_DBG("PortPwrCtrlMask: 0x%02x     \r\n", desc->PortPwrCtrlMask);
+        USB_LOG_VBS("Hub Descriptor:\r\n");
+        USB_LOG_VBS("bLength: 0x%02x             \r\n", desc->bLength);
+        USB_LOG_VBS("bDescriptorType: 0x%02x     \r\n", desc->bDescriptorType);
+        USB_LOG_VBS("bNbrPorts: 0x%02x           \r\n", desc->bNbrPorts);
+        USB_LOG_VBS("wHubCharacteristics: 0x%04x \r\n", desc->wHubCharacteristics);
+        USB_LOG_VBS("bPwrOn2PwrGood: 0x%02x      \r\n", desc->bPwrOn2PwrGood);
+        USB_LOG_VBS("bHubContrCurrent: 0x%02x    \r\n", desc->bHubContrCurrent);
+        USB_LOG_VBS("DeviceRemovable: 0x%02x     \r\n", desc->DeviceRemovable);
+        USB_LOG_VBS("PortPwrCtrlMask: 0x%02x     \r\n", desc->PortPwrCtrlMask);
     }
     return 0;
 }
@@ -250,7 +250,7 @@ static void hub_int_complete_callback(void *arg, int nbytes)
 {
     struct usbh_hub *hub = (struct usbh_hub *)arg;
 
-    USB_LOG_DBG("hub_int_complete_callback: nbytes:%x int_buffer:0x%x data:0x%x\r\n", nbytes, hub->int_buffer, hub->int_buffer[0]);
+    USB_LOG_VBS("hub_int_complete_callback: nbytes:%x int_buffer:0x%x data:0x%x\r\n", nbytes, hub->int_buffer, hub->int_buffer[0]);
     if(connect_int_buffer[0] > 0) {
         hub->int_buffer[0] = (hub->int_buffer[0] | connect_int_buffer[0]);
     }
@@ -284,7 +284,7 @@ static int usbh_hub_connect(struct usbh_hubport *hport, uint8_t intf)
     hub->hub_addr = hport->dev_addr;
     hub->parent = hport;
     hub->index = index;
-    USB_LOG_DBG("%s hport->dev_addr:%x intf:%d\r\n",__func__, hport->dev_addr, intf);
+    USB_LOG_VBS("%s hport->dev_addr:%x intf:%d\r\n",__func__, hport->dev_addr, intf);
 
     hport->config.intf[intf].priv = hub;
 
@@ -316,7 +316,7 @@ static int usbh_hub_connect(struct usbh_hubport *hport, uint8_t intf)
 
     for (uint8_t port = 0; port < hub->hub_desc.bNbrPorts; port++) {
         ret = usbh_hub_get_portstatus(hub, port + 1, &port_status);
-        USB_LOG_DBG("port %u, status:0x%02x, change:0x%02x\r\n", port + 1, port_status.wPortStatus, port_status.wPortChange);
+        USB_LOG_VBS("port %u, status:0x%02x, change:0x%02x\r\n", port + 1, port_status.wPortStatus, port_status.wPortChange);
         //hub->int_buffer[0] |= (port_status.wPortChange << (port + 1));
         connect_int_buffer[0] |= (port_status.wPortChange << (port + 1));
         child = &hub->child[port];
@@ -329,7 +329,7 @@ static int usbh_hub_connect(struct usbh_hubport *hport, uint8_t intf)
     hub->connected = true;
     snprintf(hport->config.intf[intf].devname, CONFIG_USBHOST_DEV_NAMELEN, DEV_FORMAT, hub->index);
     usbh_hub_register(hub);
-    USB_LOG_INFO("Register HUB Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register HUB Class:%s\r\n", hport->config.intf[intf].devname);
 
     usbh_int_urb_fill(&hub->intin_urb, hub->intin, hub->int_buffer, 1, 0, hub_int_complete_callback, hub);
 
@@ -368,7 +368,7 @@ static int usbh_hub_disconnect(struct usbh_hubport *hport, uint8_t intf)
         memset(hub, 0, sizeof(struct usbh_hub));
 
         if (hport->config.intf[intf].devname[0] != '\0')
-            USB_LOG_INFO("Unregister HUB Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister HUB Class:%s\r\n", hport->config.intf[intf].devname);
     }
     return ret;
 }
@@ -400,7 +400,7 @@ static void usbh_roothub_free_port1_hub(void)
 
 static void usbh_roothub_register(void)
 {
-    USB_LOG_DBG("[+]%s\r\n", __func__);
+    USB_LOG_VBS("[+]%s\r\n", __func__);
 
     uint32_t psram_malloc_fail_flag = 0;
 
@@ -409,7 +409,7 @@ static void usbh_roothub_register(void)
         if(!roothub){
             roothub = psram_malloc(sizeof(struct usbh_hub));
             if(!roothub) {
-                USB_LOG_INFO("%s roothub Malloc Fail\r\n", __func__);
+                USB_LOG_DBG("%s roothub Malloc Fail\r\n", __func__);
                 psram_malloc_fail_flag = 1;
                 break;
             } else {
@@ -420,7 +420,7 @@ static void usbh_roothub_register(void)
         if(!ext_onehub){
             ext_onehub = psram_malloc(sizeof(struct usbh_hub));
             if(!ext_onehub) {
-                USB_LOG_INFO("%s ext_onehub Malloc Fail\r\n", __func__);
+                USB_LOG_DBG("%s ext_onehub Malloc Fail\r\n", __func__);
                 psram_malloc_fail_flag = 1;
                 break;
             } else {
@@ -431,7 +431,7 @@ static void usbh_roothub_register(void)
         if(!roothub_parent_port){
             roothub_parent_port = psram_malloc(sizeof(struct usbh_hub));
             if(!roothub_parent_port) {
-                USB_LOG_INFO("%s roothub Malloc Fail\r\n", __func__);
+                USB_LOG_DBG("%s roothub Malloc Fail\r\n", __func__);
                 psram_malloc_fail_flag = 1;
                 break;
             } else {
@@ -470,7 +470,7 @@ static void usbh_roothub_register(void)
     roothub->hub_desc.bNbrPorts = CONFIG_USBHOST_MAX_RHPORTS;
     memset(&(roothub->child[0]), 0, sizeof(struct usbh_hubport));
     usbh_hub_register(roothub);
-    USB_LOG_DBG("[-]%s\r\n", __func__);
+    USB_LOG_VBS("[-]%s\r\n", __func__);
 }
 
 static void usbh_roothub_unregister(void)
@@ -511,7 +511,7 @@ static void usbh_hub_events_connect_handle(struct usbh_hub *hub, struct usbh_hub
     child->connected = true;
     child->port = port + 1;
 
-    USB_LOG_INFO("New %s device on Hub %u, Port %u connected\r\n", speed_table[child->speed], hub->index, port + 1);
+    USB_LOG_DBG("New %s device on Hub %u, Port %u connected\r\n", speed_table[child->speed], hub->index, port + 1);
     
     if (usbh_enumerate(child) < 0) {
     	child->connected = false;
@@ -523,7 +523,7 @@ static void usbh_hub_events_connect_handle(struct usbh_hub *hub, struct usbh_hub
 static void usbh_hub_events_disconnect_handle(    struct usbh_hub *hub, struct usbh_hubport *child, uint8_t port)
 {
     if(child == NULL) {
-        USB_LOG_INFO("%s child is null\r\n", __func__);
+        USB_LOG_DBG("%s child is null\r\n", __func__);
         return;
     }
 
@@ -539,7 +539,7 @@ static void usbh_hub_events_disconnect_handle(    struct usbh_hub *hub, struct u
          child->raw_config_desc = NULL;
     }
     
-    USB_LOG_INFO("Device on Hub %u, Port %u disconnected\r\n", hub->index, port + 1);
+    USB_LOG_DBG("Device on Hub %u, Port %u disconnected\r\n", hub->index, port + 1);
     usbh_device_unmount_done_callback(child);
     child->config.config_desc.bNumInterfaces = 0;
 
@@ -560,7 +560,7 @@ static int usbh_hub_event_send_queue(void *callback, void *arg)
     if (hub_event_queue) {
         ret = rtos_push_to_queue(&hub_event_queue, &msg, 0);
         if (kNoErr != ret) {
-            USB_LOG_INFO("%s fail ret:%d\r\n", __func__, ret);
+            USB_LOG_DBG("%s fail ret:%d\r\n", __func__, ret);
             rtos_reset_queue(&hub_event_queue);
             return BK_FAIL;
         }
@@ -604,7 +604,7 @@ static void usbh_hub_events(struct usbh_hub *hub)
     for (uint8_t port = 0; port < hub->hub_desc.bNbrPorts; port++) {
         portchange_index = hub->int_buffer[0];
 
-        USB_LOG_DBG("Port %u change:0x%02x\r\n", port + 1, portchange_index);
+        USB_LOG_VBS("Port %u change:0x%02x\r\n", port + 1, portchange_index);
 
         if (!(portchange_index & (1 << (port + 1)))) {
             continue;
@@ -614,7 +614,7 @@ static void usbh_hub_events(struct usbh_hub *hub)
         child_connected = child->connected;
 
         portchange_index &= ~(1 << (port + 1));
-        USB_LOG_DBG("Port %d change hub_addr:%d\r\n", port + 1, hub->hub_addr);
+        USB_LOG_VBS("Port %d change hub_addr:%d\r\n", port + 1, hub->hub_addr);
         usbh_hub_event_lock_mutex();
         if (!hub->is_roothub) {
              usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
@@ -630,7 +630,7 @@ static void usbh_hub_events(struct usbh_hub *hub)
         portstatus = port_status.wPortStatus;
         portchange = port_status.wPortChange;
 
-        USB_LOG_DBG("port %u, status:0x%02x, change:0x%02x\r\n", port + 1, portstatus, portchange);
+        USB_LOG_VBS("port %u, status:0x%02x, change:0x%02x\r\n", port + 1, portstatus, portchange);
 
         /* First, clear all change bits */
         mask = 1;
@@ -682,7 +682,7 @@ static void usbh_hub_events(struct usbh_hub *hub)
                 portstatus = port_status.wPortStatus;
                 portchange = port_status.wPortChange;
 
-                USB_LOG_DBG("Port %u, status:0x%02x, change:0x%02x\r\n", port + 1, portstatus, portchange);
+                USB_LOG_VBS("Port %u, status:0x%02x, change:0x%02x\r\n", port + 1, portstatus, portchange);
                 if ((portstatus & HUB_PORT_STATUS_CONNECTION) == connection) {
                     if (connection) {
                         if (++debouncestable == 4) {
@@ -789,7 +789,7 @@ static void usbh_hub_events(struct usbh_hub *hub)
     }
 
     /* Start next hub int transfer */
-    USB_LOG_DBG("%s Start next hub int transfer roothub:%u, connected:%u\r\n", __func__, hub->is_roothub, hub->connected);
+    USB_LOG_VBS("%s Start next hub int transfer roothub:%u, connected:%u\r\n", __func__, hub->is_roothub, hub->connected);
     if (!hub->is_roothub && hub->connected) {
         hub->intin_urb.transfer_buffer_length = 1;
         usbh_submit_urb(&hub->intin_urb);
@@ -816,9 +816,9 @@ static void usbh_hub_thread(void *argument)
 
 void usbh_hub_register(struct usbh_hub *hub)
 {
-    USB_LOG_DBG("[+]%s\r\n", __func__);
+    USB_LOG_VBS("[+]%s\r\n", __func__);
     usb_slist_add_tail(&hub_class_head, &hub->list);
-    USB_LOG_DBG("[-]%s\r\n", __func__);
+    USB_LOG_VBS("[-]%s\r\n", __func__);
 }
 
 void usbh_hub_unregister(struct usbh_hub *hub)
@@ -844,7 +844,7 @@ const struct usbh_class_info s_hub_info = {
 
 int usbh_hub_initialize(void)
 {
-    USB_LOG_DBG("[+]%s\r\n", __func__);
+    USB_LOG_VBS("[+]%s\r\n", __func__);
 
     usbh_roothub_register();
 
@@ -903,7 +903,7 @@ int usbh_hub_initialize(void)
 
 int usbh_hub_deinitialize(void)
 {
-    USB_LOG_DBG("[+]%s\r\n", __func__);
+    USB_LOG_VBS("[+]%s\r\n", __func__);
 
     usbh_hub_event_lock_mutex();
 
@@ -933,7 +933,7 @@ int usbh_hub_deinitialize(void)
     //usb_hc_deinit();
     usbh_roothub_unregister();
 
-    USB_LOG_DBG("[-]%s\r\n", __func__);
+    USB_LOG_VBS("[-]%s\r\n", __func__);
     return 0;
 }
 

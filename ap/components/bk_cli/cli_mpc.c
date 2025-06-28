@@ -18,7 +18,7 @@
 
 static void cli_mpc_help(void)
 {
-	CLI_LOGI("mpc {dev} {addr} {block_num} {s|ns}\r\n");
+	CLI_LOGD("mpc {dev} {addr} {block_num} {s|ns}\r\n");
 }
 
 static void cli_mpc_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)

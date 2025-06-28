@@ -216,11 +216,11 @@ void usbd_video_iso_callback(uint8_t ep, uint32_t nbytes)
 
 void usbd_video_wait_for_player()
 {
-	os_printf("getting sem \r\n");
+	BK_LOGD(NULL, "getting sem \r\n");
 	rtos_get_semaphore(&wait_for_player, BEKEN_WAIT_FOREVER);
-	os_printf("get sem1 \r\n");
+	BK_LOGD(NULL, "get sem1 \r\n");
 	rtos_get_semaphore(&wait_for_player, BEKEN_WAIT_FOREVER);
-	os_printf("get sem2 \r\n");
+	BK_LOGD(NULL, "get sem2 \r\n");
 }
 
 static struct usbd_endpoint video_in_ep = {
@@ -261,12 +261,12 @@ static USB_MEM_ALIGNX uint8_t packet_buffer[PACKET_BUFFER_SIZE];
 
 void dump_mem(uint8_t *buf, uint32_t buf_len)
 {
-    os_printf("=======uvc dump send buf start===========\r\n");
+    BK_LOGD(NULL, "=======uvc dump send buf start===========\r\n");
     for (int i = 0; i < buf_len; i++) {
-        os_printf("%02x ", buf[i]);
+        BK_LOGD(NULL, "%02x ", buf[i]);
     }
-    os_printf("\r\n");
-    os_printf("\r\n");
+    BK_LOGD(NULL, "\r\n");
+    BK_LOGD(NULL, "\r\n");
 }
 
 void usbd_video_send_common_frame(uint8_t *data, uint32_t size)
@@ -288,7 +288,7 @@ void usbd_video_send_common_frame(uint8_t *data, uint32_t size)
                        ((packets - 1) * (max_payload_transfer_size - payload_header_length)) +
                        payload_header_length;
 
-    // os_printf("last_packet_size:%d\r\n", last_packet_size);
+    // BK_LOGD(NULL, "last_packet_size:%d\r\n", last_packet_size);
     for (size_t i = 0; i < packets; i++) {
         os_memset(packet_buffer, 0, max_payload_transfer_size);
         if (i == (packets - 1)) {
@@ -362,7 +362,7 @@ static void usbd_video_h264_task_entry(beken_thread_arg_t data)
         // h264_stream_find_start_code_pos(h264_data_start, H264_RAW_DATA_SIZE, h264_frame_start_index_array, H264_START_INDEX_ARRAY_SIZE);
         // for (int i = 0; i + 1 < H264_START_INDEX_ARRAY_SIZE; i++) {
         //     frame_size = h264_frame_start_index_array[i + 1] - h264_frame_start_index_array[i];
-        //     //os_printf("frame_size:%d\r\n", frame_size);
+        //     //BK_LOGD(NULL, "frame_size:%d\r\n", frame_size);
         //     usbd_video_send_common_frame((uint8_t *)(&h264_data_start[h264_data_pos]), frame_size);
         //     h264_data_pos += frame_size;
         // }

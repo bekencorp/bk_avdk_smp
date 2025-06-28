@@ -9,21 +9,21 @@ typedef struct {
 static bk_err_t cli_event_cb_0(void *arg, event_module_t event_module,
 							   int event_id, void *event_data)
 {
-	CLI_LOGI("event cb#0, event=<%d %d %x>\n", event_module, event_id, (uint32_t)event_data);
+	CLI_LOGD("event cb#0, event=<%d %d %x>\n", event_module, event_id, (uint32_t)event_data);
 	return BK_OK;
 }
 
 static bk_err_t cli_event_cb_1(void *arg, event_module_t event_module,
 							   int event_id, void *event_data)
 {
-	CLI_LOGI("event cb#1, event=<%d %d %x>\n", event_module, event_id, (uint32_t)event_data);
+	CLI_LOGD("event cb#1, event=<%d %d %x>\n", event_module, event_id, (uint32_t)event_data);
 	return BK_OK;
 }
 
 static bk_err_t cli_event_cb_2(void *arg, event_module_t event_module,
 							   int event_id, void *event_data)
 {
-	CLI_LOGI("event cb#2, event=<%d %d %x>\n", event_module, event_id, (uint32_t)event_data);
+	CLI_LOGD("event cb#2, event=<%d %d %x>\n", event_module, event_id, (uint32_t)event_data);
 	return BK_OK;
 }
 
@@ -114,7 +114,7 @@ static void cli_event_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		CLI_RET_ON_INVALID_ARGC(argc, 1);
 		//cli_event_test();
 	} else {
-		CLI_LOGI("usage: event {reg|unreg|post} {mod_id} {event_id} [data]\n");
+		CLI_LOGD("usage: event {reg|unreg|post} {mod_id} {event_id} [data]\n");
 		return;
 	}
 }

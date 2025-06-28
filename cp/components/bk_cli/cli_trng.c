@@ -18,11 +18,11 @@
 
 static void cli_trng_help(void)
 {
-	CLI_LOGI("trng_driver init\r\n");
-	CLI_LOGI("trng_driver deinit\r\n");
-	CLI_LOGI("trng start\r\n");
-	CLI_LOGI("trng stop\r\n");
-	CLI_LOGI("trng get\r\n");
+	CLI_LOGD("trng_driver init\r\n");
+	CLI_LOGD("trng_driver deinit\r\n");
+	CLI_LOGD("trng start\r\n");
+	CLI_LOGD("trng stop\r\n");
+	CLI_LOGD("trng get\r\n");
 }
 
 static void cli_trng_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -34,10 +34,10 @@ static void cli_trng_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_trng_driver_init());
-		CLI_LOGI("trng driver init\n");
+		CLI_LOGD("trng driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_trng_driver_deinit());
-		CLI_LOGI("trng driver deinit\n");
+		CLI_LOGD("trng driver deinit\n");
 	} else {
 		cli_trng_help();
 		return;
@@ -53,13 +53,13 @@ static void cli_trng_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 
 	if (os_strcmp(argv[1], "start") == 0) {
 		BK_LOG_ON_ERR(bk_trng_start());
-		CLI_LOGI("trng start\r\n");
+		CLI_LOGD("trng start\r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
 		BK_LOG_ON_ERR(bk_trng_stop());
-		CLI_LOGI("trng stop\r\n");
+		CLI_LOGD("trng stop\r\n");
 	}else if (os_strcmp(argv[1], "get") == 0) {
 		int random_data = bk_rand();
-		CLI_LOGI("trng get random data:%u\r\n", random_data);
+		CLI_LOGD("trng get random data:%u\r\n", random_data);
 	} else {
 		cli_trng_help();
 		return;

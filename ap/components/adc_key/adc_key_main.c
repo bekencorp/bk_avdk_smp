@@ -49,15 +49,15 @@ static uint32_t adc_key_get_gpio_voltage(adc_chan_t chan)
 
 	BK_LOG_ON_ERR(bk_adc_stop());
 	BK_LOG_ON_ERR(bk_adc_release());
-	ADC_KEY_LOGD("adc_key_get_gpio_voltage value=%dmv\r\n", value);
+	ADC_KEY_LOGV("adc_key_get_gpio_voltage value=%dmv\r\n", value);
 
 	return value;
 }
 /*
-if(value >= 1 && value < 100) ADC_KEY_LOGI("Please register next callback\r\n");
-if(value >= 600 && value < 750) ADC_KEY_LOGI("Please register prev callback\r\n");
-if(value >= 1300 && value < 1500) ADC_KEY_LOGI("Please register play pause callback\r\n");
-if(value >= 1900 && value < 2100) ADC_KEY_LOGI("Please register menu callback\r\n");
+if(value >= 1 && value < 100) ADC_KEY_LOGD("Please register next callback\r\n");
+if(value >= 600 && value < 750) ADC_KEY_LOGD("Please register prev callback\r\n");
+if(value >= 1300 && value < 1500) ADC_KEY_LOGD("Please register play pause callback\r\n");
+if(value >= 1900 && value < 2100) ADC_KEY_LOGD("Please register menu callback\r\n");
 }
 */
 void adckey_button_handler(ADCKEY_S *handle)
@@ -170,7 +170,7 @@ static void adc_key_configure()
 	result = rtos_init_mutex(&g_adckey_mutex);
 	if(kNoErr != result)
 	{
-		ADC_KEY_LOGI("rtos_init_mutex fail\r\n");
+		ADC_KEY_LOGD("rtos_init_mutex fail\r\n");
 		return;
 	}
 
@@ -180,14 +180,14 @@ static void adc_key_configure()
 							 (void *)0);
 	if(kNoErr != result)
 	{
-		ADC_KEY_LOGI("rtos_init_timer fail\r\n");
+		ADC_KEY_LOGD("rtos_init_timer fail\r\n");
 		return;
 	}
 
 	result = rtos_start_timer(&g_adckey_timer);
 	if(kNoErr != result)
 	{
-		ADC_KEY_LOGI("rtos_start_timer fail\r\n");
+		ADC_KEY_LOGD("rtos_start_timer fail\r\n");
 		return;
 	}
 
@@ -213,7 +213,7 @@ static void adckey_unconfig(void)
 	ret = rtos_deinit_mutex(&g_adckey_mutex);
 	if(kNoErr != ret)
 	{
-		ADC_KEY_LOGI("rtos_deinit_mutex fail\r\n");
+		ADC_KEY_LOGD("rtos_deinit_mutex fail\r\n");
 		return;
 	}
 
@@ -222,7 +222,7 @@ static void adckey_unconfig(void)
 			ret = rtos_stop_timer(&g_adckey_timer);
 			if(kNoErr != ret)
 			{
-				ADC_KEY_LOGI("rtos_stop_timer fail\r\n");
+				ADC_KEY_LOGD("rtos_stop_timer fail\r\n");
 				return;
 			}
 		}
@@ -230,7 +230,7 @@ static void adckey_unconfig(void)
 		ret = rtos_deinit_timer(&g_adckey_timer);
 		if(kNoErr != ret)
 		{
-			ADC_KEY_LOGI("rtos_deinit_timer fail\r\n");
+			ADC_KEY_LOGD("rtos_deinit_timer fail\r\n");
 			return;
 		}
 	}
@@ -299,7 +299,7 @@ uint32_t bk_adckey_item_configure(adckey_configure_t *config)
 	rtos_unlock_mutex(&g_adckey_mutex);
 	result = adckey_button_start(handle);
 	if (result < 0) {
-		ADC_KEY_LOGI("button_start failed\n");
+		ADC_KEY_LOGD("button_start failed\n");
 		os_free(handle);
 		return kGeneralErr;
 	}

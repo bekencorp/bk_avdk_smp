@@ -183,7 +183,7 @@ void bk_wlan_dhcp_timeout(void)
 
 	while (p_vif_entry != NULL) {
 		if (mac_vif_mgmt_get_type(p_vif_entry) == VIF_STA) {
-			WIFI_LOGI("bk_wlan_connection_loss vif:%d\r\n",
+			WIFI_LOGD("bk_wlan_connection_loss vif:%d\r\n",
 				mac_vif_mgmt_get_index(p_vif_entry));
 #if CONFIG_LWIP
 			sta_ip_down();
@@ -296,11 +296,11 @@ void bk_wlan_ap_csa_coexist_mode(void *arg, uint8_t dummy)
 
 	frequency = bk_wlan_sta_get_frequency();
 	if (frequency) {
-		WIFI_LOGI("hostapd_channel_switch\n");
+		WIFI_LOGD("hostapd_channel_switch\n");
 		ret = hostapd_channel_switch(frequency);
 
 		if (ret)
-			WIFI_LOGI("csa_failed:%x\r\n", ret);
+			WIFI_LOGD("csa_failed:%x\r\n", ret);
 	}
 }
 
@@ -353,7 +353,7 @@ unsigned char bk_wlan_get_scan_ap_result_numbers(void)
 //TODO move to better place
 void bk_wlan_ap_init(network_InitTypeDef_st *inNetworkInitPara)
 {
-	WIFI_LOGI("Soft_AP_start\r\n");
+	WIFI_LOGD("Soft_AP_start\r\n");
 
 	if (!g_ap_param_ptr) {
 		g_ap_param_ptr = (ap_param_t *)os_zalloc(sizeof(ap_param_t));
@@ -410,7 +410,7 @@ int bk_wlan_ps_enable(void)
 {
 	if (wifi_ap_is_started())
 	{
-		WIFI_LOGI("Softap is on,powersave can't use\n\r");
+		WIFI_LOGD("Softap is on,powersave can't use\n\r");
 		return 0;
 	}
 
@@ -422,7 +422,7 @@ int bk_wlan_ps_disable_send_msg(void)
 {
 	if (wifi_ap_is_started())
 	{
-		WIFI_LOGI("Softap is on,powersave can't use\n\r");
+		WIFI_LOGD("Softap is on,powersave can't use\n\r");
 		return 0;
 	}
 	bmsg_ps_sender(PS_BMSG_IOCTL_PS_DISANABLE);
@@ -681,10 +681,10 @@ bk_err_t bk_wlan_start_sta(network_InitTypeDef_st *inNetworkInitPara)
 
 #if 0
 		print_hex_dump("fci: ", &fci, sizeof(fci));
-		WIFI_LOGI("  ssid: |%s|\n", fci.ssid);
-		WIFI_LOGI("  bssid: %pM\n", fci.bssid);
-		WIFI_LOGI("  chan: %d\n", fci.channel);
-		WIFI_LOGI("  desire ssid: |%s|\n", inNetworkInitPara->wifi_ssid);
+		WIFI_LOGD("  ssid: |%s|\n", fci.ssid);
+		WIFI_LOGD("  bssid: %pM\n", fci.bssid);
+		WIFI_LOGD("  chan: %d\n", fci.channel);
+		WIFI_LOGD("  desire ssid: |%s|\n", inNetworkInitPara->wifi_ssid);
 #endif
 
 		if (ssid_len == req_ssid_len &&
@@ -694,10 +694,10 @@ bk_err_t bk_wlan_start_sta(network_InitTypeDef_st *inNetworkInitPara)
 			psk = fci.psk;
 			psk_len = PMK_LEN * 2;
 
-			WIFI_LOGI("fast_connect\n");
+			WIFI_LOGD("fast_connect\n");
 #if 0
-			WIFI_LOGI("  chan: %d\n", chan);
-			WIFI_LOGI("  PMK: %s\n", psk);
+			WIFI_LOGD("  chan: %d\n", chan);
+			WIFI_LOGD("  PMK: %s\n", psk);
 #endif
 			if (os_strlen((char *)psk) == 0) {
 				// no psk info, calcuate pmk
@@ -716,7 +716,7 @@ bk_err_t bk_wlan_start_sta(network_InitTypeDef_st *inNetworkInitPara)
 
 	/* enable wpa_supplicant */
 	if (wlan_sta_enable()) {
-		WIFI_LOGI("%s wifi enable fail\n");
+		WIFI_LOGD("%s wifi enable fail\n");
 		return kGeneralErr;
 	}
 
@@ -845,7 +845,7 @@ int bk_wlan_start_p2p(network_InitTypeDef_st *inNetworkInitPara)
 
 	bk_wlan_sta_init(inNetworkInitPara);
 	if (wlan_sta_enable()) {
-		WIFI_LOGI("%s wifi enable fail\n");
+		WIFI_LOGD("%s wifi enable fail\n");
 		return kGeneralErr;
 	}
 
@@ -880,13 +880,13 @@ int bk_sta_cipher_type(void)
 void bk_wlan_phy_open_cca(void)
 {
 	phy_open_cca();
-	WIFI_LOGI("bk_wlan cca opened\r\n");
+	WIFI_LOGD("bk_wlan cca opened\r\n");
 }
 
 void bk_wlan_phy_close_cca(void)
 {
 	phy_close_cca();
-	WIFI_LOGI("bk_wlan cca closed\r\n");
+	WIFI_LOGD("bk_wlan cca closed\r\n");
 }
 
 void bk_wlan_phy_show_cca(void)
@@ -1636,7 +1636,7 @@ bk_err_t bk_wifi_init(const wifi_init_config_t *config)
 	int ret = BK_OK;
 
 	if (config->os_funcs == NULL) {
-		//WIFI_LOGI("wifi func cb not be registered!\n");
+		//WIFI_LOGD("wifi func cb not be registered!\n");
 		return BK_FAIL;
 	} else {
 		g_wifi_funcs = config->os_funcs;
@@ -1645,23 +1645,23 @@ bk_err_t bk_wifi_init(const wifi_init_config_t *config)
 
 	bk_wifi_interrupt_init();
 
-	WIFI_LOGI("wifi initing\n");
+	WIFI_LOGD("wifi initing\n");
 	BK_RETURN_ON_ERR(wifi_init_validate_config(config));
 
 	if (wifi_is_inited())
-		WIFI_LOGI("wifi already init, reinit anyway!\n");
+		WIFI_LOGD("wifi already init, reinit anyway!\n");
 
 	ret = wifi_init(config);
 
 	//TODO set the init flag according to the return value!
 	wifi_set_state_bit(WIFI_INIT_BIT);
-	WIFI_LOGI("wifi inited(%x) ret(%x)\n", s_wifi_state_bits, ret);
+	WIFI_LOGD("wifi inited(%x) ret(%x)\n", s_wifi_state_bits, ret);
 
 	if (bk_pm_sleep_register_wrapper(wifi_deepsleep_enter_cb))
-		WIFI_LOGI("register wifi pm sleep cb fail!\n");
+		WIFI_LOGD("register wifi pm sleep cb fail!\n");
 
 	if (bk_pm_low_voltage_register_wrapper(wifi_lowvol_exit_cb))
-		WIFI_LOGI("register wifi pm low voltage cb fail!\n");
+		WIFI_LOGD("register wifi pm low voltage cb fail!\n");
 
 	return BK_OK;
 }
@@ -1672,12 +1672,12 @@ bk_err_t bk_wifi_init(const wifi_init_config_t *config)
 bk_err_t bk_wifi_deinit(void)
 {
 	int ret = BK_OK;
-	WIFI_LOGI("wifi deiniting\n");
+	WIFI_LOGD("wifi deiniting\n");
 	ret = wifi_deinit();
 
 	//TODO set the init flag according to the return value!
 	wifi_clear_state_bit(WIFI_INIT_BIT);
-	WIFI_LOGI("wifi deinited(%x) ret(%x)\n", s_wifi_state_bits, ret);
+	WIFI_LOGD("wifi deinited(%x) ret(%x)\n", s_wifi_state_bits, ret);
 	return BK_ERR_NOT_SUPPORT;
 }
 
@@ -1817,7 +1817,7 @@ void wlan_read_fast_connect_info(struct wlan_fast_connect_info *fci)
 	fc_info_dec(fci);
 #endif
 
-	WIFI_LOGD("read flash successfully\n");
+	WIFI_LOGV("read flash successfully\n");
 }
 
 void wlan_write_fast_connect_info(struct wlan_fast_connect_info *fci)
@@ -1842,7 +1842,7 @@ void wlan_write_fast_connect_info(struct wlan_fast_connect_info *fci)
 	else
 		os_memcpy(&g_fci, (UINT8 *)fci, sizeof(struct wlan_fast_connect_info));
 
-	WIFI_LOGI("writed fci to flash\n");
+	WIFI_LOGD("writed fci to flash\n");
 wr_exit:
 	return;
 }
@@ -1860,7 +1860,7 @@ void wlan_clear_fast_connect_info(struct wlan_fast_connect_info *fci)
 		{
 			os_memset(&g_fci, 0, sizeof(struct wlan_fast_connect_info));
 		}
-		WIFI_LOGI("clear fast connect info\n");
+		WIFI_LOGD("clear fast connect info\n");
 	}
 	if (bk_feature_fast_dhcp_enable()) {
 		sta_ip_mode_set(1);
@@ -1977,7 +1977,7 @@ uint32_t g_wifi_get_vsie_type = 0;
 uint8_t g_wifi_get_vsie_oui_len = 0;
 bk_err_t bk_wifi_get_vendor_ie_cb(void* vsie_cb, uint32_t vendor_type, uint8_t oui_len)
 {
-	WIFI_LOGI("bk_wifi_get_vendor_ie_cb type 0x%x\n",vendor_type);
+	WIFI_LOGD("bk_wifi_get_vendor_ie_cb type 0x%x\n",vendor_type);
 
 	g_wifi_get_vsie_cb = vsie_cb;
 	g_wifi_get_vsie_type = vendor_type;
@@ -1996,7 +1996,7 @@ bk_err_t bk_wifi_get_vendor_ie_cb(void* vsie_cb, uint32_t vendor_type, uint8_t o
  */
 bk_err_t bk_wifi_get_vendor_ie_cb_internal(void* vendor_ie, uint32_t vendor_type, uint16_t len, uint8_t frame_type)
 {
-	WIFI_LOGD("bk_wifi_get_vendor_ie_cb_internal vsie 0x%x,type 0x%x,len %d,type %d\n",vendor_ie,vendor_type,len,frame_type);
+	WIFI_LOGV("bk_wifi_get_vendor_ie_cb_internal vsie 0x%x,type 0x%x,len %d,type %d\n",vendor_ie,vendor_type,len,frame_type);
 
 	if ((vendor_type == g_wifi_get_vsie_type) && (g_wifi_get_vsie_cb))
 		g_wifi_get_vsie_cb(vendor_ie, frame_type);
@@ -2030,20 +2030,20 @@ bk_err_t bk_wifi_sta_start(void)
 	bool fast_connect __maybe_unused = false;
 	struct wlan_fast_connect_info fci;
 
-	WIFI_LOGD("sta starting\n");
+	WIFI_LOGV("sta starting\n");
 	sta_tick.sta_start_tick = rtos_get_time();
 	if (wifi_monitor_is_started()) {
-		WIFI_LOGI("sta start fail, monitor in progress\n");
+		WIFI_LOGD("sta start fail, monitor in progress\n");
 		return BK_ERR_WIFI_MONITOR_IP;
 	}
 	if (g_is_deepsleep)
 	{
-		WIFI_LOGI("sta start fail, deepsleep in progress\n");
+		WIFI_LOGD("sta start fail, deepsleep in progress\n");
 		return BK_ERR_WIFI_STA_NOT_CONFIG;
 	}
 
 	if (!wifi_sta_is_configured()) {
-		WIFI_LOGI("sta start fail, sta not configured\n");
+		WIFI_LOGD("sta start fail, sta not configured\n");
 		return BK_ERR_WIFI_STA_NOT_CONFIG;
 	}
 
@@ -2079,10 +2079,10 @@ bk_err_t bk_wifi_sta_start(void)
 
 #if 0
 		print_hex_dump("fci: ", &fci, sizeof(fci));
-		WIFI_LOGI("  ssid: |%s|\n", fci.ssid);
-		WIFI_LOGI("  bssid: %pM\n", fci.bssid);
-		WIFI_LOGI("  chan: %d\n", fci.channel);
-		WIFI_LOGI("  desire ssid: |%s|\n", sta_config.ssid);
+		WIFI_LOGD("  ssid: |%s|\n", fci.ssid);
+		WIFI_LOGD("  bssid: %pM\n", fci.bssid);
+		WIFI_LOGD("  chan: %d\n", fci.channel);
+		WIFI_LOGD("  desire ssid: |%s|\n", sta_config.ssid);
 #endif
 		if (((ssid_len == req_ssid_len &&
 			os_memcmp(sta_config.ssid, fci.ssid, ssid_len) == 0) ||
@@ -2097,10 +2097,10 @@ bk_err_t bk_wifi_sta_start(void)
 			g_sta_param_ptr->fast_connect.chann = fci.channel;
 			g_sta_param_ptr->fast_connect_set = 1;
 
-			WIFI_LOGI("fast_connect\n");
+			WIFI_LOGD("fast_connect\n");
 #if 0
-			WIFI_LOGI("  chan: %d\n", fci.channel);
-			WIFI_LOGI("  PMK: %s\n", psk);
+			WIFI_LOGD("  chan: %d\n", fci.channel);
+			WIFI_LOGD("  PMK: %s\n", psk);
 #endif
 			if (os_strlen((char *)psk) == 0) {
 				/* no psk info, calcuate pmk */
@@ -2128,7 +2128,7 @@ bk_err_t bk_wifi_sta_start(void)
 	}
 
 	if (wifi_sta_is_started()) {
-		WIFI_LOGI("sta already started, ignored!\n");
+		WIFI_LOGD("sta already started, ignored!\n");
 		return BK_OK;
 	}
 
@@ -2146,7 +2146,7 @@ bk_err_t bk_wifi_sta_start(void)
 
 	wifi_sta_init_rw_driver();
 	if (wifi_supplicant_start()) {
-		WIFI_LOGI("%s wifi enable fail\n");
+		WIFI_LOGD("%s wifi enable fail\n");
 		return BK_OK;
 	}
 
@@ -2188,7 +2188,7 @@ bk_err_t bk_wifi_sta_start(void)
 #endif
 
 	wifi_set_state_bit(WIFI_STA_STARTED_BIT);
-	WIFI_LOGD("sta started(%x)\n", s_wifi_state_bits);
+	WIFI_LOGV("sta started(%x)\n", s_wifi_state_bits);
 
 	/* always connect the AP automatically */
 	bk_wifi_sta_connect();
@@ -2198,16 +2198,16 @@ bk_err_t bk_wifi_sta_start(void)
 
 bk_err_t bk_wifi_sta_stop(void)
 {
-	WIFI_LOGI("sta stopping\n");
+	WIFI_LOGD("sta stopping\n");
 
 	if (!wifi_sta_is_started()) {
-		WIFI_LOGD("sta stop, already stopped\n");
+		WIFI_LOGV("sta stop, already stopped\n");
 		return BK_OK;
 	}
 	_wifi_sta_exit();
 
 	wifi_clear_state_bit(WIFI_STA_STARTED_BIT);
-	WIFI_LOGI("sta stopped(%x)\n", s_wifi_state_bits);
+	WIFI_LOGD("sta stopped(%x)\n", s_wifi_state_bits);
 #if CONFIG_WIFI_VNET_CONTROLLER
 	//cif_handle_bk_cmd_disconnect_ind(true, WIFI_REASON_RESERVED);
 #endif
@@ -2240,27 +2240,27 @@ bk_err_t bk_wifi_scan_start(const wifi_scan_config_t *config)
 	int ret;
 	u8 ssid_len = 0;
 
-	WIFI_LOGI("scaning\n");
+	WIFI_LOGD("scaning\n");
 
 	if (!wifi_is_inited()) {
-		WIFI_LOGD("start scan fail, wifi not init\n");
+		WIFI_LOGV("start scan fail, wifi not init\n");
 		return BK_ERR_WIFI_NOT_INIT;
 	}
 
 	if (wifi_video_transfer_is_started()) {
-		WIFI_LOGD("scan refused, video transfer in progress\n");
+		WIFI_LOGV("scan refused, video transfer in progress\n");
 		return BK_ERR_BUSY;
 	}
 
 	if (wifi_monitor_is_started()) {
-		WIFI_LOGD("scan refused, monitor in progress\n");
+		WIFI_LOGV("scan refused, monitor in progress\n");
 		return BK_ERR_WIFI_MONITOR_IP;
 	}
 
 	wifi_scan_init_global_config();
 	wifi_sta_init_rw_driver();
 	if (wifi_supplicant_start()) {
-		WIFI_LOGI("%s wifi enable fail\n");
+		WIFI_LOGD("%s wifi enable fail\n");
 		return BK_OK;
 	}
 
@@ -2290,11 +2290,11 @@ bk_err_t bk_wifi_scan_start(const wifi_scan_config_t *config)
 	}
 
 	if (0 == ssid_len) {
-		WIFI_LOGD("scan all APs\n");
+		WIFI_LOGV("scan all APs\n");
 		scan_param.num_ssids = 1;
 		scan_param.ssids[0].ssid_len = 0;
 	} else {
-		WIFI_LOGD("scan %s\n", config->ssid);
+		WIFI_LOGV("scan %s\n", config->ssid);
 		scan_param.num_ssids = 1;
 		scan_param.ssids[0].ssid_len = MIN(WLAN_SSID_MAX_LEN, os_strlen((char *)config->ssid));
 		os_memcpy(scan_param.ssids[0].ssid, config->ssid, scan_param.ssids[0].ssid_len);
@@ -2315,17 +2315,17 @@ bk_err_t bk_wifi_scan_start(const wifi_scan_config_t *config)
 
 bk_err_t bk_wifi_scan_stop(void)
 {
-	WIFI_LOGI("scan stopping\n");
+	WIFI_LOGD("scan stopping\n");
 
 	if (!wifi_pure_scan_is_started()) {
-		WIFI_LOGD("sta stop, already stopped\n");
+		WIFI_LOGV("sta stop, already stopped\n");
 		return BK_OK;
 	}
 
 	_wifi_sta_exit();
 
 	wifi_clear_state_bit(WIFI_PURE_SCAN_STARTED_BIT);
-	WIFI_LOGI("sta stopped(%x)\n", s_wifi_state_bits);
+	WIFI_LOGD("sta stopped(%x)\n", s_wifi_state_bits);
 	return BK_OK;
 }
 
@@ -2333,7 +2333,7 @@ static bool is_reserved_byte_init(const uint8_t *reserved_bytes, uint32_t len)
 {
 	for (int i = 0; i < len; i++) {
 		if (reserved_bytes[i] != WIFI_RESERVED_BYTE_VALUE) {
-			WIFI_LOGD("reserved byte not correct, %x\n", reserved_bytes[i]);
+			WIFI_LOGV("reserved byte not correct, %x\n", reserved_bytes[i]);
 			return false;
 		}
 	}
@@ -2344,7 +2344,7 @@ static bool is_reserved_byte_init(const uint8_t *reserved_bytes, uint32_t len)
 static int wifi_sta_validate_config(const wifi_sta_config_t *config)
 {
 	if (!config) {
-		WIFI_LOGD("sta config fail, null config\n");
+		WIFI_LOGV("sta config fail, null config\n");
 		return BK_ERR_NULL_PARAM;
 	}
 
@@ -2458,7 +2458,7 @@ static int wifi_sta_set_global_config(const wifi_sta_config_t *config)
 			config->disable_auto_reconnect_after_disconnect;
 #endif
 
-	WIFI_LOGD("sta config, ssid=%s password=%s security=%d\n",
+	WIFI_LOGV("sta config, ssid=%s password=%s security=%d\n",
 			  config->ssid, config->password, config->security);
 	return BK_OK;
 }
@@ -2505,7 +2505,7 @@ static int wifi_sta_get_global_config(wifi_sta_config_t *sta_config)
 #endif
 
 
-	WIFI_LOGD("sta get sta_config, ssid=%s password=%s security=%d\n",
+	WIFI_LOGV("sta get sta_config, ssid=%s password=%s security=%d\n",
 			  sta_config->ssid, sta_config->password, sta_config->security);
 
 	return BK_OK;
@@ -2524,7 +2524,7 @@ static bool bssid_is_initialized(const uint8_t *bssid)
 static int wifi_sta_set_bssid_wpa_config(const wifi_sta_config_t *config)
 {
 	wlan_sta_config_t wpa_config = {0};
-	WPA_LOGD("fast connect, bssid=%pm channel=%d\n",
+	WPA_LOGV("fast connect, bssid=%pm channel=%d\n",
 			  config->bssid, config->channel);
 	if (bssid_is_initialized(config->bssid)) {
 		/* set fast connect bssid */
@@ -2647,16 +2647,16 @@ bk_err_t bk_wifi_sta_set_config(const wifi_sta_config_t *config)
 	bool need_reconnect = false;
 	int ret = BK_OK;
 
-	WIFI_LOGD("sta configuring\n");
+	WIFI_LOGV("sta configuring\n");
 
 	if (!wifi_is_inited()) {
-		WIFI_LOGD("set sta config fail, wifi not init\n");
+		WIFI_LOGV("set sta config fail, wifi not init\n");
 		return BK_ERR_WIFI_NOT_INIT;
 	}
 
 	ret = wifi_sta_validate_config(config);
 	if (ret != BK_OK) {
-		WIFI_LOGD("set config fail, invalid param\n");
+		WIFI_LOGV("set config fail, invalid param\n");
 		return ret;
 	}
 
@@ -2680,7 +2680,7 @@ bk_err_t bk_wifi_sta_set_config(const wifi_sta_config_t *config)
 		wifi_sta_set_wpa_config(config);
 
 	wifi_set_state_bit(WIFI_STA_CONFIGURED_BIT);
-	WIFI_LOGD("sta configured(%x)\n", s_wifi_state_bits);
+	WIFI_LOGV("sta configured(%x)\n", s_wifi_state_bits);
 
 	if (need_reconnect)
 		bk_wifi_sta_connect();
@@ -2691,7 +2691,7 @@ bk_err_t bk_wifi_sta_set_config(const wifi_sta_config_t *config)
 bk_err_t bk_wifi_sta_get_config(wifi_sta_config_t *config)
 {
 	if (!config) {
-		WIFI_LOGD("get sta config fail, null config");
+		WIFI_LOGV("get sta config fail, null config");
 		return BK_ERR_NULL_PARAM;
 	}
 
@@ -2746,7 +2746,7 @@ bk_err_t bk_wifi_sta_get_link_status(wifi_link_status_t *link_status)
 	struct me_get_bss_info_cfm *cfm = NULL;
 	wifi_linkstate_reason_t info = mhdr_get_station_status();
 
-	WIFI_LOGD("get sta link status\n");
+	WIFI_LOGV("get sta link status\n");
 
 	if (!link_status)
 		return BK_ERR_NULL_PARAM;
@@ -2867,10 +2867,10 @@ bk_err_t bk_wifi_sta_connect(void)
 {
 	wifi_linkstate_reason_t info;
 
-	WIFI_LOGD("sta connecting\n");
+	WIFI_LOGV("sta connecting\n");
 
 	if (!wifi_sta_is_started()) {
-		WIFI_LOGD("sta connect fail, sta not start\n");
+		WIFI_LOGV("sta connect fail, sta not start\n");
 		return BK_ERR_WIFI_STA_NOT_STARTED;
 	}
 
@@ -2920,13 +2920,13 @@ bk_err_t bk_wifi_sta_connect(void)
 #endif
 	wlan_sta_connect(g_sta_param_ptr->fast_connect_set ? g_sta_param_ptr->fast_connect.chann : 0);
 	wifi_set_state_bit(WIFI_STA_CONNECTED_BIT);
-	WIFI_LOGD("sta connected(%x)\n", s_wifi_state_bits);
+	WIFI_LOGV("sta connected(%x)\n", s_wifi_state_bits);
 	return BK_OK;
 }
 
 bk_err_t bk_wifi_sta_disconnect(void)
 {
-	WIFI_LOGD("sta disconnecting\n");
+	WIFI_LOGV("sta disconnecting\n");
 
 	if (wifi_sta_is_connected()) {
 #if CONFIG_LWIP
@@ -2938,7 +2938,7 @@ bk_err_t bk_wifi_sta_disconnect(void)
 		wifi_clear_state_bit(WIFI_STA_CONNECTED_BIT);
 	}
 
-	WIFI_LOGD("sta disconnected(%x)\n", s_wifi_state_bits);
+	WIFI_LOGV("sta disconnected(%x)\n", s_wifi_state_bits);
 	return BK_OK;
 }
 
@@ -2983,7 +2983,7 @@ bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
 			}
 
 			if(j == scan_param_dump_env.chan_cnt) {
-				WIFI_LOGD("scan get result , not print chan %d\n", ap_list.ApList[i].channel);
+				WIFI_LOGV("scan get result , not print chan %d\n", ap_list.ApList[i].channel);
 				continue;
 			}
 		}
@@ -3023,7 +3023,7 @@ bk_err_t bk_wifi_scan_dump_result(const wifi_scan_result_t *scan_result)
 #if (CONFIG_SHELL_ASYNCLOG)
 		shell_cmd_ind_out("scan doesn't found AP\n");
 #else
-		WIFI_LOGI("scan doesn't found AP\n");
+		WIFI_LOGD("scan doesn't found AP\n");
 #endif
 		return BK_OK;
 	}
@@ -3039,7 +3039,7 @@ bk_err_t bk_wifi_scan_dump_result(const wifi_scan_result_t *scan_result)
 	shell_cmd_ind_out("%32s %17s   %4s %4s %s\n", "--------------------------------",
 			   "-----------------", "----", "----", "---------\n");
 #else
-	WIFI_LOGI("scan found %d AP\n", scan_result->ap_num);
+	WIFI_LOGD("scan found %d AP\n", scan_result->ap_num);
 	WIFI_LOG_RAW("%32s %17s   %4s %4s %s\n", "              SSID              ",
 			   "      BSSID      ", "RSSI", "chan", "security");
 	WIFI_LOG_RAW("%32s %17s   %4s %4s %s\n", "--------------------------------",
@@ -3063,7 +3063,7 @@ void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
 		scan_result->ap_num = 0;
 	}
 	os_memset(&scan_param_dump_env, 0, sizeof(scan_param_dump_env));
-	WIFI_LOGD("scan free result\n");
+	WIFI_LOGV("scan free result\n");
 }
 
 #if CONFIG_BRIDGE
@@ -3072,25 +3072,25 @@ extern uint8 bridge_is_enabled;
 
 bk_err_t bk_wifi_ap_start(void)
 {
-	WIFI_LOGD("ap starting\n");
+	WIFI_LOGV("ap starting\n");
 
 	if (!wifi_ap_is_configured()) {
-		WIFI_LOGD("start ap failed, ap not configured\n");
+		WIFI_LOGV("start ap failed, ap not configured\n");
 		return BK_ERR_WIFI_AP_NOT_CONFIG;
 	}
 
 	if (wifi_ap_is_started()) {
-		WIFI_LOGI("start ap, already started, ignored\n");
+		WIFI_LOGD("start ap, already started, ignored\n");
 		return BK_OK;
 	}
 
 #if CONFIG_LWIP
-	WIFI_LOGD("ap start, ip down\n");
+	WIFI_LOGV("ap start, ip down\n");
 	//TODO move to event handler
 	uap_ip_down();
 #endif
 
-	WIFI_LOGD("ap start, ap start rf\n");
+	WIFI_LOGV("ap start, ap start rf\n");
 	if(wifi_ap_init_rw_driver()) {
 		WIFI_LOGE("ap start fail,ap init rw driver fail!\n");
 		return BK_ERR_WIFI_AP_NOT_STARTED;
@@ -3117,7 +3117,7 @@ bk_err_t bk_wifi_ap_start(void)
 		bk_vsie_cus_init();
 #endif
 
-	WIFI_LOGI("ap started\n");
+	WIFI_LOGD("ap started\n");
 	wifi_set_state_bit(WIFI_AP_STARTED_BIT);
 	return BK_OK;
 }
@@ -3221,10 +3221,10 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 {
 	int ret = BK_OK;
 
-	WIFI_LOGD("ap configuring\n");
+	WIFI_LOGV("ap configuring\n");
 
 	if (!wifi_is_inited()) {
-		WIFI_LOGD("set ap config fail, wifi not init\n");
+		WIFI_LOGV("set ap config fail, wifi not init\n");
 		return BK_ERR_WIFI_NOT_INIT;
 	}
 
@@ -3237,7 +3237,7 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 		return ret;
 
 	wifi_set_state_bit(WIFI_AP_CONFIGURED_BIT);
-	WIFI_LOGD("ap configured\n");
+	WIFI_LOGV("ap configured\n");
 
 	if (wifi_ap_is_started()) {
 		BK_LOG_ON_ERR(bk_wifi_ap_stop());
@@ -3263,7 +3263,7 @@ void sm_build_broadcast_deauthenticate(void);
 bk_err_t bk_wifi_ap_stop(void)
 {
 	if (!wifi_ap_is_started()) {
-		WIFI_LOGD("ap stop: already stopped\n");
+		WIFI_LOGV("ap stop: already stopped\n");
 		return BK_OK;
 	}
 
@@ -3293,7 +3293,7 @@ bk_err_t bk_wifi_ap_stop(void)
 
 	rtos_delay_milliseconds(200);
 
-	WIFI_LOGI("ap stopped\n");
+	WIFI_LOGD("ap stopped\n");
 	wifi_clear_state_bit(WIFI_AP_STARTED_BIT);
 	return BK_OK;
 }
@@ -3346,7 +3346,7 @@ bk_err_t bk_wifi_monitor_set_config(const wifi_monitor_config_t *monitor_config)
 		return BK_ERR_WIFI_RESERVED_FIELD;
 
 	ret = wifi_monitor_set_config(monitor_config);
-	WIFI_LOGI("monitor config, mcast=%d dup=%d\n", monitor_config->rx_mcast_frame, monitor_config->rx_dup_frame);
+	WIFI_LOGD("monitor config, mcast=%d dup=%d\n", monitor_config->rx_mcast_frame, monitor_config->rx_dup_frame);
 	return ret;
 }
 
@@ -3386,7 +3386,7 @@ bk_err_t bk_wifi_filter_set_config(const wifi_filter_config_t *filter_config)
 	if (filter_config->reserved != 0)
 		return BK_ERR_WIFI_RESERVED_FIELD;
 
-	WIFI_LOGI("filter configured(%x)\n", *(uint32_t *)filter_config);
+	WIFI_LOGD("filter configured(%x)\n", *(uint32_t *)filter_config);
 	return wifi_filter_set_config(filter_config);
 }
 
@@ -3401,9 +3401,9 @@ bk_err_t bk_wifi_filter_get_config(wifi_filter_config_t *filter_config)
 bk_err_t bk_wifi_filter_register_cb(const wifi_filter_cb_t filter_cb)
 {
 	if (filter_cb)
-		WIFI_LOGI("filter started\n");
+		WIFI_LOGD("filter started\n");
 	else
-		WIFI_LOGI("filter stopped\n");
+		WIFI_LOGD("filter stopped\n");
 
 	return wifi_filter_register_cb(filter_cb);
 }
@@ -3416,11 +3416,11 @@ static bk_err_t wifi_monitor_validate_channel(const wifi_channel_t *chan)
 		return BK_ERR_NULL_PARAM;
 
 	if (chan->second != 0)
-		WIFI_LOGD("curently only support HT20, second channel is ignored");
+		WIFI_LOGV("curently only support HT20, second channel is ignored");
 
 	primary = chan->primary;
 	if ((primary < WIFI_MIN_CHAN_NUM) || (primary > WIFI_MAX_CHAN_NUM)) {
-		WIFI_LOGD("invalid channel number <%d, %d>\n", primary, chan->second);
+		WIFI_LOGV("invalid channel number <%d, %d>\n", primary, chan->second);
 		return BK_ERR_WIFI_CHAN_NUMBER;
 	}
 
@@ -3448,7 +3448,7 @@ bk_err_t bk_wifi_monitor_set_channel(const wifi_channel_t *chan)
 	//always set to HT20
 	rw_msg_set_channel(chan->primary, PHY_CHNL_BW_20, NULL);
 
-	WIFI_LOGD("monitor set channel<%d, %d>\n", chan->primary, chan->second);
+	WIFI_LOGV("monitor set channel<%d, %d>\n", chan->primary, chan->second);
 	return BK_OK;
 }
 
@@ -3458,7 +3458,7 @@ bk_err_t bk_wifi_monitor_set_channel(const wifi_channel_t *chan)
  */
 bk_err_t bk_wifi_monitor_start(void)
 {
-	WIFI_LOGI("monitor starting\n");
+	WIFI_LOGD("monitor starting\n");
 
 	bk_wifi_scan_stop();
 	bk_wifi_sta_pm_disable();
@@ -3469,13 +3469,13 @@ bk_err_t bk_wifi_monitor_start(void)
 
 	wifi_monitor_set_enabled(true);
 	wifi_set_state_bit(WIFI_MONITOR_STARTED_BIT);
-	WIFI_LOGI("monitor started(%x)\n", s_wifi_state_bits);
+	WIFI_LOGD("monitor started(%x)\n", s_wifi_state_bits);
 	return BK_OK;
 }
 
 bk_err_t bk_wifi_monitor_stop(void)
 {
-	WIFI_LOGI("monitor stopping\n");
+	WIFI_LOGD("monitor stopping\n");
 
 	if (wifi_monitor_is_started()) {
 		rwnx_monitor_close();
@@ -3484,19 +3484,19 @@ bk_err_t bk_wifi_monitor_stop(void)
 
 	wifi_monitor_set_enabled(false);
 	wifi_clear_state_bit(WIFI_MONITOR_STARTED_BIT);
-	WIFI_LOGI("monitor stopped(%x)\n", s_wifi_state_bits);
+	WIFI_LOGD("monitor stopped(%x)\n", s_wifi_state_bits);
 	return BK_OK;
 }
 
 ////function for resume monitor :MAC can not sleep
 bk_err_t bk_wifi_monitor_resume(void)
 {
-	//WIFI_LOGI("monitor resume start\n");
+	//WIFI_LOGD("monitor resume start\n");
 
 	////vote monitor disbale mac ps
 	bk_wifi_sta_pm_disable();
 
-	//WIFI_LOGI("monitor resume end\n");
+	//WIFI_LOGD("monitor resume end\n");
 	return BK_OK;
 }
 
@@ -3504,7 +3504,7 @@ extern void ps_reset_prevent(void);
 ////function for suspend monitor : MAC can sleep
 bk_err_t bk_wifi_monitor_suspend(void)
 {
-	//WIFI_LOGI("monitor suspend start\n");
+	//WIFI_LOGD("monitor suspend start\n");
 
 	///clean prevent sleep flag
 	ps_reset_prevent();
@@ -3512,7 +3512,7 @@ bk_err_t bk_wifi_monitor_suspend(void)
 	///clean monitor for mac can sleep
 	bk_wifi_sta_pm_enable();
 
-	//WIFI_LOGI("monitor suspend end\n");
+	//WIFI_LOGD("monitor suspend end\n");
 	return BK_OK;
 }
 
@@ -3537,7 +3537,7 @@ bk_err_t bk_wifi_send_raw(uint8_t *buffer, int len)
 
 	pkt = os_malloc(len);
 	if (pkt == NULL) {
-		WIFI_LOGD("raw send fail, oom\n");
+		WIFI_LOGV("raw send fail, oom\n");
 		return BK_ERR_NO_MEM;
 	}
 
@@ -3556,7 +3556,7 @@ bk_err_t bk_wifi_send_raw_ex(wifi_raw_tx_info_t *raw_tx, void *cb, void *param)
 
 	raw_tx_copy = os_malloc(sizeof(wifi_raw_tx_info_t) + raw_tx->len);
 	if (raw_tx_copy == NULL) {
-		WIFI_LOGD("raw ex send fail, alloc PKT failed\n");
+		WIFI_LOGV("raw ex send fail, alloc PKT failed\n");
 		return BK_ERR_NO_MEM;
 	}
 
@@ -3622,7 +3622,7 @@ bk_err_t bk_wifi_set_default_ac(uint32_t ac)
 {
 	g_wifi_mac_config.def_ac = ac;
 
-	WIFI_LOGI("default ac %x\r\n",g_wifi_mac_config.def_ac);
+	WIFI_LOGD("default ac %x\r\n",g_wifi_mac_config.def_ac);
 
 	return rw_msg_set_default_ac(g_wifi_mac_config.def_ac);
 }
@@ -3660,7 +3660,7 @@ bk_err_t bk_wifi_get_tx_raw_timeout(uint16_t *time)
 bk_err_t bk_wifi_set_min_rsv_mem(uint16_t mem_bytes)
 {
 	if (mem_bytes > WIFI_CFG_MAX_RSV_MEM) {
-		WIFI_LOGD("set minimum reserve memory failed, mem_bytes is greater than:%d\n", WIFI_CFG_MAX_RSV_MEM);
+		WIFI_LOGV("set minimum reserve memory failed, mem_bytes is greater than:%d\n", WIFI_CFG_MAX_RSV_MEM);
 		return BK_ERR_PARAM;
 	}
 
@@ -3816,7 +3816,7 @@ bk_err_t bk_wifi_get_listen_interval(uint8_t *listen_interval)
 	bk_err_t get_result = BK_FAIL;
 	struct mm_get_listen_interval_cfm *cfm = NULL;
 
-	WIFI_LOGD("bk_wifi_get_listen_interval\n");
+	WIFI_LOGV("bk_wifi_get_listen_interval\n");
 
 	cfm = os_malloc(sizeof(struct mm_get_listen_interval_cfm));
 	if (!cfm) {
@@ -3849,7 +3849,7 @@ bk_err_t bk_wifi_send_bcn_loss_int_req(uint8_t interval,uint8_t repeat_num) {
 	if (vif->p2p)
 		return BK_FAIL;
 #endif
-        WIFI_LOGD("bcn_loss_int %d,repeat %d\r\n",interval,repeat_num);
+        WIFI_LOGV("bcn_loss_int %d,repeat %d\r\n",interval,repeat_num);
 
 	return rw_msg_send_bcn_loss_int_req(vif_idx, interval, repeat_num);
 }
@@ -3864,7 +3864,7 @@ bk_err_t bk_wifi_set_bcn_loss_time(uint8_t wait_cnt, uint8_t wake_cnt) {
 	if (vif->p2p)
 		return BK_FAIL;
 #endif
-	WIFI_LOGI("bcn_loss_time wait %d,wake %d\r\n",wait_cnt,wake_cnt);
+	WIFI_LOGD("bcn_loss_time wait %d,wake %d\r\n",wait_cnt,wake_cnt);
 
 	return rw_msg_send_bcn_loss_time_req(vif_idx, wait_cnt, wake_cnt);
 }
@@ -3879,7 +3879,7 @@ bk_err_t bk_wifi_set_bcn_recv_win(uint8_t default_win, uint8_t max_win, uint8_t 
 	if (vif->p2p)
 		return BK_FAIL;
 #endif
-	WIFI_LOGD("bcn_recv_win default %d,max %d,step %d\r\n",default_win,max_win,step);
+	WIFI_LOGV("bcn_recv_win default %d,max %d,step %d\r\n",default_win,max_win,step);
 
 	return rw_msg_send_bcn_recv_win_req(vif_idx, default_win, max_win, step);
 }
@@ -3894,7 +3894,7 @@ bk_err_t bk_wifi_set_bcn_miss_time(uint8_t bcnmiss_time) {
 	if (vif->p2p)
 		return BK_FAIL;
 #endif
-	WIFI_LOGI("bcn_miss_time %d\r\n",bcnmiss_time);
+	WIFI_LOGD("bcn_miss_time %d\r\n",bcnmiss_time);
 
 	return rw_msg_send_bcn_miss_time_req(vif_idx, bcnmiss_time);
 }
@@ -3982,7 +3982,7 @@ void bk_net_mqtt_update_cb(bool send_pingreq, uint32_t period_s)
 	}
 
 	if (ret)
-		WIFI_LOGI("%s: fail\n", __func__);
+		WIFI_LOGD("%s: fail\n", __func__);
 }
 
 void bk_trigger_mqttping(void)
@@ -4064,7 +4064,7 @@ void bk_wifi_ps_cmd_open(void)
 {
 	if (wifi_ap_is_started())
 	{
-		WIFI_LOGI("Softap is on,powersave can't use\n\r");
+		WIFI_LOGD("Softap is on,powersave can't use\n\r");
 		return;
 	}
 
@@ -4076,7 +4076,7 @@ void bk_wifi_ps_cmd_close(void)
 {
 	if (wifi_ap_is_started())
 	{
-		WIFI_LOGI("Softap is on,powersave can't use\n\r");
+		WIFI_LOGD("Softap is on,powersave can't use\n\r");
 		return;
 	}
 
@@ -4175,7 +4175,7 @@ bk_err_t bk_wifi_set_csa_coexist_mode_flag(bool is_close)
 	}
 
 	close_coexist_csa = is_close;
-	WIFI_LOGI("%s coexist csa \r\n",close_coexist_csa? "Close": "Open");
+	WIFI_LOGD("%s coexist csa \r\n",close_coexist_csa? "Close": "Open");
 
 	return BK_OK;
 }
@@ -4188,16 +4188,16 @@ bk_err_t bk_wifi_ftm_start(const wifi_ftm_config_t *config, wifi_ftm_results_t *
 	uint8_t vif_idx = 0;
 	struct ftm_done_ind *ind = NULL;
 
-	WIFI_LOGI("FTM starting\n");
-	WIFI_LOGI("ftm config: ftm_per_burst %d, nb_ftm_rsp %d \n", config->ftm_per_burst, config->nb_ftm_rsp);
+	WIFI_LOGD("FTM starting\n");
+	WIFI_LOGD("ftm config: ftm_per_burst %d, nb_ftm_rsp %d \n", config->ftm_per_burst, config->nb_ftm_rsp);
 
 	if (!wifi_is_inited()) {
-		WIFI_LOGD("start ftm fail, wifi not init\n");
+		WIFI_LOGV("start ftm fail, wifi not init\n");
 		return BK_ERR_WIFI_NOT_INIT;
 	}
 
 	if (!wifi_sta_is_started()) {
-		WIFI_LOGD("start ftm fail, sta not start\n");
+		WIFI_LOGV("start ftm fail, sta not start\n");
 		return BK_ERR_WIFI_STA_NOT_STARTED;
 	}
 
@@ -4238,7 +4238,7 @@ get_exit:
 bk_err_t bk_wifi_ftm_dump_result(const wifi_ftm_results_t *ftm_results)
 {
 	if (!ftm_results) {
-		WIFI_LOGI("ftm doesn't found responser\n");
+		WIFI_LOGD("ftm doesn't found responser\n");
 		return BK_OK;
 	}
 
@@ -4247,10 +4247,10 @@ bk_err_t bk_wifi_ftm_dump_result(const wifi_ftm_results_t *ftm_results)
 		return BK_ERR_PARAM;
 	}
 
-	WIFI_LOGI("ftm found %d responser\n", ftm_results->nb_ftm_rsp);
+	WIFI_LOGD("ftm found %d responser\n", ftm_results->nb_ftm_rsp);
 
 	for (int i = 0; i < ftm_results->nb_ftm_rsp; i++) {
-		BK_LOGI("The distance to " WIFI_MAC_FORMAT " is %.2f meters, rtt is %d nSec \n",
+		BK_LOGD("The distance to " WIFI_MAC_FORMAT " is %.2f meters, rtt is %d nSec \n",
 			WIFI_MAC_STR(ftm_results->rsp[i].bssid), ftm_results->rsp[i].distance, ftm_results->rsp[i].rtt);
 		rtos_delay_milliseconds(10);
 	}
@@ -4267,7 +4267,7 @@ void bk_wifi_ftm_free_result(wifi_ftm_results_t *ftm_results)
 		ftm_results->rsp = 0;
 		ftm_results->nb_ftm_rsp = 0;
 	}
-	WIFI_LOGI("ftm free result\n");
+	WIFI_LOGD("ftm free result\n");
 }
 #endif //CONFIG_WIFI_FTM
 
@@ -4275,7 +4275,7 @@ void bk_wifi_ftm_free_result(wifi_ftm_results_t *ftm_results)
 
 bk_err_t bk_wifi_csi_alg_config_internal(double thres1,struct wifi_csi_cfg_dbg debug_param)
 {
-	//WIFI_LOGI("bk_wifi_csi_alg_config_internal\n");
+	//WIFI_LOGD("bk_wifi_csi_alg_config_internal\n");
 	return rw_msg_send_csi_alg_config_ind(debug_param.rate1,debug_param.rate2,debug_param.rate3,thres1,debug_param.thres2);
 }
 
@@ -4328,7 +4328,7 @@ bk_err_t bk_wifi_csi_stop_req(void)
 
 bk_err_t bk_wifi_csi_static_param_reset_req(uint8_t update_cali_mode,uint32_t cali_cnt)
 {
-	os_printf("bk_wifi_csi_static_param_reset_req cali_cnt %d\n",cali_cnt);
+	BK_LOGD(NULL,"bk_wifi_csi_static_param_reset_req cali_cnt %d\n",cali_cnt);
 	return rw_msg_send_csi_static_param_reset_req(update_cali_mode,cali_cnt);
 }
 #if CONFIG_WIFI_CSI_DEMO
@@ -4341,7 +4341,7 @@ bk_err_t bk_wifi_csi_demo_turn_on_light(uint8_t color, bool flicker) {
 
 	if (bk_csi_demo_queue != NULL) {
 		if (rtos_push_to_queue(&bk_csi_demo_queue, &event, BEKEN_NO_WAIT) != kNoErr) {
-			os_printf("Push turn_on_light event into queue fail\n");
+			BK_LOGD(NULL,"Push turn_on_light event into queue fail\n");
 			return BK_ERR_BUSY;
 		}
 	} else {
@@ -4447,17 +4447,17 @@ void bk_wifi_set_ap_channel(uint8_t channel)
 		return;
 
 	if ((channel < 1) || (channel > 14)) {
-		WIFI_LOGI("please input the valid param\n");
+		WIFI_LOGD("please input the valid param\n");
 		return;
 	}
 
 	frequency = rw_ieee80211_get_centre_frequency(channel);
 	if (frequency) {
-		WIFI_LOGI("hostapd_channel_switch\n");
+		WIFI_LOGD("hostapd_channel_switch\n");
 		ret = hostapd_channel_switch(frequency);
 
 		if (ret)
-			WIFI_LOGI("hostapd_channel_switch failed:%x\r\n", ret);
+			WIFI_LOGD("hostapd_channel_switch failed:%x\r\n", ret);
 	}
 }
 bk_err_t bk_wifi_set_ani_en(bool enable)

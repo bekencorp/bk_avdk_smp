@@ -22,6 +22,7 @@
 #define SCR_LOGW(...) BK_LOGW(SCR_TAG, ##__VA_ARGS__)
 #define SCR_LOGE(...) BK_LOGE(SCR_TAG, ##__VA_ARGS__)
 #define SCR_LOGD(...) BK_LOGD(SCR_TAG, ##__VA_ARGS__)
+#define SCR_LOGV(...) BK_LOGV(SCR_TAG, ##__VA_ARGS__)
 
 #define SCR_MAX_LEN           (0xFF)
 #define SCR_FIFO_SIZE         (64)

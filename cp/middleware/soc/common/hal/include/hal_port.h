@@ -27,5 +27,5 @@
 #define HAL_LOGW(...) BK_LOGW(HAL_TAG, ##__VA_ARGS__)
 #define HAL_LOGE(...) BK_LOGE(HAL_TAG, ##__VA_ARGS__)
 #define HAL_LOGD(...) BK_LOGD(HAL_TAG, ##__VA_ARGS__)
-#define HAL_LOGD(...) BK_LOGD(HAL_TAG, ##__VA_ARGS__)
+#define HAL_LOGV(...) BK_LOGV(HAL_TAG, ##__VA_ARGS__)
 

@@ -108,14 +108,14 @@ int rw_msg_send(const void *msg_params, int reqcfm, uint16_t reqid, void *cfm)
 		ret = bmsg_ioctl_sender((void *)msg_params);
 	}
 	if (kNoErr != ret) {
-		RWNX_LOGI("%s failed send %d\n", __FUNCTION__, msg->id);
+		RWNX_LOGD("%s failed send %d\n", __FUNCTION__, msg->id);
 		os_free((void *)msg_params);
 		err = RWNX_ERR_IOCTL_SEND;
 		goto failed_or_timeout;
 	} else if (reqcfm) {
 		ret = rtos_get_semaphore(&tx_msg->semaphore, 5 * MICROSECONDS);
 		if (0 != ret) {
-			RWNX_LOGI("%s timeout for %d\n", __FUNCTION__, reqid);
+			RWNX_LOGD("%s timeout for %d\n", __FUNCTION__, reqid);
 			BK_ASSERT(0); /* ASSERT VERIFIED */
 			GLOBAL_INT_DISABLE();
 			co_list_extract(&rw_msg_tx_head, &tx_msg->hdr);
@@ -263,7 +263,7 @@ int rw_msg_send_me_config_req(void)
 	else
 		req->phy_bw_max = PHY_CHNL_BW_20;
 
-	RWNX_LOGD("HT supp %d, VHT supp %d, HE supp %d\n", req->ht_supp, req->vht_supp, req->he_supp);
+	RWNX_LOGV("HT supp %d, VHT supp %d, HE supp %d\n", req->ht_supp, req->vht_supp, req->he_supp);
 
 #if CONFIG_PM_V2
 	req->ps_on = 1;
@@ -523,7 +523,7 @@ int rwnx_msg_send_twt_setup(uint8_t setup_type, uint16_t mantissa, uint8_t min_t
 	struct twt_setup_cfm *twt_setup_cfm
 		= (struct twt_setup_cfm *)os_malloc(sizeof(struct twt_setup_cfm));
 	if (NULL == twt_setup_cfm) {
-		RWNX_LOGI("twt setup failed: oom\r\n");
+		RWNX_LOGD("twt setup failed: oom\r\n");
 		return BK_ERR_NO_MEM;
 	}
 
@@ -534,14 +534,14 @@ int rwnx_msg_send_twt_setup(uint8_t setup_type, uint16_t mantissa, uint8_t min_t
 	twt_conf.wake_int_mantissa = mantissa;
 	twt_conf.min_twt_wake_dur = min_twt;
 
-	RWNX_LOGI("TWT: Setup request, setup_command: %d  mantissa: %d  min_twt: %d\n",
+	RWNX_LOGD("TWT: Setup request, setup_command: %d  mantissa: %d  min_twt: %d\n",
 		  setup_type, twt_conf.wake_int_mantissa, twt_conf.min_twt_wake_dur);
 
 	ret = rw_msg_send_twt_setup(setup_type, vif_idx, &twt_conf, twt_setup_cfm);
 	if (!ret && (twt_setup_cfm->status == CO_OK))
-		RWNX_LOGI("set up success\r\n");
+		RWNX_LOGD("set up success\r\n");
 	else
-		RWNX_LOGI("set up fail, ret = %d\r\n", ret);
+		RWNX_LOGD("set up fail, ret = %d\r\n", ret);
 	os_free(twt_setup_cfm);
 	return ret;
 
@@ -557,15 +557,15 @@ int rwnx_msg_send_twt_teardown(void)
 	{
 	 	// Check if flow is valid
 		if (twt_flow_tab[i].control & TWT_CTRL_VALID) {
-			RWNX_LOGI("TWT: teardown, vif_idx: %d  id: %d\n", vif_idx, twt_flow_tab[i].id);
+			RWNX_LOGD("TWT: teardown, vif_idx: %d  id: %d\n", vif_idx, twt_flow_tab[i].id);
 			ret = rw_msg_send_twt_teardown(vif_idx, twt_flow_tab[i].id);
 		}
 	}
 
 	if (!ret)
-		RWNX_LOGI( "tear down success\r\n");
+		RWNX_LOGD( "tear down success\r\n");
 	else
-		RWNX_LOGI( "tear down fail, ret = %d\r\n", ret);
+		RWNX_LOGD( "tear down fail, ret = %d\r\n", ret);
 	return ret;
 }
 #endif
@@ -822,7 +822,7 @@ int rw_msg_send_apm_start_req(u8 vif_index, u8 channel,
 	req->ctrl_port_ethertype = PP_HTONS(ETH_P_PAE);
 	req->vif_idx = vif_index;
 
-	RWNX_LOGD("apm start with vif:%d\r\n", vif_index);
+	RWNX_LOGV("apm start with vif:%d\r\n", vif_index);
 
 	return rw_msg_send(req, 1, APM_START_CFM, cfm);
 }
@@ -839,7 +839,7 @@ int rw_msg_send_apm_stop_req(u8 vif_index)
 
 	/* Set parameters for the APM_STOP_REQ message */
 	req->vif_idx = vif_index;
-	RWNX_LOGI("send apm stop req, vif=%d\n", vif_index);
+	RWNX_LOGD("send apm stop req, vif=%d\n", vif_index);
 
 	/* Send the APM_STOP_REQ message to LMAC FW */
 	return rw_msg_send(req, 1, APM_STOP_CFM, NULL);
@@ -899,7 +899,7 @@ int rw_msg_send_me_sta_add(struct add_sta_st *param,
 	req->aid = param->aid;
 	req->flags = param->flags; // 1:STA_QOS_CAPA 2: STA_HT_CAPA BIT(3)STA_MFP_CAPA
 
-	RWNX_LOGI("hapd_intf_sta_add:%d, vif:%d\r\n", req->aid, req->vif_idx);
+	RWNX_LOGD("hapd_intf_sta_add:%d, vif:%d\r\n", req->aid, req->vif_idx);
 
 	req->rate_set.length = 12;
 	req->rate_set.array[0] = 130;
@@ -965,7 +965,7 @@ int rw_msg_send_key_add(KEY_PARAM_T *param, struct mm_key_add_cfm *cfm)
 	key_add_req = ke_msg_alloc(MM_KEY_ADD_REQ, TASK_MM, TASK_API,
 							   sizeof(struct mm_key_add_req));
 	if (!key_add_req) {
-		RWNX_LOGI("rw_msg_send_key_add NULL\r\n");
+		RWNX_LOGD("rw_msg_send_key_add NULL\r\n");
 		return BK_ERR_NO_MEM;
 	}
 
@@ -1067,12 +1067,12 @@ int rw_msg_send_scanu_req(SCAN_PARAM_T *scan_param)
 			if (country_code_policy_is_auto() &&
 					(req->chan[i].freq == 2467 || req->chan[i].freq == 2472 || req->chan[i].freq == 2484)) {
 					req->chan[i].flags |= CHAN_NO_IR;
-					// os_printf("XXX disable IR chan for %d\n", req->chan[i].freq);
+					// BK_LOGD(NULL,"XXX disable IR chan for %d\n", req->chan[i].freq);
 			}
 			#endif // CONFIG_WIFI_AUTO_COUNTRY_CODE
 		}
 		req->chan_cnt = i;
-		// RWNX_LOGI("XXX Using specified freqs, chan_cnt %d\n", req->chan_cnt);
+		// RWNX_LOGD("XXX Using specified freqs, chan_cnt %d\n", req->chan_cnt);
 	}
 
 	os_memcpy(&req->bssid, &scan_param->bssid, sizeof(req->bssid));
@@ -1090,7 +1090,7 @@ int rw_msg_send_scanu_req(SCAN_PARAM_T *scan_param)
 			for (i = 0; i < scancd_env.table_nm; i++) {
 				freq = rw_ieee80211_get_centre_frequency(scancd_env.tb[i].ch_nb);
 				if (scancd_env.tb[i].ch_nb == 0 || freq == 0) {
-					RWNX_LOGI("channel_number error\r\n");
+					RWNX_LOGD("channel_number error\r\n");
 					break;
 				}
 
@@ -1118,7 +1118,7 @@ int rw_msg_send_scanu_req(SCAN_PARAM_T *scan_param)
 				uint16_t freq;
 				freq = rw_ieee80211_get_centre_frequency(scan_param_env.chan_nb[i]);
 				if (freq == 0) {
-					RWNX_LOGI("channel_number error\r\n");
+					RWNX_LOGD("channel_number error\r\n");
 					break;
 				}
 				req->chan[i].freq = freq;
@@ -1137,7 +1137,7 @@ int rw_msg_send_scanu_req(SCAN_PARAM_T *scan_param)
 					req->chan[i].flags = 0;
 			}
 			req->chan_cnt = i;
-			RWNX_LOGD("Using specified freqs\n");
+			RWNX_LOGV("Using specified freqs\n");
 		}
 		req->duration = scan_param_env.duration;
 
@@ -1696,7 +1696,7 @@ int rw_msg_send_roc(u8 vif_index, unsigned int freq, uint32_t duration)
 
 	/* FIXME: LOCK */
     /* Check that no other RoC procedure has been launched */
-	//RWNX_LOGI("req:%d %d %d\n", freq, duration, !!rwnx_hw->roc_elem);
+	//RWNX_LOGD("req:%d %d %d\n", freq, duration, !!rwnx_hw->roc_elem);
 	if (rwnx_hw->roc_elem) {
 		return BK_ERR_BUSY;
 	}

@@ -331,15 +331,15 @@ static void qspi_isr(void)
 	QSPI_STATIS_INC(qspi_statis->qspi_int_cnt);
 
 	int_status = qspi_hal_get_interrupt_status_before_mask(hal);
-	QSPI_LOGD("int_status before mask:%x\r\n", int_status);
+	QSPI_LOGV("int_status before mask:%x\r\n", int_status);
 
 	int_status = qspi_hal_get_interrupt_status_after_mask(hal);
-	QSPI_LOGD("int_status after mask:%x\r\n", int_status);
+	QSPI_LOGV("int_status after mask:%x\r\n", int_status);
 	qspi_hal_clear_interrupt_status(hal, int_status);
 
 	if (qspi_hal_is_sw_op_int_triggered(hal, int_status)) {
 		QSPI_STATIS_INC(qspi_statis->sw_op_int_cnt);
-		QSPI_LOGD("sw op int triggered\r\n");
+		QSPI_LOGV("sw op int triggered\r\n");
 		qspi_hal_clear_sw_op_int(hal);
 		qspi_hal_stop_sw_op(hal);
 		if (qspi_hal_is_cur_sw_op_write_data()) {

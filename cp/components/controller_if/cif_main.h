@@ -28,6 +28,7 @@ extern "C" {
 #define CIF_LOGW(...)       BK_LOGW(CIF_TAG, ##__VA_ARGS__)
 #define CIF_LOGE(...)       BK_LOGE(CIF_TAG, ##__VA_ARGS__)
 #define CIF_LOGD(...)       BK_LOGD(CIF_TAG, ##__VA_ARGS__)
+#define CIF_LOGV(...)       BK_LOGV(CIF_TAG, ##__VA_ARGS__)
 #define CIF_LOG_RAW(...)    BK_LOG_RAW(CIF_TAG, ##__VA_ARGS__)
 
 #define CIF_STATS_INC(x) do{uint32_t int_level = 0;int_level = rtos_disable_int();++cif_stats_ptr->x;rtos_enable_int(int_level);BK_ASSERT(cif_stats_ptr->x >= 0);}while(0)

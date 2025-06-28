@@ -367,7 +367,7 @@ static uint32_t spi_id_read_bytes_common(spi_id_t id)
 		}
 	}
 	s_spi[id].rx_offset = offset;
-	SPI_LOGD("spi offset:%d\r\n", s_spi[id].rx_offset);
+	SPI_LOGV("spi offset:%d\r\n", s_spi[id].rx_offset);
 	return offset;
 }
 
@@ -375,7 +375,7 @@ static uint32_t spi_id_read_bytes_common(spi_id_t id)
 
 static void spi_dma_tx_finish_handler(dma_id_t id)
 {
-	SPI_LOGD("[%s] spi_id:%d\r\n", __func__, s_current_spi_dma_wr_id);
+	SPI_LOGV("[%s] spi_id:%d\r\n", __func__, s_current_spi_dma_wr_id);
 
 	if (s_spi_tx_finish_isr[s_current_spi_dma_wr_id].callback){
 		s_spi_tx_finish_isr[s_current_spi_dma_wr_id].callback(s_current_spi_dma_wr_id,s_spi_tx_finish_isr[s_current_spi_dma_wr_id].param);
@@ -388,7 +388,7 @@ static void spi_dma_tx_finish_handler(dma_id_t id)
 
 static void spi_dma_rx_finish_handler(dma_id_t id)
 {
-	SPI_LOGD("[%s] spi_id:%d\r\n", __func__, s_current_spi_dma_rd_id);
+	SPI_LOGV("[%s] spi_id:%d\r\n", __func__, s_current_spi_dma_rd_id);
 	if (s_spi_rx_finish_isr[s_current_spi_dma_rd_id].callback){
 		s_spi_rx_finish_isr[s_current_spi_dma_rd_id].callback(s_current_spi_dma_rd_id,s_spi_rx_finish_isr[s_current_spi_dma_rd_id].param);
 	}
@@ -1031,7 +1031,7 @@ bk_err_t bk_spi_dma_write_bytes(spi_id_t id, const void *data, uint32_t size)
 	uint32_t buf_offset = 0;
 	while(left_len > 0) {
 		tx_len = (left_len < SPI_MAX_LENGTH)? left_len : SPI_MAX_LENGTH;
-		SPI_LOGD("tx_len = 0x%x, left_len=0x%x\r\n", tx_len, left_len);
+		SPI_LOGV("tx_len = 0x%x, left_len=0x%x\r\n", tx_len, left_len);
 
 		uint32_t int_level = spi_enter_critical();
 		s_spi[id].is_tx_blocked = true;
@@ -1048,7 +1048,7 @@ bk_err_t bk_spi_dma_write_bytes(spi_id_t id, const void *data, uint32_t size)
 		spi_hal_enable_tx_fifo_int(&s_spi[id].hal);
 		for (int i = 0; i <= 500; i++) {
 			bk_delay_us(1);
-			SPI_LOGD("index = %d, id=%d, tx_fifo_int_status = %d\n", i, id, spi_hal_is_tx_fifo_int_triggered(&s_spi[id].hal));
+			SPI_LOGV("index = %d, id=%d, tx_fifo_int_status = %d\n", i, id, spi_hal_is_tx_fifo_int_triggered(&s_spi[id].hal));
 			if(spi_hal_is_tx_fifo_int_triggered(&s_spi[id].hal)) {
 				bk_delay_us(1);
 				break;
@@ -1137,11 +1137,11 @@ static void spi_isr_common(spi_id_t id)
 	int_status = spi_hal_get_interrupt_status(hal);
 	spi_hal_clear_interrupt_status(hal, int_status);
 
-	SPI_LOGD("int_status:%x\r\n", int_status);
+	SPI_LOGV("int_status:%x\r\n", int_status);
 
 	if (spi_hal_is_rx_fifo_int_triggered_with_status(hal, int_status)) {
 		SPI_STATIS_INC(spi_statis->rx_fifo_isr_cnt);
-		SPI_LOGD("rx fifo int triggered\r\n");
+		SPI_LOGV("rx fifo int triggered\r\n");
 		spi_id_read_bytes_common(id);
 		if (s_spi_rx_isr[id].callback) {
 			s_spi_rx_isr[id].callback(id, s_spi_rx_isr[id].param);
@@ -1150,7 +1150,7 @@ static void spi_isr_common(spi_id_t id)
 
 	if (spi_hal_is_rx_finish_int_triggered(hal, int_status)) {
 		SPI_STATIS_INC(spi_statis->rx_finish_isr_cnt);
-		SPI_LOGD("rx fifo finish int triggered\r\n");
+		SPI_LOGV("rx fifo finish int triggered\r\n");
 		if (s_spi[id].rx_size && s_spi[id].rx_buf) {
 			while (spi_hal_read_byte(hal, &rd_data) == BK_OK) {
 				if (rd_offset < s_spi[id].rx_size) {
@@ -1176,7 +1176,7 @@ static void spi_isr_common(spi_id_t id)
 
 	if (spi_hal_is_tx_fifo_int_triggered_with_status(hal, int_status)) {
 		SPI_STATIS_INC(spi_statis->tx_fifo_isr_cnt);
-		SPI_LOGD("tx fifo int triggered\r\n");
+		SPI_LOGV("tx fifo int triggered\r\n");
 #if !CONFIG_SPI_SUPPORT_TX_FIFO_WR_READY
 		if ((!s_spi[id].is_sw_tx_finished) &&
 			s_spi[id].tx_size &&
@@ -1191,7 +1191,7 @@ static void spi_isr_common(spi_id_t id)
 				spi_hal_write_byte(hal, 0xff);
 			}
 			if (spi_hal_read_byte(hal, &rd_data) == BK_OK) {
-				SPI_LOGD("tx fifo int read byte\r\n");
+				SPI_LOGV("tx fifo int read byte\r\n");
 				if (rd_offset < s_spi[id].rx_size) {
 					s_spi[id].rx_buf[rd_offset++] = rd_data;
 				}
@@ -1209,7 +1209,7 @@ static void spi_isr_common(spi_id_t id)
 	if (spi_hal_is_tx_finish_int_triggered(hal, int_status) &&
 		s_spi[id].is_sw_tx_finished) {
 		SPI_STATIS_INC(spi_statis->tx_finish_isr_cnt);
-		SPI_LOGD("tx finish int triggered\r\n");
+		SPI_LOGV("tx finish int triggered\r\n");
 		if (spi_hal_is_master(hal)) {
 			if (s_spi[id].is_tx_blocked) {
 				rtos_set_semaphore(&s_spi[id].tx_sema);
@@ -1231,7 +1231,7 @@ static void spi_isr_common(spi_id_t id)
 
 	if (spi_hal_is_slave_release_int_triggered(hal, int_status)) {
 		SPI_STATIS_INC(spi_statis->slave_release_isr_cnt);
-		SPI_LOGD("slave cs up int triggered\r\n");
+		SPI_LOGV("slave cs up int triggered\r\n");
 		if (spi_hal_is_slave(hal)) {
 			if (s_spi[id].is_tx_blocked) {
 				rtos_set_semaphore(&s_spi[id].tx_sema);

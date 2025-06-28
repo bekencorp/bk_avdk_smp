@@ -58,14 +58,14 @@ static int crypto_finish(void)
 	/* Destroy the key handle */
 	status = psa_destroy_key(key_id_alice);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* Destroy the key handle */
 	status = psa_destroy_key(key_id_bob);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -89,13 +89,13 @@ static int create_ecdh_keypair(psa_key_id_t *key_id)
 	/* Generate a key pair */
 	status = psa_generate_key(&key_attributes, key_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	psa_reset_key_attributes(&key_attributes);
 
-	BK_LOGI(TAG, "ECDH keypair created successfully!\r\n");
+	BK_LOGD(TAG, "ECDH keypair created successfully!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -108,11 +108,11 @@ static int export_ecdh_public_key(psa_key_id_t *key_id, uint8_t *buff, size_t bu
 	/* Export the public key */
 	status = psa_export_public_key(*key_id, buff, buff_size, &olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_export_public_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_export_public_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "ECDH public key exported successfully!\r\n");
+	BK_LOGD(TAG, "ECDH public key exported successfully!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -130,11 +130,11 @@ static int calculate_ecdh_secret(psa_key_id_t *key_id,
 	status = psa_raw_key_agreement(
 		PSA_ALG_ECDH, *key_id, pub_key, pub_key_len, secret, secret_len, (size_t *)&output_len);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_raw_key_agreement failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_raw_key_agreement failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "ECDH secret calculated successfully!\r\n");
+	BK_LOGD(TAG, "ECDH secret calculated successfully!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -143,15 +143,15 @@ static int compare_secrets(void)
 {
 	int status;
 
-	BK_LOGI(TAG, "Comparing the secret values of Alice and Bob\r\n");
+	BK_LOGD(TAG, "Comparing the secret values of Alice and Bob\r\n");
 
 	status = memcmp(m_secret_bob, m_secret_alice, sizeof(m_secret_alice));
 	if (status != 0) {
-		BK_LOGI(TAG, "Error: Secret values don't match!\r\n");
+		BK_LOGD(TAG, "Error: Secret values don't match!\r\n");
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "The secret values of Alice and Bob match!\r\n");
+	BK_LOGD(TAG, "The secret values of Alice and Bob match!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -160,81 +160,81 @@ int ecdh_main(void)
 {
 	int status;
 
-	BK_LOGI(TAG, "Starting ECDH example...\r\n");
+	BK_LOGD(TAG, "Starting ECDH example...\r\n");
 	/* Init crypto */
 	status = crypto_init();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	/* Create the ECDH key pairs for Alice and Bob  */
-	BK_LOGI(TAG, "Creating ECDH key pair for Alice\r\n");
+	BK_LOGD(TAG, "Creating ECDH key pair for Alice\r\n");
 	status = create_ecdh_keypair(&key_id_alice);
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Creating ECDH key pair for Bob\r\n");
+	BK_LOGD(TAG, "Creating ECDH key pair for Bob\r\n");
 	status = create_ecdh_keypair(&key_id_bob);
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	/* Export the ECDH public keys */
-	BK_LOGI(TAG, "Export Alice's public key\r\n");
+	BK_LOGD(TAG, "Export Alice's public key\r\n");
 	status = export_ecdh_public_key(&key_id_alice, m_pub_key_alice, sizeof(m_pub_key_alice));
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Export Bob's public key\r\n");
+	BK_LOGD(TAG, "Export Bob's public key\r\n");
 	status = export_ecdh_public_key(&key_id_bob, m_pub_key_bob, sizeof(m_pub_key_bob));
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	/* Calculate the secret value for each participant */
-	BK_LOGI(TAG, "Calculating the secret value for Alice\r\n");
+	BK_LOGD(TAG, "Calculating the secret value for Alice\r\n");
 	status = calculate_ecdh_secret(&key_id_alice,
 				       m_pub_key_bob,
 				       sizeof(m_pub_key_bob),
 				       m_secret_alice,
 				       sizeof(m_secret_alice));
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Calculating the secret value for Bob\r\n");
+	BK_LOGD(TAG, "Calculating the secret value for Bob\r\n");
 	status = calculate_ecdh_secret(&key_id_bob,
 				       m_pub_key_alice,
 				       sizeof(m_pub_key_alice),
 				       m_secret_bob,
 				       sizeof(m_secret_bob));
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	/* Verify that the calculated secrets match */
 	status = compare_secrets();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = crypto_finish();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
 
 	return APP_SUCCESS;
 }

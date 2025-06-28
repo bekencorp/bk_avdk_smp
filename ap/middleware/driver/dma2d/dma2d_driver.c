@@ -49,6 +49,7 @@
 #define DMA2D_LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define DMA2D_LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define DMA2D_LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define DMA2D_LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #if (USE_HAL_DMA2D_REGISTER_CALLBACKS == 1)
 
@@ -94,7 +95,7 @@ bk_err_t bk_dma2d_driver_init(void)
 	}
 #endif
 	s_dma2d_driver_is_init = true;
-	DMA2D_LOGI("%s complete\n", __func__);
+	DMA2D_LOGD("%s complete\n", __func__);
 	return BK_OK;
 }
 
@@ -129,7 +130,7 @@ bk_err_t bk_dma2d_driver_deinit(void)
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_VIDP_DMA2D, PM_POWER_MODULE_STATE_OFF);
 	s_dma2d_driver_is_init = false;
 	
-	DMA2D_LOGI("%s complete\n", __func__);
+	DMA2D_LOGD("%s complete\n", __func__);
 	return BK_OK;
 }
 
@@ -553,7 +554,7 @@ bk_err_t dma2d_fill(dma2d_fill_t *fill)
 {
 	dma2d_config_t dma2d_config = {0};
 	void *pDiSt=&(((uint8_t *)fill->frameaddr)[(fill->frame_xsize * fill->ypos + fill->xpos) * fill->pixel_byte]);
-	DMA2D_LOGD("frame_addr = %p, start fill addr %p \n", fill->frameaddr, pDiSt);
+	DMA2D_LOGV("frame_addr = %p, start fill addr %p \n", fill->frameaddr, pDiSt);
 
 	dma2d_config.init.mode   = DMA2D_R2M; 			 /**< Mode Register to Memory */
 	dma2d_config.init.color_mode	   = fill->color_format;  /**< DMA2D Output color mode is ARGB4444 (16 bpp) */

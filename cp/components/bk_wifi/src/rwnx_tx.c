@@ -74,13 +74,13 @@ static void rwnx_tx_confirm(void *param)
 
 		if (co_list_is_empty(&vif_mgmt_env.used_list)) {
 			//do nothing
-			RWNX_LOGI("rwnx_tx_confirm, vif empty\n");
+			RWNX_LOGD("rwnx_tx_confirm, vif empty\n");
 		} else {
 			// callback for mgmt frame tx
 			if (cfm_cb)
 				cfm_cb(txdesc->host.cfm_cb_arg);
 		}
-		RWNX_LOGD("flush_desc: node %p, pbuf %p\n", node, node->p);
+		RWNX_LOGV("flush_desc: node %p, pbuf %p\n", node, node->p);
 
 		if (node->p) {
 			pbuf_free(node->p);
@@ -165,7 +165,7 @@ static void rwnx_tx_confirm(void *param)
 		}
 
 #if 0// TODO ,CONFIG_MAC_SFRAME_SOFTWARE_RETRY
-		RWNX_LOGD("%s: stype %d, jiffies %llu, current %llu\n", __func__,
+		RWNX_LOGV("%s: stype %d, jiffies %llu, current %llu\n", __func__,
 			skb->sframe_type, skb->jiffies, bk_get_tick());
 
 		// ACK not received, and not discard by txu, do software retry
@@ -179,7 +179,7 @@ static void rwnx_tx_confirm(void *param)
 				skb->sframe_sw_retry_cnt < 10) {
 				skb->sframe_sw_retry_cnt++;
 
-				RWNX_LOGI("%s: requeue skb\n", __func__);
+				RWNX_LOGD("%s: requeue skb\n", __func__);
 				// Requeue skb
 				if (rwnx_txq_queue_skb(skb, txq, 0, NULL))
 					rwnx_hwq_process(txq->hwq);
@@ -404,7 +404,7 @@ static struct rwnx_txq *rwnx_select_txq(struct sk_buff *skb)
 
 	rwnx_vif = rwm_mgmt_vif_idx2ptr(skb->vif_idx);
 	if (!rwnx_vif) {
-		RWNX_LOGI("%s: vif is NULL!\r\n", __func__);
+		RWNX_LOGD("%s: vif is NULL!\r\n", __func__);
 		return NULL;
 	}
 
@@ -416,7 +416,7 @@ static struct rwnx_txq *rwnx_select_txq(struct sk_buff *skb)
 
 	if (sta && (!sta_mgmt_get_valid(sta)))
 	{
-		RWNX_LOGI("%s: sta is invalid!\r\n", __func__);
+		RWNX_LOGD("%s: sta is invalid!\r\n", __func__);
 		return NULL;
 	}
 
@@ -434,7 +434,7 @@ static struct rwnx_txq *rwnx_select_txq(struct sk_buff *skb)
 	}
 	if (txq) {
 		if (!txq->hwq) {
-			RWNX_LOGI("%s: vif_idx %d, rwnx_vif %p, dst mac %pm, sta %p\n",
+			RWNX_LOGD("%s: vif_idx %d, rwnx_vif %p, dst mac %pm, sta %p\n",
 				__func__, skb->vif_idx, rwnx_vif, eth_hdr_ptr->e_dest, sta);
 		}
 		BK_ASSERT(txq->hwq);
@@ -535,7 +535,7 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 	}
 #endif
 
-	//os_printf("%s: sizeof(fhost_tx_desc_tag)=%d, sizeof(txdesc)=%d, more_pbuf %d\n", __func__,
+	//BK_LOGD(NULL,"%s: sizeof(fhost_tx_desc_tag)=%d, sizeof(txdesc)=%d, more_pbuf %d\n", __func__,
 	//	sizeof(*fhost_txdesc), sizeof(*txdesc), more_pbuf);
 #if CONFIG_WAPI_SUPPORT
 	struct pbuf *q;
@@ -545,7 +545,7 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 
 	if (q) {
 		if ((err = pbuf_copy(q, p)) != ERR_OK) {
-			RWNX_LOGD("copy p failed\r\n");
+			RWNX_LOGV("copy p failed\r\n");
 			pbuf_free(q);
 			goto exit;
 		}
@@ -557,14 +557,14 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 	}
 	else
 	{
-		RWNX_LOGD("alloc p failed\r\n");
+		RWNX_LOGV("alloc p failed\r\n");
 		goto exit;
 	}
 #endif
 	skb = (struct sk_buff *)((uint8_t *)p + (sizeof(struct pbuf)));
 	
 	if (!skb) {
-		RWNX_LOGI("rwnx_start_xmit: invalid skb pointer\n");
+		RWNX_LOGD("rwnx_start_xmit: invalid skb pointer\n");
 		goto exit;
 	}
 
@@ -612,7 +612,7 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 	fhost_txdesc = (struct fhost_tx_desc_tag *)((uint8_t *)skb + (sizeof(struct sk_buff)));
 	if((sizeof(struct fhost_tx_desc_tag) + fhost_txdesc_extra_size() + p_cnt * sizeof(struct tx_pbd) + (sizeof(struct sk_buff))) > CONFIG_MSDU_RESV_DESC_LENGTH)
 	{
-		RWNX_LOGI("rwnx_start_xmit overflow mem \r\n");
+		RWNX_LOGD("rwnx_start_xmit overflow mem \r\n");
 		BK_ASSERT(0);
 	}
 	memset(fhost_txdesc, 0, sizeof(struct fhost_tx_desc_tag));
@@ -671,7 +671,7 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 
 #if 1
 	if (skb_queue_len(&txq->sk_list) >= 3 * NX_DEFAULT_TX_CREDIT_CNT) {
-		RWNX_LOGD("txq full\n");
+		RWNX_LOGV("txq full\n");
 		goto exit;
 	}
 #else
@@ -733,7 +733,7 @@ void rwnx_start_xmit_mgmt(struct sk_buff *skb)
 	bool more_pbuf = !!(rwnx_hw_mm_features() & (1ULL << MM_FEAT_MORE_TBD_BIT));
 	int p_cnt = 0;
 
-	//os_printf("%s: sizeof(fhost_tx_desc_tag)=%d, sizeof(txdesc)=%d\n", __func__,
+	//BK_LOGD(NULL,"%s: sizeof(fhost_tx_desc_tag)=%d, sizeof(txdesc)=%d\n", __func__,
 	//	sizeof(*fhost_txdesc), sizeof(*txdesc));
 
 	// sanity check
@@ -1019,7 +1019,7 @@ void fhost_tx_cfm_push(uint8_t queue_idx, struct txdesc *txdesc)
 
 			//Do NOT re-transmit the packet if retry count has reached the limit
 			if (txdesc->host.sw_retry_cnt++ >= CFG_MAX_SW_RETRY_CNT) {
-				RWNX_LOGI("SW retry has reached the limit\r\n");
+				RWNX_LOGD("SW retry has reached the limit\r\n");
 				txdesc->host.sw_retry_cnt = 0;
 				goto err_tx;
 			}
@@ -1033,7 +1033,7 @@ void fhost_tx_cfm_push(uint8_t queue_idx, struct txdesc *txdesc)
 #else
 			//Do NOT re-transmit the packet if retry count has reached the limit
 			if (txdesc->host.sw_retry_cnt++ >= CFG_MAX_SW_RETRY_CNT) {
-				RWNX_LOGI("SW retry has reached the limit\r\n");
+				RWNX_LOGD("SW retry has reached the limit\r\n");
 				txdesc->host.sw_retry_cnt = 0;
 				goto err_tx;
 			}

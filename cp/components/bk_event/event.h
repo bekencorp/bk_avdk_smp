@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 #define EVENT_TAG "event"
+#define EVENT_LOGV(...) BK_LOGV(EVENT_TAG, ##__VA_ARGS__)
 #define EVENT_LOGI(...) BK_LOGI(EVENT_TAG, ##__VA_ARGS__)
 #define EVENT_LOGW(...) BK_LOGW(EVENT_TAG, ##__VA_ARGS__)
 #define EVENT_LOGE(...) BK_LOGE(EVENT_TAG, ##__VA_ARGS__)

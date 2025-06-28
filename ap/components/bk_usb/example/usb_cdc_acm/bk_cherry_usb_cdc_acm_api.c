@@ -132,11 +132,11 @@ void bk_acm_trigger_tx(void)
 
 void bk_cdc_acm_bulkin_callback(void *arg, int nbytes)
 {
-	USB_CDC_LOGD("[+]%s, %d, %d\r\n", __func__, nbytes, g_ipc_cdc_data->port_idx);
+	USB_CDC_LOGV("[+]%s, %d, %d\r\n", __func__, nbytes, g_ipc_cdc_data->port_idx);
 	for (uint32_t i = 0; i < nbytes; i++) {
-		USB_CDC_LOGD("%02x ", buffer[i]);
+		USB_CDC_LOGV("%02x ", buffer[i]);
 	}
-	USB_CDC_LOGD("\n");
+	USB_CDC_LOGV("\n");
 
 	if (nbytes >= 0 && acm_device[g_ipc_cdc_data->port_idx]) {
 		*((uint32_t *)g_ipc_cdc_data->rx_len) = nbytes;
@@ -147,13 +147,13 @@ void bk_cdc_acm_bulkin_callback(void *arg, int nbytes)
 		acm_send_msg(ACM_UPLOAD_IND, 0);
 	}
 	else 
-		USB_CDC_LOGI("Error bulkin status\n");
+		USB_CDC_LOGD("Error bulkin status\n");
 
 }
 
 void bk_cdc_acm_bulkout_callback(void *arg, int nbytes)
 {
-	USB_CDC_LOGD("[+]%s, nbytes: %d %d\r\n", __func__, nbytes, cdc_tx_finish);
+	USB_CDC_LOGV("[+]%s, nbytes: %d %d\r\n", __func__, nbytes, cdc_tx_finish);
 
 	bk_acm_trigger_tx();
 	cdc_tx_state = 1;
@@ -191,7 +191,7 @@ void bk_usb_update_cdc_interface(void *hport, uint8_t bInterfaceNumber, uint8_t 
 {
 //	if (interface_sub_class != CDC_SUBCLASS_ACM || !hport)
 //		return;
-//	USB_CDC_LOGD("[+]%s\r\n", __func__);
+//	USB_CDC_LOGV("[+]%s\r\n", __func__);
 //	struct usbh_hubport * u_hport = (struct usbh_hubport *)hport;
 //	g_u_hport = (struct usbh_hubport *)hport;
 //	g_bInterfaceNumber = bInterfaceNumber;
@@ -203,7 +203,7 @@ void bk_usb_update_cdc_interface(void *hport, uint8_t bInterfaceNumber, uint8_t 
 //	if (acm_device[g_ipc_cdc_data->port_idx] == NULL)
 //		USB_LOG_ERR("don't find /dev/ttyACM0\r\n");
 //
-//	USB_CDC_LOGD("[-]%s, %s\r\n", __func__, u_hport->config.intf[bInterfaceNumber].devname);
+//	USB_CDC_LOGV("[-]%s, %s\r\n", __func__, u_hport->config.intf[bInterfaceNumber].devname);
 //
 //	bk_cdc_acm_demo();
 }
@@ -211,7 +211,7 @@ void bk_usb_update_cdc_interface(void *hport, uint8_t bInterfaceNumber, uint8_t 
 
 int32_t bk_cdc_acm_io_read(void)
 {
-	USB_CDC_LOGD("[+]%s %d\r\n", __func__, g_ipc_cdc_data->port_idx);
+	USB_CDC_LOGV("[+]%s %d\r\n", __func__, g_ipc_cdc_data->port_idx);
 	int32_t ret = 0;
 	uint32_t timeout = 0;
 	if (acm_device[g_ipc_cdc_data->port_idx] == NULL)
@@ -229,7 +229,7 @@ int32_t bk_cdc_acm_io_read(void)
 
 int32_t bk_cdc_acm_io_write(IPC_CDC_DATA_t *p_cdc_data)
 {
-	USB_CDC_LOGD("[+]%s %d\r\n", __func__, p_cdc_data->port_idx);
+	USB_CDC_LOGV("[+]%s %d\r\n", __func__, p_cdc_data->port_idx);
 	int32_t ret = 0;
 	uint32_t timeout = 100;
 
@@ -264,7 +264,7 @@ int32_t bk_cdc_acm_io_write(IPC_CDC_DATA_t *p_cdc_data)
 			{
 				rtos_delay_milliseconds(3);
 			}
-			USB_CDC_LOGD("out ret:%d\r\n", ret);
+			USB_CDC_LOGV("out ret:%d\r\n", ret);
 		//	rtos_get_semaphore(&acm_tx_msg_sem, 1000);
 		//	rtos_delay_milliseconds(1);
 			while(!cdc_tx_state)
@@ -285,7 +285,7 @@ int32_t bk_cdc_acm_io_write(IPC_CDC_DATA_t *p_cdc_data)
 
 static void bk_cdc_activate_epx(void)
 {
-	USB_CDC_LOGD("[+]%s\r\n", __func__);
+	USB_CDC_LOGV("[+]%s\r\n", __func__);
 	bk_usb_hub_port_info *port_info = g_cdc_hub_port_info[g_cdc_curr_using];
 	struct usbh_cdc_acm *t_acm_device = acm_device[port_info->port_index];
 	if (g_cdc_hub_status[port_info->port_index].port_status == CDC_STATUS_OPEN)
@@ -313,7 +313,7 @@ static int32_t bk_usbh_cdc_acm_connect(bk_usb_hub_port_info *port_info)
 	g_cdc_hub_port_info[port_info->port_index] = port_info;
 	struct usbh_cdc_acm * t_acm_device = (struct usbh_cdc_acm *)acm_device[port_info->port_index];
 
-	USB_CDC_LOGD("[+]%s port_index = %d %d acm_device = 0x%x, g_usb_cdc_flag = 0x%x\r\n", __func__, port_info->port_index, port_idx,
+	USB_CDC_LOGV("[+]%s port_index = %d %d acm_device = 0x%x, g_usb_cdc_flag = 0x%x\r\n", __func__, port_info->port_index, port_idx,
 		t_acm_device, g_usb_cdc_flag[port_info->port_index]);
 
 	if (t_acm_device)
@@ -325,7 +325,7 @@ static int32_t bk_usbh_cdc_acm_connect(bk_usb_hub_port_info *port_info)
 		g_cdc_hub_status[port_idx].port_status = CDC_STATUS_OPEN;
 
 		g_cdc_connect = 1;
-		USB_CDC_LOGD("[+]%s port_index = %d %d %d\r\n", __func__, port_idx, g_cdc_hub_status[port_idx].port_idx,
+		USB_CDC_LOGV("[+]%s port_index = %d %d %d\r\n", __func__, port_idx, g_cdc_hub_status[port_idx].port_idx,
 			g_cdc_hub_status[port_idx].port_status);
 		bk_usb_cdc_update_state_notify(&g_cdc_hub_status[port_idx]);
 	}
@@ -341,7 +341,7 @@ int32_t bk_usbh_cdc_acm_connect_callback(bk_usb_hub_port_info *port_info, void *
 	g_usb_cdc_flag[port_info->port_index] = *((uint32_t *)arg);
 	struct usbh_cdc_acm * t_acm_device = (struct usbh_cdc_acm *)acm_device[port_info->port_index];
 
-	USB_CDC_LOGD("[+]%s port_index = %d %d acm_device = 0x%x, g_usb_cdc_flag = 0x%x\r\n", __func__, port_info->port_index, port_idx,
+	USB_CDC_LOGV("[+]%s port_index = %d %d acm_device = 0x%x, g_usb_cdc_flag = 0x%x\r\n", __func__, port_info->port_index, port_idx,
 		t_acm_device, g_usb_cdc_flag[port_info->port_index]);
 
 	if (t_acm_device && (g_usb_cdc_flag[port_idx] & (0x1<<USB_CDC_DEVICE)))
@@ -353,7 +353,7 @@ int32_t bk_usbh_cdc_acm_connect_callback(bk_usb_hub_port_info *port_info, void *
 		g_cdc_hub_status[port_idx].port_status = CDC_STATUS_OPEN;
 
 		g_cdc_connect = 1;
-		USB_CDC_LOGD("[+]%s port_index = %d %d %d\r\n", __func__, port_idx, g_cdc_hub_status[port_idx].port_idx,
+		USB_CDC_LOGV("[+]%s port_index = %d %d %d\r\n", __func__, port_idx, g_cdc_hub_status[port_idx].port_idx,
 			g_cdc_hub_status[port_idx].port_status);
 		bk_usb_cdc_update_state_notify(&g_cdc_hub_status[port_idx]);
 	}
@@ -505,7 +505,7 @@ static int bk_usb_cdc_acm_close(void)
 			g_cdc_hub_status[port].port_idx = port;
 			g_cdc_hub_status[port].port_status = CDC_STATUS_CLOSE;
 
-			USB_CDC_LOGI("[+]%s port = %d %d %d\r\n", __func__, port, g_cdc_hub_status[port].port_idx,
+			USB_CDC_LOGD("[+]%s port = %d %d %d\r\n", __func__, port, g_cdc_hub_status[port].port_idx,
 				g_cdc_hub_status[port].port_status);
 			bk_usb_cdc_update_state_notify(&g_cdc_hub_status[port]);
 		}
@@ -610,13 +610,13 @@ void bk_cdc_acm_main(void)
 
 				case ACM_UPDATE_STATE_IND:
 					{
-						USB_CDC_LOGD("ACM_UPDATE_STATE_IND\n");
+						USB_CDC_LOGV("ACM_UPDATE_STATE_IND\n");
 						uint32_t state = (uint32_t) msg.data;
 						BK_ASSERT(g_ipc_cdc_data);
 						g_ipc_cdc_data->state = state;
 						if (!state) {
 							usbh_cdc_acm_set_line_state(acm_device[g_ipc_cdc_data->port_idx], false, true);
-							USB_CDC_LOGD("bk_usb_close %d", bk_usb_close());
+							USB_CDC_LOGV("bk_usb_close %d", bk_usb_close());
 							goto exit;
 						}
 					}

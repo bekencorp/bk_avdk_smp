@@ -19,6 +19,7 @@
 
 #define TAG "ov2640"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 #define OV2640_CHIP_PIDH (0x26)
 #define OV2640_CHIP_PIDL (0x42)
@@ -1093,12 +1094,12 @@ bool ov2640_detect(void)
     SENSOR_I2C_READ(0x0A,  &pidh_data);
     SENSOR_I2C_READ(0x0B,  &pidhl_data);
 
-    LOGI("%s, id: 0x%02X%02X\n", __func__, pidh_data, pidhl_data);
+    LOGD("%s, id: 0x%02X%02X\n", __func__, pidh_data, pidhl_data);
 
     if (pidh_data == OV2640_CHIP_PIDH
         && pidhl_data == OV2640_CHIP_PIDL)
     {
-        LOGI("%s success\n", __func__);
+        LOGD("%s success\n", __func__);
         return true;
     }
 
@@ -1114,7 +1115,7 @@ void ov2640_read_register(uint8_t addr, uint8_t data)
         SENSOR_I2C_READ(addr, &value);
         if (value != data)
         {
-            LOGI("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
+            LOGD("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
         }
     }
 }
@@ -1126,7 +1127,7 @@ int ov2640_init(void)
     uint32_t size = sizeof(sensor_ov2640_init_talbe) / 2, i;
     //uint8_t value;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     for (i = 0; i < size; i++)
     {
@@ -1147,7 +1148,7 @@ int ov2640_set_ppi(media_ppi_t ppi)
     uint32_t size, i;
     int ret = -1;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     switch (ppi)
     {
@@ -1230,7 +1231,7 @@ int ov2640_set_fps(frame_fps_t fps)
 {
     int ret = -1;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
 
     return ret;
@@ -1242,14 +1243,14 @@ int ov2640_dump(media_ppi_t ppi)
     int ret = -1;
     uint8_t value = 0;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     size = sizeof(sensor_ov2640_init_talbe) / 2;
 
     for (i = 0; i < size; i++)
     {
         SENSOR_I2C_READ(sensor_ov2640_init_talbe[i][0], &value);
-        LOGI("[0x%02x, 0x%02x]\r\n", sensor_ov2640_init_talbe[i][0], value);
+        LOGD("[0x%02x, 0x%02x]\r\n", sensor_ov2640_init_talbe[i][0], value);
     }
 
     ret = kNoErr;

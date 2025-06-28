@@ -37,11 +37,11 @@ adc_statis_t* adc_statis_get_statis(void)
 
 void adc_statis_dump(void)
 {
-	BK_LOGI(TAG, "dump adc statis:\r\n");
-	BK_LOGI(TAG, "adc_isr_cnt:     %d\r\n", s_adc_statis.adc_isr_cnt);
-	BK_LOGI(TAG, "adc_rx_total_cnt:       %d\r\n", s_adc_statis.adc_rx_total_cnt);
-	BK_LOGI(TAG, "adc_rx_succ_cnt:       %d\r\n", s_adc_statis.adc_rx_succ_cnt);
-	BK_LOGI(TAG, "adc_rx_drop_cnt:       %d\r\n", s_adc_statis.adc_rx_drop_cnt);
+	BK_LOGD(TAG, "dump adc statis:\r\n");
+	BK_LOGD(TAG, "adc_isr_cnt:     %d\r\n", s_adc_statis.adc_isr_cnt);
+	BK_LOGD(TAG, "adc_rx_total_cnt:       %d\r\n", s_adc_statis.adc_rx_total_cnt);
+	BK_LOGD(TAG, "adc_rx_succ_cnt:       %d\r\n", s_adc_statis.adc_rx_succ_cnt);
+	BK_LOGD(TAG, "adc_rx_drop_cnt:       %d\r\n", s_adc_statis.adc_rx_drop_cnt);
 }
 
 #endif

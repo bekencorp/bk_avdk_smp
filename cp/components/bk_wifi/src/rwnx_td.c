@@ -54,7 +54,7 @@ void rwnx_td_pkt_ind(uint8_t vif_index,uint8_t access_category)
     GLOBAL_INT_RESTORE();
 
     #if 0
-    os_printf("ind vif %x ac %x cnt %d ac cnt %d\r\n",vif_index,access_category,
+    BK_LOGD(NULL,"ind vif %x ac %x cnt %d ac cnt %d\r\n",vif_index,access_category,
              rwnx_td_env->pkt_cnt,
              rwnx_td_env->ac_pkt_cnt[access_category]);
     #endif
@@ -78,7 +78,7 @@ void rwnx_td_pkt_dec(uint8_t vif_index,uint8_t access_category)
     GLOBAL_INT_RESTORE();
 
     #if 0
-    os_printf("dec vif %x ac %x cnt %d ac cnt %d\r\n",vif_index,access_category,
+    BK_LOGD(NULL,"dec vif %x ac %x cnt %d ac cnt %d\r\n",vif_index,access_category,
              rwnx_td_env->pkt_cnt,
              rwnx_td_env->ac_pkt_cnt[access_category]);
     #endif

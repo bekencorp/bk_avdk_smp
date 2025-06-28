@@ -152,12 +152,12 @@ void bignum_print(char *prefix, const mbedtls_mpi *R)
 {
 	int i;
 
-	os_printf("%s: %s0x", prefix, R->MBEDTLS_PRIVATE(s) == -1 ? "-" : "");
+	BK_LOGD(NULL,"%s: %s0x", prefix, R->MBEDTLS_PRIVATE(s) == -1 ? "-" : "");
 
 	for (i = R->MBEDTLS_PRIVATE(n) - 1; i >= 0; i--)
-		os_printf("%08lx", R->MBEDTLS_PRIVATE(p)[i]);
+		BK_LOGD(NULL,"%08lx", R->MBEDTLS_PRIVATE(p)[i]);
 
-	os_printf("\n");
+	BK_LOGD(NULL,"\n");
 }
 
 /*

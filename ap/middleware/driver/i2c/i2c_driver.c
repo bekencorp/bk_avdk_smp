@@ -85,14 +85,14 @@ typedef struct bkTimerCallback{
 
 #define I2C_RETURN_ON_NOT_INIT() do {\
 	if (!s_i2c_driver_is_init) {\
-		I2C_LOGD("i2c driver not init\r\n");\
+		I2C_LOGV("i2c driver not init\r\n");\
 		return BK_ERR_I2C_NOT_INIT;\
 	}\
 } while(0)
 
 #define I2C_RETURN_ON_ID_NOT_INIT(id) do {\
 	if (!(s_i2c[id].id_init_bits & BIT((id)))) {\
-		I2C_LOGD("i2c id number(%d) is not init\r\n", (id));\
+		I2C_LOGV("i2c id number(%d) is not init\r\n", (id));\
 		return BK_ERR_I2C_ID_NOT_INIT;\
 	}\
 } while(0)
@@ -409,7 +409,7 @@ static bk_err_t i2c1_master_write_data(i2c_id_t id)
 	uint32_t data_size = 0;
 	uint32_t remain_size = s_i2c[id].data_size - s_i2c[id].data_offset;
 	if (!remain_size) {
-		I2C_LOGD("data_size:%d tx done\r\n", s_i2c[id].data_size);
+		I2C_LOGV("data_size:%d tx done\r\n", s_i2c[id].data_size);
 		i2c_master_stop(id);
 		rtos_set_semaphore(&s_i2c[id].tx_sema);
 		return BK_OK;
@@ -425,7 +425,7 @@ static bk_err_t i2c1_master_write_data(i2c_id_t id)
 	}
 	remain_size = s_i2c[id].data_size - s_i2c[id].data_offset;
 	if (remain_size < empty_fifo_num) {
-		I2C_LOGD("remain_size:%d, empty_fifo_num:%d\r\n", remain_size, empty_fifo_num);
+		I2C_LOGV("remain_size:%d, empty_fifo_num:%d\r\n", remain_size, empty_fifo_num);
 		s_i2c[id].int_status &= ~(I2C1_F_INT_MODE_V | I2C1_F_START);
 	}
 	s_i2c[id].master_status = I2C_TX_DATA;
@@ -435,7 +435,7 @@ static bk_err_t i2c1_master_write_data(i2c_id_t id)
 bk_err_t i2c1_master_read_data(i2c_id_t id)
 {
 	if (i2c_hal_is_start(&s_i2c[id].hal)) {
-		I2C_LOGD("master_read i2c_is_start\r\n");
+		I2C_LOGV("master_read i2c_is_start\r\n");
 		s_i2c[id].int_status |= I2C1_F_ACK;
 		s_i2c[id].master_status = I2C_RX_DATA;
 		return BK_OK;
@@ -471,7 +471,7 @@ void bk_i2c_timer_callback(int id, void* myTimer)
 
 uint8_t bk_i2c_get_busstate ( int id )
 {
-    I2C_LOGD("bk_i2c_get_busstate[%d].\n",s_i2c[id].master_status);
+    I2C_LOGV("bk_i2c_get_busstate[%d].\n",s_i2c[id].master_status);
 	if(s_i2c[id].master_status==0){
 		return 1;//idle
 		} else {
@@ -615,7 +615,7 @@ bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg)
 	i2c_id_init_common(id);
 	i2c_hal_configure(&s_i2c[id].hal, cfg);
 	i2c_hal_start_common(&s_i2c[id].hal);
-	I2C_LOGI("I2C(%d) init ok, baud_rate:%d\r\n", id, cfg->baud_rate);
+	I2C_LOGD("I2C(%d) init ok, baud_rate:%d\r\n", id, cfg->baud_rate);
 	return BK_OK;
 }
 
@@ -913,7 +913,7 @@ uint32_t bk_i2c_get_cur_action(i2c_id_t id)
 
 static void i2c_master_isr_common(i2c_id_t id)
 {
-	I2C_LOGD("s_i2c[id].master_status=%d\r\n", s_i2c[id].master_status);
+	I2C_LOGV("s_i2c[id].master_status=%d\r\n", s_i2c[id].master_status);
 	switch (s_i2c[id].master_status) {
 	case I2C_START:
 		i2c_master_start(id);
@@ -964,7 +964,7 @@ static void i2c1_isr_common(i2c_id_t id)
 
 	int_status = i2c_hal_get_interrupt_status(hal);
 	s_i2c[id].int_status = int_status;
-	I2C_LOGD("isr_i2c1_status:%x\r\n", int_status);
+	I2C_LOGV("isr_i2c1_status:%x\r\n", int_status);
 
 	if(!i2c_hal_is_sm_int_triggered(hal, int_status)) {
 		if (i2c_hal_is_scl_timeout_triggered(hal, int_status)) {
@@ -1020,7 +1020,7 @@ static void i2c1_isr_common(i2c_id_t id)
 
 	case I2C_SLAVE_WRITE:
 		if (i2c_hal_is_stop_triggered(hal, int_status) || i2c_hal_is_rx_mode(hal)) {
-			I2C_LOGI("i2c(%d) slave_write get stopped\r\n", id);
+			I2C_LOGD("i2c(%d) slave_write get stopped\r\n", id);
 			rtos_set_semaphore(&s_i2c[id].tx_sema);
 			break;
 		}
@@ -1030,14 +1030,14 @@ static void i2c1_isr_common(i2c_id_t id)
 
 		i2c_hal_write_byte(hal, s_i2c[id].data_ptr[(s_i2c[id].data_offset)++]);
 		if (s_i2c[id].data_offset == s_i2c[id].data_size) {
-			I2C_LOGD("i2c(%d) slave_write data_offset==data_size\r\n", id);
+			I2C_LOGV("i2c(%d) slave_write data_offset==data_size\r\n", id);
 		}
 
 		break;
 
 	case I2C_SLAVE_READ:
 		if (i2c_hal_is_stop_triggered(hal, int_status)) {
-			I2C_LOGI("i2c(%d) slave_read get stopped\r\n", id);
+			I2C_LOGD("i2c(%d) slave_read get stopped\r\n", id);
 			rtos_set_semaphore(&s_i2c[id].rx_sema);
 			break;
 		}
@@ -1075,14 +1075,14 @@ static void i2c1_isr_common(i2c_id_t id)
 
 static void i2c0_isr(void)
 {
-	I2C_LOGD("enter i2c0_isr\r\n");
+	I2C_LOGV("enter i2c0_isr\r\n");
 	i2c1_isr_common(I2C_ID_0);
 }
 
 #if (SOC_I2C_UNIT_NUM  > 1)
 static void i2c1_isr(void)
 {
-	I2C_LOGD("enter i2c1_isr\r\n");
+	I2C_LOGV("enter i2c1_isr\r\n");
 	i2c1_isr_common(I2C_ID_1);
 }
 #endif
@@ -1090,7 +1090,7 @@ static void i2c1_isr(void)
 #if (SOC_I2C_UNIT_NUM  > 2)
 static void i2c2_isr(void)
 {
-	I2C_LOGD("enter i2c2_isr\r\n");
+	I2C_LOGV("enter i2c2_isr\r\n");
 	i2c1_isr_common(I2C_ID_2);
 }
 #endif

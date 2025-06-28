@@ -397,7 +397,7 @@ static inline void dma_ll_set_privileged_attr(dma_hw_t *hw, dma_id_t id, dma_sec
 static inline void dma_ll_set_int_allocate(dma_hw_t *hw, dma_id_t id,dma_int_id_t int_id)
 {
 	hw->int_allocate.status |= (int_id)<<BIT(id);
-	//os_printf("%s and %x\r\n",__func__,hw->int_allocate.v);
+	//BK_LOGD(NULL,"%s and %x\r\n",__func__,hw->int_allocate.v);
 }
 
 #endif

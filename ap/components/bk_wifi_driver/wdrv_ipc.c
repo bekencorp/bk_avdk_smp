@@ -61,7 +61,7 @@ bk_err_t wdrv_ipc_env_init()
 bk_err_t wdrv_ipc_init()
 {
     bk_err_t ret = BK_OK;
-    bk_printf("%s\n", __func__);
+    BK_LOGD(NULL, "%s\n", __func__);
 
     ret = wdrv_ipc_env_init();
     if(ret != BK_OK)

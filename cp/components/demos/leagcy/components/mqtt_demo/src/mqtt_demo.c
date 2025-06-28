@@ -9,7 +9,6 @@
 #include "mqtt_client_com_port.h"
 
 
-extern void bk_printf(const char *fmt, ...);
 
 #if 0
 #include "MQTTFreeRTOS.h"
@@ -21,7 +20,7 @@ extern void bk_printf(const char *fmt, ...);
 
 void echo_msg_arrived_cb(MessageData* data)
 {
-	bk_printf("Message arrived on topic %.*s: %.*s\n", data->topicName->lenstring.len,
+	BK_LOGD(NULL,"Message arrived on topic %.*s: %.*s\n", data->topicName->lenstring.len,
 		data->topicName->lenstring.data,
 		data->message->payloadlen, data->message->payload);
 }
@@ -64,41 +63,41 @@ static void echo_task_handler(void *pvParameters)
 #endif
 
 	NetworkInit(&network);	
-	bk_printf("[MQTT]mqtt_client_init\r\n");
+	BK_LOGD(NULL,"[MQTT]mqtt_client_init\r\n");
 	mqtt_client_init(&client, &network, 30000, sendbuf, sizeof(sendbuf), readbuf, sizeof(readbuf));
 	
-	bk_printf("[MQTT]NetworkConnect\r\n");
+	BK_LOGD(NULL,"[MQTT]NetworkConnect\r\n");
 	if ((rc = NetworkConnect(&network, link_name, 1883)) != 0)
 	{
-		bk_printf("[MQTT]NetworkConnect failed:%d\n", rc);
+		BK_LOGD(NULL,"[MQTT]NetworkConnect failed:%d\n", rc);
 		goto failed_exit;
 	}
 
 #if MQTT_TASK
-	bk_printf("[MQTT]StartTask\r\n");
+	BK_LOGD(NULL,"[MQTT]StartTask\r\n");
 	if ((rc = mqtt_start_task(&client)) != pdPASS)
-		bk_printf("[MQTT]Return code from start tasks is %d\n", rc);
+		BK_LOGD(NULL,"[MQTT]Return code from start tasks is %d\n", rc);
 #endif
 
 	snprintf(topicName,sizeof(topicName),"bk72xx/sample/%x",rtos_get_time()&0xFF);
 	connectData.MQTTVersion = 3;
 	connectData.clientID.cstring = "bk72xx_mqtt";
 
-	bk_printf("[MQTT]Connecting\r\n");
+	BK_LOGD(NULL,"[MQTT]Connecting\r\n");
 	if ((rc = mqtt_connect(&client, &connectData)) != 0)
 	{
-		bk_printf("[MQTT]Return code from connect is %d\n", rc);
+		BK_LOGD(NULL,"[MQTT]Return code from connect is %d\n", rc);
 		goto failed_exit;
 	}
 	else
 	{
-		bk_printf("[MQTT]Connected\n");
+		BK_LOGD(NULL,"[MQTT]Connected\n");
 	}
 	
-	bk_printf("[MQTT]Subscribe\r\n");
+	BK_LOGD(NULL,"[MQTT]Subscribe\r\n");
 	if ((rc = mqtt_subscribe(&client, "bk72xx/sample/#", 2, echo_msg_arrived_cb)) != 0)
 	{
-		bk_printf("[MQTT]Return code from subscribe is %d\n", rc);
+		BK_LOGD(NULL,"[MQTT]Return code from subscribe is %d\n", rc);
 	}
 	
 	MQTTMessage message;
@@ -113,11 +112,11 @@ static void echo_task_handler(void *pvParameters)
 		sprintf(payload, "message number %d", count);
 		message.payloadlen = strlen(payload);
 
-		os_printf("[MQTT]Publish\r\n");
+		BK_LOGD(NULL,"[MQTT]Publish\r\n");
 
 		if ((rc = mqtt_publish(&client, topicName, &message)) != 0)
 		{
-			os_printf("[MQTT]Return code from publish is %d\n", rc);
+			BK_LOGD(NULL,"[MQTT]Return code from publish is %d\n", rc);
 			fail_cnt ++;
 
 			if(fail_cnt > 20)
@@ -127,19 +126,19 @@ static void echo_task_handler(void *pvParameters)
 		}
 		else
 		{
-			os_printf("[MQTT]Publish Succeed\r\n");
+			BK_LOGD(NULL,"[MQTT]Publish Succeed\r\n");
 		}
 
 #if !defined(MQTT_TASK)
 		if ((rc = mqtt_yield(&client, 1000)) != 0)
 		{
-			os_printf("[MQTT]Return code from yield is %d\n", rc);
+			BK_LOGD(NULL,"[MQTT]Return code from yield is %d\n", rc);
 		}
 #endif
 	}
 
 failed_exit:
-	bk_printf("[MQTT]exit\r\n\n");
+	BK_LOGD(NULL,"[MQTT]exit\r\n\n");
 	
 	rtos_delete_thread( NULL );
 	/* do not return */
@@ -224,10 +223,10 @@ static void mqtt_thread_pub(void *parameter)
         if (!mqtt_client_publish(&_mqttc_ses, QOS1, "7231s/mqtt_test/7231s", payload))
         {
             ++ pub_count;
-			bk_printf("pub:\"%s\" succeed\r\n",payload);
+			BK_LOGD(NULL,"pub:\"%s\" succeed\r\n",payload);
 			if(pub_count > 50)
 			{
-				bk_printf("mqtt client disconnect\r\n");
+				BK_LOGD(NULL,"mqtt client disconnect\r\n");
 				mqtt_client_disconnect(&_mqttc_ses);
 				rtos_delay_milliseconds(1000);
 				mqtt_net_disconnect(&_mqttc_ses);
@@ -236,12 +235,12 @@ static void mqtt_thread_pub(void *parameter)
         }
 		else
 		{
-			bk_printf("pub:\"%s\" failed\r\n",payload);
+			BK_LOGD(NULL,"pub:\"%s\" failed\r\n",payload);
         }
 		rtos_delay_milliseconds(1000);
     }
 	mqtt_client_session_deinit(&_mqttc_ses);
-	bk_printf("[MQTT]exit\r\n\n");
+	BK_LOGD(NULL,"[MQTT]exit\r\n\n");
 	test_is_started = 0;
 	rtos_delete_thread( NULL );
 }
@@ -294,7 +293,7 @@ static int mqtt_demo_start_connect(char *host)
 
 	if (!(_mqttc_ses.readbuf && _mqttc_ses.buf))
     {
-        bk_printf("no memory for MQTT client buffer!\n");
+        BK_LOGD(NULL,"no memory for MQTT client buffer!\n");
         goto _exit;
     }
 	
@@ -324,10 +323,10 @@ static int mqtt_demo_start_connect(char *host)
 	ret = matt_client_connect(&_mqttc_ses,&connectData);
 	if(MQTT_OK != ret)
 	{
-		bk_printf("[MQTT]connect failed\r\n");
+		BK_LOGD(NULL,"[MQTT]connect failed\r\n");
 		goto _exit;
 	}
-	bk_printf("[MQTT]connect succeed\r\n");
+	BK_LOGD(NULL,"[MQTT]connect succeed\r\n");
 
 	return 0;
 _exit:
@@ -357,7 +356,7 @@ static void mqtt_test_start(void)
 
     if (!_mqttc_ses.is_connected)
     {
-        bk_printf("Waiting for mqtt connection...\n");
+        BK_LOGD(NULL,"Waiting for mqtt connection...\n");
 		return;
     }
 
@@ -403,7 +402,7 @@ static const struct cli_command mqtt_cli_cmd[] =
 
 void mqtt_app_demo_init(void)
 {
-	bk_printf("[MQTT]%s:%d\r\n",__FUNCTION__,__LINE__);
+	BK_LOGD(NULL,"[MQTT]%s:%d\r\n",__FUNCTION__,__LINE__);
 	
 	cli_register_commands(mqtt_cli_cmd, sizeof(mqtt_cli_cmd) / sizeof(struct cli_command));
 	mqtt_core_handler_thread_init();

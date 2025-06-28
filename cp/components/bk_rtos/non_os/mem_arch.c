@@ -43,7 +43,7 @@ void *os_realloc(void *ptr, size_t size)
 	void *tmp;
 
 	if (platform_is_in_interrupt_context())
-		os_printf("realloc_risk\r\n");
+		BK_LOGD(NULL,"realloc_risk\r\n");
 
 	tmp = (void *)pvPortMalloc(size);
 	if (tmp && ptr) {
@@ -65,7 +65,7 @@ void *os_malloc(size_t size)
 {
 #if !CONFIG_FULLY_HOSTED
 	if (platform_is_in_interrupt_context())
-		os_printf("malloc_risk\r\n");
+		BK_LOGD(NULL,"malloc_risk\r\n");
 #endif
 
 #if (CONFIG_SOC_BK7251)
@@ -90,7 +90,7 @@ void os_free(void *ptr)
 {
 #if !CONFIG_FULLY_HOSTED
 	if (platform_is_in_interrupt_context())
-		os_printf("free_risk\r\n");
+		BK_LOGD(NULL,"free_risk\r\n");
 #endif
 
 	if (ptr)

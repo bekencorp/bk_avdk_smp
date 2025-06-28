@@ -197,7 +197,7 @@ static uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_t
 		{
 			if (s_debug_en & 0x1)
 			{
-				os_printf("protect_time1 %lld %lld %d\r\n", s_bt_need_wakeup_time, current_tick, s_bt_system_wakeup_param.sleep_time);
+				BK_LOGD(NULL, "protect_time1 %lld %lld %d\r\n", s_bt_need_wakeup_time, current_tick, s_bt_system_wakeup_param.sleep_time);
 			}
 			return 0;
 		}
@@ -206,7 +206,7 @@ static uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_t
 	{
 		if (s_debug_en & 0x1)
 		{
-			os_printf("protect_time2 %lld %lld %d\r\n", s_bt_need_wakeup_time, current_tick, s_bt_system_wakeup_param.sleep_time);
+			BK_LOGD(NULL, "protect_time2 %lld %lld %d\r\n", s_bt_need_wakeup_time, current_tick, s_bt_system_wakeup_param.sleep_time);
 		}
 		return 0; // do something
 	}
@@ -363,7 +363,7 @@ bk_err_t pm_management(uint32_t sleep_ticks)
 		current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 	}
 
-	// os_printf("idle task after:%d \r\n",sleep_ticks);
+	// BK_LOGD(NULL, "idle task after:%d \r\n",sleep_ticks);
 	missed_ticks = pm_state_machine();
 	missed_ticks = sleep_ticks;
 	// bk_update_tick(missed_ticks);
@@ -421,11 +421,11 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 
 	if(!bk_pm_cp1_pwr_ctrl_state_get())
 	{
-	    os_printf("cp1 power_C:%d time out\r\n",module);
+	    BK_LOGD(NULL, "cp1 power_C:%d time out\r\n",module);
 	}
 
 	if (s_debug_en & 0x2)
-		os_printf("cp1 vote power\r\n");
+		BK_LOGD(NULL, "cp1 vote power\r\n");
 #endif
 	return BK_OK;
 
@@ -463,7 +463,7 @@ bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module, uint32_t sl
 
 	if(!bk_pm_cp1_sleep_ctrl_state_get())
 	{
-	    os_printf("cp1 wait cp0 vote sleep[%d] time out\r\n",module);
+	    BK_LOGD(NULL, "cp1 wait cp0 vote sleep[%d] time out\r\n",module);
 	}
 #endif
 	return BK_OK;
@@ -491,7 +491,7 @@ bk_err_t pm_handle_deepsleep_callback(pm_sleep_mode_e sleep_mode)
 		{
 			if (s_pm_superdeep_enter_cb_conf[i].cfg.cb != NULL)
 			{
-				// os_printf("%d %d\r\n", i, s_pm_superdeep_enter_cb_conf[i].id);
+				// BK_LOGD(NULL, "%d %d\r\n", i, s_pm_superdeep_enter_cb_conf[i].id);
 				s_pm_superdeep_enter_cb_conf[i].cfg.cb(0, s_pm_superdeep_enter_cb_conf[i].cfg.args);
 			}
 		}
@@ -608,28 +608,28 @@ static void pm_check_power_on_module()
 	{
 		s_pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_BTSP;
 		s_pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_BTSP;
-		// os_printf("bt not power on \r\n");
+		// BK_LOGD(NULL, "bt not power on \r\n");
 	}
 
 	if (!(s_pm_on_modules & (0x1 << PM_POWER_MODULE_NAME_WIFIP_MAC))) // when the module not power on , set the module sleep state
 	{
 		s_pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_WIFIP_MAC;
 		s_pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_WIFIP_MAC;
-		// os_printf("wifi not power on \r\n");
+		// BK_LOGD(NULL, "wifi not power on \r\n");
 	}
 
 	if (!(s_pm_on_modules & (0x1 << PM_POWER_MODULE_NAME_AUDP))) // when the module not power on , set the module sleep state
 	{
 		s_pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_AUDP;
 		s_pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_AUDP;
-		// os_printf("audio not power on \r\n");
+		// BK_LOGD(NULL, "audio not power on \r\n");
 	}
 
 	if (!(s_pm_on_modules & (0x1 << PM_POWER_MODULE_NAME_VIDP))) // when the module not power on , set the module sleep state
 	{
 		s_pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_VIDP;
 		s_pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_VIDP;
-		// os_printf("video not power on \r\n");
+		// BK_LOGD(NULL, "video not power on \r\n");
 	}
 
 
@@ -716,7 +716,7 @@ int32 bk_pm_module_power_state_get(pm_power_module_name_e module)
 	{
 		if (module >= PM_POWER_MODULE_NAME_NONE)
 		{
-			os_printf("pm module[%d] not support ,get power state fail %d\r\n", module);
+			BK_LOGD(NULL, "pm module[%d] not support ,get power state fail %d\r\n", module);
 			return BK_ERR_NOT_SUPPORT;
 		}
 		else
@@ -861,7 +861,7 @@ static void pm_low_voltage_resource_restore()
 					s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].cb(0, s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].args);
 					if (s_debug_en & 0x2)
 					{
-						os_printf("wifi exit low vol arg:%d\r\n", s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].args);
+						BK_LOGD(NULL, "wifi exit low vol arg:%d\r\n", s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].args);
 					}
 				}
 				else
@@ -919,7 +919,7 @@ static uint32_t pm_low_voltage_process()
 	/*Debug pd,lpo,psram end*/
 	pm_low_voltage_resource_restore();
 	if (s_debug_en & 0x2)
-		os_printf("low voltage int open before\r\n");
+		BK_LOGD(NULL, "low voltage int open before\r\n");
 
 
 #if CONFIG_AON_RTC
@@ -930,7 +930,7 @@ static uint32_t pm_low_voltage_process()
 	rtos_exit_critical(int_level);
 
 	if (s_debug_en & 0x2)
-		os_printf("low voltage int open after 0x%x 0x%x \r\n", /*int_mie,*/ int_level, bk_pm_lp_vol_get());
+		BK_LOGD(NULL, "low voltage int open after 0x%x 0x%x \r\n", /*int_mie,*/ int_level, bk_pm_lp_vol_get());
 
 	return sleep_tick;
 }
@@ -995,18 +995,18 @@ static void pm_sleep_cb_push_item(pm_sleep_cb_t cb_arr[], uint8_t *cb_cnt_p, pm_
 	if (*cb_cnt_p == PM_DEEPSLEEP_CB_SIZE)
 	{
 		if (s_debug_en & 0x2)
-			os_printf("call back function overflow, dev %d regist fail!\r\n", cb_item.id);
+			BK_LOGD(NULL, "call back function overflow, dev %d regist fail!\r\n", cb_item.id);
 		if (s_debug_en & 0x1)
 		{
-			os_printf("cb functions dump: [ ");
+			BK_LOGD(NULL, "cb functions dump: [ ");
 			for (uint8_t i = 0; i < PM_DEEPSLEEP_CB_SIZE; i++)
-				os_printf("%d ", cb_arr[i].id);
-			os_printf("]\r\n");
+				BK_LOGD(NULL, "%d ", cb_arr[i].id);
+			BK_LOGD(NULL, "]\r\n");
 		}
 		return;
 	} else if (cb_arr[*cb_cnt_p].cfg.cb != NULL) {
 		if (s_debug_en & 0x2)
-			os_printf("cb functions have overlap warning, dev %d -> %d\r\n", cb_item.id, cb_arr[*cb_cnt_p].id);
+			BK_LOGD(NULL, "cb functions have overlap warning, dev %d -> %d\r\n", cb_item.id, cb_arr[*cb_cnt_p].id);
 	}
 
 	for (uint8_t i = 0; i < *cb_cnt_p; i++)
@@ -1104,7 +1104,7 @@ bk_err_t bk_pm_sleep_register_cb(pm_sleep_mode_e sleep_mode, pm_dev_id_e dev_id,
 #endif
 	else
 	{
-		os_printf("The sleep mode[%d] not support register call back \r\n", sleep_mode);
+		BK_LOGD(NULL, "The sleep mode[%d] not support register call back \r\n", sleep_mode);
 	}
 	GLOBAL_INT_RESTORE();
 	return BK_OK;
@@ -1182,7 +1182,7 @@ bk_err_t bk_pm_sleep_unregister_cb(pm_sleep_mode_e sleep_mode, pm_dev_id_e dev_i
 #endif
 	else
 	{
-		os_printf("The sleep mode[%d] not support unregister call back \r\n", sleep_mode);
+		BK_LOGD(NULL, "The sleep mode[%d] not support unregister call back \r\n", sleep_mode);
 	}
 	GLOBAL_INT_RESTORE();
 
@@ -1336,7 +1336,7 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 
 	previous_tick = pm_cp1_aon_rtc_counter_get();
 	current_tick = previous_tick;
-	//os_printf("cp1 vote freq begin [%lld]\r\n",previous_tick);
+	//BK_LOGD(NULL, "cp1 vote freq begin [%lld]\r\n",previous_tick);
 	while((current_tick - previous_tick) < (PM_SEND_CMD_CP0_RESPONSE_TIME_OUT*PM_AON_RTC_DEFAULT_TICK_COUNT))
 	{
 	    if (bk_pm_cp1_cpu_freq_ctrl_state_get()) // wait the cp0 response
@@ -1348,12 +1348,12 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 
 	if(!bk_pm_cp1_cpu_freq_ctrl_state_get())
 	{
-	    os_printf("cp1 vote freq[%d]time out\r\n",module);
+	    BK_LOGD(NULL, "cp1 vote freq[%d]time out\r\n",module);
 	}
-	//os_printf("cp1 vote freq end [%lld]\r\n",current_tick);
+	//BK_LOGD(NULL, "cp1 vote freq end [%lld]\r\n",current_tick);
 
 	if(s_debug_en&0x2)
-		os_printf("cpu1 vote cpu freq\r\n");
+		BK_LOGD(NULL, "cpu1 vote cpu freq\r\n");
 #endif
 	return BK_OK;
 
@@ -1387,7 +1387,7 @@ bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
 
 	if(!bk_pm_cp1_clk_ctrl_state_get())
 	{
-	    os_printf("cp1 vote freq[%d] time out\r\n",module);
+	    BK_LOGD(NULL, "cp1 vote freq[%d] time out\r\n",module);
 	}
 
 #endif
@@ -1412,7 +1412,7 @@ bk_err_t bk_pm_rosc_calibration(pm_rosc_cali_mode_e rosc_cali_mode, uint32_t cal
 	ret = sys_drv_rosc_calibration(rosc_cali_mode, cali_interval);
 	if (ret != BK_OK)
 	{
-		os_printf("set rosc calibration parameter error %d %d \r\n", rosc_cali_mode, cali_interval);
+		BK_LOGD(NULL, "set rosc calibration parameter error %d %d \r\n", rosc_cali_mode, cali_interval);
 		return ret;
 	}
 	return BK_OK;
@@ -1476,7 +1476,7 @@ bk_err_t pm_clk_32k_source_switch(pm_lpo_src_e lpo_src)
 
 	if (s_debug_en & 0x2)
 	{
-		os_printf("customer set clk %d\r\n", clk_src);
+		BK_LOGD(NULL, "customer set clk %d\r\n", clk_src);
 	}
 
 	if (clk_src != PM_LPO_SRC_X32K)
@@ -1487,7 +1487,7 @@ bk_err_t pm_clk_32k_source_switch(pm_lpo_src_e lpo_src)
 	clk_src = bk_pm_lpo_src_get();
 	if (s_debug_en & 0x2)
 	{
-		os_printf("current clk %d,set clk %d\r\n", clk_src, lpo_src);
+		BK_LOGD(NULL, "current clk %d,set clk %d\r\n", clk_src, lpo_src);
 	}
 
 	if (clk_src == lpo_src)
@@ -1517,7 +1517,7 @@ bk_err_t pm_clk_32k_source_switch(pm_lpo_src_e lpo_src)
 		ret = rtos_get_semaphore(&s_sync_sema, SWITCH_32K_WAIT);
 		if (ret < 0)
 		{
-			os_printf(" ERR: wait sema timeout\r\n");
+			BK_LOGD(NULL, " ERR: wait sema timeout\r\n");
 			rtos_deinit_semaphore(&s_sync_sema);
 			return BK_FAIL;
 		}

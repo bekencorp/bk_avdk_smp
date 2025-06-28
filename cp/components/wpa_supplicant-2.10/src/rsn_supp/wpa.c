@@ -1224,7 +1224,7 @@ static int wpa_supplicant_pairwise_gtk(struct wpa_sm *sm,
 	gd.gtk_len = gtk_len;
 
 #if BK_SUPPLICANT
-	WPA_LOGI("WPA: GTK %pb\n", gtk, gtk_len);
+	WPA_LOGD("WPA: GTK %pb\n", gtk, gtk_len);
 #endif
 
 	key_rsc = key->key_rsc;

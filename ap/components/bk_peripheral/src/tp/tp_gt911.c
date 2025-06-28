@@ -24,6 +24,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 // external statement.
@@ -133,11 +134,11 @@ bool gt911_detect(const tp_i2c_callback_t *cb)
 		return false;
 	}
 
-	LOGI("%s, product id: 0X%08X\r\n", __func__, product_id);
+	LOGD("%s, product id: 0X%08X\r\n", __func__, product_id);
 
 	if (GT911_PRODUCT_ID_CODE == product_id)
 	{
-		LOGI("%s success\n", __func__);
+		LOGD("%s success\n", __func__);
 		return true;
 	}
 
@@ -316,7 +317,7 @@ int gt911_read_status(const tp_i2c_callback_t *cb, uint8_t *status)
 		return BK_FAIL;
 	}
 
-	LOGD("%s, status=0x%02X\r\n", __func__, *status);
+	LOGV("%s, status=0x%02X\r\n", __func__, *status);
 
 	return BK_OK;
 }
@@ -395,7 +396,7 @@ void gt911_touch_down(void *buf, int8_t id, int16_t x, int16_t y, int16_t w)
 		int16_t temp = x;
 		x = y;
 		y = temp;
-		LOGD("%s, [%d, %d]\r\n", __func__, x, y);
+		LOGV("%s, [%d, %d]\r\n", __func__, x, y);
 
 		#if 1
 			// lcd rotates 90 degrees counterclockwise(adapt to lvgl).
@@ -546,7 +547,7 @@ int gt911_read_tp_info(const tp_i2c_callback_t *cb, uint8_t max_num, uint8_t *bu
 	}
 
 	// original registers datas.
-	LOGD("%s, status=0x%02X, pointer num is %d!\r\n", __func__, temp_status, temp_status&0x0F);
+	LOGV("%s, status=0x%02X, pointer num is %d!\r\n", __func__, temp_status, temp_status&0x0F);
 	#if (GT911_REGS_DEBUG_EN > 0)
 		bk_mem_dump_ex("tp_gt911", (unsigned char *)(read_buff), sizeof(read_buff));
 	#endif

@@ -51,7 +51,7 @@
 //#define FTPD_DEBUG
 #include "bk_uart.h"
 #ifdef FTPD_DEBUG
-#define dbg_printf      os_printf
+#define dbg_printf(...)   BK_LOGD(NULL, ##__VA_ARGS__)
 #else
 #ifdef _MSC_VER
 #define dbg_printf(x) /* x */

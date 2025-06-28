@@ -44,7 +44,7 @@ Original Author: Shay Gal-on
 #include <stdio.h>
 #endif
 #if HAS_PRINTF
-#define ee_printf os_printf
+#define ee_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #endif
 
 /* Actual benchmark execution in iterate */

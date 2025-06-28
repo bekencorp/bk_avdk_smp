@@ -7,7 +7,7 @@ uint8_t cif_tx_event_short_buffer[MAX_NUM_CMD_SHORT_BUF][CIF_MAX_CFM_SHORT_LEN] 
 struct cif_rx_bank_t * cif_rxbank_ptr = &(cif_env.rx_bank);
 void cif_free_ap_txbuf(struct pbuf * pbuf)
 {
-    CIF_LOGD("%s,%d,p:0x%x\n",__func__,__LINE__,pbuf);
+    CIF_LOGV("%s,%d,p:0x%x\n",__func__,__LINE__,pbuf);
     //send cpdu header addr
     struct cpdu_t * buf  =(struct cpdu_t *)(pbuf+1);
     buf->co_hdr.need_free = 1;
@@ -27,7 +27,7 @@ void cif_save_buffer_addr(void *head)
 {
     cif_addr_bank_t * bank = (cif_addr_bank_t *)head;
     uint32_t int_level;
-    CIF_LOGD("%s,%d,num=%d\n",__func__,__LINE__,bank->num);
+    CIF_LOGV("%s,%d,num=%d\n",__func__,__LINE__,bank->num);
     struct pbuf* p_tmp = NULL;
     //bk_mem_dump("cif_rx_bank",(uint32_t)bank,(bank->num + 3)*4 );
 
@@ -46,7 +46,7 @@ void cif_save_buffer_addr(void *head)
         CIF_IRQ_ENABLE(int_level);
 
         struct pbuf * p = (struct pbuf*)(bank->addr[i]);
-        CIF_LOGD("%s,%d i:%d p:%p next:%p payload:%p len:%d\r\n",
+        CIF_LOGV("%s,%d i:%d p:%p next:%p payload:%p len:%d\r\n",
             __func__,__LINE__, i, p, p->next, p->payload, p->tot_len);
 
     }
@@ -89,7 +89,7 @@ uint8_t* cif_maclloc_rx_buf()
         
         num = co_list_cnt((void*)&cif_ipc_env[IPC_DATA].rx_list);
 
-        CIF_LOGD("%s buf NULL,IPC cnt:%d\r\n", __func__,num);
+        CIF_LOGV("%s buf NULL,IPC cnt:%d\r\n", __func__,num);
         cif_stats_ptr->rx_drop_cnt++;
         return NULL;
     }
@@ -104,7 +104,7 @@ uint8_t* cif_maclloc_rx_buf()
 
     //cif_rxbank_ptr->rx_buf_bank[cif_rxbank_ptr->rx_buf_bank_cnt] = 0;
 
-    CIF_LOGD("%s buf:%x cnt:%d\r\n", __func__, buf, cif_rxbank_ptr->rx_buf_bank_cnt);
+    CIF_LOGV("%s buf:%x cnt:%d\r\n", __func__, buf, cif_rxbank_ptr->rx_buf_bank_cnt);
     
     CIF_IRQ_ENABLE(int_level);
     //BK_ASSERT((uint32_t)buf>0x28100000);
@@ -127,7 +127,7 @@ void cif_free_rx_buf(uint32_t buf)
     cif_rxbank_ptr->rx_buf_bank[cif_rxbank_ptr->rx_buf_bank_cnt] = buf;
     cif_rxbank_ptr->rx_buf_bank_cnt++;
 
-    CIF_LOGI("%s buf:%x cnt:%d\r\n", __func__, buf, cif_rxbank_ptr->rx_buf_bank_cnt);
+    CIF_LOGD("%s buf:%x cnt:%d\r\n", __func__, buf, cif_rxbank_ptr->rx_buf_bank_cnt);
 
     CIF_IRQ_ENABLE(int_level);
 }

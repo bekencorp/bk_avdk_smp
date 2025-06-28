@@ -199,7 +199,7 @@ void rwm_check_rx_header_pattern(void *host_id)
 
 	if (rxhdr->flags_is_amsdu)
 	{
-		RWNX_LOGD("amsdu_pattern:%x\n", rxhdr->amsdu_pattern);
+		RWNX_LOGV("amsdu_pattern:%x\n", rxhdr->amsdu_pattern);
 		BK_ASSERT(rxhdr->amsdu_pattern == RX_AMSDU_RXPATTERN);
 	}
 }
@@ -240,7 +240,7 @@ UINT32 rwm_get_rx_free_node(uint32_t *host_id, int len)
 		buf_addr = 0;
 	}
 	//if (!buf_addr)
-	//    os_printf("%s: xxxxxxxxxx oom\n", __func__);
+	//    BK_LOGD(NULL,"%s: xxxxxxxxxx oom\n", __func__);
 	return buf_addr;
 }
 
@@ -425,7 +425,7 @@ void rwnx_amsdu_mac2eth_update(struct pbuf *p)
 	 ****************************************************
 	 */
 
-	//os_printf("%s amsdu_len=%d\n", __FUNCTION__, p->len);
+	//BK_LOGD(NULL,"%s amsdu_len=%d\n", __FUNCTION__, p->len);
 
 	//ieee802.11 amsdu_hdr to ieee802.3 mac_eth_hdr
 #if 0//(RW_MESH_EN)
@@ -629,10 +629,10 @@ UINT32 rwm_upload_data(void *host_id, uint32_t frame_len)
 		rwnx_rx_mgmt_any(q, rxhdr);
 	} else if (rxhdr->flags_is_amsdu) {
 		/* A-MSDU subframe, convert like `rxu_cntrl_mac2eth_update()' and then pass it to lwip */
-		RWNX_LOGD("rx_up_data len_p:%x,len_q:%x,p_next:%x,p_totlen:%x,p_payload:%x,q_payload:%x\n",
+		RWNX_LOGV("rx_up_data len_p:%x,len_q:%x,p_next:%x,p_totlen:%x,p_payload:%x,q_payload:%x\n",
 		p->len,q->len,p->next,p->tot_len,p->payload,q->payload);
 
-		RWNX_LOGD("data_flag flag:%x \n", rxhdr->flags_is_amsdu);
+		RWNX_LOGV("data_flag flag:%x \n", rxhdr->flags_is_amsdu);
 		rwnx_upload_amsdu(rxhdr);
 	} else {
 #if CONFIG_RWNX_PROTO_DEBUG
@@ -727,7 +727,7 @@ int fhost_rxbuf_push()
 
 	pbuf = pbuf_alloc(PBUF_RAW, CFG_MSDU_MAX_LEN, PBUF_RAM);
 	if (!pbuf) {
-		RWNX_LOGI("%s alloc pbuf fail\r\n", __func__);
+		RWNX_LOGD("%s alloc pbuf fail\r\n", __func__);
 		return -ENOMEM;
 	}
 
@@ -743,7 +743,7 @@ int fhost_rxbuf_push()
 
 	payload = ke_malloc(CFG_MSDU_MAX_LEN);
 	if (!payload) {
-		RWNX_LOGI("%s alloc payload fail\r\n", __func__);
+		RWNX_LOGD("%s alloc payload fail\r\n", __func__);
 		return -ENOMEM;
 	}
 

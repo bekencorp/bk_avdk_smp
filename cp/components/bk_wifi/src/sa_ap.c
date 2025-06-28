@@ -14,7 +14,7 @@ extern void mm_bcn_init(void);
 int sa_ap_init(void)
 {
 	if (rwm_mgmt_is_vif_first_used() == NULL) {
-		WIFI_LOGD("init 1st vif\r\n");
+		WIFI_LOGV("init 1st vif\r\n");
 		BK_RETURN_ON_ERR(rw_msg_send_reset());
 
 #if CONFIG_WIFI6

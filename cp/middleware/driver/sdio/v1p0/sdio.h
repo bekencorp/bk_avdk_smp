@@ -9,8 +9,9 @@
 //#define SDIO_MEM_DEBUG
 
 #ifdef SDIO_DEBUG
-#define SDIO_PRT                 os_printf
-#define SDIO_WPRT                os_printf
+#define TAG "sdio"
+#define SDIO_PRT(...)    BK_LOGD(TAG, ##__VA_ARGS__)
+#define SDIO_WPRT(...)   BK_LOGW(TAG, ##__VA_ARGS__)
 #define STATIC
 #else
 #define SDIO_PRT                 os_null_printf

@@ -194,7 +194,7 @@ bk_err_t rtos_create_sram_thread( beken_thread_t* thread, uint8_t priority, cons
 bk_err_t rtos_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name, 
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-    os_printf("Task Create In Psram is not supported.\r\n.");
+    BK_LOGD(NULL,"Task Create In Psram is not supported.\r\n.");
     return kGeneralErr;
 }
 

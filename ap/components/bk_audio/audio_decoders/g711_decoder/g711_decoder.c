@@ -85,8 +85,8 @@ typedef struct g711_decoder
 
 static bk_err_t _g711_decoder_open(audio_element_handle_t self)
 {
-    BK_LOGD(TAG, "[%s] _g711_decoder_open \n", audio_element_get_tag(self));
-    //  BK_LOGI(TAG, "[%s] 0xD5 ->G711-> 0x%04x \n", audio_element_get_tag(self), alaw2linear(0xD5));
+    BK_LOGV(TAG, "[%s] _g711_decoder_open \n", audio_element_get_tag(self));
+    //  BK_LOGD(TAG, "[%s] 0xD5 ->G711-> 0x%04x \n", audio_element_get_tag(self), alaw2linear(0xD5));
 
     /* set read data timeout */
     //audio_element_set_input_timeout(self, 1000 / portTICK_RATE_MS);   // 2000, 15 / portTICK_RATE_MS
@@ -96,13 +96,13 @@ static bk_err_t _g711_decoder_open(audio_element_handle_t self)
 
 static bk_err_t _g711_decoder_close(audio_element_handle_t self)
 {
-    BK_LOGD(TAG, "[%s] _g711_decoder_close \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _g711_decoder_close \n", audio_element_get_tag(self));
     return BK_OK;
 }
 
 static int _g711_decoder_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    BK_LOGD(TAG, "[%s] _g711_decoder_process \n", audio_element_get_tag(self));
+    BK_LOGV(TAG, "[%s] _g711_decoder_process \n", audio_element_get_tag(self));
     g711_decoder_t *g711_dec = (g711_decoder_t *)audio_element_getdata(self);
 
     G711_DECODER_PROCESS_START();

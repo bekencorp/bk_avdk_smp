@@ -37,7 +37,7 @@ static uint32 http_get_sapp_partition_length(bk_partition_t partition)
 
 	if(NULL == bk_ptr)
 	{
-		os_printf("get s_app partition fail! \r\n");
+		BK_LOGD(NULL, "get s_app partition fail! \r\n");
 		bk_reboot();
 	}
 
@@ -59,12 +59,12 @@ static int ota_do_init(f_ota_t* ota_ptr)
 	ota_ptr->partition_length = http_get_sapp_partition_length(BK_PARTITION_S_APP);
     if(update_part_flag == UPDATE_B_PART)
     {
-        OTA_LOGI("UPDATE_B_PART\r\n");
+        OTA_LOGD("UPDATE_B_PART\r\n");
         ota_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_S_APP); //update B_parition
     }
     else
     {
-        OTA_LOGI("UPDATE_A_PART\r\n");
+        OTA_LOGD("UPDATE_A_PART\r\n");
         ota_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_APPLICATION);//update A_parition.
     }
 #else
@@ -83,7 +83,7 @@ static int ota_do_init(f_ota_t* ota_ptr)
     bk_flash_set_protect_type(FLASH_PROTECT_NONE);
     ota_ptr->ota_crc.crc          = 0xFFFFFFFF;
     ota_ptr->wr_address           = ota_ptr->pt->partition_start_addr;
-    OTA_LOGI("ota write to :0x%x \r\n", ota_ptr->wr_address);
+    OTA_LOGD("ota write to :0x%x \r\n", ota_ptr->wr_address);
 
 #ifdef CONFIG_HTTP_OTA_WITH_BLE
 #if CONFIG_BLUETOOTH
@@ -212,7 +212,7 @@ static int ota_do_process_data(f_ota_t* ota_ptr, uint16_t len)
     bk_task_wdt_feed();
 #endif
 
-    OTA_LOGD("wr_addr:0x%x, new_seq:0x%x, curr_seq :0x%x,len :0x%x \r\n", ota_ptr->wr_address,ota_ptr->new_sequence_number, ota_ptr->curr_sequence_number,len);
+    OTA_LOGV("wr_addr:0x%x, new_seq:0x%x, curr_seq :0x%x,len :0x%x \r\n", ota_ptr->wr_address,ota_ptr->new_sequence_number, ota_ptr->curr_sequence_number,len);
     tmp = &(ota_ptr->wr_tmp_buf[0]);
 
     if(ota_ptr->curr_sequence_number != ota_ptr->new_sequence_number)
@@ -220,22 +220,22 @@ static int ota_do_process_data(f_ota_t* ota_ptr, uint16_t len)
         while (i < len)
         {
             write_len = MIN(len - i, (OTA_FLASH_BUFFER_LENGTH - ota_ptr->wr_last_len));
-            OTA_LOGD("write_len:0x%x \r\n", write_len);
+            OTA_LOGV("write_len:0x%x \r\n", write_len);
             os_memcpy((ota_ptr->wr_buf + ota_ptr->wr_last_len), (tmp + i), write_len);
             ota_ptr->curr_sequence_number = ota_ptr->new_sequence_number;
-            OTA_LOGD("ota_ptr->wr_buf:0x%x--0x%x--0x%x--0x%x--0x%x---0x%x \r\n", ota_ptr->wr_buf[0],ota_ptr->wr_buf[1],ota_ptr->wr_buf[2],ota_ptr->wr_buf[3],ota_ptr->wr_buf[4],ota_ptr->wr_buf[5]);
+            OTA_LOGV("ota_ptr->wr_buf:0x%x--0x%x--0x%x--0x%x--0x%x---0x%x \r\n", ota_ptr->wr_buf[0],ota_ptr->wr_buf[1],ota_ptr->wr_buf[2],ota_ptr->wr_buf[3],ota_ptr->wr_buf[4],ota_ptr->wr_buf[5]);
 
             i += write_len;
             ota_ptr->wr_last_len += write_len;
             ota_ptr->received_total_size += write_len;
-            OTA_LOGD("ota_ptr->received_total_size:0x%x, ota_ptr->wr_last_len :0x%x \r\n", ota_ptr->received_total_size, ota_ptr->wr_last_len);
-            OTA_LOGI("cyg_recvlen_per:(%.2f)%%\r\n",(((float)(ota_ptr->received_total_size))/(ota_ptr->image_size))*100);
+            OTA_LOGV("ota_ptr->received_total_size:0x%x, ota_ptr->wr_last_len :0x%x \r\n", ota_ptr->received_total_size, ota_ptr->wr_last_len);
+            OTA_LOGD("cyg_recvlen_per:(%.2f)%%\r\n",(((float)(ota_ptr->received_total_size))/(ota_ptr->image_size))*100);
             if(ota_ptr->received_total_size == ota_ptr->image_size)    /*the last package*/
             {
                 ota_ptr->wr_flash_flag = 0;
                 if(ota_do_write_flash(ota_ptr, ota_ptr->wr_last_len) == BK_OK)
                 {
-                    OTA_LOGI("wr the last data \r\n");
+                    OTA_LOGD("wr the last data \r\n");
                     return  BK_OK;
                 }
             }
@@ -245,14 +245,14 @@ static int ota_do_process_data(f_ota_t* ota_ptr, uint16_t len)
                 {
                     if(ota_do_write_flash(ota_ptr, OTA_FLASH_BUFFER_LENGTH) == BK_OK)
                     {
-                        OTA_LOGD("wr 1k data \r\n");
+                        OTA_LOGV("wr 1k data \r\n");
                         ret = BK_OK;
                     }
                     ota_ptr->wr_last_len = 0;
                 }
                 else
                 {
-                    OTA_LOGD("do adding data \r\n");
+                    OTA_LOGV("do adding data \r\n");
                     ret = BK_OK;
                 }
             }
@@ -260,7 +260,7 @@ static int ota_do_process_data(f_ota_t* ota_ptr, uint16_t len)
     }
     else
     {
-        OTA_LOGI("exception logic ota_ptr->wr_last_len :0x%x, len :0x%x ,ota_ptr->wr_address :0x%x\r\n", ota_ptr->wr_last_len, len, ota_ptr->wr_address);
+        OTA_LOGD("exception logic ota_ptr->wr_last_len :0x%x, len :0x%x ,ota_ptr->wr_address :0x%x\r\n", ota_ptr->wr_last_len, len, ota_ptr->wr_address);
         if(ota_ptr->wr_last_len < len)
         {
             OTA_LOGW("the wr_buf has exceeded 1024 bytes \r\n");
@@ -268,7 +268,7 @@ static int ota_do_process_data(f_ota_t* ota_ptr, uint16_t len)
             uint8_t *retry_wr_bufer = NULL;
             uint32_t retry_len = ota_ptr->wr_address % FLASH_SECTOR_SIZE;
             OTA_MALLOC(retry_wr_bufer, FLASH_SECTOR_SIZE);
-            OTA_LOGI("ota_ptr->wr_address :0x%x, retry_len :0x%x \r\n", ota_ptr->wr_address, retry_len);
+            OTA_LOGD("ota_ptr->wr_address :0x%x, retry_len :0x%x \r\n", ota_ptr->wr_address, retry_len);
 
             bk_flash_read_bytes((ota_ptr->wr_address - retry_len), retry_wr_bufer, retry_len);
             if(retry_len >len)
@@ -316,7 +316,7 @@ static int ota_do_check_crc(f_ota_t* ota_ptr,uint32_t in_crc)
         bk_flash_read_bytes((start_addr + i), ota_ptr->rd_buf, OTA_FLASH_BUFFER_LENGTH);
         CRC32_Update(&ota_ptr->ota_crc, ota_ptr->rd_buf, OTA_FLASH_BUFFER_LENGTH);
     }
-    OTA_LOGD("i :0x%x \r\n", i);
+    OTA_LOGV("i :0x%x \r\n", i);
     if (i != ota_ptr->image_size -OTA_FLASH_BUFFER_LENGTH)
     {
         uint32_t remain_size = ota_ptr->image_size - i;
@@ -325,7 +325,7 @@ static int ota_do_check_crc(f_ota_t* ota_ptr,uint32_t in_crc)
     }
 
     CRC32_Final(&ota_ptr->ota_crc,&out_crc);
-    OTA_LOGI("ota_ptr->ota_crc.crc :0x%x,out_crc :0x%x\r\n", ota_ptr->ota_crc.crc,out_crc);
+    OTA_LOGD("ota_ptr->ota_crc.crc :0x%x,out_crc :0x%x\r\n", ota_ptr->ota_crc.crc,out_crc);
     if(out_crc != in_crc)
     {
         OTA_LOGE("crc error\r\n");

@@ -59,17 +59,17 @@ static void usbh_msc_cbw_dump(struct CBW *cbw)
 #if 0
     int i;
 
-    USB_LOG_INFO("CBW:\r\n");
-    USB_LOG_INFO("  signature: 0x%08x\r\n", (unsigned int)cbw->dSignature);
-    USB_LOG_INFO("  tag:       0x%08x\r\n", (unsigned int)cbw->dTag);
-    USB_LOG_INFO("  datlen:    0x%08x\r\n", (unsigned int)cbw->dDataLength);
-    USB_LOG_INFO("  flags:     0x%02x\r\n", cbw->bmFlags);
-    USB_LOG_INFO("  lun:       0x%02x\r\n", cbw->bLUN);
-    USB_LOG_INFO("  cblen:    0x%02x\r\n", cbw->bCBLength);
+    USB_LOG_DBG("CBW:\r\n");
+    USB_LOG_DBG("  signature: 0x%08x\r\n", (unsigned int)cbw->dSignature);
+    USB_LOG_DBG("  tag:       0x%08x\r\n", (unsigned int)cbw->dTag);
+    USB_LOG_DBG("  datlen:    0x%08x\r\n", (unsigned int)cbw->dDataLength);
+    USB_LOG_DBG("  flags:     0x%02x\r\n", cbw->bmFlags);
+    USB_LOG_DBG("  lun:       0x%02x\r\n", cbw->bLUN);
+    USB_LOG_DBG("  cblen:    0x%02x\r\n", cbw->bCBLength);
 
-    USB_LOG_INFO("CB:\r\n");
+    USB_LOG_DBG("CB:\r\n");
     for (i = 0; i < cbw->bCBLength; i += 8) {
-        USB_LOG_INFO("  0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\r\n",
+        USB_LOG_DBG("  0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\r\n",
                      cbw->CB[i], cbw->CB[i + 1], cbw->CB[i + 2],
                      cbw->CB[i + 3], cbw->CB[i + 4], cbw->CB[i + 5],
                      cbw->CB[i + 6], cbw->CB[i + 7]);
@@ -80,11 +80,11 @@ static void usbh_msc_cbw_dump(struct CBW *cbw)
 static void usbh_msc_csw_dump(struct CSW *csw)
 {
 #if 0
-    USB_LOG_INFO("CSW:\r\n");
-    USB_LOG_INFO("  signature: 0x%08x\r\n", (unsigned int)csw->dSignature);
-    USB_LOG_INFO("  tag:       0x%08x\r\n", (unsigned int)csw->dTag);
-    USB_LOG_INFO("  residue:   0x%08x\r\n", (unsigned int)csw->dDataResidue);
-    USB_LOG_INFO("  status:    0x%02x\r\n", csw->bStatus);
+    USB_LOG_DBG("CSW:\r\n");
+    USB_LOG_DBG("  signature: 0x%08x\r\n", (unsigned int)csw->dSignature);
+    USB_LOG_DBG("  tag:       0x%08x\r\n", (unsigned int)csw->dTag);
+    USB_LOG_DBG("  residue:   0x%08x\r\n", (unsigned int)csw->dDataResidue);
+    USB_LOG_DBG("  status:    0x%02x\r\n", csw->bStatus);
 #endif
 }
 
@@ -345,7 +345,7 @@ static int usbh_msc_connect(struct usbh_hubport *hport, uint8_t intf)
         return ret;
     }
 
-    USB_LOG_INFO("Get max LUN:%u\r\n", g_msc_buf[0] + 1);
+    USB_LOG_DBG("Get max LUN:%u\r\n", g_msc_buf[0] + 1);
 
     for (uint8_t i = 0; i < hport->config.intf[intf].altsetting[0].intf_desc.bNumEndpoints; i++) {
         ep_desc = &hport->config.intf[intf].altsetting[0].ep[i].ep_desc;
@@ -373,8 +373,8 @@ static int usbh_msc_connect(struct usbh_hubport *hport, uint8_t intf)
     }
 
     if (current_msc_class->blocksize > 0) {
-        USB_LOG_INFO("Capacity info:\r\n");
-        USB_LOG_INFO("Block num:%d,block size:%d\r\n", (unsigned int)current_msc_class->blocknum, (unsigned int)current_msc_class->blocksize);
+        USB_LOG_DBG("Capacity info:\r\n");
+        USB_LOG_DBG("Block num:%d,block size:%d\r\n", (unsigned int)current_msc_class->blocknum, (unsigned int)current_msc_class->blocksize);
     } else {
         USB_LOG_ERR("Invalid block size\r\n");
         return -ERANGE;
@@ -383,7 +383,7 @@ static int usbh_msc_connect(struct usbh_hubport *hport, uint8_t intf)
     snprintf(hport->config.intf[intf].devname, CONFIG_USBHOST_DEV_NAMELEN, DEV_FORMAT, current_msc_class->sdchar);
 
 	media_ready = true;
-    USB_LOG_INFO("Register MSC Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register MSC Class:%s\r\n", hport->config.intf[intf].devname);
 
     return ret;
 }
@@ -414,7 +414,7 @@ static int usbh_msc_disconnect(struct usbh_hubport *hport, uint8_t intf)
         usb_free(msc_class);
 
         if (hport->config.intf[intf].devname[0] != '\0')
-            USB_LOG_INFO("Unregister MSC Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister MSC Class:%s\r\n", hport->config.intf[intf].devname);
     }
 
     return ret;

@@ -31,8 +31,9 @@ static void my_debug( void *ctx, int level,
     ((void) level);
 
    // mbedtls_fprintf( (FILE *) ctx, "%s:%04d: %s", file, line, str );
-    ///fflush(  (FILE *) ctx  );
-    bk_printf("[mbed]%s:%04d: %s\r\n", file, line, str);
+    ///fflush(  (FILE *) ctx  );
+
+    BK_LOGD(NULL,"[mbed]%s:%04d: %s\r\n", file, line, str);
 }
 #endif 
 
@@ -57,7 +58,7 @@ int mbedtls_client_init(MbedTLSSession *session, void *entropy, size_t entropyLe
         BK_LOGE(TAG, "mbedtls_ctr_drbg_seed returned -0x%x\r\n", -ret);
         return ret;
     }
-    BK_LOGI(TAG, "mbedtls client struct init success...\r\n");
+    BK_LOGD(TAG, "mbedtls client struct init success...\r\n");
 
     return BK_OK;
 }
@@ -120,7 +121,7 @@ int mbedtls_client_context(MbedTLSSession *session)
         BK_LOGE(TAG, "mbedtls_ssl_set_hostname err returned -0x%x\r\n", -ret);
         return ret;
     }
-	BK_LOGI(TAG, "[MBEDTLS]%s,%d \r\n",__FUNCTION__,__LINE__);
+	BK_LOGD(TAG, "[MBEDTLS]%s,%d \r\n",__FUNCTION__,__LINE__);
 
     if((ret = mbedtls_ssl_config_defaults(&session->conf,
                                           MBEDTLS_SSL_IS_CLIENT,
@@ -138,7 +139,7 @@ int mbedtls_client_context(MbedTLSSession *session)
 		BK_LOGE(TAG,  "[AM]failed\n  ! mbedtls_ssl_conf_max_frag_len returned %d\n\n", ret );
 		return ret;
 	}
-	BK_LOGI(TAG, "[AM]ssl max len set succend\r\n");
+	BK_LOGD(TAG, "[AM]ssl max len set succend\r\n");
 #endif
 
 #if CFG_USE_CA_CERTIFICATE_VERIFY
@@ -157,7 +158,7 @@ int mbedtls_client_context(MbedTLSSession *session)
         BK_LOGE(TAG, "mbedtls_ssl_setup returned -0x%x\r\n", -ret);
         return ret;
     }
-    BK_LOGI(TAG, "mbedtls client context init success...\r\n\n");
+    BK_LOGD(TAG, "mbedtls client context init success...\r\n\n");
 
     return BK_OK;
 }
@@ -173,7 +174,7 @@ int mbedtls_client_connect(MbedTLSSession *session)
         return ret;
     }
 
-    BK_LOGI(TAG, "Connected %s:%s success...\r\n", session->host, session->port);
+    BK_LOGD(TAG, "Connected %s:%s success...\r\n", session->host, session->port);
 
     mbedtls_ssl_set_bio(&session->ssl, &session->server_fd, mbedtls_net_send, mbedtls_net_recv, mbedtls_net_recv_timeout);
     while ((ret = mbedtls_ssl_handshake(&session->ssl)) != 0)
@@ -194,7 +195,7 @@ int mbedtls_client_connect(MbedTLSSession *session)
     }
     else 
     {
-        BK_LOGI(TAG, "Certificate verified success...\r\n");
+        BK_LOGD(TAG, "Certificate verified success...\r\n");
     }
 #endif
     return BK_OK;
@@ -256,7 +257,7 @@ int mbedtls_server_start(MbedTLSSessionServer *session, void *entropy, size_t en
     mbedtls_x509_crt_init(&session->cert );
     mbedtls_pk_init(&session->pkey );
 
-    BK_LOGI(TAG, "Loading the server cert and key\r\n");
+    BK_LOGD(TAG, "Loading the server cert and key\r\n");
     ret = mbedtls_x509_crt_parse( &session->cert, (const unsigned char *) mbedtls_test_srv_crt, mbedtls_test_srv_crt_len);
     if ( ret != 0 ) {
         BK_LOGE(TAG, "mbedtls_x509_crt_parse returned %d\n", ret );
@@ -269,7 +270,7 @@ int mbedtls_server_start(MbedTLSSessionServer *session, void *entropy, size_t en
         return ret;
     }
 
-	BK_LOGI(TAG, "Binding ...%s\n", session->port);
+	BK_LOGD(TAG, "Binding ...%s\n", session->port);
     if ((ret = mbedtls_net_bind(&session->listen_fd, NULL, (const char *)(session->port), MBEDTLS_NET_PROTO_TCP)) != 0) {
         BK_LOGE(TAG, "failed! mbedtls_net_bind returned %d\n\n", ret);
         return ret;

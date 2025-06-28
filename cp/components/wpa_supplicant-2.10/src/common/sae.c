@@ -1359,7 +1359,7 @@ static int sae_derive_commit(struct sae_data *sae)
 	int ret;
 
 #if BK_SUPPLICANT
-	WPA_LOGI("%s enter\n", __func__);
+	WPA_LOGD("%s enter\n", __func__);
 
 	sae_overclock_set(true);
 #endif
@@ -1384,7 +1384,7 @@ static int sae_derive_commit(struct sae_data *sae)
 #if BK_SUPPLICANT
 	sae_overclock_set(false);
 
-	WPA_LOGI("%s exit\n", __func__);
+	WPA_LOGD("%s exit\n", __func__);
 #endif
 	return ret ? -1 : 0;
 }
@@ -1396,7 +1396,7 @@ int sae_prepare_commit(const u8 *addr1, const u8 *addr2,
 {
 	int ret;
 #if BK_SUPPLICANT
-	WPA_LOGI("%s enter\n", __func__);
+	WPA_LOGD("%s enter\n", __func__);
 
 	sae_overclock_set(true);
 #endif
@@ -1419,7 +1419,7 @@ int sae_prepare_commit(const u8 *addr1, const u8 *addr2,
 #if BK_SUPPLICANT
 	sae_overclock_set(false);
 
-	WPA_LOGI("%s exit\n", __func__);
+	WPA_LOGD("%s exit\n", __func__);
 #endif
 
 	return ret;
@@ -1433,7 +1433,7 @@ int sae_prepare_commit_pt(struct sae_data *sae, const struct sae_pt *pt,
 	int ret;
 
 #if BK_SUPPLICANT
-	WPA_LOGI("%s enter\n", __func__);
+	WPA_LOGD("%s enter\n", __func__);
 #endif
 
 	if (!sae->tmp)
@@ -1501,7 +1501,7 @@ int sae_prepare_commit_pt(struct sae_data *sae, const struct sae_pt *pt,
 	ret = sae_derive_commit(sae);
 
 #if BK_SUPPLICANT
-	WPA_LOGI("%s exit\n", __func__);
+	WPA_LOGD("%s exit\n", __func__);
 #endif
 
 	return ret;
@@ -1747,7 +1747,7 @@ int sae_process_commit(struct sae_data *sae)
 	u8 k[SAE_MAX_PRIME_LEN];
 #endif
 #if BK_SUPPLICANT
-	WPA_LOGI("%s enter\n", __func__);
+	WPA_LOGD("%s enter\n", __func__);
 	sae_overclock_set(true);
 #endif
 	if (sae->tmp == NULL ||
@@ -1772,7 +1772,7 @@ int sae_process_commit(struct sae_data *sae)
 	os_free(k);
 #endif
 
-	WPA_LOGI("%s exit\n", __func__);
+	WPA_LOGD("%s exit\n", __func__);
 	return 0;
 }
 

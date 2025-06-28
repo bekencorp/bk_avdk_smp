@@ -13,7 +13,7 @@ const at_command_t *lookup_ble_at_command(char *str1)
     if(type != BK_BLE_CONTROLLER_STACK_TYPE_BLE_5_X &&
         type != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
     {
-        os_printf("%s stack type %d not support\n", __func__, type);
+        BK_LOGD(NULL,"%s stack type %d not support\n", __func__, type);
         return NULL;
     }
 
@@ -39,7 +39,7 @@ const at_command_t *lookup_bt_at_command(char *str1)
     uint8_t type = bk_bt_get_controller_stack_type();
     if(type != BK_BT_CONTROLLER_STACK_TYPE_BTDM_5_2)
     {
-        os_printf("%s stack type %d not support\n", __func__, type);
+        BK_LOGD(NULL,"%s stack type %d not support\n", __func__, type);
         return NULL;
     }
     for (int i = 0; i < bt_at_cmd_cnt(); i++)

@@ -287,7 +287,7 @@ static int cmd_wpas_parse_key_mgmt(const char *value)
 		errors++;
 	}
 
-	BK_LOGI(TAG, "key_mgmt: 0x%x\n", val);
+	BK_LOGD(TAG, "key_mgmt: 0x%x\n", val);
 	return errors ? -1 : val;
 }
 
@@ -400,12 +400,12 @@ static int cmd_wpas_parse_proto(const char *value)
 	/* softAP work on open mode. */
 #if 0
 	if (val == 0) {
-		BK_LOGI(TAG, "No proto values configured\n");
+		BK_LOGD(TAG, "No proto values configured\n");
 		errors++;
 	}
 #endif
 
-	BK_LOGI(TAG, "proto: 0x%x\n", val);
+	BK_LOGD(TAG, "proto: 0x%x\n", val);
 	return errors ? -1 : val;
 }
 
@@ -453,13 +453,13 @@ static int cmd_wpas_parse_auth_alg(const char *value)
 		errors++;
 	}
 
-	BK_LOGI(TAG, "auth_alg: 0x%x\n", val);
+	BK_LOGD(TAG, "auth_alg: 0x%x\n", val);
 	return errors ? -1 : val;
 }
 
 static void cmd_wlan_sta_print_ap(struct ApListStruct *ap)
 {
-	BK_LOGI(TAG, "" BK_MAC_FORMAT " ssid=%-32.32s\n",
+	BK_LOGD(TAG, "" BK_MAC_FORMAT " ssid=%-32.32s\n",
 			 BK_MAC_STR(ap->bssid), ap->ssid);
 }
 
@@ -468,7 +468,7 @@ static void cmd_wlan_sta_print_scan_results(ScanResult_adv *results)
 	int i;
 
 	for (i = 0; i < results->ApNum; ++i) {
-		BK_LOGI(TAG, "%02d:  ", i + 1);
+		BK_LOGD(TAG, "%02d:  ", i + 1);
 		cmd_wlan_sta_print_ap(&results->ApList[i]);
 	}
 }
@@ -694,33 +694,33 @@ static int cmd_wlan_sta_get(char *cmd)
 	}
 
 	if (config.field == WLAN_STA_FIELD_SSID)
-		BK_LOGI(TAG, "ssid: %.32s\n", config.u.ssid.ssid);
+		BK_LOGD(TAG, "ssid: %.32s\n", config.u.ssid.ssid);
 	else if (config.field == WLAN_STA_FIELD_PSK)
-		BK_LOGI(TAG, "psk: %s\n", config.u.psk);
+		BK_LOGD(TAG, "psk: %s\n", config.u.psk);
 	else if (config.field == WLAN_STA_FIELD_WEP_KEY0)
-		BK_LOGI(TAG, "wep_key0: %s\n", config.u.wep_key);
+		BK_LOGD(TAG, "wep_key0: %s\n", config.u.wep_key);
 	else if (config.field == WLAN_STA_FIELD_WEP_KEY1)
-		BK_LOGI(TAG, "wep_key1: %s\n", config.u.wep_key);
+		BK_LOGD(TAG, "wep_key1: %s\n", config.u.wep_key);
 	else if (config.field == WLAN_STA_FIELD_WEP_KEY2)
-		BK_LOGI(TAG, "wep_key2: %s\n", config.u.wep_key);
+		BK_LOGD(TAG, "wep_key2: %s\n", config.u.wep_key);
 	else if (config.field == WLAN_STA_FIELD_WEP_KEY3)
-		BK_LOGI(TAG, "wep_key3: %s\n", config.u.wep_key);
+		BK_LOGD(TAG, "wep_key3: %s\n", config.u.wep_key);
 	else if (config.field == WLAN_STA_FIELD_WEP_KEY_INDEX)
-		BK_LOGI(TAG, "wep_key_index: %d\n", config.u.wep_tx_keyidx);
+		BK_LOGD(TAG, "wep_key_index: %d\n", config.u.wep_tx_keyidx);
 	else if (config.field == WLAN_STA_FIELD_KEY_MGMT)
-		BK_LOGI(TAG, "key_mgmt: %#06x\n", config.u.key_mgmt);
+		BK_LOGD(TAG, "key_mgmt: %#06x\n", config.u.key_mgmt);
 	else if (config.field == WLAN_STA_FIELD_PAIRWISE_CIPHER)
-		BK_LOGI(TAG, "pairwise_cipher: %#06x\n", config.u.pairwise_cipher);
+		BK_LOGD(TAG, "pairwise_cipher: %#06x\n", config.u.pairwise_cipher);
 	else if (config.field == WLAN_STA_FIELD_GROUP_CIPHER)
-		BK_LOGI(TAG, "group_cipher: %#06x\n", config.u.group_cipher);
+		BK_LOGD(TAG, "group_cipher: %#06x\n", config.u.group_cipher);
 	else if (config.field == WLAN_STA_FIELD_PROTO)
-		BK_LOGI(TAG, "proto: %#06x\n", config.u.proto);
+		BK_LOGD(TAG, "proto: %#06x\n", config.u.proto);
 	else if (config.field == WLAN_STA_FIELD_AUTH_ALG)
-		BK_LOGI(TAG, "auth_alg: %#06x\n", config.u.auth_alg);
+		BK_LOGD(TAG, "auth_alg: %#06x\n", config.u.auth_alg);
 	else if (config.field == WLAN_STA_FIELD_WPA_PTK_REKEY)
-		BK_LOGI(TAG, "ptk_rekey: %d\n", config.u.wpa_ptk_rekey);
+		BK_LOGD(TAG, "ptk_rekey: %d\n", config.u.wpa_ptk_rekey);
 	else if (config.field == WLAN_STA_FIELD_SCAN_SSID)
-		BK_LOGI(TAG, "scan_ssid: %d\n", config.u.scan_ssid);
+		BK_LOGD(TAG, "scan_ssid: %d\n", config.u.scan_ssid);
 
 	return 0;
 }
@@ -787,7 +787,7 @@ int cmd_wlan_sta_exec(char *cmd)
 			else
 				for (int j = 0; j < results.ApNum; ++j) {
 					if(os_strcmp(results.ApList[j].ssid, b_ssid) == 0) {
-						WIFI_LOGD("find specified scan result ");
+						WIFI_LOGV("find specified scan result ");
 						cmd_wlan_sta_print_ap(&results.ApList[j]);
 						break;
 					}
@@ -847,7 +847,7 @@ int cmd_wlan_sta_exec(char *cmd)
 		wlan_sta_states_t state;
 		ret = wlan_sta_state(&state);
 		if (ret == 0)
-			BK_LOGI(TAG, "sta state: %d\n", state);
+			BK_LOGD(TAG, "sta state: %d\n", state);
 	} else if (os_strcmp(cmd, "ap") == 0) {
 		struct ApListStruct *ap = os_malloc(sizeof(*ap));
 		if (ap == NULL) {
@@ -873,10 +873,10 @@ int cmd_wlan_sta_exec(char *cmd)
 		os_strlcpy(param.passphrase, argv[1], sizeof(param.passphrase));
 		ret = wlan_sta_gen_psk(&param);
 		if (ret == 0) {
-			BK_LOGI(TAG, "psk: ");
+			BK_LOGD(TAG, "psk: ");
 			for (i = 0; i < sizeof(param.psk); ++i)
-				bk_printf("%02x", param.psk[i]);
-			BK_LOGI(TAG, "\n");
+				BK_LOGD(NULL,"%02x", param.psk[i]);
+			BK_LOGD(TAG, "\n");
 		}
 	} else if (os_strcmp(cmd, "wps pbc") == 0)
 		ret = wlan_sta_wps_pbc();
@@ -884,7 +884,7 @@ int cmd_wlan_sta_exec(char *cmd)
 		wlan_sta_wps_pin_t wps;
 		ret = wlan_sta_wps_pin_get(&wps);
 		if (ret == 0)
-			BK_LOGI(TAG, "WPS pin: %s\n", wps.pin);
+			BK_LOGD(TAG, "WPS pin: %s\n", wps.pin);
 	} else if (os_strncmp(cmd, "wps pin ", 8) == 0) {
 		if (os_strlen(cmd + 8) != 8) {
 			ret = -2;
@@ -941,7 +941,7 @@ int cmd_wlan_sta_exec(char *cmd)
 		pos++;
 		config.disable_reconnect_when_disconnect = atoi(pos);
 
-		BK_LOGI(TAG, "autoreconnect: max count %d, timeout %d, disable_reconnect %d\n",
+		BK_LOGD(TAG, "autoreconnect: max count %d, timeout %d, disable_reconnect %d\n",
 			config.max_count, config.timeout, config.disable_reconnect_when_disconnect);
 
 		ret = wlan_sta_set_autoreconnect(&config);
@@ -954,7 +954,7 @@ int cmd_wlan_sta_exec(char *cmd)
 
 out:
 	if (ret == 0) {
-		BK_LOGI(TAG, "[OK]\n");
+		BK_LOGD(TAG, "[OK]\n");
 		return ret;
 	} else if (ret == -2) {
 		BK_LOGE(TAG, "cmd '%s' invalid arg\n", cmd);
@@ -1014,7 +1014,7 @@ int cmd_wlan_p2p_exec(char *cmd)
 	}
 
 	if (ret == 0)
-		BK_LOGI(TAG, "[OK]\n");
+		BK_LOGD(TAG, "[OK]\n");
 	else if (ret == -2) {
 		BK_LOGE(TAG, "cmd '%s' invalid arg\n", cmd);
 		return -1;
@@ -1031,14 +1031,14 @@ static void cmd_wlan_ap_print_sta_info(wlan_ap_stas_t *stas)
 {
 	int i;
 
-	BK_LOGI(TAG, "sta_num: %d\n", stas->num);
+	BK_LOGD(TAG, "sta_num: %d\n", stas->num);
 
 	for (i = 0; i < stas->num; i++) {
-		BK_LOGI(TAG, "[%02d]Mac addr: %02x:%02x:%02x:%02x:%02x:%02x, ",
+		BK_LOGD(TAG, "[%02d]Mac addr: %02x:%02x:%02x:%02x:%02x:%02x, ",
 				 i + 1, stas->sta[i].addr[0], stas->sta[i].addr[1],
 				 stas->sta[i].addr[2], stas->sta[i].addr[3],
 				 stas->sta[i].addr[4], stas->sta[i].addr[5]);
-//		BK_LOGI(TAG, "ip: %s, rssi %d\n", inet_ntoa(stas->sta[i].ipaddr), stas->sta[i].rssi);
+//		BK_LOGD(TAG, "ip: %s, rssi %d\n", inet_ntoa(stas->sta[i].ipaddr), stas->sta[i].rssi);
 	}
 }
 
@@ -1089,7 +1089,7 @@ static int cmd_wlan_ap_set(char *cmd)
 			g_ap_param_ptr->cipher_suite = BK_SECURITY_TYPE_WPA2_AES;
 		else
 			g_ap_param_ptr->cipher_suite = 0;
-		//BK_LOGI(TAG, "key_mgmt: %d\n", g_ap_param_ptr->cipher_suite);
+		//BK_LOGD(TAG, "key_mgmt: %d\n", g_ap_param_ptr->cipher_suite);
 	} else if (os_strcmp(cmd, "wpa") == 0) {
 		int wpa_cipher = cmd_wpas_parse_cipher(value);
 		if (wpa_cipher > 0) {
@@ -1242,48 +1242,48 @@ static int cmd_wlan_ap_get(char *cmd)
 	}
 
 	if (config.field == WLAN_AP_FIELD_SSID)
-		BK_LOGI(TAG, "ssid: %.32s\n", config.u.ssid.ssid);
+		BK_LOGD(TAG, "ssid: %.32s\n", config.u.ssid.ssid);
 	else if (config.field == WLAN_AP_FIELD_PSK)
-		BK_LOGI(TAG, "psk: %s\n", config.u.psk);
+		BK_LOGD(TAG, "psk: %s\n", config.u.psk);
 	else if (config.field == WLAN_AP_FIELD_KEY_MGMT)
-		BK_LOGI(TAG, "key_mgmt: %#06x\n", config.u.key_mgmt);
+		BK_LOGD(TAG, "key_mgmt: %#06x\n", config.u.key_mgmt);
 	else if (config.field == WLAN_AP_FIELD_WPA_CIPHER)
-		BK_LOGI(TAG, "wpa_cipher: %#06x\n", config.u.wpa_cipher);
+		BK_LOGD(TAG, "wpa_cipher: %#06x\n", config.u.wpa_cipher);
 	else if (config.field == WLAN_AP_FIELD_RSN_CIPHER)
-		BK_LOGI(TAG, "rsn_cipher: %#06x\n", config.u.rsn_cipher);
+		BK_LOGD(TAG, "rsn_cipher: %#06x\n", config.u.rsn_cipher);
 	else if (config.field == WLAN_AP_FIELD_PROTO)
-		BK_LOGI(TAG, "proto: %#06x\n", config.u.proto);
+		BK_LOGD(TAG, "proto: %#06x\n", config.u.proto);
 	else if (config.field == WLAN_AP_FIELD_AUTH_ALG)
-		BK_LOGI(TAG, "auth_alg: %#06x\n", config.u.auth_alg);
+		BK_LOGD(TAG, "auth_alg: %#06x\n", config.u.auth_alg);
 	else if (config.field == WLAN_AP_FIELD_GROUP_REKEY)
-		BK_LOGI(TAG, "group_rekey: %d\n", config.u.group_rekey);
+		BK_LOGD(TAG, "group_rekey: %d\n", config.u.group_rekey);
 	else if (config.field == WLAN_AP_FIELD_STRICT_REKEY)
-		BK_LOGI(TAG, "strict_rekey: %d\n", config.u.strict_rekey);
+		BK_LOGD(TAG, "strict_rekey: %d\n", config.u.strict_rekey);
 	else if (config.field == WLAN_AP_FIELD_GMK_REKEY)
-		BK_LOGI(TAG, "gmk_rekey: %d\n", config.u.gmk_rekey);
+		BK_LOGD(TAG, "gmk_rekey: %d\n", config.u.gmk_rekey);
 	else if (config.field == WLAN_AP_FIELD_PTK_REKEY)
-		BK_LOGI(TAG, "ptk_rekey: %d\n", config.u.ptk_rekey);
+		BK_LOGD(TAG, "ptk_rekey: %d\n", config.u.ptk_rekey);
 	else if (config.field == WLAN_AP_FIELD_HW_MODE) {
 		if (config.u.hw_mode == WLAN_AP_HW_MODE_IEEE80211B)
-			BK_LOGI(TAG, "hw_mode: b\n");
+			BK_LOGD(TAG, "hw_mode: b\n");
 		else if (config.u.hw_mode == WLAN_AP_HW_MODE_IEEE80211G)
-			BK_LOGI(TAG, "hw_mode: g\n");
+			BK_LOGD(TAG, "hw_mode: g\n");
 		else if (config.u.hw_mode == WLAN_AP_HW_MODE_IEEE80211A)
-			BK_LOGI(TAG, "hw_mode: a\n");
+			BK_LOGD(TAG, "hw_mode: a\n");
 		else if (config.u.hw_mode == WLAN_AP_HW_MODE_IEEE80211AD)
-			BK_LOGI(TAG, "hw_mode: ad\n");
+			BK_LOGD(TAG, "hw_mode: ad\n");
 		else
-			BK_LOGI(TAG, "invalid hw_mode %d\n", config.u.hw_mode);
+			BK_LOGD(TAG, "invalid hw_mode %d\n", config.u.hw_mode);
 	} else if (config.field == WLAN_AP_FIELD_IEEE80211N)
-		BK_LOGI(TAG, "ieee80211n: %d\n", config.u.ieee80211n);
+		BK_LOGD(TAG, "ieee80211n: %d\n", config.u.ieee80211n);
 	else if (config.field == WLAN_AP_FIELD_CHANNEL)
-		BK_LOGI(TAG, "channel: %d\n", config.u.channel);
+		BK_LOGD(TAG, "channel: %d\n", config.u.channel);
 	else if (config.field == WLAN_AP_FIELD_BEACON_INT)
-		BK_LOGI(TAG, "beacon_int: %d\n", config.u.beacon_int);
+		BK_LOGD(TAG, "beacon_int: %d\n", config.u.beacon_int);
 	else if (config.field == WLAN_AP_FIELD_DTIM)
-		BK_LOGI(TAG, "dtim: %d\n", config.u.dtim);
+		BK_LOGD(TAG, "dtim: %d\n", config.u.dtim);
 	else if (config.field == WLAN_AP_FIELD_MAX_NUM_STA)
-		BK_LOGI(TAG, "max_num_sta: %d\n", config.u.max_num_sta);
+		BK_LOGD(TAG, "max_num_sta: %d\n", config.u.max_num_sta);
 
 	return 0;
 }
@@ -1337,10 +1337,10 @@ int cmd_wlan_ap_exec(char *cmd)
 			os_strcpy((char *)wNetConfiga.net_mask, WLAN_DEFAULT_MASK);
 			os_strcpy((char *)wNetConfiga.gateway_ip_addr, WLAN_DEFAULT_GW);
 			os_strcpy((char *)wNetConfiga.dns_server_ip_addr, WLAN_DEFAULT_GW);
-			WIFI_LOGD("ssid:%s  key:%s\r\n", wNetConfiga.wifi_ssid, wNetConfiga.wifi_key);
+			WIFI_LOGV("ssid:%s  key:%s\r\n", wNetConfiga.wifi_ssid, wNetConfiga.wifi_key);
 			//if(bk_wlan_is_monitor_mode())
 			//{
-				//os_printf("monitor (ie.airkiss) is not finish yet, stop it or waiting it finish!\r\n");
+				//BK_LOGD(NULL,"monitor (ie.airkiss) is not finish yet, stop it or waiting it finish!\r\n");
 				//return ret;
 			//}
 			ret = bk_wlan_start_ap(&wNetConfiga);
@@ -1411,7 +1411,7 @@ int cmd_wlan_ap_exec(char *cmd)
 		int num;
 		ret = wlan_ap_sta_num(&num);
 		if (ret == 0)
-			BK_LOGI(TAG, "sta num: %d\n", num);
+			BK_LOGD(TAG, "sta num: %d\n", num);
 	} else if (os_strncmp(cmd, "sta_info ", 8) == 0) {
 		wlan_ap_stas_t stas;
 		os_memset(&stas, 0, sizeof(stas));

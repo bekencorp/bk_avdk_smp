@@ -963,7 +963,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
     UBaseType_t x;
 #endif
 
-    BK_LOGI(TAG, "create %s, tcb=%x, stack=[%x-%x:%d], prio=%d\r\n",
+    BK_LOGD(TAG, "create %s, tcb=%x, stack=[%x-%x:%d], prio=%d\r\n",
                 pcName,
                 pxNewTCB,
                 pxNewTCB->pxStack,

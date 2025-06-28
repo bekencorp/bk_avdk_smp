@@ -131,14 +131,14 @@ bk_err_t https_ota_event_cb(bk_http_client_event_t *evt)
 #if HTTP_WR_TO_FLASH
 	http_wr_to_flash((char *)evt->data,evt->data_len);
 #endif
-	BK_LOGD(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
+	BK_LOGV(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
 	break;
     case HTTP_EVENT_ON_FINISH:
 #if HTTP_WR_TO_FLASH
 	http_flash_wr(bk_http_ptr->wr_buf, bk_http_ptr->wr_last_len);
 #endif
 	bk_https_client_flash_deinit(evt->client);
-	BK_LOGI(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
+	BK_LOGD(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
 	break;
     case HTTP_EVENT_DISCONNECTED:
 	BK_LOGE(TAG, "HTTPS_EVENT_DISCONNECTED\r\n");
@@ -156,7 +156,7 @@ int bk_https_ota_download(const char *url)
       if(!url)
       {
           err = BK_FAIL;
-          BK_LOGI(TAG, "url is NULL\r\n");
+          BK_LOGD(TAG, "url is NULL\r\n");
 
           return err;
       }
@@ -173,7 +173,7 @@ int bk_https_ota_download(const char *url)
 	exec_flag exec_temp_part = 6;
 	uint8 current_partition;
 	current_partition = bk_ota_get_current_partition();
-	BK_LOGI(TAG, "current_partition :0x%x",current_partition);
+	BK_LOGD(TAG, "current_partition :0x%x",current_partition);
 	if(current_partition == EXEX_A_PART ||current_partition == 0xFF)
 		update_part_flag = UPDATE_B_PART;
 	else if(current_partition == EXEC_B_PART)
@@ -184,13 +184,13 @@ int bk_https_ota_download(const char *url)
 
 	bk_http_client_handle_t client = bk_https_client_flash_init(config);
 	if (client == NULL) {
-		BK_LOGI(TAG, "client is NULL\r\n");
+		BK_LOGD(TAG, "client is NULL\r\n");
 		err = BK_FAIL;
 		return err;
 	}
 	err = bk_http_client_perform(client);
 	if(err == BK_OK){
-		BK_LOGI(TAG, "bk_http_client_perform ok\r\n");
+		BK_LOGD(TAG, "bk_http_client_perform ok\r\n");
 
 #ifdef CONFIG_HTTP_AB_PARTITION
         #ifndef CONFIG_OTA_UPDATE_DEFAULT_PARTITION
@@ -203,18 +203,18 @@ int bk_https_ota_download(const char *url)
             #endif
         #endif
 
-        BK_LOGI(TAG, "from cus temp_exec_flag:0x%x \r\n",temp_exec_flag);
+        BK_LOGD(TAG, "from cus temp_exec_flag:0x%x \r\n",temp_exec_flag);
 
         if(temp_exec_flag == CONFIRM_EXEC_A){
-	        BK_LOGI(TAG, "B>>>A \r\n");
+	        BK_LOGD(TAG, "B>>>A \r\n");
 	        exec_temp_part = EXEX_A_PART;
         }
         else if(temp_exec_flag == CONFIRM_EXEC_B){
-		BK_LOGI(TAG, "A>>B \r\n");
+		BK_LOGD(TAG, "A>>B \r\n");
 		exec_temp_part = EXEC_B_PART;
         }
 
-        BK_LOGI(TAG, "temp_exec_flag:0x%x \r\n",exec_temp_part);
+        BK_LOGD(TAG, "temp_exec_flag:0x%x \r\n",exec_temp_part);
         ota_write_flash(BK_PARTITION_OTA_FINA_EXECUTIVE, exec_temp_part, 4); //
 	 bk_reboot();
 #else
@@ -223,7 +223,7 @@ int bk_https_ota_download(const char *url)
 	}
 	else{
 		bk_https_client_flash_deinit(client);
-		BK_LOGI(TAG, "bk_http_client_perform fail, err:%x\r\n", err);
+		BK_LOGD(TAG, "bk_http_client_perform fail, err:%x\r\n", err);
 	}
 
 	return err;

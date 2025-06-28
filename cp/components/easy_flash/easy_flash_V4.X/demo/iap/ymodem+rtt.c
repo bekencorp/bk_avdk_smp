@@ -28,14 +28,14 @@
 
 
 /**
- * IAP ¸üÐÂ²½Öè£º
- * 1¡¢ÔÚRT-ThreadµÄFinshÖÕ¶ËÖÐÊäÈë"update"£»
- * 2¡¢ÔÚYmodem´«Êä¿ªÊ¼Ê±£¨Í¨¹ýymodem_on_begin»Øµ÷£©£¬½«»áÊ¹ÓÃef_erase_bak_app·½·¨²Á³ýµô±¸·ÝÇø´æ´¢µÄÓ¦ÓÃ£»
- * 3¡¢Ê¹ÓÃef_write_data_to_bak·½·¨½«½ÓÊÕµ½Êý¾Ý±£´æµ½FlashÖÐ¡£Õâ¸ö¹ý³Ì½«»áÔÚYmodem½ÓÊÕÊý¾ÝµÄ»Øµ÷ymodem_on_dataÖÐ£»
- * 4¡¢µ±½ÓÊÕÍê³Éºó£¬ÐÞ¸Ä»·¾³±äÁ¿"iap_need_copy_app"ÖµÎª1¡¢»·¾³±äÁ¿"change iap_copy_app_size"ÖµÎªÒÑÏÂÔØAPP´óÐ¡£¬±£´æ»·¾³±äÁ¿£¬
- *    ÕâÑùÊÇÎªÁË±£Ö¤ÔÚ¸üÐÂÊ±ÒâÍâµôµçºó£¬ÏÂ´ÎÉÏµçÒÀÈ»»á×Ô¶¯»Ö¸´¸üÐÂ£»
- * 5¡¢²Á³ý²¢¿½±´Ó¦ÓÃÖÁÓ¦ÓÃ³ÌÐòÈë¿Ú£»
- * 6¡¢ÐÞ¸Ä²¢±£´æ»·¾³±äÁ¿"iap_need_copy_app"¼°"iap_copy_app_size"µÄÖµÎª0¡£
+ * IAP ï¿½ï¿½ï¿½Â²ï¿½ï¿½è£º
+ * 1ï¿½ï¿½ï¿½ï¿½RT-Threadï¿½ï¿½Finshï¿½Õ¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"update"ï¿½ï¿½
+ * 2ï¿½ï¿½ï¿½ï¿½Ymodemï¿½ï¿½ï¿½ä¿ªÊ¼Ê±ï¿½ï¿½Í¨ï¿½ï¿½ymodem_on_beginï¿½Øµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½ef_erase_bak_appï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½æ´¢ï¿½ï¿½Ó¦ï¿½Ã£ï¿½
+ * 3ï¿½ï¿½Ê¹ï¿½ï¿½ef_write_data_to_bakï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Õµï¿½ï¿½ï¿½ï¿½Ý±ï¿½ï¿½æµ½Flashï¿½Ð¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì½ï¿½ï¿½ï¿½ï¿½ï¿½Ymodemï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÝµÄ»Øµï¿½ymodem_on_dataï¿½Ð£ï¿½
+ * 4ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Éºï¿½ï¿½Þ¸Ä»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"iap_need_copy_app"ÖµÎª1ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"change iap_copy_app_size"ÖµÎªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½APPï¿½ï¿½Ð¡ï¿½ï¿½ï¿½ï¿½ï¿½æ»·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ *    ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½Ë±ï¿½Ö¤ï¿½Ú¸ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â´ï¿½ï¿½Ïµï¿½ï¿½ï¿½È»ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½Â£ï¿½
+ * 5ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½Ú£ï¿½
+ * 6ï¿½ï¿½ï¿½Þ¸Ä²ï¿½ï¿½ï¿½ï¿½æ»·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½"iap_need_copy_app"ï¿½ï¿½"iap_copy_app_size"ï¿½ï¿½ÖµÎª0ï¿½ï¿½
  *
  * IAP update step:
  * 1. Input "update" command in RT-Thread finsh terminal.
@@ -94,7 +94,7 @@ void update(uint8_t argc, char **argv)
 	char *recv_buff, c_file_size[11] = {0};
 	struct rym_ctx rctx;
 
-	os_printf("Please select a update file and use Ymodem to send.\r\n");
+	BK_LOGD(NULL,"Please select a update file and use Ymodem to send.\r\n");
 
 	if (!rym_recv_on_device(&rctx, serial_get_device(),
 							RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_INT_RX, ymodem_on_begin, ymodem_on_data, NULL,
@@ -109,9 +109,9 @@ void update(uint8_t argc, char **argv)
 		/* copy downloaded application to application entry */
 		if (ef_erase_user_app(iap_get_app_addr(), update_file_total_size)
 			|| ef_copy_app_from_bak(iap_get_app_addr(), update_file_total_size))
-			os_printf("Update user app fail.\n");
+			BK_LOGD(NULL,"Update user app fail.\n");
 		else
-			os_printf("Update user app success.\n");
+			BK_LOGD(NULL,"Update user app success.\n");
 		/* clean need copy application from backup section flag */
 		ef_set_env("iap_need_copy_app", "0");
 		ef_set_env("iap_copy_app_size", "0");
@@ -119,7 +119,7 @@ void update(uint8_t argc, char **argv)
 	} else {
 		/* wait some time for terminal response finish */
 		rtos_delay_milliseconds(bk_get_ticks_per_second());
-		os_printf("Update user app fail.\n");
+		BK_LOGD(NULL,"Update user app fail.\n");
 	}
 }
 MSH_CMD_EXPORT(update, Update user application);

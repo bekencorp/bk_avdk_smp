@@ -15,7 +15,7 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 //    {
 //        BK_ASSERT(0);
 //    }
-    WDRV_LOGD("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
+    WDRV_LOGV("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
 	msg.type = WDRV_TASK_MSG_TXDATA;
 	msg.arg = (uint32_t)cpdu;
 	msg.len = vif_idx;
@@ -58,7 +58,7 @@ bk_err_t wdrv_txbuf_push(uint8_t channel,void* head,void* tail,uint8_t num)
    // __asm_flush_dcache_range(head-64,head+2048);
 
     //bk_mem_dump("push",PTR_TO_U32(head),20);
-    WDRV_LOGD("%s, channel=%d,head=0x%x,tail=0x%x,num:%d\n",__func__, channel,head,tail,num);
+    WDRV_LOGV("%s, channel=%d,head=0x%x,tail=0x%x,num:%d\n",__func__, channel,head,tail,num);
 
     switch(channel)
     {
@@ -80,7 +80,7 @@ bk_err_t wdrv_txbuf_push(uint8_t channel,void* head,void* tail,uint8_t num)
             ipc_node.tail = PTR_TO_U32(tail);
             ipc_node.num = num;
             
-            WDRV_LOGD("%s,%d,ipc_node head=0x%x,ipc_node channel=0x%x \n",__func__,__LINE__,ipc_node.head,*(&ipc_node.tail + 1));
+            WDRV_LOGV("%s,%d,ipc_node head=0x%x,ipc_node channel=0x%x \n",__func__,__LINE__,ipc_node.head,*(&ipc_node.tail + 1));
             
             //bk_mem_dump("A_TX",PTR_TO_U32((struct pbuf*)head -1),100);
             ret = wdrv_ipc_env[IPC_DATA].send(WIFI_IPC_DATA_CHNL,(mb_chnl_cmd_t*)&ipc_node);
@@ -124,7 +124,7 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
 
     if(!need_retry)
     {
-        //os_printf("%s,%d,p:0x%x\n",__func__,__LINE__,(struct pbuf*)head-1);
+        //BK_LOGD(NULL, "%s,%d,p:0x%x\n",__func__,__LINE__,(struct pbuf*)head-1);
         //add to tx pending list tail
 
         if(channel == TX_MSDU_DATA)
@@ -143,7 +143,7 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
 //    ret = rtos_get_semaphore(&wdrv_ipc_env[ipc_chnl].sema, 0);
 //    if(ret == BK_OK) {
 //        
-//        //os_printf("%s,%d,get_sema\n",__func__,__LINE__);
+//        //BK_LOGD(NULL, "%s,%d,get_sema\n",__func__,__LINE__);
 //    }
 //    if (ret != BK_OK){
 //        return;
@@ -173,7 +173,7 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
 //        BK_ASSERT(0);
 //    }
 
-    WDRV_LOGD("%s,%d,p:0x%x,p:0x%x,num:%d\n",__func__,__LINE__,(struct pbuf*)first-1,(struct pbuf*)last-1,num);
+    WDRV_LOGV("%s,%d,p:0x%x,p:0x%x,num:%d\n",__func__,__LINE__,(struct pbuf*)first-1,(struct pbuf*)last-1,num);
 
     ret = wdrv_txbuf_push(channel,first,last,num);
     
@@ -191,7 +191,7 @@ ERR_EXIT:
     
     wdrv_ipc_env[ipc_chnl].sending_flag = 0;
     if(ret != BK_OK) {
-        os_printf("%s,%d,set_sema fail\n",__func__,__LINE__);
+        BK_LOGD(NULL, "%s,%d,set_sema fail\n",__func__,__LINE__);
     }
 }
 
@@ -201,7 +201,7 @@ void wdrv_tx_complete(void *param, mb_chnl_ack_t *ack_buf)
     //ret = 
     //rtos_set_semaphore(&wdrv_ipc_env[IPC_DATA].sema);
     wdrv_ipc_env[IPC_DATA].sending_flag = 0;
-    //os_printf("%s,%d,set_sema:%d\n",__func__,__LINE__,ret);
+    //BK_LOGD(NULL, "%s,%d,set_sema:%d\n",__func__,__LINE__,ret);
     if(wdrv_ipc_env[IPC_DATA].tx_list.first != NULL)
     {
         wdrv_msg_sender(0,WDRV_TASK_MSG_TXDATA,1);
@@ -214,7 +214,7 @@ void wdrv_tx_msg_complete(void *param, mb_chnl_ack_t *ack_buf)
     //rtos_set_semaphore(&wdrv_ipc_env[IPC_DATA].sema);
     
     wdrv_ipc_env[IPC_CMD].sending_flag = 0;
-    //os_printf("%s,%d,set_sema:%d\n",__func__,__LINE__,ret);
+    //BK_LOGD(NULL, "%s,%d,set_sema:%d\n",__func__,__LINE__,ret);
     
     if(wdrv_ipc_env[IPC_CMD].tx_list.first != NULL)
     {
@@ -229,7 +229,7 @@ int wdrv_tx_msg_send(uint8_t *msg, uint16_t msg_len,uint8_t waitcfm)
 
     if(cpdu == NULL) return BK_FAIL;
 
-    WDRV_LOGI("%s msg:%x len:%d cfm:%d\r\n",__func__, msg, msg_len, waitcfm);
+    WDRV_LOGD("%s msg:%x len:%d cfm:%d\r\n",__func__, msg, msg_len, waitcfm);
     memcpy(cpdu+1, msg,msg_len);
     
     cpdu->co_hdr.type = TX_BK_CMD_DATA;
@@ -267,7 +267,7 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
     }
     hdr = (wdrv_cmd_hdr *)msg;
 
-    WDRV_LOGI("%s: msg_id:0x%x len:%d sn:%d waitcfm:%d cfm_id:%x cfm_sn:%d \n", __func__, 
+    WDRV_LOGD("%s: msg_id:0x%x len:%d sn:%d waitcfm:%d cfm_id:%x cfm_sn:%d \n", __func__, 
             hdr->cmd_id, msg_len, hdr->cmd_sn, cfm->waitcfm, cfm->cfm_id, cfm->cfm_sn);
 
     if (cfm->waitcfm == WDRV_CMD_WAITCFM) {
@@ -308,7 +308,7 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
         }
         else
         {
-            os_printf("%s,%d,sema_init fail,send msg fail\n",__func__,__LINE__);
+            BK_LOGD(NULL, "%s,%d,sema_init fail,send msg fail\n",__func__,__LINE__);
         }
     } else if (cfm->waitcfm == WDRV_CMD_NOWAITCFM) {
         // cmd send direct.

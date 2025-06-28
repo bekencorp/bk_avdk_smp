@@ -30,7 +30,7 @@ static tp_mirror_type_t tp_mirror_type = TP_MIRROR_NONE;
  */
 int drv_tp_open(int hor_size, int ver_size, tp_mirror_type_t tp_mirror)
 {
-	LOGI("%s, start.\r\n", __func__);
+	LOGD("%s, start.\r\n", __func__);
 
 	int ret = kNoErr;
 
@@ -71,7 +71,7 @@ int drv_tp_open(int hor_size, int ver_size, tp_mirror_type_t tp_mirror)
  */
 int drv_tp_close(void)
 {
-	LOGI("%s, start.\r\n", __func__);
+	LOGD("%s, start.\r\n", __func__);
 
 	int ret = kNoErr;
 

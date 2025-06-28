@@ -235,7 +235,7 @@ uint8_t *codec_image(codec_img_t *src)
     ret = image_convert(codec_img);
     if (ret != BK_OK)
     {
-        os_printf("format not support \r\n");
+        BK_LOGD(NULL, "format not support \r\n");
         return 0 ;
     }
     return codec_img->dst_buf;

@@ -47,10 +47,10 @@
   */
 #define ETH_TAG   "eth"
 
-#define ETH_LOGI(...) BK_LOGI(ETH_TAG, ##__VA_ARGS__)
+#define ETH_LOGD(...) BK_LOGD(ETH_TAG, ##__VA_ARGS__)
 #define ETH_LOGW(...) BK_LOGW(ETH_TAG, ##__VA_ARGS__)
 #define ETH_LOGE(...) BK_LOGE(ETH_TAG, ##__VA_ARGS__)
-#define ETH_LOGD(...) BK_LOGD(ETH_TAG, ##__VA_ARGS__)
+#define ETH_LOGV(...) BK_LOGV(ETH_TAG, ##__VA_ARGS__)
 
 /** @defgroup LAN8742 LAN8742
   * @{
@@ -113,7 +113,7 @@ int32_t  LAN8742_RegisterBusIO(lan8742_Object_t *pObj, lan8742_IOCtx_t *ioctx)
    uint32_t tickstart = 0, regvalue = 0, addr = 0;
    int32_t status = LAN8742_STATUS_OK;
 
-   ETH_LOGI("%s enter\n", __func__);
+   ETH_LOGD("%s enter\n", __func__);
 
    if(pObj->Is_Initialized == 0)
    {
@@ -141,7 +141,7 @@ int32_t  LAN8742_RegisterBusIO(lan8742_Object_t *pObj, lan8742_IOCtx_t *ioctx)
        {
          pObj->DevAddr = addr;
          status = LAN8742_STATUS_OK;
-         ETH_LOGI("phy addr: %d\n", addr);
+         ETH_LOGD("phy addr: %d\n", addr);
          break;
        }
      }
@@ -155,7 +155,7 @@ int32_t  LAN8742_RegisterBusIO(lan8742_Object_t *pObj, lan8742_IOCtx_t *ioctx)
      /* if device address is matched */
      if(status == LAN8742_STATUS_OK)
      {
-       ETH_LOGI("phy reset\n");
+       ETH_LOGD("phy reset\n");
 
        /* set a software reset  */
        if(pObj->IO.WriteReg(pObj->DevAddr, LAN8742_BCR, LAN8742_BCR_SOFT_RESET) >= 0)
@@ -212,7 +212,7 @@ int32_t  LAN8742_RegisterBusIO(lan8742_Object_t *pObj, lan8742_IOCtx_t *ioctx)
      pObj->Is_Initialized = 1;
    }
 
-   ETH_LOGI("%s exit, status %d\n", __func__, status);
+   ETH_LOGD("%s exit, status %d\n", __func__, status);
 
    return status;
  }

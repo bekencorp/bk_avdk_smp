@@ -89,7 +89,7 @@ bk_err_t cif_bk_send_event(uint16_t event_id, uint8_t *event_data, uint16_t even
 
     // if (!cif_env.host_wifi_init)
     // {
-    //     CIF_LOGD("AP does not init, cif_bk_send_event skip\n");
+    //     CIF_LOGV("AP does not init, cif_bk_send_event skip\n");
     //     return BK_FAIL;
     // }
 
@@ -193,7 +193,7 @@ bk_err_t cif_handle_bk_cmd_get_mac_addr_req(struct bk_msg_hdr *msg)
 bk_err_t cif_handle_bk_cmd_set_time_req(struct bk_msg_hdr *msg)
 {
     uint32_t *set_time = (uint32_t*)(msg + 1);
-    CIF_LOGD("%s, set time: %d\n",__func__, (*set_time));
+    CIF_LOGV("%s, set time: %d\n",__func__, (*set_time));
     datetime_set((time_t) (*set_time));
     cif_bk_cmd_confirm(msg, NULL, 0);
     return BK_OK;
@@ -215,7 +215,7 @@ bk_err_t cif_handle_bk_cmd_get_wlan_status_req(struct bk_msg_hdr *msg)
     char ssid[33] = {0};
     int ctrl_rssi = 0;
 
-    CIF_LOGD("%s\n",__func__);
+    CIF_LOGV("%s\n",__func__);
 
     if ((wifi_netif_sta_is_connected() || wifi_netif_sta_is_got_ip())) {
             os_memset(&link_status, 0x0, sizeof(link_status));
@@ -235,7 +235,7 @@ bk_err_t cif_handle_bk_cmd_get_wlan_status_req(struct bk_msg_hdr *msg)
     os_strcpy(cfm.gateway, config.gateway);
     os_strcpy(cfm.mask, config.mask);
     os_strcpy(cfm.dns, config.dns);
-    //os_printf("link state:%d\n", link_status.state);
+    //BK_LOGD(NULL,"link state:%d\n", link_status.state);
     cif_bk_cmd_confirm(msg, (uint8_t *)&cfm, sizeof(cfm));
     return BK_OK;
 }
@@ -398,7 +398,7 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_ind(wifi_scan_result_t *scan_result)
         (scan_ind+i)->channel = scan_result->aps[i].channel;
         (scan_ind+i)->akm = scan_result->aps[i].security;
         (scan_ind+i)->rssi = scan_result->aps[i].rssi;
-        // os_printf("Jack Debug info: %s, %d, %d\n", __func__, __LINE__, (scan_ind+i)->rssi);
+        // BK_LOGD(NULL,"Jack Debug info: %s, %d, %d\n", __func__, __LINE__, (scan_ind+i)->rssi);
         // stack_mem_dump((uint32_t)(scan_ind+i),(uint32_t)(scan_ind+i+1));
     }
 
@@ -413,7 +413,7 @@ bk_err_t cif_handle_bk_cmd_get_ap_config_req(struct bk_msg_hdr *msg)
 {
     wifi_ap_config_t ap_config = {0};
 
-    CIF_LOGD("%s\n",__func__);
+    CIF_LOGV("%s\n",__func__);
     os_memset(&ap_config, 0x0, sizeof(wifi_ap_config_t));
 
     os_memcpy(ap_config.ssid, g_ap_param_ptr->ssid.array, g_ap_param_ptr->ssid.length);
@@ -433,7 +433,7 @@ bk_err_t cif_handle_bk_cmd_get_ip_config_req(struct bk_msg_hdr *msg)
     struct bk_msg_get_ip_config_req *req = (struct bk_msg_get_ip_config_req*) (msg + 1);
     netif_if_t ifx = req->flag;
     netif_ip4_config_t ip4_config;
-    CIF_LOGI("%s start\n",__func__);
+    CIF_LOGD("%s start\n",__func__);
 
     os_memset(&addr, 0, sizeof(struct wlan_ip_config));
     if (ifx == NETIF_IF_STA) {
@@ -457,8 +457,8 @@ bk_err_t cif_handle_bk_cmd_get_ip_config_req(struct bk_msg_hdr *msg)
     os_strcpy(ip4_config.gateway, inet_ntoa(addr.ipv4.gw));
     os_strcpy(ip4_config.dns, inet_ntoa(addr.ipv4.dns1));
 
-    CIF_LOGI("%s end\n",__func__);
-    CIF_LOGI("[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
+    CIF_LOGD("%s end\n",__func__);
+    CIF_LOGD("[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
             ip4_config.ip, ip4_config.gateway, ip4_config.mask, ip4_config.dns);
 
     cif_bk_cmd_confirm(msg, (uint8_t *)(&ip4_config), sizeof(netif_ip4_config_t));
@@ -626,7 +626,7 @@ bk_err_t cif_handle_bk_cmd_set_media_mode_req(struct bk_msg_hdr *msg)
     bool media_mode = false;
 
     media_mode = *(bool *)(msg + 1);
-    CIF_LOGD("%s media_mode:%d\n",__func__, media_mode);
+    CIF_LOGV("%s media_mode:%d\n",__func__, media_mode);
     bk_wifi_set_wifi_media_mode(media_mode);
 
     cif_bk_cmd_confirm(msg, NULL, 0);
@@ -639,7 +639,7 @@ bk_err_t cif_handle_bk_cmd_set_media_quality_req(struct bk_msg_hdr *msg)
     uint8_t media_quality = 0xFF;
 
     media_quality = *(bool *)(msg + 1);
-    CIF_LOGD("%s media_quality:%d\n",__func__, media_quality);
+    CIF_LOGV("%s media_quality:%d\n",__func__, media_quality);
 
     if (media_quality != 0xFF)
         bk_wifi_set_video_quality(media_quality);
@@ -678,7 +678,7 @@ bk_err_t cif_handle_bk_cmd_set_coex_csa_req(struct bk_msg_hdr *msg)
     int32_t ret = 0;
     bool close_coex_csa = *(bool *)(msg + 1);
 
-    CIF_LOGD("%s close coex csa:%d\n",__func__, close_coex_csa);
+    CIF_LOGV("%s close coex csa:%d\n",__func__, close_coex_csa);
 
     ret = bk_wifi_set_csa_coexist_mode_flag(close_coex_csa);
 
@@ -850,7 +850,7 @@ bk_err_t cif_handle_bk_cmd(void *head)
     struct bk_msg_hdr *msg = NULL;
     cpdu_t* hdr = (cpdu_t*)head;
     void* cmd = (void *)((struct cpdu_t*)head + 1);
-    CIF_LOGD("%s,TX_BK_CMD_DATA \n",__func__);
+    CIF_LOGV("%s,TX_BK_CMD_DATA \n",__func__);
 
 //    int_level = rtos_disable_int();
 //    cif_stats_ptr->buf_in_ctrlif_cmd--;
@@ -873,7 +873,7 @@ bk_err_t cif_handle_bk_cmd(void *head)
 
     msg = (struct bk_msg_hdr *)cmd;
 
-    CIF_LOGD("cif_handle_bk_cmd cmd_id:%x\n", msg->cmd_id);
+    CIF_LOGV("cif_handle_bk_cmd cmd_id:%x\n", msg->cmd_id);
     cif_env.no_host = false;
 
     if ((msg->cmd_id >= BK_CMD_WIFI_API_START) && (msg->cmd_id < BK_CMD_WIFI_API_END))

@@ -27,6 +27,7 @@ typedef struct {
 #define ICU_LOGW(...) BK_LOGW(ICU_TAG, ##__VA_ARGS__)
 #define ICU_LOGE(...) BK_LOGE(ICU_TAG, ##__VA_ARGS__)
 #define ICU_LOGD(...) BK_LOGD(ICU_TAG, ##__VA_ARGS__)
+#define ICU_LOGV(...) BK_LOGV(ICU_TAG, ##__VA_ARGS__)
 
 extern icu_driver_t s_icu;
 

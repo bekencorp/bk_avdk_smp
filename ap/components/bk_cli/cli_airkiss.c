@@ -13,7 +13,7 @@ void cli_wifi_airkiss_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	char *in_str, *end_ptr;
 
 	if (argc != 2) {
-		os_printf("need 2 parameters: airkiss 1(start), 0(stop)\r\n");
+		BK_LOGD(NULL, "need 2 parameters: airkiss 1(start), 0(stop)\r\n");
 		return;
 	}
 
@@ -29,7 +29,7 @@ void cli_wifi_airkiss_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		is_fail = 1;
 
 	if (is_fail)
-		os_printf("check the cli parameter, thx\r\n");
+		BK_LOGD(NULL, "check the cli parameter, thx\r\n");
 	else
 		airkiss_process(start);
 }
@@ -41,7 +41,7 @@ void cli_airkiss_v2_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	char *in_str, *end_ptr;
 
 	if (argc != 2) {
-		os_printf("need 2 parameters: airkiss_v2 1(start), 0(stop)\r\n");
+		BK_LOGD(NULL, "need 2 parameters: airkiss_v2 1(start), 0(stop)\r\n");
 		return;
 	}
 
@@ -57,7 +57,7 @@ void cli_airkiss_v2_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		is_fail = 1;
 
 	if (is_fail)
-		os_printf("check the cli parameter, thx\r\n");
+		BK_LOGD(NULL, "check the cli parameter, thx\r\n");
 	else
 		bk_airkiss_process(start);
 }

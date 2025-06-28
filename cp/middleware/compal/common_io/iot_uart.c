@@ -37,16 +37,16 @@ static volatile uint8_t uart_bit_mask/*, uart_is_installed_bit_mask*/;
 static void bk_uart_write_cb(void *param, unsigned int ulparam)
 {
 	bk_err_t ret = BK_OK;
-	UART_LOGI("%s\n", __FUNCTION__);
+	UART_LOGD("%s\n", __FUNCTION__);
     IotUARTDescriptor_t *uart_desc = (IotUARTDescriptor_t *) param;
     uint8_t *write_buffer = uart_desc->write_buf;
     uint8_t op_status = eUartWriteCompleted;
     int actual_bytes_to_write = 0;
     if (uart_desc->uart_wr_op_cancel_req) {
-        UART_LOGI("cancel operation recieved");
+        UART_LOGD("cancel operation recieved");
         op_status = eUartLastWriteFailed;
         if (uart_desc->func) {
-            UART_LOGI("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
+            UART_LOGD("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
             uart_desc->func(op_status, uart_desc->arg);
         }
         uart_desc->bytes_to_write = 0;
@@ -56,10 +56,10 @@ static void bk_uart_write_cb(void *param, unsigned int ulparam)
         return;
     }
 
-	UART_LOGI("%s bytes_to_write %d\n", __FUNCTION__, uart_desc->bytes_to_write);
+	UART_LOGD("%s bytes_to_write %d\n", __FUNCTION__, uart_desc->bytes_to_write);
     if (uart_desc->bytes_to_write == 0) {
         if (uart_desc->func) {
-            UART_LOGI("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
+            UART_LOGD("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
             uart_desc->func(op_status, uart_desc->arg);
         }
         uart_desc->bytes_to_write = 0;
@@ -75,14 +75,14 @@ static void bk_uart_write_cb(void *param, unsigned int ulparam)
 	    uart_desc->bytes_to_write -= actual_bytes_to_write;
 	    uart_desc->async_bytes_written += actual_bytes_to_write;
 	} else {
-		UART_LOGI("%s bk_uart_write_bytes faild: %d\n", __FUNCTION__, ret);
+		UART_LOGD("%s bk_uart_write_bytes faild: %d\n", __FUNCTION__, ret);
 	}
 
 
-	UART_LOGI("%s bytes_to_write %d\n", __FUNCTION__, uart_desc->bytes_to_write);
+	UART_LOGD("%s bytes_to_write %d\n", __FUNCTION__, uart_desc->bytes_to_write);
     if (uart_desc->bytes_to_write == 0) {
         if (uart_desc->func) {
-            UART_LOGI("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
+            UART_LOGD("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
             uart_desc->func(op_status, uart_desc->arg);
         }
         uart_desc->bytes_to_write = 0;
@@ -94,7 +94,7 @@ static void bk_uart_write_cb(void *param, unsigned int ulparam)
 
 static void bk_uart_read_cb(void *param, unsigned int ulparam)
 {
-    UART_LOGI("%s\n", __FUNCTION__);
+    UART_LOGD("%s\n", __FUNCTION__);
     IotUARTDescriptor_t *uart_desc = (IotUARTDescriptor_t *) param;
     uint8_t op_status = eUartReadCompleted;
     uint8_t *read_buffer = uart_desc->read_buf;
@@ -102,10 +102,10 @@ static void bk_uart_read_cb(void *param, unsigned int ulparam)
     int actual_bytes_to_read = UART_FIFO_LEN * 2;
 
     if (uart_desc->uart_rd_op_cancel_req) {
-        UART_LOGI("cancel operation recieved");
+        UART_LOGD("cancel operation recieved");
         op_status = eUartLastReadFailed;
         if (uart_desc->func) {
-            UART_LOGI("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
+            UART_LOGD("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
             uart_desc->func(op_status, uart_desc->arg);
         }
         uart_desc->bytes_to_read = 0;
@@ -125,14 +125,14 @@ static void bk_uart_read_cb(void *param, unsigned int ulparam)
 	    uart_desc->bytes_to_read -= read_bytes;
 	    uart_desc->async_bytes_read += read_bytes;
 	} else {
-		UART_LOGI("%s bk_uart_read_bytes err %d\n", __FUNCTION__, read_bytes);
+		UART_LOGD("%s bk_uart_read_bytes err %d\n", __FUNCTION__, read_bytes);
 	}
 
-	UART_LOGI("%s bytes_to_read %d\n", __FUNCTION__, uart_desc->bytes_to_read);
+	UART_LOGD("%s bytes_to_read %d\n", __FUNCTION__, uart_desc->bytes_to_read);
     if (uart_desc->bytes_to_read <= 0) {
         op_status = eUartReadCompleted;
         if (uart_desc->func) {
-            UART_LOGI("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
+            UART_LOGD("%s invoking callback %p\n", __FUNCTION__, uart_desc->func);
             uart_desc->func(op_status, uart_desc->arg);
         }
         uart_desc->bytes_to_read = 0;
@@ -195,7 +195,7 @@ IotUARTHandle_t iot_uart_open(int32_t lUartInstance)
 {
     bk_err_t ret = BK_OK;
     IotUARTDescriptor_t *uart_desc = NULL;
-	UART_LOGI("%s lUartInstance %d\n", __FUNCTION__, lUartInstance);
+	UART_LOGD("%s lUartInstance %d\n", __FUNCTION__, lUartInstance);
 	
     if (lUartInstance < 0 || lUartInstance >= UART_ID_MAX) {
         UART_LOGE("Invalid param: lUartInstance(%d).\n", lUartInstance);
@@ -203,19 +203,19 @@ IotUARTHandle_t iot_uart_open(int32_t lUartInstance)
     }
 
     if ((0x01 & uart_bit_mask >> lUartInstance)) {
-        UART_LOGI("Uart already open for the instance(%d)\n", lUartInstance);
+        UART_LOGD("Uart already open for the instance(%d)\n", lUartInstance);
         return NULL;
     }
 
     if (bk_uart_is_in_used(lUartInstance)) {
-        UART_LOGI("uart already in used for the instance(%d)\n", lUartInstance);
+        UART_LOGD("uart already in used for the instance(%d)\n", lUartInstance);
         return NULL;
     }
 
     do {
         uart_desc = (IotUARTDescriptor_t *) os_malloc(sizeof(IotUARTDescriptor_t));
         if (uart_desc == NULL) {
-            UART_LOGI("Could not allocate memory for uart context\n");
+            UART_LOGD("Could not allocate memory for uart context\n");
             ret = BK_ERR_NO_MEM;
             break;
         }
@@ -242,14 +242,14 @@ IotUARTHandle_t iot_uart_open(int32_t lUartInstance)
 
         uart_desc->uart_rd_cb_wait = xSemaphoreCreateBinary();
         if (uart_desc->uart_rd_cb_wait == NULL) {
-            UART_LOGI("Failed to create read binary semaphore\n");
+            UART_LOGD("Failed to create read binary semaphore\n");
             ret = BK_FAIL;
             break;
         }
 
         uart_desc->uart_wr_cb_wait = xSemaphoreCreateBinary();
         if (uart_desc->uart_wr_cb_wait == NULL) {
-            UART_LOGI("Failed to create write binary semaphore\n");
+            UART_LOGD("Failed to create write binary semaphore\n");
             vSemaphoreDelete(uart_desc->uart_rd_cb_wait);
             ret = BK_FAIL;
             break;
@@ -302,7 +302,7 @@ IotUARTHandle_t iot_uart_open(int32_t lUartInstance)
         return NULL;
     }
 
-	UART_LOGI("%s OK. %d\n", __FUNCTION__, lUartInstance);
+	UART_LOGD("%s OK. %d\n", __FUNCTION__, lUartInstance);
     uart_bit_mask = uart_bit_mask | BIT(lUartInstance);
     return (IotUARTHandle_t) uart_desc;
 }
@@ -313,7 +313,7 @@ int32_t iot_uart_ioctl(IotUARTHandle_t const pxUartPeripheral, IotUARTIoctlReque
     IotUARTDescriptor_t *iot_uart_handler = (IotUARTDescriptor_t *) pxUartPeripheral;
 
     if (pxUartPeripheral == NULL || pvBuffer == NULL) {
-        UART_LOGI("Invalid arguments.\n");
+        UART_LOGD("Invalid arguments.\n");
         return IOT_UART_INVALID_VALUE;
     }
 
@@ -388,9 +388,9 @@ int32_t iot_uart_ioctl(IotUARTHandle_t const pxUartPeripheral, IotUARTIoctlReque
 
 void iot_uart_set_callback(IotUARTHandle_t const pxUartPeripheral, IotUARTCallback_t xCallback, void * pvUserContext)
 {
-	UART_LOGI("%s xCallback = %p\n", __FUNCTION__, xCallback);
+	UART_LOGD("%s xCallback = %p\n", __FUNCTION__, xCallback);
     if (pxUartPeripheral == NULL || xCallback == NULL) {
-        UART_LOGI("Invalid arguments\n");
+        UART_LOGD("Invalid arguments\n");
     }
     IotUARTDescriptor_t *uart_desc = (IotUARTDescriptor_t *) pxUartPeripheral;
 
@@ -400,7 +400,7 @@ void iot_uart_set_callback(IotUARTHandle_t const pxUartPeripheral, IotUARTCallba
 
 int32_t iot_uart_read_async(IotUARTHandle_t const pxUartPeripheral, uint8_t * const pvBuffer, size_t xBytes)
 {
-    UART_LOGI("%s: %p %p %d\n", __FUNCTION__, pxUartPeripheral, pvBuffer, xBytes);
+    UART_LOGD("%s: %p %p %d\n", __FUNCTION__, pxUartPeripheral, pvBuffer, xBytes);
 
     if (pxUartPeripheral == NULL || pvBuffer == NULL || xBytes == 0) {
         UART_LOGE("Invalid arguments\n");
@@ -425,10 +425,10 @@ int32_t iot_uart_read_async(IotUARTHandle_t const pxUartPeripheral, uint8_t * co
 
 int32_t iot_uart_write_async(IotUARTHandle_t const pxUartPeripheral, uint8_t * const pvBuffer, size_t xBytes)
 {
-    UART_LOGI("%s: %p %p %d\n", __FUNCTION__, pxUartPeripheral, pvBuffer, xBytes);
+    UART_LOGD("%s: %p %p %d\n", __FUNCTION__, pxUartPeripheral, pvBuffer, xBytes);
 
     if (pxUartPeripheral == NULL || pvBuffer == NULL || xBytes == 0) {
-        UART_LOGI("Invalid arguments\n");
+        UART_LOGD("Invalid arguments\n");
         return IOT_UART_INVALID_VALUE;
     }
 
@@ -447,9 +447,9 @@ int32_t iot_uart_write_async(IotUARTHandle_t const pxUartPeripheral, uint8_t * c
 
 int32_t iot_uart_read_sync(IotUARTHandle_t const pxUartPeripheral, uint8_t * const pvBuffer, size_t xBytes)
 {
-	UART_LOGI("%s pxUartPeripheral = %p\n", __FUNCTION__, pxUartPeripheral);
+	UART_LOGD("%s pxUartPeripheral = %p\n", __FUNCTION__, pxUartPeripheral);
 	if (pxUartPeripheral == NULL || pvBuffer == NULL || xBytes == 0) {
-        UART_LOGI("Invalid arguments\n");
+        UART_LOGD("Invalid arguments\n");
         return IOT_UART_INVALID_VALUE;
     }
     uint8_t *src_buf = (uint8_t *) pvBuffer;
@@ -460,9 +460,9 @@ int32_t iot_uart_read_sync(IotUARTHandle_t const pxUartPeripheral, uint8_t * con
 
 int32_t iot_uart_write_sync(IotUARTHandle_t const pxUartPeripheral, uint8_t * const pvBuffer, size_t xBytes)
 {
-	UART_LOGI("%s pxUartPeripheral = %p\n", __FUNCTION__, pxUartPeripheral);
+	UART_LOGD("%s pxUartPeripheral = %p\n", __FUNCTION__, pxUartPeripheral);
     if (pxUartPeripheral == NULL || pvBuffer == NULL || xBytes == 0) {
-        UART_LOGI("Invalid arguments\n");
+        UART_LOGD("Invalid arguments\n");
         return IOT_UART_INVALID_VALUE;
     }
     char *src_buf = (char *) pvBuffer;
@@ -475,7 +475,7 @@ int32_t iot_uart_write_sync(IotUARTHandle_t const pxUartPeripheral, uint8_t * co
 int32_t iot_uart_close(IotUARTHandle_t const pxUartPeripheral)
 {
     bk_err_t ret = BK_OK;
-	UART_LOGI("%s pxUartPeripheral = %p\n", __FUNCTION__, pxUartPeripheral);
+	UART_LOGD("%s pxUartPeripheral = %p\n", __FUNCTION__, pxUartPeripheral);
     if (pxUartPeripheral == NULL) {
         UART_LOGE("Invalid arguments\n");
         return IOT_UART_INVALID_VALUE;
@@ -515,9 +515,9 @@ int32_t iot_uart_close(IotUARTHandle_t const pxUartPeripheral)
 int32_t iot_uart_cancel(IotUARTHandle_t const pxUartPeripheral)
 {
     bk_err_t ret = BK_OK;
-	UART_LOGI("%s pxUartPeripheral = %p\n", __FUNCTION__, pxUartPeripheral);
+	UART_LOGD("%s pxUartPeripheral = %p\n", __FUNCTION__, pxUartPeripheral);
     if (pxUartPeripheral == NULL) {
-        UART_LOGI("Invalid arguments\n");
+        UART_LOGD("Invalid arguments\n");
         return IOT_UART_INVALID_VALUE;
     }
     IotUARTDescriptor_t *uart_desc = (IotUARTDescriptor_t *) pxUartPeripheral;
@@ -526,7 +526,7 @@ int32_t iot_uart_cancel(IotUARTHandle_t const pxUartPeripheral)
         return IOT_UART_NOTHING_TO_CANCEL;
     } else if (uart_desc->rd_op_in_progress) {
         uart_desc->uart_rd_op_cancel_req = true;
-        UART_LOGI("operation cancel request: %d\n", uart_desc->uart_rd_op_cancel_req);
+        UART_LOGD("operation cancel request: %d\n", uart_desc->uart_rd_op_cancel_req);
 
         /* Start a timer to trigger the cancel operation. */
         if (bk_restart_rx_timer(uart_desc)!= BK_OK) {

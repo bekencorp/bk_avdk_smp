@@ -357,7 +357,7 @@ void __attribute__ ((interrupt)) OTP_Handler(void)
 
 void __attribute__ ((interrupt)) DPLL_UNLOCK_Handler(void)
 {
-	os_printf("%s enter\r\n",__func__);
+	BK_LOGD(NULL,"%s enter\r\n",__func__);
 	ARCH_ISR_HANDLER(51);
 }
 

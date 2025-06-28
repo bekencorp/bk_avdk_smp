@@ -185,7 +185,7 @@ static void aec_mic_delay_debug(int16_t *data, uint32_t size)
     {
         data[0] = 0x2FFF;
         mic_delay_num = 0;
-        BK_LOGI(TAG, "AEC_MIC_DELAY_POINTS_DEBUG \n");
+        BK_LOGD(TAG, "AEC_MIC_DELAY_POINTS_DEBUG \n");
     }
 }
 #endif
@@ -214,7 +214,7 @@ bk_err_t uac_spk_drv_send_msg(uac_speaker_stream_t *uac_spk, uac_spk_drv_op_t op
 
 static bk_err_t uac_spk_disconnect_handle(uac_speaker_stream_t *uac_spk)
 {
-    BK_LOGI(TAG, "%s, %d \n", __func__, __LINE__);
+    BK_LOGD(TAG, "%s, %d \n", __func__, __LINE__);
 
     if (!uac_spk)
     {
@@ -237,15 +237,15 @@ static bk_err_t uac_spk_disconnect_handle(uac_speaker_stream_t *uac_spk)
 #if 0
 static void usb_hub_print_port_info(bk_usb_hub_port_info *port_info)
 {
-//    BK_LOGI(TAG, "%s port_info:0x%x\n", __func__, port_info);
-    BK_LOGI(TAG, "%s hport_index:%d\n", __func__, port_info->port_index);
-    BK_LOGI(TAG, "%s device_index:%d\n", __func__, port_info->device_index);
-//    BK_LOGI(TAG, "%s hport:0x%x\n", __func__, port_info->hport);
-//    BK_LOGI(TAG, "%s hport_address:%d\n", __func__, port_info->hport->dev_addr);
-//    BK_LOGI(TAG, "%s usb_device:0x%x\n", __func__, port_info->usb_device);
-//    BK_LOGI(TAG, "%s interface_num:%d\n", __func__, port_info->interface_num);
-//    BK_LOGI(TAG, "%s usb_device_param:0x%x\n", __func__, port_info->usb_device_param);
-//    BK_LOGI(TAG, "%s usb_device_param_config:0x%x\n", __func__, port_info->usb_device_param_config);
+//    BK_LOGD(TAG, "%s port_info:0x%x\n", __func__, port_info);
+    BK_LOGD(TAG, "%s hport_index:%d\n", __func__, port_info->port_index);
+    BK_LOGD(TAG, "%s device_index:%d\n", __func__, port_info->device_index);
+//    BK_LOGD(TAG, "%s hport:0x%x\n", __func__, port_info->hport);
+//    BK_LOGD(TAG, "%s hport_address:%d\n", __func__, port_info->hport->dev_addr);
+//    BK_LOGD(TAG, "%s usb_device:0x%x\n", __func__, port_info->usb_device);
+//    BK_LOGD(TAG, "%s interface_num:%d\n", __func__, port_info->interface_num);
+//    BK_LOGD(TAG, "%s usb_device_param:0x%x\n", __func__, port_info->usb_device_param);
+//    BK_LOGD(TAG, "%s usb_device_param_config:0x%x\n", __func__, port_info->usb_device_param_config);
 }
 #endif
 
@@ -253,7 +253,7 @@ static void uac_spk_disconnect_cb(bk_usb_hub_port_info *port_info, void *arg)
 {
     bk_err_t ret = BK_OK;
 
-    BK_LOGI(TAG, "%s, %d \n", __func__, __LINE__);
+    BK_LOGD(TAG, "%s, %d \n", __func__, __LINE__);
 
     //usb_hub_print_port_info(port_info);
 
@@ -377,7 +377,7 @@ static bk_err_t uac_spk_connect_handle(uac_speaker_stream_t *uac_spk)
     uint8_t i = 0;
 
     /* config uac */
-    BK_LOGI(TAG, "%s, %d, config uac spk\n", __func__, __LINE__);
+    BK_LOGD(TAG, "%s, %d, config uac spk\n", __func__, __LINE__);
 
     bk_uac_spk_config_t *uac_spk_param_config = (bk_uac_spk_config_t *)uac_spk->spk_port_info->usb_device_param_config;
     bk_uac_device_brief_info_t *uac_device_param = (bk_uac_device_brief_info_t *)uac_spk->spk_port_info->usb_device_param;
@@ -430,7 +430,7 @@ static bk_err_t uac_spk_connect_handle(uac_speaker_stream_t *uac_spk)
     {
         if (uac_spk->status == UAC_SPK_STA_OPEN)
         {
-            BK_LOGI(TAG, "%s, uac restart spk \n", __func__);
+            BK_LOGD(TAG, "%s, uac restart spk \n", __func__);
             usb_hub_uac_spk_port_device_urb_fill(uac_spk);
             ret = bk_usbh_hub_dev_request_data(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, uac_spk->uac_spk_urb);
             if (ret != BK_OK)
@@ -472,7 +472,7 @@ fail:
 static void uac_spk_connect_cb(bk_usb_hub_port_info *port_info, void *arg)
 {
     bk_err_t ret = BK_OK;
-    BK_LOGI(TAG, "%s, %d \n", __func__, __LINE__);
+    BK_LOGD(TAG, "%s, %d \n", __func__, __LINE__);
 
     uac_speaker_stream_t *uac_spk = (uac_speaker_stream_t *)arg;
 
@@ -490,13 +490,13 @@ static void uac_spk_connect_cb(bk_usb_hub_port_info *port_info, void *arg)
 #if 0
         bk_uac_spk_config_t *uac_device_param_canfig = (bk_uac_spk_config_t *)port_info->usb_device_param_config;
         struct usb_endpoint_descriptor *spk_ep_desc = (struct usb_endpoint_descriptor *)uac_device_param_canfig->spk_ep_desc;
-        BK_LOGI(TAG, "     ------------ Audio Data Spk Endpoint Descriptor -----------  \n");
-        BK_LOGI(TAG, "bLength                        : 0x%x (%d bytes)\n", spk_ep_desc->bLength,spk_ep_desc->bLength);
-        BK_LOGI(TAG, "bDescriptorType                : 0x%x (Audio Endpoint Descriptor)\n", spk_ep_desc->bDescriptorType);
-        BK_LOGI(TAG, "bEndpointAddress               : 0x%x (General)\n", spk_ep_desc->bEndpointAddress);
-        BK_LOGI(TAG, "bmAttributes                   : 0x%x\n", spk_ep_desc->bmAttributes);
-        BK_LOGI(TAG, "wMaxPacketSize                 : 0x%x\n", spk_ep_desc->wMaxPacketSize);
-        BK_LOGI(TAG, "bInterval                      : 0x%x\n", spk_ep_desc->bInterval);
+        BK_LOGD(TAG, "     ------------ Audio Data Spk Endpoint Descriptor -----------  \n");
+        BK_LOGD(TAG, "bLength                        : 0x%x (%d bytes)\n", spk_ep_desc->bLength,spk_ep_desc->bLength);
+        BK_LOGD(TAG, "bDescriptorType                : 0x%x (Audio Endpoint Descriptor)\n", spk_ep_desc->bDescriptorType);
+        BK_LOGD(TAG, "bEndpointAddress               : 0x%x (General)\n", spk_ep_desc->bEndpointAddress);
+        BK_LOGD(TAG, "bmAttributes                   : 0x%x\n", spk_ep_desc->bmAttributes);
+        BK_LOGD(TAG, "wMaxPacketSize                 : 0x%x\n", spk_ep_desc->wMaxPacketSize);
+        BK_LOGD(TAG, "bInterval                      : 0x%x\n", spk_ep_desc->bInterval);
 #endif
 
         /* Copy uac speaker device parameters and then check parameters.
@@ -550,7 +550,7 @@ static void uac_spk_connect_cb(bk_usb_hub_port_info *port_info, void *arg)
         /* uac automatically connect */
         if (!uac_spk->auto_connect)
         {
-            BK_LOGI(TAG, "%s, %d, uac not automatically connect \n", __func__, __LINE__);
+            BK_LOGD(TAG, "%s, %d, uac not automatically connect \n", __func__, __LINE__);
             return;
         }
     }
@@ -594,7 +594,7 @@ static void uac_spk_drv_main(beken_thread_arg_t param_data)
                     break;
 
                 case UAC_SPK_DRV_EXIT:
-                    BK_LOGI(TAG, "%s, %d, goto: UAC_SPK_DRV_EXIT \n", __func__, __LINE__);
+                    BK_LOGD(TAG, "%s, %d, goto: UAC_SPK_DRV_EXIT \n", __func__, __LINE__);
                     goto uac_spk_drv_exit;
 
                 default:
@@ -612,7 +612,7 @@ uac_spk_drv_exit:
         BK_LOGE(TAG, "%s, %d, delete message queue fail \n", __func__, __LINE__);
     }
     uac_spk->uac_spk_drv_queue = NULL;
-    BK_LOGI(TAG, "%s, %d, delete aud_tras_int_msg_que \n", __func__, __LINE__);
+    BK_LOGD(TAG, "%s, %d, delete aud_tras_int_msg_que \n", __func__, __LINE__);
 
     /* delete task */
     uac_spk->uac_spk_drv_thread = NULL;
@@ -635,7 +635,7 @@ static bk_err_t uac_spk_drv_init(uac_speaker_stream_t *uac_spk)
         BK_LOGE(TAG, "%s, %d, create uac speaker message queue fail\n", __func__, __LINE__);
         return BK_FAIL;
     }
-    BK_LOGI(TAG, "%s, %d, create uac speaker driver message queue \n", __func__, __LINE__);
+    BK_LOGD(TAG, "%s, %d, create uac speaker driver message queue \n", __func__, __LINE__);
 
     ret = audio_create_thread(&uac_spk->uac_spk_drv_thread,
                              BEKEN_DEFAULT_WORKER_PRIORITY,
@@ -659,7 +659,7 @@ static bk_err_t uac_spk_drv_init(uac_speaker_stream_t *uac_spk)
 
     rtos_get_semaphore(&uac_spk->uac_spk_sem, BEKEN_NEVER_TIMEOUT);
 
-    BK_LOGI(TAG, "%s, %d, create uac speaker driver task \n", __func__, __LINE__);
+    BK_LOGD(TAG, "%s, %d, create uac speaker driver task \n", __func__, __LINE__);
 
     return BK_OK;
 }
@@ -688,7 +688,7 @@ static bk_err_t uac_spk_drv_deinit(uac_speaker_stream_t *uac_spk)
 
 static int _uac_speaker_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
     bk_err_t ret = BK_OK;
 
     uac_speaker_stream_t *uac_spk = (uac_speaker_stream_t *)audio_element_getdata(self);
@@ -701,7 +701,7 @@ static int _uac_speaker_open(audio_element_handle_t self)
     /* set read data timeout */
     audio_element_set_input_timeout(self, 0);   //10 / portTICK_RATE_MS
 
-    BK_LOGD(TAG, "[%s] %s, %d, pool fill size: %d \n", audio_element_get_tag(self), __func__, __LINE__, ring_buffer_get_fill_size(&uac_spk->pool_rb));
+    BK_LOGV(TAG, "[%s] %s, %d, pool fill size: %d \n", audio_element_get_tag(self), __func__, __LINE__, ring_buffer_get_fill_size(&uac_spk->pool_rb));
 
     /* register uac connect and disconnect callback */
     ret = bk_usbh_hub_port_register_disconnect_callback(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, uac_spk_disconnect_cb, uac_spk);
@@ -718,7 +718,7 @@ static int _uac_speaker_open(audio_element_handle_t self)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "%s, %d, init uac spk\n", __func__, __LINE__);
+    BK_LOGD(TAG, "%s, %d, init uac spk\n", __func__, __LINE__);
     /* check whether device power on */
     bk_usb_hub_port_info *port_dev_info = NULL;
     ret = bk_usbh_hub_port_check_device(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, &port_dev_info);
@@ -807,7 +807,7 @@ static int _uac_speaker_open(audio_element_handle_t self)
      */
     if (uac_spk->status == UAC_SPK_STA_OPEN)
     {
-        BK_LOGI(TAG, "[%s] uac start spk \n", audio_element_get_tag(self));
+        BK_LOGD(TAG, "[%s] uac start spk \n", audio_element_get_tag(self));
         usb_hub_uac_spk_port_device_urb_fill(uac_spk);
         ret = bk_usbh_hub_dev_request_data(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, uac_spk->uac_spk_urb);
         if (ret != BK_OK)
@@ -838,7 +838,7 @@ static int _uac_speaker_open(audio_element_handle_t self)
 static int _uac_speaker_write(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
     audio_element_handle_t el = (audio_element_handle_t)context;
-    BK_LOGD(TAG, "[%s] %s, len: %d \n", audio_element_get_tag(el), __func__, len);
+    BK_LOGV(TAG, "[%s] %s, len: %d \n", audio_element_get_tag(el), __func__, len);
 
     uac_speaker_stream_t *uac_spk = (uac_speaker_stream_t *)audio_element_getdata(el);
 
@@ -849,7 +849,7 @@ static int _uac_speaker_write(audio_port_handle_t self, char *buffer, int len, T
         {
             if (ring_buffer_get_fill_size(&uac_spk->pool_rb) <= uac_spk->pool_pause_thold)
             {
-                BK_LOGI(TAG, "pause pool read, pool_fill: %d <= %d \n", ring_buffer_get_fill_size(&uac_spk->pool_rb), uac_spk->pool_pause_thold);
+                BK_LOGD(TAG, "pause pool read, pool_fill: %d <= %d \n", ring_buffer_get_fill_size(&uac_spk->pool_rb), uac_spk->pool_pause_thold);
                 uac_spk->pool_can_read = false;
             }
         }
@@ -857,7 +857,7 @@ static int _uac_speaker_write(audio_port_handle_t self, char *buffer, int len, T
         {
             if (ring_buffer_get_fill_size(&uac_spk->pool_rb) >= uac_spk->pool_play_thold)
             {
-                BK_LOGI(TAG, "start pool read \n");
+                BK_LOGD(TAG, "start pool read \n");
                 uac_spk->pool_can_read = true;
             }
         }
@@ -880,7 +880,7 @@ static int _uac_speaker_process(audio_element_handle_t self, char *in_buffer, in
         //return -1;
     }
 
-    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    BK_LOGV(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
 
     /*check urb_buff currently used */
     if (uac_spk->urb_buff_addr == uac_spk->urb_buff_ping)
@@ -1015,7 +1015,7 @@ static int _uac_speaker_process(audio_element_handle_t self, char *in_buffer, in
 
 static int _uac_speaker_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
 
     uac_speaker_stream_t *uac_spk = (uac_speaker_stream_t *)audio_element_getdata(self);
 
@@ -1095,7 +1095,7 @@ static int _uac_speaker_close(audio_element_handle_t self)
 
 static int _uac_speaker_destroy(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
 
     uac_speaker_stream_t *uac_spk = (uac_speaker_stream_t *)audio_element_getdata(self);
 
@@ -1168,7 +1168,7 @@ audio_element_handle_t uac_speaker_stream_init(uac_speaker_stream_cfg_t *config)
     cfg.multi_out_port_num = config->multi_out_port_num;
     cfg.tag = "uac_spk";
 
-    BK_LOGI(TAG, "%s, %d, buffer_len: %d, out_rb_size: %d \n", __func__, __LINE__, cfg.buffer_len, cfg.out_block_size);
+    BK_LOGD(TAG, "%s, %d, buffer_len: %d, out_rb_size: %d \n", __func__, __LINE__, cfg.buffer_len, cfg.out_block_size);
 
     /* init uac spk */
     uac_spk->port_index = config->port_index;
@@ -1202,7 +1202,7 @@ audio_element_handle_t uac_speaker_stream_init(uac_speaker_stream_cfg_t *config)
     uac_spk->urb_buff_pang = (uint8_t *)audio_calloc(1, uac_spk->urb_buff_size);
     AUDIO_MEM_CHECK(TAG, uac_spk->urb_buff_pang, goto _uac_spk_init_exit);
     os_memset(uac_spk->urb_buff_pang, 0x00, uac_spk->frame_size);
-    BK_LOGI(TAG, "%s, %d, pool_size: %d, temp_buff_size: %d \n", __func__, __LINE__, uac_spk->pool_size + uac_spk->frame_size, uac_spk->frame_size);
+    BK_LOGD(TAG, "%s, %d, pool_size: %d, temp_buff_size: %d \n", __func__, __LINE__, uac_spk->pool_size + uac_spk->frame_size, uac_spk->frame_size);
     uac_spk->urb_buff_addr = uac_spk->urb_buff_ping;
     uac_spk->urb_buff_use = uac_spk->urb_buff_pang;
 

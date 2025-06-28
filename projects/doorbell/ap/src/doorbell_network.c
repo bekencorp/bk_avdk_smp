@@ -34,6 +34,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define SOFTAP_DEF_NET_IP        "192.168.10.1"
 #define SOFTAP_DEF_NET_MASK      "255.255.255.0"
@@ -50,7 +51,7 @@ static void doorbell_wifi_event_cb(void *new_evt)
     {
         case WIFI_LINKSTATE_STA_GOT_IP:
         {
-            LOGI("WIFI_LINKSTATE_STA_GOT_IP\r\n");
+            LOGD("WIFI_LINKSTATE_STA_GOT_IP\r\n");
 
             msg.event = DBEVT_WIFI_STATION_CONNECTED;
             doorbell_send_msg(&msg);
@@ -59,7 +60,7 @@ static void doorbell_wifi_event_cb(void *new_evt)
 
         case WIFI_LINKSTATE_STA_DISCONNECTED:
         {
-            LOGI("WIFI_LINKSTATE_STA_DISCONNECTED\r\n");
+            LOGD("WIFI_LINKSTATE_STA_DISCONNECTED\r\n");
 
             msg.event = DBEVT_WIFI_STATION_DISCONNECTED;
             doorbell_send_msg(&msg);
@@ -68,18 +69,18 @@ static void doorbell_wifi_event_cb(void *new_evt)
 
         case WIFI_LINKSTATE_AP_CONNECTED:
         {
-            LOGI("WIFI_LINKSTATE_AP_CONNECTED\r\n");
+            LOGD("WIFI_LINKSTATE_AP_CONNECTED\r\n");
         }
         break;
 
         case WIFI_LINKSTATE_AP_DISCONNECTED:
         {
-            LOGI("WIFI_LINKSTATE_AP_DISCONNECTED\r\n");
+            LOGD("WIFI_LINKSTATE_AP_DISCONNECTED\r\n");
         }
         break;
 
         default:
-            LOGI("WIFI_LINKSTATE %d\r\n", info.state);
+            LOGD("WIFI_LINKSTATE %d\r\n", info.state);
             break;
 
     }
@@ -160,7 +161,7 @@ int doorbell_socket_set_qos(int fd, int qos)
 {
     int ret = setsockopt(fd, IPPROTO_IP, IP_TOS, &qos, sizeof(qos));
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     if (ret < 0)
     {
@@ -191,7 +192,7 @@ int doorbell_socket_sendto(int *fd, const struct sockaddr *dst, uint8_t *data, u
         ret = sendto(*fd, ptr + index, size - index, MSG_DONTWAIT | MSG_MORE,
                      dst, sizeof(struct sockaddr_in));
 
-        //LOGI("send: %d, %d\n", ret, size);
+        //LOGD("send: %d, %d\n", ret, size);
 
         if (ret < 0)
         {
@@ -201,7 +202,7 @@ int doorbell_socket_sendto(int *fd, const struct sockaddr *dst, uint8_t *data, u
             }
             else
             {
-                LOGD("%s, %d, %d\n", __func__, ret, errno);
+                LOGV("%s, %d, %d\n", __func__, ret, errno);
                 break;
             }
         }
@@ -252,7 +253,7 @@ int doorbell_socket_write(int *fd, uint8_t *data, uint32_t length, int offset)
 
         ret = write(*fd, ptr + index, size - index);
 
-        //LOGI("send: %d, %d\n", ret, size);
+        //LOGD("send: %d, %d\n", ret, size);
 
         if (ret < 0)
         {

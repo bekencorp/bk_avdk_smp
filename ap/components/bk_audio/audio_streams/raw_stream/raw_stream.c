@@ -232,7 +232,7 @@ audio_element_handle_t raw_stream_init(raw_stream_cfg_t *config)
     //  audio_element_set_input_timeout(el, 2000);  //15 / portTICK_RATE_MS
     //  audio_element_set_output_timeout(el, 2000); //15 / portTICK_RATE_MS
 
-    BK_LOGD(TAG, "stream init,el:%p", el);
+    BK_LOGV(TAG, "stream init,el:%p", el);
 
     RAW_READ_DATA_DUMP_BY_UART_OPEN();
 

@@ -131,7 +131,7 @@ get_mac:
         cdc_ecm_class->mac[j] = (unsigned char)byte;
     }
 
-    USB_LOG_INFO("CDC ECM MAC address %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+    USB_LOG_DBG("CDC ECM MAC address %02x:%02x:%02x:%02x:%02x:%02x\r\n",
                  cdc_ecm_class->mac[0],
                  cdc_ecm_class->mac[1],
                  cdc_ecm_class->mac[2],
@@ -142,7 +142,7 @@ get_mac:
     if (cdc_ecm_class->max_segment_size > CONFIG_USBHOST_CDC_ECM_ETH_MAX_SEGSZE) {
         USB_LOG_ERR("CDC ECM Max Segment Size is overflow, default is %u, but now %u\r\n", CONFIG_USBHOST_CDC_ECM_ETH_MAX_SEGSZE, cdc_ecm_class->max_segment_size);
     } else {
-        USB_LOG_INFO("CDC ECM Max Segment Size:%u\r\n", cdc_ecm_class->max_segment_size);
+        USB_LOG_DBG("CDC ECM Max Segment Size:%u\r\n", cdc_ecm_class->max_segment_size);
     }
 
     /* enable int ep */
@@ -162,7 +162,7 @@ get_mac:
             }
         }
 
-        USB_LOG_INFO("Select cdc ecm altsetting: %d\r\n", altsetting);
+        USB_LOG_DBG("Select cdc ecm altsetting: %d\r\n", altsetting);
         usbh_set_interface(cdc_ecm_class->hport, cdc_ecm_class->data_intf, altsetting);
     } else {
         for (uint8_t i = 0; i < hport->config.intf[intf + 1].altsetting[0].intf_desc.bNumEndpoints; i++) {
@@ -186,11 +186,11 @@ get_mac:
     if (ret < 0) {
         return ret;
     }
-    USB_LOG_INFO("Set CDC ECM packet filter:%04x\r\n", CONFIG_USBHOST_CDC_ECM_PKT_FILTER);
+    USB_LOG_DBG("Set CDC ECM packet filter:%04x\r\n", CONFIG_USBHOST_CDC_ECM_PKT_FILTER);
 
     memcpy(hport->config.intf[intf].devname, DEV_FORMAT, CONFIG_USBHOST_DEV_NAMELEN);
 
-    USB_LOG_INFO("Register CDC ECM Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register CDC ECM Class:%s\r\n", hport->config.intf[intf].devname);
 
     usbh_cdc_ecm_run(cdc_ecm_class);
     return ret;
@@ -216,7 +216,7 @@ static int usbh_cdc_ecm_disconnect(struct usbh_hubport *hport, uint8_t intf)
         }
 
         if (hport->config.intf[intf].devname[0] != '\0') {
-            USB_LOG_INFO("Unregister CDC ECM Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister CDC ECM Class:%s\r\n", hport->config.intf[intf].devname);
             usbh_cdc_ecm_stop(cdc_ecm_class);
         }
 
@@ -234,7 +234,7 @@ void usbh_cdc_ecm_rx_thread(void *argument)
     struct pbuf *p;
     struct netif *netif = (struct netif *)argument;
 
-    USB_LOG_INFO("Create cdc ecm rx thread\r\n");
+    USB_LOG_DBG("Create cdc ecm rx thread\r\n");
     // clang-format off
 find_class:
     // clang-format on
@@ -262,7 +262,7 @@ find_class:
         g_cdc_ecm_rx_length += g_cdc_ecm_class.bulkin_urb.actual_length;
 
         if (g_cdc_ecm_class.bulkin_urb.actual_length != USB_GET_MAXPACKETSIZE(g_cdc_ecm_class.bulkin->wMaxPacketSize)) {
-            USB_LOG_DBG("rxlen:%d\r\n", g_cdc_ecm_rx_length);
+            USB_LOG_VBS("rxlen:%d\r\n", g_cdc_ecm_rx_length);
 
             p = pbuf_alloc(PBUF_RAW, g_cdc_ecm_rx_length, PBUF_POOL);
             if (p != NULL) {
@@ -283,7 +283,7 @@ find_class:
     }
     // clang-format off
 delete:
-    USB_LOG_INFO("Delete cdc ecm rx thread\r\n");
+    USB_LOG_DBG("Delete cdc ecm rx thread\r\n");
     usb_osal_thread_delete(NULL);
     // clang-format on
 }
@@ -303,7 +303,7 @@ err_t usbh_cdc_ecm_linkoutput(struct netif *netif, struct pbuf *p)
         buffer += q->len;
     }
 
-    USB_LOG_DBG("txlen:%d\r\n", p->tot_len);
+    USB_LOG_VBS("txlen:%d\r\n", p->tot_len);
 
     usbh_bulk_urb_fill(&g_cdc_ecm_class.bulkout_urb, g_cdc_ecm_class.hport, g_cdc_ecm_class.bulkout, g_cdc_ecm_tx_buffer, p->tot_len, USB_OSAL_WAITING_FOREVER, NULL, NULL);
     ret = usbh_submit_urb(&g_cdc_ecm_class.bulkout_urb);

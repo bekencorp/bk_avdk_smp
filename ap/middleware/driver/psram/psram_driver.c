@@ -146,7 +146,7 @@ static void psram_id_write(beken_thread_arg_t data)
 		bk_set_env_enhance(PSRAM_CHIP_ID, (const void *)&s_psram_id, sizeof(psram_flash_t));
 	}
 
-	PSRAM_LOGI("psram id write to flash success\r\n");
+	PSRAM_LOGD("psram id write to flash success\r\n");
 
 	s_psram_id_need_write = false;
 
@@ -222,7 +222,7 @@ bk_err_t bk_psram_init(void)
 		chip_id = s_psram_id.psram_id;
 	}
 
-	PSRAM_LOGI("%s, chip_id:%x\r\n", __func__, chip_id);
+	PSRAM_LOGD("%s, chip_id:%x\r\n", __func__, chip_id);
 
 	// psram config
 	actual_id =  psram_hal_config_init(chip_id);
@@ -237,7 +237,7 @@ bk_err_t bk_psram_init(void)
 	// set psram clk
 	bk_psram_set_clk(PSRAM_120M);
 
-	PSRAM_LOGI("%s, %x-%x\r\n", __func__, actual_id, chip_id);
+	PSRAM_LOGD("%s, %x-%x\r\n", __func__, actual_id, chip_id);
 
 	if (actual_id != chip_id)
 	{

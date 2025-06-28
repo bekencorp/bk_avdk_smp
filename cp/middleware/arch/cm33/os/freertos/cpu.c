@@ -20,7 +20,7 @@ void rtos_shutdown(void)
 {
 	GLOBAL_INT_DECLARATION();
 
-	os_printf("shutdown...\n");
+	BK_LOGD(NULL,"shutdown...\n");
 
 	GLOBAL_INT_DISABLE();
 	while (1);

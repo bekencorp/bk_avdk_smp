@@ -22,6 +22,7 @@
 #define FLASH_LOGW(...) BK_LOGW(FLASH_TAG, ##__VA_ARGS__)
 #define FLASH_LOGE(...) BK_LOGE(FLASH_TAG, ##__VA_ARGS__)
 #define FLASH_LOGD(...) BK_LOGD(FLASH_TAG, ##__VA_ARGS__)
+#define FLASH_LOGV(...) BK_LOGV(FLASH_TAG, ##__VA_ARGS__)
 
 #define FLASH_SIZE_1M                    0x100000
 #define FLASH_SIZE_2M                    0x200000

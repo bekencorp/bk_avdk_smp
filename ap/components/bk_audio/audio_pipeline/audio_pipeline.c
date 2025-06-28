@@ -117,10 +117,10 @@ static void debug_pipeline_lists(audio_pipeline_handle_t pipeline, int line, con
 {
     audio_element_item_t *el_item, *el_tmp;
     port_item_t *port_item, *tmp;
-    BK_LOGI(TAG, "FUNC:%s, LINE:%d \n", func, line);
+    BK_LOGD(TAG, "FUNC:%s, LINE:%d \n", func, line);
     STAILQ_FOREACH_SAFE(el_item, &pipeline->el_list, next, el_tmp)
     {
-        BK_LOGI(TAG, "el-list: linked:%d, kept:%d, el:%p, %16s, in_port:%p, out_port:%p \n",
+        BK_LOGD(TAG, "el-list: linked:%d, kept:%d, el:%p, %16s, in_port:%p, out_port:%p \n",
                 el_item->linked, el_item->kept_ctx,
                 el_item->el, audio_element_get_tag(el_item->el),
                 audio_element_get_input_port(el_item->el),
@@ -128,7 +128,7 @@ static void debug_pipeline_lists(audio_pipeline_handle_t pipeline, int line, con
     }
     STAILQ_FOREACH_SAFE(port_item, &pipeline->port_list, next, tmp)
     {
-        BK_LOGI(TAG, "port-list: linked:%d, kept:%d, port:%p, host_el:%p, %16s \n", port_item->linked, port_item->kept_ctx,
+        BK_LOGD(TAG, "port-list: linked:%d, kept:%d, port:%p, host_el:%p, %16s \n", port_item->linked, port_item->kept_ctx,
                 port_item->port, port_item->host_el,
                 port_item->host_el != NULL ? audio_element_get_tag(port_item->host_el) : "NULL");
     }
@@ -145,7 +145,7 @@ audio_element_handle_t audio_pipeline_get_el_by_tag(audio_pipeline_handle_t pipe
     STAILQ_FOREACH(item, &pipeline->el_list, next)
     {
         char *el_tag = audio_element_get_tag(item->el);
-        BK_LOGD(TAG, "Get_el_by_tag, el:%p, kept:%d, linked:%d el-tag:%16s, in_tag:%s \n",
+        BK_LOGV(TAG, "Get_el_by_tag, el:%p, kept:%d, linked:%d el-tag:%16s, in_tag:%s \n",
                 item->el, item->kept_ctx, item->linked, item->el != NULL ? audio_element_get_tag(item->el) : "NULL", tag);
         if (item->kept_ctx)
         {
@@ -187,7 +187,7 @@ bk_err_t audio_pipeline_remove_listener(audio_pipeline_handle_t pipeline)
     audio_element_item_t *el_item;
     if (pipeline->listener == NULL)
     {
-        BK_LOGI(TAG, "There are no listener registered \n");
+        BK_LOGD(TAG, "There are no listener registered \n");
         return BK_FAIL;
     }
     STAILQ_FOREACH(el_item, &pipeline->el_list, next)
@@ -230,7 +230,7 @@ bk_err_t audio_pipeline_deinit(audio_pipeline_handle_t pipeline)
     audio_element_item_t *el_item, *tmp;
     STAILQ_FOREACH_SAFE(el_item, &pipeline->el_list, next, tmp)
     {
-        BK_LOGD(TAG, "[%16s]-[%p]element instance has been deleted \n", audio_element_get_tag(el_item->el), el_item->el);
+        BK_LOGV(TAG, "[%16s]-[%p]element instance has been deleted \n", audio_element_get_tag(el_item->el), el_item->el);
         audio_element_deinit(el_item->el);
         audio_pipeline_unregister(pipeline, el_item->el);
     }
@@ -277,7 +277,7 @@ bk_err_t audio_pipeline_resume(audio_pipeline_handle_t pipeline)
     bk_err_t ret = BK_OK;
     STAILQ_FOREACH(el_item, &pipeline->el_list, next)
     {
-        BK_LOGD(TAG, "resume,linked:%d, state:%d,[%s-%p] \n", el_item->linked,
+        BK_LOGV(TAG, "resume,linked:%d, state:%d,[%s-%p] \n", el_item->linked,
                 audio_element_get_state(el_item->el), audio_element_get_tag(el_item->el), el_item->el);
         if (false == el_item->linked)
         {
@@ -306,7 +306,7 @@ bk_err_t audio_pipeline_pause(audio_pipeline_handle_t pipeline)
         {
             continue;
         }
-        BK_LOGD(TAG, "pause [%s]  %p \n", audio_element_get_tag(el_item->el), el_item->el);
+        BK_LOGV(TAG, "pause [%s]  %p \n", audio_element_get_tag(el_item->el), el_item->el);
         audio_element_pause(el_item->el);
     }
 
@@ -318,12 +318,12 @@ bk_err_t audio_pipeline_run(audio_pipeline_handle_t pipeline)
     audio_element_item_t *el_item;
     if (pipeline->state != AEL_STATE_INIT)
     {
-        BK_LOGI(TAG, "Pipeline already started, state:%d \n", pipeline->state);
+        BK_LOGD(TAG, "Pipeline already started, state:%d \n", pipeline->state);
         return BK_OK;
     }
     STAILQ_FOREACH(el_item, &pipeline->el_list, next)
     {
-        BK_LOGD(TAG, "start el[%16s], linked:%d, state:%d,[%p],  \n", audio_element_get_tag(el_item->el), el_item->linked,  audio_element_get_state(el_item->el), el_item->el);
+        BK_LOGV(TAG, "start el[%16s], linked:%d, state:%d,[%p],  \n", audio_element_get_tag(el_item->el), el_item->linked,  audio_element_get_state(el_item->el), el_item->el);
         if (el_item->linked
             && ((AEL_STATE_INIT == audio_element_get_state(el_item->el))
                 || (AEL_STATE_STOPPED == audio_element_get_state(el_item->el))
@@ -347,14 +347,14 @@ bk_err_t audio_pipeline_run(audio_pipeline_handle_t pipeline)
         audio_pipeline_change_state(pipeline, AEL_STATE_RUNNING);
     }
 
-    BK_LOGI(TAG, "Pipeline started \n");
+    BK_LOGD(TAG, "Pipeline started \n");
     return BK_OK;
 }
 
 bk_err_t audio_pipeline_terminate(audio_pipeline_handle_t pipeline)
 {
     audio_element_item_t *el_item;
-    BK_LOGD(TAG, "Destroy audio_pipeline elements \n");
+    BK_LOGV(TAG, "Destroy audio_pipeline elements \n");
     STAILQ_FOREACH(el_item, &pipeline->el_list, next)
     {
         if (el_item->linked)
@@ -368,10 +368,10 @@ bk_err_t audio_pipeline_terminate(audio_pipeline_handle_t pipeline)
 bk_err_t audio_pipeline_stop(audio_pipeline_handle_t pipeline)
 {
     audio_element_item_t *el_item;
-    BK_LOGD(TAG, "audio_element_stop \n");
+    BK_LOGV(TAG, "audio_element_stop \n");
     if (pipeline->state != AEL_STATE_RUNNING)
     {
-        BK_LOGI(TAG, "Without stop, st:%d \n", pipeline->state);
+        BK_LOGD(TAG, "Without stop, st:%d \n", pipeline->state);
         return BK_FAIL;
     }
     STAILQ_FOREACH(el_item, &pipeline->el_list, next)
@@ -395,14 +395,14 @@ static inline bk_err_t __audio_pipeline_wait_stop(audio_pipeline_handle_t pipeli
             bk_err_t res = audio_element_wait_for_stop_ms(el_item->el, ticks_to_wait);
             if (res == BK_ERR_ADK_TIMEOUT)
             {
-                BK_LOGI(TAG, "Wait stop timeout, el:%p, tag:%s \n",
+                BK_LOGD(TAG, "Wait stop timeout, el:%p, tag:%s \n",
                         el_item->el, audio_element_get_tag(el_item->el) == NULL ? "NULL" : audio_element_get_tag(el_item->el));
             }
             else
             {
                 audio_element_reset_state(el_item->el);
             }
-            BK_LOGD(TAG, "[%s] stop result:%d \n", audio_element_get_tag(el_item->el) == NULL ? "NULL" : audio_element_get_tag(el_item->el), res);
+            BK_LOGV(TAG, "[%s] stop result:%d \n", audio_element_get_tag(el_item->el) == NULL ? "NULL" : audio_element_get_tag(el_item->el), res);
             ret |= res;
         }
     }
@@ -414,13 +414,13 @@ bk_err_t audio_pipeline_wait_for_stop(audio_pipeline_handle_t pipeline)
 {
     if (pipeline->state != AEL_STATE_RUNNING)
     {
-        BK_LOGI(TAG, "Without wait stop, st:%d \n", pipeline->state);
+        BK_LOGD(TAG, "Without wait stop, st:%d \n", pipeline->state);
         return BK_FAIL;
     }
 
-    BK_LOGD(TAG, "%s - IN \n", __func__);
+    BK_LOGV(TAG, "%s - IN \n", __func__);
     bk_err_t ret = __audio_pipeline_wait_stop(pipeline, portMAX_DELAY);
-    BK_LOGD(TAG, "%s - OUT \n", __func__);
+    BK_LOGV(TAG, "%s - OUT \n", __func__);
     return ret;
 }
 
@@ -489,7 +489,7 @@ static bk_err_t _pipeline_rb_linked(audio_pipeline_handle_t pipeline, audio_elem
         port_item->host_el = el;
         STAILQ_INSERT_TAIL(&pipeline->port_list, port_item, next);
         audio_element_set_output_port(el, port);
-        BK_LOGI(TAG, "link el->port, el:%p, tag:%s, port:%p \n", el, audio_element_get_tag(el) == NULL ? "NULL" : audio_element_get_tag(el), port);
+        BK_LOGD(TAG, "link el->port, el:%p, tag:%s, port:%p \n", el, audio_element_get_tag(el) == NULL ? "NULL" : audio_element_get_tag(el), port);
     }
     return BK_OK;
 }
@@ -541,7 +541,7 @@ bk_err_t audio_pipeline_unlink(audio_pipeline_handle_t pipeline)
         {
             el_item->linked = false;
             el_item->kept_ctx = false;
-            //BK_LOGI(TAG, "[%s] el->in: %p, el->out: %p\n",  audio_element_get_tag(el_item->el), audio_element_get_input_port(el_item->el), audio_element_get_output_port(el_item->el));
+            //BK_LOGD(TAG, "[%s] el->in: %p, el->out: %p\n",  audio_element_get_tag(el_item->el), audio_element_get_input_port(el_item->el), audio_element_get_output_port(el_item->el));
             /* check whether element port is the same as the port of port_item */
             if (audio_element_get_input_port_type(el_item->el) != PORT_TYPE_CB)
             {
@@ -551,13 +551,13 @@ bk_err_t audio_pipeline_unlink(audio_pipeline_handle_t pipeline)
             {
                 audio_element_set_output_port(el_item->el, NULL);
             }
-            BK_LOGD(TAG, "audio_pipeline_unlink, %p, %s \n", el_item->el, audio_element_get_tag(el_item->el));
-            //BK_LOGI(TAG, "[%s] el->in: %p, el->out: %p\n",  audio_element_get_tag(el_item->el), audio_element_get_input_port(el_item->el), audio_element_get_output_port(el_item->el));
+            BK_LOGV(TAG, "audio_pipeline_unlink, %p, %s \n", el_item->el, audio_element_get_tag(el_item->el));
+            //BK_LOGD(TAG, "[%s] el->in: %p, el->out: %p\n",  audio_element_get_tag(el_item->el), audio_element_get_input_port(el_item->el), audio_element_get_output_port(el_item->el));
         }
     }
     STAILQ_FOREACH_SAFE(port_item, &pipeline->port_list, next, tmp)
     {
-        BK_LOGD(TAG, "audio_pipeline_unlink, PORT:%p, host_el:%p \n", port_item->port, port_item->host_el);
+        BK_LOGV(TAG, "audio_pipeline_unlink, PORT:%p, host_el:%p \n", port_item->port, port_item->host_el);
         STAILQ_REMOVE(&pipeline->port_list, port_item, port_item, next);
         if (port_item->host_el)
         {
@@ -577,7 +577,7 @@ bk_err_t audio_pipeline_unlink(audio_pipeline_handle_t pipeline)
         port_item->host_el = NULL;
         audio_free(port_item);
     }
-    BK_LOGI(TAG, "audio_pipeline_unlinked \n");
+    BK_LOGD(TAG, "audio_pipeline_unlinked \n");
     STAILQ_INIT(&pipeline->port_list);
     pipeline->linked = false;
     return BK_OK;
@@ -586,7 +586,7 @@ bk_err_t audio_pipeline_unlink(audio_pipeline_handle_t pipeline)
 bk_err_t audio_pipeline_reset_items_state(audio_pipeline_handle_t pipeline)
 {
     audio_element_item_t *el_item;
-    BK_LOGD(TAG, "audio_pipeline_reset_items_state \n");
+    BK_LOGV(TAG, "audio_pipeline_reset_items_state \n");
     STAILQ_FOREACH(el_item, &pipeline->el_list, next)
     {
         if (el_item->linked)

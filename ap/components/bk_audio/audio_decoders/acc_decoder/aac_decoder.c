@@ -78,7 +78,7 @@ typedef struct aac_decoder
 
 static bk_err_t _aac_decoder_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
     aac_decoder_t *aac_dec = (aac_decoder_t *)audio_element_getdata(self);
     aac_dec->main_buff_readptr = aac_dec->main_buff;
 
@@ -89,7 +89,7 @@ static bk_err_t _aac_decoder_open(audio_element_handle_t self)
 
 static bk_err_t _aac_decoder_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
 
     //nothing todo
 
@@ -137,7 +137,7 @@ static int _aac_decoder_process(audio_element_handle_t self, char *in_buffer, in
     bk_err_t ret = BK_OK;
     int r_size = 0;
 
-    BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+    BK_LOGV(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
     aac_decoder_t *aac_dec = (aac_decoder_t *)audio_element_getdata(self);
 
     AAC_DECODER_PROCESS_START();
@@ -172,18 +172,18 @@ __retry:
     {
         /* no error */
         AACGetLastFrameInfo(aac_dec->dec_handle, &aac_dec->frame_info);
-        BK_LOGD(TAG, "aacFrameInfo.bitRate: %d \n", aac_dec->frame_info.bitRate);
-        BK_LOGD(TAG, "aacFrameInfo.nChans: %d \n", aac_dec->frame_info.nChans);
-        BK_LOGD(TAG, "aacFrameInfo.sampRateCore: %d \n", aac_dec->frame_info.sampRateCore);
-        BK_LOGD(TAG, "aacFrameInfo.sampRateOut: %d \n", aac_dec->frame_info.sampRateOut);
-        BK_LOGD(TAG, "aacFrameInfo.bitsPerSample: %d \n", aac_dec->frame_info.bitsPerSample);
-        BK_LOGD(TAG, "aacFrameInfo.outputSamps: %d \n", aac_dec->frame_info.outputSamps);
-        BK_LOGD(TAG, "aacFrameInfo.profile: %d \n", aac_dec->frame_info.profile);
-        BK_LOGD(TAG, "aacFrameInfo.tnsUsed: %d \n", aac_dec->frame_info.tnsUsed);
-        BK_LOGD(TAG, "aacFrameInfo.pnsUsed: %d \n", aac_dec->frame_info.pnsUsed);
+        BK_LOGV(TAG, "aacFrameInfo.bitRate: %d \n", aac_dec->frame_info.bitRate);
+        BK_LOGV(TAG, "aacFrameInfo.nChans: %d \n", aac_dec->frame_info.nChans);
+        BK_LOGV(TAG, "aacFrameInfo.sampRateCore: %d \n", aac_dec->frame_info.sampRateCore);
+        BK_LOGV(TAG, "aacFrameInfo.sampRateOut: %d \n", aac_dec->frame_info.sampRateOut);
+        BK_LOGV(TAG, "aacFrameInfo.bitsPerSample: %d \n", aac_dec->frame_info.bitsPerSample);
+        BK_LOGV(TAG, "aacFrameInfo.outputSamps: %d \n", aac_dec->frame_info.outputSamps);
+        BK_LOGV(TAG, "aacFrameInfo.profile: %d \n", aac_dec->frame_info.profile);
+        BK_LOGV(TAG, "aacFrameInfo.tnsUsed: %d \n", aac_dec->frame_info.tnsUsed);
+        BK_LOGV(TAG, "aacFrameInfo.pnsUsed: %d \n", aac_dec->frame_info.pnsUsed);
         aac_dec->main_buff_consume_size += aac_dec->main_buff_remain_size - bytesLeft;
         aac_dec->main_buff_remain_size = bytesLeft;
-        BK_LOGD(TAG, "[%s] remain_size: %d, consume_size: %d\n", audio_element_get_tag(self), aac_dec->main_buff_remain_size, aac_dec->main_buff_consume_size);
+        BK_LOGV(TAG, "[%s] remain_size: %d, consume_size: %d\n", audio_element_get_tag(self), aac_dec->main_buff_remain_size, aac_dec->main_buff_consume_size);
         r_size = aac_dec->frame_info.outputSamps * aac_dec->frame_info.bitsPerSample / 8;
     }
     else
@@ -285,7 +285,7 @@ audio_element_handle_t aac_decoder_init(aac_decoder_cfg_t *config)
     aac_dec->out_pcm_buff = (int16_t *)audio_malloc(aac_dec->out_pcm_buff_size);
     AUDIO_MEM_CHECK(TAG, aac_dec->out_pcm_buff, goto _aac_decoder_init_exit);
 
-    BK_LOGI(TAG, "main_buff_size: %d, out_pcm_buff_size: %d\n", aac_dec->main_buff_size, aac_dec->out_pcm_buff_size);
+    BK_LOGD(TAG, "main_buff_size: %d, out_pcm_buff_size: %d\n", aac_dec->main_buff_size, aac_dec->out_pcm_buff_size);
 
     el = audio_element_init(&cfg);
 

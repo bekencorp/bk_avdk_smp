@@ -428,18 +428,18 @@ bk_err_t sys_hal_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,ui
 	uint32_t     h_vol  = 0;
 	if(cksel_core > 3)
 	{
-		os_printf("set dvfs cksel core > 3 invalid %d\r\n",cksel_core);
+		BK_LOGD(NULL,"set dvfs cksel core > 3 invalid %d\r\n",cksel_core);
 		return BK_FAIL;
 	}
 
 	if((ckdiv_core > PM_FREQUNCY_DIV_MAX) || (ckdiv_bus > PM_FREQUNCY_DIV_BUS_MAX)||(ckdiv_cpu1 > PM_FREQUNCY_DIV_CPU_MAX)||(ckdiv_cpu0 > PM_FREQUNCY_DIV_CPU_MAX))
 	{
-		os_printf("set dvfs ckdiv_core ckdiv_bus ckdiv_cpu0_1  ckdiv_cpu0_1  > 1 invalid\r\n");
+		BK_LOGD(NULL,"set dvfs ckdiv_core ckdiv_bus ckdiv_cpu0_1  ckdiv_cpu0_1  > 1 invalid\r\n");
 		return BK_FAIL;
 	}
 	if((cksel_core == PM_CLKSEL_CORE_320M)&&(ckdiv_core == PM_CLKDIV_CORE_0)&&(ckdiv_cpu0 != PM_CLKDV_CPU0_0))
 	{
-		os_printf("unsupport the cpu freq setting %d %d %d\r\n",cksel_core,ckdiv_core,ckdiv_cpu0);
+		BK_LOGD(NULL,"unsupport the cpu freq setting %d %d %d\r\n",cksel_core,ckdiv_core,ckdiv_cpu0);
 		return BK_FAIL;
 	}
 
@@ -548,7 +548,7 @@ bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq)
 		case PM_CPU_FRQ_480M://cpu0:240m;cpu1:480m;cpu2:480m;bus:240m
 			ret = sys_hal_core_bus_clock_ctrl(0x3,0x0,0x0,0x0,0x1);
 #if	CONFIG_DO_MIPS_FUNCTION
-			os_printf("high-to-low \r\n");
+			BK_LOGD(NULL,"high-to-low \r\n");
 			sys_hal_ctrl_vddd_h_vol(0x7);	// 1.05v
 			sys_hal_ctrl_vdddig_h_vol(0xB);	//0.875V basic_vol:0.6v scale:0.025v
 #else
@@ -619,7 +619,7 @@ bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq)
 	{
 		case PM_CPU_FRQ_480M://cpu0:240m;cpu1:480m;cpu2:480m;bus:240m
 #if	CONFIG_DO_MIPS_FUNCTION
-			os_printf("low-to-high \r\n");
+			BK_LOGD(NULL,"low-to-high \r\n");
 			sys_hal_ctrl_vddd_h_vol(0x7);// 1.05v
 			sys_hal_ctrl_vdddig_h_vol(0xB);//0.875V  //basic_vol:0.6v scale:0.025v
 #else
@@ -1326,7 +1326,7 @@ void sys_hal_set_clksel_spi(uint32_t value)
     }
     else
     {
-        //os_printf("spi cksel is not support on BK7256 in function:%s, line:%d\n", __FUNCTION__, __LINE__);
+        //BK_LOGD(NULL,"spi cksel is not support on BK7256 in function:%s, line:%d\n", __FUNCTION__, __LINE__);
     }
 
 }

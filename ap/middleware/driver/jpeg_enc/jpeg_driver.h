@@ -21,4 +21,5 @@
 #define JPEG_LOGW(...) BK_LOGW(JPEG_TAG, ##__VA_ARGS__)
 #define JPEG_LOGE(...) BK_LOGE(JPEG_TAG, ##__VA_ARGS__)
 #define JPEG_LOGD(...) BK_LOGD(JPEG_TAG, ##__VA_ARGS__)
+#define JPEG_LOGV(...) BK_LOGV(JPEG_TAG, ##__VA_ARGS__)
 

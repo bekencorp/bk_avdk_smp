@@ -42,20 +42,20 @@ lin_statis_t* lin_statis_get_statis(lin_id_t id)
 
 void lin_statis_dump(lin_id_t id)
 {
-	BK_LOGI(TAG, "dump lin statis:\r\n");
-	BK_LOGI(TAG, "isr_cnt:     %d\r\n", s_lin_statis[id].isr_cnt);
-	BK_LOGI(TAG, "error_cnt:       %d\r\n", s_lin_statis[id].error_cnt);
-	BK_LOGI(TAG, "completed_cnt:       %d\r\n", s_lin_statis[id].completed_cnt);
-	BK_LOGI(TAG, "data_req_cnt:      %d\r\n", s_lin_statis[id].data_req_cnt);
-	BK_LOGI(TAG, "recv_timeout_cnt: %d\r\n", s_lin_statis[id].trans_cnt);
-	BK_LOGI(TAG, "trans_cnt:       %d\r\n", s_lin_statis[id].wakeup_cnt);
-	BK_LOGI(TAG, "aborted_cnt:         %d\r\n", s_lin_statis[id].aborted_cnt);
-	BK_LOGI(TAG, "bus_idle_timeout_cnt:        %d\r\n", s_lin_statis[id].bus_idle_timeout_cnt);
-	BK_LOGI(TAG, "active_cnt: %x\r\n", s_lin_statis[id].active_cnt);
-	BK_LOGI(TAG, "bit_err_cnt:    %d\r\n", s_lin_statis[id].bit_err_cnt);
-	BK_LOGI(TAG, "chk_err_cnt:   %d\r\n", s_lin_statis[id].chk_err_cnt);
-	BK_LOGI(TAG, "timeout_err_cnt:  %d\r\n", s_lin_statis[id].timeout_err_cnt);
-	BK_LOGI(TAG, "parity_err_cnt:  %d\r\n", s_lin_statis[id].parity_err_cnt);
+	BK_LOGD(TAG, "dump lin statis:\r\n");
+	BK_LOGD(TAG, "isr_cnt:     %d\r\n", s_lin_statis[id].isr_cnt);
+	BK_LOGD(TAG, "error_cnt:       %d\r\n", s_lin_statis[id].error_cnt);
+	BK_LOGD(TAG, "completed_cnt:       %d\r\n", s_lin_statis[id].completed_cnt);
+	BK_LOGD(TAG, "data_req_cnt:      %d\r\n", s_lin_statis[id].data_req_cnt);
+	BK_LOGD(TAG, "recv_timeout_cnt: %d\r\n", s_lin_statis[id].trans_cnt);
+	BK_LOGD(TAG, "trans_cnt:       %d\r\n", s_lin_statis[id].wakeup_cnt);
+	BK_LOGD(TAG, "aborted_cnt:         %d\r\n", s_lin_statis[id].aborted_cnt);
+	BK_LOGD(TAG, "bus_idle_timeout_cnt:        %d\r\n", s_lin_statis[id].bus_idle_timeout_cnt);
+	BK_LOGD(TAG, "active_cnt: %x\r\n", s_lin_statis[id].active_cnt);
+	BK_LOGD(TAG, "bit_err_cnt:    %d\r\n", s_lin_statis[id].bit_err_cnt);
+	BK_LOGD(TAG, "chk_err_cnt:   %d\r\n", s_lin_statis[id].chk_err_cnt);
+	BK_LOGD(TAG, "timeout_err_cnt:  %d\r\n", s_lin_statis[id].timeout_err_cnt);
+	BK_LOGD(TAG, "parity_err_cnt:  %d\r\n", s_lin_statis[id].parity_err_cnt);
 }
 
 #endif

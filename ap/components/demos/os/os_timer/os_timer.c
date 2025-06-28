@@ -53,12 +53,12 @@ void destroy_timer( void )
 
 void timer_alarm( void *arg )
 {
-    os_printf("I'm timer_handle1\r\n");
+    BK_LOGD(NULL, "I'm timer_handle1\r\n");
 }
 
 void timer2_alarm( void *arg )
 {
-    os_printf("I'm timer_handle2,destroy timer!\r\n");
+    BK_LOGD(NULL, "I'm timer_handle2,destroy timer!\r\n");
 
     destroy_timer();
 }
@@ -67,7 +67,7 @@ int demo_start( void )
 {
     bk_err_t err = kNoErr;
 
-    os_printf("timer demo\r\n");
+    BK_LOGD(NULL, "timer demo\r\n");
 
     /* Create a new software timer,software is AutoReload */
     err = rtos_init_timer(&timer_handle, 500, timer_alarm, 0);  ///500mS
@@ -93,7 +93,7 @@ int demo_start( void )
 
 exit:
     if( err != kNoErr )
-        os_printf( "os timer exit with err: %d", err );
+        BK_LOGD(NULL,  "os timer exit with err: %d", err );
 
     return err;
 }

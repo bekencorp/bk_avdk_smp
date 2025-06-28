@@ -55,7 +55,7 @@ uvc_node_t *uvc_camera_stream_node_init(uvc_stream_handle_t *handle)
 
     list_add_tail(&node->list, &handle->list);
 
-    LOGI("%s, %d\n", __func__, __LINE__);
+    LOGD("%s, %d\n", __func__, __LINE__);
 
     return node;
 

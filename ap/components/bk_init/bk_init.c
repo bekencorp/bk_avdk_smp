@@ -165,7 +165,7 @@ static int app_ble_init(void)
 static int app_bt_init(void)
 {
 #if (CONFIG_BT)
-	BK_LOGI(TAG, "BT active\r\n");
+	BK_LOGD(TAG, "BT active\r\n");
 #if 0//TODO
 	if (!ate_is_enabled())
 		bt_activate(NULL);
@@ -209,7 +209,7 @@ int app_sdio_init(void)
 int app_usb_init(void)
 {
 #if CONFIG_USB
-	BK_LOGI(TAG, "fusb init\r\n");
+	BK_LOGD(TAG, "fusb init\r\n");
 #if 0//TODO
 	if (!ate_is_enabled())
 		fusb_init();
@@ -245,7 +245,7 @@ static int app_uart_debug_init_todo(void)
 {
 #if CONFIG_UART_DEBUG
 #ifndef KEIL_SIMULATOR
-	BK_LOGI(TAG, "uart debug init\r\n");
+	BK_LOGD(TAG, "uart debug init\r\n");
 	uart_debug_init();
 #endif
 #endif
@@ -256,7 +256,7 @@ static int app_uart_debug_init_todo(void)
 extern int net_eth_start();
 static int app_eth_init(void)
 {
-	BK_LOGI(TAG, "ETH init\n");
+	BK_LOGD(TAG, "ETH init\n");
 	net_eth_start();
 	return BK_OK;
 }
@@ -274,11 +274,11 @@ int bk_init(void)
 
 	components_init();
 
-	BK_LOGI(TAG, "armino app init: %s\n", build_version);
-	BK_LOGI(TAG, "verify id: %s\n", BK_VERIFY_ID);
+	BK_LOGD(TAG, "armino app init: %s\n", build_version);
+	BK_LOGD(TAG, "verify id: %s\n", BK_VERIFY_ID);
 
 #ifdef APP_VERSION
-	BK_LOGI(TAG, "APP Version: %s\n", APP_VERSION);
+	BK_LOGD(TAG, "APP Version: %s\n", APP_VERSION);
 #endif
 
 

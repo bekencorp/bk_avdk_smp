@@ -26,6 +26,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
@@ -68,7 +69,7 @@ void jpeg_decode_list_clear(LIST_HEADER_T *list)
 			if (tmp != NULL)
 			{
 				list_del(pos);
-				LOGD("%s pos %p\n", __func__, pos);
+				LOGV("%s pos %p\n", __func__, pos);
 				frame_buffer_display_free(tmp->frame);
 				os_free(tmp);
 			}

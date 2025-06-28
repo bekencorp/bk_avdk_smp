@@ -51,9 +51,9 @@ void show_udp_recv(char *buf, unsigned int len)
 {
     while(len--)
     {
-        os_printf("%02x", *buf++);
+        BK_LOGD(NULL,"%02x", *buf++);
     }
-    os_printf("\r\n");
+    BK_LOGD(NULL,"\r\n");
 }
 
 /* TCP server listener thread */
@@ -72,14 +72,14 @@ void udp_server_thread( beken_thread_arg_t arg )
     buf = (char *) os_malloc( 1024 );
     if(buf == NULL)
     {
-        os_printf("buf == NULL\r\n");
+        BK_LOGD(NULL,"buf == NULL\r\n");
         goto exit;
     }
 
     udp_listen_fd = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );//Make UDP socket
     if(udp_listen_fd == -1)
     {
-        os_printf("udp_listen_fd == -1\r\n");
+        BK_LOGD(NULL,"udp_listen_fd == -1\r\n");
         goto exit;
     }
 
@@ -113,7 +113,7 @@ void udp_server_thread( beken_thread_arg_t arg )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "Server listener thread exit with err: %d", err );
+        BK_LOGD(NULL, "Server listener thread exit with err: %d", err );
     }
 
     if(udp_listen_fd)

@@ -10,7 +10,7 @@ typedef void (*cli_fn_t)(uint32_t param);
 
 static void cli_exception_prompt(void)
 {
-	os_printf("usage: exception {undefine|dabort|illegal}\n");
+	BK_LOGD(NULL, "usage: exception {undefine|dabort|illegal}\n");
 }
 
 /**
@@ -21,8 +21,8 @@ static void cli_exception_prompt(void)
 void cli_data_abort(uint32_t unaligned_addr)
 {
 	uint32_t *crash = (uint32_t*)unaligned_addr;
-	os_printf("call %s\n", __FUNCTION__);
-	os_printf("Generate data abort exception\n");
+	BK_LOGD(NULL, "call %s\n", __FUNCTION__);
+	BK_LOGD(NULL, "Generate data abort exception\n");
 	*crash = 100;
 }
 
@@ -31,11 +31,11 @@ void cli_f3(uint32_t exception_type)
 	char *undefine = 0;
 	cli_fn_t illegal = 0;
 
-	os_printf("call %s\n", __FUNCTION__);
+	BK_LOGD(NULL, "call %s\n", __FUNCTION__);
 
 	switch (exception_type) {
 	case CLI_UNDEFINE:
-		os_printf("Generate undefined exception\n");
+		BK_LOGD(NULL, "Generate undefined exception\n");
 		*undefine = 0;
 		break;
 
@@ -44,25 +44,25 @@ void cli_f3(uint32_t exception_type)
 		break;
 
 	case CLI_ILLEGAL:
-		os_printf("Generate illegal jump exception\n");
+		BK_LOGD(NULL, "Generate illegal jump exception\n");
 		rtos_delay_milliseconds(100);
 		illegal(100);
 		break;
 
 	default:
-		os_printf("invalid exception type\n");
+		BK_LOGD(NULL, "invalid exception type\n");
 	}
 }
 
 void cli_f2(uint32_t exception_type)
 {
-	os_printf("call %s\n", __FUNCTION__);
+	BK_LOGD(NULL, "call %s\n", __FUNCTION__);
 	cli_f3(exception_type);
 }
 
 void cli_f1(uint32_t exception_type)
 {
-	os_printf("call %s\n", __FUNCTION__);
+	BK_LOGD(NULL, "call %s\n", __FUNCTION__);
 	cli_f2(exception_type);
 }
 
@@ -70,8 +70,8 @@ void cli_f1(uint32_t exception_type)
 static void cli_pwm0_isr(pwm_chan_t chan)
 {
 	char *s_undefine = 0;
-	os_printf("PWM isr triggered\n");
-	os_printf("Generate undefined exception in isr\n");
+	BK_LOGD(NULL, "PWM isr triggered\n");
+	BK_LOGD(NULL, "Generate undefined exception in isr\n");
 	*s_undefine = 0;
 }
 #endif
@@ -95,7 +95,7 @@ static void cli_irq(void)
 	BK_LOG_ON_ERR(bk_pwm_start(0));
 	BK_LOG_ON_ERR(bk_pwm_enable_interrupt(0));
 #else
-	os_printf("CONFIG_PWM UNDEFINE\n");
+	BK_LOGD(NULL, "CONFIG_PWM UNDEFINE\n");
 
 #endif
 }

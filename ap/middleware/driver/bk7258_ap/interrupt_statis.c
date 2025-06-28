@@ -27,35 +27,35 @@ int_statis_t * bk_get_int_statis(void)
 
 bk_err_t bk_dump_int_statis(int_statis_t *int_statistic)
 {
-	ICU_LOGI("  irq:int_statis:%x\r\n", int_statistic->irq_int_statis);
-	ICU_LOGI("  uart1 int_num=%d\n", int_statistic->irq_int_statis[0]);
-	ICU_LOGI("  uart2 int_num=%d\n", int_statistic->irq_int_statis[1]);
-	ICU_LOGI("  i2c1 int_num=%d\n", int_statistic->irq_int_statis[2]);
-	ICU_LOGI("  irda int_num=%d\n", int_statistic->irq_int_statis[3]);
-	ICU_LOGI("  i2c2 int_num=%d\n", int_statistic->irq_int_statis[5]);
-	ICU_LOGI("  spi int_num=%d\n", int_statistic->irq_int_statis[6]);
-	ICU_LOGI("  gpio int_num=%d\n", int_statistic->irq_int_statis[7]);
-	ICU_LOGI("  timer int_num=%d\n", int_statistic->irq_int_statis[8]);
-	ICU_LOGI("  pwm int_num=%d\n", int_statistic->irq_int_statis[9]);
-	ICU_LOGI("  saradc int_num=%d\n", int_statistic->irq_int_statis[11]);
-	ICU_LOGI("  sdio int_num=%d\n", int_statistic->irq_int_statis[12]);
-	ICU_LOGI("  sercurity int_num=%d\n", int_statistic->irq_int_statis[13]);
-	ICU_LOGI("  LA int_num=%d\n", int_statistic->irq_int_statis[14]);
-	ICU_LOGI("  general_dma int_num=%d\n", int_statistic->irq_int_statis[15]);
+	ICU_LOGD("  irq:int_statis:%x\r\n", int_statistic->irq_int_statis);
+	ICU_LOGD("  uart1 int_num=%d\n", int_statistic->irq_int_statis[0]);
+	ICU_LOGD("  uart2 int_num=%d\n", int_statistic->irq_int_statis[1]);
+	ICU_LOGD("  i2c1 int_num=%d\n", int_statistic->irq_int_statis[2]);
+	ICU_LOGD("  irda int_num=%d\n", int_statistic->irq_int_statis[3]);
+	ICU_LOGD("  i2c2 int_num=%d\n", int_statistic->irq_int_statis[5]);
+	ICU_LOGD("  spi int_num=%d\n", int_statistic->irq_int_statis[6]);
+	ICU_LOGD("  gpio int_num=%d\n", int_statistic->irq_int_statis[7]);
+	ICU_LOGD("  timer int_num=%d\n", int_statistic->irq_int_statis[8]);
+	ICU_LOGD("  pwm int_num=%d\n", int_statistic->irq_int_statis[9]);
+	ICU_LOGD("  saradc int_num=%d\n", int_statistic->irq_int_statis[11]);
+	ICU_LOGD("  sdio int_num=%d\n", int_statistic->irq_int_statis[12]);
+	ICU_LOGD("  sercurity int_num=%d\n", int_statistic->irq_int_statis[13]);
+	ICU_LOGD("  LA int_num=%d\n", int_statistic->irq_int_statis[14]);
+	ICU_LOGD("  general_dma int_num=%d\n", int_statistic->irq_int_statis[15]);
 
-	ICU_LOGI("  fiq : int_statis:%x\r\n", int_statistic->fiq_int_statis);
-	ICU_LOGI("  modem int_num=%d\n", int_statistic->fiq_int_statis[0]);
-	ICU_LOGI("  mac_txrx_timer int_num=%d\n", int_statistic->fiq_int_statis[1]);
-	ICU_LOGI("  mac_txrx_misc int_num=%d\n", int_statistic->fiq_int_statis[2]);
-	ICU_LOGI("  mac_rx_triggerint_num=%d\n", int_statistic->fiq_int_statis[3]);
-	ICU_LOGI("  mac_tx_trigger int_num=%d\n", int_statistic->fiq_int_statis[4]);
-	ICU_LOGI("  mac_prot_trigger int_num=%d\n", int_statistic->fiq_int_statis[5]);
-	ICU_LOGI("  mac_general int_num=%d\n", int_statistic->fiq_int_statis[6]);
-	ICU_LOGI("  mac_wakeup int_num=%d\n", int_statistic->fiq_int_statis[10]);
-	ICU_LOGI("  pll_unlock int_num=%d\n", int_statistic->fiq_int_statis[12]);
-	ICU_LOGI("  btdm int_num=%d\n", int_statistic->fiq_int_statis[13]);
-	ICU_LOGI("  ble int_num=%d\n", int_statistic->fiq_int_statis[14]);
-	ICU_LOGI("  bt int_num=%d\n", int_statistic->fiq_int_statis[15]);
+	ICU_LOGD("  fiq : int_statis:%x\r\n", int_statistic->fiq_int_statis);
+	ICU_LOGD("  modem int_num=%d\n", int_statistic->fiq_int_statis[0]);
+	ICU_LOGD("  mac_txrx_timer int_num=%d\n", int_statistic->fiq_int_statis[1]);
+	ICU_LOGD("  mac_txrx_misc int_num=%d\n", int_statistic->fiq_int_statis[2]);
+	ICU_LOGD("  mac_rx_triggerint_num=%d\n", int_statistic->fiq_int_statis[3]);
+	ICU_LOGD("  mac_tx_trigger int_num=%d\n", int_statistic->fiq_int_statis[4]);
+	ICU_LOGD("  mac_prot_trigger int_num=%d\n", int_statistic->fiq_int_statis[5]);
+	ICU_LOGD("  mac_general int_num=%d\n", int_statistic->fiq_int_statis[6]);
+	ICU_LOGD("  mac_wakeup int_num=%d\n", int_statistic->fiq_int_statis[10]);
+	ICU_LOGD("  pll_unlock int_num=%d\n", int_statistic->fiq_int_statis[12]);
+	ICU_LOGD("  btdm int_num=%d\n", int_statistic->fiq_int_statis[13]);
+	ICU_LOGD("  ble int_num=%d\n", int_statistic->fiq_int_statis[14]);
+	ICU_LOGD("  bt int_num=%d\n", int_statistic->fiq_int_statis[15]);
 
 	return BK_OK;
 }

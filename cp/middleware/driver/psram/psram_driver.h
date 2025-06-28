@@ -21,5 +21,6 @@
 #define PSRAM_LOGW(...) BK_LOGW(PSRAM_TAG, ##__VA_ARGS__)
 #define PSRAM_LOGE(...) BK_LOGE(PSRAM_TAG, ##__VA_ARGS__)
 #define PSRAM_LOGD(...) BK_LOGD(PSRAM_TAG, ##__VA_ARGS__)
+#define PSRAM_LOGV(...) BK_LOGV(PSRAM_TAG, ##__VA_ARGS__)
 
 

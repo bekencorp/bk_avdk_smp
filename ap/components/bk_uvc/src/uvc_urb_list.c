@@ -28,6 +28,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #ifdef CONFIG_FREERTOS_SMP
 static SPINLOCK_SECTION volatile spinlock_t urb_spin_lock = SPIN_LOCK_INIT;
@@ -64,7 +65,7 @@ bk_err_t uvc_camera_urb_list_init(void)
 
     if (mem_list->enable)
     {
-        LOGD("%s, urb list already init\r\n", __func__);
+        LOGV("%s, urb list already init\r\n", __func__);
         return ret;
     }
 
@@ -83,7 +84,7 @@ bk_err_t uvc_camera_urb_list_init(void)
 
     mem_list->buffer = (uint8_t *)media_malloc(mem_list->size);
 
-    LOGD("%s, mem_list->buffer:%p, size:%d\r\n", __func__, mem_list->buffer, mem_list->size);
+    LOGV("%s, mem_list->buffer:%p, size:%d\r\n", __func__, mem_list->buffer, mem_list->size);
 
     if (mem_list->buffer == NULL)
     {
@@ -112,7 +113,7 @@ bk_err_t uvc_camera_urb_list_init(void)
         node->urb.transfer_buffer_length = UVC_MAX_PACKET_SIZE * node->urb.num_of_iso_packets;
         offset0 += node->urb.transfer_buffer_length;
 
-        LOGD("node(%d): transfer_buffer:%p, transfer_buffer_length:%d\r\n",
+        LOGV("node(%d): transfer_buffer:%p, transfer_buffer_length:%d\r\n",
              i,
              node->urb.transfer_buffer,
              node->urb.transfer_buffer_length);
@@ -129,12 +130,12 @@ bk_err_t uvc_camera_urb_list_init(void)
             node->urb.iso_packet[j].errorcode = 0;
             offset1 += UVC_MAX_PACKET_SIZE;
 
-            LOGD("iso_packet(%d): transfer_buffer:%p, transfer_buffer_length:%d\r\n",
+            LOGV("iso_packet(%d): transfer_buffer:%p, transfer_buffer_length:%d\r\n",
                  j, node->urb.iso_packet[j].transfer_buffer,
                  node->urb.iso_packet[j].transfer_buffer_length);
         }
 
-        LOGD("%s, %d, %p\r\n", __func__, __LINE__, &node->urb);
+        LOGV("%s, %d, %p\r\n", __func__, __LINE__, &node->urb);
 
         list_add_tail(&node->list, &mem_list->free);
     }
@@ -164,7 +165,7 @@ bk_err_t uvc_camera_urb_list_deinit(void)
         list_for_each_safe(pos, n, &mem_list->free)
         {
             tmp = list_entry(pos, uvc_urb_node_t, list);
-            LOGD("free list: %p\n", tmp);
+            LOGV("free list: %p\n", tmp);
             if (tmp != NULL)
             {
                 list_del(pos);
@@ -180,7 +181,7 @@ bk_err_t uvc_camera_urb_list_deinit(void)
     {
         list_for_each_safe(pos, n, &mem_list->ready)
         {
-            LOGD("ready list: %p\n", tmp);
+            LOGV("ready list: %p\n", tmp);
             tmp = list_entry(pos, uvc_urb_node_t, list);
             if (tmp != NULL)
             {
@@ -200,7 +201,7 @@ bk_err_t uvc_camera_urb_list_deinit(void)
 
     rtos_deinit_semaphore(&mem_list->sem);
 
-    LOGI("uvc urb list deinit finish\n");
+    LOGD("uvc urb list deinit finish\n");
 
     return ret;
 }
@@ -277,7 +278,7 @@ struct usbh_urb *uvc_camera_urb_malloc(void)
         node->urb.iso_packet[j].errorcode = 0;
     }
 
-    LOGD("%s, node:%p, %p\r\n", __func__, node, &node->urb);
+    LOGV("%s, node:%p, %p\r\n", __func__, node, &node->urb);
     return &node->urb;
 }
 
@@ -358,7 +359,7 @@ struct usbh_urb *uvc_camera_urb_pop(void)
     {
         if (rtos_get_semaphore(&mem_list->sem, 100) != BK_OK)
         {
-            LOGD("%s, get node timeout, do not urb push!\r\n", __func__);
+            LOGV("%s, get node timeout, do not urb push!\r\n", __func__);
         }
         return NULL;
     }

@@ -159,7 +159,7 @@ void dump_state(void)
 
 	for (uint32_t irq_type = 0; irq_type < INT_NUMBER_MAX; irq_type++) {
 		if (irq_type == 32) {
-			BK_LOGI("int", "bits=%x\r\n", bits);
+			BK_LOGD("int", "bits=%x\r\n", bits);
 			bits = 0;
 		}
 
@@ -169,7 +169,7 @@ void dump_state(void)
 		}
 	}
 
-	BK_LOGI("int", "high bits=%x\r\n", bits);
+	BK_LOGD("int", "high bits=%x\r\n", bits);
 }
 
 void arch_int_set_target_state_all(void)
@@ -185,7 +185,7 @@ void arch_int_dump_statis(void)
 {
 #if CONFIG_ARCH_INT_STATIS
 	for (uint32_t irq_type = 0; irq_type < INT_NUMBER_MAX; irq_type++) {
-		BK_LOGI(TAG, "[%d] = %u\r\n", irq_type, s_int_statis[irq_type]);
+		BK_LOGD(TAG, "[%d] = %u\r\n", irq_type, s_int_statis[irq_type]);
 	}
 #endif
 }

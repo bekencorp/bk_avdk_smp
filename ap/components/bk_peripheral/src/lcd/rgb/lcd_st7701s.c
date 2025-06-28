@@ -537,7 +537,7 @@ static void lcd_st7701s_config(void)
 static void lcd_st7701s_init(void)
 {
 #if 1
-	os_printf("lcd_st7701s: init.\r\n");
+	BK_LOGD(NULL, "lcd_st7701s: init.\r\n");
 #endif
 	lcd_spi_init_gpio();
 	lcd_st7701s_config();

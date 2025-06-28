@@ -80,7 +80,7 @@ int gettimeofday(struct timeval *tv, void *ptz)
 
         tv->tv_sec=uCurTimeUs/1000000;
         tv->tv_usec=uCurTimeUs%1000000;
-        RTC_LOGI("%s sec:%d us:%d \n",__func__,tv->tv_sec,tv->tv_usec);
+        RTC_LOGD("%s sec:%d us:%d \n",__func__,tv->tv_sec,tv->tv_usec);
     }
 
     return IOT_RTC_SUCCESS;
@@ -95,8 +95,8 @@ int settimeofday(const struct timeval *tv,const struct timezone *tz)
         uint64_t setTimeUs=((uint64_t)tv->tv_sec)*1000000LL+tv->tv_usec ;
         uint64_t getCurTimeUs=bk_aon_rtc_get_us();
         s_microseconds_offset=setTimeUs-getCurTimeUs;
-        RTC_LOGI("%s sec:%d us:%d \n",__func__,tv->tv_sec,tv->tv_usec);
-        RTC_LOGI("%s set:%d cur:%d diff:%d \n",__func__,setTimeUs,getCurTimeUs,s_microseconds_offset);
+        RTC_LOGD("%s sec:%d us:%d \n",__func__,tv->tv_sec,tv->tv_usec);
+        RTC_LOGD("%s set:%d cur:%d diff:%d \n",__func__,setTimeUs,getCurTimeUs,s_microseconds_offset);
 
     }
     return IOT_RTC_SUCCESS;
@@ -128,7 +128,7 @@ IotRtcHandle_t iot_rtc_open( int32_t lRtcInstance )
     is_rtc_opened=true;
     time_rtc_instance->status=eRtcTimerStopped;
 //    time_rtc_instance->rtc_status=IOT_RTC_NOT_STARTED;
-    RTC_LOGI("%s Opened\n",__func__);
+    RTC_LOGD("%s Opened\n",__func__);
     return time_rtc_instance;
 }
 
@@ -163,7 +163,7 @@ int32_t iot_rtc_set_datetime( IotRtcHandle_t const pxRtcHandle,
 
     IotRtcHandle_t rtc_instance=pxRtcHandle;
     rtc_instance->seconds.tv_sec=mktime(&tmp);
-    RTC_LOGI("%s  set Sec %d us:%d \n",__func__,rtc_instance->seconds.tv_sec,rtc_instance->seconds.tv_usec);
+    RTC_LOGD("%s  set Sec %d us:%d \n",__func__,rtc_instance->seconds.tv_sec,rtc_instance->seconds.tv_usec);
 
     if(settimeofday(&rtc_instance->seconds,NULL)!=IOT_RTC_SUCCESS)
     {
@@ -209,25 +209,25 @@ int32_t iot_rtc_get_datetime( IotRtcHandle_t const pxRtcHandle,
     pxDatetime->ucMinute=tmp->tm_min;
     pxDatetime->ucSecond=tmp->tm_sec;
     pxDatetime->ucWday=tmp->tm_wday;
-    RTC_LOGI("%s year:%d mon:%d day:%d hour:%d min:%d sec:%d wd:%d\n",__func__,pxDatetime->usYear,pxDatetime->ucMonth,
+    RTC_LOGD("%s year:%d mon:%d day:%d hour:%d min:%d sec:%d wd:%d\n",__func__,pxDatetime->usYear,pxDatetime->ucMonth,
     pxDatetime->ucDay,pxDatetime->ucHour,pxDatetime->ucMinute,pxDatetime->ucSecond,pxDatetime->ucWday);
     return IOT_RTC_SUCCESS;
 }  
 static void rtc_cb(aon_rtc_id_t id,uint8_t *name_p,void *param)
 {
-    RTC_LOGI("id:%d name:%s ",id,name_p);
+    RTC_LOGD("id:%d name:%s ",id,name_p);
     IotRtcHandle_t rtc_instance=(IotRtcDescriptor_t*)param;
     if(rtc_instance->func)
     {
         rtc_instance->func(rtc_instance->status,rtc_instance->arg2);
         rtc_instance->func=NULL;
     }
-    RTC_LOGI(" :%s\n",__func__);
+    RTC_LOGD(" :%s\n",__func__);
 }
 
 static void rtc_wake_cb(aon_rtc_id_t id,uint8_t *name_p,void *param)
 {
-    RTC_LOGI("%s ",__func__);
+    RTC_LOGD("%s ",__func__);
     IotRtcHandle_t rtc_instance=(IotRtcDescriptor_t*)param;
     if(rtc_instance->func)
     {
@@ -235,7 +235,7 @@ static void rtc_wake_cb(aon_rtc_id_t id,uint8_t *name_p,void *param)
         rtc_instance->func=NULL;
 
     }
-    RTC_LOGI(" id:%d name:%s \n",id,name_p);
+    RTC_LOGD(" id:%d name:%s \n",id,name_p);
 }
 
 void iot_rtc_set_callback( IotRtcHandle_t const pxRtcHandle,
@@ -306,7 +306,7 @@ int32_t iot_rtc_ioctl( IotRtcHandle_t const pxRtcHandle,
             alarm_info.name[5]='c';
 
             alarm_info.period_tick=(uint64_t)rtc_instance->uUTC_time*bk_rtc_get_clock_freq();//switch to tick cnt
-            RTC_LOGI("eSetRtcAlarm Tgt:%d period:%d ",rtc_instance->uUTC_time,alarm_info.period_tick);
+            RTC_LOGD("eSetRtcAlarm Tgt:%d period:%d ",rtc_instance->uUTC_time,alarm_info.period_tick);
             alarm_info.period_cnt=1;
             alarm_info.param_p=(void*)rtc_instance;
             alarm_info.callback=rtc_cb;
@@ -314,7 +314,7 @@ int32_t iot_rtc_ioctl( IotRtcHandle_t const pxRtcHandle,
             os_memcpy(rtc_instance->alarmName,alarm_info.name,ALARM_NAME_MAX_LEN);
             rtc_instance->uUTC_time=mktime(&tmp);
             rtc_instance->status=eRtcTimerAlarmTriggered;
-            RTC_LOGI(" status:%d",rtc_instance->status);
+            RTC_LOGD(" status:%d",rtc_instance->status);
         }
         break;
         case eGetRtcAlarm:
@@ -334,7 +334,7 @@ int32_t iot_rtc_ioctl( IotRtcHandle_t const pxRtcHandle,
             user_time->ucMinute=get_alarm->tm_min;
             user_time->ucSecond=get_alarm->tm_sec;
             user_time->ucWday=get_alarm->tm_wday;
-            RTC_LOGI("eGetRtcAlarm status:%d \n",rtc_instance->status);
+            RTC_LOGD("eGetRtcAlarm status:%d \n",rtc_instance->status);
         }
         break;
         case eCancelRtcAlarm:
@@ -352,7 +352,7 @@ int32_t iot_rtc_ioctl( IotRtcHandle_t const pxRtcHandle,
         {
             IotRtcStatus_t *rtc_status=(IotRtcStatus_t *)pvBuffer;
             *rtc_status=rtc_instance->status;
-            RTC_LOGI("eGetRtcStatus:%d\n",*rtc_status);
+            RTC_LOGD("eGetRtcStatus:%d\n",*rtc_status);
         }
         break;
         case eSetRtcWakeupTime:
@@ -385,7 +385,7 @@ int32_t iot_rtc_ioctl( IotRtcHandle_t const pxRtcHandle,
             os_memcpy(rtc_instance->alarmName,alarm_info.name,ALARM_NAME_MAX_LEN);
             rtc_instance->status=eRtcTimerWakeupTriggered;
             rtc_instance->uWakeUpTick=alarm_info.period_tick;//(*uWakeUpTimeMs)*bk_rtc_get_clock_freq()/1000;
-            RTC_LOGI("eSetRtcWakeupTime Tgt_ms:%d period:%d curTick:%d\n",(*uWakeUpTimeMs),rtc_instance->uWakeUpTick,alarm_info.period_tick);
+            RTC_LOGD("eSetRtcWakeupTime Tgt_ms:%d period:%d curTick:%d\n",(*uWakeUpTimeMs),rtc_instance->uWakeUpTick,alarm_info.period_tick);
         }        
         break;
         case eGetRtcWakeupTime:
@@ -398,7 +398,7 @@ int32_t iot_rtc_ioctl( IotRtcHandle_t const pxRtcHandle,
             uint32_t *uGetMs=(uint32_t *)pvBuffer;
             (*uGetMs)=rtc_instance->uWakeUpTick*1000/bk_rtc_get_clock_freq();
 
-            RTC_LOGI("eGetRtcWakeupTime :%dms \n",(*uGetMs));
+            RTC_LOGD("eGetRtcWakeupTime :%dms \n",(*uGetMs));
         }        
         break;
         case eCancelRtcWakeup:
@@ -438,7 +438,7 @@ int32_t iot_rtc_close( IotRtcHandle_t const pxRtcHandle )
     }
     is_rtc_opened=false;
     os_free(pxRtcHandle);
-    RTC_LOGI("%s sucess\n",__func__);
+    RTC_LOGD("%s sucess\n",__func__);
     return IOT_RTC_SUCCESS;
 }
 

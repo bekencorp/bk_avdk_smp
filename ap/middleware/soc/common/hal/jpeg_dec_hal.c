@@ -71,18 +71,18 @@ static uint16_t jpeg_dec_input_func (JDEC* jd, uint8_t* buff, uint16_t ndata)
 {
 	if (jpg_dec_st.rd_ptr > jpg_dec_st.jpg_file_size)
 	{
-		//os_printf("jpg_dec_st.jpg_file_size = %x \r\n", jpg_dec_st.jpg_file_size);
-		//os_printf("jpg_dec_st.rd_ptr = %x \r\n", jpg_dec_st.rd_ptr);
+		//BK_LOGD(NULL, "jpg_dec_st.jpg_file_size = %x \r\n", jpg_dec_st.jpg_file_size);
+		//BK_LOGD(NULL, "jpg_dec_st.rd_ptr = %x \r\n", jpg_dec_st.rd_ptr);
 		return 0xffff;
 	}
 	if (NULL != buff)
 	{
 		os_memcpy(buff, jpg_dec_st.inputbuf + jpg_dec_st.rd_ptr,ndata);
 	}
-	//os_printf("buff = %x \r\n", buff);
-	//os_printf("*buff = %x \r\n", *buff);
-	//os_printf("jpg_dec_st.rd_ptr = %x \r\n", jpg_dec_st.rd_ptr);
-	//os_printf("jpg_dec_st.inputbuf = %x\r\n", *(jpg_dec_st.inputbuf +jpg_dec_st.rd_ptr));
+	//BK_LOGD(NULL, "buff = %x \r\n", buff);
+	//BK_LOGD(NULL, "*buff = %x \r\n", *buff);
+	//BK_LOGD(NULL, "jpg_dec_st.rd_ptr = %x \r\n", jpg_dec_st.rd_ptr);
+	//BK_LOGD(NULL, "jpg_dec_st.inputbuf = %x\r\n", *(jpg_dec_st.inputbuf +jpg_dec_st.rd_ptr));
 
 
 	jpg_dec_st.rd_ptr += ndata;
@@ -294,7 +294,7 @@ static JRESULT jd_prepare (JDEC* jd, uint16_t (*infunc)(JDEC*, uint8_t*, uint16_
 
 	if (!pool)
 	{
-		//os_printf("1--return = %d \r\n", JDR_PAR);
+		//BK_LOGD(NULL, "1--return = %d \r\n", JDR_PAR);
 		return JDR_PAR;
 	}
 	jd->pool = pool;		/* Work memroy */
@@ -316,22 +316,22 @@ static JRESULT jd_prepare (JDEC* jd, uint16_t (*infunc)(JDEC*, uint8_t*, uint16_
 	jd->inbuf = seg = alloc_pool(jd, JD_SZBUF);		/* Allocate stream input buffer */
 	if (!seg)
 	{
-		//os_printf("JDR_MEM1--return = %d \r\n", JDR_MEM1);
+		//BK_LOGD(NULL, "JDR_MEM1--return = %d \r\n", JDR_MEM1);
 		return JDR_MEM1;
 	}
 	if (jd->infunc(jd, seg, 2) != 2)
 	{
-		//os_printf("JDR_INP--return = %d \r\n", JDR_INP);
+		//BK_LOGD(NULL, "JDR_INP--return = %d \r\n", JDR_INP);
 		return JDR_INP;/* Check SOI marker */
 	}
 
-	//os_printf("jd->inbuf = %x \r\n", *(jd->inbuf));
-	//os_printf("jd->inbuf = %x \r\n", *(jd->inbuf + 1));
-	//os_printf("jd->inbuf = %x \r\n", *(jd->inbuf + 2));
+	//BK_LOGD(NULL, "jd->inbuf = %x \r\n", *(jd->inbuf));
+	//BK_LOGD(NULL, "jd->inbuf = %x \r\n", *(jd->inbuf + 1));
+	//BK_LOGD(NULL, "jd->inbuf = %x \r\n", *(jd->inbuf + 2));
 
 	if (LDB_WORD(seg) != 0xFFD8)
 	{
-		//os_printf("LDB_WORD(seg) = %x \r\n", LDB_WORD(seg));
+		//BK_LOGD(NULL, "LDB_WORD(seg) = %x \r\n", LDB_WORD(seg));
 		return JDR_FMT1;	/* Err: SOI is not detected */
 	}
 
@@ -345,19 +345,19 @@ static JRESULT jd_prepare (JDEC* jd, uint16_t (*infunc)(JDEC*, uint8_t*, uint16_
 			/* Get a JPEG marker */
 			if (jd->infunc(jd, seg, 4) != 4)
 			{
-				//os_printf("6-----JDR_INP = %x \r\n", jd->infunc(jd, seg, 4));
-				//os_printf("6-----JDR_INP = %x \r\n", JDR_INP);
+				//BK_LOGD(NULL, "6-----JDR_INP = %x \r\n", jd->infunc(jd, seg, 4));
+				//BK_LOGD(NULL, "6-----JDR_INP = %x \r\n", JDR_INP);
 				return JDR_INP;
 			}
 			marker = LDB_WORD(seg);		/* Marker */
 			len = LDB_WORD(seg + 2);	/* Length field */
 
 			if((marker& 0xFF) != 0xFF) {
-				//os_printf("6-----marker& 0xFF = %x \r\n", marker& 0xFF);
+				//BK_LOGD(NULL, "6-----marker& 0xFF = %x \r\n", marker& 0xFF);
 				pointer += 2 + len;
 			}
 			if (len <= 2 || (marker >> 8) != 0xFF) {
-				//os_printf("6-----JDR_INP = %x \r\n", JDR_INP);
+				//BK_LOGD(NULL, "6-----JDR_INP = %x \r\n", JDR_INP);
 				return JDR_FMT1;
 			}
 			len -= 2;		/* Content size excluding length field */
@@ -383,7 +383,7 @@ static JRESULT jd_prepare (JDEC* jd, uint16_t (*infunc)(JDEC*, uint8_t*, uint16_
 
 			if (seg[5] != 3)
 			{
-				os_printf("7--JDR_FMT3-- = %x \r\n", JDR_FMT3);
+				BK_LOGD(NULL, "7--JDR_FMT3-- = %x \r\n", JDR_FMT3);
 				return JDR_FMT3;	/* Err: Supports only Y/Cb/Cr format */
 			}
 
@@ -454,7 +454,7 @@ static JRESULT jd_prepare (JDEC* jd, uint16_t (*infunc)(JDEC*, uint8_t*, uint16_
 
 			/* Create huffman tables */
 			rc = create_huffman_tbl(jd, seg, len);
-			//os_printf("0xC4-----JPEGDEC_INTEN = %d \r\n", JPEGDEC_INTEN);
+			//BK_LOGD(NULL, "0xC4-----JPEGDEC_INTEN = %d \r\n", JPEGDEC_INTEN);
 			if (rc)
 				return rc;
 			break;
@@ -753,9 +753,9 @@ JRESULT jpeg_dec_hal_get_img_info(uint32_t frame_size, uint8_t *input_buf, jpeg_
 		result->pixel_y = jdec.height;
 		result->jpeg_enc_mode = jpg_dec_st.jpeg_enc_mode;
 	} else {	/* Error occured on prepare */
-		os_printf("jpeg get img infor fail %d\r\n", ret);
+		BK_LOGD(NULL, "jpeg get img infor fail %d\r\n", ret);
 	}
-	os_printf("jpeg get img infor pixel_x pixel_y %d %d\r\n", result->pixel_x, result->pixel_y);
+	BK_LOGD(NULL, "jpeg get img infor pixel_x pixel_y %d %d\r\n", result->pixel_x, result->pixel_y);
 
 	return ret;
 }
@@ -775,7 +775,7 @@ JRESULT JpegdecInit(uint32_t length,unsigned char *input_buf, unsigned char * ou
 
 	ret = jd_prepare(&jdec, jpeg_dec_input_func, jpg_dec_st.workbuf, WORK_AREA_SIZE, NULL);
 	if(ret != JDR_OK) {
-//		os_printf("jd prepare error return %x \r\n", ret);
+//		BK_LOGD(NULL, "jd prepare error return %x \r\n", ret);
 		return ret;
 	}
 

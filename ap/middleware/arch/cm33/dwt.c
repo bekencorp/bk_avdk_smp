@@ -48,10 +48,10 @@ void dwt_get_cap_info(uint32_t comparator_id)
     if(-1 == cap)
         return;
 
-    LOGI("comparator id:%d, the following is the capability string:\r\n", comparator_id);
+    LOGD("comparator id:%d, the following is the capability string:\r\n", comparator_id);
     for(i = 0; i < CAP_MAX_CNT; i ++){
         if(cap & (cap_str_array[i].bit_val)){
-            LOGI("    %s\r\n", cap_str_array[i].cap_desc);
+            LOGD("    %s\r\n", cap_str_array[i].cap_desc);
         }
     }
 }

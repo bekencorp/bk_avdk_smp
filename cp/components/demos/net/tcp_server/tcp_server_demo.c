@@ -71,7 +71,7 @@ void net_tcp_client_thread( beken_thread_arg_t arg )
 
             if ( len == 0 )
             {
-                os_printf( "TCP Client is disconnected, fd: %d", fd );
+                BK_LOGD(NULL, "TCP Client is disconnected, fd: %d", fd );
                 goto exit;
             }
 
@@ -82,7 +82,7 @@ void net_tcp_client_thread( beken_thread_arg_t arg )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "TCP client thread exit with err: %d", err );
+        BK_LOGD(NULL, "TCP client thread exit with err: %d", err );
     }
 
     if ( buf != NULL )
@@ -126,7 +126,7 @@ void net_tcp_server_thread( beken_thread_arg_t arg )
             if ( client_fd >= 0 )
             {
                 os_strcpy( client_ip_str, inet_ntoa( client_addr.sin_addr ) );
-                os_printf( "tcp client %s:%d connected, fd: %d", client_ip_str, client_addr.sin_port, client_fd );
+                BK_LOGD(NULL, "tcp client %s:%d connected, fd: %d", client_ip_str, client_addr.sin_port, client_fd );
                 if( kNoErr != rtos_create_thread( NULL, BEKEN_APPLICATION_PRIORITY,
                                                   "TCP Clients",
                                                   (beken_thread_function_t)net_tcp_client_thread,
@@ -142,7 +142,7 @@ void net_tcp_server_thread( beken_thread_arg_t arg )
 
     if ( err != kNoErr )
     {
-        os_printf( "Server listerner thread exit with err: %d", err );
+        BK_LOGD(NULL, "Server listerner thread exit with err: %d", err );
     }
 
     close( tcp_listen_fd );

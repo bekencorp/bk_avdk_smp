@@ -35,7 +35,7 @@
 #include <os/mem.h>
 #include <os/str.h>
 
-#define tcp_server_log(M, ...) LWIP_LOGI("TCP", M, ##__VA_ARGS__)
+#define tcp_server_log(M, ...) LWIP_LOGD("TCP", M, ##__VA_ARGS__)
 
 #define SERVER_PORT            20000 /*set up a tcp server,port at 20000*/
 
@@ -57,7 +57,7 @@ int unw_recv(const int fd, void *buf, u32 nbytes)
 	FD_SET(fd, &errfds);
 
 	ret = select(fd + 1, &readfds, NULL, &errfds, NULL);
-	LWIP_LOGI("select ret:%d, %d, %d\r\n", ret, FD_ISSET(fd, &readfds), FD_ISSET(fd, &errfds));
+	LWIP_LOGD("select ret:%d, %d, %d\r\n", ret, FD_ISSET(fd, &readfds), FD_ISSET(fd, &errfds));
 
 	if (ret > 0 && FD_ISSET(fd, &readfds))
 		return recv(fd, buf, nbytes, 0);
@@ -85,7 +85,7 @@ void tcp_client_thread(beken_thread_arg_t arg)
 			len = recv(fd, buf, 1024, 0);
 
 			if (len <= 0) {
-				LWIP_LOGI("TCP Client is disconnected, fd: %d", fd);
+				LWIP_LOGD("TCP Client is disconnected, fd: %d", fd);
 				goto exit;
 			}
 
@@ -107,7 +107,7 @@ exit:
 volatile u8 test_flag = 0;
 void close_tcp_client(void)
 {
-	LWIP_LOGI("close_tcp_client:%d, %p\r\n", my_fd, rtos_get_current_thread());
+	LWIP_LOGD("close_tcp_client:%d, %p\r\n", my_fd, rtos_get_current_thread());
 	test_flag = 1;
 	close(my_fd);
 	my_fd = -1;

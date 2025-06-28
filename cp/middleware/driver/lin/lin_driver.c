@@ -117,7 +117,7 @@ static int lin_pm_restore(uint64_t sleep_time, void *args)
 bk_err_t bk_lin_gpio_init(lin_channel_t chn)
 {
 	if (chn >= LIN_CHAN_MAX || chn < LIN_CHAN_0) {
-			LIN_LOGD("unsupported lin chnnal\r\n");
+			LIN_LOGV("unsupported lin chnnal\r\n");
 			return BK_ERR_PARAM;
 	}
 	BK_LOG_ON_ERR(gpio_dev_unmap(s_lin_gpio[chn].tx_gpio.id));
@@ -133,7 +133,7 @@ bk_err_t bk_lin_gpio_init(lin_channel_t chn)
 static bk_err_t bk_lin_gpio_deinit(lin_channel_t chn)
 {
 	if (chn >= LIN_CHAN_MAX || chn < LIN_CHAN_0) {
-			LIN_LOGD("unsupported lin chnnal\r\n");
+			LIN_LOGV("unsupported lin chnnal\r\n");
 			return BK_ERR_PARAM;
 	}
 	BK_LOG_ON_ERR(gpio_dev_unmap(s_lin_gpio[chn].tx_gpio.id));
@@ -176,32 +176,32 @@ void lin_error(void)
 	__attribute__((__unused__)) lin_statis_t *lin_statis = lin_statis_get_statis(lin_hal_get_ident_id());
 
 	if (lin_hal_get_error_bit() != 0) {
-		LIN_LOGD("bit error occurs during data transmission!!!\n");
+		LIN_LOGV("bit error occurs during data transmission!!!\n");
 		if (s_lin_isr[LIN_INT_BIT_ERR].isr) {
 			s_lin_isr[LIN_INT_BIT_ERR].isr(s_lin_isr[LIN_INT_BIT_ERR].arg);
 		}
 		LIN_STATIS_INC(lin_statis->bit_err_cnt);
 	} else if (lin_hal_get_error_chk() != 0 ) {
-		LIN_LOGD("checksum error occurs!!!\n");
+		LIN_LOGV("checksum error occurs!!!\n");
 		if (s_lin_isr[LIN_INT_CHK_ERR].isr) {
 			s_lin_isr[LIN_INT_CHK_ERR].isr(s_lin_isr[LIN_INT_CHK_ERR].arg);
 		}
 		LIN_STATIS_INC(lin_statis->chk_err_cnt);
 	} else if (lin_hal_get_error_timeout() != 0) {
-		LIN_LOGD("timeout error occurs!!!\n");
+		LIN_LOGV("timeout error occurs!!!\n");
 		if (s_lin_isr[LIN_INT_TIMEOUT_ERR].isr) {
 			s_lin_isr[LIN_INT_TIMEOUT_ERR].isr(s_lin_isr[LIN_INT_TIMEOUT_ERR].arg);
 		}
 		LIN_STATIS_INC(lin_statis->timeout_err_cnt);
 	} else if (lin_hal_get_error_parity() != 0) {
 
-		LIN_LOGD("parity occurs!!!\n");
+		LIN_LOGV("parity occurs!!!\n");
 		if (s_lin_isr[LIN_INT_PARITY_ERR].isr) {
 			s_lin_isr[LIN_INT_PARITY_ERR].isr(s_lin_isr[LIN_INT_PARITY_ERR].arg);
 		}
 		LIN_STATIS_INC(lin_statis->parity_err_cnt);
 	} else {
-		LIN_LOGD("lin unknown interrupt error!!!\n");
+		LIN_LOGV("lin unknown interrupt error!!!\n");
 	}
 }
 
@@ -214,7 +214,7 @@ static void lin_isr_master(void)
 		LIN_STATIS_INC(lin_statis->error_cnt);
 	} else if (lin_hal_get_status_wake_up() != 0) {
 		/* TODO, after waking up, you can do corresponding operations */
-		LIN_LOGD("The device has sent or received a wakeup signal!!!\n");
+		LIN_LOGV("The device has sent or received a wakeup signal!!!\n");
 		LIN_STATIS_INC(lin_statis->parity_err_cnt);
 		if (s_lin_isr[LIN_INT_WAKEUP].isr) {
 			s_lin_isr[LIN_INT_WAKEUP].isr(s_lin_isr[LIN_INT_WAKEUP].arg);
@@ -222,14 +222,14 @@ static void lin_isr_master(void)
 		LIN_STATIS_INC(lin_statis->wakeup_cnt);
 	} else if (lin_hal_get_status_complete() != 0) {
 		/* TODO, you can do corresponding operations */
-		LIN_LOGD("master transmit completed\n");
+		LIN_LOGV("master transmit completed\n");
 		if (s_lin_isr[LIN_INT_COMPLETE].isr) {
 			s_lin_isr[LIN_INT_COMPLETE].isr(s_lin_isr[LIN_INT_COMPLETE].arg);
 		}
 
 		LIN_STATIS_INC(lin_statis->completed_cnt);
 	} else {
-		LIN_LOGD("lin unknown interrupt!!!\n");
+		LIN_LOGV("lin unknown interrupt!!!\n");
 	}
 	lin_hal_set_ctrl_reset_error();
 	lin_hal_set_ctrl_reset_int();
@@ -244,19 +244,19 @@ static void lin_isr_slave(void)
 		lin_error();
 		LIN_STATIS_INC(lin_statis->error_cnt);
 	} else if (lin_hal_get_status_data_req() != 0) {
-		LIN_LOGD("data_req occures!!!\n");
+		LIN_LOGV("data_req occures!!!\n");
 		if (s_lin_isr[LIN_INT_DATA_REQ].isr) {
 			s_lin_isr[LIN_INT_DATA_REQ].isr(s_lin_isr[LIN_INT_DATA_REQ].arg);
 		}
 		LIN_STATIS_INC(lin_statis->data_req_cnt);
 	} else if (lin_hal_get_status_aborted() != 0) {
-		LIN_LOGD("transmission is aborted!!!\n");
+		LIN_LOGV("transmission is aborted!!!\n");
 		if (s_lin_isr[LIN_INT_ABORTED].isr) {
 			s_lin_isr[LIN_INT_ABORTED].isr(s_lin_isr[LIN_INT_ABORTED].arg);
 		}
 		LIN_STATIS_INC(lin_statis->aborted_cnt);
 	} else if (lin_hal_get_status_bus_idle_timeout() != 0) {
-		LIN_LOGD("bus idle timeout occurs,go to sleep!!!\n");
+		LIN_LOGV("bus idle timeout occurs,go to sleep!!!\n");
 		if (s_lin_isr[LIN_INT_IDLE_TIMEOUT].isr) {
 			s_lin_isr[LIN_INT_IDLE_TIMEOUT].isr(s_lin_isr[LIN_INT_IDLE_TIMEOUT].arg);
 		}
@@ -264,7 +264,7 @@ static void lin_isr_slave(void)
 		LIN_STATIS_INC(lin_statis->bus_idle_timeout_cnt);
 	} else if (lin_hal_get_status_wake_up() != 0) {
 		/* TODO, after waking up, you can do corresponding operations */
-		LIN_LOGD("The device has sent or received a wakeup signal!!!\n");
+		LIN_LOGV("The device has sent or received a wakeup signal!!!\n");
 		if (s_lin_isr[LIN_INT_WAKEUP].isr) {
 			s_lin_isr[LIN_INT_WAKEUP].isr(s_lin_isr[LIN_INT_WAKEUP].arg);
 		}
@@ -272,13 +272,13 @@ static void lin_isr_slave(void)
 		LIN_STATIS_INC(lin_statis->wakeup_cnt);
 	} else if (lin_hal_get_status_complete() != 0) {
 		/* TODO, you can do corresponding operations */
-		LIN_LOGD("transmission is completed!!!\n");
+		LIN_LOGV("transmission is completed!!!\n");
 		if (s_lin_isr[LIN_INT_COMPLETE].isr) {
 			s_lin_isr[LIN_INT_COMPLETE].isr(s_lin_isr[LIN_INT_COMPLETE].arg);
 		}
 		LIN_STATIS_INC(lin_statis->completed_cnt);
 	} else {
-		LIN_LOGD("lin unknown interrupt!!!\n");
+		LIN_LOGV("lin unknown interrupt!!!\n");
 	}
 	lin_hal_set_ctrl_reset_error();
 	lin_hal_set_ctrl_reset_int();
@@ -489,9 +489,9 @@ static void bk_lin_complete_func(void *arg)
 			vTaskNotifyGiveFromISR(lin_xBlockTasks, NULL);
 			lin_xBlockTasks = NULL;
 		}
-		LIN_LOGD("recevie completed\r\n");
+		LIN_LOGV("recevie completed\r\n");
 	} else {
-		LIN_LOGD("send completed\r\n");
+		LIN_LOGV("send completed\r\n");
 	}
 }
 
@@ -538,43 +538,43 @@ static void bk_lin_data_req_func(void *arg)
 static void bk_lin_wakeup_func(void *arg)
 {
 	/* TODO, you can do corresponding operations */
-	LIN_LOGD("The device has sent or received a wakeup signal!!!\n");
+	LIN_LOGV("The device has sent or received a wakeup signal!!!\n");
 }
 
 static void bk_lin_idle_timeout_func(void *arg)
 {
 	/* TODO, you can do corresponding operations */
-	LIN_LOGD("bus idle timeout occurs!!!\n");
+	LIN_LOGV("bus idle timeout occurs!!!\n");
 
 }
 
 static void bk_lin_aborted_func(void *arg)
 {
 	/* TODO, you can do corresponding operations */
-	LIN_LOGD("transmission is aborted!!!\n");
+	LIN_LOGV("transmission is aborted!!!\n");
 }
 
 static void bk_lin_bit_error_func(void *arg)
 {
 	/* TODO, you can do corresponding operations */
-	LIN_LOGD("bit error occurs during data transmission!!!\n");
+	LIN_LOGV("bit error occurs during data transmission!!!\n");
 }
 static void bk_lin_chk_error_func(void *arg)
 {
 	/* TODO, you can do corresponding operations */
-	LIN_LOGD("checksum error occurs!!!\n");
+	LIN_LOGV("checksum error occurs!!!\n");
 }
 
 static void bk_lin_timeout_error_func(void *arg)
 {
 	/* TODO, you can do corresponding operations */
-	LIN_LOGD("timeout error occurs!!!\n");
+	LIN_LOGV("timeout error occurs!!!\n");
 }
 
 static void bk_lin_parity_error_func(void *arg)
 {
 	/* TODO, you can do corresponding operations */
-	LIN_LOGD("parity occurs!!!\n");
+	LIN_LOGV("parity occurs!!!\n");
 }
 
 bk_err_t bk_lin_send(uint8_t *buf, uint32_t len)

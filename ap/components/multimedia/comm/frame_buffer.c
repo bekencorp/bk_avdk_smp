@@ -31,6 +31,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define FB_ALLOCATED_PATTERN      (0x8338)
 #define FB_FREE_PATTERN           (0xF00F)
@@ -326,7 +327,7 @@ void *frame_buffer_list_node_init(uint16_t camera_id, uint8_t camera_type, uint1
         {
             fb_info->main = node;
 
-            LOGI("%s, main_stream:%p\n", __func__, fb_info->main);
+            LOGD("%s, main_stream:%p\n", __func__, fb_info->main);
         }
         return node;
     }
@@ -379,7 +380,7 @@ void *frame_buffer_list_node_init(uint16_t camera_id, uint8_t camera_type, uint1
             BK_ASSERT_EX(0, "%s, %d malloc fail\n", __func__, __LINE__);
         }
 
-        LOGD("%s, %p %d\n", __func__, f_node, i);
+        LOGV("%s, %p %d\n", __func__, f_node, i);
         os_memset(f_node, 0, sizeof(frame_node_t));
 
         fb_list_node->node->node_list[i] = f_node;
@@ -388,13 +389,13 @@ void *frame_buffer_list_node_init(uint16_t camera_id, uint8_t camera_type, uint1
 
     list_add_tail(&fb_list_node->list, &fb_info->list);
 
-    LOGI("%s, new_stream:%p, %d-%d-%d\n", __func__, fb_list_node->node, camera_id, camera_type, img_format);
+    LOGD("%s, new_stream:%p, %d-%d-%d\n", __func__, fb_list_node->node, camera_id, camera_type, img_format);
 
     if (fb_info->main == NULL || fb_info->main->invalid)
     {
         fb_info->main = fb_list_node->node;
 
-        LOGI("%s, main_stream:%p\n", __func__, fb_info->main);
+        LOGD("%s, main_stream:%p\n", __func__, fb_info->main);
     }
 
     return (void *)fb_list_node->node;
@@ -485,7 +486,7 @@ bk_err_t frame_buffer_list_node_deinit(frame_list_node_t *node)
         tmp_node = NULL;
     }
 
-    LOGI("%s, %p, %d\n", __func__, node, __LINE__);
+    LOGD("%s, %p, %d\n", __func__, node, __LINE__);
 
     return BK_OK;
 }
@@ -583,7 +584,7 @@ frame_buffer_t *frame_buffer_fb_malloc(frame_list_node_t *node, uint32_t size)
         return NULL;
     }
 
-    LOGD("%s, %p %p %p\n", __func__, f_node, f_node->frame, f_node->frame->frame);
+    LOGV("%s, %p %p %p\n", __func__, f_node, f_node->frame, f_node->frame->frame);
 
     f_node->frame->type = 0;
     f_node->frame->fmt = 0;
@@ -627,7 +628,7 @@ bk_err_t frame_buffer_fb_free(frame_list_node_t *node, frame_buffer_t *frame)
 
     f_node = node->node_list[index];
 
-    LOGD("%s %p %p %p\n", __func__, f_node, f_node->frame, frame);
+    LOGV("%s %p %p %p\n", __func__, f_node, f_node->frame, frame);
 
     f_node->free_mask = 0;
     f_node->read_mask = 0;
@@ -679,7 +680,7 @@ bk_err_t frame_buffer_fb_push(frame_list_node_t *node, frame_buffer_t *frame)
 
     f_node = node->node_list[index];
 
-    LOGD("%s, %p %p %p %d\n", __func__, f_node, frame, frame->frame, index);
+    LOGV("%s, %p %p %p %d\n", __func__, f_node, frame, frame->frame, index);
 
     f_node->free_mask = 0;
     f_node->read_mask = 0;
@@ -743,7 +744,7 @@ bk_err_t frame_buffer_fb_register(frame_list_node_t *node, frame_module_t module
     }
     else
     {
-        LOGD("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
+        LOGV("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
     }
 
     uint32_t flag = fb_enter_critical();
@@ -754,7 +755,7 @@ bk_err_t frame_buffer_fb_register(frame_list_node_t *node, frame_module_t module
     }
 
     fb_exit_critical(flag);
-    LOGI("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
+    LOGD("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
 
     return BK_OK;
 }
@@ -770,7 +771,7 @@ bk_err_t frame_buffer_fb_deregister(frame_list_node_t *node, frame_module_t modu
     }
     else
     {
-        LOGD("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
+        LOGV("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
     }
 
     uint32_t flag = fb_enter_critical();
@@ -798,7 +799,7 @@ bk_err_t frame_buffer_fb_deregister(frame_list_node_t *node, frame_module_t modu
             }
         }
     }
-    LOGI("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
+    LOGD("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
 
     fb_exit_critical(flag);
 
@@ -884,7 +885,7 @@ frame_buffer_t *frame_buffer_fb_read(frame_list_node_t *node, frame_module_t mod
         fb_exit_critical(flag);
         if (BK_OK != rtos_get_semaphore(&node->read_sem, timeout))
         {
-            LOGD("%s, timeout:%dms, module:%d\n", __func__, timeout, module);
+            LOGV("%s, timeout:%dms, module:%d\n", __func__, timeout, module);
         }
 
         flag = fb_enter_critical();
@@ -1027,7 +1028,7 @@ void frame_buffer_fb_read_free(frame_list_node_t *node, frame_buffer_t *frame, f
         {
             if (f_node->read_mask == f_node->free_mask)
             {
-                LOGD("%s, mask:%x, read-free:%x-%x\n", __func__, curr_node->register_mask, f_node->read_mask, f_node->free_mask);
+                LOGV("%s, mask:%x, read-free:%x-%x\n", __func__, curr_node->register_mask, f_node->read_mask, f_node->free_mask);
             }
         }
 

@@ -29,6 +29,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define DOORBELL_TCP_BUFFER (1460)
 #define DOORBELL_NOTIFY_FLAGS (0xFF << 24)
@@ -85,7 +86,7 @@ void *doorbell_tcp_img_get_tx_buf(void)
         return NULL;
     }
 
-    LOGI("doorbell_tcp_img_get_tx_buf, tbuf %p\n", db_tcp_service->img_channel->tbuf);
+    LOGD("doorbell_tcp_img_get_tx_buf, tbuf %p\n", db_tcp_service->img_channel->tbuf);
 
     return db_tcp_service->img_channel->tbuf + 1;
 }
@@ -139,7 +140,7 @@ void *doorbell_tcp_aud_get_tx_buf(void)
         return NULL;
     }
 
-    //LOGI("doorbell_tcp_aud_get_tx_buf, tbuf %p\n", db_tcp_service->aud_channel->tbuf);
+    //LOGD("doorbell_tcp_aud_get_tx_buf, tbuf %p\n", db_tcp_service->aud_channel->tbuf);
 
     return db_tcp_service->aud_channel->tbuf + 1;
 }
@@ -185,7 +186,7 @@ static void doorbell_image_server_thread(beken_thread_arg_t data)
     u8 *rcv_buf = NULL;
     fd_set watchfd;
 
-    LOGI("%s entry\n", __func__);
+    LOGD("%s entry\n", __func__);
     (void)(data);
 
     {
@@ -229,14 +230,14 @@ static void doorbell_image_server_thread(beken_thread_arg_t data)
         goto out;
     }
 
-    LOGI("%s: start listen \n", __func__);
+    LOGD("%s: start listen \n", __func__);
 
     while (1)
     {
         FD_ZERO(&watchfd);
         FD_SET(db_tcp_service->img_server_fd, &watchfd);
 
-        LOGI("waiting for a new connection\n");
+        LOGD("waiting for a new connection\n");
         ret = select(db_tcp_service->img_server_fd + 1, &watchfd, NULL, NULL, NULL);
         if (ret <= 0)
         {
@@ -262,7 +263,7 @@ static void doorbell_image_server_thread(beken_thread_arg_t data)
                     break;
                 }
 
-                LOGI("accept a new connection fd:%d\n", db_tcp_service->img_fd);
+                LOGD("accept a new connection fd:%d\n", db_tcp_service->img_fd);
 
                 doorbell_socket_set_qos(db_tcp_service->img_fd, IP_QOS_PRIORITY_LOW);
 
@@ -274,13 +275,13 @@ static void doorbell_image_server_thread(beken_thread_arg_t data)
                     if (rcv_len > 0)
                     {
                         //bk_net_send_data(rcv_buf, rcv_len, TVIDEO_SND_TCP);
-                        LOGI("got length: %d\n", rcv_len);
+                        LOGD("got length: %d\n", rcv_len);
                     }
                     else
                     {
                         // close this socket
                         int errno_temp = errno;
-                        LOGI("vid recv close fd:%d, rcv_len:%d, error_code:%d\n", db_tcp_service->img_fd, rcv_len, errno);
+                        LOGD("vid recv close fd:%d, rcv_len:%d, error_code:%d\n", db_tcp_service->img_fd, rcv_len, errno);
                         close(db_tcp_service->img_fd);
                         db_tcp_service->img_fd = -1;
 
@@ -345,7 +346,7 @@ void doorbell_tcp_image_server_start(void)
 
 static inline void doorbell_tcp_voice_receiver(db_channel_t *channel, uint16_t sequence, uint16_t flags, uint32_t timestamp, uint8_t sequences, uint8_t *data, uint16_t length)
 {
-    LOGD("%s %d\n", __func__, length);
+    LOGV("%s %d\n", __func__, length);
     doorbell_audio_data_callback(data, length);
 }
 
@@ -358,7 +359,7 @@ static void doorbell_audio_server_thread(beken_thread_arg_t data)
     u8 *rcv_buf = NULL;
     fd_set watchfd;
 
-    LOGI("%s entry\n", __func__);
+    LOGD("%s entry\n", __func__);
     (void)(data);
 
     rcv_buf = (u8 *) os_malloc((DOORBELL_TCP_BUFFER + 1) * sizeof(u8));
@@ -393,14 +394,14 @@ static void doorbell_audio_server_thread(beken_thread_arg_t data)
         goto out;
     }
 
-    LOGI("%s: start listen \n", __func__);
+    LOGD("%s: start listen \n", __func__);
 
     while (1)
     {
         FD_ZERO(&watchfd);
         FD_SET(db_tcp_service->aud_server_fd, &watchfd);
 
-        LOGI("waiting for a new connection\n");
+        LOGD("waiting for a new connection\n");
         ret = select(db_tcp_service->aud_server_fd + 1, &watchfd, NULL, NULL, NULL);
         if (ret <= 0)
         {
@@ -426,7 +427,7 @@ static void doorbell_audio_server_thread(beken_thread_arg_t data)
                     break;
                 }
 
-                LOGI("accept a new connection fd:%d\n", db_tcp_service->aud_fd);
+                LOGD("accept a new connection fd:%d\n", db_tcp_service->aud_fd);
 
                 db_tcp_service->aud_status = BK_TRUE;
 
@@ -439,12 +440,12 @@ static void doorbell_audio_server_thread(beken_thread_arg_t data)
                     {
                         //bk_net_send_data(rcv_buf, rcv_len, TVIDEO_SND_TCP);
                         doorbell_transmission_unpack(db_tcp_service->aud_channel, rcv_buf, rcv_len, doorbell_tcp_voice_receiver);
-                        //LOGI("got length: %d\n", rcv_len);
+                        //LOGD("got length: %d\n", rcv_len);
                     }
                     else
                     {
                         // close this socket
-                        LOGI("aud recv close fd:%d, rcv_len:%d, error_code:%d\n", db_tcp_service->aud_fd, rcv_len, errno);
+                        LOGD("aud recv close fd:%d, rcv_len:%d, error_code:%d\n", db_tcp_service->aud_fd, rcv_len, errno);
                         close(db_tcp_service->aud_fd);
                         db_tcp_service->aud_fd = -1;
                         break;
@@ -498,7 +499,7 @@ void doorbell_tcp_audio_server_start(void)
 
 void doorbell_tcp_service_init(void)
 {
-    LOGI("%s, %d\n", __func__,__LINE__);
+    LOGD("%s, %d\n", __func__,__LINE__);
     db_tcp_service = os_malloc(sizeof(db_tcp_service_t));
 
     if (db_tcp_service == NULL)

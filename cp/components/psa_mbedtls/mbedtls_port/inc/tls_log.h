@@ -9,6 +9,7 @@
 #define MBEDTLS_LOGW(...) BK_LOGW(MBEDTLS_TAG, ##__VA_ARGS__)
 #define MBEDTLS_LOGE(...) BK_LOGE(MBEDTLS_TAG, ##__VA_ARGS__)
 #define MBEDTLS_LOGD(...) BK_LOGD(MBEDTLS_TAG, ##__VA_ARGS__)
+#define MBEDTLS_LOGV(...) BK_LOGV(MBEDTLS_TAG, ##__VA_ARGS__)
 
 #endif
 

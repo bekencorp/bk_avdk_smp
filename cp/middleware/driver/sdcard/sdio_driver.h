@@ -13,17 +13,21 @@
 #define SDCARD_WARN(...) BK_LOGW(SD_TAG, ##__VA_ARGS__)
 #define SDCARD_FATAL(...) BK_LOGE(SD_TAG, ##__VA_ARGS__)
 #define SDCARD_DBG(...) BK_LOGD(SD_TAG, ##__VA_ARGS__)
+#define SDCARD_VER(...) BK_LOGV(SD_TAG, ##__VA_ARGS__)
 #else
-#define SDCARD_PRT      os_printf
-#define SDCARD_WARN     warning_prf
-#define SDCARD_FATAL    fatal_prf
-#define SDCARD_DBG		null_prf
+#define SD_TAG "sd"
+#define SDCARD_PRT(...) BK_LOGI(SD_TAG, ##__VA_ARGS__)
+#define SDCARD_WARN(...) BK_LOGW(SD_TAG, ##__VA_ARGS__)
+#define SDCARD_FATAL(...) BK_LOGE(SD_TAG, ##__VA_ARGS__)
+#define SDCARD_DBG(...) BK_LOGD(SD_TAG, ##__VA_ARGS__)
+#define SDCARD_VER(...) BK_LOGV(SD_TAG, ##__VA_ARGS__)
 #endif
 #else
 #define SDCARD_PRT      null_prf
 #define SDCARD_WARN     null_prf
 #define SDCARD_FATAL    null_prf
 #define SDCARD_DBG		null_prf
+#define SDCARD_VER		null_prf
 #endif
 
 /* SDCARD Register*/

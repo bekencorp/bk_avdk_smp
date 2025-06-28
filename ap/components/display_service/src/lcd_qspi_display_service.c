@@ -97,7 +97,7 @@ void bk_lcd_qspi_disp_task_start(const lcd_device_t *device)
     }
     else
     {
-        QSPI_DISP_LOGI("lcd qspi display task create success\r\n");
+        QSPI_DISP_LOGD("lcd qspi display task create success\r\n");
     }
 
     ret = rtos_get_semaphore(&g_lcd_qspi_task_sem, BEKEN_NEVER_TIMEOUT);
@@ -113,7 +113,7 @@ void bk_lcd_qspi_disp_task_stop(void)
 
     if (lcd_qspi_disp_task_running == false)
     {
-        QSPI_DISP_LOGI("%s already stop\n", __func__);
+        QSPI_DISP_LOGD("%s already stop\n", __func__);
         return;
     }
 
@@ -126,7 +126,7 @@ void bk_lcd_qspi_disp_task_stop(void)
         return;
     }
 
-    QSPI_DISP_LOGI("%s complete\n", __func__);
+    QSPI_DISP_LOGD("%s complete\n", __func__);
 
     ret = rtos_deinit_semaphore(&g_lcd_qspi_disp_sem);
     if (BK_OK != ret)
@@ -152,7 +152,7 @@ void bk_lcd_qspi_display(uint32_t frame)
     }
     else
     {
-        QSPI_DISP_LOGI("[%s] close success\r\n", __FUNCTION__);
+        QSPI_DISP_LOGD("[%s] close success\r\n", __FUNCTION__);
     }
 }
 

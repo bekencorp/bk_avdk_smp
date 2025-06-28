@@ -521,7 +521,7 @@ static void uart_enable_wrapper(uint8_t uart_id, uint8_t enable, uint32_t band)
                 break;
 #endif
             default:
-                bk_printf("%s uart_id err %d\n", __func__, uart_id);
+                BK_LOGD(NULL,"%s uart_id err %d\n", __func__, uart_id);
                 return;
                 break;
         }
@@ -530,16 +530,16 @@ static void uart_enable_wrapper(uint8_t uart_id, uint8_t enable, uint32_t band)
 
         if (ret != 0)
         {
-            bk_printf("%s bk_uart_init err, ret %d\n", __func__, ret);
+            BK_LOGD(NULL,"%s bk_uart_init err, ret %d\n", __func__, ret);
             return;
         }
 
-        os_printf("%s ble uart %d enable\n", __func__, uart_id);
+        BK_LOGD(NULL,"%s ble uart %d enable\n", __func__, uart_id);
     }
     else
     {
         bk_uart_deinit(uart_id);
-        os_printf("%s ble uart %d disable\n", __func__, uart_id);
+        BK_LOGD(NULL,"%s ble uart %d disable\n", __func__, uart_id);
     }
 }
 
@@ -566,7 +566,7 @@ void enable_debug_gpio_wrapper(void)
     }
     else
     {
-        bk_printf("%s, external 32k is in use, GPIO8 and GPIO9 can not be used to debug \r\n", __func__);
+        BK_LOGD(NULL,"%s, external 32k is in use, GPIO8 and GPIO9 can not be used to debug \r\n", __func__);
     }
 
     gpio_dev_unmap(GPIO_14);
@@ -589,7 +589,7 @@ void enable_debug_gpio_wrapper(void)
     }
     else
     {
-        bk_printf("%s, external 32k is in use, GPIO24 can not be used to debug \r\n", __func__);
+        BK_LOGD(NULL,"%s, external 32k is in use, GPIO24 can not be used to debug \r\n", __func__);
     }
 
     gpio_dev_unmap(GPIO_25);
@@ -699,7 +699,7 @@ static int32_t init_timer_ext_wrapper(void **timer, uint32_t time_ms, void *func
 
     if (!tmp)
     {
-        os_printf("%s, malloc failed\r\n", __func__);
+        BK_LOGD(NULL,"%s, malloc failed\r\n", __func__);
         return -1;
     }
 

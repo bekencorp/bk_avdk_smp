@@ -48,14 +48,14 @@ static uint32_t *s_cli_dma_dst_buf_p;
 
 static void cli_dma_help(void)
 {
-    CLI_LOGI("dma_driver {init|deinit}\n");
-    CLI_LOGI("dma {id} {init|deinit|start|stop}\n");
-    CLI_LOGI("dma_int {id} {reg|enable|disable}\n");
-    CLI_LOGI("dma_chnl alloc \n");
-    CLI_LOGI("dma_chnl_free free {id} \n");
-    CLI_LOGI("dma_memcopy_test {copy} {count|in_number1|in_number2|out_number1|out_number2}\r\n");
-    CLI_LOGI("dma_chnl_test {start|stop} {uart1|uart2|uart3} {wait_ms}\r\n");
-    CLI_LOGI("dma_config {mode|priority|src|dst}{mode value/priority value/dev,width,increase_en,loop_en,start_addr,end_addr}\r\n");
+    CLI_LOGD("dma_driver {init|deinit}\n");
+    CLI_LOGD("dma {id} {init|deinit|start|stop}\n");
+    CLI_LOGD("dma_int {id} {reg|enable|disable}\n");
+    CLI_LOGD("dma_chnl alloc \n");
+    CLI_LOGD("dma_chnl_free free {id} \n");
+    CLI_LOGD("dma_memcopy_test {copy} {count|in_number1|in_number2|out_number1|out_number2}\r\n");
+    CLI_LOGD("dma_chnl_test {start|stop} {uart1|uart2|uart3} {wait_ms}\r\n");
+    CLI_LOGD("dma_config {mode|priority|src|dst}{mode value/priority value/dev,width,increase_en,loop_en,start_addr,end_addr}\r\n");
 }
 
 static void cli_dma_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -67,10 +67,10 @@ static void cli_dma_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
     if (os_strcmp(argv[1], "init") == 0) {
         BK_LOG_ON_ERR(bk_dma_driver_init());
-        CLI_LOGI("dma driver init\n");
+        CLI_LOGD("dma driver init\n");
     } else if (os_strcmp(argv[1], "deinit") == 0) {
         BK_LOG_ON_ERR(bk_dma_driver_deinit());
-        CLI_LOGI("dma driver deinit\n");
+        CLI_LOGD("dma driver deinit\n");
     } else {
         cli_dma_help();
         return;
@@ -114,17 +114,17 @@ static void cli_dma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		os_memcpy(&s_cli_dma_cfg, &dma_config, sizeof(s_cli_dma_cfg));
 #endif
 		BK_LOG_ON_ERR(bk_dma_init(id, &s_cli_dma_cfg));
-        CLI_LOGI("dma init, id=%d\n", id);
+        CLI_LOGD("dma init, id=%d\n", id);
     }else if (os_strcmp(argv[2], "start") == 0) {
 #if (CONFIG_SPE)
 		bk_dma_set_dest_sec_attr(id, DMA_ATTR_SEC);
 		bk_dma_set_src_sec_attr(id, DMA_ATTR_SEC);
 #endif
         BK_LOG_ON_ERR(bk_dma_start(id));
-        CLI_LOGI("dma start, id=%d\n", id);
+        CLI_LOGD("dma start, id=%d\n", id);
     } else if (os_strcmp(argv[2], "stop") == 0) {
         BK_LOG_ON_ERR(bk_dma_stop(id));
-        CLI_LOGI("dma stop, id=%d\n", id);
+        CLI_LOGD("dma stop, id=%d\n", id);
     } else if (os_strcmp(argv[2], "deinit") == 0) {
 		if(s_cli_dma_src_buf_p)
 		{
@@ -139,14 +139,14 @@ static void cli_dma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		os_memset(&s_cli_dma_cfg, 0, sizeof(s_cli_dma_cfg));
 
         BK_LOG_ON_ERR(bk_dma_deinit(id));
-        CLI_LOGI("dma deinit, id=%d\n", id);
+        CLI_LOGD("dma deinit, id=%d\n", id);
     } else if (os_strcmp(argv[2], "set_tran_len") == 0) {
 		uint32_t trans_len = os_strtoul(argv[3], NULL, 10);
         BK_LOG_ON_ERR(bk_dma_set_transfer_len(id, trans_len));
-        CLI_LOGI("dma set tran len, id=%d, len=%d\n", id, trans_len);
+        CLI_LOGD("dma set tran len, id=%d, len=%d\n", id, trans_len);
     } else if (os_strcmp(argv[2], "get_remain_len") == 0) {
         uint32_t remain_len = bk_dma_get_remain_len(id);
-        CLI_LOGI("dma get remain_len, id=%d, len=%x\n", id, remain_len);
+        CLI_LOGD("dma get remain_len, id=%d, len=%x\n", id, remain_len);
     }else {
         cli_dma_help();
         return;
@@ -155,12 +155,12 @@ static void cli_dma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 static void cli_dma_half_finish_isr(dma_id_t dma_id)
 {
-    CLI_LOGI("dma half finish isr(%d)\n", dma_id);
+    CLI_LOGD("dma half finish isr(%d)\n", dma_id);
 }
 
 static void cli_dma_finish_isr(dma_id_t dma_id)
 {
-    CLI_LOGI("dma finish isr(%d)\n", dma_id);
+    CLI_LOGD("dma finish isr(%d)\n", dma_id);
 }
 
 static void cli_dma_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -178,19 +178,19 @@ static void cli_dma_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
     if (os_strcmp(argv[2], "reg") == 0) {
         BK_LOG_ON_ERR(bk_dma_register_isr(id, cli_dma_half_finish_isr, cli_dma_finish_isr));
-        CLI_LOGI("dma id:%d register interrupt isr\n", id);
+        CLI_LOGD("dma id:%d register interrupt isr\n", id);
     } else if (os_strcmp(argv[2], "enable_hf_fini") == 0) {
         BK_LOG_ON_ERR(bk_dma_enable_half_finish_interrupt(id));
-        CLI_LOGI("dma id%d enable half finish interrupt\n", id);
+        CLI_LOGD("dma id%d enable half finish interrupt\n", id);
     } else if (os_strcmp(argv[2], "disable_hf_fini") == 0) {
         BK_LOG_ON_ERR(bk_dma_disable_half_finish_interrupt(id));
-        CLI_LOGI("dma id%d disable half finish interrupt\n", id);
+        CLI_LOGD("dma id%d disable half finish interrupt\n", id);
     } else if (os_strcmp(argv[2], "enable_fini") == 0) {
         BK_LOG_ON_ERR(bk_dma_enable_finish_interrupt(id));
-        CLI_LOGI("dma id%d enable finish interrupt\n", id);
+        CLI_LOGD("dma id%d enable finish interrupt\n", id);
     } else if (os_strcmp(argv[2], "disable_fini") == 0) {
         BK_LOG_ON_ERR(bk_dma_disable_finish_interrupt(id));
-        CLI_LOGI("dma id%d disable finish interrupt\n", id);
+        CLI_LOGD("dma id%d disable finish interrupt\n", id);
     } else if(os_strcmp(argv[2], "pause") == 0) {
 		if (argc < 5) {
 			cli_dma_help();
@@ -199,14 +199,14 @@ static void cli_dma_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 		uint32_t pause_addr = os_strtoul(argv[4], NULL, 16);
 		if(os_strcmp(argv[3], "src") == 0)  {
-			CLI_LOGI("Cur rd addr=0x%x,set pause addr=0x%x\n", dma_get_src_read_addr(id), pause_addr);
+			CLI_LOGD("Cur rd addr=0x%x,set pause addr=0x%x\n", dma_get_src_read_addr(id), pause_addr);
 			dma_set_src_pause_addr(id, pause_addr);
-			CLI_LOGI("After pause:addr=0x%x\n", dma_get_src_read_addr(id));
+			CLI_LOGD("After pause:addr=0x%x\n", dma_get_src_read_addr(id));
 		}
 		else if(os_strcmp(argv[3], "dst") == 0) {
-			CLI_LOGI("Cur wr addr=0x%x,set pause addr=0x%x\n", dma_get_dest_write_addr(id), pause_addr);
+			CLI_LOGD("Cur wr addr=0x%x,set pause addr=0x%x\n", dma_get_dest_write_addr(id), pause_addr);
 			dma_set_dst_pause_addr(id, pause_addr);
-			CLI_LOGI("After pause:addr=0x%x\n", dma_get_dest_write_addr(id));
+			CLI_LOGD("After pause:addr=0x%x\n", dma_get_dest_write_addr(id));
 		}
 	}
 	else {
@@ -226,7 +226,7 @@ static void cli_dma_chnl_alloc(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
     if (os_strcmp(argv[1], "alloc") == 0) {
 	 id = bk_dma_alloc(DMA_DEV_MAX);
-        CLI_LOGI("dma channel id:%x\n", id);
+        CLI_LOGD("dma channel id:%x\n", id);
     } else {
         cli_dma_help();
         return;
@@ -246,9 +246,9 @@ static void cli_dma_chnl_free(char *pcWriteBuffer, int xWriteBufferLen, int argc
     if (os_strcmp(argv[1], "free") == 0) {
 	id = os_strtoul(argv[2], NULL, 10);
 	ret = bk_dma_free(DMA_DEV_MAX, id);
-	CLI_LOGI("dma channel free id:%d ret:%d\n", id, ret);
+	CLI_LOGD("dma channel free id:%d ret:%d\n", id, ret);
     } else {
-	CLI_LOGI("cli_dma_chnl_free NOT free\n");
+	CLI_LOGD("cli_dma_chnl_free NOT free\n");
        cli_dma_help();
        return;
     }
@@ -271,32 +271,32 @@ static void cli_dma_memcpy_test(char *pcWriteBuffer, int xWriteBufferLen, int ar
         count = os_strtoul(argv[2], NULL, 10);
 
         in_write_buffer[0] = os_strtoul(argv[3], NULL, 10);
-        CLI_LOGD("cli_dma_memcpy_TEST IN_buffer[0]: %d\r\n", in_write_buffer[0]);
+        CLI_LOGV("cli_dma_memcpy_TEST IN_buffer[0]: %d\r\n", in_write_buffer[0]);
         in_write_buffer[1] = os_strtoul(argv[4], NULL, 10);
-        CLI_LOGD("cli_dma_memcpy_TEST IN_buffer[1]: %d\r\n", in_write_buffer[1]);
+        CLI_LOGV("cli_dma_memcpy_TEST IN_buffer[1]: %d\r\n", in_write_buffer[1]);
         in_buffer = in_write_buffer;
 
 
         out_write_buffer[0] = os_strtoul(argv[5], NULL, 10);
-        CLI_LOGD("cli_dma_memcpy_TEST OUT_buffer[0]: %d\r\n", out_write_buffer[0]);
+        CLI_LOGV("cli_dma_memcpy_TEST OUT_buffer[0]: %d\r\n", out_write_buffer[0]);
         out_write_buffer[1] = os_strtoul(argv[6], NULL, 10);
-        CLI_LOGD("cli_dma_memcpy_TEST OUT_buffer[1]: %d\r\n", out_write_buffer[1]);
+        CLI_LOGV("cli_dma_memcpy_TEST OUT_buffer[1]: %d\r\n", out_write_buffer[1]);
         out_buffer = out_write_buffer;
 
         while(count) {
               for(int j = 0; j < 2; j++) {
-                  CLI_LOGI("cli_dma_memcpy_test BEFORE IN_buffer[%d]: %d\r\n", j,in_buffer[j]);
-                  CLI_LOGI("cli_dma_memcpy_test BEFORE OUT_buffer[%d]: %d\r\n", j,out_buffer[j]);
+                  CLI_LOGD("cli_dma_memcpy_test BEFORE IN_buffer[%d]: %d\r\n", j,in_buffer[j]);
+                  CLI_LOGD("cli_dma_memcpy_test BEFORE OUT_buffer[%d]: %d\r\n", j,out_buffer[j]);
               }
-              CLI_LOGI("===============================================\r\n");
+              CLI_LOGD("===============================================\r\n");
 
               dma_memcpy(out_buffer, in_buffer, 2 * sizeof(uint32_t));
 
               for(int i = 0; i < 2; i++) {
-                  CLI_LOGI("cli_dma_memcpy_test AFTER IN_buffer[%d]: %d\r\n", i,in_buffer[i]);
-                  CLI_LOGI("cli_dma_memcpy_test AFTER OUT_buffer[%d]: %d\r\n", i,out_buffer[i]);
+                  CLI_LOGD("cli_dma_memcpy_test AFTER IN_buffer[%d]: %d\r\n", i,in_buffer[i]);
+                  CLI_LOGD("cli_dma_memcpy_test AFTER OUT_buffer[%d]: %d\r\n", i,out_buffer[i]);
               }
-              CLI_LOGI("#############################################\r\n");
+              CLI_LOGD("#############################################\r\n");
 
               count--;
         }
@@ -310,7 +310,7 @@ static void cli_dma_memcpy_test(char *pcWriteBuffer, int xWriteBufferLen, int ar
 static void cli_dma_copy(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if (argc < 4) {
-		CLI_LOGI("dma_copy {src} {dst} {len}\r\n");
+		CLI_LOGD("dma_copy {src} {dst} {len}\r\n");
 		return;
 	}
 
@@ -328,7 +328,7 @@ static uint16_t dma_chnl_wait_ms = 1000;
 
 static void dma_chnl_primenumber_copy_finish_isr(void)
 {
-	CLI_LOGD("dma_channel test PRIMENUMBER copy finish!\r\n");
+	CLI_LOGV("dma_channel test PRIMENUMBER copy finish!\r\n");
 }
 
 static uint32_t dma_chnl_primenumber_copy(void)
@@ -360,7 +360,7 @@ static uint32_t dma_chnl_primenumber_copy(void)
     s_cli_dma_cfg.dst.end_addr = (uint32_t)(trng_outbuffer + length * sizeof(uint32_t));
 
     dma_id_t cpy_chnl = bk_dma_alloc(DMA_DEV_DTCM);
-    CLI_LOGI("dma_chnl_test_PRIMENUMBER dma_chnl: %d\r\n", cpy_chnl);
+    CLI_LOGD("dma_chnl_test_PRIMENUMBER dma_chnl: %d\r\n", cpy_chnl);
 
     if(cpy_chnl >= DMA_ID_MAX) {
         return BK_FAIL;
@@ -380,9 +380,9 @@ static uint32_t dma_chnl_primenumber_copy(void)
 
 	for(int i = 0; i < length; i++) {
 		if(set_inbuffer[i] == set_outbuffer[i])
-			CLI_LOGD("copy PRIMENUMBER right\r\n");
+			CLI_LOGV("copy PRIMENUMBER right\r\n");
 		else
-			CLI_LOGI("copy PRIMENUMBER ERROR!!!\r\n");
+			CLI_LOGD("copy PRIMENUMBER ERROR!!!\r\n");
 	}
 
     return BK_OK;
@@ -391,7 +391,7 @@ static uint32_t dma_chnl_primenumber_copy(void)
 
 static void dma_chnl_data_from_uart_copy_finish(void)
 {
-	CLI_LOGD("dma_channel test UART_DATA copy finish isr\r\n");
+	CLI_LOGV("dma_channel test UART_DATA copy finish isr\r\n");
 }
 
 static uint32_t dma_chnl_data_from_uart_copy(void *out, const void *in, uint32_t len)
@@ -416,7 +416,7 @@ static uint32_t dma_chnl_data_from_uart_copy(void *out, const void *in, uint32_t
 	s_cli_dma_cfg.dst.end_addr = (uint32_t)(out + len);
 
 	dma_id_t cpy_chnl = bk_dma_alloc(DMA_DEV_DTCM);
-	CLI_LOGI("UART FROM DATA copy dma_chnl: %d\r\n", cpy_chnl);
+	CLI_LOGD("UART FROM DATA copy dma_chnl: %d\r\n", cpy_chnl);
 
 	if(cpy_chnl >= DMA_ID_MAX) {
 		return BK_FAIL;
@@ -443,7 +443,7 @@ static void dma_channel_test_uart_rx_isr(uart_id_t id, void *param)
 
 	ret = rtos_set_semaphore(&dma_chnl_test_semaphore);
 	if(kNoErr !=ret)
-		CLI_LOGI("dma_channel_uart_rx_isr: uart set sema failed\r\n");
+		CLI_LOGD("dma_channel_uart_rx_isr: uart set sema failed\r\n");
 	return;
 }
 
@@ -461,7 +461,7 @@ static void cli_dma_channel_test(uint32_t data)
 	{
 		ret = rtos_init_semaphore(&dma_chnl_test_semaphore, 1);
 		if (kNoErr != ret)
-			CLI_LOGI("cli_dma_channel_test: create background sema failed\r\n");
+			CLI_LOGD("cli_dma_channel_test: create background sema failed\r\n");
 	}
 
 	while (1) {
@@ -488,25 +488,25 @@ static void cli_dma_channel_test(uint32_t data)
 
 			BK_LOG_ON_ERR(dma_chnl_data_from_uart_copy(dma_out_buffer, uart_get_data, cnt));
 			BK_LOG_ON_ERR(bk_uart_write_bytes(dma_chnl_get_data_uart_id, dma_out_buffer, cnt));
-			CLI_LOGI("copy From UART Get/Send OK!\r\n");
+			CLI_LOGD("copy From UART Get/Send OK!\r\n");
 
 			for(int i = 0; i < cnt; i++) {
 				if(dma_out_buffer[i] == uart_get_data[i]) {
-					CLI_LOGD("copy From UART right!!!\r\n");
+					CLI_LOGV("copy From UART right!!!\r\n");
 					dma_out_buffer[i] = 0;
 				} else
-					CLI_LOGI("copy From UART ERROR\r\n");
+					CLI_LOGD("copy From UART ERROR\r\n");
 			}
 
 			BK_LOG_ON_ERR(dma_memcpy(dma_out_buffer, uart_get_data, cnt * sizeof(char)));
-			CLI_LOGI("copy dma_MEMCPY OK!\r\n");
+			CLI_LOGD("copy dma_MEMCPY OK!\r\n");
 
 			for(int k = 0; k < cnt; k++) {
 				if(dma_out_buffer[k] == uart_get_data[k]) {
-					CLI_LOGD("copy dma_MEMCPY right!!!\r\n");
+					CLI_LOGV("copy dma_MEMCPY right!!!\r\n");
 					dma_out_buffer[k] = 0;
 				} else
-					CLI_LOGI("copy dma_MEMCPY ERROR\r\n");
+					CLI_LOGD("copy dma_MEMCPY ERROR\r\n");
 			}
 
 			if (cnt > 0) {
@@ -518,7 +518,7 @@ static void cli_dma_channel_test(uint32_t data)
 
 		msg = uart_get_data;
 		if (os_strcmp(msg, EXIT_MSG) == 0)
-			os_printf("cli_dma_channel_test: EXIT_MSG\r\n");
+			BK_LOGD(NULL,"cli_dma_channel_test: EXIT_MSG\r\n");
 	}
 
 }
@@ -535,13 +535,13 @@ static void cli_dma_chnl_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int 
 		if (!dma_chnl_test_handle) {
 			if (os_strcmp(argv[2], "uart0") == 0) {
 				dma_chnl_get_data_uart_id = UART_ID_0;
-				CLI_LOGI("cli_uart_test_cmd Maybe UART1 for log output!!!\n");
+				CLI_LOGD("cli_uart_test_cmd Maybe UART1 for log output!!!\n");
 			} else {
 					cli_dma_help();
 					return;
 			}
 		} else {
-			CLI_LOGI("dma_chnl_test TASK WARKING!!!\n");
+			CLI_LOGD("dma_chnl_test TASK WARKING!!!\n");
 			return;
 		}
 
@@ -571,7 +571,7 @@ static void cli_dma_chnl_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int 
 
 		if(rtos_create_thread(&dma_chnl_test_handle, 8, "dma_chnl_test",
 					(beken_thread_function_t) cli_dma_channel_test, 2048, 0)) {
-				CLI_LOGI("cli_dma_channel_test rtos_create_thread FAILED!\n");
+				CLI_LOGD("cli_dma_channel_test rtos_create_thread FAILED!\n");
 				return;
 		}
 
@@ -581,7 +581,7 @@ static void cli_dma_chnl_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int 
 
 		if (os_strcmp(argv[2], "uart0") == 0) {
 			if(dma_chnl_get_data_uart_id != UART_ID_0) {
-				CLI_LOGI("PLEASE enter a correct ID\n");
+				CLI_LOGD("PLEASE enter a correct ID\n");
 				return;
 			} else
 					dma_chnl_get_data_uart_id = UART_ID_0;
@@ -598,7 +598,7 @@ static void cli_dma_chnl_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int 
 		dma_chnl_get_data_uart_id = UART_ID_MAX;
 		dma_chnl_wait_ms = 1000;
 
-		CLI_LOGI("idle_uart_out task stop\n");
+		CLI_LOGD("idle_uart_out task stop\n");
 	}
 }
 
@@ -609,16 +609,16 @@ static void cli_dma_config_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         return;
     }
 
-	CLI_LOGI("before config\r\n");
-	CLI_LOGI("mode=%d,priority=%d\n",s_cli_dma_cfg.mode, s_cli_dma_cfg.chan_prio);
-	CLI_LOGI("src.dev=%d,width=%d,addr_inc=%d,loop_en=%d,start_add=0x%x,end_addr=0x%x\n",
+	CLI_LOGD("before config\r\n");
+	CLI_LOGD("mode=%d,priority=%d\n",s_cli_dma_cfg.mode, s_cli_dma_cfg.chan_prio);
+	CLI_LOGD("src.dev=%d,width=%d,addr_inc=%d,loop_en=%d,start_add=0x%x,end_addr=0x%x\n",
 		s_cli_dma_cfg.src.dev,
 		s_cli_dma_cfg.src.width,
 		s_cli_dma_cfg.src.addr_inc_en,
 		s_cli_dma_cfg.src.addr_loop_en,
 		s_cli_dma_cfg.src.start_addr,
 		s_cli_dma_cfg.src.end_addr);
-	CLI_LOGI("dst.dev=%d,width=%d,addr_inc=%d,loop_en=%d,start_add=0x%x,end_addr=0x%x\n",
+	CLI_LOGD("dst.dev=%d,width=%d,addr_inc=%d,loop_en=%d,start_add=0x%x,end_addr=0x%x\n",
 		s_cli_dma_cfg.dst.dev,
 		s_cli_dma_cfg.dst.width,
 		s_cli_dma_cfg.dst.addr_inc_en,
@@ -688,16 +688,16 @@ static void cli_dma_config_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		return;
 	}
 
-	CLI_LOGI("***after config\r\n");
-	CLI_LOGI("mode=%d,priority=%d\n",s_cli_dma_cfg.mode, s_cli_dma_cfg.chan_prio);
-	CLI_LOGI("src.dev=%d,width=%d,addr_inc=%d,loop_en=%d,start_add=0x%x,end_addr=0x%x\n",
+	CLI_LOGD("***after config\r\n");
+	CLI_LOGD("mode=%d,priority=%d\n",s_cli_dma_cfg.mode, s_cli_dma_cfg.chan_prio);
+	CLI_LOGD("src.dev=%d,width=%d,addr_inc=%d,loop_en=%d,start_add=0x%x,end_addr=0x%x\n",
 		s_cli_dma_cfg.src.dev,
 		s_cli_dma_cfg.src.width,
 		s_cli_dma_cfg.src.addr_inc_en,
 		s_cli_dma_cfg.src.addr_loop_en,
 		s_cli_dma_cfg.src.start_addr,
 		s_cli_dma_cfg.src.end_addr);
-	CLI_LOGI("dst.dev=%d,width=%d,addr_inc=%d,loop_en=%d,start_add=0x%x,end_addr=0x%x\n",
+	CLI_LOGD("dst.dev=%d,width=%d,addr_inc=%d,loop_en=%d,start_add=0x%x,end_addr=0x%x\n",
 		s_cli_dma_cfg.dst.dev,
 		s_cli_dma_cfg.dst.width,
 		s_cli_dma_cfg.dst.addr_inc_en,
@@ -740,18 +740,18 @@ static uint8_t cli_dma_compare_buffer(uint8_t *pBuffer1, uint8_t *pBuffer2, uint
 
 static void dma_finish_int_cb(dma_id_t dma_id)
 {
-	CLI_LOGI("recv finish int, idx: %d\r\n", dma_id);
+	CLI_LOGD("recv finish int, idx: %d\r\n", dma_id);
 	s_dma_full_int_flag |= 1 << dma_id;
 }
 
 static void dma_bus_err_int_cb(dma_id_t dma_id)
 {
-	CLI_LOGI("recv bus_err int, idx: %d\r\n", dma_id);
+	CLI_LOGD("recv bus_err int, idx: %d\r\n", dma_id);
 }
 
 static void dma_half_finish_int_cb(dma_id_t dma_id)
 {
-	CLI_LOGI("recv half finish int, idx: %d\r\n", dma_id);
+	CLI_LOGD("recv half finish int, idx: %d\r\n", dma_id);
 }
 
 static void cli_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -771,17 +771,17 @@ static void cli_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	uint32_t dest_addr = os_strtoul(argv[6], NULL, 16);
 	uint32_t offset = os_strtoul(argv[7], NULL, 16);
 
-	CLI_LOGI("dma_id:%x\r\n", id);
-	CLI_LOGI("buffer_size:%x\r\n", buffer_size);
-	CLI_LOGI("test_velue_start:%x\r\n", test_velue_start);
-	CLI_LOGI("src_addr:%x\r\n", src_addr);
-	CLI_LOGI("dest_addr:%x\r\n", dest_addr);
-	CLI_LOGI("mem addr offset:%x\r\n", offset);
+	CLI_LOGD("dma_id:%x\r\n", id);
+	CLI_LOGD("buffer_size:%x\r\n", buffer_size);
+	CLI_LOGD("test_velue_start:%x\r\n", test_velue_start);
+	CLI_LOGD("src_addr:%x\r\n", src_addr);
+	CLI_LOGD("dest_addr:%x\r\n", dest_addr);
+	CLI_LOGD("mem addr offset:%x\r\n", offset);
 
 	uint8_t *src_mem_addr = (uint8_t *)src_addr;
 	uint8_t *dest_mem_addr = (uint8_t *)dest_addr;
 
-	CLI_LOGI("start dma test\r\n");
+	CLI_LOGD("start dma test\r\n");
 	os_memset(src_mem_addr, 0, buffer_size);
 	os_memset(dest_mem_addr, 0, buffer_size);
 	cli_dma_fill_buffer(src_mem_addr, buffer_size, test_velue_start);
@@ -870,7 +870,7 @@ static void cli_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		dma_ll_enable(dma_ns_base, id);
 	}
 
-	CLI_LOGI("dma wait interrupt\r\n");
+	CLI_LOGD("dma wait interrupt\r\n");
 	if (os_strcmp(argv[12], "wait_s") == 0) {
 		while (!(s_dma_full_int_flag & (1 << id)));
 		s_dma_full_int_flag &= ~(1 << id);
@@ -880,9 +880,9 @@ static void cli_dma_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	}
 
 	if (cli_dma_compare_buffer(src_mem_addr, dest_mem_addr, buffer_size)) {
-		CLI_LOGI("dma test fail\r\n");
+		CLI_LOGD("dma test fail\r\n");
 	} else {
-		CLI_LOGI("dma test success\r\n");
+		CLI_LOGD("dma test success\r\n");
 	}
 #if(CONFIG_MPC)
 	bk_mpc_set_secure_attribute(MPC_DEV_SMEM3, offset, 1, MPC_BLOCK_SECURE);

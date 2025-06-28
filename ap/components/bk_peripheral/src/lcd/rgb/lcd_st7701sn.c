@@ -327,7 +327,7 @@ static bk_err_t lcd_st7701sn_off(void)
 
 static void lcd_st7701sn_init(void)
 {
-	os_printf("lcd_st7701sn: init.\r\n");
+	BK_LOGD(NULL, "lcd_st7701sn: init.\r\n");
 	lcd_spi_init_gpio();
 	lcd_st7701sn_config();
 }

@@ -214,7 +214,7 @@ static void bk_printf_raw_port(int block_mode, int level, const char *fmt, va_li
 
 void bk_printf(const char *fmt, ...)
 {
-	int level = 0; // BK_LOG_INFO;
+	int level = BK_LOG_DEBUG; // BK_LOG_INFO;
 	va_list args;
 
 	if(!printf_is_init())

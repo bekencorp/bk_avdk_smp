@@ -19,7 +19,7 @@
 
 static void cli_timer_isr(timer_id_t chan)
 {
-    CLI_LOGI("[TIMER][ISR] chan:%d\r\n", chan);
+    CLI_LOGD("[TIMER][ISR] chan:%d\r\n", chan);
 }
 
 static void cli_delay_us(int argc, char **argv)
@@ -27,7 +27,7 @@ static void cli_delay_us(int argc, char **argv)
 	uint32_t us = 0;
 
 	if (argc < 3) {
-		CLI_LOGI("timer delay [count]\r\n");
+		CLI_LOGD("timer delay [count]\r\n");
 		return;
 	}
 
@@ -35,7 +35,7 @@ static void cli_delay_us(int argc, char **argv)
 	uint32_t level = rtos_enter_critical();
 	bk_delay_us(us);
 	rtos_exit_critical(level);
-	CLI_LOGI("delayed %u us\r\n", us);
+	CLI_LOGD("delayed %u us\r\n", us);
 }
 
 static void cli_timer_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -52,26 +52,26 @@ static void cli_timer_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 
     if (os_strcmp(argv[2], "start") == 0) {
         time_ms = os_strtoul(argv[3], NULL, 10);
-        CLI_LOGI("[TIMER][START] channel:%d, time_ms:%d\r\n", channel, time_ms);
+        CLI_LOGD("[TIMER][START] channel:%d, time_ms:%d\r\n", channel, time_ms);
         ret = bk_timer_start(channel, time_ms, cli_timer_isr);
         if (ret != BK_OK) {
             CLI_LOGW("[TIMER][START] start failed, error code:%x\n", ret);
         }
     } else if (os_strcmp(argv[2], "stop") == 0) {
-        CLI_LOGI("[TIMER][STOP] channel:%d\r\n", channel);
+        CLI_LOGD("[TIMER][STOP] channel:%d\r\n", channel);
         bk_timer_stop(channel);
     } else if (os_strcmp(argv[2], "read") == 0) {
         read_cnt = bk_timer_get_cnt(channel);
-        CLI_LOGI("[TIMER][READ] read cnt:%x\r\n", read_cnt);
+        CLI_LOGD("[TIMER][READ] read cnt:%x\r\n", read_cnt);
     } else if (os_strcmp(argv[2], "enable") == 0) {
         bk_timer_enable(channel);
-        CLI_LOGI("[TIMER][ENABLE] channel:%x\r\n", channel);
+        CLI_LOGD("[TIMER][ENABLE] channel:%x\r\n", channel);
     } else if (os_strcmp(argv[2], "disable") == 0) {
         bk_timer_disable(channel);
-        CLI_LOGI("[TIMER][DISABLE] channel:%x\r\n", channel);
+        CLI_LOGD("[TIMER][DISABLE] channel:%x\r\n", channel);
     } else if (os_strcmp(argv[2], "get_period") == 0) {
         read_cnt = bk_timer_get_period(channel);
-        CLI_LOGI("[TIMER][GET][PERIOD] period value:%x\r\n", read_cnt);
+        CLI_LOGD("[TIMER][GET][PERIOD] period value:%x\r\n", read_cnt);
     } else {
         CLI_LOGW("timer {chan} {start|stop|read} [...]\r\n");
     }

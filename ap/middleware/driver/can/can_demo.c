@@ -33,9 +33,9 @@ typedef enum {
 
 static void cli_can_help(void)
 {
-	CLI_LOGI("can_filter_demo {aid} {acode} {amask}");
-	CLI_LOGI("can_speed_demo {s_spend} {f_speed}");
-	CLI_LOGI("can_stb_demo1 [can_id] [sender|receiver|moniter] [start|stop]");
+	CLI_LOGD("can_filter_demo {aid} {acode} {amask}");
+	CLI_LOGD("can_speed_demo {s_spend} {f_speed}");
+	CLI_LOGD("can_stb_demo1 [can_id] [sender|receiver|moniter] [start|stop]");
 
 }
 
@@ -43,7 +43,7 @@ static void can_demo_filter_cfg(char *pcWriteBuffer, int xWriteBufferLen, int ar
 {
 	can_acc_filter_cmd_s cmd;
 	if (argc < 4) {
-		CLI_LOGI("param too few \r\n");
+		CLI_LOGD("param too few \r\n");
 		cli_can_help();
 		return;
 	}
@@ -68,7 +68,7 @@ static void can_demo_speed_cfg(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	f_speed = os_strtoul(argv[2], NULL, 10);
 
 	if (s_speed < CAN_BR_250K || s_speed > CAN_BR_5M || f_speed < CAN_BR_250K || f_speed > CAN_BR_5M) {
-		CLI_LOGI("beyond configurable range!!!\r\n");
+		CLI_LOGD("beyond configurable range!!!\r\n");
 		return;
 	}
 	can_hal_set_reset(1);
@@ -187,7 +187,7 @@ static void can_fd_stb_demo1_send_random_data(can_fd_stb_demo *demo1)
 			return;
 			break;
 		default:
-			CLI_LOGI("WARING IDENTITY FAIL!!!\r\n");
+			CLI_LOGD("WARING IDENTITY FAIL!!!\r\n");
 			return;
 			break;
 	}
@@ -212,7 +212,7 @@ static void can_fd_stb_demo1_check_data(can_fd_stb_demo *demo1)
 
 	for (index = 0; index < max_number; index++) {
 		if(send_buf[index] != receive_buf[index + 5]) {
-			CLI_LOGI("====CAN DEMO1 FAIL==== send_buf[%02d]:0x%02x receive_buf[%02d]:0x%02x\r\n", index, send_buf[index], (index+5), receive_buf[index+5]);
+			CLI_LOGD("====CAN DEMO1 FAIL==== send_buf[%02d]:0x%02x receive_buf[%02d]:0x%02x\r\n", index, send_buf[index], (index+5), receive_buf[index+5]);
 		}
 	}
 }
@@ -225,13 +225,13 @@ static void can_fd_stb_demo1_receive_data(can_fd_stb_demo *demo1)
 
 	bk_can_receive(receive_buf, all_size, &rec_size, 1000);
 	if (rec_size) {
-		CLI_LOGI("recev data %d\r\n", rec_size);
+		CLI_LOGD("recev data %d\r\n", rec_size);
 		demo1->receive_dlc = receive_buf[0];
 		demo1->receive_id = (receive_buf[4] << 24) | \
 			(receive_buf[3] << 16) | \
 			(receive_buf[2] << 8) | \
 			(receive_buf[1]);
-		CLI_LOGI("id is 0x%02x %x-%x-%x-%x\r\n", demo1->receive_id, receive_buf[4], receive_buf[3], receive_buf[2], receive_buf[1]);
+		CLI_LOGD("id is 0x%02x %x-%x-%x-%x\r\n", demo1->receive_id, receive_buf[4], receive_buf[3], receive_buf[2], receive_buf[1]);
 	}
 
 	switch (demo1->identity) {
@@ -315,7 +315,7 @@ static void can_fd_stb_demo1(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 
 		ret = rtos_create_thread(&demo1->can_stb_demo_thread, 4, "can_demo1", can_fd_stb_demo1_handler, 1024, (void *)demo1);
 		if (ret != kNoErr) {
-			CLI_LOGI("rtos_create_thread failed!!!\r\n");
+			CLI_LOGD("rtos_create_thread failed!!!\r\n");
 			return;
 		}
 
@@ -324,7 +324,7 @@ static void can_fd_stb_demo1(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 						  sizeof(can_stb_demo_msg_t),
 							  10);
 		if (ret != kNoErr) {
-			CLI_LOGI("ceate can demo message queue fail \r\n");
+			CLI_LOGD("ceate can demo message queue fail \r\n");
 			return;
 		}
 
@@ -459,7 +459,7 @@ static void can_20_stb_demo2_send_random_data(can_20_stb_demo *demo2)
 			return;
 			break;
 		default:
-			CLI_LOGI("WARING IDENTITY FAIL!!!\r\n");
+			CLI_LOGD("WARING IDENTITY FAIL!!!\r\n");
 			return;
 			break;
 	}
@@ -484,7 +484,7 @@ static void can_20_stb_demo2_check_data(can_20_stb_demo *demo2)
 
 	for (index = 0; index < max_number; index++) {
 		if(send_buf[index] != receive_buf[index + 5]) {
-			CLI_LOGI("====CAN DEMO1 FAIL==== send_buf[%02d]:0x%02x receive_buf[%02d]:0x%02x\r\n", index, send_buf[index], (index+5), receive_buf[index+5]);
+			CLI_LOGD("====CAN DEMO1 FAIL==== send_buf[%02d]:0x%02x receive_buf[%02d]:0x%02x\r\n", index, send_buf[index], (index+5), receive_buf[index+5]);
 		}
 	}
 }
@@ -497,13 +497,13 @@ static void can_20_stb_demo2_receive_data(can_20_stb_demo *demo2)
 
 	bk_can_receive(receive_buf, all_size, &rec_size, 1000);
 	if (rec_size) {
-		CLI_LOGI("recev data %d\r\n", rec_size);
+		CLI_LOGD("recev data %d\r\n", rec_size);
 		demo2->receive_dlc = receive_buf[0];
 		demo2->receive_id = (receive_buf[4] << 24) | \
 			(receive_buf[3] << 16) | \
 			(receive_buf[2] << 8) | \
 			(receive_buf[1]);
-		CLI_LOGI("id is 0x%02x\r\n", demo2->receive_id);
+		CLI_LOGD("id is 0x%02x\r\n", demo2->receive_id);
 	}
 
 	switch (demo2->identity) {
@@ -581,7 +581,7 @@ static void can_20_stb_demo2(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 
 		ret = rtos_create_thread(&demo2->can_20_demo_thread, 4, "can_demo2", can_20_demo2_handler, 1024, (void *)demo2);
 		if (ret != kNoErr) {
-			CLI_LOGI("rtos_create_thread failed!!!\r\n");
+			CLI_LOGD("rtos_create_thread failed!!!\r\n");
 			return;
 		}
 
@@ -590,7 +590,7 @@ static void can_20_stb_demo2(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 						  sizeof(can_stb_demo_msg_t),
 							  10);
 		if (ret != kNoErr) {
-			CLI_LOGI("ceate can demo message queue fail \r\n");
+			CLI_LOGD("ceate can demo message queue fail \r\n");
 			return;
 		}
 

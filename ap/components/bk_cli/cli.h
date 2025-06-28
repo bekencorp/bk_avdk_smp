@@ -45,6 +45,7 @@ extern "C" {
 #define CLI_LOGW(...) BK_LOGW(CLI_TAG, ##__VA_ARGS__)
 #define CLI_LOGE(...) BK_LOGE(CLI_TAG, ##__VA_ARGS__)
 #define CLI_LOGD(...) BK_LOGD(CLI_TAG, ##__VA_ARGS__)
+#define CLI_LOGV(...) BK_LOGV(CLI_TAG, ##__VA_ARGS__)
 
 #define CLI_RET_ON_INVALID_ARGC(_actual_argc, _expect_minimum_argc) do {\
 		if ((_actual_argc) < (_expect_minimum_argc)) {\

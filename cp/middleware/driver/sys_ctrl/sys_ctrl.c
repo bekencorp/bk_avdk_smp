@@ -167,13 +167,13 @@ void sctrl_dpll_isr(void)
 #if (CONFIG_SOC_BK7231N) || (CONFIG_SOC_BK7256XX)
 	if ((DEVICE_ID_BK7231N_P & DEVICE_ID_MASK) != (sctrl_ctrl(CMD_GET_DEVICE_ID, NULL) & DEVICE_ID_MASK))
 	{
-		os_printf("BIAS Cali\r\n");
+		BK_LOGD(NULL,"BIAS Cali\r\n");
 		if (s_cal_bias_callback) {
 			s_cal_bias_callback();
 		}
 	}
 #elif (CONFIG_SOC_BK7236A)
-	os_printf("BIAS Cali\r\n");
+	BK_LOGD(NULL,"BIAS Cali\r\n");
 	if (s_cal_bias_callback) {
 		s_cal_bias_callback();
 	}
@@ -181,7 +181,7 @@ void sctrl_dpll_isr(void)
 	sddev_control(DD_DEV_TYPE_GPIO, CMD_GPIO_CLR_DPLL_UNLOOK_INT_BIT, NULL);
 	sctrl_cali_dpll(0);
 
-	os_printf("DPLL Unlock\r\n");
+	BK_LOGD(NULL,"DPLL Unlock\r\n");
 }
 
 void sctrl_dpll_int_open(void)
@@ -673,21 +673,21 @@ void sctrl_ps_dump()
 {
 	UINT32 i;
 
-	os_printf("reg dump\r\n");
-	os_printf("sys\r\n0x%8x:0x%8x\r\n", SCTRL_CONTROL, REG_READ(SCTRL_CONTROL));
-	os_printf("0x%8x:0x%8x\r\n", SCTRL_MODEM_CORE_RESET_PHY_HCLK, REG_READ(SCTRL_MODEM_CORE_RESET_PHY_HCLK));
-	os_printf("0x%8x:0x%8x\r\n", SCTRL_BLOCK_EN_CFG, REG_READ(SCTRL_BLOCK_EN_CFG));
-	os_printf("0x%8x:0x%8x\r\n", SCTRL_ROSC_CAL, REG_READ(SCTRL_ROSC_CAL));
-	os_printf("0x%8x:0x%8x\r\n", SCTRL_ANALOG_CTRL2, sctrl_analog_get(SCTRL_ANALOG_CTRL2));
-	//os_printf("0x%8x:0x%8x\r\n", ICU_R_INT_EN, REG_READ(ICU_R_INT_EN));
-	//os_printf("0x%8x:0x%8x\r\n", ICU_PERI_CLK_PWD, REG_READ(ICU_PERI_CLK_PWD));
-	os_printf("0x%8x:0x%8x\r\n", SCTRL_SLEEP, REG_READ(SCTRL_SLEEP));
-	//os_printf("0x%8x:0x%8x\r\n", ICU_R_ARM_WAKEUP_EN, REG_READ(ICU_R_ARM_WAKEUP_EN));
+	BK_LOGD(NULL,"reg dump\r\n");
+	BK_LOGD(NULL,"sys\r\n0x%8x:0x%8x\r\n", SCTRL_CONTROL, REG_READ(SCTRL_CONTROL));
+	BK_LOGD(NULL,"0x%8x:0x%8x\r\n", SCTRL_MODEM_CORE_RESET_PHY_HCLK, REG_READ(SCTRL_MODEM_CORE_RESET_PHY_HCLK));
+	BK_LOGD(NULL,"0x%8x:0x%8x\r\n", SCTRL_BLOCK_EN_CFG, REG_READ(SCTRL_BLOCK_EN_CFG));
+	BK_LOGD(NULL,"0x%8x:0x%8x\r\n", SCTRL_ROSC_CAL, REG_READ(SCTRL_ROSC_CAL));
+	BK_LOGD(NULL,"0x%8x:0x%8x\r\n", SCTRL_ANALOG_CTRL2, sctrl_analog_get(SCTRL_ANALOG_CTRL2));
+	//BK_LOGD(NULL,"0x%8x:0x%8x\r\n", ICU_R_INT_EN, REG_READ(ICU_R_INT_EN));
+	//BK_LOGD(NULL,"0x%8x:0x%8x\r\n", ICU_PERI_CLK_PWD, REG_READ(ICU_PERI_CLK_PWD));
+	BK_LOGD(NULL,"0x%8x:0x%8x\r\n", SCTRL_SLEEP, REG_READ(SCTRL_SLEEP));
+	//BK_LOGD(NULL,"0x%8x:0x%8x\r\n", ICU_R_ARM_WAKEUP_EN, REG_READ(ICU_R_ARM_WAKEUP_EN));
 //	bk_wifi_dump_ps_regs();
-	os_printf("saves dump\r\n");
+	BK_LOGD(NULL,"saves dump\r\n");
 
 	for (i = 0; i < (3 * (sizeof(SCTRL_PS_SAVE_VALUES) / 4)); i++)
-		os_printf(" %d 0x%x\r\n", i, *((UINT32 *)(&ps_saves) + i));
+		BK_LOGD(NULL," %d 0x%x\r\n", i, *((UINT32 *)(&ps_saves) + i));
 }
 #if 0
 void sctrl_hw_sleep(UINT32 peri_clk)
@@ -695,7 +695,7 @@ void sctrl_hw_sleep(UINT32 peri_clk)
 #if (!CONFIG_SOC_BK7271)
 	uint32_t param, c_mclk_mux;
 
-	//os_printf("h s\r\n");
+	//BK_LOGD(NULL,"h s\r\n");
 	PS_DEBUG_HWDOWN_TRIGER;
 
 	UINT32 reg;
@@ -843,7 +843,7 @@ void sctrl_hw_wakeup(void)
 	// sddev_control(DD_DEV_TYPE_ICU, CMD_ICU_INT_ENABLE, &reg);
 	(void)sys_drv_int_enable(reg);
 
-	//os_printf("h w\r\n");
+	//BK_LOGD(NULL,"h w\r\n");
 	PS_DEBUG_HWUP_TRIGER;
 #endif
 }
@@ -1050,7 +1050,7 @@ void sctrl_mdm_reset(void)
 	volatile INT32 i;
 	GLOBAL_INT_DECLARATION();
 
-	os_printf("sctrl_mdm_reset\r\n");
+	BK_LOGD(NULL,"sctrl_mdm_reset\r\n");
 
 	// Disable the interrupts
 	GLOBAL_INT_DISABLE();
@@ -1323,7 +1323,7 @@ void sctrl_exit_rtos_idle_sleep(void)
 	if (4 == flash_get_line_mode())
 		flash_set_line_mode(4);
 
-	os_printf("idle wake up!\r\n");
+	BK_LOGD(NULL,"idle wake up!\r\n");
 }
 #endif
 
@@ -1496,7 +1496,7 @@ static int sctrl_write_efuse(void *param)
 	EFUSE_OPER_ST *efuse, efuse_bak;
 
 #if (CONFIG_SOC_BK7251)
-	os_printf("BK7251 cannot write efuse via register\r\n");
+	BK_LOGD(NULL,"BK7251 cannot write efuse via register\r\n");
 	goto wr_exit;
 #endif
 
@@ -1760,12 +1760,12 @@ void charger_start(void *param)
 	chrg = (CHARGE_OPER_ST *)param;
 
 	if (! usb_power_is_pluged()) {
-		os_printf("%s: not pluged\r\n", __FUNCTION__);
+		BK_LOGD(NULL,"%s: not pluged\r\n", __FUNCTION__);
 		return;
 	}
 
 	charger_calib_set(chrg->cal);
-	os_printf("%s: %d %d %d %x %x %x\r\n", __FUNCTION__, chrg->type, chrg->step, chrg->elect,
+	BK_LOGD(NULL,"%s: %d %d %d %x %x %x\r\n", __FUNCTION__, chrg->type, chrg->step, chrg->elect,
 			  calib_charger[0], calib_charger[1], calib_charger[2]);
 	if (chrg->step == STEP_START) {
 		if (chrg->type == INTERNAL_HW_MODE || chrg->type == INTERNAL_SW_MODE) {
@@ -1912,7 +1912,7 @@ void charger_start(void *param)
 
 void charger_stop(UINT32 type)
 {
-	os_printf("%s\r\n", __FUNCTION__);
+	BK_LOGD(NULL,"%s\r\n", __FUNCTION__);
 	charger_module_enable(0);
 }
 #endif

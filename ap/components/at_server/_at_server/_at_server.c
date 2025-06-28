@@ -121,7 +121,7 @@ void _atsvr_notice_ready(void)
 #if CONFIG_SHELL_ASYNCLOG
 	shell_cmd_ind_out(ATSVR_READY_MSG);
 #else
-	os_printf(ATSVR_READY_MSG);
+	BK_LOGD(NULL, ATSVR_READY_MSG);
 #endif
 #else
 	atsvr_cmd_ind_out(ATSVR_READY_MSG);
@@ -136,7 +136,7 @@ void _atsvr_cmd_analysis_notice_error(void)
 #if CONFIG_SHELL_ASYNCLOG
 	shell_cmd_ind_out(ATSVR_CMDMSG_ERROR_RSP);
 #else
-	os_printf(ATSVR_CMDMSG_ERROR_RSP);
+	BK_LOGD(NULL, ATSVR_CMDMSG_ERROR_RSP);
 #endif
 #else
 	atsvr_cmd_ind_out(ATSVR_CMDMSG_ERROR_RSP);
@@ -156,7 +156,7 @@ void _atsvr_cmd_rsp_ok(_atsvr_env_t *env)
 		#if CONFIG_SHELL_ASYNCLOG
 			shell_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
 		#else
-			os_printf(ATSVR_CMD_RSP_SUCCEED);
+			BK_LOGD(NULL, ATSVR_CMD_RSP_SUCCEED);
 		#endif
 		#else
 		atsvr_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
@@ -176,7 +176,7 @@ void _atsvr_cmd_rsp_error(_atsvr_env_t *env)
 		#if CONFIG_SHELL_ASYNCLOG
 			shell_cmd_ind_out(ATSVR_CMDMSG_ERROR_RSP);
 		#else
-			os_printf(ATSVR_CMDMSG_ERROR_RSP);
+			BK_LOGD(NULL, ATSVR_CMDMSG_ERROR_RSP);
 		#endif
 		#else
 			atsvr_cmd_ind_out(ATSVR_CMDMSG_ERROR_RSP);
@@ -194,7 +194,7 @@ void _atsvr_cmd_rsp_timeout(_atsvr_env_t *env)
 	#if CONFIG_SHELL_ASYNCLOG
 		shell_cmd_ind_out(ATSVR_CMDMSG_TIMEOUT);
 	#else
-		os_printf(ATSVR_CMDMSG_TIMEOUT);
+		BK_LOGD(NULL, ATSVR_CMDMSG_TIMEOUT);
 	#endif
 	#else
 		atsvr_cmd_ind_out(ATSVR_CMDMSG_TIMEOUT);
@@ -207,7 +207,7 @@ void _atsvr_output_help(const char *msg)
 #if CONFIG_SHELL_ASYNCLOG
 	shell_cmd_ind_out(msg);
 #else
-	os_printf(msg);
+	BK_LOGD(NULL, msg);
 #endif
 #else
 	atsvr_cmd_ind_out(msg);
@@ -221,7 +221,7 @@ void _atsvr_output_msg(char *msg)
 #if CONFIG_SHELL_ASYNCLOG
 	shell_cmd_ind_out("%s",msg);
 #else
-	os_printf("%s",msg);
+	BK_LOGD(NULL, "%s",msg);
 #endif
 #else
 	atsvr_cmd_ind_out("%s",msg);
@@ -338,7 +338,7 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 	#if CONFIG_SHELL_ASYNCLOG
 		shell_cmd_ind_out(ATSVR_CMD_NEW_VERSION_NOTIFY);
 	#else
-		os_printf(ATSVR_CMD_NEW_VERSION_NOTIFY);
+		BK_LOGD(NULL, ATSVR_CMD_NEW_VERSION_NOTIFY);
 	#endif
 	#else
 		atsvr_cmd_ind_out(ATSVR_CMD_NEW_VERSION_NOTIFY);
@@ -359,7 +359,7 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 		#if CONFIG_SHELL_ASYNCLOG
 			shell_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
 		#else
-			os_printf(ATSVR_CMD_RSP_SUCCEED);
+			BK_LOGD(NULL, ATSVR_CMD_RSP_SUCCEED);
 		#endif
 		#else
 			atsvr_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
@@ -374,7 +374,7 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 		#if CONFIG_SHELL_ASYNCLOG
 			shell_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
 		#else
-			os_printf(ATSVR_CMD_RSP_SUCCEED);
+			BK_LOGD(NULL, ATSVR_CMD_RSP_SUCCEED);
 		#endif
 		#else
 			atsvr_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);

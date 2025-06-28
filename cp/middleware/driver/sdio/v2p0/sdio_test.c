@@ -76,9 +76,9 @@ static bk_err_t sdio_test_tx_cb(sdio_node_ptr_t head_p, sdio_node_ptr_t tail_p, 
 	{
 		for(j = 0; j < cur_p->len; j += 4)
 		{
-			os_printf("0x%08x ", *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j));
+			BK_LOGD(NULL,"0x%08x ", *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j));
 			if(j % 16 == 0)
-				os_printf("\r\n");
+				BK_LOGD(NULL,"\r\n");
 		}
 
 		cur_p = cur_p->next;
@@ -420,7 +420,7 @@ if(value == 12345678) {
 
 					uint8_t *send_data = (uint8_t *)os_zalloc(len);
 					if (send_data == NULL) {
-						os_printf("send buffer malloc failed\r\n");
+						BK_LOGD(NULL,"send buffer malloc failed\r\n");
 						break;
 					}
 					for (int i = 0; i < len; i++) {
@@ -544,9 +544,9 @@ static bk_err_t sdio_test_rx_cb(sdio_node_ptr_t head_p, sdio_node_ptr_t tail_p, 
 	{
 		for(j = 0; j < cur_p->len; j += 4)
 		{
-			os_printf("0x%08x ", *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j));
+			BK_LOGD(NULL,"0x%08x ", *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j));
 			if(j % 16 == 0)
-				os_printf("\r\n");
+				BK_LOGD(NULL,"\r\n");
 		}
 
 		cur_p = cur_p->next;
@@ -583,17 +583,17 @@ static bk_err_t sdio_test_rx_cb( sdio_node_ptr_t head_p, sdio_node_ptr_t tail_p,
 		{
 //not print received data by default
 #if 0
-			os_printf("core_id=0x%x, payload cur_p=0x%08x \r\n", chan_id, cur_p);
+			BK_LOGD(NULL,"core_id=0x%x, payload cur_p=0x%08x \r\n", chan_id, cur_p);
 			for(j = 0; j < print_len; j += sizeof(uint32_t))
 			{
-				os_printf("0x%08x ", *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j));
+				BK_LOGD(NULL,"0x%08x ", *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j));
 				if(j && (j % 16 == 0))
-					os_printf("\r\n");
+					BK_LOGD(NULL,"\r\n");
 			}
 #else
 			for (j = 4; j < print_len - 4; j += sizeof(uint32_t)) {
 				if(*(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j) != (rx_val_test[chan_id] + 0x10000000 * (chan_id))) {
-					os_printf("rx_tp_cb error, cur_p_word[%d] = 0x%x, correct value is 0x%x.\n" , j, *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j), (rx_val_test[chan_id] + 0x10000000 * (chan_id)) );
+					BK_LOGD(NULL,"rx_tp_cb error, cur_p_word[%d] = 0x%x, correct value is 0x%x.\n" , j, *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j), (rx_val_test[chan_id] + 0x10000000 * (chan_id)) );
 				}
 
 			}
@@ -629,15 +629,15 @@ static bk_err_t sdio_test_rx_cb( sdio_node_ptr_t head_p, sdio_node_ptr_t tail_p,
 		//deal data
 		while(cur_p && (i > 0))
 		{
-			os_printf("sync: chan_id=0x%x, payload cur_p=0x%08x \r\n", chan_id, cur_p);
+			BK_LOGD(NULL,"sync: chan_id=0x%x, payload cur_p=0x%08x \r\n", chan_id, cur_p);
 
 			for(j = 0; j < print_len; j += sizeof(uint32_t))
 			{
 
-				os_printf("0x%08x ", *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j));
+				BK_LOGD(NULL,"0x%08x ", *(uint32_t *)((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j));
 
 				if(j && (j % 16 == 0))
-					os_printf("\r\n");
+					BK_LOGD(NULL,"\r\n");
 			}
 
 #if 0
@@ -645,13 +645,13 @@ static bk_err_t sdio_test_rx_cb( sdio_node_ptr_t head_p, sdio_node_ptr_t tail_p,
 			if (looptest_flag == 1) {
 				for (j = 0; j < (cur_p->sw_pbd.len - 4); j++) {
 					if( *((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j) != ((j + 0x84) % 256)) {
-						os_printf("loopback error, cur_p_byte[%d] = 0x%x, correct value is 0x%x.\n" , j, *((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j), ((j + 0x80) % 256) );
+						BK_LOGD(NULL,"loopback error, cur_p_byte[%d] = 0x%x, correct value is 0x%x.\n" , j, *((uint8_t *)cur_p + (sizeof(sdio_node_t)) + j), ((j + 0x80) % 256) );
 					}
 				}
 			}
 #endif
 
-			os_printf("\r\n");
+			BK_LOGD(NULL,"\r\n");
 
 			cur_p = (sdio_node_ptr_t)cur_p->next;
 			i--;

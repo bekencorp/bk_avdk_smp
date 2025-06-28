@@ -21,6 +21,7 @@
 #define ADC_LOGW(...) BK_LOGW(ADC_TAG, ##__VA_ARGS__)
 #define ADC_LOGE(...) BK_LOGE(ADC_TAG, ##__VA_ARGS__)
 #define ADC_LOGD(...) BK_LOGD(ADC_TAG, ##__VA_ARGS__)
+#define ADC_LOGV(...) BK_LOGV(ADC_TAG, ##__VA_ARGS__)
 
 
 #define DEFAULT_ADC_MODE             ADC_CONTINUOUS_MODE

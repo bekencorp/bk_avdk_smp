@@ -41,13 +41,13 @@ static audio_port_handle_t output_port = NULL;
 
 static bk_err_t _el_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "_el_open \n");
+    BK_LOGD(TAG, "_el_open \n");
     return BK_OK;
 }
 
 static int _el_read(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
-    BK_LOGI(TAG, "_el_read, len: %d \n", len);
+    BK_LOGD(TAG, "_el_read, len: %d \n", len);
     /*
         //the data in output_rb need to be read
         if (output_port_temp_data) {
@@ -61,7 +61,7 @@ static int _el_read(audio_port_handle_t self, char *buffer, int len, TickType_t 
 static int _el_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     rtos_delay_milliseconds(100);
-    BK_LOGI(TAG, "_el_process, in_len: %d \n", in_len);
+    BK_LOGD(TAG, "_el_process, in_len: %d \n", in_len);
 
     int r_size = audio_element_input(self, in_buffer, in_len);
 
@@ -92,7 +92,7 @@ static int _el_process(audio_element_handle_t self, char *in_buffer, int in_len)
 
 static int _el_write(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
-    BK_LOGI(TAG, "_el_write, len: %d \n", len);
+    BK_LOGD(TAG, "_el_write, len: %d \n", len);
     /*
         if (input_port_temp_data) {
             rb_write(input_rb, input_port_temp_data, INPUT_RINGBUF_SIZE, portMAX_DELAY);
@@ -103,7 +103,7 @@ static int _el_write(audio_port_handle_t self, char *buffer, int len, TickType_t
 
 static bk_err_t _el_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "_el_close \n");
+    BK_LOGD(TAG, "_el_close \n");
     return BK_OK;
 }
 
@@ -128,10 +128,10 @@ bk_err_t adk_element_test_case_0(void)
     bk_disable_mod_printf("AUD_MEM", 0);
     bk_disable_mod_printf("AUD_ELE_TEST", 0);
 #endif
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: element init ----------\n");
+    BK_LOGD(TAG, "--------- step1: element init ----------\n");
     audio_element_handle_t el;
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.open = _el_open;
@@ -148,14 +148,14 @@ bk_err_t adk_element_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step2: element run ----------\n");
+    BK_LOGD(TAG, "--------- step2: element run ----------\n");
     if (BK_OK != audio_element_run(el))
     {
         BK_LOGE(TAG, "audio_element_run fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step3: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -164,7 +164,7 @@ bk_err_t adk_element_test_case_0(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step4: element pause ----------\n");
+    BK_LOGD(TAG, "--------- step4: element pause ----------\n");
     if (BK_OK != audio_element_pause(el))
     {
         BK_LOGE(TAG, "audio_element_pause fail \n");
@@ -173,7 +173,7 @@ bk_err_t adk_element_test_case_0(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step5: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step5: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -182,7 +182,7 @@ bk_err_t adk_element_test_case_0(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step6: element stop ----------\n");
+    BK_LOGD(TAG, "--------- step6: element stop ----------\n");
     if (BK_OK != audio_element_stop(el))
     {
         BK_LOGE(TAG, "audio_element_stop fail \n");
@@ -194,14 +194,14 @@ bk_err_t adk_element_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step7: element deinit ----------\n");
+    BK_LOGD(TAG, "--------- step7: element deinit ----------\n");
     if (BK_OK != audio_element_deinit(el))
     {
         BK_LOGE(TAG, "audio_element_deinit fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- element test [0] complete ----------\n");
+    BK_LOGD(TAG, "--------- element test [0] complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
@@ -223,10 +223,10 @@ bk_err_t adk_element_test_case_1(void)
 {
     audio_element_handle_t el;
 
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: element init ----------\n");
+    BK_LOGD(TAG, "--------- step1: element init ----------\n");
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.open = _el_open;
     cfg.in_type = PORT_TYPE_RB;
@@ -242,7 +242,7 @@ bk_err_t adk_element_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step2: input ringbuf init ----------\n");
+    BK_LOGD(TAG, "--------- step2: input ringbuf init ----------\n");
     ringbuf_port_cfg_t rb_port_cfg = {INPUT_RINGBUF_SIZE};
     input_port = ringbuf_port_init(&rb_port_cfg);
     audio_element_set_input_port(el, input_port);
@@ -266,14 +266,14 @@ bk_err_t adk_element_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: element run ----------\n");
+    BK_LOGD(TAG, "--------- step3: element run ----------\n");
     if (BK_OK != audio_element_run(el))
     {
         BK_LOGE(TAG, "audio_element_run fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step4: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -282,7 +282,7 @@ bk_err_t adk_element_test_case_1(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step5: element pause ----------\n");
+    BK_LOGD(TAG, "--------- step5: element pause ----------\n");
     if (BK_OK != audio_element_pause(el))
     {
         BK_LOGE(TAG, "audio_element_pause fail \n");
@@ -291,7 +291,7 @@ bk_err_t adk_element_test_case_1(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step6: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step6: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -300,7 +300,7 @@ bk_err_t adk_element_test_case_1(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step7: element stop ----------\n");
+    BK_LOGD(TAG, "--------- step7: element stop ----------\n");
     if (BK_OK != audio_element_stop(el))
     {
         BK_LOGE(TAG, "audio_element_stop fail \n");
@@ -312,7 +312,7 @@ bk_err_t adk_element_test_case_1(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step8: element deinit ----------\n");
+    BK_LOGD(TAG, "--------- step8: element deinit ----------\n");
     if (BK_OK != audio_element_deinit(el))
     {
         BK_LOGE(TAG, "audio_element_deinit fail \n");
@@ -322,7 +322,7 @@ bk_err_t adk_element_test_case_1(void)
     os_free(input_port_temp_data);
     input_port_temp_data = NULL;
 
-    BK_LOGI(TAG, "--------- element test [1] complete ----------\n");
+    BK_LOGD(TAG, "--------- element test [1] complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
@@ -344,10 +344,10 @@ bk_err_t adk_element_test_case_2(void)
 {
     audio_element_handle_t el;
 
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: element init ----------\n");
+    BK_LOGD(TAG, "--------- step1: element init ----------\n");
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.open = _el_open;
     cfg.in_type = PORT_TYPE_CB;
@@ -363,7 +363,7 @@ bk_err_t adk_element_test_case_2(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step2: output ringbuf init ----------\n");
+    BK_LOGD(TAG, "--------- step2: output ringbuf init ----------\n");
     ringbuf_port_cfg_t out_rb_port_cfg = {INPUT_RINGBUF_SIZE};
     output_port = ringbuf_port_init(&out_rb_port_cfg);
     audio_element_set_output_port(el, output_port);
@@ -371,14 +371,14 @@ bk_err_t adk_element_test_case_2(void)
     output_port_temp_data = os_malloc(OUTPUT_RINGBUF_SIZE);
     os_memset(output_port_temp_data, 0, OUTPUT_RINGBUF_SIZE);
 
-    BK_LOGI(TAG, "--------- step3: element run ----------\n");
+    BK_LOGD(TAG, "--------- step3: element run ----------\n");
     if (BK_OK != audio_element_run(el))
     {
         BK_LOGE(TAG, "audio_element_run fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step4: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -387,7 +387,7 @@ bk_err_t adk_element_test_case_2(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step5: element pause ----------\n");
+    BK_LOGD(TAG, "--------- step5: element pause ----------\n");
     if (BK_OK != audio_element_pause(el))
     {
         BK_LOGE(TAG, "audio_element_pause fail \n");
@@ -396,7 +396,7 @@ bk_err_t adk_element_test_case_2(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step6: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step6: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -405,7 +405,7 @@ bk_err_t adk_element_test_case_2(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step7: element stop ----------\n");
+    BK_LOGD(TAG, "--------- step7: element stop ----------\n");
     if (BK_OK != audio_element_stop(el))
     {
         BK_LOGE(TAG, "audio_element_stop fail \n");
@@ -417,7 +417,7 @@ bk_err_t adk_element_test_case_2(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step8: element deinit ----------\n");
+    BK_LOGD(TAG, "--------- step8: element deinit ----------\n");
     if (BK_OK != audio_element_deinit(el))
     {
         BK_LOGE(TAG, "audio_element_deinit fail \n");
@@ -427,7 +427,7 @@ bk_err_t adk_element_test_case_2(void)
     os_free(output_port_temp_data);
     output_port_temp_data = NULL;
 
-    BK_LOGI(TAG, "--------- element test [2] complete ----------\n");
+    BK_LOGD(TAG, "--------- element test [2] complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
@@ -451,10 +451,10 @@ bk_err_t adk_element_test_case_3(void)
 {
     audio_element_handle_t el;
 
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: element init ----------\n");
+    BK_LOGD(TAG, "--------- step1: element init ----------\n");
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.open = _el_open;
     cfg.in_type = PORT_TYPE_RB;
@@ -470,7 +470,7 @@ bk_err_t adk_element_test_case_3(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step2: input&output ringbuf init ----------\n");
+    BK_LOGD(TAG, "--------- step2: input&output ringbuf init ----------\n");
     ringbuf_port_cfg_t out_rb_port_cfg = {INPUT_RINGBUF_SIZE};
     output_port = ringbuf_port_init(&out_rb_port_cfg);
     ringbuf_port_cfg_t in_rb_port_cfg = {INPUT_RINGBUF_SIZE};
@@ -499,14 +499,14 @@ bk_err_t adk_element_test_case_3(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: element run ----------\n");
+    BK_LOGD(TAG, "--------- step3: element run ----------\n");
     if (BK_OK != audio_element_run(el))
     {
         BK_LOGE(TAG, "audio_element_run fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step4: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -515,7 +515,7 @@ bk_err_t adk_element_test_case_3(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step5: element pause ----------\n");
+    BK_LOGD(TAG, "--------- step5: element pause ----------\n");
     if (BK_OK != audio_element_pause(el))
     {
         BK_LOGE(TAG, "audio_element_pause fail \n");
@@ -524,7 +524,7 @@ bk_err_t adk_element_test_case_3(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step6: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step6: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -533,7 +533,7 @@ bk_err_t adk_element_test_case_3(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step7: element stop ----------\n");
+    BK_LOGD(TAG, "--------- step7: element stop ----------\n");
     if (BK_OK != audio_element_stop(el))
     {
         BK_LOGE(TAG, "audio_element_stop fail \n");
@@ -545,7 +545,7 @@ bk_err_t adk_element_test_case_3(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step8: element deinit ----------\n");
+    BK_LOGD(TAG, "--------- step8: element deinit ----------\n");
     if (BK_OK != audio_element_deinit(el))
     {
         BK_LOGE(TAG, "audio_element_deinit fail \n");
@@ -558,7 +558,7 @@ bk_err_t adk_element_test_case_3(void)
     os_free(input_port_temp_data);
     input_port_temp_data = NULL;
 
-    BK_LOGI(TAG, "--------- element test [3] complete ----------\n");
+    BK_LOGD(TAG, "--------- element test [3] complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
@@ -580,10 +580,10 @@ bk_err_t adk_element_test_case_4(void)
 {
     audio_element_handle_t el;
 
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: element init ----------\n");
+    BK_LOGD(TAG, "--------- step1: element init ----------\n");
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.buffer_len = OUTPUT_FRAMEBUF_SIZE;
     cfg.open = _el_open;
@@ -600,7 +600,7 @@ bk_err_t adk_element_test_case_4(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step2: input ringbuf init ----------\n");
+    BK_LOGD(TAG, "--------- step2: input ringbuf init ----------\n");
     framebuf_port_cfg_t in_fb_port_cfg = {OUTPUT_FRAMEBUF_SIZE, OUTPUT_FRAMEBUF_NUM};
     input_port = framebuf_port_init(&in_fb_port_cfg);
     audio_element_set_input_port(el, input_port);
@@ -625,14 +625,14 @@ bk_err_t adk_element_test_case_4(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: element run ----------\n");
+    BK_LOGD(TAG, "--------- step3: element run ----------\n");
     if (BK_OK != audio_element_run(el))
     {
         BK_LOGE(TAG, "audio_element_run fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step4: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -641,7 +641,7 @@ bk_err_t adk_element_test_case_4(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step5: element pause ----------\n");
+    BK_LOGD(TAG, "--------- step5: element pause ----------\n");
     if (BK_OK != audio_element_pause(el))
     {
         BK_LOGE(TAG, "audio_element_pause fail \n");
@@ -650,7 +650,7 @@ bk_err_t adk_element_test_case_4(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step6: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step6: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -659,7 +659,7 @@ bk_err_t adk_element_test_case_4(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step7: element stop ----------\n");
+    BK_LOGD(TAG, "--------- step7: element stop ----------\n");
     if (BK_OK != audio_element_stop(el))
     {
         BK_LOGE(TAG, "audio_element_stop fail \n");
@@ -671,7 +671,7 @@ bk_err_t adk_element_test_case_4(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step8: element deinit ----------\n");
+    BK_LOGD(TAG, "--------- step8: element deinit ----------\n");
     if (BK_OK != audio_element_deinit(el))
     {
         BK_LOGE(TAG, "audio_element_deinit fail \n");
@@ -681,7 +681,7 @@ bk_err_t adk_element_test_case_4(void)
     os_free(input_port_temp_data);
     input_port_temp_data = NULL;
 
-    BK_LOGI(TAG, "--------- element test [1] complete ----------\n");
+    BK_LOGD(TAG, "--------- element test [1] complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
@@ -703,10 +703,10 @@ bk_err_t adk_element_test_case_5(void)
 {
     audio_element_handle_t el;
 
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: element init ----------\n");
+    BK_LOGD(TAG, "--------- step1: element init ----------\n");
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.buffer_len = OUTPUT_FRAMEBUF_SIZE;
     cfg.open = _el_open;
@@ -725,7 +725,7 @@ bk_err_t adk_element_test_case_5(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step2: output ringbuf init ----------\n");
+    BK_LOGD(TAG, "--------- step2: output ringbuf init ----------\n");
     framebuf_port_cfg_t out_fb_port_cfg = {OUTPUT_FRAMEBUF_SIZE, OUTPUT_FRAMEBUF_NUM};
     output_port = framebuf_port_init(&out_fb_port_cfg);
     audio_element_set_output_port(el, output_port);
@@ -733,14 +733,14 @@ bk_err_t adk_element_test_case_5(void)
     output_port_temp_data = os_malloc(OUTPUT_FRAMEBUF_SIZE);
     os_memset(output_port_temp_data, 0, OUTPUT_FRAMEBUF_SIZE);
 
-    BK_LOGI(TAG, "--------- step3: element run ----------\n");
+    BK_LOGD(TAG, "--------- step3: element run ----------\n");
     if (BK_OK != audio_element_run(el))
     {
         BK_LOGE(TAG, "audio_element_run fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step4: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -749,7 +749,7 @@ bk_err_t adk_element_test_case_5(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step5: element pause ----------\n");
+    BK_LOGD(TAG, "--------- step5: element pause ----------\n");
     if (BK_OK != audio_element_pause(el))
     {
         BK_LOGE(TAG, "audio_element_pause fail \n");
@@ -758,7 +758,7 @@ bk_err_t adk_element_test_case_5(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step6: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step6: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -767,7 +767,7 @@ bk_err_t adk_element_test_case_5(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step7: element stop ----------\n");
+    BK_LOGD(TAG, "--------- step7: element stop ----------\n");
     if (BK_OK != audio_element_stop(el))
     {
         BK_LOGE(TAG, "audio_element_stop fail \n");
@@ -779,7 +779,7 @@ bk_err_t adk_element_test_case_5(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step8: element deinit ----------\n");
+    BK_LOGD(TAG, "--------- step8: element deinit ----------\n");
     if (BK_OK != audio_element_deinit(el))
     {
         BK_LOGE(TAG, "audio_element_deinit fail \n");
@@ -789,7 +789,7 @@ bk_err_t adk_element_test_case_5(void)
     os_free(output_port_temp_data);
     output_port_temp_data = NULL;
 
-    BK_LOGI(TAG, "--------- element test [2] complete ----------\n");
+    BK_LOGD(TAG, "--------- element test [2] complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
@@ -813,10 +813,10 @@ bk_err_t adk_element_test_case_6(void)
 {
     audio_element_handle_t el;
 
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: element init ----------\n");
+    BK_LOGD(TAG, "--------- step1: element init ----------\n");
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.buffer_len = OUTPUT_FRAMEBUF_SIZE;
     cfg.open = _el_open;
@@ -835,7 +835,7 @@ bk_err_t adk_element_test_case_6(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step2: input&output ringbuf init ----------\n");
+    BK_LOGD(TAG, "--------- step2: input&output ringbuf init ----------\n");
     framebuf_port_cfg_t in_fb_port_cfg = {OUTPUT_FRAMEBUF_SIZE, OUTPUT_FRAMEBUF_NUM};
     input_port = framebuf_port_init(&in_fb_port_cfg);
     audio_element_set_input_port(el, input_port);
@@ -865,14 +865,14 @@ bk_err_t adk_element_test_case_6(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: element run ----------\n");
+    BK_LOGD(TAG, "--------- step3: element run ----------\n");
     if (BK_OK != audio_element_run(el))
     {
         BK_LOGE(TAG, "audio_element_run fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step4: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -881,7 +881,7 @@ bk_err_t adk_element_test_case_6(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step5: element pause ----------\n");
+    BK_LOGD(TAG, "--------- step5: element pause ----------\n");
     if (BK_OK != audio_element_pause(el))
     {
         BK_LOGE(TAG, "audio_element_pause fail \n");
@@ -890,7 +890,7 @@ bk_err_t adk_element_test_case_6(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step6: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step6: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -899,7 +899,7 @@ bk_err_t adk_element_test_case_6(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step7: element stop ----------\n");
+    BK_LOGD(TAG, "--------- step7: element stop ----------\n");
     if (BK_OK != audio_element_stop(el))
     {
         BK_LOGE(TAG, "audio_element_stop fail \n");
@@ -911,7 +911,7 @@ bk_err_t adk_element_test_case_6(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step8: element deinit ----------\n");
+    BK_LOGD(TAG, "--------- step8: element deinit ----------\n");
     if (BK_OK != audio_element_deinit(el))
     {
         BK_LOGE(TAG, "audio_element_deinit fail \n");
@@ -924,7 +924,7 @@ bk_err_t adk_element_test_case_6(void)
     os_free(input_port_temp_data);
     input_port_temp_data = NULL;
 
-    BK_LOGI(TAG, "--------- element test [3] complete ----------\n");
+    BK_LOGD(TAG, "--------- element test [3] complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
@@ -948,10 +948,10 @@ bk_err_t adk_element_test_case_7(void)
 {
     audio_element_handle_t el;
 
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: element init ----------\n");
+    BK_LOGD(TAG, "--------- step1: element init ----------\n");
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.buffer_len = OUTPUT_FRAMEBUF_SIZE;
     cfg.open = _el_open;
@@ -970,7 +970,7 @@ bk_err_t adk_element_test_case_7(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step2: input&output ringbuf init ----------\n");
+    BK_LOGD(TAG, "--------- step2: input&output ringbuf init ----------\n");
     ringbuf_port_cfg_t in_rb_port_cfg = {OUTPUT_RINGBUF_SIZE};
     input_port = ringbuf_port_init(&in_rb_port_cfg);
     audio_element_set_input_port(el, input_port);
@@ -999,14 +999,14 @@ bk_err_t adk_element_test_case_7(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: element run ----------\n");
+    BK_LOGD(TAG, "--------- step3: element run ----------\n");
     if (BK_OK != audio_element_run(el))
     {
         BK_LOGE(TAG, "audio_element_run fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step4: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -1015,7 +1015,7 @@ bk_err_t adk_element_test_case_7(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step5: element pause ----------\n");
+    BK_LOGD(TAG, "--------- step5: element pause ----------\n");
     if (BK_OK != audio_element_pause(el))
     {
         BK_LOGE(TAG, "audio_element_pause fail \n");
@@ -1024,7 +1024,7 @@ bk_err_t adk_element_test_case_7(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step6: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step6: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -1033,7 +1033,7 @@ bk_err_t adk_element_test_case_7(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step7: element stop ----------\n");
+    BK_LOGD(TAG, "--------- step7: element stop ----------\n");
     if (BK_OK != audio_element_stop(el))
     {
         BK_LOGE(TAG, "audio_element_stop fail \n");
@@ -1045,7 +1045,7 @@ bk_err_t adk_element_test_case_7(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step8: element deinit ----------\n");
+    BK_LOGD(TAG, "--------- step8: element deinit ----------\n");
     if (BK_OK != audio_element_deinit(el))
     {
         BK_LOGE(TAG, "audio_element_deinit fail \n");
@@ -1058,7 +1058,7 @@ bk_err_t adk_element_test_case_7(void)
     os_free(input_port_temp_data);
     input_port_temp_data = NULL;
 
-    BK_LOGI(TAG, "--------- element test [3] complete ----------\n");
+    BK_LOGD(TAG, "--------- element test [3] complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
@@ -1082,10 +1082,10 @@ bk_err_t adk_element_test_case_8(void)
 {
     audio_element_handle_t el;
 
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: element init ----------\n");
+    BK_LOGD(TAG, "--------- step1: element init ----------\n");
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
     cfg.buffer_len = OUTPUT_FRAMEBUF_SIZE;
     cfg.open = _el_open;
@@ -1104,7 +1104,7 @@ bk_err_t adk_element_test_case_8(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step2: input&output ringbuf init ----------\n");
+    BK_LOGD(TAG, "--------- step2: input&output ringbuf init ----------\n");
     framebuf_port_cfg_t in_fb_port_cfg = {OUTPUT_FRAMEBUF_SIZE, OUTPUT_FRAMEBUF_NUM};
     input_port = framebuf_port_init(&in_fb_port_cfg);
     audio_element_set_input_port(el, input_port);
@@ -1134,14 +1134,14 @@ bk_err_t adk_element_test_case_8(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step3: element run ----------\n");
+    BK_LOGD(TAG, "--------- step3: element run ----------\n");
     if (BK_OK != audio_element_run(el))
     {
         BK_LOGE(TAG, "audio_element_run fail \n");
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step4: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -1150,7 +1150,7 @@ bk_err_t adk_element_test_case_8(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step5: element pause ----------\n");
+    BK_LOGD(TAG, "--------- step5: element pause ----------\n");
     if (BK_OK != audio_element_pause(el))
     {
         BK_LOGE(TAG, "audio_element_pause fail \n");
@@ -1159,7 +1159,7 @@ bk_err_t adk_element_test_case_8(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step6: element resume ----------\n");
+    BK_LOGD(TAG, "--------- step6: element resume ----------\n");
     if (BK_OK != audio_element_resume(el, 0, 2000 / portTICK_RATE_MS))
     {
         BK_LOGE(TAG, "audio_element_resume fail \n");
@@ -1168,7 +1168,7 @@ bk_err_t adk_element_test_case_8(void)
 
     rtos_delay_milliseconds(2000);
 
-    BK_LOGI(TAG, "--------- step7: element stop ----------\n");
+    BK_LOGD(TAG, "--------- step7: element stop ----------\n");
     if (BK_OK != audio_element_stop(el))
     {
         BK_LOGE(TAG, "audio_element_stop fail \n");
@@ -1180,7 +1180,7 @@ bk_err_t adk_element_test_case_8(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step8: element deinit ----------\n");
+    BK_LOGD(TAG, "--------- step8: element deinit ----------\n");
     if (BK_OK != audio_element_deinit(el))
     {
         BK_LOGE(TAG, "audio_element_deinit fail \n");
@@ -1193,7 +1193,7 @@ bk_err_t adk_element_test_case_8(void)
     os_free(input_port_temp_data);
     input_port_temp_data = NULL;
 
-    BK_LOGI(TAG, "--------- element test [3] complete ----------\n");
+    BK_LOGD(TAG, "--------- element test [3] complete ----------\n");
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;

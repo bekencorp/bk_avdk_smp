@@ -49,7 +49,7 @@ int usbh_air724_connect(struct usbh_hubport *hport, uint8_t intf)
         }
     }
 
-    USB_LOG_INFO("Register air724 Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register air724 Class:%s\r\n", hport->config.intf[intf].devname);
 //    uint8_t cdc_buffer[32] = {0X41,0X54,0x0d,0x0a};
 //    ret = usbh_ep_bulk_transfer(cdc_custom_class->bulkout, cdc_buffer, 4, 3000);
 //    if (ret < 0) {

@@ -208,7 +208,7 @@ static void wpas_trigger_scan_cb(struct wpa_radio_work *work, int deinit)
 	struct wpa_driver_scan_params *params = work->ctx;
 	int ret;
 
-	WPA_LOGD("scan work start, deinit=%d\n", deinit);
+	WPA_LOGV("scan work start, deinit=%d\n", deinit);
 	if (deinit) {
 		if (!work->started) {
 			wpa_scan_free_params(params);
@@ -243,7 +243,7 @@ static void wpas_trigger_scan_cb(struct wpa_radio_work *work, int deinit)
 		params->only_new_results = 1;
 	}
 
-	WPA_LOGD("req driver to scan\r\n");
+	WPA_LOGV("req driver to scan\r\n");
 	ret = wpa_drv_scan(wpa_s, params);
 	/*
 	 * Store the obtained vendor scan cookie (if any) in wpa_s context.
@@ -279,7 +279,7 @@ static void wpas_trigger_scan_cb(struct wpa_radio_work *work, int deinit)
 						 wpa_s->scan_prev_wpa_state);
 		wpa_msg(wpa_s, MSG_INFO, WPA_EVENT_SCAN_FAILED "ret=%d%s",
 			ret, retry ? " retry=1" : "");
-		WPA_LOGI("req driver scan failed, ret=-0x%x, %s\n",
+		WPA_LOGD("req driver scan failed, ret=-0x%x, %s\n",
 			-ret, retry ? "retry" : "");
 		radio_work_done(work);
 
@@ -954,7 +954,7 @@ void wpa_supplicant_scan(void *eloop_ctx, void *timeout_ctx)
 	int p2p_in_prog;
 #endif
 
-	WPA_LOGD("%s\n", __func__);
+	WPA_LOGV("%s\n", __func__);
 	wpa_s->ignore_post_flush_scan_res = 0;
 
 	if (wpa_s->wpa_state == WPA_INTERFACE_DISABLED) {
@@ -1057,7 +1057,7 @@ void wpa_supplicant_scan(void *eloop_ctx, void *timeout_ctx)
 			wpa_supplicant_associate(wpa_s, NULL, ssid);
 			return;
 		} else {
-			WPA_LOGI("%s: connect_without_scan set but cannot find wpa_ssid\n");
+			WPA_LOGD("%s: connect_without_scan set but cannot find wpa_ssid\n");
 		}
 	}
 
@@ -1073,7 +1073,7 @@ void wpa_supplicant_scan(void *eloop_ctx, void *timeout_ctx)
 	 * If autoscan has set its own scanning parameters
 	 */
 	if (wpa_s->autoscan_params != NULL) {
-		WPA_LOGI("set auto scan param\n");
+		WPA_LOGD("set auto scan param\n");
 		scan_params = wpa_s->autoscan_params;
 		goto scan;
 	}
@@ -1081,7 +1081,7 @@ void wpa_supplicant_scan(void *eloop_ctx, void *timeout_ctx)
 
 	if (wpa_s->last_scan_req == MANUAL_SCAN_REQ &&
 	    wpa_set_ssids_from_scan_req(wpa_s, &params, max_ssids)) {
-		WPA_LOGI("use ssids from scan command\n");
+		WPA_LOGD("use ssids from scan command\n");
 		wpa_printf(MSG_DEBUG, "Use specific SSIDs from SCAN command");
 		goto ssid_list_set;
 	}
@@ -1403,7 +1403,7 @@ ssid_list_set:
 	if (bk_feature_bssid_connect_enable()) {
 		if (!is_zero_ether_addr(g_sta_param_ptr->fast_connect.bssid)) {
 			params.bssid = g_sta_param_ptr->fast_connect.bssid;
-			WPA_LOGI("Scan specified BSSID " MACSTR  "\r\n", MAC2STR(params.bssid));
+			WPA_LOGD("Scan specified BSSID " MACSTR  "\r\n", MAC2STR(params.bssid));
 		}
 	}
 
@@ -1554,30 +1554,30 @@ int wpa_supplicant_req_scan(struct wpa_supplicant *wpa_s, int sec, int usec)
 		wpa_dbg(wpa_s, MSG_DEBUG, "Rescheduling scan request: %d.%06d sec",
 			sec, usec);
 #ifdef CONFIG_NO_STDOUT_DEBUG
-		WPA_LOGI("Rescheduling scan request: %d.%06d sec\n", sec, usec);
+		WPA_LOGD("Rescheduling scan request: %d.%06d sec\n", sec, usec);
 #endif
 	} else if (res == 0) {
 		wpa_dbg(wpa_s, MSG_DEBUG, "Ignore new scan request for %d.%06d sec since an earlier request is scheduled to trigger sooner",
 			sec, usec);
 #ifdef CONFIG_NO_STDOUT_DEBUG
-		WPA_LOGI("Ignore new scan request for %d.%06d sec since an earlier request is scheduled to trigger sooner\n",
+		WPA_LOGD("Ignore new scan request for %d.%06d sec since an earlier request is scheduled to trigger sooner\n",
 			sec, usec);
 #endif
 	} else {
 		wpa_dbg(wpa_s, MSG_DEBUG, "Setting scan request: %d.%06d sec",
 			sec, usec);
 #ifdef CONFIG_NO_STDOUT_DEBUG
-		WPA_LOGI("Setting scan request: %d.%06d sec\n", sec, usec);
+		WPA_LOGD("Setting scan request: %d.%06d sec\n", sec, usec);
 #endif
 #if defined(BK_SUPPLICANT) && defined(CONFIG_AUTO_RECONNECT)
 		if (wpa_s->scan_res_handler != scan_only_handler &&
 			wpa_s->auto_reconnect_max_count != 0) {
-			WPA_LOGI("%s: remain count %d\n", __func__, wpa_s->auto_reconnect_count);
+			WPA_LOGD("%s: remain count %d\n", __func__, wpa_s->auto_reconnect_count);
 			if (wpa_s->auto_reconnect_count > 0) {
 				wpa_s->auto_reconnect_count--;
 				eloop_register_timeout(sec, usec, wpa_supplicant_scan, wpa_s, NULL);
 			} else if (wpa_s->auto_reconnect_count == 0) {
-				WPA_LOGI("%s: max scan count reached\n", __func__);
+				WPA_LOGD("%s: max scan count reached\n", __func__);
 				// retry count reached
 				eloop_cancel_timeout(wpa_supplicant_auto_reconnect_timeout, wpa_s, NULL);
 				// post event
@@ -1953,7 +1953,7 @@ scan:
  */
 void wpa_supplicant_cancel_scan(struct wpa_supplicant *wpa_s)
 {
-	WPA_LOGD("cancell scan request timer\r\n");
+	WPA_LOGV("cancell scan request timer\r\n");
 	eloop_cancel_timeout(wpa_supplicant_scan, wpa_s, NULL);
 }
 

@@ -28,7 +28,7 @@ void flash_svr_test_task(void * param)
 	// wait start.
 	while(flash_svr_test_start == 0)
 	{
-		bk_printf("==> test_start addr=0x%x.\r\n", &flash_svr_test_start);
+		BK_LOGD(NULL,"==> test_start addr=0x%x.\r\n", &flash_svr_test_start);
 		rtos_delay_milliseconds(500);
 	}
 
@@ -46,7 +46,7 @@ void flash_svr_test_task(void * param)
 
 	for(int i = 0; i < 2000; i++)
 	{
-		bk_printf("\r\n==== loop %d !====\r\n", i);
+		BK_LOGD(NULL,"\r\n==== loop %d !====\r\n", i);
 
 		for(int j = 0; j < 16; j++)
 		{
@@ -56,13 +56,13 @@ void flash_svr_test_task(void * param)
 			
 			test_addr = flash_start_addr + j * 0x1000;
 
-			//bk_printf("test-addr = 0x%x!\r\n", test_addr);
+			//BK_LOGD(NULL,"test-addr = 0x%x!\r\n", test_addr);
 
 			ret_val = bk_flash_erase_sector(test_addr);
 
 			if(ret_val != 0)
 			{
-				bk_printf("erase failed, addr=0x%x!\r\n", test_addr);
+				BK_LOGD(NULL,"erase failed, addr=0x%x!\r\n", test_addr);
 				continue;;
 			}
 			
@@ -70,7 +70,7 @@ void flash_svr_test_task(void * param)
 
 			if(ret_val != 0)
 			{
-				bk_printf("read failed, addr=0x%x!\r\n", test_addr);
+				BK_LOGD(NULL,"read failed, addr=0x%x!\r\n", test_addr);
 				continue;;
 			}
 
@@ -78,7 +78,7 @@ void flash_svr_test_task(void * param)
 			{
 				if(test_buff[k] != 0xFF)
 				{
-					bk_printf("erase data failed, addr=0x%x, %02x!\r\n", test_addr+k, test_buff[k]);
+					BK_LOGD(NULL,"erase data failed, addr=0x%x, %02x!\r\n", test_addr+k, test_buff[k]);
 					break;
 				}
 
@@ -91,7 +91,7 @@ void flash_svr_test_task(void * param)
 			ret_val = bk_flash_write_bytes(test_addr, test_buff, sizeof(test_buff));
 			if(ret_val != 0)
 			{
-				bk_printf("write failed, addr=0x%x!\r\n", test_addr);
+				BK_LOGD(NULL,"write failed, addr=0x%x!\r\n", test_addr);
 				continue;;
 			}
 
@@ -101,7 +101,7 @@ void flash_svr_test_task(void * param)
 
 			if(ret_val != 0)
 			{
-				bk_printf("read2 failed, addr=0x%x!\r\n", test_addr);
+				BK_LOGD(NULL,"read2 failed, addr=0x%x!\r\n", test_addr);
 				continue;;
 			}
 
@@ -109,7 +109,7 @@ void flash_svr_test_task(void * param)
 			{
 				if(test_buff[k] != (k & 0xFF))
 				{
-					bk_printf("write data failed, addr=0x%x, %02x!\r\n", test_addr+k, test_buff[k]);
+					BK_LOGD(NULL,"write data failed, addr=0x%x, %02x!\r\n", test_addr+k, test_buff[k]);
 					break;
 				}
 			}
@@ -117,7 +117,7 @@ void flash_svr_test_task(void * param)
 		}
 	}
 	
-	bk_printf("task exit\r\n");
+	BK_LOGD(NULL,"task exit\r\n");
 	rtos_delete_thread(NULL);
 	
 }

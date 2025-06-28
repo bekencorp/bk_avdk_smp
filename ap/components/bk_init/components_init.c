@@ -104,7 +104,7 @@ int bandgap_init(void)
 int random_init(void)
 {
 #if (CONFIG_TRNG_SUPPORT)
-	BK_LOGD(TAG, "create srand seed\r\n");
+	BK_LOGV(TAG, "create srand seed\r\n");
 	srand(bk_rand());
 #endif
 	return BK_OK;
@@ -114,11 +114,11 @@ __IRAM_SEC int wdt_init(void)
 {
 #if (CONFIG_FREERTOS)
 #if CONFIG_INT_WDT
-	BK_LOGD(TAG, "int watchdog enabled, period=%u\r\n", CONFIG_INT_WDT_PERIOD_MS);
+	BK_LOGV(TAG, "int watchdog enabled, period=%u\r\n", CONFIG_INT_WDT_PERIOD_MS);
 	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);
 #else
 #if (CONFIG_SOC_BK7271 || CONFIG_SOC_BK7236XX)
-	BK_LOGI(TAG, "watchdog disabled\r\n");
+	BK_LOGD(TAG, "watchdog disabled\r\n");
 	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);
 	bk_wdt_feed();
 	bk_wdt_stop();
@@ -129,7 +129,7 @@ __IRAM_SEC int wdt_init(void)
 #if !(CONFIG_ALIOS)
 #if CONFIG_TASK_WDT
 	bk_task_wdt_start();
-	BK_LOGD(TAG, "task watchdog enabled, period=%u\r\n", CONFIG_TASK_WDT_PERIOD_MS);
+	BK_LOGV(TAG, "task watchdog enabled, period=%u\r\n", CONFIG_TASK_WDT_PERIOD_MS);
 #endif
 #endif
 	return BK_OK;
@@ -159,19 +159,19 @@ __attribute__((unused)) static int pm_init(void)
 static inline void show_sdk_version(void)
 {
 #if (CONFIG_CMAKE)
-	//BK_LOGI(TAG, "armino rev: %s\r\n", ARMINO_VER);
-	BK_LOGI(TAG, "armino rev: %s\r\n", "");
+	//BK_LOGD(TAG, "armino rev: %s\r\n", ARMINO_VER);
+	BK_LOGD(TAG, "armino rev: %s\r\n", "");
 #else
-	//BK_LOGI(TAG, "armino rev: %s\r\n", BEKEN_SDK_REV);
-	BK_LOGI(TAG, "armino rev: %s\r\n", "");
+	//BK_LOGD(TAG, "armino rev: %s\r\n", BEKEN_SDK_REV);
+	BK_LOGD(TAG, "armino rev: %s\r\n", "");
 #endif
 }
 
 static inline void show_chip_id(void)
 {
-	// BK_LOGI(TAG, "armino soc id:%x_%x\r\n",sddev_control(DD_DEV_TYPE_SCTRL,CMD_GET_DEVICE_ID, NULL),
+	// BK_LOGD(TAG, "armino soc id:%x_%x\r\n",sddev_control(DD_DEV_TYPE_SCTRL,CMD_GET_DEVICE_ID, NULL),
 	// 	sddev_control(DD_DEV_TYPE_SCTRL,CMD_GET_CHIP_ID, NULL));
-	BK_LOGI(TAG, "armino soc id:%x_%x\r\n", sys_drv_get_device_id(), sys_drv_get_chip_id());
+	BK_LOGD(TAG, "armino soc id:%x_%x\r\n", sys_drv_get_device_id(), sys_drv_get_chip_id());
 }
 
 static inline void show_sdk_lib_version(void)
@@ -259,7 +259,7 @@ void *__stack_chk_guard = NULL;
 // Intialize random stack guard, must after trng start.
 void bk_stack_guard_setup(void)
 {
-    BK_LOGI(TAG, "Intialize random stack guard.\r\n");
+    BK_LOGD(TAG, "Intialize random stack guard.\r\n");
 #if CONFIG_TRNG_SUPPORT
     __stack_chk_guard = (void *)bk_rand();
 #endif

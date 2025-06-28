@@ -34,19 +34,19 @@ static void sd_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 		switch (cmd) {
 		case 'I':
 			ret = sdcard_intf_test();
-			os_printf("init ret=%x\r\n", ret);
+			BK_LOGD(NULL, "init ret=%x\r\n", ret);
 			break;
 		case 'R':
 			ret = test_sdcard_read(blknum, blkcnt);
-			os_printf("read ret=%x,blknum=%d,blkcnt=%d\r\n", ret, blknum, blkcnt);
+			BK_LOGD(NULL, "read ret=%x,blknum=%d,blkcnt=%d\r\n", ret, blknum, blkcnt);
 			break;
 		case 'W':
 			ret = test_sdcard_write(blknum, blkcnt, wr_val);
-			os_printf("write ret=%x,blknum=%d,blkcnt=%d, wr_val=0x%08x\r\n", ret, blknum, blkcnt, wr_val);
+			BK_LOGD(NULL, "write ret=%x,blknum=%d,blkcnt=%d, wr_val=0x%08x\r\n", ret, blknum, blkcnt, wr_val);
 			break;
 		case 'C':
 			sdcard_intf_close();
-			os_printf("sdtest close \r\n");
+			BK_LOGD(NULL, "sdtest close \r\n");
 			break;
 		case 'S':
 			bk_sd_card_set_clock(blknum);
@@ -55,7 +55,7 @@ static void sd_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 			break;
 		}
 	} else
-		os_printf("cmd param error\r\n");
+		BK_LOGD(NULL, "cmd param error\r\n");
 }
 
 #endif

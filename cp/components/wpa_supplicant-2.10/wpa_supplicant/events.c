@@ -1958,7 +1958,7 @@ int wpa_supplicant_connect(struct wpa_supplicant *wpa_s,
 			   struct wpa_bss *selected,
 			   struct wpa_ssid *ssid)
 {
-	WPA_LOGD("wpa_supplicant_connect\r\n");
+	WPA_LOGV("wpa_supplicant_connect\r\n");
 	if (wpas_wps_scan_pbc_overlap(wpa_s, selected, ssid)) {
 		wpa_msg(wpa_s, MSG_INFO, WPS_EVENT_OVERLAP
 			"PBC session overlap");
@@ -2596,7 +2596,7 @@ int wpas_select_network_from_last_scan(struct wpa_supplicant *wpa_s,
 
 		if (wpa_supplicant_connect(wpa_s, selected, ssid) < 0) {
 			wpa_dbg(wpa_s, MSG_DEBUG, "Connect failed");
-			WPA_LOGI("Connect failed\r\n");
+			WPA_LOGD("Connect failed\r\n");
 			return -1;
 		}
 		if (new_scan)
@@ -2611,7 +2611,7 @@ int wpas_select_network_from_last_scan(struct wpa_supplicant *wpa_s,
 		wpa_s->no_suitable_network++;
 		wpa_dbg(wpa_s, MSG_DEBUG, "No suitable network found");
 #if BK_SUPPLICANT
-		WPA_LOGI("No suitable network found\r\n");
+		WPA_LOGD("No suitable network found\r\n");
 
 		if (bk_feature_bssid_connect_enable()) {
 			/* if set bssid info, and cannot find suitable network info, clear bssid info */
@@ -2632,7 +2632,7 @@ int wpas_select_network_from_last_scan(struct wpa_supplicant *wpa_s,
 #ifdef CONFIG_FULL_SUPPLICANT
 		ssid = wpa_supplicant_pick_new_network(wpa_s);
 		if (ssid) {
-			WPA_LOGI("Setup a new network\r\n");
+			WPA_LOGD("Setup a new network\r\n");
 			wpa_supplicant_associate(wpa_s, NULL, ssid);
 			if (new_scan)
 				wpa_supplicant_rsn_preauth_scan_results(wpa_s);
@@ -2728,7 +2728,7 @@ static int wpa_supplicant_event_scan_results(struct wpa_supplicant *wpa_s,
 		 * Interface may have been removed, so must not dereference
 		 * wpa_s after this.
 		 */
-		WPA_LOGI("Interface may removed\r\n");
+		WPA_LOGD("Interface may removed\r\n");
 		return 1;
 	}
 
@@ -4200,7 +4200,7 @@ static void wpa_supplicant_event_disassoc_finish(struct wpa_supplicant *wpa_s,
 	if (!wpa_s->disconnected && wpa_s->auto_reconnect_timeout != 0 &&
 		!wpa_s->auto_reconnect_disabled &&
 		old_state == WPA_COMPLETED) {
-		WPA_LOGI("restart auto reconnect timer\n");
+		WPA_LOGD("restart auto reconnect timer\n");
 		os_get_reltime(&wpa_s->auto_reconnect_start_time);
 		eloop_register_timeout(wpa_s->auto_reconnect_timeout, 0,
 			wpa_supplicant_auto_reconnect_timeout, wpa_s, NULL);
@@ -5237,7 +5237,7 @@ static void wpas_event_assoc_reject(struct wpa_supplicant *wpa_s,
 #if BK_SUPPLICANT
 	if (!is_zero_ether_addr(bssid) ||
 	    wpa_s->wpa_state >= WPA_AUTHENTICATING) {
-		//WPA_LOGI("%s, %d\n", __func__, __LINE__);
+		//WPA_LOGD("%s, %d\n", __func__, __LINE__);
 		wpa_s->conf->ssid->mem_only_psk = 1;
 	}
 #endif
@@ -5457,7 +5457,7 @@ void wpa_supplicant_event_sta(void *ctx, enum wpa_event_type event,
 	wpa_dbg(wpa_s, level, "Event %s (%d) received",
 		event_to_string(event), event);
 #else
-	WPA_LOGD("Event %s (%d) received\n", event_to_string(event), event);
+	WPA_LOGV("Event %s (%d) received\n", event_to_string(event), event);
 #endif /* CONFIG_NO_STDOUT_DEBUG */
 
 	switch (event) {
@@ -5593,7 +5593,7 @@ void wpa_supplicant_event_sta(void *ctx, enum wpa_event_type event,
 			wpa_dbg(wpa_s, MSG_DEBUG, "Scan completed in %ld.%06ld seconds",
 				diff.sec, diff.usec);
 #else
-			WPA_LOGI("Scan completed in %ld.%06ld seconds\r\n",
+			WPA_LOGD("Scan completed in %ld.%06ld seconds\r\n",
 				diff.sec, diff.usec);
 #endif
 		}

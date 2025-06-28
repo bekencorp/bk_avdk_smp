@@ -11,7 +11,7 @@
 #define SCTRL_DEBUG   0
 
 #if SCTRL_DEBUG
-#define SCTRL_PRT      os_printf
+#define SCTRL_PRT(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #else
 #define SCTRL_PRT      os_null_printf
 #endif

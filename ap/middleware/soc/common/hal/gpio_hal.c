@@ -240,7 +240,7 @@ bk_err_t gpio_hal_devs_map(gpio_hal_t *hal, uint64 gpios, gpio_dev_t *devs, uint
 	for(gpio_index = 0; gpio_index < SOC_GPIO_NUM; gpio_index++)
 	{
 		if (gpios & BIT64(gpio_index)) {
-			HAL_LOGD("gpio_index = %d\r\n", gpio_index);
+			HAL_LOGV("gpio_index = %d\r\n", gpio_index);
 			gpio_hal_func_map(hal, gpio_index, devs[dev_id++]);
 		}
 	}
@@ -352,12 +352,12 @@ bk_err_t gpio_hal_default_map_init(gpio_hal_t *hal)
 		gpio_hal_pull_enable(hal, default_map[i].gpio_id, 0);
 		gpio_hal_disable_interrupt(hal, default_map[i].gpio_id);
 
-		HAL_LOGD("gpio_id: %d, second_func_en:%d, second_func_dev %d, low_power_io_ctrl:%d",
+		HAL_LOGV("gpio_id: %d, second_func_en:%d, second_func_dev %d, low_power_io_ctrl:%d",
 					default_map[i].gpio_id,
 					default_map[i].second_func_en, default_map[i].second_func_dev,
 					default_map[i].low_power_io_ctrl);
 
-		HAL_LOGD("int_en: %d, int_type:%d \r\n",
+		HAL_LOGV("int_en: %d, int_type:%d \r\n",
 				default_map[i].int_en, default_map[i].int_type);
 		
 		//function mode

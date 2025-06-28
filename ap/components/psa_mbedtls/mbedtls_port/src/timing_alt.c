@@ -25,7 +25,7 @@
 #include "mbedtls/platform.h"
 #else
 #include <stdio.h>
-#define mbedtls_printf     printf
+#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #endif
 
 #if defined(MBEDTLS_TIMING_C)

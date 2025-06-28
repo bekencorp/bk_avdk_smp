@@ -705,22 +705,22 @@ void USBD_IRQHandler(void)
     }
 
     if (is & USB_IS_RESUME) {
-        USB_LOG_INFO("usbd resume int triggered\r\n");
+        USB_LOG_DBG("usbd resume int triggered\r\n");
         usbd_event_resume_handler();
     }
 
     if (is & USB_IS_SUSPEND) {
-        USB_LOG_INFO("usbd suspend int triggered\r\n");
+        USB_LOG_DBG("usbd suspend int triggered\r\n");
         usbd_event_suspend_handler();
     }
 
     if (lpmris & USB_LPMRIS_ACK) {
-        USB_LOG_INFO("usbd enter L1 state\r\n");
+        USB_LOG_DBG("usbd enter L1 state\r\n");
         HWREGB(USB_BASE + MUSB_LPM_CNTRL_OFFSET) |= USB_LPMCNTRL_NAK;
     }
 
     if (lpmris & USB_LPMRIS_RES) {
-        USB_LOG_INFO("usbd LPM resume int\r\n");
+        USB_LOG_DBG("usbd LPM resume int\r\n");
         HWREGB(USB_BASE + MUSB_LPM_CNTRL_OFFSET) &= ~USB_LPMCNTRL_NAK;
     }
 

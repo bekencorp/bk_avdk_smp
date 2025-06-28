@@ -62,11 +62,11 @@ struct audio_event_iface
 static void debug_listen_lists(audio_event_iface_handle_t listen, int line, const char *func)
 {
     audio_event_iface_item_t *item;
-    BK_LOGD(TAG, "FUNC:%s, LINE:%d \n", func, line);
+    BK_LOGV(TAG, "FUNC:%s, LINE:%d \n", func, line);
 
     STAILQ_FOREACH(item, &listen->listening_queues, next)
     {
-        BK_LOGD(TAG, "queue:%p, size:%d \n", item->queue, item->queue_size);
+        BK_LOGV(TAG, "queue:%p, size:%d \n", item->queue, item->queue_size);
     }
 }
 
@@ -96,7 +96,7 @@ audio_event_iface_handle_t audio_event_iface_init(audio_event_iface_cfg_t *confi
     }
     else
     {
-        BK_LOGD(TAG, "This emiiter have no queue set,%p \n", evt);
+        BK_LOGV(TAG, "This emiiter have no queue set,%p \n", evt);
     }
 
     STAILQ_INIT(&evt->listening_queues);
@@ -123,7 +123,7 @@ static bk_err_t audio_event_iface_cleanup_listener(audio_event_iface_handle_t li
         while (audio_event_iface_read(listen, &dummy, 0) == BK_OK);
         while (listen->queue_set && (xQueueRemoveFromSet(item->queue, listen->queue_set) != pdPASS))
         {
-            BK_LOGI(TAG, "Error remove listener,%p \n", item->queue);
+            BK_LOGD(TAG, "Error remove listener,%p \n", item->queue);
             while (audio_event_iface_read(listen, &dummy, 0) == BK_OK);
         }
     }
@@ -315,7 +315,7 @@ bk_err_t audio_event_iface_sendout(audio_event_iface_handle_t evt, audio_event_i
     {
         if (xQueueSend(evt->external_queue, (void *)msg, 0) != pdPASS)
         {
-            BK_LOGI(TAG, "There is no space in external queue \n");
+            BK_LOGD(TAG, "There is no space in external queue \n");
             return BK_FAIL;
         }
     }

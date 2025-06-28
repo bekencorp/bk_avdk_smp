@@ -54,7 +54,7 @@ const int rwnx_tid2hwq[16] = {
 };
 
 //#undef TRACE_TXQ
-//#define TRACE_TXQ(mod, ...) os_printf(__VA_ARGS__)
+//#define TRACE_TXQ(mod, ...) BK_LOGD(NULL,__VA_ARGS__)
 
 static inline int rwnx_txq_sta_idx(STA_INF_PTR sta, u8 tid)
 {
@@ -80,7 +80,7 @@ struct rwnx_txq *rwnx_txq_sta_get(STA_INF_PTR sta, u8 tid)
 
 #if CONFIG_WFA_CERT
 	int index = rwnx_txq_sta_idx(sta, tid);
-	// os_printf("XXX %s: tid %d, q index %d\n", __func__, tid, index);
+	// BK_LOGD(NULL,"XXX %s: tid %d, q index %d\n", __func__, tid, index);
 
 	if (tid != 0 && index == 0)
 		BK_ASSERT(0); /* ASSERT VERIFIED */
@@ -220,7 +220,7 @@ void rwnx_txq_vif_init(VIF_INF_PTR rwnx_vif, u16 status)
 	struct rwnx_txq *txq;
 	int idx;
 
-	RWNX_LOGD("%s %d\n", __func__, __LINE__);
+	RWNX_LOGV("%s %d\n", __func__, __LINE__);
 
 	txq = rwnx_txq_vif_get(rwnx_vif, NX_BCMC_TXQ_TYPE);
 	idx = rwnx_txq_vif_idx(rwnx_vif, NX_BCMC_TXQ_TYPE);
@@ -478,7 +478,7 @@ static bool rwnx_txq_drop_sta_vif_old_traffic(VIF_INF_PTR vif)
 	}
 
 	if (pkt_dropped)
-		RWNX_LOGI("Dropped %d packets in STA interface TXQs\n", pkt_dropped);
+		RWNX_LOGD("Dropped %d packets in STA interface TXQs\n", pkt_dropped);
 	return pkt_queued;
 }
 

@@ -62,11 +62,11 @@ X4：adc and dac mode
 
 static void cli_aud_ate_help(void)
 {
-	os_printf("aud_ate_test {X1 X2 X3 X4} \r\n");
-	os_printf("X1: test control \n\r00: stop test\n\r01: start test \r\n");
-	os_printf("X2: test mode \n\r00: loop\n\r01: adc (IIS OUT,master)\n\r02: dac (IIS IN,master)\n\r03: dac & adc (IIS IN,master)\r\n");
-	os_printf("X3:sample rate setting \n\r1-9: 8K-48K \r\n");
-	os_printf("X4：adc and dac mode \n\r00: differential\n\r01: single-ended \r\n");
+	BK_LOGD(NULL, "aud_ate_test {X1 X2 X3 X4} \r\n");
+	BK_LOGD(NULL, "X1: test control \n\r00: stop test\n\r01: start test \r\n");
+	BK_LOGD(NULL, "X2: test mode \n\r00: loop\n\r01: adc (IIS OUT,master)\n\r02: dac (IIS IN,master)\n\r03: dac & adc (IIS IN,master)\r\n");
+	BK_LOGD(NULL, "X3:sample rate setting \n\r1-9: 8K-48K \r\n");
+	BK_LOGD(NULL, "X4：adc and dac mode \n\r00: differential\n\r01: single-ended \r\n");
 }
 
 
@@ -152,9 +152,9 @@ static void uart_dump_mic_data(uart_id_t id, uint32_t baud_rate)
 	config.src_clk = UART_SCLK_XTAL_26M;
 
 	if (bk_uart_init(id, &config) != BK_OK) {
-		os_printf("init uart fail \r\n");
+		BK_LOGD(NULL, "init uart fail \r\n");
 	} else {
-		os_printf("init uart ok \r\n");
+		BK_LOGD(NULL, "init uart ok \r\n");
 	}
 }
 #endif
@@ -166,13 +166,13 @@ static void audio_adc_dma_finish_isr(void)
 //	GPIO_UP(2);
 
 	/* read adc data from adc ringbuffer */
-	//os_printf("adc_rb fill size, size:%d \r\n", ring_buffer_get_fill_size(&adc_rb));
+	//BK_LOGD(NULL, "adc_rb fill size, size:%d \r\n", ring_buffer_get_fill_size(&adc_rb));
 	uint32_t size = ring_buffer_read(&adc_rb, (uint8_t*)adc_temp, ADC_FRAME_SIZE);
 	if (size != ADC_FRAME_SIZE) {
-		os_printf("read mic_ring_buff fail, size: %d, need: %d \r\n", size, ADC_FRAME_SIZE);
+		BK_LOGD(NULL, "read mic_ring_buff fail, size: %d, need: %d \r\n", size, ADC_FRAME_SIZE);
 		//return BK_FAIL;
 	} else {
-		//os_printf("read ok size: %d, need: %d \r\n", size, ADC_FRAME_SIZE);
+		//BK_LOGD(NULL, "read ok size: %d, need: %d \r\n", size, ADC_FRAME_SIZE);
 	}
 
 	/* select r channel data */
@@ -188,7 +188,7 @@ static void audio_adc_dma_finish_isr(void)
 	if (size >= ADC_FRAME_SIZE/2) {
 		ring_buffer_write(&dac_rb, (uint8_t *)adc_temp, ADC_FRAME_SIZE/2);
 	} else {
-		os_printf("dac_rb free size, size:%d \r\n", size);
+		BK_LOGD(NULL, "dac_rb free size, size:%d \r\n", size);
 	}
 
 //	GPIO_DOWN(2);
@@ -225,14 +225,14 @@ void audio_adc_mic2_to_dac_test_start(void)
 	/* init dma driver */
 	ret = bk_dma_driver_init();
 	if (ret != BK_OK) {
-		os_printf("[%s]bk_dma_driver_init fail, line: %d \n", __func__, __LINE__);
+		BK_LOGD(NULL, "[%s]bk_dma_driver_init fail, line: %d \n", __func__, __LINE__);
 		return;
 	}
 
 	/* allocate free DMA channel */
 	adc_dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
 	if ((adc_dma_id < DMA_ID_0) || (adc_dma_id >= DMA_ID_MAX)) {
-		os_printf("[%s]bk_dma_alloc fail, line: %d \n", __func__, __LINE__);
+		BK_LOGD(NULL, "[%s]bk_dma_alloc fail, line: %d \n", __func__, __LINE__);
 		return;
 	}
 
@@ -266,14 +266,14 @@ void audio_adc_mic2_to_dac_test_start(void)
 	/* init dma channel */
 	ret = bk_dma_init(adc_dma_id, &dma_config);
 	if (ret != BK_OK) {
-		os_printf("[%s]bk_dma_init fail, line: %d \n", __func__, __LINE__);
+		BK_LOGD(NULL, "[%s]bk_dma_init fail, line: %d \n", __func__, __LINE__);
 		return;
 	}
 
 	/* set dma transfer length */
 	bk_dma_set_transfer_len(adc_dma_id, ADC_FRAME_SIZE);
 
-	os_printf("adc ring_buff size: %d, dma transfer len: %d \n", ADC_FRAME_SIZE*2, ADC_FRAME_SIZE);
+	BK_LOGD(NULL, "adc ring_buff size: %d, dma transfer len: %d \n", ADC_FRAME_SIZE*2, ADC_FRAME_SIZE);
 
 #if (CONFIG_SPE)
 	bk_dma_set_dest_sec_attr(adc_dma_id, DMA_ATTR_SEC);
@@ -296,7 +296,7 @@ void audio_adc_mic2_to_dac_test_start(void)
 	/* allocate free DMA channel */
 	dac_dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
 	if ((dac_dma_id < DMA_ID_0) || (dac_dma_id >= DMA_ID_MAX)) {
-		os_printf("[%s]bk_dma_alloc fail, line: %d \n", __func__, __LINE__);
+		BK_LOGD(NULL, "[%s]bk_dma_alloc fail, line: %d \n", __func__, __LINE__);
 		return;
 	}
 
@@ -328,7 +328,7 @@ void audio_adc_mic2_to_dac_test_start(void)
 	/* init dma channel */
 	ret = bk_dma_init(dac_dma_id, &dac_dma_config);
 	if (ret != BK_OK) {
-		os_printf("[%s]bk_dma_init fail, line: %d \n", __func__, __LINE__);
+		BK_LOGD(NULL, "[%s]bk_dma_init fail, line: %d \n", __func__, __LINE__);
 		return;
 	}
 
@@ -337,7 +337,7 @@ void audio_adc_mic2_to_dac_test_start(void)
 
 	os_memset(adc_temp, 0, ADC_FRAME_SIZE/2);
 	ring_buffer_write(&dac_rb, (uint8_t *)adc_temp, ADC_FRAME_SIZE/2);
-	os_printf("dac ring_buff size: %d, dma transfer len: %d \n", ADC_FRAME_SIZE, ADC_FRAME_SIZE/2);
+	BK_LOGD(NULL, "dac ring_buff size: %d, dma transfer len: %d \n", ADC_FRAME_SIZE, ADC_FRAME_SIZE/2);
 
 #if (CONFIG_SPE)
 	bk_dma_set_dest_sec_attr(dac_dma_id, DMA_ATTR_SEC);
@@ -973,7 +973,7 @@ void audio_ap_test_for_ate(UINT8 enable, UINT8 test_mode, UINT8 sample_rate, UIN
 
 audio_exit:
 	//uart_send_bytes_for_ate((UINT8 *)&ret, 1);
-	os_printf("ret: %d \n", ret);
+	BK_LOGD(NULL, "ret: %d \n", ret);
 }
 
 static void cli_aud_ate_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)

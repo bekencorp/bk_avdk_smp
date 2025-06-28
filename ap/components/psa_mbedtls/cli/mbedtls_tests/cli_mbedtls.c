@@ -25,12 +25,12 @@
 
 static void cli_mbedtls_help(void)
 {
-	CLI_LOGI("mbedtls_sha 256/512\r\n");
-	CLI_LOGI("mbedtls_aes ecb/cbc/ctr/gcm\r\n");
-	CLI_LOGI("mbedtls_ecdsa [cnt]\r\n");
-	CLI_LOGI("mbedtls_rsa\r\n");
-	CLI_LOGI("mbedtls_selftest\r\n");
-	CLI_LOGI("mbedtls_thread create [cnt]\r\n");
+	CLI_LOGD("mbedtls_sha 256/512\r\n");
+	CLI_LOGD("mbedtls_aes ecb/cbc/ctr/gcm\r\n");
+	CLI_LOGD("mbedtls_ecdsa [cnt]\r\n");
+	CLI_LOGD("mbedtls_rsa\r\n");
+	CLI_LOGD("mbedtls_selftest\r\n");
+	CLI_LOGD("mbedtls_thread create [cnt]\r\n");
 }
 
 #define err_if(expr,status)                                          \
@@ -70,7 +70,7 @@ static void cli_mbedtls_sha_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	}
 
 	if (0 == err_cnt)
-		CLI_LOGI("passed\r\n");
+		CLI_LOGD("passed\r\n");
 	else
 		CLI_LOGE("failed\r\n");
 
@@ -118,7 +118,7 @@ static void cli_mbedtls_aes_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	}
 
 	if (0 == err_cnt)
-		CLI_LOGI("passed\r\n");
+		CLI_LOGD("passed\r\n");
 	else
 		CLI_LOGE("failed\r\n");
 
@@ -139,7 +139,7 @@ static void cli_mbedtls_ecdsa_cmd(char *pcWriteBuffer, int xWriteBufferLen, int 
 	ret = te200_ecdsa_self_test(1, loop_cnt);
 
 	if (0 == ret)
-		CLI_LOGI("passed\r\n");
+		CLI_LOGD("passed\r\n");
 	else
 		CLI_LOGE("failed\r\n");
 
@@ -154,7 +154,7 @@ static void cli_mbedtls_rsa_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 	ret = te200_rsa_self_test(1);
 
 	if (0 == ret)
-		CLI_LOGI("passed\r\n");
+		CLI_LOGD("passed\r\n");
 	else
 		CLI_LOGE("failed\r\n");
 
@@ -171,7 +171,7 @@ static void cli_mbedtls_selftest(char *pcWriteBuffer, int xWriteBufferLen, int a
 	ret = mbedtls_selftest_main(argc, argv);
 
 	if (0 == ret)
-		CLI_LOGI("passed\r\n");
+		CLI_LOGD("passed\r\n");
 	else
 		CLI_LOGE("failed\r\n");
 
@@ -191,7 +191,7 @@ static void cli_mbedtls_thread(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
 	if (os_strcmp(argv[1], "create") == 0) {
 		g_max_count = os_strtoul(argv[2], NULL, 10);
-		os_printf("cli max counter %u\r\n", g_max_count);
+		BK_LOGD(NULL, "cli max counter %u\r\n", g_max_count);
 		ret = rtos_create_thread(NULL,
 							 MBEDTLS_TEST_PRIORITY,
 							 "mbedtls_test",

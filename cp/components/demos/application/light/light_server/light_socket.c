@@ -31,7 +31,7 @@ int light_tcp_connect_handler_register(int fd)
     }
     else
     {
-        os_printf( "Light_tcp_connect_num_add failed");
+        BK_LOGD(NULL, "Light_tcp_connect_num_add failed");
         return -1;
     }
 
@@ -104,7 +104,7 @@ void light_cp_client_connect_thread( beken_thread_arg_t arg )
 
             if ( len <= 0 )
             {
-                os_printf( "TCP Client is disconnected, fd: %d\r\n", fd );
+                BK_LOGD(NULL, "TCP Client is disconnected, fd: %d\r\n", fd );
                 goto exit;
             }
 
@@ -115,7 +115,7 @@ void light_cp_client_connect_thread( beken_thread_arg_t arg )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "TCP client thread exit with err: %d\r\n", err );
+        BK_LOGD(NULL, "TCP client thread exit with err: %d\r\n", err );
     }
 
     if ( buf != NULL )
@@ -162,7 +162,7 @@ void light_tcp_server_listener_thread( beken_thread_arg_t arg )
             if ( client_fd >= 0 )
             {
                 os_strcpy( client_ip_str, inet_ntoa( client_addr.sin_addr ) );
-                os_printf( "TCP Client %s:%d connected, fd: %d\r\n", client_ip_str, client_addr.sin_port, client_fd );
+                BK_LOGD(NULL, "TCP Client %s:%d connected, fd: %d\r\n", client_ip_str, client_addr.sin_port, client_fd );
                 if ( kNoErr
                         != rtos_create_thread( NULL, BEKEN_APPLICATION_PRIORITY,
                                                "TCP Clients",
@@ -178,7 +178,7 @@ void light_tcp_server_listener_thread( beken_thread_arg_t arg )
     }
 
     if ( err != kNoErr )
-        os_printf( "Server listerner thread exit with err: %d", err );
+        BK_LOGD(NULL, "Server listerner thread exit with err: %d", err );
 
     close( tcp_listen_fd );
     rtos_delete_thread( NULL );

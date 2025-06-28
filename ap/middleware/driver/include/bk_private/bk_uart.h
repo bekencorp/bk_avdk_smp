@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-#define warning_prf                    bk_printf
-#define fatal_prf                      bk_printf
+#define warning_prf(...)               BK_LOGW(NULL, ##__VA_ARGS__)
+#define fatal_prf(...)                 BK_LOGE(NULL, ##__VA_ARGS__)
 #define null_prf                       bk_null_printf
 
 void uart0_isr(void);

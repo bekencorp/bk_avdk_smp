@@ -78,7 +78,7 @@ static bk_err_t _fatfs_open(audio_element_handle_t self)
         return BK_FAIL;
     }
     char *path = strstr(uri, "1:/");
-    BK_LOGI(TAG, "_fatfs_open, uri:%s \n", uri);
+    BK_LOGD(TAG, "_fatfs_open, uri:%s \n", uri);
     audio_element_getinfo(self, &info);
     if (path == NULL)
     {
@@ -100,7 +100,7 @@ static bk_err_t _fatfs_open(audio_element_handle_t self)
         }
 
         info.total_bytes = (int64_t)f_size(fatfs->file);
-        BK_LOGI(TAG, "File size: 0x%x%x byte, file position: 0x%x%x \n", (int)(info.total_bytes >> 32), (int)info.total_bytes, (int)(info.byte_pos >> 32), (int)info.byte_pos);
+        BK_LOGD(TAG, "File size: 0x%x%x byte, file position: 0x%x%x \n", (int)(info.total_bytes >> 32), (int)info.total_bytes, (int)(info.byte_pos >> 32), (int)info.byte_pos);
         if (info.byte_pos > 0)
         {
             if (f_lseek(fatfs->file, info.byte_pos) < 0)
@@ -130,7 +130,7 @@ static bk_err_t _fatfs_open(audio_element_handle_t self)
 
 static int _fatfs_read(audio_element_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
-    BK_LOGD(TAG, "[%s] _fatfs_read, len: %d \n", audio_element_get_tag(self), len);
+    BK_LOGV(TAG, "[%s] _fatfs_read, len: %d \n", audio_element_get_tag(self), len);
     FRESULT fr;
 
     fatfs_stream_t *fatfs = (fatfs_stream_t *)audio_element_getdata(self);
@@ -139,7 +139,7 @@ static int _fatfs_read(audio_element_handle_t self, char *buffer, int len, TickT
 
     FATFS_INPUT_START();
 
-    BK_LOGD(TAG, "[%s] read len=%d, pos=%d/%d \n", audio_element_get_tag(self), len, (int)info.byte_pos, (int)info.total_bytes);
+    BK_LOGV(TAG, "[%s] read len=%d, pos=%d/%d \n", audio_element_get_tag(self), len, (int)info.byte_pos, (int)info.total_bytes);
     /* use file descriptors to access files */
     int rlen = 0;
     fr = f_read(fatfs->file, buffer, len, &rlen);
@@ -169,7 +169,7 @@ static int _fatfs_write(audio_element_handle_t self, char *buffer, int len, Tick
     FRESULT fr;
     audio_element_info_t info;
     audio_element_getinfo(self, &info);
-    BK_LOGD(TAG, "[%s] _fatfs_write len: %d \n", audio_element_get_tag(self), len);
+    BK_LOGV(TAG, "[%s] _fatfs_write len: %d \n", audio_element_get_tag(self), len);
 
     FATFS_OUTPUT_START();
 
@@ -234,7 +234,7 @@ static bk_err_t _fatfs_close(audio_element_handle_t self)
 
 static bk_err_t _fatfs_destroy(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
 
     fatfs_stream_t *fatfs = (fatfs_stream_t *)audio_element_getdata(self);
     if (fatfs)

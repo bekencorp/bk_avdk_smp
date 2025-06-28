@@ -22,6 +22,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define PSRAM_FRAME_BUFFER ((0x60000000UL) + 5 * 1024 * 1024)
 
@@ -64,7 +65,7 @@ static void lv_example_freetype(void)
     }
 
     uint32_t read_len = read(fd, file_content, file_len);
-    LOGI("read_len = %d \r\n", read_len);
+    LOGD("read_len = %d \r\n", read_len);
     close(fd);
     lv_vendor_fs_deinit();
 
@@ -133,7 +134,7 @@ bk_err_t lvgl_app_freetype_font_init(void)
 
 void cli_freetype_font_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-    os_printf("%s %d\r\n", __func__, __LINE__);
+    LOGD("%s %d\r\n", __func__, __LINE__);
 }
 
 static const struct cli_command s_freetype_font_commands[] =

@@ -16,7 +16,7 @@ void cli_lwip_pbuf_info(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 #if PBUF_LIFETIME_DBG
     if ((argc == 2) && (os_strcmp(argv[1], "-r") == 0))
     {
-      CLI_LOGI("reset lwip pbuf count\n");
+      CLI_LOGD("reset lwip pbuf count\n");
 
       lwip_stats.pbuf_info.all_cnt = 0;
       lwip_stats.pbuf_info.prep_cnt = 0;
@@ -27,13 +27,13 @@ void cli_lwip_pbuf_info(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
     }
     else if((os_strcmp(argv[1], "log") == 0))
     {
-      CLI_LOGI("pbuf debug\n");
+      CLI_LOGD("pbuf debug\n");
       pbuf_set_log(os_strtoul(argv[2], NULL, 10));
     }
     SYS_ARCH_DECL_PROTECT(old_level);
     SYS_ARCH_PROTECT(old_level);
 
-    os_printf("pbuf all %d prep %d mac %d send %d cfm %d free %d\r\n",
+    BK_LOGD(NULL, "pbuf all %d prep %d mac %d send %d cfm %d free %d\r\n",
               lwip_stats.pbuf_info.all_cnt,
               lwip_stats.pbuf_info.prep_cnt,
               lwip_stats.pbuf_info.mac_prep_cnt,
@@ -43,7 +43,7 @@ void cli_lwip_pbuf_info(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
     if(lwip_stats.pbuf_info.all_cnt != 0)
     {
-        os_printf("pbuf prep %d mac %d send %d cfm %d free %d\r\n",
+        BK_LOGD(NULL, "pbuf prep %d mac %d send %d cfm %d free %d\r\n",
                   (lwip_stats.pbuf_info.prep_cnt*100/lwip_stats.pbuf_info.all_cnt),
                   (lwip_stats.pbuf_info.mac_prep_cnt*100/lwip_stats.pbuf_info.all_cnt),
                   (lwip_stats.pbuf_info.send_cnt*100/lwip_stats.pbuf_info.all_cnt),
@@ -62,13 +62,13 @@ void cli_lwip_mem_info(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	struct memp_desc *tmp;
 
 	if (argc > 2) {
-		CLI_LOGI("invalid lwip command paramters\n");
+		CLI_LOGD("invalid lwip command paramters\n");
 		return;
 	}
 
 	if ((argc == 2) && (os_strcmp(argv[1], "-r") == 0))
 	{
-		CLI_LOGI("reset lwip memory err count and max used\n");
+		CLI_LOGD("reset lwip memory err count and max used\n");
 
 		for (i = 0; i < MEMP_MAX; i++) {
 			lwip_stats.memp[i]->max = 0,
@@ -89,48 +89,48 @@ void cli_lwip_mem_info(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	SYS_ARCH_PROTECT(old_level);
 
 	#if !MEMP_MEM_MALLOC
-	os_printf("%-16s total used addr       size  err\r\n", "Name");
-	os_printf("----------------------------------------------------\r\n");
+	BK_LOGD(NULL, "%-16s total used addr       size  err\r\n", "Name");
+	BK_LOGD(NULL, "----------------------------------------------------\r\n");
 	for (i = 0; i < MEMP_MAX; i++) {
 		tmp = (struct memp_desc *)memp_pools[i];
-		os_printf("%-16s %-5d %-4d 0x%08x %-4d  %d\r\n",
+		BK_LOGD(NULL, "%-16s %-5d %-4d 0x%08x %-4d  %d\r\n",
 			tmp->desc, tmp->num, tmp->stats->used,
 			(unsigned int)tmp->base, tmp->size, lwip_stats.memp[i]->err);
 	}
 
-	os_printf("===== MEMP_PBUF_POOL ======\r\n");
-	os_printf("avail %d, used %d, max %d, err %d\r\n",
+	BK_LOGD(NULL, "===== MEMP_PBUF_POOL ======\r\n");
+	BK_LOGD(NULL, "avail %d, used %d, max %d, err %d\r\n",
 			lwip_stats.memp[MEMP_PBUF_POOL]->avail,
 			lwip_stats.memp[MEMP_PBUF_POOL]->used,
 			lwip_stats.memp[MEMP_PBUF_POOL]->max,
 			lwip_stats.memp[MEMP_PBUF_POOL]->err);
 	#else
-	os_printf("%-16s used size  err\r\n", "Name");
-	os_printf("----------------------------------------------------\r\n");
+	BK_LOGD(NULL, "%-16s used size  err\r\n", "Name");
+	BK_LOGD(NULL, "----------------------------------------------------\r\n");
 	for (i = 0; i < MEMP_MAX; i++) {
 		tmp = (struct memp_desc *)memp_pools[i];
-		os_printf("%-16s %-4d %-4d  %d\r\n",
+		BK_LOGD(NULL, "%-16s %-4d %-4d  %d\r\n",
 			tmp->desc, tmp->stats->used,
 			tmp->size, lwip_stats.memp[i]->err);
 	}
 
-	os_printf("===== MEMP_PBUF_POOL ======\r\n");
-	os_printf("avail %d, used %d, max %d, err %d\r\n",
+	BK_LOGD(NULL, "===== MEMP_PBUF_POOL ======\r\n");
+	BK_LOGD(NULL, "avail %d, used %d, max %d, err %d\r\n",
 			lwip_stats.memp[MEMP_PBUF_POOL]->avail,
 			lwip_stats.memp[MEMP_PBUF_POOL]->used,
 			lwip_stats.memp[MEMP_PBUF_POOL]->max,
 			lwip_stats.memp[MEMP_PBUF_POOL]->err);
 	#endif
 
-	os_printf("========== MEM ============\r\n");
-	os_printf("avail %d, used %d, max %d, err %d\r\n",
+	BK_LOGD(NULL, "========== MEM ============\r\n");
+	BK_LOGD(NULL, "avail %d, used %d, max %d, err %d\r\n",
 			lwip_stats.mem.avail,
 			lwip_stats.mem.used,
 			lwip_stats.mem.max,
 			lwip_stats.mem.err);
 
 #if (MEM_TRX_DYNAMIC_EN)
-	os_printf("tx avail %d, rx avail %d, tx used %d, rx used %d, tx max %d, rx max %d, tx err %d, rx err %d\r\n",
+	BK_LOGD(NULL, "tx avail %d, rx avail %d, tx used %d, rx used %d, tx max %d, rx max %d, tx err %d, rx err %d\r\n",
 			MEM_MAX_TX_SIZE,
 			MEM_MAX_RX_SIZE,
 			lwip_stats.mem.tx_used,
@@ -143,7 +143,7 @@ void cli_lwip_mem_info(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 
 	SYS_ARCH_UNPROTECT(old_level);
 #else // !LWIP_STATS
-	os_printf("LWIP_STATS is not enabled\n");
+	BK_LOGD(NULL, "LWIP_STATS is not enabled\n");
 #endif // LWIP_STATS
 }
 
@@ -151,13 +151,13 @@ void cli_lwip_stats(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **a
 {
 #if LWIP_STATS_DISPLAY
 	if (argc > 2) {
-		CLI_LOGI("invalid lwip command paramters\n");
+		CLI_LOGD("invalid lwip command paramters\n");
 		return;
 	}
 
 	if ((argc == 2) && (os_strcmp(argv[1], "-r") == 0))
 	{
-		CLI_LOGI("reset lwip status\n");
+		CLI_LOGD("reset lwip status\n");
 		stats_reset_short();
 	}
 

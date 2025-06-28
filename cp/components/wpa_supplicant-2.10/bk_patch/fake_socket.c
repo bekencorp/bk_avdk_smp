@@ -30,7 +30,7 @@ int ke_sk_send(SOCKET sk, const unsigned char *buf, int len, int flag)
 	BK_SOCKET *element;
 	SOCKET_MSG *sk_msg;
 
-	WPA_LOGD("ke_tx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
+	WPA_LOGV("ke_tx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
 	rtos_lock_mutex(&socket_entity.fs_mutex);
 	element = sk_get_sk_element(sk);
 	if(0 == element)
@@ -79,7 +79,7 @@ int ke_sk_recv(SOCKET sk, const unsigned char *buf, int len, int flag)
 	BK_SOCKET *element;
 	SOCKET_MSG *sk_msg, *tmp;
 
-	WPA_LOGD("ke_rx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
+	WPA_LOGV("ke_rx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
 	rtos_lock_mutex(&socket_entity.fs_mutex);
 	element = sk_get_sk_element(sk);
 	if(0 == element)
@@ -93,12 +93,12 @@ int ke_sk_recv(SOCKET sk, const unsigned char *buf, int len, int flag)
 
 			BK_ASSERT(count); /* BK_ASSERT VERIFIED */
 			BK_ASSERT(sk_msg); /* BK_ASSERT VERIFIED */
-			WPA_LOGD("r1:%d,buf:0x%x, len:%d\r\n", sk, buf, count);
+			WPA_LOGV("r1:%d,buf:0x%x, len:%d\r\n", sk, buf, count);
 			os_memcpy((void *)buf, (void *)sk_msg->msg, count);
 
 			ret = count;
 		} else {
-			WPA_LOGI("drop sk_tx_msg\r\n");
+			WPA_LOGD("drop sk_tx_msg\r\n");
 		}
 
 		os_free(sk_msg->msg);
@@ -214,7 +214,7 @@ SOCKET fsocket_init(int af, int type, int protocol)
 	dl_list_add(&socket_entity.sk_head, &sk_ptr->sk_element);
 	rtos_unlock_mutex(&socket_entity.fs_mutex);
 
-	WPA_LOGD("create fsocket_init:%d\r\n", sk);
+	WPA_LOGV("create fsocket_init:%d\r\n", sk);
 	return sk;
 }
 
@@ -228,7 +228,7 @@ int fsocket_send(SOCKET sk, const unsigned char *buf, int len, S_TYPE_PTR type)
 	SOCKET_MSG *sk_msg;
 	unsigned char *data_buf;
 
-	WPA_LOGD("hapd_tx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
+	WPA_LOGV("hapd_tx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
 	rtos_lock_mutex(&socket_entity.fs_mutex);
 	element = sk_get_sk_element(sk);
 	if(0 == element)
@@ -276,7 +276,7 @@ int fsocket_recv(SOCKET sk, const unsigned char *buf, int len, int flag)
 	BK_SOCKET *element;
 	SOCKET_MSG *sk_msg, *tmp;
 
-	WPA_LOGD("hapd_rx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
+	WPA_LOGV("hapd_rx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
 	rtos_lock_mutex(&socket_entity.fs_mutex);
 	element = sk_get_sk_element(sk);
 	if(0 == element)
@@ -322,7 +322,7 @@ void fsocket_close(SOCKET sk)
 	BK_SOCKET *element;
 	SOCKET_MSG *sk_msg, *tmp;
 
-	WPA_LOGD("close_sk:%d\r\n", sk);
+	WPA_LOGV("close_sk:%d\r\n", sk);
 	rtos_lock_mutex(&socket_entity.fs_mutex);
 	element = sk_get_sk_element(sk);
 	if(0 == element)

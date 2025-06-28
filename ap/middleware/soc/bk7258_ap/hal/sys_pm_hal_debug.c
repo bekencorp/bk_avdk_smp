@@ -44,7 +44,7 @@ void sys_hal_debug_get_sys_regs(uint32_t *regs)
 		} else {
 			regs[i] = REG_READ(SOC_SYS_REG_BASE + (reg_id << 2));
 		}
-		PM_HAL_LOGD("sys_r0x%02x: %x\r\n", reg_id, regs[i]);
+		PM_HAL_LOGV("sys_r0x%02x: %x\r\n", reg_id, regs[i]);
 	}
 }
 
@@ -66,7 +66,7 @@ void sys_hal_debug_check_sys_regs(void)
 		reg_id = s_sys_regs[i];
 
 		if (s_sys_regs_before_sleep[i] != s_sys_regs_after_sleep[i]) {
-			PM_HAL_LOGD("sys_r0x%02x mismatch: %x != %x\r\n",
+			PM_HAL_LOGV("sys_r0x%02x mismatch: %x != %x\r\n",
 				reg_id, s_sys_regs_before_sleep[i], s_sys_regs_after_sleep[i]);
 		}
 	}

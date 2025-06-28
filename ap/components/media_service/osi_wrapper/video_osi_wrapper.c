@@ -70,7 +70,7 @@ static void assert_wrapper(uint8_t expr, char *expr_s, const char *func)
 {
 	if (!(expr))
 	{
-		bk_printf("(%s) has assert failed at %s.\n", expr_s, func);
+		BK_LOGD(NULL, "(%s) has assert failed at %s.\n", expr_s, func);
 		while (1);
 	}
 }
@@ -194,7 +194,7 @@ static int f_size_wrapper(void *fp)
 	FIL *tmp_fp = (FIL *)fp;
 	return f_size(tmp_fp);
 #elif (CONFIG_VFS)
-	os_printf("Not support yet, please use the stats function!!!\r\n");
+	BK_LOGD(NULL, "Not support yet, please use the stats function!!!\r\n");
 	return -1;
 #else
 	return -1;

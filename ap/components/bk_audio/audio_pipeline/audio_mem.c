@@ -39,7 +39,7 @@ void *audio_malloc(uint32_t size)
     }
 
 #ifdef ENABLE_AUDIO_MEM_TRACE
-    BK_LOGI(TAG, "malloc:%p, size:%d, called:0x%08x \n", data, size, (intptr_t)__builtin_return_address(0) - 2);
+    BK_LOGD(TAG, "malloc:%p, size:%d, called:0x%08x \n", data, size, (intptr_t)__builtin_return_address(0) - 2);
 #endif
     return data;
 }
@@ -49,7 +49,7 @@ void audio_free(void *ptr)
     os_free(ptr);
 
 #ifdef ENABLE_AUDIO_MEM_TRACE
-    BK_LOGI(TAG, "free:%p, called:0x%08x \n", ptr, (intptr_t)__builtin_return_address(0) - 2);
+    BK_LOGD(TAG, "free:%p, called:0x%08x \n", ptr, (intptr_t)__builtin_return_address(0) - 2);
 #endif
 }
 
@@ -68,7 +68,7 @@ void *audio_calloc(uint32_t nmemb, uint32_t size)
     }
 
 #ifdef ENABLE_AUDIO_MEM_TRACE
-    BK_LOGI(TAG, "calloc:%p, size:%d, called:0x%08x \n", data, size, (intptr_t)__builtin_return_address(0) - 2);
+    BK_LOGD(TAG, "calloc:%p, size:%d, called:0x%08x \n", data, size, (intptr_t)__builtin_return_address(0) - 2);
 #endif
     return data;
 }
@@ -85,14 +85,14 @@ char *audio_strdup(const char *str)
         strcpy(copy, str);
     }
 #ifdef ENABLE_AUDIO_MEM_TRACE
-    BK_LOGI(TAG, "strdup:%p, size:%d, called:0x%08x \n", copy, strlen(copy), (intptr_t)__builtin_return_address(0) - 2);
+    BK_LOGD(TAG, "strdup:%p, size:%d, called:0x%08x \n", copy, strlen(copy), (intptr_t)__builtin_return_address(0) - 2);
 #endif
     return copy;
 }
 
 void audio_mem_print(char *tag, int line, const char *func)
 {
-    BK_LOGI(TAG, "Func:%s, Line:%d, MEM Total:%d Bytes\r\n", func, line, rtos_get_free_heap_size());
+    BK_LOGD(TAG, "Func:%s, Line:%d, MEM Total:%d Bytes\r\n", func, line, rtos_get_free_heap_size());
 }
 
 void audio_dma_mem_free(void *ptr)
@@ -100,7 +100,7 @@ void audio_dma_mem_free(void *ptr)
     os_free(ptr);
 
 #ifdef ENABLE_AUDIO_MEM_TRACE
-    BK_LOGI(TAG, "dma mem free:%p, called:0x%08x \n", ptr, (intptr_t)__builtin_return_address(0) - 2);
+    BK_LOGD(TAG, "dma mem free:%p, called:0x%08x \n", ptr, (intptr_t)__builtin_return_address(0) - 2);
 #endif
 }
 
@@ -119,7 +119,7 @@ void *audio_dma_mem_calloc(uint32_t nmemb, uint32_t size)
     }
 
 #ifdef ENABLE_AUDIO_MEM_TRACE
-    BK_LOGI(TAG, "dma mem calloc:%p, size:%d, called:0x%08x \n", data, size, (intptr_t)__builtin_return_address(0) - 2);
+    BK_LOGD(TAG, "dma mem calloc:%p, size:%d, called:0x%08x \n", data, size, (intptr_t)__builtin_return_address(0) - 2);
 #endif
     return data;
 }

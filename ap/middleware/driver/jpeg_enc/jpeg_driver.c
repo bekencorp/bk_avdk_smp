@@ -373,7 +373,7 @@ static void jpeg_isr(void)
 {
 	jpeg_hal_t *hal = &s_jpeg.hal;
 	uint32_t int_status = jpeg_hal_get_interrupt_status(hal);
-	JPEG_LOGD("[jpeg_isr] int_status:%x\r\n", int_status);
+	JPEG_LOGV("[jpeg_isr] int_status:%x\r\n", int_status);
 
 	jpeg_hal_clear_interrupt_status(hal, int_status);
 
@@ -430,7 +430,7 @@ static void jpeg_isr(void)
 	}
 
 	if (jpeg_hal_is_frame_error_int_triggered(hal, int_status)) {
-		JPEG_LOGD("jpeg decode error!\r\n");
+		JPEG_LOGV("jpeg decode error!\r\n");
 		if (s_jpeg.jpeg_isr_handler[JPEG_FRAME_ERR].isr_handler) {
 			s_jpeg.jpeg_isr_handler[JPEG_FRAME_ERR].isr_handler(0, s_jpeg.jpeg_isr_handler[JPEG_FRAME_ERR].param);
 		}

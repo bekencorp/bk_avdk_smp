@@ -9,7 +9,6 @@
 #include "cli.h"
 
 
-#define LFS_TEST_LOG  os_printf
 
 #define LITTLEFS_FLASH_ADDR		0x3DA000
 int user_provided_block_device_read(const struct lfs_config *c, lfs_block_t block,
@@ -85,7 +84,7 @@ static void cli_lfs_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
     int err = lfs_mount(&lfs, &cfg);
 	if(err)
 	{
-		LFS_TEST_LOG("lfs_mount fail ret:%d\n",err);
+		BK_LOGE(NULL, "lfs_mount fail ret:%d\n",err);
 	}
 
     // reformat if we can't mount the filesystem
@@ -93,16 +92,16 @@ static void cli_lfs_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
     if (err) 
 	{
         lfs_format(&lfs, &cfg);
-		LFS_TEST_LOG("lfs format\r\n");
+		BK_LOGE(NULL, "lfs format\r\n");
         err = lfs_mount(&lfs, &cfg);
     }
 	if(!err)
 	{
-		LFS_TEST_LOG("lfs mount OK!\n");
+		BK_LOGE(NULL, "lfs mount OK!\n");
 	}
 	else
 	{
-		LFS_TEST_LOG("lfs mount fail!\n");
+		BK_LOGE(NULL, "lfs mount fail!\n");
 		goto exit;
 	}
 	
@@ -110,7 +109,7 @@ static void cli_lfs_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 	char cbuffer[256] = {0};
 	lfs_file_read(&lfs, &file, cbuffer, sizeof(cbuffer)-1);
-	LFS_TEST_LOG("%s\n", cbuffer);
+	BK_LOGD(NULL, "%s\n", cbuffer);
 
 	strcpy(cbuffer," w lfs test!");
 	lfs_file_write(&lfs, &file, cbuffer, strlen(cbuffer));
@@ -119,7 +118,7 @@ static void cli_lfs_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 	memset(cbuffer,0,sizeof(cbuffer));
 	lfs_file_rewind(&lfs, &file);
 	lfs_file_read(&lfs, &file, cbuffer, sizeof(cbuffer)-1);
-	LFS_TEST_LOG("\r\n%s\n", cbuffer);
+	BK_LOGD(NULL, "\r\n%s\n", cbuffer);
 
     // remember the storage is not updated until the file is closed successfully
     lfs_file_close(&lfs, &file);

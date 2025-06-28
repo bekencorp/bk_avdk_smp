@@ -38,7 +38,6 @@ extern bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module
 /*================FUNCTION DECLARATION  SECTION  END===========*/
 static bk_err_t pm_demo_sleep_wakeup_callback(void* param1,uint32_t param2)
 {
-
     return BK_OK;
 }
 static bk_err_t pm_demo_cpu1_shutdown_callback(void* param1,uint32_t param2)
@@ -99,7 +98,7 @@ static bk_err_t pm_demo_message_handle(void)
     while (1)
     {
         ret = rtos_pop_from_queue(&s_queue, &msg, BEKEN_WAIT_FOREVER);
-        LOGI("%s event:%d\n", __func__,msg.event);
+        LOGD("%s event:%d\n", __func__,msg.event);
         if (kNoErr == ret)
         {
             switch (msg.event)

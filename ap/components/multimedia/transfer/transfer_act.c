@@ -75,7 +75,7 @@ static void transfer_app_task_entry(beken_thread_arg_t data)
         {
             if (transfer_info->stream == NULL)
             {
-                LOGI("%s, stream:%p\n", __func__, stream);
+                LOGD("%s, stream:%p\n", __func__, stream);
                 transfer_info->stream = stream;
                 frame_buffer_fb_register(transfer_info->stream, MODULE_WIFI);
             }
@@ -132,7 +132,7 @@ static void transfer_app_task_entry(beken_thread_arg_t data)
         frame_buffer_fb_read_free(transfer_info->stream, frame, MODULE_WIFI);
     };
 
-    LOGI("transfer_app_task exit\n");
+    LOGD("transfer_app_task exit\n");
     transfer_info->enable = false;
     transfer_info->thread = NULL;
     if (transfer_info->stream)
@@ -147,7 +147,7 @@ bk_err_t transfer_app_task_init(frame_cb_t cb, uint16_t image_format)
 {
     int ret = BK_OK;
 
-    LOGI("%s, %d, format:%d\n", __func__, __LINE__, image_format);
+    LOGD("%s, %d, format:%d\n", __func__, __LINE__, image_format);
 
     if (s_transfer_info)
     {
@@ -211,7 +211,7 @@ error:
 bk_err_t transfer_app_task_deinit(void)
 {
     bk_err_t ret = BK_OK;
-    LOGI("%s, %d\n", __func__, __LINE__);
+    LOGD("%s, %d\n", __func__, __LINE__);
 
     transfer_info_t *transfer_info = s_transfer_info;
 

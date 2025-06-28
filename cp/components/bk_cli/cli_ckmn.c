@@ -26,11 +26,11 @@ static uint32_t g_target_32k;
 
 static void cli_ckmn_help(void)
 {
-	CLI_LOGI("ckmn_driver {init|deinit}\r\n");
-	CLI_LOGI("ckmn ckeck32k {32|other}\r\n");
-	CLI_LOGI("ckmncorr {26m|32k} {0|1|2|3}\r\n");
-	CLI_LOGI("ckmnautosw {26m|32k}\r\n");
-	CLI_LOGI("ckmn show_reg\r\n");
+	CLI_LOGD("ckmn_driver {init|deinit}\r\n");
+	CLI_LOGD("ckmn ckeck32k {32|other}\r\n");
+	CLI_LOGD("ckmncorr {26m|32k} {0|1|2|3}\r\n");
+	CLI_LOGD("ckmnautosw {26m|32k}\r\n");
+	CLI_LOGD("ckmn show_reg\r\n");
 }
 
 static void cli_ckmn_show_reg(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -49,25 +49,25 @@ static void  cli_ckmn_ckeck32k_isr(void)
 	rc32k_count = bk_ckmn_get_rc32k_count();
 
 	if (rc26m_count <= 0 || rc32k_count <= 0) {
-		CLI_LOGI("ckmn get rc26m cycle failed!\n");
+		CLI_LOGD("ckmn get rc26m cycle failed!\n");
 		return;
 	}
 	ckeck_32k = CLK_26M * (rc32k_count / ((double)rc26m_count));
-	CLI_LOGI("get check 32k clock:%7.2f\n", ckeck_32k);
+	CLI_LOGD("get check 32k clock:%7.2f\n", ckeck_32k);
 }
 
 static void cli_ckmn_corr26m_isr(void)
 {
 	bk_ckmn_cor26m_intr_disable();
 	bk_ckmn_disable_corr_26m();
-	CLI_LOGI("ckmnautosw 26m interrupter happened,target:%d\r\n", g_target_26m);
+	CLI_LOGD("ckmnautosw 26m interrupter happened,target:%d\r\n", g_target_26m);
 }
 
 static void cli_ckmn_corr32k_isr(void)
 {
 	bk_ckmn_cor32k_intr_disable();
 	bk_ckmn_disable_corr_32k();
-	CLI_LOGI("ckmnautosw 32k interrupter happened,target:%d\r\n", g_target_32k);
+	CLI_LOGD("ckmnautosw 32k interrupter happened,target:%d\r\n", g_target_32k);
 }
 
 static void cli_ckmn_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -79,10 +79,10 @@ static void cli_ckmn_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_ckmn_driver_init());
-		CLI_LOGI("ckmn driver init\n");
+		CLI_LOGD("ckmn driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_ckmn_driver_deinit());
-		CLI_LOGI("ckmn driver deinit\n");
+		CLI_LOGD("ckmn driver deinit\n");
 	} else {
 		cli_ckmn_help();
 		return;
@@ -103,7 +103,7 @@ static void cli_ckmn_ckeck32K(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		BK_LOG_ON_ERR(bk_ckmn_set_rc32k_count(count));
 		BK_LOG_ON_ERR(bk_ckmn_register_isr(CKMN_INT_CKEST, cli_ckmn_ckeck32k_isr));
 		BK_LOG_ON_ERR(bk_ckmn_ckest_enable());
-		CLI_LOGI("ckmn ckeck32k start\r\n");
+		CLI_LOGD("ckmn ckeck32k start\r\n");
 	} else {
 		cli_ckmn_help();
 		return;
@@ -132,14 +132,14 @@ static void cli_ckmn_ckmncorr(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		BK_LOG_ON_ERR(bk_ckmn_register_isr(CKMN_INT_26M, cli_ckmn_corr26m_isr));
 		BK_LOG_ON_ERR(bk_ckmn_enable_corr_26m());
 		BK_LOG_ON_ERR(bk_ckmn_cor26m_intr_enable());
-		CLI_LOGI("ckmnautosw 26m start\r\n");
+		CLI_LOGD("ckmnautosw 26m start\r\n");
 	} else if (os_strcmp(argv[1], "32k") == 0) {
 		g_target_32k = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_ckmn_set_32k_target(g_target_32k));
 		BK_LOG_ON_ERR(bk_ckmn_register_isr(CKMN_INT_32K, cli_ckmn_corr32k_isr));
 		BK_LOG_ON_ERR(bk_ckmn_enable_corr_32k());
 		BK_LOG_ON_ERR(bk_ckmn_cor32k_intr_enable());
-		CLI_LOGI("ckmnautosw 32k start\r\n");
+		CLI_LOGD("ckmnautosw 32k start\r\n");
 	} else {
 		cli_ckmn_help();
 		return;
@@ -154,10 +154,10 @@ static void cli_ckmn_ckmnautosw(char *pcWriteBuffer, int xWriteBufferLen, int ar
 
 	if (os_strcmp(argv[1], "26m") == 0) {
 		bk_ckmn_enable_autosw_26m();
-		CLI_LOGI("ckmnautosw 26m start\r\n");
+		CLI_LOGD("ckmnautosw 26m start\r\n");
 	} else if (os_strcmp(argv[1], "32k") == 0) {
 		bk_ckmn_enable_autosw_32k();
-		CLI_LOGI("ckmnautosw 32k start\r\n");
+		CLI_LOGD("ckmnautosw 32k start\r\n");
 	} else {
 		cli_ckmn_help();
 		return;

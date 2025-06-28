@@ -174,17 +174,17 @@ static bk_err_t aon_rtc_bake_timeofday()
 		else if(key_index == 1)
 			ret = bk_set_env_enhance(rtc_keep_time_key[key_index], (const void *)&rtc_keep_time.tv_usec, sizeof(rtc_keep_time.tv_usec));
 
-		AON_RTC_LOGD("%s, sec=%d, usec=%d, ret=%d.\n",__func__, (uint32_t)rtc_keep_time.tv_sec, (uint32_t)rtc_keep_time.tv_usec, ret);
+		AON_RTC_LOGV("%s, sec=%d, usec=%d, ret=%d.\n",__func__, (uint32_t)rtc_keep_time.tv_sec, (uint32_t)rtc_keep_time.tv_usec, ret);
 	}
 #else
-	AON_RTC_LOGI("TODO:Please save the time to none lost memory\r\n", __func__);
+	AON_RTC_LOGD("TODO:Please save the time to none lost memory\r\n", __func__);
 #endif
 	return BK_OK;
 }
 
 static void aon_rtc_get_timeofday(struct timeval *time_p)
 {
-	AON_RTC_LOGD("%s[+]\r\n", __func__);
+	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
 #if CONFIG_EASY_FLASH
 	char *rtc_keep_time_key[2] = {"rtc_tv_sec", "rtc_tv_usec"};
@@ -195,9 +195,9 @@ static void aon_rtc_get_timeofday(struct timeval *time_p)
 		else if(key_index == 1)
 			bk_get_env_enhance(rtc_keep_time_key[key_index], &(time_p->tv_usec), sizeof(time_p->tv_usec));
 	}
-	AON_RTC_LOGD("%s tv_sec:%d tv_usec:%d\n",__func__, (uint32_t)time_p->tv_sec, (uint32_t)time_p->tv_usec);
+	AON_RTC_LOGV("%s tv_sec:%d tv_usec:%d\n",__func__, (uint32_t)time_p->tv_sec, (uint32_t)time_p->tv_usec);
 #else
-	AON_RTC_LOGI("TODO:%s\n", __func__);
+	AON_RTC_LOGD("TODO:%s\n", __func__);
 #endif
 
 }
@@ -246,8 +246,8 @@ bk_err_t bk_rtc_gettimeofday(struct timeval *tv, void *ptz)
 
         tv->tv_sec=uCurTimeUs/1000000;
         tv->tv_usec=uCurTimeUs%1000000;
-        AON_RTC_LOGD("s_boot_time_us:h=0x%x,l=0x%x \r\n", s_boot_time_us>>32, (uint32_t)s_boot_time_us);
-        AON_RTC_LOGD("%s sec=%d,us:%d\n", __func__, tv->tv_sec, tv->tv_usec);
+        AON_RTC_LOGV("s_boot_time_us:h=0x%x,l=0x%x \r\n", s_boot_time_us>>32, (uint32_t)s_boot_time_us);
+        AON_RTC_LOGV("%s sec=%d,us:%d\n", __func__, tv->tv_sec, tv->tv_usec);
     } else
         AON_RTC_LOGW("%s tv is null \r\n",__func__);
 
@@ -263,8 +263,8 @@ bk_err_t bk_rtc_settimeofday(const struct timeval *tv,const struct timezone *tz)
         uint64_t getCurTimeUs = bk_aon_rtc_get_us();
 
         s_boot_time_us = setTimeUs - getCurTimeUs;
-        AON_RTC_LOGD("%s:sec=%d us=%d\n", __func__, tv->tv_sec, tv->tv_usec);
-        AON_RTC_LOGD("get us:h=0x%x,l=0x%x\n", getCurTimeUs>>32, (uint32_t)getCurTimeUs);
+        AON_RTC_LOGV("%s:sec=%d us=%d\n", __func__, tv->tv_sec, tv->tv_usec);
+        AON_RTC_LOGV("get us:h=0x%x,l=0x%x\n", getCurTimeUs>>32, (uint32_t)getCurTimeUs);
 
 #if CONFIG_AON_RTC_KEEP_TIME_SUPPORT
         aon_rtc_bake_timeofday();

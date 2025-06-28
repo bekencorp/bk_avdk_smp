@@ -32,7 +32,7 @@
 
 void bk_reboot_ex(uint32_t reset_reason)
 {
-	BK_LOGI(TAG, "cpu1 reboot\r\n");
+	BK_LOGD(TAG, "cpu1 reboot\r\n");
 	
 	if(reset_reason < RESET_SOURCE_UNKNOWN) {
 		bk_misc_set_reset_reason(reset_reason);

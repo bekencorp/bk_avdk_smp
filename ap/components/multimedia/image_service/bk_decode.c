@@ -24,6 +24,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 extern media_debug_t *media_debug;
@@ -45,7 +46,7 @@ static void bk_driver_decoder_timeout(timer_id_t timer_id)
     ret = rtos_set_semaphore(&s_decode.hw_dec_sem);
     if (ret != BK_OK)
     {
-        LOGD("%s semaphore set failed: %d\n", __func__, ret);
+        LOGV("%s semaphore set failed: %d\n", __func__, ret);
     }
 }
 
@@ -53,7 +54,7 @@ static void jpeg_dec_err_cb(jpeg_dec_res_t *result)
 {
     bk_err_t ret = BK_FAIL;
 
-    LOGD("%s \n", __func__);
+    LOGV("%s \n", __func__);
     s_decode.decode_err = true;
     media_debug->isr_decoder--;
 
@@ -85,7 +86,7 @@ static void jpeg_dec_eof_cb(jpeg_dec_res_t *result)
     {
         s_decode.decode_err = true;
         media_debug->isr_decoder--;
-        LOGD("%s decoder error\n", __func__);
+        LOGV("%s decoder error\n", __func__);
     }
 
     ret = rtos_set_semaphore(&s_decode.hw_dec_sem);
@@ -107,7 +108,7 @@ bk_err_t bk_hw_decode_start(frame_buffer_t *src_frame, frame_buffer_t *dst_frame
 
     if (ret != BK_OK)
     {
-        LOGI("%s, length:%d\r\n", __func__, src_frame->length);
+        LOGD("%s, length:%d\r\n", __func__, src_frame->length);
         return ret;
     }
     bk_timer_start(TIMER_ID3, 200, bk_driver_decoder_timeout);
@@ -218,14 +219,14 @@ bk_err_t bk_hw_decode_init(void)
     bk_err_t ret = BK_OK;
     if (s_decode.hw_state != false)
     {
-        LOGI("%s, already init\n", __func__);
+        LOGD("%s, already init\n", __func__);
         return ret;
     }
     s_decode.hw_state = true;
 
     media_debug->isr_decoder = 0;
     media_debug->err_dec = 0;
-    LOGI("%s \r\n", __func__);
+    LOGD("%s \r\n", __func__);
 
     ret = rtos_init_semaphore_ex(&s_decode.hw_dec_sem, 1, 0);
 
@@ -250,10 +251,10 @@ bk_err_t bk_hw_decode_deinit(void)
     bk_err_t ret = BK_OK;
     if (s_decode.hw_state == false)
     {
-        LOGD("%s, already deinit\n", __func__);
+        LOGV("%s, already deinit\n", __func__);
         return ret;
     }
-    LOGI("%s \r\n", __func__);
+    LOGD("%s \r\n", __func__);
 
     bk_jpeg_dec_driver_deinit();
 
@@ -271,10 +272,10 @@ bk_err_t bk_hw_decode_deinit(void)
 bk_err_t bk_sw_decode_init(media_decode_mode_t sw_dec_mode)
 {
     bk_err_t ret = BK_OK;
-    LOGI("%s \n", __func__);
+    LOGD("%s \n", __func__);
     if (s_decode.sw_state != false)
     {
-        LOGI("%s, already init\n", __func__);
+        LOGD("%s, already init\n", __func__);
         return ret;
     }
     s_decode.sw_state = true;
@@ -325,10 +326,10 @@ bk_err_t bk_sw_decode_deinit(media_decode_mode_t sw_dec_mode)
 
     if (s_decode.sw_state == false)
     {
-        LOGD("%s, already deinit\n", __func__);
+        LOGV("%s, already deinit\n", __func__);
         return ret;
     }
-    LOGI("%s sw_dec_mode = %d\n", __func__, sw_dec_mode);
+    LOGD("%s sw_dec_mode = %d\n", __func__, sw_dec_mode);
 
 #if CONFIG_MEDIA_PIPELINE
     if (check_software_decode_task_is_open())

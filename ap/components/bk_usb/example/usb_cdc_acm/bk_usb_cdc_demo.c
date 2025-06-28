@@ -17,6 +17,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 uint32_t ipc_cdc_rx_len = 0;
 uint8_t ipc_rxdata_dbg[128] = {0};
@@ -122,11 +123,11 @@ static void bk_cdc_acm_close(void)
 
 static void bk_cdc_acm_bulkin_cb(void)
 {
-	LOGD("getdata 0x%x 0x%x %d\n", dbg_cdc_ipc.rx_data, dbg_cdc_ipc.rx_len, ipc_cdc_rx_len);
+	LOGV("getdata 0x%x 0x%x %d\n", dbg_cdc_ipc.rx_data, dbg_cdc_ipc.rx_len, ipc_cdc_rx_len);
 	if (&dbg_cdc_ipc) {
 		uint8_t *temp = (uint8_t *)dbg_cdc_ipc.rx_data;
 		for (uint32_t i = 0; i < ipc_cdc_rx_len; i++)
-			LOGD("%x\n", temp[i]);
+			LOGV("%x\n", temp[i]);
 		os_memset(temp, 0x00, ipc_cdc_rx_len);
 		ipc_cdc_rx_len = 0;
 
@@ -137,7 +138,7 @@ static void bk_cdc_acm_bulkin_cb(void)
 
 static void bk_cdc_acm_bulkout_cb(void *p)
 {
-	LOGI("[+]%s\r\n", __func__);
+	LOGD("[+]%s\r\n", __func__);
 	IPC_CDC_DATA_t * p_cdc = (IPC_CDC_DATA_t *)p;
 	bk_cdc_acm_bulkout(p_cdc);
 }
@@ -160,7 +161,7 @@ static void bk_cdc_acm_state_cb(bk_cdc_hub_status *cdc_status)
 	uint32_t port_idx = cdc_status->port_idx;
 	uint32_t port_status = cdc_status->port_status;
 
-	LOGI("[+]%s idx = %d  status = %d\r\n", __func__, port_idx, port_status);
+	LOGD("[+]%s idx = %d  status = %d\r\n", __func__, port_idx, port_status);
 
 	g_cdc_hub_status[port_idx].port_idx = port_idx;
 	g_cdc_hub_status[port_idx].port_status = port_status;
@@ -187,7 +188,7 @@ static void bk_cdc_acm_state_cb(bk_cdc_hub_status *cdc_status)
 
 void demo_bulk_out(uint32_t port)
 {
-	LOGD("[+]%s %d %d %d\n", __func__, __LINE__, g_cdc_hub_status[port].port_idx, g_cdc_hub_status[port].port_status);
+	LOGV("[+]%s %d %d %d\n", __func__, __LINE__, g_cdc_hub_status[port].port_idx, g_cdc_hub_status[port].port_status);
 	uint32_t status = g_cdc_hub_status[port].port_status;
 	if (status == CDC_STATUS_OPEN)
 	{
@@ -195,7 +196,7 @@ void demo_bulk_out(uint32_t port)
 		dbg_cdc_ipc.state = CDC_STATUS_OUT;
 		cdc_send_msg(CDC_STATUS_OUT, s_specified_port);
 	} else {
-		LOGI("Unvalid parameter!!! port_status %d\n", g_cdc_hub_status[port].port_status);
+		LOGD("Unvalid parameter!!! port_status %d\n", g_cdc_hub_status[port].port_status);
 	}
 }
 
@@ -207,7 +208,7 @@ static void bk_cdc_demo_task(beken_thread_arg_t arg)
 	while (1)
 	{
 		ret = rtos_pop_from_queue(&cdc_msg_queue, &msg, BEKEN_WAIT_FOREVER);
-		LOGD("%s, type %d init %d\n", __func__, msg.type, g_cdc_init_done);
+		LOGV("%s, type %d init %d\n", __func__, msg.type, g_cdc_init_done);
 		if (kNoErr == ret)
 		{
 			switch (msg.type)
@@ -287,7 +288,7 @@ exit:
 
 void bk_usb_cdc_demo(void)
 {
-	LOGD("[+]%s\n", __func__);
+	LOGV("[+]%s\n", __func__);
 	int ret = kNoErr;
 	bk_usb_cdc_connect_init_cb(bk_cdc_acm_state_cb);
 

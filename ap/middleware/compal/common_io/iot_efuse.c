@@ -38,7 +38,7 @@ static IotEfuseDescriptor_t efuse_desc={0};
 
 IotEfuseHandle_t iot_efuse_open( void )
 {
-    BK_LOGD(COMMON_EFUSE_TAG, "efuse_open\r\n");
+    BK_LOGV(COMMON_EFUSE_TAG, "efuse_open\r\n");
     bk_efuse_driver_init();
     if(efuse_desc.status){
         BK_LOGE(COMMON_EFUSE_TAG, "efuse_already_open\r\n");
@@ -59,7 +59,7 @@ int32_t iot_efuse_read_32bit_word( IotEfuseHandle_t const pxEfuseHandle,
         BK_LOGE(COMMON_EFUSE_TAG, "Invalid arguments\r\n");
         return IOT_EFUSE_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_EFUSE_TAG, "efuse_read32\r\n");
+    BK_LOGV(COMMON_EFUSE_TAG, "efuse_read32\r\n");
     *ulValue = 0;
     for(idx=0; idx<4; idx++){
         if(bk_efuse_read_byte((ulIndex * 4 + idx), (uint8 *)&temp) == BK_OK){
@@ -80,7 +80,7 @@ int32_t iot_efuse_write_32bit_word( IotEfuseHandle_t const pxEfuseHandle,
         BK_LOGE(COMMON_EFUSE_TAG, "Invalid arguments\r\n");
         return IOT_EFUSE_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_EFUSE_TAG, "efuse_write32\r\n");
+    BK_LOGV(COMMON_EFUSE_TAG, "efuse_write32\r\n");
     for(idx=0; idx<4; idx++){
         if(bk_efuse_write_byte((ulIndex * 4 + idx), ulValue) == BK_OK){
             ulValue = ulValue>>8;
@@ -100,7 +100,7 @@ int32_t iot_efuse_read_16bit_word( IotEfuseHandle_t const pxEfuseHandle,
         BK_LOGE(COMMON_EFUSE_TAG, "Invalid arguments\r\n");
         return IOT_EFUSE_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_EFUSE_TAG, "efuse_read16\r\n");
+    BK_LOGV(COMMON_EFUSE_TAG, "efuse_read16\r\n");
     *ulValue = 0;
     for(idx=0; idx<2; idx++){
         if(bk_efuse_read_byte((ulIndex * 2 + idx), (uint8 *)&temp) == BK_OK){
@@ -121,7 +121,7 @@ int32_t iot_efuse_write_16bit_word( IotEfuseHandle_t const pxEfuseHandle,
         BK_LOGE(COMMON_EFUSE_TAG, "Invalid arguments\r\n");
         return IOT_EFUSE_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_EFUSE_TAG, "efuse_write16\r\n");
+    BK_LOGV(COMMON_EFUSE_TAG, "efuse_write16\r\n");
     for(idx=0; idx<2; idx++){
         if(bk_efuse_write_byte((ulIndex * 2 + idx), value) == BK_OK){
             value = value>>8;
@@ -138,7 +138,7 @@ int32_t iot_efuse_close( IotEfuseHandle_t const pxEfuseHandle )
         BK_LOGE(COMMON_EFUSE_TAG, "Invalid arguments\r\n");
         return IOT_EFUSE_INVALID_VALUE;
     }
-    BK_LOGD(COMMON_EFUSE_TAG, "efuse_close\r\n");
+    BK_LOGV(COMMON_EFUSE_TAG, "efuse_close\r\n");
     if(pxEfuseHandle->status){
         pxEfuseHandle->status = 0;
         return IOT_EFUSE_SUCCESS;

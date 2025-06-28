@@ -97,8 +97,8 @@ uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
         {
             read_bytes = remain_bytes;
 #ifdef DMA_WRITE_DEBUG
-            os_printf("-----------[rb error 0]--------------\n");
-            os_printf("wp_old: %d, rp_old: %d, wp_new: %d, rp_new: %d, address: 0x%x, capacity: %d\n", wp_old, rp_old, wp_new, rp_new, rb->address, rb->capacity);
+            BK_LOGD(NULL, "-----------[rb error 0]--------------\n");
+            BK_LOGD(NULL, "wp_old: %d, rp_old: %d, wp_new: %d, rp_new: %d, address: 0x%x, capacity: %d\n", wp_old, rp_old, wp_new, rp_new, rb->address, rb->capacity);
 #endif
             memcpy(buffer, &rb->address[rb->rp], read_bytes);
             //rb->rp += read_bytes;
@@ -129,8 +129,8 @@ uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
             if(required_bytes - read_bytes > wp)
             {
 #ifdef DMA_WRITE_DEBUG
-                os_printf("-----------[rb error 1]--------------\n");
-                os_printf("wp_old: %d, rp_old: %d, wp_new: %d, rp_new: %d, address: 0x%x, capacity: %d\n", wp_old, rp_old, wp_new, rp_new, rb->address, rb->capacity);
+                BK_LOGD(NULL, "-----------[rb error 1]--------------\n");
+                BK_LOGD(NULL, "wp_old: %d, rp_old: %d, wp_new: %d, rp_new: %d, address: 0x%x, capacity: %d\n", wp_old, rp_old, wp_new, rp_new, rb->address, rb->capacity);
 #endif
                 memcpy(buffer + read_bytes, &rb->address[0], wp);
                 rb->rp = wp;
@@ -175,8 +175,8 @@ uint32_t ring_buffer_read(RingBufferContext* rb, uint8_t* buffer, uint32_t size)
 
         dma_set_dst_pause_addr(rb->dma_id, (uint32_t)&rb->address[pause_ptr]);
 
-        //os_printf("dst_pause_addr: %d, rp: %d, wp: %d\n", pause_ptr, rb->rp, wp);
-        //os_printf("wp_old: %d, rp_old: %d, wp_new: %d, rp_new: %d, address: 0x%x, capacity: %d\n", wp_old, rp_old, wp_new, rp_new, rb->address, rb->capacity);
+        //BK_LOGD(NULL, "dst_pause_addr: %d, rp: %d, wp: %d\n", pause_ptr, rb->rp, wp);
+        //BK_LOGD(NULL, "wp_old: %d, rp_old: %d, wp_new: %d, rp_new: %d, address: 0x%x, capacity: %d\n", wp_old, rp_old, wp_new, rp_new, rb->address, rb->capacity);
     }
 
     return read_bytes;

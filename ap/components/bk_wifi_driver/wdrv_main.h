@@ -22,6 +22,7 @@ extern "C" {
 #define WDRV_LOGW(...)       BK_LOGW(WDRV_TAG, ##__VA_ARGS__)
 #define WDRV_LOGE(...)       BK_LOGE(WDRV_TAG, ##__VA_ARGS__)
 #define WDRV_LOGD(...)       BK_LOGD(WDRV_TAG, ##__VA_ARGS__)
+#define WDRV_LOGV(...)       BK_LOGV(WDRV_TAG, ##__VA_ARGS__)
 #define WDRV_LOG_RAW(...)    BK_LOG_RAW(WDRV_TAG, ##__VA_ARGS__)
 
 #define PTR_FROM_U32(type, addr) ((type *)(addr))

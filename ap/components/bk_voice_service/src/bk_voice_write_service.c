@@ -11,7 +11,7 @@
 
 #define VOICE_WRITE_CHECK_NULL(ptr, act) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "%s, %d, VOICE_WRITE_CHECK_NULL fail \n", __func__, __LINE__);\
+            BK_LOGD(TAG, "%s, %d, VOICE_WRITE_CHECK_NULL fail \n", __func__, __LINE__);\
             {act;};\
         }\
     } while(0)
@@ -333,7 +333,7 @@ voice_write_handle_t bk_voice_write_init(voice_write_cfg_t *cfg)
 
     WIFI_RX_DATA_COUNT_OPEN();
 
-    BK_LOGI(TAG, "init voice write task complete\n");
+    BK_LOGD(TAG, "init voice write task complete\n");
 
     return voice_write_handle;
 
@@ -414,7 +414,7 @@ bk_err_t bk_voice_write_deinit(voice_write_handle_t voice_write_handle)
 
     VOICE_WRITE_CHECK_NULL(voice_write_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     ret = voice_write_send_msg(voice_write_handle->voice_write_msg_que, VOICE_WRITE_EXIT, NULL);
     if (ret != BK_OK)
@@ -481,7 +481,7 @@ bk_err_t bk_voice_write_deinit(voice_write_handle_t voice_write_handle)
 
     WIFI_RX_DATA_COUNT_CLOSE();
 
-    BK_LOGI(TAG, "deinit voice write complete\n");
+    BK_LOGD(TAG, "deinit voice write complete\n");
 
     return BK_OK;
 }
@@ -492,7 +492,7 @@ bk_err_t bk_voice_write_start(voice_write_handle_t voice_write_handle)
 
     VOICE_WRITE_CHECK_NULL(voice_write_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     ret = voice_write_send_msg(voice_write_handle->voice_write_msg_que, VOICE_WRITE_START, NULL);
     if (ret != BK_OK)
@@ -510,7 +510,7 @@ bk_err_t bk_voice_write_stop(voice_write_handle_t voice_write_handle)
 
     VOICE_WRITE_CHECK_NULL(voice_write_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     ret = voice_write_send_msg(voice_write_handle->voice_write_msg_que, VOICE_WRITE_IDLE, NULL);
     if (ret != BK_OK)
@@ -526,7 +526,7 @@ bk_err_t bk_voice_write_frame_data(voice_write_handle_t voice_write_handle, char
 {
     bk_err_t ret = BK_OK;
 
-    //BK_LOGD(TAG, "%s len: %d\n", __func__, len);
+    //BK_LOGV(TAG, "%s len: %d\n", __func__, len);
 
     VOICE_WRITE_CHECK_NULL(voice_write_handle, return BK_FAIL);
 
@@ -542,7 +542,7 @@ bk_err_t bk_voice_write_frame_data(voice_write_handle_t voice_write_handle, char
         VOICE_WRITE_INPUT_END();
         if (write_size != len)
         {
-            BK_LOGD(TAG, "%s, %d, write_size: %d, len: %d\n", __func__, __LINE__, write_size, len);
+            BK_LOGV(TAG, "%s, %d, write_size: %d, len: %d\n", __func__, __LINE__, write_size, len);
         }
         ret = write_size;
     }

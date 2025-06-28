@@ -69,7 +69,7 @@ bool bk_is_chip_supported(void)
 		return false;
 	}
 
-	CHIP_SUPPORT_LOGD("get chip id=%x device id=%x software_chip id=%x\n",
+	CHIP_SUPPORT_LOGV("get chip id=%x device id=%x software_chip id=%x\n",
 						  chip_info.chip_id,
 						  chip_info.dev_id,
 						  chip_info.software_chip_id);
@@ -100,7 +100,7 @@ bool bk_is_chip_supported(void)
 			continue;
 		}
 
-		CHIP_SUPPORT_LOGD("SUPPORTED chip id=%x device id=%x software_chip id=%x\n",
+		CHIP_SUPPORT_LOGV("SUPPORTED chip id=%x device id=%x software_chip id=%x\n",
 						  chip_info.chip_id,
 						  chip_info.dev_id,
 						  chip_info.software_chip_id);
@@ -119,7 +119,7 @@ hardware_chip_version_e bk_get_hardware_chip_id_version()
 	hardware_chip_version_e chip_version;
 	
 	hardware_chip_id = aon_pmu_hal_reg_get(PMU_REG0x7c);
-	//os_printf("hardware_chip_id value is 0x%x",hardware_chip_id);
+	//BK_LOGD(NULL, "hardware_chip_id value is 0x%x",hardware_chip_id);
 	switch(hardware_chip_id)
 	{
 		case CHIP_ID_A_VALUE:

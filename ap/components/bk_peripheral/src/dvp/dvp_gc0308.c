@@ -20,6 +20,7 @@
 
 #define TAG "gc0308"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 #define SENSOR_I2C_READ(reg, value) \
     do {\
@@ -355,11 +356,11 @@ bool gc0308_detect(void)
 
     SENSOR_I2C_READ(0x00, &data);
 
-    LOGI("%s, id: 0x%02X\n", __func__, data);
+    LOGD("%s, id: 0x%02X\n", __func__, data);
 
     if (data == GC0308_CHIP_ID)
     {
-        LOGI("%s success\n", __func__);
+        LOGD("%s success\n", __func__);
         return true;
     }
 
@@ -381,7 +382,7 @@ void gc0308_read_register(uint8_t addr, uint8_t data)
         SENSOR_I2C_READ(addr, &value);
         if (value != data)
         {
-            LOGI("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
+            LOGD("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
         }
     }
 }
@@ -391,7 +392,7 @@ int gc0308_init(void)
 {
     uint32_t size = sizeof(sensor_gc0308_init_talbe) / 2, i;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     for (i = 0; i < size; i++)
     {
@@ -408,7 +409,7 @@ int gc0308_set_ppi(media_ppi_t ppi)
     uint32_t size, i;
     int ret = -1;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     switch (ppi)
     {
@@ -473,14 +474,14 @@ int gc0308_dump(media_ppi_t ppi)
     int ret = -1;
     uint8_t value = 0;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     size = sizeof(sensor_gc0308_init_talbe) / 2;
 
     for (i = 0; i < size; i++)
     {
         SENSOR_I2C_READ(sensor_gc0308_init_talbe[i][0], &value);
-        LOGI("[0x%02x, 0x%02x]\r\n", sensor_gc0308_init_talbe[i][0], value);
+        LOGD("[0x%02x, 0x%02x]\r\n", sensor_gc0308_init_talbe[i][0], value);
     }
 
     switch (ppi)
@@ -492,7 +493,7 @@ int gc0308_dump(media_ppi_t ppi)
             for (i = 0; i < size; i++)
             {
                 SENSOR_I2C_READ(sensor_gc0308_QVGA_320_240_talbe[i][0], (uint8_t *)&value);
-                LOGI("[%02x, %02x]\r\n", sensor_gc0308_QVGA_320_240_talbe[i][0], value);
+                LOGD("[%02x, %02x]\r\n", sensor_gc0308_QVGA_320_240_talbe[i][0], value);
             }
 
             ret = 0;
@@ -506,7 +507,7 @@ int gc0308_dump(media_ppi_t ppi)
             for (i = 0; i < size; i++)
             {
                 SENSOR_I2C_READ(sensor_gc0308_VGA_640_480_talbe[i][0], &value);
-                LOGI("[%02x, %02x]\r\n", sensor_gc0308_VGA_640_480_talbe[i][0], value);
+                LOGD("[%02x, %02x]\r\n", sensor_gc0308_VGA_640_480_talbe[i][0], value);
             }
 
             ret = 0;

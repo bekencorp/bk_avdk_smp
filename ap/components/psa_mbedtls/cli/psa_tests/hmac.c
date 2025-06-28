@@ -79,7 +79,7 @@ static int crypto_finish(void)
 	/* Destroy the key handle */
 	status = psa_destroy_key(key_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -90,7 +90,7 @@ int generate_key(uint32_t key_len)
 {
 	psa_status_t status;
 
-	BK_LOGI(TAG, "Generating random HMAC key...\r\n");
+	BK_LOGD(TAG, "Generating random HMAC key...\r\n");
 
 	/* Configure the key attributes */
 	psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
@@ -107,14 +107,14 @@ int generate_key(uint32_t key_len)
 	 */
 	status = psa_generate_key(&key_attributes, &key_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* After the key handle is acquired the attributes are not needed */
 	psa_reset_key_attributes(&key_attributes);
 
-	BK_LOGI(TAG, "HMAC key generated successfully!\r\n");
+	BK_LOGD(TAG, "HMAC key generated successfully!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -125,30 +125,30 @@ int hmac_sign(void)
 	psa_status_t status;
 	psa_mac_operation_t operation = PSA_MAC_OPERATION_INIT;
 
-	BK_LOGI(TAG, "Signing using HMAC ...\r\n");
+	BK_LOGD(TAG, "Signing using HMAC ...\r\n");
 
 	/* Initialize the HMAC signing operation */
 	status = psa_mac_sign_setup(&operation, key_id, PSA_ALG_HMAC(PSA_ALG_SHA_256));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_sign_setup failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_sign_setup failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* Perform the HMAC signing */
 	status = psa_mac_update(&operation, m_plain_text, sizeof(m_plain_text));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_update failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_update failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* Finalize the HMAC signing */
 	status = psa_mac_sign_finish(&operation, hmac, sizeof(hmac), (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_sign_finish failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_sign_finish failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Signing successful!\r\n");
+	BK_LOGD(TAG, "Signing successful!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -158,30 +158,30 @@ int hmac_verify(void)
 	psa_status_t status;
 	psa_mac_operation_t operation = PSA_MAC_OPERATION_INIT;
 
-	BK_LOGI(TAG, "Verifying the HMAC signature...\r\n");
+	BK_LOGD(TAG, "Verifying the HMAC signature...\r\n");
 
 	/* Initialize the HMAC verification operation */
 	status = psa_mac_verify_setup(&operation, key_id, PSA_ALG_HMAC(PSA_ALG_SHA_256));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_verify_setup failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_verify_setup failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* Perform the HMAC verification */
 	status = psa_mac_update(&operation, m_plain_text, sizeof(m_plain_text));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_update failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_update failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* Finalize the HMAC verification */
 	status = psa_mac_verify_finish(&operation, hmac, sizeof(hmac));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_verify_finish failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_verify_finish failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "HMAC verified successfully!\r\n");
+	BK_LOGD(TAG, "HMAC verified successfully!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -190,39 +190,39 @@ int hmac_main(void)
 {
 	int status;
 
-	BK_LOGI(TAG, "Starting HMAC example...\r\n");
+	BK_LOGD(TAG, "Starting HMAC example...\r\n");
 
 	status = crypto_init();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = generate_key(256);
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = hmac_sign();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = hmac_verify();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = crypto_finish();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
 
 	return APP_SUCCESS;
 }
@@ -234,32 +234,32 @@ int hmac_sign_perf(uint32_t key_len, uint32_t data_len)
 	psa_mac_operation_t operation = PSA_MAC_OPERATION_INIT;
 	uint64_t start, end;
 
-	BK_LOGI(TAG, "Signing using HMAC ...\r\n");
+	BK_LOGD(TAG, "Signing using HMAC ...\r\n");
 	crypto_lock();
 	start = crypto_get_time();
 	
 	/* Initialize the HMAC signing operation */
 	status = psa_mac_sign_setup(&operation, key_id, PSA_ALG_HMAC(PSA_ALG_SHA_256));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_sign_setup failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_sign_setup failed! (Error: %d)\r\n", status);
 		goto _error;
 	}
 
 	/* Perform the HMAC signing */
 	status = psa_mac_update(&operation, s_plain_text_p, data_len);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_update failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_update failed! (Error: %d)\r\n", status);
 		goto _error;
 	}
 
 	/* Finalize the HMAC signing */
 	status = psa_mac_sign_finish(&operation, hmac, sizeof(hmac), (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_sign_finish failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_sign_finish failed! (Error: %d)\r\n", status);
 		goto _error;
 	}
 
-	BK_LOGI(TAG, "Signing successful!\r\n");
+	BK_LOGD(TAG, "Signing successful!\r\n");
 	end = crypto_get_time();
 	crypto_unlock();
 	crypto_perf_log("HMAC_SIGN", "120M", key_len, data_len, end - start);
@@ -276,7 +276,7 @@ int hmac_verify_perf(uint32_t key_len, uint32_t data_len)
 	psa_status_t status;
 	psa_mac_operation_t operation = PSA_MAC_OPERATION_INIT;
 
-	BK_LOGI(TAG, "Verifying the HMAC signature...\r\n");
+	BK_LOGD(TAG, "Verifying the HMAC signature...\r\n");
 
 	crypto_lock();
 	start = crypto_get_time();
@@ -284,21 +284,21 @@ int hmac_verify_perf(uint32_t key_len, uint32_t data_len)
 	/* Initialize the HMAC verification operation */
 	status = psa_mac_verify_setup(&operation, key_id, PSA_ALG_HMAC(PSA_ALG_SHA_256));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_verify_setup failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_verify_setup failed! (Error: %d)\r\n", status);
 		goto _error;
 	}
 
 	/* Perform the HMAC verification */
 	status = psa_mac_update(&operation, s_plain_text_p, data_len);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_update failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_update failed! (Error: %d)\r\n", status);
 		goto _error;
 	}
 
 	/* Finalize the HMAC verification */
 	status = psa_mac_verify_finish(&operation, hmac, sizeof(hmac));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_mac_verify_finish failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_mac_verify_finish failed! (Error: %d)\r\n", status);
 		goto _error;
 	}
 
@@ -306,7 +306,7 @@ int hmac_verify_perf(uint32_t key_len, uint32_t data_len)
 	crypto_unlock();
 	crypto_perf_log("HMAC_VERIFY", "120M", key_len, data_len, end - start);
 
-	BK_LOGI(TAG, "HMAC verified successfully!\r\n");
+	BK_LOGD(TAG, "HMAC verified successfully!\r\n");
 
 	return APP_SUCCESS;
 
@@ -325,7 +325,7 @@ int hmac_perf_main(void)
 	uint32_t data;
 	int status;
 
-	BK_LOGI(TAG, "HMAC perf test\r\n");
+	BK_LOGD(TAG, "HMAC perf test\r\n");
 
 	if (test_init() != 0) {
 		goto _error;
@@ -363,13 +363,13 @@ int hmac_perf_main(void)
 		}
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
-	BK_LOGI(TAG, "HMAC perf test end\r\n");
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, "HMAC perf test end\r\n");
 	test_deinit();
 	return APP_SUCCESS;
 
 _error:
 	test_deinit();
-	BK_LOGI(TAG, APP_ERROR_MESSAGE);
+	BK_LOGD(TAG, APP_ERROR_MESSAGE);
 	return APP_ERROR;
 }

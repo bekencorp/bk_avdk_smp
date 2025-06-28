@@ -42,8 +42,8 @@ enum
 #define LOGE(format, ...) do{if(BT_AUDIO_DEBUG_LEVEL >= BT_AUDIO_DEBUG_LEVEL_ERROR)   BK_LOGE(TAG, "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
 #define LOGW(format, ...) do{if(BT_AUDIO_DEBUG_LEVEL >= BT_AUDIO_DEBUG_LEVEL_WARNING) BK_LOGW(TAG, "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
 #define LOGI(format, ...) do{if(BT_AUDIO_DEBUG_LEVEL >= BT_AUDIO_DEBUG_LEVEL_INFO)    BK_LOGI(TAG, "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define LOGD(format, ...) do{if(BT_AUDIO_DEBUG_LEVEL >= BT_AUDIO_DEBUG_LEVEL_DEBUG)   BK_LOGI(TAG, "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
-#define LOGV(format, ...) do{if(BT_AUDIO_DEBUG_LEVEL >= BT_AUDIO_DEBUG_LEVEL_VERBOSE) BK_LOGI(TAG, "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+#define LOGD(format, ...) do{if(BT_AUDIO_DEBUG_LEVEL >= BT_AUDIO_DEBUG_LEVEL_DEBUG)   BK_LOGD(TAG, "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+#define LOGV(format, ...) do{if(BT_AUDIO_DEBUG_LEVEL >= BT_AUDIO_DEBUG_LEVEL_VERBOSE) BK_LOGV(TAG, "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
 
 
 typedef void (*camera_connect_state_t)(uint8_t state);
@@ -115,7 +115,7 @@ static void bt_audio_task(void *arg)
                 s_rsp_cfg_final.complexity = cfg->complexity;
                 s_rsp_cfg_final.down_ch_idx = cfg->down_ch_idx;
 
-                LOGI("resample init %p %d %d %d %d %d %d %d %d", cfg,
+                LOGD("resample init %p %d %d %d %d %d %d %d %d", cfg,
                      s_rsp_cfg_final.src_rate,
                      s_rsp_cfg_final.src_ch,
                      s_rsp_cfg_final.src_bits,
@@ -191,7 +191,7 @@ static void bt_audio_task(void *arg)
             uint32_t in_len = *(param->in_bytes_ptr) / (s_rsp_cfg_final.src_bits / 8);
             uint32_t out_len = *(param->out_bytes_ptr) / (s_rsp_cfg_final.dest_bits / 8);
 
-            LOGD("resample start %p %p %p %d %d", param, param->in_addr, param->out_addr, in_len, out_len);
+            LOGV("resample start %p %p %p %d %d", param, param->in_addr, param->out_addr, in_len, out_len);
 
             ret = bk_aud_rsp_process((int16_t *)param->in_addr, &in_len, (int16_t *)param->out_addr, &out_len);
 
@@ -205,7 +205,7 @@ static void bt_audio_task(void *arg)
                 *(param->out_bytes_ptr) = out_len * (s_rsp_cfg_final.dest_bits / 8);
             }
 
-            LOGD("resample done %d %d", in_len, out_len);
+            LOGV("resample done %d %d", in_len, out_len);
         }
         break;
 
@@ -259,7 +259,7 @@ static void bt_audio_task(void *arg)
         s_bt_audio_action = 0;
     }
 
-    LOGI("exit");
+    LOGD("exit");
 
     rtos_delete_thread(NULL);
 }
@@ -268,7 +268,7 @@ static bk_err_t bt_audio_init_handle(media_mailbox_msg_t *msg)
 {
     int ret = 0;
 
-    LOGI("");
+    LOGD("");
 
     if (s_bt_audio_task)
     {
@@ -329,7 +329,7 @@ static bk_err_t bt_audio_deinit_handle(media_mailbox_msg_t *msg)
 {
     int ret = 0;
 
-    LOGI("");
+    LOGD("");
 
     if (!s_bt_audio_task)
     {
@@ -391,7 +391,7 @@ bk_err_t bt_audio_event_handle(media_mailbox_msg_t *msg)
 
         if (EVENT_BT_PCM_RESAMPLE_REQ != msg->event && EVENT_BT_PCM_ENCODE_REQ != msg->event)
         {
-            LOGI("evt %d", msg->event);
+            LOGD("evt %d", msg->event);
         }
 
         s_bt_audio_action_mailbox = msg;

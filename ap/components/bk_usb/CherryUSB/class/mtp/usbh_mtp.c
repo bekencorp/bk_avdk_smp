@@ -57,7 +57,7 @@ static int usbh_mtp_connect(struct usbh_hubport *hport, uint8_t intf)
 
     strncpy(hport->config.intf[intf].devname, DEV_FORMAT, CONFIG_USBHOST_DEV_NAMELEN);
 
-    USB_LOG_INFO("Register MTP Class:%s\r\n", hport->config.intf[intf].devname);
+    USB_LOG_DBG("Register MTP Class:%s\r\n", hport->config.intf[intf].devname);
 
     return ret;
 }
@@ -80,7 +80,7 @@ static int usbh_mtp_disconnect(struct usbh_hubport *hport, uint8_t intf)
         usb_free(mtp_class);
 
         if (hport->config.intf[intf].devname[0] != '\0')
-            USB_LOG_INFO("Unregister MTP Class:%s\r\n", hport->config.intf[intf].devname);
+            USB_LOG_DBG("Unregister MTP Class:%s\r\n", hport->config.intf[intf].devname);
 
         memset(hport->config.intf[intf].devname, 0, CONFIG_USBHOST_DEV_NAMELEN);
         hport->config.intf[intf].priv = NULL;

@@ -21,9 +21,9 @@ test_data_t g_ef_value3;
 
 static void cli_easyflash_help(void)
 {
-    bk_printf("easyflashtest read\r\n");
-    bk_printf("easyflashtest write\r\n");
-    bk_printf("easyflashtest del [key]\r\n");
+    BK_LOGD(NULL,"easyflashtest read\r\n");
+    BK_LOGD(NULL,"easyflashtest write\r\n");
+    BK_LOGD(NULL,"easyflashtest del [key]\r\n");
 }
 
 static void cli_easyflash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -43,27 +43,27 @@ static void cli_easyflash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
     if (os_strcmp(argv[1], "read") == 0) {
         ret = bk_get_env_enhance(EF_KEY1, &g_ef_value1, sizeof(g_ef_value1));
         if(ret > 0){
-            bk_printf("key1 value:%d\r\n", g_ef_value1);
+            BK_LOGD(NULL,"key1 value:%d\r\n", g_ef_value1);
         }
         
         ret = bk_get_env_enhance(EF_KEY2, (void *)&g_ef_value2, sizeof(g_ef_value2));
         if(ret > 0){
-            bk_printf("key2 value:%d, %s\r\n", strlen(g_ef_value2), g_ef_value2);
+            BK_LOGD(NULL,"key2 value:%d, %s\r\n", strlen(g_ef_value2), g_ef_value2);
         }
 
         ret = bk_get_env_enhance(EF_KEY3, (void *)&g_ef_value3, sizeof(g_ef_value3));
         if(ret > 0){
-            bk_printf("key3 value:%d, %d, %s\r\n", g_ef_value3.m_a, g_ef_value3.m_b, g_ef_value3.m_c);
+            BK_LOGD(NULL,"key3 value:%d, %d, %s\r\n", g_ef_value3.m_a, g_ef_value3.m_b, g_ef_value3.m_c);
         }
     } 
     else if (os_strcmp(argv[1], "write") == 0) {
         tmp_value = g_ef_value1 + 10;
         ret = bk_set_env_enhance(EF_KEY1, (const void *)&tmp_value, sizeof(tmp_value));
         if(EF_NO_ERR == ret){
-            bk_printf("key1 set to value:%d\r\n", tmp_value);
+            BK_LOGD(NULL,"key1 set to value:%d\r\n", tmp_value);
         }
         else{
-            bk_printf("key1 set fail:%d\r\n", ret);
+            BK_LOGD(NULL,"key1 set fail:%d\r\n", ret);
         }
 
         memset(tmp_string, 0, sizeof(tmp_string));
@@ -73,10 +73,10 @@ static void cli_easyflash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
             memset(tmp_string, data_c++, tmp_value);
         ret = bk_set_env_enhance(EF_KEY2, (const void *)tmp_string, sizeof(tmp_string));
         if(EF_NO_ERR == ret){
-            bk_printf("key2 value:%d, %s\r\n", strlen(tmp_string), tmp_string);
+            BK_LOGD(NULL,"key2 value:%d, %s\r\n", strlen(tmp_string), tmp_string);
         }
         else{
-            bk_printf("key2 set fail:%d\r\n", ret);
+            BK_LOGD(NULL,"key2 set fail:%d\r\n", ret);
         }
 
         ef_value3.m_a = tmp_value + 1;
@@ -85,62 +85,62 @@ static void cli_easyflash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
         memset(ef_value3.m_c, data_c, sizeof(ef_value3.m_c)-1);
         ret = bk_set_env_enhance(EF_KEY3, (const void *)&ef_value3, sizeof(ef_value3));
         if(EF_NO_ERR == ret){
-            bk_printf("key3 set value:%d, %d, %s\r\n", ef_value3.m_a, ef_value3.m_b, ef_value3.m_c);
+            BK_LOGD(NULL,"key3 set value:%d, %d, %s\r\n", ef_value3.m_a, ef_value3.m_b, ef_value3.m_c);
         }
         else{
-            bk_printf("key3 set fail:%d\r\n", ret);
+            BK_LOGD(NULL,"key3 set fail:%d\r\n", ret);
         }
     }
     else if (os_strcmp(argv[1], "del") == 0) {
         if((argc == 2)
             || (argc > 2 && 0 == os_memcmp(argv[2], EF_KEY1, strlen(EF_KEY1)))){
             if(EF_NO_ERR == bk_set_env_enhance(EF_KEY1, NULL, 0))
-                bk_printf("key1 del success\r\n");
+                BK_LOGD(NULL,"key1 del success\r\n");
             else
-                bk_printf("key1 del fail\r\n");
+                BK_LOGD(NULL,"key1 del fail\r\n");
         }
         
         if((argc == 2)
             || (argc > 2 && 0 == os_memcmp(argv[2], EF_KEY2, strlen(EF_KEY2)))){
             if(EF_NO_ERR == bk_set_env_enhance(EF_KEY2, NULL, 0))
-                bk_printf("key2 del success\r\n");
+                BK_LOGD(NULL,"key2 del success\r\n");
             else
-                bk_printf("key2 del fail\r\n");
+                BK_LOGD(NULL,"key2 del fail\r\n");
         }
 
         if((argc == 2)
             || (argc > 2 && 0 == os_memcmp(argv[2], EF_KEY3, strlen(EF_KEY3)))){
             if(EF_NO_ERR == bk_set_env_enhance(EF_KEY3, NULL, 0))
-                bk_printf("key3 del success\r\n");
+                BK_LOGD(NULL,"key3 del success\r\n");
             else
-                bk_printf("key3 del fail\r\n");
+                BK_LOGD(NULL,"key3 del fail\r\n");
         }
     }
 #elif CONFIG_EASY_FLASH_V3
     if (os_strcmp(argv[1], "read") == 0) {
         ret = bk_get_buf_env(EF_KEY1, (const char *)&g_ef_value1, sizeof(g_ef_value1));
         if(EF_NO_ERR == ret){
-            bk_printf("key1 value:%d\r\n", g_ef_value1);
+            BK_LOGD(NULL,"key1 value:%d\r\n", g_ef_value1);
         }
         
         ret = bk_get_buf_env(EF_KEY2, (const char *)&g_ef_value2, sizeof(g_ef_value2));
         if(EF_NO_ERR == ret){
-            bk_printf("key2 value:%s\r\n", g_ef_value2);
+            BK_LOGD(NULL,"key2 value:%s\r\n", g_ef_value2);
         }
 
         ret = bk_get_buf_env(EF_KEY3, (const char *)&g_ef_value3, sizeof(g_ef_value3));
         if(EF_NO_ERR == ret){
-            bk_printf("key3 value:%d, %d, %s\r\n", g_ef_value3.m_a, g_ef_value3.m_b, g_ef_value3.m_c);
+            BK_LOGD(NULL,"key3 value:%d, %d, %s\r\n", g_ef_value3.m_a, g_ef_value3.m_b, g_ef_value3.m_c);
         }
     } 
     else if (os_strcmp(argv[1], "write") == 0) {
         tmp_value = g_ef_value1 + 10;
         ret = bk_set_buf_env(EF_KEY1, (const char *)&tmp_value, sizeof(tmp_value));
         if(EF_NO_ERR == ret){
-            bk_printf("key1 set to value:%d\r\n", tmp_value);
+            BK_LOGD(NULL,"key1 set to value:%d\r\n", tmp_value);
         }
         else{
-            bk_printf("key1 set fail:%d\r\n", ret);
+            BK_LOGD(NULL,"key1 set fail:%d\r\n", ret);
         }
 
         memset(tmp_string, 0, sizeof(tmp_string));
@@ -150,10 +150,10 @@ static void cli_easyflash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
             memset(tmp_string, data_c++, tmp_value);
         ret = bk_set_buf_env(EF_KEY2, tmp_string, sizeof(tmp_string));
         if(EF_NO_ERR == ret){
-            bk_printf("key2 set to value:%s\r\n", tmp_string);
+            BK_LOGD(NULL,"key2 set to value:%s\r\n", tmp_string);
         }
         else{
-            bk_printf("key2 set fail:%d\r\n", ret);
+            BK_LOGD(NULL,"key2 set fail:%d\r\n", ret);
         }
 
         ef_value3.m_a = tmp_value + 1;
@@ -162,39 +162,39 @@ static void cli_easyflash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
         memset(ef_value3.m_c, data_c, sizeof(ef_value3.m_c)-1);
         ret = bk_set_buf_env(EF_KEY3, (const char *)&ef_value3, sizeof(ef_value3));
         if(EF_NO_ERR == ret){
-            bk_printf("key3 set value:%d, %d, %s\r\n", ef_value3.m_a, ef_value3.m_b, ef_value3.m_c);
+            BK_LOGD(NULL,"key3 set value:%d, %d, %s\r\n", ef_value3.m_a, ef_value3.m_b, ef_value3.m_c);
         }
         else{
-            bk_printf("key3 set fail:%d\r\n", ret);
+            BK_LOGD(NULL,"key3 set fail:%d\r\n", ret);
         }
     }
     else if (os_strcmp(argv[1], "del") == 0) {
         if((argc == 2)
             || (argc > 2 && 0 == os_memcmp(argv[2], EF_KEY1, strlen(EF_KEY1)))){
             if(EF_NO_ERR == bk_set_env(EF_KEY1, NULL))
-                bk_printf("key1 del success\r\n");
+                BK_LOGD(NULL,"key1 del success\r\n");
             else
-                bk_printf("key1 del fail\r\n");
+                BK_LOGD(NULL,"key1 del fail\r\n");
         }
         
         if((argc == 2)
             || (argc > 2 && 0 == os_memcmp(argv[2], EF_KEY2, strlen(EF_KEY2)))){
             if(EF_NO_ERR == bk_set_env(EF_KEY2, NULL))
-                bk_printf("key2 del success\r\n");
+                BK_LOGD(NULL,"key2 del success\r\n");
             else
-                bk_printf("key2 del fail\r\n");
+                BK_LOGD(NULL,"key2 del fail\r\n");
         }
 
         if((argc == 2)
             || (argc > 2 && 0 == os_memcmp(argv[2], EF_KEY3, strlen(EF_KEY3)))){
             if(EF_NO_ERR == bk_set_env(EF_KEY3, NULL))
-                bk_printf("key3 del success\r\n");
+                BK_LOGD(NULL,"key3 del success\r\n");
             else
-                bk_printf("key3 del fail\r\n");
+                BK_LOGD(NULL,"key3 del fail\r\n");
         }
     }
     else if (os_strcmp(argv[1], "save") == 0){
-        bk_printf("save env\r\n");
+        BK_LOGD(NULL,"save env\r\n");
         bk_save_env();
     }
 #endif

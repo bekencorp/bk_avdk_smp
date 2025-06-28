@@ -38,7 +38,7 @@ void wdrv_rx_handle_msg(wdrv_rx_msg *msg)
 {
     //bk_mem_dump("wdrv_rx_handle_msg",PTR_TO_U32(msg), 30);
     cpdu_t* cpdu = (struct cpdu_t*)msg -1;
-    WDRV_LOGI("wdrv_rx_handle_msg id:%x cfm_sn:%d len:%d\r\n", msg->id, msg->cfm_sn, msg->param_len);
+    WDRV_LOGD("wdrv_rx_handle_msg id:%x cfm_sn:%d len:%d\r\n", msg->id, msg->cfm_sn, msg->param_len);
 
     if (msg->id >= WDRV_CMD_CFM_OFFSET) {
         wdrv_rx_handle_cmd_confirm(msg);
@@ -69,7 +69,7 @@ void wdrv_rxdata_process(struct pbuf *p)
     {
         struct pbuf * pbuf = NULL;
         pbuf = (struct pbuf*)(PTR_FROM_U32(uint8_t,cpdu) - sizeof(struct pbuf));
-        WDRV_LOGD("%s,%d,data addr receive 0x%x\n",__func__,__LINE__,pbuf);
+        WDRV_LOGV("%s,%d,data addr receive 0x%x\n",__func__,__LINE__,pbuf);
 
 //        for(uint8_t k=0;k<wdrv_rxbank_debug.rx_buf_bank_cnt ;k++)
 //        {
@@ -96,10 +96,10 @@ void wdrv_rxdata_process(struct pbuf *p)
         return;
     }
 
-    WDRV_LOGD("%s p:%p next:%p payload:%p sizeof:%d cpdu:%p\r\n",
+    WDRV_LOGV("%s p:%p next:%p payload:%p sizeof:%d cpdu:%p\r\n",
         __func__, p, p->next, p->payload, sizeof(struct pbuf), cpdu);
     WDRV_STATS_DEC(rx_alloc_num);
-    WDRV_LOGD("%s rx_alloc_num = %d\r\n",__func__,wdrv_stats_ptr->rx_alloc_num );
+    WDRV_LOGV("%s rx_alloc_num = %d\r\n",__func__,wdrv_stats_ptr->rx_alloc_num );
     wdrv_stats_ptr->rx_total_recv++;
 #if CONFIG_CONTROLLER_RX_DIRECT_PSH    
     p_copy = pbuf_alloc(PBUF_RAW,p->len + sizeof(cpdu_t),PBUF_RAM_RX);
@@ -119,11 +119,11 @@ void wdrv_rxdata_process(struct pbuf *p)
     }
     if(p_copy)
     {
-        WDRV_LOGD("%s, vif%d\r\n",__func__,vif_idx);
+        WDRV_LOGV("%s, vif%d\r\n",__func__,vif_idx);
         ethernetif_input(vif_idx , p_copy);
     }
 #else
-    WDRV_LOGD("------%s, vif%d\r\n",__func__,cpdu->co_hdr.vif_idx);
+    WDRV_LOGV("------%s, vif%d\r\n",__func__,cpdu->co_hdr.vif_idx);
     ethernetif_input(cpdu->co_hdr.vif_idx , p);
 #endif
 }
@@ -143,7 +143,7 @@ uint8_t wdrv_recv_buffer(void *param, uint32_t *payload)
     {
         struct cpdu_t * hdr = PTR_FROM_U32(struct cpdu_t,head);
         temp_next = hdr->next;
-        WDRV_LOGD("%s,chan_id=%d,head=0x%x,tail=0x%x,num=%d,start!\n",__func__,chan_id,head,tail,num);
+        WDRV_LOGV("%s,chan_id=%d,head=0x%x,tail=0x%x,num=%d,start!\n",__func__,chan_id,head,tail,num);
         //stack_mem_dump((uint32_t)head,(uint32_t)head+300);
 
         //__asm_flush_dcache_range(PTR_FROM_U32(void,head)-100,PTR_FROM_U32(void,head)+2048);

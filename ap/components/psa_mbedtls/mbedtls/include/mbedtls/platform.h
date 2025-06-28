@@ -216,7 +216,7 @@ int mbedtls_platform_set_printf(int (*printf_func)(const char *, ...));
 #if defined(MBEDTLS_PLATFORM_PRINTF_MACRO)
 #define mbedtls_printf     MBEDTLS_PLATFORM_PRINTF_MACRO
 #else
-#define mbedtls_printf     printf
+#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #endif /* MBEDTLS_PLATFORM_PRINTF_MACRO */
 #endif /* MBEDTLS_PLATFORM_PRINTF_ALT */
 

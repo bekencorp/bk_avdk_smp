@@ -39,20 +39,20 @@ static void fatfs_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 			}
 		}
 		else
-			os_printf("error file name,use defaultfilename.txt\r\n");
+			BK_LOGD(NULL, "error file name,use defaultfilename.txt\r\n");
 
 		switch (cmd) {
 		case 'M':
 			test_mount(drv_num);
-			os_printf("mount:%s\r\n", disk_name[drv_num%DISK_NUMBER_COUNT]);
+			BK_LOGD(NULL, "mount:%s\r\n", disk_name[drv_num%DISK_NUMBER_COUNT]);
 			break;
 		case 'U':
 			test_unmount(drv_num);
-			os_printf("unmount:%s\r\n", disk_name[drv_num%DISK_NUMBER_COUNT]);
+			BK_LOGD(NULL, "unmount:%s\r\n", disk_name[drv_num%DISK_NUMBER_COUNT]);
 			break;
 		case 'G':
 			test_getfree(drv_num);
-			os_printf("getfree:%s\r\n", disk_name[drv_num%DISK_NUMBER_COUNT]);
+			BK_LOGD(NULL, "getfree:%s\r\n", disk_name[drv_num%DISK_NUMBER_COUNT]);
 			break;
 		case 'R':
 			if (argc >= 5)
@@ -60,11 +60,11 @@ static void fatfs_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 			else
 				content_len = 0x0fffffffffffffff;	//read finish
 			test_fatfs_read(drv_num, file_name, content_len);
-			os_printf("read %s, len_h = %d, len_l = %d\r\n", file_name, (uint32_t)(content_len>>32), (uint32_t)content_len);
+			BK_LOGD(NULL, "read %s, len_h = %d, len_l = %d\r\n", file_name, (uint32_t)(content_len>>32), (uint32_t)content_len);
 			break;
 		case 'W':
 			test_fatfs_append_write(drv_num, file_name, write_content, content_len);
-			os_printf("append and write:%s,%s\r\n", file_name, write_content);
+			BK_LOGD(NULL, "append and write:%s,%s\r\n", file_name, write_content);
 			break;
 		//fatfstest D dev-num file-name start-addr dump-len
 		case 'D':
@@ -88,7 +88,7 @@ static void fatfs_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		{
 			if(argc < 4)
 			{
-				os_printf("Autotest Fatfs argc < 4! Please input correctly\r\n");
+				BK_LOGD(NULL, "Autotest Fatfs argc < 4! Please input correctly\r\n");
 				return;
 			}
 			uint32_t start_addr = 0;
@@ -105,17 +105,17 @@ static void fatfs_operate(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		}
 		case 'F':
 			test_fatfs_format(drv_num);
-			os_printf("format :%d\r\n", drv_num);
+			BK_LOGD(NULL, "format :%d\r\n", drv_num);
 			break;
 		case 'S':
 			scan_file_system(drv_num);
-			os_printf("scan \r\n");
+			BK_LOGD(NULL, "scan \r\n");
 			break;
 		default:
 			break;
 		}
 	} else
-		os_printf("cmd param error\r\n");
+		BK_LOGD(NULL, "cmd param error\r\n");
 }
 
 static beken_thread_t idle_fatfs_out_test_handle = NULL;
@@ -149,28 +149,28 @@ static void fatfs_idle_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 	if (os_strcmp(argv[1], "start") == 0) {
 		if (!idle_fatfs_out_test_handle && s_fatfs_idle_test_stop_flag){
-			CLI_LOGI("fatfs_idle_test START!\n");
+			CLI_LOGD("fatfs_idle_test START!\n");
 			s_fatfs_idle_test_stop_flag = 0;
 			if(rtos_create_thread(&idle_fatfs_out_test_handle, 8, "idle_fatfs_out",
 				(beken_thread_function_t) cli_fatfs_idle_out_test, 2048, 0)) {
-					CLI_LOGI("fatfs_idle_test rtos_create_thread FAILED!\n");
+					CLI_LOGD("fatfs_idle_test rtos_create_thread FAILED!\n");
 					return;
 			}
 		} else
-			CLI_LOGI("fatfs idle test WORKING!\n");
+			CLI_LOGD("fatfs idle test WORKING!\n");
 
 	} else if (os_strcmp(argv[1], "stop") == 0) {
 		if (idle_fatfs_out_test_handle && !s_fatfs_idle_test_stop_flag) {
 			s_fatfs_idle_test_stop_flag = 1;
-			CLI_LOGI("fatfs_idle_test STOP! Please clean FLAG!\n");
+			CLI_LOGD("fatfs_idle_test STOP! Please clean FLAG!\n");
 		} else
-			CLI_LOGI("PLEASE start fatfs idle test!\n");
+			CLI_LOGD("PLEASE start fatfs idle test!\n");
 
 	} else if (os_strcmp(argv[1], "clean") == 0) {
 		if (idle_fatfs_out_test_handle && s_fatfs_idle_test_stop_flag)
 			idle_fatfs_out_test_handle = NULL;
 		else
-			CLI_LOGI("PLEASE start->stop->clean, check thread status!\n");
+			CLI_LOGD("PLEASE start->stop->clean, check thread status!\n");
 	}
 }
 

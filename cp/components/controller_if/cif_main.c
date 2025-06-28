@@ -29,7 +29,7 @@ void cif_print_debug_info()
             CIF_LOGE("cnt:%d,addr:0x%x \n",j,cif_rxbank_ptr->rx_buf_bank[j]);
     }
 
-    CIF_LOGI("cif event short buf cnt:%d,long buf cnt:%d\n",cif_get_event_short_buf_cnt(),cif_get_event_long_buf_cnt());
+    CIF_LOGD("cif event short buf cnt:%d,long buf cnt:%d\n",cif_get_event_short_buf_cnt(),cif_get_event_long_buf_cnt());
 
     CIF_LOGE("\n");
 }
@@ -41,7 +41,7 @@ bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry)
 
     msg.type = type;
     msg.arg = (uint32_t)head;
-    CIF_LOGD("%s,%d,head:0x%x\n",__func__,__LINE__,head);
+    CIF_LOGV("%s,%d,head:0x%x\n",__func__,__LINE__,head);
     msg.retry_flag = retry;
     ret = rtos_push_to_queue(&cif_env.io_queue, &msg, BEKEN_NO_WAIT);
     if (BK_OK != ret) {
@@ -102,14 +102,14 @@ uint8_t cif_dnld_buffer(void *param, void *payload)
     void * tail = node->tail;
     uint8_t num = node->num;
 
-    CIF_LOGD("%s,chan_id=%d,head=0x%x,tail=0x%x,num=%d,start!\n",__func__,chan_id,head,tail,num);
+    CIF_LOGV("%s,chan_id=%d,head=0x%x,tail=0x%x,num=%d,start!\n",__func__,chan_id,head,tail,num);
 
     while(head != NULL)
     {
         struct cpdu_t * hdr = (struct cpdu_t*)head;
         temp_next = (void*)hdr->next;
         
-        CIF_LOGD("%s,head=0x%x,head1=0x%x,head2=0x%x\n",__func__,chan_id,*((uint32_t*)head),*((uint32_t*)head+1),*((uint32_t*)head + 2));
+        CIF_LOGV("%s,head=0x%x,head1=0x%x,head2=0x%x\n",__func__,chan_id,*((uint32_t*)head),*((uint32_t*)head+1),*((uint32_t*)head + 2));
         //cif_rxbank_check();
 
         switch(chan_id)
@@ -146,24 +146,24 @@ bk_err_t cif_rxbuf_push(uint8_t channel,void* head,void* tail,uint8_t num)
     BK_ASSERT(head);
     cif_rxbank_check();
     //stack_mem_dump((uint32_t)buf,(uint32_t)buf+3);
-    CIF_LOGD("%s, channel=%d,head:0x%x,tail:0x%x,num:%d\n",__func__, channel,head,tail,num);
+    CIF_LOGV("%s, channel=%d,head:0x%x,tail:0x%x,num:%d\n",__func__, channel,head,tail,num);
 
 #if 0
     if (!cif_env.host_connected)
     {
-        CIF_LOGI("Host does NOT connected, SKIP rxbuf_push\n");
+        CIF_LOGD("Host does NOT connected, SKIP rxbuf_push\n");
         return false;
     }
 
     if (!cif_env.host_powerup)
     {
-        CIF_LOGI("Host does NOT power up, SKIP rxbuf_push\n");
+        CIF_LOGD("Host does NOT power up, SKIP rxbuf_push\n");
         return false;
     }
 
     if (cif_env.cif_sleeping)
     {
-        CIF_LOGI("SDIO Sleeping, SKIP rxbuf_push\n");
+        CIF_LOGD("SDIO Sleeping, SKIP rxbuf_push\n");
         return false;
     }
     //memset(buf,0,sizeof(struct cpdu_t));
@@ -225,7 +225,7 @@ bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_retry)
     
     if(!need_retry)
     {
-        //os_printf("%s,%d,p:0x%x,ipc_chnl:%d\n",__func__,__LINE__,(struct pbuf*)head-1,ipc_chnl);
+        //BK_LOGD(NULL,"%s,%d,p:0x%x,ipc_chnl:%d\n",__func__,__LINE__,(struct pbuf*)head-1,ipc_chnl);
         //add to tx pending list tail
         CIF_IRQ_DISABLE(int_level);
         co_list_push_back((struct co_list *)&cif_ipc_env[ipc_chnl].rx_list,(struct co_list_hdr *)head);
@@ -249,7 +249,7 @@ bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_retry)
 
     if(first == NULL) goto ERR_EXIT;
 
-    CIF_LOGD("%s,%d,p:0x%x,p:0x%x,num:%d\n",__func__,__LINE__,(struct pbuf*)first-1,(struct pbuf*)last-1,num);
+    CIF_LOGV("%s,%d,p:0x%x,p:0x%x,num:%d\n",__func__,__LINE__,(struct pbuf*)first-1,(struct pbuf*)last-1,num);
 
     ret = cif_rxbuf_push(channel,first,last,num);
     
@@ -269,7 +269,7 @@ void cif_rx_data_complete(void *param, void *ack_buf)
 {
     cif_ipc_env[IPC_DATA].sending_flag = 0;
     cif_stats_ptr->ipc_txc_cnt++;
-    //os_printf("%s,%d\n",__func__,__LINE__);
+    //BK_LOGD(NULL,"%s,%d\n",__func__,__LINE__);
     if(cif_ipc_env[IPC_DATA].rx_list.first != NULL)
     {
         cif_msg_sender(NULL,CIF_TASK_MSG_RX_DATA,1);
@@ -279,7 +279,7 @@ void cif_rx_evt_complete(void *param, void *ack_buf)
 {
     cif_ipc_env[IPC_CMD].sending_flag = 0;
     
-    //os_printf("%s,%d\n",__func__,__LINE__);
+    //BK_LOGD(NULL,"%s,%d\n",__func__,__LINE__);
     if(cif_ipc_env[IPC_CMD].rx_list.first != NULL)
     {
         cif_msg_sender(NULL,CIF_TASK_MSG_EVT,1);
@@ -350,7 +350,7 @@ bk_err_t cif_init()
         goto cif_init_failed;
     }
 
-    CIF_LOGI("cif_init\n");
+    CIF_LOGD("cif_init\n");
     cif_env.cif_sleeping = false;
     cif_env.host_powerup = false;
     cif_env.no_host = true;

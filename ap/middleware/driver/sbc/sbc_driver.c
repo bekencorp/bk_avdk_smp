@@ -295,7 +295,7 @@ bk_err_t bk_sbc_decoder_frame_decode(sbcdecodercontext_t *sbc, const uint8_t *da
 		    *dst++ = *src++;
 		}
 	}
-//	os_printf("consumed = %d\r\n", consumed);
+//	BK_LOGD(NULL, "consumed = %d\r\n", consumed);
 
 	return consumed;
 
@@ -744,7 +744,8 @@ uint32_t bk_sbc_decoder_get_decode_enable_value(void)
 bk_err_t bk_sbc_decoder_get_pcm_data(void)
 {
 	return sbc_decoder_hal_get_pcm_data();
-}
+
+}
 
 bk_err_t bk_sbc_decoder_register_sbc_isr(sbc_decoder_isr_t isr, void *param)
 {

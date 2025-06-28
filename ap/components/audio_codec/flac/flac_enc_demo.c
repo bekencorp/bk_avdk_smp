@@ -40,7 +40,7 @@ static flac_enc_setup_t *enc_setup;
 
 static void cli_aud_flac_help(void)
 {
-	os_printf("aud_flac_encoder_test {xxx.flac xxx.wav} \r\n");
+	BK_LOGD(NULL, "aud_flac_encoder_test {xxx.flac xxx.wav} \r\n");
 }
 
 static void enc_metadata_cb(void * data)
@@ -48,10 +48,10 @@ static void enc_metadata_cb(void * data)
 #if 0
 	FIL *enc_data = (FIL *)data;
 
-	LOGI("sample rate	 : %u Hz\n", enc_data->meta_info->sample_rate);
-	LOGI("channels		 : %u\n", enc_data->meta_info->channels);
-	LOGI("bits per sample: %u\n", enc_data->meta_info->bps);
-	LOGI("total samples  : %ds\n", enc_data->meta_info->total_samples);
+	LOGD("sample rate	 : %u Hz\n", enc_data->meta_info->sample_rate);
+	LOGD("channels		 : %u\n", enc_data->meta_info->channels);
+	LOGD("bits per sample: %u\n", enc_data->meta_info->bps);
+	LOGD("total samples  : %ds\n", enc_data->meta_info->total_samples);
 #endif
 }
 
@@ -67,7 +67,7 @@ static unsigned int enc_write_cb(unsigned char *buffer, long unsigned int bytes,
 
 bk_err_t aud_dec_wav_header(uint8_t      *head_buf, uint8_t size, flac_enc_meta_info_t *meta_info)
 {
-	os_printf("%s: decoder wav header \r\n", __func__);
+	BK_LOGD(NULL, "%s: decoder wav header \r\n", __func__);
 
 	if (size != 44)
 		return BK_FAIL;
@@ -77,7 +77,7 @@ bk_err_t aud_dec_wav_header(uint8_t      *head_buf, uint8_t size, flac_enc_meta_
 		os_memcmp(head_buf+8, "WAVEfmt \020\000\000\000\001\000\002\000", 16) ||
 		os_memcmp(head_buf+32, "\004\000\020\000data", 8)
 	) {
-		os_printf("ERROR: invalid/unsupported WAVE file, only 16bps stereo WAVE in canonical form allowed \n");
+		BK_LOGD(NULL, "ERROR: invalid/unsupported WAVE file, only 16bps stereo WAVE in canonical form allowed \n");
 		return BK_FAIL;
 	}
 	meta_info->sample_rate = ((((((unsigned)head_buf[27] << 8) | head_buf[26]) << 8) | head_buf[25]) << 8) | head_buf[24];
@@ -106,32 +106,32 @@ void cli_aud_flac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
 
 	enc_setup = os_malloc(sizeof(flac_enc_setup_t));
 	if (enc_setup == NULL) {
-		os_printf("malloc enc_setup fail \r\n");
+		BK_LOGD(NULL, "malloc enc_setup fail \r\n");
 		return;
 	}
 
 	enc_setup->meta_info = os_malloc(sizeof(flac_enc_meta_info_t));
 	if (enc_setup->meta_info == NULL) {
-		os_printf("malloc enc_setup->meta_info fail \r\n");
+		BK_LOGD(NULL, "malloc enc_setup->meta_info fail \r\n");
 		return;
 	}
 
 	file_out = os_malloc(sizeof(FIL));
 	if (file_out == NULL) {
-		os_printf("malloc file out fail \r\n");
+		BK_LOGD(NULL, "malloc file out fail \r\n");
 		return;
 	}
 
 	sprintf(in_file_name, "1:/%s", argv[1]);
 	fr = f_open(&file_in, in_file_name, FA_OPEN_EXISTING | FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", in_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", in_file_name);
 		return;
 	}
 	sprintf(out_file_name, "1:/%s", argv[2]);
 	fr = f_open(file_out, out_file_name, FA_CREATE_ALWAYS | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", out_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", out_file_name);
 		return;
 	}
 
@@ -144,25 +144,25 @@ void cli_aud_flac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
 	aud_dec_wav_header(head_buf, 44, enc_setup->meta_info);
 	os_free(head_buf);
 
-	os_printf("enc_setup->meta_info->total_samples:%d \r\n", enc_setup->meta_info->total_samples);
-	os_printf("enc_setup->meta_info->sample_rate:%d \r\n", enc_setup->meta_info->sample_rate);
-	os_printf("enc_setup->meta_info->channels:%d \r\n", enc_setup->meta_info->channels);
-	os_printf("enc_setup->meta_info->bps:%d \r\n", enc_setup->meta_info->bps);
+	BK_LOGD(NULL, "enc_setup->meta_info->total_samples:%d \r\n", enc_setup->meta_info->total_samples);
+	BK_LOGD(NULL, "enc_setup->meta_info->sample_rate:%d \r\n", enc_setup->meta_info->sample_rate);
+	BK_LOGD(NULL, "enc_setup->meta_info->channels:%d \r\n", enc_setup->meta_info->channels);
+	BK_LOGD(NULL, "enc_setup->meta_info->bps:%d \r\n", enc_setup->meta_info->bps);
 
 	/* init flac decoder */
 	ret = bk_aud_flac_enc_init(enc_setup);
 	if (ret != BK_OK) {
-		os_printf("init flac encoder fail \r\n");
+		BK_LOGD(NULL, "init flac encoder fail \r\n");
 		return;
 	}
 
 	size_t left = (size_t)enc_setup->meta_info->total_samples;
-	os_printf("left:%d \r\n", left);
+	BK_LOGD(NULL, "left:%d \r\n", left);
 	while(left) {
 		size_t need = (left > READSIZE? (size_t)READSIZE : (size_t)left);
 		f_read(&file_in, buffer, enc_setup->meta_info->channels*(enc_setup->meta_info->bps/8) * need, &uiTemp);
 		if(uiTemp != enc_setup->meta_info->channels*(enc_setup->meta_info->bps/8) * need) {
-			os_printf("ERROR: reading from WAVE file \n");
+			BK_LOGD(NULL, "ERROR: reading from WAVE file \n");
 			break;
 		}
 		else {
@@ -176,23 +176,23 @@ void cli_aud_flac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
 			//flac_ret = FLAC__stream_encoder_process_interleaved(encoder, (FLAC__int32 *)buffer, need);
 			ret = bk_aud_flac_enc_process((int32_t *)pcm, need);
 			if (ret != BK_OK) {
-				os_printf("encoder ok, left:%d \r\n", left);
+				BK_LOGD(NULL, "encoder ok, left:%d \r\n", left);
 				break;
 			}
 		}
 		left -= need;
 	}
 
-	os_printf("break while \r\n");
+	BK_LOGD(NULL, "break while \r\n");
 	fr = f_close(file_out);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", out_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", out_file_name);
 		return;
 	}
 
 	fr = f_close(&file_in);
 	if (fr != FR_OK) {
-		os_printf("close out file %s fail!\r\n", in_file_name);
+		BK_LOGD(NULL, "close out file %s fail!\r\n", in_file_name);
 		return;
 	}
 
@@ -206,7 +206,7 @@ void cli_aud_flac_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
 	os_free(file_out);
 	os_free(enc_setup);
 
-	os_printf("test finish \r\n");
+	BK_LOGD(NULL, "test finish \r\n");
 }
 
 #define AUD_FLAC_ENC_CMD_CNT (sizeof(s_aud_flac_enc_commands) / sizeof(struct cli_command))

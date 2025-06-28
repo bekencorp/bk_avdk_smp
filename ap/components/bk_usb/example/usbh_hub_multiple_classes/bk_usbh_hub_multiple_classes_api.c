@@ -237,7 +237,7 @@ bk_err_t bk_usbh_hub_multiple_devices_power_down(E_USB_MODE mode, E_USB_HUB_PORT
 	if(usb_hub_class_dev->usbh_hub_power_flag) {
 		port_i = USB_HUB_PORT_1;
 		while(!(port_i > CONFIG_USBHOST_HUB_MAX_EHPORTS)){
-			USB_HUB_MD_LOGD("%s usbh_hub_class_device_vote_power_flag[%d]:%d\r\n", __func__, port_i, usb_hub_class_dev->usbh_hub_class_device_vote_power_flag[port_i]);
+			USB_HUB_MD_LOGV("%s usbh_hub_class_device_vote_power_flag[%d]:%d\r\n", __func__, port_i, usb_hub_class_dev->usbh_hub_class_device_vote_power_flag[port_i]);
 			if(usb_hub_class_dev->usbh_hub_class_device_vote_power_flag[port_i]){
 				need_power_down_flag = 0;
 				break;
@@ -246,7 +246,7 @@ bk_err_t bk_usbh_hub_multiple_devices_power_down(E_USB_MODE mode, E_USB_HUB_PORT
 			}
 			port_i++;
 		}
-		USB_HUB_MD_LOGD("%s need_power_down_flag:%d\r\n", __func__, need_power_down_flag);
+		USB_HUB_MD_LOGV("%s need_power_down_flag:%d\r\n", __func__, need_power_down_flag);
 		if(need_power_down_flag) {
 			ret = bk_usb_close();
 			if(ret == BK_OK) {
@@ -423,7 +423,7 @@ static void bk_usbh_hub_uac_parse_param(struct usbh_hubport *hport, uint8_t inte
 
 static uint32_t bk_usbh_hub_uvc_parse_param(struct usbh_hubport *hport, uint8_t interface_num, void *video_class)
 {
-	USB_HUB_MD_LOGD("[+]%s\r\n", __func__);
+	USB_HUB_MD_LOGV("[+]%s\r\n", __func__);
 
 	bk_usbh_hub_class_dev_info *usb_hub_class_dev = &s_usb_hub_class_dev;
 	bk_usb_hub_port_info *usbh_hub_port_info = NULL;
@@ -502,7 +502,7 @@ static uint32_t bk_usbh_hub_uvc_parse_param(struct usbh_hubport *hport, uint8_t 
 	uvc_device_info->device_bcd   = hport->device_desc.bcdDevice;
 	uvc_device_info->support_devs = 0;
 
-	USB_HUB_MD_LOGD("[=]%s begin format\r\n", __func__);
+	USB_HUB_MD_LOGV("[=]%s begin format\r\n", __func__);
 	for(int index = 0; index < 3; index++)
 	{
 		switch(uvc_device->format[index].format_type)
@@ -541,14 +541,14 @@ static uint32_t bk_usbh_hub_uvc_parse_param(struct usbh_hubport *hport, uint8_t 
 	usbh_hub_port_info->usb_device_param_config = (void *)uvc_device_config;
 
 	usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] |= (0x1 << device_index);
-	USB_HUB_MD_LOGD("[-]%s\r\n", __func__);
+	USB_HUB_MD_LOGV("[-]%s\r\n", __func__);
 	return device_index;
 }
 
 #if (CONFIG_USB_CDC)
 static void bk_usbh_hub_cdc_parse_param(struct usbh_hubport *hport, uint8_t interface_num, void *cdc_class)
 {
-	USB_HUB_MD_LOGI("[+]%s, %d\r\n", __func__, hport->port);
+	USB_HUB_MD_LOGD("[+]%s, %d\r\n", __func__, hport->port);
 	bk_usbh_hub_class_dev_info *usb_hub_class_dev = &s_usb_hub_class_dev;
 	bk_usb_hub_port_info *usbh_hub_port_info = NULL; __maybe_unused_var(usbh_hub_port_info);
 	struct usbh_cdc_acm *cdc_device = (struct usbh_cdc_acm *)cdc_class; __maybe_unused_var(cdc_device);
@@ -564,7 +564,7 @@ static void bk_usbh_hub_cdc_parse_param(struct usbh_hubport *hport, uint8_t inte
 	usbh_hub_port_info->usb_device_param		= NULL;
 	usbh_hub_port_info->usb_device_param_config = NULL;
 	usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] |= (0x1 << USB_CDC_DEVICE);
-	USB_HUB_MD_LOGD("[-]%s, %d %x\r\n", __func__, hport->port, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
+	USB_HUB_MD_LOGV("[-]%s, %d %x\r\n", __func__, hport->port, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
 }
 #endif
 
@@ -584,7 +584,7 @@ void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t 
 			}
 
 			usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_UAC_MIC_DEVICE];
-			USB_HUB_MD_LOGI("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
+			USB_HUB_MD_LOGD("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
 			if((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << USB_UAC_MIC_DEVICE))
 				&& usb_hub_class_dev->usbh_hub_connect_cb[hport->port][USB_UAC_MIC_DEVICE])
 			{
@@ -609,7 +609,7 @@ void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t 
 				if(usb_device) {
 					device_index = bk_usbh_hub_uvc_parse_param(hport, intf, usb_device);
 				}
-				USB_HUB_MD_LOGI("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
+				USB_HUB_MD_LOGD("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
 
 				usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][device_index];
 
@@ -617,7 +617,7 @@ void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t 
 					&& usb_hub_class_dev->usbh_hub_connect_cb[hport->port][device_index])
 				{
 					connect_cb_arg = usb_hub_class_dev->usbh_hub_connect_cb_arg[hport->port][device_index];
-					USB_HUB_MD_LOGD("%s port_dev_info:0x%x port_index:%d dev_index:%d\r\n", __func__, usbh_hub_port_info, hport->port, device_index);
+					USB_HUB_MD_LOGV("%s port_dev_info:0x%x port_index:%d dev_index:%d\r\n", __func__, usbh_hub_port_info, hport->port, device_index);
 					usb_hub_class_dev->usbh_hub_connect_cb[hport->port][device_index](usbh_hub_port_info, connect_cb_arg);
 				}
 			}
@@ -632,7 +632,7 @@ void bk_usbh_hub_class_connect_notification(struct usbh_hubport *hport, uint8_t 
 					bk_usbh_hub_cdc_parse_param(hport, intf, usb_device);
 				}
 				usbh_hub_port_info = &usb_hub_class_dev->usbh_hub_port_info[hport->port][USB_CDC_DEVICE];
-				USB_HUB_MD_LOGI("%s, %s, connect_device_flag : 0x%x\r\n", __func__, hport->config.intf[intf].devname, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
+				USB_HUB_MD_LOGD("%s, %s, connect_device_flag : 0x%x\r\n", __func__, hport->config.intf[intf].devname, usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port]);
 				if ((usb_hub_class_dev->usbh_hub_connect_class_device_flag[hport->port] & (0x1 << USB_CDC_DEVICE))
 					&& usb_hub_class_dev->usbh_hub_connect_cb[hport->port][USB_CDC_DEVICE])
 				{
@@ -662,7 +662,7 @@ void bk_usbh_hub_class_disconnect_notification(struct usbh_hubport *hport, uint8
 	void *disconnect_cb_arg = NULL;
 	void *usb_device_param = NULL;
 	void *usb_device_param_config = NULL;
-	USB_HUB_MD_LOGI("%s intf:0x%x class:0x%x\r\n", __func__, intf, class);
+	USB_HUB_MD_LOGD("%s intf:0x%x class:0x%x\r\n", __func__, intf, class);
 	switch (class)
 	{
 #if CONFIG_USBH_UAC
@@ -786,14 +786,14 @@ bk_err_t bk_usbh_hub_port_check_device(E_USB_HUB_PORT_INDEX port_index, E_USB_DE
 
 	bk_usbh_hub_class_dev_info *usb_hub_class_dev = &s_usb_hub_class_dev;
 
-	USB_HUB_MD_LOGD("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[port_index]);
+	USB_HUB_MD_LOGV("%s connect_device_flag:0x%x\r\n", __func__, usb_hub_class_dev->usbh_hub_connect_class_device_flag[port_index]);
 	if(usb_hub_class_dev->usbh_hub_connect_class_device_flag[port_index] & (0x1 << device_index)) {
 
 		*port_dev_info = (bk_usb_hub_port_info *)&usb_hub_class_dev->usbh_hub_port_info[port_index][device_index];
-		USB_HUB_MD_LOGD("%s port_dev_info:0x%x port_index:%d dev_index:%d\r\n", __func__, port_dev_info, port_index, device_index);
+		USB_HUB_MD_LOGV("%s port_dev_info:0x%x port_index:%d dev_index:%d\r\n", __func__, port_dev_info, port_index, device_index);
 		return BK_OK;
 	} else {
-		USB_HUB_MD_LOGD("%s NULL port_index:%d dev_index:%d\r\n", __func__, port_index, device_index);
+		USB_HUB_MD_LOGV("%s NULL port_index:%d dev_index:%d\r\n", __func__, port_index, device_index);
 		return BK_ERR_USB_OPERATION_NULL_POINTER;
 	}
 
@@ -986,7 +986,7 @@ bk_err_t bk_usbh_hub_port_dev_close(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVIC
 bk_err_t bk_usbh_hub_dev_request_data(E_USB_HUB_PORT_INDEX port_index, E_USB_DEVICE_T device_index, struct usbh_urb *urb)
 {
 	uint32_t ret = BK_OK;
-	USB_HUB_MD_LOGD("[+]%s\r\n", __func__);
+	USB_HUB_MD_LOGV("[+]%s\r\n", __func__);
 
 	if(port_index > CONFIG_USBHOST_HUB_MAX_EHPORTS) {
 		USB_HUB_MD_LOGE("%s PORT_INDEX IS ERROR\r\n", __func__);
@@ -1027,7 +1027,7 @@ bk_err_t bk_usbh_hub_dev_request_data(E_USB_HUB_PORT_INDEX port_index, E_USB_DEV
 				break;
 		}
 	}
-	USB_HUB_MD_LOGD("[-]%s\r\n", __func__);
+	USB_HUB_MD_LOGV("[-]%s\r\n", __func__);
 
 	return ret;
 }

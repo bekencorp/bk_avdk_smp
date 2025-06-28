@@ -41,7 +41,7 @@ void thread_0( beken_thread_arg_t arg )
 {
     (void)( arg );
 
-    os_printf( "This is thread 0\r\n");
+    BK_LOGD(NULL, "This is thread 0\r\n");
     rtos_delay_milliseconds(1000 );
 
     /* Make with terminate state and IDLE thread will clean resources */
@@ -65,7 +65,7 @@ void thread_1( beken_thread_arg_t arg )
                                   0);
         if(err != kNoErr)
         {
-            os_printf("ERROR: Unable to start the thread 1.\r\n" );
+            BK_LOGD(NULL,"ERROR: Unable to start the thread 1.\r\n" );
         }
         /* wait thread 0 delete it's self */
         rtos_thread_join( &t_handler );
@@ -78,7 +78,7 @@ void thread_2( beken_thread_arg_t arg )
 
     while ( 1 )
     {
-        os_printf( "This is thread 2\r\n" );
+        BK_LOGD(NULL, "This is thread 2\r\n" );
         rtos_delay_milliseconds(600);
     }
 }
@@ -91,7 +91,7 @@ int demo_start( void )
     bk_err_t err = kNoErr;
     beken_thread_t t_handler1 = NULL, t_handler2 = NULL;
 
-    os_printf("\r\n\r\noperating system thread demo............\r\n" );
+    BK_LOGD(NULL,"\r\n\r\noperating system thread demo............\r\n" );
 
     err = rtos_create_thread( &t_handler1, BEKEN_APPLICATION_PRIORITY,
                               "Thread 1",
@@ -100,7 +100,7 @@ int demo_start( void )
                               0);
     if(err != kNoErr)
     {
-        os_printf("ERROR: Unable to start the thread 1.\r\n" );
+        BK_LOGD(NULL,"ERROR: Unable to start the thread 1.\r\n" );
         goto exit;
     }
 
@@ -111,14 +111,14 @@ int demo_start( void )
                               0);
     if(err != kNoErr)
     {
-        os_printf("ERROR: Unable to start the thread 2.\r\n" );
+        BK_LOGD(NULL,"ERROR: Unable to start the thread 2.\r\n" );
         goto exit;
     }
 
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "Thread exit with err: %d", err );
+        BK_LOGD(NULL, "Thread exit with err: %d", err );
 
         if(t_handler1 != NULL)
         {

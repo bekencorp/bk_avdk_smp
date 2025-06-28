@@ -24,23 +24,23 @@
 
 static void cli_spi_help(void)
 {
-	CLI_LOGI("spi_driver {init|deinit}\r\n");
-	CLI_LOGI("spi {id} {init} [mode] [bit_width] [bit_width] [cpol] [cpha] [wire_mode] [baud_rate] [bit_order]\r\n");
-	CLI_LOGI("spi {id} {deinit} \r\n");
-	CLI_LOGI("spi {id} {write} [buf_len]\r\n");
-	CLI_LOGI("spi_data_test {id} {master|slave} {baud_rate} {start|stop} {uart2|uart3} {exchange}\r\n");
-	CLI_LOGI("spi_data_test {id} {master|slave} {send} {buf_len}\r\n");
-	CLI_LOGI("spi_flash {id} {readid|erase|read|write} {addr} {len}\r\n");
+	CLI_LOGD("spi_driver {init|deinit}\r\n");
+	CLI_LOGD("spi {id} {init} [mode] [bit_width] [bit_width] [cpol] [cpha] [wire_mode] [baud_rate] [bit_order]\r\n");
+	CLI_LOGD("spi {id} {deinit} \r\n");
+	CLI_LOGD("spi {id} {write} [buf_len]\r\n");
+	CLI_LOGD("spi_data_test {id} {master|slave} {baud_rate} {start|stop} {uart2|uart3} {exchange}\r\n");
+	CLI_LOGD("spi_data_test {id} {master|slave} {send} {buf_len}\r\n");
+	CLI_LOGD("spi_flash {id} {readid|erase|read|write} {addr} {len}\r\n");
 }
 
 static void cli_spi_rx_isr(spi_id_t id, void *param)
 {
-	CLI_LOGI("spi_rx_isr(%d)\n", id);
+	CLI_LOGD("spi_rx_isr(%d)\n", id);
 }
 
 static void cli_spi_tx_isr(spi_id_t id, void *param)
 {
-	CLI_LOGI("spi_tx_isr(%d)\n", id);
+	CLI_LOGD("spi_tx_isr(%d)\n", id);
 }
 
 static void cli_spi_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -52,10 +52,10 @@ static void cli_spi_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_spi_driver_init());
-		CLI_LOGI("spi driver init\n");
+		CLI_LOGD("spi driver init\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_spi_driver_deinit());
-		CLI_LOGI("spi driver deinit\n");
+		CLI_LOGD("spi driver deinit\n");
 	} else {
 		cli_spi_help();
 		return;
@@ -109,10 +109,10 @@ static void cli_spi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		}
 #endif
 		BK_LOG_ON_ERR(bk_spi_init(spi_id, &config));
-		CLI_LOGI("spi init, spi_id=%d\n", spi_id);
+		CLI_LOGD("spi init, spi_id=%d\n", spi_id);
 	} else if (os_strcmp(argv[2], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_spi_deinit(spi_id));
-		CLI_LOGI("spi deinit, spi_id=%d\n", spi_id);
+		CLI_LOGD("spi deinit, spi_id=%d\n", spi_id);
 	} else if (os_strcmp(argv[2], "write") == 0) {
 		uint32_t buf_len = os_strtoul(argv[3], NULL, 10);
 		uint8_t *send_data = (uint8_t *)os_zalloc(buf_len);
@@ -128,7 +128,7 @@ static void cli_spi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			os_free(send_data);
 		}
 		send_data = NULL;
-		CLI_LOGI("spi write bytes, spi_id=%d, data_len=%d\n", spi_id, buf_len);
+		CLI_LOGD("spi write bytes, spi_id=%d, data_len=%d\n", spi_id, buf_len);
 	} else if (os_strcmp(argv[2], "read") == 0) {
 		uint32_t buf_len = os_strtoul(argv[3], NULL, 10);
 		uint8_t *recv_data = (uint8_t *)os_malloc(buf_len);
@@ -138,9 +138,9 @@ static void cli_spi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		}
 		os_memset(recv_data, 0xff, buf_len);
 		BK_LOG_ON_ERR(bk_spi_read_bytes(spi_id, recv_data, buf_len));
-		CLI_LOGI("spi read, spi_id=%d, size:%d\n", spi_id, buf_len);
+		CLI_LOGD("spi read, spi_id=%d, size:%d\n", spi_id, buf_len);
 		for (int i = 0; i < buf_len; i++) {
-			CLI_LOGI("recv_buffer[%d]=0x%x\n", i, recv_data[i]);
+			CLI_LOGD("recv_buffer[%d]=0x%x\n", i, recv_data[i]);
 		}
 		if (recv_data) {
 			os_free(recv_data);
@@ -170,7 +170,7 @@ static void cli_spi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			goto transmit_exit;
 		}
 		for (int i = 0; i < recv_len; i++) {
-			CLI_LOGI("recv_buffer[%d]=0x%x\r\n", i, recv_data[i]);
+			CLI_LOGD("recv_buffer[%d]=0x%x\r\n", i, recv_data[i]);
 		}
 transmit_exit:
 		if (send_data) {
@@ -199,7 +199,7 @@ transmit_exit:
 			os_free(send_data);
 		}
 		send_data = NULL;
-		CLI_LOGI("spi dma send, spi_id=%d, data_len=%d\n", spi_id, buf_len);
+		CLI_LOGD("spi dma send, spi_id=%d, data_len=%d\n", spi_id, buf_len);
 	} else if (os_strcmp(argv[2], "dma_read") == 0) {
 		uint32_t buf_len = os_strtoul(argv[3], NULL, 10);
 		uint8_t *recv_data = (uint8_t *)os_malloc(buf_len);
@@ -209,9 +209,9 @@ transmit_exit:
 		}
 		os_memset(recv_data, 0xff, buf_len);
 		BK_LOG_ON_ERR(bk_spi_dma_read_bytes(spi_id, recv_data, buf_len));
-		CLI_LOGI("spi dma recv, spi_id=%d, data_len=%d\n", spi_id, buf_len);
+		CLI_LOGD("spi dma recv, spi_id=%d, data_len=%d\n", spi_id, buf_len);
 		for (int i = 0; i < buf_len; i++) {
-			CLI_LOGI("recv_buffer[%d]=0x%x\n", i, recv_data[i]);
+			CLI_LOGD("recv_buffer[%d]=0x%x\n", i, recv_data[i]);
 		}
 		if (recv_data) {
 			os_free(recv_data);
@@ -228,7 +228,7 @@ transmit_exit:
 		bk_spi_dma_duplex_init(spi_id);
 		BK_LOG_ON_ERR(bk_spi_dma_duplex_xfer(spi_id, send_data, buf_len, recv_data, buf_len));
 		for (int i = 0; i < buf_len; i++) {
-			CLI_LOGI("recv_buffer[%d]=0x%x\n", i, recv_data[i]);
+			CLI_LOGD("recv_buffer[%d]=0x%x\n", i, recv_data[i]);
 		}
 		bk_spi_dma_duplex_deinit(spi_id);
 	}
@@ -254,12 +254,12 @@ static void cli_spi_config_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		CLI_RET_ON_INVALID_ARGC(argc, 4);
 		uint32_t baud_rate = os_strtoul(argv[3], NULL, 10);
 		BK_LOG_ON_ERR(bk_spi_set_baud_rate(spi_id, baud_rate));
-		CLI_LOGI("spi(%d) config baud_rate:%d\n", spi_id, baud_rate);
+		CLI_LOGD("spi(%d) config baud_rate:%d\n", spi_id, baud_rate);
 	} else if (os_strcmp(argv[2], "mode") == 0) {
 		CLI_RET_ON_INVALID_ARGC(argc, 4);
 		uint32_t mode = os_strtoul(argv[3], NULL, 10);
 		BK_LOG_ON_ERR(bk_spi_set_mode(spi_id, mode));
-		CLI_LOGI("spi(%d) config mode:%d\n", spi_id, mode);
+		CLI_LOGD("spi(%d) config mode:%d\n", spi_id, mode);
 	} else if (os_strcmp(argv[2], "bit_width") == 0) {
 		CLI_RET_ON_INVALID_ARGC(argc, 4);
 		uint32_t bit_width = os_strtoul(argv[3], NULL, 10);
@@ -269,7 +269,7 @@ static void cli_spi_config_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 			bit_width = 8;
 			BK_LOG_ON_ERR(bk_spi_set_bit_width(spi_id, SPI_BIT_WIDTH_8BITS));
 		}
-		CLI_LOGI("spi(%d) config bit_width:%d\n", spi_id, bit_width);
+		CLI_LOGD("spi(%d) config bit_width:%d\n", spi_id, bit_width);
 	} else if (os_strcmp(argv[2], "wire_mode") == 0) {
 		CLI_RET_ON_INVALID_ARGC(argc, 4);
 		uint32_t wire_mode = os_strtoul(argv[3], NULL, 10);
@@ -278,7 +278,7 @@ static void cli_spi_config_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		} else {
 			BK_LOG_ON_ERR(bk_spi_set_wire_mode(spi_id, SPI_4WIRE_MODE));
 		}
-		CLI_LOGI("spi(%d) config wire_mode:%d\n", spi_id, wire_mode);
+		CLI_LOGD("spi(%d) config wire_mode:%d\n", spi_id, wire_mode);
 	} else if (os_strcmp(argv[2], "bit_order") == 0) {
 		CLI_RET_ON_INVALID_ARGC(argc, 4);
 		if (os_strcmp(argv[3], "LSB") == 0) {
@@ -286,7 +286,7 @@ static void cli_spi_config_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		} else {
 			BK_LOG_ON_ERR(bk_spi_set_bit_order(spi_id, SPI_MSB_FIRST));
 		}
-		CLI_LOGI("spi(%d) config bit_order:%s\n", spi_id, argv[3]);
+		CLI_LOGD("spi(%d) config bit_order:%s\n", spi_id, argv[3]);
 	} else {
 		cli_spi_help();
 		return;
@@ -306,10 +306,10 @@ static void cli_spi_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	if (os_strcmp(argv[2], "reg") == 0) {
 		if (os_strcmp(argv[3], "tx") == 0) {
 			BK_LOG_ON_ERR(bk_spi_register_tx_finish_isr(spi_id, cli_spi_tx_isr, NULL));
-			CLI_LOGI("spi id:%d register tx finish interrupt isr\n", spi_id);
+			CLI_LOGD("spi id:%d register tx finish interrupt isr\n", spi_id);
 		} else {
 			BK_LOG_ON_ERR(bk_spi_register_rx_isr(spi_id, cli_spi_rx_isr, NULL));
-			CLI_LOGI("spi id:%d register rx interrupt isr\n", spi_id);
+			CLI_LOGD("spi id:%d register rx interrupt isr\n", spi_id);
 		}
 	} else {
 		cli_spi_help();
@@ -374,7 +374,7 @@ static uint32_t spi_data_test_send(spi_id_t id, uint32_t buf_len)
 	}
 
 	BK_LOG_ON_ERR(bk_spi_write_bytes(id, s_spi_test.data, buf_len));
-	CLI_LOGI("spi MASTER write bytes, spi_id=%d, data_len=%d\n", id, buf_len);
+	CLI_LOGD("spi MASTER write bytes, spi_id=%d, data_len=%d\n", id, buf_len);
 
 	return BK_OK;
 }
@@ -385,7 +385,7 @@ static void spi_data_test_tx_finish_isr(uart_id_t id, void *param)
 
 	ret = rtos_set_semaphore(&s_spi_test.spi_tx_finish_semaphore);
 	if(kNoErr !=ret)
-		CLI_LOGI("spi_data_test_Tx_isr: spi set sema failed\r\n");
+		CLI_LOGD("spi_data_test_Tx_isr: spi set sema failed\r\n");
 
 	return;
 }
@@ -455,17 +455,17 @@ static void cli_spi_data_txrx_test(uint32_t data)
 	{
 		ret = rtos_init_semaphore(&s_spi_test.uart_rx_semaphore, 1);
 		if (kNoErr != ret)
-			CLI_LOGI("s_spi_test.uart_rx_semaphore failed\r\n");
+			CLI_LOGD("s_spi_test.uart_rx_semaphore failed\r\n");
 	}
 
 	if(NULL == s_spi_test.spi_tx_finish_semaphore)
 	{
 		ret = rtos_init_semaphore(&s_spi_test.spi_tx_finish_semaphore, 1);
 		if (kNoErr != ret)
-			CLI_LOGI("s_spi_test.spi_tx_finish_semaphore failed\r\n");
+			CLI_LOGD("s_spi_test.spi_tx_finish_semaphore failed\r\n");
 	}
 
-	CLI_LOGI("cli_spi_data_txrx_test\r\n");
+	CLI_LOGD("cli_spi_data_txrx_test\r\n");
 
 	while (1) {
 
@@ -476,9 +476,9 @@ static void cli_spi_data_txrx_test(uint32_t data)
 				rtos_delay_milliseconds(10);
 				BK_LOG_ON_ERR(bk_uart_write_bytes(s_spi_test.uart_id, s_spi_test.data, s_spi_test.data_len));
 				for(int j = 0; j < s_spi_test.data_len; j++) {
-					CLI_LOGI("s_spi_test.data[%d]: %d\r\n", j, s_spi_test.data[j]);
+					CLI_LOGD("s_spi_test.data[%d]: %d\r\n", j, s_spi_test.data[j]);
 				}
-				CLI_LOGI("spi Tx finish! UART send OK!\r\n");
+				CLI_LOGD("spi Tx finish! UART send OK!\r\n");
 
 				if (s_spi_test.data) {
 					os_free(s_spi_test.data);
@@ -486,7 +486,7 @@ static void cli_spi_data_txrx_test(uint32_t data)
 
 				if(s_spi_test.exchange_flag) {
 					spi_data_test_exchange_role();
-					CLI_LOGI("spi EXCHANGE ROLE! MASTER ==> SLAVE\r\n");
+					CLI_LOGD("spi EXCHANGE ROLE! MASTER ==> SLAVE\r\n");
 				}
 			}
 		} else {
@@ -511,10 +511,10 @@ static void cli_spi_data_txrx_test(uint32_t data)
 					s_spi_test.data_len = cnt;
 					for(int i = 0; i < cnt; i++) {
 						if(s_spi_test.spi_get_buffer[i] != s_spi_test.uart_get_data[i])
-							CLI_LOGI("ERROR spi_get_buffer[%d]: %d uart_get_data[%d]: %d\r\n",
+							CLI_LOGD("ERROR spi_get_buffer[%d]: %d uart_get_data[%d]: %d\r\n",
 									 i, s_spi_test.spi_get_buffer[i], i, s_spi_test.uart_get_data[i]);
 						else
-							CLI_LOGI("OK !!!spi get data == uart get data\r\n");
+							CLI_LOGD("OK !!!spi get data == uart get data\r\n");
 
 						s_spi_test.spi_get_buffer[i] = 0;
 						s_spi_test.uart_get_data[i] = 0;
@@ -524,10 +524,10 @@ static void cli_spi_data_txrx_test(uint32_t data)
 
 				if(s_spi_test.exchange_flag) {
 					spi_data_test_exchange_role();
-					CLI_LOGI("spi EXCHANGE ROLE! SLAVE ==> MASTER\r\n");
+					CLI_LOGD("spi EXCHANGE ROLE! SLAVE ==> MASTER\r\n");
 				}
 			}else {
-				CLI_LOGI("BEKEN_WAIT_FOREVER for spi read\r\n");
+				CLI_LOGD("BEKEN_WAIT_FOREVER for spi read\r\n");
 				BK_LOG_ON_ERR(bk_spi_read_bytes(s_spi_test.spi_id, s_spi_test.spi_get_buffer, s_spi_test.data_len));
 			}
 		}
@@ -542,7 +542,7 @@ static void spi_data_test_uart_rx_isr(uart_id_t id, void *param)
 
 	ret = rtos_set_semaphore(&s_spi_test.uart_rx_semaphore);
 	if(kNoErr !=ret)
-		CLI_LOGI("spi_data_test_uart_rx_isr: uart set sema failed\r\n");
+		CLI_LOGD("spi_data_test_uart_rx_isr: uart set sema failed\r\n");
 	return;
 }
 
@@ -606,16 +606,16 @@ static void cli_spi_data_txrx_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 		if (!s_spi_test.handle) {
 			if (os_strcmp(argv[5], "uart2")== 0) {
 				s_spi_test.uart_id = UART_ID_1;
-				CLI_LOGD("cli_spi_test Maybe UART2 for log output!!!\n");
+				CLI_LOGV("cli_spi_test Maybe UART2 for log output!!!\n");
 			} else if (os_strcmp(argv[5], "uart3")== 0) {
 				s_spi_test.uart_id = UART_ID_2;
-				CLI_LOGD("cli_spi_test Maybe UART3 for log output!!!\n");
+				CLI_LOGV("cli_spi_test Maybe UART3 for log output!!!\n");
 			} else {
 					cli_spi_help();
 					return;
 			}
 		} else {
-			CLI_LOGI("spi_data_test TASK WARKING!!!\n");
+			CLI_LOGD("spi_data_test TASK WARKING!!!\n");
 			return;
 		}
 
@@ -634,7 +634,7 @@ static void cli_spi_data_txrx_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 
 		if(rtos_create_thread(&s_spi_test.handle, 8, "spi_data_test",
 					(beken_thread_function_t) cli_spi_data_txrx_test, 2048, 0)) {
-				CLI_LOGI("spi_data_txrx_test rtos_create_thread FAILED!\n");
+				CLI_LOGD("spi_data_txrx_test rtos_create_thread FAILED!\n");
 				return;
 		}
 
@@ -643,13 +643,13 @@ static void cli_spi_data_txrx_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 	if (os_strcmp(argv[4], "stop") == 0) {
 		if (os_strcmp(argv[5], "uart2")== 0) {
 			if(s_spi_test.uart_id != UART_ID_1) {
-				CLI_LOGI("PLEASE enter a correct ID\n");
+				CLI_LOGD("PLEASE enter a correct ID\n");
 				return;
 			} else
 				s_spi_test.uart_id = UART_ID_1;
 		} else if (os_strcmp(argv[5], "uart3")== 0) {
 			if(s_spi_test.uart_id != UART_ID_2) {
-				CLI_LOGI("PLEASE enter a correct ID\n");
+				CLI_LOGD("PLEASE enter a correct ID\n");
 				return;
 			} else
 				s_spi_test.uart_id = UART_ID_2;
@@ -673,7 +673,7 @@ static void cli_spi_data_txrx_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 
 		if(NULL != s_spi_test.spi_get_buffer)
 			os_free(s_spi_test.spi_get_buffer);
-		CLI_LOGI("cli_spi_data_txrx_test task stop\n");
+		CLI_LOGD("cli_spi_data_txrx_test task stop\n");
 	}
 
 	if (os_strcmp(argv[3], "send") == 0) {
@@ -685,7 +685,7 @@ static void cli_spi_data_txrx_test_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 			if(s_spi_test.role == SPI_ROLE_MASTER) {
 				spi_data_test_send(spi_id, buf_len);
 			} else {
-				CLI_LOGI("PLEASE use master send\n");
+				CLI_LOGD("PLEASE use master send\n");
 			}
 		}
 	}
@@ -698,7 +698,7 @@ static void cli_spi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		return;
 	}
 	uint32_t spi_id = os_strtoul(argv[1], NULL, 10);
-	CLI_LOGI("spi_id:%08x\r\n",spi_id);
+	CLI_LOGD("spi_id:%08x\r\n",spi_id);
 
 #if (CONFIG_SPI_0_MST_FLASH || CONFIG_SPI_1_MST_FLASH)
 	if (os_strcmp(argv[2], "init") == 0) {
@@ -720,7 +720,7 @@ static void cli_spi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		if (argc >= 6) {
 			read_times = os_strtoul(argv[5], NULL, 10);
 		}
-		CLI_LOGI("read_addr:%08x,read_len:%d, read_times:%d\r\n",read_addr,read_len,read_times);
+		CLI_LOGD("read_addr:%08x,read_len:%d, read_times:%d\r\n",read_addr,read_len,read_times);
 
 		uint8_t *buf = (uint8_t *)os_zalloc(read_len);
 		for (int i = 0; i < read_times; i++)
@@ -735,17 +735,17 @@ static void cli_spi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 			os_free(buf);
 		}
 		buf = NULL;
-		CLI_LOGI("bk_spi_flash_read finish\r\n");
+		CLI_LOGD("bk_spi_flash_read finish\r\n");
 	} else if (os_strcmp(argv[2], "erase") == 0) {
 		uint32_t erase_addr = os_strtoul(argv[3], NULL, 16);
 		uint32_t size = os_strtoul(argv[4], NULL, 16);
-		CLI_LOGI("erase_addr:%08x,size:%d\r\n",erase_addr);
+		CLI_LOGD("erase_addr:%08x,size:%d\r\n",erase_addr);
 		bk_spi_flash_erase(spi_id, erase_addr,size);
-		CLI_LOGI("bk_spi_flash_erase finish\r\n");
+		CLI_LOGD("bk_spi_flash_erase finish\r\n");
 	} else if (os_strcmp(argv[2], "write") == 0) {
 		uint32_t write_addr = os_strtoul(argv[3], NULL, 16);
 		uint32_t size = os_strtoul(argv[4], NULL, 16);
-		CLI_LOGI("write_addr:%08x,size:%d\r\n",write_addr,size);
+		CLI_LOGD("write_addr:%08x,size:%d\r\n",write_addr,size);
 		uint32_t page_size = 256;
 		uint8_t *buf = (uint8_t *)os_zalloc(page_size);
 		for (uint32_t i = 0; i < page_size; i++) {
@@ -759,7 +759,7 @@ static void cli_spi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		}
 		buf = NULL;
 
-		CLI_LOGI("spi_flash_write finish\r\n");
+		CLI_LOGD("spi_flash_write finish\r\n");
 	} else {
 		cli_spi_help();
 	}

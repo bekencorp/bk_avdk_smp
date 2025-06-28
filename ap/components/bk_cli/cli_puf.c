@@ -18,7 +18,7 @@
 
 static void cli_puf_help(void)
 {
-	CLI_LOGI("puf {version|enrollment|read_uid}\r\n");
+	CLI_LOGD("puf {version|enrollment|read_uid}\r\n");
 }
 
 static void cli_puf_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -34,7 +34,7 @@ static void cli_puf_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
 	if (os_strcmp(argv[1], "version") == 0) {
 		uint32_t puf_version = REG_READ(SOC_OTP_APB_BASE + 0x02c0);
-		CLI_LOGI("PTM_VERSION:%x\r\n", puf_version);
+		CLI_LOGD("PTM_VERSION:%x\r\n", puf_version);
 	} else if (os_strcmp(argv[1], "enrollment") == 0) {
 		bool puf_is_busy = true;
 		uint32_t loop_cnt = 0;
@@ -50,13 +50,13 @@ static void cli_puf_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		/* PUF offset 0, bit[16:19] */
 		uint32_t enrol_state = (puf_info_block >> 16) & 0xf;
 		if (enrol_state == 0xf) {
-			CLI_LOGI("PUF enrollment done\r\n");
+			CLI_LOGD("PUF enrollment done\r\n");
 		} else {
-			CLI_LOGI("PUF incomplete enrollment\r\n");
+			CLI_LOGD("PUF incomplete enrollment\r\n");
 		}
 	} else if (os_strcmp(argv[1], "read_uid") == 0) {
 		uint32_t uid = REG_READ(SOC_OTP_APB_BASE + 0x0300);
-		CLI_LOGI("PUF uid:%x\r\n", uid);
+		CLI_LOGD("PUF uid:%x\r\n", uid);
 	} else {
 		cli_puf_help();
 		return;

@@ -52,7 +52,7 @@ sys_pm_ctrl_t s_sys_pm = {
 
 int sys_hal_set_buck(sys_buck_type_t buck, bool ena)
 {
-	PM_HAL_LOGD("set buck%d ena=%d\r\n", buck, !!ena);
+	PM_HAL_LOGV("set buck%d ena=%d\r\n", buck, !!ena);
 	if (buck == SYS_BUCK_ANALOG) {
 		sys_ll_set_ana_reg11_aldosel(!ena);
 	} else if (buck == SYS_BUCK_DIGITAL) {
@@ -68,7 +68,7 @@ int sys_hal_set_buck(sys_buck_type_t buck, bool ena)
 
 int sys_hal_set_buck_pfm(sys_buck_type_t buck, bool ena)
 {
-	PM_HAL_LOGD("set buck%d pfm=%d\r\n", buck, !!ena);
+	PM_HAL_LOGV("set buck%d pfm=%d\r\n", buck, !!ena);
 	if (buck == SYS_BUCK_ANALOG) {
 		sys_ll_set_ana_reg11_apfmen(!!ena);
 	} else if (buck == SYS_BUCK_DIGITAL) {
@@ -83,7 +83,7 @@ int sys_hal_set_buck_pfm(sys_buck_type_t buck, bool ena)
 
 int sys_hal_set_buck_burst(sys_buck_type_t buck, bool ena)
 {
-	PM_HAL_LOGD("set buck%d burst=%d\r\n", buck, !!ena);
+	PM_HAL_LOGV("set buck%d burst=%d\r\n", buck, !!ena);
 	if (buck == SYS_BUCK_ANALOG) {
 		sys_ll_set_ana_reg11_apfmen(!!ena);
 	} else if (buck == SYS_BUCK_DIGITAL) {
@@ -98,7 +98,7 @@ int sys_hal_set_buck_burst(sys_buck_type_t buck, bool ena)
 
 int sys_hal_set_buck_mpo(sys_buck_type_t buck, bool ena)
 {
-	PM_HAL_LOGD("set buck%d mpo=%d\r\n", buck, !!ena);
+	PM_HAL_LOGV("set buck%d mpo=%d\r\n", buck, !!ena);
 	if (buck == SYS_BUCK_ANALOG) {
 		sys_ll_set_ana_reg11_ampoen(!!ena);
 	} else if (buck == SYS_BUCK_DIGITAL) {
@@ -113,7 +113,7 @@ int sys_hal_set_buck_mpo(sys_buck_type_t buck, bool ena)
 
 int sys_hal_set_ldo_self_lp(sys_ldo_type_t ldo, bool ena)
 {
-	PM_HAL_LOGD("set ldo%d self_lp=%d\r\n", ldo, !!ena);
+	PM_HAL_LOGV("set ldo%d self_lp=%d\r\n", ldo, !!ena);
 
 	switch (ldo) {
 	case SYS_LDO_AON:
@@ -145,7 +145,7 @@ int sys_hal_set_ldo_self_lp(sys_ldo_type_t ldo, bool ena)
 
 int sys_hal_set_ldo_current_limit(sys_ldo_type_t ldo, bool ena)
 {
-	PM_HAL_LOGD("set ldo%d current_limit=%d\r\n", ldo, !!ena);
+	PM_HAL_LOGV("set ldo%d current_limit=%d\r\n", ldo, !!ena);
 
 	if (ldo == SYS_LDO_IO) {
 		s_sys_pm.io_ldo_current_limit = !!ena;
@@ -188,7 +188,7 @@ int sys_hal_set_aon_ldo_volt(uint32_t volt)
 
 	if (sys_hal_get_volt_reg_value(map, sizeof(map)/sizeof(sys_pm_volt_reg_map_t), volt, &reg_value) == BK_OK) {
 		s_sys_pm.aon_ldo_volt = reg_value;
-		PM_HAL_LOGD("set aon ldo volt=%u, reg=%u\r\n", volt, reg_value);
+		PM_HAL_LOGV("set aon ldo volt=%u, reg=%u\r\n", volt, reg_value);
 		return BK_OK;
 	} else {
 		return BK_ERR_PARAM;
@@ -202,7 +202,7 @@ int sys_hal_set_io_ldo_volt(uint32_t volt)
 
 	if (sys_hal_get_volt_reg_value(map, sizeof(map)/sizeof(sys_pm_volt_reg_map_t), volt, &reg_value) == BK_OK) {
 		s_sys_pm.io_ldo_volt = reg_value;
-		PM_HAL_LOGD("set io ldo volt=%u, reg=%u\r\n", volt, reg_value);
+		PM_HAL_LOGV("set io ldo volt=%u, reg=%u\r\n", volt, reg_value);
 	} else {
 		return BK_ERR_PARAM;
 	}
@@ -216,20 +216,20 @@ int sys_hal_set_ana_ldo_volt(bool trsw_ena, uint32_t rx_volt, uint32_t tx_volt)
 
 	if (sys_hal_get_volt_reg_value(map, sizeof(map)/sizeof(sys_pm_volt_reg_map_t), rx_volt, &reg_value) == BK_OK) {
 		s_sys_pm.ana_ldo_rx_volt = reg_value;
-		PM_HAL_LOGD("set ana ldo rx volt=%u, reg=%u\r\n", rx_volt, reg_value);
+		PM_HAL_LOGV("set ana ldo rx volt=%u, reg=%u\r\n", rx_volt, reg_value);
 	} else {
 		return BK_ERR_PARAM;
 	}
 
 	if (sys_hal_get_volt_reg_value(map, sizeof(map)/sizeof(sys_pm_volt_reg_map_t), tx_volt, &reg_value) == BK_OK) {
 		s_sys_pm.ana_ldo_tx_volt = reg_value;
-		PM_HAL_LOGD("set ana ldo tx volt=%u, reg=%u\r\n", tx_volt, reg_value);
+		PM_HAL_LOGV("set ana ldo tx volt=%u, reg=%u\r\n", tx_volt, reg_value);
 	} else {
 		return BK_ERR_PARAM;
 	}
 
 	s_sys_pm.ana_trsw_en = !!trsw_ena;
-	PM_HAL_LOGD("set ana ldo trsw=%u\r\n", s_sys_pm.ana_trsw_en);
+	PM_HAL_LOGV("set ana ldo trsw=%u\r\n", s_sys_pm.ana_trsw_en);
 	return BK_OK;
 }
 
@@ -241,20 +241,20 @@ int sys_hal_set_digital_ldo_volt(bool lp_ena, uint32_t low_volt, uint32_t high_v
 
 	if (sys_hal_get_volt_reg_value(low_map, sizeof(low_map)/sizeof(sys_pm_volt_reg_map_t), low_volt, &reg_value) == BK_OK) {
 		s_sys_pm.digital_ldo_low_volt = reg_value;
-		PM_HAL_LOGD("set digital ldo low volt=%u, reg=%u\r\n", low_volt, reg_value);
+		PM_HAL_LOGV("set digital ldo low volt=%u, reg=%u\r\n", low_volt, reg_value);
 	} else {
 		return BK_ERR_PARAM;
 	}
 
 	if (sys_hal_get_volt_reg_value(high_map, sizeof(high_map)/sizeof(sys_pm_volt_reg_map_t), high_volt, &reg_value) == BK_OK) {
 		s_sys_pm.digital_ldo_high_volt = reg_value;
-		PM_HAL_LOGD("set digital ldo high volt=%u, reg=%u\r\n", high_volt, reg_value);
+		PM_HAL_LOGV("set digital ldo high volt=%u, reg=%u\r\n", high_volt, reg_value);
 	} else {
 		return BK_ERR_PARAM;
 	}
 
 	s_sys_pm.digital_ldo_lp = !!lp_ena;
-	PM_HAL_LOGD("set digital ldo lp=%u\r\n", s_sys_pm.digital_ldo_lp);
+	PM_HAL_LOGV("set digital ldo lp=%u\r\n", s_sys_pm.digital_ldo_lp);
 	return BK_OK;
 }
 
@@ -266,20 +266,20 @@ int sys_hal_set_core_ldo_volt(bool lp_ena, uint32_t low_volt, uint32_t high_volt
 
 	if (sys_hal_get_volt_reg_value(low_map, sizeof(low_map)/sizeof(sys_pm_volt_reg_map_t), low_volt, &reg_value) == BK_OK) {
 		s_sys_pm.core_ldo_low_volt = reg_value;
-		PM_HAL_LOGD("set core ldo low volt=%u, reg=%u\r\n", low_volt, reg_value);
+		PM_HAL_LOGV("set core ldo low volt=%u, reg=%u\r\n", low_volt, reg_value);
 	} else {
 		return BK_ERR_PARAM;
 	}
 
 	if (sys_hal_get_volt_reg_value(high_map, sizeof(high_map)/sizeof(sys_pm_volt_reg_map_t), high_volt, &reg_value) == BK_OK) {
 		s_sys_pm.core_ldo_high_volt = reg_value;
-		PM_HAL_LOGD("set core ldo high volt=%u, reg=%u\r\n", high_volt, reg_value);
+		PM_HAL_LOGV("set core ldo high volt=%u, reg=%u\r\n", high_volt, reg_value);
 	} else {
 		return BK_ERR_PARAM;
 	}
 
 	s_sys_pm.core_ldo_lp = !!lp_ena;
-	PM_HAL_LOGD("set core ldo lp=%u\r\n", s_sys_pm.core_ldo_lp);
+	PM_HAL_LOGV("set core ldo lp=%u\r\n", s_sys_pm.core_ldo_lp);
 	return BK_OK;
 }
 
@@ -325,31 +325,31 @@ int sys_hal_set_lv_ctrl_core(bool ena)
 
 void sys_hal_dump_ctrl(void)
 {
-	PM_HAL_LOGD("%-24s = %d\r\n", "aon_ldo_self_lp", s_sys_pm.aon_ldo_self_lp);
-	PM_HAL_LOGD("%-24s = %d\r\n", "io_ldo_self_lp", s_sys_pm.io_ldo_self_lp);
-	PM_HAL_LOGD("%-24s = %d\r\n", "ana_ldo_self_lp", s_sys_pm.ana_ldo_self_lp);
-	PM_HAL_LOGD("%-24s = %d\r\n", "digital_ldo_self_lp", s_sys_pm.digital_ldo_self_lp);
-	PM_HAL_LOGD("%-24s = %d\r\n", "core_ldo_self_lp", s_sys_pm.core_ldo_self_lp);
-	PM_HAL_LOGD("%-24s = %d\r\n", "aon_ldo_volt", s_sys_pm.aon_ldo_volt);
-	PM_HAL_LOGD("%-24s = %d\r\n", "io_ldo_volt", s_sys_pm.io_ldo_volt);
-	PM_HAL_LOGD("%-24s = %d\r\n", "ana_trsw_en", s_sys_pm.ana_trsw_en);
-	PM_HAL_LOGD("%-24s = %d\r\n", "ana_ldo_rx_volt", s_sys_pm.ana_ldo_rx_volt);
-	PM_HAL_LOGD("%-24s = %d\r\n", "ana_ldo_tx_volt", s_sys_pm.ana_ldo_tx_volt);
-	PM_HAL_LOGD("%-24s = %d\r\n", "digital_ldo_lp", s_sys_pm.digital_ldo_lp);
-	PM_HAL_LOGD("%-24s = %d\r\n", "digital_ldo_low_volt", s_sys_pm.digital_ldo_low_volt);
-	PM_HAL_LOGD("%-24s = %d\r\n", "digital_ldo_high_volt", s_sys_pm.digital_ldo_high_volt);
-	PM_HAL_LOGD("%-24s = %d\r\n", "core_ldo_lp", s_sys_pm.core_ldo_lp);
-	PM_HAL_LOGD("%-24s = %d\r\n", "core_ldo_low_volt", s_sys_pm.core_ldo_low_volt);
-	PM_HAL_LOGD("%-24s = %d\r\n", "core_ldo_high_volt", s_sys_pm.core_ldo_high_volt);
-	PM_HAL_LOGD("%-24s = %d\r\n", "io_ldo_current_limit", s_sys_pm.io_ldo_current_limit);
-	PM_HAL_LOGD("%-24s = %d\r\n", "ana_ldo_current_limit", s_sys_pm.ana_ldo_current_limit);
-	PM_HAL_LOGD("%-24s = %d\r\n", "aon_ldo_power", s_sys_pm.aon_ldo_power);
-	PM_HAL_LOGD("%-24s = %d\r\n", "io_ldo_current_limit", s_sys_pm.io_ldo_current_limit);
-	PM_HAL_LOGD("%-24s = %d\r\n", "ana_ldo_current_limit", s_sys_pm.ana_ldo_current_limit);
-	PM_HAL_LOGD("%-24s = %d\r\n", "lv_ctrl_pd", s_sys_pm.lv_ctrl_pd);
-	PM_HAL_LOGD("%-24s = %d\r\n", "lv_ctrl_hf", s_sys_pm.lv_ctrl_hf);
-	PM_HAL_LOGD("%-24s = %d\r\n", "lv_ctrl_flash", s_sys_pm.lv_ctrl_flash);
-	PM_HAL_LOGD("%-24s = %d\r\n", "lv_ctrl_core", s_sys_pm.lv_ctrl_core);
+	PM_HAL_LOGV("%-24s = %d\r\n", "aon_ldo_self_lp", s_sys_pm.aon_ldo_self_lp);
+	PM_HAL_LOGV("%-24s = %d\r\n", "io_ldo_self_lp", s_sys_pm.io_ldo_self_lp);
+	PM_HAL_LOGV("%-24s = %d\r\n", "ana_ldo_self_lp", s_sys_pm.ana_ldo_self_lp);
+	PM_HAL_LOGV("%-24s = %d\r\n", "digital_ldo_self_lp", s_sys_pm.digital_ldo_self_lp);
+	PM_HAL_LOGV("%-24s = %d\r\n", "core_ldo_self_lp", s_sys_pm.core_ldo_self_lp);
+	PM_HAL_LOGV("%-24s = %d\r\n", "aon_ldo_volt", s_sys_pm.aon_ldo_volt);
+	PM_HAL_LOGV("%-24s = %d\r\n", "io_ldo_volt", s_sys_pm.io_ldo_volt);
+	PM_HAL_LOGV("%-24s = %d\r\n", "ana_trsw_en", s_sys_pm.ana_trsw_en);
+	PM_HAL_LOGV("%-24s = %d\r\n", "ana_ldo_rx_volt", s_sys_pm.ana_ldo_rx_volt);
+	PM_HAL_LOGV("%-24s = %d\r\n", "ana_ldo_tx_volt", s_sys_pm.ana_ldo_tx_volt);
+	PM_HAL_LOGV("%-24s = %d\r\n", "digital_ldo_lp", s_sys_pm.digital_ldo_lp);
+	PM_HAL_LOGV("%-24s = %d\r\n", "digital_ldo_low_volt", s_sys_pm.digital_ldo_low_volt);
+	PM_HAL_LOGV("%-24s = %d\r\n", "digital_ldo_high_volt", s_sys_pm.digital_ldo_high_volt);
+	PM_HAL_LOGV("%-24s = %d\r\n", "core_ldo_lp", s_sys_pm.core_ldo_lp);
+	PM_HAL_LOGV("%-24s = %d\r\n", "core_ldo_low_volt", s_sys_pm.core_ldo_low_volt);
+	PM_HAL_LOGV("%-24s = %d\r\n", "core_ldo_high_volt", s_sys_pm.core_ldo_high_volt);
+	PM_HAL_LOGV("%-24s = %d\r\n", "io_ldo_current_limit", s_sys_pm.io_ldo_current_limit);
+	PM_HAL_LOGV("%-24s = %d\r\n", "ana_ldo_current_limit", s_sys_pm.ana_ldo_current_limit);
+	PM_HAL_LOGV("%-24s = %d\r\n", "aon_ldo_power", s_sys_pm.aon_ldo_power);
+	PM_HAL_LOGV("%-24s = %d\r\n", "io_ldo_current_limit", s_sys_pm.io_ldo_current_limit);
+	PM_HAL_LOGV("%-24s = %d\r\n", "ana_ldo_current_limit", s_sys_pm.ana_ldo_current_limit);
+	PM_HAL_LOGV("%-24s = %d\r\n", "lv_ctrl_pd", s_sys_pm.lv_ctrl_pd);
+	PM_HAL_LOGV("%-24s = %d\r\n", "lv_ctrl_hf", s_sys_pm.lv_ctrl_hf);
+	PM_HAL_LOGV("%-24s = %d\r\n", "lv_ctrl_flash", s_sys_pm.lv_ctrl_flash);
+	PM_HAL_LOGV("%-24s = %d\r\n", "lv_ctrl_core", s_sys_pm.lv_ctrl_core);
 }
 
 #endif

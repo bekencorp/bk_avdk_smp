@@ -22,22 +22,22 @@
 void calendar_struct_dump(void)
 {
 	calendar_hw_t *hw = (calendar_hw_t *)CALENDAR_LL_REG_BASE(0);
-	SOC_LOGI("base=%x\r\n", (uint32_t)hw);
+	SOC_LOGD("base=%x\r\n", (uint32_t)hw);
 
-	SOC_LOGI("  init_val addr=0x%x value=0x%x\r\n", &hw->init_val, hw->init_val);
-	SOC_LOGI("\r\n");
+	SOC_LOGD("  init_val addr=0x%x value=0x%x\r\n", &hw->init_val, hw->init_val);
+	SOC_LOGD("\r\n");
 
-	SOC_LOGI("  enable=0x%x value=0x%x\r\n", &hw->enable, hw->enable.v);
-	SOC_LOGI("    en:       %x\r\n", hw->enable.en);
-	SOC_LOGI("    reserved: %x\r\n", hw->enable.reserved);
-	SOC_LOGI("\r\n");
+	SOC_LOGD("  enable=0x%x value=0x%x\r\n", &hw->enable, hw->enable.v);
+	SOC_LOGD("    en:       %x\r\n", hw->enable.en);
+	SOC_LOGD("    reserved: %x\r\n", hw->enable.reserved);
+	SOC_LOGD("\r\n");
 
-	SOC_LOGI("  cnt_val_s addr=0x%x value=0x%x\r\n", &hw->cnt_val_s, hw->cnt_val_s);
-	SOC_LOGI("\r\n");
+	SOC_LOGD("  cnt_val_s addr=0x%x value=0x%x\r\n", &hw->cnt_val_s, hw->cnt_val_s);
+	SOC_LOGD("\r\n");
 
-	SOC_LOGI("  cnt_val_us=0x%x value=0x%x\r\n", &hw->cnt_val_us, hw->cnt_val_us.v);
-	SOC_LOGI("    cnt_31_25_us_val: 0x%x\r\n", hw->cnt_val_us.cnt_31_25_us_val);
-	SOC_LOGI("    reserved:         0x%x\r\n", hw->cnt_val_us.reserved);
+	SOC_LOGD("  cnt_val_us=0x%x value=0x%x\r\n", &hw->cnt_val_us, hw->cnt_val_us.v);
+	SOC_LOGD("    cnt_31_25_us_val: 0x%x\r\n", hw->cnt_val_us.cnt_31_25_us_val);
+	SOC_LOGD("    reserved:         0x%x\r\n", hw->cnt_val_us.reserved);
 }
 
 #endif

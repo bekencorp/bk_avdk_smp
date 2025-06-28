@@ -30,79 +30,79 @@ typedef struct {
 
 static void sdmadc_dump_REG0x0(void)
 {
-	SOC_LOGI("REG0x0: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x0 << 2)));
+	SOC_LOGD("REG0x0: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x0 << 2)));
 }
 
 static void sdmadc_dump_REG0x1(void)
 {
-	SOC_LOGI("REG0x1: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x1 << 2)));
+	SOC_LOGD("REG0x1: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x1 << 2)));
 }
 
 static void sdmadc_dump_REG0x2(void)
 {
 	sdmadc_REG0x2_t *r = (sdmadc_REG0x2_t *)(SOC_SDMADC_REG_BASE + (0x2 << 2));
 
-	SOC_LOGI("REG0x2: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x2 << 2)));
-	SOC_LOGI("	soft_rst: %8x\r\n", r->soft_rst);
-	SOC_LOGI("	bypass_ckg: %8x\r\n", r->bypass_ckg);
-	SOC_LOGI("	reserved_bit_2_31: %8x\r\n", r->reserved_bit_2_31);
+	SOC_LOGD("REG0x2: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x2 << 2)));
+	SOC_LOGD("	soft_rst: %8x\r\n", r->soft_rst);
+	SOC_LOGD("	bypass_ckg: %8x\r\n", r->bypass_ckg);
+	SOC_LOGD("	reserved_bit_2_31: %8x\r\n", r->reserved_bit_2_31);
 }
 
 static void sdmadc_dump_REG0x3(void)
 {
-	SOC_LOGI("REG0x3: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x3 << 2)));
+	SOC_LOGD("REG0x3: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x3 << 2)));
 }
 
 static void sdmadc_dump_REG0x4(void)
 {
 	sdmadc_REG0x4_t *r = (sdmadc_REG0x4_t *)(SOC_SDMADC_REG_BASE + (0x4 << 2));
 
-	SOC_LOGI("REG0x4: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x4 << 2)));
-	SOC_LOGI("	sample_enable: %8x\r\n", r->sample_enable);
-	SOC_LOGI("	reserved_bit_1_31: %8x\r\n", r->reserved_bit_1_31);
+	SOC_LOGD("REG0x4: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x4 << 2)));
+	SOC_LOGD("	sample_enable: %8x\r\n", r->sample_enable);
+	SOC_LOGD("	reserved_bit_1_31: %8x\r\n", r->reserved_bit_1_31);
 }
 
 static void sdmadc_dump_REG0x5(void)
 {
 	sdmadc_REG0x5_t *r = (sdmadc_REG0x5_t *)(SOC_SDMADC_REG_BASE + (0x5 << 2));
 
-	SOC_LOGI("REG0x5: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x5 << 2)));
-	SOC_LOGI("	sample_mode: %8x\r\n", r->sample_mode);
-	SOC_LOGI("	sample_numb: %8x\r\n", r->sample_numb);
-	SOC_LOGI("	sample_chsel: %8x\r\n", r->sample_chsel);
-	SOC_LOGI("	cic2_bypass: %8x\r\n", r->cic2_bypass);
-	SOC_LOGI("	comp_bypass: %8x\r\n", r->comp_bypass);
-	SOC_LOGI("	cic2_gains: %8x\r\n", r->cic2_gains);
-	SOC_LOGI("	intr_enable: %8x\r\n", r->intr_enable);
-	SOC_LOGI("	reserved_bit_20_31: %8x\r\n", r->reserved_bit_20_31);
+	SOC_LOGD("REG0x5: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x5 << 2)));
+	SOC_LOGD("	sample_mode: %8x\r\n", r->sample_mode);
+	SOC_LOGD("	sample_numb: %8x\r\n", r->sample_numb);
+	SOC_LOGD("	sample_chsel: %8x\r\n", r->sample_chsel);
+	SOC_LOGD("	cic2_bypass: %8x\r\n", r->cic2_bypass);
+	SOC_LOGD("	comp_bypass: %8x\r\n", r->comp_bypass);
+	SOC_LOGD("	cic2_gains: %8x\r\n", r->cic2_gains);
+	SOC_LOGD("	intr_enable: %8x\r\n", r->intr_enable);
+	SOC_LOGD("	reserved_bit_20_31: %8x\r\n", r->reserved_bit_20_31);
 }
 
 static void sdmadc_dump_REG0x6(void)
 {
 	sdmadc_REG0x6_t *r = (sdmadc_REG0x6_t *)(SOC_SDMADC_REG_BASE + (0x6 << 2));
 
-	SOC_LOGI("REG0x6: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x6 << 2)));
-	SOC_LOGI("	cali_offset: %8x\r\n", r->cali_offset);
-	SOC_LOGI("	cali_gain: %8x\r\n", r->cali_gain);
-	SOC_LOGI("	reserved_bit_29_31: %8x\r\n", r->reserved_bit_29_31);
+	SOC_LOGD("REG0x6: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x6 << 2)));
+	SOC_LOGD("	cali_offset: %8x\r\n", r->cali_offset);
+	SOC_LOGD("	cali_gain: %8x\r\n", r->cali_gain);
+	SOC_LOGD("	reserved_bit_29_31: %8x\r\n", r->reserved_bit_29_31);
 }
 
 static void sdmadc_dump_REG0x7(void)
 {
 	sdmadc_REG0x7_t *r = (sdmadc_REG0x7_t *)(SOC_SDMADC_REG_BASE + (0x7 << 2));
 
-	SOC_LOGI("REG0x7: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x7 << 2)));
-	SOC_LOGI("	sadc_status: %8x\r\n", r->sadc_status);
-	SOC_LOGI("	reserved_bit_5_31: %8x\r\n", r->reserved_bit_5_31);
+	SOC_LOGD("REG0x7: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x7 << 2)));
+	SOC_LOGD("	sadc_status: %8x\r\n", r->sadc_status);
+	SOC_LOGD("	reserved_bit_5_31: %8x\r\n", r->reserved_bit_5_31);
 }
 
 static void sdmadc_dump_REG0x8(void)
 {
 	sdmadc_REG0x8_t *r = (sdmadc_REG0x8_t *)(SOC_SDMADC_REG_BASE + (0x8 << 2));
 
-	SOC_LOGI("REG0x8: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x8 << 2)));
-	SOC_LOGI("	fifo_data: %8x\r\n", r->fifo_data);
-	SOC_LOGI("	reserved_bit_16_31: %8x\r\n", r->reserved_bit_16_31);
+	SOC_LOGD("REG0x8: %8x\r\n", REG_READ(SOC_SDMADC_REG_BASE + (0x8 << 2)));
+	SOC_LOGD("	fifo_data: %8x\r\n", r->fifo_data);
+	SOC_LOGD("	reserved_bit_16_31: %8x\r\n", r->reserved_bit_16_31);
 }
 
 static sdmadc_reg_fn_map_t s_fn[] =

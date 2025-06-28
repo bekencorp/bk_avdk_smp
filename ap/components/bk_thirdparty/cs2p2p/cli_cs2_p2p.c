@@ -3,7 +3,7 @@
 
 static void cs2_p2p_usage(void)
 {
-    os_printf("Usage: cs2_p2p start <DID_dskey> <APIlicense_crckey> <initstring_p2pkey>\n"
+    BK_LOGD(NULL, "Usage: cs2_p2p start <DID_dskey> <APIlicense_crckey> <initstring_p2pkey>\n"
               "cs2_p2p stop\n"
               "cs2_p2p send <channel> <string>\n"
               "cs2_p2p send_count <channel> <count>\n"
@@ -31,7 +31,7 @@ static int32_t recv_callback(uint8_t channel, uint8_t *buff, uint32_t len)
 {
     if (len)
     {
-        os_printf("%s len %d, last 0x%X\n", __func__, len, buff[len - 1]);
+        BK_LOGD(NULL, "%s len %d, last 0x%X\n", __func__, len, buff[len - 1]);
     }
 
     return 0;
@@ -55,7 +55,7 @@ static void cmd_cs2_p2p(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
     {
         if (argc >= 5)
         {
-            os_printf("%s argv len %d %d %d\n", __func__, strlen(argv[2]), strlen(argv[3]), strlen(argv[4]));
+            BK_LOGD(NULL, "%s argv len %d %d %d\n", __func__, strlen(argv[2]), strlen(argv[3]), strlen(argv[4]));
             //            create_cli_cs2_p2p_task(argv[2], argv[3], argv[4]);
             cs2_p2p_main_task_create(argv[2], argv[3], argv[4], recv_callback);
         }
@@ -88,7 +88,7 @@ static void cmd_cs2_p2p(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             uint8_t tmp_sum = 0;
             if(!tmp)
             {
-                os_printf("%s alloc fail\n", __func__);
+                BK_LOGD(NULL, "%s alloc fail\n", __func__);
             }
             else
             {
@@ -99,7 +99,7 @@ static void cmd_cs2_p2p(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
                 tmp[atoi(argv[3])] = tmp_sum;
 
-                os_printf("%s last sum 0x%X\n", __func__, tmp_sum);
+                BK_LOGD(NULL, "%s last sum 0x%X\n", __func__, tmp_sum);
                 cs2_p2p_send_raw(atoi(argv[2]), tmp, atoi(argv[3]) + 1);
 
                 os_free(tmp);
@@ -133,7 +133,7 @@ static void cmd_cs2_p2p(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
         extern int cs2_p2p_test_main(int argc, char **argv);
 
-        os_printf("%s argv len %d %d %d\n", __func__, strlen(argv[3]), strlen(argv[4]), strlen(argv[5]));
+        BK_LOGD(NULL, "%s argv len %d %d %d\n", __func__, strlen(argv[3]), strlen(argv[4]), strlen(argv[5]));
 
         if (cs2_p2p_test_main(argc - 2, argv + 2) < 0)
         {

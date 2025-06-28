@@ -60,7 +60,7 @@ void wifi_softap_app_init(char *ap_ssid, char *ap_key)
     os_strcpy((char *)wNetConfig.net_mask, "255.255.255.0");
     os_strcpy((char *)wNetConfig.dnsServer_ip_addr, "192.168.10.1");
 
-    bk_printf("SSID:%s , KEY:%s\r\n", wNetConfig.wifi_ssid, wNetConfig.wifi_key);
+    BK_LOGD(NULL, "SSID:%s , KEY:%s\r\n", wNetConfig.wifi_ssid, wNetConfig.wifi_key);
     bk_wlan_start(&wNetConfig);
 }
 

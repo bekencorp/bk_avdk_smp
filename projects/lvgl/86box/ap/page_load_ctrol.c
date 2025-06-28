@@ -57,7 +57,7 @@ static void get_tab_act_index_event_handler(lv_event_t * e)
         if (obj)
         {
             tab_id = lv_tabview_get_tab_act(obj);
-            os_printf("tab_id:%d\r\n", tab_id);
+            BK_LOGD(NULL, "tab_id:%d\r\n", tab_id);
 
             if(tab_id != 0)
             {
@@ -111,7 +111,7 @@ static void scroll_begin_event(lv_event_t * e)
         if(t != lv_tabview_get_tab_act(tv)) new_tab = true;
         lv_tabview_set_act(tv, t, LV_ANIM_ON);
 
-        os_printf("scroll g_tab_act:%d, new_tab:%d\r\n", lv_tabview_get_tab_act(ui_tabview), new_tab);
+        BK_LOGD(NULL, "scroll g_tab_act:%d, new_tab:%d\r\n", lv_tabview_get_tab_act(ui_tabview), new_tab);
     }
 }
 

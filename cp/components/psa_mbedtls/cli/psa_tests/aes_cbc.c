@@ -108,7 +108,7 @@ static int crypto_finish(void)
 	/* Destroy the key handle */
 	status = psa_destroy_key(key_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -119,7 +119,7 @@ static int generate_key(uint32_t key_len)
 {
 	psa_status_t status;
 
-	BK_LOGI(TAG, "Generating random AES key...\r\n");
+	BK_LOGD(TAG, "Generating random AES key...\r\n");
 
 	/* Configure the key attributes */
 	psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
@@ -135,14 +135,14 @@ static int generate_key(uint32_t key_len)
 	 */
 	status = psa_generate_key(&key_attributes, &key_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* After the key handle is acquired the attributes are not needed */
 	psa_reset_key_attributes(&key_attributes);
 
-	BK_LOGI(TAG, "AES key generated successfully!\r\n");
+	BK_LOGD(TAG, "AES key generated successfully!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -153,19 +153,19 @@ static int encrypt_cbc_aes(void)
 	psa_status_t status;
 	psa_cipher_operation_t operation = PSA_CIPHER_OPERATION_INIT;
 
-	BK_LOGI(TAG, "Encrypting using AES CBC MODE...\r\n");
+	BK_LOGD(TAG, "Encrypting using AES CBC MODE...\r\n");
 
 	/* Setup the encryption operation */
 	status = psa_cipher_encrypt_setup(&operation, key_id, PSA_ALG_CBC_NO_PADDING);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_cipher_encrypt_setup failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_cipher_encrypt_setup failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* Generate an IV */
 	status = psa_cipher_generate_iv(&operation, m_iv, sizeof(m_iv), (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_cipher_generate_iv failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_cipher_generate_iv failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -174,7 +174,7 @@ static int encrypt_cbc_aes(void)
 				   sizeof(m_plain_text), m_encrypted_text,
 				   sizeof(m_encrypted_text), (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_cipher_update failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_cipher_update failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -183,11 +183,11 @@ static int encrypt_cbc_aes(void)
 				   sizeof(m_encrypted_text) - olen,
 				   (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_cipher_finish failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_cipher_finish failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Encryption successful!\r\n");
+	BK_LOGD(TAG, "Encryption successful!\r\n");
 
 	/* Clean up cipher operation context */
 	psa_cipher_abort(&operation);
@@ -201,19 +201,19 @@ static int decrypt_cbc_aes(void)
 	psa_status_t status;
 	psa_cipher_operation_t operation = PSA_CIPHER_OPERATION_INIT;
 
-	BK_LOGI(TAG, "Decrypting using AES CBC MODE...\r\n");
+	BK_LOGD(TAG, "Decrypting using AES CBC MODE...\r\n");
 
 	/* Setup the decryption operation */
 	status = psa_cipher_decrypt_setup(&operation, key_id, PSA_ALG_CBC_NO_PADDING);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_cipher_decrypt_setup failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_cipher_decrypt_setup failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* Set the IV generated in encryption */
 	status = psa_cipher_set_iv(&operation, m_iv, sizeof(m_iv));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_cipher_set_iv failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_cipher_set_iv failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -222,7 +222,7 @@ static int decrypt_cbc_aes(void)
 				   sizeof(m_encrypted_text), m_decrypted_text,
 				   sizeof(m_decrypted_text), (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_cipher_update failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_cipher_update failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -231,7 +231,7 @@ static int decrypt_cbc_aes(void)
 				   sizeof(m_decrypted_text) - olen,
 				   (size_t *)&olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_cipher_finish failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_cipher_finish failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -240,11 +240,11 @@ static int decrypt_cbc_aes(void)
 				m_plain_text,
 				CRYPTO_EXAMPLE_AES_MAX_TEXT_SIZE) != 0){
 
-		BK_LOGI(TAG, "Error: Decrypted text doesn't match the plaintext\r\n");
+		BK_LOGD(TAG, "Error: Decrypted text doesn't match the plaintext\r\n");
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Decryption successful!\r\n");
+	BK_LOGD(TAG, "Decryption successful!\r\n");
 
 	/*  Clean up cipher operation context */
 	psa_cipher_abort(&operation);
@@ -256,39 +256,39 @@ int aes_cbc_main(void)
 {
 	int status;
 
-	BK_LOGI(TAG, "Starting AES-CBC-NO-PADDING example...\r\n");
+	BK_LOGD(TAG, "Starting AES-CBC-NO-PADDING example...\r\n");
 
 	status = crypto_init();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = generate_key(128);
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = encrypt_cbc_aes();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = decrypt_cbc_aes();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = crypto_finish();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
 
 	return APP_SUCCESS;
 }
@@ -301,7 +301,7 @@ static int encrypt_cbc_aes_perf(uint32_t key_len, uint32_t data_len)
 	uint64_t start, end;
 	uint32_t iv_len = 16;
 
-	BK_LOGI(TAG, "Encrypting using AES CBC MODE...\r\n");
+	BK_LOGD(TAG, "Encrypting using AES CBC MODE...\r\n");
 
 	crypto_lock();
 	start = crypto_get_time();
@@ -340,7 +340,7 @@ static int encrypt_cbc_aes_perf(uint32_t key_len, uint32_t data_len)
 	crypto_unlock();
 	crypto_perf_log("AES_CBC_ENC", "120M", key_len, data_len, end - start);
 
-	BK_LOGI(TAG, "Encryption successful!\r\n");
+	BK_LOGD(TAG, "Encryption successful!\r\n");
 
 	/* Clean up cipher operation context */
 	psa_cipher_abort(&operation);
@@ -359,7 +359,7 @@ static int decrypt_cbc_aes_perf(uint32_t key_len, uint32_t data_len)
 	psa_cipher_operation_t operation = PSA_CIPHER_OPERATION_INIT;
 	uint32_t iv_len = 16;
 
-	BK_LOGD(TAG, "Decrypting using AES CBC MODE...\r\n");
+	BK_LOGV(TAG, "Decrypting using AES CBC MODE...\r\n");
 
 	crypto_lock();
 	start = crypto_get_time();
@@ -406,7 +406,7 @@ static int decrypt_cbc_aes_perf(uint32_t key_len, uint32_t data_len)
 		goto _error;
 	}
 
-	BK_LOGI(TAG, "Decryption successful!\r\n");
+	BK_LOGD(TAG, "Decryption successful!\r\n");
 
 	/*  Clean up cipher operation context */
 	psa_cipher_abort(&operation);
@@ -428,7 +428,7 @@ int aes_cbc_perf_main(void)
 	uint32_t cpu;
 	int status;
 
-	BK_LOGI(TAG, "Starting AES-CBC-NO-PADDING perf test\r\n");
+	BK_LOGD(TAG, "Starting AES-CBC-NO-PADDING perf test\r\n");
 
 	if (test_init() != 0) {
 		goto _error;
@@ -466,13 +466,13 @@ int aes_cbc_perf_main(void)
 		}
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
-	BK_LOGI(TAG, "AES-CBC-NO-PADDING perf test end\r\n");
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, "AES-CBC-NO-PADDING perf test end\r\n");
 	test_deinit();
 	return APP_SUCCESS;
 
 _error:
 	test_deinit();
-	BK_LOGI(TAG, APP_ERROR_MESSAGE);
+	BK_LOGD(TAG, APP_ERROR_MESSAGE);
 	return APP_ERROR;
 }

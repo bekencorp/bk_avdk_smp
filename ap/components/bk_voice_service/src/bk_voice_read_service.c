@@ -16,7 +16,7 @@
 
 #define VOICE_READ_CHECK_NULL(ptr, act) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "%s, %d, VOICE_READ_CHECK_NULL fail \n", __func__, __LINE__);\
+            BK_LOGD(TAG, "%s, %d, VOICE_READ_CHECK_NULL fail \n", __func__, __LINE__);\
             {act;};\
         }\
     } while(0)
@@ -173,7 +173,7 @@ static void voice_read_task_main(beken_thread_arg_t param_data)
             }
             else
             {
-                BK_LOGD(TAG, "%s, %d, read voice data fail, read_size: %d \n", __func__, __LINE__, read_size);
+                BK_LOGV(TAG, "%s, %d, read voice data fail, read_size: %d \n", __func__, __LINE__, read_size);
             }
         }
     }
@@ -285,7 +285,7 @@ voice_read_handle_t bk_voice_read_init(voice_read_cfg_t *cfg)
 
     WIFI_TX_DATA_COUNT_OPEN();
 
-    BK_LOGI(TAG, "init voice read task complete\n");
+    BK_LOGD(TAG, "init voice read task complete\n");
 
     return voice_read_handle;
 
@@ -345,7 +345,7 @@ bk_err_t bk_voice_read_deinit(voice_read_handle_t voice_read_handle)
 
     VOICE_READ_CHECK_NULL(voice_read_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     ret = voice_read_send_msg(voice_read_handle->voice_read_msg_que, VOICE_READ_EXIT, NULL);
     if (ret != BK_OK)
@@ -391,7 +391,7 @@ bk_err_t bk_voice_read_deinit(voice_read_handle_t voice_read_handle)
 
     WIFI_TX_DATA_COUNT_CLOSE();
 
-    BK_LOGI(TAG, "deinit voice read complete\n");
+    BK_LOGD(TAG, "deinit voice read complete\n");
 
     return BK_OK;
 }
@@ -402,7 +402,7 @@ bk_err_t bk_voice_read_start(voice_read_handle_t voice_read_handle)
 
     VOICE_READ_CHECK_NULL(voice_read_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     ret = voice_read_send_msg(voice_read_handle->voice_read_msg_que, VOICE_READ_START, NULL);
     if (ret != BK_OK)
@@ -420,7 +420,7 @@ bk_err_t bk_voice_read_stop(voice_read_handle_t voice_read_handle)
 
     VOICE_READ_CHECK_NULL(voice_read_handle, return BK_FAIL);
 
-    BK_LOGI(TAG, "%s\n", __func__);
+    BK_LOGD(TAG, "%s\n", __func__);
 
     ret = voice_read_send_msg(voice_read_handle->voice_read_msg_que, VOICE_READ_IDLE, NULL);
     if (ret != BK_OK)

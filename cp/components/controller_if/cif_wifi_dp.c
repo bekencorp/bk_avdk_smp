@@ -63,7 +63,7 @@ bk_err_t cif_handle_txdata(void *head)
 #if CONFIG_CONTROLLER_RX_DIRECT_PSH
     if(cpdu->co_hdr.need_free)
     {
-        CIF_LOGD("%s free p:%x,p->ref:%d\r\n",__func__, pbuf,pbuf->ref);
+        CIF_LOGV("%s free p:%x,p->ref:%d\r\n",__func__, pbuf,pbuf->ref);
         pbuf->ref--;
         pbuf_free(pbuf);
         return BK_OK;
@@ -80,8 +80,8 @@ bk_err_t cif_handle_txdata(void *head)
     //stack_mem_dump((uint32_t)pbuf->payload,(uint32_t)pbuf->payload + pbuf->len);
     //CTRL_IF_DATA("%s,2 length:%d\n",__func__,hdr->co_hdr.length);
     //Index offset 0xf is used to distinguish data from the controller interface.
-    CIF_LOGD("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, pbuf, pbuf->next, pbuf->payload, sizeof(struct pbuf));
-    CIF_LOGD("%s p:%x,vif_id=%d\r\n",__func__, pbuf,vif_id);
+    CIF_LOGV("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, pbuf, pbuf->next, pbuf->payload, sizeof(struct pbuf));
+    CIF_LOGV("%s p:%x,vif_id=%d\r\n",__func__, pbuf,vif_id);
 #if CONFIG_CONTROLLER_DEBUG
     TRACK_PBUF_ALLOC(pbuf);
 #endif
@@ -190,8 +190,8 @@ bool cif_filter_check_ip_data(struct pbuf *p)
     /* obtain ip length in bytes */
 //	iphdr_len = lwip_ntohs(IPH_LEN(iphdr));
   
-    CIF_LOGD("iphdr_hlen=%d,p->len=%d,p->tot_len=%d,IP_HLEN=%d\n",iphdr_hlen,p->len,p->tot_len,IP_HLEN);
-    CIF_LOGD("IP RX dest_port = 0x%x\n",dest_port);
+    CIF_LOGV("iphdr_hlen=%d,p->len=%d,p->tot_len=%d,IP_HLEN=%d\n",iphdr_hlen,p->len,p->tot_len,IP_HLEN);
+    CIF_LOGV("IP RX dest_port = 0x%x\n",dest_port);
 //   /* header length exceeds first pbuf length, or ip length exceeds total pbuf length? */
 //   if ((iphdr_hlen > p->len) || (iphdr_len > p->tot_len) || (iphdr_hlen < IP_HLEN)) 
 //   {
@@ -205,7 +205,7 @@ bool cif_filter_check_ip_data(struct pbuf *p)
          udphdr = (struct udp_hdr *)(p->payload+(s16_t)iphdr_hlen+SIZEOF_ETH_HDR);
          dest_port=lwip_ntohs(udphdr->dest);
          src_port=lwip_ntohs(udphdr->src);
-         CIF_LOGD("IP_PROTO_UDP dest_port:%d,src:%d\r\n",dest_port,src_port);
+         CIF_LOGV("IP_PROTO_UDP dest_port:%d,src:%d\r\n",dest_port,src_port);
          upload2ctrl = cif_filter_check_ip_and_port(iphdr, src_port, dest_port);
          break;
 
@@ -213,9 +213,9 @@ bool cif_filter_check_ip_data(struct pbuf *p)
          tcphdr = (struct tcp_hdr *)(p->payload+(s16_t)iphdr_hlen+SIZEOF_ETH_HDR);
          dest_port=lwip_ntohs(tcphdr->dest);
          src_port=lwip_ntohs(tcphdr->src);
-         CIF_LOGD("IP_PROTO_TCP port:%d\r\n",dest_port);
+         CIF_LOGV("IP_PROTO_TCP port:%d\r\n",dest_port);
          upload2ctrl = cif_filter_check_ip_and_port(iphdr, src_port, dest_port);
-         //os_printf("RX TCP src_ip:%x, src_port:%d\n", iphdr->src.addr, src_port);
+         //BK_LOGD(NULL,"RX TCP src_ip:%x, src_port:%d\n", iphdr->src.addr, src_port);
          break;
 
     case IP_PROTO_ICMP:
@@ -232,17 +232,17 @@ bool cif_filter_check_ip_data(struct pbuf *p)
         {
             upload2ctrl = false;
         }
-        CIF_LOGD("IP_PROTO_ICMP,%p\r\n",p->payload);
+        CIF_LOGV("IP_PROTO_ICMP,%p\r\n",p->payload);
         break;
 
     case IP_PROTO_IGMP:
         upload2ctrl = false;
-        CIF_LOGD("IP_PROTO_IGMP\r\n");
+        CIF_LOGV("IP_PROTO_IGMP\r\n");
         break; 
      default:
          break;
     }
-    CIF_LOGD("%s %d dest_port = %d\r\n",__func__,__LINE__,dest_port);
+    CIF_LOGV("%s %d dest_port = %d\r\n",__func__,__LINE__,dest_port);
 
     return upload2ctrl;
 }
@@ -253,17 +253,17 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
     struct pbuf *p = *p_ptr;
     bk_err_t ret = BK_OK;
 
-    CIF_LOGD("%s p:%x next:0x%x payload:0x%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
+    CIF_LOGV("%s p:%x next:0x%x payload:0x%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
 
     if (cif_env.no_host)
     {
-         CIF_LOGD("%s no host connected, upload to controller\r\n",__func__, upload2ctrl);
+         CIF_LOGV("%s no host connected, upload to controller\r\n",__func__, upload2ctrl);
          return true;
     }
 
     // if (!cif_env.host_wifi_init)
     // {
-    //      CIF_LOGD("%s AP Wi-Fi does not start, upload to controller\r\n",__func__);
+    //      CIF_LOGV("%s AP Wi-Fi does not start, upload to controller\r\n",__func__);
     //      return true;
     // }
 
@@ -271,14 +271,14 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
     {
         case ETHTYPE_EAPOL:
         {
-            CIF_LOGD("ETHTYPE_EAPOL RX\n");
+            CIF_LOGV("ETHTYPE_EAPOL RX\n");
             upload2ctrl = true;
             break;
         }
         case ETHTYPE_ARP:
         {
             struct pbuf* p_copy = NULL;
-            CIF_LOGD("ARP RX\n");
+            CIF_LOGV("ARP RX\n");
 
 #if CONFIG_CONTROLLER_RX_DIRECT_PSH
             p_copy = pbuf_alloc(PBUF_RAW,p->len+sizeof(cpdu_t),PBUF_RAM_RX);
@@ -299,7 +299,7 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
 
             if (p_copy == NULL)
             {
-                CIF_LOGD("%s,%d,alloc fail\n",__func__,__LINE__);
+                CIF_LOGV("%s,%d,alloc fail\n",__func__,__LINE__);
                 return upload2ctrl;
             }
             else
@@ -316,7 +316,7 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
             //bk_mem_dump("Meth input p",(uint32_t)p,sizeof(struct pbuf)+8);
             //bk_mem_dump("Meth input payload",(uint32_t)p->payload,30);
             
-            CIF_LOGD("%s,%d p:%p next:%p payload:%p len:%d\r\n",
+            CIF_LOGV("%s,%d p:%p next:%p payload:%p len:%d\r\n",
                 __func__,__LINE__, p_copy, p_copy->next, p_copy->payload, p_copy->tot_len);
 
             //pbuf_header_force(p, (s16)macif_get_rxl_payload_offset() + sizeof(struct cpdu_t));
@@ -367,7 +367,7 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
                 
                 if (p_copy == NULL)
                 {
-                    CIF_LOGD("%s,%d,alloc fail\n",__func__,__LINE__);
+                    CIF_LOGV("%s,%d,alloc fail\n",__func__,__LINE__);
                     pbuf_free(p);
                     upload2ctrl = false;
                     return upload2ctrl;
@@ -389,7 +389,7 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
                 cpdu->co_hdr.need_free = 0;
                 cpdu->co_hdr.special_type = 0;
                 cpdu->co_hdr.vif_idx = wifi_netif_vif_to_netif_type(vif);
-                CIF_LOGD("%s,%d p:%p next:%p payload:%p len:%d\r\n",
+                CIF_LOGV("%s,%d p:%p next:%p payload:%p len:%d\r\n",
                     __func__,__LINE__, p_copy, p_copy->next, p_copy->payload, p_copy->tot_len);
 
                 ret = cif_msg_sender(cpdu,CIF_TASK_MSG_RX_DATA,0);

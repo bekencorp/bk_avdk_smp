@@ -106,7 +106,7 @@ bk_err_t bk_fft_fir_single_enable(fft_fir_input_t *fir_conf)
 
 	driver_fft.size = fir_conf->fir_len;
 	driver_fft.busy_flag = true;
-	//os_printf("source data\r\n");
+	//BK_LOGD(NULL, "source data\r\n");
 
 	if (fir_conf->mode) {
 		for (i = 0; i < fir_conf->fir_len + 1; i++) {
@@ -114,7 +114,7 @@ bk_err_t bk_fft_fir_single_enable(fft_fir_input_t *fir_conf)
 			fft_hal_fir_coef_write(temp_coef);
 			temp_data = (fir_conf->input_d1[i] << 16) | fir_conf->input_d0[i];
 			fft_hal_data_write(temp_data);
-			//os_printf("coef:0x%08x, data:0x%08x\r\n", temp_coef, temp_data);
+			//BK_LOGD(NULL, "coef:0x%08x, data:0x%08x\r\n", temp_coef, temp_data);
 		}
 	} else {
 		for (i = 0; i < fir_conf->fir_len + 1; i++) {
@@ -122,7 +122,7 @@ bk_err_t bk_fft_fir_single_enable(fft_fir_input_t *fir_conf)
 			fft_hal_fir_coef_write(temp_coef);
 			temp_data = (int32)fir_conf->input_d0[i];
 			fft_hal_data_write(temp_data);
-			//os_printf("coef:0x%08x, data:0x%08x\r\n", temp_coef, temp_data);
+			//BK_LOGD(NULL, "coef:0x%08x, data:0x%08x\r\n", temp_coef, temp_data);
 		}
 	}
 
@@ -199,7 +199,7 @@ void fft_isr(void)
 
 	if (fft_status.fft_done) {
 		bit_ext = (fft_status.bit_ext & 0x00001fff) >> 7;
-		os_printf("bit_ext:0x%x\r\n", bit_ext);
+		BK_LOGD(NULL, "bit_ext:0x%x\r\n", bit_ext);
 
 		if (bit_ext & 0x20)
 			bit_ext = 64 - bit_ext;
@@ -214,12 +214,12 @@ void fft_isr(void)
 			temp_high = fft_sat(temp_out);
 			driver_fft.i_out[i]  = temp_low;
 			driver_fft.q_out[i]  = temp_high;
-			//os_printf("i:0x%04hx, q:0x%04hx\r\n", driver_fft.i_out[i], driver_fft.q_out[i]);
+			//BK_LOGD(NULL, "i:0x%04hx, q:0x%04hx\r\n", driver_fft.i_out[i], driver_fft.q_out[i]);
 		}
 
 		driver_fft.busy_flag = false;
 		fft_hal_fft_config_reset(0);
-		os_printf("\r\nexit isr \r\n");
+		BK_LOGD(NULL, "\r\nexit isr \r\n");
 	}
 
 	if (fft_status.fir_done) {

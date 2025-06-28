@@ -53,7 +53,7 @@ static can_callback_des_t s_can_isr_user_err_cb;
 bk_err_t bk_can_gpio_init(can_channel_t chn)
 {
 	if (chn >= CAN_CHAN_MAX || chn < CAN_CHAN_0) {
-		CAN_LOGD("unsupported can chnnal\r\n");
+		CAN_LOGV("unsupported can chnnal\r\n");
 		return BK_ERR_PARAM;
 	}
 	BK_LOG_ON_ERR(gpio_dev_unmap(s_can_gpio[chn].tx.id));
@@ -73,7 +73,7 @@ bk_err_t bk_can_gpio_init(can_channel_t chn)
 bk_err_t bk_can_gpio_deinit(can_channel_t chn)
 {
 	if (chn >= CAN_CHAN_MAX || chn < CAN_CHAN_0) {
-		CAN_LOGD("unsupported can chnnal\r\n");
+		CAN_LOGV("unsupported can chnnal\r\n");
 		return BK_ERR_PARAM;
 	}
 	BK_LOG_ON_ERR(gpio_dev_unmap(s_can_gpio[chn].tx.id));
@@ -417,7 +417,7 @@ void bk_can_register_err_callback(can_callback_des_t *err_cb)
 static void can_err_int(void *param)
 {
     uint32_t err_code = (uint32_t)param;
-    CAN_LOGI("%s,%d err code 0x%x\r\n", __func__, __LINE__, err_code);
+    CAN_LOGD("%s,%d err code 0x%x\r\n", __func__, __LINE__, err_code);
 
     if(s_can_isr_user_err_cb.cb) {
         s_can_isr_user_err_cb.cb(s_can_isr_user_err_cb.param);
@@ -449,13 +449,13 @@ void can_isr(void)
     __attribute__((__unused__)) can_statis_t *can_statis = can_statis_get_statis();
 
     intc_stat = can_hal_get_ie_value();
-    CAN_LOGD(" %s, %d intc_stat 0x%x\r\n\r\n", __func__, __LINE__, intc_stat);
+    CAN_LOGV(" %s, %d intc_stat 0x%x\r\n\r\n", __func__, __LINE__, intc_stat);
     CAN_STATIS_INC(can_statis->isr_cnt);
 
     if (intc_stat & RX_INT_FLAG_GROUP) {
-        CAN_LOGD("RECV message\r\n");
+        CAN_LOGV("RECV message\r\n");
         can_hal_receive_frame();
-        CAN_LOGD("%s,%d\r\n", __func__, __LINE__);
+        CAN_LOGV("%s,%d\r\n", __func__, __LINE__);
         CAN_STATIS_INC(can_statis->rx_cnt);
         if(s_can_isr_user_rx_cb.cb) {
             s_can_isr_user_rx_cb.cb(s_can_isr_user_rx_cb.param);
@@ -463,7 +463,7 @@ void can_isr(void)
     }
 
     if (intc_stat & TX_INT_FLAG_GROUP) {
-        CAN_LOGD("SEND message\r\n");
+        CAN_LOGV("SEND message\r\n");
         can_hal_send_frame();
         CAN_STATIS_INC(can_statis->tx_cnt);
         if(s_can_isr_user_tx_cb.cb){
@@ -473,25 +473,25 @@ void can_isr(void)
 
     if (intc_stat & ERR_INT_FLAG_GROUP) {
         if (intc_stat & (1 << CAN_IE_BEIF_POS)) {
-            CAN_LOGI(" BUS ERROR\r\n\r\n");
+            CAN_LOGD(" BUS ERROR\r\n\r\n");
             err_c |= CAN_ERRINT_BUS;
             CAN_STATIS_INC(can_statis->beif_cnt);
         }
 
         if (intc_stat & (1 << CAN_IE_ALIF_POS)) {
-            CAN_LOGI(" Arbitration Lost\r\n\r\n");
+            CAN_LOGD(" Arbitration Lost\r\n\r\n");
             err_c |= CAN_ERRINT_ARB_LOST;
             CAN_STATIS_INC(can_statis->alif_cnt);
         }
 
         if (intc_stat & (1 << CAN_IE_EPIF_POS)) {
-            CAN_LOGI(" Error Passive\r\n\r\n");
+            CAN_LOGD(" Error Passive\r\n\r\n");
             err_c |= CAN_ERRINT_PASSIVE;
             CAN_STATIS_INC(can_statis->epif_cnt);
         }
 
         if (intc_stat & (1 << CAN_IE_EWARN_POS)) {
-            CAN_LOGI(" Error Warning Limit\r\n\r\n");
+            CAN_LOGD(" Error Warning Limit\r\n\r\n");
             err_c |= CAN_ERRINT_WARN_LIM;
             CAN_STATIS_INC(can_statis->ewarn_cnt);
         }
@@ -500,7 +500,7 @@ void can_isr(void)
     }
 
     if (intc_stat & (1 << CAN_IE_AIF_POS)) {
-        CAN_LOGI("Abort Handled \r\n\r\n");
+        CAN_LOGD("Abort Handled \r\n\r\n");
         CAN_STATIS_INC(can_statis->aif_cnt);
     }
 

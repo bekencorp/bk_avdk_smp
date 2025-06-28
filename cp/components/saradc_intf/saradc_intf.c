@@ -416,14 +416,14 @@ static void adc_check(int argc, char **argv)
 	if (0 == strcmp(argv[1], "read")) {
 		status = manual_cal_load_adc_cali_flash();
 		if (status != 0) {
-			os_printf("Can't read cali value, use default!\r\n");
-			os_printf("calibrate low value:[%x]\r\n", saradc_val.low);
-			os_printf("calibrate high value:[%x]\r\n", saradc_val.high);
+			BK_LOGD(NULL,"Can't read cali value, use default!\r\n");
+			BK_LOGD(NULL,"calibrate low value:[%x]\r\n", saradc_val.low);
+			BK_LOGD(NULL,"calibrate high value:[%x]\r\n", saradc_val.high);
 		}
 	} else if (0 == strcmp(argv[1], "set")) {
 		p_ADC_drv_desc = (saradc_desc_t *)malloc(sizeof(saradc_desc_t));
 		if (p_ADC_drv_desc == NULL) {
-			os_printf("malloc1 failed!\r\n");
+			BK_LOGD(NULL,"malloc1 failed!\r\n");
 			return;
 		}
 
@@ -441,7 +441,7 @@ static void adc_check(int argc, char **argv)
 		os_memset(p_ADC_drv_desc->pData, 0x00, p_ADC_drv_desc->data_buff_size * sizeof(UINT16));
 
 		if (p_ADC_drv_desc->pData == NULL) {
-			os_printf("malloc1 failed!\r\n");
+			BK_LOGD(NULL,"malloc1 failed!\r\n");
 			free(p_ADC_drv_desc);
 			return;
 		}
@@ -463,7 +463,7 @@ static void adc_check(int argc, char **argv)
 		} while (ret < 5);
 
 		if (ret == 5) {
-			os_printf("saradc open failed!\r\n");
+			BK_LOGD(NULL,"saradc open failed!\r\n");
 			free(p_ADC_drv_desc->pData);
 			free(p_ADC_drv_desc);
 			return;
@@ -494,28 +494,28 @@ static void adc_check(int argc, char **argv)
 		else if (0 == strcmp(argv[2], "high"))
 			p_ADC_cal.mode = SARADC_CALIBRATE_HIGH;
 		else {
-			os_printf("invalid parameter\r\n");
+			BK_LOGD(NULL,"invalid parameter\r\n");
 			return;
 		}
 		p_ADC_cal.val = p_ADC_drv_desc->pData[0];
 		if (SARADC_FAILURE == ddev_control(saradc_handle, SARADC_CMD_SET_CAL_VAL, (VOID *)&p_ADC_cal)) {
-			os_printf("set calibrate value failture\r\n");
+			BK_LOGD(NULL,"set calibrate value failture\r\n");
 			free(p_ADC_drv_desc->pData);
 			free(p_ADC_drv_desc);
 			return;
 		}
-		os_printf("set calibrate success\r\n");
-		os_printf("type:[%s] value:[0x%x]\r\n", (p_ADC_cal.mode ? "high" : "low"), p_ADC_cal.val);
+		BK_LOGD(NULL,"set calibrate success\r\n");
+		BK_LOGD(NULL,"type:[%s] value:[0x%x]\r\n", (p_ADC_cal.mode ? "high" : "low"), p_ADC_cal.val);
 		free(p_ADC_drv_desc->pData);
 		free(p_ADC_drv_desc);
 	} else if (0 == strcmp(argv[1], "write")) {
 		manual_cal_save_chipinfo_tab_to_flash();
-		os_printf("calibrate low value:[%x]\r\n", saradc_val.low);
-		os_printf("calibrate high value:[%x]\r\n", saradc_val.high);
+		BK_LOGD(NULL,"calibrate low value:[%x]\r\n", saradc_val.low);
+		BK_LOGD(NULL,"calibrate high value:[%x]\r\n", saradc_val.high);
 	} else if (0 == strcmp(argv[1], "get")) {
 		p_ADC_drv_desc = (saradc_desc_t *)malloc(sizeof(saradc_desc_t));
 		if (p_ADC_drv_desc == NULL) {
-			os_printf("malloc1 failed!\r\n");
+			BK_LOGD(NULL,"malloc1 failed!\r\n");
 			return;
 		}
 
@@ -534,7 +534,7 @@ static void adc_check(int argc, char **argv)
 		os_memset(p_ADC_drv_desc->pData, 0x00, p_ADC_drv_desc->data_buff_size * sizeof(UINT16));
 
 		if (p_ADC_drv_desc->pData == NULL) {
-			os_printf("malloc1 failed!\r\n");
+			BK_LOGD(NULL,"malloc1 failed!\r\n");
 			free(p_ADC_drv_desc);
 			return;
 		}
@@ -556,7 +556,7 @@ static void adc_check(int argc, char **argv)
 		} while (ret < 5);
 
 		if (ret == 5) {
-			os_printf("saradc open failed!\r\n");
+			BK_LOGD(NULL,"saradc open failed!\r\n");
 			free(p_ADC_drv_desc->pData);
 			free(p_ADC_drv_desc);
 			return;
@@ -587,10 +587,10 @@ static void adc_check(int argc, char **argv)
 		}
 
 #if (CONFIG_SOC_BK7231N) || (CONFIG_SOC_BK7236A) || (CONFIG_SOC_BK7256XX)
-		os_printf("saradc[ch%d]=%d\r\n", (UINT32)p_ADC_drv_desc->channel, (UINT32)p_ADC_drv_desc->pData[0]);
+		BK_LOGD(NULL,"saradc[ch%d]=%d\r\n", (UINT32)p_ADC_drv_desc->channel, (UINT32)p_ADC_drv_desc->pData[0]);
 #else
 		voltage = saradc_calculate(p_ADC_drv_desc->pData[0]);
-		os_printf("voltage is [%d] mv\r\n", (UINT32)(voltage * 1000));
+		BK_LOGD(NULL,"voltage is [%d] mv\r\n", (UINT32)(voltage * 1000));
 #endif
 		free(p_ADC_drv_desc->pData);
 		free(p_ADC_drv_desc);
@@ -600,7 +600,7 @@ static void adc_check(int argc, char **argv)
 
 	return;
 IDLE_CMD_ERR:
-	os_printf("Usage:ps [func] [param]\r\n");
+	BK_LOGD(NULL,"Usage:ps [func] [param]\r\n");
 }
 
 MSH_CMD_EXPORT(adc_check, adc check);

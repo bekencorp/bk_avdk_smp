@@ -26,6 +26,7 @@
 #define LOGW(...) BK_LOGW(COUNT_UTIL_TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(COUNT_UTIL_TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(COUNT_UTIL_TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(COUNT_UTIL_TAG, ##__VA_ARGS__)
 
 
 
@@ -42,7 +43,7 @@ static void count_util_callback(void *param)
 
     count_util->data_size = count_util->data_size / 1024 / (count_util->timer_interval / 1000);
 
-    LOGI("[%s] data_size: %d(Bytes), %uKB/s \n", count_util->tag, temp, count_util->data_size);
+    LOGD("[%s] data_size: %d(Bytes), %uKB/s \n", count_util->tag, temp, count_util->data_size);
     count_util->data_size  = 0;
 }
 
@@ -74,7 +75,7 @@ bk_err_t count_util_destroy(count_util_t *count_util)
     count_util->data_size = 0;
     count_util->timer_interval = 0;
     os_memset(count_util->tag, '\0', 20);
-    LOGI("%s, %d, destroy count util timer complete \n", __func__, __LINE__);
+    LOGD("%s, %d, destroy count util timer complete \n", __func__, __LINE__);
 
     return ret;
 }
@@ -126,7 +127,7 @@ bk_err_t count_util_create(count_util_t *count_util, uint32_t interval, char *ta
         LOGE("%s, %d, start %s count util timer fail \n", __func__, __LINE__, count_util->tag);
         goto exit;
     }
-    LOGI("%s, %d, create %s count util timer complete \n", __func__, __LINE__, count_util->tag);
+    LOGD("%s, %d, create %s count util timer complete \n", __func__, __LINE__, count_util->tag);
 
     return BK_OK;
 exit:
@@ -139,7 +140,7 @@ void count_util_add_size(count_util_t *count_util, int32_t size)
 {
     if (!count_util)
     {
-        LOGD("%s, %d, count_util is NULL \n", __func__, __LINE__);
+        LOGV("%s, %d, count_util is NULL \n", __func__, __LINE__);
         return;
     }
 

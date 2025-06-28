@@ -17,13 +17,13 @@
 
 static void cli_sdmadc_help(void)
 {
-	CLI_LOGI("sdmadc init/deinit-------------------driver init and sdmadc init\r\n");
-	CLI_LOGI("sdmadc single_read {channel}--------------read average with default single mode config\r\n");
-	CLI_LOGI("sdmadc continuous_read {channel}{read_size}---read average with default continuous mode config\r\n");
-	CLI_LOGI("sdmadc read--------------------------read average with config set by tester\r\n");
-	CLI_LOGI("sdmadc set_config  {samp_mode}{samp_numb}{samp_chan}{comp_bpss}{int_enbale}{cali_offset}{cali_gains}\r\n");
-	CLI_LOGI("sdmadc set_channel {channel}\r\n");
-	CLI_LOGI("sdmadc set_mode    {mode}\r\n");
+	CLI_LOGD("sdmadc init/deinit-------------------driver init and sdmadc init\r\n");
+	CLI_LOGD("sdmadc single_read {channel}--------------read average with default single mode config\r\n");
+	CLI_LOGD("sdmadc continuous_read {channel}{read_size}---read average with default continuous mode config\r\n");
+	CLI_LOGD("sdmadc read--------------------------read average with config set by tester\r\n");
+	CLI_LOGD("sdmadc set_config  {samp_mode}{samp_numb}{samp_chan}{comp_bpss}{int_enbale}{cali_offset}{cali_gains}\r\n");
+	CLI_LOGD("sdmadc set_channel {channel}\r\n");
+	CLI_LOGD("sdmadc set_mode    {mode}\r\n");
 }
 
 static void cli_sdmadc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -46,18 +46,18 @@ static void cli_sdmadc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		int16_t result = 0;
 		uint16_t channel = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_sdmadc_single_read(&result, channel));
-		os_printf("average = %d\r\n",result);
+		BK_LOGD(NULL,"average = %d\r\n",result);
 	} else if (os_strcmp(argv[1], "continuous_read") == 0) {
 		int16_t result = 0;
 		uint16_t channel = os_strtoul(argv[2], NULL, 10);
 		uint32_t size = os_strtoul(argv[3   ], NULL, 10);
 		BK_LOG_ON_ERR(bk_sdmadc_continuous_read(&result, size, channel));
-		os_printf("average = %d\r\n",result);
+		BK_LOGD(NULL,"average = %d\r\n",result);
 	} else if (os_strcmp(argv[1], "read") == 0) {
 		int16_t result = 0;
 		uint32_t size = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_sdmadc_read_average(&result, size));
-		os_printf("average = %d\r\n",result);
+		BK_LOGD(NULL,"average = %d\r\n",result);
 	} else if (os_strcmp(argv[1], "set_config") == 0) {
 		sdmadc_config_t config;
 		config.samp_mode = os_strtoul(argv[2], NULL, 10);

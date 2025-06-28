@@ -31,8 +31,8 @@ static char opus_file_name[50] = "";
 
 static void cli_audio_opus_help(void)
 {
-	os_printf("opus_encoder_test {xxx.pcm xxx.opus} \r\n");
-	os_printf("opus_decoder_test {xxx.opus xxx.pcm} \r\n");
+	BK_LOGD(NULL, "opus_encoder_test {xxx.pcm xxx.opus} \r\n");
+	BK_LOGD(NULL, "opus_decoder_test {xxx.opus xxx.pcm} \r\n");
 }
 
 static beken_thread_t opus_enc_thread_handle = NULL;
@@ -54,32 +54,32 @@ void opus_encoder_main(void)
 
 	fr = f_open(&file_pcm, pcm_file_name, FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", pcm_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", pcm_file_name);
 		return;
 	}
 	fr = f_open(&file_opus, opus_file_name, FA_CREATE_ALWAYS | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", opus_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", opus_file_name);
 		return;
 	}
 
 	pcm_addr = (uint8_t *)os_malloc(FRAME_16K_20MS_SIZE);
 	if (pcm_addr == NULL) {
-		os_printf("malloc pcm_addr fail \r\n");
+		BK_LOGD(NULL, "malloc pcm_addr fail \r\n");
 		return;
 	}
 	os_memset(pcm_addr, 0, FRAME_16K_20MS_SIZE);
 
 	opus_out = (uint8_t *)os_malloc(4000);
 	if (opus_out == NULL) {
-		os_printf("malloc opus_out fail \r\n");
+		BK_LOGD(NULL, "malloc opus_out fail \r\n");
 		return;
 	}
 	os_memset(opus_out, 0, 4000);
 
 	enc = opus_encoder_create(16000, 1, OPUS_APPLICATION_AUDIO, &error);
 	if (enc == NULL) {
-		os_printf("creat fail \r\n");
+		BK_LOGD(NULL, "creat fail \r\n");
 		return;
 	}
 
@@ -114,23 +114,23 @@ void opus_encoder_main(void)
 */
 
 	pcm_data_size = f_size(&file_pcm);
-	os_printf("pcm_data_size: %d \r\n", (uint32_t)pcm_data_size);
+	BK_LOGD(NULL, "pcm_data_size: %d \r\n", (uint32_t)pcm_data_size);
 	while (pcm_data_size >= FRAME_16K_20MS_SIZE)
 	{
 		fr = f_read(&file_pcm, pcm_addr, FRAME_16K_20MS_SIZE, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read pcm file fail.\r\n");
+			BK_LOGD(NULL, "read pcm file fail.\r\n");
 			break;
 		}
 
 		//addAON_GPIO_Reg0x8 = 2;
 		encoder_len = opus_encode(enc, (int16_t *)pcm_addr, 320, opus_out, 4000);
 		//addAON_GPIO_Reg0x8 = 0;
-		//os_printf("encoder_len: %d \r\n", encoder_len);
+		//BK_LOGD(NULL, "encoder_len: %d \r\n", encoder_len);
 		//rtos_delay_milliseconds(5);
 		fr = f_write(&file_opus, (void *)opus_out, encoder_len, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("write output data %s fail, uiTemp: %d.\r\n", opus_file_name, uiTemp);
+			BK_LOGD(NULL, "write output data %s fail, uiTemp: %d.\r\n", opus_file_name, uiTemp);
 			break;
 		}
 
@@ -141,19 +141,19 @@ void opus_encoder_main(void)
 
 	fr = f_close(&file_pcm);
 	if (fr != FR_OK) {
-		os_printf("close mic file %s fail!\r\n", pcm_file_name);
+		BK_LOGD(NULL, "close mic file %s fail!\r\n", pcm_file_name);
 		return;
 	}
 
 	fr = f_close(&file_opus);
 	if (fr != FR_OK) {
-		os_printf("close ref file %s fail!\r\n", opus_file_name);
+		BK_LOGD(NULL, "close ref file %s fail!\r\n", opus_file_name);
 		return;
 	}
 
 	os_free(pcm_addr);
 	os_free(opus_out);
-	os_printf("encoder test complete \r\n");
+	BK_LOGD(NULL, "encoder test complete \r\n");
 
 	/* delete task */
 	opus_enc_thread_handle = NULL;
@@ -179,11 +179,11 @@ void cli_opus_encoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 							 1024*22,
 							 0);
 	if (ret != kNoErr) {
-		os_printf("Error: Failed to create opus encoder thread: %d\r\n",
+		BK_LOGD(NULL, "Error: Failed to create opus encoder thread: %d\r\n",
 				  ret);
 	}
 
-	os_printf("test finish \r\n");
+	BK_LOGD(NULL, "test finish \r\n");
 }
 
 static beken_thread_t opus_dec_thread_handle = NULL;
@@ -204,32 +204,32 @@ void opus_decoder_main(void)
 
 	fr = f_open(&file_pcm, pcm_file_name, FA_CREATE_ALWAYS | FA_WRITE);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", pcm_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", pcm_file_name);
 		return;
 	}
 	fr = f_open(&file_opus, opus_file_name, FA_READ);
 	if (fr != FR_OK) {
-		os_printf("open %s fail.\r\n", opus_file_name);
+		BK_LOGD(NULL, "open %s fail.\r\n", opus_file_name);
 		return;
 	}
 
 	opus_addr = (uint8_t *)os_malloc(PACKET_16k_20MS_SIZE);
 	if (opus_addr == NULL) {
-		os_printf("malloc pcm_addr fail \r\n");
+		BK_LOGD(NULL, "malloc pcm_addr fail \r\n");
 		return;
 	}
 	os_memset(opus_addr, 0, PACKET_16k_20MS_SIZE);
 
 	pcm_out = (uint8_t *)os_malloc(4000);
 	if (pcm_out == NULL) {
-		os_printf("malloc opus_out fail \r\n");
+		BK_LOGD(NULL, "malloc opus_out fail \r\n");
 		return;
 	}
 	os_memset(pcm_out, 0, 4000);
 
 	dec = opus_decoder_create(16000, 1, &error);
 	if (dec == NULL) {
-		os_printf("creat fail \r\n");
+		BK_LOGD(NULL, "creat fail \r\n");
 		return;
 	}
 /*
@@ -239,22 +239,22 @@ void opus_decoder_main(void)
 	opus_decoder_ctl(enc, OPUS_SET_EXPERT_FRAME_DURATION(OPUS_FRAMESIZE_20_MS));
 */
 	opus_data_size = f_size(&file_opus);
-	os_printf("opus_data_size: %d \r\n", (uint32_t)opus_data_size);
+	BK_LOGD(NULL, "opus_data_size: %d \r\n", (uint32_t)opus_data_size);
 	while (opus_data_size >= PACKET_16k_20MS_SIZE)
 	{
 		fr = f_read(&file_opus, opus_addr, PACKET_16k_20MS_SIZE, &uiTemp);
 		if (fr != FR_OK) {
-			os_printf("read pcm file fail.\r\n");
+			BK_LOGD(NULL, "read pcm file fail.\r\n");
 			break;
 		}
 
 		decoder_len = opus_decode(dec, opus_addr, PACKET_16k_20MS_SIZE, (int16_t *)pcm_out, 4000, 0);
-		//os_printf("decoder_len: %d \r\n", decoder_len*2);
+		//BK_LOGD(NULL, "decoder_len: %d \r\n", decoder_len*2);
 		//rtos_delay_milliseconds(5);
 		if (decoder_len > 0) {
 			fr = f_write(&file_pcm, (void *)pcm_out, decoder_len*2, &uiTemp);
 			if (fr != FR_OK) {
-				os_printf("write output data %s fail, uiTemp: %d.\r\n", pcm_file_name, uiTemp);
+				BK_LOGD(NULL, "write output data %s fail, uiTemp: %d.\r\n", pcm_file_name, uiTemp);
 				break;
 			}
 		}
@@ -266,19 +266,19 @@ void opus_decoder_main(void)
 
 	fr = f_close(&file_pcm);
 	if (fr != FR_OK) {
-		os_printf("close mic file %s fail!\r\n", pcm_file_name);
+		BK_LOGD(NULL, "close mic file %s fail!\r\n", pcm_file_name);
 		return;
 	}
 
 	fr = f_close(&file_opus);
 	if (fr != FR_OK) {
-		os_printf("close ref file %s fail!\r\n", opus_file_name);
+		BK_LOGD(NULL, "close ref file %s fail!\r\n", opus_file_name);
 		return;
 	}
 
 	os_free(opus_addr);
 	os_free(pcm_out);
-	os_printf("decoder test complete \r\n");
+	BK_LOGD(NULL, "decoder test complete \r\n");
 
 	/* delete task */
 	opus_dec_thread_handle = NULL;
@@ -304,11 +304,11 @@ void cli_opus_decoder_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 							 1024*8,
 							 0);
 	if (ret != kNoErr) {
-		os_printf("Error: Failed to create opus encoder thread: %d\r\n",
+		BK_LOGD(NULL, "Error: Failed to create opus encoder thread: %d\r\n",
 				  ret);
 	}
 
-	os_printf("test finish \r\n");
+	BK_LOGD(NULL, "test finish \r\n");
 }
 
 #define OPUS_CMD_CNT (sizeof(s_opus_commands) / sizeof(struct cli_command))

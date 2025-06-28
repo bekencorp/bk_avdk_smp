@@ -11,7 +11,7 @@ const char *parity_name[] = { "N", "O", "E", "M", "S" };
 
 static int cdc_acm_class_interface_request_handler(uint8_t busid, struct usb_setup_packet *setup, uint8_t **data, uint32_t *len)
 {
-    USB_LOG_DBG("CDC Class request: "
+    USB_LOG_VBS("CDC Class request: "
                 "bRequest 0x%02x\r\n",
                 setup->bRequest);
 
@@ -40,7 +40,7 @@ static int cdc_acm_class_interface_request_handler(uint8_t busid, struct usb_set
             /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
             /*******************************************************************************/
             memcpy(&line_coding, *data, setup->wLength);
-            USB_LOG_DBG("Set intf:%d linecoding <%d %d %s %s>\r\n",
+            USB_LOG_VBS("Set intf:%d linecoding <%d %d %s %s>\r\n",
                         intf_num,
                         line_coding.dwDTERate,
                         line_coding.bDataBits,
@@ -53,7 +53,7 @@ static int cdc_acm_class_interface_request_handler(uint8_t busid, struct usb_set
         case CDC_REQUEST_SET_CONTROL_LINE_STATE:
             dtr = (setup->wValue & 0x0001);
             rts = (setup->wValue & 0x0002);
-            USB_LOG_DBG("Set intf:%d DTR 0x%x,RTS 0x%x\r\n",
+            USB_LOG_VBS("Set intf:%d DTR 0x%x,RTS 0x%x\r\n",
                         intf_num,
                         dtr,
                         rts);
@@ -65,7 +65,7 @@ static int cdc_acm_class_interface_request_handler(uint8_t busid, struct usb_set
             usbd_cdc_acm_get_line_coding(busid, intf_num, &line_coding);
             memcpy(*data, &line_coding, 7);
             *len = 7;
-            USB_LOG_DBG("Get intf:%d linecoding %d %d %d %d\r\n",
+            USB_LOG_VBS("Get intf:%d linecoding %d %d %d %d\r\n",
                         intf_num,
                         line_coding.dwDTERate,
                         line_coding.bCharFormat,

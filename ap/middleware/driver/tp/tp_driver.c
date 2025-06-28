@@ -33,6 +33,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
 // power definition.
@@ -134,7 +135,8 @@ void bk_tp_set_sensor_devices_list(const tp_sensor_config_t **list, uint16_t siz
 {
     tp_sensor_devices_list = list;
     tp_sensor_devices_size = size;
-}
+
+}
 
 int tp_i2c_read_uint8(uint8_t addr, uint8_t reg, uint8_t *buff, uint16_t len)
 {
@@ -357,7 +359,7 @@ bk_err_t bk_tp_i2c_init(const tp_config_t *config)
 // tp interrupt service routine.
 static void tp_int_gpio_isr(gpio_id_t id)
 {
-	// LOGI("tp int isr index:%d\n", id);
+	// LOGD("tp int isr index:%d\n", id);
 
 	if (false != tp_driver_init_flag)
 	{
@@ -468,7 +470,7 @@ void tp_process_task(beken_thread_arg_t arg)
 				{
 					if ((TP_EVENT_TYPE_DOWN == tp_data[i].event) || (TP_EVENT_TYPE_UP == tp_data[i].event) || (TP_EVENT_TYPE_MOVE == tp_data[i].event))
 					{
-						LOGD("event=%d, track_id=%d, x=%d, y=%d, s=%d, timestamp=%u.\r\n", 
+						LOGV("event=%d, track_id=%d, x=%d, y=%d, s=%d, timestamp=%u.\r\n", 
 									tp_data[i].event,
 									tp_data[i].track_id,
 									tp_data[i].x_coordinate,
@@ -503,7 +505,7 @@ bk_err_t bk_tp_driver_init(tp_config_t *config)
 	int ret = BK_OK;
 	tp_sensor_user_config_t sensor_user_config = {0};
 
-	LOGI("%s, ppi=%d, int_type=%d, refresh_rate=%d, tp_num=%d.\r\n", __func__, config->ppi, config->int_type, config->refresh_rate, config->tp_num);
+	LOGD("%s, ppi=%d, int_type=%d, refresh_rate=%d, tp_num=%d.\r\n", __func__, config->ppi, config->int_type, config->refresh_rate, config->tp_num);
 
 	#if (TP_POWER_CTRL_EN > 0)
 		// power control initialization.
@@ -589,7 +591,7 @@ bk_err_t bk_tp_driver_init(tp_config_t *config)
 	tp_device.int_type = config->int_type;
 	tp_device.refresh_rate = config->refresh_rate;
 	tp_device.tp_num = config->tp_num;
-	LOGI("%s, name=%s, id=%d, ppi=%d, x_size=%d, y_size=%d, int_type=%d, refresh_rate=%d, tp_num=%d.\r\n", __func__, tp_device.name, tp_device.id, tp_device.ppi, sensor_user_config.x_size, sensor_user_config.y_size, tp_device.int_type, tp_device.refresh_rate, tp_device.tp_num);
+	LOGD("%s, name=%s, id=%d, ppi=%d, x_size=%d, y_size=%d, int_type=%d, refresh_rate=%d, tp_num=%d.\r\n", __func__, tp_device.name, tp_device.id, tp_device.ppi, sensor_user_config.x_size, sensor_user_config.y_size, tp_device.int_type, tp_device.refresh_rate, tp_device.tp_num);
 
 	// initilization finish.
 	tp_driver_init_flag = true;

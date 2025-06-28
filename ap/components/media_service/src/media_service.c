@@ -60,14 +60,14 @@ static void media_debug_dump(timer_id_t timer_id)
 	media_debug_cached->meantimes = media_debug->meantimes;
 	media_debug_cached->lvgl_draw = media_debug->lvgl_draw;
 
-	LOGI("h264:%d[%d], dec:%d[%d], lcd:%d[%d], lcd_fps:%d[%d], lvgl:%d[%d]\n",
+	LOGD("h264:%d[%d], dec:%d[%d], lcd:%d[%d], lcd_fps:%d[%d], lvgl:%d[%d]\n",
 			h264, media_debug->isr_h264,
 			dec, media_debug->isr_decoder,
 			lcd, media_debug->isr_lcd,
 			fps_lcd, media_debug->fps_lcd,
 			lvgl, media_debug->lvgl_draw);
 
-	LOGI("wifi:%d[%d, %dkbps, %dms, %d-%d], jpg:%dKB[%dKbps], h264:%dKB[%dKbps]\n",
+	LOGD("wifi:%d[%d, %dkbps, %dms, %d-%d], jpg:%dKB[%dKbps], h264:%dKB[%dKbps]\n",
 			fps_wifi, media_debug->fps_wifi, wifi_kps, meantimes, media_debug->begin_trs, media_debug->end_trs,
 			media_debug->jpeg_length / 1024, jpeg_kps,
 			media_debug->h264_length / 1024, h264_kps);
@@ -116,16 +116,12 @@ int media_service_init(void)
     lcd_display_service_init();
 #endif
 
-#ifdef CONFIG_MEDIA_PIPELINE
-	uvc_pipeline_init();
-#endif
-
     media_app_init();
 
     if (media_debug == NULL)
     {
         media_debug = (media_debug_t *)os_malloc(sizeof(media_debug_t));
-    
+
         if (media_debug == NULL)
         {
             LOGE("malloc media_debug fail\n");

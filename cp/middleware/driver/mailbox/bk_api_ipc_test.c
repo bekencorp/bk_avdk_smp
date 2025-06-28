@@ -10,10 +10,10 @@
 
 #define TAG "MIPC-UT"
 
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 extern uint64_t bk_aon_rtc_get_us(void);
 extern uint32_t xTaskGetTickCount(void);
@@ -61,7 +61,7 @@ TEST(TEST_IOT_AVDK_IPC, AVDKIpcSync)
 
         TEST_ASSERT_EQUAL(ret, BK_OK);
 
-        LOGD("ipc send cost: %u\n", after - before);
+        LOGV("ipc send cost: %u\n", after - before);
     }
 
     TEST_ASSERT_EQUAL(ret, BK_OK);
@@ -89,7 +89,7 @@ TEST(TEST_IOT_AVDK_IPC, AVDKIpcAsync)
 
         TEST_ASSERT_EQUAL(ret, BK_OK);
 
-        LOGD("ipc send cost: %u\n", after - before);
+        LOGV("ipc send cost: %u\n", after - before);
 
         rtos_delay_milliseconds(100);
     }
@@ -126,7 +126,7 @@ static const struct cli_command s_bk_ipc_test_commands[] =
 
 uint32_t bk_ipc_sync_cpu0_callback(uint8_t *data, uint32_t size, void *param, ipc_obj_t ipc_obj)
 {
-    LOGI("Rx: [%s], size: %d\n", data, size);
+    LOGD("Rx: [%s], size: %d\n", data, size);
 
     return 0;
 }

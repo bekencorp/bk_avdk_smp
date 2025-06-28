@@ -26,7 +26,7 @@
 
 #define TEST_CHECK_NULL(ptr) do {\
         if (ptr == NULL) {\
-            BK_LOGI(TAG, "TEST_CHECK_NULL fail \n");\
+            BK_LOGD(TAG, "TEST_CHECK_NULL fail \n");\
             return BK_FAIL;\
         }\
     } while(0)
@@ -2974,20 +2974,20 @@ static int read_count = 0;
 
 static bk_err_t _el_open(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _el_open \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _el_open \n", audio_element_get_tag(self));
     return BK_OK;
 }
 
 static bk_err_t _el_close(audio_element_handle_t self)
 {
-    BK_LOGI(TAG, "[%s] _el_close \n", audio_element_get_tag(self));
+    BK_LOGD(TAG, "[%s] _el_close \n", audio_element_get_tag(self));
     return BK_OK;
 }
 
 static int _el_read(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
     audio_element_handle_t el = (audio_element_handle_t)context;
-    BK_LOGD(TAG, "[%s] _el_read, len: %d \n", audio_element_get_tag(el), len);
+    BK_LOGV(TAG, "[%s] _el_read, len: %d \n", audio_element_get_tag(el), len);
 
     //the data in output_rb need to be read
     static uint32_t read_ptr = 0;
@@ -3014,7 +3014,7 @@ static int _el_read(audio_port_handle_t self, char *buffer, int len, TickType_t 
 
 static int _el_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    BK_LOGD(TAG, "[%s] _el_process, in_len: %d \n", audio_element_get_tag(self), in_len);
+    BK_LOGV(TAG, "[%s] _el_process, in_len: %d \n", audio_element_get_tag(self), in_len);
 
     int r_size = audio_element_input(self, in_buffer, in_len);
 
@@ -3064,15 +3064,15 @@ bk_err_t adk_onboard_speaker_test_case_0(void)
     //      bk_disable_mod_printf("AGC_ALGORITHM", 0);
     //      bk_disable_mod_printf("AGC_ALGORITHM_TEST", 0);
 #endif
-    BK_LOGI(TAG, "--------- %s ----------\n", __func__);
+    BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
 
-    BK_LOGI(TAG, "--------- step1: pipeline init ----------\n");
+    BK_LOGD(TAG, "--------- step1: pipeline init ----------\n");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
     pipeline = audio_pipeline_init(&pipeline_cfg);
     TEST_CHECK_NULL(pipeline);
 
-    BK_LOGI(TAG, "--------- step2: init elements ----------\n");
+    BK_LOGD(TAG, "--------- step2: init elements ----------\n");
     cfg.open = _el_open;
     cfg.close = _el_close;
     cfg.process = _el_process;
@@ -3089,7 +3089,7 @@ bk_err_t adk_onboard_speaker_test_case_0(void)
     onboard_spk = onboard_speaker_stream_init(&onboard_spk_cfg);
     TEST_CHECK_NULL(onboard_spk);
 
-    BK_LOGI(TAG, "--------- step3: pipeline register ----------\n");
+    BK_LOGD(TAG, "--------- step3: pipeline register ----------\n");
     if (BK_OK != audio_pipeline_register(pipeline, test_stream_in, "stream_in"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
@@ -3101,7 +3101,7 @@ bk_err_t adk_onboard_speaker_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step4: pipeline link ----------\n");
+    BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
     if (BK_OK != audio_pipeline_link(pipeline, (const char *[])
 {"stream_in", "onboard_spk"
 }, 2))
@@ -3110,7 +3110,7 @@ bk_err_t adk_onboard_speaker_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step5: init event listener ----------\n");
+    BK_LOGD(TAG, "--------- step5: init event listener ----------\n");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
 
@@ -3120,7 +3120,7 @@ bk_err_t adk_onboard_speaker_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- step6: pipeline run ----------\n");
+    BK_LOGD(TAG, "--------- step6: pipeline run ----------\n");
     if (BK_OK != audio_pipeline_run(pipeline))
     {
         BK_LOGE(TAG, "pipeline run fail, %d \n", __LINE__);
@@ -3128,7 +3128,7 @@ bk_err_t adk_onboard_speaker_test_case_0(void)
     }
 
     rtos_delay_milliseconds(4000);
-    BK_LOGI(TAG, "==============PAUSE======================\n");
+    BK_LOGD(TAG, "==============PAUSE======================\n");
     if (BK_OK != audio_element_pause(onboard_spk))
     {
         BK_LOGE(TAG, "%s, line: %d, audio_element_pause fail \n", __func__, __LINE__);
@@ -3136,7 +3136,7 @@ bk_err_t adk_onboard_speaker_test_case_0(void)
 
     rtos_delay_milliseconds(5000);
 
-    BK_LOGI(TAG, "==============RESUME======================\n");
+    BK_LOGD(TAG, "==============RESUME======================\n");
     if (BK_OK != audio_element_resume(onboard_spk, 0, 2000))
     {
         BK_LOGE(TAG, "%s, line: %d, audio_element_resume fail \n", __func__, __LINE__);
@@ -3161,7 +3161,7 @@ bk_err_t adk_onboard_speaker_test_case_0(void)
         }
     }
 
-    BK_LOGI(TAG, "--------- step7: deinit pipeline ----------\n");
+    BK_LOGD(TAG, "--------- step7: deinit pipeline ----------\n");
     if (BK_OK != audio_pipeline_terminate(pipeline))
     {
         BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
@@ -3208,7 +3208,7 @@ bk_err_t adk_onboard_speaker_test_case_0(void)
         return BK_FAIL;
     }
 
-    BK_LOGI(TAG, "--------- onboard speaker test complete ----------\n");
+    BK_LOGD(TAG, "--------- onboard speaker test complete ----------\n");
 
     AUDIO_MEM_SHOW("end \n");
     read_count = 0;

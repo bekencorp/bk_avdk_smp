@@ -52,7 +52,7 @@ static int crypto_init(void)
 	/* Initialize PSA Crypto */
 	status = psa_crypto_init();
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_crypto_init failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_crypto_init failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -66,13 +66,13 @@ static int crypto_finish(void)
 	/* Destroy the key handle */
 	status = psa_destroy_key(keypair_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	status = psa_destroy_key(pub_key_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -84,7 +84,7 @@ static int generate_ecdsa_keypair(void)
 	psa_status_t status;
 	size_t olen;
 
-	BK_LOGI(TAG, "Generating random ECDSA keypair...\r\n");
+	BK_LOGD(TAG, "Generating random ECDSA keypair...\r\n");
 
 	/* Configure the key attributes */
 	psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
@@ -101,14 +101,14 @@ static int generate_ecdsa_keypair(void)
 	 */
 	status = psa_generate_key(&key_attributes, &keypair_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* Export the public key */
 	status = psa_export_public_key(keypair_id, m_pub_key, sizeof(m_pub_key), &olen);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_export_public_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_export_public_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -133,7 +133,7 @@ static int import_ecdsa_pub_key(void)
 
 	status = psa_import_key(&key_attributes, m_pub_key, sizeof(m_pub_key), &pub_key_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_import_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_import_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -149,7 +149,7 @@ static int sign_message(void)
 	psa_status_t status;
 	uint64_t start, end;
 
-	BK_LOGI(TAG, "Signing a message using ECDSA...\r\n");
+	BK_LOGD(TAG, "Signing a message using ECDSA...\r\n");
 
 	/* Compute the SHA256 hash*/
 	status = psa_hash_compute(PSA_ALG_SHA_256,
@@ -159,7 +159,7 @@ static int sign_message(void)
 				  sizeof(m_hash),
 				  (size_t *)&output_len);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_hash_compute failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_hash_compute failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -175,7 +175,7 @@ static int sign_message(void)
 			       sizeof(m_signature),
 			       (size_t *)&output_len);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_sign_hash failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_sign_hash failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -184,7 +184,7 @@ static int sign_message(void)
 	crypto_perf_log("ECDSA_SIGN_HASH", "120M", 0, 32, end - start);
 
 
-	BK_LOGI(TAG, "Message signed successfully!\r\n");
+	BK_LOGD(TAG, "Message signed successfully!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -194,7 +194,7 @@ static int verify_message(void)
 	uint64_t start, end;
 	psa_status_t status;
 
-	BK_LOGI(TAG, "Verifying ECDSA signature...\r\n");
+	BK_LOGD(TAG, "Verifying ECDSA signature...\r\n");
 
 	crypto_lock();
 	start = crypto_get_time();
@@ -207,7 +207,7 @@ static int verify_message(void)
 				 m_signature,
 				 sizeof(m_signature));
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_verify_hash failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_verify_hash failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 	end = crypto_get_time();
@@ -215,7 +215,7 @@ static int verify_message(void)
 	crypto_perf_log("ECDSA_VERIFY_HASH", "120M", 0, 32, end - start);
 
 
-	BK_LOGI(TAG, "Signature verification was successful!\r\n");
+	BK_LOGD(TAG, "Signature verification was successful!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -226,11 +226,11 @@ int ecdsa_main(void)
 	uint32_t cpu;
 	int status;
 
-	BK_LOGI(TAG, "Starting ECDSA example...\r\n");
+	BK_LOGD(TAG, "Starting ECDSA example...\r\n");
 
 	status = crypto_init();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
@@ -238,36 +238,36 @@ int ecdsa_main(void)
 		crypto_set_cpu_freq(cpu_freq_list[cpu]);
 		status = generate_ecdsa_keypair();
 		if (status != APP_SUCCESS) {
-			BK_LOGI(TAG, APP_ERROR_MESSAGE);
+			BK_LOGD(TAG, APP_ERROR_MESSAGE);
 			return APP_ERROR;
 		}
 	
 		status = import_ecdsa_pub_key();
 		if (status != APP_SUCCESS) {
-			BK_LOGI(TAG, APP_ERROR_MESSAGE);
+			BK_LOGD(TAG, APP_ERROR_MESSAGE);
 			return APP_ERROR;
 		}
 	
 		status = sign_message();
 		if (status != APP_SUCCESS) {
-			BK_LOGI(TAG, APP_ERROR_MESSAGE);
+			BK_LOGD(TAG, APP_ERROR_MESSAGE);
 			return APP_ERROR;
 		}
 	
 		status = verify_message();
 		if (status != APP_SUCCESS) {
-			BK_LOGI(TAG, APP_ERROR_MESSAGE);
+			BK_LOGD(TAG, APP_ERROR_MESSAGE);
 			return APP_ERROR;
 		}
 	
 		status = crypto_finish();
 		if (status != APP_SUCCESS) {
-			BK_LOGI(TAG, APP_ERROR_MESSAGE);
+			BK_LOGD(TAG, APP_ERROR_MESSAGE);
 			return APP_ERROR;
 		}
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
 
 	return APP_SUCCESS;
 }

@@ -96,13 +96,13 @@ static void usbh_find_driver_printf_info(uint8_t if_num, uint8_t class,
                                                         uint8_t subclass, uint8_t protocol,
                                                         uint16_t vid, uint16_t pid)
 {
-	USB_LOG_INFO("if_num 0x%02x, Class:0x%02x,Subclass:0x%02x,Protocl:0x%02x Vid:0x%02x Pid:0x%02x\r\n",
+	USB_LOG_DBG("if_num 0x%02x, Class:0x%02x,Subclass:0x%02x,Protocl:0x%02x Vid:0x%02x Pid:0x%02x\r\n",
                   if_num, class, subclass, protocol, vid, pid);
 }
 static const struct usbh_class_driver *usbh_find_class_driver(uint8_t class, uint8_t subclass, uint8_t protocol,
                                                               uint16_t vid, uint16_t pid)
 {
-	USB_LOG_DBG("[+]%s\r\n", __func__);
+	USB_LOG_VBS("[+]%s\r\n", __func__);
 
     struct usbh_class_info *index = NULL;
 
@@ -140,7 +140,7 @@ static const struct usbh_class_driver *usbh_find_class_driver(uint8_t class, uin
         }
     }
 
-	USB_LOG_DBG("[-]%s\r\n", __func__);
+	USB_LOG_VBS("[-]%s\r\n", __func__);
     return NULL;
 }
 
@@ -157,21 +157,21 @@ static int parse_device_descriptor(struct usbh_hubport *hport, struct usb_device
             return 0;
         }
 #if 0
-        USB_LOG_DBG("Device Descriptor:\r\n");
-        USB_LOG_DBG("bLength: 0x%02x           \r\n", desc->bLength);
-        USB_LOG_DBG("bDescriptorType: 0x%02x   \r\n", desc->bDescriptorType);
-        USB_LOG_DBG("bcdUSB: 0x%04x            \r\n", desc->bcdUSB);
-        USB_LOG_DBG("bDeviceClass: 0x%02x      \r\n", desc->bDeviceClass);
-        USB_LOG_DBG("bDeviceSubClass: 0x%02x   \r\n", desc->bDeviceSubClass);
-        USB_LOG_DBG("bDeviceProtocol: 0x%02x   \r\n", desc->bDeviceProtocol);
-        USB_LOG_DBG("bMaxPacketSize0: 0x%02x   \r\n", desc->bMaxPacketSize0);
-        USB_LOG_DBG("idVendor: 0x%04x          \r\n", desc->idVendor);
-        USB_LOG_DBG("idProduct: 0x%04x         \r\n", desc->idProduct);
-        USB_LOG_DBG("bcdDevice: 0x%04x         \r\n", desc->bcdDevice);
-        USB_LOG_DBG("iManufacturer: 0x%02x     \r\n", desc->iManufacturer);
-        USB_LOG_DBG("iProduct: 0x%02x          \r\n", desc->iProduct);
-        USB_LOG_DBG("iSerialNumber: 0x%02x     \r\n", desc->iSerialNumber);
-        USB_LOG_DBG("bNumConfigurations: 0x%02x\r\n", desc->bNumConfigurations);
+        USB_LOG_VBS("Device Descriptor:\r\n");
+        USB_LOG_VBS("bLength: 0x%02x           \r\n", desc->bLength);
+        USB_LOG_VBS("bDescriptorType: 0x%02x   \r\n", desc->bDescriptorType);
+        USB_LOG_VBS("bcdUSB: 0x%04x            \r\n", desc->bcdUSB);
+        USB_LOG_VBS("bDeviceClass: 0x%02x      \r\n", desc->bDeviceClass);
+        USB_LOG_VBS("bDeviceSubClass: 0x%02x   \r\n", desc->bDeviceSubClass);
+        USB_LOG_VBS("bDeviceProtocol: 0x%02x   \r\n", desc->bDeviceProtocol);
+        USB_LOG_VBS("bMaxPacketSize0: 0x%02x   \r\n", desc->bMaxPacketSize0);
+        USB_LOG_VBS("idVendor: 0x%04x          \r\n", desc->idVendor);
+        USB_LOG_VBS("idProduct: 0x%04x         \r\n", desc->idProduct);
+        USB_LOG_VBS("bcdDevice: 0x%04x         \r\n", desc->bcdDevice);
+        USB_LOG_VBS("iManufacturer: 0x%02x     \r\n", desc->iManufacturer);
+        USB_LOG_VBS("iProduct: 0x%02x          \r\n", desc->iProduct);
+        USB_LOG_VBS("iSerialNumber: 0x%02x     \r\n", desc->iSerialNumber);
+        USB_LOG_VBS("bNumConfigurations: 0x%02x\r\n", desc->bNumConfigurations);
 #endif
         hport->device_desc.bLength = desc->bLength;
         hport->device_desc.bDescriptorType = desc->bDescriptorType;
@@ -201,7 +201,7 @@ static int parse_config_descriptor(struct usbh_hubport *hport, struct usb_config
     uint8_t cur_ep_num = 0xff;
     uint32_t desc_len = 0;
     uint8_t *p;
-    USB_LOG_DBG("[+]%s\r\n", __func__);
+    USB_LOG_VBS("[+]%s\r\n", __func__);
 
     if (desc->bLength != USB_SIZEOF_CONFIG_DESC) {
         USB_LOG_ERR("invalid config bLength 0x%02x\r\n", desc->bLength);
@@ -214,15 +214,15 @@ static int parse_config_descriptor(struct usbh_hubport *hport, struct usb_config
             return 0;
         }
 #if 0
-        USB_LOG_DBG("Config Descriptor:\r\n");
-        USB_LOG_DBG("bLength: 0x%02x             \r\n", desc->bLength);
-        USB_LOG_DBG("bDescriptorType: 0x%02x     \r\n", desc->bDescriptorType);
-        USB_LOG_DBG("wTotalLength: 0x%04x        \r\n", desc->wTotalLength);
-        USB_LOG_DBG("bNumInterfaces: 0x%02x      \r\n", desc->bNumInterfaces);
-        USB_LOG_DBG("bConfigurationValue: 0x%02x \r\n", desc->bConfigurationValue);
-        USB_LOG_DBG("iConfiguration: 0x%02x      \r\n", desc->iConfiguration);
-        USB_LOG_DBG("bmAttributes: 0x%02x        \r\n", desc->bmAttributes);
-        USB_LOG_DBG("bMaxPower: 0x%02x           \r\n", desc->bMaxPower);
+        USB_LOG_VBS("Config Descriptor:\r\n");
+        USB_LOG_VBS("bLength: 0x%02x             \r\n", desc->bLength);
+        USB_LOG_VBS("bDescriptorType: 0x%02x     \r\n", desc->bDescriptorType);
+        USB_LOG_VBS("wTotalLength: 0x%04x        \r\n", desc->wTotalLength);
+        USB_LOG_VBS("bNumInterfaces: 0x%02x      \r\n", desc->bNumInterfaces);
+        USB_LOG_VBS("bConfigurationValue: 0x%02x \r\n", desc->bConfigurationValue);
+        USB_LOG_VBS("iConfiguration: 0x%02x      \r\n", desc->iConfiguration);
+        USB_LOG_VBS("bmAttributes: 0x%02x        \r\n", desc->bmAttributes);
+        USB_LOG_VBS("bMaxPower: 0x%02x           \r\n", desc->bMaxPower);
 #endif
 
         hport->config.config_desc.bLength = desc->bLength;
@@ -262,16 +262,16 @@ static int parse_config_descriptor(struct usbh_hubport *hport, struct usb_config
                         return -ENOMEM;
                     }
 #if 0
-                    USB_LOG_DBG("Interface Descriptor:\r\n");
-                    USB_LOG_DBG("bLength: 0x%02x            \r\n", intf_desc->bLength);
-                    USB_LOG_DBG("bDescriptorType: 0x%02x    \r\n", intf_desc->bDescriptorType);
-                    USB_LOG_DBG("bInterfaceNumber: 0x%02x   \r\n", intf_desc->bInterfaceNumber);
-                    USB_LOG_DBG("bAlternateSetting: 0x%02x  \r\n", intf_desc->bAlternateSetting);
-                    USB_LOG_DBG("bNumEndpoints: 0x%02x      \r\n", intf_desc->bNumEndpoints);
-                    USB_LOG_DBG("bInterfaceClass: 0x%02x    \r\n", intf_desc->bInterfaceClass);
-                    USB_LOG_DBG("bInterfaceSubClass: 0x%02x \r\n", intf_desc->bInterfaceSubClass);
-                    USB_LOG_DBG("bInterfaceProtocol: 0x%02x \r\n", intf_desc->bInterfaceProtocol);
-                    USB_LOG_DBG("iInterface: 0x%02x         \r\n", intf_desc->iInterface);
+                    USB_LOG_VBS("Interface Descriptor:\r\n");
+                    USB_LOG_VBS("bLength: 0x%02x            \r\n", intf_desc->bLength);
+                    USB_LOG_VBS("bDescriptorType: 0x%02x    \r\n", intf_desc->bDescriptorType);
+                    USB_LOG_VBS("bInterfaceNumber: 0x%02x   \r\n", intf_desc->bInterfaceNumber);
+                    USB_LOG_VBS("bAlternateSetting: 0x%02x  \r\n", intf_desc->bAlternateSetting);
+                    USB_LOG_VBS("bNumEndpoints: 0x%02x      \r\n", intf_desc->bNumEndpoints);
+                    USB_LOG_VBS("bInterfaceClass: 0x%02x    \r\n", intf_desc->bInterfaceClass);
+                    USB_LOG_VBS("bInterfaceSubClass: 0x%02x \r\n", intf_desc->bInterfaceSubClass);
+                    USB_LOG_VBS("bInterfaceProtocol: 0x%02x \r\n", intf_desc->bInterfaceProtocol);
+                    USB_LOG_VBS("iInterface: 0x%02x         \r\n", intf_desc->iInterface);
 #endif
                     memcpy(&hport->config.intf[cur_iface].altsetting[cur_alt_setting].intf_desc, intf_desc, 9);
                     hport->config.intf[cur_iface].altsetting_num = cur_alt_setting + 1;
@@ -290,7 +290,7 @@ static int parse_config_descriptor(struct usbh_hubport *hport, struct usb_config
             desc_len += p[DESC_bLength];
         }
     }
-    USB_LOG_DBG("[-]%s\r\n", __func__);
+    USB_LOG_VBS("[-]%s\r\n", __func__);
 
     return 0;
 }
@@ -420,7 +420,7 @@ int usbh_hport_activate_epx(usbh_pipe_t *pipe, struct usbh_hubport *hport, struc
     ep_cfg.mult = (ep_desc->wMaxPacketSize & USB_MAXPACKETSIZE_ADDITIONAL_TRANSCATION_MASK) >> USB_MAXPACKETSIZE_ADDITIONAL_TRANSCATION_SHIFT;
     ep_cfg.hport = hport;
 
-    USB_LOG_INFO("Ep=%02x Attr=%02u Mps=%d Interval=%02u Mult=%02u\r\n",
+    USB_LOG_DBG("Ep=%02x Attr=%02u Mps=%d Interval=%02u Mult=%02u\r\n",
                  ep_cfg.ep_addr,
                  ep_desc->bmAttributes,
                  ep_cfg.ep_mps,
@@ -546,7 +546,7 @@ int usbh_enumerate(struct usbh_hubport *hport)
     }
 
     parse_device_descriptor(hport, (struct usb_device_descriptor *)ep0_request_buffer, USB_SIZEOF_DEVICE_DESC);
-    USB_LOG_INFO("New device found,idVendor:%04x,idProduct:%04x,bcdDevice:%04x\r\n",
+    USB_LOG_DBG("New device found,idVendor:%04x,idProduct:%04x,bcdDevice:%04x\r\n",
                  ((struct usb_device_descriptor *)ep0_request_buffer)->idVendor,
                  ((struct usb_device_descriptor *)ep0_request_buffer)->idProduct,
                  ((struct usb_device_descriptor *)ep0_request_buffer)->bcdDevice);
@@ -600,7 +600,7 @@ int usbh_enumerate(struct usbh_hubport *hport)
         USB_LOG_ERR("Parse config fail\r\n");
         goto errout;
     }
-    USB_LOG_DBG("The device has %d interfaces\r\n", ((struct usb_configuration_descriptor *)ep0_request_buffer)->bNumInterfaces);
+    USB_LOG_VBS("The device has %d interfaces\r\n", ((struct usb_configuration_descriptor *)ep0_request_buffer)->bNumInterfaces);
     hport->raw_config_desc = usb_malloc(wTotalLength);
     if (hport->raw_config_desc == NULL) {
         ret = -ENOMEM;
@@ -663,7 +663,7 @@ int usbh_enumerate(struct usbh_hubport *hport)
     setup->wValue = 1;
     setup->wIndex = 0;
     setup->wLength = 0;
-    USB_LOG_INFO("set configuration \r\n");
+    USB_LOG_DBG("set configuration \r\n");
 
     ret = usbh_control_transfer(hport->ep0, setup, NULL);
     if (ret < 0) {
@@ -672,7 +672,7 @@ int usbh_enumerate(struct usbh_hubport *hport)
     }
 
     usbh_hub_event_unlock_mutex();
-    USB_LOG_INFO("Enumeration success, start loading class driver\r\n");
+    USB_LOG_DBG("Enumeration success, start loading class driver\r\n");
     /*search supported class driver*/
     for (uint8_t i = 0; i < hport->config.config_desc.bNumInterfaces; i++) {
         intf_desc = &hport->config.intf[i].altsetting[0].intf_desc;
@@ -680,7 +680,7 @@ int usbh_enumerate(struct usbh_hubport *hport)
         struct usbh_class_driver *class_driver = (struct usbh_class_driver *)usbh_find_class_driver(intf_desc->bInterfaceClass, intf_desc->bInterfaceSubClass, intf_desc->bInterfaceProtocol, hport->device_desc.idVendor, hport->device_desc.idProduct);
 
         if (class_driver == NULL) {
-            USB_LOG_DBG("do not support Class:0x%02x,Subclass:0x%02x,Protocl:0x%02x\r\n",
+            USB_LOG_VBS("do not support Class:0x%02x,Subclass:0x%02x,Protocl:0x%02x\r\n",
                         intf_desc->bInterfaceClass,
                         intf_desc->bInterfaceSubClass,
                         intf_desc->bInterfaceProtocol);
@@ -688,7 +688,7 @@ int usbh_enumerate(struct usbh_hubport *hport)
             continue;
         }
         hport->config.intf[i].class_driver = class_driver;
-        USB_LOG_DBG("Loading %s class driver\r\n", class_driver->driver_name);
+        USB_LOG_VBS("Loading %s class driver\r\n", class_driver->driver_name);
         ret = CLASS_CONNECT(hport, i);
         if (ret < 0) {
             usbh_hub_event_lock_mutex();
@@ -703,7 +703,7 @@ errout:
     if (ret < 0) {
         usbh_hport_deactivate_ep0(hport);
         if (hport->raw_config_desc) {
-            USB_LOG_DBG("free raw_config_desc\r\n");
+            USB_LOG_VBS("free raw_config_desc\r\n");
             usb_free(hport->raw_config_desc);
             hport->raw_config_desc = NULL;
         }
@@ -754,7 +754,7 @@ void *usbh_find_class_instance(const char *devname)
 
 int usbh_register_class_driver(uint8_t usb_prot_mode, void *drvier_info)
 {
-    USB_LOG_DBG("[+]%s start:%x end:%x\r\n", __func__, __usbh_class_info_start__, __usbh_class_info_end__);
+    USB_LOG_VBS("[+]%s start:%x end:%x\r\n", __func__, __usbh_class_info_start__, __usbh_class_info_end__);
 
     if(__usbh_class_info_start__ != __usbh_class_info_end__) {
         os_memcpy((void *)(__usbh_class_info_end__), (void *)(drvier_info), sizeof(struct usbh_class_info));
@@ -763,14 +763,14 @@ int usbh_register_class_driver(uint8_t usb_prot_mode, void *drvier_info)
         os_memcpy((void *)(__usbh_class_info_start__), (void *)(drvier_info), sizeof(struct usbh_class_info));
         __usbh_class_info_end__ += sizeof(struct usbh_class_info);
     }
-    USB_LOG_DBG("[-]%s start:%x end:%x\r\n", __func__, __usbh_class_info_start__, __usbh_class_info_end__);
+    USB_LOG_VBS("[-]%s start:%x end:%x\r\n", __func__, __usbh_class_info_start__, __usbh_class_info_end__);
 
     return 0;
 }
 
 int usbh_initialize(void)
 {
-    USB_LOG_DBG("[+]%s\r\n", __func__);
+    USB_LOG_VBS("[+]%s\r\n", __func__);
 
     memset(&g_usbh_bus, 0, sizeof(struct usbh_bus));
 
@@ -790,17 +790,17 @@ int usbh_initialize(void)
     g_usbh_bus.devgen.next = 2;
 
     usbh_hub_initialize();
-    USB_LOG_DBG("[-]%s\r\n", __func__);
+    USB_LOG_VBS("[-]%s\r\n", __func__);
     return 0;
 }
 
 int usbh_deinitialize(void)
 {
-    USB_LOG_DBG("[+]%s\r\n", __func__);
+    USB_LOG_VBS("[+]%s\r\n", __func__);
     //__usbh_class_info_start__ = (uint32_t)&usbh_class_info_table[0];
     //__usbh_class_info_end__ = (uint32_t)&usbh_class_info_table[0];
     usbh_hub_deinitialize();
-    USB_LOG_DBG("[-]%s\r\n", __func__);
+    USB_LOG_VBS("[-]%s\r\n", __func__);
     return 0;
 }
 

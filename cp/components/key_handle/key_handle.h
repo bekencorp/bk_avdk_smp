@@ -7,7 +7,7 @@
 #define KEY_DEBUG
 
 #ifdef KEY_DEBUG
-#define KEY_PRT       os_printf
+#define KEY_PRT       BK_LOGD(NULL, ##__VA_ARGS__)
 #endif
 #ifdef CONFIG_COMPONENTS_TX_BUFING
 #define APP_PRT       os_null_printf

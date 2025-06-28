@@ -4,7 +4,7 @@
 
 static void cli_uid_help(void)
 {
-	CLI_LOGI("uid [init/get] \r\n");
+	CLI_LOGD("uid [init/get] \r\n");
 }
 
 static void cli_uid_ops_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -22,7 +22,7 @@ static void cli_uid_ops_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 		BK_LOG_ON_ERR(bk_uid_get_data(data));
 		for(int j = 0;j < 32; j++)
 		{
-			CLI_LOGI("%x index:%d\r\n", data[j], j);
+			CLI_LOGD("%x index:%d\r\n", data[j], j);
 		}
 	} else {
 		cli_uid_help();

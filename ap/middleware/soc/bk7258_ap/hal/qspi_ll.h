@@ -284,7 +284,7 @@ static inline void qspi_ll_wait_cmd_done(qspi_hw_t *hw)
 			break;
 		}
 		if(i == 10000) {
-			os_printf("ERROR: qspi_ll_wait_cmd_done timeout \n");
+			BK_LOGE(NULL, "ERROR: qspi_ll_wait_cmd_done timeout \n");
 		}
 		extern void bk_delay_us(UINT32 us);
 		bk_delay_us(1);

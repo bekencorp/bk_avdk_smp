@@ -53,7 +53,7 @@ void cli_lcd_qspi_display_picture_test_cmd(char *pcWriteBuffer, int xWriteBuffer
 
 
     if (argc != 4) {
-        CLI_LOGI("lcd_qspi_display_picture_test {start|stop} {file name} {device name}\r\n");
+        CLI_LOGD("lcd_qspi_display_picture_test {start|stop} {file name} {device name}\r\n");
         return;
     }
 
@@ -84,30 +84,30 @@ void cli_lcd_qspi_display_picture_test_cmd(char *pcWriteBuffer, int xWriteBuffer
         sprintf(cFileName, "%d:/%s", DISK_NUMBER_SDIO_SD, argv[2]);
         sram_addr = os_malloc(once_read_len);
         if (sram_addr == NULL) {
-            os_printf("sram mem malloc failed!\r\n");
+            BK_LOGD(NULL,"sram mem malloc failed!\r\n");
             return;
         }
         char *ucRdTemp = (char *)sram_addr;
 
         fr = f_open(&file, cFileName, FA_OPEN_EXISTING | FA_READ);
         if (fr != FR_OK) {
-            os_printf("open %s fail.\r\n", cFileName);
+            BK_LOGD(NULL,"open %s fail.\r\n", cFileName);
             return;
         }
         size_64bit = f_size(&file);
         total_size = (uint32_t)size_64bit;// total byte
-        os_printf("read file total_size = %d.\r\n", total_size);
+        BK_LOGD(NULL,"read file total_size = %d.\r\n", total_size);
 
         while(1) {
             fr = f_read(&file, ucRdTemp, once_read_len, &uiTemp);
             if (fr != FR_OK) {
-                os_printf("read file fail.\r\n");
+                BK_LOGD(NULL,"read file fail.\r\n");
                 return;
             }
 
             if (uiTemp == 0)
             {
-            	os_printf("read file complete.\r\n");
+            	BK_LOGD(NULL,"read file complete.\r\n");
             	break;
             }
 
@@ -125,11 +125,11 @@ void cli_lcd_qspi_display_picture_test_cmd(char *pcWriteBuffer, int xWriteBuffer
 
         fr = f_close(&file);
         if (fr != FR_OK) {
-            os_printf("close %s fail!\r\n", cFileName);
+            BK_LOGD(NULL,"close %s fail!\r\n", cFileName);
             return;
         }
 #else
-        os_printf("Not support\r\n");
+        BK_LOGD(NULL,"Not support\r\n");
 #endif
         lcd_driver_backlight_open();
 
@@ -163,7 +163,7 @@ void cli_lcd_qspi_read_reg_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
     uint8_t reg_data[data_len];
     bk_lcd_qspi_read_data(reg_data, lcd_device, register_addr, data_len);
     for (idx = 0; idx < data_len; idx++) {
-        CLI_LOGI("reg_data[%d]: 0x%02x\r\n", idx, reg_data[idx]);
+        CLI_LOGD("reg_data[%d]: 0x%02x\r\n", idx, reg_data[idx]);
     }
 }
 

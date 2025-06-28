@@ -20,10 +20,10 @@
 void cli_memory_free_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	uint32_t total_size,free_size,mini_size;
-    CLI_LOGI("================Static memory================\r\n");
+    CLI_LOGD("================Static memory================\r\n");
     os_show_memory_config_info();
 
-	CLI_LOGI("================Dynamic memory================\r\n");
+	CLI_LOGD("================Dynamic memory================\r\n");
 	cmd_printf("%-5s   %-5s   %-5s   %-5s   %-5s\r\n",
 		"name", "total", "free", "minimum", "peak");
 	
@@ -45,15 +45,15 @@ void cli_memory_set_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 {
 #if CONFIG_DEBUG_VERSION
     uint32_t address, value;
-    os_printf("cli_memory_set_cmd\r\n");
+    BK_LOGD(NULL, "cli_memory_set_cmd\r\n");
     if (argc >= 3) {
         address = strtoll(argv[1], NULL, 16);
         value = strtoll(argv[2], NULL, 16);
-        os_printf("memset,address: 0x%08X value: 0x%08X\r\n", address, value);
+        BK_LOGD(NULL, "memset,address: 0x%08X value: 0x%08X\r\n", address, value);
 
         os_write_word(address, value);
     } else {
-        os_printf("memset <addr> <value>\r\n");
+        BK_LOGD(NULL, "memset <addr> <value>\r\n");
     }
 #endif
 }
@@ -86,7 +86,7 @@ int32_t memtest_wr(uint32_t addr, uint32_t count)
 {
 #if CONFIG_DEBUG_VERSION
     int int_status = rtos_enter_critical();
-    os_printf("memtest_wr begin!!\r\n");
+    BK_LOGD(NULL, "memtest_wr begin!!\r\n");
     os_memcpy_word((uint32_t *)addr, &s_test_data[2], sizeof(s_test_data) - 8);
 
     bk_mem_dump("before test", addr - 8, sizeof(s_test_data));
@@ -95,7 +95,7 @@ int32_t memtest_wr(uint32_t addr, uint32_t count)
 
     bk_mem_dump("after test", addr - 8, sizeof(s_test_data));
 
-    os_printf("memtest_wr done!!\r\n");
+    BK_LOGD(NULL, "memtest_wr done!!\r\n");
     rtos_exit_critical(int_status);
 #endif //#if CONFIG_DEBUG_VERSION
 
@@ -110,11 +110,11 @@ static void cli_memtest_wr_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
     if (argc >= 3) {
         address = strtoll(argv[1], NULL, 16);
         count = strtoll(argv[2], NULL, 16);
-        os_printf("memtest_wr,address: 0x%08X count: 0x%08X\r\n", address, count);
+        BK_LOGD(NULL, "memtest_wr,address: 0x%08X count: 0x%08X\r\n", address, count);
 
         (void)memtest_wr(address, count);
     }  else {
-        os_printf("memtest_wr <addr> <count> \r\n");
+        BK_LOGD(NULL, "memtest_wr <addr> <count> \r\n");
     }
 }
 
@@ -214,7 +214,7 @@ int32_t mem_test(uint32_t address, uint32_t size, uint8_t quiet_mode)
             if( *p_uint32_t != (uint32_t)i )
             {
                 if (quiet_mode == 0) {
-                    os_printf("32bit test fail @ 0x%08X\r\n",(uint32_t)p_uint32_t);
+                    BK_LOGD(NULL, "32bit test fail @ 0x%08X\r\n",(uint32_t)p_uint32_t);
                     return -1;
                 }
                 while(1);
@@ -223,7 +223,7 @@ int32_t mem_test(uint32_t address, uint32_t size, uint8_t quiet_mode)
         }
 
         if (quiet_mode == 0) {
-            os_printf("32bit test pass!!\r\n");
+            BK_LOGD(NULL, "32bit test pass!!\r\n");
         }
 
     }
@@ -243,8 +243,8 @@ int32_t mem_test(uint32_t address, uint32_t size, uint8_t quiet_mode)
             if( *p_uint32_t != (uint32_t)p_uint32_t )
             {
                 if (quiet_mode == 0) {
-                    os_printf("32bit Loopback test fail @ 0x%08X\r\n", (uint32_t)p_uint32_t);
-                    os_printf(" data:0x%08X \r\n", (uint32_t)*p_uint32_t);
+                    BK_LOGD(NULL, "32bit Loopback test fail @ 0x%08X\r\n", (uint32_t)p_uint32_t);
+                    BK_LOGD(NULL, " data:0x%08X \r\n", (uint32_t)*p_uint32_t);
                     return -1;
                 }
 
@@ -254,7 +254,7 @@ int32_t mem_test(uint32_t address, uint32_t size, uint8_t quiet_mode)
         }
 
         if (quiet_mode == 0) {
-            os_printf("32bit Loopback test pass!!\r\n");
+            BK_LOGD(NULL, "32bit Loopback test pass!!\r\n");
         }
     }
 
@@ -273,7 +273,7 @@ int32_t mem_test(uint32_t address, uint32_t size, uint8_t quiet_mode)
             if( *p_uint16_t != (uint16_t)i )
             {
                 if (quiet_mode == 0) {
-                    os_printf("16bit test fail @ 0x%08X\r\n",(uint32_t)p_uint16_t);
+                    BK_LOGD(NULL, "16bit test fail @ 0x%08X\r\n",(uint32_t)p_uint16_t);
                     return -1;
                 }
 
@@ -283,7 +283,7 @@ int32_t mem_test(uint32_t address, uint32_t size, uint8_t quiet_mode)
         }
 
         if (quiet_mode == 0) {
-            os_printf("16bit test pass!!\r\n");
+            BK_LOGD(NULL, "16bit test pass!!\r\n");
         }
 
     }
@@ -303,7 +303,7 @@ int32_t mem_test(uint32_t address, uint32_t size, uint8_t quiet_mode)
             if( *p_uint8_t != (uint8_t)i )
             {
                 if (quiet_mode == 0) {
-                    os_printf("8bit test fail @ 0x%08X\r\n",(uint32_t)p_uint8_t);
+                    BK_LOGD(NULL, "8bit test fail @ 0x%08X\r\n",(uint32_t)p_uint8_t);
                     return -1;
                 }
                 while(1);
@@ -311,7 +311,7 @@ int32_t mem_test(uint32_t address, uint32_t size, uint8_t quiet_mode)
             p_uint8_t++;
         }
         if (quiet_mode == 0) {
-            os_printf("8bit test pass!!\r\n");
+            BK_LOGD(NULL, "8bit test pass!!\r\n");
         }
     }
 
@@ -380,7 +380,7 @@ __maybe_unused volatile uint32_t data = 0;
             break;
 
         default:
-            os_printf("error!!\r\n");
+            BK_LOGD(NULL, "error!!\r\n");
     }
 
 #if CONFIG_AON_RTC
@@ -415,14 +415,14 @@ int32_t mem_read_test(uint32_t src, uint32_t dst, uint32_t size)
         {
             if( *p_uint32_src != *p_uint32_dst)
             {
-                os_printf("32bit test fail @ 0x%08X\r\n!",(uint32_t)p_uint32_src);
+                BK_LOGD(NULL, "32bit test fail @ 0x%08X\r\n!",(uint32_t)p_uint32_src);
                 return -1;
             }
             p_uint32_src++;
             p_uint32_dst++;
         }
 
-        os_printf("32bit test pass!!\r\n");
+        BK_LOGD(NULL, "32bit test pass!!\r\n");
     }
 
     /**< 16bit test */
@@ -435,14 +435,14 @@ int32_t mem_read_test(uint32_t src, uint32_t dst, uint32_t size)
         {
             if( *p_uint16_src != *p_uint16_dst )
             {
-                os_printf("16bit test fail @ 0x%08X\r\nsystem halt!!!!!",(uint32_t)p_uint16_src);
+                BK_LOGD(NULL, "16bit test fail @ 0x%08X\r\nsystem halt!!!!!",(uint32_t)p_uint16_src);
                 return -1;
             }
             p_uint16_src++;
             p_uint16_dst++;
         }
 
-        os_printf("16bit test pass!!\r\n");
+        BK_LOGD(NULL, "16bit test pass!!\r\n");
     }
 
     /**< 8bit test */
@@ -455,14 +455,14 @@ int32_t mem_read_test(uint32_t src, uint32_t dst, uint32_t size)
         {
             if( *p_uint8_src != *p_uint8_dst )
             {
-                os_printf("8bit test fail @ 0x%08X\r\n", (uint32_t)p_uint8_src);
+                BK_LOGD(NULL, "8bit test fail @ 0x%08X\r\n", (uint32_t)p_uint8_src);
                 return -1;
             }
             p_uint8_src++;
             p_uint8_dst++;
         }
 
-        os_printf("8bit test pass!!\r\n");
+        BK_LOGD(NULL, "8bit test pass!!\r\n");
     }
 
     /**< 32bit test write one address*/
@@ -476,20 +476,20 @@ int32_t mem_read_test(uint32_t src, uint32_t dst, uint32_t size)
         {
             *p_uint32_dst = *p_uint32_src;
             if(*p_uint32_next != *(p_uint32_dst + 1)) {
-                os_printf("32bit test write one address fail @ 0x%08X\r\n!",(uint32_t)p_uint32_next);
-                os_printf("==== next o:%08X,next n:%08X\r\n!",*p_uint32_next, *(p_uint32_dst + 1));
+                BK_LOGD(NULL, "32bit test write one address fail @ 0x%08X\r\n!",(uint32_t)p_uint32_next);
+                BK_LOGD(NULL, "==== next o:%08X,next n:%08X\r\n!",*p_uint32_next, *(p_uint32_dst + 1));
                 return -1;
             }
             if( *p_uint32_src != *p_uint32_dst)
             {
-                os_printf("32bit test write one address fail @ 0x%08X\r\n!",(uint32_t)p_uint32_src);
-                os_printf("==== src:%08X,dest:%08X\r\n!",*p_uint32_src, *p_uint32_dst);
+                BK_LOGD(NULL, "32bit test write one address fail @ 0x%08X\r\n!",(uint32_t)p_uint32_src);
+                BK_LOGD(NULL, "==== src:%08X,dest:%08X\r\n!",*p_uint32_src, *p_uint32_dst);
                 return -1;
             }
             p_uint32_src++;
         }
 
-        os_printf("32bit test write one address pass!!\r\n");
+        BK_LOGD(NULL, "32bit test write one address pass!!\r\n");
     }
 #endif
     return 0;
@@ -503,13 +503,13 @@ static void cli_mem_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
     if (argc >= 3) {
         address = strtoll(argv[1], NULL, 16);
         size = strtoll(argv[2], NULL, 16);
-        os_printf("memtest,address: 0x%08X size: 0x%08X\r\n", address, size);
+        BK_LOGD(NULL, "memtest,address: 0x%08X size: 0x%08X\r\n", address, size);
 
         mem_test(address, size, 0);
     } else if (argc == 1) {
         // auto_mem_test();
     } else {
-        os_printf("memtest <addr> <length> \r\n");
+        BK_LOGD(NULL, "memtest <addr> <length> \r\n");
     }
 }
 
@@ -522,10 +522,10 @@ static void cli_mem_time(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         count = strtoll(argv[2], NULL, 16);
         mode = strtoll(argv[3], NULL, 16);
     } else {
-        os_printf("memtime <addr> <count> <0:write,1:read> \r\n");
+        BK_LOGD(NULL, "memtime <addr> <count> <0:write,1:read> \r\n");
         return;
     }
-    os_printf("memtime, address: 0x%08X count: 0x%08X, read=%d\r\n", address, count, mode);
+    BK_LOGD(NULL, "memtime, address: 0x%08X count: 0x%08X, read=%d\r\n", address, count, mode);
     mem_time((uint32_t *)address, count, mode);
 }
 
@@ -538,10 +538,10 @@ static void cli_memread_test(char *pcWriteBuffer, int xWriteBufferLen, int argc,
         src = strtoll(argv[1], NULL, 16);
         dest = strtoll(argv[2], NULL, 16);
         size = strtoll(argv[3], NULL, 16);
-        os_printf("memread, src: 0x%08X dest: 0x%08X size: 0x%08X\r\n", src, dest, size);
+        BK_LOGD(NULL, "memread, src: 0x%08X dest: 0x%08X size: 0x%08X\r\n", src, dest, size);
         mem_read_test(src, dest, size);
     } else {
-        os_printf("memread <src> <dest> <size> \r\n");
+        BK_LOGD(NULL, "memread <src> <dest> <size> \r\n");
     }
 }
 
@@ -558,11 +558,11 @@ static void cli_mpucfg_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         rbar = strtoll(argv[2], NULL, 16);
         rlar = strtoll(argv[3], NULL, 16);
     } else {
-        os_printf("mpucfg <index> <rbar> <rlar>\r\n");
+        BK_LOGD(NULL, "mpucfg <index> <rbar> <rlar>\r\n");
         return;
     }
 
-    os_printf("mpucfg, index:%d rbar: 0x%08X rlar: 0x%08X.\r\n", index, rbar, rlar);
+    BK_LOGD(NULL, "mpucfg, index:%d rbar: 0x%08X rlar: 0x%08X.\r\n", index, rbar, rlar);
     mpu_cfg(index, rbar, rlar);
 }
 
@@ -573,11 +573,11 @@ static void cli_mpuclr_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
     if (argc >= 2) {
         rnr = strtoll(argv[1], NULL, 10);
     } else {
-        os_printf("mpuclr <rnr>.\r\n");
+        BK_LOGD(NULL, "mpuclr <rnr>.\r\n");
         return;
     }
 
-    os_printf("mpuclr, rnr:%d.\r\n", rnr);
+    BK_LOGD(NULL, "mpuclr, rnr:%d.\r\n", rnr);
     mpu_clear(rnr);
 }
 
@@ -595,19 +595,19 @@ static void dump_hex(const uint8_t *ptr, size_t buflen)
 
     for (i=0; i<buflen; i+=16)
     {
-        os_printf("%08X: ", i);
+        BK_LOGD(NULL, "%08X: ", i);
 
         for (j=0; j<16; j++)
             if (i+j < buflen)
-                os_printf("%02X ", buf[i+j]);
+                BK_LOGD(NULL, "%02X ", buf[i+j]);
             else
-                os_printf("   ");
-        os_printf(" ");
+                BK_LOGD(NULL, "   ");
+        BK_LOGD(NULL, " ");
 
         for (j=0; j<16; j++)
             if (i+j < buflen)
-                os_printf("%c", __is_print(buf[i+j]) ? buf[i+j] : '.');
-        os_printf("\n");
+                BK_LOGD(NULL, "%c", __is_print(buf[i+j]) ? buf[i+j] : '.');
+        BK_LOGD(NULL, "\n");
     }
 }
 
@@ -620,7 +620,7 @@ static void cli_memory_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
     if (argc >= 3) {
         address = strtoll(argv[1], NULL, 16);
         size = strtoll(argv[2], NULL, 16);
-        os_printf("dump,address: 0x%08X size: 0x%08X\r\n", address, size);
+        BK_LOGD(NULL, "dump,address: 0x%08X size: 0x%08X\r\n", address, size);
 
         if (argc == 3) {
             dump_hex((const uint8_t *)address, size);
@@ -628,7 +628,7 @@ static void cli_memory_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             bk_mem_dump("cli", address, size);
         }
     } else {
-        os_printf("Usage: memdump <addr> <length>.\r\n");
+        BK_LOGD(NULL, "Usage: memdump <addr> <length>.\r\n");
         return;
     }
 }

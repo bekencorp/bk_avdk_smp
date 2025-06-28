@@ -36,6 +36,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define SCALE_BLOCK_MODE (1)
 
@@ -152,7 +153,7 @@ bk_err_t bk_hw_scale_driver_init(scale_id_t id)
 
 	s_hw_scale.handle[id].is_init = true;
 
-	LOGI("%s  init. \n", __func__);
+	LOGD("%s  init. \n", __func__);
 
 	return ret;
 }
@@ -196,7 +197,7 @@ bk_err_t bk_hw_scale_driver_deinit(scale_id_t id)
 
 //	os_memset(&s_hw_scale.handle[id], 0, sizeof(scale_drv_handle_t));
 
-	LOGI("%s, deinit. \n", __func__);
+	LOGD("%s, deinit. \n", __func__);
 	return BK_OK;
 }
 
@@ -303,8 +304,8 @@ bk_err_t scale_get_row_index_coef_params(scale_id_t id, uint16_t src_height, uin
 		s_hw_scale.handle[id].record->h_index_coef[i] = ((Hloc[i] << 4) & 0Xfff0) | (Hcoef[i] & 0xf);
 	}
 
-	LOGD("%s, data_col_coef : h_index_coef: \n", __func__);
-	LOGD(" \n");
+	LOGV("%s, data_col_coef : h_index_coef: \n", __func__);
+	LOGV(" \n");
 
 #ifdef SCALE_PARAM_DEBUG
 	bk_mem_dump_ex("0x6 h_index_coef", (uint8_t *)s_hw_scale.handle[id].record->h_index_coef, dst_height);
@@ -394,7 +395,7 @@ bk_err_t scale_set_row_coef_params(scale_id_t id, uint16_t src_width, uint16_t d
 	#endif
 	}
 #ifdef SCALE_PARAM_DEBUG
-	//LOGI("%s, 0x20~ data_row_coef_loc: h_index_coef:\n", __func__);
+	//LOGD("%s, 0x20~ data_row_coef_loc: h_index_coef:\n", __func__);
 	bk_mem_dump_ex("0x20 h_index_coef", (uint8_t *)h_index_coef, dst_width);
 #endif
     if (id == HW_SCALE0)
@@ -408,7 +409,7 @@ bk_err_t scale_set_row_coef_params(scale_id_t id, uint16_t src_width, uint16_t d
 
 	if (ret != BK_OK)
 	{
-		LOGI("%s error: \n", __func__);
+		LOGD("%s error: \n", __func__);
 	}
 
 #if 0
@@ -440,7 +441,7 @@ void scale_get_hloc_scale_params(scale_id_t id, uint16_t src_height, uint16_t ds
 		s_hw_scale.handle[id].record->s_hloc_scale[i] = (hloc_index * (src_height - 1) / dst_height);
 		hloc_index++;
 	}
-	//LOGI("isr: hloc_scale \n");
+	//LOGD("isr: hloc_scale \n");
 
 #ifdef SCALE_PARAM_DEBUG
 	bk_mem_dump_ex("0xe s_hloc_scale", (uint8_t *)s_hw_scale.handle[id].record->s_hloc_scale, dst_height * 2);
@@ -464,7 +465,7 @@ static void inline preuslt(scale_block_t *src_block,
 	scale_drv_record_t *drv_record, uint16_t type, uint16_t remain)
 {
 #if 0
-	LOGI("[B %d, C %d-%d, N %d-%d], [B %d, C %d-%d, N %d-%d, %d] %d-%d\n",
+	LOGD("[B %d, C %d-%d, N %d-%d], [B %d, C %d-%d, N %d-%d, %d] %d-%d\n",
 		src_result->complete_block_count,
 		src_result->current_frame_line,
 		src_result->current_block_line,
@@ -487,7 +488,7 @@ static inline void scale_line_operation(scale_id_t id, scale_drv_config_t *drv_c
 
 	if (drv_record->remain_size)
 	{
-		//LOGI("handle extra data\n");
+		//LOGD("handle extra data\n");
 		drv_record->remain_size = 0;
 	}
 
@@ -533,7 +534,7 @@ static inline scale_op_t scale_op_wheel(scale_drv_config_t *drv_config, scale_dr
 	/* only check dest frame line state */
 	if (drv_record->dst_line_count == drv_config->dst_height)
 	{
-		//LOGI("%s frame complete\n", __func__);
+		//LOGD("%s frame complete\n", __func__);
 		scale_op = OP_FRAME_COMPLETE;
 		goto out;
 	}
@@ -544,7 +545,7 @@ static inline scale_op_t scale_op_wheel(scale_drv_config_t *drv_config, scale_dr
             drv_record->remain_size = drv_config->src_width * 2;
             if (src_result->current_block_line != src_block->line_count - 1)
             {   
-                LOGD("%s %d  [%d %d] %p\n", __func__, __LINE__, src_result->current_block_line, src_result->next_block_line, src_block->data);
+                LOGV("%s %d  [%d %d] %p\n", __func__, __LINE__, src_result->current_block_line, src_result->next_block_line, src_block->data);
                 scale_op = OP_SROUCE_COMPLETE;
                 src_result->complete_frame_count += src_block->line_count;
                 src_result->complete_block_count = src_block->line_count;
@@ -559,7 +560,7 @@ static inline scale_op_t scale_op_wheel(scale_drv_config_t *drv_config, scale_dr
     //          goto out;
 
             }
-            LOGD("%s %d  [%d %d] %p\n", __func__, __LINE__, src_result->current_block_line, src_result->next_block_line, src_block->data);
+            LOGV("%s %d  [%d %d] %p\n", __func__, __LINE__, src_result->current_block_line, src_result->next_block_line, src_block->data);
         }
         else if (src_result->current_block_line < src_block->line_count - 1
 		&& src_result->next_block_line > src_block->line_count - 1)
@@ -574,7 +575,7 @@ static inline scale_op_t scale_op_wheel(scale_drv_config_t *drv_config, scale_dr
             if (OP_SROUCE_COMPLETE == scale_op)
             {      
                 scale_op = OP_SROUCE_COMPLETE;
-//                LOGI("%s %d [%d %d %d %d %d %d]\n", __func__, __LINE__, src_result->current_block_line, src_result->next_block_line, src_result->current_frame_line, drv_record->dst_result.current_frame_line,drv_record->dst_result.current_block_line, drv_record->dst_result.complete_block_count);
+//                LOGD("%s %d [%d %d %d %d %d %d]\n", __func__, __LINE__, src_result->current_block_line, src_result->next_block_line, src_result->current_frame_line, drv_record->dst_result.current_frame_line,drv_record->dst_result.current_block_line, drv_record->dst_result.complete_block_count);
             }
             else
             {      
@@ -611,7 +612,7 @@ static void scale_line_continue(scale_id_t id, scale_drv_config_t *drv_config, s
 		if (drv_record->remain_size)
 		{
 #if 1
-            LOGD("%s %d [%d %d] %p\n", __func__, __LINE__, s_hw_scale.handle[id].record->s_hloc_scale[line_index], drv_record->dst_result.complete_block_count, drv_record->src_block.data);
+            LOGV("%s %d [%d %d] %p\n", __func__, __LINE__, s_hw_scale.handle[id].record->s_hloc_scale[line_index], drv_record->dst_result.complete_block_count, drv_record->src_block.data);
 //            block_address = (uint32_t)(drv_record->src_block.data + (s_hw_scale.handle[id].record->s_hloc_scale[line_index + 1] % drv_config->line_cycle) * drv_config->src_width * 2);
             block_address = (uint32_t)drv_record->src_block.data;
 
@@ -652,7 +653,7 @@ static void scale_line_continue(scale_id_t id, scale_drv_config_t *drv_config, s
 		}
 
 #if 0
-		LOGI("[%d, %d, %d, %d] [%d, 0x%x %p] [%p, %p]\n",
+		LOGD("[%d, %d, %d, %d] [%d, 0x%x %p] [%p, %p]\n",
 			(drv_record->remain_size != 0),
 			drv_record->dst_line_count,
 			s_hloc_scale[line_index],
@@ -738,7 +739,7 @@ static inline void scale_frame_complete(scale_id_t id, scale_drv_config_t *drv_c
 
 static inline void scale_src_block_complete(scale_drv_config_t *drv_config, scale_drv_record_t *drv_record)
 {
-	//LOGI("%s, line: %d\n", __func__, drv_record->dst_line_count);
+	//LOGD("%s, line: %d\n", __func__, drv_record->dst_line_count);
     if(drv_config->source_block_complete)
 	    drv_config->source_block_complete(&drv_record->src_result, &drv_record->src_block);
 
@@ -747,7 +748,7 @@ static inline void scale_src_block_complete(scale_drv_config_t *drv_config, scal
 
 static inline void scale_dst_block_complete(scale_drv_config_t *drv_config, scale_drv_record_t *drv_record)
 {
-	//LOGI("%s, line: %d\n", __func__, drv_record->dst_line_count);
+	//LOGD("%s, line: %d\n", __func__, drv_record->dst_line_count);
 
     if(drv_config->dest_block_complete)
 	    drv_config->dest_block_complete(&drv_record->dst_result, &drv_record->dst_block);
@@ -766,7 +767,7 @@ static void scale0_complete_isr(void)
 
 		if (s_hw_scale.handle[HW_SCALE0].is_init == false)
 		{
-			LOGI("%s, driver not init\n", __func__);
+			LOGD("%s, driver not init\n", __func__);
 			return;
 		}
 
@@ -848,7 +849,7 @@ static void scale1_complete_isr(void)
 
 		if (s_hw_scale.handle[HW_SCALE1].is_init == false)
 		{
-			LOGI("%s, driver not init\n", __func__);
+			LOGD("%s, driver not init\n", __func__);
 			return;
 		}
 
@@ -928,27 +929,27 @@ static bk_err_t scale_set_write_burst(scale_id_t id, uint16_t scale_dst_width)
         if (!(scale_dst_width % 128))
         {
             scale0_ll_set_0x10_r_write_threshold(64);
-            LOGD("scale width divisible by 128\n");
+            LOGV("scale width divisible by 128\n");
         }
         else if (!(scale_dst_width % 64))
         {
             scale0_ll_set_0x10_r_write_threshold(32);
-            LOGD("scale width divisible by 64\n");
+            LOGV("scale width divisible by 64\n");
         }
         else if (!(scale_dst_width % 32))
         {
             scale0_ll_set_0x10_r_write_threshold(16);
-            LOGD("scale width divisible by 32\n");
+            LOGV("scale width divisible by 32\n");
         }
         else if (!(scale_dst_width % 16))
         {
             scale0_ll_set_0x10_r_write_threshold(8);
-            LOGD("scale width divisible by 16\n");
+            LOGV("scale width divisible by 16\n");
         }
         else if ((scale_dst_width % 8))
         {
             scale0_ll_set_0x10_r_write_threshold(4);
-            LOGD("scale width divisible by 8\n");
+            LOGV("scale width divisible by 8\n");
         }
         else
         {
@@ -1008,15 +1009,15 @@ bk_err_t hw_scale_frame(scale_id_t id, scale_drv_config_t *scale_drv_config)
 
 		scale_get_hloc_scale_params(id, drv_config->src_height, drv_config->dst_height);
 		s_hw_scale.handle[id].is_config = true;
-		LOGI("%s set params\n", __func__);
+		LOGD("%s set params\n", __func__);
 	}
 
 	if(id == HW_SCALE0)
 	{
 		os_memcpy(drv_config, scale_drv_config, sizeof(scale_drv_config_t));
 
-		LOGD("SCALE: src_addr = %p, dst_addr = %p\n", drv_config->src_addr, drv_config->dst_addr);
-		LOGD("src_width = %d, src_height = %d, dst_width = %d, dst_height = %d \n", drv_config->src_width, drv_config->src_height, drv_config->dst_width, drv_config->dst_height);
+		LOGV("SCALE: src_addr = %p, dst_addr = %p\n", drv_config->src_addr, drv_config->dst_addr);
+		LOGV("src_width = %d, src_height = %d, dst_width = %d, dst_height = %d \n", drv_config->src_width, drv_config->src_height, drv_config->dst_width, drv_config->dst_height);
 
 		scale0_hal_int_set(1);
 		scale0_hal_set_firstaddr((uint32_t)drv_config->src_addr);
@@ -1033,8 +1034,8 @@ bk_err_t hw_scale_frame(scale_id_t id, scale_drv_config_t *scale_drv_config)
     {
         os_memcpy(drv_config, scale_drv_config, sizeof(scale_drv_config_t));
         
-        LOGD("SCALE: src_addr = %p, dst_addr = %p\n", drv_config->src_addr, drv_config->dst_addr);
-        LOGD("src_width = %d, src_height = %d, dst_width = %d, dst_height = %d \n", drv_config->src_width, drv_config->src_height, drv_config->dst_width, drv_config->dst_height);
+        LOGV("SCALE: src_addr = %p, dst_addr = %p\n", drv_config->src_addr, drv_config->dst_addr);
+        LOGV("src_width = %d, src_height = %d, dst_width = %d, dst_height = %d \n", drv_config->src_width, drv_config->src_height, drv_config->dst_width, drv_config->dst_height);
         
         scale1_hal_int_set(1);
         scale1_hal_set_firstaddr((uint32_t)drv_config->src_addr);
@@ -1099,7 +1100,7 @@ bk_err_t hw_scale_block_config(scale_id_t id, scale_drv_config_t *scale_drv_conf
             scale1_hal_int_set(1);
         }
 
-		//LOGI("%s set params\n", __func__);
+		//LOGD("%s set params\n", __func__);
 	}
 
 	//os_memset(drv_record, 0, sizeof(scale_drv_record_t));
@@ -1131,7 +1132,7 @@ bk_err_t hw_scale_block_start(scale_id_t id, scale_block_t *src, scale_block_t *
 	os_memcpy(&drv_record->dst_block, dst, sizeof(scale_block_t));
 
 #if 0
-	LOGI("%s src: %d, %d, %p, dst: %d, %d, %p\n", __func__,
+	LOGD("%s src: %d, %d, %p, dst: %d, %d, %p\n", __func__,
 		drv_record->src_block.line_index, drv_record->src_block.line_count, drv_record->src_block.data,
 		drv_record->dst_block.line_index, drv_record->dst_block.line_count, drv_record->dst_block.data);
 #endif
@@ -1160,7 +1161,7 @@ bk_err_t hw_scale_dest_block_fill(scale_id_t id, scale_block_t *scale_block)
 
 	os_memcpy(&drv_record->dst_block, scale_block, sizeof(scale_block_t));
 
-	//LOGI("%s %d, %d, %p\n", __func__,
+	//LOGD("%s %d, %d, %p\n", __func__,
 	//	drv_record->dst_block.line_index, drv_record->dst_block.line_count, drv_record->dst_block.data);
 
 	//rtos_delay_milliseconds(50);
@@ -1199,7 +1200,7 @@ bk_err_t hw_scale_source_block_fill(scale_id_t id, scale_block_t *scale_block)
     }
 	drv_config->scale_block_result(&drv_record->src_block, &drv_record->dst_block);
 
-	//LOGI("%s %d, %d, %p\n", __func__,
+	//LOGD("%s %d, %d, %p\n", __func__,
 	//	drv_record->src_block.line_index, drv_record->src_block.line_count, drv_record->src_block.data);
 
 	//rtos_delay_milliseconds(50);
@@ -1208,7 +1209,7 @@ bk_err_t hw_scale_source_block_fill(scale_id_t id, scale_block_t *scale_block)
 
 	if (drv_record->dst_result.complete_block_count == drv_config->line_cycle)
     {
-        LOGD("%s src and dst both complete, wait dst trigger loop\n", __func__);
+        LOGV("%s src and dst both complete, wait dst trigger loop\n", __func__);
         scale_dst_block_complete(drv_config, drv_record);
     }
     else

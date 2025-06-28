@@ -80,7 +80,7 @@ void uart1_rxdata_sender(void)
     ret = rtos_push_to_queue(&uart1_msg_q, &u1Rxmsg, BEKEN_WAIT_FOREVER);
     if(kNoErr != ret)
     {
-        os_printf("uart1_msg_q rx sender failed\r\n");
+        BK_LOGD(NULL,"uart1_msg_q rx sender failed\r\n");
     }
 }
 
@@ -101,7 +101,7 @@ void uart1_txdata_sender(unsigned char *txbuf, int len)
     ret = rtos_push_to_queue(&uart1_msg_q, &u1txmsg, BEKEN_NEVER_TIMEOUT);
     if(kNoErr != ret)
     {
-        os_printf("uart1_msg_q tx sender failed\r\n");
+        BK_LOGD(NULL,"uart1_msg_q tx sender failed\r\n");
     }
 }
 
@@ -152,7 +152,7 @@ void uart1_rxdata_handler(uart1_tcp_msg_T u1rxmsg)
             }
             else
             {
-                os_printf("uart1 rxdata handler error\r\n");
+                BK_LOGD(NULL,"uart1 rxdata handler error\r\n");
             }
         }
     }
@@ -182,7 +182,7 @@ void uart1_tx_rx_handle_thread( beken_thread_arg_t arg )
             uart1_txdata_handler(u1msg);
             break;
         default:
-            os_printf("unknown msg\r\n");
+            BK_LOGD(NULL,"unknown msg\r\n");
             break;
         }
     }
@@ -205,7 +205,7 @@ int tcp_connect_handle_register(int fd)
     }
     else
     {
-        os_printf( "tcp connect num add failed");
+        BK_LOGD(NULL, "tcp connect num add failed");
         return kGeneralErr;
     }
 
@@ -244,7 +244,7 @@ int tcp_sck_txdat_sender(int fd, char *rxbuf, int len)
         ret = rtos_push_to_queue(&tcp_skt_msg_q, &tcpmsg, BEKEN_NEVER_TIMEOUT);
         if(kNoErr != ret)
         {
-            os_printf("tcp sck txdat sender failed\r\n");
+            BK_LOGD(NULL,"tcp sck txdat sender failed\r\n");
         }
 
         return kNoErr;
@@ -306,7 +306,7 @@ int tcp_sck_rxdat_sender(int fd, char *buf, int len)
         ret = rtos_push_to_queue(&tcp_skt_msg_q, &tcpmsg, BEKEN_NEVER_TIMEOUT);
         if(kNoErr != ret)
         {
-            os_printf("tcp_sck_txdat_sender failed\r\n");
+            BK_LOGD(NULL,"tcp_sck_txdat_sender failed\r\n");
         }
 
         return kNoErr;
@@ -356,14 +356,14 @@ void tcp_client_sender_thread( beken_thread_arg_t arg )
                 tcp_sck_rxdat_handler( SdMsg );
                 break;
             default:
-                os_printf("unknown msg\r\n");
+                BK_LOGD(NULL,"unknown msg\r\n");
                 break;
             }
         }
     }
 
 exit:
-    if ( err != kNoErr ) os_printf( "TCP client Sender thread exit with err: %d\r\n", err );
+    if ( err != kNoErr ) BK_LOGD(NULL, "TCP client Sender thread exit with err: %d\r\n", err );
     if ( buf != NULL ) os_free( buf );
 
     rtos_delete_thread( NULL );
@@ -398,7 +398,7 @@ void tcp_client_connect_thread( beken_thread_arg_t arg )
 
             if ( len == 0 )
             {
-                os_printf( "tcp(fd:%d) is disconnected\r\n", fd );
+                BK_LOGD(NULL, "tcp(fd:%d) is disconnected\r\n", fd );
                 goto exit;
             }
 
@@ -408,7 +408,7 @@ void tcp_client_connect_thread( beken_thread_arg_t arg )
 
 exit:
     if ( err != kNoErr )
-        os_printf( "TCP client thread exit(err: %d)\r\n", err );
+        BK_LOGD(NULL, "TCP client thread exit(err: %d)\r\n", err );
 
     if ( buf != NULL )
         os_free( buf );
@@ -449,7 +449,7 @@ void uart_tcp_server_listener_thread( beken_thread_arg_t arg )
             if ( client_fd >= 0 )
             {
                 os_strcpy( client_ip_str, inet_ntoa( client_addr.sin_addr ) );
-                os_printf( "TCP Client %s:%d connected, fd: %d", client_ip_str, client_addr.sin_port, client_fd );
+                BK_LOGD(NULL, "TCP Client %s:%d connected, fd: %d", client_ip_str, client_addr.sin_port, client_fd );
                 if( kNoErr != rtos_create_thread( NULL, BEKEN_APPLICATION_PRIORITY,
                                                   "TCP Clients",
                                                   (beken_thread_function_t)tcp_client_connect_thread,
@@ -470,7 +470,7 @@ void uart_tcp_server_listener_thread( beken_thread_arg_t arg )
 exit:
     if ( err != kNoErr )
     {
-        os_printf( "server listerner thread exit,err: %d\r\n", err );
+        BK_LOGD(NULL, "server listerner thread exit,err: %d\r\n", err );
     }
     close( tcp_listen_fd );
     rtos_delete_thread( NULL );
@@ -490,7 +490,7 @@ void demo_start(void)
                            6);
     if (kNoErr != ret )
     {
-        os_printf("Create Uart1msg_queue failed\r\n");
+        BK_LOGD(NULL,"Create Uart1msg_queue failed\r\n");
         goto exit;
     }
 
@@ -500,7 +500,7 @@ void demo_start(void)
                            6);
     if (kNoErr != ret )
     {
-        os_printf("Create TCPsktUart_queue failed\r\n");
+        BK_LOGD(NULL,"Create TCPsktUart_queue failed\r\n");
         goto exit;
     }
 
@@ -512,7 +512,7 @@ void demo_start(void)
                               (beken_thread_arg_t)0 );
     if (kNoErr != ret )
     {
-        os_printf("Create UART1_TxRx_Handle failed\r\n");
+        BK_LOGD(NULL,"Create UART1_TxRx_Handle failed\r\n");
         goto exit;
     }
 
@@ -523,7 +523,7 @@ void demo_start(void)
                               0 );
     if (kNoErr != ret )
     {
-        os_printf("Create UART1_TxRx_Handle failed\r\n");
+        BK_LOGD(NULL,"Create UART1_TxRx_Handle failed\r\n");
         goto exit;
     }
 
@@ -534,7 +534,7 @@ void demo_start(void)
                               0 );
     if (kNoErr != ret )
     {
-        os_printf("Create client_Sender failed\r\n");
+        BK_LOGD(NULL,"Create client_Sender failed\r\n");
         goto exit;
     }
 
@@ -542,7 +542,7 @@ void demo_start(void)
     return;
 
 exit:
-    os_printf("Failed\r\n");
+    BK_LOGD(NULL,"Failed\r\n");
     GLOBAL_INT_RESTORE();
 }
 

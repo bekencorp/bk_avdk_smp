@@ -170,7 +170,7 @@ bk_err_t bk_touch_gpio_init(touch_channel_t touch_id)
 			break;
 
 		default:
-			TOUCH_LOGI("unsupported touch id\r\n");
+			TOUCH_LOGD("unsupported touch id\r\n");
 			break;
 	}
 
@@ -376,7 +376,7 @@ void bk_touch_digital_tube_display(uint8_t disp_value)
 		rtos_delay_milliseconds(10);
 
 	} else {
-		TOUCH_LOGI("Invalid touch channel!\r\n");
+		TOUCH_LOGD("Invalid touch channel!\r\n");
 		return;
 	}
 
@@ -417,7 +417,7 @@ void touch_isr(void)
 	for (touch_id = 0; touch_id < SOC_TOUCH_ID_NUM; touch_id++)
 	{
 		if (int_status & (1 << touch_id)) {
-			TOUCH_LOGI("Touch[%d] has been selected!\r\n", touch_id);
+			TOUCH_LOGD("Touch[%d] has been selected!\r\n", touch_id);
 			s_touch_channel = touch_id;
 			bk_touch_clear_int(1 << touch_id);
 			bk_touch_int_enable(1 << touch_id, 0);
@@ -427,7 +427,7 @@ void touch_isr(void)
 
 			ret = bk_timer_start(TIMER_ID1, 200, touch_timer_isr);
 			if (ret != BK_OK) {
-				os_printf("Timer start failed\r\n");
+				BK_LOGD(NULL,"Timer start failed\r\n");
 			}
 			break;
 		}

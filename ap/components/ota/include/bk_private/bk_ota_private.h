@@ -29,17 +29,19 @@
 #define OTA_LOGW(...)	BK_LOGW(OTA_TAG, ##__VA_ARGS__)
 #define OTA_LOGE(...)	BK_LOGE(OTA_TAG, ##__VA_ARGS__)
 #define OTA_LOGD(...)	BK_LOGD(OTA_TAG, ##__VA_ARGS__)
+#define OTA_LOGV(...)	BK_LOGV(OTA_TAG, ##__VA_ARGS__)
 #else
 #define OTA_LOGI(...)	BK_LOGI(OTA_TAG, ##__VA_ARGS__)
-#define OTA_LOGW(...) 
+#define OTA_LOGW(...)   BK_LOGW(OTA_TAG, ##__VA_ARGS__)
 #define OTA_LOGE(...)	BK_LOGE(OTA_TAG, ##__VA_ARGS__)
-#define OTA_LOGD(...) 
+#define OTA_LOGD(...)   BK_LOGD(OTA_TAG, ##__VA_ARGS__)
+#define OTA_LOGV(...)
 #endif
 
 #define OTA_ASSERT_ERR(cond)                              \
     do {                                             \
         if (!(cond)) {                                \
-            os_printf("%s,condition %s,line = %d\r\n",__func__, #cond, __LINE__);  \
+            OTA_LOGE("%s,condition %s,line = %d\r\n",__func__, #cond, __LINE__);  \
         }                                             \
     } while(0)
 

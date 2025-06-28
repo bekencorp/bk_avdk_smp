@@ -186,7 +186,7 @@ bk_err_t gpio_jtag_sel(gpio_jtag_map_group_t group_id)
 		gpio_hal_func_map(&s_gpio.hal,GPIO_0, GPIO_DEV_JTAG_TCK);
 		gpio_hal_func_map(&s_gpio.hal,GPIO_1, GPIO_DEV_JTAG_TMS);
 	} else {
-		GPIO_LOGI("Unsupported group id(%d).\r\n", group_id);
+		GPIO_LOGD("Unsupported group id(%d).\r\n", group_id);
 		return BK_FAIL;
 	}
 
@@ -206,7 +206,7 @@ bk_err_t bk_gpio_retention_set(gpio_id_t gpio_id, gpio_output_state_e gpio_outpu
 	}
 
 #if GPIO_RETENTION_MAP_DUMP
-	GPIO_LOGI("gpio retention map:\r\n");
+	GPIO_LOGD("gpio retention map:\r\n");
 	uint32_t bitmap = aon_pmu_hal_gpio_retention_bitmap_get();
 	for (uint32_t i = 0; i < GPIO_RETENTION_MAP_SIZE; i++)
 	{
@@ -214,7 +214,7 @@ bk_err_t bk_gpio_retention_set(gpio_id_t gpio_id, gpio_output_state_e gpio_outpu
 		gpio_output_state = !!(bitmap & BIT(i));
 		if (GPIO_RETENTION_EN_CHECK(gpio_id, i))
 		{
-			GPIO_LOGI("gpio_%d type: %d\r\n", gpio_id, gpio_output_state);
+			GPIO_LOGD("gpio_%d type: %d\r\n", gpio_id, gpio_output_state);
 		}
 	}
 #endif
@@ -234,7 +234,7 @@ bk_err_t bk_gpio_retention_clr(gpio_id_t gpio_id)
 	}
 
 #if GPIO_RETENTION_MAP_DUMP
-	GPIO_LOGI("gpio retention map:\r\n");
+	GPIO_LOGD("gpio retention map:\r\n");
 	uint32_t bitmap = aon_pmu_hal_gpio_retention_bitmap_get();
 	gpio_output_state_e gpio_output_state;
 	for (uint32_t i = 0; i < GPIO_RETENTION_MAP_SIZE; i++)
@@ -243,7 +243,7 @@ bk_err_t bk_gpio_retention_clr(gpio_id_t gpio_id)
 		gpio_output_state = !!(bitmap & BIT(i));
 		if (GPIO_RETENTION_EN_CHECK(gpio_id, i, false))
 		{
-			GPIO_LOGI("gpio_%d type: %d\r\n", gpio_id, gpio_output_state);
+			GPIO_LOGD("gpio_%d type: %d\r\n", gpio_id, gpio_output_state);
 		}
 	}
 #endif

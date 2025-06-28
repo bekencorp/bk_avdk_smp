@@ -27,8 +27,8 @@
 
 #define TAG       "bluetooth"
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
@@ -122,7 +122,7 @@ bt_err_t bk_bluetooth_init(void)
 #endif
 
     bluetooth_already_init = 1;
-    LOGI("%s ok\r\n", __func__);
+    LOGD("%s ok\r\n", __func__);
     return ret;
 }
 
@@ -136,7 +136,7 @@ bt_err_t bk_bluetooth_deinit(void)
         rtos_unlock_mutex(&bluetooth_mutex);
         return 0;
     }
-    LOGI("%s start, %d \r\n", __func__, bluetooth_already_init);
+    LOGD("%s start, %d \r\n", __func__, bluetooth_already_init);
 #if !CONFIG_BTDM_CONTROLLER_ONLY
     ret = bluetooth_host_deinit();
     if (ret)
@@ -162,7 +162,7 @@ bt_err_t bk_bluetooth_deinit(void)
 
     bluetooth_already_init = 0;
 
-    LOGI("%s ok, %d \r\n", __func__, bluetooth_already_init);
+    LOGD("%s ok, %d \r\n", __func__, bluetooth_already_init);
     rtos_unlock_mutex(&bluetooth_mutex);
     return ret;
 }

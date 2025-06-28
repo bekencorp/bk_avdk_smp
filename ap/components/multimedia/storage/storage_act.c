@@ -31,6 +31,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 #define MAX_NAME_LENGTH (31)
 
@@ -144,7 +145,7 @@ static void storage_app_task_save_start_handle(uint32_t param)
         {
             if (info->stream == NULL)
             {
-                LOGI("%s, stream:%p\n", __func__, stream);
+                LOGD("%s, stream:%p\n", __func__, stream);
                 info->stream = stream;
                 frame_buffer_fb_register(info->stream, MODULE_CAPTURE);
             }
@@ -214,7 +215,7 @@ static void storage_app_task_capture_handle(uint32_t param)
     }
     else
     {
-        LOGI("%s, seq:%d, length:%d\n", __func__, frame->sequence, frame->length);
+        LOGD("%s, seq:%d, length:%d\n", __func__, frame->sequence, frame->length);
         if (info->cb)
         {
             info->cb(frame);
@@ -267,7 +268,7 @@ static void storage_app_task_entry(beken_thread_arg_t data)
 
 exit:
 
-    LOGI("storage_major_task exit success!\r\n");
+    LOGD("storage_major_task exit success!\r\n");
     rtos_deinit_queue(&config->queue);
     config->queue = NULL;
     config->thread = NULL;
@@ -278,7 +279,7 @@ exit:
 bk_err_t storage_app_task_init(frame_cb_t cb)
 {
     int ret = BK_OK;
-    LOGI("%s, %d\n", __func__, __LINE__);
+    LOGD("%s, %d\n", __func__, __LINE__);
 
     if (s_storage_config)
     {
@@ -351,7 +352,7 @@ error:
 bk_err_t storage_app_task_deinit(void)
 {
     int ret = BK_OK;
-    LOGI("%s, %d\n", __func__, __LINE__);
+    LOGD("%s, %d\n", __func__, __LINE__);
 
     storage_info_t *storage_info = s_storage_config;
 
@@ -383,7 +384,7 @@ bk_err_t storage_app_task_deinit(void)
 bk_err_t storage_app_task_capture(image_format_t format, char *name)
 {
     bk_err_t ret = BK_FAIL;
-    LOGI("%s, %d\n", __func__, __LINE__);
+    LOGD("%s, %d\n", __func__, __LINE__);
 
     storage_info_t *storage_info = s_storage_config;
     if (storage_info == NULL || name == NULL)
@@ -410,7 +411,7 @@ bk_err_t storage_app_task_capture(image_format_t format, char *name)
     }
 
     storage_info->name[MAX_NAME_LENGTH - 1] = '\0';
-    LOGD("%s, %d, name:%s\n", __func__, __LINE__, storage_info->name);
+    LOGV("%s, %d, name:%s\n", __func__, __LINE__, storage_info->name);
     storage_info->img_format = format;
     storage_info->enable = STORAGE_STATE_ENABLED;
     storage_info->mode = STORAGE_PICTURE_MODE;
@@ -427,7 +428,7 @@ bk_err_t storage_app_task_capture(image_format_t format, char *name)
 bk_err_t storage_app_task_save_start(image_format_t format, char *name)
 {
     bk_err_t ret = BK_FAIL;
-    LOGI("%s, %d\n", __func__, __LINE__);
+    LOGD("%s, %d\n", __func__, __LINE__);
 
     storage_info_t *storage_info = s_storage_config;
     if (storage_info == NULL)
@@ -454,7 +455,7 @@ bk_err_t storage_app_task_save_start(image_format_t format, char *name)
     }
 
     storage_info->name[MAX_NAME_LENGTH - 1] = '\0';
-    LOGD("%s, %d, name:%s\n", __func__, __LINE__, storage_info->name);
+    LOGV("%s, %d, name:%s\n", __func__, __LINE__, storage_info->name);
     storage_info->img_format = format;
     storage_info->enable = STORAGE_STATE_ENABLED;
     ret = storage_app_task_send_msg(STORAGE_TASK_SAVE_START, (uint32_t)storage_info);
@@ -469,7 +470,7 @@ bk_err_t storage_app_task_save_start(image_format_t format, char *name)
 bk_err_t storage_app_task_save_stop(void)
 {
     bk_err_t ret = BK_FAIL;
-    LOGI("%s, %d\n", __func__, __LINE__);
+    LOGD("%s, %d\n", __func__, __LINE__);
 
     storage_info_t *storage_info = s_storage_config;
     if (storage_info == NULL)
@@ -486,7 +487,7 @@ bk_err_t storage_app_task_save_stop(void)
 
     storage_info->enable = STORAGE_STATE_DISABLED;
     rtos_get_semaphore(&storage_info->sem, BEKEN_NEVER_TIMEOUT);
-    LOGI("%s, %d complete\n", __func__, __LINE__);
+    LOGD("%s, %d complete\n", __func__, __LINE__);
 
     return ret;
 }

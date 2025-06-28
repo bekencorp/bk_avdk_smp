@@ -52,11 +52,11 @@ void bk_reboot_ex(uint32_t reset_reason)
 			bk_misc_set_reset_reason(reset_reason);
 		}
 
-		BK_LOGI(TAG, "bk_reboot\r\n");
+		BK_LOGD(TAG, "bk_reboot\r\n");
 		delay_ms(100); //add delay for bk_writer BEKEN_DO_REBOOT cmd
 		bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_60M);
 
-		BK_LOGI(TAG, "wdt reboot\r\n");
+		BK_LOGD(TAG, "wdt reboot\r\n");
 		rtos_disable_int();
 		if (reset_reason < RESET_SOURCE_UNKNOWN) {
 			bk_misc_set_reset_reason(reset_reason);

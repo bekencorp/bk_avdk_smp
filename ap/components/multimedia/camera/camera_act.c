@@ -63,7 +63,7 @@ bk_err_t camera_open_handle(media_device_t *dev)
     media_device_t *device = dev;
     camera_handle_t *handle = (camera_handle_t *)device->param1;
     media_camera_device_t *config = (media_camera_device_t *)device->param2;
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
     if (config->type == DVP_CAMERA)
     {
@@ -84,7 +84,7 @@ bk_err_t camera_open_handle(media_device_t *dev)
     }
     else
     {
-        LOGI("%s, not support\n", __func__);
+        LOGD("%s, not support\n", __func__);
     }
 
     return ret;
@@ -128,7 +128,7 @@ static bk_err_t camera_dvp_h264_reset_handle(void)
     ret = bk_dvp_h264_idr_reset();
 #endif
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 
     return ret;
 }
@@ -147,7 +147,7 @@ static bk_err_t camera_compression_ratio_config_handle(compress_ratio_t *ratio)
 {
     int ret = BK_FAIL;
 
-    LOGI("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
 #if (defined(CONFIG_H264) || defined(CONFIG_JPEGENC_HW))
 

@@ -108,7 +108,7 @@ static int crypto_finish(void)
 	/* Destroy the key handle */
 	status = psa_destroy_key(key_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_destroy_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -119,7 +119,7 @@ static int generate_key(uint32_t key_len)
 {
 	psa_status_t status;
 
-	BK_LOGI(TAG, "Generating random AES key...\r\n");
+	BK_LOGD(TAG, "Generating random AES key...\r\n");
 
 	/* Configure the key attributes */
 	psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
@@ -135,14 +135,14 @@ static int generate_key(uint32_t key_len)
 	 */
 	status = psa_generate_key(&key_attributes, &key_id);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_generate_key failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* After the key handle is acquired the attributes are not needed */
 	psa_reset_key_attributes(&key_attributes);
 
-	BK_LOGI(TAG, "AES key generated successfully!\r\n");
+	BK_LOGD(TAG, "AES key generated successfully!\r\n");
 
 	return 0;
 }
@@ -152,12 +152,12 @@ static int encrypt_aes_gcm(void)
 	uint32_t output_len;
 	psa_status_t status;
 
-	BK_LOGI(TAG, "Encrypting using AES GCM MODE...\r\n");
+	BK_LOGD(TAG, "Encrypting using AES GCM MODE...\r\n");
 
 	/* Generate a random IV */
 	status = psa_generate_random(m_iv, CRYPTO_EXAMPLE_AES_IV_SIZE);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_generate_random failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_generate_random failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
@@ -174,11 +174,11 @@ static int encrypt_aes_gcm(void)
 				  sizeof(m_encrypted_text),
 				  (size_t *)&output_len);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_aead_encrypt failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_aead_encrypt failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Encryption successful!\r\n");
+	BK_LOGD(TAG, "Encryption successful!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -188,7 +188,7 @@ static int decrypt_aes_gcm(void)
 	uint32_t output_len;
 	psa_status_t status;
 
-	BK_LOGI(TAG, "Decrypting using AES GCM MODE...\r\n");
+	BK_LOGD(TAG, "Decrypting using AES GCM MODE...\r\n");
 
 	/* Decrypt and authenticate the encrypted data */
 	status = psa_aead_decrypt(key_id,
@@ -203,17 +203,17 @@ static int decrypt_aes_gcm(void)
 				  sizeof(m_decrypted_text),
 				  (size_t *)&output_len);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_aead_decrypt failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_aead_decrypt failed! (Error: %d)\r\n", status);
 		return APP_ERROR;
 	}
 
 	/* Check the validity of the decryption */
 	if (memcmp(m_decrypted_text, m_plain_text, CRYPTO_EXAMPLE_AES_MAX_TEXT_SIZE) != 0) {
-		BK_LOGI(TAG, "Error: Decrypted text doesn't match the plaintext\r\n");
+		BK_LOGD(TAG, "Error: Decrypted text doesn't match the plaintext\r\n");
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, "Decryption and authentication successful!\r\n");
+	BK_LOGD(TAG, "Decryption and authentication successful!\r\n");
 
 	return APP_SUCCESS;
 }
@@ -222,39 +222,39 @@ int aes_gcm_main(void)
 {
 	int status;
 
-	BK_LOGI(TAG, "Starting AES-GCM example...\r\n");
+	BK_LOGD(TAG, "Starting AES-GCM example...\r\n");
 
 	status = crypto_init();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = generate_key(128);
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = encrypt_aes_gcm();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = decrypt_aes_gcm();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
 	status = crypto_finish();
 	if (status != APP_SUCCESS) {
-		BK_LOGI(TAG, APP_ERROR_MESSAGE);
+		BK_LOGD(TAG, APP_ERROR_MESSAGE);
 		return APP_ERROR;
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
 
 	return APP_SUCCESS;
 }
@@ -266,14 +266,14 @@ static int encrypt_aes_gcm_perf(uint32_t key_len, uint32_t data_len)
 	uint32_t encrypted_len = data_len + 16;
 	uint64_t start, end;
 
-	BK_LOGI(TAG, "Encrypting using AES GCM MODE...\r\n");
+	BK_LOGD(TAG, "Encrypting using AES GCM MODE...\r\n");
 
 	crypto_lock();
 	start = crypto_get_time();
 	/* Generate a random IV */
 	status = psa_generate_random(m_iv, CRYPTO_EXAMPLE_AES_IV_SIZE);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_generate_random failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_generate_random failed! (Error: %d)\r\n", status);
 		goto _error;
 	}
 
@@ -290,14 +290,14 @@ static int encrypt_aes_gcm_perf(uint32_t key_len, uint32_t data_len)
 				  encrypted_len,
 				  (size_t *)&output_len);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_aead_encrypt failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_aead_encrypt failed! (Error: %d)\r\n", status);
 		goto _error;
 	}
 	end = crypto_get_time();
 	crypto_unlock();
 	crypto_perf_log("AES_GCM_ENC", "120M", key_len, data_len, end - start);
 
-	BK_LOGI(TAG, "Encryption successful!\r\n");
+	BK_LOGD(TAG, "Encryption successful!\r\n");
 
 	return APP_SUCCESS;
 
@@ -314,7 +314,7 @@ static int decrypt_aes_gcm_perf(uint32_t key_len, uint32_t data_len)
 	uint32_t decrypted_len = data_len;
 	uint64_t start, end;
 
-	BK_LOGI(TAG, "Decrypting using AES GCM MODE...\r\n");
+	BK_LOGD(TAG, "Decrypting using AES GCM MODE...\r\n");
 
 	crypto_lock();
 	start = crypto_get_time();
@@ -331,7 +331,7 @@ static int decrypt_aes_gcm_perf(uint32_t key_len, uint32_t data_len)
 				  decrypted_len,
 				  (size_t *)&output_len);
 	if (status != PSA_SUCCESS) {
-		BK_LOGI(TAG, "psa_aead_decrypt failed! (Error: %d)\r\n", status);
+		BK_LOGD(TAG, "psa_aead_decrypt failed! (Error: %d)\r\n", status);
 		goto _error;
 	}
 
@@ -342,11 +342,11 @@ static int decrypt_aes_gcm_perf(uint32_t key_len, uint32_t data_len)
 
 	/* Check the validity of the decryption */
 	if (memcmp(s_decrypted_text_p, s_plain_text_p, data_len) != 0) {
-		BK_LOGI(TAG, "Error: Decrypted text doesn't match the plaintext\r\n");
+		BK_LOGD(TAG, "Error: Decrypted text doesn't match the plaintext\r\n");
 		goto _error;
 	}
 
-	BK_LOGI(TAG, "Decryption and authentication successful!\r\n");
+	BK_LOGD(TAG, "Decryption and authentication successful!\r\n");
 
 	return APP_SUCCESS;
 
@@ -366,7 +366,7 @@ int aes_gcm_perf_main(void)
 	uint32_t cpu;
 	int status;
 
-	BK_LOGI(TAG, "AES-GCM perf test\r\n");
+	BK_LOGD(TAG, "AES-GCM perf test\r\n");
 
 	if (test_init() != 0) {
 		goto _error;
@@ -404,13 +404,13 @@ int aes_gcm_perf_main(void)
 		}
 	}
 
-	BK_LOGI(TAG, APP_SUCCESS_MESSAGE);
-	BK_LOGI(TAG, "AES-GCM perf test\r\n");
+	BK_LOGD(TAG, APP_SUCCESS_MESSAGE);
+	BK_LOGD(TAG, "AES-GCM perf test\r\n");
 	test_deinit();
 	return APP_SUCCESS;
 
 _error:
 	test_deinit();
-	BK_LOGI(TAG, APP_ERROR_MESSAGE);
+	BK_LOGD(TAG, APP_ERROR_MESSAGE);
 	return APP_ERROR;
 }

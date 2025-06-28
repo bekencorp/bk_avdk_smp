@@ -23,8 +23,8 @@ static void alarm_auto_test_callback(aon_rtc_id_t id, uint8_t *name_p, void *par
 
 static void cli_aon_rtc_help(void)
 {
-	CLI_LOGI("aon_rtc_get_time {id}\r\n");
-	CLI_LOGI("aon_rtc_time_of_day {get|set} {sec|usec}\r\n");
+	CLI_LOGD("aon_rtc_get_time {id}\r\n");
+	CLI_LOGD("aon_rtc_time_of_day {get|set} {sec|usec}\r\n");
 }
 
 static void cli_aon_rtc_get_time(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -35,8 +35,8 @@ static void cli_aon_rtc_get_time(char *pcWriteBuffer, int xWriteBufferLen, int a
 	aon_rtc_id = os_strtoul(argv[1], NULL, 10);
 	tick = bk_aon_rtc_get_current_tick(aon_rtc_id)/bk_rtc_get_ms_tick_count();
 
-	//CLI_LOGI("id=%d, tick_h=%d tick_l=%d\r\n", aon_rtc_id, (uint32_t)(tick>>32), (uint32_t)tick);
-	CLI_LOGI("id=%d, tick_h=%d tick_l=%d ms\r\n", aon_rtc_id, (uint32_t)((tick)>>32), (uint32_t)(tick));
+	//CLI_LOGD("id=%d, tick_h=%d tick_l=%d\r\n", aon_rtc_id, (uint32_t)(tick>>32), (uint32_t)tick);
+	CLI_LOGD("id=%d, tick_h=%d tick_l=%d ms\r\n", aon_rtc_id, (uint32_t)((tick)>>32), (uint32_t)(tick));
 }
 
 static void cli_aon_rtc_time_of_day(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)

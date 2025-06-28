@@ -38,7 +38,7 @@ bk_err_t wifi_monitor_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame
         hdr->para[2] = (uint32_t)temp_payload;
         
         //bk_mem_dump("cp",(uint32_t)p_copy,200);
-        //os_printf("%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",hdr->para[2],hdr->para[0],hdr->para[1]);
+        //BK_LOGD(NULL,"%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",hdr->para[2],hdr->para[0],hdr->para[1]);
     }
     else
     {
@@ -96,7 +96,7 @@ bk_err_t wifi_filter_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame_
         memcpy(temp_payload,frame,len);
         hdr->para[2] = (uint32_t)temp_payload;
 
-        //os_printf("%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",__func__,__LINE__,hdr->para[2],hdr->para[0],hdr->para[1]);
+        //BK_LOGD(NULL,"%s,%d,frame:0x%x,len:%d,frame_info:0x%x\n",__func__,__LINE__,hdr->para[2],hdr->para[0],hdr->para[1]);
     }
     else
     {
@@ -130,12 +130,12 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
     bk_err_t ret = BK_OK;
     wifi_api_arg_info_t *arg_info = (wifi_api_arg_info_t *)(msg + 1);
 
-    CIF_LOGI("cif_handle_wifi_api_cmd cmd:%x agrc:%d\n", msg->cmd_id, arg_info->argc);
+    CIF_LOGD("cif_handle_wifi_api_cmd cmd:%x agrc:%d\n", msg->cmd_id, arg_info->argc);
 
     if (arg_info->argc)
     {
         BK_ASSERT(arg_info->argc < WIFI_API_IPC_COM_REQ_MAX_ARGC);
-        // CIF_LOGI("arg[0]:%x arg[1]:%x arg[2]:%x arg[3]:%x arg[4]:%x arg[5]:%x\n", 
+        // CIF_LOGD("arg[0]:%x arg[1]:%x arg[2]:%x arg[3]:%x arg[4]:%x arg[5]:%x\n", 
         //     arg_info->args[0], arg_info->args[1], arg_info->args[2],
         //     arg_info->args[3], arg_info->args[4], arg_info->args[5]);
     }
@@ -155,14 +155,14 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         case STA_SET_CONFIG:
         {
             wifi_sta_config_t *config = (wifi_sta_config_t *)arg_info->args[0];
-            //CIF_LOGI("sizeof(wifi_sta_config_t)=%d\r\n", sizeof(wifi_sta_config_t));
+            //CIF_LOGD("sizeof(wifi_sta_config_t)=%d\r\n", sizeof(wifi_sta_config_t));
             ret = bk_wifi_sta_set_config(config);
             break;
         }
         case STA_GET_CONFIG:
         {
             wifi_sta_config_t *config = (wifi_sta_config_t *)arg_info->args[0];
-            //CIF_LOGI("sizeof(wifi_sta_config_t)=%d\r\n", sizeof(wifi_sta_config_t));
+            //CIF_LOGD("sizeof(wifi_sta_config_t)=%d\r\n", sizeof(wifi_sta_config_t));
             ret = bk_wifi_sta_get_config(config);
             break;
         }
@@ -336,7 +336,7 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         return BK_FAIL;
     }
 
-    //CIF_LOGI("cif_handle_wifi_api_cmd ret:%d\n", ret);
+    //CIF_LOGD("cif_handle_wifi_api_cmd ret:%d\n", ret);
     return BK_OK;
 }
 
@@ -355,7 +355,7 @@ bk_err_t cif_send_wifi_api_evt(uint32_t cmd_id, uint32_t argc, ...)
         for (int i = 0; i < argc; i++)
         {
             arg_info.args[i] = va_arg(args, uint32_t);
-            //WIFI_LOGI("arg[%d]:%x\n", i, com_req.arg_info.args[i]);
+            //WIFI_LOGD("arg[%d]:%x\n", i, com_req.arg_info.args[i]);
         }
         va_end(args);
     }

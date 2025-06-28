@@ -4,16 +4,16 @@ static int mico_debug_enabled;
 static void micodebug_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if (argc == 1) {
-		os_printf("Usage: micodebug on/off. _BK_ debug is currently %s\r\n",
+		BK_LOGD(NULL, "Usage: micodebug on/off. _BK_ debug is currently %s\r\n",
 				  mico_debug_enabled ? "Enabled" : "Disabled");
 		return;
 	}
 
 	if (!os_strcasecmp(argv[1], "on")) {
-		os_printf("Enable _BK_ debug\r\n");
+		BK_LOGD(NULL, "Enable _BK_ debug\r\n");
 		mico_debug_enabled = 1;
 	} else if (!os_strcasecmp(argv[1], "off")) {
-		os_printf("Disable _BK_ debug\r\n");
+		BK_LOGD(NULL, "Disable _BK_ debug\r\n");
 		mico_debug_enabled = 0;
 	}
 }

@@ -205,7 +205,7 @@ int atsvr_app_init(void)
     	}
 
 
-	BK_LOGI(ATSVR_TAG,"AT TASK Create OK!\r\n");
+	BK_LOGD(ATSVR_TAG,"AT TASK Create OK!\r\n");
     return kNoErr;
 init_general_err:
 	if( msg_thread != NULL ) {

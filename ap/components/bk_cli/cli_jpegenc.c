@@ -18,10 +18,10 @@
 
 static void cli_jpeg_help(void)
 {
-	CLI_LOGI("jpeg_driver init\r\n");
-	CLI_LOGI("jpeg_driver deinit\r\n");
-	CLI_LOGI("jpeg init\r\n");
-	CLI_LOGI("jpeg deinit\r\n");
+	CLI_LOGD("jpeg_driver init\r\n");
+	CLI_LOGD("jpeg_driver deinit\r\n");
+	CLI_LOGD("jpeg init\r\n");
+	CLI_LOGD("jpeg deinit\r\n");
 }
 
 static void cli_jpeg_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -64,7 +64,7 @@ static void cli_jpeg_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		BK_LOG_ON_ERR(bk_jpeg_enc_deinit());
 		msg = CLI_CMD_RSP_SUCCEED;
 	} else if (os_strcmp(argv[1], "debug") == 0) {
-		CLI_LOGI("jpeg_rx_fifo_data:%x\r\n", REG_READ(JPEG_R_RX_FIFO));
+		CLI_LOGD("jpeg_rx_fifo_data:%x\r\n", REG_READ(JPEG_R_RX_FIFO));
 		msg = CLI_CMD_RSP_SUCCEED;
 	} else {
 		cli_jpeg_help();
