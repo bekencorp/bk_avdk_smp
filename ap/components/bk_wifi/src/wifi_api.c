@@ -689,6 +689,7 @@ bk_err_t bk_wifi_ap_stop(void)
 int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
 {
     wifi_ap_config_t ap_config = {0};//WIFI_DEFAULT_AP_CONFIG();
+    netif_ip4_config_t ip4_config = {0};
     int len, key_len = 0;
     len = os_strlen(ap_ssid);
 
@@ -710,6 +711,13 @@ int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
         WDRV_LOGE("key more than 64 Bytes\r\n");
         return BK_FAIL;
     }
+
+    os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
+    os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
+    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
+    os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
+
+    BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
 
     os_strcpy(ap_config.ssid, ap_ssid);
     if (ap_key)
