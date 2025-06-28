@@ -40,7 +40,7 @@
 #include "interrupt_base.h"
 #include <driver/otp.h>
 #include <driver/pwr_clk.h>
-
+#include "bk_rtos_debug.h"
 
 #if CONFIG_SECURITY
 #include "bk_security.h"
@@ -264,6 +264,7 @@ void power_clk_rf_init()
 
 int driver_early_init(void)
 {
+    set_ap_startup_index(AP_ENTER_DRIVER_EARLY_INIT);
 	interrupt_init();
 
 #if CONFIG_AON_PMU
@@ -282,6 +283,7 @@ int driver_early_init(void)
 	bk_efuse_driver_init();
 #endif
 
+    set_ap_startup_index(AP_EXIT_DRIVER_EARLY_INIT);
 	return 0;
 }
 

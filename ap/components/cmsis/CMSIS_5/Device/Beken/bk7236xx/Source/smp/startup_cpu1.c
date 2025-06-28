@@ -27,6 +27,7 @@
 #include "wdt_driver.h"
 #include "bk_pm_internal_api.h"
 #include "smp.h"
+#include "bk_rtos_debug.h"
 
 #if CONFIG_CM_BACKTRACE
 #include "cm_backtrace.h"
@@ -277,6 +278,7 @@ void _othercore_start(void)
 #endif
 #endif // #if CONFIG_MPU
 
+  set_ap_startup_index(AP_ENTER_CPU1_OTHERCORE_START);
   /* prvDisableInterruptsAndPortStartSchedulerOnCore*/
   if (multicore_cpu1_func) {
   	multicore_cpu1_func();
@@ -297,6 +299,7 @@ __NO_RETURN void Reset_Handler_Cpu1(void)
 
   __set_MSPLIM((uint32_t)(&__STACK_LIMIT1));
 
+  set_ap_startup_index(AP_ENTER_CPU1_RESET_HANDLER);
   SystemInitCpu1();                             /* CMSIS System Initialization */
 
   __TCM_LOADER_START();

@@ -22,6 +22,7 @@
 #include <modules/pm.h>
 #include "aon_pmu_driver.h"
 #include <driver/pwr_clk.h>
+#include "bk_rtos_debug.h"
 #if CONFIG_ROSC_CALIB_SW
 #include <driver/rosc_32k.h>
 #endif
@@ -269,6 +270,7 @@ int components_init(void);
 
 int bk_init(void)
 {
+    set_ap_startup_index(AP_ENTER_BK_INIT);
 	components_init();
 
 	BK_LOGI(TAG, "armino app init: %s\n", build_version);
@@ -290,6 +292,7 @@ int bk_init(void)
 	bk_event_init();
 
 #if CONFIG_AT 
+    set_ap_startup_index(AP_ENTER_AT_SERVER_INIT);
 	at_server_init();
 
 	extern int atsvr_app_init(void);
@@ -297,6 +300,7 @@ int bk_init(void)
 		return -1;	
 	extern void wifi_at_cmd_init(void);
 	wifi_at_cmd_init();
+    set_ap_startup_index(AP_EXIT_AT_SERVER);
 #endif
 
 
@@ -352,11 +356,14 @@ extern int mp_do_startup(int heap_len);
 #endif
 
 #if 1//CONFIG_WIFI_ENABLE
+    set_ap_startup_index(AP_EXIT_AT_SERVER);
     app_wifi_init();
 #endif
 
 #ifdef CONFIG_BLUETOOTH_AP
+    set_ap_startup_index(AP_ENTER_APP_BLE_INIT);
     app_ble_init();
 #endif
+    set_ap_startup_index(AP_EXIT_BK_INIT);
 	return 0;
 }

@@ -47,6 +47,7 @@
 #include "stack_base.h"
 #include <reset_reason.h>
 #include "arch_interrupt.h"
+#include "bk_rtos_debug.h"
 
 #define TAG "arch"
 
@@ -361,6 +362,8 @@ __NO_RETURN void Reset_Handler_Cpu0(void)
   __asm volatile ("cpsid i" : : : "memory"); // rtos_disable_int();
 
   cpu0_set_core_id();
+
+  set_ap_startup_index(AP_ENTER_CPU0_RESET_HANDLER);
 
   __set_MSPLIM((uint32_t)(&__STACK_LIMIT0));
 

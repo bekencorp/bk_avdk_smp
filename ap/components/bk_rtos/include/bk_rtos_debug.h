@@ -27,6 +27,38 @@ extern "C" {
 
 #endif
 
+typedef enum {
+    AP_ENTER_CPU0_RESET_HANDLER         = 1,
+    AP_ENTER_ENTRY_MAIN                 = 2,
+    AP_ENTER_COMPONTENT_EARLY_INIT      = 3,
+    AP_ENTER_DRIVER_EARLY_INIT          = 4,
+    AP_EXIT_DRIVER_EARLY_INIT           = 5,
+    AP_EXIT_COMPONTENT_EARLY_INIT       = 6,
+    AP_ENTER_APP_MAIN_THREAD            = 7,
+    AP_EXIT_APP_MAIN_THREAD             = 8,
+    AP_ENTER_RTOS_START_SCHEDULER       = 9,
+    AP_ENTER_CPU1_RESET_HANDLER         = 10,
+    AP_ENTER_CPU1_OTHERCORE_START       = 11,
+    AP_ENTER_BK_INIT                    = 12,
+    AP_ENTER_AT_SERVER_INIT             = 13,
+    AP_EXIT_AT_SERVER                   = 14,
+    AP_ENTER_APP_WIFI_INIT              = 15,
+    AP_ENTER_APP_BLE_INIT               = 16,
+    AP_EXIT_BK_INIT                     = 17,
+
+}ap_startup_type_t;
+
+#if CONFIG_DEBUG_AP_STARTUP
+extern volatile uint32_t  g_ap_startup_flag;
+#endif
+
+static inline void set_ap_startup_index(ap_startup_type_t index) {
+#if CONFIG_DEBUG_AP_STARTUP
+    g_ap_startup_flag = (uint32_t)index;
+#endif
+}
+
+
 void rtos_dump_task_list(void);
 void rtos_dump_stack_memory_usage(void);
 void rtos_dump_task_runtime_stats(void);

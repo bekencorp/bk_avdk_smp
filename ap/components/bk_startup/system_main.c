@@ -38,9 +38,14 @@
 #endif
 
 #include "soc/soc.h"
+#include "bk_rtos_debug.h"
 
 static beken_thread_function_t s_user_app_entry = NULL;
 beken_semaphore_t user_app_sema = NULL;
+
+#if CONFIG_DEBUG_AP_STARTUP
+volatile uint32_t  g_ap_startup_flag;
+#endif
 
 void rtos_set_user_app_entry(beken_thread_function_t entry)
 {
@@ -351,6 +356,7 @@ extern void rtos_init_base_time(void);
 
 static void app_main_thread(void *arg)
 {
+    set_ap_startup_index(AP_ENTER_APP_MAIN_THREAD);
 #if CONFIG_SAVE_BOOT_TIME_POINT
 	save_mtime_point(CPU_MAIN_ENTRY_TIME);
 #endif
@@ -388,7 +394,7 @@ static void app_main_thread(void *arg)
 #if CONFIG_SAVE_BOOT_TIME_POINT
 	save_mtime_point(CPU_MIAN_FINISH_TIME);
 #endif
-
+    set_ap_startup_index(AP_EXIT_APP_MAIN_THREAD);
 	rtos_delete_thread(NULL);
 }
 
@@ -406,7 +412,7 @@ void entry_main(void)
 #if CONFIG_SAVE_BOOT_TIME_POINT
 	save_mtime_point(CPU_MAIN_ENTRY_TIME);
 #endif
-
+    set_ap_startup_index(AP_ENTER_ENTRY_MAIN);
 	rtos_init();
 
 #if CONFIG_GCOV
@@ -446,7 +452,7 @@ void entry_main(void)
 	extern bk_err_t mb_ipc_heartbeat_init(void);
 	mb_ipc_heartbeat_init();
 #endif
-
+    set_ap_startup_index(AP_ENTER_RTOS_START_SCHEDULER);
 	rtos_start_scheduler();
 }
 // eof

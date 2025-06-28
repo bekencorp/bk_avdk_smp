@@ -50,6 +50,7 @@
 #include "bk_private/bk_driver.h"
 
 #include "mb_ipc_cmd.h"
+#include "bk_rtos_debug.h"
 
 #if (CONFIG_PSRAM)
 #include <driver/psram.h>
@@ -272,6 +273,7 @@ void __stack_chk_fail (void)
 
 int components_early_init(void)
 {
+    set_ap_startup_index(AP_ENTER_COMPONTENT_EARLY_INIT);
 #if CONFIG_RESET_REASON
 	reset_reason_init();
 #endif
@@ -286,7 +288,7 @@ int components_early_init(void)
 	random_init();
 
 	bk_stack_guard_setup();
-
+    set_ap_startup_index(AP_EXIT_COMPONTENT_EARLY_INIT);
 	return BK_OK;
 }
 
