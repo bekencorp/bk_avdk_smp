@@ -24,11 +24,11 @@ static void lv_jpeg_hw_dec_err_cb(jpeg_dec_res_t *result)
 
     rtos_stop_oneshot_timer(&g_hw_decode_timer);
 
-    bk_printf("%s:%x \n", __func__, result->ok);
+    BK_LOGD(NULL, "%s:%x \n", __func__, result->ok);
     ret = rtos_set_semaphore(&g_hw_decode_sem);
     if (ret != BK_OK)
     {
-        bk_printf("%s semaphore set failed: %d\n", __func__, ret);
+        BK_LOGD(NULL, "%s semaphore set failed: %d\n", __func__, ret);
     }
 }
 
@@ -40,13 +40,13 @@ static void lv_jpeg_hw_dec_eof_cb(jpeg_dec_res_t *result)
 
     if (result->ok == false)
     {
-        bk_printf("%s decoder error\n", __func__);
+        BK_LOGD(NULL, "%s decoder error\n", __func__);
     }
 
     ret = rtos_set_semaphore(&g_hw_decode_sem);
     if (ret != BK_OK)
     {
-        bk_printf("%s semaphore set failed: %d\n", __func__, ret);
+        BK_LOGD(NULL, "%s semaphore set failed: %d\n", __func__, ret);
     }
 }
 
@@ -54,22 +54,22 @@ static void lv_jpeg_hw_dec_timeout(void *Larg, void *Rarg)
 {
     bk_err_t ret = BK_FAIL;
 
-    bk_printf("%s \n", __func__);
+    BK_LOGD(NULL, "%s \n", __func__);
     ret = rtos_set_semaphore(&g_hw_decode_sem);
     if (ret != BK_OK)
     {
-        bk_printf("%s semaphore set failed: %d\n", __func__, ret);
+        BK_LOGD(NULL, "%s semaphore set failed: %d\n", __func__, ret);
     }
 }
 
 static void lv_dma2d_config_error(void)
 {
-    os_printf("%s \n", __func__);
+    BK_LOGD(NULL, "%s \n", __func__);
 }
 
 static void lv_dma2d_transfer_error(void)
 {
-    os_printf("%s \n", __func__);
+    BK_LOGD(NULL, "%s \n", __func__);
 }
 
 static void lv_dma2d_transfer_complete(void)
@@ -83,7 +83,7 @@ bk_err_t lv_dma2d_yuyv2rgb565_init(void)
 
     ret = rtos_init_semaphore_ex(&lv_dma2d_sem, 1, 0);
     if (BK_OK != ret) {
-        os_printf("%s %d lv_dma2d_sem init failed\n", __func__, __LINE__);
+        BK_LOGD(NULL, "%s %d lv_dma2d_sem init failed\n", __func__, __LINE__);
         return ret;
     }
 
@@ -104,7 +104,7 @@ bk_err_t lv_dma2d_yuyv2rgb565_deinit(void)
     bk_dma2d_driver_deinit();
     ret = rtos_deinit_semaphore(&lv_dma2d_sem);
     if (BK_OK != ret) {
-        os_printf("%s %d lv_dma2d_sem deinit failed\n", __func__, __LINE__);
+        BK_LOGD(NULL, "%s %d lv_dma2d_sem deinit failed\n", __func__, __LINE__);
     }
 
     return ret;
@@ -149,7 +149,7 @@ s32 lv_jpeg_hw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst)
         ret = rtos_init_semaphore_ex(&g_hw_decode_sem, 1, 0);
         if (ret != BK_OK)
         {
-            bk_printf("[%s][%d] init sem fail\n", __FUNCTION__, __LINE__);
+            BK_LOGD(NULL, "[%s][%d] init sem fail\n", __FUNCTION__, __LINE__);
             break;
         }
 
@@ -158,14 +158,14 @@ s32 lv_jpeg_hw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst)
             ret = rtos_init_oneshot_timer(&g_hw_decode_timer, 1000, lv_jpeg_hw_dec_timeout, NULL, NULL);
             if (ret != BK_OK)
             {
-                bk_printf("[%s][%d] create timer fail\n", __FUNCTION__, __LINE__);
+                BK_LOGD(NULL, "[%s][%d] create timer fail\n", __FUNCTION__, __LINE__);
                 break;
             }
 
             ret = rtos_start_oneshot_timer(&g_hw_decode_timer);
             if(ret != BK_OK)
             {
-                bk_printf("[%s][%d] start timer fail\n", __FUNCTION__, __LINE__);
+                BK_LOGD(NULL, "[%s][%d] start timer fail\n", __FUNCTION__, __LINE__);
                 break;
             }
         }
@@ -174,7 +174,7 @@ s32 lv_jpeg_hw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst)
             ret = rtos_oneshot_reload_timer(&g_hw_decode_timer);
             if(ret != BK_OK)
             {
-                bk_printf("[%s][%d] reload timer fail\n", __FUNCTION__, __LINE__);
+                BK_LOGD(NULL, "[%s][%d] reload timer fail\n", __FUNCTION__, __LINE__);
                 break;
             }
         }
@@ -182,7 +182,7 @@ s32 lv_jpeg_hw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst)
         g_dec_frame_data = psram_malloc(img_dst->data_size);
         if (!g_dec_frame_data)
         {
-            bk_printf("[%s][%d] malloc psram size %d fail\r\n", __FUNCTION__, __LINE__, img_dst->data_size);
+            BK_LOGD(NULL, "[%s][%d] malloc psram size %d fail\r\n", __FUNCTION__, __LINE__, img_dst->data_size);
             ret = BK_ERR_NO_MEM;
             break;
         }
@@ -195,14 +195,14 @@ s32 lv_jpeg_hw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst)
         ret = bk_jpeg_dec_hw_start(jpeg_frame->length, jpeg_frame->frame, g_dec_frame_data);
         if (ret != BK_OK)
         {
-            bk_printf("%s hw decode start fail %d\n", __func__, ret);
+            BK_LOGD(NULL, "%s hw decode start fail %d\n", __func__, ret);
             break;
         }
 
         ret = rtos_get_semaphore(&g_hw_decode_sem, 1000);
         if (ret != BK_OK)
         {
-            bk_printf("%s semaphore get failed: %d\n", __func__, ret);
+            BK_LOGD(NULL, "%s semaphore get failed: %d\n", __func__, ret);
             break;
         }
 
@@ -212,7 +212,7 @@ s32 lv_jpeg_hw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst)
                 img_dst->data = psram_malloc(img_dst->data_size);
                 if (!img_dst->data)
                 {
-                    bk_printf("[%s][%d] malloc psram size %d fail\r\n", __FUNCTION__, __LINE__, img_dst->data_size);
+                    BK_LOGD(NULL, "[%s][%d] malloc psram size %d fail\r\n", __FUNCTION__, __LINE__, img_dst->data_size);
                     ret = BK_ERR_NO_MEM;
                     break;
                 }
@@ -269,14 +269,14 @@ void bk_jpeg_hw_decode_to_mem_init(void)
     ret = rtos_init_semaphore_ex(&g_hw_decode_sem, 1, 0);
     if (ret != BK_OK)
     {
-        bk_printf("[%s][%d] init sem fail\n", __FUNCTION__, __LINE__);
+        BK_LOGD(NULL, "[%s][%d] init sem fail\n", __FUNCTION__, __LINE__);
         return;
     }
 
     ret = rtos_init_oneshot_timer(&g_hw_decode_timer, 1000, lv_jpeg_hw_dec_timeout, NULL, NULL);
     if (ret != BK_OK)
     {
-        bk_printf("[%s][%d] create timer fail\n", __FUNCTION__, __LINE__);
+        BK_LOGD(NULL, "[%s][%d] create timer fail\n", __FUNCTION__, __LINE__);
         return;
     }
 
@@ -303,7 +303,7 @@ void bk_jpeg_hw_decode_to_mem_deinit(void)
         ret = rtos_deinit_oneshot_timer(&g_hw_decode_timer);
         if (ret != BK_OK)
         {
-            bk_printf("[%s][%d] deinit timer fail\n", __FUNCTION__, __LINE__);
+            BK_LOGD(NULL, "[%s][%d] deinit timer fail\n", __FUNCTION__, __LINE__);
             return;
         }
     }
@@ -313,7 +313,7 @@ void bk_jpeg_hw_decode_to_mem_deinit(void)
         ret = rtos_deinit_semaphore(&g_hw_decode_sem);
         if (ret != BK_OK)
         {
-            bk_printf("[%s][%d] deint sem fail\n", __FUNCTION__, __LINE__);
+            BK_LOGD(NULL, "[%s][%d] deint sem fail\n", __FUNCTION__, __LINE__);
             return;
         }
         g_hw_decode_sem = NULL;
@@ -327,7 +327,7 @@ bk_err_t bk_jpeg_hw_decode_to_mem(uint8_t *src_addr, uint8_t *dst_addr, uint32_t
     g_dec_frame_data = psram_malloc(dst_width * dst_height * 2);
     if (!g_dec_frame_data)
     {
-        bk_printf("[%s][%d] malloc psram fail\r\n", __FUNCTION__, __LINE__);
+        BK_LOGD(NULL, "[%s][%d] malloc psram fail\r\n", __FUNCTION__, __LINE__);
         ret = BK_ERR_NO_MEM;
         return ret;
     }
@@ -337,14 +337,14 @@ bk_err_t bk_jpeg_hw_decode_to_mem(uint8_t *src_addr, uint8_t *dst_addr, uint32_t
             ret = rtos_start_oneshot_timer(&g_hw_decode_timer);
             if(ret != BK_OK)
             {
-                bk_printf("[%s][%d] start timer fail\n", __FUNCTION__, __LINE__);
+                BK_LOGD(NULL, "[%s][%d] start timer fail\n", __FUNCTION__, __LINE__);
                 break;
             }
         } else {
             ret = rtos_oneshot_reload_timer(&g_hw_decode_timer);
             if(ret != BK_OK)
             {
-                bk_printf("[%s][%d] reload timer fail\n", __FUNCTION__, __LINE__);
+                BK_LOGD(NULL, "[%s][%d] reload timer fail\n", __FUNCTION__, __LINE__);
                 break;
             }
         }
@@ -352,14 +352,14 @@ bk_err_t bk_jpeg_hw_decode_to_mem(uint8_t *src_addr, uint8_t *dst_addr, uint32_t
         ret = bk_jpeg_dec_hw_start(src_size, src_addr, g_dec_frame_data);
         if (ret != BK_OK)
         {
-            bk_printf("%s hw decode start fail %d\n", __func__, ret);
+            BK_LOGD(NULL, "%s hw decode start fail %d\n", __func__, ret);
             break;
         }
 
         ret = rtos_get_semaphore(&g_hw_decode_sem, 1000);
         if (ret != BK_OK)
         {
-            bk_printf("%s semaphore get failed: %d\n", __func__, ret);
+            BK_LOGD(NULL, "%s semaphore get failed: %d\n", __func__, ret);
             break;
         }
 

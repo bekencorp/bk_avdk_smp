@@ -15,5 +15,6 @@
 #define USB_LOG_RAW(...) BK_LOGW(CHERRY_USB_TAG, ##__VA_ARGS__)
 #define USB_LOG_ERR(...) BK_LOGE(CHERRY_USB_TAG, ##__VA_ARGS__)
 #define USB_LOG_DBG(...) BK_LOGD(CHERRY_USB_TAG, ##__VA_ARGS__)
+#define USB_LOG_VBS(...) BK_LOGV(CHERRY_USB_TAG, ##__VA_ARGS__)
 
 #endif /* USB_LOG_H */

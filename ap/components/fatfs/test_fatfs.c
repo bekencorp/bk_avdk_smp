@@ -15,7 +15,7 @@
 #define TEST_MP3_FILE_NAME      "/Panama_Matteo.mp3"
 #define TEST_TXT_FILE_NAME      "/test1.txt"
 #define TEST_DUMP_FILE_NAME      "/dump1.txt"
-#define TEST_TXT_FILE_NAME1     "/ÖÐÎÄÃû×Ö¿ÉÒÔÓÐ¶à³¤£¿Ïë¶à³¤¾Í¶à³¤£¬²»ÐÅÄãÒ§ÎÒ£¬ÐÅÎÒÇëÎÒ³Ô·¹.txt"
+#define TEST_TXT_FILE_NAME1     "/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¿ï¿½ï¿½ï¿½ï¿½Ð¶à³¤ï¿½ï¿½ï¿½ï¿½à³¤ï¿½Í¶à³¤ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò§ï¿½Ò£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò³Ô·ï¿½.txt"
 
 void bk_mem_dump_ex(const char *title, unsigned char *data, uint32_t data_len);
 
@@ -34,7 +34,7 @@ FRESULT scan_files
     fr = f_opendir(&dir, path);                 /* Open the directory */
     if (fr == FR_OK)
     {
-        FATFS_LOGI("%s/\r\n", path);
+        FATFS_LOGD("%s/\r\n", path);
         while (1)
         {
             fr = f_readdir(&dir, &fno);         /* Read a directory item */
@@ -72,14 +72,14 @@ FRESULT scan_files
             else
             {
                 /* It is a file. */
-                FATFS_LOGI("%s/%s\r\n", path, fno.fname);
+                FATFS_LOGD("%s/%s\r\n", path, fno.fname);
             }
         }
         f_closedir(&dir);
     }
     else
     {
-        FATFS_LOGI("f_opendir failed:fr=%d\r\n", fr);
+        FATFS_LOGD("f_opendir failed:fr=%d\r\n", fr);
     }
 
     return fr;
@@ -98,7 +98,7 @@ void test_mount(DISK_NUMBER number)
     pfs = os_malloc(sizeof(FATFS));
 	if(NULL == pfs)
 	{
-		FATFS_LOGI("f_mount malloc failed!\r\n");
+		FATFS_LOGD("f_mount malloc failed!\r\n");
 		goto failed_mount;
 	}
 
@@ -106,15 +106,15 @@ void test_mount(DISK_NUMBER number)
     fr = f_mount(pfs, cFileName, 1);
     if (fr != FR_OK)
     {
-        FATFS_LOGI("f_mount failed:%d\r\n", fr);
+        FATFS_LOGD("f_mount failed:%d\r\n", fr);
     }
     else
     {
-        FATFS_LOGI("f_mount OK!\r\n");
+        FATFS_LOGD("f_mount OK!\r\n");
     }
 
 failed_mount:
-    FATFS_LOGI("----- test_mount %d over  -----\r\n\r\n", number);
+    FATFS_LOGD("----- test_mount %d over  -----\r\n\r\n", number);
 }
 
 void test_unmount(DISK_NUMBER number)
@@ -125,13 +125,13 @@ void test_unmount(DISK_NUMBER number)
     fr = f_unmount(number, cFileName, 1);
     if (fr != FR_OK)
     {
-        os_printf("f_unmount failed:%d\r\n", fr);
+        BK_LOGD(NULL, "f_unmount failed:%d\r\n", fr);
     }
     else
     {
-        os_printf("f_unmount OK!\r\n");
+        BK_LOGD(NULL, "f_unmount OK!\r\n");
     }
-    os_printf("----- test_unmount %d over  -----\r\n\r\n", number);
+    BK_LOGD(NULL, "----- test_unmount %d over  -----\r\n\r\n", number);
 }
 void test_getfree(DISK_NUMBER number)
 {
@@ -140,16 +140,16 @@ void test_getfree(DISK_NUMBER number)
     DWORD getnclst;
     sprintf(cFileName, "%d:", number);
     fr = f_getfree(cFileName, &getnclst, &pfs);
-    os_printf("test_getfree getnclst:DEC %d free space: %dMB\r\n", getnclst, getnclst/SD_CLUSTER_TO_MEM_64KB);
+    BK_LOGD(NULL, "test_getfree getnclst:DEC %d free space: %dMB\r\n", getnclst, getnclst/SD_CLUSTER_TO_MEM_64KB);
     if (fr != FR_OK)
     {
-        os_printf("f_getfree failed:%d\r\n", fr);
+        BK_LOGD(NULL, "f_getfree failed:%d\r\n", fr);
     }
     else
     {
-        os_printf("f_getfree OK!\r\n");
+        BK_LOGD(NULL, "f_getfree OK!\r\n");
     }
-    os_printf("----- test_getfree %d over  -----\r\n\r\n", number);
+    BK_LOGD(NULL, "----- test_getfree %d over  -----\r\n\r\n", number);
 }
 
 void scan_file_system(DISK_NUMBER number)
@@ -157,20 +157,20 @@ void scan_file_system(DISK_NUMBER number)
     FRESULT fr;
     char cFileName[FF_MAX_LFN];
 
-    FATFS_LOGI("\r\n----- scan_file_system %d start -----\r\n", number);
+    FATFS_LOGD("\r\n----- scan_file_system %d start -----\r\n", number);
 
     sprintf(cFileName, "%d:", number);
     fr = scan_files(cFileName);
     if (fr != FR_OK)
     {
-        FATFS_LOGI("scan_files failed!\r\n");
+        FATFS_LOGD("scan_files failed!\r\n");
     }
     else
     {
-        FATFS_LOGI("scan_files OK!\r\n");
+        FATFS_LOGD("scan_files OK!\r\n");
     }
 
-    FATFS_LOGI("----- scan_file_system %d over  -----\r\n\r\n", number);
+    FATFS_LOGD("----- scan_file_system %d over  -----\r\n\r\n", number);
 }
 
 void test_fatfs(DISK_NUMBER number)
@@ -179,9 +179,9 @@ void test_fatfs(DISK_NUMBER number)
     FIL file;
     FRESULT fr;
 
-    FATFS_LOGI("\r\n----- test_fatfs %d start -----\r\n", number);
+    FATFS_LOGD("\r\n----- test_fatfs %d start -----\r\n", number);
     sprintf(cFileName, "%d:%s", number, TEST_MP3_FILE_NAME);
-    FATFS_LOGI("f_open \"%s\"\r\n", cFileName);
+    FATFS_LOGD("f_open \"%s\"\r\n", cFileName);
     fr = f_open(&file, cFileName, FA_OPEN_EXISTING | FA_READ);
     if (fr == FR_OK)
     {
@@ -191,46 +191,46 @@ void test_fatfs(DISK_NUMBER number)
 
         do
         {
-            FATFS_LOGI(".");
+            FATFS_LOGD(".");
             fr = f_read(&file, ucRdTemp, WR_RD_BUF_SIZE, &uiTemp);
             if (fr == FR_OK)
             {
             }
             else
             {
-                FATFS_LOGI("f_read failed 1 fr = %d\r\n", fr);
+                FATFS_LOGD("f_read failed 1 fr = %d\r\n", fr);
                 goto error1;
             }
             uiRdTotalLength += uiTemp;
         }
         while (uiTemp == WR_RD_BUF_SIZE);
-        FATFS_LOGI("\r\n");
-        FATFS_LOGI("f_read: read total byte = %d\r\n", uiRdTotalLength);
+        FATFS_LOGD("\r\n");
+        FATFS_LOGD("f_read: read total byte = %d\r\n", uiRdTotalLength);
 
         fr = f_close(&file);
         if (fr != FR_OK)
         {
-            FATFS_LOGI("f_close failed 1 fr = %d\r\n", fr);
+            FATFS_LOGD("f_close failed 1 fr = %d\r\n", fr);
             goto error1;
         }
         else
         {
-            FATFS_LOGI("f_close OK\r\n");
+            FATFS_LOGD("f_close OK\r\n");
         }
     }
     else
     {
-        FATFS_LOGI("f_open failed 1 fr = %d\r\n", fr);
+        FATFS_LOGD("f_open failed 1 fr = %d\r\n", fr);
         goto error0;
     }
 
-    FATFS_LOGI("----- test_fatfs %d over  -----\r\n\r\n", number);
+    FATFS_LOGD("----- test_fatfs %d over  -----\r\n\r\n", number);
     return;
 
 error1:
     f_close(&file);
 error0:
-    FATFS_LOGI("----- test_fatfs %d failed  -----\r\n\r\n", number);
+    FATFS_LOGD("----- test_fatfs %d failed  -----\r\n\r\n", number);
 }
 
 
@@ -245,16 +245,16 @@ void test_fatfs_read(DISK_NUMBER number, char *filename, uint64_t len)
 
 	if(ucRdTemp == 0)
 	{
-		FATFS_LOGI("%s:os_malloc fail \r\n", __func__);
+		FATFS_LOGD("%s:os_malloc fail \r\n", __func__);
 		goto error1;
 	}
 
-    FATFS_LOGI("\r\n----- test_fatfs %d start -----\r\n", number);
+    FATFS_LOGD("\r\n----- test_fatfs %d start -----\r\n", number);
 	if(filename)
 		sprintf(cFileName, "%d:/%s", number, filename);
 	else
 		sprintf(cFileName, "%d:%s", number, TEST_TXT_FILE_NAME);
-    FATFS_LOGI("f_open \"%s\"\r\n", cFileName);
+    FATFS_LOGD("f_open \"%s\"\r\n", cFileName);
     fr = f_open(&file, cFileName, FA_OPEN_EXISTING | FA_READ);
     if (fr == FR_OK)
     {
@@ -262,21 +262,21 @@ void test_fatfs_read(DISK_NUMBER number, char *filename, uint64_t len)
         unsigned int uiRdTotalLength = 0;
 
 		left_len = f_size(&file) < len? f_size(&file) : len;
-		FATFS_LOGI("will read left_len = %d \r\n", (uint32_t)left_len);
+		FATFS_LOGD("will read left_len = %d \r\n", (uint32_t)left_len);
         do
         {
 			packet_len = left_len < WR_RD_BUF_SIZE? left_len : WR_RD_BUF_SIZE;
-            FATFS_LOGI("f_read start:%d bytes \r\n", packet_len);
+            FATFS_LOGD("f_read start:%d bytes \r\n", packet_len);
             fr = f_read(&file, ucRdTemp, packet_len, &uiTemp);
             if (fr == FR_OK)
             {
 				bk_mem_dump_ex("f_read one cycle", ucRdTemp, packet_len);
 				left_len -= uiTemp;
-				FATFS_LOGI("f_read one cycle finish:left_len = %d\r\n", (uint32_t)left_len);
+				FATFS_LOGD("f_read one cycle finish:left_len = %d\r\n", (uint32_t)left_len);
             }
             else
             {
-                FATFS_LOGI("f_read failed 1 fr = %d\r\n", fr);
+                FATFS_LOGD("f_read failed 1 fr = %d\r\n", fr);
                 goto error1;
             }
             uiRdTotalLength += uiTemp;
@@ -286,24 +286,24 @@ void test_fatfs_read(DISK_NUMBER number, char *filename, uint64_t len)
         }
         while (uiTemp == packet_len);
 
-        FATFS_LOGI("f_read: read total byte = %d\r\n", uiRdTotalLength);
+        FATFS_LOGD("f_read: read total byte = %d\r\n", uiRdTotalLength);
         fr = f_close(&file);
         if (fr != FR_OK)
         {
-            FATFS_LOGI("f_close failed 1 fr = %d\r\n", fr);
+            FATFS_LOGD("f_close failed 1 fr = %d\r\n", fr);
             goto error1;
         }
         else
         {
-            FATFS_LOGI("f_close OK\r\n");
+            FATFS_LOGD("f_close OK\r\n");
         }
     }
     else
     {
-        FATFS_LOGI("f_open failed 1 fr = %d\r\n", fr);
+        FATFS_LOGD("f_open failed 1 fr = %d\r\n", fr);
     }
 
-    FATFS_LOGI("----- test_fatfs %d over  -----\r\n\r\n", number);
+    FATFS_LOGD("----- test_fatfs %d over  -----\r\n\r\n", number);
 	if(ucRdTemp)
 	{
 		os_free(ucRdTemp);
@@ -329,12 +329,12 @@ void test_fatfs_append_write(DISK_NUMBER number, char *filename, char *content, 
     FIL file;
     FRESULT fr;
 
-    FATFS_LOGI("\r\n----- test_fatfs %d start -----\r\n", number);
+    FATFS_LOGD("\r\n----- test_fatfs %d start -----\r\n", number);
 	if(filename)
 		sprintf(cFileName, "%d:/%s", number, filename);
 	else
 		sprintf(cFileName, "%d:/%s", number, TEST_TXT_FILE_NAME);
-    FATFS_LOGI("f_open \"%s\"\r\n", cFileName);
+    FATFS_LOGD("f_open \"%s\"\r\n", cFileName);
 
     fr = f_open(&file, cFileName, FA_OPEN_APPEND | FA_WRITE);
     if (fr == FR_OK)
@@ -345,7 +345,7 @@ void test_fatfs_append_write(DISK_NUMBER number, char *filename, char *content, 
 		len = len > 64? 64:len;
         do
         {
-            FATFS_LOGI(".");
+            FATFS_LOGD(".");
             fr = f_write(&file, content, len, &uiTemp);
             if (fr == FR_OK)
             {
@@ -353,7 +353,7 @@ void test_fatfs_append_write(DISK_NUMBER number, char *filename, char *content, 
             }
             else
             {
-                FATFS_LOGI("f_write failed 1 fr = %d\r\n", fr);
+                FATFS_LOGD("f_write failed 1 fr = %d\r\n", fr);
                 goto error1;
             }
             uiRdTotalLength += uiTemp;
@@ -363,20 +363,20 @@ void test_fatfs_append_write(DISK_NUMBER number, char *filename, char *content, 
         fr = f_close(&file);
         if (fr != FR_OK)
         {
-            FATFS_LOGI("f_close failed 1 fr = %d\r\n", fr);
+            FATFS_LOGD("f_close failed 1 fr = %d\r\n", fr);
             goto error1;
         }
         else
         {
-            FATFS_LOGI("f_close OK\r\n");
+            FATFS_LOGD("f_close OK\r\n");
         }
     }
     else
     {
-        FATFS_LOGI("f_open failed 1 fr = %d\r\n", fr);
+        FATFS_LOGD("f_open failed 1 fr = %d\r\n", fr);
     }
 
-    FATFS_LOGI("----- test_fatfs %d over  -----\r\n\r\n", number);
+    FATFS_LOGD("----- test_fatfs %d over  -----\r\n\r\n", number);
     return;
 
 error1:
@@ -391,52 +391,52 @@ void test_fatfs_dump(DISK_NUMBER number, char *filename, uint32_t start_addr, ui
 	char cFileName[FF_MAX_LFN];
 	unsigned int uiTemp = 0;
 
-	FATFS_LOGI("\r\n----- %s %d start -----\r\n", __func__, number);
-	FATFS_LOGI("file_name=%s,start_addr=0x%0x,len=%d \r\n", filename, start_addr, dump_len);
+	FATFS_LOGD("\r\n----- %s %d start -----\r\n", __func__, number);
+	FATFS_LOGD("file_name=%s,start_addr=0x%0x,len=%d \r\n", filename, start_addr, dump_len);
 
 	if(filename)
 		sprintf(cFileName, "%d:/%s", number, filename);
 	else
 		sprintf(cFileName, "%d:%s", number, TEST_DUMP_FILE_NAME);
-	FATFS_LOGI("f_open start \"%s\"\r\n", cFileName);
+	FATFS_LOGD("f_open start \"%s\"\r\n", cFileName);
 
 	fr = f_open(&file, cFileName, FA_OPEN_APPEND | FA_WRITE);
 	if (fr != FR_OK)
 	{
-		FATFS_LOGI("f_open failed 1 fr = %d\r\n", fr);
+		FATFS_LOGD("f_open failed 1 fr = %d\r\n", fr);
 		goto exit;
 	}
 
-	FATFS_LOGI("f_write start\r\n");
+	FATFS_LOGD("f_write start\r\n");
 	//write:one time write all contents
 	do
 	{
 		fr = f_write(&file, (uint8_t *)start_addr, dump_len, &uiTemp);
 		if (fr != FR_OK)
 		{
-			FATFS_LOGI("f_write fail 1 fr = %d\r\n", fr);
+			FATFS_LOGD("f_write fail 1 fr = %d\r\n", fr);
 			goto exit;
 		}
 
-		FATFS_LOGI("f_write end len = %d\r\n", uiTemp);
+		FATFS_LOGD("f_write end len = %d\r\n", uiTemp);
 	} while(0);
 
 #if 1
 	//set file pointer to head
-	FATFS_LOGI("f_lseek start\r\n");
+	FATFS_LOGD("f_lseek start\r\n");
 	fr = f_lseek(&file, 0);
 	if (fr != FR_OK)
 	{
-		FATFS_LOGI("f_lseek fail 1 fr = %d\r\n", fr);
+		FATFS_LOGD("f_lseek fail 1 fr = %d\r\n", fr);
 		goto exit;
 	}
 #endif
-	FATFS_LOGI("f_close start\r\n");
+	FATFS_LOGD("f_close start\r\n");
 	//file close
 	fr = f_close(&file);
 	if (fr != FR_OK)
 	{
-		FATFS_LOGI("f_close fail 1 fr = %d\r\n", fr);
+		FATFS_LOGD("f_close fail 1 fr = %d\r\n", fr);
 		goto exit;
 	}
 
@@ -459,14 +459,14 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 	FATFS *checkspace_pfs = NULL;
 	DWORD freenclst;
 
-	FATFS_LOGD("\r\n----- %s %d start -----\r\n", __func__, number);
-	FATFS_LOGD("file_name=%s,len=%d,test_cnt=%d \r\n", filename, len, test_count);
+	FATFS_LOGV("\r\n----- %s %d start -----\r\n", __func__, number);
+	FATFS_LOGV("file_name=%s,len=%d,test_cnt=%d \r\n", filename, len, test_count);
 
 	if(filename)
 		sprintf(cFileName, "%d:/%s", number, filename);
 	else
 		sprintf(cFileName, "%d:%s", number, TEST_TXT_FILE_NAME);
-	FATFS_LOGD("f_open \"%s\"\r\n", cFileName);
+	FATFS_LOGV("f_open \"%s\"\r\n", cFileName);
 
 	len = len < TEST_FATFS_MAX_FILE_LEN? len : TEST_FATFS_MAX_FILE_LEN;
 	packet_cnt = len / TEST_FATFS_PACKET_LEN;
@@ -481,7 +481,7 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 
 	for(i = 0; i < test_count; i++)
 	{
-		FATFS_LOGD("test round=%d start \r\n", i);
+		FATFS_LOGV("test round=%d start \r\n", i);
 		fr = f_getfree(cFileName, &freenclst, &checkspace_pfs);
 		if(fr != FR_OK)
 		{
@@ -516,7 +516,7 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 				goto exit;
 			}
 
-			FATFS_LOGD("f_write len = %d\r\n", uiTemp);
+			FATFS_LOGV("f_write len = %d\r\n", uiTemp);
 		}while(0);
 
 		//set file pointer to head
@@ -535,7 +535,7 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 			goto exit;
 		}
 
-		FATFS_LOGD("check round=%d start \r\n", i);
+		FATFS_LOGV("check round=%d start \r\n", i);
 		fr = f_open(&file, cFileName, FA_OPEN_EXISTING | FA_READ);
 		if (fr != FR_OK)
 		{
@@ -560,7 +560,7 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 				FATFS_LOGE("f_read packet %d fail 1 fr = %d\r\n", j, fr);
 				goto exit;
 			}
-			FATFS_LOGD("f_read len = %d\r\n", uiTemp);
+			FATFS_LOGV("f_read len = %d\r\n", uiTemp);
 
 			//compare
 			for(k = 0; k < TEST_FATFS_PACKET_LEN; k++)
@@ -582,7 +582,7 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 				FATFS_LOGE("f_read last packet fail 1 fr = %d\r\n", fr);
 				goto exit;
 			}
-			FATFS_LOGD("f_read len = %d\r\n", uiTemp);
+			FATFS_LOGV("f_read len = %d\r\n", uiTemp);
 
 			//compare
 			for(k = 0; k < bytes_cnt; k++)
@@ -611,10 +611,10 @@ void test_fatfs_auto_test(DISK_NUMBER number, char *filename, uint32_t len, uint
 			goto exit;
 		}
 
-		FATFS_LOGD("check round=%d end \r\n", i);
+		FATFS_LOGV("check round=%d end \r\n", i);
 	}
 
-	FATFS_LOGI("auto test succ \r\n");
+	FATFS_LOGD("auto test succ \r\n");
 
 exit:
 	os_free(buf_p);
@@ -633,7 +633,7 @@ void test_fatfs_format(DISK_NUMBER number)
 		return;
 	}
 
-	FATFS_LOGD("----- test_fatfs_format %d start -----\r\n", number);
+	FATFS_LOGV("----- test_fatfs_format %d start -----\r\n", number);
 
 	sprintf(cFileName, "%d:", number);
 	fr = f_mkfs(cFileName, FM_ANY, 65536, ucRdTemp, WR_RD_BUF_SIZE);
@@ -645,10 +645,10 @@ void test_fatfs_format(DISK_NUMBER number)
 	}
 	else
 	{
-		FATFS_LOGI("f_mkfs OK!\r\n");
+		FATFS_LOGD("f_mkfs OK!\r\n");
 	}
 
-	FATFS_LOGD("----- test_fatfs_format %d over  -----\r\n", number);
+	FATFS_LOGV("----- test_fatfs_format %d over  -----\r\n", number);
 
 	if(ucRdTemp)
 	{
@@ -680,7 +680,7 @@ static void fatfs_test_concurrency_task(beken_thread_arg_t arg)
 	unsigned int uiTemp = 0;
 	uint32_t i;
 
-	FATFS_LOGI("path_id=%d,taskid=%d\r\n", path_id, task_id);
+	FATFS_LOGD("path_id=%d,taskid=%d\r\n", path_id, task_id);
 	sprintf(cFileName, "%u:/fatfs_test_task_%u.txt", path_id, task_id);
 	while (1) {
 		//init mem value
@@ -688,7 +688,7 @@ static void fatfs_test_concurrency_task(beken_thread_arg_t arg)
 			*(s_fatfs_test_src_p[task_id] + i) = (uint32_t)(s_fatfs_test_src_p[task_id] + i);
 
 		//open file
-		FATFS_LOGI("f_open \"%s\"\r\n", cFileName);
+		FATFS_LOGD("f_open \"%s\"\r\n", cFileName);
 		fr = f_open(&file, cFileName, FA_OPEN_APPEND | FA_WRITE);
 		if (fr != FR_OK)
 		{
@@ -728,7 +728,7 @@ static void fatfs_test_concurrency_task(beken_thread_arg_t arg)
 #endif
 
 		//read from SDCARD and compare
-		FATFS_LOGI("f_open \"%s\"\r\n", cFileName);
+		FATFS_LOGD("f_open \"%s\"\r\n", cFileName);
 		fr = f_open(&file, cFileName, FA_OPEN_EXISTING | FA_READ);
 		if (fr != FR_OK)
 		{
@@ -764,7 +764,7 @@ static void fatfs_test_concurrency_task(beken_thread_arg_t arg)
         fr = f_close(&file);
         if (fr != FR_OK)
         {
-            FATFS_LOGI("f_close failed 1 fr = %d\r\n", fr);
+            FATFS_LOGD("f_close failed 1 fr = %d\r\n", fr);
             continue;
         }
 
@@ -825,7 +825,7 @@ void test_fatfs_concurrency(DISK_NUMBER number, uint32_t task_count, uint32_t fi
 				s_fatfs_test_tar_p[i] = (uint32_t *)os_malloc(FATFS_TEST_CONCURRENCY_MEM_LEN);
 			BK_ASSERT(s_fatfs_test_tar_p[i]);
 
-			FATFS_LOGI("s_fatfs_test_src_p[%d]=0x%x,tar=0x%x\r\n", i, s_fatfs_test_src_p[i], s_fatfs_test_tar_p[i]);
+			FATFS_LOGD("s_fatfs_test_src_p[%d]=0x%x,tar=0x%x\r\n", i, s_fatfs_test_src_p[i], s_fatfs_test_tar_p[i]);
 		}
 	}
 }

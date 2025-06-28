@@ -105,14 +105,14 @@ static bk_err_t set_ca_cert(bk_tls_t *tls, const unsigned char *cacert, size_t c
 		BK_LOGE(TAG, "mbedtls_x509_crt_parse was partly successful. No. of failed certificates: %d\r\n", ret);
 	}
 	if (ret == 0)
-		BK_LOGD(TAG, "mbedtls_x509_crt_parse returned 0 \r\n");
+		BK_LOGV(TAG, "mbedtls_x509_crt_parse returned 0 \r\n");
 	mbedtls_ssl_conf_authmode(&tls->conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
 #if CONFIG_PSA_MBEDTLS
-	BK_LOGI(TAG, "mbedtls_ssl_conf_authmode\r\n");
+	BK_LOGD(TAG, "mbedtls_ssl_conf_authmode\r\n");
 #else
-	BK_LOGI(TAG, "mbedtls_ssl_conf_authmode, mode:%d\r\n", tls->conf.authmode);
+	BK_LOGD(TAG, "mbedtls_ssl_conf_authmode, mode:%d\r\n", tls->conf.authmode);
 #endif
-	BK_LOGD(TAG, "mbedtls_ssl_conf_ca_chain\r\n");
+	BK_LOGV(TAG, "mbedtls_ssl_conf_ca_chain\r\n");
 	mbedtls_ssl_conf_ca_chain(&tls->conf, tls->cacert_ptr, NULL);
 	return BK_OK;
 }
@@ -178,7 +178,7 @@ bk_err_t set_client_config(const char *hostname, size_t hostlen, bk_tls_cfg_t *c
 			return BK_ERR_NO_MEM;
 		}
 		/* Hostname set here should match CN in server certificate */
-		BK_LOGD(TAG, "mbedtls_ssl_set_hostname use_host: %s\r\n", use_host);
+		BK_LOGV(TAG, "mbedtls_ssl_set_hostname use_host: %s\r\n", use_host);
 		if ((ret = mbedtls_ssl_set_hostname(&tls->ssl, use_host)) != 0) {
 			BK_LOGE(TAG, "mbedtls_ssl_set_hostname returned -0x%04X\r\n", -ret);
 			free(use_host);
@@ -186,7 +186,7 @@ bk_err_t set_client_config(const char *hostname, size_t hostlen, bk_tls_cfg_t *c
 		}
 		free(use_host);
 	}
-	BK_LOGD(TAG, "mbedtls_ssl_config_defaults\r\n");
+	BK_LOGV(TAG, "mbedtls_ssl_config_defaults\r\n");
 	if ((ret = mbedtls_ssl_config_defaults(&tls->conf,
 										   MBEDTLS_SSL_IS_CLIENT,
 										   MBEDTLS_SSL_TRANSPORT_STREAM,
@@ -196,7 +196,7 @@ bk_err_t set_client_config(const char *hostname, size_t hostlen, bk_tls_cfg_t *c
 	}
 
 #ifdef CONFIG_MBEDTLS_SSL_RENEGOTIATION
-	BK_LOGD(TAG, "mbedtls_ssl_conf_renegotiation\r\n");
+	BK_LOGV(TAG, "mbedtls_ssl_conf_renegotiation\r\n");
 	mbedtls_ssl_conf_renegotiation(&tls->conf, MBEDTLS_SSL_RENEGOTIATION_ENABLED);
 #endif
 
@@ -228,25 +228,25 @@ bk_err_t set_client_config(const char *hostname, size_t hostlen, bk_tls_cfg_t *c
 
 	if (cfg->crt_bundle_attach != NULL) {
 #ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
-		BK_LOGD(TAG, "mbedtls_ssl_conf_authmode\r\n");
+		BK_LOGV(TAG, "mbedtls_ssl_conf_authmode\r\n");
 		mbedtls_ssl_conf_authmode(&tls->conf, MBEDTLS_SSL_VERIFY_REQUIRED);
 		cfg->crt_bundle_attach(&tls->conf);
 		BK_LOGE(TAG, "use_crt_bundle configured but not enabled in menuconfig: Please enable MBEDTLS_CERTIFICATE_BUNDLE option\r\n");
 		return -1;
 #endif
 	} else if (cfg->use_global_ca_store == true) {
-		 BK_LOGD(TAG, "set_global_ca_store\r\n");
+		 BK_LOGV(TAG, "set_global_ca_store\r\n");
 		int bk_ret = set_global_ca_store(tls);
 		if (bk_ret != BK_OK) {
 			return bk_ret;
 		}
 	} else if (cfg->cacert_buf != NULL) {
-		 BK_LOGD(TAG, "set_ca_cert\r\n");
+		 BK_LOGV(TAG, "set_ca_cert\r\n");
 		int bk_ret = set_ca_cert(tls, cfg->cacert_buf, cfg->cacert_bytes);
 		if (bk_ret != BK_OK) {
 			return bk_ret;
 		}
-		 BK_LOGD(TAG, "mbedtls_ssl_conf_ca_chain\r\n");
+		 BK_LOGV(TAG, "mbedtls_ssl_conf_ca_chain\r\n");
 		mbedtls_ssl_conf_ca_chain(&tls->conf, tls->cacert_ptr, NULL);
 	} else if (cfg->psk_hint_key) {
 #if defined(CONFIG_BK_TLS_PSK_VERIFICATION)
@@ -318,7 +318,7 @@ bk_err_t set_client_config(const char *hostname, size_t hostlen, bk_tls_cfg_t *c
 		return BK_FAIL;
 #endif
 	} else if (cfg->clientcert_pem_buf != NULL && cfg->clientkey_pem_buf != NULL) {
-		BK_LOGD(TAG, "clientcert_pem_buf\r\n");
+		BK_LOGV(TAG, "clientcert_pem_buf\r\n");
 		bk_tls_pki_t pki = {
 			.public_cert = &tls->clientcert,
 			.pk_key = &tls->clientkey,
@@ -366,14 +366,14 @@ bk_err_t bk_create_mbedtls_handle(const char *hostname, size_t hostlen, const vo
 	mbedtls_entropy_init(&tls->entropy);
 
 	if (tls->role == BK_TLS_CLIENT) {
-		BK_LOGD(TAG, "BK_TLS_CLIENT\r\n");
+		BK_LOGV(TAG, "BK_TLS_CLIENT\r\n");
 		bk_ret = set_client_config(hostname, hostlen, (bk_tls_cfg_t *)cfg, tls);
 		if (bk_ret != BK_OK) {
 			BK_LOGE(TAG, "Failed to set client configurations, returned [0x%04X]\r\n", bk_ret);
 			goto exit;
 		}
 	}
-	BK_LOGD(TAG, "mbedtls_ctr_drbg_seed\r\n");
+	BK_LOGV(TAG, "mbedtls_ctr_drbg_seed\r\n");
 #if CONFIG_PSA_MBEDTLS
 	mbedtls_entropy_add_source(&tls->entropy, mbedtls_bk_entropy_poll, NULL,
 								MBEDTLS_ENTROPY_MAX_GATHER,
@@ -385,15 +385,15 @@ bk_err_t bk_create_mbedtls_handle(const char *hostname, size_t hostlen, const vo
 		bk_ret = BK_ERR_MBEDTLS_CTR_DRBG_SEED_FAILED;
 		goto exit;
 	}
-	BK_LOGD(TAG, "mbedtls_ssl_conf_rng\r\n");
+	BK_LOGV(TAG, "mbedtls_ssl_conf_rng\r\n");
 	mbedtls_ssl_conf_rng(&tls->conf, mbedtls_ctr_drbg_random, &tls->ctr_drbg);
-	BK_LOGD(TAG, "mbedtls_ssl_setup\r\n");
+	BK_LOGV(TAG, "mbedtls_ssl_setup\r\n");
 	if ((ret = mbedtls_ssl_setup(&tls->ssl, &tls->conf)) != 0) {
 		BK_LOGE(TAG, "mbedtls_ssl_setup returned -0x%04X\r\n", -ret);
 		bk_ret = BK_ERR_MBEDTLS_SSL_SETUP_FAILED;
 		goto exit;
 	}
-	BK_LOGD(TAG, "mbedtls_ssl_set_bio\r\n");
+	BK_LOGV(TAG, "mbedtls_ssl_set_bio\r\n");
 	mbedtls_ssl_set_bio(&tls->ssl, &tls->server_fd, mbedtls_net_send, mbedtls_net_recv, NULL);
 
 	return BK_OK;
@@ -428,9 +428,9 @@ int bk_mbedtls_handshake(bk_tls_t *tls, const bk_tls_cfg_t *cfg)
 		tls->conn_state = BK_TLS_DONE;
 
 #if 0//defined(MBEDTLS_SSL_MAX_FRAGMENT_LENGTH)
-	BK_LOGI(TAG, "    [ Maximum incoming record payload length is %u ]\n",
+	BK_LOGD(TAG, "    [ Maximum incoming record payload length is %u ]\n",
 					(unsigned int) mbedtls_ssl_get_max_in_record_payload(&tls->ssl));
-	BK_LOGI(TAG, "    [ Maximum outgoing record payload length is %u ]\n",
+	BK_LOGD(TAG, "    [ Maximum outgoing record payload length is %u ]\n",
 					(unsigned int) mbedtls_ssl_get_max_out_record_payload(&tls->ssl));
 #endif
 
@@ -471,7 +471,7 @@ ssize_t bk_mbedtls_write(bk_tls_t *tls, const char *data, size_t datalen)
 {
 	size_t written = 0;
 	size_t write_len = datalen;
-	BK_LOGD(TAG, "bk_mbedtls_write, write_len:%d\r\n", write_len);
+	BK_LOGV(TAG, "bk_mbedtls_write, write_len:%d\r\n", write_len);
 	while (written < datalen) {
 		if (write_len > MBEDTLS_SSL_OUT_CONTENT_LEN) {
 			write_len = MBEDTLS_SSL_OUT_CONTENT_LEN;
@@ -547,7 +547,7 @@ static bk_err_t bk_tls_hostname_to_fd(const char *host, size_t hostlen, int port
 	if (address_info->ai_family == AF_INET) {
 		struct sockaddr_in *p = (struct sockaddr_in *)address_info->ai_addr;
 		p->sin_port = htons(port);
-		BK_LOGD(TAG, "[sock=%d] Resolved IPv4 address: %s\r\n", *fd, ipaddr_ntoa((const ip_addr_t*)&p->sin_addr.s_addr));
+		BK_LOGV(TAG, "[sock=%d] Resolved IPv4 address: %s\r\n", *fd, ipaddr_ntoa((const ip_addr_t*)&p->sin_addr.s_addr));
 		memcpy(address, p, sizeof(struct sockaddr ));
 	}
 #if CONFIG_LWIP_IPV6
@@ -555,7 +555,7 @@ static bk_err_t bk_tls_hostname_to_fd(const char *host, size_t hostlen, int port
 		struct sockaddr_in6 *p = (struct sockaddr_in6 *)address_info->ai_addr;
 		p->sin6_port = htons(port);
 		p->sin6_family = AF_INET6;
-		BK_LOGD(TAG, "[sock=%d] Resolved IPv6 address: %s\r\n", *fd, ip6addr_ntoa((const ip6_addr_t*)&p->sin6_addr));
+		BK_LOGV(TAG, "[sock=%d] Resolved IPv6 address: %s\r\n", *fd, ip6addr_ntoa((const ip6_addr_t*)&p->sin6_addr));
 		memcpy(address, p, sizeof(struct sockaddr_in6 ));
 	}
 #endif
@@ -597,7 +597,7 @@ static bk_err_t bk_tls_set_socket_options(int fd, const bk_tls_cfg_t *cfg)
 			int keep_alive_interval = cfg->keep_alive_cfg->keep_alive_interval;
 			int keep_alive_count = cfg->keep_alive_cfg->keep_alive_count;
 
-			BK_LOGD(TAG, "Enable TCP keep alive. idle: %d, interval: %d, count: %d\r\n", keep_alive_idle, keep_alive_interval, keep_alive_count);
+			BK_LOGV(TAG, "Enable TCP keep alive. idle: %d, interval: %d, count: %d\r\n", keep_alive_idle, keep_alive_interval, keep_alive_count);
 			if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &keep_alive_enable, sizeof(keep_alive_enable)) != 0) {
 				BK_LOGE(TAG, "Fail to setsockopt SO_KEEPALIVE\r\n");
 				return BK_ERR_BK_TLS_SOCKET_SETOPT_FAILED;
@@ -617,7 +617,7 @@ static bk_err_t bk_tls_set_socket_options(int fd, const bk_tls_cfg_t *cfg)
 		}
 		if (cfg->if_name) {
 			if (cfg->if_name->ifr_name[0] != 0) {
-				BK_LOGD(TAG, "Bind [sock=%d] to interface %s\r\n", fd, cfg->if_name->ifr_name);
+				BK_LOGV(TAG, "Bind [sock=%d] to interface %s\r\n", fd, cfg->if_name->ifr_name);
 				if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,  cfg->if_name, sizeof(struct ifreq)) != 0) {
 					BK_LOGE(TAG, "Bind [sock=%d] to interface %s fail\r\n", fd, cfg->if_name->ifr_name);
 					return BK_ERR_BK_TLS_SOCKET_SETOPT_FAILED;
@@ -814,7 +814,7 @@ static int tls_low_level_conn(const char *hostname, int hostlen, int port, const
 			   connection has been established or not*/
 			if (select(tls->sockfd + 1, &tls->rset, &tls->wset, NULL,
 					   cfg->timeout_ms>0 ? &tv : NULL) == 0) {
-				BK_LOGD(TAG, "select() timed out\r\n");
+				BK_LOGV(TAG, "select() timed out\r\n");
 				return 0;
 			}
 			if (FD_ISSET(tls->sockfd, &tls->rset) || FD_ISSET(tls->sockfd, &tls->wset)) {
@@ -822,7 +822,7 @@ static int tls_low_level_conn(const char *hostname, int hostlen, int port, const
 				socklen_t len = sizeof(error);
 				/* pending error check */
 				if (getsockopt(tls->sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
-					BK_LOGD(TAG, "Non blocking connect failed\r\n");
+					BK_LOGV(TAG, "Non blocking connect failed\r\n");
 					tls->conn_state = BK_TLS_FAIL;
 					return -1;
 				}
@@ -914,11 +914,11 @@ static int ssl_base_poll_read(transport_bk_tls_t *ssl, int timeout_ms)
 	FD_SET(ssl->sockfd, &errset);
 
 	if (ssl->tls && (remain = bk_tls_get_bytes_avail(ssl->tls)) > 0) {
-		BK_LOGD(TAG, "remain data in cache, need to read again\r\n");
+		BK_LOGV(TAG, "remain data in cache, need to read again\r\n");
 		return remain;
 	}
 	else
-		BK_LOGD(TAG, "NO data available\r\n");
+		BK_LOGV(TAG, "NO data available\r\n");
 	ret = select(ssl->sockfd + 1, &readset, NULL, &errset, bk_transport_utils_ms_to_timeval(timeout_ms, &timeout));
 	if (ret > 0 && FD_ISSET(ssl->sockfd, &errset)) {
 		int sock_errno = 0;
@@ -957,7 +957,7 @@ int ssl_connect(transport_bk_tls_t *ssl, const char *host, int port, int timeout
 	ssl->cfg.is_plain_tcp = false;
 
 	ssl->ssl_initialized = true;
-	BK_LOGD(TAG, "%s\r\n", __func__);
+	BK_LOGV(TAG, "%s\r\n", __func__);
 	ssl->tls = bk_tls_init();
 	if (ssl->tls == NULL) {
 		BK_LOGE(TAG, "Failed to initialize new connection object\r\n");
@@ -995,13 +995,13 @@ int ssl_tcp_connect(transport_bk_tls_t *ssl, const char *host, int port, int tim
 int ssl_write(transport_bk_tls_t *ssl, const char *buffer, int len, int timeout_ms)
 {
 	int poll;
-	BK_LOGD(TAG, "ssl_write\r\n");
+	BK_LOGV(TAG, "ssl_write\r\n");
 	if ((poll = ssl_base_poll_write(ssl, timeout_ms)) <= 0) {
 		BK_LOGE(TAG, "Poll timeout or error, errno=%s, fd=%d, timeout_ms=%d\r\n", strerror(errno), ssl->sockfd, timeout_ms);
 		return poll;
 	}
 	else
-		BK_LOGD(TAG, "ssl_base_poll_write, poll=%d, poll success\r\n", poll);
+		BK_LOGV(TAG, "ssl_base_poll_write, poll=%d, poll success\r\n", poll);
 	int ret = _bk_tls_write(ssl->tls, (const char *) buffer, len);
 	if (ret < 0) {
 		BK_LOGE(TAG, "bk_tls_conn_write error, errno=%s\r\n", strerror(errno));
@@ -1013,12 +1013,12 @@ int ssl_tcp_write(transport_bk_tls_t *ssl, const char *buffer, int len, int time
 {
 	int ret, poll;
 
-	BK_LOGD(TAG, "tcp_write\r\n");
+	BK_LOGV(TAG, "tcp_write\r\n");
 	if ((poll = ssl_base_poll_write(ssl, timeout_ms)) <= 0) {
 		BK_LOGE(TAG, "Poll timeout or error, errno=%s, fd=%d, timeout_ms=%d\r\n", strerror(errno), ssl->sockfd, timeout_ms);
 		return poll;
 	} else {
-		BK_LOGD(TAG, "ssl_base_poll_write, poll=%d, poll success\r\n", poll);
+		BK_LOGV(TAG, "ssl_base_poll_write, poll=%d, poll success\r\n", poll);
 	}
 
 	ret = send(ssl->sockfd, buffer, len, 0);
@@ -1032,13 +1032,13 @@ int ssl_tcp_write(transport_bk_tls_t *ssl, const char *buffer, int len, int time
 int ssl_read(transport_bk_tls_t *ssl, char *buffer, int len, int timeout_ms)
 {
 	int poll;
-	BK_LOGD(TAG, "ssl_read, len:%d\r\n", len);
+	BK_LOGV(TAG, "ssl_read, len:%d\r\n", len);
 	if ((poll = ssl_base_poll_read(ssl, timeout_ms)) <= 0) {
 		BK_LOGE(TAG, "ssl_base_poll_read fail\r\n");
 		return poll;
 	}
 	else
-		BK_LOGD(TAG, "ssl_base_poll_read:%d\r\n", poll);
+		BK_LOGV(TAG, "ssl_base_poll_read:%d\r\n", poll);
 	int ret = _bk_tls_read(ssl->tls, ( char *)buffer, len);
 	if (ret < 0) {
 		BK_LOGE(TAG, "bk_tls_conn_read error, errno=%s, ret:-0x%04x\r\n", strerror(errno), -ret);
@@ -1051,7 +1051,7 @@ int ssl_read(transport_bk_tls_t *ssl, char *buffer, int len, int timeout_ms)
 		ret = -1;
 	}
 	if(ret > 0)
-		BK_LOGD(TAG, "_bk_tls_read, ret:%d\r\n", ret);
+		BK_LOGV(TAG, "_bk_tls_read, ret:%d\r\n", ret);
 	return ret;
 }
 
@@ -1059,13 +1059,13 @@ int ssl_tcp_read(transport_bk_tls_t *ssl, char *buffer, int len, int timeout_ms)
 {
 	int ret, poll;
 
-	BK_LOGD(TAG, "tcp_read, len:%d\r\n", len);
+	BK_LOGV(TAG, "tcp_read, len:%d\r\n", len);
 	if ((poll = ssl_base_poll_read(ssl, timeout_ms)) <= 0) {
 		BK_LOGE(TAG, "ssl_base_poll_read fail\r\n");
 		return poll;
 	}
 	else {
-		BK_LOGD(TAG, "ssl_base_poll_read:%d\r\n", poll);
+		BK_LOGV(TAG, "ssl_base_poll_read:%d\r\n", poll);
 	}
 
 	ret = recv(ssl->sockfd, buffer, len, 0);
@@ -1080,7 +1080,7 @@ int ssl_tcp_read(transport_bk_tls_t *ssl, char *buffer, int len, int timeout_ms)
 		ret = -1;
 	}
 	if (ret > 0) {
-		BK_LOGD(TAG, "_bk_tls_read, ret:%d\r\n", ret);
+		BK_LOGV(TAG, "_bk_tls_read, ret:%d\r\n", ret);
 	}
 
 	return ret;

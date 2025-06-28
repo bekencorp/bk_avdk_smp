@@ -193,7 +193,7 @@ void net_ipv4stack_init(void)
 	if (tcpip_init_done)
 		return;
 
-	LWIP_LOGI("init TCP/IP\r\n");
+	LWIP_LOGD("init TCP/IP\r\n");
 	tcpip_init(NULL, NULL);
 	tcpip_init_done = true;
 }
@@ -253,9 +253,9 @@ static void wm_netif_status_static_callback(struct netif *n)
 {
 	if (n->flags & NETIF_FLAG_UP) {
 		// static IP success;
-		LWIP_LOGI("using static ip...\n");
+		LWIP_LOGD("using static ip...\n");
 		if (n == &g_mlan.netif) {
-			LWIP_LOGI("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
+			LWIP_LOGD("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
 #if CONFIG_WIFI_VNET_CONTROLLER
 			wifi_netif_call_status_cb_when_sta_got_ip();
 
@@ -273,7 +273,7 @@ static void wm_netif_status_static_callback(struct netif *n)
 				ip_addr_set_ip4_u32(&n->netmask, *((u32 *)&fci.netmask));
 				ip_addr_set_ip4_u32(&n->gw, *((u32 *)&fci.gw));
 				os_memcpy((char *)&n->dns1, (char *)&fci.dns1, sizeof(n->dns1));
-				LWIP_LOGI("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
+				LWIP_LOGD("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
 			}
 #if !CONFIG_DISABLE_DEPRECIATED_WIFI_API
 			if (sta_ipup_cb != NULL)
@@ -305,13 +305,13 @@ static void wm_netif_status_callback(struct netif *n)
 		for (i = 0; i < MAX_IPV6_ADDRESSES; i++) {
 			if (ip6_addr_isvalid(netif_ip6_addr_state(n, i))) {
 				ipv6_addr = (u8 *)(ip_2_ip6(&n->ip6_addr[i]))->addr;
-				bk_printf("ipv6_addr[%d] : %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\r\n", i,
+				BK_LOGD(NULL, "ipv6_addr[%d] : %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\r\n", i,
 						  ipv6_addr[0], ipv6_addr[1], ipv6_addr[2], ipv6_addr[3],
 						  ipv6_addr[4], ipv6_addr[5], ipv6_addr[6], ipv6_addr[7],
 						  ipv6_addr[8], ipv6_addr[9], ipv6_addr[10], ipv6_addr[11],
 						  ipv6_addr[12], ipv6_addr[13], ipv6_addr[14], ipv6_addr[15]);
-				bk_printf("ipv6_type[%d] :0x%x\r\n", i, n->ip6_addr[i].type);
-				bk_printf("ipv6_state[%d] :0x%x\r\n", i, n->ip6_addr_state[i]);
+				BK_LOGD(NULL, "ipv6_type[%d] :0x%x\r\n", i, n->ip6_addr[i].type);
+				BK_LOGD(NULL, "ipv6_state[%d] :0x%x\r\n", i, n->ip6_addr_state[i]);
 			}
 		}
 #endif
@@ -325,9 +325,9 @@ static void wm_netif_status_callback(struct netif *n)
 			/* dhcp success*/
 			if (dhcp->state == DHCP_STATE_BOUND) {
 				/*
-				LWIP_LOGI("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
+				LWIP_LOGD("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
 				sta_tick.sta_ip_tick = rtos_get_time();
-				LWIP_LOGD("STA assoc delta:%d, eapol delta:%d, dhcp delta:%d, total:%d\n",
+				LWIP_LOGV("STA assoc delta:%d, eapol delta:%d, dhcp delta:%d, total:%d\n",
 					sta_tick.sta_assoc_tick - sta_tick.sta_start_tick,
 					sta_tick.sta_eapol_tick - sta_tick.sta_assoc_tick,
 					sta_tick.sta_ip_tick - sta_tick.sta_eapol_tick,
@@ -491,7 +491,7 @@ void net_interface_dhcp_stop(void *intrfc_handle)
 void sta_ip_down(void)
 {
 	if (sta_ip_start_flag) {
-		LWIP_LOGI("sta ip down\r\n");
+		LWIP_LOGD("sta ip down\r\n");
 
 		sta_ip_start_flag = false;
 
@@ -510,13 +510,13 @@ void sta_ip_down(void)
 void sta_ip_start(void)
 {
 	if (!sta_ip_start_flag) {
-		LWIP_LOGI("sta ip start\r\n");
+		LWIP_LOGD("sta ip start\r\n");
 		sta_ip_start_flag = true;
 		net_configure_address(&sta_ip_settings, net_get_sta_handle());
 		return;
 	}
 
-//	LWIP_LOGI("sta ip start: %pIn\n", &address.ipv4.address);
+//	LWIP_LOGD("sta ip start: %pIn\n", &address.ipv4.address);
 //	net_get_if_addr(&address, net_get_sta_handle());
 //	if (wifi_netif_sta_is_connected() && address.ipv4.address)
 //		wifi_netif_notify_sta_got_ip();
@@ -527,7 +527,7 @@ void bridge_ip_start(void)
 {
 
 	if (!bridge_ip_start_flag) {
-		LWIP_LOGD("bridge ip start\r\n");
+		LWIP_LOGV("bridge ip start\r\n");
 		bridge_ip_start_flag = true;
 		net_configure_address(&br_ip_settings, net_get_br_handle());
 		return;
@@ -536,7 +536,7 @@ void bridge_ip_start(void)
 void bridge_ip_stop(void)
 {
 	if (bridge_ip_start_flag) {
-			LWIP_LOGI("bridg ip down\r\n");
+			LWIP_LOGD("bridg ip down\r\n");
 			bridge_ip_start_flag = false;
 			netif_set_status_callback(&g_br.netif, NULL);
 			netifapi_dhcp_stop(&g_br.netif);
@@ -600,7 +600,7 @@ uint32_t sta_ip_is_start(void)
 void uap_ip_down(void)
 {
 	if (uap_ip_start_flag) {
-		LWIP_LOGI("uap ip down\r\n");
+		LWIP_LOGD("uap ip down\r\n");
 		uap_ip_start_flag = false;
 
 		netifapi_netif_set_down(&g_uap.netif);
@@ -612,7 +612,7 @@ void uap_ip_down(void)
 void uap_ip_start(void)
 {
 	if (!uap_ip_start_flag) {
-		LWIP_LOGD("uap ip start\r\n");
+		LWIP_LOGV("uap ip start\r\n");
 		uap_ip_start_flag = true;
 		net_configure_address(&uap_ip_settings, net_get_uap_handle());
 #if IP_NAPT
@@ -733,7 +733,7 @@ void sta_ip_mode_set(int dhcp)
 void net_restart_dhcp(void)
 {
 	if (!sta_ip_is_start()) {
-		LWIP_LOGI("bk wifi sta is not started or disconnected\r\n");
+		LWIP_LOGD("bk wifi sta is not started or disconnected\r\n");
 		return;
 	}
 	sta_ip_down();
@@ -756,7 +756,7 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 	else if(addr->addr_type == ADDR_TYPE_FAST_DHCP)
 		ip_type = "Fast DHCP client";
 
-	LWIP_LOGI("configuring iface %s (with %s)\n", if_handle->name, ip_type);
+	LWIP_LOGD("configuring iface %s (with %s)\n", if_handle->name, ip_type);
 	netifapi_netif_set_down(&if_handle->netif);
 
 	/* De-register previously registered DHCP Callback for correct
@@ -1022,7 +1022,7 @@ int net_wlan_add_netif(uint8_t *mac)
 #endif
 	}
 
-	LWIP_LOGD("add vif%d\n", vifid);
+	LWIP_LOGV("add vif%d\n", vifid);
 	return ERR_OK;
 }
 
@@ -1054,7 +1054,7 @@ int net_wlan_remove_netif(uint8_t *mac)
 		netif->state = NULL;
 	}
 
-	LWIP_LOGI("remove vif%d\n", vifid);
+	LWIP_LOGD("remove vif%d\n", vifid);
 	return ERR_OK;
 }
 #endif
@@ -1066,12 +1066,12 @@ void net_begin_send_arp_reply(bool is_send_arp, bool is_allow_send_req)
 	//send reply
 	if (is_send_arp && !is_allow_send_req) {
 		etharp_tmr_flag = true;
-		LWIP_LOGI("send reply %s\n", __func__);
+		LWIP_LOGD("send reply %s\n", __func__);
 	}
 	//stop send reply
 	if (!is_send_arp && is_allow_send_req) {
 		etharp_tmr_flag = false;
-		LWIP_LOGI("stop send reply %s\n", __func__);
+		LWIP_LOGD("stop send reply %s\n", __func__);
 		return;
 	}
 	etharp_reply();
@@ -1130,7 +1130,7 @@ int net_eth_remove_netif(void)
  */
 static void ethernet_link_status_updated(struct netif *netif)
 {
-	LWIP_LOGI("%s netif->flags 0x%x\n", __func__, netif->flags);
+	LWIP_LOGD("%s netif->flags 0x%x\n", __func__, netif->flags);
 
 	if (netif_is_up(netif)) {
 	} else {
@@ -1193,20 +1193,20 @@ void eth_ip_start(void)
 	struct wlan_ip_config address = { 0 };
 
 	if (!eth_ip_start_flag) {
-		LWIP_LOGI("eth ip start\r\n");
+		LWIP_LOGD("eth ip start\r\n");
 		eth_ip_start_flag = true;
 		net_configure_address(&eth_ip_settings, net_get_eth_handle());
 		return;
 	}
 
 	net_get_if_addr(&address, net_get_eth_handle());
-	LWIP_LOGI("eth ip start: %pIn\n", &address.ipv4.address);
+	LWIP_LOGD("eth ip start: %pIn\n", &address.ipv4.address);
 }
 
 void eth_ip_down(void)
 {
 	if (eth_ip_start_flag) {
-		LWIP_LOGI("eth ip down\n");
+		LWIP_LOGD("eth ip down\n");
 
 		eth_ip_start_flag = false;
 

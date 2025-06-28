@@ -52,7 +52,7 @@ static ntp_packet packet = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 static void ntp_error(char* msg)
 {
-    os_printf("\033[31;22m[E/NTP]: ERROR %s\033[0m\n", msg); // Print the error message to stderr.
+    BK_LOGD(NULL, "\033[31;22m[E/NTP]: ERROR %s\033[0m\n", msg); // Print the error message to stderr.
 }
 
 /**
@@ -221,7 +221,7 @@ time_t ntp_sync_to_rtc(void)
     time_t cur_time = ntp_get_local_time(&frac_val);
     if (cur_time)
     {
-		bk_printf("%s:cur_time=%u,frag=%u,us=%d\r\n", __func__, cur_time, frac_val, (uint32_t)(bk_aon_rtc_get_us()%1000000LL));
+		BK_LOGD(NULL, "%s:cur_time=%u,frag=%u,us=%d\r\n", __func__, cur_time, frac_val, (uint32_t)(bk_aon_rtc_get_us()%1000000LL));
 		datetime_set_nano(cur_time, frac_val);
     }
 

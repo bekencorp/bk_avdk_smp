@@ -164,7 +164,7 @@ TftpHandler(
 	volatile uint8_t 	*pkt;
 
 	if (TftpState != STATE_RRQ && port != TftpServerPort) {
-		os_printf("err %d %x %x\r\n", TftpState, port, TftpServerPort);
+		BK_LOGD(NULL, "err %d %x %x\r\n", TftpState, port, TftpServerPort);
 		return;
 	}
 
@@ -279,7 +279,7 @@ TftpHandler(
 			 *	We received the whole thing.  Try to
 			 *	run it.
 			 */
-			os_printf("\ntftp succeed\n");
+			BK_LOGD(NULL, "\ntftp succeed\n");
 			Tftp_Uninit();
 		}
 		break;
@@ -302,7 +302,7 @@ TftpTimeout(void)
 		TFTP_PRT("\nRetry count exceeded; starting again\n");
 
 	else {
-		os_printf("T ");
+		BK_LOGD(NULL, "T ");
 		TftpSend();
 	}
 
@@ -356,13 +356,13 @@ void tftp_server_process(beken_thread_arg_t arg)
 
 	tftp_buf = (char *) os_malloc(TFTP_LEN);
 	if (tftp_buf == NULL) {
-		os_printf("buf == NULL\r\n");
+		BK_LOGD(NULL, "buf == NULL\r\n");
 		goto exit;
 	}
 
 	udp_tftp_listen_fd = socket(AF_INET, SOCK_DGRAM, 0);  //Make UDP socket
 	if (udp_tftp_listen_fd == -1) {
-		os_printf("udp_listen_fd == -1\r\n");
+		BK_LOGD(NULL, "udp_listen_fd == -1\r\n");
 		goto exit;
 	}
 	os_memset(&server_addr, 0, sizeof(server_addr));
@@ -389,7 +389,7 @@ void tftp_server_process(beken_thread_arg_t arg)
 
 exit:
 	if (err != kNoErr)
-		os_printf("Server listener thread exit with err: %d", err);
+		BK_LOGD(NULL, "Server listener thread exit with err: %d", err);
 
 	close(udp_tftp_listen_fd);
 
@@ -418,7 +418,7 @@ void tftp_start(void)
 								 0);
 
 		if (kNoErr != ret)
-			os_printf("Create power_sleep failed\r\n");
+			BK_LOGD(NULL, "Create power_sleep failed\r\n");
 	}
 
 }
@@ -437,7 +437,7 @@ void store_block(unsigned block, uint8_t *src, unsigned len)
 	os_memcpy(&send_hd, src, sizeof(send_hd));
 	TFTP_WARN("seq%d t_seq:%d\r\n", send_hd.seq, send_hd.total_seq);
 	if ((block + 1  != send_hd.seq))
-		os_printf("bk:%d seq%d t_seq:%d fail!\r\n", block, send_hd.seq, send_hd.total_seq);
+		BK_LOGD(NULL, "bk:%d seq%d t_seq:%d fail!\r\n", block, send_hd.seq, send_hd.total_seq);
 
 	if (block) {
 		if (!((send_hd_bk.seq + 1 == send_hd.seq)

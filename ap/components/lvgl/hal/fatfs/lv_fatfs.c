@@ -22,7 +22,7 @@ static void lv_fatfs_mount(int number)
     fs = os_malloc(sizeof(FATFS));
     if(NULL == fs)
     {
-        os_printf("f_mount malloc failed!\r\n");
+        BK_LOGD(NULL, "f_mount malloc failed!\r\n");
         goto failed_mount;
     }
 
@@ -30,15 +30,15 @@ static void lv_fatfs_mount(int number)
     fr = f_mount(fs, cFileName, 1);
     if (fr != FR_OK)
     {
-        os_printf("f_mount failed:%d\r\n", fr);
+        BK_LOGD(NULL, "f_mount failed:%d\r\n", fr);
     }
     else
     {
-        os_printf("f_mount OK!\r\n");
+        BK_LOGD(NULL, "f_mount OK!\r\n");
     }
 
 failed_mount:
-    os_printf("----- test_mount %d over -----\r\n\r\n", number);
+    BK_LOGD(NULL, "----- test_mount %d over -----\r\n\r\n", number);
 }
 
 
@@ -50,15 +50,15 @@ static void lv_fatfs_unmount(int number)
     fr = f_unmount(LV_FS_FATFS_DISK_NUM, cFileName, 1);
     if (fr != FR_OK)
     {
-        os_printf("f_unmount failed:%d\r\n", fr);
+        BK_LOGD(NULL, "f_unmount failed:%d\r\n", fr);
     }
     else
     {
         os_free(fs);
-        os_printf("f_unmount OK!\r\n");
+        BK_LOGD(NULL, "f_unmount OK!\r\n");
     }
 
-    os_printf("----- test_unmount %d over -----\r\n\r\n", number);
+    BK_LOGD(NULL, "----- test_unmount %d over -----\r\n\r\n", number);
 }
 
 void lv_fatfs_init(void)

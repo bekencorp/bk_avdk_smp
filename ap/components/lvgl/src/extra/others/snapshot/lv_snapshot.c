@@ -178,7 +178,7 @@ lv_img_dsc_t * lv_snapshot_take(lv_obj_t * obj, lv_img_cf_t cf)
 #endif
     LV_ASSERT_MALLOC(buf);
     if(buf == NULL) {
-		os_printf("snapshot buff malloc failed\r\n");
+		BK_LOGD(NULL, "snapshot buff malloc failed\r\n");
         return NULL;
     }
 

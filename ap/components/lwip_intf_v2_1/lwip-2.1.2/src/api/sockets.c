@@ -785,7 +785,7 @@ lwip_close(int s)
   err_t err;
 
   LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_close(%d)\n", s));
-  LWIP_LOGI("%s, %s close socked:%d\r\n", __func__,vTaskName(), s);
+  LWIP_LOGD("%s, %s close socked:%d\r\n", __func__,vTaskName(), s);
   sock = get_socket(s);
   if (!sock) {
     return -1;
@@ -1756,7 +1756,7 @@ lwip_socket(int domain, int type, int protocol)
   }
 
   i = alloc_socket(conn, 0);
-  LWIP_LOGI("%s, %s create socked:%d\r\n", __func__, vTaskName(), i);
+  LWIP_LOGD("%s, %s create socked:%d\r\n", __func__, vTaskName(), i);
 
   if (i == -1) {
     netconn_delete(conn);

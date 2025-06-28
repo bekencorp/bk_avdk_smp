@@ -236,7 +236,7 @@ static FRESULT  get_curdir_info(DIR_QUEUE *p_front)
     else
         dj.sclust = p_front ->cluster_number;
 
-    os_printf("get_curdir_info\r\n");
+    BK_LOGD(NULL, "get_curdir_info\r\n");
     while(1)
     {
         if((idx % ic) == 0) //new cluster
@@ -276,7 +276,7 @@ static FRESULT  get_curdir_info(DIR_QUEUE *p_front)
             if((fl_curnode.fattrib & 0x20) != 0) /*��ֻ�������ء�ϵͳ���ļ�������֧��*/
             {
                 Ext = fl_curnode.fname;
-                os_printf("get_curdir_info: fl_curnode.fname = \"%s\"\r\n", Ext);
+                BK_LOGD(NULL, "get_curdir_info: fl_curnode.fname = \"%s\"\r\n", Ext);
                 Ext1 = strrchr_con(Ext, '.');
                 if (!strcmpi(Ext1, MP3_Ext, 4))
                     cur_musicfile++;
@@ -421,7 +421,7 @@ static uint32 initfatsystem(uint8 type)
     rear_cnt = 0;
     if((ret = chk_mounted_con(&Fatfs_buf, type)) != FR_OK)
     {
-        FATFS_LOGI("Fat Init Err:%d!!!\r\n", ret);
+        FATFS_LOGD("Fat Init Err:%d!!!\r\n", ret);
         return 1;
     }
 #if 1
@@ -466,7 +466,7 @@ static uint32 initfatsystem(uint8 type)
                 break;
         }
 
-        FATFS_LOGI("count=%d  mp3queuecount=%d  mp3filecount=%d,rear_cnt =%d\r\n", count, mp3queuecount, mp3filecount, rear_cnt);
+        FATFS_LOGD("count=%d  mp3queuecount=%d  mp3filecount=%d,rear_cnt =%d\r\n", count, mp3queuecount, mp3filecount, rear_cnt);
         //driver_sdcard_set_init_status(0);
         //jfree(dir_buf);
         // dir_buf = NULL;

@@ -553,10 +553,10 @@ static int bk_bridge_upstream_if_recv(bridgeif_private_t *br, struct pbuf *p, st
 				uint8_t *client_mac = msg->chaddr;
 				memcpy(&youripaddr, &msg->yiaddr, sizeof(ip4_addr_t));
 
-				os_printf("XXX DHCP messages\n");
+				BK_LOGD(NULL, "XXX DHCP messages\n");
 				// find register mac address
 				if (memcmp(client_mac, rx_if->hwaddr, ETH_ALEN)) {
-					bk_printf("XXX DHCP not our mac: client %pm, our %pm, yiaddr 0x%x\n", client_mac, rx_if->hwaddr, youripaddr);
+					BK_LOGD(NULL, "XXX DHCP not our mac: client %pm, our %pm, yiaddr 0x%x\n", client_mac, rx_if->hwaddr, youripaddr);
 					if (rwm_mgmt_sta_mac2ptr(client_mac)) {
 						// create arp entry
 						LOCK_TCPIP_CORE();
@@ -567,7 +567,7 @@ static int bk_bridge_upstream_if_recv(bridgeif_private_t *br, struct pbuf *p, st
 #endif
 			} else if (src == DHCP_CLIENT_PORT && dest == DHCP_SERVER_PORT) {
 				// drop this packet
-				bk_printf("XXX drop dhcp server packet\n");
+				BK_LOGD(NULL, "XXX drop dhcp server packet\n");
 				return 1;
 			}
 		}
@@ -624,7 +624,7 @@ static void arp_request_add(uint8_t *shwaddr, uint32_t sip, uint32_t dip)
 		pos->ctime = rtos_get_time();
 		pos->sip.addr = sip;
 		GLOBAL_INT_RESTORE();
-		os_printf("%s: already added arp request: shwaddr %pm, sip 0x%x, dip 0x%x\n",
+		BK_LOGD(NULL, "%s: already added arp request: shwaddr %pm, sip 0x%x, dip 0x%x\n",
 			__func__, shwaddr, sip, dip);
 		return;
 	}
@@ -640,7 +640,7 @@ static void arp_request_add(uint8_t *shwaddr, uint32_t sip, uint32_t dip)
 		GLOBAL_INT_DISABLE();
 		list_add_tail(&pos->node, &g_arp_request);
 		GLOBAL_INT_RESTORE();
-		os_printf("%s: add arp request: shwaddr %pm, sip 0x%x, dip 0x%x\n",
+		BK_LOGD(NULL, "%s: add arp request: shwaddr %pm, sip 0x%x, dip 0x%x\n",
 			__func__, shwaddr, sip, dip);
 	}
 }
@@ -669,14 +669,14 @@ static void arp_request_handle_reply(bridgeif_private_t *br, struct netif *netif
 	GLOBAL_INT_RESTORE();
 
 	if (count) {
-		os_printf("send arp reply to %d STA\n", count);
+		BK_LOGD(NULL, "send arp reply to %d STA\n", count);
 	}
 
 	// iterate for all req
 	list_for_each_entry_safe(pos, tmp, &reqs, node) {
 		list_del(&pos->node);
 		// send arp reply
-		os_printf("external ARP reply, send to STA\n");
+		BK_LOGD(NULL, "external ARP reply, send to STA\n");
 		etharp_raw2(br->netif, netif_get_index(netif),
 				   (struct eth_addr *)dhwaddr, (struct eth_addr *)pos->shwaddr, // ethernet hdr
 				   (struct eth_addr *)dhwaddr, dip, // shw, sip
@@ -700,7 +700,7 @@ void arp_request_timeout_handler()
 	list_for_each_entry_safe(pos, tmp, &g_arp_request, node) {
 		if (time_after(ctime, pos->ctime + (5 * rtos_get_tick_count()/*HZ*/))) {
 			list_del(&pos->node);
-			os_printf("%s: free arp request: shwaddr %pm, sip 0x%x, dip 0x%x\n",
+			BK_LOGD(NULL, "%s: free arp request: shwaddr %pm, sip 0x%x, dip 0x%x\n",
 				__func__, pos->shwaddr, pos->sip.addr, pos->dip.addr);
 			os_free(pos);
 		}
@@ -819,7 +819,7 @@ static int bk_bridge_upstream_if_xmit(bridgeif_private_t *br, struct pbuf *p, st
 			/* check if we already have arpinfo */
 			if (etharp_find_addr(NULL, &dipaddr, &dethaddr, &unused_ipaddr) >= 0) {
 				//build ARP Reply
-				os_printf("found ARP cache, send ARP rsp to STA\n");
+				BK_LOGD(NULL, "found ARP cache, send ARP rsp to STA\n");
 				etharp_raw2(br->netif, netif_get_index(tx_if),	// use upstream netif
 						   (struct eth_addr *)br->netif->hwaddr, &hdr->shwaddr,  // ethernet hdr
 						   dethaddr, &dipaddr,	/* replace with upstream's hwaddr */
@@ -828,7 +828,7 @@ static int bk_bridge_upstream_if_xmit(bridgeif_private_t *br, struct pbuf *p, st
 				//return 1;	//eat, continue send arp request to external PC
 			} else {
 				// add to queue
-				os_printf("cannot find ARP for ip 0x%x, add to request\n", dipaddr.addr);
+				BK_LOGD(NULL, "cannot find ARP for ip 0x%x, add to request\n", dipaddr.addr);
 				arp_request_add((uint8_t *)&hdr->shwaddr, sipaddr.addr, dipaddr.addr);
 			}
 
@@ -987,7 +987,7 @@ bridgeif_send_to_port(bridgeif_private_t *br, struct pbuf *p, u8_t dstport_idx)
         if (netif_get_index(portif) != p->if_idx) {
           if (netif_is_link_up(portif)) {
 			  if ((void *)portif == net_get_sta_handle() && p->elfags == 1) {
-				os_printf("DONT xmit via STA interface\n");
+				BK_LOGD(NULL, "DONT xmit via STA interface\n");
 				return ERR_OK;
 			  }
 			  LWIP_DEBUGF(BRIDGEIF_FW_DEBUG, ("br -> flood(%p:%d) -> %d\n", (void *)p, p->if_idx, netif_get_index(portif)));

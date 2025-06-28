@@ -2444,7 +2444,7 @@ mdns_resp_add_service_txtall(struct mdns_service *service, const char *txt, u8_t
   /* Use a mdns_domain struct to store txt chunks since it is the same encoding */
   if (txt_len > sizeof(service->txtdata.name))
   {
-      bk_printf("!!!mdns txt_len too long = %u \r\n", txt_len);
+      BK_LOGD(NULL, "!!!mdns txt_len too long = %u \r\n", txt_len);
       txt_len = (u8_t)sizeof(service->txtdata.name);
   }
   MEMCPY(service->txtdata.name, txt, txt_len);

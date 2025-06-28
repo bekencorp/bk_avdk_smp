@@ -193,7 +193,7 @@
 
 
 /* Post process after fatal error on file operation */
-#define ABORT(fs, res)		{ os_printf("%s,%d\r\n", __func__, __LINE__); fp->err = (BYTE)(res); LEAVE_FF(fs, res); }
+#define ABORT(fs, res)		{ BK_LOGD(NULL, "%s,%d\r\n", __func__, __LINE__); fp->err = (BYTE)(res); LEAVE_FF(fs, res); }
 
 
 /* Reentrancy related */
@@ -3062,7 +3062,7 @@ FRESULT find_volume (	/* FR_OK(0): successful, !=0: any error occurred */
 	FATFS *fs;
 	UINT i;
 	
-	//os_printf("find_volume 1\r\n");
+	//BK_LOGD(NULL, "find_volume 1\r\n");
 
 	/* Get logical drive number */
 	*rfs = 0;
@@ -3078,7 +3078,7 @@ FRESULT find_volume (	/* FR_OK(0): successful, !=0: any error occurred */
 	*rfs = fs;							/* Return pointer to the filesystem object */
 
 	mode &= (BYTE)~FA_READ;				/* Desired access mode, write access or not */
-	//os_printf("mode=%x\r\n", mode);
+	//BK_LOGD(NULL, "mode=%x\r\n", mode);
 	if (fs->fs_type != 0) {				/* If the volume has been mounted */
 		stat = disk_status(fs->pdrv);
 		if (!(stat & STA_NOINIT)) {		/* and the physical drive is kept initialized */
@@ -3109,7 +3109,7 @@ FRESULT find_volume (	/* FR_OK(0): successful, !=0: any error occurred */
 	/* Find an FAT partition on the drive. Supports only generic partitioning rules, FDISK and SFD. */
 	bsect = 0;
 	fmt = check_fs(fs, bsect);			/* Load sector 0 and check if it is an FAT-VBR as SFD */
-	os_printf("fmt=%d\r\n", fmt);
+	BK_LOGD(NULL, "fmt=%d\r\n", fmt);
 	if (fmt == 2 || (fmt < 2 && LD2PT(vol) != 0)) {	/* Not an FAT-VBR or forced partition number */
 		for (i = 0; i < 4; i++) {		/* Get partition offset */
 			pt = fs->win + (MBR_Table + i * SZ_PTE);
@@ -3122,7 +3122,7 @@ FRESULT find_volume (	/* FR_OK(0): successful, !=0: any error occurred */
 			fmt = bsect ? check_fs(fs, bsect) : 3;	/* Check the partition */
 		} while (LD2PT(vol) == 0 && fmt >= 2 && ++i < 4);
 	}
-	os_printf("fmt2=%d\r\n", fmt);
+	BK_LOGD(NULL, "fmt2=%d\r\n", fmt);
 	if (fmt == 4) return FR_DISK_ERR;		/* An error occured in the disk I/O layer */
 	if (fmt >= 2) return FR_NO_FILESYSTEM;	/* No FAT volume is found */
 
@@ -5406,7 +5406,7 @@ FRESULT f_mkfs (
 	szb_buf = sz_buf * ss;	/* Size of working buffer (byte) */
 	if (szb_buf == 0) return FR_MKFS_ABORTED;
 
-	os_printf("part=%d\r\n", part);
+	BK_LOGD(NULL, "part=%d\r\n", part);
 	/* Determine where the volume to be located (b_vol, sz_vol) */
 	if (FF_MULTI_PARTITION && part != 0) {
 		/* Get partition information from partition table in the MBR */
@@ -5420,13 +5420,13 @@ FRESULT f_mkfs (
 		/* Create a single-partition in this function */
 		if (disk_ioctl(pdrv, GET_SECTOR_COUNT, &sz_vol) != RES_OK) 
 		{
-			os_printf("sz_vol=%d\r\n", sz_vol);
+			BK_LOGD(NULL, "sz_vol=%d\r\n", sz_vol);
 			return FR_DISK_ERR;
 		}
 		b_vol = (opt & FM_SFD) ? 0 : 63;		/* Volume start sector */
 		if (sz_vol < b_vol)
 		{
-			os_printf("sz_vol=%d, b_vol=%d\r\n", sz_vol, b_vol);
+			BK_LOGD(NULL, "sz_vol=%d, b_vol=%d\r\n", sz_vol, b_vol);
 			return FR_MKFS_ABORTED;
 		}
 		sz_vol -= b_vol;						/* Volume size */

@@ -26,13 +26,8 @@ extern "C" {
 #define EVENT_LOGI(...) BK_LOGI(EVENT_TAG, ##__VA_ARGS__)
 #define EVENT_LOGW(...) BK_LOGW(EVENT_TAG, ##__VA_ARGS__)
 #define EVENT_LOGE(...) BK_LOGE(EVENT_TAG, ##__VA_ARGS__)
-
-#define EVENT_DEBUG     0
-#if EVENT_DEBUG
-#define EVENT_LOGD(...) BK_LOGI(EVENT_TAG, ##__VA_ARGS__)
-#else
 #define EVENT_LOGD(...) BK_LOGD(EVENT_TAG, ##__VA_ARGS__)
-#endif
+#define EVENT_LOGV(...) BK_LOGV(EVENT_TAG, ##__VA_ARGS__)
 
 #ifndef CFG_EVENT_TASK_PRIORITY
 #define EVENT_TASK_PRIORITY   8

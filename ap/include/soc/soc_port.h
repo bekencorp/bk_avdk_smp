@@ -31,6 +31,7 @@ extern "C" {
 #define SOC_LOGW(...) BK_LOGW(SOC_TAG, ##__VA_ARGS__)
 #define SOC_LOGE(...) BK_LOGE(SOC_TAG, ##__VA_ARGS__)
 #define SOC_LOGD(...) BK_LOGD(SOC_TAG, ##__VA_ARGS__)
+#define SOC_LOGV(...) BK_LOGV(SOC_TAG, ##__VA_ARGS__)
 
 #if CONFIG_BK_WHILE
 #define CONFIG_LOOP_MAX_CNT    (1000)

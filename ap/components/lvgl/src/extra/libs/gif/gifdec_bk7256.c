@@ -127,7 +127,7 @@ static gd_GIF * gif_open(gd_GIF * gif_base)
     psram_addr = lv_psram_mem_alloc(3 * width * height);
 #endif
     if (psram_addr == NULL) {
-		os_printf("psram mem alloc fail\n");
+		BK_LOGD(NULL, "psram mem alloc fail\n");
         lv_mem_free(gif);
 		goto fail;
 	}
@@ -554,7 +554,7 @@ render_frame_rect(gd_GIF *gif, uint8_t *buffer)
 #if LV_GIF_USE_PSRAM
 	uint8_t *sram_buffer = lv_mem_alloc(gif->fx + gif->width);
     if (sram_buffer == NULL) {
-        os_printf("render_frame_rect buffer malloc fail\n");
+        BK_LOGD(NULL, "render_frame_rect buffer malloc fail\n");
 		return;
     }
 #endif

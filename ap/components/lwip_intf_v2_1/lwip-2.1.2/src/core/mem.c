@@ -1099,7 +1099,7 @@ mem_malloc(mem_size_t size_in)
           else if(type == MEM_TYPE_RX)
           {
             MEM_STATS_INC_RX_USED(rx_used, (size + SIZEOF_STRUCT_MEM));
-            //os_printf("m alc rx\n");
+            //BK_LOGD(NULL, "m alc rx\n");
           }
 #endif
         } else {

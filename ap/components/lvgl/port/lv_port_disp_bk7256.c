@@ -21,6 +21,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 /*********************
  *      DEFINES
@@ -104,7 +105,7 @@ int lv_port_disp_init(void)
     /* Example for 2) */
     static lv_disp_draw_buf_t draw_buf_dsc_2;
 
-    LOGI("LVGL addr1:%x, addr2:%x, pixel size:%d, fb1:%x, fb2:%x\r\n", vendor_config.draw_buf_2_1, vendor_config.draw_buf_2_2,
+    LOGD("LVGL addr1:%x, addr2:%x, pixel size:%d, fb1:%x, fb2:%x\r\n", vendor_config.draw_buf_2_1, vendor_config.draw_buf_2_2,
                                         vendor_config.draw_pixel_size, vendor_config.frame_buf_1, vendor_config.frame_buf_2);
 
     lv_disp_draw_buf_init(&draw_buf_dsc_2, vendor_config.draw_buf_2_1, vendor_config.draw_buf_2_2, vendor_config.draw_pixel_size);   /*Initialize the display buffer*/
@@ -229,7 +230,7 @@ static lv_color_t *update_dual_buffer_with_direct_mode(lv_disp_drv_t *disp_drv, 
         buf_cpy = disp_drv->draw_buf->buf1;
     }
 
-    LOGD("inv_p:%d, x1:%d, y1:%d, x2:%d, y2:%d, buf_cpy:%x\r\n", disp->inv_p, disp->inv_areas[0].x1, disp->inv_areas[0].y1, disp->inv_areas[0].x2, disp->inv_areas[0].y2, buf_cpy);
+    LOGV("inv_p:%d, x1:%d, y1:%d, x2:%d, y2:%d, buf_cpy:%x\r\n", disp->inv_p, disp->inv_areas[0].x1, disp->inv_areas[0].y1, disp->inv_areas[0].x2, disp->inv_areas[0].y2, buf_cpy);
     for(i = 0; i < disp->inv_p; i++) {
         if(disp->inv_area_joined[i])
             continue;  /* Only copy areas which aren't part of another area */

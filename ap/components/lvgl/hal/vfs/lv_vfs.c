@@ -58,11 +58,11 @@ bk_err_t lv_vfs_init(void)
         ret = _fs_mount();
         if (BK_OK != ret)
         {
-            bk_printf("[%s][%d] mount fail:%d\r\n", __FUNCTION__, __LINE__, ret);
+            BK_LOGD(NULL, "[%s][%d] mount fail:%d\r\n", __FUNCTION__, __LINE__, ret);
             break;
         }
 
-        bk_printf("[%s][%d] mount success\r\n", __FUNCTION__, __LINE__);
+        BK_LOGD(NULL, "[%s][%d] mount success\r\n", __FUNCTION__, __LINE__);
     } while(0);
 
     return ret;
@@ -74,10 +74,10 @@ bk_err_t lv_vfs_deinit(void)
 
     ret = umount("/");
     if (BK_OK != ret) {
-        bk_printf("[%s][%d] unmount fail:%d\r\n", __FUNCTION__, __LINE__, ret);
+        BK_LOGD(NULL, "[%s][%d] unmount fail:%d\r\n", __FUNCTION__, __LINE__, ret);
     }
 
-    bk_printf("[%s][%d] unmount success\r\n", __FUNCTION__, __LINE__);
+    BK_LOGD(NULL, "[%s][%d] unmount success\r\n", __FUNCTION__, __LINE__);
 
     return ret;
 }

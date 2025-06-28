@@ -33,6 +33,7 @@
 #define RTOS_LOGW(...) BK_LOGW(RTOS_TAG, ##__VA_ARGS__)   /**< Output OS Warning log */
 #define RTOS_LOGE(...) BK_LOGE(RTOS_TAG, ##__VA_ARGS__)   /**< Output OS Error log */
 #define RTOS_LOGD(...) BK_LOGD(RTOS_TAG, ##__VA_ARGS__)   /**< Output OS Debug log */
+#define RTOS_LOGV(...) BK_LOGV(RTOS_TAG, ##__VA_ARGS__)   /**< Output OS Debug log */
 
 
 /// os stop interrupt

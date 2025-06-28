@@ -345,7 +345,7 @@ LV_ATTRIBUTE_FAST_MEM static void fill_normal(lv_color_t * dest_buf_tmp, const l
     dest_buf = LV_MEM_CUSTOM_ALLOC(w * sizeof(lv_color_t));
     if(!dest_buf)
     {
-        bk_printf("[%s][%d] malloc fail\r\n", __FUNCTION__, __LINE__);
+        BK_LOGD(NULL, "[%s][%d] malloc fail\r\n", __FUNCTION__, __LINE__);
         return ;
     }
     dest_buf_bak = dest_buf;

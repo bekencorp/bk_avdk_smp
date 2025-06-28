@@ -37,7 +37,7 @@ static void ntp_sync_thread_enrty(void *param)
         time_t cur_time = ntp_sync_to_rtc();
 		if (cur_time)
 		{
-			LOGI("\r\nGet local time from NTP server: %s", ctime(&cur_time));
+			LOGD("\r\nGet local time from NTP server: %s", ctime(&cur_time));
 			rtos_delay_milliseconds(NTP_SYNC_CYCLE);
 
 			//rtos_delay_milliseconds(1000);	//temp debug
@@ -81,13 +81,13 @@ int app_time_rtc_ntp_sync_init(void)
 	                         NULL);
 	if (ret)
 	{
-		LOGI("ntp_sync_thread_enrty create fail!\r\n");
+		LOGD("ntp_sync_thread_enrty create fail!\r\n");
 		return -1;
 	}
 
 	//soft_rtc_init();
 
-	LOGI("rtc_ntp_sync_init complete\r\n");
+	LOGD("rtc_ntp_sync_init complete\r\n");
 
     init_ok = 1;
 
@@ -110,7 +110,7 @@ int get_curtime_str(char *buf,unsigned char opera)
 		(s_tm_default.tm_mon == s_tm.tm_mon) && \
 		(s_tm_default.tm_mday == s_tm.tm_mday) )
 	{
-		LOGI("ntp unconnected! use default timer\r\n");
+		LOGD("ntp unconnected! use default timer\r\n");
 	}
 
 	num2str(buf, (s_tm.tm_year+1900) / 100);
@@ -122,7 +122,7 @@ int get_curtime_str(char *buf,unsigned char opera)
 	num2str(buf + 12, s_tm.tm_sec);
 	buf[14] = 0;
 
-	LOGI("get_curtime_str:%s\r\n",buf);
+	LOGD("get_curtime_str:%s\r\n",buf);
 
 	return 0;
 }
@@ -132,13 +132,13 @@ int app_time_timestr_get(char *buf,unsigned char len)
 {
 	if(NULL == buf)
 	{
-		LOGI("buf NULL error!\r\n");
+		LOGD("buf NULL error!\r\n");
 		return -1;
 	}
 
 	if(len < 15)
 	{
-		LOGI("len too small!\r\n");
+		LOGD("len too small!\r\n");
 		return -1;
 	}
 
@@ -161,7 +161,7 @@ int app_time_datetime_get(user_datetime_t *pdt)
 		(s_tm_default.tm_mon == s_tm.tm_mon) && \
 		(s_tm_default.tm_mday == s_tm.tm_mday) )
 	{
-		LOGI("ntp unconnected! use default timer\r\n");
+		LOGD("ntp unconnected! use default timer\r\n");
 	}
 
 	pdt->year = s_tm.tm_year+1900;
@@ -172,7 +172,7 @@ int app_time_datetime_get(user_datetime_t *pdt)
 	pdt->second = s_tm.tm_sec;
 	pdt->wday = s_tm.tm_wday;
 
-	LOGI("%d-%d-%d  %d:%d:%d  %d\r\n",pdt->year,pdt->month,pdt->mday,pdt->hour,pdt->minute,pdt->second,pdt->wday);
+	LOGD("%d-%d-%d  %d:%d:%d  %d\r\n",pdt->year,pdt->month,pdt->mday,pdt->hour,pdt->minute,pdt->second,pdt->wday);
 
 	return 0;
 }

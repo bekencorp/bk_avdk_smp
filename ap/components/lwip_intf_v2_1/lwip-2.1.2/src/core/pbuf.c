@@ -858,12 +858,12 @@ pbuf_free(struct pbuf *p)
 
             if(lifetime >10)
             {
-              os_printf("over 10ms\n");
+              BK_LOGD(NULL, "over 10ms\n");
             }
 
-            os_printf("id 0x%04x sn %d ag%d r%d\n",p->tx_tick_id,p->tx_tick_sn, p->tx_agg, p->tx_retry);
-            os_printf("l %d p %d m %d\n",lifetime,prep_tx_time,mac_prep_time);
-            os_printf("s %d c %d f %d\n",tx_send_time,cfm_time,cfm_free_time);
+            BK_LOGD(NULL, "id 0x%04x sn %d ag%d r%d\n",p->tx_tick_id,p->tx_tick_sn, p->tx_agg, p->tx_retry);
+            BK_LOGD(NULL, "l %d p %d m %d\n",lifetime,prep_tx_time,mac_prep_time);
+            BK_LOGD(NULL, "s %d c %d f %d\n",tx_send_time,cfm_time,cfm_free_time);
           }
         }
         #endif

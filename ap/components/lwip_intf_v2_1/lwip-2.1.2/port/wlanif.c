@@ -133,8 +133,8 @@ static void low_level_init(struct netif *netif)
 #endif /* LWIP_NETIF_HOSTNAME */
 
     /* set MAC hardware address length */
-    LWIP_LOGD("enter low level!\r\n");
-    LWIP_LOGD("mac %2x:%2x:%2x:%2x:%2x:%2x\r\n", macptr[0], macptr[1], macptr[2],
+    LWIP_LOGV("enter low level!\r\n");
+    LWIP_LOGV("mac %2x:%2x:%2x:%2x:%2x:%2x\r\n", macptr[0], macptr[1], macptr[2],
                  macptr[3], macptr[4], macptr[5]);
 
     netif->hwaddr_len = ETHARP_HWADDR_LEN;
@@ -150,7 +150,7 @@ static void low_level_init(struct netif *netif)
  #if defined (LWIP_IPV6_MLD) && (LWIP_IPV6_MLD == 1)
     netif->flags |= NETIF_FLAG_MLD6;
  #endif
-    LWIP_LOGD("leave low level!\r\n");
+    LWIP_LOGV("leave low level!\r\n");
 }
 #else
 static void low_level_init(struct netif *netif)
@@ -165,9 +165,7 @@ static void low_level_init(struct netif *netif)
 #endif /* LWIP_NETIF_HOSTNAME */
 
     /* set MAC hardware address length */
-    LWIP_LOGD("enter low level!\r\n");
-    LWIP_LOGI("mac %2x:%2x:%2x:%2x:%2x:%2x\r\n", macptr[0], macptr[1], macptr[2],
-                 macptr[3], macptr[4], macptr[5]);
+    LWIP_LOGV("enter low level!\r\n");
 
     netif->hwaddr_len = ETHARP_HWADDR_LEN;
     os_memcpy(netif->hwaddr, macptr, ETHARP_HWADDR_LEN);
@@ -186,7 +184,7 @@ static void low_level_init(struct netif *netif)
  #if defined (LWIP_IPV6_MLD) && (LWIP_IPV6_MLD == 1)
     netif->flags |= NETIF_FLAG_MLD6;
  #endif
-    LWIP_LOGD("leave low level!\r\n");
+    LWIP_LOGV("leave low level!\r\n");
 }
 
 #endif
@@ -220,7 +218,7 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
         }else if(netif == sap_netif){
             vif_idx = 1;
         }else{
-            os_printf("%s,%d,netif err!\n",__func__,__LINE__);
+            BK_LOGD(NULL, "%s,%d,netif err!\n",__func__,__LINE__);
             return ERR_ARG;
         }
         cpdu->co_hdr.vif_idx = vif_idx;
@@ -248,7 +246,7 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 		return ERR_ARG;
 
 #if CONFIG_WIFI6_CODE_STACK
-	//LWIP_LOGI("output:%x\r\n", p);
+	//LWIP_LOGD("output:%x\r\n", p);
 	extern bool special_arp_flag;
 	if(special_arp_flag)
 	{
@@ -379,7 +377,7 @@ void ethernetif_input(int iface, struct pbuf *p)
     //vif = wifi_netif_vifid_to_vif(iface);
     netif = NULL;//(struct netif *)wifi_netif_get_vif_private_data(vif);
     if(!netif) {
-        //LWIP_LOGI("ethernetif_input no netif found %d\r\n", iface);
+        //LWIP_LOGD("ethernetif_input no netif found %d\r\n", iface);
         pbuf_free(p);
         p = NULL;
         return;
@@ -406,7 +404,7 @@ void ethernetif_input(int iface, struct pbuf *p)
 //					low_level_output(netif, q);
 //					pbuf_free(q);
 //				} else
-//					LWIP_LOGI("alloc pbuf failed, dont forward\r\n");
+//					LWIP_LOGD("alloc pbuf failed, dont forward\r\n");
 //		}
 //	}
 

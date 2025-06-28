@@ -108,7 +108,7 @@ static uint32 http_get_sapp_partition_length(bk_partition_t partition)
 
 	if(NULL == bk_ptr)
 	{
-		os_printf("get s_app partition fail! \r\n");
+		BK_LOGD(NULL, "get s_app partition fail! \r\n");
 
 		bk_reboot();
 	}
@@ -658,7 +658,7 @@ void http_flash_wr(UINT8 *src, unsigned len)
             if(temp_time >= ERASE_TOUCH_TIMEOUT)
                 flash_erase_ready = 1;
 
-            //os_printf("flash_erase_ready~111 :%d\n",flash_erase_ready);
+            //BK_LOGD(NULL, "flash_erase_ready~111 :%d\n",flash_erase_ready);
             if(flash_erase_ready == 1)
     	    {
         		param = bk_http_ptr->flash_address;
@@ -712,7 +712,7 @@ void http_flash_wr(UINT8 *src, unsigned len)
                 if(temp_time >= ERASE_TOUCH_TIMEOUT)
                     flash_erase_ready = 1;
 
-                //os_printf("flash_erase_ready~222 :%d\n",flash_erase_ready);
+                //BK_LOGD(NULL, "flash_erase_ready~222 :%d\n",flash_erase_ready);
                 if(flash_erase_ready == 1)
     	        {
             		//GLOBAL_INT_DISABLE();
@@ -732,11 +732,11 @@ void http_flash_wr(UINT8 *src, unsigned len)
             			//GLOBAL_INT_RESTORE();
             			if (!os_memcmp(src, bk_http_ptr->wr_tmp_buf, len)) {
             			} else
-            				os_printf("wr flash write err\n");
+            				BK_LOGD(NULL, "wr flash write err\n");
             		}
 
             		bk_http_ptr->flash_address += len;
-        		//os_printf("ad %x.\r\n",bk_http_ptr->flash_address);
+        		//BK_LOGD(NULL, "ad %x.\r\n",bk_http_ptr->flash_address);
                     flash_erase_ready = 0;
                     break;
                 }
@@ -759,13 +759,13 @@ void http_flash_init(void)
 	if (!bk_http_ptr->wr_buf) {
 		bk_http_ptr->wr_buf = os_malloc(HTTP_FLASH_WR_BUF_MAX * sizeof(char));
 		if (! bk_http_ptr->wr_buf)
-			os_printf("wr_buf malloc err\r\n");
+			BK_LOGD(NULL, "wr_buf malloc err\r\n");
 	}
 
 	if (!bk_http_ptr->wr_tmp_buf) {
 		bk_http_ptr->wr_tmp_buf = os_malloc(HTTP_FLASH_WR_BUF_MAX * sizeof(char));
 		if (! bk_http_ptr->wr_tmp_buf)
-			os_printf("wr_tmp_buf malloc err\r\n");
+			BK_LOGD(NULL, "wr_tmp_buf malloc err\r\n");
 	}
 
 #if CONFIG_FLASH_ORIGIN_API
@@ -780,12 +780,12 @@ void http_flash_init(void)
 	ota_partition_length = http_get_sapp_partition_length(BK_PARTITION_S_APP);
     if(update_part_flag == UPDATE_B_PART)
     {
-        os_printf("UPDATE_B_PART\r\n");
+        BK_LOGD(NULL, "UPDATE_B_PART\r\n");
         bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_S_APP); //update B_parition
     }
     else
     {
-        os_printf("UPDATE_A_PART\r\n");
+        BK_LOGD(NULL, "UPDATE_A_PART\r\n");
         bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_APPLICATION);//update A_parition.
     }
 #else
@@ -809,7 +809,7 @@ void http_flash_init(void)
 #else
 	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
 #endif
-	os_printf("ota write to 0x%x\r\n", bk_http_ptr->flash_address);
+	BK_LOGD(NULL, "ota write to 0x%x\r\n", bk_http_ptr->flash_address);
 }
 
 void http_flash_deinit(void)
@@ -826,7 +826,7 @@ void http_flash_deinit(void)
 #else
 	bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
 #endif
-	os_printf("write over\r\n");
+	BK_LOGD(NULL, "write over\r\n");
 }
 
 void http_wr_to_flash(char *page, UINT32 len)
@@ -842,7 +842,7 @@ void http_wr_to_flash(char *page, UINT32 len)
 		i += w_l;
 		bk_http_ptr->wr_last_len += w_l;
 		if (bk_http_ptr->wr_last_len >= HTTP_FLASH_WR_BUF_MAX) {
-			//os_printf(".");
+			//BK_LOGD(NULL, ".");
 #if CONFIG_OTA_TFTP//support bk ota format
 			store_block(ota_wr_block, bk_http_ptr->wr_buf, HTTP_FLASH_WR_BUF_MAX);
 			ota_wr_block++;
@@ -874,7 +874,7 @@ int http_data_process(char *buf, UINT32 len, UINT32 recived, UINT32 total)
 
 #if HTTP_WR_TO_FLASH
 		http_wr_to_flash(buf, len);
-		os_printf("cyg_recvlen_per:(%.2f)%%\r\n",(((float)(recived))/(total))*100);
+		BK_LOGD(NULL, "cyg_recvlen_per:(%.2f)%%\r\n",(((float)(recived))/(total))*100);
 #else
 #if (CONFIG_SECURITY_OTA)
 	if (security_ota_parse_data(buf, len) !=0){
@@ -882,7 +882,7 @@ int http_data_process(char *buf, UINT32 len, UINT32 recived, UINT32 total)
 	}
 
 #else
-	os_printf("d");
+	BK_LOGD(NULL, "d");
 #endif
 #endif
 
@@ -1042,7 +1042,7 @@ int httpclient_retrieve_content(httpclient_t *client, char *data, int len, uint3
 
 				ret = httpclient_recv(client, b_data, 1, max_len, &len, iotx_time_left(&timer));
 				if (ret == ERROR_HTTP_CONN) {
-					os_printf("%s (line:%d) ERROR_HTTP_CONN len:%d readLen:%d\r\n", __func__, __LINE__, len, readLen);
+					BK_LOGD(NULL, "%s (line:%d) ERROR_HTTP_CONN len:%d readLen:%d\r\n", __func__, __LINE__, len, readLen);
                     break;
 				}
 			}
@@ -1198,7 +1198,7 @@ int httpclient_response_parse(httpclient_t *client, char *data, int len, uint32_
 	}
 
 	if (client->response_code != 200) {
-		os_printf("Could not found\r\n");
+		BK_LOGD(NULL, "Could not found\r\n");
 		return MQTT_SUB_INFO_NOT_FOUND_ERROR;
 	}
 

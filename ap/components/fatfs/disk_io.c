@@ -209,7 +209,7 @@ DSTATUS disk_initialize (
 
 DSTATUS disk_close(void)
 {
-    FATFS_LOGI("disk_close\r\n");
+    FATFS_LOGD("disk_close\r\n");
     return RES_OK;
 }
 
@@ -261,7 +261,7 @@ DRESULT disk_read (
 #if (CONFIG_USB_HOST && CONFIG_USBH_MSC)
 		res = udisk_rd_blk_sync(sector, count, buff);
 		if (res != USB_RET_OK) {
-			FATFS_LOGI("dev usb disk_read_error res:%d\r\n", res);
+			FATFS_LOGD("dev usb disk_read_error res:%d\r\n", res);
 			res = RES_ERROR;
 		} else
 			res = RES_OK;
@@ -290,19 +290,19 @@ static DRESULT sd_disk_check_space_size()
 	DWORD freenclst;
 	sprintf(cFileName, "%d:", 1);
 
-	FATFS_LOGD("[+]%s\r\n", __func__);
+	FATFS_LOGV("[+]%s\r\n", __func__);
 
 	res = f_getfree(cFileName, &freenclst, &checkspace_pfs);
 	if(res != RES_OK)
 		return res;
 
 	if(freenclst < SD_MIN_NUMBER_REMAINING_CLUSTERS) {
-		FATFS_LOGI("The space is insufficient\r\n");
-		FATFS_LOGI("freenclst: %d free_mem:%d MB\r\n",freenclst, freenclst/SD_CLUSTER_TO_MEM_64KB);
+		FATFS_LOGD("The space is insufficient\r\n");
+		FATFS_LOGD("freenclst: %d free_mem:%d MB\r\n",freenclst, freenclst/SD_CLUSTER_TO_MEM_64KB);
 		return RES_NOTRDY;
 	}
 
-	FATFS_LOGD("[-]%s\r\n", __func__);
+	FATFS_LOGV("[-]%s\r\n", __func__);
 
 	return res;
 }
@@ -335,8 +335,8 @@ DRESULT disk_write (
 
 				result = bk_sd_card_write_blocks((uint8_t *)buff, sector, count);
 				if(result != RES_OK) {
-					FATFS_LOGI("Check the remaining space!\r\n");
-					FATFS_LOGI("Get the value of the remaining space. res: %d\r\n", sd_disk_check_space_size());
+					FATFS_LOGD("Check the remaining space!\r\n");
+					FATFS_LOGD("Get the value of the remaining space. res: %d\r\n", sd_disk_check_space_size());
 				}
 				else
 					break;
@@ -353,7 +353,7 @@ DRESULT disk_write (
 #if (CONFIG_USB_HOST && CONFIG_USBH_MSC)
 		// translate the arguments here
 		if (udisk_wr_blk_sync(sector, count, buff) !=  USB_RET_OK) {
-			FATFS_LOGI("dev usb disk_write_error\r\n");
+			FATFS_LOGD("dev usb disk_write_error\r\n");
 			res =	RES_ERROR;
 		} else
 			res = RES_OK;
@@ -395,7 +395,7 @@ DRESULT disk_ioctl (
 				res = bk_sd_card_rw_sync();
 				if(res != BK_OK)
 				{
-					os_printf("err:sd sync=%d\r\n", res);
+					BK_LOGD(NULL, "err:sd sync=%d\r\n", res);
 				}
 			}
 			break;
@@ -410,7 +410,7 @@ DRESULT disk_ioctl (
 		case GET_SECTOR_COUNT:
 			*(DWORD *)buff = (uint32_t)bk_sd_card_get_card_size();
 			res = RES_OK;
-			os_printf("sdcard sector cnt=%d\r\n", *(DWORD *)buff);
+			BK_LOGD(NULL, "sdcard sector cnt=%d\r\n", *(DWORD *)buff);
 			break;
 		default:
 			res = RES_PARERR;
@@ -464,11 +464,11 @@ DRESULT disk_ioctl (
 		case GET_SECTOR_COUNT:
 			partition_info = bk_flash_partition_get_info(BK_PARTITION_USR_CONFIG);
 			if (NULL == partition_info) {
-				os_printf("%s partiion not found.\r\n", __func__);
+				BK_LOGD(NULL, "%s partiion not found.\r\n", __func__);
 				break;
 			}
 			*(DWORD *)buff = partition_info->partition_length / FLASH_SECTOR_SIZE;
-			os_printf("sdcard sector cnt=%d\r\n", *(DWORD *)buff);
+			BK_LOGD(NULL, "sdcard sector cnt=%d\r\n", *(DWORD *)buff);
 			res = RES_OK;
 			break;
 		default:

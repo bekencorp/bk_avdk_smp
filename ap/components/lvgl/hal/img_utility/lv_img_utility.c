@@ -20,7 +20,7 @@ static s32 lv_img_jpeg_sw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_d
         ret = bk_jpeg_get_img_info(jpeg_frame->length, jpeg_frame->frame, &result);
         if (ret != BK_OK)
         {
-            bk_printf("[%s][%d] get img info fail:%d\r\n", __FUNCTION__, __LINE__, ret);
+            BK_LOGD(NULL, "[%s][%d] get img info fail:%d\r\n", __FUNCTION__, __LINE__, ret);
             ret = BK_FAIL;
             break;
         }
@@ -33,7 +33,7 @@ static s32 lv_img_jpeg_sw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_d
             img_dst->data = psram_malloc(img_dst->data_size);
             if (!img_dst->data)
             {
-                bk_printf("[%s][%d] malloc psram size %d fail\r\n", __FUNCTION__, __LINE__, img_dst->data_size);
+                BK_LOGD(NULL, "[%s][%d] malloc psram size %d fail\r\n", __FUNCTION__, __LINE__, img_dst->data_size);
                 ret = BK_ERR_NO_MEM;
                 break;
             }
@@ -44,7 +44,7 @@ static s32 lv_img_jpeg_sw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_d
         ret = bk_jpeg_dec_sw_start(JPEGDEC_BY_FRAME, jpeg_frame->frame, (uint8_t *)img_dst->data, jpeg_frame->length, img_dst->data_size, (sw_jpeg_dec_res_t *)&result);
         if (ret != BK_OK)
         {
-            bk_printf("[%s][%d] sw decoder error\r\n", __FUNCTION__, __LINE__);
+            BK_LOGD(NULL, "[%s][%d] sw decoder error\r\n", __FUNCTION__, __LINE__);
             if(flag)
             {
                 psram_free((void *)img_dst->data);
@@ -72,14 +72,14 @@ bk_err_t lv_img_read_file_to_mem(char *filename, uint32* paddr)
         fd = open(filename, O_RDONLY);
         if(fd < 0)
         {
-            bk_printf("[%s][%d] open fail:%s\r\n", __FUNCTION__, __LINE__, filename);
+            BK_LOGD(NULL, "[%s][%d] open fail:%s\r\n", __FUNCTION__, __LINE__, filename);
             ret = BK_FAIL;
             break;
         }
 
         sram_addr = os_malloc(once_read_len);
         if (sram_addr == NULL) {
-            bk_printf("[%s][%d] malloc fail\r\n", __FUNCTION__, __LINE__);
+            BK_LOGD(NULL, "[%s][%d] malloc fail\r\n", __FUNCTION__, __LINE__);
             ret = BK_FAIL;
             break;
         }
@@ -89,7 +89,7 @@ bk_err_t lv_img_read_file_to_mem(char *filename, uint32* paddr)
             read_len = read(fd, sram_addr, once_read_len);
             if (read_len < 0)
             {
-                bk_printf("[%s][%d] read file fail.\r\n", __FUNCTION__, __LINE__);
+                BK_LOGD(NULL, "[%s][%d] read file fail.\r\n", __FUNCTION__, __LINE__);
                 ret= BK_FAIL;
                 break;
             }
@@ -137,7 +137,7 @@ int lv_img_read_filelen(char *filename)
     do {
         if(!filename)
         {
-            bk_printf("[%s][%d]param is null.\r\n", __FUNCTION__, __LINE__);
+            BK_LOGD(NULL, "[%s][%d]param is null.\r\n", __FUNCTION__, __LINE__);
             ret = BK_ERR_PARAM;
             break;
         }
@@ -145,12 +145,12 @@ int lv_img_read_filelen(char *filename)
         ret = stat(filename, &statbuf);
         if(BK_OK != ret)
         {
-            bk_printf("[%s][%d] sta fail:%s\r\n", __FUNCTION__, __LINE__, filename);
+            BK_LOGD(NULL, "[%s][%d] sta fail:%s\r\n", __FUNCTION__, __LINE__, filename);
             break;
         }
 
         ret = statbuf.st_size;
-        bk_printf("[%s][%d] %s size:%d\r\n", __FUNCTION__, __LINE__, filename, ret);
+        BK_LOGD(NULL, "[%s][%d] %s size:%d\r\n", __FUNCTION__, __LINE__, filename, ret);
     } while(0);
 
     return ret;
@@ -166,14 +166,14 @@ static frame_buffer_t *lv_img_read_file(char *file_name)
         file_len = lv_img_read_filelen(file_name);
         if (file_len <= 0)
         {
-            bk_printf("[%s][%d] %s don't exit in fatfs\r\n", __FUNCTION__, __LINE__, file_name);
+            BK_LOGD(NULL, "[%s][%d] %s don't exit in fatfs\r\n", __FUNCTION__, __LINE__, file_name);
             break;
         }
 
         jpeg_frame = os_malloc(sizeof(frame_buffer_t));
         if (!jpeg_frame)
         {
-            bk_printf("[%s][%d] malloc fail\r\n", __FUNCTION__, __LINE__);
+            BK_LOGD(NULL, "[%s][%d] malloc fail\r\n", __FUNCTION__, __LINE__);
             break;
         }
 
@@ -184,7 +184,7 @@ static frame_buffer_t *lv_img_read_file(char *file_name)
         {
             os_free(jpeg_frame);
             jpeg_frame = NULL;
-            bk_printf("[%s][%d] psram malloc fail\r\n", __FUNCTION__, __LINE__);
+            BK_LOGD(NULL, "[%s][%d] psram malloc fail\r\n", __FUNCTION__, __LINE__);
             break;
         }
 
@@ -218,7 +218,7 @@ static s32 lv_img_file_jpeg_sw_dec(char *file_name, lv_img_dsc_t *img_dst)
         ret = lv_img_jpeg_sw_decode(jpeg_frame, img_dst);
         if (BK_OK == ret)
         {
-            bk_printf("[%s][%d] decode success, width:%d, height:%d, size:%d\r\n",
+            BK_LOGD(NULL, "[%s][%d] decode success, width:%d, height:%d, size:%d\r\n",
                                                 __FUNCTION__, __LINE__,
                          img_dst->header.w, img_dst->header.h, img_dst->data_size);
         }
@@ -259,7 +259,7 @@ static s32 lv_img_file_jpeg_hw_dec(char *file_name, lv_img_dsc_t *img_dst)
         ret = bk_jpeg_get_img_info(jpeg_frame->length, jpeg_frame->frame, &result);
         if (ret != BK_OK)
         {
-            bk_printf("[%s][%d] get img info fail:%d\r\n", __FUNCTION__, __LINE__, ret);
+            BK_LOGD(NULL, "[%s][%d] get img info fail:%d\r\n", __FUNCTION__, __LINE__, ret);
             ret = BK_FAIL;
             break;
         }
@@ -273,7 +273,7 @@ static s32 lv_img_file_jpeg_hw_dec(char *file_name, lv_img_dsc_t *img_dst)
         ret = lv_jpeg_hw_decode(jpeg_frame, img_dst);
         if(BK_OK == ret)
         {
-            bk_printf("[%s][%d] hw decode success, width:%d, height:%d, size:%d\r\n",
+            BK_LOGD(NULL, "[%s][%d] hw decode success, width:%d, height:%d, size:%d\r\n",
                             __FUNCTION__, __LINE__,
                             img_dst->header.w, img_dst->header.h, img_dst->data_size);
         }
@@ -317,7 +317,7 @@ s32 lv_jpeg_img_load_with_sw_dec(char *filename, lv_img_dsc_t *img_dst)
         jd_set_format(JD_FORMAT_RGB565);
         ret = lv_img_file_jpeg_sw_dec(filename, img_dst);
         if (ret != BK_OK) {
-            bk_printf("%s jpeg sw decode fail\r\n", __func__);
+            BK_LOGD(NULL, "%s jpeg sw decode fail\r\n", __func__);
         }
         jd_set_format(JD_FORMAT_VYUY);
         bk_jpeg_dec_sw_deinit();
@@ -341,7 +341,7 @@ s32 lv_jpeg_img_load_yuyv(char *filename, lv_img_dsc_t *img_dst)
         jd_set_format(JD_FORMAT_YUYV);
         ret = lv_img_file_jpeg_sw_dec(filename, img_dst);
         if (ret != BK_OK) {
-            bk_printf("%s jpeg sw decode fail\r\n", __func__);
+            BK_LOGD(NULL, "%s jpeg sw decode fail\r\n", __func__);
         }
         jd_set_format(JD_FORMAT_VYUY);
         bk_jpeg_dec_sw_deinit();
@@ -369,7 +369,7 @@ s32 lv_jpeg_img_load_with_hw_dec(char *filename, lv_img_dsc_t *img_dst)
         lv_jpeg_hw_decode_output_fmt_set(JH_OUTPUT_RGB565);
         ret = lv_img_file_jpeg_hw_dec(filename, img_dst);
         if (ret != BK_OK) {
-            bk_printf("%s jpeg hw decode fail\r\n", __func__);
+            BK_LOGD(NULL, "%s jpeg hw decode fail\r\n", __func__);
         }
     } while(0);
 
@@ -383,7 +383,7 @@ s32 lv_png_img_load(char *filename, lv_img_dsc_t *img_dst)
 
     if (!filename || !img_dst) {
         ret = BK_ERR_NULL_PARAM;
-        bk_printf("[%s][%d]param invalid\r\n", __FUNCTION__, __LINE__);
+        BK_LOGD(NULL, "[%s][%d]param invalid\r\n", __FUNCTION__, __LINE__);
         return ret;
     }
 
@@ -391,7 +391,7 @@ s32 lv_png_img_load(char *filename, lv_img_dsc_t *img_dst)
     img_decoder_dsc.src_type = LV_IMG_SRC_FILE;
     ret = lv_img_decoder_open(&img_decoder_dsc, filename, img_decoder_dsc.color, img_decoder_dsc.frame_id);
     if (ret != LV_RES_OK) {
-        bk_printf("[%s][%d] decode fail:%d\r\n", __FUNCTION__, __LINE__, ret);
+        BK_LOGD(NULL, "[%s][%d] decode fail:%d\r\n", __FUNCTION__, __LINE__, ret);
         ret = BK_FAIL;
         return ret;
     }

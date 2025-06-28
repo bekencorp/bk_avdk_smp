@@ -39,10 +39,10 @@
 
 static void bk_hex_dump(char *s, int length)
 {
-	   //os_printf("bk begin dump:\r\n");
+	   //BK_LOGD(NULL, "bk begin dump:\r\n");
 		for (int i = 0; i < length; i++)
-			BK_RAW_LOGI(NULL, "%c", *(u8 *)(s+i));
-		BK_RAW_LOGI(NULL, "\r\n");
+			BK_RAW_LOGD(NULL, "%c", *(u8 *)(s+i));
+		BK_RAW_LOGD(NULL, "\r\n");
 }
 
 /*----------------------------------------HTTP API-----------------------------------------*/
@@ -98,7 +98,7 @@ static bk_err_t http_dispatch_event(bk_http_client_t *client, bk_http_client_eve
 static int http_on_message_begin(http_parser *parser)
 {
 	bk_http_client_t *client = parser->data;
-	BK_LOGI(TAG, "on_message_begin\r\n");
+	BK_LOGD(TAG, "on_message_begin\r\n");
 
 	client->response->is_chunked = false;
 	client->is_chunk_complete = false;
@@ -107,7 +107,7 @@ static int http_on_message_begin(http_parser *parser)
 
 static int http_on_url(http_parser *parser, const char *at, size_t length)
 {
-	BK_LOGI(TAG, "http_on_url\r\n");
+	BK_LOGD(TAG, "http_on_url\r\n");
 	return 0;
 }
 
@@ -119,7 +119,7 @@ static int http_on_status(http_parser *parser, const char *at, size_t length)
 static int http_on_header_event(bk_http_client_handle_t client)
 {
 	if (client->current_header_key != NULL && client->current_header_value != NULL) {
-		BK_LOGI(TAG, "HEADER=%s:%s\r\n", client->current_header_key, client->current_header_value);
+		BK_LOGD(TAG, "HEADER=%s:%s\r\n", client->current_header_key, client->current_header_value);
 		client->event.header_key = client->current_header_key;
 		client->event.header_value = client->current_header_value;
 		free(client->current_header_key);
@@ -165,7 +165,7 @@ static int http_on_headers_complete(http_parser *parser)
 	client->response->data_offset = parser->nread;
 	client->response->content_length = parser->content_length;
 	client->response->data_process = 0;
-	BK_LOGI(TAG, "http_on_headers_complete, status=%d, offset=%d, nread=%d, content_length:%d\r\n", parser->status_code, 
+	BK_LOGD(TAG, "http_on_headers_complete, status=%d, offset=%d, nread=%d, content_length:%d\r\n", parser->status_code, 
 		client->response->data_offset, parser->nread, client->response->content_length);
 	client->state = HTTP_STATE_RES_COMPLETE_HEADER;
 	if (client->connection_info.method == HTTP_METHOD_HEAD) {
@@ -181,7 +181,7 @@ static int http_on_headers_complete(http_parser *parser)
 static int http_on_body(http_parser *parser, const char *at, size_t length)
 {
 	bk_http_client_t *client = parser->data;
-	BK_LOGD(TAG, "http_on_body one time: %d\r\n", length);
+	BK_LOGV(TAG, "http_on_body one time: %d\r\n", length);
 	http_dispatch_event(client, HTTP_EVENT_ON_DATA, (void *)at, length);
 	if (client->response->buffer->output_ptr) {
 		memcpy(client->response->buffer->output_ptr, (char *)at, length);
@@ -190,11 +190,11 @@ static int http_on_body(http_parser *parser, const char *at, size_t length)
 	} else {
 		/* Do not cache body when http_on_body is called from bk_http_client_perform */
 		if (client->state < HTTP_STATE_RES_ON_DATA_START && client->cache_data_in_fetch_hdr) {
-			BK_LOGI(TAG, "Body received in fetch header state, %p, %d\r\n", at, length);
+			BK_LOGD(TAG, "Body received in fetch header state, %p, %d\r\n", at, length);
 			bk_http_buffer_t *res_buffer = client->response->buffer;
 			res_buffer->orig_raw_data = (char *)realloc(res_buffer->orig_raw_data, res_buffer->raw_len + length);
 			if (!res_buffer->orig_raw_data) {
-				BK_LOGI(TAG, "Failed to allocate memory for storing decoded data\r\n");
+				BK_LOGD(TAG, "Failed to allocate memory for storing decoded data\r\n");
 				return -1;
 			}
 			memcpy(res_buffer->orig_raw_data + res_buffer->raw_len, at, length);
@@ -204,13 +204,13 @@ static int http_on_body(http_parser *parser, const char *at, size_t length)
 
 	client->response->data_process += length;
 	client->response->buffer->raw_len += length;
-	BK_LOGD(TAG, "http_on_body already_data_process:%d, buffer->content_length:%d\r\n", client->response->data_process, client->response->content_length);
+	BK_LOGV(TAG, "http_on_body already_data_process:%d, buffer->content_length:%d\r\n", client->response->data_process, client->response->content_length);
 	return 0;
 }
 
 static int http_on_message_complete(http_parser *parser)
 {
-	BK_LOGI(TAG, "http_on_message_complete, parser=%x\r\n", (int)parser);
+	BK_LOGD(TAG, "http_on_message_complete, parser=%x\r\n", (int)parser);
 	bk_http_client_handle_t client = parser->data;
 	client->is_chunk_complete = true;
 	return 0;
@@ -218,7 +218,7 @@ static int http_on_message_complete(http_parser *parser)
 
 static int http_on_chunk_complete(http_parser *parser)
 {
-	BK_LOGI(TAG, "http_on_chunk_complete\r\n");
+	BK_LOGD(TAG, "http_on_chunk_complete\r\n");
 	return 0;
 }
 
@@ -226,7 +226,7 @@ static int http_on_chunk_header(http_parser *parser)
 {
 	bk_http_client_handle_t client = parser->data;
 	client->response->chunk_length = parser->content_length;
-	BK_LOGI(TAG, "http_on_chunk_header, chunk_length\r\n");
+	BK_LOGD(TAG, "http_on_chunk_header, chunk_length\r\n");
 	return 0;
 }
 
@@ -302,7 +302,7 @@ bk_err_t bk_http_client_cleanup(bk_http_client_handle_t client)
 	if (client == NULL) {
 		return BK_FAIL;
 	}
-	BK_LOGI(TAG, "bk_http_client_cleanup\r\n");
+	BK_LOGD(TAG, "bk_http_client_cleanup\r\n");
 	bk_http_client_close(client);
 	if(client->bk_ssl) {
 		if(client->bk_ssl->tls)
@@ -380,7 +380,7 @@ bk_err_t bk_http_client_set_url(bk_http_client_handle_t client, const char *url)
 	// Close the connection if host was changed
 	if (old_host && client->connection_info.host
 			&& strcasecmp(old_host, (const void *)client->connection_info.host) != 0) {
-		BK_LOGI(TAG, "New host assign = %s, Need close connection\r\n", client->connection_info.host);
+		BK_LOGD(TAG, "New host assign = %s, Need close connection\r\n", client->connection_info.host);
 		if (bk_http_client_set_header(client, "Host", client->connection_info.host) != BK_OK) {
 			free(old_host);
 			return BK_ERR_NO_MEM;
@@ -409,7 +409,7 @@ bk_err_t bk_http_client_set_url(bk_http_client_handle_t client, const char *url)
 	}
 
 	if (old_port != client->connection_info.port) {
-		BK_LOGD(TAG, "old_port = %d\r\n", old_port);
+		BK_LOGV(TAG, "old_port = %d\r\n", old_port);
 		bk_http_client_close(client);
 	}
 
@@ -591,22 +591,22 @@ bk_http_client_handle_t bk_http_client_init(const bk_http_input_t *config)
 #ifdef CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
 		bk_transport_ssl_crt_bundle_attach(bk_ssl, config->crt_bundle_attach);
 #else
-		BK_LOGI(TAG, "use_crt_bundle configured but not enabled in menuconfig: Please enable MBEDTLS_CERTIFICATE_BUNDLE option\r\n");
+		BK_LOGD(TAG, "use_crt_bundle configured but not enabled in menuconfig: Please enable MBEDTLS_CERTIFICATE_BUNDLE option\r\n");
 #endif
 	} else if (config->use_global_ca_store == true) {
 		bk_transport_ssl_enable_global_ca_store(bk_ssl);
 	} else if (config->cert_pem) {
 		if (!config->cert_len) {
-			BK_LOGD(TAG, "bk_transport_ssl_set_cert_data, cert_len:%d\r\n", strlen(config->cert_pem));
+			BK_LOGV(TAG, "bk_transport_ssl_set_cert_data, cert_len:%d\r\n", strlen(config->cert_pem));
 			bk_transport_ssl_set_cert_data(bk_ssl, config->cert_pem, strlen(config->cert_pem));
 		} else {
-			BK_LOGD(TAG, "bk_transport_ssl_set_cert_data_der\r\n");
+			BK_LOGV(TAG, "bk_transport_ssl_set_cert_data_der\r\n");
 			bk_transport_ssl_set_cert_data_der(bk_ssl, config->cert_pem, config->cert_len);
 		}
 	}
 
 	if (config->client_cert_pem) {
-		BK_LOGI(TAG, "bk_transport_ssl_set_client_cert_data, client_cert_len:%d\r\n", strlen(config->client_cert_pem));
+		BK_LOGD(TAG, "bk_transport_ssl_set_client_cert_data, client_cert_len:%d\r\n", strlen(config->client_cert_pem));
 		if (!config->client_cert_len) {
 			bk_transport_ssl_set_client_cert_data(bk_ssl, config->client_cert_pem, strlen(config->client_cert_pem));
 		} else {
@@ -616,7 +616,7 @@ bk_http_client_handle_t bk_http_client_init(const bk_http_input_t *config)
 
 	if (config->client_key_pem) {
 		if (!config->client_key_len) {
-			BK_LOGI(TAG, "bk_transport_ssl_set_client_key_data, client_key_len:%d\r\n", strlen(config->client_key_pem));
+			BK_LOGD(TAG, "bk_transport_ssl_set_client_key_data, client_key_len:%d\r\n", strlen(config->client_key_pem));
 			bk_transport_ssl_set_client_key_data(bk_ssl, config->client_key_pem, strlen(config->client_key_pem));
 		} else {
 			bk_transport_ssl_set_client_key_data_der(bk_ssl, config->client_key_pem, config->client_key_len);
@@ -645,7 +645,7 @@ bk_http_client_handle_t bk_http_client_init(const bk_http_input_t *config)
 		goto error;
 	}
 	else {
-		BK_LOGI(TAG, "Allocation buffer_size_tx: %d, rx: %d\r\n", client->buffer_size_tx, client->buffer_size_rx);
+		BK_LOGD(TAG, "Allocation buffer_size_tx: %d, rx: %d\r\n", client->buffer_size_tx, client->buffer_size_rx);
 	}
 		
 
@@ -679,7 +679,7 @@ bk_http_client_handle_t bk_http_client_init(const bk_http_input_t *config)
 			BK_LOGE(TAG, "invalid host\r\n");
 			goto error;
 		}
-		BK_LOGI(TAG, "_get_host_header host:%s, port:%d\r\n", client->connection_info.host, client->connection_info.port);
+		BK_LOGD(TAG, "_get_host_header host:%s, port:%d\r\n", client->connection_info.host, client->connection_info.port);
 		host_name = _get_host_header(client->connection_info.host, client->connection_info.port);
 		if (host_name == NULL) {
 			BK_LOGE(TAG, "Failed to allocate memory for host header\r\n");
@@ -822,7 +822,7 @@ char *http_auth_digest(const char *username, const char *password, bk_http_auth_
 		goto _digest_exit;
 	}
 
-	BK_LOGD(TAG, "%s %s %s %s\r\n", "Digest", username, auth_data->realm, password);
+	BK_LOGV(TAG, "%s %s %s %s\r\n", "Digest", username, auth_data->realm, password);
 	if (strcasecmp(auth_data->algorithm, "md5-sess") == 0) {
 		if (md5_printf(ha1, "%s:%s:%016llx", ha1, auth_data->nonce, auth_data->cnonce) <= 0) {
 			goto _digest_exit;
@@ -883,7 +883,7 @@ bk_err_t bk_http_client_prepare(bk_http_client_handle_t client)
 	http_parser_init(client->parser, HTTP_RESPONSE);
 	if (client->connection_info.username) {
 		char *auth_response = NULL;
-		BK_LOGI(TAG, "auth_response\r\n");
+		BK_LOGD(TAG, "auth_response\r\n");
 		if (client->connection_info.auth_type == HTTP_AUTH_TYPE_BASIC) {
 			auth_response = http_auth_basic(client->connection_info.username, client->connection_info.password);
 #ifdef CONFIG_BK_HTTP_CLIENT_ENABLE_DIGEST_AUTH
@@ -896,7 +896,7 @@ bk_err_t bk_http_client_prepare(bk_http_client_handle_t client)
 		}
 
 		if (auth_response) {
-			BK_LOGI(TAG, "auth_response=%s\r\n", auth_response);
+			BK_LOGD(TAG, "auth_response=%s\r\n", auth_response);
 			bk_http_client_set_header(client, "Authorization\r\n", auth_response);
 			free(auth_response);
 		}
@@ -979,9 +979,9 @@ bk_err_t bk_http_client_request_send(bk_http_client_handle_t client, int write_l
 		client->data_written_index = 0;
 		client->data_write_left = 0;
 	}
-	BK_LOGI(TAG, "---------BEGIN SEND REQUEST---------\r\n");
+	BK_LOGD(TAG, "---------BEGIN SEND REQUEST---------\r\n");
 	if (client->data_write_left > 0) {
-		BK_LOGI(TAG, "sending leftover data\r\n");
+		BK_LOGD(TAG, "sending leftover data\r\n");
 		/* sending leftover data from previous call to bk_http_client_request_send() API */
 		int wret = 0;
 		if (((wret = bk_http_client_write(client, client->request->buffer->data + client->data_written_index, client->data_write_left)) < 0)) {
@@ -998,7 +998,7 @@ bk_err_t bk_http_client_request_send(bk_http_client_handle_t client, int write_l
 
 	int wlen = client->buffer_size_tx - first_line_len;
 	while ((client->header_index = http_header_generate_string(client->request->headers, client->header_index, client->request->buffer->data + first_line_len, &wlen))) {
-		BK_LOGI(TAG, "max buffer_size_tx:%d, first_line_len:%d, header_index:%d\r\n", 
+		BK_LOGD(TAG, "max buffer_size_tx:%d, first_line_len:%d, header_index:%d\r\n", 
 			client->buffer_size_tx, first_line_len, client->header_index);
 		if (wlen <= 0) {
 			break;
@@ -1008,7 +1008,7 @@ bk_err_t bk_http_client_request_send(bk_http_client_handle_t client, int write_l
 			first_line_len = 0;
 		}
 		client->request->buffer->data[wlen] = 0;
-		BK_LOGI(TAG, "Send Http Request Header wlen:%d,  Header[%d]:\r\n", wlen, client->header_index);
+		BK_LOGD(TAG, "Send Http Request Header wlen:%d,  Header[%d]:\r\n", wlen, client->header_index);
 		bk_hex_dump(client->request->buffer->data, wlen);
 		
 		client->data_write_left = wlen;
@@ -1027,7 +1027,7 @@ bk_err_t bk_http_client_request_send(bk_http_client_handle_t client, int write_l
 				return -1;
 			}
 			else
-				BK_LOGD(TAG, "SEND REQUEST OK, wret:%d\r\n", wret);
+				BK_LOGV(TAG, "SEND REQUEST OK, wret:%d\r\n", wret);
 			client->data_write_left -= wret;
 			client->data_written_index += wret;
 		}
@@ -1037,7 +1037,7 @@ bk_err_t bk_http_client_request_send(bk_http_client_handle_t client, int write_l
 	client->data_written_index = 0;
 	client->data_write_left = client->post_len;
 	client->state = HTTP_STATE_REQ_COMPLETE_HEADER;
-	BK_LOGD(TAG, "HTTP_STATE_REQ_COMPLETE_HEADER\r\n");
+	BK_LOGV(TAG, "HTTP_STATE_REQ_COMPLETE_HEADER\r\n");
 	return BK_OK;
 }
 
@@ -1047,7 +1047,7 @@ bk_err_t bk_http_client_connect(bk_http_client_handle_t client)
 	bk_err_t err;
 
 	if (client->state == HTTP_STATE_UNINIT) {
-		BK_LOGI(TAG, "Client has not been initialized\r\n");
+		BK_LOGD(TAG, "Client has not been initialized\r\n");
 		return BK_ERR_HTTP_INVALID_TRANSPORT;
 	}
 	
@@ -1056,9 +1056,9 @@ bk_err_t bk_http_client_connect(bk_http_client_handle_t client)
 		bk_http_client_close(client);
 		return err;
 	}
-	BK_LOGI(TAG, "---------BEGIN CONNECT---------\r\n");
+	BK_LOGD(TAG, "---------BEGIN CONNECT---------\r\n");
 	if (client->state < HTTP_STATE_CONNECTED) {
-		BK_LOGD(TAG, "Begin connect to: %s://%s:%d\r\n", client->connection_info.scheme, client->connection_info.host, client->connection_info.port);
+		BK_LOGV(TAG, "Begin connect to: %s://%s:%d\r\n", client->connection_info.scheme, client->connection_info.host, client->connection_info.port);
 		if (!client->is_async) {
 			if (strcasecmp(client->connection_info.scheme, "http") == 0) {
 				ret = ssl_tcp_connect(client->bk_ssl, client->connection_info.host, client->connection_info.port, client->timeout_ms);
@@ -1073,7 +1073,7 @@ bk_err_t bk_http_client_connect(bk_http_client_handle_t client)
 			}
 		}
 		client->state = HTTP_STATE_CONNECTED;
-		BK_LOGD(TAG, "HTTP_STATE_CONNECTED\r\n");
+		BK_LOGV(TAG, "HTTP_STATE_CONNECTED\r\n");
 	}
 	return BK_OK;
 }
@@ -1100,10 +1100,10 @@ int bk_http_client_fetch_headers(bk_http_client_handle_t client)
 	}
 
 	client->state = HTTP_STATE_REQ_COMPLETE_DATA;
-	BK_LOGD(TAG, "HTTP_STATE_REQ_COMPLETE_DATA\r\n");
+	BK_LOGV(TAG, "HTTP_STATE_REQ_COMPLETE_DATA\r\n");
 	bk_http_buffer_t *buffer = client->response->buffer;
 	client->response->status_code = -1;
-	BK_LOGI(TAG, "---------BEGIN FEATCH HEADERS---------\r\n");
+	BK_LOGD(TAG, "---------BEGIN FEATCH HEADERS---------\r\n");
 
 	while (client->state < HTTP_STATE_RES_COMPLETE_HEADER) {
 		if (strcasecmp(client->connection_info.scheme, "http") == 0) {
@@ -1117,14 +1117,14 @@ int bk_http_client_fetch_headers(bk_http_client_handle_t client)
 		if (buffer->len <= 0) {
 			return BK_FAIL;
 		}
-		BK_LOGI(TAG, "Read First len:%d !!!!!!!!!!\r\n", buffer->len);
+		BK_LOGD(TAG, "Read First len:%d !!!!!!!!!!\r\n", buffer->len);
 		http_parser_execute(client->parser, client->parser_settings, buffer->data, buffer->len);
 	}
 	client->state = HTTP_STATE_RES_ON_DATA_START;
-	BK_LOGD(TAG, "content_length = %d\r\n", client->response->content_length);
+	BK_LOGV(TAG, "content_length = %d\r\n", client->response->content_length);
 	if (client->response->content_length <= 0) {
 		client->response->is_chunked = true;
-		BK_LOGD(TAG, "client->response->content_length:%d r\n", client->response->content_length);
+		BK_LOGV(TAG, "client->response->content_length:%d r\n", client->response->content_length);
 		return 0;
 	}
 	return client->response->content_length;
@@ -1177,17 +1177,17 @@ void bk_http_client_add_auth(bk_http_client_handle_t client)
 	char *auth_header = client->auth_header;
 	if (auth_header) {
 		http_utils_trim_whitespace(&auth_header);
-		BK_LOGD(TAG, "UNAUTHORIZED: %s", auth_header);
+		BK_LOGV(TAG, "UNAUTHORIZED: %s", auth_header);
 		client->redirect_counter++;
 #ifdef CONFIG_BK_HTTP_CLIENT_ENABLE_DIGEST_AUTH
 		if (http_utils_str_starts_with(auth_header, "Digest") == 0) {
-			BK_LOGD(TAG, "type = Digest");
+			BK_LOGV(TAG, "type = Digest");
 			client->connection_info.auth_type = HTTP_AUTH_TYPE_DIGEST;
 		} else {
 #endif
 #ifdef CONFIG_BK_HTTP_CLIENT_ENABLE_BASIC_AUTH
 		if (http_utils_str_starts_with(auth_header, "Basic") == 0) {
-			BK_LOGD(TAG, "type = Basic");
+			BK_LOGV(TAG, "type = Basic");
 			client->connection_info.auth_type = HTTP_AUTH_TYPE_BASIC;
 		} else {
 #endif
@@ -1229,7 +1229,7 @@ bk_err_t bk_http_client_set_redirection(bk_http_client_handle_t client)
 	if (client->location == NULL) {
 		return -1;
 	}
-	BK_LOGI(TAG, "Redirect to %s \r\n", client->location);
+	BK_LOGD(TAG, "Redirect to %s \r\n", client->location);
 	return bk_http_client_set_url(client, client->location);
 }
 
@@ -1277,7 +1277,7 @@ int bk_http_client_read(bk_http_client_handle_t client, char *buffer, int len)
 		} else {
 			is_data_remain = client->response->data_process < client->response->content_length;
 		}
-		BK_LOGI(TAG, "is_data_remain=%d, is_chunked=%d, content_length=%d\r\n", is_data_remain, client->response->is_chunked, client->response->content_length);
+		BK_LOGD(TAG, "is_data_remain=%d, is_chunked=%d, content_length=%d\r\n", is_data_remain, client->response->is_chunked, client->response->content_length);
 		if (!is_data_remain) {
 			break;
 		}
@@ -1293,7 +1293,7 @@ int bk_http_client_read(bk_http_client_handle_t client, char *buffer, int len)
 		} else {
 			rlen = -1;
 		}
-		BK_LOGI(TAG, "need_read=%d, byte_to_read=%d, rlen=%d, ridx=%d\r\n", need_read, byte_to_read, rlen, ridx);
+		BK_LOGD(TAG, "need_read=%d, byte_to_read=%d, rlen=%d, ridx=%d\r\n", need_read, byte_to_read, rlen, ridx);
 
 		if (rlen <= 0) {
 			if (errno != 0) {
@@ -1303,10 +1303,10 @@ int bk_http_client_read(bk_http_client_handle_t client, char *buffer, int len)
 					/* Explicit call to parser for invoking `message_complete` callback */
 					http_parser_execute(client->parser, client->parser_settings, res_buffer->data, 0);
 				}
-				BK_LOGD(TAG, "bk_transport_read returned:%d and errno:%d \r\n", rlen, errno);
+				BK_LOGV(TAG, "bk_transport_read returned:%d and errno:%d \r\n", rlen, errno);
 			}
 			if (rlen == BK_TLS_ERR_SSL_WANT_READ || errno == EAGAIN) {
-				BK_LOGD(TAG, "Received EAGAIN! rlen = %d, errno %d\r\n", rlen, errno);
+				BK_LOGV(TAG, "Received EAGAIN! rlen = %d, errno %d\r\n", rlen, errno);
 				return ridx;
 			}
 			if (rlen < 0 && ridx == 0 && !bk_http_client_is_complete_data_received(client)) {
@@ -1387,7 +1387,7 @@ static bk_err_t _http_connect(bk_http_client_handle_t http_client)
 			return err;
 		}
 		if (post_len) {
-			BK_LOGI(TAG, "post_len:%d\r\n", post_len);
+			BK_LOGD(TAG, "post_len:%d\r\n", post_len);
 			int write_len = 0;
 			while (post_len > 0) {
 				write_len = bk_http_client_write(http_client, post_data, post_len);
@@ -1399,14 +1399,14 @@ static bk_err_t _http_connect(bk_http_client_handle_t http_client)
 				post_data += write_len;
 			}
 		}
-		BK_LOGI(TAG, "BEGIN FEATCH HEADER\r\n");
+		BK_LOGD(TAG, "BEGIN FEATCH HEADER\r\n");
 		header_ret = bk_http_client_fetch_headers(http_client);
 		if (header_ret < 0) {
 			BK_LOGE(TAG, "bk_http_client_fetch_headers fail\r\n");
 			return header_ret;
 		}
 		else {
-			BK_LOGD(TAG, "header_ret:%d\r\n", header_ret);
+			BK_LOGV(TAG, "header_ret:%d\r\n", header_ret);
 		}
 		status_code = bk_http_client_get_status_code(http_client);
 		err = _http_handle_response_code(http_client, status_code);
@@ -1414,7 +1414,7 @@ static bk_err_t _http_connect(bk_http_client_handle_t http_client)
 			return err;
 		}
 	} while (process_again(status_code));
-	BK_LOGD(TAG, "_http_connect over\r\n");
+	BK_LOGV(TAG, "_http_connect over\r\n");
 	return err;
 }
 
@@ -1467,10 +1467,10 @@ int bk_http_client_get_data(bk_http_client_handle_t client)
 
 	bk_http_buffer_t *res_buffer = client->response->buffer;
 	if(!client->response->is_chunked)
-		BK_LOGD(TAG, "data_process=%d, content_length=%d\r\n", client->response->data_process, client->response->content_length);
+		BK_LOGV(TAG, "data_process=%d, content_length=%d\r\n", client->response->data_process, client->response->content_length);
 	else
-		BK_LOGI(TAG, "is_chunked, data_process=%d\r\n", client->response->data_process);
-	BK_LOGD(TAG, "---------BEGIN GET DATA---------\r\n");
+		BK_LOGD(TAG, "is_chunked, data_process=%d\r\n", client->response->data_process);
+	BK_LOGV(TAG, "---------BEGIN GET DATA---------\r\n");
 	if (strcasecmp(client->connection_info.scheme, "http") == 0) {
 		rlen = ssl_tcp_read(client->bk_ssl, res_buffer->data, client->buffer_size_rx, client->timeout_ms);
 	} else if (strcasecmp(client->connection_info.scheme, "https") == 0) {
@@ -1499,7 +1499,7 @@ bk_err_t bk_http_client_send_post_data(bk_http_client_handle_t client)
 	if (wret < 0) {
 		return wret;
 	}
-	BK_LOGI(TAG, "bk_http_client_send_post_data, wret:%d\r\n", wret);
+	BK_LOGD(TAG, "bk_http_client_send_post_data, wret:%d\r\n", wret);
 	client->data_write_left -= wret;
 	client->data_written_index += wret;
 
@@ -1531,7 +1531,7 @@ bk_err_t bk_http_client_perform(bk_http_client_handle_t client)
 					return err;
 				}
 				else {
-					BK_LOGD(TAG, "Connection ok\r\n");
+					BK_LOGV(TAG, "Connection ok\r\n");
 				}
 
 			case HTTP_STATE_CONNECTED:
@@ -1542,7 +1542,7 @@ bk_err_t bk_http_client_perform(bk_http_client_handle_t client)
 					return err;
 				}
 				else {
-					BK_LOGD(TAG, "request send ok\r\n");
+					BK_LOGV(TAG, "request send ok\r\n");
 				}
 
 			case HTTP_STATE_REQ_COMPLETE_HEADER:
@@ -1553,7 +1553,7 @@ bk_err_t bk_http_client_perform(bk_http_client_handle_t client)
 					return err;
 				}
 				else {
-					BK_LOGD(TAG, "bk_http_client_send_post_data ok\r\n");
+					BK_LOGV(TAG, "bk_http_client_send_post_data ok\r\n");
 				}
 
 			case HTTP_STATE_REQ_COMPLETE_DATA:
@@ -1568,7 +1568,7 @@ bk_err_t bk_http_client_perform(bk_http_client_handle_t client)
 					return BK_ERR_HTTP_CONNECTION_CLOSED;;
 				}
 				else {
-					BK_LOGD(TAG, "bk_http_client_fetch_headers ok\r\n");
+					BK_LOGV(TAG, "bk_http_client_fetch_headers ok\r\n");
 				}				
 
 			case HTTP_STATE_RES_ON_DATA_START:
@@ -1578,7 +1578,7 @@ bk_err_t bk_http_client_perform(bk_http_client_handle_t client)
 					return err;
 				}
 				while (client->response->is_chunked && !client->is_chunk_complete) {
-					BK_LOGI(TAG, "begin get data, is_chunked TRUE\r\n");
+					BK_LOGD(TAG, "begin get data, is_chunked TRUE\r\n");
 					if (bk_http_client_get_data(client) <= 0) {
 						if (client->is_async && errno == EAGAIN) {
 							return BK_ERR_HTTP_EAGAIN;
@@ -1588,7 +1588,7 @@ bk_err_t bk_http_client_perform(bk_http_client_handle_t client)
 					}
 				}
 				while (client->response->data_process < client->response->content_length) {
-					BK_LOGD(TAG, "begin get data\r\n");
+					BK_LOGV(TAG, "begin get data\r\n");
 					if (bk_http_client_get_data(client) <= 0) {
 						if (client->is_async && errno == EAGAIN) {
 							return BK_ERR_HTTP_EAGAIN;
@@ -1599,11 +1599,11 @@ bk_err_t bk_http_client_perform(bk_http_client_handle_t client)
 					}
 					//bk_hex_dump(client->response->data, 10);
 				}
-				BK_LOGI(TAG, "---------RECEIVED ALL DATA OVER---------\r\n");
+				BK_LOGD(TAG, "---------RECEIVED ALL DATA OVER---------\r\n");
 				http_dispatch_event(client, HTTP_EVENT_ON_FINISH, NULL, 0);
 				client->response->buffer->raw_len = 0;
 				if (!http_should_keep_alive(client->parser)) {
-					BK_LOGI(TAG, "Close connection\r\n");
+					BK_LOGD(TAG, "Close connection\r\n");
 					bk_http_client_close(client);
 				} else {
 					if (client->state > HTTP_STATE_CONNECTED) {
@@ -1628,23 +1628,23 @@ bk_err_t https_test_event_cb(bk_http_client_event_t *evt)
 		BK_LOGE(TAG, "HTTPS_EVENT_ERROR\r\n");
 		break;
 	case HTTP_EVENT_ON_CONNECTED:
-		BK_LOGI(TAG, "HTTPS_EVENT_ON_CONNECTED\r\n");
+		BK_LOGD(TAG, "HTTPS_EVENT_ON_CONNECTED\r\n");
 		break;
 	case HTTP_EVENT_HEADER_SENT:
-		BK_LOGI(TAG, "HTTPS_EVENT_HEADER_SENT\r\n");
+		BK_LOGD(TAG, "HTTPS_EVENT_HEADER_SENT\r\n");
 		break;
 	case HTTP_EVENT_ON_HEADER:
-		BK_LOGI(TAG, "HTTPS_EVENT_ON_HEADER\r\n");
+		BK_LOGD(TAG, "HTTPS_EVENT_ON_HEADER\r\n");
 		break;
 	case HTTP_EVENT_ON_DATA:
 		//do something: evt->data, evt->data_len
-		BK_LOGD(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
+		BK_LOGV(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
 		break;
 	case HTTP_EVENT_ON_FINISH:
-		BK_LOGI(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
+		BK_LOGD(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
 		break;
 	case HTTP_EVENT_DISCONNECTED:
-		BK_LOGI(TAG, "HTTPS_EVENT_DISCONNECTED\r\n");
+		BK_LOGD(TAG, "HTTPS_EVENT_DISCONNECTED\r\n");
 		break;
 
 	}
@@ -1666,14 +1666,14 @@ int https_test_download_task(bk_http_input_t *input)
 
 	err = bk_http_client_perform(client);
 	if(err == BK_OK) {
-		BK_LOGD(TAG, "bk_http_client_perform ok\r\n");
+		BK_LOGV(TAG, "bk_http_client_perform ok\r\n");
 	}
 	else
 		BK_LOGE(TAG, "bk_http_client_perform fail, err:%x\r\n", err);
 
 	err = bk_http_client_cleanup(client);
 	if(err == BK_OK) {
-		BK_LOGD(TAG, "bk_http_client_cleanup ok\r\n");
+		BK_LOGV(TAG, "bk_http_client_cleanup ok\r\n");
 	}
 	else
 		BK_LOGE(TAG, "bk_http_client_perform fail, err:%x\r\n", err);

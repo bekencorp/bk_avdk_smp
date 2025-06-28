@@ -1401,7 +1401,7 @@ static unsigned inflateHuffmanBlock(ucvector* out, LodePNGBitReader* reader,
   unsigned char *tmp2 = NULL;
   unsigned char *sram_buffer = lodepng_malloc(1024);
   if (sram_buffer == NULL) {
-    os_printf("inflateHuffmanBlock sram buffer malloc fail\n");
+    BK_LOGD(NULL, "inflateHuffmanBlock sram buffer malloc fail\n");
     return 83;
   }
 #endif
@@ -4824,17 +4824,17 @@ static unsigned unfilter(unsigned char* out, const unsigned char* in, unsigned w
 #if LV_PNG_USE_PSRAM
   unsigned char *in_tmp = (unsigned char *)lodepng_malloc(linebytes);
   if (in_tmp == NULL) {
-    os_printf("unfilter in_tmp malloc fail\n");
+    BK_LOGD(NULL, "unfilter in_tmp malloc fail\n");
     return 83;
   }
   unsigned char *out_tmp = (unsigned char *)lodepng_malloc(linebytes);
   if (out_tmp == NULL) {
-    os_printf("unfilter out_tmp malloc fail\n");
+    BK_LOGD(NULL, "unfilter out_tmp malloc fail\n");
     return 83;
   }
   unsigned char *prevline = (unsigned char *)lodepng_malloc(linebytes);
   if (prevline == NULL) {
-    os_printf("unfilter prevline malloc fail\n");
+    BK_LOGD(NULL, "unfilter prevline malloc fail\n");
     return 83;
   }
 

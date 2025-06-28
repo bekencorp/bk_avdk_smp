@@ -55,7 +55,7 @@
 //#define FAL_CALLOC                     os_calloc
 #define FAL_REALLOC                    os_realloc
 #define FAL_FREE                       os_free
-#define FAL_PRINTF                     bk_printf
+#define FAL_PRINTF(...) BK_LOGD(NULL, ##__VA_ARGS__)
 
 #define TAG "flashdb"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)

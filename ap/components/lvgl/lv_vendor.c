@@ -77,7 +77,7 @@ void lv_vendor_init(lv_vnd_config_t *config)
     bk_err_t ret;
 
     if (lv_vendor_initialized) {
-        LOGI("%s already init\n", __func__);
+        LOGD("%s already init\n", __func__);
         return;
     }
 
@@ -108,13 +108,13 @@ void lv_vendor_init(lv_vnd_config_t *config)
 
     lv_vendor_initialized = true;
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 }
 
 void lv_vendor_deinit(void)
 {
     if (lv_vendor_initialized == false) {
-        LOGI("%s already deinit\n", __func__);
+        LOGD("%s already deinit\n", __func__);
         return;
     }
 
@@ -130,7 +130,7 @@ void lv_vendor_deinit(void)
 
     lv_vendor_initialized = false;
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 }
 
 static void lv_tast_entry(void *arg)
@@ -166,7 +166,7 @@ void lv_vendor_start(void)
     bk_err_t ret;
 
     if (lvgl_task_state == STATE_RUNNING) {
-        LOGI("%s already start\n", __func__);
+        LOGD("%s already start\n", __func__);
         return;
     }
 
@@ -186,7 +186,7 @@ void lv_vendor_start(void)
         LOGE("%s lvgl_sem get failed\n", __func__);
     }
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 }
 
 void lv_vendor_stop(void)
@@ -194,7 +194,7 @@ void lv_vendor_stop(void)
     bk_err_t ret;
 
     if (lvgl_task_state == STATE_STOP) {
-        LOGI("%s already stop\n", __func__);
+        LOGD("%s already stop\n", __func__);
         return;
     }
 
@@ -206,7 +206,7 @@ void lv_vendor_stop(void)
         return;
     }
 
-    LOGI("%s complete\n", __func__);
+    LOGD("%s complete\n", __func__);
 }
 
 int lv_vendor_display_frame_cnt(void)

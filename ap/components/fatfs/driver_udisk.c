@@ -21,7 +21,7 @@ uint8 udisk_init(void)
 {
 	uint32 ret = USB_RET_ERROR;
 
-	FATFS_LOGI("udisk_init\r\n");
+	FATFS_LOGD("udisk_init\r\n");
 
 #if CONFIG_USB_HOST
 	if (usbh_ms_media_get_status()) {
@@ -34,14 +34,14 @@ uint8 udisk_init(void)
 		while (1)
 		{
 			ret = MUSB_NoneRunBackground();
-			FATFS_LOGI("udisk_init: ret = 0x%lx\r\n", ret);
+			FATFS_LOGD("udisk_init: ret = 0x%lx\r\n", ret);
 			if (usbd_ms_media_get_status()) {
 				ret = USB_RET_OK;
 				break;
 			} else {
 				if((USB_RET_DISCONNECT == ret) || (USB_RET_ERROR == ret)) {
 					rtos_delay_milliseconds(100);
-					FATFS_LOGI("need plug in usb device\r\n");
+					FATFS_LOGD("need plug in usb device\r\n");
 					break;
 				}
 			}
@@ -55,17 +55,17 @@ int udisk_rd_blk_sync(uint32 first_block, uint32 block_num, uint8 *dest )
 {
     int ret = USB_RET_ERROR;
 
-    FATFS_LOGD("disk_rd:%d:%d\r\n", first_block, block_num);
+    FATFS_LOGV("disk_rd:%d:%d\r\n", first_block, block_num);
 #if CONFIG_USB_HOST
     if (!usbh_ms_media_get_status())
     {
-        FATFS_LOGI("disk_rd_failed\r\n");
+        FATFS_LOGD("disk_rd_failed\r\n");
         return ret;
     }
 
     ret = usbh_device_read(first_block, dest, block_num);
 #endif
-    FATFS_LOGD("%s: ret=%d\r\n", __func__, ret);
+    FATFS_LOGV("%s: ret=%d\r\n", __func__, ret);
 
     return ret;
 }
@@ -74,16 +74,16 @@ int udisk_wr_blk_sync(uint32 first_block, uint32 block_num, uint8 *dest)
 {
     int ret = USB_RET_ERROR;
 
-    FATFS_LOGD("disk_wr:%d:%d\r\n", first_block, block_num);
+    FATFS_LOGV("disk_wr:%d:%d\r\n", first_block, block_num);
 #if CONFIG_USB_HOST
     if (!usbh_ms_media_get_status())
     {
-        FATFS_LOGI("disk_wr_failed\r\n");
+        FATFS_LOGD("disk_wr_failed\r\n");
         return ret;
     }
     ret = usbh_device_write(first_block, dest, block_num);
 #endif
-    FATFS_LOGD("%s: ret=%d\r\n", __func__, ret);
+    FATFS_LOGV("%s: ret=%d\r\n", __func__, ret);
 
     return ret;
 }

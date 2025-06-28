@@ -204,7 +204,7 @@ int datetime_set(time_t      sec)
 	t.tv_sec = sec;
 	t.tv_usec = 0;
 
-	bk_printf("%s:%d\r\n", __func__, sec);
+	BK_LOGD(NULL, "%s:%d\r\n", __func__, sec);
 	return bk_rtc_settimeofday(&t,NULL);
 }
 
@@ -217,7 +217,7 @@ int datetime_set_nano(time_t      sec, uint32_t frac_val)
 	t.tv_usec = 0;
 #else
 	t.tv_usec = ((((frac_val>>10)*1000)>>10)*1000)>>12;
-	bk_printf("%s:sec=%d,frag=%u,tv_u=%d,us=%d\r\n", __func__, sec, frac_val, t.tv_usec, (uint32_t)(bk_aon_rtc_get_us()%1000000));
+	BK_LOGD(NULL, "%s:sec=%d,frag=%u,tv_u=%d,us=%d\r\n", __func__, sec, frac_val, t.tv_usec, (uint32_t)(bk_aon_rtc_get_us()%1000000));
 #endif
 	return bk_rtc_settimeofday(&t,NULL);
 }

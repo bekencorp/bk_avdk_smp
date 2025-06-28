@@ -14,7 +14,7 @@ extern "C" {
 #include <stdio.h>
 
 
-#define LITE_printf                     bk_printf
+#define LITE_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
 #define LITE_sprintf                    sprintf
 #define LITE_snprintf                   snprintf
 

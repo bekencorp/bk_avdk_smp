@@ -492,8 +492,8 @@ void sys_assert( const char *msg )
 	(void) msg;
 
 	/*FSL:only needed for debugging*/
-	os_printf(msg);
-	os_printf("\n\r");
+	BK_LOGD(NULL, msg);
+	BK_LOGD(NULL, "\n\r");
 
 	rtos_enter_critical();
 

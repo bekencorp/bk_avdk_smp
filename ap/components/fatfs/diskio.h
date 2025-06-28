@@ -20,6 +20,7 @@ extern "C" {
 #define FATFS_LOGW(...) BK_LOGW(FATFS_TAG, ##__VA_ARGS__)
 #define FATFS_LOGE(...) BK_LOGE(FATFS_TAG, ##__VA_ARGS__)
 #define FATFS_LOGD(...) BK_LOGD(FATFS_TAG, ##__VA_ARGS__)
+#define FATFS_LOGV(...) BK_LOGV(FATFS_TAG, ##__VA_ARGS__)
 
 /* Status of Disk Functions */
 typedef BYTE	DSTATUS;
