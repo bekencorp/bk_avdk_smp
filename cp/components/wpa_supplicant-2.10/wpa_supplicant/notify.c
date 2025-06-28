@@ -423,7 +423,7 @@ void wpas_notify_state_changed(struct wpa_supplicant *wpa_s,
 	}
 
 	/* FIXME: GTK rekey may failed */
-	if (new_state == WPA_DISCONNECTED && old_state >= WPA_SCANNING) {
+	if (new_state == WPA_DISCONNECTED && old_state > WPA_SCANNING) {
 #if defined(BK_SUPPLICANT) && defined(CONFIG_AUTO_RECONNECT)
 
 		/* if auto reconnect has no limit, notify each connection state */
