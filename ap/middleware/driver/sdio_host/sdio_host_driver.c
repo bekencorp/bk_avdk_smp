@@ -621,7 +621,6 @@ void bk_sdio_host_reset_sd_state(void)
  */
 void bk_sdio_clock_en(uint32_t enable)
 {
-	SDIO_PM_CHECK_RESTORE(0);
 	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SDIO, enable);
 }
 
