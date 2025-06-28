@@ -20,6 +20,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 #define MEDIA_EVT_BIT (16)
 
 #define MEDIA_EVT_RETURN(res, val) \

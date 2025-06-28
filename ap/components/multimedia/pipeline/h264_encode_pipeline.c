@@ -31,6 +31,7 @@
 #include "uvc_pipeline_act.h"
 
 #include "mux_pipeline.h"
+#include "media_utils.h"
 #include "avdk_crc.h"
 
 #define TAG "h264_pipline"
@@ -42,8 +43,8 @@
 
 #ifdef ENCODE_DIAG_DEBUG
 
-#define H264_FRAME_START()		//do { GPIO_UP(GPIO_DVP_D2); } while (0)
-#define H264_FRAME_END()		//do { GPIO_DOWN(GPIO_DVP_D2); } while (0)
+#define H264_FRAME_START()		do { GPIO_UP(GPIO_DVP_D3); } while (0)
+#define H264_FRAME_END()		do { GPIO_DOWN(GPIO_DVP_D3); } while (0)
 
 #define H264_LINE_START()		do { GPIO_UP(GPIO_DVP_D2); } while (0)
 #define H264_LINE_END()			do { GPIO_DOWN(GPIO_DVP_D2); } while (0)
@@ -160,34 +161,32 @@ bk_err_t h264_encode_task_send_msg(uint8_t type, uint32_t param)
 
 bk_err_t bk_h264_reset_request(mux_callback_t cb)
 {
-    rtos_lock_mutex(&h264_info->lock);
- 
-    h264_encode_config->reset_cb = cb;
+	rtos_lock_mutex(&h264_info->lock);
 
-    if (BK_OK != h264_encode_task_send_msg(H264_ENCODE_RESET, 0))
-    {
-        LOGI("%s send failed\n", __func__);
-        goto error;
-    }
+	h264_encode_config->reset_cb = cb;
 
-    rtos_unlock_mutex(&h264_info->lock);
+	if (BK_OK != h264_encode_task_send_msg(H264_ENCODE_RESET, 0))
+	{
+		LOGI("%s send failed\n", __func__);
+		goto error;
+	}
 
-    return BK_OK;
+	rtos_unlock_mutex(&h264_info->lock);
+
+	return BK_OK;
 
 error:
 
-    if (h264_encode_config
-        && h264_encode_config->reset_cb)
-    {
-        h264_encode_config->reset_cb = NULL;
-    }
+	if (h264_encode_config
+		&& h264_encode_config->reset_cb)
+	{
+		h264_encode_config->reset_cb = NULL;
+	}
 
-    rtos_unlock_mutex(&h264_info->lock);
+	rtos_unlock_mutex(&h264_info->lock);
 
-    LOGE("%s failed\n", __func__);
-
-    return BK_FAIL;
-
+	LOGE("%s failed\n", __func__);
+	return BK_FAIL;
 }
 
 static void h264_encode_reset_handle(void)
@@ -256,7 +255,7 @@ static void h264_encode_line_done_handler(h264_unit_t id, void *param)
 	{
 		if (h264_encode_config->decoder_buffer == NULL)
 		{
-			LOGE("%s decoder buffer is NULL\n", __func__);
+			LOGE("%s %d, decoder buffer is NULL %d\n", __func__, __LINE__, h264_encode_config->line_done_index);
 			return;
 		}
 
@@ -264,9 +263,10 @@ static void h264_encode_line_done_handler(h264_unit_t id, void *param)
 		{
 			h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
 			h264_encode_config->decoder_buffer = NULL;
+			LOGW("%s, %d\n", __func__, __LINE__);
 			return;
 		}
-        h264_encode_task_send_msg(H264_ENCODE_LINE_CONTINUE, 0);
+		h264_encode_task_send_msg(H264_ENCODE_LINE_CONTINUE, 0);
 	}
 	else
 	{
@@ -392,7 +392,7 @@ static void h264_encode_start_handle(uint32_t param)
 
 	if (h264_encode_config->decoder_buffer)
 	{
-		LOGE("%s decoder_buffer NOT NULL\n", __func__);
+		LOGE("%s %d decoder_buffer NOT NULL\n", __func__, __LINE__);
 		goto out;
 	}
 	else
@@ -517,7 +517,7 @@ static void h264_encode_pingpang_buf_done_handle()
 
 	if (h264_encode_config->decoder_buffer == NULL)
 	{
-		LOGE("%s decoder buffer is NULL\n", __func__);
+		LOGE("%s %d, coder buffer is NULL, %d\n", __func__, __LINE__, h264_encode_config->line_done_index);
 		return;
 	}
 
@@ -528,31 +528,32 @@ static void h264_encode_pingpang_buf_done_handle()
 
 static void h264_encode_pingpang_buf_continue_handle()
 {
-    H264_LINE_START();
-    if (h264_encode_config->line_done_index < h264_encode_config->line_done_cnt)
+	H264_LINE_START();
+	if (h264_encode_config->line_done_index < h264_encode_config->line_done_cnt)
 	{
 		// this is for delay 10us, when start the next h264 encode;
 		// h264 encode interval is too short maybe cause timeout
 		for (volatile int i = 0 ; i < 200 ; i ++);
-        bk_yuv_buf_rencode_start();
+		bk_yuv_buf_rencode_start();
 	}
-    h264_encode_config->line_done_index ++;
 
-    if (h264_encode_config->line_done_index == h264_encode_config->line_done_cnt)
-    {
-        return;
-    }
-    frame_buffer_t *frame_buffer = (frame_buffer_t *)h264_encode_config->decoder_buffer->data;
-    h264_encode_config->encode_offset += h264_encode_config->encode_node_length;
-    if (h264_encode_config->line_done_index % 2 == 1)
-    {
-        os_memcpy(h264_encode_config->yuv_buf + h264_encode_config->encode_node_length, frame_buffer->frame + h264_encode_config->encode_offset, h264_encode_config->encode_node_length);
-    }
-    else
-    {
-        os_memcpy(h264_encode_config->yuv_buf, frame_buffer->frame + h264_encode_config->encode_offset, h264_encode_config->encode_node_length);
-    }
+	h264_encode_config->line_done_index ++;
 
+	if (h264_encode_config->line_done_index == h264_encode_config->line_done_cnt)
+	{
+		return;
+	}
+
+	frame_buffer_t *frame_buffer = (frame_buffer_t *)h264_encode_config->decoder_buffer->data;
+	h264_encode_config->encode_offset += h264_encode_config->encode_node_length;
+	if (h264_encode_config->line_done_index % 2 == 1)
+	{
+		os_memcpy(h264_encode_config->yuv_buf + h264_encode_config->encode_node_length, frame_buffer->frame + h264_encode_config->encode_offset, h264_encode_config->encode_node_length);
+	}
+	else
+	{
+		os_memcpy(h264_encode_config->yuv_buf, frame_buffer->frame + h264_encode_config->encode_offset, h264_encode_config->encode_node_length);
+	}
 }
 
 static bool h264_encode_check_head_handle(uint8_t *data)
@@ -747,7 +748,7 @@ static void h264_encode_task_deinit(void)
 					list_del(pos);
 					if(h264_encode_config->input_buf_type)
 					{
-						//
+						LOGW("%s, %d\n", __func__, __LINE__);
 					}
 					else
 					{
@@ -826,9 +827,9 @@ static void h264_encode_main(beken_thread_arg_t data)
 					h264_encode_pingpang_buf_done_handle();
 					break;
 
-                case H264_ENCODE_LINE_CONTINUE:
-                    h264_encode_pingpang_buf_continue_handle();
-                    break;
+				case H264_ENCODE_LINE_CONTINUE:
+					h264_encode_pingpang_buf_continue_handle();
+					break;
 
 				case H264_ENCODE_FINISH:
 					h264_encode_finish_handle();

@@ -1,14 +1,18 @@
 if (CONFIG_MEDIA)
-set(incs include pipeline camera mailbox)
+set(incs include
+		pipeline
+		camera
+		cli
+	)
 
 set(srcs
-	app/media_app.c
-	comm/frame_buffer.c
-	camera/camera_act.c
-	camera/net_camera.c
-	cli/media_cli.c
-	app/camera_handle_list.c
-)
+		app/media_app.c
+		comm/frame_buffer.c
+		camera/camera_act.c
+		camera/net_camera.c
+		cli/media_cli.c
+		app/camera_handle_list.c
+	)
 
 if (CONFIG_DVP_CAMERA)
 	list(APPEND srcs
@@ -30,20 +34,10 @@ endif()#CONFIG_WIFI_TRANSFER
 
 
 if (CONFIG_IMAGE_STORAGE)
-
-if (CONFIG_MEDIA_APP)
 	list(APPEND srcs
 		storage/storage_comm.c
-		storage/storage_app_act.c
+		storage/storage_act.c
 	)
-endif()
-
-if (CONFIG_MEDIA_MAJOR)
-	list(APPEND srcs
-		storage/storage_major_act.c
-	)
-endif()
-
 endif()#CONFIG_IMAGE_STORAGE
 
 if (CONFIG_LCD)
@@ -103,5 +97,4 @@ endif()
 
 list(APPEND srcs core/media_mem_share.c)
 
-
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_cli lvgl  unity media_utils bk_draw_blend display_service bk_dvp bk_uvc avdk_utils)
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_cli lvgl unity media_utils bk_draw_blend display_service bk_dvp bk_uvc avdk_utils)

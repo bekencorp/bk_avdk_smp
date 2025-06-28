@@ -35,6 +35,7 @@
 #include "uvc_pipeline_act.h"
 #include "lcd_display_service.h"
 #include "bk_draw_blend.h"
+#include "media_utils.h"
 
 #if CONFIG_CACHE_ENABLE
 #include "cache.h"
@@ -473,7 +474,7 @@ frame_buffer_t *decoder_frame_handler(frame_buffer_t *frame)
         return dec_frame;
     }
 
-    before = media_get_current_timer();
+    before = get_current_timestamp();
 
     img_info.decoder_frame = img_info.fb_malloc(frame->width * frame->height * 2);
 
@@ -579,7 +580,7 @@ out:
     }
 
     rtos_unlock_mutex(&img_info.dec_lock);
-    after = media_get_current_timer();
+    after = get_current_timestamp();
     LOGD("decoder time: %lu\n", (after - before) / 26000);
 
     return dec_frame;
@@ -607,7 +608,7 @@ frame_buffer_t *scale_frame_handler(frame_buffer_t *frame, media_ppi_t ppi)
     }
 
     IMG_RESIZE_START();
-    before = media_get_current_timer();
+    before = get_current_timestamp();
 
     uint32_t scale_length = (img_info.scale_ppi >> 16) * (img_info.scale_ppi & 0xFFFF) * 2;
     if (img_info.scale_frame == NULL)
@@ -635,7 +636,7 @@ frame_buffer_t *scale_frame_handler(frame_buffer_t *frame, media_ppi_t ppi)
         img_info.fb_free(img_info.scale_frame);
         goto out;
     }
-    after = media_get_current_timer();
+    after = get_current_timestamp();
     LOGD("rotate time: %lu\n", (after - before) / 26000);
 
     IMG_RESIZE_END();
@@ -681,7 +682,7 @@ frame_buffer_t *rotate_frame_handler(frame_buffer_t *frame, media_rotate_t rotat
         rtos_unlock_mutex(&img_info.rot_lock);
         return frame;
     }
-    before = media_get_current_timer();
+    before = get_current_timestamp();
 
     if (img_info.rotate_frame == NULL)
     {
@@ -723,7 +724,7 @@ frame_buffer_t *rotate_frame_handler(frame_buffer_t *frame, media_rotate_t rotat
         goto out;
     }
 
-    after = media_get_current_timer();
+    after = get_current_timestamp();
     LOGD("rotate time: %lu\n", (after - before) / 26000);
 
     IMG_ROTATE_END();
@@ -872,137 +873,3 @@ bk_err_t img_service_close(void)
 out:
     return ret;
 }
-
-//
-//void img_event_handle(media_mailbox_msg_t *msg)
-//{
-//    bk_err_t ret = BK_OK;
-//
-//    switch (msg->event)
-//    {
-//        case EVENT_IMG_OPEN_IND:
-//            LOGD("%s EVENT_IMG_OPEN_IND \n", __func__);
-//            ret = img_service_open();
-//            break;
-//        case EVENT_IMG_CLOSE_IND:
-//            LOGD(" %s EVENT_IMG_CLOSE_IND \n", __func__);
-//            ret = img_service_close();
-//            break;
-//        case EVENT_IMG_ROTATE_IND:
-//        {
-//            LOGD("%s EVENT_IMG_ROTATE_IND\n", __func__);
-//            ret = image_rotate_set(msg);
-//        }
-//        break;
-//        case EVENT_LCD_GET_DEVICES_NUM_IND:
-//        {
-//            uint32_t device_num = get_lcd_devices_num();
-//            msg->param = device_num;
-//            break;
-//        }
-//        case EVENT_LCD_GET_DEVICES_LIST_IND:
-//        {
-//            const lcd_device_t **device_addr = get_lcd_devices_list();
-//            LOGI("%s, lcd device addr = %p\n", __func__, device_addr);
-//            msg->param = (uint32_t)(device_addr);
-//            break;
-//        }
-//        case EVENT_LCD_GET_DEVICES_IND:
-//        {
-//            const lcd_device_t *device = get_lcd_device_by_id(msg->param);
-//            if (device == NULL)
-//            {
-//                LOGE("%s, lcd device not exist id:%d\n", __func__, msg->param);
-//                ret = BK_ERR_NOT_SUPPORT;
-//            }
-//            msg->param = (uint32_t)(device);
-//            break;
-//        }
-//        case EVENT_IMG_SCALE_IND:
-//            LOGI(" %s, EVENT_LCD_SCALE_IND \n", __func__);
-//            img_info.scale_en = true;
-//            break;
-//
-//        case EVENT_LCD_GET_STATUS_IND:
-//        {
-//            bool lcd_status = false;
-//            lcd_status = check_lcd_task_is_open();
-//            msg->param = (uint32_t)(lcd_status);
-//            break;
-//        }
-//
-//        case EVENT_LCD_DISP_OPEN_IND:
-//            ret = lcd_display_open((lcd_open_t *)msg->param);
-//        break;
-//
-//        case EVENT_IMG_BLEND_OPEN_IND:
-//            ret = bk_draw_blend_init();
-//            break;
-//
-//        case EVENT_IMG_BLEND_IND:
-//        {
-//            blend_info_t *blend = (blend_info_t *)msg->param;
-//            ret = bk_draw_blend_update(blend);
-//        }
-//        break;
-//        case EVENT_IMG_BLEND_CLOSE_IND:
-//            ret = bk_draw_blend_deinit();
-//            break;
-//
-//        case EVENT_PIPELINE_LCD_DISP_CLOSE_IND:
-//            ret = lcd_display_close();
-//            break;
-//
-//#if (CONFIG_MEDIA_PIPELINE)
-//        case EVENT_PIPELINE_LCD_JDEC_OPEN_IND:
-//            ret = lcd_jdec_pipeline_open(msg);
-//            break;
-//
-//        case EVENT_PIPELINE_LCD_JDEC_CLOSE_IND:
-//            ret = lcd_jdec_pipeline_close(msg);
-//            break;
-//
-//        case EVENT_PIPELINE_SET_ROTATE_IND:
-//            ret = pipeline_set_rotate(msg);
-//            break;
-//
-//        case EVENT_PIPELINE_H264_OPEN_IND:
-//            ret = h264_jdec_pipeline_open(msg);
-//            break;
-//
-//        case EVENT_PIPELINE_H264_CLOSE_IND:
-//            ret = h264_jdec_pipeline_close(msg);
-//            break;
-//
-//        case EVENT_PIPELINE_H264_RESET_IND:
-//            ret = h264_encode_regenerate_idr_frame();
-//            break;
-//
-//        case EVENT_LCD_SET_FMT_IND:
-//            ret = lcd_set_fmt(msg);
-//            break;
-//
-//        case EVENT_PIPELINE_DUMP_IND:
-//            decoder_mux_dump();
-//            BK_ASSERT_EX(0, "dump for debug\n");
-//            ret = 0;
-//            break;
-//
-//        case EVENT_PIPELINE_MEM_SHOW_IND:
-//            pipeline_mem_show();
-//            break;
-//
-//        case EVENT_PIPELINE_MEM_LEAK_IND:
-//            pipeline_mem_leak();
-//            break;
-//#endif
-//        default:
-//            break;
-//    }
-//
-//     LOGI("%s %x\n", __func__, ret);
-//    // msg_send_rsp_touvc_pipeline_init_media_major_mailbox(msg, ret, APP_MODULE);
-//}
-
-
-

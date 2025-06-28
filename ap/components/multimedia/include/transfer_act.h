@@ -21,8 +21,6 @@
 extern "C" {
 #endif
 
-typedef void (*frame_cb_t)(frame_buffer_t *frame);
-
 bk_err_t transfer_app_task_init(frame_cb_t cb, uint16_t image_format);
 bk_err_t transfer_app_task_deinit(void);
 

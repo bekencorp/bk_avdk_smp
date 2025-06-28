@@ -20,6 +20,7 @@
 #include "media_app.h"
 #include "camera_act.h"
 #include "transfer_act.h"
+#include "storage_act.h"
 #include "img_service.h"
 #include "camera_handle_list.h"
 #include "driver/lcd.h"
@@ -36,8 +37,14 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-static media_modules_state_t *media_modules_state = NULL;
+typedef struct
+{
+    uint8_t trs_state : 1;
+    uint8_t stor_state : 1;
+    LIST_HEADER_T cam_list;
+} media_modules_state_t;
 
+static media_modules_state_t *media_modules_state = NULL;
 
 uint32_t media_app_get_lcd_status(void)
 {
@@ -291,6 +298,122 @@ bk_err_t media_app_unregister_read_frame_callback(void)
     return ret;
 }
 
+bk_err_t media_app_storage_open(frame_cb_t cb)
+{
+    bk_err_t ret = BK_FAIL;
+
+    media_modules_state_t *media_state = media_modules_state;
+
+    if (media_state->stor_state)
+    {
+        LOGI("%s, %d already open\n", __func__, __LINE__);
+        ret = BK_OK;
+        return ret;
+    }
+
+#ifdef CONFIG_IMAGE_STORAGE
+    ret = storage_app_task_init(cb);
+    if (ret == BK_OK)
+    {
+        media_state->stor_state = true;
+    }
+#endif
+
+    return ret;
+}
+
+bk_err_t media_app_storage_close(void)
+{
+    bk_err_t ret = BK_OK;
+
+    media_modules_state_t *media_state = media_modules_state;
+
+    if (media_state->stor_state == false)
+    {
+        LOGI("%s, %d already close\n", __func__, __LINE__);
+        return ret;
+    }
+
+#ifdef CONFIG_IMAGE_STORAGE
+    ret = storage_app_task_deinit();
+    if (ret == BK_OK)
+    {
+        media_state->stor_state = false;
+    }
+#endif
+
+    return ret;
+}
+
+bk_err_t media_app_capture(image_format_t format, char *name)
+{
+    bk_err_t ret = BK_FAIL;
+
+#ifdef CONFIG_IMAGE_STORAGE
+
+    media_modules_state_t *media_state = media_modules_state;
+
+    if (media_state->stor_state == false)
+    {
+        ret = media_app_storage_open(NULL);
+        if (ret != BK_OK)
+        {
+            return ret;
+        }
+    }
+
+    media_state->stor_state = true;
+
+    ret = storage_app_task_capture(format, name);
+#endif
+
+    return ret;
+}
+
+bk_err_t media_app_save_start(image_format_t format, char *name)
+{
+    bk_err_t ret = BK_FAIL;
+
+#ifdef CONFIG_IMAGE_STORAGE
+
+    media_modules_state_t *media_state = media_modules_state;
+
+    if (media_state->stor_state == false)
+    {
+        ret = media_app_storage_open(NULL);
+        if (ret != BK_OK)
+        {
+            return ret;
+        }
+    }
+
+    media_state->stor_state = true;
+
+    ret = storage_app_task_save_start(format, name);
+#endif
+
+    return ret;
+}
+
+bk_err_t media_app_save_stop(void)
+{
+    bk_err_t ret = BK_OK;
+
+#ifdef CONFIG_IMAGE_STORAGE
+
+    media_modules_state_t *media_state = media_modules_state;
+
+    if (media_state->stor_state == false)
+    {
+        return ret;
+    }
+
+    ret = storage_app_task_save_stop();
+#endif
+
+    return ret;
+}
+
 bk_err_t media_app_init(void)
 {
     bk_err_t ret = BK_OK;
@@ -301,18 +424,15 @@ bk_err_t media_app_init(void)
         if (media_modules_state == NULL)
         {
             LOGE("%s, media_modules_state malloc failed!\n", __func__);
-            return BK_ERR_NO_MEM;
+            return BK_FAIL;
         }
     }
 
-    media_modules_state->aud_state = AUDIO_STATE_DISABLED;
+    os_memset(media_modules_state, 0, sizeof(media_modules_state_t));
     INIT_LIST_HEAD(&media_modules_state->cam_list);
-    media_modules_state->lcd_state = LCD_STATE_DISABLED;
-    media_modules_state->stor_state = STORAGE_STATE_DISABLED;
-    media_modules_state->trs_state = TRS_STATE_DISABLED;
     ret = bk_camera_handle_list_init((void *)&media_modules_state->cam_list);
 
-    if (ret != kNoErr)
+    if (ret != BK_OK)
     {
         goto error;
     }

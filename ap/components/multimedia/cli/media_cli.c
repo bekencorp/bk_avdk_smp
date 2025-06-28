@@ -17,24 +17,12 @@
 #include "cli.h"
 #include "media_cli.h"
 
-#include "media_cli_comm.h"
 #include "media_app.h"
 #include "camera_handle_list.h"
-#include <driver/dvp_camera.h>
-#include <driver/jpeg_enc.h>
 #include "img_service.h"
-#include "storage_act.h"
-//#include <driver/audio_ring_buff.h>
-#include <driver/uvc_camera.h>
-#include <driver/h264_types.h>
-#include "media_evt.h"
-#include "bk_draw_blend.h"
 #include "uvc_pipeline_act.h"
-#include "camera_act.h"
 #include "lcd_display_service.h"
-
 #include "media_utils.h"
-#include "media_app.h"
 
 #define TAG "mcli"
 
@@ -140,6 +128,12 @@ bool cmd_contain(int argc, char **argv, char *string)
 	}
 
 	return ret;
+}
+
+static void media_cli_frame_buffer_out(frame_buffer_t *frame)
+{
+    if (frame->sequence % 20 == 0)
+        LOGI("%s, sequence:%d, length:%d\n", __func__, frame->sequence, frame->length);
 }
 
 int open_camera_display(int camera_port, image_format_t fmt)  // uvc 1/ uvc 2/ dvp 3
@@ -394,6 +388,14 @@ void media_cli_camera_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             LOGE("%s, %d, not found this cmd!\n", __func__, __LINE__);
         }
     }
+    else if (os_strcmp(argv[1], "read_start") == 0)
+    {
+        ret = media_app_register_read_frame_callback(device.format, media_cli_frame_buffer_out);
+    }
+    else if (os_strcmp(argv[1], "read_stop") == 0)
+    {
+        ret = media_app_unregister_read_frame_callback();
+    }
     else
     {
         LOGE("%s, %d, not found this cmd!\n", __func__, __LINE__);
@@ -418,6 +420,7 @@ void media_cli_lcd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
     if (os_strcmp(argv[1], "open") == 0)
     {
+        //lcd_set_fmt(PIXEL_FMT_RGB888);
         media_app_set_rotate(rotate);
         if (os_strcmp(argv[2], "fb") == 0)
         {
@@ -432,8 +435,8 @@ void media_cli_lcd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
     }
     else if (os_strcmp(argv[1], "close") == 0)
     {
-        img_service_close();
         lcd_jdec_pipeline_close();
+        img_service_close();
         ret = media_app_lcd_disp_close();
     }
     else
@@ -447,13 +450,89 @@ void media_cli_lcd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
     }
 }
 
+void media_cli_storage_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    bk_err_t ret = BK_FAIL;
+    uint8_t callback_register = 0;
+    image_format_t img_format = IMAGE_MJPEG;
+
+    if (CMD_CONTAIN("cb"))
+    {
+        callback_register = 1;
+    }
+
+    if (CMD_CONTAIN("h264"))
+    {
+        img_format = IMAGE_H264;
+    }
+
+    if (CMD_CONTAIN("h265"))
+    {
+        img_format = IMAGE_H265;
+    }
+
+    if (os_strcmp(argv[1], "open") == 0)
+    {
+        if (callback_register)
+        {
+            ret = media_app_storage_open(media_cli_frame_buffer_out);
+        }
+        else
+        {
+            ret = media_app_storage_open(NULL);
+        }
+    }
+    else if (os_strcmp(argv[1], "close") == 0)
+    {
+        ret = media_app_storage_close();
+        callback_register = 0;
+    }
+    else if (os_strcmp(argv[1], "capture") == 0)
+    {
+        if (argc < 2)
+        {
+            ret = media_app_capture(img_format, "unknow.jpg");
+        }
+        else
+        {
+            ret = media_app_capture(img_format, argv[2]);
+        }
+    }
+    else if (os_strcmp(argv[1], "stream_open") == 0)
+    {
+        if (argc < 2)
+        {
+            ret = media_app_save_start(img_format, "unknow.h264");
+        }
+        else
+        {
+            ret = media_app_save_start(img_format, argv[2]);
+        }
+    }
+    else if (os_strcmp(argv[1], "stream_close") == 0)
+    {
+        ret = media_app_save_stop();
+    }
+    else
+    {
+        LOGE("%s, %d, not found this cmd!\n", __func__, __LINE__);
+    }
+
+    if (ret != BK_OK)
+    {
+        LOGE("%s, cmd process error\n", __func__);
+    }
+}
+
+
 #define MEDIA_CMD_CNT   (sizeof(s_media_commands) / sizeof(struct cli_command))
 
 static const struct cli_command s_media_commands[] =
 {
     {"camera_display", "switch 0/1/2 mjpeg/h264", media_cli_display_test_cmd},
-    {"media", "dvp/uvc open/close ppi port mjpeg/h264", media_cli_camera_test_cmd},
+    {"media", "dvp/uvc/read open/close ppi port mjpeg/h264", media_cli_camera_test_cmd},
     {"lcd", "open/close fb/line name rotate degree", media_cli_lcd_test_cmd},
+    {"storage", "open/close/capture/stream_open/stream_close", media_cli_storage_test_cmd},
 };
 
 int media_cli_init(void)

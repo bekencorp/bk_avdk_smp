@@ -12,11 +12,17 @@
 
 #include <os/os.h>
 #include <os/mem.h>
+#include <stdio.h>
 #include <components/log.h>
-#include <components/video_types.h>
-#include "media_app.h"
 #include "transfer_act.h"
-#include <driver/aon_rtc.h>
+#include "media_utils.h"
+
+#define TAG "trs_app"
+
+#define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 typedef struct
 {
@@ -28,36 +34,13 @@ typedef struct
     beken_thread_t thread;
 } transfer_info_t;
 
-#define TAG "trs_app"
-
-#define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
-#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
-#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-
 extern media_debug_t *media_debug;
 transfer_info_t *s_transfer_info = NULL;
-
-static uint32_t transfer_app_get_current_timer(void)
-{
-	uint64_t timer = 0;
-
-#ifdef CONFIG_ARCH_RISCV
-	timer = (riscv_get_mtimer() / 26) & 0xFFFFFFFF;// tick
-#else // CONFIG_ARCH_RISCV
-
-#ifdef CONFIG_AON_RTC
-	timer = bk_aon_rtc_get_us() & 0xFFFFFFFF;
-#endif
-
-#endif // CONFIG_ARCH_RISCV
-
-	return (uint32_t)timer;
-}
 
 static void transfer_app_task_entry(beken_thread_arg_t data)
 {
     uint32_t before = 0, after = 0;
+    uint8_t log_enable = 0;
     transfer_info_t *transfer_info = (transfer_info_t *)data;
     frame_list_node_t *stream = NULL;
     transfer_info->enable = true;
@@ -77,9 +60,16 @@ static void transfer_app_task_entry(beken_thread_arg_t data)
 
         if (stream == NULL)
         {
-            LOGW("%s, %d\n", __func__, transfer_info->img_format);
-            rtos_delay_milliseconds(500);
-            continue;
+            if (transfer_info->stream != stream)
+            {
+                frame_buffer_fb_deregister(transfer_info->stream, MODULE_WIFI);
+                transfer_info->stream = NULL;
+            }
+
+            if (transfer_info->enable)
+            {
+                rtos_delay_milliseconds(500);
+            }
         }
         else
         {
@@ -89,29 +79,39 @@ static void transfer_app_task_entry(beken_thread_arg_t data)
                 transfer_info->stream = stream;
                 frame_buffer_fb_register(transfer_info->stream, MODULE_WIFI);
             }
-            else
-            {
-                if (transfer_info->stream != stream)
-                {
-                    frame_buffer_fb_deregister(transfer_info->stream, MODULE_WIFI);
-                    transfer_info->stream = NULL;
-                }
-            }
         }
 
         if (transfer_info->stream == NULL)
         {
+            if (log_enable >= 10)
+            {
+                LOGW("%s, can not find fmt:%d stream!\n", __func__, transfer_info->img_format);
+                log_enable = 0;
+            }
+            else
+            {
+                log_enable++;
+            }
             continue;
         }
 
-        frame = frame_buffer_fb_read(transfer_info->stream, MODULE_WIFI, 200);
+        frame = frame_buffer_fb_read(transfer_info->stream, MODULE_WIFI, 100);
         if (frame == NULL)
         {
-            LOGE("read frame NULL %p, %d\n", transfer_info->stream, transfer_info->stream->invalid);
+            if (log_enable >= 10)
+            {
+                LOGE("read frame NULL timeout %p, %d\n", transfer_info->stream, transfer_info->stream->invalid);
+                log_enable = 0;
+            }
+            else
+            {
+                log_enable++;
+            }
             continue;
         }
 
-        before = transfer_app_get_current_timer();
+        log_enable = 0;
+        before = get_current_timestamp();
         media_debug->begin_trs = true;
         media_debug->end_trs = false;
 
@@ -123,7 +123,7 @@ static void transfer_app_task_entry(beken_thread_arg_t data)
         media_debug->end_trs = true;
         media_debug->begin_trs = false;
 
-        after = transfer_app_get_current_timer();
+        after = get_current_timestamp();
 
         media_debug->meantimes += (after - before);
         media_debug->fps_wifi++;
@@ -135,6 +135,10 @@ static void transfer_app_task_entry(beken_thread_arg_t data)
     LOGI("transfer_app_task exit\n");
     transfer_info->enable = false;
     transfer_info->thread = NULL;
+    if (transfer_info->stream)
+    {
+        frame_buffer_fb_deregister(transfer_info->stream, MODULE_WIFI);
+    }
     rtos_set_semaphore(&transfer_info->sem);
     rtos_delete_thread(NULL);
 }
@@ -172,7 +176,7 @@ bk_err_t transfer_app_task_init(frame_cb_t cb, uint16_t image_format)
 
     ret = rtos_create_thread(&s_transfer_info->thread,
                                 BEKEN_DEFAULT_WORKER_PRIORITY,
-                                "transfer_app_task",
+                                "trs_app_task",
                                 (beken_thread_function_t)transfer_app_task_entry,
                                 CONFIG_TRANS_APP_TASK_SIZE,
                                 (beken_thread_arg_t)s_transfer_info);
@@ -211,32 +215,17 @@ bk_err_t transfer_app_task_deinit(void)
 
     transfer_info_t *transfer_info = s_transfer_info;
 
-    if (transfer_info == NULL || transfer_info->enable == false)
+    if (transfer_info == NULL)
     {
         LOGW("%s, already close\n", __func__);
         return ret;
     }
 
     transfer_info->enable = false;
-
     rtos_get_semaphore(&transfer_info->sem, BEKEN_NEVER_TIMEOUT);
-
-    if (transfer_info->stream)
-    {
-        frame_buffer_fb_deregister(transfer_info->stream, MODULE_WIFI);
-    }
-
-    if (transfer_info)
-    {
-        if (transfer_info->sem)
-        {
-            rtos_deinit_semaphore(&transfer_info->sem);
-        }
-
-        os_free(transfer_info);
-        s_transfer_info = NULL;
-    }
-
+    rtos_deinit_semaphore(&transfer_info->sem);
+    os_free(transfer_info);
+    s_transfer_info = NULL;
     return ret;
 }
 

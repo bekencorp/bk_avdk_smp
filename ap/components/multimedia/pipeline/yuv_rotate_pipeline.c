@@ -44,7 +44,6 @@
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
 #endif
-#include "dwt.h"
 
 #define TAG "rot_pipline"
 
@@ -321,14 +320,15 @@ static void dma2d_transfer_complete(void)
 			}
 		}
 	}
-    rotate_pipeline_exit_critical(flag);
+	rotate_pipeline_exit_critical(flag);
 
-    if ((rotate_config->rot_mode == SW_ROTATE) && (rotate_config->rot_angle == ROTATE_NONE))
-    {
+	if ((rotate_config->rot_mode == SW_ROTATE) && (rotate_config->rot_angle == ROTATE_NONE))
+	{
+		rotate_config->decoder_buffer->line = __LINE__;
 		rotate_config->decoder_free_cb(rotate_config->decoder_buffer);
 		rotate_config->decoder_buffer = NULL;
-        rotate_config->state = ROTATE_STATE_IDLE;
-    }
+		rotate_config->state = ROTATE_STATE_IDLE;
+	}
 
 	rotate_config->dma2d_copy = false;
 }
@@ -373,16 +373,17 @@ static void rotate_finish_handler(uint32_t param)
 	}
 
 	rotate_copy_request_t *rotate_copy_request = (rotate_copy_request_t*)os_malloc(sizeof(rotate_copy_request_t));
-    if(rotate_copy_request == NULL)
-    {
-        BK_ASSERT_EX(0, "%s, malloc rotate_copy_request fail NULL\n", __func__);
-    }
+	if(rotate_copy_request == NULL)
+	{
+		BK_ASSERT_EX(0, "%s, malloc rotate_copy_request fail NULL\n", __func__);
+	}
 	rotate_copy_request->rotate_buf = rotate_buf;
 
 #if (PIPELINE_ROTATE_CONTINUE == 0)
 	if (rotate_buf->index < (rotate_config->jpeg_height / PIPELINE_DECODE_LINE))
 #endif
 	{
+		rotate_config->decoder_buffer->line = __LINE__;
 		rotate_config->decoder_free_cb(rotate_config->decoder_buffer);
 		rotate_config->decoder_buffer = NULL;
 	}
@@ -477,82 +478,83 @@ static bk_err_t rotate_memcopy_handler(uint32_t param)
 		dma2d_memcpy_pfc.output_color_mode = DMA2D_OUTPUT_YUYV;
 		dma2d_memcpy_pfc.dst_pixel_byte = TWO_BYTES;
 	}
-    else  //RGB565
-    {
-        dma2d_memcpy_pfc.mode = DMA2D_M2M;
-        dma2d_memcpy_pfc.input_color_mode = DMA2D_INPUT_RGB565;
-        dma2d_memcpy_pfc.src_pixel_byte = TWO_BYTES;
-        dma2d_memcpy_pfc.output_color_mode = DMA2D_OUTPUT_RGB565;
-        dma2d_memcpy_pfc.dst_pixel_byte = TWO_BYTES;
-    }
+	else  //RGB565
+	{
+		dma2d_memcpy_pfc.mode = DMA2D_M2M;
+		dma2d_memcpy_pfc.input_color_mode = DMA2D_INPUT_RGB565;
+		dma2d_memcpy_pfc.src_pixel_byte = TWO_BYTES;
+		dma2d_memcpy_pfc.output_color_mode = DMA2D_OUTPUT_RGB565;
+		dma2d_memcpy_pfc.dst_pixel_byte = TWO_BYTES;
+	}
 
 	dma2d_memcpy_pfc.src_frame_xpos = 0;
-    dma2d_memcpy_pfc.src_frame_ypos = 0;
-    if (rotate_config->rot_angle == ROTATE_90)
-    {
-    	dma2d_memcpy_pfc.dma2d_width = PIPELINE_DECODE_LINE;                     //rotate_config->dma2d_width;
-    	dma2d_memcpy_pfc.dma2d_height = rotate_config->jpeg_width  ; // 800
-    	dma2d_memcpy_pfc.src_frame_width = PIPELINE_DECODE_LINE;
-    	dma2d_memcpy_pfc.src_frame_height = rotate_config->jpeg_width;
-    	dma2d_memcpy_pfc.dst_frame_width = rotate_config->jpeg_height; //480
-    	dma2d_memcpy_pfc.dst_frame_height = rotate_config->jpeg_width; //800
-	    dma2d_memcpy_pfc.dst_frame_xpos = rotate_config->jpeg_height - (PIPELINE_DECODE_LINE * (rotate_config->dma2d_isr_cnt));
-        dma2d_memcpy_pfc.dst_frame_ypos = 0;
-    }
-    else if (rotate_config->rot_angle == ROTATE_270)
-    {
-        dma2d_memcpy_pfc.dma2d_width = PIPELINE_DECODE_LINE;                     //rotate_config->dma2d_width;
-    	dma2d_memcpy_pfc.dma2d_height = rotate_config->jpeg_width  ; // 800
-    	dma2d_memcpy_pfc.src_frame_width = PIPELINE_DECODE_LINE;
-    	dma2d_memcpy_pfc.src_frame_height = rotate_config->jpeg_width;
-    	dma2d_memcpy_pfc.dst_frame_width = rotate_config->jpeg_height; //480
-    	dma2d_memcpy_pfc.dst_frame_height = rotate_config->jpeg_width; //800
-        dma2d_memcpy_pfc.dst_frame_xpos = PIPELINE_DECODE_LINE * (rotate_config->dma2d_isr_cnt - 1);
-    	dma2d_memcpy_pfc.dst_frame_ypos = 0;
-    }
-    else if (rotate_config->rot_angle == ROTATE_NONE)
-    {
-        dma2d_memcpy_pfc.dma2d_width = rotate_config->jpeg_width;
-    	dma2d_memcpy_pfc.dma2d_height = PIPELINE_DECODE_LINE;
-    	dma2d_memcpy_pfc.src_frame_width = rotate_config->jpeg_width;
-    	dma2d_memcpy_pfc.src_frame_height = PIPELINE_DECODE_LINE;
-    	dma2d_memcpy_pfc.dst_frame_width = rotate_config->jpeg_width;
-    	dma2d_memcpy_pfc.dst_frame_height =  rotate_config->jpeg_height;
-        dma2d_memcpy_pfc.dst_frame_xpos = 0;
-    	dma2d_memcpy_pfc.dst_frame_ypos = PIPELINE_DECODE_LINE * (rotate_config->dma2d_isr_cnt - 1);
-    }
-    else //180
-    {
-        dma2d_memcpy_pfc.dma2d_width = rotate_config->jpeg_width;
-    	dma2d_memcpy_pfc.dma2d_height = PIPELINE_DECODE_LINE;
-    	dma2d_memcpy_pfc.src_frame_width = rotate_config->jpeg_width;
-    	dma2d_memcpy_pfc.src_frame_height = PIPELINE_DECODE_LINE;
-    	dma2d_memcpy_pfc.dst_frame_width = rotate_config->jpeg_width;
-    	dma2d_memcpy_pfc.dst_frame_height = rotate_config->jpeg_height;
-        dma2d_memcpy_pfc.dst_frame_xpos = 0;
-    	dma2d_memcpy_pfc.dst_frame_ypos = (rotate_config->jpeg_height - (rotate_config->dma2d_isr_cnt* PIPELINE_DECODE_LINE));
-    }
+	dma2d_memcpy_pfc.src_frame_ypos = 0;
+	if (rotate_config->rot_angle == ROTATE_90)
+	{
+		dma2d_memcpy_pfc.dma2d_width = PIPELINE_DECODE_LINE;                     //rotate_config->dma2d_width;
+		dma2d_memcpy_pfc.dma2d_height = rotate_config->jpeg_width  ; // 800
+		dma2d_memcpy_pfc.src_frame_width = PIPELINE_DECODE_LINE;
+		dma2d_memcpy_pfc.src_frame_height = rotate_config->jpeg_width;
+		dma2d_memcpy_pfc.dst_frame_width = rotate_config->jpeg_height; //480
+		dma2d_memcpy_pfc.dst_frame_height = rotate_config->jpeg_width; //800
+		dma2d_memcpy_pfc.dst_frame_xpos = rotate_config->jpeg_height - (PIPELINE_DECODE_LINE * (rotate_config->dma2d_isr_cnt));
+		dma2d_memcpy_pfc.dst_frame_ypos = 0;
+	}
+	else if (rotate_config->rot_angle == ROTATE_270)
+	{
+		dma2d_memcpy_pfc.dma2d_width = PIPELINE_DECODE_LINE;                     //rotate_config->dma2d_width;
+		dma2d_memcpy_pfc.dma2d_height = rotate_config->jpeg_width  ; // 800
+		dma2d_memcpy_pfc.src_frame_width = PIPELINE_DECODE_LINE;
+		dma2d_memcpy_pfc.src_frame_height = rotate_config->jpeg_width;
+		dma2d_memcpy_pfc.dst_frame_width = rotate_config->jpeg_height; //480
+		dma2d_memcpy_pfc.dst_frame_height = rotate_config->jpeg_width; //800
+		dma2d_memcpy_pfc.dst_frame_xpos = PIPELINE_DECODE_LINE * (rotate_config->dma2d_isr_cnt - 1);
+		dma2d_memcpy_pfc.dst_frame_ypos = 0;
+	}
+	else if (rotate_config->rot_angle == ROTATE_NONE)
+	{
+		dma2d_memcpy_pfc.dma2d_width = rotate_config->jpeg_width;
+		dma2d_memcpy_pfc.dma2d_height = PIPELINE_DECODE_LINE;
+		dma2d_memcpy_pfc.src_frame_width = rotate_config->jpeg_width;
+		dma2d_memcpy_pfc.src_frame_height = PIPELINE_DECODE_LINE;
+		dma2d_memcpy_pfc.dst_frame_width = rotate_config->jpeg_width;
+		dma2d_memcpy_pfc.dst_frame_height =  rotate_config->jpeg_height;
+		dma2d_memcpy_pfc.dst_frame_xpos = 0;
+		dma2d_memcpy_pfc.dst_frame_ypos = PIPELINE_DECODE_LINE * (rotate_config->dma2d_isr_cnt - 1);
+	}
+	else //180
+	{
+		dma2d_memcpy_pfc.dma2d_width = rotate_config->jpeg_width;
+		dma2d_memcpy_pfc.dma2d_height = PIPELINE_DECODE_LINE;
+		dma2d_memcpy_pfc.src_frame_width = rotate_config->jpeg_width;
+		dma2d_memcpy_pfc.src_frame_height = PIPELINE_DECODE_LINE;
+		dma2d_memcpy_pfc.dst_frame_width = rotate_config->jpeg_width;
+		dma2d_memcpy_pfc.dst_frame_height = rotate_config->jpeg_height;
+		dma2d_memcpy_pfc.dst_frame_xpos = 0;
+		dma2d_memcpy_pfc.dst_frame_ypos = (rotate_config->jpeg_height - (rotate_config->dma2d_isr_cnt* PIPELINE_DECODE_LINE));
+	}
 	bk_dma2d_memcpy_or_pixel_convert(&dma2d_memcpy_pfc);
 	bk_dma2d_start_transfer();
 
 	os_free(rotate_copy_request);
-    return ret;
+	return ret;
 
 error:
-    if ((rotate_config->rot_mode == SW_ROTATE) && (rotate_config->rot_angle == ROTATE_NONE))
-    {
+	if ((rotate_config->rot_mode == SW_ROTATE) && (rotate_config->rot_angle == ROTATE_NONE))
+	{
+		rotate_config->decoder_buffer->line = __LINE__;
 		rotate_config->decoder_free_cb(rotate_config->decoder_buffer);
 		rotate_config->decoder_buffer = NULL;
-        rotate_config->state = ROTATE_STATE_IDLE;
-    }
-    else
-    {
-        rotate_buf->state = BUF_IDLE;
-    }
+		rotate_config->state = ROTATE_STATE_IDLE;
+	}
+	else
+	{
+		rotate_buf->state = BUF_IDLE;
+	}
 
-    rotate_config->dma2d_copy = false;
-    os_free(rotate_copy_request);
-    return BK_FAIL;
+	rotate_config->dma2d_copy = false;
+	os_free(rotate_copy_request);
+	return BK_FAIL;
 }
 
 bk_err_t rotate_clear_status(void)
@@ -795,7 +797,6 @@ static bk_err_t rotate_dec_line_complete_handler(uint32_t param)
 		}
     }
 out:
-    dwt_disable_watchpoint_comparator();
 
 	os_free(rotate_notify);
 	rotate_notify = NULL;
@@ -1117,16 +1118,16 @@ void rotate_task_stop(void)
 bk_err_t rotate_task_close(void)
 {
 	LOGD("%s \n", __func__);
-    rtos_lock_mutex(&rotate_info->lock);
+	rtos_lock_mutex(&rotate_info->lock);
 
 	if (rotate_config == NULL || !rotate_config->task_running)
 	{
-        rtos_unlock_mutex(&rotate_info->lock);
+		rtos_unlock_mutex(&rotate_info->lock);
 		return BK_FAIL;
 	}
 
 	rotate_config->enable = false;
-    rtos_unlock_mutex(&rotate_info->lock);
+	rtos_unlock_mutex(&rotate_info->lock);
 
 	rotate_task_stop();
 	rtos_deinit_semaphore(&rotate_config->rot_sem);
@@ -1148,22 +1149,25 @@ bk_err_t rotate_task_close(void)
 			{
 				complex_buffer_t *decoder_buffer = (complex_buffer_t*)os_malloc(sizeof(complex_buffer_t));
 				os_memcpy(decoder_buffer, request->buffer, sizeof(complex_buffer_t));
-
+				decoder_buffer->line = __LINE__;
+				LOGI("%s, %p, %d\n", __func__, decoder_buffer->data, __LINE__);
 				rotate_config->decoder_free_cb(decoder_buffer);
 				list_del(pos);
 				os_free(request);
 			}
 		}
 	}
-    rotate_pipeline_exit_critical(flag);
+	rotate_pipeline_exit_critical(flag);
 
 	if (rotate_config->decoder_buffer)
 	{
+		rotate_config->decoder_buffer->line = __LINE__;
+		LOGI("%s, %p, %d\n", __func__, rotate_config->decoder_buffer->data, __LINE__);
 		rotate_config->decoder_free_cb(rotate_config->decoder_buffer);
 		rotate_config->decoder_buffer = NULL;
 	}
 
-    flag = rotate_pipeline_enter_critical();
+	flag = rotate_pipeline_enter_critical();
 	if (!list_empty(&rotate_config->copy_pedding_list))
 	{
 		LOGD("%s, clear copy_pedding_list\n", __func__);
@@ -1181,8 +1185,7 @@ bk_err_t rotate_task_close(void)
 			}
 		}
 	}
-    rotate_pipeline_exit_critical(flag);
-
+	rotate_pipeline_exit_critical(flag);
 
 	if (rotate_config->rotate_frame)
 	{
@@ -1206,7 +1209,7 @@ bk_err_t bk_rotate_encode_request(pipeline_encode_request_t *request, mux_callba
 {
 	pipeline_encode_request_t *rotate_request = NULL;
 
-    rtos_lock_mutex(&rotate_info->lock);
+	rtos_lock_mutex(&rotate_info->lock);
 
 	if (rotate_config == NULL || rotate_config->enable == false)
 	{
@@ -1224,7 +1227,6 @@ bk_err_t bk_rotate_encode_request(pipeline_encode_request_t *request, mux_callba
 	}
 
 	os_memcpy(rotate_request, request, sizeof(pipeline_encode_request_t));
-    dwt_set_data_address_write((uint32_t)&rotate_request->flag);
 
 	rotate_config->decoder_free_cb = cb;
 
@@ -1233,7 +1235,7 @@ bk_err_t bk_rotate_encode_request(pipeline_encode_request_t *request, mux_callba
 		LOGI("%s send failed\n", __func__);
 		goto error;
 	}
-    rtos_unlock_mutex(&rotate_info->lock);
+	rtos_unlock_mutex(&rotate_info->lock);
 
 	return BK_OK;
 
@@ -1251,7 +1253,7 @@ error:
 		rotate_request = NULL;
 	}
 
-    rtos_unlock_mutex(&rotate_info->lock);
+	rtos_unlock_mutex(&rotate_info->lock);
 	return BK_FAIL;
 }
 

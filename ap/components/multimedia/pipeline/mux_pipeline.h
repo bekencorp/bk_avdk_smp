@@ -101,7 +101,7 @@ typedef struct {
 
 	uint8_t state;
 	uint8_t ok;
-
+	uint32_t line;
 } complex_buffer_t;
 
 
@@ -120,7 +120,6 @@ typedef struct {
 	pixel_format_t fmt;
 	complex_buffer_t *buffer;
 	LIST_HEADER_T list;
-    uint32_t flag;
 } pipeline_encode_request_t;
 
 

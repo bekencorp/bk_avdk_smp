@@ -21,7 +21,6 @@
 extern "C" {
 #endif
 
-
 typedef struct
 {
 	LIST_HEADER_T list;
@@ -29,15 +28,6 @@ typedef struct
 	uint16_t id;
 	uint16_t format;
 } media_camera_node_t;
-
-typedef struct
-{
-	media_audio_state_t   aud_state;
-	LIST_HEADER_T         cam_list;
-	media_lcd_state_t     lcd_state;
-	media_storage_state_t stor_state;
-	media_trs_state_t     trs_state;
-} media_modules_state_t;
 
 bk_err_t bk_camera_handle_list_init(void *param);
 bk_err_t bk_camera_handle_list_deinit(void);
