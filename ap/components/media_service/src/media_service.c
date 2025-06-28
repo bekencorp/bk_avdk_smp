@@ -1,6 +1,5 @@
 #include <common/bk_include.h>
 #include <components/log.h>
-// #include "media_ipc.h"
 #include "bk_peripheral.h"
 #include "media_app.h"
 #include "audio_osi_wrapper.h"
