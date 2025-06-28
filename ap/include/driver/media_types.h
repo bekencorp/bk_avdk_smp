@@ -242,37 +242,6 @@ typedef enum
 	EVENT_LCD_DEC_SW_OPEN_MBRSP = 0x1f,
 } media_mailbox_event_t;
 
-typedef enum
-{
-	TRS_STATE_DISABLED,
-	TRS_STATE_ENABLED,
-} media_trs_state_t;
-
-typedef enum
-{
-	STORAGE_STATE_DISABLED,
-	STORAGE_STATE_ENABLED,
-} media_storage_state_t;
-
-typedef enum
-{
-	LCD_STATE_DISABLED,
-	LCD_STATE_ENABLED,
-	LCD_STATE_DISPLAY,
-} media_lcd_state_t;
-
-typedef enum
-{
-	CAMERA_STATE_DISABLED,
-	CAMERA_STATE_ENABLED,
-} media_camera_state_t;
-
-typedef enum
-{
-	AUDIO_STATE_DISABLED,
-	AUDIO_STATE_ENABLED,
-} media_audio_state_t;
-
 typedef enum {
 	CAMERA_MEM_IN_PSRAM = 0,
 	CAMERA_MEM_IN_SRAM,
@@ -331,6 +300,7 @@ typedef struct {
 } frame_buffer_callback_t;
 
 typedef void (*frame_cb_t)(frame_buffer_t *frame);
+
 /**
  * @brief define frame buffer
  * @{
@@ -358,7 +328,6 @@ typedef struct {
 	char * device_name; 			/**< lcd open by lcd Driver IC name */
 } lcd_open_t;
 
-
 typedef struct {
 	media_rotate_mode_t mode;
 	media_rotate_t angle;
@@ -381,6 +350,7 @@ typedef struct {
 	uint16_t pmb_bits;
 } compress_ratio_t;
 
+#if 1 // need optimize
 /**
  * @brief define bt audio config
  * @{
@@ -398,7 +368,6 @@ typedef struct
     int32_t down_ch_idx;
 } bt_audio_resample_init_req_t;
 
-
 typedef struct
 {
     uint8 *in_addr;
@@ -414,7 +383,7 @@ typedef struct
     uint8_t *in_addr;
     uint32_t *out_len_ptr;
 } bt_audio_encode_req_t;
-
+#endif
 
 /**
  * @brief define struct for debug
@@ -470,267 +439,12 @@ static inline uint16_t ppi_to_pixel_y_block(media_ppi_t ppi)
 }
 
 /**
- * @brief get camera support ppi compare with user set
- * @{
- */
-static inline media_ppi_cap_t pixel_ppi_to_cap(media_ppi_t ppi)
-{
-	media_ppi_cap_t cap = PPI_CAP_UNKNOW;
-
-	switch (ppi)
-	{
-		case PPI_170X320:
-			cap = PPI_CAP_170X320;
-			break;
-
-		case PPI_320X240:
-			cap = PPI_CAP_320X240;
-			break;
-
-		case PPI_320X480:
-			cap = PPI_CAP_320X480;
-			break;
-
-		case PPI_480X272:
-			cap = PPI_CAP_480X272;
-			break;
-
-		case PPI_480X320:
-			cap = PPI_CAP_480X320;
-			break;
-
-		case PPI_480X480:
-			cap = PPI_CAP_480X480;
-			break;
-
-		case PPI_640X480:
-			cap = PPI_CAP_640X480;
-			break;
-
-		case PPI_480X800:
-			cap = PPI_CAP_480X800;
-			break;
-
-		case PPI_800X480:
-			cap = PPI_CAP_800X480;
-			break;
-		case PPI_864X480:
-			cap = PPI_CAP_864X480;
-			break;
-
-		case PPI_800X600:
-			cap = PPI_CAP_800X600;
-			break;
-
-		case PPI_1024X600:
-			cap = PPI_CAP_1024X600;
-			break;
-
-		case PPI_1280X720:
-			cap = PPI_CAP_1280X720;
-			break;
-
-		case PPI_1600X1200:
-			cap = PPI_CAP_1600X1200;
-			break;
-
-		case PPI_DEFAULT:
-		default:
-			break;
-	}
-
-	return cap;
-}
-
-/**
  * @brief get yuv422 image size
  * @{
  */
 static inline uint32_t get_ppi_size(media_ppi_t ppi)
 {
 	return (ppi >> 16) * (ppi & 0xFFFF) * 2;
-}
-
-static inline media_ppi_t get_string_to_ppi(char *string)
-{
-	uint32_t value = PPI_DEFAULT;
-
-	if (strcmp(string, "7680X4320") == 0)
-	{
-		value = PPI_7680X4320;
-	}
-
-	if (strcmp(string, "2304X1296") == 0)
-	{
-		value = PPI_2304X1296;
-	}
-
-	if (strcmp(string, "1920X1080") == 0)
-	{
-		value = PPI_1920X1080;
-	}
-
-	if (strcmp(string, "1280X720") == 0)
-	{
-		value = PPI_1280X720;
-	}
-
-	if (strcmp(string, "720X1280") == 0)
-	{
-		value = PPI_720X1280;
-	}
-
-	if (strcmp(string, "1024X600") == 0)
-	{
-		value = PPI_1024X600;
-	}
-
-	if (strcmp(string, "640X480") == 0)
-	{
-		value = PPI_640X480;
-	}
-
-	if (strcmp(string, "480X320") == 0)
-	{
-		value = PPI_480X320;
-	}
-
-	if (strcmp(string, "480X272") == 0)
-	{
-		value = PPI_480X272;
-	}
-
-	if (strcmp(string, "320X480") == 0)
-	{
-		value = PPI_320X480;
-	}
-
-	if (strcmp(string, "320X240") == 0)
-	{
-		value = PPI_320X240;
-	}
-
-	if (strcmp(string, "480X800") == 0)
-	{
-		value = PPI_480X800;
-	}
-
-	if (strcmp(string, "800X480") == 0)
-	{
-		value = PPI_800X480;
-	}
-
-	if (strcmp(string, "480X854") == 0)
-	{
-		value = PPI_480X854;
-	}
-	if (strcmp(string, "480X864") == 0)
-	{
-		value = PPI_480X864;
-	}
-	if (strcmp(string, "800X600") == 0)
-	{
-		value = PPI_800X600;
-	}
-
-	if (strcmp(string, "864X480") == 0)
-	{
-		value = PPI_864X480;
-	}
-
-	if (strcmp(string, "854X480") == 0)
-	{
-		value = PPI_854X480;
-	}
-
-	if (strcmp(string, "480X480") == 0)
-	{
-		value = PPI_480X480;
-	}
-
-	if (strcmp(string, "400X400") == 0)
-	{
-		value = PPI_400X400;
-	}
-
-	if (strcmp(string, "412X412") == 0)
-	{
-		value = PPI_412X412;
-	}
-
-	if (strcmp(string, "170X320") == 0)
-	{
-		value = PPI_170X320;
-	}
-
-	if (strcmp(string, "960X480") == 0)
-	{
-		value = PPI_960X480;
-	}
-
-	return value;
-}
-
-/**
- * @brief init sei nalu delf define, the length equal to 96 bytes
- * @{
- */
-
-static inline void h264_encode_sei_init(uint8_t *sei)
-{
-	sei[0] = 0x00;
-	sei[1] = 0x00;
-	sei[2] = 0x00;
-	sei[3] = 0x01;
-	sei[4] = 0x06;
-	sei[5] = 0x05;
-	sei[6] = 0x59;//96 - 7 = 89 (16 bytes uuid + 73 bytes pyload)
-
-	for (int i = 0; i < 16; i++)
-	{
-		// add uuid
-		sei[7 + i] = 0xAF;
-	}
-
-	// offset = 7 + 16 = 23
-
-	sei[95] = 0x80; // rbsp trailing bits
-}
-
-static inline void *media_malloc(uint32_t size)
-{
-#if (CONFIG_PSRAM_MEDIA_MALLOC_ENABLE)
-    void *data = NULL;
-    data = psram_malloc(size);
-    if (data == NULL)
-    {
-        return os_malloc(size);
-    }
-    else
-    {
-        return data;
-    }
-#else
-    return os_malloc(size);
-#endif
-}
-
-static inline uint32_t media_get_current_timer(void)
-{
-    uint64_t timer = 0;
-
-#ifdef CONFIG_ARCH_RISCV
-    extern u64 riscv_get_mtimer(void);
-    timer = (riscv_get_mtimer() / 26) & 0xFFFFFFFF;// tick
-#else // CONFIG_ARCH_RISCV
-
-#ifdef CONFIG_AON_RTC
-    timer = bk_aon_rtc_get_us() & 0xFFFFFFFF;
-#endif
-
-#endif // CONFIG_ARCH_RISCV
-
-    return (uint32_t)timer;
 }
 
 #define DEFAULT_VIDEO_TRAS_CONFIG() {          \

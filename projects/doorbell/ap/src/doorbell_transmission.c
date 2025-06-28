@@ -12,8 +12,6 @@
 #include "lwip/sockets.h"
 #include "avdk_crc.h"
 
-#include <components/video_transfer.h>
-
 #if CONFIG_ARCH_CM33
 #include <driver/aon_rtc.h>
 #endif

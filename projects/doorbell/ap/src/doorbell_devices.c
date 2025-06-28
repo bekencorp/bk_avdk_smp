@@ -1,15 +1,8 @@
 #include <common/bk_include.h>
-#include "cli.h"
 #include <os/mem.h>
 #include <os/str.h>
 #include <os/os.h>
-#include <driver/int.h>
-#include <common/bk_err.h>
-#include <getopt.h>
 
-
-#include <components/video_transfer.h>
-#include <driver/dma.h>
 #if CONFIG_VOICE_SERVICE
 #include <components/bk_voice_service.h>
 #include <components/bk_voice_service_types.h>
@@ -19,8 +12,6 @@
 #include <components/bk_voice_write_service_types.h>
 #endif
 
-
-
 #include <driver/dvp_camera_types.h>
 #include <driver/lcd.h>
 
@@ -28,19 +19,16 @@
 #include "doorbell_transmission.h"
 #include "doorbell_cmd.h"
 #include "doorbell_devices.h"
+#include "doorbell_cs2_service.h"
 
 #include "wifi_transfer.h"
 #include "media_app.h"
 #include "camera_handle_list.h"
 #include "img_service.h"
 
-#include "driver/dvp_camera.h"
-#include "doorbell_cs2_service.h"
-
-#include "cli.h"
 #include "uvc_pipeline_act.h"
-#include "camera_act.h"
 #include "lcd_display_service.h"
+#include "media_utils.h"
 
 #define TAG "db-device"
 
@@ -488,9 +476,6 @@ int doorbell_camera_turn_off(void)
         LOGI("%s h264_pipeline close\n", __func__);
     }
 
-    lcd_jdec_pipeline_close();
-    img_service_close();
-
     do
     {
         db_device_info->video_handle = bk_camera_handle_node_pop();
@@ -628,7 +613,11 @@ int doorbell_display_turn_on(uint16_t id, uint16_t rotate, uint16_t fmt)
         img_service_open();
     }
 
-    media_app_lcd_disp_open(&lcd_open);
+    if (media_app_lcd_disp_open(&lcd_open) != BK_OK)
+    {
+        lcd_jdec_pipeline_close();
+        img_service_close();
+    }
 
     db_device_info->lcd_id = id;
     return 0;
@@ -644,7 +633,9 @@ int doorbell_display_turn_off(void)
         return EVT_STATUS_ALREADY;
     }
 
-    lcd_display_close();
+    lcd_jdec_pipeline_close();
+    img_service_close();
+    media_app_lcd_disp_close();
 
     db_device_info->lcd_id = 0;
     return 0;
