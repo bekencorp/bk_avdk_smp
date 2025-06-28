@@ -24,7 +24,9 @@
 #include "notify.h"
 #include "hs20_supplicant.h"
 #include "wpa_scan.h"
-//#include "bk_wifi_types.h"
+#if CONFIG_MINIMUM_SCAN_RESULTS
+#include "bk_wifi_types.h"
+#endif
 
 #define MAX_TFS_IE_LEN  1024
 #define WNM_MAX_NEIGHBOR_REPORT 10

@@ -2963,7 +2963,11 @@ bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
 		goto _free_and_exit;
 
 	scan_result->ap_num = 0;
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+	scan_result->aps = psram_zalloc(sizeof(wifi_scan_ap_info_t) * ap_list.ApNum);
+#else
 	scan_result->aps = os_zalloc(sizeof(wifi_scan_ap_info_t) * ap_list.ApNum);
+#endif
 	if (!scan_result->aps) {
 		ret = BK_ERR_NO_MEM;
 		WIFI_LOGW("scan get result fail, ap_num=%u oom\n", ap_list.ApNum);
