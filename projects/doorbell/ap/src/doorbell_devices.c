@@ -411,6 +411,16 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
     if (ret != BK_OK)
     {
         LOGE("%s failed\n", __func__);
+        if (db_device_info->pipeline_enable)
+        {
+            int ret_val = 0;
+            ret_val = h264_jdec_pipeline_regenerate_idr_frame();
+            if (ret_val != BK_OK)
+            {
+                LOGE("%s h264_jdec_pipeline_regenerate_idr_frame failed\n", __func__);
+                return ret_val;
+            }
+        }
         return ret;
     }
 

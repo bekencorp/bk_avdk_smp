@@ -834,7 +834,9 @@ static void h264_encode_main(beken_thread_arg_t data)
 					h264_encode_finish_handle();
 					break;
 
-
+				case H264_ENCODE_REGENERATE_IDR:
+					h264_encode_config->regenerate_idr = true;
+					break;
 
 				case H264_ENCODE_RESET:
 					h264_encode_reset_handle();
@@ -1187,10 +1189,7 @@ bk_err_t h264_encode_regenerate_idr_frame(void)
 	if (h264_encode_config == NULL || !h264_encode_config->task_state)
 		return BK_FAIL;
 
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
-	h264_encode_config->regenerate_idr = true;
-	GLOBAL_INT_RESTORE();
+	h264_encode_task_send_msg(H264_ENCODE_REGENERATE_IDR, 0);
 	return BK_OK;
 }
 

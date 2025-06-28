@@ -39,6 +39,20 @@ static media_rotate_t pipeline_rotate = ROTATE_90;
 extern uint8_t *media_bt_share_buffer;
 mux_sram_buffer_t *mux_sram_buffer = NULL;
 
+bk_err_t h264_jdec_pipeline_regenerate_idr_frame(void)
+{
+	int ret = BK_OK;
+	if (check_h264_task_is_open())
+	{
+		ret = h264_encode_regenerate_idr_frame();
+		if (ret != BK_OK)
+		{
+			LOGE("%s %d h264_encode_regenerate_idr_frame fail\n", __func__, __LINE__);
+		}
+	}
+	return ret;
+}
+
 bk_err_t h264_jdec_pipeline_open(void)
 {
 	int ret = BK_OK;

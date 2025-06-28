@@ -26,6 +26,7 @@ bk_err_t uvc_pipeline_init(void);
 
 bk_err_t h264_jdec_pipeline_open(void);
 bk_err_t h264_jdec_pipeline_close(void);
+bk_err_t h264_jdec_pipeline_regenerate_idr_frame(void);
 
 bk_err_t lcd_set_fmt(uint32_t fmt);
 bk_err_t pipeline_set_rotate(media_rotate_t rotate);
