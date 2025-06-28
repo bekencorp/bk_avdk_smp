@@ -2751,7 +2751,7 @@ bk_err_t bk_wifi_sta_get_link_status(wifi_link_status_t *link_status)
 	if (!link_status)
 		return BK_ERR_NULL_PARAM;
 
-	os_memset(link_status, 0, sizeof(link_status));
+	os_memset(link_status, 0, sizeof(wifi_link_status_t));
 	link_status->aid = -1;
 	if (!wifi_sta_is_connected()) {
 		link_status->state = WIFI_LINKSTATE_STA_DISCONNECTED;
