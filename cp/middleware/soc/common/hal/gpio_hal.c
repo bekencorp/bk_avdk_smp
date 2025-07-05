@@ -336,7 +336,8 @@ bk_err_t gpio_hal_wakeup_interrupt_clear()
 
 #if CONFIG_GPIO_DEFAULT_SET_SUPPORT
 
-static inline bool is_gpio_for_current_cpu(int gpio_id){
+static inline bool is_gpio_for_current_cpu(int gpio_id)
+{
 	const gpio_default_map_t default_map[] = GPIO_DEFAULT_DEV_CONFIG;
 	for(int i = 0; i < sizeof(default_map)/sizeof(gpio_default_map_t); i++){
 		if (gpio_id == default_map[i].gpio_id){
@@ -443,7 +444,8 @@ static void gpio_hal_map_init(gpio_hal_t *hal)
 
 }
 
-bk_err_t gpio_hal_default_map_init(gpio_hal_t *hal){
+bk_err_t gpio_hal_default_map_init(gpio_hal_t *hal)
+{
 
 	gpio_hal_map_init(hal);
 	/*CPU0 clear all GPIOs isr flag, followed by each CPU initializing its own GPIOs. 
@@ -464,3 +466,14 @@ And the security world uses GPIO0 and GPIO1, so use macro CONFIG_CPU_CNT to isol
 }
 #endif
 
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+bk_err_t gpio_hal_dump_map_dev_cfg(gpio_hal_t *hal)
+{
+	for(int i = 0; i < SOC_GPIO_NUM; i++)
+	{
+		gpio_hal_map_check(hal, i);
+	}
+
+	return BK_OK;
+}
+#endif

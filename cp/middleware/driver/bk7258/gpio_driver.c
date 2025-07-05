@@ -343,3 +343,64 @@ void gpio_retention_sync(bool force_flag)
 }
 #endif
 
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+bk_err_t gpio_dump_map_dev_cfg(void)
+{
+	return gpio_hal_dump_map_dev_cfg(&s_gpio.hal);
+}
+#endif
+
+/*according to GPIO_DEFAULT_DEV_CONFIG to check dev match and capacity match
+if dev or capacity mismatch, will print dev mismatch info,please check GPIO_DEFAULT_DEV_CONFIG
+table and fix it
+*/
+bk_err_t gpio_check_dev_match(gpio_id_t gpio_id, gpio_dev_t dev)
+{
+	const gpio_default_map_t *config = get_gpio_config(gpio_id);
+	bool func_mode_en = true;
+
+	if (config == NULL)
+	{
+		GPIO_LOGW("GPIO%d not found in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
+		return BK_ERR_GPIO_INVALID_OPERATE;
+	}
+
+	if (config->second_func_en != GPIO_SECOND_FUNC_ENABLE) 
+	{
+		func_mode_en = false;
+		GPIO_LOGW("GPIO%d not enable second func\r\n",gpio_id);
+	}
+	
+	if (config->second_func_dev != dev)
+	{
+		func_mode_en = false;
+		GPIO_LOGW("GPIO%d dev mismatch, expect 0x%x, but current is 0x%x\r\n",gpio_id, dev, config->second_func_dev);
+	}
+
+	if (!func_mode_en)
+	{
+		GPIO_LOGW("gpio id=%d func_mode is not match\r\n", gpio_id);
+		return BK_ERR_GPIO_CONFIG_MISMATCH;
+	}
+
+	return BK_OK;
+}
+
+bk_err_t gpio_check_capacity_match(gpio_id_t gpio_id, uint8_t expect_capacity)
+{
+	const gpio_default_map_t *config = get_gpio_config(gpio_id);
+
+	if (config == NULL)
+	{
+		GPIO_LOGW("GPIO%d not found in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
+		return BK_ERR_GPIO_INVALID_OPERATE;
+	}
+
+	if (config->driver_capacity != expect_capacity)
+	{
+		GPIO_LOGW("GPIO%d driver capacity mismatch, expect %d, but current is %d\r\n",gpio_id, expect_capacity, config->driver_capacity);
+		return BK_ERR_GPIO_CONFIG_MISMATCH;
+	}
+
+	return BK_OK;
+}

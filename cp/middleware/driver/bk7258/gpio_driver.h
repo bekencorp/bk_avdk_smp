@@ -55,6 +55,13 @@ bk_err_t gpio_i2c1_sel(gpio_i2c1_map_mode_t gpio_i2c1_sel_mode);
 bk_err_t gpio_i2s_sel(gpio_i2s_map_mode_t gpio_i2s_sel_mode);
 bk_err_t gpio_jtag_sel(gpio_jtag_map_group_t gpio_jtag_sel_mode);
 
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+bk_err_t gpio_dump_map_dev_cfg(void);
+#endif
+
+bk_err_t gpio_check_dev_match(gpio_id_t gpio_id, gpio_dev_t dev);
+bk_err_t gpio_check_capacity_match(gpio_id_t gpio_id, uint8_t expect_capacity);
+
 #if CONFIG_GPIO_RETENTION_SUPPORT
 bk_err_t gpio_retention_map_set(gpio_id_t id, gpio_output_state_e output);
 bk_err_t gpio_retention_map_clr(gpio_id_t id);
