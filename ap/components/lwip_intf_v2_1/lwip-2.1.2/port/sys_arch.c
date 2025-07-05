@@ -415,7 +415,7 @@ sys_thread_t sys_thread_new(const char *name, lwip_thread_fn thread , void *arg,
 	bk_err_t result;
 
 #if CONFIG_FREERTOS_SMP
-	result = rtos_core1_create_thread(&CreatedTask, prio, name, thread, stacksize * sizeof(uint32_t), arg);
+	result = rtos_smp_create_thread(&CreatedTask, prio, name, thread, stacksize * sizeof(uint32_t), arg);
 #else
 	result = rtos_create_sram_thread(&CreatedTask, prio, name, thread, stacksize * sizeof(uint32_t), arg);
 #endif
