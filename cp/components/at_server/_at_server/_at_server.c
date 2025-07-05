@@ -7,18 +7,17 @@
 #include <ctype.h>
 
 
-//static const char *_atsvr_version_num = ATSVR_VERSION_NUM;
+typedef struct{
+	unsigned inArg : 1;
+	unsigned done : 1;
+	unsigned isD : 2;
+	unsigned limQ : 1;
+}_atsvr_handle_input_stat;
+
 extern _at_svr_ctrl_env_t _at_svr_env;
-//extern struct atsvr_port_env atsvr_port;
 extern int atsvr_cmd_forward(char *cmd, u16 cmd_len);
 extern void atsvr_cmd_ind_out(const char *format, ...);
-
 extern int atsvr_get_cpu_id(void);
-
-//char *_get_atsvr_version(void)
-//{
-//	return (char*)_atsvr_version_num;
-//}
 
 
 void _set_atsvr_echo_mode(_atsvr_env_t *env,_atsvr_echo_t echo)
@@ -39,9 +38,9 @@ int _atsvr_register_command(_atsvr_env_t *env,const struct _atsvr_command *comma
 	int cmd_nums;
 
 	if (!command->name || ((!command->query_func)&&(!command->setup_func))) 
-		{
-			return ATSVR_ERROR;
-		}
+	{
+		return ATSVR_ERROR;
+	}
 	if (env->num_commands[0]!= 0) 
 	{
 		/* Check if the command has already been registered.
@@ -57,9 +56,9 @@ int _atsvr_register_command(_atsvr_env_t *env,const struct _atsvr_command *comma
 			{
 				if (0 == strcmp((*ext_command)[j].name,command->name))
 				{
-					ATSVRLOGE("command \"%s\" has been registered,cannot register again\r\n",command->name);	
+					ATSVRLOGW("command \"%s\" has been registered,cannot register again\r\n",command->name);	
 					return ATSVR_GENERAL;
-				}	
+				}
 			}
 		}
 		return ATSVR_OK;
@@ -68,7 +67,7 @@ int _atsvr_register_command(_atsvr_env_t *env,const struct _atsvr_command *comma
 	/* This is the first register.*/
 	{
 		return ATSVR_OK;
-	}	
+	}
 }
 
 
@@ -81,7 +80,7 @@ int _atsvr_register_commands(_atsvr_env_t *env,const struct _atsvr_command *comm
 		const struct _atsvr_command **command = &commands_table; 
 		int sta;
 		sta = _atsvr_register_command(env, (*command+i));
-		//ATSVRLOG("command \"%s\" \r\n",commands_table[i].name);	
+		//ATSVRLOG("command \"%s\" \r\n",commands_table[i].name);
 		if (sta != ATSVR_OK)
 		{
 			if(sta == ATSVR_ERROR)
@@ -91,7 +90,7 @@ int _atsvr_register_commands(_atsvr_env_t *env,const struct _atsvr_command *comm
 			}
 			else if(sta == ATSVR_GENERAL)
 			{
-				ATSVRLOGE("this command  %s same as former,you can register other cmds,but the same one can not work\r\n",commands_table[i].name);
+				ATSVRLOGW("this command  %s same as former,you can register other cmds,but the same one can not work\r\n",commands_table[i].name);
 				return ATSVR_OK;
 			}
 		}
@@ -108,11 +107,9 @@ int _atsvr_register_commands(_atsvr_env_t *env,const struct _atsvr_command *comm
 	}
 	else
 	{
-		ATSVRLOGE("it has no mem,cannot register this commands\r\n");	
+		ATSVRLOGW("it has no mem,cannot register this commands\r\n");
 		return ATSVR_NnMemoryErr;
 	}
-	
-
 }
 
 void _atsvr_notice_ready(void)
@@ -121,30 +118,13 @@ void _atsvr_notice_ready(void)
 #if CONFIG_SHELL_ASYNCLOG
 	shell_cmd_ind_out(ATSVR_READY_MSG);
 #else
-	BK_LOGD(NULL,ATSVR_READY_MSG);
+	ATSVRLOG(ATSVR_READY_MSG);
 #endif
 #else
 	atsvr_cmd_ind_out(ATSVR_READY_MSG);
 #endif
 	return;
 }
-
-#if 0
-void _atsvr_cmd_analysis_notice_error(void)
-{
-#if (CONFIG_UART_PRINT_PORT == AT_UART_PORT_CFG)
-#if CONFIG_SHELL_ASYNCLOG
-	shell_cmd_ind_out(ATSVR_CMDMSG_ERROR_RSP);
-#else
-	BK_LOGD(NULL,ATSVR_CMDMSG_ERROR_RSP);
-#endif
-#else
-	atsvr_cmd_ind_out(ATSVR_CMDMSG_ERROR_RSP);
-#endif
-	return;
-}
-#endif
-
 
 void _atsvr_cmd_rsp_ok(_atsvr_env_t *env)
 {
@@ -156,12 +136,12 @@ void _atsvr_cmd_rsp_ok(_atsvr_env_t *env)
 		#if CONFIG_SHELL_ASYNCLOG
 			shell_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
 		#else
-			BK_LOGD(NULL,ATSVR_CMD_RSP_SUCCEED);
+			ATSVRLOG(ATSVR_CMD_RSP_SUCCEED);
 		#endif
 		#else
 		atsvr_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
 		#endif
-	}	
+	}
 	return;
 }
 
@@ -176,7 +156,7 @@ void _atsvr_cmd_rsp_error(_atsvr_env_t *env)
 		#if CONFIG_SHELL_ASYNCLOG
 			shell_cmd_ind_out(ATSVR_CMDMSG_ERROR_RSP);
 		#else
-			BK_LOGD(NULL,ATSVR_CMDMSG_ERROR_RSP);
+			ATSVRLOG(ATSVR_CMDMSG_ERROR_RSP);
 		#endif
 		#else
 			atsvr_cmd_ind_out(ATSVR_CMDMSG_ERROR_RSP);
@@ -194,7 +174,7 @@ void _atsvr_cmd_rsp_timeout(_atsvr_env_t *env)
 	#if CONFIG_SHELL_ASYNCLOG
 		shell_cmd_ind_out(ATSVR_CMDMSG_TIMEOUT);
 	#else
-		BK_LOGD(NULL,ATSVR_CMDMSG_TIMEOUT);
+		ATSVRLOG(ATSVR_CMDMSG_TIMEOUT);
 	#endif
 	#else
 		atsvr_cmd_ind_out(ATSVR_CMDMSG_TIMEOUT);
@@ -207,12 +187,11 @@ void _atsvr_output_help(const char *msg)
 #if CONFIG_SHELL_ASYNCLOG
 	shell_cmd_ind_out(msg);
 #else
-	BK_LOGD(NULL,msg);
+	ATSVRLOG(msg);
 #endif
 #else
 	atsvr_cmd_ind_out(msg);
 #endif
-
 }
 
 void _atsvr_output_msg(char *msg)
@@ -221,12 +200,11 @@ void _atsvr_output_msg(char *msg)
 #if CONFIG_SHELL_ASYNCLOG
 	shell_cmd_ind_out("%s",msg);
 #else
-	BK_LOGD(NULL,"%s",msg);
+	ATSVRLOG("%s",msg);
 #endif
 #else
 	atsvr_cmd_ind_out("%s",msg);
 #endif
-
 }
 
 
@@ -240,9 +218,9 @@ static void _atsvr_timeout_cb(void* cmd)
 	}
 	else
 	{
-		ATSVRLOGE("[ATSVR]command:%s is time out,check next cmd\r\n",command->name);
+		ATSVRLOGW("[ATSVR]command:%s is time out,check next cmd\r\n",command->name);
 		_atsvr_cmd_rsp_timeout(&_at_svr_env);
-		rtos_deinit_timer(_at_svr_env.atsvr_timer);	
+		rtos_deinit_timer(_at_svr_env.atsvr_timer);
 		_at_svr_env.atsvr_timer = NULL;
 	}
 	return;
@@ -250,7 +228,7 @@ static void _atsvr_timeout_cb(void* cmd)
 
 static void proc_func_timeout_cb(void* ptr)
 {
-	ATSVRLOGE("[ATSVR]command_timer is too loong ,need check if use dead loop\r\n");
+	ATSVRLOGW("[ATSVR]command_timer is too loong ,need check if use dead loop\r\n");
 	beken_timer_t* tptr = (beken_timer_t*)ptr;
 	rtos_deinit_timer(tptr);
 	_atsvr_cmd_rsp_timeout(&_at_svr_env);
@@ -260,10 +238,7 @@ static void proc_func_timeout_cb(void* ptr)
 
 static const struct _atsvr_command *_atsvr_lookup_at_command(_atsvr_env_t *env,char *name, int len)
 {
-
-
 	int name_len,cmd_name_len;
-
 	name_len = strlen(name);
 
 	for(int i = 0;i < ATSVR_MAX_COMMANDS;i++)
@@ -276,50 +251,48 @@ static const struct _atsvr_command *_atsvr_lookup_at_command(_atsvr_env_t *env,c
 				continue;
 			}
 #if defined(ATSVR_OPTIM_FD_CMD) && ATSVR_OPTIM_FD_CMD
-		cmd_name_len = (*command_table)[n].name_len;
+			cmd_name_len = (*command_table)[n].name_len;
 #else
-		cmd_name_len = strlen((*command_table)[n].name);
+			cmd_name_len = strlen((*command_table)[n].name);
 #endif
-		/* See if partial or full match is expected */
-		if (len != 0) 
-		{
-			if ((cmd_name_len >= len)
-				&& (!strncmp((*command_table)[n].name, name, len))) 
-				{
-				return &(*command_table)[n];
-				}
-		}
-		else 
-		{
-			if ((cmd_name_len == name_len)
-				&& (!strcmp((*command_table)[n].name, name))) 
+			/* See if partial or full match is expected */
+			if (len != 0)
 			{
-				//_at_svr_env.cmd_index = i;
-				return &(*command_table)[n];
+				if ((cmd_name_len >= len)
+					&& (!strncmp((*command_table)[n].name, name, len))) 
+					{
+					return &(*command_table)[n];
+					}
 			}
-		}
-		continue;
+			else
+			{
+				if ((cmd_name_len == name_len)
+					&& (!strcmp((*command_table)[n].name, name))) 
+				{
+					//_at_svr_env.cmd_index = i;
+					return &(*command_table)[n];
+				}
+			}
+			continue;
 		}
 	continue;	
 	}
 #if (CONFIG_CPU_CNT >1)
-
 	if(true == env->cpu1_ready)
 	{
-		ATSVRLOGE("[ATSVR]command in cpu0 is null,we will check cpu1 sooner\r\n");
+		ATSVRLOGW("[ATSVR]command in cpu0 is null,we will check cpu1 sooner\r\n");
 		env->priority_cpu = _ATSVR_CPU1;
 	}
-	
 #endif
 	return NULL;
 }
 
 int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 {
-    const struct _atsvr_command *command = NULL;
+	const struct _atsvr_command *command = NULL;
 	atsvr_handler func = NULL;
-    int i;
-    char *p;
+	int i;
+	char *p;
 	bool  is_setfunc;
 	static beken_timer_t func_proc;//protect the function in case of function time is too long >100ms	
 #if (CONFIG_CPU_CNT > 1)
@@ -327,7 +300,7 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 	int ret;
 #endif
 #endif
-    i = ((p = strchr(argv[0], '.')) == NULL) ? 0 : (p - argv[0]);
+	i = ((p = strchr(argv[0], '.')) == NULL) ? 0 : (p - argv[0]);
 
 	if((strcmp("AT+BLE",argv[0]) == 0) || (strcmp("AT+WIFI",argv[0]) == 0) || (strcmp("AT+BT",argv[0]) == 0)  || (strcmp("AT+MAC",argv[0]) == 0))
 	{
@@ -335,7 +308,7 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 	#if CONFIG_SHELL_ASYNCLOG
 		shell_cmd_ind_out(ATSVR_CMD_NEW_VERSION_NOTIFY);
 	#else
-		BK_LOGD(NULL,ATSVR_CMD_NEW_VERSION_NOTIFY);
+		ATSVRLOG(ATSVR_CMD_NEW_VERSION_NOTIFY);
 	#endif
 	#else
 		atsvr_cmd_ind_out(ATSVR_CMD_NEW_VERSION_NOTIFY);
@@ -349,14 +322,14 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 	if(strcmp("AT+CPATH",argv[0]) == 0)
 	{
 		if(strcmp("0",argv[1])==0)
-		{ 
+		{
 			env->priority_cpu = _ATSVR_CPU0;
 			env->core_sel_model = false;
 		#if (CONFIG_UART_PRINT_PORT == AT_UART_PORT_CFG)
 		#if CONFIG_SHELL_ASYNCLOG
 			shell_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
 		#else
-			BK_LOGD(NULL,ATSVR_CMD_RSP_SUCCEED);
+			ATSVRLOG(ATSVR_CMD_RSP_SUCCEED);
 		#endif
 		#else
 			atsvr_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
@@ -371,7 +344,7 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 		#if CONFIG_SHELL_ASYNCLOG
 			shell_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
 		#else
-			BK_LOGD(NULL,ATSVR_CMD_RSP_SUCCEED);
+			ATSVRLOG(ATSVR_CMD_RSP_SUCCEED);
 		#endif
 		#else
 			atsvr_cmd_ind_out(ATSVR_CMD_RSP_SUCCEED);
@@ -381,12 +354,11 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 	}
 	/*we will send the AT cmd to peer CPU*/
 	if(env->core_sel_model==true)
-	{	
+	{
 		if(env->priority_cpu == _ATSVR_CPU1)//cmd  use sel_cpu and send it to cpu1 and cpu1 is ready
 		{
 			if(env->cpu1_ready)
 			{
-
 				char* mb_ptr = malloc(sizeof(char*)*argc+1);
 				char* p = mb_ptr;
 				*mb_ptr++ = argc;
@@ -410,14 +382,14 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 			}
 			else
 			{
-				ATSVRLOGE("you use the sel cmd but cpu1 is not ready,cmd:%s is not working\r\n",argv[0]);
+				ATSVRLOGW("you use the sel cmd but cpu1 is not ready,cmd:%s is not working\r\n",argv[0]);
 			}
 		}
 	}
 	else{
 #endif
 #endif
-    command = _atsvr_lookup_at_command(env,argv[0], i);
+	command = _atsvr_lookup_at_command(env,argv[0], i);
 
 #if (CONFIG_CPU_CNT > 1)
 #if CONFIG_AT_SUPPORT_MULTICORE	
@@ -443,27 +415,27 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 		{
 			free(p);
 			return ATSVR_OK;
-		}	
+		}
 	}
 #endif
 #endif
 	if(command == NULL)
 	{
-		ATSVRLOGE("[ATSVR]command in cpu%d is null\r\n",atsvr_get_cpu_id());
+		ATSVRLOGW("[ATSVR]command in cpu%d is null\r\n",atsvr_get_cpu_id());
 		return ATSVR_CMD_NULL;
 	}
 
-    if ( (!command->query_func)&&(!command->setup_func)) //cmd has no both query func and setup func
+	if ( (!command->query_func)&&(!command->setup_func)) //cmd has no both query func and setup func
 	{
-		ATSVRLOGE("[ATSVR]cmd \"%s\" is an incomplete command without query&setup function\r\n",argv[0]);
-        return ATSVR_INCOMPLETE_CMD;
-    }
+		ATSVRLOGW("[ATSVR]cmd \"%s\" is an incomplete command without query&setup function\r\n",argv[0]);
+		return ATSVR_INCOMPLETE_CMD;
+	}
 	else
 	{
 		if(!command->setup_func)//cmd has only a query func
 		{
 			if(argc >1)
-			{		
+			{
 				if(strcmp("?",argv[1]) == 0)
 				{
 					func = command->query_func;
@@ -471,25 +443,25 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 				}
 				else
 				{
-					ATSVRLOGE("[ATSVR]cmd %s is a setup cmd,but you set no setup funcion,need check\r\n",command->name);
+					ATSVRLOGW("[ATSVR]cmd %s is a setup cmd,but you set no setup funcion,need check\r\n",command->name);
 					return ATSVR_INCOMPLETE_CMD;
 				}
 			}
 			else
 			{
-				ATSVRLOGE("[ATSVR]cmd %s is a setup cmd2,but you set no setup funcion,need check\r\n",command->name);
+				ATSVRLOGW("[ATSVR]cmd %s is a setup cmd2,but you set no setup funcion,need check\r\n",command->name);
 				return ATSVR_INCOMPLETE_CMD;
 			}
 		}
 		else
 		{
 			if(!command->query_func)//cmd has only a setup func
-			{		
+			{
 				if(argc>1)
 				{
 					if(strcmp("?",argv[1]) == 0)
-					{		
-						ATSVRLOGE("[ATSVR]cmd %s is a query cmd,but you set no query funcion,need check\r\n",argv[0]);
+					{
+						ATSVRLOGW("[ATSVR]cmd %s is a query cmd,but you set no query funcion,need check\r\n",argv[0]);
 						return ATSVR_GENERAL;
 					}
 					else
@@ -539,7 +511,7 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 	}
 	else
 	{
-			rtos_init_timer(&func_proc,_ATSVR_DEFAULT_TIME,proc_func_timeout_cb,(void*)&func_proc);
+		rtos_init_timer(&func_proc,_ATSVR_DEFAULT_TIME,proc_func_timeout_cb,(void*)&func_proc);
 	}
 	if(is_setfunc == true)
 		if(argc==1)
@@ -555,29 +527,27 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 	if(env->setup_done == true)
 	{
 		if(env->setup_status == _ATSVR_SETUP_DONE)
-		{		
+		{
 			ATSVRLOG("[ATSVR]command:%s is not time out and success\r\n",command->name);
 			if(&func_proc!=NULL)
 			{
 				rtos_deinit_timer(&func_proc);	
 			}
-
 		}
 		else if(_at_svr_env.setup_status == _ATSVR_SETUP_ERROR)
 		{
-			ATSVRLOGE("[ATSVR]command:%s is not time out but error\r\n",command->name);
+			ATSVRLOG("[ATSVR]command:%s is not time out but error\r\n",command->name);
 			if(&func_proc!=NULL)
 			{
 				rtos_deinit_timer(&func_proc);
 			}
-			
 		}
 	}
 	else
 	{
 		if(_at_svr_env.setup_status == _ATSVR_SETUP_TIMEOUT)
-		{	
-			ATSVRLOGE("[ATSVR]command:%s is  time out and failed!!!\r\n",command->name);
+		{
+			ATSVRLOG("[ATSVR]command:%s is  time out and failed!!!\r\n",command->name);
 			if(&func_proc!=NULL)
 			{
 				rtos_deinit_timer(&func_proc);	
@@ -585,136 +555,121 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 			return ATSVR_ERROR;
 		}
 	}
-	
-    return ATSVR_OK;
+	return ATSVR_OK;
 }
-
-typedef struct{
-	unsigned inArg : 1;
-	unsigned done : 1;
-	unsigned isD : 2;
-	unsigned limQ : 1;
-}_atsvr_handle_input_stat;
 
 static int _atsvr_handle_input(_atsvr_env_t *env,unsigned char *inbuf,int len)
 {
 	_atsvr_handle_input_stat stat;
-    char *argv[ATSVR_MAX_ARG];
-    int argc = 0;
-    int i = 0;
+	char *argv[ATSVR_MAX_ARG];
+	int argc = 0;
+	int i = 0;
 	int offset = 0;
 
-    memset((void *)&argv, 0, sizeof(argv));
-    memset(&stat, 0, sizeof(stat));
+	memset((void *)&argv, 0, sizeof(argv));
+	memset(&stat, 0, sizeof(stat));
 
-    do
-    {
+	do
+	{
 		offset++;
 		if(offset > len){
-			ATSVRLOGE("The data is incomplete\r\n");
+			ATSVRLOGW("The data is incomplete\r\n");
 			return ATSVR_INCOMPLETE_CMD;  ////error
 		}
-                if(atsvr_islower(inbuf[i])&& stat.isD == 0)
+		if(atsvr_islower(inbuf[i])&& stat.isD == 0)
 		{
 			inbuf[i] = toupper(inbuf[i]);
 		}
-        switch (inbuf[i])
-        {
-        case '\0':
-			if(((argc == 0)||(stat.isD == 1))||(stat.limQ)){
-				ATSVRLOGE("The data does not conform to the regulations %d\r\n",__LINE__);
-				return ATSVR_INREGULAR_CMD;
-			}
-
-			stat.done = 1;
-            break;
-        case '=':
-			if (i > 0 && inbuf[i - 1] == '\\' && stat.inArg) {
-				memcpy((void*)&inbuf[i - 1], (const char*)&inbuf[i],
-						  strlen((const char*)&inbuf[i]) + 1);
-				--i;
+		switch (inbuf[i])
+		{
+			case '\0':
+				if(((argc == 0)||(stat.isD == 1))||(stat.limQ)){
+					ATSVRLOGW("The data does not conform to the regulations %d\r\n",__LINE__);
+					return ATSVR_INREGULAR_CMD;
+				}
+				stat.done = 1;
 				break;
-			}
-            if(argc == 1) {
-				inbuf[i] = '\0';
-				stat.inArg = 0;
-				stat.isD = 1;
-			}
-            else if(argc == 0){
-				ATSVRLOGE("The data does not conform to the regulations %d\r\n",__LINE__);
-				return ATSVR_INREGULAR_CMD;
-            }
-            break;
+			case '=':
+				if (i > 0 && inbuf[i - 1] == '\\' && stat.inArg) {
+					memcpy((void*)&inbuf[i - 1], (const char*)&inbuf[i],
+							  strlen((const char*)&inbuf[i]) + 1);
+					--i;
+					break;
+				}
+				if(argc == 1) {
+					inbuf[i] = '\0';
+					stat.inArg = 0;
+					stat.isD = 1;
+				}
+				else if(argc == 0){
+					ATSVRLOGW("The data does not conform to the regulations %d\r\n",__LINE__);
+					return ATSVR_INREGULAR_CMD;
+				}
+				break;
 #if 0 //ATSVR_ADD_ESCAPE_CFG
-		case '\\':  ////"\"
-			offset += 1;
-			if((offset + 1) > len){
-				ATSVRLOGE("The data does not conform to the regulations %d\r\n",__LINE__);
-				return ATSVR_INREGULAR_CMD;  ////error
-			}
-			memmove(&inbuf[i],&inbuf[i+1],(len-offset) + 1);
-            break;
-#endif
-        case ',':
-			if (i > 0 && inbuf[i - 1] == '\\' && stat.inArg) {
-				memcpy((void*)&inbuf[i - 1], (const char*)&inbuf[i],
-						  strlen((const char*)&inbuf[i]) + 1);
-				--i;
+			case '\\':  ////"\"
+				offset += 1;
+				if((offset + 1) > len){
+					ATSVRLOGW("The data does not conform to the regulations %d\r\n",__LINE__);
+					return ATSVR_INREGULAR_CMD;  ////error
+				}
+				memmove(&inbuf[i],&inbuf[i+1],(len-offset) + 1);
 				break;
-			}
-            if((stat.isD == 1)&&(argc == 1))  ///=,
-            {
-				ATSVRLOGE("The data does not conform to the regulations %d\r\n",__LINE__);
-                return ATSVR_INREGULAR_CMD;
-            }
-            if(stat.inArg) {
-                stat.inArg = 0;
-                inbuf[i] = '\0';
-                stat.limQ = 1;
-            }
-            break;
-        default:
-            if(!stat.inArg) {
-                stat.inArg = 1;
-                argc++;
-                argv[argc - 1] = (char*)&inbuf[i];
-                stat.limQ = 0;
-                if(stat.isD == 1) {
-                    stat.isD = 2;
-                }
-            }
-            break;
-        }
-    }
-    while (!stat.done && (++i < ATSVR_INPUT_BUFF_MAX_SIZE));
+#endif
+			case ',':
+				if (i > 0 && inbuf[i - 1] == '\\' && stat.inArg) {
+					memcpy((void*)&inbuf[i - 1], (const char*)&inbuf[i],
+							  strlen((const char*)&inbuf[i]) + 1);
+					--i;
+					break;
+				}
+				if((stat.isD == 1)&&(argc == 1))  ///=,
+				{
+					ATSVRLOGW("The data does not conform to the regulations %d\r\n",__LINE__);
+					return ATSVR_INREGULAR_CMD;
+				}
+				if(stat.inArg) {
+					stat.inArg = 0;
+					inbuf[i] = '\0';
+					stat.limQ = 1;
+				}
+				break;
+			default:
+				if(!stat.inArg) {
+					stat.inArg = 1;
+					argc++;
+					argv[argc - 1] = (char*)&inbuf[i];
+					stat.limQ = 0;
+					if(stat.isD == 1) {
+						stat.isD = 2;
+					}
+				}
+				break;
+		}
+	}
+	while (!stat.done && (++i < ATSVR_INPUT_BUFF_MAX_SIZE));
 
-    if (argc < 1) {
-		ATSVRLOGE("Data parsing exception\r\n");
-        return ATSVR_DATA_PARSE_ERROR;
-    }
-
-    return _atsvc_command_handle(env,argc,argv,len);
+	if (argc < 1) {
+		ATSVRLOGW("Data parsing exception\r\n");
+		return ATSVR_DATA_PARSE_ERROR;
+	}
+	return _atsvc_command_handle(env,argc,argv,len);
 }
 
 
 int _atsvr_input_msg_analysis_handler(_atsvr_env_t *env,char *msg,unsigned int msg_len)
 {
 	int ret;
-
 	if(env == NULL){
 		return ATSVR_SEVERE_ERR;
 	}
 	ret = _atsvr_handle_input(env,(unsigned char*)msg,msg_len);
-
 	return ret;
-
 }
 
 
 int _atsvr_def_config(_atsvr_env_t *env)
 {
-
-
 	if(env == NULL)
 	{
 		return ATSVR_SEVERE_ERR;

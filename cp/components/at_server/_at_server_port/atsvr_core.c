@@ -27,28 +27,26 @@ void atsvr_msg_handler(atsvr_msg_t *msg)
 
 	ATSVRLOG("[ATSVR]msg type:%d\r\n", msg->type);
 	switch( msg->type ) {
-	case ATSVR_MSG_STREAM:
-		{
-			ret = atsvr_input_msg_analysis_handler((char *)msg->msg_param,msg->len);
-			if(ret != 0){
-				ATSVRLOGE("[ATSVR]analysis stream error\r\n");
+		case ATSVR_MSG_STREAM:
+			{
+				ret = atsvr_input_msg_analysis_handler((char *)msg->msg_param,msg->len);
+				if(ret != 0){
+					ATSVRLOGW("[ATSVR]analysis stream error\r\n");
+				}
 			}
-		}
-		break;
-	case ATSVR_MSG_INIT:
-		{
-			at_server_init();
-		}
-		break;
-	case ATSVR_MSG_EVENT:
-		{
-			atsvr_event_handler(msg);
-		}
-		break;
-
-
-	default:
-		break;
+			break;
+		case ATSVR_MSG_INIT:
+			{
+				at_server_init();
+			}
+			break;
+		case ATSVR_MSG_EVENT:
+			{
+				atsvr_event_handler(msg);
+			}
+			break;
+		default:
+			break;
 	}
 
 	if(msg->sub_type == ATSVR_SUBMSG_ATFREE ) {
@@ -79,10 +77,10 @@ void atsvr_event_sender(char* event,int sub_evt_id, int msg_len,void *msg,bool f
 	{
 		sdmsg.len = 0;
 		sdmsg.msg_param = NULL;
-	}	
+	}
 	ret = atsvr_send_msg_queue(&sdmsg,0);
 	if( ret != 0 ) {
-		ATSVRLOGE("wlan_event(%x) notice error\r\n",event);
+		ATSVRLOGW("wlan_event(%x) notice error\r\n",event);
 	}
 }
 
@@ -106,19 +104,11 @@ void atsvr_socket_event_sender(int module_id,int sub_evt_id, int msg_len,void *m
 	{
 		sdmsg.len = 0;
 		sdmsg.msg_param = NULL;
-	}	
+	}
 	ret = atsvr_send_msg_queue(&sdmsg,0);
 	if( ret != 0 ) {
-		ATSVRLOGE("atsvr socket mode  notice error\r\n");
+		ATSVRLOGW("atsvr socket mode  notice error\r\n");
 	}
 }
-
 #endif
-
-
-
-
-
-
-
 
