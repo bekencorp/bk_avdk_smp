@@ -381,77 +381,6 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_ind(uint32_t scan_id,uint32_t scan_use_time
 }
 
 
-bk_err_t cif_handle_bk_cmd_get_ap_config_req(struct bk_msg_hdr *msg)
-{
-    wifi_ap_config_t ap_config = {0};
-
-    CIF_LOGV("%s\n",__func__);
-    os_memset(&ap_config, 0x0, sizeof(wifi_ap_config_t));
-
-    os_memcpy(ap_config.ssid, g_ap_param_ptr->ssid.array, g_ap_param_ptr->ssid.length);
-    os_memcpy(ap_config.password, g_ap_param_ptr->key, g_ap_param_ptr->key_len);
-    ap_config.channel = g_ap_param_ptr->chann;
-    ap_config.security = g_ap_param_ptr->cipher_suite;
-
-    cif_bk_cmd_confirm(msg, (uint8_t *)(&ap_config), sizeof(wifi_ap_config_t));
-    return BK_OK;
-}
-
-#include "inet.h"
-bk_err_t cif_handle_bk_cmd_get_ip_config_req(struct bk_msg_hdr *msg)
-{
-
-    struct wlan_ip_config addr;
-    struct bk_msg_get_ip_config_req *req = (struct bk_msg_get_ip_config_req*) (msg + 1);
-    netif_if_t ifx = req->flag;
-    netif_ip4_config_t ip4_config;
-    CIF_LOGD("%s start\n",__func__);
-
-    os_memset(&addr, 0, sizeof(struct wlan_ip_config));
-    if (ifx == NETIF_IF_STA) {
-        net_get_if_addr(&addr, net_get_sta_handle());
-    } else if (ifx == NETIF_IF_AP) {
-        net_get_if_addr(&addr, net_get_uap_handle());
-#ifdef CONFIG_ETH
-    } else if (ifx == NETIF_IF_ETH) {
-        net_get_if_addr(&addr, net_get_eth_handle());
-#endif
-#if CONFIG_BRIDGE
-    } else if (ifx == NETIF_IF_BRIDGE) {
-        net_get_if_addr(&addr, net_get_br_handle());
-#endif
-    } else {
-        return BK_ERR_NETIF_IF;
-    }
-
-    os_strcpy(ip4_config.ip, inet_ntoa(addr.ipv4.address));
-    os_strcpy(ip4_config.mask, inet_ntoa(addr.ipv4.netmask));
-    os_strcpy(ip4_config.gateway, inet_ntoa(addr.ipv4.gw));
-    os_strcpy(ip4_config.dns, inet_ntoa(addr.ipv4.dns1));
-
-    CIF_LOGD("%s end\n",__func__);
-    CIF_LOGD("[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
-            ip4_config.ip, ip4_config.gateway, ip4_config.mask, ip4_config.dns);
-
-    cif_bk_cmd_confirm(msg, (uint8_t *)(&ip4_config), sizeof(netif_ip4_config_t));
-    return BK_OK;
-}
-
-bk_err_t cif_handle_bk_cmd_get_staipup_req(struct bk_msg_hdr *msg)
-{
-    wifi_linkstate_reason_t info = mhdr_get_station_status();
-    bool res = (info.state == WIFI_LINKSTATE_STA_GOT_IP);
-    cif_bk_cmd_confirm(msg, (uint8_t *)(&res), sizeof(bool));
-    return BK_OK;
-}
-bk_err_t cif_handle_bk_cmd_get_apipup_req(struct bk_msg_hdr *msg)
-{
-    bool res = (uap_ip_is_start() != 0);
-
-    cif_bk_cmd_confirm(msg, (uint8_t *)(&res), sizeof(bool));
-    return BK_OK;
-}
-
 
 bk_err_t cif_send_exit_sleep_cfm(void)
 {
@@ -717,32 +646,14 @@ bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
             ret = cif_handle_bk_cmd_get_wlan_status_req(msg);
             break;
         }
-        case BK_CMD_GET_STAIPUP:
-        {
-            ret = cif_handle_bk_cmd_get_staipup_req(msg);
-            break;
-        }
-        case BK_CMD_GET_APIPUP:
-        {
-            ret = cif_handle_bk_cmd_get_apipup_req(msg);
-            break;
-        }
+
         case BK_CMD_SCAN_WIFI:
         {
             cif_env.host_wifi_init = true;
             ret = cif_handle_bk_cmd_scan_wifi_req(msg);
             break;
         }
-        case BK_CMD_GET_AP_CONFIG:
-        {
-            ret = cif_handle_bk_cmd_get_ap_config_req(msg);
-            break;
-        }
-        case BK_CMD_GET_IP_CONFIG:
-        {
-            ret = cif_handle_bk_cmd_get_ip_config_req(msg);
-            break;
-        }
+
         case BK_CMD_CONTROLLER_AT:
         {
             ret = cif_handle_bk_cmd_at_req(msg);

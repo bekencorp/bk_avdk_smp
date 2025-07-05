@@ -885,41 +885,14 @@ static int at_wlan_get_station_cur_status(void)
 	return (at_wlan_stat.station_status == AT_WLAN_STATION_UP) ? 1 : 0;
 }
 
-#include <../../lwip_intf_v2_1/lwip-2.1.2/port/net.h>
-
-bk_err_t bk_netif_get_ip4_config_api_temp(netif_if_t ifx, netif_ip4_config_t *ip4_config)
-{
-	if (!ip4_config)
-		return BK_ERR_NULL_PARAM;
-
-    
-	uint8_t *buffer = os_malloc(sizeof(netif_ip4_config_t));
-	if(!buffer)
-		return BK_FAIL;
-	extern bk_err_t bk_netif_get_ip4_config_api(uint8_t ifx, uint8_t *ip4_config);
-	bk_netif_get_ip4_config_api(ifx,buffer);
-
-	if(buffer)
-		os_memcpy(ip4_config, buffer, sizeof(netif_ip4_config_t));
-
-	os_free(buffer);
-
-	return BK_OK;
-}
-
-
-extern bool wifi_netif_sta_is_got_ip_api(void);
-extern bool uap_ip_is_start_api(void);
-
-
 static int at_wlan_get_station_status(int sync, int argc, char **argv)
 {
 	int err = kNoErr;
 	char resultbuf[200];
 	char* tag = NULL;
 	
-	bool is_sta_ipup = wifi_netif_sta_is_got_ip_api();
-	bool is_ap_ipup = uap_ip_is_start_api();
+	bool is_sta_ipup = wifi_netif_sta_is_got_ip();
+	bool is_ap_ipup = uap_ip_is_start();
 	os_memset(resultbuf,0,200);
 	if (argc == 0) 
 	{
@@ -956,9 +929,9 @@ static int at_wlan_get_station_status(int sync, int argc, char **argv)
 			snprintf(resultbuf,sizeof(resultbuf), "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
 					ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
 			atsvr_output_msg(resultbuf);
-			BK_RETURN_ON_ERR(bk_netif_get_ip4_config_api_temp(NETIF_IF_AP, &ap_ip4_info));
+			//BK_RETURN_ON_ERR(bk_netif_get_ip4_config_api_temp(NETIF_IF_AP, &ap_ip4_info));
 
-			//BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
+			BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
 			os_memset(resultbuf,0,200);
 			//BK_LOGD(TAG, "[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
 			//		ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
@@ -1033,7 +1006,7 @@ static int at_wlan_get_station_status(int sync, int argc, char **argv)
 				else if (os_strcmp(argv[1], "IP") == 0) {
 					netif_ip4_config_t sta_ip4_info = {0};
 					//err = bk_netif_get_ip4_config(NETIF_IF_STA, &sta_ip4_info);
-					err = bk_netif_get_ip4_config_api_temp(NETIF_IF_STA, &sta_ip4_info);
+					err = bk_netif_get_ip4_config(NETIF_IF_STA, &sta_ip4_info);
 					if(err != kNoErr) {
 						BK_LOGD(NULL, "get ip fail!\n");
 						err = kGeneralErr;
@@ -1089,7 +1062,7 @@ static int at_wlan_get_station_status(int sync, int argc, char **argv)
 				else if (os_strcmp(argv[1], "IP") == 0) {
 					netif_ip4_config_t ap_ip4_info = {0};
 					//err = bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info);
-					err = bk_netif_get_ip4_config_api_temp(NETIF_IF_AP, &ap_ip4_info);
+					err = bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info);
 					if(err != kNoErr) {
 						BK_LOGD(NULL, "get ip fail!\n");
 						err = kGeneralErr;

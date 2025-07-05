@@ -33,7 +33,11 @@
 #include "wdrv_tx.h"
 #include "wifi_api_ipc.h"
 #include "wdrv_cntrl.h"
-
+#if CONFIG_NETIF_LWIP
+#include "lwip/inet.h"
+#include "net.h"
+#include "lwip/netif.h"
+#endif
 general_param_t *g_wlan_general_param = NULL;
 ap_param_t *g_ap_param_ptr = NULL;
 sta_param_t *g_sta_param_ptr = NULL;
@@ -813,89 +817,13 @@ bk_err_t bk_wifi_ap_get_config(wifi_ap_config_t *ap_config)
 {
     if (!ap_config)
         return BK_ERR_NULL_PARAM;
-    struct wdrv_get_ap_config_req get_req = {0};
-    wifi_ap_config_t ap_config_cfm = {0};
 
-    WDRV_LOGD("getting ap_get_config\n");
-    if(ap_config == NULL)
-        return BK_FAIL;
-
-    get_req.cmd_hdr.cmd_id = BK_CMD_GET_AP_CONFIG;
-    get_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    get_req.cmd_cfm.cfm_id = 0;
-
-    wdrv_tx_msg((uint8_t *)&get_req, sizeof(get_req), &get_req.cmd_cfm, (uint8_t *)(&ap_config_cfm));
-
-    if (get_req.cmd_cfm.cfm_buf)
-        os_memcpy(ap_config, get_req.cmd_cfm.cfm_buf, get_req.cmd_cfm.cfm_len);
-    else
-        WDRV_LOGD("invalid addr\n");
-
-    WDRV_LOGD("got ap_get_config\n");
-#if 0
     os_memcpy(ap_config->ssid, g_ap_param_ptr->ssid.array, g_ap_param_ptr->ssid.length);
     os_memcpy(ap_config->password, g_ap_param_ptr->key, g_ap_param_ptr->key_len);
     ap_config->channel = g_ap_param_ptr->chann;
     ap_config->security = g_ap_param_ptr->cipher_suite;
-#endif
-    return BK_OK;
-}
-
-
-bk_err_t bk_netif_get_ip4_config_api(uint8_t ifx, uint8_t *ip4_config)
-{
-    if (!ip4_config)
-        return BK_ERR_NULL_PARAM;
-    struct wdrv_get_ip4_config_req get_ip_req = {0};
-
-    WDRV_LOGD("getting ip4_config\n");
-
-    get_ip_req.cmd_hdr.cmd_id = BK_CMD_GET_IP_CONFIG;
-    get_ip_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    get_ip_req.cmd_cfm.cfm_id = 0;
-
-    get_ip_req.flag = ifx;
-
-    wdrv_tx_msg((uint8_t *)&get_ip_req, sizeof(get_ip_req), &get_ip_req.cmd_cfm, ip4_config);
-
-    WDRV_LOGD("got ip4_config\n");
 
     return BK_OK;
-}
-
-
-bool wifi_netif_sta_is_got_ip_api(void)
-{
-    bool is_sta_got_ip = false;
-
-    struct wdrv_get_staipup_req get_ip_req = {0};
-
-    WDRV_LOGD("getting ip4_config\n");
-
-    get_ip_req.cmd_hdr.cmd_id = BK_CMD_GET_STAIPUP;
-    get_ip_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    get_ip_req.cmd_cfm.cfm_id = 0;
-
-    wdrv_tx_msg((uint8_t *)&get_ip_req, sizeof(get_ip_req), &get_ip_req.cmd_cfm, (uint8_t *)&is_sta_got_ip);
-    
-
-    return is_sta_got_ip;
-}
-bool uap_ip_is_start_api(void)
-{
-    bool is_ap_ip_up = false;
-
-    struct wdrv_get_apipup_req get_ip_req = {0};
-
-    WDRV_LOGD("getting ip4_config\n");
-
-    get_ip_req.cmd_hdr.cmd_id = BK_CMD_GET_APIPUP;
-    get_ip_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    get_ip_req.cmd_cfm.cfm_id = 0;
-
-    wdrv_tx_msg((uint8_t *)&get_ip_req, sizeof(get_ip_req), &get_ip_req.cmd_cfm, (uint8_t *)&is_ap_ip_up);
-
-    return is_ap_ip_up;
 }
 
 bk_err_t bk_wifi_sta_get_link_status(wifi_link_status_t *link_status)
