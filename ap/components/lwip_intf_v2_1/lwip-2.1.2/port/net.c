@@ -72,10 +72,10 @@ struct ipv4_config eth_ip_settings = {
 #else
 	.addr_type = ADDR_TYPE_STATIC, // ADDR_TYPE_STATIC
 #endif
-	.address = 0x0afaa8c0, //192.168.250.10, network order
-	.gw = 0x01faa8c0,      //192.168.250.1, network order
+	.address = 0x0ff0a8c0, //192.168.240.10, network order
+	.gw = 0x01f0a8c0,      //192.168.240.1, network order
 	.netmask = 0x00ffffff, //255.255.255.0, network order
-	.dns1 = 0x01faa8c0,    //192.168.250.1, network order
+	.dns1 = 0x01f0a8c0,    //192.168.240.1, network order
 	.dns2 = 0,
 };
 #endif
@@ -655,6 +655,10 @@ void ip_address_set(int iface, int dhcp, char *ip, char *mask, char *gw, char *d
 		memcpy(&uap_ip_settings, &addr, sizeof(addr));
 	else if (iface == 1) // Station
 		memcpy(&sta_ip_settings, &addr, sizeof(addr));
+#if CONFIG_ETH
+	else if (iface == 3)
+		memcpy(&eth_ip_settings, &addr, sizeof(addr));
+#endif
 #if CONFIG_BRIDGE
 	else if (iface == 2)
 		memcpy(&br_ip_settings, &addr, sizeof(addr));

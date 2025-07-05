@@ -55,6 +55,7 @@
 #include "sys_hal.h"
 #include "miiphy.h"
 #include "os/mem.h"
+#include "sys_driver.h"
 
 #define ETH_MULTI_PHY_SUPPORT  1
 
@@ -342,6 +343,13 @@ static bk_err_t low_level_init(struct netif *netif)
   heth.Init.RxBuffLen = 1536;
 
   hal_eth_init_status = HAL_ETH_Init(&heth);
+
+  if (hal_eth_init_status != HAL_OK) {
+    LWIP_LOGE("HAL_ETH_Init failed: DMASBMR=0x%08lx DMACSR=0x%08lx MACCR=0x%08lx\n",
+              heth.Instance->DMASBMR, heth.Instance->DMACSR, heth.Instance->MACCR);
+    ret = BK_FAIL;
+    goto fail;
+  }
 
   /* Initialize the RX POOL */
   LWIP_MEMPOOL_INIT(RX_POOL);
@@ -717,11 +725,15 @@ static void bmsg_eth_tx_handler(BUS_MSG_T *msg)
 
   if (HAL_ETH_Transmit_IT(&heth, txconfig))  // FIXME: may failed, revise me
   {
-    LWIP_LOGV("HAL_ETH_Transmit_IT failed\n");
+    LWIP_LOGV("HAL_ETH_Transmit_IT fail, DMACSR=0x%08x.\r\n", READ_REG(heth.Instance->DMACSR));
+    //LWIP_LOGI("FAIL DESC3=0x%08X, DESC2(buf)=0x%08X", txdesc->DESC3, txdesc->DESC2);
+    //LWIP_LOGI("TDES0=0x%08X TDES1=0x%08X\r\n", txdesc->TDES0, txdesc->TDES1);
+    //LWIP_LOGI("TDES2=0x%08X TDES3=0x%08X\r\n", txdesc->TDES2, txdesc->TDES3);
     pbuf_free(p);
   }
   else
   {
+    //LWIP_LOGI("HAL_ETH_Transmit_IT ok");
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
      // Increase tx counter for LV
      priv->tx_count++;
@@ -826,14 +838,17 @@ static void ethernetif_core_thread(void *argument)
     //BK_LOGD(NULL, "enter: msg.type %d\n", msg.type);
     switch (msg.type) {
     case BMSG_RX_TYPE:
+      //LWIP_LOGI("BMSG_RX_TYPE\n");
       bmsg_eth_rx_handler(&msg, netif);
       break;
 
     case BMSG_TX_TYPE:
+      //LWIP_LOGI("BMSG_TX_TYPE\n");
       bmsg_eth_tx_handler(&msg);
       break;
 
     case BMSG_TX_COMPLETE:
+    //LWIP_LOGI("BMSG_TX_COMPLETE\n");
       GLOBAL_INT_DISABLE();
       if (bmsg_eth_tx_compl_count > 0)
         bmsg_eth_tx_compl_count -= 1;
@@ -1063,7 +1078,6 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   gpio_dev_map(GPIO_38, GPIO_DEV_ENET_TXEN);
   gpio_dev_map(GPIO_39, GPIO_DEV_ENET_REF_CLK);
 #elif defined(CONFIG_ETH_PIN_GROUP1)
-  // group2(46-55)
   gpio_dev_unmap(GPIO_46);  // PHY INT
   gpio_dev_unmap(GPIO_47);  // MDC
   gpio_dev_unmap(GPIO_48);  // MDIO
@@ -1109,7 +1123,7 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   bk_int_isr_register(INT_SRC_ETH, ETH_IRQHandler, NULL);
 
   // Enable ETH IRQ
-  sys_hal_enable_eth_int(1);
+  sys_drv_core_intr_group2_enable(1, ETHERNET_INTERRUPT_CTRL_BIT);
 
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
   // Register enters/exit low voltage callback
@@ -1326,10 +1340,25 @@ void ethernet_link_thread(void *argument)
         priv->speed = speed;
 #endif
         HAL_ETH_SetMACConfig(&heth, &MACConf);
-        HAL_ETH_Start_IT(&heth);
+        HAL_StatusTypeDef status = HAL_ERROR;
+        status = HAL_ETH_Start_IT(&heth);
+        LWIP_LOGI("link_thread: Start_IT ret=%d, gState=%d\n",
+          status, heth.gState);
+
+        // LWIP_LOGI("[ETH_LINK] HAL_ETH_Start_IT done\n");
+        // LWIP_LOGI("[ETH_LINK] DMACIER = 0x%08X\n", heth.Instance->DMACIER);
+        // LWIP_LOGI("[ETH_LINK] Expected bits: NIE=%d RIE=%d TIE=%d\n",
+        //           (heth.Instance->DMACIER & ETH_DMACIER_NIE) ? 1 : 0,
+        //           (heth.Instance->DMACIER & ETH_DMACIER_RIE) ? 1 : 0,
+        //           (heth.Instance->DMACIER & ETH_DMACIER_TIE) ? 1 : 0);
         netifapi_netif_set_link_up(netif);
 
         eth_ip_start();   // netifapi_XXX
+
+        LWIP_LOGI("ETH link up, speed %dM, %s-duplex\n", phydev->speed, phydev->duplex ? "Full" : "Half");
+        LWIP_LOGI("IP  : %s\n", ip4addr_ntoa(netif_ip4_addr(netif)));
+        LWIP_LOGI("MASK: %s\n", ip4addr_ntoa(netif_ip4_netmask(netif)));
+        LWIP_LOGI("GW  : %s\n", ip4addr_ntoa(netif_ip4_gw(netif)));
       }
     }
 
