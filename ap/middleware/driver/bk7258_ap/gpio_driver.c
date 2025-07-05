@@ -57,14 +57,14 @@ bk_err_t gpio_dev_map(gpio_id_t gpio_id, gpio_dev_t dev)
 
 	if (config == NULL)
 	{
-		GPIO_LOGW("GPIO%d not found in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
+		GPIO_LOGE("GPIO%d not found in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
 		return BK_ERR_GPIO_INVALID_OPERATE;
 	}
 
 #if 0
     if (config->gpio_time_sharing_multiplex == GPIO_TIME_SHARING_MULTIPLEX_DISABLE)
     {
-      GPIO_LOGW("GPIO%d is not set time_sharing_multiplex, please set it in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
+      GPIO_LOGE("GPIO%d is not set time_sharing_multiplex, please set it in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
       return BK_ERR_GPIO_INVALID_OPERATE;
     }
 #endif
@@ -85,14 +85,14 @@ bk_err_t gpio_dev_unmap(gpio_id_t gpio_id)
 
 	if (config == NULL)
 	{
-		GPIO_LOGW("GPIO%d not found in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
+		GPIO_LOGE("GPIO%d not found in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
 		return BK_ERR_GPIO_INVALID_OPERATE;
 	}
 
 #if 0
     if (config->gpio_time_sharing_multiplex == GPIO_TIME_SHARING_MULTIPLEX_DISABLE)
     {
-      GPIO_LOGW("GPIO%d is not set time_sharing_multiplex, please set it in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
+      GPIO_LOGE("GPIO%d is not set time_sharing_multiplex, please set it in GPIO_DEFAULT_DEV_CONFIG table\r\n",gpio_id);
       return BK_ERR_GPIO_INVALID_OPERATE;
     }
 #endif

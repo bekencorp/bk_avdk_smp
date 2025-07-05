@@ -27,6 +27,7 @@
 #if CONFIG_INTERRUPT_DEBUG_RECORDER
 #include "interrupt_debug.h"
 #include <string.h>
+#include <driver/aon_rtc.h>
 #endif
 
 #if CONFIG_ARCH_INT_STATIS
@@ -46,8 +47,10 @@ static uint32_t s_int_statis[InterruptMAX_IRQn] = {0};
 
 
 #if CONFIG_INTERRUPT_DEBUG_RECORDER
-__attribute__((__used__)) static volatile interrupt_recorder_t  s_interrupt_flag[CONFIG_INTERRUPT_RECORDER_CNT] ;
-__attribute__((__used__)) static volatile uint32_t s_int_cnt = 0;
+__attribute__((__used__)) static volatile interrupt_recorder_t  s_interrupt_core0_flag[CONFIG_INTERRUPT_RECORDER_CNT] ;
+__attribute__((__used__)) static volatile uint32_t s_int_core0_cnt = 0;
+__attribute__((__used__)) static volatile interrupt_recorder_t  s_interrupt_core1_flag[CONFIG_INTERRUPT_RECORDER_CNT] ;
+__attribute__((__used__)) static volatile uint32_t s_int_core1_cnt = 0;
 
 #define ARCH_ISR_HANDLER(irq)                                   \
 {                                                               \
@@ -55,13 +58,29 @@ __attribute__((__used__)) static volatile uint32_t s_int_cnt = 0;
 	IRQ_TRACE_BEGIN(irq);                                       \
 	int_group_isr_t isr_cb;                                     \
 	isr_cb = arch_interrupt_get_handler(irq);                   \
-    s_interrupt_flag[s_int_cnt % CONFIG_INTERRUPT_RECORDER_CNT ].int_flag = irq;           \
-    s_interrupt_flag[s_int_cnt % CONFIG_INTERRUPT_RECORDER_CNT].current_cnt = s_int_cnt;   \
+    if (portGET_CORE_ID() == 0) {                               \
+        s_interrupt_core0_flag[s_int_core0_cnt % CONFIG_INTERRUPT_RECORDER_CNT ].int_flag = irq;           \
+        s_interrupt_core0_flag[s_int_core0_cnt % CONFIG_INTERRUPT_RECORDER_CNT].current_cnt = s_int_core0_cnt;   \
+        s_interrupt_core0_flag[s_int_core0_cnt % CONFIG_INTERRUPT_RECORDER_CNT].enter_time = bk_aon_rtc_get_us();   \
+    }                                                           \
+    else {                                                      \
+        s_interrupt_core1_flag[s_int_core1_cnt % CONFIG_INTERRUPT_RECORDER_CNT ].int_flag = irq;           \
+        s_interrupt_core1_flag[s_int_core1_cnt % CONFIG_INTERRUPT_RECORDER_CNT].current_cnt = s_int_core1_cnt;   \
+        s_interrupt_core1_flag[s_int_core1_cnt % CONFIG_INTERRUPT_RECORDER_CNT].enter_time = bk_aon_rtc_get_us();   \
+    }                                                           \
 	if (isr_cb != NULL) {                                       \
 		(*(isr_cb))();                                          \
 	}                                                           \
-    s_interrupt_flag[s_int_cnt % CONFIG_INTERRUPT_RECORDER_CNT].int_flag |= 0xf0000000;    \
-    s_int_cnt ++;                                               \
+    if (portGET_CORE_ID() == 0) {                               \
+        s_interrupt_core0_flag[s_int_core0_cnt % CONFIG_INTERRUPT_RECORDER_CNT].int_flag |= 0xf0000000; \
+        s_interrupt_core0_flag[s_int_core0_cnt % CONFIG_INTERRUPT_RECORDER_CNT].exit_time = bk_aon_rtc_get_us();   \
+        s_int_core0_cnt ++;                                     \
+    }                                                           \
+    else {                                                      \
+        s_interrupt_core1_flag[s_int_core1_cnt % CONFIG_INTERRUPT_RECORDER_CNT].int_flag |= 0xf0000000; \
+        s_interrupt_core1_flag[s_int_core1_cnt % CONFIG_INTERRUPT_RECORDER_CNT].exit_time = bk_aon_rtc_get_us();   \
+        s_int_core1_cnt ++;                                      \
+    }                                                           \
 	IRQ_TRACE_END();                                            \
 }
 #else
@@ -81,7 +100,8 @@ __attribute__((__used__)) static volatile uint32_t s_int_cnt = 0;
 void soc_isr_init(void)
 {
 #if CONFIG_INTERRUPT_DEBUG_RECORDER
-    memset((void *)s_interrupt_flag, 0, sizeof(interrupt_recorder_t) * CONFIG_INTERRUPT_RECORDER_CNT);
+    memset((void *)s_interrupt_core0_flag, 0, sizeof(interrupt_recorder_t) * CONFIG_INTERRUPT_RECORDER_CNT);
+    memset((void *)s_interrupt_core1_flag, 0, sizeof(interrupt_recorder_t) * CONFIG_INTERRUPT_RECORDER_CNT);
 #endif
 	arch_isr_entry_init();
 }

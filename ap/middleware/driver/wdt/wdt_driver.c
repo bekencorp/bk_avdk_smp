@@ -64,7 +64,7 @@ typedef struct {
 
 #define WDT_RETURN_ON_INVALID_PERIOD(timeout) do {\
 		if ((timeout) > WDT_F_PERIOD_V) {\
-			WDT_LOGW("WDT invalid timeout\r\n");\
+			WDT_LOGE("WDT invalid timeout\r\n");\
 			return BK_ERR_WDT_INVALID_PERIOD;\
 		}\
 	} while(0)

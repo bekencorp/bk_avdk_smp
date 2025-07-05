@@ -229,7 +229,7 @@ __IRAM_SEC uint64_t bk_aon_rtc_get_current_tick(aon_rtc_id_t id)
 {
 	if(id >= AON_RTC_ID_MAX)
 	{
-		AON_RTC_LOGW("%s:id=%d\r\n", __func__, id);
+		AON_RTC_LOGE("%s:id=%d\r\n", __func__, id);
 		return 0;
 	}
 
