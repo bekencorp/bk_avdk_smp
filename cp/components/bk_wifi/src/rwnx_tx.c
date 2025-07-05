@@ -743,7 +743,7 @@ void rwnx_start_xmit_mgmt(struct sk_buff *skb)
 	if (more_pbuf)
 		p_cnt  = MGMT_FRAME_MAX_TX_PBD_CNT;
 
-	fhost_txdesc = (struct fhost_tx_desc_tag *)os_zalloc(sizeof(struct fhost_tx_desc_tag) + fhost_txdesc_extra_size() + p_cnt * sizeof(struct tx_pbd));
+	fhost_txdesc = (struct fhost_tx_desc_tag *)os_sram_zalloc(sizeof(struct fhost_tx_desc_tag) + fhost_txdesc_extra_size() + p_cnt * sizeof(struct tx_pbd));
 
 	if (!fhost_txdesc)
 		goto tx_exit;
@@ -848,7 +848,7 @@ void rwnx_start_xmit_raw_ex(struct sk_buff *skb, raw_tx_cntrl_t *raw_tx_cntrl)
 	if (more_pbuf)
 		p_cnt = MGMT_FRAME_MAX_TX_PBD_CNT;
 
-	fhost_txdesc = (struct fhost_tx_desc_tag *)os_zalloc(sizeof(struct fhost_tx_desc_tag) + fhost_txdesc_extra_size() + p_cnt * sizeof(struct tx_pbd));
+	fhost_txdesc = (struct fhost_tx_desc_tag *)os_sram_zalloc(sizeof(struct fhost_tx_desc_tag) + fhost_txdesc_extra_size() + p_cnt * sizeof(struct tx_pbd));
 
 	if (!fhost_txdesc)
 		goto tx_exit;
