@@ -886,6 +886,8 @@ bk_err_t rtos_oneshot_reload_timer( beken2_timer_t* timer )
         return kGeneralErr;
     }
 
+    timer->stop_flag = 0;
+    
     return kNoErr;
 }
 
@@ -1060,6 +1062,8 @@ bk_err_t rtos_reload_timer( beken_timer_t* timer )
     {
         return kGeneralErr;
     }
+
+    timer->stop_flag = 0;
 
     return kNoErr;
 }
