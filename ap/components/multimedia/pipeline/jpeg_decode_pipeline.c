@@ -1191,10 +1191,10 @@ static void jpeg_decode_notify_handle(uint32_t param, pipeline_module_t module)
 		}
 		else
 		{
-			//LOGE("%s multi notify from: %d, index: %d, ignore\n", __func__, module, mux_buf->index);
-			BK_ASSERT_EX(0, "%s multi notify from: %d, index: %d, input state: %d, line:%d, ignore\n",
-				__func__, module, mux_buf->buffer.index, decoder_buffer->state, decoder_buffer->line);
-			//return;
+			LOGW("%s multi notify from: %d, index: %d, ignore\n", __func__, module, mux_buf->buffer.index);
+			//BK_ASSERT_EX(0, "%s multi notify from: %d, index: %d, input state: %d, ignore\n",
+			//	__func__, module, mux_buf->buffer.index, decoder_buffer->state);
+			return;
 		}
 
 		if (jpeg_decode_frame_is_last_line(mux_buf->buffer.index))
@@ -1964,7 +1964,6 @@ void bk_jdec_buffer_request_deregister(pipeline_module_t module)
 				}
 			}
 		}
-
 	}
 }
 

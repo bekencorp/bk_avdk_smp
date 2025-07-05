@@ -101,7 +101,6 @@ typedef struct {
 
 	uint8_t state;
 	uint8_t ok;
-	uint32_t line;
 } complex_buffer_t;
 
 

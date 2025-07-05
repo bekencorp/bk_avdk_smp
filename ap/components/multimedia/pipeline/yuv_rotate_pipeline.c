@@ -263,7 +263,6 @@ static void dma2d_transfer_complete_cb(void)
 
 	if ((rotate_config->rot_mode == SW_ROTATE) && (rotate_config->rot_angle == ROTATE_NONE))
 	{
-		rotate_config->decoder_buffer->line = __LINE__;
 		rotate_config->decoder_free_cb(rotate_config->decoder_buffer);
 		rotate_config->decoder_buffer = NULL;
 		rotate_config->state = ROTATE_STATE_IDLE;
@@ -327,11 +326,6 @@ static void rotate_finish_handler(uint32_t param)
 
 	rtos_stop_oneshot_timer(&rotate_timer);
 
-	if (rotate_config->rotate_ena == 0)
-	{
-		BK_ASSERT_EX(0, "%s, %d, %p\n", __func__, __LINE__, rotate_buf);
-	}
-
 	if (!list_empty(&rotate_config->rotate_pedding_list))
 	{
 		LIST_HEADER_T *pos, *n, *list = &rotate_config->rotate_pedding_list;
@@ -364,7 +358,6 @@ static void rotate_finish_handler(uint32_t param)
 	if (rotate_buf->index < (rotate_config->jpeg_height / PIPELINE_DECODE_LINE))
 #endif
 	{
-		rotate_config->decoder_buffer->line = __LINE__;
 		rotate_config->decoder_free_cb(rotate_config->decoder_buffer);
 		rotate_config->decoder_buffer = NULL;
 	}
@@ -517,7 +510,6 @@ static bk_err_t rotate_memcopy_handler(uint32_t param)
 error:
 	if ((rotate_config->rot_mode == SW_ROTATE) && (rotate_config->rot_angle == ROTATE_NONE))
 	{
-		rotate_config->decoder_buffer->line = __LINE__;
 		rotate_config->decoder_free_cb(rotate_config->decoder_buffer);
 		rotate_config->decoder_buffer = NULL;
 		rotate_config->state = ROTATE_STATE_IDLE;
@@ -1125,8 +1117,6 @@ bk_err_t rotate_task_close(void)
 			{
 				complex_buffer_t *decoder_buffer = (complex_buffer_t*)os_malloc(sizeof(complex_buffer_t));
 				os_memcpy(decoder_buffer, request->buffer, sizeof(complex_buffer_t));
-				decoder_buffer->line = __LINE__;
-				LOGI("%s, %p, %d\n", __func__, decoder_buffer->data, __LINE__);
 				rotate_config->decoder_free_cb(decoder_buffer);
 				list_del(pos);
 				os_free(request);
@@ -1136,8 +1126,6 @@ bk_err_t rotate_task_close(void)
 
 	if (rotate_config->decoder_buffer)
 	{
-		rotate_config->decoder_buffer->line = __LINE__;
-		LOGI("%s, %p, %d\n", __func__, rotate_config->decoder_buffer->data, __LINE__);
 		rotate_config->decoder_free_cb(rotate_config->decoder_buffer);
 		rotate_config->decoder_buffer = NULL;
 	}
