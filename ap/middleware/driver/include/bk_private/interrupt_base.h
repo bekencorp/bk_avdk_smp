@@ -48,6 +48,7 @@ void interrupt_init(void);
 void interrupt_deinit(void);
 void interrupt_spurious(void);
 void group_isr(uint32_t group_id, uint32_t int_status);
+void secondary_core_interrupt_init(void);
 
 
 

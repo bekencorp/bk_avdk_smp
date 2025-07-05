@@ -54,6 +54,25 @@ void interrupt_init(void)
 	soc_isr_init();
 }
 
+/* when slave core start,need to set its NVIC */
+void secondary_core_interrupt_init(void)
+{
+    const icu_int_map_t startup_cpu1_int_map_table[] = ICU_DEV_MAP;
+    uint16_t src;
+
+    /* set cpu1 NVIC */
+    arch_isr_entry_init();
+
+    /* config interrupt sources according to the ICU_DEV_MAP */ 
+    for (src = 0; src < INT_SRC_NONE; src++) {
+        const icu_int_map_t *icu_int_map = &startup_cpu1_int_map_table[src];
+        uint8_t int_num = icu_int_map->int_bit;
+        arch_int_disable_irq(int_num);
+	    arch_interrupt_set_priority(int_num, icu_int_map->int_prio);
+        arch_int_enable_irq(int_num);
+    }
+}
+
 void interrupt_deinit(void)
 {
 	soc_isr_deinit();

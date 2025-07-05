@@ -102,7 +102,7 @@ void arch_int_init_all_irq(void)
 
 	for (uint32_t irq_type = 0; irq_type < INT_NUMBER_MAX; irq_type++) {
 		NVIC_SetPriority(irq_type, IRQ_DEFAULT_PRIORITY);
-		NVIC_DisableIRQ(irq_type);
+		NVIC_EnableIRQ(irq_type);
 	}
 }
 

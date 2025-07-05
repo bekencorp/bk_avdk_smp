@@ -151,7 +151,7 @@ static bk_err_t gpio_hal_map_check(gpio_hal_t *hal, gpio_id_t gpio_id)
 	}
 	if(gpio_map == NULL)
 	{
-		HAL_LOGE("gpio id=%d is not exist\r\n", gpio_id);
+		HAL_LOGW("gpio id=%d is not exist\r\n", gpio_id);
 		return BK_ERR_GPIO_INVALID_ID;
 	}
 
@@ -184,7 +184,7 @@ bk_err_t gpio_hal_func_map(gpio_hal_t *hal, gpio_id_t gpio_id, gpio_dev_t dev)
 	}
 	if(gpio_map == NULL)
 	{
-		HAL_LOGE("gpio id=%d is not exist\r\n", gpio_id);
+		HAL_LOGW("gpio id=%d is not exist\r\n", gpio_id);
 		return BK_ERR_GPIO_INVALID_ID;
 	}
 
@@ -194,7 +194,7 @@ bk_err_t gpio_hal_func_map(gpio_hal_t *hal, gpio_id_t gpio_id, gpio_dev_t dev)
 
 	//get peri mode of id
 	if (dev == GPIO_DEV_NONE) {
-		HAL_LOGE("gpio device is none, id=%d dev=%d\r\n", gpio_id, dev);
+		HAL_LOGW("gpio device is none, id=%d dev=%d\r\n", gpio_id, dev);
 		return BK_ERR_GPIOS_MAP_NONE;
 	} else {
 		for (int peri_func = 0; peri_func < GPIO_PERI_FUNC_NUM; peri_func ++) {
@@ -233,7 +233,7 @@ bk_err_t gpio_hal_devs_map(gpio_hal_t *hal, uint64 gpios, gpio_dev_t *devs, uint
 
 	//check dev is null
 	if(!devs) {
-		HAL_LOGE("gpio devs is null \r\n");
+		HAL_LOGW("gpio devs is null \r\n");
 		return BK_ERR_NULL_PARAM;
 	}
 
@@ -246,7 +246,7 @@ bk_err_t gpio_hal_devs_map(gpio_hal_t *hal, uint64 gpios, gpio_dev_t *devs, uint
 	}
 
 	if(dev_id != dev_num) {
-		HAL_LOGE("dev_num expected %d actual is %d \r\n", dev_num, dev_id);
+		HAL_LOGW("dev_num expected %d actual is %d \r\n", dev_num, dev_id);
 
 		return BK_ERR_GPIO_BITS_NUM;
 	}
@@ -257,7 +257,7 @@ bk_err_t gpio_hal_devs_map(gpio_hal_t *hal, uint64 gpios, gpio_dev_t *devs, uint
 bk_err_t gpio_hal_set_config(gpio_hal_t *hal, gpio_id_t gpio_id, const gpio_config_t *config)
 {
 	if(gpio_hal_map_check(hal, gpio_id)) {
-		HAL_LOGE("gpio has map\r\n");
+		HAL_LOGW("gpio has map\r\n");
 		return BK_ERR_GPIO_INTERNAL_USED;
 	}
 
