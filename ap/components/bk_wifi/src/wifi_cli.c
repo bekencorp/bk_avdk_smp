@@ -391,6 +391,7 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
         wifi_scan_result_t scan_result = {0};
         BK_LOG_ON_ERR(bk_wifi_scan_get_result(&scan_result));
         BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
+        bk_wifi_scan_free_result(&scan_result);
     } else if (!strcasecmp(argV[1], "stats")) {
         wdrv_print_debug_info();
     }

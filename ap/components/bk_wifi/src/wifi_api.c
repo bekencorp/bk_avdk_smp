@@ -1397,13 +1397,32 @@ bk_err_t bk_wifi_scan_dump_result(const wifi_scan_result_t *scan_result)
 
 void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
 {
-    if (scan_result) {
-        os_free(scan_result->aps);
-        scan_result->aps = 0;
-        scan_result->ap_num = 0;
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_scan_result_t);
+
+    if (scan_result == NULL) {
+        WIFI_LOGE("%s failed, invalid scan_result\r\n", __func__);
+        return;
     }
-    WIFI_LOGV("scan free result\n");
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return;
+    }
+
+    os_memcpy(buffer_to_ipc, scan_result, len);
+    ret = wifi_send_com_api_cmd(SCAN_RESULT_FREE, 1, (uint32_t)buffer_to_ipc);
+
+    if (ret != BK_OK) {
+        WIFI_LOGE("%s wifi_send_com_api_cmd failed with error %d\r\n", __func__, ret);
+    }
+
+    os_free(buffer_to_ipc);
 }
+
 //MONITOR
 bk_err_t bk_wifi_monitor_register_cb(const wifi_monitor_cb_t monitor_cb)
 {

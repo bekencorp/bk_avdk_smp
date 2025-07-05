@@ -16,6 +16,7 @@ enum CIF_WIFI_API_CMD_TYPE
     SCAN_STOP                           = 0x301,
     SCAN_RESULT                         = 0x302,
     SCAN_CONTRY_CODE                    = 0x303,
+    SCAN_RESULT_FREE                    = 0x304,
 
     // STA management command section
     STA_SET_CONFIG                      = 0x310,
