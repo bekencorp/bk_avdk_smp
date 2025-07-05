@@ -516,8 +516,18 @@ static void usbh_hub_events_connect_handle(struct usbh_hub *hub, struct usbh_hub
     if (usbh_enumerate(child) < 0) {
     	child->connected = false;
     	USB_LOG_ERR("Port %u enumerate fail\r\n", port + 1);
+        if(hub->is_roothub) {
+            usbh_musb_trigger_disconnect_by_sw();
+        } else {
+            usbh_hub_event_lock_mutex();
+            usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
+            int ret = usbh_hub_set_feature(hub, port + 1, HUB_PORT_FEATURE_RESET);
+            if (ret < 0) {
+                USB_LOG_ERR("%s Failed to reset port %u,errorcode:%d\r\n", __func__, port, ret);
+            }
+            usbh_hub_event_unlock_mutex();
+        }
     }
-
 }
 
 static void usbh_hub_events_disconnect_handle(    struct usbh_hub *hub, struct usbh_hubport *child, uint8_t port)
