@@ -211,10 +211,6 @@ enum BK_CMD_TYPE
     BK_CMD_SET_MEDIA_MODE      = 0xB,
     BK_CMD_SET_MEDIA_QUALITY   = 0xC,
     BK_CMD_SET_COEX_CSA         = 0xF,
-    BK_CMD_GET_AP_CONFIG       = 0x10,
-    BK_CMD_GET_IP_CONFIG       = 0x11,
-    BK_CMD_GET_STAIPUP         = 0x12,
-    BK_CMD_GET_APIPUP          = 0x13,
 
     //Debug info section
     BK_INTERFACE_DEBUG_CMD     = 0x110,
