@@ -597,8 +597,9 @@ static void gpio_config_wakeup_function(void)
 	s_gpio_is_setted_wake_status = 0;
 	for(i = 0; i < sizeof(gpio_wakeup_map)/sizeof(gpio_wakeup_t); i++)
 	{
-		//maybe the PIN is re-used as SECOND_FUNCTION and GPIO,F.E:UART RXD re-uses as wakeup PIN
-		gpio_hal_func_unmap(hal, gpio_wakeup_map[i].id);
+		//This API is frequently called and prints log in the low-power keepalive
+		// gpio_hal_func_unmap(hal, gpio_wakeup_map[i].id);
+		gpio_hal_sencond_function_enable(hal, gpio_wakeup_map[i].id, 0);
 		gpio_wakeup_set_pin_voltage_status(gpio_wakeup_map[i].id, gpio_wakeup_map[i].int_type);
 		bk_gpio_set_interrupt_type(gpio_wakeup_map[i].id, gpio_wakeup_map[i].int_type);
 		//bk_gpio_enable_interrupt(gpio_wakeup_map[i].id);
@@ -621,8 +622,9 @@ static void gpio_config_wakeup_function(void)
 	for(i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
 	{
 		if(s_gpio_dynamic_wakeup_source_map[i].id != GPIO_WAKE_SOURCE_IDLE_ID) {
-			//maybe the PIN is re-used as SECOND_FUNCTION and GPIO,F.E:UART RXD re-uses as wakeup PIN
-			gpio_hal_func_unmap(hal, s_gpio_dynamic_wakeup_source_map[i].id);
+			//This API is frequently called and prints log in the low-power keepalive
+			// gpio_hal_func_unmap(hal, s_gpio_dynamic_wakeup_source_map[i].id);
+			gpio_hal_sencond_function_enable(hal, s_gpio_dynamic_wakeup_source_map[i].id, 0);
 			gpio_wakeup_set_pin_voltage_status(s_gpio_dynamic_wakeup_source_map[i].id, s_gpio_dynamic_wakeup_source_map[i].int_type);
 			bk_gpio_set_interrupt_type(s_gpio_dynamic_wakeup_source_map[i].id, s_gpio_dynamic_wakeup_source_map[i].int_type);
 			//bk_gpio_enable_interrupt(s_gpio_dynamic_wakeup_source_map[i].id);
