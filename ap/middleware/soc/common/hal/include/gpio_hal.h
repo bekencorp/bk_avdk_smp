@@ -99,6 +99,7 @@ bk_err_t gpio_hal_set_config(gpio_hal_t *hal, gpio_id_t gpio_id, const gpio_conf
 bk_err_t gpio_hal_devs_map(gpio_hal_t *hal, uint64 gpios, gpio_dev_t *devs, uint8 dev_num);
 
 bk_err_t gpio_hal_enable_interrupt(gpio_hal_t *hal, gpio_id_t gpio_id);
+bk_err_t gpio_hal_dump_map_dev_cfg(gpio_hal_t *hal);
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 bk_err_t gpio_hal_bak_configs(uint16_t *gpio_cfg, uint32_t count);

@@ -1261,10 +1261,3 @@ bk_err_t bk_gpio_ana_register_wakeup_source(gpio_id_t gpio_id, gpio_int_type_t i
 	return bk_pm_sleep_register_cb(PM_MODE_SUPER_DEEP_SLEEP, PM_DEV_ID_GPIO, &enter_conf, NULL);
 }
 #endif
-
-#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
-bk_err_t gpio_dump_map_dev_cfg(void)
-{
-	return gpio_hal_dump_map_dev_cfg(&s_gpio.hal);
-}
-#endif
