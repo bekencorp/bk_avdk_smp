@@ -25,6 +25,7 @@
 #include "h264_hal.h"
 #include "h264_driver.h"
 #include "h264_default_config.h"
+#include "cpu_id.h"
 
 typedef struct {
 	h264_isr_t isr_handler;
@@ -57,7 +58,7 @@ static void h264_isr(void);
 bk_err_t h264_int_enable(void)
 {
 	uint32_t int_level = rtos_enter_critical();
-	sys_drv_int_group2_enable(H264_INTERRUPT_CTRL_BIT);
+	sys_drv_core_intr_group2_enable(CPU2_CORE_ID, H264_INTERRUPT_CTRL_BIT);
 	h264_hal_int_config(&s_h264.hal, H264_INT_ENABLE);
 	rtos_exit_critical(int_level);
 	return BK_OK;
@@ -67,7 +68,7 @@ bk_err_t h264_int_disable(void)
 {
 	uint32_t int_level = rtos_enter_critical();
 	h264_hal_int_config(&s_h264.hal, H264_CPU_INT_DISABLE);
-	sys_drv_int_group2_disable(H264_INTERRUPT_CTRL_BIT);
+	sys_drv_core_intr_group2_disable(CPU2_CORE_ID, H264_INTERRUPT_CTRL_BIT);
 	rtos_exit_critical(int_level);
 	return BK_OK;
 }
