@@ -2,15 +2,10 @@
 #include <components/system.h>
 #include <os/os.h>
 #include <components/shell_task.h>
-#include <modules/pm.h>
-#include <driver/pwr_clk.h>
+
 
 #define APP_TIMEOUT_VALUE    BEKEN_WAIT_FOREVER
 
-extern void user_app_main(void);
-extern void rtos_set_user_app_entry(beken_thread_function_t entry);
-extern int bk_cli_init(void);
-extern void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id);
 extern int bk_ipc_init(void);
 
 #if CONFIG_FREERTOS_SMP
@@ -72,7 +67,7 @@ void app_test_smp_core1(void)
                              2048,
                              0);
     if (ret != kNoErr) {
-        BK_LOGE(NULL, "Error: Failed to create cpu1_test_task: %d\r\n",ret);
+        BK_LOGE(NULL, "Error: Failed to create cpu2_test_task: %d\r\n",ret);
     }
 }
 #endif
@@ -81,7 +76,7 @@ int main(void)
 {
 	bk_init();
 
-#if CONFIG_FREERTOS_SMP
+#if CONFIG_FREERTOS_SMP_TEST
     app_test_smp_core0();
     app_test_smp_core1();
 #endif

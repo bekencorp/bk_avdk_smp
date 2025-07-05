@@ -81,7 +81,7 @@ int main(void)
 {
 	bk_init();
 
-#if CONFIG_FREERTOS_SMP
+#if CONFIG_FREERTOS_SMP_TEST
     app_test_smp_core0();
     app_test_smp_core1();
 #endif

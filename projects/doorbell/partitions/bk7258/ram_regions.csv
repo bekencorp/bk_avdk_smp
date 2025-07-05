@@ -6,7 +6,8 @@ PSRAM_CAPCAITY_SIZE=8M
 AP_SPINLOCK,             SRAM, 0x28000000, 0x010000
 HARDWARE_ACC,            SRAM,           , 0x01b000
 AP_RAM,                  SRAM,           , 0x043c00
-CP_RAM,                  SRAM,           , 0x030c00
+CP_RAM,                  SRAM,           , 0x030b00
+PWR_MNG,                 SRAM,           , 0x000100
 SWAP,                    SRAM,           , 0x000800
 PSRAM_MEM_SLAB_USER,    PSRAM, 0x60000000, 0x019000
 PSRAM_MEM_SLAB_AUDIO,   PSRAM,           , 0x019000
