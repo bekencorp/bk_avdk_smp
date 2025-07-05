@@ -928,7 +928,7 @@ static void iperf_start(int mode, char *host, int port)
 
 		if (mode == IPERF_MODE_TCP_CLIENT) {
 #ifdef CONFIG_FREERTOS_SMP
-			rtos_core1_create_thread(NULL, iperf_priority, "iperf_tcp_c",
+			rtos_smp_create_thread(NULL, iperf_priority, "iperf_tcp_c",
 							   iperf_client, THREAD_SIZE,
 							   (beken_thread_arg_t) 0);
 #else
@@ -938,7 +938,7 @@ static void iperf_start(int mode, char *host, int port)
 #endif
 		} else if (mode == IPERF_MODE_TCP_SERVER) {
 #ifdef CONFIG_FREERTOS_SMP
-			rtos_core1_create_thread(NULL, iperf_priority, "iperf_tcp_s",
+			rtos_smp_create_thread(NULL, iperf_priority, "iperf_tcp_s",
 							   iperf_server, THREAD_SIZE,
 							   (beken_thread_arg_t) 0);
 #else
@@ -948,7 +948,7 @@ static void iperf_start(int mode, char *host, int port)
 #endif
 		} else if (mode == IPERF_MODE_UDP_CLIENT) {
 #ifdef CONFIG_FREERTOS_SMP
-			rtos_core1_create_thread(NULL, iperf_priority, "iperf_udp_c",
+			rtos_smp_create_thread(NULL, iperf_priority, "iperf_udp_c",
 							   iperf_udp_client, THREAD_SIZE,
 							   (beken_thread_arg_t) 0);
 #else
@@ -958,7 +958,7 @@ static void iperf_start(int mode, char *host, int port)
 #endif
 		} else if (mode == IPERF_MODE_UDP_SERVER) {
 #ifdef CONFIG_FREERTOS_SMP
-			rtos_core1_create_thread(NULL, iperf_priority, "iperf_udp_s",
+			rtos_smp_create_thread(NULL, iperf_priority, "iperf_udp_s",
 							   iperf_udp_server, THREAD_SIZE,
 							   (beken_thread_arg_t) 0);
 #else
