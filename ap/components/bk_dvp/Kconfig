@@ -22,10 +22,6 @@ menu "CAMERA"
 		int "the gpio id control dvp camera power"
 		default 9
 
-	config ENCODE_BUF_DYNAMIC
-		bool "Enable encode buffer dynamic malloc"
-		default n
-
 	config ENCODE_BUF_NOT_FREE
 		bool "encode buffer when repeate malloc and free, cannot malloc success, so not free, until close all vidoe function"
 		default n
