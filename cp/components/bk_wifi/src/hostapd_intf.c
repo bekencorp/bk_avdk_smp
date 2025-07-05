@@ -1328,7 +1328,7 @@ int hapd_intf_ioctl(unsigned long arg)
 
 ioctl_exit:
 	if ((ret != BK_OK) && display_err)
-		BK_LOGE(TAG, "ioctl fail, cmd=%d ret=%d\n", cmd, ret);
+		BK_LOGW(TAG, "ioctl fail, cmd=%d ret=%d\n", cmd, ret);
 	return ret;
 }
 
