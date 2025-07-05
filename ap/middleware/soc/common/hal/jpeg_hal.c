@@ -31,11 +31,6 @@
 
 #define PSRAM_BASEADDR                    0x60000000
 
-#if !CONFIG_ENCODE_BUF_DYNAMIC
-__attribute__((section(".video_spec_data"), aligned(8))) uint8_t video_sram[40*1024];
-#define JPEG_SHARE_MEM                    (&video_sram[0])
-#endif
-
 bk_err_t jpeg_hal_init(jpeg_hal_t *hal)
 {
 	hal->hw = (jpeg_hw_t *)JPEG_LL_REG_BASE(hal->id);
@@ -206,10 +201,6 @@ bk_err_t jpeg_hal_set_target_size(jpeg_hal_t *hal, uint32_t up_size, uint32_t lo
 
 uint32_t jpeg_hal_get_jpeg_share_mem_addr(void)
 {
-#if CONFIG_ENCODE_BUF_DYNAMIC
 	return 0;
-#else
-	return ((uint32_t)JPEG_SHARE_MEM);
-#endif
 }
 

@@ -1,5 +1,6 @@
 menu "H264_CONFIG"
 	config H264
+		depends on YUV_BUF
 		bool "Enable h264"
 		default n
 
