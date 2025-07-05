@@ -565,7 +565,7 @@ typedef volatile union {
 		uint32_t cpu1_i2s2_int_en                 :  1; /**<bit[13 : 13] */
 		uint32_t cpu1_h264_int_en                 :  1; /**<bit[14 : 14] */
 		uint32_t cpu1_sdmadc_int_en               :  1; /**<bit[15 : 15] */
-		uint32_t cpu1_mbox0_int_en                :  1; /**<bit[16 : 16] */
+		uint32_t cpu1_eth_int_en                :  1; /**<bit[16 : 16] */
 		uint32_t cpu1_mbox1_int_en                :  1; /**<bit[17 : 17] */
 		uint32_t cpu1_bmc64_int_en                :  1; /**<bit[18 : 18] */
 		uint32_t cpu1_dpll_unlock_int_en          :  1; /**<bit[19 : 19] */

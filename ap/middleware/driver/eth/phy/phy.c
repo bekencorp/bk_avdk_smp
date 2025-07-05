@@ -215,44 +215,47 @@ int genphy_config_aneg(struct phy_device *phydev)
  */
 int genphy_update_link(struct phy_device *phydev)
 {
-	int status = 0, bmcr;
+	int status1, status2, bmcr;
+	int old_link = phydev->link;
+
+	//Need to read the register value twice to confirm.
+	phy_read(phydev, MDIO_DEVAD_NONE, MII_BMCR);
 
 	bmcr = phy_read(phydev, MDIO_DEVAD_NONE, MII_BMCR);
+	//os_printf("[PHY] 0: BMCR=0x%04x", bmcr);
 	if (bmcr < 0)
 		return bmcr;
-
-	/* Autoneg is being started, therefore disregard BMSR value and
-	 * report link as down.
-	 */
-	if (bmcr & BMCR_ANRESTART)
-		goto done;
 
 	/* The link state is latched low so that momentary link
 	 * drops can be detected. Do not double-read the status
 	 * in polling mode to detect such short link drops except
 	 * the link was already down.
 	 */
-	if (!phydev->link) {
-		status = phy_read(phydev, MDIO_DEVAD_NONE, MII_BMSR);
-		if (status < 0)
-			return status;
-		else if (status & BMSR_LSTATUS)
-			goto done;
+
+	status1 = phy_read(phydev, MDIO_DEVAD_NONE, MII_BMSR);
+	//os_printf("[PHY] 1: BMSR=0x%04x PHYSTS=0x%04x", status1);
+	if (status1 < 0)
+		return status1;
+	status2 = phy_read(phydev, MDIO_DEVAD_NONE, MII_BMSR);
+	//os_printf("[PHY] 2: BMSR=0x%04x PHYSTS=0x%04x", status2);
+	if (status2 < 0)
+		return status2;
+
+	int link_up = status2 & BMSR_LSTATUS;
+	int aneg_done = status2 & BMSR_ANEGCOMPLETE;
+
+	if (phydev->autoneg == AUTONEG_ENABLE && !aneg_done)
+		link_up = 0;
+
+	phydev->link = link_up ? 1 : 0;
+	phydev->autoneg_complete = aneg_done ? 1 : 0;
+
+	if (phydev->link != old_link) {
+		if (phydev->link)
+			os_printf("[PHY] Link Up");
+		else
+			os_printf("[PHY] Link Down");
 	}
-
-	/* Read link and autonegotiation status */
-	status = phy_read(phydev, MDIO_DEVAD_NONE, MII_BMSR);
-	if (status < 0)
-		return status;
-done:
-	phydev->link = status & BMSR_LSTATUS ? 1 : 0;
-	phydev->autoneg_complete = status & BMSR_ANEGCOMPLETE ? 1 : 0;
-
-	/* Consider the case that autoneg was started and "aneg complete"
-	 * bit has been reset, but "link up" bit not yet.
-	 */
-	if (phydev->autoneg == AUTONEG_ENABLE && !phydev->autoneg_complete)
-		phydev->link = 0;
 
 	return 0;
 }
@@ -616,25 +619,21 @@ int __bk_weak get_phy_id(struct mii_dev *bus, int addr, int devad, u32 *phy_id)
 {
 	int phy_reg;
 
-	/*
-	 * Grab the bits from PHYIR1, and put them
-	 * in the upper half
-	 */
 	phy_reg = bus->read(bus, addr, devad, MII_PHYSID1);
-
+	//os_printf("get_phy_id: addr=%d, PHYIR1=0x%04x\n", addr, phy_reg);
 	if (phy_reg < 0)
 		return -1;
 
 	*phy_id = (phy_reg & 0xffff) << 16;
 
-	/* Grab the bits from PHYIR2, and put them in the lower half */
 	phy_reg = bus->read(bus, addr, devad, MII_PHYSID2);
-
+	//os_printf("get_phy_id: addr=%d, PHYIR2=0x%04x\n", addr, phy_reg);
 	if (phy_reg < 0)
 		return -1;
 
 	*phy_id |= (phy_reg & 0xffff);
 
+	//os_printf("get_phy_id: addr=%d, combined phy_id=0x%08x\n", addr, *phy_id);
 	return 0;
 }
 
@@ -660,7 +659,12 @@ static struct phy_device *create_phy_by_mask(struct mii_dev *bus,
 		/* If the PHY ID is mostly f's, we didn't find anything */
 		if (r == 0 && (phy_id & 0x1fffffff) != 0x1fffffff) {
 			is_c45 = (devad == MDIO_DEVAD_NONE) ? false : true;
+			os_printf("create_phy_by_mask: Found PHY at addr=%d, id=0x%08x\n", addr, phy_id);
 			return phy_device_create(bus, addr, phy_id, is_c45);
+		}
+		else
+		{
+
 		}
 next:
 		phy_mask &= ~(1 << addr);
@@ -791,6 +795,7 @@ struct phy_device *phy_find_by_mask(struct mii_dev *bus, uint phy_mask)
 {
 	/* Reset the bus */
 	if (bus->reset) {
+		os_printf("phy_find_by_mask: Resetting bus via %s\n", bus->name);
 		bus->reset(bus);
 
 		/* Wait 15ms to make sure the PHY has come out of hard reset */
@@ -840,12 +845,16 @@ struct phy_device *phy_connect(struct mii_dev *bus, int addr,
 	struct phy_device *phydev = NULL;
 	uint mask = (addr >= 0) ? (1 << addr) : 0xffffffff;
 
+	//os_printf("phy_connect: probing PHYs on bus: %s, mask=0x%08X\n", bus->name, mask);
+
 	phydev = phy_find_by_mask(bus, mask);
 
-	if (phydev)
+	if (phydev) {
+		os_printf("phy_connect: Found PHY at addr=%d\n", phydev->addr);
 		phy_connect_dev(phydev, dev, interface);
-	else
-		BK_LOGD(NULL, "Could not get PHY for %s: addr %d\n", bus->name, addr);
+	} else {
+		os_printf("phy_connect: Could not get PHY for %s: addr %d\n", bus->name, addr);
+	}
 	return phydev;
 }
 
