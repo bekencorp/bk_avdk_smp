@@ -22,6 +22,11 @@ static void cli_gpio_help(void)
 #if CONFIG_GPIO_SIMULATE_UART_WRITE
 	CLI_LOGD("gpio_uart_write    [index][div(baud_rate=1Mbps/(1+div))][string(len < 8)]\r\n");
 #endif
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+	CLI_LOGD("gpio_dump_map_dev_cfg", "gpio_dump_map_dev_cfg \r\n");
+#endif
+	CLI_LOGD("gpio_check_dev_match", "gpio_check_dev_match [id] [dev]\r\n");
+	CLI_LOGD("gpio_check_capacity_match", "gpio_check_capacity_match [id] [capacity]\r\n");
 }
 
 static void cli_gpio_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -412,10 +417,41 @@ static void cli_gpio_int_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 #if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
 static void cli_gpio_dump_map_dev_cfg_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	extern bk_err_t gpio_dump_map_dev_cfg(void);
 	gpio_dump_map_dev_cfg();
 }
 #endif
+
+static void cli_gpio_check_dev_match_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uint32_t id = 0;
+	gpio_dev_t dev = 0;
+
+	if (argc < 2) {
+		cli_gpio_help();
+		return;
+	}
+
+	id = os_strtoul(argv[1], NULL, 10);
+	dev = os_strtoul(argv[2], NULL, 10);
+
+	BK_LOG_ON_ERR(gpio_check_dev_match(id, dev));
+}
+
+static void cli_gpio_check_capacity_match_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	uint32_t id = 0;
+	uint8_t capacity = 0;
+
+	if (argc < 2) {
+		cli_gpio_help();
+		return;
+	}
+
+	id = os_strtoul(argv[1], NULL, 10);
+	capacity = os_strtoul(argv[2], NULL, 10);
+
+	BK_LOG_ON_ERR(gpio_check_capacity_match(id, capacity));
+}
 
 #define GPIO_CMD_CNT (sizeof(s_gpio_commands) / sizeof(struct cli_command))
 static const struct cli_command s_gpio_commands[] = {
@@ -433,8 +469,10 @@ static const struct cli_command s_gpio_commands[] = {
 	{"gpio_uart_write", "[index][div(baud_rate=1Mbps/(1+div))][string]", cli_gpio_simulate_uart_write_cmd},
 #endif
 #if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
-	{"gpio_dump_map_dev_cfg", "gpio_dump_map_dev_cfg", cli_gpio_dump_map_dev_cfg_cmd}
+	{"gpio_dump_map_dev_cfg", "gpio_dump_map_dev_cfg", cli_gpio_dump_map_dev_cfg_cmd},
 #endif
+	{"gpio_check_dev_match", "gpio_check_dev_match [id] [dev]", cli_gpio_check_dev_match_cmd},
+	{"gpio_check_capacity_match", "gpio_check_capacity_match [id] [capacity]", cli_gpio_check_capacity_match_cmd},
 };
 
 int cli_gpio_init(void)
