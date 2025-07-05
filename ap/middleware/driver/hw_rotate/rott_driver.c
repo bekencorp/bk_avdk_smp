@@ -25,7 +25,6 @@
 #include <driver/int.h>
 #include "sys_driver.h"
 #include "bk_misc.h"
-#include "cpu_id.h"
 
 #define TAG "rott_drv"
 
@@ -207,8 +206,7 @@ bk_err_t bk_rott_driver_deinit(void)
 	}
 	rott_ll_set_rotate_ctrl_rotate_ena(0);
 	bk_rott_soft_reset();
-	//sys_hal_set_rott_int_en(0);
-	sys_drv_core_intr_group2_disable(CPU2_CORE_ID, ROTT_INTERRUPT_CTRL_BIT);
+	sys_hal_set_rott_int_en(0);
 
 	bk_int_isr_unregister(INT_SRC_ROTT);
 	rott_ll_set_module_contol_clk_gate(0);
@@ -231,8 +229,7 @@ bk_err_t bk_rott_block_delay_config(bool en, uint16_t delay_hclk_count1, uint16_
 
 bk_err_t bk_rott_int_enable(rott_int_type_t int_type, bool en)
 {
-	//sys_drv_int_group2_enable(ROTT_INTERRUPT_CTRL_BIT);
-	sys_drv_core_intr_group2_enable(CPU2_CORE_ID, ROTT_INTERRUPT_CTRL_BIT);
+	sys_drv_int_group2_enable(ROTT_INTERRUPT_CTRL_BIT);
 	//sys_hal_set_rott_int_en(en);
 
 	if (int_type & ROTATE_COMPLETE_INT)

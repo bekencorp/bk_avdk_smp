@@ -40,7 +40,6 @@
 #include <driver/dma2d_types.h>
 #include <driver/dma2d.h>
 #include <modules/pm.h>
-#include "cpu_id.h"
 
 #define DMA2D_TIMEOUT_ABORT           (1000U)  /**<  1s  */
 #define DMA2D_TIMEOUT_SUSPEND         (1000U)  /**<  1s  */
@@ -84,13 +83,12 @@ bk_err_t bk_dma2d_driver_init(void)
 	dma2d_hal_soft_reset();
 
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_VIDP_DMA2D, PM_POWER_MODULE_STATE_ON);
-
+	sys_drv_int_enable(DMA2D_INTERRUPT_CTRL_BIT);
 	dma2d_hal_transfes_ability(TRANS_16BYTES);
 #if (USE_HAL_DMA2D_REGISTER_CALLBACKS == 1)
 	os_memset(&s_dma2d_isr, 0, sizeof(s_dma2d_isr));
 	bk_int_isr_register(INT_SRC_DMA2D, dma2d_isr, NULL);
-	// sys_drv_int_enable(DMA2D_INTERRUPT_CTRL_BIT);
-	sys_drv_core_intr_group1_enable(CPU2_CORE_ID, DMA2D_INTERRUPT_CTRL_BIT);
+
 	if(sys_drv_dma2d_set(0) != 0) {
 		DMA2D_LOGE("dma2d sys clk config error \r\n");
 		return BK_FAIL;
@@ -123,8 +121,7 @@ bk_err_t bk_dma2d_driver_deinit(void)
 		return BK_OK;
 	}
 
-	// sys_drv_int_disable(DMA2D_INTERRUPT_CTRL_BIT);
-	sys_drv_core_intr_group1_disable(CPU2_CORE_ID, DMA2D_INTERRUPT_CTRL_BIT);
+	sys_drv_int_disable(DMA2D_INTERRUPT_CTRL_BIT);
 	dma2d_hal_soft_reset();
 	bk_int_isr_unregister(INT_SRC_DMA2D);
 
@@ -132,7 +129,7 @@ bk_err_t bk_dma2d_driver_deinit(void)
 
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_VIDP_DMA2D, PM_POWER_MODULE_STATE_OFF);
 	s_dma2d_driver_is_init = false;
-
+	
 	DMA2D_LOGD("%s complete\n", __func__);
 	return BK_OK;
 }

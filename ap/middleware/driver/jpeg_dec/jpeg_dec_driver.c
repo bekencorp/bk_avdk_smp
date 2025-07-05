@@ -32,7 +32,6 @@
 #include <soc/mapping.h>
 #include <driver/media_types.h>
 #include "bk_misc.h"
-#include "cpu_id.h"
 
 #define JPEGDEC_TAG "jpeg hw_decode"
 #define LOGI(...) BK_LOGI(JPEGDEC_TAG, ##__VA_ARGS__)
@@ -80,8 +79,7 @@ bk_err_t bk_jpeg_dec_driver_init(void)
 
 	jpg_decoder_init();
 
-	// sys_drv_int_enable(JPEGDEC_INTERRUPT_CTRL_BIT);
-	sys_drv_core_intr_group1_enable(CPU2_CORE_ID, JPEGDEC_INTERRUPT_CTRL_BIT);
+	sys_drv_int_enable(JPEGDEC_INTERRUPT_CTRL_BIT);
 
 	LOGD("%s complete\n", __func__);
 
@@ -101,8 +99,7 @@ bk_err_t bk_jpeg_dec_driver_deinit(void)
 	jpeg_dec_ll_set_reg0x2_soft_reset(1);
 
 	sys_drv_set_jpeg_dec_disckg(0);
-	// sys_drv_int_disable(JPEGDEC_INTERRUPT_CTRL_BIT);
-	sys_drv_core_intr_group1_disable(CPU2_CORE_ID, JPEGDEC_INTERRUPT_CTRL_BIT);
+	sys_drv_int_disable(JPEGDEC_INTERRUPT_CTRL_BIT);
 
 	bk_int_isr_unregister(INT_SRC_JPEG_DEC);
 	jpg_decoder_deinit();
