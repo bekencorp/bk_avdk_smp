@@ -18,18 +18,22 @@
 static SPINLOCK_SECTION volatile  spinlock_t usb_spin_lock = SPIN_LOCK_INIT;
 #endif // CONFIG_FREERTOS_SMP
 
-static inline void usb_enter_critical()
+static inline uint32_t usb_enter_critical()
 {
+    uint32_t flags = rtos_disable_int();
+
 #ifdef CONFIG_FREERTOS_SMP
 	spin_lock(&usb_spin_lock);
 #endif // CONFIG_FREERTOS_SMP
+    return flags;
 }
 
-static inline void usb_exit_critical()
+static inline void usb_exit_critical(uint32_t flags)
 {
 #ifdef CONFIG_FREERTOS_SMP
 	spin_unlock(&usb_spin_lock);
 #endif // CONFIG_FREERTOS_SMP
+    rtos_enable_int(flags);
 }
 
 
@@ -1062,7 +1066,7 @@ static struct musb_pipe *usbh_pipe_alloc_epx(uint16_t bVal,
                                             struct musb_pipe *ppipe,
                                             const struct usbh_endpoint_cfg *ep_cfg)
 {
-    usb_enter_critical();
+    uint32_t flags = usb_enter_critical();
     usb_osal_sem_t waitsem = NULL;
     struct musb_pipe *epx_ppipe = NULL;
     uint8_t ep_local_idx = ppipe->ep_local_index;
@@ -1096,7 +1100,7 @@ static struct musb_pipe *usbh_pipe_alloc_epx(uint16_t bVal,
     /* restore variable */
     epx_ppipe->inuse = true;
     epx_ppipe->waitsem = waitsem;
-    usb_exit_critical();
+    usb_exit_critical(flags);
     return epx_ppipe;
 }
 
@@ -1238,7 +1242,7 @@ int usbh_submit_urb(struct usbh_urb *urb)
         return -EBUSY;
     }
 
-    usb_enter_critical();
+    uint32_t flags = usb_enter_critical();
 
     pipe->waiter = false;
     pipe->xfrd = 0;
@@ -1271,7 +1275,7 @@ int usbh_submit_urb(struct usbh_urb *urb)
             break;
     }
 
-    usb_exit_critical();
+    usb_exit_critical(flags);
 
     if (urb->timeout > 0) {
         /* wait until timeout or sem give */
@@ -1766,7 +1770,7 @@ void USBH_IRQHandler(void)
 
     if (is & USB_IS_SESREQ) {
     }
-    usb_enter_critical();
+    uint32_t flags = usb_enter_critical();
 #if CONFIG_USB_DMA_ENABLE
     uint32_t dmais;
     USB_LOG_VBS("%s is: 0x%x txis: 0x%x rxis:0x%x dmais:0x%x\r\n", __func__, is, txis, rxis, dmais);
@@ -1880,7 +1884,7 @@ void USBH_IRQHandler(void)
     }
     musb_set_active_ep(old_ep_idx);
     USB_LOG_VBS("[-]%s\r\n", __func__);
-    usb_exit_critical();
+    usb_exit_critical(flags);
     return;
 //pipe_wait:
 //    musb_set_active_ep(old_ep_idx);
