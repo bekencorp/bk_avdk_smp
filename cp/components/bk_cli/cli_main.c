@@ -187,35 +187,6 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
 
     rtos_init_semaphore(&wait_shell_handle_semaphore,1);
 
-	#if CONFIG_FREERTOS_SMP
-	int core_id = 0;
-	ret = sscanf((const char *)inbuf, "cpu%d", &core_id);
-	if(ret != 1)
-	{
-		core_id = 0;
-	}
-	else if(core_id < CONFIG_CPU_CNT)
-	{
-		/* "cpux " */
-		inbuf += 4;
-		in_buf_size -= 4;
-
-		cmd_par.cmd_buff = inbuf;
-		cmd_par.cmd_data_len = in_buf_size;
-	}
-
-	if(core_id == 1)
-	{
-	    ret = rtos_core1_create_thread(&shell_handle_thread_handle,
-	                                4,
-	                                "shell_handle",
-	                                (beken_thread_function_t)handle_shell_input_proxy,
-	                                1024*7,
-	                                (beken_thread_arg_t)(&cmd_par));
-	}
-	else
-	#endif
-
     /* If you send  cli commands too quickly,it may cause memory exhaustion.
     Here we wait for enough memory before responding to command */
 
