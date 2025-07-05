@@ -1325,6 +1325,10 @@ static inline void musb_pipe_waitup(struct musb_pipe *pipe)
 {
     struct usbh_urb *urb;
 
+    if(!pipe) {
+        USB_LOG_DBG("[=]%s pipe is null\r\n", __func__);
+        return;
+    }
     urb = pipe->urb;
     pipe->urb = NULL;
 
@@ -1333,7 +1337,10 @@ static inline void musb_pipe_waitup(struct musb_pipe *pipe)
         if(pipe->waitsem)
             usb_osal_sem_give(pipe->waitsem);
     }
-
+    if(!urb){
+        USB_LOG_DBG("[=]%s pipe is null\r\n", __func__);
+        return;
+    }
     if (urb->complete) {
         if (urb->errorcode < 0) {
             urb->complete(urb->arg, urb->errorcode);
@@ -1818,20 +1825,20 @@ void USBH_IRQHandler(void)
     
                 if (ep_csrl_status & USB_TXCSRL1_ERROR) {
                     HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) &= ~USB_TXCSRL1_ERROR;
-                    USB_LOG_DBG("[=]%s ep_idx:%d USB_TXCSRL1_ERROR\r\n", __func__, ep_idx);
+                    USB_LOG_VBS("[=]%s ep_idx:%d USB_TXCSRL1_ERROR\r\n", __func__, ep_idx);
                     urb->errorcode = -EIO;
                     musb_pipe_waitup(pipe);
                     //goto pipe_wait;
                 } else if (ep_csrl_status & USB_TXCSRL1_NAKTO) {
                     HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) &= ~USB_TXCSRL1_NAKTO;
-                    USB_LOG_DBG("[=]%s ep_idx:%d USB_TXCSRL1_NAKTO\r\n", __func__, ep_idx);
+                    USB_LOG_VBS("[=]%s ep_idx:%d USB_TXCSRL1_NAKTO\r\n", __func__, ep_idx);
                     urb->errorcode = -EBUSY;
                     musb_pipe_waitup(pipe);
                     //goto pipe_wait;
                 } else if (ep_csrl_status & USB_TXCSRL1_STALL) {
                     HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) &= ~USB_TXCSRL1_STALL;
                     urb->errorcode = -EPERM;
-                    USB_LOG_DBG("[=]%s ep_idx:%d USB_TXCSRL1_STALL\r\n", __func__, ep_idx);
+                    USB_LOG_VBS("[=]%s ep_idx:%d USB_TXCSRL1_STALL\r\n", __func__, ep_idx);
                     musb_pipe_waitup(pipe);
                     //goto pipe_wait;
                 } else {
@@ -1859,21 +1866,21 @@ void USBH_IRQHandler(void)
    
                if (ep_csrl_status & USB_RXCSRL1_ERROR) {
                    HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_ERROR;
-                   USB_LOG_DBG("[=]%s ep_idx:%d USB_RXCSRL1_ERROR\r\n", __func__, ep_idx);
+                   USB_LOG_VBS("[=]%s ep_idx:%d USB_RXCSRL1_ERROR\r\n", __func__, ep_idx);
                    HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_RXRDY;
                    urb->errorcode = -EIO;
                    musb_pipe_waitup(pipe);
                    //goto pipe_wait;
                } else if (ep_csrl_status & USB_RXCSRL1_NAKTO) {
                    HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_NAKTO;
-                   USB_LOG_DBG("[=]%s ep_idx:%d USB_RXCSRL1_NAKTO\r\n", __func__, ep_idx);
+                   USB_LOG_VBS("[=]%s ep_idx:%d USB_RXCSRL1_NAKTO\r\n", __func__, ep_idx);
                    urb->errorcode = -EBUSY;
                    musb_pipe_waitup(pipe);
                    //goto pipe_wait;
                } else if (ep_csrl_status & USB_RXCSRL1_STALL) {
                    HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_STALL;
                    urb->errorcode = -EPERM;
-                   USB_LOG_DBG("[=]%s ep_idx:%d USB_RXCSRL1_STALL\r\n", __func__, ep_idx);
+                   USB_LOG_VBS("[=]%s ep_idx:%d USB_RXCSRL1_STALL\r\n", __func__, ep_idx);
                    musb_pipe_waitup(pipe);
                    //goto pipe_wait;
                } else if (ep_csrl_status & USB_RXCSRL1_RXRDY) {

@@ -671,7 +671,6 @@ int usbh_enumerate(struct usbh_hubport *hport)
         goto errout;
     }
 
-    usbh_hub_event_unlock_mutex();
     USB_LOG_DBG("Enumeration success, start loading class driver\r\n");
     /*search supported class driver*/
     for (uint8_t i = 0; i < hport->config.config_desc.bNumInterfaces; i++) {
@@ -691,14 +690,13 @@ int usbh_enumerate(struct usbh_hubport *hport)
         USB_LOG_VBS("Loading %s class driver\r\n", class_driver->driver_name);
         ret = CLASS_CONNECT(hport, i);
         if (ret < 0) {
-            usbh_hub_event_lock_mutex();
             ret = CLASS_DISCONNECT(hport, i);
             goto errout;
         }
     }
 
     usbh_device_mount_done_callback(hport);
-
+	usbh_hub_event_unlock_mutex();
 errout:
     if (ret < 0) {
         usbh_hport_deactivate_ep0(hport);
