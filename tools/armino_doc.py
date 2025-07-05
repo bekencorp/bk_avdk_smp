@@ -161,9 +161,6 @@ def build_all(docs_path, build_path, version):
 		print("found target: " + subdir)
 		build_doc(subdir, docs_path + "/" + subdir, build_path + "/" + subdir, version)
 
-def clean_all(build_path):
-	print("clean all docs: " + build_path)
-
 def main(argv):
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--clean', type=bool, default=False)
@@ -179,12 +176,9 @@ def main(argv):
 		raise RuntimeError("not get soc name")
 	build_path = root_path + f"/build/doc/smp_doc"
 	if os.path.exists(build_path) == False:
-		run_cmd("mkdir -p " + build_path)
-
-	run_cmd(f'cp {root_path}/docs/version.json {build_path}/version.json')
+		os.makedirs(build_path, exist_ok=True)
 
 	if args.clean and args.target == "all":
-		clean_all(build_path)
 		return
 
 	run_cmd(f'cp {root_path}/docs/version.json {build_path}/version.json')
