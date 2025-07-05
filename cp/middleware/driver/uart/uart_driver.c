@@ -379,7 +379,7 @@ static bk_err_t uart_id_init_kfifo(uart_id_t id)
 	if (!s_uart_rx_kfifo[id]) {
 		s_uart_rx_kfifo[id] = kfifo_alloc(fifo_size);
 		if (!s_uart_rx_kfifo[id]) {
-			UART_LOGE("uart(%d) rx kfifo alloc failed\n", id);
+			UART_LOGW("uart(%d) rx kfifo alloc failed\n", id);
 			return BK_ERR_NULL_PARAM;
 		}
 	}
@@ -514,7 +514,7 @@ static uint32_t uart_id_dma_read_fifo_frame(uart_id_t id, const kfifo_ptr_t rx_p
 		BK_LOG_ON_ERR(bk_dma_set_transfer_len(s_uart[id].rx_dma_id, (uint32_t)after_kfifo_unused_size));
 		bk_dma_start(s_uart[id].rx_dma_id);
 	} else {
-		UART_LOGE("Software FIFO is full, please read the data\r\n");
+		UART_LOGW("Software FIFO is full, please read the data\r\n");
 		bk_uart_set_enable_rx(id, 0);
 	}
 
@@ -1355,7 +1355,7 @@ bk_err_t bk_uart_write_bytes(uart_id_t id, const void *data, uint32_t size)
 
 #if (CONFIG_UART_TX_DMA)
 	if(s_uart[id].tx_dma_enable) {
-		//UART_LOGE("%s id:%d data:0x%x &data[0]:0x%x size:%d\r\n", __func__, id, data, &((uint8 *)data)[0], size);
+		//UART_LOGW("%s id:%d data:0x%x &data[0]:0x%x size:%d\r\n", __func__, id, data, &((uint8 *)data)[0], size);
 		uart_tx_dma_write_to_fifo(id, (uint32_t)data, size);
 
 	} else

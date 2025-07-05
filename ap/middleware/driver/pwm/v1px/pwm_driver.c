@@ -142,7 +142,7 @@ static pwm_phase_shift_config_t *s_shift_config = NULL;
 	for (uint32_t index = 0; index < shift_config->chan_num; index++) {\
 		if ((shift_config->duty_config[index].duty_cycle == 1) ||\
 			(shift_config->duty_config[index].duty_cycle > shift_config->period_cycle)) {\
-			PWM_LOGE("invalid duty cycle, index:%d, period_cycle:%d, duty_cycle:%d\r\n",\
+			PWM_LOGW("invalid duty cycle, index:%d, period_cycle:%d, duty_cycle:%d\r\n",\
 					index,\
 					shift_config->period_cycle,\
 					shift_config->duty_config[index].duty_cycle);\
@@ -399,7 +399,7 @@ static inline bool pwm_driver_duty_is_valid(uint32_t period, uint32_t duty1, uin
 										uint32_t duty3)
 {
 	if (period == 0) {
-		PWM_LOGE("period must be more than 1\r\n");
+		PWM_LOGW("period must be more than 1\r\n");
 		return false;
 	}
 
@@ -1168,7 +1168,7 @@ static pwm_group_t pwm_group_add(pwm_chan_t chan1, pwm_chan_t chan2)
 static void pwm_group_delete(pwm_group_t group)
 {
 	if (group >= PWM_GROUP_NUM) {
-		PWM_LOGE("pwm group delete error!\r\n");
+		PWM_LOGW("pwm group delete error!\r\n");
 		return;
 	}
 
@@ -1288,7 +1288,7 @@ bk_err_t bk_pwm_group_init(const pwm_group_init_config_t *config, pwm_group_t *g
 	ret = pwm_group_validate_param(config->chan1, config->chan2, config->period_cycle,
 								   config->chan1_duty_cycle, config->chan2_duty_cycle);
 	if (ret != BK_OK) {
-		PWM_LOGE("pwm_group_validate_param, ret:-0x%x\r\n", -ret);
+		PWM_LOGW("pwm_group_validate_param, ret:-0x%x\r\n", -ret);
 		return ret;
 	}
 
@@ -1299,7 +1299,7 @@ bk_err_t bk_pwm_group_init(const pwm_group_init_config_t *config, pwm_group_t *g
 	if (pwm_chan_is_default_group(config->chan1, config->chan2)) {
 		PWM_LOGD("use hardware default group\r\n");
 		if (dead_cycle >= 0x400) {
-			PWM_LOGE("pwm_group_validate_dead_cycle, dead_cycle:%d\r\n", dead_cycle);
+			PWM_LOGW("pwm_group_validate_dead_cycle, dead_cycle:%d\r\n", dead_cycle);
 			return BK_ERR_PWM_GROUP_DUTY;
 		}
 		pwm_group_output_mode_config(config, 0, dead_cycle);
@@ -1341,7 +1341,7 @@ bk_err_t bk_pwm_group_deinit(pwm_group_t group)
 bk_err_t bk_pwm_group_start(pwm_group_t group)
 {
 	if (!pwm_group_is_existed(group)) {
-		PWM_LOGE("pwm group(%d) not existed\r\n", group);
+		PWM_LOGW("pwm group(%d) not existed\r\n", group);
 		return BK_ERR_PWM_GROUP_NOT_EXIST;
 	}
 	PWM_PM_CHECK_RESTORE(PWM_ID_0);
@@ -1469,7 +1469,7 @@ static bk_err_t pwm_init_with_phase(pwm_chan_t sw_ch, const pwm_init_config_t *c
 		(config->duty_cycle > config->period_cycle) ||
 		(config->duty2_cycle > config->period_cycle) ||
 		(config->duty3_cycle > config->period_cycle)) {
-		PWM_LOGE("invalid duty cycle!\r\n");
+		PWM_LOGW("invalid duty cycle!\r\n");
 		return BK_ERR_PWM_PERIOD_DUTY;
 	}
 
@@ -1525,7 +1525,7 @@ static bk_err_t pwm_set_period_duty_with_phase(pwm_chan_t sw_ch, pwm_period_duty
 		(config->duty_cycle > config->period_cycle) ||
 		(config->duty2_cycle > config->period_cycle) ||
 		(config->duty3_cycle > config->period_cycle)) {
-		PWM_LOGE("invalid duty cycle!\r\n");
+		PWM_LOGW("invalid duty cycle!\r\n");
 		return BK_ERR_PWM_PERIOD_DUTY;
 	}
 

@@ -315,7 +315,7 @@ static void aon_rtc_release_node(aon_rtc_id_t id, alarm_node_t *node_p)
 
 	if(i >= AON_RTC_MAX_ALARM_CNT)
 	{
-		AON_RTC_LOGE("release node err\r\n");
+		AON_RTC_LOGW("release node err\r\n");
 	}
 }
 
@@ -337,7 +337,7 @@ static int32_t alarm_insert_node(aon_rtc_id_t id, alarm_node_t *node_p)
 	{
 		if(strncmp((const char *)cur_p->name, (const char *)node_p->name, ALARM_NAME_MAX_LEN) == 0)
 		{
-			AON_RTC_LOGE("name=%s has registered\r\n", node_p->name);
+			AON_RTC_LOGW("name=%s has registered\r\n", node_p->name);
 			rtc_exit_critical(int_level);
 			return -1;
 		}
@@ -556,7 +556,7 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
 					s_aon_rtc[id].alarm_node_cnt--; //it will ++ in alarm_insert_node
 					if(alarm_insert_node(id, cur_p) != 0)
 					{
-						AON_RTC_LOGE("alarm name=%s insert fail\r\n", cur_p->name);
+						AON_RTC_LOGW("alarm name=%s insert fail\r\n", cur_p->name);
 						rtc_exit_critical(int_level);
 						return;
 					}
@@ -950,7 +950,7 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 
 	if(id >= AON_RTC_ID_MAX)
 	{
-		AON_RTC_LOGE("%s:id=%d\r\n", __func__, id);
+		AON_RTC_LOGW("%s:id=%d\r\n", __func__, id);
 		return BK_ERR_PARAM;
 	}
 
@@ -961,7 +961,7 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 
 	if(alarm_info_p->period_tick < AON_RTC_PRECISION_TICK)	//in protect area to reduce consume time before set tick.
 	{
-		AON_RTC_LOGE("period_tick should not smaller then %d\r\n", AON_RTC_PRECISION_TICK);
+		AON_RTC_LOGW("period_tick should not smaller then %d\r\n", AON_RTC_PRECISION_TICK);
 		return BK_FAIL;
 	}
 
@@ -970,7 +970,7 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 	if(s_aon_rtc[id].alarm_node_cnt >= AON_RTC_MAX_ALARM_CNT)
 	{
 		rtc_exit_critical(int_level);
-		AON_RTC_LOGE("alarm registered too much:%d\r\n", AON_RTC_MAX_ALARM_CNT);
+		AON_RTC_LOGW("alarm registered too much:%d\r\n", AON_RTC_MAX_ALARM_CNT);
 		return BK_FAIL;
 	}
 
@@ -979,7 +979,7 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 	if(node_p == NULL)
 	{
 		rtc_exit_critical(int_level);
-		AON_RTC_LOGE("alarm registered:no memory\r\n");
+		AON_RTC_LOGW("alarm registered:no memory\r\n");
 		return BK_ERR_NO_MEM;
 	}
 
@@ -994,7 +994,7 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 	if(alarm_info_p->period_cnt == 0)
 	{
 		rtc_exit_critical(int_level);
-		AON_RTC_LOGE("no set period cnt\r\n");
+		AON_RTC_LOGW("no set period cnt\r\n");
 		return BK_ERR_PARAM;
 	}
 
@@ -1004,7 +1004,7 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 	//push to alarm list
 	if(alarm_insert_node(id, node_p) != 0)
 	{
-		AON_RTC_LOGE("alarm name=%s has registered\r\n", alarm_info_p->name);
+		AON_RTC_LOGW("alarm name=%s has registered\r\n", alarm_info_p->name);
 		aon_rtc_release_node(id, node_p);
 		rtc_exit_critical(int_level);
 		return BK_FAIL;
@@ -1047,7 +1047,7 @@ bk_err_t bk_alarm_unregister(aon_rtc_id_t id, uint8_t *name_p)
 
 	if(id >= AON_RTC_ID_MAX)
 	{
-		AON_RTC_LOGE("%s:id=%d\r\n", __func__, id);
+		AON_RTC_LOGW("%s:id=%d\r\n", __func__, id);
 		return BK_ERR_PARAM;
 	}
 
@@ -1113,7 +1113,7 @@ __IRAM_SEC uint64_t bk_aon_rtc_get_current_tick(aon_rtc_id_t id)
 {
 	if(id >= AON_RTC_ID_MAX)
 	{
-		AON_RTC_LOGE("%s:id=%d\r\n", __func__, id);
+		AON_RTC_LOGW("%s:id=%d\r\n", __func__, id);
 		return 0;
 	}
 
@@ -1134,7 +1134,7 @@ static int ana_wakesource_rtc_enter_cb(uint64_t sleep_time, void *args)
 	uint32_t period = s_wkup_time_period;
 
 	if (period >= RTC_ANA_TIME_PERIOD_MAX) {
-		AON_RTC_LOGE("rtc wakeup period range 0~15\r\n");
+		AON_RTC_LOGW("rtc wakeup period range 0~15\r\n");
 	}
 	sys_drv_rtc_ana_wakeup_enable(period);
 

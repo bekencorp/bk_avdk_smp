@@ -800,10 +800,10 @@ bk_err_t bk_gpio_register_wakeup_source(gpio_id_t gpio_id,
 		}
 	}
 
-	GPIO_LOGE("too much(%d) GPIO is setted wake src\r\n", CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT);
+	GPIO_LOGW("too much(%d) GPIO is setted wake src\r\n", CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT);
 	for(i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
 	{
-		GPIO_LOGE("gpio id:%d is using \r\n", s_gpio_dynamic_wakeup_source_map[i].id);
+		GPIO_LOGW("gpio id:%d is using \r\n", s_gpio_dynamic_wakeup_source_map[i].id);
 	}
 	return BK_FAIL;
 }
@@ -834,7 +834,7 @@ bk_err_t bk_gpio_unregister_wakeup_source(gpio_id_t gpio_id)
 		}
 	}
 
-	GPIO_LOGE("gpio id:%d is not using \r\n", gpio_id);
+	GPIO_LOGW("gpio id:%d is not using \r\n", gpio_id);
 	return BK_FAIL;
 }
 
@@ -999,10 +999,10 @@ bk_err_t bk_gpio_register_lowpower_keep_status(gpio_id_t gpio_id,
 		}
 	}
 
-	GPIO_LOGE("too much(%d) GPIO is setted keep status\r\n", CONFIG_GPIO_DYNAMIC_KEEP_STATUS_MAX_CNT);
+	GPIO_LOGW("too much(%d) GPIO is setted keep status\r\n", CONFIG_GPIO_DYNAMIC_KEEP_STATUS_MAX_CNT);
 	for(i = 0; i < CONFIG_GPIO_DYNAMIC_KEEP_STATUS_MAX_CNT; i++)
 	{
-		GPIO_LOGE("gpio id:%d is using \r\n", s_gpio_lowpower_keep_config[i].gpio_id);
+		GPIO_LOGW("gpio id:%d is using \r\n", s_gpio_lowpower_keep_config[i].gpio_id);
 	}
 	return BK_FAIL;
 
@@ -1036,7 +1036,7 @@ bk_err_t bk_gpio_unregister_lowpower_keep_status(gpio_id_t gpio_id)
 		}
 	}
 
-	GPIO_LOGE("gpio id:%d is not using \r\n", gpio_id);
+	GPIO_LOGW("gpio id:%d is not using \r\n", gpio_id);
 	return BK_FAIL;
 }
 
@@ -1240,7 +1240,7 @@ bk_err_t bk_gpio_ana_register_wakeup_source(gpio_id_t gpio_id, gpio_int_type_t i
 	GPIO_RETURN_ON_INVALID_INT_TYPE_MODE(int_type);
 
 	if (gpio_id > GPIO_15 || int_type > GPIO_INT_TYPE_HIGH_LEVEL) {
-		GPIO_LOGE("gpio ana wakeup source not support id: %d type: %d\r\n", gpio_id, int_type);
+		GPIO_LOGW("gpio ana wakeup source not support id: %d type: %d\r\n", gpio_id, int_type);
 		return BK_ERR_ANA_GPIO_TYPE_NOT_SUPPORT;
 	}
 
