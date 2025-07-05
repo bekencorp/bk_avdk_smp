@@ -119,6 +119,7 @@ typedef struct
         .frame_size = 320,                                      \
         .out_block_size = 320,                                  \
         .out_block_num = 2,                                     \
+        .multi_out_port_num = 0,                                \
         .task_stack = ONBOARD_MIC_STREAM_TASK_STACK,            \
         .task_core = ONBOARD_MIC_STREAM_TASK_CORE,              \
         .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
@@ -140,6 +141,7 @@ typedef struct
             .ns_para = AEC_ALGORITHM_NS_PARA,                   \
         },                                                      \
         .out_block_num = 1,                                     \
+        .multi_out_port_num = 0,                                \
     },                                                          \
     .enc_type = AUDIO_ENC_TYPE_G711A,                           \
     .enc_cfg.g711_enc_cfg = {                                   \
@@ -205,6 +207,7 @@ typedef struct
         .out_block_size = 320,                                 \
         .out_block_num = 1,                                    \
         .auto_connect = true,                                  \
+        .multi_out_port_num = 0,                               \
         .task_stack = UAC_MIC_STREAM_TASK_STACK,               \
         .task_core = UAC_MIC_STREAM_TASK_CORE,                 \
         .task_prio = UAC_MIC_STREAM_TASK_PRIO,                 \
@@ -226,6 +229,7 @@ typedef struct
             .ns_para = AEC_ALGORITHM_NS_PARA,                  \
         },                                                     \
         .out_block_num = 1,                                    \
+        .multi_out_port_num = 0,                               \
     },                                                         \
     .enc_type = AUDIO_ENC_TYPE_G711A,                          \
     .enc_cfg.g711_enc_cfg = {                                  \
@@ -312,6 +316,7 @@ typedef struct
             .frame_size = 320,                                      \
             .out_block_size = 320,                                  \
             .out_block_num = 2,                                     \
+            .multi_out_port_num = 0,                                \
             .task_stack = ONBOARD_MIC_STREAM_TASK_STACK,            \
             .task_core = ONBOARD_MIC_STREAM_TASK_CORE,              \
             .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
@@ -333,6 +338,7 @@ typedef struct
                 .ns_para = AEC_ALGORITHM_NS_PARA,                   \
             },                                                      \
             .out_block_num = 1,                                     \
+            .multi_out_port_num = 0,                                \
         },                                                          \
         .enc_type = AUDIO_ENC_TYPE_AAC,                             \
         .enc_cfg.aac_enc_cfg = {                                    \

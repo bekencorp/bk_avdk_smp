@@ -104,11 +104,12 @@ typedef struct
  */
 typedef struct
 {
-    int                     task_stack;     /*!< Task stack size */
-    int                     task_core;      /*!< Task running in core (0 or 1) */
-    int                     task_prio;      /*!< Task priority (based on freeRTOS priority) */
-    aec_cfg_t               aec_cfg;        /*!< aec config */
-    int                     out_block_num;  /*!< Number of output block, the size of block is frame size of 20ms audio data */
+    int                     task_stack;         /*!< Task stack size */
+    int                     task_core;          /*!< Task running in core (0 or 1) */
+    int                     task_prio;          /*!< Task priority (based on freeRTOS priority) */
+    aec_cfg_t               aec_cfg;            /*!< aec config */
+    int                     out_block_num;      /*!< Number of output block, the size of block is frame size of 20ms audio data */
+    int                     multi_out_port_num; /*!< The number of multiple output audio port */
 } aec_algorithm_cfg_t;
 
 #define AEC_DELAY_SAMPLE_POINTS_MAX           (1000)
@@ -143,6 +144,7 @@ typedef struct
         .ns_para           = AEC_ALGORITHM_NS_PARA,                \
     },                                                             \
     .out_block_num         = AEC_ALGORITHM_OUT_BLOCK_NUM,          \
+    .multi_out_port_num    = 0,                                    \
 }
 
 /**

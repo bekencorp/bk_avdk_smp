@@ -119,13 +119,14 @@ typedef struct
  */
 typedef struct
 {
-    adc_cfg_t               adc_cfg;          /*!< ADC mode configuration */
-    uint32_t                frame_size;       /*!< the length of one frame (bytes) */
-    int                     out_block_size;   /*!< Size of output block */
-    int                     out_block_num;    /*!< Number of output block */
-    int                     task_stack;       /*!< Task stack size */
-    int                     task_core;        /*!< Task running in core (0 or 1) */
-    int                     task_prio;        /*!< Task priority (based on freeRTOS priority) */
+    adc_cfg_t               adc_cfg;            /*!< ADC mode configuration */
+    uint32_t                frame_size;         /*!< the length of one frame (bytes) */
+    int                     out_block_size;     /*!< Size of output block */
+    int                     out_block_num;      /*!< Number of output block */
+    int                     multi_out_port_num; /*!< The number of multiple output audio port */
+    int                     task_stack;         /*!< Task stack size */
+    int                     task_core;          /*!< Task running in core (0 or 1) */
+    int                     task_prio;          /*!< Task priority (based on freeRTOS priority) */
 } onboard_mic_stream_cfg_t;
 
 
@@ -147,6 +148,7 @@ typedef struct
     .frame_size = 320,                                      \
     .out_block_size = 320,                                  \
     .out_block_num = 2,                                     \
+    .multi_out_port_num = 0,                                \
     .task_stack = ONBOARD_MIC_STREAM_TASK_STACK,            \
     .task_core = ONBOARD_MIC_STREAM_TASK_CORE,              \
     .task_prio = ONBOARD_MIC_STREAM_TASK_PRIO,              \
