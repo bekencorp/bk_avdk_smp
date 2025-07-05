@@ -22,5 +22,21 @@ CONFIG_BLE_AT_ENABLE=n
 CONFIG_NETIF_AT_ENABLE=n
 #end of AT
 
+#
+# argabtle cmd
+#
+CONFIG_CONSOLE=y
+#end of argtable
+
+#
+# GPIO cmd
+#
 CONFIG_GPIO_DEFAULT_SET_SUPPORT=y
 CONFIG_USR_GPIO_CFG_EN=y
+#end of GPIO
+
+#
+# BT cmd
+#
+CONFIG_BLUETOOTH=n
+#end of BT
