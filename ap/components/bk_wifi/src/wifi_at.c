@@ -1715,6 +1715,99 @@ error:
 	return err;
 }
 
+static int at_wlan_hidden_softap_start(int sync, int argc, char **argv)
+{
+	int err = kNoErr;
+	char *ap_ssid = NULL;
+	char *ap_key = "";
+	char *ap_channel = NULL;
+
+	if (argc == 1)
+		ap_ssid = argv[0];
+	else if (argc == 2) {
+		ap_ssid = argv[0];
+		if (os_strlen(argv[1]) <= 2)
+			ap_channel = argv[1];
+		else
+			ap_key = argv[1];
+	}
+	else if (argc == 3) {
+		ap_ssid = argv[0];
+		ap_key = argv[1];
+		ap_channel = argv[2];
+	}
+	else {
+		os_printf("input param error\n");
+		err = kParamErr;
+		goto error;
+	}
+
+	wifi_ap_config_t ap_config = WIFI_DEFAULT_AP_CONFIG();
+	netif_ip4_config_t ip4_config = {0};
+	int len;
+
+	if (ap_ssid) {
+		len = os_strlen(ap_ssid);
+		if (32 < len) {
+			os_printf("ssid name more than 32 Bytes\r\n");
+			err = kParamErr;
+			goto error;
+		}
+
+		os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
+		os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
+		os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
+		os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
+		if(kNoErr != bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config)) {
+			err = kParamErr;
+			goto error;
+		}
+
+		os_strcpy(ap_config.ssid, ap_ssid);
+		os_strcpy(ap_config.password, ap_key);
+
+		if (ap_channel) {
+			int channel;
+			char *end;
+
+			channel = strtol(ap_channel, &end, 0);
+			if (*end) {
+				os_printf("Invalid number '%s'", ap_channel);
+				err = kParamErr;
+				goto error;
+			}
+			ap_config.channel = channel;
+		}
+
+		os_printf("ssid:%s key:%s\r\n", ap_config.ssid, ap_config.password);
+		ap_config.hidden = true;
+		if(kNoErr != bk_wifi_ap_set_config(&ap_config)) {
+			err = kParamErr;
+			goto error;
+		}
+
+		if(kNoErr != bk_wifi_ap_start()) {
+			err = kParamErr;
+			goto error;
+		}
+	}
+
+
+	if (err == kNoErr) {
+		atsvr_cmd_rsp_ok();
+
+		return err;
+	}
+	else {
+		goto error;
+	}
+
+error:
+	atsvr_cmd_rsp_error();
+
+	return err;
+}
+
 static int at_wlan_stop_softap(void)
 {
 	BK_LOG_ON_ERR(bk_wifi_ap_stop());
@@ -2082,6 +2175,9 @@ const struct _atsvr_command wifi_cmds_table[] = {
 					NULL,at_wlan_softap_start,false,AT_WLAN_SAP_TIMEOUT_MS,true,NULL,true),
 	ATSVR_CMD_HADLER("AT+SAPSTOP","AT+SAPSTOP",
 					NULL,at_wlan_softap_stop,false,0,0,NULL,false),
+	ATSVR_CMD_HADLER("AT+HIDDENSAP","AT+HIDDENSAP=SSID,PWD",
+					NULL,at_wlan_hidden_softap_start,false,AT_WLAN_SAP_TIMEOUT_MS,true,NULL,true),
+
 #if 0
 	//ATSVR_CMD_HADLER("AT+SAPSTATIC","AT+SAPSTATIC=ip,mask,gate[,dns]",NULL,at_wlan_softap_static_ip,false,0,0,NULL,false),
 	//ATSVR_CMD_HADLER("AT+SAPSTATUS","AT+SAPSTATUS",at_wlan_get_softap_status,
