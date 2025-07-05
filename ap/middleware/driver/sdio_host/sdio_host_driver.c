@@ -146,7 +146,7 @@ static void sdio_dma_tx_start(dma_id_t id)
 {
 	if(id != s_sdio_host.dma_tx_id)
 	{
-		SDIO_HOST_LOGE("%s:id=%d,sdio_id=%d\r\n", __func__, id, s_sdio_host.dma_tx_id);
+		SDIO_HOST_LOGW("%s:id=%d,sdio_id=%d\r\n", __func__, id, s_sdio_host.dma_tx_id);
 		return;
 	}
 
@@ -230,7 +230,7 @@ static void sdio_dma_rx_start(dma_id_t id)
 {
 	if(id != s_sdio_host.dma_rx_id)
 	{
-		SDIO_HOST_LOGE("%s:id=%d,sdio_id=%d\r\n", __func__, id, s_sdio_host.dma_rx_id);
+		SDIO_HOST_LOGW("%s:id=%d,sdio_id=%d\r\n", __func__, id, s_sdio_host.dma_rx_id);
 		return;
 	}
 
@@ -865,7 +865,7 @@ static bk_err_t sdio_dma_write_fifo(const uint8_t *write_data, uint32_t data_siz
 	if(error_state)
 	{
 		s_sdio_host.is_tx_blocked = false;
-		SDIO_HOST_LOGE("TODO:sdio write data timeout,write_data=0x%x,data_size=%d\r\n", write_data, data_size);
+		SDIO_HOST_LOGW("TODO:sdio write data timeout,write_data=0x%x,data_size=%d\r\n", write_data, data_size);
 
 		//special abnormal case:If the write_data pointer is error,which cause DMA can't copy data from the source, then it cause DMA err.
 		if(s_sdio_host.tx_total_len != s_sdio_host.tx_transfered_len)
@@ -911,11 +911,11 @@ static bk_err_t sdio_host_cpu_write_fifo(const uint8_t *write_data, uint32_t dat
 		{
 			i++;
 			if(i % 0x400000 == 0)
-				SDIO_HOST_LOGE("FIFO can't write i=0x%08x", i);
+				SDIO_HOST_LOGW("FIFO can't write i=0x%08x", i);
 
 			//avoid dead in while
 			if(i == 0x1000000 * 8) {
-				SDIO_HOST_LOGE("FIFO write fail,the write data is invalid");
+				SDIO_HOST_LOGW("FIFO write fail,the write data is invalid");
 				error_state = BK_ERR_SDIO_HOST_DATA_TIMEOUT;
 				break;
 			}
@@ -1117,7 +1117,7 @@ static bk_err_t sdio_dma_read_fifo(uint8_t *read_data, uint32_t data_size)
 	error_state = rtos_get_semaphore(&(s_sdio_host.rx_sema), SDIO_MAX_RX_WAIT_TIME * 10);
 	if(error_state)
 	{
-		SDIO_HOST_LOGE("read data fail,request cnt=%d\r\n", data_size);
+		SDIO_HOST_LOGW("read data fail,request cnt=%d\r\n", data_size);
 	}
 
 	return error_state;
@@ -1135,7 +1135,7 @@ bk_err_t bk_sdio_host_read_fifo(uint32_t *save_v_p)
 		i++;
 		bk_delay_us(1);
 		if(i == SDIO_READ_FIFO_TIMEOUT) {
-			SDIO_HOST_LOGE("FIFO read fail,the return data is invalid\r\n");
+			SDIO_HOST_LOGW("FIFO read fail,the return data is invalid\r\n");
 			return BK_ERR_SDIO_HOST_READ_DATA_FAIL;
 		}
 	}
@@ -1186,7 +1186,7 @@ static bk_err_t sdio_host_cpu_read_blks_fifo(uint8_t *data, uint32_t blk_cnt)
 	if (index != data_size)
 	{
 		error_state = BK_ERR_SDIO_HOST_DATA_CRC_FAIL;
-		SDIO_HOST_LOGE("func %s, read data fail,rx real cnt=%d,request cnt=%d, error_state=%d\r\n", __func__, index, data_size, error_state);
+		SDIO_HOST_LOGW("func %s, read data fail,rx real cnt=%d,request cnt=%d, error_state=%d\r\n", __func__, index, data_size, error_state);
 
 	}
 
@@ -1254,7 +1254,7 @@ static void sdio_host_isr(void)
 			if (/*s_sdio_host.is_cmd_blocked &&*/ cmd_rsp_ok) {
 				if(rtos_push_to_queue(&s_sdio_host.irq_cmd_msg, &int_status, 0))
 				{
-					SDIO_HOST_LOGE("sdio push cmd msg fail\r\n");
+					SDIO_HOST_LOGW("sdio push cmd msg fail\r\n");
 				}
 				//s_sdio_host.is_cmd_blocked = false;
 			}
@@ -1302,7 +1302,7 @@ static void sdio_host_isr(void)
 					break;
 				}
 				if(sts_index == (SDIO_GET_WR_STS_MAX_COUNT - 1) ) {
-					SDIO_HOST_LOGE("write data error, wr_status = 0x%x!!!\r\n", sdio_host_hal_get_wr_status(&s_sdio_host.hal));
+					SDIO_HOST_LOGW("write data error, wr_status = 0x%x!!!\r\n", sdio_host_hal_get_wr_status(&s_sdio_host.hal));
 				}
 			}
 		}
@@ -1363,7 +1363,7 @@ static void sdio_host_isr(void)
 			bk_sdio_host_reset_sd_state();
 
 			//TODO:If the data is really CRC fail, should notify APP the data received is error.
-			SDIO_HOST_LOGE("TODO:read data crc error!!!\r\n");
+			SDIO_HOST_LOGW("TODO:read data crc error!!!\r\n");
 #if 1	//just not set sema cause rx data timeout, which cause rx fail.
 			s_sdio_host_data_crc_error = true;
 			rtos_set_semaphore(&s_sdio_host.rx_sema);
