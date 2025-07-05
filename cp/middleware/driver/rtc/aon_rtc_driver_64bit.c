@@ -74,6 +74,9 @@ static aon_rtc_driver_t s_aon_rtc[AON_RTC_UNIT_NUM] = {0};
 static aon_rtc_callback_t s_aon_rtc_tick_isr[AON_RTC_UNIT_NUM] = {NULL};
 static aon_rtc_callback_t s_aon_rtc_upper_isr[AON_RTC_UNIT_NUM] = {NULL};
 static aon_rtc_nodes_memory_t *s_aon_rtc_nodes_p[AON_RTC_UNIT_NUM];
+static uint64_t s_last_setted_lpo_tick = 0;
+static uint64_t s_last_set_time = 0;
+
 static void aon_rtc_interrupt_disable(aon_rtc_id_t id);
 
 #define AONRTC_GET_SET_TIME_RTC_ID AON_RTC_ID_1
@@ -83,6 +86,7 @@ static void aon_rtc_interrupt_disable(aon_rtc_id_t id);
 static uint32_t s_wkup_time_period = 0;
 #endif
 
+#define AON_RTC_OPS_SAFE_TICK_CNT (5)
 #define AON_RTC_OPS_SAFE_DELAY_US (125)
 /*
  * AON RTC uses 32k clock,and 3 cycles later can be clock sync.
@@ -242,10 +246,10 @@ static void alarm_dump_node(alarm_node_t *node_p)
 	{		
 		AON_RTC_LOGV("next=0x%x\r\n", node_p->next);
 		AON_RTC_LOGV("name=%s\r\n", node_p->name);
-		AON_RTC_LOGV("period_tick=0x%x\r\n", node_p->period_tick);
+		AON_RTC_LOGV("period_tick=0x%x\r\n", (uint32_t)node_p->period_tick);
 		AON_RTC_LOGV("period_cnt=%d\r\n", node_p->period_cnt);
-		AON_RTC_LOGV("start_tick=0x%x\r\n", node_p->start_tick);
-		AON_RTC_LOGV("expired_tick=0x%x\r\n", node_p->expired_tick);
+		AON_RTC_LOGV("start_tick=0x%x\r\n", (uint32_t)node_p->start_tick);
+		AON_RTC_LOGV("expired_tick=0x%x\r\n", (uint32_t)node_p->expired_tick);
 	}
 
 	AON_RTC_LOGV("%s[-]\r\n", __func__);
@@ -307,7 +311,7 @@ static void aon_rtc_release_node(aon_rtc_id_t id, alarm_node_t *node_p)
 		if(&s_aon_rtc_nodes_p[id]->nodes[i] == node_p)
 		{
 			s_aon_rtc_nodes_p[id]->busy_bits &= ~(0x1<<i);
-			os_memset(&s_aon_rtc_nodes_p[id]->nodes[i], 0, sizeof(alarm_info_t));
+			os_memset(&s_aon_rtc_nodes_p[id]->nodes[i], 0, sizeof(alarm_node_t));
 			AON_RTC_LOGV("%s[-]:node[%d]=0x%x\r\n", __func__, i, &s_aon_rtc_nodes_p[id]->nodes[i]);
 			break;
 		}
@@ -488,7 +492,7 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
 {
 	alarm_node_t *cur_p = NULL;
 	alarm_node_t *next_p = NULL;
-	uint32_t node_cnt = 0;
+	//uint32_t node_cnt = 0;
 	uint64_t cur_tick = 0;
 	uint32_t int_level = 0;
 
@@ -499,59 +503,58 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
 	int_level = rtc_enter_critical();
 
 	//search the node position
-	cur_p = s_aon_rtc[id].alarm_head_p;
-	while(cur_p)
+	while(s_aon_rtc[id].alarm_head_p)
 	{
+		cur_p = s_aon_rtc[id].alarm_head_p;
+		next_p = cur_p->next;
+
 		alarm_dump_node(cur_p);
 		alarm_dump_node(cur_p->next);
 
 		//double check pointer is valid
-		node_cnt++;
-		BK_ASSERT(node_cnt <= AON_RTC_MAX_ALARM_CNT); /* ASSERT VERIFIED */
-
-		next_p = cur_p->next;
+		//node_cnt++;
+		//BK_ASSERT(node_cnt <= AON_RTC_MAX_ALARM_CNT); /* ASSERT VERIFIED */ ==>Removed:Maybe ISR delay and lots off alram needs to callback
 
 		cur_tick = bk_aon_rtc_get_current_tick(id);
 		//maybe callback runs too much time,so assume the time in bk_rtc_get_ms_tick_count() means has expired
-		if(cur_p->expired_tick <= cur_tick + AON_RTC_PRECISION_TICK)
+		if(cur_p->expired_tick <= cur_tick + AON_RTC_OPS_SAFE_TICK_CNT)
 		{
+			uint32_t experied_cnt = 1;
+
+			//maybe isr delay which causes many times experied
+			experied_cnt += (cur_tick + AON_RTC_OPS_SAFE_TICK_CNT - cur_p->expired_tick) / cur_p->period_tick;
+			if(experied_cnt >= cur_p->period_cnt)
+			{
+				experied_cnt = cur_p->period_cnt;
+				cur_p->period_cnt = 0;
+			}
+			else if(cur_p->period_cnt != ALARM_LOOP_FOREVER)
+				cur_p->period_cnt -= experied_cnt;
+
 			if(cur_p->callback)
 			{
-				cur_p->callback(id, cur_p->name, cur_p->cb_param_p);
+				for(uint32_t i = 0; i < experied_cnt; i++)
+				{
+					cur_p->callback(id, cur_p->name, cur_p->cb_param_p);
+				}
 			}
 
 			//last time alarm
-			if(cur_p->period_cnt == 1)
+			if(cur_p->period_cnt == 0)
 			{
-				cur_p->period_cnt = 0;
 				s_aon_rtc[id].alarm_head_p = cur_p->next;	//head move to next
 				s_aon_rtc[id].alarm_node_cnt--;
-/* 
- * WARNING:As freertos doesn't support free memory in ISR context.
- * The chip no needs to use a task for AON RTC which wastes some memory.
- * so the APPLIACTION who calls bk_alarm_register should release the memory
- * returns by bk_alarm_register.
- */
-#if 0
-				AON_RTC_LOGV("last alarm:free=0x%x,name=%s\r\n", cur_p, cur_p->name);
-				os_free(cur_p);
-#endif
+
 				aon_rtc_release_node(id, cur_p);
 			}
-			//loop timer
+			//loop timer not complete
 			else 
 			{
-				if(cur_p->period_cnt != ALARM_LOOP_FOREVER)
-				{
-					cur_p->period_cnt--;
-					AON_RTC_LOGV("%s left %d times \r\n", cur_p->name, cur_p->period_cnt);
-				}
-
 				//has next
 				if(next_p)	//move to switable position
 				{
 					s_aon_rtc[id].alarm_head_p = cur_p->next;	//head move to next
-					cur_p->expired_tick += cur_p->period_tick;
+					cur_p->expired_tick += cur_p->period_tick * experied_cnt;
 					cur_p->next = NULL;		//cur_p is removed
 					s_aon_rtc[id].alarm_node_cnt--; //it will ++ in alarm_insert_node
 					if(alarm_insert_node(id, cur_p) != 0)
@@ -564,7 +567,7 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
 				else	//only self
 				{
 					//just update self expired time
-					cur_p->expired_tick += cur_p->period_tick;
+					cur_p->expired_tick += cur_p->period_tick * experied_cnt;
 					AON_RTC_LOGV("%s update next expired time %d \r\n", cur_p->name, cur_p->expired_tick);
 				}
 			}
@@ -573,8 +576,6 @@ static void alarm_update_expeired_nodes(aon_rtc_id_t id)
 		{
 			break;
 		}
-
-		cur_p = next_p;	//TODO:maybe cur_p offset is too small and calback excutes too much time, here can't switch to next NODE.
 
 		alarm_dump_list(s_aon_rtc[id].alarm_head_p);
 	}
@@ -603,20 +604,40 @@ bk_err_t bk_aon_rtc_register_tick_isr(aon_rtc_id_t id, aon_rtc_isr_t isr, void *
  */
 static void aon_rtc_set_tick(aon_rtc_hal_t *hal, uint64_t val)
 {
-	uint64_t start_tick = 0, cur_tick = 0;
+	uint64_t cur_tick = 0;
+	volatile uint64_t valid_val = val;
 
-	aon_rtc_hal_set_tick_val(hal, val);
-	start_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-	while(aon_rtc_hal_get_tick_val_lpo(hal) != val)
+	uint32_t int_level = rtc_enter_critical();
+	if(s_last_setted_lpo_tick == valid_val)	//maybe set the same value,but last set value sync to LPO doesn't complete
 	{
-		cur_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-		if(cur_tick - start_tick > AON_RTC_OPS_SAFE_DELAY_US)
-		{
-			AON_RTC_LOGE("%s:set tick timeout,set_tick=0x%llx, lpo_tick=0x%llx\r\n", __func__, val, aon_rtc_hal_get_tick_val_lpo(hal));
-			break;
-		}
-		aon_rtc_hal_set_tick_val(hal, val);
+		rtc_exit_critical(int_level);
+		return;
 	}
+
+	//wait enough safe time to set new tick
+	cur_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+	if(cur_tick < (AON_RTC_OPS_SAFE_TICK_CNT + s_last_set_time))
+	{
+		while((bk_aon_rtc_get_current_tick(AON_RTC_ID_1)) < (AON_RTC_OPS_SAFE_TICK_CNT + s_last_set_time))
+		{
+
+		}
+	}
+
+	//maybe after wait few ticks, the will be setted time is over ahead
+	cur_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+	if(cur_tick >= valid_val - AON_RTC_OPS_SAFE_TICK_CNT)
+	{
+		//AON_RTC_LOGI("%s:set tick interval too small,set_tick=0x%llx, cur_tick=0x%llx\r\n", __func__, valid_val, cur_tick);
+		valid_val = cur_tick + AON_RTC_OPS_SAFE_TICK_CNT;	//TODO: Optimize: can set really value by system running speed, example:2 ticks maybe enough.
+	}
+
+	aon_rtc_hal_set_tick_val(hal, valid_val);	//just set it
+	s_last_setted_lpo_tick = valid_val;
+	s_last_set_time = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
+	aon_rtc_hal_enable_tick_int(hal);
+	rtc_exit_critical(int_level);
 }
 
 bk_err_t bk_aon_rtc_register_upper_isr(aon_rtc_id_t id, aon_rtc_isr_t isr, void *param)
@@ -688,14 +709,6 @@ static bk_err_t aon_rtc_isr_handler(aon_rtc_id_t id)
 		//reset the timer tick
 		if(s_aon_rtc[id].alarm_head_p)
 		{
-			//+1:to assume set it valid,maybe aon rtc add 1 tick when set the value now.
-			//BK_ASSERT(bk_aon_rtc_get_current_tick(id) + 1/*AON_RTC_PRECISION_TICK*/ < s_aon_rtc[id].alarm_head_p->expired_tick);	//4:reserve enough time to set the tick
-			if((bk_aon_rtc_get_current_tick(id) + 1 > s_aon_rtc[id].alarm_head_p->expired_tick))
-			{
-				AON_RTC_LOGE("next expired tick is invalid\r\n");
-				rtc_exit_critical(int_level);
-				return BK_FAIL;
-			}
 			aon_rtc_set_tick(&s_aon_rtc[id].hal, s_aon_rtc[id].alarm_head_p->expired_tick);
 #if CONFIG_AON_RTC_DEBUG
 			s_isr_debug_set_tick[(s_isr_cnt)%AON_RTC_ISR_DEBUG_MAX_CNT] = s_aon_rtc[id].alarm_head_p->expired_tick;
@@ -716,6 +729,7 @@ static bk_err_t aon_rtc_isr_handler(aon_rtc_id_t id)
 	s_isr_debug_out_tick[(s_isr_cnt)%AON_RTC_ISR_DEBUG_MAX_CNT] = bk_aon_rtc_get_current_tick(id);
 	s_isr_cnt++;
 #endif
+
 	rtc_exit_critical(int_level);
 
 	return BK_OK;
@@ -1013,15 +1027,6 @@ bk_err_t bk_alarm_register(aon_rtc_id_t id, alarm_info_t *alarm_info_p)
 	//reset the timer tick
 	if(node_p == s_aon_rtc[id].alarm_head_p)	//insert node is the first one, should reset tick val
 	{
-		//+1:to assume set it valid,maybe aon rtc add 1 tick when set the value now.
-		//BK_ASSERT(bk_aon_rtc_get_current_tick(id) + 1/*AON_RTC_PRECISION_TICK*/ < s_aon_rtc[id].alarm_head_p->expired_tick);	//4:reserve enough time to set the tick
-		if((bk_aon_rtc_get_current_tick(id) + 1 > s_aon_rtc[id].alarm_head_p->expired_tick))
-		{
-			rtc_exit_critical(int_level);
-			AON_RTC_LOGE("next expired tick is invalid\r\n");
-			return BK_FAIL;
-		}
-
 		aon_rtc_set_tick(&s_aon_rtc[id].hal, s_aon_rtc[id].alarm_head_p->expired_tick);
 	}
 
@@ -1052,6 +1057,7 @@ bk_err_t bk_alarm_unregister(aon_rtc_id_t id, uint8_t *name_p)
 	}
 
 	int_level = rtc_enter_critical();
+	
 	previous_head_node_p = s_aon_rtc[id].alarm_head_p;
 	remove_node_p = alarm_remove_node(id, name_p);
 
@@ -1060,20 +1066,13 @@ bk_err_t bk_alarm_unregister(aon_rtc_id_t id, uint8_t *name_p)
 	{
 		if(s_aon_rtc[id].alarm_head_p)	//new head exist
 		{
-			//+1:to assume set it valid,maybe aon rtc add 1 tick when set the value now.
-			//BK_ASSERT(bk_aon_rtc_get_current_tick(id) + 1/*AON_RTC_PRECISION_TICK*/ < s_aon_rtc[id].alarm_head_p->expired_tick);	//reserve enough time to set the tick
-			if((bk_aon_rtc_get_current_tick(id) + 1 > s_aon_rtc[id].alarm_head_p->expired_tick))
-			{
-				rtc_exit_critical(int_level);
-				AON_RTC_LOGE("next expired tick is invalid\r\n");
-				return BK_FAIL;
-			}
-
 			aon_rtc_set_tick(&s_aon_rtc[id].hal, s_aon_rtc[id].alarm_head_p->expired_tick);
 			AON_RTC_LOGV("next tick=0x%x, cur_tick=0x%x\r\n", s_aon_rtc[id].alarm_head_p->expired_tick, bk_aon_rtc_get_current_tick(id));
 		}
 		else	//has no nodes now
 		{
+			//If the ISR at enable status, and the previous set tick time come, it will produce an Interrupt and maybe wakeup system.
+			aon_rtc_hal_disable_tick_int(&s_aon_rtc[id].hal);
 			// aon_rtc_set_tick(&s_aon_rtc[id].hal, AON_RTC_ROUND_TICK);
 			// AON_RTC_LOGV("no alarm:cur_tick=0x%x\r\n", bk_aon_rtc_get_current_tick(id));
 		}
@@ -1272,6 +1271,35 @@ void bk_aon_rtc_dump(aon_rtc_id_t id)
 	alarm_dump_list(s_aon_rtc[id].alarm_head_p);
 }
 
+void aon_rtc_check_list(aon_rtc_id_t id)
+{
+	alarm_node_t *cur_p = NULL;
+	uint32_t cnt = 0;
+	uint64_t is_up_sequence = 0xFFFFFFFFFFFFFFFFLL;
+	uint64_t is_timeout = 0;
+	uint32_t int_level = rtc_enter_critical();
+
+	cur_p = s_aon_rtc[id].alarm_head_p;
+	while(cur_p)
+	{
+		cnt++;
+		cur_p = cur_p->next;
+
+		if(cur_p->next)
+		{
+			if(cur_p->expired_tick > cur_p->next->expired_tick)
+				is_up_sequence &= ~(1<<cnt);
+		}
+
+		if(bk_aon_rtc_get_current_tick(id) > cur_p->expired_tick)
+			is_timeout |= (1<<cnt);
+	}
+	BK_ASSERT(cnt == s_aon_rtc[id].alarm_node_cnt);
+	BK_ASSERT(is_up_sequence == 0xFFFFFFFFFFFFFFFFLL);
+
+	rtc_exit_critical(int_level);
+	AON_RTC_LOGD("cnt=%d,istimeout=0x%x\r\n",cnt, is_timeout);
+}
 
 #if CONFIG_AON_RTC_DEBUG
 void bk_64bits_test(void)
