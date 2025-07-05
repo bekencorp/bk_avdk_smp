@@ -51,7 +51,6 @@ set(srcs
 	sys_ctrl/sys_video_driver.c
 	sys_ctrl/sys_psram_driver.c
 	sys_ctrl/sys_touch_driver.c
-	common/dd.c
 	common/drv_model.c
 	icu/icu_driver.c
 	icu/interrupt_base.c
@@ -82,12 +81,6 @@ if (CONFIG_AON_WDT)
 
 	list(APPEND srcs
 		aon_wdt/aon_wdt_driver.c
-	)
-endif()
-
-if (CONFIG_FLASH_ORIGIN_API)
-	list(APPEND srcs
-		flash/flash.c
 	)
 endif()
 

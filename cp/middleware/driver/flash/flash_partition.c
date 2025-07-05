@@ -42,16 +42,6 @@
 #define SOC_FLASH_BASE_ADDR           0x02000000
 #define FLASH_LOGICAL_BASE_ADDR       SOC_FLASH_BASE_ADDR
 
-#if CONFIG_FLASH_ORIGIN_API
-#define PAR_OPT_READ_POS      (0)
-#define PAR_OPT_WRITE_POS     (1)
-
-#define PAR_OPT_READ_DIS      (0x0u << PAR_OPT_READ_POS)
-#define PAR_OPT_READ_EN       (0x1u << PAR_OPT_READ_POS)
-#define PAR_OPT_WRITE_DIS     (0x0u << PAR_OPT_WRITE_POS)
-#define PAR_OPT_WRITE_EN      (0x1u << PAR_OPT_WRITE_POS)
-#endif
-
 #define PARTITION_IRAM         __attribute__((section(".iram")))
 
 /* Logic partition on flash devices */
