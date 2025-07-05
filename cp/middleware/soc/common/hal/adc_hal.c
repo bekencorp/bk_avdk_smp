@@ -65,6 +65,49 @@ bk_err_t adc_hal_set_div(adc_hal_t *hal, uint32_t div)
 }
 #endif
 
+bk_err_t adc_hal_set_vol_div(adc_chan_t adc_chan, adc_vol_div_t vol_div)
+{
+	sys_hal_set_ana_reg_spi_latch1v(1);
+	if (adc_chan == ADC_0) {
+		switch (vol_div) {
+		case ADC_VOL_DIV_2:
+			sys_ll_set_ana_reg5_adc_div(3);
+			break;
+		case ADC_VOL_DIV_3:
+			sys_ll_set_ana_reg5_adc_div(2);
+			break;
+		case ADC_VOL_DIV_5:
+			sys_ll_set_ana_reg5_adc_div(1);
+			break;
+		case ADC_VOL_DIV_7:
+			sys_ll_set_ana_reg5_adc_div(0);
+			break;
+		default:
+			break;
+		}
+	} else {
+		switch (vol_div) {
+		case ADC_VOL_DIV_1:
+			sys_ll_set_ana_reg5_adc_div(3);
+			break;
+		case ADC_VOL_DIV_2:
+			sys_ll_set_ana_reg5_adc_div(2);
+			break;
+		case ADC_VOL_DIV_3:
+			sys_ll_set_ana_reg5_adc_div(1);
+			break;
+		case ADC_VOL_DIV_4:
+			sys_ll_set_ana_reg5_adc_div(0);
+			break;
+		default:
+			break;
+		}
+	}
+	sys_hal_set_ana_reg_spi_latch1v(0);
+
+	return BK_OK;
+}
+
 bk_err_t adc_hal_set_mode(adc_hal_t *hal, adc_mode_t adc_mode)
 {
 	if(adc_mode == ADC_SOFTWARE_CONTRL_MODE) {

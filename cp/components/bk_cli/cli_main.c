@@ -1249,6 +1249,16 @@ void help_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 
 }
 
+volatile uint32_t s_cli_feature_flag = 0;
+/* TODO: cli stub function*/
+int cli_register_module_test_feature(const struct cli_command *commands, int num_commands)
+{
+        /*TODO: refactor is coming*/
+        s_cli_feature_flag += num_commands + (((uint32_t)commands) & 0x1);
+
+	return s_cli_feature_flag;
+}
+
 int cli_register_command(const struct cli_command *command)
 {
 	int i;
@@ -1640,8 +1650,16 @@ int bk_cli_init(void)
 	cli_jpeg_init();
 #endif
 
-#if (CLI_CFG_ADC == 1)
+#if (CLI_CFG_ADC == 1 || CONFIG_ADC_API_TEST)
 	cli_adc_init();
+#endif
+
+#if CONFIG_ADC_API_TEST
+    cli_adc_api_register_cli_test_feature();
+#endif
+
+#if CONFIG_SADC_API_TEST
+    cli_sadc_register_cli_api_test_feature();
 #endif
 
 #if (CLI_CFG_MICO == 1)

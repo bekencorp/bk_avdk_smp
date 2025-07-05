@@ -19,17 +19,19 @@
  */
 
 /* CMD_RF_HOLD_BIT_SET/_CLR*/
+///saradc control rf
+#define RF_BY_SARADC_BIT                     (1 << 6)
 ///temp control rf
-#define RF_BY_TEMP_BIT                  (1 << 5)
+#define RF_BY_TEMP_BIT                       (1 << 5)
 ///ate control rf
-#define RF_BY_ATE_BT_BIT                   (1 << 4)
+#define RF_BY_ATE_BT_BIT                     (1 << 4)
 #define RF_BY_ATE_WIFI_BIT                   (1 << 3)
 ///bkreg
-#define RF_BY_BKREG_BIT                   (1 << 2)
+#define RF_BY_BKREG_BIT                      (1 << 2)
 ///ble control rf
-#define RF_BY_BLE_BIT                   (1 << 1)
+#define RF_BY_BLE_BIT                        (1 << 1)
 ///wifi control rf
-#define RF_BY_WIFI_BIT                  (1 << 0)
+#define RF_BY_WIFI_BIT                       (1 << 0)
 /* END*/
 
 

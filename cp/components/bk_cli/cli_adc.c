@@ -32,10 +32,10 @@ static void cli_adc_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_adc_driver_init());
-		CLI_LOGD("adc driver init\n");
+		CLI_LOGD("adc driver init success\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(bk_adc_driver_deinit());
-		CLI_LOGD("adc driver deinit\n");
+		CLI_LOGD("adc driver deinit success\n");
 	} else {
 		cli_adc_help();
 		return;
@@ -260,7 +260,7 @@ static void cli_adc_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
     else if (0 == os_strcmp(argv[2], "saradc_val_read"))
     {
         uint32_t status;
-        status=0;
+        status = 1;//os_strtoul(argv[2], NULL, 10);
         //status = manual_cal_load_adc_cali_flash();
         if (status != 0)
         {
@@ -394,9 +394,9 @@ static void cli_adc_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 #define ADC_CMD_CNT (sizeof(s_adc_commands) / sizeof(struct cli_command))
 static const struct cli_command s_adc_commands[] = {
-	{"adc_driver", "adc_driver [init/deinit]", cli_adc_driver_cmd},
-	{"adc_test", "adc_test  [channel] [start/stop/dump_statis]", cli_adc_cmd},
-	{"adc_api_test", "adc_api_test []", cli_adc_api_cmd},
+	{"sadc_driver", "sadc_driver [init/deinit]", cli_adc_driver_cmd},
+	{"sadc", "sadc  [channel] [start/stop/dump_statis]", cli_adc_cmd},
+	{"sadc_api_test", "sadc_api_test []", cli_adc_api_cmd},
 
 };
 

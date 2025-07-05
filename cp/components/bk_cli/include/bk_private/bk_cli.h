@@ -146,6 +146,7 @@ int cli_stop(void);
  * \return 1 on failure
  */
 int cli_register_commands(const struct cli_command *commands, int num_commands);
+int cli_register_module_test_feature(const struct cli_command *commands, int num_commands);
 
 /** Unregister a batch of CLI commands
  *

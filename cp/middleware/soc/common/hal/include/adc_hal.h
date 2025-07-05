@@ -75,6 +75,7 @@ bk_err_t adc_hal_start_commom(adc_hal_t *hal);
 bk_err_t adc_hal_stop_commom(adc_hal_t *hal);
 bk_err_t adc_hal_set_saturate_mode(adc_hal_t *hal, adc_saturate_mode_t mode);
 uint16_t adc_hal_get_single_step_adc_data(adc_hal_t *hal);
+bk_err_t adc_hal_set_vol_div(adc_chan_t adc_chan, adc_vol_div_t vol_div);
 
 #ifdef SOC_ADC_FIFO_DATA_SUPPORT
 #define adc_hal_get_fifo_data(hal) adc_ll_get_fifo_data((hal)->hw)

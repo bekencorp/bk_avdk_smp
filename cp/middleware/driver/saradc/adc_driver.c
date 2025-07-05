@@ -325,6 +325,10 @@ bk_err_t bk_adc_driver_init(void)
 
 bk_err_t bk_adc_acquire(void)
 {
+    if(!s_adc_driver_is_init)
+    {
+        return BK_FAIL;
+    }
 	ADC_LOGV("acquire\n");
 	return rtos_lock_mutex(&s_adc_dev.adc_mutex);
 }

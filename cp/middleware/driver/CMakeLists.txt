@@ -66,6 +66,9 @@ set(srcs
 	uart/printf.c
 	saradc/adc_driver.c
 	saradc/adc_statis.c
+	saradc/cli_adc_api.c
+	saradc/cli_sadc_api.c
+	saradc/adc_cmd_api.c
 	pwr_clk/pwr_clk.c
 	pwr_clk/rosc_32k.c
 	pwr_clk/rosc_ppm.c
@@ -437,5 +440,5 @@ endif()
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	REQUIRES cm33
-	PRIV_REQUIRES bk_log easy_flash cmsis os_source unity
+	PRIV_REQUIRES bk_log easy_flash cmsis os_source unity console bk_phy
 )

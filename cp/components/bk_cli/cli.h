@@ -95,6 +95,8 @@ int cli_matter_init(void);
 
 int cli_uart_init(void);
 int cli_adc_init(void);
+int cli_sadc_register_cli_api_test_feature(void);
+int cli_adc_api_register_cli_test_feature(void);
 int cli_sdmadc_init(void);
 int cli_spi_init(void);
 int cli_qspi_init(void);

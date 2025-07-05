@@ -19,6 +19,21 @@ menu "SARADC"
 	config ADC_BUF_SIZE
 		int "config adc receive buffer size"
 		default 32
+		
+	config SARADC_TEST
+		depends on SARADC && DRIVER_TEST
+		bool "Enable saradc test"
+		default y
+
+	config SADC_API_TEST
+		bool "saradc api test"
+		depends on SARADC
+		default n
+
+	config ADC_API_TEST
+		depends on SARADC
+		bool "Enable adc api test"
+		default n
 
 endmenu	
 
