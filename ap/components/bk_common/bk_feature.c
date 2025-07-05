@@ -131,7 +131,7 @@ int bk_feature_network_found_event(void) {
 }
 
 int bk_feature_save_rfcali_to_otp_enable(void) {
-#if (CONFIG_OTP && CONFIG_PHY_RFCALI_TO_OTP)
+#if (CONFIG_OTP_V1 && CONFIG_PHY_RFCALI_TO_OTP)
     return 1;
 #else
     return 0;
