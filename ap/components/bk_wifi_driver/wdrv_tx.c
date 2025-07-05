@@ -297,7 +297,7 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
                 wdrv_print_debug_info();
                 wdrv_cntrl_get_cif_stats();
 
-                WDRV_LOGE("%s: cmd confirm timeout.\n", __func__);
+                WDRV_LOGW("%s: cmd confirm timeout.\n", __func__);
                 ret = -3;
             } else {
                 // receive cmd-cfm result
