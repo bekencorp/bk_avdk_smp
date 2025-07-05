@@ -390,20 +390,46 @@ bk_err_t bk_wifi_sta_disconnect(void)
 
 bk_err_t  bk_wifi_sta_get_mac(uint8_t *mac)
 {
+    bk_err_t ret = 0;
+    void *buffer_to_ipc = NULL;
+
     if (!mac)
         return BK_ERR_NULL_PARAM;
 
-    bk_wdrv_get_mac(mac, MAC_TYPE_STA);
-    return BK_OK;
+    buffer_to_ipc = os_malloc(WIFI_MAC_LEN);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(STA_GET_MAC, 1, (uint32_t)buffer_to_ipc);
+    os_memcpy(mac, buffer_to_ipc, WIFI_MAC_LEN);
+    os_free(buffer_to_ipc);
+
+    return ret;
 }
 
 bk_err_t bk_wifi_ap_get_mac(uint8_t *mac)
 {
+    bk_err_t ret = 0;
+    void *buffer_to_ipc = NULL;
+
     if (!mac)
         return BK_ERR_NULL_PARAM;
 
-    bk_wdrv_get_mac(mac, MAC_TYPE_AP);
-    return BK_OK;
+    buffer_to_ipc = os_malloc(WIFI_MAC_LEN);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(AP_GET_MAC, 1, (uint32_t)buffer_to_ipc);
+    os_memcpy(mac, buffer_to_ipc, WIFI_MAC_LEN);
+    os_free(buffer_to_ipc);
+
+    return ret;
 }
 
 bk_err_t bk_wifi_set_wifi_media_mode(bool flag)
@@ -1231,16 +1257,24 @@ bk_err_t bk_wifi_capa_config(wifi_capability_t capa_id, uint32_t capa_val)
 
 bk_err_t bk_wifi_set_mac_address(char *mac)
 {
-    struct wdrv_set_mac_req set_mac_req;
-    set_mac_req.cmd_hdr.cmd_id = BK_CMD_SET_MAC_ADDR;
-    os_memcpy(set_mac_req.mac_addr, mac, 6);
-    set_mac_req.cmd_cfm.waitcfm = WDRV_CMD_NOWAITCFM;
-    set_mac_req.cmd_cfm.cfm_id = 0;
-    WDRV_LOGV("set mac addr: %02X:%02X:%02X:%02X:%02X:%02X", set_mac_req.mac_addr[0], set_mac_req.mac_addr[1],
-              set_mac_req.mac_addr[2], set_mac_req.mac_addr[3], set_mac_req.mac_addr[4], set_mac_req.mac_addr[5]);
-    wdrv_tx_msg((uint8_t *)&set_mac_req, sizeof(set_mac_req), &set_mac_req.cmd_cfm, NULL);
+    bk_err_t ret = 0;
+    void *buffer_to_ipc = NULL;
 
-    return BK_OK;
+    if (!mac)
+        return BK_ERR_NULL_PARAM;
+
+    buffer_to_ipc = os_malloc(WIFI_MAC_LEN);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memcpy(buffer_to_ipc, mac, WIFI_MAC_LEN);
+    ret = wifi_send_com_api_cmd(SET_MAC_ADDRESS, 1, (uint32_t)buffer_to_ipc);
+    os_free(buffer_to_ipc);
+
+    return ret;
 }
 
 bk_err_t bk_wifi_scan_start_ex(const wifi_scan_config_t *scan_config)

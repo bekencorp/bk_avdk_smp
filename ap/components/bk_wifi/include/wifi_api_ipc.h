@@ -76,6 +76,9 @@ enum BK_WIFI_API_CMD_TYPE
     WIFI_SET_COUNTRY                    = 0x361,
     WIFI_CAPA_CONFIG                    = 0x362,
     SEND_ARP_SET_RATE_REQ               = 0x363,
+    SET_MAC_ADDRESS                     = 0x364,
+    STA_GET_MAC                         = 0x365,
+    AP_GET_MAC                          = 0x366,
 
     //Common PHY command section
     PHY_CAL_RFCALI                      = 0x380,

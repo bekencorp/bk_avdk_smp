@@ -329,6 +329,21 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             bk_wifi_scan_free_result(scan_result);
             break;
         }
+        case SET_MAC_ADDRESS:
+        {
+            ret = bk_wifi_set_mac_address((char *)arg_info->args[0]);
+            break;
+        }
+        case STA_GET_MAC:
+        {
+            ret = bk_wifi_sta_get_mac((uint8_t *)arg_info->args[0]);
+            break;
+        }
+        case AP_GET_MAC:
+        {
+            ret = bk_wifi_ap_get_mac((uint8_t *)arg_info->args[0]);
+            break;
+        }
         default:
         {
             ret = BK_ERR_NOT_FOUND;

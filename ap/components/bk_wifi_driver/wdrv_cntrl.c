@@ -82,6 +82,12 @@ bk_err_t bk_wdrv_get_mac(uint8_t *mac, mac_type_t type)
     uint8_t mac_mask = (0xff & (2/*NX_VIRT_DEV_MAX*/ - 1));
     uint8_t mac_low;
 
+    if (wdrv_get_mac_addr() != 0)
+    {
+        WDRV_LOGE("bk_wdrv_get_mac  failed\n");
+        return BK_FAIL;
+    }
+
     switch (type) {
     case MAC_TYPE_BASE:
         memcpy(mac, wdrv_host_env.macaddr_cfm.mac_addr, BK_MAC_ADDR_LEN);
@@ -111,11 +117,6 @@ bk_err_t bk_wdrv_get_mac(uint8_t *mac, mac_type_t type)
     }
 
     return BK_OK;
-}
-
-void wdrv_get_mac_ready(void)
-{
-    return;
 }
 
 int wdrv_get_mac_addr()

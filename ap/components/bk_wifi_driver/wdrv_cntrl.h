@@ -395,7 +395,6 @@ struct wdrv_customer_req
 void wdrv_host_init(void);
 int wdrv_get_mac_addr();
 bk_err_t bk_wdrv_get_mac(uint8_t *mac, mac_type_t type);
-void wdrv_get_mac_ready(void);
 uint32_t wdrv_param_init(void);
 int bk_platform_get_wlan_status(void);
 extern void wdrv_rx_handle_event(wdrv_rx_msg *msg);
