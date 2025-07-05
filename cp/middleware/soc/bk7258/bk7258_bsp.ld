@@ -429,7 +429,6 @@ SECTIONS
         *(".data.*")
         *(.sdata)
 
-        *(.video_spec_data*)
         *(.gnu.linkonce.d*)
         . = ALIGN(4);
         __data_end__ = .;
