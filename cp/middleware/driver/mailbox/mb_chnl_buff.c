@@ -33,9 +33,6 @@ typedef struct
 	u8		host_rx_buff[SYSTEM_CPU_NUM - 1][MB_CHNL_BUFF_LEN];
 } chnl_xchg_buff_t;
 
-extern char _swap_start, _swap_end;
-static chnl_xchg_buff_t * const xchg_buff = (chnl_xchg_buff_t *)(&_swap_start);
-//static u8 * const xchg_buff_end = (u8 *)(&_swap_end);
 
 static const u8   chni_id_map[] = 
 {
@@ -47,6 +44,9 @@ static const u8   chni_id_map[] =
 };
 
 #define CHNL_IDX_MAX	( sizeof(chni_id_map) / sizeof(chni_id_map[0]) )
+
+static __attribute__((used, section(".swap_data"))) chnl_xchg_buff_t  xchg_buffer[CHNL_IDX_MAX] = {0};
+static chnl_xchg_buff_t * const xchg_buff = (chnl_xchg_buff_t *)(&xchg_buffer[0]);
 
 static u8 get_chnl_index(u8 chnl_id)
 {
