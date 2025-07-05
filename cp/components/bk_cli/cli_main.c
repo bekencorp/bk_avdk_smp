@@ -242,6 +242,21 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
 	return ret;
 }
 
+int is_forward_cmd(char* inbuf, int in_buf_size)
+{
+	int pos = 0;
+	while (inbuf[pos] == ' ' && pos < in_buf_size) {
+		pos++;
+	}
+	if (pos >= in_buf_size) {
+		return -1;
+	}
+	if(strncmp(&inbuf[pos], "ap_cmd ", 7) == 0) {
+		return pos;
+	}
+	return -1;
+}
+
 /* Parse input line and locate arguments (if any), keeping count of the number
 * of arguments and their locations.  Look up and call the corresponding cli
 * function if one is found and pass it the argv array.
@@ -278,99 +293,107 @@ int handle_shell_input2(char *inbuf, int in_buf_size, char * outbuf, int out_buf
 	if (inbuf[i] == '\0')
 		return 0;
 
-	do {
-		switch (inbuf[i]) {
-		case '\0':
-			if (((argc == 0)||(stat.isD == 1))||(stat.limQ)||(stat.inQuote))
-			{
-				if(outbuf != NULL)
-					strncpy(&outbuf[0], "syntax error\r\n", out_buf_size - 1);
-				return 2;
-			}
-			stat.done = 1;
-			break;
+	int fwd_pos = is_forward_cmd(inbuf, in_buf_size);
+	if(fwd_pos >= 0) {
+		argc = 2;
+		argv[0] = &inbuf[fwd_pos];
+		argv[1] = &inbuf[fwd_pos + 7];
+		inbuf[fwd_pos + 6] = '\0';
+	} else {
+		do {
+			switch (inbuf[i]) {
+			case '\0':
+				if (((argc == 0)||(stat.isD == 1))||(stat.limQ)||(stat.inQuote))
+				{
+					if(outbuf != NULL)
+						strncpy(&outbuf[0], "syntax error\r\n", out_buf_size - 1);
+					return 2;
+				}
+				stat.done = 1;
+				break;
 
-		case '"':
-			if (i > 0 && inbuf[i - 1] == '\\' && stat.inArg) {
-				os_memcpy(&inbuf[i - 1], &inbuf[i],
-						  os_strlen(&inbuf[i]) + 1);
-				--i;
+			case '"':
+				if (i > 0 && inbuf[i - 1] == '\\' && stat.inArg) {
+					os_memcpy(&inbuf[i - 1], &inbuf[i],
+							os_strlen(&inbuf[i]) + 1);
+					--i;
+					break;
+				}
+				if (!stat.inQuote && stat.inArg)
+					break;
+				if (stat.inQuote && !stat.inArg)
+				{
+					if(outbuf != NULL)
+						strncpy(&outbuf[0], "syntax error\r\n", out_buf_size - 1);
+					return 2;
+				}
+
+				if (!stat.inQuote && !stat.inArg) {
+					stat.inArg = 1;
+					stat.inQuote = 1;
+					argc++;
+					argv[argc - 1] = &inbuf[i + 1];
+				} else if (stat.inQuote && stat.inArg) {
+					stat.inArg = 0;
+					stat.inQuote = 0;
+					inbuf[i] = '\0';
+				}
+				break;
+
+			case ' ':
+				if (i > 0 && inbuf[i - 1] == '\\' && stat.inArg) {
+					os_memcpy(&inbuf[i - 1], &inbuf[i],
+							os_strlen(&inbuf[i]) + 1);
+					--i;
+					break;
+				}
+				if (!stat.inQuote && stat.inArg) {
+					stat.inArg = 0;
+					inbuf[i] = '\0';
+				}
+				break;
+
+			case '=':
+				if(argc == 1) {
+					inbuf[i] = '\0';
+					stat.inArg = 0;
+					stat.isD = 1;
+				}
+				else if(argc == 0){
+					if(outbuf != NULL)
+						strncpy(&outbuf[0], "syntax error\r\n", out_buf_size - 1);
+					return 2;
+				}
+				break;
+	#if 0
+			case ',':
+				if((stat.isD == 1)&&(argc == 1))  ///=,
+				{
+					if(outbuf != NULL)
+						strncpy(&outbuf[0], "syntax error\r\n", out_buf_size - 1);
+					return 2;
+				}
+				if(!stat.inQuote && stat.inArg) {
+					stat.inArg = 0;
+					inbuf[i] = '\0';
+					stat.limQ = 1;
+				}
+				break;
+	#endif
+			default:
+				if (!stat.inArg) {
+					stat.inArg = 1;
+					argc++;
+					argv[argc - 1] = &inbuf[i];
+					stat.limQ = 0;
+					if(stat.isD == 1) {
+						stat.isD = 2;
+					}
+				}
 				break;
 			}
-			if (!stat.inQuote && stat.inArg)
-				break;
-			if (stat.inQuote && !stat.inArg)
-			{
-				if(outbuf != NULL)
-					strncpy(&outbuf[0], "syntax error\r\n", out_buf_size - 1);
-				return 2;
-			}
-
-			if (!stat.inQuote && !stat.inArg) {
-				stat.inArg = 1;
-				stat.inQuote = 1;
-				argc++;
-				argv[argc - 1] = &inbuf[i + 1];
-			} else if (stat.inQuote && stat.inArg) {
-				stat.inArg = 0;
-				stat.inQuote = 0;
-				inbuf[i] = '\0';
-			}
-			break;
-
-		case ' ':
-			if (i > 0 && inbuf[i - 1] == '\\' && stat.inArg) {
-				os_memcpy(&inbuf[i - 1], &inbuf[i],
-						  os_strlen(&inbuf[i]) + 1);
-				--i;
-				break;
-			}
-			if (!stat.inQuote && stat.inArg) {
-				stat.inArg = 0;
-				inbuf[i] = '\0';
-			}
-			break;
-
-        case '=':
-            if(argc == 1) {
-                inbuf[i] = '\0';
-                stat.inArg = 0;
-                stat.isD = 1;
-            }
-            else if(argc == 0){
-				if(outbuf != NULL)
-					strncpy(&outbuf[0], "syntax error\r\n", out_buf_size - 1);
-                return 2;
-            }
-            break;
-#if 0
-        case ',':
-            if((stat.isD == 1)&&(argc == 1))  ///=,
-            {
-				if(outbuf != NULL)
-					strncpy(&outbuf[0], "syntax error\r\n", out_buf_size - 1);
-                return 2;
-            }
-            if(!stat.inQuote && stat.inArg) {
-                stat.inArg = 0;
-                inbuf[i] = '\0';
-                stat.limQ = 1;
-            }
-            break;
-#endif
-		default:
-			if (!stat.inArg) {
-				stat.inArg = 1;
-				argc++;
-				argv[argc - 1] = &inbuf[i];
-                stat.limQ = 0;
-                if(stat.isD == 1) {
-                    stat.isD = 2;
-                }
-			}
-			break;
-		}
-	} while ((!stat.done && ++i < in_buf_size) && (argc < ARRAY_SIZE(argv)));
+		} while ((!stat.done && ++i < in_buf_size) && (argc < ARRAY_SIZE(argv)));
+	}
 
 	if (stat.inQuote)
 	{
@@ -998,42 +1021,11 @@ static void log_setting_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 /* it is a new implementation of the cli_cpu1_command, combine cpu1 cmd & paramters into argv[0] buffer. */
 void cli_cpu1_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	int 		i, j;
 	int 		buf_len = 0;
-	int  		str_len = 0;
+	int  		str_len = strlen(argv[1]);
 
-	for(i = 1; i < argc; i++)
-	{
-		str_len = strlen(argv[i]);
-		for(j = 0; j < str_len; j++)
-		{
-			if(argv[i][j] == ' ')
-			{
-				break;
-			}
-		}
-
-		if(j < str_len) /* contains ' ' in string. */
-		{
-			argv[0][buf_len++] = '"';
-			for(j = 0; j < str_len; j++)
-			{
-				if(argv[i][j] == '"')
-				{
-					argv[0][buf_len++] = '\\';
-				}
-				argv[0][buf_len++] = argv[i][j];
-			}
-			argv[0][buf_len++] = '"';
-		}
-		else
-		{
-			memcpy(&argv[0][buf_len], argv[i], str_len);
-			buf_len += str_len;
-			argv[0][buf_len++] = ' ';
-		}
-	}
-
+	memcpy(&argv[0][0], argv[1], str_len);
+	buf_len += str_len;
 	argv[0][buf_len++] = '\r';
 	argv[0][buf_len++] = '\n';
 
