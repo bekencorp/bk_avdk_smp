@@ -9,6 +9,7 @@
 #include "lcd_display_service.h"
 #include "uvc_pipeline_act.h"
 #include <driver/timer.h>
+#include <driver/pm_ap_core.h>
 
 #define TAG "media_sev"
 
@@ -73,6 +74,16 @@ static void media_debug_dump(timer_id_t timer_id)
 			media_debug->h264_length / 1024, h264_kps);
 }
 
+static bk_err_t media_frame_buffer_list_init(uint32_t param1, uint32_t param2)
+{
+    return frame_buffer_list_init();
+}
+
+static bk_err_t media_frame_buffer_list_deinit(uint32_t param1, uint32_t param2)
+{
+    return frame_buffer_list_deinit();
+}
+
 int media_service_init(void)
 {
 	bk_err_t ret = BK_OK;
@@ -106,11 +117,21 @@ int media_service_init(void)
 	extern bk_err_t bk_cdc_acm_demo(void);
 	bk_cdc_acm_demo();
 #endif
-	frame_buffer_list_init();
+	//frame_buffer_list_init();
 
-#ifdef CONFIG_WIFI_TRANSFER
-//	transfer_init();
-#endif
+    pm_ap_psram_power_state_callback_info_t  power_state_cb = {0};
+
+    power_state_cb.dev_id = PM_AP_USING_PSRAM_POWER_STATE_DEV_MEDIA;
+
+    power_state_cb.psram_off_cb_fn = media_frame_buffer_list_deinit;
+
+    power_state_cb.psram_on_cb_fn = media_frame_buffer_list_init;
+
+    power_state_cb.param1 = 0;
+
+    power_state_cb.param2 = 0;
+
+    bk_pm_ap_psram_power_state_register_callback(&power_state_cb);
 
 #ifdef CONFIG_LCD
     lcd_display_service_init();

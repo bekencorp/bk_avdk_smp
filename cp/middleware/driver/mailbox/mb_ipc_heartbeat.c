@@ -113,6 +113,12 @@ static int ipc_heartbeat_timeout(void)
 		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
 		return 0;
 	}
+	if (bk_pm_module_lv_sleep_state_get(PM_DEV_ID_DEFAULT))
+	{
+		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
+		bk_pm_module_lv_sleep_state_clear(PM_DEV_ID_DEFAULT);
+		return 0;
+	}
 
 	if(s_mb_ipc_work_state == MB_IPC_EXIT_LV)
 	{

@@ -9,6 +9,7 @@ typedef enum
     PM_AP_CORE_STATE_CTRL_CP2,
     PM_AP_CORE_AP_RECOVERY,
     PM_AP_CORE_SLEEP_WAKEUP_NOTIFY,
+    PM_AP_CORE_PSRAM_STATE_NOTIFY,
 	PM_AP_CORE_STATE_MAX
 }pm_ap_core_state_e;
 
@@ -38,6 +39,35 @@ typedef struct
     void* param1;//it can use the variable address, it need global variable,otherwise the param1 invalid.
     uint32_t param2;
 } pm_ap_close_ap_callback_info_t;
+
+typedef enum
+{
+    PM_AP_PSRAM_POWER_ON = 0,
+    PM_AP_PSRAM_POWER_OFF,
+    PM_AP_PSRAM_POWER_MAX,
+}pm_ap_psram_power_state_e;
+
+typedef enum
+{
+    PM_AP_USING_PSRAM_POWER_STATE_DEV_MEDIA = 0,
+    PM_AP_USING_PSRAM_POWER_STATE_DEV_WIFI,
+    PM_AP_USING_PSRAM_POWER_STATE_DEV_BT,
+    PM_AP_USING_PSRAM_POWER_STATE_DEV_MEMORY,
+    PM_AP_USING_PSRAM_POWER_STATE_DEV_APP,
+    PM_AP_USING_PSRAM_POWER_STATE_DEV_MAX,
+}pm_ap_using_psram_power_state_dev_e;
+
+typedef bk_err_t (*psram_power_state_callback_fn)(uint32_t param1,uint32_t param2);
+
+typedef struct
+{
+    pm_ap_using_psram_power_state_dev_e dev_id;
+    psram_power_state_callback_fn psram_on_cb_fn;
+    psram_power_state_callback_fn psram_off_cb_fn;
+    uint32_t param1;
+    uint32_t param2;
+} pm_ap_psram_power_state_callback_info_t;
+
 typedef enum
 {
     PM_AP_USING_SYS_WAKEUP_DEV_MEDIA = 0,
@@ -56,6 +86,45 @@ typedef struct
     pm_wakeup_source_e  wakeup_source;
     system_wakeup_cb_fn sys_wakeup_fn;
 } pm_ap_system_wakeup_cb_info_t;
+/**
+ * @brief handle psram power on/off callback
+ *
+ * @attention
+ * - This API is used to handle psram power on/off callback.
+ *
+ * @param
+ * -psram_power_state:0x0:PM_AP_PSRAM_POWER_ON,0x1:PM_AP_PSRAM_POWER_OFF
+ * @return
+ * - BK_OK: succeed
+ * - others: other errors.
+ */
+bk_err_t bk_pm_ap_psram_power_state_handle_callback(pm_ap_psram_power_state_e psram_power_state);
+/**
+ * @brief unregister psram power on/off callback
+ *
+ * @attention
+ * - This API is used to unregister psram power on/off callback.
+ *
+ * @param
+ * -p_psram_power_state_callback_info: psram power callback information
+ * @return
+ * - BK_OK: succeed
+ * - others: other errors.
+ */
+bk_err_t bk_pm_ap_psram_power_state_unregister_callback(pm_ap_psram_power_state_callback_info_t * p_psram_power_state_callback_info);
+/**
+ * @brief register psram power on/off callback
+ *
+ * @attention
+ * - This API is used to register psram power on/off callback.
+ *
+ * @param
+ * -p_psram_power_state_callback_info: psram power callback information
+ * @return
+ * - BK_OK: succeed
+ * - others: other errors.
+ */
+bk_err_t bk_pm_ap_psram_power_state_register_callback(pm_ap_psram_power_state_callback_info_t * p_psram_power_state_callback_info);
 /**
  * @brief handle wakeup callback
  *

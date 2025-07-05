@@ -38,11 +38,22 @@ extern bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module
 /*================FUNCTION DECLARATION  SECTION  END===========*/
 static bk_err_t pm_demo_sleep_wakeup_callback(void* param1,uint32_t param2)
 {
+    LOGD("%s\r\n",__func__);
     return BK_OK;
 }
 static bk_err_t pm_demo_cpu1_shutdown_callback(void* param1,uint32_t param2)
 {
     bk_pm_cp1_recovery_response(PM_CP1_RECOVERY_CMD, PM_CP1_PREPARE_CLOSE_MODULE_NAME_APP, PM_CP1_MODULE_RECOVERY_STATE_FINISH);
+    return BK_OK;
+}
+static bk_err_t pm_demo_psram_power_on_callback(uint32_t param1,uint32_t param2)
+{
+    LOGD("%s\r\n",__func__);
+    return BK_OK;
+}
+static bk_err_t pm_demo_psram_power_off_callback(uint32_t param1,uint32_t param2)
+{
+    LOGD("%s\r\n",__func__);
     return BK_OK;
 }
 static bk_err_t pm_demo_init()
@@ -61,6 +72,15 @@ static bk_err_t pm_demo_init()
     bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_AOV,PM_POWER_MODULE_STATE_ON);
     rtos_delay_milliseconds(2);
     bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_WIFI,PM_POWER_MODULE_STATE_ON);
+
+    pm_ap_psram_power_state_callback_info_t  power_state_cb = {0};
+    power_state_cb.dev_id = PM_AP_USING_PSRAM_POWER_STATE_DEV_MEDIA;
+    power_state_cb.psram_off_cb_fn = pm_demo_psram_power_off_callback;
+    power_state_cb.psram_on_cb_fn = pm_demo_psram_power_on_callback;
+    power_state_cb.param1 = 0;
+    power_state_cb.param2 = 0;
+    bk_pm_ap_psram_power_state_register_callback(&power_state_cb);
+
     return BK_OK;
 }
 bk_err_t bk_pm_demo_send_msg(pm_ap_core_msg_t *msg)

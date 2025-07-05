@@ -226,9 +226,9 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 		case PM_CP1_PSRAM_MALLOC_STATE_CMD:
 			if(cmd_buf->param1 == 0x1)
 			{
-				bk_pm_cp0_psram_malloc_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
 				s_pm_cp1_psram_malloc_count = cmd_buf->param2;
 			}
+			bk_pm_cp0_psram_malloc_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
 			break;
 		case PM_CP1_RECOVERY_CMD:
 			ret = pm_cp0_send_msg(LOW_PWR_CORE_CP2_RECOVERY, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
@@ -387,9 +387,9 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 		if(module == PM_POWER_MODULE_NAME_CPU1)
 		{
 			stop_cpu1_core();
-			bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
+			//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
 			bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU1, PM_POWER_MODULE_STATE_OFF);
-			bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
+			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 
 			GLOBAL_INT_DISABLE();
 			s_pm_cp1_boot_ready = 0;
@@ -447,8 +447,8 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 	BK_LOGD(NULL,"boot_cp1 %d %d 0x%x [%d]E_2\r\n",module, power_state,s_pm_cp1_ctrl_state,ret);
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on
     {
-		bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_480M);
-		bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
+		//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_480M);
+		//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
 		GLOBAL_INT_DISABLE();
 		s_pm_cp1_ctrl_state |= 0x1 << (module);
 		GLOBAL_INT_RESTORE();
@@ -499,37 +499,40 @@ bk_err_t bk_pm_cp_wakeup_ap_from_wfi(uint8_t core_id)
 	return ret;
 }
 /*Get the cp1 heap malloc count*/
-uint32_t bk_pm_get_cp1_psram_malloc_count()
+uint32_t bk_pm_get_cp1_psram_malloc_count(uint32_t using_psram_type)
 {
 	uint64_t previous_tick = 0;
 	uint64_t current_tick   = 0;
 	if(s_pm_cp1_boot_ready)
 	{
-		s_pm_cp1_psram_malloc_count = 0;
 		bk_pm_cp0_psram_malloc_state_set(PM_MAILBOX_COMMUNICATION_INIT);
-		pm_cp0_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,0,0,0);
-
-		previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-		current_tick = previous_tick;
-		while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*AON_RTC_MS_TICK_CNT))
+		pm_cp0_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,using_psram_type,0,0);
+		if(using_psram_type == 0x0)
 		{
-			if (bk_pm_cp0_psram_malloc_state_get()) // wait the cp1 response
+			s_pm_cp1_psram_malloc_count = 0;
+			previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			current_tick = previous_tick;
+			while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*AON_RTC_MS_TICK_CNT))
 			{
-				break;
+				if (bk_pm_cp0_psram_malloc_state_get()) // wait the cp1 response
+				{
+					break;
+				}
+				current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 			}
-			current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-		}
-		if(!bk_pm_cp0_psram_malloc_state_get())
-		{
-			BK_LOGD(NULL,"cp0 get the psram malloc state time out > 100ms\r\n");
-		}
+			if(!bk_pm_cp0_psram_malloc_state_get())
+			{
+				BK_LOGD(NULL,"cp0 get the psram malloc state[%d] time out > 100ms\r\n",using_psram_type);
+			}
 
-	    return s_pm_cp1_psram_malloc_count;
+			return s_pm_cp1_psram_malloc_count;
+		}
 	}
 	else
 	{
 		return 0;
 	}
+	return 0;
 }
 
 /*trigger the cp1 heap malloc dump*/
@@ -603,6 +606,7 @@ bk_err_t bk_pm_module_vote_boot_cp2_ctrl(pm_boot_cp2_module_name_e module,pm_pow
 
 #if CONFIG_PSRAM
 static uint32_t s_pm_psram_ctrl_state     = 0;
+
 #endif
 static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power_module_state_e power_state)
 {
@@ -612,9 +616,10 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 	//BK_LOGD(NULL,"%s %d %d 0x%x\r\n",__func__, module, power_state,s_pm_psram_ctrl_state);
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on
     {
-        GLOBAL_INT_DISABLE();
-        s_pm_psram_ctrl_state |= 0x1 << (module);
-        GLOBAL_INT_RESTORE();
+		if(s_pm_psram_ctrl_state == 0)
+		{
+			bk_pm_module_vote_cpu_freq(PM_DEV_ID_PSRAM,PM_CPU_FRQ_480M);
+		}
 		ret = bk_psram_init();
 		if(ret != BK_OK)
 		{
@@ -635,6 +640,9 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 				}
 			}
 		}
+		GLOBAL_INT_DISABLE();
+        s_pm_psram_ctrl_state |= 0x1 << (module);
+        GLOBAL_INT_RESTORE();
 	}
     else //power down
     {
@@ -646,6 +654,9 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 			if(0x0 == s_pm_psram_ctrl_state)
 			{
 				bk_psram_deinit();
+				bk_pm_module_vote_cpu_freq(PM_DEV_ID_PSRAM,PM_CPU_FRQ_DEFAULT);
+				FIXED_ADDR_PSRAM_POWER_DOWN = PM_PSRAM_POWER_DOWN_MAGIC;
+                bk_pm_get_cp1_psram_malloc_count(0x1);
 			}
 		}
 	}
@@ -664,12 +675,22 @@ bk_err_t pm_debug_pwr_clk_state()
 	BK_LOGD(NULL,"pm_cp1_boot_ready:0x%x 0x%x\r\n",s_pm_cp1_boot_ready,s_pm_cp1_module_recovery_state);
 	return BK_OK;
 }
-
+uint32_t bk_pm_get_psram_ctrl_state()
+{
+	uint32_t psram_ctrl_state = 0x1;//Default psram used and power on
+	#if CONFIG_PSRAM
+	if(s_pm_psram_ctrl_state == 0x0)
+	{
+		psram_ctrl_state = 0x0;//psram state:power off
+	}
+	#endif
+	return psram_ctrl_state;
+}
 bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_power_module_state_e power_state)
 {
-
-	pm_psram_power_ctrl(module,power_state);
-	return BK_OK;
+	bk_err_t ret = BK_OK;
+	ret = pm_psram_power_ctrl(module,power_state);
+	return ret;
 }
 
 bk_err_t bk_pm_module_vote_ctrl_external_ldo(gpio_ctrl_ldo_module_e module,gpio_id_t gpio_id,gpio_output_state_e value)

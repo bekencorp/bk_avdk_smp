@@ -94,6 +94,11 @@ static bk_err_t pm_ap_core_message_handle(void)
                     bk_pm_ap_system_wakeup_handle_callback(&msg);
                 }
                 break;
+                case PM_AP_CORE_PSRAM_STATE_NOTIFY:
+                {
+                    bk_pm_ap_psram_power_state_handle_callback(msg.param1);
+                }
+                break;
                 default:
                     break;
             }
@@ -146,7 +151,7 @@ bk_err_t bk_pm_ap_core_init(void)
     }
 
     ret = rtos_create_thread(&s_pm_info->thd,
-                             BEKEN_DEFAULT_WORKER_PRIORITY,
+                             BEKEN_DEFAULT_WORKER_PRIORITY - 2,/*pm contrl cmd thread priority need higher*/
                              "pm_info->thd",
                              (beken_thread_function_t)pm_ap_core_message_handle,
                              PM_AP_CORE_STACK_SIZE,

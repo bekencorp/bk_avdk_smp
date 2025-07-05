@@ -17,6 +17,7 @@
 #include <modules/pm.h>
 #include <driver/hal/hal_gpio_types.h>
 #include <driver/gpio.h>
+#include "ram_regions.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -41,6 +42,12 @@ extern "C" {
 #define PM_SLEEP_WAKEUP_NOTIFY_CMD           (0x10)
 
 #define PM_AON_RTC_DEFAULT_TICK_COUNT        (32)//only for cp1 using aon rtc
+
+#define FIXED_ADDR_PSRAM_USDE_COUNT          (*(volatile uint32_t *)CONFIG_PWR_MNG_ADDR)
+#define FIXED_ADDR_PSRAM_POWER_DOWN          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+4))
+
+#define PM_PSRAM_POWER_DOWN_MAGIC            (0x123)
+
 typedef enum
 {
 	PM_BOOT_CP1_MODULE_NAME_FFT          = 0,
@@ -122,7 +129,21 @@ typedef enum
 	PM_CP1_PREPARE_CLOSE_MODULE_NAME_LVGL_CODE_RUN,// 13
 	PM_CP1_PREPARE_CLOSE_MODULE_NAME_MAX          ,// attention: MAX value can not exceed 31.
 }pm_cp1_prepare_close_module_name_e;
-
+/**
+ * @brief get psram ctrl state
+ *
+ * cp0 wakeup ap from wfi
+ *
+ * @attention
+ * - This API is used to get psram ctrl state
+ *
+ * @param
+ * - void
+ * @return
+ * psram ctrl state
+ *
+ */
+uint32_t bk_pm_get_psram_ctrl_state();
 /**
  * @brief cp0 wakeup ap from wfi
  *
@@ -287,7 +308,7 @@ bk_err_t bk_pm_dump_cp1_psram_malloc_info();
  * - others: other errors.
  *
  */
-uint32_t bk_pm_get_cp1_psram_malloc_count();
+uint32_t bk_pm_get_cp1_psram_malloc_count(uint32_t using_psram_type);
 /**
  * @brief pm vote gpio ctrl external ldo
  *

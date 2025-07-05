@@ -60,6 +60,7 @@
 #define PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME    (0xFFFFFF)//set max
 #define PM_LOW_VOL_AON_LDO_SEL                (2)       // 0.7V
 #define PM_LOW_VOL_VIO_LDO_SEL                (0)       // 2.9V
+#define PM_WAIT_AP_CORES_ENTER_WFI_TIME       (3)       // 3ms
 
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB
 #define FLASH_BASE_ADDRESS                    (0x44030000)
@@ -1156,6 +1157,8 @@ bool sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi()
 {
 	int  ret = true;
 	#if CONFIG_PM_LV_SUBCORES_ON
+	uint64_t previous_tick = 0;
+	uint64_t current_tick  = 0;
 	if(bk_pm_low_vol_vote_state_get())
 	{
 		s_int1_state1 = sys_ll_get_cpu1_int_0_31_en_value();
@@ -1163,19 +1166,47 @@ bool sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi()
 		s_int2_state1 = sys_ll_get_cpu2_int_0_31_en_value();
 		s_int2_state2 = sys_ll_get_cpu2_int_32_63_en_value();
 		aon_pmu_ll_set_r3_cp0_sleep_vote_state(1);
+
+		previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+		current_tick = previous_tick;
+		while(!aon_pmu_ll_get_r3_cp1_enter_wfi_state())
+		{
+			if(((current_tick - previous_tick)) < (PM_WAIT_AP_CORES_ENTER_WFI_TIME*AON_RTC_MS_TICK_CNT))
+			{
+				current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+		current_tick = previous_tick;
+		while(!aon_pmu_ll_get_r3_cp2_enter_wfi_state())
+		{
+			if(((current_tick - previous_tick)) < (PM_WAIT_AP_CORES_ENTER_WFI_TIME*AON_RTC_MS_TICK_CNT))
+			{
+				current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		if (aon_pmu_ll_get_r3_cp1_enter_wfi_state()&&aon_pmu_ll_get_r3_cp2_enter_wfi_state())
+		{
+			ret = true;
+		}
+		else
+		{
+			ret = false;
+		}
 	}
 	else
 	{
 		aon_pmu_ll_set_r3_cp0_sleep_vote_state(0);
-	}
-
-	if (aon_pmu_ll_get_r3_cp1_enter_wfi_state()&&aon_pmu_ll_get_r3_cp2_enter_wfi_state())
-	{
-		ret = true;
-	}
-	else
-	{
-		ret = false;
 	}
 	#endif
 	return ret;

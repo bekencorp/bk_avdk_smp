@@ -17,6 +17,8 @@
 #include <modules/pm.h>
 #include <driver/hal/hal_gpio_types.h>
 #include <driver/gpio.h>
+#include "ram_regions.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -41,6 +43,12 @@ extern "C" {
 #define PM_SLEEP_WAKEUP_NOTIFY_CMD           (0x10)
 
 #define PM_AON_RTC_DEFAULT_TICK_COUNT        (32)//only for cp1 using aon rtc
+
+#define FIXED_ADDR_PSRAM_USDE_COUNT          (*(volatile uint32_t *)CONFIG_PWR_MNG_ADDR)
+#define FIXED_ADDR_PSRAM_POWER_DOWN          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+4))
+
+#define PM_PSRAM_POWER_DOWN_MAGIC            (0x123)
+
 typedef enum
 {
 	PM_BOOT_CP1_MODULE_NAME_FFT          = 0,

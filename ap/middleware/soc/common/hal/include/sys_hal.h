@@ -98,6 +98,7 @@ __attribute__((section(".itcm_sec_code"))) void sys_hal_enter_low_voltage(void);
 #else
 void sys_hal_enter_low_voltage(void);
 #endif
+bool sys_hal_get_cp0_sleep_vote_state();
 void sys_hal_module_power_ctrl(power_module_name_t module,power_module_state_t power_state);
 void sys_hal_wakeup_interrupt_clear(wakeup_source_t interrupt_source);
 void sys_hal_module_power_ctrl(power_module_name_t module,power_module_state_t power_state);

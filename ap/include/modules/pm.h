@@ -122,6 +122,12 @@ typedef enum
 
 typedef enum
 {
+	PM_LV_ENTER_SLEEP = 0,
+	PM_LV_EXIT_SLEEP = 1,
+}pm_lv_sleep_state_e;
+
+typedef enum
+{
 	GPIO_TRIGGER_INTERRUPE_LEVEL_LOW_ACTIVE = 0,
 	GPIO_TRIGGER_INTERRUPE_LEVEL_HIGH_ACTIVE,
 	GPIO_TRIGGER_INTERRUPE_EDGE_RISING,
@@ -456,6 +462,21 @@ typedef enum
 #define PM_CP1_AUTO_POWER_DOWN_CTRL      (PM_CP1_AUTO_POWER_DOWN_ENABLE)
 
 /*=====================CONFIG  SECTION  END=======================*/
+/**
+ * @brief handle the lv sleep callback
+ *
+ * handle the lv sleep callback
+ *
+ * @attention
+ * - This API is used to handle the lv sleep callback
+ *
+ * @param
+ * -lv_sleep_state:0x0:PM_LV_ENTER_SLEEP;0x1:PM_LV_EXIT_SLEEP
+ * @return
+ * - BK_OK: succeed
+ * - others: other errors.
+ */
+bk_err_t bk_pm_handle_lv_sleep_callback(pm_lv_sleep_state_e lv_sleep_state);
 /**
  * @brief clear the lv sleep state
  *

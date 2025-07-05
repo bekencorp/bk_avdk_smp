@@ -804,6 +804,11 @@ void sys_hal_gpio_ana_wakeup_enable(uint32_t count, uint32_t index, uint32_t typ
 	sys_hal_disable_spi_latch();
 }
 
+bool sys_hal_get_cp0_sleep_vote_state()
+{
+	return aon_pmu_ll_get_r3_cp0_sleep_vote_state();
+}
+
 void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 {
 #if CONFIG_PM_LV_SUBCORES_ON
@@ -833,6 +838,7 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 			sys_ll_set_cpu1_int_32_63_en_value(0x0);
 			sys_ll_set_cpu1_int_32_63_en_cpu1_mailbox_int_en(1);
 
+			bk_pm_handle_lv_sleep_callback(PM_LV_ENTER_SLEEP);
 			/*Set cpu1 wfi state*/
 			aon_pmu_ll_set_r3_cp1_enter_wfi_state(1);
 
@@ -843,6 +849,8 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 			aon_pmu_ll_set_r3_cp1_enter_wfi_state(0);
 
 			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+
+			bk_pm_handle_lv_sleep_callback(PM_LV_EXIT_SLEEP);
 		}
 		else
 		{
@@ -874,7 +882,6 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 			sys_ll_set_cpu2_int_0_31_en_value(0x0);
 			sys_ll_set_cpu2_int_32_63_en_value(0x0);
 			sys_ll_set_cpu2_int_32_63_en_cpu2_mailbox_int_en(1);
-
 			/*Set cpu2 wfi state*/
 			aon_pmu_ll_set_r3_cp2_enter_wfi_state(1);
 

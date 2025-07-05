@@ -517,6 +517,11 @@ extern uint32_t rtos_get_time_diff(void);
                 ulReloadValue -= ulStoppedTimerCompensation;
             }
 
+            if (ulReloadValue > (2*ulTimerCountsForOneTick) )
+            {
+                ulReloadValue = (2*ulTimerCountsForOneTick) - 1;
+            }
+
             /* Set the new reload value. */
             portNVIC_SYSTICK_LOAD_REG = ulReloadValue;
 

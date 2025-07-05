@@ -31,7 +31,11 @@
 #include <driver/psram.h>
 #include "sys_hal.h"
 
+#if CONFIG_FLASH_ORIGIN_API
+#include "bk_flash.h"
+#else
 #include "driver/flash.h"
+#endif
 
 #if CONFIG_INT_WDT
 #include <driver/wdt.h>
@@ -194,10 +198,10 @@ extern void bk_delay_us(UINT32 us);
  * -- 3. wakeup source config
  * -- 4. sleep/wakeup functions
  */
-
 void pm_hardware_init()
 {
 #if 1
+	FIXED_ADDR_PSRAM_POWER_DOWN  = 0x0;
 	sys_drv_low_power_hardware_init();
 
 	/*config vote for entering low vol modules*/
@@ -860,7 +864,7 @@ bk_err_t pm_cp1_psram_malloc_count_state_set(uint32_t value)
 static bk_err_t pm_cp1_psram_malloc_state_get()
 {
 	#if (CONFIG_CPU_CNT > 1)
-	s_pm_cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count();
+	s_pm_cp1_psram_malloc_count_state = FIXED_ADDR_PSRAM_USDE_COUNT;
 	#endif
 	return BK_OK;
 }
@@ -872,7 +876,7 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 	uint32_t cp1_psram_malloc_count = 0;
 	/*get the cp1 psram malloc count*/
 	#if (CONFIG_CPU_CNT > 1)
-	cp1_psram_malloc_count = s_pm_cp1_psram_malloc_count_state;
+	cp1_psram_malloc_count = FIXED_ADDR_PSRAM_USDE_COUNT;
 	if (s_debug_en == 64)
 	{
 		if(s_pm_cp1_psram_malloc_count_state > 0)
@@ -898,8 +902,8 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 	}
 	if((cp0_psram_malloc_count == 0)&&(cp1_psram_malloc_count == 0))
 	{
-		//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_AS_MEM,PM_POWER_MODULE_STATE_OFF);
-		//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_OFF);
+		bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_AS_MEM,PM_POWER_MODULE_STATE_OFF);
+		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_OFF);
 	}
 
   #endif
@@ -1511,14 +1515,22 @@ static void pm_low_voltage_resource_set()
 #endif
 
 	/*flash line mode 4->2 when enter low voltage*/
+#if CONFIG_FLASH_ORIGIN_API
+	flash_set_line_mode(2);
+#else
 	bk_flash_set_line_mode(2);
+#endif
 
 }
 
 void pm_low_voltage_bsp_restore(void)
 {
 	/*flash line mode 2->4 when exit low voltage*/
+#if CONFIG_FLASH_ORIGIN_API
+	flash_set_line_mode(flash_get_line_mode());
+#else
 	bk_flash_set_line_mode(bk_flash_get_line_mode());
+#endif
 
 #if CONFIG_CKMN
 	bk_rosc_32k_ckest_prog(32);
@@ -1576,6 +1588,11 @@ static void pm_low_voltage_resource_restore()
 	#endif
 
 	bk_pm_cp_wakeup_ap_from_wfi(0);
+	/*When psram power down, it need init psram heap*/
+	if(bk_pm_get_psram_ctrl_state() == 0)
+	{
+		bk_psram_heap_init_flag_set(false);
+	}
 }
 
 static uint32_t pm_low_voltage_process()
@@ -2316,6 +2333,20 @@ void pm_debug_ctrl(uint32_t debug_en)
 		}
 		pm_cp1_psram_malloc_state_get();
 		pm_debug_module_state();
+
+		uint32_t i = 0;
+		uint32_t freq_max = 0;
+		uint32_t freq_max_index = 0;
+		freq_max = s_pm_cpu_freq[0];
+		for (i = 1; i < PM_DEV_ID_MAX; i++)
+		{
+			if (freq_max < s_pm_cpu_freq[i])
+			{
+				freq_max = s_pm_cpu_freq[i];
+				freq_max_index = i;
+			}
+		}
+		BK_LOGD(NULL,"pm vote freq:%d,%d\r\n",freq_max_index,freq_max);
 	}
 #endif
 }

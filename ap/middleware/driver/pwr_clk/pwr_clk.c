@@ -344,19 +344,40 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			}
 			break;
 		case PM_CTRL_PSRAM_POWER_CMD:
-			if(cmd_buf->param1 == BK_OK)
+			if(cmd_buf->param1 == PM_POWER_MODULE_STATE_ON)
 			{
-				s_pm_psram_power_ctrl = PM_MAILBOX_COMMUNICATION_FINISH;
+				msg.event= PM_AP_CORE_PSRAM_STATE_NOTIFY;
+				msg.param1 = 0x0;//cmd_buf->param1;
+				msg.param2 = cmd_buf->param2;
+				bk_pm_ap_core_send_msg(&msg);
+
+			}
+			else if(cmd_buf->param1 ==PM_POWER_MODULE_STATE_OFF)
+			{
+
 			}
 			else
 			{
 				ret = BK_FAIL;
 			}
+			s_pm_psram_power_ctrl = PM_MAILBOX_COMMUNICATION_FINISH;
 			break;
 		case PM_CP1_PSRAM_MALLOC_STATE_CMD:
-			used_count = bk_psram_heap_get_used_count();
-			pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,0x1,used_count,0);
-			//os_printf("cp1 bk_psram_heap_get_used_count[%d]\r\n", bk_psram_heap_get_used_count());
+			if(cmd_buf->param1 == 0x1)
+			{
+				msg.event= PM_AP_CORE_PSRAM_STATE_NOTIFY;
+				msg.param1 = 0x1;//recovery media using psram
+				msg.param2 = cmd_buf->param2;
+				bk_pm_ap_core_send_msg(&msg);
+				pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,0x2,0,0);
+			}
+			else if(cmd_buf->param1 == 0x0)
+			{
+				used_count = bk_psram_heap_get_used_count();
+				//bk_pm_ap_psram_power_state_handle_callback(0x1);//recovery media using psram
+				pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,0x1,used_count,0);
+			}
+			//BK_LOGD(NULL, "cp1 bk_psram_heap_get_used_count[%d]\r\n", bk_psram_heap_get_used_count());
 			break;
 		case PM_CP1_DUMP_PSRAM_MALLOC_INFO_CMD:
 			bk_psram_heap_get_used_state();

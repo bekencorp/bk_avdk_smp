@@ -1295,16 +1295,6 @@ void vApplicationIdleHook( void )
     bk_task_wdt_feed();
 #endif
 #if (CONFIG_CPU_CNT > 1)
-	uint32_t cp1_psram_malloc_count_state       = 0;
-	if(bk_pm_low_vol_vote_state_get())
-	{
-        /*Get ap psram memory malloc usage*/
-        #if !CONFIG_PM_LV_SUBCORES_ON
-		cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count(0);
-        #endif
-		pm_cp1_psram_malloc_count_state_set(cp1_psram_malloc_count_state);
-		//pm_debug_module_state();
-	}
 	if(bk_pm_cp1_recovery_all_state_get())
 	{
 		bk_pm_module_check_cp1_shutdown();

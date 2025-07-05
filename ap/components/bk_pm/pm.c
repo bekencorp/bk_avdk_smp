@@ -30,7 +30,11 @@
 #include "bk_pm_internal_api.h"
 #include <driver/psram.h>
 
+#if CONFIG_FLASH_ORIGIN_API
+#include "bk_flash.h"
+#else
 #include "driver/flash.h"
+#endif
 
 #if CONFIG_INT_WDT
 #include <driver/wdt.h>
@@ -328,7 +332,40 @@ uint32_t pm_state_machine()
 
 	return missed_ticks;
 }
+bool pm_get_cp0_sleep_vote_state()
+{
+	return sys_hal_get_cp0_sleep_vote_state();
+}
 
+bk_err_t bk_pm_handle_lv_sleep_callback(pm_lv_sleep_state_e lv_sleep_state)
+{
+	pm_dev_id_e dev_id = 0;
+	if(lv_sleep_state == PM_LV_ENTER_SLEEP)
+	{
+		for (dev_id = 0; dev_id < PM_DEV_ID_MAX; dev_id++)
+		{
+			if (s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_ENTER_LOWVOL_INDEX][dev_id].cb != NULL)
+			{
+				s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_ENTER_LOWVOL_INDEX][dev_id].cb(0, s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_ENTER_LOWVOL_INDEX][dev_id].args);
+			}
+		}
+	}
+	else if(lv_sleep_state == PM_LV_EXIT_SLEEP)
+	{
+		for (dev_id = 0; dev_id < PM_DEV_ID_MAX; dev_id++)
+		{
+			if (s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].cb != NULL)
+			{
+				s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].cb(0, s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].args);
+			}
+		}
+	}
+	else
+	{
+
+	}
+	return BK_OK;
+}
 bk_err_t pm_management(uint32_t sleep_ticks)
 {
 #if CONFIG_MCU_PS
@@ -803,14 +840,22 @@ static void pm_low_voltage_resource_set()
 #endif
 
 	/*flash line mode 4->2 when enter low voltage*/
+#if CONFIG_FLASH_ORIGIN_API
+	flash_set_line_mode(2);
+#else
 	bk_flash_set_line_mode(2);
+#endif
 
 }
 
 void pm_low_voltage_bsp_restore(void)
 {
 	/*flash line mode 2->4 when exit low voltage*/
+#if CONFIG_FLASH_ORIGIN_API
+	flash_set_line_mode(flash_get_line_mode());
+#else
 	bk_flash_set_line_mode(bk_flash_get_line_mode());
+#endif
 
 #if CONFIG_CKMN
 	bk_rosc_32k_ckest_prog(32);

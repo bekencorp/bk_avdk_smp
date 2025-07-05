@@ -205,7 +205,7 @@ static bk_err_t low_pwr_core_message_handle(void)
 				case LOW_PWR_CORE_PSRAM_POWER:
 				{
 					ret = bk_pm_module_vote_psram_ctrl(msg.param1,msg.param2);
-					bk_pm_cp0_response_cp1(PM_CTRL_PSRAM_POWER_CMD, ret,0,0);
+					bk_pm_cp0_response_cp1(PM_CTRL_PSRAM_POWER_CMD, msg.param2,0,0);
 				}
 				break;
 				case LOW_PWR_CORE_POWER_CTRL:
@@ -312,7 +312,7 @@ bk_err_t bk_low_pwr_core_init(void)
     }
 
     ret = rtos_create_thread(&s_pm_info->thd,
-                             BEKEN_DEFAULT_WORKER_PRIORITY,
+                             BEKEN_DEFAULT_WORKER_PRIORITY - 2,/*pm contrl cmd thread priority need higher*/
                              "pm_info->thd",
                              (beken_thread_function_t)low_pwr_core_message_handle,
                              LOW_PWR_CORE_STACK_SIZE,

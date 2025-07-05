@@ -49,6 +49,8 @@ static pm_ap_close_ap_callback_info_t s_close_ap_cb_arry[PM_AP_CLOSE_AP_MODULE_M
 
 static pm_ap_system_wakeup_cb_info_t s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_MAX][PM_AP_USING_SYS_WAKEUP_DEV_MAX];
 
+static pm_ap_psram_power_state_callback_info_t s_psram_power_state_cb_arry[PM_AP_USING_PSRAM_POWER_STATE_DEV_MAX];
+
 /*=====================VARIABLE  SECTION  END=================*/
 
 /*================FUNCTION DECLARATION  SECTION  START========*/
@@ -169,6 +171,75 @@ bk_err_t bk_pm_ap_system_wakeup_handle_callback(pm_ap_core_msg_t *msg)
         if(s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].sys_wakeup_fn != NULL)
         {
             s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].sys_wakeup_fn(0,0);
+        }
+    }
+    return BK_OK;
+}
+
+bk_err_t bk_pm_ap_psram_power_state_register_callback(pm_ap_psram_power_state_callback_info_t * p_psram_power_state_callback_info)
+{
+    if(p_psram_power_state_callback_info == NULL)
+    {
+        return BK_FAIL;
+    }
+    if(p_psram_power_state_callback_info->dev_id >= PM_AP_USING_PSRAM_POWER_STATE_DEV_MAX)
+    {
+        return BK_FAIL;
+    }
+    //LOGD("Reg close ap_cb:0x%x,%d,0x%x,%d\r\n",p_psram_power_state_callback_info->psram_on_cb_fn,p_psram_power_state_callback_info->dev_id,p_psram_power_state_callback_info->param1,p_psram_power_state_callback_info->param2);
+	s_psram_power_state_cb_arry[p_psram_power_state_callback_info->dev_id].psram_on_cb_fn = p_psram_power_state_callback_info->psram_on_cb_fn;
+    s_psram_power_state_cb_arry[p_psram_power_state_callback_info->dev_id].psram_off_cb_fn = p_psram_power_state_callback_info->psram_off_cb_fn;
+    s_psram_power_state_cb_arry[p_psram_power_state_callback_info->dev_id].dev_id= p_psram_power_state_callback_info->dev_id;
+    s_psram_power_state_cb_arry[p_psram_power_state_callback_info->dev_id].param1 = p_psram_power_state_callback_info->param1;
+    s_psram_power_state_cb_arry[p_psram_power_state_callback_info->dev_id].param2 = p_psram_power_state_callback_info->param2;
+    return BK_OK;
+}
+
+bk_err_t bk_pm_ap_psram_power_state_unregister_callback(pm_ap_psram_power_state_callback_info_t * p_psram_power_state_callback_info)
+{
+	if(p_psram_power_state_callback_info == NULL)
+    {
+        return BK_FAIL;
+    }
+    if(p_psram_power_state_callback_info->dev_id >= PM_AP_USING_PSRAM_POWER_STATE_DEV_MAX)
+    {
+        return BK_FAIL;
+    }
+    for(int i = 0; i < sizeof(s_psram_power_state_cb_arry)/sizeof(pm_ap_psram_power_state_callback_info_t);i++)
+    {
+        if(s_psram_power_state_cb_arry[i].dev_id == p_psram_power_state_callback_info->dev_id)
+        {
+            s_psram_power_state_cb_arry[i].psram_on_cb_fn = NULL;
+            s_psram_power_state_cb_arry[i].psram_off_cb_fn = NULL;
+            s_psram_power_state_cb_arry[i].dev_id= PM_AP_USING_PSRAM_POWER_STATE_DEV_MAX;
+            s_psram_power_state_cb_arry[i].param1 = 0;
+            s_psram_power_state_cb_arry[i].param2 = 0;
+        }
+    }
+    return BK_OK;
+}
+
+bk_err_t bk_pm_ap_psram_power_state_handle_callback(pm_ap_psram_power_state_e psram_power_state)
+{
+    for(int i = 0; i < sizeof(s_psram_power_state_cb_arry)/sizeof(pm_ap_psram_power_state_callback_info_t);i++)
+    {
+        if(psram_power_state == PM_AP_PSRAM_POWER_ON)
+        {
+            if(s_psram_power_state_cb_arry[i].psram_on_cb_fn != NULL)
+            {
+                s_psram_power_state_cb_arry[i].psram_on_cb_fn(0,0);
+            }
+        }
+        else if(psram_power_state == PM_AP_PSRAM_POWER_OFF)
+        {
+            if(s_psram_power_state_cb_arry[i].psram_off_cb_fn != NULL)
+            {
+                s_psram_power_state_cb_arry[i].psram_off_cb_fn(0,0);
+            }
+        }
+        else
+        {
+            ;
         }
     }
     return BK_OK;

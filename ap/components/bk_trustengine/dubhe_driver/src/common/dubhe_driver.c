@@ -212,7 +212,8 @@ void dubhe_driver_cleanup( void )
 #endif
 
     dubhe_event_cleanup( );
-    bk_delay_us(100);
+    //bk_delay_us(100);
+    sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(1);
 }
 
 /*************************** The End Of File*****************************/

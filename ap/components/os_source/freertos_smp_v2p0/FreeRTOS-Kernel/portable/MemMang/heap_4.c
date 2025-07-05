@@ -367,6 +367,7 @@ __attribute__((section(".itcm_sec_code"))) void bk_psram_heap_init(void) {
 	#endif
 
 	s_psram_used_count = 0;
+	FIXED_ADDR_PSRAM_USDE_COUNT = 0;
 }
 
 static void psram_prvInsertBlockIntoFreeList( BlockLink_t *pxBlockToInsert )
@@ -621,6 +622,11 @@ void *psram_malloc( size_t xWantedSize )
 		/* 4 Byte alignment required for psram. */
 		xWantedSize += ( 0x4 - ( xWantedSize & 0x3 ) );
 	}
+	if(FIXED_ADDR_PSRAM_POWER_DOWN == PM_PSRAM_POWER_DOWN_MAGIC)
+	{
+		bk_psram_heap_init_flag_set(false);
+		FIXED_ADDR_PSRAM_POWER_DOWN = 0x0;
+	}
 
 	if( psram_pxEnd == NULL || !bk_psram_heap_init_flag_get())
 	{
@@ -634,6 +640,7 @@ void *psram_malloc( size_t xWantedSize )
 	if(pvReturn)
 	{
 		s_psram_used_count++;
+		FIXED_ADDR_PSRAM_USDE_COUNT += 1;
 #if CONFIG_MALLOC_STATIS || CONFIG_MEM_DEBUG
 		BlockLink_t *pxLink = (BlockLink_t *)((u8*)pvReturn - xHeapStructSize);
 		if(pvReturn && call_func_name) {
@@ -1205,6 +1212,7 @@ void vPortFree( void *pv )
                     traceFREE( pv, pxLink->xBlockSize );
                     psram_prvInsertBlockIntoFreeList( ( ( BlockLink_t * ) pxLink ) );
 					s_psram_used_count--;
+					FIXED_ADDR_PSRAM_USDE_COUNT -= 1;
                 }
                 else
 #endif
