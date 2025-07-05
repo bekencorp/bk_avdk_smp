@@ -151,7 +151,7 @@ static bk_err_t gpio_hal_map_check(gpio_hal_t *hal, gpio_id_t gpio_id)
 	}
 	if(gpio_map == NULL)
 	{
-		HAL_LOGW("gpio id=%d is not exist\r\n", gpio_id);
+		HAL_LOGV("gpio id=%d is not exist\r\n", gpio_id);
 		return BK_ERR_GPIO_INVALID_ID;
 	}
 
@@ -160,7 +160,7 @@ static bk_err_t gpio_hal_map_check(gpio_hal_t *hal, gpio_id_t gpio_id)
 		uint32 func_mode = gpio_ll_get_gpio_perial_mode((hal)->hw, gpio_id);
 		uint32 dev_use = gpio_map->dev[func_mode];
 
-		HAL_LOGW("[gpio_log]:gpio:%d was busy: device num:0x%x!\r\n", gpio_id, dev_use);
+		HAL_LOGV("[gpio_log]:gpio:%d was busy: device num:0x%x!\r\n", gpio_id, dev_use);
 
 		return BK_ERR_GPIO_INTERNAL_USED;
 	}
@@ -184,7 +184,7 @@ bk_err_t gpio_hal_func_map(gpio_hal_t *hal, gpio_id_t gpio_id, gpio_dev_t dev)
 	}
 	if(gpio_map == NULL)
 	{
-		HAL_LOGW("gpio id=%d is not exist\r\n", gpio_id);
+		HAL_LOGV("gpio id=%d is not exist\r\n", gpio_id);
 		return BK_ERR_GPIO_INVALID_ID;
 	}
 
@@ -194,7 +194,7 @@ bk_err_t gpio_hal_func_map(gpio_hal_t *hal, gpio_id_t gpio_id, gpio_dev_t dev)
 
 	//get peri mode of id
 	if (dev == GPIO_DEV_NONE) {
-		HAL_LOGW("gpio device is none, id=%d dev=%d\r\n", gpio_id, dev);
+		HAL_LOGV("gpio device is none, id=%d dev=%d\r\n", gpio_id, dev);
 		return BK_ERR_GPIOS_MAP_NONE;
 	} else {
 		for (int peri_func = 0; peri_func < GPIO_PERI_FUNC_NUM; peri_func ++) {
@@ -219,7 +219,7 @@ bk_err_t gpio_hal_func_unmap(gpio_hal_t *hal, gpio_id_t gpio_id)
 	the risk,but the operation will continue to execute,without interrupting 
 	the process*/
 	if(gpio_hal_map_check(hal, gpio_id)) {
-		HAL_LOGW("gpio: %d is used.Please confirm unmap isn't impact is working module.!\r\n", gpio_id);
+		HAL_LOGV("gpio: %d is used.Please confirm unmap isn't impact is working module.!\r\n", gpio_id);
 	}
 
 	gpio_hal_sencond_function_enable(hal, gpio_id, 0);
@@ -246,7 +246,7 @@ bk_err_t gpio_hal_devs_map(gpio_hal_t *hal, uint64 gpios, gpio_dev_t *devs, uint
 	}
 
 	if(dev_id != dev_num) {
-		HAL_LOGW("dev_num expected %d actual is %d \r\n", dev_num, dev_id);
+		HAL_LOGV("dev_num expected %d actual is %d \r\n", dev_num, dev_id);
 
 		return BK_ERR_GPIO_BITS_NUM;
 	}
