@@ -165,15 +165,14 @@ bk_err_t gpio_sdio_one_line_sel(gpio_sdio_map_mode_t mode)
 
 bk_err_t gpio_jtag_sel(gpio_jtag_map_group_t group_id)
 {
-	gpio_hal_func_unmap(&s_gpio.hal,GPIO_20);
-	gpio_hal_func_unmap(&s_gpio.hal,GPIO_21);
-	gpio_hal_func_unmap(&s_gpio.hal,GPIO_0);
-	gpio_hal_func_unmap(&s_gpio.hal,GPIO_1);
-
 	if (group_id == GPIO_JTAG_MAP_GROUP0) {
+		gpio_hal_func_unmap(&s_gpio.hal,GPIO_20);
+		gpio_hal_func_unmap(&s_gpio.hal,GPIO_21);
 		gpio_hal_func_map(&s_gpio.hal,GPIO_20, GPIO_DEV_JTAG_TCK);
 		gpio_hal_func_map(&s_gpio.hal,GPIO_21, GPIO_DEV_JTAG_TMS);
 	} else if (group_id == GPIO_JTAG_MAP_GROUP1) {
+		gpio_hal_func_unmap(&s_gpio.hal,GPIO_0);
+		gpio_hal_func_unmap(&s_gpio.hal,GPIO_1);
 		gpio_hal_func_map(&s_gpio.hal,GPIO_0, GPIO_DEV_JTAG_TCK);
 		gpio_hal_func_map(&s_gpio.hal,GPIO_1, GPIO_DEV_JTAG_TMS);
 	} else {
