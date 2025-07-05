@@ -9,6 +9,7 @@
 #include "bk_posix.h"
 
 uint8_t lv_dma2d_is_init = 0;
+static jpeg_dec_handle_t jpeg_dec_handle;
 
 static s32 lv_img_jpeg_sw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst)
 {
@@ -17,7 +18,7 @@ static s32 lv_img_jpeg_sw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_d
     int flag = 0;
 
     do {
-        ret = bk_jpeg_get_img_info(jpeg_frame->length, jpeg_frame->frame, &result);
+        ret = bk_jpeg_get_img_info(jpeg_frame->length, jpeg_frame->frame, &result, NULL);
         if (ret != BK_OK)
         {
             BK_LOGD(NULL, "[%s][%d] get img info fail:%d\r\n", __FUNCTION__, __LINE__, ret);
@@ -41,7 +42,7 @@ static s32 lv_img_jpeg_sw_decode(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_d
             flag = 1;
         }
 
-        ret = bk_jpeg_dec_sw_start(JPEGDEC_BY_FRAME, jpeg_frame->frame, (uint8_t *)img_dst->data, jpeg_frame->length, img_dst->data_size, (sw_jpeg_dec_res_t *)&result);
+        ret = bk_jpeg_dec_sw_start_by_handle(jpeg_dec_handle, JPEGDEC_BY_FRAME, jpeg_frame->frame, (uint8_t *)img_dst->data, jpeg_frame->length, img_dst->data_size, (sw_jpeg_dec_res_t *)&result);
         if (ret != BK_OK)
         {
             BK_LOGD(NULL, "[%s][%d] sw decoder error\r\n", __FUNCTION__, __LINE__);
@@ -254,9 +255,7 @@ static s32 lv_img_file_jpeg_hw_dec(char *file_name, lv_img_dsc_t *img_dst)
 
         //通过软解获取图片信息
         sw_jpeg_dec_res_t result;
-        bk_jpeg_dec_sw_init(NULL, 0);
-        jd_set_format(JD_FORMAT_YUYV);
-        ret = bk_jpeg_get_img_info(jpeg_frame->length, jpeg_frame->frame, &result);
+        ret = bk_jpeg_get_img_info(jpeg_frame->length, jpeg_frame->frame, &result, NULL);
         if (ret != BK_OK)
         {
             BK_LOGD(NULL, "[%s][%d] get img info fail:%d\r\n", __FUNCTION__, __LINE__, ret);
@@ -267,8 +266,6 @@ static s32 lv_img_file_jpeg_hw_dec(char *file_name, lv_img_dsc_t *img_dst)
         img_dst->header.w = result.pixel_x;
         img_dst->header.h = result.pixel_y;
         img_dst->data_size = img_dst->header.w * img_dst->header.h * 2;
-        jd_set_format(JD_FORMAT_VYUY);
-        bk_jpeg_dec_sw_deinit();
 
         ret = lv_jpeg_hw_decode(jpeg_frame, img_dst);
         if(BK_OK == ret)
@@ -313,14 +310,15 @@ s32 lv_jpeg_img_load_with_sw_dec(char *filename, lv_img_dsc_t *img_dst)
             break;
         }
 
-        bk_jpeg_dec_sw_init(NULL, 0);
-        jd_set_format(JD_FORMAT_RGB565);
+        bk_jpeg_dec_sw_init_by_handle(&jpeg_dec_handle, NULL, 0);
+        jd_set_format_by_handle(jpeg_dec_handle, JD_FORMAT_RGB565);
         ret = lv_img_file_jpeg_sw_dec(filename, img_dst);
         if (ret != BK_OK) {
             BK_LOGD(NULL, "%s jpeg sw decode fail\r\n", __func__);
         }
-        jd_set_format(JD_FORMAT_VYUY);
-        bk_jpeg_dec_sw_deinit();
+        jd_set_format_by_handle(jpeg_dec_handle, JD_FORMAT_VYUY);
+        bk_jpeg_dec_sw_deinit_by_handle(jpeg_dec_handle);
+        jpeg_dec_handle = NULL;
     } while(0);
 
     return ret;
@@ -337,14 +335,15 @@ s32 lv_jpeg_img_load_yuyv(char *filename, lv_img_dsc_t *img_dst)
             break;
         }
 
-        bk_jpeg_dec_sw_init(NULL, 0);
-        jd_set_format(JD_FORMAT_YUYV);
+        bk_jpeg_dec_sw_init_by_handle(&jpeg_dec_handle, NULL, 0);
+        jd_set_format_by_handle(jpeg_dec_handle, JD_FORMAT_YUYV);
         ret = lv_img_file_jpeg_sw_dec(filename, img_dst);
         if (ret != BK_OK) {
             BK_LOGD(NULL, "%s jpeg sw decode fail\r\n", __func__);
         }
-        jd_set_format(JD_FORMAT_VYUY);
-        bk_jpeg_dec_sw_deinit();
+        jd_set_format_by_handle(jpeg_dec_handle, JD_FORMAT_VYUY);
+        bk_jpeg_dec_sw_deinit_by_handle(jpeg_dec_handle);
+        jpeg_dec_handle = NULL;
     } while(0);
 
     return ret;

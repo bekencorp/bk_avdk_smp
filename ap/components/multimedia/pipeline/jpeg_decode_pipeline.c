@@ -134,6 +134,7 @@ typedef struct {
 	media_rotate_t rotate_angle;
 	mux_request_callback_t cb[PIPELINE_MOD_MAX];
 	mux_reset_callback_t   reset_cb[PIPELINE_MOD_MAX];
+	jpeg_dec_handle_t jpeg_dec_handle;
 } jdec_config_t;
 typedef struct {
 	beken_mutex_t lock;
@@ -402,14 +403,8 @@ static void jpeg_decode_line_start_continue(void)
 	}
 	else
 	{
-#if 0
-		bk_jpeg_dec_sw_start_line(); // there should judge return value
+		bk_jpeg_dec_sw_start_line_by_handle(jdec_config->jpeg_dec_handle); // there should judge return value
 		jpeg_decode_line_complete_handler(NULL);
-#else
-		jpeg_dec_res_t result = {0};
-		result.ok = false;
-		jpeg_decode_line_complete_handler(&result);
-#endif
 	}
 }
 
@@ -850,7 +845,6 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 	{
 		if (jdec_config->jdec_type == JPEGDEC_BY_LINE)
 		{
-#if 0
 			sw_jpeg_dec_res_t result;
 			rtos_lock_mutex(&jdec_info->lock);
 
@@ -884,9 +878,8 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame, frame_module_t 
 				rtos_start_oneshot_timer(&jdec_config->decoder_timer);
 			}
 
-			ret = bk_jpeg_dec_sw_start(JPEGDEC_BY_LINE, jdec_config->jpeg_frame->frame, jdec_config->decoder_buf,
+			ret = bk_jpeg_dec_sw_start_by_handle(jdec_config->jpeg_dec_handle, JPEGDEC_BY_LINE, jdec_config->jpeg_frame->frame, jdec_config->decoder_buf,
 						jdec_config->jpeg_frame->length, JPEGDEC_BUFFER_LENGTH, &result);
-#endif
 		}
 		else
 		{

@@ -510,7 +510,6 @@ frame_buffer_t *decoder_frame_handler(frame_buffer_t *frame)
         {
             LOGD("%s, FMT:YUV420, use SOFTWARE DECODE\r\n", __func__);
             img_info.decode_mode = SOFTWARE_DECODING_MAJOR;
-            bk_jpeg_dec_sw_init(NULL, 0);
         }
     }
 

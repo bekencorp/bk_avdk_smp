@@ -38,8 +38,9 @@ extern "C" {
  *  - config jpeg_dec image resoult, and simple_rate
  *  - malloc buffer for jpeg_dec
  *
- * @param jd_in inter buffer
- * @param len buffer length
+* @param p_handle jpeg decode handle
+ * @param workbuf inter work buffer
+ * @param workbuf_len inter work buffer len should over 10240
  *
  * @attention 1. only for software jpeg_dec 
  *
@@ -47,7 +48,7 @@ extern "C" {
  *    - BK_OK: succeed
  *    - other: errors.
  */
-bk_err_t bk_jpeg_dec_sw_init(void* jd_in, uint32_t len);
+bk_err_t bk_jpeg_dec_sw_init_by_handle(jpeg_dec_handle_t *p_handle, uint8_t *workbuf, uint32_t workbuf_len);
 
 /**
  * @brief     Deinit the jpeg_dec
@@ -58,11 +59,13 @@ bk_err_t bk_jpeg_dec_sw_init(void* jd_in, uint32_t len);
  *
  * @attention 1. only for software jpeg_dec 
  *
+ * @param p_handle jpeg decode handle
+ * 
  * @return
  *    - BK_OK: succeed
  *    - other: errors.
  */
-bk_err_t bk_jpeg_dec_sw_deinit(void);
+bk_err_t bk_jpeg_dec_sw_deinit_by_handle(jpeg_dec_handle_t handle);
 
 /**
  * @brief     jpeg_decoder_fun
@@ -71,6 +74,7 @@ bk_err_t bk_jpeg_dec_sw_deinit(void);
  *  - jpeg_prepare for jpeg_dec
  *  - start jpeg_dec
  *
+ * @param handle jpeg decode handle which init from bk_jpeg_dec_sw_init_by_handle
  * @param decode_type 0:decode by line, one time decode 16line; 1:decode by frame
  * @param src_buf jpeg image address
  * @param dst_buf decode output buffer address
@@ -84,20 +88,22 @@ bk_err_t bk_jpeg_dec_sw_deinit(void);
  *    - BK_OK: succeed
  *    - other: errors.
  */
-bk_err_t bk_jpeg_dec_sw_start(uint8_t decode_type, uint8_t *src_buf, uint8_t *dst_buf, uint32_t jpeg_size, uint32_t outbuf_size, sw_jpeg_dec_res_t *result);
+bk_err_t bk_jpeg_dec_sw_start_by_handle(jpeg_dec_handle_t handle, uint8_t decode_type, uint8_t *src_buf, uint8_t *dst_buf, uint32_t jpeg_size, uint32_t outbuf_size, sw_jpeg_dec_res_t *result);
 
 /**
  * @brief     start line jpeg decode sw
  *
  * This API is used to decode go on
  *
+ * @param handle jpeg decode handle which init from bk_jpeg_dec_sw_init_by_handle
+ * 
  * @attention 1. only for software jpeg_dec by line
  *
  * @return
  *    - BK_OK: succeed
  *    - other: errors.
  */
-bk_err_t bk_jpeg_dec_sw_start_line(void);
+bk_err_t bk_jpeg_dec_sw_start_line_by_handle(jpeg_dec_handle_t handle);
 
 /**
  * @brief     jpeg_decoder_fun
@@ -107,27 +113,30 @@ bk_err_t bk_jpeg_dec_sw_start_line(void);
  * @param frame_size input image size
  * @param src_buf jpeg image address
  * @param result decode image info
- *
+ * @param workbuf jpeg decode workbuf, while malloc by interal if it's NULL
+ * 
  * @attention 1. only for software jpeg_dec 
- *
+ * @attention 2. if workbuf is not null, it should over 10240 bytes
+ * 
  * @return
  *    - BK_OK: succeed
  *    - other: errors.
  */
-bk_err_t bk_jpeg_get_img_info(uint32_t frame_size, uint8_t *src_buf, sw_jpeg_dec_res_t *result);
+bk_err_t bk_jpeg_get_img_info(uint32_t frame_size, uint8_t *src_buf, sw_jpeg_dec_res_t *result, uint8_t *workbuf);
 
 /**
  * @brief     jpegdec register finish icallback_func
  *
  * This API jpeg_decoder_fun, the callback function wiil execute when decode success
  *
+ * @param handle jpeg decode handle which init from bk_jpeg_dec_sw_init_by_handle
  * @param cb finish jpeg_dec callback function
  *
  * @attention 1. only for software jpeg_dec 
  *
  * @return
  */
-void bk_jpeg_dec_sw_register_finish_callback(void *cb);
+void bk_jpeg_dec_sw_register_finish_callback_by_handle(jpeg_dec_handle_t handle, void *cb);
 
 /**
  * @brief     jpeg_decoder_fun
@@ -166,10 +175,6 @@ bk_err_t bk_jpeg_dec_sw_start_one_time(
 		media_rotate_t rotate_angle,
 		uint8_t *work_buffer,
 		uint8_t *rotate_buffer);
-bk_err_t bk_jpeg_dec_sw_init_by_handle(jpeg_dec_handle_t *p_handle, uint8_t *jd_buf, uint32_t jd_buf_len, uint8_t *workbuf, uint32_t workbuf_len);
-bk_err_t bk_jpeg_dec_sw_start_by_handle(jpeg_dec_handle_t handle, uint8_t decode_type, uint8_t *src_buf, uint8_t *dst_buf, uint32_t jpeg_size, uint32_t outbuf_size, sw_jpeg_dec_res_t *result);
-bk_err_t bk_jpeg_dec_sw_deinit_by_handle(jpeg_dec_handle_t handle);
-void jd_set_rotate_by_handle(jpeg_dec_handle_t handle, media_rotate_t rotate_angle, uint8_t *rotate_buf);
 
 /**
  * @}

@@ -501,6 +501,7 @@ void jpeg_sw_dec_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	uint32_t dstaddr;
 	uint32_t total_size = 0;
 	uint8_t  format = 3;
+	jpeg_dec_handle_t jpeg_dec_handle;
 
 	srcaddr = os_strtoul(argv[1], NULL, 16) & 0xFFFFFFFF;
 	BK_LOGD(NULL, "image p_srcaddr  = 0x%X \r\n", srcaddr);
@@ -518,21 +519,18 @@ void jpeg_sw_dec_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	uint8_t * p_dstaddr = (uint8_t *)dstaddr;
 
 	// init jpeg_dec
-	err = bk_jpeg_dec_sw_init();
+	err = bk_jpeg_dec_sw_init_by_handle(&jpeg_dec_handle, NULL, 0);
 	if (err != kNoErr) {
 		BK_LOGD(NULL, "init jpeg_decoder failed\r\n");
 		return;
 	}
 
-	// set jpeg_dec out format
-//	bk_jpeg_dec_sw_set_out_format(format);
-
 	// start jpeg_dec
 	BK_LOGD(NULL, "start jpeg_dec.\r\n");
 	jpeg_perfmon(0);
 
-	bk_jpeg_dec_sw_register_finish_callback(NULL);
-	err = bk_jpeg_dec_sw_start(JPEGDEC_BY_FRAME, p_srcaddr, p_dstaddr, total_size, 0, NULL);
+	bk_jpeg_dec_sw_register_finish_callback_by_handle(jpeg_dec_handle, NULL);
+	err = bk_jpeg_dec_sw_start_by_handle(jpeg_dec_handle, JPEGDEC_BY_FRAME, p_srcaddr, p_dstaddr, total_size, 0, NULL);
 	if (err != kNoErr) {
 		BK_LOGD(NULL, "jpeg_decoder failed\r\n");
 		return;
@@ -541,7 +539,7 @@ void jpeg_sw_dec_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 	jpeg_perfmon(1);
 	BK_LOGD(NULL, "jpeg_dec ok.\r\n");
 
-	bk_jpeg_dec_sw_deinit();
+	bk_jpeg_dec_sw_deinit_by_handle(jpeg_dec_handle);
 #else
 	BK_LOGD(NULL, "Not support\r\n");
 #endif

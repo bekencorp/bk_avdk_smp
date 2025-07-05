@@ -31,6 +31,10 @@ extern media_debug_t *media_debug;
 
 static bk_decode_t s_decode = {0};
 
+#if !CONFIG_MEDIA_PIPELINE
+static jpeg_dec_handle_t jpeg_dec_handle = NULL;
+#endif
+
 static void bk_driver_decoder_timeout(timer_id_t timer_id)
 {
     bk_err_t ret = BK_FAIL;
@@ -197,8 +201,8 @@ bk_err_t bk_sw_jpegdec_start(frame_buffer_t *frame, frame_buffer_t *dst_frame)
             break;
     }
 
-    jd_set_output_format(&format);
-    ret = bk_jpeg_dec_sw_start(JPEGDEC_BY_FRAME, frame->frame, dst_frame->frame, frame->length, dst_frame->size, &result);
+    jd_set_output_format_by_handle(jpeg_dec_handle, &format);
+    ret = bk_jpeg_dec_sw_start_by_handle(jpeg_dec_handle, JPEGDEC_BY_FRAME, frame->frame, dst_frame->frame, frame->length, dst_frame->size, &result);
     if (ret != BK_OK)
     {
         LOGE("%s sw decoder error\n", __func__);
@@ -295,7 +299,7 @@ bk_err_t bk_sw_decode_init(media_decode_mode_t sw_dec_mode)
         goto error;
     }
 #else
-    ret = bk_jpeg_dec_sw_init(NULL, 0);
+    ret = bk_jpeg_dec_sw_init_by_handle(&jpeg_dec_handle, NULL, 0);
     if (ret != BK_OK)
     {
         LOGE("%s dec_sem init failed: %d\n", __func__, ret);
@@ -337,7 +341,7 @@ bk_err_t bk_sw_decode_deinit(media_decode_mode_t sw_dec_mode)
         software_decode_task_close();
     }
 #else
-    ret = bk_jpeg_dec_sw_deinit();
+    ret = bk_jpeg_dec_sw_deinit_by_handle(jpeg_dec_handle);
     if (ret != BK_OK)
     {
         LOGE("%s dec_sem init failed: %d\n", __func__, ret);

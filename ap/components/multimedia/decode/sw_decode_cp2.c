@@ -75,8 +75,7 @@ static sw_dec_config_t *sw_dec_config_cp2 = NULL;
 #define BUFFER_SIZE (864 * 8 * 2 * 2)
 
 __attribute__((section(".dtcm_cpu2"), aligned(0x10))) uint8_t rotate_buffer_sw_cp2[16*16*2] = {0};
-__attribute__((section(".dtcm_cpu2"), aligned(0x10))) uint8_t jpeg_decode_handle_workbuf_cp2[10240] = {0};
-__attribute__((section(".dtcm_cpu2"), aligned(0x10))) uint8_t jpeg_decode_buffer_cp2[0xB0] = {0};
+__attribute__((section(".dtcm_cpu2"), aligned(0x10))) jd_workbuf_t jpeg_decode_workbuf_cp2 = {0};
 __attribute__((aligned(0x10))) StaticTask_t xSWDecTaskTCB_cp2 = {0};
 __attribute__((section(".dtcm_cpu2"), aligned(0x10))) StackType_t uxSWDecTaskStack_cp2[ 512 ] = {0};
 #endif
@@ -235,25 +234,15 @@ static void software_decode_main(beken_thread_arg_t data)
 
 #if CONFIG_SOFTWARE_DECODE_SRAM_MAPPING
 	ret = bk_jpeg_dec_sw_init_by_handle(&jpeg_decode_cp2_handle,
-						jpeg_decode_buffer_cp2, sizeof(jpeg_decode_buffer_cp2),
-						jpeg_decode_handle_workbuf_cp2, sizeof(jpeg_decode_handle_workbuf_cp2));
+						(uint8_t *)&jpeg_decode_workbuf_cp2, sizeof(jd_workbuf_t));
 #else
 	ret = bk_jpeg_dec_sw_init_by_handle(&jpeg_decode_cp2_handle,
-						NULL, 0,
 						NULL, 0);
 
 #endif
 	if (ret != BK_OK) {
 		LOGE("%s, bk_jpeg_dec_sw_init failed\r\n", __func__);
 	}
-#if CONFIG_SOFTWARE_DECODE_SRAM_MAPPING
-//    FLUSH_ALL_DCACHE();
-//    sw_dec_config_cp2->sw_dec_buffer = (uint8_t *)rotate_buffer;
-//    if (sw_dec_config_cp2->sw_dec_buffer)
-//    {
-//        jd_set_jpg_copy_func(sw_dec_config_cp2->sw_dec_buffer, NULL, (BUFFER_SIZE), software_cpu2_copy, JD_SINGLE_BUFFER_COPY);
-//    }
-#endif
 
 	rtos_set_semaphore(&sw_dec_config_cp2->sw_dec_sem);
 
