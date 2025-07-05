@@ -15,7 +15,7 @@
 #include <common/bk_include.h>
 #include <os/os.h>
 #include <driver/flash.h>
-#include "flash_driver.h"
+//#include "flash_driver.h"
 // #include "mb_ipc_cmd.h"
 
 static void (*s_flash_op_notify)(uint32_t param) = NULL;
@@ -83,7 +83,7 @@ static void cpu1_pause_handle(mb_chnl_cmd_t *cmd_buf)
 	}
 
 	cmd_buf->param1 = IPC_FLASH_OP_ACK;
-	
+
 	return;
 
 }
@@ -102,13 +102,13 @@ __attribute__((section(".iram"))) static bk_err_t cpu1_pause_handle(mb_chnl_cmd_
 	if(*(stat_addr) == IPC_FLASH_OP_REQ)
 	{
 		uint32_t flags = rtos_disable_int();
-		
+
 		// disable the LCD dev interrupt.
 		if(s_flash_op_notify != NULL)
 			s_flash_op_notify(0);
-		
+
 		rtos_enable_int(flags);
-		
+
 		bk_flash_set_operate_status(FLASH_OP_BUSY);
 		*(stat_addr) = IPC_FLASH_OP_ACK;
 		while(*(stat_addr) != IPC_FLASH_OP_COMPLETE)
@@ -172,7 +172,7 @@ bk_err_t mb_flash_op_finish(void)
 	// enable the LCD dev interrupt.
 	if(s_flash_op_notify != NULL)
 		s_flash_op_notify(1);
-	
+
 	return BK_OK;
 }
 
