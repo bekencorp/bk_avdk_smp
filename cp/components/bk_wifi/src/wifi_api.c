@@ -74,19 +74,19 @@ int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
 	if (ap_key)
 		key_len = os_strlen(ap_key);
 	if (SSID_MAX_LEN < len) {
-		BK_LOGE(TAG, "ssid name more than 32 Bytes\r\n");
+		BK_LOGW(TAG, "ssid name more than 32 Bytes\r\n");
 		return BK_FAIL;
 	}
 	if (0 == len) {
-		BK_LOGE(TAG, "ssid name must not be null\r\n");
+		BK_LOGW(TAG, "ssid name must not be null\r\n");
 		return BK_FAIL;
 	}
 
 	if (8 > key_len)
-		BK_LOGE(TAG, "key less than 8 Bytes, the security will be set NONE\r\n");
+		BK_LOGW(TAG, "key less than 8 Bytes, the security will be set NONE\r\n");
 
 	if (64 < key_len) {
-		BK_LOGE(TAG, "key more than 64 Bytes\r\n");
+		BK_LOGW(TAG, "key more than 64 Bytes\r\n");
 		return BK_FAIL;
 	}
 #if CONFIG_BRIDGE
@@ -116,7 +116,7 @@ int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
 
 		channel = strtol(ap_channel, &end, 0);
 		if (*end) {
-			BK_LOGE(TAG, "Invalid number '%s'", ap_channel);
+			BK_LOGW(TAG, "Invalid number '%s'", ap_channel);
 			return BK_FAIL;
 		}
 		ap_config.channel = channel;
@@ -137,19 +137,19 @@ int demo_softap_hidden_init(char *ap_ssid, char *ap_key, char *ap_channel)
 	if (ap_key)
 		key_len = os_strlen(ap_key);
 	if (SSID_MAX_LEN < len) {
-		BK_LOGE(TAG, "ssid name more than 32 Bytes\r\n");
+		BK_LOGW(TAG, "ssid name more than 32 Bytes\r\n");
 		return BK_FAIL;
 	}
 	if (0 == len) {
-		BK_LOGE(TAG, "ssid name must not be null\r\n");
+		BK_LOGW(TAG, "ssid name must not be null\r\n");
 		return BK_FAIL;
 	}
 
 	if (8 > key_len)
-		BK_LOGE(TAG, "key less than 8 Bytes, the security will be set NONE\r\n");
+		BK_LOGW(TAG, "key less than 8 Bytes, the security will be set NONE\r\n");
 
 	if (64 < key_len) {
-		BK_LOGE(TAG, "key more than 64 Bytes\r\n");
+		BK_LOGW(TAG, "key more than 64 Bytes\r\n");
 		return BK_FAIL;
 	}
 #if CONFIG_BRIDGE
@@ -179,7 +179,7 @@ int demo_softap_hidden_init(char *ap_ssid, char *ap_key, char *ap_channel)
 
 		channel = strtol(ap_channel, &end, 0);
 		if (*end) {
-			BK_LOGE(TAG, "Invalid number '%s'", ap_channel);
+			BK_LOGW(TAG, "Invalid number '%s'", ap_channel);
 			return BK_FAIL;
 		}
 		ap_config.channel = channel;
