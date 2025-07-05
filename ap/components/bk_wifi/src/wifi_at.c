@@ -196,6 +196,7 @@ int at_wlan_event_handler(atsvr_msg_t *msg)
 	wifi_event_ap_disconnected_t *admsg_param;
 	wifi_event_ap_connected_t *acmsg_param;
 	netif_ip4_config_t         ip_param;
+	os_memset(resultbuf,0,200);
 	switch(event){
 	case AT_WLAN_STA_SCAN_DONE:
 		ATSVR_SIZEOF_OUTPUT_STRRING(AT_WLAN_EVT_SCAN_DONE);
@@ -919,49 +920,52 @@ static int at_wlan_get_station_status(int sync, int argc, char **argv)
 	
 	bool is_sta_ipup = wifi_netif_sta_is_got_ip_api();
 	bool is_ap_ipup = uap_ip_is_start_api();
+	os_memset(resultbuf,0,200);
 	if (argc == 0) 
 	{
-
-	wifi_link_status_t link_status = {0};
-	wifi_ap_config_t ap_info = {0};
-	netif_ip4_config_t ap_ip4_info = {0};
-	char ssid[33] = {0};
+		wifi_link_status_t link_status = {0};
+		wifi_ap_config_t ap_info = {0};
+		netif_ip4_config_t ap_ip4_info = {0};
+		char ssid[33] = {0};
 #if CONFIG_WIFI4
-	snprintf(resultbuf,sizeof(resultbuf), "sta: %d, ap: %d, b/g/n\r\n",is_sta_ipup,is_ap_ipup);
-	atsvr_output_msg(resultbuf);	
+		snprintf(resultbuf,sizeof(resultbuf), "sta: %d, ap: %d, b/g/n\r\n",is_sta_ipup,is_ap_ipup);
+		atsvr_output_msg(resultbuf);	
 #else
-	snprintf(resultbuf,sizeof(resultbuf), "sta: %d, ap: %d, b/g/n\r\n",is_sta_ipup,is_ap_ipup);
-	atsvr_output_msg(resultbuf);	
+		snprintf(resultbuf,sizeof(resultbuf), "sta: %d, ap: %d, b/g/n\r\n",is_sta_ipup,is_ap_ipup);
+		atsvr_output_msg(resultbuf);	
 #endif
-	//sta_ip_is_start()
-	if (is_sta_ipup) {
-		os_memset(&link_status, 0x0, sizeof(link_status));
-		BK_RETURN_ON_ERR(bk_wifi_sta_get_link_status(&link_status));
-		os_memcpy(ssid, link_status.ssid, 32);
-		os_memset(resultbuf,0,200);
-		snprintf(resultbuf,sizeof(resultbuf), "EVT:sta:rssi=%d,aid=%d,ssid=%s,bssid=%pm,channel=%d,cipher_type=%s\r\n",
-												link_status.rssi, link_status.aid, ssid, link_status.bssid,
-												link_status.channel, wifi_sec_type_string(link_status.security));
-		atsvr_output_msg(resultbuf);	
-	}
-	if (is_ap_ipup) 
-	{
-		os_memset(&ap_info, 0x0, sizeof(ap_info));
-		BK_RETURN_ON_ERR(bk_wifi_ap_get_config(&ap_info));
-		os_memcpy(ssid, ap_info.ssid, 32);
-		BK_LOGD(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
-				ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
-		
-		BK_RETURN_ON_ERR(bk_netif_get_ip4_config_api_temp(NETIF_IF_AP, &ap_ip4_info));
+		//sta_ip_is_start()
+		if (is_sta_ipup) {
+			os_memset(&link_status, 0x0, sizeof(link_status));
+			BK_RETURN_ON_ERR(bk_wifi_sta_get_link_status(&link_status));
+			os_memcpy(ssid, link_status.ssid, 32);
+			os_memset(resultbuf,0,200);
+			snprintf(resultbuf,sizeof(resultbuf), "EVT:sta:rssi=%d,aid=%d,ssid=%s,bssid=%pm,channel=%d,cipher_type=%s\r\n",
+													link_status.rssi, link_status.aid, ssid, link_status.bssid,
+													link_status.channel, wifi_sec_type_string(link_status.security));
+			atsvr_output_msg(resultbuf);	
+		}
+		if (is_ap_ipup) 
+		{
+			os_memset(&ap_info, 0x0, sizeof(ap_info));
+			BK_RETURN_ON_ERR(bk_wifi_ap_get_config(&ap_info));
+			os_memcpy(ssid, ap_info.ssid, 32);
+			//BK_LOGD(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
+			//		ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
+			os_memset(resultbuf,0,200);
+			snprintf(resultbuf,sizeof(resultbuf), "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
+					ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
+			atsvr_output_msg(resultbuf);
+			BK_RETURN_ON_ERR(bk_netif_get_ip4_config_api_temp(NETIF_IF_AP, &ap_ip4_info));
 
-		//BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
-		os_memset(resultbuf,0,200);
-		//BK_LOGD(TAG, "[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
-		//		ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
-		snprintf(resultbuf,sizeof(resultbuf), "EVT:ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
-				ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
-		atsvr_output_msg(resultbuf);	
-	}
+			//BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
+			os_memset(resultbuf,0,200);
+			//BK_LOGD(TAG, "[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
+			//		ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
+			snprintf(resultbuf,sizeof(resultbuf), "EVT:ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
+					ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
+			atsvr_output_msg(resultbuf);	
+		}
 		atsvr_cmd_rsp_ok();
 	}
 	else if (argc == 1) {
@@ -1181,21 +1185,31 @@ static int at_wlan_get_station_mac(int sync,int argc, char **argv)
 	uint8_t sta_mac[BK_MAC_ADDR_LEN] = {0};
 	uint8_t ap_mac[BK_MAC_ADDR_LEN] = {0};
 	int ret = 0;
+	char resultbuf[200];
+	os_memset(resultbuf,0,200);
 	
 	if (argc == 0) {
 		extern bk_err_t bk_wdrv_get_mac(uint8_t *mac, mac_type_t type);
 		bk_wdrv_get_mac(base_mac, MAC_TYPE_BASE);
 		bk_wifi_sta_get_mac(sta_mac);
 		bk_wifi_ap_get_mac(ap_mac);
+		#if 0
 		BK_LOGD(NULL, "base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
 		BK_LOGD(NULL, "sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
 		BK_LOGD(NULL, "ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
+		#else
+		snprintf(resultbuf,sizeof(resultbuf), "base mac: "BK_MAC_FORMAT"\nsta mac: "BK_MAC_FORMAT"\nap mac: "BK_MAC_FORMAT"\n",
+			BK_MAC_STR(base_mac),BK_MAC_STR(sta_mac),BK_MAC_STR(ap_mac));
+		atsvr_output_msg(resultbuf);
+		#endif
 		atsvr_cmd_rsp_ok();
 
 	}else if (argc == 1) {
 		at_wlan_hexstr2bin(argv[0], base_mac, BK_MAC_ADDR_LEN);
 		ret = bk_set_base_mac(base_mac);
-		BK_LOGD(NULL, "set base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+		//BK_LOGD(NULL, "set base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+		snprintf(resultbuf,sizeof(resultbuf), "set base mac: "BK_MAC_FORMAT"\n",BK_MAC_STR(base_mac));
+		atsvr_output_msg(resultbuf);
 		if (ret != BK_OK)
 			atsvr_cmd_rsp_error();
 		else
