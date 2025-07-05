@@ -119,6 +119,8 @@ bk_err_t bk_netif_set_ip4_config(netif_if_t ifx, const netif_ip4_config_t *ip4_c
 		ip_address_set(1 /*STA*/, 0/*static IP*/, config->ip, config->mask, config->gateway, config->dns);
 	} else if (ifx == NETIF_IF_AP) {
 		ip_address_set(0 /*AP*/, 0/*static IP*/, config->ip, config->mask, config->gateway, config->dns);
+	} else if (ifx == NETIF_IF_ETH) {
+		ip_address_set(3 /*ETH*/, 0/*static IP*/, config->ip, config->mask, config->gateway, config->dns);
 	} else {
 		return BK_ERR_NETIF_IF;
 	}
