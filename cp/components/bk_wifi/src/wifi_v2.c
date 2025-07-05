@@ -3057,9 +3057,11 @@ bk_err_t bk_wifi_scan_dump_result(const wifi_scan_result_t *scan_result)
 
 void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
 {
-	if (scan_result) {
+	if (!scan_result)
+		return;
+	if (scan_result->ap_num > 0 && scan_result->aps) {
 		os_free(scan_result->aps);
-		scan_result->aps = 0;
+		scan_result->aps = NULL;
 		scan_result->ap_num = 0;
 	}
 	os_memset(&scan_param_dump_env, 0, sizeof(scan_param_dump_env));

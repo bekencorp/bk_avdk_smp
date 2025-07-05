@@ -1246,14 +1246,14 @@ bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
     uint32_t len = sizeof(wifi_scan_result_t);
 
     if (scan_result == NULL) {
-        WIFI_LOGE("%s failed, invalid scan_result\r\n", __func__);
+        WIFI_LOGW("%s failed, invalid scan_result\r\n", __func__);
         return BK_ERR_NO_MEM;
     }
 
     buffer_to_ipc = os_malloc(len);
     if (!buffer_to_ipc)
     {
-        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        WIFI_LOGW("%s malloc failed\r\n", __func__);
         return BK_ERR_NO_MEM;
     }
 
@@ -1364,14 +1364,14 @@ void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
     uint32_t len = sizeof(wifi_scan_result_t);
 
     if (scan_result == NULL) {
-        WIFI_LOGE("%s failed, invalid scan_result\r\n", __func__);
+        WIFI_LOGW("%s failed, invalid scan_result\r\n", __func__);
         return;
     }
 
     buffer_to_ipc = os_malloc(len);
     if (!buffer_to_ipc)
     {
-        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        WIFI_LOGW("%s malloc failed\r\n", __func__);
         return;
     }
 
@@ -1379,7 +1379,7 @@ void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
     ret = wifi_send_com_api_cmd(SCAN_RESULT_FREE, 1, (uint32_t)buffer_to_ipc);
 
     if (ret != BK_OK) {
-        WIFI_LOGE("%s wifi_send_com_api_cmd failed with error %d\r\n", __func__, ret);
+        WIFI_LOGW("%s wifi_send_com_api_cmd failed with error %d\r\n", __func__, ret);
     }
 
     os_free(buffer_to_ipc);
