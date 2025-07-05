@@ -1060,7 +1060,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             }
             else
             {
-                LOGE("%s nordic info list is full !\n", __func__);
+                LOGW("%s nordic info list is full !\n", __func__);
                 break;
             }
 
@@ -1105,7 +1105,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
                     break;
 
                     default:
-                        LOGE("%s unknow uuid type %d %d %p\n", __func__, tmp->character[i].uuid_type, i, &tmp->character[i].uuid_type);
+                        LOGW("%s unknow uuid type %d %d %p\n", __func__, tmp->character[i].uuid_type, i, &tmp->character[i].uuid_type);
                         break;
                 }
             }
@@ -1145,7 +1145,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
             }
             else
             {
-                LOGE("%s: Recevied Error Response!!! att_id:%d, attr_hand:%d, resp code:%d", __func__,
+                LOGW("%s: Recevied Error Response!!! att_id:%d, attr_hand:%d, resp code:%d", __func__,
                      tmp->conn_handle,
                      ((uint8_t *)(&(tmp->event_result)))[1],
                      ((uint8_t *)(&(tmp->event_result)))[0]
@@ -1766,7 +1766,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
 
             if (pm->status)
             {
-                bt_at_loge("set rand addr err 0x%x", pm->status);
+                bt_at_logw("set rand addr err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1783,7 +1783,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set scan param err 0x%x", pm->status);
+                bt_at_logw("set scan param err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1800,7 +1800,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set scan rsp data err 0x%x", pm->status);
+                bt_at_logw("set scan rsp data err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1817,7 +1817,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set scan rsp raw data err 0x%x", pm->status);
+                bt_at_logw("set scan rsp raw data err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1834,7 +1834,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set scan enable err 0x%x", pm->status);
+                bt_at_logw("set scan enable err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1851,7 +1851,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set scan disable err 0x%x", pm->status);
+                bt_at_logw("set scan disable err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1868,7 +1868,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set adv data err 0x%x", pm->status);
+                bt_at_logw("set adv data err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1886,7 +1886,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set adv raw data err 0x%x", pm->status);
+                bt_at_logw("set adv raw data err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1903,7 +1903,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set adv param err 0x%x", pm->status);
+                bt_at_logw("set adv param err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1920,7 +1920,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set adv enable err 0x%x", pm->status);
+                bt_at_logw("set adv enable err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1937,7 +1937,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set adv disable err 0x%x", pm->status);
+                bt_at_logw("set adv disable err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1954,7 +1954,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set periodic adv param err 0x%x", pm->status);
+                bt_at_logw("set periodic adv param err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1971,7 +1971,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set periodic adv data err 0x%x", pm->status);
+                bt_at_logw("set periodic adv data err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -1988,7 +1988,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set periodic adv enable err 0x%x", pm->status);
+                bt_at_logw("set periodic adv enable err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -2005,7 +2005,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("set periodic adv disable err 0x%x", pm->status);
+                bt_at_logw("set periodic adv disable err 0x%x", pm->status);
             }
 
             if (ble_at_cmd_sema != NULL)
@@ -2022,7 +2022,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("update conn param err 0x%x", pm->status);
+                bt_at_logw("update conn param err 0x%x", pm->status);
             }
             else
             {
@@ -2063,7 +2063,7 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             at_cmd_status = pm->status;
             if (pm->status)
             {
-                bt_at_loge("read phy err 0x%x", pm->status);
+                bt_at_logw("read phy err 0x%x", pm->status);
             }
             else
             {
@@ -2104,7 +2104,7 @@ int set_ble_name_handle(int sync, int argc, char **argv)
         name_len = bk_ble_appm_set_dev_name(os_strlen(argv[0]), (uint8_t *)argv[0]);
         if (name_len == 0)
         {
-            LOGE("\nname is empty!!!\n");
+            LOGW("\nname is empty!!!\n");
             goto error;
         }
         atsvr_cmd_rsp_ok();
@@ -2140,7 +2140,7 @@ int get_ble_name_handle(int sync, int argc, char **argv)
         name_len = bk_ble_appm_get_dev_name(name, BK_BLE_APP_DEVICE_NAME_MAX_LEN);
         if (name_len == 0)
         {
-            LOGE("\nname is empty!!!\n");
+            LOGW("\nname is empty!!!\n");
             goto error;
         }
 
@@ -2172,7 +2172,7 @@ int ble_set_adv_param_handle(int sync, int argc, char **argv)
 
     if (argc < 8)
     {
-        LOGE("\nThe count of param is wrong!\n");
+        LOGW("\nThe count of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -2181,7 +2181,7 @@ int ble_set_adv_param_handle(int sync, int argc, char **argv)
     adv_param.chnl_map = os_strtoul(argv[0], NULL, 16);
     if (adv_param.chnl_map > 7)
     {
-        LOGE("\nThe first(channel_map) param is wrong!\n");
+        LOGW("\nThe first(channel_map) param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -2192,7 +2192,7 @@ int ble_set_adv_param_handle(int sync, int argc, char **argv)
         || (adv_param.adv_intv_max > ADV_INTERVAL_MAX || adv_param.adv_intv_max < ADV_INTERVAL_MIN)
         || (adv_param.adv_intv_min > adv_param.adv_intv_max))
     {
-        LOGE("input param interval is error\n");
+        LOGW("input param interval is error\n");
         err = kParamErr;
         goto error;
     }
@@ -2202,7 +2202,7 @@ int ble_set_adv_param_handle(int sync, int argc, char **argv)
 
     if (adv_param.adv_type > 2)
     {
-        LOGE("\nThe forth(adv_type) param is wrong!\n");
+        LOGW("\nThe forth(adv_type) param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -2210,7 +2210,7 @@ int ble_set_adv_param_handle(int sync, int argc, char **argv)
     adv_param.prim_phy = os_strtoul(argv[6], NULL, 16) & 0xFF;
     if (!(adv_param.prim_phy == 1 || adv_param.prim_phy == 3))
     {
-        LOGE("input param prim_phy is error\n");
+        LOGW("input param prim_phy is error\n");
         err = kParamErr;
         goto error;
     }
@@ -2218,7 +2218,7 @@ int ble_set_adv_param_handle(int sync, int argc, char **argv)
     adv_param.second_phy = os_strtoul(argv[7], NULL, 16) & 0xFF;
     if (adv_param.second_phy < 1 || adv_param.second_phy > 3)
     {
-        LOGE("input param second_phy is error\n");
+        LOGW("input param second_phy is error\n");
         err = kParamErr;
         goto error;
     }
@@ -2228,7 +2228,7 @@ int ble_set_adv_param_handle(int sync, int argc, char **argv)
         adv_param.peer_addr_type = os_strtoul(argv[8], NULL, 16) & 0xFF;
         if (adv_param.peer_addr_type > 1)
         {
-            LOGE("peer_addr_type is error\n");
+            LOGW("peer_addr_type is error\n");
             err = kParamErr;
             goto error;
         }
@@ -2236,7 +2236,7 @@ int ble_set_adv_param_handle(int sync, int argc, char **argv)
         err = get_addr_from_param(&adv_param.peer_addr, argv[9]);
         if (err != kNoErr)
         {
-            LOGE("peer_addr is error\n");
+            LOGW("peer_addr is error\n");
             err = kParamErr;
             goto error;
         }
@@ -2266,7 +2266,7 @@ int ble_set_adv_param_handle(int sync, int argc, char **argv)
                 adv_param.own_addr_type = OWN_ADDR_TYPE_GEN_NON_RSLV_OR_RANDOM_ADDR;
                 break;
             default:
-                LOGE("\nThe third(own_addr_type) param is wrong!\n");
+                LOGW("\nThe third(own_addr_type) param is wrong!\n");
                 err = kParamErr;
                 break;
         }
@@ -2347,7 +2347,7 @@ int ble_set_adv_data_handle(int sync, int argc, char **argv)
 
     if (argc != 2)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -2355,7 +2355,7 @@ int ble_set_adv_data_handle(int sync, int argc, char **argv)
     adv_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (adv_len > 255 || adv_len != os_strlen(argv[0]) / 2)
     {
-        LOGE("input adv len over limited\n");
+        LOGW("input adv len over limited\n");
         err = kParamErr;
         goto error;
     }
@@ -2380,7 +2380,7 @@ int ble_set_adv_data_handle(int sync, int argc, char **argv)
             actv_idx = bk_ble_find_actv_state_idx_handle(AT_ACTV_ADV_STARTED);
             if (actv_idx == AT_BLE_MAX_ACTV)
             {
-                LOGE("ble adv not set params before\n");
+                LOGW("ble adv not set params before\n");
                 err = kNoResourcesErr;
                 goto error;
             }
@@ -2437,7 +2437,7 @@ int ble_set_per_adv_data_handle(int sync, int argc, char **argv)
 
     if (argc != 2)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -2445,7 +2445,7 @@ int ble_set_per_adv_data_handle(int sync, int argc, char **argv)
     adv_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (adv_len > 255 || adv_len != os_strlen(argv[0]) / 2)
     {
-        LOGE("input adv len over limited\n");
+        LOGW("input adv len over limited\n");
         err = kParamErr;
         goto error;
     }
@@ -2527,7 +2527,7 @@ int ble_set_scan_rsp_data_handle(int sync, int argc, char **argv)
 
     if (argc != 2)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -2535,7 +2535,7 @@ int ble_set_scan_rsp_data_handle(int sync, int argc, char **argv)
     data_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (data_len > 255 || data_len != os_strlen(argv[0]) / 2)
     {
-        LOGE("input adv len over limited\n");
+        LOGW("input adv len over limited\n");
         err = kParamErr;
         goto error;
     }
@@ -2559,7 +2559,7 @@ int ble_set_scan_rsp_data_handle(int sync, int argc, char **argv)
             actv_idx = bk_ble_find_actv_state_idx_handle(AT_ACTV_ADV_STARTED);
             if (actv_idx == AT_BLE_MAX_ACTV)
             {
-                LOGE("ble adv not set params before\n");
+                LOGW("ble adv not set params before\n");
                 err = kNoResourcesErr;
                 goto error;
             }
@@ -2616,7 +2616,7 @@ int ble_set_adv_enable_handle(int sync, int argc, char **argv)
 
     if (argc != 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -2631,7 +2631,7 @@ int ble_set_adv_enable_handle(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("the input param is error\n");
+        LOGW("the input param is error\n");
         err = kParamErr;
         goto error;
     }
@@ -2660,7 +2660,7 @@ int ble_set_adv_enable_handle(int sync, int argc, char **argv)
 
         if (actv_idx == AT_BLE_MAX_ACTV)
         {
-            LOGE("ble adv not set params before\n");
+            LOGW("ble adv not set params before\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -2730,7 +2730,7 @@ int ble_set_scan_param_handle(int sync, int argc, char **argv)
 
     if (argc < 4)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -2741,7 +2741,7 @@ int ble_set_scan_param_handle(int sync, int argc, char **argv)
 
     if (!(scan_param.scan_phy & (PHY_1MBPS_BIT | PHY_CODED_BIT)))
     {
-        LOGE("\nThe scan phy param is wrong!\n");
+        LOGW("\nThe scan phy param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -2770,7 +2770,7 @@ int ble_set_scan_param_handle(int sync, int argc, char **argv)
         scan_param.scan_wd < SCAN_WINDOW_MIN || scan_param.scan_wd > SCAN_WINDOW_MAX ||
         scan_param.scan_intv < scan_param.scan_wd)
     {
-        LOGE("\nThe second/third param is wrong!\n");
+        LOGW("\nThe second/third param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -2799,7 +2799,7 @@ int ble_set_scan_param_handle(int sync, int argc, char **argv)
                 scan_param.own_addr_type = OWN_ADDR_TYPE_GEN_NON_RSLV_OR_RANDOM_ADDR;
                 break;
             default:
-                LOGE("\nThe fourth param is wrong!\n");
+                LOGW("\nThe fourth param is wrong!\n");
                 err = kParamErr;
                 break;
         }
@@ -2875,7 +2875,7 @@ int ble_set_scan_enable_handle(int sync, int argc, char **argv)
 
     if (argc < 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -2890,7 +2890,7 @@ int ble_set_scan_enable_handle(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("the input param is error\n");
+        LOGW("the input param is error\n");
         err = kParamErr;
         goto error;
     }
@@ -2909,7 +2909,7 @@ int ble_set_scan_enable_handle(int sync, int argc, char **argv)
         }
         else
         {
-            LOGE("the input param is error\n");
+            LOGW("the input param is error\n");
             err = kParamErr;
             goto error;
         }
@@ -2940,7 +2940,7 @@ int ble_set_scan_enable_handle(int sync, int argc, char **argv)
 
         if (actv_idx == AT_BLE_MAX_ACTV)
         {
-            LOGE("scan actv not start before\n");
+            LOGW("scan actv not start before\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -3124,13 +3124,13 @@ static void ble_gap_create_connection_timerout_timer_hdl(void *param)
 {
     int32_t err = 0;
 
-    LOGE("%s connect time out, try cancel\n", __func__, err);
+    LOGW("%s connect time out, try cancel\n", __func__, err);
 
     err = bk_ble_gap_cancel_connect();
 
     if (err != BK_ERR_BLE_SUCCESS)
     {
-        LOGE("%s cancel connect fail %d\n", __func__, err);
+        LOGW("%s cancel connect fail %d\n", __func__, err);
     }
 
     if (rtos_is_timer_init(&s_gap_create_connection_timeout_tmr))
@@ -3157,7 +3157,7 @@ int ble_create_connect_handle(int sync, int argc, char **argv)
 
     if (!bk_ble_if_support_central(&central_count) || central_count == 0)
     {
-        LOGE("not support central\n");
+        LOGW("not support central\n");
         err = kParamErr;
         goto error;
     }
@@ -3165,7 +3165,7 @@ int ble_create_connect_handle(int sync, int argc, char **argv)
 
     if (argc != 6)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -3203,14 +3203,14 @@ int ble_create_connect_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&bdaddr, argv[5]);
     if (err != kNoErr)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
 
     if ((10 * conn_param.sup_to) < (((1 + conn_param.con_latency) * conn_param.intv_min * 5 + 1) >> 1))
     {
-        LOGE("input param not suitable, maybe you can set con_latency to 0\n");
+        LOGW("input param not suitable, maybe you can set con_latency to 0\n");
         err = kParamErr;
         goto error;
     }
@@ -3367,14 +3367,14 @@ int ble_cancel_create_connect_handle(int sync, int argc, char **argv)
 
     if (!bk_ble_if_support_central(&central_count) || central_count == 0)
     {
-        LOGE("not support central\n");
+        LOGW("not support central\n");
         err = kParamErr;
         goto error;
     }
 
     if (argc != 0)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -3393,7 +3393,7 @@ int ble_cancel_create_connect_handle(int sync, int argc, char **argv)
         actv_idx = bk_ble_find_master_state_idx_handle(AT_INIT_STATE_CONNECTTING);
         if (actv_idx == AT_BLE_MAX_ACTV)
         {
-            LOGE("ble adv not set params before\n");
+            LOGW("ble adv not set params before\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -3460,14 +3460,14 @@ int ble_disconnect_handle(int sync, int argc, char **argv)
 
     if (!bk_ble_if_support_central(&central_count) || central_count == 0)
     {
-        LOGE("not support central\n");
+        LOGW("not support central\n");
         err = kParamErr;
         goto error;
     }
 
     if (argc > 2)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -3475,7 +3475,7 @@ int ble_disconnect_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&connect_addr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input addr param error\n");
+        LOGW("input addr param error\n");
         err = kParamErr;
         goto error;
     }
@@ -3504,7 +3504,7 @@ int ble_disconnect_handle(int sync, int argc, char **argv)
         conn_idx = bk_ble_find_conn_idx_from_addr(&connect_addr);
         if (conn_idx == AT_BLE_MAX_CONN)
         {
-            LOGE("ble not connection\n");
+            LOGW("ble not connection\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -3570,14 +3570,14 @@ int ble_update_conn_param_handle(int sync, int argc, char **argv)
 
     if (!bk_ble_if_support_central(&central_count) || central_count == 0)
     {
-        LOGE("not support central\n");
+        LOGW("not support central\n");
         err = kParamErr;
         goto error;
     }
 
     if (argc > 6)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -3585,7 +3585,7 @@ int ble_update_conn_param_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&connect_addr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input addr param error\n");
+        LOGW("input addr param error\n");
         err = kParamErr;
         goto error;
     }
@@ -3609,14 +3609,14 @@ int ble_update_conn_param_handle(int sync, int argc, char **argv)
         (conn_param.intv_min > conn_param.intv_max) || (conn_param.con_latency > CON_LATENCY_MAX) ||
         (conn_param.sup_to < CON_SUP_TO_MIN || conn_param.sup_to > CON_SUP_TO_MAX))
     {
-        LOGE("input update param not suitable\n");
+        LOGW("input update param not suitable\n");
         err = kParamErr;
         goto error;
     }
 
     if ((10 * conn_param.sup_to) < (((1 + conn_param.con_latency) * conn_param.intv_max * 5 + 1) >> 1))
     {
-        LOGE("input param not suitable, maybe you can set con_latency to 0\n");
+        LOGW("input param not suitable, maybe you can set con_latency to 0\n");
         err = kParamErr;
         goto error;
     }
@@ -3626,7 +3626,7 @@ int ble_update_conn_param_handle(int sync, int argc, char **argv)
         err = rtos_init_semaphore(&ble_at_cmd_sema, 1);
         if (err != kNoErr)
         {
-            LOGE("rtos_init_semaphore error\n");
+            LOGW("rtos_init_semaphore error\n");
             goto error;
         }
     }
@@ -3637,7 +3637,7 @@ int ble_update_conn_param_handle(int sync, int argc, char **argv)
         conn_idx = bk_ble_find_conn_idx_from_addr(&connect_addr);
         if (conn_idx == AT_BLE_MAX_CONN)
         {
-            LOGE("ble not connection\n");
+            LOGW("ble not connection\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -3720,7 +3720,7 @@ int ble_get_conn_state_handle(int sync, int argc, char **argv)
     bd_addr_t peer_addr;
     if (argc != 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -3728,7 +3728,7 @@ int ble_get_conn_state_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&peer_addr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -3795,7 +3795,7 @@ int ble_get_local_addr_handle(int sync, int argc, char **argv)
 
     if (argc != 0)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -3803,7 +3803,7 @@ int ble_get_local_addr_handle(int sync, int argc, char **argv)
     err = bk_bluetooth_get_address(local_addr);
     if (err != kNoErr)
     {
-        LOGE("bk_bluetooth_get_address error\n");
+        LOGW("bk_bluetooth_get_address error\n");
         err = kParamErr;
         goto error;
     }
@@ -3884,14 +3884,14 @@ int ble_update_mtu_2_max_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&connect_addr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input addr param error\r\n");
+        LOGW("input addr param error\r\n");
         err = kParamErr;
         goto error;
     }
 
     if (argc < 1)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -3909,7 +3909,7 @@ int ble_update_mtu_2_max_handle(int sync, int argc, char **argv)
         conn_idx = bk_ble_find_conn_idx_from_addr(&connect_addr);
         if (conn_idx == AT_BLE_MAX_CONN)
         {
-            LOGE("ble not connection\r\n");
+            LOGW("ble not connection\r\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -3961,7 +3961,7 @@ int ble_update_mtu_2_max_handle(int sync, int argc, char **argv)
     {
         if (os_memcmp(ble_at_get_gatt_ctx_handle()->gattc_peer_addr, connect_addr.addr, sizeof(connect_addr)))
         {
-            LOGE("%s addr not found\n", __func__);
+            LOGW("%s addr not found\n", __func__);
             goto error;
         }
 
@@ -3974,7 +3974,7 @@ int ble_update_mtu_2_max_handle(int sync, int argc, char **argv)
         }
         else
         {
-            LOGE("%s set mtu err %d\n", __func__, err);
+            LOGW("%s set mtu err %d\n", __func__, err);
         }
     }
 
@@ -4003,14 +4003,14 @@ int ble_tx_test_param_handle(int sync, int argc, char **argv)
 
     if (argc < 2)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
 
     if (g_test_prf_task_id == 0)
     {
-        LOGE("%s not reg profile, exit\n", __func__);
+        LOGW("%s not reg profile, exit\n", __func__);
         err = kParamErr;
         goto error;
     }
@@ -4021,14 +4021,14 @@ int ble_tx_test_param_handle(int sync, int argc, char **argv)
 
     if (inter == 0 || len == 0)
     {
-        LOGE("%s param err\n", __func__);
+        LOGW("%s param err\n", __func__);
         err = kParamErr;
         goto error;
     }
 
     if (len > s_ethermind_current_mtu - 3)
     {
-        LOGE("%s len %d must less than s_ethermind_current_mtu - 3 %d!!!\n", __func__, len, s_ethermind_current_mtu - 3);
+        LOGW("%s len %d must less than s_ethermind_current_mtu - 3 %d!!!\n", __func__, len, s_ethermind_current_mtu - 3);
         err = kParamErr;
         goto error;
     }
@@ -4080,7 +4080,7 @@ int ble_tx_test_enable_handle(int sync, int argc, char **argv)
 
     if (argc < 1)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -4088,7 +4088,7 @@ int ble_tx_test_enable_handle(int sync, int argc, char **argv)
 
     if (g_test_prf_task_id == 0)
     {
-        LOGE("%s not reg profile, exit\n", __func__);
+        LOGW("%s not reg profile, exit\n", __func__);
         err = kParamErr;
         goto error;
     }
@@ -4202,14 +4202,14 @@ int ble_enable_performance_statistic_handle(int sync, int argc, char **argv)
 
     if (argc < 2)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
 
     if (strlen(argv[0]) > 3)
     {
-        LOGE("%s param err, exit\n", __func__);
+        LOGW("%s param err, exit\n", __func__);
         err = kParamErr;
         goto error;
     }
@@ -4224,7 +4224,7 @@ int ble_enable_performance_statistic_handle(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("%s param err, exit\n", __func__);
+        LOGW("%s param err, exit\n", __func__);
         err = kParamErr;
         goto error;
     }
@@ -4236,7 +4236,7 @@ int ble_enable_performance_statistic_handle(int sync, int argc, char **argv)
     {
         if (g_test_prf_task_id == 0)
         {
-            LOGE("%s not reg profile, exit\n", __func__);
+            LOGW("%s not reg profile, exit\n", __func__);
             err = kParamErr;
             goto error;
         }
@@ -4411,14 +4411,14 @@ static int ble_discover_service_handle(int sync, int argc, char **argv)
 
     if (bk_ble_get_host_stack_type() == BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
-        LOGE("host not valid\n");
+        LOGW("host not valid\n");
         err = kParamErr;
         goto error;
     }
 
     if (argc < 3)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -4491,14 +4491,14 @@ static int ble_discover_characteristic_handle(int sync, int argc, char **argv)
 
     if (bk_ble_get_host_stack_type() == BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
-        LOGE("host not valid\n");
+        LOGW("host not valid\n");
         err = kParamErr;
         goto error;
     }
 
     if (argc < 3)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -4569,14 +4569,14 @@ static int ble_discover_characteristic_descriptor_handle(int sync, int argc, cha
 
     if (bk_ble_get_host_stack_type() == BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
-        LOGE("host not valid\n");
+        LOGW("host not valid\n");
         err = kParamErr;
         goto error;
     }
 
     if (argc < 3)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -4621,13 +4621,13 @@ static int ble_set_bond_param_handle(int sync, int argc, char **argv)
 
     if (bk_ble_get_host_stack_type() == BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
-        LOGE("host not valid\n");
+        LOGW("host not valid\n");
         goto error;
     }
 
     if (argc < 1)
     {
-        LOGE("The number of param is wrong!\n");
+        LOGW("The number of param is wrong!\n");
         goto error;
     }
 
@@ -4688,7 +4688,7 @@ static void ble_tx_test_active_timer_callback(void *param)
 
     if (!tmp_buff)
     {
-        LOGE("%s alloc send failed\n", __func__);
+        LOGW("%s alloc send failed\n", __func__);
         return;
     }
 
@@ -4703,7 +4703,7 @@ static void ble_tx_test_active_timer_callback(void *param)
 
     if (retval != 0)
     {
-        LOGE("%s notify err %d\n", __func__, retval);
+        LOGW("%s notify err %d\n", __func__, retval);
     }
     else
     {
@@ -4722,7 +4722,7 @@ static void ble_tx_test_passive_timer_callback(void *param)
 
     if (!tmp_buff)
     {
-        LOGE("%s alloc send failed\n", __func__);
+        LOGW("%s alloc send failed\n", __func__);
         return;
     }
 
@@ -4736,7 +4736,7 @@ static void ble_tx_test_passive_timer_callback(void *param)
 
     if (retval != 0)
     {
-        LOGE("%s notify err %d\n", __func__, retval);
+        LOGW("%s notify err %d\n", __func__, retval);
     }
     else
     {
@@ -4780,7 +4780,7 @@ static bk_err_t ethermind_test_gatt_char_handler
 
                             if (!gdbh)
                             {
-                                LOGE("%s cant alloc GATT_DB_HANDLE\n", __func__);
+                                LOGW("%s cant alloc GATT_DB_HANDLE\n", __func__);
                                 retval = BK_FAIL;
                                 break;
                             }
@@ -4901,7 +4901,7 @@ static int ble_register_service_handle(int sync, int argc, char **argv)
 
     if (argc < 2)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -5059,7 +5059,7 @@ static int ble_register_service_handle(int sync, int argc, char **argv)
 
         if (retval)
         {
-            bt_at_loge("ble_at_reg_gatts_db err %d", retval);
+            bt_at_logw("ble_at_reg_gatts_db err %d", retval);
             return -1;
         }
         err = 0;
@@ -5091,7 +5091,7 @@ void ble_test_noti_hdl(void *param)
 
     if (!write_buffer)
     {
-        LOGE("%s alloc err\n", __func__);
+        LOGW("%s alloc err\n", __func__);
         return;
     }
 
@@ -5104,7 +5104,7 @@ void ble_test_noti_hdl(void *param)
     ret = bk_ble_send_noti_value(con_idx, s_test_data_len, write_buffer, g_test_prf_task_id, TEST_IDX_CHAR_VALUE);
     if (ret != BK_ERR_BLE_SUCCESS)
     {
-        LOGE("%s ret err %d\n", __func__, ret);
+        LOGW("%s ret err %d\n", __func__, ret);
     }
 
     os_free(write_buffer);
@@ -5192,7 +5192,7 @@ int ble_read_phy_handle(int sync, int argc, char **argv)
 
     if (argc > 2)
     {
-        LOGE("input param error\r\n");
+        LOGW("input param error\r\n");
         err = kParamErr;
         goto error;
     }
@@ -5201,7 +5201,7 @@ int ble_read_phy_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&connect_addr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input addr param error\r\n");
+        LOGW("input addr param error\r\n");
         err = kParamErr;
         goto error;
     }
@@ -5231,7 +5231,7 @@ int ble_read_phy_handle(int sync, int argc, char **argv)
         conn_idx = bk_ble_find_conn_idx_from_addr(&connect_addr);
         if (conn_idx == AT_BLE_MAX_CONN)
         {
-            LOGE("ble not connection\r\n");
+            LOGW("ble not connection\r\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -5255,7 +5255,7 @@ int ble_read_phy_handle(int sync, int argc, char **argv)
 
     if (err != kNoErr)
     {
-        LOGE("read connect tx/rx phy failed\r\n");
+        LOGW("read connect tx/rx phy failed\r\n");
         goto error;
     }
 
@@ -5264,7 +5264,7 @@ int ble_read_phy_handle(int sync, int argc, char **argv)
         err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
         if (err != kNoErr)
         {
-            LOGE("get sema fail\r\n");
+            LOGW("get sema fail\r\n");
             goto error;
         }
         else
@@ -5314,7 +5314,7 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
 
     if (argc > 5)
     {
-        LOGE("input param error\r\n");
+        LOGW("input param error\r\n");
         err = kParamErr;
         goto error;
     }
@@ -5332,7 +5332,7 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&connect_addr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input addr param error\r\n");
+        LOGW("input addr param error\r\n");
         err = kParamErr;
         goto error;
     }
@@ -5352,7 +5352,7 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
             le_set_phy.phy_opt = CODED_S8_PREFEER;
             break;
         default:
-            LOGE("input phy_opt param error\r\n");
+            LOGW("input phy_opt param error\r\n");
             err = kParamErr;
             goto error;
     }
@@ -5373,7 +5373,7 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
         conn_idx = bk_ble_find_conn_idx_from_addr(&connect_addr);
         if (conn_idx == AT_BLE_MAX_CONN)
         {
-            LOGE("ble not connection\r\n");
+            LOGW("ble not connection\r\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -5402,7 +5402,7 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
                 phy_options = BK_BLE_GAP_PHY_OPTIONS_PREF_S8_CODING;
                 break;
             default:
-                LOGE("input phy_opt param error\r\n");
+                LOGW("input phy_opt param error\r\n");
                 err = kParamErr;
                 goto error;
         }
@@ -5415,7 +5415,7 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
 
     if (err != kNoErr)
     {
-        LOGE("set connect tx/rx phy failed\r\n");
+        LOGW("set connect tx/rx phy failed\r\n");
         goto error;
     }
 
@@ -5424,7 +5424,7 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
         err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
         if (err != kNoErr)
         {
-            LOGE("get sema fail\r\n");
+            LOGW("get sema fail\r\n");
             goto error;
         }
         else
@@ -5467,7 +5467,7 @@ int ble_set_max_mtu_handle(int sync, int argc, char **argv)
 
     if (argc != 1)
     {
-        LOGE("input param error\r\n");
+        LOGW("input param error\r\n");
         err = kParamErr;
         goto error;
     }
@@ -5487,7 +5487,7 @@ int ble_set_max_mtu_handle(int sync, int argc, char **argv)
     err = bk_ble_set_max_mtu(att_max_mtu);
     if (err != kNoErr)
     {
-        LOGE("set att maximal MTU failed\r\n");
+        LOGW("set att maximal MTU failed\r\n");
         goto error;
     }
 
@@ -5496,7 +5496,7 @@ int ble_set_max_mtu_handle(int sync, int argc, char **argv)
         err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
         if (err != kNoErr)
         {
-            LOGE("get sema fail\r\n");
+            LOGW("get sema fail\r\n");
             goto error;
         }
         else
@@ -5674,7 +5674,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
 
     if (!bk_ble_if_support_central(&central_count) || central_count == 0)
     {
-        LOGE("not support central\n");
+        LOGW("not support central\n");
         err = kParamErr;
         goto error;
     }
@@ -5682,7 +5682,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
 
     if (argc != 5)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -5720,14 +5720,14 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
 
     if (err != kNoErr)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
 
     if ((10 * conn_param.sup_to) < (((1 + conn_param.con_latency) * conn_param.intv_min * 5 + 1) >> 1))
     {
-        LOGE("input param not suitable, maybe you can set con_latency to 0\n");
+        LOGW("input param not suitable, maybe you can set con_latency to 0\n");
         err = kParamErr;
         goto error;
     }
@@ -5986,7 +5986,7 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
 
         if (g_peer_dev.state != STATE_DISCOVERED)
         {
-            LOGE("%s dev not found\n", __func__);
+            LOGW("%s dev not found\n", __func__);
             goto error;
         }
 
@@ -6046,14 +6046,14 @@ int ble_disconnect_by_name_handle(int sync, int argc, char **argv)
 
     if (!bk_ble_if_support_central(&central_count) || central_count == 0)
     {
-        LOGE("not support central\n");
+        LOGW("not support central\n");
         err = kParamErr;
         goto error;
     }
 
     if (argc != 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -6083,7 +6083,7 @@ int ble_disconnect_by_name_handle(int sync, int argc, char **argv)
         conn_idx = bk_ble_find_conn_idx_from_addr(&g_peer_dev.bdaddr);
         if (conn_idx == AT_BLE_MAX_CONN)
         {
-            LOGE("ble not connection\n");
+            LOGW("ble not connection\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -6217,7 +6217,7 @@ int ble_start_periodic_sync_handle(int sync, int argc, char **argv)
 
     if (argc < 7)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -6230,7 +6230,7 @@ int ble_start_periodic_sync_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&periodic_param.adv_addr, argv[2]);
     if (err != kNoErr)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -6258,7 +6258,7 @@ int ble_start_periodic_sync_handle(int sync, int argc, char **argv)
 
     if (actv_idx == AT_BLE_MAX_ACTV)
     {
-        LOGE("periodic not create before\n");
+        LOGW("periodic not create before\n");
         err = kNoResourcesErr;
         goto error;
     }
@@ -6312,7 +6312,7 @@ int ble_stop_periodic_sync_handle(int sync, int argc, char **argv)
 
     if (argc < 1)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -6320,7 +6320,7 @@ int ble_stop_periodic_sync_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&addr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -6340,7 +6340,7 @@ int ble_stop_periodic_sync_handle(int sync, int argc, char **argv)
 
     if (actv_idx == AT_BLE_MAX_ACTV)
     {
-        LOGE("periodic not start before\n");
+        LOGW("periodic not start before\n");
         err = kNoResourcesErr;
         goto error;
     }
@@ -6465,7 +6465,7 @@ int ble_att_write_handle(int sync, int argc, char **argv)
 
     if (argc < 3)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -6475,7 +6475,7 @@ int ble_att_write_handle(int sync, int argc, char **argv)
 
     if (strlen(argv[2]) > sizeof(send_value) * 2)
     {
-        LOGE("\nThe number of data is wrong!\n");
+        LOGW("\nThe number of data is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -6506,7 +6506,7 @@ int ble_att_write_handle(int sync, int argc, char **argv)
 
     if (err != BK_ERR_BLE_SUCCESS)
     {
-        LOGE("%s write err 0x%x\n", __func__, err);
+        LOGW("%s write err 0x%x\n", __func__, err);
         goto error;
     }
     else
@@ -6571,7 +6571,7 @@ static int ble_att_read_handle(int sync, int argc, char **argv)
 
     if (argc < 2)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -6703,7 +6703,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
 
     if (argc < 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -6722,7 +6722,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
                 }
                 else
                 {
-                    LOGE("the %dth conn is not connected\n", j);
+                    LOGW("the %dth conn is not connected\n", j);
                 }
             }
         }
@@ -6753,7 +6753,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
     {
         if (argc < 4)
         {
-            LOGE("input param error\n");
+            LOGW("input param error\n");
             err = kParamErr;
             goto error;
         }
@@ -6775,7 +6775,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
                 }
                 else
                 {
-                    LOGE("the %dth conn is not connected\n", j);
+                    LOGW("the %dth conn is not connected\n", j);
                 }
             }
         }
@@ -6803,7 +6803,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
                 }
                 else
                 {
-                    LOGE("the %dth conn is not connected\n", j);
+                    LOGW("the %dth conn is not connected\n", j);
                 }
             }
         }
@@ -6893,7 +6893,7 @@ static void mqtt_loop_timer_callback(void *param)
 
         if (msg_len < 0)
         {
-            LOGE("Error occur! Exit program.\n");
+            LOGW("Error occur! Exit program.\n");
         }
 
         sprintf(rev_data, "%u-%u", loop_ci_index++, loop_sr_index);
@@ -6909,7 +6909,7 @@ static void mqtt_loop_timer_callback(void *param)
         rc = IOT_MQTT_Publish(ble_mqtt_loop_client, loop_topic_ci, &topic_msg);
         if (rc < 0)
         {
-            LOGE("error occur when publish.\n");
+            LOGW("error occur when publish.\n");
         }
         LOGD("packet-id=%u, publish topic msg=%s.\n", (uint32_t)rc, msg_pub);
     }
@@ -6993,7 +6993,7 @@ void ble_mqtt_loop_event_handle(void *pcontext, void *pclient, iotx_mqtt_event_m
             break;
 
         default:
-            LOGE("Should NOT arrive here.\n");
+            LOGW("Should NOT arrive here.\n");
             break;
     }
 }
@@ -7013,7 +7013,7 @@ void *ble_mqtt_open(const char *host_name, const char *username,
 
         if (ble_mqtt_loop_tx_buffer == NULL)
         {
-            LOGE("not enough memory for ble_mqtt_loop_tx_buffer\n");
+            LOGW("not enough memory for ble_mqtt_loop_tx_buffer\n");
             goto error;
         }
     }
@@ -7024,7 +7024,7 @@ void *ble_mqtt_open(const char *host_name, const char *username,
 
         if (ble_mqtt_loop_rx_buffer == NULL)
         {
-            LOGE("not enough memory for ble_mqtt_loop_rx_buffer\n");
+            LOGW("not enough memory for ble_mqtt_loop_rx_buffer\n");
             goto error;
         }
     }
@@ -7032,7 +7032,7 @@ void *ble_mqtt_open(const char *host_name, const char *username,
     /* Device AUTH */
     if (0 != IOT_SetupConnInfo(PRODUCT_KEY, DEVICE_NAME, DEVICE_SECRET, (void **)&pconn_info))
     {
-        LOGE("AUTH request failed!\n");
+        LOGW("AUTH request failed!\n");
         goto error;
     }
 
@@ -7117,7 +7117,7 @@ static void ble_send_data_2_mqtt(uint8 con_idx, uint16_t len, uint8 *data)
     int msg_len = snprintf(msg_pub, sizeof(msg_pub), "{\"link_id\":\"%d\", \"rev_len\":\"%d\", \"rev_data\":\"", con_idx, len);
     if (msg_len < 0)
     {
-        LOGE("Error occur! Exit program.\n");
+        LOGW("Error occur! Exit program.\n");
     }
 
     //LOGD("%s len %d msg_len1 %d %p %s\n", __func__, len, msg_len, &msg_len, msg_pub);
@@ -7132,7 +7132,7 @@ static void ble_send_data_2_mqtt(uint8 con_idx, uint16_t len, uint8 *data)
     demo_msg.data = (char *) os_malloc(msg_len);
     if (demo_msg.data == NULL)
     {
-        LOGE("%s, malloc failed\r\n", __func__);
+        LOGW("%s, malloc failed\r\n", __func__);
         return;
     }
 
@@ -7143,7 +7143,7 @@ static void ble_send_data_2_mqtt(uint8 con_idx, uint16_t len, uint8 *data)
     rc = rtos_push_to_queue(&coex_demo_msg_que, &demo_msg, BEKEN_NO_WAIT);
     if (kNoErr != rc)
     {
-        LOGE("%s, send queue failed\r\n", __func__);
+        LOGW("%s, send queue failed\r\n", __func__);
         if (demo_msg.data)
         {
             os_free(demo_msg.data);
@@ -7205,7 +7205,7 @@ static void ble_mqtt_loop_recv_handle(void *pcontext, void *pclient, iotx_mqtt_e
                     }
                     else
                     {
-                        LOGE("%s cant find att_id %d\n", __func__, con_idx);
+                        LOGW("%s cant find att_id %d\n", __func__, con_idx);
                     }
                 }
 
@@ -7256,7 +7256,7 @@ void coex_demo_main(void *arg)
                     rc = IOT_MQTT_Publish(ble_mqtt_loop_client, loop_topic_ci, &topic_msg);
                     if (rc < 0)
                     {
-                        LOGE("error occur when publish.\n");
+                        LOGW("error occur when publish.\n");
                     }
                     else
                     {
@@ -7305,7 +7305,7 @@ int coex_demo_task_init(void)
                               COEX_DEMO_MSG_COUNT);
         if (ret != kNoErr)
         {
-            LOGE("coex demo msg queue failed \r\n");
+            LOGW("coex demo msg queue failed \r\n");
             return BK_FAIL;
         }
 
@@ -7317,7 +7317,7 @@ int coex_demo_task_init(void)
                                  (beken_thread_arg_t)0);
         if (ret != kNoErr)
         {
-            LOGE("coex demo task fail \r\n");
+            LOGW("coex demo task fail \r\n");
             rtos_deinit_queue(&coex_demo_msg_que);
             coex_demo_msg_que = NULL;
             coex_demo_thread_handle = NULL;
@@ -7359,7 +7359,7 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
 
         if (ble_mqtt_loop_client == NULL)
         {
-            LOGE("MQTT connect failed\n");
+            LOGW("MQTT connect failed\n");
             goto error;
         }
         else
@@ -7372,7 +7372,7 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
     {
         if (ble_mqtt_loop_client == NULL)
         {
-            LOGE("MQTT client was not init\n");
+            LOGW("MQTT client was not init\n");
             goto error;
         }
 
@@ -7400,7 +7400,7 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
         if (IOT_MQTT_Subscribe(ble_mqtt_loop_client, loop_topic_sr, IOTX_MQTT_QOS0, ble_mqtt_loop_recv_handle, NULL) < 0)
         {
 
-            LOGE("IOT_MQTT_Subscribe() TOPIC_CMD failed\n");
+            LOGW("IOT_MQTT_Subscribe() TOPIC_CMD failed\n");
         }
 
 
@@ -7432,7 +7432,7 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
     {
         if (ble_mqtt_loop_client == NULL)
         {
-            LOGE("MQTT client was not init\n");
+            LOGW("MQTT client was not init\n");
             goto error;
         }
 
@@ -7451,7 +7451,7 @@ int ble_mqtt_loop_handle(int sync, int argc, char **argv)
 
         if (IOT_MQTT_Subscribe(ble_mqtt_loop_client, loop_topic_sr, IOTX_MQTT_QOS0, ble_mqtt_loop_recv_handle, NULL) < 0)
         {
-            LOGE("IOT_MQTT_Subscribe() TOPIC_CMD failed\n");
+            LOGW("IOT_MQTT_Subscribe() TOPIC_CMD failed\n");
         }
 
         coex_demo_task_init();
@@ -7472,7 +7472,7 @@ int ble_power_handle(int sync, int argc, char **argv)
 
     if (argc < 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -7636,7 +7636,7 @@ static void ble_stability_show_recv_info(uint8_t *value, uint16_t len, uint8 con
                 char *write_buffer = (char *)os_malloc(len);
                 if (!write_buffer)
                 {
-                    LOGE("%s alloc err\n", __func__);
+                    LOGW("%s alloc err\n", __func__);
                     return;
                 }
 
@@ -7646,19 +7646,19 @@ static void ble_stability_show_recv_info(uint8_t *value, uint16_t len, uint8 con
                 ble_err_t ret = bk_ble_send_noti_value(con_idx, len, (uint8_t *)write_buffer, g_test_prf_task_id, TEST_IDX_CHAR_WRITE_TEST_VALUE);
                 if (ret != BK_ERR_BLE_SUCCESS)
                 {
-                    LOGE("%s ret err %d\n", __func__, ret);
+                    LOGW("%s ret err %d\n", __func__, ret);
                 }
                 os_free(write_buffer);
             }
             else
             {
-                LOGE("%s, stability test is not enabled!\r\n", __func__);
+                LOGW("%s, stability test is not enabled!\r\n", __func__);
             }
         }
     }
     else
     {
-        LOGE("%s, invalid data \r\n", __func__);
+        LOGW("%s, invalid data \r\n", __func__);
     }
 
 }
@@ -7683,7 +7683,7 @@ void ble_stability_test_timer_hdl(void *param)
 
     if (!write_buffer)
     {
-        LOGE("%s alloc err\n", __func__);
+        LOGW("%s alloc err\n", __func__);
         return;
     }
 
@@ -7707,7 +7707,7 @@ void ble_stability_test_timer_hdl(void *param)
         }
         else
         {
-            //LOGE("the %dth conn is not connected\n",j);
+            //LOGW("the %dth conn is not connected\n",j);
         }
     }
 
@@ -7727,7 +7727,7 @@ int ble_stability_test_handle(int sync, int argc, char **argv)
 
     if (argc < 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -7748,7 +7748,7 @@ int ble_stability_test_handle(int sync, int argc, char **argv)
     {
         if (argc < 3)
         {
-            LOGE("input param error\n");
+            LOGW("input param error\n");
             err = kParamErr;
             goto error;
         }
@@ -7772,7 +7772,7 @@ int ble_stability_test_handle(int sync, int argc, char **argv)
                     }
                     else
                     {
-                        //LOGE("the %dth conn is not connected\n",j);
+                        //LOGW("the %dth conn is not connected\n",j);
                     }
                 }
             }
@@ -7810,7 +7810,7 @@ int ble_stability_test_handle(int sync, int argc, char **argv)
                 }
                 else
                 {
-                    //LOGE("the %dth conn is not connected\n",j);
+                    //LOGW("the %dth conn is not connected\n",j);
                 }
             }
         }
@@ -7860,14 +7860,14 @@ void ble_stability_test_master_reconnect_timer_hdl(void *param, unsigned int ulp
         err = rtos_init_semaphore(&ble_at_cmd_sema, 1);
         if (err != kNoErr)
         {
-            LOGE("%s, error 01!\r\n", __func__);
+            LOGW("%s, error 01!\r\n", __func__);
             return;
         }
 
         err = bk_ble_create_init(con_idx, &conn_param, ble_at_cmd_cb);
         if (err != 0)
         {
-            LOGE("%s, error 02!\r\n", __func__);
+            LOGW("%s, error 02!\r\n", __func__);
             return;
         }
 
@@ -7876,7 +7876,7 @@ void ble_stability_test_master_reconnect_timer_hdl(void *param, unsigned int ulp
             err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
             if (err != kNoErr)
             {
-                LOGE("%s, error 03!\r\n", __func__);
+                LOGW("%s, error 03!\r\n", __func__);
                 return;
             }
             else
@@ -7886,14 +7886,14 @@ void ble_stability_test_master_reconnect_timer_hdl(void *param, unsigned int ulp
                     err = bk_ble_init_set_connect_dev_addr(con_idx, &ble_st_conn_env[con_idx].peer_addr, ble_st_conn_env[con_idx].peer_addr_type);
                     if (err != 0)
                     {
-                        LOGE("%s, error 04!\r\n", __func__);
+                        LOGW("%s, error 04!\r\n", __func__);
                         return;
                     }
 
                     err = bk_ble_init_start_conn(con_idx, ble_at_cmd_cb);
                     if (err != 0)
                     {
-                        LOGE("%s, error 05!\r\n", __func__);
+                        LOGW("%s, error 05!\r\n", __func__);
                         return;
                     }
 
@@ -7904,20 +7904,20 @@ void ble_stability_test_master_reconnect_timer_hdl(void *param, unsigned int ulp
                         {
                             if (at_cmd_status != BK_ERR_BLE_SUCCESS)
                             {
-                                LOGE("%s, error 06!\r\n", __func__);
+                                LOGW("%s, error 06!\r\n", __func__);
                                 return;
                             }
                         }
                     }
                     else
                     {
-                        LOGE("%s, error 07!\r\n", __func__);
+                        LOGW("%s, error 07!\r\n", __func__);
                         return;
                     }
                 }
                 else
                 {
-                    LOGE("%s, error 08!\r\n", __func__);
+                    LOGW("%s, error 08!\r\n", __func__);
                     return;
                 }
             }
@@ -7941,7 +7941,7 @@ int ble_unregister_service_handle(int sync, int argc, char **argv)
 
     if (argc < 1)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8014,14 +8014,14 @@ int ble_create_bond_handle(int sync, int argc, char **argv)
 
     if (!bk_ble_if_support_central(&central_count) || central_count == 0)
     {
-        LOGE("not support central\n");
+        LOGW("not support central\n");
         err = kParamErr;
         goto error;
     }
 
     if (argc != 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -8029,7 +8029,7 @@ int ble_create_bond_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&bond_addr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input addr param error\n");
+        LOGW("input addr param error\n");
         err = kParamErr;
         goto error;
     }
@@ -8037,7 +8037,7 @@ int ble_create_bond_handle(int sync, int argc, char **argv)
     err = rtos_init_semaphore(&ble_at_cmd_sema, 1);
     if (err != kNoErr)
     {
-        LOGE("rtos_init_semaphore error\n");
+        LOGW("rtos_init_semaphore error\n");
         goto error;
     }
 
@@ -8046,7 +8046,7 @@ int ble_create_bond_handle(int sync, int argc, char **argv)
         conn_idx = bk_ble_find_conn_idx_from_addr(&bond_addr);
         if (conn_idx == AT_BLE_MAX_CONN)
         {
-            LOGE("ble not connection\n");
+            LOGW("ble not connection\n");
             err = kNoResourcesErr;
             goto error;
         }
@@ -8118,7 +8118,7 @@ static int ble_send_passkey_handle(int sync, int argc, char **argv)
 
     if (argc < 3)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -8165,7 +8165,7 @@ int set_ble_device_name_handle_gap(int sync, int argc, char **argv)
     ret = bk_ble_gap_set_device_name((char *)argv[0]);
     if (ret != BK_OK)
     {
-        LOGE("\n name is empty or name_lens over %d\n", BK_BLE_APP_DEVICE_NAME_MAX_LEN);
+        LOGW("\n name is empty or name_lens over %d\n", BK_BLE_APP_DEVICE_NAME_MAX_LEN);
         goto error;
     }
     atsvr_cmd_rsp_ok();
@@ -8192,7 +8192,7 @@ int get_ble_device_name_handle_gap(int sync, int argc, char **argv)
     ret = bk_ble_gap_get_device_name(name, &name_len);
     if (ret != BK_OK)
     {
-        LOGE("\n name is empty!!!\n");
+        LOGW("\n name is empty!!!\n");
         goto error;
     }
     atsvr_cmd_rsp_ok();
@@ -8211,7 +8211,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
 
     if (argc < 8)
     {
-        LOGE("\nThe count of param is wrong!\n");
+        LOGW("\nThe count of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8221,7 +8221,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
     adv_param.chnl_map = os_strtoul(argv[0], NULL, 16);
     if (adv_param.chnl_map > 7)
     {
-        LOGE("\nThe first(channel_map) param is wrong!\n");
+        LOGW("\nThe first(channel_map) param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8232,7 +8232,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
         || (adv_param.adv_intv_max > ADV_INTERVAL_MAX || adv_param.adv_intv_max < ADV_INTERVAL_MIN)
         || (adv_param.adv_intv_min > adv_param.adv_intv_max))
     {
-        LOGE("input param interval is error\n");
+        LOGW("input param interval is error\n");
         err = kParamErr;
         goto error;
     }
@@ -8242,7 +8242,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
 
     if (adv_param.adv_type > 2)
     {
-        LOGE("\nThe forth(adv_type) param is wrong!\n");
+        LOGW("\nThe forth(adv_type) param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8250,7 +8250,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
     adv_param.prim_phy = os_strtoul(argv[6], NULL, 16) & 0xFF;
     if (!(adv_param.prim_phy == 1 || adv_param.prim_phy == 3))
     {
-        LOGE("input param prim_phy is error\n");
+        LOGW("input param prim_phy is error\n");
         err = kParamErr;
         goto error;
     }
@@ -8258,7 +8258,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
     adv_param.second_phy = os_strtoul(argv[7], NULL, 16) & 0xFF;
     if (adv_param.second_phy < 1 || adv_param.second_phy > 3)
     {
-        LOGE("input param second_phy is error\n");
+        LOGW("input param second_phy is error\n");
         err = kParamErr;
         goto error;
     }
@@ -8290,7 +8290,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
         param.peer_addr_type = os_strtoul(argv[8], NULL, 16) & 0xFF;
         if (param.peer_addr_type > 1)
         {
-            LOGE("peer_addr_type is error\n");
+            LOGW("peer_addr_type is error\n");
             err = kParamErr;
             goto error;
         }
@@ -8299,7 +8299,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
         err = get_addr_from_param(&peer_bdaddr, argv[9]);
         if (err != kNoErr)
         {
-            LOGE("peer_addr is error\n");
+            LOGW("peer_addr is error\n");
             err = kParamErr;
             goto error;
         }
@@ -8319,7 +8319,7 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
     param.primary_phy = adv_param.prim_phy;
     param.secondary_phy = adv_param.second_phy;
     param.tx_power = 0x7F;
-    LOGE("%s %x\n", __func__, param.type);
+    LOGW("%s %x\n", __func__, param.type);
     err = bk_ble_gap_set_adv_params(0, &param);
 #endif
 
@@ -8370,7 +8370,7 @@ int ble_set_adv_data_raw_handle_gap(int sync, int argc, char **argv)
 
     if (argc != 2)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -8379,7 +8379,7 @@ int ble_set_adv_data_raw_handle_gap(int sync, int argc, char **argv)
     adv_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (adv_len > 255 || adv_len != os_strlen(argv[0]) / 2)
     {
-        LOGE("input adv len over limited\n");
+        LOGW("input adv len over limited\n");
         err = kParamErr;
         goto error;
     }
@@ -8389,7 +8389,7 @@ int ble_set_adv_data_raw_handle_gap(int sync, int argc, char **argv)
     err = bk_ble_gap_set_adv_data_raw(0, adv_len, adv_data);
     if (err != BK_ERR_BLE_SUCCESS)
     {
-        LOGE(TAG, "%s set adv data raw err %d\n", __func__, err);
+        LOGW(TAG, "%s set adv data raw err %d\n", __func__, err);
         goto error;
     }
 
@@ -8431,7 +8431,7 @@ int ble_set_adv_data_handle_gap(int sync, int argc, char **argv)
 
     if (argc != 0)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -8500,7 +8500,7 @@ int ble_set_scan_rsp_data_raw_handle_gap(int sync, int argc, char **argv)
 
     if (argc != 2)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -8509,7 +8509,7 @@ int ble_set_scan_rsp_data_raw_handle_gap(int sync, int argc, char **argv)
     data_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (data_len > 255 || data_len != os_strlen(argv[0]) / 2)
     {
-        LOGE("input adv len over limited\n");
+        LOGW("input adv len over limited\n");
         err = kParamErr;
         goto error;
     }
@@ -8560,7 +8560,7 @@ int ble_set_scan_rsp_data_handle_gap(int sync, int argc, char **argv)
 
     if (argc != 0)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -8625,7 +8625,7 @@ int ble_set_adv_enable_handle_gap(int sync, int argc, char **argv)
 
     if (argc != 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -8642,7 +8642,7 @@ int ble_set_adv_enable_handle_gap(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("the input param is error\n");
+        LOGW("the input param is error\n");
         err = kParamErr;
         goto error;
     }
@@ -8704,7 +8704,7 @@ int ble_set_scan_param_handle_gap(int sync, int argc, char **argv)
 
     if (argc < 4)
     {
-        LOGE("\nThe number of param is wrong!\n");
+        LOGW("\nThe number of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8716,7 +8716,7 @@ int ble_set_scan_param_handle_gap(int sync, int argc, char **argv)
 
     if (!(scan_param.scan_phy & (PHY_1MBPS_BIT | PHY_CODED_BIT)))
     {
-        LOGE("\nThe scan phy param is wrong!\n");
+        LOGW("\nThe scan phy param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8733,7 +8733,7 @@ int ble_set_scan_param_handle_gap(int sync, int argc, char **argv)
         scan_param.scan_wd < SCAN_WINDOW_MIN || scan_param.scan_wd > SCAN_WINDOW_MAX ||
         scan_param.scan_intv < scan_param.scan_wd)
     {
-        LOGE("\nThe second/third param is wrong!\n");
+        LOGW("\nThe second/third param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8802,7 +8802,7 @@ int ble_set_scan_enable_handle_gap(int sync, int argc, char **argv)
 
     if (argc < 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -8818,7 +8818,7 @@ int ble_set_scan_enable_handle_gap(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("the input param is error\n");
+        LOGW("the input param is error\n");
         err = kParamErr;
         goto error;
     }
@@ -8837,7 +8837,7 @@ int ble_set_scan_enable_handle_gap(int sync, int argc, char **argv)
         }
         else
         {
-            LOGE("the input param is error\n");
+            LOGW("the input param is error\n");
             err = kParamErr;
             goto error;
         }
@@ -8897,7 +8897,7 @@ int ble_set_per_adv_param_handle_gap(int sync, int argc, char **argv)
 
     if (argc < 8)
     {
-        LOGE("\nThe count of param is wrong!\n");
+        LOGW("\nThe count of param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8908,7 +8908,7 @@ int ble_set_per_adv_param_handle_gap(int sync, int argc, char **argv)
     adv_param.chnl_map = os_strtoul(argv[0], NULL, 16);
     if (adv_param.chnl_map > 7)
     {
-        LOGE("\nThe first(channel_map) param is wrong!\n");
+        LOGW("\nThe first(channel_map) param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8919,7 +8919,7 @@ int ble_set_per_adv_param_handle_gap(int sync, int argc, char **argv)
         || (adv_param.adv_intv_max > ADV_INTERVAL_MAX || adv_param.adv_intv_max < ADV_INTERVAL_MIN)
         || (adv_param.adv_intv_min > adv_param.adv_intv_max))
     {
-        LOGE("input param interval is error\n");
+        LOGW("input param interval is error\n");
         err = kParamErr;
         goto error;
     }
@@ -8929,7 +8929,7 @@ int ble_set_per_adv_param_handle_gap(int sync, int argc, char **argv)
 
     if (adv_param.adv_type > 2)
     {
-        LOGE("\nThe forth(adv_type) param is wrong!\n");
+        LOGW("\nThe forth(adv_type) param is wrong!\n");
         err = kParamErr;
         goto error;
     }
@@ -8937,7 +8937,7 @@ int ble_set_per_adv_param_handle_gap(int sync, int argc, char **argv)
     adv_param.prim_phy = os_strtoul(argv[6], NULL, 16) & 0xFF;
     if (!(adv_param.prim_phy == 1 || adv_param.prim_phy == 3))
     {
-        LOGE("input param prim_phy is error\n");
+        LOGW("input param prim_phy is error\n");
         err = kParamErr;
         goto error;
     }
@@ -8945,7 +8945,7 @@ int ble_set_per_adv_param_handle_gap(int sync, int argc, char **argv)
     adv_param.second_phy = os_strtoul(argv[7], NULL, 16) & 0xFF;
     if (adv_param.second_phy < 1 || adv_param.second_phy > 3)
     {
-        LOGE("input param second_phy is error\n");
+        LOGW("input param second_phy is error\n");
         err = kParamErr;
         goto error;
     }
@@ -8968,14 +8968,14 @@ int ble_set_per_adv_param_handle_gap(int sync, int argc, char **argv)
 
     if (err != BK_ERR_BLE_SUCCESS)
     {
-        bt_at_loge("set adv param err %d", err);
+        bt_at_logw("set adv param err %d", err);
         goto error;
     }
 
     err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
     if (err != kNoErr)
     {
-        bt_at_loge("wait set adv param err %d", err);
+        bt_at_logw("wait set adv param err %d", err);
         goto error;
     }
 
@@ -9032,7 +9032,7 @@ int ble_set_per_adv_data_handle_gap(int sync, int argc, char **argv)
 
     if (argc != 2)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -9041,7 +9041,7 @@ int ble_set_per_adv_data_handle_gap(int sync, int argc, char **argv)
     adv_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (adv_len > 255 || adv_len != os_strlen(argv[0]) / 2)
     {
-        LOGE("input adv len over limited\n");
+        LOGW("input adv len over limited\n");
         err = kParamErr;
         goto error;
     }
@@ -9095,7 +9095,7 @@ int ble_set_per_adv_enable_handle_gap(int sync, int argc, char **argv)
 
     if (argc != 1)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -9110,7 +9110,7 @@ int ble_set_per_adv_enable_handle_gap(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("the input param is error\n");
+        LOGW("the input param is error\n");
         err = kParamErr;
         goto error;
     }
@@ -9126,7 +9126,7 @@ int ble_set_per_adv_enable_handle_gap(int sync, int argc, char **argv)
 
     if (err != BK_ERR_BLE_SUCCESS)
     {
-        bt_at_loge("set periodic adv enable err %d", err);
+        bt_at_logw("set periodic adv enable err %d", err);
         goto error;
     }
 
@@ -9136,7 +9136,7 @@ int ble_set_per_adv_enable_handle_gap(int sync, int argc, char **argv)
 
         if (err != kNoErr)
         {
-            bt_at_loge("wait set periodic adv enable err %d", err);
+            bt_at_logw("wait set periodic adv enable err %d", err);
             goto error;
         }
     }
@@ -9159,7 +9159,7 @@ int ble_set_per_adv_enable_handle_gap(int sync, int argc, char **argv)
 
     if (err != BK_ERR_BLE_SUCCESS)
     {
-        bt_at_loge("set ext adv enable err %d", err);
+        bt_at_logw("set ext adv enable err %d", err);
         goto error;
     }
 
@@ -9168,7 +9168,7 @@ int ble_set_per_adv_enable_handle_gap(int sync, int argc, char **argv)
         err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
         if (err != kNoErr)
         {
-            bt_at_loge("wait set ext adv enable err %d", err);
+            bt_at_logw("wait set ext adv enable err %d", err);
             goto error;
         }
         else
@@ -9216,7 +9216,7 @@ static int ble_add_white_list_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&bdaddr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -9240,7 +9240,7 @@ static int ble_add_white_list_handle(int sync, int argc, char **argv)
             err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
             if (err != kNoErr)
             {
-                bt_at_loge("wait add white list err %d", err);
+                bt_at_logw("wait add white list err %d", err);
                 goto error;
             }
             else
@@ -9262,7 +9262,7 @@ static int ble_add_white_list_handle(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("do not support!!");
+        LOGW("do not support!!");
     }
 error:
     atsvr_cmd_rsp_error();
@@ -9289,7 +9289,7 @@ static int ble_rmv_white_list_handle(int sync, int argc, char **argv)
     err = get_addr_from_param(&bdaddr, argv[0]);
     if (err != kNoErr)
     {
-        LOGE("input param error\n");
+        LOGW("input param error\n");
         err = kParamErr;
         goto error;
     }
@@ -9313,7 +9313,7 @@ static int ble_rmv_white_list_handle(int sync, int argc, char **argv)
             err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
             if (err != kNoErr)
             {
-                bt_at_loge("wait remove white list err %d", err);
+                bt_at_logw("wait remove white list err %d", err);
                 goto error;
             }
             else
@@ -9335,7 +9335,7 @@ static int ble_rmv_white_list_handle(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("do not support!!");
+        LOGW("do not support!!");
     }
 error:
     atsvr_cmd_rsp_error();
@@ -9372,7 +9372,7 @@ static int ble_cle_white_list_handle(int sync, int argc, char **argv)
             err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
             if (err != kNoErr)
             {
-                bt_at_loge("wait clear white list err %d", err);
+                bt_at_logw("wait clear white list err %d", err);
                 goto error;
             }
             else
@@ -9394,7 +9394,7 @@ static int ble_cle_white_list_handle(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("do not support!!");
+        LOGW("do not support!!");
     }
 error:
     atsvr_cmd_rsp_error();
@@ -9413,7 +9413,7 @@ static int ble_enable_fuzz_feature_handle(int sync, int argc, char **argv)
     {
         err = -1;
 
-        LOGE("%s param err\n", __func__);
+        LOGW("%s param err\n", __func__);
         goto error;
     }
 
@@ -9424,7 +9424,7 @@ static int ble_enable_fuzz_feature_handle(int sync, int argc, char **argv)
     }
     else
     {
-        LOGE("do not support!!\n");
+        LOGW("do not support!!\n");
         err = -1;
         goto error;
     }

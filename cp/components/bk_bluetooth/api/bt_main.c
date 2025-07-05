@@ -69,7 +69,7 @@ bt_err_t bk_bluetooth_init(void)
 
     if (bluetooth_already_init)
     {
-        LOGE("%s bluetooth already initialised\r\n", __func__);
+        LOGW("%s bluetooth already initialised\r\n", __func__);
         return 0;
     }
 
@@ -132,7 +132,7 @@ bt_err_t bk_bluetooth_deinit(void)
     rtos_lock_mutex(&bluetooth_mutex);
     if (!bluetooth_already_init)
     {
-        LOGE("%s bluetooth already de-initialised\r\n", __func__);
+        LOGW("%s bluetooth already de-initialised\r\n", __func__);
         rtos_unlock_mutex(&bluetooth_mutex);
         return 0;
     }
