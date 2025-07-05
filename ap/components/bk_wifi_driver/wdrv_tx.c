@@ -258,7 +258,7 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
     uint32_t int_level = 0;
     wdrv_cmd_hdr *hdr = NULL;
 
-    WDRV_LOGW("%s msg:%x len:%d\r\n",__func__, msg, msg_len);
+    WDRV_LOGD("%s msg:%x len:%d\r\n",__func__, msg, msg_len);
     BK_ASSERT(msg_len < MAX_CMD_BUF_PAYLOAD);
     if (!msg) {
         WDRV_LOGE("%s: warning msg is null.\n", __func__);

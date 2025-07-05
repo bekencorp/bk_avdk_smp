@@ -30,7 +30,7 @@ uint8_t wdrv_map_to_ipc_chnl(uint8_t channel)
 bk_err_t wdrv_ipc_env_init()
 {
     bk_err_t ret = BK_OK;
-    WDRV_LOGE("%s\n", __func__);
+    WDRV_LOGD("%s\n", __func__);
 
     wdrv_ipc_env[IPC_CMD].channel       = WIFI_IPC_CMD_CHNL;
     wdrv_ipc_env[IPC_CMD].open          = mb_chnl_open;

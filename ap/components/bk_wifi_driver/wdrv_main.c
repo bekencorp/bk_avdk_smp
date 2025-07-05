@@ -331,7 +331,7 @@ bk_err_t wdrv_init()
 {
 
     bk_err_t ret = BK_OK;
-    WDRV_LOGW("%s\n", __func__);
+    WDRV_LOGD("%s\n", __func__);
 
     if(wdrv_env.is_init)
     {
