@@ -1514,7 +1514,7 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 		//hostapd_main_entry(2, 0);
 		if (!hostapd_started) {
 			if (hostapd_main_entry(1, 0)) {
-				WPA_LOGE("hostapd main entry fail!\n");
+				WPA_LOGW("hostapd main entry fail!\n");
 				res = -1;
 				break;
 			}
@@ -1890,7 +1890,7 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 			//WPA_LOGD("%s: WPA_CTRL_EVENT_AUTH_IND\n", __func__);
 			wpa_supplicant_event_sta(wpa_s, EVENT_AUTH, &data);
 		} else {
-			WPA_LOGE("%s %d: null\n", __func__, __LINE__);
+			WPA_LOGW("%s %d: null\n", __func__, __LINE__);
 		}
 #endif
 	}	break;
@@ -1943,7 +1943,7 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 				wpa_supplicant_event_sta(wpa_s, EVENT_ASSOC_REJECT, &data);
 			}
 		} else {
-			WPA_LOGE("%s %d: null\n", __func__, __LINE__);
+			WPA_LOGW("%s %d: null\n", __func__, __LINE__);
 		}
 #endif
 	}	break;

@@ -145,11 +145,11 @@ int __l2_packet_send(struct l2_packet_data *l2, const u8 *dst_addr, u16 proto,
 	if (sync) {
 		ret = rtos_get_semaphore(&(node->cb.sema), 1*1000 /*BEKEN_NEVER_TIMEOUT*/);
 		if (ret != kNoErr) {
-			WPA_LOGE("%s: send timeout\r\n", __func__);
+			WPA_LOGW("%s: send timeout\r\n", __func__);
 		} else {
 			ret = node->cb.result;
 			if (ret < 0)
-				WPA_LOGE("%s: send failed\r\n", __func__);
+				WPA_LOGW("%s: send failed\r\n", __func__);
 		}
 		rtos_lock_mutex(&l2_packet->l2_mutex);
 		dl_list_for_each_safe(item, n, &l2_packet->head_list, struct l2_packet_node, list)

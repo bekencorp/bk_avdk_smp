@@ -156,7 +156,7 @@ struct hostapd_config *hostapd_config_read(const char *fname)
 					bss->ssid.wep.key[0][i] = wkey;
 				}
 			} else {
-				WPA_LOGE("WEP_KEY_len_exception\r\n");
+				WPA_LOGW("WEP_KEY_len_exception\r\n");
 			}
 		}
 #endif
@@ -183,11 +183,11 @@ struct hostapd_config *hostapd_config_read(const char *fname)
 			hostapd_config_clear_wpa_psk(&bss->ssid.wpa_psk);
 			bss->ssid.wpa_psk = os_zalloc(sizeof(struct hostapd_wpa_psk));
 			if (!bss->ssid.wpa_psk) {
-				WPA_LOGE("%s: OOM\n", __FUNCTION__);
+				WPA_LOGW("%s: OOM\n", __FUNCTION__);
 				return NULL;
 			}
 			if (hexstr2bin(wpa_key, bss->ssid.wpa_psk->psk, PMK_LEN)) {
-				WPA_LOGE("Key contains non-hex value\n");
+				WPA_LOGW("Key contains non-hex value\n");
 				hostapd_config_clear_wpa_psk(&bss->ssid.wpa_psk);
 				return NULL;
 			}
@@ -748,7 +748,7 @@ static int hostapd_driver_init(struct hostapd_iface *iface)
 	/* Initialize the driver interface */
 	if (is_zero_ether_addr(b)) {
 		b = NULL;
-		WPA_LOGE("hostapd_driver_init conf->bssid is null\r\n");
+		WPA_LOGW("hostapd_driver_init conf->bssid is null\r\n");
 		return -1;
 	}
 
@@ -1062,14 +1062,14 @@ int hostapd_main_entry(int argc, char *argv[])
 											sizeof(struct hostapd_iface *));
 		if (g_hapd_interfaces.iface == NULL) {
 			//os_free(ap_iface_buf);
-			WPA_LOGE("malloc failed\r\n");
+			WPA_LOGW("malloc failed\r\n");
 			return -1;
 		}
 	}
 
 	if (hostapd_global_init(&g_hapd_interfaces, entropy_file)) {
 		//os_free(ap_iface_buf);
-		WPA_LOGE("Failed to initialize global context\r\n");
+		WPA_LOGW("Failed to initialize global context\r\n");
 		return -1;
 	}
 
@@ -1211,7 +1211,7 @@ int wpa_hostapd_queue_command(wpah_msg_t *msg)
 
 	ret = rtos_push_to_queue(&wpah_queue, msg, BEKEN_NO_WAIT);
 	if (kNoErr != ret)
-		WPA_LOGE("wpa_hostapd_queue_command:%d\r\n", ret);
+		WPA_LOGW("wpa_hostapd_queue_command:%d\r\n", ret);
 
 	return ret;
 }
@@ -1228,7 +1228,7 @@ uint32_t wpa_hostapd_queue_poll(uint32_t param)
 	msg.argu = (u32)param;
 	ret = rtos_push_to_queue(&wpah_queue, &msg, BEKEN_NO_WAIT);
 	if (kNoErr != ret)
-		WPA_LOGE("wpa_hostapd_queue_poll_failed:%d\r\n", ret);
+		WPA_LOGW("wpa_hostapd_queue_poll_failed:%d\r\n", ret);
 
 poll_exit:
 	return ret;

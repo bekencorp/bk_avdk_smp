@@ -65,7 +65,7 @@ static int eloop_sock_table_add_sock(struct eloop_sock_table *table,
 		eloop_trace_sock_add_ref(table);
 		table->table = NULL;
 		table->count = 0;
-		WPA_LOGE("add sock: oom");
+		WPA_LOGW("add sock: oom");
 		return -1;
 	}
 
@@ -202,13 +202,13 @@ int eloop_register_timeout(unsigned int secs,
 
 	timeout = os_zalloc(sizeof(*timeout));
 	if (timeout == NULL) {
-		WPA_LOGE("eloop_register_malloc_failed\r\n");
+		WPA_LOGW("eloop_register_malloc_failed\r\n");
 		return -1;
 	}
 
 	if (os_get_reltime(&timeout->time) < 0) {
 		os_free(timeout);
-		WPA_LOGE("os_get_reltimeErr\r\n");
+		WPA_LOGW("os_get_reltimeErr\r\n");
 		return -1;
 	}
 
@@ -219,7 +219,7 @@ int eloop_register_timeout(unsigned int secs,
 		 * Integer overflow - assume long enough timeout to be assumed
 		 * to be infinite, i.e., the timeout would never happen.
 		 */
-		WPA_LOGE("ELOOP: Too long timeout\r\n");
+		WPA_LOGW("ELOOP: Too long timeout\r\n");
 		os_free(timeout);
 		return 0;
 	}
@@ -500,7 +500,7 @@ int eloop_register_signal(int sig, eloop_signal_handler handler,
 		eloop.signal_count = 0;
 		eloop.signals = NULL;
 		GLOBAL_INT_RESTORE();
-		WPA_LOGE("reg sig: oom");
+		WPA_LOGW("reg sig: oom");
 		return -1;
 	}
 

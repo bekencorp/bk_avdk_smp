@@ -116,7 +116,7 @@ static void handle_data(struct hostap_driver_data *drv, u8 *buf, size_t len,
 
     if ((fc & (WLAN_FC_FROMDS | WLAN_FC_TODS)) != WLAN_FC_TODS)
     {
-        WPA_LOGE("Not ToDS data frame (fc=0x%04x)\n", fc);
+        WPA_LOGW("Not ToDS data frame (fc=0x%04x)\n", fc);
         return;
     }
 
@@ -131,13 +131,13 @@ static void handle_data(struct hostap_driver_data *drv, u8 *buf, size_t len,
 
     if (left < sizeof(rfc1042_header))
     {
-        WPA_LOGE("Too short data frame\n");
+        WPA_LOGW("Too short data frame\n");
         return;
     }
 
     if (memcmp(pos, rfc1042_header, sizeof(rfc1042_header)) != 0)
     {
-        WPA_LOGE("Data frame with no RFC1042 header\n");
+        WPA_LOGW("Data frame with no RFC1042 header\n");
         return;
     }
     pos += sizeof(rfc1042_header);
@@ -145,7 +145,7 @@ static void handle_data(struct hostap_driver_data *drv, u8 *buf, size_t len,
 
     if (left < 2)
     {
-        WPA_LOGE("No ethertype in data frame\n");
+        WPA_LOGW("No ethertype in data frame\n");
         return;
     }
 
@@ -159,7 +159,7 @@ static void handle_data(struct hostap_driver_data *drv, u8 *buf, size_t len,
         break;
 
     default:
-        WPA_LOGE("Unknown ethertype 0x%04x in data frame\n", ethertype);
+        WPA_LOGW("Unknown ethertype 0x%04x in data frame\n", ethertype);
         break;
     }
 }
@@ -230,7 +230,7 @@ static void handle_frame(struct hostap_driver_data *drv, u8 *buf, size_t len)
     }
     else if (ver != 0)
     {
-        WPA_LOGE("unknown protocol version %d\n", ver);
+        WPA_LOGW("unknown protocol version %d\n", ver);
         return;
     }
 
@@ -267,7 +267,7 @@ static void handle_read(int sock, void *eloop_ctx, void *sock_ctx)
     drv = eloop_ctx;
     buf = os_malloc(TMP_BUF_LEN);
     if(!buf) {
-        WPA_LOGE("handle_read no mem\r\n");
+        WPA_LOGW("handle_read no mem\r\n");
         goto read_exit;
     }
 
@@ -341,7 +341,7 @@ static int hostap_send_mlme(void *priv, const u8 *msg, size_t len, int noack,
     int res;
     S_TYPE_PTR type_ptr = os_zalloc(sizeof(S_TYPE_ST));
 	if (type_ptr == NULL) {
-		WPA_LOGE("%s, alloc fail!\r\n", __func__);
+		WPA_LOGW("%s, alloc fail!\r\n", __func__);
 		return kNoMemoryErr;
     }
     type_ptr->type = HOSTAPD_MGMT;
@@ -470,7 +470,7 @@ static int wpa_driver_hostap_set_key(void *priv, struct wpa_driver_set_key_param
 #endif
 
     default:
-    	WPA_LOGE("%s: unsupport alg %d\n", __func__, params->alg);
+    	WPA_LOGW("%s: unsupport alg %d\n", __func__, params->alg);
         os_free(buf);
         return -1;
     }
@@ -514,7 +514,7 @@ static int hostap_get_seqnum(const char *ifname, void *priv, const u8 *addr,
 
     if (hostapd_ioctl(drv, param, blen))
     {
-        WPA_LOGE("Failed to get encryption.\n");
+        WPA_LOGW("Failed to get encryption.\n");
         ret = -1;
     }
     else
@@ -556,7 +556,7 @@ static int hostap_set_ieee8021x(void *priv, struct wpa_bss_params *params)
     /* enable kernel driver support for IEEE 802.1X */
     if (hostap_ioctl_prism2param(drv, PRISM2_PARAM_IEEE_802_1X, enabled))
     {
-        WPA_LOGE("Could not setup IEEE 802.1X support in kernel driver."
+        WPA_LOGW("Could not setup IEEE 802.1X support in kernel driver."
                   "\n");
         return -1;
     }
@@ -569,7 +569,7 @@ static int hostap_set_ieee8021x(void *priv, struct wpa_bss_params *params)
     if (hostap_ioctl_prism2param(drv, PRISM2_PARAM_HOST_DECRYPT, 1) ||
             hostap_ioctl_prism2param(drv, PRISM2_PARAM_HOST_ENCRYPT, 1))
     {
-        WPA_LOGE("Could not setup host-based encryption in kernel "
+        WPA_LOGW("Could not setup host-based encryption in kernel "
                   "driver.\n");
         return -1;
     }
@@ -846,7 +846,7 @@ static int hostap_sta_remove(void *priv, const u8 *addr)
     param.vif_idx = drv->vif_index;
     if (hostapd_ioctl(drv, &param, sizeof(param)))
     {
-        WPA_LOGE("Could not remove station from kernel driver.\n");
+        WPA_LOGW("Could not remove station from kernel driver.\n");
         return -1;
     }
     return 0;
@@ -1169,7 +1169,7 @@ static void *hostap_init(struct hostapd_data *hapd,
 
     drv = os_zalloc(sizeof(struct hostap_driver_data));
     if (drv == NULL) {
-        WPA_LOGE("Could not allocate memory for hostapd driver data\n");
+        WPA_LOGW("Could not allocate memory for hostapd driver data\n");
         return NULL;
     }
 
@@ -1202,7 +1202,7 @@ static void *hostap_init(struct hostapd_data *hapd,
 
     ret = wpa_driver_hostap_start_apm(drv);
     if(ret) {
-        WPA_LOGE("wpa_driver_hostap_start_apm failed\n");
+        WPA_LOGW("wpa_driver_hostap_start_apm failed\n");
         return NULL;
     }
 
@@ -1842,19 +1842,19 @@ void wpa_handler_signal(void *arg, u8 vif_idx)
 
     if (!eloop_get_signal_count())
 	{
-		WPA_LOGE("wpa_handler_signal err failed\r\n");
+		WPA_LOGW("wpa_handler_signal err failed\r\n");
         return;
 	}
 
 	if (!sig) {
-		WPA_LOGE("%s: sig %d invalid\r\n", __func__, sig);
+		WPA_LOGW("%s: sig %d invalid\r\n", __func__, sig);
 	}
 
 	//WPA_LOGD("%s: sig %d\r\n", __func__, sig);
 	ret = eloop_handle_signal(sig);
 	if(ret)
 	{
-		WPA_LOGE("eloop_handle_signal failed: sig %d\r\n", sig);
+		WPA_LOGW("eloop_handle_signal failed: sig %d\r\n", sig);
 		return;
 	}
 

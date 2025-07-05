@@ -777,7 +777,7 @@ struct sta_info * ap_sta_add(struct hostapd_data *hapd, const u8 *addr)
 	sta = os_zalloc(sizeof(struct sta_info));
 	if (sta == NULL) {
 #ifdef CONFIG_NO_STDOUT_DEBUG
-		WPA_LOGE("ap_sta_add malloc failed\r\n");
+		WPA_LOGW("ap_sta_add malloc failed\r\n");
 #else
 		wpa_printf(MSG_ERROR, "malloc failed");
 #endif

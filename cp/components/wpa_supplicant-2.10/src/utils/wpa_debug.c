@@ -60,7 +60,7 @@ void wpa_dbg(void *ctx, int level, const char *fmt, ...)
 
 		buf = os_malloc(buflen);
 		if (buf == NULL) {
-			WPA_LOGE("wpa_msg: Failed to allocate message "
+			WPA_LOGW("wpa_msg: Failed to allocate message "
 				   "buffer");
 			return;
 		}

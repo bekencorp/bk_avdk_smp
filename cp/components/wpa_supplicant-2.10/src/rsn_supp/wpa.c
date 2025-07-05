@@ -859,7 +859,7 @@ static void wpa_supplicant_process_1_of_4(struct wpa_sm *sm,
 
 	if (!send_success) {
 #ifdef CONFIG_NO_STDOUT_DEBUG
-		WPA_LOGE("Sending EAPOL-Key 2/4 failed\n");
+		WPA_LOGW("Sending EAPOL-Key 2/4 failed\n");
 #else
 		wpa_printf(MSG_WARNING, "Sending EAPOL-Key 2/4 failed");
 #endif
@@ -1867,7 +1867,7 @@ static void wpa_supplicant_process_3_of_4(struct wpa_sm *sm,
 
 	if (!send_success) {
 #ifdef CONFIG_NO_STDOUT_DEBUG
-		WPA_LOGE("Sending EAPOL-Key 4/4 failed\n");
+		WPA_LOGW("Sending EAPOL-Key 4/4 failed\n");
 #else
 		wpa_printf(MSG_WARNING, "Sending EAPOL-Key 4/4 failed");
 #endif
@@ -2271,7 +2271,7 @@ static void wpa_supplicant_process_1_of_2(struct wpa_sm *sm,
 
 	if (!send_success) {
 #ifdef CONFIG_NO_STDOUT_DEBUG
-		WPA_LOGE("Sending EAPOL-Key 2/2 failed\n");
+		WPA_LOGW("Sending EAPOL-Key 2/2 failed\n");
 #else
 		wpa_printf(MSG_WARNING, "Sending EAPOL-Key 2/2 failed");
 #endif

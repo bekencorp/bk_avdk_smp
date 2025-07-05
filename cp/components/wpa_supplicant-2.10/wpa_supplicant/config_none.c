@@ -82,7 +82,7 @@ static int set_wpa_psk(struct wpa_ssid *ssid, struct wpa_ie_data *ie)
 	if (ie->key_mgmt == WPA_KEY_MGMT_OWE || ie->key_mgmt == WPA_KEY_MGMT_SAE) {
 	    return errors;
 	} else if (g_sta_param_ptr->key_len < 8 || g_sta_param_ptr->key_len > 64) {
-		   WPA_LOGE("Invalid passphrase " "length %lu (expected: 8..63) '%s'.",
+		   WPA_LOGW("Invalid passphrase " "length %lu (expected: 8..63) '%s'.",
                    (unsigned long) g_sta_param_ptr->key_len, (char *)g_sta_param_ptr->key);
 		   errors++;
 		   return errors;

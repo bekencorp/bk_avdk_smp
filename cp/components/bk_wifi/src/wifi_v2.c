@@ -164,7 +164,7 @@ const char *wifi_sec_type_string(wifi_security_t security)
 #define WLAN_RETURN_NULL_POINTER(p)                  \
 	do {                                        \
 		if (p == NULL) {                        \
-			WPA_LOGE("invalid param\n");        \
+			WPA_LOGW("invalid param\n");        \
 			return -1;                          \
 		}                                       \
 	} while (0)
@@ -910,7 +910,7 @@ void bk_wlan_phy_show_cca(void)
 int wlan_sta_set(const uint8_t *ssid, uint8_t ssid_len, const uint8_t *psk)
 {
 	if ((!bk_feature_bssid_connect_enable() && (ssid == NULL || ssid_len == 0)) || ssid_len > WLAN_SSID_MAX_LEN) {
-		WPA_LOGE("invalid ssid (%p, %u)\n", ssid, ssid_len);
+		WPA_LOGW("invalid ssid (%p, %u)\n", ssid, ssid_len);
 		return BK_ERR_PARAM;
 	}
 
@@ -1320,7 +1320,7 @@ int wlan_sta_set_vendor_ie(wlan_sta_vsie_t *vsie)
 int wlan_ap_set(uint8_t *ssid, uint8_t ssid_len, uint8_t *psk)
 {
 	if ((ssid == NULL) || (ssid_len == 0) || (ssid_len > WLAN_SSID_MAX_LEN)) {
-		WPA_LOGE("invalid ssid (%p, %u)\n", ssid, ssid_len);
+		WPA_LOGW("invalid ssid (%p, %u)\n", ssid, ssid_len);
 		return -1;
 	}
 
