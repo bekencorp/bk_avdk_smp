@@ -91,7 +91,8 @@ typedef uintptr_t mem_ptr_t;
 #endif
 
 #ifndef LWIP_PLATFORM_DIAG
-#define LWIP_PLATFORM_DIAG(x) do {fatal_prf x ;} while(0)
+#define lwip_print(...)      BK_LOGI("LWIP", ##__VA_ARGS__)
+#define LWIP_PLATFORM_DIAG(x) do {lwip_print x ;} while(0)
 #endif 
  
 #define U16_F "4d"
