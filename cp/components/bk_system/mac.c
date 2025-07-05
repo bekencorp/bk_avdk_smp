@@ -475,9 +475,7 @@ static int mac_init(void)
 {
 	int ret = BK_FAIL;
 
-#if (CONFIG_BASE_MAC_FROM_EFUSE)
-        ret = read_base_mac_from_efuse(s_base_mac);
-#elif (CONFIG_NEW_MAC_POLICY)
+#if (CONFIG_NEW_MAC_POLICY)
         get_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
         ret = sync_mac_record();
 #elif (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
@@ -494,9 +492,7 @@ static int mac_init(void)
 	) {
 		os_memcpy(s_base_mac, DEFAULT_MAC_ADDR, BK_MAC_ADDR_LEN);
 		random_mac_address(s_base_mac);
-#if (CONFIG_BASE_MAC_FROM_EFUSE)
-		ret = write_base_mac_to_efuse(s_base_mac);
-#elif (CONFIG_NEW_MAC_POLICY)
+#if (CONFIG_NEW_MAC_POLICY)
 		save_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
 		ret = sync_mac_record();
 #elif (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
@@ -598,10 +594,7 @@ bk_err_t bk_set_base_mac(const uint8_t *mac)
 
 	os_memcpy(s_base_mac, mac, BK_MAC_ADDR_LEN);
 
-#if (CONFIG_BASE_MAC_FROM_EFUSE)
-	ret = write_base_mac_to_efuse(mac);
-	ret = read_base_mac_from_efuse(s_base_mac);
-#elif (CONFIG_NEW_MAC_POLICY)
+#if (CONFIG_NEW_MAC_POLICY)
 	ret = save_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
 	ret = sync_mac_record();
 	ret = get_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
