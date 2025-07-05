@@ -722,19 +722,19 @@ int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
     if (ap_key)
         key_len = os_strlen(ap_key);
     if (SSID_MAX_LEN < len) {
-        WDRV_LOGE("ssid name more than 32 Bytes\r\n");
+        WDRV_LOGW("ssid name more than 32 Bytes\r\n");
         return BK_FAIL;
     }
     if (0 == len) {
-        WDRV_LOGE("ssid name must not be null\r\n");
+        WDRV_LOGW("ssid name must not be null\r\n");
         return BK_FAIL;
     }
 
     if (8 > key_len)
-        WDRV_LOGE("key less than 8 Bytes, the security will be set NONE\r\n");
+        WDRV_LOGW("key less than 8 Bytes, the security will be set NONE\r\n");
 
     if (64 < key_len) {
-        WDRV_LOGE("key more than 64 Bytes\r\n");
+        WDRV_LOGW("key more than 64 Bytes\r\n");
         return BK_FAIL;
     }
 
@@ -755,7 +755,7 @@ int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
 
         channel = strtol(ap_channel, &end, 0);
         if (*end) {
-            WDRV_LOGE("Invalid number '%s'", ap_channel);
+            WDRV_LOGW("Invalid number '%s'", ap_channel);
             return BK_FAIL;
         }
         ap_config.channel = channel;
@@ -777,7 +777,7 @@ int demo_sta_app_init(char *oob_ssid, char *connect_key)
 
     len = os_strlen(oob_ssid);
     if (SSID_MAX_LEN < len) {
-        WDRV_LOGD("ssid name more than 32 Bytes\r\n");
+        WDRV_LOGW("ssid name more than 32 Bytes\r\n");
         return BK_FAIL;
     }
 #ifdef CONFIG_CONNECT_THROUGH_PSK_OR_SAE_PASSWORD
