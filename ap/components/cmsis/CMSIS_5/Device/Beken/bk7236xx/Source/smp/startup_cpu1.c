@@ -28,6 +28,7 @@
 #include "bk_pm_internal_api.h"
 #include "smp.h"
 #include "bk_rtos_debug.h"
+#include "interrupt_base.h"
 
 #if CONFIG_CM_BACKTRACE
 #include "cm_backtrace.h"
@@ -311,6 +312,8 @@ __NO_RETURN void Reset_Handler_Cpu1(void)
 #if CONFIG_FORCE_PROTECT_CHANNEL
   bk_mailbox_cc_init_on_current_core(rtos_get_core_id());
 #endif
+
+  secondary_core_interrupt_init();
 
   _othercore_start();
 
