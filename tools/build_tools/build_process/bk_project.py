@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
+import bk_packager
+
 
 @dataclass
 class app_info:
@@ -123,6 +125,17 @@ class bk_project(ABC):
 
     @abstractmethod
     def post_package(self) -> None: ...
+
+    def get_packager(
+        self, pack_dir: Path, pack_json: Path, output_bin: Path
+    ) -> bk_packager.bk_packager:
+        if self.flash_crc_enable:
+            packager = bk_packager.bk_packager_linear_crc(
+                pack_dir, pack_json, output_bin
+            )
+        else:
+            packager = bk_packager.bk_packager_linear(pack_dir, pack_json, output_bin)
+        return packager
 
     def _copy_bootloader_to_pack_dir(self, pack_dir: Path):
         origin_path = self.bootloader_archive_path

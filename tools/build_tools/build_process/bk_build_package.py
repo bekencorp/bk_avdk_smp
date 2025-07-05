@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 import shutil
 from pathlib import Path
 
-import bk_packager
 from bk_build_summary import bk_build_summary
 from bk_sdk.bk_curr_project import curr_project
 
@@ -34,39 +32,22 @@ def backup_bootloader_path():
     logger.info(f"backup bootloader to {bootloader_backup_path}")
 
 
-class bk_build_packager:
-    def __init__(self, pack_dir: Path, pack_json: Path):
-        if not os.path.exists(pack_dir):
-            raise RuntimeError(f"{pack_dir} not found")
-        if not os.path.exists(pack_json):
-            raise FileNotFoundError(f"{pack_json} not found")
-        self.pack_dir = pack_dir
-        self.pack_json = pack_json
-        with self.pack_json.open("r") as f:
-            self.part_info = json.load(f)
-        self.crc_enable = self.part_info["crc_enable"]
+def pack_all_bin(pack_dir: Path, pack_json: Path, output_bin: Path):
+    def binary_align_32_byte(bin_path: Path):
+        if not bin_path.exists():
+            raise RuntimeError(f"{bin_path} no exist.")
+        bin_size = output_bin.stat().st_size
+        padding_size = (32 - bin_size % 32) % 32
+        with bin_path.open("ab") as f:
+            f.write(bytes([0xFF] * padding_size))
 
-    def pack_all_bin(self, output_bin: Path):
-        def binary_align_32_byte(bin_path: Path):
-            if not bin_path.exists():
-                raise RuntimeError(f"{bin_path} no exist.")
-            bin_size = output_bin.stat().st_size
-            padding_size = (32 - bin_size % 32) % 32
-            with bin_path.open("ab") as f:
-                f.write(bytes([0xFF] * padding_size))
-
-        if self.crc_enable:
-            packager = bk_packager.bk_packager_linear_crc(
-                self.pack_dir, self.pack_json, output_bin
-            )
-        else:
-            packager = bk_packager.bk_packager_linear(
-                self.pack_dir, self.pack_json, output_bin
-            )
-
-        packager.pack()
-        # cmake_Gen_img 32byte align, so do same here.
-        binary_align_32_byte(output_bin)
+    if not pack_json.exists():
+        raise FileNotFoundError(f"{pack_json} not found")
+    pack_dir.mkdir(parents=True, exist_ok=True)
+    packager = curr_project.get_packager(pack_dir, pack_json, output_bin)
+    packager.pack()
+    # cmake_Gen_img 32byte align, so do same here.
+    binary_align_32_byte(output_bin)
 
 
 def gen_build_summary(output_info: str):
@@ -85,19 +66,6 @@ def gen_build_summary(output_info: str):
     summary.gen_summary(sumary_file)
 
 
-def prepare_apps_bin_to_pack_dir(pack_dir: Path):
-    def copy_binaries_to_pack_dir(origin_path: Path, pack_path: Path):
-        if not origin_path.exists():
-            raise FileNotFoundError(f"{origin_path} not found.")
-        shutil.copy(origin_path, pack_path)
-
-    app_list = curr_project.apps_info
-    for app in app_list:
-        app_build_bin = app.build_bin
-        app_pack_bin = pack_dir / app.pack_bin_name
-        copy_binaries_to_pack_dir(app_build_bin, app_pack_bin)
-
-
 def firmware_package():
     build_pack_dir = curr_project.project_build_package_dir
     all_app_bin = build_pack_dir / "all-app.bin"
@@ -108,8 +76,7 @@ def firmware_package():
         pack_dir_temp.mkdir()
     curr_project.copy_binaries_to_pack_dir(pack_dir_temp)
     os.chdir(build_pack_dir)
-    packager = bk_build_packager(pack_dir_temp, pack_json)
-    packager.pack_all_bin(all_app_bin)
+    pack_all_bin(pack_dir_temp, pack_json, all_app_bin)
     return all_app_bin
 
 
