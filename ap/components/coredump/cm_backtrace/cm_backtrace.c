@@ -127,7 +127,7 @@ static const char * const print_info[] = {
 };
 
 #if CONFIG_FREERTOS_SMP
-#define NR_CPUS            3
+#define NR_CPUS            2
 #else
 #define NR_CPUS            1
 #endif

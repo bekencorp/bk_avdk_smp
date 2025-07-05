@@ -73,12 +73,22 @@ int app_time_rtc_ntp_sync_init(void)
         return 0;
     }
 
-	int ret = rtos_create_thread(NULL,
-	                         5,
-	                         "ntp_sync_task",
-	                         (beken_thread_function_t)ntp_sync_thread_enrty,
-	                         1.5 * 1024,
-	                         NULL);
+	void *pxTaskTCBBuffer = NULL;
+	void *pxTaskStackBuffer = NULL;
+	uint32_t ulTaskStackSize;
+
+	void rtos_get_ntp_task_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize);
+	rtos_get_ntp_task_memory(&pxTaskTCBBuffer, &pxTaskStackBuffer, &ulTaskStackSize);
+	int ret = rtos_create_thread_static(NULL,
+							5,
+							"ntp_sync_task",
+							(beken_thread_function_t)ntp_sync_thread_enrty,
+							ulTaskStackSize,
+							( void * ) NULL, 
+							pxTaskStackBuffer,
+							pxTaskTCBBuffer,
+							-1);
+
 	if (ret)
 	{
 		LOGD("ntp_sync_thread_enrty create fail!\r\n");

@@ -489,7 +489,7 @@ SECTIONS
     bss_size = _bss_end - _bss_start;
 
 #if (CONFIG_SOC_SMP)
-	_msp_total_size = __MSP_STACK_SIZE * 3;
+	_msp_total_size = __MSP_STACK_SIZE * 2;
 #else
 	_msp_total_size = __MSP_STACK_SIZE;
 #endif
@@ -506,7 +506,7 @@ SECTIONS
 /*multiple cores require independent stack spaces*/
 #if (CONFIG_SOC_SMP)
     /* ASSERT((CONFIG_CPU_CNT == 3), "cpu count exceptional!!!") */
-    .stack_cpu2 (ORIGIN(RAM) + LENGTH(RAM) - __MSP_STACK_SIZE*2 - __MSP_STACK_SIZE) (COPY) :
+    /* .stack_cpu2 (ORIGIN(RAM) + LENGTH(RAM) - __MSP_STACK_SIZE*2 - __MSP_STACK_SIZE) (COPY) :
     {
         . = ALIGN(8);
         _sstack_cpu2 = .;
@@ -516,6 +516,7 @@ SECTIONS
         __StackTopCpu2 = .;
         _estack_cpu2 = .;
     } > RAM
+    */
 
     .stack_cpu1 (ORIGIN(RAM) + LENGTH(RAM) - __MSP_STACK_SIZE*2) (COPY) :
     {

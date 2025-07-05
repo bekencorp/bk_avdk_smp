@@ -1651,11 +1651,16 @@ static void shell_log_tx_init(void)
 	dynamic_log_init();
 }
 
-#define LOG_HANDLE_TASK_STACK 0x200
+
 beken_thread_t log_thread_handle = NULL;
+void rtos_get_logtask_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize);
 void create_log_handle_task(void)
 {
 	int ret;
+	void *pxTaskTCBBuffer = NULL;
+	void *pxTaskStackBuffer = NULL;
+	uint32_t ulTaskStackSize;
+
 	shell_log_event.event_flag = 0;
 
 	check_and_free_dynamic_node();
@@ -1664,12 +1669,16 @@ void create_log_handle_task(void)
 
 	rtos_init_semaphore_ex(&log_buf_semaphore, 1, 1);               // semaphore for log block mode.
 
-	ret = rtos_create_thread(&log_thread_handle,
-							 4,
-							 "log_hanlder",
-							 (beken_thread_function_t)log_handle_task,
-							 LOG_HANDLE_TASK_STACK,
-							 0);
+	rtos_get_logtask_memory(&pxTaskTCBBuffer, &pxTaskStackBuffer, &ulTaskStackSize);
+	ret = rtos_create_thread_static(&log_thread_handle,
+							4,
+							"log_hanlder",
+							(beken_thread_function_t)log_handle_task,
+							ulTaskStackSize,
+							( void * ) NULL, 
+							pxTaskStackBuffer,
+							pxTaskTCBBuffer,
+							-1);
 	if (ret != 0) {
 		BK_LOGD(NULL, "create log handler task fail!\r\n");
 		return;

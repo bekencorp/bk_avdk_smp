@@ -501,8 +501,23 @@ bk_err_t bk_event_init(void)
 		return BK_ERR_EVENT_CREATE_QUEUE;
 	}
 
-	ret = rtos_create_thread(&s_event_task, EVENT_TASK_PRIORITY, "event",
-							 (beken_thread_function_t)event_task, EVENT_TASK_STACK_SIZE, 0);
+
+	void *pxTaskTCBBuffer = NULL;
+	void *pxTaskStackBuffer = NULL;
+	uint32_t ulTaskStackSize;
+
+	void rtos_get_event_task_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize);
+	rtos_get_event_task_memory(&pxTaskTCBBuffer, &pxTaskStackBuffer, &ulTaskStackSize);
+	ret = rtos_create_thread_static(&s_event_task,
+							EVENT_TASK_PRIORITY,
+							"event",
+							(beken_thread_function_t)event_task,
+							ulTaskStackSize,
+							( void * ) NULL, 
+							pxTaskStackBuffer,
+							pxTaskTCBBuffer,
+							-1);
+
 	if (kNoErr != ret) {
 		rtos_deinit_queue(&s_event_queue);
 		s_event_queue = NULL;

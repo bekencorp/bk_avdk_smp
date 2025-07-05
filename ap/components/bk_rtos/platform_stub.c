@@ -30,24 +30,36 @@
 /************** wrap C library functions **************/
 __attribute__((weak)) void *__wrap_malloc(size_t size)
 {
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+    return psram_malloc(size);
+#else
 	return os_malloc(size);
+#endif
 }
 
 __attribute__((weak)) void *__wrap__malloc_r(void *p, size_t size)
 {
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+    return psram_malloc(size);
+#else
 	return os_malloc(size);
+#endif
 }
 
 __attribute__((weak)) void __wrap_free(void *pv)
 {
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+    psram_free(pv);
+#else
 	os_free(pv);
+#endif
 }
 
 __attribute__((weak)) void *__wrap_calloc(size_t a, size_t b)
 {
 	void *pvReturn;
 
-	pvReturn = os_malloc(a * b);
+	pvReturn = __wrap_malloc(a * b);
 	if (pvReturn)
     {
         os_memset(pvReturn, 0, a*b);
@@ -58,7 +70,11 @@ __attribute__((weak)) void *__wrap_calloc(size_t a, size_t b)
 
 __attribute__((weak)) void *__wrap_realloc(void *pv, size_t size)
 {
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+    return psram_realloc(pv, size);
+#else
 	return os_realloc(pv, size);
+#endif
 }
 
 __attribute__((weak)) void __wrap__free_r(void *p, void *x)
@@ -73,7 +89,11 @@ __attribute__((weak)) void *__wrap__realloc_r(void *p, void *x, size_t sz)
 
 __attribute__((weak)) void *__wrap_zalloc(size_t size)
 {
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+    return psram_zalloc(size);
+#else
 	return os_zalloc(size);
+#endif
 }
 
 int __wrap_strlen (char *src)

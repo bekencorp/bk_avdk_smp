@@ -146,7 +146,7 @@ void *os_realloc(void *ptr, size_t size);
   *
   */
 void *bk_psram_realloc(void *ptr, size_t size);
-
+void *psram_realloc(void *ptr, size_t size);
 
 #if (CONFIG_MALLOC_STATIS || CONFIG_MEM_DEBUG)
 void *os_malloc_debug(const char *func_name, int line, size_t size, int need_zero);

@@ -56,6 +56,23 @@ menu "Bk_cli"
 			help
 				MAX number of commands is configured by default
 
+		config SHELL_TASK_STACK_SIZE
+			depends on CLI
+			int "Set Shell Task Stack Size"
+			range 0 65535
+			default 7168
+			help
+				Set Shell Task Stack Size
+
+		config LOG_TASK_STACK_SIZE
+			depends on CLI
+			int "Set Shell Task Stack Size"
+			range 0 65535
+			default 512
+			help
+				Set Shell Task Stack Size
+
+
 		config IPERF_TEST
 			depends on CLI
 			bool "Enable Iperf Test"

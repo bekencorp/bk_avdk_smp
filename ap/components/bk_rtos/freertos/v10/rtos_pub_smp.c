@@ -18,6 +18,7 @@
 #include <driver/gpio.h>
 #include "rtos_impl.h"
 #include "cmsis_gcc.h"
+#include "spinlock.h"
 
 #define TAG "Rtos"
 
@@ -156,21 +157,21 @@ bk_err_t rtos_create_thread_static(beken_thread_t* thread,
     if ((core_id != 0) && (core_id != 1)) {
         core_id = tskNO_AFFINITY;
     }
-    thread =  (beken_thread_t* )xTaskCreateStaticPinnedToCore( function,
+    thread =  (beken_thread_t* )xTaskCreateStaticPinnedToCore( (native_thread_t)function,
                                                                 name,
-                                                                stack_size,
+                                                                (unsigned short) (stack_size/sizeof( portSTACK_TYPE )),
                                                                 arg,
-                                                                priority,
+                                                                BK_PRIORITY_TO_NATIVE_PRIORITY(priority),
                                                                 (StackType_t * const)TaskStackBuffer,
                                                                 (StaticTask_t * const)TaskTCBBuffer,
                                                                 core_id );
      if(thread != NULL )
      {
-        return pdPASS;
+        return kNoErr;
      }
      else
      {
-        return pdFAIL;
+        return kGeneralErr;
      }
 }
 
@@ -1502,3 +1503,72 @@ the stack and so not exists after this function exits. */
 
 #endif // (configSUPPORT_STATIC_ALLOCATION == 1) && (configUSE_TIMERS == 1)
 
+
+
+void rtos_get_shelltask_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize)
+{
+
+    static SPINLOCK_SECTION StaticTask_t xShellTaskTCB = {0};
+    static SPINLOCK_SECTION StackType_t uxShellTaskStack[ CONFIG_SHELL_TASK_STACK_SIZE/sizeof(StackType_t)] = {0};
+
+    /* Pass out a pointer to the StaticTask_t structure in which the Shell task's
+    state will be stored. */
+    *ppxTaskTCBBuffer = &xShellTaskTCB;	//@cyg:TODO:temp uses 3 to avoid overflow
+
+    /* Pass out the array that will be used as the Shell task's stack. */
+    *ppxTaskStackBuffer = &uxShellTaskStack[0];	//@cyg:TODO:temp uses 3 to avoid overflow
+
+    *pulTaskStackSize = CONFIG_SHELL_TASK_STACK_SIZE;
+}
+
+
+void rtos_get_logtask_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize)
+{
+
+    static SPINLOCK_SECTION StaticTask_t xLogTaskTCB = {0};
+    static SPINLOCK_SECTION StackType_t uxLogTaskStack[ CONFIG_LOG_TASK_STACK_SIZE/sizeof(StackType_t)] = {0};
+
+    /* Pass out a pointer to the StaticTask_t structure in which the Shell task's
+    state will be stored. */
+    *ppxTaskTCBBuffer = &xLogTaskTCB;	
+
+    /* Pass out the array that will be used as the Shell task's stack. */
+    *ppxTaskStackBuffer = &uxLogTaskStack[0];	
+
+    *pulTaskStackSize = CONFIG_LOG_TASK_STACK_SIZE;
+}
+
+
+
+void rtos_get_ntp_task_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize)
+{
+
+    static SPINLOCK_SECTION StaticTask_t xNtpTaskTCB = {0};
+    static SPINLOCK_SECTION StackType_t uxNtpTaskStack[ CONFIG_NTP_SYNC_RTC_TASK_STACK_SIZE/sizeof(StackType_t)] = {0};
+
+    /* Pass out a pointer to the StaticTask_t structure in which the Shell task's
+    state will be stored. */
+    *ppxTaskTCBBuffer = &xNtpTaskTCB;	
+
+    /* Pass out the array that will be used as the Shell task's stack. */
+    *ppxTaskStackBuffer = &uxNtpTaskStack[0];	
+
+    *pulTaskStackSize = CONFIG_NTP_SYNC_RTC_TASK_STACK_SIZE;
+}
+
+
+void rtos_get_event_task_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize)
+{
+
+    static SPINLOCK_SECTION StaticTask_t xEventTaskTCB = {0};
+    static SPINLOCK_SECTION StackType_t uxEventTaskStack[ CONFIG_EVENT_TASK_STACK_SIZE/sizeof(StackType_t)] = {0};
+
+    /* Pass out a pointer to the StaticTask_t structure in which the Shell task's
+    state will be stored. */
+    *ppxTaskTCBBuffer = &xEventTaskTCB;	
+
+    /* Pass out the array that will be used as the Shell task's stack. */
+    *ppxTaskStackBuffer = &uxEventTaskStack[0];	
+
+    *pulTaskStackSize = CONFIG_EVENT_TASK_STACK_SIZE;
+}

@@ -28,4 +28,10 @@ menu "App"
 		bool "Enable Seucirty Ota API"
 		default n
 
+	config NTP_SYNC_RTC_TASK_STACK_SIZE
+		int "Set NTP Sync Task Stack Size"
+		default 3072
+		help
+			Stack size of NTP Sync task
+
 endmenu

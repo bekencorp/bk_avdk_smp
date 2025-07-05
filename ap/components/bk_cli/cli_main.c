@@ -1250,6 +1250,48 @@ static const struct cli_command user_clis[] = {
 #endif
 
 beken_thread_t cli_thread_handle = NULL;
+
+int create_shell_task(void) {
+	int ret;
+	void *pxTaskTCBBuffer = NULL;
+	void *pxTaskStackBuffer = NULL;
+	uint32_t ulTaskStackSize;
+#if CONFIG_SHELL_ASYNCLOG
+#if CONFIG_ATE_TEST
+	ret = rtos_create_thread(&cli_thread_handle,
+							 SHELL_TASK_PRIORITY,
+							 "cli",
+							 (beken_thread_function_t)cli_ate_main /*cli_main*/,
+							 4096,
+							 0);
+#else
+
+	void rtos_get_shelltask_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize);
+	rtos_get_shelltask_memory(&pxTaskTCBBuffer, &pxTaskStackBuffer, &ulTaskStackSize);
+	ret = rtos_create_thread_static(&cli_thread_handle,
+							 SHELL_TASK_PRIORITY,
+							 "cli",
+							 (beken_thread_function_t)shell_task,
+							 ulTaskStackSize,
+							 ( void * ) NULL, 
+							 pxTaskStackBuffer,
+							 pxTaskTCBBuffer,
+							 -1);
+
+#endif
+#else // #if CONFIG_SHELL_ASYNCLOG
+	ret = rtos_create_thread(&cli_thread_handle,
+							 BEKEN_DEFAULT_WORKER_PRIORITY,
+							 "cli",
+							 (beken_thread_function_t)cli_main,
+							 3072,
+							 0);
+#endif // #if CONFIG_SHELL_ASYNCLOG
+
+	return ret;
+}
+
+
 int bk_cli_init(void)
 {
 	int ret;
@@ -1422,12 +1464,6 @@ int bk_cli_init(void)
 	cli_cs2_p2p_init();
 #endif
 
-#if (CONFIG_SOC_BK7271)
-#if CONFIG_BT
-	bk7271_ble_cli_init();
-#endif
-#endif
-
 #if (CLI_CFG_MATTER == 1)
     cli_matter_init();
 #endif
@@ -1465,11 +1501,11 @@ int bk_cli_init(void)
 	cli_mem_init();
 #endif
 
-#if ((CONFIG_SOC_BK7236XX) && (CLI_CFG_FPB == 1))
+#if (CLI_CFG_FPB == 1)
 	cli_fpb_init();
 #endif
 
-#if ((CONFIG_SOC_BK7236XX) && (CLI_CFG_DWT == 1))
+#if (CLI_CFG_DWT == 1)
 	cli_dwt_init();
 #endif
     
@@ -1591,10 +1627,8 @@ int bk_cli_init(void)
     cli_easyflash_init();
 #endif
 
-#if CONFIG_SOC_BK7236XX
-	#if CONFIG_OTP_V1 && CONFIG_OTP_TEST
-		cli_otp_init();
-	#endif
+#if CONFIG_OTP_V1 && CONFIG_OTP_TEST
+	cli_otp_init();
 #endif
 
 #if (CLI_CFG_KEY_DEMO == 1)
@@ -1677,32 +1711,8 @@ int bk_cli_init(void)
 
 #endif  // CONFIG_CLI
 
-#if CONFIG_SHELL_ASYNCLOG
-#if CONFIG_ATE_TEST
-	ret = rtos_create_thread(&cli_thread_handle,
-							 SHELL_TASK_PRIORITY,
-							 "cli",
-							 (beken_thread_function_t)cli_ate_main /*cli_main*/,
-							 4096,
-							 0);
-#else
+	ret = create_shell_task();
 
-	ret = rtos_create_thread(&cli_thread_handle,
-							 SHELL_TASK_PRIORITY,
-							 "cli",
-							 (beken_thread_function_t)shell_task,
-							 1024*7,
-							 0);
-
-#endif
-#else // #if CONFIG_SHELL_ASYNCLOG
-	ret = rtos_create_thread(&cli_thread_handle,
-							 BEKEN_DEFAULT_WORKER_PRIORITY,
-							 "cli",
-							 (beken_thread_function_t)cli_main,
-							 3072,
-							 0);
-#endif // #if CONFIG_SHELL_ASYNCLOG
 	if (ret != kNoErr) {
 		BK_LOGD(NULL, "Error: Failed to create cli thread: %d\r\n",
 				  ret);
