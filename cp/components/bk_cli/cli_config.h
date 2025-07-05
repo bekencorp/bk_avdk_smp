@@ -31,7 +31,7 @@ extern "C" {
 #define CLI_CFG_WIFI        0
 #endif //#if (CONFIG_WIFI_ENABLE)
 
-#define CLI_CFG_BLE         0
+#define CLI_CFG_BLE         1
 
 #if (CONFIG_BK_NETIF)
 #define CLI_CFG_NETIF       1
