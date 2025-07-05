@@ -19,8 +19,8 @@ def set_logging():
 def ram_region_partition(partitions_dir: Path, ram_regions_table: Path):
     ram_regions = bk_ram_region(ram_regions_table)
     ram_regions_hdr_file = partitions_dir / "ram_regions.h"
-    smp_default_config = curr_project.ram_regions_setting
-    with smp_default_config.open("r") as f:
+    bk_default_config = curr_project.ram_regions_setting
+    with bk_default_config.open("r") as f:
         def_config = json.load(f)
     sram_addr = int(def_config["SRAM_BASE_ADDR"], 16)
     sram_size = parse_format_size(def_config["SRAM_CAPACITY"])

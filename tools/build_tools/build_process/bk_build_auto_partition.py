@@ -7,7 +7,6 @@ from typing import Any
 
 from bk_auto_partition import bk_partitions_table, partition_limit
 from bk_flash_partiton import bk_flash_partition
-from bk_ota_partition import bk_ota_partition
 from bk_sdk.bk_curr_project import curr_project
 from bk_sdk.bk_flash_partitions_generator import bk_flash_denpendecny_generator
 
@@ -94,21 +93,15 @@ def auto_patitions(partitions_dir: Path, auto_part_table: Path, flash_crc_enable
     partitioner.gen_partition_header()
     partitioner.gen_pack_config_json()
 
-    ota_partition_json = partitions_dir / "bk_ota_partitions.json"
-    ota_partition = bk_ota_partition(partitions_json)
-    if curr_project.is_ab_project:
-        ota_partition.gen_ab_ota_json(ota_partition_json)
-        ota_partition.gen_ab_configuartion_json(partitions_dir / "configurationab.json")
-    else:
-        ota_partition.gen_ota_json(ota_partition_json)
-
 
 def main():
     logger.info("Enter Armino Auto Partition")
     build_partitions_dir = curr_project.project_build_parititons_dir
     auto_part_table = curr_project.auto_partitions_table
     flash_crc_enable = curr_project.flash_crc_enable
+    curr_project.pre_auto_partition()
     auto_patitions(build_partitions_dir, auto_part_table, flash_crc_enable)
+    curr_project.post_auto_partition()
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@ import shutil
 import sys
 from pathlib import Path
 
-from bk_sdk.bk_curr_project import curr_project
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -72,6 +71,8 @@ def install_configs(cfg_dir: Path, install_dir: Path):
 
 
 def prebuild():
+    from bk_curr_project import curr_project
+
     soc_name: str = curr_project.soc_name
     tools_dir = curr_project.tools_path
     cpu0_armino_soc = curr_project.app0_name
@@ -111,4 +112,5 @@ def prebuild():
 
 if __name__ == "__main__":
     set_logging()
+    sys.path.append(str(Path(__file__).parent.parent))
     prebuild()

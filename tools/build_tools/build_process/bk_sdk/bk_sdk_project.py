@@ -180,3 +180,26 @@ class bk_sdk_project(bk_project):
         else:
             app_type = "cp"
         return self.sdk_path / app_type / "middleware/boards" / app_name
+
+    def pre_auto_partition(self) -> None:
+        pass
+
+    def post_auto_partition(self) -> None:
+        from .bk_ota_pack import gen_ota_pack_json
+
+        gen_ota_pack_json()
+
+    def pre_package(self) -> None:
+        pass
+
+    def post_package(self) -> None:
+        from .bk_ota_pack import ota_pack
+
+        ota_bin = ota_pack()
+        self.build_summary += f"ota binary: {ota_bin}\n"
+
+    def _copy_bootloader_to_pack_dir(self, pack_dir: Path):
+        """ override super class method"""
+        from .bk_ota_pack import handle_bootloader_bin
+
+        handle_bootloader_bin(pack_dir)
