@@ -129,13 +129,13 @@ static void atsvr_handle_input_proxy(beken_thread_arg_t arg)
 	atsvr_msg_t msg;
 	msg.type = ATSVR_MSG_STREAM;
 	msg.sub_type = ATSVR_SUBMSG_NONE;
-	msg.len = proxy->cmd_data_len;
+	msg.len = proxy->cmd_data_len+1;
 	msg.msg_param =at_malloc(msg.len);
 	memcpy((char*)msg.msg_param,proxy->cmd_buff,proxy->cmd_data_len);
 
 	char* ptr;
 	ptr = (char*)msg.msg_param;
-	ptr[proxy->cmd_data_len-1] = '\0';
+	ptr[proxy->cmd_data_len] = '\0';
 	atsvr_msg_handler(&msg);
 	at_free(msg.msg_param);
 
