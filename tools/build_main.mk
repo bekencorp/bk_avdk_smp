@@ -1,6 +1,4 @@
 export ARMINO_AVDK_DIR := $(CURDIR)
-
-
 export ARMINO_AP_DIR := $(ARMINO_AVDK_DIR)/ap
 export ARMINO_CP_DIR := $(ARMINO_AVDK_DIR)/cp
 
@@ -29,7 +27,6 @@ export SOC_SUPPORTED_TARGETS_CP := ${soc_targets_cp}
 export ARMINO_SOC := $(findstring $(MAKECMDGOALS), $(soc_targets))
 export CMD_TARGET := $(MAKECMDGOALS)
 
-export ARMINO_SOC_NAME = $(ARMINO_SOC)
 
 ifeq ("$(APP_VERSION)", "")
 	export APP_VERSION := unknown
@@ -59,11 +56,13 @@ else
 	ARMINO_TARGET := build
 endif
 
+export ARMINO_SOC_NAME ?= $(ARMINO_SOC)
+
 export PROJECT_NAME := $(notdir $(PROJECT_DIR))
 ifneq ("$(BUILD_DIR)", "")
-	export PROJECT_BUILD_DIR := $(BUILD_DIR)/$(ARMINO_SOC)/$(PROJECT_NAME)
+	export PROJECT_BUILD_DIR := $(BUILD_DIR)/$(ARMINO_SOC_NAME)/$(PROJECT_NAME)
 else
-	export PROJECT_BUILD_DIR := $(CURDIR)/build/$(ARMINO_SOC)/$(PROJECT_NAME)
+	export PROJECT_BUILD_DIR := $(CURDIR)/build/$(ARMINO_SOC_NAME)/$(PROJECT_NAME)
 endif
 
 ifdef USE_LIBS_DETERMINED_MODE
@@ -136,7 +135,7 @@ else
 	export PYTHONPATH := $(ARMINO_TOOLS_PATH)/env_tools/bk_py_libs:$(PYTHONPATH)
 endif
 
-AUTO_PARTITION_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC)/auto_partitions.csv
+AUTO_PARTITION_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/auto_partitions.csv
 export PARTITIONS_DIR := $(PROJECT_BUILD_DIR)/partitions
 auto_partition_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_auto_partition.py
 auto_partition_out := $(PARTITIONS_DIR)/partitions.txt
@@ -151,7 +150,7 @@ print_partitions: $(auto_partition_out)
 	@echo ============================================================
 
 ram_partition_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_ram_regions.py
-RAM_REGIONS_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC)/ram_regions.csv
+RAM_REGIONS_TABLE := $(PROJECT_DIR)/partitions/$(ARMINO_SOC_NAME)/ram_regions.csv
 ram_regions_out := $(PARTITIONS_DIR)/ram_regions.h
 $(ram_regions_out): $(RAM_REGIONS_TABLE)
 	@mkdir -p $(PARTITIONS_DIR)
@@ -180,6 +179,11 @@ smp_doc:
 	@python3 ./tools/armino_doc.py $(DOCS_PARAMTERS)
 
 doc: smp_doc ap_doc cp_doc
+
+# only build bootloader
+bootloader_build_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_sdk/bl_build.py
+bl:
+	@python $(bootloader_build_script) $(PROJECT_DIR) $(CURDIR)/build bk7258
 
 clean:
 	@echo "rm -rf ./build"
