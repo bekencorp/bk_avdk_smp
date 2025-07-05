@@ -64,6 +64,9 @@
 #if CONFIG_EASY_FLASH_FAST_CONNECT
 #include "bk_ef.h"
 #endif
+#if CONFIG_WIFI_VNET_CONTROLLER
+#include "cif_cntrl.h"
+#endif
 
 #define MAX_OWE_TRANSITION_BSS_SELECT_COUNT 5
 
@@ -2403,6 +2406,10 @@ static int _wpa_supplicant_event_scan_results(struct wpa_supplicant *wpa_s,
 	}
 #ifdef BK_SUPPLICANT
 	wpas_notify_scan_results(wpa_s, manual_scan_use_id);
+	#if CONFIG_WIFI_VNET_CONTROLLER
+	uint32_t scan_use_time = wpa_s->scan_use_time.sec*1000000 + wpa_s->scan_use_time.usec;
+	cif_handle_bk_cmd_scan_wifi_ind(manual_scan_use_id, scan_use_time);
+	#endif
 #else
 	wpas_notify_scan_results(wpa_s);
 #endif

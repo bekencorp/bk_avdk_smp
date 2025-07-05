@@ -347,64 +347,36 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_req(struct bk_msg_hdr *msg)
 
     cif_bk_cmd_confirm(msg, NULL, 0);
 
+    wifi_scan_config_t scan_config = {0};
     int len = os_strlen((const char *)req->ssid);
+
     if(0 == len)
     {
         CTRL_IF_CMD("%s,len 0\n",__func__);
-        demo_scan_adv_app_init(NULL);
+        BK_LOG_ON_ERR(bk_wifi_scan_start(NULL));
     }
     else
     {
         CTRL_IF_CMD("%s,ssid %s\n",__func__,req->ssid);
-        demo_scan_adv_app_init(req->ssid);
+        os_strncpy(scan_config.ssid, (char *)req->ssid, WIFI_SSID_STR_LEN);
+        BK_LOG_ON_ERR(bk_wifi_scan_start(&scan_config));
     }
 
     return BK_OK;
 
 }
 
-bk_err_t cif_handle_bk_cmd_scan_wifi_ind(wifi_scan_result_t *scan_result)
+bk_err_t cif_handle_bk_cmd_scan_wifi_ind(uint32_t scan_id,uint32_t scan_use_time)
 {
     bk_err_t ret;
-    struct bk_msg_scan_wifi_result_ind *scan_ind =NULL;
-    uint8_t ap_num = 0;
-    CTRL_IF_CMD("%s\n",__func__);
 
-#if 0
-    if (!cif_env.host_powerup)
-    {
-        CTRL_IF_CMD("Host does NOT power on, SKIP bk_cmd_scan_wifi_ind\n");
-        return BK_OK;
-    }
-#endif
-    ap_num = scan_result->ap_num;
-    if (ap_num > CIF_MAX_SCAN_AP_CNT_TO_HOST)
-    {
-        ap_num = CIF_MAX_SCAN_AP_CNT_TO_HOST;
-    }
+    #if BK_SUPPLICANT
+    wifi_event_scan_done_t event_data = {0};
+    event_data.scan_id = scan_id;
+    event_data.scan_use_time = scan_use_time;
+    #endif
 
-    scan_ind = os_malloc(ap_num*sizeof(struct bk_msg_scan_wifi_result_ind));
-    if (scan_ind == NULL)
-    {
-        CTRL_IF_CMD("Failed to allocate memory\n");
-        return BK_FAIL;
-    }
-
-    for (int i =0; i < ap_num; i++)
-    {
-        (scan_ind+i)->scan_num = i;
-        strncpy((char *)(scan_ind+i)->ssid, scan_result->aps[i].ssid ,AP_SSID_BUF_MAX);
-        os_memcpy((scan_ind+i)->bssid, scan_result->aps[i].bssid, WIFI_BSSID_LEN);
-        (scan_ind+i)->channel = scan_result->aps[i].channel;
-        (scan_ind+i)->akm = scan_result->aps[i].security;
-        (scan_ind+i)->rssi = scan_result->aps[i].rssi;
-        // BK_LOGD(NULL,"Jack Debug info: %s, %d, %d\n", __func__, __LINE__, (scan_ind+i)->rssi);
-        // stack_mem_dump((uint32_t)(scan_ind+i),(uint32_t)(scan_ind+i+1));
-    }
-
-    ret = cif_bk_send_event(BK_EVT_SCAN_WIFI_IND, (uint8_t *)scan_ind, ap_num*sizeof(struct bk_msg_scan_wifi_result_ind));
-    os_free(scan_ind);
-
+    ret = cif_bk_send_event(BK_EVT_SCAN_WIFI_IND, (uint8_t *)(&event_data), sizeof(event_data));
     return ret;
 }
 

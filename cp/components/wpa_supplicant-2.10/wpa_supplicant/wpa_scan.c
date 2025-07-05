@@ -38,6 +38,9 @@
 #include "bk_feature.h"
 #include "components/event.h"
 
+#if CONFIG_WIFI_VNET_CONTROLLER
+#include "cif_cntrl.h"
+#endif
 __maybe_unused static int wpa_supplicant_start_sched_scan(struct wpa_supplicant *wpa_s,
 				struct wpa_driver_scan_params *params);
 __maybe_unused static struct wpa_driver_scan_filter *
@@ -2980,6 +2983,10 @@ void scan_only_handler(struct wpa_supplicant *wpa_s,
 	}
 #ifdef BK_SUPPLICANT
 	wpas_notify_scan_results(wpa_s, manual_scan_use_id);
+	#if CONFIG_WIFI_VNET_CONTROLLER
+	uint32_t scan_use_time = wpa_s->scan_use_time.sec*1000000 + wpa_s->scan_use_time.usec;
+	cif_handle_bk_cmd_scan_wifi_ind(manual_scan_use_id, scan_use_time);
+	#endif
 #else
 	wpas_notify_scan_results(wpa_s);
 #endif

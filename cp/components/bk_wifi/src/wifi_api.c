@@ -35,9 +35,6 @@ static int wlan_scan_done_handler(void *arg, event_module_t event_module,
 	if (thread_id == event_data->scan_id) {
 	BK_LOG_ON_ERR(bk_wifi_scan_get_result(&scan_result));
 	BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
-#if CONFIG_WIFI_VNET_CONTROLLER
-	cif_handle_bk_cmd_scan_wifi_ind(&scan_result);
-#endif
 	bk_wifi_scan_free_result(&scan_result);
 	}
 

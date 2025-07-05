@@ -295,7 +295,7 @@ static int at_wlan_scan_done_handler(void *arg, event_module_t event_module,
 static int at_wlan_scan_start(wifi_scan_config_t *scan_config,AT_WLAN_SCAN_ATTR_T scan_attr,int notice_val)
 {	
 	int err;
-	//wifi_scan_result_t scan_result = {0};
+	wifi_scan_result_t scan_result = {0};
 	if(at_wlan_cfg.at_wlan_scan_sema == NULL ) {
 		err = rtos_init_semaphore(&at_wlan_cfg.at_wlan_scan_sema,1);
 		if(err != kNoErr){
@@ -323,11 +323,9 @@ static int at_wlan_scan_start(wifi_scan_config_t *scan_config,AT_WLAN_SCAN_ATTR_
 					BK_LOGE(TAG,"scan time exceeded!\r\n");
 				}
 			}
-			BK_LOGV(TAG,"atsvr scan get semaphore !\r\n");
-			// TODO:
-			//bk_wifi_scan_get_result(&scan_result); 
-			//BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
-    		//bk_wifi_scan_free_result(&scan_result);
+			bk_wifi_scan_get_result(&scan_result); 
+			BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
+			bk_wifi_scan_free_result(&scan_result);
 		}
 	}
 	else {

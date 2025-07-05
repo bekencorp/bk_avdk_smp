@@ -136,6 +136,9 @@ int wdrv_get_mac_addr()
 void wdrv_notify_scan_done(void *data, uint16_t len)
 {
     wifi_event_scan_done_t event_data = {0};
+    /* post event scan done*/
+    os_memset(&event_data, 0, sizeof(event_data));
+    os_memcpy(&event_data, data, len);
     bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_SCAN_DONE, &event_data,
     sizeof(event_data), BEKEN_NEVER_TIMEOUT);
 }
@@ -401,23 +404,8 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
             }
             break;
         case BK_EVT_SCAN_WIFI_IND:
-            WDRV_LOGV("BK_EVT_SCAN_WIFI_IND\n");
+            WDRV_LOGI("BK_EVT_SCAN_WIFI_IND\n");
             wdrv_notify_scan_done(msg->param, msg->param_len);
-#if 0
-            os_memcpy(&wdrv_host_env.scan_wifi_cfm, msg->param, sizeof(struct wdrv_scan_result_cfm) * MAX_SCAN_AP_NUM);
-            wdrv_host_env.scan_wifi_cfm_ptr = wdrv_host_env.scan_wifi_cfm;
-            do {
-                BK_LOGD(NULL, "%2d:(%3d dBm) CH=%3d AKM=%3d BSSID=%02x:%02x:%02x:%02x:%02x:%02x SSID=%s\n",
-                wdrv_host_env.scan_wifi_cfm_ptr->scan_num, wdrv_host_env.scan_wifi_cfm_ptr->rssi,
-                wdrv_host_env.scan_wifi_cfm_ptr->channal,  wdrv_host_env.scan_wifi_cfm_ptr->akm,
-                wdrv_host_env.scan_wifi_cfm_ptr->bssid[0], wdrv_host_env.scan_wifi_cfm_ptr->bssid[1],
-                wdrv_host_env.scan_wifi_cfm_ptr->bssid[2], wdrv_host_env.scan_wifi_cfm_ptr->bssid[3],
-                wdrv_host_env.scan_wifi_cfm_ptr->bssid[4], wdrv_host_env.scan_wifi_cfm_ptr->bssid[5],
-                wdrv_host_env.scan_wifi_cfm_ptr->ssid);
-                wdrv_host_env.scan_wifi_cfm_ptr++;
-                loop_idx++;
-            } while(loop_idx != MAX_SCAN_AP_NUM && wdrv_host_env.scan_wifi_cfm_ptr->scan_num != 0);
-#endif
             break;
         case BK_EVT_ASSOC_AP_IND:
             os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
