@@ -18,6 +18,7 @@
 #include <sys_ctrl/sys_driver.h>
 #include "aon_pmu_driver.h"
 
+#include <driver/gpio.h>
 static void alarm_auto_test_callback(aon_rtc_id_t id, uint8_t *name_p, void *param);
 
 
@@ -284,45 +285,166 @@ static void cli_aon_rtc_unregister_cmd(char *pcWriteBuffer, int xWriteBufferLen,
 
 static alarm_info_t s_cli_alarm_info[] = 
 {
-	{"alarm_1", (1000), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
-	{"alarm_2", (6000), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
-	{"alarm_3", (12000), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
-	{"alarm_4", (48000), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
-	{"alarm_5", (3000), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
-	{"alarm_6", (4000), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
+	{"0", (2), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
+	{"1", (2), 1, alarm_auto_test_callback, NULL},
+	{"2", (3), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
+	{"3", (4), 1, alarm_auto_test_callback, NULL},
+	{"4", (2), 2, alarm_auto_test_callback, NULL},
+	{"5", (7), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
+	{"6", (5), 3, alarm_auto_test_callback, NULL},
+	{"7", (6), 0xFFFFFFFF, alarm_auto_test_callback, NULL},
 };
 
+static int s_entry_cnt[8];
+static int s_rtc_auto_test_running = 0;
+
+static uint32_t s_last_cb_tick = 0xf0000000;
+static volatile uint32_t skip_register = 0;
 static void alarm_auto_test_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 {
-	uint32_t i = 0;
-	uint32_t arr_size = sizeof(s_cli_alarm_info)/sizeof(alarm_info_t); 
+	//bk_err_t ret = 0;
 
-	CLI_LOGD("id=%d, name=%s\r\n", id, name_p);
+	//uint32_t i = 0;
+	//uint32_t arr_size = sizeof(s_cli_alarm_info)/sizeof(alarm_info_t); 
+
+	s_entry_cnt[(*name_p) - '0']++;
+	if((s_entry_cnt[(*name_p) - '0'] % 25600) == 0)
+	CLI_LOGI("n=%s\r\n", name_p);
+
+	bk_gpio_set_value((gpio_id_t)(32+(*name_p) - '0'), 2);
+	bk_gpio_set_value((gpio_id_t)(32+(*name_p) - '0'), 0);
+
+	s_last_cb_tick = rtos_get_tick_count();
+#if 0
 	for(i = 0; i < arr_size; i++)
 	{
 		if(os_strcmp((const char*)s_cli_alarm_info[i].name, (const char*)name_p) == 0)
 		{
-			//forbid unregister self in the callback
-			//CLI_LOGD("Unregister name=%s\r\n", name_p);
-			//bk_alarm_unregister(id, s_cli_alarm_info[i].name);
-			int index = (i+3)%arr_size;
+			if(s_cli_alarm_info[i].period_cnt == 2)
+			{
+				//static int entry_cnt = 0;
+				//forbid unregister self in the callback
+				//CLI_LOGI("Unregister name=%s\r\n", name_p);
+				//ret = bk_alarm_unregister(id, s_cli_alarm_info[i].name);
+				//CLI_LOGI("id=%d, name=%s, ret-1=0x%x\r\n", id, name_p, ret);
 
-			CLI_LOGD("register name=%s\r\n", s_cli_alarm_info[index].name);
-			bk_alarm_register(id, &s_cli_alarm_info[index]);
+				//int index = (i+3)%arr_size;
+
+				//CLI_LOGI("register name=%s\r\n", s_cli_alarm_info[index].name);
+				//ret = bk_alarm_register(id, &s_cli_alarm_info[i]);
+				//CLI_LOGI("name=%s, ret-2=0x%x,cnt=%d\r\n", name_p, ret, ++entry_cnt);
+			}
 
 			break;
 		}
 	}
+#endif
+}
+
+static beken_thread_t s_rtc_thread_handle = NULL;
+
+static void rtc_main(uint32_t data)
+{
+	uint32_t i = 0;
+	uint32_t alarm_cnt = sizeof(s_cli_alarm_info)/sizeof(alarm_info_t);
+	uint32_t busy_bits = 0;
+
+	for(i = 0; i < alarm_cnt; i++)
+	{
+		bk_alarm_register(data, &s_cli_alarm_info[i]);
+		busy_bits |= (1<<i);
+	}
+
+	s_rtc_auto_test_running = 1;
+
+	i = 0;
+	while(1)
+	{
+		extern int bk_rand(void);
+		int rand = bk_rand();
+
+		i++;
+		if((rtos_get_tick_count()) > s_last_cb_tick + 50)	//debug stopped issue
+		{
+			skip_register = 1;
+		}
+		else if(busy_bits == 0)	//maybe cleared over
+		{
+			//wait-10000
+			rtos_thread_msleep(10000);
+
+			skip_register = 0;	//restart
+
+			for(i = 0; i < alarm_cnt; i++)
+			{
+				bk_alarm_register(data, &s_cli_alarm_info[i]);
+				busy_bits |= (1<<i);
+			}
+
+			bk_gpio_set_value(5, 2);
+			bk_gpio_set_value(5, 0);
+		}
+
+		if(skip_register == 0)
+		{
+			if((i % 5) == 0)	//5 * 10ms to register/unregister
+			{
+				if(rand % 2)
+				{
+					bk_alarm_register(data, &s_cli_alarm_info[rand % alarm_cnt]);
+					bk_alarm_register(data, &s_cli_alarm_info[(rand+1) % alarm_cnt]);
+
+					busy_bits |= (1<<(rand % alarm_cnt));
+					busy_bits |= (1<<((rand+1) % alarm_cnt));
+
+					CLI_LOGI("r:%d,bits=0x%x\r\n", (rand) % alarm_cnt, busy_bits);
+				}
+				else
+				{
+					//if(((rand % alarm_cnt) == 0) || ((rand % alarm_cnt) == 2) || ((rand % alarm_cnt) == 3) || ((rand % alarm_cnt) == 5))
+					{
+						bk_alarm_unregister(data, s_cli_alarm_info[(rand+1) % alarm_cnt].name);
+						busy_bits &= ~(1<<((rand+1) % alarm_cnt));
+
+						//bk_alarm_register(data, &s_cli_alarm_info[(rand+1) % alarm_cnt]);
+					}
+
+					//if(((rand % alarm_cnt) == 1) || ((rand % alarm_cnt) == 3) || ((rand % alarm_cnt) == 4) || ((rand % alarm_cnt) == 6))
+					{
+						bk_alarm_unregister(data, s_cli_alarm_info[rand % alarm_cnt].name);	
+
+						//bk_alarm_register(data, &s_cli_alarm_info[rand % alarm_cnt]);
+						busy_bits &= ~(1<<(rand % alarm_cnt));
+					}
+
+					CLI_LOGI("u:%d,bits=0x%x\r\n", (rand) % alarm_cnt, busy_bits);
+				}
+			}
+		}
+
+		if(busy_bits)
+			bk_gpio_set_value(4, 2);
+		else
+			bk_gpio_set_value(4, 0);
+
+		rtos_thread_msleep(10);
+
+		if(s_rtc_auto_test_running  == 0)
+			break;
+	}
+
+	s_rtc_thread_handle = NULL;
+	rtos_delete_thread(NULL);
 }
 
 static void aon_rtc_autotest_start(aon_rtc_id_t id)
 {
-	uint32_t i = 0;
-
-	for(i = 0; i < sizeof(s_cli_alarm_info)/sizeof(alarm_info_t); i++)
-	{
-		bk_alarm_register(id, &s_cli_alarm_info[i]);
-	}
+	rtos_create_thread(&s_rtc_thread_handle,
+							 5,
+							 "rtc",
+							 (beken_thread_function_t)rtc_main,
+							 4096,
+							 (void *)id);
 }
 
 static void aon_rtc_autotest_stop(aon_rtc_id_t id)
@@ -332,6 +454,8 @@ static void aon_rtc_autotest_stop(aon_rtc_id_t id)
 	{
 		bk_alarm_unregister(id, s_cli_alarm_info[i].name);
 	}
+
+	s_rtc_auto_test_running = 0;
 }
 
 static void cli_aon_rtc_auto_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -389,7 +513,6 @@ static void cli_aon_rtc_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
 
 	bk_aon_rtc_dump(aon_rtc_id);
 }
-
 
 #define AON_RTC_CMD_CNT (sizeof(s_aon_rtc_commands) / sizeof(struct cli_command))
 static const struct cli_command s_aon_rtc_commands[] = {
