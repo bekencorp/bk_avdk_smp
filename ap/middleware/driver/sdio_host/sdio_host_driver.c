@@ -884,7 +884,7 @@ static bk_err_t sdio_dma_write_fifo(const uint8_t *write_data, uint32_t data_siz
 	error_state = rtos_get_semaphore(&(s_sdio_host.tx_sema), SDIO_MAX_TX_WAIT_TIME);
 	if(error_state)
 	{
-		SDIO_HOST_LOGE("sdio write data timeout,write_data=0x%x,data_size=%d, tx_transfered_len=%d\r\n", write_data, data_size, s_sdio_host.tx_transfered_len);
+		SDIO_HOST_LOGW("sdio write data timeout,write_data=0x%x,data_size=%d, tx_transfered_len=%d\r\n", write_data, data_size, s_sdio_host.tx_transfered_len);
 	}
 	//error_state = BK_OK;
 
@@ -967,7 +967,7 @@ static bk_err_t sdio_host_cpu_write_fifo(const uint8_t *write_data, uint32_t dat
 			if(error_state)
 			{
 				s_sdio_host.is_tx_blocked = false;
-				SDIO_HOST_LOGE("TODO:sdio tx data fail:index=%d!\r\n", index);
+				SDIO_HOST_LOGW("TODO:sdio tx data fail:index=%d!\r\n", index);
 			}
 		}
 	}
@@ -1373,7 +1373,7 @@ static void sdio_host_isr(void)
 		}
 		else if(sdio_host_hal_is_data_timeout_int_triggered(hal, int_status))	//timeout
 		{
-			SDIO_HOST_LOGE("TODO:read data timeout error!!!\r\n");
+			SDIO_HOST_LOGW("TODO:read data timeout error!!!\r\n");
 			sdio_host_hal_clear_read_data_timeout_interrupt_status(hal, int_status);
 		}
 		/*
@@ -1386,7 +1386,7 @@ static void sdio_host_isr(void)
 		 */
 		else
 		{
-			SDIO_HOST_LOGE("read data status err:int_status=0x%08x!!!\r\n", int_status);
+			SDIO_HOST_LOGW("read data status err:int_status=0x%08x!!!\r\n", int_status);
 			sdio_host_hal_clear_read_data_interrupt_status(hal, int_status);
 		}
 	}
