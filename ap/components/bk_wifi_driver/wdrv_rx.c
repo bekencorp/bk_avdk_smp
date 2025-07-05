@@ -25,8 +25,8 @@ void wdrv_rx_confirm_tx_msg(wdrv_rx_msg *msg)
                 memcpy(cmd_cfm->cfm_buf, msg->param, msg->param_len);
 
             cmd_cfm->cfm_len = msg->param_len;
-            rtos_set_semaphore(&cmd_cfm->sema);
             co_list_extract((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cmd_cfm->list);
+            rtos_set_semaphore(&cmd_cfm->sema);
             break;
         }
         cmd_cfm = (wdrv_cmd_cfm *)cmd_cfm->list.next;
