@@ -409,6 +409,11 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
 
         ONBOARD_MIC_DATA_COUNT_ADD_SIZE(r_size);
 
+        /* write data to multiple audio port */
+        /* unblock write, and not check write result */
+        //TODO
+        audio_element_multi_output(self, in_buffer, r_size, 0);
+
         //更新处理数据的指针
         //audio_element_update_byte_pos(self, w_size);
     }
@@ -491,6 +496,7 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     cfg.task_stack = config->task_stack;
     cfg.task_prio = config->task_prio;
     cfg.task_core = config->task_core;
+    cfg.multi_out_port_num = config->multi_out_port_num;
 
     /* the buffer_len is the parameter of _onboard_mic_process api */
     if (config->adc_cfg.chl_num == 2)

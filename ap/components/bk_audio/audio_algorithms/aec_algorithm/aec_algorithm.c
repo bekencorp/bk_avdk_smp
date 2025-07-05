@@ -302,6 +302,11 @@ static int _aec_algorithm_process(audio_element_handle_t self, char *in_buffer, 
         AEC_OUTPUT_START();
         w_size = audio_element_output(self, (char *)aec->out_addr, aec->frame_size);
         AEC_OUTPUT_END();
+
+        /* write data to multiple audio port */
+        /* unblock write, and not check write result */
+        //TODO
+        audio_element_multi_output(self, (char *)aec->out_addr, aec->frame_size, 0);
     }
     else
     {

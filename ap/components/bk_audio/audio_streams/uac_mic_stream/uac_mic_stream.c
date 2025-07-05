@@ -891,6 +891,11 @@ static int _uac_mic_process(audio_element_handle_t self, char *in_buffer, int in
         w_size = audio_element_output(self, in_buffer, r_size);
         UAC_MIC_OUTPUT_END();
 
+        /* write data to multiple audio port */
+        /* unblock write, and not check write result */
+        //TODO
+        audio_element_multi_output(self, in_buffer, r_size, 0);
+
         //更新处理数据的指针
         //audio_element_update_byte_pos(self, w_size);
     }
@@ -1050,6 +1055,7 @@ audio_element_handle_t uac_mic_stream_init(uac_mic_stream_cfg_t *config)
     cfg.buffer_len = config->frame_size;
     cfg.out_block_size = config->out_block_size;
     cfg.out_block_num = config->out_block_num;
+    cfg.multi_out_port_num = config->multi_out_port_num;
     cfg.tag = "uac_mic";
 
     BK_LOGE(TAG, "%s, %d, buffer_len: %d, out_rb_size: %d \n", __func__, __LINE__, cfg.buffer_len, cfg.out_block_size);
