@@ -18,7 +18,7 @@ class MapHelper(object):
             'rodata': ['.rodata.', '.rodata', '.srodata.', '.vectors','.vectors_itcm'],
             'text': ['.text.', '.text', '.stext.', '.itcm_sec_code','itcm_section', '.itcm', '.iram', '.interrupt'],
             'data': ['.data.', '.data', '.sdata.', '.dtcm_sec_data', '.dtcm'],
-            'bss': ['.bss.', '.bss', '.sbss.', '.dtcm_sec_bss','.bt_spec_data','.ble_bss_data','video_spec_data'],
+            'bss': ['.bss.', '.bss', '.sbss.', '.dtcm_sec_bss','.bt_spec_data','.ble_bss_data'],
         }
         self.size_pat = re.compile(r' +0x([a-fA-F\d]+) +0x([a-fA-F\d]+) +(.*)\((.*)\)')
         self.oneline_size_pat = re.compile(r' +[^ ]+ +0x([a-fA-F\d]+) +0x([a-fA-F\d]+) +(.*)\((.*)\)')
