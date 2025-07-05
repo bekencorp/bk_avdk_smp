@@ -181,7 +181,7 @@ struct lfs_config {
     // are propagated to the user.
     int (*sync)(const struct lfs_config *c);
 
-#ifdef LFS_THREADSAFE
+#ifdef CONFIG_LFS_THREADSAFE
     // Lock the underlying block device. Negative error codes
     // are propagated to the user.
     int (*lock)(const struct lfs_config *c);

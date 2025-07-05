@@ -66,12 +66,48 @@ void bk_qspi_flash_set_protect_none(qspi_id_t id);
 bk_err_t bk_qspi_flash_erase_sector(qspi_id_t id, uint32_t addr);
 
 /**
+ * @brief      QSPI flash erase
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_qspi_flash_erase(qspi_id_t id, uint32_t addr, uint32_t size);
+
+/**
  * @brief      QSPI flash enable quad mode
  *
  * @return
  *    - NA.
  */
 void bk_qspi_flash_quad_enable(qspi_id_t id);
+
+/**
+ * @brief      QSPI flash erase 32k
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_qspi_flash_erase_32k(qspi_id_t id, uint32_t addr);
+
+/**
+ * @brief      QSPI flash erase 64k
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_qspi_flash_erase_64k(qspi_id_t id, uint32_t addr);
+
+/**
+ * @brief      QSPI flash erase 4k/32k/64k with different type
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_qspi_flash_erase(qspi_id_t id, uint32_t addr, uint32_t type);
 
 /**
  * @brief      QSPI flash quad write

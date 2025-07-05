@@ -4,7 +4,6 @@
 #include "flash_bypass.h"
 #include "sys_driver.h"
 #include "gpio_driver.h"
-#include <driver/spi.h>
 #include "spi_hal.h"
 #include "driver/flash.h"
 #include <os/mem.h>

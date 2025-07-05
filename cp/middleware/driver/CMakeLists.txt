@@ -56,8 +56,6 @@ set(srcs
 	icu/interrupt_base.c
 	timer/timer_driver.c
 	wdt/wdt_driver.c
-	spi/spi_driver.c
-	spi/spi_statis.c
 	sys_ctrl/sys_ctrl.c
 	pmu/aon_pmu_driver.c
 	gpio/gpio_driver_base.c
@@ -190,21 +188,6 @@ if (CONFIG_FLASH)
 	endif()
 endif() #if (CONFIG_FLASH)
 
-if (CONFIG_QSPI)
-	list(APPEND srcs
-		"qspi/qspi_driver.c"
-		"qspi/qspi_statis.c"
-		"qspi/qspi_psram.c"
-		"qspi/qspi_flash.c"
-		)
-endif() #if (CONFIG_QSPI)
-
-if (CONFIG_SPI_MST_FLASH)
-	list(APPEND srcs
-		"spi/spi_flash.c"
-		)
-endif() #if (CONFIG_SPI_MST_FLASH)
-
 if (CONFIG_QSPI AND CONFIG_LCD_QSPI)
 	list(APPEND srcs
 		"lcd/lcd_qspi_driver.c"
@@ -235,38 +218,6 @@ else()
 		)
 endif() #if (CONFIG_AON_RTC_64BIT)
 endif() #if (CONFIG_AON_RTC)
-
-if (CONFIG_SDIO_HOST)
-	list(APPEND srcs
-		"sdio_host/sdio_host_driver.c"
-		"sd_card/sd_card_driver.c"
-		"sd_card/sdcard_test.c"
-		)
-endif() #if (CONFIG_SDIO_HOST)
-
-if (CONFIG_SDIO_V1P0)
-	list(APPEND incs
-		"sdio/v1p0"
-	)
-
-	list(APPEND srcs
-		"sdio/v1p0/sdio.c"
-		"sdio/v1p0/sdma.c"
-		"sdio/v1p0/sutil.c"
-		)
-endif() #if (CONFIG_SDIO_V1P0)
-
-if (CONFIG_SDIO_V2P0 AND CONFIG_SDIO_SLAVE)
-	list(APPEND incs
-		"sdio/v2p0"
-	)
-
-	list(APPEND srcs
-		"sdio/v2p0/sdio_slave_driver.c"
-		"sdio/v2p0/sdio_utils.c"
-		"sdio/v2p0/sdio_test.c"
-		)
-endif() #if (CONFIG_SDIO_V2P0)
 
 if (CONFIG_AUDIO)
 
@@ -328,9 +279,7 @@ endif()
 if (NOT CONFIG_FULLY_HOSTED)
 
 	list(APPEND incs
-		"spi"
 		"jpeg_enc"
-		"sdcard"
 		)
 
 	list(APPEND srcs

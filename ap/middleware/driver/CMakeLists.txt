@@ -234,11 +234,11 @@ if (CONFIG_SPI)
 		spi/spi_driver.c
 		spi/spi_statis.c
 		)
-if (CONFIG_SPI_0_MST_FLASH OR CONFIG_SPI_1_MST_FLASH)
+if (CONFIG_SPI_MST_FLASH)
 	list(APPEND srcs
 		"spi/spi_flash.c"
 		)
-endif() #if (CONFIG_SPI_0_MST_FLASH OR CONFIG_SPI_1_MST_FLASH)
+endif() #if (CONFIG_SPI_MST_FLASH)
 endif() #if (CONFIG_SPI)
 
 if (CONFIG_QSPI)
@@ -247,11 +247,11 @@ if (CONFIG_QSPI)
 		"qspi/qspi_statis.c"
 		"qspi/qspi_psram.c"
 		)
-if (CONFIG_QSPI_0_MST_FLASH OR CONFIG_QSPI_1_MST_FLASH)
+if (CONFIG_QSPI_MST_FLASH)
 	list(APPEND srcs
 		"qspi/qspi_flash.c"
 		)
-endif() #if (CONFIG_QSPI_0_MST_FLASH OR CONFIG_QSPI_1_MST_FLASH)
+endif() #if (CONFIG_QSPI_MST_FLASH)
 endif() #if (CONFIG_QSPI)
 
 if (CONFIG_QSPI AND CONFIG_LCD_QSPI)

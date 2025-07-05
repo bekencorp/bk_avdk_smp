@@ -26,7 +26,11 @@ static const char *devices [] = {	//keep in sync with disk_io.c
 	FATFS_DEV_RAM,
 	FATFS_DEV_SDCARD,
 	FATFS_DEV_UDISK,
-	FATFS_DEV_FLASH,
+	FATFS_DEV_FLASH,  //internal flash
+	FATFS_DEV_SPI0_FLASH,
+	FATFS_DEV_SPI1_FLASH,
+	FATFS_DEV_QSPI0_FLASH,
+	FATFS_DEV_QSPI1_FLASH,
 	NULL
 };
 

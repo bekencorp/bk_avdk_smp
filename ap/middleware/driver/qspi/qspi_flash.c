@@ -515,6 +515,7 @@ bk_err_t bk_qspi_flash_write(qspi_id_t id, uint32_t base_addr, const void *data,
 	uint32_t offset = 0;
 	uint32_t page_write_len = 0;
 
+
 	if(0 != (base_addr & FLASH_PAGE_MASK)) {
 		write_addr = base_addr & (~FLASH_PAGE_MASK);
 		bk_qspi_flash_quad_read(id, write_addr, buf, QSPI_FIFO_LEN_MAX);

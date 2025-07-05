@@ -20,12 +20,13 @@
 #include <unistd.h>
 #include <string.h>
 #include "bk_posix.h"
-
+#include "bk_partition.h"
 /*********************
  *      DEFINES
  *********************/
 
-#define LV_FS_BK_POSIX_LETTER        '/'
+//maybe there are many partitions, please select which memory is used for LVGL, it's in file of "bk_partition.h"
+#define LV_FS_BK_POSIX_LETTER        '/'    //TODO:INTERNAL_FLASH_PATITION_0, SD_0_PATITION_0 ...
 #define LV_FS_BK_POSIX_PATH          ""
 #define LV_FS_BK_POSIX_CACHE_SIZE    0
 

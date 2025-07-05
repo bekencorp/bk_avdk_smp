@@ -15,11 +15,9 @@
 #define TEST_MP3_FILE_NAME      "/Panama_Matteo.mp3"
 #define TEST_TXT_FILE_NAME      "/test1.txt"
 #define TEST_DUMP_FILE_NAME      "/dump1.txt"
-#define TEST_TXT_FILE_NAME1     "/�������ֿ����ж೤����೤�Ͷ೤��������ҧ�ң��������ҳԷ�.txt"
 
 void bk_mem_dump_ex(const char *title, unsigned char *data, uint32_t data_len);
 
-#if CONFIG_FATFS_SDCARD
 FATFS *pfs = NULL;
 
 FRESULT scan_files
@@ -657,7 +655,7 @@ void test_fatfs_format(DISK_NUMBER number)
 	}
 }
 
-#if 1
+
 #define FATFS_TEST_CONCURRENCY_TASK_MAX_CNT (8)
 static beken_thread_t s_fatfs_test_task_handle[FATFS_TEST_CONCURRENCY_TASK_MAX_CNT];
 
@@ -829,9 +827,7 @@ void test_fatfs_concurrency(DISK_NUMBER number, uint32_t task_count, uint32_t fi
 		}
 	}
 }
-#endif
 
-#endif
 
 // eof
 

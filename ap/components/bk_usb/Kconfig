@@ -75,6 +75,7 @@ menu "Bk_usb"
 
 		config USBH_MSC
 			bool "Enable Usb Host MSC"
+			depends on FATFS
 			default n
 
 		config USBD_MSC

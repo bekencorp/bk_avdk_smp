@@ -15,7 +15,7 @@
 #include <os/os.h>
 #include "cli.h"
 #include <driver/spi.h>
-#if (CONFIG_SPI_0_MST_FLASH || CONFIG_SPI_1_MST_FLASH)
+#if (CONFIG_SPI_MST_FLASH)
 #include <driver/spi_flash.h>
 #endif
 #include <driver/trng.h>
@@ -700,7 +700,7 @@ static void cli_spi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	uint32_t spi_id = os_strtoul(argv[1], NULL, 10);
 	CLI_LOGD("spi_id:%08x\r\n",spi_id);
 
-#if (CONFIG_SPI_0_MST_FLASH || CONFIG_SPI_1_MST_FLASH)
+#if (CONFIG_SPI_MST_FLASH)
 	if (os_strcmp(argv[2], "init") == 0) {
 		bk_spi_flash_init(spi_id);
 		return;

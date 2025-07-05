@@ -26,6 +26,17 @@
 #include <driver/flash.h>
 #include <driver/flash_partition.h>
 
+#if (defined CONFIG_FATFS_SPI_0_FLASH || defined CONFIG_FATFS_SPI_1_FLASH)
+#include <driver/spi.h>
+#include <driver/spi_flash.h>
+#endif
+
+#if (defined CONFIG_FATFS_QSPI_0_FLASH || defined CONFIG_FATFS_QSPI_1_FLASH)
+#include <driver/qspi.h>
+#include <driver/qspi_flash.h>
+#endif
+
+
 #if CONFIG_SDCARD_POWER_GPIO_CTRL
 #include <driver/gpio.h>
 #include "gpio_map.h"
@@ -121,15 +132,18 @@ static void sdcard_operation_err_reset()
 }
 #endif
 
-#define FLASH_SECTOR_SIZE  512
+#define FLASH_SECTOR_SIZE   4096
+#define FLASH_SECTOR_COUNT  1024
 
 /* Definitions of physical drive number for each drive */
 #define DEV_RAM		DISK_NUMBER_RAM	/* Example: Map Ramdisk to physical drive 0 */
 #define DEV_SD		DISK_NUMBER_SDIO_SD	/* Example: Map MMC/SD card to physical drive 1 */
 #define DEV_USB		DISK_NUMBER_UDISK	/* Example: Map USB MSD to physical drive 2 */
-#define DEV_FLASH	DISK_NUMBER_FLASH	/* Example: Map USB MSD to physical drive 3 */
-
-
+#define DEV_FLASH	DISK_NUMBER_FLASH	/* Example: Map Internal Flash to physical drive 3 */
+#define DEV_SPI_0_FLASH	DISK_NUMBER_SPI_0_FLASH	/* Example: Map SPI Flash to physical drive 4 */
+#define DEV_SPI_1_FLASH	DISK_NUMBER_SPI_1_FLASH	/* Example: Map SPI Flash to physical drive 5 */
+#define DEV_QSPI_0_FLASH	DISK_NUMBER_QSPI_0_FLASH	/* Example: Map SPI Flash to physical drive 4 */
+#define DEV_QSPI_1_FLASH	DISK_NUMBER_QSPI_1_FLASH	/* Example: Map SPI Flash to physical drive 5 */
 
 //static DD_HANDLE usb_hdl =DD_HANDLE_UNVALID;
 /*-----------------------------------------------------------------------*/
@@ -197,9 +211,40 @@ DSTATUS disk_initialize (
 #endif
 		return stat;
 
+	//Internal flash
 	case DEV_FLASH :
 		stat = RES_OK;
 		return stat;
+
+#if (defined CONFIG_FATFS_SPI_0_FLASH || defined CONFIG_FATFS_SPI_1_FLASH)
+#if (defined CONFIG_FATFS_SPI_0_FLASH)
+	//external SPI Flash
+	case DEV_SPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_SPI_1_FLASH)
+	case DEV_SPI_1_FLASH:
+#endif
+		if(bk_spi_flash_init(SPI_ID_0 + (pdrv-DEV_SPI_0_FLASH)))
+			stat = RES_ERROR;	
+		else
+			stat = RES_OK;
+		return stat;
+#endif
+
+#if (defined CONFIG_FATFS_QSPI_0_FLASH || defined CONFIG_FATFS_QSPI_1_FLASH)
+#if (defined CONFIG_FATFS_QSPI_0_FLASH)
+	//external QSPI Flash
+	case DEV_QSPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_QSPI_1_FLASH)
+	case DEV_QSPI_1_FLASH:
+#endif
+		if(bk_qspi_flash_init(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH)))
+			stat = RES_ERROR;	
+		else
+			stat = RES_OK;
+		return stat;
+#endif
 
 	default:
 		break;
@@ -239,13 +284,13 @@ DRESULT disk_read (
 
 		result = bk_sd_card_read_blocks((uint8_t *)buff, sector, count);
 		if(result != BK_OK) {
-			FATFS_LOGE("func %s line %d,  bk_sd_card_read_blocks result:%d, do reset\r\n", __func__, __LINE__, result);
+			FATFS_LOGW("func %s line %d,  bk_sd_card_read_blocks result:%d, do reset\r\n", __func__, __LINE__, result);
 			for(uint32_t i = 0; i < SDCARD_READ_FAIL_RETRY_CNT; i++) {
-				FATFS_LOGE("%s retry count:%d\r\n", __func__, i);
+				FATFS_LOGW("%s retry count:%d\r\n", __func__, i);
 				sdcard_operation_err_reset();
 				result = bk_sd_card_read_blocks((uint8_t *)buff, sector, count);
 				if(result != RES_OK) {
-					FATFS_LOGE("%s ERROR result:%d\r\n", __func__, result);
+					FATFS_LOGW("%s ERROR result:%d\r\n", __func__, result);
 				}
 				else
 					break;
@@ -274,6 +319,44 @@ DRESULT disk_read (
 		if(result == BK_OK)
 			res = RES_OK;
 		return res;
+
+#if (defined CONFIG_FATFS_SPI_0_FLASH || defined CONFIG_FATFS_SPI_1_FLASH)
+#if (defined CONFIG_FATFS_SPI_0_FLASH)
+	//external SPI Flash
+	case DEV_SPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_SPI_1_FLASH)
+	case DEV_SPI_1_FLASH:
+#endif
+		if(bk_spi_flash_read(SPI_ID_0 + (pdrv-DEV_SPI_0_FLASH), sector * FLASH_SECTOR_SIZE, buff, count * FLASH_SECTOR_SIZE))
+		{
+			FATFS_LOGI("spi_0_flash_read res:%d\r\n", res);
+			res = RES_ERROR;
+		}
+		else
+			res = RES_OK;
+		return res;
+#endif
+
+
+#if (defined CONFIG_FATFS_QSPI_0_FLASH || defined CONFIG_FATFS_QSPI_1_FLASH)
+#if (defined CONFIG_FATFS_QSPI_0_FLASH)
+	//external QSPI Flash
+	case DEV_QSPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_QSPI_1_FLASH)
+	case DEV_QSPI_1_FLASH:
+#endif
+		if(bk_qspi_flash_read(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH), sector * FLASH_SECTOR_SIZE, buff, count * FLASH_SECTOR_SIZE))
+		{
+			FATFS_LOGI("qspi_flash_read res:%d\r\n", res);
+			res = RES_ERROR;
+		}
+		else
+			res = RES_OK;
+
+		return res;
+#endif
 
 	default:
 		break;
@@ -353,7 +436,7 @@ DRESULT disk_write (
 #if (CONFIG_USB_HOST && CONFIG_USBH_MSC)
 		// translate the arguments here
 		if (udisk_wr_blk_sync(sector, count, buff) !=  USB_RET_OK) {
-			FATFS_LOGD("dev usb disk_write_error\r\n");
+			FATFS_LOGI("dev usb disk_write_error\r\n");
 			res =	RES_ERROR;
 		} else
 			res = RES_OK;
@@ -361,8 +444,72 @@ DRESULT disk_write (
 		return res;
 
 	case DEV_FLASH :
+	{
+		bool erase_suc = true;
 		// Fatfs flash read only
+		for(uint32_t i = 0; i < count; i++)
+		{
+			if(bk_flash_erase_sector(sector * FLASH_SECTOR_SIZE))
+			{
+				erase_suc = false;
+				break;
+			}
+		}
+
+		if(erase_suc)
+		{
+			if(bk_flash_write_bytes(sector * FLASH_SECTOR_SIZE, buff, count * FLASH_SECTOR_SIZE))
+				res = RES_ERROR;
+			else
+				res = RES_OK;
+		}
+		else
+			res = RES_OK;
+
 		return res;
+	}
+
+	//external SPI Flash
+#if (defined CONFIG_FATFS_SPI_0_FLASH || defined CONFIG_FATFS_SPI_1_FLASH)
+#if (defined CONFIG_FATFS_SPI_0_FLASH)
+	case DEV_SPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_SPI_1_FLASH)
+	case DEV_SPI_1_FLASH:
+#endif
+		if(bk_spi_flash_erase(SPI_ID_0 + (pdrv-DEV_SPI_0_FLASH), sector * FLASH_SECTOR_SIZE, count * FLASH_SECTOR_SIZE) == BK_OK)
+		{
+			if(bk_spi_flash_write(SPI_ID_0 + (pdrv-DEV_SPI_0_FLASH), sector * FLASH_SECTOR_SIZE, buff, count * FLASH_SECTOR_SIZE))
+				res = RES_ERROR;	
+			else
+				res = RES_OK;
+		}
+		else
+			res = RES_OK;
+		return res;
+#endif
+
+#if (defined CONFIG_FATFS_QSPI_0_FLASH || defined CONFIG_FATFS_QSPI_1_FLASH)
+#if (defined CONFIG_FATFS_QSPI_0_FLASH)
+	//external QSPI Flash
+	case DEV_QSPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_QSPI_1_FLASH)
+	case DEV_QSPI_1_FLASH:
+#endif
+		if(bk_qspi_flash_erase(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH), sector * FLASH_SECTOR_SIZE, count * FLASH_SECTOR_SIZE) == BK_OK)
+		{
+			if(bk_qspi_flash_write(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH), sector * FLASH_SECTOR_SIZE, buff, count * FLASH_SECTOR_SIZE))
+				res = RES_ERROR;	
+			else
+				res = RES_OK;
+		}
+		else
+			res = RES_OK;
+
+		return res;
+#endif
+
 	default:
 		break;
 	}
@@ -395,7 +542,7 @@ DRESULT disk_ioctl (
 				res = bk_sd_card_rw_sync();
 				if(res != BK_OK)
 				{
-					BK_LOGD(NULL, "err:sd sync=%d\r\n", res);
+					FATFS_LOGD("err:sd sync=%d\r\n", res);
 				}
 			}
 			break;
@@ -410,7 +557,7 @@ DRESULT disk_ioctl (
 		case GET_SECTOR_COUNT:
 			*(DWORD *)buff = (uint32_t)bk_sd_card_get_card_size();
 			res = RES_OK;
-			BK_LOGD(NULL, "sdcard sector cnt=%d\r\n", *(DWORD *)buff);
+			FATFS_LOGI("sdcard sector cnt=%d\r\n", *(DWORD *)buff);
 			break;
 		default:
 			res = RES_PARERR;
@@ -453,22 +600,62 @@ DRESULT disk_ioctl (
 	case DEV_FLASH :
 		switch(cmd)
 		{
+		case CTRL_SYNC:
+			res = RES_OK;
+			break;
 		case GET_SECTOR_SIZE:
 			*(WORD *)buff = FLASH_SECTOR_SIZE;
 			res = RES_OK;
 			break;
 		case GET_BLOCK_SIZE:
-			*(WORD *)buff = FLASH_SECTOR_SIZE;
+			*(WORD *)buff = 1;//FLASH_SECTOR_SIZE;
 			res = RES_OK;
 			break;
 		case GET_SECTOR_COUNT:
 			partition_info = bk_flash_partition_get_info(BK_PARTITION_USR_CONFIG);
 			if (NULL == partition_info) {
-				BK_LOGD(NULL, "%s partiion not found.\r\n", __func__);
+				FATFS_LOGI("%s partiion not found.\r\n", __func__);
 				break;
 			}
 			*(DWORD *)buff = partition_info->partition_length / FLASH_SECTOR_SIZE;
-			BK_LOGD(NULL, "sdcard sector cnt=%d\r\n", *(DWORD *)buff);
+			FATFS_LOGI("sector cnt=%d\r\n", *(DWORD *)buff);
+			res = RES_OK;
+			break;
+		default:
+			res = RES_PARERR;
+			break;
+		}
+		return res;
+
+
+#if (defined CONFIG_FATFS_SPI_0_FLASH)
+	case DEV_SPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_SPI_1_FLASH)
+	case DEV_SPI_1_FLASH:
+#endif
+#if (defined CONFIG_FATFS_QSPI_0_FLASH)
+	case DEV_QSPI_0_FLASH :
+#endif
+#if (defined CONFIG_FATFS_QSPI_1_FLASH)
+	case DEV_QSPI_1_FLASH :
+#endif
+		switch(cmd)
+		{
+		case CTRL_SYNC:
+			res = RES_OK;
+			break;
+		case GET_SECTOR_SIZE:
+			*(WORD *)buff = FLASH_SECTOR_SIZE;
+			res = RES_OK;
+			break;
+		case GET_BLOCK_SIZE:
+			*(WORD *)buff = 1;//FLASH_SECTOR_SIZE;
+			res = RES_OK;
+			break;
+		case GET_SECTOR_COUNT:
+			*(DWORD *)buff = FLASH_SECTOR_COUNT;    //currently default use 4M size
+			FATFS_LOGI("sector cnt=%d\r\n", *(DWORD *)buff);
 			res = RES_OK;
 			break;
 		default:
@@ -514,6 +701,36 @@ DSTATUS disk_uninitialize ( BYTE pdrv/* Physical drive nmuber to identify the dr
 	case DEV_FLASH :
 		stat = RES_OK;
 		return stat;
+
+#if (defined CONFIG_FATFS_SPI_0_FLASH || defined CONFIG_FATFS_SPI_1_FLASH)
+#if (defined CONFIG_FATFS_SPI_0_FLASH)
+	//external SPI Flash
+	case DEV_SPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_SPI_1_FLASH)
+	case DEV_SPI_1_FLASH:
+#endif
+		if(bk_spi_flash_deinit(SPI_ID_0 + (pdrv-DEV_SPI_0_FLASH)))
+			stat = RES_ERROR;	
+		else
+			stat = RES_OK;
+		return stat;
+#endif
+
+#if (defined CONFIG_FATFS_QSPI_0_FLASH || defined CONFIG_FATFS_QSPI_1_FLASH)
+#if (defined CONFIG_FATFS_QSPI_0_FLASH)
+	//external QSPI Flash
+	case DEV_QSPI_0_FLASH:
+#endif
+#if (defined CONFIG_FATFS_QSPI_1_FLASH)
+	case DEV_QSPI_1_FLASH:
+#endif
+		if(bk_qspi_flash_deinit(QSPI_ID_0 + (pdrv-DEV_QSPI_0_FLASH)))
+			stat = RES_ERROR;	
+		else
+			stat = RES_OK;
+		return stat;
+#endif
 
 	default:
 		break;

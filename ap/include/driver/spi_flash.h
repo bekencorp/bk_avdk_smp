@@ -18,11 +18,17 @@
 extern "C" {
 #endif
 
+#include "spi_types.h"
+
+#if (defined CONFIG_SPI_MST_FLASH)
 /**
- * @brief     Init the SPI flash
+ * @brief     Init the spi interface as master device for flash with default parameters.
+ *            I.E:baud rate, 4-wires...
  *
- * @param id: spi device id to be accessed
+ * @attention 1. This API should be called before any other spi flash APIs.
  *
+ * @param id: which SPI interface(From chip side) is used for flash.
+ * 
  * @return
  *    - BK_OK: succeed
  *    - BK_ERR_SPI_NOT_INIT: SPI driver not init
@@ -43,13 +49,15 @@ bk_err_t bk_spi_flash_init(spi_id_t id);
 bk_err_t bk_spi_flash_deinit(spi_id_t id);
 
 /**
- * @brief      SPI flash read id
+ * @brief     Read the flash id.
  *
- * @param id: SPI device id to be accessed
+ * @attention 1. This API should be called after bk_spi_flash_init.
+ *
+ * @param id: which SPI interface(From chip side) is used for flash.
  *
  * @return
- *    - BK_OK: succeed
- *    - others: other errors.
+ *    - 0: read id failed.
+ *    - != 0: flash id.
  */
 uint32_t bk_spi_flash_read_id(spi_id_t id);
 
@@ -93,6 +101,8 @@ bk_err_t bk_spi_flash_write(spi_id_t id, uint32_t base_addr, const void *data, u
  *    - others: other errors.
  */
 bk_err_t bk_spi_flash_read(spi_id_t id, uint32_t base_addr, uint8_t *dst_data, uint32_t size);
+
+#endif    //(defined CONFIG_SPI_MST_FLASH)
 
 #ifdef __cplusplus
 }

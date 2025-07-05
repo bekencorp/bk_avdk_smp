@@ -1,10 +1,16 @@
 #include "lfs_flashbd.h"
-
+#include <os/os.h>
 #include <common/bk_include.h>
 #include <driver/flash_types.h>
 #include <driver/flash.h>
 #include <driver/spi.h>
+#include <driver/spi_flash.h>
 #include <driver/dma.h>
+
+#if (defined CONFIG_QSPI_MST_FLASH)
+#include <driver/qspi.h>
+#include <driver/qspi_flash.h>
+#endif
 
 int lfs_flashbd_createcfg(const struct lfs_config *cfg,
         const struct lfs_flashbd_config *bdcfg) {
@@ -110,19 +116,32 @@ int lfs_flashbd_sync(const struct lfs_config *cfg) {
     return 0;
 }
 
-#ifdef CONFIG_SPI_MST_FLASH
+#ifdef CONFIG_LFS_THREADSAFE
+static beken_mutex_t mutex_lfs;
+bk_err_t lfs_lock_init(void)
+{
+	return rtos_init_recursive_mutex(&mutex_lfs);
+}
 
-extern int spi_flash_read(uint32_t addr, uint32_t size, uint8_t *dst);
-extern int spi_flash_write(uint32_t addr, uint32_t size, uint8_t *src);
-extern int spi_flash_erase(uint32_t addr, uint32_t size);
+bk_err_t lfs_lock()
+{
+	return rtos_lock_recursive_mutex(&mutex_lfs);
+}
+
+bk_err_t lfs_unlock()
+{
+	return rtos_unlock_recursive_mutex(&mutex_lfs);
+}
+#endif
+#if (defined CONFIG_SPI_MST_FLASH)
+
 
 //keep sync with spi_flash.c
-#define SPI_ID 1
-#define SPI_BAUD_RATE	15000000
+#define SPI_BAUD_RATE	13000000
 
 static int spi_inited = 0;
 
-int lfs_spi_flashbd_init(void) {
+int lfs_spi_flashbd_init(uint32_t id) {
 	int ret;
 	spi_config_t config = {0};
 
@@ -151,16 +170,16 @@ int lfs_spi_flashbd_init(void) {
 	config.spi_tx_dma_width = DMA_DATA_WIDTH_8BITS;
 	config.spi_rx_dma_width = DMA_DATA_WIDTH_8BITS;
 #endif
-	ret = bk_spi_init(SPI_ID, &config);
+	ret = bk_spi_init(id, &config);
 
 	return ret;
 }
 
 int lfs_spi_flashbd_read(const struct lfs_config *cfg, lfs_block_t block,
         lfs_off_t off, void *buffer, lfs_size_t size) {
-    LFS_FLASHBD_TRACE("lfs_spi_flashbd_read(%p, "
+    LFS_FLASHBD_TRACE("lfs_spi_flashbd_read(%d, %p, "
                 "0x%"PRIx32", %"PRIu32", %p, %"PRIu32")",
-            (void*)cfg, block, off, buffer, size);
+            id, (void*)cfg, block, off, buffer, size);
     lfs_flashbd_t *bd = cfg->context;
 
     // check if read is valid
@@ -169,9 +188,9 @@ int lfs_spi_flashbd_read(const struct lfs_config *cfg, lfs_block_t block,
     LFS_ASSERT(block < cfg->block_count);
 
     // read data
-	spi_flash_read(cfg->block_size*block+off+bd->start_addr,size,buffer);
+	bk_spi_flash_read(bd->device_id, cfg->block_size*block+off+bd->start_addr,buffer,size);
 
-    LFS_FLASHBD_TRACE("lfs_spi_flashbd_read -> %d", 0);
+    LFS_FLASHBD_TRACE("lfs_spi_flashbd_read -> %d", id);
     return 0;
 }
 
@@ -188,9 +207,9 @@ int lfs_spi_flashbd_prog(const struct lfs_config *cfg, lfs_block_t block,
     LFS_ASSERT(block < cfg->block_count);
 
     // progflash data
-	spi_flash_write(cfg->block_size*block+off+bd->start_addr,size,(uint8_t *)buffer);
+	bk_spi_flash_write(bd->device_id, cfg->block_size*block+off+bd->start_addr,(uint8_t *)buffer,size);
 
-    LFS_FLASHBD_TRACE("lfs_spi_flashbd_prog -> %d", 0);
+    LFS_FLASHBD_TRACE("lfs_spi_flashbd_prog -> %d", id);
     return 0;
 }
 
@@ -202,7 +221,7 @@ int lfs_spi_flashbd_erase(const struct lfs_config *cfg, lfs_block_t block) {
     LFS_ASSERT(block < cfg->block_count);
 
     // erase
-	spi_flash_erase(cfg->block_size*block+bd->start_addr, cfg->block_size);
+	bk_spi_flash_erase(bd->device_id, cfg->block_size*block+bd->start_addr, cfg->block_size);
 
     LFS_FLASHBD_TRACE("lfs_spi_flashbd_erase -> %d", 0);
     return 0;
@@ -218,7 +237,7 @@ int lfs_spi_flashbd_sync(const struct lfs_config *cfg) {
 
 #else
 
-int lfs_spi_flashbd_init(void)
+int lfs_spi_flashbd_init(uint32_t id)
 {
 	return -1;
 }
@@ -246,4 +265,86 @@ int lfs_spi_flashbd_sync(const struct lfs_config *cfg)
 }
 
 #endif
+
+#if (defined CONFIG_QSPI_MST_FLASH)
+
+static int qspi_inited = 0;
+
+int lfs_qspi_flashbd_init(uint32_t id) {
+	int ret;
+
+	if (qspi_inited)
+		return 0;
+	qspi_inited = 1;
+
+	ret = bk_qspi_driver_init();
+	if (ret)
+		return ret;
+
+	ret = bk_qspi_flash_init(id);
+
+	return ret;
+}
+
+int lfs_qspi_flashbd_read(const struct lfs_config *cfg, lfs_block_t block,
+        lfs_off_t off, void *buffer, lfs_size_t size) {
+    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_read(%p, "
+                "0x%"PRIx32", %"PRIu32", %p, %"PRIu32")",
+            (void*)cfg, block, off, buffer, size);
+    lfs_flashbd_t *bd = cfg->context;
+
+    // check if read is valid
+    LFS_ASSERT(off  % cfg->read_size == 0);
+    LFS_ASSERT(size % cfg->read_size == 0);
+    LFS_ASSERT(block < cfg->block_count);
+
+    // read data
+	bk_qspi_flash_read(bd->device_id, cfg->block_size*block+off+bd->start_addr,buffer,size);
+
+    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_read -> %d", 0);
+    return 0;
+}
+
+int lfs_qspi_flashbd_prog(const struct lfs_config *cfg, lfs_block_t block,
+        lfs_off_t off, const void *buffer, lfs_size_t size) {
+    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_prog(%p, "
+                "0x%"PRIx32", %"PRIu32", %p, %"PRIu32")",
+            (void*)cfg, block, off, buffer, size);
+    lfs_flashbd_t *bd = cfg->context;
+
+    // check if write is valid
+    LFS_ASSERT(off  % cfg->prog_size == 0);
+    LFS_ASSERT(size % cfg->prog_size == 0);
+    LFS_ASSERT(block < cfg->block_count);
+
+    // progflash data
+	bk_qspi_flash_write(bd->device_id, cfg->block_size*block+off+bd->start_addr,(uint8_t *)buffer,size);
+
+    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_prog -> %d", id);
+    return 0;
+}
+
+int lfs_qspi_flashbd_erase(const struct lfs_config *cfg, lfs_block_t block) {
+    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_erase(%p, 0x%"PRIx32")", (void*)cfg, block);
+    lfs_flashbd_t *bd = cfg->context;
+
+    // check if erase is valid
+    LFS_ASSERT(block < cfg->block_count);
+
+    // erase
+	bk_qspi_flash_erase(bd->device_id, cfg->block_size*block+bd->start_addr, cfg->block_size);
+
+    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_erase -> %d", 0);
+    return 0;
+}
+
+int lfs_qspi_flashbd_sync(const struct lfs_config *cfg) {
+    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_sync(%p)", (void*)cfg);
+    // sync does nothing
+    (void)cfg;
+    LFS_FLASHBD_TRACE("lfs_qspi_flashbd_sync -> %d", 0);
+    return 0;
+}
+#endif
+
 

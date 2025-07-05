@@ -13,6 +13,17 @@
 
 #include "lfs.h"
 
+#if CONFIG_QSPI_MST_FLASH
+#include <driver/qspi.h>
+#include <driver/qspi_flash.h>
+#endif
+
+#if CONFIG_SPI_MST_FLASH
+#include <driver/spi.h>
+#include <driver/spi_flash.h>
+#endif
+
+
 #define FS_LITTLEFS "littlefs"
 
 #define USE_RAMBD 1
@@ -135,8 +146,14 @@ static int setup_lfs_config(struct lfs_config *config, const struct bk_little_fs
 	lfs_flashbd_t *bd;
 	int ret;
 
-	if (!part || !part->part_flash.start_addr || !part->part_flash.size) {
-		printf("no start_addr or size\n");
+	if (!part || !part->part_flash.size) {
+		printf("no size\n");
+		return -1;
+	}
+
+	//avoid 0 addr is used by LFS,0 is for codes in internal flash
+	if((part->part_type == LFS_FLASH) && (!part->part_flash.start_addr)) {
+		printf("no start_addr\n");
 		return -1;
 	}
 
@@ -145,6 +162,7 @@ static int setup_lfs_config(struct lfs_config *config, const struct bk_little_fs
 		return -1;
 
 	bd = (lfs_flashbd_t *)config->context;
+
 	bd->start_addr = part->part_flash.start_addr;
 	bd->end_addr = part->part_flash.start_addr + part->part_flash.size;
 
@@ -153,8 +171,12 @@ static int setup_lfs_config(struct lfs_config *config, const struct bk_little_fs
 		config->prog = lfs_flashbd_prog;
 		config->erase = lfs_flashbd_erase;
 		config->sync = lfs_flashbd_sync;
-	} else if (part->part_type == LFS_SPI_FLASH) {
-		ret = lfs_spi_flashbd_init();
+	} 
+#if (CONFIG_SPI_MST_FLASH)
+	else if ((part->part_type == LFS_SPI_FLASH) || (part->part_type == LFS_SPI_1_FLASH)) {
+		bd->device_id = SPI_ID_0 + (part->part_type - LFS_SPI_FLASH);
+
+		ret = lfs_spi_flashbd_init(bd->device_id);
 		if (ret) {
 			os_free(config->context);
 			return -1;
@@ -163,16 +185,37 @@ static int setup_lfs_config(struct lfs_config *config, const struct bk_little_fs
 		config->prog = lfs_spi_flashbd_prog;
 		config->erase = lfs_spi_flashbd_erase;
 		config->sync = lfs_spi_flashbd_sync;
-	} else {
+	}
+#endif
+#if CONFIG_QSPI_MST_FLASH
+	else if ((part->part_type == LFS_QSPI_FLASH) || (part->part_type == LFS_QSPI_1_FLASH)) {
+		bd->device_id = QSPI_ID_0 + (part->part_type - LFS_QSPI_FLASH);
+
+		ret = lfs_qspi_flashbd_init(bd->device_id);
+		if (ret) {
+			os_free(config->context);
+			return -1;
+		}
+		if (ret) {
+			free(config->context);
+			return -1;
+		}
+		config->read = lfs_qspi_flashbd_read;
+		config->prog = lfs_qspi_flashbd_prog;
+		config->erase = lfs_qspi_flashbd_erase;
+		config->sync = lfs_qspi_flashbd_sync;
+	}
+#endif
+	else {
 		os_free(config->context);
 		return -1;
 	}
 
-	config->read_size = 512;
-	config->prog_size = 512;
+	config->read_size = 256;
+	config->prog_size = 256;
 	config->block_size = 4096;
 	config->block_count = part->part_flash.size / config->block_size;
-	config->cache_size = 512;
+	config->cache_size = 2048;
 	config->lookahead_size = 512;
 	config->block_cycles = 500;
 

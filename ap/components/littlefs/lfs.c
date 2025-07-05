@@ -5290,7 +5290,7 @@ cleanup:
 // Here we can add tracing/thread safety easily
 
 // Thread-safe wrappers if enabled
-#ifdef LFS_THREADSAFE
+#ifdef CONFIG_LFS_THREADSAFE
 #define LFS_LOCK(cfg)   cfg->lock(cfg)
 #define LFS_UNLOCK(cfg) cfg->unlock(cfg)
 #else

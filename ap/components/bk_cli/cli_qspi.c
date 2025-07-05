@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <driver/qspi.h>
-#if (CONFIG_QSPI_0_MST_FLASH || CONFIG_QSPI_1_MST_FLASH)
+#if (CONFIG_QSPI_MST_FLASH)
 #include <driver/qspi_flash.h>
 #endif
 #include <driver/qspi_psram.h>
@@ -33,7 +33,7 @@ static void cli_qspi_help(void)
 	CLI_LOGD("qspi quad_write\r\n");
 	CLI_LOGD("qspi quad_read\r\n");
 	CLI_LOGD("qspi compare\r\n");
-#if (CONFIG_QSPI_0_MST_FLASH || CONFIG_QSPI_1_MST_FLASH)
+#if (CONFIG_QSPI_MST_FLASH)
 	CLI_LOGD("qspi_flash get_id\r\n");
 	CLI_LOGD("qspi_flash erase 0 256\r\n");
 	CLI_LOGD("qspi_flash single_write 0 256\r\n");
@@ -123,7 +123,7 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		config.clk_div = os_strtoul(argv[5], NULL, 10);
 		BK_LOG_ON_ERR(bk_qspi_init(qspi_id, &config));
 		CLI_LOGD("qspi init\r\n");
-#if (CONFIG_QSPI_0_MST_FLASH || CONFIG_QSPI_1_MST_FLASH)
+#if (CONFIG_QSPI_MST_FLASH)
 	} else if (os_strcmp(argv[2], "flash_test") == 0) {
 		extern void test_qspi_flash(uint32_t id, uint32_t base_addr, uint32_t buf_len);
 		uint32_t base_addr = os_strtoul(argv[3], NULL, 16);
@@ -197,7 +197,7 @@ static void cli_qspi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	}
 }
 
-#if (CONFIG_QSPI_0_MST_FLASH || CONFIG_QSPI_1_MST_FLASH)
+#if (CONFIG_QSPI_MST_FLASH)
 #define FLASH_PAGE_SIZE 256
 #define FLASH_SECTOR_SIZE 0x1000
 
@@ -277,7 +277,7 @@ static void cli_qspi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 static const struct cli_command s_qspi_commands[] = {
 	{"qspi_driver", "qspi_driver {init|deinit}", cli_qspi_driver_cmd},
 	{"qspi", "qspi {init|write|read}", cli_qspi_cmd},
-#if (CONFIG_QSPI_0_MST_FLASH || CONFIG_QSPI_1_MST_FLASH)
+#if (CONFIG_QSPI_MST_FLASH)
 	{"qspi_flash", "qspi_flash {write|read}", cli_qspi_flash_cmd},
 #endif
 };

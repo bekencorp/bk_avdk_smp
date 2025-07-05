@@ -14,7 +14,7 @@
 
 #include "qspi_hal.h"
 #include "qspi_ll.h"
-#include <driver/hal/hal_spi_types.h>
+#include <driver/hal/hal_qspi_types.h>
 
 static uint32_t s_current_sw_op = 0;
 

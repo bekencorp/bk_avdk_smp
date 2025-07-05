@@ -29,7 +29,6 @@
 #include <driver/ckmn.h>
 #include <os/mem.h>
 #include <driver/adc.h>
-#include <driver/spi.h>
 #include <driver/aon_rtc.h>
 #include <modules/pm.h>
 #include <driver/psram.h>

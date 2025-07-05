@@ -83,9 +83,11 @@ static int bk_spi_master_xfer(spi_id_t id, struct spi_message *msg)
 		send_data[i] = *(msg->send_buf + i);
 	}
 
+#if CONFIG_SPI_DMA
 	bk_spi_dma_duplex_init(id);
 	BK_LOG_ON_ERR(bk_spi_dma_duplex_xfer(id, send_data, buf_len, recv_data, buf_len));
 	bk_spi_dma_duplex_deinit(id);
+#endif
 
 	for (int i = 0; i < msg->recv_len; i++) {
 		msg->recv_buf[i] = *(recv_data + msg->send_len + i);
@@ -211,6 +213,25 @@ bk_err_t bk_spi_flash_init(spi_id_t id)
     return ret;
 }
 
+bk_err_t bk_spi_flash_deinit(spi_id_t id)
+{
+    bk_err_t ret = BK_OK;
+ 
+    ret = bk_spi_deinit(id);
+    if (BK_OK != ret)
+    {
+        SPI_LOGE("[%s] bk_spi_deinit fail[ret=%d]!\r\n", __func__, ret);
+        return ret;
+    }
+ 
+    ret = bk_spi_driver_deinit();
+    if (BK_OK != ret)
+    {
+        SPI_LOGE("[%s] bk_spi_driver_deinit fail[ret=%d]!\r\n", __func__, ret);
+    }
+ 
+    return ret;
+}
 
 bk_err_t bk_spi_flash_read(spi_id_t id, uint32_t base_addr, uint8_t *dst_data, uint32_t size)
 {

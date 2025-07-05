@@ -91,6 +91,25 @@ struct filesystem_proto {
 int bk_filesystem_init(void);
 int bk_register_filesystem(const char *fs_type, struct bk_filesystem_ops *fs_ops, struct bk_file_ops *f_ops);
 
+/**
+ * @brief Mount a file system.
+ *
+ * This API mount a file system:
+ *   - 
+ *
+ * @attention 1. This API should be called before any other file operations(read/write) APIs.
+ *
+ * @param source:The mount file system path, I.E:INTERNAL_FLASH_PATITION_0,SPI_FLASH_0_PATITION_0...
+ *        target:The target mount file system path, which is used by APP read,write file.
+ *               BK72xx MCU file system can customize the path as the  APP requirements.
+ *               I.E:/0/, /1/, C:/, D:/
+ *        fs_type:FS_TYPE_LFS or FS_TYPE_FATFS
+ *        mount_flags:MS_RW/MS_RDONLY/MS_NOEXEC/...
+ *        data:The special file system(lfs, fatfs...) private data
+ * @return
+ *    - 0: succeed
+ *    - others: other errors.
+ */
 int bk_vfs_mount(const char *source, const char *target,
                  const char *fs_type, unsigned long mount_flags,
                  const void *data);

@@ -9,7 +9,6 @@ extern "C"
 {
 #endif
 
-
 // Block device specific tracing
 #ifdef LFS_FLASHBD_YES_TRACE
 #define LFS_FLASHBD_TRACE(...) LFS_TRACE(__VA_ARGS__)
@@ -26,8 +25,9 @@ struct lfs_flashbd_config {
 
 // flashbd state
 typedef struct lfs_flashbd {
+    uint32_t device_id;
     uint32_t start_addr;
-	uint32_t end_addr;
+    uint32_t end_addr;
     const struct lfs_flashbd_config *cfg;
 } lfs_flashbd_t;
 
@@ -59,13 +59,26 @@ int lfs_flashbd_erase(const struct lfs_config *cfg, lfs_block_t block);
 // Sync the block device
 int lfs_flashbd_sync(const struct lfs_config *cfg);
 
-int lfs_spi_flashbd_init(void);
+#if (defined CONFIG_SPI_MST_FLASH)
+int lfs_spi_flashbd_init(uint32_t id);
 int lfs_spi_flashbd_read(const struct lfs_config *cfg, lfs_block_t block,
         lfs_off_t off, void *buffer, lfs_size_t size);
 int lfs_spi_flashbd_prog(const struct lfs_config *cfg, lfs_block_t block,
         lfs_off_t off, const void *buffer, lfs_size_t size);
 int lfs_spi_flashbd_erase(const struct lfs_config *cfg, lfs_block_t block);
 int lfs_spi_flashbd_sync(const struct lfs_config *cfg);
+#endif
+
+#if (defined CONFIG_QSPI_MST_FLASH)
+	int lfs_qspi_flashbd_init(uint32_t id);
+	int lfs_qspi_flashbd_read(const struct lfs_config *cfg, lfs_block_t block,
+			lfs_off_t off, void *buffer, lfs_size_t size);
+	int lfs_qspi_flashbd_prog(const struct lfs_config *cfg, lfs_block_t block,
+			lfs_off_t off, const void *buffer, lfs_size_t size);
+	int lfs_qspi_flashbd_erase(const struct lfs_config *cfg, lfs_block_t block);
+	int lfs_qspi_flashbd_sync(const struct lfs_config *cfg);
+#endif
+
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -34,6 +34,24 @@ typedef enum {
 	RES_PARERR		/* 4: Invalid Parameter */
 } DRESULT;
 
+#if 1	//FATFS adapte to other memories.
+typedef enum
+{
+    DISK_NUMBER_RAM  = 0,
+    DISK_NUMBER_SDIO_SD = 1,
+    DISK_NUMBER_UDISK   = 2,
+    DISK_NUMBER_FLASH   = 3,
+    DISK_NUMBER_INTERNAL_FLASH = DISK_NUMBER_FLASH,
+
+    DISK_NUMBER_SPI_0_FLASH = 4,
+    DISK_NUMBER_SPI_1_FLASH = 5,
+
+    DISK_NUMBER_QSPI_0_FLASH = 6,
+    DISK_NUMBER_QSPI_1_FLASH = 7,
+
+    DISK_NUMBER_COUNT,
+} DISK_NUMBER;
+#else
 typedef enum
 {
     DISK_NUMBER_RAM  = 0,
@@ -42,6 +60,7 @@ typedef enum
     DISK_NUMBER_FLASH   = 3,
     DISK_NUMBER_COUNT,
 } DISK_NUMBER;
+#endif
 
 /*---------------------------------------*/
 /* Prototypes for disk control functions */
