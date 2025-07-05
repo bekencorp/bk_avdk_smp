@@ -323,6 +323,7 @@ void *frame_buffer_list_node_init(uint16_t camera_id, uint8_t camera_type, uint1
     if (node)
     {
         node->invalid = false;
+        node->deinit = false;
         if (fb_info->main == NULL || fb_info->main->invalid)
         {
             fb_info->main = node;
