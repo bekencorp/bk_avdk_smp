@@ -1653,7 +1653,7 @@ static void shell_log_tx_init(void)
 	dynamic_log_init();
 }
 
-#define LOG_HANDLE_TASK_STACK 0x200
+#define LOG_HANDLE_TASK_STACK 0x400
 beken_thread_t log_thread_handle = NULL;
 void create_log_handle_task(void)
 {
