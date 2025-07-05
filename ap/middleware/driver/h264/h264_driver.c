@@ -211,8 +211,9 @@ bk_err_t bk_h264_driver_deinit(void)
 		return BK_OK;
 	}
 
-	bk_int_isr_unregister(INT_SRC_H264);
 	h264_int_disable();
+	bk_int_isr_unregister(INT_SRC_H264);
+
 	h264_hal_reset(&s_h264.hal);
 	os_memset(&s_h264, 0, sizeof(s_h264));
 	s_h264_driver_is_init = false;

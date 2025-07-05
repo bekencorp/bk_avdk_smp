@@ -70,13 +70,16 @@ bk_err_t bk_jpeg_dec_driver_init(void)
 	}
 
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_VIDP_JPEG_DE, PM_POWER_MODULE_STATE_ON);
-	sys_drv_int_enable(JPEGDEC_INTERRUPT_CTRL_BIT);
+
 	sys_drv_set_jpeg_dec_disckg(1);
 
 #if (USE_JPEG_DEC_COMPLETE_CALLBACKS == 1)
 	bk_int_isr_register(INT_SRC_JPEG_DEC, jpeg_decoder_isr, NULL);
 #endif
+
 	jpg_decoder_init();
+
+	sys_drv_int_enable(JPEGDEC_INTERRUPT_CTRL_BIT);
 
 	LOGD("%s complete\n", __func__);
 
