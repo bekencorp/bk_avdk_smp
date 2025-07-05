@@ -86,7 +86,7 @@ void arch_interrupt_unregister_int(uint32_t int_number)
 	if (int_number > (INT_NUMBER_MAX - 1)) {
 		return;
 	}
-	NVIC_DisableIRQ(int_number);
+	// NVIC_DisableIRQ(int_number);
 	s_irq_handler[int_number] = NULL;
 }
 
