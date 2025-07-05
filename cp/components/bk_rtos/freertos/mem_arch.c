@@ -52,7 +52,7 @@ void *os_realloc(void *ptr, size_t size)
 	void *tmp;
 
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		BK_LOGD(NULL,"realloc_risk\r\n");
+		BK_LOGE(NULL,"realloc_risk\r\n");
 		BK_ASSERT(false);
 	}
 
@@ -72,7 +72,7 @@ void *psram_realloc(void *ptr, size_t size)
 	void *tmp;
 
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		BK_LOGD(NULL,"psram_realloc_risk\r\n");
+		BK_LOGE(NULL,"psram_realloc_risk\r\n");
 		BK_ASSERT(false);
 	}
 
@@ -102,24 +102,20 @@ int os_memcmp_const(const void *a, const void *b, size_t len)
 #if !CONFIG_MALLOC_STATIS && !CONFIG_MEM_DEBUG
 void *os_malloc(size_t size)
 {
-#if !CONFIG_FULLY_HOSTED
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		BK_LOGD(NULL,"malloc_risk\r\n");
+		BK_LOGE(NULL,"malloc_risk\r\n");
 		BK_ASSERT(false);
 	}
-#endif
 
 	return (void *)pvPortMalloc(size);
 }
 
 void *os_sram_malloc(size_t size)
 {
- #if !CONFIG_FULLY_HOSTED
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-        os_printf("malloc_risk\r\n");
+        BK_LOGE(NULL,"malloc_risk\r\n");
         BK_ASSERT(false);
     }		
-#endif
 
     return (void *)bk_wrap_sram_malloc(size);
 }
@@ -157,12 +153,10 @@ void *os_sram_calloc(size_t a, size_t b)
 
 void os_free(void *ptr)
 {
-#if !CONFIG_FULLY_HOSTED
 	if (platform_is_in_interrupt_context() && (arch_is_enter_exception() == 0)) {
-		BK_LOGD(NULL,"free_risk\r\n");
+		BK_LOGE(NULL,"free_risk\r\n");
 		BK_ASSERT(false);
 	}
-#endif
 
 	if (ptr)
 		vPortFree(ptr);

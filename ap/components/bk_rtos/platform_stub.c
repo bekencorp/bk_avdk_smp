@@ -131,7 +131,7 @@ int __wrap_printf(const char *fmt, ...)
         return 0;
 
     va_start(args,fmt);
-    shell_log_out_port(LOG_COMMON_MODE, BK_LOG_WARN, NULL, fmt, args);
+    shell_log_out_port(LOG_COMMON_MODE, BK_LOG_INFO, NULL, fmt, args);
 
     va_end(args);
 

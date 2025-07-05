@@ -34,11 +34,11 @@ typedef     cs2_pthread_mutex_t                     my_Thread_mutex_t;
 #define     CS2_DBG_LIB_EXTAR_STACK_SIZE        (2048)
 
 #define setbuf(...)
-#define printf(fmt, ...)        do{osi_log_lock(); os_printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
-#define st_info(fmt, ...)       do{osi_log_lock(); os_printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
-#define st_debug(fmt, ...)      do{osi_log_lock(); os_printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
-#define st_debug_T(fmt, ...)    do{osi_log_lock(); os_printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
-#define st_info_T(fmt, ...)     do{osi_log_lock(); os_printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
+#define printf(fmt, ...)        do{osi_log_lock(); printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
+#define st_info(fmt, ...)       do{osi_log_lock(); printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
+#define st_debug(fmt, ...)      do{osi_log_lock(); printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
+#define st_debug_T(fmt, ...)    do{osi_log_lock(); printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
+#define st_info_T(fmt, ...)     do{osi_log_lock(); printf("\n" fmt, ##__VA_ARGS__); osi_log_unlock();}while(0)
 //#define error(x) os_printf("%s %s\n", __func__, x)
 
 
