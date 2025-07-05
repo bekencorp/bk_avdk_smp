@@ -24,7 +24,7 @@
 
 
 #ifndef ATSVRLOG
-#define ATSVRLOG(...)		BK_LOGD(ATSVR_TAG, ##__VA_ARGS__)
+#define ATSVRLOG(...)		BK_LOGV(ATSVR_TAG, ##__VA_ARGS__)
 #endif
 
 #ifndef ATSVRLOGI

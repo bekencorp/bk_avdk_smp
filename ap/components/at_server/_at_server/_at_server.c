@@ -534,7 +534,7 @@ int _atsvc_command_handle(_atsvr_env_t *env,char argc,char **argv,int len)
 	if(env->setup_done == true)
 	{
 		if(env->setup_status == _ATSVR_SETUP_DONE)
-		{		
+		{
 			ATSVRLOG("[ATSVR]command:%s is not time out and success\r\n",command->name);
 			if(&func_proc!=NULL)
 			{
