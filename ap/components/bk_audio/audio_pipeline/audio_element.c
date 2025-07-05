@@ -464,6 +464,8 @@ int audio_element_output(audio_element_handle_t el, char *buffer, int write_size
         }
         else if (el->out_type == PORT_TYPE_FB)
         {
+            //TODO
+            //BK_LOGE(TAG, "%s, %d filled_size: %d\n", __func__, __LINE__, audio_port_get_filled_size(el->out));
             if ((audio_port_get_filled_size(el->out) > el->out_cfg.out_cfg_fb.node_num_expect) || (output_len < 0))
             {
                 xEventGroupSetBits(el->state_event, BUFFER_REACH_LEVEL_BIT);

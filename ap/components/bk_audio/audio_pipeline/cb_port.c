@@ -97,6 +97,11 @@ static bk_err_t _callback_port_destroy(audio_port_handle_t self)
     return BK_OK;
 }
 
+static bk_err_t _callback_port_write_done(audio_port_handle_t self)
+{
+    return BK_OK;
+}
+
 audio_port_handle_t callback_port_init(callback_port_cfg_t *config)
 {
     callback_port_t *cb_port = audio_calloc(1, sizeof(callback_port_t));
@@ -113,6 +118,7 @@ audio_port_handle_t callback_port_init(callback_port_cfg_t *config)
     cfg.reset = _callback_port_reset;
     cfg.read = _callback_port_read;
     cfg.write = _callback_port_write;
+    cfg.write_done = _callback_port_write_done;
     audio_port_handle_t port = audio_port_init(&cfg);
     AUDIO_MEM_CHECK(TAG, port, goto fail);
     audio_port_set_type(port, PORT_TYPE_CB);

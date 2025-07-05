@@ -74,7 +74,7 @@ static bk_err_t _framebuf_port_read(audio_port_handle_t self, char *buffer, int 
     {
         if (ret > len)
         {
-            BK_LOGD(TAG, "%s, frame size:%d > buffer len:%d\n", __func__, ret, len);
+            BK_LOGW(TAG, "[%s] %s, frame size:%d > buffer len:%d\n", audio_port_get_tag(self), __func__, ret, len);
             ret = PORT_SIZE_OUT_RANGE;
         }
         else
@@ -85,7 +85,7 @@ static bk_err_t _framebuf_port_read(audio_port_handle_t self, char *buffer, int 
 
     fb_free(fb_port->fb, fb_node_item, 0);
 
-    BK_LOGV(TAG, "%s, ret:%d\n", __func__, ret);
+    BK_LOGV(TAG, "[%s] %s, ret:%d\n", audio_port_get_tag(self), __func__, ret);
     return ret;
 }
 
@@ -99,8 +99,8 @@ static bk_err_t _framebuf_port_write(audio_port_handle_t self, char *buffer, int
     {
         if (ret < len)
         {
-            BK_LOGD(TAG, "%s, frame size:%d < buffer len:%d\n", __func__, ret, len);
-            /* push framebuf to free list */
+            BK_LOGW(TAG, "[%s] %s, frame size:%d < buffer len:%d\n", audio_port_get_tag(self), __func__, ret, len);
+            /* push framebuffer to free list */
             fb_free(fb_port->fb, fb_node_item, 0);
             ret = PORT_SIZE_OUT_RANGE;
         }
@@ -149,6 +149,11 @@ static bk_err_t _framebuf_port_destroy(audio_port_handle_t self)
     return BK_OK;
 }
 
+static bk_err_t _framebuf_port_write_done(audio_port_handle_t self)
+{
+    return BK_OK;
+}
+
 audio_port_handle_t framebuf_port_init(framebuf_port_cfg_t *config)
 {
     framebuf_port_t *fb_port = audio_calloc(1, sizeof(framebuf_port_t));
@@ -165,6 +170,7 @@ audio_port_handle_t framebuf_port_init(framebuf_port_cfg_t *config)
     cfg.reset = _framebuf_port_reset;
     cfg.read = _framebuf_port_read;
     cfg.write = _framebuf_port_write;
+    cfg.write_done = _framebuf_port_write_done;
     cfg.get_size = _framebuf_port_get_total_node_num;
     cfg.get_filled_size  = _framebuf_port_get_ready_node_num;
     audio_port_handle_t port = audio_port_init(&cfg);

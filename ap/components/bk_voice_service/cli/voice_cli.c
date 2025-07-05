@@ -111,6 +111,12 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         {
             enc_type = AUDIO_ENC_TYPE_G711U;
         }
+#if CONFIG_VOICE_SERVICE_AAC_ENCODER
+        else if (os_strcmp(argv[5], "aac") == 0)
+        {
+            enc_type = AUDIO_ENC_TYPE_AAC;
+        }
+#endif
         else
         {
             LOGE("%s, %d, enc_type: %s not support\n", __func__, __LINE__, argv[5]);
@@ -129,6 +135,12 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         {
             dec_type = AUDIO_DEC_TYPE_G711U;
         }
+#if CONFIG_VOICE_SERVICE_AAC_DECODER
+        else if (os_strcmp(argv[6], "aac") == 0)
+        {
+            dec_type = AUDIO_DEC_TYPE_AAC;
+        }
+#endif
         else
         {
             LOGE("%s, %d, dec_type: %s not support\n", __func__, __LINE__, argv[6]);
@@ -251,6 +263,15 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
                 voice_cfg.read_pool_size = 640;
             }
         }
+#if CONFIG_VOICE_SERVICE_AAC_ENCODER
+        else if (enc_type == AUDIO_ENC_TYPE_AAC)
+        {
+            aac_encoder_cfg_t aac_enc_cfg = DEFAULT_AAC_ENCODER_CONFIG();
+            aac_enc_cfg.samp_rate = mic_samp_rate;
+            aac_enc_cfg.in_pool_len = aac_enc_cfg.buffer_len + aac_enc_cfg.samp_rate * aac_enc_cfg.bits / 8 * aac_enc_cfg.chl_num / 1000 * 20;
+            voice_cfg.enc_cfg.aac_enc_cfg = aac_enc_cfg;
+        }
+#endif
         else
         {
             //noting todo
@@ -295,6 +316,13 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
                 voice_cfg.write_pool_size = 640;
             }
         }
+#if CONFIG_VOICE_SERVICE_AAC_DECODER
+        else if (dec_type == AUDIO_DEC_TYPE_AAC)
+        {
+            aac_decoder_cfg_t aac_dec_cfg = DEFAULT_AAC_DECODER_CONFIG();
+            voice_cfg.dec_cfg.aac_dec_cfg = aac_dec_cfg;
+        }
+#endif
         else
         {
             //noting todo
@@ -362,7 +390,20 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 
         voice_read_cfg_t voice_read_cfg = VOICE_READ_CFG_DEFAULT();
         voice_read_cfg.voice_handle = gl_voice_handle;
+
+#if CONFIG_VOICE_SERVICE_AAC_ENCODER
+        if (enc_type == AUDIO_ENC_TYPE_AAC)
+        {
+            voice_read_cfg.max_read_size = voice_cfg.enc_cfg.aac_enc_cfg.out_block_size;
+            //LOGI("%s, %d, aac out_block_size: %d\n", __func__, __LINE__, voice_cfg.enc_cfg.aac_enc_cfg.out_block_size);
+        }
+        else
+        {
+            voice_read_cfg.max_read_size = mic_samp_rate * 2 * 20 / 1000; //one frame size(20ms)
+        }
+#else
         voice_read_cfg.max_read_size = mic_samp_rate * 2 * 20 / 1000; //one frame size(20ms)
+#endif
         voice_read_cfg.voice_read_callback = voice_send_callback;
         voice_read_cfg.args = NULL;
         voice_read_cfg.mem_type = AUDIO_MEM_TYPE_PSRAM;
@@ -461,13 +502,13 @@ static const struct cli_command s_voice_commands[] =
      * [mic_type]       onboard/uac
      * [mic_samp_rate]  8000/16000
      * [aec_en]         0/1
-     * [enc_type]       pcm/g711a/g711u
-     * [dec_type]       pcm/g711a/g711u
+     * [enc_type]       pcm/g711a/g711u/aac
+     * [dec_type]       pcm/g711a/g711u/aac
      * [spk_type]       onboard/uac
      * [spk_samp_rate]  8000/16000
      */
 
-    {"voice", "voice {start|stop onboard|uac 8000|16000 0|1 pcm|g711a|g711u pcm|g711a|g711u onboard|uac 8000|16000}", cli_voice_test_cmd},
+    {"voice", "voice {start|stop onboard|uac 8000|16000 0|1 pcm|g711a|g711u|aac pcm|g711a|g711u|aac onboard|uac 8000|16000}", cli_voice_test_cmd},
 };
 
 int cli_voice_init(void)

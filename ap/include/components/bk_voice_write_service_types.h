@@ -36,7 +36,7 @@ typedef struct {
 
 #define VOICE_WRITE_TASK_PRIO           (BEKEN_DEFAULT_WORKER_PRIORITY - 1)
 #define VOICE_WRITE_POOL_SIZE           (3200)
-#define VOICE_WRITE_START_THRESHOLD     (VOICE_WRITE_POOL_SIZE - 640)
+#define VOICE_WRITE_START_THRESHOLD     (1280)
 #define VOICE_WRITE_PAUSE_THRESHOLD     (0)
 
 #define VOICE_WRITE_CFG_DEFAULT() {                 \

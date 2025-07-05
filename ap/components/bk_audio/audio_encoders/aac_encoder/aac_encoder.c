@@ -63,6 +63,34 @@
 #endif
 
 
+/* aac encoder output aac data count depends on debug utils, so must config CONFIG_ADK_UTILS=y when count aac encoder output aac data. */
+#if CONFIG_ADK_UTILS
+
+#define AAC_ENC_OUTPUT_DATA_COUNT
+
+#endif  //CONFIG_ADK_UTILS
+
+
+#ifdef AAC_ENC_OUTPUT_DATA_COUNT
+
+#include <components/bk_audio/audio_utils/count_util.h>
+static count_util_t aac_enc_output_count_util = {0};
+#define AAC_ENC_OUTPUT_DATA_COUNT_INTERVAL     (1000 * 4)
+#define AAC_ENC_OUTPUT_DATA_COUNT_TAG          "AAC_ENC_OUTPUT"
+
+#define AAC_ENC_OUTPUT_DATA_COUNT_OPEN()               count_util_create(&aac_enc_output_count_util, AAC_ENC_OUTPUT_DATA_COUNT_INTERVAL, AAC_ENC_OUTPUT_DATA_COUNT_TAG)
+#define AAC_ENC_OUTPUT_DATA_COUNT_CLOSE()              count_util_destroy(&aac_enc_output_count_util)
+#define AAC_ENC_OUTPUT_DATA_COUNT_ADD_SIZE(size)       count_util_add_size(&aac_enc_output_count_util, size)
+
+#else
+
+#define AAC_ENC_OUTPUT_DATA_COUNT_OPEN()
+#define AAC_ENC_OUTPUT_DATA_COUNT_CLOSE()
+#define AAC_ENC_OUTPUT_DATA_COUNT_ADD_SIZE(size)
+
+#endif  //AAC_ENC_OUTPUT_DATA_COUNT
+
+
 typedef struct aac_encoder
 {
     HANDLE_AACENCODER       enc_handle;
@@ -360,6 +388,9 @@ retry:
         AAC_ENCODER_OUTPUT_START();
         result = audio_element_output(self, (char *)aac_enc->out_frame_buff, enc_size);
         AAC_ENCODER_OUTPUT_END();
+
+        AAC_ENC_OUTPUT_DATA_COUNT_ADD_SIZE(enc_size);
+
         goto out;
     }
     else
@@ -396,6 +427,9 @@ retry:
                 AAC_ENCODER_OUTPUT_START();
                 result = audio_element_output(self, (char *)aac_enc->out_frame_buff, enc_size);
                 AAC_ENCODER_OUTPUT_END();
+
+                AAC_ENC_OUTPUT_DATA_COUNT_ADD_SIZE(enc_size);
+
                 goto out;
             }
             else
@@ -445,6 +479,8 @@ static bk_err_t _aac_encoder_destroy(audio_element_handle_t self)
 
     audio_free(aac_enc);
 
+    AAC_ENC_OUTPUT_DATA_COUNT_CLOSE();
+
     return BK_OK;
 }
 
@@ -462,6 +498,7 @@ audio_element_handle_t aac_encoder_init(aac_encoder_cfg_t *config)
     cfg.seek = NULL;
     cfg.process = _aac_encoder_process;
     cfg.destroy = _aac_encoder_destroy;
+    cfg.in_type = PORT_TYPE_RB;
     cfg.read = NULL;
     cfg.write = NULL;
     cfg.task_stack = config->task_stack;
@@ -495,6 +532,7 @@ audio_element_handle_t aac_encoder_init(aac_encoder_cfg_t *config)
     aac_enc->frame_size = aac_enc->granule_length * aac_enc->bits / 8 * aac_enc->chl_num;
 
     BK_LOGD(TAG, "[aac encoder] frame_size: %d, buffer_len: %d, in_pool_len: %d, out_buffer_len: %d\n", aac_enc->frame_size, aac_enc->buffer_len, aac_enc->in_pool_len, aac_enc->out_buffer_len);
+    BK_LOGD(TAG, "[aac encoder] out_block_size: %d, out_block_num: %d\n", aac_enc->out_block_size, aac_enc->out_block_num);
 
     /* create task to init aac encoder, avoid stack overflow */
     if (BK_OK != _aac_encoder_lib_init_by_task(aac_enc))
@@ -513,6 +551,9 @@ audio_element_handle_t aac_encoder_init(aac_encoder_cfg_t *config)
     el = audio_element_init(&cfg);
     AUDIO_MEM_CHECK(TAG, el, goto _aac_encoder_init_exit);
     audio_element_setdata(el, aac_enc);
+
+    AAC_ENC_OUTPUT_DATA_COUNT_OPEN();
+
     return el;
 
 _aac_encoder_init_exit:

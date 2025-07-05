@@ -338,10 +338,12 @@ int fb_write(framebuf_handle_t fb, framebuf_node_item_t *fb_node_item, TickType_
 
     STAILQ_INSERT_TAIL(&fb->ready_fb_node_list, fb_node_item, next);
 
+    int data_length = fb_node_item->fb_node->length;
+
     fb_release(fb->lock);
     fb_release(fb->can_read);
 
-    return fb_node_item->fb_node->length;
+    return data_length;
 }
 
 static bk_err_t fb_abort_read(framebuf_handle_t fb)
@@ -399,12 +401,19 @@ int fb_get_ready_node_num(framebuf_handle_t fb)
         return FB_FAIL;
     }
 
+    /* take frame buffer lock */
+    if (fb_block(fb->lock, portMAX_DELAY) != pdTRUE) {
+        return FB_TIMEOUT;
+    }
+
     STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->ready_fb_node_list, next, fb_node_tmp) {
         if (fb_node_item_ptr)
         {
             ready_node_num++;
         }
     }
+
+    fb_release(fb->lock);
 
     return ready_node_num;
 }
@@ -414,6 +423,11 @@ void debug_fb_node_lists(framebuf_handle_t fb, int line, const char *func)
     framebuf_node_item_t *fb_node_item_ptr, *fb_node_tmp;
 
     if (fb == NULL) {
+        return;
+    }
+
+    /* take frame buffer lock */
+    if (fb_block(fb->lock, portMAX_DELAY) != pdTRUE) {
         return;
     }
 
@@ -443,6 +457,9 @@ void debug_fb_node_lists(framebuf_handle_t fb, int line, const char *func)
                 fb_node_item_ptr->fb_node->info,
                 fb_node_item_ptr->fb_node->info_size);
     }
+
+    fb_release(fb->lock);
+
     BK_LOGD(TAG, "\n");
 }
 

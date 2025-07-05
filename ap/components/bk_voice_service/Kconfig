@@ -46,10 +46,12 @@ menu "Voice Service"
 			Enable Voice Service test to test voice service by cli command
 
 	config VOICE_SERVICE_AAC_ENCODER
+		depends on ADK_AAC_ENCODER
 		bool "Enable Voice Service Support AAC Encoder"
 		default n
 
 	config VOICE_SERVICE_AAC_DECODER
+		depends on ADK_AAC_DECODER
 		bool "Enable Voice Service Support AAC Decoder"
 		default n
 
