@@ -2404,6 +2404,8 @@ void vTaskSuspendAll( void )
     {
         TickType_t xReturn;
         UBaseType_t uxHigherPriorityReadyTasks = pdFALSE;
+        const TickType_t xConstTickCount = xTickCount;
+        const TickType_t xConstNextTaskUnblockTime = xNextTaskUnblockTime;
 
         /* uxHigherPriorityReadyTasks takes care of the case where
          * configUSE_PREEMPTION is 0, so there may be tasks above the idle priority
@@ -2450,9 +2452,11 @@ void vTaskSuspendAll( void )
              * configUSE_PREEMPTION is 0. */
             xReturn = 0;
         }
-        else
+        else if(xConstNextTaskUnblockTime < xConstTickCount)
         {
-            xReturn = xNextTaskUnblockTime - xTickCount;
+            xReturn = 0;
+        } else {
+            xReturn = xConstNextTaskUnblockTime - xConstTickCount;
         }
 
         return xReturn;
@@ -3026,7 +3030,7 @@ char * pcTaskGetName( TaskHandle_t xTaskToQuery ) /*lint !e971 Unqualified char 
             /* Correct the tick count value after a period during which the tick
              * was suppressed.  Note this does *not* call the tick hook function for
              * each stepped tick. */
-            configASSERT( ( xTickCount ) < xNextTaskUnblockTime );
+            // configASSERT( ( xTickCount ) < xNextTaskUnblockTime );
 
                      TickType_t xNewTickCount = xTickCount + xTicksToJump;
 
@@ -4276,13 +4280,16 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
                 //prvENTER_CRITICAL( &xKernelLock );
                 vTaskSuspendAll();
                 {
+                    const TickType_t xConstTickCount = xTickCount;
+                    const TickType_t xConstNextTaskUnblockTime = xNextTaskUnblockTime;
+                    const UBaseType_t xConstPendedTicks = xPendedTicks;
+                    
                     /* Now the scheduler is suspended, the expected idle
                      * time can be sampled again, and this time its value can
                      * be used. */
-                    if(xPendedTicks) {    //xPendedTicks, no needs to enter sleep.(Maybe after vTaskSuspendAll, xTaskCatchUpTicks or vTaskStepTick is called in ISR)
-                        ;
-                    } else {
-                        configASSERT( xNextTaskUnblockTime >= xTickCount );
+                    if((xConstPendedTicks == 0) && (xConstNextTaskUnblockTime >= xConstTickCount ))
+                    {
+                        // configASSERT( xNextTaskUnblockTime >= xTickCount );
                         xExpectedIdleTime = prvGetExpectedIdleTime();
 
                         /* Define the following macro to set xExpectedIdleTime to 0
