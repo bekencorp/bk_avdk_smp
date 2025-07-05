@@ -124,6 +124,9 @@ typedef struct {
 	void           *handle;    /**< OS timer handle pointer */
 	timer_handler_t function;  /**< OS timer handle callback function */
 	void           *arg;       /**< OS timer handle callback argument */
+    uint32_t        stop_flag : 1;       /**< stop flag */ 
+    uint32_t        deinit_flag:1;       /**< deinit flag */ 
+    uint32_t        reserved : 30;
 } beken_timer_t;
 
 /// OS worker thread handle struct type
@@ -147,6 +150,9 @@ typedef struct {
 	void           *left_arg;    /**< OS timer handle callback first argument */
 	void           *right_arg;   /**< OS timer handle callback second argument */
 	uint32_t        beken_magic; /**< OS timer magic word */
+    uint32_t        stop_flag : 1;   /**< stop flag */ 
+    uint32_t        deinit_flag:1;   /**< deinit flag */ 
+    uint32_t        reserved : 30;
 } beken2_timer_t;
 /**
 * @}

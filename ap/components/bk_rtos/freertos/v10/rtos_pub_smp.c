@@ -743,6 +743,9 @@ static void timer_callback2( xTimerHandle handle )
     }
     if ( timer->function )
     {
+        if ((timer->stop_flag) || (timer->deinit_flag)) {
+            return;
+        }
         timer->function( timer->left_arg, timer->right_arg );
     }
 }
@@ -753,6 +756,9 @@ static void timer_callback1( xTimerHandle handle )
 
     if ( timer->function )
     {
+        if ((timer->stop_flag) || (timer->deinit_flag)) {
+            return;
+        }
         timer->function( timer->arg);
     }
 }
@@ -760,6 +766,10 @@ static void timer_callback1( xTimerHandle handle )
 bk_err_t rtos_start_oneshot_timer( beken2_timer_t* timer )
 {
     signed portBASE_TYPE result;
+
+    if (timer != NULL) {
+        timer->stop_flag = 0;
+    }
 
     if ( platform_is_in_interrupt_context() == RTOS_SUCCESS ) {
         signed portBASE_TYPE xHigherPriorityTaskWoken = 0;
@@ -800,6 +810,7 @@ bk_err_t rtos_deinit_oneshot_timer( beken2_timer_t* timer )
 	void * handle = timer->handle;
 	timer->handle = 0;
 	
+    timer->deinit_flag = 1;
 	GLOBAL_INT_RESTORE();
 
     if ( xTimerDelete(handle, BEKEN_WAIT_FOREVER ) != pdPASS )
@@ -822,6 +833,10 @@ bk_err_t rtos_deinit_oneshot_timer( beken2_timer_t* timer )
 bk_err_t rtos_stop_oneshot_timer( beken2_timer_t* timer )
 {
     signed portBASE_TYPE result;
+
+    if (timer != NULL) {
+        timer->stop_flag = 1;
+    }
 
     if ( platform_is_in_interrupt_context() == RTOS_SUCCESS ) {
         signed portBASE_TYPE xHigherPriorityTaskWoken = 0;
@@ -933,6 +948,7 @@ bk_err_t rtos_init_oneshot_timer( beken2_timer_t *timer,
     {
         ret = kGeneralErr;
     }
+    timer->deinit_flag = 0;
 
     GLOBAL_INT_RESTORE();
 
@@ -965,6 +981,8 @@ bk_err_t rtos_init_timer( beken_timer_t *timer,
         ret = kGeneralErr;
     }
 
+    timer->deinit_flag = 0;
+
     GLOBAL_INT_RESTORE();
 
 #if CONFIG_DEBUG_RTOS_TIMER
@@ -977,6 +995,10 @@ bk_err_t rtos_init_timer( beken_timer_t *timer,
 bk_err_t rtos_start_timer( beken_timer_t* timer )
 {
     signed portBASE_TYPE result;
+
+    if (timer != NULL) {
+        timer->stop_flag = 0;
+    }
 
     if ( platform_is_in_interrupt_context() == RTOS_SUCCESS ) {
         signed portBASE_TYPE xHigherPriorityTaskWoken = 0;
@@ -996,6 +1018,10 @@ bk_err_t rtos_start_timer( beken_timer_t* timer )
 bk_err_t rtos_stop_timer( beken_timer_t* timer )
 {
     signed portBASE_TYPE result;
+
+    if (timer != NULL) {
+        timer->stop_flag = 1;
+    }
 
     if ( platform_is_in_interrupt_context() == RTOS_SUCCESS ) {
         signed portBASE_TYPE xHigherPriorityTaskWoken = 0;
@@ -1073,6 +1099,9 @@ bk_err_t rtos_deinit_timer( beken_timer_t* timer )
 	GLOBAL_INT_DECLARATION();
 
 	GLOBAL_INT_DISABLE();
+
+    timer->deinit_flag = 1;
+
 	void * handle = timer->handle;
 	timer->handle = 0;
 	GLOBAL_INT_RESTORE();
