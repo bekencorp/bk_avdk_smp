@@ -414,7 +414,8 @@ bk_err_t frame_buffer_list_node_deinit(frame_list_node_t *node)
 
     if (node->register_mask != 0)
     {
-        LOGE("there are modes not deregister: %d\n", node->register_mask);
+        LOGE("there are modes not deregister: %d, deinit:%d\n", node->register_mask, node->deinit);
+        node->deinit = true;
         return BK_OK;
     }
 
@@ -799,9 +800,16 @@ bk_err_t frame_buffer_fb_deregister(frame_list_node_t *node, frame_module_t modu
             }
         }
     }
-    LOGD("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
 
     fb_exit_critical(flag);
+
+    if (node->register_mask == 0 && node->deinit)
+    {
+        node->deinit = false;
+        frame_buffer_list_node_deinit(node);
+    }
+
+    LOGD("%s, %p, %d, %d\n", __func__, node, node->register_mask, module);
 
     return BK_OK;
 }

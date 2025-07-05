@@ -60,6 +60,7 @@ typedef struct {
     uint8_t count;
     uint8_t camera_type;
     uint8_t invalid;
+    uint8_t deinit;
     uint16_t camera_id;
     uint16_t img_format;
     uint32_t register_mask;
