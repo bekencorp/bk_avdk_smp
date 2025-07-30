@@ -237,6 +237,7 @@ typedef struct
         .task_prio = UAC_MIC_STREAM_TASK_PRIO,                 \
     },                                                         \
     .aec_en = true,                                            \
+    .aec_ver = 1,                                              \
     .aec_cfg.aec_alg_cfg = {                                   \
         .task_stack = AEC_ALGORITHM_TASK_STACK,                \
         .task_core = AEC_ALGORITHM_TASK_CORE,                  \
@@ -255,6 +256,7 @@ typedef struct
         .out_block_num = 1,                                    \
         .multi_out_port_num = 0,                               \
     },                                                         \
+    .enc_en = true,                                            \
     .enc_type = AUDIO_ENC_TYPE_G711A,                          \
     .enc_cfg.g711_enc_cfg = {                                  \
         .buf_sz = G711_ENCODER_BUFFER_SIZE,                    \
@@ -267,6 +269,7 @@ typedef struct
     },                                                         \
     .read_pool_size = 160,                                     \
     .write_pool_size = 320,                                    \
+    .dec_en = true,                                            \
     .dec_type = AUDIO_DEC_TYPE_G711A,                          \
     .dec_cfg.g711_dec_cfg = {                                  \
         .buf_sz = G711_DECODER_BUFFER_SIZE,                    \
@@ -346,6 +349,7 @@ typedef struct
             .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
         },                                                          \
         .aec_en = true,                                             \
+        .aec_ver = 1,                                               \
         .aec_cfg.aec_alg_cfg = {                                    \
             .task_stack = AEC_ALGORITHM_TASK_STACK,                 \
             .task_core = AEC_ALGORITHM_TASK_CORE,                   \
@@ -364,6 +368,7 @@ typedef struct
             .out_block_num = 1,                                     \
             .multi_out_port_num = 0,                                \
         },                                                          \
+        .enc_en = true,                                             \
         .enc_type = AUDIO_ENC_TYPE_AAC,                             \
         .enc_cfg.aac_enc_cfg = {                                    \
             .chl_num            = AAC_ENCODER_CHL_NUM,              \
@@ -388,6 +393,7 @@ typedef struct
         },                                                          \
         .read_pool_size = AAC_ENCODER_OUT_RB_SIZE,                  \
         .write_pool_size = (AAC_DECODER_MAIN_BUFF_SIZE * 2),        \
+        .dec_en = true,                                             \
         .dec_type = AUDIO_DEC_TYPE_AAC,                             \
         .dec_cfg.aac_dec_cfg = {                                    \
             .main_buff_size     = AAC_DECODER_MAIN_BUFF_SIZE,       \
