@@ -15,8 +15,16 @@
 #include "os/os.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
 #include <components/log.h>
+#if CONFIG_BLUETOOTH_HOST_ONLY
+#include "bt_os_adapter.h"
+#include "bluetooth_internal.h"
+#include "hal_hci_core.h"
+#endif
 #if CONFIG_BLUETOOTH_SUPPORT_IPC
 #include "bt_ipc_core.h"
+#endif
+#if (CONFIG_BLE_AT_ENABLE)
+#include "../include/private/bk_at_ble.h"
 #endif
 
 #define TAG       "bluetooth"
@@ -29,8 +37,10 @@
 #define BT_INIT_DEINIT_TIMEOUT_MS 5000
 
 static uint8_t bluetooth_already_init = 0;
+extern int bk_bt_os_adapter_init(void);
+extern int bk_bt_feature_init(void);
 static beken_semaphore_t bt_sem = NULL;
-
+static beken_mutex_t bluetooth_mutex = NULL;
 static void bk_enable_bt(void)
 {
     bt_err_t ret = 0;
@@ -41,7 +51,7 @@ static void bk_enable_bt(void)
     ret = rtos_get_semaphore(&bt_sem, BT_INIT_DEINIT_TIMEOUT_MS);
     if(ret != BK_OK)
     {
-        LOGE("bk_enable_bt timeout!\r\n");
+        LOGW("bk_enable_bt timeout!\r\n");
     }
 }
 
@@ -55,7 +65,7 @@ static void bk_disable_bt(void)
     ret = rtos_get_semaphore(&bt_sem, BT_INIT_DEINIT_TIMEOUT_MS);
     if(ret != BK_OK)
     {
-        LOGE("bk_disable_bt timeout!\r\n");
+        LOGW("bk_disable_bt timeout!\r\n");
     }
 }
 
@@ -66,14 +76,14 @@ bt_err_t bk_bluetooth_init(void)
     LOGD("%s start, %d \r\n", __func__, bluetooth_already_init);
     if (bluetooth_already_init)
     {
-        LOGE("%s bluetooth already initialised\r\n", __func__);
+        LOGW("%s bluetooth already initialised\r\n", __func__);
         return 0;
     }
 
     /* init semaphore */
     ret = rtos_init_semaphore(&bt_sem, 1);
     if (ret != BK_OK) {
-        LOGE("init send_sema fail!\r\n");
+        LOGW("init send_sema fail!\r\n");
     }
 
 #if CONFIG_BLUETOOTH_SUPPORT_IPC
@@ -81,6 +91,40 @@ bt_err_t bk_bluetooth_init(void)
 #endif
 
     bk_enable_bt();
+
+#if CONFIG_BLUETOOTH_HOST_ONLY
+    ret = bk_bt_os_adapter_init();
+    if (ret)
+    {
+        LOGW("%s initialize bt os adapter failed\r\n", __func__);
+        return ret;
+    }
+
+    if ((ret = bk_bt_feature_init()) != 0)
+    {
+        LOGW("%s initialize bt feature failed\r\n", __func__);
+        return ret;
+    }
+
+	hal_hci_driver_open();
+
+    ret = bluetooth_host_init();
+    if (ret)
+    {
+        LOGW("%s init host failed\r\n", __func__);
+        return ret;
+    }
+
+#if defined (CONFIG_BLE_AT_ENABLE) && defined(CONFIG_BLE)
+    extern void ble_at_cmd_init(void);
+    ble_at_cmd_init();
+#endif
+#endif
+
+    if (bluetooth_mutex == NULL)
+    {
+        rtos_init_mutex(&bluetooth_mutex);
+    }
 
     bluetooth_already_init = 1;
 
@@ -91,13 +135,26 @@ bt_err_t bk_bluetooth_init(void)
 bt_err_t bk_bluetooth_deinit(void)
 {
     bt_err_t ret = 0;
-
+    rtos_lock_mutex(&bluetooth_mutex);
     LOGD("%s start, %d \r\n", __func__, bluetooth_already_init);
     if (!bluetooth_already_init)
     {
-        LOGE("%s bluetooth already de-initialised\r\n", __func__);
+        LOGW("%s bluetooth already de-initialised\r\n", __func__);
+        rtos_unlock_mutex(&bluetooth_mutex);
         return 0;
     }
+
+#if CONFIG_BLUETOOTH_HOST_ONLY
+    ret = bluetooth_host_deinit();
+    if (ret)
+    {
+        LOGW("%s deinit host failed\r\n", __func__);
+        rtos_unlock_mutex(&bluetooth_mutex);
+        return ret;
+    }
+
+    hal_hci_driver_close();
+#endif
 
     bk_disable_bt();
 
@@ -109,9 +166,26 @@ bt_err_t bk_bluetooth_deinit(void)
         bt_sem = NULL;
     }
 
+    rtos_unlock_mutex(&bluetooth_mutex);
     LOGD("%s ok\r\n", __func__);
     return ret;
 }
+
+#if CONFIG_BLUETOOTH_HOST_ONLY
+bt_err_t bk_bluetooth_get_address(uint8_t *addr)
+{
+    bt_err_t ret;
+
+    if (!bluetooth_already_init)
+    {
+        return -1;
+    }
+
+    ret = bluetooth_get_mac(addr);
+
+    return ret;
+}
+#endif
 
 void bk_bluetooth_init_deinit_compelete()
 {

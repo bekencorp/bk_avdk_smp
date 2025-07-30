@@ -376,6 +376,10 @@ void doorbell_core_init(void)
 
     doorbell_devices_init();
 
+#if CONFIG_BLUETOOTH_HOST_ONLY
+    doorbell_boarding_init();
+#endif
+
     db_info->enabled = BK_TRUE;
 
     LOGD("%s success\n", __func__);

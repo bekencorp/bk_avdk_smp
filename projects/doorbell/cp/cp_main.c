@@ -15,12 +15,14 @@ void user_app_main(void) {
     // start smp(cpu1, cpu2)
     bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
 
+#if !CONFIG_BTDM_CONTROLLER_ONLY
     if (!ate_is_enabled())
     {
         cifd_cust_msg_init();
 
         doorbell_core_init();
     }
+#endif
 }
 
 

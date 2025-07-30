@@ -1,8 +1,9 @@
 #ifndef __DOORBELL_BOARDING_H__
 #define __DOORBELL_BOARDING_H__
 
-//#include "ble_boarding.h"
-
+#if CONFIG_BLUETOOTH_HOST_ONLY
+#include "ble_boarding.h"
+#else
 typedef enum
 {
     BOARDING_OP_UNKNOWN = 0,
@@ -34,6 +35,7 @@ typedef struct
     uint16_t ssid_length;
     uint16_t password_length;
 } ble_boarding_info_t;
+#endif
 
 typedef struct
 {

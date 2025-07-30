@@ -37,6 +37,13 @@ typedef struct __attribute__((packed))
 
 typedef struct __attribute__((packed))
 {
+    uint16_t hdl_flags;
+    uint16_t datalen;
+    uint8_t param[];
+}acl_hdr_t;;
+
+typedef struct __attribute__((packed))
+{
     mb_chnl_hdr_t hdr;
     uint8_t pkt_type;
 #if 0
@@ -65,9 +72,13 @@ enum
     HCI_FREE_PKT = 0xa,
 };
 
+typedef void (*bt_hci_send_cb_t)(uint8_t *buf, uint16_t len);
+
 void bt_ipc_init(void);
 void bt_ipc_hci_send_vendor_event(uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_vendor_cmd(uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_complete_event(uint8_t *data, uint16_t len);
-
+void bt_ipc_hci_send_acl_data(uint16_t hdl_flags, uint8_t *data, uint16_t len);
+void bt_ipc_hci_send_event(uint8_t event_code, uint8_t *data, uint16_t len);
+void bt_ipc_register_hci_send_callback(bt_hci_send_cb_t cb);
 #endif

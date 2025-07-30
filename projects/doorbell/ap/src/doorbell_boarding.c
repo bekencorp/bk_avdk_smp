@@ -40,10 +40,18 @@
 static doorbell_boarding_info_t *doorbell_boarding_info = NULL;
 static p2p_cs2_key_t *p2p_cs2_key = NULL;
 
-void doorbell_boarding_event_notify(uint16_t opcode, int status)
+#if !CONFIG_BLUETOOTH_HOST_ONLY
+static int ble_boarding_notify(uint8_t *data, uint16_t length)
 {
     CIFD_CUST_DATA cust_req = {0};
+    os_memcpy(&cust_req.data, data, length);
+    bk_wdrv_customer_transfer(CIFD_CMD_BLE_DATA_TO_APK, (uint8_t *)cust_req.data, length);
+    return 0;
+}
+#endif
 
+void doorbell_boarding_event_notify(uint16_t opcode, int status)
+{
      uint8_t data[] =
      {
          opcode & 0xFF, opcode >> 8,     /* opcode           */
@@ -52,8 +60,7 @@ void doorbell_boarding_event_notify(uint16_t opcode, int status)
      };
 
      LOGD("%s: %d, %d\n", __func__, opcode, status);
-     os_memcpy(&cust_req.data, data, sizeof(data));
-     bk_wdrv_customer_transfer(CIFD_CMD_BLE_DATA_TO_APK, (uint8_t *)cust_req.data, sizeof(data));
+	ble_boarding_notify(data, sizeof(data));
 }
 
 void doorbell_boarding_event_message(uint16_t opcode, int status)
@@ -73,6 +80,13 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
     {
         case BOARDING_OP_STATION_START:
         {
+#if CONFIG_BLUETOOTH_HOST_ONLY
+			doorbell_msg_t msg;
+
+			msg.event = DBEVT_WIFI_STATION_CONNECT;
+			msg.param = (uint32_t)doorbell_boarding_info;
+			doorbell_send_msg(&msg);
+#else
             uint16_t ssid_len = (data[1] << 8) | data[0];
             char *ssid = os_malloc(ssid_len + 1);
             if (ssid_len < SSID_MAX_LEN) {
@@ -96,6 +110,7 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
             doorbell_wifi_sta_connect(ssid, password);
             os_free(ssid);
             os_free(password);
+#endif
         }
         break;
 
@@ -312,93 +327,93 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
     }
 }
 
-
+#if CONFIG_BLUETOOTH_HOST_ONLY
 int doorbell_boarding_init(void)
 {
-    //     uint8_t adv_data[ADV_MAX_SIZE] = {0};
-    //     uint8_t adv_index = 0;
-    //     uint8_t len_index = 0;
-    //     uint8_t mac[6];
-    //     int ret;
+    uint8_t adv_data[ADV_MAX_SIZE] = {0};
+    uint8_t adv_index = 0;
+    uint8_t len_index = 0;
+    uint8_t mac[6];
+    int ret;
 
 
-    //     LOGD("%s\n", __func__);
+    LOGD("%s\n", __func__);
 
-    //     /* flags */
-    //     len_index = adv_index;
-    //     adv_data[adv_index++] = 0x00;
-    //     adv_data[adv_index++] = ADV_TYPE_FLAGS;
-    //     adv_data[adv_index++] = 0x06;
-    //     adv_data[len_index] = 2;
+    /* flags */
+    len_index = adv_index;
+    adv_data[adv_index++] = 0x00;
+    adv_data[adv_index++] = ADV_TYPE_FLAGS;
+    adv_data[adv_index++] = 0x06;
+    adv_data[len_index] = 2;
 
-    //     /* local name */
-    //     bk_bluetooth_get_address(mac);
+    /* local name */
+    bk_bluetooth_get_address(mac);
 
-    //     len_index = adv_index;
-    //     adv_data[adv_index++] = 0x00;
-    //     adv_data[adv_index++] = ADV_TYPE_LOCAL_NAME;
+    len_index = adv_index;
+    adv_data[adv_index++] = 0x00;
+    adv_data[adv_index++] = ADV_TYPE_LOCAL_NAME;
 
-    //     ret = sprintf((char *)&adv_data[adv_index], "%s_%02X%02X%02X",
-    //                   ADV_NAME_HEAD, mac[0], mac[1], mac[2]);
+    ret = sprintf((char *)&adv_data[adv_index], "%s_%02X%02X%02X",
+                    ADV_NAME_HEAD, mac[0], mac[1], mac[2]);
 
-    //     adv_index += ret;
-    //     adv_data[len_index] = ret + 1;
+    adv_index += ret;
+    adv_data[len_index] = ret + 1;
 
-    //     /* 16bit uuid */
-    //     len_index = adv_index;
-    //     adv_data[adv_index++] = 0x00;
-    //     adv_data[adv_index++] = ADV_TYPE_SERVICE_DATA;
-    //     adv_data[adv_index++] = BOARDING_UUID & 0xFF;
-    //     adv_data[adv_index++] = BOARDING_UUID >> 8;
-    //     adv_data[len_index] = 3;
+    /* 16bit uuid */
+    len_index = adv_index;
+    adv_data[adv_index++] = 0x00;
+    adv_data[adv_index++] = ADV_TYPE_SERVICE_DATA;
+    adv_data[adv_index++] = BOARDING_UUID & 0xFF;
+    adv_data[adv_index++] = BOARDING_UUID >> 8;
+    adv_data[len_index] = 3;
 
-    //     /* manufacturer */
-    //     len_index = adv_index;
-    //     adv_data[adv_index++] = 0x00;
-    //     adv_data[adv_index++] = ADV_TYPE_MANUFACTURER_SPECIFIC;
-    //     adv_data[adv_index++] = BEKEN_COMPANY_ID & 0xFF;
-    //     adv_data[adv_index++] = BEKEN_COMPANY_ID >> 8;
-    //     adv_data[len_index] = 3;
+    /* manufacturer */
+    len_index = adv_index;
+    adv_data[adv_index++] = 0x00;
+    adv_data[adv_index++] = ADV_TYPE_MANUFACTURER_SPECIFIC;
+    adv_data[adv_index++] = BEKEN_COMPANY_ID & 0xFF;
+    adv_data[adv_index++] = BEKEN_COMPANY_ID >> 8;
+    adv_data[len_index] = 3;
 
 	/*
-	LOGD("adv data:\n");
+    LOGD("adv data:\n");
 
-	int i = 0;
-	for (i = 0; i < adv_index; i++)
-	{
-	    LOGD("%02X ", adv_data[i]);
-	}
+    int i = 0;
+    for (i = 0; i < adv_index; i++)
+    {
+        LOGD("%02X ", adv_data[i]);
+    }
 
-	LOGD("\n");
+    LOGD("\n");
 	*/
 
-    //     if (doorbell_boarding_info == NULL)
-    //     {
-    //         doorbell_boarding_info = os_malloc(sizeof(doorbell_boarding_info_t));
+    if (doorbell_boarding_info == NULL)
+    {
+        doorbell_boarding_info = os_malloc(sizeof(doorbell_boarding_info_t));
 
-    //         if (doorbell_boarding_info == NULL)
-    //         {
-    //             LOGE("doorbell_boarding_info malloc failed\n");
+        if (doorbell_boarding_info == NULL)
+        {
+            LOGE("doorbell_boarding_info malloc failed\n");
 
-    //             goto error;
-    //         }
+            goto error;
+        }
 
-    //         os_memset(doorbell_boarding_info, 0, sizeof(doorbell_boarding_info_t));
-    //     }
+        os_memset(doorbell_boarding_info, 0, sizeof(doorbell_boarding_info_t));
+    }
 
-    //     doorbell_boarding_info->boarding_info.cb = doorbell_boarding_operation_handle;
+    doorbell_boarding_info->boarding_info.cb = doorbell_boarding_operation_handle;
 
-    //     ble_boarding_init(&doorbell_boarding_info->boarding_info);
-    //     ble_boarding_adv_start(adv_data, adv_index);
+    ble_boarding_init(&doorbell_boarding_info->boarding_info);
+    ble_boarding_adv_start(adv_data, adv_index);
 
-    //     return BK_OK;
-    // error:
+    return BK_OK;
+error:
     return BK_FAIL;
 }
+#endif
 
 void doorbell_boarding_event_notify_with_data(uint16_t opcode, int status, char *payload, uint16_t length)
 {
-    CIFD_CUST_DATA cust_req = {0};
 
     uint8_t data[1024] =
     {
@@ -415,9 +430,6 @@ void doorbell_boarding_event_notify_with_data(uint16_t opcode, int status, char 
 
     os_memcpy(&data[5], payload, length);
 
-    os_memcpy(&cust_req.data, data, length + 5);
-
     LOGV("%s: %d, %d, %d\n", __func__, opcode, status, length);
-
-    bk_wdrv_customer_transfer(CIFD_CMD_BLE_DATA_TO_APK, (uint8_t *)cust_req.data, length + 5);
+	ble_boarding_notify(data, length + 5);
 }

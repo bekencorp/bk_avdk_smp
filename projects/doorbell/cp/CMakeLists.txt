@@ -4,9 +4,14 @@ set(incs .
     )
 set(srcs
     cp_main.c
-    customer_msg/customer_msg.c
-    doorbell_service/doorbell_core.c
     )
+
+if (NOT CONFIG_BTDM_CONTROLLER_ONLY)
+	list(APPEND srcs
+			customer_msg/customer_msg.c
+			doorbell_service/doorbell_core.c
+		)
+endif()
 
 set(prev_req controller_if lwip_intf_v2_1 bt)
 

@@ -1293,6 +1293,10 @@ ble_err_t bk_ble_remove_devices_from_while_list(bd_addr_t *addr, uint8_t addr_ty
  * - others: fail
  */
 ble_err_t bk_ble_tx_power_set(float pwr_gain);
+
+ble_err_t bk_ble_host_register_hci_callback(ble_hci_to_cp_cb cb);
+bk_err_t bk_ble_hci_send_to_host(uint8_t *buf, uint32_t len);
+
 /*
  * @}
  */
