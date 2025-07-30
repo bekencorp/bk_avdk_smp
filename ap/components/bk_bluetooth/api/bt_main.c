@@ -26,6 +26,7 @@
 #if (CONFIG_BLE_AT_ENABLE)
 #include "../include/private/bk_at_ble.h"
 #endif
+#include <os/mem.h>
 
 #define TAG       "bluetooth"
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
@@ -45,8 +46,8 @@ static void bk_enable_bt(void)
 {
     bt_err_t ret = 0;
     uint8_t cmd_data[2];
-    cmd_data[0] = (BT_INIT_VENDOR_SUB_OPCODE>>8);
-    cmd_data[1] = BT_INIT_VENDOR_SUB_OPCODE&0xff;
+    cmd_data[0] = (BT_VENDOR_SUB_OPCODE_INIT>>8);
+    cmd_data[1] = BT_VENDOR_SUB_OPCODE_INIT&0xff;
     bt_ipc_hci_send_vendor_cmd(cmd_data, sizeof(cmd_data));
     ret = rtos_get_semaphore(&bt_sem, BT_INIT_DEINIT_TIMEOUT_MS);
     if(ret != BK_OK)
@@ -59,8 +60,8 @@ static void bk_disable_bt(void)
 {
     bt_err_t ret = 0;
     uint8_t cmd_data[2];
-    cmd_data[0] = BT_DEINIT_VENDOR_SUB_OPCODE>>8;
-    cmd_data[1] = BT_DEINIT_VENDOR_SUB_OPCODE&0xff;
+    cmd_data[0] = BT_VENDOR_SUB_OPCODE_DEINIT>>8;
+    cmd_data[1] = BT_VENDOR_SUB_OPCODE_DEINIT&0xff;
     bt_ipc_hci_send_vendor_cmd(cmd_data, sizeof(cmd_data));
     ret = rtos_get_semaphore(&bt_sem, BT_INIT_DEINIT_TIMEOUT_MS);
     if(ret != BK_OK)
@@ -184,6 +185,16 @@ bt_err_t bk_bluetooth_get_address(uint8_t *addr)
     ret = bluetooth_get_mac(addr);
 
     return ret;
+}
+
+ble_err_t bk_ble_tx_power_set(float pwr_gain)
+{
+    uint8_t cmd_data[6];
+    cmd_data[0] = BT_VENDOR_SUB_OPCODE_SETPWR>>8;
+    cmd_data[1] = BT_VENDOR_SUB_OPCODE_SETPWR&0xff;
+    os_memcpy(&cmd_data[2], &pwr_gain , 4);
+    bt_ipc_hci_send_vendor_cmd(cmd_data, sizeof(cmd_data));
+    return 0;
 }
 #endif
 

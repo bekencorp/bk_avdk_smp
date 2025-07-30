@@ -5,6 +5,7 @@
 #include "bt_ipc_core.h"
 #include "cli.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
+#include "components/bluetooth/bk_ble.h"
 
 #define TAG  "bt_ipc"
 
@@ -308,14 +309,21 @@ static void bt_ipc_message_handle(void)
                         {
                             uint16_t op = (cmd_hdr->param[0]<<8)|(cmd_hdr->param[1]);
                             LOGD("op :0x%04x\n", op);
-                            if(op == BT_INIT_VENDOR_SUB_OPCODE)
+                            if(op == BT_VENDOR_SUB_OPCODE_INIT)
                             {
                                 bk_bluetooth_init();
-                                bk_bluetooth_send_init_deinit_status(BT_INIT_VENDOR_SUB_OPCODE, BT_EVENT_STATUS_NOERROR);
-                            }else if(op == BT_DEINIT_VENDOR_SUB_OPCODE)
+                                bk_bluetooth_send_init_deinit_status(BT_VENDOR_SUB_OPCODE_INIT, BT_EVENT_STATUS_NOERROR);
+                            }else if(op == BT_VENDOR_SUB_OPCODE_DEINIT)
                             {
                                 bk_bluetooth_deinit();
-                                bk_bluetooth_send_init_deinit_status(BT_DEINIT_VENDOR_SUB_OPCODE, BT_EVENT_STATUS_NOERROR);
+                                bk_bluetooth_send_init_deinit_status(BT_VENDOR_SUB_OPCODE_DEINIT, BT_EVENT_STATUS_NOERROR);
+                            }
+                            else if(op == BT_VENDOR_SUB_OPCODE_SETPWR)
+                            {
+                                float pwr_gain = 0;
+                                os_memcpy(&pwr_gain, &cmd_hdr->param[2], 4);
+                                LOGD("pwr_gain :%f\n", pwr_gain);
+                                bk_ble_tx_power_set(pwr_gain);
                             }
                         }
                     }

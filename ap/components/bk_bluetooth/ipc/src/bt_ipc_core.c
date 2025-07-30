@@ -315,7 +315,7 @@ static void bt_ipc_message_handle(void)
                         {
                             uint16_t subop = (event_hdr->param[0])|(event_hdr->param[1]<<8);
                             //LOGD("subop :0x%04x\n", subop);
-                            if(subop == BT_INIT_VENDOR_SUB_OPCODE || subop == BT_DEINIT_VENDOR_SUB_OPCODE)
+                            if(subop == BT_VENDOR_SUB_OPCODE_INIT || subop == BT_VENDOR_SUB_OPCODE_DEINIT)
                             {
                                 if(event_hdr->param[2] == BT_EVENT_STATUS_NOERROR)//status
                                 {
