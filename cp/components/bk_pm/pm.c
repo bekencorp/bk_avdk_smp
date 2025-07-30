@@ -1607,7 +1607,7 @@ static void pm_low_voltage_resource_restore()
 	pm_lv_rtc_tick_set(PM_LV_WAKEUP_STEP_2,pm_rtc_cur_tick_get());
 	#endif
 
-	bk_pm_cp_wakeup_ap_from_wfi(0);
+	//bk_pm_cp_wakeup_ap_from_wfi(0);
 
 #if CONFIG_PSRAM
 	/*When psram power down, it need init psram heap*/
