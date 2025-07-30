@@ -357,7 +357,7 @@ bk_err_t wdrv_init()
     }
     
     
-    ret = rtos_core1_create_thread(&wdrv_env.handle,
+    ret = rtos_smp_create_thread(&wdrv_env.handle,
                                 WDRV_TASK_PRIO,
                                 "wdrv_thread",
                                 (beken_thread_function_t)wdrv_main,
