@@ -52,6 +52,8 @@ MEMORY
 #endif
 
   RAM (rwx)             : ORIGIN = CONFIG_AP_RAM_ADDR, LENGTH = CONFIG_AP_RAM_SIZE
+  WIFI_DATA(rwx)        : ORIGIN = CONFIG_AP_WIFI_DATA_ADDR, LENGTH = CONFIG_AP_WIFI_DATA_SIZE
+
   SWAP (rwx)            : ORIGIN = CONFIG_SWAP_ADDR, LENGTH = CONFIG_SWAP_SIZE
 #if (CONFIG_BT_REUSE_MEDIA_MEMORY)
   HARDWARE_ACC (rwx)         : ORIGIN = CONFIG_HARDWARE_ACC_ADDR, LENGTH = CONFIG_HARDWARE_ACC_SIZE
@@ -132,6 +134,7 @@ SECTIONS
             *sys_arch.c.obj *sys.c.obj *wlanif.c.obj *udp.c.obj *tcpip.c.obj *tcp_out.c.obj *tcp_in.c.obj *tcp.c.obj *sockets.c.obj 
             *mem.c.obj *memp.c.obj *ethernet.c.obj *api_msg.c.obj *pbuf.c.obj
             *mailbox_channel.c.obj *mbox0_adapter.c.obj  *mbox0_drv.c.obj
+            *iperf.c.obj
             )
         *(.text.* *.rodata *.rodata.*)
 #else
@@ -266,6 +269,20 @@ SECTIONS
     } > HARDWARE_ACC AT > FLASH
 #endif
 
+    .wifi.data (NOLOAD) :
+    {
+        . = ALIGN(8);
+        _ram_heap_start = .;
+
+        *(.ram_heap)
+        *(.ram_heap*)
+        *(.bss.ram_heap)
+        *(.bss.ram_heap*)
+        *mem.c.obj(.bss .bss.* .bss*)
+        . = ALIGN(8);
+        _ram_heap_end = .;
+    } > WIFI_DATA
+
 #if (CONFIG_SOC_SMP)
     .tcm.copy.table :
     {
@@ -292,8 +309,8 @@ SECTIONS
         LONG ((__dtcm_cpu1_end__ - __dtcm_cpu1_start__) / 4)
 
         LONG (tcm_cpu2_core_id)
-        LONG (__itcm_cpu2_text)
-        LONG (__itcm_cpu2_start__)
+        LONG (__itcm_cpu1_text)
+        LONG (__itcm_cpu1_start__)
         LONG ((__itcm_cpu2_end__ - __itcm_cpu2_start__) / 4)
 
         LONG (tcm_cpu2_core_id)
@@ -336,7 +353,8 @@ SECTIONS
         KEEP(*(.null_trap_handler))
         *(.itcm_cpu1)
         . = ALIGN(4);
-
+        
+        . = ALIGN(4);
         __itcm_cpu1_end__ = .;
     } > ITCM1 AT > FLASH
 
@@ -463,6 +481,8 @@ SECTIONS
         *mailbox_channel.c.obj(.text.* *.rodata *.rodata.*) 
         *mbox0_adapter.c.obj(.text.* *.rodata *.rodata.*) 
         *mbox0_drv.c.obj(.text.* *.rodata *.rodata.*)
+
+        *iperf.c.obj(.text.* *.rodata *.rodata.*)
 #else
         *wdrv_tx.c.obj(.text.* *.rodata *.rodata.*) 
         *wdrv_main.c.obj(.text.* *.rodata *.rodata.*) 
@@ -549,10 +569,11 @@ SECTIONS
     {
         . = ALIGN(4);
         _bss_start = .;
+
         *(.bss)
         *(.bss*)
         *(COMMON)
-
+        KEEP(*(.bss_last))
         . = ALIGN(4);
         _bss_end = .;
     } > RAM
@@ -574,6 +595,8 @@ SECTIONS
         _heap_end = .;
     } > RAM
 
+
+    
 /*multiple cores require independent stack spaces*/
 #if (CONFIG_SOC_SMP)
     /* ASSERT((CONFIG_CPU_CNT == 3), "cpu count exceptional!!!") */
@@ -633,6 +656,9 @@ SECTIONS
         . = ALIGN(4);
         _swap_end = .;
     } > SWAP AT > FLASH
+
+
+
 
 #if CONFIG_PSRAM
     .psram.data :

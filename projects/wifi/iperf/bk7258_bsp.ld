@@ -558,9 +558,15 @@ SECTIONS
     {
         . = ALIGN(4);
         _bss_start = .;
+
+        //EXCLUDE_FILE(*mem.c.obj)*(.bss.*)
+
         *(.bss)
         *(.bss*)
         *(COMMON)
+
+        //KEEP(*(.bss_last))
+        //*mem.c.obj(.bss.*)
 
 #if (!CONFIG_BT_REUSE_MEDIA_MEMORY)
         . = ALIGN(32);

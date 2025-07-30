@@ -21,9 +21,6 @@ int main(void)
 {
 	rtos_set_user_app_entry((beken_thread_function_t)user_app_main);
 	bk_init();
-
-	bk_ipc_init();
-
 	// bk_set_jtag_mode(2, 0);
 	return 0;
 }
