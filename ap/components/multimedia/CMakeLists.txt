@@ -100,4 +100,4 @@ endif()
 
 list(APPEND srcs core/media_mem_share.c)
 
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_cli lvgl unity media_utils bk_draw_blend display_service bk_dvp bk_uvc avdk_utils)
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_cli lvgl unity media_utils bk_draw_blend display_service bk_dvp bk_uvc avdk_utils bk_vfs)
