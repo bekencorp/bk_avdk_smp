@@ -17,7 +17,7 @@ export ARMINO_TOOL_WRAPPER := @$(ARMINO_TOOLS_PATH)/build_tools/build.sh
 soc_targets_ap := $(shell find  ap/middleware/soc/ -name "*.defconfig" -exec basename {} \; | cut -f1 -d ".")
 soc_targets_cp := $(shell find  cp/middleware/soc/ -name "*.defconfig" -exec basename {} \; | cut -f1 -d ".")
 
-soc_targets = soc_targets_ap soc_targets_cp
+soc_targets = $(soc_targets_ap) $(soc_targets_cp)
 
 cmake_not_supported_targets = help clean doc ap_doc cp_doc
 all_targets = cmake_not_supported_targets soc_targets_cp soc_targets_ap cmake_supported_targets
@@ -27,6 +27,8 @@ export SOC_SUPPORTED_TARGETS_CP := ${soc_targets_cp}
 export ARMINO_SOC := $(findstring $(MAKECMDGOALS), $(soc_targets))
 export CMD_TARGET := $(MAKECMDGOALS)
 
+# $(info $(ARMINO_SOC))
+# $(error $(soc_targets),$(MAKECMDGOALS))
 
 ifeq ("$(APP_VERSION)", "")
 	export APP_VERSION := unknown
@@ -56,7 +58,7 @@ else
 	ARMINO_TARGET := build
 endif
 
-export ARMINO_SOC_NAME ?= $(ARMINO_SOC)
+export ARMINO_SOC_NAME := $(ARMINO_SOC)
 
 export PROJECT_NAME := $(notdir $(PROJECT_DIR))
 ifneq ("$(BUILD_DIR)", "")
@@ -183,7 +185,7 @@ doc: smp_doc ap_doc cp_doc
 # only build bootloader
 bootloader_build_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_sdk/bl_build.py
 bl:
-	@python $(bootloader_build_script) $(PROJECT_DIR) $(CURDIR)/build bk7258
+	@python $(bootloader_build_script) $(PROJECT_DIR) $(CURDIR)/build $(ARMINO_SOC)
 
 clean:
 	@echo "rm -rf ./build"
