@@ -481,10 +481,6 @@ extern uint32_t rtos_get_time_diff(void);
             if( xModifiableIdleTime > 0 )
             {
                 bk_pm_suppress_ticks_and_sleep(xModifiableIdleTime);
-            	BaseType_t xCoreID = portGET_CORE_ID();
-                if (xCoreID == CPU0_CORE_ID) {
-                    portYIELD_CORE(!xCoreID);
-                }
             }
 
             configPOST_SLEEP_PROCESSING( xExpectedIdleTime );
@@ -682,31 +678,31 @@ void SysTick_Handler( void ) /* PRIVILEGED_FUNCTION */
     uint32_t ulPreviousMask;
     BaseType_t xCoreID = portGET_CORE_ID();
 
-	//other cores
+    //other cores
     if (xCoreID != ucPrimaryCoreNum)
     {
-    	if(xTaskIncrementTickOtherCores())
-		{
-			portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
-		}
+        if(xTaskIncrementTickOtherCores())
+        {
+            portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;
+        }
         return;
     }
 
-	//main core
+    //main core
     ulPreviousMask = portSET_INTERRUPT_MASK_FROM_ISR();
-	{
+    {
 #if ( configUSE_TICKLESS_IDLE >= 1 )
         /* OS tick aligned with AON timer */
         int tick_diff = rtos_get_time_diff();
 #else
-		int tick_diff = 1;
+        int tick_diff = 1;
 #endif
 
-        if(tick_diff > 5) {
+        if(tick_diff > 1) {
             vTaskStepTick(tick_diff - 1);
         }
-		
-		/* Increment the RTOS tick. */
+
+        /* Increment the RTOS tick. */
         if( xTaskIncrementTick() != pdFALSE )
         {
             /* Pend a context switch. */
