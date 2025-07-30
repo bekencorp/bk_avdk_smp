@@ -114,8 +114,8 @@ int media_service_init(void)
 #endif
 
 #if (CONFIG_USB_CDC)
-	extern bk_err_t bk_cdc_acm_demo(void);
-	bk_cdc_acm_demo();
+	//extern bk_err_t bk_cdc_acm_demo(void);
+	//bk_cdc_acm_demo();
 #endif
 	//frame_buffer_list_init();
 
