@@ -1242,6 +1242,9 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
         taskENTER_CRITICAL( &xKernelLock );
         {
+            extern void pthread_internal_local_storage_destructor_callback(TaskHandle_t handle);
+            pthread_internal_local_storage_destructor_callback(xTaskToDelete);
+
             /* Get current core ID as we can no longer be preempted. */
             const BaseType_t xCurCoreID = portGET_CORE_ID();
 

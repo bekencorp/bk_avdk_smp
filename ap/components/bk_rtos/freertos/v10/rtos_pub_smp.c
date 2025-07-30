@@ -267,12 +267,12 @@ bk_err_t rtos_delete_thread( beken_thread_t* thread )
 	extern void pthread_internal_local_storage_destructor_callback(TaskHandle_t handle);
     if ( thread == NULL )
     {
-		pthread_internal_local_storage_destructor_callback(NULL);
+		//pthread_internal_local_storage_destructor_callback(NULL);
         vTaskDelete( NULL );
     }
     else if ( xTaskIsTaskFinished( *thread ) != pdTRUE )
     {
-		pthread_internal_local_storage_destructor_callback(*thread);
+		//pthread_internal_local_storage_destructor_callback(*thread);
         vTaskDelete( *thread );
     }
 
