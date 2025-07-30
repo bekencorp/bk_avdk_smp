@@ -88,6 +88,9 @@
 #define PATH_USB_FILE(name)              VFS_USB_0_PATITION_0"/"name
 /************  Important path for app using  **************/
 
+#ifndef VFS_FILE_MAX_LEN
+#define VFS_FILE_MAX_LEN                 50
+#endif
 
 #define FS_TYPE_LFS "lfs"
 #define FS_TYPE_FATFS "fatfs"
