@@ -53,6 +53,7 @@ extern "C" {
 #define DMA_V_REQ_MUX_DISP_RX          (0x1A)
 #define DMA_V_REQ_MUX_SDMADC_RX        (0x1B)
 #define DMA_V_REQ_MUX_H264             (0x1C)
+#define DMA_V_REQ_MUX_AUD_DMIC         (0x1D)
 
 #define DMA_FINISH_INT_POS             (18)
 #define DMA_HALF_FINISH_INT_POS        (19)

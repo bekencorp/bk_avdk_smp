@@ -108,6 +108,7 @@ static inline uint32_t dma_ll_dev_to_req_mux(uint32 req_mux)
 		CASE_DEV(DISP_RX);
 		CASE_DEV(SDMADC_RX);
 		CASE_DEV(H264);
+		CASE_DEV(AUD_DMIC);
 		CASE_D();
 	}
 }

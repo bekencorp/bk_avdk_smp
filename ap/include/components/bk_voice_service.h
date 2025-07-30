@@ -21,6 +21,8 @@ int bk_voice_abort_read_mic_data(voice_handle_t voice_handle);
 int bk_voice_abort_write_spk_data(voice_handle_t voice_handle);
 #endif
 
+void bk_voice_cal_vad_buf_size(voice_cfg_t *cfg, voice_handle_t voice_handle);
+
 #ifdef  __cplusplus
 }
 #endif//__cplusplus

@@ -1708,6 +1708,11 @@ int bk_cli_init(void)
 #endif
 /*--------------------platform cli command init end--------------------*/
 
+#if (CONFIG_VOICE_SERVICE_TEST)
+    int cli_voice_init(void);
+    cli_voice_init();
+#endif
+
 	/* sort cmds after registered all cmds. */
 	cli_sort_command(NULL, 0, 0, NULL);
 
