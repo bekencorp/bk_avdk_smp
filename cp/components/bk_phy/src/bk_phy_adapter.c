@@ -46,9 +46,7 @@
 #include "spinlock.h"
 #endif // CONFIG_FREERTOS_SMP
 
-#if (CONFIG_SOC_BK7258)
 #include <modules/wifi.h>
-#endif
 
 #define PHY_OSI_VERSION              0x00060006
 
@@ -317,9 +315,7 @@ static uint8_t get_tx_pwr_idx_wrapper()
 static void txpwr_max_set_bt_polar_wrapper()
 {
 #if CONFIG_BLUETOOTH
-#if (CONFIG_SOC_BK7239) || (CONFIG_SOC_BK7236) || (CONFIG_SOC_BK7286 || CONFIG_SOC_BK7258)
     txpwr_max_set_bt_polar();
-#endif
 #endif
 }
 

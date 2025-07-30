@@ -199,9 +199,11 @@ SECTIONS
         LONG (__data_start__)
         LONG ((__data_end__ - __data_start__) / 4)
 
+#if CONFIG_PSRAM
         LONG (__psram_text)
         LONG (__psram_data_start__)
         LONG ((__psram_data_end__ - __psram_data_start__) / 4)
+#endif
 
 #if ((!defined(CONFIG_SOC_SMP)) || (0 == CONFIG_SOC_SMP))
         LONG (__itcm_text)
@@ -230,8 +232,10 @@ SECTIONS
         LONG (_heap_start)
         LONG ((_heap_end - _heap_start) / 4)
         /* Add each additional bss section here */
+    #if CONFIG_PSRAM
         LONG (__psram_bss_start__)
         LONG ((__psram_bss_end__ - __psram_bss_start__) / 4)
+    #endif
         __zero_table_end__ = .;
     } > FLASH
 

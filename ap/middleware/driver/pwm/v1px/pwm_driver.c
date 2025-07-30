@@ -138,6 +138,12 @@ static pwm_phase_shift_config_t *s_shift_config = NULL;
 	}\
 } while(0)
 
+#define PWM_RETURN_ON_INVALID_PWM_UNIT(id) do {\
+	if (id >= SOC_PWM_UNIT_NUM) {\
+		return BK_ERR_PWM_UNIT_ID;\
+	}\
+} while(0)
+
 #define PWM_PHASE_SHIFT_RETURN_ON_INVALID_DUTY(shift_config) do {\
 	for (uint32_t index = 0; index < shift_config->chan_num; index++) {\
 		if ((shift_config->duty_config[index].duty_cycle == 1) ||\
@@ -266,12 +272,14 @@ static void pwm_chan_init_common(pwm_chan_t sw_ch)
 	}
 }
 
-static void pwm_chan_deinit_common(pwm_chan_t sw_ch)
+static bk_err_t pwm_chan_deinit_common(pwm_chan_t sw_ch)
 {
 	pwm_id_t unit_id;
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &unit_id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(unit_id);
+	
 	s_pwm[unit_id].chan_init_bits &= ~BIT(hw_ch);
 	pwm_hal_set_chan_enable(&s_pwm[unit_id].hal, hw_ch, false);
 	//all of the channels deinit, then power-down
@@ -281,6 +289,7 @@ static void pwm_chan_deinit_common(pwm_chan_t sw_ch)
 	if ((unit_id == 1) && ((s_pwm[unit_id].chan_init_bits & PWM_CHAN_MASK)== 0)) {
 		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_DOWN);
 	}
+	return BK_OK;
 }
 
 #if (CONFIG_PWM_PM_CB_SUPPORT)
@@ -365,13 +374,14 @@ bk_err_t bk_pwm_driver_deinit(void)
 	return BK_OK;
 }
 
-static void pwm_adjust_init_signal_via_duty(pwm_chan_t sw_ch, uint32_t period,
+static bk_err_t pwm_adjust_init_signal_via_duty(pwm_chan_t sw_ch, uint32_t period,
 		uint32_t duty1, uint32_t duty2, uint32_t duty3)
 {
 	pwm_id_t id;
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 
 	/** If duty ratio is 0% and initial signal is high,
 	 * then the PWM signal will always be high.
@@ -393,6 +403,8 @@ static void pwm_adjust_init_signal_via_duty(pwm_chan_t sw_ch, uint32_t period,
 		pwm_hal_set_init_signal_high(&s_pwm[id].hal, hw_ch);
 		pwm_hal_set_flip_mode(&s_pwm[id].hal, hw_ch, 4);
 	}
+
+	return BK_OK;
 }
 
 static inline bool pwm_driver_duty_is_valid(uint32_t period, uint32_t duty1, uint32_t duty2,
@@ -590,6 +602,8 @@ bk_err_t bk_pwm_init(pwm_chan_t sw_ch, const pwm_init_config_t *config)
 	pwm_period_duty_config_t pwm_config;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
+	
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	PWM_PM_CHECK_RESTORE(id);
 
@@ -664,6 +678,7 @@ bk_err_t bk_pwm_deinit(pwm_chan_t sw_ch)
 	pwm_period_duty_config_t pwm_config = {0};
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 
 #if CONFIG_PWM_PM_CB_SUPPORT
 	if (id == PWM_ID_0) {
@@ -692,6 +707,7 @@ bk_err_t bk_pwm_start(pwm_chan_t sw_ch)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_CHAN_NOT_INIT(id, hw_ch);
 	PWM_PM_CHECK_RESTORE(id);
 	pwm_hal_set_chan_enable(&s_pwm[id].hal, hw_ch, true);
@@ -706,6 +722,8 @@ bk_err_t bk_pwm_stop(pwm_chan_t sw_ch)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &unit_id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(unit_id);
+
 	PWM_RETURN_ON_CHAN_NOT_INIT(unit_id, hw_ch);
 	PWM_PM_CHECK_RESTORE(unit_id);
 	pwm_hal_set_chan_enable(&s_pwm[unit_id].hal, hw_ch, false);
@@ -721,6 +739,8 @@ bk_err_t bk_pwm_register_isr(pwm_chan_t sw_ch, pwm_isr_t isr)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
+
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 
 	GLOBAL_INT_DECLARATION();
@@ -739,6 +759,8 @@ bk_err_t bk_pwm_enable_interrupt(pwm_chan_t sw_ch)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
+
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_CHAN_NOT_INIT(id, hw_ch);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 
@@ -753,6 +775,7 @@ bk_err_t bk_pwm_disable_interrupt(pwm_chan_t sw_ch)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 
 	pwm_chan_disable_interrupt_common(hw_ch);
@@ -769,6 +792,7 @@ bk_err_t bk_pwm_set_period_duty(pwm_chan_t sw_ch, pwm_period_duty_config_t *conf
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
 
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	PWM_RETURN_ON_CHAN_NOT_INIT(id, hw_ch);
 
@@ -844,6 +868,8 @@ bk_err_t bk_pwm_set_init_signal_low(pwm_chan_t sw_ch)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
+
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	PWM_RETURN_ON_CHAN_NOT_INIT(id, hw_ch);
 
@@ -861,6 +887,8 @@ bk_err_t bk_pwm_set_init_signal_high(pwm_chan_t sw_ch)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
+
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	PWM_RETURN_ON_CHAN_NOT_INIT(id, hw_ch);
 
@@ -880,6 +908,7 @@ bk_err_t bk_pwm_set_gpio(pwm_chan_t sw_ch, uint32 mode)
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch, &id, &hw_ch);
 
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	PWM_RETURN_ON_CHAN_NOT_INIT(id, hw_ch);
 	PWM_RETURN_ON_INVALID_GPIO_MODE(id);
@@ -963,6 +992,8 @@ bk_err_t bk_pwm_capture_init(pwm_chan_t chan, const pwm_capture_init_config_t *c
 	bk_err_t ret = 0;
 
 	pwm_sw_ch_to_hw_id_ch(chan, &id, &hw_ch);
+
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	pwm_chan_init_common(chan);
 	pwm_hal_init_capture(chan, config->edge);
@@ -981,6 +1012,8 @@ bk_err_t bk_pwm_capture_deinit(pwm_chan_t chan)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(chan, &id, &hw_ch);
+
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	pwm_hal_set_single_chan_tim_enable(&s_pwm[id].hal, hw_ch, 0);
 	pwm_hal_set_cc1ie(&s_pwm[id].hal, hw_ch, 0);
@@ -999,6 +1032,8 @@ bk_err_t bk_pwm_capture_start(pwm_chan_t chan)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(chan, &id, &hw_ch);
+
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	pwm_hal_set_single_chan_tim_enable(&s_pwm[id].hal, hw_ch, 1);
 	pwm_hal_set_cc1ie(&s_pwm[id].hal, hw_ch, 1);
@@ -1012,6 +1047,8 @@ bk_err_t bk_pwm_capture_stop(pwm_chan_t chan)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(chan, &id, &hw_ch);
+
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch);
 	pwm_hal_set_single_chan_tim_enable(&s_pwm[id].hal, hw_ch, 0);
 	pwm_hal_set_cc1ie(&s_pwm[id].hal, hw_ch, 0);
@@ -1187,7 +1224,9 @@ static bk_err_t pwm_group_validate_param(pwm_chan_t sw_ch1, pwm_chan_t sw_ch2,
 	pwm_ch_t hw_ch1, hw_ch2;
 
 	pwm_sw_ch_to_hw_id_ch(sw_ch1, &id1, &hw_ch1);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id1);
 	pwm_sw_ch_to_hw_id_ch(sw_ch2, &id2, &hw_ch2);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id2);
 
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch1);
 	PWM_RETURN_ON_INVALID_CHAN(hw_ch2);
@@ -1352,7 +1391,9 @@ bk_err_t bk_pwm_group_start(pwm_group_t group)
 	pwm_ch_t hw_ch1, hw_ch2;
 
 	pwm_sw_ch_to_hw_id_ch(s_pwm_groups[group].chan1, &id1, &hw_ch1);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id1);
 	pwm_sw_ch_to_hw_id_ch(s_pwm_groups[group].chan2, &id2, &hw_ch2);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id2);
 
 	PWM_LOGD("group(%d) chan1:%d, chan2:%d\r\n", group, s_pwm_groups[group].chan1, s_pwm_groups[group].chan2);
 
@@ -1374,7 +1415,9 @@ bk_err_t bk_pwm_group_stop(pwm_group_t group)
 	pwm_ch_t hw_ch1, hw_ch2;
 
 	pwm_sw_ch_to_hw_id_ch(s_pwm_groups[group].chan1, &id1, &hw_ch1);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id1);
 	pwm_sw_ch_to_hw_id_ch(s_pwm_groups[group].chan2, &id2, &hw_ch2);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id2);
 
 	pwm_hal_set_single_chan_tim_enable(&s_pwm[id1].hal, hw_ch1, 0);
 	pwm_hal_set_single_chan_tim_enable(&s_pwm[id2].hal, hw_ch2, 0);
@@ -1397,7 +1440,9 @@ bk_err_t bk_pwm_group_set_config(pwm_group_t group, const pwm_group_config_t *co
 	uint32_t dead_cycle = 0;
 
 	pwm_sw_ch_to_hw_id_ch(s_pwm_groups[group].chan1, &id1, &hw_ch1);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id1);
 	pwm_sw_ch_to_hw_id_ch(s_pwm_groups[group].chan2, &id2, &hw_ch2);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id2);
 
 	if (s_pwm_groups[group].chan1 == s_pwm_groups[group].chan2)
 		return BK_ERR_PWM_GROUP_SAME_CHAN;
@@ -1708,6 +1753,7 @@ bk_err_t bk_pwm_phase_shift_init(const pwm_phase_shift_config_t *shift_config)
 
 	for (uint32_t index = 0; index < shift_config->chan_num; index++) {
 		pwm_sw_ch_to_hw_id_ch(shift_config->duty_config[index].chan, &id, &hw_ch);
+		PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 		pwm_hal_set_new_config_way(&s_pwm[id].hal, hw_ch, 1);
 		if (shift_config->duty_config[index].duty_cycle == 0) {
 			pwm_init_config.period_cycle = shift_config->period_cycle;
@@ -1780,6 +1826,7 @@ bk_err_t bk_pwm_phase_shift_start(void)
 	pwm_ch_t hw_ch;
 
 	pwm_sw_ch_to_hw_id_ch(s_phase_shift_first_valid_ch, &id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	if (id == 1) {
 		pwm_hal_set_multi_chan_tim_enable(&s_pwm[1].hal, s_phase_shift_multi_hw_ch[1], 1);
 		pwm_hal_set_multi_chan_tim_enable(&s_pwm[0].hal, s_phase_shift_multi_hw_ch[0], 1);
@@ -1811,6 +1858,7 @@ bk_err_t bk_pwm_phase_shift_set_duty_and_update(const pwm_phase_shift_config_t *
 
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_PWM_2, PM_CPU_FRQ_120M);
 	pwm_sw_ch_to_hw_id_ch(shift_config->duty_config[0].chan, &id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 
 	uint32_t int_level = rtos_enter_critical();
 	memcpy(s_shift_config, shift_config, sizeof(pwm_phase_shift_config_t));
@@ -1846,6 +1894,7 @@ bk_err_t bk_pwm_phase_shift_update_duty(void)
 
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_PWM_2, PM_CPU_FRQ_120M);
 	pwm_sw_ch_to_hw_id_ch(s_shift_config->duty_config[0].chan, &id, &hw_ch);
+	PWM_RETURN_ON_INVALID_PWM_UNIT(id);
 	uint32_t int_level = rtos_enter_critical();
 	pwm_hal_set_uie(&s_pwm[id].hal, hw_ch, 1);
 	rtos_exit_critical(int_level);

@@ -1608,11 +1608,14 @@ static void pm_low_voltage_resource_restore()
 	#endif
 
 	bk_pm_cp_wakeup_ap_from_wfi(0);
+
+#if CONFIG_PSRAM
 	/*When psram power down, it need init psram heap*/
 	if(bk_pm_get_psram_ctrl_state() == 0)
 	{
 		bk_psram_heap_init_flag_set(false);
 	}
+#endif
 }
 
 static uint32_t pm_low_voltage_process()
