@@ -276,9 +276,9 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
         if(ret == BK_OK) 
         {
 
-            WDRV_IRQ_DISABLE(int_level);
+            WDRV_ENTER_TXMSG_CRITICAL(int_level);
             co_list_push_back((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cfm->list);
-            WDRV_IRQ_ENABLE(int_level);
+            WDRV_EXIT_TXMSG_CRITICAL(int_level);
 
             cfm->cfm_buf = (uint8_t *)result;
             cfm->cfm_id  = hdr->cmd_id + WDRV_CMD_CFM_OFFSET;
@@ -289,9 +289,9 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
             // The len of result-buff is PRIVATE_COMMAND_DEF_LEN.
             if ((rtos_get_semaphore(&cfm->sema, WDRV_CMDCFM_TIMEOUT)) != 0) {
 
-                WDRV_IRQ_DISABLE(int_level);
+                WDRV_ENTER_TXMSG_CRITICAL(int_level);
                 co_list_extract((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cfm->list);
-                WDRV_IRQ_ENABLE(int_level);
+                WDRV_EXIT_TXMSG_CRITICAL(int_level);
 
                 //Print AP/CP debug statistics
                 wdrv_print_debug_info();

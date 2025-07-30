@@ -9,7 +9,7 @@ void __asm_flush_dcache_range(void* begin, void* end);
 void wdrv_rx_confirm_tx_msg(wdrv_rx_msg *msg)
 {
     wdrv_cmd_cfm *cmd_cfm = NULL;
-    //uint32_t int_level = 0;
+    uint32_t int_level = 0;
     
     rtos_lock_mutex(&wdrv_host_env.cfm_lock);
 
@@ -25,7 +25,11 @@ void wdrv_rx_confirm_tx_msg(wdrv_rx_msg *msg)
                 memcpy(cmd_cfm->cfm_buf, msg->param, msg->param_len);
 
             cmd_cfm->cfm_len = msg->param_len;
+            
+            WDRV_ENTER_TXMSG_CRITICAL(int_level);
             co_list_extract((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cmd_cfm->list);
+            WDRV_EXIT_TXMSG_CRITICAL(int_level);
+
             rtos_set_semaphore(&cmd_cfm->sema);
             break;
         }
