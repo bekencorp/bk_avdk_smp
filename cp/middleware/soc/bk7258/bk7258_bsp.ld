@@ -126,6 +126,15 @@ SECTIONS
         __apps_start = .;
         KEEP (*(.apps_data))
         __apps_end = .;
+
+        . = ALIGN(4);
+        __wifi_dp_code_start = .;
+        *libcontroller_if.a:*(.text*)
+        *libbk_wifi.a:*(.text*)
+        *libwifi.a:*(.text*)
+        *liblwip_intf_v2_1.a:*(.text*)
+        __wifi_dp_code_end = .;
+
         _etext = .;
         . = ALIGN(4);
     } > FLASH
