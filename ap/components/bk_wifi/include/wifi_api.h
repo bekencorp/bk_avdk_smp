@@ -67,10 +67,6 @@ typedef struct {
 } wifi_status_t;
 
 bk_err_t bk_wifi_api_test(void);
-bk_err_t bk_wifi_sta_start_ex(void);
-bk_err_t bk_wifi_sta_set_config_ex(const wifi_sta_config_t *config);
-bk_err_t bk_wifi_sta_get_config_ex(wifi_sta_config_t *config);
-bk_err_t bk_wifi_scan_start_ex(const wifi_scan_config_t *scan_config);
 bk_err_t bk_wifi_get_status(wifi_status_t *status);
 
 

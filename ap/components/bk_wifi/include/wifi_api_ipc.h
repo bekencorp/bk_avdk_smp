@@ -48,6 +48,7 @@ enum BK_WIFI_API_CMD_TYPE
     STA_SET_BCN_RECV_WIN                = 0x318,
     STA_SET_BCN_LOSS_TIME               = 0x319,
     STA_GET_LINK_STATE_WITH_REASON      = 0x31A,
+    STA_DISCONNECT                      = 0x31B,
 
     // AP management command section
     AP_SET_CONFIG                       = 0x320,
@@ -80,6 +81,9 @@ enum BK_WIFI_API_CMD_TYPE
     STA_GET_MAC                         = 0x365,
     AP_GET_MAC                          = 0x366,
     GET_STATUS                          = 0x367,
+    WIFI_SET_MEDIA_MODE                 = 0x368,
+    WIFI_SET_VIDEO_QUALITY              = 0x369,
+    WIFI_SET_CSA_COEXIST_MODE_FLAG      = 0x36A,
 
     //Common PHY command section
     PHY_CAL_RFCALI                      = 0x380,

@@ -1679,7 +1679,9 @@ static int at_wlan_hidden_softap_start(int sync, int argc, char **argv)
 	}
 
 	wifi_ap_config_t ap_config = WIFI_DEFAULT_AP_CONFIG();
+#if 0
 	netif_ip4_config_t ip4_config = {0};
+#endif
 	int len;
 
 	if (ap_ssid) {
@@ -1689,7 +1691,7 @@ static int at_wlan_hidden_softap_start(int sync, int argc, char **argv)
 			err = kParamErr;
 			goto error;
 		}
-
+#if 0
 		os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
 		os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
 		os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
@@ -1698,7 +1700,7 @@ static int at_wlan_hidden_softap_start(int sync, int argc, char **argv)
 			err = kParamErr;
 			goto error;
 		}
-
+#endif
 		os_strcpy(ap_config.ssid, ap_ssid);
 		os_strcpy(ap_config.password, ap_key);
 

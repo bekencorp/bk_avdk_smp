@@ -161,53 +161,6 @@ static int wifi_sta_get_global_config(wifi_sta_config_t *sta_config)
     return BK_OK;
 }
 
-bk_err_t bk_wifi_sta_set_config(const wifi_sta_config_t *config)
-{
-    int ret = BK_OK;
-
-    WDRV_LOGD("sta configuring\n");
-
-//    if (!wifi_is_inited()) {
-//        WDRV_LOGV("set sta config fail, wifi not init\n");
-//        return BK_ERR_WIFI_NOT_INIT;
-//    }
-
-    ret = wifi_sta_validate_config(config);
-    if (ret != BK_OK) {
-        WDRV_LOGD("set config fail, invalid param\n");
-        return ret;
-    }
-
-    wifi_sta_set_global_config(config);
-
-    wifi_set_state_bit(WIFI_STA_CONFIGURED_BIT);
-    WDRV_LOGD("sta configured(%x)\n", s_wifi_state_bits);
-
-    return BK_OK;
-}
-
-
-bk_err_t bk_wifi_sta_get_config(wifi_sta_config_t *config)
-{
-    if (!config) {
-        WDRV_LOGV("get sta config fail, null config");
-        return BK_ERR_NULL_PARAM;
-    }
-
-    os_memset(config, 0, sizeof(config));
-
-    if (!wifi_sta_is_configured())
-        return BK_ERR_WIFI_STA_NOT_CONFIG;
-
-    os_memcpy(config->ssid, g_sta_param_ptr->ssid.array, g_sta_param_ptr->ssid.length);
-
-    os_memcpy(config->password, g_sta_param_ptr->key, g_sta_param_ptr->key_len);
-    config->password[g_sta_param_ptr->key_len] = 0;
-
-    //TODO get channel and security type
-    return BK_OK;
-}
-
 bk_err_t bk_wifi_init(void)
 {
     WDRV_LOGD("%s, %d\r\n", __func__, __LINE__);
@@ -235,34 +188,6 @@ bk_err_t bk_wifi_init(void)
     return BK_OK;
 }
 
-bk_err_t bk_wifi_sta_start(void)
-{
-    WDRV_LOGD("sta starting\n");
-
-    if (!wifi_sta_is_configured()) {
-        WDRV_LOGD("sta start fail, sta not configured\n");
-        return BK_ERR_WIFI_STA_NOT_CONFIG;
-    }
-
-    wifi_sta_init_global_config();
-
-    if (wifi_sta_is_started()) {
-        WDRV_LOGD("sta already started, need stop!\n");
-        bk_wifi_sta_stop();
-    }
-
-    //bk_wifi_init();
-
-    wifi_set_state_bit(WIFI_STA_STARTED_BIT);
-    WDRV_LOGV("sta started(%x)\n", s_wifi_state_bits);
-
-    /* always connect the AP automatically */
-    bk_wifi_sta_connect();
-
-    return BK_OK;
-}
-
-
 bk_err_t bk_wifi_sta_stop(void)
 {
     WDRV_LOGD("sta stopping\n");
@@ -284,95 +209,9 @@ bk_err_t bk_wifi_sta_stop(void)
     return BK_OK;
 }
 
-bk_err_t bk_wifi_scan_start(const wifi_scan_config_t *config)
-{
-    u8 ssid_len = 0;
-
-    struct wdrv_start_scan_req req;
-    wdrv_cmd_cfm cmd_cfm;
-    os_memset(&req,0,sizeof(req));
-
-    req.cmd_hdr.cmd_id = BK_CMD_SCAN_WIFI;
-    cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    cmd_cfm.cfm_id = 0;
-
-    WDRV_LOGD("scaning\n");
-
-    wifi_scan_init_global_config();
-
-    wifi_set_state_bit(WIFI_PURE_SCAN_STARTED_BIT);
-
-    if (config ) {
-        ssid_len = MIN(SSID_MAX_LEN, os_strlen((char *)config->ssid));
-
-        if((0 != config->scan_type) ||(0 != config->chan_cnt) ||(0 != config->duration)) {
-            scan_param_env.set_param = 1;
-            scan_param_env.scan_type = config->scan_type;
-            scan_param_env.chan_cnt = config->chan_cnt;
-            if(WIFI_MAX_SCAN_CHAN_DUR < config->duration) {
-                WDRV_LOGW("scan duration is too long %dus,need less than 200ms\r\n",config->duration);
-                scan_param_env.duration = WIFI_MAX_SCAN_CHAN_DUR * 1000;
-            } else
-                scan_param_env.duration = config->duration * 1000;
-            os_memcpy(scan_param_env.chan_nb, config->chan_nb, config->chan_cnt);
-        }
-    }
-
-    if (0 == ssid_len) {
-        WDRV_LOGD("scan all APs\n");
-        wdrv_tx_msg((uint8_t *)&req, sizeof(req), &cmd_cfm, NULL);
-    } else {
-        //wlan_sta_scan_param_t scan_param = {0};
-
-        WDRV_LOGD("scan %s\n", config->ssid);
-
-        uint8_t ssid_len = MIN(SSID_MAX_LEN, os_strlen((char *)config->ssid));
-        os_memcpy(req.ssid, config->ssid, ssid_len);
-        wdrv_tx_msg((uint8_t *)&req, sizeof(req), &cmd_cfm, NULL);
-
-    }
-
-    return BK_OK;
-}
-
-bk_err_t bk_wifi_sta_connect(void)
-{
-    wifi_sta_config_t sta_config = { 0 };
-
-    struct wdrv_connect_req connect_req = {0};
-
-    WDRV_LOGD("sta connecting\n");
-
-    wifi_sta_get_global_config(&sta_config);
-
-    if (!wifi_sta_is_started()) {
-        WDRV_LOGV("sta connect fail, sta not start\n");
-        return BK_ERR_WIFI_STA_NOT_STARTED;
-    }
-
-    /* Pass sta_config to CP */
-    os_memcpy(connect_req.ssid, sta_config.ssid, sizeof(sta_config.ssid));
-    os_memcpy(connect_req.pw, sta_config.password, sizeof(sta_config.password));
-
-    connect_req.cmd_hdr.cmd_id = BK_CMD_CONNECT;
-    connect_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    connect_req.cmd_cfm.cfm_id = 0;
-
-    wdrv_tx_msg((uint8_t *)&connect_req, sizeof(connect_req), &connect_req.cmd_cfm, NULL);
-
-    wifi_set_state_bit(WIFI_STA_CONNECTED_BIT);
-    WDRV_LOGD("sta connected(%x)\n", s_wifi_state_bits);
-
-    return BK_OK;
-}
-
 bk_err_t bk_wifi_sta_disconnect(void)
 {
-    wdrv_cmd_hdr req;
-    wdrv_cmd_cfm cmd_cfm;
-    req.cmd_id = BK_CMD_DISCONNECT;
-    cmd_cfm.waitcfm = WDRV_CMD_NOWAITCFM;
-    cmd_cfm.cfm_id = 0;
+    bk_err_t ret = BK_OK;
 
     WDRV_LOGD("sta disconnecting\n");
 
@@ -381,7 +220,11 @@ bk_err_t bk_wifi_sta_disconnect(void)
         sta_ip_down();
 #endif
         /* Post CMD to CIF */
-        wdrv_tx_msg((uint8_t *)&req, sizeof(req), &cmd_cfm, NULL);
+        ret = wifi_send_com_api_cmd(STA_DISCONNECT, 0);
+        if (ret != BK_OK)
+        {
+            WDRV_LOGW("%s failed, ret=%d\n",__func__, ret);
+        }
 
         //TODO do we need to post the disconnect event?
         wifi_clear_state_bit(WIFI_STA_CONNECTED_BIT);
@@ -438,52 +281,23 @@ bk_err_t bk_wifi_ap_get_mac(uint8_t *mac)
 
 bk_err_t bk_wifi_set_wifi_media_mode(bool flag)
 {
-    struct wdrv_media_mode_req req = {0};
-
-    req.media_flag = flag;
-    req.cmd_hdr.cmd_id = BK_CMD_SET_MEDIA_MODE;
-    req.cmd_cfm.waitcfm = WDRV_CMD_NOWAITCFM;
-    req.cmd_cfm.cfm_id = 0;
-    WDRV_LOGD("%s flag %x\n",__func__,flag);
-
-    wdrv_tx_msg((uint8_t *)&req, sizeof(req), &req.cmd_cfm, NULL);
-
-    return BK_OK;
+    return wifi_send_com_api_cmd(WIFI_SET_MEDIA_MODE, 1, flag);
 }
 
 bk_err_t bk_wifi_set_video_quality(uint8_t quality)
 {
-    struct wdrv_media_quality_req req = {0};
-
-    req.media_quality = quality;
-    req.cmd_hdr.cmd_id = BK_CMD_SET_MEDIA_QUALITY;
-    req.cmd_cfm.waitcfm = WDRV_CMD_NOWAITCFM;
-    req.cmd_cfm.cfm_id = 0;
-    WDRV_LOGD("%s quality %d\n",__func__,quality);
-
-    wdrv_tx_msg((uint8_t *)&req, sizeof(req), &req.cmd_cfm, NULL);
-
-    return BK_OK;
+    return wifi_send_com_api_cmd(WIFI_SET_VIDEO_QUALITY, 1, quality);
 }
 
 bk_err_t bk_wifi_set_csa_coexist_mode_flag(bool is_close)
 {
-    struct wdrv_set_csa_coexist_mode_flag_req set_coex_flag_req = {0};
-
     if (s_wifi_state_bits & WIFI_STA_STARTED_BIT)
     {
         WDRV_LOGW("Set csa coxist mode before starting station! state_bit=0x%x\r\n",s_wifi_state_bits);
         return BK_ERR_STATE;
     }
 
-    set_coex_flag_req.is_close = is_close;
-
-    set_coex_flag_req.cmd_hdr.cmd_id = BK_CMD_SET_COEX_CSA;
-    set_coex_flag_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    set_coex_flag_req.cmd_cfm.cfm_id = 0;
-
-    wdrv_tx_msg((uint8_t *)&set_coex_flag_req, sizeof(set_coex_flag_req), &set_coex_flag_req.cmd_cfm, NULL);
-    return BK_OK;
+    return wifi_send_com_api_cmd(WIFI_SET_CSA_COEXIST_MODE_FLAG, 1, is_close);
 }
 
 #if 1 //CONFIG_WIFI_SOFTAP
@@ -515,7 +329,7 @@ void bk_wifi_ap_init(void)
 
 bk_err_t bk_wifi_ap_start(void)
 {
-    struct wdrv_start_ap_req start_ap_req = {0};
+    bk_err_t ret = BK_OK;
 
     WDRV_LOGV("ap starting\n");
 
@@ -554,16 +368,11 @@ bk_err_t bk_wifi_ap_start(void)
 
     bk_wifi_ap_init();
 
-    os_memcpy(start_ap_req.ssid, g_ap_param_ptr->ssid.array, g_ap_param_ptr->ssid.length);
-    os_memcpy(start_ap_req.pw, g_ap_param_ptr->key, g_ap_param_ptr->key_len);
-    start_ap_req.channel = g_ap_param_ptr->chann;
-    start_ap_req.hidden = g_ap_param_ptr->hidden_ssid;
-
-    start_ap_req.cmd_hdr.cmd_id = BK_CMD_START_AP;
-    start_ap_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    start_ap_req.cmd_cfm.cfm_id = 0;
-
-    wdrv_tx_msg((uint8_t *)&start_ap_req, sizeof(start_ap_req), &start_ap_req.cmd_cfm, NULL);
+    ret = wifi_send_com_api_cmd(AP_START, 0);
+    if (ret != BK_OK)
+    {
+        WDRV_LOGW("ap start failed, ret=%d\n", ret);
+    }
 
     WDRV_LOGD("ap started\n");
 
@@ -571,7 +380,6 @@ bk_err_t bk_wifi_ap_start(void)
     //TODO move to event handler
     uap_ip_start();
 #endif
-
 
     wifi_set_state_bit(WIFI_AP_STARTED_BIT);
     return BK_OK;
@@ -668,8 +476,19 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 {
     int ret = BK_OK;
+    netif_ip4_config_t ip4_config = {0};
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_ap_config_t);
 
     WDRV_LOGD("ap configuring\n");
+
+    os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
+    os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
+    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
+    os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
+
+    BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
+
 #if 0
     if (!wifi_is_inited()) {
         WDRV_LOGD("set ap config fail, wifi not init\n");
@@ -684,6 +503,21 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
     if (ret != BK_OK)
         return ret;
 
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memcpy(buffer_to_ipc, ap_config, len);
+    ret = wifi_send_com_api_cmd(AP_SET_CONFIG, 1, (uint32_t)buffer_to_ipc);
+    if (ret != BK_OK)
+    {
+        WDRV_LOGE("%s set config failed, ret=%d\n", __func__, ret);
+        return ret;
+    }
+
     wifi_set_state_bit(WIFI_AP_CONFIGURED_BIT);
     WDRV_LOGD("ap configured\n");
 
@@ -696,30 +530,33 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 
 bk_err_t bk_wifi_ap_stop(void)
 {
-    struct wdrv_stop_ap_req stop_ap_req = {0};
+    bk_err_t ret = BK_OK;
+
     if (!wifi_ap_is_started()) {
         WDRV_LOGD("ap stop: already stopped\n");
         return BK_OK;
     }
 
-    stop_ap_req.cmd_hdr.cmd_id = BK_CMD_STOP_AP;
-    stop_ap_req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
-    stop_ap_req.cmd_cfm.cfm_id = 0;
-
-    wdrv_tx_msg((uint8_t *)&stop_ap_req, sizeof(stop_ap_req), &stop_ap_req.cmd_cfm, NULL);
+    ret = wifi_send_com_api_cmd(AP_STOP, 0);
+    if (ret != BK_OK) {
+        WDRV_LOGW("ap stop fail ret %d\n", ret);
+    }
 
     WDRV_LOGD("ap stopped\n");
     uap_ip_down();
     host_wlan_remove_sap_netif();
     wifi_clear_state_bit(WIFI_AP_STARTED_BIT);
+
     return BK_OK;
 }
-
 
 int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
 {
     wifi_ap_config_t ap_config = {0};//WIFI_DEFAULT_AP_CONFIG();
+#if 0
     netif_ip4_config_t ip4_config = {0};
+#endif
+
     int len, key_len = 0;
     len = os_strlen(ap_ssid);
 
@@ -742,12 +579,14 @@ int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
         return BK_FAIL;
     }
 
+#if 0
     os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
     os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
     os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
     os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
 
     BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
+#endif
 
     os_strcpy(ap_config.ssid, ap_ssid);
     if (ap_key)
@@ -773,45 +612,6 @@ int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
 
 
 #endif
-
-int demo_sta_app_init(char *oob_ssid, char *connect_key)
-{
-    wifi_sta_config_t sta_config = {0};
-    int len;
-
-    len = os_strlen(oob_ssid);
-    if (SSID_MAX_LEN < len) {
-        WDRV_LOGW("ssid name more than 32 Bytes\r\n");
-        return BK_FAIL;
-    }
-#ifdef CONFIG_CONNECT_THROUGH_PSK_OR_SAE_PASSWORD
-    if (psk) {
-        sta_config.psk_len = PMK_LEN * 2;
-        sta_config.psk_calculated = true;
-        os_strlcpy((char *)sta_config.psk, (char *)psk, sizeof(sta_config.psk));
-    }
-#endif
-    os_strcpy(sta_config.ssid, oob_ssid);
-    if (connect_key)
-        os_strcpy(sta_config.password, connect_key);
-#if CONFIG_BRIDGE
-    extern uint8_t bridge_is_enabled;
-    extern uint8_t bridge_open;
-    void bk_bridge_stop(void);
-    /* Before connecting the STA to the router, if the bridge is in the enabled state,
-        disconnect the bridge first. After starting the STA, if the original bridge was
-        in the enabled state, maintain the original state */
-    if (bridge_open && bridge_is_enabled) {
-        bk_bridge_stop();
-        bridge_open = true;
-    }
-#endif
-    WDRV_LOGD("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
-
-    BK_LOG_ON_ERR(bk_wifi_sta_set_config(&sta_config));
-    BK_LOG_ON_ERR(bk_wifi_sta_start());
-    return BK_OK;
-}
 
 bk_err_t bk_wifi_ap_get_config(wifi_ap_config_t *ap_config)
 {
@@ -1023,12 +823,12 @@ bk_err_t bk_scan_country_code(uint8_t *country_code, int *len)
     return ret;
 }
 
-bk_err_t bk_wifi_sta_start_ex(void)
+bk_err_t bk_wifi_sta_start(void)
 {
     //bk_wifi_init();
     return wifi_send_com_api_cmd(STA_START, 0);
 }
-bk_err_t bk_wifi_sta_set_config_ex(const wifi_sta_config_t *config)
+bk_err_t bk_wifi_sta_set_config(const wifi_sta_config_t *config)
 {
     bk_err_t ret = BK_OK;
     void *buffer_to_ipc = NULL;
@@ -1054,7 +854,7 @@ bk_err_t bk_wifi_sta_set_config_ex(const wifi_sta_config_t *config)
 
     return ret;
 }
-bk_err_t bk_wifi_sta_get_config_ex(wifi_sta_config_t *config)
+bk_err_t bk_wifi_sta_get_config(wifi_sta_config_t *config)
 {
     bk_err_t ret = BK_OK;
     void *buffer_to_ipc = NULL;
@@ -1091,7 +891,7 @@ bk_err_t bk_wifi_sta_pm_disable(void)
     return wifi_send_com_api_cmd(STA_PM_DISABLE, 0);
 }
 
-int demo_sta_app_init_ex(char *oob_ssid, char *connect_key)
+int demo_sta_app_init(char *oob_ssid, char *connect_key)
 {
 	wifi_sta_config_t sta_config = {0};
 	int len;
@@ -1107,8 +907,8 @@ int demo_sta_app_init_ex(char *oob_ssid, char *connect_key)
 		os_strcpy(sta_config.password, connect_key);
 
 	WIFI_LOGD("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
-	BK_LOG_ON_ERR(bk_wifi_sta_set_config_ex(&sta_config));
-	BK_LOG_ON_ERR(bk_wifi_sta_start_ex());
+	BK_LOG_ON_ERR(bk_wifi_sta_set_config(&sta_config));
+	BK_LOG_ON_ERR(bk_wifi_sta_start());
 	return BK_OK;
 }
 
@@ -1205,14 +1005,35 @@ bk_err_t bk_wifi_set_mac_address(char *mac)
     return ret;
 }
 
-bk_err_t bk_wifi_scan_start_ex(const wifi_scan_config_t *scan_config)
+bk_err_t bk_wifi_scan_start(const wifi_scan_config_t *scan_config)
 {
     bk_err_t ret = BK_OK;
     void *buffer_to_ipc = NULL;
     uint32_t len = sizeof(wifi_scan_config_t);
+    uint8_t ssid_len = 0;
 
     WDRV_LOGD("scaning\n");
 
+    wifi_scan_init_global_config();
+    wifi_set_state_bit(WIFI_PURE_SCAN_STARTED_BIT);
+
+    if (scan_config ) {
+        ssid_len = MIN(SSID_MAX_LEN, os_strlen((char *)scan_config->ssid));
+
+        if((0 != scan_config->scan_type) ||(0 != scan_config->chan_cnt) ||(0 != scan_config->duration)) {
+            scan_param_env.set_param = 1;
+            scan_param_env.scan_type = scan_config->scan_type;
+            scan_param_env.chan_cnt = scan_config->chan_cnt;
+            if(WIFI_MAX_SCAN_CHAN_DUR < scan_config->duration) {
+                WDRV_LOGW("scan duration is too long %dus,need less than 200ms\r\n",scan_config->duration);
+                scan_param_env.duration = WIFI_MAX_SCAN_CHAN_DUR * 1000;
+            } else
+                scan_param_env.duration = scan_config->duration * 1000;
+            os_memcpy(scan_param_env.chan_nb, scan_config->chan_nb, scan_config->chan_cnt);
+        }
+    }
+
+    WIFI_LOGD("%s ssid_len:%d\r\n", __func__, ssid_len);
     //WIFI_LOGE("%s config len:%d\r\n", __func__, len);
     if (scan_config == NULL) {
         return wifi_send_com_api_cmd(SCAN_START, 1, 0);

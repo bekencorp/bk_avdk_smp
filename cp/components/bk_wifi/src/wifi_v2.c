@@ -3225,8 +3225,26 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 {
 	int ret = BK_OK;
+	netif_ip4_config_t ip4_config = {0};
 
 	WIFI_LOGV("ap configuring\n");
+
+#if CONFIG_BRIDGE
+	if (!bridge_is_enabled) {
+#endif
+		os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
+		os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
+		os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
+		os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
+#if CONFIG_BRIDGE
+	} else {
+		os_strcpy(ip4_config.ip, WLAN_ANY_IP);
+		os_strcpy(ip4_config.mask, WLAN_ANY_IP);
+		os_strcpy(ip4_config.gateway, WLAN_ANY_IP);
+		os_strcpy(ip4_config.dns, WLAN_ANY_IP);
+	}
+#endif
+	BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
 
 	if (!wifi_is_inited()) {
 		WIFI_LOGV("set ap config fail, wifi not init\n");
