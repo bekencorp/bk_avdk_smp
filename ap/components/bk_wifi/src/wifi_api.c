@@ -1348,11 +1348,6 @@ bk_err_t bk_wifi_scan_dump_result(const wifi_scan_result_t *scan_result)
         return BK_ERR_PARAM;
     }
 
-    if (scan_result->ap_num == 0) {
-        WIFI_LOGW(" No AP found\r\n");
-        return BK_OK;
-    }
-
     if ((scan_result->ap_num > 0) && (!scan_result->aps)) {
         WIFI_LOGW("scan number is %d, but AP info is NULL\n", scan_result->ap_num);
         return BK_ERR_PARAM;
