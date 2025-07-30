@@ -856,8 +856,8 @@ bk_err_t bk_wifi_sta_start(void)
     wifi_sta_init_global_config();
 
     if (wifi_sta_is_started()) {
-        WDRV_LOGD("sta already started, need stop!\n");
-        bk_wifi_sta_stop();
+        WDRV_LOGD("sta already started, ignored!\n");
+        return BK_OK;
     }
 
     //bk_wifi_init();
