@@ -41,14 +41,14 @@ static void lv_example_freetype(void)
 {
     lv_vendor_fs_init();
 
-    int fd = open("/Lato-Regular.ttf", O_RDONLY);
+    int fd = open(PATH_INTERNAL_FLASH_FILE("Lato-Regular.ttf"), O_RDONLY);
     if (fd < 0) {
-        LOGE("file_content malloc failed\r\n");
+        LOGE("file_content open failed\r\n");
         lv_vendor_fs_deinit();
         return;
     }
 
-    int file_len = lv_img_read_filelen("/Lato-Regular.ttf");
+    int file_len = lv_img_read_filelen(PATH_INTERNAL_FLASH_FILE("Lato-Regular.ttf"));
     if (file_len <= 0) {
         LOGE("file len read failed\r\n");
         close(fd);
@@ -73,7 +73,7 @@ static void lv_example_freetype(void)
     /*Create a font*/
     static lv_ft_info_t info;
     /*FreeType uses C standard file system, so no driver letter is required.*/
-    info.name = "/Lato-Regular.ttf";
+    info.name = PATH_INTERNAL_FLASH_FILE("Lato-Regular.ttf");
     info.weight = 24;
     info.style = FT_FONT_STYLE_NORMAL;
     info.mem = file_content;
