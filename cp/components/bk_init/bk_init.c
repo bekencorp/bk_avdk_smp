@@ -22,6 +22,7 @@
 #include <modules/pm.h>
 #include "aon_pmu_driver.h"
 #include <driver/pwr_clk.h>
+#include "bk_pm_internal_api.h"
 #if CONFIG_ROSC_CALIB_SW
 #include <driver/rosc_32k.h>
 #endif
@@ -377,7 +378,9 @@ extern int mp_do_startup(int heap_len);
 #if CONFIG_CPU_DEFAULT_FREQ_60M
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_60M);
 #endif
-
+#if CONFIG_PM_LV_WDT_PROTECTION
+	pm_wifi_event_init();
+#endif
 #if CONFIG_USB //&& CONFIG_MENTOR_USB
 	bk_usb_driver_init();
 #endif
