@@ -46,6 +46,10 @@ extern "C" {
 
 #define FIXED_ADDR_PSRAM_USDE_COUNT          (*(volatile uint32_t *)CONFIG_PWR_MNG_ADDR)
 #define FIXED_ADDR_PSRAM_POWER_DOWN          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+4))
+#define FIXED_ADDR_WAKEUP_CP_COUNT           (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+8))
+#define FIXED_ADDR_WAKEUP_AP0_COUNT          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+12))
+#define FIXED_ADDR_WAKEUP_AP1_COUNT          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+16))
+#define FIXED_ADDR_WAKEUP_AP1_DEBUG          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+20))
 
 #define PM_PSRAM_POWER_DOWN_MAGIC            (0x123)
 
