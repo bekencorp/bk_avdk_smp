@@ -29,11 +29,26 @@
 #include "sys_pm_hal_ctrl.h"
 #include "modules/pm.h"
 #include "cpu_id.h"
-
+#include <driver/pwr_clk.h>
+#include <components/log.h>
 #if CONFIG_CACHE_ENABLE
 #include "cache.h"
 #endif
+#define PM_TRRIGER_AP_MAX_COUNT               (100)
+#define PM_AP_TRRIGER_DELAY_TIME_US           (10)  //10us
+#define TAG                                   "pm_ap"
+
+#define LOGI(...)                             BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGW(...)                             BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...)                             BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGD(...)                             BK_LOGD(TAG, ##__VA_ARGS__)
+
+
+
+static volatile uint16_t s_trigger_ap1_count = 0;
+static volatile uint16_t s_trigger_ap0_count = 0;
 extern void bk_delay_us(UINT32 us);
+extern bk_err_t vPortYieldCore(int xCoreID);
 static inline bool is_lpo_src_26m32k(void)
 {
 	return (aon_pmu_ll_get_r41_lpo_config() == SYS_LPO_SRC_26M32K);
@@ -842,6 +857,7 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 			/*Set cpu1 wfi state*/
 			aon_pmu_ll_set_r3_cp1_enter_wfi_state(1);
 
+			FIXED_ADDR_WAKEUP_AP1_COUNT += 1;
 			/*Enter deep sleep*/
 			arch_deep_sleep();
 
@@ -851,6 +867,21 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 
 			bk_pm_handle_lv_sleep_callback(PM_LV_EXIT_SLEEP);
+			bk_err_t ret = vPortYieldCore(1);
+			s_trigger_ap1_count = 0;
+			while(ret != BK_OK)
+			{
+				bk_delay_us(PM_AP_TRRIGER_DELAY_TIME_US);
+				ret = vPortYieldCore(1);
+				s_trigger_ap1_count++;
+				if(s_trigger_ap1_count > PM_TRRIGER_AP_MAX_COUNT)
+				{
+					LOGE("Wakeup AP1 failed[%d]\r\n",ret);
+					break;
+				}
+			}
+			sys_ll_set_cpu1_int_0_31_en_value(int_state1);
+			sys_ll_set_cpu1_int_32_63_en_value(int_state2);
 		}
 		else
 		{
@@ -885,6 +916,7 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 			/*Set cpu2 wfi state*/
 			aon_pmu_ll_set_r3_cp2_enter_wfi_state(1);
 
+			FIXED_ADDR_WAKEUP_AP1_DEBUG +=1;
 			/*Enter deep sleep*/
 			arch_deep_sleep();
 
@@ -892,6 +924,21 @@ void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 			aon_pmu_ll_set_r3_cp2_enter_wfi_state(0);
 
 			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+			bk_err_t ret = vPortYieldCore(0);
+			s_trigger_ap0_count =  0;
+			while(ret != BK_OK)
+			{
+				bk_delay_us(PM_AP_TRRIGER_DELAY_TIME_US);
+				ret = vPortYieldCore(0);
+				s_trigger_ap0_count++;
+				if(s_trigger_ap0_count > PM_TRRIGER_AP_MAX_COUNT)
+				{
+					LOGE("Wakeup AP0 failed[%d]\r\n",ret);
+					break;
+				}
+			}
+			sys_ll_set_cpu2_int_0_31_en_value(int1_state1);
+			sys_ll_set_cpu2_int_32_63_en_value(int1_state2);
 		}
 		else
 		{
