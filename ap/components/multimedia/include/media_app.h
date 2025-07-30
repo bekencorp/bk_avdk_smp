@@ -45,6 +45,8 @@ uint32_t media_app_get_lcd_devices_list(void);
 uint32_t media_app_get_lcd_device_by_id(uint32_t id);
 bk_err_t media_app_lcd_fmt(pixel_format_t fmt);
 bk_err_t media_app_set_rotate(media_rotate_t rotate);
+bk_err_t media_app_set_scale(media_ppi_t ppi);
+bk_err_t media_app_set_proc_order(img_proc_order_t order);
 bk_err_t media_app_lcd_disp_open(void *config);
 bk_err_t media_app_lcd_disp_close(void);
 bk_err_t media_app_jdec_open(uint32_t dec_type);

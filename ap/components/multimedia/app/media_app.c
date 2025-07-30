@@ -95,6 +95,20 @@ bk_err_t media_app_set_rotate(media_rotate_t rotate)
     return ret;
 }
 
+bk_err_t media_app_set_scale(media_ppi_t ppi)
+{
+    int ret = BK_FAIL;
+    ret = image_scale_set(ppi);
+    return ret;
+}
+
+bk_err_t media_app_set_proc_order(img_proc_order_t order)
+{
+    int ret = BK_FAIL;
+    ret = image_service_set_order(order);
+    return ret;
+}
+
 bk_err_t media_app_get_main_camera_stream(frame_list_node_t *node)
 {
     int ret = BK_FAIL;
