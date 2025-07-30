@@ -96,7 +96,10 @@ static bk_err_t pm_ap_core_message_handle(void)
                 break;
                 case PM_AP_CORE_PSRAM_STATE_NOTIFY:
                 {
-                    bk_pm_ap_psram_power_state_handle_callback(msg.param1);
+                    if(msg.param1 == PM_AP_PSRAM_POWER_OFF)
+                    {
+                        bk_pm_ap_psram_power_state_handle_callback(PM_POWER_PSRAM_MODULE_NAME_MAX,msg.param1);
+                    }
                 }
                 break;
                 default:

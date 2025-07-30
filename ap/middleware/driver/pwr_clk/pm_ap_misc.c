@@ -49,7 +49,10 @@ static pm_ap_close_ap_callback_info_t s_close_ap_cb_arry[PM_AP_CLOSE_AP_MODULE_M
 
 static pm_ap_system_wakeup_cb_info_t s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_MAX][PM_AP_USING_SYS_WAKEUP_DEV_MAX];
 
-static pm_ap_psram_power_state_callback_info_t s_psram_power_state_cb_arry[PM_AP_USING_PSRAM_POWER_STATE_DEV_MAX];
+static pm_ap_psram_power_state_callback_info_t s_psram_power_state_cb_arry[PM_POWER_PSRAM_MODULE_NAME_MAX];
+
+static uint32_t s_pm_register_psram_callback_state = 0;
+static uint32_t s_pm_handle_psram_callback_state   = 0;
 
 /*=====================VARIABLE  SECTION  END=================*/
 
@@ -182,7 +185,7 @@ bk_err_t bk_pm_ap_psram_power_state_register_callback(pm_ap_psram_power_state_ca
     {
         return BK_FAIL;
     }
-    if(p_psram_power_state_callback_info->dev_id >= PM_AP_USING_PSRAM_POWER_STATE_DEV_MAX)
+    if(p_psram_power_state_callback_info->dev_id >= PM_POWER_PSRAM_MODULE_NAME_MAX)
     {
         return BK_FAIL;
     }
@@ -192,6 +195,8 @@ bk_err_t bk_pm_ap_psram_power_state_register_callback(pm_ap_psram_power_state_ca
     s_psram_power_state_cb_arry[p_psram_power_state_callback_info->dev_id].dev_id= p_psram_power_state_callback_info->dev_id;
     s_psram_power_state_cb_arry[p_psram_power_state_callback_info->dev_id].param1 = p_psram_power_state_callback_info->param1;
     s_psram_power_state_cb_arry[p_psram_power_state_callback_info->dev_id].param2 = p_psram_power_state_callback_info->param2;
+    s_pm_register_psram_callback_state |= 0x1 << p_psram_power_state_callback_info->dev_id;
+    s_pm_handle_psram_callback_state   |= 0x1 << p_psram_power_state_callback_info->dev_id;
     return BK_OK;
 }
 
@@ -201,7 +206,7 @@ bk_err_t bk_pm_ap_psram_power_state_unregister_callback(pm_ap_psram_power_state_
     {
         return BK_FAIL;
     }
-    if(p_psram_power_state_callback_info->dev_id >= PM_AP_USING_PSRAM_POWER_STATE_DEV_MAX)
+    if(p_psram_power_state_callback_info->dev_id >= PM_POWER_PSRAM_MODULE_NAME_MAX)
     {
         return BK_FAIL;
     }
@@ -214,33 +219,44 @@ bk_err_t bk_pm_ap_psram_power_state_unregister_callback(pm_ap_psram_power_state_
             s_psram_power_state_cb_arry[i].dev_id= PM_AP_USING_PSRAM_POWER_STATE_DEV_MAX;
             s_psram_power_state_cb_arry[i].param1 = 0;
             s_psram_power_state_cb_arry[i].param2 = 0;
+            s_pm_register_psram_callback_state &= ~(0x1 << p_psram_power_state_callback_info->dev_id);
         }
     }
     return BK_OK;
 }
 
-bk_err_t bk_pm_ap_psram_power_state_handle_callback(pm_ap_psram_power_state_e psram_power_state)
+bk_err_t bk_pm_ap_psram_power_state_handle_callback(pm_power_psram_module_name_e dev_id,pm_ap_psram_power_state_e psram_power_state)
 {
-    for(int i = 0; i < sizeof(s_psram_power_state_cb_arry)/sizeof(pm_ap_psram_power_state_callback_info_t);i++)
+    if(psram_power_state == PM_AP_PSRAM_POWER_ON)
     {
-        if(psram_power_state == PM_AP_PSRAM_POWER_ON)
+        for(int i = 0; i < sizeof(s_psram_power_state_cb_arry)/sizeof(pm_ap_psram_power_state_callback_info_t);i++)
         {
-            if(s_psram_power_state_cb_arry[i].psram_on_cb_fn != NULL)
+            if(s_pm_handle_psram_callback_state & (0x1 << i))
             {
-                s_psram_power_state_cb_arry[i].psram_on_cb_fn(0,0);
+                if(s_psram_power_state_cb_arry[i].psram_on_cb_fn != NULL)
+                {
+                    s_psram_power_state_cb_arry[i].psram_on_cb_fn(0,0);
+                    /*Clear the handled callback state:It have handled callback, it cannot process again*/
+                    s_pm_handle_psram_callback_state &= ~(0x1 << i);
+                }
             }
         }
-        else if(psram_power_state == PM_AP_PSRAM_POWER_OFF)
+    }
+    else if(psram_power_state == PM_AP_PSRAM_POWER_OFF)
+    {
+        for(int i = 0; i < sizeof(s_psram_power_state_cb_arry)/sizeof(pm_ap_psram_power_state_callback_info_t);i++)
         {
             if(s_psram_power_state_cb_arry[i].psram_off_cb_fn != NULL)
             {
                 s_psram_power_state_cb_arry[i].psram_off_cb_fn(0,0);
+                s_pm_handle_psram_callback_state   |= 0x1 << i;
             }
         }
-        else
-        {
-            ;
-        }
     }
+    else
+    {
+        ;
+    }
+
     return BK_OK;
 }

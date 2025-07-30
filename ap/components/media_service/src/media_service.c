@@ -121,7 +121,7 @@ int media_service_init(void)
 
     pm_ap_psram_power_state_callback_info_t  power_state_cb = {0};
 
-    power_state_cb.dev_id = PM_AP_USING_PSRAM_POWER_STATE_DEV_MEDIA;
+    power_state_cb.dev_id = PM_POWER_PSRAM_MODULE_NAME_MEDIA;
 
     power_state_cb.psram_off_cb_fn = media_frame_buffer_list_deinit;
 

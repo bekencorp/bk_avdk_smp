@@ -2,6 +2,7 @@
 #define __PM_AP_CORE_H__
 #include <driver/aon_rtc.h>
 #include <modules/pm.h>
+#include <driver/pwr_clk.h>
 
 typedef enum
 {
@@ -61,7 +62,7 @@ typedef bk_err_t (*psram_power_state_callback_fn)(uint32_t param1,uint32_t param
 
 typedef struct
 {
-    pm_ap_using_psram_power_state_dev_e dev_id;
+    pm_power_psram_module_name_e dev_id;
     psram_power_state_callback_fn psram_on_cb_fn;
     psram_power_state_callback_fn psram_off_cb_fn;
     uint32_t param1;
@@ -94,11 +95,12 @@ typedef struct
  *
  * @param
  * -psram_power_state:0x0:PM_AP_PSRAM_POWER_ON,0x1:PM_AP_PSRAM_POWER_OFF
+ * -dev_id:device name
  * @return
  * - BK_OK: succeed
  * - others: other errors.
  */
-bk_err_t bk_pm_ap_psram_power_state_handle_callback(pm_ap_psram_power_state_e psram_power_state);
+bk_err_t bk_pm_ap_psram_power_state_handle_callback(pm_power_psram_module_name_e dev_id,pm_ap_psram_power_state_e psram_power_state);
 /**
  * @brief unregister psram power on/off callback
  *

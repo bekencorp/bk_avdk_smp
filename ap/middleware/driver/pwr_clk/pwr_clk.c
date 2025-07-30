@@ -452,8 +452,6 @@ static void pm_cp1_mailbox_init()
 }
 #endif //CONFIG_MAILBOX
 
-
-
 bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_power_module_state_e power_state)
 {
 
@@ -485,7 +483,11 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 	    LOGE("cp1 get psram state time out\r\n");
 	}
 
-	LOGD("cp1 vote psram_P E\r\n");
+	if(power_state == PM_POWER_MODULE_STATE_ON)
+	{
+		bk_pm_ap_psram_power_state_handle_callback(module,power_state);
+	}
+	LOGD("Ap vote psram_P E\r\n");
 #endif
 	return BK_OK;
 
