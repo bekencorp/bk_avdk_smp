@@ -89,8 +89,13 @@ static bk_err_t pm_ap_core_message_handle(void)
                 break;
                 case PM_AP_CORE_SLEEP_WAKEUP_NOTIFY:
                 {
-                    /*Wakeup cpu2*/
-                    portYIELD_CORE(1);
+                    // bk_err_t ret = portYIELD_CORE(1);
+                    // while(ret != BK_OK)
+                    // {
+                    //     ret = portYIELD_CORE(1);
+                    //     LOGE("Wakeup cpu2 failed[%d]\r\n",ret);
+                    // }
+                    FIXED_ADDR_WAKEUP_AP0_COUNT += 1;
                     bk_pm_ap_system_wakeup_handle_callback(&msg);
                 }
                 break;
@@ -153,7 +158,7 @@ bk_err_t bk_pm_ap_core_init(void)
         goto error;
     }
 
-    ret = rtos_create_thread(&s_pm_info->thd,
+    ret = rtos_core0_create_thread(&s_pm_info->thd,
                              BEKEN_DEFAULT_WORKER_PRIORITY - 2,/*pm contrl cmd thread priority need higher*/
                              "pm_info->thd",
                              (beken_thread_function_t)pm_ap_core_message_handle,
