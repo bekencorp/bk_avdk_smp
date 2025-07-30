@@ -317,15 +317,11 @@ void ping_start(char* target_name, uint32_t times, size_t size)
 			p_param.ip = os_strdup(target_name);
 			p_param.time = times;
 			p_param.size = size;
-#ifdef CONFIG_FREERTOS_SMP
-			rtos_core0_create_thread(NULL, ping_priority, "ping",
-							   ping_thread, THREAD_SIZE,
-							   (beken_thread_arg_t) 0);
-#else
+
 			rtos_create_thread(NULL, ping_priority, "ping",
 							   ping_thread, THREAD_SIZE,
 							   (beken_thread_arg_t) 0);	
-#endif
+
 		}
 		else
 			LWIP_DEBUGF( PING_DEBUG, ("Please input: ping <host address>\n"));
