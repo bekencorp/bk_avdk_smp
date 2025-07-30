@@ -518,6 +518,8 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
         return ret;
     }
 
+    os_free(buffer_to_ipc);
+
     wifi_set_state_bit(WIFI_AP_CONFIGURED_BIT);
     WDRV_LOGD("ap configured\n");
 
@@ -667,6 +669,7 @@ bk_err_t bk_wifi_get_channel(void)
     wifi_send_com_api_cmd(WIFI_GET_CHANNEL, 1, (uint32_t)buffer_to_ipc);
 
     channel = *(uint8_t *)buffer_to_ipc;
+    os_free(buffer_to_ipc);
 
     WIFI_LOGD("%s: %d \n", __func__, channel);
 
@@ -714,6 +717,7 @@ bk_err_t bk_wifi_get_listen_interval(uint8_t *listen_interval)
     ret = wifi_send_com_api_cmd(STA_GET_LISTEN_INTERVAL, 1, (uint32_t)buffer_to_ipc);
 
     *listen_interval = *(uint8_t *)buffer_to_ipc;
+    os_free(buffer_to_ipc);
 
     WIFI_LOGD("%s: %d \n", __func__, *listen_interval);
 
