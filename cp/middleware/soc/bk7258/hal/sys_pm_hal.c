@@ -1202,6 +1202,8 @@ bool sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi()
 		}
 		else
 		{
+			/*When the low-power condition is met, if CP2 fails to enter WFI within 3ms, it will resend a wake-up AP0 to re-enter WFI.*/
+			bk_pm_cp_wakeup_ap_from_wfi(0);
 			ret = false;
 		}
 	}
