@@ -239,8 +239,8 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 		case PM_RTC_DEEPSLEEP_CMD:
 			ret = pm_cp0_send_msg(LOW_PWR_CORE_RTC_DEEPSLEEP, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
-		case PM_STARTUP_TIME_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_STARTUP_TIME, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+		case PM_GET_PM_DATA_CMD:
+			ret = pm_cp0_send_msg(LOW_PWR_CORE_GET_CP_DATA, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_CTRL_AP_STATE_CMD:
 			ret = pm_cp0_send_msg(LOW_PWR_CORE_CTRL_CP2_STATE, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
