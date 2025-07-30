@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-#include "soc.h"
+#include "soc/soc.h"
 
 #define SBC_LL_REG_BASE      (SOC_SBC_REG_BASE) //REG_BASE:0x47010000
 

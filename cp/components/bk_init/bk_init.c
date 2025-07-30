@@ -163,7 +163,7 @@ static int app_bt_init(void)
 	if (!ate_is_enabled())
 		bt_activate(NULL);
 #endif
-#if (CONFIG_BT_AT_ENABLE) 
+#if (CONFIG_BT_AT_ENABLE && !CONFIG_BTDM_CONTROLLER_ONLY)
 	bt_at_cmd_init();
 #endif
 

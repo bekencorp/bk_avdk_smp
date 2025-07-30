@@ -16,6 +16,7 @@ enum {
     BT_VENDOR_SUB_OPCODE_DEINIT = 0x0002,
     BT_VENDOR_SUB_OPCODE_SETPWR = 0x0003,
 };
+
 #define BT_EVENT_STATUS_NOERROR 0x00
 
 typedef struct
@@ -43,7 +44,14 @@ typedef struct __attribute__((packed))
     uint16_t hdl_flags;
     uint16_t datalen;
     uint8_t param[];
-}acl_hdr_t;;
+}acl_hdr_t;
+
+typedef struct __attribute__((packed))
+{
+    uint16_t conhdl_psf;
+    uint8_t datalen;
+    uint8_t param[];
+}sco_hdr_t;
 
 typedef struct __attribute__((packed))
 {
@@ -84,4 +92,5 @@ void bt_ipc_hci_send_complete_event(uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_acl_data(uint16_t hdl_flags, uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_event(uint8_t event_code, uint8_t *data, uint16_t len);
 void bt_ipc_register_hci_send_callback(bt_hci_send_cb_t cb);
+void bt_ipc_hci_send_sco_data(uint16_t hdl_flags, uint8_t *data, uint16_t len);
 #endif

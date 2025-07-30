@@ -50,6 +50,7 @@ enum
     BT_IPC_FREE_MSG = 3,
     BT_IPC_EXIT_MSG = 4,
     BT_IPC_ACL_IND_MSG = 5,
+    BT_IPC_SCO_IND_MSG = 6,
 };
 
 static void bt_ipc_mailbox_rx_isr(void *param, void *cmd_buf)
@@ -93,6 +94,22 @@ static void bt_ipc_mailbox_rx_isr(void *param, void *cmd_buf)
             bt_ipc_msg_t bt_ipc_msg;
 
             bt_ipc_msg.type = BT_IPC_ACL_IND_MSG;
+            bt_ipc_msg.param = hci_hdr->hdr_ptr;
+
+            int rc = rtos_push_to_queue(&bt_ipc_env.queue, &bt_ipc_msg, BEKEN_NO_WAIT);
+
+            if (kNoErr != rc)
+            {
+                LOGW("%s, send queue failed\r\n", __func__);
+            }
+        }
+        break;
+
+        case HCI_SCO_DATA_PKT:
+        {
+            bt_ipc_msg_t bt_ipc_msg;
+
+            bt_ipc_msg.type = BT_IPC_SCO_IND_MSG;
             bt_ipc_msg.param = hci_hdr->hdr_ptr;
 
             int rc = rtos_push_to_queue(&bt_ipc_env.queue, &bt_ipc_msg, BEKEN_NO_WAIT);
@@ -256,6 +273,30 @@ void bt_ipc_hci_send_acl_data(uint16_t hdl_flags, uint8_t *data, uint16_t len)
     bt_ipc_mailbox_send_msg(&msg);
 }
 
+void bt_ipc_hci_send_sco_data(uint16_t hdl_flags, uint8_t *data, uint16_t len)
+{
+    hci_hdr_t msg;
+
+    uint16_t data_len = sizeof(sco_hdr_t) + len;
+    sco_hdr_t *sco_hdr = (sco_hdr_t *)os_malloc(data_len);
+
+    //LOGD("malloc ptr %p\n",sco_hdr);
+
+    if (sco_hdr == NULL)
+    {
+        LOGW("%s, malloc failed\r\n", __func__);
+        return;
+    }
+    sco_hdr->conhdl_psf = hdl_flags;
+    sco_hdr->datalen = len;
+    os_memcpy(sco_hdr->param, data, len);
+
+    msg.pkt_type = HCI_SCO_DATA_PKT;
+    msg.hdr_ptr = (uint32_t)(uintptr_t)sco_hdr;
+
+    bt_ipc_mailbox_send_msg(&msg);
+}
+
 void bt_ipc_hci_free_pkt(uint32_t ptr)
 {
     hci_hdr_t msg;
@@ -384,6 +425,31 @@ static void bt_ipc_message_handle(void)
                 }
                 break;
 
+                case BT_IPC_SCO_IND_MSG:
+                {
+                    //LOGD("BT_IPC_SCO_IND_MSG\n");
+                    sco_hdr_t *sco_hdr = (sco_hdr_t *)(uintptr_t)msg.param;
+                    //LOGD("hdl_flags 0x%04x, param_len %d\n",sco_hdr->conhdl_psf, sco_hdr->datalen);
+                    if (s_bt_ipc_hci_send_cb)
+                    {
+                        uint16_t sco_data_len = sizeof(sco_hdr_t) + sco_hdr->datalen + 1;
+                        uint8_t *p_sco_data = (uint8_t *)os_malloc(sco_data_len);
+                        if (!p_sco_data)
+                        {
+                            LOGW("%s, malloc p_sco_data failed\r\n", __func__);
+                        }
+                        else
+                        {
+                            p_sco_data[0] = HCI_SCO_DATA_PKT;
+                            os_memcpy(p_sco_data + 1, (uint8_t *)(uintptr_t)msg.param, sco_data_len - 1);
+                            s_bt_ipc_hci_send_cb(p_sco_data, sco_data_len);
+                            os_free(p_sco_data);
+                        }
+                    }
+                    bt_ipc_hci_free_pkt(msg.param);
+                }
+                break;
+
                 case BT_IPC_FREE_MSG:
                 {
                     //LOGD("BT_IPC_FREE_MSG\n");
@@ -466,7 +532,7 @@ void bt_ipc_init(void)
     bt_ipc_mailbox_config(BT_IPC_CMD_CHNL);
 
     /* init semaphore */
-    ret = rtos_init_semaphore(&bt_ipc_env.send_sema, 1);
+    ret = rtos_init_semaphore(&bt_ipc_env.send_sema, 5);
     if (ret != BK_OK) {
         LOGW("init send_sema fail!\r\n");
     }

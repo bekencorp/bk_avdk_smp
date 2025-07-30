@@ -18,21 +18,6 @@ menu "Bk_ble"
 		depends on BLUETOOTH_HOST_ONLY
 		default y
 
-	choice BLE_STACK
-		prompt "Select Ble Version"
-		depends on (BLE || BT)
-		default BLE_5_X
-
-		config BLE_5_X
-			bool "BLE 5.X"
-		config BLE_4_2
-			bool "BLE 4.2"
-		config BTDM_5_2
-			bool "BTDM 5.2"
-		config BTDM_5_2_MINDTREE
-			bool "BTDM 5.2 Mindtree Host"
-	endchoice
-
 	config BLUETOOTH_RELEASE_CODESIZE
 		bool "reduce ble stack size"
 		depends on BLE

@@ -22,6 +22,13 @@ static ble_err_t ble_hci_to_host_acl_cb(uint8_t *buf, uint16_t len)
     return 0;
 }
 
+static ble_err_t ble_hci_to_host_sco_cb(uint8_t *buf, uint16_t len)
+{
+    sco_hdr_t *sco_hdr = (sco_hdr_t *)buf;
+    bt_ipc_hci_send_sco_data(sco_hdr->conhdl_psf, sco_hdr->param, sco_hdr->datalen);
+    return 0;
+}
+
 static void hal_hci_driver_send(uint8_t *buf, uint16_t len)
 {
     uint8_t type = buf[0];
@@ -38,8 +45,13 @@ static void hal_hci_driver_send(uint8_t *buf, uint16_t len)
             bk_ble_hci_acl_to_controller(&buf[1], len - 1);
         }
         break;
+        case HCI_SYNC_TYPE:
+        {
+            bk_ble_hci_to_controller(HCI_SYNC_TYPE, &buf[1], len - 1);
+        }
+        break;
         default:
-            HCI_LOGW("unknown type (%d)", type);
+            HCI_LOGW("unknown type (%d)\n", type);
         break;
     }
 }
@@ -49,6 +61,7 @@ int hal_hci_driver_open(void)
     int ret;
 
     ret = bk_ble_reg_hci_recv_callback(ble_hci_to_host_evt_cb,ble_hci_to_host_acl_cb);
+    bk_ble_reg_sco_hci_recv_callback(ble_hci_to_host_sco_cb);
     bt_ipc_register_hci_send_callback(hal_hci_driver_send);
     return ret;
 }
@@ -59,6 +72,7 @@ int hal_hci_driver_close(void)
 
     bt_ipc_register_hci_send_callback(NULL);
     ret = bk_ble_reg_hci_recv_callback(NULL,NULL);
+    bk_ble_reg_sco_hci_recv_callback(NULL);
 
     return ret;
 }
