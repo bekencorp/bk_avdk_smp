@@ -115,7 +115,7 @@
 #define configNUMBER_OF_CORES                      CONFIG_CPU_CNT
 #define configUSE_MINIMAL_IDLE_HOOK                1
 #define configUSE_TICKLESS_IDLE                    CONFIG_FREERTOS_USE_TICKLESS_IDLE
-#define configEXPECTED_IDLE_TIME_BEFORE_SLEEP      5
+#define configEXPECTED_IDLE_TIME_BEFORE_SLEEP      2
 #define portCRITICAL_NESTING_IN_TCB                1
 #define configUSE_CORE_AFFINITY                    1
 #define configRUN_MULTIPLE_PRIORITIES              1
