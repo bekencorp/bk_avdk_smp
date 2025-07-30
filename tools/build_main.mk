@@ -24,7 +24,9 @@ all_targets = cmake_not_supported_targets soc_targets_cp soc_targets_ap cmake_su
 export SOC_SUPPORTED_TARGETS_AP := ${soc_targets_ap}
 export SOC_SUPPORTED_TARGETS_CP := ${soc_targets_cp}
 
-export ARMINO_SOC := $(findstring $(MAKECMDGOALS), $(soc_targets))
+make_target := $(subst _cp,,$(MAKECMDGOALS))
+make_target := $(subst _ap,,$(make_target))
+export ARMINO_SOC := $(findstring $(make_target), $(soc_targets))
 export CMD_TARGET := $(MAKECMDGOALS)
 
 ifeq ("$(APP_VERSION)", "")
