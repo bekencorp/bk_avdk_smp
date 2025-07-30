@@ -1675,6 +1675,8 @@ int mb_ipc_send_async(u32 handle, u8 user_cmd, u8 * data_buff, u32 data_len)
 
 int mb_ipc_send(u32 handle, u8 user_cmd, u8 * data_buff, u32 data_len, u32 time_out)
 {
+	u32   re_connect = 0;
+
 	mb_ipc_socket_t * ipc_socket = get_socket_from_handle(handle);
 
 	if(ipc_socket == NULL)
@@ -1698,6 +1700,8 @@ int mb_ipc_send(u32 handle, u8 user_cmd, u8 * data_buff, u32 data_len, u32 time_
 		return -MB_IPC_TX_BUSY;
 	}
 
+re_send_onetime:
+	
 	memset(&ipc_socket->tx_cmd, 0, sizeof(ipc_socket->tx_cmd));
 
 	ipc_socket->tx_cmd.hdr.cmd = MB_IPC_SEND_CMD;
@@ -1738,9 +1742,41 @@ int mb_ipc_send(u32 handle, u8 user_cmd, u8 * data_buff, u32 data_len, u32 time_
 		}
 		else
 		{
-			return -ipc_socket->tx_status;  // not retry.
+			ret_val = -ipc_socket->tx_status;  // not retry.
+
+			if (ipc_socket->tx_status != (MB_IPC_ROUTE_BASE_FAILED + IPC_ROUTE_UNREACHABLE))
+			{
+				break;   // not retry.
+			}
+
+			if(re_connect != 0)
+			{
+				break; // retry failed.
+			}
+			
+			if(IS_CLIENT_PORT(ipc_socket->src_port))
+			{
+				ipc_socket->use_flag &= ~(USE_FLAG_CONNECTED);  // clear CONNECTED flag.
+				if(mb_ipc_connect(handle, ipc_socket->dst_cpu, ipc_socket->dst_port, time_out) == 0)
+				{
+					re_connect = 1;  // retry...
+					break;
+				}
+			}
+			else
+			{
+				break;   // server does not retry.
+			}
 		}
 	} while((ret_val != 0) && (++retry < MB_IPC_RETRY_MAX));
+
+	if(re_connect == 1)
+	{
+		re_connect = 2; // state to 2, re-send complete.
+
+		// mb_ipc_connect used ipc_socket->tx_cmd, so re-init the tx_cmd.
+		goto re_send_onetime;
+	}
 
 	return ret_val;
 }
