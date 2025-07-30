@@ -32,7 +32,7 @@
 #include <driver/video_common_driver.h>
 #include "avdk_crc.h"
 #include "media_utils.h"
-
+#include <driver/flash.h>
 #define TAG "dvp_drv"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -541,6 +541,10 @@ static void dvp_camera_reset_hardware_modules_handler(dvp_driver_handle_t *handl
     }
 
     bk_yuv_buf_soft_reset();
+    if (handle->yuv_config)
+    {
+        handle->yuv_config->yuv_data_offset = 0;
+    }
 
     if (handle->dma_channel < DMA_ID_MAX)
     {
@@ -588,6 +592,7 @@ static void yuv_sm0_line_done(yuv_buf_unit_t id, void *param)
     if ((yuv_config->yuv_data_offset + yuv_config->yuv_pingpong_length) > handle->yuv_frame->length)
     {
         yuv_config->yuv_data_offset = 0;
+        handle->error = true;
     }
 
     BK_WHILE(bk_dma_get_enable_status(yuv_config->dma_collect_yuv));
@@ -613,6 +618,7 @@ static void yuv_sm1_line_done(yuv_buf_unit_t id, void *param)
     if ((yuv_config->yuv_data_offset + yuv_config->yuv_pingpong_length) > handle->yuv_frame->length)
     {
         yuv_config->yuv_data_offset = 0;
+        handle->error = true;
     }
 
     BK_WHILE(bk_dma_get_enable_status(yuv_config->dma_collect_yuv));
@@ -724,15 +730,6 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
         return;
     }
 
-    if (handle->error)
-    {
-        handle->encode_frame->length = 0;
-        handle->dma_length = 0;
-        bk_dma_stop(handle->dma_channel);
-        bk_dma_start(handle->dma_channel);
-        DVP_JPEG_EOF_OUT();
-        return;
-    }
 
     if (handle->encode_frame == NULL
         || handle->encode_frame->frame == NULL)
@@ -758,6 +755,15 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
             handle->error = true;
             DVP_SIZE_ERROR_OUT();
         }
+    }
+    if (handle->error)
+    {
+        handle->encode_frame->length = 0;
+        handle->dma_length = 0;
+        bk_dma_stop(handle->dma_channel);
+        bk_dma_start(handle->dma_channel);
+        DVP_JPEG_EOF_OUT();
+        return;
     }
 
     handle->dma_length = 0;
@@ -1444,6 +1450,20 @@ const dvp_sensor_config_t *bk_dvp_detect(void)
 
     return sensor;
 }
+#if CONFIG_FLASH
+bk_err_t bk_dvp_flash_ops_cb(bool suspend)
+{
+    dvp_driver_handle_t *handle = s_dvp_camera_handle;
+    if (handle == NULL)
+    {
+        LOGW("%s, not open...\n", __func__);
+        return BK_FAIL;
+    }
+    handle->error = true;
+
+    return BK_OK;
+}
+#endif
 
 bk_err_t bk_dvp_init(camera_handle_t *handle, dvp_config_t *cfg, bk_dvp_callback_t *cb)
 {
@@ -1523,6 +1543,9 @@ bk_err_t bk_dvp_init(camera_handle_t *handle, dvp_config_t *cfg, bk_dvp_callback
         goto error;
     }
 
+#if CONFIG_FLASH
+    mb_flash_register_op_dvp_notify(bk_dvp_flash_ops_cb);
+#endif
     // step 2: init stream list
     if (cfg->img_format & IMAGE_MJPEG)
     {
