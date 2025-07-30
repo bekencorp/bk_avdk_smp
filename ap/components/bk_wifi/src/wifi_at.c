@@ -499,6 +499,7 @@ error:
 static int at_wlan_get_listen_interval(int sync,int argc, char **argv)
 {
 	u8 listen_interval = 0;
+	char resultbuf[50];
 
 	if(argc != 0){
 		atsvr_cmd_rsp_error();
@@ -506,6 +507,9 @@ static int at_wlan_get_listen_interval(int sync,int argc, char **argv)
 	}
 
 	if(bk_wifi_get_listen_interval(&listen_interval) == BK_OK){
+		os_memset(resultbuf,0,50);
+		snprintf(resultbuf,sizeof(resultbuf), "EVT: get wifi listen interval %d.\n",listen_interval);
+		atsvr_output_msg(resultbuf);
 		atsvr_cmd_rsp_ok();
 		return 0;
 	}else{
@@ -925,7 +929,7 @@ static int at_wlan_get_station_status(int sync, int argc, char **argv)
 			//BK_LOGD(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
 			//		ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
 			os_memset(resultbuf,0,200);
-			snprintf(resultbuf,sizeof(resultbuf), "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
+			snprintf(resultbuf,sizeof(resultbuf), "EVT:softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
 					ssid, status.ap_info.channel, wifi_sec_type_string(status.ap_info.security));
 			atsvr_output_msg(resultbuf);
 
