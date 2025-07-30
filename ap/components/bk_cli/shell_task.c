@@ -2652,13 +2652,25 @@ static void check_and_free_dynamic_node(void)
 	}
 }
 
+static void *dynamic_log_malloc(size_t size)
+{
+	bool sram_perfer = BK_TRUE;
+	if (s_dynamic_log_total_len > 0x800) {
+		sram_perfer = BK_FALSE;
+	}
+	if (sram_perfer) {
+		return os_malloc(size);
+	}
+	return LOG_MALLOC(size);
+}
+
 static u8 *alloc_dynamic_log_blk(u16 log_len, u16 *blk_tag)
 {
 	if (rtos_is_in_interrupt_context()) {
 		return NULL;
 	}
 	int total_len = log_len + DYM_NODE_SIZE;
-	dynamic_log_node *node = (dynamic_log_node *)LOG_MALLOC(total_len);
+	dynamic_log_node *node = (dynamic_log_node *)dynamic_log_malloc(total_len);
 	if (node == NULL) {
 		return NULL;
 	}
