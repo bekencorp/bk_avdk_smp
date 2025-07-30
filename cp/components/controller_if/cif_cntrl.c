@@ -740,12 +740,6 @@ bk_err_t cif_handle_bk_cmd(void *head)
     void* cmd = (void *)((struct cpdu_t*)head + 1);
     CIF_LOGV("%s,TX_BK_CMD_DATA \n",__func__);
 
-//    int_level = rtos_disable_int();
-//    cif_stats_ptr->buf_in_ctrlif_cmd--;
-//    cif_stats_ptr->buf_in_txcmd++;
-//    rtos_enable_int(int_level);
-//
-//    BK_ASSERT(cif_stats_ptr->buf_in_ctrlif_cmd >= 0);
     if(hdr->co_hdr.is_buf_bank)
     {
         cif_save_buffer_addr(head);
@@ -775,12 +769,6 @@ bk_err_t cif_handle_bk_cmd(void *head)
 
     //Free AP cmd buffer
     cif_free_cmd_buffer(head);
-
-//    int_level = rtos_disable_int();
-//    cif_stats_ptr->buf_in_txcmd--;
-//    rtos_enable_int(int_level);
-//    BK_ASSERT(cif_stats_ptr->buf_in_txcmd >= 0);
-
     return ret;
 }
 
