@@ -51,14 +51,16 @@ static beken_thread_t psram_task = NULL;
 #endif
 
 extern void bk_delay_us(uint32_t us);
-static bool s_psram_server_is_init = false;
 static bool s_psram_heap_is_init = false;
+static beken_mutex_t s_psram_mutex = NULL;
+static volatile bool s_psram_init_done = false;
 static uint8_t s_psram_channelmap = 0;
+#define PSRAM_INIT_WAIT_TIMEOUT_MS   100
 
 static psram_flash_t s_psram_id = {0};
 
 #define PSRAM_RETURN_ON_SERVER_NOT_INIT() do {\
-				if (!s_psram_server_is_init) {\
+				if (!s_psram_init_done) {\
 					return BK_ERR_PSRAM_SERVER_NOT_INIT;\
 				}\
 			} while(0)
@@ -178,7 +180,7 @@ bk_err_t bk_psram_id_auto_detect(void)
 
 	if (ret != 8)
 	{
-		MEM_STATIC_LOGI("Auto detect:No PSRAM_CHIP_ID INFO, ret:%d\r\n", ret);
+		MEM_STATIC_LOGD("Auto detect:No PSRAM_CHIP_ID INFO, ret:%d\r\n", ret);
 	}
 
 	if (s_psram_id.magic_code == PSRAM_CHECK_FLAG)
@@ -217,10 +219,43 @@ bk_err_t bk_psram_id_auto_detect(void)
 
 bk_err_t bk_psram_init(void)
 {
+	bk_err_t ret = BK_OK;
 
-	if (s_psram_server_is_init) {
+	if (s_psram_init_done)
+	{
 		return BK_OK;
 	}
+
+	if (!rtos_is_scheduler_started())
+	{
+		MEM_STATIC_LOGD("Scheduler not running, skip mutex\n");
+		goto start_init;
+	}
+
+	if (rtos_is_in_interrupt_context())
+	{
+		MEM_STATIC_LOGW("Cannot init PSRAM in interrupt context!\n");
+		return BK_ERR_BUSY;
+	}
+
+	if (s_psram_mutex == NULL)
+	{
+		ret = rtos_init_mutex(&s_psram_mutex);
+		if (ret != BK_OK) {
+			MEM_STATIC_LOGE("Failed to create psram mutex\n");
+			return ret;
+		}
+	}
+
+	rtos_lock_mutex(&s_psram_mutex);
+
+	if (s_psram_init_done) {
+		rtos_unlock_mutex(&s_psram_mutex);
+		return BK_OK;
+	}
+
+start_init:
+	MEM_STATIC_LOGD("Starting PSRAM init...\n");
 
 	uint32_t chip_id = 0, actual_id = 0;
 
@@ -230,98 +265,77 @@ bk_err_t bk_psram_init(void)
 	// power up and clk config
 	psram_hal_power_clk_enable(1);
 
-	if (s_psram_id.magic_code == PSRAM_CHECK_FLAG)
-	{
+	if (s_psram_id.magic_code == PSRAM_CHECK_FLAG) {
 		chip_id = s_psram_id.psram_id;
 	}
 
 	MEM_STATIC_LOGD("%s, chip_id:%x\r\n", __func__, chip_id);
 
-	// psram config
-	actual_id =  psram_hal_config_init(chip_id);
-
-	if (actual_id == 0)
-	{
+	actual_id = psram_hal_config_init(chip_id);
+	if (actual_id == 0) {
 		MEM_STATIC_LOGE("%s, fail!\r\n", __func__);
+		rtos_unlock_mutex(&s_psram_mutex);
 		return BK_FAIL;
 	}
 
 	bk_delay_us(1000);
-	// set psram clk
 	bk_psram_set_clk(PSRAM_120M);
 
 	MEM_STATIC_LOGD("%s, %x-%x\r\n", __func__, actual_id, chip_id);
 
-	switch (actual_id)
-	{
+	switch (actual_id) {
 		case PSRAM_W955D8MKY_5J_ID:
-		    if (CONFIG_PSRAM_CAPACITY != PSRAM_4M_SIZE)
-		    {
-		        MEM_STATIC_LOGW("psram type(4MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
-		    }
-		    break;
-
+			if (CONFIG_PSRAM_CAPACITY != PSRAM_4M_SIZE)
+				MEM_STATIC_LOGW("psram type(4MB) not match CONFIG_PSRAM_CAPACITY 0X%08X\r\n", CONFIG_PSRAM_CAPACITY);
+			break;
 		case PSRAM_APS6408L_ID:
-		    if (CONFIG_PSRAM_CAPACITY != PSRAM_8M_SIZE)
-		    {
-		        MEM_STATIC_LOGW("psram type(8MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
-		    }
-		    break;
-
+			if (CONFIG_PSRAM_CAPACITY != PSRAM_8M_SIZE)
+				MEM_STATIC_LOGW("psram type(8MB) not match CONFIG_PSRAM_CAPACITY 0X%08X\r\n", CONFIG_PSRAM_CAPACITY);
+			break;
 		case PSRAM_APS128XXO_OB9_ID:
-		    if (CONFIG_PSRAM_CAPACITY != PSRAM_16M_SIZE)
-		    {
-		        MEM_STATIC_LOGW("psram type(16MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
-		    }
-		    break;
-
+			if (CONFIG_PSRAM_CAPACITY != PSRAM_16M_SIZE)
+				MEM_STATIC_LOGW("psram type(16MB) not match CONFIG_PSRAM_CAPACITY 0X%08X\r\n", CONFIG_PSRAM_CAPACITY);
+			break;
 		default:
-		    MEM_STATIC_LOGW("not defined this psram, please check!\r\n");
-		    break;
+			MEM_STATIC_LOGW("Unknown PSRAM type, please check!\r\n");
+			break;
 	}
 
-	if (actual_id != chip_id)
-	{
+	if (actual_id != chip_id) {
 		s_psram_id.psram_id = actual_id;
 		s_psram_id.magic_code = PSRAM_CHECK_FLAG;
 #if (CONFIG_PSRAM_AUTO_DETECT)
-		if (s_psram_sem)
-		{
+		if (s_psram_sem) {
 			s_psram_id_need_write = true;
-
 			rtos_set_semaphore(&s_psram_sem);
 		}
 #endif
-	}
-	else
-	{
+	} else {
 #if (CONFIG_PSRAM_AUTO_DETECT)
-		if (s_psram_sem)
-		{
+		if (s_psram_sem) {
 			rtos_set_semaphore(&s_psram_sem);
 		}
 #endif
 	}
 
-	s_psram_server_is_init = true;
+	s_psram_init_done = true;
 
+	rtos_unlock_mutex(&s_psram_mutex);
+	MEM_STATIC_LOGD("PSRAM init success\n");
 	return BK_OK;
-
 }
 
 bk_err_t bk_psram_deinit(void)
 {
-
-	if (!s_psram_server_is_init) {
+	if (!s_psram_init_done) {
 		return BK_OK;
 	}
 
 	psram_hal_power_clk_enable(0);
+	s_psram_init_done = false;
 
-	s_psram_server_is_init = false;
-
+	MEM_STATIC_LOGD("PSRAM deinit done\n");
 	return BK_OK;
-
 }
 
 bk_err_t bk_psram_memcpy(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
@@ -400,7 +414,7 @@ char *bk_psram_strcat(char *start_addr, const char *data_buf)
 	uint8_t *pb;
 	uint8_t *pd = (uint8_t *)data_buf;
 
-	if (!s_psram_server_is_init) {
+	if (!s_psram_init_done) {
 		return NULL;
 	}
 
