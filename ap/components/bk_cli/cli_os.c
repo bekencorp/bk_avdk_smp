@@ -167,7 +167,7 @@ static void start_xtop_task(uint32_t timeToDump)
 {
 	bk_err_t ret;
 	s_xtop_enable = 1;
-	ret = rtos_core0_create_thread(&s_xtop_thread,
+	ret = rtos_create_thread(&s_xtop_thread,
 							 BEKEN_DEFAULT_WORKER_PRIORITY,
 							 "ostop",
 							 (beken_thread_function_t)xtop_cpu_percentage,
