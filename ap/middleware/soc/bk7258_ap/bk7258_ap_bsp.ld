@@ -421,6 +421,9 @@ SECTIONS
         PROVIDE(__spinlock_begin = LOADADDR(.spinlock));
         _spinlock_start = .;
         *(.sram_spinlock_section)
+    #if (CONFIG_ASR_SERVICE)
+        *(.wanson_asr_data2)
+    #endif
         . = ALIGN(4);
          _spinlock_end = .;
     } > SPINLOCK AT > FLASH

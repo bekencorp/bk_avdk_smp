@@ -111,8 +111,8 @@ typedef struct
            .chl_num = 1,                                        \
            .bits = 16,                                          \
            .sample_rate = 8000,                                 \
-           .dig_gain = 0x2D,                                    \
-           .ana_gain = 0x00,                                    \
+           .dig_gain = 0x28,                                    \
+           .ana_gain = 0x8,                                    \
            .mode = AUD_ADC_MODE_DIFFEN,                         \
            .clk_src = AUD_CLK_XTAL,                             \
         },                                                      \

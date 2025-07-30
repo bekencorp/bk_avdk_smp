@@ -1401,6 +1401,15 @@ int bk_voice_write_spk_data(voice_handle_t voice_handle, char *buffer, uint32_t 
     return raw_stream_write(voice_handle->raw_write, buffer, size);
 }
 
+int bk_voice_get_mic_str(voice_handle_t voice_handle, voice_cfg_t *cfg)
+{
+	VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
+	if (cfg->aec_en)
+		return ((int)voice_handle->aec_alg);
+	else
+		return ((int)voice_handle->mic_str);
+}
+
 bk_err_t bk_voice_get_status(voice_handle_t voice_handle, voice_sta_t *status)
 {
     VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
