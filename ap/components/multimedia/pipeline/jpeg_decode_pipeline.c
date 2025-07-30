@@ -1228,7 +1228,8 @@ static void jpeg_decode_notify_handle(uint32_t param, pipeline_module_t module)
 			LOGW("%s multi notify from: %d, index: %d, ignore\n", __func__, module, mux_buf->buffer.index);
 			//BK_ASSERT_EX(0, "%s multi notify from: %d, index: %d, input state: %d, ignore\n",
 			//	__func__, module, mux_buf->buffer.index, decoder_buffer->state);
-			return;
+			rtos_unlock_mutex(&jdec_info->lock);
+			goto out;
 		}
 
 		if (jpeg_decode_frame_is_last_line(mux_buf->buffer.index))
