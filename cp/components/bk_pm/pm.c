@@ -965,9 +965,30 @@ bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module, uint32_t sl
 	return BK_OK;
 
 }
-
+static bk_err_t pm_check_multimedia_pwr_state()
+{
+	uint16_t audio_pwr_state = sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_AUDP);
+	uint16_t video_pwr_state = sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_VIDP);
+	if(audio_pwr_state == 0x0)
+	{
+		BK_LOGD(NULL,"Audio not power off,enter sleep fail\r\n");
+	}
+	if( video_pwr_state == 0x0)
+	{
+		BK_LOGD(NULL,"Video not power off,enter sleep fail\r\n");
+	}
+	if((audio_pwr_state== 0x0)|| (video_pwr_state == 0x0))
+	{
+		return BK_FAIL;
+	}
+	return BK_OK;
+}
 bk_err_t bk_pm_sleep_mode_set(pm_sleep_mode_e sleep_mode)
 {
+	if(pm_check_multimedia_pwr_state() == BK_FAIL)
+	{
+		return BK_FAIL;
+	}
 	s_pm_sleep_mode = sleep_mode;
 
 	if (s_pm_sleep_mode == PM_MODE_DEEP_SLEEP)
