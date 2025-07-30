@@ -368,15 +368,20 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_req(struct bk_msg_hdr *msg)
 
 bk_err_t cif_handle_bk_cmd_scan_wifi_ind(uint32_t scan_id,uint32_t scan_use_time)
 {
-    bk_err_t ret;
+    bk_err_t ret = BK_OK;
+
+    //CTRL_IF_CMD("%s,%d\n",__func__,scan_id);
 
     #if BK_SUPPLICANT
-    wifi_event_scan_done_t event_data = {0};
-    event_data.scan_id = scan_id;
-    event_data.scan_use_time = scan_use_time;
+    if (scan_id != 0) {
+        wifi_event_scan_done_t event_data = {0};
+        event_data.scan_id = scan_id;
+        event_data.scan_use_time = scan_use_time;
+
+        ret = cif_bk_send_event(BK_EVT_SCAN_WIFI_IND, (uint8_t *)(&event_data), sizeof(event_data));
+    }
     #endif
 
-    ret = cif_bk_send_event(BK_EVT_SCAN_WIFI_IND, (uint8_t *)(&event_data), sizeof(event_data));
     return ret;
 }
 
