@@ -68,6 +68,7 @@ typedef enum
 	PM_BOOT_CP1_MODULE_NAME_BT              ,// 14
 	PM_BOOT_CP1_MODULE_NAME_WIFI            ,// 15
 	PM_BOOT_CP1_MODULE_NAME_AOV             ,// 16
+	PM_BOOT_CP1_MODULE_NAME_BK_MODEM  ,// 17
 	PM_BOOT_CP1_MODULE_NAME_MAX             ,// attention: MAX value can not exceed 31.
 }pm_boot_cp1_module_name_e;
 
