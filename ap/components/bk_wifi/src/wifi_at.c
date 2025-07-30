@@ -324,7 +324,7 @@ static int at_wlan_scan_start(wifi_scan_config_t *scan_config,AT_WLAN_SCAN_ATTR_
 					BK_LOGE(TAG,"scan time exceeded!\r\n");
 				}
 			}
-			bk_wifi_scan_get_result(&scan_result); 
+			BK_LOG_ON_ERR(bk_wifi_scan_get_result(&scan_result));
 			BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
 			bk_wifi_scan_free_result(&scan_result);
 		}

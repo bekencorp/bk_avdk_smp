@@ -1247,8 +1247,9 @@ bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
 
     if (scan_result == NULL) {
         WIFI_LOGW("%s failed, invalid scan_result\r\n", __func__);
-        return BK_ERR_NO_MEM;
+        return BK_ERR_PARAM;
     }
+    os_memset(scan_result, 0, sizeof(*scan_result));
 
     buffer_to_ipc = os_malloc(len);
     if (!buffer_to_ipc)
@@ -1258,10 +1259,22 @@ bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
     }
 
     ret = wifi_send_com_api_cmd(SCAN_RESULT, 1, (uint32_t)buffer_to_ipc);
+    if (ret != BK_OK) {
+        WIFI_LOGW("%s wifi_send_com_api_cmd failed: %d\r\n", __func__, ret);
+        goto _free_and_exit;
+    }
+
     os_memcpy(scan_result, buffer_to_ipc, len);
 
-    os_free(buffer_to_ipc);
+    if (scan_result->ap_num > 0 && scan_result->aps == NULL) {
+        WIFI_LOGW("%s failed, aps pointer is NULL but ap_num is %d\r\n", __func__, scan_result->ap_num);
+        scan_result->ap_num = 0;
+        ret = BK_ERR_PARAM; //update reason code
+        goto _free_and_exit;
+    }
 
+_free_and_exit:
+    os_free(buffer_to_ipc);
     return ret;
 }
 
@@ -1325,13 +1338,23 @@ bk_err_t bk_wifi_scan_dump_result(const wifi_scan_result_t *scan_result)
 #if (CONFIG_SHELL_ASYNCLOG)
         shell_cmd_ind_out("scan doesn't found AP\n");
 #else
-        WIFI_LOGD("scan doesn't found AP\n");
+        WIFI_LOGW("Invalid scan_result(NULL)\r\n");
 #endif
+        return BK_ERR_PARAM;
+    }
+
+    if (scan_result->ap_num < 0 || scan_result->ap_num > 100) {
+        WIFI_LOGW("Invalid AP count: %d\r\n", scan_result->ap_num);
+        return BK_ERR_PARAM;
+    }
+
+    if (scan_result->ap_num == 0) {
+        WIFI_LOGW(" No AP found\r\n");
         return BK_OK;
     }
 
     if ((scan_result->ap_num > 0) && (!scan_result->aps)) {
-        WIFI_LOGE("scan number is %d, but AP info is NULL\n", scan_result->ap_num);
+        WIFI_LOGW("scan number is %d, but AP info is NULL\n", scan_result->ap_num);
         return BK_ERR_PARAM;
     }
 #if (CONFIG_SHELL_ASYNCLOG)

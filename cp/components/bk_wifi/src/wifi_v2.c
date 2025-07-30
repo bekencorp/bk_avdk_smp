@@ -2945,12 +2945,15 @@ bk_err_t bk_wifi_sta_disconnect(void)
 bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
 {
 	ScanResult_adv ap_list = {0};
-	wifi_scan_ap_info_t *ap;
-	int ret = BK_OK;
+	wifi_scan_ap_info_t *ap = NULL;
+	bk_err_t ret = BK_OK;
 	int j = 0;
 
 	if (!scan_result)
 		return BK_ERR_NULL_PARAM;
+
+	scan_result->ap_num = 0;
+	scan_result->aps = NULL;
 
 	ap_list.ApList = NULL;
 	ret = wlan_sta_scan_result(&ap_list);
@@ -2962,7 +2965,6 @@ bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
 	if (ap_list.ApNum == 0)
 		goto _free_and_exit;
 
-	scan_result->ap_num = 0;
 #if CONFIG_PSRAM_AS_SYS_MEMORY
 	scan_result->aps = psram_zalloc(sizeof(wifi_scan_ap_info_t) * ap_list.ApNum);
 #else
@@ -3000,7 +3002,8 @@ bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
 
 _free_and_exit:
 	os_free(ap_list.ApList);
-	return BK_OK;
+
+	return ret;
 }
 
 static void wifi_scan_dump_ap(const wifi_scan_ap_info_t *ap)
@@ -3059,11 +3062,11 @@ void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
 {
 	if (!scan_result)
 		return;
-	if (scan_result->ap_num > 0 && scan_result->aps) {
+	if (scan_result->aps) {
 		os_free(scan_result->aps);
 		scan_result->aps = NULL;
-		scan_result->ap_num = 0;
 	}
+	scan_result->ap_num = 0;
 	os_memset(&scan_param_dump_env, 0, sizeof(scan_param_dump_env));
 	WIFI_LOGV("scan free result\n");
 }
