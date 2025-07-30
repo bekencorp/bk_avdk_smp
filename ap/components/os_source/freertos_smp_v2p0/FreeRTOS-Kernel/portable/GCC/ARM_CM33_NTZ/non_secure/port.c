@@ -1013,6 +1013,7 @@ extern void arch_dwt_trap_disable(void);
 // xCoreID: to where the message will send
 static bk_err_t crosscore_int_send(int xCoreID, uint32_t cmd)
 {
+    bk_err_t ret = BK_OK;
     int core = rtos_get_core_id();     //portGET_CORE_ID();
     mailbox_data_t data = {core, xCoreID, 0, 0};
 
@@ -1030,11 +1031,17 @@ static bk_err_t crosscore_int_send(int xCoreID, uint32_t cmd)
 	spin_unlock(&crosscore_spin_lock);
 
 	if(old_busy == 0)
-		bk_mailbox_master_send(&data, core, xCoreID);
+    {
+		ret = bk_mailbox_master_send(&data, core, xCoreID);
+    }
+    else
+    {
+        ret = BK_FAIL;
+    }
 
 	rtos_enable_int(flag);
 
-    return 0;
+    return ret;
 }
 
 void crosscore_mb_rx_isr(mailbox_data_t *data)
@@ -1138,8 +1145,9 @@ static void prvDisableInterruptsAndPortStartSchedulerOnCore( void )
     xPortStartSchedulerOnCore();
 }
 
-void vPortYieldCore(int xCoreID)
+bk_err_t vPortYieldCore(int xCoreID)
 {
+    bk_err_t ret = BK_OK;
     #if configDEBUG_SMP
         if (xCoreID == 0)
         {
@@ -1151,7 +1159,8 @@ void vPortYieldCore(int xCoreID)
             REG_WRITE(GPIO_15_DEBUG, 2);
         }
     #endif
-    crosscore_int_send_yield( xCoreID + 1);
+    ret = crosscore_int_send_yield( xCoreID + 1);
+    return ret;
 }
 
 extern void multicore_launch_core1(void (*func)(void));
