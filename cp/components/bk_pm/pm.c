@@ -201,7 +201,6 @@ extern void bk_delay_us(UINT32 us);
 void pm_hardware_init()
 {
 #if 1
-	FIXED_ADDR_PSRAM_POWER_DOWN  = 0x0;
 	sys_drv_low_power_hardware_init();
 
 	/*config vote for entering low vol modules*/

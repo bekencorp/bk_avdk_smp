@@ -1500,4 +1500,8 @@ void sys_hal_low_power_hardware_init()
 
 	/*dco cali*/
 	sys_hal_dco_cali(DCO_CALIB_SPEED_240M);
+
+	/*Psram used state init*/
+	FIXED_ADDR_PSRAM_POWER_DOWN  = 0x0;
+	FIXED_ADDR_PSRAM_USDE_COUNT  = 0x0;
 }
