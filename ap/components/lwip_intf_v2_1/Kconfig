@@ -84,6 +84,13 @@ menu "Lwip_intf_v2_1"
 			bool "Enable MDNS"
 			default n
 
+		config DNS_TABLE_SIZE
+			int "Default Maximum Number of DNS Entries to Maintain Locally"
+			range 1 4
+			default 4
+			help
+				Number of DNS Entries
+
 		config TASK_LWIP_PRIO
 			depends on WIFI_ENABLE
 			int "Set Task Lwip Prio"

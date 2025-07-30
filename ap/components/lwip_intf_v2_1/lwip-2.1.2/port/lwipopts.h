@@ -430,7 +430,7 @@ u32_t beken_random(void);
  * DNS related options, revisit later to fine tune.
  */
 #define LWIP_DNS                        1
-#define DNS_TABLE_SIZE                  2  // number of table entries, default 4
+#define DNS_TABLE_SIZE                  CONFIG_DNS_TABLE_SIZE  // number of table entries, default 4
 //#define DNS_MAX_NAME_LENGTH           64  // max. name length, default 256
 #define DNS_MAX_SERVERS                 2  // number of DNS servers, default 2
 #define DNS_DOES_NAME_CHECK             1  // compare received name with given,def 0
