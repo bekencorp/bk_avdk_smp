@@ -48,6 +48,7 @@ typedef struct {
 } hub_event_queue_t;
 
 static int usbh_hub_event_send_queue(void *callback, void *arg);
+extern void bk_usb_phy_register_refresh();
 
 static int usbh_hub_devno_alloc(void)
 {
@@ -505,6 +506,34 @@ void usbh_hub_event_unlock_mutex()
         usb_osal_mutex_give(&hub_event_mutex);
 }
 
+static void usbh_roothub_enumerate_status_handle(bool status)
+{
+    static uint32_t roothub_enum_fail_count = 0;
+
+    if(status){
+        roothub_enum_fail_count = 0;
+    } else {
+        if(roothub_enum_fail_count > 0) {
+            USB_LOG_ERR("roothub_enum_fail_count:%d enumerate fail\r\n", roothub_enum_fail_count);
+            uint32_t pop_queue_all_event_count = 0;
+            hub_event_queue_t msg;
+            while((kNoErr == rtos_pop_from_queue(&hub_event_queue, &msg, 0)))
+            {
+                pop_queue_all_event_count++;
+                if(pop_queue_all_event_count >= HUB_EVENT_QITEM_COUNT) {
+                    break;
+                }
+            }
+            bk_usb_phy_register_refresh();
+            roothub_enum_fail_count = 0;
+        } else {
+            roothub_enum_fail_count++;
+            usbh_musb_trigger_disconnect_by_sw();
+        }
+    }
+
+}
+
 static void usbh_hub_events_connect_handle(struct usbh_hub *hub, struct usbh_hubport *child, uint8_t port)
 {
     child->parent = hub;
@@ -517,7 +546,7 @@ static void usbh_hub_events_connect_handle(struct usbh_hub *hub, struct usbh_hub
     	child->connected = false;
     	USB_LOG_ERR("Port %u enumerate fail\r\n", port + 1);
         if(hub->is_roothub) {
-            usbh_musb_trigger_disconnect_by_sw();
+            usbh_roothub_enumerate_status_handle(false);
         } else {
             usbh_hub_event_lock_mutex();
             usbh_hub_pipe_reconfigure(hub->parent->ep0, hub->hub_addr, 0x40, USB_SPEED_HIGH);
@@ -527,10 +556,14 @@ static void usbh_hub_events_connect_handle(struct usbh_hub *hub, struct usbh_hub
             }
             usbh_hub_event_unlock_mutex();
         }
+    } else {
+        if(hub->is_roothub) {
+            usbh_roothub_enumerate_status_handle(true);
+        }
     }
 }
 
-static void usbh_hub_events_disconnect_handle(    struct usbh_hub *hub, struct usbh_hubport *child, uint8_t port)
+static void usbh_hub_events_disconnect_handle(struct usbh_hub *hub, struct usbh_hubport *child, uint8_t port)
 {
     if(child == NULL) {
         USB_LOG_DBG("%s child is null\r\n", __func__);
@@ -554,7 +587,6 @@ static void usbh_hub_events_disconnect_handle(    struct usbh_hub *hub, struct u
     child->config.config_desc.bNumInterfaces = 0;
 
     if(hub->is_roothub) {
-    	extern void bk_usb_phy_register_refresh();
     	bk_usb_phy_register_refresh();
     }
 }
