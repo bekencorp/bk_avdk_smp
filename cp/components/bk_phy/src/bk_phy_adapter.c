@@ -635,9 +635,10 @@ const phy_os_funcs_t g_phy_os_funcs = {
 #if (CONFIG_SOC_BK7256XX)
     ._aon_pmu_hal_get_reg0x7c  = aon_pmu_hal_get_reg0x7c,
     ._aon_pmu_get_device_id    = aon_pmu_get_device_id,
-
+#endif
     ._gpio_dev_unmap     = phy_gpio_dev_unmap_wrapper,
     ._gpio_dev_map_txen  = gpio_dev_map_txen,
+#if (CONFIG_SOC_BK7256XX)
     ._bk_gpio_pull_down  = phy_bk_gpio_pull_down_wrapper,
 
     ._bk_get_hardware_chip_id_version  = bk_get_hardware_chip_id_version_wrapper,
