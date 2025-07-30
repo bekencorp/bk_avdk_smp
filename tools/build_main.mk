@@ -27,9 +27,6 @@ export SOC_SUPPORTED_TARGETS_CP := ${soc_targets_cp}
 export ARMINO_SOC := $(findstring $(MAKECMDGOALS), $(soc_targets))
 export CMD_TARGET := $(MAKECMDGOALS)
 
-# $(info $(ARMINO_SOC))
-# $(error $(soc_targets),$(MAKECMDGOALS))
-
 ifeq ("$(APP_VERSION)", "")
 	export APP_VERSION := unknown
 else
@@ -109,7 +106,7 @@ common:
 
 all: $(soc_targets) $(ARMINO_SOC)_cp
 
-$(soc_targets_ap): common build_prepare
+$(ARMINO_SOC)_ap: common build_prepare
 	@make $(ARMINO_SOC)_ap ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) -C $(ARMINO_AP_DIR)
 
 $(ARMINO_SOC)_cp: common build_prepare
@@ -164,7 +161,7 @@ package_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_build_pa
 package_dir := $(PROJECT_BUILD_DIR)/package
 package_json := $(PARTITIONS_DIR)/bk_package.json
 build_summary := $(package_dir)/build_summary.txt
-package: $(package_script) $(ARMINO_SOC)_cp $(soc_targets_ap)
+package: $(package_script) $(ARMINO_SOC)_cp $(ARMINO_SOC)_ap
 	@mkdir -p $(package_dir)
 	@python3 $(package_script) $(PROJECT_BUILD_DIR) $(package_json) $(build_summary)
 ifneq ($(PRINT_SUMMARY), 0)
