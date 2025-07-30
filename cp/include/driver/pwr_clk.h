@@ -34,7 +34,7 @@ extern "C" {
 #define PM_CP1_RECOVERY_CMD                  (0xa)
 
 #define PM_ENTER_DEEP_SLEEP_CMD              (0xb)
-#define PM_STARTUP_TIME_CMD                  (0xc)
+#define PM_GET_PM_DATA_CMD                   (0xc)
 #define PM_CTRL_AP_STATE_CMD                 (0xd)
 #define PM_RTC_DEEPSLEEP_CMD                 (0xe)//Using RTC wakeup source when deepsleep
 #define PM_WAKEUP_CONFIG_CMD                 (0xf)
@@ -133,6 +133,13 @@ typedef enum
 	PM_CP1_PREPARE_CLOSE_MODULE_NAME_LVGL_CODE_RUN,// 13
 	PM_CP1_PREPARE_CLOSE_MODULE_NAME_MAX          ,// attention: MAX value can not exceed 31.
 }pm_cp1_prepare_close_module_name_e;
+typedef enum
+{
+	PM_CP_DATE_TYPE_TIME_INTERVAL_FROM_STARTUP      = 0,
+	PM_CP_DATE_TYPE_DEEP_SLEEP_WAKEUP_SOURCE,
+	PM_CP_DATE_TYPE_EXIT_LOW_VOL_WAKEUP_SOURCE,
+	PM_CP_DATE_TYPE_MAX,                            // attention: MAX value can not exceed 31.
+}pm_ap_get_cp_data_type_e;
 /**
  * @brief get psram ctrl state
  *
