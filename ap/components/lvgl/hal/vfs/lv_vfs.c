@@ -33,8 +33,8 @@ static int _fs_mount_lfs(void)
 
     struct bk_little_fs_partition partition;
     char *fs_name = NULL;
-#ifdef BK_PARTITION_LITTLEFS_USER
-    bk_logic_partition_t *pt = bk_flash_partition_get_info(BK_PARTITION_LITTLEFS_USER);
+#ifdef BK_PARTITION_LITTLEFS
+    bk_logic_partition_t *pt = bk_flash_partition_get_info(BK_PARTITION_LITTLEFS);
 #else
     bk_logic_partition_t *pt = bk_flash_partition_get_info(BK_PARTITION_USR_CONFIG);
 #endif
