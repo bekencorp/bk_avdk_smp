@@ -1703,7 +1703,9 @@ int bk_cli_init(void)
 #endif
 /*-----open the cli comand both at release and debug vertion end ------*/
 
-
+#if (CONFIG_BK_MODEM)
+	cli_modem_init();
+#endif
 /*--------------------platform cli command init end--------------------*/
 
 	/* sort cmds after registered all cmds. */
