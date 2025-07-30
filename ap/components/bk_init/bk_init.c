@@ -33,9 +33,6 @@
 
 #endif
 
-#if CONFIG_BK_MODEM
-#include "components/modem_driver.h"
-#endif
 //#include <bk_wifi_adapter.h>
 // #include <bk_phy_adapter.h>
 // #include <bk_rf_adapter.h>
@@ -395,9 +392,5 @@ extern int mp_do_startup(int heap_len);
 #endif
 
     set_ap_startup_index(AP_EXIT_BK_INIT);
-
-#if CONFIG_BK_MODEM
-    bk_modem_init();
-#endif
 	return 0;
 }
