@@ -79,6 +79,7 @@ enum BK_WIFI_API_CMD_TYPE
     SET_MAC_ADDRESS                     = 0x364,
     STA_GET_MAC                         = 0x365,
     AP_GET_MAC                          = 0x366,
+    GET_STATUS                          = 0x367,
 
     //Common PHY command section
     PHY_CAL_RFCALI                      = 0x380,

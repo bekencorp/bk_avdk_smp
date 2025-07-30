@@ -1488,3 +1488,31 @@ bk_err_t bk_wifi_send_arp_set_rate_req(uint16_t arp_tx_rate)
 {
     return wifi_send_com_api_cmd(SEND_ARP_SET_RATE_REQ, 1, arp_tx_rate);
 }
+
+
+bk_err_t bk_wifi_get_status(wifi_status_t *status)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_status_t);
+
+    if (status == NULL) {
+        WIFI_LOGE("%s failed, invalid pointer\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(GET_STATUS, 1, (uint32_t)buffer_to_ipc);
+
+    os_memcpy(status, buffer_to_ipc, len);
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
