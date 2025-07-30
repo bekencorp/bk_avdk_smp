@@ -207,16 +207,21 @@ struct bk_msg_common
 
 typedef struct wdrv_stats
 {
-    uint16_t rx_alloc_num; //CP RX buffer numbers in use.
-    uint16_t rx_win;
+    uint16_t rx_alloc_num; //CP RX buffer numbers in use. Need CONFIG_CONTROLLER_RX_DIRECT_PSH = 0
+    uint16_t rx_win;       // CONFIG_CONTROLLER_RX_DIRECT_PSH = 0
     uint16_t tx_alloc_num;
     uint16_t tx_list_num;
 
-    uint32_t tx_eth_num;
-    uint32_t tx_process_num;
-    uint32_t tx_free_total;
+    uint32_t wdrv_tx_cnt;
+    uint32_t wdrv_tx_process_cnt;
+    uint32_t wdrv_txc_cnt;
 
-    uint32_t rx_total_recv;
+    uint32_t wdrv_rx_cnt;
+    uint32_t wdrv_rxc_cnt;
+
+    uint32_t wdrv_rx_cpy_fail;
+    uint32_t wdrv_tx_snder_fail;
+    uint32_t wdrv_msg_snder_fail;
 
     uint32_t ipc_tx_cnt;
     uint32_t ipc_txc_cnt;

@@ -90,7 +90,7 @@ void wdrv_rxdata_process(struct pbuf *p)
 #endif
         pbuf_free(pbuf);
         WDRV_STATS_DEC(tx_alloc_num);
-        wdrv_stats_ptr->tx_free_total++;
+        wdrv_stats_ptr->wdrv_txc_cnt++;
         return;
     }
 
@@ -104,7 +104,7 @@ void wdrv_rxdata_process(struct pbuf *p)
         __func__, p, p->next, p->payload, sizeof(struct pbuf), cpdu);
     WDRV_STATS_DEC(rx_alloc_num);
     WDRV_LOGV("%s rx_alloc_num = %d\r\n",__func__,wdrv_stats_ptr->rx_alloc_num );
-    wdrv_stats_ptr->rx_total_recv++;
+    wdrv_stats_ptr->wdrv_rx_cnt++;
 #if CONFIG_CONTROLLER_RX_DIRECT_PSH    
     p_copy = pbuf_alloc(PBUF_RAW,p->len + sizeof(cpdu_t),PBUF_RAM_RX);
     //bk_mem_dump("wdrv_rxdata_process",(uint32_t)p->payload,100);
@@ -112,6 +112,10 @@ void wdrv_rxdata_process(struct pbuf *p)
     {
         pbuf_header(p_copy, -(s16)sizeof(struct cpdu_t));
         memcpy(p_copy->payload,p->payload,p->len);
+    }
+    else
+    {
+        wdrv_stats_ptr->wdrv_rx_cpy_fail++;
     }
     cpdu->co_hdr.need_free = 1;//RXC free
     vif_idx = cpdu->co_hdr.vif_idx;
@@ -121,6 +125,7 @@ void wdrv_rxdata_process(struct pbuf *p)
         ret = ERR_TIMEOUT;
         WDRV_LOGE("%s, RXC sender error\r\n",__func__);
     }
+
     if(p_copy)
     {
         WDRV_LOGV("%s, vif%d\r\n",__func__,vif_idx);
