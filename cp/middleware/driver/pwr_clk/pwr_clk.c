@@ -44,7 +44,7 @@
 #define PM_SEMA_WAIT_FOREVER                 (0xFFFFFFFF)    /*Wait Forever*/
 
 #define PM_BOOT_CP1_TRY_COUNT                (3)
-#define PM_CP_NOTIFY_AP_MAX_COUNT            (1000)
+#define PM_CP_NOTIFY_AP_MAX_COUNT            (100)
 #define PM_CP_NOTIFY_DELAY_TIME_US           (10)  //10us
 
 #define TAG "CP"

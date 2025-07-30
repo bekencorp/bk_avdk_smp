@@ -98,7 +98,7 @@ extern "C" {
 #endif
 
 #define RTC_TICKS_PER_1MS                                    ((float)RTC_CLOCK_FREQ/1000)
-#define LOW_POWER_DPLL_STABILITY_DELAY_TIME                  (0.19) // 0.19ms(hardware need at least 180us,because making the precise it use 190us,it will additional add 6us or 2us(external) )
+#define LOW_POWER_DPLL_STABILITY_DELAY_TIME                  (0.29) // 0.19ms(hardware need at least 180us,because making the precise it use 290us,it will additional add 6us or 2us(external) )
 #define LOW_POWER_RESTORE_DELAY_TIME_HARDWARE                (0.75) //0.6ms,cpu 60M 0.7ms
 #define LOW_POWER_XTAL_DPLL_STABILITY_DELAY_TIME             ((LOW_POWER_DPLL_STABILITY_DELAY_TIME+LOW_POWER_RESTORE_DELAY_TIME_HARDWARE)*1000)
 
@@ -114,8 +114,8 @@ extern "C" {
 #define PM_DEFAULT_LOW_VOLTAGE_WAKEUP3_DELAY 3
 
 /*current used wakeup delay*/
-#define PM_CURRENT_LOW_VOLTAGE_WAKEUP1_DELAY 8
-#define PM_CURRENT_LOW_VOLTAGE_WAKEUP2_DELAY 8
+#define PM_CURRENT_LOW_VOLTAGE_WAKEUP1_DELAY 0xb
+#define PM_CURRENT_LOW_VOLTAGE_WAKEUP2_DELAY 0xb
 #define PM_CURRENT_LOW_VOLTAGE_WAKEUP3_DELAY 3
 
 /*delta between default and current,need to add to wifi wakeup delay*/

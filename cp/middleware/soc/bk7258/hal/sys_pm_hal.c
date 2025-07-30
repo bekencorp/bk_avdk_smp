@@ -78,10 +78,6 @@ typedef struct
 }flash_ab_reg_t;
 #endif
 
-#if CONFIG_PM_LV_SUBCORES_ON
-static volatile uint32_t s_int1_state1, s_int1_state2;
-static volatile uint32_t s_int2_state1, s_int2_state2;
-#endif
 
 extern void bk_delay_us(UINT32 us);
 static inline bool is_lpo_src_26m32k(void)
@@ -1266,8 +1262,18 @@ void sys_hal_enter_low_analog(void)
 void sys_hal_exit_low_analog(void)
 {
 	sys_ll_set_ana_reg9_spi_latch1v(1);
-	sys_ll_set_ana_reg8_t_vanaldosel(4);
-	sys_ll_set_ana_reg8_r_vanaldosel(4);
+
+	/*When using LDO, ramp up the voltage to 1.5V over 50mv, and ensure consistency with the voltage when using buck*/
+	if(sys_ll_get_ana_reg11_aldosel() == 0x1)
+	{
+		sys_ll_set_ana_reg8_t_vanaldosel(0x5);
+		sys_ll_set_ana_reg8_r_vanaldosel(0x5);
+	}
+	else
+	{
+		sys_ll_set_ana_reg8_t_vanaldosel(4);
+		sys_ll_set_ana_reg8_r_vanaldosel(4);
+	}
 	sys_ll_set_ana_reg8_alopowsel(0);
 	sys_ll_set_ana_reg9_spi_latch1v(0);
 
@@ -1411,6 +1417,12 @@ static int sys_hal_enable_buck()
 		sys_ll_set_ana_reg11_aldosel(0);
 		bk_delay_us(1000);
 	#endif
+	/*When using LDO, ramp up the voltage to 1.5V over 50ms, and ensure consistency with the voltage when using buck*/
+	if(sys_ll_get_ana_reg11_aldosel() == 0x1)
+	{
+		sys_ll_set_ana_reg8_t_vanaldosel(0x5);
+		sys_ll_set_ana_reg8_r_vanaldosel(0x5);
+	}
 	sys_ll_set_ana_reg12_dldosel(0);
 	bk_delay_us(1);
 	/*let the ioldo low power mode*/
