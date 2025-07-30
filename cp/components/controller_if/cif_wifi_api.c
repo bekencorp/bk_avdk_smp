@@ -344,6 +344,12 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_ap_get_mac((uint8_t *)arg_info->args[0]);
             break;
         }
+        case GET_STATUS:
+        {
+            extern bk_err_t bk_wifi_get_wifi_status(void *out);
+            ret = bk_wifi_get_wifi_status((void *)arg_info->args[0]);
+            break;
+        }
         default:
         {
             ret = BK_ERR_NOT_FOUND;

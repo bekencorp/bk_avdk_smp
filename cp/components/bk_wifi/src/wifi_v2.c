@@ -3712,6 +3712,36 @@ bk_err_t bk_wifi_ap_get_mac(uint8_t *mac)
 	bk_get_mac(mac, MAC_TYPE_AP);
 	return BK_OK;
 }
+typedef struct {
+	uint8_t is_sta_up;
+	uint8_t is_ap_up;
+	wifi_link_status_t link_status;
+	netif_ip4_config_t sta_ip4_info;
+	wifi_ap_config_t ap_info;
+	netif_ip4_config_t ap_ip4_info;
+} wifi_status_t;
+
+bk_err_t bk_wifi_get_wifi_status(void *out)
+{
+	wifi_status_t* status = (wifi_status_t*)out;
+	if (!status)
+		return BK_ERR_NULL_PARAM;
+	status->is_sta_up = wifi_netif_sta_is_got_ip();
+	status->is_ap_up = uap_ip_is_start();
+	if(status->is_sta_up)
+	{
+		os_memset(&status->link_status, 0x0, sizeof(wifi_link_status_t));
+		BK_RETURN_ON_ERR(bk_wifi_sta_get_link_status(&status->link_status));
+		BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_STA, &status->sta_ip4_info));
+	}
+	if(status->is_ap_up)
+	{
+		os_memset(&status->ap_info, 0x0, sizeof(wifi_ap_config_t));
+		BK_RETURN_ON_ERR(bk_wifi_ap_get_config(&status->ap_info));
+		BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &status->ap_ip4_info));
+	}
+	return BK_OK;
+}
 
 bk_err_t bk_wifi_sta_pm_enable(void)
 {
