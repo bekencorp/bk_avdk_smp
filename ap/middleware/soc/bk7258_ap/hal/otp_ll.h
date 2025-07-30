@@ -20,7 +20,6 @@
 #include <soc/soc.h>
 #include "hal_port.h"
 #include "otp_hw.h"
-#include <driver/hal/hal_flash_types.h>
 #include "system_hw.h"
 
 #ifdef __cplusplus
@@ -30,6 +29,7 @@ extern "C" {
 #define OTP_LL_REG_BASE(_otp_unit_id)    (SOC_OTP_APB_BASE)
 #define OTP2_LL_REG_BASE(_otp_unit_id)    (SOC_OTP_AHB_BASE)
 extern void bk_delay_us(UINT32 us);
+static bool is_op_encp = false;
 
 static inline uint32_t otp_ll_check_busy(otp_hw_t *hw)
 {
@@ -52,21 +52,45 @@ static inline int otp_check_busy(otp_hw_t *hw)
 	return -1;
 }
 
-static inline int otp_ll_init(otp_hw_t *hw)
+static inline void otp_ll_sleep(otp_hw_t *hw)
 {
-	sys_ll_set_cpu_device_clk_enable_otp_cken(1);
-	bk_delay_us(10);
-	sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(0);
-	bk_delay_us(10);
+	otp_check_busy(hw);
+	hw->hardware.pdstb = 0;
+	hw->hardware.clkosc_en = 0;
+}
+
+static inline int otp_ll_active(otp_hw_t *hw)
+{
+	hw->hardware.pdstb = 1;
+	hw->hardware.clkosc_en = 1;
 	return otp_check_busy(hw);
 }
 
-static inline void otp_ll_deinit(otp_hw_t *hw)
+static inline int otp_ll_power_on(otp_hw_t *hw)
 {
-	while(otp_ll_check_busy(hw));
-	hw->hardware.v = 0;
-	sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(1);
-	sys_ll_set_cpu_device_clk_enable_otp_cken(0);
+	if (sys_ll_get_cpu_device_clk_enable_otp_cken() == 0) {
+		sys_ll_set_cpu_device_clk_enable_otp_cken(1);
+		bk_delay_us(10);
+	}
+	if (sys_ll_get_cpu_power_sleep_wakeup_pwd_encp() == 1) {
+		sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(0);
+		is_op_encp = true;
+		bk_delay_us(10);
+	}
+	return otp_ll_active(hw);
+}
+
+static inline void otp_ll_power_off(otp_hw_t *hw)
+{
+	otp_ll_sleep(hw);
+	if (sys_ll_get_cpu_power_sleep_wakeup_pwd_encp() == 0 && is_op_encp) {
+		sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(1);
+	}
+	if (sys_ll_get_cpu_device_clk_enable_otp_cken() == 1) {
+		sys_ll_set_cpu_device_clk_enable_otp_cken(0);
+	}
+	is_op_encp = false;
+	return;
 }
 
 static inline uint32_t otp_ll_read_tmlck(otp_hw_t *hw)
@@ -225,7 +249,7 @@ static inline uint32_t otp_ll_read_otp_mask(otp_hw_t *hw, uint32_t location)
 static inline void otp_ll_write_puf_mask(otp_hw_t *hw, uint32_t location)
 {
 	hw->puf_mask.v |= 0x3 << (location / 8 * 2);
-	}
+}
 
 static inline uint32_t otp_ll_read_puf_mask(otp_hw_t *hw, uint32_t location)
 {
@@ -429,20 +453,6 @@ static inline void otp_ll_enable_clkosc_en(otp_hw_t *hw)
 static inline void otp_ll_set_fre_cont(otp_hw_t *hw, uint32_t value)
 {
 	hw->hardware.fre_cont = value;
-}
-
-static inline void otp_ll_sleep(otp_hw_t *hw)
-{
-	otp_check_busy(hw);
-	hw->hardware.pdstb = 0;
-	hw->hardware.clkosc_en = 0;
-}
-
-static inline int otp_ll_active(otp_hw_t *hw)
-{
-	hw->hardware.pdstb = 1;
-	hw->hardware.clkosc_en = 1;
-	return otp_check_busy(hw);
 }
 
 static inline void otp_ll_set_time_to_active(otp_hw_t *hw, uint32_t value)
