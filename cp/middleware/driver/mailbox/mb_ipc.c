@@ -699,16 +699,14 @@ static int ipc_socket_tx_rsp(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 	
 	ipc_socket_set_addr(ipc_socket, ipc_cmd);
 
-	uint32_t flags = rtos_disable_int();
-	
 	int route_status = ipc_router_send(ipc_route, ipc_cmd);
 
 	if(route_status != IPC_ROUTE_STATUS_OK)
 	{
-		ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process.
+		uint32_t flags = rtos_disable_int();
+		ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process atomically.
+		rtos_enable_int(flags);
 	}
-
-	rtos_enable_int(flags);
 
 	return route_status;
 }
@@ -744,15 +742,17 @@ static int ipc_socket_tx_cmd(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 	ipc_socket_set_addr(ipc_socket, ipc_cmd);
 
 	uint32_t flags = rtos_disable_int();
-	
+	ipc_socket->run_state |= STATE_TX_IN_PROCESS;
+	rtos_enable_int(flags);
+		
 	int route_status = ipc_router_send(ipc_route, ipc_cmd);
 
-	if(route_status == IPC_ROUTE_STATUS_OK)
+	if(route_status != IPC_ROUTE_STATUS_OK)
 	{
-		ipc_socket->run_state |= STATE_TX_IN_PROCESS;
+		uint32_t flags = rtos_disable_int();
+		ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;
+		rtos_enable_int(flags);
 	}
-
-	rtos_enable_int(flags);
 
 	return route_status;
 }

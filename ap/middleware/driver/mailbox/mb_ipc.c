@@ -255,6 +255,20 @@ static inline void mb_ipc_exit_critical(uint32_t flags)
 	rtos_enable_int(flags);
 }
 
+static void mb_atomic_set(u8 * data, u8 bit_flag)
+{
+	u32 temp = mb_ipc_enter_critical();
+	*data |= bit_flag;
+	mb_ipc_exit_critical(temp);
+}
+
+static void mb_atomic_clear(u8 * data, u8 bit_flag)
+{
+	u32 temp = mb_ipc_enter_critical();
+	*data &= ~bit_flag;
+	mb_ipc_exit_critical(temp);
+}
+
 /**********************************************************************************************/
 /****                                                                                      ****/
 /****                                router layer                                          ****/
@@ -707,16 +721,13 @@ static int ipc_socket_tx_rsp(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 	
 	ipc_socket_set_addr(ipc_socket, ipc_cmd);
 
-	uint32_t flags = rtos_enter_critical();
-	
 	int route_status = ipc_router_send(ipc_route, ipc_cmd);
 
 	if(route_status != IPC_ROUTE_STATUS_OK)
 	{
-		ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process.
+		// ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process.
+		mb_atomic_clear(&ipc_socket->run_state, STATE_RX_IN_PROCESS);
 	}
-
-	rtos_exit_critical(flags);
 
 	return route_status;
 }
@@ -751,16 +762,15 @@ static int ipc_socket_tx_cmd(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd
 
 	ipc_socket_set_addr(ipc_socket, ipc_cmd);
 
-	uint32_t flags = rtos_enter_critical();
+	mb_atomic_set(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 	
 	int route_status = ipc_router_send(ipc_route, ipc_cmd);
 
-	if(route_status == IPC_ROUTE_STATUS_OK)
+	if(route_status != IPC_ROUTE_STATUS_OK)
 	{
-		ipc_socket->run_state |= STATE_TX_IN_PROCESS;
+	//	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;
+		mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 	}
-
-	rtos_exit_critical(flags);
 
 	return route_status;
 }
@@ -780,7 +790,8 @@ static void ipc_socket_rx_notify(mb_ipc_socket_t * ipc_socket)
 
 static void ipc_socket_tx_cmpl_notify(mb_ipc_socket_t * ipc_socket)
 {
-	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process.
+	// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process.
+	mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 
 	/* tx_complete notification. */
 	rtos_set_semaphore(&ipc_socket->tx_notify_sema);
@@ -800,7 +811,8 @@ static void ipc_socket_tx_cmpl_handler(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_
 		}
 
 		// completed the rx-process, so clear the flag.
-		ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process.
+		// ipc_socket->run_state &= ~STATE_RX_IN_PROCESS;  // clear rx_in_process.
+		mb_atomic_clear(&ipc_socket->run_state, STATE_RX_IN_PROCESS);
 
 		if(ipc_cmd->hdr.cmd == (MB_IPC_RSP_FLAG | MB_IPC_DISCONNECT_CMD)) // disconnect rsp send ok.
 		{
@@ -936,7 +948,8 @@ static void ipc_socket_rx_cmd_error_handler(mb_ipc_socket_t * ipc_socket, int er
 static int ipc_socket_rx_cmd_connect(mb_ipc_socket_t * ipc_socket)
 {
 	ipc_socket->use_flag  |= USE_FLAG_CONNECTED;
-	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // must have no cmd in sending, clear tx_in_process to be sure. 
+	// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // must have no cmd in sending, clear tx_in_process to be sure. 
+	mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 	ipc_socket->tx_status = 0;  // must have no cmd in sending, so clear the tx status too.
 
 	ipc_socket_tx_rsp(ipc_socket, &ipc_socket->rx_cmd);
@@ -956,7 +969,8 @@ static int ipc_socket_rx_cmd_disconnect(mb_ipc_socket_t * ipc_socket)
 	}
 
 	ipc_socket->use_flag  &= ~USE_FLAG_CONNECTED;
-	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;    // cleared TX_IN_PROCESS.
+	// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;    // cleared TX_IN_PROCESS.
+	mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 
 	ipc_socket_tx_rsp(ipc_socket, &ipc_socket->rx_cmd);
 
@@ -1048,7 +1062,8 @@ static int ipc_socket_rx_cmd_handler(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t 
 		ipc_socket->rx_cmd.mb_cmd.param3 = ipc_cmd->mb_cmd.param3;
 		
 		ipc_socket->rx_read_offset = 0;
-		ipc_socket->run_state |= STATE_RX_IN_PROCESS;
+		// ipc_socket->run_state |= STATE_RX_IN_PROCESS;
+		mb_atomic_set(&ipc_socket->run_state, STATE_RX_IN_PROCESS);
 
 		if( (ipc_socket->use_flag & USE_FLAG_ALLOCATED) == 0 )  // socket must have been initialized.
 		{
@@ -1486,7 +1501,8 @@ int mb_ipc_connect(u32 handle, u8 dst_cpu, u8 dst_port, u32 time_out)
 		
 		if(route_status != 0)
 		{
-			ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+		//	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 			ret_val = -MB_IPC_TX_TIMEOUT;
 			// rtos_delay_milliseconds(MB_IPC_RETRY_DELAY);
 			continue;
@@ -1538,7 +1554,8 @@ int mb_ipc_disconnect(u32 handle, u8 dst_cpu, u8 dst_port, u32 time_out)
 	ipc_socket->dst_cpu  = dst_cpu;
 	ipc_socket->dst_port = dst_port;
 	
-	ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent previous cmd from being handled in ISR.
+	// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent previous cmd from being handled in ISR.
+	mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 
 	memset(&ipc_socket->tx_cmd, 0, sizeof(ipc_socket->tx_cmd));
 
@@ -1563,7 +1580,8 @@ int mb_ipc_disconnect(u32 handle, u8 dst_cpu, u8 dst_port, u32 time_out)
 		
 		if(route_status != 0)
 		{
-			ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 			ret_val = -MB_IPC_TX_TIMEOUT;
 			// rtos_delay_milliseconds(MB_IPC_RETRY_DELAY);
 			continue;
@@ -1734,7 +1752,8 @@ int mb_ipc_send(u32 handle, u8 user_cmd, u8 * data_buff, u32 data_len, u32 time_
 		
 		if(route_status != 0)
 		{
-			ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			// ipc_socket->run_state &= ~STATE_TX_IN_PROCESS;  // clear tx_in_process. prevent cmd from being handled in ISR.
+			mb_atomic_clear(&ipc_socket->run_state, STATE_TX_IN_PROCESS);
 			ret_val = -MB_IPC_TX_TIMEOUT;
 			// rtos_delay_milliseconds(MB_IPC_RETRY_DELAY);
 			continue;
