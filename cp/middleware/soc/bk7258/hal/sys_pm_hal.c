@@ -1062,24 +1062,25 @@ __attribute__((section(".itcm_sec_code"))) void sys_hal_enter_low_voltage(void)
 
 	/*AP CORE1 */
 	/*Clear cpu2 wfi state*/
-	aon_pmu_ll_set_r3_cp2_enter_wfi_state(0);
+	//aon_pmu_ll_set_r3_cp2_enter_wfi_state(0);
 
 	/*AP CORE0 */
 	/*Clear cpu1 wfi state*/
-	aon_pmu_ll_set_r3_cp1_enter_wfi_state(0);
+	//aon_pmu_ll_set_r3_cp1_enter_wfi_state(0);
 
 	/*Enable cpu1 and cpu2 mailbox interrupt */
 	sys_ll_set_cpu2_int_32_63_en_cpu2_mailbox_int_en(1);
 	sys_ll_set_cpu1_int_32_63_en_cpu1_mailbox_int_en(1);
 
 	/*Restore cpu1 interrupt*/
-	sys_ll_set_cpu1_int_0_31_en_value(s_int1_state1);
-	sys_ll_set_cpu1_int_32_63_en_value(s_int1_state2);
+	//sys_ll_set_cpu1_int_0_31_en_value(s_int1_state1);
+	//sys_ll_set_cpu1_int_32_63_en_value(s_int1_state2);
 
 	/*Restore cpu2 interrupt*/
-	sys_ll_set_cpu2_int_0_31_en_value(s_int2_state1);
-	sys_ll_set_cpu2_int_32_63_en_value(s_int2_state2);
+	//sys_ll_set_cpu2_int_0_31_en_value(s_int2_state1);
+	//sys_ll_set_cpu2_int_32_63_en_value(s_int2_state2);
 
+	bk_pm_cp_wakeup_ap_from_wfi(0);
 #endif
 
 }
@@ -1161,10 +1162,10 @@ bool sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi()
 	uint64_t current_tick  = 0;
 	if(bk_pm_low_vol_vote_state_get())
 	{
-		s_int1_state1 = sys_ll_get_cpu1_int_0_31_en_value();
-		s_int1_state2 = sys_ll_get_cpu1_int_32_63_en_value();
-		s_int2_state1 = sys_ll_get_cpu2_int_0_31_en_value();
-		s_int2_state2 = sys_ll_get_cpu2_int_32_63_en_value();
+		//s_int1_state1 = sys_ll_get_cpu1_int_0_31_en_value();
+		//s_int1_state2 = sys_ll_get_cpu1_int_32_63_en_value();
+		//s_int2_state1 = sys_ll_get_cpu2_int_0_31_en_value();
+		//s_int2_state2 = sys_ll_get_cpu2_int_32_63_en_value();
 		aon_pmu_ll_set_r3_cp0_sleep_vote_state(1);
 
 		previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
@@ -1504,4 +1505,8 @@ void sys_hal_low_power_hardware_init()
 	/*Psram used state init*/
 	FIXED_ADDR_PSRAM_POWER_DOWN  = 0x0;
 	FIXED_ADDR_PSRAM_USDE_COUNT  = 0x0;
+	FIXED_ADDR_WAKEUP_CP_COUNT   = 0x0;
+	FIXED_ADDR_WAKEUP_AP0_COUNT  = 0x0;
+	FIXED_ADDR_WAKEUP_AP1_COUNT  = 0x0;
+	FIXED_ADDR_WAKEUP_AP1_DEBUG  = 0x0;
 }

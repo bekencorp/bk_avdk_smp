@@ -69,12 +69,12 @@ typedef volatile union {
 
 typedef volatile union {
 	struct {
-		uint32_t reserved_bit0            :  1; /**<bit[0 : 0]>*/
-		uint32_t cp1_enter_wfi_state      :  1; /**<bit[1 : 1] */
-		uint32_t cp2_enter_wfi_state      :  1; /**<bit[2 : 2] */
-		uint32_t cp0_sleep_vote_state     :  1; /**<bit[3 : 3] */
-		uint32_t reserved_bit_4_30        : 27; /**<bit[4 : 30] */
-		uint32_t sd_en                    :  1; /**<bit[31 : 31]>*/
+		uint32_t reserved_bit0                     :  1; /**<bit[0 : 0]>*/
+		volatile uint32_t cp1_enter_wfi_state      :  1; /**<bit[1 : 1] */
+		volatile uint32_t cp2_enter_wfi_state      :  1; /**<bit[2 : 2] */
+		volatile uint32_t cp0_sleep_vote_state     :  1; /**<bit[3 : 3] */
+		uint32_t reserved_bit_4_30                 : 27; /**<bit[4 : 30] */
+		uint32_t sd_en                             :  1; /**<bit[31 : 31]>*/
 	};
 	uint32_t v;
 } aon_pmu_r3_t;
