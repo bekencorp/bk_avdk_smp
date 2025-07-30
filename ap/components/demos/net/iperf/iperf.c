@@ -349,7 +349,7 @@ static void iperf_report_task_handler(void *arg)
 static err_t iperf_report_task_start(void)
 {
 	int ret;
-	ret = rtos_core1_create_thread(NULL, iperf_report_priority, IPERF_REPORT_TASK_NAME,
+	ret = rtos_create_thread(NULL, iperf_report_priority, IPERF_REPORT_TASK_NAME,
 						iperf_report_task_handler, IPERF_REPORT_TASK_STACK,
 						(beken_thread_arg_t) 0);
 	
