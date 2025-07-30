@@ -49,6 +49,8 @@ typedef struct {
 
 static int usbh_hub_event_send_queue(void *callback, void *arg);
 extern void bk_usb_phy_register_refresh();
+extern uint32_t usb_hc_enter_critical();
+extern void usb_hc_exit_critical(uint32_t flags);
 
 static int usbh_hub_devno_alloc(void)
 {
@@ -517,13 +519,18 @@ static void usbh_roothub_enumerate_status_handle(bool status)
             USB_LOG_ERR("roothub_enum_fail_count:%d enumerate fail\r\n", roothub_enum_fail_count);
             uint32_t pop_queue_all_event_count = 0;
             hub_event_queue_t msg;
-            while((kNoErr == rtos_pop_from_queue(&hub_event_queue, &msg, 0)))
-            {
-                pop_queue_all_event_count++;
-                if(pop_queue_all_event_count >= HUB_EVENT_QITEM_COUNT) {
-                    break;
+            
+            uint32_t flags = usb_hc_enter_critical();
+            if (hub_event_queue != NULL) {
+                while((kNoErr == rtos_pop_from_queue(&hub_event_queue, &msg, 0)))
+                {
+                    pop_queue_all_event_count++;
+                    if(pop_queue_all_event_count >= HUB_EVENT_QITEM_COUNT) {
+                        break;
+                    }
                 }
             }
+            usb_hc_exit_critical(flags);
             bk_usb_phy_register_refresh();
             roothub_enum_fail_count = 0;
         } else {
@@ -599,15 +606,17 @@ static int usbh_hub_event_send_queue(void *callback, void *arg)
     msg.callback = callback;
     msg.arg = arg;
 
-    if (hub_event_queue) {
+    uint32_t flags = usb_hc_enter_critical();
+    if (hub_event_queue != NULL) {
         ret = rtos_push_to_queue(&hub_event_queue, &msg, 0);
         if (kNoErr != ret) {
             USB_LOG_DBG("%s fail ret:%d\r\n", __func__, ret);
             rtos_reset_queue(&hub_event_queue);
-            return BK_FAIL;
         }
+        usb_hc_exit_critical(flags);
         return ret;
     }
+    usb_hc_exit_critical(flags);
     return BK_OK;
 }
 
@@ -951,6 +960,7 @@ int usbh_hub_deinitialize(void)
 
     usb_hc_deinit();
 
+    uint32_t flags = usb_hc_enter_critical();
     usbh_roothub_free_port1_hub();
     if(hub_event_queue) {
         rtos_deinit_queue(&hub_event_queue);
@@ -966,7 +976,7 @@ int usbh_hub_deinitialize(void)
         usb_osal_thread_delete(&hub_thread);
         hub_thread = NULL;
     }
-    
+    usb_hc_exit_critical(flags);
     usbh_hub_event_unlock_mutex();
     if (hub_event_mutex) {
         usb_osal_mutex_delete(&hub_event_mutex);
