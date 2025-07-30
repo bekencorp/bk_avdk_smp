@@ -30,6 +30,14 @@
 #define PSRAM_8M_SIZE  (0x00800000)
 #define PSRAM_16M_SIZE (0x01000000)
 
+#define TAG "psram"
+
+#define MEM_STATIC_LOGD( format, ... ) bk_printf_static_block(BK_LOG_DEBUG, TAG, format, ##__VA_ARGS__)
+#define MEM_STATIC_LOGI( format, ... ) bk_printf_static_block(BK_LOG_INFO, TAG, format, ##__VA_ARGS__)
+#define MEM_STATIC_LOGE( format, ... ) bk_printf_static_block(BK_LOG_ERROR, TAG, format, ##__VA_ARGS__)
+#define MEM_STATIC_LOGW( format, ... ) bk_printf_static_block(BK_LOG_WARN, TAG, format, ##__VA_ARGS__)
+
+
 #define PSRAM_CHECK_FLAG   0x3CA5C3A5
 typedef struct {
 	uint32_t psram_id;
@@ -111,7 +119,7 @@ bk_err_t bk_psram_free_write_through_channel(psram_write_through_area_t area)
 {
 	if (area > PSRAM_WRITE_THROUGH_AREA_COUNT)
 	{
-		PSRAM_LOGE("%s over range failed\r\n", __func__);
+		MEM_STATIC_LOGE("%s over range failed\r\n", __func__);
 		return BK_OK;
 	}
 
@@ -151,7 +159,7 @@ static void psram_id_write(beken_thread_arg_t data)
 		bk_set_env_enhance(PSRAM_CHIP_ID, (const void *)&s_psram_id, sizeof(psram_flash_t));
 	}
 
-	PSRAM_LOGD("psram id write to flash success\r\n");
+	MEM_STATIC_LOGD("psram id write to flash success\r\n");
 
 	s_psram_id_need_write = false;
 
@@ -170,7 +178,7 @@ bk_err_t bk_psram_id_auto_detect(void)
 
 	if (ret != 8)
 	{
-		PSRAM_LOGI("Auto detect:No PSRAM_CHIP_ID INFO, ret:%d\r\n", ret);
+		MEM_STATIC_LOGI("Auto detect:No PSRAM_CHIP_ID INFO, ret:%d\r\n", ret);
 	}
 
 	if (s_psram_id.magic_code == PSRAM_CHECK_FLAG)
@@ -183,7 +191,7 @@ bk_err_t bk_psram_id_auto_detect(void)
 		ret = rtos_init_semaphore(&s_psram_sem, 1);
 		if (ret != BK_OK)
 		{
-			PSRAM_LOGE("%s, init s_psram_sem error\r\n", __func__);
+			MEM_STATIC_LOGE("%s, init s_psram_sem error\r\n", __func__);
 			return ret;
 		}
 	}
@@ -197,7 +205,7 @@ bk_err_t bk_psram_id_auto_detect(void)
 
 	if (BK_OK != ret)
 	{
-		PSRAM_LOGE("%s psram_task init failed\n");
+		MEM_STATIC_LOGE("%s psram_task init failed\n");
 		rtos_deinit_semaphore(&s_psram_sem);
 		s_psram_sem = NULL;
 		return ret;
@@ -227,14 +235,14 @@ bk_err_t bk_psram_init(void)
 		chip_id = s_psram_id.psram_id;
 	}
 
-	PSRAM_LOGD("%s, chip_id:%x\r\n", __func__, chip_id);
+	MEM_STATIC_LOGD("%s, chip_id:%x\r\n", __func__, chip_id);
 
 	// psram config
 	actual_id =  psram_hal_config_init(chip_id);
 
 	if (actual_id == 0)
 	{
-		PSRAM_LOGE("%s, fail!\r\n", __func__);
+		MEM_STATIC_LOGE("%s, fail!\r\n", __func__);
 		return BK_FAIL;
 	}
 
@@ -242,33 +250,33 @@ bk_err_t bk_psram_init(void)
 	// set psram clk
 	bk_psram_set_clk(PSRAM_120M);
 
-	PSRAM_LOGD("%s, %x-%x\r\n", __func__, actual_id, chip_id);
+	MEM_STATIC_LOGD("%s, %x-%x\r\n", __func__, actual_id, chip_id);
 
 	switch (actual_id)
 	{
 		case PSRAM_W955D8MKY_5J_ID:
 		    if (CONFIG_PSRAM_CAPACITY != PSRAM_4M_SIZE)
 		    {
-		        PSRAM_LOGW("psram type(4MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
+		        MEM_STATIC_LOGW("psram type(4MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
 		    }
 		    break;
 
 		case PSRAM_APS6408L_ID:
 		    if (CONFIG_PSRAM_CAPACITY != PSRAM_8M_SIZE)
 		    {
-		        PSRAM_LOGW("psram type(8MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
+		        MEM_STATIC_LOGW("psram type(8MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
 		    }
 		    break;
 
 		case PSRAM_APS128XXO_OB9_ID:
 		    if (CONFIG_PSRAM_CAPACITY != PSRAM_16M_SIZE)
 		    {
-		        PSRAM_LOGW("psram type(16MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
+		        MEM_STATIC_LOGW("psram type(16MB) not match CONFIG_PSRAM_CAPACITY 0X%08X, please check!\r\n",CONFIG_PSRAM_CAPACITY);
 		    }
 		    break;
 
 		default:
-		    PSRAM_LOGW("not defined this psram, please check!\r\n");
+		    MEM_STATIC_LOGW("not defined this psram, please check!\r\n");
 		    break;
 	}
 
@@ -326,7 +334,7 @@ bk_err_t bk_psram_memcpy(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 
 	if (((uint32_t)start_addr & 0x3) != 0 || ((uint32_t)data_buf & 0x3) != 0)
 	{
-		PSRAM_LOGE("address not aligen 4 byte\r\n");
+		MEM_STATIC_LOGE("address not aligen 4 byte\r\n");
 		return BK_FAIL;
 	}
 
@@ -361,7 +369,7 @@ bk_err_t bk_psram_memread(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 
 	if (((uint32_t)start_addr & 0x3) != 0 || ((uint32_t)data_buf & 0x3) != 0)
 	{
-		PSRAM_LOGE("address not aligen 4 byte\r\n");
+		MEM_STATIC_LOGE("address not aligen 4 byte\r\n");
 		return BK_FAIL;
 	}
 
