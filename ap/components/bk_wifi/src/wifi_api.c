@@ -190,14 +190,23 @@ bk_err_t bk_wifi_init(void)
 
 bk_err_t bk_wifi_sta_stop(void)
 {
+    bk_err_t ret = BK_OK;
+
     WDRV_LOGD("sta stopping\n");
 
     if (!wifi_sta_is_started()) {
-        WDRV_LOGV("sta stop, already stopped\n");
+        WDRV_LOGD("sta stop, already stopped\n");
         return BK_OK;
     }
 
     bk_wifi_sta_disconnect();
+
+    /* Post CMD to CIF */
+    ret = wifi_send_com_api_cmd(STA_STOP, 0);
+    if (ret != BK_OK)
+    {
+        WDRV_LOGD("%s failed, ret=%d\n",__func__, ret);
+    }
 
 #if CONFIG_LWIP
     host_wlan_remove_netif();
@@ -211,24 +220,15 @@ bk_err_t bk_wifi_sta_stop(void)
 
 bk_err_t bk_wifi_sta_disconnect(void)
 {
-    bk_err_t ret = BK_OK;
-
     WDRV_LOGD("sta disconnecting\n");
 
     if (wifi_sta_is_connected()) {
 #if CONFIG_LWIP
         sta_ip_down();
 #endif
-        /* Post CMD to CIF */
-        ret = wifi_send_com_api_cmd(STA_DISCONNECT, 0);
-        if (ret != BK_OK)
-        {
-            WDRV_LOGW("%s failed, ret=%d\n",__func__, ret);
-        }
 
         //TODO do we need to post the disconnect event?
         wifi_clear_state_bit(WIFI_STA_CONNECTED_BIT);
-        wifi_clear_state_bit(WIFI_STA_STARTED_BIT);
     }
 
     WDRV_LOGD("sta disconnected(%x)\n", s_wifi_state_bits);
@@ -823,22 +823,88 @@ bk_err_t bk_scan_country_code(uint8_t *country_code, int *len)
     return ret;
 }
 
+bk_err_t bk_wifi_sta_connect(void)
+{
+    wifi_sta_config_t sta_config = { 0 };
+
+    WDRV_LOGD("sta connecting\n");
+
+    wifi_sta_get_global_config(&sta_config);
+
+    if (!wifi_sta_is_started()) {
+        WDRV_LOGD("sta connect fail, sta not start\n");
+        return BK_ERR_WIFI_STA_NOT_STARTED;
+    }
+
+    wifi_set_state_bit(WIFI_STA_CONNECTED_BIT);
+    WDRV_LOGD("sta connected(%x)\n", s_wifi_state_bits);
+
+    return BK_OK;
+}
+
 bk_err_t bk_wifi_sta_start(void)
 {
+    bk_err_t ret = BK_OK;
+
+    WDRV_LOGD("sta starting\n");
+
+    if (!wifi_sta_is_configured()) {
+        WDRV_LOGD("sta start fail, sta not configured\n");
+        return BK_ERR_WIFI_STA_NOT_CONFIG;
+    }
+
+    wifi_sta_init_global_config();
+
+    if (wifi_sta_is_started()) {
+        WDRV_LOGD("sta already started, need stop!\n");
+        bk_wifi_sta_stop();
+    }
+
     //bk_wifi_init();
-    return wifi_send_com_api_cmd(STA_START, 0);
+
+    wifi_set_state_bit(WIFI_STA_STARTED_BIT);
+
+    /* always connect the AP automatically */
+    bk_wifi_sta_connect();
+
+    ret = wifi_send_com_api_cmd(STA_START, 0);
+    if (ret != BK_OK)
+    {
+        WDRV_LOGD("%s failed, ret=%d\n",__func__, ret);
+    }
+
+    return BK_OK;
 }
+
 bk_err_t bk_wifi_sta_set_config(const wifi_sta_config_t *config)
 {
     bk_err_t ret = BK_OK;
     void *buffer_to_ipc = NULL;
     uint32_t len = sizeof(wifi_sta_config_t);
 
-    //WIFI_LOGE("%s config len:%d\r\n", __func__, len);
+    WDRV_LOGD("sta configuring\n");
+
+//    if (!wifi_is_inited()) {
+//        WDRV_LOGV("set sta config fail, wifi not init\n");
+//        return BK_ERR_WIFI_NOT_INIT;
+//    }
+
     if (config == NULL) {
         WIFI_LOGE("%s failed, invalid config\r\n", __func__);
         return BK_ERR_NO_MEM;
     }
+
+    ret = wifi_sta_validate_config(config);
+    if (ret != BK_OK) {
+        WDRV_LOGD("set config fail, invalid param\n");
+        return ret;
+    }
+
+    wifi_sta_set_global_config(config);
+
+    wifi_set_state_bit(WIFI_STA_CONFIGURED_BIT);
+    WDRV_LOGD("sta configured(%x)\n", s_wifi_state_bits);
+
 
     buffer_to_ipc = os_malloc(len);
     if (!buffer_to_ipc)
@@ -865,6 +931,11 @@ bk_err_t bk_wifi_sta_get_config(wifi_sta_config_t *config)
         WIFI_LOGE("%s failed, invalid config\r\n", __func__);
         return BK_ERR_NO_MEM;
     }
+
+    os_memset(config, 0, sizeof(config));
+
+    if (!wifi_sta_is_configured())
+        return BK_ERR_WIFI_STA_NOT_CONFIG;
 
     buffer_to_ipc = os_malloc(len);
     if (!buffer_to_ipc)

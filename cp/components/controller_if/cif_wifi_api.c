@@ -355,9 +355,9 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_ap_stop();
             break;
         }
-        case STA_DISCONNECT:
+        case STA_STOP:
         {
-            ret = bk_wifi_sta_disconnect();
+            ret = bk_wifi_sta_stop();
             break;
         }
         case WIFI_SET_MEDIA_MODE:

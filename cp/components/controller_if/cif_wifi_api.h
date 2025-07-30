@@ -30,7 +30,6 @@ enum CIF_WIFI_API_CMD_TYPE
     STA_SET_BCN_RECV_WIN                = 0x318,
     STA_SET_BCN_LOSS_TIME               = 0x319,
     STA_GET_LINK_STATE_WITH_REASON      = 0x31A,
-    STA_DISCONNECT                      = 0x31B,
 
     // AP management command section
     AP_SET_CONFIG                       = 0x320,
