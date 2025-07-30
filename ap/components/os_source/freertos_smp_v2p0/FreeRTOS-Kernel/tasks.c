@@ -5073,7 +5073,7 @@ static void prvResetNextTaskUnblockTime( void )
                  * If the mutex is held by a task then it cannot be given from an
                  * interrupt, and if a mutex is given by the holding task then it must
                  * be the running state task. */
-                configASSERT( pxTCB == pxCurrentTCBs[ portGET_CORE_ID() ] );
+                configASSERT( (pxTCB == pxCurrentTCBs[0]) || (pxTCB == pxCurrentTCBs[1]) );
                 configASSERT( pxTCB->uxMutexesHeld );
                 ( pxTCB->uxMutexesHeld )--;
 
