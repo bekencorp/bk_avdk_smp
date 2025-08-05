@@ -372,8 +372,6 @@ static int _bk_fatfs_stat(struct bk_filesystem *fs, const char *pathname, struct
 			statbuf->st_mode = S_IFDIR;
 		else
 			statbuf->st_mode = S_IFREG;
-	} else {
-		return -1;
 	}
 
 	return ret;
