@@ -17,6 +17,7 @@
 #include <os/mem.h>
 #include <components/log.h>
 #include <driver/pwr_clk.h>
+#include <driver/flash.h>
 #include "media_app.h"
 #include "camera_act.h"
 #include "transfer_act.h"
@@ -164,6 +165,13 @@ bk_err_t media_app_lcd_disp_close(void)
     return ret;
 }
 
+static void media_app_send_flash_op_state_callback(uint32_t state)
+{
+    //LOGD("%s, state:%d\n", __func__, state);
+
+    camera_set_stream_state_handle(state);
+}
+
 bk_err_t media_app_jdec_open(uint32_t dec_type)
 {
     int ret = BK_FAIL;
@@ -242,6 +250,12 @@ bk_err_t media_app_camera_open(camera_handle_t *handle, media_camera_device_t *d
 
     if (ret == BK_OK)
     {
+#if CONFIG_FLASH
+        /*while camera wroking, other user erase/write flash will influen the camera data,
+        so we need to register a callback to notify the camera state, and drop error frame
+        as much as possible */
+        mb_flash_register_op_camera_notify(media_app_send_flash_op_state_callback);
+#endif
         media_camera_node_t *node = bk_camera_handle_node_init(device->port, device->format);
         if (node == NULL)
         {
@@ -296,7 +310,9 @@ bk_err_t media_app_camera_close(camera_handle_t *handle)
 
     if (list_empty(&media_modules_state->cam_list))
     {
-        LOGD("%s list_empty \n", __func__);
+#if CONFIG_FLASH
+        mb_flash_unregister_op_camera_notify();
+#endif
         bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VIDP_JPEG_EN,PM_POWER_MODULE_STATE_OFF);
     }
 

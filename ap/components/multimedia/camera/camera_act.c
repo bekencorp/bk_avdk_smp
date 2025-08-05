@@ -199,6 +199,21 @@ bk_err_t camera_get_main_stream_handle(frame_list_node_t *node)
     return ret;
 }
 
+bk_err_t camera_set_stream_state_handle(uint32_t state)
+{
+    int ret = BK_FAIL;
+
+#ifdef CONFIG_USB_CAMERA
+    ret = bk_uvc_set_stream_state(state);
+#endif
+
+#ifdef CONFIG_DVP_CAMERA
+    ret = bk_dvp_set_stream_state(state);
+#endif
+
+    return ret;
+}
+
 #if 0
 static bk_err_t camera_net_frame_buffer_malloc_handle(media_mailbox_msg_t *msg)
 {

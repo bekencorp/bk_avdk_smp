@@ -32,7 +32,6 @@
 #include <driver/video_common_driver.h>
 #include "avdk_crc.h"
 #include "media_utils.h"
-#include <driver/flash.h>
 #define TAG "dvp_drv"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -1449,20 +1448,6 @@ const dvp_sensor_config_t *bk_dvp_detect(void)
 
     return sensor;
 }
-#if CONFIG_FLASH
-bk_err_t bk_dvp_flash_ops_cb(bool suspend)
-{
-    dvp_driver_handle_t *handle = s_dvp_camera_handle;
-    if (handle == NULL)
-    {
-        LOGW("%s, not open...\n", __func__);
-        return BK_FAIL;
-    }
-    handle->error = true;
-
-    return BK_OK;
-}
-#endif
 
 bk_err_t bk_dvp_init(camera_handle_t *handle, dvp_config_t *cfg, bk_dvp_callback_t *cb)
 {
@@ -1542,9 +1527,6 @@ bk_err_t bk_dvp_init(camera_handle_t *handle, dvp_config_t *cfg, bk_dvp_callback
         goto error;
     }
 
-#if CONFIG_FLASH
-    mb_flash_register_op_dvp_notify(bk_dvp_flash_ops_cb);
-#endif
     // step 2: init stream list
     if (cfg->img_format & IMAGE_MJPEG)
     {
@@ -1697,4 +1679,18 @@ bk_err_t bk_dvp_h264_idr_reset(void)
 
     LOGW("%s, not enable h264 func...\n", __func__);
     return BK_FAIL;
+}
+
+bk_err_t bk_dvp_set_stream_state(uint32_t state)
+{
+    dvp_driver_handle_t *handle = s_dvp_camera_handle;
+    if (handle == NULL)
+    {
+        LOGV("%s, not open...\n", __func__);
+        return BK_FAIL;
+    }
+
+    handle->error = true;
+
+    return BK_OK;
 }
