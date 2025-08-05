@@ -12,6 +12,7 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
+#define UVC_MAX_PACKET_SIZE (1024)
 //#define UVC_DEBUG_TIME
 
 #ifdef UVC_DEBUG_TIME
@@ -692,7 +693,26 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
     bk_usb_hub_port_info *port_info = uvc_param->port_info;
     struct usbh_video *video_class = (struct usbh_video *)(port_info->usb_device);
     bk_uvc_device_brief_info_t *uvc_device_param = (bk_uvc_device_brief_info_t *)port_info->usb_device_param;
-    usbh_hport_activate_epx(&video_class->isoin, video_class->hport, (struct usb_endpoint_descriptor *)uvc_device_param->ep_desc);
+    struct usb_endpoint_descriptor *ep_desc = (struct usb_endpoint_descriptor *)uvc_device_param->ep_desc;
+    usbh_hport_activate_epx(&video_class->isoin, video_class->hport, ep_desc);
+
+    // step 4: make sure transmission mode
+    bk_uvc_config_t *uvc_config = (bk_uvc_config_t *)uvc_param->port_info->usb_device_param_config;
+    uvc_handle->pro_config->transfer_bulk[index] = ((uvc_config->ep_desc->bmAttributes & 0x3) == USB_ENDPOINT_BULK_TRANSFER) ? true : false;
+    uvc_handle->pro_config->max_packet_size[index] = uvc_config->ep_desc->wMaxPacketSize > 1024 ? 1024 : uvc_config->ep_desc->wMaxPacketSize;
+    LOGD("/*****port:%d, transmission mode:%s, max_packet_zise:%d*****/\r\n", uvc_param->info->port, uvc_handle->pro_config->transfer_bulk[index] == 1 ? "BULK" : "ISO",
+         uvc_handle->pro_config->max_packet_size[index]);
+    uint32_t max_packet_size = uvc_handle->pro_config->max_packet_size[index];
+#ifdef CONFIG_PSRAM
+    max_packet_size = UVC_MAX_PACKET_SIZE;
+#endif
+    ret = uvc_camera_urb_list_init(max_packet_size);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d\n", __func__, __LINE__);
+        ret = BK_UVC_NO_MEMORY;
+        goto out;
+    }
 
     if (uvc_separate_packet_cb.uvc_init_packet_cb != NULL && uvc_separate_packet_cb.id == uvc_param->info->port)
     {
@@ -723,7 +743,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
         goto out;
     }
 
-    // step 4: malloc frame buffer
+    // step 5: malloc frame buffer
     if (uvc_param->frame == NULL)
     {
         switch (uvc_param->info->img_format)
@@ -782,7 +802,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
         uvc_param->frame = new_frame;
     }
 
-    // step 5: malloc urb
+    // step 6: malloc urb
     if (uvc_param->urb == NULL)
     {
         urb = uvc_camera_urb_malloc();
@@ -798,22 +818,18 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
         uvc_param->urb = urb;
     }
 
-    // step 6: make sure transmission mode
-    bk_uvc_config_t *uvc_config = (bk_uvc_config_t *)uvc_param->port_info->usb_device_param_config;
-    uvc_handle->pro_config->transfer_bulk[index] = ((uvc_config->ep_desc->bmAttributes & 0x3) == USB_ENDPOINT_BULK_TRANSFER) ? true : false;
-    uvc_handle->pro_config->max_packet_size[index] = uvc_config->ep_desc->wMaxPacketSize > 1024 ? 1024 : uvc_config->ep_desc->wMaxPacketSize;
-    LOGD("/*****port:%d, transmission mode:%s, max_packet_zise:%d*****/\r\n", uvc_param->info->port, uvc_handle->pro_config->transfer_bulk[index] == 1 ? "BULK" : "ISO",
-         uvc_handle->pro_config->max_packet_size[index]);
-
     // step 7: config urb
     uvc_param->camera_state = UVC_STREAMING_STATE;
     ret = uvc_camera_stream_packet_urb(uvc_param);
     LOGV("%s, %d, %p, %p, ret:%d\r\n", __func__, __LINE__, urb, uvc_param->urb, ret);
 
     // step 8: requeset uvc data
+    rtos_clear_event_flags(&uvc_handle->handle, UVC_PROCESS_TASK_START_BIT);
+    rtos_set_event_flags(&uvc_handle->handle, UVC_PROCESS_TASK_START_BIT);
     ret = bk_usbh_hub_dev_request_data(uvc_param->info->port, uvc_param->port_info->device_index, urb);
     if (ret != BK_OK)
     {
+        uvc_param->camera_state = UVC_CONNECT_STATE;
         uvc_handle->callback.frame_free(uvc_param->info->img_format, uvc_param->stream, uvc_param->frame);
         uvc_camera_urb_free(uvc_param->urb);
         uvc_param->frame = NULL;
@@ -823,6 +839,10 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
     }
 
 out:
+    if (uvc_param->camera_state == UVC_CONFIGING_STATE)
+    {
+        uvc_param->camera_state = UVC_CONNECT_STATE;
+    }
     rtos_unlock_mutex(&uvc_handle->mutex);
     LOGD("[%d]%s, %d, state:%d\r\n", uvc_param->info->port, __func__, __LINE__, uvc_param->camera_state);
     return ret;
@@ -845,7 +865,7 @@ void uvc_camera_stream_stop_handle(uint32_t param)
         uvc_param->camera_state = UVC_CONNECT_STATE;
     }
 
-    if (uvc_param->camera_state != UVC_DISCONNECT_STATE)
+    if (uvc_param->port_info && uvc_param->camera_state != UVC_DISCONNECT_STATE)
     {
         bk_usbh_hub_port_dev_close(uvc_param->info->port, uvc_param->port_info->device_index, uvc_param->port_info);
     }
@@ -868,9 +888,12 @@ void uvc_camera_stream_stop_handle(uint32_t param)
 
     LOGV("%s, %d\r\n", __func__, __LINE__);
 
-    uvc_handle->callback.frame_clear(uvc_param->stream);
-
-    uvc_handle->callback.frame_deinit(uvc_param->stream);
+    if (uvc_param->stream)
+    {
+        uvc_handle->callback.frame_clear(uvc_param->stream);
+        uvc_handle->callback.frame_deinit(uvc_param->stream);
+        uvc_param->stream = NULL;
+    }
 
     if (uvc_separate_packet_cb.uvc_init_packet_cb != NULL && uvc_separate_packet_cb.id == uvc_param->info->port)
     {
@@ -1304,6 +1327,7 @@ static void uvc_camera_process_task_main(beken_thread_arg_t data)
 
     uvc_handle->pro_enable = true;
     rtos_set_event_flags(&uvc_handle->handle, UVC_PROCESS_TASK_ENABLE_BIT);
+    rtos_wait_for_event_flags(&uvc_handle->handle, UVC_PROCESS_TASK_START_BIT, true, true, BEKEN_WAIT_FOREVER);
 
     while (uvc_handle->pro_enable)
     {
@@ -1381,6 +1405,7 @@ static void uvc_camera_process_task_deinit(uvc_stream_handle_t *handle)
     if (pro_config && handle->pro_enable)
     {
         handle->pro_enable = false;
+        uvc_camera_urb_list_clear();
 
         rtos_wait_for_event_flags(&handle->handle, UVC_PROCESS_TASK_DISABLE_BIT, true, true, BEKEN_WAIT_FOREVER);
 
@@ -1559,13 +1584,6 @@ bk_err_t uvc_camera_stream_task_init(uvc_stream_handle_t **handle)
     uvc_stream_handle_t *stream_handle = *handle;
     if (stream_handle == NULL)
     {
-        ret = uvc_camera_urb_list_init();
-        if (ret != BK_OK)
-        {
-            LOGE("%s, %d\r\n", __func__, __LINE__);
-            return BK_UVC_NO_MEMORY;
-        }
-
         stream_handle = (uvc_stream_handle_t *)os_malloc(sizeof(uvc_stream_handle_t));
         if (stream_handle == NULL)
         {
