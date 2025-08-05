@@ -34,7 +34,6 @@
 typedef struct {
 	uint8_t task_state : 1;
 	uint8_t module_decode_status : 1;
-	uint8_t module_decode_cp1_status : 1;
 	frame_list_node_t *stream;
 	frame_buffer_t *jpeg_frame;
 	beken_semaphore_t jdec_sem;
@@ -43,67 +42,59 @@ typedef struct {
 	beken_mutex_t jdec_lock;
 } jpeg_get_config_t;
 
-static void jpeg_decode_line_complete_handler(jpeg_dec_res_t *result);
-
 static jpeg_get_config_t *jpeg_get_config = NULL;
 
 bk_err_t jpeg_get_task_send_msg(uint8_t type, uint32_t param)
 {
-	int ret = BK_FAIL;
-	uint8_t index = 0;
-	media_msg_t msg;
+    bk_err_t ret = BK_FAIL;
 
-	if (jpeg_get_config && jpeg_get_config->jdec_queue)
-	{
-		if (jpeg_get_config->module_decode_status && jpeg_get_config->module_decode_cp1_status)
-		{
-			return ret;
-		}
+    // Check if configuration and queue are valid
+    if (jpeg_get_config && jpeg_get_config->jdec_queue)
+    {
+        // Handle JPEGDEC_START message type
+        if (type == JPEGDEC_START)
+        {
+            // Lock to ensure thread safety when checking/updating decode status
+            rtos_lock_mutex(&jpeg_get_config->jdec_lock);
+            if (jpeg_get_config->module_decode_status)
+            {
+                rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
+                return ret;  // Already decoding, return failure
+            }
+            jpeg_get_config->module_decode_status = true;
+            rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
+        }
 
-		rtos_lock_mutex(&jpeg_get_config->jdec_lock);
-		if (jpeg_get_config->module_decode_status == false)
-		{
-			jpeg_get_config->module_decode_status = true;
-			index = 0;
-		}
-		else
-		{
-			jpeg_get_config->module_decode_cp1_status = true;
-			index = 1;
-		}
-		rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
+        // Prepare and send message
+        media_msg_t msg = { .event = type, .param = param };
+        ret = rtos_push_to_queue(&jpeg_get_config->jdec_queue, &msg, BEKEN_NO_WAIT);
 
-		msg.event = type;
-		msg.param = param;
+        // Handle message send failure
+        if (ret != BK_OK)
+        {
+            if (type == JPEGDEC_START)
+            {
+                // Rollback decode status if start message failed
+                rtos_lock_mutex(&jpeg_get_config->jdec_lock);
+                jpeg_get_config->module_decode_status = false;
+                rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
+            }
+            LOGE("%s %d, push failed\n", __func__, __LINE__);
+        }
+    }
+    else
+    {
+        LOGE("%s, %d failed...\n", __func__, __LINE__);
+    }
 
-		ret = rtos_push_to_queue(&jpeg_get_config->jdec_queue, &msg, BEKEN_NO_WAIT);
-
-		if (ret != BK_OK)
-		{
-			LOGE("%s %d, push failed\n", __func__, __LINE__);
-			if (index == 1)
-			{
-				jpeg_get_config->module_decode_cp1_status = false;
-			}
-			else
-			{
-				jpeg_get_config->module_decode_status = false;
-			}
-		}
-	}
-	else
-	{
-		LOGE("%s, %d failed...\n", __func__, __LINE__);
-	}
-
-	return ret;
+    return ret;
 }
 
 static void jpeg_get_start_handle(void)
 {
 	frame_list_node_t *stream = NULL;
 
-	// step 1: read a jpeg frame
+	// Read JPEG frame
 	while (jpeg_get_config->task_state)
 	{
 		stream = frame_buffer_list_get_main_stream();
@@ -111,33 +102,28 @@ static void jpeg_get_start_handle(void)
 		if (stream == NULL)
 		{
 			LOGW("%s, stream null\n", __func__);
-			rtos_delay_milliseconds(500);
-		}
-		else
-		{
-			if (jpeg_get_config->stream == NULL)
-			{
-				LOGD("%s, main_stream:%p %d\n", __func__, stream, stream->camera_id);
-				jpeg_get_config->stream = stream;
-				jpeg_decode_task_send_msg(JPEGDEC_STREAM, (uint32_t)stream);
-				frame_buffer_fb_register(jpeg_get_config->stream, MODULE_DECODER);
-			}
-			else
-			{
-				if (stream != jpeg_get_config->stream)
-				{
-					frame_buffer_fb_deregister(jpeg_get_config->stream, MODULE_DECODER);
-					jpeg_get_config->stream = NULL;
-				}
-			}
-		}
-
-		if (jpeg_get_config->stream == NULL)
-		{
+			rtos_delay_milliseconds(100); // Reduce delay time
 			continue;
 		}
 
+		// Handle stream switch
+		if (jpeg_get_config->stream == NULL)
+		{
+			LOGD("%s, main_stream:%p %d\n", __func__, stream, stream->camera_id);
+			jpeg_get_config->stream = stream;
+			jpeg_decode_task_send_msg(JPEGDEC_STREAM, (uint32_t)stream);
+			frame_buffer_fb_register(jpeg_get_config->stream, MODULE_DECODER);
+		}
+		else if (stream != jpeg_get_config->stream)
+		{
+			frame_buffer_fb_deregister(jpeg_get_config->stream, MODULE_DECODER);
+			jpeg_get_config->stream = stream;
+			jpeg_decode_task_send_msg(JPEGDEC_STREAM, (uint32_t)stream);
+			frame_buffer_fb_register(jpeg_get_config->stream, MODULE_DECODER);
+		}
+
 #if CONFIG_MEDIA_PSRAM_SIZE_4M
+		// Memory test code
 		frame_buffer_t *decode_frame = frame_buffer_display_malloc(864 * 480 * 2);
 		if(decode_frame != NULL)
 		{
@@ -150,44 +136,24 @@ static void jpeg_get_start_handle(void)
 			{
 				jpeg_get_config->module_decode_status = false;
 			}
-			else if (jpeg_get_config->module_decode_cp1_status)
-			{
-				jpeg_get_config->module_decode_cp1_status = false;
-			}
-			else
-			{
-				LOGW("%s, %d, cp1 and cp2 decode busy!\n", __func__, __LINE__);
-				frame_buffer_fb_read_free(jpeg_get_config->stream, jpeg_get_config->jpeg_frame, MODULE_DECODER);
-				break;
-			}
-
 			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
 			break;
 		}
 #endif
 
+		// Read JPEG frame
 		jpeg_get_config->jpeg_frame = frame_buffer_fb_read(jpeg_get_config->stream, MODULE_DECODER, 50);
 		if (jpeg_get_config->jpeg_frame)
 		{
+			// Update decode status
 			rtos_lock_mutex(&jpeg_get_config->jdec_lock);
-
 			if (jpeg_get_config->module_decode_status)
 			{
 				jpeg_get_config->module_decode_status = false;
 			}
-			else if (jpeg_get_config->module_decode_cp1_status)
-			{
-				jpeg_get_config->module_decode_cp1_status = false;
-			}
-			else
-			{
-				LOGW("%s, %d, cp1 and cp2 decode busy!\n", __func__, __LINE__);
-				frame_buffer_fb_read_free(jpeg_get_config->stream, jpeg_get_config->jpeg_frame, MODULE_DECODER);
-				break;
-			}
-
 			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
 
+			// Send decode start message
 			if (jpeg_decode_task_send_msg(JPEGDEC_START, (uint32_t)jpeg_get_config->jpeg_frame) != BK_OK)
 			{
 				frame_buffer_fb_read_free(jpeg_get_config->stream, jpeg_get_config->jpeg_frame, MODULE_DECODER);

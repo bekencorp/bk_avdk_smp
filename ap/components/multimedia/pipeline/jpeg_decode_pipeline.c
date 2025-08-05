@@ -636,13 +636,11 @@ static void jpeg_decode_start_handle(frame_buffer_t *jpeg_frame)
 			}
 			jdec_config->jdec_mode = JPEGDEC_SW_MODE;
 			jdec_config->jdec_type = JPEGDEC_BY_FRAME;
-			LOGD("%s %d \r\n", __func__, __LINE__);
 			jdec_config->sw_dec_init = 1;
 			software_decode_minor_task_open((uint32_t)(mux_sram_buffer->rotate));
 			if (jdec_config->rotate_angle != ROTATE_NONE)
 			{
 				software_decode_set_rotate(jdec_config->rotate_angle);
-				LOGD("%s %d \r\n", __func__, __LINE__);
 				software_decode_minor_set_rotate(jdec_config->rotate_angle);
 			}
 #else
@@ -977,13 +975,14 @@ static void jpeg_decode_finish_handle(uint32_t param)
 
 void jpeg_decode_get_next_frame()
 {
-	if (jdec_config && jdec_config->jdec_mode == JPEGDEC_SW_MODE)
+	if (jdec_config && jdec_config->task_state && jdec_config->jdec_mode == JPEGDEC_SW_MODE)
 	{
-		if (!jdec_config->mux_buf[1].state[PIPELINE_MOD_SW_DEC])
+		if (jdec_config->mux_buf[1].state[PIPELINE_MOD_SW_DEC] == MUX_BUFFER_IDLE)
 		{
 			jpeg_get_task_send_msg(JPEGDEC_START, MODULE_DECODER);
 		}
-		if (!jdec_config->mux_buf[0].state[PIPELINE_MOD_SW_DEC])
+
+		if (jdec_config->mux_buf[0].state[PIPELINE_MOD_SW_DEC] == MUX_BUFFER_IDLE)
 		{
 			jpeg_get_task_send_msg(JPEGDEC_START, MODULE_DECODER);
 		}
@@ -1330,13 +1329,13 @@ static void jpeg_decode_software_decode_finish_handle(uint8_t id, uint32_t resul
 					break;
 				}
 
-			#if CONFIG_LVGL
+#if CONFIG_LVGL
 				if (lvgl_disp_enable) {
 					jpeg_decode_list_del_node(frame, &jdec_config->jpeg_decode_queue);
 					frame_buffer_display_free(frame);
 				}
 				else
-			#endif
+#endif
 				{
 					ret = lcd_display_frame_request(frame);
 					jpeg_decode_list_del_node(frame, &jdec_config->jpeg_decode_queue);
