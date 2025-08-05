@@ -375,11 +375,27 @@ bk_err_t mb_flash_register_op_notify(void * notify_cb);
  */
 bk_err_t mb_flash_unregister_op_notify(void * notify_cb);
 
+/**
+ * @brief  register a callback to be called when flash is busy waiting.
+ * @param wait_cb:If flash is writing/erasing, it will block all of other applications.
+ *                But maybe the application can't be blocked when flash is writing/erasing.
+ *                So the application should register this wait_cb to flash.
+ *                When flash is writing/erasing, it will call this wait_cb
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: registered too many(>4) wait_cb to flash.
+ */
+bk_err_t mb_flash_register_op_camera_notify(void * notify_cb);
 
-bk_err_t mb_flash_register_op_dvp_notify(void * notify_cb);
-
-
-bk_err_t mb_flash_unregister_op_dvp_notify(void * notify_cb);
+/**
+ * @brief  unregister the wait_cb from flash waiting.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: The wait_cb isn't registered to flash.
+ */
+bk_err_t mb_flash_unregister_op_camera_notify(void);
 
 uint32_t flash_get_excute_enable();
 
