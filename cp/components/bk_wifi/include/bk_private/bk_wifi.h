@@ -473,7 +473,17 @@ int cmd_wlan_get_ps_status();
 #define WLAN_DEFAULT_MASK       "255.255.255.0"
 
 #if CONFIG_BRIDGE
+typedef enum {
+    BRIDGE_STATE_DISABLED = 0,
+    BRIDGE_STATE_DISABLING,
+    BRIDGE_STATE_ENABLING,
+    BRIDGE_STATE_ENABLED
+}bk_bridge_state_t;
+
 #define WLAN_ANY_IP         "0.0.0.0"
+bk_bridge_state_t bk_wifi_get_bridge_state(void);
+bk_err_t bk_wifi_sync_bridge_state(bk_bridge_state_t state);
+bk_err_t bk_wifi_check_client_mac_connected(uint8_t *mac);
 #endif
 
 void demo_scan_app_init(void);

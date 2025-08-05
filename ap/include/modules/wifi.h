@@ -1645,6 +1645,41 @@ bk_err_t bk_wifi_csi_demo_turn_on_light(uint8_t color, bool flicker);
 #endif
 #endif
 
+#if CONFIG_BRIDGE
+/**
+ * @brief    Start BK Bridge Mode
+ *
+ * This API configures the basic configurations of the BK Bridge.
+ *
+ * Usage example:
+ *
+ *     k_bridge_config_t br_config = {0};
+ *
+ *     os_strncpy(br_config.bridge_ssid, "ssid", WIFI_SSID_STR_LEN);
+ *     os_strncpy(br_config.ext_sta_ssid, "ext_sta_ssid", WIFI_SSID_STR_LEN);
+ *     os_strncpy(br_config.ext_sta_password, "ext_sta_password", WIFI_PASSWORD_LEN);
+ *     //more initialization here
+ *     BK_LOG_ON_ERR(bk_bridge_start(&br_config));
+ *
+ * @param br_config the bridge configuration
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: bridge start fail.
+ *    - others: other errors
+ */
+bk_err_t bk_bridge_start(bk_bridge_config_t *br_config);
+
+/**
+ * @brief    Stop BK Bridge Mode
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: bridge stop fail.
+ *    - others: other errors
+ */
+bk_err_t bk_bridge_stop(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

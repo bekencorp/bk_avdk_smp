@@ -3220,6 +3220,9 @@ static int wpa_supplicant_use_own_rsne_params(struct wpa_supplicant *wpa_s,
 }
 
 
+#if CONFIG_BRIDGE
+extern bool g_bk_ap_connected;
+#endif
 static int wpa_supplicant_event_associnfo(struct wpa_supplicant *wpa_s,
 					  union wpa_event_data *data)
 {
@@ -3289,6 +3292,14 @@ static int wpa_supplicant_event_associnfo(struct wpa_supplicant *wpa_s,
 				 BAND_2_4_GHZ);
 			wpa_s->connection_he = req_elems.he_capabilities &&
 				resp_elems.he_capabilities;
+#if CONFIG_BRIDGE
+			if (resp_elems.bk_vsie && resp_elems.bk_vsie_len > 3) {
+				unsigned int oui = WPA_GET_BE24(resp_elems.bk_vsie);
+				if (oui == OUI_BEKEN && resp_elems.bk_vsie[3] == 1) {
+					g_bk_ap_connected = true;
+				}
+			}
+#endif
 		}
 	}
 
@@ -3635,6 +3646,9 @@ static void wpa_supplicant_event_assoc(struct wpa_supplicant *wpa_s,
 
 #ifdef CONFIG_IEEE80211R
 	ft_completed = wpa_ft_is_completed(wpa_s->wpa);
+#endif
+#if CONFIG_BRIDGE
+	g_bk_ap_connected = false;
 #endif
 	if (data && wpa_supplicant_event_associnfo(wpa_s, data) < 0)
 		return;

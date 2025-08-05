@@ -72,6 +72,10 @@ enum CIF_WIFI_API_CMD_TYPE
     // RAW Wi-Fi command section
     SEND_RAW                            = 0x390,
 
+    //sync sta_info_tab
+    CHECK_CLIENT_MAC_CONNECTED          = 0x3A0,
+    SET_BRIDGE_SYNC_STATE               = 0x3A1,
+
     BK_WIFI_API_CMD_BUTT                = BK_CMD_WIFI_API_END
 };
 

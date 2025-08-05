@@ -311,6 +311,7 @@ static int wifi_filter_cb(const uint8_t *data, uint32_t len, const wifi_frame_in
 
 	return BK_OK;
 }
+
 static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, int argC, char **argV)
 {
     if(argC <= 1) {
@@ -465,6 +466,24 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
     else if (!strcasecmp(argV[1], "filter")) {
             bk_wifi_filter_register_cb(wifi_filter_cb);
     }
+#if CONFIG_BRIDGE
+    else if (!strcasecmp(argV[1], "bridge_open")) {
+        char *ssid = NULL, br_ssid[63] = {0};
+        bk_bridge_config_t br_config = {0};
+        if (argC >= 2)
+            ssid = argV[2];
+
+        if (argC >= 3)
+            br_config.key = argV[3];
+        br_config.ext_sta_ssid = ssid;
+        os_snprintf(br_ssid, 63, "%s_brr", ssid);
+        br_config.bridge_ssid = br_ssid;
+        if (br_config.bridge_ssid)
+            bk_bridge_start(&br_config);
+    } else if (!strcasecmp(argV[1], "bridge_close")) {
+        bk_bridge_stop();
+    }
+#endif
     else {
         printf("Invalid wdrv command\n");
         wdrv_cmd_help();

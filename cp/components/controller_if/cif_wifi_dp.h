@@ -17,7 +17,7 @@ extern "C" {
 #define BK_ICMP_REQ_PORT             BK_MIN_PORT+3
 
 extern bk_err_t cif_handle_txdata(void *head);
-bool cif_rx_local_packet_check(struct pbuf **p_ptr,struct eth_hdr * ethhdr,void* vif);
+bool cif_rx_local_packet_check(struct pbuf **p_ptr,struct eth_hdr * ethhdr,void* vif, uint8_t dst_idx);
 void cif_filter_add_customer_filter(uint32_t ip, uint16_t port);
 
 #ifdef __cplusplus

@@ -56,9 +56,32 @@ menu "Lwip_intf_v2_1"
                 bool "Enable LWIP BRIDGE"
                 default n
 
+	config PAN
+		bool "Enable BT Personal Area Networking"
+		default n
+
 	config WIFI_SOFTAP
                 bool "Enable SAP"
                 default n
+
+	config IP_FORWARD_ALLOW_TX_ON_RX_NETIF
+		depends on BRIDGE
+		bool "enable IP forward on rx interface"
+		default n
+
+	config BK_DHCP_RELEASE_TIME
+		depends on BRIDGE
+		int "enable min DHCP release time"
+		default 0
+
+	config FUZZ_TEST
+		bool "fuzz test config"
+		default n
+
+	config RIO
+		depends on IPV6
+		bool "Enable RIO(Route Information Options)"
+		default n
 
 	config LWIP_PPP_SUPPORT
                 bool "Enable Ppp Protocol"
@@ -128,6 +151,40 @@ menu "Lwip_intf_v2_1"
 			default n
 			help
 				open lwip debug log
+
+		config LWIP_PTP
+			bool "Enable LWIP PTP"
+			default y
+
+		 config LWIP_NETBUF_RECVINFO
+			bool "Enable netbuf recvinfo"
+			default y
+
+		config LWIP_HTTPD
+			bool "Enable HTTPD"
+			default n
+
+		config ICMP_ERR_RATELIMIT
+			bool "Enable ICMP rate limit"
+			default n
+
+		config ICMP_ERR_RATE_THRESHOLD
+			int "ICMP rate limit threshold"
+			default 10
+
+		config LWIP_HW_IP_CHECKSUM
+			bool "Enable HW IP checksum"
+			default n
+
+		config BK_HW_IP_CHECKSUM
+			depends on LWIP_HW_IP_CHECKSUM
+			bool "Enable BK HW IP checksum"
+			default n
+
+		config IPCHKSUM_UNIT_TEST
+			bool "enable HW IP checksum unittest"
+			depends on LWIP_HW_IP_CHECKSUM
+			default n
 
 		#TODO optimize it
 		choice LWIP_MEM

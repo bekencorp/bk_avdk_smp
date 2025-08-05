@@ -239,7 +239,8 @@ enum data_path_special_type
 struct common_header
 {
     uint16_t length;//sdio whole buffer length(include common header)
-    uint8_t type;
+    uint8_t type:4;
+    uint8_t dst_index:4;//station index connected to bk softap
     uint8_t need_free:1;//tx data addr flag, this addr need be freed.
     uint8_t is_buf_bank:1;
     uint8_t vif_idx:2;

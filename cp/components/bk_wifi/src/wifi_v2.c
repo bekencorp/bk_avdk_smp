@@ -3072,9 +3072,8 @@ void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
 }
 
 #if CONFIG_BRIDGE
-extern uint8 bridge_is_enabled;
+static bk_bridge_state_t bridge_state = BRIDGE_STATE_DISABLED;
 #endif
-
 bk_err_t bk_wifi_ap_start(void)
 {
 	WIFI_LOGV("ap starting\n");
@@ -3112,7 +3111,7 @@ bk_err_t bk_wifi_ap_start(void)
 #if CONFIG_LWIP
 	//TODO move to event handler
 #if CONFIG_BRIDGE
-	if (!bridge_is_enabled)
+	if (bk_wifi_get_bridge_state() == BRIDGE_STATE_DISABLED)
 #endif
 		uap_ip_start();
 #endif
@@ -3230,7 +3229,7 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 	WIFI_LOGV("ap configuring\n");
 
 #if CONFIG_BRIDGE
-	if (!bridge_is_enabled) {
+	if (bk_wifi_get_bridge_state() == BRIDGE_STATE_DISABLED) {
 #endif
 		os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
 		os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
@@ -4582,3 +4581,26 @@ bk_err_t bk_scan_country_code(uint8_t *country_code, int *len)
 	return err;
 }
 #endif //CONFIG_WIFI_SCAN_COUNTRY_CODE
+
+#if CONFIG_BRIDGE
+bk_err_t bk_wifi_check_client_mac_connected(uint8_t *mac)
+{
+	if (!rwm_mgmt_sta_mac2ptr(mac))
+	{
+		return BK_FAIL;
+	} else {
+		return BK_OK;
+	}
+}
+
+bk_bridge_state_t bk_wifi_get_bridge_state(void)
+{
+    return bridge_state;
+}
+
+bk_err_t bk_wifi_sync_bridge_state(bk_bridge_state_t state)
+{
+    bridge_state = state;
+    return BK_OK;
+}
+#endif

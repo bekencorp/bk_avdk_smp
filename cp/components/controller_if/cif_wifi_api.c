@@ -385,6 +385,18 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_ap_start();
             break;
         }
+#if CONFIG_BRIDGE
+        case CHECK_CLIENT_MAC_CONNECTED:
+        {
+            ret = bk_wifi_check_client_mac_connected((uint8_t *)arg_info->args[0]);
+            break;
+        }
+        case SET_BRIDGE_SYNC_STATE:
+        {
+            ret = bk_wifi_sync_bridge_state(*(bk_bridge_state_t *)arg_info->args[0]);
+            break;
+        }
+#endif
         default:
         {
             ret = BK_ERR_NOT_FOUND;
