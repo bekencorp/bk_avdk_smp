@@ -76,9 +76,10 @@ typedef struct
 
 typedef struct
 {
+    uvc_stream_state_t stream_state;
     uint8_t transfer_bulk[CAMERA_ID_MAX];// transfer ways, 1:for bulk, 0:for iso
     uint8_t packet_error[CAMERA_ID_MAX];
-    uint8 head_bit0[CAMERA_ID_MAX];
+    uint8_t head_bit0[CAMERA_ID_MAX];
     uint8_t dma[CAMERA_ID_MAX];
     uint16_t max_packet_size[CAMERA_ID_MAX]; // transfer max packet size
     uint32_t frame_id[CAMERA_ID_MAX];
