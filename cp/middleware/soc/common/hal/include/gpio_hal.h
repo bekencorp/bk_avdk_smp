@@ -35,6 +35,7 @@ typedef struct {
 typedef struct {
 	gpio_id_t id;
 	gpio_dev_t dev[GPIO_PERI_FUNC_NUM];
+	bool is_available;   //GPIO ID Presence Validation,Determine Physical Pin Availability
 } gpio_map_t;
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
@@ -76,7 +77,7 @@ bk_err_t gpio_hal_default_map_init(gpio_hal_t *hal);
 #endif
 
 bk_err_t gpio_hal_init(gpio_hal_t *hal);
-void gpio_hal_set_value(gpio_hal_t *hal, gpio_id_t id, uint32_t v);
+bk_err_t gpio_hal_set_value(gpio_hal_t *hal, gpio_id_t id, uint32_t v);
 uint32_t gpio_hal_get_value(gpio_hal_t *hal, gpio_id_t id);
 
 bk_err_t gpio_hal_output_enable(gpio_hal_t *hal, gpio_id_t gpio_id, uint32 enable);
