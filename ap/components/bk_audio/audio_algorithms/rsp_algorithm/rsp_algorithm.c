@@ -90,6 +90,29 @@ static struct uart_util g_rsp_uart_util = {0};
 
 #endif
 
+#if CONFIG_ADK_UTILS
+#define AUD_RSP_DATA_COUNT
+#endif  //CONFIG_ADK_UTILS
+
+#ifdef AUD_RSP_DATA_COUNT
+
+#include <components/bk_audio/audio_utils/count_util.h>
+static count_util_t aud_rsp_count_util = {0};
+#define AUD_RSP_DATA_COUNT_INTERVAL     (1000 * 4)
+#define AUD_RSP_DATA_COUNT_TAG          "AUD_RSP"
+
+#define AUD_RSP_DATA_COUNT_OPEN()               count_util_create(&aud_rsp_count_util, AUD_RSP_DATA_COUNT_INTERVAL, AUD_RSP_DATA_COUNT_TAG)
+#define AUD_RSP_DATA_COUNT_CLOSE()              count_util_destroy(&aud_rsp_count_util)
+#define AUD_RSP_DATA_COUNT_ADD_SIZE(size)       count_util_add_size(&aud_rsp_count_util, size)
+
+#else
+
+#define AUD_RSP_DATA_COUNT_OPEN()
+#define AUD_RSP_DATA_COUNT_CLOSE()
+#define AUD_RSP_DATA_COUNT_ADD_SIZE(size)
+
+#endif  //AUD_RSP_DATA_COUNT
+
 #ifdef RSP_DATA_DUMP_BY_TFCARD
 #include "tfcard_util.h"
 static tfcard_util_handle_t g_rsp_tfcard_util_before = NULL;
@@ -145,6 +168,8 @@ static int _rsp_algorithm_process(audio_element_handle_t self, char *in_buffer, 
     {
         BK_LOGE(TAG, "rsp_data Waring: r_size=%d, in_len=%d \n", r_size, in_len);
     }
+
+	AUD_RSP_DATA_COUNT_ADD_SIZE(r_size);
 	rsp->before_addr = (int16_t *)in_buffer;
 
     RSP_INPUT_END();
@@ -185,6 +210,7 @@ static bk_err_t _rsp_algorithm_destroy(audio_element_handle_t self)
     audio_free(rsp);
 
     RSP_DATA_DUMP_CLOSE();
+    AUD_RSP_DATA_COUNT_CLOSE();
     return BK_OK;
 }
 
@@ -220,7 +246,7 @@ audio_element_handle_t rsp_algorithm_init(rsp_algorithm_cfg_t *config)
 
     /* 20ms, 16bit */
     cfg.out_block_size = config->rsp_cfg.src_rate / 1000 * 2 * 20;
-    cfg.out_block_num  = config->out_block_num;
+    cfg.out_block_num  = config->out_block_num*2;
 	os_printf("[+++]%s, out_block_size:%d, block_num:%d\n", __func__, cfg.out_block_size, cfg.out_block_num);
 
     {
@@ -253,6 +279,7 @@ audio_element_handle_t rsp_algorithm_init(rsp_algorithm_cfg_t *config)
     }
 
     RSP_DATA_DUMP_OPEN();
+    AUD_RSP_DATA_COUNT_OPEN();
 
     return el;
 _rsp_algorithm_init_exit:

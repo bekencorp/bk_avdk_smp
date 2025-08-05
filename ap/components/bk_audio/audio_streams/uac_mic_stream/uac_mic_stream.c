@@ -1058,7 +1058,7 @@ audio_element_handle_t uac_mic_stream_init(uac_mic_stream_cfg_t *config)
     cfg.multi_out_port_num = config->multi_out_port_num;
     cfg.tag = "uac_mic";
 
-    BK_LOGE(TAG, "%s, %d, buffer_len: %d, out_rb_size: %d \n", __func__, __LINE__, cfg.buffer_len, cfg.out_block_size);
+    BK_LOGE(TAG, "%s, %d, buffer_len: %d, out_block_size: %d \n", __func__, __LINE__, cfg.buffer_len, cfg.out_block_size);
 
     /* init uac mic */
     uac_mic->port_index = config->port_index;
