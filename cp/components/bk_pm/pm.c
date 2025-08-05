@@ -2175,6 +2175,14 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 	}
 	else
 	{
+		if((freq_max == PM_CPU_FRQ_480M)||(freq_max == PM_CPU_FRQ_320M))
+		{
+			bk_pm_module_vote_vdddig_ctrl(PM_VDDDIG_MODULE_CPU_FREQ,PM_VDDDIG_HIGH_STATE_ON);
+		}
+		else
+		{
+			bk_pm_module_vote_vdddig_ctrl(PM_VDDDIG_MODULE_CPU_FREQ,PM_VDDDIG_HIGH_STATE_OFF);
+		}
 		ret = sys_drv_switch_cpu_bus_freq(freq_max);
 	}
 	if (ret == BK_OK)
