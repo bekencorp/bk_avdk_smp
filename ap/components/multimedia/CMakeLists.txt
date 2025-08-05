@@ -77,13 +77,11 @@ if (CONFIG_MEDIA_PIPELINE)
 	)
 endif()
 
-#if (CONFIG_MEDIA_MAJOR)
 if (CONFIG_MEDIA_BT_AUDIO)
 	list(APPEND srcs
 		bt/bt_audio_act.c
 	)
 endif()
-#endif()
 
 if (CONFIG_SOC_SMP)
 list(APPEND srcs 

@@ -50,48 +50,45 @@ static jpeg_get_config_t *jpeg_get_config = NULL;
 bk_err_t jpeg_get_task_send_msg(uint8_t type, uint32_t param)
 {
 	int ret = BK_FAIL;
+	uint8_t index = 0;
 	media_msg_t msg;
 
 	if (jpeg_get_config && jpeg_get_config->jdec_queue)
 	{
+		if (jpeg_get_config->module_decode_status && jpeg_get_config->module_decode_cp1_status)
+		{
+			return ret;
+		}
+
 		rtos_lock_mutex(&jpeg_get_config->jdec_lock);
-		if (jpeg_get_config->module_decode_status == 1 && param == MODULE_DECODER)
+		if (jpeg_get_config->module_decode_status == false)
 		{
-			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
-			return BK_OK;
+			jpeg_get_config->module_decode_status = true;
+			index = 0;
 		}
-		else if (jpeg_get_config->module_decode_cp1_status == 1 && param == MODULE_DECODER_CP1)
+		else
 		{
-			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
-			return BK_OK;
+			jpeg_get_config->module_decode_cp1_status = true;
+			index = 1;
 		}
+		rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
 
 		msg.event = type;
 		msg.param = param;
-		if (msg.param == MODULE_DECODER)
-		{
-			jpeg_get_config->module_decode_status = 1;
-		}
-		else if (msg.param == MODULE_DECODER_CP1)
-		{
-			jpeg_get_config->module_decode_cp1_status = 1;
-		}
-		rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
+
 		ret = rtos_push_to_queue(&jpeg_get_config->jdec_queue, &msg, BEKEN_NO_WAIT);
 
 		if (ret != BK_OK)
 		{
-			rtos_lock_mutex(&jpeg_get_config->jdec_lock);
-			if (param == MODULE_DECODER)
+			LOGE("%s %d, push failed\n", __func__, __LINE__);
+			if (index == 1)
 			{
-				jpeg_get_config->module_decode_status = 0;
+				jpeg_get_config->module_decode_cp1_status = false;
 			}
-			else if (param == MODULE_DECODER_CP1)
+			else
 			{
-				jpeg_get_config->module_decode_cp1_status = 0;
+				jpeg_get_config->module_decode_status = false;
 			}
-			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
-			LOGE("%s push failed\n", __func__);
 		}
 	}
 	else
@@ -102,9 +99,10 @@ bk_err_t jpeg_get_task_send_msg(uint8_t type, uint32_t param)
 	return ret;
 }
 
-static void jpeg_get_start_handle(frame_module_t frame_module)
+static void jpeg_get_start_handle(void)
 {
 	frame_list_node_t *stream = NULL;
+
 	// step 1: read a jpeg frame
 	while (jpeg_get_config->task_state)
 	{
@@ -121,16 +119,14 @@ static void jpeg_get_start_handle(frame_module_t frame_module)
 			{
 				LOGD("%s, main_stream:%p %d\n", __func__, stream, stream->camera_id);
 				jpeg_get_config->stream = stream;
-				jpeg_decode_task_send_more_msg(JPEGDEC_STREAM, (uint32_t)stream, 0);
+				jpeg_decode_task_send_msg(JPEGDEC_STREAM, (uint32_t)stream);
 				frame_buffer_fb_register(jpeg_get_config->stream, MODULE_DECODER);
-				frame_buffer_fb_register(jpeg_get_config->stream, MODULE_DECODER_CP1);
 			}
 			else
 			{
 				if (stream != jpeg_get_config->stream)
 				{
 					frame_buffer_fb_deregister(jpeg_get_config->stream, MODULE_DECODER);
-					frame_buffer_fb_deregister(jpeg_get_config->stream, MODULE_DECODER_CP1);
 					jpeg_get_config->stream = NULL;
 				}
 			}
@@ -150,42 +146,57 @@ static void jpeg_get_start_handle(frame_module_t frame_module)
 		else
 		{
 			rtos_lock_mutex(&jpeg_get_config->jdec_lock);
-			if (frame_module == MODULE_DECODER)
+			if (jpeg_get_config->module_decode_status)
 			{
-				jpeg_get_config->module_decode_status = 0;
+				jpeg_get_config->module_decode_status = false;
 			}
-			else if (frame_module == MODULE_DECODER_CP1)
+			else if (jpeg_get_config->module_decode_cp1_status)
 			{
-				jpeg_get_config->module_decode_cp1_status = 0;
+				jpeg_get_config->module_decode_cp1_status = false;
 			}
+			else
+			{
+				LOGW("%s, %d, cp1 and cp2 decode busy!\n", __func__, __LINE__);
+				frame_buffer_fb_read_free(jpeg_get_config->stream, jpeg_get_config->jpeg_frame, MODULE_DECODER);
+				break;
+			}
+
 			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
 			break;
 		}
 #endif
 
-		jpeg_get_config->jpeg_frame = frame_buffer_fb_read(jpeg_get_config->stream, frame_module, 50);
+		jpeg_get_config->jpeg_frame = frame_buffer_fb_read(jpeg_get_config->stream, MODULE_DECODER, 50);
 		if (jpeg_get_config->jpeg_frame)
 		{
 			rtos_lock_mutex(&jpeg_get_config->jdec_lock);
-			if (frame_module == MODULE_DECODER)
+
+			if (jpeg_get_config->module_decode_status)
 			{
-				jpeg_get_config->module_decode_status = 0;
+				jpeg_get_config->module_decode_status = false;
 			}
-			else if (frame_module == MODULE_DECODER_CP1)
+			else if (jpeg_get_config->module_decode_cp1_status)
 			{
-				jpeg_get_config->module_decode_cp1_status = 0;
+				jpeg_get_config->module_decode_cp1_status = false;
 			}
+			else
+			{
+				LOGW("%s, %d, cp1 and cp2 decode busy!\n", __func__, __LINE__);
+				frame_buffer_fb_read_free(jpeg_get_config->stream, jpeg_get_config->jpeg_frame, MODULE_DECODER);
+				break;
+			}
+
 			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
-			int ret = jpeg_decode_task_send_more_msg(JPEGDEC_START, (uint32_t)jpeg_get_config->jpeg_frame, frame_module);
-			if (ret != BK_OK)
+
+			if (jpeg_decode_task_send_msg(JPEGDEC_START, (uint32_t)jpeg_get_config->jpeg_frame) != BK_OK)
 			{
-				frame_buffer_fb_read_free(jpeg_get_config->stream, jpeg_get_config->jpeg_frame, frame_module);
+				frame_buffer_fb_read_free(jpeg_get_config->stream, jpeg_get_config->jpeg_frame, MODULE_DECODER);
 			}
 			break;
 		}
 		else
 		{
-			LOGV("%s, %d module:%d read frame timeout\n", __func__, __LINE__, frame_module);
+			LOGV("%s, %d read frame timeout\n", __func__, __LINE__);
 		}
 	}
 }
@@ -195,7 +206,6 @@ static void jpeg_get_task_deinit(void)
 	if (jpeg_get_config)
 	{
 		frame_buffer_fb_deregister(jpeg_get_config->stream, MODULE_DECODER);
-		frame_buffer_fb_deregister(jpeg_get_config->stream, MODULE_DECODER_CP1);
 		if (jpeg_get_config->jdec_queue)
 		{
 			rtos_deinit_queue(&jpeg_get_config->jdec_queue);
@@ -210,7 +220,6 @@ static void jpeg_get_task_deinit(void)
 			rtos_deinit_mutex(&jpeg_get_config->jdec_lock);
 		}
 		jpeg_get_config->jdec_thread = NULL;
-
 
 		os_free(jpeg_get_config);
 		jpeg_get_config = NULL;
@@ -235,7 +244,7 @@ static void jpeg_get_main(beken_thread_arg_t data)
 				case JPEGDEC_START:
 					if (jpeg_get_config->task_state)
 					{
-						jpeg_get_start_handle(msg.param);
+						jpeg_get_start_handle();
 					}
 					else
 					{

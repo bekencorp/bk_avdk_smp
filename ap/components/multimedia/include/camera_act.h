@@ -17,7 +17,6 @@
 #include <common/bk_include.h>
 #include <driver/media_types.h>
 #include <driver/uvc_camera_types.h>
-
 #include "frame_buffer.h"
 
 #ifdef __cplusplus
