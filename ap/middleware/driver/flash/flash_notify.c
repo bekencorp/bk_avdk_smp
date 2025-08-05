@@ -19,7 +19,7 @@
 // #include "mb_ipc_cmd.h"
 
 static void (*s_flash_op_notify)(uint32_t param) = NULL;
-static void (*s_flash_op_notify_dvp)(uint32_t param) = NULL;
+static void (*s_flash_op_notify_camera)(uint32_t param) = NULL;
 
 bk_err_t mb_flash_register_op_notify(void * notify_cb)
 {
@@ -38,22 +38,24 @@ bk_err_t mb_flash_unregister_op_notify(void * notify_cb)
 
 	return BK_ERR_FLASH_WAIT_CB_NOT_REGISTER;
 }
-bk_err_t mb_flash_register_op_dvp_notify(void * notify_cb)
+bk_err_t mb_flash_register_op_camera_notify(void * notify_cb)
 {
-	s_flash_op_notify_dvp = (void (*)(uint32_t))notify_cb;
+	if (s_flash_op_notify_camera == NULL)
+	{
+		s_flash_op_notify_camera = notify_cb;
+	}
 
 	return BK_OK;
 }
 
-bk_err_t mb_flash_unregister_op_dvp_notify(void * notify_cb)
+bk_err_t mb_flash_unregister_op_camera_notify(void)
 {
-	if(s_flash_op_notify_dvp == notify_cb)
+	if(s_flash_op_notify_camera)
 	{
-		s_flash_op_notify_dvp = NULL;
-		return BK_OK;
+		s_flash_op_notify_camera = NULL;
 	}
 
-	return BK_ERR_FLASH_WAIT_CB_NOT_REGISTER;
+	return BK_OK;
 }
 
 #if CONFIG_FLASH_MB
@@ -92,16 +94,22 @@ static void cpu1_pause_handle(mb_chnl_cmd_t *cmd_buf)
 		// disable the LCD dev interrupt.
 		if(s_flash_op_notify != NULL)
 			s_flash_op_notify(0);
-        if(s_flash_op_notify_dvp != NULL)
-        {
-			s_flash_op_notify_dvp(0);
-        }
+
+		if(s_flash_op_notify_camera != NULL)
+		{
+			s_flash_op_notify_camera(1);
+		}
 	}
 	else if(cmd_buf->hdr.cmd == IPC_FLASH_OP_END)
 	{
 		// enable the LCD dev interrupt.
 		if(s_flash_op_notify != NULL)
 			s_flash_op_notify(1);
+
+		if (s_flash_op_notify_camera != NULL)
+		{
+			s_flash_op_notify_camera(0);
+		}
 	}
 
 	cmd_buf->param1 = IPC_FLASH_OP_ACK;
@@ -185,9 +193,11 @@ bk_err_t mb_flash_op_prepare(void)
 	// disable the LCD dev interrupt.
 	if(s_flash_op_notify != NULL)
 		s_flash_op_notify(0);
-	if(s_flash_op_notify_dvp != NULL)
-		s_flash_op_notify_dvp(0);
 
+	if (s_flash_op_notify_camera != NULL)
+	{
+		s_flash_op_notify_camera(1);
+	}
 	return BK_OK;
 }
 
@@ -197,6 +207,10 @@ bk_err_t mb_flash_op_finish(void)
 	if(s_flash_op_notify != NULL)
 		s_flash_op_notify(1);
 
+	if (s_flash_op_notify_camera != NULL)
+	{
+		s_flash_op_notify_camera(1);
+	}
 	return BK_OK;
 }
 
