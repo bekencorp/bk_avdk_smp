@@ -51,8 +51,14 @@ static uint32_t s_wkup_cnt = 0;
 static gpio_wakeup_config_t s_wkup_cfg[GPIO_ANA_WAKEUP_MAX] = {0};
 #endif
 
+static const gpio_map_t gpio_map_table[] = GPIO_DEV_MAP;
+
 #define GPIO_RETURN_ON_INVALID_ID(id) do {\
 		if ((id) >= SOC_GPIO_NUM) {\
+			return BK_ERR_GPIO_CHAN_ID;\
+		}\
+		if (!gpio_map_table[id].is_available){ \
+			GPIO_LOGW("id %d is not available\r\n", id);\
 			return BK_ERR_GPIO_CHAN_ID;\
 		}\
 	} while(0)
@@ -194,14 +200,18 @@ bk_err_t bk_gpio_driver_deinit(void)
 	return BK_OK;
 }
 
-void bk_gpio_set_value(gpio_id_t id, uint32_t v)
+bk_err_t bk_gpio_set_value(gpio_id_t gpio_id, uint32_t v)
 {
-	gpio_hal_set_value(&s_gpio.hal, id, v);
+	GPIO_RETURN_ON_INVALID_ID(gpio_id);
+
+	return gpio_hal_set_value(&s_gpio.hal, gpio_id, v);
 }
 
-uint32_t bk_gpio_get_value(gpio_id_t id)
+uint32_t bk_gpio_get_value(gpio_id_t gpio_id)
 {
-	return gpio_hal_get_value(&s_gpio.hal, id);
+	GPIO_RETURN_ON_INVALID_ID(gpio_id);
+
+	return gpio_hal_get_value(&s_gpio.hal, gpio_id);
 }
 
 bk_err_t bk_gpio_enable_output(gpio_id_t gpio_id)
