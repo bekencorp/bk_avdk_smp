@@ -271,7 +271,7 @@ static void doorbell_image_server_thread(beken_thread_arg_t data)
 
                 while (db_tcp_service->img_status == BK_TRUE)
                 {
-					rcv_len = recv(db_tcp_service->img_fd, rcv_buf, DOORBELL_TCP_BUFFER, 0);
+                    rcv_len = recv(db_tcp_service->img_fd, rcv_buf, DOORBELL_TCP_BUFFER, 0);
                     if (rcv_len > 0)
                     {
                         //bk_net_send_data(rcv_buf, rcv_len, TVIDEO_SND_TCP);
@@ -499,7 +499,7 @@ void doorbell_tcp_audio_server_start(void)
 
 void doorbell_tcp_service_init(void)
 {
-    LOGD("%s, %d\n", __func__,__LINE__);
+    LOGD("%s, %d\n", __func__, __LINE__);
     db_tcp_service = os_malloc(sizeof(db_tcp_service_t));
 
     if (db_tcp_service == NULL)

@@ -7,6 +7,11 @@
 #include <components/bk_voice_service_types.h>
 #include <components/bk_voice_read_service_types.h>
 #include <components/bk_voice_write_service_types.h>
+
+#if (CONFIG_ASR_SERVICE)
+#include <components/bk_asr_service_types.h>
+#endif
+
 #endif
 
 typedef enum
@@ -41,6 +46,7 @@ typedef struct
 	uint8_t rmt_player_fmt; /* codec_format_t */
 	uint32_t rmt_recorder_sample_rate;
 	uint32_t rmt_player_sample_rate;
+	uint8_t asr;
 } audio_parameters_t;
 
 
@@ -70,6 +76,11 @@ typedef struct
     voice_read_handle_t voice_read_handle;
     voice_write_handle_t voice_write_handle;
 #endif
+#if (CONFIG_ASR_SERVICE)
+	asr_handle_t asr_handle;
+	aud_asr_handle_t aud_asr_handle;
+#endif
+
 } db_device_info_t;
 
 int doorbell_get_supported_camera_devices(int opcode, db_channel_t *channel, doorbell_transmission_send_t cb);

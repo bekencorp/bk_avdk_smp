@@ -80,7 +80,8 @@ void bk_rx_handle_customer_event(void *data, uint16_t len)
     uint16_t opcode, length;
     uint8_t *customer_data = cifd_cust_data->data;
     LOGD("%s, %d, %d\n", __func__, __LINE__, cifd_cust_data->header.cid);
-    switch(cifd_cust_data->header.cid) {
+    switch (cifd_cust_data->header.cid)
+    {
         case CIFD_EVENT_BLE_DATA_TO_USER:
             STREAM_TO_UINT16(opcode, customer_data);
             STREAM_TO_UINT16(length, customer_data);
@@ -89,6 +90,6 @@ void bk_rx_handle_customer_event(void *data, uint16_t len)
         default:
             LOGD("%s, %d\n", __func__, __LINE__);
             break;
-     }
+    }
 }
 

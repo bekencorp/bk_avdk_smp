@@ -365,7 +365,6 @@ void doorbell_transmission_cmd_recive_callback(db_channel_t *channel, uint16_t s
             STREAM_TO_UINT8(parameters.rmt_recoder_fmt, p);
             STREAM_TO_UINT8(parameters.rmt_player_fmt, p);
 
-
             int ret = doorbell_audio_turn_on(&parameters);
 
             doorbell_transmission_event_report(channel, cmd.opcode, ret & 0xFF, EVT_FLAGS_COMPLETE);

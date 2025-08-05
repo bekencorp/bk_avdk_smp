@@ -54,7 +54,7 @@ extern const dvp_sensor_config_t **get_sensor_config_devices_list(void);
 extern int get_sensor_config_devices_num(void);
 
 extern const doorbell_service_interface_t *doorbell_current_service;
-static media_camera_device_t current_device = {0};
+static camera_type_t curr_cam_type = UNKNOW_CAMERA;
 
 
 #define DEVICE_RESPONSE_SIZE (DOORBELL_NETWORK_MAX_SIZE - sizeof(db_evt_head_t))
@@ -395,16 +395,19 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
     device.height = parameters->height;
     device.fps = FPS30;
 
-    ret = media_app_camera_open(&db_device_info->video_handle, &device);
-
-    if (ret != BK_OK)
+    // if camera already opened and transfer h264, need to regenerate idr
+    if (db_device_info->pipeline_enable)
     {
-        LOGE("%s failed\n", __func__);
         if (media_app_h264_regenerate_idr(device.type) != BK_OK)
         {
             LOGE("%s h264_regenerate_idr failed\n", __func__);
         }
+    }
 
+    ret = media_app_camera_open(&db_device_info->video_handle, &device);
+    if (ret != BK_OK)
+    {
+        LOGE("%s failed\n", __func__);
         return ret;
     }
 
@@ -451,7 +454,7 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
         }
     }
 
-    current_device.type = device.type;
+    curr_cam_type = device.type;
 
     return ret;
 }
@@ -487,9 +490,7 @@ int doorbell_camera_turn_off(void)
 
     db_device_info->video_handle = NULL;
     db_device_info->camera_id = CAMERA_MAX_NUM;
-
     db_device_info->pipeline_enable = false;
-
     db_device_info->h264_transfer = false;
 
     return 0;
@@ -598,11 +599,11 @@ int doorbell_display_turn_on(uint16_t id, uint16_t rotate, uint16_t fmt)
     }
     media_app_set_rotate(rot_angle);
 
-    if (current_device.type == UVC_CAMERA)
+    if (curr_cam_type == UVC_CAMERA)
     {
         media_app_jdec_open(JPEGDEC_BY_LINE);
     }
-    else if (current_device.type == DVP_CAMERA)
+    else if (curr_cam_type == DVP_CAMERA)
     {
         media_app_jdec_open(JPEGDEC_BY_FRAME);
     }
@@ -629,6 +630,7 @@ int doorbell_display_turn_off(void)
     media_app_jdec_close();
     media_app_lcd_disp_close();
     db_device_info->lcd_id = 0;
+
     return 0;
 }
 

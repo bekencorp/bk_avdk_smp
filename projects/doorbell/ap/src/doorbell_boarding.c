@@ -52,21 +52,20 @@ static int ble_boarding_notify(uint8_t *data, uint16_t length)
 
 void doorbell_boarding_event_notify(uint16_t opcode, int status)
 {
-     uint8_t data[] =
-     {
-         opcode & 0xFF, opcode >> 8,     /* opcode           */
-                               status & 0xFF,                                                          /* status           */
-                               0, 0,                                                                   /* payload length   */
-     };
+    uint8_t data[] =
+    {
+        opcode & 0xFF, opcode >> 8,     /* opcode           */
+                              status & 0xFF,                                                          /* status           */
+                              0, 0,                                                                   /* payload length   */
+    };
 
-     LOGD("%s: %d, %d\n", __func__, opcode, status);
-	ble_boarding_notify(data, sizeof(data));
+    LOGD("%s: %d, %d\n", __func__, opcode, status);
+    ble_boarding_notify(data, sizeof(data));
 }
 
 void doorbell_boarding_event_message(uint16_t opcode, int status)
 {
     doorbell_msg_t msg;
-
     msg.event = DBEVT_START_BOARDING_EVENT;
     msg.param = status << 16 | opcode;
     doorbell_send_msg(&msg);
@@ -81,31 +80,37 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
         case BOARDING_OP_STATION_START:
         {
 #if CONFIG_BLUETOOTH_HOST_ONLY
-			doorbell_msg_t msg;
+            doorbell_msg_t msg;
 
-			msg.event = DBEVT_WIFI_STATION_CONNECT;
-			msg.param = (uint32_t)doorbell_boarding_info;
-			doorbell_send_msg(&msg);
+            msg.event = DBEVT_WIFI_STATION_CONNECT;
+            msg.param = (uint32_t)doorbell_boarding_info;
+            doorbell_send_msg(&msg);
 #else
             uint16_t ssid_len = (data[1] << 8) | data[0];
             char *ssid = os_malloc(ssid_len + 1);
-            if (ssid_len < SSID_MAX_LEN) {
-            os_memcpy(ssid, &data[2], ssid_len);
-            ssid[ssid_len] = '\0';
-            } else {
-            LOGE("SSID exceeds MAX Lenght\n");
-            ssid[0] = '\0';
+            if (ssid_len < SSID_MAX_LEN)
+            {
+                os_memcpy(ssid, &data[2], ssid_len);
+                ssid[ssid_len] = '\0';
+            }
+            else
+            {
+                LOGE("SSID exceeds MAX Lenght\n");
+                ssid[0] = '\0';
             }
 
             int pw_start = 2 + ssid_len;
             uint16_t password_len = (data[pw_start + 1] << 8) | data[pw_start];
             char *password = os_malloc(password_len + 1);
-            if (password_len < PASSWORD_MAX_LEN) {
-            os_memcpy(password, &data[pw_start + 2] , password_len);
-            password[password_len] = '\0';
-            } else {
-            LOGE("Password exceeds MAX Lenght\n");
-            password[0] = '\0';
+            if (password_len < PASSWORD_MAX_LEN)
+            {
+                os_memcpy(password, &data[pw_start + 2], password_len);
+                password[password_len] = '\0';
+            }
+            else
+            {
+                LOGE("Password exceeds MAX Lenght\n");
+                password[0] = '\0';
             }
             doorbell_wifi_sta_connect(ssid, password);
             os_free(ssid);
@@ -354,7 +359,7 @@ int doorbell_boarding_init(void)
     adv_data[adv_index++] = ADV_TYPE_LOCAL_NAME;
 
     ret = sprintf((char *)&adv_data[adv_index], "%s_%02X%02X%02X",
-                    ADV_NAME_HEAD, mac[0], mac[1], mac[2]);
+                  ADV_NAME_HEAD, mac[0], mac[1], mac[2]);
 
     adv_index += ret;
     adv_data[len_index] = ret + 1;
@@ -375,7 +380,7 @@ int doorbell_boarding_init(void)
     adv_data[adv_index++] = BEKEN_COMPANY_ID >> 8;
     adv_data[len_index] = 3;
 
-	/*
+    /*
     LOGD("adv data:\n");
 
     int i = 0;
@@ -385,7 +390,7 @@ int doorbell_boarding_init(void)
     }
 
     LOGD("\n");
-	*/
+    */
 
     if (doorbell_boarding_info == NULL)
     {
@@ -417,19 +422,19 @@ void doorbell_boarding_event_notify_with_data(uint16_t opcode, int status, char 
 
     uint8_t data[1024] =
     {
-            opcode & 0xFF, opcode >> 8,     /* opcode           */
-            status & 0xFF,                          /* status           */
-            length & 0xFF, length >> 8,     /* payload length   */
+        opcode & 0xFF, opcode >> 8,     /* opcode           */
+                              status & 0xFF,                          /* status           */
+                              length & 0xFF, length >> 8,     /* payload length   */
     };
 
     if (length > 1024 - 5)
     {
-            LOGE("size %d over flow\n", length);
-            return;
+        LOGE("size %d over flow\n", length);
+        return;
     }
 
     os_memcpy(&data[5], payload, length);
 
     LOGV("%s: %d, %d, %d\n", __func__, opcode, status, length);
-	ble_boarding_notify(data, length + 5);
+    ble_boarding_notify(data, length + 5);
 }
