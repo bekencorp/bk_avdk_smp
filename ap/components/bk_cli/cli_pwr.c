@@ -82,9 +82,9 @@ void cli_pm_gpio_callback(gpio_id_t gpio_id)
 	}
 	BK_LOGD(NULL, "cli_pm_gpio_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
 }
-static bk_err_t cli_pm_rtc_sleep_wakeup_callback(pm_wakeup_source_e wake_source,uint32_t wake_src_param)
+static bk_err_t cli_pm_rtc_sleep_wakeup_callback(pm_wakeup_source_e wake_source,void* param_p)
 {
-    BK_LOGD(NULL,"%s[src:%d][param:%d]\r\n",__func__,wake_source,wake_src_param);
+    BK_LOGD(NULL,"%s[src:%d][param_p:%p]\r\n",__func__,wake_source,param_p);
     return BK_OK;
 }
 #define PM_MANUAL_LOW_VOL_VOTE_ENABLE    (0)
@@ -175,15 +175,13 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 		}
 		else
 		{
-			pm_ap_system_wakeup_cb_info_t cb_info_sleep_wakeup = {PM_AP_USING_SYS_WAKEUP_DEV_APP,
-																	PM_MODE_LOW_VOLTAGE,
-																	PM_WAKEUP_SOURCE_INT_RTC,
-																	cli_pm_rtc_sleep_wakeup_callback};
-			bk_pm_ap_system_wakeup_register_callback(&cb_info_sleep_wakeup);
-			pm_rtc_wakeup_config_t rtc_wakeup = {0};
-			rtc_wakeup.rtc_period = pm_param1;//10s
-			bk_pm_ap_rtc_wakeup_source_config(PM_MODE_LOW_VOLTAGE,WAKEUP_SOURCE_INT_RTC,&rtc_wakeup);
-			bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_RTC, NULL);
+			pm_ap_rtc_low_power_info_t low_power_info = {0};
+			low_power_info.period_tick = pm_param1;
+			low_power_info.period_cnt = pm_param2;
+			low_power_info.callback  = cli_pm_rtc_sleep_wakeup_callback;
+			low_power_info.param_p = NULL;
+			bk_pm_ap_rtc_regsiter_wakeup(pm_sleep_mode,&low_power_info);
+			bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_RTC, &low_power_info);
 		}
 	}
 	else if(pm_wake_source == PM_WAKEUP_SOURCE_INT_GPIO)
