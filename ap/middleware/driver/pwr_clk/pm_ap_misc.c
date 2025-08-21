@@ -53,7 +53,7 @@ static pm_ap_psram_power_state_callback_info_t s_psram_power_state_cb_arry[PM_PO
 
 static uint32_t s_pm_register_psram_callback_state = 0;
 static uint32_t s_pm_handle_psram_callback_state   = 0;
-
+static pm_rtc_wakeup_config_t s_pm_rtc_config = {0};
 /*=====================VARIABLE  SECTION  END=================*/
 
 /*================FUNCTION DECLARATION  SECTION  START========*/
@@ -69,6 +69,36 @@ bk_err_t bk_pm_ap_misc_startup_rtc_tick_set(uint64_t time_tick)
 {
 
 	return BK_OK;
+}
+
+bk_err_t bk_pm_ap_rtc_regsiter_wakeup(pm_sleep_mode_e sleep_mode,pm_ap_rtc_low_power_info_t *low_power_info)
+{
+    if(sleep_mode > PM_MODE_DEFAULT)
+    {
+        return BK_FAIL;
+    }
+
+    if(low_power_info == NULL)
+    {
+        return BK_FAIL;
+    }
+
+    pm_ap_system_wakeup_cb_info_t rtc_wakeup_cb_info = {
+		.dev_id = PM_AP_USING_SYS_WAKEUP_DEV_APP, 
+		.sleep_mode = sleep_mode,
+		.wakeup_source = WAKEUP_SOURCE_INT_RTC,
+		.sys_wakeup_fn = low_power_info->callback,
+		.param_p = low_power_info->param_p
+	};
+
+    bk_pm_ap_system_wakeup_register_callback(&rtc_wakeup_cb_info);
+
+    s_pm_rtc_config.rtc_period = low_power_info->period_tick;
+    s_pm_rtc_config.rtc_cnt = low_power_info->period_cnt;
+    bk_pm_ap_rtc_wakeup_source_config(sleep_mode, WAKEUP_SOURCE_INT_RTC, &s_pm_rtc_config);
+
+    return BK_OK;
+    
 }
 
 bk_err_t bk_pm_ap_close_ap_register_callback(pm_ap_close_ap_callback_info_t * p_close_ap_callback_info)
@@ -141,6 +171,7 @@ bk_err_t bk_pm_ap_system_wakeup_register_callback(pm_ap_system_wakeup_cb_info_t 
     s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][p_sys_wakeup_callback_info->dev_id].dev_id= p_sys_wakeup_callback_info->dev_id;
     s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][p_sys_wakeup_callback_info->dev_id].sleep_mode = p_sys_wakeup_callback_info->sleep_mode;
     s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][p_sys_wakeup_callback_info->dev_id].wakeup_source = p_sys_wakeup_callback_info->wakeup_source;
+    s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][p_sys_wakeup_callback_info->dev_id].param_p = p_sys_wakeup_callback_info->param_p;
     return BK_OK;
 }
 
@@ -162,10 +193,12 @@ bk_err_t bk_pm_ap_system_wakeup_unregister_callback(pm_ap_system_wakeup_cb_info_
             s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].dev_id = PM_AP_USING_SYS_WAKEUP_DEV_MAX;
             s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].sleep_mode = PM_MODE_DEFAULT;
             s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
+            s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].param_p = NULL;
         }
     }
     return BK_OK;
 }
+
 
 bk_err_t bk_pm_ap_system_wakeup_handle_callback(pm_ap_core_msg_t *msg)
 {
@@ -199,10 +232,7 @@ bk_err_t bk_pm_ap_system_wakeup_handle_callback(pm_ap_core_msg_t *msg)
     {
         if(s_system_wakeup_cb_arry[wakeup_cb_index][i].wakeup_source == msg->param2)
         {
-            if(s_system_wakeup_cb_arry[wakeup_cb_index][i].sys_wakeup_fn != NULL)
-            {
-                s_system_wakeup_cb_arry[wakeup_cb_index][i].sys_wakeup_fn(msg->param2,msg->param3);
-            }
+            s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].sys_wakeup_fn(msg->param1,s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].param_p);
         }
     }
 exit:

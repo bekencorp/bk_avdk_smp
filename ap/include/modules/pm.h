@@ -178,7 +178,8 @@ typedef enum
 
 typedef struct
 {
-	uint32_t rtc_period;
+	uint32_t rtc_period;  //unit:ms
+	uint32_t rtc_cnt;     //total period count == 0Xffffffff means forever period;else period how many times
 }pm_rtc_wakeup_config_t;
 typedef struct
 {
