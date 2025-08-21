@@ -233,7 +233,8 @@ out:
 }
 #endif
 
-#if BK_SUPPLICANT
+//#if BK_SUPPLICANT
+#if 0
 #define RATE_11B_1MBPS      0x02
 #define RATE_11B_2MBPS      0x04
 #define RATE_11B_5_5MBPS    0x0B
@@ -316,7 +317,7 @@ void wpas_notify_connected(struct wpa_supplicant *wpa_s)
 #if BK_SUPPLICANT
 		wlan_sta_bss_flush(0);
 		/* parse mac rates in the beacon frame and set 11b flags */
-		wpa_parse_mac_rates_ie(wpa_s);
+		//wpa_parse_mac_rates_ie(wpa_s);
 #endif
 #ifdef CONFIG_WPA_PSK_CACHE
 		wpa_psk_thread_lower_prio();  // stop_wpa_psk_cal_thread();
