@@ -50,6 +50,9 @@ extern "C" {
 #define FIXED_ADDR_WAKEUP_AP1_COUNT          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+16))
 #define FIXED_ADDR_WAKEUP_AP1_DEBUG          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+20))
 
+#define FIXED_ADDR_CP_RESET_REASON           (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+24))
+#define FIXED_ADDR_AP_RESET_REASON           (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+28))
+
 #define PM_PSRAM_POWER_DOWN_MAGIC            (0x123)
 
 typedef enum

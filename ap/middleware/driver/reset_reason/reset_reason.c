@@ -11,15 +11,16 @@
 #include <components/log.h>
 #include "aon_pmu_hal.h"
 #include "driver/gpio.h"
+#include "driver/pwr_clk.h"
 
 #define TAG "init"
 #define DISPLAY_START_TYPE_STR 1
 
 
 
-static uint32_t s_start_type;
-static uint32_t s_misc_value_save;
-static uint32_t s_mem_value_save;
+static uint32_t s_start_type = 0;
+static uint32_t s_misc_value_save = 0;
+static uint32_t s_mem_value_save = 0;
 
 uint32_t bk_misc_get_reset_reason(void)
 {
@@ -147,22 +148,38 @@ void show_reset_reason(void)
 	BK_LOGD(TAG, "regs - %x, %x, %x\r\n", s_start_type, s_misc_value_save, s_mem_value_save);
 }
 
-#if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX)
+uint32_t bk_misc_get_cp_reset_reason(void)
+{
+	return FIXED_ADDR_CP_RESET_REASON;
+}
+
+void bk_misc_set_ap_reset_reason(uint32_t type) {
+	FIXED_ADDR_AP_RESET_REASON = type;
+}
+
+uint32_t bk_misc_get_ap_reset_reason(void)
+{
+	return FIXED_ADDR_AP_RESET_REASON;
+}
 
 uint32_t reset_reason_init(void)
 {
-	uint32_t misc_value;
+	uint32_t cp_reset_reason = 0;
+	uint32_t ap_reset_reason = 0;
 
-	if (s_start_type) {
+	if (s_start_type != 0) {
 		return s_start_type;
 	}
 
-	misc_value = aon_pmu_ll_get_r7a();
-	misc_value = ((misc_value >> 24) & 0x7f);
+	cp_reset_reason = bk_misc_get_cp_reset_reason();
+	ap_reset_reason = bk_misc_get_ap_reset_reason();
+	if (ap_reset_reason) {
+		s_start_type = ap_reset_reason;
+	} else {
+		s_start_type = cp_reset_reason;
+	}
 
-	s_start_type = misc_value;
-	s_misc_value_save = misc_value;
-	bk_misc_set_reset_reason(RESET_SOURCE_POWERON);
+	s_misc_value_save = cp_reset_reason;
 
 	return s_start_type;
 }
@@ -183,4 +200,4 @@ void bk_misc_set_reset_reason(uint32_t type)
 	aon_pmu_ll_set_r25(0xBDB4AA55);
 }
 
-#endif
+
