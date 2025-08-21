@@ -80,7 +80,11 @@
 #ifdef CONFIG_KEYVALUE
 #define TCPIP_THREAD_STACKSIZE          1024
 #else
+#if CONFIG_FTP_SERVER
+#define TCPIP_THREAD_STACKSIZE          1024
+#else
 #define TCPIP_THREAD_STACKSIZE          512
+#endif
 #endif
 
 #if CONFIG_LITEOS_M
