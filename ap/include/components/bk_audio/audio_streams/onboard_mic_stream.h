@@ -1,4 +1,4 @@
-// Copyright 2022-2023 Beken
+// Copyright 2025-2026 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -135,7 +135,9 @@ typedef struct
 #define ONBOARD_MIC_STREAM_TASK_CORE           (1)
 #define ONBOARD_MIC_STREAM_TASK_PRIO           (3)
 
-#define ONBOARD_MIC_ADC_STREAM_CFG_DEFAULT() {              \
+#define ONBOARD_MIC_ADC_STREAM_CFG_DEFAULT() DEFAULT_ONBOARD_MIC_ADC_STREAM_CONFIG()
+
+#define DEFAULT_ONBOARD_MIC_ADC_STREAM_CONFIG() {           \
     .adc_cfg = {                                            \
                    .chl_num = 1,                            \
                    .bits = 16,                              \

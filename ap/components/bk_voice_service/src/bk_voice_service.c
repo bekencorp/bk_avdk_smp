@@ -1541,6 +1541,13 @@ bk_err_t bk_voice_get_status(voice_handle_t voice_handle, voice_sta_t *status)
     return BK_OK;
 }
 
+audio_element_handle_t bk_voice_get_spk_element(voice_handle_t voice_handle)
+{
+    VOICE_CHECK_NULL(voice_handle, return NULL);
+
+    return voice_handle->spk_str;
+}
+
 /* used for amp system, not smp system */
 #if (CONFIG_SOC_SMP)
 bk_err_t bk_voice_event_handle(voice_event_handle event_handle, vioce_evt_t event, void *param, void *args)

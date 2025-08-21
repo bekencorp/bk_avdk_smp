@@ -1485,6 +1485,16 @@ int bk_cli_init(void)
     cli_jpeg_sw_enc_init();
 #endif
 
+#if (CONFIG_VOICE_SERVICE_TEST)
+    int cli_voice_init(void);
+    cli_voice_init();
+#endif
+
+#if (CONFIG_PLAYER_SERVICE_TEST)
+	extern int cli_player_init(void);
+	cli_player_init();
+#endif
+
 /*--------------BT&MultMedia cli command init end------------------*/
 
 
@@ -1707,11 +1717,6 @@ int bk_cli_init(void)
 	cli_modem_init();
 #endif
 /*--------------------platform cli command init end--------------------*/
-
-#if (CONFIG_VOICE_SERVICE_TEST)
-    int cli_voice_init(void);
-    cli_voice_init();
-#endif
 
 	/* sort cmds after registered all cmds. */
 	cli_sort_command(NULL, 0, 0, NULL);

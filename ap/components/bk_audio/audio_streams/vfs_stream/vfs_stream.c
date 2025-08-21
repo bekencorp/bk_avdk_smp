@@ -1,4 +1,4 @@
-// Copyright 2023-2024 Beken
+// Copyright 2025-2026 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,79 +18,53 @@
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "task.h"
-#include <components/bk_audio/audio_streams/fatfs_stream.h>
+#include <components/bk_audio/audio_streams/vfs_stream.h>
 #include <components/bk_audio/audio_pipeline/audio_common.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <components/bk_audio/audio_pipeline/audio_error.h>
-#if CONFIG_VFS
 #include "bk_posix.h"
-#endif
-#define TAG  "FTFS_STR"
 
-//#define FATFS_DEBUG   //GPIO debug
+#define TAG  "VFS_STR"
 
-#ifdef FATFS_DEBUG
+//#define VFS_DEBUG   //GPIO debug
 
-#define FATFS_PROCESS_START()         do { GPIO_DOWN(33); GPIO_UP(33);} while (0)
-#define FATFS_PROCESS_END()           do { GPIO_DOWN(33); } while (0)
+#ifdef VFS_DEBUG
 
-#define FATFS_INPUT_START()           do { GPIO_DOWN(34); GPIO_UP(34);} while (0)
-#define FATFS_INPUT_END()             do { GPIO_DOWN(34); } while (0)
+#define VFS_PROCESS_START()         do { GPIO_DOWN(33); GPIO_UP(33);} while (0)
+#define VFS_PROCESS_END()           do { GPIO_DOWN(33); } while (0)
 
-#define FATFS_OUTPUT_START()          do { GPIO_DOWN(35); GPIO_UP(35);} while (0)
-#define FATFS_OUTPUT_END()            do { GPIO_DOWN(35); } while (0)
+#define VFS_INPUT_START()           do { GPIO_DOWN(34); GPIO_UP(34);} while (0)
+#define VFS_INPUT_END()             do { GPIO_DOWN(34); } while (0)
+
+#define VFS_OUTPUT_START()          do { GPIO_DOWN(35); GPIO_UP(35);} while (0)
+#define VFS_OUTPUT_END()            do { GPIO_DOWN(35); } while (0)
 
 #else
 
-#define FATFS_PROCESS_START()
-#define FATFS_PROCESS_END()
+#define VFS_PROCESS_START()
+#define VFS_PROCESS_END()
 
-#define FATFS_INPUT_START()
-#define FATFS_INPUT_END()
+#define VFS_INPUT_START()
+#define VFS_INPUT_END()
 
-#define FATFS_OUTPUT_START()
-#define FATFS_OUTPUT_END()
+#define VFS_OUTPUT_START()
+#define VFS_OUTPUT_END()
 
 #endif
 
 
-typedef struct fatfs_stream
+typedef struct vfs_stream
 {
     audio_stream_type_t type;
     bool is_open;
     int fd;
-    //    bool write_header;
-} fatfs_stream_t;
+} vfs_stream_t;
 
-
-#if (CONFIG_VFS)
-static int bk_vfs_mount_sd0_fatfs(void) {
-	int ret = BK_OK;
-	static bool is_mounted = false;
-
-	if(!is_mounted) {
-		struct bk_fatfs_partition partition;
-		char *fs_name = NULL;
-		fs_name = "fatfs";
-		partition.part_type = FATFS_DEVICE;
-		partition.part_dev.device_name = FATFS_DEV_SDCARD;
-		partition.mount_path = VFS_SD_0_PATITION_0;
-		ret = mount("SOURCE_NONE", partition.mount_path, fs_name, 0, &partition);
-		is_mounted = true;
-        BK_LOGI(TAG, "func %s, mount /sd0 \n", __func__);
-	}
-	return ret;
-}
-#endif
-
-
-static bk_err_t _fatfs_open(audio_element_handle_t self)
+static bk_err_t _vfs_open(audio_element_handle_t self)
 {
     bk_err_t ret = BK_OK;
-    fatfs_stream_t *fatfs = (fatfs_stream_t *)audio_element_getdata(self);
-
-    bk_vfs_mount_sd0_fatfs();
+    vfs_stream_t *vfs = (vfs_stream_t *)audio_element_getdata(self);
 
     audio_element_info_t info;
     char *uri = audio_element_get_uri(self);
@@ -107,12 +81,12 @@ static bk_err_t _fatfs_open(audio_element_handle_t self)
         BK_LOGE(TAG, "Error, need file path to open \n");
         return BK_FAIL;
     }
-    if (fatfs->is_open)
+    if (vfs->is_open)
     {
         BK_LOGE(TAG, "already opened \n");
         return BK_FAIL;
     }
-    if (fatfs->type == AUDIO_STREAM_READER)
+    if (vfs->type == AUDIO_STREAM_READER)
     {
         struct stat statbuf;
         ret = stat(path, &statbuf);
@@ -123,9 +97,9 @@ static bk_err_t _fatfs_open(audio_element_handle_t self)
         BK_LOGV(TAG, "statbuf->st_size =%d, statbuf->st_mode = %d.\r\n", statbuf.st_size , statbuf.st_mode);
         info.total_bytes = (uint32_t)statbuf.st_size;// total byte
 
-        fatfs->fd = open(path, O_RDONLY);
-        BK_LOGV(TAG, "fatfs->fd = %d.\n", fatfs->fd);
-        if (fatfs->fd < 0) {
+        vfs->fd = open(path, O_RDONLY);
+        BK_LOGV(TAG, "vfs->fd = %d.\n", vfs->fd);
+        if (vfs->fd < 0) {
             BK_LOGE(TAG, "can't open %s\n", path);
             return BK_FAIL;
         }
@@ -133,18 +107,18 @@ static bk_err_t _fatfs_open(audio_element_handle_t self)
         BK_LOGV(TAG, "File size: 0x%x%x byte, file position: 0x%x%x \n", (int)(info.total_bytes >> 32), (int)info.total_bytes, (int)(info.byte_pos >> 32), (int)info.byte_pos);
         if (info.byte_pos > 0)
         {
-            if (lseek(fatfs->fd, info.byte_pos, SEEK_SET) < 0)
+            if (lseek(vfs->fd, info.byte_pos, SEEK_SET) < 0)
             {
                 return BK_FAIL;
             }
         }
 
     }
-    else if (fatfs->type == AUDIO_STREAM_WRITER)
+    else if (vfs->type == AUDIO_STREAM_WRITER)
     {
-        fatfs->fd = open(path, O_RDWR | O_CREAT | O_TRUNC);
-        if (fatfs->fd < 0) {
-            BK_LOGE(TAG, "[%s] line %d, Failed to open %s, fd: %d\n",audio_element_get_tag(self), __LINE__, path, fatfs->fd);
+        vfs->fd = open(path, O_RDWR | O_CREAT | O_TRUNC);
+        if (vfs->fd < 0) {
+            BK_LOGE(TAG, "[%s] line %d, Failed to open %s, fd: %d\n",audio_element_get_tag(self), __LINE__, path, vfs->fd);
             return BK_FAIL;
         }
     }
@@ -153,27 +127,27 @@ static bk_err_t _fatfs_open(audio_element_handle_t self)
         BK_LOGE(TAG, "FATFS must be Reader or Writer \n");
         return BK_FAIL;
     }
-    fatfs->is_open = true;
+    vfs->is_open = true;
     ret = audio_element_set_total_bytes(self, info.total_bytes);
     return ret;
 }
 
-static int _fatfs_read(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
+static int _vfs_read(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
     audio_element_handle_t el = (audio_element_handle_t)context;
     BK_LOGV(TAG, "[%s] %s, len: %d \n", audio_element_get_tag(el), __func__, len);
 
-    fatfs_stream_t *fatfs = (fatfs_stream_t *)audio_element_getdata(el);
+    vfs_stream_t *vfs = (vfs_stream_t *)audio_element_getdata(el);
     audio_element_info_t info;
 
     audio_element_getinfo(el, &info);
 
-    FATFS_INPUT_START();
+    VFS_INPUT_START();
 
-    BK_LOGV(TAG, "[%s] read len=%d, pos=%d/%d, fatfs->fd=%d. \n", audio_element_get_tag(el), len, (int)info.byte_pos, (int)info.total_bytes, fatfs->fd);
+    BK_LOGV(TAG, "[%s] read len=%d, pos=%d/%d, vfs->fd=%d. \n", audio_element_get_tag(el), len, (int)info.byte_pos, (int)info.total_bytes, vfs->fd);
     /* use file descriptors to access files */
     int rlen = 0;
-    rlen = read(fatfs->fd, (char *)buffer, len);
+    rlen = read(vfs->fd, (char *)buffer, len);
     if (rlen == 0)
     {
         BK_LOGW(TAG, "No more data, ret:%d \n", rlen);
@@ -184,35 +158,35 @@ static int _fatfs_read(audio_port_handle_t self, char *buffer, int len, TickType
         audio_element_update_byte_pos(el, rlen);
     }
 
-    FATFS_INPUT_END();
+    VFS_INPUT_END();
 
     return rlen;
 }
 
-static int _fatfs_write(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
+static int _vfs_write(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
     audio_element_handle_t el = (audio_element_handle_t)context;
-    fatfs_stream_t *fatfs = (fatfs_stream_t *)audio_element_getdata(el);
+    vfs_stream_t *vfs = (vfs_stream_t *)audio_element_getdata(el);
     audio_element_info_t info;
     audio_element_getinfo(el, &info);
 
-    FATFS_OUTPUT_START();
+    VFS_OUTPUT_START();
 
     int wlen = 0;
-    wlen = write(fatfs->fd, buffer, len);
+    wlen = write(vfs->fd, buffer, len);
     BK_LOGV(TAG, "[%s] %s, len: %d, wlen = %d. \n", audio_element_get_tag(el), __func__, len, wlen);
     if (wlen == len) {
         audio_element_update_byte_pos(el, wlen);
     }
 
-    FATFS_OUTPUT_END();
+    VFS_OUTPUT_END();
 
     return wlen;
 }
 
-static int _fatfs_process(audio_element_handle_t self, char *in_buffer, int in_len)
+static int _vfs_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    FATFS_PROCESS_START();
+    VFS_PROCESS_START();
 
     int r_size = audio_element_input(self, in_buffer, in_len);
     int w_size = 0;
@@ -225,24 +199,24 @@ static int _fatfs_process(audio_element_handle_t self, char *in_buffer, int in_l
         w_size = r_size;
     }
 
-    FATFS_PROCESS_END();
+    VFS_PROCESS_END();
 
     return w_size;
 }
 
-static bk_err_t _fatfs_close(audio_element_handle_t self)
+static bk_err_t _vfs_close(audio_element_handle_t self)
 {
-    fatfs_stream_t *fatfs = (fatfs_stream_t *)audio_element_getdata(self);
-    if (fatfs->is_open)
+    vfs_stream_t *vfs = (vfs_stream_t *)audio_element_getdata(self);
+    if (vfs->is_open)
     {
-        int ret = close(fatfs->fd);
+        int ret = close(vfs->fd);
         if (ret != BK_OK)
         {
-            BK_LOGE(TAG, "[%s] Failed to fatfs close, ret: %d. line: %d \n", audio_element_get_tag(self), ret, __LINE__);
+            BK_LOGE(TAG, "[%s] Failed to vfs close, ret: %d. line: %d \n", audio_element_get_tag(self), ret, __LINE__);
         }
 
-        fatfs->is_open = false;
-        fatfs->fd = 0;
+        vfs->is_open = false;
+        vfs->fd = 0;
     }
     if (AEL_STATE_PAUSED != audio_element_get_state(self))
     {
@@ -252,32 +226,32 @@ static bk_err_t _fatfs_close(audio_element_handle_t self)
     return BK_OK;
 }
 
-static bk_err_t _fatfs_destroy(audio_element_handle_t self)
+static bk_err_t _vfs_destroy(audio_element_handle_t self)
 {
     BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
 
-    fatfs_stream_t *fatfs = (fatfs_stream_t *)audio_element_getdata(self);
-    if (fatfs)
+    vfs_stream_t *vfs = (vfs_stream_t *)audio_element_getdata(self);
+    if (vfs)
     {
-        audio_free(fatfs);
-        fatfs = NULL;
+        audio_free(vfs);
+        vfs = NULL;
     }
 
     return BK_OK;
 }
 
-audio_element_handle_t fatfs_stream_init(fatfs_stream_cfg_t *config)
+audio_element_handle_t vfs_stream_init(vfs_stream_cfg_t *config)
 {
     audio_element_handle_t el;
-    fatfs_stream_t *fatfs = audio_calloc(1, sizeof(fatfs_stream_t));
+    vfs_stream_t *vfs = audio_calloc(1, sizeof(vfs_stream_t));
 
-    AUDIO_MEM_CHECK(TAG, fatfs, return NULL);
+    AUDIO_MEM_CHECK(TAG, vfs, return NULL);
 
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
-    cfg.open = _fatfs_open;
-    cfg.close = _fatfs_close;
-    cfg.process = _fatfs_process;
-    cfg.destroy = _fatfs_destroy;
+    cfg.open = _vfs_open;
+    cfg.close = _vfs_close;
+    cfg.process = _vfs_process;
+    cfg.destroy = _vfs_destroy;
     cfg.task_stack = config->task_stack;
     cfg.task_prio = config->task_prio;
     cfg.task_core = config->task_core;
@@ -286,35 +260,35 @@ audio_element_handle_t fatfs_stream_init(fatfs_stream_cfg_t *config)
     cfg.buffer_len = config->buf_sz;
 
     cfg.tag = "file";
-    fatfs->type = config->type;
+    vfs->type = config->type;
 
     if (config->type == AUDIO_STREAM_WRITER)
     {
-        cfg.write = _fatfs_write;
+        cfg.write = _vfs_write;
         cfg.in_type = PORT_TYPE_RB;
         cfg.out_type = PORT_TYPE_CB;
     }
     else
     {
-        cfg.read = _fatfs_read;
+        cfg.read = _vfs_read;
         cfg.in_type = PORT_TYPE_CB;
         cfg.out_type = PORT_TYPE_RB;
     }
     el = audio_element_init(&cfg);
 
-    AUDIO_MEM_CHECK(TAG, el, goto _fatfs_init_exit);
-    audio_element_setdata(el, fatfs);
+    AUDIO_MEM_CHECK(TAG, el, goto _vfs_init_exit);
+    audio_element_setdata(el, vfs);
 
     return el;
-_fatfs_init_exit:
+_vfs_init_exit:
     if (el)
     {
         audio_element_deinit(el);
     }
-    if (fatfs)
+    if (vfs)
     {
-        audio_free(fatfs);
-        fatfs = NULL;
+        audio_free(vfs);
+        vfs = NULL;
     }
     return NULL;
 }

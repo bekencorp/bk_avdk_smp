@@ -198,6 +198,7 @@ typedef struct
         .work_mode = AUD_DAC_WORK_MODE_DIFFEN,                  \
         .bits = 16,                                             \
         .clk_src = AUD_CLK_XTAL,                                \
+        .multi_in_port_num = 0,                                 \
         .multi_out_port_num = 1,                                \
         .frame_size = 320,                                      \
         .pool_length = 0,                                       \

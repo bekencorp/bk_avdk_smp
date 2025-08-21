@@ -1,4 +1,4 @@
-// Copyright 2022-2023 Beken
+// Copyright 2025-2026 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -145,17 +145,7 @@ bk_err_t adk_g711_decoder_test_case_0(void)
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t g711_dec, test_stream_in, test_stream_out;
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
-#if 0
-    bk_set_printf_sync(true);
-    //      extern void bk_enable_white_list(int enabled);
-    //      bk_enable_white_list(1);
-    //      bk_disable_mod_printf("AUDIO_PIPELINE", 0);
-    //      bk_disable_mod_printf("AUDIO_ELEMENT", 0);
-    //      bk_disable_mod_printf("AUDIO_EVENT", 0);
-    //      bk_disable_mod_printf("AUDIO_MEM", 0);
-    //      bk_disable_mod_printf("G711_DECODER", 0);
-    //      bk_disable_mod_printf("G711_DECODER_TEST", 0);
-#endif
+
     BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
     input_temp_data = os_malloc(INPUT_RINGBUF_SIZE);
@@ -209,9 +199,7 @@ bk_err_t adk_g711_decoder_test_case_0(void)
     }
 
     BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
-    if (BK_OK != audio_pipeline_link(pipeline, (const char *[])
-{"stream_in", "g711_dec", "stream_out"
-}, 3))
+    if (BK_OK != audio_pipeline_link(pipeline, (const char *[]){"stream_in", "g711_dec", "stream_out"}, 3))
     {
         BK_LOGE(TAG, "pipeline link fail, %d \n", __LINE__);
         return BK_FAIL;
@@ -220,10 +208,11 @@ bk_err_t adk_g711_decoder_test_case_0(void)
     BK_LOGD(TAG, "--------- step5: init event listener ----------\n");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
+    TEST_CHECK_NULL(evt);
 
     if (BK_OK != audio_pipeline_set_listener(pipeline, evt))
     {
-        BK_LOGE(TAG, "set uri fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline set listener fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
@@ -254,6 +243,17 @@ bk_err_t adk_g711_decoder_test_case_0(void)
     }
 
     BK_LOGD(TAG, "--------- step7: deinit pipeline ----------\n");
+    if (BK_OK != audio_pipeline_stop(pipeline))
+    {
+        BK_LOGE(TAG, "pipeline stop fail, %d \n", __LINE__);
+        return BK_FAIL;
+    }
+    if (BK_OK != audio_pipeline_wait_for_stop(pipeline))
+    {
+        BK_LOGE(TAG, "pipeline wait stop fail, %d \n", __LINE__);
+        return BK_FAIL;
+    }
+
     if (BK_OK != audio_pipeline_terminate(pipeline))
     {
         BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
@@ -261,35 +261,35 @@ bk_err_t adk_g711_decoder_test_case_0(void)
     }
     if (BK_OK != audio_pipeline_unregister(pipeline, test_stream_in))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline unregister element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
     if (BK_OK != audio_pipeline_unregister(pipeline, g711_dec))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline unregister element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
     if (BK_OK != audio_pipeline_unregister(pipeline, test_stream_out))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline unregister element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
     if (BK_OK != audio_pipeline_remove_listener(pipeline))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline remove listener fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
     if (BK_OK != audio_event_iface_destroy(evt))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "event iface destroy fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
     if (BK_OK != audio_pipeline_deinit(pipeline))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline deinit fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 

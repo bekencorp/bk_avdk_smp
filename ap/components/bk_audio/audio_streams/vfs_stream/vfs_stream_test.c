@@ -1,4 +1,4 @@
-// Copyright 2022-2023 Beken
+// Copyright 2025-2026 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,18 +17,13 @@
 #include "task.h"
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
-#include <components/bk_audio/audio_streams/fatfs_stream.h>
-#if CONFIG_VFS
+#include <components/bk_audio/audio_streams/vfs_stream.h>
 #include "bk_posix.h"
-#endif
 
-#define TAG  "FTFS_STR_TEST"
+#define TAG  "VFS_STR_TEST"
 
-//#define TEST_FATFS_READER  "1:/mic.pcm"
-//#define TEST_FATFS_WRITER  "1:/mic_fatfs_stream.pcm"
-
-#define TEST_FATFS_READER  "/sd0/aec_mic.pcm"
-#define TEST_FATFS_WRITER  "/sd0/mic_fatfs_stream.pcm"
+#define TEST_VFS_READER  "/sd0/aec_mic.pcm"
+#define TEST_VFS_WRITER  "/sd0/aec_mic_bk.pcm"
 
 
 #define TEST_CHECK_NULL(ptr) do {\
@@ -38,64 +33,35 @@
         }\
     } while(0)
 
-#if 0// CONFIG_SYS_CPU0
-static bk_err_t tf_mount(FATFS *pfs)
+
+/* mount sdcard */
+static int vfs_mount_sd0_fatfs(void)
 {
-    FRESULT fr;
+	int ret = BK_OK;
+	static bool is_mounted = false;
 
-    if (pfs != NULL)
-    {
-        os_free(pfs);
-    }
-
-    pfs = os_malloc(sizeof(FATFS));
-    if (NULL == pfs)
-    {
-        BK_LOGD(TAG, "f_mount malloc failed!\r\n");
-        return BK_FAIL;
-    }
-
-    fr = f_mount(pfs, "1:", 1);
-    if (fr != FR_OK)
-    {
-        BK_LOGE(TAG, "f_mount failed:%d\r\n", fr);
-        return BK_FAIL;
-    }
-    else
-    {
-        BK_LOGD(TAG, "f_mount OK!\r\n");
-    }
-
-    return BK_OK;
+	if(!is_mounted) {
+		struct bk_fatfs_partition partition;
+		char *fs_name = NULL;
+		fs_name = "fatfs";
+		partition.part_type = FATFS_DEVICE;
+		partition.part_dev.device_name = FATFS_DEV_SDCARD;
+		partition.mount_path = VFS_SD_0_PATITION_0;
+		ret = mount("SOURCE_NONE", partition.mount_path, fs_name, 0, &partition);
+		is_mounted = true;
+        BK_LOGI(TAG, "func %s, mount /sd0 \n", __func__);
+	}
+	return ret;
 }
 
-static bk_err_t tf_unmount(FATFS *pfs)
+static bk_err_t vfs_unmount_sd0_fatfs(void)
 {
-    FRESULT fr;
-    fr = f_unmount(DISK_NUMBER_SDIO_SD, "1:", 1);
-    if (fr != FR_OK)
-    {
-        BK_LOGE(TAG, "f_unmount failed:%d\r\n", fr);
-        return BK_FAIL;
-    }
-    else
-    {
-        BK_LOGD(TAG, "f_unmount OK!\r\n");
-    }
-
-    if (pfs)
-    {
-        os_free(pfs);
-    }
-
-    return BK_OK;
+    return umount(VFS_SD_0_PATITION_0);
 }
-#endif
 
 static uint64_t get_file_size(const char *name)
 {
     uint64_t size = 0;
-#if CONFIG_VFS
     int fd = 0;
     int ret = 0;
 	struct stat statbuf;
@@ -114,9 +80,10 @@ static uint64_t get_file_size(const char *name)
     size = statbuf.st_size;
 
     close(fd);
-#endif
+
     return size;
 }
+
 static void file_size_comparison(const char *file1, const char *file2)
 {
     uint64_t size1 = get_file_size(file1);
@@ -133,99 +100,58 @@ static void file_size_comparison(const char *file1, const char *file2)
 }
 
 
-/* The case check fatfs stream memory leaks. */
-bk_err_t adk_fatfs_stream_test_case_0(void)
+/* The case check vfs stream memory leaks. */
+bk_err_t adk_vfs_stream_test_case_0(void)
 {
     BK_LOGD(TAG, "--------- %s ----------\n", __func__);
-#if 0
-    bk_set_printf_sync(true);
-    extern void bk_enable_white_list(int enabled);
-    bk_enable_white_list(1);
-    bk_disable_mod_printf("AUD_PIPE", 0);
-    bk_disable_mod_printf("AUD_ELE", 0);
-    bk_disable_mod_printf("AUD_EVT", 0);
-    bk_disable_mod_printf("AUD_MEM", 0);
-    bk_disable_mod_printf("FTFS_STR", 0);
-    bk_disable_mod_printf("FTFS_STR_TEST", 0);
-#endif
-    audio_element_handle_t fatfs_stream_reader;
-    fatfs_stream_cfg_t fatfs_cfg = FATFS_STREAM_CFG_DEFAULT();
-    fatfs_cfg.type = AUDIO_STREAM_READER;
+
+    audio_element_handle_t vfs_stream_reader;
+    vfs_stream_cfg_t vfs_cfg = DEFAULT_VFS_STREAM_CONFIG();
+    vfs_cfg.type = AUDIO_STREAM_READER;
     int cnt = 1;
-    AUDIO_MEM_SHOW("BEFORE FATFS_STREAM_INIT MEMORY TEST \n");
+    AUDIO_MEM_SHOW("BEFORE VFS_STREAM_INIT MEMORY TEST \n");
     while (cnt--)
     {
         rtos_delay_milliseconds(1000);
         BK_LOGD(TAG, "--------- step1: element init ----------\n");
-        fatfs_stream_reader = fatfs_stream_init(&fatfs_cfg);
-#if 0
-        rtos_delay_milliseconds(1000);
-        if (BK_OK != audio_element_set_uri(fatfs_stream_reader, TEST_FATFS_READER))
-        {
-            BK_LOGE(TAG, "set uri fail, %d \n", __LINE__);
-            return BK_FAIL;
-        }
-        rtos_delay_milliseconds(1000);
-        BK_LOGD(TAG, "--------- step222: element run ----------\n");
-        if (BK_OK != audio_element_run(fatfs_stream_reader))
-        {
-            BK_LOGE(TAG, "audio_element_run fail \n");
-            return BK_FAIL;
-        }
-        rtos_delay_milliseconds(1000);
-        BK_LOGD(TAG, "--------- step333: element resume ----------\n");
-        if (BK_OK != audio_element_resume(fatfs_stream_reader, 0, 4000 / portTICK_RATE_MS))
-        {
-            BK_LOGE(TAG, "audio_element_resume fail \n");
-            return BK_FAIL;
-        }
-#endif
+        vfs_stream_reader = vfs_stream_init(&vfs_cfg);
         rtos_delay_milliseconds(1000);
         BK_LOGD(TAG, "--------- step2: element deinit ----------\n");
-        audio_element_deinit(fatfs_stream_reader);
+        audio_element_deinit(vfs_stream_reader);
     }
-    AUDIO_MEM_SHOW("AFTER FATFS_STREAM_INIT MEMORY TEST \n");
+    AUDIO_MEM_SHOW("AFTER VFS_STREAM_INIT MEMORY TEST \n");
 
-    BK_LOGD(TAG, "--------- fatfs stream test complete ----------\n");
+    BK_LOGD(TAG, "--------- vfs stream test complete ----------\n");
 
     return BK_OK;
 }
 
-/* The "fatfs-stream[IN]" element is producer that has only one src and no sink
-   and this element is the first element of the pipeline. The "fatfs-stream[OUT]"
+/* The "vfs-stream[IN]" element is producer that has only one src and no sink
+   and this element is the first element of the pipeline. The "vfs-stream[OUT]"
    element is consumer that has only one sink and no src and this element is the
    last element of the pipeline.
    The data flow model of this element is as follow:
    +--------------+               +--------------+
-   |    fatfs     |               |    fatfs     |
+   |      vfs     |               |      vfs     |
    |  stream[IN]  |               |  stream[out] |
    |             src - ringbuf - sink            |
    |              |               |              |
    +--------------+               +--------------+
 
-   Function: Copy file in tfcard
+   Function: Copy file in sdcard
 
-   The "fatfs-stream[IN]" element read audio data through callback api from tfcard
-   and write the data to ringbuffer. The "fatfs-stream[OUT]" element read audio data
-   from ringbuffer and write the data to tfcard through callback api.
+   The "vfs-stream[IN]" element read audio data through callback api from tfcard
+   and write the data to ringbuffer. The "vfs-stream[OUT]" element read audio data
+   from ringbuffer and write the data to sdcard through callback api.
 */
-bk_err_t adk_fatfs_stream_test_case_1(void)
+bk_err_t adk_vfs_stream_test_case_1(void)
 {
     audio_pipeline_handle_t pipeline;
-    audio_element_handle_t fatfs_stream_reader, fatfs_stream_writer;
+    audio_element_handle_t vfs_stream_reader, vfs_stream_writer;
 
-#if 0
-    bk_set_printf_sync(true);
-    extern void bk_enable_white_list(int enabled);
-    bk_enable_white_list(1);
-    //      bk_disable_mod_printf("AUD_PIPE", 0);
-    bk_disable_mod_printf("AUD_ELE", 0);
-    //      bk_disable_mod_printf("AUD_EVT", 0);
-    //      bk_disable_mod_printf("AUD_MEM", 0);
-    bk_disable_mod_printf("FTFS_STR", 0);
-    bk_disable_mod_printf("FTFS_STR_TEST", 0);
-#endif
     BK_LOGD(TAG, "--------- %s ----------\n", __func__);
+
+    vfs_mount_sd0_fatfs();
 
     BK_LOGD(TAG, "--------- step1: pipeline init ----------\n");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
@@ -233,46 +159,44 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
     TEST_CHECK_NULL(pipeline);
 
     BK_LOGD(TAG, "--------- step2: init elements ----------\n");
-    fatfs_stream_cfg_t fatfs_reader_cfg = FATFS_STREAM_CFG_DEFAULT();
-    fatfs_reader_cfg.type = AUDIO_STREAM_READER;
-    fatfs_stream_reader = fatfs_stream_init(&fatfs_reader_cfg);
-    TEST_CHECK_NULL(fatfs_stream_reader);
+    vfs_stream_cfg_t vfs_reader_cfg = DEFAULT_VFS_STREAM_CONFIG();
+    vfs_reader_cfg.type = AUDIO_STREAM_READER;
+    vfs_stream_reader = vfs_stream_init(&vfs_reader_cfg);
+    TEST_CHECK_NULL(vfs_stream_reader);
 
-    fatfs_stream_cfg_t fatfs_writer_cfg = FATFS_STREAM_CFG_DEFAULT();
-    fatfs_writer_cfg.type = AUDIO_STREAM_WRITER;
-    fatfs_stream_writer = fatfs_stream_init(&fatfs_writer_cfg);
-    TEST_CHECK_NULL(fatfs_stream_writer);
+    vfs_stream_cfg_t vfs_writer_cfg = DEFAULT_VFS_STREAM_CONFIG();
+    vfs_writer_cfg.type = AUDIO_STREAM_WRITER;
+    vfs_stream_writer = vfs_stream_init(&vfs_writer_cfg);
+    TEST_CHECK_NULL(vfs_stream_writer);
 
     BK_LOGD(TAG, "--------- step3: pipeline register ----------\n");
-    if (BK_OK != audio_pipeline_register(pipeline, fatfs_stream_reader, "file_reader"))
+    if (BK_OK != audio_pipeline_register(pipeline, vfs_stream_reader, "file_reader"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
-    if (BK_OK != audio_pipeline_register(pipeline, fatfs_stream_writer, "file_writer"))
+    if (BK_OK != audio_pipeline_register(pipeline, vfs_stream_writer, "file_writer"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
     BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
-    if (BK_OK != audio_pipeline_link(pipeline, (const char *[])
-{"file_reader", "file_writer"
-}, 2))
+    if (BK_OK != audio_pipeline_link(pipeline, (const char *[]){"file_reader", "file_writer"}, 2))
     {
         BK_LOGE(TAG, "pipeline link fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
     BK_LOGD(TAG, "--------- step5: set element uri ----------\n");
-    if (BK_OK != audio_element_set_uri(fatfs_stream_reader, TEST_FATFS_READER))
+    if (BK_OK != audio_element_set_uri(vfs_stream_reader, TEST_VFS_READER))
     {
         BK_LOGE(TAG, "set uri fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
-    if (BK_OK != audio_element_set_uri(fatfs_stream_writer, TEST_FATFS_WRITER))
+    if (BK_OK != audio_element_set_uri(vfs_stream_writer, TEST_VFS_WRITER))
     {
         BK_LOGE(TAG, "set uri fail, %d \n", __LINE__);
         return BK_FAIL;
@@ -284,10 +208,10 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
 
     if (BK_OK != audio_pipeline_set_listener(pipeline, evt))
     {
-        BK_LOGE(TAG, "set uri fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "set listener fail, %d \n", __LINE__);
         return BK_FAIL;
     }
-#if 1
+
     BK_LOGD(TAG, "--------- step7: pipeline run ----------\n");
     if (BK_OK != audio_pipeline_run(pipeline))
     {
@@ -305,7 +229,7 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) fatfs_stream_reader
+        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) vfs_stream_reader
             && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
             && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED)))
         {
@@ -327,7 +251,7 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
     }
 
     BK_LOGD(TAG, "--------- step9: check test result ----------\n");
-    file_size_comparison(TEST_FATFS_READER, TEST_FATFS_WRITER);
+    file_size_comparison(TEST_VFS_READER, TEST_VFS_WRITER);
 
     BK_LOGD(TAG, "--------- step10: deinit pipeline ----------\n");
     if (BK_OK != audio_pipeline_terminate(pipeline))
@@ -335,49 +259,51 @@ bk_err_t adk_fatfs_stream_test_case_1(void)
         BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
         return BK_FAIL;
     }
-#endif
-    if (BK_OK != audio_pipeline_unregister(pipeline, fatfs_stream_reader))
+
+    if (BK_OK != audio_pipeline_unregister(pipeline, vfs_stream_reader))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline unregister element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
-    if (BK_OK != audio_pipeline_unregister(pipeline, fatfs_stream_writer))
+    if (BK_OK != audio_pipeline_unregister(pipeline, vfs_stream_writer))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline unregister element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
     if (BK_OK != audio_pipeline_remove_listener(pipeline))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline remove listener fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
     if (BK_OK != audio_event_iface_destroy(evt))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "event iface destroy fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
     if (BK_OK != audio_pipeline_deinit(pipeline))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "pipeline deinit fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
-    if (BK_OK != audio_element_deinit(fatfs_stream_reader))
+    if (BK_OK != audio_element_deinit(vfs_stream_reader))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "element deinit fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
-    if (BK_OK != audio_element_deinit(fatfs_stream_writer))
+    if (BK_OK != audio_element_deinit(vfs_stream_writer))
     {
-        BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
+        BK_LOGE(TAG, "element deinit fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
-    BK_LOGD(TAG, "--------- audio event test complete ----------\n");
+    vfs_unmount_sd0_fatfs();
+
+    BK_LOGD(TAG, "--------- vfs stream test complete ----------\n");
 
     return BK_OK;
 }

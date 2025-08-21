@@ -29,9 +29,10 @@
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 
-static voice_handle_t gl_voice_handle = NULL;
+voice_handle_t gl_voice_handle = NULL;
 static voice_read_handle_t gl_voice_read_handle = NULL;
 static voice_write_handle_t gl_voice_write_handle = NULL;
 
@@ -41,7 +42,7 @@ int voice_send_callback(unsigned char *data, unsigned int len, void *args)
     int ret = bk_voice_write_frame_data(gl_voice_write_handle, (char *)data, len);
     if (ret != len)
     {
-        LOGE("%s, %d, bk_voice_write_frame_data: %d != %d\n", __func__, __LINE__, ret, len);
+        LOGV("%s, %d, bk_voice_write_frame_data: %d != %d\n", __func__, __LINE__, ret, len);
     }
     else
     {

@@ -1,4 +1,4 @@
-// Copyright 2022-2023 Beken
+// Copyright 2025-2026 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1589,6 +1589,16 @@ audio_port_handle_t audio_element_get_multi_input_port(audio_element_handle_t el
         return el->multi_in.port[index];
     }
     return NULL;
+}
+
+bk_err_t audio_element_get_multi_input_max_port_num(audio_element_handle_t el)
+{
+    return el->multi_in.max_port_num;
+}
+
+bk_err_t audio_element_get_multi_output_max_port_num(audio_element_handle_t el)
+{
+    return el->multi_out.max_port_num;
 }
 
 audio_port_handle_t audio_element_get_multi_output_port(audio_element_handle_t el, int index)
