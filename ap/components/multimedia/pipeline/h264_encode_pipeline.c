@@ -201,6 +201,12 @@ static void h264_encode_reset_handle(void)
 	h264_encode_config->h264_init = false;
 	h264_encode_config->encode_offset = 0;
 	h264_encode_config->encode_dma_length = 0;
+	if (h264_encode_config->decoder_buffer)
+	{
+		h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
+		h264_encode_config->decoder_buffer = NULL;
+	}
+
 	LOGV("%s, %d-%d\r\n", __func__, h264_encode_config->line_done_index, h264_encode_config->line_done_cnt);
 
 	LOGD("%s, complete\r\n", __func__);

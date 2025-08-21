@@ -320,6 +320,11 @@ static void rotate_finish_handler(uint32_t param)
 {
 	ROTATE_LINE_END();
 	int ret = BK_OK;
+	if (rotate_config->decoder_buffer == NULL)
+	{
+		LOGE("%s, decoder_buffer is NULL\n", __func__);
+		return;
+	}
 
 	complex_buffer_t *rotate_buf = (complex_buffer_t*)param;
 
