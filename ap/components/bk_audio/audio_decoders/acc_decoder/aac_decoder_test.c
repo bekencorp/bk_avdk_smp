@@ -71,17 +71,17 @@ static bk_err_t vfs_unmount_sd0_fatfs(void)
    is neither first element nor last element of the pipeline. Usually this element has
    both src and sink. The data flow model of this element is as follow:
    +--------------+               +--------------+               +--------------+
-   |    fatfs     |               |     aac      |               |     fatfs    |
+   |     vfs      |               |     aac      |               |     vfs      |
    |  stream[IN]  |               |   decoder    |               |  stream[OUT] |
-  ...            src - ringbuf - sink           src - ringbuf - sink           ...
+   |             src - ringbuf - sink           src - ringbuf - sink            |
    |              |               |              |               |              |
    +--------------+               +--------------+               +--------------+
 
    Function: Use aac decoder to decode aac file to pcm file in tfcard.
 
-   The "fatfs-stream[IN]" element read aac file from tfcard to ringbuffer. The
+   The "vfs-stream[IN]" element read aac file from tfcard to ringbuffer. The
    "aac-decoder" element read audio data from ringbuffer, decode the data to pcm format
-   and write the data to ringbuffer. The "fatfs-stream[OUT]" element read pcmd data from
+   and write the data to ringbuffer. The "vfs-stream[OUT]" element read pcmd data from
    ringbuffer, and save to tfcard.
 */
 bk_err_t adk_aac_decoder_test_case_0(void)
@@ -304,10 +304,10 @@ bk_err_t adk_aac_decoder_test_case_0(void)
 
    Function: Use aac decoder to decode aac file to pcm file in tfcard.
 
-   The "fatfs-stream[IN]" element read aac file from tfcard to ringbuffer. The
-   "aac-decoder" element read audio data from ringbuffer, decode the data to pcm format
-   and write the data to ringbuffer. The "fatfs-stream[OUT]" element read pcmd data from
-   ringbuffer, and save to tfcard.
+   The "onboard-mic-stream[IN]" element write mic data to ringbuffer. The "aac-encoder" element read mic data from ringbuffer,
+    encode the data to aac format and write the data to ringbuffer. The "aac-decoder" element read aac data from ringbuffer,
+    decode the data to pcm format and write the data to ringbuffer. The "uart-stream[OUT]" element read pcm data from ringbuffer,
+     and write it to uart.
 */
 bk_err_t adk_aac_decoder_test_case_1(void)
 {

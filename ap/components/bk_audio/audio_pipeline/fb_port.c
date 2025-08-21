@@ -151,7 +151,9 @@ static bk_err_t _framebuf_port_destroy(audio_port_handle_t self)
 
 static bk_err_t _framebuf_port_write_done(audio_port_handle_t self)
 {
-    return BK_OK;
+    framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+
+    return fb_done_write(fb_port->fb);
 }
 
 audio_port_handle_t framebuf_port_init(framebuf_port_cfg_t *config)
