@@ -6,23 +6,6 @@
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_thread.h>
 #include <components/bk_audio/audio_pipeline/rb_port.h>
-#include <components/bk_audio/audio_algorithms/aec_algorithm.h>
-#include <components/bk_audio/audio_streams/raw_stream.h>
-#include <components/bk_audio/audio_streams/onboard_mic_stream.h>
-#include <components/bk_audio/audio_streams/onboard_speaker_stream.h>
-#include <components/bk_audio/audio_encoders/g711_encoder.h>
-#include <components/bk_audio/audio_decoders/g711_decoder.h>
-#include <components/bk_audio/audio_streams/uac_mic_stream.h>
-#include <components/bk_audio/audio_streams/uac_speaker_stream.h>
-
-#if CONFIG_VOICE_SERVICE_AAC_ENCODER
-#include <components/bk_audio/audio_encoders/aac_encoder.h>
-#endif
-
-#if CONFIG_VOICE_SERVICE_AAC_DECODER
-#include <components/bk_audio/audio_decoders/aac_decoder.h>
-#endif
-
 #include <components/avdk_types.h>
 #include <components/bk_voice_service.h>
 #include <components/bk_voice_service_types.h>
@@ -295,6 +278,12 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
 #if CONFIG_VOICE_SERVICE_AAC_ENCODER
         case AUDIO_ENC_TYPE_AAC:
             voice_handle->mic_enc = aac_encoder_init(&cfg->enc_cfg.aac_enc_cfg);
+            break;
+#endif
+
+#if CONFIG_VOICE_SERVICE_G722_ENCODER
+        case AUDIO_ENC_TYPE_G722:
+            voice_handle->mic_enc = g722_encoder_init(&cfg->enc_cfg.g722_enc_cfg);
             break;
 #endif
 
@@ -576,6 +565,12 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
             break;
 #endif
 
+#if CONFIG_VOICE_SERVICE_G722_DECODER
+        case AUDIO_DEC_TYPE_G722:
+            voice_handle->spk_dec = g722_decoder_init(&cfg->dec_cfg.g722_dec_cfg);
+            break;
+#endif
+
         case AUDIO_DEC_TYPE_PCM:
             /* not need decoder */
             break;
@@ -630,15 +625,11 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
     BK_LOGD(TAG, "step4: play pipeline link\n");
     if (voice_handle->spk_dec)
     {
-        ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[])
-        {"raw_write", "decode", "spk"
-        }, 3);
+        ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[]){"raw_write", "decode", "spk"}, 3);
     }
     else
     {
-        ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[])
-        {"raw_write", "spk"
-        }, 2);
+        ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[]){"raw_write", "spk"}, 2);
     }
     if (ret != BK_OK)
     {
@@ -1042,6 +1033,9 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
 #if CONFIG_VOICE_SERVICE_AAC_ENCODER
             && cfg.enc_type != AUDIO_ENC_TYPE_AAC
 #endif
+#if CONFIG_VOICE_SERVICE_G722_ENCODER
+            && cfg.enc_type != AUDIO_ENC_TYPE_G722
+#endif
             && cfg.enc_type != AUDIO_ENC_TYPE_PCM)
     {
         BK_LOGE(TAG, "%s, %d, enc_type: %d not support\n", __func__, __LINE__, cfg.enc_type);
@@ -1054,9 +1048,12 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
 #if CONFIG_VOICE_SERVICE_AAC_DECODER
             && cfg.dec_type != AUDIO_DEC_TYPE_AAC
 #endif
+#if CONFIG_VOICE_SERVICE_G722_DECODER
+            && cfg.dec_type != AUDIO_DEC_TYPE_G722
+#endif
             && cfg.dec_type != AUDIO_DEC_TYPE_PCM)
     {
-        BK_LOGE(TAG, "%s, %d, enc_type: %d not support\n", __func__, __LINE__, cfg.enc_type);
+        BK_LOGE(TAG, "%s, %d, dec_type: %d not support\n", __func__, __LINE__, cfg.dec_type);
         return BK_FAIL;
     }
 

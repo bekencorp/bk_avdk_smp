@@ -122,6 +122,12 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             enc_type = AUDIO_ENC_TYPE_AAC;
         }
 #endif
+#if CONFIG_VOICE_SERVICE_G722_ENCODER
+        else if (os_strcmp(argv[5], "g722") == 0)
+        {
+            enc_type = AUDIO_ENC_TYPE_G722;
+        }
+#endif
         else
         {
             LOGE("%s, %d, enc_type: %s not support\n", __func__, __LINE__, argv[5]);
@@ -144,6 +150,12 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         else if (os_strcmp(argv[6], "aac") == 0)
         {
             dec_type = AUDIO_DEC_TYPE_AAC;
+        }
+#endif
+#if CONFIG_VOICE_SERVICE_G722_DECODER
+        else if (os_strcmp(argv[6], "g722") == 0)
+        {
+            dec_type = AUDIO_DEC_TYPE_G722;
         }
 #endif
         else
@@ -331,6 +343,13 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             voice_cfg.enc_cfg.aac_enc_cfg = aac_enc_cfg;
         }
 #endif
+#if CONFIG_VOICE_SERVICE_G722_ENCODER
+        else if (enc_type == AUDIO_ENC_TYPE_G722)
+        {
+            g722_encoder_cfg_t g722_enc_cfg = DEFAULT_G722_ENCODER_CONFIG();
+            voice_cfg.enc_cfg.g722_enc_cfg = g722_enc_cfg;
+        }
+#endif
         else
         {
             //noting todo
@@ -380,6 +399,13 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         {
             aac_decoder_cfg_t aac_dec_cfg = DEFAULT_AAC_DECODER_CONFIG();
             voice_cfg.dec_cfg.aac_dec_cfg = aac_dec_cfg;
+        }
+#endif
+#if CONFIG_VOICE_SERVICE_G722_DECODER
+        else if (dec_type == AUDIO_DEC_TYPE_G722)
+        {
+            g722_decoder_cfg_t g722_dec_cfg = DEFAULT_G722_DECODER_CONFIG();
+            voice_cfg.dec_cfg.g722_dec_cfg = g722_dec_cfg;
         }
 #endif
         else
@@ -565,13 +591,13 @@ static const struct cli_command s_voice_commands[] =
      * [mic_type]       onboard/uac/onboard_dual_dmic_mic
      * [mic_samp_rate]  8000/16000
      * [aec_en]         0/1/3
-     * [enc_type]       pcm/g711a/g711u/aac
-     * [dec_type]       pcm/g711a/g711u/aac
+     * [enc_type]       pcm/g711a/g711u/aac/g722
+     * [dec_type]       pcm/g711a/g711u/aac/g722
      * [spk_type]       onboard/uac
      * [spk_samp_rate]  8000/16000
      */
 
-    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac pcm|g711a|g711u|aac onboard|uac 8000|16000}", cli_voice_test_cmd},
+    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722 pcm|g711a|g711u|aac|g722 onboard|uac 8000|16000}", cli_voice_test_cmd},
 };
 
 int cli_voice_init(void)

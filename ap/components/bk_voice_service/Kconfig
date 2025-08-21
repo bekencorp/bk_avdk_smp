@@ -55,4 +55,14 @@ menu "Voice Service"
 		bool "Enable Voice Service Support AAC Decoder"
 		default n
 
+	config VOICE_SERVICE_G722_ENCODER
+		depends on ADK_G722_ENCODER
+		bool "Enable Voice Service Support G722 Encoder"
+		default n
+
+	config VOICE_SERVICE_G722_DECODER
+		depends on ADK_G722_DECODER
+		bool "Enable Voice Service Support G722 Decoder"
+		default n
+
 endmenu
