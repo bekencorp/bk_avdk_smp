@@ -106,6 +106,15 @@ typedef enum {
 } adc_saturate_mode_t;
 #endif
 
+typedef enum {
+	ADC_VOL_DIV_NONE = 0,
+	ADC_VOL_DIV_1,
+	ADC_VOL_DIV_2,
+	ADC_VOL_DIV_3,
+	ADC_VOL_DIV_4,
+	ADC_VOL_DIV_5,
+	ADC_VOL_DIV_7,
+} adc_vol_div_t;
 /**
  * @}
  */
@@ -116,7 +125,6 @@ typedef enum {
  * @ingroup bk_api_adc
  * @{
  */
-
 typedef struct {
 	uint32_t clk;           /**< ADC sample clock division: adc_clk=clk/[2*(pre_div +1)] */
 	uint32_t sample_rate;   /**< ADC sample rate, every period ouput 16 adc_clks in continuous mode period = (16+samp_rate)*adc_clk*/
@@ -129,8 +137,9 @@ typedef struct {
     uint32_t is_open;       /**< ADC channel is open or not*/
     uint16_t *output_buf;   /**< ADC channel output buffer*/
     int32_t output_buf_len; /**< ADC channel output buffer length*/
+    uint16_t is_hw_using_cali_result;
+    adc_vol_div_t vol_div;  /**< ADC channel attenuation coefficient */
 } adc_config_t;
-
 
 typedef struct {
 	adc_chan_t adc_chan;
