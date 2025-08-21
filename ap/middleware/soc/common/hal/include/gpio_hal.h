@@ -39,10 +39,30 @@ typedef struct {
 } gpio_map_t;
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
+typedef enum {
+	GPIO_WAKEUP_UP_EVENT = 0,
+	GPIO_CANCEL_WAKEUP_EVENT,
+	GPIO_KEEP_STATUS_EVENT,
+	GPIO_CANCEL_STATUS_EVENT
+} gpio_lower_power_event_t;
 typedef struct {
 	gpio_id_t id;
 	gpio_int_type_t int_type;
 } gpio_wakeup_t;
+
+typedef struct {
+	gpio_id_t gpio_id;
+	gpio_lower_power_event_t event;
+} gpio_header_info_t;
+typedef struct {
+	gpio_header_info_t header;
+	union 
+	{
+		gpio_int_type_t int_type;
+		gpio_config_t config;
+	} data;
+
+} gpio_lowerpower_t;
 #endif
 typedef struct {
 	gpio_id_t gpio_id;
