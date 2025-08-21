@@ -475,7 +475,48 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 			msg = CLI_CMD_RSP_ERROR;
 			break;
 		}
-	} else {
+	}
+	else if(argc == 3)
+	{
+		cmd = argv[1][0];
+		char type = argv[2][0];
+
+		if(cmd != 'T')
+		return;
+
+		bk_logic_partition_t *partition_info = NULL;
+
+		partition_info = bk_flash_partition_get_info(BK_PARTITION_USR_CONFIG);
+		BK_ASSERT(NULL != partition_info);
+
+		if (partition_info->partition_start_addr == 0) {
+			BK_DUMP_OUT("USR_CONFIG partition start address is invalid.\n");
+			BK_ASSERT(0);
+		}
+
+		addr = partition_info->partition_start_addr;
+		len = 4096;
+
+		switch (type) {
+			case 'W':
+				test_flash_write(addr, len);
+				msg = CLI_CMD_RSP_SUCCEED;
+				break;
+			case 'R':
+				test_flash_read(addr, len);
+				msg = CLI_CMD_RSP_SUCCEED;
+				break;
+			case 'E':
+				test_flash_erase(addr, len);
+				msg = CLI_CMD_RSP_SUCCEED;
+				break;
+		default:
+			BK_DUMP_OUT("flash_test T <W/R/E>\r\n");
+			msg = CLI_CMD_RSP_ERROR;
+			break;
+		}
+	}
+	else {
 		BK_DUMP_OUT("flash_test <R/W/E/M/N/T> <start_addr> <len>\r\n");
 		msg = CLI_CMD_RSP_ERROR;
 	}
