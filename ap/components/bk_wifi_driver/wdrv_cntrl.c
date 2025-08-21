@@ -440,6 +440,11 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
             wdrv_host_env.wlan_mode = WIFI_MODE_IDLE;
             WDRV_LOGV("MCU-AP-STATE: stop AP success\n");
             break;
+        case BK_EVT_BCN_CC_RXED:
+            bk_wifi_bcn_cc_rxed_cb(msg->param, msg->param_len);
+        case BK_EVT_CSI_INFO_IND:
+            bk_wifi_csi_info_cb(msg->param);
+            break;
         default:
             WDRV_LOGD("%s msg %x invaild\n", __func__, msg->id);
             return;

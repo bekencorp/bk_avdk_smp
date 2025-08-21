@@ -1409,9 +1409,10 @@ bk_err_t bk_wifi_ftm_dump_result(const wifi_ftm_results_t *ftm_results);
  * @param ftm_results The ftm result to be freed.
  *
  * @return
- *    - BK_OK: always succeed
+ *    - BK_OK: succeed
+ *    - BK_ERR_PARAM: invalid scan result
  */
-void bk_wifi_ftm_free_result(wifi_ftm_results_t *ftm_results);
+bk_err_t bk_wifi_ftm_free_result(wifi_ftm_results_t *ftm_results);
 
 /**
  * @brief  Set Wi-Fi TX/RX debug log configuration
@@ -1567,7 +1568,7 @@ bk_err_t bk_wifi_get_tx_power(wifi_standard standard, float *powerdBm);
  *    - otherwise: fail
  */
 bk_err_t bk_wifi_set_tx_power(wifi_standard standard, float powerdBm);
-#if CONFIG_WIFI_CSI_EN
+
 /**
  * @brief user get csi data function
  *
@@ -1630,7 +1631,6 @@ bk_err_t bk_wifi_csi_stop_req(void);
  *    - otherwise: fail
  */
 bk_err_t bk_wifi_csi_static_param_reset_req(uint8_t update_cali_mode,uint32_t cali_cnt);
-#if CONFIG_WIFI_CSI_DEMO
 /**
  * @brief csi demo light control
  *
@@ -1642,8 +1642,6 @@ bk_err_t bk_wifi_csi_static_param_reset_req(uint8_t update_cali_mode,uint32_t ca
  *    - otherwise: fail
  */
 bk_err_t bk_wifi_csi_demo_turn_on_light(uint8_t color, bool flicker);
-#endif
-#endif
 
 #if CONFIG_BRIDGE
 /**

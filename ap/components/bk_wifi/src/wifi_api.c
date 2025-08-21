@@ -706,6 +706,33 @@ bk_err_t bk_wifi_set_country(const wifi_country_t *country)
     return ret;
 }
 
+bk_err_t bk_wifi_get_country(wifi_country_t *country)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_country_t);
+
+    if (country == NULL) {
+        WIFI_LOGE("%s failed, invalid input param\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(WIFI_GET_COUNTRY, 1, (uint32_t)buffer_to_ipc);
+
+    os_memcpy(country, buffer_to_ipc, len);
+    os_free(buffer_to_ipc);
+
+    return ret;
+
+}
+
 bk_err_t bk_wifi_get_listen_interval(uint8_t *listen_interval)
 {
     bk_err_t ret = BK_OK;
@@ -764,6 +791,15 @@ bk_err_t bk_wifi_set_bcn_loss_time(uint8_t wait_cnt, uint8_t wake_cnt)
     return ret;
 }
 
+bk_err_t bk_wifi_set_bcn_miss_time(uint8_t bcnmiss_time)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(STA_SET_BCN_MISS_TIME, 1, bcnmiss_time);
+
+    return ret;
+}
+
 bk_err_t bk_wifi_sta_get_linkstate_with_reason(wifi_linkstate_reason_t *info)
 {
     bk_err_t ret = BK_OK;
@@ -786,6 +822,28 @@ bk_err_t bk_wifi_sta_get_linkstate_with_reason(wifi_linkstate_reason_t *info)
 
     os_memcpy(info, buffer_to_ipc, len);
     os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_get_support_wifi_mode(uint8_t* support_mode)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+
+    buffer_to_ipc = os_malloc(1);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(WIFI_GET_SUPPORT_MODE, 1, (uint32_t)buffer_to_ipc);
+
+    *support_mode = *(uint8_t *)buffer_to_ipc;
+    os_free(buffer_to_ipc);
+
+    WIFI_LOGD("%s: %d \n", __func__, *support_mode);
 
     return ret;
 }
@@ -829,6 +887,37 @@ bk_err_t bk_scan_country_code(uint8_t *country_code, int *len)
     os_free(buffer_to_ipc_1);
 
     return ret;
+}
+
+static wifi_beacon_cc_rxed_t g_scan_cc_rxed_cb = NULL;
+void *g_scan_cc_ctxt = NULL;
+bk_err_t bk_wifi_bcn_cc_rxed_register_cb(const wifi_beacon_cc_rxed_t cc_cb, void *ctxt)
+{
+    bk_err_t ret = BK_OK;
+    bool enable = (cc_cb == NULL)? false: true;
+
+    g_scan_cc_rxed_cb = cc_cb;
+    g_scan_cc_ctxt = ctxt;
+
+    ret = wifi_send_com_api_cmd(WIFI_GET_BCN_CC, 1, enable);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_bcn_cc_rxed_cb(void *data, uint16_t len)
+{
+    uint8_t *cc;
+    uint8_t cc_len = len;
+
+    cc = os_malloc(cc_len);
+    os_memcpy(cc, (uint8_t *)data, cc_len);
+
+    if (g_scan_cc_rxed_cb)
+        g_scan_cc_rxed_cb(g_scan_cc_ctxt, cc, cc_len);
+
+    os_free(cc);
+
+    return 0;
 }
 
 bk_err_t bk_wifi_sta_connect(void)
@@ -972,23 +1061,23 @@ bk_err_t bk_wifi_sta_pm_disable(void)
 
 int demo_sta_app_init(char *oob_ssid, char *connect_key)
 {
-	wifi_sta_config_t sta_config = {0};
-	int len;
+    wifi_sta_config_t sta_config = {0};
+    int len;
 
-	len = os_strlen(oob_ssid);
-	if (SSID_MAX_LEN < len) {
-		WIFI_LOGD("ssid name more than 32 Bytes\r\n");
-		return BK_FAIL;
-	}
+    len = os_strlen(oob_ssid);
+    if (SSID_MAX_LEN < len) {
+        WIFI_LOGD("ssid name more than 32 Bytes\r\n");
+        return BK_FAIL;
+    }
 
-	os_strcpy(sta_config.ssid, oob_ssid);
-	if (connect_key)
-		os_strcpy(sta_config.password, connect_key);
+    os_strcpy(sta_config.ssid, oob_ssid);
+    if (connect_key)
+        os_strcpy(sta_config.password, connect_key);
 
-	WIFI_LOGD("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
-	BK_LOG_ON_ERR(bk_wifi_sta_set_config(&sta_config));
-	BK_LOG_ON_ERR(bk_wifi_sta_start());
-	return BK_OK;
+    WIFI_LOGD("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
+    BK_LOG_ON_ERR(bk_wifi_sta_set_config(&sta_config));
+    BK_LOG_ON_ERR(bk_wifi_sta_start());
+    return BK_OK;
 }
 
 bk_err_t bk_wifi_monitor_start(void)
@@ -1180,42 +1269,42 @@ _free_and_exit:
 
 static const char *wifi_sec_type_string_api(wifi_security_t security)
 {
-	switch (security) {
-	case WIFI_SECURITY_NONE:
-		return "NONE";
-	case WIFI_SECURITY_WEP:
-		return "WEP";
-	case WIFI_SECURITY_WPA_TKIP:
-		return "WPA-TKIP";
-	case WIFI_SECURITY_WPA_AES:
-		return "WPA-AES";
-	case WIFI_SECURITY_WPA_MIXED:
-		return "WPA-MIX";
-	case WIFI_SECURITY_WPA2_TKIP:
-		return "WPA2-TKIP";
-	case WIFI_SECURITY_WPA2_AES:
-		return "WPA2-AES";
-	case WIFI_SECURITY_WPA2_MIXED:
-		return "WPA2-MIX";
-	case WIFI_SECURITY_WPA3_SAE:
-		return "WPA3-SAE";
-	case WIFI_SECURITY_WPA3_WPA2_MIXED:
-		return "WPA3-WPA2-MIX";
-	case WIFI_SECURITY_EAP:
-		return "EAP";
-	case WIFI_SECURITY_OWE:
-		return "OWE";
-	case WIFI_SECURITY_AUTO:
-		return "AUTO";
+    switch (security) {
+    case WIFI_SECURITY_NONE:
+        return "NONE";
+    case WIFI_SECURITY_WEP:
+        return "WEP";
+    case WIFI_SECURITY_WPA_TKIP:
+        return "WPA-TKIP";
+    case WIFI_SECURITY_WPA_AES:
+        return "WPA-AES";
+    case WIFI_SECURITY_WPA_MIXED:
+        return "WPA-MIX";
+    case WIFI_SECURITY_WPA2_TKIP:
+        return "WPA2-TKIP";
+    case WIFI_SECURITY_WPA2_AES:
+        return "WPA2-AES";
+    case WIFI_SECURITY_WPA2_MIXED:
+        return "WPA2-MIX";
+    case WIFI_SECURITY_WPA3_SAE:
+        return "WPA3-SAE";
+    case WIFI_SECURITY_WPA3_WPA2_MIXED:
+        return "WPA3-WPA2-MIX";
+    case WIFI_SECURITY_EAP:
+        return "EAP";
+    case WIFI_SECURITY_OWE:
+        return "OWE";
+    case WIFI_SECURITY_AUTO:
+        return "AUTO";
 #ifdef CONFIG_WAPI_SUPPORT
-	case WIFI_SECURITY_TYPE_WAPI_PSK:
-		return "WAPI_PSK";
-	case WIFI_SECURITY_TYPE_WAPI_CERT:
-		return "WAPI_CERT";
+    case WIFI_SECURITY_TYPE_WAPI_PSK:
+        return "WAPI_PSK";
+    case WIFI_SECURITY_TYPE_WAPI_CERT:
+        return "WAPI_CERT";
 #endif
-	default:
-		return "UNKNOWN";
-	}
+    default:
+        return "UNKNOWN";
+    }
 }
 
 static void wifi_scan_dump_ap(const wifi_scan_ap_info_t *ap)
@@ -1312,7 +1401,7 @@ bk_err_t bk_wifi_monitor_register_cb(const wifi_monitor_cb_t monitor_cb)
 
 wifi_monitor_cb_t bk_wifi_monitor_get_cb(void)
 {
-	return s_monitor_ap_cb;
+    return s_monitor_ap_cb;
 }
 
 bk_err_t bk_wifi_monitor_register_ind(uint8_t * msg_payload)
@@ -1362,7 +1451,7 @@ bk_err_t bk_wifi_filter_register_cb(const wifi_filter_cb_t filter_cb)
 
 wifi_filter_cb_t bk_wifi_filter_get_cb(void)
 {
-	return s_filter_ap_cb;
+    return s_filter_ap_cb;
 }
 bk_err_t bk_wifi_filter_register_ind(uint8_t * msg_payload)
 {
@@ -1407,7 +1496,6 @@ bk_err_t bk_wifi_send_arp_set_rate_req(uint16_t arp_tx_rate)
     return wifi_send_com_api_cmd(SEND_ARP_SET_RATE_REQ, 1, arp_tx_rate);
 }
 
-
 bk_err_t bk_wifi_get_status(wifi_status_t *status)
 {
     bk_err_t ret = BK_OK;
@@ -1430,6 +1518,200 @@ bk_err_t bk_wifi_get_status(wifi_status_t *status)
 
     os_memcpy(status, buffer_to_ipc, len);
     os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_set_block_bcmc_en(uint8_t config)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(WIFI_SET_BLOCK_BCMC_EN, 1, config);
+
+    return ret;
+}
+
+bool bk_wifi_get_block_bcmc_en(void)
+{
+    void *buffer_to_ipc = NULL;
+    bool bcmcm_en;
+
+    buffer_to_ipc = os_malloc(1);
+
+    wifi_send_com_api_cmd(WIFI_GET_BLOCK_BCMC_EN, 1, (uint32_t)buffer_to_ipc);
+
+    bcmcm_en = *(bool *)buffer_to_ipc;
+    os_free(buffer_to_ipc);
+
+    return bcmcm_en;
+}
+
+bk_err_t bk_wifi_ftm_start(const wifi_ftm_config_t *config, wifi_ftm_results_t *ftm_results)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc_1 = NULL;
+    void *buffer_to_ipc_2 = NULL;
+    uint32_t len1 = sizeof(wifi_ftm_config_t);
+    uint32_t len2 = sizeof(wifi_ftm_results_t);
+
+    if ((config == NULL) || (ftm_results == NULL)) {
+        WIFI_LOGE("%s failed, invalid pointer\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    buffer_to_ipc_1 = os_malloc(len1);
+    buffer_to_ipc_2 = os_malloc(len2);
+    if (!buffer_to_ipc_1 || !buffer_to_ipc_2)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    ret = wifi_send_com_api_cmd(FTM_START, 2, (uint32_t)buffer_to_ipc_1, (uint32_t)buffer_to_ipc_2);
+
+    os_memcpy(ftm_results, buffer_to_ipc_2, len2);
+    os_free(buffer_to_ipc_1);
+    os_free(buffer_to_ipc_2);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_ftm_dump_result(const wifi_ftm_results_t *ftm_results)
+{
+    if (!ftm_results) {
+        WIFI_LOGD("ftm doesn't found responser\n");
+        return BK_OK;
+    }
+
+    if ((ftm_results->nb_ftm_rsp > 0) && (!ftm_results->rsp)) {
+        WIFI_LOGE("ftm responser number is %d, but responser info is NULL\n", ftm_results->nb_ftm_rsp);
+        return BK_ERR_PARAM;
+    }
+
+    WIFI_LOGD("ftm found %d responser\n", ftm_results->nb_ftm_rsp);
+
+    for (int i = 0; i < ftm_results->nb_ftm_rsp; i++) {
+        WIFI_LOGD("The distance to " WIFI_MAC_FORMAT " is %.2f meters, rtt is %d nSec \n",
+            WIFI_MAC_STR(ftm_results->rsp[i].bssid), ftm_results->rsp[i].distance, ftm_results->rsp[i].rtt);
+        rtos_delay_milliseconds(10);
+    }
+
+    WIFI_LOG_RAW("\n");
+
+    return BK_OK;
+}
+
+bk_err_t bk_wifi_ftm_free_result(wifi_ftm_results_t *ftm_results)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_ftm_results_t);
+
+    if (ftm_results == NULL) {
+        WIFI_LOGE("%s failed, invalid pointer\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    if (ftm_results->rsp == NULL)
+    {
+        WIFI_LOGE("%s no need to free, num %d\r\n", __func__, ftm_results->nb_ftm_rsp);
+        return BK_OK;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+
+    os_memcpy(buffer_to_ipc, ftm_results, len);
+    ret = wifi_send_com_api_cmd(FTM_FREE_RESULT, 1, (uint32_t)buffer_to_ipc);
+
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+
+bk_err_t bk_wifi_csi_alg_config(double thres1)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint8_t len = sizeof(double);
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memcpy(buffer_to_ipc, &thres1, len);
+    ret = wifi_send_com_api_cmd(CSI_ALG_CONFIG, 1, (uint32_t)buffer_to_ipc);
+
+    os_free(buffer_to_ipc);
+
+    return ret;
+
+}
+
+bk_err_t bk_wifi_csi_start_req(uint8_t csi_work_type,uint8_t csi_work_mode,uint8_t csi_work_identity,uint8_t csi_data_format,
+                               uint32_t csi_data_interval,uint32_t delay)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(CSI_START, 6, csi_work_type, csi_work_mode, csi_work_identity,
+                                csi_data_format, csi_data_interval, delay);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_csi_stop_req(void)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(CSI_STOP, 0);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_csi_static_param_reset_req(uint8_t update_cali_mode,uint32_t cali_cnt)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(CSI_STATIC_PARAM_RESET, 2, update_cali_mode, cali_cnt);
+
+    return ret;
+}
+
+wifi_csi_cb_t g_wifi_csi_info_handler = NULL;
+void bk_wifi_csi_info_cb_register(wifi_csi_cb_t cb)
+{
+    bool enable = (cb == NULL)? false: true;
+
+    g_wifi_csi_info_handler = cb;
+
+    wifi_send_com_api_cmd(CSI_INFO_GET, 1, enable);
+
+    return;
+}
+
+void bk_wifi_csi_info_cb(void *data)
+{
+    struct wifi_csi_info_t *info;
+    uint16_t len = sizeof(struct wifi_csi_info_t);
+
+    info = os_malloc(len);
+    os_memcpy(info, (uint8_t *)data, len);
+
+    if(g_wifi_csi_info_handler)
+        g_wifi_csi_info_handler(info);
+
+    os_free(info);
+}
+
+
+bk_err_t bk_wifi_csi_demo_turn_on_light(uint8_t color, bool flicker)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(CSI_DEMO_LIGHT, 2, color, flicker);
 
     return ret;
 }

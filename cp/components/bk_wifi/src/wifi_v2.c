@@ -4243,6 +4243,9 @@ bk_err_t bk_wifi_ftm_start(const wifi_ftm_config_t *config, wifi_ftm_results_t *
 	WIFI_LOGD("FTM starting\n");
 	WIFI_LOGD("ftm config: ftm_per_burst %d, nb_ftm_rsp %d \n", config->ftm_per_burst, config->nb_ftm_rsp);
 
+	ftm_results->nb_ftm_rsp = 0;
+	ftm_results->rsp = NULL;
+
 	if (!wifi_is_inited()) {
 		WIFI_LOGV("start ftm fail, wifi not init\n");
 		return BK_ERR_WIFI_NOT_INIT;
@@ -4272,7 +4275,7 @@ bk_err_t bk_wifi_ftm_start(const wifi_ftm_config_t *config, wifi_ftm_results_t *
 	}
 
 	ftm_results->nb_ftm_rsp = ind->results.nb_ftm_rsp;
-	ftm_results->rsp = os_zalloc(sizeof(wifi_ftm_rsp_info_t) * ftm_results->nb_ftm_rsp);
+	ftm_results->rsp = os_malloc(sizeof(wifi_ftm_rsp_info_t) * ftm_results->nb_ftm_rsp);
 	for (int i = 0; i < ftm_results->nb_ftm_rsp; i++)
 	{
 		os_memcpy(ftm_results->rsp[i].bssid, (uint8_t *)&ind->results.meas[i].addr, ETH_ALEN);
@@ -4302,8 +4305,8 @@ bk_err_t bk_wifi_ftm_dump_result(const wifi_ftm_results_t *ftm_results)
 	WIFI_LOGD("ftm found %d responser\n", ftm_results->nb_ftm_rsp);
 
 	for (int i = 0; i < ftm_results->nb_ftm_rsp; i++) {
-		BK_LOGD("The distance to " WIFI_MAC_FORMAT " is %.2f meters, rtt is %d nSec \n",
-			WIFI_MAC_STR(ftm_results->rsp[i].bssid), ftm_results->rsp[i].distance, ftm_results->rsp[i].rtt);
+		WIFI_LOGD("The distance to "BK_MAC_FORMAT" is %.2f meters, rtt is %d nSec \n",
+			BK_MAC_STR(ftm_results->rsp[i].bssid), ftm_results->rsp[i].distance, ftm_results->rsp[i].rtt);
 		rtos_delay_milliseconds(10);
 	}
 
@@ -4312,7 +4315,7 @@ bk_err_t bk_wifi_ftm_dump_result(const wifi_ftm_results_t *ftm_results)
 	return BK_OK;
 }
 
-void bk_wifi_ftm_free_result(wifi_ftm_results_t *ftm_results)
+bk_err_t bk_wifi_ftm_free_result(wifi_ftm_results_t *ftm_results)
 {
 	if (ftm_results) {
 		os_free(ftm_results->rsp);
@@ -4320,6 +4323,8 @@ void bk_wifi_ftm_free_result(wifi_ftm_results_t *ftm_results)
 		ftm_results->nb_ftm_rsp = 0;
 	}
 	WIFI_LOGD("ftm free result\n");
+
+	return BK_OK;
 }
 #endif //CONFIG_WIFI_FTM
 
@@ -4404,17 +4409,18 @@ bk_err_t bk_wifi_csi_demo_turn_on_light(uint8_t color, bool flicker) {
 #endif
 #endif //CONFIG_WIFI_CSI_EN
 
-wifi_csi_cb_t g_wifi_csi_info_handler = NULL;
-void bk_wifi_csi_info_cb_register(wifi_csi_cb_t cb)
+static bool g_wifi_csi_info_cb_registered = false;
+bk_err_t bk_wifi_csi_info_cb_register(bool enable)
 {
-	g_wifi_csi_info_handler = cb;
+	g_wifi_csi_info_cb_registered = enable;
+
+	return BK_OK;
 }
 void bk_wifi_csi_info_cb(void * data)
 {
-	if(g_wifi_csi_info_handler)
-		g_wifi_csi_info_handler((struct wifi_csi_info_t *)data);
+	if(g_wifi_csi_info_cb_registered)
+		cif_handle_bk_cmd_csi_info_ind(data);
 }
-
 
 bk_err_t bk_wifi_get_tx_stats(uint8_t mode,struct tx_stats_t* tx_stats)
 {
@@ -4542,7 +4548,7 @@ static bk_err_t bk_scan_country_code_callback(void *ctxt, uint8_t *cc, uint8_t c
 			}
 			bk_scan_ptr->cc_len = MAC_COUNTRY_STRING_LEN;
 		}
-		bk_wifi_bcn_cc_rxed_register_cb(NULL, NULL);
+		bk_wifi_bcn_cc_rxed_register_cb(NULL, NULL, false);
 		rtos_set_semaphore(&bk_scan_ptr->cc_wait);
 	}
 
@@ -4563,7 +4569,7 @@ bk_err_t bk_scan_country_code(uint8_t *country_code, int *len)
 		else
 			bk_scan.cc_ptr = NULL;
 
-		bk_wifi_bcn_cc_rxed_register_cb(bk_scan_country_code_callback, &bk_scan);
+		bk_wifi_bcn_cc_rxed_register_cb(bk_scan_country_code_callback, &bk_scan, false);
 		err = cc_scan_start();
 		if (err == kNoErr) {
 			err = rtos_get_semaphore(&bk_scan.cc_wait, 4000);
@@ -4574,12 +4580,37 @@ bk_err_t bk_scan_country_code(uint8_t *country_code, int *len)
 				return err;
 			}
 		}
-		bk_wifi_bcn_cc_rxed_register_cb(NULL, NULL);
+		bk_wifi_bcn_cc_rxed_register_cb(NULL, NULL, false);
 		rtos_deinit_semaphore(&bk_scan.cc_wait);
 	}
 
 	return err;
 }
+
+static bool g_scan_cc_rxed_registered = false;
+static wifi_beacon_cc_rxed_t g_scan_cc_rxed_cb = NULL;
+void *g_scan_cc_ctxt = NULL;
+bk_err_t bk_wifi_bcn_cc_rxed_register_cb(const wifi_beacon_cc_rxed_t cc_cb, void *ctxt, bool enable)
+{
+    g_scan_cc_rxed_cb = cc_cb;
+    g_scan_cc_ctxt = ctxt;
+
+    g_scan_cc_rxed_registered = enable;
+
+    return 0;
+}
+
+bk_err_t bk_wifi_bcn_cc_rxed_cb(uint8_t *cc, uint8_t cc_len)
+{
+    if (g_scan_cc_rxed_registered)
+        cif_handle_bk_cmd_bcn_cc_ind(cc, cc_len);
+
+    if (g_scan_cc_rxed_cb)
+        g_scan_cc_rxed_cb(g_scan_cc_ctxt, cc, cc_len);
+
+    return 0;
+}
+
 #endif //CONFIG_WIFI_SCAN_COUNTRY_CODE
 
 #if CONFIG_BRIDGE

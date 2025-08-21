@@ -655,7 +655,11 @@ void evm_bypass_mac_init(UINT32 frequency, INT32 band, UINT32 bandwidth);
 void evm_clear_ke_evt_mac_bit(void);
 void evm_set_ke_evt_mac_bit(void);
 void manual_cal_set_cc_backoff_flag(UINT8 enable);
+bk_err_t bk_wifi_csi_info_cb_register(bool enable);
 void bk_wifi_csi_info_cb(void * data);
+bk_err_t bk_wifi_bcn_cc_rxed_register_cb(const wifi_beacon_cc_rxed_t cc_cb, void *ctxt, bool enable);
+bk_err_t bk_wifi_bcn_cc_rxed_cb(uint8_t *cc, uint8_t cc_len);
+
 
 uint32_t evm_req_tx_for_ate(uint32_t frame_len);
 uint32_t hal_machw_frame_duration_ate(uint8_t bw, uint8_t modf, uint8_t rate, uint8_t long_preamble, uint8_t short_gi, uint16_t len);
