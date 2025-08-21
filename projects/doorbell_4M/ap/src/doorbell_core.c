@@ -117,8 +117,6 @@ static void doorbell_message_handle(void)
 
                 case DBEVT_WIFI_SOFT_AP_TURNING_ON:
                 {
-                    LOGD("%s, DBEVT_WIFI_SOFT_AP_TURNING_ON, warning: not adapt\n", __func__);
-#if 0
                     doorbell_boarding_info_t *doorbell_boarding_info = (doorbell_boarding_info_t *) msg.param;
                     int ret = doorbell_wifi_soft_ap_start(doorbell_boarding_info->boarding_info.ssid_value,
                                                           doorbell_boarding_info->boarding_info.password_value,
@@ -132,7 +130,6 @@ static void doorbell_message_handle(void)
                     {
                         doorbell_boarding_event_notify(BOARDING_OP_SOFT_AP_START, EVT_STATUS_ERROR);
                     }
-#endif
                 }
                 break;
 
