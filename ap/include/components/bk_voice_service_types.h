@@ -2,6 +2,7 @@
 
 #include <components/bk_audio/audio_algorithms/aec_algorithm.h>
 #include <components/bk_audio/audio_algorithms/aec_v3_algorithm.h>
+#include <components/bk_audio/audio_algorithms/eq_algorithm.h>
 #include <components/bk_audio/audio_streams/raw_stream.h>
 #include <components/bk_audio/audio_streams/onboard_mic_stream.h>
 #include <components/bk_audio/audio_streams/onboard_dual_dmic_mic_stream.h>
@@ -119,6 +120,13 @@ typedef struct
         onboard_speaker_stream_cfg_t    onboard_spk_cfg;
         uac_speaker_stream_cfg_t        uac_spk_cfg;
     } spk_cfg;
+#if CONFIG_VOICE_SERVICE_EQ
+    bool                    eq_en;
+    union
+    {
+        eq_algorithm_cfg_t  eq_alg_cfg;
+    } eq_cfg;
+#endif
 
     voice_event_handle      event_handle;   /*!< voice event handle callback */
     void *                  args;           /*!< the parameter of event_handle func */
@@ -629,6 +637,141 @@ typedef struct
         .args = NULL,                                               \
     }
 #endif  //CONFIG_VOICE_SERVICE_G722_ENCODER && CONFIG_VOICE_SERVICE_G722_DECODER
+
+/* voice call through onboard mic and onboard speaker,EQ on
+ * mic: onboard mic
+ * speaker: onboard speaker
+ * AEC: ON
+ * sample rate: 8000Hz
+ * encoder: g711a
+ * decoder: g711a
+ * EQ: ON
+ */
+#if CONFIG_VOICE_SERVICE_EQ
+#define VOICE_BY_ONBOARD_MIC_SPK_EQ_CFG_DEFAULT() {             \
+    .mic_type = MIC_TYPE_ONBOARD,                               \
+    .mic_cfg.onboard_mic_cfg = {                                \
+        .adc_cfg = {                                            \
+           .chl_num = 1,                                        \
+           .bits = 16,                                          \
+           .sample_rate = 8000,                                 \
+           .dig_gain = 0x28,                                    \
+           .ana_gain = 0x8,                                     \
+           .mode = AUD_ADC_MODE_DIFFEN,                         \
+           .clk_src = AUD_CLK_XTAL,                             \
+        },                                                      \
+        .frame_size = 320,                                      \
+        .out_block_size = 320,                                  \
+        .out_block_num = 2,                                     \
+        .multi_out_port_num = 0,                                \
+        .task_stack = ONBOARD_MIC_STREAM_TASK_STACK,            \
+        .task_core = ONBOARD_MIC_STREAM_TASK_CORE,              \
+        .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
+    },                                                          \
+    .aec_en = true,                                             \
+    .aec_ver = 1,                                               \
+    .aec_cfg.aec_alg_cfg = {                                    \
+        .task_stack = AEC_ALGORITHM_TASK_STACK,                 \
+        .task_core = AEC_ALGORITHM_TASK_CORE,                   \
+        .task_prio = AEC_ALGORITHM_TASK_PRIO,                   \
+        .aec_cfg = {                                            \
+            .mode = AEC_MODE_SOFTWARE,                          \
+            .fs = AEC_ALGORITHM_FS,                             \
+            .delay_points = AEC_DELAY_POINTS,                   \
+            .ec_depth = AEC_ALGORITHM_EC_DEPTH,                 \
+            .TxRxThr = AEC_ALGORITHM_TXRXTHR,                   \
+            .TxRxFlr = AEC_ALGORITHM_TXRXFLR,                   \
+            .ref_scale = AEC_ALGORITHM_REF_SCALE,               \
+            .ns_level = AEC_ALGORITHM_NS_LEVEL,                 \
+            .ns_para = AEC_ALGORITHM_NS_PARA,                   \
+        },                                                      \
+        .out_block_num = 1,                                     \
+        .multi_out_port_num = 0,                                \
+    },                                                          \
+    .enc_en = true,                                             \
+    .enc_type = AUDIO_ENC_TYPE_G711A,                           \
+    .enc_cfg.g711_enc_cfg = {                                   \
+        .buf_sz = G711_ENCODER_BUFFER_SIZE,                     \
+        .out_block_size = 160,                                  \
+        .out_block_num = 1,                                     \
+        .task_stack = G711_ENCODER_TASK_STACK,                  \
+        .task_core = G711_ENCODER_TASK_CORE,                    \
+        .task_prio = G711_ENCODER_TASK_PRIO,                    \
+        .enc_mode = G711_ENC_MODE_A_LOW,                        \
+    },                                                          \
+    .read_pool_size = 160,                                      \
+    .write_pool_size = 320,                                     \
+    .dec_en = true,                                             \
+    .dec_type = AUDIO_DEC_TYPE_G711A,                           \
+    .dec_cfg.g711_dec_cfg = {                                   \
+        .buf_sz = G711_DECODER_BUFFER_SIZE,                     \
+        .out_block_size = 320,                                  \
+        .out_block_num = 1,                                     \
+        .task_stack = G711_DECODER_TASK_STACK,                  \
+        .task_core = G711_DECODER_TASK_CORE,                    \
+        .task_prio = G711_DECODER_TASK_PRIO,                    \
+        .dec_mode = G711_DEC_MODE_A_LOW,                        \
+    },                                                          \
+    .spk_type = SPK_TYPE_ONBOARD,                               \
+    .spk_cfg.onboard_spk_cfg = {                                \
+        .chl_num = 1,                                           \
+        .sample_rate = 8000,                                    \
+        .dig_gain = 0x2d,                                       \
+        .ana_gain = 0x07,                                       \
+        .work_mode = AUD_DAC_WORK_MODE_DIFFEN,                  \
+        .bits = 16,                                             \
+        .clk_src = AUD_CLK_XTAL,                                \
+        .multi_in_port_num = 0,                                 \
+        .multi_out_port_num = 1,                                \
+        .frame_size = 320,                                      \
+        .pool_length = 0,                                       \
+        .pool_play_thold = 0,                                   \
+        .pool_pause_thold = 0,                                  \
+        .task_stack = ONBOARD_SPEAKER_STREAM_TASK_STACK,        \
+        .task_core = ONBOARD_SPEAKER_STREAM_TASK_CORE,          \
+        .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
+    },                                                          \
+    .eq_en = true,                                              \
+    .eq_cfg.eq_alg_cfg = {                                      \
+    .task_stack            = EQ_ALGORITHM_TASK_STACK,           \
+    .task_core             = EQ_ALGORITHM_TASK_CORE,            \
+    .task_prio             = EQ_ALGORITHM_TASK_PRIO,            \
+    .eq_cal_para = {                                            \
+        .eq_en = 1,                                             \
+        .filters = 2,                                           \
+        .globle_gain = EQGLOBALGAIN,                            \
+        .eq_para[0].a[0] = -EQ0A0,                              \
+        .eq_para[0].a[1] = -EQ0A1,                              \
+        .eq_para[0].b[0] = EQ0B0,                               \
+        .eq_para[0].b[1] = EQ0B1,                               \
+        .eq_para[0].b[2] = EQ0B2,                               \
+        .eq_para[1].a[0] = -EQ1A0,                              \
+        .eq_para[1].a[1] = -EQ1A1,                              \
+        .eq_para[1].b[0] = EQ1B0,                               \
+        .eq_para[1].b[1] = EQ1B1,                               \
+        .eq_para[1].b[2] = EQ1B2,                               \
+        .eq_load.f_gain     = EQFGAIN,                          \
+        .eq_load.samplerate = EQSAMP,                           \
+        .eq_load.eq_load_para[0].freq   = EQ0FREQ,              \
+        .eq_load.eq_load_para[0].gain   = EQ0GAIN,              \
+        .eq_load.eq_load_para[0].q_val  = EQ0QVAL,              \
+        .eq_load.eq_load_para[0].type   = EQ0FTYPE,             \
+        .eq_load.eq_load_para[0].enable  = EQ0,                 \
+        .eq_load.eq_load_para[1].freq   = EQ1FREQ,              \
+        .eq_load.eq_load_para[1].gain   = EQ1GAIN,              \
+        .eq_load.eq_load_para[1].q_val  = EQ1QVAL,              \
+        .eq_load.eq_load_para[1].type   = EQ1FTYPE,             \
+        .eq_load.eq_load_para[1].enable  = EQ1,                 \
+    },                                                          \
+    .eq_chl_num            = 1,                                 \
+    .eq_frame_size         = EQFRAMESIZE,                       \
+    .out_block_num         = 2,                                 \
+    .multi_out_port_num    = 0,                                 \
+    },                                                          \
+    .event_handle = NULL,                                       \
+    .args = NULL,                                               \
+}
+#endif //CONFIG_VOICE_SERVICE_EQ
 
 #ifdef  __cplusplus
 }

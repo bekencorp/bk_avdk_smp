@@ -56,7 +56,7 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 {
     LOGD("%s +++\n", __func__);
 
-    if (argc != 9)
+    if ((argc != 9) && (argc != 10))
     {
         LOGE("%s, %d, agc: %d not right\n", __func__, __LINE__, argc);
         return;
@@ -69,6 +69,9 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
     audio_dec_type_t dec_type = 0;
     spk_type_t spk_type = SPK_TYPE_ONBOARD;
     uint32_t spk_samp_rate = 0;
+    #if CONFIG_VOICE_SERVICE_EQ
+    uint8_t eq_type = 0;
+    #endif
 
     if (os_strcmp(argv[1], "start") == 0)
     {
@@ -184,6 +187,24 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             LOGE("%s, %d, spk_samp_rate: %s not support\n", __func__, __LINE__, spk_samp_rate);
             return;
         }
+        
+        #if CONFIG_VOICE_SERVICE_EQ
+        if(10 == argc)
+        {
+            if (os_strcmp(argv[9], "eq_mono") == 0)
+            {
+                eq_type = 1;
+            }
+            else if (os_strcmp(argv[9], "eq_stereo") == 0)
+            {
+                eq_type = 2;
+            }
+            else
+            {
+                eq_type = 0;
+            }
+        }
+        #endif
 
         /* voice config */
         voice_cfg_t voice_cfg = {0};
@@ -466,6 +487,21 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             voice_cfg.spk_cfg.uac_spk_cfg = uac_spk_cfg;
         }
 
+        #if CONFIG_VOICE_SERVICE_EQ
+        if(eq_type)
+        {
+            voice_cfg.eq_en = true;
+            
+            eq_algorithm_cfg_t eq_cfg = DEFAULT_EQ_ALGORITHM_CONFIG();
+            eq_cfg.eq_chl_num = eq_type;
+            voice_cfg.eq_cfg.eq_alg_cfg = eq_cfg;
+        }
+        else
+        {
+            voice_cfg.eq_en = false;
+        }
+        #endif
+
         voice_cfg.event_handle = NULL;
         voice_cfg.args = NULL;
 
@@ -595,9 +631,10 @@ static const struct cli_command s_voice_commands[] =
      * [dec_type]       pcm/g711a/g711u/aac/g722
      * [spk_type]       onboard/uac
      * [spk_samp_rate]  8000/16000
+     * [eq_type]        eq_mono/eq_stereo
      */
 
-    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722 pcm|g711a|g711u|aac|g722 onboard|uac 8000|16000}", cli_voice_test_cmd},
+    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722 pcm|g711a|g711u|aac|g722 onboard|uac 8000|16000 eq_mono|eq_stereo}", cli_voice_test_cmd},
 };
 
 int cli_voice_init(void)

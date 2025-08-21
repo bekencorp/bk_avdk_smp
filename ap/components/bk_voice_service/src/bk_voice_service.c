@@ -65,6 +65,9 @@ struct voice
     audio_element_handle_t  spk_dec;            /**< speaker decoder handle */
     spk_type_t              spk_type;           /**< onboard speaker or uac speaker */
     audio_element_handle_t  spk_str;            /**< speaker stream handle */
+    #if CONFIG_VOICE_SERVICE_EQ
+    audio_element_handle_t  eq_str;             /**< eq stream handle */
+    #endif
 
     audio_event_iface_handle_t record_evt;      /**< speaker stream handle */
     audio_event_iface_handle_t play_evt;        /**< speaker stream handle */
@@ -603,6 +606,18 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
     }
     VOICE_CHECK_NULL(voice_handle->spk_str, goto fail);
 
+    #if CONFIG_VOICE_SERVICE_EQ
+    if(cfg->eq_en)
+    {
+        voice_handle->eq_str = eq_algorithm_init(&cfg->eq_cfg.eq_alg_cfg);
+        if(!voice_handle->eq_str)
+        {
+            BK_LOGE(TAG, "%s, %d, register eq fail\n", __func__, __LINE__);
+            goto fail;
+        }
+    }
+    #endif
+
     BK_LOGD(TAG, "step3: play pipeline register\n");
     if (BK_OK != audio_pipeline_register(voice_handle->play_pipeline, voice_handle->raw_write, "raw_write"))
     {
@@ -621,16 +636,52 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
         BK_LOGE(TAG, "%s, %d, register spk stream fail", __func__, __LINE__);
         goto fail;
     }
+    
+    #if CONFIG_VOICE_SERVICE_EQ
+    if(cfg->eq_en)
+    {
+        if (BK_OK != audio_pipeline_register(voice_handle->play_pipeline, voice_handle->eq_str, "eq"))
+        {
+            BK_LOGE(TAG, "%s, %d, register eq fail\n", __func__, __LINE__);
+            goto fail;
+        }
+    }
+    #endif
 
     BK_LOGD(TAG, "step4: play pipeline link\n");
-    if (voice_handle->spk_dec)
+    #if CONFIG_VOICE_SERVICE_EQ
+    if(cfg->eq_en)
     {
-        ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[]){"raw_write", "decode", "spk"}, 3);
+        if (voice_handle->spk_dec)
+        {
+            ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[])
+            {"raw_write", "decode", "eq", "spk"
+            }, 4);
+        }
+        else
+        {
+            ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[])
+            {"raw_write",  "eq", "spk"
+            }, 3);
+        }
     }
     else
+    #endif
     {
-        ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[]){"raw_write", "spk"}, 2);
+        if (voice_handle->spk_dec)
+        {
+            ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[])
+            {"raw_write", "decode", "spk"
+            }, 3);
+        }
+        else
+        {
+            ret = audio_pipeline_link(voice_handle->play_pipeline, (const char *[])
+            {"raw_write", "spk"
+            }, 2);
+        }
     }
+    
     if (ret != BK_OK)
     {
         BK_LOGE(TAG, "%s, %d, play_pipeline link fail\n", __func__, __LINE__);
