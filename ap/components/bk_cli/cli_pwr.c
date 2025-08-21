@@ -19,9 +19,9 @@
 #include <driver/pwr_clk.h>
 #include <driver/rosc_32k.h>
 #include <driver/rosc_ppm.h>
+#include <driver/pm_ap_core.h>
 #if CONFIG_PM_DEMO_ENABLE
 #include "pm_ap_demo.h"
-#include <driver/pm_ap_core.h>
 #endif
 
 #if CONFIG_SYSTEM_CTRL
@@ -77,7 +77,11 @@ void cli_pm_gpio_callback(gpio_id_t gpio_id)
 	}
 	BK_LOGD(NULL, "cli_pm_gpio_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
 }
-
+static bk_err_t cli_pm_rtc_sleep_wakeup_callback(pm_wakeup_source_e wake_source,uint32_t wake_src_param)
+{
+    BK_LOGD(NULL,"%s[src:%d][param:%d]\r\n",__func__,wake_source,wake_src_param);
+    return BK_OK;
+}
 #define PM_MANUAL_LOW_VOL_VOTE_ENABLE    (0)
 #define PM_DEEPSLEEP_RTC_THRESHOLD       (500)
 #define PM_SHUTDOWN_RTC_THRESHOLD        (4)        //=500ms
@@ -166,6 +170,11 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 		}
 		else
 		{
+			pm_ap_system_wakeup_cb_info_t cb_info_sleep_wakeup = {PM_AP_USING_SYS_WAKEUP_DEV_APP,
+																	PM_MODE_LOW_VOLTAGE,
+																	PM_WAKEUP_SOURCE_INT_RTC,
+																	cli_pm_rtc_sleep_wakeup_callback};
+			bk_pm_ap_system_wakeup_register_callback(&cb_info_sleep_wakeup);
 			pm_rtc_wakeup_config_t rtc_wakeup = {0};
 			rtc_wakeup.rtc_period = pm_param1;//10s
 			bk_pm_ap_rtc_wakeup_source_config(PM_MODE_LOW_VOLTAGE,WAKEUP_SOURCE_INT_RTC,&rtc_wakeup);

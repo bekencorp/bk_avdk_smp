@@ -169,14 +169,45 @@ bk_err_t bk_pm_ap_system_wakeup_unregister_callback(pm_ap_system_wakeup_cb_info_
 
 bk_err_t bk_pm_ap_system_wakeup_handle_callback(pm_ap_core_msg_t *msg)
 {
+    bk_err_t ret = BK_OK;
+    if(msg == NULL)
+    {
+        ret = BK_FAIL;
+        goto exit;
+    }
+    if(msg->param1 == 0)
+    {
+        ret = BK_ERR_PARAM;
+        goto exit;
+    }
+    uint32_t wakeup_cb_index = 0;
+    switch(msg->param1)
+    {
+        case PM_MODE_LOW_VOLTAGE:
+            wakeup_cb_index = PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE;
+            break;
+        case PM_MODE_DEEP_SLEEP:
+            wakeup_cb_index = PM_SYSTEM_WAKEUP_MODE_DEEP_SLEEP;
+            break;
+        case PM_MODE_SUPER_DEEP_SLEEP:
+            wakeup_cb_index = PM_SYSTEM_WAKEUP_MODE_SUPER_DEEP_SLEEP;
+            break;
+        default:
+        break;
+    }
     for(int i = 0; i < PM_AP_USING_SYS_WAKEUP_DEV_MAX;i++)
     {
-        if(s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].sys_wakeup_fn != NULL)
+        if(s_system_wakeup_cb_arry[wakeup_cb_index][i].wakeup_source == msg->param2)
         {
-            s_system_wakeup_cb_arry[PM_SYSTEM_WAKEUP_MODE_LOW_VOLTAGE][i].sys_wakeup_fn(0,0);
+            if(s_system_wakeup_cb_arry[wakeup_cb_index][i].sys_wakeup_fn != NULL)
+            {
+                s_system_wakeup_cb_arry[wakeup_cb_index][i].sys_wakeup_fn(msg->param2,msg->param3);
+            }
         }
     }
-    return BK_OK;
+exit:
+    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x1,0x0);
+    return ret;
 }
 
 bk_err_t bk_pm_ap_psram_power_state_register_callback(pm_ap_psram_power_state_callback_info_t * p_psram_power_state_callback_info)

@@ -42,7 +42,7 @@ static low_pwr_core_info_t *s_pm_info = NULL;
 /*================FUNCTION DECLARATION  SECTION  END===========*/
 static void low_pwr_core_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 {
-	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP,0x0,0x0);
+	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
 	low_pwr_core_msg_t msg = {0};
 	msg.event= LOW_PWR_CORE_RTC_WAKEUPED;
 	bk_low_pwr_core_send_msg(&msg);
@@ -51,7 +51,7 @@ static void low_pwr_core_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *pa
 }
 static void low_pwr_core_gpio_callback(gpio_id_t gpio_id)
 {
-	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP,0x0,0x0);
+	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
 	LOGD("gpio_cb[%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),gpio_id);
 	low_pwr_core_msg_t msg = {0};
 	msg.event= LOW_PWR_CORE_GPIO_WAKEUPED;

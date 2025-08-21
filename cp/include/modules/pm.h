@@ -216,6 +216,7 @@ typedef enum
 	PM_SLEEP_MODULE_NAME_ROSC_PROG,// 31
 	PM_SLEEP_MODULE_NAME_ROSC,     // 32
 	PM_SLEEP_MODULE_NAME_FLASH_OP, // 33
+	PM_SLEEP_MODULE_NAME_LV_WAKEUP,// 34
 	/*Attention: if you add vote ,the following[ #define PM_ENTER_LOW_VOL_MODULES_CONFIG] also need add the vote*/
 	PM_SLEEP_MODULE_NAME_MAX
 }pm_sleep_module_name_e;
@@ -449,6 +450,7 @@ typedef enum
 	PM_SLEEP_MODULE_NAME_ROSC_PROG,\
 	PM_SLEEP_MODULE_NAME_ROSC,\
 	PM_SLEEP_MODULE_NAME_FLASH_OP,\
+	PM_SLEEP_MODULE_NAME_LV_WAKEUP,\
 }
 
 /*enter deep sleep ,require sleep module config*/
