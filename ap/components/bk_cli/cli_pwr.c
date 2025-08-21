@@ -59,14 +59,19 @@ void cli_pm_touch_callback(void *param)
 #endif
 void cli_pm_gpio_callback(gpio_id_t gpio_id)
 {
+	pm_ap_core_msg_t msg = {0};
+
 	if(s_cli_sleep_mode == PM_MODE_DEEP_SLEEP)//when wakeup from deep sleep, all thing initial
 	{
 		bk_pm_ap_sleep_mode_set(PM_MODE_DEFAULT);
 	}
 	else if(s_cli_sleep_mode == PM_MODE_LOW_VOLTAGE)
 	{
-		bk_pm_ap_sleep_mode_set(PM_MODE_DEFAULT);
-		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP,0x0,0x0);
+		msg.event= PM_AP_CORE_SLEEP_DEMO_HANDLE;
+		msg.param1 = PM_MODE_LOW_VOLTAGE;
+		msg.param2 = PM_WAKEUP_SOURCE_INT_GPIO;
+		msg.param3 = gpio_id;
+		bk_pm_ap_core_send_msg(&msg);
 	}
 	else
 	{
@@ -191,8 +196,13 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 		}
 		else
 		{
-			pm_gpio_wakeup_config_t gpio_wakeup= {pm_param1,pm_param2};
-			bk_pm_ap_gpio_wakeup_source_config(PM_MODE_LOW_VOLTAGE,WAKEUP_SOURCE_INT_GPIO,&gpio_wakeup);
+			// pm_gpio_wakeup_config_t gpio_wakeup= {pm_param1,pm_param2};
+			// bk_pm_ap_gpio_wakeup_source_config(PM_MODE_LOW_VOLTAGE,WAKEUP_SOURCE_INT_GPIO,&gpio_wakeup);
+			#if CONFIG_GPIO_WAKEUP_SUPPORT
+			bk_gpio_register_isr(pm_param1, cli_pm_gpio_callback);
+			bk_gpio_register_wakeup_source(pm_param1,pm_param2);
+			bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_GPIO, NULL);
+			#endif //CONFIG_GPIO_WAKEUP_SUPPORT
 		}
 	}
 	else if(pm_wake_source == PM_WAKEUP_SOURCE_INT_SYSTEM_WAKE)
