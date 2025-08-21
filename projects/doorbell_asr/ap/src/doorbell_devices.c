@@ -375,11 +375,28 @@ int doorbell_asr_camera_close(void)
 
 int doorbell_asr_turn_on(void)
 {
-    if (db_device_info->asr_enable == BK_TRUE)
-    {
-        LOGD("%s already turn on\n", __func__);
-        return BK_FAIL;
-    }
+	if (db_device_info == NULL) {
+		LOGE("%s, invalid param!", __func__);
+		return BK_FAIL;
+	}
+
+	if (db_device_info->asr_enable == BK_TRUE)
+	{
+		LOGD("%s already turn on\n", __func__);
+		return BK_FAIL;
+	}
+
+	if (db_device_info->transfer_enable == BK_TRUE
+#if (CONFIG_VOICE_SERVICE)
+	|| db_device_info->audio_enable == BK_TRUE
+#endif
+	)
+	{
+		LOGD("%s, video/audio module open.", __func__);
+		return BK_FAIL;
+	}
+
+	LOGD("%s entry\n", __func__);
 
 	audio_parameters_t *parameters = (audio_parameters_t *)os_malloc(sizeof(audio_parameters_t));
 
@@ -499,6 +516,7 @@ int doorbell_asr_turn_on(void)
 	    }
 	}
     db_device_info->asr_enable = BK_TRUE;
+	LOGD("%s out\n", __func__);
 
 //	doorbell_asr_camera_open();
 
@@ -524,12 +542,17 @@ error:
 
 int doorbell_asr_turn_off(void)
 {
-    if (db_device_info->asr_enable == BK_FALSE)
-    {
-        LOGD("%s already turn off\n", __func__);
-        return BK_FAIL;
-    }
-    LOGD("%s entry\n", __func__);
+	if (db_device_info == NULL) {
+		LOGE("%s, invalid param!", __func__);
+		return BK_FAIL;
+	}
+
+	if (db_device_info->asr_enable == BK_FALSE)
+	{
+		LOGD("%s already turn off\n", __func__);
+		return BK_FAIL;
+	}
+	LOGD("%s entry\n", __func__);
 
 //	doorbell_asr_camera_close();
 
@@ -540,25 +563,25 @@ int doorbell_asr_turn_off(void)
 	{
 		bk_aud_asr_stop(db_device_info->aud_asr_handle);
 	}
-    if (db_device_info->asr_handle)
-    {
-        bk_asr_stop(db_device_info->asr_handle);
-    }
+	if (db_device_info->asr_handle)
+	{
+		bk_asr_stop(db_device_info->asr_handle);
+	}
 
 	if (db_device_info->aud_asr_handle)
 	{
 		bk_aud_asr_deinit(db_device_info->aud_asr_handle);
 	}
-    if (db_device_info->asr_handle)
-    {
-        bk_asr_deinit(db_device_info->asr_handle);
-    }
+	if (db_device_info->asr_handle)
+	{
+		bk_asr_deinit(db_device_info->asr_handle);
+	}
 
-    db_device_info->aud_asr_handle = NULL;
-    db_device_info->asr_handle = NULL;
+	db_device_info->aud_asr_handle = NULL;
+	db_device_info->asr_handle = NULL;
 
-    LOGD("%s out\n", __func__);
-    return BK_OK;
+	LOGD("%s out\n", __func__);
+	return BK_OK;
 }
 
 #endif
@@ -578,13 +601,6 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
         LOGD("%s, id: %d already open\n", __func__, parameters->id);
         return EVT_STATUS_ALREADY;
     }
-
-#if (CONFIG_ASR_SERVICE_WITH_MIC)
-	if (db_device_info->asr_enable)
-	{
-		doorbell_asr_turn_off();
-	}
-#endif
 
     if (parameters->id == UVC_DEVICE_ID)
     {
@@ -728,11 +744,6 @@ int doorbell_camera_turn_off(void)
     db_device_info->pipeline_enable = false;
     db_device_info->h264_transfer = false;
 
-#if (CONFIG_ASR_SERVICE_WITH_MIC)
-	db_device_info->asr_camera = BK_FALSE;
-	doorbell_asr_turn_on();
-#endif
-
     return 0;
 }
 
@@ -745,13 +756,6 @@ int doorbell_video_transfer_turn_on(void)
         LOGD("%s, id: %d already open\n", __func__, db_device_info->transfer_enable);
         return EVT_STATUS_ALREADY;
     }
-
-#if (CONFIG_ASR_SERVICE_WITH_MIC)
-	if (db_device_info->asr_enable)
-	{
-		doorbell_asr_turn_off();
-	}
-#endif
 
     if (db_device_info->camera_transfer_cb)
     {
@@ -794,10 +798,6 @@ int doorbell_video_transfer_turn_off(void)
 #endif
 
     db_device_info->transfer_enable = false;
-
-#if (CONFIG_ASR_SERVICE_WITH_MIC)
-	doorbell_asr_turn_on();
-#endif
 
     return ret;
 }
@@ -1000,16 +1000,6 @@ int doorbell_audio_turn_off(void)
     db_device_info->voice_write_handle = NULL;
     db_device_info->voice_handle  = NULL;
 
-#if (CONFIG_ASR_SERVICE_WITH_MIC)
-	if (db_device_info->transfer_enable == false)
-	{
-		if (db_device_info->asr_enable == true) {
-			doorbell_asr_turn_off();
-		}
-		doorbell_asr_turn_on();
-	}
-#endif
-
     LOGD("%s out\n", __func__);
     return BK_OK;
 }
@@ -1047,13 +1037,6 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
 
         return BK_FAIL;
     }
-
-#if (CONFIG_ASR_SERVICE_WITH_MIC)
-	if (db_device_info->asr_enable)
-	{
-		doorbell_asr_turn_off();
-	}
-#endif
 
     LOGD("%s, AEC: %d, UAC: %d, sample rate: %d, %d, fmt: %d, %d\n", __func__,
          parameters->aec, parameters->uac, parameters->rmt_recorder_sample_rate,

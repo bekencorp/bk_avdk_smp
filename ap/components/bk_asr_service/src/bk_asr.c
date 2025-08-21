@@ -57,6 +57,15 @@ static bk_err_t asr_pipeline_deinit(asr_handle_t asr_handle)
         return BK_FAIL;
     }
 
+    if (asr_handle->asr_rsp && asr_handle->asr_rsp_en)
+    {
+        if (BK_OK != audio_pipeline_unregister(asr_handle->asr_pipeline, asr_handle->asr_rsp))
+        {
+            BK_LOGE(TAG, "%s, %d, unregister asr_rsp fail\n", __func__, __LINE__);
+            return BK_FAIL;
+        }
+    }
+
     if (asr_handle->asr_raw_read && BK_OK != audio_pipeline_unregister(asr_handle->asr_pipeline, asr_handle->asr_raw_read))
     {
         BK_LOGE(TAG, "%s, %d, unregister asr_raw_read staream fail\n", __func__, __LINE__);
@@ -86,6 +95,19 @@ static bk_err_t asr_pipeline_deinit(asr_handle_t asr_handle)
     else
     {
         asr_handle->asr_pipeline = NULL;
+    }
+
+    if (asr_handle->asr_rsp && asr_handle->asr_rsp_en)
+    {
+        if (BK_OK != audio_element_deinit(asr_handle->asr_rsp))
+        {
+            BK_LOGE(TAG, "%s, %d, asr_rsp deinit fail\n", __func__, __LINE__);
+            return BK_FAIL;
+        }
+        else
+        {
+            asr_handle->asr_rsp = NULL;
+        }
     }
 
     if (asr_handle->asr_raw_read && BK_OK != audio_element_deinit(asr_handle->asr_raw_read))
@@ -121,6 +143,16 @@ static bk_err_t asr_pipeline_deinit_with_mic(asr_handle_t asr_handle)
         BK_LOGE(TAG, "%s, %d, unregister mic_stream fail\n", __func__, __LINE__);
         return BK_FAIL;
     }
+
+    if (asr_handle->asr_rsp && asr_handle->asr_rsp_en)
+    {
+        if (BK_OK != audio_pipeline_unregister(asr_handle->asr_pipeline, asr_handle->asr_rsp))
+        {
+            BK_LOGE(TAG, "%s, %d, unregister asr_rsp fail\n", __func__, __LINE__);
+            return BK_FAIL;
+        }
+    }
+
     if (asr_handle->asr_raw_read && BK_OK != audio_pipeline_unregister(asr_handle->asr_pipeline, asr_handle->asr_raw_read))
     {
         BK_LOGE(TAG, "%s, %d, unregister asr_raw_read staream fail\n", __func__, __LINE__);
@@ -161,6 +193,20 @@ static bk_err_t asr_pipeline_deinit_with_mic(asr_handle_t asr_handle)
     {
         asr_handle->mic_str = NULL;
     }
+
+    if (asr_handle->asr_rsp && asr_handle->asr_rsp_en)
+    {
+        if (BK_OK != audio_element_deinit(asr_handle->asr_rsp))
+        {
+            BK_LOGE(TAG, "%s, %d, asr_rsp deinit fail\n", __func__, __LINE__);
+            return BK_FAIL;
+        }
+        else
+        {
+            asr_handle->asr_rsp = NULL;
+        }
+    }
+
     if (asr_handle->asr_raw_read && BK_OK != audio_element_deinit(asr_handle->asr_raw_read))
     {
         BK_LOGE(TAG, "%s, %d, asr raw_read staream deinit fail\n", __func__, __LINE__);
@@ -172,7 +218,6 @@ static bk_err_t asr_pipeline_deinit_with_mic(asr_handle_t asr_handle)
     }
     return BK_OK;
 }
-
 
 
 static bk_err_t asr_pipeline_init_with_mic(asr_handle_t asr_handle, asr_cfg_t *cfg)
@@ -849,7 +894,7 @@ bk_err_t bk_asr_deinit(asr_handle_t asr_handle)
 
     asr_listener_stop(asr_handle);
 #if (CONFIG_ASR_SERVICE_WITH_MIC)
-	asr_pipeline_deinit_with_mic(asr_handle);
+    asr_pipeline_deinit_with_mic(asr_handle);
 #else
     asr_pipeline_deinit(asr_handle);
 #endif
