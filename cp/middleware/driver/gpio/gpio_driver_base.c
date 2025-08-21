@@ -36,6 +36,9 @@
 #if CONFIG_USR_GPIO_CFG_EN
 #include "usr_gpio_cfg.h"
 #endif
+#if CONFIG_MAILBOX
+#include "bk_api_ipc.h"
+#endif
 
 gpio_driver_t s_gpio = {
 	.hal.hw = (gpio_hw_t *)GPIO_LL_REG_BASE,
@@ -369,7 +372,7 @@ static void gpio_isr(void)
 		if (gpio_hal_is_interrupt_triggered(hal, gpio_id, &gpio_status)) {
 
 			//if gpio_id is not within default config, continue
-#if CONFIG_USR_GPIO_CFG_EN
+#if 0
 			const gpio_default_map_t default_map[] = GPIO_DEFAULT_DEV_CONFIG;
 			int i = 0;
 			for(i = 0; i < sizeof(default_map)/sizeof(gpio_default_map_t); i++) {
@@ -391,9 +394,9 @@ static void gpio_isr(void)
 #endif
 			if (s_gpio_isr[gpio_id]) {
 				GPIO_LOGV("gpio int: index:%d \r\n",gpio_id);
+				bk_gpio_clear_interrupt(gpio_id);
 				s_gpio_isr[gpio_id](gpio_id);
 			}
-			bk_gpio_clear_interrupt(gpio_id);
 		}
 	}
 
@@ -1051,6 +1054,42 @@ bk_err_t bk_gpio_unregister_lowpower_keep_status(gpio_id_t gpio_id)
 	GPIO_LOGW("gpio id:%d is not using \r\n", gpio_id);
 	return BK_FAIL;
 }
+
+static uint32_t bk_ipc_set_ap_wakeup(uint8_t *data, uint32_t size, void *param, ipc_obj_t ipc_obj)
+{
+    gpio_lowerpower_t *lowerpower_info = (gpio_lowerpower_t *)data;
+	
+	switch(lowerpower_info->header.event) {
+		case GPIO_WAKEUP_UP_EVENT:
+			GPIO_LOGD("%s:register wakeup source gpio_id = %d, int_type = %d \r\n", __func__, lowerpower_info->header.gpio_id, lowerpower_info->data.int_type);
+			bk_gpio_register_wakeup_source(lowerpower_info->header.gpio_id, lowerpower_info->data.int_type);
+			break;
+
+		case GPIO_CANCEL_WAKEUP_EVENT:
+			GPIO_LOGD("%s:unregister wakeup source gpio_id = %d \r\n", __func__, lowerpower_info->header.gpio_id);
+			bk_gpio_unregister_wakeup_source(lowerpower_info->header.gpio_id);
+			break;
+
+		case GPIO_KEEP_STATUS_EVENT:
+			GPIO_LOGD("%s:register keep status gpio_id = %d, io_mode = %d, pull_mode = %d, func_mode = %d \r\n", __func__, lowerpower_info->header.gpio_id, lowerpower_info->data.config.io_mode, lowerpower_info->data.config.pull_mode, lowerpower_info->data.config.func_mode);
+			bk_gpio_register_lowpower_keep_status(lowerpower_info->header.gpio_id, &lowerpower_info->data.config);
+			break;
+
+		case GPIO_CANCEL_STATUS_EVENT:
+			GPIO_LOGD("%s:unregister keep status gpio_id = %d \r\n", __func__, lowerpower_info->header.gpio_id);
+			bk_gpio_unregister_lowpower_keep_status(lowerpower_info->header.gpio_id);
+			break;
+
+		default:
+			break;
+	}
+
+
+    return BK_OK;
+}
+
+BK_IPC_CHANNEL_DEF(gpio_ipc);
+BK_IPC_CHANNEL_REGISTER(gpio_ipc, IPC_ROUTE_CPU0_CPU1, bk_ipc_set_ap_wakeup, NULL, NULL);
 
 bk_err_t gpio_enter_low_power(void *param)
 {
