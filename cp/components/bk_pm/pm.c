@@ -114,6 +114,7 @@ static volatile uint32_t s_pm_cp1_auto_power_down_flag           = PM_CP1_AUTO_P
 static volatile pm_mem_auto_ctrl_e s_pm_mem_auto_power_down_flag = PM_MEM_AUTO_CTRL_ENABLE;
 static volatile uint64_t s_pm_check_lv_enter_time_out            = 0;
 static pm_enter_lv_timeout_cb_t s_pm_lv_timeout_cb_arr[PM_ENTER_LV_TIME_OUT_MODULE_MAX]= {0};
+static volatile bool     s_bsubcores_wfi                         = 0;
 #if (CONFIG_CPU_CNT > 1)
 static uint32_t s_pm_cp1_psram_malloc_count_state       = 0;
 #endif
@@ -286,9 +287,10 @@ static uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_t
 static uint32_t pm_check_and_ctrl_sleep()
 {
 	uint32_t sleep_tick = 0;
-	bool bsubcores_wfi = sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi();
 	pm_check_power_on_module();
 	pm_wakeup_from_deepsleep_handle();
+	volatile bool bsubcores_wfi = sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi();
+	bk_pm_subcores_wfi_set(bsubcores_wfi);
 
 	if (s_pm_sleep_mode == PM_MODE_NORMAL_SLEEP)
 	{
@@ -304,7 +306,7 @@ static uint32_t pm_check_and_ctrl_sleep()
 #endif
 		}
 		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
-			&&(bsubcores_wfi))
+			&&(s_bsubcores_wfi))
 		{
 #if CONFIG_AON_RTC
 			s_current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
@@ -378,7 +380,7 @@ static uint32_t pm_check_and_ctrl_sleep()
 #endif
 		}
 		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
-		&&(bsubcores_wfi))
+		&&(s_bsubcores_wfi))
 		{
 #if CONFIG_AON_RTC
 			s_current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
@@ -1077,6 +1079,11 @@ bk_err_t bk_pm_wakeup_source_set(pm_wakeup_source_e wakeup_source, void *source_
 /*=========================COMMON PM API END========================*/
 
 /*=========================SPECIFIC API START========================*/
+bk_err_t bk_pm_subcores_wfi_set(bool subcores_wfi)
+{
+	s_bsubcores_wfi = subcores_wfi;
+	return BK_OK;
+}
 uint32_t bk_pm_mcu_pm_state_get()
 {
 	return s_pm_mcu_pm_state;

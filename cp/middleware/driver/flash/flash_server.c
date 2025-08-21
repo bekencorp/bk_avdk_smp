@@ -22,6 +22,7 @@
 #include <driver/mb_ipc.h>
 #include <driver/mb_ipc_port_cfg.h>
 #include <os/rtos_ext.h>
+#include "modules/pm.h"
 
 #if CONFIG_CACHE_ENABLE
 #include "cache.h"
@@ -446,7 +447,9 @@ static void flash_svr_connect_handler(u32 handle, u8 connect_id)
 
 	if(cmd_id == MB_IPC_SEND_CMD)
 	{
+		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_FLASH_OP,0x0,0x0);
 		flash_cmd_handler(handle, connect_id);
+		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_FLASH_OP,0x1,0x0);
 	}
 	#if 0
 	else if(cmd_id == MB_IPC_DISCONNECT_CMD)

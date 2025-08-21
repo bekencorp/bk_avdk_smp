@@ -482,29 +482,26 @@ bk_err_t bk_pm_cp_wakeup_ap_from_wfi(uint8_t core_id)
 	int ret                       = BK_OK;
 #if CONFIG_PM_LV_SUBCORES_ON
 	mb_chnl_cmd_t mb_cmd          = {0};
-	volatile uint8_t  retry_count = 0;
 
 	mb_cmd.hdr.cmd = PM_SLEEP_WAKEUP_NOTIFY_CMD;
 	mb_cmd.param1 = 0;
 	mb_cmd.param2 = 0;
 	mb_cmd.param3 = 0;
 	ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
-    while(ret != BK_OK)
+	if(ret == BK_ERR_BUSY)
 	{
-		bk_delay_us(PM_CP_NOTIFY_DELAY_TIME_US);
-		ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
-		retry_count++;
-		if((retry_count > PM_CP_NOTIFY_AP_MAX_COUNT)||(ret == BK_OK))
-		{
-			break;
-		}
+		BK_LOGI(NULL,"Mb busy[%d]wait next wakeup\r\n",ret);
+		ret = BK_FAIL;
+	}
+	else if(ret == BK_OK)
+	{
+	}
+	else
+	{
+		BK_LOGE(NULL,"Mb write error[%d]\r\n",ret);
 	}
 	FIXED_ADDR_WAKEUP_CP_COUNT += 1;
-	if(retry_count > PM_CP_NOTIFY_AP_MAX_COUNT)
-	{
-		BK_LOGE(NULL,"Wakeup Ap[%d]retry_count[%d]time out\r\n",ret,retry_count);
-		BK_ASSERT(0);
-	}
+
 #endif
 	return ret;
 }
