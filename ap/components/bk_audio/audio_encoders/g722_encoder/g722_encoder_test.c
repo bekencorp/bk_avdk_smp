@@ -17,13 +17,13 @@
 #include "task.h"
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
-#include <components/bk_audio/audio_decoders/wav_decoder.h>
+#include <components/bk_audio/audio_encoders/g722_encoder.h>
 #include <components/bk_audio/audio_streams/array_stream.h>
-#include <components/bk_audio/audio_streams/onboard_speaker_stream.h>
+#include <components/bk_audio/audio_streams/uart_stream.h>
 #include <os/os.h>
 
 
-#define TAG  "WAV_DECODER_TEST"
+#define TAG  "G722_ENCODER_TEST"
 
 
 #define TEST_CHECK_NULL(ptr) do {\
@@ -32,7 +32,6 @@
             return BK_FAIL;\
         }\
     } while(0)
-
 
 static const char network_provision_16k_mono_16bit_en[] = 
 {
@@ -2974,25 +2973,25 @@ static const char network_provision_16k_mono_16bit_en[] =
 };
 
 
-/* The "wav-decoder" element is neither a producer nor a consumer when test element
+/* The "g722-encoder" element is neither a producer nor a consumer when test element
    is neither first element nor last element of the pipeline. Usually this element has
    both src and sink. The data flow model of this element is as follow:
-   +--------------+               +--------------+               +-------------------+
-   |     array    |               |     wav      |               |  onboard_speaker  |
-   |    stream    |               |   decoder    |               |       stream      |
-   |             src - ringbuf - sink           src - ringbuf - sink                 |
-   |              |               |              |               |                   |
-   +--------------+               +--------------+               +-------------------+
+   +--------------+               +--------------+               +--------------+
+   |     array    |               |     g722     |               |     uart     |
+   |    stream    |               |   encoder    |               |    stream    |
+   |             src - ringbuf - sink           src - ringbuf - sink            |
+   |              |               |              |               |              |
+   +--------------+               +--------------+               +--------------+
 
-   Function: wav player.
+   Function: Use g722 encoder to encode fixed audio data in array.
 
-   The "wav-decoder" element read audio data from array, decode the data to pcm
-   format and write the data to onboard speaker stream.
+   The "g722-encoder" element read audio data from array through array stream, encode the data to g722
+   format and write the data to uart through uart stream.
 */
-bk_err_t adk_wav_decoder_test_case_0(void)
+bk_err_t adk_g722_encoder_test_case_0(void)
 {
     audio_pipeline_handle_t pipeline;
-    audio_element_handle_t wav_dec, array_strm, ob_spk_strm;
+    audio_element_handle_t g722_enc, array_stream, uart_stream;
 
     BK_LOGD(TAG, "--------- %s ----------\n", __func__);
     AUDIO_MEM_SHOW("start \n");
@@ -3005,37 +3004,38 @@ bk_err_t adk_wav_decoder_test_case_0(void)
     BK_LOGD(TAG, "--------- step2: init elements ----------\n");
     array_stream_cfg_t array_cfg = DEFAULT_ARRAY_STREAM_CONFIG();
     array_cfg.type = AUDIO_STREAM_READER;
-    array_strm = array_stream_init(&array_cfg);
-    TEST_CHECK_NULL(array_strm);
-    array_stream_set_data(array_strm, (uint8_t *)network_provision_16k_mono_16bit_en, sizeof(network_provision_16k_mono_16bit_en));
+    array_stream = array_stream_init(&array_cfg);
+    TEST_CHECK_NULL(array_stream);
+    array_stream_set_data(array_stream, (uint8_t *)network_provision_16k_mono_16bit_en, sizeof(network_provision_16k_mono_16bit_en));
 
-    wav_decoder_cfg_t wav_decoder_cfg = DEFAULT_WAV_DECODER_CONFIG();
-    wav_dec = wav_decoder_init(&wav_decoder_cfg);
-    TEST_CHECK_NULL(wav_dec);
+    g722_encoder_cfg_t g722_encoder_cfg = DEFAULT_G722_ENCODER_CONFIG();
+    g722_enc = g722_encoder_init(&g722_encoder_cfg);
+    TEST_CHECK_NULL(g722_enc);
 
-    onboard_speaker_stream_cfg_t ob_spk_cfg = ONBOARD_SPEAKER_STREAM_CFG_DEFAULT();
-    ob_spk_strm = onboard_speaker_stream_init(&ob_spk_cfg);
-    TEST_CHECK_NULL(ob_spk_strm);
+    uart_stream_cfg_t uart_cfg = DEFAULT_UART_STREAM_CONFIG();
+    uart_cfg.type = AUDIO_STREAM_WRITER;
+    uart_stream = uart_stream_init(&uart_cfg);
+    TEST_CHECK_NULL(uart_stream);
 
     BK_LOGD(TAG, "--------- step3: pipeline register ----------\n");
-    if (BK_OK != audio_pipeline_register(pipeline, array_strm, "array_strm"))
+    if (BK_OK != audio_pipeline_register(pipeline, array_stream, "array_stream"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
-    if (BK_OK != audio_pipeline_register(pipeline, wav_dec, "wav_dec"))
+    if (BK_OK != audio_pipeline_register(pipeline, g722_enc, "g722_enc"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
-    if (BK_OK != audio_pipeline_register(pipeline, ob_spk_strm, "ob_spk_strm"))
+    if (BK_OK != audio_pipeline_register(pipeline, uart_stream, "uart_stream"))
     {
         BK_LOGE(TAG, "register element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
     BK_LOGD(TAG, "--------- step4: pipeline link ----------\n");
-    if (BK_OK != audio_pipeline_link(pipeline, (const char *[]){"array_strm", "wav_dec", "ob_spk_strm"}, 3))
+    if (BK_OK != audio_pipeline_link(pipeline, (const char *[]){"array_stream", "g722_enc", "uart_stream"}, 3))
     {
         BK_LOGE(TAG, "pipeline link fail, %d \n", __LINE__);
         return BK_FAIL;
@@ -3044,7 +3044,6 @@ bk_err_t adk_wav_decoder_test_case_0(void)
     BK_LOGD(TAG, "--------- step5: init event listener ----------\n");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     audio_event_iface_handle_t evt = audio_event_iface_init(&evt_cfg);
-    TEST_CHECK_NULL(evt);
 
     if (BK_OK != audio_pipeline_set_listener(pipeline, evt))
     {
@@ -3070,19 +3069,8 @@ bk_err_t adk_wav_decoder_test_case_0(void)
         }
 
         if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT
-            && msg.source == (void *) wav_dec
-            && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
-        {
-            audio_element_info_t music_info = {0};
-            audio_element_getinfo(wav_dec, &music_info);
-            BK_LOGD(TAG, "[ * ] Receive music info from wav decoder, sample_rates=%d, bits=%d, ch=%d\n", music_info.sample_rates, music_info.bits, music_info.channels);
-            onboard_speaker_stream_set_param(ob_spk_strm, music_info.sample_rates, music_info.bits, music_info.channels);
-            continue;
-        }
-
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT
             && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
-            && msg.source == ob_spk_strm
+            && msg.source == uart_stream
             && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED)))
         {
             BK_LOGW(TAG, "[ * ] Stop event received \n");
@@ -3096,17 +3084,17 @@ bk_err_t adk_wav_decoder_test_case_0(void)
         BK_LOGE(TAG, "pipeline terminate fail, %d \n", __LINE__);
         return BK_FAIL;
     }
-    if (BK_OK != audio_pipeline_unregister(pipeline, array_strm))
-    {
-        BK_LOGE(TAG, "pipeline unregister fail, %d \n", __LINE__);
-        return BK_FAIL;
-    }
-    if (BK_OK != audio_pipeline_unregister(pipeline, wav_dec))
+    if (BK_OK != audio_pipeline_unregister(pipeline, array_stream))
     {
         BK_LOGE(TAG, "pipeline unregister element fail, %d \n", __LINE__);
         return BK_FAIL;
     }
-    if (BK_OK != audio_pipeline_unregister(pipeline, ob_spk_strm))
+    if (BK_OK != audio_pipeline_unregister(pipeline, g722_enc))
+    {
+        BK_LOGE(TAG, "pipeline unregister element fail, %d \n", __LINE__);
+        return BK_FAIL;
+    }
+    if (BK_OK != audio_pipeline_unregister(pipeline, uart_stream))
     {
         BK_LOGE(TAG, "pipeline unregister element fail, %d \n", __LINE__);
         return BK_FAIL;
@@ -3130,27 +3118,28 @@ bk_err_t adk_wav_decoder_test_case_0(void)
         return BK_FAIL;
     }
 
-    if (BK_OK != audio_element_deinit(array_strm))
+
+    if (BK_OK != audio_element_deinit(array_stream))
     {
         BK_LOGE(TAG, "element deinit fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
-    if (BK_OK != audio_element_deinit(wav_dec))
+    if (BK_OK != audio_element_deinit(g722_enc))
     {
         BK_LOGE(TAG, "element deinit fail, %d \n", __LINE__);
         return BK_FAIL;
     }
 
-    if (BK_OK != audio_element_deinit(ob_spk_strm))
+    if (BK_OK != audio_element_deinit(uart_stream))
     {
         BK_LOGE(TAG, "element deinit fail, %d \n", __LINE__);
         return BK_FAIL;
     }
-    BK_LOGD(TAG, "--------- wav decoder test complete ----------\n");
+
+    BK_LOGD(TAG, "--------- g722 encoder test complete ----------\n");
 
     AUDIO_MEM_SHOW("end \n");
 
     return BK_OK;
 }
-

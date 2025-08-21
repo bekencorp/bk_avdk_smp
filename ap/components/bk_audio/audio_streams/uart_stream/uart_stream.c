@@ -52,29 +52,7 @@ static int _uart_open(audio_element_handle_t self)
     {
         return BK_OK;
     }
-#if 0
-    if (uart_stream->uart_id == 0)
-    {
-        gpio_dev_unmap(GPIO_10);
-        gpio_dev_map(GPIO_10, GPIO_DEV_UART1_RXD);
-        gpio_dev_unmap(GPIO_11);
-        gpio_dev_map(GPIO_11, GPIO_DEV_UART1_TXD);
-    }
-    else if (uart_stream->uart_id == 2)
-    {
-        gpio_dev_unmap(GPIO_40);
-        gpio_dev_map(GPIO_40, GPIO_DEV_UART3_RXD);
-        gpio_dev_unmap(GPIO_41);
-        gpio_dev_map(GPIO_41, GPIO_DEV_UART3_TXD);
-    }
-    else if (uart_stream->uart_id == 1)
-    {
-        gpio_dev_unmap(GPIO_0);
-        gpio_dev_map(GPIO_0, GPIO_DEV_UART2_TXD);
-        gpio_dev_unmap(GPIO_1);
-        gpio_dev_map(GPIO_1, GPIO_DEV_UART2_RXD);
-    }
-#endif
+
     if (BK_OK != bk_uart_init(uart_stream->uart_id, &uart_stream->config))
     {
         BK_LOGE(TAG, "[%s] %s, %d, init uart fail \n", audio_element_get_tag(self), __func__, __LINE__);
@@ -220,10 +198,8 @@ audio_element_handle_t uart_stream_init(uart_stream_cfg_t *config)
     }
     else
     {
-        cfg.in_type = PORT_TYPE_RB;
-        cfg.read = NULL;
-        cfg.out_type = PORT_TYPE_RB;
-        cfg.write = NULL;
+        BK_LOGE(TAG, "uart type: %d, is not support, please check\n", config->type);
+        goto _uart_init_exit;
     }
 
     cfg.tag = "uart_stream";
