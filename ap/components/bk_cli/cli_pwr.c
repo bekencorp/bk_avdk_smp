@@ -82,9 +82,9 @@ void cli_pm_gpio_callback(gpio_id_t gpio_id)
 	}
 	BK_LOGD(NULL, "cli_pm_gpio_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
 }
-static bk_err_t cli_pm_rtc_sleep_wakeup_callback(pm_wakeup_source_e wake_source,void* param_p)
+static bk_err_t cli_pm_rtc_sleep_wakeup_callback(pm_sleep_mode_e sleep_mode,pm_wakeup_source_e wake_source,void* param_p)
 {
-    BK_LOGD(NULL,"%s[src:%d][param_p:%p]\r\n",__func__,wake_source,param_p);
+    BK_LOGD(NULL,"rtc sleep wakeup cb[mode:%d][src:%d][param_p:%p]\r\n",sleep_mode,wake_source,param_p);
     return BK_OK;
 }
 #define PM_MANUAL_LOW_VOL_VOTE_ENABLE    (0)
@@ -175,13 +175,16 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 		}
 		else
 		{
-			pm_ap_rtc_low_power_info_t low_power_info = {0};
-			low_power_info.period_tick = pm_param1;
-			low_power_info.period_cnt = pm_param2;
-			low_power_info.callback  = cli_pm_rtc_sleep_wakeup_callback;
-			low_power_info.param_p = NULL;
+			if(pm_param2 == 0)
+			{
+				pm_param2 = 0x1;
+			}
+			pm_ap_rtc_info_t low_power_info = {0};
+			low_power_info.period_tick                = pm_param1;
+			low_power_info.period_cnt                 = pm_param2;
+			low_power_info.callback                   = cli_pm_rtc_sleep_wakeup_callback;
+			low_power_info.param_p                    = NULL;
 			bk_pm_ap_rtc_regsiter_wakeup(pm_sleep_mode,&low_power_info);
-			bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_RTC, &low_power_info);
 		}
 	}
 	else if(pm_wake_source == PM_WAKEUP_SOURCE_INT_GPIO)
@@ -841,6 +844,7 @@ static const struct cli_command s_pwr_commands[] = {
 	{"pm", "pm [sleep_mode] [wake_source] [vote1] [vote2] [vote3] [param1] [param2] [param3]", cli_pm_cmd},
 	{"pm_vote", "pm_vote [pm_sleep_mode] [pm_vote] [pm_vote_value] [pm_sleep_time]", cli_pm_vote_cmd},
 	{"pm_debug", "pm_debug [debug_en_value]", cli_pm_debug},
+	{"pm_demo", "pm_demo {init||send_cmd|config_data}", cli_pm_demo_cmd},
 #endif //CONFIG_DEBUG_VERSION
 #endif //CONFIG_SYSTEM_CTRL
 };

@@ -79,7 +79,7 @@ typedef enum
     PM_AP_USING_SYS_WAKEUP_DEV_DEMO,
     PM_AP_USING_SYS_WAKEUP_DEV_MAX,
 }pm_ap_using_wakeup_dev_e;
-typedef bk_err_t (*system_wakeup_cb_fn)(pm_wakeup_source_e wake_source,void* param_p);
+typedef bk_err_t (*system_wakeup_cb_fn)(pm_sleep_mode_e sleep_mode,pm_wakeup_source_e wake_source,void* param_p);
 
 typedef struct
 {
@@ -87,7 +87,7 @@ typedef struct
 	uint32_t period_cnt;	//total period count == 0Xffffffff means forever period;else period how many times
 	system_wakeup_cb_fn callback;
 	void *param_p;
-}pm_ap_rtc_low_power_info_t;
+}pm_ap_rtc_info_t;
 
 typedef struct
 {
@@ -300,5 +300,5 @@ bk_err_t bk_pm_ap_core_send_msg(pm_ap_core_msg_t *msg);
  * - BK_OK: succeed
  * - others: other errors.
  */
-bk_err_t bk_pm_ap_rtc_regsiter_wakeup(pm_sleep_mode_e sleep_mode,pm_ap_rtc_low_power_info_t *low_power_info);
+bk_err_t bk_pm_ap_rtc_regsiter_wakeup(pm_sleep_mode_e sleep_mode,pm_ap_rtc_info_t *low_power_info);
 #endif
