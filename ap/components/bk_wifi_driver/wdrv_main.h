@@ -28,7 +28,7 @@ extern "C" {
 #define PTR_FROM_U32(type, addr) ((type *)(addr))
 #define PTR_TO_U32(addr) ((uint32_t)(addr))
 
-#define WDRV_QUEUE_LEN                          128
+#define WDRV_QUEUE_LEN                          192
 #define WDRV_TASK_PRIO                          2
 
 #define CPDU_LENGTH sizeof(struct cpdu_t)
@@ -106,9 +106,8 @@ enum wdrv_task_msg_evt
 
 struct wdrv_msg {
     uint32_t arg;
-    uint32_t len;
-    uint16_t type;
-    uint8_t  retry_flag;
+    uint16_t  type;
+    uint16_t  retry_flag;
 };
 
 enum ipc_buffer_status
