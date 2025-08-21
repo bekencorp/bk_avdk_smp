@@ -168,10 +168,10 @@ uint8_t wdrv_recv_buffer(void *param, uint32_t *payload)
                 struct pbuf * p = NULL;
                 p = (struct pbuf*)((struct pbuf*)head - 1);
                 ret = wdrv_msg_sender((uint32_t)p,WDRV_TASK_MSG_RXDATA,0);
-                //bk_mem_dump("wdrv_recv p",PTR_TO_U32(p),sizeof(struct pbuf)+8);qq
+                //bk_mem_dump("wdrv_recv p",PTR_TO_U32(p),sizeof(struct pbuf)+8);
                 if(ret != BK_OK)
                 {
-                    pbuf_free(p);
+                    BK_ASSERT(0);
                 }
                 break;
             }
