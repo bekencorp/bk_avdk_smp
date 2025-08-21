@@ -185,7 +185,12 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
 	cmd_par.cmd_data_len = in_buf_size;
 	cmd_par.out_buf_size = out_buf_size;
 
-    rtos_init_semaphore(&wait_shell_handle_semaphore,1);
+    ret = rtos_init_semaphore(&wait_shell_handle_semaphore,1);
+    if(ret != 0)
+    {
+        os_printf("Error: rtos_init_semaphore failed: %d\r\n",ret);
+        return ret;
+    }
 
     /* If you send  cli commands too quickly,it may cause memory exhaustion.
     Here we wait for enough memory before responding to command */
