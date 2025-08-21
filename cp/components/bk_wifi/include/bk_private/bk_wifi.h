@@ -428,6 +428,17 @@ uint8_t* wifi_netif_vif_to_mac(void *vif);
 int wifi_netif_vif_to_vifid(void *vif);
 
 /* bk_wifi_rw */
+
+/**
+ * @brief  Configure Wi-Fi error debug mode when Wi-Fi transmission errors occur.
+ *
+ * This API is used to enable Wi-Fi error debug mode for capturing complete dump
+ * information when Wi-Fi transmission issues like AC(x)_tx_dma_dead, PHY errors,
+ * or other Wi-Fi errors occur. This helps in analyzing and debugging Wi-Fi problems.
+ *
+ * @param  flag  set true to enable Wi-Fi error debug mode, false to disable.
+ */
+void bk_wifi_set_wifi_err_dbg(bool flag);
 int bk_wifi_sta_set_power(int power);
 int bk_wifi_ap_set_power(int power);
 uint32_t bk_wifi_get_mac_time(void);

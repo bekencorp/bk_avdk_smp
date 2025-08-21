@@ -2066,7 +2066,7 @@ void cli_pkt_debug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
     uint32_t cfg_bit = 0;
     int ret = 0;
 
-    if (argc != 2) {
+    if (argc < 2) {
         CLI_LOGD("invalid debug command %d\n",argc);
         goto error;
     }
@@ -2085,6 +2085,11 @@ void cli_pkt_debug_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
         CLI_LOGD("LWIP_RX_DBG_LOG_TCP          (1<<22)\r\n");
         CLI_LOGD("LWIP_TX_DBG_LOG_PING         (1<<24)\r\n");
         CLI_LOGD("LWIP_RX_DBG_LOG_PING         (1<<25)\r\n");
+    }
+    else if (os_strcmp(argv[1], "wifi_err_dbg") == 0)
+    {
+        CLI_LOGD("open Wi-Fi error debug log\r\n");
+        bk_wifi_set_wifi_err_dbg(os_strtoul(argv[2], NULL, 10));
     }
     else
     {
