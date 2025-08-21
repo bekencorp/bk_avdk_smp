@@ -61,13 +61,13 @@ static void low_pwr_core_gpio_callback(gpio_id_t gpio_id)
 static bk_err_t low_pwr_core_rtc_wakeup_config(low_pwr_core_msg_t* msg)
 {
 	bk_err_t ret = BK_OK;
-	uint32_t rtc_period = msg->param3;
-	LOGD("rtc cfg[%d]\r\n",rtc_period);
+	pm_rtc_wakeup_config_t *rtc_cfg = (pm_rtc_wakeup_config_t*)msg->param3;
+
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	alarm_info_t lv_alarm = {
 						"lv_rtc",
-						rtc_period*AON_RTC_MS_TICK_CNT,
-						1,
+						(rtc_cfg->rtc_period)*AON_RTC_MS_TICK_CNT,
+						rtc_cfg->rtc_cnt,
 						low_pwr_core_rtc_callback,
 						NULL
 						};
