@@ -65,9 +65,8 @@
 #define RSP_DATA_DUMP
 #ifdef RSP_DATA_DUMP
 
-/* dump rsp data by uart or tfcard, only choose one */
+/* dump rsp data by uart */
 #define RSP_DATA_DUMP_BY_UART      (0)
-//#define RSP_DATA_DUMP_BY_TFCARD       /* you must sure CONFIG_FATFS=y */
 
 #if RSP_DATA_DUMP_BY_UART
 #include <components/bk_audio/audio_utils/uart_util.h>
@@ -112,14 +111,6 @@ static count_util_t aud_rsp_count_util = {0};
 #define AUD_RSP_DATA_COUNT_ADD_SIZE(size)
 
 #endif  //AUD_RSP_DATA_COUNT
-
-#ifdef RSP_DATA_DUMP_BY_TFCARD
-#include "tfcard_util.h"
-static tfcard_util_handle_t g_rsp_tfcard_util_before = NULL;
-static tfcard_util_handle_t g_rsp_tfcard_util_after = NULL;
-#define RSP_DATA_DUMP_TFCARD_BEFORE_NAME    "rsp_before.pcm"
-#define RSP_DATA_DUMP_TFCARD_AFTER_NAME     "rsp_after.pcm"
-#endif
 
 #endif  //RSP_DATA_DUMP
 
