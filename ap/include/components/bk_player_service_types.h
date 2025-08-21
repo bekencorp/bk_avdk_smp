@@ -16,7 +16,7 @@
 #ifndef __BK_PLAYER_SERVICE_TYPES__
 #define __BK_PLAYER_SERVICE_TYPES__
 
-#include <components/avdk_types.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_audio/audio_streams/onboard_speaker_stream.h>
 #include <components/bk_audio/audio_streams/uac_speaker_stream.h>
 

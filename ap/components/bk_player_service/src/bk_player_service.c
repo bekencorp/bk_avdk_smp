@@ -17,7 +17,7 @@
 #include <components/bk_audio/audio_decoders/aac_decoder.h>
 #include <components/bk_audio/audio_decoders/wav_decoder.h>
 
-#include <components/avdk_types.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_player_service.h>
 #include <components/bk_player_service_types.h>
 #include <driver/pwr_clk.h>

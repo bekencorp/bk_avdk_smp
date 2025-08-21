@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-#include <components/bk_audio/audio_pipeline/audio_type_def.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 
 #define ELEMENT_SUB_TYPE_OFFSET 16
 

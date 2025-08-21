@@ -3,7 +3,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-#include <components/avdk_types.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_audio_asr_service.h>
 #include <components/bk_audio_asr_service_types.h>
 #include <driver/pwr_clk.h>

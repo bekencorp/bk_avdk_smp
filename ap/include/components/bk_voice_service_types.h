@@ -14,7 +14,7 @@
 #include <components/bk_audio/audio_streams/uac_speaker_stream.h>
 #include <components/bk_audio/audio_encoders/g722_encoder.h>
 #include <components/bk_audio/audio_decoders/g722_decoder.h>
-#include "avdk_types.h"
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 
 
 #ifdef  __cplusplus

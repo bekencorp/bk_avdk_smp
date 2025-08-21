@@ -3,7 +3,7 @@
 #include <components/bk_audio/audio_streams/raw_stream.h>
 
 #include <components/bk_audio/audio_algorithms/rsp_algorithm.h>
-#include "avdk_types.h"
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>

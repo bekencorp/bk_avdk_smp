@@ -6,7 +6,7 @@
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_thread.h>
 #include <components/bk_audio/audio_pipeline/rb_port.h>
-#include <components/avdk_types.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_voice_service.h>
 #include <components/bk_voice_service_types.h>
 #include <driver/pwr_clk.h>

@@ -20,7 +20,6 @@
 #include <os/str.h>
 #include <stdint.h>
 #include <components/bk_audio/audio_pipeline/audio_port.h>
-#include <components/bk_audio/audio_pipeline/audio_type_def.h>
 #include <components/bk_audio/audio_pipeline/framebuf.h>
 
 #ifdef __cplusplus
