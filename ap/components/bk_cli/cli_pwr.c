@@ -84,7 +84,13 @@ void cli_pm_gpio_callback(gpio_id_t gpio_id)
 }
 static bk_err_t cli_pm_rtc_sleep_wakeup_callback(pm_sleep_mode_e sleep_mode,pm_wakeup_source_e wake_source,void* param_p)
 {
-    BK_LOGD(NULL,"rtc sleep wakeup cb[mode:%d][src:%d][param_p:%p]\r\n",sleep_mode,wake_source,param_p);
+	pm_ap_core_msg_t msg = {0};
+	msg.event= PM_AP_CORE_SLEEP_DEMO_HANDLE;
+	msg.param1 = PM_MODE_LOW_VOLTAGE;
+	msg.param2 = PM_WAKEUP_SOURCE_INT_RTC;
+	msg.param3 = 0;
+	bk_pm_ap_core_send_msg(&msg);
+	BK_LOGD(NULL,"rtc sleep wakeup cb[mode:%d][src:%d][param_p:%p]\r\n",sleep_mode,wake_source,param_p);
     return BK_OK;
 }
 #define PM_MANUAL_LOW_VOL_VOTE_ENABLE    (0)
