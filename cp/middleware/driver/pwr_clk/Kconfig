@@ -73,5 +73,8 @@ menu "PWR_CLK"
 	config PM_LV_SUBCORES_ON
 		bool "CPU0 and CPU1,CPU2 ON when enter low voltage"
 		default n
+	config PM_LV_GPIO_WAKEUP_CALL_MAC_CB
+		bool "when gpio wakeup , call mac callback when lv sleep mode"
+		default y
 	endmenu
 

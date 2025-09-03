@@ -1672,6 +1672,7 @@ static void pm_low_voltage_resource_restore()
 		{
 			if (dev_id == PM_DEV_ID_MAC)
 			{
+				#if CONFIG_PM_LV_GPIO_WAKEUP_CALL_MAC_CB
 				if (bk_pm_exit_low_vol_wakeup_source_get() == PM_WAKEUP_SOURCE_INT_GPIO)
 				{
 					s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].cb(0, s_pm_lowvol_enter_exit_cb_conf[PM_SLEEP_CB_EXIT_LOWVOL_INDEX][dev_id].args);
@@ -1681,6 +1682,7 @@ static void pm_low_voltage_resource_restore()
 					}
 				}
 				else
+				#endif
 				{
 					continue;
 				}
