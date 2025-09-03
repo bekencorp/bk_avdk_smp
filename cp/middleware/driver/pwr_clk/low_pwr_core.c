@@ -167,7 +167,7 @@ static bk_err_t low_pwr_core_message_handle(void)
     while (1)
     {
         ret = rtos_pop_from_queue(&s_pm_info->queue, &msg, BEKEN_WAIT_FOREVER);
-		LOGD("LP event:%d\n", msg.event);
+		LOGV("LP event:%d\n", msg.event);
         if (kNoErr == ret)
         {
             switch (msg.event)

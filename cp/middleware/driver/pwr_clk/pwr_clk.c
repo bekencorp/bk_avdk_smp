@@ -265,7 +265,7 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 	{
 		if(cmd_buf->hdr.cmd != PM_CP1_PSRAM_MALLOC_STATE_CMD)
 		{
-			BK_LOGD(NULL,"cp0_mb_rx_isr %d %d %d %d %d\r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2,cmd_buf->param3,ret);
+			BK_LOGV(NULL,"cp0_mb_rx_isr %d %d %d %d %d\r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2,cmd_buf->param3,ret);
 		}
 	}
 
@@ -674,12 +674,12 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 bk_err_t pm_debug_pwr_clk_state()
 {
 #if CONFIG_PSRAM
-	BK_LOGD(NULL,"pm_psram:0x%x 0x%x\r\n",s_pm_psram_ctrl_state,bk_psram_heap_init_flag_get());
+	BK_LOGI(NULL,"pm_psram:0x%x 0x%x\r\n",s_pm_psram_ctrl_state,bk_psram_heap_init_flag_get());
 #endif
 #if (CONFIG_CPU_CNT > 1)
-	BK_LOGD(NULL,"pm_cp1_ctr:0x%x \r\n",s_pm_cp1_ctrl_state);
+	BK_LOGI(NULL,"pm_cp1_ctr:0x%x \r\n",s_pm_cp1_ctrl_state);
 #endif
-	BK_LOGD(NULL,"pm_cp1_boot_ready:0x%x 0x%x\r\n",s_pm_cp1_boot_ready,s_pm_cp1_module_recovery_state);
+	BK_LOGI(NULL,"pm_cp1_boot_ready:0x%x 0x%x\r\n",s_pm_cp1_boot_ready,s_pm_cp1_module_recovery_state);
 	return BK_OK;
 }
 uint32_t bk_pm_get_psram_ctrl_state()
