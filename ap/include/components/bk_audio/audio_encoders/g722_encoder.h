@@ -16,7 +16,6 @@
 #define _G722_ENCODER_H_
 
 #include <components/bk_audio/audio_pipeline/audio_element.h>
-#include <modules/g722.h>
 
 #ifdef __cplusplus
 extern "C" {

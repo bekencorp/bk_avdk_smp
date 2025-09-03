@@ -13,8 +13,8 @@
 // limitations under the License.
 
 
-#if !defined(_G722_H_)
-#define _G722_H_
+#if !defined(_BK_G722_H_)
+#define _BK_G722_H_
 
 #include <stdint.h>
 
@@ -103,15 +103,15 @@ typedef struct {
 extern "C" {
 #endif
 
-int g722_encode_init(g722_encode_state_t *s, int rate, int options);
-int g722_encode_release(g722_encode_state_t *s);
-int g722_encode(g722_encode_state_t *s, uint8_t g722_data[], const int16_t amp[], int len);
+int bk_g722_encode_init(g722_encode_state_t *s, int rate, int options);
+int bk_g722_encode_release(g722_encode_state_t *s);
+int bk_g722_encode(g722_encode_state_t *s, uint8_t g722_data[], const int16_t amp[], int len);
 
-int g722_decode_init(g722_decode_state_t *s, int rate, int options);
-int g722_decode_release(g722_decode_state_t *s);
-int g722_decode(g722_decode_state_t *s, int16_t amp[], const uint8_t g722_data[], int len);
+int bk_g722_decode_init(g722_decode_state_t *s, int rate, int options);
+int bk_g722_decode_release(g722_decode_state_t *s);
+int bk_g722_decode(g722_decode_state_t *s, int16_t amp[], const uint8_t g722_data[], int len);
 
 #ifdef __cplusplus
 }
 #endif
-#endif
+#endif /* _BK_G722_H_ */

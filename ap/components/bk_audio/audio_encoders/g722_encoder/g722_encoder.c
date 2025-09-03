@@ -23,7 +23,7 @@
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
-#include <modules/g722.h>
+#include <modules/bk_g722.h>
 
 
 #define TAG  "G722_ENC"
@@ -64,7 +64,7 @@ static bk_err_t _g722_encoder_open(audio_element_handle_t self)
     g722_encoder_t *g722_enc = (g722_encoder_t *)audio_element_getdata(self);
 
     // Initialize G722 encoder
-    g722_encode_init(&g722_enc->enc_state, g722_enc->rate, 0);
+    bk_g722_encode_init(&g722_enc->enc_state, g722_enc->rate, 0);
 
     return BK_OK;
 }
@@ -75,7 +75,7 @@ static bk_err_t _g722_encoder_close(audio_element_handle_t self)
     g722_encoder_t *g722_enc = (g722_encoder_t *)audio_element_getdata(self);
 
     // Release G722 encoder
-    g722_encode_release(&g722_enc->enc_state);
+    bk_g722_encode_release(&g722_enc->enc_state);
 
     return BK_OK;
 }
@@ -105,7 +105,7 @@ static int _g722_encoder_process(audio_element_handle_t self, char *in_buffer, i
         int16_t *linear = (int16_t *)in_buffer;
 
         // Encode using G722
-        int encoded_len = g722_encode(&g722_enc->enc_state, g722_out_ptr, linear, r_size / 2);
+        int encoded_len = bk_g722_encode(&g722_enc->enc_state, g722_out_ptr, linear, r_size / 2);
 
         G722_ENC_DATA_DUMP_BY_UART_DATA(g722_out_ptr, encoded_len);
 

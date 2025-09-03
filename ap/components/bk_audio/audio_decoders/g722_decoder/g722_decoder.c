@@ -23,7 +23,7 @@
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
-#include <modules/g722.h>
+#include <modules/bk_g722.h>
 #include <os/os.h>
 
 
@@ -93,10 +93,10 @@ static bk_err_t _g722_decoder_open(audio_element_handle_t self)
     g722_dec->state = audio_malloc(sizeof(g722_decode_state_t));
     AUDIO_MEM_CHECK(TAG, g722_dec->state, return BK_ERR_ADK_FAIL);
 
-    int ret = g722_decode_init(g722_dec->state, g722_dec->rate, g722_dec->options);
+    int ret = bk_g722_decode_init(g722_dec->state, g722_dec->rate, g722_dec->options);
     if (ret != 0)
     {
-        BK_LOGE(TAG, "g722_decode_init failed, ret: %d\n", ret);
+        BK_LOGE(TAG, "bk_g722_decode_init failed, ret: %d\n", ret);
         audio_free(g722_dec->state);
         g722_dec->state = NULL;
         return BK_ERR_ADK_FAIL;
@@ -112,7 +112,7 @@ static bk_err_t _g722_decoder_close(audio_element_handle_t self)
 
     if (g722_dec->state)
     {
-        g722_decode_release(g722_dec->state);
+        bk_g722_decode_release(g722_dec->state);
         audio_free(g722_dec->state);
         g722_dec->state = NULL;
     }
@@ -147,7 +147,7 @@ static int _g722_decoder_process(audio_element_handle_t self, char *in_buffer, i
         AUDIO_MEM_CHECK(TAG, g722_out_ptr, return -1);
 
         // Decode G722 data
-        int decoded_len = g722_decode(g722_dec->state, g722_out_ptr, (uint8_t *)in_buffer, r_size);
+        int decoded_len = bk_g722_decode(g722_dec->state, g722_out_ptr, (uint8_t *)in_buffer, r_size);
         if (decoded_len < 0)
         {
             BK_LOGE(TAG, "g722_decode failed, ret: %d\n", decoded_len);
@@ -179,7 +179,7 @@ static bk_err_t _g722_decoder_destroy(audio_element_handle_t self)
 
     if (g722_dec->state)
     {
-        g722_decode_release(g722_dec->state);
+        bk_g722_decode_release(g722_dec->state);
         audio_free(g722_dec->state);
     }
 

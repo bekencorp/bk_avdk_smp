@@ -16,7 +16,7 @@
 #define _G722_DECODER_H_
 
 #include <components/bk_audio/audio_pipeline/audio_element.h>
-#include <modules/g722.h>
+#include <modules/bk_g722.h>
 
 #ifdef __cplusplus
 extern "C" {
