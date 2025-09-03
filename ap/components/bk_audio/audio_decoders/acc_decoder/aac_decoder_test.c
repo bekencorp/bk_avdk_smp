@@ -184,8 +184,7 @@ bk_err_t adk_aac_decoder_test_case_0(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) aac_dec
-            && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
+        if (msg.source == (void *) aac_dec && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
         {
             audio_element_info_t music_info = {0};
             audio_element_getinfo(aac_dec, &music_info);
@@ -194,8 +193,7 @@ bk_err_t adk_aac_decoder_test_case_0(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT
-            && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
+        if (msg.cmd == AEL_MSG_CMD_REPORT_STATUS
             && (((int)msg.data == AEL_STATUS_STATE_STOPPED)
                 || ((int)msg.data == AEL_STATUS_STATE_FINISHED)
                 || (int)msg.data == AEL_STATUS_ERROR_PROCESS))
@@ -397,8 +395,7 @@ bk_err_t adk_aac_decoder_test_case_1(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) aac_dec
-            && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
+        if (msg.source == (void *) aac_dec && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
         {
             audio_element_info_t music_info = {0};
             audio_element_getinfo(aac_dec, &music_info);
@@ -407,8 +404,7 @@ bk_err_t adk_aac_decoder_test_case_1(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT
-            && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
+        if (msg.cmd == AEL_MSG_CMD_REPORT_STATUS
             && (((int)msg.data == AEL_STATUS_STATE_STOPPED)
                 || ((int)msg.data == AEL_STATUS_STATE_FINISHED)
                 || (int)msg.data == AEL_STATUS_ERROR_PROCESS))

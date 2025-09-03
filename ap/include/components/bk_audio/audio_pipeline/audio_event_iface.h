@@ -31,7 +31,6 @@ typedef struct
     void *data;             /*!< Data pointer */
     int data_len;           /*!< Data length */
     void *source;           /*!< Source event */
-    int source_type;        /*!< Source type (To know where it came from) */
     bool need_free_data;    /*!< Need to free data pointer after the event has been processed */
 } audio_event_iface_msg_t;
 

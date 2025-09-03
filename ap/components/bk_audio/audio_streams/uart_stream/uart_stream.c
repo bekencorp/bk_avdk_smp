@@ -20,7 +20,7 @@
 #include "semphr.h"
 #include "task.h"
 #include <components/bk_audio/audio_streams/uart_stream.h>
-#include <components/bk_audio/audio_pipeline/audio_common.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
@@ -34,8 +34,8 @@ typedef struct uart_stream
 {
     uint8_t                 uart_id;        /**< Uart id */
     audio_stream_type_t     type;           /**< Type of stream */
-    int                     out_block_size; /*!< Size of output block */
-    int                     out_block_num;  /*!< Number of output block */
+    int                     out_block_size; /**< Size of output block */
+    int                     out_block_num;  /**< Number of output block */
     int                     buffer_len;     /**< Size of read every time */
     uart_config_t           config;         /**< uart config */
     bool                    is_open;        /**< uart enable, true: enable, false: disable */

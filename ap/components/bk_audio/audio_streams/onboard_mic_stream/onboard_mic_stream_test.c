@@ -130,8 +130,7 @@ bk_err_t adk_onboard_mic_test_case_0(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT
-            && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
+        if (msg.cmd == AEL_MSG_CMD_REPORT_STATUS
             && (((int)(uintptr_t)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)(uintptr_t)msg.data == AEL_STATUS_STATE_FINISHED)))
         {
             BK_LOGW(TAG, "[ * ] Stop event received \n");

@@ -17,7 +17,7 @@
 
 #include <components/bk_audio/audio_pipeline/audio_event_iface.h>
 #include <components/bk_audio/audio_pipeline/audio_port.h>
-#include <components/bk_audio/audio_pipeline/audio_common.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <os/os.h>
 
 #ifdef __cplusplus

@@ -487,7 +487,7 @@ static void asr_listener_task_main(beken_thread_arg_t param_data)
             ret = audio_event_iface_listen(asr_handle->asr_evt, &event_msg, 20 / portTICK_RATE_MS);//portMAX_DELAY
             if (ret == BK_OK)
             {
-                if (event_msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && event_msg.cmd == AEL_MSG_CMD_REPORT_STATUS)
+                if (event_msg.cmd == AEL_MSG_CMD_REPORT_STATUS)
                 {
                     el_status = (int)(uintptr_t)event_msg.data;
                     switch (el_status)

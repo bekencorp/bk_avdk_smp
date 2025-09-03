@@ -20,6 +20,12 @@ extern "C"
 {
 #endif
 
+typedef enum
+{
+    AUDIO_STREAM_NONE = 0,
+    AUDIO_STREAM_READER,
+    AUDIO_STREAM_WRITER
+} audio_stream_type_t;
 
 typedef enum
 {

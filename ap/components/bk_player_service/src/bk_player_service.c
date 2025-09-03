@@ -420,131 +420,128 @@ static void listener_task_main(beken_thread_arg_t param_data)
             ret = audio_event_iface_listen(player_handle->play_evt, &event_msg, 10 / portTICK_RATE_MS);//portMAX_DELAY
             if (ret == BK_OK)
             {
-                if (event_msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT)
+                //BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p, player state: %d\n", __func__, __LINE__, (int)event_msg.data, event_msg.source, player_handle->state);
+                if (event_msg.cmd == AEL_MSG_CMD_REPORT_STATUS)
                 {
-                    //BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p, player state: %d\n", __func__, __LINE__, (int)event_msg.data, event_msg.source, player_handle->state);
-                    if (event_msg.cmd == AEL_MSG_CMD_REPORT_STATUS)
+                    el_status = (int)(uintptr_t)event_msg.data;
+                    switch (el_status)
                     {
-                        el_status = (int)(uintptr_t)event_msg.data;
-                        switch (el_status)
-                        {
-                            case AEL_STATUS_ERROR_OPEN:
-                            case AEL_STATUS_ERROR_INPUT:
-                            case AEL_STATUS_ERROR_PROCESS:
-                            case AEL_STATUS_ERROR_OUTPUT:
-                            case AEL_STATUS_ERROR_CLOSE:
-                            case AEL_STATUS_ERROR_TIMEOUT:
-                            case AEL_STATUS_ERROR_UNKNOWN:
-                                if (player_handle->state == PLAYER_STATE_PLAYING)
+                        case AEL_STATUS_ERROR_OPEN:
+                        case AEL_STATUS_ERROR_INPUT:
+                        case AEL_STATUS_ERROR_PROCESS:
+                        case AEL_STATUS_ERROR_OUTPUT:
+                        case AEL_STATUS_ERROR_CLOSE:
+                        case AEL_STATUS_ERROR_TIMEOUT:
+                        case AEL_STATUS_ERROR_UNKNOWN:
+                            if (player_handle->state == PLAYER_STATE_PLAYING)
+                            {
+                                BK_LOGW(TAG, "%s, %d, ++>>record pipeline event received, state: %d, ele: %p\n", __func__, __LINE__, (int)event_msg.data, event_msg.source);
+                                /* stop voice pipeline */
+                                bk_player_stop(player_handle);
+                                audio_pipeline_reset_port(player_handle->play_pipeline);
+                                audio_pipeline_reset_elements(player_handle->play_pipeline);
+                                audio_pipeline_change_state(player_handle->play_pipeline, AEL_STATE_INIT);
+#if 0
+                                if ((audio_element_handle_t)event_msg.source == player_handle->mic_str)
                                 {
-                                    BK_LOGW(TAG, "%s, %d, ++>>record pipeline event received, state: %d, ele: %p\n", __func__, __LINE__, (int)event_msg.data, event_msg.source);
-                                    /* stop voice pipeline */
+                                    bk_voice_event_handle(player_handle->event_handle, VOC_EVT_MIC_NOT_SUPPORT, NULL, player_handle->args);
+                                }
+                                else
+                                {
+                                    bk_voice_event_handle(player_handle->event_handle, VOC_EVT_ERROR_UNKNOW, NULL, player_handle->args);
+                                }
+#endif
+                                /* stop listener */
+                                player_handle->listener_is_running = false;
+                                wait_time = BEKEN_WAIT_FOREVER;
+                                continue;
+                            }
+                            break;
+
+                        case AEL_STATUS_STATE_STOPPED:
+                        case AEL_STATUS_STATE_FINISHED:
+                            BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p\n", __func__, __LINE__, (int)event_msg.data, event_msg.source);
+                            if (player_handle->spk_str)
+                            {
+                                /* Stop the player when receiving a finish status report from the speaker stream */
+                                if (el_status == AEL_STATUS_STATE_FINISHED && event_msg.source == player_handle->spk_str && player_handle->state == PLAYER_STATE_PLAYING)
+                                {
+                                    //BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p\n", __func__, __LINE__, (int)event_msg.data, event_msg.source);
+                                    /* stop play pipeline */
                                     bk_player_stop(player_handle);
                                     audio_pipeline_reset_port(player_handle->play_pipeline);
                                     audio_pipeline_reset_elements(player_handle->play_pipeline);
                                     audio_pipeline_change_state(player_handle->play_pipeline, AEL_STATE_INIT);
-    #if 0
-                                    if ((audio_element_handle_t)event_msg.source == player_handle->mic_str)
+                                    if (player_handle->event_handle)
                                     {
-                                        bk_voice_event_handle(player_handle->event_handle, VOC_EVT_MIC_NOT_SUPPORT, NULL, player_handle->args);
+                                        player_handle->event_handle(PLAYER_EVENT_STOP, NULL, player_handle->args);
                                     }
-                                    else
-                                    {
-                                        bk_voice_event_handle(player_handle->event_handle, VOC_EVT_ERROR_UNKNOW, NULL, player_handle->args);
-                                    }
-    #endif
                                     /* stop listener */
                                     player_handle->listener_is_running = false;
                                     wait_time = BEKEN_WAIT_FOREVER;
                                     continue;
                                 }
-                                break;
-
-                            case AEL_STATUS_STATE_STOPPED:
-                            case AEL_STATUS_STATE_FINISHED:
-                                BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p\n", __func__, __LINE__, (int)event_msg.data, event_msg.source);
-                                if (player_handle->spk_str)
+                            }
+                            else
+                            {
+                                //BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p, player state: %d\n", __func__, __LINE__, (int)event_msg.data, event_msg.source, player_handle->state);
+                                /* Stop the player when receiving a finish status report from the speaker stream */
+                                if (player_handle->spk_dec && el_status == AEL_STATUS_STATE_FINISHED && event_msg.source == player_handle->spk_dec && player_handle->state == PLAYER_STATE_PLAYING)
                                 {
-                                    /* Stop the player when receiving a finish status report from the speaker stream */
-                                    if (el_status == AEL_STATUS_STATE_FINISHED && event_msg.source == player_handle->spk_str && player_handle->state == PLAYER_STATE_PLAYING)
+                                    /* stop play pipeline */
+                                    bk_player_stop(player_handle);
+                                    audio_pipeline_reset_port(player_handle->play_pipeline);
+                                    audio_pipeline_reset_elements(player_handle->play_pipeline);
+                                    audio_pipeline_change_state(player_handle->play_pipeline, AEL_STATE_INIT);
+                                    if (player_handle->event_handle)
                                     {
-                                        //BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p\n", __func__, __LINE__, (int)event_msg.data, event_msg.source);
-                                        /* stop play pipeline */
-                                        bk_player_stop(player_handle);
-                                        audio_pipeline_reset_port(player_handle->play_pipeline);
-                                        audio_pipeline_reset_elements(player_handle->play_pipeline);
-                                        audio_pipeline_change_state(player_handle->play_pipeline, AEL_STATE_INIT);
-                                        if (player_handle->event_handle)
-                                        {
-                                            player_handle->event_handle(PLAYER_EVENT_STOP, NULL, player_handle->args);
-                                        }
-                                        /* stop listener */
-                                        player_handle->listener_is_running = false;
-                                        wait_time = BEKEN_WAIT_FOREVER;
-                                        continue;
+                                        player_handle->event_handle(PLAYER_EVENT_STOP, NULL, player_handle->args);
                                     }
+                                    /* stop listener */
+                                    player_handle->listener_is_running = false;
+                                    wait_time = BEKEN_WAIT_FOREVER;
+                                    continue;
                                 }
-                                else
-                                {
-                                    //BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p, player state: %d\n", __func__, __LINE__, (int)event_msg.data, event_msg.source, player_handle->state);
-                                    /* Stop the player when receiving a finish status report from the speaker stream */
-                                    if (player_handle->spk_dec && el_status == AEL_STATUS_STATE_FINISHED && event_msg.source == player_handle->spk_dec && player_handle->state == PLAYER_STATE_PLAYING)
-                                    {
-                                        /* stop play pipeline */
-                                        bk_player_stop(player_handle);
-                                        audio_pipeline_reset_port(player_handle->play_pipeline);
-                                        audio_pipeline_reset_elements(player_handle->play_pipeline);
-                                        audio_pipeline_change_state(player_handle->play_pipeline, AEL_STATE_INIT);
-                                        if (player_handle->event_handle)
-                                        {
-                                            player_handle->event_handle(PLAYER_EVENT_STOP, NULL, player_handle->args);
-                                        }
-                                        /* stop listener */
-                                        player_handle->listener_is_running = false;
-                                        wait_time = BEKEN_WAIT_FOREVER;
-                                        continue;
-                                    }
-                                }
-                                break;
+                            }
+                            break;
 
 
-                            default:
-                                break;
-                        }
+                        default:
+                            break;
                     }
-                    else if (event_msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO && event_msg.source == player_handle->spk_dec)
-                    {
-                        audio_element_info_t music_info = {0};
-                        audio_element_getinfo(player_handle->spk_dec, &music_info);
-                        BK_LOGD(TAG, "[ * ] Receive music info from spk decoder, sample_rates=%d, bits=%d, ch=%d \n", music_info.sample_rates, music_info.bits, music_info.channels);
+                }
+                else if (event_msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO && event_msg.source == player_handle->spk_dec)
+                {
+                    audio_element_info_t music_info = {0};
+                    audio_element_getinfo(player_handle->spk_dec, &music_info);
+                    BK_LOGD(TAG, "[ * ] Receive music info from spk decoder, sample_rates=%d, bits=%d, ch=%d \n", music_info.sample_rates, music_info.bits, music_info.channels);
 
-                        if (player_handle->spk_str)
+                    if (player_handle->spk_str)
+                    {
+                        if (player_handle->spk_type == SPK_TYPE_ONBOARD)
                         {
-                            if (player_handle->spk_type == SPK_TYPE_ONBOARD)
-                            {
-                                //audio_element_setinfo(player_handle->spk_str, &music_info);
-                                onboard_speaker_stream_set_param(player_handle->spk_str, music_info.sample_rates, music_info.bits, music_info.channels);
-                            }
-                            else if (player_handle->spk_type == SPK_TYPE_UAC)
-                            {
-                                /* Not support */
-                                //TODO
-                                BK_LOGD(TAG, "Dynamic switching of UAC speaker format information is not supported \n");
-                            }
+                            //audio_element_setinfo(player_handle->spk_str, &music_info);
+                            onboard_speaker_stream_set_param(player_handle->spk_str, music_info.sample_rates, music_info.bits, music_info.channels);
                         }
-                        else
+                        else if (player_handle->spk_type == SPK_TYPE_UAC)
                         {
-                            if (player_handle->event_handle)
-                            {
-                                player_handle->event_handle(PLAYER_EVENT_MUSIC_INFO,  &music_info, player_handle->args);
-                            }
+                            /* Not support */
+                            //TODO
+                            BK_LOGD(TAG, "Dynamic switching of UAC speaker format information is not supported \n");
                         }
                     }
                     else
                     {
-                        BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p\n", __func__, __LINE__, (int)event_msg.data, event_msg.source);
-                        //TODO
+                        if (player_handle->event_handle)
+                        {
+                            player_handle->event_handle(PLAYER_EVENT_MUSIC_INFO,  &music_info, player_handle->args);
+                        }
                     }
+                }
+                else
+                {
+                    BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p\n", __func__, __LINE__, (int)event_msg.data, event_msg.source);
+                    //TODO
                 }
             }
         }

@@ -796,8 +796,7 @@ bk_err_t adk_mp3_decoder_test_case_0(void)
         }
 
         // 处理解码器音乐信息报告
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == mp3_dec &&
-            msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
+        if (msg.source == mp3_dec && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
         {
             audio_element_info_t music_info = {0};
             audio_element_getinfo(mp3_dec, &music_info);
@@ -809,9 +808,7 @@ bk_err_t adk_mp3_decoder_test_case_0(void)
         }
 
         // 处理播放完成或错误事件
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT &&
-            msg.cmd == AEL_MSG_CMD_REPORT_STATUS
-            && msg.source == speaker_stream)
+        if (msg.cmd == AEL_MSG_CMD_REPORT_STATUS && msg.source == speaker_stream)
         {
             int status = (int)msg.data;
             if (status == AEL_STATUS_STATE_STOPPED || status == AEL_STATUS_STATE_FINISHED ||

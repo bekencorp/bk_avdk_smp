@@ -21,7 +21,7 @@
 #include "task.h"
 #include <components/bk_audio/audio_pipeline/bsd_queue.h>
 #include <components/bk_audio/audio_streams/onboard_speaker_stream.h>
-#include <components/bk_audio/audio_pipeline/audio_common.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <components/bk_audio/audio_pipeline/audio_port.h>

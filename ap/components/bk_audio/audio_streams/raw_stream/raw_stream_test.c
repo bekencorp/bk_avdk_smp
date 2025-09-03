@@ -169,8 +169,7 @@ bk_err_t adk_raw_test_case_0(void)
         bk_err_t ret = audio_event_iface_listen(evt, &msg, 0);//portMAX_DELAY
         if (ret == BK_OK)
         {
-            if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT
-                && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
+            if (msg.cmd == AEL_MSG_CMD_REPORT_STATUS
                 && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED)))
             {
                 BK_LOGW(TAG, "[ * ] Stop event received \n");

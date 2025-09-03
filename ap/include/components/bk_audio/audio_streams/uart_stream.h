@@ -17,7 +17,7 @@
 #define _UART_STREAM_H_
 
 #include <components/bk_audio/audio_pipeline/audio_element.h>
-#include <components/bk_audio/audio_pipeline/audio_common.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <driver/uart.h>
 
 

@@ -154,7 +154,6 @@ static bk_err_t audio_element_cmd_send(audio_element_handle_t el, audio_element_
     audio_event_iface_msg_t msg =
     {
         .source = el,
-        .source_type = AUDIO_ELEMENT_TYPE_ELEMENT,
         .cmd = cmd,
     };
     BK_LOGD(TAG, "[%s]evt internal cmd = %d \n", el->tag, msg.cmd);
@@ -164,7 +163,6 @@ static bk_err_t audio_element_cmd_send(audio_element_handle_t el, audio_element_
 static bk_err_t audio_element_msg_sendout(audio_element_handle_t el, audio_event_iface_msg_t *msg)
 {
     msg->source = el;
-    msg->source_type = AUDIO_ELEMENT_TYPE_ELEMENT;
     if (el->events_type == EVENTS_TYPE_CB && el->callback_event.cb)
     {
         return el->callback_event.cb(el, msg, el->callback_event.ctx);
@@ -321,11 +319,6 @@ static bk_err_t audio_element_on_cmd(audio_event_iface_msg_t *msg, void *context
 {
     audio_element_handle_t el = (audio_element_handle_t)context;
 
-    if (msg->source_type != AUDIO_ELEMENT_TYPE_ELEMENT)
-    {
-        BK_LOGE(TAG, "[%s] Invalid event type, this event should be ELEMENT type \n", el->tag);
-        return BK_FAIL;
-    }
     bk_err_t ret = BK_OK;
     //process an event
     switch (msg->cmd)

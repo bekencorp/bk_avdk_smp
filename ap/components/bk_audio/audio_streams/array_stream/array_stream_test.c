@@ -395,8 +395,7 @@ bk_err_t adk_array_stream_test_case_0(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT && msg.source == (void *) array_stream_writer
-            && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
+        if (msg.source == (void *) array_stream_writer && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
             && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED)))
         {
             BK_LOGW(TAG, "[ * ] Stop event received, event: %d \n", (int)msg.data);

@@ -3069,9 +3069,7 @@ bk_err_t adk_wav_decoder_test_case_0(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT
-            && msg.source == (void *) wav_dec
-            && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
+        if (msg.source == (void *) wav_dec && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO)
         {
             audio_element_info_t music_info = {0};
             audio_element_getinfo(wav_dec, &music_info);
@@ -3080,8 +3078,7 @@ bk_err_t adk_wav_decoder_test_case_0(void)
             continue;
         }
 
-        if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT
-            && msg.cmd == AEL_MSG_CMD_REPORT_STATUS
+        if (msg.cmd == AEL_MSG_CMD_REPORT_STATUS
             && msg.source == ob_spk_strm
             && (((int)msg.data == AEL_STATUS_STATE_STOPPED) || ((int)msg.data == AEL_STATUS_STATE_FINISHED)))
         {
