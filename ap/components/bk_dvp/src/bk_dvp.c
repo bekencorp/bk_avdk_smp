@@ -772,7 +772,7 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
         if (handle->encode_frame->frame[i - 1] == 0xD9
             && handle->encode_frame->frame[i - 2] == 0xFF)
         {
-            real_length = i + 1;
+            real_length = i;
             handle->eof = true;
             break;
         }
@@ -930,7 +930,7 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
         if (left_length != FRAME_BUFFER_CACHE)
         {
             DVP_SIZE_ERROR_ENTRY();
-            LOGW("%s size no match:%d-%d=%d\n", __func__, real_length, handle->dma_length, left_length);
+			LOGW("%s size no match:%d-%d=%d\n", __func__, real_length, handle->dma_length, left_length);
             handle->error = true;
             DVP_SIZE_ERROR_OUT();
         }
