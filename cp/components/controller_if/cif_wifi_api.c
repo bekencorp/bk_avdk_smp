@@ -511,6 +511,11 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             break;
         }
 #endif
+        case AP_NETIF_IP4_CONFIG:
+        {
+            ret = bk_netif_set_ip4_config(NETIF_IF_AP, (netif_ip4_config_t *)arg_info->args[0]);
+            break;
+        }
         default:
         {
             ret = BK_ERR_NOT_FOUND;

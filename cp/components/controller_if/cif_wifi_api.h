@@ -36,6 +36,7 @@ enum CIF_WIFI_API_CMD_TYPE
     AP_SET_CONFIG                       = 0x320,
     AP_START                            = 0x321,
     AP_STOP                             = 0x322,
+    AP_NETIF_IP4_CONFIG                 = 0x323,
 
     // PM management Wi-Fi command section
     STA_PM_ENABLE                       = 0x330,

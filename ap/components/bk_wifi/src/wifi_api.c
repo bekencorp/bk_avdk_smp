@@ -483,6 +483,7 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
     netif_ip4_config_t ip4_config = {0};
     void *buffer_to_ipc = NULL;
     uint32_t len = sizeof(wifi_ap_config_t);
+    uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
 
     WDRV_LOGD("ap configuring\n");
 
@@ -493,12 +494,28 @@ bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 
     BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
 
+    buffer_to_ipc = os_malloc(len_ip4_config);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+    os_memcpy(buffer_to_ipc, &ip4_config, len_ip4_config);
+    ret = wifi_send_com_api_cmd(AP_NETIF_IP4_CONFIG, 1, (uint32_t)buffer_to_ipc);
+    if (ret != BK_OK)
+    {
+        WDRV_LOGE("%s set ap netif ip4 config failed, ret=%d\n", __func__, ret);
+        return ret;
+    }
+    os_free(buffer_to_ipc);
+
 #if 0
     if (!wifi_is_inited()) {
         WDRV_LOGD("set ap config fail, wifi not init\n");
         return BK_ERR_WIFI_NOT_INIT;
     }
 #endif
+
     ret = wifi_ap_validate_config(ap_config);
     if (ret != BK_OK)
         return ret;
