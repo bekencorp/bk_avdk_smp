@@ -286,6 +286,21 @@ bk_err_t bk_pm_ap_core_init();
  */
 bk_err_t bk_pm_ap_core_send_msg(pm_ap_core_msg_t *msg);
 /**
+ * @brief rtc unregsiter wakeup
+ *
+ * rtc unregsiter wakeup
+ *
+ * @attention
+ * - This API is to rtc unregsiter wakeup
+ *
+ * @param
+ * -sleep_mode
+ * @return
+ * - BK_OK: succeed
+ * - others: other errors.
+ */
+bk_err_t bk_pm_ap_rtc_unregsiter_wakeup(pm_sleep_mode_e sleep_mode);
+/**
  * @brief rtc regsiter wakeup
  *
  * rtc regsiter wakeup

@@ -33,7 +33,7 @@
 #define LOGE(...) BK_LOGE(PM_AP_TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(PM_AP_TAG, ##__VA_ARGS__)
 
-
+#define PM_AP_RTC_UNREGISTER_PERIOD_TICK   (1000)
 /*=====================DEFINE  SECTION  END=====================*/
 typedef enum
 {
@@ -70,7 +70,28 @@ bk_err_t bk_pm_ap_misc_startup_rtc_tick_set(uint64_t time_tick)
 
 	return BK_OK;
 }
+bk_err_t bk_pm_ap_rtc_unregsiter_wakeup(pm_sleep_mode_e sleep_mode)
+{
+    if(sleep_mode > PM_MODE_DEFAULT)
+    {
+        return BK_FAIL;
+    }
 
+    pm_ap_system_wakeup_cb_info_t rtc_wakeup_cb_info = {
+		.dev_id = PM_AP_USING_SYS_WAKEUP_DEV_APP,
+		.sleep_mode = sleep_mode,
+		.wakeup_source = WAKEUP_SOURCE_INT_RTC,
+		.sys_wakeup_fn = NULL,
+		.param_p = NULL
+	};
+    bk_pm_ap_system_wakeup_unregister_callback(&rtc_wakeup_cb_info);
+
+    s_pm_rtc_config.rtc_period = PM_AP_RTC_UNREGISTER_PERIOD_TICK;
+    s_pm_rtc_config.rtc_cnt = 0;
+    bk_pm_ap_rtc_wakeup_source_config(sleep_mode, WAKEUP_SOURCE_INT_RTC, &s_pm_rtc_config);
+
+    return BK_OK;
+}
 bk_err_t bk_pm_ap_rtc_regsiter_wakeup(pm_sleep_mode_e sleep_mode,pm_ap_rtc_info_t *low_power_info)
 {
     if(sleep_mode > PM_MODE_DEFAULT)
