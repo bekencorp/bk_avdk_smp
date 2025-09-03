@@ -63,8 +63,6 @@ extern "C" {
 
 #define AUDIO_ERROR(TAG, str) BK_LOGE(TAG, "%s:%d (%s): %s", __FILENAME__, __LINE__, __FUNCTION__, str)
 
-#define BK_EXISTS   (BK_OK + 1)
-
 #ifdef __cplusplus
 }
 #endif

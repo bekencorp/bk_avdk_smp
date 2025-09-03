@@ -19,6 +19,7 @@
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "task.h"
+#include <timers.h>
 #include <components/bk_audio/audio_pipeline/bsd_queue.h>
 #include <components/bk_audio/audio_streams/onboard_speaker_stream.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
@@ -29,6 +30,7 @@
 #include <driver/aud_dac.h>
 #include <driver/dma.h>
 #include <driver/audio_ring_buff.h>
+#include <driver/gpio.h>
 #include "gpio_driver.h"
 
 
@@ -161,6 +163,14 @@ typedef struct onboard_speaker_stream
     int8_t                  *temp_buff;                     /**< temp buffer addr used to save data written to speaker ring buffer */
     bool                     wr_spk_rb_done;                /**< write one farme data to speaker ring buffer done */
     uint8_t                  valid_frame_count_in_spk_rb;   /**< the count of valid farme data in speaker ring buffer, data playback finish when the count is 0 */
+
+    bool                     pa_ctrl_en;                    /**< control pa enable */
+    uint16_t                 pa_ctrl_gpio;                  /**< the gpio id of control pa */
+    uint8_t                  pa_on_level;                   /**< the gpio level of turn on pa, 0: low level, 1: high level */
+    uint32_t                 pa_on_delay;                   /**< the delay time(ms) of turn on pa after enable audio dac. [dac init -> pa turn on] */
+    uint32_t                 pa_off_delay;                  /**< the delay time(ms) of disable audio dac after turn off pa. [mute -> pa turn off -> dac deinit] */
+    TimerHandle_t            pa_turn_on_timer;              /**< the timer handle of turn on pa */
+    bool                     pa_state;                      /**< the state of pa, true: on, false: off */
 
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
     int                             current_port_id;        /**< the valid audio port of currently reading speaker data, 0: element->in, >=1: element->multi_in */
@@ -358,6 +368,127 @@ void change_pcm_data_to_8k(uint8_t* buffer, uint32_t size)
     }
 }
 #endif
+
+/* PA control gpio */
+static void _pa_gpio_ctrl(uint16_t pa_ctrl_gpio, uint8_t pa_on_level, bool en)
+{
+    if (en)
+    {
+        BK_LOGD(TAG, "%s, %d, PA turn on \n", __func__, __LINE__);
+        /* open pa according to congfig */
+        if (pa_on_level)
+        {
+            bk_gpio_set_output_high(pa_ctrl_gpio);
+        }
+        else
+        {
+            bk_gpio_set_output_low(pa_ctrl_gpio);
+        }
+    }
+    else
+    {
+        BK_LOGD(TAG, "%s, %d, PA turn off \n", __func__, __LINE__);
+        if (pa_on_level)
+        {
+            bk_gpio_set_output_low(pa_ctrl_gpio);
+        }
+        else
+        {
+            bk_gpio_set_output_high(pa_ctrl_gpio);
+        }
+    }
+}
+
+/*
+ * @brief: pa control api
+ * @param: onboard_spk: speaker stream
+ * @param: en: true: turn on, false: turn off
+ * @param: delay_flag: true: delay turn on, false: no delay
+ * @return: none
+ */
+static void pa_ctrl_en(onboard_speaker_stream_t *onboard_spk, uint8_t en, bool delay_flag)
+{
+    if (!onboard_spk->pa_ctrl_en)
+    {
+        return;
+    }
+
+    if (en)
+    {
+        if (onboard_spk->pa_state)
+        {
+            /* pa already turn on */
+            return;
+        }
+        else
+        {
+            if (onboard_spk->pa_turn_on_timer && delay_flag)
+            {
+                if (xTimerIsTimerActive(onboard_spk->pa_turn_on_timer))
+                {
+                    xTimerReset(onboard_spk->pa_turn_on_timer, portMAX_DELAY);
+                }
+                else
+                {
+                    BK_LOGD(TAG, "start pa_turn_on_timer, pa_on_delay: %d\n", onboard_spk->pa_on_delay);
+                    xTimerStart(onboard_spk->pa_turn_on_timer, portMAX_DELAY);
+                }
+            }
+            else
+            {
+                /* not need delay */
+                _pa_gpio_ctrl(onboard_spk->pa_ctrl_gpio, onboard_spk->pa_on_level, true);
+                if (onboard_spk->dig_gain > 0)
+                {
+                    bk_aud_dac_unmute();
+                }
+                onboard_spk->pa_state = true;
+            }
+        }
+    }
+    else
+    {
+        if (onboard_spk->pa_turn_on_timer)
+        {
+            if (xTimerIsTimerActive(onboard_spk->pa_turn_on_timer))
+            {
+                xTimerStop(onboard_spk->pa_turn_on_timer, portMAX_DELAY);
+            }
+        }
+
+        if (!onboard_spk->pa_state)
+        {
+            /* pa already turn off */
+            return;
+        }
+
+        /* mute -> turn off pa */
+        bk_aud_dac_mute();
+        if (onboard_spk->pa_off_delay)
+        {
+            rtos_delay_milliseconds(onboard_spk->pa_off_delay);
+        }
+        _pa_gpio_ctrl(onboard_spk->pa_ctrl_gpio, onboard_spk->pa_on_level, false);
+        onboard_spk->pa_state = false;
+    }
+}
+
+/* PA turn on callback */
+static void pa_turn_on_timer_callback(TimerHandle_t xTimer)
+{
+    onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)pvTimerGetTimerID(xTimer);
+
+    /* turn on pa according to congfig */
+    _pa_gpio_ctrl(onboard_spk->pa_ctrl_gpio, onboard_spk->pa_on_level, true);
+
+    if (onboard_spk->dig_gain > 0)
+    {
+        bk_aud_dac_unmute();
+    }
+
+    onboard_spk->pa_state = true;
+    BK_LOGD(TAG, "turn on pa complete, pa_ctrl_gpio: %d, pa_on_level: %d\n", onboard_spk->pa_ctrl_gpio, onboard_spk->pa_on_level);
+}
 
 static bk_err_t aud_dac_dma_deconfig(onboard_speaker_stream_t *onboard_spk)
 {
@@ -574,6 +705,10 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
         return BK_FAIL;
     }
 
+    if (gl_onboard_speaker->pa_ctrl_en)
+    {
+        bk_aud_dac_mute();
+    }
 
 	ret = bk_aud_dac_start();
     if (ret != BK_OK)
@@ -585,6 +720,9 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
     onboard_spk->is_open = true;
     onboard_spk->pool_can_read = true;
     onboard_spk->valid_frame_count_in_spk_rb = 2;
+
+    /* turn on pa */
+    pa_ctrl_en(onboard_spk, true, true);
 
     return BK_OK;
 }
@@ -1073,6 +1211,8 @@ static bk_err_t _onboard_speaker_close(audio_element_handle_t self)
         return BK_FAIL;
     }
 
+    pa_ctrl_en(onboard_spk, false, false);
+
     ret = bk_aud_dac_stop();
     if (ret != BK_OK)
     {
@@ -1114,6 +1254,12 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
     {
         rtos_deinit_semaphore(&onboard_spk->can_process);
         onboard_spk->can_process = NULL;
+    }
+
+    if (gl_onboard_speaker->pa_turn_on_timer)
+    {
+        xTimerDelete(gl_onboard_speaker->pa_turn_on_timer, portMAX_DELAY);
+        gl_onboard_speaker->pa_turn_on_timer = NULL;
     }
 
     if (onboard_spk)
@@ -1165,6 +1311,11 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     gl_onboard_speaker->pool_length = config->pool_length;
     gl_onboard_speaker->pool_play_thold = config->pool_play_thold;
     gl_onboard_speaker->pool_pause_thold = config->pool_pause_thold;
+    gl_onboard_speaker->pa_ctrl_en = config->pa_ctrl_en;
+    gl_onboard_speaker->pa_ctrl_gpio = config->pa_ctrl_gpio;
+    gl_onboard_speaker->pa_on_level = config->pa_on_level;
+    gl_onboard_speaker->pa_on_delay = config->pa_on_delay;
+    gl_onboard_speaker->pa_off_delay = config->pa_off_delay;
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
     gl_onboard_speaker->current_port_id = 0;
 #endif
@@ -1259,6 +1410,28 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     }
 #endif
 
+    if (gl_onboard_speaker->pa_ctrl_en)
+    {
+        if (gl_onboard_speaker->pa_on_delay > 0)
+        {
+            gl_onboard_speaker->pa_turn_on_timer = xTimerCreate(
+                "pa_turn_on_timer",
+                BK_MS_TO_TICKS(gl_onboard_speaker->pa_on_delay),
+                pdFALSE,
+                (void *)gl_onboard_speaker,
+                pa_turn_on_timer_callback);
+            if (gl_onboard_speaker->pa_turn_on_timer == NULL)
+            {
+                BK_LOGE(TAG, "create pa_turn_on_timer fail \n");
+                goto _onboard_speaker_init_exit;
+            }
+        }
+
+        /* config gpio to output */
+        gpio_dev_unmap(gl_onboard_speaker->pa_ctrl_gpio);
+        bk_gpio_enable_output(gl_onboard_speaker->pa_ctrl_gpio);
+    }
+
     el = audio_element_init(&cfg);
     AUDIO_MEM_CHECK(TAG, el, goto _onboard_speaker_init_exit);
     audio_element_setdata(el, gl_onboard_speaker);
@@ -1305,6 +1478,12 @@ _onboard_speaker_init_exit:
         gl_onboard_speaker->lock = NULL;
     }
 #endif
+
+    if (gl_onboard_speaker->pa_turn_on_timer)
+    {
+        xTimerDelete(gl_onboard_speaker->pa_turn_on_timer, portMAX_DELAY);
+        gl_onboard_speaker->pa_turn_on_timer = NULL;
+    }
 
     audio_free(gl_onboard_speaker);
     gl_onboard_speaker = NULL;
@@ -1407,10 +1586,12 @@ bk_err_t onboard_speaker_stream_set_digital_gain(audio_element_handle_t onboard_
     {
         if (gain == 0)
         {
+            pa_ctrl_en(onboard_spk, false, false);
             bk_aud_dac_mute();
         }
         else
         {
+            pa_ctrl_en(onboard_spk, true, false);
             bk_aud_dac_unmute();
         }
         onboard_spk->dig_gain = gain;

@@ -52,6 +52,11 @@ typedef struct
     uint32_t                pool_length;        /*!< speaker data pool size, the unit is byte */
     uint32_t                pool_play_thold;    /*!< the play threshold of pool, the unit is byte */
     uint32_t                pool_pause_thold;   /*!< the pause threshold of pool, the unit is byte */
+    bool                    pa_ctrl_en;         /*!< control pa enable */
+    uint16_t                pa_ctrl_gpio;       /*!< the gpio id of control pa */
+    uint8_t                 pa_on_level;        /*!< the gpio level of turn on pa, 0: low level, 1: high level */
+    uint32_t                pa_on_delay;        /*!< the delay time(ms) of turn on pa after enable audio dac. [dac init -> delay -> pa turn on] */
+    uint32_t                pa_off_delay;       /*!< the delay time(ms) of disable audio dac after turn off pa. [mute -> pa turn off -> delay -> dac deinit] */
     int                     task_stack;         /*!< Task stack size */
     int                     task_core;          /*!< Task running in core (0 or 1) */
     int                     task_prio;          /*!< Task priority (based on freeRTOS priority) */
@@ -97,6 +102,11 @@ typedef struct audio_port_info
         .pool_length = 0,                                      \
         .pool_play_thold = 0,                                  \
         .pool_pause_thold = 0,                                 \
+        .pa_ctrl_en = false,                                   \
+        .pa_ctrl_gpio = 0,                                     \
+        .pa_on_level = 0,                                      \
+        .pa_on_delay = 0,                                      \
+        .pa_off_delay = 0,                                     \
         .task_stack = ONBOARD_SPEAKER_STREAM_TASK_STACK,       \
         .task_core = ONBOARD_SPEAKER_STREAM_TASK_CORE,         \
         .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,         \
