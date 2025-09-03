@@ -140,7 +140,9 @@ typedef struct
  * encoder: g711a
  * decoder: g711a
  */
-#define VOICE_BY_ONBOARD_MIC_SPK_CFG_DEFAULT() {                \
+#define VOICE_BY_ONBOARD_MIC_SPK_CFG_DEFAULT() DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_CONFIG()
+
+ #define DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_CONFIG() {            \
     .mic_type = MIC_TYPE_ONBOARD,                               \
     .mic_cfg.onboard_mic_cfg = {                                \
         .adc_cfg = {                                            \
@@ -235,7 +237,9 @@ typedef struct
  * encoder: g711a
  * decoder: g711a
  */
-#define VOICE_BY_UAC_MIC_SPK_CFG_DEFAULT() {                   \
+#define VOICE_BY_UAC_MIC_SPK_CFG_DEFAULT() DEFAULT_VOICE_BY_UAC_MIC_SPK_CONFIG() 
+
+ #define DEFAULT_VOICE_BY_UAC_MIC_SPK_CONFIG() {               \
     .mic_type = MIC_TYPE_UAC,                                  \
     .mic_cfg.uac_mic_cfg = {                                   \
         .port_index = USB_HUB_PORT_1,                          \
@@ -327,7 +331,9 @@ typedef struct
  * encoder: aac
  * decoder: aac
  */
-#define VOICE_BY_ONBOARD_MIC_SPK_AAC_CFG_DEFAULT() {                \
+#define VOICE_BY_ONBOARD_MIC_SPK_AAC_CFG_DEFAULT() DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_AAC_CONFIG() 
+
+ #define DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_AAC_CONFIG() {            \
         .mic_type = MIC_TYPE_ONBOARD,                               \
         .mic_cfg.onboard_mic_cfg = {                                \
             .adc_cfg = {                                            \
@@ -434,7 +440,9 @@ typedef struct
  * encoder: g711a
  * decoder: g711a
  */
-#define VOICE_BY_ONBOARD_DUAL_DMIC_MIC_SPK_CFG_DEFAULT() {      \
+#define VOICE_BY_ONBOARD_DUAL_DMIC_MIC_SPK_CFG_DEFAULT() DEFAULT_VOICE_BY_ONBOARD_DUAL_DMIC_MIC_SPK_CONFIG() 
+
+ #define DEFAULT_VOICE_BY_ONBOARD_DUAL_DMIC_MIC_SPK_CONFIG() {  \
     .mic_type = MIC_TYPE_ONBOARD_DUAL_DMIC_MIC,                 \
     .mic_cfg.onboard_dual_dmic_mic_cfg = {                      \
         .adc_cfg = {                                            \
@@ -648,7 +656,9 @@ typedef struct
  * EQ: ON
  */
 #if CONFIG_VOICE_SERVICE_EQ
-#define VOICE_BY_ONBOARD_MIC_SPK_EQ_CFG_DEFAULT() {             \
+#define VOICE_BY_ONBOARD_MIC_SPK_EQ_CFG_DEFAULT() DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_EQ_CONFIG() 
+
+#define DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_EQ_CONFIG() {          \
     .mic_type = MIC_TYPE_ONBOARD,                               \
     .mic_cfg.onboard_mic_cfg = {                                \
         .adc_cfg = {                                            \
