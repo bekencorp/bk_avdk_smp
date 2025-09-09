@@ -286,10 +286,16 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
             }
             else
             {
-                return upload2ctrl;   
+                return upload2ctrl;
             }
 #if CONFIG_BRIDGE
             pbuf_free(p);
+#else
+            if(cif_is_arp_request(p))
+            {
+                upload2ctrl = false;
+                pbuf_free(p);
+            }
 #endif
 #else
             p_copy = (struct pbuf*)cif_maclloc_rx_buf();
