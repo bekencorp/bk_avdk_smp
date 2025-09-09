@@ -15,6 +15,8 @@
 #include <components/bk_audio/audio_streams/uac_speaker_stream.h>
 #include <components/bk_audio/audio_encoders/g722_encoder.h>
 #include <components/bk_audio/audio_decoders/g722_decoder.h>
+#include <components/bk_audio/audio_encoders/opus_enc.h>
+#include <components/bk_audio/audio_decoders/opus_dec.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
 
 
@@ -94,6 +96,9 @@ typedef struct
 #if CONFIG_VOICE_SERVICE_G722_ENCODER
         g722_encoder_cfg_t    g722_enc_cfg;
 #endif
+#if CONFIG_VOICE_SERVICE_OPUS_ENCODER
+        opus_enc_cfg_t        opus_enc_cfg;
+#endif
         uint8_t               pcm_enc_cfg;
     } enc_cfg;
 
@@ -111,6 +116,9 @@ typedef struct
 #endif
 #if CONFIG_VOICE_SERVICE_G722_DECODER
         g722_decoder_cfg_t    g722_dec_cfg;
+#endif
+#if CONFIG_VOICE_SERVICE_OPUS_DECODER
+        opus_dec_cfg_t        opus_dec_cfg;
 #endif
         uint8_t               pcm_dec_cfg;
     } dec_cfg;
@@ -807,6 +815,114 @@ typedef struct
     .args = NULL,                                               \
 }
 #endif //CONFIG_VOICE_SERVICE_EQ
+
+#if CONFIG_VOICE_SERVICE_OPUS_ENCODER && CONFIG_VOICE_SERVICE_OPUS_DECODER
+    /* voice call through onboard mic and onboard speaker
+     * mic: onboard mic
+     * speaker: onboard speaker
+     * AEC: ON
+     * sample rate: 16000Hz
+     * encoder: OPUS
+     * decoder: OPUS
+     */
+#define DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_OPUS_CONFIG() {            \
+        .mic_type = MIC_TYPE_ONBOARD,                               \
+        .mic_cfg.onboard_mic_cfg = {                                \
+            .adc_cfg = {                                            \
+                .chl_num = 1,                                       \
+                .bits = 16,                                         \
+                .sample_rate = 16000,                               \
+                .dig_gain = 0x28,                                   \
+                .ana_gain = 0x8,                                    \
+                .mode = AUD_ADC_MODE_DIFFEN,                        \
+                .clk_src = AUD_CLK_XTAL,                            \
+            },                                                      \
+            .frame_size = 640,                                      \
+            .out_block_size = 640,                                  \
+            .out_block_num = 2,                                     \
+            .multi_out_port_num = 0,                                \
+            .task_stack = ONBOARD_MIC_STREAM_TASK_STACK,            \
+            .task_core = ONBOARD_MIC_STREAM_TASK_CORE,              \
+            .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
+        },                                                          \
+        .aec_en = true,                                             \
+        .aec_ver = 1,                                               \
+        .aec_cfg.aec_alg_cfg = {                                    \
+            .task_stack = AEC_ALGORITHM_TASK_STACK,                 \
+            .task_core = AEC_ALGORITHM_TASK_CORE,                   \
+            .task_prio = AEC_ALGORITHM_TASK_PRIO,                   \
+            .aec_cfg = {                                            \
+                .mode = AEC_MODE_SOFTWARE,                          \
+                .fs = 16000,                                        \
+                .delay_points = AEC_DELAY_POINTS,                   \
+                .ec_depth = AEC_ALGORITHM_EC_DEPTH,                 \
+                .TxRxThr = AEC_ALGORITHM_TXRXTHR,                   \
+                .TxRxFlr = AEC_ALGORITHM_TXRXFLR,                   \
+                .ref_scale = AEC_ALGORITHM_REF_SCALE,               \
+                .ns_level = AEC_ALGORITHM_NS_LEVEL,                 \
+                .ns_para = AEC_ALGORITHM_NS_PARA,                   \
+            },                                                      \
+            .out_block_num = 1,                                     \
+            .multi_out_port_num = 0,                                \
+        },                                                          \
+        .enc_en = true,                                             \
+        .enc_type = AUDIO_ENC_TYPE_OPUS,                            \
+        .enc_cfg.opus_enc_cfg = {                                   \
+                .buf_sz             = OPUS_ENC_BUFFER_SIZE,         \
+                .out_block_size     = OPUS_ENC_OUT_BLOCK_SIZE,      \
+                .out_block_num      = OPUS_ENC_OUT_BLOCK_NUM,       \
+                .task_stack         = OPUS_ENC_TASK_STACK,          \
+                .task_core          = OPUS_ENC_TASK_CORE,           \
+                .task_prio          = OPUS_ENC_TASK_PRIO,           \
+                .enc_mode           = OPUS_ENC_MODE_AUDIO,          \
+                .sample_rate        = OPUS_ENC_SAMPLE_RATE,         \
+                .channels           = 1,                            \
+                .bitrate            = OPUS_ENC_BITRATE,             \
+                .frame_samples_per_channel = 320,                   \
+        },                                                          \
+        .read_pool_size = 160,                                      \
+        .write_pool_size = 320,                                     \
+        .dec_en = true,                                             \
+        .dec_type = AUDIO_DEC_TYPE_OPUS,                            \
+        .dec_cfg.opus_dec_cfg = {                                   \
+            .buf_sz             = OPUS_DEC_BUFFER_SIZE,             \
+            .out_block_size     = OPUS_DEC_OUT_BLOCK_SIZE,          \
+            .out_block_num      = OPUS_DEC_OUT_BLOCK_NUM,           \
+            .task_stack         = OPUS_DEC_TASK_STACK,              \
+            .task_core          = OPUS_DEC_TASK_CORE,               \
+            .task_prio          = OPUS_DEC_TASK_PRIO,               \
+            .sample_rate        = OPUS_DEC_SAMPLE_RATE,             \
+            .channels           = 1,                                \
+        },                                                          \
+        .spk_type = SPK_TYPE_ONBOARD,                               \
+        .spk_cfg.onboard_spk_cfg = {                                \
+            .chl_num = 1,                                           \
+            .sample_rate = 16000,                                   \
+            .dig_gain = 0x2d,                                       \
+            .ana_gain = 0x07,                                       \
+            .work_mode = AUD_DAC_WORK_MODE_DIFFEN,                  \
+            .bits = 16,                                             \
+            .clk_src = AUD_CLK_XTAL,                                \
+            .multi_in_port_num = 0,                                 \
+            .multi_out_port_num = 1,                                \
+            .frame_size = 640,                                      \
+            .pool_length = 0,                                       \
+            .pool_play_thold = 0,                                   \
+            .pool_pause_thold = 0,                                  \
+            .pa_ctrl_en = false,                                    \
+            .pa_ctrl_gpio = 0,                                      \
+            .pa_on_level = 0,                                       \
+            .pa_on_delay = 0,                                       \
+            .pa_off_delay = 0,                                      \
+            .task_stack = ONBOARD_SPEAKER_STREAM_TASK_STACK,        \
+            .task_core = ONBOARD_SPEAKER_STREAM_TASK_CORE,          \
+            .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
+        },                                                          \
+        .event_handle = NULL,                                       \
+        .args = NULL,                                               \
+    }
+#endif  //CONFIG_VOICE_SERVICE_OPUS_ENCODER && CONFIG_VOICE_SERVICE_OPUS_DECODER
+
 
 #ifdef  __cplusplus
 }

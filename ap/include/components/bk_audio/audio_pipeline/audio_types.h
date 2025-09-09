@@ -110,6 +110,11 @@ typedef enum
     AUDIO_MEM_TYPE_AUDIO_HEAP,
 } audio_mem_type_t;
 
+typedef enum
+{
+    AUDIO_BUF_TYPE_RB = 1,
+    AUDIO_BUF_TYPE_FB,
+} audio_buf_type_t;
 
 #ifdef __cplusplus
 }

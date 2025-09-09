@@ -289,6 +289,11 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
             voice_handle->mic_enc = g722_encoder_init(&cfg->enc_cfg.g722_enc_cfg);
             break;
 #endif
+#if CONFIG_VOICE_SERVICE_OPUS_ENCODER
+        case AUDIO_ENC_TYPE_OPUS:
+            voice_handle->mic_enc = opus_enc_init(&cfg->enc_cfg.opus_enc_cfg);
+            break;
+#endif
 
         case AUDIO_ENC_TYPE_PCM:
             /* not need encoder */
@@ -308,6 +313,12 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
     raw_read_cfg.type = AUDIO_STREAM_READER;
     raw_read_cfg.out_block_size = cfg->read_pool_size;
     raw_read_cfg.out_block_num = 1;
+    #if CONFIG_VOICE_SERVICE_OPUS_ENCODER
+    if(AUDIO_ENC_TYPE_OPUS == voice_handle->enc_type)
+    {
+        raw_read_cfg.output_port_type = PORT_TYPE_FB;
+    }
+    #endif
     voice_handle->raw_read = raw_stream_init(&raw_read_cfg);
     VOICE_CHECK_NULL(voice_handle->raw_read, goto fail);
 
@@ -552,6 +563,12 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
     raw_write_cfg.type = AUDIO_STREAM_WRITER;
     raw_write_cfg.out_block_size = cfg->write_pool_size;
     raw_write_cfg.out_block_num = 1;
+    #if CONFIG_VOICE_SERVICE_OPUS_DECODER
+    if(AUDIO_DEC_TYPE_OPUS == voice_handle->dec_type)
+    {
+        raw_write_cfg.output_port_type = PORT_TYPE_FB;
+    }
+    #endif
     voice_handle->raw_write = raw_stream_init(&raw_write_cfg);
     VOICE_CHECK_NULL(voice_handle->raw_write, goto fail);
 
@@ -573,6 +590,12 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
             voice_handle->spk_dec = g722_decoder_init(&cfg->dec_cfg.g722_dec_cfg);
             break;
 #endif
+#if CONFIG_VOICE_SERVICE_OPUS_DECODER
+        case AUDIO_DEC_TYPE_OPUS:
+            voice_handle->spk_dec = opus_dec_init(&cfg->dec_cfg.opus_dec_cfg);
+            break;
+#endif
+
 
         case AUDIO_DEC_TYPE_PCM:
             /* not need decoder */
@@ -1087,6 +1110,9 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
 #if CONFIG_VOICE_SERVICE_G722_ENCODER
             && cfg.enc_type != AUDIO_ENC_TYPE_G722
 #endif
+#if CONFIG_VOICE_SERVICE_OPUS_ENCODER
+            && cfg.enc_type != AUDIO_ENC_TYPE_OPUS
+#endif
             && cfg.enc_type != AUDIO_ENC_TYPE_PCM)
     {
         BK_LOGE(TAG, "%s, %d, enc_type: %d not support\n", __func__, __LINE__, cfg.enc_type);
@@ -1101,6 +1127,9 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
 #endif
 #if CONFIG_VOICE_SERVICE_G722_DECODER
             && cfg.dec_type != AUDIO_DEC_TYPE_G722
+#endif
+#if CONFIG_VOICE_SERVICE_OPUS_DECODER
+            && cfg.dec_type != AUDIO_DEC_TYPE_OPUS
 #endif
             && cfg.dec_type != AUDIO_DEC_TYPE_PCM)
     {

@@ -210,7 +210,8 @@ audio_element_handle_t raw_stream_init(raw_stream_cfg_t *config)
     cfg.task_stack = -1;    // Not need creat task
     cfg.destroy = _raw_destroy;
     cfg.tag = "raw";
-    cfg.out_type = PORT_TYPE_RB;
+    //cfg.out_type = PORT_TYPE_RB;
+    cfg.out_type = config->output_port_type;
     cfg.out_block_size = config->out_block_size;
     cfg.out_block_num = config->out_block_num;
     raw->type = config->type;

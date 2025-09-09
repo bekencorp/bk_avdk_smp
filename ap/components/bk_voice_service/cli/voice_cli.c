@@ -131,6 +131,12 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             enc_type = AUDIO_ENC_TYPE_G722;
         }
 #endif
+#if CONFIG_VOICE_SERVICE_OPUS_ENCODER
+        else if (os_strcmp(argv[5], "opus") == 0)
+        {
+            enc_type = AUDIO_ENC_TYPE_OPUS;
+        }
+#endif
         else
         {
             LOGE("%s, %d, enc_type: %s not support\n", __func__, __LINE__, argv[5]);
@@ -161,6 +167,13 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             dec_type = AUDIO_DEC_TYPE_G722;
         }
 #endif
+#if CONFIG_VOICE_SERVICE_OPUS_DECODER
+        else if (os_strcmp(argv[6], "opus") == 0)
+        {
+            dec_type = AUDIO_DEC_TYPE_OPUS;
+        }
+#endif
+
         else
         {
             LOGE("%s, %d, dec_type: %s not support\n", __func__, __LINE__, argv[6]);
@@ -371,6 +384,13 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             voice_cfg.enc_cfg.g722_enc_cfg = g722_enc_cfg;
         }
 #endif
+#if CONFIG_VOICE_SERVICE_OPUS_ENCODER
+        else if (enc_type == AUDIO_ENC_TYPE_OPUS)
+        {
+            opus_enc_cfg_t opus_enc_cfg = DEFAULT_OPUS_ENC_CONFIG();
+            voice_cfg.enc_cfg.opus_enc_cfg = opus_enc_cfg;
+        }
+#endif
         else
         {
             //noting todo
@@ -427,6 +447,13 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         {
             g722_decoder_cfg_t g722_dec_cfg = DEFAULT_G722_DECODER_CONFIG();
             voice_cfg.dec_cfg.g722_dec_cfg = g722_dec_cfg;
+        }
+#endif
+#if CONFIG_VOICE_SERVICE_OPUS_DECODER
+        else if (dec_type == AUDIO_DEC_TYPE_OPUS)
+        {
+            opus_dec_cfg_t opus_dec_cfg = DEFAULT_OPUS_DEC_CONFIG();
+            voice_cfg.dec_cfg.opus_dec_cfg = opus_dec_cfg;
         }
 #endif
         else
@@ -542,6 +569,14 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         voice_write_cfg_t voice_write_cfg = VOICE_WRITE_CFG_DEFAULT();
         voice_write_cfg.voice_handle = gl_voice_handle;
         voice_write_cfg.mem_type = AUDIO_MEM_TYPE_PSRAM;
+        #if CONFIG_VOICE_SERVICE_OPUS_DECODER
+        if(enc_type == AUDIO_ENC_TYPE_OPUS)
+        {
+            voice_write_cfg.write_buf_type = PORT_TYPE_FB;
+            voice_write_cfg.node_size = 80;
+            voice_write_cfg.node_num = 16;
+        }
+        #endif
         gl_voice_write_handle = bk_voice_write_init(&voice_write_cfg);
         if (!gl_voice_write_handle)
         {
@@ -627,14 +662,14 @@ static const struct cli_command s_voice_commands[] =
      * [mic_type]       onboard/uac/onboard_dual_dmic_mic
      * [mic_samp_rate]  8000/16000
      * [aec_en]         0/1/3
-     * [enc_type]       pcm/g711a/g711u/aac/g722
-     * [dec_type]       pcm/g711a/g711u/aac/g722
+     * [enc_type]       pcm/g711a/g711u/aac/g722/opus
+     * [dec_type]       pcm/g711a/g711u/aac/g722/opus
      * [spk_type]       onboard/uac
      * [spk_samp_rate]  8000/16000
      * [eq_type]        eq_mono/eq_stereo
      */
 
-    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722 pcm|g711a|g711u|aac|g722 onboard|uac 8000|16000 eq_mono|eq_stereo}", cli_voice_test_cmd},
+    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722|opus pcm|g711a|g711u|aac|g722|opus onboard|uac 8000|16000 eq_mono|eq_stereo}", cli_voice_test_cmd},
 };
 
 int cli_voice_init(void)

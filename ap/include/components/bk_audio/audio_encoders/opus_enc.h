@@ -53,21 +53,24 @@ typedef struct
 #define OPUS_ENC_TASK_STACK          (18 * 1024)
 #define OPUS_ENC_TASK_CORE           (1)
 #define OPUS_ENC_TASK_PRIO           (5)
-#define OPUS_ENC_BUFFER_SIZE         (960)
-#define OPUS_ENC_OUT_BLOCK_SIZE      (480)
+#define OPUS_ENC_SAMPLE_RATE         (16000)
+#define OPUS_ENC_BITRATE             (16000)
+#define OPUA_ENC_DEFAULT_FRAME_DURITON (20) //20ms
+#define OPUS_ENC_BUFFER_SIZE         (OPUS_ENC_SAMPLE_RATE*OPUA_ENC_DEFAULT_FRAME_DURITON/1000*2)
+#define OPUS_ENC_OUT_BLOCK_SIZE      (OPUS_ENC_BITRATE*OPUA_ENC_DEFAULT_FRAME_DURITON/1000/8*2) //double size to handle VBR
 #define OPUS_ENC_OUT_BLOCK_NUM       (2)
 
-#define DEFAULT_OPUS_ENC_CONFIG() {                 \
-    .buf_sz             = OPUS_ENC_BUFFER_SIZE,     \
-    .out_block_size     = OPUS_ENC_OUT_BLOCK_SIZE,  \
-    .out_block_num      = OPUS_ENC_OUT_BLOCK_NUM,   \
-    .task_stack         = OPUS_ENC_TASK_STACK,      \
-    .task_core          = OPUS_ENC_TASK_CORE,       \
-    .task_prio          = OPUS_ENC_TASK_PRIO,       \
+#define DEFAULT_OPUS_ENC_CONFIG() {                     \
+    .buf_sz             = OPUS_ENC_BUFFER_SIZE,         \
+    .out_block_size     = OPUS_ENC_OUT_BLOCK_SIZE,      \
+    .out_block_num      = OPUS_ENC_OUT_BLOCK_NUM,       \
+    .task_stack         = OPUS_ENC_TASK_STACK,          \
+    .task_core          = OPUS_ENC_TASK_CORE,           \
+    .task_prio          = OPUS_ENC_TASK_PRIO,           \
     .enc_mode           = OPUS_ENC_MODE_AUDIO,          \
-    .sample_rate        = 16000,                        \
+    .sample_rate        = OPUS_ENC_SAMPLE_RATE,         \
     .channels           = 1,                            \
-    .bitrate            = 24000,                        \
+    .bitrate            = OPUS_ENC_BITRATE,             \
     .frame_samples_per_channel = 320,                   \
 }
 

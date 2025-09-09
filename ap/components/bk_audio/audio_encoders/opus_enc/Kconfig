@@ -1,11 +1,11 @@
 menu "Adk::Audio_encoders::Opus_enc"
-	config ADK_OPUS_ENC
+	config ADK_OPUS_ENCODER
 		depends on ADK
 		bool "Enable Audio Opus encoder"
 		default n
 
-	config ADK_OPUS_ENC_TEST
-		depends on ADK_OPUS_ENC && ADK_FRAME_ARRAY_STREAM && ADK_UART_STREAM
+	config ADK_OPUS_ENCODER_TEST
+		depends on ADK_OPUS_ENCODER && ADK_FRAME_ARRAY_STREAM && ADK_UART_STREAM
 		bool "Enable Audio Opus encoder test"
 		default n
 

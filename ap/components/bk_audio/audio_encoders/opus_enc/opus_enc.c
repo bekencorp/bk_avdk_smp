@@ -14,7 +14,6 @@
 
 #include <components/bk_audio/audio_encoders/opus_enc.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
-#include <components/bk_audio/audio_pipeline/audio_common.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <string.h>
 #include <modules/opus.h>
@@ -53,7 +52,6 @@ typedef struct opus_enc {
 static bk_err_t _opus_enc_destroy(audio_element_handle_t self)
 {
     opus_enc_t *opus_enc = (opus_enc_t *)audio_element_getdata(self);
-    audio_element_info_t *info = &opus_enc->info;
     
     if (opus_enc->encoder) {
         opus_encoder_destroy(opus_enc->encoder);
@@ -65,10 +63,8 @@ static bk_err_t _opus_enc_destroy(audio_element_handle_t self)
         opus_enc->encoded_data = NULL;
     }
     
-    if (info->codec_fmt != BK_CODEC_TYPE_OPUS) {
-        audio_free(opus_enc);
-        opus_enc = NULL;
-    }
+    audio_free(opus_enc);
+    
     return BK_OK;
 }
 

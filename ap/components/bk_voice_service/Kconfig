@@ -70,4 +70,13 @@ menu "Voice Service"
 		bool "Enable Voice Service Support EQ"
 		default n
 
+	config VOICE_SERVICE_OPUS_ENCODER
+		depends on ADK_OPUS_ENCODER
+		bool "Enable Voice Service Support Opus Encoder"
+		default n
+
+	config VOICE_SERVICE_OPUS_DECODER
+		depends on ADK_OPUS_DECODER
+		bool "Enable Voice Service Support Opus Decoder"
+		default n
 endmenu

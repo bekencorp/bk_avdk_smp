@@ -5,7 +5,6 @@
  */
 
 #include <components/bk_audio/audio_pipeline/audio_element.h>
-#include <components/bk_audio/audio_pipeline/audio_common.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <string.h>
@@ -30,7 +29,7 @@ static bk_err_t _opus_dec_open(audio_element_handle_t self)
     opus_dec_t *opus_dec = (opus_dec_t *)audio_element_getdata(self);
 
     /* set read data timeout */
-    audio_element_set_input_timeout(self, 15 / portTICK_RATE_MS);
+    //audio_element_set_input_timeout(self, 15 / portTICK_RATE_MS);
 
     /* Calculate maximum frame size */
     opus_dec->max_frame_size = opus_dec->config.sample_rate * opus_dec->config.channels * 120 / 1000; /* 120ms max frame */
@@ -69,7 +68,7 @@ static int _opus_dec_process(audio_element_handle_t self, char *in_buffer, int i
         }
         
         w_size = audio_element_output(self, (char *)opus_dec->out_buf, dec_output_size<<1);
-        BK_LOGD(TAG, "[%s] %s:r_size:%d,w_size:%d,dec_oputput_size:%d\n", audio_element_get_tag(self),__func__,r_size,w_size,dec_output_size<<1);
+        BK_LOGV(TAG, "[%s] %s:r_size:%d,w_size:%d,dec_oputput_size:%d\n", audio_element_get_tag(self),__func__,r_size,w_size,dec_output_size<<1);
     }
     else
     {

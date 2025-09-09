@@ -2,13 +2,13 @@ set(incs .)
 
 set(srcs)
 
-if (CONFIG_ADK_OPUS_DEC)
+if (CONFIG_ADK_OPUS_DECODER)
 
 list(APPEND srcs
 		opus_dec.c
 	)
 
-if (CONFIG_ADK_OPUS_DEC_TEST)
+if (CONFIG_ADK_OPUS_DECODER_TEST)
 	list(APPEND srcs
 		opus_dec_test.c
 	)
