@@ -108,11 +108,6 @@ static uint32_t calc_crc32(uint32_t crc, const uint8_t *buf, int len)
 	return crc;
 }
 
-bk_err_t bk_flash_set_line_mode(flash_line_mode_t line_mode)
-{
-	return BK_FAIL;
-}
-
 // #define FLASH_SVR_TEST
 #ifdef FLASH_SVR_TEST
 #include "flash_svr_test.c"
