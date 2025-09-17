@@ -44,6 +44,9 @@
 #if CONFIG_SARADC_MB
 #include "saradc_client.h"
 #endif
+#if CONFIG_PHY_MB
+#include "phy_client.h"
+#endif
 
 #if CONFIG_SECURITY
 #include "bk_security.h"
@@ -359,6 +362,10 @@ int driver_init(void) {
 
 #if CONFIG_SARADC && CONFIG_SARADC_MB
 	bk_saradc_driver_init();
+#endif
+
+#if CONFIG_PHY_MB
+	bk_phy_driver_init();
 #endif
 
 #if CONFIG_SPI
