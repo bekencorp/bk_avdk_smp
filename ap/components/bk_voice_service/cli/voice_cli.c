@@ -293,15 +293,6 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         if (aec_en)
         {
             voice_cfg.aec_en = true;
-            voice_cfg.aec_ver = aec_en;
-            if(1 == aec_en)//aec v1
-            {
-                aec_algorithm_cfg_t aec_alg_cfg = DEFAULT_AEC_ALGORITHM_CONFIG();
-                aec_alg_cfg.out_block_num = 1;
-                aec_alg_cfg.aec_cfg.fs = mic_samp_rate;
-                voice_cfg.aec_cfg.aec_alg_cfg = aec_alg_cfg;
-            }
-            else if (3 == aec_en)//aec v3
             {
                 aec_v3_algorithm_cfg_t aec_v3_alg_cfg = DEFAULT_AEC_V3_ALGORITHM_CONFIG();
                 aec_v3_alg_cfg.out_block_num = 1;
@@ -315,13 +306,9 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
                     voice_cfg.enc_common.frame_in_ms = 20;
                     voice_cfg.enc_common.frame_in_size = mic_samp_rate*20/1000*2;
                 }
-                voice_cfg.aec_cfg.aec_v3_alg_cfg = aec_v3_alg_cfg;
+                voice_cfg.aec_cfg.aec_alg_cfg = aec_v3_alg_cfg;
             }
-            else
-            {
-                LOGE("%s, %d, aec ver:%d is invalid!\n", __func__, __LINE__,aec_en);
-                goto fail;
-            }
+
         }
         else
         {
@@ -661,7 +648,7 @@ static const struct cli_command s_voice_commands[] =
      * [cmd]            start/stop
      * [mic_type]       onboard/uac/onboard_dual_dmic_mic
      * [mic_samp_rate]  8000/16000
-     * [aec_en]         0/1/3
+     * [aec_en]         0/1
      * [enc_type]       pcm/g711a/g711u/aac/g722/opus
      * [dec_type]       pcm/g711a/g711u/aac/g722/opus
      * [spk_type]       onboard/uac

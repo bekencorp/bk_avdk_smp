@@ -652,7 +652,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
     }
     else
     {
-        if (aec->aec_cfg.mode == AEC_V3_MODE_HARDWARE)
+        if (aec->aec_cfg.mode == AEC_MODE_HARDWARE)
         {
             int16_t *lr_data_ptr = (int16_t *)in_buffer;
             for (uint16_t i = 0; i < r_size / 4; i++)
@@ -836,7 +836,7 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     cfg.out_block_num = config->out_block_num;
     cfg.multi_out_port_num = config->multi_out_port_num;
 
-    if (config->aec_cfg.mode == AEC_V3_MODE_HARDWARE)
+    if (config->aec_cfg.mode == AEC_MODE_HARDWARE)
     {
         cfg.buffer_len = aec_alg->frame_size * 2;
     }

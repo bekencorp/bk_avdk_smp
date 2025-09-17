@@ -53,7 +53,6 @@ struct voice
     mic_type_t              mic_type;           /**< onboard mic or uac mic */
     audio_element_handle_t  mic_str;            /**< mic stream handle */
     bool                    aec_en;             /**< aec enable handle */
-    uint8_t                 aec_ver;            /**< aec version */
     audio_element_handle_t  aec_alg;            /**< aec algorithm handle */
     audio_port_handle_t     aec_alg_ref_rb;   /**< ringbuffer save refrence data of aec algorithm, [speaker]-->(ringbuffer)-->[aec] */
     audio_enc_type_t        enc_type;           /**< encoder type */
@@ -246,27 +245,13 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
 
     if (voice_handle->aec_en)
     {
-        if(3 == cfg->aec_ver)
-        {
-            #if CONFIG_ADK_AEC_V3_ALGORITHM
-            bk_voice_cal_vad_buf_size(cfg, voice_handle);
-            voice_handle->aec_alg = aec_v3_algorithm_init(&cfg->aec_cfg.aec_v3_alg_cfg);
-            #else
-            BK_LOGE(TAG, "%s, %d,AEC V%d but CONFIG_ADK_AEC_ALGORITHM is not set!\n", __func__, __LINE__, cfg->aec_ver);
-            #endif
-        }
-        else if(1 == cfg->aec_ver)
-        {
-            #if CONFIG_ADK_AEC_ALGORITHM
-            voice_handle->aec_alg = aec_algorithm_init(&cfg->aec_cfg.aec_alg_cfg);
-            #else
-            BK_LOGE(TAG, "%s, %d,AEC V%d but CONFIG_ADK_AEC_ALGORITHM is not set!\n", __func__, __LINE__, cfg->aec_ver);
-            #endif
-        }
-        else
-        {
-            BK_LOGE(TAG, "%s, %d,AEC V%d is not supported!\n", __func__, __LINE__, cfg->aec_ver);
-        }
+
+        #if CONFIG_ADK_AEC_V3_ALGORITHM
+        bk_voice_cal_vad_buf_size(cfg, voice_handle);
+        voice_handle->aec_alg = aec_v3_algorithm_init(&cfg->aec_cfg.aec_alg_cfg);
+        #else
+        BK_LOGE(TAG, "%s, %d,AEC V3 but CONFIG_ADK_AEC_V3_ALGORITHM is not set!\n", __func__, __LINE__);
+        #endif
         
         VOICE_CHECK_NULL(voice_handle->aec_alg, goto fail);
     }
@@ -1213,24 +1198,24 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
          */
         if (cfg.aec_en)
         {
-            if ((cfg.aec_cfg.aec_v3_alg_cfg.aec_cfg.mode == AEC_V3_MODE_HARDWARE && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num != 2)
-                || (cfg.aec_cfg.aec_v3_alg_cfg.aec_cfg.mode == AEC_V3_MODE_SOFTWARE && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num != 1))
+            if ((cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode == AEC_MODE_HARDWARE && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num != 2)
+                || (cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode == AEC_MODE_SOFTWARE && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num != 1))
             {
-                BK_LOGE(TAG, "%s, %d, aec mode: %d, mic chanels: %d are not match\n", __func__, __LINE__, cfg.aec_cfg.aec_v3_alg_cfg.aec_cfg.mode, cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num);
+                BK_LOGE(TAG, "%s, %d, aec mode: %d, mic chanels: %d are not match\n", __func__, __LINE__, cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode, cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num);
                 return BK_FAIL;
             }
 
-            if ((cfg.aec_cfg.aec_v3_alg_cfg.aec_cfg.mode == AEC_V3_MODE_HARDWARE && !cfg.mic_cfg.onboard_dual_dmic_mic_cfg.ref_mode)
-                || (cfg.aec_cfg.aec_v3_alg_cfg.aec_cfg.mode == AEC_V3_MODE_SOFTWARE && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.ref_mode))
+            if ((cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode == AEC_MODE_HARDWARE && !cfg.mic_cfg.onboard_dual_dmic_mic_cfg.ref_mode)
+                || (cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode == AEC_MODE_SOFTWARE && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.ref_mode))
             {
-                BK_LOGE(TAG, "%s, %d, aec mode: %d, mic ref mode: %d are not match\n", __func__, __LINE__, cfg.aec_cfg.aec_v3_alg_cfg.aec_cfg.mode, cfg.mic_cfg.onboard_dual_dmic_mic_cfg.ref_mode);
+                BK_LOGE(TAG, "%s, %d, aec mode: %d, mic ref mode: %d are not match\n", __func__, __LINE__, cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode, cfg.mic_cfg.onboard_dual_dmic_mic_cfg.ref_mode);
                 return BK_FAIL;
             }
 
-            if ((cfg.aec_cfg.aec_v3_alg_cfg.dual_ch && !cfg.mic_cfg.onboard_dual_dmic_mic_cfg.dual_dmic)
-                || (!cfg.aec_cfg.aec_v3_alg_cfg.dual_ch && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.dual_dmic))
+            if ((cfg.aec_cfg.aec_alg_cfg.dual_ch && !cfg.mic_cfg.onboard_dual_dmic_mic_cfg.dual_dmic)
+                || (!cfg.aec_cfg.aec_alg_cfg.dual_ch && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.dual_dmic))
             {
-                BK_LOGE(TAG, "%s, %d, aec dual dmic: %d, mic dual dmic: %d are not match\n", __func__, __LINE__, cfg.aec_cfg.aec_v3_alg_cfg.dual_ch, cfg.mic_cfg.onboard_dual_dmic_mic_cfg.dual_dmic);
+                BK_LOGE(TAG, "%s, %d, aec dual dmic: %d, mic dual dmic: %d are not match\n", __func__, __LINE__, cfg.aec_cfg.aec_alg_cfg.dual_ch, cfg.mic_cfg.onboard_dual_dmic_mic_cfg.dual_dmic);
                 return BK_FAIL;
             }
         }
@@ -1322,7 +1307,6 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
     /* copy config */
     voice_handle->mic_type = cfg->mic_type;
     voice_handle->aec_en = cfg->aec_en;
-    voice_handle->aec_ver = cfg->aec_ver;
     voice_handle->enc_type = cfg->enc_type;
     voice_handle->dec_type = cfg->dec_type;
     voice_handle->spk_type = cfg->spk_type;
@@ -1354,7 +1338,22 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
         voice_handle->aec_alg_ref_rb = ringbuf_port_init(&rb_config);
         VOICE_CHECK_NULL(voice_handle->aec_alg_ref_rb, goto fail);
         
-        if(1 == voice_handle->aec_ver)
+        if(AEC_MODE_HARDWARE == cfg->aec_cfg.aec_alg_cfg.aec_cfg.mode)
+        {
+            /* link aec_alg_ref_rb to mic stream and aec algorithm */
+            if (BK_OK !=  audio_element_set_multi_input_port(voice_handle->aec_alg, voice_handle->aec_alg_ref_rb, 0))
+            {
+                BK_LOGE(TAG, "%s, %d, link aec_alg_ref_rb to aec_alg fail\n", __func__, __LINE__);
+                goto fail;
+            }
+
+            if (BK_OK !=  audio_element_set_multi_output_port(voice_handle->mic_str, voice_handle->aec_alg_ref_rb, 0))
+            {
+                BK_LOGE(TAG, "%s, %d, link apk_stream to aec_alg_ref_rb fail\n", __func__, __LINE__);
+                goto fail;
+            }
+        }
+        else
         {
             /* link aec_alg_ref_rb to spk stream and aec algorithm */
             if (BK_OK !=  audio_element_set_multi_input_port(voice_handle->aec_alg, voice_handle->aec_alg_ref_rb, 0))
@@ -1368,43 +1367,6 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
                 BK_LOGE(TAG, "%s, %d, link apk_stream to aec_alg_ref_rb fail\n", __func__, __LINE__);
                 goto fail;
             }
-        }
-        else if(3 == voice_handle->aec_ver)
-        {
-            if(AEC_V3_MODE_HARDWARE == cfg->aec_cfg.aec_v3_alg_cfg.aec_cfg.mode)
-            {
-                /* link aec_alg_ref_rb to mic stream and aec algorithm */
-                if (BK_OK !=  audio_element_set_multi_input_port(voice_handle->aec_alg, voice_handle->aec_alg_ref_rb, 0))
-                {
-                    BK_LOGE(TAG, "%s, %d, link aec_alg_ref_rb to aec_alg fail\n", __func__, __LINE__);
-                    goto fail;
-                }
-
-                if (BK_OK !=  audio_element_set_multi_output_port(voice_handle->mic_str, voice_handle->aec_alg_ref_rb, 0))
-                {
-                    BK_LOGE(TAG, "%s, %d, link apk_stream to aec_alg_ref_rb fail\n", __func__, __LINE__);
-                    goto fail;
-                }
-            }
-            else
-            {
-                /* link aec_alg_ref_rb to spk stream and aec algorithm */
-                if (BK_OK !=  audio_element_set_multi_input_port(voice_handle->aec_alg, voice_handle->aec_alg_ref_rb, 0))
-                {
-                    BK_LOGE(TAG, "%s, %d, link aec_alg_ref_rb to aec_alg fail\n", __func__, __LINE__);
-                    goto fail;
-                }
-
-                if (BK_OK !=  audio_element_set_multi_output_port(voice_handle->spk_str, voice_handle->aec_alg_ref_rb, 0))
-                {
-                    BK_LOGE(TAG, "%s, %d, link apk_stream to aec_alg_ref_rb fail\n", __func__, __LINE__);
-                    goto fail;
-                }
-            }
-        }
-        else
-        {
-            BK_LOGE(TAG, "%s, %d, voice_handle->aec_ver:%d is invalid!\n", __func__, __LINE__,voice_handle->aec_ver);
         }
     }
 
@@ -1675,16 +1637,18 @@ static uint32_t bk_voice_get_enc_in_frame_size(voice_cfg_t *cfg)
 
 void bk_voice_cal_vad_buf_size(voice_cfg_t *cfg, voice_handle_t voice_handle)
 {
-    uint32_t enc_input_frame_size = bk_voice_get_enc_in_frame_size(cfg);
-    
-    if(cfg->aec_en && cfg->aec_cfg.aec_v3_alg_cfg.vad_cfg.vad_enable)
+    if(cfg->aec_en && cfg->aec_cfg.aec_alg_cfg.vad_cfg.vad_enable)
     {
-        uint8_t enc_frame_in_ms = bk_voice_get_enc_frame_ms(cfg);
-        uint32 vad_buf_len;
-        vad_buf_len = enc_input_frame_size*((cfg->aec_cfg.aec_v3_alg_cfg.vad_cfg.vad_start_threshold + enc_frame_in_ms - 1)/enc_frame_in_ms);
-        cfg->aec_cfg.aec_v3_alg_cfg.vad_cfg.vad_buf_size = vad_buf_len;
-        cfg->aec_cfg.aec_v3_alg_cfg.vad_cfg.vad_frame_size = enc_input_frame_size;
-        BK_LOGD(TAG, "%s, %d, vad buf size: %p,frame size: %d\n", __func__, __LINE__, cfg->aec_cfg.aec_v3_alg_cfg.vad_cfg.vad_buf_size, cfg->aec_cfg.aec_v3_alg_cfg.vad_cfg.vad_frame_size);
+        if(!cfg->aec_cfg.aec_alg_cfg.vad_cfg.vad_buf_size || !cfg->aec_cfg.aec_alg_cfg.vad_cfg.vad_buf_size)
+        {
+            uint32_t enc_input_frame_size = bk_voice_get_enc_in_frame_size(cfg);
+            uint8_t enc_frame_in_ms = bk_voice_get_enc_frame_ms(cfg);
+            uint32 vad_buf_len;
+            vad_buf_len = enc_input_frame_size*((cfg->aec_cfg.aec_alg_cfg.vad_cfg.vad_start_threshold + enc_frame_in_ms - 1)/enc_frame_in_ms);
+            cfg->aec_cfg.aec_alg_cfg.vad_cfg.vad_buf_size = vad_buf_len;
+            cfg->aec_cfg.aec_alg_cfg.vad_cfg.vad_frame_size = enc_input_frame_size;
+        }
+        BK_LOGD(TAG, "%s, %d, vad buf size: %d,frame size: %d\n", __func__, __LINE__, cfg->aec_cfg.aec_alg_cfg.vad_cfg.vad_buf_size, cfg->aec_cfg.aec_alg_cfg.vad_cfg.vad_frame_size);
     }
 }
 

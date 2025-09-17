@@ -77,9 +77,9 @@ extern "C" {
 */
 typedef enum
 {
-    AEC_V3_MODE_HARDWARE,      /*!< hardware mode: Hardware mode get source and reference signal through audio adc L and R channel. Audio adc L channel
+    AEC_MODE_HARDWARE,      /*!< hardware mode: Hardware mode get source and reference signal through audio adc L and R channel. Audio adc L channel
                                  connect to mic, and collect source signal. Audio adc R channel connect to speaker, and collect reference signal. */
-    AEC_V3_MODE_SOFTWARE       /*!< software mode: Software mode get source and reference signal through audio adc L and software writting. Audio adc L
+    AEC_MODE_SOFTWARE       /*!< software mode: Software mode get source and reference signal through audio adc L and software writting. Audio adc L
                                  channel connect to mic, and collect source signal. Software write speaker data to input ringbuffer to support reference signal. */
 } aec_v3_mode_t;
 
@@ -177,7 +177,7 @@ typedef struct
     .task_core = AEC_V3_ALGORITHM_TASK_CORE,                \
     .task_prio = AEC_V3_ALGORITHM_TASK_PRIO,                \
     .aec_cfg = {                                            \
-        .mode = AEC_V3_MODE_SOFTWARE,                       \
+        .mode = AEC_MODE_SOFTWARE,                          \
         .fs = AEC_V3_ALGORITHM_FS,                          \
         .init_flags = AEC_V3_ALGORITHM_INIT_FLAG,           \
         .delay_points = AEC_V3_DELAY_POINTS,                \

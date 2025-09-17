@@ -1,6 +1,5 @@
 #pragma once
 
-#include <components/bk_audio/audio_algorithms/aec_algorithm.h>
 #include <components/bk_audio/audio_algorithms/aec_v3_algorithm.h>
 #include <components/bk_audio/audio_algorithms/eq_algorithm.h>
 #include <components/bk_audio/audio_streams/raw_stream.h>
@@ -76,11 +75,9 @@ typedef struct
     } mic_cfg;
 
     bool                    aec_en;
-    uint8_t                 aec_ver;
     union
     {
-        aec_algorithm_cfg_t    aec_alg_cfg;
-        aec_v3_algorithm_cfg_t aec_v3_alg_cfg;
+        aec_v3_algorithm_cfg_t aec_alg_cfg;
         uint8_t                reserve;
     } aec_cfg;
     
@@ -171,24 +168,39 @@ typedef struct
         .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
     },                                                          \
     .aec_en = true,                                             \
-    .aec_ver = 1,                                               \
     .aec_cfg.aec_alg_cfg = {                                    \
-        .task_stack = AEC_ALGORITHM_TASK_STACK,                 \
-        .task_core = AEC_ALGORITHM_TASK_CORE,                   \
-        .task_prio = AEC_ALGORITHM_TASK_PRIO,                   \
+        .task_stack = AEC_V3_ALGORITHM_TASK_STACK,              \
+        .task_core = AEC_V3_ALGORITHM_TASK_CORE,                \
+        .task_prio = AEC_V3_ALGORITHM_TASK_PRIO,                \
         .aec_cfg = {                                            \
             .mode = AEC_MODE_SOFTWARE,                          \
-            .fs = AEC_ALGORITHM_FS,                             \
-            .delay_points = AEC_DELAY_POINTS,                   \
-            .ec_depth = AEC_ALGORITHM_EC_DEPTH,                 \
-            .TxRxThr = AEC_ALGORITHM_TXRXTHR,                   \
-            .TxRxFlr = AEC_ALGORITHM_TXRXFLR,                   \
-            .ref_scale = AEC_ALGORITHM_REF_SCALE,               \
-            .ns_level = AEC_ALGORITHM_NS_LEVEL,                 \
-            .ns_para = AEC_ALGORITHM_NS_PARA,                   \
+            .fs = 8000,                                         \
+            .init_flags = AEC_V3_ALGORITHM_INIT_FLAG,           \
+            .delay_points = AEC_V3_DELAY_POINTS,                \
+            .ec_depth = AEC_V3_ALGORITHM_EC_DEPTH,              \
+            .ref_scale = AEC_V3_ALGORITHM_REF_SCALE,            \
+            .voice_vol = AEC_V3_ALGORITHM_VOL,                  \
+            .ns_type = NS_TRADITION,                            \
+            .ns_filter = AEC_V3_ALGORITHM_NS_FILTER,            \
+            .ns_level = AEC_V3_ALGORITHM_NS_LEVEL,              \
+            .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
+            .drc = AEC_V3_ALGORITHM_DRC,                        \
+            .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
         },                                                      \
-        .out_block_num = 1,                                     \
+        .vad_cfg = {                                            \
+            .vad_enable = 0,                                    \
+            .vad_start_threshold = 480,                         \
+            .vad_stop_threshold = 960,                          \
+            .vad_silence_threshold = 320,                       \
+            .vad_eng_threshold =2000,                           \
+            .vad_bad_frame = AEC_V3_VAD_BAD_FRAME_NUM,          \
+            .vad_buf_size = 15360,                              \
+            .vad_frame_size = 320,                              \
+        },                                                      \
+        .out_block_size = 320,                                  \
+        .out_block_num = AEC_V3_ALGORITHM_OUT_BLOCK_NUM,        \
         .multi_out_port_num = 0,                                \
+        .dual_ch = 0,                                           \
     },                                                          \
     .enc_en = true,                                             \
     .enc_type = AUDIO_ENC_TYPE_G711A,                           \
@@ -270,24 +282,39 @@ typedef struct
         .task_prio = UAC_MIC_STREAM_TASK_PRIO,                 \
     },                                                         \
     .aec_en = true,                                            \
-    .aec_ver = 1,                                              \
     .aec_cfg.aec_alg_cfg = {                                   \
-        .task_stack = AEC_ALGORITHM_TASK_STACK,                \
-        .task_core = AEC_ALGORITHM_TASK_CORE,                  \
-        .task_prio = AEC_ALGORITHM_TASK_PRIO,                  \
+        .task_stack = AEC_V3_ALGORITHM_TASK_STACK,             \
+        .task_core = AEC_V3_ALGORITHM_TASK_CORE,               \
+        .task_prio = AEC_V3_ALGORITHM_TASK_PRIO,               \
         .aec_cfg = {                                           \
             .mode = AEC_MODE_SOFTWARE,                         \
-            .fs = AEC_ALGORITHM_FS,                            \
-            .delay_points = 517,                               \
-            .ec_depth = AEC_ALGORITHM_EC_DEPTH,                \
-            .TxRxThr = AEC_ALGORITHM_TXRXTHR,                  \
-            .TxRxFlr = AEC_ALGORITHM_TXRXFLR,                  \
-            .ref_scale = AEC_ALGORITHM_REF_SCALE,              \
-            .ns_level = AEC_ALGORITHM_NS_LEVEL,                \
-            .ns_para = AEC_ALGORITHM_NS_PARA,                  \
+            .fs = 8000,                                        \
+            .init_flags = AEC_V3_ALGORITHM_INIT_FLAG,          \
+            .delay_points = AEC_V3_DELAY_POINTS,               \
+            .ec_depth = AEC_V3_ALGORITHM_EC_DEPTH,             \
+            .ref_scale = AEC_V3_ALGORITHM_REF_SCALE,           \
+            .voice_vol = AEC_V3_ALGORITHM_VOL,                 \
+            .ns_type = NS_TRADITION,                           \
+            .ns_filter = AEC_V3_ALGORITHM_NS_FILTER,           \
+            .ns_level = AEC_V3_ALGORITHM_NS_LEVEL,             \
+            .ns_para = AEC_V3_ALGORITHM_NS_PARA,               \
+            .drc = AEC_V3_ALGORITHM_DRC,                       \
+            .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,           \
         },                                                     \
-        .out_block_num = 1,                                    \
+        .vad_cfg = {                                           \
+            .vad_enable = 0,                                   \
+            .vad_start_threshold = 480,                        \
+            .vad_stop_threshold = 960,                         \
+            .vad_silence_threshold = 320,                      \
+            .vad_eng_threshold =2000,                          \
+            .vad_bad_frame = AEC_V3_VAD_BAD_FRAME_NUM,         \
+            .vad_buf_size = 15360,                             \
+            .vad_frame_size = 320,                             \
+        },                                                     \
+        .out_block_size = 320,                                 \
+        .out_block_num = AEC_V3_ALGORITHM_OUT_BLOCK_NUM,       \
         .multi_out_port_num = 0,                               \
+        .dual_ch = 0,                                          \
     },                                                         \
     .enc_en = true,                                            \
     .enc_type = AUDIO_ENC_TYPE_G711A,                          \
@@ -367,24 +394,39 @@ typedef struct
             .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
         },                                                          \
         .aec_en = true,                                             \
-        .aec_ver = 1,                                               \
         .aec_cfg.aec_alg_cfg = {                                    \
-            .task_stack = AEC_ALGORITHM_TASK_STACK,                 \
-            .task_core = AEC_ALGORITHM_TASK_CORE,                   \
-            .task_prio = AEC_ALGORITHM_TASK_PRIO,                   \
+            .task_stack = AEC_V3_ALGORITHM_TASK_STACK,              \
+            .task_core = AEC_V3_ALGORITHM_TASK_CORE,                \
+            .task_prio = AEC_V3_ALGORITHM_TASK_PRIO,                \
             .aec_cfg = {                                            \
                 .mode = AEC_MODE_SOFTWARE,                          \
-                .fs = AEC_ALGORITHM_FS,                             \
-                .delay_points = AEC_DELAY_POINTS,                   \
-                .ec_depth = AEC_ALGORITHM_EC_DEPTH,                 \
-                .TxRxThr = AEC_ALGORITHM_TXRXTHR,                   \
-                .TxRxFlr = AEC_ALGORITHM_TXRXFLR,                   \
-                .ref_scale = AEC_ALGORITHM_REF_SCALE,               \
-                .ns_level = AEC_ALGORITHM_NS_LEVEL,                 \
-                .ns_para = AEC_ALGORITHM_NS_PARA,                   \
+                .fs = 8000,                                         \
+                .init_flags = AEC_V3_ALGORITHM_INIT_FLAG,           \
+                .delay_points = AEC_V3_DELAY_POINTS,                \
+                .ec_depth = AEC_V3_ALGORITHM_EC_DEPTH,              \
+                .ref_scale = AEC_V3_ALGORITHM_REF_SCALE,            \
+                .voice_vol = AEC_V3_ALGORITHM_VOL,                  \
+                .ns_type = NS_TRADITION,                            \
+                .ns_filter = AEC_V3_ALGORITHM_NS_FILTER,            \
+                .ns_level = AEC_V3_ALGORITHM_NS_LEVEL,              \
+                .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
+                .drc = AEC_V3_ALGORITHM_DRC,                        \
+                .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
             },                                                      \
-            .out_block_num = 1,                                     \
+            .vad_cfg = {                                            \
+                .vad_enable = 0,                                    \
+                .vad_start_threshold = 480,                         \
+                .vad_stop_threshold = 960,                          \
+                .vad_silence_threshold = 320,                       \
+                .vad_eng_threshold =2000,                           \
+                .vad_bad_frame = AEC_V3_VAD_BAD_FRAME_NUM,          \
+                .vad_buf_size = 15360,                              \
+                .vad_frame_size = 320,                              \
+            },                                                      \
+            .out_block_size = 320,                                  \
+            .out_block_num = AEC_V3_ALGORITHM_OUT_BLOCK_NUM,        \
             .multi_out_port_num = 0,                                \
+            .dual_ch = 0,                                           \
         },                                                          \
         .enc_en = true,                                             \
         .enc_type = AUDIO_ENC_TYPE_AAC,                             \
@@ -484,13 +526,12 @@ typedef struct
         .dual_dmic_sgl_out = 0,                                 \
     },                                                          \
     .aec_en = true,                                             \
-    .aec_ver = 3,                                               \
-    .aec_cfg.aec_v3_alg_cfg = {                                 \
+    .aec_cfg.aec_alg_cfg = {                                    \
         .task_stack = AEC_V3_ALGORITHM_TASK_STACK,              \
         .task_core = AEC_V3_ALGORITHM_TASK_CORE,                \
         .task_prio = AEC_V3_ALGORITHM_TASK_PRIO,                \
         .aec_cfg = {                                            \
-            .mode = AEC_V3_MODE_SOFTWARE,                       \
+            .mode = AEC_MODE_SOFTWARE,                          \
             .fs = AEC_V3_ALGORITHM_FS,                          \
             .init_flags = AEC_V3_ALGORITHM_INIT_FLAG,           \
             .delay_points = AEC_V3_DELAY_POINTS,                \
@@ -600,24 +641,39 @@ typedef struct
             .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
         },                                                          \
         .aec_en = true,                                             \
-        .aec_ver = 1,                                               \
         .aec_cfg.aec_alg_cfg = {                                    \
-            .task_stack = AEC_ALGORITHM_TASK_STACK,                 \
-            .task_core = AEC_ALGORITHM_TASK_CORE,                   \
-            .task_prio = AEC_ALGORITHM_TASK_PRIO,                   \
+            .task_stack = AEC_V3_ALGORITHM_TASK_STACK,              \
+            .task_core = AEC_V3_ALGORITHM_TASK_CORE,                \
+            .task_prio = AEC_V3_ALGORITHM_TASK_PRIO,                \
             .aec_cfg = {                                            \
                 .mode = AEC_MODE_SOFTWARE,                          \
-                .fs = 16000,                                        \
-                .delay_points = AEC_DELAY_POINTS,                   \
-                .ec_depth = AEC_ALGORITHM_EC_DEPTH,                 \
-                .TxRxThr = AEC_ALGORITHM_TXRXTHR,                   \
-                .TxRxFlr = AEC_ALGORITHM_TXRXFLR,                   \
-                .ref_scale = AEC_ALGORITHM_REF_SCALE,               \
-                .ns_level = AEC_ALGORITHM_NS_LEVEL,                 \
-                .ns_para = AEC_ALGORITHM_NS_PARA,                   \
+                .fs = AEC_V3_ALGORITHM_FS,                          \
+                .init_flags = AEC_V3_ALGORITHM_INIT_FLAG,           \
+                .delay_points = AEC_V3_DELAY_POINTS,                \
+                .ec_depth = AEC_V3_ALGORITHM_EC_DEPTH,              \
+                .ref_scale = AEC_V3_ALGORITHM_REF_SCALE,            \
+                .voice_vol = AEC_V3_ALGORITHM_VOL,                  \
+                .ns_type = NS_TRADITION,                            \
+                .ns_filter = AEC_V3_ALGORITHM_NS_FILTER,            \
+                .ns_level = AEC_V3_ALGORITHM_NS_LEVEL,              \
+                .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
+                .drc = AEC_V3_ALGORITHM_DRC,                        \
+                .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
             },                                                      \
-            .out_block_num = 1,                                     \
+            .vad_cfg = {                                            \
+                .vad_enable = 0,                                    \
+                .vad_start_threshold = 480,                         \
+                .vad_stop_threshold = 960,                          \
+                .vad_silence_threshold = 320,                       \
+                .vad_eng_threshold =2000,                           \
+                .vad_bad_frame = AEC_V3_VAD_BAD_FRAME_NUM,          \
+                .vad_buf_size = 15360,                              \
+                .vad_frame_size = 640,                              \
+            },                                                      \
+            .out_block_size = 640,                                  \
+            .out_block_num = AEC_V3_ALGORITHM_OUT_BLOCK_NUM,        \
             .multi_out_port_num = 0,                                \
+            .dual_ch = 0,                                           \
         },                                                          \
         .enc_en = true,                                             \
         .enc_type = AUDIO_ENC_TYPE_G722,                            \
@@ -707,24 +763,39 @@ typedef struct
         .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
     },                                                          \
     .aec_en = true,                                             \
-    .aec_ver = 1,                                               \
     .aec_cfg.aec_alg_cfg = {                                    \
-        .task_stack = AEC_ALGORITHM_TASK_STACK,                 \
-        .task_core = AEC_ALGORITHM_TASK_CORE,                   \
-        .task_prio = AEC_ALGORITHM_TASK_PRIO,                   \
+        .task_stack = AEC_V3_ALGORITHM_TASK_STACK,              \
+        .task_core = AEC_V3_ALGORITHM_TASK_CORE,                \
+        .task_prio = AEC_V3_ALGORITHM_TASK_PRIO,                \
         .aec_cfg = {                                            \
             .mode = AEC_MODE_SOFTWARE,                          \
-            .fs = AEC_ALGORITHM_FS,                             \
-            .delay_points = AEC_DELAY_POINTS,                   \
-            .ec_depth = AEC_ALGORITHM_EC_DEPTH,                 \
-            .TxRxThr = AEC_ALGORITHM_TXRXTHR,                   \
-            .TxRxFlr = AEC_ALGORITHM_TXRXFLR,                   \
-            .ref_scale = AEC_ALGORITHM_REF_SCALE,               \
-            .ns_level = AEC_ALGORITHM_NS_LEVEL,                 \
-            .ns_para = AEC_ALGORITHM_NS_PARA,                   \
+            .fs = 8000,                                         \
+            .init_flags = AEC_V3_ALGORITHM_INIT_FLAG,           \
+            .delay_points = AEC_V3_DELAY_POINTS,                \
+            .ec_depth = AEC_V3_ALGORITHM_EC_DEPTH,              \
+            .ref_scale = AEC_V3_ALGORITHM_REF_SCALE,            \
+            .voice_vol = AEC_V3_ALGORITHM_VOL,                  \
+            .ns_type = NS_TRADITION,                            \
+            .ns_filter = AEC_V3_ALGORITHM_NS_FILTER,            \
+            .ns_level = AEC_V3_ALGORITHM_NS_LEVEL,              \
+            .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
+            .drc = AEC_V3_ALGORITHM_DRC,                        \
+            .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
         },                                                      \
-        .out_block_num = 1,                                     \
+        .vad_cfg = {                                            \
+            .vad_enable = 0,                                    \
+            .vad_start_threshold = 480,                         \
+            .vad_stop_threshold = 960,                          \
+            .vad_silence_threshold = 320,                       \
+            .vad_eng_threshold =2000,                           \
+            .vad_bad_frame = AEC_V3_VAD_BAD_FRAME_NUM,          \
+            .vad_buf_size = 15360,                              \
+            .vad_frame_size = 320,                              \
+        },                                                      \
+        .out_block_size = 320,                                  \
+        .out_block_num = AEC_V3_ALGORITHM_OUT_BLOCK_NUM,        \
         .multi_out_port_num = 0,                                \
+        .dual_ch = 0,                                           \
     },                                                          \
     .enc_en = true,                                             \
     .enc_type = AUDIO_ENC_TYPE_G711A,                           \
@@ -846,24 +917,39 @@ typedef struct
             .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
         },                                                          \
         .aec_en = true,                                             \
-        .aec_ver = 1,                                               \
         .aec_cfg.aec_alg_cfg = {                                    \
-            .task_stack = AEC_ALGORITHM_TASK_STACK,                 \
-            .task_core = AEC_ALGORITHM_TASK_CORE,                   \
-            .task_prio = AEC_ALGORITHM_TASK_PRIO,                   \
+            .task_stack = AEC_V3_ALGORITHM_TASK_STACK,              \
+            .task_core = AEC_V3_ALGORITHM_TASK_CORE,                \
+            .task_prio = AEC_V3_ALGORITHM_TASK_PRIO,                \
             .aec_cfg = {                                            \
                 .mode = AEC_MODE_SOFTWARE,                          \
-                .fs = 16000,                                        \
-                .delay_points = AEC_DELAY_POINTS,                   \
-                .ec_depth = AEC_ALGORITHM_EC_DEPTH,                 \
-                .TxRxThr = AEC_ALGORITHM_TXRXTHR,                   \
-                .TxRxFlr = AEC_ALGORITHM_TXRXFLR,                   \
-                .ref_scale = AEC_ALGORITHM_REF_SCALE,               \
-                .ns_level = AEC_ALGORITHM_NS_LEVEL,                 \
-                .ns_para = AEC_ALGORITHM_NS_PARA,                   \
+                .fs = AEC_V3_ALGORITHM_FS,                          \
+                .init_flags = AEC_V3_ALGORITHM_INIT_FLAG,           \
+                .delay_points = AEC_V3_DELAY_POINTS,                \
+                .ec_depth = AEC_V3_ALGORITHM_EC_DEPTH,              \
+                .ref_scale = AEC_V3_ALGORITHM_REF_SCALE,            \
+                .voice_vol = AEC_V3_ALGORITHM_VOL,                  \
+                .ns_type = NS_AI,                                   \
+                .ns_filter = AEC_V3_ALGORITHM_NS_FILTER,            \
+                .ns_level = AEC_V3_ALGORITHM_NS_LEVEL,              \
+                .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
+                .drc = AEC_V3_ALGORITHM_DRC,                        \
+                .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
             },                                                      \
-            .out_block_num = 1,                                     \
+            .vad_cfg = {                                            \
+                .vad_enable = 0,                                    \
+                .vad_start_threshold = 480,                         \
+                .vad_stop_threshold = 960,                          \
+                .vad_silence_threshold = 320,                       \
+                .vad_eng_threshold =2000,                           \
+                .vad_bad_frame = AEC_V3_VAD_BAD_FRAME_NUM,          \
+                .vad_buf_size = 15360,                              \
+                .vad_frame_size = 640,                              \
+            },                                                      \
+            .out_block_size = 640,                                  \
+            .out_block_num = AEC_V3_ALGORITHM_OUT_BLOCK_NUM,        \
             .multi_out_port_num = 0,                                \
+            .dual_ch = 0,                                           \
         },                                                          \
         .enc_en = true,                                             \
         .enc_type = AUDIO_ENC_TYPE_OPUS,                            \
