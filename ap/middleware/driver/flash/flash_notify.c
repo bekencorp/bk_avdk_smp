@@ -20,6 +20,9 @@
 
 static void (*s_flash_op_notify)(uint32_t param) = NULL;
 static void (*s_flash_op_notify_camera)(uint32_t param) = NULL;
+static flash_op_notify_onboard_mic_stream_callback_t s_flash_op_notify_onboard_mic_stream = NULL;
+static void *s_flash_op_notify_onboard_mic_stream_args = NULL;
+
 
 bk_err_t mb_flash_register_op_notify(void * notify_cb)
 {
@@ -54,6 +57,22 @@ bk_err_t mb_flash_unregister_op_camera_notify(void)
 	{
 		s_flash_op_notify_camera = NULL;
 	}
+
+	return BK_OK;
+}
+
+bk_err_t mb_flash_register_op_onboard_mic_stream_notify(void * notify_cb, void *args)
+{
+	s_flash_op_notify_onboard_mic_stream = notify_cb;
+	s_flash_op_notify_onboard_mic_stream_args = args;
+
+	return BK_OK;
+}
+
+bk_err_t mb_flash_unregister_op_onboard_mic_stream_notify(void)
+{
+	s_flash_op_notify_onboard_mic_stream = NULL;
+	s_flash_op_notify_onboard_mic_stream_args = NULL;
 
 	return BK_OK;
 }
@@ -99,6 +118,12 @@ static void cpu1_pause_handle(mb_chnl_cmd_t *cmd_buf)
 		{
 			s_flash_op_notify_camera(1);
 		}
+
+		if(s_flash_op_notify_onboard_mic_stream != NULL)
+		{
+			s_flash_op_notify_onboard_mic_stream(1, s_flash_op_notify_onboard_mic_stream_args);
+		}
+
 	}
 	else if(cmd_buf->hdr.cmd == IPC_FLASH_OP_END)
 	{
@@ -109,6 +134,11 @@ static void cpu1_pause_handle(mb_chnl_cmd_t *cmd_buf)
 		if (s_flash_op_notify_camera != NULL)
 		{
 			s_flash_op_notify_camera(0);
+		}
+
+		if(s_flash_op_notify_onboard_mic_stream != NULL)
+		{
+			s_flash_op_notify_onboard_mic_stream(0, s_flash_op_notify_onboard_mic_stream_args);
 		}
 	}
 

@@ -28,6 +28,8 @@
 #include <driver/aud_adc.h>
 #include <driver/dma.h>
 #include <driver/audio_ring_buff.h>
+#include <driver/flash.h>
+#include <driver/flash_types.h>
 
 
 #define TAG  "OB_MIC"
@@ -137,6 +139,32 @@ typedef struct onboard_mic_stream
 } onboard_mic_stream_t;
 
 static onboard_mic_stream_t *gl_onboard_mic = NULL;
+
+static void flash_op_notify_onboard_mic_stream_handler(uint32_t param, void *args)
+{
+    audio_element_handle_t onboard_mic_stream = (audio_element_handle_t)args;
+    if (!onboard_mic_stream)
+    {
+        return;
+    }
+    onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
+    if (onboard_mic && audio_element_get_state(onboard_mic_stream) == AEL_STATE_RUNNING)
+    {
+        if (param)
+        {
+            BK_LOGD(TAG, "%s, start earse or write flash, stop dma and adc \n", __func__);
+            bk_dma_stop(onboard_mic->mic_dma_id);
+            bk_aud_adc_stop();
+            ring_buffer_clear(&onboard_mic->mic_rb);
+        }
+        else
+        {
+            BK_LOGD(TAG, "%s, stop earse or write flash, start dma and adc \n", __func__);
+            bk_dma_start(onboard_mic->mic_dma_id);
+            bk_aud_adc_start();
+        }
+    }
+}
 
 static bk_err_t aud_adc_dma_deconfig(onboard_mic_stream_t *onboard_mic)
 {
@@ -471,6 +499,8 @@ static bk_err_t _onboard_mic_destroy(audio_element_handle_t self)
     audio_free(onboard_mic);
     onboard_mic = NULL;
 
+    mb_flash_unregister_op_onboard_mic_stream_notify();
+
     ONBOARD_MIC_DATA_COUNT_CLOSE();
     ONBOARD_MIC_DATA_DUMP_BY_UART_CLOSE();
 
@@ -590,6 +620,8 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     info.bits = config->adc_cfg.bits;
     info.codec_fmt = BK_CODEC_TYPE_PCM;
     audio_element_setinfo(el, &info);
+
+    mb_flash_register_op_onboard_mic_stream_notify(flash_op_notify_onboard_mic_stream_handler, el);
 
     ONBOARD_MIC_DATA_COUNT_OPEN();
     ONBOARD_MIC_DATA_DUMP_BY_UART_OPEN();
