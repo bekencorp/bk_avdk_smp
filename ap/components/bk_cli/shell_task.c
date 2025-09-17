@@ -68,14 +68,14 @@
 #define SHELL_LOG_BUF1_NUM      8
 #define SHELL_LOG_BUF2_NUM      40
 #define SHELL_LOG_BUF3_NUM      40
-#define SHELL_DYM_LOG_NUM_MAX   150
+#define SHELL_DYM_LOG_NUM_MAX   400
 #endif   //  (LOG_DEV == DEV_MAILBOX)
 
 #if (LOG_DEV == DEV_UART)
 #define SHELL_LOG_BUF1_NUM      8
 #define SHELL_LOG_BUF2_NUM      40
 #define SHELL_LOG_BUF3_NUM      60
-#define SHELL_DYM_LOG_NUM_MAX   200
+#define SHELL_DYM_LOG_NUM_MAX   400
 #endif   // (LOG_DEV == DEV_UART)
 
 #define SHELL_LOG_BUF_NUM       (SHELL_LOG_BUF1_NUM + SHELL_LOG_BUF2_NUM + SHELL_LOG_BUF3_NUM)
@@ -2060,12 +2060,10 @@ static inline bool get_dynamic_log_status(int block_mode, u16 buf_len)
 		   (buf_len + s_dynamic_log_total_len <= CONFIG_DYM_LOG_MEM_MAX);
 }
 
-#define LOG_TRY_ALLOC_COUNT 5
 /* alloc log buffer from static memory or dynamic memory */
 static u8 * alloc_buffer(int block_mode, u16 *blk_tag, u16 buf_len)
 {
 	u8 *packet_buf = NULL;
-	int try_cnt = LOG_TRY_ALLOC_COUNT;
 	do {
 		if (buf_len <= SHELL_LOG_BUF1_LEN) {
 			packet_buf = alloc_log_blk(buf_len, blk_tag);
@@ -2088,7 +2086,7 @@ static u8 * alloc_buffer(int block_mode, u16 *blk_tag, u16 buf_len)
 			break;
 		}
 		rtos_get_semaphore(&log_buf_semaphore, SHELL_LOG_BLOCK_TIME);
-	} while (try_cnt--);
+	} while (1);
 	return packet_buf;
 }
 
