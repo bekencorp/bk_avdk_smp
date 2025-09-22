@@ -677,6 +677,12 @@ int wpa_supplicant_ctrl_iface_set_network(struct wpa_supplicant *wpa_s, wlan_sta
 		//WPA_LOGD("ssid: |%s|\n", config->u.ssid.ssid);
 		if ((ssid->ssid_len != config->u.ssid.ssid_len) ||
 			os_memcmp(ssid->ssid, config->u.ssid.ssid, ssid->ssid_len)) {
+#if BK_SUPPLICANT
+#ifdef CONFIG_SAE
+			sae_deinit_pt(ssid->pt);	// clear the last pt
+			ssid->pt = NULL;
+#endif
+#endif
 			ssid->psk_set = 0;	// recalc psk
 			if (wpa_s->wpa)
 				wpa_sm_pmksa_cache_flush(wpa_s->wpa, ssid);
