@@ -182,12 +182,11 @@ def pack_ota_app_bin(pack_dir: Path, output_bin: Path):
 def ota_pack():
     build_pack_dir = curr_project.project_build_package_dir
     pack_dir_temp = build_pack_dir / "tmp"
-    output_bin = pack_dir_temp / "origin_ota_app.bin"
-    pack_ota_app_bin(pack_dir_temp, output_bin)
+    origin_ota_app_bin = pack_dir_temp / "app_pack.bin"
+    pack_ota_app_bin(pack_dir_temp, origin_ota_app_bin)
 
     build_partitions_dir = curr_project.project_build_parititons_dir
     pack_json = build_partitions_dir / "bk_package.json"
-    origin_ota_app_bin = pack_dir_temp / "origin_ota_app.bin"
     all_app_bin = build_pack_dir / "all-app.bin"
     ota_bin = pack_ota_rbl(pack_dir_temp, pack_json, origin_ota_app_bin, all_app_bin)
     return ota_bin.absolute()
