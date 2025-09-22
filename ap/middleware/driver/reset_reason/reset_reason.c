@@ -153,14 +153,68 @@ uint32_t bk_misc_get_cp_reset_reason(void)
 	return FIXED_ADDR_CP_RESET_REASON;
 }
 
-void bk_misc_set_ap_reset_reason(uint32_t type) {
-	FIXED_ADDR_AP_RESET_REASON = type;
-}
-
 uint32_t bk_misc_get_ap_reset_reason(void)
 {
 	return FIXED_ADDR_AP_RESET_REASON;
 }
+
+
+// typedef volatile union {
+// 	struct {
+// 		uint32_t memchk_bps               :  1; /**<bit[0 : 0] */
+// 		uint32_t fast_boot                :  1; /**<bit[1 : 1] */
+// 		uint32_t ota_finish               :  1; /**<bit[2 : 2] */
+// 		uint32_t bl2_deep_sleep           :  1; /**<bit[3 : 3] */
+// 		uint32_t reset_reason_cp          :  8; /**<bit[4 : 11] */
+// 		uint32_t gpio_retention_bitmap    :  8; /**<bit[12 : 19] */
+// 		uint32_t reset_count              :  4 ;/**<bit[20 : 23] */
+// 		uint32_t reset_reason_ap          :  7; /**<bit[24 : 30] */
+// 		uint32_t gpio_sleep               :  1; /**<bit[31 : 31] */
+// 	};
+// 	uint32_t v;
+// } aon_pmu_r0_t;
+
+void bk_misc_set_cp_reset_reason(uint32_t type)
+{
+	if (type > 0xff) {
+		BK_LOGE(TAG, "Invalid cp rr type: 0x%x", type);
+		return;
+	}
+
+	/* use PMU_REG0 bit[4:11] for reset reason */
+	uint32_t misc_value = aon_pmu_hal_get_r0();
+
+	BK_LOGD(TAG, "set cp rr: 0x%x\r\n", type);
+	/* clear last reset reason */
+	misc_value &= ~(0xff << 4);
+
+	misc_value |= ((type & 0xff) << 4);
+	aon_pmu_hal_set_r0(misc_value);
+}
+
+void bk_misc_set_ap_reset_reason(uint32_t type)
+{
+	if (type > 0x7f) {
+		BK_LOGE(TAG, "Invalid ap rr type: 0x%x", type);
+		return;
+	}
+
+	/* use PMU_REG0 bit[24:30] for reset reason */
+	uint32_t misc_value = aon_pmu_hal_get_r0();
+
+	BK_LOGD(TAG, "set ap rr: 0x%x\r\n", type);
+	/* clear last reset reason */
+	misc_value &= ~(0x7f << 24);
+
+	misc_value |= ((type & 0x7f) << 24);
+	aon_pmu_hal_set_r0(misc_value);
+}
+
+void bk_misc_set_reset_reason(uint32_t type)
+{
+	bk_misc_set_ap_reset_reason(type);
+}
+
 
 uint32_t reset_reason_init(void)
 {
@@ -173,31 +227,9 @@ uint32_t reset_reason_init(void)
 
 	cp_reset_reason = bk_misc_get_cp_reset_reason();
 	ap_reset_reason = bk_misc_get_ap_reset_reason();
-	if (ap_reset_reason) {
-		s_start_type = ap_reset_reason;
-	} else {
-		s_start_type = cp_reset_reason;
-	}
 
+	s_start_type = ap_reset_reason;
 	s_misc_value_save = cp_reset_reason;
 
 	return s_start_type;
 }
-
-void bk_misc_set_reset_reason(uint32_t type)
-{
-	/* use PMU_REG0 bit[24:30] for reset reason */
-	uint32_t misc_value = aon_pmu_ll_get_r0();
-
-	/* clear last reset reason */
-	misc_value &= ~(0x7f << 24);
-
-	misc_value |= ((type & 0x7f) << 24);
-	aon_pmu_ll_set_r0(misc_value);
-
-	/* pass PMU_REGO value to PMU_REG7B*/
-	aon_pmu_ll_set_r25(0x424B55AA);
-	aon_pmu_ll_set_r25(0xBDB4AA55);
-}
-
-

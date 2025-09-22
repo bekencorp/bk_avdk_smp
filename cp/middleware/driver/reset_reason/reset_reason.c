@@ -17,10 +17,10 @@
 #define DISPLAY_START_TYPE_STR 1
 
 
-
-static uint32_t s_start_type;
-static uint32_t s_misc_value_save;
-static uint32_t s_mem_value_save;
+static volatile bool s_initialized = false;
+static uint32_t s_start_type = 0;
+static uint32_t s_misc_value_save = 0;
+static uint32_t s_mem_value_save = 0;
 
 uint32_t bk_misc_get_reset_reason(void)
 {
@@ -123,9 +123,7 @@ static char *misc_get_start_type_str(uint32_t start_type)
 
 	case RESET_SOURCE_UNKNOWN:
 	default:
-		// Chip power on the value of start address may not always be 0
-		// return "unknown";
-		return "power on";
+		return "unknown";
 	}
 #else
 	return "";
@@ -148,12 +146,17 @@ void show_reset_reason(void)
 	BK_LOGD(TAG, "regs - %x, %x, %x\r\n", s_start_type, s_misc_value_save, s_mem_value_save);
 }
 
-static inline void bk_misc_set_cp_reset_reason(uint32_t type) {
+static inline void bk_misc_save_cp_reset_reason(uint32_t type) {
 	FIXED_ADDR_CP_RESET_REASON = type;
 }
 
-void bk_misc_set_ap_reset_reason(uint32_t type) {
+static inline void bk_misc_save_ap_reset_reason(uint32_t type) {
 	FIXED_ADDR_AP_RESET_REASON = type;
+}
+
+uint32_t bk_misc_get_cp_reset_reason(void)
+{
+	return FIXED_ADDR_CP_RESET_REASON;
 }
 
 uint32_t bk_misc_get_ap_reset_reason(void)
@@ -161,46 +164,90 @@ uint32_t bk_misc_get_ap_reset_reason(void)
 	return FIXED_ADDR_AP_RESET_REASON;
 }
 
-uint32_t reset_reason_init(void)
-{
-	uint32_t misc_value;
 
-	if (s_start_type) {
-		return s_start_type;
+
+// typedef volatile union {
+// 	struct {
+// 		uint32_t memchk_bps               :  1; /**<bit[0 : 0] */
+// 		uint32_t fast_boot                :  1; /**<bit[1 : 1] */
+// 		uint32_t ota_finish               :  1; /**<bit[2 : 2] */
+// 		uint32_t bl2_deep_sleep           :  1; /**<bit[3 : 3] */
+// 		uint32_t reset_reason_cp          :  8; /**<bit[4 : 11] */
+// 		uint32_t gpio_retention_bitmap    :  8; /**<bit[12 : 19] */
+// 		uint32_t reset_count              :  4 ;/**<bit[20 : 23] */
+// 		uint32_t reset_reason_ap          :  7; /**<bit[24 : 30] */
+// 		uint32_t gpio_sleep               :  1; /**<bit[31 : 31] */
+// 	};
+// 	uint32_t v;
+// } aon_pmu_r0_t;
+
+void bk_misc_set_cp_reset_reason(uint32_t type)
+{
+	if (type > 0xff) {
+		BK_LOGE(TAG, "Invalid cp rr type: 0x%x", type);
+		return;
 	}
 
-	misc_value = aon_pmu_ll_get_r7a();
-	misc_value = ((misc_value >> 24) & 0x7f);
+	/* use PMU_REG0 bit[4:11] for reset reason */
+	uint32_t misc_value = aon_pmu_hal_get_r0();
 
-	s_start_type = misc_value;
-	s_misc_value_save = misc_value;
-	
-	bk_misc_set_reset_reason(RESET_SOURCE_POWERON);
+	BK_LOGD(TAG, "set cp rr: 0x%x\r\n", type);
+	/* clear last reset reason */
+	misc_value &= ~(0xff << 4);
 
-	bk_misc_set_cp_reset_reason(s_start_type);
-	bk_misc_set_ap_reset_reason(RESET_SOURCE_POWERON);
-
-	return s_start_type;
+	misc_value |= ((type & 0xff) << 4);
+	aon_pmu_hal_set_r0(misc_value);
 }
 
-
-
-void bk_misc_set_reset_reason(uint32_t type)
+void bk_misc_set_ap_reset_reason(uint32_t type)
 {
-	/* use PMU_REG0 bit[24:30] for reset reason */
-	uint32_t misc_value = aon_pmu_ll_get_r0();
+	if (type > 0x7f) {
+		BK_LOGE(TAG, "Invalid ap rr type: 0x%x", type);
+		return;
+	}
 
+	/* use PMU_REG0 bit[24:30] for reset reason */
+	uint32_t misc_value = aon_pmu_hal_get_r0();
+
+	BK_LOGD(TAG, "set ap rr: 0x%x\r\n", type);
 	/* clear last reset reason */
 	misc_value &= ~(0x7f << 24);
 
 	misc_value |= ((type & 0x7f) << 24);
-	aon_pmu_ll_set_r0(misc_value);
+	aon_pmu_hal_set_r0(misc_value);
+}
 
-	/* pass PMU_REGO value to PMU_REG7B*/
-	aon_pmu_ll_set_r25(0x424B55AA);
-	aon_pmu_ll_set_r25(0xBDB4AA55);
+void bk_misc_set_reset_reason(uint32_t type)
+{
+	bk_misc_set_cp_reset_reason(type);
 }
 
 
 
+uint32_t reset_reason_init(void)
+{
+	uint32_t misc_value;
+	uint32_t cp_reset_reason = 0;
+	uint32_t ap_reset_reason = 0;
 
+	if (s_initialized != 0) {
+		return s_start_type;
+	}
+
+	misc_value = aon_pmu_ll_get_r7a();
+	cp_reset_reason = ((misc_value >> 4) & 0xff);
+	ap_reset_reason = ((misc_value >> 24) & 0x7f);
+	
+	s_start_type = cp_reset_reason;
+	s_misc_value_save = misc_value;
+
+
+	bk_misc_save_cp_reset_reason(cp_reset_reason);
+	bk_misc_save_ap_reset_reason(ap_reset_reason);
+
+	bk_misc_set_cp_reset_reason(RESET_SOURCE_POWERON);
+	bk_misc_set_ap_reset_reason(RESET_SOURCE_POWERON);
+
+	s_initialized = true;
+	return s_start_type;
+}
