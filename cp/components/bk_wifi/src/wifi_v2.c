@@ -2700,14 +2700,12 @@ bk_err_t bk_wifi_sta_get_config(wifi_sta_config_t *config)
 	if (!wifi_sta_is_configured())
 		return BK_ERR_WIFI_STA_NOT_CONFIG;
 
-	os_memcpy(config->ssid, g_sta_param_ptr->ssid.array, g_sta_param_ptr->ssid.length);
+	os_strcpy(config->ssid, (char *)g_sta_param_ptr->ssid.array);
+	os_strcpy(config->password, (char *)g_sta_param_ptr->key);
 
 	if (bk_feature_bssid_connect_enable()) {
 		os_memcpy(config->bssid, g_sta_param_ptr->fast_connect.bssid, sizeof(config->bssid));
 	}
-
-	os_memcpy(config->password, g_sta_param_ptr->key, g_sta_param_ptr->key_len);
-	config->password[g_sta_param_ptr->key_len] = 0;
 
 	if(bk_feature_fast_connect_enable()){
 		os_memcpy(config->bssid, g_fci.bssid, WIFI_BSSID_LEN);
