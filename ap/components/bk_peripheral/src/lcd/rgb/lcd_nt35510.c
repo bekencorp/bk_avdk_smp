@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
-#include <driver/lcd_spi.h>
+#include <driver/sim_spi.h>
 #include "bk_misc.h"
 #include "lcd_panel_devices.h"
 #include "gpio_driver.h"
@@ -873,7 +873,7 @@ static void lcd_nt35510_init(void)
 	lcd_nt35510_config();
 }
 
-static bk_err_t nt35510_lcd_off(void)
+static bk_err_t nt35510_lcd_off(const void *handle)
 {
 	lcd_spi_write_hf_word_cmd(0x2800);
 	rtos_delay_milliseconds(100);
@@ -889,7 +889,8 @@ const lcd_device_t lcd_device_nt35510 =
 	.id = LCD_DEVICE_NT35510,
 	.name = "nt35510",
 	.type = LCD_TYPE_RGB565,
-	.ppi = PPI_480X854,
+	.width = 480,
+	.height = 854,
 	.rgb = &lcd_rgb,
 	.init = lcd_nt35510_init,
 	.lcd_off = nt35510_lcd_off,

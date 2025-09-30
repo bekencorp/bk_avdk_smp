@@ -308,6 +308,8 @@ int driver_init(void) {
 
 	drv_model_init();
 
+	g_dd_init();
+
 #if CONFIG_TIMER
 	bk_timer_driver_init();
 #endif
@@ -335,6 +337,10 @@ int driver_init(void) {
 
 #if CONFIG_FLASH
 	bk_flash_driver_init();
+#if CONFIG_FLASH_ORIGIN_API
+	extern int hal_flash_init();
+	hal_flash_init();
+#endif
 #endif
 
 #if CONFIG_EASY_FLASH

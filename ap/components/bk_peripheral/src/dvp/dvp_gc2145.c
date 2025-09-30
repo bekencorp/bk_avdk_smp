@@ -37,9 +37,6 @@
         dvp_camera_i2c_write_uint8((GC2145_WRITE_ADDRESS >> 1), reg, value);\
     } while (0)
 
-bool gc2145_read_flag = false;
-
-
 // gc2145_DEV
 const uint8_t sensor_gc2145_init_talbe[][2] =
 {
@@ -1343,6 +1340,58 @@ const uint8_t sensor_gc2145_480_480_table[][2] =
     {0xfe, 0x00},
 };
 
+const uint8_t sensor_gc2145_480_320_table[][2] =
+{
+    {0xfe, 0x00},
+    {0xf7, 0x1d},
+    {0xf8, 0x84},
+    {0xfa, 0x00},
+    {0xf9, 0xfe},
+    {0x05, 0x01},
+    {0x06, 0x56}, //hb=342
+    {0x07, 0x00},
+    {0x08, 0x32}, //vb=50
+    {0xfe, 0x01},
+    {0x25, 0x00},
+    {0x26, 0xfa}, //steep=250
+    {0x27, 0x04},
+    {0x28, 0xe2}, //20fps
+    {0x29, 0x04},
+    {0x2a, 0xe2}, //20fps
+    {0x2b, 0x04},
+    {0x2c, 0xe2}, //20fps
+    {0x2d, 0x04},
+    {0x2e, 0xe2}, //20fps
+    {0x3c, 0x60},
+    {0xfe, 0x00},
+
+    {0xfe, 0x00},
+    {0xfd, 0x01},
+    {0xfa, 0x00},
+    //// crop window
+    {0xfe, 0x00},
+    {0x90, 0x01},
+    {0x91, 0x00},
+    {0x92, 0x00},
+    {0x93, 0x00},
+    {0x94, 0x00},
+    {0x95, 0x01},
+    {0x96, 0x40}, //320
+    {0x97, 0x01},
+    {0x98, 0xe0}, //480
+    {0xfe, 0x00},
+    {0x99, 0x55},
+    {0x9a, 0x06},
+    {0x9b, 0x02},
+    {0x9c, 0x04},
+    {0x9d, 0x00},
+    {0x9e, 0x00},
+    {0x9f, 0x02},
+    {0xa0, 0x04},
+    {0xa1, 0x00},
+    {0xa2, 0x00},
+};
+
 bool gc2145_detect(void)
 {
     uint8_t hb_id = 0, lb_id;
@@ -1362,20 +1411,6 @@ bool gc2145_detect(void)
     return false;
 }
 
-void gc2145_read_register(uint8_t addr, uint8_t data)
-{
-    if (gc2145_read_flag)
-    {
-        uint8_t value = 0;
-        rtos_delay_milliseconds(2);
-        SENSOR_I2C_READ(addr, &value);
-        if (value != data)
-        {
-            LOGD("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
-        }
-    }
-}
-
 int gc2145_init(void)
 {
     uint32_t size = sizeof(sensor_gc2145_init_talbe) / 2, i;
@@ -1385,7 +1420,6 @@ int gc2145_init(void)
     for (i = 0; i < size; i++)
     {
         SENSOR_I2C_WRITE(sensor_gc2145_init_talbe[i][0], sensor_gc2145_init_talbe[i][1]);
-        gc2145_read_register(sensor_gc2145_init_talbe[i][0], sensor_gc2145_init_talbe[i][1]);
     }
 
     return 0;
@@ -1401,6 +1435,19 @@ int gc2145_set_ppi(media_ppi_t ppi)
 
     switch (ppi)
     {
+        case PPI_480X320:
+        {
+            size = sizeof(sensor_gc2145_480_320_table) / 2;
+
+            for (i = 0; i < size; i++)
+            {
+                SENSOR_I2C_WRITE(sensor_gc2145_480_320_table[i][0],
+                                 sensor_gc2145_480_320_table[i][1]);
+            }
+            ret = 0;
+        }
+        break;
+
         case PPI_480X480:
         {
             size = sizeof(sensor_gc2145_480_480_table) / 2;
@@ -1409,9 +1456,6 @@ int gc2145_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_gc2145_480_480_table[i][0],
                                  sensor_gc2145_480_480_table[i][1]);
-
-                gc2145_read_register(sensor_gc2145_480_480_table[i][0],
-                                     sensor_gc2145_480_480_table[i][1]);
             }
             ret = 0;
         }
@@ -1425,9 +1469,6 @@ int gc2145_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_gc2145_640_480_table[i][0],
                                  sensor_gc2145_640_480_table[i][1]);
-
-                gc2145_read_register(sensor_gc2145_640_480_table[i][0],
-                                     sensor_gc2145_640_480_table[i][1]);
             }
             ret = 0;
         }
@@ -1441,9 +1482,6 @@ int gc2145_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_gc2145_800_480_table[i][0],
                                  sensor_gc2145_800_480_table[i][1]);
-
-                gc2145_read_register(sensor_gc2145_800_480_table[i][0],
-                                     sensor_gc2145_800_480_table[i][1]);
             }
             ret = 0;
         }
@@ -1456,9 +1494,6 @@ int gc2145_set_ppi(media_ppi_t ppi)
             for (i = 0; i < size; i++)
             {
                 SENSOR_I2C_WRITE(sensor_gc2145_864_480_table[i][0],
-                                    sensor_gc2145_864_480_table[i][1]);
-
-                gc2145_read_register(sensor_gc2145_864_480_table[i][0],
                                     sensor_gc2145_864_480_table[i][1]);
             }
             ret = 0;
@@ -1474,9 +1509,6 @@ int gc2145_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_gc2145_1280_720_table[i][0],
                                  sensor_gc2145_1280_720_table[i][1]);
-
-                gc2145_read_register(sensor_gc2145_1280_720_table[i][0],
-                                     sensor_gc2145_1280_720_table[i][1]);
             }
             ret = 0;
         }
@@ -1490,9 +1522,6 @@ int gc2145_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_gc2145_1600_1200_table[i][0],
                                  sensor_gc2145_1600_1200_table[i][1]);
-
-                gc2145_read_register(sensor_gc2145_1600_1200_table[i][0],
-                                     sensor_gc2145_1600_1200_table[i][1]);
             }
             ret = 0;
         }
@@ -1528,9 +1557,6 @@ int gc2145_set_fps(frame_fps_t fps)
         {
             SENSOR_I2C_WRITE(sensor_gc2145_1600_1200_10fps_table[i][0],
                                 sensor_gc2145_1600_1200_10fps_table[i][1]);
-
-            gc2145_read_register(sensor_gc2145_1600_1200_10fps_table[i][0],
-                                    sensor_gc2145_1600_1200_10fps_table[i][1]);
         }
 
         ret = 0;
@@ -1547,9 +1573,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_1280_720_20fps_table[i][0],
                                      sensor_gc2145_1280_720_20fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_1280_720_20fps_table[i][0],
-                                         sensor_gc2145_1280_720_20fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1564,9 +1587,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_1280_720_15fps_table[i][0],
                                      sensor_gc2145_1280_720_15fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_1280_720_15fps_table[i][0],
-                                         sensor_gc2145_1280_720_15fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1581,9 +1601,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_1280_720_10fps_table[i][0],
                                      sensor_gc2145_1280_720_10fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_1280_720_10fps_table[i][0],
-                                         sensor_gc2145_1280_720_10fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1598,9 +1615,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_1280_720_20fps_table[i][0],
                                      sensor_gc2145_1280_720_20fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_1280_720_20fps_table[i][0],
-                                         sensor_gc2145_1280_720_20fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1621,9 +1635,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_864_480_25fps_table[i][0],
                                         sensor_gc2145_864_480_25fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_864_480_25fps_table[i][0],
-                                        sensor_gc2145_864_480_25fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1638,9 +1649,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_864_480_20fps_table[i][0],
                                         sensor_gc2145_864_480_20fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_864_480_20fps_table[i][0],
-                                        sensor_gc2145_864_480_20fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1654,9 +1662,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 for (i = 0; i < size; i++)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_864_480_15fps_table[i][0],
-                                        sensor_gc2145_864_480_15fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_864_480_15fps_table[i][0],
                                         sensor_gc2145_864_480_15fps_table[i][1]);
                 }
 
@@ -1678,9 +1683,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_640_480_30fps_table[i][0],
                                      sensor_gc2145_640_480_30fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_640_480_30fps_table[i][0],
-                                         sensor_gc2145_640_480_30fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1696,9 +1698,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_640_480_25fps_table[i][0],
                                      sensor_gc2145_640_480_25fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_640_480_25fps_table[i][0],
-                                         sensor_gc2145_640_480_25fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1713,9 +1712,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_640_480_20fps_table[i][0],
                                      sensor_gc2145_640_480_20fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_640_480_20fps_table[i][0],
-                                         sensor_gc2145_640_480_20fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1730,9 +1726,6 @@ int gc2145_set_fps(frame_fps_t fps)
                 {
                     SENSOR_I2C_WRITE(sensor_gc2145_640_480_15fps_table[i][0],
                                      sensor_gc2145_640_480_15fps_table[i][1]);
-
-                    gc2145_read_register(sensor_gc2145_640_480_15fps_table[i][0],
-                                         sensor_gc2145_640_480_15fps_table[i][1]);
                 }
 
                 ret = 0;
@@ -1754,31 +1747,18 @@ int gc2145_reset(void)
     return 0;
 }
 
-int gc2145_dump(media_ppi_t ppi)
+int gc2145_read_register(uint32_t reg, uint32_t *data)
 {
-    uint32_t size, i;
-    int ret = -1;
-    uint8_t value = 0;
-
-    LOGD("%s\n", __func__);
-
-    size = sizeof(sensor_gc2145_init_talbe) / 2;
-
-    for (i = 0; i < size; i++)
-    {
-        SENSOR_I2C_READ(sensor_gc2145_init_talbe[i][0], &value);
-        LOGD("[0x%02x, 0x%02x]\r\n", sensor_gc2145_init_talbe[i][0], value);
-    }
-
-    ret = kNoErr;
-
-    return ret;
-
+    uint8_t val = 0;
+    SENSOR_I2C_READ(reg, &val);
+    *data = val;
+    return 0;
 }
 
-void gc2145_read_enable(bool enable)
+int gc2145_write_register(uint32_t reg, uint32_t data)
 {
-    gc2145_read_flag = enable;
+    SENSOR_I2C_WRITE(reg, data);
+    return 0;
 }
 
 const dvp_sensor_config_t dvp_sensor_gc2145 =
@@ -1793,7 +1773,7 @@ const dvp_sensor_config_t dvp_sensor_gc2145 =
     .def_fps = FPS20,
     /* capability config */
     .fps_cap = FPS10 | FPS15 | FPS20 | FPS25 | FPS30,
-    .ppi_cap = PPI_CAP_480X480 | PPI_CAP_640X480 | PPI_CAP_800X480 | PPI_CAP_864X480 | PPI_CAP_1280X720 | PPI_CAP_1600X1200,
+    .ppi_cap = PPI_CAP_480X320 | PPI_CAP_480X480 | PPI_CAP_640X480 | PPI_CAP_800X480 | PPI_CAP_864X480 | PPI_CAP_1280X720 | PPI_CAP_1600X1200,
     .id = ID_GC2145,
     .address = (GC2145_WRITE_ADDRESS >> 1),
     .init = gc2145_init,
@@ -1801,7 +1781,7 @@ const dvp_sensor_config_t dvp_sensor_gc2145 =
     .set_ppi = gc2145_set_ppi,
     .set_fps = gc2145_set_fps,
     .power_down = gc2145_reset,
-    .dump_register = gc2145_dump,
-    .read_register = gc2145_read_enable,
+    .read_register = gc2145_read_register,
+    .write_register = gc2145_write_register,
 };
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
 #include "lcd_disp_hal.h"
 //#include "include/bk_lcd_commands.h"
@@ -55,7 +55,7 @@ static void nt35510_mcu_send_data(uint8_t param_count, uint16_t command, uint16_
 }
 
 
-static bk_err_t lcd_nt35510_mcu_swap_xy(bool swap_axes)
+static bk_err_t lcd_nt35510_mcu_swap_xy(const void *handle, bool swap_axes)
 {
 	return BK_OK;
 #if 0
@@ -75,7 +75,7 @@ static bk_err_t lcd_nt35510_mcu_swap_xy(bool swap_axes)
 #endif
 }
 
-static bk_err_t lcd_nt35510_mcu_mirror(bool mirror_x, bool mirror_y)
+static bk_err_t lcd_nt35510_mcu_mirror(const void *handle, bool mirror_x, bool mirror_y)
 {
 	return BK_OK;
 #if 0
@@ -107,7 +107,7 @@ bk_err_t nt35510_mcu_lcd_on(void)
 	return BK_OK;
 }
 
-static bk_err_t nt35510_mcu_lcd_off(void)
+static bk_err_t nt35510_mcu_lcd_off(const void *handle)
 {
 	nt35510_mcu_send_data(0, 0x2800, 0);
 	return BK_OK;
@@ -581,7 +581,7 @@ void lcd_nt35510_mcu_init(void)
 
 
 
-static void nt35510_mcu_set_display_mem_area(uint16 xs, uint16 xe, uint16 ys, uint16 ye)
+static void nt35510_mcu_set_display_mem_area(const void *handle, uint16 xs, uint16 xe, uint16 ys, uint16 ye)
 {
 	uint16 xs_l, xs_h, xe_l, xe_h;
 	uint16 ys_l, ys_h, ye_l, ye_h;
@@ -611,12 +611,12 @@ static void nt35510_mcu_set_display_mem_area(uint16 xs, uint16 xe, uint16 ys, ui
 	nt35510_mcu_send_data(1, 0x2b03, ye_l);
 }
 
-static void nt35510_mcu_start_transform(void)
+static void nt35510_mcu_start_transfer(const void *handle)
 {
 	nt35510_mcu_send_data(0, 0x2c00, 0);
 }
 
-static void nt35510_mcu_continue_transform(void)
+static void nt35510_mcu_continue_transfer(const void *handle)
 {
 	nt35510_mcu_send_data(0, 0x3c00, 0);
 }
@@ -628,8 +628,8 @@ static const lcd_mcu_t lcd_mcu =
 	.set_xy_swap = lcd_nt35510_mcu_swap_xy,
 	.set_mirror = lcd_nt35510_mcu_mirror,
 	.set_display_area = nt35510_mcu_set_display_mem_area,
-	.start_transform = nt35510_mcu_start_transform,
-	.continue_transform = nt35510_mcu_continue_transform,
+	.start_transfer = nt35510_mcu_start_transfer,
+	.continue_transfer = nt35510_mcu_continue_transfer,
 };
 
 const lcd_device_t lcd_device_nt35510_mcu =
@@ -637,7 +637,8 @@ const lcd_device_t lcd_device_nt35510_mcu =
 	.id = LCD_DEVICE_NT35510_MCU,
 	.name = "nt35510_mcu",
 	.type = LCD_TYPE_MCU8080,
-	.ppi = PPI_480X800,
+	.width = 480,
+	.height = 800,
 	.mcu = &lcd_mcu,
 	.init = lcd_nt35510_mcu_init,
 	.lcd_off = nt35510_mcu_lcd_off,

@@ -13,6 +13,7 @@ menu "USB Camera"
 		default y
 
 	config UVC_URB_NUM
+		depends on USB_CAMERA
 		int "UVC URB count"
 		range 0 64
 		default 8
@@ -20,6 +21,7 @@ menu "USB Camera"
 			URB number advice large than camera_num * 4
 
 	config UVC_NUM_PACKET_PER_URB
+		depends on USB_CAMERA
 		int "The packets per urb contain"
 		range 0 32
 		default 8

@@ -5628,7 +5628,7 @@ void wpa_supplicant_event_sta(void *ctx, enum wpa_event_type event,
 			wpa_dbg(wpa_s, MSG_DEBUG, "Scan completed in %ld.%06ld seconds",
 				diff.sec, diff.usec);
 #else
-			WPA_LOGD("Scan completed in %ld.%06ld seconds\r\n",
+			WPA_LOGI("Scan completed in %ld.%06ld seconds\r\n",
 				diff.sec, diff.usec);
 #endif
 		}

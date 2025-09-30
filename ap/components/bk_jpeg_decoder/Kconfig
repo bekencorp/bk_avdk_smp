@@ -1,0 +1,23 @@
+menu "JPEG Decoder"
+
+	config JPEG_DECODER
+		bool "Enable JPEG Decoder"
+		default y
+		help
+			Enable jpeg decoder service
+	
+	config JPEG_DECODER_SW
+		depends on JPEG_DECODER
+		bool "Enable JPEG Decoder Software"
+		default y
+		help
+			Enable jpeg decoder software service
+	
+	config JPEG_DECODER_HW
+		depends on JPEG_DECODER
+		bool "Enable JPEG Decoder Hardware"
+		default y
+		help
+			Enable jpeg decoder hardware service
+
+endmenu

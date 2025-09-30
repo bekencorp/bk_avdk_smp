@@ -296,6 +296,8 @@ enum BK_EVENT_TYPE
     BK_EVT_WIFI_FAIL_IND        = 0x8,
     BK_EVT_BCN_CC_RXED          = 0x9,
     BK_EVT_CSI_INFO_IND         = 0xA,
+    BK_EVT_ASSOC_GO_IND         = 0xB,
+    BK_EVT_DISASSOC_GO_IND      = 0xC,
 
     // BLE event
     // BK_EVT_BLE_XX            = 0x101
@@ -405,6 +407,10 @@ int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t * data, uint16_t len);
 void wdrv_notify_sta_disconnected(void *data, uint16_t len);
 void wdrv_notify_sap_sta_connected(void);
 void wdrv_notify_sap_sta_disconnected(void);
+#if CONFIG_P2P
+void wdrv_notify_local_as_go(void);
+void wdrv_notify_go_client_disconnected(void);
+#endif
 bk_err_t bk_wifi_bcn_cc_rxed_cb(void *data, uint16_t len);
 void bk_wifi_csi_info_cb(void *data);
 

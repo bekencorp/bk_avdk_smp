@@ -4,7 +4,11 @@
 #include <os/str.h>
 #include "bk_uart.h"
 #include <os/mem.h>
+#if CONFIG_FLASH_ORIGIN_API
+#include "BkDriverFlash.h"
+#else
 #include <driver/flash_partition.h>
+#endif
 // #include "wlan_ui_pub.h"
 // #include "_reg_rc.h"
 #include "sys_ctrl.h"
@@ -567,8 +571,11 @@ static int bkreg_run_command_implement(const char *content, int cnt)
 
 		rx_param        = (REGISTER_PARAM *)pHCIrxBuf->param;
 
+#if CONFIG_FLASH_ORIGIN_API
+		bk_logic_partition_t *pt = bk_flash_get_info(BK_PARTITION_SYS_RF);
+#else
 		bk_logic_partition_t *pt = bk_flash_partition_get_info(BK_PARTITION_SYS_RF);
-
+#endif
 		len_left = rx_param->value;
 		addr = rx_param->addr - pt->partition_start_addr;//0xFA000;
 

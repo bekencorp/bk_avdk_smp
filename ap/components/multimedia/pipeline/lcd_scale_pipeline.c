@@ -23,7 +23,7 @@
 #include "media_evt.h"
 #include "yuv_encode.h"
 
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/psram.h>
 
 #include <driver/hw_scale_types.h>
@@ -33,7 +33,8 @@
 #include "bk_list_edge.h"
 
 #include "mux_pipeline.h"
-#include "lcd_display_service.h"
+#include "uvc_pipeline_act.h"
+
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
 #endif
@@ -145,7 +146,7 @@ typedef struct {
 
 	uint16_t line_count;
 	mux_callback_t reset_cb;
-
+	const decode_callback_t *decode_cbs;
 } scale_config_t;
 
 typedef struct {
@@ -294,13 +295,17 @@ bk_err_t lcd_scale_finish(uint32_t param)
 	}
 
 	LOGV("%s free %p, push %p \n", __func__, scale_config->scale_src_frame->frame, scale_config->scale_frame->frame);
-	frame_buffer_display_free(scale_config->scale_src_frame);
+	if (scale_config->decode_cbs->free != NULL)
+	{
+		scale_config->decode_cbs->free(scale_config->scale_src_frame);
+	}
 	scale_config->scale_src_frame = NULL;
 
 	bk_psram_disable_write_through(scale_config->psram_overwrite_id);
-	if (lcd_display_frame_request(scale_config->scale_frame) != BK_OK)
+
+	if (scale_config->decode_cbs->complete != NULL)
 	{
-		frame_buffer_display_free(scale_config->scale_frame);
+		scale_config->decode_cbs->complete(HW_DEC_END, BK_OK, scale_config->scale_frame);
 	}
 	scale_config->scale_frame = NULL;
 
@@ -325,7 +330,10 @@ bk_err_t lcd_scale_start(uint32_t param)
 	if(num >= 1 || scale_config->state != SCALE_STATE_IDLE)
 	{
 		LOGV("%s free rotate frame \n", __func__);
-		frame_buffer_display_free(scale_src_frame);
+		if (scale_config->decode_cbs->free != NULL)
+		{
+			scale_config->decode_cbs->free(scale_src_frame);
+		}
 		scale_src_frame = NULL;
 		return BK_FAIL;
 	}
@@ -346,7 +354,10 @@ bk_err_t lcd_scale_start(uint32_t param)
 		rtos_start_oneshot_timer(&scale_config->scale_timer);
 	}
 	//all frame size is fixed, free and re-malloc not change real size, so malloc scale size is equal to rotate size
-	scale_config->scale_frame = frame_buffer_display_malloc(scale_src_frame->width * scale_src_frame->height * 2);
+	if (scale_config->decode_cbs->malloc != NULL)
+	{
+		scale_config->scale_frame = scale_config->decode_cbs->malloc(scale_src_frame->width * scale_src_frame->height * 2);
+	}
 	if(scale_config->scale_frame == NULL)
 	{
 		LOGE("scale frame malloc fail\n");
@@ -384,7 +395,10 @@ error:
 	if(scale_config->scale_frame)
 	{
 		bk_psram_disable_write_through(scale_config->psram_overwrite_id);
-		frame_buffer_display_free(scale_config->scale_frame);
+		if (scale_config->decode_cbs->free != NULL)
+		{
+			scale_config->decode_cbs->free(scale_config->scale_frame);
+		}
 		scale_config->scale_frame = NULL;
 		LOGE("%s free scale_frame\n", __func__);
 	}
@@ -468,7 +482,7 @@ void scale_block_result( scale_block_t *src_block, scale_block_t *dst_block)
 	dst_block_args->ok =  src_block_args->ok;
 }
 
-bk_err_t scale_rotate_line_request_callback(void *param)
+bk_err_t scale_rotate_line_request_callback(void *param, void *args)
 {
 	ROTATE_SCALE_NOTIFY();
 
@@ -804,7 +818,7 @@ static void scale_main_entry(beken_thread_arg_t data)
 							scale_config->state = SCALE_STATE_SOURCE_COMPLETE;
 							scale_task_send_msg(SCALE_LINE_START_LOOP, 0);
 						}
-						scale_config->decoder_free_cb(decoder_buffer);
+						scale_config->decoder_free_cb(decoder_buffer, NULL);
 						scale_config->decoder_buffer = NULL;
 					}
 					else
@@ -832,7 +846,7 @@ static void scale_main_entry(beken_thread_arg_t data)
 						LOGD("rotate request: %d, %p, %p %d\n", scale_buffer->index, scale_buffer, scale_buffer->data, request.buffer->ok);
 						}
 #endif
-						bk_rotate_encode_request(&request, scale_rotate_line_request_callback);
+						bk_rotate_encode_request(&request, scale_rotate_line_request_callback, NULL);
 						if (scale_buffer->index != scale_config->dst_height / PIPELINE_DECODE_LINE)
 						{
 							scale_config->state = SCALE_STATE_DEST_COMPLETE;
@@ -911,7 +925,7 @@ static void scale_main_entry(beken_thread_arg_t data)
 					scale_config->scale_buffer[1].state = BUF_IDLE;
 					LOGE("%s SCALE_RESET line_count%d  scale_config->state %x\n", __func__, scale_config->line_count, scale_config->state);
 					if(scale_config->reset_cb && (msg.param == 0))
-						scale_config->reset_cb(NULL);
+						scale_config->reset_cb(NULL, NULL);
 					break;
 
 				case SCALE_STOP:
@@ -963,7 +977,7 @@ static void scale_main_entry(beken_thread_arg_t data)
 	}
 }
 
-bk_err_t scale_task_open(lcd_scale_t *lcd_scale)
+bk_err_t scale_task_open(lcd_scale_t *lcd_scale, const decode_callback_t *decode_cbs)
 {
 	int ret =BK_OK;
 
@@ -971,6 +985,27 @@ bk_err_t scale_task_open(lcd_scale_t *lcd_scale)
 	{
 		LOGE("%s, scale task have been opened!\r\n", __func__);
 		return ret;
+	}
+
+	if (decode_cbs == NULL)
+	{
+		LOGE("%s, %d decode_cbs is NULL\r\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+	if (decode_cbs->complete == NULL)
+	{
+		LOGE("%s, %d complete callback is NULL!\r\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+	if (decode_cbs->free == NULL)
+	{
+		LOGE("%s, %d free callback is NULL!\r\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+	if (decode_cbs->malloc == NULL)
+	{
+		LOGE("%s, %d malloc callback is NULL\r\n", __func__, __LINE__);
+		return BK_FAIL;
 	}
 
 	rtos_lock_mutex(&scale_info->lock);
@@ -984,6 +1019,8 @@ bk_err_t scale_task_open(lcd_scale_t *lcd_scale)
 	}
 
 	os_memset(scale_config, 0, sizeof(scale_config_t));
+
+	scale_config->decode_cbs = decode_cbs;
 
 	INIT_LIST_HEAD(&scale_config->scale_pedding_list);
 
@@ -1025,10 +1062,10 @@ bk_err_t scale_task_open(lcd_scale_t *lcd_scale)
 
 
 #if SUPPORTED_IMAGE_MAX_720P
-	scale_config->scale_buffer[0].data = mux_sram_buffer->scale;
+	scale_config->scale_buffer[0].data = get_mux_sram_scale_buffer();
 	scale_config->scale_buffer[0].id = 0;
 
-	scale_config->scale_buffer[1].data = mux_sram_buffer->scale + scale_config->dst_width * IMAGE_MAX_PIPELINE_LINE * 2;
+	scale_config->scale_buffer[1].data = get_mux_sram_scale_buffer() + scale_config->dst_width * IMAGE_MAX_PIPELINE_LINE * 2;
 	scale_config->scale_buffer[1].id = 1;
 #else
 	//TODO
@@ -1192,7 +1229,7 @@ bk_err_t scale_task_close(void)
 
 			if (scale_config->decoder_free_cb)
 			{
-				scale_config->decoder_free_cb(decoder_buffer);
+				scale_config->decoder_free_cb(decoder_buffer, NULL);
 			}
 			else
 			{
@@ -1214,7 +1251,7 @@ bk_err_t scale_task_close(void)
 
 		if (scale_config->decoder_free_cb)
 		{
-			scale_config->decoder_free_cb(scale_config->decoder_buffer);
+			scale_config->decoder_free_cb(scale_config->decoder_buffer, NULL);
 		}
 		else
 		{
@@ -1226,7 +1263,10 @@ bk_err_t scale_task_close(void)
 	if (scale_config->scale_frame)
 	{
 		// jinryue need modify
-		//frame_buffer_fb_direct_free(scale_config->scale_frame);
+		if (scale_config->decode_cbs->free != NULL)
+		{
+			scale_config->decode_cbs->free(scale_config->scale_frame);
+		}
 		scale_config->scale_frame = NULL;
 		LOGD("%s free scale_frame\n", __func__);
 	}
@@ -1237,7 +1277,10 @@ bk_err_t scale_task_close(void)
 	if(scale_config->scale_src_frame)
 	{
 		// jinryue need modify
-		//frame_buffer_fb_direct_free(scale_config->scale_src_frame);
+		if (scale_config->decode_cbs->free != NULL)
+		{
+			scale_config->decode_cbs->free(scale_config->scale_src_frame);
+		}
 		scale_config->scale_src_frame = NULL;
 	}
 
@@ -1251,7 +1294,7 @@ bk_err_t scale_task_close(void)
 	return BK_OK;
 }
 
-bk_err_t bk_scale_reset_request(mux_callback_t cb)
+bk_err_t bk_scale_reset_request(mux_callback_t cb, void *args)
 {
 	rtos_lock_mutex(&scale_info->lock);
 
@@ -1282,7 +1325,7 @@ error:
 	return BK_FAIL;
 }
 
-bk_err_t bk_scale_encode_request(pipeline_encode_request_t *request, mux_callback_t cb)
+bk_err_t bk_scale_encode_request(pipeline_encode_request_t *request, mux_callback_t cb, void *args)
 {
 	pipeline_encode_request_t *scale_request = NULL;
 

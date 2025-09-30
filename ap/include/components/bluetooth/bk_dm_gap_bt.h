@@ -394,17 +394,31 @@ bk_err_t bk_bt_gap_set_auto_sniff_policy(bk_bd_addr_t remote_bda, uint32_t sec, 
 
 /**
  *
- * @brief           This api can be used to start authentication request
+ * @brief           This api can be used to place device to sniff mode or end sniff mode 
  *
  * @param[in]       addr: The remote device's address
- *
+ * @param[in]       exit: 1 means to end sniff mode, 0 means to place device to sniff mode
+ * @param[in]       config: sniff mode config used to place device to sniff mode
  * @return
  *                  - BK_ERR_BT_SUCCESS: success
- *                  -  others: fail
+ *                  - others: fail
  *
  */
-bt_err_t bk_bt_gap_authentication_request(uint8_t *addr);
+bt_err_t bk_bt_gap_sniff_control(uint8_t *addr, uint8_t exit, bk_bt_gap_sniff_config *config);
 
+/**
+ *
+ * @brief           This api can be used to is called to switch role between master and slave.If the connection is 
+ *                  placed in sniff mode, please exit sniff mode first.
+ *
+ * @param[in]       addr: The remote device's address
+ * @param[in]       new_role: 0 means master, 1 means slave
+ * @return
+ *                  - BK_ERR_BT_SUCCESS: success
+ *                  - others: fail
+ *
+ */
+bt_err_t bk_bt_gap_switch_role(uint8_t *addr, uint8_t new_role);
 
 #ifdef __cplusplus
 }

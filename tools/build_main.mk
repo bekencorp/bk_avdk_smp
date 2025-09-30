@@ -3,7 +3,7 @@ export ARMINO_AP_DIR := $(ARMINO_AVDK_DIR)/ap
 export ARMINO_CP_DIR := $(ARMINO_AVDK_DIR)/cp
 
 export ARMINO_TOOLS_PATH :=  $(ARMINO_AVDK_DIR)/tools
-export ARMINO_TOOL := @$(ARMINO_TOOLS_PATH)/build_tools/armino
+export ARMINO_TOOL := $(ARMINO_TOOLS_PATH)/build_tools/armino
 export ARMINO_TOOL_WRAPPER := @$(ARMINO_TOOLS_PATH)/build_tools/build.sh
 
 
@@ -19,16 +19,24 @@ soc_targets_cp := $(shell find  cp/middleware/soc/ -name "*.defconfig" -exec bas
 
 soc_targets = $(soc_targets_ap) $(soc_targets_cp)
 
+ap_menuconfig_targets = $(addsuffix _menuconfig, $(soc_targets_ap))
+cp_menuconfig_targets = $(addsuffix _cp_menuconfig, $(soc_targets_cp))
+
 cmake_not_supported_targets = help clean doc ap_doc cp_doc
-all_targets = cmake_not_supported_targets soc_targets_cp soc_targets_ap cmake_supported_targets
+all_targets = cmake_not_supported_targets soc_targets_cp soc_targets_ap cmake_supported_targets ap_menuconfig_targets cp_menuconfig_targets
 export SOC_SUPPORTED_TARGETS_AP := ${soc_targets_ap}
 export SOC_SUPPORTED_TARGETS_CP := ${soc_targets_cp}
-
-make_target := $(subst _cp,,$(MAKECMDGOALS))
+make_target := $(subst _menuconfig,,$(MAKECMDGOALS))
+$(info MAKECMDGOALS is $(MAKECMDGOALS))
+make_target := $(subst _cp,,$(make_target))
 make_target := $(subst _ap,,$(make_target))
-export ARMINO_SOC := $(findstring $(make_target), $(soc_targets))
-export CMD_TARGET := $(MAKECMDGOALS)
+ifeq ($(filter $(make_target),$(soc_targets)),)
+  export ARMINO_SOC :=
+else
+  export ARMINO_SOC := $(make_target)
+endif
 
+export CMD_TARGET := $(MAKECMDGOALS)
 ifeq ("$(APP_VERSION)", "")
 	export APP_VERSION := unknown
 else
@@ -47,6 +55,7 @@ ifeq ("$(PROJECT_DIR)", "")
 else
 	export PROJECT_DIR := $(PROJECT_DIR)
 endif
+
 
 ifeq ("$(ARMINO_SOC)", "")
 ifeq ("$(ARMINO_SOC_LIB)", "")
@@ -95,6 +104,8 @@ help:
 	@echo " make ap_doc - generate ap doc"
 	@echo " make cp_doc - generate cp doc"
 	@echo " make smp_doc - generate smp doc"
+	@echo " make bkxxxx_ap_menuconfig - ap sdk config"
+	@echo " make bkxxxx_cp_menuconfig - cp sdk config"
 	@echo ""
 
 common:
@@ -186,6 +197,11 @@ bootloader_build_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk
 bl:
 	@python $(bootloader_build_script) $(PROJECT_DIR) $(CURDIR)/build $(ARMINO_SOC)
 
+$(ARMINO_SOC)_ap_menuconfig: common
+	@make menuconfig ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) MENUCONFIG_DEST_TYPE=ap SOC_NAME=$(ARMINO_SOC) -C $(ARMINO_AP_DIR)
+
+$(ARMINO_SOC)_cp_menuconfig: common
+	@make menuconfig ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) PROJECT_DIR=$(PROJECT_DIR) BUILD_DIR=$(PROJECT_BUILD_DIR) APP_NAME=$(APP_NAME) APP_VERSION=$(APP_VERSION) MENUCONFIG_DEST_TYPE=cp SOC_NAME=$(ARMINO_SOC) -C $(ARMINO_CP_DIR)
 clean:
 	@echo "rm -rf ./build"
 	@python3 ./tools/armino_doc.py --clean True

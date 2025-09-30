@@ -177,7 +177,19 @@ bk_err_t bk_gpio_pull_up(gpio_id_t gpio_id);
  */
 bk_err_t bk_gpio_pull_down(gpio_id_t gpio_id);
 
-
+/**
+ * @brief     Get the GPIO output value,
+ *
+ * This API get GPIO's output level: 0 :low_level 1:high_level.
+ *
+ * @return
+ *    - input value
+ *    - BK_ERR_GPIO_CHAN_ID: invalid GPIO channel
+ *    - BK_ERR_GPIO_NOT_OUTPUT_MODE : GPIO is not output mode
+ *    - others: other errors.
+ */
+bool bk_gpio_get_output(gpio_id_t gpio_id);
+  
 /**
  * @brief     Config the GPIO mode
  *
@@ -216,6 +228,17 @@ bk_err_t bk_gpio_set_output_high(gpio_id_t gpio_id);
  */
 
 bk_err_t bk_gpio_set_output_low(gpio_id_t gpio_id);
+
+/**
+ * @brief     Set the GPIO output value,
+ *
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_GPIO_CHAN_ID: invalid GPIO channel
+ *    - others: other errors.
+ */
+bk_err_t bk_gpio_set_output_value(gpio_id_t gpio_id, bool value);
 
 /**
  * @brief     Get the GPIO input value,

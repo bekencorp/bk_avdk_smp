@@ -49,6 +49,18 @@ static void ip_cmd_show_ip(int ifx)
 		BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_BRIDGE, &config));
 		CLI_DUMP_IP(" ", NETIF_IF_BRIDGE, &config);
 #endif
+#if CONFIG_NET_PAN
+		BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_PAN, &config));
+		CLI_DUMP_IP(" ", NETIF_IF_PAN, &config);
+#endif
+#if CONFIG_LWIP_PPP_SUPPORT
+		BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_PPP, &config));
+		CLI_DUMP_IP(" ", NETIF_IF_PPP, &config);
+#endif
+#if CONFIG_BK_MODEM
+		BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_MODEM, &config));
+		CLI_DUMP_IP(" ", NETIF_IF_MODEM, &config);
+#endif
 	}
 }
 

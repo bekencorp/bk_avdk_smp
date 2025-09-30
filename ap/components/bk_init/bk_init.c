@@ -257,31 +257,9 @@ static int app_uart_debug_init_todo(void)
 extern int net_eth_start();
 static int app_eth_init(void)
 {
-	static bool app_eth_inited = false;
-
-	if (!app_eth_inited) {
-		BK_LOGD(TAG, "ETH init\n");
-		net_eth_start();
-		app_eth_inited = true;
-	}
-
+	BK_LOGD(TAG, "ETH init\n");
+	net_eth_start();
 	return BK_OK;
-}
-
-static void app_eth_init_thread(void *arg)
-{
-	app_eth_init();
-
-	rtos_delete_thread(NULL);
-}
-
-void start_eth_init_thread(void)
-{
-	rtos_create_thread(NULL, CONFIG_APP_MAIN_TASK_PRIO,
-		"eth_init",
-		(beken_thread_function_t)app_eth_init_thread,
-		CONFIG_APP_MAIN_TASK_STACK_SIZE,
-		(beken_thread_arg_t)0);
 }
 #endif
 
@@ -383,14 +361,11 @@ extern int mp_do_startup(int heap_len);
 #endif
 
 #ifdef CONFIG_BLUETOOTH_AP
+#if CONFIG_BLUETOOTH_AUTO_ENABLE
     set_ap_startup_index(AP_ENTER_APP_BLE_INIT);
     app_ble_init();
 #endif
-
-#if CONFIG_ETH
-	start_eth_init_thread();
 #endif
-
     set_ap_startup_index(AP_EXIT_BK_INIT);
 	return 0;
 }

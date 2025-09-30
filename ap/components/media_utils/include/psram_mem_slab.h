@@ -1,6 +1,6 @@
 #pragma once
 
-#include <driver/media_types.h>
+#include <components/media_types.h>
 
 inline uint32_t common_mod(uint32_t val, uint32_t div)
 {

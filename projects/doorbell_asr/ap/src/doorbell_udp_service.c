@@ -20,7 +20,6 @@
 #include "doorbell_udp_service.h"
 #include "doorbell_transmission.h"
 #include "doorbell_devices.h"
-//#include <components/wifi_transfer.h>
 
 #define TAG "doorbell-UDP"
 

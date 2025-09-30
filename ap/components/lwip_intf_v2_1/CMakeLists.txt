@@ -3,6 +3,7 @@ set(srcs)
 
 if (CONFIG_LWIP_V2_1)
 list(APPEND incs
+	lwip-2.1.2
 	lwip-2.1.2/src
 	lwip-2.1.2/port
 	lwip-2.1.2/src/include
@@ -83,6 +84,11 @@ endif()
 if (CONFIG_PAN)
 	list(APPEND srcs
 	lwip-2.1.2/port/panif.c
+	)
+endif()
+if (CONFIG_BK_MODEM)
+	list(APPEND srcs
+	lwip-2.1.2/port/modemif.c
 	)
 endif()
 # lwip apps

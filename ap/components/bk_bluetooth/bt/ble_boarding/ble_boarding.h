@@ -33,7 +33,9 @@ typedef struct
 } ble_boarding_info_t;
 
 int ble_boarding_init(ble_boarding_info_t *info);
+int ble_boarding_deinit(void);
 int ble_boarding_adv_start(uint8_t *adv_data, uint16_t adv_len);
+int ble_boarding_adv_stop(void);
 int ble_boarding_notify(uint8_t *data, uint16_t length);
 #if CONFIG_AT
 extern int ble_boarding_handle(int sync, int argc, char **argv);

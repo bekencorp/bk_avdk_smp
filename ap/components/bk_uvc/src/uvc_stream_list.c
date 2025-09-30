@@ -33,14 +33,14 @@ uvc_node_t *uvc_camera_stream_node_init(uvc_stream_handle_t *handle)
     }
     os_memset(node->param, 0, sizeof(camera_param_t));
 
-    node->param->info = (uvc_config_t *)os_malloc(sizeof(uvc_config_t));
+    node->param->info = (bk_cam_uvc_config_t *)os_malloc(sizeof(bk_cam_uvc_config_t));
     if (node->param->info == NULL)
     {
         LOGE("%s, %d malloc fail\n", __func__, __LINE__);
         ret = BK_FAIL;
         goto out;
     }
-    os_memset(node->param->info, 0, sizeof(uvc_config_t));
+    os_memset(node->param->info, 0, sizeof(bk_cam_uvc_config_t));
     //os_memcpy(node->param->info, config, sizeof(uvc_config_t));
 
     ret = rtos_init_semaphore(&node->param->sem, 1);
@@ -119,7 +119,7 @@ void uvc_camera_stream_node_deinit(uvc_stream_handle_t *handle)
 
                 if (node->param->frame)
                 {
-                    handle->callback.frame_free(node->param->info->img_format, node->param->stream, node->param->frame);
+                    handle->callback->complete(node->param->info->port, node->param->info->img_format, node->param->frame, UVC_FRAME_ERR);
                     node->param->frame = NULL;
                 }
 

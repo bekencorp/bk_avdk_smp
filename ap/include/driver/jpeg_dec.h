@@ -14,7 +14,7 @@
 
 #pragma once
 #include "driver/jpeg_dec_types.h"
-#include <driver/media_types.h>
+#include <components/media_types.h>
 
 
 #ifdef __cplusplus

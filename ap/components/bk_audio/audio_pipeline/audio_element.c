@@ -431,7 +431,7 @@ int audio_element_input(audio_element_handle_t el, char *buffer, int wanted_size
                 audio_element_report_status(el, AEL_STATUS_ERROR_INPUT);
                 break;
             case AEL_IO_TIMEOUT:
-                BK_LOGV(TAG, "IN-[%s] AEL_IO_TIMEOUT", el->tag);
+                BK_LOGV(TAG, "IN-[%s] AEL_IO_TIMEOUT \n", el->tag);
                 break;
             default:
                 BK_LOGE(TAG, "IN-[%s] Input return not support,ret:%d \n", el->tag, in_len);

@@ -14,9 +14,9 @@
 
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
-#include <driver/lcd_spi.h>
+#include <driver/sim_spi.h>
 #include "bk_misc.h"
 #include "lcd_panel_devices.h"
 #include "gpio_driver.h"
@@ -285,7 +285,8 @@ const lcd_device_t lcd_device_st7701s_ly =
 	.id = LCD_DEVICE_ST7701S_LY,
 	.name = "st7701s_ly",
 	.type = LCD_TYPE_RGB565,
-	.ppi = PPI_480X800,
+	.width = 480,
+	.height = 800,
 	.rgb = &lcd_rgb,
 	.out_fmt = PIXEL_FMT_RGB888,
 	.init = lcd_st7701s_ly_init,

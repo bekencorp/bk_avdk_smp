@@ -56,12 +56,6 @@ if ((NOT CONFIG_SOC_BK7236XX) AND (NOT CONFIG_SOC_BK7239XX) AND (NOT CONFIG_SOC_
 endif()
 endif()
 
-if(CONFIG_EFUSE)
-	list(APPEND srcs
-		hal/efuse_hal.c
-	)
-endif()
-
 if(CONFIG_TRNG_SUPPORT)
 	list(APPEND srcs
 		"hal/trng_hal.c"
@@ -198,9 +192,9 @@ if(CONFIG_LIN)
 	)
 endif()
 
-if(CONFIG_CAN) 
-	list(APPEND srcs 
-		"hal/can_hal.c" 
+if(CONFIG_CAN)
+	list(APPEND srcs
+		"hal/can_hal.c"
 	)
 endif()
 

@@ -370,6 +370,8 @@ uint32_t flash_get_excute_enable();
 /**
  * @brief     Set flash 2 line mode
  *
+ * @param line_mode flash 2 line mode
+ *
  * @return
  *    - BK_OK: succeed
  *    - others: other errors.
@@ -378,6 +380,8 @@ bk_err_t bk_flash_power_saving_enter(void);
 
 /**
  * @brief     Set flash 4 line mode
+ *
+ * @param line_mode flash 2 line mode
  *
  * @return
  *    - BK_OK: succeed

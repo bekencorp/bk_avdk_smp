@@ -13,8 +13,8 @@
 // limitations under the License.
 
 #pragma once
-#include "driver/dvp_camera_types.h"
-
+#include "components/dvp_camera_types.h"
+#include <os/os.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -25,12 +25,117 @@
 #if CONFIG_AON_RTC
 #include <driver/aon_rtc.h>
 #endif
+#include <driver/timer.h>
 
-#if (CONFIG_EFUSE)
-static void efuse_cmd_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
-static void efuse_mac_cmd_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
-#endif //#if (CONFIG_EFUSE)
 
+void cli_misc_version_help(void)
+{
+	CLI_RAW_LOGI("\r\nversion\n");
+	CLI_RAW_LOGI("  Show the firmware version, chip id, and soc information.\n");
+	CLI_RAW_LOGI("  -no param\n");
+	CLI_RAW_LOGI("  example1: version\n");
+}
+
+void cli_misc_starttype_help(void)
+{
+	CLI_RAW_LOGI("\r\nstarttype\n");
+	CLI_RAW_LOGI("  Show the reset reason of last time.\n");
+	CLI_RAW_LOGI("  -no param\n");
+	CLI_RAW_LOGI("  example1: starttype\n");
+}
+
+void cli_misc_id_help(void)
+{
+	CLI_RAW_LOGI("\r\nid\n");
+	CLI_RAW_LOGI("  Show the device id and chip id.\n");
+	CLI_RAW_LOGI("  -no param\n");
+	CLI_RAW_LOGI("  example1: id\n");
+}
+
+void cli_misc_reboot_help(void)
+{
+	CLI_RAW_LOGI("\r\nreboot\n");
+	CLI_RAW_LOGI("  Reboot the device.\n");
+	CLI_RAW_LOGI("  -no param\n");
+	CLI_RAW_LOGI("  example1: reboot\n");
+}
+
+void cli_misc_time_help(void)
+{
+	CLI_RAW_LOGI("\r\ntime\n");
+	CLI_RAW_LOGI("  Get the os time of the device.\n");
+	CLI_RAW_LOGI("  -no param\n");
+	CLI_RAW_LOGI("  example1: time\n");
+}
+
+void cli_misc_mac_help(void)
+{
+	CLI_RAW_LOGI("\r\nmac\n");
+	CLI_RAW_LOGI("  Get the mac address of the device, include base mac, sta mac and ap mac.\n");
+	CLI_RAW_LOGI("  -no param\n");
+	CLI_RAW_LOGI("  example1: mac\n");
+}
+
+void cli_misc_cputest_help(void)
+{
+	CLI_RAW_LOGI("\r\ncputest [count]\n");
+	CLI_RAW_LOGI("  Test the cpu performance.\n");
+	CLI_RAW_LOGI("  -count<int><mandatory>: test count\n");
+	CLI_RAW_LOGI("  example1: cputest 10\n");
+}
+
+void cli_misc_cache_help(void)
+{
+	CLI_RAW_LOGI("\r\ncache {mode}\n");
+	CLI_RAW_LOGI("  Show cache configuration informaion or control dcache.\n");
+	CLI_RAW_LOGI("  -mode<int><optional>: Enable or disable dcache. If this parameter is not filled in, it will show cache configuration information.\n");
+	CLI_RAW_LOGI("  example1: cache\n");
+	CLI_RAW_LOGI("  example1: cache 0\n");
+	CLI_RAW_LOGI("  example2: cache 1\n");
+}
+
+void cli_misc_disable_int_interval_check_set_help(void)
+{
+	CLI_RAW_LOGI("\r\ndisable_int_interval_check_set [interval_time] [trace_time]\n");
+	CLI_RAW_LOGI("  Set disable int check interval time(us):interval_time, trace_time\n");
+	CLI_RAW_LOGI("  -interval_time<int><mandatory>: disable int check interval time(us)\n");
+	CLI_RAW_LOGI("  -trace_time<int><mandatory>: trace time(us)\n");
+	CLI_RAW_LOGI("  example1: disable_int_interval_check_set 1000 1000000\n");
+}
+
+void cli_misc_dump_int_context_help(void)
+{
+	CLI_RAW_LOGI("\r\ndump_int_context [type]\n");
+	CLI_RAW_LOGI("  Assert or crash in interruption context.\n");
+	CLI_RAW_LOGI("  -type<str><mandatory>: assert or crash\n");
+	CLI_RAW_LOGI("  example1: dump_int_context assert\n");
+	CLI_RAW_LOGI("  example2: dump_int_context crash\n");
+}
+
+void cli_misc_dump_disable_int_help(void)
+{
+	CLI_RAW_LOGI("\r\ndump_disable_int [type]\n");
+	CLI_RAW_LOGI("  Assert or crash in interruption critical section.\n");
+	CLI_RAW_LOGI("  -type<str><mandatory>: assert or crash\n");
+	CLI_RAW_LOGI("  example1: dump_disable_int assert\n");
+	CLI_RAW_LOGI("  example2: dump_disable_int crash\n");
+}
+
+__maybe_unused static void cli_misc_help(void)
+{
+	CLI_LOGD("pwm_driver init {26M|DCO}\n");
+#if (CONFIG_WIFI_ENABLE)
+	CLI_LOGD("mac <mac>, get/set mac. e.g. mac c89346000001\r\n");
+#endif
+
+	CLI_LOGD("setjtagmode set jtag mode [cpu0|cpu1] [group1|group2]\r\n");
+	CLI_LOGD("setcpufreq [cksel] [ckdiv_core] [ckdiv_bus] [ckdiv_cpu]\r\n");
+#if CONFIG_COMMON_IO
+	CLI_LOGD("testcommonio test common io\r\n");
+#endif
+    CLI_LOGD("dump_int_context [assert|crash]\r\n");
+    CLI_LOGD("dump_disable_int [assert|crash]\r\n");
+}
 
 static int hex2num(char c)
 {
@@ -73,28 +178,15 @@ int hexstr2bin_cli(const char *hex, u8 *buf, size_t len)
 	return 0;
 }
 
-__maybe_unused static void cli_misc_help(void)
-{
-	CLI_LOGD("pwm_driver init {26M|DCO}\n");
-#if (CONFIG_WIFI_ENABLE)
-	CLI_LOGD("mac <mac>, get/set mac. e.g. mac c89346000001\r\n");
-#endif
-
-#if (CONFIG_EFUSE)
-	CLI_LOGD("efuse [-r addr] [-w addr data]\r\n");
-	CLI_LOGD("efusemac [-r] [-w] [mac]\r\n");
-#endif
-	CLI_LOGD("setjtagmode set jtag mode [cpu0|cpu1] [group1|group2]\r\n");
-	CLI_LOGD("setcpufreq [cksel] [ckdiv_core] [ckdiv_bus] [ckdiv_cpu]\r\n");
-#if CONFIG_COMMON_IO
-	CLI_LOGD("testcommonio test common io\r\n");
-#endif
-}
-
 extern volatile const uint8_t build_version[];
 
 void get_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_version_help();
+		return;
+	}
+
 	CLI_LOGD("get_version\r\n");
 	//BK_LOGD(NULL, "firmware version : %s", BEKEN_SDK_REV);
 	CLI_LOGD("firmware version : %s\r\n", build_version);
@@ -104,12 +196,22 @@ void get_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv
 
 void cli_show_reset_reason(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_starttype_help();
+		return;
+	}
+
 	show_reset_reason();
 }
 
 
 void get_id(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_id_help();
+		return;
+	}
+
 	CLI_LOGD("get_id\r\n");
 	//BK_LOGD(NULL, "id : %x_%x",sddev_control(DD_DEV_TYPE_SCTRL,CMD_GET_DEVICE_ID, NULL), sddev_control(DD_DEV_TYPE_SCTRL,CMD_GET_CHIP_ID, NULL));
 	CLI_LOGD("id : %x_%x",sys_drv_get_device_id(), sys_drv_get_chip_id());
@@ -120,6 +222,11 @@ void get_id(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 #endif
 static void uptime_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_time_help();
+		return;
+	}
+
 	CLI_LOGD("OS time %ldms\r\n", rtos_get_time());
 #if CONFIG_NTP_SYNC_RTC
 	time_t cur_time = ntp_sync_to_rtc();
@@ -148,66 +255,23 @@ static void uptime_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
 void reboot(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_reboot_help();
+		return;
+	}
+
 	bk_reboot();
 }
 
-#if (!CONFIG_SOC_BK7231)
-#if (CONFIG_EFUSE)
-static void efuse_cmd_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	uint8_t addr, data;
-
-	if (argc == 3) {
-		if (os_strncmp(argv[1], "-r", 2) == 0) {
-			hexstr2bin_cli(argv[2], &addr, 1);
-			bk_efuse_read_byte(addr, &data);
-			CLI_LOGI("efuse read: addr-0x%02x, data-0x%02x\r\n",
-					  addr, data);
-		}
-	} else if (argc == 4) {
-		if (os_strncmp(argv[1], "-w", 2) == 0)  {
-			hexstr2bin_cli(argv[2], &addr, 1);
-			hexstr2bin_cli(argv[3], &data, 6);
-			CLI_LOGI("efuse write: addr-0x%02x, data-0x%02x, ret:%d\r\n",
-					  addr, data, bk_efuse_write_byte(addr, data));
-		}
-	} else
-		cli_misc_help();
-}
-
-static void efuse_mac_cmd_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-#if CONFIG_BASE_MAC_FROM_EFUSE
-	uint8_t mac[6];
-
-	if (argc == 1) {
-		if (bk_get_mac(mac, MAC_TYPE_BASE) == BK_OK)
-			CLI_LOGI("MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
-					  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-	} else if (argc == 2) {
-		if (os_strncmp(argv[1], "-r", 2) == 0) {
-			if (bk_get_mac(mac, MAC_TYPE_BASE) == BK_OK)
-				CLI_LOGI("MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
-						  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-		}
-	} else if (argc == 3) {
-		if (os_strncmp(argv[1], "-w", 2) == 0)  {
-			hexstr2bin_cli(argv[2], mac, 6);
-			CLI_LOGI("Set MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
-					  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-		}
-	} else
-		CLI_LOGI("efusemac [-r] [-w] [mac]\r\n");
-#else
-	CLI_LOGI("base mac is not from efuse\n");
-#endif
-}
-#endif //#if (CONFIG_EFUSE)
-#endif //(!CONFIG_SOC_BK7231)
 
 #if (CONFIG_WIFI_ENABLE) || (CONFIG_ETH)
 static void mac_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_mac_help();
+		return;
+	}
+
 	uint8_t base_mac[BK_MAC_ADDR_LEN] = {0};
 #if CONFIG_WIFI_ENABLE
 	uint8_t sta_mac[BK_MAC_ADDR_LEN] = {0};
@@ -422,10 +486,15 @@ static void test_fluscache(int count) {
 
     BK_DUMP_OUT("test_flushcache end, time consume=%d us\r\n", diff_us);
 
-} 
+}
 
 void cli_cache_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_cache_help();
+		return;
+	}
+
 	if (argc < 2) {
 		show_cache_config_info();
 	}
@@ -468,9 +537,35 @@ int32_t cpu_test(uint32_t count) {
     return 0;
 }
 
+#if (defined CONFIG_ISR_DISABLE_TIME_STATISTIC)
+void cli_disable_int_check_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_disable_int_interval_check_set_help();
+		return;
+	}
+
+    extern void bk_set_disable_isr_check_time_value(uint32_t assert_interval, uint32_t trace_interval);
+	if (argc > 2) {
+		uint32_t assert_time = os_strtoul(argv[1], NULL, 10);
+		uint32_t trace_time = os_strtoul(argv[2], NULL, 10);
+		bk_set_disable_isr_check_time_value(assert_time, trace_time);
+        BK_LOGD(NULL, "set disable isr check time ok,assert time: %dms,trace_time:%dms",assert_time/1000,trace_time/1000);
+	}
+
+	return;
+}
+#endif
+
 static void cli_cpu_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	uint32_t count = 0;
+
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_cputest_help();
+		return;
+	}
+
 	if (argc < 2) {
 		CLI_LOGD("cputest [count]\r\n");
 		return;
@@ -502,6 +597,83 @@ void cli_set_clock_source(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 }
 #endif
 
+
+static uint32_t  g_dump_flag;
+static void timer1_examples_isr(timer_id_t timer_id)
+{
+    CLI_LOGD("timer1(%d) enter timer1_example_isr\r\n", timer_id);
+    
+    if (g_dump_flag == 0 ) {
+        BK_ASSERT(false);
+    } else if (g_dump_flag == 1) {
+        os_write_word(0, 0x1234);
+    }     
+}
+
+void cli_dump_in_context(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_dump_int_context_help();
+		return;
+	}
+
+    if (argc < 2) {
+		cli_misc_help();
+		return;
+	}
+
+    if (os_strcmp(argv[1], "assert") == 0) {
+        CLI_LOGD("set cpu assert in interruption context\r\n");
+		g_dump_flag = 0;
+	} else if (os_strcmp(argv[1], "crash") == 0) {
+        CLI_LOGD("set cpu crash in interruption context\r\n");
+		g_dump_flag = 1;
+	}  else {
+		cli_misc_help();
+        return;
+	}
+    CLI_LOGD("start timer...\r\n");
+    BK_LOG_ON_ERR(bk_timer_driver_init());
+    BK_LOG_ON_ERR(bk_timer_start(TIMER_ID3, 20, timer1_examples_isr));
+}
+
+void cli_dump_disable_int(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
+		cli_misc_dump_disable_int_help();
+		return;
+	}
+
+    if (argc < 2) {
+		cli_misc_help();
+		return;
+	}
+
+    uint32_t s_dump_flag;
+    uint32_t int_level;
+    if (os_strcmp(argv[1], "assert") == 0) {
+        CLI_LOGD("set cpu assert when enter critical\r\n");
+        s_dump_flag = 1;
+	} else if (os_strcmp(argv[1], "crash") == 0) {
+        CLI_LOGD("set cpu crash when enter critical\r\n");
+        s_dump_flag = 2;
+	}  else {
+		cli_misc_help();
+        return;
+	}
+
+    int_level = rtos_enter_critical();
+
+    if (s_dump_flag == 1 ) {
+        BK_ASSERT(false);
+    } else if (s_dump_flag == 2) {
+        os_write_word(0, 0x1234);
+    } 
+
+    rtos_exit_critical(int_level);
+
+}
+
 #define MISC_CMD_CNT (sizeof(s_misc_commands) / sizeof(struct cli_command))
 static const struct cli_command s_misc_commands[] = {
 	{"version", NULL, get_version},
@@ -513,15 +685,17 @@ static const struct cli_command s_misc_commands[] = {
 	{"mac", "mac <mac>, get/set mac. e.g. mac c89346000001", mac_command},
 #endif
 
-#if (CONFIG_EFUSE)
-	{"efuse",       "efuse [-r addr] [-w addr data]", efuse_cmd_test},
-	{"efusemac",    "efusemac [-r] [-w] [mac]",       efuse_mac_cmd_test},
-#endif //#if (CONFIG_EFUSE)
-
 	{"cputest", "cputest [count]", cli_cpu_test},
 #if CONFIG_CACHE_ENABLE
 	{"cache", "show cache config info", cli_cache_cmd},
 #endif
+
+#if CONFIG_ISR_DISABLE_TIME_STATISTIC
+	{"disable_int_interval_check_set", "set disable int check interval time(us):interval_time, trace_time", cli_disable_int_check_cmd},
+#endif
+
+    {"dump_int_context", "assert or crash in interruption context", cli_dump_in_context},
+    {"dump_disable_int", "assert or crash in interruption critical section", cli_dump_disable_int},
 };
 
 int cli_misc_init(void)

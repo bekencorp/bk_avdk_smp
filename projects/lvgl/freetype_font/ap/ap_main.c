@@ -5,17 +5,18 @@
 #include <modules/pm.h>
 #include <driver/pwr_clk.h>
 #include "cli.h"
-#include "driver/media_types.h"
+#include "components/media_types.h"
 #include "driver/drv_tp.h"
 #if CONFIG_LVGL
 #include "lvgl.h"
 #include "lv_vendor.h"
 #include "lv_img_utility.h"
 #endif
-#include "lcd_display_service.h"
 #include "media_service.h"
 #include "bk_posix.h"
-#include <driver/pwr_clk.h>
+#include "components/bk_display.h"
+#include "driver/gpio.h"
+#include "gpio_driver.h"
 
 #define TAG "freetype_font"
 
@@ -25,22 +26,43 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-#define PSRAM_FRAME_BUFFER ((0x60000000UL) + 5 * 1024 * 1024)
 
 extern void user_app_main(void);
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
 extern int bk_cli_init(void);
 extern void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id);
+extern const lcd_device_t lcd_device_st77903_h0165y008t;
 
-const lcd_open_t lcd_open =
-{
-    .device_ppi = PPI_400X400,
-    .device_name = "st77903_h0165y008t",
+bk_display_qspi_ctlr_config_t qspi_ctlr_config = {
+    .lcd_device = &lcd_device_st77903_h0165y008t,
+    .qspi_id = 0,
+    .reset_pin = GPIO_40,
+    .te_pin = 0,
 };
+
+static avdk_err_t lcd_backlight_open(uint8_t bl_io)
+{
+    gpio_dev_unmap(bl_io);
+    BK_LOG_ON_ERR(bk_gpio_enable_output(bl_io));
+    BK_LOG_ON_ERR(bk_gpio_pull_up(bl_io));
+    bk_gpio_set_output_high(bl_io);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t lcd_backlight_close(uint8_t bl_io)
+{
+    BK_LOG_ON_ERR(bk_gpio_pull_down(bl_io));
+    bk_gpio_set_output_low(bl_io);
+    return AVDK_ERR_OK;
+}
 
 static void lv_example_freetype(void)
 {
-    lv_vendor_fs_init();
+    bk_err_t ret = lv_vendor_fs_init();
+    if (ret != BK_OK) {
+        LOGE("lv_vendor_fs_init failed\r\n");
+        return;
+    }
 
     int fd = open(PATH_INTERNAL_FLASH_FILE("Lato-Regular.ttf"), O_RDONLY);
     if (fd < 0) {
@@ -49,7 +71,7 @@ static void lv_example_freetype(void)
         return;
     }
 
-    int file_len = lv_img_read_filelen(PATH_INTERNAL_FLASH_FILE("Lato-Regular.ttf"));
+    int file_len = lv_img_get_filelen(PATH_INTERNAL_FLASH_FILE("Lato-Regular.ttf"));
     if (file_len <= 0) {
         LOGE("file len read failed\r\n");
         close(fd);
@@ -68,7 +90,11 @@ static void lv_example_freetype(void)
     uint32_t read_len = read(fd, file_content, file_len);
     LOGD("read_len = %d \r\n", read_len);
     close(fd);
-    lv_vendor_fs_deinit();
+    ret = lv_vendor_fs_deinit();
+    if (ret != BK_OK) {
+        LOGE("lv_vendor_fs_deinit failed\r\n");
+        return;
+    }
 
     lv_vendor_disp_lock();
     /*Create a font*/
@@ -101,27 +127,25 @@ bk_err_t lvgl_app_freetype_font_init(void)
 {
     lv_vnd_config_t lv_vnd_config = {0};
 
-#ifdef CONFIG_LVGL_USE_PSRAM
-    lv_vnd_config.draw_pixel_size = ppi_to_pixel_x(lcd_open.device_ppi) * ppi_to_pixel_y(lcd_open.device_ppi);
-    lv_vnd_config.draw_buf_2_1 = (lv_color_t *)PSRAM_DRAW_BUFFER;
-    lv_vnd_config.draw_buf_2_2 = (lv_color_t *)(PSRAM_DRAW_BUFFER + lv_vnd_config.draw_pixel_size * sizeof(lv_color_t));
-#else
-    lv_vnd_config.draw_pixel_size = ppi_to_pixel_x(lcd_open.device_ppi) * ppi_to_pixel_y(lcd_open.device_ppi) / 10;
-    lv_vnd_config.draw_buf_2_1 = LV_MEM_CUSTOM_ALLOC(lv_vnd_config.draw_pixel_size * sizeof(lv_color_t));
-    lv_vnd_config.draw_buf_2_2 = NULL;
-    lv_vnd_config.frame_buf_1 = (lv_color_t *)PSRAM_FRAME_BUFFER;
-    lv_vnd_config.frame_buf_2 = (lv_color_t *)(PSRAM_FRAME_BUFFER + ppi_to_pixel_x(lcd_open.device_ppi) * ppi_to_pixel_y(lcd_open.device_ppi) * sizeof(lv_color_t));
-#endif
-    lv_vnd_config.lcd_hor_res = ppi_to_pixel_x(lcd_open.device_ppi);
-    lv_vnd_config.lcd_ver_res = ppi_to_pixel_y(lcd_open.device_ppi);
+    lv_vnd_config.width = qspi_ctlr_config.lcd_device->width;
+    lv_vnd_config.height = qspi_ctlr_config.lcd_device->height;
+    lv_vnd_config.render_mode = RENDER_PARTIAL_MODE;
     lv_vnd_config.rotation = ROTATE_NONE;
-
+    for (int i = 0; i < CONFIG_LVGL_FRAME_BUFFER_NUM; i++) {
+        lv_vnd_config.frame_buffer[i] = frame_buffer_display_malloc(lv_vnd_config.width * lv_vnd_config.height * sizeof(bk_color_t));
+        if (lv_vnd_config.frame_buffer[i] == NULL) {
+            LOGE("lv_frame_buffer[%d] malloc failed\r\n", i);
+            return BK_FAIL;
+        }
+    }
+    bk_display_qspi_new(&lv_vnd_config.handle, &qspi_ctlr_config);
     lv_vendor_init(&lv_vnd_config);
 
-    lcd_display_open((lcd_open_t *)&lcd_open);
+    bk_display_open(lv_vnd_config.handle);
+    lcd_backlight_open(GPIO_7);
 
 #if (CONFIG_TP)
-    drv_tp_open(ppi_to_pixel_x(lcd_open.device_ppi), ppi_to_pixel_y(lcd_open.device_ppi), TP_MIRROR_NONE);
+    drv_tp_open(lv_vnd_config.width, lv_vnd_config.height, TP_MIRROR_NONE);
 #endif
 
     lv_example_freetype();

@@ -1,0 +1,14 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+重启设备,AT+RST,1,wakeup,3
+dvp_open_01,ap_cmd dvp open 640 480,1,CMDRSP:OK,5
+dvp_close_01,ap_cmd dvp close,1,CMDRSP:OK,5
+dvp_open_02,ap_cmd dvp open 640 480 h264,1,CMDRSP:OK,5
+dvp_close_02,ap_cmd dvp close,1,CMDRSP:OK,5
+dvp_open_03,ap_cmd dvp open 640 480 yuv,1,CMDRSP:OK,5
+dvp_close_03,ap_cmd dvp close,1,CMDRSP:OK,5
+dvp_open_04,ap_cmd dvp open 640 480 jpeg enc_yuv,1,CMDRSP:OK,5
+dvp_close_04,ap_cmd dvp close,1,CMDRSP:OK,5
+dvp_open_05,ap_cmd dvp open 640 480 h264 enc_yuv,1,CMDRSP:OK,5
+dvp_close_05,ap_cmd dvp close,1,CMDRSP:OK,5
+dvp_open_06,ap_cmd dvp open 1024 600,1,CMDRSP:ERROR,5
+dvp_open_07,ap_cmd dvp open 1280 720 h265,1,CMDRSP:ERROR,5

@@ -477,9 +477,9 @@ static int process_dhcp_message(char *msg, int len)
         int send_byte;
     	struct bootp_header *hdr;
         if (response_type == DHCP_MESSAGE_OFFER)
-			LWIP_LOGD("ap:DHCP should send offer\r\n");
+			LWIP_LOGI("ap:DHCP should send offer\r\n");
 		else if (response_type == DHCP_MESSAGE_ACK)
-			LWIP_LOGD("ap:DHCP should send ack\r\n");
+			LWIP_LOGI("ap:DHCP should send ack\r\n");
 		send_byte = make_response(msg, (enum dhcp_message_type)response_type);
         hdr = (struct bootp_header *)msg;
 

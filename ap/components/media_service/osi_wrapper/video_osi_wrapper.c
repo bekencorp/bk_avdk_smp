@@ -88,21 +88,34 @@ static int f_open_wrapper(void **fp, const void *path, uint8_t mode)
 #elif (CONFIG_VFS)
 	uint32_t flags = 0;
 
-	if (mode == 0x01)
+	if (mode & 0x01)
 	{
-		flags = O_RDONLY;
+		flags |= O_RDONLY;
 	}
-	else if (mode == 0x02)
+	if (mode & 0x02)
 	{
-		flags = O_WRONLY;
+		flags |= O_WRONLY;
 	}
-	else if(mode == (0x01 | 0x02))
+	if ((mode & 0x03) == 0x03)
 	{
-		flags = O_RDWR;
-	} else if (mode == (0x01 | 0x02 |
- 0x08))
+		flags |= O_RDWR;
+	}
+
+	if (mode & 0x08)
 	{
-		flags = O_CREAT | O_RDWR;
+		flags |= O_CREAT | O_TRUNC;
+	}
+	if (mode & 0x04)
+	{
+		flags |= O_CREAT | O_EXCL;
+	}
+	if (mode & 0x30)
+	{
+		flags |= O_APPEND;
+	}
+	if (mode & 0x10)
+	{
+		flags |= O_CREAT;
 	}
 
 	int f = open(path, flags);

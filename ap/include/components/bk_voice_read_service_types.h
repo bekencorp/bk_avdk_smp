@@ -20,8 +20,22 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Voice Read Service Types
+ * 
+ * This file defines the data types and structures used by the
+ * voice read service module. These types are used to configure
+ * and control voice read service operations.
+ */
+
+/**
+ * @brief Voice read handle type
+ */
 typedef struct voice_read *voice_read_handle_t;
 
+/**
+ * @brief Voice read configuration structure
+ */
 typedef struct {
     voice_handle_t voice_handle;                                                    /*!< voice handle */
     uint32_t max_read_size;                                                         /*!< the max size of data read from voice handle, used in voice_read_callback */
@@ -33,11 +47,26 @@ typedef struct {
     audio_mem_type_t mem_type;                                                      /*!< memory type used, sram or psram */
 } voice_read_cfg_t;
 
+/**
+ * @brief Default voice read task priority
+ */
 #define VOICE_READ_TASK_PRIO    (BEKEN_DEFAULT_WORKER_PRIORITY - 1)
 
+/**
+ * @brief Default voice read configuration
+ * 
+ * This configuration defines default settings for voice read service operations using:
+ * - Voice handle: NULL
+ * - Max read size: 1920 bytes
+ * - Voice read callback: NULL
+ * - Task stack size: 2048 bytes
+ * - Task running in core: 0
+ * - Task priority: VOICE_READ_TASK_PRIO
+ * - Memory type: AUDIO_MEM_TYPE_PSRAM
+ */
 #define VOICE_READ_CFG_DEFAULT() {                  \
     .voice_handle = NULL,                           \
-    .max_read_size = 640,                           \
+    .max_read_size = 1920,                          \
     .voice_read_callback = NULL,                    \
     .args = NULL,                                   \
     .task_stack = 2048,                             \

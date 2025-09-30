@@ -377,4 +377,10 @@ menu "Bk_Wifi"
 		depends on WIFI_ENABLE && WIFI_VNET_CONTROLLER
 		bool "Enable Wi-Fi Communication Processor IPC interface"
 		default n
+
+		config BK_RAW_LINK
+		bool "Enable BK Raw Link"
+		default n
+		help
+			Enable BK Raw Link
 endmenu

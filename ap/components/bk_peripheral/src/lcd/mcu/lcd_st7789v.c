@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
 #include "lcd_disp_hal.h"
 //#include "include/bk_lcd_commands.h"
@@ -53,7 +53,7 @@ const static uint32_t param_cmd_0xE1[] = {0xD0, 0x02, 0x06, 0x09, 0x08, 0x05, 0x
 //const static uint8_t param_cmd_0x29[] = {0x00};
 
 
-static bk_err_t lcd_st7789v_swap_xy(bool swap_axes)
+static bk_err_t lcd_st7789v_swap_xy(const void *handle, bool swap_axes)
 {
 	uint8_t madctl_val = 0x48;
 
@@ -72,7 +72,7 @@ static bk_err_t lcd_st7789v_swap_xy(bool swap_axes)
 	return BK_OK;
 }
 
-static bk_err_t lcd_st7789v_mirror(bool mirror_x, bool mirror_y)
+static bk_err_t lcd_st7789v_mirror(const void *handle, bool mirror_x, bool mirror_y)
 {
 	uint8_t madctl_val = 0x48;
 
@@ -103,7 +103,7 @@ bk_err_t st7789v_lcd_on(void)
 	return BK_OK;
 }
 
-static bk_err_t st7789v_lcd_off(void)
+static bk_err_t st7789v_lcd_off(const void *handle)
 {
 	lcd_hal_8080_cmd_send(0, 0x28, NULL);
 	return BK_OK;
@@ -150,7 +150,7 @@ void lcd_st7789v_init(void)
 	lcd_hal_8080_cmd_send(0, 0x29, NULL/*(uint32_t *)param_cmd_0x29*/);
 }
 
-void lcd_st7789v_set_display_mem_area(uint16 xs, uint16 xe, uint16 ys, uint16 ye)
+void lcd_st7789v_set_display_mem_area(void *handle, uint16 xs, uint16 xe, uint16 ys, uint16 ye)
 {
 	uint16 xs_l, xs_h, xe_l, xe_h;
 	uint16 ys_l, ys_h, ye_l, ye_h;
@@ -174,12 +174,12 @@ void lcd_st7789v_set_display_mem_area(uint16 xs, uint16 xe, uint16 ys, uint16 ye
 	lcd_hal_8080_cmd_send(4, 0x2b, param_row);
 }
 
-static void lcd_st7789v_start_transform(void)
+static void lcd_st7789v_start_transfer(void *handle)
 {
 	//lcd_hal_8080_cmd_send(0, 0x2c, NULL);
 }
 
-static void lcd_st7789v_continue_transform(void)
+static void lcd_st7789v_continue_transfer(void *handle)
 {
 	//lcd_hal_8080_cmd_send(0, 0x3c, NULL);
 }
@@ -190,8 +190,8 @@ static const lcd_mcu_t lcd_mcu =
 	.set_xy_swap = lcd_st7789v_swap_xy,
 	.set_mirror = lcd_st7789v_mirror,
 	.set_display_area = lcd_st7789v_set_display_mem_area,
-	.start_transform = lcd_st7789v_start_transform,
-	.continue_transform = lcd_st7789v_continue_transform,
+	.start_transfer = lcd_st7789v_start_transfer,
+	.continue_transfer = lcd_st7789v_continue_transfer,
 };
 
 const lcd_device_t lcd_device_st7789v =
@@ -199,7 +199,8 @@ const lcd_device_t lcd_device_st7789v =
 	.id = LCD_DEVICE_ST7789V,
 	.name = "st7789v",
 	.type = LCD_TYPE_MCU8080,
-	.ppi = PPI_170X320,
+	.width = 170,
+	.height = 320,
 	.mcu = &lcd_mcu,
 	.init = lcd_st7789v_init,
 	.lcd_off = st7789v_lcd_off,

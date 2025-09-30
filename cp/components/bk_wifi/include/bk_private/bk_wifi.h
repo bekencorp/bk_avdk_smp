@@ -393,6 +393,8 @@ void bk_wifi_ps_config(uint8_t ps_id, uint8_t ps_val, uint8_t ps_val1);
 int bk_wlan_mcu_suppress_and_sleep(UINT32);
 int bk_wlan_is_monitor_mode(void);
 monitor_cb_t bk_wlan_get_monitor_cb(void);
+bk_err_t wifi_monitor_result_cb(const uint8_t *data, uint32_t len, const wifi_frame_info_t *info);
+bk_err_t bk_wifi_monitor_get_result(wifi_monitor_result_t *result);
 bk_err_t bk_wifi_set_csa_coexist_mode_flag(bool is_close);
 bk_err_t bk_wifi_get_vendor_ie_cb_internal(void* vendor_ie, uint32_t vendor_type, uint16_t len, uint8_t frame_type);
 uint32_t bk_wifi_get_vendor_ie_type(void);
@@ -428,17 +430,6 @@ uint8_t* wifi_netif_vif_to_mac(void *vif);
 int wifi_netif_vif_to_vifid(void *vif);
 
 /* bk_wifi_rw */
-
-/**
- * @brief  Configure Wi-Fi error debug mode when Wi-Fi transmission errors occur.
- *
- * This API is used to enable Wi-Fi error debug mode for capturing complete dump
- * information when Wi-Fi transmission issues like AC(x)_tx_dma_dead, PHY errors,
- * or other Wi-Fi errors occur. This helps in analyzing and debugging Wi-Fi problems.
- *
- * @param  flag  set true to enable Wi-Fi error debug mode, false to disable.
- */
-void bk_wifi_set_wifi_err_dbg(bool flag);
 int bk_wifi_sta_set_power(int power);
 int bk_wifi_ap_set_power(int power);
 uint32_t bk_wifi_get_mac_time(void);
@@ -625,6 +616,8 @@ int wlan_ap_sta_info(wlan_ap_stas_t *stas);
 int wlan_ap_set_beacon_vsie(wlan_ap_vsie_t *vsie);
 int wlan_dhcp_done_ind(u8 vif_idx);
 #if CONFIG_P2P
+int wlan_p2p_enable(const char *ssid);
+int wlan_p2p_find(void);
 int wlan_p2p_listen(void);
 int wlan_p2p_stop_find(void);
 int wlan_p2p_connect(const uint8_t *mac, int method, int intent);

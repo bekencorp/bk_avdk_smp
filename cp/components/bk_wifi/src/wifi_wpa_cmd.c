@@ -999,7 +999,7 @@ int cmd_wlan_p2p_exec(char *cmd)
 		ret = wlan_sta_enable();
 		bk_wlan_status_register_cb(app_p2p_rw_event_func);
 		app_p2p_restart_thread();
-		wlan_p2p_find();
+		//wlan_p2p_find();
 	} else if (os_strcmp(cmd, "find") == 0) {
 		ret = wlan_p2p_find();
 	} else if (os_strcmp(cmd, "listen") == 0) {

@@ -6,6 +6,18 @@ typedef struct {
 	uint32_t data[32];
 } test_event_data_t;
 
+void cli_event_help(void)
+{
+	CLI_RAW_LOGI("\r\nevent {reg|unreg|post} {mod_id} {event_id} \n");
+	CLI_RAW_LOGI("  Start and control an event. \n");
+	CLI_RAW_LOGI("  -reg/unreg/post<str><mandatory>: register/unregister/post event. \n");
+	CLI_RAW_LOGI("  -mod_id<int><mandatory>: module id. Defined by event_module_t in event.h. \n");
+	CLI_RAW_LOGI("  -event_id<int><mandatory>: event id. -1 means all event ids. \n");
+	CLI_RAW_LOGI("  example1: event reg 1 -1 \n");
+	CLI_RAW_LOGI("  example2: event post 1 -1 \n");
+	CLI_RAW_LOGI("  example3: event unreg 1 -1 \n");
+}
+
 static bk_err_t cli_event_cb_0(void *arg, event_module_t event_module,
 							   int event_id, void *event_data)
 {
@@ -84,6 +96,12 @@ static void cli_event_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	uint32_t event_id = 0;
 	char *cmd;
 
+	if (argc != 4) {
+		CLI_LOGW("invalid argc number\n");
+		cli_event_help();
+		return;
+	}
+
 	cmd = argv[1];
 
 	if (argc >= 3) {
@@ -114,8 +132,8 @@ static void cli_event_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		CLI_RET_ON_INVALID_ARGC(argc, 1);
 		//cli_event_test();
 	} else {
-		CLI_LOGD("usage: event {reg|unreg|post} {mod_id} {event_id} [data]\n");
-		return;
+		CLI_LOGW("bad parameters\r\n");
+		cli_event_help();
 	}
 }
 

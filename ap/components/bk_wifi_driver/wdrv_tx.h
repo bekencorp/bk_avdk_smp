@@ -8,6 +8,9 @@ extern "C" {
 #include "pbuf.h"
 #include "wdrv_cntrl.h"
 
+#if CONFIG_BK_RAW_LINK
+int wdrv_special_txdata_sender(void *head, uint32_t vif_idx);
+#endif
 int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx);
 bk_err_t wdrv_txbuf_push(uint8_t channel,void* head,void* tail,uint8_t num);
 int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *result);

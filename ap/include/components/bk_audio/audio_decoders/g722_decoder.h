@@ -61,7 +61,7 @@ typedef struct
 #define G722_DECODER_TASK_CORE           (1)
 #define G722_DECODER_TASK_PRIO           (5)
 #define G722_DECODER_BUFFER_SIZE         (160)
-#define G722_DECODER_OUT_BLOCK_SIZE      (320)
+#define G722_DECODER_OUT_BLOCK_SIZE      (640)
 #define G722_DECODER_OUT_BLOCK_NUM       (1)
 
 #define DEFAULT_G722_DECODER_CONFIG() {                 \

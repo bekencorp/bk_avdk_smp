@@ -46,6 +46,7 @@ extern "C" {
 #define CLI_LOGE(...) BK_LOGE(CLI_TAG, ##__VA_ARGS__)
 #define CLI_LOGD(...) BK_LOGD(CLI_TAG, ##__VA_ARGS__)
 #define CLI_LOGV(...) BK_LOGV(CLI_TAG, ##__VA_ARGS__)
+#define CLI_RAW_LOGI(...) BK_RAW_LOGI(CLI_TAG, ##__VA_ARGS__)
 
 #define CLI_RET_ON_INVALID_ARGC(_actual_argc, _expect_minimum_argc) do {\
 		if ((_actual_argc) < (_expect_minimum_argc)) {\
@@ -126,33 +127,23 @@ int cli_aud_flac_init(void);
 int cli_fft_init(void);
 int cli_sbc_init(void);
 int cli_touch_init(void);
-int cli_jpeg_init(void);
-int cli_lcd_init(void);
-int cli_rott_init(void);
-int cli_lcd_qspi_init(void);
-int cli_dma2d_init(void);
 int cli_i2s_init(void);
 int cli_aud_cp0_init(void);
 int cli_calendar_init(void);
-int cli_jpegdec_init(void);
 int cli_aec_init(void);
 int cli_g711_init(void);
 int cli_opus_init(void);
 int cli_adpcm_init(void);
 int cli_mp3_init(void);
-int cli_dvp_init(void);
-int cli_doorbell_init(void);
 int cli_sdio_host_init(void);
 int cli_sdio_slave_init(void);
 int cli_psram_init(void);
 int cli_uid_init(void);
-int cli_qrcodegen_init(void);
 int cli_spe_init(void);
 int cli_usb_init(void);
 int cli_mpc_init(void);
 int cli_prro_init(void);
 int cli_interrupt_init(void);
-int cli_video_transfer_init(void);
 int cli_pm_init(void);
 int cli_cs2_p2p_init(void);
 int cli_asr_init(void);
@@ -164,14 +155,8 @@ int cli_mpc_init(void);
 int cli_int_target_init(void);
 int cli_lin_init(void);
 int cli_scr_init(void);
-
-int cli_jpeg_sw_enc_init(void);
 int cli_psa_crypto_init(void);
 int cli_psa_customization_init();
-
-int cli_h264_sw_dec_init(void);
-int cli_jpeg_sw_enc_init(void);
-
 extern int hexstr2bin_cli(const char *hex, u8 *buf, size_t len);
 extern int hexstr2bin(const char *hex, u8 *buf, size_t len);
 #if (CONFIG_BUTTON || CONFIG_ADC_KEY)

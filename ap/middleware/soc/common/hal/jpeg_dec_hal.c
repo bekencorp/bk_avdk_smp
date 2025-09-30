@@ -29,7 +29,7 @@
 #include <driver/hal/hal_jpeg_dec_types.h>
 #include "driver/jpeg_dec_types.h"
 #include "system_hw.h"
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include "bk_misc.h"
 #if CONFIG_SOC_BK7256XX
 #include "BK7256_RegList.h"

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
 #include "lcd_panel_devices.h"
 #include "gpio_map.h"
@@ -40,7 +40,8 @@ const lcd_device_t lcd_device_md0700r =
 	.id = LCD_DEVICE_MD0700R,
 	.name = "md0700r",
 	.type = LCD_TYPE_RGB565,
-	.ppi = PPI_1024X600,
+	.width = 1024,
+	.height = 600,
 	.rgb = &lcd_rgb,
 	.init = NULL,
 	.lcd_off = NULL,

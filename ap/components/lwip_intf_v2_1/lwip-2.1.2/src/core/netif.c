@@ -1170,7 +1170,10 @@ netif_loop_output(struct netif *netif, struct pbuf *p)
 
   return ERR_OK;
 }
-
+void bk_netif_trigger_loopnetif_msg(void)
+{
+    tcpip_try_callback((tcpip_callback_fn)netif_poll, &loop_netif);
+}
 #if LWIP_HAVE_LOOPIF
 #if LWIP_IPV4
 static err_t

@@ -409,11 +409,16 @@ static bool_t shell_mb_init(shell_dev_t * shell_dev)
 	mb_ext->log_blocked = 0;
 	mb_ext->chnl_id = dev_id;
 
+	// don't initialise the sync_buffer here, initialize it when necessary.
+	// because this driver used for multiple devices, such as log-dev or AT-dev,
+	// when used as AT-dev driver, no sync_buffer is set aside for AT-dev.
+	#if 0  
 	mb_ext->tx_sync_buf = mb_chnl_get_tx_buff(mb_ext->chnl_id);
 	mb_ext->tx_sync_len = mb_chnl_get_buff_len();
 
 	if(mb_ext->tx_sync_buf == NULL)
 		return bFALSE;
+	#endif
 
 	return bTRUE;
 }

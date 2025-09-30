@@ -279,7 +279,7 @@ int hapd_intf_sta_add(struct prism2_hostapd_param *param, int len)
 
 	ret = rw_msg_send_me_sta_add(&add_sta, cfm);
 	if (!ret && (cfm->status == CO_OK)) {
-		BK_LOGD(TAG, "add sta, sta=%d, pm state=%d\r\n", cfm->sta_idx, cfm->pm_state);
+		BK_LOGI(TAG, "add sta, sta=%d, pm state=%d\r\n", cfm->sta_idx, cfm->pm_state);
 
 #if CONFIG_TX_BUFING
         rwm_tx_bufing_end(cfm->sta_idx);
@@ -360,7 +360,7 @@ int hapd_intf_add_key(struct prism2_hostapd_param *param, int len)
 		BK_LOGD(TAG, "add TKIP\r\n");
 		key_param.cipher_suite = MAC_CIPHER_TKIP;
 	} else if (os_strcmp((char *)param->u.crypt.alg, "CCMP") == 0) {
-		BK_LOGD(TAG, "add CCMP\r\n");
+		BK_LOGI(TAG, "add CCMP\r\n");
 		key_param.cipher_suite = MAC_CIPHER_CCMP;
 	}
 #if CONFIG_PMF
@@ -438,8 +438,13 @@ int hapd_intf_add_vif(struct prism2_hostapd_param *param, int len)
 		return BK_ERR_NO_MEM;
 	}
 
+#if CONFIG_P2P
+	ret = rw_msg_send_add_if((const unsigned char *)&param->sta_addr,
+							 param->u.add_if.type, 1, cfm);
+#else
 	ret = rw_msg_send_add_if((const unsigned char *)&param->sta_addr,
 							 param->u.add_if.type, 0, cfm);
+#endif
 
 	if (ret || (cfm->status != CO_OK)) {
 		BK_LOGE(TAG, "add vif failed, status=%x!\r\n", cfm->status);
@@ -492,7 +497,7 @@ int hapd_intf_start_apm(struct prism2_hostapd_param *param, int len)
 	}
 
 	if (cfm->status == CO_OK) {
-		BK_LOGD(TAG, "start apm success, vif%d, channel%d, bcmc%d\r\n", cfm->vif_idx,
+		BK_LOGI(TAG, "start apm success, vif%d, channel%d, bcmc%d\r\n", cfm->vif_idx,
 				cfm->ch_idx, cfm->bcmc_idx);
 	}
 
@@ -666,7 +671,7 @@ int wpa_get_scan_rst(struct prism2_hostapd_param *param, int len)
 		return 0;
 	}
 
-	BK_LOGD(TAG, "get scan result:%d\r\n", s_scan_result_upload_ptr->scanu_num);
+	BK_LOGI(TAG, "get scan result:%d\r\n", s_scan_result_upload_ptr->scanu_num);
 
 	if (reduce_ie && !reduce_scan_result)
 		ies = wpabuf_alloc(128);

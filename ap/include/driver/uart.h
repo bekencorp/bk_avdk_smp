@@ -443,6 +443,32 @@ bk_err_t bk_uart_pm_restore(uart_id_t id);
  */
 void bk_uart_wait_tx_over(uart_id_t id);
 
+#if CONFIG_UART_SW_FLOW_CTRL
+/**
+ * @brief     According to the uart RX hw fifo watermark to set uart sw flow control
+ *
+ * @param id UART id
+ * @param 1, set rts high, 0 set rts low
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+void bk_usfc_hw_set_rts(uart_id_t id,uint32_t high);
+
+/**
+ * @brief     According to the uart RX sw fifo watermark to set uart sw flow control
+ *
+ * @param id UART id
+ * @param 1, set rts high, 0 set rts low
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+void bk_usfc_sw_set_rts(uart_id_t id,uint32_t high);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

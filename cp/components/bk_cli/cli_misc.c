@@ -26,6 +26,8 @@
 #include <driver/aon_rtc.h>
 #endif
 
+#include <driver/timer.h>
+
 #if (CONFIG_EFUSE)
 static void efuse_cmd_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 static void efuse_mac_cmd_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
@@ -92,6 +94,8 @@ __maybe_unused static void cli_misc_help(void)
 #if CONFIG_COMMON_IO
 	CLI_LOGD("testcommonio test common io\r\n");
 #endif
+    CLI_LOGD("dump_int_context [assert|crash]\r\n");
+    CLI_LOGD("dump_disable_int [assert|crash]\r\n");
 
 }
 
@@ -573,6 +577,74 @@ void cli_set_clock_source(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 }
 #endif
 
+
+static uint32_t  g_dump_flag;
+static void timer0_examples_isr(timer_id_t timer_id)
+{
+    CLI_LOGD("timer0(%d) enter timer0_example_isr\r\n", timer_id);
+    
+    if (g_dump_flag == 0 ) {
+        BK_ASSERT(false);
+    } else if (g_dump_flag == 1) {
+        os_write_word(0, 0x1234);
+    }     
+}
+
+void cli_dump_in_context(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    if (argc < 2) {
+		cli_misc_help();
+		return;
+	}
+
+    if (os_strcmp(argv[1], "assert") == 0) {
+        CLI_LOGD("set cpu assert in interruption context\r\n");
+		g_dump_flag = 0;
+	} else if (os_strcmp(argv[1], "crash") == 0) {
+        CLI_LOGD("set cpu crash in interruption context\r\n");
+		g_dump_flag = 1;
+	}  else {
+		cli_misc_help();
+        return;
+	}
+    CLI_LOGD("start timer...\r\n");
+    BK_LOG_ON_ERR(bk_timer_driver_init());
+    BK_LOG_ON_ERR(bk_timer_start(TIMER_ID0, 20, timer0_examples_isr));
+}
+
+void cli_dump_disable_int(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    if (argc < 2) {
+		cli_misc_help();
+		return;
+	}
+
+    uint32_t s_dump_flag;
+    uint32_t int_level;
+    if (os_strcmp(argv[1], "assert") == 0) {
+        CLI_LOGD("set cpu assert when enter critical\r\n");
+        s_dump_flag = 1;
+	} else if (os_strcmp(argv[1], "crash") == 0) {
+        CLI_LOGD("set cpu crash when enter critical\r\n");
+        s_dump_flag = 2;
+	}  else {
+		cli_misc_help();
+        return;
+	}
+
+    int_level = rtos_enter_critical();
+
+    if (s_dump_flag == 1 ) {
+        BK_ASSERT(false);
+    } else if (s_dump_flag == 2) {
+        os_write_word(0, 0x1234);
+    } 
+
+    rtos_exit_critical(int_level);
+
+}
+
+
 #define MISC_CMD_CNT (sizeof(s_misc_commands) / sizeof(struct cli_command))
 static const struct cli_command s_misc_commands[] = {
 	{"version", NULL, get_version},
@@ -612,6 +684,9 @@ static const struct cli_command s_misc_commands[] = {
 #if CONFIG_CACHE_ENABLE
 	{"cache", "show cache config info", cli_cache_cmd},
 #endif
+
+    {"dump_int_context", "assert or crash in interruption context", cli_dump_in_context},
+    {"dump_disable_int", "assert or crash in interruption critical section", cli_dump_disable_int},
 };
 
 int cli_misc_init(void)

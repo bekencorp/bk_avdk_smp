@@ -44,6 +44,16 @@
 #define FLASH_ADDR_OFFSET             (0x18)
 #define FLASH_OFFSET_ENABLE           (0x19)
 
+#if CONFIG_FLASH_ORIGIN_API
+#define PAR_OPT_READ_POS      (0)
+#define PAR_OPT_WRITE_POS     (1)
+
+#define PAR_OPT_READ_DIS      (0x0u << PAR_OPT_READ_POS)
+#define PAR_OPT_READ_EN       (0x1u << PAR_OPT_READ_POS)
+#define PAR_OPT_WRITE_DIS     (0x0u << PAR_OPT_WRITE_POS)
+#define PAR_OPT_WRITE_EN      (0x1u << PAR_OPT_WRITE_POS)
+#endif
+
 #define PARTITION_IRAM         __attribute__((section(".iram")))
 
 /* Logic partition on flash devices */
@@ -141,14 +151,10 @@ bk_logic_partition_t *bk_flash_partition_get_info(bk_partition_t partition)
 	if (flash_partition_is_valid(partition)) {
 	    pt = (bk_logic_partition_t *)&bk_flash_partitions[partition];
 	}
-    else
-    {
-        FLASH_LOGW("partition:0x%d is not valid.\r\n",partition);
-    }
 	return pt;
 }
 
-bk_err_t flash_partition_addr_check(bk_logic_partition_t *partition_info, uint32_t offset, uint32_t size)
+static bk_err_t flash_partition_addr_check(bk_logic_partition_t *partition_info, uint32_t offset, uint32_t size)
 {
 #if (CONFIG_FLASH_PARTITION_CHECK_VALID)
 	if ( (offset >= partition_info->partition_length)
@@ -166,7 +172,7 @@ bk_err_t flash_partition_addr_check(bk_logic_partition_t *partition_info, uint32
  *  this function MUST reside in the flash.
  *  it will use itself address to check partition write permission.
  */
-bk_err_t flash_partition_write_perm_check(bk_logic_partition_t *partition_info)
+static bk_err_t flash_partition_write_perm_check(bk_logic_partition_t *partition_info)
 {
 #if (CONFIG_FLASH_PARTITION_CHECK_VALID)
 	if((partition_info->partition_options & PAR_OPT_WRITE_EN) == 0)

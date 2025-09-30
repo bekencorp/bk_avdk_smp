@@ -2,8 +2,13 @@
 #include <os/mem.h>
 #include "bk_drv_model.h"
 #include "bk_wifi.h"
+#if CONFIG_FLASH_ORIGIN_API
+#include "bk_flash.h"
+#include "BkDriverFlash.h"
+#else
 #include "driver/flash.h"
 #include <driver/flash_partition.h>
+#endif
 #include <driver/uart.h>
 
 #define MAC_ADDR_LEN 6
@@ -18,7 +23,7 @@ static UINT32 info_item_len(NET_INFO_ITEM item)
 	case RF_CFG_TSSI_ITEM:
 	case RF_CFG_DIST_ITEM:
 	case RF_CFG_MODE_ITEM:
-	case RF_CFG_TSSI_B_ITEM:
+	case RF_CFG_TSSI_B_ITEM:              
 		len = sizeof(ITEM_COMM_ST);
 		break;
 	case WIFI_MAC_ITEM:
@@ -45,33 +50,68 @@ static UINT32 info_item_len(NET_INFO_ITEM item)
 
 static UINT32 search_info_tbl(UINT8 *buf, UINT32 *cfg_len)
 {
+#if CONFIG_FLASH_ORIGIN_API
+	UINT32 ret = 0, status;
+	DD_HANDLE flash_handle;
+#else
 	UINT32 ret = 0;
+#endif
 	TLV_HEADER_ST head;
+#if CONFIG_FLASH_ORIGIN_API
+	bk_logic_partition_t *pt = bk_flash_get_info(BK_PARTITION_SYS_NET);
+#else
 	bk_logic_partition_t *pt = bk_flash_partition_get_info(BK_PARTITION_SYS_NET);
+#endif
 
 	*cfg_len = 0;
+#if CONFIG_FLASH_ORIGIN_API
+	flash_handle = ddev_open(DD_DEV_TYPE_FLASH, &status, 0);
+	ddev_read(flash_handle, (char *)&head, sizeof(TLV_HEADER_ST), pt->partition_start_addr);
+#else
 	bk_flash_read_bytes(pt->partition_start_addr, (uint8_t *)&head, sizeof(TLV_HEADER_ST));
+#endif
 
 	if (INFO_TLV_HEADER == head.type) {
 		*cfg_len = head.len + sizeof(TLV_HEADER_ST);
 		ret = 1;
 
 		if (buf != NULL) {
+#if CONFIG_FLASH_ORIGIN_API
+			ddev_read(flash_handle, (char *)buf, *cfg_len, pt->partition_start_addr);
+#else
 			bk_flash_read_bytes(pt->partition_start_addr, (uint8_t *)buf, *cfg_len);
+#endif
 		}
 	}
+#if CONFIG_FLASH_ORIGIN_API
+	ddev_close(flash_handle);
+#endif
 	return ret;
 }
 
 static UINT32 search_info_item(NET_INFO_ITEM type, UINT32 start_addr)
 {
+#if CONFIG_FLASH_ORIGIN_API
+	UINT32 status, addr, end_addr;
+	DD_HANDLE flash_handle;
+#else
 	UINT32 addr, end_addr;
+#endif
 	INFO_ITEM_ST head;
+#if CONFIG_FLASH_ORIGIN_API
+	flash_handle = ddev_open(DD_DEV_TYPE_FLASH, &status, 0);
+	ddev_read(flash_handle, (char *)&head, sizeof(TLV_HEADER_ST), start_addr);
+#else
 	bk_flash_read_bytes(start_addr, (uint8_t *)&head, sizeof(TLV_HEADER_ST));
+#endif
 	addr = start_addr + sizeof(TLV_HEADER_ST);
 	end_addr = addr + head.len;
 	while (addr < end_addr) {
+#if CONFIG_FLASH_ORIGIN_API
+	ddev_read(flash_handle, (char *)&head, sizeof(INFO_ITEM_ST), addr);
+#else
 	bk_flash_read_bytes(addr, (uint8_t *)&head, sizeof(INFO_ITEM_ST));
+#endif
 		if (type != head.type) {
 		//	addr += sizeof(INFO_ITEM_ST);
 			head.len = info_item_len(type);
@@ -82,6 +122,9 @@ static UINT32 search_info_item(NET_INFO_ITEM type, UINT32 start_addr)
 
 	if (addr >= end_addr)
 		addr = 0;
+#if CONFIG_FLASH_ORIGIN_API
+	ddev_close(flash_handle);
+#endif
 
 	return addr;
 }
@@ -151,6 +194,6 @@ UINT32 get_net_info(NET_INFO_ITEM item, UINT8 *ptr0, UINT8 *ptr1, UINT8 *ptr2)
 	default:
 		break;
 	}
-
+	
 	return ret;
 }

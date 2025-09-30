@@ -1104,22 +1104,18 @@ void help_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 #define cmd_ind_printf		os_printf
 #endif
 
+	BK_LOG_RAW("\r\n NOTE: If you want to know specific information about a certain command ,please enter 'cmd help', for example: 'scan help'\r\n\r\n");
 	cmd_ind_printf("====Build-in Commands====\r\n");
 	for (i = 0, n = 0; i < MAX_COMMANDS && n < pCli->num_commands; i++) {
 		if (pCli->commands[i]->name) {
-			if (pCli->commands[i]->help)
-				cmd_ind_printf("%s: %s\r\n", pCli->commands[i]->name,
-						  pCli->commands[i]->help ?
-						  pCli->commands[i]->help : "");
-			else
-				cmd_ind_printf("%s\r\n", pCli->commands[i]->name);
+			cmd_ind_printf("%s\r\n", pCli->commands[i]->name);
 
 			n++;
 			if (n == build_in_count)
 				cmd_ind_printf("\r\n====User Commands====\r\n");
 		}
 	}
-
+	BK_LOG_RAW("\r\n NOTE: If you want to know specific information about a certain command ,please enter 'cmd help', for example: 'scan help'\r\n\r\n");
 	cli_cmd_rsp(&pcWriteBuffer[0], 1);
 
 }
@@ -1329,7 +1325,8 @@ int bk_cli_init(void)
 #endif
 
 #if (CLI_CFG_IPERF == 1)
-#if (CONFIG_WIFI_CLI_ENABLE || CONFIG_BLUETOOTH)
+//#if (CONFIG_WIFI_CLI_ENABLE || CONFIG_BLUETOOTH)
+#if (CLI_CFG_PHY || CONFIG_BLUETOOTH)
 	cli_phy_init();
 #endif
 #endif
@@ -1410,32 +1407,6 @@ int bk_cli_init(void)
 	cli_i2s_init();
 #endif
 
-#if (CONFIG_CLI_MEDIA == 1)
-    extern int media_cli_init(void);
-	media_cli_init();
-//	cli_lcd_init();
-#endif
-
-#if (CLI_CFG_ROTT == 1)
-	cli_rott_init();
-#endif
-
-#if (CLI_CFG_DMA2D == 1)
-	cli_dma2d_init();
-#endif
-
-#if (CLI_CFG_LCD_QSPI == 1)
-	cli_lcd_qspi_init();
-#endif
-
-#if (CLI_CFG_QRCODEGEN == 1)
-	cli_qrcodegen_init();
-#endif
-
-#if (CLI_CFG_JPEGDEC == 1)
-	cli_jpegdec_init();
-#endif
-
 #if (CLI_CFG_AEC == 1)
 	cli_aec_init();
 #endif
@@ -1477,13 +1448,6 @@ int bk_cli_init(void)
 	cli_uid_init();
 #endif
 
-#if (CONFIG_H264_SW_DECODER_TEST)
-    cli_h264_sw_dec_init();
-#endif
-
-#if (CONFIG_JPEG_SW_ENCODER_TEST)
-    cli_jpeg_sw_enc_init();
-#endif
 
 #if (CONFIG_VOICE_SERVICE_TEST)
     int cli_voice_init(void);
@@ -1583,9 +1547,6 @@ int bk_cli_init(void)
 	cli_i2c_init();
 #endif
 
-#if (CLI_CFG_JPEGENC == 1)
-	cli_jpeg_init();
-#endif
 
 #if (CLI_CFG_ADC == 1)
 	cli_adc_init();
@@ -1693,9 +1654,6 @@ int bk_cli_init(void)
 	cli_ota_init();
 #endif
 
-#if (CLI_CFG_JPEG_SW_ENC == 1)
-    cli_jpeg_sw_enc_init();
-#endif
 
 #if (CONFIG_PSA_MBEDTLS_TEST && CONFIG_PSA_MBEDTLS)
 	cli_psa_crypto_init();

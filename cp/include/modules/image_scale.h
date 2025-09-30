@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 #include <stdint.h>
-#include "driver/media_types.h"
+#include "components/media_types.h"
 #include <modules/image_scale_types.h>
 
 

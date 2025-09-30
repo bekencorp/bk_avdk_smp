@@ -33,7 +33,7 @@ __attribute__((weak)) void *__wrap_malloc(size_t size)
 #if CONFIG_PSRAM_AS_SYS_MEMORY
     return psram_malloc(size);
 #else
-	return os_malloc(size);
+    return os_malloc(size);
 #endif
 }
 

@@ -32,14 +32,17 @@
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 typedef struct {
-	uint8_t task_state : 1;
-	uint8_t module_decode_status : 1;
-	frame_list_node_t *stream;
+	uint8_t task_state;
+	uint8_t module_decode_status;
 	frame_buffer_t *jpeg_frame;
 	beken_semaphore_t jdec_sem;
 	beken_queue_t jdec_queue;
 	beken_thread_t jdec_thread;
 	beken_mutex_t jdec_lock;
+	const jpeg_callback_t *jpeg_cbs;
+	const decode_callback_t *decode_cbs;
+	uint32_t jpeg_width;
+	uint32_t jpeg_height;
 } jpeg_get_config_t;
 
 static jpeg_get_config_t *jpeg_get_config = NULL;
@@ -92,57 +95,47 @@ bk_err_t jpeg_get_task_send_msg(uint8_t type, uint32_t param)
 
 static void jpeg_get_start_handle(void)
 {
-	frame_list_node_t *stream = NULL;
-
 	// Read JPEG frame
 	while (jpeg_get_config->task_state)
 	{
-		stream = frame_buffer_list_get_main_stream();
-
-		if (stream == NULL)
-		{
-			LOGW("%s, stream null\n", __func__);
-			rtos_delay_milliseconds(100); // Reduce delay time
-			continue;
-		}
-
-		// Handle stream switch
-		if (jpeg_get_config->stream == NULL)
-		{
-			LOGD("%s, main_stream:%p %d\n", __func__, stream, stream->camera_id);
-			jpeg_get_config->stream = stream;
-			jpeg_decode_task_send_msg(JPEGDEC_STREAM, (uint32_t)stream);
-			frame_buffer_fb_register(jpeg_get_config->stream, MODULE_DECODER);
-		}
-		else if (stream != jpeg_get_config->stream)
-		{
-			frame_buffer_fb_deregister(jpeg_get_config->stream, MODULE_DECODER);
-			jpeg_get_config->stream = stream;
-			jpeg_decode_task_send_msg(JPEGDEC_STREAM, (uint32_t)stream);
-			frame_buffer_fb_register(jpeg_get_config->stream, MODULE_DECODER);
-		}
-
 #if CONFIG_MEDIA_PSRAM_SIZE_4M
 		// Memory test code
-		frame_buffer_t *decode_frame = frame_buffer_display_malloc(864 * 480 * 2);
-		if(decode_frame != NULL)
+		if(jpeg_get_config->decode_cbs->malloc != NULL)
 		{
-			frame_buffer_display_free(decode_frame);
+			if (jpeg_get_config->jpeg_width != 0 && jpeg_get_config->jpeg_height != 0)
+			{
+				frame_buffer_t *decode_frame = jpeg_get_config->decode_cbs->malloc(jpeg_get_config->jpeg_width * jpeg_get_config->jpeg_height * 2);
+				if(decode_frame != NULL)
+				{
+					if(jpeg_get_config->decode_cbs->free != NULL)
+					{
+						jpeg_get_config->decode_cbs->free(decode_frame);
+					}
+				}
+				else
+				{
+					rtos_lock_mutex(&jpeg_get_config->jdec_lock);
+					if (jpeg_get_config->module_decode_status)
+					{
+						jpeg_get_config->module_decode_status = false;
+					}
+					rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
+					break;
+				}
+			}
 		}
 		else
 		{
-			rtos_lock_mutex(&jpeg_get_config->jdec_lock);
-			if (jpeg_get_config->module_decode_status)
-			{
-				jpeg_get_config->module_decode_status = false;
-			}
-			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
+			LOGE("%s, %d malloc callback is NULL!\r\n", __func__, __LINE__);
 			break;
 		}
 #endif
 
 		// Read JPEG frame
-		jpeg_get_config->jpeg_frame = frame_buffer_fb_read(jpeg_get_config->stream, MODULE_DECODER, 50);
+		if (jpeg_get_config->jpeg_cbs->read)
+		{
+			jpeg_get_config->jpeg_frame = jpeg_get_config->jpeg_cbs->read(50);
+		}
 		if (jpeg_get_config->jpeg_frame)
 		{
 			// Update decode status
@@ -153,10 +146,20 @@ static void jpeg_get_start_handle(void)
 			}
 			rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
 
+#if CONFIG_MEDIA_PSRAM_SIZE_4M
+			// Set JPEG frame width and height
+			jpeg_get_config->jpeg_width = jpeg_get_config->jpeg_frame->width;
+			jpeg_get_config->jpeg_height = jpeg_get_config->jpeg_frame->height;
+#endif
+
 			// Send decode start message
 			if (jpeg_decode_task_send_msg(JPEGDEC_START, (uint32_t)jpeg_get_config->jpeg_frame) != BK_OK)
 			{
-				frame_buffer_fb_read_free(jpeg_get_config->stream, jpeg_get_config->jpeg_frame, MODULE_DECODER);
+				if (jpeg_get_config->jpeg_cbs->complete != NULL)
+				{
+					jpeg_get_config->jpeg_cbs->complete(BK_FAIL, jpeg_get_config->jpeg_frame);
+				}
+				jpeg_get_config->jpeg_frame = NULL;
 			}
 			break;
 		}
@@ -171,7 +174,6 @@ static void jpeg_get_task_deinit(void)
 {
 	if (jpeg_get_config)
 	{
-		frame_buffer_fb_deregister(jpeg_get_config->stream, MODULE_DECODER);
 		if (jpeg_get_config->jdec_queue)
 		{
 			rtos_deinit_queue(&jpeg_get_config->jdec_queue);
@@ -248,7 +250,7 @@ bool check_jpeg_get_task_is_open(void)
 	}
 }
 
-bk_err_t jpeg_get_task_open(void)
+bk_err_t jpeg_get_task_open(const jpeg_callback_t *jpeg_cbs, const decode_callback_t *decode_cbs)
 {
 	int ret = BK_OK;
 	LOGV("%s(%d)\n", __func__, __LINE__);
@@ -259,6 +261,38 @@ bk_err_t jpeg_get_task_open(void)
 		return ret;
 	}
 
+	if (jpeg_cbs == NULL || decode_cbs == NULL)
+	{
+		LOGE("%s, jpeg_cbs or decode_cbs is NULL\r\n", __func__);
+		return BK_FAIL;
+	}
+	if (jpeg_cbs->complete == NULL)
+	{
+		LOGE("%s, %d complete callback is NULL!\r\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+	if (jpeg_cbs->read == NULL)
+	{
+		LOGE("%s, %d read callback is NULL!\r\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+
+	if (decode_cbs->complete == NULL)
+	{
+		LOGE("%s, %d complete callback is NULL!\r\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+	if (decode_cbs->malloc == NULL)
+	{
+		LOGE("%s, %d malloc callback is NULL!\r\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+	if (decode_cbs->free == NULL)
+	{
+		LOGE("%s, %d free callback is NULL!\r\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+
 	jpeg_get_config = (jpeg_get_config_t *)os_malloc(sizeof(jpeg_get_config_t));
 	if (jpeg_get_config == NULL)
 	{
@@ -267,6 +301,9 @@ bk_err_t jpeg_get_task_open(void)
 	}
 
 	os_memset(jpeg_get_config, 0, sizeof(jpeg_get_config_t));
+
+	jpeg_get_config->jpeg_cbs = jpeg_cbs;
+	jpeg_get_config->decode_cbs = decode_cbs;
 
 	ret = rtos_init_semaphore(&jpeg_get_config->jdec_sem, 1);
 	if (ret != BK_OK)
@@ -307,6 +344,7 @@ bk_err_t jpeg_get_task_open(void)
 	}
 
 	rtos_get_semaphore(&jpeg_get_config->jdec_sem, BEKEN_NEVER_TIMEOUT);
+
 	LOGD("%s(%d) complete\n", __func__, __LINE__);
 
 	return ret;

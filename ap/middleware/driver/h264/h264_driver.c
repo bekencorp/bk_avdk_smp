@@ -25,6 +25,7 @@
 #include "h264_hal.h"
 #include "h264_driver.h"
 #include "h264_default_config.h"
+#include "cpu_id.h"
 
 typedef struct {
 	h264_isr_t isr_handler;
@@ -50,14 +51,14 @@ extern void delay(int num);
 static h264_driver_t s_h264 = {0};
 static uint8_t h264_dma_rx_id = 0;
 static bool s_h264_driver_is_init = false;
-static compress_ratio_t h264_compress = {0};
+static h264_compress_ratio_t h264_compress = {0};
 
 static void h264_isr(void);
 
 bk_err_t h264_int_enable(void)
 {
 	uint32_t int_level = rtos_enter_critical();
-	sys_drv_int_group2_enable(H264_INTERRUPT_CTRL_BIT);
+	sys_drv_core_intr_group2_enable(CPU2_CORE_ID, H264_INTERRUPT_CTRL_BIT);
 	h264_hal_int_config(&s_h264.hal, H264_INT_ENABLE);
 	rtos_exit_critical(int_level);
 	return BK_OK;
@@ -66,8 +67,8 @@ bk_err_t h264_int_enable(void)
 bk_err_t h264_int_disable(void)
 {
 	uint32_t int_level = rtos_enter_critical();
-	h264_hal_int_config(&s_h264.hal, H264_CPU_INT_DISABLE);
-	sys_drv_int_group2_disable(H264_INTERRUPT_CTRL_BIT);
+	h264_hal_int_config(&s_h264.hal, H264_INT_DISABLE);
+	sys_drv_core_intr_group2_disable(CPU2_CORE_ID, H264_INTERRUPT_CTRL_BIT);
 	rtos_exit_critical(int_level);
 	return BK_OK;
 }
@@ -304,7 +305,7 @@ bk_err_t bk_h264_init(uint16_t width, uint16_t height)
 	return ret;
 }
 
-bk_err_t bk_h264_set_base_config(compress_ratio_t *config)
+bk_err_t bk_h264_set_base_config(h264_compress_ratio_t *config)
 {
 	int ret = BK_OK;
 
@@ -345,7 +346,7 @@ bk_err_t bk_h264_set_base_config(compress_ratio_t *config)
 		goto error;
 	}
 
-	os_memcpy(&h264_compress, config, sizeof(compress_ratio_t));
+	os_memcpy(&h264_compress, config, sizeof(h264_compress_ratio_t));
 
 	return ret;
 
@@ -588,7 +589,7 @@ bk_err_t bk_h264_config_reset(void)
 	int ret = BK_OK;
 	uint32_t fps = 0;
 	const h264_config_t *config = &h264_commom_config;
-	compress_ratio_t ratio = {0};
+	h264_compress_ratio_t ratio = {0};
 	H264_RETURN_ON_DRIVER_NOT_INIT();
 	uint16_t width = s_h264.hal.hw->img_width & 0xFFFF;
 	uint16_t height = s_h264.hal.hw->img_height & 0xFFFF;

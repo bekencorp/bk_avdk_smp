@@ -1,6 +1,7 @@
 #ifndef __BT_IPC_CORE_H__
 #define __BT_IPC_CORE_H__
 
+#include <stdint.h>
 #include <driver/mailbox_channel.h>
 
 enum {
@@ -85,7 +86,7 @@ enum
 
 typedef void (*bt_hci_send_cb_t)(uint8_t *buf, uint16_t len);
 
-void bt_ipc_init(void);
+int32_t bt_ipc_init(void);
 void bt_ipc_hci_send_vendor_event(uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_vendor_cmd(uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_complete_event(uint8_t *data, uint16_t len);

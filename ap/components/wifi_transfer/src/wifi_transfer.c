@@ -18,7 +18,7 @@
 #include <driver/dma.h>
 #include "bk_general_dma.h"
 #include "wifi_transfer.h"
-#include "media_app.h"
+#include "media_utils.h"
 
 #define TAG "wifi_trs"
 
@@ -28,20 +28,19 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-static uint8_t transfer_enable = 0;
-const media_transfer_cb_t *media_transfer_callback = NULL;
-static transfer_data_t *transfer_app_data = NULL;
-static video_setup_t *transfer_app_config = NULL;
+typedef struct
+{
+    uint8_t enable;
+    image_format_t img_format;
+    transfer_data_t *transfer_app_data;
+    video_setup_t transfer_app_config;
+    beken_semaphore_t sem;
+    beken_thread_t transfer_thread;
+    const media_transfer_cb_t *cb;
+} wifi_transfer_cfg_t;
 
-#if (CONFIG_MEDIA_APP)
-beken_thread_t wifi_transfer_net_camera_task = NULL;
-static beken_semaphore_t s_wifi_transfer_net_data_sem;
-bool wifi_transfer_net_camera_task_running = false;
-
-wifi_transfer_net_camera_buffer_t *wifi_transfer_net_camera_buf = NULL;
-wifi_transfer_net_camera_param_t wifi_transfer_net_camera_param = {0};
-wifi_transfer_net_camera_pool_t wifi_transfer_net_camera_pool;
-#endif
+static wifi_transfer_cfg_t *s_wifi_transfer_cfg = NULL;
+extern media_debug_t *media_debug;
 
 void wifi_transfer_data_check_caller(const char *func_name, int line,uint8_t *data, uint32_t length)
 {
@@ -54,42 +53,44 @@ void wifi_transfer_data_check_caller(const char *func_name, int line,uint8_t *da
 	}
 }
 
-static int send_frame_buffer_packet(uint8_t *data, uint32_t size)
+static int send_frame_buffer_packet(wifi_transfer_cfg_t *cfg, uint8_t *data, uint32_t size)
 {
 	int ret = BK_FAIL;
 
 	//wifi_transfer_data_check(data,size);
 
-	if (media_transfer_callback == NULL)
+	if (cfg->cb == NULL)
 		return ret;
 
-	if (media_transfer_callback->prepare)
+	if (cfg->cb->prepare)
 	{
-		media_transfer_callback->prepare(data, size);
+		cfg->cb->prepare(data, size);
 	}
 
 	//wifi_transfer_data_check(data,size);
 
-	ret = media_transfer_callback->send(data, size);
+	ret = cfg->cb->send(data, size);
 
 	return ret == size ? BK_OK : BK_FAIL;
 }
 
-static void wifi_transfer_send_frame(frame_buffer_t *buffer)
+static void wifi_transfer_send_frame(wifi_transfer_cfg_t *cfg, frame_buffer_t *buffer)
 {
-	int ret = kNoErr;
+	int ret = BK_OK;
 
 	uint32_t i;
-	uint32_t count = buffer->length / transfer_app_config->pkt_size;
-	uint32_t tail = buffer->length % transfer_app_config->pkt_size;
+	uint32_t count = buffer->length / cfg->transfer_app_config.pkt_size;
+	uint32_t tail = buffer->length % cfg->transfer_app_config.pkt_size;
+	transfer_data_t *transfer_app_data = cfg->transfer_app_data;
+	video_setup_t *transfer_app_config = &cfg->transfer_app_config;
 
 	uint8_t *src_address = buffer->frame;
 
-	LOGV("%s %d transfer_app_config->pkt_size %d\n", __func__,__LINE__,transfer_app_config->pkt_size);
+	LOGV("%s %d transfer_app_config->pkt_size %d\n", __func__,__LINE__,cfg->transfer_app_config.pkt_size);
 
 #if CONFIG_MEDIA_DROP_STRATEGY_ENABLE
 	// check whether this frame should be dropped for some reasones such as no enough buffer
-	if (media_transfer_callback->drop_check && media_transfer_callback->drop_check(buffer,(count + (tail ? 1 : 0)),transfer_app_config->pkt_header_size))
+	if (cfg->cb->drop_check && cfg->cb->drop_check(buffer,(count + (tail ? 1 : 0)),cfg->transfer_app_config.pkt_header_size))
 	{
 		return;
 	}
@@ -102,7 +103,7 @@ static void wifi_transfer_send_frame(frame_buffer_t *buffer)
 
 	LOGV("seq: %u, length: %u, size: %u count %d\n", buffer->sequence, buffer->length, buffer->size,transfer_app_data->size);
 
-	for (i = 0; i < count && transfer_enable; i++)
+	for (i = 0; i < count && cfg->enable; i++)
 	{
 		transfer_app_data->cnt = i + 1;
 
@@ -116,7 +117,7 @@ static void wifi_transfer_send_frame(frame_buffer_t *buffer)
 
 		LOGV("seq: %d [%d %d %d]\n", buffer->sequence,transfer_app_data->id,transfer_app_data->eof,transfer_app_data->cnt);
 
-		ret = send_frame_buffer_packet((uint8_t *)transfer_app_data, transfer_app_config->pkt_size + transfer_app_config->pkt_header_size);
+		ret = send_frame_buffer_packet(cfg, (uint8_t *)transfer_app_data, transfer_app_config->pkt_size + transfer_app_config->pkt_header_size);
 		if (ret != BK_OK)
 		{
 			LOGV("send failed\n");
@@ -131,9 +132,9 @@ static void wifi_transfer_send_frame(frame_buffer_t *buffer)
 		os_memcpy_word((uint32_t *)transfer_app_data->data, (uint32_t *)(src_address + (transfer_app_config->pkt_size * i)),
 						(tail % 4) ? ((tail / 4 + 1) * 4) : tail);
 
-		LOGV("seq: %d [%d %d %d]\n", buffer->sequence,transfer_app_data->id,transfer_app_data->eof,transfer_app_data->cnt);
+		LOGV("seq: %d [%d %d %d]\n", buffer->sequence,transfer_app_data->id,transfer_app_data->eof,transfer_app_data->cnt);	
 
-		ret = send_frame_buffer_packet((uint8_t *)transfer_app_data, tail + transfer_app_config->pkt_header_size);
+		ret = send_frame_buffer_packet(cfg, (uint8_t *)transfer_app_data, tail + transfer_app_config->pkt_header_size);
 
 		if (ret != BK_OK)
 		{
@@ -144,515 +145,213 @@ static void wifi_transfer_send_frame(frame_buffer_t *buffer)
 	LOGV("length: %u, tail: %u, count: %u\n", buffer->length, tail, count);
 }
 
-void wifi_transfer_read_frame_callback(frame_buffer_t *frame)
+static bk_err_t wifi_transfer_buffer_init(wifi_transfer_cfg_t *cfg)
 {
-	wifi_transfer_send_frame(frame);
-	if (frame->sequence < 3)
-	{
-		LOGD("%s, %d\r\n", __func__, frame->sequence);
-	}
-}
-
-static bk_err_t wifi_transfer_buffer_init(const media_transfer_cb_t *cb)
-{
-	if (cb == NULL)
+	if (cfg == NULL)
 	{
 		return BK_FAIL;
 	}
 
-	if (transfer_app_config == NULL)
+	if (cfg->cb->get_tx_buf)
 	{
-		transfer_app_config = (video_setup_t *)os_malloc(sizeof(video_setup_t));
-		if (transfer_app_config == NULL)
+		cfg->transfer_app_data = cfg->cb->get_tx_buf();
+		cfg->transfer_app_config.pkt_size = cfg->cb->get_tx_size() - cfg->transfer_app_config.pkt_header_size;
+
+		if (cfg->transfer_app_data == NULL
+			|| cfg->transfer_app_config.pkt_size <= 0)
 		{
-			LOGE("% malloc failed\r\n", __func__);
-			return BK_ERR_NO_MEM;
-		}
-
-		os_memset(transfer_app_config, 0, sizeof(video_setup_t));
-		transfer_app_config->pkt_header_size = sizeof(transfer_data_t);
-	}
-
-	if (cb->get_tx_buf)
-	{
-		transfer_app_data = cb->get_tx_buf();
-		transfer_app_config->pkt_size = cb->get_tx_size() - transfer_app_config->pkt_header_size;
-
-		if (transfer_app_data == NULL
-			|| transfer_app_config->pkt_size <= 0)
-		{
-			LOGE("%s transfer_data: %p, size: %d\n", __func__, transfer_app_data, transfer_app_config->pkt_size);
+			LOGE("%s transfer_data: %p, size: %d\n", __func__, cfg->transfer_app_data, cfg->transfer_app_config.pkt_size);
 			return BK_FAIL;
 		}
 	}
 	else
 	{
-		if (transfer_app_data == NULL)
+		if (cfg->transfer_app_data == NULL)
 		{
-			transfer_app_data = os_malloc(1472);
+			cfg->transfer_app_data = os_malloc(1472);
+			if (cfg->transfer_app_data == NULL)
+			{
+				return BK_FAIL;
+			}
 		}
 
-		transfer_app_config->pkt_size = 1472 - transfer_app_config->pkt_header_size;
+		cfg->transfer_app_config.pkt_size = 1472 - cfg->transfer_app_config.pkt_header_size;
 	}
 
-	LOGD("%s transfer_data: %p, size: %d\n", __func__, transfer_app_data, transfer_app_config->pkt_size);
-
-	media_transfer_callback = cb;
+	LOGD("%s transfer_data: %p, size: %d\n", __func__, cfg->transfer_app_data, cfg->transfer_app_config.pkt_size);
 
 	return BK_OK;
 }
 
-static void wifi_transfer_buffer_deinit(void)
+static void wifi_transfer_buffer_deinit(wifi_transfer_cfg_t *cfg)
 {
-	if (transfer_app_config)
-	{
-		os_free(transfer_app_config);
-		transfer_app_config = NULL;
-	}
-
-#ifdef CONFIG_INTEGRATION_DOORBELL
-	media_transfer_callback = NULL;
-	transfer_app_data = NULL;
-#else
-	if (transfer_app_data)
-	{
-		os_free(transfer_app_data);
-		transfer_app_data = NULL;
-	}
+#ifndef CONFIG_INTEGRATION_DOORBELL
+    if (cfg->transfer_app_data)
+    {
+        os_free(cfg->transfer_app_data);
+        cfg->transfer_app_data = NULL;
+    }
 #endif
+
+    if (cfg->sem)
+    {
+        rtos_deinit_semaphore(&cfg->sem);
+        cfg->sem = NULL;
+    }
+
+    os_free(cfg);
+}
+
+static void wifi_transfer_task_entry(beken_thread_arg_t data)
+{
+    wifi_transfer_cfg_t *cfg = (wifi_transfer_cfg_t *)data;
+    frame_buffer_t *frame = NULL;
+    cfg->enable = true;
+    rtos_set_semaphore(&cfg->sem);
+    uint32_t before = 0, after = 0;
+    uint8_t log_enable = 0;
+
+    while (cfg->enable)
+    {
+        frame = cfg->cb->read(cfg->img_format, 50);
+        if (frame == NULL)
+        {
+            log_enable ++;
+            if (log_enable > 100)
+            {
+                LOGD("%s, read frame null format:%x\n", __func__, cfg->img_format);
+                log_enable = 0;
+            }
+            continue;
+        }
+
+        if (frame->sequence < 5)
+        {
+            LOGD("%s, frame sequence %d\n", __func__, frame->sequence);
+        }
+
+        log_enable = 0;
+        before = get_current_timestamp();
+        media_debug->begin_trs = true;
+        media_debug->end_trs = false;
+
+        wifi_transfer_send_frame(cfg, frame);
+
+        media_debug->end_trs = true;
+        media_debug->begin_trs = false;
+
+        after = get_current_timestamp();
+
+        media_debug->meantimes += (after - before);
+        media_debug->fps_wifi++;
+        media_debug->wifi_kbps += frame->length;
+
+        cfg->cb->free(cfg->img_format, frame);
+        frame = NULL;
+    }
+
+    cfg->transfer_thread = NULL;
+    rtos_set_semaphore(&cfg->sem);
+    rtos_delete_thread(NULL);
 }
 
 bk_err_t bk_wifi_transfer_frame_open(const media_transfer_cb_t *cb, uint16_t img_format)
 {
-	int ret = BK_FAIL;
+    if (cb == NULL)
+    {
+        return BK_FAIL;
+    }
 
-	if (transfer_enable)
-	{
-		LOGE("%s, have been opened!\r\n", __func__);
-		return ret;
-	}
+    if (s_wifi_transfer_cfg)
+    {
+        LOGW("%s, already opened, img_format: %d", __func__, s_wifi_transfer_cfg->img_format);
+        return BK_OK;
+    }
 
-	bk_wifi_set_wifi_media_mode(true);
+    s_wifi_transfer_cfg = os_malloc(sizeof(wifi_transfer_cfg_t));
+    if (s_wifi_transfer_cfg == NULL)
+    {
+        LOGE("% malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
 
-	bk_wifi_set_video_quality(WIFI_VIDEO_QUALITY_SD);
+    memset(s_wifi_transfer_cfg, 0, sizeof(wifi_transfer_cfg_t));
 
-	ret = wifi_transfer_buffer_init(cb);
-	if (ret != BK_OK)
-	{
-		return ret;
-	}
+    s_wifi_transfer_cfg->img_format = img_format;
+    s_wifi_transfer_cfg->cb = cb;
+    s_wifi_transfer_cfg->transfer_app_config.pkt_header_size = sizeof(transfer_data_t);
 
-	ret = media_app_register_read_frame_callback(img_format, wifi_transfer_read_frame_callback);
+    if (rtos_init_semaphore(&s_wifi_transfer_cfg->sem, 1) != BK_OK)
+    {
+        LOGE("%s rtos_init_semaphore failed\n", __func__);
+        goto error;
+    }
 
-	if (ret == BK_OK)
-	{
-		transfer_enable = 1;
-	}
+    if (wifi_transfer_buffer_init(s_wifi_transfer_cfg) != BK_OK)
+    {
+        LOGE("%s wifi_transfer_buffer_init failed\n", __func__);
+        goto error;
+    }
 
-	return ret;
+// need create task to read frame
+bk_err_t ret = rtos_create_thread(&s_wifi_transfer_cfg->transfer_thread,
+                                BEKEN_DEFAULT_WORKER_PRIORITY,
+                                "trs_task",
+                                (beken_thread_function_t)wifi_transfer_task_entry,
+                                2560,
+                                (beken_thread_arg_t)s_wifi_transfer_cfg);
+
+    if (BK_OK != ret)
+    {
+        LOGE("%s transfer_app_task init failed\n", __func__);
+        ret = BK_ERR_NO_MEM;
+        goto error;
+    }
+
+    rtos_get_semaphore(&s_wifi_transfer_cfg->sem, BEKEN_NEVER_TIMEOUT);
+
+    bk_wifi_set_wifi_media_mode(true);
+
+    bk_wifi_set_video_quality(WIFI_VIDEO_QUALITY_SD);
+
+    return BK_OK;
+
+error:
+    if (s_wifi_transfer_cfg->transfer_thread)
+    {
+        wifi_transfer_buffer_deinit(s_wifi_transfer_cfg);
+    }
+    s_wifi_transfer_cfg = NULL;
+    return BK_FAIL;
 }
 
 bk_err_t bk_wifi_transfer_frame_close(void)
 {
-	int ret = BK_FAIL;
+	wifi_transfer_cfg_t *cfg = s_wifi_transfer_cfg;
 
-	if (!transfer_enable)
+	if (cfg == NULL)
+	{
+		return BK_OK;
+	}
+
+	if (!cfg->enable)
 	{
 		LOGE("%s, have been close!\r\n", __func__);
-		return ret;
+		return BK_FAIL;
 	}
 
-	transfer_enable = 0;
+	cfg->enable = 0;
+	rtos_get_semaphore(&cfg->sem, BEKEN_NEVER_TIMEOUT);
 
-    ret = media_app_unregister_read_frame_callback();
-	if (ret != BK_OK)
-	{
-		LOGE("%s, fail!\r\n", __func__);
-	}
-
-	wifi_transfer_buffer_deinit();
-
-	media_transfer_callback = NULL;
+	wifi_transfer_buffer_deinit(cfg);
 
 	bk_wifi_set_wifi_media_mode(false);
 
 	bk_wifi_set_video_quality(WIFI_VIDEO_QUALITY_HD);
 
-	return ret;
-}
+	s_wifi_transfer_cfg = NULL;
 
-#if (CONFIG_MEDIA_APP)
-uint32_t wifi_transfer_net_tcp_checkout_eof(uint8_t *data, uint32_t length)
-{
-	uint32_t i =0;
-	for (i = 0; i < length - 1; i++)
-	{
-		if (data[i] == 0xFF && data[i + 1] == 0xD9)
-		{
-			break;
-		}
-	}
-
-	return (i + 2);
-}
-
-static bk_err_t wifi_transfer_net_camera_free_memory(void)
-{
-	if (wifi_transfer_net_camera_buf)
-	{
-		if (wifi_transfer_net_camera_buf->dma_id != DMA_ID_MAX)
-		{
-			bk_dma_stop(wifi_transfer_net_camera_buf->dma_id);
-			bk_dma_deinit(wifi_transfer_net_camera_buf->dma_id);
-			bk_dma_free(DMA_DEV_JPEG, wifi_transfer_net_camera_buf->dma_id);
-		}
-
-		if (wifi_transfer_net_camera_buf->dma_psram != DMA_ID_MAX)
-		{
-			bk_dma_stop(wifi_transfer_net_camera_buf->dma_psram);
-			bk_dma_deinit(wifi_transfer_net_camera_buf->dma_psram);
-			bk_dma_free(DMA_DEV_DTCM, wifi_transfer_net_camera_buf->dma_psram);
-		}
-
-		if (wifi_transfer_net_camera_buf->frame)
-		{
-			media_app_frame_buffer_free(&wifi_transfer_net_camera_buf->handle, wifi_transfer_net_camera_buf->frame);
-			wifi_transfer_net_camera_buf->frame = NULL;
-		}
-
-		if (wifi_transfer_net_camera_buf->handle)
-		{
-			media_app_camera_close(&wifi_transfer_net_camera_buf->handle);
-		}
-
-		wifi_transfer_net_camera_buf->buf_ptr = NULL;
-		os_free(wifi_transfer_net_camera_buf);
-		wifi_transfer_net_camera_buf = NULL;
-	}
-
-	if (wifi_transfer_net_camera_pool.pool)
-	{
-		os_free(wifi_transfer_net_camera_pool.pool);
-		wifi_transfer_net_camera_pool.pool = NULL;
-	}
+	LOGD("%s, close success!\r\n", __func__);
 
 	return BK_OK;
 }
-
-static bk_err_t wifi_transfer_net_camera_init_pool(void)
-{
-	if (wifi_transfer_net_camera_pool.pool == NULL)
-	{
-		wifi_transfer_net_camera_pool.pool = os_malloc(WIFI_RECV_CAMERA_POOL_LEN);
-		if (wifi_transfer_net_camera_pool.pool == NULL)
-		{
-			LOGE("tvideo_pool alloc failed\r\n");
-			return kNoMemoryErr;
-		}
-	}
-
-	os_memset(&wifi_transfer_net_camera_pool.pool[0], 0, WIFI_RECV_CAMERA_POOL_LEN);
-
-	trans_list_init(&wifi_transfer_net_camera_pool.free);
-	trans_list_init(&wifi_transfer_net_camera_pool.ready);
-
-	for (uint8_t i = 0; i < (WIFI_RECV_CAMERA_POOL_LEN / WIFI_RECV_CAMERA_RXNODE_SIZE); i++) {
-		wifi_transfer_net_camera_pool.elem[i].buf_start =
-			(void *)&wifi_transfer_net_camera_pool.pool[i * WIFI_RECV_CAMERA_RXNODE_SIZE];
-		wifi_transfer_net_camera_pool.elem[i].buf_len = 0;
-
-		trans_list_push_back(&wifi_transfer_net_camera_pool.free,
-			(struct trans_list_hdr *)&wifi_transfer_net_camera_pool.elem[i].hdr);
-	}
-
-	return BK_OK;
-}
-
-static void wifi_transfer_net_camera_process_packet(uint8_t *data, uint32_t length)
-{
-	if ((wifi_transfer_net_camera_buf->start_buf == BUF_STA_INIT || wifi_transfer_net_camera_buf->start_buf == BUF_STA_COPY) && wifi_transfer_net_camera_buf->frame)
-	{
-		video_header_t *hdr = (video_header_t *)data;
-		uint32_t org_len;
-		uint32_t fack_len = 0;
-		GLOBAL_INT_DECLARATION();
-
-		org_len = length - sizeof(video_header_t);
-		data = data + sizeof(video_header_t);
-
-		LOGV("id:%d eof %d pkt cnt %d pkt seq %d len %d org_len %d\r\n", hdr->id,hdr->is_eof,hdr->pkt_cnt,hdr->pkt_seq,length,org_len);
-
-		//wifi_transfer_data_check(data,size);
-
-		if ((hdr->id != wifi_transfer_net_camera_buf->frame->sequence) && (hdr->pkt_cnt == 1)) {
-			// start of frame;
-			GLOBAL_INT_DISABLE();
-			wifi_transfer_net_camera_buf->frame->sequence = hdr->id;
-			wifi_transfer_net_camera_buf->frame->length = 0;
-			wifi_transfer_net_camera_buf->frame_pkt_cnt = 0;
-			wifi_transfer_net_camera_buf->buf_ptr = wifi_transfer_net_camera_buf->frame->frame;
-			wifi_transfer_net_camera_buf->start_buf = BUF_STA_COPY;
-			GLOBAL_INT_RESTORE();
-			LOGV("sof:%d\r\n", wifi_transfer_net_camera_buf->frame->sequence);
-		}
-		else
-		{
-			if (wifi_transfer_net_camera_buf->start_buf == BUF_STA_INIT)
-				wifi_transfer_net_camera_buf->start_buf = BUF_STA_COPY;
-		}
-
-	   /* LOGD("hdr-id:%d-%d, frame_packet_cnt:%d-%d, state:%d\r\n", hdr->id, wifi_recv_camera_buf->frame->sequence,
-			(wifi_recv_camera_buf->frame_pkt_cnt + 1), hdr->pkt_cnt, wifi_recv_camera_buf->start_buf); */
-
-		if ((hdr->id == wifi_transfer_net_camera_buf->frame->sequence)
-			&& ((wifi_transfer_net_camera_buf->frame_pkt_cnt + 1) == hdr->pkt_cnt)
-			&& (wifi_transfer_net_camera_buf->start_buf == BUF_STA_COPY))
-		{
-			if (wifi_transfer_net_camera_param.send_type == TVIDEO_SND_TCP && hdr->is_eof == 1)
-			{
-				org_len = wifi_transfer_net_tcp_checkout_eof(data, org_len);
-
-				if (org_len & 0x3)
-				{
-					fack_len = ((org_len >> 2) + 1) << 2;
-				}
-			}
-
-			if (fack_len == 0)
-			{
-				if (org_len & 0x3)
-					fack_len = ((org_len >> 2) + 1) << 2;
-			}
-
-			if (wifi_transfer_net_camera_buf->dma_psram != DMA_ID_MAX)
-			{
-				dma_memcpy_by_chnl(wifi_transfer_net_camera_buf->buf_ptr, data, fack_len ? fack_len : org_len, wifi_transfer_net_camera_buf->dma_id);
-			}
-			else
-			{
-				os_memcpy(wifi_transfer_net_camera_buf->buf_ptr, data, fack_len ? fack_len : org_len);
-			}
-
-			GLOBAL_INT_DISABLE();
-			wifi_transfer_net_camera_buf->frame->length += org_len;
-			wifi_transfer_net_camera_buf->buf_ptr += org_len;
-			wifi_transfer_net_camera_buf->frame_pkt_cnt += 1;
-			GLOBAL_INT_RESTORE();
-
-			if (hdr->is_eof == 1)
-			{
-				media_app_frame_buffer_push(&wifi_transfer_net_camera_buf->handle, wifi_transfer_net_camera_buf->frame);
-				wifi_transfer_net_camera_buf->frame = media_app_frame_buffer_malloc(&wifi_transfer_net_camera_buf->handle);
-				if (wifi_transfer_net_camera_buf->frame == NULL)
-				{
-					LOGE("frame buffer malloc failed\r\n");
-					return;
-				}
-
-				wifi_transfer_net_camera_buf->frame->width = ppi_to_pixel_x(wifi_transfer_net_camera_param.ppi);
-				wifi_transfer_net_camera_buf->frame->height = ppi_to_pixel_y(wifi_transfer_net_camera_param.ppi);
-
-
-				wifi_transfer_net_camera_buf->frame->fmt = wifi_transfer_net_camera_param.fmt; //all set uvc_jpeg, because jpeg need jepg decode
-				wifi_transfer_net_camera_buf->buf_ptr = wifi_transfer_net_camera_buf->frame->frame;
-				wifi_transfer_net_camera_buf->frame->length = 0;
-			}
-		}
-
-	}
-}
-
-static void wifi_transfer_net_camera_task_entry(beken_thread_arg_t data)
-{
-	wifi_transfer_net_camera_elem_t *elem = NULL;
-	bk_err_t err = 0;
-
-	wifi_transfer_net_camera_buf->start_buf = BUF_STA_INIT;
-	wifi_transfer_net_camera_task_running = true;
-
-	while (wifi_transfer_net_camera_task_running)
-	{
-		err = rtos_get_semaphore(&s_wifi_transfer_net_data_sem, 1000);
-
-		if(!wifi_transfer_net_camera_task_running)
-		{
-			break;
-		}
-
-		if(err != 0)
-		{
-			LOGV("%s get sem timeout\n", __func__);
-			continue;
-		}
-
-		while((elem = (wifi_transfer_net_camera_elem_t *)trans_list_pick(&wifi_transfer_net_camera_pool.ready)) != NULL)
-		{
-			wifi_transfer_net_camera_process_packet(elem->buf_start, elem->buf_len);
-
-			trans_list_pop_front(&wifi_transfer_net_camera_pool.ready);
-			trans_list_push_back(&wifi_transfer_net_camera_pool.free, (struct trans_list_hdr *)&elem->hdr);
-		}
-	};
-
-	rtos_deinit_semaphore(&s_wifi_transfer_net_data_sem);
-	wifi_transfer_net_camera_task = NULL;
-	rtos_delete_thread(NULL);
-
-	wifi_transfer_net_camera_free_memory();
-}
-
-bk_err_t wifi_transfer_net_camera_open(media_camera_device_t *device)
-{
-	int ret = BK_OK;
-	//step 1: init lcd, should do it after calling this api
-	if (wifi_transfer_net_camera_buf == NULL)
-	{
-		wifi_transfer_net_camera_buf = (wifi_transfer_net_camera_buffer_t *)os_malloc(sizeof(wifi_transfer_net_camera_buffer_t));
-		if (wifi_transfer_net_camera_buf == NULL)
-		{
-			LOGE("malloc net_camera_buf failed\r\n");
-			goto error;
-		}
-	}
-	os_memset(wifi_transfer_net_camera_buf, 0, sizeof(wifi_transfer_net_camera_buffer_t));
-
-	// step 2: open net camera
-	ret = media_app_camera_open(&wifi_transfer_net_camera_buf->handle, device);
-	if (ret != BK_OK)
-	{
-		LOGE("malloc net_camera open failed\r\n");
-		goto error;
-	}
-
-	wifi_transfer_net_camera_buf->dma_id = bk_dma_alloc(DMA_DEV_JPEG);
-	if ((wifi_transfer_net_camera_buf->dma_id < DMA_ID_0) || (wifi_transfer_net_camera_buf->dma_id >= DMA_ID_MAX))
-	{
-		LOGE("malloc net_camera_buf->dma_id fail \r\n");
-		wifi_transfer_net_camera_buf->dma_id = DMA_ID_MAX;
-	}
-
-	wifi_transfer_net_camera_buf->dma_psram = bk_dma_alloc(DMA_DEV_DTCM);
-	if ((wifi_transfer_net_camera_buf->dma_psram < DMA_ID_0) || (wifi_transfer_net_camera_buf->dma_psram >= DMA_ID_MAX))
-	{
-		LOGE("malloc net_camera_buf->dma_id fail \r\n");
-		wifi_transfer_net_camera_buf->dma_psram = DMA_ID_MAX;
-	}
-
-	LOGD("net_camera_buf->dma_id:%d-%d\r\n", wifi_transfer_net_camera_buf->dma_id, wifi_transfer_net_camera_buf->dma_psram);
-
-
-	wifi_transfer_net_camera_buf->frame = media_app_frame_buffer_malloc(&wifi_transfer_net_camera_buf->handle);
-	if (wifi_transfer_net_camera_buf->frame == NULL)
-	{
-		goto error;
-	}
-
-	wifi_transfer_net_camera_buf->frame->fmt = device->format;
-
-	wifi_transfer_net_camera_buf->buf_ptr = wifi_transfer_net_camera_buf->frame->frame;
-	wifi_transfer_net_camera_buf->frame_pkt_cnt = 0;
-	wifi_transfer_net_camera_buf->frame->width = device->width;
-	wifi_transfer_net_camera_buf->frame->height = device->height;
-	wifi_transfer_net_camera_buf->frame->sequence = 0;
-	wifi_transfer_net_camera_buf->start_buf = BUF_STA_INIT;
-
-	wifi_transfer_net_camera_param.ppi = (device->width << 16) | device->height;
-	wifi_transfer_net_camera_param.fmt = wifi_transfer_net_camera_buf->frame->fmt;
-	wifi_transfer_net_camera_param.send_type = TVIDEO_SND_TCP;
-
-	ret = wifi_transfer_net_camera_init_pool();
-	if (ret != BK_OK)
-	{
-		goto error;
-	}
-
-	ret = rtos_init_semaphore(&s_wifi_transfer_net_data_sem, 1);
-
-	if (BK_OK != ret)
-	{
-		LOGE("%s semaphore init failed\n", __func__);
-		goto error;
-	}
-
-	ret = rtos_create_thread(&wifi_transfer_net_camera_task,
-								6,
-								"net_camera_task",
-								(beken_thread_function_t)wifi_transfer_net_camera_task_entry,
-								4 * 1024,
-								NULL);
-
-	if (BK_OK != ret)
-	{
-		LOGE("%s transfer_task init failed\n", __func__);
-		goto error;
-	}
-
-	return BK_OK;
-
-error:
-
-	LOGE("%s failed\n", __func__);
-
-	wifi_transfer_net_camera_free_memory();
-
-	return BK_FAIL;
-}
-
-bk_err_t wifi_transfer_net_camera_close(void)
-{
-	if (wifi_transfer_net_camera_buf->start_buf == BUF_STA_COPY)
-	{
-		wifi_transfer_net_camera_buf->start_buf = BUF_STA_DEINIT;
-	}
-
-	wifi_transfer_net_camera_task_running = false;
-
-	rtos_delay_milliseconds(100);
-
-	wifi_transfer_net_camera_free_memory();
-
-	LOGD("%s complete\r\n", __func__);
-
-	return BK_OK;
-}
-
-uint32_t wifi_transfer_net_send_data(uint8_t *data, uint32_t length, video_send_type_t type)
-{
-	wifi_transfer_net_camera_elem_t *elem = NULL;
-
-	if (wifi_transfer_net_camera_param.send_type != type)
-		wifi_transfer_net_camera_param.send_type = type;
-	if (length <= 4)
-	{
-		return length;
-	}
-
-	elem = (wifi_transfer_net_camera_elem_t *)trans_list_pick(&wifi_transfer_net_camera_pool.free);
-	
-	if (elem)
-	{
-		if (wifi_transfer_net_camera_buf->dma_id != DMA_ID_MAX)
-		{
-			dma_memcpy_by_chnl(elem->buf_start, data, length, wifi_transfer_net_camera_buf->dma_id);
-		}
-		else
-		{
-			os_memcpy(elem->buf_start, data, length);
-		}
-
-		elem->buf_len = length;
-
-		trans_list_pop_front(&wifi_transfer_net_camera_pool.free);
-		trans_list_push_back(&wifi_transfer_net_camera_pool.ready, (struct trans_list_hdr *)&elem->hdr);
-		rtos_set_semaphore(&s_wifi_transfer_net_data_sem);
-	}
-	else
-	{
-		LOGD("list all busy\r\n");
-	}
-
-	return length;
-}
-
-#endif
-

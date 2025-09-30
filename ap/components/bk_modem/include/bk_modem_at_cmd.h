@@ -2,9 +2,6 @@
 #ifndef _BK_MODEM_AT_H_
 #define _BK_MODEM_AT_H_
 
-#define AT_ECPCFG 				"AT+ECPCFG\r"
-#define AT_ECNETCFG				"AT+ECNETCFG\r"
-#define AT_ECNETDEVCTL			"AT+ECNETDEVCTL\r"
 #define ATD						"ATD\r"
 #define ATO						"ATO\r"
 #define ATH						"ATH\r"
@@ -20,14 +17,23 @@
 #define AT_CGDCONT				"AT+CGDCONT?\r"
 #define AT_CFUN_0				"AT+CFUN=0\r"
 #define AT_CFUN_1				"AT+CFUN=1\r"
-#define AT_CGREG				"AT+CGREG?\r"
+#define AT_CEREG				"AT+CEREG?\r"
 
 #define AT_RSP_OK				"OK"
 #define AT_RSP_ERROR			"ERROR"
 #define AT_RSP_CONNECT			"CONNECT"
 #define AT_RSP_CPIN				"+CPIN: READY"
-#define AT_RSP_CGREG1			"+CGREG: 0,1"
-#define AT_RSP_CGREG5			"+CGREG: 0,5"
+#define AT_RSP_CEREG1			"+CEREG: 0,1"
+#define AT_RSP_CEREG5			"+CEREG: 0,5"
+
+
+///ec at begin
+#define AT_ECPCFG 				"AT+ECPCFG=\"usbCtrl\",1\r"
+#define AT_ECNETCFG_Q			"AT+ECNETCFG?\r"
+#define AT_ECNETCFG_S			"AT+ECNETCFG=\"nat\",1,\"192.168.10.2\"\r"
+#define AT_ECNETDEVCTL			"AT+ECNETDEVCTL=3,1,1\r"
+#define AT_ECRST				"AT+ECRST\r"
+///ec at end
 
 //AT
 bk_err_t bk_modem_at_ready(void);
@@ -68,4 +74,9 @@ bk_err_t bk_modem_at_init(void);
 bk_err_t bk_modem_at_dinit(void);
 bk_err_t bk_modem_at_cfun(uint8_t value);
 bk_err_t bk_modem_at_get_ps_reg(void);
+bk_err_t bk_modem_ec_at_check_nat(void);
+bk_err_t bk_modem_ec_at_set_nat(void);
+bk_err_t bk_modem_ec_at_close_rndis(void);
+bk_err_t bk_modem_ec_at_open_datapath(void);
+bk_err_t bk_modem_ec_at_rst(void);
 #endif

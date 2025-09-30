@@ -1059,7 +1059,7 @@ void wpa_supplicant_set_state(struct wpa_supplicant *wpa_s,
 		wpa_supplicant_state_txt(wpa_s->wpa_state),
 		wpa_supplicant_state_txt(state));
 #else
-	WPA_LOGD("State: %s -> %s\n",
+	WPA_LOGI("State: %s -> %s\n",
 		wpa_supplicant_state_txt(wpa_s->wpa_state),
 		wpa_supplicant_state_txt(state));
 #endif

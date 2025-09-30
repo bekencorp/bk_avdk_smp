@@ -193,6 +193,47 @@ extern void bk_bridge_event_hapd_sta_disconnected(uint8_t *mac);
                                 &ap_disconnected, sizeof(ap_disconnected), BEKEN_NEVER_TIMEOUT));
 }
 
+#if CONFIG_P2P
+#define WLAN_DEFAULT_GO_IP         "192.168.49.1"
+#define WLAN_DEFAULT_GO_GW         "192.168.49.1"
+#define WLAN_DEFAULT_GO_MASK       "255.255.255.0"
+void wdrv_notify_local_as_go(void)
+{
+    wifi_event_ap_connected_t ap_connected = {0};
+    netif_ip4_config_t ip4_config = {0};
+
+    /*set go ip address*/
+    os_strcpy(ip4_config.ip, WLAN_DEFAULT_GO_IP);
+    os_strcpy(ip4_config.mask, WLAN_DEFAULT_GO_MASK);
+    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GO_GW);
+
+    bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config);
+
+    /* start uap service */
+    uap_ip_start();
+
+    /* post evevnt EVENT_WIFI_AP_CONNECTED */
+    os_memset(&ap_connected, 0, sizeof(ap_connected));
+    os_memcpy(ap_connected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED,
+                                &ap_connected, sizeof(ap_connected), BEKEN_NEVER_TIMEOUT));
+
+}
+
+void wdrv_notify_go_client_disconnected(void)
+{
+    wifi_event_ap_connected_t go_disconnected = {0};
+    /* post evevnt EVENT_WIFI_AP_DISCONNECTED */
+    os_memset(&go_disconnected, 0, sizeof(go_disconnected));
+    os_memcpy(go_disconnected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
+    /* stop uap service */
+    uap_ip_down();
+
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_GO_DISCONNECTED,
+                                &go_disconnected, sizeof(go_disconnected), BEKEN_NEVER_TIMEOUT));
+}
+#endif
+
 void mhdr_set_station_status(wifi_linkstate_reason_t info)
 {
 	GLOBAL_INT_DECLARATION();
@@ -445,6 +486,26 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
         case BK_EVT_CSI_INFO_IND:
             bk_wifi_csi_info_cb(msg->param);
             break;
+#if CONFIG_P2P
+        case BK_EVT_ASSOC_GO_IND:
+            os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
+            WDRV_LOGD("GO-INDICATE: go %x:%x:%x:%x:%x:%x connected\n",
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[0], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[1],
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[2], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[3],
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[4], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[5]);
+            wdrv_notify_local_as_go();
+            break;
+        case BK_EVT_DISASSOC_GO_IND:
+            WDRV_LOGV("GO-INDICATE: disassoc\n");
+            os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
+            WDRV_LOGV("%x:%x:%x:%x:%x:%x\n",
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[0], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[1],
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[2], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[3],
+                      wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[4], wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr[5]);
+
+            wdrv_notify_go_client_disconnected();
+            break;
+#endif
         default:
             WDRV_LOGD("%s msg %x invaild\n", __func__, msg->id);
             return;

@@ -1,5 +1,3 @@
-#include <common/bk_include.h>
-#include "cli.h"
 #include <os/mem.h>
 #include <os/str.h>
 #include <os/os.h>
@@ -20,8 +18,6 @@
 #include "doorbell_tcp_service.h"
 #include "doorbell_transmission.h"
 #include "doorbell_devices.h"
-
-#include "cli.h"
 
 #define TAG "db-tcp"
 

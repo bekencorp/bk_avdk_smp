@@ -443,6 +443,32 @@ int fb_get_ready_node_num(framebuf_handle_t fb)
     return ready_node_num;
 }
 
+int fb_get_free_node_num(framebuf_handle_t fb)
+{
+    framebuf_node_item_t *fb_node_item_ptr, *fb_node_tmp;
+    int free_node_num = 0;
+
+    if (fb == NULL) {
+        return FB_FAIL;
+    }
+
+    /* take frame buffer lock */
+    if (fb_block(fb->lock, portMAX_DELAY) != pdTRUE) {
+        return FB_TIMEOUT;
+    }
+
+    STAILQ_FOREACH_SAFE(fb_node_item_ptr, &fb->free_fb_node_list, next, fb_node_tmp) {
+        if (fb_node_item_ptr)
+        {
+            free_node_num++;
+        }
+    }
+
+    fb_release(fb->lock);
+
+    return free_node_num;
+}
+
 void debug_fb_node_lists(framebuf_handle_t fb, int line, const char *func)
 {
     framebuf_node_item_t *fb_node_item_ptr, *fb_node_tmp;

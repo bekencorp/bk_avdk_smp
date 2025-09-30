@@ -27,6 +27,8 @@
 extern "C" {
 #endif
 
+#if (!CONFIG_FLASH_ORIGIN_API)
+
 #define PAR_OPT_READ_POS     (0)
 #define PAR_OPT_READ_DIS     (0x0u << PAR_OPT_READ_POS)
 #define PAR_OPT_READ_EN     (0x1u << PAR_OPT_READ_POS)
@@ -39,6 +41,7 @@ extern "C" {
 #define PAR_OPT_EXECUTE_DIS     (0x0u << PAR_OPT_EXECUTE_POS)
 #define PAR_OPT_EXECUTE_EN     (0x1u << PAR_OPT_EXECUTE_POS)
 
+#endif
 
 typedef enum
 {

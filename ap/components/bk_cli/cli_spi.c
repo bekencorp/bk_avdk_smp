@@ -100,6 +100,8 @@ static void cli_spi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 #endif
 #if CONFIG_SPI_DMA
 		config.dma_mode = os_strtoul(argv[10], NULL, 10);
+		config.spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0);
+		config.spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0_RX);
 		if (os_strtoul(argv[4], NULL, 10) == 8) {
 			config.spi_tx_dma_width = DMA_DATA_WIDTH_8BITS;
 			config.spi_rx_dma_width = DMA_DATA_WIDTH_8BITS;

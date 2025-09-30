@@ -21,7 +21,6 @@
 #include <gpio_map.h>
 #include "gpio_driver.h"
 #include <driver/i2c.h>
-#include <driver/media_types.h>
 #include <driver/tp.h>
 #include <driver/tp_types.h>
 #include "driver/drv_tp.h"
@@ -34,7 +33,6 @@
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
-
 
 // power definition.
 #ifndef TP_POWER_CTRL_EN

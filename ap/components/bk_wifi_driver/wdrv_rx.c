@@ -3,6 +3,10 @@
 #include "wdrv_cntrl.h"
 #include "wdrv_tx.h"
 #include "wdrv_co_list.h"
+#if CONFIG_BK_RAW_LINK
+#include "raw_link_api.h"
+#endif
+
 extern void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx);
 void __asm_flush_dcache_range(void* begin, void* end);
 
@@ -43,6 +47,13 @@ void wdrv_rx_handle_msg(wdrv_rx_msg *msg)
     //bk_mem_dump("wdrv_rx_handle_msg",PTR_TO_U32(msg), 30);
     cpdu_t* cpdu = (struct cpdu_t*)msg -1;
     WDRV_LOGD("wdrv_rx_handle_msg id:%x cfm_sn:%d len:%d\r\n", msg->id, msg->cfm_sn, msg->param_len);
+
+#if CONFIG_BK_RAW_LINK
+    if (cpdu->co_hdr.special_type == TX_RLK_FREE_MEM_TYPE) {
+        rlkd_handle_free_mem_req((uint32_t)cpdu);
+        return;
+    }
+#endif
 
     if (msg->id >= WDRV_CMD_CFM_OFFSET) {
         wdrv_rx_handle_cmd_confirm(msg);
@@ -165,9 +176,18 @@ uint8_t wdrv_recv_buffer(void *param, uint32_t *payload)
             }
             case RX_MSDU_DATA:
             {
-                struct pbuf * p = NULL;
-                p = (struct pbuf*)((struct pbuf*)head - 1);
-                ret = wdrv_msg_sender((uint32_t)p,WDRV_TASK_MSG_RXDATA,0);
+                #if CONFIG_BK_RAW_LINK
+                if (head->co_hdr.special_type == TX_RLK_FREE_MEM_TYPE) 
+                {
+                    ret = wdrv_msg_sender((uint32_t)(head + 1),WDRV_TASK_MSG_EVENT,0);
+                }
+                else
+                #endif
+                {
+                    struct pbuf * p = NULL;
+                    p = (struct pbuf*)((struct pbuf*)head - 1);
+                    ret = wdrv_msg_sender((uint32_t)p,WDRV_TASK_MSG_RXDATA,0);
+                }
                 //bk_mem_dump("wdrv_recv p",PTR_TO_U32(p),sizeof(struct pbuf)+8);
                 if(ret != BK_OK)
                 {

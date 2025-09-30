@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
 
 #include "lcd_panel_devices.h"
@@ -42,7 +42,8 @@ const lcd_device_t lcd_device_st7282 =
 	.id = LCD_DEVICE_ST7282,
 	.name = "st7282",
 	.type = LCD_TYPE_RGB565,
-	.ppi = PPI_480X272,
+	.width = 480,
+	.height = 272,
 	.rgb = &lcd_rgb,
 	.out_fmt = PIXEL_FMT_RGB888,
 	.init = NULL,

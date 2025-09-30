@@ -452,7 +452,11 @@ struct {\
 * VIDEO PA GPIO MAP
 */
 // LCD AND SD POWER CTRL
-#define LCD_LDO_CTRL_GPIO                  (GPIO_13)
+#ifdef CONFIG_LCD_LDO_CTRL_GPIO
+#define LCD_LDO_CTRL_GPIO          CONFIG_LCD_LDO_CTRL_GPIO
+#else
+#define LCD_LDO_CTRL_GPIO          (GPIO_13)
+#endif
 #define LCD_LDO_CTRL_ACTIVE_LEVEL          (1)
 
 #define SDCARD_LDO_CTRL_GPIO               (GPIO_13)

@@ -14,9 +14,16 @@
 
 #pragma once
 
+#ifdef  __cplusplus
+extern "C" {
+#endif//__cplusplus
+
 uint8_t hnd_crc8(
     uint8_t *pdata,   /* pointer to array of data to process */
     uint32_t  nbytes,   /* number of input data bytes to process */
     uint8_t crc   /* either CRC8_INIT_VALUE or previous return value */
 );
 
+#ifdef  __cplusplus
+}
+#endif//__cplusplus

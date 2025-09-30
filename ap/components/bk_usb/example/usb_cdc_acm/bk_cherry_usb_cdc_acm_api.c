@@ -2,7 +2,6 @@
 #include <os/mem.h>
 
 #include "usb_driver.h"
-#include <driver/media_types.h>
 #include "bk_cherry_usb_cdc_acm_api.h"
 #include <components/cherryusb/usbh_cdc_acm.h>
 #include <components/cherryusb/usbh_core.h>

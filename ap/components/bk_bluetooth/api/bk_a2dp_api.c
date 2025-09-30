@@ -41,3 +41,9 @@ bt_err_t bk_bt_a2dp_sink_get_delay_value(void)
     return bt_a2dp_sink_get_delay_value_internal();
 }
 
+bt_err_t bk_bt_a2dp_set_cap(uint8_t source_or_sink, bk_a2dp_codec_cap_t *cap)
+{
+    return bk_bt_a2dp_set_cap_internal(source_or_sink, cap);
+}
+
+

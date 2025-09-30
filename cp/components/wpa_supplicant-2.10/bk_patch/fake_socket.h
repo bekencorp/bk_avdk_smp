@@ -246,6 +246,9 @@ typedef struct socket_type_st {
 } S_TYPE_ST,*S_TYPE_PTR;
 
 extern SOCKET fsocket_init(int af, int type, int protocol);
+#if CONFIG_P2P
+extern SOCKET fsocket_reinit(int af, int type, int protocol);
+#endif
 extern int fsocket_send(SOCKET sk, const unsigned char *buf, int len, S_TYPE_PTR type);
 extern int fsocket_recv(SOCKET sk, const unsigned char *buf, int len, int flag);
 extern void fsocket_close(SOCKET sk);

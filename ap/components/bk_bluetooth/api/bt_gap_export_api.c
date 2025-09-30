@@ -287,3 +287,34 @@ bk_err_t bk_bt_gap_set_auto_sniff_policy(bk_bd_addr_t remote_bda, uint32_t sec, 
     return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_AUTO_SNIFF_POLICY, &msg, sizeof(msg), NULL);
 }
 
+bk_err_t bk_bt_gap_sniff_control(uint8_t *addr, uint8_t exit, bk_bt_gap_sniff_config *config)
+{
+    bk_bt_sniff_control_msg_t msg;
+
+    os_memset(&msg, 0, sizeof(msg));
+    os_memcpy(msg.addr, addr, BK_BT_ADDR_LEN);
+
+    msg.exit = exit;
+    if (config)
+    {
+        msg.sniff_max_interval = config->sniff_max_interval;
+        msg.sniff_min_interval = config->sniff_min_interval;
+        msg.sniff_attempt = config->sniff_attempt;
+        msg.sniff_timeout = config->sniff_timeout;
+    }
+
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SNIFF_CONTROL, &msg, sizeof(msg), NULL);
+}
+
+bk_err_t bk_bt_gap_switch_role(uint8_t *addr, uint8_t new_role)
+{
+    bk_bt_switch_role_msg_t msg;
+
+    os_memset(&msg, 0, sizeof(msg));
+    os_memcpy(msg.addr, addr, BK_BT_ADDR_LEN);
+
+    msg.role = new_role;
+
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SWTICH_ROLE, &msg, sizeof(msg), NULL);
+}
+

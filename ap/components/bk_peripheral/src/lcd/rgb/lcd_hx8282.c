@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
 #include <driver/lcd.h>
 
@@ -42,7 +42,8 @@ const lcd_device_t lcd_device_hx8282 =
 	.id = LCD_DEVICE_HX8282,
 	.name = "hx8282",
 	.type = LCD_TYPE_RGB565,
-	.ppi = PPI_1024X600,
+	.width = 1024,
+	.height = 600,
 	.rgb = &lcd_rgb,
 	.out_fmt = PIXEL_FMT_RGB565,
 	.init = NULL,

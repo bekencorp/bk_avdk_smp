@@ -436,7 +436,7 @@ void sm_is_dhcp_relet_send(uint8_t vif_index, uint16_t type)
 		}
 
 		if (dhcp_state == DHCP_STATE_RELET_START) {
-			RWNX_LOGD("DHCP RELET START\n");
+			RWNX_LOGI("DHCP RELET START\n");
 			dhcp_state = DHCP_STATE_CONNECTED;
 		}
 	}

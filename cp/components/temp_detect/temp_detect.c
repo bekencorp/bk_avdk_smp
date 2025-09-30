@@ -26,6 +26,9 @@
 #endif
 #include "drv_model.h"
 #include "sys_driver.h"
+#if CONFIG_FLASH_ORIGIN_API
+#include "flash.h"
+#endif
 #include <modules/pm.h>
 #include <driver/rosc_32k.h>
 #include <driver/aon_rtc.h>
@@ -84,7 +87,7 @@ static void temp_sensor_enable(void)
     param = BLK_BIT_TEMPRATURE_SENSOR;
     sddev_control(DD_DEV_TYPE_SCTRL, CMD_SCTRL_BLK_ENABLE, &param);
 #endif
-
+    
 }
 
 static void temp_sensor_disable(void)
@@ -406,7 +409,7 @@ static void tempd_notify_temperature_to_calibration(uint16_t temperature)
 static void tempd_stop(void)
 {
 	int err;
-
+    
 #if TEMP_DETECT_ONESHOT_TIMER
     err = rtos_stop_oneshot_timer(&s_tempd.detect_oneshot_timer);
 #else
@@ -523,7 +526,7 @@ static void tempd_init(uint32_t init_temperature)
 static void tempd_deinit(void)
 {
 	int err;
-
+	
 #if TEMP_DETECT_ONESHOT_TIMER
     err = rtos_deinit_oneshot_timer(&s_tempd.detect_oneshot_timer);
 #else

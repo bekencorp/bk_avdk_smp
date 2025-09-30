@@ -52,7 +52,7 @@ void spinlock_init(spinlock_t *slock)
 }
 
 #if CONFIG_SPINLOCK_DEBUG
-void spinlock_deinit(spinlock_t *slock)
+static void spinlock_release_debug_res(spinlock_t *slock)
 {
     slock->taskTCBPointer = 0;
 }
@@ -379,7 +379,7 @@ bk_err_t spinlock_mem_dynamic_free(spinlock_t *slock)
 	int_level = rtos_disable_int();
 	spin_lock(&s_spinlock_memlock);	
 #if CONFIG_SPINLOCK_DEBUG
-    spinlock_deinit(slock);
+    spinlock_release_debug_res(slock);
 #endif
     s_mem_manage_bits[i] &= ~(0x1<<j);
 	spin_unlock(&s_spinlock_memlock);

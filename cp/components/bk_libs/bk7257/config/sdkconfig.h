@@ -1,6 +1,6 @@
 /*
  * Automatically generated file. DO NOT EDIT.
- * Beken IoT Development Framework (BEKEN-ARMINO) Configuration Header
+ * BEKEN IoT Development Framework (BEKEN-ARMINO)  Configuration Header
  */
 #pragma once
 #define CONFIG_SOC_BK7257 1
@@ -15,6 +15,7 @@
 #define CONFIG_LWIP_V2_1 1
 #define CONFIG_NO_HOSTED 1
 #define CONFIG_BLUETOOTH 1
+#define CONFIG_BK_COEX 1
 #define CONFIG_CALI 1
 #define CONFIG_MANUAL_CALI 1
 #define CONFIG_TPC_PA_MAP 1
@@ -61,7 +62,6 @@
 #define CONFIG_TIMER_COUNTER 1
 #define CONFIG_TIMER_SUPPORT_ID_BITS 0
 #define CONFIG_SARADC 1
-#define CONFIG_SARADC_SERVER 1
 #define CONFIG_SARADC_NEED_FLUSH 1
 #define CONFIG_ADC_BUF_SIZE 32
 #define CONFIG_FLASH 1
@@ -98,6 +98,7 @@
 #define CONFIG_FREERTOS_V10 1
 #define CONFIG_FREERTOS_USE_TICKLESS_IDLE 2
 #define CONFIG_FREERTOS_TICK_RATE_HZ 1000
+#define CONFIG_BK_OS_TIMER_DEBUG 1
 #define CONFIG_MEM_DEBUG 1
 #define CONFIG_MEM_DEBUG_FUNC_NAME 1
 #define CONFIG_MEM_DEBUG_FUNC_NAME_LEN 16

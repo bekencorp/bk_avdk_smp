@@ -5,16 +5,17 @@
 #include <modules/pm.h>
 #include <driver/pwr_clk.h>
 #include "cli.h"
-#include "driver/media_types.h"
+#include "components/media_types.h"
 #include "driver/drv_tp.h"
 #if CONFIG_LVGL
 #include "lvgl.h"
 #include "lv_vendor.h"
 #include "page_load_ctrol.h"
 #endif
-#include "lcd_display_service.h"
 #include "media_service.h"
-#include <driver/pwr_clk.h>
+#include "components/bk_display.h"
+#include "driver/gpio.h"
+#include "gpio_driver.h"
 
 #define TAG "86box"
 
@@ -24,44 +25,61 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-#define PSRAM_FRAME_BUFFER ((0x60000000UL) + 5 * 1024 * 1024)
 
 extern void user_app_main(void);
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
 extern int bk_cli_init(void);
 extern void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id);
+extern lv_vnd_config_t vendor_config;
+extern const lcd_device_t lcd_device_st7701s;
 
-const lcd_open_t lcd_open =
-{
-    .device_ppi = PPI_480X480,
-    .device_name = "st7701s",
+bk_display_rgb_ctlr_config_t rgb_ctlr_config = {
+    .lcd_device = &lcd_device_st7701s,
+    .clk_pin = GPIO_0,
+    .cs_pin = GPIO_12,
+    .sda_pin = GPIO_1,
+    .rst_pin = GPIO_6,
 };
+
+static avdk_err_t lcd_backlight_open(uint8_t bl_io)
+{
+    gpio_dev_unmap(bl_io);
+    BK_LOG_ON_ERR(bk_gpio_enable_output(bl_io));
+    BK_LOG_ON_ERR(bk_gpio_pull_up(bl_io));
+    bk_gpio_set_output_high(bl_io);
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t lcd_backlight_close(uint8_t bl_io)
+{
+    BK_LOG_ON_ERR(bk_gpio_pull_down(bl_io));
+    bk_gpio_set_output_low(bl_io);
+    return AVDK_ERR_OK;
+}
 
 bk_err_t lvgl_app_86box_init(void)
 {
     lv_vnd_config_t lv_vnd_config = {0};
 
-#ifdef CONFIG_LVGL_USE_PSRAM
-    lv_vnd_config.draw_pixel_size = ppi_to_pixel_x(lcd_open.device_ppi) * ppi_to_pixel_y(lcd_open.device_ppi);
-    lv_vnd_config.draw_buf_2_1 = (lv_color_t *)PSRAM_DRAW_BUFFER;
-    lv_vnd_config.draw_buf_2_2 = (lv_color_t *)(PSRAM_DRAW_BUFFER + lv_vnd_config.draw_pixel_size * sizeof(lv_color_t));
-#else
-    lv_vnd_config.draw_pixel_size = ppi_to_pixel_x(lcd_open.device_ppi) * ppi_to_pixel_y(lcd_open.device_ppi) / 10;
-    lv_vnd_config.draw_buf_2_1 = LV_MEM_CUSTOM_ALLOC(lv_vnd_config.draw_pixel_size * sizeof(lv_color_t));
-    lv_vnd_config.draw_buf_2_2 = NULL;
-    lv_vnd_config.frame_buf_1 = (lv_color_t *)PSRAM_FRAME_BUFFER;
-    lv_vnd_config.frame_buf_2 = (lv_color_t *)(PSRAM_FRAME_BUFFER + ppi_to_pixel_x(lcd_open.device_ppi) * ppi_to_pixel_y(lcd_open.device_ppi) * sizeof(lv_color_t));
-#endif
-    lv_vnd_config.lcd_hor_res = ppi_to_pixel_x(lcd_open.device_ppi);
-    lv_vnd_config.lcd_ver_res = ppi_to_pixel_y(lcd_open.device_ppi);
+    lv_vnd_config.width = rgb_ctlr_config.lcd_device->width;
+    lv_vnd_config.height = rgb_ctlr_config.lcd_device->height;
+    lv_vnd_config.render_mode = RENDER_PARTIAL_MODE;
     lv_vnd_config.rotation = ROTATE_NONE;
-
+    for (int i = 0; i < CONFIG_LVGL_FRAME_BUFFER_NUM; i++) {
+        lv_vnd_config.frame_buffer[i] = frame_buffer_display_malloc(lv_vnd_config.width * lv_vnd_config.height * sizeof(bk_color_t));
+        if (lv_vnd_config.frame_buffer[i] == NULL) {
+            LOGE("lv_frame_buffer[%d] malloc failed\r\n", i);
+            return BK_FAIL;
+        }
+    }
+    bk_display_rgb_new(&lv_vnd_config.handle, &rgb_ctlr_config);
     lv_vendor_init(&lv_vnd_config);
 
-    lcd_display_open((lcd_open_t *)&lcd_open);
+    bk_display_open(lv_vnd_config.handle);
+    lcd_backlight_open(GPIO_7);
 
 #if (CONFIG_TP)
-    drv_tp_open(ppi_to_pixel_x(lcd_open.device_ppi), ppi_to_pixel_y(lcd_open.device_ppi), TP_MIRROR_NONE);
+    drv_tp_open(lv_vnd_config.width, lv_vnd_config.height, TP_MIRROR_NONE);
 #endif
 
     lv_vendor_disp_lock();
@@ -75,13 +93,16 @@ bk_err_t lvgl_app_86box_init(void)
 
 bk_err_t lvgl_app_86box_deinit(void)
 {
-    lcd_display_close();
+    lcd_backlight_close(GPIO_7);
+    bk_display_close(vendor_config.handle);
 
 #if (CONFIG_TP)
     drv_tp_close();
 #endif
 
     lv_vendor_stop();
+
+    bk_display_delete(vendor_config.handle);
 
     lv_vendor_deinit();
 

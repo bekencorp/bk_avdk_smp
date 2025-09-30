@@ -12,20 +12,16 @@
 
 #include <common/sys_config.h>
 #include <components/log.h>
-//#include <modules/wifi.h>
 #include <components/event.h>
 #include <components/netif.h>
 #include <string.h>
 
-
-//#include "bk_wifi.h"
 
 #include "doorbell_comm.h"
 #include "doorbell_network.h"
 #include "doorbell_transmission.h"
 #include "doorbell_cmd.h"
 
-//#include "wdrv_cntrl.h"
 #include "wifi_api.h"
 
 #define TAG "db-net"
@@ -123,7 +119,6 @@ int doorbell_wifi_sta_connect(char *ssid, char *key)
 
 int doorbell_wifi_soft_ap_start(char *ssid, char *key, uint16_t channel)
 {
-#if 0
     wifi_ap_config_t ap_config = WIFI_DEFAULT_AP_CONFIG();
     netif_ip4_config_t ip4_config = {0};
 
@@ -151,10 +146,6 @@ int doorbell_wifi_soft_ap_start(char *ssid, char *key, uint16_t channel)
     BK_LOG_ON_ERR(bk_wifi_ap_set_config(&ap_config));
 
     return bk_wifi_ap_start();
-#else
-    LOGW("%s, %d, #################warning: current not adapt###############\n", __func__, __LINE__);
-    return BK_FAIL;
-#endif
 }
 
 int doorbell_socket_set_qos(int fd, int qos)

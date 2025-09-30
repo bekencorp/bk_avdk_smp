@@ -17,7 +17,7 @@
 
 static void bk_bluetooth_send_init_deinit_status(uint16_t opcode, uint8_t status);
 
-typedef struct 
+typedef struct
 {
     uint8_t state;
     beken_thread_t thd;
@@ -317,7 +317,7 @@ static void bt_ipc_mailbox_config(uint8_t channel)
     if (ret != BK_OK) {
         LOGW(" mb_chnl_open open fail \r\n");
         return;
-    }  
+    }
     /* register mailbox logical channel rx callbcak */
     mb_chnl_ctrl(channel, MB_CHNL_SET_RX_ISR, bt_ipc_mailbox_rx_isr);
     mb_chnl_ctrl(channel, MB_CHNL_SET_TX_ISR, NULL);
@@ -494,12 +494,12 @@ void bt_ipc_register_hci_send_callback(bt_hci_send_cb_t cb)
     s_bt_ipc_hci_send_cb = cb;
 }
 
-void bt_ipc_init(void)
+int32_t bt_ipc_init(void)
 {
     if (BT_IPC_STATE_READY == bt_ipc_env.state)
     {
         LOGW("%s bt ipc already initialised\r\n", __func__);
-        return;
+        return 1;
     }
 
     bk_err_t ret;
@@ -512,7 +512,7 @@ void bt_ipc_init(void)
     if (ret != BK_OK)
     {
         LOGW("%s, create bt ipc queue failed\n", __func__);
-        return;
+        return -1;
     }
 
     ret = rtos_create_thread(&bt_ipc_env.thd,
@@ -525,7 +525,7 @@ void bt_ipc_init(void)
     if (ret != BK_OK)
     {
         LOGW("create bt ipc thread fail\n");
-        return;
+        return -1;
     }
 
     /* register a mailbox channel */
@@ -535,10 +535,13 @@ void bt_ipc_init(void)
     ret = rtos_init_semaphore(&bt_ipc_env.send_sema, 5);
     if (ret != BK_OK) {
         LOGW("init send_sema fail!\r\n");
+        return -1;
     }
 
     bt_ipc_env.state = BT_IPC_STATE_READY;
     LOGD("%s success\n", __func__);
+
+    return 0;
 }
 
 static void bk_bluetooth_send_init_deinit_status(uint16_t opcode, uint8_t status)

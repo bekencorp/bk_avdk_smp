@@ -4031,14 +4031,14 @@ static inline uint32_t sys_ll_get_cpu1_int_32_63_en_cpu1_sdmadc_int_en(void) {
 	return r->cpu1_sdmadc_int_en;
 }
 
-static inline void sys_ll_set_cpu1_int_32_63_en_cpu1_eth_int_en(uint32_t v) {
+static inline void sys_ll_set_cpu1_int_32_63_en_cpu1_mbox0_int_en(uint32_t v) {
 	sys_cpu1_int_32_63_en_t *r = (sys_cpu1_int_32_63_en_t*)(SOC_SYS_REG_BASE + (0x23 << 2));
-	r->cpu1_eth_int_en = v;
+	r->cpu1_mbox0_int_en = v;
 }
 
-static inline uint32_t sys_ll_get_cpu1_int_32_63_en_cpu1_eth_int_en(void) {
+static inline uint32_t sys_ll_get_cpu1_int_32_63_en_cpu1_mbox0_int_en(void) {
 	sys_cpu1_int_32_63_en_t *r = (sys_cpu1_int_32_63_en_t*)(SOC_SYS_REG_BASE + (0x23 << 2));
-	return r->cpu1_eth_int_en;
+	return r->cpu1_mbox0_int_en;
 }
 
 static inline void sys_ll_set_cpu1_int_32_63_en_cpu1_mbox1_int_en(uint32_t v) {

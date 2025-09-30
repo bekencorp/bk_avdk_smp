@@ -20,7 +20,7 @@
 
 #include "media_evt.h"
 
-#include "lcd_display_service.h"
+
 #include "yuv_encode.h"
 #include "uvc_pipeline_act.h"
 
@@ -34,11 +34,111 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-static pixel_format_t lcd_fmt = PIXEL_FMT_UNKNOW;
-static media_rotate_t pipeline_rotate = ROTATE_90;
-
 extern uint8_t *media_bt_share_buffer;
-mux_sram_buffer_t *mux_sram_buffer = NULL;
+
+mux_sram_decode_buffer_t *mux_sram_decode_buffer = NULL;
+mux_sram_rotate_buffer_t *mux_sram_rotate_buffer = NULL;
+mux_sram_scale_buffer_t *mux_sram_scale_buffer = NULL;
+
+bk_err_t init_encoder_buffer(void)
+{
+	if (mux_sram_decode_buffer != NULL)
+	{
+		LOGE("%s %d mux_sram_decode_buffer is already init\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+	uint8_t *buf = media_bt_share_buffer;
+	if(buf == NULL)
+	{
+		buf = os_malloc(sizeof(mux_sram_decode_buffer_t));
+		if(buf == NULL)
+		{
+			LOGE("%s %d os_malloc fail\n", __func__, __LINE__);
+			return BK_FAIL;
+		}
+		mux_sram_decode_buffer = (mux_sram_decode_buffer_t *)buf;
+	}
+	else
+	{
+		mux_sram_decode_buffer = (mux_sram_decode_buffer_t *)buf;
+	}
+	LOGE("%s %d mux_sram_decode_buffer:%p\n", __func__, __LINE__, mux_sram_decode_buffer);
+	return BK_OK;
+}
+
+bk_err_t init_rotate_buffer(void)
+{
+	if (mux_sram_rotate_buffer != NULL)
+	{
+		LOGE("%s %d mux_sram_rotate_buffer is already init\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+	uint8_t *buf = media_bt_share_buffer;
+	if(buf == NULL)
+	{
+		buf = os_malloc(sizeof(mux_sram_rotate_buffer_t));
+		if(buf == NULL)
+		{
+			LOGE("%s %d os_malloc fail\n", __func__, __LINE__);
+			return BK_FAIL;
+		}
+		mux_sram_rotate_buffer = (mux_sram_rotate_buffer_t *)buf;
+	}
+	else
+	{
+		mux_sram_rotate_buffer = (mux_sram_rotate_buffer_t *)(buf + sizeof(mux_sram_decode_buffer_t));
+	}
+	LOGE("%s %d mux_sram_rotate_buffer:%p\n", __func__, __LINE__, mux_sram_rotate_buffer);
+	return BK_OK;
+}
+
+bk_err_t init_scale_buffer(void)
+{
+	if (mux_sram_scale_buffer != NULL)
+	{
+		LOGE("%s %d mux_sram_scale_buffer is already init\n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+	uint8_t *buf = media_bt_share_buffer;
+	if(buf == NULL)
+	{
+		buf = os_malloc(sizeof(mux_sram_scale_buffer_t));
+		if(buf == NULL)
+		{
+			LOGE("%s %d os_malloc fail\n", __func__, __LINE__);
+			return BK_FAIL;
+		}
+		mux_sram_scale_buffer = (mux_sram_scale_buffer_t *)buf;
+	}
+	else
+	{
+		mux_sram_scale_buffer = (mux_sram_scale_buffer_t *)(buf + sizeof(mux_sram_decode_buffer_t) + sizeof(mux_sram_rotate_buffer_t));
+	}
+	LOGE("%s %d mux_sram_scale_buffer:%p\n", __func__, __LINE__, mux_sram_scale_buffer);
+	return BK_OK;
+}
+
+static media_rotate_t get_rotate_angle(uint32_t rotate)
+{
+	media_rotate_t rot_angle = ROTATE_NONE;
+	switch (rotate)
+    {
+        case 90:
+            rot_angle = ROTATE_90;
+            break;
+        case 180:
+            rot_angle = ROTATE_180;
+            break;
+        case 270:
+            rot_angle = ROTATE_270;
+            break;
+        case 0:
+        default:
+            rot_angle = ROTATE_NONE;
+            break;
+    }
+	return rot_angle;
+}
 
 bk_err_t h264_jdec_pipeline_regenerate_idr_frame(void)
 {
@@ -54,17 +154,22 @@ bk_err_t h264_jdec_pipeline_regenerate_idr_frame(void)
 	return ret;
 }
 
-bk_err_t h264_jdec_pipeline_open(void)
+bk_err_t h264_jdec_pipeline_open(bk_video_pipeline_h264e_config_t *config, const bk_h264e_callback_t *cb,
+	 				const jpeg_callback_t *jpeg_cbs, const decode_callback_t *decode_cbs)
 {
-	int ret = BK_OK;
+	int ret = BK_FAIL;
 
 	uvc_pipeline_init();
 
-	media_camera_device_t device = DEFAULT_CAMERA_CONFIG();
-	// step 1: init h264_encode_task
-	device.type = UVC_CAMERA;
-	device.format = IMAGE_H264;
-	ret = h264_encode_task_open(&device);
+	init_encoder_buffer();
+
+	if (config == NULL || cb == NULL)
+	{
+		LOGW("%s, param error\n", __func__);
+		return ret;
+	}
+
+	ret = h264_encode_task_open(config, cb);
 	if (ret != BK_OK)
 	{
 		goto error;
@@ -73,7 +178,7 @@ bk_err_t h264_jdec_pipeline_open(void)
 	// step 2: init jpeg_decode_task
 	if (!check_jpeg_decode_task_is_open())
 	{
-		ret = jpeg_decode_task_open(JPEGDEC_HW_MODE, JPEGDEC_BY_LINE, pipeline_rotate);
+		ret = jpeg_decode_task_open(get_rotate_angle(config->sw_rotate_angle), jpeg_cbs, decode_cbs);
 
 		if (ret != BK_OK)
 		{
@@ -123,60 +228,34 @@ bk_err_t h264_jdec_pipeline_close(void)
 	return BK_OK;
 }
 
-bk_err_t lcd_set_fmt(uint32_t fmt)
-{
-	lcd_fmt = fmt;
-	LOGE("%s, fmt %x\n", __func__, lcd_fmt);
-	return BK_OK;
-}
 
-bk_err_t pipeline_set_rotate(media_rotate_t rotate)
-{
-	pipeline_rotate = rotate;
-	LOGD("%s, rotate angle = %d (0:0, 1:90,2:180,3:270)\r\n", __func__, pipeline_rotate);
-	jpeg_decode_set_rotate_angle(pipeline_rotate);
-	return BK_OK;
-}
-
-bk_err_t lcd_disp_pipeline_close(void)
+bk_err_t lcd_jdec_pipeline_open(bk_video_pipeline_decode_config_t *config,
+								const jpeg_callback_t *jpeg_cbs,
+								const decode_callback_t *decode_cbs)
 {
 	int ret = BK_OK;
-
-	ret = lcd_display_close();
-
-	return ret;
-}
-
-bk_err_t lcd_jdec_pipeline_open(void)
-{
-	int ret = BK_OK;
-	rot_open_t rot_open = {0};
 
 	uvc_pipeline_init();
 
+	init_encoder_buffer();
+	init_rotate_buffer();
+
 #if SUPPORTED_IMAGE_MAX_720P
+	init_scale_buffer();
+
 	lcd_scale_t local_lcd_scale = {PPI_1280X720, PPI_864X480};  // {PPI_864X480, PPI_480X480}, {PPI_1280X720, PPI_864X480}, {PPI_640X480, PPI_480X800};{PPI_480X320, PPI_480X864};
-	ret = scale_task_open(&local_lcd_scale);
+	ret = scale_task_open(&local_lcd_scale, decode_cbs);
 	if (ret != BK_OK)
 	{
 		goto error;
 	}
 #endif
 
-	if (lcd_fmt == PIXEL_FMT_UNKNOW || lcd_fmt == PIXEL_FMT_RGB565 || lcd_fmt == PIXEL_FMT_RGB565_LE)
-	{
-		rot_open.fmt = PIXEL_FMT_RGB565_LE;
-		rot_open.mode = HW_ROTATE;
-	}
-	else
-	{
-		rot_open.mode = SW_ROTATE;
-		rot_open.fmt = lcd_fmt;
-	}
-
-	rot_open.angle = pipeline_rotate;
-
-	ret = rotate_task_open(&rot_open);
+	rot_open_t rot_open = {0};
+	media_rotate_t rot_angle = get_rotate_angle(config->rotate_angle);
+	rot_open.mode = config->rotate_mode;
+	rot_open.angle = rot_angle;
+	ret = rotate_task_open(&rot_open, decode_cbs);
 
 	if (ret != BK_OK)
 	{
@@ -186,7 +265,7 @@ bk_err_t lcd_jdec_pipeline_open(void)
 
 	if (!check_jpeg_decode_task_is_open())
 	{
-		ret = jpeg_decode_task_open(JPEGDEC_HW_MODE, JPEGDEC_BY_LINE, pipeline_rotate);
+		ret = jpeg_decode_task_open(rot_angle, jpeg_cbs, decode_cbs);
 
 		if (ret != BK_OK)
 		{
@@ -266,37 +345,6 @@ bk_err_t lcd_jdec_pipeline_close(void)
 	return BK_OK;
 }
 
-void pipeline_mem_show(void)
-{
-	uint32_t total_size,free_size,mini_size;
-	//LOGD("================Static memory================\r\n");
-	//os_show_memory_config_info();
-
-	LOGD("================Dynamic memory================\r\n");
-	LOGD("%-5s   %-5s   %-5s	 %-5s	%-5s\r\n",
-		"name", "total", "free", "minimum", "peak");
-
-	total_size = rtos_get_total_heap_size();
-	free_size  = rtos_get_free_heap_size();
-	mini_size  = rtos_get_minimum_free_heap_size();
-	LOGD("heap\t%d\t%d\t%d\t%d\r\n",	total_size,free_size,mini_size,total_size-mini_size);
-
-#if CONFIG_PSRAM_AS_SYS_MEMORY
-	total_size = rtos_get_psram_total_heap_size();
-	free_size  = rtos_get_psram_free_heap_size();
-	mini_size  = rtos_get_psram_minimum_free_heap_size();
-	LOGD("psram\t%d\t%d\t%d\t%d\r\n", total_size,free_size,mini_size,total_size-mini_size);
-#endif
-}
-
-void pipeline_mem_leak(void)
-{
-	LOGD("%s %d\n", __func__, __LINE__);
-#if CONFIG_MEM_DEBUG
-	os_dump_memory_stats(0, 0, NULL);
-#endif
-}
-
 bk_err_t uvc_pipeline_init(void)
 {
 	static uint8_t pipeline_init = false;
@@ -305,23 +353,6 @@ bk_err_t uvc_pipeline_init(void)
 	{
 		return BK_OK;
 	}
-
-	mux_sram_buffer = (mux_sram_buffer_t *)media_bt_share_buffer;
-	if (mux_sram_buffer == NULL)
-	{
-#ifdef CONFIG_BT_REUSE_MEDIA_MEMORY
-		LOGE("%s, BT_REUSE_MEDIA_MEMORY mux_sram_buffer failed\r\n", __func__);
-#endif
-
-		mux_sram_buffer = (mux_sram_buffer_t *)os_malloc(sizeof(mux_sram_buffer_t));
-
-		if (mux_sram_buffer == NULL)
-		{
-			BK_ASSERT_EX(0, "%s, malloc mux_sram_buffer failed\r\n", __func__);
-		}
-	}
-
-	LOGD("%s mux_sram_buffer_t: %d\n", __func__, sizeof(mux_sram_buffer_t));
 
 	bk_jdec_pipeline_init();
 
@@ -338,8 +369,18 @@ bk_err_t uvc_pipeline_init(void)
 	return BK_OK;
 }
 
-uint8_t *get_mux_sram_buffer(void)
+uint8_t *get_mux_sram_decode_buffer(void)
 {
-	return mux_sram_buffer->decoder;
+	return mux_sram_decode_buffer->decoder;
+}
+
+uint8_t *get_mux_sram_rotate_buffer(void)
+{
+	return mux_sram_rotate_buffer->rotate;
+}
+
+uint8_t *get_mux_sram_scale_buffer(void)
+{
+	return mux_sram_scale_buffer->scale;
 }
 

@@ -45,6 +45,7 @@ static const lcd_spi_t lcd_spi_st7796u_config =
     .clk = LCD_QSPI_60M,
     .init_cmd = st7796u_init_cmds,
     .device_init_cmd_len = sizeof(st7796u_init_cmds) / sizeof (lcd_qspi_init_cmd_t),
+    .frame_len = 320 * 480 * CONFIG_LCD_SPI_COLOR_DEPTH_BYTE;
 };
 
 const lcd_device_t lcd_device_st7796u =
@@ -52,7 +53,8 @@ const lcd_device_t lcd_device_st7796u =
     .id = LCD_DEVICE_ST7796U,
     .name = "st7796u",
     .type = LCD_TYPE_SPI,
-    .ppi = PPI_320X480,
+    .width = 320,
+    .height = 480,
     .spi = &lcd_spi_st7796u_config,
     .init = NULL,
     .lcd_off = NULL,

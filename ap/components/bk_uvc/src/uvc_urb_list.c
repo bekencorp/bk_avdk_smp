@@ -18,7 +18,7 @@
 #include <os/str.h>
 #include "media_utils.h"
 #include "uvc_urb_list.h"
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
 #endif

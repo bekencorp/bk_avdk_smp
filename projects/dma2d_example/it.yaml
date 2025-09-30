@@ -1,0 +1,77 @@
+name: dma2d_example
+components:
+  - name: dma2d
+    type: driver
+    description: DMA2D控制器驱动
+    features:
+      - fill
+      - memcpy
+      - pfc
+      - blend
+    supported_pixel_formats:
+      - RGB565
+      - RGB888
+      - ARGB8888
+
+test_cases:
+  - name: dma2d_open_close
+    description: 测试DMA2D控制器的打开和关闭功能
+    steps:
+      - command: "dma2d open"
+        expected_output: "bk_dma2d_open success!"
+      - command: "dma2d close"
+        expected_output: "bk_dma2d_close success!"
+      - command: "dma2d delete"
+        expected_output: "bk_dma2d_delete success!"
+
+  - name: dma2d_fill_test
+    description: 测试DMA2D填充功能
+    steps:
+      - command: "dma2d open"
+        expected_output: "bk_dma2d_open success!"
+      - command: "dma2d fill RGB565 0xF800 32 32 0 0 32 32"
+        expected_output: "fill test success!"
+      - command: "dma2d fill RGB888 0xFF0000 32 32 0 0 32 32"
+        expected_output: "fill test success!"
+      - command: "dma2d fill ARGB8888 0xFFFF0000 32 32 0 0 32 32"
+        expected_output: "fill test success!"
+      - command: "dma2d close"
+        expected_output: "bk_dma2d_close success!"
+      - command: "dma2d delete"
+        expected_output: "bk_dma2d_delete success!"
+
+  - name: dma2d_memcpy_test
+    description: 测试DMA2D内存复制功能
+    steps:
+      - command: "dma2d open"
+        expected_output: "bk_dma2d_open success!"
+      - command: "dma2d memcpy RGB565 0xF800 32 32 32 32 0 0 0 0 32 32"
+        expected_output: "DMA2D memcpy test PASSED"
+      - command: "dma2d close"
+        expected_output: "bk_dma2d_close success!"
+      - command: "dma2d delete"
+        expected_output: "bk_dma2d_delete success!"
+
+  - name: dma2d_pfc_test
+    description: 测试DMA2D像素格式转换功能
+    steps:
+      - command: "dma2d open"
+        expected_output: "bk_dma2d_open success!"
+      - command: "dma2d pfc RGB565 RGB888 0xF800 32 32 32 32 0 0 0 0 32 32"
+        expected_output: "pfc test success!"
+      - command: "dma2d close"
+        expected_output: "bk_dma2d_close success!"
+      - command: "dma2d delete"
+        expected_output: "bk_dma2d_delete success!"
+
+  - name: dma2d_blend_test
+    description: 测试DMA2D图层混合功能
+    steps:
+      - command: "dma2d open"
+        expected_output: "bk_dma2d_open success!"
+      - command: "dma2d blend RGB565 RGB565 RGB565 0x07E0 0xF800 32 32 32 32 32 32 0 0 0 0 0 0 32 32 FF"
+        expected_output: "blend test success!"
+      - command: "dma2d close"
+        expected_output: "bk_dma2d_close success!"
+      - command: "dma2d delete"
+        expected_output: "bk_dma2d_delete success!"

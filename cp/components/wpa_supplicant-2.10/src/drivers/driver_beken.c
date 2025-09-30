@@ -35,7 +35,8 @@
 #include "wpa_err.h"
 #include "bk_wifi_private.h"
 #ifdef CONFIG_P2P
-#include "sa_station.h"
+#include "reg_access.h"
+#include "fhost_msg.h"
 #endif
 #if CONFIG_LWIP
 #include "net.h"
@@ -331,6 +332,30 @@ static int hostap_init_sockets(struct hostap_driver_data *drv, u8 *own_addr)
     return hostap_get_ifhwaddr(drv->sock, drv->iface, own_addr);
 }
 
+#if CONFIG_P2P
+static int hostap_reinit_sockets(struct hostap_driver_data *drv, u8 *own_addr)
+{
+    int protocol = ETH_P_ALL;
+    protocol += drv->vif_index;
+
+    drv->sock = fsocket_reinit(PF_PACKET, SOCK_RAW, protocol);
+    drv->sock_xmit = l2_packet_p2p_init(drv->iface, drv->own_addr, ETH_P_EAPOL,
+                                    handle_eapol, drv, 0);
+
+    if (eloop_register_read_sock(drv->sock, handle_read, drv, NULL))
+    {
+        wpa_printf(MSG_ERROR, "Could not register read socket");
+        return -1;
+    }
+
+    if (hostap_set_iface_flags(drv, 1))
+    {
+        return -1;
+    }
+
+    return hostap_get_ifhwaddr(drv->sock, drv->iface, own_addr);
+}
+#endif
 
 static int hostap_send_mlme(void *priv, const u8 *msg, size_t len, int noack,
                             unsigned int freq, const u16 *csa_offs, size_t csa_offs_len,
@@ -636,6 +661,50 @@ static int hostap_read_sta_data(void *priv,
 }
 
 #ifdef CONFIG_P2P
+/**
+ * wpa_driver_go_disconnect_reset_fsocket - GO disconnected to reset fsocket
+ * @priv: Private driver interface data
+ * 
+ * When P2P GO disconnected, need to reset fsockets to invoid leak
+ * and make sure next GO will work
+ */
+static int wpa_driver_go_disconnect_reset_fsocket(void *priv)
+{
+    struct hostap_driver_data *drv = priv;
+    
+    if (!drv) {
+        wpa_printf(MSG_ERROR, "GO disconnect reset: invalid driver data");
+        return -1;
+    }
+    
+    wpa_printf(MSG_DEBUG, "GO disconnect: resetting fsocket for vif %d", drv->vif_index);
+    
+    // close ioctl socket
+    if (drv->ioctl_sock >= 0) {
+        fsocket_close(drv->ioctl_sock);
+        drv->ioctl_sock = -1;
+        wpa_printf(MSG_DEBUG, "GO disconnect: closed ioctl_sock");
+    }
+    
+    // close main socket
+    if (drv->sock >= 0) {
+        eloop_unregister_read_sock(drv->sock);
+        fsocket_close(drv->sock);
+        drv->sock = -1;
+        wpa_printf(MSG_DEBUG, "GO disconnect: closed main sock");
+    }
+    
+    // reset socket
+    if (drv->sock_xmit) {
+        l2_packet_deinit(drv->sock_xmit);
+        drv->sock_xmit = NULL;
+        wpa_printf(MSG_DEBUG, "GO disconnect: reset sock_xmit");
+    }
+    
+    wpa_printf(MSG_DEBUG, "GO disconnect: fsocket reset completed");
+    return 0;
+}
+
 #define WLAN_DEFAULT_GO_IP         "192.168.49.1"
 #define WLAN_DEFAULT_GO_GW         "192.168.49.1"
 #define WLAN_DEFAULT_GO_MASK       "255.255.255.0"
@@ -652,8 +721,7 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 
 	if (!vif)
 		return -1;
-
-	os_memcpy(mac, &vif->mac_addr, ETH_ALEN);
+	os_memcpy(mac, (void *)mac_vif_mgmt_get_mac_address(vif), ETH_ALEN);
 #ifdef CONFIG_P2P_GO
 	drv->nlmode = nlmode;
 #endif
@@ -663,7 +731,11 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 		|| nlmode == NL80211_IFTYPE_P2P_GO
 #endif
 		) {
-		if (vif->type != VIF_STA || !vif->p2p) {
+		if (((nlmode == NL80211_IFTYPE_P2P_CLIENT) && (mac_vif_mgmt_get_type(vif) != VIF_STA))
+#ifdef CONFIG_P2P_GO
+			|| ((nlmode == NL80211_IFTYPE_P2P_GO) && (mac_vif_mgmt_get_type(vif) != VIF_AP))
+#endif
+			|| !mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
 #if CONFIG_LWIP
 			net_wlan_remove_netif(mac);
 #endif
@@ -676,6 +748,7 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 			if (ret || cfm.status)
 				return -1;
 			drv->vif_index = cfm.inst_nbr;
+			drv->ioctl_sock = fsocket_reinit(PF_INET, SOCK_DGRAM, drv->vif_index);
 #if CONFIG_LWIP
 			net_wlan_add_netif(mac);
 #endif
@@ -683,8 +756,8 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 			if (nlmode == NL80211_IFTYPE_P2P_GO) {
 				g_ap_param_ptr->chann = bk_wlan_ap_get_default_channel();
 				wpa_printf(MSG_DEBUG, "%s, %d, channel: %u", __func__, __LINE__, g_ap_param_ptr->chann);
-				drv->sock_xmit = l2_packet_init(drv->iface, drv->own_addr, ETH_P_EAPOL,
-                                    handle_eapol, drv, 0);
+				drv->sock_xmit = l2_packet_p2p_init(drv->iface, drv->own_addr, ETH_P_EAPOL,
+                                    wpa_supplicant_rx_eapol, drv->wpa_s, 0);
 
 			ip_address_set(BK_SOFT_AP,
 	                   DHCP_SERVER,
@@ -695,14 +768,24 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 
 			/* restart lwip network */
 			uap_ip_start();
+
+			hostap_reinit_sockets(drv, drv->own_addr);
+
 			}
 #endif
 		}
 		return 0;
 	} else if (nlmode == NL80211_IFTYPE_STATION) {
-		if (vif->type != VIF_STA || vif->p2p) {
+		if (mac_vif_mgmt_get_type(vif) != VIF_STA || mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
 #if CONFIG_LWIP
 			net_wlan_remove_netif(mac);
+#endif
+			// if previous mode is GO, need to reset fsocket
+#ifdef CONFIG_P2P_GO
+			if (drv->nlmode == NL80211_IFTYPE_P2P_GO) {
+				wpa_printf(MSG_INFO, "Switching from GO mode to Station mode, resetting fsocket for vif %d", drv->vif_index);
+				wpa_driver_go_disconnect_reset_fsocket(drv);
+			}
 #endif
 			ret = rw_msg_send_remove_if(drv->vif_index);
 			if (ret)
@@ -770,13 +853,26 @@ static int wpa_driver_hostap_stop_apm(void *priv)
 {
     struct hostap_driver_data *drv = priv;
     struct prism2_hostapd_param param;
+    int ret;
 
     memset(&param, 0, sizeof(param));
     param.cmd = PRISM2_HOSTAPD_STOP_APM;
     memcpy(param.sta_addr, drv->own_addr, ETH_ALEN);
     param.vif_idx = drv->vif_index;
 
-    return hostapd_ioctl(drv, &param, sizeof(param));
+    ret = hostapd_ioctl(drv, &param, sizeof(param));
+    
+#ifdef CONFIG_P2P
+    // GO disconnected to reset fsocket
+    if (ret == 0) {
+        wpa_printf(MSG_INFO, "GO stop APM successful, resetting fsocket for vif %d", drv->vif_index);
+        wpa_driver_go_disconnect_reset_fsocket(priv);
+    } else {
+        wpa_printf(MSG_ERROR, "GO stop APM failed for vif %d, ret=%d", drv->vif_index, ret);
+    }
+#endif
+    
+    return ret;
 }
 
 /*
@@ -1258,6 +1354,7 @@ static void hostap_driver_deinit(void *priv)
 	drv = NULL;
 }
 
+void sm_build_broadcast_deauthenticate(void);
 static int hostap_sta_deauth(void *priv, const u8 *own_addr, const u8 *addr,
                              u16 reason)
 {
@@ -1272,6 +1369,8 @@ static int hostap_sta_deauth(void *priv, const u8 *own_addr, const u8 *addr,
          * odd state where nothing works correctly, so let's skip
          * sending this for the hostap driver.
          */
+        /*acl patch by linwei.yuan, deauth all sta*/
+        sm_build_broadcast_deauthenticate();
         return 0;
     }
 
@@ -2631,11 +2730,13 @@ int wpa_driver_get_channel_info(void *priv, struct wpa_channel_info *ci)
 }
 
 #ifdef CONFIG_P2P
-
+extern int wifi_filter_set_config(const wifi_filter_config_t *filter_config);
 int wpa_driver_probe_req_report(void *priv, int report)
 {
-	// FIXME: MAC HW may not be in IDLE state
-	mm_rx_filter_app_set(NXMAC_ACCEPT_PROBE_REQ_BIT);
+	wifi_filter_config_t filter;
+	os_memset(&filter, 0, sizeof(filter));
+	filter.rx_probe_req = !!report;
+	wifi_filter_set_config(&filter);
 
 	return 0;
 }

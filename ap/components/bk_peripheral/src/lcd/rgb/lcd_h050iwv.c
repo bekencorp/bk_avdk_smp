@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
 #include "lcd_panel_devices.h"
 #include "gpio_map.h"
@@ -43,7 +43,8 @@ const lcd_device_t lcd_device_h050iwv =
 	.type = LCD_TYPE_RGB565,
 	.src_fmt = PIXEL_FMT_YUYV,
 	.out_fmt = PIXEL_FMT_RGB888,
-	.ppi = PPI_800X480,
+	.width = 800,
+	.height = 480,
 	.rgb = &lcd_rgb,
 	.init = NULL,
 	.lcd_off = NULL,

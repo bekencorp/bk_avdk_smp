@@ -1,0 +1,10 @@
+menu "LVGL Benchmark V9 Configuration"
+
+    config LV_USE_DEMO_BENCHMARK
+        bool "Enable LV_USE_DEMO_BENCHMARK"
+        default n
+
+    config LV_USE_DEMO_WIDGETS
+        bool "Enable LV_USE_DEMO_WIDGETS"
+        default n
+endmenu

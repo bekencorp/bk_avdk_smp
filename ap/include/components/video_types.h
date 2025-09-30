@@ -15,139 +15,152 @@
 #pragma once
 
 #include <common/bk_include.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MEDIA_UDP_TRAN_LEN              (1472)
-#define MEDIA_TCP_TRAN_LEN              (1460)
-#define MEDIA_NET_TRAN_MAX_LEN          (1024)
-#define MEDIA_RETRY_DELAY_TIME          (2000)
-#define MEDIA_TRAN_DELAY_TIME_MS        (10)
+/** @brief Media transmission lengths and timing parameters */
+#define MEDIA_UDP_TRAN_LEN              (1472)  /**< UDP transmission length in bytes */
+#define MEDIA_TCP_TRAN_LEN              (1460)  /**< TCP transmission length in bytes */
+#define MEDIA_NET_TRAN_MAX_LEN          (1024)  /**< Maximum network transmission length in bytes */
+#define MEDIA_RETRY_DELAY_TIME          (2000)  /**< Retry delay time in milliseconds */
+#define MEDIA_TRAN_DELAY_TIME_MS        (10)    /**< Transmission delay time in milliseconds */
 
 /**
  * @brief video sample module protocol type
  */
 typedef enum {
-	TVIDEO_OPEN_NONE         = 0, /**< not sample module */
-	TVIDEO_OPEN_SCCB,             /**< sample module follow sccb protocol */
-	TVIDEO_OPEN_SPIDMA,           /**< sample module follow spidma protocol */
-	TVIDEO_OPEN_RTSP,           /**< sample module follow rtsp protocol */
+    TVIDEO_OPEN_NONE         = 0, /**< not sample module */
+    TVIDEO_OPEN_SCCB,             /**< sample module follow sccb protocol */
+    TVIDEO_OPEN_SPIDMA,           /**< sample module follow spidma protocol */
+    TVIDEO_OPEN_RTSP,           /**< sample module follow rtsp protocol */
 } video_open_type_t;
 
 /**
  * @brief video transfer network comunication protocol type
  */
 typedef enum {
-	TVIDEO_SND_NONE         = 0,  /**< not transfer */
-	TVIDEO_SND_UDP,               /**< follow udp protocol */
-	TVIDEO_SND_TCP,               /**< follow tcp protocol */
-	TVIDEO_SND_INTF,              /**< transfer to inter frame */
-	TVIDEO_SND_BUFFER,            /**< transfer to buffer */
+    TVIDEO_SND_NONE         = 0,  /**< not transfer */
+    TVIDEO_SND_UDP,               /**< follow udp protocol */
+    TVIDEO_SND_TCP,               /**< follow tcp protocol */
+    TVIDEO_SND_INTF,              /**< transfer to inter frame */
+    TVIDEO_SND_BUFFER,            /**< transfer to buffer */
 } video_send_type_t;
 
+/**
+ * @brief Video configuration structure
+ * Contains configuration parameters for video data reception and handling
+ */
 typedef struct {
-	uint8_t *rxbuf; /**< the buffer save camera data */
+    uint8_t *rxbuf; /**< Buffer to save camera data */
 
-	/**
-	 * @brief node full handler
-	 *
-	 * This is a transfer camera data to uplayer api, when transfer node_len jpeg data finish , this function will be called
-	 *
-	 * @param curptr the start address of transfer data.
-	 * @param newlen the transfer data length
-	 * @param is_eof 0/1: whether this packet data is the last packet of this frame, will called in jpeg_end_frame isr
-	 * @param frame_len the complete jpeg frame size, if is_eof=1, the frame_len is the true value of jpeg frame size, 
-	 * is_eof=0, the frame_len=0, in other words, only when transfer really frame_len at the last packet in jpeg_end_frame isr
-	 *
-	**/
-	void (*node_full_handler)(void *curptr, uint32_t newlen, uint32_t is_eof, uint32_t frame_len);
+    /**
+     * @brief Node full handler callback
+     *
+     * This function is called when transfer of node_len JPEG data is finished.
+     * It transfers camera data to upper layer API.
+     *
+     * @param curptr The start address of transfer data
+     * @param newlen The transfer data length
+     * @param is_eof 0/1: whether this packet data is the last packet of this frame, 
+     *               will be called in jpeg_end_frame ISR
+     * @param frame_len The complete JPEG frame size. If is_eof=1, frame_len is the true 
+     *                  value of JPEG frame size. If is_eof=0, frame_len=0. In other words, 
+     *                  frame_len is only transferred at the last packet in jpeg_end_frame ISR.
+     */
+    void (*node_full_handler)(void *curptr, uint32_t newlen, uint32_t is_eof, uint32_t frame_len);
 
-	/**
-	 * brief data_end_handler
-	 *
-	 * This api use to inforamte video transfer thread to deal transfer camera data
-	 *
-	**/
-	void (*data_end_handler)(void);
+    /**
+     * @brief Data end handler callback
+     *
+     * This API is used to inform the video transfer thread to process transferred camera data
+     */
+    void (*data_end_handler)(void);
 
-	media_camera_device_t *device; /**< config of camera */
-	uint16_t rxbuf_len;  /**< The length  of receiving camera data buff */
-	uint16_t rx_read_len;/**< manage the node_full_handler callback function input params */
-	uint32_t node_len;   /**< video transfer network comunication protocol length a time */
+    uint16_t rxbuf_len;  /**< Length of the receiving camera data buffer */
+    uint16_t rx_read_len;/**< Manages the node_full_handler callback function input parameters */
+    uint32_t node_len;   /**< Video transfer network communication protocol length at a time */
 } video_config_t;
 
+/**
+ * @brief Video packet structure
+ * Contains information about a single video packet
+ */
 typedef struct {
-	uint8_t *ptk_ptr;
-	uint32_t ptklen;     /**< The current packet length */
-	uint32_t frame_id;   /**< The current packet frame id */
-	uint32_t is_eof;     /**< The current packet is the last packet */
-	uint32_t frame_len;  /**< The frame length */
+    uint8_t *ptk_ptr;    /**< Pointer to the packet data */
+    uint32_t ptklen;     /**< The current packet length */
+    uint32_t frame_id;   /**< The current packet frame ID */
+    uint32_t is_eof;     /**< The current packet is the last packet (1 = last packet) */
+    uint32_t frame_len;  /**< The frame length */
 } video_packet_t;
 
+/** @brief Function pointer type for adding packet headers */
 typedef void (*tvideo_add_pkt_header)(video_packet_t *param);
+
+/** @brief Function pointer type for video transfer send function */
 typedef int (*video_transfer_send_func)(uint8_t *data, uint32_t len);
+
+/** @brief Function pointer type for video transfer start callback */
 typedef void (*video_transfer_start_cb)(void);
+
+/** @brief Function pointer type for video transfer end callback */
 typedef void (*video_transfer_end_cb)(void);
 
+/**
+ * @brief Video setup structure
+ * Contains configuration parameters for video transfer setup
+ */
 typedef struct {
-	media_camera_device_t *device;       /**< config of camera */
-	uint16_t open_type;                  /**< video transfer network comunication protocol type, video_open_type_t */
-	uint16_t send_type;                  /**< video transfer network comunication protocol type, video_send_type_t */
-	uint16_t pkt_header_size;            /**< packet header size */
-	uint16_t pkt_size;                   /**<packet size */
-	video_transfer_send_func send_func;  /**< function ptr for send to uplayer */
-	video_transfer_start_cb start_cb;    /**< function ptr for start to send to uplayer */
-	video_transfer_start_cb end_cb;      /**< function ptr for end to send to uplayer */
-	tvideo_add_pkt_header add_pkt_header;/**< function ptr for add packet header */
+    uint16_t open_type;                  /**< Video sample module protocol type (video_open_type_t) */
+    uint16_t send_type;                  /**< Video transfer network communication protocol type (video_send_type_t) */
+    uint16_t pkt_header_size;            /**< Packet header size in bytes */
+    uint16_t pkt_size;                   /**< Packet size in bytes */
+    video_transfer_send_func send_func;  /**< Function pointer for sending data to upper layer */
+    video_transfer_start_cb start_cb;    /**< Function pointer for starting data transfer to upper layer */
+    video_transfer_start_cb end_cb;      /**< Function pointer for ending data transfer to upper layer */
+    tvideo_add_pkt_header add_pkt_header;/**< Function pointer for adding packet headers */
 } video_setup_t;
 
 
+/**
+ * @brief Video header structure
+ * Contains header information for video frames
+ */
 typedef struct {
-	/// the frame id
-	uint8_t id;
-	/// the flag of end frame, 1 for end
-	uint8_t is_eof;
-	/// the packet count of one frame
-	uint8_t pkt_cnt;
-	/// the packet header's count of one frame
-	uint8_t pkt_seq;
+    uint8_t id;      /**< The frame ID */
+    uint8_t is_eof;  /**< End of frame flag (1 = end) */
+    uint8_t pkt_cnt; /**< Packet count of one frame */
+    uint8_t pkt_seq; /**< Packet header's count/sequence of one frame */
 } video_header_t;
 
+/**
+ * @brief Video buffer structure
+ * Contains buffer information for video data reception
+ */
 typedef struct {
-	/// the video data receive complete
-	beken_semaphore_t aready_semaphore;
-	/// the receive video data, malloc by user
-	uint8_t *buf_base;  // handler in usr thread
-	/// video buff length, malloc by user
-	uint32_t buf_len;
-	/// frame id
-	uint32_t frame_id;
-	/// the packet count of one frame
-	uint32_t frame_pkt_cnt;
-	/// recoder the buff ptr of every time receive video packte
-	uint8_t *buf_ptr;
-	/// the length of receive one frame
-	uint32_t frame_len;
-	/// video buff receive state
-	uint32_t start_buf;
+    beken_semaphore_t aready_semaphore; /**< Semaphore indicating video data reception is complete */
+    uint8_t *buf_base;                  /**< Received video data buffer (allocated by user) */
+    uint32_t buf_len;                   /**< Video buffer length (allocated by user) */
+    uint32_t frame_id;                  /**< Frame ID */
+    uint32_t frame_pkt_cnt;             /**< Packet count of one frame */
+    uint8_t *buf_ptr;                   /**< Buffer pointer recording each video packet reception */
+    uint32_t frame_len;                 /**< Length of received frame */
+    uint32_t start_buf;                 /**< Video buffer receive state */
 } video_buff_t;
 
+/**
+ * @brief Video buffer states
+ * Represents the different states of a video buffer
+ */
 typedef enum {
-	/// video buff init
-	BUF_STA_INIT = 0,
-	/// video buff begin copy
-	BUF_STA_COPY,
-	/// video frame get
-	BUF_STA_GET,
-	/// video buff full
-	BUF_STA_FULL,
-	/// video buff deinit
-	BUF_STA_DEINIT,
-	/// other error
-	BUF_STA_ERR,
+    BUF_STA_INIT = 0,    /**< Video buffer initialized */
+    BUF_STA_COPY,        /**< Video buffer copying data */
+    BUF_STA_GET,         /**< Video frame received */
+    BUF_STA_FULL,        /**< Video buffer full */
+    BUF_STA_DEINIT,      /**< Video buffer deinitialized */
+    BUF_STA_ERR,         /**< Video buffer error */
 } video_buff_state_t;
 
 

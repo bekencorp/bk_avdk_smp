@@ -19,6 +19,13 @@ set(prev_req bk_common bk_wifi lwip_intf_v2_1 bk_pm app demos)
 	#list(APPEND prev_req mailbox)
 #endif()
 
+
+if(CONFIG_BK_RAW_LINK)
+list(APPEND srcs
+	cif_raw_link_api.c
+)
+endif()
+
 armino_component_register(SRCS "${srcs}"
 		INCLUDE_DIRS "${incs}"
 		PRIV_REQUIRES "${prev_req}"

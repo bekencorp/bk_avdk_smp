@@ -34,84 +34,13 @@
 
 #define TAG "mac"
 
-#if ((CONFIG_SOC_BK7231) && (CONFIG_BASE_MAC_FROM_EFUSE))
-#error "BK7231 not support efuse!"
-#endif
 
 #define BASE_MAC_LEN  (6)
 #define DEFAULT_MAC_ADDR "\xC8\x47\x8C\x00\x00\x18"
 static uint8_t s_base_mac[] = DEFAULT_MAC_ADDR;
 static bool s_mac_inited = false;
 
-#if (CONFIG_BASE_MAC_FROM_EFUSE)
-static int write_base_mac_to_efuse(const uint8_t *mac)
-{
-#if 0
-	uint8_t efuse_addr = 0;
-	uint8_t efuse_data = 0;
-	int i = 0, ret;
 
-	if (!mac)
-		return BK_ERR_PARAM;
-
-	for (i = 0; i < EFUSE_MAC_LEN; i++) {
-		efuse_addr = EFUSE_MAC_START_ADDR + i;
-		efuse_data = mac[i];
-
-		if (i == 0) {
-			// ensure mac[0]-bit0 in efuse not '1'
-			efuse_data &= ~(0x01);
-		}
-
-		ret = bk_efuse_write_byte(efuse_addr, efuse_data);
-		if (ret != BK_OK) {
-			BK_LOGI(TAG, "efuse set mac failed(%x)\r\n", ret);
-			return ret;
-		}
-	}
-
-	BK_LOGI(TAG, "efuse set mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
-	return BK_OK;
-#else
-	BK_LOGI(TAG, "write mac to eufse stub");
-	return BK_OK;
-#endif
-}
-
-static int read_base_mac_from_efuse(uint8_t *mac)
-{
-	uint8_t efuse_addr = 0;
-	uint8_t efuse_data = 0;
-	int i = 0, ret;
-
-	if (!mac)
-		return BK_ERR_PARAM;
-
-	for (i = 0; i < BK_MAC_ADDR_LEN; i++) {
-		efuse_addr = EFUSE_MAC_START_ADDR + i;
-		efuse_data = 0;
-
-		ret = bk_efuse_read_byte(efuse_addr, &efuse_data);
-		if (ret == BK_OK)
-			mac[i] = efuse_data;
-		else {
-			os_memset(mac, 0, BK_MAC_ADDR_LEN);
-			mac[i] = 0;
-			BK_LOGE(TAG, "efuse get mac failed(%x)\n", ret);
-			return ret;
-		}
-	}
-
-	BK_LOGI(TAG, "efuse get mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(mac));
-
-	if (BK_IS_ZERO_MAC(mac)) {
-		BK_LOGE(TAG, "efuse MAC all zero, see as error\r\n");
-		return BK_ERR_ZERO_MAC;
-	}
-
-	return BK_OK;
-}
-#endif
 
 #if (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
 static int read_base_mac_from_rf_otp_flash(uint8_t *mac)
@@ -475,9 +404,7 @@ static int mac_init(void)
 {
 	int ret = BK_FAIL;
 
-#if (CONFIG_BASE_MAC_FROM_EFUSE)
-        ret = read_base_mac_from_efuse(s_base_mac);
-#elif (CONFIG_NEW_MAC_POLICY)
+#if (CONFIG_NEW_MAC_POLICY)
         get_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
         ret = sync_mac_record();
 #elif (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
@@ -494,9 +421,7 @@ static int mac_init(void)
 	) {
 		os_memcpy(s_base_mac, DEFAULT_MAC_ADDR, BK_MAC_ADDR_LEN);
 		random_mac_address(s_base_mac);
-#if (CONFIG_BASE_MAC_FROM_EFUSE)
-		ret = write_base_mac_to_efuse(s_base_mac);
-#elif (CONFIG_NEW_MAC_POLICY)
+#if (CONFIG_NEW_MAC_POLICY)
 		save_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
 		ret = sync_mac_record();
 #elif (CONFIG_BASE_MAC_FROM_RF_OTP_FLASH)
@@ -598,10 +523,7 @@ bk_err_t bk_set_base_mac(const uint8_t *mac)
 
 	os_memcpy(s_base_mac, mac, BK_MAC_ADDR_LEN);
 
-#if (CONFIG_BASE_MAC_FROM_EFUSE)
-	ret = write_base_mac_to_efuse(mac);
-	ret = read_base_mac_from_efuse(s_base_mac);
-#elif (CONFIG_NEW_MAC_POLICY)
+#if (CONFIG_NEW_MAC_POLICY)
 	ret = save_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);
 	ret = sync_mac_record();
 	ret = get_net_info(WIFI_MAC_ITEM, s_base_mac, NULL, NULL);

@@ -5,9 +5,7 @@ list(APPEND srcs
 	src/wifi_api.c
 	src/wifi_cli.c
 	src/wifi_api_ipc.c
-	src/phy_client.c
-	src/phy_notify.c
-	#src/wifi_demo.c
+	src/wifi_demo.c
 )
 #endif()
 
@@ -29,9 +27,21 @@ list(APPEND incs
 	)
 endif()
 
+if(CONFIG_WIFI_CLI_DEBUG)
+list(APPEND srcs
+	src/wifi_cli_debug.c
+)
+endif()
+
 if(CONFIG_NET_PARAM)
 list(APPEND srcs
 	src/net_param.c
+)
+endif()
+
+if(CONFIG_BK_RAW_LINK)
+list(APPEND srcs
+	src/raw_link_api.c
 )
 endif()
 

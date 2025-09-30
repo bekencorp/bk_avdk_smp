@@ -30,8 +30,6 @@ extern bk_err_t bk_flash_erase_sector(uint32_t address);
 extern bk_err_t bk_flash_erase_32k(uint32_t address);
 extern bk_err_t bk_flash_erase_block(uint32_t address);
 
-extern bk_err_t flash_partition_addr_check(bk_logic_partition_t *partition_info, uint32_t offset, uint32_t size);
-extern bk_err_t flash_partition_write_perm_check(bk_logic_partition_t *partition_info);
 #define FLASH_OPERATE_SIZE_AND_OFFSET    (4096)
 bk_err_t bk_spec_flash_write_bytes(bk_partition_t partition, const uint8_t *user_buf, uint32_t size,uint32_t offset)
 {
@@ -39,18 +37,6 @@ bk_err_t bk_spec_flash_write_bytes(bk_partition_t partition, const uint8_t *user
 	u8 *save_flashdata_buff  = NULL;
 
 	bk_ptr = bk_flash_partition_get_info(partition);
-	if (bk_ptr == NULL) {
-        return BK_ERR_FLASH_PARTITION_NOT_FOUND;
-    }
-	if (flash_partition_addr_check(bk_ptr, offset, size) != BK_OK )
-	{
-        return BK_ERR_FLASH_ADDR_OUT_OF_RANGE;
-	}
-	if (flash_partition_write_perm_check(bk_ptr) != BK_OK )
-	{
-		return BK_FAIL;
-	}
-
 	if((size + offset) > FLASH_OPERATE_SIZE_AND_OFFSET)
 		return BK_FAIL;
 

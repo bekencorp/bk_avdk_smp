@@ -124,8 +124,8 @@ task.h is included from an application file. */
 /* Assumes 8bit bytes! */
 #define heapBITS_PER_BYTE		( ( size_t ) 8 )
 
-#define MEM_OVERFLOW_TAG        0xDC
-#define MEM_OVERFLOW_WORD_TAG   0xDCDCDCDC
+#define MEM_OVERFLOW_TAG        0xcd
+#define MEM_OVERFLOW_WORD_TAG   0xcdcdcdcd
 
 #define MEM_HEAD_WORD_TAG       0xFFFFEEEE
 
@@ -235,7 +235,7 @@ typedef struct {
 	char *free_ptr;
 	uint32_t time;
 }free_record_type;
-static  __attribute__((section(".psram.bss"))) free_record_type volatile s_free_records[FREE_RECORD_MAX];
+static __attribute__((section(".psram.bss"))) free_record_type volatile s_free_records[FREE_RECORD_MAX];
 #define MALLOC_RECORD_MAX  CONFIG_MEM_OVERFLOW_MALLOC_RECORD_MAX
 static __attribute__((section(".psram.bss"))) volatile uint32_t s_malloc_record_index = 0;
 static __attribute__((section(".psram.bss"))) volatile uint32_t s_sram_malloc_record_index = 0;
@@ -736,7 +736,7 @@ void * psram_calloc(size_t num, size_t size)
 #if CONFIG_MEM_DEBUG_OVERFLOW
 #define FREE_LIST_RECORD_MAX  CONFIG_MEM_OVERFLOW_FREELIST_RECORD_MAX
 // static volatile uint32_t s_malloc_freelist_index = 0;
-static __attribute__((section(".psram.bss"))) uint32_t volatile s_freelist_records[FREE_LIST_RECORD_MAX];
+static __attribute__((section(".psram.bss")))uint32_t volatile s_freelist_records[FREE_LIST_RECORD_MAX];
 __attribute__((section(".iram")))void CheckFreeList(void)
 {
 	BlockLink_t *pxIterator;
@@ -1800,25 +1800,6 @@ void *pvPortRealloc( void *pv, size_t size )
     }
 
     return resized_ptr;
-}
-
-uint32_t CheckBlockSizeValid(uint32_t size)
-{
-	BlockLink_t *pxIterator;
-
-	HeapEnterCritical()
-	
-	for( pxIterator = &xStart; pxIterator->pxNextFreeBlock != pxEnd; pxIterator = pxIterator->pxNextFreeBlock )
-	{
-		if(pxIterator->xBlockSize >= size)
-        {
-            HeapExitCritical();
-            return 1;
-        }
-			
-	}
-	HeapExitCritical();
-    return 0;
 }
 
 

@@ -15,6 +15,38 @@ menu "LCD"
 			2 - RGB565
 			3 - RGB888
 
+	config LCD_QSPI_TE
+		depends on LCD_QSPI
+		bool "Enable LCD QSPI TE"
+		default n
+
+	config LCD_SPI
+		bool "Enable LCD SPI"
+		default n
+
+	config LCD_SPI_COLOR_DEPTH_BYTE
+		depends on LCD_SPI
+		int "Set Lcd spi Color Depth"
+		default 2
+		help
+			2 - RGB565
+			3 - RGB888
+
+	config LCD_SPI_REFRESH_WITH_QSPI
+		depends on LCD_SPI
+		bool "Enable lcd spi refresh with QSPI"
+		default n
+
+	config LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE
+		depends on LCD_SPI_REFRESH_WITH_QSPI
+		bool "Enable lcd spi refresh with QSPI mapping mode"
+		default n
+
+	config LCD_SPI_TE
+		depends on LCD_SPI
+		bool "Enable LCD SPI TE"
+		default n
+
 	config LCD_POWER_GPIO_CTRL
 		bool "Enable lcd power gpio ctrl"
 		default n

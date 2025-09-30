@@ -7,6 +7,10 @@
 #include "cif_wifi_api.h"
 #include "cif_main.h"
 #include "cif_ipc.h"
+#if CONFIG_BK_RAW_LINK
+#include <modules/raw_link.h>
+#include "cif_raw_link_api.h"
+#endif
 
 bk_err_t wifi_monitor_cp_cb(const uint8_t *frame, uint32_t len, const wifi_frame_info_t *frame_info)
 {
@@ -130,7 +134,7 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
     bk_err_t ret = BK_OK;
     wifi_api_arg_info_t *arg_info = (wifi_api_arg_info_t *)(msg + 1);
 
-    CIF_LOGD("cif_handle_wifi_api_cmd cmd:%x agrc:%d\n", msg->cmd_id, arg_info->argc);
+    CIF_LOGV("cif_handle_wifi_api_cmd cmd:%x agrc:%d\n", msg->cmd_id, arg_info->argc);
 
     if (arg_info->argc)
     {
@@ -384,6 +388,14 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_monitor_set_channel(chan);
             break;
         }
+        case PS_CONFIG:
+        {
+            uint8_t ps_id = arg_info->args[0];
+            uint8_t ps_val = arg_info->args[1];
+            uint8_t ps_val1 = arg_info->args[2];
+            bk_wifi_ps_config(ps_id, ps_val, ps_val1);
+            break;
+        }
         case SEND_RAW:
         {
             uint8_t *buffer = (uint8_t *)arg_info->args[0];
@@ -424,7 +436,17 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         }
         case MONITOR_REGISTER_CB:
         {
-            ret = bk_wifi_monitor_register_cb(wifi_monitor_cp_cb);
+            uint8_t type = (uint8_t)arg_info->args[0];
+            if (type == 0)
+                ret = bk_wifi_monitor_register_cb(wifi_monitor_result_cb);
+            else
+                ret = bk_wifi_monitor_register_cb(wifi_monitor_cp_cb);
+            break;
+        }
+        case MONITOR_GET_RESULT:
+        {
+            wifi_monitor_result_t *result = (wifi_monitor_result_t *)arg_info->args[0];
+            ret = bk_wifi_monitor_get_result(result);
             break;
         }
         case FILTER_REGISTER_CB:
@@ -516,6 +538,229 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_netif_set_ip4_config(NETIF_IF_AP, (netif_ip4_config_t *)arg_info->args[0]);
             break;
         }
+#if CONFIG_BK_RAW_LINK
+        case RLK_REGISTER_SEND_CB:
+        {
+            ret = bk_rlk_register_send_cb(bk_rlk_send_cp_cb);
+            break;
+        }
+        case RLK_UNREGISTER_SEND_CB:
+        {
+            ret = bk_rlk_unregister_send_cb();
+            break;
+        }
+        case RLK_REGISTER_RECV_CB:
+        {
+            ret = bk_rlk_register_recv_cb(bk_rlk_recv_cp_cb);
+            break;
+        }
+        case RLK_UNREGISTER_RECV_CB:
+        {
+            ret = bk_rlk_ungister_recv_cb();
+            break;
+        }
+        case RLK_REGISTER_ACS_CFM_CB:
+        {
+            ret = bk_rlk_register_acs_cfm_cb(bk_rlk_acs_cfm_cp_cb);
+            break;
+        }
+        case RLK_UNREGISTER_ACS_CFM_CB:
+        {
+            ret = bk_rlk_unregister_acs_cfm_cb();
+            break;
+        }
+        case RLK_REGISTER_SCAN_CFM_CB:
+        {
+            os_printf("ML: CP RLK_REGISTER_SCAN_CFM_CB\r\n");
+            ret = bk_rlk_register_scan_cfm_cb(bk_rlk_scan_cfm_cp_cb);
+            break;
+        }
+        case RLK_UNREGISTER_SCAN_CFM_CB:
+        {
+            ret = bk_rlk_unregister_scan_cfm_cb();
+            break;
+        }
+        case RLK_INIT:
+        {
+            ret = bk_rlk_init();
+            break;
+        }
+        case RLK_DEINIT:
+        {
+            ret = bk_rlk_deinit();
+            break;
+        }
+        case RLK_SET_CHANNEL:
+        {
+            ret = bk_rlk_set_channel((uint8_t)arg_info->args[0]);
+            break;
+        }
+        case RLK_GET_CHANNEL:
+        {
+            uint8_t *chan = (uint8_t *)(arg_info->args[0]);
+            *chan = bk_rlk_get_channel();
+            break;
+        }
+        case RLK_SEND_EX:
+        {
+            bk_rlk_config_info_t *rlk_tx = (bk_rlk_config_info_t *)arg_info->args[1];
+            rlk_tx->cb = bk_rlk_send_ex_cp_cb;
+            ret = bk_rlk_send_ex((uint8_t *)arg_info->args[0], rlk_tx);
+            *((bk_err_t *)arg_info->args[2]) = ret;
+            break;
+        }
+        case RLK_SEND_BY_OUI:
+        {
+            ret = bk_rlk_send_by_oui((uint8_t *)arg_info->args[0], (void *)arg_info->args[1], (size_t)arg_info->args[2],
+                                    (uint8_t)arg_info->args[3], (uint8_t*)arg_info->args[4]);
+
+            break;
+        }
+        case RLK_ADD_PEER:
+        {
+            ret = bk_rlk_add_peer((bk_rlk_peer_info_t *)arg_info->args[0]);
+            break;
+        }
+        case RLK_DEL_PEER:
+        {
+            ret = bk_rlk_del_peer((uint8_t *)arg_info->args[0]);
+            break;
+        }
+        case RLK_GET_PEER:
+        {
+            ret = bk_rlk_get_peer((uint8_t *)arg_info->args[0], (bk_rlk_peer_info_t *)arg_info->args[1]);
+            break;
+        }
+        case RLK_IS_PEER_EXIST:
+        {
+            ret = bk_rlk_is_peer_exist((uint8_t *)arg_info->args[0]);
+            break;
+        }
+        case RLK_GET_PEER_NUM:
+        {
+            ret = bk_rlk_get_peer_num((uint32_t *)arg_info->args[0]);
+            break;
+        }
+        case RLK_SET_TX_AC:
+        {
+            ret = bk_rlk_set_tx_ac((uint8_t)arg_info->args[0]);
+            break;
+        }
+        case RLK_SET_TX_TIMEOUT_MS:
+        {
+            ret = bk_rlk_set_tx_timeout_ms((uint16_t)arg_info->args[0]);    
+            break;
+        }
+        case RLK_SET_TX_POWER:
+        {
+            ret = bk_rlk_set_tx_power((uint32_t)arg_info->args[0]);
+            break;
+        }
+        case RLK_SET_TX_RATE:
+        {
+            ret = bk_rlk_set_tx_rate((uint32_t)arg_info->args[0]);
+            break;
+        }
+        case RLK_SET_TX_RETRY_CNT:
+        {
+            ret = bk_rlk_set_tx_retry_cnt((uint32_t)arg_info->args[0]);
+            break;
+        }
+        case RLK_SLEEP:
+        {
+            ret = bk_rlk_sleep();
+            break;
+        }
+        case RLK_WAKEUP:
+        {
+            ret = bk_rlk_wakeup();
+            break;
+        }
+        case RLK_ADD_WHITE_LIST:
+        {
+            ret = bk_rlk_add_white_list((uint8_t)arg_info->args[0],(uint8_t *)arg_info->args[1]);
+            break;
+        }
+        case RLK_DEL_WHITE_LIST:
+        {
+            ret = bk_rlk_del_white_list((uint8_t)arg_info->args[0],(uint8_t *)arg_info->args[1]);
+            break;
+        }
+        case RLK_SET_MAC_HDR_TYPE:
+        {
+            ret = bk_rlk_set_mac_hdr_type((uint16_t)arg_info->args[0]);
+            break;
+        }
+        case RLK_MAC_HDR_REINIT:
+        {
+            ret = bk_rlk_mac_hdr_reinit();
+            break;
+        }
+        case RLK_ACS_CHECK:
+        {
+            ret = bk_rlk_acs_check();
+            break;
+        }
+        case RLK_SCAN:
+        {
+            ret = bk_rlk_scan((bk_rlk_scan_info_t *)arg_info->args[0]);
+
+            break;
+        }
+        case RLK_SET_ROLE:
+        {
+            ret = bk_rlk_set_role(*(bk_rlk_role_t *)arg_info->args[0],(bk_rlk_extra_ies_info_t *)arg_info->args[1]);
+            break;
+        }
+        case RLK_SLAVE_APP_INIT:
+        {
+            ret = bk_rlk_slave_app_init((char *)arg_info->args[0]);
+            break;
+        }
+        case RLK_SLAVE_BSSID_APP_INIT:
+        {
+            ret = bk_rlk_slave_bssid_app_init((uint8_t *)arg_info->args[0]);
+            break;
+        }
+        case RLK_SET_ACS_AUTO_SWITCH_CHAN:
+        {
+            ret = bk_rlk_set_acs_auto_switch_chan((uint32_t)arg_info->args[0]);
+            break;
+        }
+
+#endif
+#if CONFIG_P2P
+        case P2P_ENABLE:
+        {
+            ret = wlan_p2p_enable((char *)arg_info->args[0]);
+            break;
+        }
+        case P2P_FIND:
+        {
+            ret = wlan_p2p_find();
+            break;
+        }
+        case P2P_LISTEN:
+        {
+            ret = wlan_p2p_listen();
+            break;
+        }
+        case P2P_STOP_FIND:
+        {
+            ret = wlan_p2p_stop_find();
+            break;
+        }
+        case P2P_CONNECT:
+        {
+            ret = wlan_p2p_connect((uint8_t *)arg_info->args[0], arg_info->args[1], arg_info->args[2]);
+            break;
+        }
+        case P2P_CANCEL:
+        {
+            ret = wlan_p2p_cancel();
+            break;
+        }
+#endif
         default:
         {
             ret = BK_ERR_NOT_FOUND;

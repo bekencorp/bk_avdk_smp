@@ -75,7 +75,7 @@ struct hostapd_radius_servers;
 struct ft_remote_r0kh;
 struct ft_remote_r1kh;
 
-#ifdef CONFIG_WEP_AP
+#if defined(CONFIG_WEP_AP) || defined(CONFIG_P2P)
 #define NUM_WEP_KEYS 4
 struct hostapd_wep_keys {
 	u8 idx;
@@ -88,7 +88,7 @@ struct hostapd_wep_keys {
 
 typedef enum hostap_security_policy {
 	SECURITY_PLAINTEXT = 0,
-#ifdef CONFIG_WEP_AP
+#if defined(CONFIG_WEP_AP) || defined(CONFIG_P2P)
 	SECURITY_STATIC_WEP = 1,
 #endif /* CONFIG_WEP_AP */
 	SECURITY_IEEE_802_1X = 2,
@@ -118,7 +118,7 @@ struct hostapd_ssid {
 #endif
 	struct sae_pt *pt;
 
-#ifdef CONFIG_WEP_AP
+#if defined(CONFIG_WEP_AP) || defined(CONFIG_P2P)
 	struct hostapd_wep_keys wep;
 #endif /* CONFIG_WEP_AP */
 
@@ -314,13 +314,14 @@ struct hostapd_bss_config {
 	struct hostapd_eap_user *eap_user;
 	char *eap_user_sqlite;
 #endif
-#ifdef CONFIG_FULL_HOSTAPD
+#ifdef CONFIG_P2P
+	struct hostapd_radius_servers *radius;
+	int eap_server_erp; /* Whether ERP is enabled on internal EAP server */
+
 	char *eap_sim_db;
 	unsigned int eap_sim_db_timeout;
-	int eap_server_erp; /* Whether ERP is enabled on internal EAP server */
 	struct hostapd_ip_addr own_ip_addr;
 	char *nas_identifier;
-	struct hostapd_radius_servers *radius;
 	int acct_interim_interval;
 	int radius_request_cui;
 	struct hostapd_radius_attr *radius_auth_req_attr;
@@ -342,7 +343,7 @@ struct hostapd_bss_config {
 	size_t eap_req_id_text_len;
 	int eapol_key_index_workaround;
 
-#ifdef CONFIG_WEP_AP
+#if defined(CONFIG_WEP_AP) || defined(CONFIG_P2P)
 	size_t default_wep_key_len;
 	int individual_wep_key_len;
 	int wep_rekeying_period;
@@ -433,28 +434,10 @@ struct hostapd_bss_config {
 #endif
 #ifdef CONFIG_P2P
 	int fragment_size;
-#endif
-#ifdef CONFIG_FULL_HOSTAPD
-	char *ca_cert;
-	char *server_cert;
-	char *server_cert2;
-	char *private_key;
-	char *private_key2;
-	char *private_key_passwd;
-	char *private_key_passwd2;
-	char *check_cert_subject;
-	int check_crl;
-	int check_crl_strict;
-	unsigned int crl_reload_interval;
 	unsigned int tls_session_lifetime;
 	unsigned int tls_flags;
 	unsigned int max_auth_rounds;
 	unsigned int max_auth_rounds_short;
-	char *ocsp_stapling_response;
-	char *ocsp_stapling_response_multi;
-	char *dh_file;
-	char *openssl_ciphers;
-	char *openssl_ecdh_curves;
 	u8 *pac_opaque_encr_key;
 	u8 *eap_fast_a_id;
 	size_t eap_fast_a_id_len;
@@ -469,8 +452,25 @@ struct hostapd_bss_config {
 	int eap_sim_aka_result_ind;
 	int eap_sim_id;
 	int tnc;
-	int fragment_size;
 	u16 pwd_group;
+
+	char *ca_cert;
+	char *server_cert;
+	char *server_cert2;
+	char *private_key;
+	char *private_key2;
+	char *private_key_passwd;
+	char *private_key_passwd2;
+	char *check_cert_subject;
+	int check_crl;
+	int check_crl_strict;
+	unsigned int crl_reload_interval;
+	char *ocsp_stapling_response;
+	char *ocsp_stapling_response_multi;
+	char *dh_file;
+	char *openssl_ciphers;
+	char *openssl_ecdh_curves;
+	//int fragment_size;
 
 	char *radius_server_clients;
 	int radius_server_auth_port;
@@ -697,7 +697,7 @@ struct hostapd_bss_config {
 	struct wpabuf *vendor_elements;
 	struct wpabuf *assocresp_elements;
 
-#ifdef CONFIG_SAE_AP
+#if defined(CONFIG_SAE_AP) || defined(CONFIG_P2P)
 	unsigned int anti_clogging_threshold;
 	unsigned int sae_sync;
 	int sae_require_mfp;

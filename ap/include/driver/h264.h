@@ -17,7 +17,6 @@
 
 #include <common/bk_include.h>
 #include <driver/h264_types.h>
-#include <driver/media_types.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -96,7 +95,7 @@ bk_err_t bk_h264_deinit(void);
  *    - BK_OK: Success
  *    - others: Other errors
  */
-bk_err_t bk_h264_set_base_config(compress_ratio_t *config);
+bk_err_t bk_h264_set_base_config(h264_compress_ratio_t *config);
 
 /**
  * @brief get h264 encode base config

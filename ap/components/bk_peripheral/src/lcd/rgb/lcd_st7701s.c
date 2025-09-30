@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
-#include <driver/lcd_spi.h>
+#include <driver/sim_spi.h>
 #include "bk_misc.h"
 #include "lcd_panel_devices.h"
 #include "gpio_driver.h"
@@ -548,7 +548,8 @@ const lcd_device_t lcd_device_st7701s =
 	.id = LCD_DEVICE_ST7701S,
 	.name = "st7701s",
 	.type = LCD_TYPE_RGB565,
-	.ppi = PPI_480X480,
+	.width = 480,
+	.height = 480,
 	.rgb = &lcd_rgb,
 	.init = lcd_st7701s_init,
 	.lcd_off = NULL,

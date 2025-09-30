@@ -128,7 +128,7 @@ void vApplicationIdleHook( void )
 	uint32_t cp1_psram_malloc_count_state       = 0;
 	if(bk_pm_low_vol_vote_state_get())
 	{
-		cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count();
+		cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count(0);
 		pm_cp1_psram_malloc_count_state_set(cp1_psram_malloc_count_state);
 		//pm_debug_module_state();
 	}

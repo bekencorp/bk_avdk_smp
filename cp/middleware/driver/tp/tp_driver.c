@@ -21,7 +21,6 @@
 #include <gpio_map.h>
 #include "gpio_driver.h"
 #include <driver/i2c.h>
-#include <driver/media_types.h>
 #include <driver/tp.h>
 #include <driver/tp_types.h>
 #include "driver/drv_tp.h"

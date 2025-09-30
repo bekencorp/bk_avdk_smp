@@ -791,3 +791,14 @@ bk_err_t cif_handle_bk_cmd(void *head)
     return ret;
 }
 
+#if CONFIG_P2P
+bk_err_t cif_handle_bk_cmd_assoc_go_ind(uint8_t* mac_addr)
+{
+    return cif_bk_send_event(BK_EVT_ASSOC_GO_IND, mac_addr, 6);
+}
+
+bk_err_t cif_handle_bk_cmd_disassoc_go_ind(uint8_t* mac_addr)
+{
+    return cif_bk_send_event(BK_EVT_DISASSOC_GO_IND, mac_addr, 6);
+}
+#endif

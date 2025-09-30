@@ -393,6 +393,8 @@ void bk_wifi_ps_config(uint8_t ps_id, uint8_t ps_val, uint8_t ps_val1);
 int bk_wlan_mcu_suppress_and_sleep(UINT32);
 int bk_wlan_is_monitor_mode(void);
 monitor_cb_t bk_wlan_get_monitor_cb(void);
+bk_err_t bk_wifi_monitor_result_register(void);
+bk_err_t bk_wifi_monitor_get_result(void);
 bk_err_t bk_wifi_set_csa_coexist_mode_flag(bool is_close);
 bk_err_t bk_wifi_get_vendor_ie_cb_internal(void* vendor_ie, uint32_t vendor_type, uint16_t len, uint8_t frame_type);
 uint32_t bk_wifi_get_vendor_ie_type(void);

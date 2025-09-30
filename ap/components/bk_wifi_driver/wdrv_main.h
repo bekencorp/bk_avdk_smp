@@ -132,6 +132,10 @@ enum data_path_special_type
 {
     RX_FILTER_TYPE = 1,
     RX_MONITOR_TYPE = 2,
+    RX_RAW_LINK_TYPE = 3,
+    TX_RAW_LINK_TYPE = 4,
+    TX_RLK_FREE_MEM_TYPE = 5,
+
     SPECIAL_DATA_TYPE_MAX
 };
 struct common_header

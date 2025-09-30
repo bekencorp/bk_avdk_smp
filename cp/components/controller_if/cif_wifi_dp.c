@@ -11,6 +11,12 @@
 #include "../../dhcpd/dhcp-bootp.h"
 #include "cif_ipc.h"
 #include "cif_co_list.h"
+#if CONFIG_BK_RAW_LINK
+#include "cif_wifi_api.h"
+#include <modules/raw_link.h>
+#include "cif_raw_link_api.h"
+#endif
+
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
 extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
 extern uint8_t vif_mgmt_get_sta_vif_index();
@@ -51,12 +57,33 @@ static uint8_t cif_vif_id_route()
 
     return INVALID_VIF_IDX;
 }
+
 bk_err_t cif_handle_txdata(void *head)
 {
     uint8_t ret = BK_OK;
     struct pbuf* pbuf = NULL;
     cpdu_t* cpdu = (cpdu_t*)head;
     uint8_t vif_id = cpdu->co_hdr.vif_idx + 0xF;//cif_vif_id_route();
+
+#if CONFIG_BK_RAW_LINK
+    if (cpdu->co_hdr.special_type == TX_RAW_LINK_TYPE)
+    {
+        struct ctrl_cmd_hdr *cpdu = (struct ctrl_cmd_hdr*)head;
+        uint32_t align_mac_len = CIF_RAW_LINK_MEM_ALIGN_SIZE(RLK_WIFI_MAC_ADDR_LEN);
+
+        if (cpdu->msg_hdr.id == RLK_TX_SEND_EVT)
+        {
+             ret = bk_rlk_send((uint8_t *)head + sizeof(struct ctrl_cmd_hdr), 
+                    (uint8_t *)head + sizeof(struct ctrl_cmd_hdr) + align_mac_len, cpdu->co_hdr.length);
+
+            cpdu->co_hdr.special_type = TX_RLK_FREE_MEM_TYPE;
+            // Notify AP side to free memory instead of freeing on CP side
+            cif_send_mem_free_req(head);
+        }
+
+        return ret;
+    }
+#endif
 
     //struct tx_desc_tag * tx_desc = NULL;
     pbuf = (struct pbuf*)((uint8_t*)head - sizeof(struct pbuf));
@@ -240,6 +267,23 @@ bool cif_filter_check_ip_data(struct pbuf *p)
 
     return upload2ctrl;
 }
+
+#if CONFIG_BK_RAW_LINK
+/**
+ * @brief Send memory free request to AP side
+ * @param mem_addr Memory address to be freed
+ */
+static void cif_send_mem_free_req(void *mem_addr)
+{
+    //CIF_LOGD("CP Send memory free request: addr=%p\r\n", mem_addr);
+
+    if(cif_msg_sender(mem_addr,CIF_TASK_MSG_RX_DATA,0) != BK_OK)
+    {
+        CIF_STATS_INC(cif_tx_buf_leak);
+        CIF_LOGE("%s,%d,addr send fail mem_leak:%d\n",__func__,__LINE__,mem_addr);
+    }
+}
+#endif
 
 bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void* vif, uint8_t dst_idx)
 {

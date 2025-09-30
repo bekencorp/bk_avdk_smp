@@ -184,7 +184,7 @@ static void cli_reg_write_read_cmd_common(char *pcWriteBuffer, int xWriteBufferL
 			REG_WRITE(reg_addr, reg_value);
 		}
 
-#if (CLI_CFG_WIFI == 1)
+#if 0 //(CLI_CFG_WIFI == 1)
 		extern INT32 rwnx_cal_save_trx_rcbekn_reg_val(void);
 		// when write trx and rc beken regs, updata registers save.
 		if ((reg_addr & 0xfff0000) == 0x1050000)
@@ -271,10 +271,6 @@ static void cli_reg_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 #if (CONFIG_TRNG_SUPPORT)
 		trng_struct_dump();
 #endif
-	} else if (os_strcmp(argv[1], "efuse") == 0) {
-#if (CONFIG_EFUSE)
-		efuse_struct_dump();
-#endif
 	} else if (os_strcmp(argv[1], "adc") == 0) {
 		adc_struct_dump();
 	}
@@ -282,7 +278,7 @@ static void cli_reg_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 	else if (os_strcmp(argv[1], "sdmadc") == 0) {
 		sdmadc_struct_dump(0x2,0x8);
 	}
-#endif 
+#endif
 	else if (os_strcmp(argv[1], "spi") == 0) {
 		spi_struct_dump(index);
 	} else if (os_strcmp(argv[1], "i2c") == 0) {

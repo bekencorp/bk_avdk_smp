@@ -1369,12 +1369,12 @@ static int hostapd_setup_bss(struct hostapd_data *hapd, int first)
 #endif /* CONFIG_DPP_AP */
 
 
-#ifdef CONFIG_FULL_HOSTAPD
+#ifdef CONFIG_P2P
 	if (authsrv_init(hapd) < 0)
 		return -1;
 #endif
 
-#if IEEE8021X_EAPOL_AP
+#ifdef IEEE8021X_EAPOL_AP
 	if (ieee802_1x_init(hapd)) {
 		wpa_printf(MSG_ERROR, "IEEE 802.1X initialization failed.");
 		return -1;

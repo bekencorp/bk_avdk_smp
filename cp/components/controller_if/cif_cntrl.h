@@ -30,6 +30,10 @@ bk_err_t cif_handle_bk_cmd_csi_info_ind(void *data);
 bk_err_t cif_send_customer_cmd_cfm(uint8_t *data, uint16_t len, struct bk_msg_hdr *msg);
 bk_err_t cif_send_customer_event(uint8_t *data, uint16_t len);
 int32_t bluetooth_controller_deinit_api(void);
+#if CONFIG_P2P
+bk_err_t cif_handle_bk_cmd_assoc_go_ind(uint8_t* mac_addr);
+bk_err_t cif_handle_bk_cmd_disassoc_go_ind(uint8_t* mac_addr);
+#endif
 #ifdef __cplusplus
 }
 #endif

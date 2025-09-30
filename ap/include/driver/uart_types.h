@@ -28,6 +28,7 @@ extern "C" {
 #define BK_ERR_UART_BAUD_RATE_NOT_SUPPORT (BK_ERR_UART_BASE - 5) /**< UART baud rate not support */
 #define BK_ERR_UART_ID_NOT_INIT           (BK_ERR_UART_BASE - 6) /**< UART id not init */
 #define BK_ERR_UART_MUTEX_INIT            (BK_ERR_UART_BASE - 7) /**< UART mutex init failed */
+#define BK_ERR_UART_CTS_TIMEOUT           (BK_ERR_UART_BASE - 8) /**< UART CTS timeout */
 
 /**
  * @brief UART interrupt service routine

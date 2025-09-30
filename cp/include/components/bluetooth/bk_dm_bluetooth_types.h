@@ -271,7 +271,16 @@ typedef enum {
 **/
 typedef void (*bt_cmd_cb_t)(bt_cmd_t cmd, bt_cmd_param_t *param);
 
+typedef struct
+{
+    int32_t (*send)(uint8_t *data, uint32_t len);
+    int32_t (*init)(int32_t (*report)(uint8_t *data, uint32_t len));
+    int32_t (*deinit)(void);
+
+    uint16_t acl_handle_threshold_min;
+    uint16_t acl_handle_threshold_max;
+}bk_bluetooth_secondary_callback_t;
+
 #ifdef __cplusplus
 }
 #endif
-

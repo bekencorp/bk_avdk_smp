@@ -22,7 +22,6 @@
 #include "arch_interrupt.h"
 #include "scale0_ll_macro_def.h"
 #include "scale1_ll_macro_def.h"
-#include <driver/media_types.h>
 #include "bk_misc.h"
 #include <driver/int.h>
 #include "sys_driver.h"

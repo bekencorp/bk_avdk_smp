@@ -173,7 +173,7 @@ void sys_hal_module_power_ctrl(power_module_name_t module,power_module_state_t p
 			/*3. power down*/
 			sys_ll_set_cpu2_int_halt_clk_op_cpu2_pwr_dw(power_state);
 		}
-	}
+	} 
 	else if(module == POWER_MODULE_NAME_TCM1_PGEN) {
 		if(power_state == POWER_MODULE_STATE_ON) {
 			/*TODO
@@ -2260,7 +2260,7 @@ void sys_hal_set_sys2flsh_2wire(uint32_t value)
 #ifdef CONFIG_ETH
 void sys_hal_enable_eth_int(uint32_t value)
 {
-	sys_ll_set_cpu1_int_32_63_en_cpu1_eth_int_en(value);
+    sys_ll_set_cpu0_int_32_63_en_cpu0_eth_int_en(value);
 }
 #endif
 /** Ethernet End**/

@@ -107,6 +107,11 @@ extern const lcd_device_t lcd_device_spd2010;
 extern const lcd_device_t lcd_device_st7796u;
 #endif
 
+
+#if CONFIG_LCD_ST7789T3
+extern const lcd_device_t lcd_device_st7789t3;
+#endif
+
 void lcd_panel_devices_init(void);
 
 

@@ -23,3 +23,8 @@
 #define UART_LOGD(...) BK_LOGD(UART_TAG, ##__VA_ARGS__)
 #define UART_LOGV(...) BK_LOGV(UART_TAG, ##__VA_ARGS__)
 
+
+#define UART_HW_FIFO_SIZE (128)   //UART HW FIFO size is 128 Bytes
+#define UART_TX_HW_FIFO_THRESHOLD (64)  //when enable sw flow ctrl,tx fifo threshold is set 64 Bytes
+
+#define USFC_RX_UART_EMPTY_THROHOLD (16)	//UART HW Fifo has less then 16 Bytes data

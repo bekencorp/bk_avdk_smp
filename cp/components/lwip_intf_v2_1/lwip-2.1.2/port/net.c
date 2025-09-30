@@ -522,7 +522,7 @@ void net_interface_dhcp_stop(void *intrfc_handle)
 void sta_ip_down(void)
 {
 	if (sta_ip_start_flag) {
-		LWIP_LOGD("sta ip down\r\n");
+		LWIP_LOGI("sta ip down\r\n");
 
 		sta_ip_start_flag = false;
 
@@ -544,7 +544,7 @@ void sta_ip_start(void)
 	struct wlan_ip_config address = { 0 };
 
 	if (!sta_ip_start_flag) {
-		LWIP_LOGV("sta ip start\r\n");
+		LWIP_LOGI("sta ip start\r\n");
 		sta_ip_start_flag = true;
 		net_configure_address(&sta_ip_settings, net_get_sta_handle());
 		return;

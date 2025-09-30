@@ -2,7 +2,7 @@ set(incs include)
 set(srcs "")
 set(priv_req bk_common)
 
-if (CONFIG_USBH_UVC)
+if (CONFIG_USB_CAMERA)
     list(APPEND srcs
         src/bk_uvc.c
         src/uvc_urb_list.c

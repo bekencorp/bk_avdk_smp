@@ -616,12 +616,12 @@ static int at_wlan_get_station_status(int sync, int argc, char **argv)
 		os_memset(&ap_info, 0x0, sizeof(ap_info));
 		BK_RETURN_ON_ERR(bk_wifi_ap_get_config(&ap_info));
 		os_memcpy(ssid, ap_info.ssid, 32);
-		BK_LOGD(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
+		BK_LOGI(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
 				ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
 
 		BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
 		os_memset(resultbuf,0,200);
-		//BK_LOGD(TAG, "[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
+		//BK_LOGI(TAG, "[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
 		//		ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
 		snprintf(resultbuf,sizeof(resultbuf), "EVT:ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
 				ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);

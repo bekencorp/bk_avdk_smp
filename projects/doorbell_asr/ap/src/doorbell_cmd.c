@@ -407,12 +407,12 @@ void doorbell_transmission_cmd_recive_callback(db_channel_t *channel, uint16_t s
 
         case DBCMD_SET_LCD_TURN_ON:
         {
-            uint16_t id, rotate, fmt;
-            STREAM_TO_UINT16(id, p);
-            STREAM_TO_UINT16(rotate, p);
-            STREAM_TO_UINT16(fmt, p);
+            display_parameters_t parameters;
+            STREAM_TO_UINT16(parameters.id, p);
+            STREAM_TO_UINT16(parameters.rotate_angle, p);
+            STREAM_TO_UINT8(parameters.pixel_format, p);
 
-            int ret = doorbell_display_turn_on(id, rotate, fmt);
+            int ret = doorbell_display_turn_on(&parameters);
 
             doorbell_transmission_event_report(channel, cmd.opcode, ret & 0xFF, EVT_FLAGS_COMPLETE);
         }

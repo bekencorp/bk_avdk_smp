@@ -19,9 +19,9 @@ extern "C" {
 #endif
 
 #include <common/bk_include.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/psram_types.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 
 #include "bk_list.h"
 
@@ -122,9 +122,9 @@ typedef struct {
 } pipeline_encode_request_t;
 
 
-typedef bk_err_t (*mux_callback_t)(void *param);
-typedef bk_err_t (*mux_request_callback_t)(pipeline_encode_request_t *request, mux_callback_t cb);
-typedef bk_err_t (*mux_reset_callback_t)(mux_callback_t reset_cb);
+typedef bk_err_t (*mux_callback_t)(void *param, void *args);
+typedef bk_err_t (*mux_request_callback_t)(pipeline_encode_request_t *request, mux_callback_t cb, void *args);
+typedef bk_err_t (*mux_reset_callback_t)(mux_callback_t reset_cb, void *args);
 
 typedef struct
 {
@@ -142,6 +142,13 @@ typedef struct
 #define IMAGE_MAX_WIDTH				(1280)
 #define IMAGE_MAX_HEIGHT			(720)
 
+#else
+
+#define IMAGE_MAX_WIDTH				(864)
+#define IMAGE_MAX_HEIGHT			(480)
+
+#endif
+
 #define DISPLAY_MAX_WIDTH			(864)
 #define DISPLAY_MAX_HEIGHT			(480)
 
@@ -149,46 +156,34 @@ typedef struct
 #define SCALE_MAX_PIPELINE_LINE_SIZE	(DISPLAY_MAX_WIDTH * IMAGE_MAX_PIPELINE_LINE * IMAGE_PIPEL_SIZE)
 #define ROTATE_MAX_PIPELINE_LINE_SIZE	(DISPLAY_MAX_WIDTH * IMAGE_MAX_PIPELINE_LINE * IMAGE_PIPEL_SIZE)
 
-#else
-
-#define IMAGE_MAX_WIDTH				(864)
-#define IMAGE_MAX_HEIGHT			(480)
-
-#define DISPLAY_MAX_WIDTH			(864)
-#define DISPLAY_MAX_HEIGHT			(480)
-
-#define DECODE_MAX_PIPELINE_LINE_SIZE	(IMAGE_MAX_WIDTH * IMAGE_MAX_PIPELINE_LINE * IMAGE_PIPEL_SIZE)
-#define ROTATE_MAX_PIPELINE_LINE_SIZE	(IMAGE_MAX_WIDTH * IMAGE_MAX_PIPELINE_LINE * IMAGE_PIPEL_SIZE)
-
-#endif
-
+typedef struct {
+	uint8_t decoder[DECODE_MAX_PIPELINE_LINE_SIZE * 2];
+} mux_sram_decode_buffer_t;
 
 typedef struct {
-#if SUPPORTED_IMAGE_MAX_720P
-	uint8_t decoder[DECODE_MAX_PIPELINE_LINE_SIZE * 2];
+	uint8_t rotate[ROTATE_MAX_PIPELINE_LINE_SIZE * 2];
+} mux_sram_rotate_buffer_t;
+
+typedef struct {
 	uint8_t scale[SCALE_MAX_PIPELINE_LINE_SIZE * 2];
-	uint8_t rotate[ROTATE_MAX_PIPELINE_LINE_SIZE * 2];
-#else
-	uint8_t decoder[DECODE_MAX_PIPELINE_LINE_SIZE * 2];
-	uint8_t rotate[ROTATE_MAX_PIPELINE_LINE_SIZE * 2];
-#endif
-} mux_sram_buffer_t;
+} mux_sram_scale_buffer_t;
 
-extern mux_sram_buffer_t *mux_sram_buffer;
+extern mux_sram_decode_buffer_t *mux_sram_decode_buffer;
+extern mux_sram_rotate_buffer_t *mux_sram_rotate_buffer;
+extern mux_sram_scale_buffer_t *mux_sram_scale_buffer;
 
-
-bk_err_t bk_h264_encode_request(pipeline_encode_request_t *request, mux_callback_t cb);
-bk_err_t bk_rotate_encode_request(pipeline_encode_request_t *request, mux_callback_t cb);
-bk_err_t bk_scale_encode_request(pipeline_encode_request_t *request, mux_callback_t cb);
+bk_err_t bk_h264_encode_request(pipeline_encode_request_t *request, mux_callback_t cb, void *args);
+bk_err_t bk_rotate_encode_request(pipeline_encode_request_t *request, mux_callback_t cb, void *args);
+bk_err_t bk_scale_encode_request(pipeline_encode_request_t *request, mux_callback_t cb, void *args);
 void bk_jdec_buffer_request_register(pipeline_module_t module, mux_request_callback_t cb, mux_reset_callback_t reset_cb);
 void bk_jdec_buffer_request_deregister(pipeline_module_t module);
 bk_err_t bk_h264_pipeline_init(void);
 bk_err_t bk_scale_pipeline_init(void);
 bk_err_t bk_rotate_pipeline_init(void);
 bk_err_t bk_jdec_pipeline_init(void);
-bk_err_t bk_h264_reset_request(mux_callback_t cb);
-bk_err_t bk_scale_reset_request(mux_callback_t cb);
-bk_err_t bk_rotate_reset_request(mux_callback_t cb);
+bk_err_t bk_h264_reset_request(mux_callback_t cb, void *args);
+bk_err_t bk_scale_reset_request(mux_callback_t cb, void *args);
+bk_err_t bk_rotate_reset_request(mux_callback_t cb, void *args);
 
 #ifdef __cplusplus
 }

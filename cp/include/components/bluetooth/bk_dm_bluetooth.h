@@ -71,9 +71,9 @@ bt_err_t bk_bluetooth_deinit(void);
  */
 bt_err_t bk_bluetooth_get_address(uint8_t *addr);
 
+bt_err_t bk_bluetooth_reg_secondary_controller(bk_bluetooth_secondary_callback_t *cb);
 ///@}
 
 #ifdef __cplusplus
 }
 #endif
-

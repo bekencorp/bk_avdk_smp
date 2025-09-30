@@ -137,12 +137,6 @@ extern "C" {
 #define CLI_CFG_AON_RTC     0
 #endif
 
-#if (CONFIG_JPEGENC_HW)
-#define CLI_CFG_JPEGENC        1
-#else
-#define CLI_CFG_JPEGENC        0
-#endif
-
 #if (CONFIG_JPEGDEC_SW)
 #define CLI_CFG_JPEGDEC     0
 #else
@@ -200,12 +194,6 @@ extern "C" {
 #define CLI_CFG_IPERF       0
 #endif
 
-#if (CONFIG_I2S_TEST)
-#define CLI_CFG_I2S         1
-#else
-#define CLI_CFG_I2S         0
-#endif
-
 #if (CONFIG_LCD_TEST)
 #define CLI_CFG_LCD  0
 #else
@@ -230,37 +218,6 @@ extern "C" {
 #define CLI_CFG_DMA2D  0
 #endif
 
-#if (CONFIG_SOC_BK7256XX)
-#if (CONFIG_AUDIO && CONFIG_AUDIO_TEST)
-#define CLI_CFG_AUD         1
-#endif
-
-#if (CONFIG_AUDIO_ATE_TEST)
-#define CLI_CFG_AUD_ATE         1
-#endif
-
-#if (CONFIG_AUDIO_RSP_TEST)
-#define CLI_CFG_AUD_RSP    0
-#endif
-
-#if (CONFIG_AUDIO_VAD_TEST)
-#define CLI_CFG_AUD_VAD    0
-#endif
-
-#if (CONFIG_AUDIO_NS_TEST)
-#define CLI_CFG_AUD_NS    0
-#endif
-
-#if (CONFIG_AUDIO_FLAC_TEST)
-#define CLI_CFG_AUD_FLAC    0
-#endif
-
-#if (CONFIG_SBC_TEST)
-#define CLI_CFG_SBC		0
-#else
-#define CLI_CFG_SBC		0
-#endif
-
 #if (CONFIG_TOUCH_TEST)
 #define CLI_CFG_TOUCH	1
 #else
@@ -273,54 +230,12 @@ extern "C" {
 #define CLI_CFG_QRCODEGEN	0
 #endif
 
-#if ((CONFIG_CPU_CNT > 1) && CONFIG_AUDIO_TEST)
-#define CLI_CFG_AUD_CP0     0
-#endif
-
-#if (CONFIG_FFT_TEST)
-#define CLI_CFG_FFT         0
-#else
-#define CLI_CFG_FFT         0
-#endif
-#endif
-
-
 #if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX)
-#if (CONFIG_AUDIO && CONFIG_AUDIO_TEST)
-#define CLI_CFG_AUD         1
-#endif
-
-#if (CONFIG_AUDIO_ATE_TEST)
-#define CLI_CFG_AUD_ATE         1
-#endif
-
 #if (CONFIG_TOUCH && CONFIG_TOUCH_TEST)
 #define CLI_CFG_TOUCH    1
 #else
 #define CLI_CFG_TOUCH    0
 #endif
-#endif
-
-#if (CONFIG_AUDIO_AEC_TEST)
-#define CLI_CFG_AEC         1
-#endif
-
-#if (CONFIG_AUDIO_G711_TEST)
-#define CLI_CFG_G711         0
-#endif
-
-#if (CONFIG_AUDIO_OPUS_TEST && CONFIG_FATFS)
-#define CLI_CFG_OPUS         0
-#endif
-
-#if (CONFIG_AUDIO_ADPCM_TEST && CONFIG_FATFS)
-#define CLI_CFG_ADPCM         0
-#endif
-
-#if (CONFIG_AUDIO_MP3_TEST && CONFIG_FATFS)
-#define CLI_CFG_MP3		0
-#else
-#define CLI_CFG_MP3		0
 #endif
 
 #if (CONFIG_PSRAM_TEST)
@@ -333,10 +248,6 @@ extern "C" {
 #define CLI_CFG_UID        1
 #else
 #define CLI_CFG_UID        0
-#endif
-
-#if (CONFIG_AUDIO_AGC_TEST)
-#define CLI_CFG_AGC         1
 #endif
 
 

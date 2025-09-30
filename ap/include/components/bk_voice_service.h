@@ -88,7 +88,7 @@ int bk_voice_write_spk_data(voice_handle_t voice_handle, char *buffer, uint32_t 
  *                 - 0: Success.
  *                 - Non-zero: Failed.
  */
-bk_err_t bk_voice_event_handle(voice_event_handle event_handle, vioce_evt_t event, void *param, void *args);
+bk_err_t bk_voice_event_handle(voice_event_handle event_handle, voice_evt_t event, void *param, void *args);
 
 /**
  * @brief      Get the status of a voice call.

@@ -53,6 +53,27 @@
 #define PRF_TASK_ID_BOARDING 10
 #endif
 
+#if !CONFIG_AT && !CONFIG_AT_CMD
+typedef enum
+{
+    AT_ACTV_IDLE,
+    /////adv
+    AT_ACTV_ADV_CREATED,
+    AT_ACTV_ADV_STARTED,
+    ////////scan
+    AT_ACTV_SCAN_CREATED,
+    AT_ACTV_SCAN_STARTED,
+
+    AT_ACTV_INIT_CREATED,
+    AT_ACTV_PER_SYNC_CREATED,
+    AT_ACTV_PER_SYNC_STARTED,
+} at_actv_state;
+#endif
+
+#ifndef AT_BLE_MAX_ACTV
+#define AT_BLE_MAX_ACTV                  bk_ble_get_max_actv_idx_count()
+#endif
+
 static beken_semaphore_t ble_boarding_sema = NULL;
 static ble_err_t s_at_cmd_status = BK_ERR_BLE_SUCCESS;
 static uint8_t s_conn_ind = ~0;
@@ -699,6 +720,43 @@ error:
 
     return BK_FAIL;
 }
+
+int ble_boarding_deinit(void)
+{
+    int32_t ret = 0;
+
+    LOGI("%s\r\n",__func__);
+
+    if (ble_boarding_info->ssid_value)
+    {
+        os_free(ble_boarding_info->ssid_value);
+    }
+
+    if (ble_boarding_info->password_value)
+    {
+        os_free(ble_boarding_info->password_value);
+    }
+
+    os_memset(ble_boarding_info, 0, sizeof(*ble_boarding_info));
+
+    if (ble_boarding_sema)
+    {
+        ret = rtos_deinit_semaphore(&ble_boarding_sema);
+
+        if (ret != 0)
+        {
+            LOGE("rtos_deinit_semaphore err %d", ret);
+            return -1;
+        }
+
+        ble_boarding_sema = NULL;
+    }
+
+    s_conn_ind = ~0;
+
+    return BK_OK;
+}
+
 #if CONFIG_AT
 #include "at_server.h"
 #endif
@@ -815,6 +873,68 @@ int ble_boarding_adv_start(uint8_t *adv_data, uint16_t adv_len)
     else
     {
         LOGD("start adv success\n");
+    }
+
+    return ret;
+
+error:
+
+    return BK_FAIL;
+}
+
+int ble_boarding_adv_stop(void)
+{
+    int actv_idx = 0;
+    bt_err_t ret = BK_OK;
+
+    actv_idx = bk_ble_find_actv_state_idx_handle(AT_ACTV_ADV_STARTED);
+
+    if (actv_idx != AT_BLE_MAX_ACTV)
+    {
+        ret = bk_ble_stop_advertising(actv_idx, ble_at_cmd_cb);
+
+        if (ret != BK_ERR_BLE_SUCCESS)
+        {
+            LOGE("stop adv failed %d\n", ret);
+            goto error;
+        }
+
+        ret = rtos_get_semaphore(&ble_boarding_sema, AT_SYNC_CMD_TIMEOUT_MS);
+
+        if (ret != BK_OK)
+        {
+            LOGE("wait semaphore failed at %d, %d\n", ret, __LINE__);
+            goto error;
+        }
+        else
+        {
+            LOGI("stop adv success\n");
+        }
+    }
+
+    actv_idx = bk_ble_find_actv_state_idx_handle(AT_ACTV_ADV_CREATED);
+
+    if (actv_idx != AT_BLE_MAX_ACTV)
+    {
+        ret = bk_ble_delete_advertising(actv_idx, ble_at_cmd_cb);
+
+        if (ret != BK_ERR_BLE_SUCCESS)
+        {
+            LOGE("delete adv failed %d\n", ret);
+            goto error;
+        }
+
+        ret = rtos_get_semaphore(&ble_boarding_sema, AT_SYNC_CMD_TIMEOUT_MS);
+
+        if (ret != BK_OK)
+        {
+            LOGE("wait semaphore failed at %d, %d\n", ret, __LINE__);
+            goto error;
+        }
+        else
+        {
+            LOGI("delete adv success\n");
+        }
     }
 
     return ret;

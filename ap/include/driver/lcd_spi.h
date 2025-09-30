@@ -1,36 +1,43 @@
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #pragma once
-#include "driver/dvp_camera_types.h"
-//#include <driver/hal/hal_gpio_types.h>
+
+#include <driver/lcd_types.h>
+#include <driver/spi.h>
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum{
-    SPI_GPIO_CLK,
-    SPI_GPIO_CSX,
-    SPI_GPIO_SDA,
-    SPI_GPIO_RST
-}LCD_SPI_GPIO_TYPE_E;
+void bk_lcd_spi_send_cmd(uint8_t id, uint8_t cmd);
 
-extern int32_t lcd_driver_get_spi_gpio(LCD_SPI_GPIO_TYPE_E gpio_type);
-#define LCD_SPI_CLK_GPIO  lcd_driver_get_spi_gpio(SPI_GPIO_CLK)
-#define LCD_SPI_CSX_GPIO  lcd_driver_get_spi_gpio(SPI_GPIO_CSX)
-#define LCD_SPI_SDA_GPIO  lcd_driver_get_spi_gpio(SPI_GPIO_SDA)
-#define LCD_SPI_RST       lcd_driver_get_spi_gpio(SPI_GPIO_RST)
+void bk_lcd_spi_send_data(uint8_t id, uint8_t *data, uint32_t data_len);
 
-#define LCD_SPI_DELAY     2
+#if (CONFIG_LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE)
+void bk_lcd_spi_send_data_with_qspi_mapping_mode(uint8_t id, uint8_t *data, uint32_t data_len);
 
-void lcd_spi_write_cmd(uint8_t data);
-void lcd_spi_init_gpio(void);
-void lcd_spi_write_data(uint8_t data);
+bk_err_t bk_lcd_spi_wait_display_complete(qspi_id_t qspi_id);
+#endif
 
+void bk_lcd_spi_init(uint8_t id, const lcd_device_t *device, uint8_t reset_pin, uint8_t dc_pin);
 
-void lcd_spi_write_hf_word_cmd(unsigned int cmd);
-void lcd_spi_write_hf_word_data(unsigned int data);
+void bk_lcd_spi_deinit(uint8_t id, uint8_t reset_pin, uint8_t dc_pin);
 
+bk_err_t bk_lcd_spi_frame_display(uint8_t id, uint8_t *data, uint32_t data_len);
 
+bk_err_t bk_lcd_spi_partial_display(uint8_t id, lcd_display_area_t *area, uint8_t *data);
 
 #ifdef __cplusplus
 }

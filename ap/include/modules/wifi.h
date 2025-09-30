@@ -1678,6 +1678,64 @@ bk_err_t bk_bridge_start(bk_bridge_config_t *br_config);
 bk_err_t bk_bridge_stop(void);
 #endif
 
+#if CONFIG_P2P
+/**
+ * @brief    Enable BK P2P Mode
+ *
+ * @param ssid the ssid of the p2p group
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: p2p enable fail.
+ *    - others: other errors
+ */
+bk_err_t bk_wifi_p2p_enable(const char *ssid);
+/**
+ * @brief    Start BK P2P Find
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: p2p find fail.
+ *    - others: other errors
+ */
+bk_err_t bk_wifi_p2p_find(void);
+/**
+ * @brief    Start BK P2P Listen
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: p2p listen fail.
+ *    - others: other errors
+ */
+bk_err_t bk_wifi_p2p_listen(void);
+/**
+ * @brief    Stop BK P2P Find
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: p2p stop find fail.
+ *    - others: other errors
+ */
+bk_err_t bk_wifi_p2p_stop_find(void);
+/**
+ * @brief    Start BK P2P Connect
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: p2p connect fail.
+ *    - others: other errors
+ */
+bk_err_t bk_wifi_p2p_connect(const uint8_t *mac, int method, int intent);
+/**
+ * @brief    Stop BK P2P Connect
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: p2p stop connect fail.
+ *    - others: other errors
+ */
+bk_err_t bk_wifi_p2p_cancel(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

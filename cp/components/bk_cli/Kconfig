@@ -131,16 +131,6 @@ menu "Bk_cli"
 			bool "Enable Touch Test"
 			default n
 
-		config SBC_TEST
-			depends on CLI
-			bool "Enable Sbc Test"
-			default n
-
-		config AUDIO
-			depends on CLI
-			bool "Enable Audio"
-			default n
-
 		config PSRAM_TEST
 			depends on CLI && PSRAM
 			bool "Enable Psram Test"
@@ -212,29 +202,6 @@ menu "Bk_cli"
 
 		config RWNX_PROTO_DEBUG
 			bool "Enable Rwnx Proto Debug"
-			default n
-
-		config AUDIO_TEST
-			depends on AUDIO
-			bool "Enable Audio driver test"
-			default n
-
-		config AUDIO_ATE_TEST
-			depends on AUDIO_ADC
-			depends on AUDIO_DAC
-			depends on I2S
-			bool "Enable Audio ate test"
-			default n
-
-		config FFT_TEST
-			depends on FFT
-			bool "Enable FFT Test"
-			default n
-
-		config I2S_TEST
-			depends on I2S
-			bool "Enable I2S Test"
-			depends on I2S
 			default n
 
 		config SLCD_TEST

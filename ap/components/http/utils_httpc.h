@@ -150,6 +150,11 @@ typedef void (*http_data_process_callback_func)(char *buf, UINT32 len, uint32_t 
 extern void http_data_process_register_callback(http_data_process_callback_func cb);
 #endif
 
+#if CONFIG_BK3515_OTA
+typedef int (*save_slave_bin_info_func)(uint32_t total_bin_size);
+void bk_http_register_save_slave_bin_info_callback(save_slave_bin_info_func cb);
+#endif
+
 void http_flash_init(void);
 void http_flash_deinit(void);
 void http_flash_wr(UINT8 *src, unsigned len);

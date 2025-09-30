@@ -14,30 +14,33 @@
 
 #pragma once
 
+#include <os/os.h>
 #include <driver/hal/hal_qspi_types.h>
-#include <driver/media_types.h>
+#include <driver/dma_types.h>
+#include <components/media_types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define LCD_QSPI_ID     QSPI_ID_0
+#define LCD_QSPI0_DATA_ADDR      0x64000000
+#define LCD_QSPI1_DATA_ADDR      0x68000000
 
 typedef enum {
-	LCD_QSPI_REFRESH_BY_LINE,
-	LCD_QSPI_REFRESH_BY_FRAME,
-	LCD_QSPI_REFRESH_INVALID,
+    LCD_QSPI_REFRESH_BY_LINE,
+    LCD_QSPI_REFRESH_BY_FRAME,
+    LCD_QSPI_REFRESH_INVALID,
 } lcd_qspi_refresh_method_t;
 
 typedef enum {
-	LCD_QSPI_NO_INSERT_DUMMMY_CLK,
-	LCD_QSPI_CMD1_DUMMY_CLK_CMD2,
-	LCD_QSPI_CMD2_DUMMY_CLK_CMD3,
-	LCD_QSPI_CMD3_DUMMY_CLK_CMD4,
-	LCD_QSPI_CMD4_DUMMY_CLK_CMD5,
-	LCD_QSPI_CMD5_DUMMY_CLK_CMD6,
-	LCD_QSPI_CMD6_DUMMY_CLK_CMD7,
-	LCD_QSPI_CMD7_DUMMY_CLK_CMD8,
+    LCD_QSPI_NO_INSERT_DUMMMY_CLK,
+    LCD_QSPI_CMD1_DUMMY_CLK_CMD2,
+    LCD_QSPI_CMD2_DUMMY_CLK_CMD3,
+    LCD_QSPI_CMD3_DUMMY_CLK_CMD4,
+    LCD_QSPI_CMD4_DUMMY_CLK_CMD5,
+    LCD_QSPI_CMD5_DUMMY_CLK_CMD6,
+    LCD_QSPI_CMD6_DUMMY_CLK_CMD7,
+    LCD_QSPI_CMD7_DUMMY_CLK_CMD8,
 } lcd_qspi_dummy_mode_t;
 
 typedef enum {
@@ -47,30 +50,38 @@ typedef enum {
 } lcd_qspi_act_option_t;
 
 typedef struct {
-	uint8_t cmd;
-	uint8_t data[32];
-	uint8_t data_len;
+    uint8_t cmd;
+    uint8_t data[32];
+    uint8_t data_len;
 } lcd_qspi_init_cmd_t;
 
 typedef struct {
-	uint8_t *cmd;
-	uint8_t cmd_len;        // cmd is 1 ~ 8 bytes
+    uint8_t *cmd;
+    uint8_t cmd_len;        // cmd is 1 ~ 8 bytes
 } lcd_qspi_write_config_t;
 
 typedef struct {
-	uint8_t dummy_clk;      // 1 ~ 127
-	lcd_qspi_dummy_mode_t dummy_mode;
+    uint8_t dummy_clk;      // 1 ~ 127
+    lcd_qspi_dummy_mode_t dummy_mode;
 } lcd_qspi_reg_read_config_t;
 
 typedef struct {
-	uint8_t hsync_cmd;
-	uint8_t vsync_cmd;
-	uint8_t vsw;
-	uint8_t hfp;
-	uint8_t hbp;
+    uint8_t hsync_cmd;
+    uint8_t vsync_cmd;
+    uint8_t vsw;
+    uint8_t hfp;
+    uint8_t hbp;
     uint16_t line_len;
 } lcd_qspi_refresh_config_by_line_t;
 
+typedef struct {
+    uint8_t dma_id;
+    beken_semaphore_t dma_sema;
+    dma_isr_t dma_finish_isr;
+    bool dma_is_repeat_mode;
+    bool lcd_qspi_is_init;
+    uint32_t qspi_data;
+} lcd_qspi_disp_t;
 
 #ifdef __cplusplus
 }

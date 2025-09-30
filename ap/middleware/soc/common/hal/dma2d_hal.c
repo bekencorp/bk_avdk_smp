@@ -45,7 +45,7 @@ bk_err_t dma2d_hal_init(dma2d_config_t *dma2d)
 	dma2d_ll_set_dma2d_control_reg_master_tran_length(dma2d->init.trans_ability);
 #elif CONFIG_SOC_BK7236XX
 	//dma2d_ll_set_dma2d_control_reg_dma2d_ahb_burst_len(dma2d->init.trans_ability);
-	dma2d_ll_set_module_control_clk_gate(1);
+	//dma2d_ll_set_module_control_clk_gate(1);
 #endif
 
 	dma2d_ll_set_dma2d_control_reg_out_byte_revese(dma2d->init.out_byte_by_byte_reverse);

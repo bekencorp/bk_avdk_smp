@@ -651,7 +651,7 @@ struct wpa_state_machine *
 wpa_auth_sta_init(struct wpa_authenticator *wpa_auth, const u8 *addr,
 		  const u8 *p2p_dev_addr)
 {
-	struct wpa_state_machine *sm;
+	struct wpa_state_machine *sm = NULL;
 
 	if (wpa_auth->group->wpa_group_state == WPA_GROUP_FATAL_FAILURE)
 		return NULL;
@@ -3490,7 +3490,7 @@ SM_STATE(WPA_PTK, PTKINITNEGOTIATING)
 		_rsc = rsc;
 		encr = 1;
 #if BK_SUPPLICANT
-		WPA_LOGD("WPA: GTK %pb\n", gtk, gtk_len);
+		WPA_LOGI("WPA: GTK %pb\n", gtk, gtk_len);
 #endif
 	} else {
 		/* WPA does not include GTK in msg 3/4 */

@@ -15,11 +15,52 @@
 #pragma once
 
 #include <common/bk_err.h>
-#include <driver/video_common_types.h>
+#include <driver/hal/hal_yuv_buf_types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef enum {
+	YUV_FORMAT_YUYV = 0,
+	YUV_FORMAT_UYVY,
+	YUV_FORMAT_YYUV,
+	YUV_FORMAT_UVYY,
+} yuv_format_t;
+
+typedef enum
+{
+	SYNC_LOW_LEVEL,
+	SYNC_HIGH_LEVEL,
+} sync_level_t;
+
+typedef enum {
+	YUV_MCLK_DIV_4 = 0,
+	YUV_MCLK_DIV_6 = 1,
+	YUV_MCLK_DIV_2 = 2,
+	YUV_MCLK_DIV_3 = 3,
+} mclk_div_t;
+
+typedef enum
+{
+	MCLK_15M,
+	MCLK_16M,
+	MCLK_20M,
+	MCLK_24M,
+	MCLK_30M,
+	MCLK_32M,
+	MCLK_40M,
+	MCLK_48M,
+	MCLK_UNKNOW,
+} mclk_freq_t;
+
+typedef enum
+{
+	UNKNOW_MODE = 0,
+	YUV_MODE,
+	JPEG_MODE,
+	H264_MODE,
+} yuv_mode_t;
 
 typedef struct {
 	yuv_format_t yuv_format;

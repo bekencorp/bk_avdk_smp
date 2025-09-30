@@ -10,7 +10,6 @@
 #include "bk_uart.h"
 #include <os/str.h>
 #include <components/log.h>
-#include <driver/media_types.h>
 #include "drv_model_pub.h"
 #include "cli.h"
 #include <components/usb.h>

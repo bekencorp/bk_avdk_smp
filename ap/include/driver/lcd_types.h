@@ -18,21 +18,13 @@
 extern "C" {
 #endif
 
-#include <driver/media_types.h>
+#include "stdbool.h"
 #include "modules/lcd_font.h"
 #include "driver/lcd_qspi_types.h"
-
+#include <driver/sim_spi.h>
 #define  USE_LCD_REGISTER_CALLBACKS  1
 
-typedef void (*lcd_isr_t)(void);
-
-
-#if CONFIG_LCD_DMA2D_BLEND_FLASH_IMG
-#define LOGO_MAX_W 40
-#define LOGO_MAX_H 40
-#define DMA2D_MALLOC_MAX  (LOGO_MAX_W * LOGO_MAX_H * 2)
-#endif
-
+typedef void (*lcd_isr_t)(void * args);
 
 typedef enum {
 	LCD_DEVICE_UNKNOW,
@@ -60,11 +52,12 @@ typedef enum {
 	LCD_DEVICE_SPD2010, /**< 412X412 QSPI  */
 
 	LCD_DEVICE_ST7796U, /**< 320X480 SPI */
+	LCD_DEVICE_ST7789T3, /**< 240X320 MCU  */
 } lcd_device_id_t;
 
 typedef enum {
 	LCD_TYPE_RGB,     /**< lcd hardware interface is parallel RGB interface */
-	LCD_TYPE_RGB565,  /**< lcd device output data hardware interface is RGB565 format */
+	LCD_TYPE_RGB565 = LCD_TYPE_RGB,  /**< lcd device output data hardware interface is RGB565 format */
 	LCD_TYPE_MCU8080, /**< lcd device output data hardware interface is MCU 8BIT format */
 	LCD_TYPE_QSPI,    /**< lcd device hardware interface is QSPI interface */
 	LCD_TYPE_SPI,     /**< lcd device hardware interface is SPI interface */
@@ -134,31 +127,6 @@ typedef enum {
 	YUYV,
 } data_format_t;
 
-typedef enum {
-    LCD_BL_DEFAULT_CLOSE = 0,
-    LCD_BL_DEFAULT_OPEN,
-} lcd_backlight_default_ctrl_t;
-
-typedef struct {
-	unsigned char y;
-	unsigned char u;
-	unsigned char v;
-} yuv_data_t;
-
-typedef struct {
-	uint16_t x;
-	uint16_t y;
-	uint16_t width;
-	uint16_t height;
-} lcd_rect_t;
-
-typedef struct
-{
-    void *buffer;
-    lcd_rect_t rect;
-} lcd_disp_framebuf_t;
-
-
 /** rgb interface config param */
 typedef struct
 {
@@ -177,13 +145,12 @@ typedef struct
 typedef struct
 {
 	lcd_clk_t clk; /**< config lcd clk */
-	bk_err_t (*set_xy_swap)(bool swap_axes); 
-	bk_err_t (*set_mirror)( bool mirror_x, bool mirror_y);
-	void (*set_display_area)(uint16 xs, uint16 xe, uint16 ys, uint16 ye); 
+	bk_err_t (*set_xy_swap)(const void *handle, bool swap_axes); 
+	bk_err_t (*set_mirror)(const void *handle, bool mirror_x, bool mirror_y);
 	/**< if lcd size is smaller then image, and set api bk_lcd_pixel_config is image x y, should set partical display */
-
-	void (*start_transform)(void); 
-	void (*continue_transform)(void); 
+	void (*set_display_area)(const void *handle, uint16_t xs, uint16_t xe, uint16_t ys, uint16_t ye);
+	void (*start_transfer)(const void *handle); 
+	void (*continue_transfer)(const void *handle); 
 } lcd_mcu_t;
 
 /** qspi interface config param */
@@ -208,26 +175,47 @@ typedef struct
 	lcd_qspi_clk_t clk;
 	const lcd_qspi_init_cmd_t *init_cmd;
 	uint32_t device_init_cmd_len;
+	uint32_t frame_len;
 } lcd_spi_t;
 
 typedef struct
 {
-	lcd_device_id_t id;  /**< lcd device type, user can add if you want to add another lcd device */
-	char *name;          /**< lcd device name */
-	lcd_type_t type;     /**< lcd device hw interface */
-	media_ppi_t ppi;     /**< lcd device x y size */
-	pixel_format_t src_fmt;  /**< source data format: input to display module data format(rgb565/rgb888/yuv)*/
-	pixel_format_t out_fmt;   /**< display module output data format(rgb565/rgb666/rgb888), input to lcd device,*/
-	union {
-		const lcd_rgb_t *rgb;  /**< RGB interface lcd device config */
-		const lcd_mcu_t *mcu;  /**< MCU interface lcd device config */
-		const lcd_qspi_t *qspi;/**< QSPI interface lcd device config */
-		const lcd_spi_t *spi;  /**< SPI interface lcd device config */
-	};
-	void (*init)(void);                   /**< lcd device initial function */
-	bk_err_t (*lcd_off)(void);            /**< lcd off */
+    int id;           /**< lcd device type, user can add if you want to add another lcd device */
+    char *name;       /**< lcd device name */
+    uint8_t type;     /**< lcd device hw interface */
+    uint16_t width;   /**< lcd device width */
+    uint16_t height;  /**< lcd device height */
+    uint8_t src_fmt;  /**< source data format: input to display module data format(rgb565/rgb888/yuv) */
+    uint8_t out_fmt;  /**< display module output data format(rgb565/rgb666/rgb888), input to lcd device, 
+                                Color_depth, 24bit/pixel:RGB888,18bit/pixel:RGB666,16bit/pixel:RGB565 */
+    union {
+        const lcd_rgb_t *rgb;  /**< RGB interface lcd device config */
+        const lcd_mcu_t *mcu;  /**< MCU interface lcd device config */
+        const lcd_qspi_t *qspi;/**< QSPI interface lcd device config */
+        const lcd_spi_t *spi;  /**< SPI interface lcd device config */
+    };
+    void (*init)(void);                         /**< lcd device initial function */
+    bk_err_t (*lcd_init)(const void *handle);   /**< lcd device initial function by handle */
+    bk_err_t (*lcd_off)(const void *handle);    /**< lcd off by handle */
 } lcd_device_t;
 
+typedef struct {
+    uint16_t x_start;
+    uint16_t y_start;
+    uint16_t x_end;
+    uint16_t y_end;
+} lcd_display_area_t;
+
+
+
+typedef struct bk_lcd_i80_handle
+{
+	bk_err_t (*init)(const struct bk_lcd_i80_handle *handle);
+    bk_err_t (*write_cmd)(const void *i8080_handle, uint8_t param_count, uint32_t command, uint32_t *param);
+    bk_err_t (*deinit)(struct bk_lcd_i80_handle *handle);
+}bk_lcd_i80_handle_t;
+
+bk_lcd_i80_handle_t * lcd_i80_bus_io_register(void *io);
 
 /*
  * @}

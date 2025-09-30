@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "driver/media_types.h"
+#include "components/media_types.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -13,45 +13,45 @@
 #include "components/event.h"
 #include <../../lwip_intf_v2_1/lwip-2.1.2/port/net.h>
 #include "wifi_api.h"
-#include "wifi_demo.h"
+#include "bk_private/bk_wifi.h"
 
 
 //TODO should finally delete this file!!!
 
 /* This file defines some WiFi API wrappers, it's used for internal CLI modules only.
  **/
-// #define TAG "bk_wifi"
+#define TAG "bk_wifi"
 
-// static int wlan_scan_done_handler(void *arg, event_module_t event_module,
-// 								  int event_id, void *event_data)
-// {
-// 	wifi_scan_result_t scan_result = {0};
+static int wlan_scan_done_handler(void *arg, event_module_t event_module,
+ 								  int event_id, void *event_data)
+{
+	wifi_scan_result_t scan_result = {0};
 
-// 	BK_LOG_ON_ERR(bk_wifi_scan_get_result(&scan_result));
-// 	BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
-// 	bk_wifi_scan_free_result(&scan_result);
+	BK_LOG_ON_ERR(bk_wifi_scan_get_result(&scan_result));
+	BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
+	bk_wifi_scan_free_result(&scan_result);
 
-// 	return BK_OK;
-// }
+	return BK_OK;
+}
 
-// void demo_scan_app_init(void)
-// {
-// 	demo_scan_adv_app_init(NULL);
-// }
+void demo_scan_app_init(void)
+{
+	demo_scan_adv_app_init(NULL);
+}
 
-// void demo_scan_adv_app_init(uint8_t *oob_ssid)
-// {
-// 	wifi_scan_config_t scan_config = {0};
+void demo_scan_adv_app_init(uint8_t *oob_ssid)
+{
+	wifi_scan_config_t scan_config = {0};
 
-// 	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_SCAN_DONE,
-// 							   wlan_scan_done_handler, NULL);
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_SCAN_DONE,
+							   wlan_scan_done_handler, NULL);
 
-// 	if (oob_ssid) {
-// 		os_strncpy(scan_config.ssid, (char *)oob_ssid, WIFI_SSID_STR_LEN);
-// 		BK_LOG_ON_ERR(bk_wifi_scan_start(&scan_config));
-// 	} else
-// 		BK_LOG_ON_ERR(bk_wifi_scan_start(NULL));
-// }
+	if (oob_ssid) {
+		os_strncpy(scan_config.ssid, (char *)oob_ssid, WIFI_SSID_STR_LEN);
+		BK_LOG_ON_ERR(bk_wifi_scan_start(&scan_config));
+	} else
+		BK_LOG_ON_ERR(bk_wifi_scan_start(NULL));
+}
 
 #ifdef CONFIG_CONNECT_THROUGH_PSK_OR_SAE_PASSWORD
 int demo_sta_app_init(char *oob_ssid, u8* psk, char *connect_key)
@@ -108,6 +108,66 @@ int demo_sta_app_init(char *oob_ssid, char *connect_key)
 // 	BK_LOG_ON_ERR(bk_wifi_sta_start());
 // }
 
+int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
+{
+    wifi_ap_config_t ap_config = {0};//WIFI_DEFAULT_AP_CONFIG();
+#if 0
+    netif_ip4_config_t ip4_config = {0};
+#endif
+
+    int len, key_len = 0;
+    len = os_strlen(ap_ssid);
+
+    if (ap_key)
+        key_len = os_strlen(ap_key);
+    if (SSID_MAX_LEN < len) {
+        WIFI_LOGW("ssid name more than 32 Bytes\r\n");
+        return BK_FAIL;
+    }
+    if (0 == len) {
+        WIFI_LOGW("ssid name must not be null\r\n");
+        return BK_FAIL;
+    }
+
+    if (8 > key_len)
+        WIFI_LOGW("key less than 8 Bytes, the security will be set NONE\r\n");
+
+    if (64 < key_len) {
+        WIFI_LOGW("key more than 64 Bytes\r\n");
+        return BK_FAIL;
+    }
+
+#if 0
+    os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
+    os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
+    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
+    os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
+
+    BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
+#endif
+
+    os_strcpy(ap_config.ssid, ap_ssid);
+    if (ap_key)
+        os_strcpy(ap_config.password, ap_key);
+
+    if (ap_channel) {
+        int channel;
+        char *end;
+
+        channel = strtol(ap_channel, &end, 0);
+        if (*end) {
+            WIFI_LOGW("Invalid number '%s'", ap_channel);
+            return BK_FAIL;
+        }
+        ap_config.channel = channel;
+    }
+
+    WIFI_LOGD("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
+    BK_RETURN_ON_ERR(bk_wifi_ap_set_config(&ap_config));
+    BK_RETURN_ON_ERR(bk_wifi_ap_start());
+    return BK_OK;
+}
+
 // void demo_wlan_app_init(VIF_ADDCFG_PTR cfg)
 // {
 // 	network_InitTypeDef_st network_cfg;
@@ -130,60 +190,60 @@ int demo_sta_app_init(char *oob_ssid, char *connect_key)
 // 	}
 // }
 
-// extern const char *wifi_sec_type_string(wifi_security_t security);
+extern const char *wifi_sec_type_string(wifi_security_t security);
 
-// int demo_state_app_init(void)
-// {
-// #if CONFIG_LWIP
-// 	wifi_link_status_t link_status = {0};
-// 	wifi_ap_config_t ap_info = {0};
-// #if !CONFIG_BRIDGE
-// 	netif_ip4_config_t ap_ip4_info = {0};
-// #endif
-// 	char ssid[33] = {0};
-// #if CONFIG_WIFI4
-// #if CONFIG_BRIDGE
-// 	BK_LOGD(TAG, "[KW:]sta: %d, ap: %d, bridge: %d b/g/n\r\n", wifi_netif_sta_is_got_ip(), uap_ip_is_start(), bridge_ip_is_start());
-// #else
-// 	BK_LOGD(TAG, "[KW:]sta: %d, ap: %d, b/g/n\r\n", wifi_netif_sta_is_got_ip(), uap_ip_is_start());
-// #endif
-// #else
-// #if CONFIG_BRIDGE
-// 	BK_LOGD(TAG, "[KW:]sta: %d, ap: %d, bridge: %d b/g/n\r\n", wifi_netif_sta_is_got_ip(), uap_ip_is_start(), bridge_ip_is_start());
-// #else
-// 	BK_LOGD(TAG, "[KW:]sta: %d, ap: %d, b/g\r\n", wifi_netif_sta_is_got_ip(), uap_ip_is_start());
-// #endif
-// #endif
+int demo_state_app_init(void)
+{
+#if CONFIG_LWIP
+	wifi_link_status_t link_status = {0};
+	wifi_ap_config_t ap_info = {0};
+#if !CONFIG_BRIDGE
+	netif_ip4_config_t ap_ip4_info = {0};
+#endif
+	char ssid[33] = {0};
+#if CONFIG_WIFI4
+#if CONFIG_BRIDGE
+	BK_LOGD(TAG, "[KW:]sta: %d, ap: %d, bridge: %d b/g/n\r\n", wifi_netif_sta_is_got_ip(), uap_ip_is_start(), bridge_ip_is_start());
+#else
+	BK_LOGD(TAG, "[KW:]sta: %d, ap: %d, b/g/n\r\n", wifi_netif_sta_is_got_ip(), uap_ip_is_start());
+#endif
+#else
+#if CONFIG_BRIDGE
+	BK_LOGD(TAG, "[KW:]sta: %d, ap: %d, bridge: %d b/g/n\r\n", wifi_netif_sta_is_got_ip(), uap_ip_is_start(), bridge_ip_is_start());
+#else
+	BK_LOGD(TAG, "[KW:]sta: %d, ap: %d, b/g\r\n", wifi_netif_sta_is_got_ip(), uap_ip_is_start());
+#endif
+#endif
 
-// 	if (sta_ip_is_start()) {
-// 		os_memset(&link_status, 0x0, sizeof(link_status));
-// 		BK_RETURN_ON_ERR(bk_wifi_sta_get_link_status(&link_status));
-// 		os_memcpy(ssid, link_status.ssid, 32);
+	if (sta_ip_is_start()) {
+		os_memset(&link_status, 0x0, sizeof(link_status));
+		BK_RETURN_ON_ERR(bk_wifi_sta_get_link_status(&link_status));
+		os_memcpy(ssid, link_status.ssid, 32);
 
-// 		BK_LOGD(TAG, "[KW:]sta:rssi=%d,aid=%d,ssid=%s,bssid=%pm,channel=%d,cipher_type=%s\r\n",
-// 				   link_status.rssi, link_status.aid, ssid, link_status.bssid,
-// 				   link_status.channel, wifi_sec_type_string(link_status.security));
-// 	}
+		BK_LOGD(TAG, "[KW:]sta:rssi=%d,aid=%d,ssid=%s,bssid=%pm,channel=%d,cipher_type=%s\r\n",
+				   link_status.rssi, link_status.aid, ssid, link_status.bssid,
+				   link_status.channel, wifi_sec_type_string(link_status.security));
+	}
 
-// 	if (uap_ip_is_start()) {
-// 		os_memset(&ap_info, 0x0, sizeof(ap_info));
-// 		BK_RETURN_ON_ERR(bk_wifi_ap_get_config(&ap_info));
-// 		os_memcpy(ssid, ap_info.ssid, 32);
-// #if CONFIG_BRIDGE
-// 		BK_LOGD(TAG, "[KW:]bridge: ssid=%s, channel=%d, cipher_type=%s\r\n",
-// 				   ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
-// #else
-// 		BK_LOGD(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
-// 				   ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
+	if (uap_ip_is_start()) {
+		os_memset(&ap_info, 0x0, sizeof(ap_info));
+		BK_RETURN_ON_ERR(bk_wifi_ap_get_config(&ap_info));
+		os_memcpy(ssid, ap_info.ssid, 32);
+#if CONFIG_BRIDGE
+		BK_LOGD(TAG, "[KW:]bridge: ssid=%s, channel=%d, cipher_type=%s\r\n",
+				   ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
+#else
+		BK_LOGD(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
+				   ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
 
-// 		BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
-// 		BK_LOGD(TAG, "[KW:]ip=%s,gate=%s,mask=%s,dns=%s\r\n",
-// 				   ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
-// #endif
-// 	}
-// #endif
-// 	return BK_OK;
-// }
+		BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
+		BK_LOGD(TAG, "[KW:]ip=%s,gate=%s,mask=%s,dns=%s\r\n",
+				   ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
+#endif
+	}
+#endif
+	return BK_OK;
+}
 
 // bk_err_t demo_monitor_cb(const uint8_t *frame, uint32_t len, const wifi_frame_info_t *info)
 // {
@@ -412,15 +472,15 @@ int demo_sta_app_init(char *oob_ssid, char *connect_key)
 // #endif
 // }
 
-// void demo_wifi_ipdbg_init(uint32_t ipdbg_func, uint16_t ipdbg_value)
-// {
-// #if BK_MEM_DYNA_APPLY_EN
-//     WIFI_LOGD("wifi ip debug set: func: %d,value:%d\r\n",ipdbg_func, ipdbg_value);
-//     bk_ip_dbg_set(ipdbg_func, ipdbg_value);
-// #else
-//     WIFI_LOGD("not support!!\r\n");
-// #endif
-// }
+void demo_wifi_ipdbg_init(uint32_t ipdbg_func, uint16_t ipdbg_value)
+{
+#if BK_MEM_DYNA_APPLY_EN
+    WIFI_LOGD("wifi ip debug set: func: %d,value:%d\r\n",ipdbg_func, ipdbg_value);
+    bk_ip_dbg_set(ipdbg_func, ipdbg_value);
+#else
+    WIFI_LOGD("not support!!\r\n");
+#endif
+}
 
 // void demo_wifi_mem_apply_init(uint8_t module, uint8_t value)
 // {

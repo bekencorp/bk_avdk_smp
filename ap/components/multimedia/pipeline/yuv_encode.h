@@ -19,7 +19,8 @@ extern "C" {
 #endif
 
 #include <common/bk_include.h>
-#include <driver/media_types.h>
+#include <components/bk_video_pipeline/bk_video_pipeline.h>
+
 #include <modules/tjpgd.h>
 #include "bk_list.h"
 
@@ -79,25 +80,26 @@ void decoder_mux_dump(void);
 
 bk_err_t h264_encode_task_send_msg(uint8_t type, uint32_t param);
 
-bk_err_t h264_encode_task_open(media_camera_device_t *device);
+bk_err_t h264_encode_task_open(bk_video_pipeline_h264e_config_t *config, const bk_h264e_callback_t *cb);
 
 bk_err_t h264_encode_task_close(void);
 bk_err_t h264_encode_regenerate_idr_frame(void);
 
 bool check_h264_task_is_open(void);
 
-void jpeg_decode_restart(void);
+void video_pipeline_reset_decode(void);
 
 bk_err_t jpeg_decode_task_send_msg(uint8_t type, uint32_t param);
 
-bk_err_t jpeg_decode_task_open(media_decode_mode_t jdec_mode, media_decode_type_t jdec_type, media_rotate_t rotate_angle);
+bk_err_t jpeg_decode_task_open(media_rotate_t rotate_angle,
+	const jpeg_callback_t *jpeg_cbs, const decode_callback_t *decode_cbs);
 
 bk_err_t jpeg_decode_task_close();
 
 bool check_jpeg_decode_task_is_open(void);
 
 
-bk_err_t rotate_task_open(rot_open_t *rot_open);
+bk_err_t rotate_task_open(rot_open_t *rot_open, const decode_callback_t *decode_cbs);
 
 bk_err_t rotate_task_close(void);
 
@@ -108,7 +110,7 @@ bool check_rotate_task_is_open(void);
 void jdec_decode_clear_rotate_buffer_handle(void);
 
 
-bk_err_t scale_task_open(lcd_scale_t *lcd_scale);
+bk_err_t scale_task_open(lcd_scale_t *lcd_scale, const decode_callback_t *decode_cbs);
 bk_err_t scale_task_close(void);
 bk_err_t scale_task_send_msg(uint8_t type, uint32_t param);
 
@@ -119,10 +121,9 @@ void jpeg_decode_list_clear(LIST_HEADER_T *list);
 uint8_t jpeg_decode_list_get_count(LIST_HEADER_T *list);
 
 bk_err_t jpeg_get_task_send_msg(uint8_t type, uint32_t param);
-bk_err_t jpeg_get_task_open(void);
+bk_err_t jpeg_get_task_open(const jpeg_callback_t *jpeg_cbs, const decode_callback_t *decode_cbs);
 bk_err_t jpeg_get_task_close();
 
-void jpeg_decode_cp2_init_notify(void);
 bk_err_t jpeg_decode_single_frame(frame_buffer_t *in_frame,
 										frame_buffer_t *out_frame,
 										uint8_t scale,

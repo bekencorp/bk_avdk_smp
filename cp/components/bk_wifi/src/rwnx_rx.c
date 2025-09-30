@@ -28,6 +28,9 @@
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "controller_wifi_if.h"
 #endif
+#ifdef CONFIG_P2P
+#include "fhost_msg.h"
+#endif
 void ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx);
 wifi_monitor_cb_t wifi_monitor_get_cb(void);
 #define LLC_ETHERTYPE_IPX            0x8137
@@ -334,18 +337,17 @@ static int rwnx_get_specific_vif_id(int vif_type)
 #if CONFIG_P2P
 static int rwnx_get_probe_req_vif_id( )
 {
-	struct vif_info_tag *vif;
-
+	void *vif;
 	for (int i = 0; i < NX_VIRT_DEV_MAX; i++){
-		vif = &vif_info_tab[i];
-		if ((VIF_STA == vif->type) && (vif->p2p_rec_probe_req))
-			return vif->index;
+		vif = mac_vif_mgmt_get_entry(i);
+		if ((VIF_STA == mac_vif_mgmt_get_type(vif)) && (mac_vif_mgmt_p2p_can_rec_probe_req(vif)))
+			return mac_vif_mgmt_get_index(vif);
 	}
 
 	for (int i = 0; i < NX_VIRT_DEV_MAX; i++){
-		vif = &vif_info_tab[i];
-		if (VIF_AP == vif->type)
-			return vif->index;
+		vif = mac_vif_mgmt_get_entry(i);
+		if (VIF_AP == mac_vif_mgmt_get_type(vif))
+			return mac_vif_mgmt_get_index(vif);
 	}
 
 	return INVALID_VIF_IDX;

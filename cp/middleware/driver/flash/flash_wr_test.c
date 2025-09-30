@@ -367,6 +367,7 @@ static void flash_command_test(char *pcWriteBuffer, int xWriteBufferLen, int arg
 			bk_flash_power_saving_exit();
 			CLI_LOGI("switch to 4 line.\r\n");
 		}
+
 		BK_DUMP_OUT("flash_src_clk = %u. [0:/26M,  1:/480M,  2:/98M]\n", flash_src_clk);
 		BK_DUMP_OUT("flash_div_clk = %u. [0:/4,  1:/6,  2:/8,  3:/10]\n", flash_div_clk);
 		BK_DUMP_OUT("flash_line_mode = %u.  \n", flash_line_mode);

@@ -52,13 +52,6 @@ typedef struct bk_rlk_peer_info {
 } bk_rlk_peer_info_t;
 
 /**
-  * @brief     Callback function of sending BK Raw Link data
-  * @param     args callback arguments
-  * @param     status status of sending BK Raw Link data (succeed or fail)
-  */
-typedef void (*bk_rlk_send_ex_cb_t)(void *args, bool status);
-
-/**
  * \brief          BK Raw Link(RLK) configure tx information
  */
 typedef struct bk_rlk_config_info {
@@ -123,6 +116,13 @@ typedef enum {
 } bk_rlk_send_status_t;
 
 /**
+  * @brief     Callback function of sending BK Raw Link data
+  * @param     args callback arguments
+  * @param     status status of sending BK Raw Link data (succeed or fail)
+  */
+typedef void (*bk_rlk_send_ex_cb_t)(void *args, bool status);
+
+/**
   * @brief     Callback function of receiving BK Raw Link data
   * @param     rx_info received BK Raw Link packet information
   * @attention bk_rlk_info is a local variable，it can only be used in the callback.
@@ -143,6 +143,23 @@ typedef bk_err_t (*bk_rlk_send_cb_t)(const uint8_t *peer_mac_addr, bk_rlk_send_s
   * @param     best_channel The best channel obtained by BK Raw Link ACS
   */
 typedef bk_err_t (*bk_rlk_acs_cb_t)(const uint32_t chanstatus[],uint32_t num_channel,uint32_t best_channel);
+
+/**
+  * @brief     BK Raw Link SCAN confirmation callback
+  * @param     result The BK-RLK masters devices obtained by BK Raw Link SCAN
+  */
+typedef bk_err_t (*bk_rlk_scan_cb_t)(bk_rlk_scan_result_t *result);
+
+/**
+ * @brief BK Raw Link(RLK) transfer callback structure
+ */
+typedef struct {
+	bk_rlk_send_cb_t send_cb;
+	void *send_ex_cb;
+	bk_rlk_recv_cb_t recv_cb;
+	bk_rlk_acs_cb_t acs_cb;
+	bk_rlk_scan_cb_t scan_cb;
+} rlk_transfer_cb_t;
 
 /**
   * @brief     Initialize Raw Link function
@@ -266,7 +283,7 @@ uint8_t bk_rlk_get_channel(void);
   *          - BK_ERR_NO_MEM : out of memory
   *          - BK_ERR_NOT_FOUND : peer is not found
   */
-bk_err_t bk_rlk_send(const uint8_t *peer_mac_addr, const void *data,size_t len);
+bk_err_t bk_rlk_send(const uint8_t *peer_mac_addr, const void *data, size_t len);
 
 /**
   * @brief     Send Raw Links data
@@ -509,12 +526,6 @@ bk_err_t bk_rlk_mac_hdr_reinit(void);
 bk_err_t bk_rlk_acs_check(void);
 
 /**
-  * @brief     BK Raw Link SCAN confirmation callback
-  * @param     result The BK-RLK masters devices obtained by BK Raw Link SCAN
-  */
-typedef bk_err_t (*bk_rlk_scan_cb_t)(bk_rlk_scan_result_t *result);
-
-/**
   * @brief     Register callback function of Raw Link SCAN confirmation
   *
   * @param     cb  callback function of Raw Link SCAN confirmation status
@@ -594,6 +605,20 @@ bk_err_t bk_rlk_slave_app_init(char *ssid);
   *          - BK_ERR_NOT_INIT : Raw Link is not initialized
   */
 bk_err_t bk_rlk_slave_bssid_app_init(uint8_t *bssid);
+
+/**
+  * @brief     BK Raw Link set ACS automatic switch channel
+  *
+  * @param     auto  ture auto switch channel,false not auto switch channel
+  *
+  * @attention 1. This API is only valid if it is called after bk_rlk_init()
+  *            2. This API is only valid if it is called after bk_rlk_set_role()
+  *
+  * @return
+  *          - BK_OK : succeed
+  *          - BK_ERR_NOT_INIT : Raw Link is not initialized
+  */
+bk_err_t bk_rlk_set_acs_auto_switch_chan(uint32_t auto_switch);
 
 #ifdef __cplusplus
 }

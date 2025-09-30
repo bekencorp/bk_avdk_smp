@@ -218,6 +218,47 @@ SOCKET fsocket_init(int af, int type, int protocol)
 	return sk;
 }
 
+#if CONFIG_P2P
+SOCKET fsocket_reinit(int af, int type, int protocol)
+{
+	SOCKET sk;
+	BK_SOCKET *sk_ptr, *tmp;
+	rtos_lock_mutex(&socket_entity.fs_mutex);
+	// calc sk
+	sk = af + type + protocol;
+	// find existing socket
+	//socket_entity.sk_head.next = socket_entity.sk_head.next;
+	dl_list_for_each_safe(sk_ptr, tmp, &socket_entity.sk_head, BK_SOCKET, sk_element)
+	{
+		if((sk-1) == sk_ptr->sk)
+		{
+			WPA_LOGD("fsocket_reinit: find existing socket %d\r\n", sk);
+			// update socket
+			sk_ptr->sk = sk;
+			rtos_unlock_mutex(&socket_entity.fs_mutex);
+			WPA_LOGD("fsocket_reinit success\r\n");
+			return sk;
+		}
+	}
+	// if no exist, create new one
+	sk_ptr = (BK_SOCKET *)os_malloc(sizeof(BK_SOCKET));
+	if(0 == sk_ptr)
+	{
+		WPA_LOGE("fsocket_reinit: malloc failed\r\n");
+		rtos_unlock_mutex(&socket_entity.fs_mutex);
+		return 0;
+	}
+	// init socket
+	sk_ptr->sk = sk;
+	dl_list_init(&sk_ptr->sk_rx_msg);
+	dl_list_init(&sk_ptr->sk_tx_msg);
+	// add to socket list
+	dl_list_add(&socket_entity.sk_head, &sk_ptr->sk_element);
+	rtos_unlock_mutex(&socket_entity.fs_mutex);
+	WPA_LOGD("fsocket_reinit: create new socket %d\r\n", sk);
+	return sk;
+}
+#endif
 /*
  *
  */

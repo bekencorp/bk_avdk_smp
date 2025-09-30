@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#include <driver/media_types.h>
+#include <components/media_types.h>
 
 #define  USE_ROTT_REGISTER_CALLBACKS  1
 #define BK_ERR_ROTT_NOT_INIT    (BK_ERR_LCD_BASE - 2) /**< rotate driver not init */
@@ -31,7 +31,7 @@ typedef enum {
 	ROTATE_BURST_64 = 0,
 	ROTATE_BURST_32 = 1,
 	ROTATE_BURST_16 = 2,
-	ROTATE_BURST_8 = 3,
+	ROTATE_BURST_8 = 3,
 	ROTATE_BURST_4 = 4,
 } rott_trans_ability_t;
 

@@ -31,11 +31,17 @@ void lcd_hal_8080_cmd_send(uint8_t param_count, uint32_t command, uint32_t *para
 {
 	int i = 0;
 
-#if CONFIG_SOC_BK7236XX
-	lcd_disp_ll_set_cmd_count_i8080_cmd_para_count(param_count);
-#else
-	lcd_disp_ll_set_dat_fifo_thrd_i8080_cmd_para_count(param_count);
-#endif
+	// asic design when send data cmd param count not be 0
+	if (command == 0x2c || command == 0x3c || command == 0x2c00 || command == 0x3c00)
+	{
+		lcd_disp_ll_set_cmd_count_i8080_cmd_para_count(1);
+	}
+	else
+	{
+		lcd_disp_ll_set_cmd_count_i8080_cmd_para_count(param_count);
+	}
+
+
 	lcd_disp_ll_set_i8080_cmd_fifo_value(command);
 
 	for(i = 0; i < param_count; i++ )
@@ -95,6 +101,7 @@ void lcd_8080_reset_befor_lcd_init(void)
 void lcd_hal_8080_display_enable(bool en)
 {
 	lcd_disp_ll_set_i8080_config_i8080_disp_en(en);
+
 #if CONFIG_SOC_BK7236XX
 	lcd_disp_ll_set_i8080_config_gpio_i8080_on(en);
 #endif

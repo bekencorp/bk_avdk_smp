@@ -19,7 +19,6 @@
 #include <modules/image_scale.h>
 
 #include "media_evt.h"
-#include "frame_buffer.h"
 #include "sw_rotate.h"
 
 #define TAG "rot_cp2"

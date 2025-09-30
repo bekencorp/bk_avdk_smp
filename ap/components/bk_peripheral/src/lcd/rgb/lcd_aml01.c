@@ -13,9 +13,9 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
-#include <driver/lcd_spi.h>
+#include <driver/sim_spi.h>
 #include "lcd_panel_devices.h"
 #include "gpio_map.h"
 #include <driver/lcd.h>
@@ -256,7 +256,8 @@ const lcd_device_t lcd_device_aml01 =
 	.id = LCD_DEVICE_AML01,
 	.name = "aml01",
 	.type = LCD_TYPE_RGB,
-	.ppi = PPI_720X1280,
+	.width = 720,
+	.height = 1280,
 	.rgb = &lcd_rgb,
 	.src_fmt = PIXEL_FMT_YUYV,
 	.out_fmt = PIXEL_FMT_RGB888,

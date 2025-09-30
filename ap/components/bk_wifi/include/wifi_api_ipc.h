@@ -59,6 +59,7 @@ enum BK_WIFI_API_CMD_TYPE
     // PM management Wi-Fi command section
     STA_PM_ENABLE                       = 0x330,
     STA_PM_DISABLE                      = 0x331,
+    PS_CONFIG                           = 0x332,
 
     // MONITOR Wi-Fi command section
     MONITOR_START                       = 0x340,
@@ -71,7 +72,8 @@ enum BK_WIFI_API_CMD_TYPE
     MONITOR_SUSPEND                     = 0x347,
     FILTER_REGISTER_CB                  = 0x348,
     FILTER_FREE_PBUF                    = 0x349,
-    MONITOR_FREE_PBUF                   = 0x350,
+    MONITOR_FREE_PBUF                   = 0x34A,
+    MONITOR_GET_RESULT                  = 0x34B,
 
     // Common Wi-Fi command section
     WIFI_GET_CHANNEL                    = 0x360,
@@ -112,6 +114,53 @@ enum BK_WIFI_API_CMD_TYPE
     CSI_INFO_GET                        = 0x3C4,
     CSI_DEMO_LIGHT                      = 0x3C5,
 
+    // P2P command section
+    P2P_ENABLE                          = 0x3D0,
+    P2P_FIND                            = 0x3D1,
+    P2P_LISTEN                          = 0x3D2,
+    P2P_STOP_FIND                       = 0x3D3,
+    P2P_CONNECT                         = 0x3D4,
+    P2P_CANCEL                          = 0x3D5,
+
+    // RLK command section
+    RLK_REGISTER_SEND_CB                = 0x400,
+    RLK_UNREGISTER_SEND_CB              = 0x401,
+    RLK_REGISTER_RECV_CB                = 0x402,
+    RLK_UNREGISTER_RECV_CB              = 0x403,
+    RLK_REGISTER_ACS_CFM_CB             = 0x404,
+    RLK_UNREGISTER_ACS_CFM_CB           = 0x405,
+    RLK_REGISTER_SCAN_CFM_CB            = 0x406,
+    RLK_UNREGISTER_SCAN_CFM_CB          = 0x407,
+    RLK_INIT                            = 0x408,
+    RLK_DEINIT                          = 0x409,
+    RLK_SET_CHANNEL                     = 0x40A,
+    RLK_GET_CHANNEL                     = 0x40B,
+    //RLK_SEND                            = 0x40C,
+    RLK_SEND_EX                         = 0x40D,
+    RLK_SEND_BY_OUI                     = 0x40E,
+    RLK_ADD_PEER                        = 0x40F,
+    RLK_DEL_PEER                        = 0x410,
+    RLK_GET_PEER                        = 0x411,
+    RLK_IS_PEER_EXIST                   = 0x412,
+    RLK_GET_PEER_NUM                    = 0x413,
+    RLK_SET_TX_AC                       = 0x414,
+    RLK_SET_TX_TIMEOUT_MS               = 0x415,
+    RLK_SET_TX_POWER                    = 0x416,
+    RLK_SET_TX_RATE                     = 0x417,
+    RLK_SET_TX_RETRY_CNT                = 0x418,
+    RLK_SLEEP                           = 0x419,
+    RLK_WAKEUP                          = 0x41A,
+    RLK_ADD_WHITE_LIST                  = 0x41B,
+    RLK_DEL_WHITE_LIST                  = 0x41C,
+    RLK_SET_MAC_HDR_TYPE                = 0x41D,
+    RLK_MAC_HDR_REINIT                  = 0x41E,
+    RLK_ACS_CHECK                       = 0x41F,
+    RLK_SCAN                            = 0x420,
+    RLK_SET_ROLE                        = 0x421,
+    RLK_SLAVE_APP_INIT                  = 0x422,
+    RLK_SLAVE_BSSID_APP_INIT            = 0x423,
+    RLK_SET_ACS_AUTO_SWITCH_CHAN        = 0x424,
+
     BK_WIFI_API_CMD_BUTT                = BK_CMD_WIFI_API_END
 };
 
@@ -123,6 +172,13 @@ enum BK_WIFI_API_EVT_TYPE
 
     MONITOR_REGISTER_CB_IND             = 0x310,
     FILER_REGISTER_CB_IND               = 0x311,
+
+    RLK_REGISTER_SEND_CB_IND            = 0x320,
+    RLK_REGISTER_SEND_EX_CB_IND         = 0x321,
+    RLK_REGISTER_RECV_CB_IND            = 0x322,
+    RLK_REGISTER_ACS_CFM_CB_IND         = 0x323,
+    RLK_REGISTER_SCAN_CFM_CB_IND        = 0x324,
+    RLK_TX_SEND_EVT                     = 0x325,
 
     BK_WIFI_API_EVT_BUTT                = BK_EVT_WIFI_API_END
 };
@@ -206,8 +262,8 @@ struct wifi_api_com_req
 bk_err_t wifi_send_com_api_cmd(uint32_t cmd_id, uint32_t argc, ...);
 bk_err_t wifi_handle_api_evt(uint32_t evt_id, uint8_t *evt_data, uint16_t evt_len);
 
-
-
+bk_err_t bk_wifi_filter_register_ind(uint8_t * msg_payload);
+bk_err_t bk_wifi_monitor_register_ind(uint8_t * msg_payload);
 
 #ifdef __cplusplus
 }

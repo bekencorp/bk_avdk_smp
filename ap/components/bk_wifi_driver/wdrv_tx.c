@@ -5,6 +5,43 @@
 
 void __asm_flush_dcache_range(void* begin, void* end);
 
+#if CONFIG_BK_RAW_LINK
+int wdrv_special_txdata_sender(void *head, uint32_t vif_idx)
+{
+	bk_err_t ret;
+	struct wdrv_msg msg;
+	struct cpdu_t * cpdu = (struct cpdu_t *)head;
+
+    WDRV_LOGV("%s head:%d\r\n",__func__, head);
+	msg.type = WDRV_TASK_MSG_TXDATA;
+	msg.arg = (uint32_t)cpdu;
+	msg.retry_flag = 0;
+
+	cpdu->co_hdr.vif_idx = vif_idx;
+	cpdu->co_hdr.type = TX_MSDU_DATA;
+	cpdu->next = NULL;
+
+    if(!cpdu->co_hdr.need_free)
+    {
+        WDRV_STATS_INC(wdrv_tx_cnt,1);
+        WDRV_STATS_INC(tx_alloc_num,1);
+    }
+    else
+    {
+        WDRV_STATS_INC(wdrv_rxc_cnt,1);
+    }
+
+	ret = rtos_push_to_queue(&wdrv_env.io_queue, &msg, 1 * SECONDS);
+	if (kNoErr != ret) {
+		WDRV_LOGE("%s failed, ret=%d\r\n",__func__, ret);
+        WDRV_STATS_INC(wdrv_tx_snder_fail,1);
+		os_free(head);
+	}
+
+	return ret;
+}
+#endif
+
 int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 {
 	bk_err_t ret;
@@ -236,7 +273,7 @@ int wdrv_tx_msg_send(uint8_t *msg, uint16_t msg_len,uint8_t waitcfm)
 
     if(cpdu == NULL) return BK_FAIL;
 
-    WDRV_LOGD("%s msg:%x len:%d cfm:%d\r\n",__func__, msg, msg_len, waitcfm);
+    WDRV_LOGV("%s msg:%x len:%d cfm:%d\r\n",__func__, msg, msg_len, waitcfm);
     memcpy(cpdu+1, msg,msg_len);
     
     cpdu->co_hdr.type = TX_BK_CMD_DATA;
@@ -265,7 +302,7 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
     uint32_t int_level = 0;
     wdrv_cmd_hdr *hdr = NULL;
 
-    WDRV_LOGD("%s msg:%x len:%d\r\n",__func__, msg, msg_len);
+    WDRV_LOGV("%s msg:%x len:%d\r\n",__func__, msg, msg_len);
     BK_ASSERT(msg_len < MAX_CMD_BUF_PAYLOAD);
     if (!msg) {
         WDRV_LOGE("%s: warning msg is null.\n", __func__);

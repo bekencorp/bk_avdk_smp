@@ -1044,22 +1044,22 @@ static uint8_t get_rf_mode(void)
 
 static int32_t init_mutex(void **mutex)
 {
-    return rtos_init_mutex((beken_mutex_t *)mutex);
+    return rtos_init_recursive_mutex((beken_mutex_t *)mutex);
 }
 
 static int32_t lock_mutex(void **mutex)
 {
-    return rtos_lock_mutex((beken_mutex_t *)mutex);
+    return rtos_lock_recursive_mutex((beken_mutex_t *)mutex);
 }
 
 static int32_t unlock_mutex(void **mutex)
 {
-    return rtos_unlock_mutex((beken_mutex_t *)mutex);
+    return rtos_unlock_recursive_mutex((beken_mutex_t *)mutex);
 }
 
 static int32_t deinit_mutex(void **mutex)
 {
-    return rtos_deinit_mutex((beken_mutex_t *)mutex);
+    return rtos_deinit_recursive_mutex((beken_mutex_t *)mutex);
 }
 
 static int32_t init_semaphore(void **semaphore, int32_t max_count)

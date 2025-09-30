@@ -32,9 +32,7 @@
 #include "wdrv_co_list.h"
 #include "wdrv_tx.h"
 #include "wifi_api_ipc.h"
-
-extern bk_err_t bk_wifi_filter_register_ind(uint8_t * msg_payload);
-extern bk_err_t bk_wifi_monitor_register_ind(uint8_t * msg_payload);
+#include "raw_link_api.h"
 
 bk_err_t wifi_send_com_api_cmd(uint32_t cmd_id, uint32_t argc, ...)
 {
@@ -95,7 +93,34 @@ bk_err_t wifi_handle_api_evt(uint32_t evt_id, uint8_t *evt_data, uint16_t evt_le
         {
             bk_wifi_filter_register_ind(evt_data);
             break;
-        }        
+        }
+#if CONFIG_BK_RAW_LINK
+        case RLK_REGISTER_SEND_CB_IND:
+        {
+            bk_rlk_send_register_ind(evt_data);
+            break;
+        }
+        case RLK_REGISTER_SEND_EX_CB_IND:
+        {
+            bk_rlk_send_ex_register_ind(evt_data);
+            break;
+        }
+        case RLK_REGISTER_RECV_CB_IND:
+        {
+            bk_rlk_recv_register_ind(evt_data);
+            break;
+        }
+        case RLK_REGISTER_ACS_CFM_CB_IND:
+        {
+            bk_rlk_acs_cfm_register_ind(evt_data);
+            break;
+        }
+        case RLK_REGISTER_SCAN_CFM_CB_IND:
+        {
+            bk_rlk_scan_cfm_register_ind(evt_data);
+            break;
+        }
+#endif
         default:
         {
             break;

@@ -569,7 +569,7 @@ static void sys_dump_cpu1_int_32_63_en(void)
 	SOC_LOGD("	cpu1_i2s2_int_en: %8x\r\n", r->cpu1_i2s2_int_en);
 	SOC_LOGD("	cpu1_h264_int_en: %8x\r\n", r->cpu1_h264_int_en);
 	SOC_LOGD("	cpu1_sdmadc_int_en: %8x\r\n", r->cpu1_sdmadc_int_en);
-	SOC_LOGD("	cpu1_eth_int_en: %8x\r\n", r->cpu1_eth_int_en);
+	SOC_LOGD("	cpu1_mbox0_int_en: %8x\r\n", r->cpu1_mbox0_int_en);
 	SOC_LOGD("	cpu1_mbox1_int_en: %8x\r\n", r->cpu1_mbox1_int_en);
 	SOC_LOGD("	cpu1_bmc64_int_en: %8x\r\n", r->cpu1_bmc64_int_en);
 	SOC_LOGD("	cpu1_dpll_unlock_int_en: %8x\r\n", r->cpu1_dpll_unlock_int_en);

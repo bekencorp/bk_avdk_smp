@@ -2,7 +2,7 @@
 #include "os/mem.h"
 #include "os/os.h"
 #include <common/bk_typedef.h>
-#include "driver/media_types.h"
+#include "components/media_types.h"
 #include "modules/image_scale_types.h"
 #include "modules/image_scale.h"
 

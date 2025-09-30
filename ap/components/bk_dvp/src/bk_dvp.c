@@ -16,7 +16,7 @@
 #include <os/mem.h>
 #include <os/str.h>
 #include <components/log.h>
-
+#include <driver/pwr_clk.h>
 #include <driver/dma.h>
 #include <driver/i2c.h>
 #include <driver/jpeg_enc.h>
@@ -25,13 +25,14 @@
 #include <driver/h264.h>
 #include <driver/yuv_buf.h>
 
-#include <driver/dvp_camera.h>
+#include <components/dvp_camera.h>
 
 #include "bk_misc.h"
 #include "gpio_driver.h"
-#include <driver/video_common_driver.h>
 #include "avdk_crc.h"
 #include "media_utils.h"
+#include "dvp_private.h"
+
 #define TAG "dvp_drv"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -40,128 +41,7 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-#define H264_SELF_DEFINE_SEI_SIZE (96)
-#define FRAME_BUFFER_CACHE (1024 * 10)
-
-extern uint8_t *media_bt_share_buffer;
-
-//#define DVP_DIAG_DEBUG
-
-#ifdef DVP_DIAG_DEBUG
-
-#define DVP_DIAG_DEBUG_INIT()                   \
-    do {                                        \
-        GPIO_DOWN(2);                           \
-        GPIO_DOWN(3);                           \
-        GPIO_DOWN(4);                           \
-        GPIO_DOWN(5);                           \
-        GPIO_DOWN(44);                          \
-        GPIO_DOWN(45);                          \
-        GPIO_DOWN(46);                          \
-    } while (0)
-
-#define DVP_VSYNC_ENTRY()          GPIO_UP(2)
-#define DVP_VSYNC_OUT()            GPIO_DOWN(2)
-
-#define DVP_JPEG_EOF_ENTRY()       GPIO_UP(3)
-#define DVP_JPEG_EOF_OUT()         GPIO_DOWN(3)
-
-#define DVP_H264_EOF_ENTRY()       GPIO_UP(3)
-#define DVP_H264_EOF_OUT()         GPIO_DOWN(3)
-
-#define DVP_YUV_EOF_ENTRY()        GPIO_UP(4)
-#define DVP_YUV_EOF_OUT()          GPIO_DOWN(4)
-
-#define DVP_PPI_ERROR_ENTRY()       GPIO_UP(5)
-#define DVP_PPI_ERROR_OUT()         GPIO_DOWN(5)
-
-#define DVP_SIZE_ERROR_ENTRY()      GPIO_UP(44)
-#define DVP_SIZE_ERROR_OUT()        GPIO_DOWN(44)
-
-#define DVP_RESET_ENTRY()           GPIO_UP(45)
-#define DVP_RESET_OUT()             GPIO_DOWN(45)
-
-#define DVP_DMA_ENTRY()             GPIO_UP(46)
-#define DVP_DMA_OUT()               GPIO_DOWN(46)
-
-#else
-#define DVP_DIAG_DEBUG_INIT()
-
-#define DVP_VSYNC_ENTRY()
-#define DVP_VSYNC_OUT()
-
-#define DVP_JPEG_EOF_ENTRY()
-#define DVP_JPEG_EOF_OUT()
-
-#define DVP_H264_EOF_ENTRY()
-#define DVP_H264_EOF_OUT()
-
-#define DVP_YUV_EOF_ENTRY()
-#define DVP_YUV_EOF_OUT()
-
-#define DVP_SIZE_ERROR_ENTRY()
-#define DVP_SIZE_ERROR_OUT()
-
-#define DVP_RESET_ENTRY()
-#define DVP_RESET_OUT()
-
-#define DVP_PPI_ERROR_ENTRY()
-#define DVP_PPI_ERROR_OUT()
-
-#define DVP_DMA_ENTRY()
-#define DVP_DMA_OUT()
-
-#define DVP_VSYNC_ENTRY()
-#define DVP_VSYNC_OUT()
-
-#endif
-
-typedef struct
-{
-    uint32_t yuv_em_addr;
-    uint32_t yuv_pingpong_length;
-    uint32_t yuv_data_offset;
-    uint8_t dma_collect_yuv;
-} encode_yuv_config_t;
-
-typedef struct
-{
-    uint8_t eof : 1;
-    uint8_t error : 1;
-    uint8_t i_frame : 1;
-    uint8_t not_free : 1;
-    uint8_t regenerate_idr : 1;
-    uint8_t sequence;
-
-#ifdef CONFIG_H264_ADD_SELF_DEFINE_SEI
-    uint8_t sei[H264_SELF_DEFINE_SEI_SIZE]; // save frame infomation
-#endif
-
-    uint8_t dma_channel;
-    uint32_t frame_id;
-    uint32_t dma_length;
-    uint8_t *encode_buffer;
-    media_state_t dvp_state;
-    beken_semaphore_t sem;
-    frame_buffer_t *encode_frame;
-    frame_buffer_t *yuv_frame;
-    dvp_config_t config;
-    bk_dvp_callback_t callback;
-    encode_yuv_config_t *yuv_config;
-    const dvp_sensor_config_t *sensor;
-    void *enc_stream;
-    void *yuv_stream;
-
-#if (MEDIA_DEBUG_TIMER_ENABLE)
-    beken_timer_t timer;
-    uint32_t curr_length;
-    uint32_t later_seq;
-    uint32_t later_kbps;
-    uint32_t latest_kbps;
-#endif
-} dvp_driver_handle_t;
-
-static dvp_driver_handle_t *s_dvp_camera_handle = NULL;
+uint32_t s_dvp_dma_length = 0;
 static uint8_t *dvp_camera_encode = NULL;
 static const dvp_sensor_config_t **devices_list = NULL;
 static uint16_t devices_size = 0;
@@ -240,7 +120,7 @@ const dvp_sensor_config_t *bk_dvp_get_sensor_auto_detect(void)
 
 static bk_err_t dvp_camera_init_device(dvp_driver_handle_t *handle)
 {
-    dvp_config_t *config = &handle->config;
+    bk_dvp_config_t *config = handle->config;
     const dvp_sensor_config_t *sensor = handle->sensor;
 
     if (config->width != (sensor->def_ppi >> 16) ||
@@ -260,7 +140,7 @@ static bk_err_t dvp_camera_init_device(dvp_driver_handle_t *handle)
 static void dvp_camera_dma_finish_callback(dma_id_t id)
 {
     DVP_DMA_ENTRY();
-    s_dvp_camera_handle->dma_length += FRAME_BUFFER_CACHE;
+    s_dvp_dma_length += FRAME_BUFFER_CACHE;
     DVP_DMA_OUT();
 }
 
@@ -269,7 +149,7 @@ static bk_err_t dvp_camera_dma_config(dvp_driver_handle_t *handle)
     bk_err_t ret = BK_OK;
     dma_config_t dma_config = {0};
     uint32_t encode_fifo_addr;
-    dvp_config_t *config = &handle->config;
+    bk_dvp_config_t *config = handle->config;
 
     if (config->img_format & IMAGE_H264)
     {
@@ -293,12 +173,12 @@ static bk_err_t dvp_camera_dma_config(dvp_driver_handle_t *handle)
 
     if (config->img_format & IMAGE_H264)
     {
-        handle->encode_frame = handle->callback.frame_malloc(IMAGE_H264, handle->enc_stream, CONFIG_H264_FRAME_SIZE);
+        handle->encode_frame = handle->callback->malloc(IMAGE_H264, CONFIG_H264_FRAME_SIZE);
         handle->encode_frame->fmt = PIXEL_FMT_H264;
     }
     else if (config->img_format & IMAGE_MJPEG)
     {
-        handle->encode_frame = handle->callback.frame_malloc(IMAGE_MJPEG, handle->enc_stream, CONFIG_JPEG_FRAME_SIZE);
+        handle->encode_frame = handle->callback->malloc(IMAGE_MJPEG, CONFIG_JPEG_FRAME_SIZE);
         handle->encode_frame->fmt = PIXEL_FMT_JPEG;
     }
 
@@ -381,15 +261,11 @@ static bk_err_t encode_yuv_dma_cpy(void *out, const void *in, uint32_t len, dma_
 
 static bk_err_t dvp_camera_init(dvp_driver_handle_t *handle)
 {
-    handle->sensor = bk_dvp_detect();
+    handle->sensor = bk_dvp_detect(handle->config);
     if (handle->sensor == NULL)
     {
         return BK_FAIL;
     }
-
-#ifdef CONFIG_DVP_POWER_GPIO_CTRL
-    bk_gpio_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_DVP, CONFIG_DVP_CTRL_POWER_GPIO_ID, GPIO_OUTPUT_STATE_HIGH);
-#endif
 
     /* set current used camera config */
     BK_RETURN_ON_ERR(dvp_camera_init_device(handle));
@@ -400,34 +276,27 @@ static bk_err_t dvp_camera_init(dvp_driver_handle_t *handle)
 static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
 {
     // step 1: deinit dvp gpio, data cannot transfer
-    // bk_video_gpio_deinit(DVP_GPIO_ALL);
+#ifndef CONFIG_GPIO_DEFAULT_SET_SUPPORT
+    dvp_camera_io_deinit(handle->config->io_config);
+#endif
 
     // step 2: deinit i2c
-    bk_i2c_deinit(CONFIG_DVP_CAMERA_I2C_ID);
+    bk_i2c_deinit(handle->config->i2c_config.id);
 
     // step 3: deinit hardware
-    if (handle && handle->sensor)
+    if (handle->sensor)
     {
         bk_yuv_buf_deinit();
         bk_h264_encode_disable();
         bk_h264_deinit();
         bk_jpeg_enc_deinit();
+        handle->sensor = NULL;
     }
 
-    bk_video_dvp_mclk_disable();
+    // step 4: deinit dvp mclk
+    dvp_camera_mclk_disable();
 
-#ifdef CONFIG_DVP_POWER_GPIO_CTRL
-    // step 4: power off
-    bk_gpio_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_DVP, CONFIG_DVP_CTRL_POWER_GPIO_ID, GPIO_OUTPUT_STATE_LOW);
-#endif
-
-    if (handle == NULL)
-    {
-        LOGD("%s, %d\r\n", __func__, __LINE__);
-        return BK_OK;
-    }
-
-    uint16_t format = handle->config.img_format;
+    uint16_t format = handle->config->img_format;
 
     if (format != IMAGE_YUV)
     {
@@ -437,10 +306,9 @@ static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
         if (format & IMAGE_H264)
         {
             bk_dma_free(DMA_DEV_H264, handle->dma_channel);
-
             if (handle->encode_frame)
             {
-                handle->callback.frame_free(IMAGE_H264, handle->enc_stream, handle->encode_frame);
+                handle->callback->complete(IMAGE_H264, handle->encode_frame, DVP_FRAME_ERR);
                 handle->encode_frame = NULL;
             }
         }
@@ -450,40 +318,24 @@ static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
             bk_dma_free(DMA_DEV_JPEG, handle->dma_channel);
             if (handle->encode_frame)
             {
-                handle->callback.frame_free(IMAGE_MJPEG, handle->enc_stream, handle->encode_frame);
+                handle->callback->complete(IMAGE_MJPEG, handle->encode_frame, DVP_FRAME_ERR);
                 handle->encode_frame = NULL;
             }
-
         }
 
-        if ((format & IMAGE_YUV) && handle->yuv_config)
+        if ((format & IMAGE_YUV) && format != IMAGE_YUV)
         {
-            bk_dma_stop(handle->yuv_config->dma_collect_yuv);
-            bk_dma_deinit(handle->yuv_config->dma_collect_yuv);
-            bk_dma_free(DMA_DEV_DTCM, handle->yuv_config->dma_collect_yuv);
-            os_free(handle->yuv_config);
-            handle->yuv_config = NULL;
-        }
-
-        if (handle->enc_stream)
-        {
-            handle->callback.frame_clear(handle->enc_stream);// h264/jpeg list clear
-            handle->callback.frame_deinit(handle->enc_stream);// h264/jpeg list delect
-            handle->enc_stream = NULL;
+            bk_dma_stop(handle->yuv_config.dma_collect_yuv);
+            bk_dma_deinit(handle->yuv_config.dma_collect_yuv);
+            bk_dma_free(DMA_DEV_DTCM, handle->yuv_config.dma_collect_yuv);
+            os_memset(&handle->yuv_config, 0, sizeof(encode_yuv_config_t));
         }
     }
 
     if (handle->yuv_frame)
     {
-        handle->callback.frame_free(IMAGE_YUV, handle->yuv_stream, handle->yuv_frame);
+        handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_ERR);
         handle->yuv_frame = NULL;
-    }
-
-    if (handle->yuv_stream)
-    {
-        handle->callback.frame_clear(handle->yuv_stream);// yuv list clear
-        handle->callback.frame_deinit(handle->yuv_stream);// yuv list delect
-        handle->yuv_stream = NULL;
     }
 
     if (handle->sem)
@@ -512,11 +364,8 @@ static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
 #endif
 
     handle->dvp_state = MASTER_TURN_OFF;
-
     os_free(handle);
-
-    s_dvp_camera_handle = NULL;
-
+    bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VIDP_JPEG_EN,PM_POWER_MODULE_STATE_OFF);
     LOGD("%s complete!\r\n", __func__);
 
     return BK_OK;
@@ -524,7 +373,7 @@ static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
 
 static void dvp_camera_reset_hardware_modules_handler(dvp_driver_handle_t *handle)
 {
-    dvp_config_t *config = &handle->config;
+    bk_dvp_config_t *config = handle->config;
 
     if (config->img_format & IMAGE_MJPEG)
     {
@@ -541,10 +390,7 @@ static void dvp_camera_reset_hardware_modules_handler(dvp_driver_handle_t *handl
 
     bk_yuv_buf_soft_reset();
 
-    if (handle->yuv_config)
-    {
-        handle->yuv_config->yuv_data_offset = 0;
-    }
+    handle->yuv_config.yuv_data_offset = 0;
 
     if (handle->dma_channel < DMA_ID_MAX)
     {
@@ -563,7 +409,7 @@ static void dvp_camera_sensor_ppi_err_handler(yuv_buf_unit_t id, void *param)
 
     dvp_driver_handle_t *handle = (dvp_driver_handle_t *)param;
 
-    if (handle == NULL || handle->dvp_state != MASTER_TURN_ON)
+    if (handle->dvp_state != MASTER_TURN_ON)
     {
         LOGD("%s, %d\r\n", __func__, __LINE__);
         DVP_PPI_ERROR_OUT();
@@ -583,20 +429,33 @@ static void yuv_sm0_line_done(yuv_buf_unit_t id, void *param)
 {
     dvp_driver_handle_t *handle = (dvp_driver_handle_t *)param;
 
-    if (handle == NULL || handle->dvp_state != MASTER_TURN_ON)
+    if (handle->dvp_state != MASTER_TURN_ON)
     {
         return;
     }
 
-    encode_yuv_config_t *yuv_config = handle->yuv_config;
+    encode_yuv_config_t *yuv_config = &handle->yuv_config;
     if ((yuv_config->yuv_data_offset + yuv_config->yuv_pingpong_length) > handle->yuv_frame->length)
     {
         yuv_config->yuv_data_offset = 0;
         handle->error = true;
     }
 
-    BK_WHILE(bk_dma_get_enable_status(yuv_config->dma_collect_yuv));
+    if (bk_dma_get_enable_status(yuv_config->dma_collect_yuv))
+    {
+        LOGW("%s, dma is busy\n", __func__);
+        // dma is busy
+        handle->error = true;
+    }
+
     bk_dma_stop(yuv_config->dma_collect_yuv);
+
+    if (handle->error)
+    {
+        // do not memcpy yuv data
+        return;
+    }
+
     bk_dma_set_src_start_addr(yuv_config->dma_collect_yuv,
                               (uint32_t)yuv_config->yuv_em_addr);
     bk_dma_set_dest_start_addr(yuv_config->dma_collect_yuv,
@@ -609,20 +468,33 @@ static void yuv_sm1_line_done(yuv_buf_unit_t id, void *param)
 {
     dvp_driver_handle_t *handle = (dvp_driver_handle_t *)param;
 
-    if (handle == NULL || handle->dvp_state != MASTER_TURN_ON)
+    if (handle->dvp_state != MASTER_TURN_ON)
     {
         return;
     }
 
-    encode_yuv_config_t *yuv_config = handle->yuv_config;
+    encode_yuv_config_t *yuv_config = &handle->yuv_config;
     if ((yuv_config->yuv_data_offset + yuv_config->yuv_pingpong_length) > handle->yuv_frame->length)
     {
         yuv_config->yuv_data_offset = 0;
         handle->error = true;
     }
 
-    BK_WHILE(bk_dma_get_enable_status(yuv_config->dma_collect_yuv));
+    if (bk_dma_get_enable_status(yuv_config->dma_collect_yuv))
+    {
+        LOGW("%s, dma is busy\n", __func__);
+        // dma is busy
+        handle->error = true;
+    }
+
     bk_dma_stop(yuv_config->dma_collect_yuv);
+
+    if (handle->error)
+    {
+        // do not memcpy yuv data
+        return;
+    }
+
     bk_dma_set_src_start_addr(yuv_config->dma_collect_yuv,
                               (uint32_t)yuv_config->yuv_em_addr + yuv_config->yuv_pingpong_length);
     bk_dma_set_dest_start_addr(yuv_config->dma_collect_yuv,
@@ -678,36 +550,34 @@ static void dvp_camera_yuv_eof_handler(yuv_buf_unit_t id, void *param)
 
     DVP_YUV_EOF_ENTRY();
 
-    if (handle == NULL || handle->dvp_state != MASTER_TURN_ON)
+    if (handle->dvp_state != MASTER_TURN_ON)
     {
         DVP_YUV_EOF_OUT();
         return;
     }
 
-    if (handle->error || handle->yuv_frame == NULL
-        || handle->yuv_frame->frame == NULL)
+    if (handle->error)
     {
         LOGE("%s, yuv frame error\r\n", __func__);
     }
 
-    uint32_t size = handle->config.width * handle->config.height * 2;
+    uint32_t size = handle->config->width * handle->config->height * 2;
 
     handle->yuv_frame->sequence = handle->frame_id++;
     handle->yuv_frame->timestamp = get_current_timestamp();
 
-    new_yuv = handle->callback.frame_malloc(IMAGE_YUV, handle->yuv_stream, size);
+    new_yuv = handle->callback->malloc(IMAGE_YUV, size);
     if (new_yuv)
     {
         new_yuv->width = handle->yuv_frame->width;
         new_yuv->height = handle->yuv_frame->height;
         new_yuv->fmt = handle->yuv_frame->fmt;
         new_yuv->length = size;
-        handle->callback.frame_complete(IMAGE_YUV, handle->yuv_stream, handle->yuv_frame);
+        handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_OK);
         handle->yuv_frame = new_yuv;
     }
     else
     {
-        //frame_buffer_reset(handle->yuv_frame);
         //LOGE("%s malloc frame failed\n", __func__);
     }
 
@@ -724,17 +594,10 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
 
     uint32_t real_length = 0, recv_length = 0;
 
-    if (handle == NULL || handle->dvp_state != MASTER_TURN_ON)
+    if (handle->dvp_state != MASTER_TURN_ON)
     {
         DVP_JPEG_EOF_OUT();
         return;
-    }
-
-    if (handle->encode_frame == NULL
-        || handle->encode_frame->frame == NULL)
-    {
-        LOGE("handle->encode_frame NULL error\n");
-        goto error;
     }
 
     bk_dma_flush_src_buffer(handle->dma_channel);
@@ -742,7 +605,8 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
     recv_length = FRAME_BUFFER_CACHE - bk_dma_get_remain_len(handle->dma_channel);
     bk_dma_stop(handle->dma_channel);
 
-    handle->dma_length = handle->dma_length + recv_length - JPEG_CRC_SIZE;
+    s_dvp_dma_length += recv_length - JPEG_CRC_SIZE;
+    handle->dma_length = s_dvp_dma_length;
 
     if (handle->dma_length != real_length)
     {
@@ -756,15 +620,16 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
         }
     }
 
+    handle->dma_length = 0;
+    s_dvp_dma_length = 0;
+
     if (handle->error)
     {
         handle->encode_frame->length = 0;
-        handle->dma_length = 0;
         DVP_JPEG_EOF_OUT();
         return;
     }
 
-    handle->dma_length = 0;
     handle->encode_frame->timestamp = get_current_timestamp();
 
     for (uint32_t i = real_length; i > real_length - 10; i--)
@@ -788,9 +653,7 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
 #endif
         handle->encode_frame->length = real_length;
         handle->encode_frame->sequence = handle->frame_id++;
-
-        frame_buffer = handle->callback.frame_malloc(IMAGE_MJPEG, handle->enc_stream, CONFIG_JPEG_FRAME_SIZE);
-
+        frame_buffer = handle->callback->malloc(IMAGE_MJPEG, CONFIG_JPEG_FRAME_SIZE);
         if (frame_buffer == NULL)
         {
             //LOGE("alloc frame error\n");
@@ -799,10 +662,11 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
         }
         else
         {
-            frame_buffer->width = handle->config.width;
-            frame_buffer->height = handle->config.height;
+            frame_buffer->width = handle->config->width;
+            frame_buffer->height = handle->config->height;
             frame_buffer->fmt = PIXEL_FMT_JPEG;
-            handle->callback.frame_complete(IMAGE_MJPEG, handle->enc_stream, handle->encode_frame);
+            frame_buffer->length = real_length;
+            handle->callback->complete(IMAGE_MJPEG, handle->encode_frame, DVP_FRAME_OK);
             handle->encode_frame = frame_buffer;
         }
     }
@@ -822,12 +686,12 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
     bk_dma_set_dest_addr(handle->dma_channel, (uint32_t)handle->encode_frame->frame, (uint32_t)(handle->encode_frame->frame + handle->encode_frame->size));
     bk_dma_start(handle->dma_channel);
 
-    if (handle->config.img_format & IMAGE_YUV)
+    if (handle->config->img_format & IMAGE_YUV)
     {
         DVP_YUV_EOF_ENTRY();
-        encode_yuv_config_t *yuv_config = handle->yuv_config;
+        encode_yuv_config_t *yuv_config = &handle->yuv_config;
         frame_buffer_t *new_yuv = NULL;
-        uint32_t size = handle->config.width * handle->config.height * 2;
+        uint32_t size = handle->config->width * handle->config->height * 2;
         yuv_config->yuv_data_offset = 0;
         bk_dma_flush_src_buffer(yuv_config->dma_collect_yuv);
         handle->yuv_frame->sequence = handle->frame_id - 1;
@@ -835,19 +699,18 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
         LOGV("%s, ppi:%d-%d, length:%d, fmt:%d, seq:%d, %p\r\n", __func__, handle->yuv_frame->width,
             handle->yuv_frame->height, handle->yuv_frame->length,
             handle->yuv_frame->fmt, handle->yuv_frame->sequence, handle->yuv_frame);
-        new_yuv = handle->callback.frame_malloc(IMAGE_YUV, handle->enc_stream, size);
+        new_yuv = handle->callback->malloc(IMAGE_YUV, size);
         if (new_yuv)
         {
             new_yuv->width = handle->yuv_frame->width;
             new_yuv->height = handle->yuv_frame->height;
             new_yuv->fmt = handle->yuv_frame->fmt;
             new_yuv->length = size;
-            handle->callback.frame_complete(IMAGE_YUV, handle->enc_stream, handle->yuv_frame);
+            handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_OK);
             handle->yuv_frame = new_yuv;
         }
         else
         {
-            //frame_buffer_reset(handle->yuv_frame);
             //LOGE("%s malloc new yuv frame failed\n", __func__);
         }
         DVP_YUV_EOF_OUT();
@@ -856,10 +719,6 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
     DVP_JPEG_EOF_OUT();
 
     return;
-
-error:
-    bk_dma_stop(handle->dma_channel);
-    bk_yuv_buf_stop(JPEG_MODE);
 }
 
 static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
@@ -868,18 +727,10 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
 
     dvp_driver_handle_t *handle = (dvp_driver_handle_t *)param;
 
-    if (handle == NULL || handle->dvp_state != MASTER_TURN_ON)
+    if (handle->dvp_state != MASTER_TURN_ON)
     {
         DVP_H264_EOF_OUT();
         return;
-    }
-
-    if (handle->encode_frame == NULL
-        || handle->encode_frame->frame == NULL)
-    {
-        LOGE("handle->encode_frame NULL error\n");
-        DVP_H264_EOF_OUT();
-        goto error;
     }
 
     uint32_t real_length = bk_h264_get_encode_count() * 4;
@@ -922,7 +773,8 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
 
     bk_dma_stop(handle->dma_channel);
 
-    handle->dma_length += remain_length;
+    s_dvp_dma_length += remain_length;
+    handle->dma_length = s_dvp_dma_length;
 
     if (handle->dma_length != real_length)
     {
@@ -930,12 +782,13 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
         if (left_length != FRAME_BUFFER_CACHE)
         {
             DVP_SIZE_ERROR_ENTRY();
-			LOGW("%s size no match:%d-%d=%d\n", __func__, real_length, handle->dma_length, left_length);
+            LOGW("%s size no match:%d-%d=%d\n", __func__, real_length, handle->dma_length, left_length);
             handle->error = true;
             DVP_SIZE_ERROR_OUT();
         }
     }
 
+    s_dvp_dma_length = 0;
     handle->dma_length = 0;
     handle->encode_frame->sequence = handle->frame_id++;
 
@@ -982,14 +835,14 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
     os_memcpy(&handle->encode_frame->frame[handle->encode_frame->length - H264_SELF_DEFINE_SEI_SIZE], &handle->sei[0], H264_SELF_DEFINE_SEI_SIZE);
 #endif
 
-    new_frame = handle->callback.frame_malloc(IMAGE_H264, handle->enc_stream, CONFIG_H264_FRAME_SIZE);
-
+    new_frame = handle->callback->malloc(IMAGE_H264, CONFIG_H264_FRAME_SIZE);
     if (new_frame)
     {
-        new_frame->width = handle->config.width;
-        new_frame->height = handle->config.height;
+        new_frame->width = handle->config->width;
+        new_frame->height = handle->config->height;
         new_frame->fmt = PIXEL_FMT_H264;
-        handle->callback.frame_complete(IMAGE_H264, handle->enc_stream, handle->encode_frame);
+        new_frame->length = real_length;
+        handle->callback->complete(IMAGE_H264, handle->encode_frame, DVP_FRAME_OK);
         handle->encode_frame = new_frame;
     }
     else
@@ -1004,13 +857,13 @@ out:
     bk_dma_set_dest_addr(handle->dma_channel, (uint32_t)handle->encode_frame->frame, (uint32_t)(handle->encode_frame->frame + handle->encode_frame->size));
     bk_dma_start(handle->dma_channel);
 
-    if (handle->config.img_format & IMAGE_YUV)
+    if (handle->config->img_format & IMAGE_YUV)
     {
         DVP_YUV_EOF_ENTRY();
         frame_buffer_t *new_yuv = NULL;
-        uint32_t size = handle->config.width * handle->config.height * 2;
-        handle->yuv_config->yuv_data_offset = 0;
-        bk_dma_flush_src_buffer(handle->yuv_config->dma_collect_yuv);
+        uint32_t size = handle->config->width * handle->config->height * 2;
+        handle->yuv_config.yuv_data_offset = 0;
+        bk_dma_flush_src_buffer(handle->yuv_config.dma_collect_yuv);
         handle->yuv_frame->sequence =  handle->frame_id - 1;
         handle->yuv_frame->timestamp = get_current_timestamp();
         LOGV("%s, ppi:%d-%d, length:%d, fmt:%d, seq:%d, %p\r\n", __func__, handle->yuv_frame->width,
@@ -1018,14 +871,14 @@ out:
             handle->yuv_frame->fmt, handle->yuv_frame->sequence, handle->yuv_frame);
         if (handle->error == false)
         {
-            new_yuv = handle->callback.frame_malloc(IMAGE_YUV, handle->yuv_stream, size);
+            new_yuv = handle->callback->malloc(IMAGE_YUV, size);
             if (new_yuv)
             {
                 new_yuv->width = handle->yuv_frame->width;
                 new_yuv->height = handle->yuv_frame->height;
                 new_yuv->fmt = handle->yuv_frame->fmt;
                 new_yuv->length = size;
-                handle->callback.frame_complete(IMAGE_YUV, handle->yuv_stream, handle->yuv_frame);
+                handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_OK);
                 handle->yuv_frame = new_yuv;
             }
             else
@@ -1039,19 +892,13 @@ out:
     DVP_H264_EOF_OUT();
 
     return;
-
-error:
-
-    bk_dma_stop(handle->dma_channel);
-    bk_yuv_buf_stop(H264_MODE);
-    DVP_H264_EOF_OUT();
 }
 
 static bk_err_t dvp_camera_jpeg_config_init(dvp_driver_handle_t *handle)
 {
     int ret = BK_OK;
     jpeg_config_t jpeg_config = {0};
-    dvp_config_t *config = &handle->config;
+    bk_dvp_config_t *config = handle->config;
     const dvp_sensor_config_t *sensor = handle->sensor;
 
     jpeg_config.x_pixel = config->width / 8;
@@ -1097,7 +944,7 @@ static bk_err_t dvp_camera_jpeg_config_init(dvp_driver_handle_t *handle)
 bk_err_t dvp_camera_yuv_buf_config_init(dvp_driver_handle_t *handle)
 {
     int ret = BK_OK;
-    dvp_config_t *config = &handle->config;
+    bk_dvp_config_t *config = handle->config;
     const dvp_sensor_config_t *sensor = handle->sensor;
     yuv_buf_config_t yuv_mode_config = {0};
 
@@ -1115,7 +962,6 @@ bk_err_t dvp_camera_yuv_buf_config_init(dvp_driver_handle_t *handle)
     }
 
     yuv_mode_config.mclk_div = YUV_MCLK_DIV_3;
-
 
     yuv_mode_config.x_pixel = config->width / 8;
     yuv_mode_config.y_pixel = config->height / 8;
@@ -1194,7 +1040,7 @@ static bk_err_t dvp_camera_yuv_mode(dvp_driver_handle_t *handle)
     LOGD("%s, %d\r\n", __func__, __LINE__);
     int ret = BK_OK;
     uint32_t size = 0;
-    dvp_config_t *config = &handle->config;
+    bk_dvp_config_t *config = handle->config;
 
     ret = dvp_camera_yuv_buf_config_init(handle);
     if (ret != BK_OK)
@@ -1203,9 +1049,7 @@ static bk_err_t dvp_camera_yuv_mode(dvp_driver_handle_t *handle)
     }
 
     size = config->width * config->height * 2;
-
-    handle->yuv_frame = handle->callback.frame_malloc(IMAGE_YUV, handle->yuv_stream, size);
-
+    handle->yuv_frame = handle->callback->malloc(IMAGE_YUV, size);
     if (handle->yuv_frame == NULL)
     {
         LOGE("malloc frame fail \r\n");
@@ -1226,7 +1070,7 @@ static bk_err_t dvp_camera_jpeg_mode(dvp_driver_handle_t *handle)
 {
     LOGD("%s, %d\r\n", __func__, __LINE__);
     int ret = BK_OK;
-    dvp_config_t *config = &handle->config;
+    bk_dvp_config_t *config = handle->config;
 
     ret = dvp_camera_dma_config(handle);
 
@@ -1251,9 +1095,7 @@ static bk_err_t dvp_camera_jpeg_mode(dvp_driver_handle_t *handle)
     if (config->img_format & IMAGE_YUV)
     {
         uint32_t size = config->width * config->height * 2;
-
-        handle->yuv_frame = handle->callback.frame_malloc(IMAGE_YUV, handle->yuv_stream, size);
-
+        handle->yuv_frame = handle->callback->malloc(IMAGE_YUV, size);
         if (handle->yuv_frame == NULL)
         {
             LOGE("yuv_frame malloc failed!\r\n");
@@ -1265,29 +1107,17 @@ static bk_err_t dvp_camera_jpeg_mode(dvp_driver_handle_t *handle)
         handle->yuv_frame->height = config->height;
         handle->yuv_frame->fmt = handle->sensor->fmt;
         handle->yuv_frame->length = size;
-
-        if (handle->yuv_config == NULL)
-        {
-            handle->yuv_config = (encode_yuv_config_t *)os_malloc(sizeof(encode_yuv_config_t));
-            if (handle->yuv_config == NULL)
-            {
-                LOGE("yuv_config malloc error! \r\n");
-                ret = BK_ERR_NO_MEM;
-                return ret;
-            }
-        }
-
-        handle->yuv_config->yuv_em_addr = bk_yuv_buf_get_em_base_addr();
-        LOGV("yuv buffer base addr:%08x\r\n", handle->yuv_config->yuv_em_addr);
-        handle->yuv_config->dma_collect_yuv = bk_dma_alloc(DMA_DEV_DTCM);
-        handle->yuv_config->yuv_pingpong_length = config->width * 8 * 2;
-        handle->yuv_config->yuv_data_offset = 0;
-        LOGV("dma_collect_yuv id is %d \r\n", handle->yuv_config->dma_collect_yuv);
+        handle->yuv_config.yuv_em_addr = bk_yuv_buf_get_em_base_addr();
+        LOGV("yuv buffer base addr:%08x\r\n", handle->yuv_config.yuv_em_addr);
+        handle->yuv_config.dma_collect_yuv = bk_dma_alloc(DMA_DEV_DTCM);
+        handle->yuv_config.yuv_pingpong_length = config->width * 8 * 2;
+        handle->yuv_config.yuv_data_offset = 0;
+        LOGV("dma_collect_yuv id is %d \r\n", handle->yuv_config.dma_collect_yuv);
 
         encode_yuv_dma_cpy(handle->yuv_frame->frame,
-                           (uint32_t *)handle->yuv_config->yuv_em_addr,
-                           handle->yuv_config->yuv_pingpong_length,
-                           handle->yuv_config->dma_collect_yuv);
+                           (uint32_t *)handle->yuv_config.yuv_em_addr,
+                           handle->yuv_config.yuv_pingpong_length,
+                           handle->yuv_config.dma_collect_yuv);
     }
 
     return ret;
@@ -1297,7 +1127,7 @@ static bk_err_t dvp_camera_h264_mode(dvp_driver_handle_t *handle)
 {
     LOGD("%s, %d\r\n", __func__, __LINE__);
     int ret = BK_OK;
-    dvp_config_t *config = &handle->config;
+    bk_dvp_config_t *config = handle->config;
 
     ret = dvp_camera_yuv_buf_config_init(handle);
     if (ret != BK_OK)
@@ -1327,9 +1157,7 @@ static bk_err_t dvp_camera_h264_mode(dvp_driver_handle_t *handle)
     if (config->img_format & IMAGE_YUV)
     {
         uint32_t size = config->width * config->height * 2;
-
-        handle->yuv_frame = handle->callback.frame_malloc(IMAGE_YUV, handle->yuv_stream, size);
-
+        handle->yuv_frame = handle->callback->malloc(IMAGE_YUV, size);
         if (handle->yuv_frame == NULL)
         {
             LOGE("yuv_frame malloc failed!\r\n");
@@ -1341,29 +1169,17 @@ static bk_err_t dvp_camera_h264_mode(dvp_driver_handle_t *handle)
         handle->yuv_frame->height = config->height;
         handle->yuv_frame->fmt = handle->sensor->fmt;
         handle->yuv_frame->length = size;
-
-        if (handle->yuv_config == NULL)
-        {
-            handle->yuv_config = (encode_yuv_config_t *)os_malloc(sizeof(encode_yuv_config_t));
-            if (handle->yuv_config == NULL)
-            {
-                LOGE("encode_lcd_config malloc error! \r\n");
-                ret = BK_ERR_NO_MEM;
-                return ret;
-            }
-        }
-
-        handle->yuv_config->yuv_em_addr = bk_yuv_buf_get_em_base_addr();
-        LOGV("yuv buffer base addr:%08x\r\n", handle->yuv_config->yuv_em_addr);
-        handle->yuv_config->dma_collect_yuv = bk_dma_alloc(DMA_DEV_DTCM);
-        handle->yuv_config->yuv_pingpong_length = config->width * 16 * 2;
-        handle->yuv_config->yuv_data_offset = 0;
-        LOGV("dma_collect_yuv id is %d \r\n", handle->yuv_config->dma_collect_yuv);
+        handle->yuv_config.yuv_em_addr = bk_yuv_buf_get_em_base_addr();
+        LOGV("yuv buffer base addr:%08x\r\n", handle->yuv_config.yuv_em_addr);
+        handle->yuv_config.dma_collect_yuv = bk_dma_alloc(DMA_DEV_DTCM);
+        handle->yuv_config.yuv_pingpong_length = config->width * 16 * 2;
+        handle->yuv_config.yuv_data_offset = 0;
+        LOGV("dma_collect_yuv id is %d \r\n", handle->yuv_config.dma_collect_yuv);
 
         encode_yuv_dma_cpy(handle->yuv_frame->frame,
-                           (uint32_t *)handle->yuv_config->yuv_em_addr,
-                           handle->yuv_config->yuv_pingpong_length,
-                           handle->yuv_config->dma_collect_yuv);
+                           (uint32_t *)handle->yuv_config.yuv_em_addr,
+                           handle->yuv_config.yuv_pingpong_length,
+                           handle->yuv_config.dma_collect_yuv);
     }
 
     return ret;
@@ -1371,7 +1187,7 @@ static bk_err_t dvp_camera_h264_mode(dvp_driver_handle_t *handle)
 
 static void dvp_camera_register_isr_function(dvp_driver_handle_t *handle)
 {
-    uint16_t format = handle->config.img_format;
+    uint16_t format = handle->config->img_format;
 
     LOGD("%s, %d, fmt:%d\r\n", __func__, __LINE__, format);
     switch (format)
@@ -1409,26 +1225,47 @@ static void dvp_camera_register_isr_function(dvp_driver_handle_t *handle)
     bk_yuv_buf_register_isr(YUV_BUF_ENC_SLOW, dvp_camera_sensor_ppi_err_handler, (void *)handle);
 }
 
-const dvp_sensor_config_t *bk_dvp_detect(void)
+static void dvp_sensor_reset(uint8_t pwdn_pin, uint8_t reset_pin)
+{
+    // pull low pwdn pin, sensor power enable
+    if (pwdn_pin != 0xFF)
+    {
+        bk_gpio_set_output_high(pwdn_pin);
+        bk_gpio_set_output_low(pwdn_pin);
+        rtos_delay_milliseconds(10);
+    }
+
+    // pull up reset pin, sensor reset disable
+    if (reset_pin != 0xFF)
+    {
+        bk_gpio_set_output_low(reset_pin);
+        bk_gpio_set_output_high(reset_pin);
+        rtos_delay_milliseconds(10);
+    }
+}
+
+const dvp_sensor_config_t *bk_dvp_detect(bk_dvp_config_t *config)
 {
     i2c_config_t i2c_config = {0};
     const dvp_sensor_config_t *sensor = NULL;
 
-#ifdef CONFIG_DVP_POWER_GPIO_CTRL
-    // step 1: power on video modules
-    bk_gpio_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_DVP, CONFIG_DVP_CTRL_POWER_GPIO_ID, GPIO_OUTPUT_STATE_HIGH);
+#if 0
+    // step 1: power on sensor
+    dvp_sensor_reset(config->io_config.pwdn_pin, config->io_config.reset_pin);
 #endif
 
-    // step 2: map gpio as MCLK, PCLK for i2c communicate with dvp
-    // bk_video_gpio_init(DVP_GPIO_ALL);
+    // step 2: map dvp io by config
+#ifndef CONFIG_GPIO_DEFAULT_SET_SUPPORT
+    dvp_camera_io_init(&config->io_config);
+#endif
 
-    // step 3: enable mclk for i2c communicate with dvp
-    bk_video_dvp_mclk_enable(YUV_MODE);
+    // step 3: enable dvp input xclk
+    dvp_camera_mclk_enable(config->clk_source);
 
     // step 4: init i2c
-    i2c_config.baud_rate = I2C_BAUD_RATE_100KHZ;
+    i2c_config.baud_rate = config->i2c_config.baud_rate;
     i2c_config.addr_mode = I2C_ADDR_MODE_7BIT;
-    bk_i2c_init(CONFIG_DVP_CAMERA_I2C_ID, &i2c_config);
+    bk_i2c_init(config->i2c_config.id, &i2c_config);
 
     // step 5: detect sensor
     sensor = bk_dvp_get_sensor_auto_detect();
@@ -1442,125 +1279,87 @@ const dvp_sensor_config_t *bk_dvp_detect(void)
         LOGD("auto detect success, dvp camera name:%s\r\n", sensor->name);
     }
 
-#ifdef CONFIG_DVP_POWER_GPIO_CTRL
-    bk_gpio_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_DVP, CONFIG_DVP_CTRL_POWER_GPIO_ID, GPIO_OUTPUT_STATE_LOW);
-#endif
-
     return sensor;
 }
 
-bk_err_t bk_dvp_init(camera_handle_t *handle, dvp_config_t *cfg, bk_dvp_callback_t *cb)
+bk_err_t bk_dvp_open(camera_handle_t *handle, bk_dvp_config_t *cfg, const bk_dvp_callback_t *cb)
 {
     bk_err_t ret = BK_FAIL;
-    camera_config_t *output_handle = NULL;
 
-    LOGD("%s\r\n", __func__);
+    LOGD("%s\n", __func__);
 
-    if (s_dvp_camera_handle == NULL)
+    if (cfg == NULL || cb == NULL)
     {
-        output_handle = (camera_config_t *)os_malloc(sizeof(camera_config_t));
-        if (output_handle == NULL)
-        {
-            LOGW("%s, output_handle malloc fail\n", __func__);
-            return ret;
-        }
-
-        s_dvp_camera_handle = (dvp_driver_handle_t *)os_malloc(sizeof(dvp_driver_handle_t));
-        if (s_dvp_camera_handle == NULL)
-        {
-            LOGE("%s, s_dvp_camera_handle malloc fail....\r\n", __func__);
-            return ret;
-        }
-
-        os_memset(s_dvp_camera_handle, 0, sizeof(dvp_driver_handle_t));
-
-        LOGE("%s, s_dvp_camera_handle malloc %p....\r\n", __func__, s_dvp_camera_handle);
-
-        ret = rtos_init_semaphore(&s_dvp_camera_handle->sem, 1);
-        if (ret != BK_OK)
-        {
-            LOGE("%s, s_dvp_camera_handle->sem malloc fail....\r\n", __func__);
-            goto error;
-        }
-
-#if (MEDIA_DEBUG_TIMER_ENABLE)
-        ret = rtos_init_timer(&s_dvp_camera_handle->timer, MEDIA_DEBUG_TIMER_INTERVAL * 1000,
-            dvp_camera_timer_handle, s_dvp_camera_handle);
-
-        if (ret != BK_OK)
-        {
-            LOGE("%s, s_dvp_camera_handle->timer fail....\r\n", __func__);
-            goto error;
-        }
-
-        rtos_start_timer(&s_dvp_camera_handle->timer);
-#endif
-
-        os_memcpy(&s_dvp_camera_handle->config, cfg, sizeof(dvp_config_t));
-        os_memcpy(&s_dvp_camera_handle->callback, cb, sizeof(bk_dvp_callback_t));
-    }
-    else
-    {
-        if (s_dvp_camera_handle->dvp_state == MASTER_TURN_ON)
-        {
-            LOGE("%s, dvp already opened...\r\n", __func__);
-            return ret;
-        }
-    }
-
-    if (s_dvp_camera_handle->dvp_state != MASTER_TURN_OFF)
-    {
-        LOGE("%s, dvp state error:%d...\r\n", __func__, s_dvp_camera_handle->dvp_state);
+        LOGE("%s, %d, param error\n", __func__, __LINE__);
         return ret;
     }
 
-    s_dvp_camera_handle->dvp_state = MASTER_TURNING_ON;
+    if (*handle != NULL)
+    {
+        LOGD("%s, %d, already open\n", __func__, __LINE__);
+        return ret;
+    }
+
+    dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)os_malloc(sizeof(dvp_driver_handle_t));
+    if (dvp_handle == NULL)
+    {
+        LOGE("%s, %d, malloc fail\n", __func__, __LINE__);
+        return ret;
+    }
+
+    os_memset(dvp_handle, 0, sizeof(dvp_driver_handle_t));
+
+    dvp_handle->config = cfg;
+    dvp_handle->callback = cb;
+
+    bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VIDP_JPEG_EN,PM_POWER_MODULE_STATE_ON);
+
+    ret = rtos_init_semaphore(&dvp_handle->sem, 1);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, dvp_handle->sem malloc fail....\r\n", __func__);
+        goto error;
+    }
+
+#if (MEDIA_DEBUG_TIMER_ENABLE)
+    ret = rtos_init_timer(&dvp_handle->timer, MEDIA_DEBUG_TIMER_INTERVAL * 1000,
+        dvp_camera_timer_handle, dvp_handle);
+
+    if (ret != BK_OK)
+    {
+        LOGE("%s, handle->timer fail....\r\n", __func__);
+        goto error;
+    }
+
+    rtos_start_timer(&dvp_handle->timer);
+#endif
+    dvp_handle->dvp_state = MASTER_TURNING_ON;  
 
     DVP_DIAG_DEBUG_INIT();
 
     // step 1: for camera sensor, init other device
-    ret = dvp_camera_init(s_dvp_camera_handle);
-
+    ret = dvp_camera_init(dvp_handle);
     if (ret != BK_OK)
     {
         LOGD("%s, %d\r\n", __func__, __LINE__);
         goto error;
     }
 
-    // step 2: init stream list
-    if (cfg->img_format & IMAGE_MJPEG)
-    {
-        s_dvp_camera_handle->enc_stream = (void *)cb->frame_init(cfg->id, DVP_CAMERA, IMAGE_MJPEG);
-    }
-
-    if (cfg->img_format & IMAGE_H264)
-    {
-        s_dvp_camera_handle->enc_stream = (void *)cb->frame_init(cfg->id, DVP_CAMERA, IMAGE_H264);
-    }
-
-    if ((cfg->img_format & (IMAGE_MJPEG | IMAGE_H264))
-            && s_dvp_camera_handle->enc_stream == NULL)
-    {
-        LOGE("%s, %d stream list init fail\n", __func__, __LINE__);
-        ret = BK_FAIL;
-        goto error;
-    }
-
-    // step 3: config video hardware modules, include dma
-    switch (cfg->img_format)
+    // step 2: init hardware modules
+    switch (dvp_handle->config->img_format)
     {
         case IMAGE_YUV:
-            ret = dvp_camera_yuv_mode(s_dvp_camera_handle);
+            ret = dvp_camera_yuv_mode(dvp_handle);
             break;
 
         case IMAGE_MJPEG:
         case (IMAGE_MJPEG | IMAGE_YUV):
-            ret = dvp_camera_jpeg_mode(s_dvp_camera_handle);
+            ret = dvp_camera_jpeg_mode(dvp_handle);
             break;
 
         case IMAGE_H264:
         case (IMAGE_H264 | IMAGE_YUV):
-            ret = dvp_camera_h264_mode(s_dvp_camera_handle);
+            ret = dvp_camera_h264_mode(dvp_handle);
             break;
 
         default:
@@ -1573,72 +1372,53 @@ bk_err_t bk_dvp_init(camera_handle_t *handle, dvp_config_t *cfg, bk_dvp_callback
         goto error;
     }
 
-    output_handle->type = DVP_CAMERA;
-    output_handle->fps = cfg->fps;
-    output_handle->id = cfg->id;
-    output_handle->image_format = cfg->img_format;
-    output_handle->width = cfg->width;
-    output_handle->height = cfg->height;
-    output_handle->arg = (void *)s_dvp_camera_handle;
-    *handle = (camera_handle_t)output_handle;
-
     // step 4: maybe need register isr_func
-    dvp_camera_register_isr_function(s_dvp_camera_handle);
+    dvp_camera_register_isr_function(dvp_handle);
 
     // step 5: start hardware function in different mode
-    bk_video_set_mclk(s_dvp_camera_handle->sensor->clk);
-    if (cfg->img_format == IMAGE_YUV)
+
+    if (dvp_handle->config->img_format == IMAGE_YUV)
     {
         bk_yuv_buf_start(YUV_MODE);
     }
-    else if (cfg->img_format & IMAGE_MJPEG)
+    else if (dvp_handle->config->img_format & IMAGE_MJPEG)
     {
         bk_yuv_buf_start(JPEG_MODE);
     }
-    else if (cfg->img_format & IMAGE_H264)
+    else if (dvp_handle->config->img_format & IMAGE_H264)
     {
         bk_yuv_buf_start(H264_MODE);
         bk_h264_encode_enable();
     }
 
-    s_dvp_camera_handle->dvp_state = MASTER_TURN_ON;
+    s_dvp_dma_length = 0;
+    dvp_handle->dvp_state = MASTER_TURN_ON;
 
     // step 6: init dvp camera sensor register
-    s_dvp_camera_handle->sensor->init();
-    s_dvp_camera_handle->sensor->set_ppi((cfg->width << 16) | cfg->height);
-    s_dvp_camera_handle->sensor->set_fps(cfg->fps);
+    dvp_handle->sensor->init();
+    dvp_handle->sensor->set_ppi((dvp_handle->config->width << 16) | dvp_handle->config->height);
+    dvp_handle->sensor->set_fps(dvp_handle->config->fps);
 
-    LOGD("dvp open success %d X %d, %d, %X\n", cfg->width, cfg->height, cfg->fps, cfg->img_format);
+    LOGD("dvp open success %d X %d, %d, %X\n", dvp_handle->config->width, dvp_handle->config->height,
+        dvp_handle->config->fps, dvp_handle->config->img_format);
+
+    *handle = dvp_handle;
 
     return ret;
 
 error:
 
-    if (output_handle)
-    {
-        os_free(output_handle);
-    }
-
-    dvp_camera_deinit(s_dvp_camera_handle);
+    dvp_camera_deinit(dvp_handle);
 
     return ret;
 }
 
-bk_err_t bk_dvp_deinit(camera_handle_t *handle)
+bk_err_t bk_dvp_close(camera_handle_t handle)
 {
-    if (*handle == NULL)
+    dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)handle;
+    if (dvp_handle == NULL || dvp_handle->dvp_state == MASTER_TURN_OFF)
     {
-        LOGW("%s, already closed...\n", __func__);
-        return BK_OK;
-    }
-
-    camera_config_t *config = (camera_config_t *)*handle;
-
-    dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)config->arg;
-
-    if (dvp_handle->dvp_state == MASTER_TURN_OFF)
-    {
-        LOGD("%s, dvp have been closed!\r\n", __func__);
+        LOGD("%s, dvp not open!\r\n", __func__);
         goto out;
     }
 
@@ -1653,44 +1433,74 @@ out:
 
     dvp_camera_deinit(dvp_handle);
 
-    s_dvp_camera_handle = NULL;
-    os_free(config);
-    *handle = NULL;
-
     return BK_OK;
 }
 
-bk_err_t bk_dvp_h264_idr_reset(void)
+bk_err_t bk_dvp_h264_idr_reset(camera_handle_t handle)
 {
-    dvp_driver_handle_t *handle = s_dvp_camera_handle;
-
-    if (handle == NULL)
+    bk_err_t ret = BK_FAIL;
+    dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)handle;
+    if (dvp_handle && dvp_handle->config->img_format & IMAGE_H264)
     {
-        LOGW("%s, not open...\n", __func__);
-        return BK_FAIL;
+        dvp_handle->regenerate_idr = true;
+        ret = BK_OK;
+    }
+    else
+    {
+        LOGW("%s, not enable h264 func...\n", __func__);
     }
 
-    if (handle->config.img_format & IMAGE_H264)
-    {
-        handle->regenerate_idr = true;
-        handle->callback.frame_clear(handle->enc_stream);// h264 list clear
-        return BK_OK;
-    }
-
-    LOGW("%s, not enable h264 func...\n", __func__);
-    return BK_FAIL;
+    return ret;
 }
 
-bk_err_t bk_dvp_set_stream_state(uint32_t state)
+bk_err_t bk_dvp_suspend(camera_handle_t handle)
 {
-    dvp_driver_handle_t *handle = s_dvp_camera_handle;
-    if (handle == NULL)
+    bk_err_t ret = BK_FAIL;
+    dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)handle;
+    if (dvp_handle)
     {
-        LOGV("%s, not open...\n", __func__);
-        return BK_FAIL;
+        dvp_handle->error = true;
+        ret = BK_OK;
     }
 
-    handle->error = true;
+    return ret;
+}
 
-    return BK_OK;
+bk_err_t bk_dvp_resume(camera_handle_t handle)
+{
+    bk_err_t ret = BK_FAIL;
+    dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)handle;
+    if (dvp_handle)
+    {
+        dvp_handle->error = true;
+        ret = BK_OK;
+    }
+
+    return ret;
+}
+
+bk_err_t bk_dvp_sensor_write_register(camera_handle_t handle, dvp_sensor_reg_val_t *reg_val)
+{
+    bk_err_t ret = BK_FAIL;
+    dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)handle;
+    if (dvp_handle && dvp_handle->sensor)
+    {
+        dvp_handle->sensor->write_register(reg_val->reg, reg_val->val);
+        ret = BK_OK;
+    }
+
+    return ret;
+}
+
+bk_err_t bk_dvp_sensor_read_register(camera_handle_t handle, dvp_sensor_reg_val_t *reg_val)
+{
+    bk_err_t ret = BK_FAIL;
+    dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)handle;
+    if (dvp_handle && dvp_handle->sensor)
+    {
+        dvp_handle->sensor->read_register(reg_val->reg, &reg_val->val);
+        ret = BK_OK;
+    }
+
+    return ret;
 }

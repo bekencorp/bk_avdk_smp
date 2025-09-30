@@ -272,7 +272,26 @@ typedef enum {
 typedef void (*bt_cmd_cb_t)(bt_cmd_t cmd, bt_cmd_param_t *param);
 
 typedef bt_err_t (*dual_hci_to_cp_cb)(uint8_t type, uint8_t *buf, uint16_t len);
+
+typedef struct
+{
+    int32_t (*send)(uint8_t *data, uint32_t len);
+    int32_t (*init)(int32_t (*report)(uint8_t *data, uint32_t len));
+    int32_t (*deinit)(void);
+
+    uint16_t acl_handle_threshold_min;
+    uint16_t acl_handle_threshold_max;
+}bk_bluetooth_secondary_callback_t;
+
+typedef struct
+{
+    void (*decode_data_cb)(uint8_t type, void *data, uint16_t len);
+    void (*decode_data_ext_cb)(void *data, uint16_t len);
+    int32_t (*encode_data_cb)(void *data, uint16_t len);
+    void (*notify_tx_ack_tout_cb)(void);
+    void (*notify_h5_nego_completed)(void);
+} bluetooth_h5_cb_t;
+
 #ifdef __cplusplus
 }
 #endif
-

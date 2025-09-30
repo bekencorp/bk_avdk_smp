@@ -1,0 +1,7 @@
+menu "Display Service"
+
+	config MEDIA_DISPLAY_SERVICE
+		depends on MEDIA
+		bool "Enable Display Service"
+		default y
+endmenu

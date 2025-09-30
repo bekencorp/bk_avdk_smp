@@ -37,7 +37,9 @@ typedef struct
 #define RAW_STREAM_OUT_BLOCK_SIZE       (8 * 1024)
 #define RAW_STREAM_OUT_BLOCK_NUM        (1)
 
-#define RAW_STREAM_CFG_DEFAULT() {                      \
+#define RAW_STREAM_CFG_DEFAULT() DEFAULT_RAW_STREAM_CONFIG()
+
+#define DEFAULT_RAW_STREAM_CONFIG() {                   \
         .type = AUDIO_STREAM_NONE,                      \
         .out_block_size = RAW_STREAM_OUT_BLOCK_SIZE,    \
         .out_block_num = RAW_STREAM_OUT_BLOCK_NUM,      \

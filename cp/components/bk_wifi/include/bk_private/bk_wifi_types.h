@@ -1459,6 +1459,19 @@ typedef struct {
 	uint32_t sta_ip_tick;		/**< sta got ip tick */
 } wifi_connect_tick_t;
 
+typedef struct {
+	uint8_t channel;
+	uint32_t rx_cnt_mgmt;
+	uint32_t rx_cnt_data;
+	uint32_t rx_cnt_ctrl;
+	uint32_t rx_cnt_0_255;
+	uint32_t rx_cnt_256_511;
+	uint32_t rx_cnt_512_1023;
+	uint32_t rx_cnt_1024;
+	uint32_t rx_cnt_total;
+} wifi_monitor_result_t;
+
+
 void sa_station_init(void);
 void sa_station_uninit(void);
 void sa_station_set_reconnect_timer(void);

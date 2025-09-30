@@ -15,7 +15,7 @@
 #pragma once
 
 #include <common/bk_err.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 
 
 #ifdef __cplusplus

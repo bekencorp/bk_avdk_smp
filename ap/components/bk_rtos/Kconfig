@@ -52,17 +52,17 @@ menu "Bk_rtos"
 			default n
 
 		config FREERTOS_TRACE
-			depends on FREERTOS_V10
+			depends on FREERTOS_V10 || FREERTOS_SMP
 			bool "FreeRTOS Trace"
 			default n
 
 		config TASK_STACK_IN_PSRAM
-			depends on FREERTOS_V10
+			depends on FREERTOS_V10 || FREERTOS_SMP
 			bool "Create FreeRTOS Task stack in psram"
 			default n
 		
 		config QUEUE_IN_PSRAM
-			depends on FREERTOS_V10
+			depends on FREERTOS_V10 || FREERTOS_SMP
 			bool "Create FreeRTOS queue in psram"
 			default n
 
@@ -100,7 +100,7 @@ menu "Bk_rtos"
         
 		config BK_OS_TIMER_DEBUG
 			bool "Enable OS timer Debug"
-			default n
+			default y
 			 help
 				when turn on the marco,the current task TCB information
 				will be added every time the software timer command is sent

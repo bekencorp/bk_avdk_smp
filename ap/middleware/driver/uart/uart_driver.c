@@ -41,6 +41,10 @@
 #if CONFIG_SPE
 #include "security.h"
 #endif
+#ifdef CONFIG_FREERTOS_SMP
+#include "spinlock.h"
+static SPINLOCK_SECTION volatile spinlock_t uart_spin_lock = SPIN_LOCK_INIT;
+#endif // CONFIG_FREERTOS_SMP
 
 static void uart_isr_common(uart_id_t id) __BK_SECTION(".itcm");
 static uint32_t uart_id_read_fifo_frame(uart_id_t id, const kfifo_ptr_t rx_ptr) __BK_SECTION(".itcm");
@@ -69,6 +73,17 @@ typedef struct {
 	dma_id_t rx_dma_id;
 	bool tx_dma_enable;
 	dma_id_t tx_dma_id;
+#endif
+#if 1
+	bool sw_flow_ctrl_en;
+	bool rx_int_enable;
+	uint8_t rts_gpio;
+	uint8_t cts_gpio;
+	uint32_t sw_fifo_size;
+	uint32_t sw_high_watermark;
+	uint32_t sw_low_watermark;
+	uint32_t hw_high_watermark;
+	uint32_t hw_low_watermark;
 #endif
 } uart_driver_t;
 
@@ -193,6 +208,26 @@ static uart_sema_t s_uart_sema[SOC_UART_ID_NUM_PER_UNIT] = {0};
 	} while(0)
 #endif
 
+static inline uint32_t uart_enter_critical()
+{
+       uint32_t flags = rtos_disable_int();
+
+#ifdef CONFIG_FREERTOS_SMP
+       spin_lock(&uart_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+       return flags;
+}
+
+static inline void uart_exit_critical(uint32_t flags)
+{
+#ifdef CONFIG_FREERTOS_SMP
+       spin_unlock(&uart_spin_lock);
+#endif // CONFIG_FREERTOS_SMP
+
+       rtos_enable_int(flags);
+}
+
 #if (CONFIG_SYSTEM_CTRL)
 void uart_clock_enable(uart_id_t id)
 {
@@ -300,6 +335,7 @@ static void uart_init_gpio(uart_id_t id)
 			gpio_dev_map(uart_hal_get_rx_pin(id), GPIO_DEV_UART1_RXD);
 			bk_gpio_pull_up(uart_hal_get_tx_pin(id));
 			bk_gpio_pull_up(uart_hal_get_rx_pin(id));
+
 			break;
 		}
 		case UART_ID_2:
@@ -385,6 +421,9 @@ static bk_err_t uart_id_init_kfifo(uart_id_t id)
 			UART_LOGW("uart(%d) rx kfifo alloc failed\n", id);
 			return BK_ERR_NULL_PARAM;
 		}
+#if CONFIG_UART_SW_FLOW_CTRL
+		s_uart[id].sw_fifo_size = fifo_size;
+#endif
 	}
 	return BK_OK;
 }
@@ -469,9 +508,147 @@ static inline bool uart_id_is_sw_fifo_enabled(uart_id_t id)
 	return !!(s_uart[id].id_sw_fifo_enable_bits & BIT(id));
 }
 
+#if CONFIG_UART_SW_FLOW_CTRL
+
+static inline void usfc_gpio_init(uart_id_t id)
+{
+	bk_gpio_set_value(s_uart[id].rts_gpio, 0x0); //output low level
+	bk_gpio_set_value(s_uart[id].cts_gpio, 0x3c);//input pull up
+
+	UART_LOGD("%s \r\n", __func__);
+}
+
+static inline void usfc_gpio_deinit(uart_id_t id)
+{
+	bk_gpio_set_value(s_uart[id].rts_gpio, 0x8); //high resistance
+	bk_gpio_set_value(s_uart[id].cts_gpio, 0x8);//high resistance
+	s_uart[id].rts_gpio = GPIO_NUM_MAX;
+	s_uart[id].cts_gpio = GPIO_NUM_MAX;
+
+}
+
+static uint8_t hw_rts,sw_rts;
+void bk_usfc_hw_set_rts(uart_id_t id,uint32_t high)
+{
+	if (s_uart[id].sw_flow_ctrl_en && s_uart[id].rts_gpio != GPIO_NUM_MAX)
+	{
+		uint32_t int_level = uart_enter_critical();
+		uint32_t pre = hw_rts || sw_rts;
+		uint32_t cur = high || sw_rts;
+		uart_exit_critical(int_level);
+		if (cur != pre)
+		{
+			bk_gpio_set_output_value(s_uart[id].rts_gpio, cur);
+			UART_LOGV("high=%d,hw_rts=%d,sw=%d,line=%d\r\n", high, hw_rts, sw_rts, __LINE__);
+			UART_LOGV("pre=%d,cur=%d\r\n", pre, cur);
+		}
+
+		hw_rts = high;
+	}
+	
+}
+
+void bk_usfc_sw_set_rts(uart_id_t id,uint32_t high)
+{
+	if (s_uart[id].sw_flow_ctrl_en && s_uart[id].rts_gpio != GPIO_NUM_MAX)
+	{
+		uint32_t int_level = uart_enter_critical();
+		uint32_t pre = hw_rts || sw_rts;
+		uint32_t cur = high || hw_rts;
+
+		uart_exit_critical(int_level);
+		if (cur != pre)
+		{
+			bk_gpio_set_output_value(s_uart[id].rts_gpio, cur);
+			UART_LOGV("high=%d,hw_rts=%d,sw=%d,line=%d\r\n", high, hw_rts, sw_rts, __LINE__);
+			UART_LOGV("pre=%d,cur=%d\r\n", pre, cur);
+		}
+
+		sw_rts = high;
+	}	
+}
+
+static uint32_t usfc_tx_is_enable(uart_id_t id)
+{
+	if (s_uart[id].sw_flow_ctrl_en && s_uart[id].cts_gpio != GPIO_NUM_MAX)
+	{
+		return (!bk_gpio_get_input(s_uart[id].cts_gpio));
+	}
+	return true;
+}
+
+static void usfc_sw_fifo_will_full(uart_id_t id)
+{
+	if (!s_uart[id].sw_flow_ctrl_en)
+	{
+		return;
+	}
+
+	if(kfifo_data_size(s_uart_rx_kfifo[id]) > s_uart[id].sw_high_watermark)
+	{
+		bk_usfc_sw_set_rts(id,1);
+	}
+}
+
+static void usfc_sw_fifo_will_empty(uart_id_t id)
+{
+	if (!s_uart[id].sw_flow_ctrl_en)
+	{
+		return;
+	}
+
+	if(kfifo_data_size(s_uart_rx_kfifo[id]) < s_uart[id].sw_low_watermark)
+	{
+		bk_usfc_sw_set_rts(id, 0);
+	}
+}
+
+static void usfc_hw_fifo_will_full(uart_id_t id)
+{
+	if (!s_uart[id].sw_flow_ctrl_en)
+	{
+		return;
+	}
+	
+	if(uart_hal_get_rx_fifo_cnt(&s_uart[id].hal, id) > s_uart[id].hw_high_watermark)
+	{
+		bk_usfc_hw_set_rts(id, 1);
+	}
+}
+
+static void usfc_hw_fifo_will_empty(uart_id_t id)
+{
+	if (!s_uart[id].sw_flow_ctrl_en)
+	{
+		return;
+	}
+	
+	if(uart_hal_get_rx_fifo_cnt(&s_uart[id].hal, id) < s_uart[id].hw_low_watermark)
+	{
+		bk_usfc_hw_set_rts(id, 0);
+	}
+}
+
+static void uart_adjust_sw_flow_control(uart_id_t id, uint32_t baud_rate)
+{
+	uint32_t bits_per_byte = 10;
+	uint32_t byte_time_us = (bits_per_byte * 1000000) / baud_rate;
+	uint32_t max_delay_us = 300;
+	uint32_t max_burst_bytes = max_delay_us/byte_time_us;
+	s_uart[id].sw_high_watermark = s_uart[id].sw_fifo_size * 70 / 100 ;
+	s_uart[id].sw_low_watermark = s_uart[id].sw_fifo_size * 20 / 100;
+	s_uart[id].hw_high_watermark = UART_HW_FIFO_SIZE - max_burst_bytes;
+	s_uart[id].hw_low_watermark = USFC_RX_UART_EMPTY_THROHOLD;
+}
+#endif
+
 #if CONFIG_UART_RX_DMA
 static uint32_t uart_id_dma_read_fifo_frame(uart_id_t id, const kfifo_ptr_t rx_ptr)
 {
+#if CONFIG_UART_SW_FLOW_CTRL
+	usfc_sw_fifo_will_full(id);
+	usfc_hw_fifo_will_empty(id);
+#endif
 	//DMA stop
 	bk_dma_stop(s_uart[id].rx_dma_id);
 
@@ -532,28 +709,49 @@ static uint32_t uart_id_read_fifo_frame(uart_id_t id, const kfifo_ptr_t rx_ptr)
 	uint32_t unused = kfifo_unused(rx_ptr);
 	uint32_t kfifo_put_cnt = 0;
 	__attribute__((__unused__)) uart_statis_t *uart_statis = uart_statis_get_statis(id);
+#if CONFIG_UART_SW_FLOW_CTRL
+	usfc_sw_fifo_will_full(id);
+#endif
 
 	//TODO: optimize flow ctrl
 	while (uart_hal_is_fifo_read_ready(&s_uart[id].hal, id)) {
-		/* must read when fifo read ready, otherwise will loop forever */
-		read_val = uart_hal_read_byte(&s_uart[id].hal, id);
-		// UART_LOGV("read val:0x%x, rx_count/unused: %d/%d\n", read_val, rx_count, unused);
 		if (rx_count > unused) {
+#if !CONFIG_UART_SW_FLOW_CTRL
+			read_val = uart_hal_read_byte(&s_uart[id].hal, id);
+#endif
 			if (!uart_hal_is_flow_control_enabled(&s_uart[id].hal, id)) {
 				UART_LOGW("rx kfifo is full, out/in:%d/%d, unused:%d\n", rx_ptr->out, rx_ptr->in, unused);
 				UART_STATIS_INC(uart_statis->kfifo_status.full_cnt);
+#if CONFIG_UART_SW_FLOW_CTRL
+				usfc_sw_fifo_will_full(id);
+				bk_uart_disable_rx_interrupt(id);
+				s_uart[id].rx_int_enable = false;
+#endif
 #if CFG_CLI_DEBUG
 				extern void cli_show_running_command(void);
 				cli_show_running_command();
 #endif
+				break;
 			}
-		} else {
-			kfifo_put_cnt += kfifo_put(rx_ptr, &read_val, sizeof(read_val));
-			UART_STATIS_INC(uart_statis->kfifo_status.put_cnt);
-			UART_STATIS_SET(uart_statis->kfifo_status.last_value, read_val);
 		}
+		read_val = uart_hal_read_byte(&s_uart[id].hal, id);
+		kfifo_put_cnt += kfifo_put(rx_ptr, &read_val, sizeof(read_val));
+		UART_STATIS_INC(uart_statis->kfifo_status.put_cnt);
+		UART_STATIS_SET(uart_statis->kfifo_status.last_value, read_val);
 		unused = kfifo_unused(rx_ptr);
+#if CONFIG_UART_SW_FLOW_CTRL
+		uint32_t high_water_unused = s_uart[id].sw_fifo_size - s_uart[id].sw_high_watermark;
+		if (unused <= high_water_unused)
+		{
+			usfc_sw_fifo_will_full(id);
+		}
+#endif
 	}
+	//读之后判断软件FIFO
+#if CONFIG_UART_SW_FLOW_CTRL
+	usfc_sw_fifo_will_full(id);
+	usfc_hw_fifo_will_empty(id);
+#endif
 	UART_STATIS_SET(uart_statis->kfifo_status.in, rx_ptr->in);
 	UART_STATIS_SET(uart_statis->kfifo_status.out, rx_ptr->out);
 
@@ -1136,6 +1334,23 @@ bk_err_t bk_uart_init(uart_id_t id, const uart_config_t *config)
 	}
 #endif
 
+#if CONFIG_UART_SW_FLOW_CTRL
+	if (config->enable_sw_flow_ctrl) {
+		s_uart[id].sw_flow_ctrl_en = true;
+		s_uart[id].rts_gpio = config->rts_gpio;
+		s_uart[id].cts_gpio = config->cts_gpio;
+		s_uart[id].rx_int_enable = true;
+		bk_uart_enable_sw_fifo(id);
+		uart_adjust_sw_flow_control(id, config->baud_rate);
+
+		usfc_gpio_init(id);
+	} else {
+		s_uart[id].sw_flow_ctrl_en = false;
+		s_uart[id].rts_gpio = GPIO_NUM_MAX;
+		s_uart[id].cts_gpio = GPIO_NUM_MAX;
+	}
+#endif
+
 	uart_hal_init_uart(&s_uart[id].hal, id, config);
 	uart_hal_start_common(&s_uart[id].hal, id);
 
@@ -1155,6 +1370,10 @@ bk_err_t bk_uart_deinit(uart_id_t id)
 #endif
 
 	uart_id_deinit_common(id);
+
+#if CONFIG_UART_SW_FLOW_CTRL
+		usfc_gpio_deinit(id);
+#endif
 
 #if CONFIG_UART_PM_CB_SUPPORT	//this macro config set to n
 	if (id == UART_ID_1) {
@@ -1355,7 +1574,36 @@ bk_err_t bk_uart_write_bytes(uart_id_t id, const void *data, uint32_t size)
 	UART_RETURN_ON_INVALID_ID(id);
 	UART_RETURN_ON_ID_NOT_INIT(id);
 	UART_PM_CHECK_RESTORE(id);
+#if CONFIG_UART_SW_FLOW_CTRL
+	const uint8_t *data_ptr = (const uint8_t *)data;
+	uint32_t bytes_sent = 0;
+	extern void vPortYield( void );
+	while (bytes_sent < size)
+	{
+		while (!usfc_tx_is_enable(id))
+		{
+			vPortYield();
+		}
 
+		uint32_t tx_fifo_cnt = uart_hal_get_tx_fifo_cnt(&s_uart[id].hal, id);
+		while (tx_fifo_cnt > 64)
+		{
+			vPortYield();
+			tx_fifo_cnt = uart_hal_get_tx_fifo_cnt(&s_uart[id].hal, id);
+		}
+		
+		uint32_t available_space = UART_TX_HW_FIFO_THRESHOLD - tx_fifo_cnt;
+		uint32_t to_send = MIN(size - bytes_sent, available_space);
+
+		for (uint32_t i = 0; i < to_send; i++)
+		{
+			uart_write_byte(id, data_ptr[bytes_sent + i]);
+		}
+	
+		bytes_sent += to_send;
+		UART_LOGV("uart_write_bytes id:%d bytes_sent:%d\r\n", id, bytes_sent);
+	}
+#else
 #if (CONFIG_UART_TX_DMA)
 	if(s_uart[id].tx_dma_enable) {
 		//UART_LOGW("%s id:%d data:0x%x &data[0]:0x%x size:%d\r\n", __func__, id, data, &((uint8 *)data)[0], size);
@@ -1368,6 +1616,7 @@ bk_err_t bk_uart_write_bytes(uart_id_t id, const void *data, uint32_t size)
 			uart_write_byte(id, ((uint8 *)data)[i]);
 		}
 	}
+#endif
 	return BK_OK;
 }
 
@@ -1419,16 +1668,48 @@ bk_err_t bk_uart_read_bytes(uart_id_t id, void *data, uint32_t size, uint32_t ti
 #endif
 			if (kfifo_data_len) {
 				kfifo_get(s_uart_rx_kfifo[id], (uint8_t *)data, kfifo_data_len);
+#if CONFIG_UART_SW_FLOW_CTRL
+				usfc_sw_fifo_will_empty(id);
+				if (!s_uart[id].rx_int_enable)
+				{
+					uint32_t unused = kfifo_unused(s_uart_rx_kfifo[id]);
+					if (unused > UART_HW_FIFO_SIZE)
+					{
+						bk_uart_enable_rx_interrupt(id);
+						s_uart[id].rx_int_enable = true;
+					}
+					
+				}
+#endif
 			} else {
 				UART_LOGW("kfifo data is empty\n");
 				UART_STATIS_INC(uart_statis->kfifo_status.empty_cnt);
 			}
+#if CONFIG_UART_SW_FLOW_CTRL
+			usfc_hw_fifo_will_empty(id);
+#endif
 			UART_STATIS_SET(uart_statis->kfifo_status.in, s_uart_rx_kfifo[id]->in);
 			UART_STATIS_SET(uart_statis->kfifo_status.out, s_uart_rx_kfifo[id]->out);
 
 			return kfifo_data_len;
 		}
 		kfifo_get(s_uart_rx_kfifo[id], (uint8_t *)data, size);
+#if CONFIG_UART_SW_FLOW_CTRL
+		usfc_sw_fifo_will_empty(id);
+		usfc_hw_fifo_will_empty(id);
+		if (!s_uart[id].rx_int_enable)
+		{
+			uint32_t unused = kfifo_unused(s_uart_rx_kfifo[id]);
+			if (unused > UART_HW_FIFO_SIZE)
+			{
+				bk_uart_enable_rx_interrupt(id);
+				s_uart[id].rx_int_enable = true;
+			}
+			bk_uart_enable_rx_interrupt(id);
+			s_uart[id].rx_int_enable = true;
+		}
+		
+#endif
 		UART_STATIS_SET(uart_statis->kfifo_status.in, s_uart_rx_kfifo[id]->in);
 		UART_STATIS_SET(uart_statis->kfifo_status.out, s_uart_rx_kfifo[id]->out);
 
@@ -1662,6 +1943,9 @@ static void uart_isr_common(uart_id_t id)
 		UART_STATIS_SET(uart_statis->rx_fifo_cnt, uart_hal_get_rx_fifo_cnt(&s_uart[id].hal, id));
 		if (uart_id_is_sw_fifo_enabled(id))
 		{
+#if CONFIG_UART_SW_FLOW_CTRL
+			usfc_hw_fifo_will_full(id);
+#endif
 #if CONFIG_UART_RX_DMA
 			if(s_uart[id].rx_dma_enable)
 			{

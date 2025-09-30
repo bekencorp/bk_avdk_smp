@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#include <driver/media_types.h>
+#include <components/media_types.h>
 
 #define BK_ERR_HW_SCALE_NOT_INIT    (BK_ERR_LCD_BASE - 3) /**< hw scale init err */
 

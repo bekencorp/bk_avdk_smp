@@ -3,13 +3,8 @@
 
 #include <os/os.h>
 #include <common/bk_include.h>
-#include "media_app.h"
-#include <driver/media_types.h>
 #include <components/video_types.h>
 #include <common/bk_err.h>
-#include <driver/psram_types.h>
-
-#include <trans_list.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,46 +19,21 @@ typedef struct
 	uint8_t data[];
 } transfer_data_t;
 
-#define WIFI_RECV_CAMERA_POOL_LEN			(1472 * 35)
-#define WIFI_RECV_CAMERA_RXNODE_SIZE		1472
+typedef int (*media_transfer_send_cb)(uint8_t *data, uint32_t length);
+typedef int (*media_transfer_prepare_cb)(uint8_t *data, uint32_t length);
+typedef void* (*media_transfer_get_tx_buf_cb)(void);
+typedef int (*media_transfer_get_tx_size_cb)(void);
+typedef bool (*media_transfer_drop_check_cb)(frame_buffer_t *frame,uint32_t count, uint16_t ext_size);
 
 typedef struct {
-	/// the video data receive complete
-	beken_semaphore_t aready_semaphore;
-	/// frame_buffer
-	frame_buffer_t *frame;
-	/// recoder the buff ptr of every time receive video packte
-	uint8_t *buf_ptr;
-	/// video buff receive state
-	uint8_t start_buf;
-	/// dma id for memcpy for sram -> sram
-	uint8_t dma_id;
-	/// dma id for memcpy sram - >psram
-	uint8_t dma_psram;
-	/// the packet count of one frame
-	uint32_t frame_pkt_cnt;
-	/// stream handle
-	camera_handle_t handle;
-} wifi_transfer_net_camera_buffer_t;
-
-typedef struct {
-	struct trans_list_hdr hdr;
-	void *buf_start;
-	uint32_t buf_len;
-} wifi_transfer_net_camera_elem_t;
-
-typedef struct {
-	uint8_t *pool;
-	wifi_transfer_net_camera_elem_t elem[WIFI_RECV_CAMERA_POOL_LEN / WIFI_RECV_CAMERA_RXNODE_SIZE];
-	struct trans_list free;
-	struct trans_list ready;
-} wifi_transfer_net_camera_pool_t;
-
-typedef struct {
-	media_ppi_t ppi;
-	image_format_t fmt;
-	video_send_type_t send_type;
-} wifi_transfer_net_camera_param_t;
+	media_transfer_send_cb send;
+	media_transfer_prepare_cb prepare;
+	media_transfer_drop_check_cb drop_check;
+	media_transfer_get_tx_buf_cb get_tx_buf;
+	media_transfer_get_tx_size_cb get_tx_size;
+	frame_buffer_t *(*read)(image_format_t format, uint32_t timeout);
+	void (*free)(image_format_t format, frame_buffer_t *frame);
+} media_transfer_cb_t;
 
 #define wifi_transfer_data_check(data,length) wifi_transfer_data_check_caller((const char*)__FUNCTION__,__LINE__,data,length)
 
@@ -71,10 +41,6 @@ void wifi_transfer_data_check_caller(const char *func_name, int line,uint8_t *da
 
 bk_err_t bk_wifi_transfer_frame_open(const media_transfer_cb_t *cb, uint16_t img_format);
 bk_err_t bk_wifi_transfer_frame_close(void);
-
-bk_err_t wifi_transfer_net_camera_open(media_camera_device_t *device);
-bk_err_t wifi_transfer_net_camera_close(void);
-uint32_t wifi_transfer_net_send_data(uint8_t *data, uint32_t length, video_send_type_t type);
 
 #ifdef __cplusplus
 }

@@ -1117,7 +1117,7 @@ bk_err_t bk_dma_stateless_judgment_configuration(void *out, const void *in, uint
     dma_hal_init_dma(&s_dma[dma_num].hal, dma_channel, &dma_config);
 
     /* register isr */
-     s_dma_finish_isr[dma_num][dma_channel] = (dma_isr_t)finish_isr;
+    s_dma_finish_isr[dma_num][dma_channel] = (dma_isr_t)finish_isr;
 
     /* enable or disable finish interrupt*/
     if(finish_isr) {
@@ -1126,7 +1126,6 @@ bk_err_t bk_dma_stateless_judgment_configuration(void *out, const void *in, uint
     }
 
     return BK_OK;
-
 }
 
 bk_err_t dma_memcpy_by_chnl(void *out, const void *in, uint32_t len, dma_id_t cpy_chnl)

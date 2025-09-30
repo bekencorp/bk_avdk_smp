@@ -575,7 +575,7 @@
     }
 /*-----------------------------------------------------------*/
 #if CONFIG_DEBUG_RTOS_TIMER
-typedef struct  
+typedef struct  task_list_recorder
 {
     Timer_t * pxTimr;
     uint32_t  tick;        /*os tick */

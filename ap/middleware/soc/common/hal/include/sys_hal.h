@@ -1784,10 +1784,10 @@ uint32_t sys_hal_get_cpu1_int_32_63_en_cpu1_bt_irq_en(sys_hw_t *hw);
 
 void sys_hal_set_cpu1_int_32_63_en_cpu1_bt_irq_en(sys_hw_t *hw, uint32_t value);
 
-/* REG_0x23:cpu1_int_32_63_en->cpu1_eth_int_en: ,R/W,0x23[15]*/
-uint32_t sys_hal_get_cpu1_int_32_63_en_cpu1_eth_int_en(sys_hw_t *hw);
+/* REG_0x23:cpu1_int_32_63_en->cpu1_mbox0_int_en: ,R/W,0x23[15]*/
+uint32_t sys_hal_get_cpu1_int_32_63_en_cpu1_mbox0_int_en(sys_hw_t *hw);
 
-void sys_hal_set_cpu1_int_32_63_en_cpu1_eth_int_en(sys_hw_t *hw, uint32_t value);
+void sys_hal_set_cpu1_int_32_63_en_cpu1_mbox0_int_en(sys_hw_t *hw, uint32_t value);
 
 /* REG_0x23:cpu1_int_32_63_en->cpu1_mbox1_int_en: ,R/W,0x23[16]*/
 uint32_t sys_hal_get_cpu1_int_32_63_en_cpu1_mbox1_int_en(sys_hw_t *hw);

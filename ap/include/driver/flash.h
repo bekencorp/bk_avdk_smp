@@ -366,6 +366,29 @@ bk_err_t mb_flash_unregister_op_notify(void * notify_cb);
 
 /**
  * @brief  register a callback to be called when flash is busy waiting.
+ * @param notify_cb:If flash is writing/erasing, it will block all of other applications.
+ *                But maybe the application can't be blocked when flash is writing/erasing.
+ *                So the application should register this notify_cb to flash.
+ *                When flash is writing/erasing, it will call this notify_cb
+ * @param args: the arguments to pass to notify_cb
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: registered too many(>4) notify_cb to flash.
+ */
+bk_err_t mb_flash_register_op_uart_notify(void * notify_cb);
+
+/**
+ * @brief  unregister the notify_cb from flash waiting.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: The notify_cb isn't registered to flash.
+ */
+bk_err_t mb_flash_unregister_op_uart_notify(void);
+
+/**
+ * @brief  register a callback to be called when flash is busy waiting.
  * @param wait_cb:If flash is writing/erasing, it will block all of other applications.
  *                But maybe the application can't be blocked when flash is writing/erasing.
  *                So the application should register this wait_cb to flash.
@@ -415,6 +438,8 @@ uint32_t flash_get_excute_enable();
 /**
  * @brief     Set flash 2 line mode
  *
+ * @param line_mode flash 2 line mode
+ *
  * @return
  *    - BK_OK: succeed
  *    - others: other errors.
@@ -423,6 +448,8 @@ bk_err_t bk_flash_power_saving_enter(void);
 
 /**
  * @brief     Set flash 4 line mode
+ *
+ * @param line_mode flash 4 line mode
  *
  * @return
  *    - BK_OK: succeed

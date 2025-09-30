@@ -4201,6 +4201,7 @@ extern void tls_mbedtls_mem_free(void *ptr);
 #define MBEDTLS_ENTROPY_C
 #define MBEDTLS_ECP_FIXED_POINT_OPTIM 0
 #define MBEDTLS_HKDF_C
+#define MBEDTLS_MD5_C
 #define MBEDTLS_OID_C
 #define MBEDTLS_PEM_PARSE_C
 #define MBEDTLS_PK_C

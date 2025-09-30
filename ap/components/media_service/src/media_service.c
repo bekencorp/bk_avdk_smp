@@ -1,15 +1,11 @@
 #include <common/bk_include.h>
 #include <components/log.h>
 #include "bk_peripheral.h"
-#include "media_app.h"
 #include "audio_osi_wrapper.h"
 #include "video_osi_wrapper.h"
-#include "media_cli.h"
-#include "frame_buffer.h"
-#include "lcd_display_service.h"
-#include "uvc_pipeline_act.h"
 #include <driver/timer.h>
 #include <driver/pm_ap_core.h>
+#include "psram_mem_slab.h"
 
 #define TAG "media_sev"
 
@@ -76,12 +72,14 @@ static void media_debug_dump(timer_id_t timer_id)
 
 static bk_err_t media_frame_buffer_list_init(uint32_t param1, uint32_t param2)
 {
-    return frame_buffer_list_init();
+    bk_psram_frame_buffer_init();
+    return BK_OK;
 }
 
 static bk_err_t media_frame_buffer_list_deinit(uint32_t param1, uint32_t param2)
 {
-    return frame_buffer_list_deinit();
+    //bk_psram_frame_buffer_deinit();
+    return BK_OK;
 }
 
 int media_service_init(void)
@@ -106,12 +104,6 @@ int media_service_init(void)
 		LOGE("%s, bk_audio_osi_funcs_init failed\n", __func__);
 		return ret;
 	}
-//	media_cli_init();
-
-#if (CONFIG_AUD_INTF_TEST)
-	extern int cli_aud_intf_init(void);
-	cli_aud_intf_init();
-#endif
 
 #if (CONFIG_USB_CDC)
 	//extern bk_err_t bk_cdc_acm_demo(void);
@@ -133,12 +125,6 @@ int media_service_init(void)
 
     bk_pm_ap_psram_power_state_register_callback(&power_state_cb);
 
-#ifdef CONFIG_LCD
-    lcd_display_service_init();
-#endif
-
-    media_app_init();
-
     if (media_debug == NULL)
     {
         media_debug = (media_debug_t *)os_malloc(sizeof(media_debug_t));
@@ -148,7 +134,7 @@ int media_service_init(void)
             LOGE("malloc media_debug fail\n");
         }
     }
-    
+
     if (media_debug_cached == NULL)
     {
         media_debug_cached = (media_debug_t *)os_malloc(sizeof(media_debug_t));

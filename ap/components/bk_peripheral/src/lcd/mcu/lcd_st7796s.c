@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <driver/gpio.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
 #include "lcd_disp_hal.h"
 //#include "include/bk_lcd_commands.h"
@@ -89,7 +89,7 @@ void lcd_st7796s_tearing_effect_off(void)
 }
 #endif
 
-static bk_err_t lcd_st7796s_swap_xy(bool swap_axes)
+static bk_err_t lcd_st7796s_swap_xy(const void *handle, bool swap_axes)
 {
 	if (swap_axes)
 	{
@@ -106,7 +106,7 @@ static bk_err_t lcd_st7796s_swap_xy(bool swap_axes)
 	return BK_OK;
 }
 
-static bk_err_t lcd_st7796s_mirror(bool mirror_x, bool mirror_y)
+static bk_err_t lcd_st7796s_mirror(const void *handle, bool mirror_x, bool mirror_y)
 {
 	if (mirror_x)
 	{
@@ -135,7 +135,7 @@ bk_err_t st7796s_lcd_on(void)
 	return BK_OK;
 }
 
-static bk_err_t st7796s_lcd_off(void)
+static bk_err_t st7796s_lcd_off(const void *handle)
 {
 	lcd_hal_8080_cmd_send(0, DISPLAY_OFF, NULL);
 	return BK_OK;
@@ -176,7 +176,7 @@ void lcd_st7796s_init(void)
 	lcd_hal_8080_cmd_send(0, DISPLAY_ON, (uint32_t *)param_display_on);
 }
 
-void lcd_st7796s_set_display_mem_area(uint16 xs, uint16 xe, uint16 ys, uint16 ye)
+void lcd_st7796s_set_display_mem_area(const void *handle, uint16 xs, uint16 xe, uint16 ys, uint16 ye)
 {
 	uint16 xs_l, xs_h, xe_l, xe_h;
 	uint16 ys_l, ys_h, ye_l, ye_h;
@@ -206,8 +206,8 @@ static const lcd_mcu_t lcd_mcu =
 	.set_xy_swap = lcd_st7796s_swap_xy,
 	.set_mirror = lcd_st7796s_mirror,
 	.set_display_area = lcd_st7796s_set_display_mem_area,
-	.start_transform = NULL,
-	.continue_transform = NULL,
+	.start_transfer = NULL,
+	.continue_transfer = NULL,
 };
 
 const lcd_device_t lcd_device_st7796s =
@@ -215,7 +215,8 @@ const lcd_device_t lcd_device_st7796s =
 	.id = LCD_DEVICE_ST7796S,
 	.name = "st7796s",
 	.type = LCD_TYPE_MCU8080,
-	.ppi = PPI_320X480,
+	.width = 320,
+	.height = 480,
 	.mcu = &lcd_mcu,
 	.init = lcd_st7796s_init,
 	.lcd_off = st7796s_lcd_off,

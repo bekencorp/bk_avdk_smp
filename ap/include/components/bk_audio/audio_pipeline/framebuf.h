@@ -132,6 +132,15 @@ int fb_get_total_node_num(framebuf_handle_t fb);
 int fb_get_ready_node_num(framebuf_handle_t fb);
 
 /**
+ * @brief      Get the free node number of framebuffer
+ *
+ * @param[in]  fb    The framebuffer handle
+ *
+ * @return     free node number of framebuffer
+ */
+int fb_get_free_node_num(framebuf_handle_t fb);
+
+/**
  * @brief      Read framebuffer node from ready framebuffer node list and wait `tick_to_wait` ticks until enough framebuffer node to read
  *             if the ready framebuffer list is exist node.
  *

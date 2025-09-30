@@ -138,12 +138,6 @@ if (CONFIG_VFS)
 	)
 endif()
 
-if (CONFIG_EFUSE)
-	list(APPEND srcs
-		cli_efuse.c
-	)
-endif()
-
 if (CONFIG_SDIO_HOST)
 	list(APPEND srcs
 		cli_sdio_host.c
@@ -190,13 +184,6 @@ if (CONFIG_AON_RTC)
 	)
 endif()
 
-if (CONFIG_JPEGENC_HW)
-	list(APPEND srcs
-		"cli_jpegenc.c"
-	)
-endif()
-
-
 if (CONFIG_AT_CMD)
 	list(APPEND srcs "cli_at.c")
 endif()
@@ -235,46 +222,6 @@ if (CONFIG_EASY_FLASH)
 	)
 endif()
 
-if (CONFIG_AUDIO_TEST)
-	list(APPEND srcs "cli_aud.c")
-endif()
-
-if (CONFIG_AUDIO_ATE_TEST)
-	list(APPEND srcs "cli_aud_ate.c")
-endif()
-
-if (CONFIG_AUDIO_AEC_TEST)
-	list(APPEND srcs "cli_aec.c")
-endif()
-
-if (CONFIG_AUDIO_G711_TEST)
-	list(APPEND srcs "cli_g711.c")
-endif()
-
-if (CONFIG_AUDIO_OPUS_TEST)
-	list(APPEND srcs "cli_opus.c")
-endif()
-
-if (CONFIG_AUDIO_ADPCM_TEST)
-	list(APPEND srcs "cli_adpcm.c")
-endif()
-
-if (CONFIG_AUDIO_MP3_TEST)
-	list(APPEND srcs "cli_mp3.c")
-endif()
-
-if (CONFIG_FFT_TEST)
-	list(APPEND srcs "cli_fft.c")
-endif()
-
-if (CONFIG_SBC_TEST)
-	list(APPEND srcs "cli_sbc.c")
-endif()
-
-if (CONFIG_I2S_TEST)
-	list(APPEND srcs "cli_i2s.c")
-endif()
-
 if (CONFIG_TOUCH_TEST)
 	list(APPEND srcs "cli_touch.c")
 endif()
@@ -307,22 +254,6 @@ if (CONFIG_GET_UID_TEST)
 	list(APPEND srcs cli_uid.c)
 endif()
 
-if (CONFIG_AUDIO_RSP_TEST)
-	list(APPEND srcs cli_aud_rsp.c)
-endif()
-
-if (CONFIG_AUDIO_VAD_TEST)
-	list(APPEND srcs cli_aud_vad.c)
-endif()
-
-if (CONFIG_AUDIO_NS_TEST)
-	list(APPEND srcs cli_aud_ns.c)
-endif()
-
-if (CONFIG_AUDIO_FLAC_TEST)
-	list(APPEND srcs cli_aud_flac.c)
-endif()
-
 if (CONFIG_QRCODEGEN_TEST)
 	list(APPEND srcs cli_qrcodegen.c)
 endif()
@@ -341,10 +272,6 @@ endif()
 
 if (CONFIG_SDMADC_TEST)
 	list(APPEND srcs cli_sdmadc.c)
-endif()
-
-if (CONFIG_AUDIO_AGC_TEST)
-	list(APPEND srcs cli_aud_agc.c)
 endif()
 
 if (CONFIG_FLASHDB_DEMO)

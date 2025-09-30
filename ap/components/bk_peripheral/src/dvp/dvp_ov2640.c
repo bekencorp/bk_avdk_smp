@@ -34,8 +34,6 @@
         dvp_camera_i2c_write_uint8((OV2640_WRITE_ADDRESS >> 1), reg, value);\
     }while (0)
 
-bool ov2640_read_flag = false;
-
 #if 0
 const uint8_t sensor_ov2640_init_talbe[][2] =
 {
@@ -1106,22 +1104,6 @@ bool ov2640_detect(void)
     return false;
 }
 
-void ov2640_read_register(uint8_t addr, uint8_t data)
-{
-    if (ov2640_read_flag)
-    {
-        uint8_t value = 0;
-        rtos_delay_milliseconds(2);
-        SENSOR_I2C_READ(addr, &value);
-        if (value != data)
-        {
-            LOGD("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
-        }
-    }
-}
-
-
-
 int ov2640_init(void)
 {
     uint32_t size = sizeof(sensor_ov2640_init_talbe) / 2, i;
@@ -1134,9 +1116,6 @@ int ov2640_init(void)
         //do {
         SENSOR_I2C_WRITE(sensor_ov2640_init_talbe[i][0],
                          sensor_ov2640_init_talbe[i][1]);
-
-        ov2640_read_register(sensor_ov2640_init_talbe[i][0],
-                             sensor_ov2640_init_talbe[i][1]);
     }
 
     return 0;
@@ -1160,9 +1139,6 @@ int ov2640_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_ov2640_1600X1200_talbe[i][0],
                                  sensor_ov2640_1600X1200_talbe[i][1]);
-
-                ov2640_read_register(sensor_ov2640_1600X1200_talbe[i][0],
-                                     sensor_ov2640_1600X1200_talbe[i][1]);
             }
 
             ret = 0;
@@ -1176,9 +1152,6 @@ int ov2640_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_ov2640_1280X720_talbe[i][0],
                                  sensor_ov2640_1280X720_talbe[i][1]);
-
-                ov2640_read_register(sensor_ov2640_1280X720_talbe[i][0],
-                                     sensor_ov2640_1280X720_talbe[i][1]);
             }
 
             ret = 0;
@@ -1193,9 +1166,6 @@ int ov2640_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_ov2640_800X600_talbe[i][0],
                                  sensor_ov2640_800X600_talbe[i][1]);
-
-                ov2640_read_register(sensor_ov2640_800X600_talbe[i][0],
-                                     sensor_ov2640_800X600_talbe[i][1]);
             }
 
             ret = 0;
@@ -1209,9 +1179,6 @@ int ov2640_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_ov2640_640X480_talbe[i][0],
                                  sensor_ov2640_640X480_talbe[i][1]);
-
-                ov2640_read_register(sensor_ov2640_640X480_talbe[i][0],
-                                     sensor_ov2640_640X480_talbe[i][1]);
             }
 
             ret = 0;
@@ -1237,33 +1204,19 @@ int ov2640_set_fps(frame_fps_t fps)
     return ret;
 }
 
-int ov2640_dump(media_ppi_t ppi)
+int ov2640_read_register(uint32_t reg, uint32_t *data)
 {
-    uint32_t size, i;
-    int ret = -1;
-    uint8_t value = 0;
-
-    LOGD("%s\n", __func__);
-
-    size = sizeof(sensor_ov2640_init_talbe) / 2;
-
-    for (i = 0; i < size; i++)
-    {
-        SENSOR_I2C_READ(sensor_ov2640_init_talbe[i][0], &value);
-        LOGD("[0x%02x, 0x%02x]\r\n", sensor_ov2640_init_talbe[i][0], value);
-    }
-
-    ret = kNoErr;
-
-    return ret;
-
+    uint8_t val = 0;
+    SENSOR_I2C_READ(reg, &val);
+    *data = val;
+    return 0;
 }
 
-void ov2640_read_enable(bool enable)
+int ov2640_write_register(uint32_t reg, uint32_t data)
 {
-    ov2640_read_flag = enable;
+    SENSOR_I2C_WRITE(reg, data);
+    return 0;
 }
-
 
 const dvp_sensor_config_t dvp_sensor_ov2640 =
 {
@@ -1285,7 +1238,7 @@ const dvp_sensor_config_t dvp_sensor_ov2640 =
     .set_ppi = ov2640_set_ppi,
     .set_fps = ov2640_set_fps,
     .power_down = NULL,
-    .dump_register = ov2640_dump,
-    .read_register = ov2640_read_enable,
+    .read_register = ov2640_read_register,
+    .write_register = ov2640_write_register,
 };
 

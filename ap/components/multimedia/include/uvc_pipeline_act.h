@@ -14,8 +14,9 @@
 
 #pragma once
 #include <common/bk_include.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 #include <driver/lcd_types.h>
+#include <components/bk_video_pipeline/bk_video_pipeline.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,20 +25,17 @@ extern "C" {
 
 bk_err_t uvc_pipeline_init(void);
 
-bk_err_t h264_jdec_pipeline_open(void);
+bk_err_t h264_jdec_pipeline_open(bk_video_pipeline_h264e_config_t *config, const bk_h264e_callback_t *cb,
+	 				const jpeg_callback_t *jpeg_cbs, const decode_callback_t *decode_cbs);
 bk_err_t h264_jdec_pipeline_close(void);
 bk_err_t h264_jdec_pipeline_regenerate_idr_frame(void);
 
-bk_err_t lcd_set_fmt(uint32_t fmt);
-bk_err_t pipeline_set_rotate(media_rotate_t rotate);
-
-bk_err_t lcd_jdec_pipeline_open(void);
+bk_err_t lcd_jdec_pipeline_open(bk_video_pipeline_decode_config_t *config, const jpeg_callback_t *jpeg_cbs, const decode_callback_t *decode_cbs);
 bk_err_t lcd_jdec_pipeline_close(void);
 
-void pipeline_mem_show(void);
-void pipeline_mem_leak(void);
-
-uint8_t *get_mux_sram_buffer(void);
+uint8_t *get_mux_sram_decode_buffer(void);
+uint8_t *get_mux_sram_rotate_buffer(void);
+uint8_t *get_mux_sram_scale_buffer(void);
 
 #ifdef __cplusplus
 }

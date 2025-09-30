@@ -14,12 +14,9 @@
 
 #include <common/bk_include.h>
 #include "scale1_ll_macro_def.h"
-#include "scale1_ll_macro_def.h"
 #include <driver/hw_scale_types.h>
 #include "bk_misc.h"
 #include "scale1_hal.h"
-#include "bk_misc.h"
-#include <driver/media_types.h>
 
 
 #define TAG "scale1"

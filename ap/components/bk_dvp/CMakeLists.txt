@@ -5,7 +5,7 @@ set(priv_req bk_common avdk_utils)
 if (CONFIG_DVP_CAMERA)
 	list(APPEND srcs
 		src/bk_dvp.c
-		src/video_common_driver.c
+		src/dvp_common.c
 	)
 endif()
 

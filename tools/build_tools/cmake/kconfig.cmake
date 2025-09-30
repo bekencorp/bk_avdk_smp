@@ -87,10 +87,11 @@ function(__kconfig_init)
     #     armino_build_set_property(__MCONF ${MCONF})
     #     armino_build_set_property(__MENUCONFIG_DEPENDS "${menuconfig_depends}")
     # endif()
+    get_filename_component(sub_sys ${armino_path} NAME)
 
     armino_build_get_property(armino_path ARMINO_PATH)
     armino_build_set_property(__ROOT_KCONFIG ${armino_path}/Kconfig)
-    armino_build_set_property(__ROOT_SDKCONFIG_RENAME ${armino_path}/sdkconfig.rename)
+    armino_build_set_property(__ROOT_SDKCONFIG_RENAME ${armino_tools_path}/build_tools/build_files/sdkconfig_${sub_sys}.rename)
     armino_build_set_property(__OUTPUT_SDKCONFIG 1)
 endfunction()
 
@@ -114,6 +115,7 @@ endfunction()
 # dependencies.
 #
 function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_default_soc)
+
     # List all Kconfig and Kconfig.projbuild in known components
 	get_filename_component(sdkconfig_dir ${sdkconfig} DIRECTORY)
     armino_build_get_property(component_targets __COMPONENT_TARGETS)
@@ -144,9 +146,9 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     armino_build_get_property(armino_tools_path ARMINO_TOOLS_PATH)
     armino_build_get_property(armino_env_fpga __ARMINO_ENV_FPGA)
 
-    string(REPLACE ";" " " kconfigs "${kconfigs}")
-    string(REPLACE ";" " " kconfig_projbuilds "${kconfig_projbuilds}")
-    string(REPLACE ";" " " sdkconfig_renames "${sdkconfig_renames}")
+    # string(REPLACE ";" " " kconfigs "${kconfigs}")
+    # string(REPLACE ";" " " kconfig_projbuilds "${kconfig_projbuilds}")
+    # string(REPLACE ";" " " sdkconfig_renames "${sdkconfig_renames}")
 
     # These are the paths for files which will contain the generated "source" lines for COMPONENT_KCONFIGS and
     # COMPONENT_KCONFIGS_PROJBUILD
@@ -162,7 +164,7 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     # to work around command line length limits for execute_process
     # on Windows & CMake < 3.11
     set(config_env_path "${CMAKE_CURRENT_BINARY_DIR}/config.env")
-    configure_file("${armino_tools_path}/build_tools/kconfig_new/config.env.in" ${config_env_path})
+    configure_file("${armino_tools_path}/build_tools/kconfig/config.env.in" ${config_env_path})
     armino_build_set_property(CONFIG_ENV_PATH ${config_env_path})
 
     if(sdkconfig_default_soc)
@@ -187,27 +189,32 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     armino_build_get_property(python PYTHON)
 
     set(prepare_kconfig_files_command
-        ${python} ${armino_tools_path}/build_tools/kconfig_new/prepare_kconfig_files.py
+        ${python} ${armino_tools_path}/build_tools/kconfig/prepare_kconfig_files.py
+        --list-separator=semicolon
         --env-file ${config_env_path})
 
     set(confgen_basecommand
-        ${python} ${armino_tools_path}/build_tools/kconfig_new/confgen.py
+        ${python} ${armino_tools_path}/build_tools/kconfig/kconfgen.py
+        --list-separator=semicolon
         --kconfig ${root_kconfig}
-        #--sdkconfig-rename ${root_sdkconfig_rename} by peter
+        --sdkconfig-rename ${root_sdkconfig_rename}
         --config ${sdkconfig}
         ${defaults_arg}
         --env-file ${config_env_path})
 		
-	set(sdkconfig_diff_command
-		${python} ${armino_tools_path}/build_tools/kconfig_new/sdkconfig_diff.py
-		--sdkconfig=${sdkconfig}
-		--old_sdkconfig=${sdkconfig_dir}/sdkconfig.old)
+	# set(sdkconfig_diff_command
+	# 	${python} ${armino_tools_path}/build_tools/kconfig_new/sdkconfig_diff.py
+	# 	--sdkconfig=${sdkconfig}
+	# 	--old_sdkconfig=${sdkconfig_dir}/sdkconfig.old)
 	
-    get_filename_component(sub_sys ${armino_path} NAME) #ap/cp
-    set(diff_sdkconfig_arg ${CMAKE_CURRENT_LIST_DIR}/${sub_sys}/config/${ARMINO_SOC}.config)
-	if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/${sub_sys}/config/${ARMINO_SOC}/config)
-		set(diff_sdkconfig_arg ${CMAKE_CURRENT_LIST_DIR}/${sub_sys}/config/${ARMINO_SOC}/config)
-	endif()
+    # get_filename_component(sub_sys ${armino_path} NAME) #ap/cp
+
+    
+
+    # set(diff_sdkconfig_arg ${CMAKE_CURRENT_LIST_DIR}/${sub_sys}/config/${ARMINO_SOC}.config)
+	# if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/${sub_sys}/config/${ARMINO_SOC}/config)
+	# 	set(diff_sdkconfig_arg ${CMAKE_CURRENT_LIST_DIR}/${sub_sys}/config/${ARMINO_SOC}/config)
+	# endif()
 
     armino_build_get_property(build_dir BUILD_DIR)
     set(config_dir ${build_dir}/config)
@@ -244,7 +251,7 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     endif()
 
     if(config_result)
-        LOGE("Failed to run confgen.py (${confgen_basecommand}). Error ${config_result}")
+        LOGE("Failed to run kconfgen.py (${confgen_basecommand}). Error ${config_result}")
     endif()
 
     # Add the generated config header to build specifications.
@@ -259,8 +266,8 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${sdkconfig_cmake}")
 
     # Or if the config generation tool changes
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${armino_tools_path}/build_tools/kconfig_new/confgen.py")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${armino_tools_path}/build_tools/kconfig_new/kconfiglib.py")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${armino_tools_path}/build_tools/kconfig/kconfgen.py")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${armino_tools_path}/build_tools/kconfig/kconfiglib/core.py")
 
     set_property(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" APPEND PROPERTY
                 ADDITIONAL_MAKE_CLEAN_FILES "${sdkconfig_header}" "${sdkconfig_cmake}")
@@ -277,7 +284,7 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
 
         set(MENUCONFIG_CMD ${mconf})
     else()
-        set(MENUCONFIG_CMD ${python} ${armino_tools_path}/build_tools/kconfig_new/menuconfig.py)
+        set(MENUCONFIG_CMD ${python} ${armino_tools_path}/build_tools/kconfig/menuconfig.py)
         set(TERM_CHECK_CMD ${python} ${armino_tools_path}/build_tools/check_term.py)
     endif()
 
@@ -315,14 +322,14 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
         --env "ARMINO_ENV_FPGA=${armino_env_fpga}"
         --output config ${sdkconfig}
 		#COMMAND ${CMAKE_COMMAND} -E copy ${sdkconfig} ${CMAKE_CURRENT_LIST_DIR}/config/${ARMINO_SOC}.config
-		COMMAND ${CMAKE_COMMAND} -E touch ${sdkconfig_dir}/sdkconfig.old
-		COMMAND ${sdkconfig_diff_command} --diff_sdkconfig=${diff_sdkconfig_arg}
+		# COMMAND ${CMAKE_COMMAND} -E touch ${sdkconfig_dir}/sdkconfig.old
+		# COMMAND ${sdkconfig_diff_command} --diff_sdkconfig=${diff_sdkconfig_arg}
         )
 
     # Custom target to run confserver.py from the build tool
     add_custom_target(confserver
         COMMAND ${prepare_kconfig_files_command}
-        COMMAND ${PYTHON} ${armino_tools_path}/build_tools/kconfig_new/confserver.py
+        COMMAND ${PYTHON} ${armino_tools_path}/build_tools/kconfig/kconfserver.py
         --env-file ${config_env_path}
         --kconfig ${ARMINO_PATH}/Kconfig
         --sdkconfig-rename ${root_sdkconfig_rename}

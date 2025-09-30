@@ -278,7 +278,12 @@ bk_err_t bk_gpio_pull_down(gpio_id_t gpio_id)
 	return gpio_hal_pull_up_enable(&s_gpio.hal, gpio_id, 0);
 }
 
-
+bk_err_t bk_gpio_set_output_value(gpio_id_t gpio_id, bool value)
+{
+    GPIO_RETURN_ON_INVALID_ID(gpio_id);
+	gpio_hal_output_enable(&s_gpio.hal, gpio_id, 1);
+    return gpio_hal_set_output_value(&s_gpio.hal, gpio_id, value);
+}
 
 bk_err_t bk_gpio_set_output_high(gpio_id_t gpio_id)
 {

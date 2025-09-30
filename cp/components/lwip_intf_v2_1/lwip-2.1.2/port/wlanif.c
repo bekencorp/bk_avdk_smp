@@ -121,7 +121,7 @@ static void low_level_init(struct netif *netif)
 
     /* set MAC hardware address length */
     LWIP_LOGV("enter low level!\r\n");
-    LWIP_LOGD("mac %2x:%2x:%2x:%2x:%2x:%2x\r\n", macptr[0], macptr[1], macptr[2],
+    LWIP_LOGI("mac %2x:%2x:%2x:%2x:%2x:%2x\r\n", macptr[0], macptr[1], macptr[2],
                  macptr[3], macptr[4], macptr[5]);
 
     netif->hwaddr_len = ETHARP_HWADDR_LEN;

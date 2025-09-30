@@ -45,7 +45,6 @@ CONFIG_BLUETOOTH_SUPPORT_IPC=n
 # Modify Cli Config
 #
 CONFIG_TOUCH_TEST=n
-# CONFIG_SBC_TEST is not set
 # CONFIG_AUDIO is not set
 CONFIG_PSRAM_TEST=n
 CONFIG_INTERRUPT_TEST=n
@@ -108,7 +107,7 @@ CONFIG_LWIP_MEMP_NUM_TCP_SEG=80
 #
 # sensor_detect
 #
-CONFIG_VOLT_DETECT=y
+CONFIG_VOLT_DETECT=n
 # end of sensor_detect
 
 #

@@ -245,7 +245,6 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
 
     if (voice_handle->aec_en)
     {
-
         #if CONFIG_ADK_AEC_V3_ALGORITHM
         bk_voice_cal_vad_buf_size(cfg, voice_handle);
         voice_handle->aec_alg = aec_v3_algorithm_init(&cfg->aec_cfg.aec_alg_cfg);
@@ -1191,15 +1190,9 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
             return BK_FAIL;
         }
 
-        /*
-            When aec enable,
-            if aec mode is AEC_MODE_HARDWARE, mic channel is 2 (one channel is mic data, other channel is ref data from speaker)
-            if aec mode is AEC_MODE_SOFTWARE, mic channel is 1 (the channel is mic data)
-         */
         if (cfg.aec_en)
         {
-            if ((cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode == AEC_MODE_HARDWARE && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num != 2)
-                || (cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode == AEC_MODE_SOFTWARE && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num != 1))
+            if (cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode == AEC_MODE_HARDWARE && cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num != 1)
             {
                 BK_LOGE(TAG, "%s, %d, aec mode: %d, mic chanels: %d are not match\n", __func__, __LINE__, cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode, cfg.mic_cfg.onboard_dual_dmic_mic_cfg.adc_cfg.chl_num);
                 return BK_FAIL;
@@ -1367,6 +1360,7 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
                 BK_LOGE(TAG, "%s, %d, link apk_stream to aec_alg_ref_rb fail\n", __func__, __LINE__);
                 goto fail;
             }
+
         }
     }
 
@@ -1589,7 +1583,7 @@ audio_element_handle_t bk_voice_get_spk_element(voice_handle_t voice_handle)
 
 /* used for amp system, not smp system */
 #if (CONFIG_SOC_SMP)
-bk_err_t bk_voice_event_handle(voice_event_handle event_handle, vioce_evt_t event, void *param, void *args)
+bk_err_t bk_voice_event_handle(voice_event_handle event_handle, voice_evt_t event, void *param, void *args)
 {
     VOICE_CHECK_NULL(event_handle, return BK_FAIL);
 

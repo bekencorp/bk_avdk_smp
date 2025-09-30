@@ -161,6 +161,7 @@ typedef enum {
 
 	EVENT_WIFI_AP_CONNECTED,	   /**< A STA is connected to the BK AP */
 	EVENT_WIFI_AP_DISCONNECTED,    /**< A STA is disconnected from the BK AP */
+	EVENT_WIFI_GO_DISCONNECTED,    /**< A GC is disconnected from the BK GO */
 
 	EVENT_WIFI_NETWORK_FOUND,	   /**< The BK STA find target AP */
 	EVENT_WIFI_COUNT,			   /**< WiFi event count */

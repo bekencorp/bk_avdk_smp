@@ -90,13 +90,8 @@ static const lcd_qspi_t lcd_qspi_st77903_sat61478m_config =
 	.refresh_config.vsw = LCD_QSPI_ST77903_SAT61478M_VSW,
 	.refresh_config.hfp = LCD_QSPI_ST77903_SAT61478M_HFP,
 	.refresh_config.hbp = LCD_QSPI_ST77903_SAT61478M_HBP,
-#if (CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE == 3)
-	.refresh_config.line_len = (PPI_360X480 >> 16) * 3,
-	.frame_len = (PPI_360X480 >> 16) * 3 * (PPI_360X480 & 0xFFFF),
-#else
-	.refresh_config.line_len = (PPI_360X480 >> 16) * 2,
-	.frame_len = (PPI_360X480 >> 16) * 2 * (PPI_360X480 & 0xFFFF),
-#endif
+	.refresh_config.line_len = 360 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
+	.frame_len = 360 * 480 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
 //st77903 screen without display ram, and need to send data continuously.
@@ -105,7 +100,8 @@ const lcd_device_t lcd_device_st77903_sat61478m =
 	.id = LCD_DEVICE_ST77903_SAT61478M,
 	.name = "st77903_sat61478m",
 	.type = LCD_TYPE_QSPI,
-	.ppi = PPI_360X480,
+	.width = 360,
+	.height = 480,
 	.qspi = &lcd_qspi_st77903_sat61478m_config,
 	.init = NULL,
 	.lcd_off = NULL,

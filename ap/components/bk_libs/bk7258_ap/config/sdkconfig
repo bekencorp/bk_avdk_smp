@@ -1,6 +1,6 @@
 #
 # Automatically generated file. DO NOT EDIT.
-# Beken IoT Development Framework (BEKEN-ARMINO) Project Configuration
+# BEKEN IoT Development Framework (BEKEN-ARMINO)  Project Configuration
 #
 
 #
@@ -73,6 +73,16 @@ CONFIG_NO_HOSTED=y
 #
 # Properties Configuration
 #
+
+#
+# modules::uid
+#
+CONFIG_UID=y
+CONFIG_UID_GET_ITEM_FROM_OTP=30
+CONFIG_UID_GET_SIZE_FROM_OTP=5
+# CONFIG_UID_TEST is not set
+CONFIG_UID_GET_OFFSET_FROM_OTP=0x3C0
+# end of modules::uid
 
 #
 # modules::usb

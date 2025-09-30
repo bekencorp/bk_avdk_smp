@@ -14,12 +14,16 @@
 #include "security_ota.h"
 
 #if HTTP_WR_TO_FLASH
+#if CONFIG_FLASH_ORIGIN_API
+#include "bk_flash.h"
+#else
 #include "driver/flash.h"
+#endif
 #endif
 
 #ifdef CONFIG_HTTP_AB_PARTITION
     #include "modules/ota.h"
-    #include "bk_private/bk_ota_private.h"
+    #include "bk_private/bk_ota_private.h" 
 	#include "driver/flash_partition.h"
     extern part_flag update_part_flag;
 #endif
@@ -38,6 +42,9 @@
 
 #define HTTP_RETRIEVE_MORE_DATA   (1)            /**< More data needs to be retrieved. */
 
+#if CONFIG_FLASH_ORIGIN_API
+extern void flash_protection_op(UINT8 mode, PROTECT_TYPE type);
+#endif
 #if CONFIG_OTA_TFTP
 #define HTTP_FLASH_WR_BUF_MAX WR_BUF_MAX
 #else
@@ -96,7 +103,7 @@ static uint32 http_get_sapp_partition_length(bk_partition_t partition)
 {
 	bk_logic_partition_t *bk_ptr = NULL;
 	uint32 ret_length;
-
+	
 	bk_ptr = bk_flash_partition_get_info(partition);
 
 	if(NULL == bk_ptr)
@@ -657,6 +664,9 @@ void http_flash_wr(UINT8 *src, unsigned len)
         		param = bk_http_ptr->flash_address;
         		//GLOBAL_INT_DISABLE();
 
+#if CONFIG_FLASH_ORIGIN_API
+        		ddev_control(bk_http_ptr->flash_hdl, CMD_FLASH_ERASE_SECTOR, (void *)&param);
+#else
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB
                 if((len != 0) && (((u32)bk_http_ptr->flash_address + len) <= (bk_http_ptr->pt->partition_start_addr + ota_partition_length)))
 #else
@@ -665,6 +675,7 @@ void http_flash_wr(UINT8 *src, unsigned len)
                 {
                     bk_flash_erase_sector(param);
                 }
+#endif
 		      //GLOBAL_INT_RESTORE();
                 flash_erase_ready = 0;
                 break;
@@ -705,12 +716,19 @@ void http_flash_wr(UINT8 *src, unsigned len)
                 if(flash_erase_ready == 1)
     	        {
             		//GLOBAL_INT_DISABLE();
+#if CONFIG_FLASH_ORIGIN_API
+            		ddev_write(bk_http_ptr->flash_hdl, (char *)src, len, (u32)bk_http_ptr->flash_address);
+#else
             		bk_flash_write_bytes(bk_http_ptr->flash_address, (uint8_t *)src, len);
-
+#endif
             		//GLOBAL_INT_RESTORE();
             		if (bk_http_ptr->wr_tmp_buf) {
             			//GLOBAL_INT_DISABLE();
+#if CONFIG_FLASH_ORIGIN_API
+            			ddev_read(bk_http_ptr->flash_hdl, (char *)bk_http_ptr->wr_tmp_buf, len, (u32)bk_http_ptr->flash_address);
+#else
             			bk_flash_read_bytes(bk_http_ptr->flash_address, (uint8_t *)bk_http_ptr->wr_tmp_buf, len);
+#endif
             			//GLOBAL_INT_RESTORE();
             			if (!os_memcmp(src, bk_http_ptr->wr_tmp_buf, len)) {
             			} else
@@ -732,6 +750,9 @@ void http_flash_wr(UINT8 *src, unsigned len)
 
 void http_flash_init(void)
 {
+#if CONFIG_FLASH_ORIGIN_API
+	UINT32 status;
+#endif
 	bk_http_ptr->wr_buf = NULL;
 	bk_http_ptr->wr_tmp_buf = NULL;
 
@@ -747,37 +768,47 @@ void http_flash_init(void)
 			BK_LOGD(NULL, "wr_tmp_buf malloc err\r\n");
 	}
 
-	#ifndef CONFIG_HTTP_AB_PARTITION
-		bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_OTA);
-	#else
-		#if CONFIG_OTA_POSITION_INDEPENDENT_AB
-			ota_partition_length = http_get_sapp_partition_length(BK_PARTITION_S_APP);
-			if(update_part_flag == UPDATE_B_PART)
-			{
-				BK_LOGD(NULL, "UPDATE_B_PART\r\n");
-				bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_S_APP); //update B_parition
-			}
-			else
-			{
-				BK_LOGD(NULL, "UPDATE_A_PART\r\n");
-				bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_APPLICATION);//update A_parition.
-			}
-		#else
-			bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_S_APP);
-		#endif
+#if CONFIG_FLASH_ORIGIN_API
+	bk_http_ptr->pt = bk_flash_get_info(BK_PARTITION_OTA);
+	bk_http_ptr->flash_hdl = ddev_open(DD_DEV_TYPE_FLASH, &status, 0);
+	BK_ASSERT(DD_HANDLE_UNVALID != bk_http_ptr->flash_hdl);
+#else
+#ifndef CONFIG_HTTP_AB_PARTITION
+	bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_OTA);
+#else
+#if CONFIG_OTA_POSITION_INDEPENDENT_AB
+	ota_partition_length = http_get_sapp_partition_length(BK_PARTITION_S_APP);
+    if(update_part_flag == UPDATE_B_PART)
+    {
+        BK_LOGD(NULL, "UPDATE_B_PART\r\n");
+        bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_S_APP); //update B_parition
+    }
+    else
+    {
+        BK_LOGD(NULL, "UPDATE_A_PART\r\n");
+        bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_APPLICATION);//update A_parition.
+    }
+#else
+    bk_http_ptr->pt = bk_flash_partition_get_info(BK_PARTITION_S_APP);
+#endif
 
-		#if CONFIG_OTA_EVADE_METHOD
-			uint8_t	download_status_flag = DOWNLOAD_START_FLAG;
+#if CONFIG_OTA_EVADE_METHOD
+	uint8_t	download_status_flag = DOWNLOAD_START_FLAG;
 
-			ota_write_flash(BK_PARTITION_OTA_FINA_EXECUTIVE, download_status_flag, DOWNLOAD_STATUS_POS);
-		#endif
-	#endif
+	ota_write_flash(BK_PARTITION_OTA_FINA_EXECUTIVE, download_status_flag, DOWNLOAD_STATUS_POS);
+#endif
+#endif
+#endif
 
 	bk_http_ptr->wr_last_len = 0;
 	ota_wr_block = 0;
 	bk_http_ptr->flash_address = bk_http_ptr->pt->partition_start_addr;
 
+#if CONFIG_FLASH_ORIGIN_API
+	bk_flash_enable_security(FLASH_PROTECT_NONE);
+#else
 	bk_flash_set_protect_type(FLASH_PROTECT_NONE);
+#endif
 	BK_LOGD(NULL, "ota write to 0x%x\r\n", bk_http_ptr->flash_address);
 }
 
@@ -788,7 +819,13 @@ void http_flash_deinit(void)
 	os_memset(bk_http_ptr, 0, sizeof(HTTP_DATA_ST));
 
 	ota_wr_block = 0;
+#if CONFIG_FLASH_ORIGIN_API
+	ddev_close(bk_http_ptr->flash_hdl);
+
+	bk_flash_enable_security(FLASH_UNPROTECT_LAST_BLOCK);
+#else
 	bk_flash_set_protect_type(FLASH_UNPROTECT_LAST_BLOCK);
+#endif
 	BK_LOGD(NULL, "write over\r\n");
 }
 
@@ -827,6 +864,14 @@ void http_data_process_register_callback(http_data_process_callback_func cb)
 }
 #endif
 
+#if CONFIG_BK3515_OTA
+static save_slave_bin_info_func save_slave_bin_info_cb = NULL;
+void bk_http_register_save_slave_bin_info_callback(save_slave_bin_info_func cb)
+{
+    save_slave_bin_info_cb = cb;
+}
+#endif
+
 int http_data_process(char *buf, UINT32 len, UINT32 recived, UINT32 total)
 {
 #if CONFIG_UVC_OTA_DEMO
@@ -861,6 +906,7 @@ int httpclient_retrieve_content(httpclient_t *client, char *data, int len, uint3
 	iotx_time_t timer;
 	char *b_data = NULL;
     int ret = 0;
+	int total_len = 0;
 	iotx_time_init(&timer);
 	utils_time_countdown_ms(&timer, timeout_ms);
 
@@ -961,6 +1007,7 @@ int httpclient_retrieve_content(httpclient_t *client, char *data, int len, uint3
 		} else
 			readLen = client_data->retrieve_len;
 
+		total_len = readLen;
 		log_debug("Total-Payload: %d Bytes; Read: %d Bytes", readLen, len);
 #if HTTP_WR_TO_FLASH
 		http_flash_init();
@@ -1058,7 +1105,12 @@ int httpclient_retrieve_content(httpclient_t *client, char *data, int len, uint3
 		}
 
 	}
-
+	BK_LOGD(NULL, "%s (line:%d) total_len:%d\r\n", __func__, __LINE__,total_len);
+#if CONFIG_BK3515_OTA
+	if (save_slave_bin_info_cb != NULL) {
+		save_slave_bin_info_cb(total_len);
+	}
+#endif
 	return SUCCESS_RETURN;
 }
 

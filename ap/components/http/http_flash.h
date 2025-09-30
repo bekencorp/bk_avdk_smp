@@ -2,7 +2,11 @@
 #if (CONFIG_SECURITY_OTA)
 #include <driver/flash_partition.h>
 #endif
+#if CONFIG_FLASH_ORIGIN_API
+#include "BkDriverFlash.h"
+#else
 #include <driver/flash_partition.h>
+#endif
 
 #if (CONFIG_SECURITY_OTA)
 #undef HTTP_WR_TO_FLASH

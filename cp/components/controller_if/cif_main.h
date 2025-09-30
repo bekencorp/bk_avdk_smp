@@ -138,6 +138,8 @@ enum BK_EVENT_TYPE
     BK_EVT_WIFI_FAIL_IND        = 0x8,
     BK_EVT_BCN_CC_RXED          = 0x9,
     BK_EVT_CSI_INFO_IND         = 0xA,
+    BK_EVT_ASSOC_GO_IND         = 0xB,
+    BK_EVT_DISASSOC_GO_IND      = 0xC,
 
     // BLE event
     // BK_EVT_BLE_XX            = 0x101
@@ -236,6 +238,10 @@ enum data_path_special_type
 {
     RX_FILTER_TYPE = 1,
     RX_MONITOR_TYPE = 2,
+    RX_RAW_LINK_TYPE = 3,
+    TX_RAW_LINK_TYPE = 4,
+    TX_RLK_FREE_MEM_TYPE = 5,
+
     SPECIAL_DATA_TYPE_MAX
 };
 struct common_header

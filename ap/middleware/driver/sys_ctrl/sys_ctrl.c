@@ -6,6 +6,9 @@
 #include "bk_misc.h"
 #include "bk_drv_model.h"
 #include "bk_uart.h"
+#if CONFIG_FLASH_ORIGIN_API
+#include "bk_flash.h"
+#endif
 #include <driver/int.h>
 #include "bk_icu.h"
 #include "bk_gpio.h"

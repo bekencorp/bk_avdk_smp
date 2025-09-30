@@ -395,7 +395,7 @@ dhcp_select(struct netif *netif)
   dhcp = netif_dhcp_data(netif);
   LWIP_ERROR("dhcp_select: dhcp != NULL", (dhcp != NULL), return ERR_VAL;);
 
-  LWIP_LOGD("[KW:]sta:DHCP_REQUEST(netif=%p) %c%c%"U16_F"\n", (void *)netif, netif->name[0], netif->name[1], (u16_t)netif->num);
+  LWIP_LOGI("[KW:]sta:DHCP_REQUEST(netif=%p) %c%c%"U16_F"\n", (void *)netif, netif->name[0], netif->name[1], (u16_t)netif->num);
   dhcp_set_state(dhcp, DHCP_STATE_REQUESTING);
 
   /* create and initialize the DHCP message header */
@@ -1116,7 +1116,7 @@ dhcp_discover(struct netif *netif)
   struct pbuf *p_out;
   u16_t options_out_len;
 
-  LWIP_LOGD("[KW:]sta:DHCP_DISCOVER()\n");
+  LWIP_LOGI("[KW:]sta:DHCP_DISCOVER()\n");
 
   ip4_addr_set_any(&dhcp->offered_ip_addr);
   dhcp_set_state(dhcp, DHCP_STATE_SELECTING);
@@ -1980,7 +1980,7 @@ dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr,
     #if CONFIG_DHCP_ONGOING_OPTIM
     dhcp_stop_ongoing_timeout_check();
     #endif
-    LWIP_LOGD("[KW:]sta:DHCP_ACK received\n");
+    LWIP_LOGI("[KW:]sta:DHCP_ACK received\n");
     /* in requesting state? */
     if (dhcp->state == DHCP_STATE_REQUESTING) {
       dhcp_handle_ack(netif, msg_in);
@@ -2016,7 +2016,7 @@ dhcp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr,
   }
   /* received a DHCP_OFFER in DHCP_STATE_SELECTING state? */
   else if ((msg_type == DHCP_OFFER) && (dhcp->state == DHCP_STATE_SELECTING)) {
-    LWIP_LOGD("[KW:]sta:DHCP_OFFER received in DHCP_STATE_SELECTING state\n");
+    LWIP_LOGI("[KW:]sta:DHCP_OFFER received in DHCP_STATE_SELECTING state\n");
     /* remember offered lease */
     dhcp_handle_offer(netif, msg_in);
   }

@@ -54,6 +54,7 @@ set(srcs
 	sys_ctrl/sys_video_driver.c
 	sys_ctrl/sys_psram_driver.c
 	sys_ctrl/sys_touch_driver.c
+	common/dd.c
 	common/drv_model.c
 	icu/icu_driver.c
 	icu/interrupt_base.c
@@ -65,9 +66,8 @@ set(srcs
 	uart/uart_driver.c
 	uart/uart_statis.c
 	uart/printf.c
-	saradc/saradc_client.c
-	saradc/saradc_example.c
-	saradc/saradc_notify.c
+	saradc/adc_driver.c
+	saradc/adc_statis.c
 	pwr_clk/pwr_clk.c
 	pwr_clk/pm_ap_misc.c
 	pwr_clk/pm_ap_core.c
@@ -84,6 +84,12 @@ if (CONFIG_AON_WDT)
 	)
 endif()
 
+if (CONFIG_FLASH_ORIGIN_API)
+	list(APPEND srcs
+		flash/flash.c
+	)
+endif()
+
 if (NOT CMAKE_BUILD_EARLY_EXPANSION)
 	add_subdirectory(h264)
 	add_subdirectory(device)
@@ -96,12 +102,6 @@ endif()
 if (CONFIG_USB)
 	list(APPEND srcs
 		sys_ctrl/sys_usb_driver.c
-	)
-endif()
-
-if (CONFIG_EFUSE)
-	list(APPEND srcs
-		efuse/efuse_driver.c
 	)
 endif()
 
@@ -175,7 +175,7 @@ endif()
 if (CONFIG_LCD)
 	list(APPEND srcs
 		"lcd/lcd_driver.c"
-		"lcd/lcd_spi.c"
+		"lcd/sim_spi_driver.c"
 		)
 endif()
 
@@ -183,6 +183,18 @@ if(CONFIG_SLCD)
 	list(APPEND srcs
 		"slcd/slcd_driver.c"
 	)
+endif()
+
+if (CONFIG_LCD_QSPI)
+	list(APPEND srcs
+		"lcd/lcd_qspi_driver.c"
+		)
+endif()
+
+if (CONFIG_LCD_SPI)
+	list(APPEND srcs
+		"lcd/lcd_spi_driver.c"
+		)
 endif()
 
 if (CONFIG_TP)
@@ -254,12 +266,6 @@ if (CONFIG_QSPI_MST_FLASH)
 		)
 endif() #if (CONFIG_QSPI_MST_FLASH)
 endif() #if (CONFIG_QSPI)
-
-if (CONFIG_QSPI AND CONFIG_LCD_QSPI)
-	list(APPEND srcs
-		"lcd/lcd_qspi_driver.c"
-		)
-endif()
 
 if (CONFIG_JPEGENC_HW)
 	list(APPEND srcs
@@ -497,5 +503,5 @@ endif()
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	REQUIRES cm33
-	PRIV_REQUIRES bk_log easy_flash cmsis os_source bk_usb part_table unity avdk_utils bk_wifi
+	PRIV_REQUIRES bk_log easy_flash cmsis os_source bk_usb part_table unity avdk_utils
 )

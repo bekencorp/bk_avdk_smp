@@ -2,7 +2,7 @@
 #define __DOORBELL_DEVICES_H__
 
 #include "doorbell_transmission.h"
-#include "media_app.h"
+
 #if CONFIG_VOICE_SERVICE
 #include <components/bk_voice_service_types.h>
 #include <components/bk_voice_read_service_types.h>
@@ -13,6 +13,7 @@
 #endif
 
 #endif
+#include "wifi_transfer.h"
 
 typedef enum
 {
@@ -49,6 +50,12 @@ typedef struct
 	uint8_t asr;
 } audio_parameters_t;
 
+typedef struct
+{
+	uint16_t id;
+	uint16_t rotate_angle;
+	uint8_t  pixel_format;
+} display_parameters_t;
 
 typedef enum
 {
@@ -102,7 +109,7 @@ int doorbell_audio_turn_off(void);
 int doorbell_audio_acoustics(uint32_t index, uint32_t param);
 void doorbell_audio_data_callback(uint8_t *data, uint32_t length);
 
-int doorbell_display_turn_on(uint16_t id, uint16_t rotate, uint16_t fmt);
+int doorbell_display_turn_on(display_parameters_t *parameters);
 int doorbell_display_turn_off(void);
 
 int doorbell_video_transfer_turn_on(void);

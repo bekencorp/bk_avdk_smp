@@ -1,0 +1,366 @@
+# JPEG解码示例工程
+
+* [English](./README.md)
+
+## 1. 项目概述
+
+本项目是一个JPEG解码测试模块，用于测试Beken平台上的JPEG解码功能。该模块提供了命令行接口(CLI)，支持硬件解码和软件解码两种方式，并支持软解码在DTCM上运行（解码速度有所提升）。
+
+* 有关JPEG解码的详细信息，请参阅：
+
+  - [JPEG解码概述](../../../developer-guide/video_codec/jpeg_decoding.html)
+
+  - [JPEG硬件解码指南](../../../developer-guide/video_codec/jpeg_decoding_hw.html)
+
+  - [JPEG软件解码指南](../../../developer-guide/video_codec/jpeg_decoding_sw.html)
+
+* 有关API参考，请参阅：
+
+  - [JPEG硬件解码API](../../../api-reference/multimedia/bk_jpegdec_hw.html)
+
+  - [JPEG软件解码API](../../../api-reference/multimedia/bk_jpegdec_sw.html)
+
+### 1.1 测试环境
+
+   * 硬件配置：
+      * 核心板，**BK7258_QFN88_9X9_V3.2**
+      * PSRAM 8M/16M
+   * 支持，MJPEG硬件解码
+      * YUV422
+   * 支持，MJPEG软件解码
+      * YUV420, YUV444, YUV400, YUV422
+      * 输出YUYV格式时，可配置旋转角度（0°，90°，180°，270°）
+
+.. warning::
+
+    请使用参考外设，进行demo工程的熟悉和学习。如果外设规格不一样，代码可能需要重新配置。
+
+## 2. 目录结构
+
+项目采用AP-CP双核架构，主要源代码位于AP目录下。项目结构如下：
+
+```
+jpeg_decode_example/
+├── .ci                   # CI配置目录
+├── .gitignore            # Git忽略文件
+├── CMakeLists.txt        # 项目级CMake构建文件
+├── Makefile              # Make构建文件
+├── README.md             # 项目说明文档（英文）
+├── README CN.md          # 项目说明文档（中文）
+├── ap/                   # AP端代码
+│   ├── CMakeLists.txt    # AP端CMake构建文件
+│   ├── Kconfig.projbuild # Kconfig配置
+│   ├── ap_main.c         # AP主入口文件
+│   ├── config/           # AP配置目录
+│   └── jpeg_decode/      # JPEG解码实现
+│       ├── data/         # 测试用JPEG图像数据
+│       ├── include/      # 头文件
+│       └── src/          # 源代码文件
+├── cp/                   # CP端代码
+│   ├── CMakeLists.txt    # CP端CMake构建文件
+│   ├── cp_main.c         # CP主入口文件
+│   └── config/           # CP配置目录
+├── it.yaml               # 集成测试配置
+├── partitions/           # 分区配置
+└── pj_config.mk          # 项目配置
+```
+
+## 3. 功能说明
+
+### 3.1 主要功能
+
+- 支持硬件JPEG解码和软件JPEG解码
+- 提供命令行接口进行解码测试
+- 支持获取JPEG图像的尺寸信息
+- 提供了常规场景和异常场景的解码测试功能
+- 支持在DTCM上运行软件解码器以获得更快的性能
+
+### 3.2 JPEG解码流程
+
+1. 初始化JPEG解码器(硬件或软件)
+2. 打开解码器
+3. 执行解码操作：
+   - 分配输入缓冲区并填充JPEG数据
+   - 获取图像尺寸信息
+   - 分配输出缓冲区
+   - 执行解码
+   - 释放缓冲区
+4. 关闭解码器
+5. 删除解码器实例
+
+## 4. 编译与运行
+
+### 4.1 编译方法
+
+使用以下命令编译项目：
+
+```
+make bk7258 PROJECT=jpeg_decode_example
+```
+
+### 4.2 运行方法
+
+编译完成后，将生成的固件烧录到开发板上，然后通过串口终端使用以下命令测试JPEG解码功能：
+
+命令执行成功打印："CMDRSP:OK"
+
+命令执行失败打印："CMDRSP:ERROR"
+
+#### 4.2.1 基础解码命令
+
+1. 初始化硬件JPEG解码器：
+```
+jpeg_decode init_hw
+```
+
+2. 初始化软件JPEG解码器：
+```
+jpeg_decode init_sw
+```
+
+3. 初始化在DTCM上运行的软件JPEG解码器(可选指定核心ID)：
+```
+jpeg_decode init_sw_on_dtcm [1|2]
+```
+
+1,2,3命令中根据测试场景选择对应的命令进行初始化即可
+
+4. 打开解码器：
+```
+jpeg_decode open
+```
+
+5. 执行解码操作：
+YUV422格式图像解码：
+```
+jpeg_decode dec 422_864_480
+```
+YUV420格式图像解码：
+```
+jpeg_decode dec 420_864_480
+```
+
+其他支持的图像格式：
+```
+jpeg_decode dec 422_865_480
+jpeg_decode dec 422_864_479
+jpeg_decode dec 420_865_480
+jpeg_decode dec 420_864_479
+```
+
+6. 关闭解码器：
+```
+jpeg_decode close
+```
+
+7. 删除解码器实例：
+```
+jpeg_decode delete
+```
+
+#### 4.2.2 常规测试命令
+
+1. 硬件解码器常规测试：
+```
+jpeg_decode_regular_test hardware_test
+```
+
+2. 软件解码器常规测试：
+```
+jpeg_decode_regular_test software_test
+```
+
+3. DTCM上的软件解码器(CP1)常规测试：
+```
+jpeg_decode_regular_test software_dtcm_cp1_test
+```
+
+4. DTCM上的软件解码器(CP2)常规测试：
+```
+jpeg_decode_regular_test software_dtcm_cp2_test
+```
+
+## 5. 测试数据
+
+项目中包含了不同格式的JPEG测试图像，存储在 `ap/jpeg_decode/data/` 目录下。主要包括:
+
+   * **422_864_480** : YUV422格式的864x480分辨率JPEG图像
+   * **420_864_480** : YUV420格式的864x480分辨率JPEG图像
+   * **422_865_480** : YUV422格式的865x480分辨率JPEG图像
+   * **422_864_479** : YUV422格式的864x479分辨率JPEG图像
+   * **420_865_480** : YUV420格式的865x480分辨率JPEG图像
+   * **420_864_479** : YUV420格式的864x479分辨率JPEG图像
+
+硬解码仅支持解码YUV422格式的图像，YUV420格式的图像会解码失败。
+
+硬解码图像需要宽度为16的倍数，高度为8的倍数，否则会解码失败。
+
+软解码支持解码YUV420和YUV422格式的图像。
+
+软解码图像需要宽度为2的倍数，高度无限制，否则会解码失败。
+
+## 6. 测试示例
+
+### 6.1 基础测试
+
+#### 6.1.1 硬解码测试
+
+```
+jpeg_decode init_hw
+jpeg_decode open
+jpeg_decode dec 422_864_480
+jpeg_decode close
+jpeg_decode delete
+```
+
+正常log：
+```
+cli_jpeg_decode_cmd, XX, bk_hardware_jpeg_decode_new success!
+cli_jpeg_decode_cmd, XX, jpeg decode open success!
+cli_jpeg_decode_cmd, XX, jpeg decode get img dimensions success! 864x480 2
+cli_jpeg_decode_cmd, XX, jpeg decode start success! Decode time: XX ms
+cli_jpeg_decode_cmd, XX, jpeg decode delete success!
+```
+
+**支持的JPEG图像格式**：422_864_480（其他格式在硬解码时会失败，详见5. 测试数据部分的限制说明）
+
+#### 6.1.2 软解码测试
+
+```
+jpeg_decode init_sw
+jpeg_decode open
+jpeg_decode dec 420_864_480
+jpeg_decode close
+jpeg_decode delete
+```
+
+正常log：
+```
+cli_jpeg_decode_cmd, XX, bk_software_jpeg_decode_new success!
+cli_jpeg_decode_cmd, XX, jpeg decode open success!
+cli_jpeg_decode_cmd, XX, jpeg decode get img dimensions success! 864x480 2
+cli_jpeg_decode_cmd, XX, jpeg decode start success! Decode time: XX ms
+cli_jpeg_decode_cmd, XX, jpeg decode delete success!
+```
+
+**支持的JPEG图像格式**：420_864_480、422_864_480、422_864_479、420_864_479（需满足软解码格式限制，详见5. 测试数据部分）
+
+#### 6.1.3 使用CP1上的DTCM进行软解码测试
+
+```
+jpeg_decode init_sw_on_dtcm 1
+jpeg_decode open
+jpeg_decode dec 420_864_480
+jpeg_decode close
+jpeg_decode delete
+```
+
+正常log：
+```
+cli_jpeg_decode_cmd, XX, bk_software_jpeg_decode_on_dtcm_new success!
+cli_jpeg_decode_cmd, XX, jpeg decode open success!
+cli_jpeg_decode_cmd, XX, jpeg decode get img dimensions success! 864x480 2
+cli_jpeg_decode_cmd, XX, jpeg decode start success! Decode time: XX ms
+cli_jpeg_decode_cmd, XX, jpeg decode delete success!
+```
+
+**支持的JPEG图像格式**：与软解码测试相同
+
+#### 6.1.4 使用CP2上的DTCM进行软解码测试
+
+```
+jpeg_decode init_sw_on_dtcm 2
+jpeg_decode open
+jpeg_decode dec 420_864_480
+jpeg_decode close
+jpeg_decode delete
+```
+
+正常log：
+```
+cli_jpeg_decode_cmd, XX, bk_software_jpeg_decode_on_dtcm_new success!
+cli_jpeg_decode_cmd, XX, jpeg decode open success!
+cli_jpeg_decode_cmd, XX, jpeg decode get img dimensions success! 864x480 2
+cli_jpeg_decode_cmd, XX, jpeg decode start success! Decode time: XX ms
+cli_jpeg_decode_cmd, XX, jpeg decode delete success!
+```
+
+**支持的JPEG图像格式**：与软解码测试相同
+
+### 6.2 常规测试
+
+项目提供了多种常规场景的解码测试功能，用于验证解码器在正常情况下的工作性能。以下是各种常规测试命令和预期结果：
+
+#### 6.2.1 硬件解码测试
+
+```
+jpeg_decode_regular_test hardware_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, hardware jpeg decode Normal scenario JPEG decoding test completed!
+```
+
+异常log（表示测试失败）：
+```
+cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+```
+
+#### 6.2.2 软件解码测试
+
+```
+jpeg_decode_regular_test software_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG decoding test completed!
+```
+
+异常log（表示测试失败）：
+```
+cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+```
+
+#### 6.2.3 DTCM上的软件解码测试(CP1)
+
+```
+jpeg_decode_regular_test software_dtcm_cp1_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG decoding test completed!
+```
+
+异常log（表示测试失败）：
+```
+cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+```
+
+#### 6.2.4 DTCM上的软件解码测试(CP2)
+
+```
+jpeg_decode_regular_test software_dtcm_cp2_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG decoding test completed!
+```
+
+异常log（表示测试失败）：
+```
+cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+```
+
+## 7. 注意事项
+
+1. 确保在使用解码器前正确初始化
+2. 解码操作完成后，记得释放相关资源
+3. 硬件解码和软件解码功能有所差异，请根据实际需求选择合适的解码方式：
+   - 硬件解码仅支持YUV422格式图像,且需要图像宽度为16的倍数，高度为8的倍数
+   - 软件解码支持YUV420和YUV422格式图像，且需要图像宽度为2的倍数，高度无限制
+4. 在DTCM上运行的软件解码器通常比普通软件解码器提供更快的解码速度
+5. 帧缓冲资源有限，请避免同时占用过多缓冲区

@@ -20,18 +20,17 @@
 #include <driver/int.h>
 #include <driver/h264.h>
 #include <driver/yuv_buf.h>
-#include <driver/video_common_driver.h>
 #include <driver/dma.h>
 #include <driver/psram.h>
 
 #include "media_evt.h"
-#include "frame_buffer.h"
 #include "yuv_encode.h"
 #include "uvc_pipeline_act.h"
 
 #include "mux_pipeline.h"
 #include "media_utils.h"
 #include "avdk_crc.h"
+#include <components/bk_video_pipeline/bk_video_pipeline_types.h>
 
 #define TAG "h264_pipline"
 
@@ -41,6 +40,8 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
+#define H264_FRAME_OK  (0)
+#define H264_FRAME_ERR (-1)
 #ifdef ENCODE_DIAG_DEBUG
 
 #define H264_FRAME_START()		do { GPIO_UP(GPIO_DVP_D3); } while (0)
@@ -56,6 +57,7 @@
 #define H264_LINE_START()
 #define H264_LINE_END()
 #endif
+
 
 typedef enum
 {
@@ -104,8 +106,11 @@ typedef struct {
 	beken2_timer_t h264_timer;
 
 	mux_callback_t decoder_free_cb;
+	void *decoder_free_args;
 	mux_callback_t reset_cb;
-
+	void *reset_args;
+	bk_video_pipeline_h264e_config_t config;
+	const bk_h264e_callback_t *cb;
 } h264_encode_config_t;
 
 typedef struct {
@@ -138,11 +143,12 @@ bk_err_t h264_encode_task_send_msg(uint8_t type, uint32_t param)
 	return ret;
 }
 
-bk_err_t bk_h264_reset_request(mux_callback_t cb)
+bk_err_t bk_h264_reset_request(mux_callback_t cb, void *args)
 {
 	rtos_lock_mutex(&h264_info->lock);
 
 	h264_encode_config->reset_cb = cb;
+	h264_encode_config->reset_args = args;
 
 	if (BK_OK != h264_encode_task_send_msg(H264_ENCODE_RESET, 0))
 	{
@@ -203,7 +209,7 @@ static void h264_encode_reset_handle(void)
 	h264_encode_config->encode_dma_length = 0;
 	if (h264_encode_config->decoder_buffer)
 	{
-		h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
+		h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer, h264_encode_config->decoder_free_args);
 		h264_encode_config->decoder_buffer = NULL;
 	}
 
@@ -212,7 +218,7 @@ static void h264_encode_reset_handle(void)
 	LOGD("%s, complete\r\n", __func__);
 
 	if(h264_encode_config->reset_cb)
-		h264_encode_config->reset_cb(NULL);
+		h264_encode_config->reset_cb(NULL, h264_encode_config->reset_args);
 }
 
 static void h264_dump_head_eof(frame_buffer_t * frame)
@@ -231,7 +237,7 @@ static void h264_encode_line_done_handler(h264_unit_t id, void *param)
 	{
 		if (h264_encode_config->input_buf_type)
 		{
-			h264_encode_config->decoder_free_cb(NULL);
+			h264_encode_config->decoder_free_cb(NULL, h264_encode_config->decoder_free_args);
 		}
 		return;
 	}
@@ -246,7 +252,7 @@ static void h264_encode_line_done_handler(h264_unit_t id, void *param)
 
 		if (!check_jpeg_decode_task_is_open())
 		{
-			h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
+			h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer, h264_encode_config->decoder_free_args);
 			h264_encode_config->decoder_buffer = NULL;
 			LOGW("%s, %d\n", __func__, __LINE__);
 			return;
@@ -255,26 +261,9 @@ static void h264_encode_line_done_handler(h264_unit_t id, void *param)
 	}
 	else
 	{
-		h264_encode_config->state = H264_STATE_IDLE;
 		if (rtos_is_oneshot_timer_running(&h264_encode_config->h264_timer))
 		{
 			rtos_stop_oneshot_timer(&h264_encode_config->h264_timer);
-		}
-
-		if (!list_empty(&h264_encode_config->request_list))
-		{
-			LIST_HEADER_T *pos, *n, *list = &h264_encode_config->request_list;
-			pipeline_encode_request_t *request = NULL;
-
-			list_for_each_safe(pos, n, list)
-			{
-				request = list_entry(pos, pipeline_encode_request_t, list);
-				if (request != NULL)
-				{
-					h264_encode_task_send_msg(H264_ENCODE_START, (uint32_t)request);
-					list_del(pos);
-				}
-			}
 		}
 
 		h264_encode_task_send_msg(H264_ENCODE_LINE_DONE, 0);
@@ -314,6 +303,33 @@ static void h264_encode_final_out_handler(h264_unit_t id, void *param)
 static void h264_encode_dma_finish_callback(dma_id_t id)
 {
 	h264_encode_config->encode_dma_length += H264_DMA_LEN;
+}
+
+static void h264_encode_update_fps(frame_fps_t fps)
+{
+	uint32_t curr_fps = 30;
+	switch (fps)
+	{
+		case FPS30:
+			curr_fps = 30;
+			break;
+		case FPS25:
+			curr_fps = 25;
+			break;
+		case FPS20:
+			curr_fps = 50;
+			break;
+		case FPS15:
+			curr_fps = 15;
+			break;
+		case FPS10:
+			curr_fps = 10;
+			break;
+		default:
+			break;
+	}
+
+	bk_h264_updata_encode_fps(curr_fps);
 }
 
 static bk_err_t h264_encode_dma_config(void)
@@ -413,7 +429,7 @@ static void h264_encode_start_handle(uint32_t param)
 
 			// there need attation
 			bk_h264_init(h264_notify->width, h264_notify->height);
-
+			h264_encode_update_fps(h264_encode_config->config.fps);
 			h264_encode_config->input_buf_type = h264_notify->jdec_type;
 			h264_encode_config->encode_node_length = h264_notify->width * 16 * 2;// 16line + 16line
 			h264_encode_config->line_done_cnt = h264_notify->height / 16;
@@ -423,7 +439,7 @@ static void h264_encode_start_handle(uint32_t param)
 			if (h264_notify->jdec_type)
 			{
 				// for encode complete frame
-				h264_encode_config->yuv_buf = get_mux_sram_buffer();
+				h264_encode_config->yuv_buf = get_mux_sram_decode_buffer();
 				bk_yuv_buf_set_em_base_addr((uint32_t)h264_encode_config->yuv_buf);
 			}
 			else
@@ -443,7 +459,7 @@ static void h264_encode_start_handle(uint32_t param)
 			if (!h264_notify->jdec_type)
 			{
 				h264_encode_config->state = H264_STATE_IDLE;
-				h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
+				h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer, h264_encode_config->decoder_free_args);
 				h264_encode_config->decoder_buffer = NULL;
 				LOGD("%s, %d, %d\r\n", __func__, h264_notify->buffer->index, h264_encode_config->line_done_index);
 				goto out;
@@ -500,6 +516,8 @@ static void h264_encode_pingpang_buf_done_handle()
 		rtos_stop_oneshot_timer(&h264_encode_config->h264_timer);
 	}
 
+	h264_encode_config->state = H264_STATE_IDLE;
+
 	if (h264_encode_config->decoder_buffer == NULL)
 	{
 		LOGE("%s %d, coder buffer is NULL, %d\n", __func__, __LINE__, h264_encode_config->line_done_index);
@@ -507,8 +525,24 @@ static void h264_encode_pingpang_buf_done_handle()
 	}
 
 	// send message to tell jpegdec one buffer have been encode finish, please transfer another buf
-	h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
+	h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer, h264_encode_config->decoder_free_args);
 	h264_encode_config->decoder_buffer = NULL;
+
+	if (!list_empty(&h264_encode_config->request_list))
+	{
+		LIST_HEADER_T *pos, *n, *list = &h264_encode_config->request_list;
+		pipeline_encode_request_t *request = NULL;
+
+		list_for_each_safe(pos, n, list)
+		{
+			request = list_entry(pos, pipeline_encode_request_t, list);
+			if (request != NULL)
+			{
+				h264_encode_task_send_msg(H264_ENCODE_START, (uint32_t)request);
+				list_del(pos);
+			}
+		}
+	}
 }
 
 static void h264_encode_pingpang_buf_continue_handle()
@@ -561,7 +595,7 @@ static void h264_encode_finish_handle(void)
 	{
 		if (h264_encode_config->input_buf_type)
 		{
-			h264_encode_config->decoder_free_cb(NULL);
+			h264_encode_config->decoder_free_cb(NULL, h264_encode_config->decoder_free_args);
 		}
 		return;
 	}
@@ -575,6 +609,9 @@ static void h264_encode_finish_handle(void)
 	h264_encode_config->h264_frame->length = real_length;
 
 	h264_encode_config->encode_dma_length += (H264_DMA_LEN - bk_dma_get_remain_len(h264_encode_config->dma_channel));
+
+	media_debug->isr_h264++;
+	media_debug->h264_length = h264_encode_config->h264_frame->length;
 
 	if (real_length > (CONFIG_H264_FRAME_SIZE - 128) || h264_encode_config->frame_err)
 	{
@@ -605,15 +642,13 @@ static void h264_encode_finish_handle(void)
 
 	if (h264_encode_config->regenerate_idr == false)
 	{
-		new_frame = frame_buffer_fb_malloc(h264_encode_config->stream, CONFIG_H264_FRAME_SIZE);
+		new_frame = h264_encode_config->cb->malloc(CONFIG_H264_FRAME_SIZE);
 		if (new_frame == NULL)
 		{
 			h264_encode_config->frame_err = true;
+			goto error;
 		}
 	}
-
-	media_debug->isr_h264++;
-	media_debug->h264_length = h264_encode_config->h264_frame->length;
 
 error:
 
@@ -654,7 +689,8 @@ error:
 
 	LOGV("%s, I:%d, p:%d\r\n", __func__, (h264_encode_config->h264_frame->h264_type & 0x1000020) > 0 ? 1 : 0, (h264_encode_config->h264_frame->h264_type >> 23) & 0x1);
 
-	frame_buffer_fb_push(h264_encode_config->stream, h264_encode_config->h264_frame);
+	h264_encode_config->cb->complete(h264_encode_config->h264_frame, H264_FRAME_OK);
+
 	h264_encode_config->h264_frame = new_frame;
 
 	bk_psram_enable_write_through(h264_encode_config->psram_overwrite_id, (uint32_t)h264_encode_config->h264_frame->frame,
@@ -686,7 +722,9 @@ out:
 
 	// send message to jpeg dec task encode finish. please transfer next frame buf1
 	if (h264_encode_config->input_buf_type)
+	{
 		h264_encode_task_send_msg(H264_ENCODE_LINE_DONE, 0);
+	}
 }
 
 static void h264_encode_task_deinit(void)
@@ -717,7 +755,7 @@ static void h264_encode_task_deinit(void)
 			LOGV("%s, frame free start\r\n", __func__);
 			bk_psram_disable_write_through(h264_encode_config->psram_overwrite_id);
 			bk_psram_free_write_through_channel(h264_encode_config->psram_overwrite_id);
-			frame_buffer_fb_free(h264_encode_config->stream, h264_encode_config->h264_frame);
+			h264_encode_config->cb->complete(h264_encode_config->h264_frame, H264_FRAME_ERR);
 			h264_encode_config->h264_frame = NULL;
 			LOGV("%s, frame free success\r\n", __func__);
 		}
@@ -741,7 +779,7 @@ static void h264_encode_task_deinit(void)
 					{
 						complex_buffer_t *decoder_buffer = (complex_buffer_t*)os_malloc(sizeof(complex_buffer_t));
 						os_memcpy(decoder_buffer, request->buffer, sizeof(complex_buffer_t));
-						h264_encode_config->decoder_free_cb(decoder_buffer);
+						h264_encode_config->decoder_free_cb(decoder_buffer, h264_encode_config->decoder_free_args);
 					}
 					os_free(request);
 					request = NULL;
@@ -768,7 +806,7 @@ static void h264_encode_task_deinit(void)
 			{
 				LOGD("clear decoder_buffer: %d\n", h264_encode_config->decoder_buffer->index);
 
-				h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
+				h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer, h264_encode_config->decoder_free_args);
 				h264_encode_config->decoder_buffer = NULL;
 			}
 		}
@@ -777,15 +815,11 @@ static void h264_encode_task_deinit(void)
 			if (h264_encode_config->decoder_buffer)
 			{
 				LOGD("clear decoder_buffer: %d\n", h264_encode_config->decoder_buffer->index);
-				h264_encode_config->decoder_free_cb(NULL);
+				h264_encode_config->decoder_free_cb(NULL, h264_encode_config->decoder_free_args);
 				os_free(h264_encode_config->decoder_buffer);
 				h264_encode_config->decoder_buffer = NULL;
 			}
 		}
-
-		frame_buffer_list_node_clear(h264_encode_config->stream);
-		frame_buffer_list_node_deinit(h264_encode_config->stream);
-		h264_encode_config->stream = NULL;
 
 		os_free(h264_encode_config);
 		h264_encode_config = NULL;
@@ -867,7 +901,7 @@ static void h264_encode_main(beken_thread_arg_t data)
 
 							buffer = (complex_buffer_t*)(complex_buffer_t*)os_malloc(sizeof(complex_buffer_t));
 							os_memcpy(buffer, request->buffer, sizeof(complex_buffer_t));
-							h264_encode_config->decoder_free_cb(buffer);
+							h264_encode_config->decoder_free_cb(buffer, h264_encode_config->decoder_free_args);
 
 							os_free(request);
 						}
@@ -876,7 +910,7 @@ static void h264_encode_main(beken_thread_arg_t data)
 
 					if (h264_encode_config->input_buf_type)
 					{
-						h264_encode_config->decoder_free_cb(NULL);
+						h264_encode_config->decoder_free_cb(NULL, h264_encode_config->decoder_free_args);
 					}
 
 					rtos_deinit_queue(&h264_encode_config->h264_queue);
@@ -942,17 +976,17 @@ static void h264_timer_handle(void *arg1, void *arg2)
 	}
 
 	// complete frame
-	h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer);
+	h264_encode_config->decoder_free_cb(h264_encode_config->decoder_buffer, h264_encode_config->decoder_free_args);
 	h264_encode_config->decoder_buffer = NULL;
 }
 
-bk_err_t h264_encode_task_open(media_camera_device_t *device)
+bk_err_t h264_encode_task_open(bk_video_pipeline_h264e_config_t *config, const bk_h264e_callback_t *cb)
 {
-	int ret = BK_OK;
+	int ret = BK_FAIL;
 	// step 1: check h264_encode_task
 	if (h264_encode_config)
 	{
-		LOGD("%s have been opened\r\n", __func__);
+		LOGD("%s have been opened\n", __func__);
 		return ret;
 	}
 
@@ -968,7 +1002,8 @@ bk_err_t h264_encode_task_open(media_camera_device_t *device)
 		}
 
 		os_memset(h264_encode_config, 0, sizeof(h264_encode_config_t));
-
+		os_memcpy(&h264_encode_config->config, config, sizeof(bk_video_pipeline_h264e_config_t));
+		h264_encode_config->cb = cb;
 		INIT_LIST_HEAD(&h264_encode_config->request_list);
 
 		if (!rtos_is_oneshot_timer_init(&h264_encode_config->h264_timer))
@@ -993,20 +1028,9 @@ bk_err_t h264_encode_task_open(media_camera_device_t *device)
 		}
 	}
 
-	// step 3: init h264 frame buffer and malloc h264 frame
-	h264_encode_config->stream = frame_buffer_list_node_init(0, UVC_CAMERA, IMAGE_H264);
-	if (h264_encode_config->stream == NULL)
-	{
-		LOGE("%s, create h264 stream list failed\r\n", __func__);
-		ret = BK_FAIL;
-		goto error;
-	}
-	else
-	{
-		LOGD("%s, %d, %p\n", __func__, __LINE__, h264_encode_config->stream);
-	}
 
-	h264_encode_config->h264_frame = frame_buffer_fb_malloc(h264_encode_config->stream, CONFIG_H264_FRAME_SIZE);
+	h264_encode_config->h264_frame = h264_encode_config->cb->malloc(CONFIG_H264_FRAME_SIZE);
+
 	if (h264_encode_config->h264_frame == NULL)
 	{
 		LOGE("%s, malloc failed\r\n", __func__);
@@ -1018,14 +1042,6 @@ bk_err_t h264_encode_task_open(media_camera_device_t *device)
 
 	bk_psram_enable_write_through(h264_encode_config->psram_overwrite_id, (uint32_t)h264_encode_config->h264_frame->frame,
 			(uint32_t)(h264_encode_config->h264_frame->frame + h264_encode_config->h264_frame->size));
-
-	// step 4: init h264 encode hw
-	if (device->width * device->height > 1280 * 720)
-	{
-		LOGE("%s, not support more than 1280X720 resolution\r\n", __func__);
-		ret = BK_FAIL;
-		goto error;
-	}
 
 	media_debug->isr_h264 = 0;
 	media_debug->h264_length = 0;
@@ -1119,7 +1135,7 @@ bk_err_t h264_encode_task_close(void)
 	return BK_OK;
 }
 
-bk_err_t bk_h264_encode_request(pipeline_encode_request_t *request, mux_callback_t cb)
+bk_err_t bk_h264_encode_request(pipeline_encode_request_t *request, mux_callback_t cb, void *args)
 {
 	pipeline_encode_request_t *h264_request = NULL;
 
@@ -1141,6 +1157,7 @@ bk_err_t bk_h264_encode_request(pipeline_encode_request_t *request, mux_callback
 	os_memcpy(h264_request, request, sizeof(pipeline_encode_request_t));
 
 	h264_encode_config->decoder_free_cb = cb;
+	h264_encode_config->decoder_free_args = args;
 	if (BK_OK != h264_encode_task_send_msg(H264_ENCODE_START, (uint32_t)h264_request))
 	{
 		LOGD("%s send failed\n", __func__);

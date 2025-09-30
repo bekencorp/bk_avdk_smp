@@ -1784,10 +1784,10 @@ uint32_t sys_hal_get_cpu1_int_32_63_en_cpu1_bt_irq_en(sys_hw_t *hw);
 
 void sys_hal_set_cpu1_int_32_63_en_cpu1_bt_irq_en(sys_hw_t *hw, uint32_t value);
 
-/* REG_0x23:cpu1_int_32_63_en->cpu1_eth_int_en: ,R/W,0x23[15]*/
-uint32_t sys_hal_get_cpu1_int_32_63_en_cpu1_eth_int_en(sys_hw_t *hw);
+/* REG_0x23:cpu1_int_32_63_en->cpu1_mbox0_int_en: ,R/W,0x23[15]*/
+uint32_t sys_hal_get_cpu1_int_32_63_en_cpu1_mbox0_int_en(sys_hw_t *hw);
 
-void sys_hal_set_cpu1_int_32_63_en_cpu1_eth_int_en(sys_hw_t *hw, uint32_t value);
+void sys_hal_set_cpu1_int_32_63_en_cpu1_mbox0_int_en(sys_hw_t *hw, uint32_t value);
 
 /* REG_0x23:cpu1_int_32_63_en->cpu1_mbox1_int_en: ,R/W,0x23[16]*/
 uint32_t sys_hal_get_cpu1_int_32_63_en_cpu1_mbox1_int_en(sys_hw_t *hw);
@@ -3271,7 +3271,6 @@ void sys_hal_set_ana_reg19_cp2ctrl(sys_hw_t *hw, uint32_t value);
 
 #endif
 
-void sys_hal_set_ana_reg_spi_latch1v(uint32_t v);
 void sys_hal_set_ana_trxt_tst_enable(uint32_t value);
 void sys_hal_set_ana_scal_en(uint32_t value);
 void sys_hal_set_ana_gadc_buf_ictrl(uint32_t value);
@@ -3280,7 +3279,6 @@ void sys_hal_set_ana_pwd_gadc_buf(uint32_t value);
 void sys_hal_set_ana_hres_sel0v9(uint32_t value);
 void sys_hal_set_ana_vref_sel(uint32_t value);
 void sys_hal_set_ana_cb_cal_manu(uint32_t value);
-void sys_hal_set_ana_adc_div(uint32_t value);
 void sys_hal_set_ana_cb_cal_trig(uint32_t value);
 UINT32 sys_hal_get_ana_cb_cal_manu_val(void);
 void sys_hal_set_ana_cb_cal_manu_val(uint32_t value);

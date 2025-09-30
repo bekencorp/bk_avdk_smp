@@ -37,8 +37,6 @@
         dvp_camera_i2c_write_uint8((SC101_WRITE_ADDRESS >> 1), reg, value);\
     } while (0)
 
-bool SC101_read_flag = false;
-
 const uint8_t sensor_SC101_1280_720_20fps_table[][2] =
 {
     {0xf0, 0x31},
@@ -477,20 +475,6 @@ bool SC101_detect(void)
     return false;
 }
 
-void SC101_read_register(uint8_t addr, uint8_t data)
-{
-    if (SC101_read_flag)
-    {
-        uint8_t value = 0;
-        rtos_delay_milliseconds(2);
-        SENSOR_I2C_READ(addr, &value);
-        if (value != data)
-        {
-            LOGD("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
-        }
-    }
-}
-
 int SC101_init(void)
 {
     //uint32_t size = sizeof(sensor_SC101_init_talbe) / 2, i;
@@ -500,7 +484,6 @@ int SC101_init(void)
     //for (i = 0; i < size; i++)
     //{
     //  SENSOR_I2C_WRITE(sensor_SC101_init_talbe[i][0], sensor_SC101_init_talbe[i][1]);
-    //  SC101_read_register(sensor_SC101_init_talbe[i][0], sensor_SC101_init_talbe[i][1]);
     //}
 
     return 0;
@@ -535,9 +518,6 @@ int SC101_set_fps(frame_fps_t fps)
             {
                 SENSOR_I2C_WRITE(sensor_SC101_1280_720_20fps_table[i][0],
                                  sensor_SC101_1280_720_20fps_table[i][1]);
-
-                SC101_read_register(sensor_SC101_1280_720_20fps_table[i][0],
-                                    sensor_SC101_1280_720_20fps_table[i][1]);
             }
 
             ret = 0;
@@ -552,9 +532,6 @@ int SC101_set_fps(frame_fps_t fps)
             {
                 SENSOR_I2C_WRITE(sensor_SC101_1280_720_30fps_table[i][0],
                                  sensor_SC101_1280_720_30fps_table[i][1]);
-
-                SC101_read_register(sensor_SC101_1280_720_30fps_table[i][0],
-                                    sensor_SC101_1280_720_30fps_table[i][1]);
             }
 
             ret = 0;
@@ -577,33 +554,19 @@ int SC101_reset(void)
     return 0;
 }
 
-int SC101_dump(media_ppi_t ppi)
+int sc101_read_register(uint32_t reg, uint32_t *data)
 {
-    //uint32_t size, i;
-    int ret = -1;
-    /*uint8_t value = 0;
-
-    LOGD("%s\n", __func__);
-
-    size = sizeof(sensor_SC101_init_talbe) / 2;
-
-    for (i = 0; i < size; i++)
-    {
-        SENSOR_I2C_READ(sensor_SC101_init_talbe[i][0], &value);
-        LOGD("[0x%02x, 0x%02x]\r\n", sensor_SC101_init_talbe[i][0], value);
-    }*/
-
-    ret = kNoErr;
-
-    return ret;
-
+    uint8_t val = 0;
+    SENSOR_I2C_READ(reg, &val);
+    *data = val;
+    return 0;
 }
 
-void SC101_read_enable(bool enable)
+int sc101_write_register(uint32_t reg, uint32_t data)
 {
-    SC101_read_flag = enable;
+    SENSOR_I2C_WRITE(reg, data);
+    return 0;
 }
-
 
 const dvp_sensor_config_t dvp_sensor_SC101 =
 {
@@ -625,7 +588,7 @@ const dvp_sensor_config_t dvp_sensor_SC101 =
     .set_ppi = SC101_set_ppi,
     .set_fps = SC101_set_fps,
     .power_down = SC101_reset,
-    .dump_register = SC101_dump,
-    .read_register = SC101_read_enable,
+    .read_register = sc101_read_register,
+    .write_register = sc101_write_register,
 };
 

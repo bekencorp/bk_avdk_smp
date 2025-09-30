@@ -10,4 +10,4 @@ list(APPEND srcs
 )
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}" REQUIRES media_utils bk_peripheral 
-bk_vfs display_service multimedia)
+bk_vfs bk_display multimedia)

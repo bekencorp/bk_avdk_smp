@@ -9,7 +9,7 @@
 #include "driver/flash.h"
 #include <os/mem.h>
 #include <soc/soc.h>
-//#include "flash_driver.h"
+#include "flash_driver.h"
 #include "flash_hal.h"
 
 #if CONFIG_SOC_BK7236XX
@@ -1034,7 +1034,7 @@ bk_err_t flash_bypass_otp_operation(flash_bypass_otp_cmd_t cmd, flash_bypass_otp
 void flash_bypass_init(void) {
 	char *text_ptr, temp_buf = 0;
 	uint32_t reg;
-
+	
 	/*step 2, resident cache*/
 	REG_WRITE(SPI_R_CTRL(0), 0);
 	do {

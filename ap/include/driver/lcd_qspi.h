@@ -15,7 +15,7 @@
 #pragma once
 
 #include <driver/lcd_types.h>
-#include <driver/media_types.h>
+#include <components/media_types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,42 +67,6 @@ bk_err_t bk_lcd_qspi_quad_write_start(qspi_id_t qspi_id, lcd_qspi_write_config_t
 bk_err_t bk_lcd_qspi_quad_write_stop(qspi_id_t qspi_id);
 
 /**
- * @brief     Init the lcd qspi
- *
- * This API init the lcd qspi module:
- *  - reset the qspi hardware
- *  - init the qspi driver
- *  - set the qspi clock
- *  - init the dma2d driver
- *  - enable the qspi quad write
- *  - init the qspi lcd device
- * 
- * @param qspi_id the qspi device id number
- * @param device the struct of lcd device
- *
- * @return
- *    - BK_OK: succeed
- *    - others: other errors.
- */
-bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const lcd_device_t *device);
-
-/**
- * @brief     Deinit the lcd qspi
- *
- * This API deinit the lcd qspi module:
- *  - deinit the qspi driver
- *  - deinit the dma2d driver
- *  - close the qspi lcd device
- * 
- * @param qspi_id the qspi device id number
- *
- * @return
- *    - BK_OK: succeed
- *    - others: other errors.
- */
-bk_err_t bk_lcd_qspi_deinit(qspi_id_t qspi_id);
-
-/**
  * @brief     Read the lcd qspi register value 
  *
  * This API read the lcd qspi register value
@@ -117,42 +81,89 @@ bk_err_t bk_lcd_qspi_deinit(qspi_id_t qspi_id);
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-
 bk_err_t bk_lcd_qspi_read_data(qspi_id_t qspi_id, uint8_t *data, const lcd_device_t *device, uint8_t regist_addr, uint8_t data_len);
 
 /**
- * @brief     Send a frame data to device display
+ * @brief     Init the lcd qspi
+ *
+ * This API init the lcd qspi module:
+ *  - reset the qspi hardware
+ *  - init the qspi driver
+ *  - set the qspi clock
+ *  - enable the qspi quad write
+ *  - init the qspi lcd device
  * 
- * @param qspi_id the qspi device id number
+ * @param qspi_id qspi the qspi device id number
  * @param device the struct of lcd device
- * @param data the data to send
- * @param data_len the length of data to send
+ * @param reset_pin the gpio of device reset pin
  *
  * @return
  *    - BK_OK: succeed
+ *    - others: other errors.
  */
-bk_err_t bk_lcd_qspi_send_data(qspi_id_t qspi_id, const lcd_device_t *device, uint32_t *data, uint32_t data_len);
+bk_err_t bk_lcd_qspi_init(qspi_id_t qspi_id, const lcd_device_t *device, uint8_t reset_pin);
 
 /**
- * @brief     Open the qspi lcd device
+ * @brief     Deinit the lcd qspi
  *
- * @param qspi_id the qspi device id number
+ * This API deinit the lcd qspi module:
+ *  - deinit the qspi driver
+ *  - close the qspi lcd device
+ * 
+ * @param qspi_id qspi the qspi device id number
+ * @param reset_pin the gpio of device reset pin
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_lcd_qspi_deinit(qspi_id_t qspi_id, uint8_t reset_pin);
+
+/**
+ * @brief     Wait the lcd qspi display completely
+ *
+ * This API Wait the lcd qspi display completely.
+ * 
+ * @param qspi_id qspi the qspi device id number
  * @param device the struct of lcd device
  *
  * @return
- *    - None
+ *    - BK_OK: succeed
+ *    - others: other errors.
  */
-void bk_lcd_qspi_disp_open(qspi_id_t qspi_id, const lcd_device_t *device);
+bk_err_t bk_lcd_qspi_wait_display_complete(qspi_id_t qspi_id, const lcd_device_t *device);
 
 /**
- * @brief     Close the qspi lcd device
+ * @brief     Display a frame image
  *
- * @param qspi_id the qspi device id number
+ * This API display a frame image
+ * 
+ * @param qspi_id qspi the qspi device id number
+ * @param device the struct of lcd device
+ * @param data the data to display
+ * @param data_len the length of data to display
  *
  * @return
- *    - None
+ *    - BK_OK: succeed
+ *    - others: other errors.
  */
-void bk_lcd_qspi_disp_close(qspi_id_t qspi_id);
+bk_err_t bk_lcd_qspi_frame_display(qspi_id_t qspi_id, const lcd_device_t *device, uint32_t *data, uint32_t data_len);
+
+/**
+ * @brief     Partial display a image
+ *
+ * This API display a image partially
+ * 
+ * @param qspi_id qspi the qspi device id number
+ * @param device the struct of lcd device
+ * @param area the gpio of device reset pin
+ * @param data the data to display
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_lcd_qspi_partial_display(qspi_id_t qspi_id, const lcd_device_t *device, lcd_display_area_t *area, uint32_t *data);
 
 
 #ifdef __cplusplus

@@ -33,8 +33,6 @@
         dvp_camera_i2c_write_uint16((HM1055_WRITE_ADDRESS >> 1), reg, value);\
     }while (0)
 
-bool hm1055_read_flag = false;
-
 // HM_1055_DEV
 /*MCLK = 60MHz 5fps default*/
 const uint16_t sensor_hm1055_init_talbe[][2] =
@@ -719,21 +717,6 @@ bool hm1055_detect(void)
     return false;
 }
 
-void hm1055_read_register(uint16_t addr, uint8_t data)
-{
-    if (hm1055_read_flag)
-    {
-        uint8_t value = 0;
-        rtos_delay_milliseconds(2);
-        SENSOR_I2C_READ(addr, &value);
-        if (value != data)
-        {
-            LOGD("0x%04x, 0x%02x-0x%02x\r\n", addr, data, value);
-        }
-    }
-}
-
-
 int hm1055_init(void)
 {
     uint32_t size = sizeof(sensor_hm1055_init_talbe) / 4;
@@ -742,9 +725,6 @@ int hm1055_init(void)
     {
         SENSOR_I2C_WRITE(sensor_hm1055_init_talbe[i][0],
                          (uint8_t)sensor_hm1055_init_talbe[i][1]);
-
-        hm1055_read_register(sensor_hm1055_init_talbe[i][0],
-                             (uint8_t)sensor_hm1055_init_talbe[i][1]);
     }
 
     return 0;
@@ -770,9 +750,6 @@ int hm1055_set_fps(frame_fps_t fps)
             {
                 SENSOR_I2C_WRITE(sensor_hm1055_720P_5fps_talbe[i][0],
                                  (uint8_t)sensor_hm1055_720P_5fps_talbe[i][1]);
-
-                hm1055_read_register(sensor_hm1055_720P_5fps_talbe[i][0],
-                                     (uint8_t)sensor_hm1055_720P_5fps_talbe[i][1]);
             }
 
             ret = 0;
@@ -786,9 +763,6 @@ int hm1055_set_fps(frame_fps_t fps)
             {
                 SENSOR_I2C_WRITE(sensor_hm1055_720P_10fps_talbe[i][0],
                                  (uint8_t)sensor_hm1055_720P_10fps_talbe[i][1]);
-
-                hm1055_read_register(sensor_hm1055_720P_10fps_talbe[i][0],
-                                     (uint8_t)sensor_hm1055_720P_10fps_talbe[i][1]);
             }
 
             ret = 0;
@@ -802,9 +776,6 @@ int hm1055_set_fps(frame_fps_t fps)
             {
                 SENSOR_I2C_WRITE(sensor_hm1055_720P_15fps_talbe[i][0],
                                  (uint8_t)sensor_hm1055_720P_15fps_talbe[i][1]);
-
-                hm1055_read_register(sensor_hm1055_720P_15fps_talbe[i][0],
-                                     (uint8_t)sensor_hm1055_720P_15fps_talbe[i][1]);
             }
 
             ret = 0;
@@ -832,9 +803,6 @@ int hm1055_set_fps(frame_fps_t fps)
             {
                 SENSOR_I2C_WRITE(sensor_hm1055_720P_25fps_talbe[i][0],
                                  (uint8_t)sensor_hm1055_720P_25fps_talbe[i][1]);
-
-                hm1055_read_register(sensor_hm1055_720P_25fps_talbe[i][0],
-                                     (uint8_t)sensor_hm1055_720P_25fps_talbe[i][1]);
             }
 
             ret = 0;
@@ -848,9 +816,6 @@ int hm1055_set_fps(frame_fps_t fps)
             {
                 SENSOR_I2C_WRITE(sensor_hm1055_720P_30fps_talbe[i][0],
                                  (uint8_t)sensor_hm1055_720P_30fps_talbe[i][1]);
-
-                hm1055_read_register(sensor_hm1055_720P_30fps_talbe[i][0],
-                                     (uint8_t)sensor_hm1055_720P_30fps_talbe[i][1]);
             }
 
             ret = 0;
@@ -891,12 +856,19 @@ int hm1055_dump(media_ppi_t ppi)
 
 }
 
-
-void hm1055_read_enable(bool enable)
+int hm1055_read_register(uint32_t reg, uint32_t *data)
 {
-    hm1055_read_flag = enable;
+    uint8_t val = 0;
+    SENSOR_I2C_READ(reg, &val);
+    *data = val;
+    return 0;
 }
 
+int hm1055_write_register(uint32_t reg, uint32_t data)
+{
+    SENSOR_I2C_WRITE(reg, data);
+    return 0;
+}
 
 const dvp_sensor_config_t dvp_sensor_hm1055 =
 {
@@ -918,7 +890,7 @@ const dvp_sensor_config_t dvp_sensor_hm1055 =
     .set_ppi = hm1055_set_ppi,
     .set_fps = hm1055_set_fps,
     .power_down = hm1055_power_down,
-    .dump_register = hm1055_dump,
-    .read_register = hm1055_read_enable,
+    .read_register = hm1055_read_register,
+    .write_register = hm1055_write_register,
 };
 

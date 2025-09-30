@@ -38,6 +38,9 @@
 #include "net.h"
 #include "lwip/netif.h"
 #endif
+#if CONFIG_BK_RAW_LINK
+#include "raw_link_api.h"
+#endif
 
 general_param_t *g_wlan_general_param = NULL;
 ap_param_t *g_ap_param_ptr = NULL;
@@ -171,6 +174,10 @@ bk_err_t bk_wifi_init(void)
     wdrv_init();
 #endif
 
+#if CONFIG_BK_RAW_LINK
+    ap_rlk_drv_init();
+#endif
+
     if (wifi_is_inited())
     {
         WDRV_LOGD("wifi already init!\n");
@@ -180,8 +187,8 @@ bk_err_t bk_wifi_init(void)
     bk_wifi_sta_get_mac((uint8_t *)mac);
     host_wlan_add_netif(mac);
     //ToDo: AP Netif should add separated
-    //bk_wifi_ap_get_mac((uint8_t *)mac);
-    //host_wlan_add_netif(mac);
+    bk_wifi_ap_get_mac((uint8_t *)mac);
+    host_wlan_add_netif(mac);
 
     wifi_set_state_bit(WIFI_INIT_BIT);
     WDRV_LOGD("wifi inited(%x)\n", s_wifi_state_bits);
@@ -214,7 +221,7 @@ bk_err_t bk_wifi_sta_stop(void)
 #endif
 
     wifi_clear_state_bit(WIFI_STA_STARTED_BIT);
-    WDRV_LOGD("sta stopped(%x)\n", s_wifi_state_bits);
+    WDRV_LOGI("sta stopped(%x)\n", s_wifi_state_bits);
 
     return BK_OK;
 }
@@ -251,6 +258,7 @@ bk_err_t  bk_wifi_sta_get_mac(uint8_t *mac)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, WIFI_MAC_LEN);
     ret = wifi_send_com_api_cmd(STA_GET_MAC, 1, (uint32_t)buffer_to_ipc);
     os_memcpy(mac, buffer_to_ipc, WIFI_MAC_LEN);
     os_free(buffer_to_ipc);
@@ -273,6 +281,7 @@ bk_err_t bk_wifi_ap_get_mac(uint8_t *mac)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, WIFI_MAC_LEN);
     ret = wifi_send_com_api_cmd(AP_GET_MAC, 1, (uint32_t)buffer_to_ipc);
     os_memcpy(mac, buffer_to_ipc, WIFI_MAC_LEN);
     os_free(buffer_to_ipc);
@@ -565,74 +574,13 @@ bk_err_t bk_wifi_ap_stop(void)
         WDRV_LOGW("ap stop fail ret %d\n", ret);
     }
 
-    WDRV_LOGD("ap stopped\n");
+    WDRV_LOGI("ap stopped\n");
     uap_ip_down();
     host_wlan_remove_sap_netif();
     wifi_clear_state_bit(WIFI_AP_STARTED_BIT);
 
     return BK_OK;
 }
-
-int demo_softap_app_init(char *ap_ssid, char *ap_key, char *ap_channel)
-{
-    wifi_ap_config_t ap_config = {0};//WIFI_DEFAULT_AP_CONFIG();
-#if 0
-    netif_ip4_config_t ip4_config = {0};
-#endif
-
-    int len, key_len = 0;
-    len = os_strlen(ap_ssid);
-
-    if (ap_key)
-        key_len = os_strlen(ap_key);
-    if (SSID_MAX_LEN < len) {
-        WDRV_LOGW("ssid name more than 32 Bytes\r\n");
-        return BK_FAIL;
-    }
-    if (0 == len) {
-        WDRV_LOGW("ssid name must not be null\r\n");
-        return BK_FAIL;
-    }
-
-    if (8 > key_len)
-        WDRV_LOGW("key less than 8 Bytes, the security will be set NONE\r\n");
-
-    if (64 < key_len) {
-        WDRV_LOGW("key more than 64 Bytes\r\n");
-        return BK_FAIL;
-    }
-
-#if 0
-    os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
-    os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
-    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
-    os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
-
-    BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
-#endif
-
-    os_strcpy(ap_config.ssid, ap_ssid);
-    if (ap_key)
-        os_strcpy(ap_config.password, ap_key);
-
-    if (ap_channel) {
-        int channel;
-        char *end;
-
-        channel = strtol(ap_channel, &end, 0);
-        if (*end) {
-            WDRV_LOGW("Invalid number '%s'", ap_channel);
-            return BK_FAIL;
-        }
-        ap_config.channel = channel;
-    }
-
-    WDRV_LOGD("ssid:%s  key:%s\r\n", ap_config.ssid, ap_config.password);
-    BK_RETURN_ON_ERR(bk_wifi_ap_set_config(&ap_config));
-    BK_RETURN_ON_ERR(bk_wifi_ap_start());
-    return BK_OK;
-}
-
 
 #endif
 
@@ -667,6 +615,7 @@ bk_err_t bk_wifi_sta_get_link_status(wifi_link_status_t *link_status)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, len);
     ret = wifi_send_com_api_cmd(STA_GET_LINK_STATUS, 1, (uint32_t)buffer_to_ipc);
 
     os_memcpy(link_status, buffer_to_ipc, len);
@@ -687,6 +636,7 @@ bk_err_t bk_wifi_get_channel(void)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, 1);
     wifi_send_com_api_cmd(WIFI_GET_CHANNEL, 1, (uint32_t)buffer_to_ipc);
 
     channel = *(uint8_t *)buffer_to_ipc;
@@ -741,6 +691,7 @@ bk_err_t bk_wifi_get_country(wifi_country_t *country)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, len);
     ret = wifi_send_com_api_cmd(WIFI_GET_COUNTRY, 1, (uint32_t)buffer_to_ipc);
 
     os_memcpy(country, buffer_to_ipc, len);
@@ -762,6 +713,7 @@ bk_err_t bk_wifi_get_listen_interval(uint8_t *listen_interval)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, 1);
     ret = wifi_send_com_api_cmd(STA_GET_LISTEN_INTERVAL, 1, (uint32_t)buffer_to_ipc);
 
     *listen_interval = *(uint8_t *)buffer_to_ipc;
@@ -835,6 +787,7 @@ bk_err_t bk_wifi_sta_get_linkstate_with_reason(wifi_linkstate_reason_t *info)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, len);
     ret = wifi_send_com_api_cmd(STA_GET_LINK_STATE_WITH_REASON, 1, (uint32_t)buffer_to_ipc);
 
     os_memcpy(info, buffer_to_ipc, len);
@@ -855,6 +808,7 @@ bk_err_t bk_wifi_get_support_wifi_mode(uint8_t* support_mode)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, 1);
     ret = wifi_send_com_api_cmd(WIFI_GET_SUPPORT_MODE, 1, (uint32_t)buffer_to_ipc);
 
     *support_mode = *(uint8_t *)buffer_to_ipc;
@@ -892,6 +846,8 @@ bk_err_t bk_scan_country_code(uint8_t *country_code, int *len)
     }
 
     *len = 0;
+    os_memset(buffer_to_ipc_1, 0, MAC_COUNTRY_STRING_LEN);
+    os_memset(buffer_to_ipc_2, 0, len_2);
     ret = wifi_send_com_api_cmd(SCAN_CONTRY_CODE, 2, (uint32_t)buffer_to_ipc_1, (uint32_t)buffer_to_ipc_2);
 
     os_memcpy(len, buffer_to_ipc_2, len_2);
@@ -1058,6 +1014,7 @@ bk_err_t bk_wifi_sta_get_config(wifi_sta_config_t *config)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, len);
     ret = wifi_send_com_api_cmd(STA_GET_CONFIG, 1, (uint32_t)buffer_to_ipc);
 
     os_memcpy(config, buffer_to_ipc, len);
@@ -1074,27 +1031,6 @@ bk_err_t bk_wifi_sta_pm_enable(void)
 bk_err_t bk_wifi_sta_pm_disable(void)
 {
     return wifi_send_com_api_cmd(STA_PM_DISABLE, 0);
-}
-
-int demo_sta_app_init(char *oob_ssid, char *connect_key)
-{
-    wifi_sta_config_t sta_config = {0};
-    int len;
-
-    len = os_strlen(oob_ssid);
-    if (SSID_MAX_LEN < len) {
-        WIFI_LOGD("ssid name more than 32 Bytes\r\n");
-        return BK_FAIL;
-    }
-
-    os_strcpy(sta_config.ssid, oob_ssid);
-    if (connect_key)
-        os_strcpy(sta_config.password, connect_key);
-
-    WIFI_LOGD("ssid:%s key:%s\r\n", sta_config.ssid, sta_config.password);
-    BK_LOG_ON_ERR(bk_wifi_sta_set_config(&sta_config));
-    BK_LOG_ON_ERR(bk_wifi_sta_start());
-    return BK_OK;
 }
 
 bk_err_t bk_wifi_monitor_start(void)
@@ -1131,6 +1067,55 @@ bk_err_t bk_wifi_monitor_set_channel(const wifi_channel_t *chan)
     os_free(buffer_to_ipc);
 
     return ret;
+}
+
+bk_err_t bk_wifi_monitor_result_register(void)
+{
+    uint8_t ret = BK_OK;
+    uint8_t type = WIFI_MONITOR_RESULT;
+
+    ret = wifi_send_com_api_cmd(MONITOR_REGISTER_CB, 1, type);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_monitor_get_result(void)
+{
+    uint8_t ret = BK_OK;
+    wifi_monitor_result_t result;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wifi_monitor_result_t);
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(buffer_to_ipc, 0, len);
+    ret = wifi_send_com_api_cmd(MONITOR_GET_RESULT, 1, (uint32_t)buffer_to_ipc);
+
+    os_memcpy(&result, buffer_to_ipc, len);
+    os_free(buffer_to_ipc);
+
+    WIFI_LOGI("total:      %d\n", result.rx_cnt_total);
+    WIFI_LOGI("mgmt:       %d\n", result.rx_cnt_mgmt);
+    WIFI_LOGI("data:       %d\n", result.rx_cnt_data);
+    WIFI_LOGI("ctrl:       %d\n", result.rx_cnt_ctrl);
+    WIFI_LOGI("0 - 255:    %d\n", result.rx_cnt_0_255);
+    WIFI_LOGI("256 - 511:  %d\n", result.rx_cnt_256_511);
+    WIFI_LOGI("512 - 1023: %d\n", result.rx_cnt_512_1023);
+    WIFI_LOGI(">=1024:     %d\n", result.rx_cnt_1024);
+
+    return ret;
+}
+
+void bk_wifi_ps_config(uint8_t ps_id, uint8_t ps_val, uint8_t ps_val1)
+{
+    wifi_send_com_api_cmd(PS_CONFIG, 3, ps_id, ps_val, ps_val1);
+
+    return;
 }
 
 bk_err_t bk_wifi_send_raw(uint8_t *buffer, int len)
@@ -1264,6 +1249,7 @@ bk_err_t bk_wifi_scan_get_result(wifi_scan_result_t *scan_result)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, len);
     ret = wifi_send_com_api_cmd(SCAN_RESULT, 1, (uint32_t)buffer_to_ipc);
     if (ret != BK_OK) {
         WIFI_LOGW("%s wifi_send_com_api_cmd failed: %d\r\n", __func__, ret);
@@ -1412,8 +1398,10 @@ void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
 //MONITOR
 bk_err_t bk_wifi_monitor_register_cb(const wifi_monitor_cb_t monitor_cb)
 {
+	uint8_t type = WIFI_MONITOR_DATA;
+
     s_monitor_ap_cb = monitor_cb;
-    return wifi_send_com_api_cmd(MONITOR_REGISTER_CB, 0);
+    return wifi_send_com_api_cmd(MONITOR_REGISTER_CB, 1, type);
 }
 
 wifi_monitor_cb_t bk_wifi_monitor_get_cb(void)
@@ -1531,6 +1519,7 @@ bk_err_t bk_wifi_get_status(wifi_status_t *status)
         return BK_ERR_NO_MEM;
     }
 
+    os_memset(buffer_to_ipc, 0, len);
     ret = wifi_send_com_api_cmd(GET_STATUS, 1, (uint32_t)buffer_to_ipc);
 
     os_memcpy(status, buffer_to_ipc, len);
@@ -1554,7 +1543,7 @@ bool bk_wifi_get_block_bcmc_en(void)
     bool bcmcm_en;
 
     buffer_to_ipc = os_malloc(1);
-
+    os_memset(buffer_to_ipc, 0, 1);
     wifi_send_com_api_cmd(WIFI_GET_BLOCK_BCMC_EN, 1, (uint32_t)buffer_to_ipc);
 
     bcmcm_en = *(bool *)buffer_to_ipc;
@@ -1584,6 +1573,8 @@ bk_err_t bk_wifi_ftm_start(const wifi_ftm_config_t *config, wifi_ftm_results_t *
         return BK_ERR_NO_MEM;
     }
 
+    os_memcpy(buffer_to_ipc_1, config, len1);
+    os_memset(buffer_to_ipc_2, 0, len2);
     ret = wifi_send_com_api_cmd(FTM_START, 2, (uint32_t)buffer_to_ipc_1, (uint32_t)buffer_to_ipc_2);
 
     os_memcpy(ftm_results, buffer_to_ipc_2, len2);
@@ -1965,5 +1956,75 @@ bk_err_t bk_bridge_start(bk_bridge_config_t *br_config)
     //left process in wdrv_cntrl.c
 
     return BK_OK;
+}
+#endif
+
+#if CONFIG_P2P
+bk_err_t bk_wifi_p2p_enable(const char *ssid)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+
+    if (ssid == NULL) {
+        return BK_ERR_NULL_PARAM;
+    }
+    uint8_t ssid_len = os_strlen(ssid);
+    if (ssid_len > SSID_MAX_LEN) {
+        WIFI_LOGE("%s: SSID too long (%d > %d)\r\n", __func__, ssid_len, SSID_MAX_LEN);
+        return BK_ERR_PARAM;
+    }
+    buffer_to_ipc = os_malloc(ssid_len + 1);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+    os_memcpy(buffer_to_ipc, ssid, ssid_len);
+    ((char *)buffer_to_ipc)[ssid_len] = '\0'; // Add EOF
+    ret = wifi_send_com_api_cmd(P2P_ENABLE, 1, (uint32_t)buffer_to_ipc);
+    os_free(buffer_to_ipc);
+    return ret;
+}
+
+bk_err_t bk_wifi_p2p_find(void)
+{
+    return wifi_send_com_api_cmd(P2P_FIND, 0);
+}
+
+bk_err_t bk_wifi_p2p_listen(void)
+{
+    return wifi_send_com_api_cmd(P2P_LISTEN, 0);
+}
+
+bk_err_t bk_wifi_p2p_stop_find(void)
+{
+    return wifi_send_com_api_cmd(P2P_STOP_FIND, 0);
+}
+
+bk_err_t bk_wifi_p2p_connect(const uint8_t *mac, int method, int intent)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+
+    if (!mac)
+        return BK_ERR_NULL_PARAM;
+
+    buffer_to_ipc = os_malloc(WIFI_MAC_LEN);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memcpy(buffer_to_ipc, mac, WIFI_MAC_LEN);
+    ret = wifi_send_com_api_cmd(P2P_CONNECT, 3, (uint32_t)buffer_to_ipc, method, intent);
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_p2p_cancel(void)
+{
+    return wifi_send_com_api_cmd(P2P_CANCEL, 0);
 }
 #endif

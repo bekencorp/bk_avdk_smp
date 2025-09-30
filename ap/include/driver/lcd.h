@@ -15,7 +15,6 @@
 #pragma once
 
 #include "driver/lcd_types.h"
-#include <driver/dma2d_types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -161,8 +160,6 @@ bk_err_t bk_lcd_rgb_display_en(bool en);
  */
 //bk_err_t bk_lcd_rgb_int_enable(bool is_sof_en, bool is_eof_en);
 
-#if	(USE_LCD_REGISTER_CALLBACKS == 1) 
-
 /**
  * @brief This API register  8080/rgb lcd int isr
  * 
@@ -178,21 +175,8 @@ bk_err_t bk_lcd_rgb_display_en(bool en);
  *     - BK_OK: succeed
  *     - others: other errors.
  */
-bk_err_t bk_lcd_isr_register(lcd_int_type_t int_type, lcd_isr_t isr);
-#else
+bk_err_t bk_lcd_isr_register(lcd_int_type_t int_type, lcd_isr_t isr, void *args);
 
-/**
- * @brief This API register  lcd isr, user should check int status in isr function, and clear status
- * 
- * @param
- *     - isr: isr function
- *
- * @return
- *     - BK_OK: succeed
- *     - others: other errors.
- */
-bk_err_t bk_lcd_isr_register(lcd_isr_t lcd_isr);
-#endif
 /**
  * @brief This API used to get lcd int status
  * 

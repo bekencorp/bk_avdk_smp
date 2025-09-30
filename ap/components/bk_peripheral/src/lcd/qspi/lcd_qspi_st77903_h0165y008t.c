@@ -90,13 +90,8 @@ static const lcd_qspi_t lcd_qspi_st77903_h0165y008t_config =
 	.refresh_config.vsw = LCD_QSPI_ST77903_H0165Y008T_VSW,
 	.refresh_config.hfp = LCD_QSPI_ST77903_H0165Y008T_HFP,
 	.refresh_config.hbp = LCD_QSPI_ST77903_H0165Y008T_HBP,
-#if (CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE == 3)
-	.refresh_config.line_len = (PPI_400X400 >> 16) * 3,
-	.frame_len = (PPI_400X400 >> 16) * 3 * (PPI_400X400 & 0xFFFF),
-#else
-	.refresh_config.line_len = (PPI_400X400 >> 16) * 2,
-	.frame_len = (PPI_400X400 >> 16) * 2 * (PPI_400X400 & 0xFFFF),
-#endif
+	.refresh_config.line_len = 400 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
+	.frame_len = 400 * 400 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
 //st77903 screen without display ram, and need to send data continuously.
@@ -105,7 +100,8 @@ const lcd_device_t lcd_device_st77903_h0165y008t =
 	.id = LCD_DEVICE_ST77903_H0165Y008T,
 	.name = "st77903_h0165y008t",
 	.type = LCD_TYPE_QSPI,
-	.ppi = PPI_400X400,
+	.width = 400,
+	.height = 400,
 	.qspi = &lcd_qspi_st77903_h0165y008t_config,
 	.init = NULL,
 	.lcd_off = NULL,

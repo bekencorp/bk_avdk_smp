@@ -40,6 +40,10 @@
 #ifdef BK_SUPPLICANT
 #include "uart_pub.h"
 #endif
+#ifdef CONFIG_P2P
+#include "errno.h"
+#include "bk_wifi_types.h"
+#endif
 
 
 /*

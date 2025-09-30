@@ -42,6 +42,10 @@ extern int bk_bt_os_adapter_init(void);
 extern int bk_bt_feature_init(void);
 static beken_semaphore_t bt_sem = NULL;
 static beken_mutex_t bluetooth_mutex = NULL;
+
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+static bk_bluetooth_secondary_callback_t *s_bsc_cb;
+#endif
 static void bk_enable_bt(void)
 {
     bt_err_t ret = 0;
@@ -109,6 +113,19 @@ bt_err_t bk_bluetooth_init(void)
 
 	hal_hci_driver_open();
 
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+    if(s_bsc_cb)
+    {
+        ret = hal_hci_driver_secondary_controller_init(s_bsc_cb);
+
+        if (ret)
+        {
+            LOGE("%s initialize bsc failed\r\n", __func__);
+            return ret;
+        }
+    }
+#endif
+
     ret = bluetooth_host_init();
     if (ret)
     {
@@ -159,6 +176,22 @@ bt_err_t bk_bluetooth_deinit(void)
 
     bk_disable_bt();
 
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+    if(s_bsc_cb)
+    {
+        ret = hal_hci_driver_secondary_controller_deinit();
+
+        if (ret)
+        {
+            LOGE("%s deinit bsc failed\r\n", __func__);
+            rtos_unlock_mutex(&bluetooth_mutex);
+            return ret;
+        }
+
+        s_bsc_cb = NULL;
+    }
+#endif
+
     bluetooth_already_init = 0;
 
     if(bt_sem != NULL)
@@ -205,4 +238,18 @@ void bk_bluetooth_init_deinit_compelete()
         rtos_set_semaphore(&bt_sem);
     }
 }
+
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+bt_err_t bk_bluetooth_reg_secondary_controller(bk_bluetooth_secondary_callback_t *cb)
+{
+    // if (bluetooth_already_init)
+    // {
+    //     LOGE("%s must call before normal init !!!\n", __func__);
+    //     return -1;
+    // }
+
+    s_bsc_cb = cb;
+    return 0;
+}
+#endif
 

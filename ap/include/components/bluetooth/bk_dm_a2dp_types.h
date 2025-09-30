@@ -34,6 +34,8 @@ typedef enum
     BK_A2DP_PROF_STATE_EVT,                    /*!< indicate a2dp init&deinit complete */
     BK_A2DP_SNK_SET_DELAY_VALUE_EVT,           /*!< indicate a2dp sink set delay report value complete,  only used for A2DP SINK */
     BK_A2DP_SNK_GET_DELAY_VALUE_EVT,           /*!< indicate a2dp sink get delay report value complete,  only used for A2DP SINK */
+    BK_A2DP_L2CAP_CONNECT_REQ_EVT,
+    BK_A2DP_SET_CAP_COMPLETED_EVT,
 } bk_a2dp_cb_event_t;
 
 
@@ -84,6 +86,69 @@ typedef enum
     BK_A2DP_MEDIA_CTRL_ACK_FAILURE,            /*!< media control command is acknowledged with failure */
     BK_A2DP_MEDIA_CTRL_ACK_BUSY,               /*!< media control command is rejected, as previous command is not yet acknowledged */
 } bk_a2dp_media_ctrl_ack_t;
+
+typedef enum
+{
+    BK_A2DP_CODEC_TYPE_SBC = 0,
+    BK_A2DP_CODEC_TYPE_AAC = 2,
+}bk_a2dp_codec_type_t;
+
+typedef enum
+{
+    BK_A2DP_SBC_SAMPLE_FREQ_16000 = (1 << 0),
+    BK_A2DP_SBC_SAMPLE_FREQ_32000 = (1 << 1),
+    BK_A2DP_SBC_SAMPLE_FREQ_44100 = (1 << 2),
+    BK_A2DP_SBC_SAMPLE_FREQ_48000 = (1 << 3),
+}bk_a2dp_sbc_sample_freq_t;
+
+typedef enum
+{
+    BK_A2DP_SBC_CHANNEL_MODE_MONO = (1 << 3),
+    BK_A2DP_SBC_CHANNEL_MODE_DUAL = (1 << 2),
+    BK_A2DP_SBC_CHANNEL_MODE_STEREO = (1 << 1),
+    BK_A2DP_SBC_CHANNEL_MODE_JOINT_STEREO = (1 << 0),
+}bk_a2dp_sbc_channel_mode_t;
+
+typedef enum
+{
+    BK_A2DP_SBC_BLOCK_LEN_4 = (1 << 0),
+    BK_A2DP_SBC_BLOCK_LEN_8 = (1 << 1),
+    BK_A2DP_SBC_BLOCK_LEN_12 = (1 << 2),
+    BK_A2DP_SBC_BLOCK_LEN_16 = (1 << 3),
+}bk_a2dp_sbc_block_len_t;
+
+typedef enum
+{
+    BK_A2DP_SBC_SUBBAND_4 = (1 << 0),
+    BK_A2DP_SBC_SUBBAND_8 = (1 << 1),
+}bk_a2dp_sbc_subband_t;
+
+typedef enum
+{
+    BK_A2DP_ALLOC_METHOD_SNR = (1 << 0),
+    BK_A2DP_ALLOC_METHOD_LOUDNESS = (1 << 1),
+}bk_a2dp_alloc_method_t;
+
+typedef struct
+{
+    bk_a2dp_codec_type_t type;
+    union
+    {
+        //sbc
+        struct
+        {
+            // if member == 0, use stack default value
+
+            bk_a2dp_sbc_sample_freq_t sample_freq;
+            bk_a2dp_sbc_channel_mode_t channel_mode;
+            bk_a2dp_sbc_block_len_t block_len;
+            bk_a2dp_sbc_subband_t subbands;
+            bk_a2dp_alloc_method_t alloc;
+            uint8_t bit_pool_min; /// must >= 2
+            uint8_t bit_pool_max; /// must <= 250
+        } sbc_codec_cap;
+    } param;
+}bk_a2dp_codec_cap_t;
 
 /**
  * @brief A2DP media codec capabilities union
@@ -205,6 +270,21 @@ typedef union
         uint16_t delay_value;                  /*!< delay report value */
     } a2dp_get_delay_value_stat;                /*!< A2DP sink get delay report value status */
 
+    /**
+     * @brief BK_A2DP_L2CAP_CONNECT_REQ_EVT
+     */
+    struct a2dp_l2cap_connect_req_param {
+        uint8_t remote_bda[6];                 /*!< remote bluetooth device address */
+        uint8_t accept;
+    } a2dp_l2cap_connect_req;
+
+    /**
+     * @brief BK_A2DP_SET_CAP_COMPLETED_EVT
+     */
+    struct a2dp_set_cap_completed_param {
+        uint8_t status;
+        uint8_t role; /// 0 source 1 sink
+    } a2dp_set_cap_completed;
 } bk_a2dp_cb_param_t;
 
 

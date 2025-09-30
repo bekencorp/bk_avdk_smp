@@ -65,8 +65,8 @@ extern int video_demo_register_cmd(void);
 
 #define SHELL_TASK_PRIORITY               4
 
-#define SHELL_CHECK_MINI_REMAIN_STACK    (7 * 1024 + 128)
-#define SHELL_TASK_CHECK_CNT             (100)
+#define SHELL_CHECK_MINI_REMAIN_STACK    (10 * 1024)
+#define SHELL_TASK_CHECK_CNT             (200)
 
 
 /* Find the command 'name' in the cli commands table.
@@ -185,33 +185,57 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
 	cmd_par.cmd_data_len = in_buf_size;
 	cmd_par.out_buf_size = out_buf_size;
 
-    ret = rtos_init_semaphore(&wait_shell_handle_semaphore,1);
-    if(ret != 0)
-    {
-        os_printf("Error: rtos_init_semaphore failed: %d\r\n",ret);
-        return ret;
-    }
+    rtos_init_semaphore(&wait_shell_handle_semaphore,1);
+
+	#if CONFIG_FREERTOS_SMP
+	int core_id = 0;
+	ret = sscanf((const char *)inbuf, "cpu%d", &core_id);
+	if(ret != 1)
+	{
+		core_id = 0;
+	}
+	else if(core_id < CONFIG_CPU_CNT)
+	{
+		/* "cpux " */
+		inbuf += 4;
+		in_buf_size -= 4;
+
+		cmd_par.cmd_buff = inbuf;
+		cmd_par.cmd_data_len = in_buf_size;
+	}
+
+	if(core_id == 1)
+	{
+	    ret = rtos_core1_create_thread(&shell_handle_thread_handle,
+	                                4,
+	                                "shell_handle",
+	                                (beken_thread_function_t)handle_shell_input_proxy,
+	                                1024*7,
+	                                (beken_thread_arg_t)(&cmd_par));
+	}
+	else
+	#endif
 
     /* If you send  cli commands too quickly,it may cause memory exhaustion.
     Here we wait for enough memory before responding to command */
-
-    while (1) {
+    while (1)
+    {
         ret = rtos_create_thread(&shell_handle_thread_handle,
                                     4,
                                     "shell_handle",
                                     (beken_thread_function_t)handle_shell_input_proxy,
                                     1024*7,
                                     (beken_thread_arg_t)(&cmd_par));
-       
+
         if (ret != kNoErr) {
-#if CONFIG_PSRAM_AS_SYS_MEMORY		//try again in PSRAM
-            ret = rtos_create_psram_thread(&shell_handle_thread_handle,
+  #if CONFIG_PSRAM_AS_SYS_MEMORY		
+        ret = rtos_create_psram_thread(&shell_handle_thread_handle,
                                     4,
                                     "shell_handle",
                                     (beken_thread_function_t)handle_shell_input_proxy,
                                     1024*7,
-                                    (beken_thread_arg_t)(&cmd_par));
-#endif
+                                    (beken_thread_arg_t)(&cmd_par));    
+#endif      
         }
         if (ret == kNoErr) 
         {
@@ -227,8 +251,7 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
             }
 
             rtos_delay_milliseconds(20);
-        }
-
+        }  
     }
 
 	err = rtos_get_semaphore(&wait_shell_handle_semaphore,BEKEN_WAIT_FOREVER);
@@ -1458,30 +1481,6 @@ int bk_cli_init(void)
 	cli_aud_ate_init();
 #endif
 
-#if (CLI_CFG_AUD_RSP == 1)
-	cli_aud_rsp_init();
-#endif
-
-#if (CLI_CFG_AUD_VAD == 1)
-	cli_aud_vad_init();
-#endif
-
-#if (CLI_CFG_AUD_NS == 1)
-	cli_aud_ns_init();
-#endif
-
-#if (CLI_CFG_AUD_FLAC == 1)
-	cli_aud_flac_init();
-#endif
-
-#if (CLI_CFG_AUD_CP0 == 1)
-	cli_aud_cp0_init();
-#endif
-
-#if (CLI_CFG_FFT == 1)
-	cli_fft_init();
-#endif
-
 #if (CLI_CFG_SBC == 1)
 	cli_sbc_init();
 #endif
@@ -1490,53 +1489,7 @@ int bk_cli_init(void)
 	cli_i2s_init();
 #endif
 
-#if (CLI_CFG_LCD == 1)
-	cli_lcd_init();
-#endif
 
-#if (CLI_CFG_ROTT == 1)
-	cli_rott_init();
-#endif
-
-#if (CLI_CFG_DMA2D == 1)
-	cli_dma2d_init();
-#endif
-
-#if (CLI_CFG_LCD_QSPI == 1)
-	cli_lcd_qspi_init();
-#endif
-
-#if (CLI_CFG_QRCODEGEN == 1)
-	cli_qrcodegen_init();
-#endif
-
-#if (CLI_CFG_JPEGDEC == 1)
-	cli_jpegdec_init();
-#endif
-
-#if (CLI_CFG_AEC == 1)
-	cli_aec_init();
-#endif
-
-#if (CLI_CFG_G711 == 1)
-	cli_g711_init();
-#endif
-
-#if (CLI_CFG_OPUS == 1)
-	cli_opus_init();
-#endif
-
-#if (CLI_CFG_ADPCM == 1)
-	cli_adpcm_init();
-#endif
-
-#if (CLI_CFG_MP3 == 1)
-	cli_mp3_init();
-#endif
-
-#if (CLI_CFG_AGC == 1)
-	cli_agc_init();
-#endif
 
 #if CONFIG_CS2_P2P_SERVER || CONFIG_CS2_P2P_CLIENT
 	cli_cs2_p2p_init();
@@ -1559,14 +1512,6 @@ int bk_cli_init(void)
 
 #if (CLI_CFG_UID)
 	cli_uid_init();
-#endif
-
-#if (CONFIG_H264_SW_DECODER_TEST)
-    cli_h264_sw_dec_init();
-#endif
-
-#if (CONFIG_JPEG_SW_ENCODER_TEST)
-    cli_jpeg_sw_enc_init();
 #endif
 
 /*--------------BT&MultMedia cli command init end------------------*/
@@ -1635,10 +1580,6 @@ int bk_cli_init(void)
 
 #if (CLI_CFG_AON_RTC == 1)
 	cli_aon_rtc_init();
-#endif
-
-#if (CLI_CFG_JPEGENC == 1)
-	cli_jpeg_init();
 #endif
 
 #if (CLI_CFG_ADC == 1 || CONFIG_ADC_API_TEST)
@@ -1734,10 +1675,6 @@ int bk_cli_init(void)
 
 #if (CLI_CFG_MISC == 1)
 	cli_misc_init();
-#endif
-
-#if (CLI_CFG_JPEG_SW_ENC == 1)
-    cli_jpeg_sw_enc_init();
 #endif
 
 #if (CONFIG_PSA_MBEDTLS_TEST && CONFIG_PSA_MBEDTLS)

@@ -18,6 +18,8 @@ if (CONFIG_BLUETOOTH_AP)
 	if (CONFIG_BLUETOOTH_HOST_ONLY)
 		list(APPEND srcs
 			"hci/hal_hci_core.c"
+			"hci/hci_distinguish.c"
+			"hci/hci_parse.c"
 			)
 		list(APPEND incs
 			hci
@@ -66,6 +68,7 @@ if (CONFIG_BLUETOOTH_AP)
 				api/bt_hidd_export_api.c
 				api/bt_hidh_export_api.c
 				api/bk_hfp_api.c
+				api/bk_pan_api.c
 			)
 		endif()
 

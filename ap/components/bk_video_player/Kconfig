@@ -1,0 +1,7 @@
+menu "Bk_video_player"
+
+    config AVI_PLAYER
+        bool "Enable AVI Player"
+        default n
+
+endmenu

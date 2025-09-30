@@ -835,6 +835,7 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     cfg.out_block_size = config->out_block_size;
     cfg.out_block_num = config->out_block_num;
     cfg.multi_out_port_num = config->multi_out_port_num;
+    cfg.multi_in_port_num = 1;
 
     if (config->aec_cfg.mode == AEC_MODE_HARDWARE)
     {
@@ -843,7 +844,6 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     else
     {
         cfg.buffer_len = aec_alg->frame_size;
-        cfg.multi_in_port_num = 1;
     }
 
     if(config->dual_ch)

@@ -30,6 +30,8 @@ enum
     BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_PAGE_SCAN_ACTIVITY,
     BT_ETHERMIND_GAP_API_REQ_SUBMSG_AUTHENTICATION_REQUEST,
     BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_AUTO_SNIFF_POLICY,
+    BT_ETHERMIND_GAP_API_REQ_SUBMSG_SNIFF_CONTROL,
+    BT_ETHERMIND_GAP_API_REQ_SUBMSG_SWTICH_ROLE,
 };
 
 
@@ -118,7 +120,21 @@ typedef struct
     uint16_t sniff_timeout;
 } bk_bt_set_auto_sniff_policy_msg_t;
 
+typedef struct
+{
+    uint8_t addr[6];
+    uint8_t exit;
+    uint16_t sniff_max_interval;
+    uint16_t sniff_min_interval;
+    uint16_t sniff_attempt;
+    uint16_t sniff_timeout;
+} bk_bt_sniff_control_msg_t;
 
+typedef struct
+{
+    uint8_t addr[6];
+    uint8_t role;
+} bk_bt_switch_role_msg_t;
 
 void bk_bt_call_callback(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param);
 bk_bt_gap_cb_t bk_bt_gap_get_callback(void);

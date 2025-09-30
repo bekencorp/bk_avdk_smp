@@ -301,17 +301,6 @@ void* os_malloc_wifi_buffer(size_t size);
   *
   */
 void os_show_memory_config_info(void);
-
-/** @brief   Given a value, check if there is a memory block larger than that value in the free memory list.
-  * 
-  * @param   size   : check memory block size
-  * 
-  * @return  if request success, return 1, otherwise
-  *          0 is returned
-  * 
-  */
-uint32_t CheckBlockSizeValid(uint32_t size);
-
 #ifdef __cplusplus
 }
 #endif

@@ -118,6 +118,15 @@ static bk_err_t _ringbuf_port_get_filled_size(audio_port_handle_t self)
     return rb_bytes_filled(rb_port->rb);
 }
 
+static bk_err_t _ringbuf_port_get_free_size(audio_port_handle_t self)
+{
+    ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
+
+    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+
+    return rb_bytes_available(rb_port->rb);
+}
+
 static bk_err_t _ringbuf_port_destroy(audio_port_handle_t self)
 {
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
@@ -157,6 +166,7 @@ audio_port_handle_t ringbuf_port_init(ringbuf_port_cfg_t *config)
     cfg.write_done = _ringbuf_port_write_done;
     cfg.get_size = _ringbuf_port_get_size;
     cfg.get_filled_size = _ringbuf_port_get_filled_size;
+    cfg.get_free_size = _ringbuf_port_get_free_size;
 
     audio_port_handle_t port = audio_port_init(&cfg);
     AUDIO_MEM_CHECK(TAG, port, goto fail);

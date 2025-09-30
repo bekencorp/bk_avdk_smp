@@ -243,6 +243,20 @@ bt_err_t bk_bt_a2dp_sink_set_delay_value(uint16_t delay_value);
  */
 bt_err_t bk_bt_a2dp_sink_get_delay_value(void);
 
+/**
+ *
+ * @brief           set media cap. This API must be called after bk_bt_a2dp_xxx_init() and before connection completed
+ *
+ * @param[in]       source_or_sink: 0 source, 1 sink
+ * @param[in]       cap: media cap
+ *
+ * @return
+ *                  - BK_ERR_BT_SUCCESS: if the request is sent successfully
+ *                  - others: fail
+ *
+ */
+bt_err_t bk_bt_a2dp_set_cap(uint8_t source_or_sink, bk_a2dp_codec_cap_t *cap);
+
 #ifdef __cplusplus
 }
 #endif

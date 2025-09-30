@@ -1303,6 +1303,7 @@ void cc_scan_stop(void);
  */
 bk_err_t bk_scan_country_code(uint8_t *country_code, int *len);
 
+
 /**
  * @brief  Get wifi support mode.
  *

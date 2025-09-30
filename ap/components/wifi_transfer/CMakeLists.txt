@@ -1,14 +1,13 @@
 set(incs include)
 set(srcs)
 
-if (CONFIG_WIFI_TRANSFER)
+if (1)
 	list(APPEND srcs
 		src/wifi_transfer.c
-		src/trans_list.c
 		)
 endif()
 
-set(priv_req bk_common multimedia)
+set(priv_req bk_common multimedia media_utils)
 
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"

@@ -25,14 +25,25 @@ properties_lib_targets := $(subst bk, libbk, $(soc_targets))
 rel_targets := $(subst bk, relbk, $(soc_targets))
 clean_targets := $(subst bk, cleanbk, $(soc_targets))
 doc_targets := $(subst bk, docbk, $(soc_targets))
-cmake_supported_targets := menuconfig doc
-cmake_not_supported_targets = help clean
+cmake_supported_targets := doc
+cmake_not_supported_targets = help clean menuconfig
 all_targets = cmake_not_supported_targets soc_targets cmake_supported_targets
 export SOC_SUPPORTED_TARGETS := ${soc_targets}
-
-export ARMINO_SOC := $(findstring $(MAKECMDGOALS), $(soc_targets))
-export ARMINO_SOC_LIB := $(findstring $(MAKECMDGOALS), $(properties_lib_targets))
-export CMD_TARGET := $(MAKECMDGOALS)
+ifeq ($(MAKECMDGOALS), menuconfig)
+	ifeq (${MENUCONFIG_DEST_TYPE}, ap)
+		# bk7258_ap
+		export ARMINO_SOC := ${SOC_NAME}_ap
+	else ifeq (${MENUCONFIG_DEST_TYPE}, cp)
+		# bk7258 cp
+		export ARMINO_SOC := ${SOC_NAME}
+	endif
+	export ARMINO_SOC := $(findstring $(ARMINO_SOC), $(soc_targets))
+	export CMD_TARGET := $(MAKECMDGOALS)
+else
+	export ARMINO_SOC := $(findstring $(MAKECMDGOALS), $(soc_targets))
+	export ARMINO_SOC_LIB := $(findstring $(MAKECMDGOALS), $(properties_lib_targets))
+	export CMD_TARGET := $(MAKECMDGOALS)
+endif
 
 ifeq ("$(APP_VERSION)", "")
 	export APP_VERSION := unknown
@@ -136,6 +147,9 @@ relall: $(rel_targets)
 
 $(cmake_supported_targets): common
 	@python3 $(ARMINO_TOOL) -B $(PROJECT_BUILD_DIR) -P $(PROJECT_DIR) $@
+
+menuconfig: common
+	@python3 $(ARMINO_TOOL) -B $(PROJECT_BUILD_DIR)/$(ARMINO_SOC) -P $(PROJECT_DIR) $@
 
 $(clean_targets):
 	@$(ARMINO_TOOL_WRAPPER) $(ARMINO_DIR) $(PROJECT_DIR) $(PROJECT_NAME) $(ARMINO_TOOLS_PATH) $@

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "dvp_sensor_devices.h"
-#include <driver/dvp_camera.h>
+#include <components/dvp_camera.h>
 #include <driver/i2c.h>
 
 #define DVP_I2C_TIMEOUT (50)

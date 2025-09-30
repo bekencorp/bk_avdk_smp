@@ -35,6 +35,7 @@
 #include <common/sys_config.h>
 #include <components/log.h>
 
+#define LWIP_SOCKET_OFFSET             1
 
 
 /**

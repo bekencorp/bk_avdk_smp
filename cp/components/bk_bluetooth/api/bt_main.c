@@ -40,6 +40,10 @@ extern int bk_bt_os_adapter_init(void);
 extern int bk_bt_feature_init(void);
 static beken_mutex_t bluetooth_mutex = NULL;
 
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+static bk_bluetooth_secondary_callback_t *s_bsc_cb;
+#endif
+
 bk_bluetooth_status_t bk_bluetooth_get_status(void)
 {
     if (bluetooth_already_init)
@@ -69,7 +73,7 @@ static int bluetooth_deepsleep_enter_cb(uint64_t expected_time_ms, void *args)
 
 bt_err_t bk_bluetooth_init(void)
 {
-    bt_err_t ret;
+    bt_err_t ret = 0;
 
     if (bluetooth_already_init)
     {
@@ -91,6 +95,26 @@ bt_err_t bk_bluetooth_init(void)
     }
 
 #if CONFIG_BLUETOOTH_SUPPORT_IPC
+    ret = bt_ipc_init();
+    if(ret == 0)
+    {
+        //only init ipc
+        //bluetooth_already_init = 1;
+        LOGD("%s init ipc ok\r\n", __func__);
+        return 0;
+    }
+    else if(ret == 1)
+    {
+        LOGD("%s ipc already init\n", __func__);
+    }
+    else
+    {
+        LOGE("%s ipc init err\n", __func__);
+        return ret;
+    }
+#endif
+
+#if 0//CONFIG_BLUETOOTH_SUPPORT_IPC
     bt_ipc_init();
 #endif
 
@@ -101,6 +125,20 @@ bt_err_t bk_bluetooth_init(void)
         return ret;
     }
 
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+    if(s_bsc_cb)
+    {
+        ret = hal_hci_driver_secondary_controller_init(s_bsc_cb);
+
+        if (ret)
+        {
+            LOGE("%s initialize bsc failed\r\n", __func__);
+            return ret;
+        }
+    }
+#endif
+
+    bk_int_set_priority(INT_SRC_BTDM, 0);
 #if !CONFIG_BTDM_CONTROLLER_ONLY
     ret = bluetooth_host_init();
     if (ret)
@@ -126,7 +164,7 @@ bt_err_t bk_bluetooth_init(void)
     {
         rtos_init_mutex(&bluetooth_mutex);
     }
-	
+
     bluetooth_already_init = 1;
     LOGD("%s ok\r\n", __func__);
     return ret;
@@ -155,6 +193,22 @@ bt_err_t bk_bluetooth_deinit(void)
     hal_hci_driver_close();
 #endif
 
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+    if(s_bsc_cb)
+    {
+        ret = hal_hci_driver_secondary_controller_deinit();
+
+        if (ret)
+        {
+            LOGE("%s deinit bsc failed\r\n", __func__);
+            rtos_unlock_mutex(&bluetooth_mutex);
+            return ret;
+        }
+
+        s_bsc_cb = NULL;
+    }
+#endif
+
     ret = bluetooth_controller_deinit();
     if (ret)
     {
@@ -168,6 +222,9 @@ bt_err_t bk_bluetooth_deinit(void)
     bk_pm_sleep_unregister_cb(PM_MODE_SUPER_DEEP_SLEEP, PM_DEV_ID_BTDM, true, false);
 #endif
 
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+    hal_hci_driver_secondary_controller_deinit();
+#endif
     bluetooth_already_init = 0;
 
     LOGD("%s ok, %d \r\n", __func__, bluetooth_already_init);
@@ -189,4 +246,16 @@ bt_err_t bk_bluetooth_get_address(uint8_t *addr)
     return ret;
 }
 
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
+bt_err_t bk_bluetooth_reg_secondary_controller(bk_bluetooth_secondary_callback_t *cb)
+{
+    // if (bluetooth_already_init)
+    // {
+    //     LOGE("%s must call before normal init !!!\n", __func__);
+    //     return -1;
+    // }
 
+    s_bsc_cb = cb;
+    return 0;
+}
+#endif

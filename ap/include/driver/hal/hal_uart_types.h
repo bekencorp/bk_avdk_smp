@@ -15,7 +15,7 @@
 #pragma once
 
 #include <common/bk_err.h>
-
+#include "stdbool.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -137,6 +137,12 @@ typedef struct {
 	 */
 	uart_dma_enable_t rx_dma_en;
 	uart_dma_enable_t tx_dma_en;
+#endif
+
+#if 1
+	bool enable_sw_flow_ctrl;
+	uint8_t rts_gpio;
+	uint8_t cts_gpio;
 #endif
 } uart_config_t;
 

@@ -1103,9 +1103,6 @@ HAL_StatusTypeDef HAL_ETH_Transmit(ETH_HandleTypeDef *heth, ETH_TxPacketConfig *
   */
 HAL_StatusTypeDef HAL_ETH_Transmit_IT(ETH_HandleTypeDef *heth, ETH_TxPacketConfig *pTxConfig)
 {
-  //ETH_DMADescTypeDef *txdesc = (ETH_DMADescTypeDef *)heth->TxDescList.TxDesc[heth->TxDescList.CurTxDesc];
-  //ETH_LOGI("TX: CurTxDesc=%d, txdesc=%p, DESC3=0x%08X", heth->TxDescList.CurTxDesc, txdesc, txdesc->DESC3);
-
   if (pTxConfig == NULL)
   {
     heth->ErrorCode |= HAL_ETH_ERROR_PARAM;

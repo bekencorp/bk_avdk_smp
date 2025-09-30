@@ -32,9 +32,6 @@
         dvp_camera_i2c_write_uint8((GC0308_WRITE_ADDRESS >> 1), reg, value);\
     }while (0)
 
-
-bool gc0308_read_flag = false;
-
 // gc0308_DEV
 const uint8_t sensor_gc0308_init_talbe[][2] =
 {
@@ -367,26 +364,6 @@ bool gc0308_detect(void)
     return false;
 }
 
-void gc0308_read_register(uint8_t addr, uint8_t data)
-
-{
-    if (gc0308_read_flag)
-    {
-        if (addr == 0x4e || addr == 0x4d || addr == 0xfe)
-        {
-            return;
-        }
-
-        uint8_t value = 0;
-        rtos_delay_milliseconds(2);
-        SENSOR_I2C_READ(addr, &value);
-        if (value != data)
-        {
-            LOGD("0x%02x, 0x%02x-0x%02x\r\n", addr, data, value);
-        }
-    }
-}
-
 int gc0308_init(void)
 
 {
@@ -397,8 +374,6 @@ int gc0308_init(void)
     for (i = 0; i < size; i++)
     {
         SENSOR_I2C_WRITE(sensor_gc0308_init_talbe[i][0], sensor_gc0308_init_talbe[i][1]);
-
-        gc0308_read_register(sensor_gc0308_init_talbe[i][0], sensor_gc0308_init_talbe[i][1]);
     }
 
     return 0;
@@ -421,9 +396,6 @@ int gc0308_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_gc0308_QVGA_320_240_talbe[i][0],
                                  sensor_gc0308_QVGA_320_240_talbe[i][1]);
-
-                gc0308_read_register(sensor_gc0308_QVGA_320_240_talbe[i][0],
-                                     sensor_gc0308_QVGA_320_240_talbe[i][1]);
             }
 
             ret = 0;
@@ -438,9 +410,6 @@ int gc0308_set_ppi(media_ppi_t ppi)
             {
                 SENSOR_I2C_WRITE(sensor_gc0308_VGA_640_480_talbe[i][0],
                                  sensor_gc0308_VGA_640_480_talbe[i][1]);
-
-                gc0308_read_register(sensor_gc0308_VGA_640_480_talbe[i][0],
-                                     sensor_gc0308_VGA_640_480_talbe[i][1]);
             }
 
             ret = 0;
@@ -468,70 +437,19 @@ int gc0308_reset(void)
     return 0;
 }
 
-int gc0308_dump(media_ppi_t ppi)
+int gc0308_read_register(uint32_t reg, uint32_t *data)
 {
-    uint32_t size, i;
-    int ret = -1;
-    uint8_t value = 0;
-
-    LOGD("%s\n", __func__);
-
-    size = sizeof(sensor_gc0308_init_talbe) / 2;
-
-    for (i = 0; i < size; i++)
-    {
-        SENSOR_I2C_READ(sensor_gc0308_init_talbe[i][0], &value);
-        LOGD("[0x%02x, 0x%02x]\r\n", sensor_gc0308_init_talbe[i][0], value);
-    }
-
-    switch (ppi)
-    {
-        case PPI_320X240:
-        {
-            size = sizeof(sensor_gc0308_QVGA_320_240_talbe) / 2;
-
-            for (i = 0; i < size; i++)
-            {
-                SENSOR_I2C_READ(sensor_gc0308_QVGA_320_240_talbe[i][0], (uint8_t *)&value);
-                LOGD("[%02x, %02x]\r\n", sensor_gc0308_QVGA_320_240_talbe[i][0], value);
-            }
-
-            ret = 0;
-        }
-        break;
-
-        case PPI_640X480:
-        {
-            size = sizeof(sensor_gc0308_VGA_640_480_talbe) / 2;
-
-            for (i = 0; i < size; i++)
-            {
-                SENSOR_I2C_READ(sensor_gc0308_VGA_640_480_talbe[i][0], &value);
-                LOGD("[%02x, %02x]\r\n", sensor_gc0308_VGA_640_480_talbe[i][0], value);
-            }
-
-            ret = 0;
-        }
-        break;
-
-        case PPI_800X600:
-        case PPI_1280X720:
-        default:
-            break;
-
-    }
-
-    ret = kNoErr;
-
-    return ret;
-
+    uint8_t val = 0;
+    SENSOR_I2C_READ(reg, &val);
+    *data = val;
+    return 0;
 }
 
-void gc0308_read_enable(bool enable)
+int gc0308_write_register(uint32_t reg, uint32_t data)
 {
-    gc0308_read_flag = enable;
+    SENSOR_I2C_WRITE(reg, data);
+    return 0;
 }
-
 
 const dvp_sensor_config_t dvp_sensor_gc0308 =
 {
@@ -553,7 +471,7 @@ const dvp_sensor_config_t dvp_sensor_gc0308 =
     .set_ppi = gc0308_set_ppi,
     .set_fps = gc0308_set_fps,
     .power_down = gc0308_reset,
-    .dump_register = gc0308_dump,
-    .read_register = gc0308_read_enable,
+    .read_register = gc0308_read_register,
+    .write_register = gc0308_write_register,
 };
 

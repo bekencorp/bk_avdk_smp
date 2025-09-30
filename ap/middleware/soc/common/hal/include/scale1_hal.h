@@ -15,7 +15,6 @@
 #pragma once
 
 #include <common/bk_include.h>
-#include <driver/media_types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,8 +24,8 @@ extern "C" {
 #define scale1_hal_set_firstaddr    scale1_ll_set_0x04_first_addr
 #define scale1_hal_set_base_addr    scale1_ll_set_0x0a_base_addr
 #define scale1_hal_set_dest_addr    scale1_ll_set_0x0c_dest_addr
-#define scale1_hal_col_coef         scale1_ll_set_0x06_col_coef      
-#define scale1_hal_hloc_index        scale1_ll_set_0x0e_hloc_index   
+#define scale1_hal_col_coef         scale1_ll_set_0x06_col_coef
+#define scale1_hal_hloc_index        scale1_ll_set_0x0e_hloc_index
 
 #define scale1_hal_int_set          scale1_ll_set_0x08_com_cfg
 // 4: BURST 4, 8: BURST 8, 16: BURST 16, 32: BURST 32, 64: BURST 64, Others: BURST 32

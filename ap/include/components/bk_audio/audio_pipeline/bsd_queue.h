@@ -5,6 +5,7 @@
 #define TRASHIT(x)  do {(x) = (void *)-1;} while (0)
 #define STAILQ_NEXT(elm, field) ((elm)->field.stqe_next)
 
+#define STAILQ_EMPTY(head)  ((head)->stqh_first == NULL)
 #define STAILQ_FIRST(head)  ((head)->stqh_first)
 
 #define STAILQ_HEAD(name, type)                     \

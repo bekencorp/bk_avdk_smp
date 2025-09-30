@@ -18,11 +18,6 @@ menu "Media"
 		bool "Enable Media"
 		default n
 
-	config WIFI_TRANSFER
-		depends on MEDIA
-		bool "Enable Wifi Transfer"
-		default n
-
 	config LCD_FLASH_JPEG_DISPLAY
 		depends on LCD
 		bool "Enable Lcd Flash Jpeg Display"
@@ -58,22 +53,11 @@ menu "Media"
 		help
 			enable lcd blend by font logo
 
-	config IMAGE_STORAGE
-		depends on MEDIA
-		bool "enable image storage function"
-		default n
-		help
-			enable image save and read image
-
 	config EXTENTED_PSRAM_LAYOUT
 		bool "Externally controlling the PSRAM range of the framebuffer"
 		default n
 		help
 			extern external fb_layout variable
-
-	config TRANS_APP_TASK_SIZE
-		int "Set transfer app task size"
-		default 1024
 
 	config LCD_ROTATE
 		depends on LCD
@@ -129,10 +113,6 @@ menu "Media"
 		bool "The PSRAM used by the media is within 4M."
 			default n
 
-	config CLI_MEDIA
-		bool "enable audio asr"
-		default n
-
 	config JPEG_SW_DECODE_SUPPORT_BY_FRAME
 		bool "Enable JPEG software decode by frame"
 		default y
@@ -140,5 +120,9 @@ menu "Media"
 	config JPEG_SW_DECODE_SUPPORT_BY_LINE
 		bool "Enable JPEG software decode by line"
 		default y
+
+	config SUPPORTED_IMAGE_MAX_720P
+		bool "support 1280X720 pipeline"
+		default n
 
 endmenu

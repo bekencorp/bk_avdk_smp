@@ -112,6 +112,10 @@
 #define LOG_BLOCK_MASK    LOG_STATIC_BLOCK_MODE
 #define LOG_MALLOC_MASK   LOG_NONBLOCK_MODE
 
+#if CONFIG_DEBUG_VERSION
+#define LOG_CRC_CHECK 1
+#endif
+
 typedef struct
 {
 	beken_semaphore_t   event_semaphore;  // will release from ISR.
@@ -206,6 +210,9 @@ struct dynamic_log_node_t
 {
 	dynamic_log_node *next;
 	u32 len;
+#if LOG_CRC_CHECK
+	u32 crc16;
+#endif
 	u8 ptr[0];
 };
 
@@ -228,6 +235,8 @@ static u16 s_dynamic_log_num = 0;   // dynamic log in send queue
 static u16 s_dynamic_log_total_len = 0;  // total consumption of dynamic log memory
 static u16 s_dynamic_log_num_in_mem = 0;  // number of dynamic log in memory, including no free log.
 static u16 s_dynamic_log_mem_max = 0;  // maximum of consumption
+
+static u16 s_insert_log_cnt = 0;
 
 #define DYM_NODE_SIZE (sizeof(dynamic_log_node))
 
@@ -363,6 +372,11 @@ static void output_insert_log(u16 buf_len, char *prefix, const char *format, va_
 static void output_insert_data(const u8 *data, u16 data_len);
 static dynamic_log_node *dynamic_list_switch(void);
 static void log_handle_task( void *para );
+
+#if LOG_CRC_CHECK
+static void dynamic_node_crc16(u8 *packet_buf);
+static uint16_t log_crc16(const uint8_t *data, size_t len);
+#endif
 
 static inline uint32_t shell_task_enter_critical()
 {
@@ -1987,6 +2001,12 @@ static int shell_log_raw_data_internel(bool hint, const u8 *data, u16 data_len)
 
 	memcpy(packet_buf, data, data_len);
 
+#if LOG_CRC_CHECK
+	if ( GET_QUEUE_ID(blk_tag) == SHELL_DYM_QUEUE_ID ) {
+		dynamic_node_crc16(packet_buf);
+	}
+#endif
+
 	u32 int_mask = shell_task_enter_critical();
 
 	if ( GET_QUEUE_ID(blk_tag) == SHELL_DYM_QUEUE_ID ) {
@@ -2118,14 +2138,27 @@ void shell_log_out_port(int block_mode, int level, char *prefix, const char *for
 
 	if(packet_buf == NULL)
 	{
-		if (block_mode & s_block_mode & LOG_BLOCK_MASK)
+		if (block_mode & s_block_mode & LOG_BLOCK_MASK) {
+			s_insert_log_cnt++;
 			output_insert_log(buf_len, prefix, format, ap);
+			if (s_insert_log_cnt >= 100) {
+				BK_ASSERT(0);
+			}
+		}
 		else
 			log_hint_out();
 		return;
 	}
 
+	s_insert_log_cnt = 0;
+
 	log_len = combine_log_with_prefix(prefix, (char *)&packet_buf[0], buf_len, format, ap);
+
+#if LOG_CRC_CHECK
+	if ( GET_QUEUE_ID(blk_tag) == SHELL_DYM_QUEUE_ID ) {
+		dynamic_node_crc16(packet_buf);
+	}
+#endif
 
 	u32  int_mask = shell_task_enter_critical();
 
@@ -2617,6 +2650,10 @@ static void dynamic_node_gc(void)
 	shell_task_exit_critical(int_mask);
 	node = free_list;
 	while (node != NULL) {
+#if LOG_CRC_CHECK
+		uint32_t crc = log_crc16(node->ptr, node->len - DYM_NODE_SIZE);
+		BK_ASSERT(crc == node->crc16);
+#endif
 		temp_node = node;
 		s_dynamic_log_total_len -= node->len;
 		node = node->next;
@@ -2665,6 +2702,32 @@ static dynamic_log_node *dynamic_list_switch(void)
 	return node;
 }
 
+#if LOG_CRC_CHECK
+static uint16_t log_crc16(const uint8_t *data, size_t len)
+{
+    uint16_t crc = 0xFFFF;
+    for (size_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (int j = 0; j < 8; j++) {
+            if (crc & 0x0001) {
+                crc >>= 1;
+                crc ^= 0xA001;
+            } else {
+                crc >>= 1;
+            }
+        }
+    }
+    return crc;
+}
+
+static void dynamic_node_crc16(u8 *packet_buf)
+{
+	dynamic_log_node *node = (dynamic_log_node *)&packet_buf[-DYM_NODE_SIZE];
+	uint16_t crc = log_crc16(node->ptr, node->len - DYM_NODE_SIZE);
+	node->crc16 = crc;
+}
+#endif
+
 static inline void dynamic_list_push_back_by_buffer(u8 *packet_buf)
 {
 	dynamic_log_node *node = (dynamic_log_node *)&packet_buf[-DYM_NODE_SIZE];
@@ -2684,15 +2747,37 @@ static void shell_insert_data( const u8 *data, u16 data_len )
 	rtos_enable_int(int_mask);
 }
 
+const char *s_insert_log_reason[] = {
+	"D", // disable interrupt
+	"I", // interrupt
+	"N", // log not init
+	"S", // scheduler suspended
+	"U", // unknown
+};
+
+static const char *get_log_insert_reason(void)
+{
+	if (rtos_local_irq_disabled()) {
+		return s_insert_log_reason[0];
+	} else if (rtos_is_in_interrupt_context()) {
+		return s_insert_log_reason[1];
+	} else if (log_buf_semaphore == NULL) {
+		return s_insert_log_reason[2];
+	} else if (rtos_is_scheduler_suspended()) {
+		return s_insert_log_reason[3];
+	}
+	return s_insert_log_reason[4];
+}
+
 static void output_insert_data(const u8 *data, u16 data_len)
 {
-	shell_assert_out(bTRUE, "\r\nINSRT:");
+	shell_assert_out(bTRUE, "\r\nINSRT-%s:", get_log_insert_reason());
 	shell_insert_data(data, data_len);
 }
 
 static void output_insert_log(u16 buf_len, char *prefix, const char *format, va_list ap)
 {
-	shell_assert_out(bTRUE, "\r\nINSRT:%s", prefix);
+	shell_assert_out(bTRUE, "\r\nINSRT-%s:%s", get_log_insert_reason(), prefix);
 	shell_assert_out_va(bTRUE, format, ap);
 }
 

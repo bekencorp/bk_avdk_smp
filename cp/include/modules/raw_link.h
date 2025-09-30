@@ -266,7 +266,7 @@ uint8_t bk_rlk_get_channel(void);
   *          - BK_ERR_NO_MEM : out of memory
   *          - BK_ERR_NOT_FOUND : peer is not found
   */
-bk_err_t bk_rlk_send(const uint8_t *peer_mac_addr, const void *data,size_t len);
+bk_err_t bk_rlk_send(const uint8_t *peer_mac_addr, const void *data, size_t len);
 
 /**
   * @brief     Send Raw Links data

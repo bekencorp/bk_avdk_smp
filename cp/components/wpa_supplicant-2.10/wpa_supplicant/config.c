@@ -1559,7 +1559,7 @@ static char * wpa_config_write_freq_list(const struct parse_data *data,
 
 
 #ifdef IEEE8021X_EAPOL
-static int wpa_config_parse_eap(const struct parse_data *data,
+int wpa_config_parse_eap(const struct parse_data *data,
 				struct wpa_ssid *ssid, int line,
 				const char *value)
 {
@@ -2992,7 +2992,9 @@ void wpa_config_free(struct wpa_config *config)
 	os_free(config->pcsc_reader);
 	str_clear_free(config->pcsc_pin);
 	os_free(config->driver_param);
+#if !CONFIG_P2P
 	os_free(config->device_name);
+#endif
 	os_free(config->manufacturer);
 	os_free(config->model_name);
 	os_free(config->model_number);

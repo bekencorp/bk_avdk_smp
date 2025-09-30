@@ -15,14 +15,34 @@
 #include <common/bk_include.h>
 #include <os/os.h>
 #include <driver/flash.h>
-//#include "flash_driver.h"
+#include "flash_driver.h"
 // #include "mb_ipc_cmd.h"
 
 static void (*s_flash_op_notify)(uint32_t param) = NULL;
 static void (*s_flash_op_notify_camera)(uint32_t param) = NULL;
 static flash_op_notify_onboard_mic_stream_callback_t s_flash_op_notify_onboard_mic_stream = NULL;
 static void *s_flash_op_notify_onboard_mic_stream_args = NULL;
+static void (*s_flash_op_notify_uart)(uint32_t param) = NULL;
 
+bk_err_t mb_flash_register_op_uart_notify(void * notify_cb)
+{
+	if (s_flash_op_notify_uart == NULL)
+	{
+		s_flash_op_notify_uart = (void (*)(uint32_t))notify_cb;
+	}
+
+	return BK_OK;
+}
+
+bk_err_t mb_flash_unregister_op_uart_notify(void)
+{
+	if(s_flash_op_notify_uart)
+	{
+		s_flash_op_notify_uart = NULL;
+	}
+
+	return BK_OK;
+}
 
 bk_err_t mb_flash_register_op_notify(void * notify_cb)
 {
@@ -124,6 +144,11 @@ static void cpu1_pause_handle(mb_chnl_cmd_t *cmd_buf)
 			s_flash_op_notify_onboard_mic_stream(1, s_flash_op_notify_onboard_mic_stream_args);
 		}
 
+		if (s_flash_op_notify_uart != NULL)
+		{
+			s_flash_op_notify_uart(1);
+		}
+
 	}
 	else if(cmd_buf->hdr.cmd == IPC_FLASH_OP_END)
 	{
@@ -139,6 +164,11 @@ static void cpu1_pause_handle(mb_chnl_cmd_t *cmd_buf)
 		if(s_flash_op_notify_onboard_mic_stream != NULL)
 		{
 			s_flash_op_notify_onboard_mic_stream(0, s_flash_op_notify_onboard_mic_stream_args);
+		}
+
+		if (s_flash_op_notify_uart != NULL)
+		{
+			s_flash_op_notify_uart(0);
 		}
 	}
 
@@ -162,13 +192,13 @@ __attribute__((section(".iram"))) static bk_err_t cpu1_pause_handle(mb_chnl_cmd_
 	if(*(stat_addr) == IPC_FLASH_OP_REQ)
 	{
 		uint32_t flags = rtos_disable_int();
-
+		
 		// disable the LCD dev interrupt.
 		if(s_flash_op_notify != NULL)
 			s_flash_op_notify(0);
-
+		
 		rtos_enable_int(flags);
-
+		
 		bk_flash_set_operate_status(FLASH_OP_BUSY);
 		*(stat_addr) = IPC_FLASH_OP_ACK;
 		while(*(stat_addr) != IPC_FLASH_OP_COMPLETE)
@@ -228,6 +258,12 @@ bk_err_t mb_flash_op_prepare(void)
 	{
 		s_flash_op_notify_camera(1);
 	}
+
+	if (s_flash_op_notify_uart != NULL)
+	{
+		s_flash_op_notify_uart(1);
+	}
+	
 	return BK_OK;
 }
 
@@ -241,6 +277,12 @@ bk_err_t mb_flash_op_finish(void)
 	{
 		s_flash_op_notify_camera(1);
 	}
+
+	if (s_flash_op_notify_uart != NULL)
+	{
+		s_flash_op_notify_uart(0);
+	}
+
 	return BK_OK;
 }
 

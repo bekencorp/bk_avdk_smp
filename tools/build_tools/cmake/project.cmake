@@ -250,11 +250,15 @@ function(__project_init components_var test_components_var)
         endif()
 
         if(EXTRA_COMPONENTS_DIRS)
-            spaces2list(EXTRA_COMPONENTS_DIRS)
+            
         else()
             set(EXTRA_COMPONENTS_DIRS $ENV{EXTRA_COMPONENTS_DIRS})
-            spaces2list(EXTRA_COMPONENTS_DIRS)
         endif()
+
+        # Add thirdparty components to ap sub system
+        list(APPEND EXTRA_COMPONENTS_DIRS "${armino_path}/components/bk_thirdparty")
+        list(APPEND EXTRA_COMPONENTS_DIRS "${armino_path}/components/bk_thirdparty/asr")
+        spaces2list(EXTRA_COMPONENTS_DIRS)
 
         armino_build_get_property(armino_path ARMINO_PATH)
         get_filename_component(sub_sys ${armino_path} NAME) #ap/cp
@@ -265,12 +269,11 @@ function(__project_init components_var test_components_var)
             endforeach()
         endif()
 
-        __project_component_dir("${CMAKE_CURRENT_LIST_DIR}/${sub_sys}/components")
-
         # Look for components in the usual places: CMAKE_CURRENT_LIST_DIR/main,
         # CMAKE_CURRENT_LIST_DIR/components, and the extra component dirs
         if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${sub_sys}")
             __project_component_dir("${CMAKE_CURRENT_LIST_DIR}/${sub_sys}")
+            __project_component_dir("${CMAKE_CURRENT_LIST_DIR}/${sub_sys}/components")
         endif()
     endif()
 

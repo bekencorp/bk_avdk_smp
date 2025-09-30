@@ -27,7 +27,7 @@ static const lcd_qspi_init_cmd_t sh8601a_init_cmds[] =
 	{0x00, {0x05}, 0xff},
 	{0x2a, {0x00, 0x00, 0x01, 0xc5}, 4},
 	{0x2b, {0x00, 0x00, 0x01, 0xc5}, 4},
-#if CONFIG_SH8601A_PARTIAL
+#if 0
 	{0x12, {0x00}, 0},//进入部分显示模式
 #endif
 	{0x44, {0x01, 0xc2}, 2},
@@ -52,7 +52,7 @@ static const lcd_qspi_t lcd_qspi_sh8601a_config =
 	.init_cmd = sh8601a_init_cmds,
 	.device_init_cmd_len = sizeof(sh8601a_init_cmds) / sizeof(lcd_qspi_init_cmd_t),
 	.refresh_config = {0},
-	.frame_len = (PPI_454X454 >> 16) * (PPI_454X454 & 0xFFFF) * 3,
+	.frame_len = 454 * 454 * CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE,
 };
 
 const lcd_device_t lcd_device_sh8601a =
@@ -60,7 +60,8 @@ const lcd_device_t lcd_device_sh8601a =
 	.id = LCD_DEVICE_SH8601A,
 	.name = "sh8601a",
 	.type = LCD_TYPE_QSPI,
-	.ppi = PPI_454X454,
+	.width = 454,
+	.height = 454,
 	.qspi = &lcd_qspi_sh8601a_config,
 	.init = NULL,
 	.lcd_off = NULL,

@@ -1,0 +1,154 @@
+# it.yaml 测试用例配置文件
+
+global:
+  timeout: 5
+
+# ================
+# 编译目标
+# ================
+programs:
+  - name: uvc_example
+    enable: true
+    build_cmd: "make bk7258 PROJECT=uvc_example"
+    output_dir: "./build/bk7258/uvc_example"
+    output_bin: "./build/bk7258/uvc_example/package/all-app.bin"
+
+# ================
+# 测试用例
+# ================
+tests:
+ - name: uvc_power_on
+   enable: true
+   program:  ["uvc_example"]
+   command: "uvc power_on"
+   timeout: 5
+   depends_on: null
+   expected_success: true
+   success_criteria:
+     - "CMDRSP:OK"
+   failure_criteria:
+     - "CMDRSP:ERROR"
+
+ - name: uvc_power_off
+   enable: true
+   program:  ["uvc_example"]
+   command: "uvc power_off"
+   timeout: 5
+   depends_on: ["uvc_power_on"]
+   expected_success: true
+   success_criteria:
+     - "CMDRSP:OK"
+   failure_criteria:
+     - "CMDRSP:ERROR"
+
+
+  - name: uvc_open_01
+    enable: true
+    program:  ["uvc_example"]
+    command: "uvc open 1 640X480 jpeg"
+    timeout: 5
+    depends_on: ["uvc_power_on"]
+    expected_success: true
+    success_criteria:
+      - "CMDRSP:OK"
+    failure_criteria:
+      - "CMDRSP:ERROR"
+
+  - name: uvc_close_01
+    enable: true
+    program:  ["uvc_example"]
+    command: "uvc close 1"
+    timeout: 5
+    depends_on: ["uvc_open_01"]
+    expected_success: true
+    success_criteria:
+      - "CMDRSP:OK"
+    failure_criteria:
+      - "CMDRSP:ERROR"
+
+  - name: uvc_open_02
+    enable: true
+    program:  ["uvc_example"]
+    description: 测试输出其他分辨率1280X720
+    command: "uvc open 1 1280X720"
+    timeout: 5
+    depends_on: ["uvc_power_on"]
+    expected_success: true
+    success_criteria:
+      - "CMDRSP:OK"
+    failure_criteria:
+      - "CMDRSP:ERROR"
+
+  - name: uvc_close_02
+    enable: true
+    program:  ["uvc_example"]
+    command: "uvc close 1"
+    timeout: 5
+    depends_on: ["uvc_open_02"]
+    expected_success: true
+    success_criteria:
+      - "CMDRSP:OK"
+    failure_criteria:
+      - "CMDRSP:ERROR"
+
+  - name: uvc_open_03
+    enable: true
+    program:  ["uvc_example"]
+    description: 测试输出其他不支持的分辨率，是否返回错误
+    command: "uvc open 1 1024X600"
+    timeout: 5
+    depends_on: ["uvc_power_on"]
+    expected_success: false
+    success_criteria:
+      - "CMDRSP:ERROR"
+    failure_criteria:
+      - "CMDRSP:OK"
+
+  - name: uvc_open_04
+    enable: true
+    program:  ["uvc_example"]
+    description: 测试输出其他不支持的格式，是否返回错误
+    command: "uvc open 1 864X480 h265"
+    timeout: 5
+    depends_on: ["uvc_power_on"]
+    expected_success: false
+    success_criteria:
+      - "CMDRSP:ERROR"
+    failure_criteria:
+      - "CMDRSP:OK"
+
+  - name: uvc_suspend_test
+    enable: true
+    program:  ["uvc_example"]
+    command: "uvc suspend"
+    timeout: 5
+    depends_on: ["uvc_open_02"]
+    expected_success: true
+    success_criteria:
+      - "CMDRSP:OK"
+    failure_criteria:
+      - "CMDRSP:ERROR"
+
+  - name: uvc_resume_test
+    enable: true
+    program:  ["uvc_example"]
+    command: "uvc resume"
+    timeout: 5
+    depends_on: ["uvc_suspend_test"]
+    expected_success: true
+    success_criteria:
+      - "CMDRSP:OK"
+    failure_criteria:
+      - "CMDRSP:ERROR"
+
+  - name: uvc_suspend_resume_close_test
+    enable: true
+    program:  ["uvc_example"]
+    command: "uvc close 1"
+    timeout: 5
+    depends_on: ["uvc_resume_test"]
+    expected_success: true
+    success_criteria:
+      - "CMDRSP:OK"
+    failure_criteria:
+      - "CMDRSP:ERROR"

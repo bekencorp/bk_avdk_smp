@@ -17,7 +17,7 @@ endif()
 set(priv_req  media_service multimedia)
 
 if ("${ARMINO_SOC}" STREQUAL "bk7258_ap")
-list(APPEND priv_req  lvgl display_service bk_cli media_service)
+list(APPEND priv_req  lvgl bk_display bk_cli media_service)
 endif()
 
 

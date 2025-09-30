@@ -130,6 +130,13 @@ static bk_err_t _framebuf_port_get_ready_node_num(audio_port_handle_t self)
     return fb_get_ready_node_num(fb_port->fb);
 }
 
+static bk_err_t _framebuf_port_get_free_node_num(audio_port_handle_t self)
+{
+    framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+
+    return fb_get_free_node_num(fb_port->fb);
+}
+
 static bk_err_t _framebuf_port_destroy(audio_port_handle_t self)
 {
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
@@ -175,6 +182,7 @@ audio_port_handle_t framebuf_port_init(framebuf_port_cfg_t *config)
     cfg.write_done = _framebuf_port_write_done;
     cfg.get_size = _framebuf_port_get_total_node_num;
     cfg.get_filled_size  = _framebuf_port_get_ready_node_num;
+    cfg.get_free_size  = _framebuf_port_get_free_node_num;
     audio_port_handle_t port = audio_port_init(&cfg);
     AUDIO_MEM_CHECK(TAG, port, goto fail);
     audio_port_set_type(port, PORT_TYPE_FB);

@@ -31,6 +31,7 @@
 #include "wifi_config.h"
 #ifdef CONFIG_P2P
 #include "rw_tx_buffering.h"
+#include "fhost_msg.h"
 #endif
 #include "rw_ieee80211.h"
 #include "ieee802_11_defs.h"
@@ -76,6 +77,8 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t *g_wifi_funcs = NULL
 __attribute__((section(".dtcm_sec_data "))) wifi_os_variable_t *g_wifi_vars = NULL;
 extern struct scan_cfg_scan_param_tag scan_param_env;
 extern struct scan_cfg_scan_param_tag scan_param_dump_env;
+
+wifi_monitor_result_t *s_monitor_result = NULL;
 
 void rwnxl_reset_evt(int dummy);
 static int wifi_sta_init_global_config(void);
@@ -794,6 +797,7 @@ int app_deinit(void)
 			 msg.dmsg == WIFI_LINKSTATE_STA_CONNECT_FAILED) && status == 1) {
 			sta_ip_down();
 			rwnx_hw_reinit();
+			extern void sys_msleep(u32_t ms);
 			sys_msleep(2000);
 			wlan_p2p_find();
 			status = 0;
@@ -1497,6 +1501,33 @@ int wlan_dhcp_done_ind(u8 vif_idx)
 }
 
 #if CONFIG_P2P
+int wlan_p2p_enable(const char *ssid)
+{
+	int ret = 0;
+	network_InitTypeDef_st wNetConfig;
+	char *default_ssid = "beken smp_p2p";
+	char *connect_key = "12345678";
+	os_memset(&wNetConfig, 0x0, sizeof(network_InitTypeDef_st));
+
+	//If ssid NULL, turn to Default SSID
+	if (ssid && strlen(ssid) > 0) {
+		os_strlcpy((char *)wNetConfig.wifi_ssid, ssid, sizeof(wNetConfig.wifi_ssid));
+	} else {
+		os_strlcpy((char *)wNetConfig.wifi_ssid, default_ssid, sizeof(wNetConfig.wifi_ssid));
+	}
+	
+	os_strlcpy((char *)wNetConfig.wifi_key, connect_key, sizeof(wNetConfig.wifi_key));
+
+	wNetConfig.wifi_mode = BK_STATION;
+	wNetConfig.dhcp_mode = DHCP_CLIENT;
+	wNetConfig.wifi_retry_interval = 100;
+
+	bk_wlan_sta_init(&wNetConfig);
+	ret = wlan_sta_enable();
+
+	return ret;
+}
+
 int wlan_p2p_listen(void)
 {
 	return wpa_ctrl_request(WPA_CTRL_CMD_P2P_LISTEN, NULL);
@@ -1514,7 +1545,7 @@ int wlan_p2p_stop_find(void)
 
 int wlan_p2p_cancel(void)
 {
-        return wpa_ctrl_request(WPA_CTRL_CMD_P2P_CANCEL, NULL);
+	return wpa_ctrl_request(WPA_CTRL_CMD_P2P_CANCEL, NULL);
 }
 
 int wlan_p2p_connect(const uint8_t *mac, int method, int intent)
@@ -2207,7 +2238,7 @@ bk_err_t bk_wifi_sta_stop(void)
 	_wifi_sta_exit();
 
 	wifi_clear_state_bit(WIFI_STA_STARTED_BIT);
-	WIFI_LOGD("sta stopped(%x)\n", s_wifi_state_bits);
+	WIFI_LOGI("sta stopped(%x)\n", s_wifi_state_bits);
 #if CONFIG_WIFI_VNET_CONTROLLER
 	//cif_handle_bk_cmd_disconnect_ind(true, WIFI_REASON_RESERVED);
 #endif
@@ -2290,7 +2321,7 @@ bk_err_t bk_wifi_scan_start(const wifi_scan_config_t *config)
 	}
 
 	if (0 == ssid_len) {
-		WIFI_LOGV("scan all APs\n");
+		WIFI_LOGI("scan all APs\n");
 		scan_param.num_ssids = 1;
 		scan_param.ssids[0].ssid_len = 0;
 	} else {
@@ -3343,9 +3374,45 @@ bk_err_t bk_wifi_calculate_pmk(const char *ssid, const char *pwd, char *pmk)
 	return ret;
 }
 
+bk_err_t wifi_monitor_result_cb(const uint8_t *data, uint32_t len, const wifi_frame_info_t *info)
+{
+	if (s_monitor_result) {
+		s_monitor_result->rx_cnt_total++;
+
+		if (data) {
+			if ((data[0] & 0xc) == 0x8)
+				s_monitor_result->rx_cnt_data ++;
+			else if ((data[0] & 0xc) == 0x0)
+				s_monitor_result->rx_cnt_mgmt ++;
+			else
+				s_monitor_result->rx_cnt_ctrl ++;
+		}
+
+		if (len < 256)
+			s_monitor_result->rx_cnt_0_255++;
+		else if (len < 512)
+			s_monitor_result->rx_cnt_256_511++;
+		else if (len < 1024)
+			s_monitor_result->rx_cnt_512_1023++;
+		else
+			s_monitor_result->rx_cnt_1024++;
+	}
+
+	return BK_OK;
+}
+
 bk_err_t bk_wifi_monitor_register_cb(const wifi_monitor_cb_t monitor_cb)
 {
 	return wifi_monitor_register_cb(monitor_cb);
+}
+
+bk_err_t bk_wifi_monitor_get_result(wifi_monitor_result_t *result)
+{
+	if (!s_monitor_result)
+		return BK_FAIL;
+
+	os_memcpy(result, s_monitor_result, sizeof(wifi_monitor_result_t));
+	return BK_OK;
 }
 
 bk_err_t bk_wifi_monitor_set_config(const wifi_monitor_config_t *monitor_config)
@@ -3461,7 +3528,7 @@ bk_err_t bk_wifi_monitor_set_channel(const wifi_channel_t *chan)
 	//always set to HT20
 	rw_msg_set_channel(chan->primary, PHY_CHNL_BW_20, NULL);
 
-	WIFI_LOGV("monitor set channel<%d, %d>\n", chan->primary, chan->second);
+	WIFI_LOGD("monitor set channel<%d, %d>\n", chan->primary, chan->second);
 	return BK_OK;
 }
 
@@ -3472,6 +3539,12 @@ bk_err_t bk_wifi_monitor_set_channel(const wifi_channel_t *chan)
 bk_err_t bk_wifi_monitor_start(void)
 {
 	WIFI_LOGD("monitor starting\n");
+
+	if (!s_monitor_result) {
+		s_monitor_result = os_zalloc(sizeof(wifi_monitor_result_t));
+		if (!s_monitor_result)
+			WIFI_LOGW("failed to alloc monitor result\n");
+	}
 
 	bk_wifi_scan_stop();
 	bk_wifi_sta_pm_disable();
@@ -3489,6 +3562,11 @@ bk_err_t bk_wifi_monitor_start(void)
 bk_err_t bk_wifi_monitor_stop(void)
 {
 	WIFI_LOGD("monitor stopping\n");
+
+	if (s_monitor_result) {
+		os_free(s_monitor_result);
+		s_monitor_result = NULL;
+	}
 
 	if (wifi_monitor_is_started()) {
 		rwnx_monitor_close();
@@ -3847,7 +3925,7 @@ bk_err_t bk_wifi_send_listen_interval_req(uint8_t interval) {
 
 #if NX_P2P
 	VIF_INF_PTR vif = rwm_mgmt_vif_idx2ptr(vif_idx);
-	if (vif->p2p)
+	if (mac_vif_mgmt_interface_is_configured_for_p2p(vif))
 		return BK_FAIL;
 #endif
 
@@ -3889,7 +3967,7 @@ bk_err_t bk_wifi_send_bcn_loss_int_req(uint8_t interval,uint8_t repeat_num) {
 
 #if NX_P2P
 	VIF_INF_PTR vif = rwm_mgmt_vif_idx2ptr(vif_idx);
-	if (vif->p2p)
+	if (mac_vif_mgmt_interface_is_configured_for_p2p(vif))
 		return BK_FAIL;
 #endif
         WIFI_LOGV("bcn_loss_int %d,repeat %d\r\n",interval,repeat_num);
@@ -3904,7 +3982,7 @@ bk_err_t bk_wifi_set_bcn_loss_time(uint8_t wait_cnt, uint8_t wake_cnt) {
 
 #if NX_P2P
 	VIF_INF_PTR vif = rwm_mgmt_vif_idx2ptr(vif_idx);
-	if (vif->p2p)
+	if (mac_vif_mgmt_interface_is_configured_for_p2p(vif))
 		return BK_FAIL;
 #endif
 	WIFI_LOGD("bcn_loss_time wait %d,wake %d\r\n",wait_cnt,wake_cnt);
@@ -3919,7 +3997,7 @@ bk_err_t bk_wifi_set_bcn_recv_win(uint8_t default_win, uint8_t max_win, uint8_t 
 
 #if NX_P2P
 	VIF_INF_PTR vif = rwm_mgmt_vif_idx2ptr(vif_idx);
-	if (vif->p2p)
+	if (mac_vif_mgmt_interface_is_configured_for_p2p(vif))
 		return BK_FAIL;
 #endif
 	WIFI_LOGV("bcn_recv_win default %d,max %d,step %d\r\n",default_win,max_win,step);
@@ -3934,7 +4012,7 @@ bk_err_t bk_wifi_set_bcn_miss_time(uint8_t bcnmiss_time) {
 
 #if NX_P2P
 	VIF_INF_PTR vif = rwm_mgmt_vif_idx2ptr(vif_idx);
-	if (vif->p2p)
+	if (mac_vif_mgmt_interface_is_configured_for_p2p(vif))
 		return BK_FAIL;
 #endif
 	WIFI_LOGD("bcn_miss_time %d\r\n",bcnmiss_time);
@@ -3950,7 +4028,7 @@ bk_err_t bk_wifi_get_support_wifi_mode(uint8_t* support_mode)
 
 #if NX_P2P
 	VIF_INF_PTR vif = rwm_mgmt_vif_idx2ptr(vif_idx);
-	if (vif->p2p)
+	if (mac_vif_mgmt_interface_is_configured_for_p2p(vif))
 		return BK_FAIL;
 #endif
 

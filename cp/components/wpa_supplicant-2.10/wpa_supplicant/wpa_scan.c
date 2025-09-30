@@ -1570,7 +1570,7 @@ int wpa_supplicant_req_scan(struct wpa_supplicant *wpa_s, int sec, int usec)
 		wpa_dbg(wpa_s, MSG_DEBUG, "Setting scan request: %d.%06d sec",
 			sec, usec);
 #ifdef CONFIG_NO_STDOUT_DEBUG
-		WPA_LOGD("Setting scan request: %d.%06d sec\n", sec, usec);
+		WPA_LOGI("Setting scan request: %d.%06d sec\n", sec, usec);
 #endif
 #if defined(BK_SUPPLICANT) && defined(CONFIG_AUTO_RECONNECT)
 		if (wpa_s->scan_res_handler != scan_only_handler &&

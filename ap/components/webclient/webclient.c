@@ -15,7 +15,7 @@
  */
 #include "components/webclient.h"
 
-#if CONFIG_WIFI_ENABLE
+#if CONFIG_WEBCLIENT
 
 #include <string.h>
 #include <stdio.h>

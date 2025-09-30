@@ -6,8 +6,6 @@ menu "BK_system"
 			prompt "Select Base Mac Source"
 			default NEW_MAC_POLICY
 
-			config BASE_MAC_FROM_EFUSE
-				bool "BASE_MAC_FROM_EFUSE"
 			config BASE_MAC_FROM_RF_OTP_FLASH
 				bool "BASE_MAC_FROM_RF_OTP_FLASH"
 			config NEW_MAC_POLICY

@@ -56,6 +56,8 @@
 #include "cif_cntrl.h"
 #endif
 
+#include "net.h"
+
 #if BK_SUPPLICANT
 extern uint32_t wpa_hostapd_no_password_connected(const uint8_t *addr);
 #endif
@@ -162,7 +164,8 @@ void wlan_store_fci(struct wpa_supplicant *wpa_s)
 	ieee80211_freq_to_chan(bss->freq, &fci.channel);
 
 	if (wpa_s->pairwise_cipher > WPA_CIPHER_NONE) {
-		os_strcpy((char*)fci.pwd, ssid->passphrase);
+		if(ssid->passphrase)
+			os_strcpy((char*)fci.pwd, ssid->passphrase);
 		fci.security = wpa_s->pairwise_cipher;
 		if (ssid->psk_set) {
 			psk = ssid->psk;
@@ -292,6 +295,10 @@ __IRAM_SEC bool sta_check_user_is_11b_1mbps_supported()
 #if BK_SUPPLICANT
 void wpas_notify_connected(struct wpa_supplicant *wpa_s)
 {
+#if CONFIG_P2P_GO
+	if (wpa_s->ap_iface)
+		return;
+#endif
 	if (mhdr_get_station_status().state < WIFI_LINKSTATE_STA_CONNECTED) {
 		wifi_event_sta_connected_t sta_connected = {0};
 		wifi_linkstate_reason_t state = {
@@ -498,6 +505,12 @@ void hapd_notify_sta_connected(struct hostapd_data *hapd, const u8 *mac)
 	}
 #endif
 #if CONFIG_WIFI_VNET_CONTROLLER
+#if CONFIG_P2P
+	if (hapd->p2p_group != NULL) {
+		cif_handle_bk_cmd_assoc_go_ind((uint8_t*)mac);
+		return; // Exit the function early
+	}
+#endif
 	cif_handle_bk_cmd_assoc_ap_ind((uint8_t*)mac);
 #endif
 	os_memcpy(ap_connected.mac, mac, ETH_ALEN);
@@ -517,6 +530,14 @@ void hapd_notify_sta_disconnected(struct hostapd_data *hapd, const u8 *mac)
 	}
 #endif
 #if CONFIG_WIFI_VNET_CONTROLLER
+#if CONFIG_P2P
+	if (hapd->p2p_group != NULL)
+	{
+		cif_handle_bk_cmd_disassoc_go_ind((uint8_t*)mac);
+		uap_ip_down();
+		return; // Exit the function early
+	}
+#endif
 	cif_handle_bk_cmd_disassoc_ap_ind((uint8_t*)mac);
 #endif
 	os_memcpy(ap_disconnected.mac, mac, ETH_ALEN);

@@ -2,6 +2,9 @@
 #include <components/system.h>
 #include <os/os.h>
 #include <components/shell_task.h>
+#if CONFIG_BK_NETWORK_PROVISIONING_BLE_EXAMPLE
+#include "bk_network_provisioning.h"
+#endif
 
 
 #define APP_TIMEOUT_VALUE    BEKEN_WAIT_FOREVER
@@ -74,7 +77,7 @@ void app_test_smp_core1(void)
 
 int main(void)
 {
-	bk_init();
+    bk_init();
 
 #if CONFIG_FREERTOS_SMP_TEST
     app_test_smp_core0();
@@ -82,5 +85,16 @@ int main(void)
 #endif
 
     bk_ipc_init();
-	return 0;
+#if CONFIG_BK_NETWORK_PROVISIONING_BLE_EXAMPLE
+extern void demo_network_provisioning_status_cb(bk_network_provisioning_status_t status, void *user_data);
+extern void ble_msg_handle_demo_cb(ble_prov_msg_t *msg);
+extern int cli_network_provisioning_init(void);
+    //for user to receive network provisioning status change event
+    bk_register_network_provisioning_status_cb(demo_network_provisioning_status_cb);
+    //if default provisioning type is ble, then set msg handle cb
+    bk_ble_provisioning_set_msg_handle_cb(ble_msg_handle_demo_cb);
+    bk_network_provisioning_init(BK_NETWORK_PROVISIONING_TYPE_BLE);
+    cli_network_provisioning_init();
+#endif
+    return 0;
 }

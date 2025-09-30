@@ -15,12 +15,13 @@
 #pragma once
 
 #include <common/bk_err.h>
-#include <driver/video_common_types.h>
+#include <driver/hal/hal_yuv_buf_types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define JPEG_CRC_SIZE (5)
 #define BK_ERR_JPEG_NOT_INIT    (BK_ERR_JPEG_BASE - 1) /**< JPEG driver not init */
 typedef uint8_t jpeg_unit_t; /**< jpeg uint id */
 

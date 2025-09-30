@@ -1,8 +1,10 @@
+#include <modules/pm.h>
+#include <components/usbh_hub_multiple_classes_api.h>
+#include <components/cherryusb/usb_errno.h>
+#include <components/uvc_camera.h>
 #include "bk_uvc_common.h"
 #include "uvc_urb_list.h"
 #include "uvc_stream_list.h"
-#include <modules/pm.h>
-#include <components/cherryusb/usb_errno.h>
 #include "media_utils.h"
 #define TAG "uvc_stream"
 
@@ -12,63 +14,9 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-#define UVC_MAX_PACKET_SIZE (1024)
-//#define UVC_DEBUG_TIME
-
-#ifdef UVC_DEBUG_TIME
-#define UVC_POWER_ON_START()            GPIO_UP(32);
-#define UVC_POWER_ON_END()              GPIO_DOWN(32);
-
-#define UVC_INIT_START()                GPIO_UP(33);
-#define UVC_INIT_END()                  GPIO_DOWN(33);
-
-#define UVC_PACKET_PUSH_START()         GPIO_UP(32);
-#define UVC_PACKET_PUSH_END()           GPIO_DOWN(32);
-
-#define UVC_EOF_START()                 GPIO_UP(34);
-#define UVC_EOF_END()                   GPIO_DOWN(34);
-
-#define UVC_PACKET_START()              GPIO_UP(35);
-#define UVC_PACKET_END()                GPIO_DOWN(35);
-
-#define UVC_PACKET_HEAD_START()         GPIO_UP(36);
-#define UVC_PACKET_HEAD_END()           GPIO_DOWN(36);
-
-#define UVC_PACKET_COPY_START()         GPIO_UP(37);
-#define UVC_PACKET_COPY_END()           GPIO_DOWN(37);
-
-#define UVC_EOF_BIT_START()             GPIO_UP(38);
-#define UVC_EOF_BIT_END()               GPIO_DOWN(38);
-#else
-#define UVC_POWER_ON_START()
-#define UVC_POWER_ON_END()
-
-#define UVC_INIT_START()
-#define UVC_INIT_END()
-
-#define UVC_PACKET_PUSH_START()
-#define UVC_PACKET_PUSH_END()
-
-#define UVC_EOF_START()
-#define UVC_EOF_END()
-
-#define UVC_PACKET_START()
-#define UVC_PACKET_END()
-
-#define UVC_PACKET_HEAD_START()
-#define UVC_PACKET_HEAD_END()
-
-#define UVC_PACKET_COPY_START()
-#define UVC_PACKET_COPY_END()
-
-#define UVC_EOF_BIT_START()
-#define UVC_EOF_BIT_END()
-#endif
-
 uvc_stream_handle_t *s_uvc_stream_handle = NULL;
 uvc_separate_config_t uvc_separate_packet_cb = {0};
 uvc_separate_info_t uvc_separate_info;
-camera_state_cb_t uvc_connect_state_cb = NULL;
 
 extern uint32_t  platform_is_in_interrupt_context(void);
 static void uvc_camera_stream_receive_complete_callback(void *pCompleteParam, int nbytes);
@@ -78,25 +26,30 @@ static bk_err_t uvc_camera_stream_packet_urb(camera_param_t *camera_param);
 static void uvc_camera_stream_timer_handle(void *arg1)
 {
     uvc_stream_handle_t *uvc_stream_handle = (uvc_stream_handle_t *)arg1;
+    char log_buf[128] = {0};
+    int write_len = 0;
+    int offset = 0;
 
     uvc_pro_config_t *pro_config = uvc_stream_handle->pro_config;
 
     if (pro_config != NULL)
     {
-        LOGW("uvc_id1:%d[%d %dKB], uvc_id2: %d[%d %dKB], uvc_id3:%d[%d %dKB], packets:[all:%d, err:%d]\n",
-             ((pro_config->frame_id[0] - pro_config->later_id[0]) / UVC_TIME_INTERVAL),
-             pro_config->frame_id[0], (pro_config->curr_length[0] / 1024),
-             ((pro_config->frame_id[1] - pro_config->later_id[1]) / UVC_TIME_INTERVAL),
-             pro_config->frame_id[1], (pro_config->curr_length[1] / 1024),
-             ((pro_config->frame_id[2] - pro_config->later_id[2]) / UVC_TIME_INTERVAL),
-             pro_config->frame_id[2], (pro_config->curr_length[2] / 1024),
-             pro_config->all_packet_num, pro_config->packet_err_num);
-
-        for (uint8_t i = 0; i < CAMERA_ID_MAX; i++)
+        for (uint8_t i = 0; i < UVC_PORT_MAX; i++)
         {
+            char log_buf2[32] = {0};
+            snprintf(log_buf2, sizeof(log_buf2), "uvc_id%d:%u[%u %uKB], ", i + 1,
+                ((pro_config->frame_id[i] - pro_config->later_id[i]) / UVC_TIME_INTERVAL),
+                pro_config->frame_id[i], (pro_config->curr_length[i] / 1024));
+
+            write_len = snprintf(log_buf + offset, sizeof(log_buf2), "%s", log_buf2);
+            offset += write_len;
             pro_config->later_id[i] = pro_config->frame_id[i];
         }
+
+        snprintf(log_buf + offset, sizeof(log_buf), "packets[all:%u, err:%u]", pro_config->all_packet_num, pro_config->packet_err_num);
     }
+
+    LOGD("%s\n", log_buf);
 }
 #endif
 
@@ -135,7 +88,7 @@ static bk_err_t uvc_camera_stream_check_config(camera_param_t *param)
     uint8_t fps_flag = false;
 
     bk_usb_hub_port_info *uvc_port_info = param->port_info;
-    uvc_config_t *user_config = param->info;
+    bk_cam_uvc_config_t *user_config = param->info;
     LOGD("%s, %d, port:%d, format:%d, W*H:%d*%d\r\n", __func__, __LINE__, user_config->port, user_config->img_format,
         user_config->width, user_config->height);
 
@@ -394,9 +347,9 @@ void uvc_camera_stream_connect_callback(bk_usb_hub_port_info *port_info, void *a
         uvc_stream_task_send_msg(UVC_CONNECT_IND, (uint32_t)camera_param);
     }
 
-    if (uvc_connect_state_cb)
+    if (uvc_handle->callback && uvc_handle->callback->uvc_event_callback)
     {
-        uvc_connect_state_cb(port_info, BK_UVC_CONNECT);
+        uvc_handle->callback->uvc_event_callback(port_info, uvc_handle->user_data, BK_UVC_CONNECT);
     }
 }
 
@@ -423,9 +376,9 @@ void uvc_camera_stream_disconnect_callback(bk_usb_hub_port_info *port_info, void
 
     rtos_clear_event_flags(&uvc_handle->handle, UVC_CONNECT_BIT);
 
-    if (uvc_connect_state_cb)
+    if (uvc_handle->callback && uvc_handle->callback->uvc_event_callback)
     {
-        uvc_connect_state_cb(port_info, BK_UVC_DISCONNECT);
+        uvc_handle->callback->uvc_event_callback(port_info, uvc_handle->user_data, BK_UVC_DISCONNECT);
     }
 
     if (camera_param)
@@ -752,22 +705,13 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
 
     if (uvc_separate_packet_cb.uvc_init_packet_cb != NULL && uvc_separate_packet_cb.id == uvc_param->info->port)
     {
-        ret = uvc_separate_packet_cb.uvc_init_packet_cb(uvc_param->info, 1, &uvc_handle->callback);
+        ret = uvc_separate_packet_cb.uvc_init_packet_cb(uvc_param->info, 1, uvc_handle->callback);
         if (ret != BK_OK)
         {
             LOGE("%s, %d\n", __func__, __LINE__);
             ret = BK_UVC_NO_MEMORY;
             goto out;
         }
-    }
-
-    // there can modify to adapt one uvc output two or more stream, there default ues stream
-    uvc_param->stream = uvc_handle->callback.frame_init(uvc_param->info->port, UVC_CAMERA, uvc_param->info->img_format);
-    if (uvc_param->stream == NULL)
-    {
-        LOGE("%s, %d not register callback, or stream create fail\n", __func__, __LINE__);
-        ret = BK_UVC_NOT_PERMIT;
-        goto out;
     }
 
     ret = bk_usbh_hub_port_dev_open(uvc_param->info->port, uvc_param->port_info->device_index, uvc_param->port_info);
@@ -785,7 +729,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
         switch (uvc_param->info->img_format)
         {
             case IMAGE_MJPEG:
-                new_frame = uvc_handle->callback.frame_malloc(IMAGE_MJPEG, uvc_param->stream, CONFIG_JPEG_FRAME_SIZE);
+                new_frame = uvc_handle->callback->malloc(IMAGE_MJPEG, CONFIG_JPEG_FRAME_SIZE);
                 if (new_frame)
                 {
                     new_frame->fmt = PIXEL_FMT_JPEG;
@@ -793,7 +737,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
                 break;
 
             case IMAGE_H264:
-                new_frame = uvc_handle->callback.frame_malloc(IMAGE_H264, uvc_param->stream, CONFIG_H264_FRAME_SIZE);
+                new_frame = uvc_handle->callback->malloc(IMAGE_H264, CONFIG_H264_FRAME_SIZE);
                 if (new_frame)
                 {
                     new_frame->fmt = PIXEL_FMT_H264;
@@ -801,7 +745,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
                 break;
 
             case IMAGE_H265:
-                new_frame = uvc_handle->callback.frame_malloc(IMAGE_H265, uvc_param->stream, CONFIG_H264_FRAME_SIZE);
+                new_frame = uvc_handle->callback->malloc(IMAGE_H265, CONFIG_H264_FRAME_SIZE);
                 if (new_frame)
                 {
                     new_frame->fmt = PIXEL_FMT_H265;
@@ -809,7 +753,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
                 break;
 
             case IMAGE_YUV:
-                new_frame = uvc_handle->callback.frame_malloc(IMAGE_YUV, uvc_param->stream, uvc_param->info->width * uvc_param->info->height * 2);
+                new_frame = uvc_handle->callback->malloc(IMAGE_YUV, uvc_param->info->width * uvc_param->info->height * 2);
                 if (new_frame)
                 {
                     new_frame->fmt = PIXEL_FMT_YUV422;
@@ -844,7 +788,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
         urb = uvc_camera_urb_malloc();
         if (urb == NULL)
         {
-            uvc_handle->callback.frame_free(uvc_param->info->img_format, uvc_param->stream, uvc_param->frame);
+            uvc_handle->callback->complete(uvc_param->info->port, uvc_param->info->img_format, uvc_param->frame, UVC_FRAME_ERR);
             uvc_param->frame = NULL;
             LOGW("%s, malloc fb failed---%d\r\n", __func__, __LINE__);
             ret = BK_UVC_NO_RESOURCE;
@@ -866,7 +810,7 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
     if (ret != BK_OK)
     {
         uvc_param->camera_state = UVC_CONNECT_STATE;
-        uvc_handle->callback.frame_free(uvc_param->info->img_format, uvc_param->stream, uvc_param->frame);
+        uvc_handle->callback->complete(uvc_param->info->port, uvc_param->info->img_format, uvc_param->frame, UVC_FRAME_ERR);
         uvc_camera_urb_free(uvc_param->urb);
         uvc_param->frame = NULL;
         uvc_param->urb = NULL;
@@ -918,18 +862,11 @@ void uvc_camera_stream_stop_handle(uint32_t param)
     // step 2: free frame_buffer
     if (uvc_param->frame)
     {
-        uvc_handle->callback.frame_free(uvc_param->info->img_format, uvc_param->stream, uvc_param->frame);
+        uvc_handle->callback->complete(uvc_param->info->port, uvc_param->info->img_format, uvc_param->frame, UVC_FRAME_ERR);
         uvc_param->frame = NULL;
     }
 
     LOGV("%s, %d\r\n", __func__, __LINE__);
-
-    if (uvc_param->stream)
-    {
-        uvc_handle->callback.frame_clear(uvc_param->stream);
-        uvc_handle->callback.frame_deinit(uvc_param->stream);
-        uvc_param->stream = NULL;
-    }
 
     if (uvc_separate_packet_cb.uvc_init_packet_cb != NULL && uvc_separate_packet_cb.id == uvc_param->info->port)
     {
@@ -957,9 +894,9 @@ bk_err_t uvc_camera_stream_start_handle(uint32_t param)
             uvc_param->camera_state = UVC_CONNECT_STATE;
         }
 
-        if (uvc_connect_state_cb)
+        if (uvc_handle->callback && uvc_handle->callback->uvc_event_callback)
         {
-            uvc_connect_state_cb(uvc_param->port_info, ret);
+            uvc_handle->callback->uvc_event_callback(uvc_param->port_info, uvc_handle->user_data, ret);
         }
 
         LOGW("uvc config error, %d, camera_id:%d\n", __LINE__, uvc_param->info->port);
@@ -990,9 +927,9 @@ static void uvc_camera_stream_connect_handle(uint32_t param)
             uvc_param->camera_state = UVC_CONNECT_STATE;
         }
         LOGW("uvc config error, camera_id:%d\r\n", uvc_param->info->port);
-        if (uvc_connect_state_cb)
+        if (uvc_handle->callback && uvc_handle->callback->uvc_event_callback)
         {
-            uvc_connect_state_cb(uvc_param->port_info, ret);
+            uvc_handle->callback->uvc_event_callback(uvc_param->port_info, uvc_handle->user_data, ret);
         }
 
         uvc_camera_stream_stop_handle(param);
@@ -1013,7 +950,7 @@ static void uvc_camera_stream_disconnect_handle(uint32_t param)
     // step 2: free frame_buffer
     if (uvc_param->frame)
     {
-        s_uvc_stream_handle->callback.frame_free(uvc_param->info->img_format, uvc_param->stream, uvc_param->frame);
+        s_uvc_stream_handle->callback->complete(uvc_param->info->port, uvc_param->info->img_format, uvc_param->frame, UVC_FRAME_ERR);
         uvc_param->frame = NULL;
     }
 }
@@ -1123,7 +1060,7 @@ static void uvc_camera_stream_eof_handle(camera_param_t *camera_param, uvc_pro_c
     }
     else
     {
-        new_frame = uvc_handle->callback.frame_malloc(camera_param->info->img_format, camera_param->stream, curr_frame_buffer->size);
+        new_frame = uvc_handle->callback->malloc(camera_param->info->img_format, curr_frame_buffer->size);
         if (new_frame)
         {
             new_frame->fmt = curr_frame_buffer->fmt;
@@ -1131,7 +1068,8 @@ static void uvc_camera_stream_eof_handle(camera_param_t *camera_param, uvc_pro_c
             new_frame->height = curr_frame_buffer->height;
             new_frame->sequence = pro_config->frame_id[index]++;
             new_frame->length = 0;
-            uvc_handle->callback.frame_complete(camera_param->info->img_format, camera_param->stream, curr_frame_buffer);
+            // send message to task, for send frame buffer to user
+            uvc_handle->callback->complete(camera_param->info->port, camera_param->info->img_format, curr_frame_buffer, UVC_FRAME_OK);
             camera_param->frame = new_frame;
         }
     }
@@ -1140,7 +1078,7 @@ static void uvc_camera_stream_eof_handle(camera_param_t *camera_param, uvc_pro_c
 
     if (new_frame == NULL)
     {
-        LOGW("%s, %d malloc frame fail, length:%d\n", __func__, __LINE__, curr_frame_buffer->length);
+        LOGV("%s, %d malloc frame fail, length:%d\n", __func__, __LINE__, curr_frame_buffer->length);
         curr_frame_buffer->length = 0;
         curr_frame_buffer->sequence = pro_config->frame_id[index]++;
     }
@@ -1470,7 +1408,7 @@ static void uvc_camera_process_task_deinit(uvc_stream_handle_t *handle)
 }
 
 
-bk_err_t uvc_camera_process_task_init(uvc_stream_handle_t *handle, bk_uvc_callback_t *cb)
+bk_err_t uvc_camera_process_task_init(uvc_stream_handle_t *handle, const bk_uvc_callback_t *cb)
 {
     bk_err_t ret = BK_OK;
     if (handle->pro_thread == NULL)
@@ -1484,7 +1422,7 @@ bk_err_t uvc_camera_process_task_init(uvc_stream_handle_t *handle, bk_uvc_callba
         }
 
         os_memset(handle->pro_config, 0, sizeof(uvc_pro_config_t));
-        os_memcpy(&handle->callback, cb, sizeof(bk_uvc_callback_t));
+        handle->callback = cb;
 
         rtos_clear_event_flags(&handle->handle, UVC_PROCESS_TASK_ENABLE_BIT);
 
@@ -1702,7 +1640,7 @@ bk_err_t uvc_camera_device_power_on(uvc_stream_handle_t *handle, E_USB_DEVICE_T 
     int ret = BK_FAIL;
     uint8_t port = 1;
 
-    for (port = 1; port < UVC_PORT_MAX; port++)
+    for (port = 1; port <= UVC_PORT_MAX; port++)
     {
         // step 2.1: register connect callback
         ret = bk_usbh_hub_port_register_connect_callback(port, device, uvc_camera_stream_connect_callback, handle);
@@ -1722,6 +1660,7 @@ bk_err_t uvc_camera_device_power_on(uvc_stream_handle_t *handle, E_USB_DEVICE_T 
             goto error;
         }
 
+#if 0
         // step 2.3: power_on
         ret = bk_usbh_hub_multiple_devices_power_on(USB_HOST_MODE, port, device);
         if (ret != BK_OK)
@@ -1730,11 +1669,14 @@ bk_err_t uvc_camera_device_power_on(uvc_stream_handle_t *handle, E_USB_DEVICE_T 
             ret = BK_UVC_POWER_ERROR;
             goto error;
         }
+#endif
     }
+
+    LOGI("%s, port:%d, device:%d\n", __func__, port, device);
 
     // check already connected
     bk_usb_hub_port_info *port_info = NULL;
-    for (port = 1; port < UVC_PORT_MAX; port++)
+    for (port = 1; port <= UVC_PORT_MAX; port++)
     {
         ret = bk_usbh_hub_port_check_device(port, device, (bk_usb_hub_port_info **)&port_info);
         if (ret == BK_OK)
@@ -1745,6 +1687,8 @@ bk_err_t uvc_camera_device_power_on(uvc_stream_handle_t *handle, E_USB_DEVICE_T 
         }
     }
 
+    LOGI("%s, port:%d, device:%d, ret:%d\n", __func__, port, device, ret);
+
     if (ret != BK_OK) // need wait connect callback
     {
         ret = rtos_wait_for_event_flags(&handle->handle, UVC_CONNECT_BIT, true, true, timeout);
@@ -1754,9 +1698,11 @@ bk_err_t uvc_camera_device_power_on(uvc_stream_handle_t *handle, E_USB_DEVICE_T 
             ret = BK_UVC_POWER_ERROR;
             goto error;
         }
+        else
+        {
+            ret = BK_OK;
+        }
     }
-
-    ret = BK_OK;
 
     LOGD("%s, %d, complete....\r\n", __func__, __LINE__);
 
@@ -1766,13 +1712,14 @@ bk_err_t uvc_camera_device_power_on(uvc_stream_handle_t *handle, E_USB_DEVICE_T 
 
 error:
 
-    for (port = 1; port < UVC_PORT_MAX; port++)
+#if 0
+    for (port = 1; port <= UVC_PORT_MAX; port++)
     {
         bk_usbh_hub_port_register_connect_callback(port, device, NULL, NULL);
         bk_usbh_hub_port_register_disconnect_callback(port, device, NULL, NULL);
         bk_usbh_hub_multiple_devices_power_down(USB_HOST_MODE, port, device);
     }
-
+#endif
     LOGE("%s, %d failed\r\n", __func__, __LINE__);
 
     return ret;
@@ -1785,14 +1732,13 @@ void uvc_camera_device_power_off(E_USB_DEVICE_T device)
     {
         bk_usbh_hub_port_register_connect_callback(port, device, NULL, NULL);
         bk_usbh_hub_port_register_disconnect_callback(port, device, NULL, NULL);
-        bk_usbh_hub_multiple_devices_power_down(USB_HOST_MODE, port, device);
+        //bk_usbh_hub_multiple_devices_power_down(USB_HOST_MODE, port, device);
     }
 }
 
-bk_err_t bk_uvc_init(camera_handle_t *handle, uvc_config_t *config, bk_uvc_callback_t *cb)
+bk_err_t bk_uvc_open(camera_handle_t *handle, bk_cam_uvc_config_t *config, const bk_uvc_callback_t *cb)
 {
     int ret = BK_OK;
-    camera_config_t *output_handle = NULL;
     uvc_stream_handle_t *uvc_handle = s_uvc_stream_handle;
     camera_param_t *param = NULL;
     uvc_node_t *node = NULL;
@@ -1805,6 +1751,14 @@ bk_err_t bk_uvc_init(camera_handle_t *handle, uvc_config_t *config, bk_uvc_callb
         || config->port > UVC_PORT_MAX)
     {
         LOGE("%s, %d task or param error.....\r\n", __func__, config->port);
+        ret = BK_FAIL;
+        goto out;
+    }
+
+    if (cb== NULL || cb->malloc == NULL
+        || cb->complete == NULL)
+    {
+        LOGE("%s, %d cbs error.....\r\n", __func__, __LINE__);
         ret = BK_FAIL;
         goto out;
     }
@@ -1873,6 +1827,7 @@ bk_err_t bk_uvc_init(camera_handle_t *handle, uvc_config_t *config, bk_uvc_callb
     }
 
     // step 2: init uvc process task
+    uvc_handle->user_data = config->user_data;
     ret = uvc_camera_process_task_init(uvc_handle, cb);
     if (ret != BK_OK)
     {
@@ -1884,15 +1839,7 @@ bk_err_t bk_uvc_init(camera_handle_t *handle, uvc_config_t *config, bk_uvc_callb
     // ensure uvc must be connected
     if (param->camera_state == UVC_CONNECT_STATE)
     {
-        output_handle = (camera_config_t *)os_malloc(sizeof(camera_config_t));
-        if (output_handle == NULL)
-        {
-            LOGW("%s, output_handle malloc fail\n", __func__);
-            goto out;
-        }
-
-        os_memset(output_handle, 0, sizeof(camera_config_t));
-        os_memcpy(param->info, config, sizeof(uvc_config_t));
+        os_memcpy(param->info, config, sizeof(bk_cam_uvc_config_t));
         rtos_clear_event_flags(&uvc_handle->handle, UVC_STREAM_START_BIT);
         ret = uvc_stream_task_send_msg(UVC_START_IND, (uint32_t)param);
         if (ret != BK_OK)
@@ -1916,49 +1863,26 @@ bk_err_t bk_uvc_init(camera_handle_t *handle, uvc_config_t *config, bk_uvc_callb
 
 out:
 
-    if (ret != BK_OK)
+    if (ret == BK_OK)
     {
-        UVC_INIT_END();
-        if (output_handle)
-        {
-            os_free(output_handle);
-            output_handle = NULL;
-        }
-    }
-    else
-    {
-        output_handle->type = UVC_CAMERA;
-        output_handle->fps = FPS30;
-        output_handle->id = config->port;
-        output_handle->image_format = config->img_format;
-        output_handle->width = config->width;
-        output_handle->height = config->height;
-        output_handle->arg = (void *)uvc_handle;
-        *handle = (camera_handle_t)output_handle;
+        *handle = (camera_handle_t)param;
     }
 
     return ret;
 }
 
-bk_err_t bk_uvc_deinit(camera_handle_t *handle)
+bk_err_t bk_uvc_close(camera_handle_t handle)
 {
     int ret = BK_OK;
     uvc_stream_handle_t *uvc_handle = s_uvc_stream_handle;
 
-    if (*handle == NULL || uvc_handle == NULL)
+    if (handle == NULL || uvc_handle == NULL)
     {
         LOGW("%s, %d already closed\r\n", __func__, __LINE__);
         return ret;
     }
 
-    camera_config_t *config = (camera_config_t *)*handle;
-
     ret = bk_uvc_set_stop(handle);
-    if (ret == BK_OK)
-    {
-        os_free(config);
-        *handle = NULL;
-    }
 
     LOGD("%s, %d complete\r\n", __func__, __LINE__);
 
@@ -1970,7 +1894,7 @@ bk_err_t bk_uvc_power_on(uint32_t format, uint32_t timeout)
     bk_err_t ret = BK_FAIL;
     UVC_POWER_ON_START();
 
-    LOGD("%s, %d, %p\n", __func__, __LINE__, s_uvc_stream_handle);
+    LOGD("%s, %d, format:%d\n", __func__, __LINE__, format);
 
     // step 1: stream task init
     ret = uvc_camera_stream_task_init(&s_uvc_stream_handle);
@@ -2053,15 +1977,6 @@ bk_err_t bk_uvc_register_packet_cb(void *cb)
     return BK_OK;
 }
 
-bk_err_t bk_uvc_register_connect_state_cb(camera_state_cb_t cb)
-{
-    if (!uvc_connect_state_cb)
-    {
-        uvc_connect_state_cb = cb;
-    }
-    return BK_OK;
-}
-
 bk_err_t bk_uvc_register_separate_packet_callback(uvc_separate_config_t *cb)
 {
     uvc_separate_packet_cb.id                     = cb->id;
@@ -2079,7 +1994,7 @@ bk_usb_hub_port_info *bk_uvc_get_enum_info(uint8_t port, uint16_t format)
     bk_usb_hub_port_info *port_info = NULL;
     if (s_uvc_stream_handle == NULL
         || port == 0
-        || port >= UVC_PORT_MAX)
+        || port > UVC_PORT_MAX)
     {
         LOGE("%s, %d %p param error\r\n", __func__, port, s_uvc_stream_handle);
         return NULL;
@@ -2124,23 +2039,22 @@ bk_usb_hub_port_info *bk_uvc_get_enum_info(uint8_t port, uint16_t format)
     return port_info;
 }
 
-bk_err_t bk_uvc_set_start(camera_handle_t *handle, uvc_config_t *config)
+bk_err_t bk_uvc_set_start(camera_handle_t handle, bk_cam_uvc_config_t *config)
 {
     int ret = BK_FAIL;
-    camera_config_t *cam_config = (camera_config_t *)*handle;
+    LOGD("%s, %d\r\n", __func__, __LINE__);
 
-    if (cam_config == NULL)
+    uvc_stream_handle_t *uvc_handle = (uvc_stream_handle_t *)s_uvc_stream_handle;
+
+    if (uvc_handle == NULL)
     {
         LOGW("%s, %d\r\n", __func__, __LINE__);
         return ret;
     }
-    uvc_stream_handle_t *uvc_handle = (uvc_stream_handle_t *)cam_config->arg;
-
-    LOGD("%s, %d\r\n", __func__, __LINE__);
 
     if (uvc_handle == NULL
         || config->port == 0
-        || config->port >= UVC_PORT_MAX)
+        || config->port > UVC_PORT_MAX)
     {
         LOGE("%s, %d task or param error...\r\n", __func__, __LINE__);
         return ret;
@@ -2154,7 +2068,7 @@ bk_err_t bk_uvc_set_start(camera_handle_t *handle, uvc_config_t *config)
         return ret;
     }
 
-    os_memcpy(uvc_param->info, config, sizeof(uvc_config_t));
+    os_memcpy(uvc_param->info, config, sizeof(bk_cam_uvc_config_t));
     rtos_clear_event_flags(&uvc_handle->handle, UVC_STREAM_START_BIT);
     ret = uvc_stream_task_send_msg(UVC_START_IND, (uint32_t)uvc_param);
     if (ret != BK_OK)
@@ -2168,22 +2082,19 @@ bk_err_t bk_uvc_set_start(camera_handle_t *handle, uvc_config_t *config)
     return ret;
 }
 
-bk_err_t bk_uvc_set_stop(camera_handle_t *handle)
+bk_err_t bk_uvc_set_stop(camera_handle_t handle)
 {
     int ret = BK_OK;
-    camera_config_t *cam_config = (camera_config_t *)*handle;
+    LOGD("%s, %d\r\n", __func__, __LINE__);
+    uvc_stream_handle_t *uvc_handle = (uvc_stream_handle_t *)s_uvc_stream_handle;
+    camera_param_t *uvc_param = (camera_param_t *)handle;
 
-    if (cam_config == NULL)
+    if (uvc_handle == NULL)
     {
         LOGW("%s, %d\r\n", __func__, __LINE__);
         return ret;
     }
 
-    uvc_stream_handle_t *uvc_handle = (uvc_stream_handle_t *)cam_config->arg;
-
-    LOGD("%s, %d\r\n", __func__, __LINE__);
-
-    camera_param_t *uvc_param = uvc_camera_stream_node_get_by_port_and_format(uvc_handle, cam_config->id, cam_config->image_format);
     if (uvc_param)
     {
         if (uvc_param->camera_state == UVC_CLOSED_STATE)
@@ -2216,7 +2127,7 @@ bk_err_t bk_uvc_set_stop(camera_handle_t *handle)
     return ret;
 }
 
-bk_err_t bk_uvc_set_stream_state(uint32_t state)
+bk_err_t bk_uvc_suspend(camera_handle_t handle)
 {
     uvc_stream_handle_t *uvc_handle = s_uvc_stream_handle;
     uint32_t isr_context = platform_is_in_interrupt_context();
@@ -2232,24 +2143,38 @@ bk_err_t bk_uvc_set_stream_state(uint32_t state)
         rtos_lock_mutex(&uvc_handle->mutex);
     }
 
-    if (state == 0)
-    {
-        uvc_handle->pro_config->stream_state = UVC_STREAM_STATE_RESUME;
-    }
-    else if (state == 1)
-    {
-        uvc_handle->pro_config->stream_state = UVC_STREAM_STATE_SUSPEND;
-    }
-    else
-    {
-        LOGW("%s, state error:%d\n", __func__, state);
-    }
+    uvc_handle->pro_config->stream_state = UVC_STREAM_STATE_SUSPEND;
 
     if (!isr_context)
     {
         rtos_unlock_mutex(&uvc_handle->mutex);
     }
 
-    LOGV("%s, set stream state:%d\n", __func__, uvc_handle->pro_config->stream_state);
+    return BK_OK;
+}
+
+bk_err_t bk_uvc_resume(camera_handle_t handle)
+{
+    uvc_stream_handle_t *uvc_handle = s_uvc_stream_handle;
+    uint32_t isr_context = platform_is_in_interrupt_context();
+
+    if (uvc_handle == NULL || uvc_handle->pro_config == NULL)
+    {
+        LOGW("%s, not open...\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (!isr_context)
+    {
+        rtos_lock_mutex(&uvc_handle->mutex);
+    }
+
+    uvc_handle->pro_config->stream_state = UVC_STREAM_STATE_RESUME;
+
+    if (!isr_context)
+    {
+        rtos_unlock_mutex(&uvc_handle->mutex);
+    }
+
     return BK_OK;
 }

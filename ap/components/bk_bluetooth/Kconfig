@@ -18,6 +18,37 @@ menu "Bk_ble"
 		depends on BLUETOOTH_HOST_ONLY
 		default y
 
+	config BLUETOOTH_AUTO_ENABLE
+		bool "bluetooth auto enable"
+		depends on BLUETOOTH_AP
+		default y
+
+
+	config BLUETOOTH_MULTI_CONTROLLER
+		bool "multi bluetooth controller"
+		depends on (BLE || BT)
+		default n
+
+	choice BLUETOOTH_MULTI_CONTROLLER_MODE
+		prompt "multi bluetooth controller mode"
+		depends on BLUETOOTH_MULTI_CONTROLLER
+		default BLUETOOTH_MULTI_CONTROLLER_MODE_PRI_ALL_SEC_NONE
+
+		config BLUETOOTH_MULTI_CONTROLLER_MODE_PRI_ALL_SEC_NONE
+			bool "primary all, secondary none"
+		config BLUETOOTH_MULTI_CONTROLLER_MODE_PRI_NONE_SEC_ALL
+			bool "primary none, secondary all"
+		config BLUETOOTH_MULTI_CONTROLLER_MODE_PRI_BLE_SEC_BT
+			bool "primary ble, secondary bt"
+		config BLUETOOTH_MULTI_CONTROLLER_MODE_PRI_BT_SEC_BLE
+			bool "primary bt, secondary ble"
+	endchoice
+
+	config BLUETOOTH_HOST_ENABLE_H5
+		bool "host enable h5"
+		depends on (BLUETOOTH_MULTI_CONTROLLER_MODE_PRI_NONE_SEC_ALL || BLUETOOTH_MULTI_CONTROLLER_MODE_PRI_BLE_SEC_BT || BLUETOOTH_MULTI_CONTROLLER_MODE_PRI_BT_SEC_BLE)
+		default n
+
 	config BLUETOOTH_RELEASE_CODESIZE
 		bool "reduce ble stack size"
 		depends on BLE

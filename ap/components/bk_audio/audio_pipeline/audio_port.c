@@ -25,43 +25,6 @@
 #define TAG  "AUD_PORT"
 //#define DEFAULT_MAX_WAIT_TIME       (2000/portTICK_RATE_MS)
 
-#if 0
-typedef struct
-{
-    int sample_rates;                           /*!< Sample rates in Hz */
-    int channels;                               /*!< Number of audio channel, mono is 1, stereo is 2 */
-    int bits;                                   /*!< Bit wide (8, 16, 24, 32 bits) */
-    int bps;                                    /*!< Bit per second */
-    bk_codec_type_t format;                     /*!< data format (optional) */
-} audio_element_info_t;
-
-/**
- *  I/O Element Abstract
- */
-typedef struct io_callback
-{
-    stream_func                 cb;
-    void                        *ctx;
-} io_callback_t;
-
-typedef enum
-{
-    IO_TYPE_RB = 1, /* I/O through ringbuffer */
-    IO_TYPE_FB = 1, /* I/O through ringbuffer */
-    IO_TYPE_CB,     /* I/O through callback */
-} io_type_t;
-
-struct audio_port
-{
-    io_type_t                   type;
-    union
-    {
-        ringbuf_handle_t        rb;
-        io_callback_t           cb;
-        framebuf_handle_t       fb;
-    } in; 
-} audio_port_t;
-#endif
 
 struct audio_port
 {
@@ -75,6 +38,7 @@ struct audio_port
     port_io_func            write_done;
     port_io_func            get_size;
     port_io_func            get_filled_size;
+    port_io_func            get_free_size;
 
     char *                  tag;
 
@@ -277,6 +241,20 @@ bk_err_t audio_port_get_filled_size(audio_port_handle_t port)
     if (port->get_filled_size)
     {
         return port->get_filled_size(port);
+    }
+    else
+    {
+        return BK_FAIL;
+    }
+}
+
+bk_err_t audio_port_get_free_size(audio_port_handle_t port)
+{
+    AUDIO_MEM_CHECK(TAG, port, return BK_ERR_ADK_INVALID_PARAMETER);
+
+    if (port->get_free_size)
+    {
+        return port->get_free_size(port);
     }
     else
     {

@@ -76,6 +76,11 @@ bk_err_t netif_wifi_event_cb(void *arg, event_module_t event_module,
 		sta_ip_mode_set(1);
 #endif
 		break;
+#if CONFIG_P2P
+	case EVENT_WIFI_GO_DISCONNECTED:
+		bk_wifi_p2p_cancel();
+		break;
+#endif
 	default:
 		return BK_OK;
 	}
@@ -119,8 +124,6 @@ bk_err_t bk_netif_set_ip4_config(netif_if_t ifx, const netif_ip4_config_t *ip4_c
 		ip_address_set(1 /*STA*/, 0/*static IP*/, config->ip, config->mask, config->gateway, config->dns);
 	} else if (ifx == NETIF_IF_AP) {
 		ip_address_set(0 /*AP*/, 0/*static IP*/, config->ip, config->mask, config->gateway, config->dns);
-	} else if (ifx == NETIF_IF_ETH) {
-		ip_address_set(3 /*ETH*/, 0/*static IP*/, config->ip, config->mask, config->gateway, config->dns);
 	} else {
 		return BK_ERR_NETIF_IF;
 	}
@@ -152,6 +155,14 @@ bk_err_t bk_netif_get_ip4_config(netif_if_t ifx, netif_ip4_config_t *ip4_config)
 #if CONFIG_PAN
 	} else if (ifx == NETIF_IF_PAN) {
 		net_get_if_addr(&addr, net_get_pan_handle());
+#endif
+#if CONFIG_LWIP_PPP_SUPPORT
+	} else if (ifx == NETIF_IF_PPP) {
+		net_get_if_addr(&addr, net_get_ppp_netif_handle());
+#endif
+#if CONFIG_BK_MODEM
+	} else if (ifx == NETIF_IF_MODEM) {
+		net_get_if_addr(&addr, net_get_modem_handle());
 #endif
 	} else {
 		return BK_ERR_NETIF_IF;

@@ -127,6 +127,9 @@ static bk_err_t _mp3_decoder_open(audio_element_handle_t self)
         return BK_FAIL;
     }
 
+    /* set read data timeout */
+    audio_element_set_input_timeout(self, 20 / portTICK_RATE_MS);   // 2000, 15 / portTICK_RATE_MS
+
     return BK_OK;
 }
 

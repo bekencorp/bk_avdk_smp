@@ -38,7 +38,8 @@ typedef enum
     BK_CODEC_TYPE_FLAC          = 6,
     BK_CODEC_TYPE_ADPCM         = 7,
     BK_CODEC_TYPE_G722          = 8,
-    BK_CODEC_TYPE_UNSUPPORT     = 9,
+    BK_CODEC_TYPE_SBC           = 9,
+    BK_CODEC_TYPE_UNSUPPORT     = 10,
 } bk_codec_type_t;
 
 /* audio interface mic type */

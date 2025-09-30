@@ -13,6 +13,7 @@
 // limitations under the License.                                              
 
 #pragma once
+#include <common/bk_include.h>
 #include <driver/dma2d_types.h>
 
 #ifdef __cplusplus
@@ -257,14 +258,7 @@ uint32_t bk_dma2d_int_status_get(void);
   */
 bk_err_t  bk_dma2d_int_status_clear(dma2d_int_status_t int_status);
 
-/**
-  * @brief  register dma2d cpu int isr
-  * @param  dma2d_isr the function you registr isr
-  * @retval bk_err_t status
-  */
-bk_err_t bk_dma2d_isr_register(dma2d_isr_t dma2d_isr);
 
-#if (USE_HAL_DMA2D_REGISTER_CALLBACKS == 1)
 /**
   * @brief  register dma2d int type isr
             open the macro  #define USE_HAL_DMA2D_REGISTER_CALLBACKS 1
@@ -283,8 +277,8 @@ bk_err_t bk_dma2d_isr_register(dma2d_isr_t dma2d_isr);
   *     - BK_OK: succeed
   *     - others: other errors.
   */
-bk_err_t bk_dma2d_register_int_callback_isr(dm2d_isr_id_t isr_id, dma2d_isr_t cb_isr);
-#endif
+bk_err_t bk_dma2d_register_int_callback_isr(dm2d_isr_id_t isr_id, dma2d_isr_t cb_isr, void *param);
+
 
 
 
@@ -309,7 +303,7 @@ bk_err_t bk_dma2d_offset_blend(dma2d_offset_blend_t *dma2d_blend);
   *     - BK_OK: succeed
   *     - others: other errors.
   */
-bk_err_t bk_dma2d_blend(dma2d_blend_t *dma2d_blend);
+bk_err_t dma2d_blend(dma2d_blend_t *dma2d_blend);
 
 /**
   * @brief  config dma2d pixel revert
@@ -365,12 +359,6 @@ bk_err_t bk_dma2d_stop_transfer(void);
   void dma2d_memcpy_psram(void *Psrc, void *Pdst, uint32_t xsize, uint32_t ysize, uint32_t src_offline, uint32_t dest_offline);
 
 
-void dma2d_memcpy_psram_for_lvgl(void *Psrc, uint32_t src_xsize, uint32_t src_ysize,
-                                           void *Pdst, uint32_t dst_xsize, uint32_t dst_ysize,
-                                           uint32_t src_xpos, uint32_t src_ypos,
-                                           uint32_t dst_xpos, uint32_t dst_ypos);
-
-
 /**
   * @brief  set dma2d transtfer ability
   * @param  select from dma2d_trans_ability_t 
@@ -383,6 +371,9 @@ void dma2d_memcpy_psram_for_lvgl(void *Psrc, uint32_t src_xsize, uint32_t src_ys
  */
 void  bk_dma2d_soft_reset(void);
 
+bk_err_t bk_driver_dma2d_suspend(bool suspend);
+
+bk_err_t bk_driver_dma2d_trans_abort(void);
 /**
   * @brief  DMA2D API END
   */

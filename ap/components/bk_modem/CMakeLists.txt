@@ -13,6 +13,7 @@ list(APPEND incs
 	src/bk_modem_main.c
 	src/bk_modem_netif.c
 	src/bk_modem_usbh_if.c
+	src/bk_modem_uart.c
 	)
 endif()
 

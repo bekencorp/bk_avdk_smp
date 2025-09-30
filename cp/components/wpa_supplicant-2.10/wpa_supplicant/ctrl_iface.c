@@ -30,7 +30,6 @@
 #ifdef CONFIG_P2P
 #include "p2p/p2p.h"
 #include "p2p_supplicant.h"
-#include "chan.h"
 #include "rwnx_defs.h"
 #endif
 #if CONFIG_LWIP
@@ -1042,7 +1041,7 @@ static int p2p_ctrl_find(struct wpa_supplicant *wpa_s, char *cmd)
 	}
 
 	return wpas_p2p_find(wpa_s, timeout, type, _dev_type != NULL, _dev_type,
-			     _dev_id, search_delay, seek_count, seek, freq);
+			     _dev_id, search_delay, seek_count, seek, freq, is_6ghz_freq(freq));
 }
 
 static int p2p_ctrl_listen(struct wpa_supplicant *wpa_s, char *cmd)
@@ -1107,8 +1106,8 @@ static int p2p_ctrl_connect(struct wpa_supplicant *wpa_s,
 	new_pin = wpas_p2p_connect(wpa_s, addr, pin, wps_method,
 				   persistent_group, automatic, join,
 				   auth, go_intent, freq, freq2, persistent_id,
-				   pd, ht40, vht, max_oper_chwidth, he,
-				   group_ssid, group_ssid_len);
+				   pd, ht40, vht, max_oper_chwidth, he, wpa_s->conf->p2p_go_edmg,
+				   group_ssid, group_ssid_len, is_p2p_allow_6ghz(wpa_s->global->p2p));
 
 	return new_pin;
 }
@@ -2079,11 +2078,13 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 
 #ifdef CONFIG_P2P
 	case WPA_CTRL_EVENT_REMAIN_ON_CHANNEL: {
-		union wpa_event_data data;
-		struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
-		struct rwnx_roc_elem *roc_elem = rwnx_hw->roc_elem;
+		union wpa_event_data data = {0};
+		struct rwnx_roc_elem *roc_elem = g_rwnx_hw.roc_elem;
 
-		os_memset(&data, 0, sizeof(data));
+		if (roc_elem == NULL) {
+			WPA_LOGE("ROC element is NULL\n");
+			goto exit;
+		}
 		data.remain_on_channel.freq = roc_elem->freq;
 		data.remain_on_channel.duration = roc_elem->duration;
 		wpa_supplicant_event_sta(wpa_s, EVENT_REMAIN_ON_CHANNEL, &data);
@@ -2103,8 +2104,7 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 
 		WPA_LOGD("WPA_CTRL_EVENT_P2P_GO_NEG_REQUEST: peer_addr %pm\n", req->src);
 		os_memcpy(param.addr, req->src, ETH_ALEN);
-		//param.intent = bk_rand()%5 + 1;
-		param.intent = 0;
+		param.intent = bk_rand()%5 + 1;
 		param.method = WPS_PBC;
 		p2p_ctrl_connect(wpa_s, &param);
 	}	break;

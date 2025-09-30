@@ -11,7 +11,7 @@
 #include "lwip/netif.h"
 #include <components/netif.h>
 #include "lwip/ping.h"
-#include "wifi_demo.h"
+#include "bk_private/bk_wifi.h"
 #include "ftp/ftpd.h"
 /**
  * @brief default AP configuration
@@ -159,31 +159,6 @@ int wdrv_demo_hidden_softap_init(char *ap_ssid, char *ap_key, char *ap_channel)
     return BK_OK;
 }
 
-static int wlan_scan_done_handler(void *arg, event_module_t event_module,
-                                         int event_id, void *event_data)
-{
-    wifi_scan_result_t scan_result = {0};
-
-    BK_LOG_ON_ERR(bk_wifi_scan_get_result(&scan_result));
-    BK_LOG_ON_ERR(bk_wifi_scan_dump_result(&scan_result));
-    bk_wifi_scan_free_result(&scan_result);
-
-    return BK_OK;
-}
-
-void demo_scan_adv_app_init(uint8_t *oob_ssid)
-{
-    wifi_scan_config_t scan_config = {0};
-
-    bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_SCAN_DONE,
-                         wlan_scan_done_handler, NULL);
-
-    if (oob_ssid) {
-        os_strncpy(scan_config.ssid, (char *)oob_ssid, WIFI_SSID_STR_LEN);
-        BK_LOG_ON_ERR(bk_wifi_scan_start(&scan_config));
-    } else
-        BK_LOG_ON_ERR(bk_wifi_scan_start(NULL));
-}
 
 static const char *wdr_ifname[NETIF_IF_COUNT] = {
     "sta", "ap",
@@ -482,6 +457,24 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
             bk_bridge_start(&br_config);
     } else if (!strcasecmp(argV[1], "bridge_close")) {
         bk_bridge_stop();
+    }
+#endif
+#if CONFIG_P2P
+    else if (!strcasecmp(argV[1], "p2p_enable")) {
+        char *p2p_ssid = NULL;
+        if (argC >= 2)
+            p2p_ssid = argV[2];
+        BK_LOG_ON_ERR(bk_wifi_p2p_enable(p2p_ssid));
+    } else if (!strcasecmp(argV[1], "p2p_find")) {
+        BK_LOG_ON_ERR(bk_wifi_p2p_find());
+    } else if (!strcasecmp(argV[1], "p2p_listen")) {
+        BK_LOG_ON_ERR(bk_wifi_p2p_listen());
+    } else if (!strcasecmp(argV[1], "p2p_stop_find")) {
+        BK_LOG_ON_ERR(bk_wifi_p2p_stop_find());
+    } else if (!strcasecmp(argV[1], "p2p_connect")) {
+        BK_LOG_ON_ERR(bk_wifi_p2p_connect((uint8_t *)argV[2], os_strtoul(argV[3], NULL, 10), os_strtoul(argV[4], NULL, 10)));
+    } else if (!strcasecmp(argV[1], "p2p_cancel")) {
+        BK_LOG_ON_ERR(bk_wifi_p2p_cancel());
     }
 #endif
     else {

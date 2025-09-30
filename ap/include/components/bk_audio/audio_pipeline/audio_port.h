@@ -65,6 +65,7 @@ typedef struct
     port_io_func            write_done;         /*!< write done callback function */
     port_io_func            get_size;           /*!< Get ringbuffer size or frame buffer node number function */
     port_io_func            get_filled_size;    /*!< Get ringbuffer filled size or ready frame buffer node number function */
+    port_io_func            get_free_size;      /*!< Get ringbuffer free size or free frame buffer node number function */
 
     char *                  tag;        /*!< Port tag */
 
@@ -72,16 +73,6 @@ typedef struct
     //int                 multi_out_rb_num; /*!< The number of multiple output ringbuffer */
 } audio_port_cfg_t;
 
-#if 0
-#define DEFAULT_AUDIO_PORT_CONFIG() {                \
-    .buffer_len         = DEFAULT_ELEMENT_BUFFER_LENGTH,\
-    .task_stack         = DEFAULT_ELEMENT_STACK_SIZE,   \
-    .task_prio          = DEFAULT_ELEMENT_TASK_PRIO,    \
-    .task_core          = DEFAULT_ELEMENT_TASK_CORE,    \
-    .multi_in_rb_num    = 0,                            \
-    .multi_out_rb_num   = 0,                            \
-}
-#endif
 
 audio_port_handle_t audio_port_init(audio_port_cfg_t *config);
 
@@ -97,6 +88,7 @@ bk_err_t audio_port_write(audio_port_handle_t port, char *buffer, int len, TickT
 bk_err_t audio_port_write_done(audio_port_handle_t port);
 bk_err_t audio_port_get_size(audio_port_handle_t port);
 bk_err_t audio_port_get_filled_size(audio_port_handle_t port);
+bk_err_t audio_port_get_free_size(audio_port_handle_t port);
 bk_err_t audio_port_set_data(audio_port_handle_t port, void *data);
 void *audio_port_get_data(audio_port_handle_t port);
 bk_err_t audio_port_set_type(audio_port_handle_t port, port_type_t type);

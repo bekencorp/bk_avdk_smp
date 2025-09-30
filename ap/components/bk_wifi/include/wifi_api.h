@@ -69,6 +69,25 @@ typedef struct {
 	netif_ip4_config_t ap_ip4_info;
 } wifi_status_t;
 
+typedef enum {
+	WIFI_MONITOR_RESULT,
+	WIFI_MONITOR_DATA,
+}wifi_monitor_cb_type;
+
+typedef struct {
+	uint8_t channel;
+	uint32_t rx_cnt_mgmt;
+	uint32_t rx_cnt_data;
+	uint32_t rx_cnt_ctrl;
+	uint32_t rx_cnt_0_255;
+	uint32_t rx_cnt_256_511;
+	uint32_t rx_cnt_512_1023;
+	uint32_t rx_cnt_1024;
+	uint32_t rx_cnt_total;
+} wifi_monitor_result_t;
+
+
+
 bk_err_t bk_wifi_api_test(void);
 bk_err_t bk_wifi_get_status(wifi_status_t *status);
 

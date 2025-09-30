@@ -43,6 +43,15 @@
 #define SOC_FLASH_BASE_ADDR           0x02000000
 #define FLASH_LOGICAL_BASE_ADDR       SOC_FLASH_BASE_ADDR
 
+#if CONFIG_FLASH_ORIGIN_API
+#define PAR_OPT_READ_POS      (0)
+#define PAR_OPT_WRITE_POS     (1)
+
+#define PAR_OPT_READ_DIS      (0x0u << PAR_OPT_READ_POS)
+#define PAR_OPT_READ_EN       (0x1u << PAR_OPT_READ_POS)
+#define PAR_OPT_WRITE_DIS     (0x0u << PAR_OPT_WRITE_POS)
+#define PAR_OPT_WRITE_EN      (0x1u << PAR_OPT_WRITE_POS)
+#endif
 
 #define PARTITION_IRAM         __attribute__((section(".iram")))
 
@@ -52,7 +61,7 @@ static const bk_logic_partition_t bk_flash_partitions[] = BK_FLASH_PARTITIONS_MA
 
 static bool flash_partition_is_valid(bk_partition_t partition)
 {
-	if ((partition >= BK_PARTITION_BOOTLOADER)
+	if ((partition >= BK_PARTITION_BOOTLOADER) 
 		&& (partition < ARRAY_SIZE(bk_flash_partitions))) {
 		return true;
 	} else {
@@ -117,11 +126,11 @@ void generate_iv(uint8_t *iv, size_t unit_num) {
 static bk_logic_partition_t * flash_partition_get_info_by_addr(uint32_t addr)
 {
 	const bk_logic_partition_t *pt;
-
+	
 	for(int i = 0; i < ARRAY_SIZE(bk_flash_partitions); i++)
 	{
 		pt = &bk_flash_partitions[i];
-
+		
 		if(addr < pt->partition_start_addr)
 			continue;
 		if(addr >= (pt->partition_start_addr + pt->partition_length))
@@ -148,7 +157,7 @@ bk_logic_partition_t *bk_flash_partition_get_info(bk_partition_t partition)
 static bk_err_t flash_partition_addr_check(bk_logic_partition_t *partition_info, uint32_t offset, uint32_t size)
 {
 #if (CONFIG_FLASH_PARTITION_CHECK_VALID)
-	if ( (offset >= partition_info->partition_length)
+	if ( (offset >= partition_info->partition_length) 
 		|| (size > partition_info->partition_length)
 		|| (offset + size > partition_info->partition_length) )
 	{
@@ -172,17 +181,17 @@ static bk_err_t flash_partition_write_perm_check(bk_logic_partition_t *partition
 	// flash ctrl only can read/write 16MB.
 	uint32_t   fun_flash_logical_addr = ((uint32_t)flash_partition_write_perm_check) & (FLASH_MAX_SIZE - 1) ;
 	uint32_t   fun_flash_phy_addr = FLASH_LOGICAL_2_PHY(fun_flash_logical_addr);
-
+	
 	if(fun_flash_phy_addr < partition_info->partition_start_addr)
 	{
 		return BK_OK;  // not write current running partition.
 	}
-
+	
 	if(fun_flash_phy_addr > (partition_info->partition_start_addr + partition_info->partition_length))
 	{
 		return BK_OK;  // not write current running partition.
 	}
-
+	
 	return BK_FAIL;  // not permit to write current running partition.
 #else
 	return BK_OK;
@@ -213,7 +222,7 @@ static bk_err_t bk_flash_partition_erase_internal(bk_logic_partition_t *partitio
 bk_err_t bk_flash_partition_erase(bk_partition_t partition, uint32_t offset, uint32_t size)
 {
     bk_logic_partition_t *partition_info = bk_flash_partition_get_info(partition);
-
+	
     if (partition_info == NULL) {
         return BK_ERR_FLASH_PARTITION_NOT_FOUND;
     }
@@ -225,7 +234,7 @@ bk_err_t bk_flash_partition_erase(bk_partition_t partition, uint32_t offset, uin
 	{
 		return BK_FAIL;
 	}
-
+	
 
     return bk_flash_partition_erase_internal(partition_info, offset, size);
 }
@@ -305,7 +314,7 @@ bk_err_t bk_flash_partition_read(bk_partition_t partition, uint8_t *out_buffer, 
     if (aligned_buffer == NULL) {
         return BK_ERR_NO_MEM;
     }
-
+	
     bk_err_t read_status = bk_flash_partition_read_internal(partition_info, aligned_buffer, aligned_offset, aligned_length);
 
     if (read_status != BK_OK) {
@@ -395,7 +404,7 @@ bk_err_t bk_flash_partition_write_perm_check_by_addr(uint32_t addr, uint32_t siz
 {
 	if(magic_code != FLASH_API_MAGIC_CODE)
 		return BK_FAIL;
-
+	
 	bk_logic_partition_t *partition_info = flash_partition_get_info_by_addr(addr);
 
 	if (NULL == partition_info) {

@@ -92,6 +92,13 @@ struct l2_packet_data * l2_packet_init(
 			    const u8 *buf, size_t len),
 	void *rx_callback_ctx, int l2_hdr);
 
+#if CONFIG_P2P
+struct l2_packet_data * l2_packet_p2p_init(
+	const char *ifname, const u8 *own_addr, unsigned short protocol,
+	void (*rx_callback)(void *ctx, const u8 *src_addr,
+			    const u8 *buf, size_t len),
+	void *rx_callback_ctx, int l2_hdr);
+#endif
 /**
  * l2_packet_init_bridge - Like l2_packet_init() but with bridge workaround
  *

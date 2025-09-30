@@ -649,7 +649,7 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 						 s_pm_off_modules &= ~(0x1 << PM_POWER_MODULE_NAME_PHY);
 						 s_pm_on_modules |= 0x1 << PM_POWER_MODULE_NAME_PHY;
 						 GLOBAL_INT_RESTORE();
-					}
+					} 
 					else
 					{
 						 GLOBAL_INT_DISABLE();

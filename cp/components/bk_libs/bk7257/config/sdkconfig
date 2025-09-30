@@ -1,6 +1,6 @@
 #
 # Automatically generated file. DO NOT EDIT.
-# Beken IoT Development Framework (BEKEN-ARMINO) Project Configuration
+# BEKEN IoT Development Framework (BEKEN-ARMINO)  Project Configuration
 #
 
 #
@@ -74,6 +74,13 @@ CONFIG_BLUETOOTH=y
 #
 # Properties Configuration
 #
+
+#
+# Modules::Bk_coex
+#
+CONFIG_BK_COEX=y
+# CONFIG_BK_COEX_SIMU_BT is not set
+# end of Modules::Bk_coex
 
 #
 # Shared Configs with Public components
@@ -312,14 +319,12 @@ CONFIG_TIMER_SUPPORT_ID_BITS=0
 # SARADC
 #
 CONFIG_SARADC=y
-CONFIG_SARADC_SERVER=y
 CONFIG_SARADC_NEED_FLUSH=y
 # CONFIG_SARADC_RANGE_DIVIDE is not set
 # CONFIG_SARADC_PM_CB_SUPPORT is not set
 CONFIG_ADC_BUF_SIZE=32
 # CONFIG_SADC_API_TEST is not set
 # CONFIG_ADC_API_TEST is not set
-# CONFIG_SARADC_MB is not set
 # end of SARADC
 
 #
@@ -328,6 +333,7 @@ CONFIG_ADC_BUF_SIZE=32
 CONFIG_FLASH=y
 # CONFIG_FLASH_QUAD_ENABLE is not set
 # CONFIG_FLASH_SRC_CLK_60M is not set
+# CONFIG_FLASH_ORIGIN_API is not set
 # CONFIG_FLASH_MB is not set
 CONFIG_FLASH_TEST=y
 CONFIG_PARTITION_TEST=y
@@ -514,8 +520,6 @@ CONFIG_SHELL_ASYNCLOG=y
 CONFIG_DYM_LOG_MEM_MAX=0x2000
 # CONFIG_UART_RING_BUFF is not set
 # CONFIG_TOUCH_TEST is not set
-# CONFIG_SBC_TEST is not set
-# CONFIG_AUDIO is not set
 # CONFIG_INTERRUPT_TEST is not set
 # CONFIG_AON_PMU_TEST is not set
 # CONFIG_SDMADC_TEST is not set
@@ -556,7 +560,7 @@ CONFIG_FREERTOS_V10=y
 # CONFIG_QUEUE_IN_PSRAM is not set
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=2
 CONFIG_FREERTOS_TICK_RATE_HZ=1000
-# CONFIG_BK_OS_TIMER_DEBUG is not set
+CONFIG_BK_OS_TIMER_DEBUG=y
 # CONFIG_DEBUG_RTOS_TIMER is not set
 # CONFIG_FREERTOS_HISTORY_CPU_PERCENT is not set
 # end of Modify FreeRTOS Config
@@ -689,6 +693,7 @@ CONFIG_SPECIAL_FRAME_LONG_RETRY_LIMIT=4
 #
 # CONFIG_RAW_LINK_PS_ENABLE is not set
 # CONFIG_RAW_LINK_DBG is not set
+# CONFIG_MINIMUM_SCAN_RESULTS is not set
 # end of modules::raw_link
 # end of Shared Configs with Public components
 # end of Properties Configuration

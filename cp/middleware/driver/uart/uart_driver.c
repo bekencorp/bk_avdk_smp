@@ -970,7 +970,7 @@ static inline void uart_tx_dma_dst_port_config(uart_id_t id, dma_port_config_t *
 static void uart_tx_dma_write_done(dma_id_t dma_id)
 {
 	UART_LOGV("%s:dma_id=%d\r\n", __func__, dma_id);
-	
+
 }
 
 static bk_err_t uart_tx_dma_write_to_fifo(uart_id_t id, uint32_t data_address, uint32_t size)

@@ -56,7 +56,7 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 {
     LOGD("%s +++\n", __func__);
 
-    if ((argc != 9) && (argc != 10))
+    if (argc < 9)
     {
         LOGE("%s, %d, agc: %d not right\n", __func__, __LINE__, argc);
         return;
@@ -72,6 +72,9 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
     #if CONFIG_VOICE_SERVICE_EQ
     uint8_t eq_type = 0;
     #endif
+    uint8_t spk_pa_en = 0;
+    uint8_t spk_pa_gpio = 50;
+    uint8_t args = 9;
 
     if (os_strcmp(argv[1], "start") == 0)
     {
@@ -173,7 +176,6 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             dec_type = AUDIO_DEC_TYPE_OPUS;
         }
 #endif
-
         else
         {
             LOGE("%s, %d, dec_type: %s not support\n", __func__, __LINE__, argv[6]);
@@ -200,24 +202,48 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             LOGE("%s, %d, spk_samp_rate: %s not support\n", __func__, __LINE__, spk_samp_rate);
             return;
         }
-        
-        #if CONFIG_VOICE_SERVICE_EQ
-        if(10 == argc)
+
+
+        while(argc > args)
         {
-            if (os_strcmp(argv[9], "eq_mono") == 0)
+            #if CONFIG_VOICE_SERVICE_EQ
+            if (os_strcmp(argv[args], "eq_mono") == 0)
             {
                 eq_type = 1;
+                args += 1;
             }
-            else if (os_strcmp(argv[9], "eq_stereo") == 0)
+            else if (os_strcmp(argv[args], "eq_stereo") == 0)
             {
                 eq_type = 2;
+                args += 1;
             }
+            else if (os_strcmp(argv[args], "spk_pa") == 0)
+            {
+                spk_pa_en = os_strtoul(argv[args+1], NULL, 10);
+                if(spk_pa_en)
+                {
+                    spk_pa_gpio = os_strtoul(argv[args+2], NULL, 10);
+                }
+                args += 3;
+            }
+            #else
+            if (os_strcmp(argv[args], "spk_pa") == 0)
+            {
+                spk_pa_en = os_strtoul(argv[args+1], NULL, 10);
+                if(spk_pa_en)
+                {
+                    spk_pa_gpio = os_strtoul(argv[args+2], NULL, 10);
+                }
+                args += 3;
+            }
+            #endif
             else
             {
-                eq_type = 0;
+                LOGE("%s, %d,argv[args]:%s is invalid,args:%d,argc:%d\n", __func__, __LINE__,argv[args], args, argc);
+                goto fail;
             }
+            
         }
-        #endif
 
         /* voice config */
         voice_cfg_t voice_cfg = {0};
@@ -276,12 +302,20 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
                 LOGE("%s, %d,mic samp rate:%d,dual_dmic only support 16000 sample rate!\n", __func__, __LINE__,mic_samp_rate, mic_samp_rate);
                 goto fail;
             }
-            
+
             if(!aec_en)
             {
                 onboard_dual_dmic_mic_cfg.dual_dmic_sgl_out = 1;
                 LOGD("%s, %d, dual_dmic_mic:no aec,dual_dmic_sgl_out set to 1!\n", __func__, __LINE__);
             }
+            else
+            {
+                if(0x2 == (aec_en&0x2))
+                {
+                    onboard_dual_dmic_mic_cfg.ref_mode = 1;//captpture reference signal from mic for AEC
+                }
+            }
+
             voice_cfg.mic_cfg.onboard_dual_dmic_mic_cfg = onboard_dual_dmic_mic_cfg;
         }
         else
@@ -306,9 +340,14 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
                     voice_cfg.enc_common.frame_in_ms = 20;
                     voice_cfg.enc_common.frame_in_size = mic_samp_rate*20/1000*2;
                 }
+
+                if(0x2 == (aec_en&0x2))
+                {
+                    aec_v3_alg_cfg.aec_cfg.mode = AEC_MODE_HARDWARE;
+                }
+
                 voice_cfg.aec_cfg.aec_alg_cfg = aec_v3_alg_cfg;
             }
-
         }
         else
         {
@@ -475,6 +514,16 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             {
                 onboard_spk_cfg.multi_out_port_num = 0;
             }
+
+            if(spk_pa_en)
+            {
+                onboard_spk_cfg.pa_ctrl_en = true;
+                onboard_spk_cfg.pa_ctrl_gpio = spk_pa_gpio;
+                onboard_spk_cfg.pa_on_level = 1;
+                onboard_spk_cfg.pa_on_delay = 10;
+                onboard_spk_cfg.pa_off_delay = 30;
+            }
+
             voice_cfg.spk_cfg.onboard_spk_cfg = onboard_spk_cfg;
         }
         else
@@ -648,15 +697,16 @@ static const struct cli_command s_voice_commands[] =
      * [cmd]            start/stop
      * [mic_type]       onboard/uac/onboard_dual_dmic_mic
      * [mic_samp_rate]  8000/16000
-     * [aec_en]         0/1
+     * [aec_en]         0/1/3,bit0:0 aec disable/1 aec enable,bit1:0 AEC_MODE_SOFTWARE/1 AEC_MODE_HARDWARE
      * [enc_type]       pcm/g711a/g711u/aac/g722/opus
      * [dec_type]       pcm/g711a/g711u/aac/g722/opus
      * [spk_type]       onboard/uac
      * [spk_samp_rate]  8000/16000
      * [eq_type]        eq_mono/eq_stereo
+     * [spk_pa]         spk_pa_en:0/1 spk_pa_gpio:according to board design: 0~SOC_GPIO_NUM-1
      */
 
-    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722|opus pcm|g711a|g711u|aac|g722|opus onboard|uac 8000|16000 eq_mono|eq_stereo}", cli_voice_test_cmd},
+    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722|opus pcm|g711a|g711u|aac|g722|opus onboard|uac 8000|16000 [eq_mono|eq_stereo] [spk_pa spk_pa_en spk_en_gpio]}", cli_voice_test_cmd},
 };
 
 int cli_voice_init(void)
