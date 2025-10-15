@@ -233,6 +233,8 @@ static u16 s_dynamic_log_total_len = 0;  // total consumption of dynamic log mem
 static u16 s_dynamic_log_num_in_mem = 0;  // number of dynamic log in memory, including no free log.
 static u16 s_dynamic_log_mem_max = 0;  // maximum of consumption
 
+static u16 s_insert_log_cnt = 0;
+
 #define DYM_NODE_SIZE (sizeof(dynamic_log_node))
 
 #if (CONFIG_CACHE_ENABLE) && (CONFIG_LV_USE_DEMO_METER)
@@ -2113,12 +2115,19 @@ void shell_log_out_port(int block_mode, int level, char *prefix, const char *for
 
 	if(packet_buf == NULL)
 	{
-		if (block_mode & s_block_mode & LOG_BLOCK_MASK)
+		if (block_mode & s_block_mode & LOG_BLOCK_MASK) {
+			s_insert_log_cnt++;
 			output_insert_log(buf_len, prefix, format, ap);
+			if (s_insert_log_cnt >= 100) {
+				BK_ASSERT(0);
+			}
+		}
 		else
 			log_hint_out();
 		return;
 	}
+
+	s_insert_log_cnt = 0;
 
 	log_len = combine_log_with_prefix(prefix, (char *)&packet_buf[0], buf_len, format, ap);
 
@@ -2679,15 +2688,37 @@ static void shell_insert_data( const u8 *data, u16 data_len )
 	rtos_enable_int(int_mask);
 }
 
+const char *s_insert_log_reason[] = {
+	"D", // disable interrupt
+	"I", // interrupt
+	"N", // log not init
+	"S", // scheduler suspended
+	"U", // unknown
+};
+
+static const char *get_log_insert_reason(void)
+{
+	if (rtos_local_irq_disabled()) {
+		return s_insert_log_reason[0];
+	} else if (rtos_is_in_interrupt_context()) {
+		return s_insert_log_reason[1];
+	} else if (log_buf_semaphore == NULL) {
+		return s_insert_log_reason[2];
+	} else if (rtos_is_scheduler_suspended()) {
+		return s_insert_log_reason[3];
+	}
+	return s_insert_log_reason[4];
+}
+
 static void output_insert_data(const u8 *data, u16 data_len)
 {
-	shell_assert_out(bTRUE, "\r\nINSRT:");
+	shell_assert_out(bTRUE, "\r\nINSRT-%s:", get_log_insert_reason());
 	shell_insert_data(data, data_len);
 }
 
 static void output_insert_log(u16 buf_len, char *prefix, const char *format, va_list ap)
 {
-	shell_assert_out(bTRUE, "\r\nINSRT:%s", prefix);
+	shell_assert_out(bTRUE, "\r\nINSRT-%s:%s", get_log_insert_reason(), prefix);
 	shell_assert_out_va(bTRUE, format, ap);
 }
 
