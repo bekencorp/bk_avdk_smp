@@ -27,6 +27,7 @@
 #include "bk_aon_wdt.h"
 #include <driver/flash_partition.h>
 #include "bk_wdt.h"
+#include "wdt_driver.h"
 #include "stack_base.h"
 #if CONFIG_CM_BACKTRACE
 #include "cm_backtrace.h"
@@ -60,7 +61,7 @@ static inline int addr_is_in_iram_txt(uint32_t addr)
     return 0;
 }
 
-static int code_addr_is_valid(uint32_t addr)
+int code_addr_is_valid(uint32_t addr)
 {
     if (addr % 2 == 0) {
         return false;
@@ -106,10 +107,7 @@ void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom)
 #if (CONFIG_TASK_WDT)
 			bk_task_wdt_feed();
 #endif
-			bk_wdt_feed();
-#if (CONFIG_INT_AON_WDT)
-			bk_int_aon_wdt_feed();
-#endif
+            bk_wdt_force_feed();
 // #endif //CONFIG_WDT_EN
 		}
 #endif //#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE

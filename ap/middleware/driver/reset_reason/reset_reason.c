@@ -4,6 +4,7 @@
 #include "bk_uart.h"
 
 #include "bk_arm_arch.h"
+#include "arch_interrupt.h"
 #include "sys_ctrl.h"
 #include "bk_sys_ctrl.h"
 
@@ -195,14 +196,13 @@ void bk_misc_set_cp_reset_reason(uint32_t type)
 void bk_misc_set_ap_reset_reason(uint32_t type)
 {
 	if (type > 0x7f) {
-		BK_LOGE(TAG, "Invalid ap rr type: 0x%x", type);
+		BK_DUMP_OUT("Invalid ap rr type: 0x%x\r\n", type);
 		return;
 	}
 
 	/* use PMU_REG0 bit[24:30] for reset reason */
 	uint32_t misc_value = aon_pmu_hal_get_r0();
 
-	BK_LOGD(TAG, "set ap rr: 0x%x\r\n", type);
 	/* clear last reset reason */
 	misc_value &= ~(0x7f << 24);
 
@@ -231,5 +231,6 @@ uint32_t reset_reason_init(void)
 	s_start_type = ap_reset_reason;
 	s_misc_value_save = cp_reset_reason;
 
+	arch_init_exception_magic_status();
 	return s_start_type;
 }

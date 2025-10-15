@@ -51,8 +51,15 @@ extern "C" {
 #define FIXED_ADDR_WAKEUP_AP1_COUNT          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+16))
 #define FIXED_ADDR_WAKEUP_AP1_DEBUG          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+20))
 
-#define FIXED_ADDR_CP_RESET_REASON          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+24))
-#define FIXED_ADDR_AP_RESET_REASON          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+28))
+#define FIXED_ADDR_CP_RESET_REASON           (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+24))
+#define FIXED_ADDR_AP_RESET_REASON           (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+28))
+
+#define FIXED_ADDR_EXCEPTION_MAGIC_BEGIN     (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+32))
+#define FIXED_ADDR_CP_EXCEPTION_STATUS       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+36))
+#define FIXED_ADDR_AP_EXCEPTION_STATUS       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+40))
+#define FIXED_ADDR_EXCEPTION_TURN            (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+44))
+#define FIXED_ADDR_EXCEPTION_DUMPER          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+48))
+#define FIXED_ADDR_EXCEPTION_MAGIC_END       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+52))
 
 #define PM_PSRAM_POWER_DOWN_MAGIC            (0x123)
 

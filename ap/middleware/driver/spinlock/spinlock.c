@@ -48,7 +48,7 @@ void spinlock_init(spinlock_t *slock)
 #endif
 	slock->owner = 0;
 	slock->count = 0;
-	slock->core_id = 0xF2EE;
+	slock->core_id = SPINLOCK_CORE_ID_UNINITILIZE;
 }
 
 #if CONFIG_SPINLOCK_DEBUG
@@ -63,35 +63,32 @@ uint32_t spinlock_acquire(volatile spinlock_t *slock, int32_t timeout)
 	uint32_t flag = arch_int_disable();
 
 #if (CONFIG_CPU_CNT > 1)
-	uint32_t core_id;
-
 	// Note: The core IDs are the full 32 bit (CORE_ID_REGVAL_PRO/CORE_ID_REGVAL_APP) values
-	core_id = (uint32_t)portGET_CORE_ID();
+	const volatile uint32_t core_id = (uint32_t)portGET_CORE_ID();
+	const volatile uint32_t lock_core_id = slock->core_id;
 
-	if(core_id == slock->core_id)
+	if(core_id == lock_core_id)
 	{
 		slock->count++;
 		arch_int_restore(flag);
 		return flag;
 	}
 
-#if 0
-	if(timeout == SPINLOCK_NO_WAIT)
-		arch_atomic_set_return(( volatile u32 *)&slock->owner, 1);
-	while(timeout)
-	{
-		if(timeout != SPINLOCK_WAIT_FOREVER)
-			timeout--;
-		if(arch_atomic_set_return(( volatile u32 *)&slock->owner, 1))
-			break;
+	if(lock_core_id != SPINLOCK_CORE_ID_UNINITILIZE 
+		&& lock_core_id != 0
+		&& lock_core_id != 1
+	) {
+		BK_ASSERT(0);
+		arch_int_restore(flag);
+		return flag;
 	}
-#else
+
 	arch_atomic_set(( volatile u32 *)&slock->owner);
-#endif
 	arch_fence();
 
 	slock->core_id = core_id;
 	slock->count = 1;
+
 #endif
 	arch_int_restore(flag);
 
@@ -125,7 +122,7 @@ void spinlock_release(volatile spinlock_t *slock, uint32_t flag2)
 
 	if(slock->count == 0)
 	{
-		slock->core_id = 0xF2EE;
+		slock->core_id = SPINLOCK_CORE_ID_UNINITILIZE;
 
 		arch_fence();
 

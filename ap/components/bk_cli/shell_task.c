@@ -20,6 +20,7 @@
 #endif
 #endif
 #include "spinlock.h"
+#include <arch_interrupt.h>
 
 #define DEV_UART        1
 #define DEV_MAILBOX     2
@@ -2182,13 +2183,14 @@ void shell_log_out_port(int block_mode, int level, char *prefix, const char *for
 	return ;
 }
 
+
 static int shell_assert_out_va(bool bContinue, const char * format, va_list arg_list)
 {
 	u32         int_mask;
 	char       *pbuf;
 	u16         data_len, buf_len;
 
-	if( !shell_cpu_check_valid() )
+	if(arch_is_cp_in_dump_mode())
 		return 0;
 
 	pbuf = (char *)&shell_assert_buff[0];
@@ -2206,8 +2208,9 @@ static int shell_assert_out_va(bool bContinue, const char * format, va_list arg_
 
 	if(data_len >= buf_len)
 		data_len = buf_len - 1;
-
-	log_dev->dev_drv->write_sync(log_dev, (u8 *)pbuf, data_len);
+	
+	pbuf[data_len] = '\0';
+	emergency_uart_write_string(CONFIG_DUMP_UART_PRINT_PORT, pbuf);
 
 	if( bContinue )
 	{
@@ -2239,7 +2242,7 @@ int shell_assert_raw(bool bContinue, char * data_buff, u16 data_len)
 {
 	u32         int_mask;
 
-	if( !shell_cpu_check_valid() )
+	if(arch_is_cp_in_dump_mode())
 		return 0;
 
 	/* just disabled interrupts even when dump out in SMP. */
@@ -2250,7 +2253,7 @@ int shell_assert_raw(bool bContinue, char * data_buff, u16 data_len)
 	// int_mask = shell_task_enter_critical();
 	int_mask = rtos_disable_int();
 
-	log_dev->dev_drv->write_sync(log_dev, (u8 *)data_buff, data_len);
+	emergency_uart_write_buf(CONFIG_DUMP_UART_PRINT_PORT, data_buff, data_len);
 
 	if( bContinue )
 	{
