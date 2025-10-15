@@ -291,6 +291,14 @@ static void saradc_chan_deinit_gpio_handler(u32 handle, saradc_cmd_t *cmd_buff)
 		TRACE_I(TAG, "0x%x, deinit adc chan gpio%d: %d, %d.\r\n", handle, cmd_buff->config.chan, cmd_buff->ret_status, ret_val);
 }
 
+static void saradc_set_chan_handler(u32 handle, saradc_cmd_t *cmd_buff)
+{
+	cmd_buff->ret_status = bk_adc_set_channel(cmd_buff->config.chan);
+	int ret_val = mb_ipc_send(handle, SARADC_CMD_SET_CHANNEL, (u8 *)cmd_buff, sizeof(saradc_cmd_t), SARADC_SVR_WAIT_TIME);
+	if(ret_val != 0)
+		TRACE_I(TAG, "0x%x, deinit adc chan gpio%d: %d, %d.\r\n", handle, cmd_buff->config.chan, cmd_buff->ret_status, ret_val);
+}
+
 static void saradc_cmd_handler(u32 handle, u8 connect_id)
 {
 	saradc_cmd_t cmd_buff;
@@ -383,6 +391,10 @@ static void saradc_cmd_handler(u32 handle, u8 connect_id)
 
 		case SARADC_CMD_DEINIT_GPIO:
 			saradc_chan_deinit_gpio_handler(handle, &cmd_buff);
+			break;
+
+		case SARADC_CMD_SET_CHANNEL:
+			saradc_set_chan_handler(handle, &cmd_buff);
 			break;
 
 		default:

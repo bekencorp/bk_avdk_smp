@@ -1194,6 +1194,7 @@ set_channel_exit:
 	return ret_val;
 }
 
+#if 0// not supported
 bk_err_t bk_adc_set_mode(adc_mode_t adc_mode)
 {
 	int ret_val = BK_FAIL;
@@ -1779,6 +1780,7 @@ register_isr_exit:
 
 	return ret_val;
 }
+#endif
 
 UINT16 bk_adc_data_calculate(UINT16 adc_val, UINT8 adc_chan)
 {
