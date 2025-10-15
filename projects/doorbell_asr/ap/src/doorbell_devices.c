@@ -388,10 +388,10 @@ void doorbell_audio_set_asr_cust_params(asr_cfg_t * asr_cfg, app_aud_service_typ
 
 		if (asr_cfg->mic_type == MIC_TYPE_ONBOARD)
 		{
-			if (cust_aud_para && cust_aud_para->sys_mic_config.app_sys_mic_en)
+			if (cust_aud_para && cust_aud_para->sys_config.app_sys_en)
 			{
-				asr_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.ana_gain = cust_aud_para->sys_mic_config.mic0_analog_gain;
-				asr_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.dig_gain = cust_aud_para->sys_mic_config.mic0_digital_gain;
+				asr_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.ana_gain = cust_aud_para->sys_config.mic0_analog_gain;
+				asr_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.dig_gain = cust_aud_para->sys_config.mic0_digital_gain;
 			}
 		}
 	}
@@ -528,11 +528,8 @@ int doorbell_asr_turn_on(void)
 		}
 	}
 
-	{
-		bk_app_aud_get_service_handle((void *)db_device_info->asr_handle, AUD_SERVICE_ASR);
-		set_app_aud_cust_service_handle((void *)db_device_info->asr_handle, AUD_SERVICE_ASR);
-	}
-
+	bk_app_aud_get_service_handle((void *)db_device_info->asr_handle, AUD_SERVICE_ASR);
+	set_app_aud_cust_service_handle((void *)db_device_info->asr_handle, AUD_SERVICE_ASR);
 
 	if (asr_cfg.asr_en == true)
 	{
@@ -1097,18 +1094,18 @@ void doorbell_audio_set_voc_cust_params(voice_cfg_t * voice_cfg, app_aud_service
 
 		if (voice_cfg->mic_type == MIC_TYPE_ONBOARD)
 		{
-			if (cust_aud_para && cust_aud_para->sys_mic_config.app_sys_mic_en)
+			if (cust_aud_para && cust_aud_para->sys_config.app_sys_en)
 			{
-				voice_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.ana_gain = cust_aud_para->sys_mic_config.mic0_analog_gain;
-				voice_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.dig_gain = cust_aud_para->sys_mic_config.mic0_digital_gain;
+				voice_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.ana_gain = cust_aud_para->sys_config.mic0_analog_gain;
+				voice_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.dig_gain = cust_aud_para->sys_config.mic0_digital_gain;
 			}
 		}
 		if (voice_cfg->spk_type == SPK_TYPE_ONBOARD)
 		{
-			if (cust_aud_para && cust_aud_para->sys_spk_config.app_sys_spk_en)
+			if (cust_aud_para && cust_aud_para->sys_config.app_sys_en)
 			{
-				voice_cfg->spk_cfg.onboard_spk_cfg.ana_gain = cust_aud_para->sys_spk_config.speaker_chan0_analog_gain;
-				voice_cfg->spk_cfg.onboard_spk_cfg.dig_gain = cust_aud_para->sys_spk_config.speaker_chan0_digital_gain;
+				voice_cfg->spk_cfg.onboard_spk_cfg.ana_gain = cust_aud_para->sys_config.speaker_chan0_analog_gain;
+				voice_cfg->spk_cfg.onboard_spk_cfg.dig_gain = cust_aud_para->sys_config.speaker_chan0_digital_gain;
 			}
 		}
 		if (voice_cfg->aec_en)
@@ -1326,8 +1323,8 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
 	}
 #endif
 
-	doorbell_audio_set_voc_cust_params(voice_cfg, AUD_SERVICE_DOORBELL_VOC);
-	bk_aud_debug_set_service_type(AUD_SERVICE_DOORBELL_VOC);
+    doorbell_audio_set_voc_cust_params(voice_cfg, AUD_SERVICE_DOORBELL_VOC);
+    bk_aud_debug_set_service_type(AUD_SERVICE_DOORBELL_VOC);
 
     //voice_cfg->event_handle = doorbell_audio_event_handle; /* close audio event, because sram is not enough */
     voice_cfg->event_handle = NULL;
@@ -1384,10 +1381,8 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
 	}
 #endif
 
-	{
-		bk_app_aud_get_service_handle((void *)db_device_info->voice_handle, AUD_SERVICE_DOORBELL_VOC);
-		set_app_aud_cust_service_handle((void *)db_device_info->voice_handle, AUD_SERVICE_DOORBELL_VOC);
-	}
+    bk_app_aud_get_service_handle((void *)db_device_info->voice_handle, AUD_SERVICE_DOORBELL_VOC);
+    set_app_aud_cust_service_handle((void *)db_device_info->voice_handle, AUD_SERVICE_DOORBELL_VOC);
 
     voice_read_cfg_t voice_read_cfg = VOICE_READ_CFG_DEFAULT();
     voice_read_cfg.voice_handle = db_device_info->voice_handle;
@@ -1563,7 +1558,6 @@ void doorbell_audio_data_callback(uint8_t *data, uint32_t length)
         }
     }
 }
-
 #endif
 
 

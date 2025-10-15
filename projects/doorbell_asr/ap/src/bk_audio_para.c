@@ -40,7 +40,7 @@
 
 #define CUST_EQ_PARA_DL_VOICE()                                                 \
 {                                                                               \
-    .app_eq_en = 1,                                                             \
+    .app_eq_en = 0,                                                             \
     .eq_en = 1,                                                                 \
     .filters = 2,                                                               \
     .globle_gain = (uint32_t)(1.12f * (1 << FILTER_PREGAIN_FRA_BITS)),          \
@@ -70,7 +70,7 @@
 
 #define CUST_EQ_PARA_UL_VOICE()                                                 \
 {                                                                               \
-    .app_eq_en = 1,                                                             \
+    .app_eq_en = 0,                                                             \
     .eq_en = 1,                                                                 \
     .filters = 2,                                                               \
     .globle_gain = (uint32_t)(1.12f * (1 << FILTER_PREGAIN_FRA_BITS)),          \
@@ -100,7 +100,7 @@
 
 #define CUST_AEC_V3_CONFIG_VOICE()                                       \
 {                                                                        \
-    .app_aec_en = 1,                                                     \
+    .app_aec_en = 0,                                                     \
     .aec_enable = 1,                                                     \
     .init_flags = 0x1f,                                                  \
     .ec_filter = 0x7,                                                    \
@@ -124,44 +124,21 @@
 
 #define CUST_SYS_CONFIG_VOICE()                                          \
 {                                                                        \
-    .app_sys_en = 1,                                                     \
-    .mic0_digital_gain=0x26,                                             \
-    .mic0_analog_gain=0xA,                                               \
+    .app_sys_en = 0,                                                     \
+    .mic0_digital_gain=0x28,                                             \
+    .mic0_analog_gain=0x8,                                               \
     .mic1_analog_gain=0x0,                                               \
-    .speaker_chan0_digital_gain = 0x20,                                  \
-    .speaker_chan0_analog_gain = 0xA,                                    \
+    .speaker_chan0_digital_gain = 0x2d,                                  \
+    .speaker_chan0_analog_gain = 0x7,                                    \
     .main_mic_select = 0,                                                \
     .dmic_enable = 0,                                                    \
     .mic_mode = AUD_ADC_MODE_DIFFEN,                                     \
     .spk_mode = AUD_DAC_WORK_MODE_DIFFEN,                                \
     .mic_vbias = 0,                                                      \
-}
-
-#define CUST_SYS_MIC_CONFIG_VOICE()                                      \
-{                                                                        \
-    .app_sys_mic_en = 1,                                                 \
-    .mic0_digital_gain=0x26,                                             \
-    .mic0_analog_gain=0xA,                                               \
-    .mic1_analog_gain=0x0,                                               \
-    .main_mic_select = 0,                                                \
-    .dmic_enable = 0,                                                    \
-    .mic_mode = AUD_ADC_MODE_DIFFEN,                                     \
-    .mic_vbias = 0,                                                      \
-}
-
-#define CUST_SYS_SPK_CONFIG_VOICE()                                      \
-{                                                                        \
-    .app_sys_spk_en = 1,                                                 \
-    .speaker_chan0_digital_gain = 0x20,                                  \
-    .speaker_chan0_analog_gain = 0xA,                                    \
-    .spk_mode = AUD_DAC_WORK_MODE_DIFFEN,                                \
 }
 
 app_aud_para_t app_aud_cust_voice_para = {
 	.sys_config     = CUST_SYS_CONFIG_VOICE(),
-	.sys_mic_config = CUST_SYS_MIC_CONFIG_VOICE(),
-	.sys_spk_config = CUST_SYS_SPK_CONFIG_VOICE(),
-//	.eq_dl_config   = CUST_EQ_PARA_DL_VOICE(),
 	.aec_v3_config  = CUST_AEC_V3_CONFIG_VOICE(),
 };
 #endif
@@ -169,12 +146,12 @@ app_aud_para_t app_aud_cust_voice_para = {
 #if CONFIG_ASR_SERVICE
 #define CUST_SYS_CONFIG_ASR()                                            \
 {                                                                        \
-    .app_sys_en = 1,                                                     \
-    .mic0_digital_gain=0x27,                                             \
-    .mic0_analog_gain=0xA,                                               \
+    .app_sys_en = 0,                                                     \
+    .mic0_digital_gain=0x28,                                             \
+    .mic0_analog_gain=0x8,                                               \
     .mic1_analog_gain=0x0,                                               \
-    .speaker_chan0_digital_gain = 0x20,                                  \
-    .speaker_chan0_analog_gain = 0xA,                                    \
+    .speaker_chan0_digital_gain = 0x2d,                                  \
+    .speaker_chan0_analog_gain = 0x7,                                    \
     .main_mic_select = 0,                                                \
     .dmic_enable = 0,                                                    \
     .mic_mode = AUD_ADC_MODE_DIFFEN,                                     \
@@ -182,21 +159,8 @@ app_aud_para_t app_aud_cust_voice_para = {
     .mic_vbias = 0,                                                      \
 }
 
-#define CUST_SYS_MIC_CONFIG_ASR()                                        \
-{                                                                        \
-    .app_sys_mic_en = 1,                                                 \
-    .mic0_digital_gain=0x27,                                             \
-    .mic0_analog_gain=0xA,                                               \
-    .mic1_analog_gain=0x0,                                               \
-    .main_mic_select = 0,                                                \
-    .dmic_enable = 0,                                                    \
-    .mic_mode = AUD_ADC_MODE_DIFFEN,                                     \
-    .mic_vbias = 0,                                                      \
-}
-
 app_aud_para_t app_aud_cust_asr_para = {
 	.sys_config      = CUST_SYS_CONFIG_ASR(),
-	.sys_mic_config  = CUST_SYS_MIC_CONFIG_ASR(),
 };
 
 #endif
