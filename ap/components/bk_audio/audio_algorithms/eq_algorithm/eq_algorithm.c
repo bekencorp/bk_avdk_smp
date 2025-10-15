@@ -97,6 +97,7 @@ typedef struct eq_algorithm
 {
     eq_cfg_t      eq_cfg;
     eq_handle_t   eq_handle;
+    app_eq_load_t eq_load;
 } eq_algorithm_t;
 
 
@@ -284,10 +285,14 @@ audio_element_handle_t eq_algorithm_init(eq_algorithm_cfg_t *config)
     cfg.tag = "eq_algorithm";
     el = audio_element_init(&cfg);
     AUDIO_MEM_CHECK(TAG, el, goto _eq_algorithm_init_exit);
-    eq_alg->eq_cfg.chl_num = config->eq_chl_num;
-    eq_alg->eq_cfg.eq_gain = config->eq_cal_para.globle_gain;
+
+    /* config */
+    eq_alg->eq_cfg.chl_num      = config->eq_chl_num;
+    eq_alg->eq_cfg.eq_gain      = config->eq_cal_para.globle_gain;
     eq_alg->eq_cfg.eq_valid_num = config->eq_cal_para.filters;
-    os_memcpy(&eq_alg->eq_cfg.eq_para ,&config->eq_cal_para.eq_para,sizeof(eq_para_t)*config->eq_cal_para.filters);    
+    os_memcpy(&eq_alg->eq_cfg.eq_para ,&config->eq_cal_para.eq_para,sizeof(eq_para_t)*config->eq_cal_para.filters);
+    os_memcpy(&eq_alg->eq_load, &config->eq_cal_para.eq_load, sizeof(app_eq_load_t));
+
     audio_element_setdata(el, eq_alg);
 
     EQ_DATA_DUMP_OPEN();
@@ -298,3 +303,32 @@ _eq_algorithm_init_exit:
     return NULL;
 }
 
+bk_err_t eq_algorithm_set_config(audio_element_handle_t eq_algorithm, void * eq_config)
+{
+    eq_algorithm_t *eq = (eq_algorithm_t *)audio_element_getdata(eq_algorithm);
+    app_aud_eq_config_t *eq_cfg = (app_aud_eq_config_t *)eq_config;
+
+    eq->eq_cfg.eq_gain      = eq_cfg->globle_gain;
+    eq->eq_cfg.eq_valid_num = eq_cfg->filters;
+    os_memcpy(&eq->eq_cfg.eq_para, &eq_cfg->eq_para, sizeof(eq_para_t)*eq_cfg->filters);
+
+    os_memcpy(&eq->eq_load, &eq_cfg->eq_load, sizeof(app_eq_load_t));
+
+    eq_destroy(eq->eq_handle);
+    eq->eq_handle = eq_create(&eq->eq_cfg);
+    if (!eq->eq_handle)
+    {
+        BK_LOGE(TAG, "%s, %d, eq element create fail\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    audio_element_setdata(eq_algorithm, eq);
+    return BK_OK;
+}
+
+bk_err_t eq_algorithm_get_config(audio_element_handle_t eq_algorithm, void * eq_load)
+{
+    eq_algorithm_t *eq = (eq_algorithm_t *)audio_element_getdata(eq_algorithm);
+    os_memcpy(eq_load, &eq->eq_load, sizeof(app_eq_load_t));
+    return BK_OK;
+}

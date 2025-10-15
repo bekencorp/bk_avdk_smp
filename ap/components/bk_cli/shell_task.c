@@ -1242,6 +1242,15 @@ static void rx_ind_process(void)
 						cmd_line_buf.bkreg_state = BKREG_WAIT_E0;
 				}
 
+				if((rx_temp_buff[i] > 0x7f))
+				{
+					cmd_line_buf.cur_cmd_type = CMD_TYPE_HEX;
+
+					cmd_line_buf.cmd_data_len = 0;
+					cmd_line_buf.cmd_buff[cmd_line_buf.cmd_data_len] = rx_temp_buff[i];
+					cmd_line_buf.cmd_data_len++;
+					continue;
+				}
 			}
 
 			if(cmd_line_buf.cur_cmd_type == CMD_TYPE_TEXT)
@@ -1334,12 +1343,26 @@ static void rx_ind_process(void)
 					break;
 				}
 			}
+
+			/* patch for AUD debug tool. */
+			if (cmd_line_buf.cur_cmd_type == CMD_TYPE_HEX)
+			{
+				if(cmd_line_buf.cmd_data_len < sizeof(cmd_line_buf.cmd_buff))
+				{
+					cmd_line_buf.cmd_buff[cmd_line_buf.cmd_data_len] = rx_temp_buff[i];
+					cmd_line_buf.cmd_data_len++;
+					if (cmd_line_buf.cmd_data_len == read_cnt) {
+						cmd_rx_done = bTRUE;
+						break;
+					}
+				}
+			}
 		}
 
 		if( cmd_rx_done )
 		{
 			/* patch for BK_REG tool. */
-			if(cmd_line_buf.cur_cmd_type == CMD_TYPE_BKREG)
+			if(cmd_line_buf.cur_cmd_type == CMD_TYPE_BKREG  || cmd_line_buf.cur_cmd_type == CMD_TYPE_HEX)
 			{
 				break;  // cann't echo anything.
 			}
@@ -1477,6 +1500,12 @@ static void rx_ind_process(void)
 				bkreg_run_command((const char *)&cmd_line_buf.cmd_buff[0], (int)cmd_line_buf.cmd_data_len);
 #endif // CONFIG_BKREG
 			}
+		}
+
+		if (cmd_line_buf.cur_cmd_type == CMD_TYPE_HEX)
+		{
+			extern void app_dbg_audparam(uint8_t * params, int len);
+			app_dbg_audparam((uint8_t *)&cmd_line_buf.cmd_buff[0], (int)cmd_line_buf.cmd_data_len);
 		}
 
 		cmd_line_buf.cur_cmd_type = CMD_TYPE_INVALID;  /* reset cmd line to interpret new cmd. */

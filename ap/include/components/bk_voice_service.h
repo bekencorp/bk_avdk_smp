@@ -122,6 +122,80 @@ int bk_voice_abort_write_spk_data(voice_handle_t voice_handle);
 
 void bk_voice_cal_vad_buf_size(voice_cfg_t *cfg, voice_handle_t voice_handle);
 
+/**
+ * @brief      Get the microphone stream handle.
+ *
+ * @param[in]      voice_handle  The voice call handle.
+ * @param[out]     mic_str       The pointer to store the microphone stream handle.
+ *
+ * @return         Error code.
+ *                 - 0: Success.
+ *                 - Non-zero: Failed.
+ */
+bk_err_t bk_voice_get_micstr(voice_handle_t voice_handle, audio_element_handle_t *mic_str);
+
+/**
+ * @brief      Get the microphone type.
+ *
+ * @param[in]      voice_handle  The voice call handle.
+ * @param[out]     mic_type      The pointer to store the microphone type.
+ *
+ * @return         Error code.
+ *                 - 0: Success.
+ *                 - Non-zero: Failed.
+ */
+bk_err_t bk_voice_get_micstr_type(voice_handle_t voice_handle, mic_type_t *mic_type);
+
+/**
+ * @brief      Get the speaker stream handle.
+ *
+ * @param[in]      voice_handle  The voice call handle.
+ * @param[out]     spk_str       The pointer to store the speaker stream handle.
+ *
+ * @return         Error code.
+ *                 - 0: Success.
+ *                 - Non-zero: Failed.
+ */
+bk_err_t bk_voice_get_spkstr(voice_handle_t voice_handle, audio_element_handle_t *spk_str);
+
+/**
+ * @brief      Get the speaker type.
+ *
+ * @param[in]      voice_handle  The voice call handle.
+ * @param[out]     spk_type      The pointer to store the speaker type.
+ *
+ * @return         Error code.
+ *                 - 0: Success.
+ *                 - Non-zero: Failed.
+ */
+bk_err_t bk_voice_get_spkstr_type(voice_handle_t voice_handle, spk_type_t *spk_type);
+
+/**
+ * @brief      Get the AEC algorithm element handle.
+ *
+ * @param[in]      voice_handle  The voice call handle.
+ * @param[out]     aec_alg       The pointer to store the AEC algorithm element handle.
+ *
+ * @return         Error code.
+ *                 - 0: Success.
+ *                 - Non-zero: Failed.
+ */
+bk_err_t bk_voice_get_aec_alg(voice_handle_t voice_handle, audio_element_handle_t *aec_alg);
+
+#if CONFIG_VOICE_SERVICE_EQ
+/**
+ * @brief      Get the EQ algorithm element handle.
+ *
+ * @param[in]      voice_handle  The voice call handle.
+ * @param[out]     eq_alg        The pointer to store the EQ algorithm element handle.
+ *
+ * @return         Error code.
+ *                 - 0: Success.
+ *                 - Non-zero: Failed.
+ */
+bk_err_t bk_voice_get_eq_alg(voice_handle_t voice_handle, audio_element_handle_t *eq_alg);
+#endif
+
 #ifdef  __cplusplus
 }
 #endif//__cplusplus

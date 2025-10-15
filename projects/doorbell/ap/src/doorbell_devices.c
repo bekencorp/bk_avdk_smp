@@ -20,6 +20,7 @@
 #include "doorbell_cmd.h"
 #include "doorbell_devices.h"
 #include "doorbell_cs2_service.h"
+#include "bk_audio_para.h"
 
 #include "wifi_transfer.h"
 #include "media_app.h"
@@ -717,6 +718,9 @@ int doorbell_audio_turn_off(void)
     db_device_info->voice_write_handle = NULL;
     db_device_info->voice_handle  = NULL;
 
+    bk_app_aud_set_service_off(AUD_SERVICE_DOORBELL_VOC);
+    bk_aud_debug_set_service_type(AUD_SERVICE_MAX);
+
     LOGD("%s out\n", __func__);
     return BK_OK;
 }
@@ -743,6 +747,68 @@ bk_err_t doorbell_audio_event_handle(vioce_evt_t event, void *param, void *args)
 
     return BK_OK;
 }
+
+void doorbell_audio_set_voc_cust_params(voice_cfg_t * voice_cfg, app_aud_service_type_t service_type)
+{
+	app_aud_para_t * cust_aud_para = NULL;
+	{
+		cust_aud_para = get_app_aud_cust_para(AUD_SERVICE_DOORBELL_VOC);
+		if (cust_aud_para == NULL)
+		{
+			LOGE("get_app_aud_cust_para fail\n");
+		} else 
+		{
+			bk_aud_debug_get_audpara(cust_aud_para, AUD_SERVICE_DOORBELL_VOC);
+		}
+
+#if CONFIG_VOICE_SERVICE_EQ
+		if (voice_cfg->eq_en)
+		{
+			if (cust_aud_para && cust_aud_para->eq_dl_config.app_eq_en)
+			{
+				if (1)//(spk_sample_rate == cust_aud_para->eq_dl_config.eq_load.samplerate)
+				{
+					voice_cfg->eq_en = cust_aud_para->eq_dl_config.eq_en;
+				} else
+				{
+					voice_cfg->eq_en = 0;
+					LOGE("voice dl eq init fail, spk_sample_rate not match\n");
+				}
+			}
+		}
+#endif
+
+		if (voice_cfg->mic_type == MIC_TYPE_ONBOARD)
+		{
+			if (cust_aud_para && cust_aud_para->sys_mic_config.app_sys_mic_en)
+			{
+				voice_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.ana_gain = cust_aud_para->sys_mic_config.mic0_analog_gain;
+				voice_cfg->mic_cfg.onboard_mic_cfg.adc_cfg.dig_gain = cust_aud_para->sys_mic_config.mic0_digital_gain;
+			}
+		}
+		if (voice_cfg->spk_type == SPK_TYPE_ONBOARD)
+		{
+			if (cust_aud_para && cust_aud_para->sys_spk_config.app_sys_spk_en)
+			{
+				voice_cfg->spk_cfg.onboard_spk_cfg.ana_gain = cust_aud_para->sys_spk_config.speaker_chan0_analog_gain;
+				voice_cfg->spk_cfg.onboard_spk_cfg.dig_gain = cust_aud_para->sys_spk_config.speaker_chan0_digital_gain;
+			}
+		}
+		if (voice_cfg->aec_en)
+		{
+			if (cust_aud_para && cust_aud_para->aec_v3_config.app_aec_en)
+			{
+				voice_cfg->aec_en = cust_aud_para->aec_v3_config.aec_enable;
+				voice_cfg->aec_cfg.aec_alg_cfg.aec_cfg.delay_points = cust_aud_para->aec_v3_config.mic_delay;
+				voice_cfg->aec_cfg.aec_alg_cfg.aec_cfg.ec_depth 	= cust_aud_para->aec_v3_config.ec_depth;
+				voice_cfg->aec_cfg.aec_alg_cfg.aec_cfg.ref_scale	= cust_aud_para->aec_v3_config.ref_scale;
+				voice_cfg->aec_cfg.aec_alg_cfg.aec_cfg.ns_level 	= cust_aud_para->aec_v3_config.ns_level;
+				voice_cfg->aec_cfg.aec_alg_cfg.aec_cfg.ns_para		= cust_aud_para->aec_v3_config.ns_para;
+			}
+		}
+	}
+}
+
 
 int doorbell_audio_turn_on(audio_parameters_t *parameters)
 {
@@ -902,6 +968,10 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
         break;
     }
 
+
+	doorbell_audio_set_voc_cust_params(voice_cfg, AUD_SERVICE_DOORBELL_VOC);
+	bk_aud_debug_set_service_type(AUD_SERVICE_DOORBELL_VOC);
+
     //voice_cfg->event_handle = doorbell_audio_event_handle; /* close audio event, because sram is not enough */
     voice_cfg->event_handle = NULL;
     voice_cfg->args = NULL;
@@ -911,6 +981,11 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
         LOGE("voice init fail\n");
         goto error;
     }
+
+	{
+		bk_app_aud_get_service_handle((void *)db_device_info->voice_handle, AUD_SERVICE_DOORBELL_VOC);
+		set_app_aud_cust_service_handle((void *)db_device_info->voice_handle, AUD_SERVICE_DOORBELL_VOC);
+	}
 
     voice_read_cfg_t voice_read_cfg = VOICE_READ_CFG_DEFAULT();
     voice_read_cfg.voice_handle = db_device_info->voice_handle;

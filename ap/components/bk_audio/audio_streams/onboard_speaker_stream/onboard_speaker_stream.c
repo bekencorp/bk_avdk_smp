@@ -1653,6 +1653,63 @@ bk_err_t onboard_speaker_stream_dac_mute_en(audio_element_handle_t onboard_speak
     return BK_OK;
 }
 
+bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_speaker_stream, uint8_t gain)
+{
+    onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
+
+    /* check param */
+    if (gain < 0 || gain > 0x3f)
+    {
+        BK_LOGE(TAG, "gain: %d is out of range: 0x00 ~ 0x3f \n", gain);
+        return BK_FAIL;
+    }
+
+    /* check param */
+    if (onboard_spk == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, onboard_spk is not init \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    if (onboard_spk->ana_gain == gain)
+    {
+        BK_LOGD(TAG, "not need update onboard spk analog gain \n");
+        return BK_OK;
+    }
+
+	if (BK_OK == bk_aud_set_ana_dac_gain(gain))
+	{
+		onboard_spk->ana_gain = gain;
+		audio_element_setdata(onboard_speaker_stream, onboard_spk);
+	} else
+	{
+		BK_LOGE(TAG, "%s, line: %d, update spk analog gain fail \n", __func__, __LINE__);
+		return BK_FAIL;
+	}
+
+    return BK_OK;
+}
+
+bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_speaker_stream, uint8_t *gain)
+{
+    onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
+    /* check param */
+    if (gain == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, gain is NULL\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    /* check param */
+    if (onboard_spk == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, onboard_spk is not init \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    *gain = onboard_spk->ana_gain;
+    return BK_OK;
+}
+
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
 bk_err_t onboard_speaker_stream_get_input_port_info_by_port_id(audio_element_handle_t onboard_speaker_stream, uint8_t port_id, audio_port_info_t **port_info)
 {
