@@ -47,6 +47,7 @@
 #if CONFIG_PHY_MB
 #include "phy_client.h"
 #endif
+#include "bk_api_ipc.h"
 
 #if CONFIG_SECURITY
 #include "bk_security.h"
@@ -340,6 +341,7 @@ int driver_init(void) {
 #if CONFIG_MAILBOX_IPC
 	mb_ipc_init();
 #endif
+	bk_ipc_init();
 #endif
 
 	os_show_memory_config_info();
