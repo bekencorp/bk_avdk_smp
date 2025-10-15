@@ -482,9 +482,7 @@ static void dump_prologue(void)
 	shell_set_log_cpu(CPU_ID);
 #endif
 
-#if CONFIG_WDT_EN
     bk_wdt_force_feed();
-#endif //CONFIG_WDT_EN
 
     s_cpu0_int_0_31_en_value = SOC_SYS_CPU0_INT_0_31_EN_VALUE;
     s_cpu0_int_32_63_en_value = SOC_SYS_CPU0_INT_32_63_EN_VALUE;
@@ -632,9 +630,7 @@ static void rtos_dump_system(void)
     BK_DUMP_OUT("***********************************user except handler begin***********************************\r\n");
     BK_DUMP_OUT("***********************************************************************************************\r\n");
 
-#if CONFIG_WDT_EN
     bk_wdt_force_feed();
-#endif
 
     rtos_dump_plat_sys_mems();
 

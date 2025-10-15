@@ -33,6 +33,9 @@
 #include "cm_backtrace.h"
 #endif
 
+#include "arch_interrupt.h"
+
+
 #define STACK_CALLBACK_BUF_SIZE 32
 #define SOC_ITCM_CODE_SIZE      (0x4000)
 
@@ -107,7 +110,10 @@ void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom)
 #if (CONFIG_TASK_WDT)
 			bk_task_wdt_feed();
 #endif
-            bk_wdt_force_feed();
+
+            if(arch_is_enter_exception()) {
+                bk_wdt_force_feed();
+            }
 
 		}
 #endif //#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE

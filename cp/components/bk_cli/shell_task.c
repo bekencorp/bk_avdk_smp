@@ -2369,7 +2369,7 @@ static u32 shell_ipc_rx_indication(u16 cmd, log_cmd_t *log_cmd, u16 cpu_id)
 		bk_task_wdt_feed();
 		#endif
 		#if (CONFIG_INT_WDT)
-		bk_wdt_force_feed();
+		bk_wdt_feed();
 		#endif
 
 		shell_assert_raw(true, (char *)data, data_len);

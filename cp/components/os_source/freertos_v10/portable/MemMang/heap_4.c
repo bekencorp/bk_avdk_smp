@@ -770,8 +770,9 @@ static inline void show_mem_info(BlockLink_t *pxLink)
 	bk_task_wdt_feed();
 #endif
 
-	bk_wdt_force_feed();
-
+	if(arch_is_enter_exception()) {
+		bk_wdt_force_feed();
+	}
 
 #endif //CONFIG_WDT_EN
 }
