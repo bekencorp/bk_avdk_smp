@@ -1371,70 +1371,6 @@ int bk_cli_init(void)
 	cli_ble_init();
 #endif
 
-#if (CLI_CFG_AUD == 1)
-	cli_aud_init();
-#endif
-
-#if (CLI_CFG_AUD_ATE == 1)
-	cli_aud_ate_init();
-#endif
-
-#if (CLI_CFG_AUD_RSP == 1)
-	cli_aud_rsp_init();
-#endif
-
-#if (CLI_CFG_AUD_VAD == 1)
-	cli_aud_vad_init();
-#endif
-
-#if (CLI_CFG_AUD_NS == 1)
-	cli_aud_ns_init();
-#endif
-
-#if (CLI_CFG_AUD_FLAC == 1)
-	cli_aud_flac_init();
-#endif
-
-#if (CLI_CFG_AUD_CP0 == 1)
-	cli_aud_cp0_init();
-#endif
-
-#if (CLI_CFG_FFT == 1)
-	cli_fft_init();
-#endif
-
-#if (CLI_CFG_SBC == 1)
-	cli_sbc_init();
-#endif
-
-#if (CLI_CFG_I2S == 1)
-	cli_i2s_init();
-#endif
-
-#if (CLI_CFG_AEC == 1)
-	cli_aec_init();
-#endif
-
-#if (CLI_CFG_G711 == 1)
-	cli_g711_init();
-#endif
-
-#if (CLI_CFG_OPUS == 1)
-	cli_opus_init();
-#endif
-
-#if (CLI_CFG_ADPCM == 1)
-	cli_adpcm_init();
-#endif
-
-#if (CLI_CFG_MP3 == 1)
-	cli_mp3_init();
-#endif
-
-#if (CLI_CFG_AGC == 1)
-	cli_agc_init();
-#endif
-
 #if CONFIG_CS2_P2P_SERVER || CONFIG_CS2_P2P_CLIENT
 	cli_cs2_p2p_init();
 #endif
@@ -1450,17 +1386,6 @@ int bk_cli_init(void)
 
 #if (CLI_CFG_UID)
 	cli_uid_init();
-#endif
-
-
-#if (CONFIG_VOICE_SERVICE_TEST)
-    int cli_voice_init(void);
-    cli_voice_init();
-#endif
-
-#if (CONFIG_PLAYER_SERVICE_TEST)
-	extern int cli_player_init(void);
-	cli_player_init();
 #endif
 
 /*--------------BT&MultMedia cli command init end------------------*/

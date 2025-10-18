@@ -1478,24 +1478,6 @@ int bk_cli_init(void)
 	cli_ble_init();
 #endif
 
-#if (CLI_CFG_AUD == 1)
-	cli_aud_init();
-#endif
-
-#if (CLI_CFG_AUD_ATE == 1)
-	cli_aud_ate_init();
-#endif
-
-#if (CLI_CFG_SBC == 1)
-	cli_sbc_init();
-#endif
-
-#if (CLI_CFG_I2S == 1)
-	cli_i2s_init();
-#endif
-
-
-
 #if CONFIG_CS2_P2P_SERVER || CONFIG_CS2_P2P_CLIENT
 	cli_cs2_p2p_init();
 #endif
