@@ -1,0 +1,4 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+lcd_open_01,ap_cmd spi_lcd_display open,,CMDRSP:OK,5
+lcd_close_01,ap_cmd spi_lcd_display close,,CMDRSP:OK,5
+
