@@ -36,11 +36,18 @@ typedef enum {
 } dma2d_state_t;
 
 
+// DMA2D message structure
+// Config is embedded in message to prevent race condition in async operations
 typedef struct
 {
     uint32_t event;
-    uint32_t param;
-    uint32_t param2;
+    uint32_t param;  // Reserved for controller pointer
+    union {
+        dma2d_fill_config_t fill;
+        dma2d_memcpy_config_t memcpy;
+        dma2d_pfc_memcpy_config_t pfc;
+        dma2d_blend_config_t blend;
+    } config;  // Config embedded in message (used for async operations)
 } dma2d_msg_t;
 
 typedef enum
@@ -67,11 +74,14 @@ typedef struct
 typedef struct
 {
     dma2d_ctlr_context_t context;
+    // Config for sync operations (async config is in message)
     dma2d_fill_config_t fill_config;
     dma2d_memcpy_config_t memcpy_config;
     dma2d_pfc_memcpy_config_t pfc_memcpy_config;
     dma2d_blend_config_t blend_config;
     bk_dma2d_ctlr_t ops;
+    uint32_t ref_count;    // Reference count for new/delete pairing
+    uint32_t open_count;   // Open count for open/close pairing
 } private_dma2d_ctlr_t;
 
 /**

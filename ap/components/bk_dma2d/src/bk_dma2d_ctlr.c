@@ -33,9 +33,8 @@
 static SPINLOCK_SECTION volatile spinlock_t dma2d_spin_lock = SPIN_LOCK_INIT;
 #endif
 extern uint32_t  platform_is_in_interrupt_context(void);
-// Add global static variables at the top of the file to implement singleton and reference counting
+// Singleton controller instance - only one global variable needed
 static private_dma2d_ctlr_t *g_dma2d_controller = NULL;
-static uint32_t g_dma2d_ref_count = 0;
 
 
 static inline uint32_t dma2d_enter_critical()
@@ -99,10 +98,12 @@ static void dma2d_ctlr_trans_complete_isr(void *args)
             LOGD("dma2d_ctlr_trans_complete_isr: unknown operation type\n");
             break;
     }
+    
+    // Always release semaphore once per transfer (sync and async paths)
     rtos_set_semaphore(&controller->context.dma2d_sem);
 
     // clear current operation type
-    controller->context.current_operation = (dma2d_msg_type_t)0;
+    controller->context.current_operation = (dma2d_msg_type_t)0;// Debug: ISR exit marker
 }
 
 static void dma2d_ctlr_trans_error_isr(void *args)
@@ -137,7 +138,10 @@ static void dma2d_ctlr_trans_error_isr(void *args)
             LOGD("dma2d_ctlr_trans_error_isr: unknown operation type\n");
             break;
     }
+    
+    // Always release semaphore once per transfer
     rtos_set_semaphore(&controller->context.dma2d_sem);
+    
     controller->context.current_operation = (dma2d_msg_type_t)0;
 }
 
@@ -147,18 +151,56 @@ static void dma2d_ctlr_config_error(void *args)
     dma2d_ctlr_trans_error_isr(args);
 }
 
-static bk_err_t dma2d_ctlr_task_send_msg(dma2d_ctlr_context_t *context, uint8_t type, uint32_t param, uint32_t param2)
+// Common helper to execute a message (optionally wait for completion)
+static avdk_err_t dma2d_ctlr_execute_msg(private_dma2d_ctlr_t *dma2d_ctlr, dma2d_msg_t *msg, bool wait_for_completion)
+{
+    AVDK_RETURN_ON_FALSE(dma2d_ctlr && msg, AVDK_ERR_INVAL, TAG, "null args\n");
+
+    rtos_lock_mutex(&dma2d_ctlr->context.lock);
+    dma2d_ctlr->context.current_operation = (dma2d_msg_type_t)msg->event;
+
+    avdk_err_t ret = AVDK_ERR_OK;
+    switch (msg->event) {
+        case DMA2D_FILL_REQUEST:
+            dma2d_ctlr->fill_config = msg->config.fill;  // Save config for ISR callback
+            ret = dma2d_fill(&msg->config.fill.fill);
+            break;
+        case DMA2D_MEMCPY_REQUEST:
+            dma2d_ctlr->memcpy_config = msg->config.memcpy;  // Save config for ISR callback
+            bk_dma2d_memcpy_or_pixel_convert(&msg->config.memcpy.memcpy);
+            break;
+        case DMA2D_PFC_MEMCPY_REQUEST:
+            dma2d_ctlr->pfc_memcpy_config = msg->config.pfc;  // Save config for ISR callback
+            bk_dma2d_memcpy_or_pixel_convert(&msg->config.pfc.pfc);
+            break;
+        case DMA2D_BLEND_REQUEST:
+            dma2d_ctlr->blend_config = msg->config.blend;  // Save config for ISR callback
+            ret = bk_dma2d_offset_blend(&msg->config.blend.blend);
+            break;
+        default:
+            ret = AVDK_ERR_INVAL;
+            break;
+    }
+
+    if (ret == AVDK_ERR_OK) {
+        ret = bk_dma2d_start_transfer();
+    }
+
+    if (ret == AVDK_ERR_OK && wait_for_completion) {
+        ret = rtos_get_semaphore(&dma2d_ctlr->context.dma2d_sem, BEKEN_NEVER_TIMEOUT);
+    }
+
+    rtos_unlock_mutex(&dma2d_ctlr->context.lock);
+    return ret;
+}
+
+static bk_err_t dma2d_ctlr_task_send_msg(dma2d_ctlr_context_t *context, dma2d_msg_t *msg)
 {
     int ret = BK_FAIL;
-    dma2d_msg_t msg;
     uint32_t isr_context = platform_is_in_interrupt_context();
 
     if (context && context->task_running)
     {
-        msg.event = type;
-        msg.param = param;
-        msg.param2 = param2;
-
         if (!isr_context)
         {
             rtos_lock_mutex(&context->lock);
@@ -166,7 +208,7 @@ static bk_err_t dma2d_ctlr_task_send_msg(dma2d_ctlr_context_t *context, uint8_t 
 
         if (context->task_running)
         {
-            ret = rtos_push_to_queue(&context->queue, &msg, BEKEN_WAIT_FOREVER);
+            ret = rtos_push_to_queue(&context->queue, msg, BEKEN_WAIT_FOREVER);
 
             if (ret != AVDK_ERR_OK)
             {
@@ -201,28 +243,40 @@ static void dma2d_ctlr_task_entry(beken_thread_arg_t arg)
                 case DMA2D_FILL_REQUEST:
                 {
                     private_dma2d_ctlr_t *dma2d_ctlr = (private_dma2d_ctlr_t *)msg.param;
-                    dma2d_ctlr_fill_sync((bk_dma2d_ctlr_t *)&dma2d_ctlr->ops, &dma2d_ctlr->fill_config);
+                    avdk_err_t ret = dma2d_ctlr_execute_msg(dma2d_ctlr, &msg, true);
+                    if (ret != AVDK_ERR_OK) {
+                        LOGE("Async fill operation failed: %d\n", ret);
+                    }
                     break;
                 }
 
                 case DMA2D_MEMCPY_REQUEST:
                 {
                     private_dma2d_ctlr_t *dma2d_ctlr = (private_dma2d_ctlr_t *)msg.param;
-                    dma2d_ctlr_memcpy_sync((bk_dma2d_ctlr_t *)&dma2d_ctlr->ops, (dma2d_memcpy_config_t *)&dma2d_ctlr->memcpy_config);
+                    avdk_err_t ret = dma2d_ctlr_execute_msg(dma2d_ctlr, &msg, true);
+                    if (ret != AVDK_ERR_OK) {
+                        LOGE("Async memcpy operation failed: %d\n", ret);
+                    }
                     break;
                 }
 
                 case DMA2D_PFC_MEMCPY_REQUEST:
                 {
                     private_dma2d_ctlr_t *dma2d_ctlr = (private_dma2d_ctlr_t *)msg.param;
-                    dma2d_ctlr_pixel_conversion_sync((bk_dma2d_ctlr_t *)&dma2d_ctlr->ops, (dma2d_pfc_memcpy_config_t *)&dma2d_ctlr->pfc_memcpy_config);;
+                    avdk_err_t ret = dma2d_ctlr_execute_msg(dma2d_ctlr, &msg, true);
+                    if (ret != AVDK_ERR_OK) {
+                        LOGE("Async pixel conversion operation failed: %d\n", ret);
+                    }
                 }
                 break;
 
                 case DMA2D_BLEND_REQUEST:
                 {
                     private_dma2d_ctlr_t *dma2d_ctlr = (private_dma2d_ctlr_t *)msg.param;
-                    dma2d_ctlr_blend_sync((bk_dma2d_ctlr_t *)&dma2d_ctlr->ops, (dma2d_blend_config_t *)&dma2d_ctlr->blend_config);
+                    avdk_err_t ret = dma2d_ctlr_execute_msg(dma2d_ctlr, &msg, true);
+                    if (ret != AVDK_ERR_OK) {
+                        LOGE("Async blend operation failed: %d\n", ret);
+                    }
                 }
                 break;
 
@@ -272,28 +326,85 @@ static avdk_err_t dma2d_ctlr_open(bk_dma2d_ctlr_t *controller)
     private_dma2d_ctlr_t *dma2d_ctlr = __containerof(controller, private_dma2d_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(dma2d_ctlr, AVDK_ERR_INVAL, TAG, "control is NULL \n");
 
+    avdk_err_t ret = AVDK_ERR_OK;
     dma2d_ctlr_context_t *context = &dma2d_ctlr->context;
 
-    // init dma2d driver
-    avdk_err_t ret = bk_dma2d_driver_init();
-    AVDK_RETURN_ON_ERROR(ret, TAG, "dma2d driver init failed \n");
+    // enter critical section to protect open_count
+    uint32_t flags = dma2d_enter_critical();
+    
+    bool is_first_open = (dma2d_ctlr->open_count == 0);
+    dma2d_ctlr->open_count++;
+    LOGD("dma2d_ctlr_open: open_count increased to %d\n", dma2d_ctlr->open_count);
+    
+    dma2d_exit_critical(flags);
 
-    bk_dma2d_int_enable(DMA2D_CFG_ERROR | DMA2D_TRANS_ERROR | DMA2D_TRANS_COMPLETE ,1); 
-    bk_dma2d_register_int_callback_isr(DMA2D_TRANS_COMPLETE_ISR, dma2d_ctlr_trans_complete_isr, dma2d_ctlr);
-    bk_dma2d_register_int_callback_isr(DMA2D_TRANS_ERROR_ISR, dma2d_ctlr_trans_error_isr, dma2d_ctlr);
-    bk_dma2d_register_int_callback_isr(DMA2D_CFG_ERROR_ISR, dma2d_ctlr_config_error, dma2d_ctlr);
+    // only initialize hardware on first open
+    if (is_first_open) {
+        LOGI("First open, initializing DMA2D hardware\n");
+        
+        // init dma2d driver
+        ret = bk_dma2d_driver_init();
+        if (ret != AVDK_ERR_OK) {
+            LOGE("dma2d driver init failed\n");
+            goto error_rollback;
+        }
 
-    ret = rtos_init_semaphore(&context->sem, 1);
-    AVDK_RETURN_ON_ERROR(ret, TAG, "disp_sem init failed \n");
+        bk_dma2d_int_enable(DMA2D_CFG_ERROR | DMA2D_TRANS_ERROR | DMA2D_TRANS_COMPLETE ,1); 
+        bk_dma2d_register_int_callback_isr(DMA2D_TRANS_COMPLETE_ISR, dma2d_ctlr_trans_complete_isr, dma2d_ctlr);
+        bk_dma2d_register_int_callback_isr(DMA2D_TRANS_ERROR_ISR, dma2d_ctlr_trans_error_isr, dma2d_ctlr);
+        bk_dma2d_register_int_callback_isr(DMA2D_CFG_ERROR_ISR, dma2d_ctlr_config_error, dma2d_ctlr);
 
-    ret = rtos_init_semaphore(&context->dma2d_sem, 1);
-    AVDK_RETURN_ON_ERROR(ret, TAG, "disp_sem init failed \n");
+        ret = rtos_init_semaphore(&context->sem, 1);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("sem init failed\n");
+            goto error_rollback;
+        }
 
-    ret = rtos_init_mutex(&context->lock);
-    AVDK_RETURN_ON_ERROR(ret, TAG, "lock init failed \n");
+        ret = rtos_init_semaphore(&context->dma2d_sem, 1);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("dma2d_sem init failed\n");
+            rtos_deinit_semaphore(&context->sem);
+            context->sem = NULL;
+            goto error_rollback;
+        }
 
-    ret = dma2d_ctlr_task_start(context);
-    AVDK_RETURN_ON_ERROR(ret, TAG, "dma2d ctlr task init failed \n");
+        ret = rtos_init_mutex(&context->lock);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("lock init failed\n");
+            rtos_deinit_semaphore(&context->sem);
+            rtos_deinit_semaphore(&context->dma2d_sem);
+            context->sem = NULL;
+            context->dma2d_sem = NULL;
+            goto error_rollback;
+        }
+
+        ret = dma2d_ctlr_task_start(context);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("dma2d ctlr task init failed\n");
+            rtos_deinit_semaphore(&context->sem);
+            rtos_deinit_semaphore(&context->dma2d_sem);
+            rtos_deinit_mutex(&context->lock);
+            context->sem = NULL;
+            context->dma2d_sem = NULL;
+            context->lock = NULL;
+            goto error_rollback;
+        }
+        
+        LOGI("DMA2D hardware initialized successfully\n");
+    } else {
+        LOGI("DMA2D already opened, open_count=%d\n", dma2d_ctlr->open_count);
+    }
+    
+    return ret;
+
+error_rollback:
+    // rollback open_count on error
+    flags = dma2d_enter_critical();
+    if (dma2d_ctlr->open_count > 0) {
+        dma2d_ctlr->open_count--;
+        LOGE("dma2d_ctlr_open failed, rolled back open_count to %d\n", dma2d_ctlr->open_count);
+    }
+    dma2d_exit_critical(flags);
     return ret;
 }
 
@@ -308,7 +419,9 @@ static bk_err_t dma2d_ctlr_task_stop(dma2d_ctlr_context_t *context)
         return ret;
     }
 
-   ret = dma2d_ctlr_task_send_msg(context, DMA2D_EXIT, 0, 0);
+    dma2d_msg_t msg = {0};
+    msg.event = DMA2D_EXIT;
+    ret = dma2d_ctlr_task_send_msg(context, &msg);
     if (ret != AVDK_ERR_OK) {
         LOGE("%s send exit message failed: %d\n", __func__, ret);
     }
@@ -340,17 +453,22 @@ static avdk_err_t dma2d_ctlr_close(bk_dma2d_ctlr_t *controller)
     // enter critical section
     uint32_t flags = dma2d_enter_critical();
     
-    // check if it is the last user
-    bool is_last_user = (g_dma2d_ref_count == 1);
-    if (is_last_user) {
-        LOGD(TAG, "dma2d controller is last user, ref count is %d \n", g_dma2d_ref_count);
+    // decrease open_count first
+    if (dma2d_ctlr->open_count > 0) {
+        dma2d_ctlr->open_count--;
+        LOGD("dma2d_ctlr_close: open_count decreased to %d\n", dma2d_ctlr->open_count);
     }
+    
+    // check if this is the last close
+    bool is_last_close = (dma2d_ctlr->open_count == 0);
     
     // exit critical section
     dma2d_exit_critical(flags);
     
-    // only close the dma2d controller if it is the last user
-    if (is_last_user) {
+    // only close the dma2d hardware if this is the last close
+    if (is_last_close) {
+        LOGI("Last close, deinitializing DMA2D hardware\n");
+        
         dma2d_ctlr_task_stop(&dma2d_ctlr->context);
         
         // deinit dma2d driver
@@ -372,9 +490,9 @@ static avdk_err_t dma2d_ctlr_close(bk_dma2d_ctlr_t *controller)
             dma2d_ctlr->context.dma2d_sem = NULL;
         }
         
-        LOGD(TAG, "dma2d controller closed completely \n");
+        LOGI("DMA2D hardware closed completely\n");
     } else {
-        LOGD(TAG, "dma2d controller partially closed, still in use by other modules \n");
+        LOGI("DMA2D partially closed, still in use, open_count=%d\n", dma2d_ctlr->open_count);
     }
     
     return AVDK_ERR_OK;
@@ -386,14 +504,18 @@ static avdk_err_t dma2d_ctlr_close(bk_dma2d_ctlr_t *controller)
  * @param config Fill configuration
  * @return Operation result, AVDK_ERR_OK indicates success
  */
+
 static avdk_err_t dma2d_ctlr_fill_sync(bk_dma2d_ctlr_t *controller, dma2d_fill_config_t *config)
 {
     private_dma2d_ctlr_t *dma2d_ctlr = __containerof(controller, private_dma2d_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(dma2d_ctlr, AVDK_ERR_INVAL, TAG, "control is NULL \n");
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL \n");
 
-    //LOCK
+    AVDK_RETURN_ON_FALSE(dma2d_ctlr->open_count > 0, AVDK_ERR_NODEV, TAG, "DMA2D hardware not initialized, please call open() first\n");
+
+    //LOCK - must lock before setting current_operation to prevent race condition
     rtos_lock_mutex(&dma2d_ctlr->context.lock);
+    
     // set current operation type to fill operation
     dma2d_ctlr->context.current_operation = DMA2D_FILL_REQUEST;
 
@@ -414,11 +536,10 @@ static avdk_err_t dma2d_ctlr_fill_sync(bk_dma2d_ctlr_t *controller, dma2d_fill_c
         return AVDK_ERR_HWERROR;
     }
 
-    // get semaphore to wait for transfer completion
+    // Only wait for completion if this is a synchronous operation
     ret = rtos_get_semaphore(&dma2d_ctlr->context.dma2d_sem, BEKEN_NEVER_TIMEOUT);
-
     if (ret != AVDK_ERR_OK) {
-        LOGE( "dma2d sem get failed\n");
+        LOGE("dma2d sem get failed\n");
         rtos_unlock_mutex(&dma2d_ctlr->context.lock);
         return AVDK_ERR_HWERROR;
     }
@@ -433,6 +554,8 @@ static avdk_err_t dma2d_ctlr_fill(bk_dma2d_ctlr_t *controller, dma2d_fill_config
     private_dma2d_ctlr_t *dma2d_ctlr = __containerof(controller, private_dma2d_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(dma2d_ctlr, AVDK_ERR_INVAL, TAG, "control is NULL \n");
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL \n");
+    
+    AVDK_RETURN_ON_FALSE(dma2d_ctlr->open_count > 0, AVDK_ERR_NODEV, TAG, "DMA2D hardware not initialized, please call open() first\n");
 
     if (config->is_sync)
     {
@@ -440,10 +563,13 @@ static avdk_err_t dma2d_ctlr_fill(bk_dma2d_ctlr_t *controller, dma2d_fill_config
     }
     else
     {
-        dma2d_ctlr->fill_config = *config;
-        dma2d_ctlr_task_send_msg(&dma2d_ctlr->context, DMA2D_FILL_REQUEST, (uint32_t)dma2d_ctlr, 0);
+        // Embed config in message to prevent race condition
+        dma2d_msg_t msg = {0};
+        msg.event = DMA2D_FILL_REQUEST;
+        msg.param = (uint32_t)dma2d_ctlr;
+        msg.config.fill = *config;  // Config travels with message!
+        return dma2d_ctlr_task_send_msg(&dma2d_ctlr->context, &msg);
     }
-    return AVDK_ERR_OK;
 }
 
 static avdk_err_t dma2d_ctlr_memcpy_sync(bk_dma2d_ctlr_t *controller, dma2d_memcpy_config_t *config)
@@ -452,8 +578,11 @@ static avdk_err_t dma2d_ctlr_memcpy_sync(bk_dma2d_ctlr_t *controller, dma2d_memc
     AVDK_RETURN_ON_FALSE(dma2d_ctlr, AVDK_ERR_INVAL, TAG, "control is NULL \n");
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL \n");
 
-    // lock mutex to protect configuration process
+    AVDK_RETURN_ON_FALSE(dma2d_ctlr->open_count > 0, AVDK_ERR_NODEV, TAG, "DMA2D hardware not initialized, please call open() first\n");
+
+    // lock mutex to protect configuration process - must lock before setting current_operation
     rtos_lock_mutex(&dma2d_ctlr->context.lock);
+    
     // set current operation type to memcpy operation
     dma2d_ctlr->context.current_operation = DMA2D_MEMCPY_REQUEST;
 
@@ -465,15 +594,15 @@ static avdk_err_t dma2d_ctlr_memcpy_sync(bk_dma2d_ctlr_t *controller, dma2d_memc
 
     avdk_err_t ret = bk_dma2d_start_transfer();
     if (ret != AVDK_ERR_OK) {
-        LOGE( "dma2d start transfer failed\n");
+        LOGE("dma2d start transfer failed\n");
         rtos_unlock_mutex(&dma2d_ctlr->context.lock);
         return AVDK_ERR_HWERROR;
     }
 
-    // get semaphore to wait for transfer completion
+    // Only wait for completion if this is a synchronous operation
     ret = rtos_get_semaphore(&dma2d_ctlr->context.dma2d_sem, BEKEN_NEVER_TIMEOUT);
     if (ret != AVDK_ERR_OK) {
-        LOGE( "dma2d semaphore get failed: %d\n", ret);
+        LOGE("dma2d semaphore get failed: %d\n", ret);
         rtos_unlock_mutex(&dma2d_ctlr->context.lock);
         return AVDK_ERR_HWERROR;
     }
@@ -492,6 +621,8 @@ static avdk_err_t dma2d_ctlr_memcpy(bk_dma2d_ctlr_t *controller, dma2d_memcpy_co
     private_dma2d_ctlr_t *dma2d_ctlr = __containerof(controller, private_dma2d_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(dma2d_ctlr, AVDK_ERR_INVAL, TAG, "control is NULL \n");
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL \n");
+    
+    AVDK_RETURN_ON_FALSE(dma2d_ctlr->open_count > 0, AVDK_ERR_NODEV, TAG, "DMA2D hardware not initialized, please call open() first\n");
 
    if (config->is_sync)
     {
@@ -499,8 +630,12 @@ static avdk_err_t dma2d_ctlr_memcpy(bk_dma2d_ctlr_t *controller, dma2d_memcpy_co
     }
     else
     {
-        dma2d_ctlr->memcpy_config = *config;
-        return dma2d_ctlr_task_send_msg(&dma2d_ctlr->context, DMA2D_MEMCPY_REQUEST, (uint32_t)dma2d_ctlr, 0);
+        // Embed config in message
+        dma2d_msg_t msg = {0};
+        msg.event = DMA2D_MEMCPY_REQUEST;
+        msg.param = (uint32_t)dma2d_ctlr;
+        msg.config.memcpy = *config;
+        return dma2d_ctlr_task_send_msg(&dma2d_ctlr->context, &msg);
     }
 }
 
@@ -517,10 +652,13 @@ static avdk_err_t dma2d_ctlr_pixel_conversion_sync(bk_dma2d_ctlr_t *controller, 
     AVDK_RETURN_ON_FALSE(dma2d_ctlr, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
 
+    AVDK_RETURN_ON_FALSE(dma2d_ctlr->open_count > 0, AVDK_ERR_NODEV, TAG, "DMA2D hardware not initialized, please call open() first\n");
+
+    // lock mutex to protect configuration process - must lock before setting current_operation
+    rtos_lock_mutex(&dma2d_ctlr->context.lock);
+    
     // set current operation type to pixel conversion operation
     dma2d_ctlr->context.current_operation = DMA2D_PFC_MEMCPY_REQUEST;
-    // lock mutex to protect configuration process
-    rtos_lock_mutex(&dma2d_ctlr->context.lock);
 
     dma2d_ctlr->pfc_memcpy_config = *config;
     dma2d_ctlr->pfc_memcpy_config.pfc.mode = DMA2D_M2M_PFC; 
@@ -528,15 +666,15 @@ static avdk_err_t dma2d_ctlr_pixel_conversion_sync(bk_dma2d_ctlr_t *controller, 
 
     avdk_err_t ret = bk_dma2d_start_transfer();
     if (ret != AVDK_ERR_OK) {
-        LOGE( "dma2d start transfer failed\n");
+        LOGE("dma2d start transfer failed\n");
         rtos_unlock_mutex(&dma2d_ctlr->context.lock);
         return AVDK_ERR_HWERROR;
     }
 
-    // get semaphore to wait for transfer completion
+    // Only wait for completion if this is a synchronous operation
     ret = rtos_get_semaphore(&dma2d_ctlr->context.dma2d_sem, BEKEN_NEVER_TIMEOUT);
     if (ret != AVDK_ERR_OK) {
-        LOGE( "dma2d semaphore get failed: %d\n", ret);
+        LOGE("dma2d semaphore get failed: %d\n", ret);
         rtos_unlock_mutex(&dma2d_ctlr->context.lock);
         return AVDK_ERR_HWERROR;
     }
@@ -554,10 +692,9 @@ static avdk_err_t dma2d_ctlr_pixel_conversion(bk_dma2d_ctlr_t *controller, dma2d
 {
     private_dma2d_ctlr_t *dma2d_ctlr = __containerof(controller, private_dma2d_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(dma2d_ctlr, AVDK_ERR_INVAL, TAG, "control is NULL \n");
-
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL \n");
-    //AVDK_RETURN_ON_FALSE(config->pfc_memcpy, AVDK_ERR_INVAL, TAG, "pfc_memcpy is NULL");
-    //AVDK_RETURN_ON_FALSE(config->callbacks, AVDK_ERR_INVAL, TAG, "callbacks is NULL");
+    
+    AVDK_RETURN_ON_FALSE(dma2d_ctlr->open_count > 0, AVDK_ERR_NODEV, TAG, "DMA2D hardware not initialized, please call open() first\n");
 
    if (config->is_sync)
     {
@@ -565,8 +702,12 @@ static avdk_err_t dma2d_ctlr_pixel_conversion(bk_dma2d_ctlr_t *controller, dma2d
     }
     else
     {
-        dma2d_ctlr->pfc_memcpy_config = *config;
-        return dma2d_ctlr_task_send_msg(&dma2d_ctlr->context, DMA2D_PFC_MEMCPY_REQUEST,  (uint32_t)dma2d_ctlr, 0);
+        // Embed config in message
+        dma2d_msg_t msg = {0};
+        msg.event = DMA2D_PFC_MEMCPY_REQUEST;
+        msg.param = (uint32_t)dma2d_ctlr;
+        msg.config.pfc = *config;
+        return dma2d_ctlr_task_send_msg(&dma2d_ctlr->context, &msg);
     }
 }
 
@@ -574,31 +715,35 @@ static avdk_err_t dma2d_ctlr_blend_sync(bk_dma2d_ctlr_t *controller, dma2d_blend
 {
     private_dma2d_ctlr_t *dma2d_ctlr = __containerof(controller, private_dma2d_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(dma2d_ctlr, AVDK_ERR_INVAL, TAG, "control is NULL \n");
+    AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL \n");
 
+    AVDK_RETURN_ON_FALSE(dma2d_ctlr->open_count > 0, AVDK_ERR_NODEV, TAG, "DMA2D hardware not initialized, please call open() first\n");
+
+    // lock mutex to protect configuration process - must lock before setting current_operation
+    rtos_lock_mutex(&dma2d_ctlr->context.lock);
     // set current operation type to blend operation
     dma2d_ctlr->context.current_operation = DMA2D_BLEND_REQUEST;
-    // lock mutex to protect configuration process
-    rtos_lock_mutex(&dma2d_ctlr->context.lock);
+    
     dma2d_ctlr->blend_config = *config;
 
     // Execute blend operation
     avdk_err_t ret = bk_dma2d_offset_blend(&dma2d_ctlr->blend_config.blend);
     if (ret != AVDK_ERR_OK) {
-        LOGE( "dma2d blend failed \n");
+        LOGE("dma2d blend failed \n");
         rtos_unlock_mutex(&dma2d_ctlr->context.lock);
         return AVDK_ERR_HWERROR;
     }
     ret = bk_dma2d_start_transfer();
     if (ret != AVDK_ERR_OK) {
-        LOGE( "dma2d start transfer failed\n");
+        LOGE("dma2d start transfer failed\n");
         rtos_unlock_mutex(&dma2d_ctlr->context.lock);
         return AVDK_ERR_HWERROR;
     }
 
-    // get semaphore to wait for transfer completion
+    // Only wait for completion if this is a synchronous operation
     ret = rtos_get_semaphore(&dma2d_ctlr->context.dma2d_sem, BEKEN_NEVER_TIMEOUT);
     if (ret != AVDK_ERR_OK) {
-        LOGE( "dma2d semaphore get failed: %d\n", ret);
+        LOGE("dma2d semaphore get failed: %d\n", ret);
         rtos_unlock_mutex(&dma2d_ctlr->context.lock);
         return AVDK_ERR_HWERROR;
     }
@@ -615,16 +760,22 @@ static avdk_err_t dma2d_ctlr_blend(bk_dma2d_ctlr_t *controller, dma2d_blend_conf
 {
     private_dma2d_ctlr_t *dma2d_ctlr = __containerof(controller, private_dma2d_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(dma2d_ctlr, AVDK_ERR_INVAL, TAG, "control is NULL \n");
-    //AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
-    //AVDK_RETURN_ON_FALSE(config->blend, AVDK_ERR_INVAL, TAG, "blend is NULL");
+    AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL \n");
+    
+    AVDK_RETURN_ON_FALSE(dma2d_ctlr->open_count > 0, AVDK_ERR_NODEV, TAG, "DMA2D hardware not initialized, please call open() first\n");
+    
     if (config->is_sync)
     {
         return dma2d_ctlr_blend_sync(controller, config);
     }
     else
     {
-        dma2d_ctlr->blend_config = *config;
-        return dma2d_ctlr_task_send_msg(&dma2d_ctlr->context, DMA2D_BLEND_REQUEST,  (uint32_t)dma2d_ctlr, 0);
+        // Embed config in message
+        dma2d_msg_t msg = {0};
+        msg.event = DMA2D_BLEND_REQUEST;
+        msg.param = (uint32_t)dma2d_ctlr;
+        msg.config.blend = *config;
+        return dma2d_ctlr_task_send_msg(&dma2d_ctlr->context, &msg);
     }
 }
 
@@ -642,21 +793,24 @@ static avdk_err_t dma2d_ctlr_delete(bk_dma2d_ctlr_t *controller)
     // make sure the controller is the singleton instance
     if (controller != &(g_dma2d_controller->ops)) {
         dma2d_exit_critical(flags);
+        LOGE("Invalid controller handle\n");
         return AVDK_ERR_INVAL;
     }
 
     // decrease reference count
-    if (g_dma2d_ref_count > 0) {
-        g_dma2d_ref_count--;
-        LOGD(TAG, "dma2d controller ref count decreased to %d \n", g_dma2d_ref_count);
+    if (g_dma2d_controller->ref_count > 0) {
+        g_dma2d_controller->ref_count--;
+        LOGD("dma2d controller ref_count decreased to %d\n", g_dma2d_controller->ref_count);
     }
 
     // only release memory when reference count is 0
-    if (g_dma2d_ref_count == 0) {
+    if (g_dma2d_controller->ref_count == 0) {
         // release memory
         os_free(g_dma2d_controller);
         g_dma2d_controller = NULL;
-        LOGD(TAG, "delete dma2d controller success \n");
+        LOGI("dma2d controller deleted, memory released\n");
+    } else {
+        LOGD("dma2d controller not deleted, still %d references\n", g_dma2d_controller->ref_count);
     }
 
     // exit critical section
@@ -720,7 +874,11 @@ avdk_err_t bk_dma2d_ctlr_new(bk_dma2d_ctlr_handle_t *handle)
     if (g_dma2d_controller == NULL) {
         // create dma2d controller
         private_dma2d_ctlr_t *controller = os_malloc(sizeof(private_dma2d_ctlr_t));
-        AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
+        if (!controller) {
+            dma2d_exit_critical(flags);
+            LOGE("Failed to allocate memory for dma2d controller\n");
+            return AVDK_ERR_NOMEM;
+        }
         os_memset(controller, 0, sizeof(private_dma2d_ctlr_t));
 
         // set operation functions
@@ -734,12 +892,12 @@ avdk_err_t bk_dma2d_ctlr_new(bk_dma2d_ctlr_handle_t *handle)
         controller->ops.close = dma2d_ctlr_close;
         
         g_dma2d_controller = controller;
-        LOGI(TAG, "create dma2d controller success \n");
+        LOGI("create dma2d controller success\n");
     }
 
     // increase reference count
-    g_dma2d_ref_count++;
-    LOGD(TAG, "dma2d controller ref count increased to %d\n", g_dma2d_ref_count);
+    g_dma2d_controller->ref_count++;
+    LOGD("dma2d controller ref_count increased to %d\n", g_dma2d_controller->ref_count);
 
     // return created controller handle
     *handle = &(g_dma2d_controller->ops);

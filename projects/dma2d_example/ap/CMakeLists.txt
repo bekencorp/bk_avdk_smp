@@ -1,4 +1,5 @@
-set(incs include  . ./dma2d/include)
+set(incs include  .  src/blend_assets  ./dma2d/include)
+
 set(srcs ap_main.c
     dma2d/src/dma2d_cli.c
     dma2d/src/dma2d_fill_test.c
@@ -7,7 +8,12 @@ set(srcs ap_main.c
     dma2d/src/dma2d_blend_test.c
     )
 
-set(priv_req  media_service multimedia bk_dma2d)
+list(APPEND srcs
+    dma2d/src/blend_assets/bk_img.c
+    dma2d/src/blend_assets/blend_dsc.c
+)
+
+set(priv_req  media_service multimedia bk_dma2d bk_draw_osd)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
 

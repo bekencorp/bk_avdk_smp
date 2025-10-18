@@ -7,8 +7,8 @@
 #include "lcd_panel_devices.h"
 #include "components/bk_display.h"
 #include "dma2d_test.h"
-
-#define TAG "dma2d_test"
+#include "driver/pwr_clk.h"
+#define TAG "dma2d_cli"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
@@ -65,10 +65,7 @@ static void cli_dma2d_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
             BK_LOG_ON_ERR(bk_gpio_enable_output(BL_PIN));
             bk_gpio_set_output_high(BL_PIN);
 
-            gpio_dev_unmap(LCD_LDO_PIN);
-            BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_LDO_PIN));
-            bk_gpio_set_output_high(LCD_LDO_PIN);
-
+            bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_PIN, GPIO_OUTPUT_STATE_HIGH);
             ret = bk_display_open(lcd_display_handle);
             AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_open failed!\n");
         }
@@ -99,37 +96,48 @@ static void cli_dma2d_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
         }
         if (lcd_display_handle != NULL)
         {
-            ret = bk_display_close(lcd_display_handle);
-            AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_close failed!\n");
-            ret = bk_display_delete(lcd_display_handle);
-            AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_delete failed!\n");
-            lcd_display_handle = NULL;
-            bk_gpio_set_output_low(LCD_LDO_PIN);
-            bk_gpio_set_output_low(BL_PIN);
+            if (dma2d_handle2 == NULL && dma2d_handle1 == NULL)
+            {
+                ret = bk_display_close(lcd_display_handle);
+                AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_close failed!\n");
+                ret = bk_display_delete(lcd_display_handle);
+                AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_delete failed!\n");
+                lcd_display_handle = NULL;
+                bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_PIN, GPIO_OUTPUT_STATE_LOW);
+                bk_gpio_set_output_low(BL_PIN);
+            }
         }
     }
     
-     else if (os_strcmp(argv[1], "fill") == 0) {
+    else if (os_strcmp(argv[1], "fill") == 0) {
         if (argc < 10) {
             LOGE("Usage: dma2d fill <format> <color> <frame_width> <frame_height> <xpos> <ypos> <fill_width> <fill_height>\n");
             return;
         }
-        if (dma2d_handle1 != NULL) {
+        if (dma2d_handle1 != NULL)
+        {
             ret = dma2d_fill_test(dma2d_handle1, argv[2], os_strtoul(argv[3], NULL, 16),
-                                 os_strtoul(argv[4], NULL, 10), os_strtoul(argv[5], NULL, 10),
-                                 os_strtoul(argv[6], NULL, 10), os_strtoul(argv[7], NULL, 10),
-                                 os_strtoul(argv[8], NULL, 10), os_strtoul(argv[9], NULL, 10));
+                                    os_strtoul(argv[4], NULL, 10), os_strtoul(argv[5], NULL, 10),
+                                    os_strtoul(argv[6], NULL, 10), os_strtoul(argv[7], NULL, 10),
+                                    os_strtoul(argv[8], NULL, 10), os_strtoul(argv[9], NULL, 10));
             
             if (ret != AVDK_ERR_OK) {
                 LOGE("dma2d_fill_test module1 failed!\n");
             }
         }
-        if (dma2d_handle2 != NULL) {
+    }
+    else if (os_strcmp(argv[1], "fill_module2") == 0) {
+        if (argc < 10) {
+            LOGE("Usage: dma2d fill <format> <color> <frame_width> <frame_height> <xpos> <ypos> <fill_width> <fill_height>\n");
+            return;
+        }
+        if (dma2d_handle2 != NULL)
+        {
             ret = dma2d_fill_test(dma2d_handle2, argv[2], os_strtoul(argv[3], NULL, 16),
                             os_strtoul(argv[4], NULL, 10), os_strtoul(argv[5], NULL, 10),
                             os_strtoul(argv[6], NULL, 10), os_strtoul(argv[7], NULL, 10),
-                            os_strtoul(argv[8], NULL, 10), os_strtoul(argv[9], NULL, 10));
-            
+                            os_strtoul(argv[8], NULL, 10), os_strtoul(argv[9], NULL, 10));  
+        
             if (ret != AVDK_ERR_OK) {
                 LOGE("dma2d_fill_test failed!\n");
             }
@@ -153,7 +161,12 @@ static void cli_dma2d_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
                 LOGE("dma2d_memcpy_test failed!\n");
             }
         }
-
+    }
+    else if (os_strcmp(argv[1], "memcpy_module2") == 0) {
+        if (argc < 14) {
+            LOGE("Usage: dma2d memcpy <format> <color> <src_width> <src_height> <dst_width> <dst_height> <src_x> <src_y> <dst_x> <dst_y> <width> <height>\n");
+            return;
+        }   
         if  (dma2d_handle2 != NULL)
         {
             ret = dma2d_memcpy_test(dma2d_handle2, argv[2], os_strtoul(argv[3], NULL, 16),
@@ -185,6 +198,12 @@ static void cli_dma2d_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
                 LOGE("dma2d_pfc_test failed!\n");
             }
         }
+    }
+    else if (os_strcmp(argv[1], "pfc_module2") == 0) {
+        if (argc < 15) {
+            LOGE("Usage: dma2d pfc <input_format> <output_format> <color> <src_width> <src_height> <dst_width> <dst_height> <src_x> <src_y> <dst_x> <dst_y> <width> <height>\n");
+            return;
+        }
         if (dma2d_handle2 != NULL) {
             ret = dma2d_pfc_test(dma2d_handle2, argv[2], argv[3], os_strtoul(argv[4], NULL, 16),
                         os_strtoul(argv[5], NULL, 10), os_strtoul(argv[6], NULL, 10),
@@ -200,38 +219,28 @@ static void cli_dma2d_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
     }
     //dma2d blend RGB565,RGB888,RGB888,0xf800,0x07e0,32,48,32,48,32,48,0,0,0,0,0,0,32,48,FF
     else if (os_strcmp(argv[1], "blend") == 0) {
-        if (argc < 22) {
-            LOGE("Usage: dma2d blend <fg_format> <bg_format> <output_format> <bg_color> <fg_color> <bg_width> <bg_height> <fg_width> <fg_height> <dst_width> <dst_height> <bg_x> <bg_y> <fg_x> <fg_y> <dst_x> <dst_y> <width> <height> <alpha>\n");
+        if (argc < 4) {
+            LOGE("Usage: dma2d blend <fg_format> <bg_format> <output_format> <fg_color> <bg_color> <bg_width> <bg_height> <fg_width> <fg_height> <dst_width> <dst_height> <bg_x> <bg_y> <fg_x> <fg_y> <dst_x> <dst_y> <width> <height> <alpha>\n");
             return;
         }
         if (dma2d_handle1 != NULL)
         {
-            ret = dma2d_blend_test(dma2d_handle1, argv[2], argv[3], argv[4],
-                                os_strtoul(argv[5], NULL, 16), os_strtoul(argv[6], NULL, 16),
-                                os_strtoul(argv[7], NULL, 10), os_strtoul(argv[8], NULL, 10),
-                                os_strtoul(argv[9], NULL, 10), os_strtoul(argv[10], NULL, 10),
-                                os_strtoul(argv[11], NULL, 10), os_strtoul(argv[12], NULL, 10),
-                                os_strtoul(argv[13], NULL, 10), os_strtoul(argv[14], NULL, 10),
-                                os_strtoul(argv[15], NULL, 10), os_strtoul(argv[16], NULL, 10),
-                                os_strtoul(argv[17], NULL, 10), os_strtoul(argv[18], NULL, 10),
-                                os_strtoul(argv[19], NULL, 10), os_strtoul(argv[20], NULL, 10),
-                                os_strtoul(argv[21], NULL, 16));
+            ret = dma2d_blend_test(dma2d_handle1, argv[2],os_strtoul(argv[3], NULL, 16),
+                                os_strtoul(argv[4], NULL, 10), os_strtoul(argv[5], NULL, 10), os_strtoul(argv[6], NULL, 10));
             
             if (ret != AVDK_ERR_OK) {
                 LOGE("dma2d_blend_test failed!\n");
             }
         }
+    }
+    else if (os_strcmp(argv[1], "blend_module2") == 0) {
+        if (argc < 4) {
+            LOGE("Usage: dma2d blend <fg_format> <bg_format> <output_format> <fg_color> <bg_color> <bg_width> <bg_height> <fg_width> <fg_height> <dst_width> <dst_height> <bg_x> <bg_y> <fg_x> <fg_y> <dst_x> <dst_y> <width> <height> <alpha>\n");
+            return;
+        }
         if (dma2d_handle2 != NULL) {
-            ret = dma2d_blend_test(dma2d_handle2, argv[2], argv[3], argv[4],
-                                os_strtoul(argv[5], NULL, 16), os_strtoul(argv[6], NULL, 16),
-                                os_strtoul(argv[7], NULL, 10), os_strtoul(argv[8], NULL, 10),
-                                os_strtoul(argv[9], NULL, 10), os_strtoul(argv[10], NULL, 10),
-                                os_strtoul(argv[11], NULL, 10), os_strtoul(argv[12], NULL, 10),
-                                os_strtoul(argv[13], NULL, 10), os_strtoul(argv[14], NULL, 10),
-                                os_strtoul(argv[15], NULL, 10), os_strtoul(argv[16], NULL, 10),
-                                os_strtoul(argv[17], NULL, 10), os_strtoul(argv[18], NULL, 10),
-                                os_strtoul(argv[19], NULL, 10), os_strtoul(argv[20], NULL, 10),
-                                os_strtoul(argv[21], NULL, 16));
+            ret = dma2d_blend_test(dma2d_handle2, argv[2],os_strtoul(argv[3], NULL, 16),
+                                os_strtoul(argv[4], NULL, 10), os_strtoul(argv[5], NULL, 10), os_strtoul(argv[6], NULL, 10));
             
             if (ret != AVDK_ERR_OK) {
                 LOGE("dma2d_blend_test failed!\n");

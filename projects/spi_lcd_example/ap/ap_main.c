@@ -18,7 +18,7 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-
+#define LCD_LDO_PIN          (GPIO_13)
 static bk_display_ctlr_handle_t lcd_display_handle = NULL;
 static frame_buffer_t *disp_frame = NULL;
 bk_display_spi_ctlr_config_t spi_ctlr_config = {
@@ -84,7 +84,7 @@ void cli_spi_lcd_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_spi_new failed!\n");
         LOGD("bk_display_spi_new success!\n");
 
-        bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_CTRL_GPIO, GPIO_OUTPUT_STATE_HIGH);
+        bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_PIN, GPIO_OUTPUT_STATE_HIGH);
         ret = bk_display_open(lcd_display_handle);
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_open failed!\n");
         lcd_backlight_open(GPIO_7);
@@ -131,7 +131,7 @@ void cli_spi_lcd_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
             disp_frame = NULL;
         }
 
-        bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_CTRL_GPIO, GPIO_OUTPUT_STATE_LOW);
+        bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_PIN, GPIO_OUTPUT_STATE_LOW);
     } else {
         LOGE("%s, %d, not found this cmd!\n", __func__, __LINE__);
     }

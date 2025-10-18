@@ -2,7 +2,8 @@
 #include <os/str.h>
 #include <components/avdk_utils/avdk_error.h>
 #include "dma2d_test.h"
-
+#include "components/bk_dma2d.h"
+#include "frame_buffer.h"
 #define TAG "dma2d_test"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -113,7 +114,8 @@ int dma2d_memcpy_test(bk_dma2d_ctlr_handle_t handle, const char *format, uint32_
     avdk_err_t ret = AVDK_ERR_OK;
     input_color_mode_t color_format, output_color_mode;
     uint8_t pixel_byte;
-    
+    //bk_dma2d_ioctl(handle, DMA2D_IOCTL_SET_SWRESRT, 0, 0, 0); // 软件复位
+
     if (os_strcmp(format, "ARGB8888") == 0) {
         color_format = DMA2D_INPUT_ARGB8888;
         output_color_mode = DMA2D_OUTPUT_ARGB8888;

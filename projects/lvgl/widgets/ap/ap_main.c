@@ -16,7 +16,7 @@
 #include "components/bk_display.h"
 #include "driver/gpio.h"
 #include "gpio_driver.h"
-
+#include "driver/pwr_clk.h"
 #define TAG "widgets"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -25,7 +25,7 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-
+#define LCD_LDO_PIN         (GPIO_13)
 extern void user_app_main(void);
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
 extern int bk_cli_init(void);
@@ -73,7 +73,7 @@ bk_err_t lvgl_app_widgets_init(void)
     }
     bk_display_rgb_new(&lv_vnd_config.handle, &rgb_ctlr_config);
     lv_vendor_init(&lv_vnd_config);
-
+    bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_PIN, GPIO_OUTPUT_STATE_HIGH);
     bk_display_open(lv_vnd_config.handle);
     lcd_backlight_open(GPIO_7);
 

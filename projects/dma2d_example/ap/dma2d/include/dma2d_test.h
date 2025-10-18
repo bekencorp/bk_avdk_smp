@@ -3,7 +3,6 @@
 
 #include <os/os.h>
 #include "components/bk_dma2d.h"
-#include "frame_buffer.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,17 +31,10 @@ int dma2d_pfc_test(bk_dma2d_ctlr_handle_t handle, const char *input_format, cons
                   uint16_t dst_frame_xpos, uint16_t dst_frame_ypos,
                   uint16_t dma2d_width, uint16_t dma2d_height);
 
-int dma2d_blend_test(bk_dma2d_ctlr_handle_t handle, const char *fg_format, const char *bg_format,
-                    const char *output_format, uint32_t bg_color, uint32_t fg_color,
-                    uint16_t bg_width, uint16_t bg_height,
-                    uint16_t fg_width, uint16_t fg_height,
-                    uint16_t dst_width, uint16_t dst_height,
-                    uint16_t bg_frame_xpos, uint16_t bg_frame_ypos,
-                    uint16_t fg_frame_xpos, uint16_t fg_frame_ypos,
-                    uint16_t dst_frame_xpos, uint16_t dst_frame_ypos,
-                    uint16_t dma2d_width, uint16_t dma2d_height,
-                    uint8_t fg_alpha_value);
+int dma2d_blend_test(bk_dma2d_ctlr_handle_t handle, const char *bg_format, uint32_t bg_color,
+                    uint16_t bg_width, uint16_t bg_height, bool is_sync);
 
+                    
 #ifdef __cplusplus
 }
 #endif

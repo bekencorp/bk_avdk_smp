@@ -2,13 +2,15 @@
 #include <components/avdk_utils/avdk_error.h>
 #include <os/str.h>
 #include "rgb_lcd_test.h"
-
+#include "driver/pwr_clk.h"
 #define TAG "rgb_lcd_api"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+
+#define LCD_LDO_PIN          (GPIO_13)
 
 static bk_display_ctlr_handle_t lcd_display_handle = NULL;
 static const lcd_device_t *lcd_device =  &lcd_device_st7701sn;
@@ -26,8 +28,7 @@ void cli_lcd_display_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
     if (os_strcmp(argv[1], "init") == 0)
     {
         AVDK_RETURN_VOID_ON_FALSE(!lcd_display_handle, TAG, "lcd_display_handle not NULL,may not delete last time!");
-        lcd_ldo_open(GPIO_13);
-
+        bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_PIN, GPIO_OUTPUT_STATE_HIGH);
         bk_display_rgb_ctlr_config_t lcd_display_config = {0};
 
         lcd_display_config.lcd_device = lcd_device;
@@ -44,7 +45,7 @@ void cli_lcd_display_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
         ret = bk_display_delete(lcd_display_handle);
         AVDK_RETURN_VOID_ON_ERROR(ret, TAG, "bk_display_delete failed!");
         lcd_display_handle = NULL;
-        lcd_ldo_close(GPIO_13);
+        bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_PIN, GPIO_OUTPUT_STATE_LOW);
         LOGD("bk_display_delete success!");
     }
     else if (os_strcmp(argv[1], "open") == 0)

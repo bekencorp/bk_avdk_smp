@@ -4,6 +4,7 @@
 #include <os/str.h>
 #include "dma2d_test.h"
 #include "components/bk_display.h"
+#include "frame_buffer.h"
 #define TAG "dma2d_test"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)

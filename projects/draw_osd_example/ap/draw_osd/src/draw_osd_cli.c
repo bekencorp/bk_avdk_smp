@@ -10,7 +10,7 @@
 #include "draw_osd_test.h"
 #include "blend.h"
 #include "cli.h"
-
+#include "driver/pwr_clk.h"
 
 #define TAG "draw_osd"
 
@@ -70,9 +70,7 @@ void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         BK_LOG_ON_ERR(bk_gpio_enable_output(BL_PIN));
         bk_gpio_set_output_high(BL_PIN);
 
-        gpio_dev_unmap(LCD_LDO_PIN);
-        BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_LDO_PIN));
-        bk_gpio_set_output_high(LCD_LDO_PIN);
+        bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_PIN, GPIO_OUTPUT_STATE_HIGH);
 
         ret = bk_display_open(lcd_display_handle);
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_open failed!\n");
@@ -87,7 +85,7 @@ void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         ret = bk_display_delete(lcd_display_handle);
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_delete failed!\n");
         lcd_display_handle = NULL;
-        bk_gpio_set_output_low(LCD_LDO_PIN);
+        bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_LCD, LCD_LDO_PIN, GPIO_OUTPUT_STATE_LOW);
         bk_gpio_set_output_low(BL_PIN);
     }
     else if (strcmp(argv[1], "array") == 0)

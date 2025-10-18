@@ -1,8 +1,9 @@
 case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
 重启设备,AT+RST,1,wakeup,3
-dma2d_01,ap_cmd dma2d open module1,  CMDRSP:OK,5
-dma2d_02,ap_cmd dma2d fill RGB565 0xF800 320 240 0 0 320 240, CMDRSP:OK,5
-dma2d_03,ap_cmd dma2d memcpy RGB565 0xF800 320 240 320 240 0 0 0 0 320 240, CMDRSP:OK,5
-dma2d_04,ap_cmd dma2d pfc RGB565 RGB888 0xF800 320 240 320 240 0 0 0 0 320 240, CMDRSP:OK,5
-dma2d_05,ap_cmd dma2d blend RGB565 RGB565 RGB565 0x07E0 0xF800 320 240 160 120 320 240 0 0 80 60 0 0 160 120 FF
-dma2d_06,ap_cmd dma2d close module1
+dma2d_01,ap_cmd dma2d open module1,,"  CMDRSP:OK",5
+dma2d_02,ap_cmd dma2d fill RGB565 0xf800,,CMDRSP:OK,5,20,20,48,24,," CMDRSP:OK",5
+dma2d_03,ap_cmd dma2d memcpy RGB565 0xF800 320 240 320 240 0 0 0 0 320 240,," CMDRSP:OK",5
+dma2d_04,ap_cmd dma2d pfc RGB565 RGB888 0xF800 320 240 320 240 0 0 0 0 320 240,," CMDRSP:OK",5
+dma2d_05,ap_cmd dma2d blend RGB565 0x000 480 864 0,," CMDRSP:OK",5
+dma2d_06,ap_cmd dma2d blend RGB565 0x000 480 864 1,," CMDRSP:OK",5
+dma2d_06,ap_cmd dma2d close module1,," CMDRSP:OK",5
