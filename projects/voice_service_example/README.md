@@ -149,8 +149,6 @@ Use microphones and speakers for local audio self-loopback testing. The test pro
 4. Stop the voice service.
 
 ## 6. Test Examples
-### 6.1 Complete Test Flow Example
-
 1. Onboard Voice G711A 8KHz AEC Test
 
 ```

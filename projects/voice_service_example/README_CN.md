@@ -150,8 +150,6 @@ voice_service stop onboard 8000 1 g711a g711a onboard 8000 0
 4. 停止语音服务
 
 ## 6. 测试示例
-### 6.1 完整测试流程示例
-
 1. 板载语音 G711A 8KHz AEC 测试
 ```
 顺序发送下述测试命令：

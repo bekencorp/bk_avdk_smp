@@ -430,6 +430,13 @@ static bk_err_t _pipeline_rb_linked(audio_pipeline_handle_t pipeline, audio_elem
     port_item_t *port_item = NULL;
     char *out_port_tag = NULL;
 
+    /* Only one element in pipeline */
+    if (last && first)
+    {
+        BK_LOGD(TAG, "[%s] only one element in pipeline\n", __func__);
+        return BK_OK;
+    }
+
     if (last)
     {
         audio_element_set_input_port(el, port);

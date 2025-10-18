@@ -159,7 +159,7 @@ static int _array_write(audio_port_handle_t self, char *buffer, int len, TickTyp
 
 static int _array_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    ARRAY_PROCESS_END();
+    ARRAY_PROCESS_START();
 
     int r_size = audio_element_input(self, in_buffer, in_len);
     //BK_LOGD(TAG, "[%s] %s r_size: %d \n", audio_element_get_tag(self), __func__, r_size);

@@ -1095,7 +1095,7 @@ bk_err_t bk_player_set_output_port(bk_player_handle_t player_handle, audio_port_
         return BK_FAIL;
     }
 
-    if (player_handle->dec_type == AUDIO_DEC_TYPE_INVALID)
+    if (player_handle->dec_type == AUDIO_DEC_TYPE_INVALID || player_handle->dec_type == AUDIO_DEC_TYPE_PCM)
     {
         audio_element_set_output_port(player_handle->in_stream, port);
     }
