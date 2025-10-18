@@ -461,7 +461,7 @@ const lcd_device_t lcd_device_spd2010 =
 	.height = 412,
 	.qspi = &lcd_qspi_spd2010_config,
 	.init = NULL,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 
 

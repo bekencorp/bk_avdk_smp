@@ -57,7 +57,7 @@ const lcd_device_t lcd_device_st7796u =
     .height = 480,
     .spi = &lcd_spi_st7796u_config,
     .init = NULL,
-    .lcd_off = NULL,
+    .off = NULL,
 };
 
 

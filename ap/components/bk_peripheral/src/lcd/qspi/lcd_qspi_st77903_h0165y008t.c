@@ -72,6 +72,7 @@ static const lcd_qspi_init_cmd_t st77903_h0165y008t_init_cmds[] =
 
 static uint8_t st77903_h0165y008t_cmd[4] = {0xDE, 0x00, 0x60, 0x00};
 
+
 static const lcd_qspi_t lcd_qspi_st77903_h0165y008t_config =
 {
 	.clk = LCD_QSPI_48M, // MAX CLK is 50M
@@ -104,7 +105,7 @@ const lcd_device_t lcd_device_st77903_h0165y008t =
 	.height = 400,
 	.qspi = &lcd_qspi_st77903_h0165y008t_config,
 	.init = NULL,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 
 

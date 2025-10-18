@@ -74,6 +74,7 @@ static const lcd_qspi_init_cmd_t st77903_wx20114_init_cmds[] =
 
 static uint8_t st77903_wx20114_cmd[4] = {0xDE, 0x00, 0x60, 0x00};
 
+
 //st77903 screen without display ram, and need to send data continuously.
 static const lcd_qspi_t lcd_qspi_st77903_wx20114_config =
 {
@@ -107,7 +108,7 @@ const lcd_device_t lcd_device_st77903_wx20114 =
 	.height = 400,
 	.qspi = &lcd_qspi_st77903_wx20114_config,
 	.init = NULL,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 
 

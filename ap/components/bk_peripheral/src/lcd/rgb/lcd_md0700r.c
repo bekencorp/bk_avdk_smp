@@ -44,6 +44,6 @@ const lcd_device_t lcd_device_md0700r =
 	.height = 600,
 	.rgb = &lcd_rgb,
 	.init = NULL,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 

@@ -64,6 +64,6 @@ const lcd_device_t lcd_device_sh8601a =
 	.height = 454,
 	.qspi = &lcd_qspi_sh8601a_config,
 	.init = NULL,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 

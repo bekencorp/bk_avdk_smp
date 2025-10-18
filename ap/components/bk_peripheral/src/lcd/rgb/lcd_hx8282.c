@@ -47,6 +47,6 @@ const lcd_device_t lcd_device_hx8282 =
 	.rgb = &lcd_rgb,
 	.out_fmt = PIXEL_FMT_RGB565,
 	.init = NULL,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 

@@ -534,13 +534,14 @@ static void lcd_st7701s_config(void)
 #endif
 }
 
-static void lcd_st7701s_init(void)
+static bk_err_t lcd_st7701s_init(const void *handle)
 {
 #if 1
 	BK_LOGD(NULL, "lcd_st7701s: init.\r\n");
 #endif
 	lcd_spi_init_gpio();
 	lcd_st7701s_config();
+	return BK_OK;
 }
 
 const lcd_device_t lcd_device_st7701s =
@@ -552,6 +553,6 @@ const lcd_device_t lcd_device_st7701s =
 	.height = 480,
 	.rgb = &lcd_rgb,
 	.init = lcd_st7701s_init,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 

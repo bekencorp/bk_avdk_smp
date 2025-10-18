@@ -104,7 +104,7 @@ const lcd_device_t lcd_device_st77903_sat61478m =
 	.height = 480,
 	.qspi = &lcd_qspi_st77903_sat61478m_config,
 	.init = NULL,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 
 

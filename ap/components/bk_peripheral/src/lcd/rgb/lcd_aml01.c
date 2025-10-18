@@ -244,11 +244,12 @@ static void lcd_nv3052_config(void)
 
 }
 
-static void lcd_nv3052cgrb_init(void)
+static bk_err_t lcd_nv3052cgrb_init(const void *handle)
 {
 	BK_LOGD(NULL, "lcd_nv3052cgrb: init.\r\n");
 	lcd_spi_init_gpio();
 	lcd_nv3052_config();
+	return BK_OK;
 }
 
 const lcd_device_t lcd_device_aml01 =
@@ -262,6 +263,6 @@ const lcd_device_t lcd_device_aml01 =
 	.src_fmt = PIXEL_FMT_YUYV,
 	.out_fmt = PIXEL_FMT_RGB888,
 	.init = lcd_nv3052cgrb_init,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 

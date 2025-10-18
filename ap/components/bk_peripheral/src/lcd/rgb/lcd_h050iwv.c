@@ -47,6 +47,6 @@ const lcd_device_t lcd_device_h050iwv =
 	.height = 480,
 	.rgb = &lcd_rgb,
 	.init = NULL,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 

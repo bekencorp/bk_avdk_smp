@@ -867,10 +867,11 @@ static void lcd_nt35510_config(void)
 	lcd_spi_write_hf_word_cmd(0x2900);
 }
 
-static void lcd_nt35510_init(void)
+static bk_err_t lcd_nt35510_init(const void *handle)
 {
 	lcd_spi_init_gpio();
 	lcd_nt35510_config();
+	return BK_OK;
 }
 
 static bk_err_t nt35510_lcd_off(const void *handle)
@@ -893,6 +894,6 @@ const lcd_device_t lcd_device_nt35510 =
 	.height = 854,
 	.rgb = &lcd_rgb,
 	.init = lcd_nt35510_init,
-	.lcd_off = nt35510_lcd_off,
+	.off = nt35510_lcd_off,
 };
 

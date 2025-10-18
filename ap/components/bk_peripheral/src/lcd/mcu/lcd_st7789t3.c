@@ -15,13 +15,6 @@
 #include <driver/gpio.h>
 #include <components/media_types.h>
 #include <driver/lcd_types.h>
-#include "lcd_disp_hal.h"
-//#include "include/bk_lcd_commands.h"
-#include <driver/gpio.h>
-#include <driver/gpio_types.h>
-#include <gpio_map.h>
-#include "gpio_driver.h"
-
 
 //#if CONFIG_LCD_ST7789T3
 
@@ -49,9 +42,22 @@ const static uint32_t param_cmd_0xE0[] = {0xD0, 0x0D, 0x14, 0x0D, 0x0D, 0x09, 0x
 const static uint32_t param_cmd_0xE1[] = {0xD0, 0x09, 0x0F, 0x08, 0x07, 0x14, 0x37, 0x44, 0x4D, 0x38, 0x15, 0x16, 0x2C, 0x2E};
 
 
-static bk_err_t lcd_st7789t3_swap_xy(const void *handle, bool swap_axes)
 
+static bk_err_t lcd_st7789t3_swap_xy(const void *handle, bool swap_axes)
 {
+	if (handle == NULL)
+	{
+		LOGE("%s: handle is NULL", __func__);
+		return BK_ERR_NULL_PARAM;
+	}
+	
+	bk_lcd_i80_handle_t *i80_handle = (bk_lcd_i80_handle_t *)handle;
+	if (i80_handle->write_cmd == NULL)
+	{
+		LOGE("%s: write_cmd function is NULL", __func__);
+		return BK_FAIL;
+	}
+	
 	uint8_t madctl_val = 0x48;
 
 	if (swap_axes)
@@ -64,14 +70,25 @@ static bk_err_t lcd_st7789t3_swap_xy(const void *handle, bool swap_axes)
 	}
 
 	uint8_t madct[1] = {madctl_val};
-	lcd_hal_8080_cmd_send(1, 0x36, (uint32_t *)madct);  //MV=1: 36h 0x28 or 0x68 or 0xB8
-
+	i80_handle->write_cmd(0x36, (uint32_t *)madct, 1);
 	return BK_OK;
 }
 
 static bk_err_t lcd_st7789t3_mirror(const void *handle, bool mirror_x, bool mirror_y)
-
 {
+	if (handle == NULL)
+	{
+		LOGE("%s: handle is NULL", __func__);
+		return BK_ERR_NULL_PARAM;
+	}
+	
+	bk_lcd_i80_handle_t *i80_handle = (bk_lcd_i80_handle_t *)handle;
+	if (i80_handle->write_cmd == NULL)
+	{
+		LOGE("%s: write_cmd function is NULL", __func__);
+		return BK_FAIL;
+	}
+	
 	uint8_t madctl_val = 0x48;
 
 	if (mirror_x)
@@ -91,68 +108,119 @@ static bk_err_t lcd_st7789t3_mirror(const void *handle, bool mirror_x, bool mirr
 		madctl_val &= ~(1 << 7);
 	}
 	uint8_t madctl[1] = {madctl_val};
-	lcd_hal_8080_cmd_send(1, 0x36, (uint32_t *)madctl);
+	i80_handle->write_cmd(0x36, (uint32_t *)madctl, 1);
 	return BK_OK;
 }
 
 bk_err_t st7789t3_lcd_on(void)
 {
-	lcd_hal_8080_cmd_send(0, 0x29, NULL);
+	bk_lcd_i80_handle_t *i80_handle = (bk_lcd_i80_handle_t *)lcd_i80_bus_io_register(NULL);
+	if (i80_handle == NULL)
+	{
+		LOGE("%s: Failed to register I80 bus", __func__);
+		return BK_FAIL;
+	}
+	
+	if (i80_handle->write_cmd == NULL)
+	{
+		LOGE("%s: write_cmd function is NULL", __func__);
+		return BK_FAIL;
+	}
+	
+	i80_handle->write_cmd(0x29, NULL, 0);
 	return BK_OK;
 }
 
 
 static bk_err_t st7789t3_lcd_off(const void *handle)
 {
-	lcd_hal_8080_cmd_send(0, 0x28, NULL);
+	if (handle == NULL)
+	{
+		LOGE("%s: handle is NULL", __func__);
+		return BK_ERR_NULL_PARAM;
+	}
+	
+	bk_lcd_i80_handle_t *i80_handle = (bk_lcd_i80_handle_t *)handle;
+	if (i80_handle->write_cmd == NULL)
+	{
+		LOGE("%s: write_cmd function is NULL", __func__);
+		return BK_FAIL;
+	}
+	
+	i80_handle->write_cmd(0x28, NULL, 0);
 	return BK_OK;
 }
 
 
-bk_err_t st7789t3_swreset(void)
-{
-	lcd_hal_8080_cmd_send(0, 0x01, NULL);
-	rtos_delay_milliseconds(10);
-	return BK_OK;
-}
 
-
-void lcd_st7789t3_init(void)
+static bk_err_t lcd_st7789t3_init(const void *handle)
 {
 	LOGI("%s\n", __func__);
 
+	if (handle == NULL)
+	{
+		LOGE("%s: handle is NULL", __func__);
+		return BK_ERR_NULL_PARAM;
+	}
+
+	bk_lcd_i80_handle_t *i80_handle = (bk_lcd_i80_handle_t *)handle;
+	if (i80_handle->write_cmd == NULL)
+	{
+		LOGE("%s: write_cmd function is NULL", __func__);
+		return BK_FAIL;
+	}
 	//rtos_delay_milliseconds(150);
-	//lcd_hal_8080_cmd_send(0, 0x01, NULL);
+	//i80_handle->write_cmd(0x01, NULL, 0);
 	rtos_delay_milliseconds(120);
-	lcd_hal_8080_cmd_send(0, 0x11, NULL);
+	i80_handle->write_cmd(0x11, NULL, 0);
 	rtos_delay_milliseconds(120);
 
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0x36), 0x36, (uint32_t *)param_cmd_0x36);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0x3A), 0x3A, (uint32_t *)param_cmd_0x3A);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xB2), 0xB2, (uint32_t *)param_cmd_0xB2);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xB7), 0xB7, (uint32_t *)param_cmd_0xB7);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xBB_01), 0xBB, (uint32_t *)param_cmd_0xBB_01);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xC0), 0xC0, (uint32_t *)param_cmd_0xC0);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xC2), 0xC2, (uint32_t *)param_cmd_0xC2);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xC3), 0xC3, (uint32_t *)param_cmd_0xC3);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xC4), 0xC4, (uint32_t *)param_cmd_0xC4);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xC6), 0xC6, (uint32_t *)param_cmd_0xC6);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xD0), 0xD0, (uint32_t *)param_cmd_0xD0);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xD6), 0xD6, (uint32_t *)param_cmd_0xD6);
-	//lcd_hal_8080_cmd_send(COUNT(param_cmd_0xBB_02), 0xBB, (uint32_t *)param_cmd_0xBB_02);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xE0), 0xE0, (uint32_t *)param_cmd_0xE0);
-	lcd_hal_8080_cmd_send(COUNT(param_cmd_0xE1), 0xE1, (uint32_t *)param_cmd_0xE1);
+	i80_handle->write_cmd(0x36, (uint32_t *)param_cmd_0x36, COUNT(param_cmd_0x36));
+	i80_handle->write_cmd(0x3A, (uint32_t *)param_cmd_0x3A, COUNT(param_cmd_0x3A));
+	i80_handle->write_cmd(0xB2, (uint32_t *)param_cmd_0xB2, COUNT(param_cmd_0xB2));
+	i80_handle->write_cmd(0xB7, (uint32_t *)param_cmd_0xB7, COUNT(param_cmd_0xB7));
+	i80_handle->write_cmd(0xBB, (uint32_t *)param_cmd_0xBB_01, COUNT(param_cmd_0xBB_01));
+	i80_handle->write_cmd(0xC0, (uint32_t *)param_cmd_0xC0, COUNT(param_cmd_0xC0));
+	i80_handle->write_cmd(0xC2, (uint32_t *)param_cmd_0xC2, COUNT(param_cmd_0xC2));
+	i80_handle->write_cmd(0xC3, (uint32_t *)param_cmd_0xC3, COUNT(param_cmd_0xC3));
+	i80_handle->write_cmd(0xC4, (uint32_t *)param_cmd_0xC4, COUNT(param_cmd_0xC4));
+	i80_handle->write_cmd(0xC6, (uint32_t *)param_cmd_0xC6, COUNT(param_cmd_0xC6));
+	i80_handle->write_cmd(0xD0, (uint32_t *)param_cmd_0xD0, COUNT(param_cmd_0xD0));
+	i80_handle->write_cmd(0xD6, (uint32_t *)param_cmd_0xD6, COUNT(param_cmd_0xD6));
+	//i80_handle->write_cmd(0xBB, (uint32_t *)param_cmd_0xBB_02, COUNT(param_cmd_0xBB_02));
+	i80_handle->write_cmd(0xE0, (uint32_t *)param_cmd_0xE0, COUNT(param_cmd_0xE0));
+	i80_handle->write_cmd(0xE1, (uint32_t *)param_cmd_0xE1, COUNT(param_cmd_0xE1));
 
-	lcd_hal_8080_cmd_send(0, 0x21, NULL);
+	i80_handle->write_cmd(0x21, NULL, 0);
 	//rtos_delay_milliseconds(150);
-	lcd_hal_8080_cmd_send(0, 0x29, NULL);
-    
-	//lcd_hal_8080_cmd_send(0, 0x2C, NULL);
+	i80_handle->write_cmd(0x29, NULL, 0);
+
+	return BK_OK;
 }
 
 
 static void lcd_st7789t3_set_display_mem_area(const void *handle, uint16 xs, uint16 xe, uint16 ys, uint16 ye)
 {
+	if (handle == NULL)
+	{
+		LOGE("%s: handle is NULL", __func__);
+		return;
+	}
+	
+	bk_lcd_i80_handle_t *i80_handle = (bk_lcd_i80_handle_t *)handle;
+	if (i80_handle->write_cmd == NULL)
+	{
+		LOGE("%s: write_cmd function is NULL", __func__);
+		return;
+	}
+
+	// Parameter validation
+	if (xs > xe || ys > ye)
+	{
+		LOGE("%s: invalid coordinates: xs=%d, xe=%d, ys=%d, ye=%d", __func__, xs, xe, ys, ye);
+		return;
+	}
+
 	uint16 xs_l, xs_h, xe_l, xe_h;
 	uint16 ys_l, ys_h, ye_l, ye_h;
 
@@ -171,20 +239,46 @@ static void lcd_st7789t3_set_display_mem_area(const void *handle, uint16 xs, uin
 	uint32_t param_clumn[4] = {xs_h, xs_l, xe_h, xe_l};
 	uint32_t param_row[4] = {ys_h, ys_l, ye_h, ye_l};
 
-	lcd_hal_8080_cmd_send(4, 0x2a, param_clumn);
-	lcd_hal_8080_cmd_send(4, 0x2b, param_row);
+	i80_handle->write_cmd(0x2a, param_clumn, 4);
+	i80_handle->write_cmd(0x2b, param_row, 4);
 }
 
 
 static void lcd_st7789t3_start_transfer(const void *handle)
 {
-	//lcd_hal_8080_cmd_send(0, 0x2c, NULL);
+	if (handle == NULL)
+	{
+		LOGE("%s: handle is NULL", __func__);
+		return;
+	}
+	
+	bk_lcd_i80_handle_t *i80_handle = (bk_lcd_i80_handle_t *)handle;
+	if (i80_handle->write_cmd == NULL)
+	{
+		LOGE("%s: write_cmd function is NULL", __func__);
+		return;
+	}
+	
+	i80_handle->write_cmd(0x2C, NULL, 0);
 }
 
 
 static void lcd_st7789t3_continue_transfer(const void *handle)
 {
-	//lcd_hal_8080_cmd_send(0, 0x3c, NULL);
+	if (handle == NULL)
+	{
+		LOGE("%s: handle is NULL", __func__);
+		return;
+	}
+	
+	bk_lcd_i80_handle_t *i80_handle = (bk_lcd_i80_handle_t *)handle;
+	if (i80_handle->write_cmd == NULL)
+	{
+		LOGE("%s: write_cmd function is NULL", __func__);
+		return;
+	}
+	
+	i80_handle->write_cmd(0x3C, NULL, 0);
 }
 
 
@@ -208,7 +302,7 @@ const lcd_device_t lcd_device_st7789t3 =
 	.height = 320,
 	.mcu = &lcd_mcu,
 	.init = lcd_st7789t3_init,
-	.lcd_off = st7789t3_lcd_off,
+	.off = st7789t3_lcd_off,
 	.src_fmt = PIXEL_FMT_RGB565_LE,
 	.out_fmt = PIXEL_FMT_RGB565_LE,
 };

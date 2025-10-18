@@ -273,11 +273,12 @@ static void lcd_st7701s_ly_config(void)
 }
 
 
-static void lcd_st7701s_ly_init(void)
+static bk_err_t lcd_st7701s_ly_init(const void *handle)
 {
 	BK_LOGD(NULL, "lcd_st7701s_ly: init.\r\n");
 	lcd_spi_init_gpio();
 	lcd_st7701s_ly_config();
+	return BK_OK;
 }
 
 const lcd_device_t lcd_device_st7701s_ly =
@@ -290,6 +291,6 @@ const lcd_device_t lcd_device_st7701s_ly =
 	.rgb = &lcd_rgb,
 	.out_fmt = PIXEL_FMT_RGB888,
 	.init = lcd_st7701s_ly_init,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 

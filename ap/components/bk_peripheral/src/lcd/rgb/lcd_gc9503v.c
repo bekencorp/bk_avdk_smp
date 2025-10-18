@@ -634,10 +634,11 @@ static void lcd_gc9503v_config(void)
 	//delay_ms(10);
 }
 
-static void lcd_gc9503v_init(void)
+static bk_err_t lcd_gc9503v_init(const void *handle)
 {
 	lcd_spi_init_gpio();
 	lcd_gc9503v_config();
+	return BK_OK;
 }
 
 const lcd_device_t lcd_device_gc9503v =
@@ -649,6 +650,6 @@ const lcd_device_t lcd_device_gc9503v =
 	.height = 800,
 	.rgb = &lcd_rgb,
 	.init = lcd_gc9503v_init,
-	.lcd_off = NULL,
+	.off = NULL,
 };
 
