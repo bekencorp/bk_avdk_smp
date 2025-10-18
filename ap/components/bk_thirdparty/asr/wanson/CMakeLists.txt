@@ -1,9 +1,11 @@
 set(incs )
 
+if (CONFIG_WANSON_ASR)
 list(APPEND incs
             include
             bk7258
 )
+endif()
 
 if (CONFIG_WANSON_NEW_LIB_SEG OR CONFIG_WANSON_SIMD)
 set(srcs
