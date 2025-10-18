@@ -18,34 +18,21 @@
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <modules/eq.h>
 
+#include <components/audio_param_ctrl.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct _app_eq_load_para_t
-{
-    uint32_t freq;
-    uint32_t gain;
-    uint32_t q_val;
-    uint8_t  type;
-    uint8_t  enable;
-}app_eq_load_para_t;
-
-typedef struct _app_eq_load_t
-{
-    uint32_t f_gain;
-    uint32_t samplerate;
-    app_eq_load_para_t eq_load_para[CON_AUD_EQ_BANDS];
-}app_eq_load_t;
 
 typedef struct _app_eq_t
 {
-    uint8_t eq_en;
-    uint32_t framecnt;
-    uint32_t filters;
-    int32_t globle_gain;
-    eq_para_t eq_para[CON_AUD_EQ_BANDS];
-    app_eq_load_t eq_load;
+   uint8_t eq_en;
+   uint32_t framecnt;
+   uint32_t filters;
+   int32_t globle_gain;
+   eq_para_t eq_para[CON_AUD_EQ_BANDS];
+   app_eq_load_t eq_load;
 }app_eq_t;
 
 
@@ -90,11 +77,11 @@ typedef struct
 #define EQ1QVAL   0x3f800000
 #define EQ1FTYPE  0x0
     
-#define EQSAMP   0x3e80
-#define EQGAIN   0x4000
-#define EQFGAIN  0x00000000
-#define EQGLOBALGAIN (uint32_t)(1.12f * (1 << FILTER_PREGAIN_FRA_BITS))
-#define EQFRAMESIZE EQSAMP*20/1000*2
+#define EQSAMP         0x3e80
+#define EQGAIN         0x4000
+#define EQFGAIN        0x00000000
+#define EQGLOBALGAIN  (uint32_t)(1.12f * (1 << FILTER_PREGAIN_FRA_BITS))
+#define EQFRAMESIZE   EQSAMP*20/1000*2
 
 #define DEFAULT_EQ_ALGORITHM_CONFIG() {                                             \
     .task_stack            = EQ_ALGORITHM_TASK_STACK,                               \
@@ -144,6 +131,29 @@ typedef struct
  */
 audio_element_handle_t eq_algorithm_init(eq_algorithm_cfg_t *config);
 
+/**
+ * @brief      Set the EQ algorithm configuration
+ *
+ * @param[in]      eq_algorithm  The EQ algorithm audio element handle
+ * @param[in]      eq_config     The EQ configuration to be set
+ *
+ * @return     Error code
+ *                 - 0: Success
+ *                 - Non-zero: Failed
+ */
+bk_err_t eq_algorithm_set_config(audio_element_handle_t eq_algorithm, void *eq_config);
+
+/**
+ * @brief      Get the EQ algorithm configuration
+ *
+ * @param[in]      eq_algorithm  The EQ algorithm audio element handle
+ * @param[out]     eq_load       The buffer to store the EQ configuration
+ *
+ * @return     Error code
+ *                 - 0: Success
+ *                 - Non-zero: Failed
+ */
+bk_err_t eq_algorithm_get_config(audio_element_handle_t eq_algorithm, void *eq_load);
 
 #ifdef __cplusplus
 }

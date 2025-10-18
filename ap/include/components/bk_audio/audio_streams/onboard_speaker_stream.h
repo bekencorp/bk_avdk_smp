@@ -16,6 +16,7 @@
 #ifndef _ONBOARD_SPEAKER_STREAM_H_
 #define _ONBOARD_SPEAKER_STREAM_H_
 
+#include <components/audio_param_ctrl.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <driver/aud_dac_types.h>
 
@@ -199,6 +200,30 @@ bk_err_t onboard_speaker_stream_get_input_port_info_by_port_id(audio_element_han
  */
 bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboard_speaker_stream, audio_port_info_t *port_info);
 #endif
+
+/**
+ * @brief      Update onboard speaker stream analog gain.
+ *
+ * @param[in]      onboard_speaker_stream  element handle
+ * @param[in]      gain  speaker analog gain, range: 0x00 ~ 0x3f
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_speaker_stream, uint8_t gain);
+
+/**
+ * @brief      Get onboard speaker stream analog gain.
+ *
+ * @param[in]      onboard_speaker_stream  element handle
+ * @param[in,out]  gain  speaker analog gain
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_speaker_stream, uint8_t *gain);
 
 #ifdef __cplusplus
 }

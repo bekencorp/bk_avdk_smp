@@ -942,3 +942,97 @@ _aec_algorithm_init_exit:
     return NULL;
 }
 
+bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void * aec_config)
+{
+    aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(aec_algorithm);
+    if (aec == NULL) {
+        BK_LOGE(TAG, "aec is NULL \n");
+        return BK_FAIL;
+    }
+
+    if (aec_config == NULL) {
+        BK_LOGE(TAG, "aec_config is NULL \n");
+        return BK_FAIL;
+    }
+    app_aud_aec_v3_config_t *aec_cfg = (app_aud_aec_v3_config_t *)aec_config;
+
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_FLAGS, 0x1F);//(uint32_t)aec_cfg->init_flags);
+
+    aec->aec_cfg.init_flags   = 0x1F;//aec_cfg->init_flags;    // 0x1f
+    aec->aec_cfg.delay_points = aec_cfg->mic_delay;    //0x0
+    aec->aec_cfg.ec_depth     = aec_cfg->ec_depth;     //0x14
+    aec->aec_cfg.ns_type      = aec_cfg->ns_type;
+    aec->aec_cfg.ns_level     = aec_cfg->ns_level;
+    aec->aec_cfg.ns_para      = aec_cfg->ns_para;
+    aec->aec_cfg.ref_scale    = aec_cfg->ref_scale;
+    aec->aec_cfg.drc          = aec_cfg->drc_gain;
+    aec->aec_cfg.voice_vol    = aec_cfg->voice_vol;
+    aec->aec_cfg.ec_filter    = aec_cfg->ec_filter;
+    aec->aec_cfg.ns_filter    = aec_cfg->ns_filter;
+
+    aec->vad_cfg.vad_enable = aec_cfg->vad_enable;
+    aec->vad_cfg.vad_start_threshold   = aec_cfg->vad_start_threshold;
+    aec->vad_cfg.vad_stop_threshold    = aec_cfg->vad_stop_threshold;
+    aec->vad_cfg.vad_silence_threshold = aec_cfg->vad_silence_threshold;
+    aec->vad_cfg.vad_eng_threshold     = aec_cfg->vad_eng_threshold;
+
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_MIC_DELAY, aec_cfg->mic_delay);
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_EC_DEPTH, aec_cfg->ec_depth);
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_REF_SCALE, aec_cfg->ref_scale);
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_VOL, aec_cfg->voice_vol);
+
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_LEVEL, aec_cfg->ns_level);
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_PARA, aec_cfg->ns_para);
+
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_DRC, aec_cfg->drc_gain);
+    aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_EC_FILTER, aec_cfg->ec_filter);
+
+    if((aec->vad_cfg.vad_start_threshold !=0 && aec->vad_cfg.vad_stop_threshold != 0xff)
+    && (aec->vad_cfg.vad_start_threshold != aec->vad_cfg.vad_stop_threshold))
+    {
+        aec_vad_thr_mapping(aec->aec_ctx->SPthr, 
+                            aec->vad_cfg.vad_start_threshold, 
+                            aec->vad_cfg.vad_stop_threshold, 
+                            aec->vad_cfg.vad_silence_threshold,
+                            aec->vad_cfg.vad_eng_threshold);
+    }
+    os_printf("[+]%s, ec_depth:%d\n", __func__, aec->aec_cfg.ec_depth);
+    audio_element_setdata(aec_algorithm, aec);
+	return BK_OK;
+}
+
+bk_err_t aec_v3_algorithm_get_config(audio_element_handle_t aec_algorithm, void * aec_config)
+{
+    aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(aec_algorithm);
+    if (aec == NULL) {
+        BK_LOGE(TAG, "aec is NULL \n");
+        return BK_FAIL;
+    }
+    if (aec_config == NULL) {
+        BK_LOGE(TAG, "aec_config is NULL \n");
+        return BK_FAIL;
+    }
+    app_aud_aec_v3_config_t *aec_cfg = (app_aud_aec_v3_config_t *)aec_config;
+
+    aec_cfg->aec_enable = 1;//aec->aec_cfg.enable;
+
+    aec_cfg->mic_delay = aec->aec_cfg.delay_points;    //0x0
+    aec_cfg->ec_depth  = aec->aec_cfg.ec_depth;     //0x14
+    aec_cfg->ns_type   = aec->aec_cfg.ns_type;
+    aec_cfg->ns_level  = aec->aec_cfg.ns_level;
+    aec_cfg->ns_para   = aec->aec_cfg.ns_para;
+    aec_cfg->ref_scale = aec->aec_cfg.ref_scale;
+    aec_cfg->drc_gain  = aec->aec_cfg.drc;
+    aec_cfg->voice_vol = aec->aec_cfg.voice_vol;
+    aec_cfg->ec_filter = aec->aec_cfg.ec_filter;
+    aec_cfg->ns_filter = aec->aec_cfg.ns_filter;
+
+    aec_cfg->vad_enable            = aec->vad_cfg.vad_enable;
+    aec_cfg->vad_start_threshold   = aec->vad_cfg.vad_start_threshold;
+    aec_cfg->vad_stop_threshold    = aec->vad_cfg.vad_stop_threshold;
+    aec_cfg->vad_silence_threshold = aec->vad_cfg.vad_silence_threshold;
+    aec_cfg->vad_eng_threshold     = aec->vad_cfg.vad_eng_threshold;
+    os_printf("[+]%s, ec_depth:%d\n", __func__, aec->aec_cfg.ec_depth);
+
+    return BK_OK;
+}

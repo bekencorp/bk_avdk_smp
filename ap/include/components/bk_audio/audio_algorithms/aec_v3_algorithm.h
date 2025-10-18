@@ -16,7 +16,7 @@
 #define _AEC_V3_ALGORITHM_H_
 
 #include <components/bk_audio/audio_pipeline/audio_element.h>
-
+#include <components/audio_param_ctrl.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -240,6 +240,29 @@ typedef struct
  */
 audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config);
 
+/**
+ * @brief      Set AEC V3 algorithm configuration parameters
+ *
+ * @param[in]      aec_algorithm  The aec algorithm handle
+ * @param[in]      aec_config     The aec configuration
+ *
+ * @return     The status of the operation
+ *                 - BK_OK: success
+ *                 - BK_FAIL: failed
+ */
+bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void *aec_config);
+
+/**
+ * @brief      Get AEC V3 algorithm configuration parameters
+ *
+ * @param[in]      aec_algorithm  The aec algorithm handle
+ * @param[out]     aec_config     The aec configuration to store the retrieved parameters
+ *
+ * @return     The status of the operation
+ *                 - BK_OK: success
+ *                 - BK_FAIL: failed
+ */
+bk_err_t aec_v3_algorithm_get_config(audio_element_handle_t aec_algorithm, void *aec_config);
 
 #ifdef __cplusplus
 }
