@@ -41,6 +41,12 @@
 #include <driver/otp.h>
 #include <driver/pwr_clk.h>
 #include "bk_rtos_debug.h"
+#if CONFIG_SARADC_MB
+#include "saradc_client.h"
+#endif
+#if CONFIG_PHY_MB
+#include "phy_client.h"
+#endif
 #include "bk_api_ipc.h"
 
 #if CONFIG_SECURITY
@@ -358,8 +364,12 @@ int driver_init(void) {
 	bk_pwm_driver_init();
 #endif
 
-#if CONFIG_SARADC
-	bk_adc_driver_init();
+#if CONFIG_SARADC && CONFIG_SARADC_MB
+	bk_saradc_driver_init();
+#endif
+
+#if CONFIG_PHY_MB
+	bk_phy_driver_init();
 #endif
 
 #if CONFIG_SPI

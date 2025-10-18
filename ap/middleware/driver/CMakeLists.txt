@@ -66,8 +66,9 @@ set(srcs
 	uart/uart_driver.c
 	uart/uart_statis.c
 	uart/printf.c
-	saradc/adc_driver.c
-	saradc/adc_statis.c
+	saradc/saradc_client.c
+	saradc/saradc_example.c
+	saradc/saradc_notify.c
 	pwr_clk/pwr_clk.c
 	pwr_clk/pm_ap_misc.c
 	pwr_clk/pm_ap_core.c
@@ -503,5 +504,5 @@ endif()
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	REQUIRES cm33
-	PRIV_REQUIRES bk_log easy_flash cmsis os_source bk_usb part_table unity avdk_utils
+	PRIV_REQUIRES bk_log easy_flash cmsis os_source bk_usb part_table unity avdk_utils bk_wifi
 )
