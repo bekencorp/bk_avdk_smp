@@ -2,6 +2,7 @@
 #define __BK_DRAW_ICON_H__
 
 #include <components/media_types.h>
+#include "modules/lcd_font.h"
 
 #ifdef __cplusplus
 extern "C" {
