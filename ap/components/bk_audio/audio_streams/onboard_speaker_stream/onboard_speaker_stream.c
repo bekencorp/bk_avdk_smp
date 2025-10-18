@@ -1362,6 +1362,8 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
         bk_aud_dac_unmute();
     }
 
+    bk_aud_set_ana_dac_gain(config->ana_gain);
+
     //TODO
     /* set speaker mode */
     /*
