@@ -168,6 +168,7 @@ bk_err_t bk_avi_player_open(bk_avi_player_config_t *player_config)
     ret = bk_avi_player_video_parse();
     if (ret != BK_OK) {
         LOGE("%s %d bk_avi_player_video_parse failed\r\n", __func__, __LINE__);
+        avi_player_jpeg_hw_decode_deinit(avi_player->output_format);
         goto out;
     }
 

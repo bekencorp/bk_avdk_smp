@@ -218,14 +218,18 @@ bk_err_t avi_player_jpeg_hw_decode_start(bk_avi_player_t *avi_player)
     ret = bk_jpeg_decode_hw_decode(avi_player_jpeg_decode_handle, g_jpeg_frame, g_dec_out_frame);
     if (ret != BK_OK) {
         LOGE("%s hw decode start fail %d\n", __func__, ret);
+        psram_free(g_dec_out_frame->frame);
+        g_dec_out_frame->frame = NULL;
         return ret;
     }
 
     if (avi_player->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565) {
         avi_player_dma2d_yuyv2rgb565(g_dec_out_frame->frame, avi_player->framebuffer, avi_player->avi->width, avi_player->avi->height, avi_player->swap_flag);
 
-        psram_free(g_dec_out_frame->frame);
-        g_dec_out_frame->frame = NULL;
+        if (g_dec_out_frame->frame) {
+            psram_free(g_dec_out_frame->frame);
+            g_dec_out_frame->frame = NULL;
+        }
     }
 
     return ret;
