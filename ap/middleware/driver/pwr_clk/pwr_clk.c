@@ -496,7 +496,8 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 
 bk_err_t bk_pm_module_vote_ctrl_external_ldo(gpio_ctrl_ldo_module_e module,gpio_id_t gpio_id,gpio_output_state_e value)
 {
-#if CONFIG_MAILBOX
+#if CONFIG_GPIO_CTRL_LDO_IN_CP
+	#if CONFIG_MAILBOX
 	uint64_t previous_tick  = 0;
 	uint64_t current_tick   = 0;
     int ret = 0;
@@ -524,6 +525,9 @@ bk_err_t bk_pm_module_vote_ctrl_external_ldo(gpio_ctrl_ldo_module_e module,gpio_
 	}
 
 	LOGD("cp1 vote ctr_extLdo\r\n");
+	#endif
+#else
+	bk_gpio_ctrl_external_ldo(module,gpio_id,value);
 #endif
 	return BK_OK;
 }

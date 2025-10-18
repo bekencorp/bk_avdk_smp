@@ -451,12 +451,6 @@ struct {\
 // LCD BACKLIGHT CTRL
 #define LCD_BACKLIGHT_CTRL_ACTIVE_LEVEL    (1)
 
-/*---multi modules use one gpio to control different ldo---*/
-#define GPIO_CTRL_LDO_MAP  \
-{\
-	{GPIO_20,  GPIO_OUTPUT_STATE_LOW},\
-	{GPIO_42,  GPIO_OUTPUT_STATE_LOW},\
-}
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 #define GPIO_STATIC_WAKEUP_SOURCE_MAP  \
