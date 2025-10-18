@@ -106,7 +106,7 @@ void cli_jpeg_decode_regular_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
         // Close and delete decoder
         close_and_delete_decoder(&jpeg_decode_handle, test_type);
 
-        LOGI("%s, %d, hardware jpeg decode Normal scenario JPEG decoding test completed!\n", __func__, __LINE__);
+        LOGI("%s, %d, hardware jpeg async decode test completed!\n", __func__, __LINE__);
     }
     else if (os_strcmp(argv[1], "software_test") == 0) {
         test_type = JPEG_DECODE_MODE_SOFTWARE;

@@ -256,10 +256,7 @@ bk_err_t perform_jpeg_decode_async_test(void *jpeg_decode_handle, uint32_t jpeg_
     LOGD("%s, %d, jpeg decode get img info success! %dx%d %d\n", __func__, __LINE__,
             img_info.width, img_info.height, img_info.format);
 
-    // 3. Perform asynchronous decoding and measure time
-    uint32_t start_time = 0, end_time = 0;
-    beken_time_get_time(&start_time);
-    
+    // 3. Perform asynchronous decoding
     // For async decoding, the output buffer will be allocated and returned in the callback
     ret = bk_jpeg_decode_hw_decode_async((bk_jpeg_decode_hw_handle_t)jpeg_decode_handle, in_frame);
     if (ret != BK_OK) {
@@ -267,10 +264,7 @@ bk_err_t perform_jpeg_decode_async_test(void *jpeg_decode_handle, uint32_t jpeg_
         goto exit;
     }
 
-    beken_time_get_time(&end_time);
-
-    LOGD("%s, %d, jpeg async decode success! Decode time: %d ms\n", __func__, __LINE__, end_time - start_time);
-
+    LOGD("%s, %d, jpeg async decode complete\n", __func__, __LINE__);
     return ret;
 
     // 4. Release resources

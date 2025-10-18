@@ -214,6 +214,7 @@ bk_err_t hw_jpeg_decode_start_async(frame_buffer_t *src_frame)
         if (ret != BK_OK)
         {
             LOGE("%s rtos_push_to_queue failed: %d\n", __func__, ret);
+            return ret;
         }
 
         ret = hardware_decode_task_send_msg(HARDWARE_DECODE_EVENT_DECODE_START, 0);

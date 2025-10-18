@@ -73,6 +73,7 @@ jpeg_decode_example/
 - Supports retrieving JPEG image dimension information
 - Implements frame buffer management mechanism
 - Offers regular and abnormal scenario decoding test functionality
+- Supports hardware asynchronous decoding and burst mode testing
 - Supports running software decoder on DTCM for faster performance
 
 ### 3.2 Frame Buffer Management
@@ -172,17 +173,27 @@ jpeg_decode delete
 jpeg_decode_regular_test hardware_test
 ```
 
-2. Software decoder regular test:
+2. Hardware decoder asynchronous test:
+```
+jpeg_decode_regular_test hardware_async_test
+```
+
+3. Hardware decoder asynchronous burst test (10 consecutive times):
+```
+jpeg_decode_regular_test hardware_async_burst_test
+```
+
+4. Software decoder regular test:
 ```
 jpeg_decode_regular_test software_test
 ```
 
-3. Software decoder on DTCM (CP1) regular test:
+5. Software decoder on DTCM (CP1) regular test:
 ```
 jpeg_decode_regular_test software_dtcm_cp1_test
 ```
 
-4. Software decoder on DTCM (CP2) regular test:
+6. Software decoder on DTCM (CP2) regular test:
 ```
 jpeg_decode_regular_test software_dtcm_cp2_test
 ```
@@ -300,21 +311,68 @@ The project provides various regular scenario decoding test functions to verify 
 
 #### 6.2.1 Hardware Decoding Test
 
+This command is a synchronous decoding command; the function returns only after decoding is completed. It first prints jpeg_decode_out_complete, then prints perform_jpeg_decode_async_test.
+
 ```
 jpeg_decode_regular_test hardware_test
 ```
 
 Expected log:
 ```
-cli_jpeg_decode_regular_test_cmd, XX, hardware jpeg decode Normal scenario JPEG decoding test completed!
+ap1:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_test, XX, jpeg async decode success! Decode time: 30 ms
 ```
 
 Abnormal log (indicating test failure):
 ```
-cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+CMDRSP:ERROR
 ```
 
-#### 6.2.2 Software Decoding Test
+#### 6.2.2 Hardware Decoding Asynchronous Test
+
+This command is an asynchronous decoding command; the function returns immediately after the command is sent successfully. It first prints perform_jpeg_decode_async_test, then prints jpeg_decode_out_complete.
+
+```
+jpeg_decode_regular_test hardware_async_test
+```
+
+Expected log:
+```
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_test, XX, jpeg async decode success!
+ap1:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+```
+
+Abnormal log (indicating test failure):
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.3 Hardware Decoding Asynchronous Burst Test
+
+This command is an asynchronous burst test command that calls the asynchronous decoding function multiple times at once. Images are first stored in a queue, then data is retrieved from the queue for decoding sequentially.
+After printing perform_jpeg_decode_async_burst_test multiple times consecutively, it prints jpeg_decode_out_complete.
+
+```
+jpeg_decode_regular_test hardware_async_burst_test
+```
+
+Expected log:
+```
+ap0:jdec_com:I(XX):perform_jpeg_decode_async_burst_test, XX, Start hardware_test with 10 bursts!
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_burst_test, XX, Burst test 1/10
+...
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_burst_test, XX, Burst test 10/10
+ap0:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+...
+ap1:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+```
+
+Abnormal log (indicating test failure):
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.4 Software Decoding Test
 
 ```
 jpeg_decode_regular_test software_test
@@ -327,10 +385,10 @@ cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG 
 
 Abnormal log (indicating test failure):
 ```
-cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+CMDRSP:ERROR
 ```
 
-#### 6.2.3 Software Decoding Test on DTCM (CP1)
+#### 6.2.5 Software Decoding Test on DTCM (CP1)
 
 ```
 jpeg_decode_regular_test software_dtcm_cp1_test
@@ -338,7 +396,7 @@ jpeg_decode_regular_test software_dtcm_cp1_test
 
 Expected log:
 ```
-cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG decoding test completed!
+CMDRSP:ERROR
 ```
 
 Abnormal log (indicating test failure):
@@ -346,7 +404,7 @@ Abnormal log (indicating test failure):
 cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
 ```
 
-#### 6.2.4 Software Decoding Test on DTCM (CP2)
+#### 6.2.6 Software Decoding Test on DTCM (CP2)
 
 ```
 jpeg_decode_regular_test software_dtcm_cp2_test
@@ -359,8 +417,82 @@ cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG 
 
 Abnormal log (indicating test failure):
 ```
-cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+CMDRSP:ERROR
 ```
+
+## 7. Notes
+
+### 7.1 Null Pointer Testing
+
+#### 7.1.1 jpeg_decode_handle is NULL pointer
+
+```
+jpeg_decode_error_test input_buffer_null_1
+```
+
+Expected behavior: Decoding fails, system properly handles null pointer case
+
+#### 7.1.2 input_frame is NULL pointer
+
+```
+jpeg_decode_error_test input_buffer_null_2
+```
+
+Expected behavior: Decoding fails, system properly handles null pointer case
+
+#### 7.1.3 out_frame is NULL pointer
+
+```
+jpeg_decode_error_test input_buffer_null_3
+```
+
+Expected behavior: Decoding fails, system properly handles null pointer case
+
+### 7.2 Input Data Testing
+
+#### 7.2.1 Invalid JPEG Data
+
+```
+jpeg_decode_error_test invalid_input_data
+```
+
+Expected behavior: Decoding fails, system correctly identifies invalid JPEG data
+
+### 7.3 Buffer Testing
+
+#### 7.3.1 Output Buffer Too Small
+
+```
+jpeg_decode_error_test output_buffer_small
+```
+
+Expected behavior: Decoding fails, system properly handles buffer insufficiency
+
+### 7.4 Hardware Decoding Format Limitation Testing
+
+#### 7.4.1 Hardware Decoding of YUV420 Format Image
+
+```
+jpeg_decode_error_test hardware_decode_error_1
+```
+
+Expected behavior: Decoding fails, hardware decoding only supports YUV422 format
+
+#### 7.4.2 Hardware Decoding of Image with Width Not Multiple of 16
+
+```
+jpeg_decode_error_test hardware_decode_error_2
+```
+
+Expected behavior: Decoding fails, hardware decoding requires image width to be multiple of 16
+
+#### 7.4.3 Hardware Decoding of Image with Height Not Multiple of 8
+
+```
+jpeg_decode_error_test hardware_decode_error_3
+```
+
+Expected behavior: Decoding fails, hardware decoding requires image height to be multiple of 8
 
 ## 7. Notes
 

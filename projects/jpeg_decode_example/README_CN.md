@@ -73,6 +73,7 @@ jpeg_decode_example/
 - 提供命令行接口进行解码测试
 - 支持获取JPEG图像的尺寸信息
 - 提供了常规场景和异常场景的解码测试功能
+- 支持硬件异步解码和突发模式测试
 - 支持在DTCM上运行软件解码器以获得更快的性能
 
 ### 3.2 JPEG解码流程
@@ -165,17 +166,27 @@ jpeg_decode delete
 jpeg_decode_regular_test hardware_test
 ```
 
-2. 软件解码器常规测试：
+2. 硬件解码器异步测试：
+```
+jpeg_decode_regular_test hardware_async_test
+```
+
+3. 硬件解码器异步突发测试(连续10次)：
+```
+jpeg_decode_regular_test hardware_async_burst_test
+```
+
+4. 软件解码器常规测试：
 ```
 jpeg_decode_regular_test software_test
 ```
 
-3. DTCM上的软件解码器(CP1)常规测试：
+5. DTCM上的软件解码器(CP1)常规测试：
 ```
 jpeg_decode_regular_test software_dtcm_cp1_test
 ```
 
-4. DTCM上的软件解码器(CP2)常规测试：
+6. DTCM上的软件解码器(CP2)常规测试：
 ```
 jpeg_decode_regular_test software_dtcm_cp2_test
 ```
@@ -293,21 +304,71 @@ cli_jpeg_decode_cmd, XX, jpeg decode delete success!
 
 #### 6.2.1 硬件解码测试
 
+该命令为同步解码命令，解码完成后，函数才返回；先打印jpeg_decode_out_complete，再打印perform_jpeg_decode_async_test。
+
+
 ```
 jpeg_decode_regular_test hardware_test
 ```
 
 预期log：
 ```
-cli_jpeg_decode_regular_test_cmd, XX, hardware jpeg decode Normal scenario JPEG decoding test completed!
+ap1:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_test, XX, jpeg async decode success! Decode time: 30 ms
 ```
 
 异常log（表示测试失败）：
 ```
-cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+CMDRSP:ERROR
 ```
 
-#### 6.2.2 软件解码测试
+#### 6.2.2 硬件解码异步测试
+
+该命令为异步解码命令，命令发送成功后，函数立即返回，先打印perform_jpeg_decode_async_test，再打印jpeg_decode_out_complete。
+
+
+```
+jpeg_decode_regular_test hardware_async_test
+```
+
+预期log：
+```
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_test, XX, jpeg async decode success!
+ap1:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.3 硬件解码异步突发测试
+
+该命令为异步突发测试命令，一次性调用多次异步解码函数，图像会先存到队列中，再从队列中依次获取数据进行解码。
+连续打印多次perform_jpeg_decode_async_burst_test后，再打印jpeg_decode_out_complete。
+
+```
+jpeg_decode_regular_test hardware_async_burst_test
+```
+
+预期log：
+
+```
+ap0:jdec_com:I(XX):perform_jpeg_decode_async_burst_test, XX, Start hardware_test with 10 bursts!
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_burst_test, XX, Burst test 1/10
+...
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_burst_test, XX, Burst test 10/10
+ap0:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+...
+ap1:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.4 软件解码测试
 
 ```
 jpeg_decode_regular_test software_test
@@ -320,10 +381,10 @@ cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG 
 
 异常log（表示测试失败）：
 ```
-cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+CMDRSP:ERROR
 ```
 
-#### 6.2.3 DTCM上的软件解码测试(CP1)
+#### 6.2.5 DTCM上的软件解码测试(CP1)
 
 ```
 jpeg_decode_regular_test software_dtcm_cp1_test
@@ -331,7 +392,7 @@ jpeg_decode_regular_test software_dtcm_cp1_test
 
 预期log：
 ```
-cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG decoding test completed!
+CMDRSP:ERROR
 ```
 
 异常log（表示测试失败）：
@@ -339,7 +400,7 @@ cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG 
 cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
 ```
 
-#### 6.2.4 DTCM上的软件解码测试(CP2)
+#### 6.2.6 DTCM上的软件解码测试(CP2)
 
 ```
 jpeg_decode_regular_test software_dtcm_cp2_test
@@ -352,7 +413,7 @@ cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG 
 
 异常log（表示测试失败）：
 ```
-cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+CMDRSP:ERROR
 ```
 
 ## 7. 注意事项
