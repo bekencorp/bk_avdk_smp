@@ -57,6 +57,10 @@ extern int hexstr2bin(const char *hex, u8 *buf, size_t len);
 extern int video_demo_register_cmd(void);
 #endif
 
+#if CONFIG_DUMP_TEST
+extern int cli_trap_test_init(void);
+#endif
+
 #if CONFIG_BKREG
 #define BKREG_MAGIC_WORD0                 (0x01)
 #define BKREG_MAGIC_WORD1                 (0xE0)
@@ -1661,6 +1665,10 @@ int bk_cli_init(void)
 
 #if (CONFIG_TRUSTENGINE_TEST && CONFIG_PSA_MBEDTLS)
 	cli_mbedtls_init();
+#endif
+
+#if (CONFIG_DUMP_TEST)
+	cli_trap_test_init();
 #endif
 
 #endif //CONFIG_DEBUG_VERSION
