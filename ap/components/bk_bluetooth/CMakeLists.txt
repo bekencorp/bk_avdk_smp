@@ -36,7 +36,13 @@ if (CONFIG_BLUETOOTH_AP)
 			if (CONFIG_BLE_AT_ENABLE)
 				list(APPEND srcs
 					"api/bk_at_ble.c"
-					"api/ble_at_gatt.c")
+	            "api/bk_at_gatt/dm_gatt.c"
+                "api/bk_at_gatt/dm_gattc.c"
+                "api/bk_at_gatt/dm_gatts.c"
+                "api/bk_at_gatt/dm_gatt_connection.c"
+                "api/bk_at_gatt/dm_gap_utils.c"
+                "api/bk_at_gatt/bk_at_dm_performance_test.c"
+				)
 			endif()#CONFIG_BLE_AT_ENABLE
 
 			set(components ../../components)

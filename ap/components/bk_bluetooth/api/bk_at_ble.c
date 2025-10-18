@@ -40,7 +40,13 @@
 #include "components/bluetooth/bk_dm_gap_ble_types.h"
 #include "components/bluetooth/bk_dm_gap_ble.h"
 #include "../bt/ble_boarding/ble_boarding.h"
-#include "ble_at_gatt.h"
+
+#include "bk_at_gatt/dm_gap_utils.h"
+#include "bk_at_gatt/dm_gatt_connection.h"
+#include "bk_at_gatt/dm_gatts.h"
+#include "bk_at_gatt/dm_gattc.h"
+#include "bk_at_gatt/dm_gatt.h"
+#include "bk_at_gatt/bk_at_dm_performance_test.h"
 
 #if CONFIG_MBEDTLS
 #include "mbedtls/aes.h"
@@ -77,6 +83,10 @@ enum
     TEST2_IDX_NB,
 };
 
+#define bt_at_logi(format, ...) do{BK_LOGI("ble_at", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+#define bt_at_logw(format, ...) do{BK_LOGW("ble_at", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+#define bt_at_loge(format, ...) do{BK_LOGE("ble_at", "%s:" format "\n", __func__, ##__VA_ARGS__);} while(0)
+
 static beken_semaphore_t ble_at_cmd_sema = NULL;
 static uint16_t s_first_service_handle = 0;
 static uint8_t s_smp_set_auth_mode_manual;
@@ -110,31 +120,6 @@ static uint32_t s_performance_rx_bytes = 0;
 static uint8_t s_performance_tx_enable = 0;
 
 
-//for ethermind
-static beken_timer_t s_ethermind_ble_send_test_timer;
-static uint16_t s_ethermind_send_test_service_handle = 0;;
-static uint16_t s_ethermind_send_char_test_handle = 0;
-static uint16_t s_ethermind_send_size_handle = 0;
-static uint16_t s_ethermind_send_intv_handle = 0;
-
-
-static uint8_t s_ethermind_send_test_value = 0xa;
-static uint16_t s_ethermind_current_mtu = 23;
-static uint16_t s_ethermind_send_size_value = 23 - 3;
-static uint16_t s_ethermind_send_intv_value = 1000;
-
-static uint8_t s_ethermind_att_handle; //ATT_CON_ID
-
-
-static uint8_t s_ethermind_service_type = 0;
-
-static uint32_t s_ethermind_performance_tx_bytes = 0;
-static uint32_t s_ethermind_performance_rx_bytes = 0;
-static uint8_t s_ethermind_auto_tx_enable = 0;
-
-static beken_timer_t ble_ethermind_performance_tx_statistics_tmr;
-static beken_timer_t ble_ethermind_performance_rx_statistics_tmr;
-
 
 static ATT_ATTR_HANDLE s_ethermind_nordic_write_attr_handle[8];
 static ATT_ATTR_HANDLE s_ethermind_nordic_write_notify_handle[8];
@@ -157,11 +142,11 @@ static ble_read_phy_t s_ble_phy = {0, 0};
 
 #define TAG  "AT_BLE"
 
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 
 typedef struct
 {
@@ -785,7 +770,6 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
         {
             ble_mtu_change_t *m_ind = (ble_mtu_change_t *)param;
             LOGD("%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
-            s_ethermind_current_mtu = m_ind->mtu_size;
             break;
         }
         case BLE_5_CONNECT_EVENT:
@@ -959,12 +943,7 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
 
         case BLE_5_RECV_NOTIFY_EVENT:
         {
-            //ethermind
-
             ble_att_notify_t *tmp = (typeof(tmp))param;
-
-
-            s_ethermind_performance_rx_bytes += tmp->len;
 
 #ifdef CONFIG_ALI_MQTT
             if (loop_type == LT_COEX)
@@ -1339,349 +1318,6 @@ static void ble_at_notice_cb(ble_notice_t notice, void *param)
     }
 }
 
-#if 0
-static uint32_t dm_ble_at_event_cb(ble_event_enum_t event, void *param)
-{
-    switch (event)
-    {
-#if 0
-        case BK_DM_BLE_EVENT_REPORT_ADV:
-        {
-            ble_adv_report_t *r_ind = (typeof(r_ind)) param;
-            char dname[64] = { 0 };
-            uint8_t dname_len = sizeof(dname);
-
-            memset(&dname, 0, sizeof(dname));
-
-            ble_get_device_name_from_adv(r_ind->data, r_ind->data_len,
-                                         (uint8_t *) dname, &dname_len);
-            dname[dname_len - 1] = 0;
-
-            if (r_ind->evt_type & (1 << 4))
-            {
-                LOGD("evt_type:LEG_ADV,");
-            }
-            else
-            {
-                LOGD("evt_type:EXT_ADV,");
-            }
-
-            LOGD(
-                " adv_addr_type:%d, adv_addr:%02x:%02x:%02x:%02x:%02x:%02x name %s\r\n",
-                r_ind->peer_address_type, r_ind->peer_address.addr[5],
-                r_ind->peer_address.addr[4], r_ind->peer_address.addr[3],
-                r_ind->peer_address.addr[2], r_ind->peer_address.addr[1],
-                r_ind->peer_address.addr[0], dname);
-
-            if ((STATE_DISCOVERING == g_peer_dev.state)
-                && (ble_check_device_name(r_ind->data, r_ind->data_len,
-                                          &(g_peer_dev.dev))))
-            {
-                LOGD("dev : %s is discovered\r\n", g_peer_dev.dev.name);
-                os_memcpy(g_peer_dev.bdaddr.addr, r_ind->peer_address.addr,
-                          BK_BLE_GAP_BD_ADDR_LEN);
-                g_peer_dev.addr_type = r_ind->peer_address_type;
-                g_peer_dev.state = STATE_DISCOVERED;
-
-                if (ble_at_cmd_sema != NULL)
-                {
-                    rtos_set_semaphore(&ble_at_cmd_sema);
-                }
-            }
-
-        }
-        break;
-#endif
-        case BK_DM_BLE_EVENT_MTU_CHANGE:
-        {
-            ble_mtu_change_t *m_ind = (ble_mtu_change_t *) param;
-            LOGD("%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
-            s_ethermind_current_mtu = m_ind->mtu_size;
-            break;
-        }
-
-        case BK_DM_BLE_EVENT_CONNECT:
-        {
-
-            ble_conn_att_t *conn_att = (typeof(conn_att)) param;
-            LOGD("%s ethermind connected, ATT_CON_ID %d atype %d addr 0x%02X:%02X:%02X:%02X:%02X:%02X\n",
-                 __func__, conn_att->conn_handle, conn_att->peer_addr_type,
-                 conn_att->peer_addr[5], conn_att->peer_addr[4],
-                 conn_att->peer_addr[3], conn_att->peer_addr[2],
-                 conn_att->peer_addr[1], conn_att->peer_addr[0]);
-            s_ethermind_att_handle = conn_att->conn_handle;
-
-            if (rtos_is_timer_init(&s_gap_create_connection_timeout_tmr))
-            {
-                if (rtos_is_timer_running(&s_gap_create_connection_timeout_tmr))
-                {
-                    rtos_stop_timer(&s_gap_create_connection_timeout_tmr);
-                }
-
-                rtos_deinit_timer(&s_gap_create_connection_timeout_tmr);
-            }
-
-            if ((STATE_CONNECTINIG == g_peer_dev.state)
-                && (!os_memcmp(g_peer_dev.bdaddr.addr, conn_att->peer_addr,
-                               BK_BLE_GAP_BD_ADDR_LEN)))
-            {
-                g_peer_dev.state = STATE_CONNECTED;
-            }
-
-
-            break;
-        }
-
-        case BK_DM_BLE_EVENT_DISCONNECT:
-        {
-            {
-                ble_conn_att_t *att_handle = (typeof(att_handle)) param;
-                uint8_t index = 0;
-                LOGD("%s ethermind disconnect reason %d attid %d atype %d addr 0x%02X:%02X:%02X:%02X:%02X:%02X\n",
-                     __func__, att_handle->event_result, att_handle->conn_handle,
-                     att_handle->peer_addr_type, att_handle->peer_addr[5],
-                     att_handle->peer_addr[4], att_handle->peer_addr[3],
-                     att_handle->peer_addr[2], att_handle->peer_addr[1],
-                     att_handle->peer_addr[0]);
-
-                os_memset(&s_ethermind_att_handle, 0, sizeof(s_ethermind_att_handle));
-
-                if (0 == ethermind_find_index_by_info(&index, att_handle->conn_handle))
-                {
-                    ethermind_clean_info_by_index(index);
-                }
-            }
-
-            break;
-        }
-
-#if 0
-        case BK_DM_BLE_EVENT_TX_DONE:
-        {
-            ble_att_tx_compl_t *tx_comp = (typeof(tx_comp)) param;
-            //        LOGD("%s BK_DM_BLE_EVENT_TX_DONE res %d ATT_CON_ID %d ATT_ATTR_HANDLE %d\n",
-            //                  __func__, tx_comp->event_result, tx_comp->conn_handle,
-            //                  tx_comp->attr_handle);
-
-            if (s_ethermind_service_type == 1 && s_ethermind_auto_tx_enable)
-            {
-                //                for (uint8_t i = 0; i < a_wr_c->number_package_completed; ++i)
-                //                {
-                //                    ble_tx_test_active_timer_callback(NULL);
-                //                }
-                ble_tx_test_active_timer_callback(NULL);
-            }
-        }
-
-        break;
-
-        case BK_DM_BLE_EVENT_CONN_UPDATA:
-        {
-            {
-                ble_conn_update_param_compl_ind_t *ind = (typeof(ind)) param;
-                LOGD("%s BK_DM_BLE_EVENT_CONN_UPDATA mac 0x%02X:%02X:%02X:%02X:%02X:%02X status 0x%X interval 0x%X lantency 0x%X tout 0x%X\n",
-                     __func__,
-                     ind->peer_address.addr[5],
-                     ind->peer_address.addr[4], ind->peer_address.addr[3],
-                     ind->peer_address.addr[2], ind->peer_address.addr[1],
-                     ind->peer_address.addr[0],
-                     ind->status, ind->conn_interval,
-                     ind->conn_latency, ind->supervision_timeout);
-
-                if (ble_at_cmd_sema != NULL)
-                {
-                    rtos_set_semaphore(&ble_at_cmd_sema);
-                }
-            }
-
-            break;
-        }
-#endif
-        case BK_DM_BLE_EVENT_RECV_NOTIFY:
-        {
-            ble_att_notify_t *tmp = (typeof(tmp)) param;
-
-            s_ethermind_performance_rx_bytes += tmp->len;
-
-#ifdef CONFIG_ALI_MQTT
-
-            if (loop_type == LT_COEX)
-            {
-                LOGD("ATT_CON_ID %d data %s len %d sendto mqtt\n",
-                     tmp->conn_handle, tmp->data, tmp->len);
-
-                ble_send_data_2_mqtt(tmp->conn_handle, tmp->len, tmp->data);
-            }
-            else
-#endif
-            {
-                uint8_t index = 0;
-
-                if (0 == ethermind_find_index_by_info(&index, tmp->conn_handle))
-                {
-                    LOGD("%s ATT_CON_ID %d, send data to nordic len %d %s\n",
-                         __func__, tmp->conn_handle, tmp->len, tmp->data);
-
-                    bk_ble_att_write(tmp->conn_handle,
-                                     s_ethermind_nordic_write_attr_handle[index], tmp->data,
-                                     tmp->len);
-                }
-                else
-                {
-                    //                LOGD("%s cant find info ATT_CON_ID %d\n", __func__, tmp->conn_handle);
-                }
-            }
-        }
-        break;
-#if 0
-        case BK_DM_BLE_EVENT_DISCOVERY_CHAR:
-        {
-            ble_discovery_char_t *tmp = (typeof(tmp)) param;
-            uint8_t index = 0;
-            uint8_t found = 0;
-            uint8_t i = 0;
-
-            LOGD("%s BK_DM_BLE_EVENT_DISCOVERY_CHAR count %d ATT_CON_ID %d\n",
-                 __func__, tmp->count, tmp->conn_handle);
-
-            //
-
-            for (i = 0; i < tmp->count; ++i)
-            {
-                //LOGD("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
-
-                switch (tmp->character[i].uuid_type)
-                {
-                    case ATT_16_BIT_UUID_FORMAT:
-                        LOGD("%s char 16bit uuid 0x%04X, attr_handle %d\n",
-                             __func__, tmp->character[i].uuid.uuid_16,
-                             tmp->character[i].value_handle);
-                        break;
-
-                    case ATT_128_BIT_UUID_FORMAT:
-                    {
-                        //LOGD("%s char 128bit uuid 0x%08X\n", __func__, (uint32_t *)(tmp->character[i].uuid.uuid_128.value + 11));
-
-                        if (!os_memcmp(&tmp->character[i].uuid.uuid_128.value,
-                                       nus_rx_uuid, sizeof(nus_rx_uuid)))
-                        {
-                            found = 1;
-                            i = tmp->count - 1;
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                break;
-            }
-
-            if (0 == ethermind_find_index_by_info(&index, tmp->conn_handle))
-            {
-                LOGD("%s nordic info already exist ! att_id %d\n", __func__,
-                     tmp->conn_handle);
-            }
-            else if (0 == ethermind_find_idle_info_index(&index))
-            {
-            }
-            else
-            {
-                LOGD("%s nordic info list is full !\n", __func__);
-                break;
-            }
-
-            for (i = 0; i < tmp->count; ++i)
-            {
-                //LOGD("%s type %d %p\n", __func__, tmp->character[7].uuid_type, &tmp->character[7].uuid_type);
-
-                switch (tmp->character[i].uuid_type)
-                {
-                    case ATT_16_BIT_UUID_FORMAT:
-                        break;
-
-                    case ATT_128_BIT_UUID_FORMAT:
-                    {
-                        LOGD("%s char 128bit uuid 0x%08X attr_hdl:%d\n", __func__,
-                             (uint32_t *)(tmp->character[i].uuid.uuid_128.value + 11),
-                             tmp->character[i].value_handle);
-
-                        if (!os_memcmp(&tmp->character[i].uuid.uuid_128.value,
-                                       nus_rx_uuid, sizeof(nus_rx_uuid)))
-                        {
-                            LOGD("%s add to nordic info list %d\n", __func__,
-                                 index);
-                            s_ethermind_nordic_used[index] = 1;
-                            s_ethermind_nordic_write_attr_handle[index] =
-                                tmp->character[i].value_handle;
-                            s_ethermind_nordic_att_info[index] = tmp->conn_handle;
-                        }
-                        else if (!os_memcmp(&tmp->character[i].uuid.uuid_128.value,
-                                            nus_tx_uuid, sizeof(nus_tx_uuid)))
-                        {
-                            if (tmp->character[i].desc_index)
-                            {
-                                for (uint8_t j = 0; j < tmp->character[i].desc_index;
-                                     ++j)
-                                {
-                                    if (ATT_16_BIT_UUID_FORMAT
-                                        == tmp->character[i].descriptor[j].uuid_type
-                                        && GATT_CLIENT_CONFIG
-                                        == tmp->character[i].descriptor[j].uuid.uuid_16)
-                                    {
-                                        s_ethermind_nordic_write_notify_handle[index] =
-                                            tmp->character[i].descriptor[j].handle;
-                                        //                                const uint16_t noti_enable = 0x0001;
-                                        //                                LOGD("%s write nordic enable notify\n", __func__);
-                                        //                                bk_ble_att_write(&tmp->att_handle, tmp->character[i].descriptor[j].handle, (uint8_t *)&noti_enable, sizeof(noti_enable));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    break;
-
-                    default:
-                        LOGD("%s unknow uuid type %d %d %p\n", __func__,
-                             tmp->character[i].uuid_type, i,
-                             &tmp->character[i].uuid_type);
-                        break;
-                }
-            }
-
-        }
-        break;
-
-        case BK_DM_BLE_EVENT_CONN_UPD_PAR_ASK:
-        {
-            {
-                ble_conn_update_param_ind_t *ind = (typeof(ind)) param;
-                LOGD(
-                    "%s BK_DM_BLE_EVENT_CONN_UPD_PAR_ASK 0x%02X:%02X:%02X:%02X:%02X:%02X imin 0x%X imax 0x%x latency 0x%X tout 0x%X\n",
-                    __func__, ind->peer_address.addr[5],
-                    ind->peer_address.addr[4], ind->peer_address.addr[3],
-                    ind->peer_address.addr[2], ind->peer_address.addr[1],
-                    ind->peer_address.addr[0], ind->conn_interval_min,
-                    ind->conn_interval_max, ind->conn_latency,
-                    ind->supervision_timeout);
-
-                //            ind->conn_interval_min++;
-                //            ind->conn_interval_max++;
-                ind->is_agree = 1;
-            }
-        }
-        break;
-#endif
-        default:
-            break;
-    }
-
-    return 0;
-}
-#endif
-
 static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t *param)
 {
     switch (event)
@@ -1698,6 +1334,18 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
                        evt->remote_bda[1],
                        evt->remote_bda[0],
                        evt->status);
+
+            if (rtos_is_timer_init(&s_gap_create_connection_timeout_tmr))
+            {
+                if(rtos_is_timer_running(&s_gap_create_connection_timeout_tmr))
+                {
+                    rtos_stop_timer(&s_gap_create_connection_timeout_tmr);
+                }
+
+                rtos_deinit_timer(&s_gap_create_connection_timeout_tmr);
+
+                os_memset(&s_gap_create_connection_timeout_tmr, 0, sizeof(s_gap_create_connection_timeout_tmr));
+            }
         }
         break;
 
@@ -1714,6 +1362,23 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
                        evt->remote_bda[0],
                        evt->status,
                        evt->reason);
+
+            if (rtos_is_timer_init(&s_gap_create_connection_timeout_tmr))
+            {
+                if(rtos_is_timer_running(&s_gap_create_connection_timeout_tmr))
+                {
+                    rtos_stop_timer(&s_gap_create_connection_timeout_tmr);
+                }
+
+                rtos_deinit_timer(&s_gap_create_connection_timeout_tmr);
+
+                os_memset(&s_gap_create_connection_timeout_tmr, 0, sizeof(s_gap_create_connection_timeout_tmr));
+            }
+
+            if (ble_at_cmd_sema != NULL)
+            {
+                rtos_set_semaphore(&ble_at_cmd_sema);
+            }
         }
         break;
 
@@ -1724,22 +1389,69 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             uint32_t index = 0;
             char dname[64] = { 0 };
             uint8_t dname_len = sizeof(dname);
+            uint8_t found_name = 0;
 
-            ble_get_device_name_from_adv(pm->params.adv_data, pm->params.adv_data_len, (uint8_t *) dname, &dname_len);
+            found_name = ble_get_device_name_from_adv(pm->params.adv_data, pm->params.adv_data_len, (uint8_t *) dname, &dname_len);
+            dname[sizeof(dname) - 1] = 0;
+
+            switch(pm->params.event_type)
+            {
+            case BK_BLE_ADV_REPORT_EXT_ADV_IND:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "EXT_ADV");
+                break;
+
+            case BK_BLE_ADV_REPORT_EXT_SCAN_IND:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "EXT_SCAN_IND");
+                break;
+
+            case BK_BLE_ADV_REPORT_EXT_DIRECT_ADV:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "EXT_DIR");
+                break;
+
+            case BK_BLE_ADV_REPORT_EXT_SCAN_RSP:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "EXT_SCAN_RSP");
+                break;
+
+            case BK_BLE_LEGACY_ADV_TYPE_IND:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "ADV_IND");
+                break;
+
+            case BK_BLE_LEGACY_ADV_TYPE_DIRECT_IND:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "ADV_DIRECT_IND");
+                break;
+
+            case BK_BLE_LEGACY_ADV_TYPE_SCAN_IND:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "ADV_SCAN_IND");
+                break;
+
+            case BK_BLE_LEGACY_ADV_TYPE_NONCON_IND:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "ADV_NONCONN_IND");
+                break;
+
+            case BK_BLE_LEGACY_ADV_TYPE_SCAN_RSP_TO_ADV_IND:
+            case BK_BLE_LEGACY_ADV_TYPE_SCAN_RSP_TO_ADV_SCAN_IND:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "ADV_SCAN_RSP");
+                break;
+
+            default:
+                index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, "UNKNOW_ADV");
+                break;
+            }
 
             index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index,
-                                 pm->params.event_type & (1 << 4) ? "evt_type:LEG_ADV, 0x%x" : "evt_type:EXT_ADV, 0x%x", pm->params.event_type);
-
-            index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index,
-                                 " adv_addr_type:%d, adv_addr:%02x:%02x:%02x:%02x:%02x:%02x name %s",
+                                 " addr_type:%d, adv_addr:%02x:%02x:%02x:%02x:%02x:%02x",
                                  pm->params.addr_type,
                                  pm->params.addr[0],
                                  pm->params.addr[1],
                                  pm->params.addr[2],
                                  pm->params.addr[3],
                                  pm->params.addr[4],
-                                 pm->params.addr[5],
-                                 dname);
+                                 pm->params.addr[5]);
+
+            if(found_name)
+            {
+                //index += os_snprintf(printf_buff + index, sizeof(printf_buff) - index, " name:%s", dname);
+            }
 
             printf_buff[sizeof(printf_buff) - 1] = 0;
             LOGD("%s\n", printf_buff);
@@ -1853,6 +1565,17 @@ static void dm_ble_gap_at_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_param_t 
             {
                 bt_at_logw("set scan disable err 0x%x", pm->status);
             }
+
+            if (ble_at_cmd_sema != NULL)
+            {
+                rtos_set_semaphore(&ble_at_cmd_sema);
+            }
+        }
+        break;
+
+        case BK_BLE_GAP_SCAN_TIMEOUT_EVT:
+        {
+            LOGI("BK_BLE_GAP_SCAN_TIMEOUT_EVT\n");
 
             if (ble_at_cmd_sema != NULL)
             {
@@ -3224,8 +2947,6 @@ int ble_create_connect_handle(int sync, int argc, char **argv)
         }
     }
 
-
-
     /*actv_idx = bk_ble_find_master_state_idx_handle(AT_INIT_STATE_CREATED);
     if (actv_idx == AT_BLE_MAX_CONN)*/
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
@@ -3277,23 +2998,19 @@ int ble_create_connect_handle(int sync, int argc, char **argv)
     }
     else
     {
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
-        //        bk_ble_set_event_callback(dm_ble_at_event_cb);
-        ble_at_gattc_reg();
-#if 0
-        ble_conn_param_normal_t tmp;
+        bk_at_dm_gatt_main(NULL);
+        bk_at_dm_gattc_main(NULL);
+        bk_at_dm_gatts_main(NULL);
+        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
 
-        tmp.conn_interval_min = conn_param.intv_min;
-        tmp.conn_interval_max = conn_param.intv_max;
-        tmp.conn_latency = conn_param.con_latency;
-        tmp.supervision_timeout = conn_param.sup_to;
-        tmp.initiating_phys = conn_param.init_phys;
+        dm_gatt_app_env_t *ctx = bk_at_dm_ble_find_app_env_by_addr(bdaddr.addr);
 
-        tmp.peer_address_type = peer_addr_type;
-        os_memcpy(tmp.peer_address.addr, bdaddr.addr, sizeof(bdaddr.addr));
+        if(ctx && ctx->status != GAP_CONNECT_STATUS_IDLE)
+        {
+            LOGE("%s ctx->status not match %p %d\n", __func__, ctx, ctx ? ctx->status: GAP_CONNECT_STATUS_IDLE);
+            goto error;
+        }
 
-        err = bk_ble_create_connection(&tmp, ble_at_cmd_cb);
-#else
         bk_gap_create_conn_params_t param = {0};
 
         param.scan_interval = 800;
@@ -3308,8 +3025,9 @@ int ble_create_connect_handle(int sync, int argc, char **argv)
         param.supervision_timeout = conn_param.sup_to;
         param.min_ce = 0;
         param.max_ce = 0;
-        err = bk_ble_gap_connect(&param);
-#endif
+        //err = bk_ble_gap_connect(&param);
+        err = bk_at_dm_gattc_connect_ext(param.peer_addr, param.peer_addr_type, &param);
+
         if (err != BK_ERR_BLE_SUCCESS)
         {
             goto error;
@@ -3514,9 +3232,24 @@ int ble_disconnect_handle(int sync, int argc, char **argv)
     }
     else
     {
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
-        ble_at_gattc_reg();
-        err = bk_ble_disconnect_connection(&connect_addr, ble_at_cmd_cb);
+        bk_at_dm_gatt_main(NULL);
+        bk_at_dm_gattc_main(NULL);
+        bk_at_dm_gatts_main(NULL);
+        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
+
+        dm_gatt_app_env_t *ctx = bk_at_dm_ble_find_app_env_by_addr(connect_addr.addr);
+
+        if(!ctx || ctx->status != GAP_CONNECT_STATUS_CONNECTED)
+        {
+            LOGE("%s ctx->status not match %p %d\n", __func__, ctx, ctx ? ctx->status: GAP_CONNECT_STATUS_IDLE);
+            goto error;
+        }
+
+        bk_bd_addr_t tmp_addr;
+
+        os_memcpy(tmp_addr, connect_addr.addr, sizeof(tmp_addr));
+        err = bk_at_dm_gatt_disconnect(tmp_addr);
+        at_cmd_status = err;
     }
 
     if (err != BK_ERR_BLE_SUCCESS)
@@ -3647,20 +3380,21 @@ int ble_update_conn_param_handle(int sync, int argc, char **argv)
     }
     else
     {
-        //        ble_update_conn_param_t tmp;
-        //        tmp.peer_address_type = addr_type;
-        //
-        //        tmp.conn_interval_min = conn_param.intv_min;
-        //        tmp.conn_interval_max = conn_param.intv_max;
-        //        tmp.conn_latency = conn_param.con_latency;
-        //        tmp.supervision_timeout = conn_param.sup_to;
-        //
-        //        memcpy(tmp.peer_address.addr, connect_addr.addr, sizeof(connect_addr.addr));
-
-        //        bk_ble_set_event_callback(dm_ble_at_event_cb);
-        //        err = bk_ble_update_connection_params(&tmp);
-
         (void)addr_type;
+
+        bk_at_dm_gatt_main(NULL);
+        bk_at_dm_gattc_main(NULL);
+        bk_at_dm_gatts_main(NULL);
+        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
+
+        dm_gatt_app_env_t *ctx = bk_at_dm_ble_find_app_env_by_addr(connect_addr.addr);
+
+        if(!ctx || ctx->status != GAP_CONNECT_STATUS_CONNECTED)
+        {
+            LOGE("%s ctx->status not match %p %d\n", __func__, ctx, ctx ? ctx->status: GAP_CONNECT_STATUS_IDLE);
+            goto error;
+        }
+
         bk_ble_conn_update_params_t bk_param =
         {
             .min_int = conn_param.intv_min,
@@ -3670,8 +3404,6 @@ int ble_update_conn_param_handle(int sync, int argc, char **argv)
         };
 
         memcpy(&bk_param.bda, connect_addr.addr, sizeof(connect_addr.addr));
-
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
         err = bk_ble_gap_update_conn_params(&bk_param);
     }
 
@@ -3733,9 +3465,10 @@ int ble_get_conn_state_handle(int sync, int argc, char **argv)
         goto error;
     }
 
-    conn_state = bk_ble_get_connect_state(&peer_addr);
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
+        conn_state = bk_ble_get_connect_state(&peer_addr);
+
         if (conn_state == 1)
         {
             os_snprintf(resultbuf, sizeof(resultbuf), "%s%s\r\n", "ATRSP:", "BLE_CONNECT");
@@ -3753,28 +3486,31 @@ int ble_get_conn_state_handle(int sync, int argc, char **argv)
     }
     else
     {
-        if (conn_state == AT_INIT_STATE_CONNECTTED)
-        {
-            os_snprintf(resultbuf, sizeof(resultbuf), "%s%s\r\n", "ATRSP:", "BLE_CONNECTED");
-            atsvr_output_msg(resultbuf);
-        }
-        else if (conn_state == AT_INIT_STATE_IDLE)
+        dm_gatt_app_env_t *ctx = bk_at_dm_ble_find_app_env_by_addr(peer_addr.addr);
+
+        if(!ctx || ctx->status == GAP_CONNECT_STATUS_IDLE)
         {
             os_snprintf(resultbuf, sizeof(resultbuf), "%s%s\r\n", "ATRSP:", "BLE_DISCONNECTED");
             atsvr_output_msg(resultbuf);
         }
-        else if (conn_state == AT_INIT_STATE_CONNECTTING)
+        else if(ctx->status == GAP_CONNECT_STATUS_CONNECTED)
+        {
+            os_snprintf(resultbuf, sizeof(resultbuf), "%s%s\r\n", "ATRSP:", "BLE_CONNECTED");
+            atsvr_output_msg(resultbuf);
+        }
+        else if(ctx->status == GAP_CONNECT_STATUS_CONNECTING)
         {
             os_snprintf(resultbuf, sizeof(resultbuf), "%s%s\r\n", "ATRSP:", "BLE_CONNECTTING");
             atsvr_output_msg(resultbuf);
         }
-        else if (conn_state == AT_INIT_STATE_STOPPING)
+        else if(ctx->status == GAP_CONNECT_STATUS_DISCONNECTING)
         {
             os_snprintf(resultbuf, sizeof(resultbuf), "%s%s\r\n", "ATRSP:", "BLE_DISCONNECTTING");
             atsvr_output_msg(resultbuf);
         }
         else
         {
+            LOGW("%s invalid ctx->status %d\n", __func__, ctx->status);
             os_snprintf(resultbuf, sizeof(resultbuf), "%s%s\r\n", "ATRSP:", "BLE_DISCONNECTED");
             atsvr_output_msg(resultbuf);
         }
@@ -3959,13 +3695,8 @@ int ble_update_mtu_2_max_handle(int sync, int argc, char **argv)
     }
     else
     {
-        if (os_memcmp(ble_at_get_gatt_ctx_handle()->gattc_peer_addr, connect_addr.addr, sizeof(connect_addr)))
-        {
-            LOGW("%s addr not found\n", __func__);
-            goto error;
-        }
 
-        err = bk_ble_gattc_send_mtu_req(ble_at_get_gatt_ctx_handle()->gattc_if, ble_at_get_gatt_ctx_handle()->gattc_conn_handle);
+        err = bk_at_dm_gattc_send_mtu_req(connect_addr.addr, 0);
 
         if (err == 0)
         {
@@ -3980,7 +3711,7 @@ int ble_update_mtu_2_max_handle(int sync, int argc, char **argv)
 
 
 error:
-    g_test_prf_task_id = 0;
+
     atsvr_cmd_rsp_error();
     if (ble_at_cmd_sema != NULL)
     {
@@ -4026,16 +3757,27 @@ int ble_tx_test_param_handle(int sync, int argc, char **argv)
         goto error;
     }
 
-    if (len > s_ethermind_current_mtu - 3)
+//    if (len > s_ethermind_current_mtu - 3)
+//    {
+//        LOGE("%s len %d must less than s_ethermind_current_mtu - 3 %d!!!\n", __func__, len, s_ethermind_current_mtu - 3);
+//        err = kParamErr;
+//        goto error;
+//    }
+
+    s_test_data_len = len;
+    s_test_send_inter = inter;
+    LOGI("%s len %d inter %d\n", __func__, s_test_data_len, s_test_send_inter);
+
+    if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
-        LOGW("%s len %d must less than s_ethermind_current_mtu - 3 %d!!!\n", __func__, len, s_ethermind_current_mtu - 3);
-        err = kParamErr;
-        goto error;
+
+    }
+    else
+    {
+        bk_performance_test_profile_set_data_len(len);
+        bk_performance_test_profile_set_interval(inter);
     }
 
-    s_ethermind_send_size_value = s_test_data_len = len;
-    s_ethermind_send_intv_value = s_test_send_inter = inter;
-    LOGD("%s len %d inter %d\n", __func__, s_test_data_len, s_test_send_inter);
     if (err != BK_ERR_BLE_SUCCESS)
     {
         goto error;
@@ -4085,54 +3827,29 @@ int ble_tx_test_enable_handle(int sync, int argc, char **argv)
         goto error;
     }
 
+    enable = os_strtoul(argv[0], NULL, 10) & 0xFF;
 
-    if (g_test_prf_task_id == 0)
+    if(argc >= 2)
     {
-        LOGW("%s not reg profile, exit\n", __func__);
-        err = kParamErr;
-        goto error;
+        con_idx = os_strtoul(argv[1], NULL, 10) & 0xFF;
     }
 
-    enable = os_strtoul(argv[0], NULL, 10) & 0xFF;
-    con_idx = os_strtoul(argv[1], NULL, 10) & 0xFF;
-    LOGD("%s enable %d, con_idx %d\n", __func__, enable, con_idx);
+    LOGI("%s enable %d, con_idx %d\n", __func__, enable, con_idx);
 
     if (bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
+        if (g_test_prf_task_id == 0)
+        {
+            LOGE("%s not reg profile, exit\n", __func__);
+            err = kParamErr;
+            goto error;
+        }
+
         ble_test_service_write_handle(enable, con_idx);
     }
     else
     {
-        s_ethermind_auto_tx_enable = enable;
-
-        if (enable)
-        {
-            if (s_ethermind_service_type == 1)
-            {
-                ble_tx_test_active_timer_callback(NULL);
-            }
-            else
-            {
-                if (!rtos_is_timer_init(&s_ethermind_ble_send_test_timer))
-                {
-                    rtos_init_timer(&s_ethermind_ble_send_test_timer, 1000, ble_tx_test_active_timer_callback, NULL);
-                    rtos_start_timer(&s_ethermind_ble_send_test_timer);
-                }
-            }
-        }
-        else
-        {
-            if (rtos_is_timer_init(&s_ethermind_ble_send_test_timer))
-            {
-                if (rtos_is_timer_running(&s_ethermind_ble_send_test_timer))
-                {
-                    rtos_stop_timer(&s_ethermind_ble_send_test_timer);
-                }
-
-                rtos_deinit_timer(&s_ethermind_ble_send_test_timer);
-            }
-        }
-
+        bk_performance_test_profile_enable_tx(enable);
     }
 
     if (err != BK_ERR_BLE_SUCCESS)
@@ -4174,14 +3891,14 @@ static void ble_sdp_charac_callback(CHAR_TYPE type, uint8 conidx, uint16_t hdl, 
 
 int ble_register_noti_service_handle(int sync, int argc, char **argv)
 {
-    s_ethermind_service_type = s_service_type = 0;
+    s_service_type = 0;
 
     return ble_register_service_handle(sync, argc, argv);
 }
 
 int ble_register_performance_service_handle(int sync, int argc, char **argv)
 {
-    s_ethermind_service_type = s_service_type = 1;
+    s_service_type = 1;
 
     return ble_register_service_handle(sync, argc, argv);
 }
@@ -4295,58 +4012,7 @@ int ble_enable_performance_statistic_handle(int sync, int argc, char **argv)
     }
     else
     {
-        if (type == 1) //tx
-        {
-            if (enable)
-            {
-                if (!rtos_is_timer_init(&ble_ethermind_performance_tx_statistics_tmr))
-                {
-                    s_ethermind_performance_tx_bytes = 0;
-
-                    rtos_init_timer(&ble_ethermind_performance_tx_statistics_tmr, 1000, ble_ethermind_performance_tx_timer_hdl, (void *)0);
-                    rtos_start_timer(&ble_ethermind_performance_tx_statistics_tmr);
-                }
-            }
-            else
-            {
-                if (rtos_is_timer_init(&ble_ethermind_performance_tx_statistics_tmr))
-                {
-                    s_performance_tx_bytes = 0;
-                    if (rtos_is_timer_running(&ble_ethermind_performance_tx_statistics_tmr))
-                    {
-                        rtos_stop_timer(&ble_ethermind_performance_tx_statistics_tmr);
-                    }
-                    rtos_deinit_timer(&ble_ethermind_performance_tx_statistics_tmr);
-                }
-            }
-        }
-        else if (type == 2) //rx
-        {
-            if (enable)
-            {
-                if (!rtos_is_timer_init(&ble_ethermind_performance_rx_statistics_tmr))
-                {
-                    s_ethermind_performance_rx_bytes = 0;
-
-                    rtos_init_timer(&ble_ethermind_performance_rx_statistics_tmr, 1000, ble_ethermind_performance_rx_timer_hdl, (void *)0);
-                    rtos_start_timer(&ble_ethermind_performance_rx_statistics_tmr);
-                }
-            }
-            else
-            {
-                if (rtos_is_timer_init(&ble_ethermind_performance_rx_statistics_tmr))
-                {
-                    s_ethermind_performance_rx_bytes = 0;
-
-                    if (rtos_is_timer_running(&ble_ethermind_performance_rx_statistics_tmr))
-                    {
-                        rtos_stop_timer(&ble_ethermind_performance_rx_statistics_tmr);
-                    }
-
-                    rtos_deinit_timer(&ble_ethermind_performance_rx_statistics_tmr);
-                }
-            }
-        }
+        bk_performance_test_profile_enable_statistics(enable, type);
     }
 
     if (err != BK_ERR_BLE_SUCCESS)
@@ -4679,212 +4345,6 @@ error:
     return err;
 }
 
-static void ble_tx_test_active_timer_callback(void *param)
-{
-    API_RESULT retval = 0;
-    uint8_t *tmp_buff = NULL;
-
-    tmp_buff = os_malloc(s_ethermind_send_size_value);
-
-    if (!tmp_buff)
-    {
-        LOGW("%s alloc send failed\n", __func__);
-        return;
-    }
-
-    os_memset(tmp_buff, 0, s_ethermind_send_size_value);
-    tmp_buff[0] = s_ethermind_send_test_value++;
-
-
-    retval = bk_ble_send_notify(s_ethermind_att_handle, s_ethermind_send_test_service_handle,
-                                s_ethermind_send_char_test_handle, tmp_buff, s_ethermind_send_size_value);
-
-    os_free(tmp_buff);
-
-    if (retval != 0)
-    {
-        LOGW("%s notify err %d\n", __func__, retval);
-    }
-    else
-    {
-        s_ethermind_performance_tx_bytes += s_ethermind_send_size_value;
-    }
-}
-
-static void ble_tx_test_passive_timer_callback(void *param)
-{
-    API_RESULT retval = 0;
-    uint8_t *tmp_buff = NULL;
-    GATT_DB_HANDLE *gdbh = (GATT_DB_HANDLE *)param;
-    uint8_t conn_handle = s_ethermind_att_handle;
-
-    tmp_buff = os_malloc(s_ethermind_send_size_value);
-
-    if (!tmp_buff)
-    {
-        LOGW("%s alloc send failed\n", __func__);
-        return;
-    }
-
-    os_memset(tmp_buff, 0, s_ethermind_send_size_value);
-    tmp_buff[0] = s_ethermind_send_test_value++;
-
-    retval = bk_ble_send_notify(conn_handle, gdbh->service_id, gdbh->char_id,
-                                tmp_buff, s_ethermind_send_size_value);
-
-    os_free(tmp_buff);
-
-    if (retval != 0)
-    {
-        LOGW("%s notify err %d\n", __func__, retval);
-    }
-    else
-    {
-        s_ethermind_performance_tx_bytes += s_ethermind_send_size_value;
-    }
-
-}
-
-static bk_err_t ethermind_test_gatt_char_handler
-(
-    uint8_t conn_handle,
-    GATT_DB_HANDLE     *handle,
-    GATT_DB_PARAMS     *params
-)
-{
-    bk_err_t retval = 0;
-    uint16_t value = 0;
-
-    static GATT_DB_HANDLE *gdbh = NULL;
-
-    LOGD("%s device_id %d service %d char %d attr_handle %d op 0x%02X\n", __func__,
-         handle->device_id, handle->service_id, handle->char_id, params->handle, params->db_op);
-
-    if (handle->service_id == s_ethermind_send_test_service_handle)
-    {
-        switch (params->db_op)
-        {
-            case GATT_DB_CHAR_PEER_CLI_CNFG_WRITE_REQ:
-            {
-                //BT_UNPACK_LE_2_BYTE (&value, params->value.val);
-                memcpy(&value, params->value.val, 2);
-                if (handle->char_id == s_ethermind_send_char_test_handle)
-                {
-                    if (GATT_CLI_CNFG_NOTIFICATION == value)
-                    {
-                        LOGD("%s enable notify\n", __func__);
-
-                        if (!gdbh)
-                        {
-                            gdbh = (GATT_DB_HANDLE *)os_malloc(sizeof(*handle));
-
-                            if (!gdbh)
-                            {
-                                LOGW("%s cant alloc GATT_DB_HANDLE\n", __func__);
-                                retval = BK_FAIL;
-                                break;
-                            }
-                        }
-
-                        memcpy(gdbh, handle, sizeof(*handle));
-
-                        if (s_ethermind_service_type == 1)
-                        {
-                            s_ethermind_auto_tx_enable = 1;
-                            ble_tx_test_passive_timer_callback((void *)(size_t)gdbh);
-
-                        }
-                        else if (!rtos_is_timer_init(&s_ethermind_ble_send_test_timer))
-                        {
-                            rtos_init_timer(&s_ethermind_ble_send_test_timer, 1000, ble_tx_test_passive_timer_callback, (void *)(size_t)gdbh);
-                            rtos_start_timer(&s_ethermind_ble_send_test_timer);
-                        }
-
-                    }
-                    else
-                    {
-                        LOGD("%s disable notify\n", __func__);
-                        s_ethermind_auto_tx_enable = 0;
-
-                        if (rtos_is_timer_init(&s_ethermind_ble_send_test_timer))
-                        {
-                            if (rtos_is_timer_running(&s_ethermind_ble_send_test_timer))
-                            {
-                                rtos_stop_timer(&s_ethermind_ble_send_test_timer);
-                            }
-
-                            rtos_deinit_timer(&s_ethermind_ble_send_test_timer);
-                        }
-
-                        if (gdbh)
-                        {
-                            os_free(gdbh);
-                            gdbh = NULL;
-                        }
-                    }
-                }
-                else
-                {
-                    retval = BK_FAIL;
-                }
-            }
-            break;
-
-            case GATT_DB_CHAR_PEER_WRITE_REQ:
-            {
-                if (handle->char_id == s_ethermind_send_size_handle)
-                {
-                    //BT_UNPACK_LE_2_BYTE(&value, k);
-                    memcpy(&value, params->value.val, 2);
-                    LOGD("%s write s_ethermind_send_size_handle %d\n", __func__, value);
-                }
-                else if (handle->char_id == s_ethermind_send_intv_handle)
-                {
-                    //BT_UNPACK_LE_2_BYTE(&value, params->value.val);
-                    memcpy(&value, params->value.val, 2);
-                    LOGD("%s write s_ethermind_send_intv_handle %d len %d %d\n", __func__, value, params->value.len, params->value.actual_len);
-                }
-                else
-                {
-                    retval = BK_FAIL;
-                }
-            }
-            break;
-
-            case GATT_DB_CHAR_PEER_READ_REQ:
-                if (handle->char_id == s_ethermind_send_intv_handle)
-                {
-#if 0
-                    //when s_ethermind_send_intv_handle buff is null
-                    uint8_t conn_handle = 0;
-                    const uint32_t test_resp = 0xabcdef01;
-
-                    if (0 != bk_ble_get_conn_handle_from_device_handle(&conn_handle, &handle->device_id))
-                    {
-                        break;
-                    }
-
-                    //respone here
-                    bk_ble_gatt_read_resp(conn_handle, (uint8_t *)&test_resp, sizeof(test_resp));
-
-                    //must return GATT_DB_DELAYED_RESPONSE
-                    retval = GATT_DB_DELAYED_RESPONSE;
-#endif
-                }
-
-                break;
-        }
-    }
-    else
-    {
-        //        retval = BK_FAIL;
-    }
-
-    return retval;
-}
-
-
-
 static int ble_register_service_handle(int sync, int argc, char **argv)
 {
     int err = kNoErr;
@@ -5050,26 +4510,15 @@ static int ble_register_service_handle(int sync, int argc, char **argv)
     }
     else
     {
-        API_RESULT           retval;
-
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
-        ble_at_gatts_reg();
-
-        retval = ble_at_reg_gatts_db(s_service_type);
-
-        if (retval)
-        {
-            bt_at_logw("ble_at_reg_gatts_db err %d", retval);
-            return -1;
-        }
-        err = 0;
+        bk_at_dm_gatt_main(NULL);
+        bk_at_dm_gattc_main(NULL);
+        bk_at_dm_gatts_main(NULL);
+        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
+        bk_performance_test_profile_init(my_service_uuid, my_char_uuid, s_service_type, NULL);
 
         atsvr_cmd_rsp_ok();
         return err;
     }
-
-
-
 
 error:
     atsvr_cmd_rsp_error();
@@ -5125,23 +4574,6 @@ static void ble_performance_rx_timer_hdl(void *param)
 
     LOGD("%s current rx %d bytes/sec\n", __func__, tmp);
 }
-
-static void ble_ethermind_performance_tx_timer_hdl(void *param)
-{
-    uint32_t tmp = s_ethermind_performance_tx_bytes;
-    s_ethermind_performance_tx_bytes = 0;
-
-    LOGD("%s current tx %d bytes/sec\n", __func__, tmp);
-}
-
-static void ble_ethermind_performance_rx_timer_hdl(void *param)
-{
-    uint32_t tmp = s_ethermind_performance_rx_bytes;
-    s_ethermind_performance_rx_bytes = 0;
-
-    LOGD("%s current rx %d bytes/sec\n", __func__, tmp);
-}
-
 
 void ble_test_service_write_handle(uint8 val, uint8 con_idx)
 {
@@ -5247,10 +4679,11 @@ int ble_read_phy_handle(int sync, int argc, char **argv)
         os_memcpy(addr_new, g_peer_dev.bdaddr.addr, sizeof(g_peer_dev.bdaddr.addr));
 
         (void)addr_type;
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
-        //ble_at_gattc_reg();
+        bk_at_dm_gatt_main(NULL);
+        bk_at_dm_gattc_main(NULL);
+        bk_at_dm_gatts_main(NULL);
+        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
         err = bk_ble_gap_read_phy(addr_new);
-
     }
 
     if (err != kNoErr)
@@ -5390,6 +4823,12 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
         bk_ble_gap_phy_mask_t rx_phy_mask = le_set_phy.rx_phy;
         bk_ble_gap_prefer_phy_options_t phy_options;
         (void)addr_type;
+
+        bk_at_dm_gatt_main(NULL);
+        bk_at_dm_gattc_main(NULL);
+        bk_at_dm_gatts_main(NULL);
+        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
+
         switch (le_set_phy.phy_opt)
         {
             case 0:
@@ -5409,7 +4848,6 @@ int ble_set_phy_handle(int sync, int argc, char **argv)
 
         os_memcpy(addr_new, g_peer_dev.bdaddr.addr, sizeof(g_peer_dev.bdaddr.addr));
 
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
         err = bk_ble_gap_set_preferred_phy(addr_new, all_phys_mask, tx_phy_mask, rx_phy_mask, phy_options);
     }
 
@@ -5458,8 +4896,7 @@ int ble_set_max_mtu_handle(int sync, int argc, char **argv)
     int err = kNoErr;
     uint16_t att_max_mtu = 0;
 
-    if ((bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
-        || (bk_ble_get_host_stack_type() == BK_BLE_HOST_STACK_TYPE_ETHERMIND))
+    if (bk_ble_get_controller_stack_type() != BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2)
     {
         err = kParamErr;
         goto error;
@@ -5481,32 +4918,40 @@ int ble_set_max_mtu_handle(int sync, int argc, char **argv)
         }
     }
 
-    bk_ble_set_notice_cb(ble_at_notice_cb);
-
     att_max_mtu = os_strtoul(argv[0], NULL, 10) & 0xFF;
-    err = bk_ble_set_max_mtu(att_max_mtu);
-    if (err != kNoErr)
-    {
-        LOGW("set att maximal MTU failed\r\n");
-        goto error;
-    }
 
-    if (ble_at_cmd_sema != NULL)
+    if(bk_ble_get_host_stack_type() != BK_BLE_HOST_STACK_TYPE_ETHERMIND)
     {
-        err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
+        bk_ble_set_notice_cb(ble_at_notice_cb);
+
+        err = bk_ble_set_max_mtu(att_max_mtu);
         if (err != kNoErr)
         {
-            LOGW("get sema fail\r\n");
+            LOGE("set att maximal MTU failed\r\n");
             goto error;
         }
-        else
+
+        if (ble_at_cmd_sema != NULL)
         {
-            if (at_cmd_status != BK_ERR_BLE_SUCCESS)
+            err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
+            if (err != kNoErr)
             {
-                err = at_cmd_status;
+                LOGE("get sema fail\r\n");
                 goto error;
             }
+            else
+            {
+                if (at_cmd_status != BK_ERR_BLE_SUCCESS)
+                {
+                    err = at_cmd_status;
+                    goto error;
+                }
+            }
         }
+    }
+    else
+    {
+        bk_ble_gatt_set_local_mtu(att_max_mtu);
     }
 
     atsvr_cmd_rsp_ok();
@@ -5824,107 +5269,10 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
     }
     else
     {
-#if 0
-        ble_scan_param_t scan_param;
-        scan_param.own_addr_type = 0; // ethermind does not have OWN_ADDR_TYPE_PUBLIC_OR_STATIC_ADDR
-        scan_param.scan_phy = PHY_1MBPS_BIT;
-        scan_param.scan_intv = 0x64;
-        scan_param.scan_wd = 0x1e;
-
-        uint8_t filt_duplicate = 0;
-        uint16_t duration = 0;
-        uint16_t period = 10;
-
-        bk_ble_set_event_callback(dm_ble_at_event_cb);
-
-        if (ble_at_cmd_sema != NULL)
-        {
-            err = bk_ble_set_scan_parameters(scan_param.own_addr_type, 0x00, scan_param.scan_phy, scan_param.scan_intv, scan_param.scan_wd, ble_at_cmd_cb);
-            LOGD("%s set scan param\r\n", __func__);
-            if (err != BK_ERR_BLE_SUCCESS)
-            {
-                goto error;
-            }
-            err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
-            if (err != kNoErr)
-            {
-                goto error;
-            }
-            err = bk_ble_set_scan_enable_extended(1, filt_duplicate, duration, period, ble_at_cmd_cb);
-            if (err != BK_ERR_BLE_SUCCESS)
-            {
-                goto error;
-            }
-            err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
-
-            if (err != kNoErr)
-            {
-                goto error;
-            }
-            LOGD("%s start scan\r\n", __func__);
-
-            rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
-
-            if (g_peer_dev.state == STATE_DISCOVERED)
-            {
-                bk_ble_set_scan_enable_extended(0, filt_duplicate, duration, period, ble_at_cmd_cb);
-                err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
-                if (err != kNoErr)
-                {
-                    goto error;
-                }
-                LOGD("%s stop scan\r\n", __func__);
-
-                ble_conn_param_normal_t tmp;
-
-                tmp.conn_interval_min = conn_param.intv_min;
-                tmp.conn_interval_max = conn_param.intv_max;
-                tmp.conn_latency = conn_param.con_latency;
-                tmp.supervision_timeout = conn_param.sup_to;
-                tmp.initiating_phys = conn_param.init_phys;
-
-                tmp.peer_address_type = g_peer_dev.addr_type;
-                os_memcpy(tmp.peer_address.addr, &(g_peer_dev.bdaddr.addr[0]), BK_BLE_GAP_BD_ADDR_LEN);
-                LOGD("%s start conn, peer addr: %x %x %x %x %x %x\r\n", __func__, tmp.peer_address.addr[0], tmp.peer_address.addr[1],
-                     tmp.peer_address.addr[2], tmp.peer_address.addr[3], tmp.peer_address.addr[4], tmp.peer_address.addr[5]);
-                g_peer_dev.state = STATE_CONNECTINIG;
-
-                err = bk_ble_create_connection(&tmp, ble_at_cmd_cb);
-
-                if (err != BK_ERR_BLE_SUCCESS)
-                {
-                    goto error;
-                }
-
-                err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
-                if (err != kNoErr)
-                {
-                    goto error;
-                }
-                else
-                {
-                    if (at_cmd_status == BK_ERR_BLE_SUCCESS)
-                    {
-                        atsvr_cmd_rsp_ok();
-                        rtos_deinit_semaphore(&ble_at_cmd_sema);
-                        return err;
-                    }
-                    else
-                    {
-                        err = at_cmd_status;
-                        goto error;
-                    }
-                }
-            }
-            else
-            {
-                LOGD("%s SCAN Timeout %d\r\n", __func__, g_peer_dev.state);
-                bk_ble_set_scan_enable_extended(0, filt_duplicate, duration, period, ble_at_cmd_cb);
-                goto error;
-            }
-        }
-#else
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+        bk_at_dm_gatt_main(NULL);
+        bk_at_dm_gattc_main(NULL);
+        bk_at_dm_gatts_main(NULL);
+        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
 
         bk_ble_ext_scan_params_t param = {0};
         param.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
@@ -5964,25 +5312,29 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
 
         if (err != BK_ERR_BLE_SUCCESS)
         {
+            LOGE("%s bk_ble_gap_start_scan err %d\n", __func__, err);
             goto error;
         }
 
-        LOGD("%s start scan\n", __func__);
+        LOGI("%s wait start scan sem\n", __func__);
 
         err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
+
         if (err != kNoErr)
         {
+            LOGE("%s wait start scan sem err\n", __func__);
             goto error;
         }
 
-        err = bk_ble_gap_stop_scan();
+        LOGI("%s wait scan terminal sem\n", __func__);
 
-        if (err != BK_ERR_BLE_SUCCESS)
+        err = rtos_get_semaphore(&ble_at_cmd_sema, AT_SYNC_CMD_TIMEOUT_MS);
+
+        if (err != kNoErr)
         {
+            LOGE("%s wait scan terminal sem err\n", __func__);
             goto error;
         }
-
-        LOGD("%s stop scan\n", __func__);
 
         if (g_peer_dev.state != STATE_DISCOVERED)
         {
@@ -6006,7 +5358,8 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
             param.min_ce = 0;
             param.max_ce = 0;
 
-            err = bk_ble_gap_connect(&param);
+            //err = bk_ble_gap_connect(&param);
+            err = bk_at_dm_gattc_connect_ext(param.peer_addr, param.peer_addr_type, &param);
 
             if (!rtos_is_timer_init(&s_gap_create_connection_timeout_tmr))
             {
@@ -6024,7 +5377,6 @@ int ble_connect_by_name_handle(int sync, int argc, char **argv)
         atsvr_cmd_rsp_ok();
 
         return err;
-#endif
     }
 
 error:
@@ -6096,11 +5448,16 @@ int ble_disconnect_by_name_handle(int sync, int argc, char **argv)
     }
     else
     {
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
-        ble_at_gattc_reg();
+        bk_at_dm_gatt_main(NULL);
+        bk_at_dm_gattc_main(NULL);
+        bk_at_dm_gatts_main(NULL);
+        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
 
         g_peer_dev.state = STATE_DISCONNECTINIG;
-        err = bk_ble_disconnect_connection(&g_peer_dev.bdaddr, ble_at_cmd_cb);
+        bk_bd_addr_t tmp_addr;
+
+        os_memcpy(tmp_addr, g_peer_dev.bdaddr.addr, sizeof(tmp_addr));
+        bk_at_dm_gatt_disconnect(tmp_addr);
     }
 
     if (err != BK_ERR_BLE_SUCCESS)
@@ -6498,10 +5855,12 @@ int ble_att_write_handle(int sync, int argc, char **argv)
     }
     else
     {
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
-        ble_at_gattc_reg();
-        err = bk_ble_gattc_write_char(ble_at_get_gatt_ctx_handle()->gattc_if, conn_handle, attr_handle, data_count, send_value,
-                                      BK_GATT_WRITE_TYPE_RSP, BK_GATT_AUTH_REQ_NONE);
+//        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
+//        ble_at_gattc_reg();
+//        err = bk_ble_gattc_write_char(ble_at_get_gatt_ctx_handle()->gattc_if, conn_handle, attr_handle, data_count, send_value,
+//                                      BK_GATT_WRITE_TYPE_RSP, BK_GATT_AUTH_REQ_NONE);
+
+        LOGE("%s unsupport !!!\n", __func__);
     }
 
     if (err != BK_ERR_BLE_SUCCESS)
@@ -6597,9 +5956,10 @@ static int ble_att_read_handle(int sync, int argc, char **argv)
     }
     else
     {
-        bk_ble_gap_register_callback(dm_ble_gap_at_cb);
-        ble_at_gattc_reg();
-        err = bk_ble_gattc_read_char(ble_at_get_gatt_ctx_handle()->gattc_if, conn_handle, s_read_tmp_attr_handle, BK_GATT_AUTH_REQ_NONE);
+//        bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
+//        ble_at_gattc_reg();
+//        err = bk_ble_gattc_read_char(ble_at_get_gatt_ctx_handle()->gattc_if, conn_handle, s_read_tmp_attr_handle, BK_GATT_AUTH_REQ_NONE);
+        LOGE("%s unsupport !!!\n", __func__);
     }
 
     if (ble_at_cmd_sema != NULL)
@@ -6733,6 +6093,7 @@ int ble_enable_packet_loss_ratio_test_handle(int sync, int argc, char **argv)
             {
                 if (s_ethermind_nordic_used[i])
                 {
+                    //todo:
                     bk_ble_att_write(s_ethermind_nordic_att_info[i], s_ethermind_nordic_write_notify_handle[i], (uint8_t *)&noti_enable, sizeof(noti_enable));
                 }
 
@@ -7743,6 +7104,10 @@ int ble_stability_test_handle(int sync, int argc, char **argv)
             bk_ble_register_app_sdp_charac_callback(ble_stability_sdp_charac_callback);
             stability_test_m_enabled = 1;
         }
+        else
+        {
+            LOGE("%s unsupport !!!\n", __func__);
+        }
     }
     else if (cmd == 2)
     {
@@ -7784,6 +7149,10 @@ int ble_stability_test_handle(int sync, int argc, char **argv)
                 rtos_start_timer(&stability_test_tmr);
             }
         }
+        else
+        {
+            LOGE("%s unsupport !!!\n", __func__);
+        }
     }
     else if (cmd == 0)
     {
@@ -7813,6 +7182,10 @@ int ble_stability_test_handle(int sync, int argc, char **argv)
                     //LOGW("the %dth conn is not connected\n",j);
                 }
             }
+        }
+        else
+        {
+            LOGE("%s unsupport !!!\n", __func__);
         }
 
         show_stability_test_result();
@@ -7925,6 +7298,10 @@ void ble_stability_test_master_reconnect_timer_hdl(void *param, unsigned int ulp
 
         rtos_deinit_semaphore(&ble_at_cmd_sema);
     }
+    else
+    {
+        LOGE("%s unsupport !!!\n", __func__);
+    }
 }
 
 int ble_unregister_service_handle(int sync, int argc, char **argv)
@@ -7994,6 +7371,10 @@ int ble_unregister_service_handle(int sync, int argc, char **argv)
                 }
             }
         }
+    }
+    else
+    {
+        LOGE("%s unsupport !!!\n", __func__);
     }
 
 error:
@@ -8161,7 +7542,10 @@ int set_ble_device_name_handle_gap(int sync, int argc, char **argv)
         err = kParamErr;
         goto error;
     }
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     ret = bk_ble_gap_set_device_name((char *)argv[0]);
     if (ret != BK_OK)
     {
@@ -8188,7 +7572,10 @@ int get_ble_device_name_handle_gap(int sync, int argc, char **argv)
         err = kParamErr;
         goto error;
     }
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     ret = bk_ble_gap_get_device_name(name, &name_len);
     if (ret != BK_OK)
     {
@@ -8216,7 +7603,10 @@ int ble_set_adv_param_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     os_memset(&adv_param, 0, sizeof(ble_adv_param_t));
     adv_param.chnl_map = os_strtoul(argv[0], NULL, 16);
     if (adv_param.chnl_map > 7)
@@ -8375,7 +7765,10 @@ int ble_set_adv_data_raw_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     adv_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (adv_len > 255 || adv_len != os_strlen(argv[0]) / 2)
     {
@@ -8436,7 +7829,10 @@ int ble_set_adv_data_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     bk_ble_adv_data_t ble_adv_data = {0};
     ble_adv_data.set_scan_rsp = 0;
     ble_adv_data.include_name = 1;
@@ -8505,7 +7901,10 @@ int ble_set_scan_rsp_data_raw_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     data_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (data_len > 255 || data_len != os_strlen(argv[0]) / 2)
     {
@@ -8565,7 +7964,10 @@ int ble_set_scan_rsp_data_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     bk_ble_adv_data_t ble_adv_data = {0};
     ble_adv_data.set_scan_rsp = 1;
     ble_adv_data.include_name = 1;
@@ -8630,7 +8032,10 @@ int ble_set_adv_enable_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
 
     if (os_strcmp(argv[0], "1") == 0)
     {
@@ -8658,8 +8063,8 @@ int ble_set_adv_enable_handle_gap(int sync, int argc, char **argv)
     }
     else
     {
-        uint8_t instance = 0;
-        err = bk_ble_gap_adv_stop(1, &instance);
+        uint8_t instance[] = {0};
+        err = bk_ble_gap_adv_stop(sizeof(instance), instance);
     }
 
     if (err != BK_ERR_BLE_SUCCESS)
@@ -8709,7 +8114,10 @@ int ble_set_scan_param_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     os_memset(&scan_param, 0, sizeof(ble_scan_param_t));
     scan_param.own_addr_type = os_strtoul(argv[0], NULL, 16) & 0xFF;
     scan_param.scan_phy = os_strtoul(argv[1], NULL, 16) & 0xFF;
@@ -8807,7 +8215,10 @@ int ble_set_scan_enable_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     if (os_strcmp(argv[0], "1") == 0)
     {
         enable = 1;
@@ -8902,7 +8313,10 @@ int ble_set_per_adv_param_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
 
     os_memset(&adv_param, 0, sizeof(ble_adv_param_t));
     adv_param.chnl_map = os_strtoul(argv[0], NULL, 16);
@@ -9037,7 +8451,10 @@ int ble_set_per_adv_data_handle_gap(int sync, int argc, char **argv)
         goto error;
     }
 
-    bk_ble_gap_register_callback(dm_ble_gap_at_cb);
+    bk_at_dm_gatt_main(NULL);
+    bk_at_dm_gattc_main(NULL);
+    bk_at_dm_gatts_main(NULL);
+    bk_at_dm_gatt_add_gap_callback(dm_ble_gap_at_cb);
     adv_len = os_strtoul(argv[1], NULL, 16) & 0xFF;
     if (adv_len > 255 || adv_len != os_strlen(argv[0]) / 2)
     {

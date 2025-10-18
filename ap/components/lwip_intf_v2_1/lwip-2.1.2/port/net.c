@@ -39,7 +39,7 @@
 #if CONFIG_EASY_FLASH_FAST_DHCP
 #include "bk_ef.h"
 #endif
-#if CONFIG_PAN
+#if CONFIG_NET_PAN
 #include "panif.h"
 #endif
 #if CONFIG_BK_MODEM
@@ -97,7 +97,7 @@ struct ipv4_config br_ip_settings = {
 };
 #endif
 
-#if CONFIG_PAN
+#if CONFIG_NET_PAN
 struct ipv4_config pan_ip_settings = {
 	.addr_type = ADDR_TYPE_DHCP,
 	.address = 0,
@@ -128,7 +128,7 @@ static bool eth_ip_start_flag = false;
 #if CONFIG_BRIDGE
 static bool bridge_ip_start_flag = false;
 #endif
-#if CONFIG_PAN
+#if CONFIG_NET_PAN
 static bool pan_ip_start_flag = false;
 #endif
 #if CONFIG_BK_MODEM
@@ -171,7 +171,7 @@ static struct iface g_eth = {{0}, .name = "eth"};
 #if CONFIG_BRIDGE
 static struct iface g_br = {{0}, .name = "br"};
 #endif
-#if CONFIG_PAN
+#if CONFIG_NET_PAN
 static struct iface g_pan = {{0}, .name = "pan"};
 #endif
 #if CONFIG_LWIP_PPP_SUPPORT
@@ -193,7 +193,7 @@ extern int dhcp_server_start(void *intrfc_handle);
 extern void dhcp_server_stop(void);
 extern void net_configure_dns(struct iface *, struct wlan_ip_config *ip);
 bk_err_t bk_wifi_get_ip_status(IPStatusTypedef *outNetpara, WiFi_Interface inInterface);
-#if CONFIG_PAN
+#if CONFIG_NET_PAN
 int net_pan_add_netif(uint8_t *mac);
 #endif
 #if CONFIG_BK_MODEM
@@ -290,7 +290,7 @@ void net_wlan_init(void)
 	return;
 }
 
-#if CONFIG_PAN
+#if CONFIG_NET_PAN
 bk_err_t bk_pan_get_mac(uint8_t *mac)
 {
 	if (!mac)
@@ -483,6 +483,11 @@ static void wm_netif_status_callback(struct netif *n)
 					modem_netif_notify_got_ip();
 				}
 #endif
+#ifdef CONFIG_NET_PAN
+				 else if (n == &g_pan.netif) {
+					pan_netif_notify_got_ip();
+				}
+#endif
 #ifdef CONFIG_ETH
 			} else if (n == &g_mlan.netif) {
 				// Ethernet DHCP handler, clear ps prevent
@@ -568,7 +573,7 @@ void *net_get_br_handle(void)
 }
 #endif
 
-#if CONFIG_PAN
+#if CONFIG_NET_PAN
 void *net_get_pan_handle(void)
 {
 	return &g_pan.netif;
@@ -727,7 +732,7 @@ uint32_t bridge_ip_is_start(void)
 }
 #endif
 
-#if CONFIG_PAN
+#if CONFIG_NET_PAN
 void pan_set_ip_start_flag(bool enable)
 {
 	pan_ip_start_flag = enable;
@@ -751,6 +756,19 @@ uint32_t pan_ip_is_start(void)
 void pan_set_default_netif(void)
 {
 	netifapi_netif_set_default(net_get_pan_handle());
+}
+
+void pan_ip_down(void)
+{
+	if (pan_ip_start_flag) {
+		LWIP_LOGI("bt_pan ip down\r\n");
+
+		pan_ip_start_flag = false;
+
+		netif_set_status_callback(&g_pan.netif, NULL);
+		netifapi_dhcp_stop(&g_pan.netif);
+		netifapi_netif_set_down(&g_pan.netif);
+	}
 }
 #endif
 
@@ -1070,7 +1088,7 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 #ifdef CONFIG_ETH
 	} else if (if_handle == &g_eth) {
 #endif
-#ifdef CONFIG_PAN
+#ifdef CONFIG_NET_PAN
 	} else if (if_handle == &g_pan) {
 		up_iface = 1;
 		pan_set_default_netif();
@@ -1105,7 +1123,7 @@ int net_get_if_addr(struct wlan_ip_config *addr, void *intrfc_handle)
 #ifdef CONFIG_ETH
 			|| if_handle == &g_eth
 #endif
-#ifdef CONFIG_PAN
+#ifdef CONFIG_NET_PAN
 			|| if_handle == &g_pan
 #endif
 #ifdef CONFIG_BK_MODEM
@@ -1322,7 +1340,7 @@ int net_wlan_remove_netif(uint8_t *mac)
 }
 #endif
 
-#if CONFIG_PAN
+#if CONFIG_NET_PAN
 int net_pan_add_netif(uint8_t *mac)
 {
 	struct iface *pan_if = &g_pan;
@@ -1346,6 +1364,28 @@ int net_pan_add_netif(uint8_t *mac)
 	NETIF_SET_CHECKSUM_CTRL(&pan_if->netif, NETIF_CHECKSUM_DISABLE_ALL);
 
 	return ERR_OK;
+}
+
+int net_pan_remove_netif(void)
+{
+	err_t err = netifapi_netif_remove(&g_pan.netif);
+
+	if (err != ERR_OK) {
+		LWIP_LOGE("remove pan netif, failed(%d)\n", err);
+		return err;
+	}
+
+	return ERR_OK;
+}
+
+void pan_netif_notify_got_ip(void)
+{
+	/* post event PAN_GOT_IP4 */
+	netif_event_got_ip4_t event_data = {0};
+	event_data.netif_if = NETIF_IF_PAN;
+
+	BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
+								&event_data, sizeof(event_data), BEKEN_NEVER_TIMEOUT));
 }
 #endif
 

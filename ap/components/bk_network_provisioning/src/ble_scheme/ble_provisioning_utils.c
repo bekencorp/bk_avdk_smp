@@ -27,7 +27,7 @@ extern bool enable_ble_split_pkt;
 
 #define SYNC_CMD_TIMEOUT_MS 4000
 #define ADV_HANDLE 0
-
+#define ADV_NAME_HEAD "bk"
 
 #define BK_GATT_ATTR_TYPE(iuuid) {.len = BK_UUID_LEN_16, .uuid = {.uuid16 = iuuid}}
 #define BK_GATT_ATTR_CONTENT(iuuid) {.len = BK_UUID_LEN_16, .uuid = {.uuid16 = iuuid}}
@@ -728,7 +728,7 @@ static void dm_ble_gap_common_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_para
 }
 
 #if CONFIG_BT//dm
-int wifi_boarding_init(ble_boarding_info_t *info)
+int wifi_boarding_init(ble_provisioning_info_t *info)
 {
     bt_err_t ret = BK_FAIL;
 
@@ -884,7 +884,7 @@ int wifi_boarding_adv_start(void)
     current_addr[5] |= 0xc0;
     current_addr[0]++;
 
-    snprintf((char *)(adv_name), sizeof(adv_name) - 1, "bk_-%02X%02X%02X", current_addr[2], current_addr[1], current_addr[0]);
+    snprintf((char *)(adv_name), sizeof(adv_name) - 1, "%s_%02X%02X%02X", ADV_NAME_HEAD, current_addr[2], current_addr[1], current_addr[0]);
 
     wboard_logi("adv name %s", adv_name);
 
@@ -1065,13 +1065,13 @@ error:
 int wifi_boarding_adv_stop(void)
 {
     int32_t ret = 0;
-
+#if 0
     if(bk_bluetooth_get_status() != BK_BLUETOOTH_STATUS_ENABLED)
     {
         wboard_loge("bluetooth not init !!!");
         return BK_FAIL;
     }
-
+#endif
     wboard_logi("");
 
     const uint8_t ext_adv_inst[] = {ADV_HANDLE};
@@ -1133,7 +1133,6 @@ int ble_boarding_adv_stop(void);
 int ble_boarding_notify(uint8_t *data, uint16_t length);
 
 #define ADV_MAX_SIZE (251)
-#define ADV_NAME_HEAD "bk_"
 
 #define ADV_TYPE_FLAGS                      (0x01)
 #define ADV_TYPE_LOCAL_NAME                 (0x09)

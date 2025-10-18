@@ -81,7 +81,7 @@ if (CONFIG_BRIDGE)
 	lwip-2.1.2/src/netif/bridgeif_fdb.c
 	)
 endif()
-if (CONFIG_PAN)
+if (CONFIG_NET_PAN)
 	list(APPEND srcs
 	lwip-2.1.2/port/panif.c
 	)

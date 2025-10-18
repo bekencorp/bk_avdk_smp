@@ -18,6 +18,9 @@
 #include "components/log.h"
 #include "os/mem.h"
 #include "ble_provisioning_priv.h"
+#if CONFIG_NET_PAN
+#include "pan_service.h"
+#endif
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)

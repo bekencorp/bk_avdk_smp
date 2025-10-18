@@ -56,7 +56,7 @@ menu "Lwip_intf_v2_1"
                 bool "Enable LWIP BRIDGE"
                 default n
 
-	config PAN
+	config NET_PAN
 		bool "Enable BT Personal Area Networking"
 		default n
 

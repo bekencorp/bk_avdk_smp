@@ -33,6 +33,11 @@
 #include "ble_provisioning_priv.h"
 #endif
 
+#if CONFIG_NET_PAN
+#include "pan_service.h"
+#endif
+#include "components/bluetooth/bk_dm_bluetooth.h"
+
 static beken_thread_t network_provisioning_thread_handle = NULL;
 static bk_network_provisioning_type_t config_network_type = BK_NETWORK_PROVISIONING_TYPE_MAX;
 static bk_network_provisioning_status_t network_provisioning_status = BK_NETWORK_PROVISIONING_STATUS_IDLE;

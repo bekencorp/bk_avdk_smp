@@ -25,11 +25,11 @@
 
 #define HCI_RECV_IN_ISR 1
 
-#define HCI_PACKET_PARSER_MSG_COUNT          (50 * 4)
+#define HCI_PACKET_PARSER_MSG_COUNT          (50 * 16)
 
 #define BUFFER_USE_ALLOC 0
 #define H4_READ_BUFF_SIZE 1050
-#define HCI_PACKET_PARSER_ISR_BUFF_SIZE 2048
+#define HCI_PACKET_PARSER_ISR_BUFF_SIZE (1024 * 4)
 #define HCI_PACKET_PARSER_ISR_INDEX_PLUS(x) (((x) + 1) % (HCI_PACKET_PARSER_ISR_BUFF_SIZE))
 
 #define HCI_PACKET_PARSER_ISR_INDEX_PLUS_EXT(x, size) (((x) + (size)) % (HCI_PACKET_PARSER_ISR_BUFF_SIZE))
@@ -379,6 +379,7 @@ static int32_t hci_packet_parser_send_msg(uint32_t type, uint8_t *data, uint32_t
 {
     hci_packet_parser_msg_t msg = {0};
     int32_t ret = 0;
+    static uint32_t fail_count = 0;
 
     if (hci_packet_parser_msg_que && hci_packet_parser_msg_que_ready)
     {
@@ -403,7 +404,29 @@ static int32_t hci_packet_parser_send_msg(uint32_t type, uint8_t *data, uint32_t
 
     if (ret)
     {
-        LOGE("ret err %d, type %d %d", ret, type, len);
+        LOGD("ret err %d, type %d %d", ret, type, len);
+
+        if(msg.data_len && msg.data)
+        {
+            os_free(msg.data);
+            msg.data = NULL;
+        }
+
+        if(HCI_PACKET_PARSER_IN_H5_DATA_READY_MSG != type && HCI_PACKET_PARSER_IN_DATA_READY_MSG != type)
+        {
+            LOGE("push queue fail for important type %d fail_count %d", type, fail_count);
+            BK_ASSERT_EX(0, "%s push queue fail for important type %d fail_count %d\n", __func__, type, fail_count);
+        }
+
+        if(fail_count++ >= 50)
+        {
+            LOGE("push queue fail too much %d current type %d", fail_count, type);
+            //BK_ASSERT_EX(0, "%s push queue fail too much %d\n", __func__, fail_count);
+        }
+    }
+    else
+    {
+        fail_count = 0;
     }
 
     return ret;
