@@ -9,7 +9,6 @@
 
 #define APP_TIMEOUT_VALUE    BEKEN_WAIT_FOREVER
 
-extern int bk_ipc_init(void);
 
 #if CONFIG_FREERTOS_SMP
 static beken_semaphore_t app_semaphore;
@@ -84,7 +83,6 @@ int main(void)
     app_test_smp_core1();
 #endif
 
-    bk_ipc_init();
 #if CONFIG_BK_NETWORK_PROVISIONING_BLE_EXAMPLE
 extern void demo_network_provisioning_status_cb(bk_network_provisioning_status_t status, void *user_data);
 extern void ble_msg_handle_demo_cb(ble_prov_msg_t *msg);

@@ -41,6 +41,7 @@
 #include <driver/otp.h>
 #include <driver/pwr_clk.h>
 #include "bk_rtos_debug.h"
+#include "bk_api_ipc.h"
 
 #if CONFIG_SECURITY
 #include "bk_security.h"
@@ -332,6 +333,7 @@ int driver_init(void) {
 #if CONFIG_MAILBOX_IPC
 	mb_ipc_init();
 #endif
+	bk_ipc_init();
 #endif
 
 	os_show_memory_config_info();
