@@ -291,7 +291,15 @@ static void hw_jpeg_decode_thread(void *arg)
                 in_frame = (frame_buffer_t *)msg_temp.param;
                 bk_jpeg_decode_img_info_t img_info = {0};
                 img_info.frame = in_frame;
-                bk_get_jpeg_data_info(&img_info);
+                ret = bk_get_jpeg_data_info(&img_info);
+                if (ret != AVDK_ERR_OK)
+                {
+                    LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
+                    hw_jpeg_decode_in_complete(in_frame);
+                    continue;
+                }
+                in_frame->width = img_info.width;
+                in_frame->height = img_info.height;
                 out_frame = hw_jpeg_decode_out_malloc(img_info.width * img_info.height * 2);
                 if (out_frame == NULL)
                 {
@@ -306,6 +314,7 @@ static void hw_jpeg_decode_thread(void *arg)
                     LOGE("%s decode start failed: %d\n", __func__, ret);
                     hw_jpeg_decode_in_complete(in_frame);
                     hw_jpeg_decode_out_complete(PIXEL_FMT_YUYV, ret, out_frame);
+                    rtos_stop_oneshot_timer(&g_hw_jpeg_decode->decode_timer);
                     continue;
                 }
 
