@@ -39,6 +39,7 @@
 #if CONFIG_MAILBOX
 #include "bk_api_ipc.h"
 #endif
+#include "driver/pwr_clk.h"
 
 gpio_driver_t s_gpio = {
 	.hal.hw = (gpio_hw_t *)GPIO_LL_REG_BASE,
@@ -657,11 +658,16 @@ gpio_id_t bk_gpio_get_wakeup_gpio_id()
 	return s_gpio_wakeup_gpio_id;
 }
 
+static inline void bk_misc_save_gpio_wakeup_id(uint32_t type) {
+	FIXED_ADDR_DEEP_WAKEUP_GPIO_ID = type;
+}
+
 static void bk_gpio_set_wakeup_gpio_id(gpio_id_t gpio_id)
 {
 	/* Obatain the First wake source GPIO ID*/
 	if (s_gpio_wakeup_gpio_id == SOC_GPIO_NUM) {
 		s_gpio_wakeup_gpio_id = gpio_id;
+		bk_misc_save_gpio_wakeup_id(s_gpio_wakeup_gpio_id);
 		bk_gpio_disable_interrupt(gpio_id);
 	}
 	GPIO_LOGD("SET wakeup gpio_id: %d \r\n", s_gpio_wakeup_gpio_id);

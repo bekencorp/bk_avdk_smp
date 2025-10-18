@@ -60,6 +60,7 @@ extern "C" {
 #define FIXED_ADDR_EXCEPTION_DUMPER          (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+48))
 #define FIXED_ADDR_EXCEPTION_MAGIC_END       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+52))
 
+#define FIXED_ADDR_DEEP_WAKEUP_GPIO_ID       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+56))
 
 #define PM_PSRAM_POWER_DOWN_MAGIC            (0x123)
 
