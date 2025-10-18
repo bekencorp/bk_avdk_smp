@@ -178,9 +178,36 @@ The project includes different formats of JPEG test images stored in the `ap/vid
 * **jpeg_data_422_865_480.c** ：YUV422 format JPEG image with 865x480 resolution
 * **jpeg_data_420_865_480.c** ：YUV420 format JPEG image with 865x480 resolution
 
-## 7. Notes
+## 7. Configuration Options
+
+### 7.1 Pipeline Thread Stack Size Configuration
+
+The thread stack sizes for pipeline-related tasks can be configured via Kconfig:
+
+- **CONFIG_JPEG_DECODE_PIPELINE_TASK_STACK_SIZE**: Thread stack size for JPEG decode pipeline task (bytes)
+  - Default value: 4096 bytes
+  - Configuration path: menuconfig -> Media -> JPEG decode pipeline task stack size
+
+- **CONFIG_JPEG_GET_PIPELINE_TASK_STACK_SIZE**: Thread stack size for JPEG get pipeline task (bytes)
+  - Default value: 1024 bytes
+  - Configuration path: menuconfig -> Media -> JPEG get pipeline task stack size
+
+- **CONFIG_YUV_ROTATE_PIPELINE_TASK_STACK_SIZE**: Thread stack size for YUV rotate pipeline task (bytes)
+  - Default value: 2048 bytes
+  - Configuration path: menuconfig -> Media -> YUV rotate pipeline task stack size
+
+- **CONFIG_H264_ENCODE_PIPELINE_TASK_STACK_SIZE**: Thread stack size for H264 encode pipeline task (bytes)
+  - Default value: 2048 bytes
+  - Configuration path: menuconfig -> Media -> H264 encode pipeline task stack size
+
+Note: Adjust the stack size based on actual usage scenarios and memory resources; increase this value if stack overflow occurs.
+
+## 8. Notes
 
 1. Ensure the video pipeline is properly initialized before use
 2. Remember to release related resources after operations are completed
 3. Different modules have specific requirements and limitations; refer to the API documentation for details
 4. Frame buffer resources are limited; avoid occupying too many buffers simultaneously
+5. **Callback Function Usage Notes**:
+   - Blocking operations (such as long waits, sleep, etc.) are not recommended in callback functions to avoid impacting decoding performance and system responsiveness
+   - It is recommended to perform only lightweight operations in callback functions, such as setting flags, sending messages/semaphores, etc., and move time-consuming operations to other tasks

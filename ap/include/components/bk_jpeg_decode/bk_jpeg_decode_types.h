@@ -73,6 +73,12 @@ typedef struct bk_jpeg_decode_img_info
  *
  * This structure defines callback functions for JPEG decoding operations,
  * allowing the application to be notified of significant events.
+ *
+ * @warning Callback Function Usage Notes:
+ * - Blocking operations (such as long waits, sleep, etc.) are NOT recommended in callback functions
+ *   to avoid impacting decoding performance and system responsiveness.
+ * - Callback functions should only perform lightweight operations such as setting flags,
+ *   sending messages/semaphores, etc. Move time-consuming operations to other tasks.
  */
 typedef struct {
     bk_err_t (*in_complete)(frame_buffer_t *in_frame); /*!< Callback when input data decoding is complete */

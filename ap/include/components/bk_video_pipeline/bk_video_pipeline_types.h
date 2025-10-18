@@ -107,7 +107,12 @@ typedef enum
  * 
  * This structure defines the callback functions for H.264 encoding operations,
  * including memory allocation and completion notification.
- * @attention In the callback functions, no blocking operations or long operations should be performed, otherwise the hardware interrupt will be delayed, leading to abnormal image data.
+ *
+ * @warning Callback Function Usage Notes:
+ * - Blocking operations (such as long waits, sleep, etc.) are NOT recommended in callback functions
+ *   to avoid impacting encoding performance and system responsiveness.
+ * - Callback functions should only perform lightweight operations such as setting flags,
+ *   sending messages/semaphores, etc. Move time-consuming operations to other tasks.
  */
 typedef struct
 {
@@ -130,9 +135,16 @@ typedef struct
  * @brief JPEG decode callback structure
  * 
  * This structure defines the callback functions for JPEG decoding operations
+ *
+ * @warning Callback Function Usage Notes:
+ * - Blocking operations (such as long waits, sleep, etc.) are NOT recommended in callback functions
+ *   to avoid impacting decoding performance and system responsiveness.
+ * - Callback functions should only perform lightweight operations such as setting flags,
+ *   sending messages/semaphores, etc. Move time-consuming operations to other tasks.
+ * - Exception: The read() callback may perform short blocking waits to acquire a ready JPEG buffer.
  */
 typedef struct {
-    frame_buffer_t *(*read)(uint32_t timeout_ms);    /*!< Callback to allocate frame buffer */
+    frame_buffer_t *(*read)(uint32_t timeout_ms);    /*!< Callback to read/acquire a prepared JPEG buffer, short blocking wait is allowed */
     bk_err_t (*complete)(bk_err_t result, frame_buffer_t *out_frame); /*!< Callback when decoding is complete */
 } jpeg_callback_t;
 
@@ -140,6 +152,12 @@ typedef struct {
  * @brief Image codec callback structure
  * 
  * This structure defines the callback functions for image codec operations
+ *
+ * @warning Callback Function Usage Notes:
+ * - Blocking operations (such as long waits, sleep, etc.) are NOT recommended in callback functions
+ *   to avoid impacting decoding performance and system responsiveness.
+ * - Callback functions should only perform lightweight operations such as setting flags,
+ *   sending messages/semaphores, etc. Move time-consuming operations to other tasks.
  */
 typedef struct {
     frame_buffer_t *(*malloc)(uint32_t size);    /*!< Callback to allocate frame buffer */

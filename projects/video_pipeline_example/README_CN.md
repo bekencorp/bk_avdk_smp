@@ -190,9 +190,36 @@ video_pipeline_regular_test h264_encoding_test
 * **jpeg_data_422_865_480.c** ：865x480分辨率的YUV422格式JPEG图像
 * **jpeg_data_420_865_480.c** ：865x480分辨率的YUV420格式JPEG图像
 
-## 7. 注意事项
+## 7. 配置选项
+
+### 7.1 Pipeline线程栈大小配置
+
+Pipeline相关任务的线程栈大小可以通过Kconfig进行配置：
+
+- **CONFIG_JPEG_DECODE_PIPELINE_TASK_STACK_SIZE**: JPEG解码pipeline任务的线程栈大小（字节）
+  - 默认值：4096 字节
+  - 配置路径：menuconfig -> Media -> JPEG decode pipeline task stack size
+
+- **CONFIG_JPEG_GET_PIPELINE_TASK_STACK_SIZE**: JPEG获取pipeline任务的线程栈大小（字节）
+  - 默认值：1024 字节
+  - 配置路径：menuconfig -> Media -> JPEG get pipeline task stack size
+
+- **CONFIG_YUV_ROTATE_PIPELINE_TASK_STACK_SIZE**: YUV旋转pipeline任务的线程栈大小（字节）
+  - 默认值：2048 字节
+  - 配置路径：menuconfig -> Media -> YUV rotate pipeline task stack size
+
+- **CONFIG_H264_ENCODE_PIPELINE_TASK_STACK_SIZE**: H264编码pipeline任务的线程栈大小（字节）
+  - 默认值：2048 字节
+  - 配置路径：menuconfig -> Media -> H264 encode pipeline task stack size
+
+说明：根据实际使用场景和内存资源调整栈大小，如遇到栈溢出可适当增大此值。
+
+## 8. 注意事项
 
 1. 使用前确保Video Pipeline已正确初始化
 2. 操作完成后记得释放相关资源
 3. 不同功能模块有特定的要求和限制，请参考API文档了解详情
 4. 帧缓冲区资源有限，避免同时占用过多缓冲区
+5. **回调函数使用注意事项**：
+   - 回调函数中不建议执行阻塞操作（如长时间等待、sleep等），以避免影响解码性能和系统响应
+   - 建议在回调函数中仅进行轻量级操作，如设置标志位、发送消息/信号量等，将耗时操作放到其他任务中执行

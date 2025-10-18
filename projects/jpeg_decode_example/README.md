@@ -546,7 +546,23 @@ Abnormal log (indicating test failure):
 CMDRSP:ERROR
 ```
 
-## 7. Notes
+## 7. Configuration Options
+
+### 7.1 Thread Stack Size Configuration
+
+The decoder thread stack sizes can be configured via Kconfig:
+
+- **CONFIG_HW_JPEG_DECODE_TASK_STACK_SIZE**: Thread stack size for hardware JPEG decode task (bytes)
+  - Default value: 1024 bytes
+  - Configuration path: menuconfig -> JPEG Decoder -> Hardware JPEG decode task stack size
+
+- **CONFIG_SW_JPEG_DECODE_TASK_STACK_SIZE**: Thread stack size for software JPEG decode task (bytes)
+  - Default value: 1024 bytes
+  - Configuration path: menuconfig -> JPEG Decoder -> Software JPEG decode task stack size
+
+Note: Adjust the stack size based on actual decoding scenarios and memory resources; increase this value if stack overflow occurs.
+
+## 8. Notes
 
 1. Ensure the decoder is properly initialized before use
 2. Remember to release related resources after decoding operations are completed
@@ -557,3 +573,6 @@ CMDRSP:ERROR
 5. Frame buffer resources are limited; avoid occupying too many buffers simultaneously
 6. In the input frame, the length within the structure needs to be set to the actual valid data length, and in the output frame, the size within the structure needs to be set to the maximum storable size;
    A length of 0 for the input frame or a size of 0 for the output frame will result in decoding errors;
+7. **Callback Function Usage Notes**:
+   - Blocking operations (such as long waits, sleep, etc.) are not recommended in callback functions to avoid impacting decoding performance and system responsiveness
+   - It is recommended to perform only lightweight operations in callback functions, such as setting flags, sending messages/semaphores, etc., and move time-consuming operations to other tasks

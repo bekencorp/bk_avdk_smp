@@ -542,7 +542,23 @@ cli_jpeg_decode_regular_test_cmd, XX, software jpeg async burst decode on CP1+CP
 CMDRSP:ERROR
 ```
 
-## 7. 注意事项
+## 7. 配置选项
+
+### 7.1 线程栈大小配置
+
+解码器的线程栈大小可以通过Kconfig进行配置：
+
+- **CONFIG_HW_JPEG_DECODE_TASK_STACK_SIZE**: 硬件JPEG解码任务的线程栈大小（字节）
+  - 默认值：1024 字节
+  - 配置路径：menuconfig -> JPEG Decoder -> Hardware JPEG decode task stack size
+
+- **CONFIG_SW_JPEG_DECODE_TASK_STACK_SIZE**: 软件JPEG解码任务的线程栈大小（字节）
+  - 默认值：1024 字节
+  - 配置路径：menuconfig -> JPEG Decoder -> Software JPEG decode task stack size
+
+说明：根据实际解码场景和内存资源调整栈大小，如遇到栈溢出可适当增大此值。
+
+## 8. 注意事项
 
 1. 确保在使用解码器前正确初始化
 2. 解码操作完成后，记得释放相关资源
@@ -553,3 +569,6 @@ CMDRSP:ERROR
 5. 帧缓冲资源有限，请避免同时占用过多缓冲区
 6. 输入frame中，结构体内的length需要设置为实有效数据的长度，输出frame中，结构体内的size需要设置为最大的可存放的大小；
    输入frame的length为0或输出frame的size为0均会出现解码错误；
+7. **回调函数使用注意事项**：
+   - 回调函数中不建议执行阻塞操作（如长时间等待、sleep等），以避免影响解码性能和系统响应
+   - 建议在回调函数中仅进行轻量级操作，如设置标志位、发送消息/信号量等，将耗时操作放到其他任务中执行
