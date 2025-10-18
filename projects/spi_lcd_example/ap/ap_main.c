@@ -102,17 +102,16 @@ void cli_spi_lcd_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
             frame_cnt = os_strtoul(argv[2], NULL, 10);
         }
         LOGD("display flush will test %d frame! \n", frame_cnt);
+        lcd_spi_display_fill_pure_color(disp_frame, RED_COLOR);
 
         while (frame_cnt--) {
-            lcd_spi_display_fill_pure_color(disp_frame, RED_COLOR);
-
             ret = bk_display_flush(lcd_display_handle, disp_frame, display_frame_free_cb);
             if (ret != AVDK_ERR_OK) {
                 display_frame_free_cb(disp_frame);
                 LOGE("bk_display_flush failed!\n");
                 goto exit;
             }
-            rtos_delay_milliseconds(300);
+            rtos_delay_milliseconds(100);
         }
         LOGD("bk_display_flush frame success!\n");
     } else if (os_strcmp(argv[1], "close") == 0) {
