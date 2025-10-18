@@ -491,7 +491,6 @@ void cli_jpeg_decode_error_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
         in_frame = frame_buffer_encode_malloc(100);
         if (in_frame != NULL) {
             // Set frame pointer to NULL to test error handling
-            os_free(in_frame->frame);
             in_frame->frame = NULL;
             in_frame->length = 100;
             in_frame->size = 100;

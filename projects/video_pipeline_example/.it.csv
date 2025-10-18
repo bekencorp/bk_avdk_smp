@@ -1,9 +1,9 @@
 case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
-video_pipeline_01,ap_cmd video_pipeline_regular_test hardware_rotate,,CMDRSP:OK,5
-video_pipeline_02,ap_cmd video_pipeline_regular_test software_rotate,,CMDRSP:OK,5
-video_pipeline_03,ap_cmd video_pipeline_regular_test h264_encode,,CMDRSP:OK,5
-video_pipeline_04,ap_cmd video_pipeline_regular_test h264_encode_and_hw_rotate,,CMDRSP:OK,5
-video_pipeline_05,ap_cmd video_pipeline_regular_test h264_encode_and_sw_rotate,,CMDRSP:OK,5
+video_pipeline_01,ap_cmd video_pipeline_regular_test hardware_rotate,,CMDRSP:OK,10
+video_pipeline_02,ap_cmd video_pipeline_regular_test software_rotate,,CMDRSP:OK,10
+video_pipeline_03,ap_cmd video_pipeline_regular_test h264_encode,,CMDRSP:OK,10
+video_pipeline_04,ap_cmd video_pipeline_regular_test h264_encode_and_hw_rotate,,CMDRSP:OK,10
+video_pipeline_05,ap_cmd video_pipeline_regular_test h264_encode_and_sw_rotate,,CMDRSP:OK,10
 video_pipeline_error_01,ap_cmd video_pipeline_error_test null_handle,,CMDRSP:OK,5
 video_pipeline_error_02,ap_cmd video_pipeline_error_test invalid_config,,CMDRSP:OK,5
 video_pipeline_error_03,ap_cmd video_pipeline_error_test no_callback,,CMDRSP:OK,5

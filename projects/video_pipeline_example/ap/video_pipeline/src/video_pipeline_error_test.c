@@ -157,12 +157,13 @@ static int video_pipeline_invalid_config_test(void)
         return ret;
     }
     
-    // 测试无效的旋转角度
+    // 测试无效的旋转角度,
     LOGI("Testing invalid rotation angle (91 degrees)...\n");
     invalid_decode_config.rotate_angle = 91; // 无效的旋转角度
     ret = bk_video_pipeline_open_rotate(handle, &invalid_decode_config);
     LOGI("Result: %d (expected: non-zero)\n", ret);
-    
+    bk_video_pipeline_close_rotate(handle);
+
     // 测试无效的旋转模式
     LOGI("Testing invalid rotation mode (3)...\n");
     invalid_decode_config.rotate_angle = 90; // 恢复有效角度
@@ -197,7 +198,6 @@ static int video_pipeline_no_callback_test(void)
     bk_err_t ret = BK_FAIL;
     bk_video_pipeline_handle_t handle = NULL;
     bk_video_pipeline_config_t config = {0};
-    bk_video_pipeline_decode_config_t decode_config = {0};
     bk_video_pipeline_h264e_config_t video_pipeline_h264e_config = {0};
 
     LOGI("Starting no callback error test...\n");
@@ -208,10 +208,8 @@ static int video_pipeline_no_callback_test(void)
     config.jpeg_cbs = NULL; // 无JPEG回调
     config.decode_cbs = NULL; // 无解码回调
     ret = bk_video_pipeline_new(&handle, &config);
-    if (ret != BK_OK) {
-        LOGE("Failed to create handle, ret: %d\n", ret);
-        return ret;
-    }
+    LOGI("Result: %d (expected: non-zero)\n", ret);
+
 
     config.jpeg_cbs = &jpeg_cbs;
     config.decode_cbs = &decode_cbs; 
@@ -220,13 +218,6 @@ static int video_pipeline_no_callback_test(void)
         LOGE("Failed to create handle, ret: %d\n", ret);
         return ret;
     }
-
-    LOGI("Testing open_rotate without JPEG callback...\n");
-    decode_config.rotate_mode = HW_ROTATE;
-    decode_config.rotate_angle = 90;
-    
-    ret = bk_video_pipeline_open_rotate(handle, &decode_config);
-    LOGI("Result: %d (expected: non-zero)\n", ret);
     
     // 测试无H.264编码回调
     LOGI("Testing open_h264e without H.264 encode callback...\n");

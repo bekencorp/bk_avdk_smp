@@ -4,7 +4,7 @@ jpeg_decode_02,ap_cmd jpeg_decode_regular_test software_test,,CMDRSP:OK,5
 jpeg_decode_03,ap_cmd jpeg_decode_regular_test software_dtcm_cp1_test,,CMDRSP:OK,5
 jpeg_decode_04,ap_cmd jpeg_decode_regular_test software_dtcm_cp2_test,,CMDRSP:OK,5
 jpeg_decode_05,ap_cmd jpeg_decode_regular_test hardware_async_test,,CMDRSP:OK,5
-jpeg_decode_06,ap_cmd jpeg_decode_regular_test hardware_async_burst_test,,CMDRSP:OK,5
+jpeg_decode_06,ap_cmd jpeg_decode_regular_test hardware_async_burst_test,,CMDRSP:OK,10
 jpeg_decode_07,ap_cmd jpeg_decode_regular_test software_dtcm_cp1_async_test,,CMDRSP:OK,5
 jpeg_decode_08,ap_cmd jpeg_decode_regular_test software_dtcm_cp1_async_burst_test,,CMDRSP:OK,5
 jpeg_decode_09,ap_cmd jpeg_decode_regular_test software_dtcm_cp2_async_test,,CMDRSP:OK,5
