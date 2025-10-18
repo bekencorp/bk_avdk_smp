@@ -406,7 +406,7 @@ static void _pa_gpio_ctrl(uint16_t pa_ctrl_gpio, uint8_t pa_on_level, bool en)
  * @param: delay_flag: true: delay turn on, false: no delay
  * @return: none
  */
-static void pa_ctrl_en(onboard_speaker_stream_t *onboard_spk, uint8_t en, bool delay_flag)
+static void pa_ctrl_en(onboard_speaker_stream_t *onboard_spk, bool en, bool delay_flag)
 {
     if (!onboard_spk->pa_ctrl_en)
     {
@@ -418,6 +418,7 @@ static void pa_ctrl_en(onboard_speaker_stream_t *onboard_spk, uint8_t en, bool d
         if (onboard_spk->pa_state)
         {
             /* pa already turn on */
+            BK_LOGV(TAG, "%s, line: %d, pa already turn on \n", __func__, __LINE__);
             return;
         }
         else
@@ -441,6 +442,7 @@ static void pa_ctrl_en(onboard_speaker_stream_t *onboard_spk, uint8_t en, bool d
                 if (onboard_spk->dig_gain > 0)
                 {
                     bk_aud_dac_unmute();
+                    BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
                 }
                 onboard_spk->pa_state = true;
             }
@@ -459,11 +461,13 @@ static void pa_ctrl_en(onboard_speaker_stream_t *onboard_spk, uint8_t en, bool d
         if (!onboard_spk->pa_state)
         {
             /* pa already turn off */
+            BK_LOGV(TAG, "%s, line: %d, pa already turn off \n", __func__, __LINE__);
             return;
         }
 
         /* mute -> turn off pa */
         bk_aud_dac_mute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
         if (onboard_spk->pa_off_delay)
         {
             rtos_delay_milliseconds(onboard_spk->pa_off_delay);
@@ -484,6 +488,7 @@ static void pa_turn_on_timer_callback(TimerHandle_t xTimer)
     if (onboard_spk->dig_gain > 0)
     {
         bk_aud_dac_unmute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
     }
 
     onboard_spk->pa_state = true;
@@ -707,7 +712,13 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
 
     if (gl_onboard_speaker->pa_ctrl_en)
     {
+        /* turn off pa */
+        pa_ctrl_en(onboard_spk, false, false);
+    }
+    else
+    {
         bk_aud_dac_mute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
     }
 
 	ret = bk_aud_dac_start();
@@ -722,7 +733,19 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
     onboard_spk->valid_frame_count_in_spk_rb = 2;
 
     /* turn on pa */
-    pa_ctrl_en(onboard_spk, true, true);
+    if (onboard_spk->pa_ctrl_en)
+    {
+        pa_ctrl_en(onboard_spk, true, true);
+    }
+    else
+    {
+        if (onboard_spk->dig_gain > 0)
+        {
+            rtos_delay_milliseconds(4);
+            bk_aud_dac_unmute();
+            BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
+        }
+    }
 
     return BK_OK;
 }
@@ -1372,10 +1395,12 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     if (aud_dac_cfg.dac_gain == 0)
     {
         bk_aud_dac_mute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
     }
     else
     {
         bk_aud_dac_unmute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
     }
 
     bk_aud_set_ana_dac_gain(config->ana_gain);
@@ -1606,11 +1631,13 @@ bk_err_t onboard_speaker_stream_set_digital_gain(audio_element_handle_t onboard_
         {
             pa_ctrl_en(onboard_spk, false, false);
             bk_aud_dac_mute();
+            BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
         }
         else
         {
             pa_ctrl_en(onboard_spk, true, false);
             bk_aud_dac_unmute();
+            BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
         }
         onboard_spk->dig_gain = gain;
         audio_element_setdata(onboard_speaker_stream, onboard_spk);
@@ -1662,10 +1689,12 @@ bk_err_t onboard_speaker_stream_dac_mute_en(audio_element_handle_t onboard_speak
     if (value == 0)
     {
         bk_aud_dac_unmute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
     }
     else
     {
         bk_aud_dac_mute();
+        BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
     }
 
     return BK_OK;
