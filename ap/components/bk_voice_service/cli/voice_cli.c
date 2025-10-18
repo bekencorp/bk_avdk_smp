@@ -104,9 +104,9 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
         }
 
         aec_en = os_strtoul(argv[4], NULL, 10);
-        if (aec_en != 0 && aec_en != 1 && aec_en != 3)
+        if (aec_en != 0 && !((aec_en&0x1f) && (aec_en&0x1)))
         {
-            LOGE("%s, %d, aec_en: %s not right\n", __func__, __LINE__, aec_en);
+            LOGE("%s, %d, aec_en: %d not right\n", __func__, __LINE__, aec_en);
             return;
         }
 
@@ -344,6 +344,21 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
                 if(0x2 == (aec_en&0x2))
                 {
                     aec_v3_alg_cfg.aec_cfg.mode = AEC_MODE_HARDWARE;
+                }
+
+                if(0x4 == (aec_en&0x4))
+                {
+                    aec_v3_alg_cfg.aec_cfg.dual_perp = DUAL_CH_90_DEGREE;
+                }
+
+                if(0x8 == (aec_en&0x8))
+                {
+                    aec_v3_alg_cfg.aec_cfg.mic_swap = 1;
+                }
+
+                if(0x10 == (aec_en&0x10))
+                {
+                    aec_v3_alg_cfg.aec_cfg.ec_only_output = 1;
                 }
 
                 voice_cfg.aec_cfg.aec_alg_cfg = aec_v3_alg_cfg;
@@ -697,7 +712,11 @@ static const struct cli_command s_voice_commands[] =
      * [cmd]            start/stop
      * [mic_type]       onboard/uac/onboard_dual_dmic_mic
      * [mic_samp_rate]  8000/16000
-     * [aec_en]         0/1/3,bit0:0 aec disable/1 aec enable,bit1:0 AEC_MODE_SOFTWARE/1 AEC_MODE_HARDWARE
+     * [aec_en]         bit0:0 aec disable/1 aec enable,
+                        bit1:0 AEC_MODE_SOFTWARE/1 AEC_MODE_HARDWARE,
+                        bit2:0 DUAL_MIC_CH_0_DEGREE/1 DUAL_MIC_CH_90_DEGREE
+                        bit3:0 no mic swap/1 mic swap
+                        bit4:0 no ec ooutput/1 ecoutput
      * [enc_type]       pcm/g711a/g711u/aac/g722/opus
      * [dec_type]       pcm/g711a/g711u/aac/g722/opus
      * [spk_type]       onboard/uac

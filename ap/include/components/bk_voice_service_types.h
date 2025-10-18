@@ -192,12 +192,12 @@ typedef struct
 } voice_cfg_t;
 
 /**
- * @brief Default voice service configuration using onboard microphone and speaker with AEC version 1.0, 8000Hz sample rate and G.711a codec
+ * @brief Default voice service configuration using onboard microphone and speaker with AEC, 8000Hz sample rate and G.711a codec
  * 
  * This configuration defines default settings for voice service operations using:
  * - Input: Onboard microphone
  * - Output: Onboard speaker
- * - AEC: Enabled (version 1.0)
+ * - AEC: Enabled
  * - Mic sample rate: 8000Hz
  * - Speaker sample rate: 8000Hz
  * - Encoder: G.711a
@@ -245,6 +245,11 @@ typedef struct
             .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
             .drc = AEC_V3_ALGORITHM_DRC,                        \
             .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
+            .interweave = AEC_V3_ALGORITHM_INTERWEAVE,          \
+            .dist = AEC_V3_ALGORITHM_MIC_DIST,                  \
+            .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,              \
+            .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,  \
+            .dual_perp = DUAL_CH_0_DEGREE,                      \
         },                                                      \
         .vad_cfg = {                                            \
             .vad_enable = 0,                                    \
@@ -314,19 +319,19 @@ typedef struct
 }
 
 /**
- * @brief Default voice service configuration using onboard microphone and speaker with AEC version 1.0, 16000Hz sample rate and G.711a codec
+ * @brief Default voice service configuration using onboard microphone and speaker with AEC, 16000Hz sample rate and G.711a codec
  * 
  * This configuration defines default settings for voice service operations using:
  * - Input: Onboard microphone
  * - Output: Onboard speaker
- * - AEC: Enabled (version 1.0)
+ * - AEC: Enabled
  * - Mic sample rate: 16000Hz
  * - Speaker sample rate: 16000Hz
  * - Encoder: G.711a
  * - Decoder: G.711a
  * - Equalizer: Disabled
  */
-#define DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_AECV1_G711A_16000_CONFIG() {           \
+#define DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_AEC_G711A_16000_CONFIG() {             \
     .mic_type = MIC_TYPE_ONBOARD,                                               \
     .mic_cfg.onboard_mic_cfg = {                                                \
         .adc_cfg = {                                                            \
@@ -365,6 +370,11 @@ typedef struct
             .ns_para = AEC_V3_ALGORITHM_NS_PARA,                                \
             .drc = AEC_V3_ALGORITHM_DRC,                                        \
             .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,                            \
+            .interweave = AEC_V3_ALGORITHM_INTERWEAVE,                          \
+            .dist = AEC_V3_ALGORITHM_MIC_DIST,                                  \
+            .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,                              \
+            .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,                  \
+            .dual_perp = DUAL_CH_0_DEGREE,                                      \
         },                                                                      \
         .vad_cfg = {                                                            \
             .vad_enable = 0,                                                    \
@@ -434,12 +444,12 @@ typedef struct
 }
 
 /**
- * @brief Default voice service configuration using UAC microphone and speaker with AEC version 1.0, 8000Hz sample rate and G.711a codec
+ * @brief Default voice service configuration using UAC microphone and speaker with AEC, 8000Hz sample rate and G.711a codec
  * 
  * This configuration defines default settings for voice service operations using:
  * - Input: UAC microphone
  * - Output: UAC speaker
- * - AEC: Enabled (version 1.0)
+ * - AEC: Enabled
  * - Mic sample rate: 8000Hz
  * - Speaker sample rate: 8000Hz
  * - Encoder: G.711a
@@ -484,6 +494,11 @@ typedef struct
             .ns_para = AEC_V3_ALGORITHM_NS_PARA,               \
             .drc = AEC_V3_ALGORITHM_DRC,                       \
             .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,           \
+            .interweave = AEC_V3_ALGORITHM_INTERWEAVE,         \
+            .dist = AEC_V3_ALGORITHM_MIC_DIST,                 \
+            .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,             \
+            .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT, \
+            .dual_perp = DUAL_CH_0_DEGREE,                     \
         },                                                     \
         .vad_cfg = {                                           \
             .vad_enable = 0,                                   \
@@ -548,12 +563,12 @@ typedef struct
 
 #if CONFIG_VOICE_SERVICE_AAC_ENCODER && CONFIG_VOICE_SERVICE_AAC_DECODER
 /**
- * @brief Default voice service configuration using onboard microphone and speaker with AEC version 1.0, 8000Hz sample rate and AAC codec
+ * @brief Default voice service configuration using onboard microphone and speaker with AEC, 8000Hz sample rate and AAC codec
  * 
  * This configuration defines default settings for voice service operations using:
  * - Input: Onboard microphone
  * - Output: Onboard speaker
- * - AEC: Enabled (version 1.0)
+ * - AEC: Enabled
  * - Mic sample rate: 8000Hz
  * - Speaker sample rate: 8000Hz
  * - Encoder: AAC
@@ -601,6 +616,11 @@ typedef struct
                 .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
                 .drc = AEC_V3_ALGORITHM_DRC,                        \
                 .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
+                .interweave = AEC_V3_ALGORITHM_INTERWEAVE,          \
+                .dist = AEC_V3_ALGORITHM_MIC_DIST,                  \
+                .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,              \
+                .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,  \
+                .dual_perp = DUAL_CH_0_DEGREE,                      \
             },                                                      \
             .vad_cfg = {                                            \
                 .vad_enable = 0,                                    \
@@ -684,12 +704,12 @@ typedef struct
 #endif  //CONFIG_VOICE_SERVICE_AAC_ENCODER && CONFIG_VOICE_SERVICE_AAC_DECODER
 
 /**
- * @brief Default voice service configuration using onboard dual DMIC and speaker with AEC version 1.0, 16000Hz sample rate and G.711a codec
+ * @brief Default voice service configuration using onboard dual DMIC and speaker with AEC, 16000Hz sample rate and G.711a codec
  * 
  * This configuration defines default settings for voice service operations using:
  * - Input: Onboard dual DMIC
  * - Output: Onboard speaker
- * - AEC: Enabled (version 1.0)
+ * - AEC: Enabled
  * - Mic sample rate: 16000Hz
  * - Speaker sample rate: 16000Hz
  * - Encoder: G.711a
@@ -739,6 +759,11 @@ typedef struct
             .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
             .drc = AEC_V3_ALGORITHM_DRC,                        \
             .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
+            .interweave = AEC_V3_ALGORITHM_INTERWEAVE,          \
+            .dist = AEC_V3_ALGORITHM_MIC_DIST,                  \
+            .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,              \
+            .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,  \
+            .dual_perp = DUAL_CH_0_DEGREE,                      \
         },                                                      \
         .vad_cfg = {                                            \
             .vad_enable = 1,                                    \
@@ -808,12 +833,12 @@ typedef struct
 
 #if CONFIG_VOICE_SERVICE_G722_ENCODER && CONFIG_VOICE_SERVICE_G722_DECODER
 /**
- * @brief Default voice service configuration using onboard microphone and speaker with AEC version 1.0, 16000Hz sample rate and G.722 codec
+ * @brief Default voice service configuration using onboard microphone and speaker with AEC, 16000Hz sample rate and G.722 codec
  * 
  * This configuration defines default settings for voice service operations using:
  * - Input: Onboard microphone
  * - Output: Onboard speaker
- * - AEC: Enabled (version 1.0)
+ * - AEC: Enabled
  * - Mic sample rate: 16000Hz
  * - Speaker sample rate: 16000Hz
  * - Encoder: G.722
@@ -858,6 +883,11 @@ typedef struct
                 .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
                 .drc = AEC_V3_ALGORITHM_DRC,                        \
                 .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
+                .interweave = AEC_V3_ALGORITHM_INTERWEAVE,          \
+                .dist = AEC_V3_ALGORITHM_MIC_DIST,                  \
+                .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,              \
+                .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,  \
+                .dual_perp = DUAL_CH_0_DEGREE,                      \
             },                                                      \
             .vad_cfg = {                                            \
                 .vad_enable = 0,                                    \
@@ -930,12 +960,12 @@ typedef struct
 #endif  //CONFIG_VOICE_SERVICE_G722_ENCODER && CONFIG_VOICE_SERVICE_G722_DECODER
 
 /**
- * @brief Default voice service configuration using onboard microphone and speaker with AEC version 1.0, 8000Hz sample rate and G.711a codec, with equalizer enabled
+ * @brief Default voice service configuration using onboard microphone and speaker with AEC, 8000Hz sample rate and G.711a codec, with equalizer enabled
  * 
  * This configuration defines default settings for voice service operations using:
  * - Input: Onboard microphone
  * - Output: Onboard speaker
- * - AEC: Enabled (version 1.0)
+ * - AEC: Enabled
  * - Mic sample rate: 8000Hz
  * - Speaker sample rate: 8000Hz
  * - Encoder: G.711a
@@ -984,6 +1014,11 @@ typedef struct
             .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
             .drc = AEC_V3_ALGORITHM_DRC,                        \
             .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
+            .interweave = AEC_V3_ALGORITHM_INTERWEAVE,          \
+            .dist = AEC_V3_ALGORITHM_MIC_DIST,                  \
+            .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,              \
+            .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,  \
+            .dual_perp = DUAL_CH_0_DEGREE,                      \
         },                                                      \
         .vad_cfg = {                                            \
             .vad_enable = 0,                                    \
@@ -1092,12 +1127,12 @@ typedef struct
 
 #if CONFIG_VOICE_SERVICE_OPUS_ENCODER && CONFIG_VOICE_SERVICE_OPUS_DECODER
 /**
- * @brief Default voice service configuration using onboard microphone and speaker with AEC version 1.0, 16000Hz sample rate and OPUS codec
+ * @brief Default voice service configuration using onboard microphone and speaker with AEC, 16000Hz sample rate and OPUS codec
  * 
  * This configuration defines default settings for voice service operations using:
  * - Input: Onboard microphone
  * - Output: Onboard speaker
- * - AEC: Enabled (version 1.0)
+ * - AEC: Enabled
  * - Mic sample rate: 16000Hz
  * - Speaker sample rate: 16000Hz
  * - Encoder: OPUS
@@ -1142,6 +1177,11 @@ typedef struct
                 .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
                 .drc = AEC_V3_ALGORITHM_DRC,                        \
                 .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
+                .interweave = AEC_V3_ALGORITHM_INTERWEAVE,          \
+                .dist = AEC_V3_ALGORITHM_MIC_DIST,                  \
+                .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,              \
+                .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,  \
+                .dual_perp = DUAL_CH_0_DEGREE,                      \
             },                                                      \
             .vad_cfg = {                                            \
                 .vad_enable = 0,                                    \

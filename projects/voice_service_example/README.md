@@ -82,9 +82,11 @@ voice_service_example/
 
 3. **Echo Cancellation**:
 
-   - `0`: Disable echo cancellation
-   - `1`: Enable AEC version 1
-   - `3`: Enable AEC version 3
+   - bit0:0 aec disable/1 aec enable
+   - bit1:0 AEC_MODE_SOFTWARE/1 AEC_MODE_HARDWARE,
+   - bit2:0 DUAL_MIC_CH_0_DEGREE/1 DUAL_MIC_CH_90_DEGREE
+   - bit3:0 no mic swap/1 mic swap
+   - bit4:0 no ec ooutput/1 ecoutput
 
 4. **Codec Format**:
 

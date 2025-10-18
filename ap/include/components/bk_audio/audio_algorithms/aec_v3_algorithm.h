@@ -99,9 +99,15 @@ typedef enum
     VAD_SILENCE           = (0x03),
 }vad_state_t;
 
+typedef enum 
+{
+    DUAL_CH_0_DEGREE   = (0x00),
+    DUAL_CH_90_DEGREE  = (0x01),
+}dual_ch_dir_t;
+
 typedef struct 
 {
-    aec_v3_mode_t mode;        /*!< aec work mode: hardware mode or software mode */
+    aec_v3_mode_t mode;     /*!< aec work mode: hardware mode or software mode */
     uint32_t fs;            /*!< Sample rate (8000 or 16000) */
     /* default value */
     uint16_t init_flags;
@@ -120,7 +126,12 @@ typedef struct
     /* drc */
     uint8_t drc;            /*!< recommended value range:0x10~0x1f, the greater the value, the greater the volume */
     
-    uint8_t ec_filter;      /*!< 0x01/0x03/0x07 */ 
+    uint8_t ec_filter;      /*!< 0x01/0x03/0x07,output echo cancellation data |= 1<<5 */
+    uint8_t interweave;     /*!< 0/1 */
+    int16_t dist;           /*!< 0:DUAL_CH_90_DEGREE,1:DUAL_CH_0_DEGREE dual mic distance is within 3cm;2: DUAL_CH_0_DEGREE dual mic distance is in the range of 3~4cm*/
+    uint8_t mic_swap;       /*!< 0:default/1:swap dual channel data */
+    uint8_t ec_only_output; /*!< 0:disable,1:enable */
+    uint8_t dual_perp;      /*!< dual channel direction,0:0 degree,1:90 degree*/
 } aec_v3_cfg_t;
 
 typedef struct {
@@ -134,6 +145,7 @@ typedef struct {
     uint32_t vad_frame_size;
 } vad_cfg_t;
 
+typedef int (*ec_out_callback)(int32_t *buffer, uint16_t len);
 
 /**
  * @brief      AEC algorithm configurations
@@ -149,6 +161,7 @@ typedef struct
     int                     out_block_num;      /*!< Number of output block*/
     int                     multi_out_port_num; /*!< The number of multiple output audio port */
     int                     dual_ch;            /*!< Enable dual channel input(1)/Disable dual channel input(0)*/
+    ec_out_callback         ec_out_cb;          /*!< echo cancellation output callback function */
 } aec_v3_algorithm_cfg_t;
 
 #define AEC_V3_DELAY_SAMPLE_POINTS_MAX           (1000)
@@ -169,6 +182,10 @@ typedef struct
 #define AEC_V3_ALGORITHM_VOL                 (0xd)
 #define AEC_V3_ALGORITHM_EC_FILTER           (0x7)
 #define AEC_V3_ALGORITHM_DRC                 (0x0)
+#define AEC_V3_ALGORITHM_INTERWEAVE          (0x1)
+#define AEC_V3_ALGORITHM_MIC_SWAP            (0x0)
+#define AEC_V3_ALGORITHM_MIC_DIST            (0x2)
+#define AEC_V3_ALGORITHM_EC_ONLY_OUTPUT      (0x0)
 #define AEC_V3_VAD_BAD_FRAME_NUM             (16)
 
 
@@ -190,6 +207,11 @@ typedef struct
         .ns_para = AEC_V3_ALGORITHM_NS_PARA,                \
         .drc = AEC_V3_ALGORITHM_DRC,                        \
         .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,            \
+        .interweave = AEC_V3_ALGORITHM_INTERWEAVE,          \
+        .dist = AEC_V3_ALGORITHM_MIC_DIST,                  \
+        .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,              \
+        .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,  \
+        .dual_perp = DUAL_CH_0_DEGREE,                      \
     },                                                      \
     .vad_cfg = {                                            \
         .vad_enable = 1,                                    \

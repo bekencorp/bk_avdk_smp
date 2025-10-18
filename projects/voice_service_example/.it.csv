@@ -1,0 +1,12 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+重启设备,AT+RST,1,wakeup,3
+voice_service_start_test_case_01,ap_cmd voice_service start onboard 8000 1 g711a g711a onboard 8000 0,1,CMDRSP:OK,5
+voice_service_stop_test_case_01,ap_cmd voice_service stop onboard 8000 1 g711a g711a onboard 8000 0,1,CMDRSP:OK,5
+voice_service_start_test_case_02,ap_cmd voice_service start onboard 16000 1 g711a g711a onboard 16000 0,1,CMDRSP:OK,5
+voice_service_stop_test_case_02,ap_cmd voice_service stop onboard 16000 1 g711a g711a onboard 16000 0,1,CMDRSP:OK,5
+voice_service_start_test_case_03,ap_cmd voice_service start uac 8000 1 g711a g711a uac 8000 0,1,CMDRSP:OK,5
+voice_service_stop_test_case_03,ap_cmd voice_service stop uac 8000 1 g711a g711a uac 8000 0,1,CMDRSP:OK,5
+voice_service_start_test_case_04,ap_cmd voice_service start onboard 8000 1 aac aac onboard 8000 0,1,CMDRSP:OK,5
+voice_service_stop_test_case_04,ap_cmd voice_service stop onboard 8000 1 aac aac onboard 8000 0,1,CMDRSP:OK,5
+voice_service_start_test_case_05,ap_cmd voice_service start onboard 16000 1 g722 g722 onboard 16000 0,1,CMDRSP:OK,5
+voice_service_stop_test_case_05,ap_cmd voice_service stop onboard 16000 1 g722 g722 onboard 16000 0,1,CMDRSP:OK,5

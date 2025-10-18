@@ -108,7 +108,7 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             && os_strtoul(argv[8], NULL, 10) == 16000
             && os_strtoul(argv[9], NULL, 10) == 0)
         {
-            voice_cfg_t voice_temp_cfg = DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_AECV1_G711A_16000_CONFIG();
+            voice_cfg_t voice_temp_cfg = DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_AEC_G711A_16000_CONFIG();
             voice_cfg = voice_temp_cfg;
         }
         else if (os_strcmp(argv[2], "uac") == 0
@@ -267,7 +267,11 @@ static const struct cli_command s_voice_service_commands[] =
      * [cmd]            start/stop
      * [mic_type]       onboard/uac/onboard_dual_dmic_mic
      * [mic_samp_rate]  8000/16000
-     * [aec_en]         0/1/3
+     * [aec_en]         bit0:0 aec disable/1 aec enable,
+                        bit1:0 AEC_MODE_SOFTWARE/1 AEC_MODE_HARDWARE,
+                        bit2:0 DUAL_MIC_CH_0_DEGREE/1 DUAL_MIC_CH_90_DEGREE
+                        bit3:0 no mic swap/1 mic swap
+                        bit4:0 no ec ooutput/1 ecoutput
      * [enc_type]       pcm/g711a/g711u/aac/g722
      * [dec_type]       pcm/g711a/g711u/aac/g722
      * [spk_type]       onboard/uac

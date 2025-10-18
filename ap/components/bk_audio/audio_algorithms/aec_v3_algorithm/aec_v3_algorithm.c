@@ -101,6 +101,9 @@ static struct vfs_util g_aec_vfs_util_out = {0};
 uint32 aec_gtbuf[94*1024/4] __attribute__((section(".aec_bss")));
 #endif
 
+#define AEC_EC_OUT_BUF_LEN (770*sizeof(int32_t))
+int32_t  *buff_ecout = NULL;
+
 typedef struct aec_algorithm
 {
     aec_v3_cfg_t aec_cfg;
@@ -112,10 +115,11 @@ typedef struct aec_algorithm
     int16_t *mic_addr;
     int16_t *out_addr;
     uint32_t frame_size;    /**< 20ms data */
-    int      dual_ch;     /**< Enable dual channel input(1)/Disable dual channel input(0)*/
+    int      dual_ch;       /**< Enable dual channel input(1)/Disable dual channel input(0)*/
     int      vad_state;
     int16_t  *out_read_addr;
     ringbuf_handle_t vad_rb;
+    ec_out_callback  ec_out_cb; 
 } aec_v3_algorithm_t;
 
 
@@ -506,7 +510,7 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_VOL, aec->aec_cfg.voice_vol);               //通话过程中如果需要经常调节喇叭音量就设置下当前音量等级
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_MAX_DELAY, AEC_DELAY_BUFFER_SIZE/2);
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_GET_FRAME_SAMPLE, (uint32_t)(&aec_frame_sample_cnt));
-    BK_LOGI(TAG, "[%s] aec frame samp cnt:%d, frame_size:%d\n", audio_element_get_tag(self),aec_frame_sample_cnt,aec->frame_size);
+    BK_LOGI(TAG, "[%s] fs:%d,aec frame samp cnt:%d, frame_size:%d\n", audio_element_get_tag(self),aec->aec_cfg.fs,aec_frame_sample_cnt,aec->frame_size);
     
     ///降噪相关
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_LEVEL, aec->aec_cfg.ns_level);           //建议取值范围1~8；值越小底噪越小
@@ -551,36 +555,59 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     // add dual dmic enc process
     if(aec->dual_ch)
     {
-        aec->aec_ctx->interweave = 1;
-        aec->aec_ctx->dist = 2;
-        aec->aec_ctx->mic_swap = 0;
+        aec->aec_ctx->interweave = aec->aec_cfg.interweave;
+        aec->aec_ctx->dist = aec->aec_cfg.dist;
+        aec->aec_ctx->mic_swap = aec->aec_cfg.mic_swap;
         if(aec->vad_cfg.vad_enable)
         {
             aec->aec_ctx->vad = 1;
         }
-        
+
+        aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_DUAL_PERP, (uint32_t)aec->aec_cfg.dual_perp);
+        if(DUAL_CH_0_DEGREE == aec->aec_cfg.dual_perp)
+        {
+            aec->aec_ctx->dist = aec->aec_cfg.dist;
+        }
     }
 
-    BK_LOGD(TAG, "aec_cfg 1:flags:0x%x,mic_swap:%d,interweave:%d,vol:%d,ec_filter:%d\n", 
+    //output echo cancellation only data
+    if(aec->aec_cfg.ec_only_output)
+    {
+        aec->aec_ctx->ec_filter |= (1 << 5);
+        buff_ecout = (int32_t *)audio_malloc(AEC_EC_OUT_BUF_LEN);
+        if (!buff_ecout)
+        {
+            BK_LOGE(TAG, "[%s] %s, %d, audio_malloc buff_ecout: %d fail \n", audio_element_get_tag(self), __func__, __LINE__, AEC_EC_OUT_BUF_LEN);
+            goto fail;
+        }
+        aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_EOBUFF, (uint32_t)buff_ecout);
+        BK_LOGD(TAG, "AEC_CTRL_CMD_SET_EOBUFF addr:0x%x\n",buff_ecout);
+    }
+
+    BK_LOGD(TAG, "aec_cfg 1:mode:%d,dual_ch:%d,flags:0x%x,interweave:%d,dual_perp:%d,dist:%d,mic_swap:%d,vol:%d\n",
+                 aec->aec_cfg.mode,
+                 aec->dual_ch,
                  aec->aec_ctx->flags,
-                 aec->aec_ctx->mic_swap,
                  aec->aec_ctx->interweave,
-                 aec->aec_ctx->vol,
-                 aec->aec_ctx->ec_filter);
+                 aec->aec_cfg.dual_perp,
+                 aec->aec_ctx->dist,
+                 aec->aec_ctx->mic_swap,
+                 aec->aec_ctx->vol);
     
-    BK_LOGD(TAG, "aec_cfg 2:ns_filter:0x%x,ec_depth:%d,drc_mode:%d,vad:%d,max_mic_delay:%d\n", 
-                 aec->aec_ctx->ns_filter,
+    BK_LOGD(TAG, "aec_cfg 2:ec_filter:0x%x,ec_depth:%d,drc_mode:%d,mic_delay:%d,max_mic_delay:%d\n", 
+                 aec->aec_ctx->ec_filter,
                  aec->aec_ctx->ec_depth,
                  aec->aec_ctx->drc_mode,
-                 aec->aec_ctx->vad,
+                 aec->aec_ctx->mic_delay,
                  aec->aec_ctx->max_mic_delay);
 
-    BK_LOGD(TAG, "aec_cfg 3:mic_delay:0x%x,spcnt:%d,dist:%d,ns_type:%d,vad:%d\n", 
-                 aec->aec_ctx->mic_delay,
+    BK_LOGD(TAG, "aec_cfg 3:spcnt:%d,ns_type:%d,ns_filter:0x%x,vad:%d,vad_en:%d,ec_only_out:%d\n", 
                  aec->aec_ctx->spcnt,
-                 aec->aec_ctx->dist,
                  aec->aec_cfg.ns_type,
-                 aec->vad_cfg.vad_enable);
+                 aec->aec_ctx->ns_filter,
+                 aec->aec_ctx->vad,
+                 aec->vad_cfg.vad_enable,
+                 aec->aec_cfg.ec_only_output);
 
     if(aec->vad_cfg.vad_enable)
     {
@@ -600,19 +627,47 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
         if (!aec->out_read_addr)
         {
             BK_LOGE(TAG, "[%s] %s, %d, audio_malloc aec out_read_addr: %d fail \n", audio_element_get_tag(self), __func__, __LINE__, aec->frame_size);
-            return BK_FAIL;
+            goto fail;
         }
 
         aec->vad_rb = rb_create(aec->vad_cfg.vad_buf_size + aec->vad_cfg.vad_frame_size*4,1);
         if (!aec->vad_rb)
         {
             BK_LOGE(TAG, "[%s] %s, create vad ring buffer fail\n",audio_element_get_tag(self), __func__);
+            goto fail;
         }
     }
     
     BK_LOGD(TAG, "[%s] _aec_algorithm_open\n", audio_element_get_tag(self));
 
     return BK_OK;
+    
+fail:
+    if (aec->aec_ctx)
+    {
+        audio_free(aec->aec_ctx);
+        aec->aec_ctx = NULL;
+    }
+
+    if(buff_ecout)
+    {
+        audio_free(buff_ecout);
+        buff_ecout = NULL;
+    }
+
+    if(aec->out_read_addr)
+    {
+        audio_free(aec->out_read_addr);
+        aec->out_read_addr = NULL;
+    }
+
+    if(aec->vad_rb)
+    {
+        rb_destroy(aec->vad_rb);
+        aec->vad_rb = NULL;
+    }
+    
+    return BK_FAIL;
 }
 
 static bk_err_t _aec_v3_algorithm_close(audio_element_handle_t self)
@@ -697,6 +752,11 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
 
         aec_proc(aec->aec_ctx, aec->ref_addr, aec->mic_addr, aec->out_addr);
         aec_vad_proc(aec);
+        
+        if(aec->ec_out_cb)
+        {
+            aec->ec_out_cb(buff_ecout,aec->frame_size);
+        }
 
         AEC_ALGORITHM_END();
 
@@ -705,7 +765,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         if((aec->vad_cfg.vad_enable) && (VAD_NONE != aec->vad_state))
         {
             static int vad_buff_data_size = 0;
-            if(VAD_SPEECH_START != aec->vad_state)
+            if((VAD_SPEECH_START != aec->vad_state) && (VAD_SILENCE != aec->vad_state))
             {
                 if(0 <= (int)(vad_buff_data_size - aec->frame_size))
                 {
@@ -779,6 +839,12 @@ static bk_err_t _aec_v3_algorithm_destroy(audio_element_handle_t self)
 
     aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(self);
 
+    if(buff_ecout)
+    {
+        audio_free(buff_ecout);
+        buff_ecout = NULL;
+    }
+
     if(aec->out_read_addr)
     {
         audio_free(aec->out_read_addr);
@@ -788,6 +854,7 @@ static bk_err_t _aec_v3_algorithm_destroy(audio_element_handle_t self)
     if(aec->vad_rb)
     {
         rb_destroy(aec->vad_rb);
+        aec->vad_rb = NULL;
     }
     
     if (aec->aec_ctx)
@@ -863,6 +930,7 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     aec_alg->out_addr = NULL;
     aec_alg->dual_ch = config->dual_ch;
     aec_alg->vad_state = VAD_NONE;
+    aec_alg->ec_out_cb = config->ec_out_cb;
     
     audio_element_setdata(el, aec_alg);
 
