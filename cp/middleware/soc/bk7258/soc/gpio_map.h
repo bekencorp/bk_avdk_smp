@@ -387,18 +387,10 @@ struct {\
 #define AUD_DAC_PA_CTRL_GPIO		(GPIO_5)
 #define AUD_DAC_PA_ENABLE_LEVEL		(1)
 
-/*
-* VIDEO PA GPIO MAP
-*/
-// LCD AND SD POWER CTRL
-#define LCD_LDO_CTRL_GPIO                  (GPIO_13)
-#define LCD_LDO_CTRL_ACTIVE_LEVEL          (1)
 
 #define SDCARD_LDO_CTRL_GPIO               (GPIO_13)
 #define SDCARD_LDO_CTRL_ACTIVE_LEVEL       (1)
 
-// LCD BACKLIGHT CTRL
-#define LCD_BACKLIGHT_CTRL_ACTIVE_LEVEL    (1)
 
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
