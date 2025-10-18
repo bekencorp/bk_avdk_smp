@@ -1000,7 +1000,7 @@ static void jpeg_decode_task_deinit(void)
 			jdec_config->jpeg_frame = NULL;
 		}
 
-		if (jdec_config->jdec_queue)
+		if (jdec_config->queue_frame_to_h264e)
 		{
 			while (!rtos_is_queue_empty(&jdec_config->queue_frame_to_h264e))
 			{
@@ -1032,6 +1032,13 @@ static void jpeg_decode_task_deinit(void)
 
 		if (jdec_config->jdec_queue)
 		{
+			media_msg_t msg;
+			while (rtos_pop_from_queue(&jdec_config->jdec_queue, &msg, BEKEN_NO_WAIT) == BK_OK)
+			{
+				LOGV("%s, %d, event:%d\n", __func__, __LINE__, msg.event);
+				if (msg.event == JPEGDEC_START)
+					jpeg_decode_start_handle((frame_buffer_t *)msg.param);
+			};
 			rtos_deinit_queue(&jdec_config->jdec_queue);
 			jdec_config->jdec_queue = NULL;
 		}
