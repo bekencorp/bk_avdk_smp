@@ -38,6 +38,10 @@
 #include "spinlock.h"
 #endif
 
+#ifndef CONFIG_JPEG_DECODE_PIPELINE_TASK_STACK_SIZE
+#define CONFIG_JPEG_DECODE_PIPELINE_TASK_STACK_SIZE (1024 * 4)
+#endif
+
 #define TAG "jdec_pip"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -1503,7 +1507,7 @@ bk_err_t jpeg_decode_task_open(media_rotate_t rotate_angle,
 							BEKEN_DEFAULT_WORKER_PRIORITY - 1,
 							"jdec_task",
 							(beken_thread_function_t)jpeg_decode_main,
-							1024 * 4,
+							CONFIG_JPEG_DECODE_PIPELINE_TASK_STACK_SIZE,
 							NULL);
 
 	if (ret != BK_OK)

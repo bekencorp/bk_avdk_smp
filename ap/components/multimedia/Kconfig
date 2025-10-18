@@ -6,18 +6,6 @@ menu "Media"
 		help
 			Enable media service
 
-	config MEDIA_MAJOR
-		bool "Enable Media"
-		default n
-
-	config MEDIA_APP
-		bool "Enable Media"
-		default n
-
-	config MEDIA_MINOR
-		bool "Enable Media"
-		default n
-
 	config LCD_FLASH_JPEG_DISPLAY
 		depends on LCD
 		bool "Enable Lcd Flash Jpeg Display"
@@ -76,7 +64,7 @@ menu "Media"
 
 	config SW_ROTATE_TO_YUYV_AND_DMA2D_TO_YUYV_NOT_RGB888
 		depends on LCD
-		bool "Enable Lcd hw decode"
+		bool "Enable SW rotate to YUYV and DMA2D to YUYV not RGB888"
 		default n
 
 	config LCD_SW_DECODE
@@ -86,18 +74,41 @@ menu "Media"
 
 	config LCD_AUTO_FILL_FULL
 		depends on LCD
-		bool "Enable Lcd sw decode"
-		default n
-
-	config MEDIA_SCALE
-		depends on LCD
-		bool "Enable Lcd scale"
+		bool "Enable Lcd auto fill full"
 		default n
 
 	config MEDIA_PIPELINE
 		depends on LCD
-		bool "Enable Lcd scale"
+		bool "Enable MEDIA PIPELINE"
 		default n
+
+	config JPEG_DECODE_PIPELINE_TASK_STACK_SIZE
+		depends on MEDIA_PIPELINE
+		int "JPEG decode pipeline task stack size"
+		default 4096
+		help
+			Stack size in bytes for JPEG decode pipeline task (default: 4096)
+
+	config JPEG_GET_PIPELINE_TASK_STACK_SIZE
+		depends on MEDIA_PIPELINE
+		int "JPEG get pipeline task stack size"
+		default 1024
+		help
+			Stack size in bytes for JPEG get pipeline task (default: 1024)
+
+	config YUV_ROTATE_PIPELINE_TASK_STACK_SIZE
+		depends on MEDIA_PIPELINE
+		int "YUV rotate pipeline task stack size"
+		default 2048
+		help
+			Stack size in bytes for YUV rotate pipeline task (default: 2048)
+
+	config H264_ENCODE_PIPELINE_TASK_STACK_SIZE
+		depends on MEDIA_PIPELINE
+		int "H264 encode pipeline task stack size"
+		default 2048
+		help
+			Stack size in bytes for H264 encode pipeline task (default: 2048)
 
 	config MEDIA_BT_AUDIO
 		bool "BT USE AUDIO Module"

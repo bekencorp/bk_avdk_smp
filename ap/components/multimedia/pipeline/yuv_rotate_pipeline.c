@@ -44,6 +44,10 @@
 #include "spinlock.h"
 #endif
 
+#ifndef CONFIG_YUV_ROTATE_PIPELINE_TASK_STACK_SIZE
+#define CONFIG_YUV_ROTATE_PIPELINE_TASK_STACK_SIZE (1024 * 2)
+#endif
+
 #define TAG "rot_pipline"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -1085,7 +1089,7 @@ bk_err_t rotate_task_open(rot_open_t *rot_open, const decode_callback_t *decode_
 						BEKEN_DEFAULT_WORKER_PRIORITY,
 						"rotate_thread",
 						(beken_thread_function_t)rotate_main,
-						1024 * 2,
+						CONFIG_YUV_ROTATE_PIPELINE_TASK_STACK_SIZE,
 						NULL);
 
 	if (ret != BK_OK)

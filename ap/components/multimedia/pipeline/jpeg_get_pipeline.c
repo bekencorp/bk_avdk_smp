@@ -23,6 +23,10 @@
 
 #include "mux_pipeline.h"
 
+#ifndef CONFIG_JPEG_GET_PIPELINE_TASK_STACK_SIZE
+#define CONFIG_JPEG_GET_PIPELINE_TASK_STACK_SIZE (1024)
+#endif
+
 #define TAG "jpeg_get"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -334,7 +338,7 @@ bk_err_t jpeg_get_task_open(const jpeg_callback_t *jpeg_cbs, const decode_callba
 							BEKEN_DEFAULT_WORKER_PRIORITY - 1,
 							"jpeg_get_task",
 							(beken_thread_function_t)jpeg_get_main,
-							1024,
+							CONFIG_JPEG_GET_PIPELINE_TASK_STACK_SIZE,
 							NULL);
 
 	if (ret != BK_OK)

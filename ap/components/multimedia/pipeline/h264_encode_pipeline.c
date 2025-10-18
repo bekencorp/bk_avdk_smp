@@ -32,6 +32,10 @@
 #include "avdk_crc.h"
 #include <components/bk_video_pipeline/bk_video_pipeline_types.h>
 
+#ifndef CONFIG_H264_ENCODE_PIPELINE_TASK_STACK_SIZE
+#define CONFIG_H264_ENCODE_PIPELINE_TASK_STACK_SIZE (1024 * 2)
+#endif
+
 #define TAG "h264_pipline"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -1070,7 +1074,7 @@ bk_err_t h264_encode_task_open(bk_video_pipeline_h264e_config_t *config, const b
 							BEKEN_DEFAULT_WORKER_PRIORITY - 1,
 							"h264_task",
 							(beken_thread_function_t)h264_encode_main,
-							1024 * 2,
+							CONFIG_H264_ENCODE_PIPELINE_TASK_STACK_SIZE,
 							NULL);
 
 	if (BK_OK != ret)

@@ -10,6 +10,10 @@
 #include "hw_jpeg_decode.h"
 #include "components/bk_jpeg_decode/bk_jpeg_decode_utils.h"
 
+#ifndef CONFIG_HW_JPEG_DECODE_TASK_STACK_SIZE
+#define CONFIG_HW_JPEG_DECODE_TASK_STACK_SIZE (1024)
+#endif
+
 #define TAG "hw_dec"
 
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
@@ -468,9 +472,9 @@ bk_err_t hw_jpeg_decode_init(bk_jpeg_decode_callback_t *decode_cbs)
 
 	ret = rtos_create_thread(&g_hw_jpeg_decode->hw_thread,
 							BEKEN_DEFAULT_WORKER_PRIORITY,
-							"sw_dec_thread_temp",
+							"hw_dec_thread",
 							(beken_thread_function_t)hw_jpeg_decode_thread,
-						    1024,
+						    CONFIG_HW_JPEG_DECODE_TASK_STACK_SIZE,
 							NULL);
     if (ret != BK_OK)
     {

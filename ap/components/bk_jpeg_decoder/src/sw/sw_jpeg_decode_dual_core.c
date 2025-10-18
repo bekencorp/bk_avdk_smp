@@ -28,6 +28,10 @@
 
 #include "mux_pipeline.h"
 
+#ifndef CONFIG_SW_JPEG_DECODE_TASK_STACK_SIZE
+#define CONFIG_SW_JPEG_DECODE_TASK_STACK_SIZE (1024)
+#endif
+
 #define TAG "sw_dec"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -567,7 +571,7 @@ bk_err_t software_decode_task_dual_core_open(private_jpeg_decode_sw_multi_core_c
 							BEKEN_DEFAULT_WORKER_PRIORITY,
 							"decode_task",
 							(beken_thread_function_t)software_decode_dual_core_main,
-							1024,
+							CONFIG_SW_JPEG_DECODE_TASK_STACK_SIZE,
 							controller);
 	if (ret != BK_OK) {
 		LOGE("Failed to create decode task thread\n");
