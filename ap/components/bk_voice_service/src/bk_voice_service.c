@@ -2,6 +2,7 @@
 #include <os/os.h>
 #include "FreeRTOS.h"
 #include "task.h"
+#include <components/audio_param_ctrl.h>
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_thread.h>
@@ -65,6 +66,7 @@ struct voice
     spk_type_t              spk_type;           /**< onboard speaker or uac speaker */
     audio_element_handle_t  spk_str;            /**< speaker stream handle */
     #if CONFIG_VOICE_SERVICE_EQ
+    bool eq_en;
     audio_element_handle_t  eq_str;             /**< eq stream handle */
     #endif
 
@@ -1303,6 +1305,9 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
     voice_handle->enc_type = cfg->enc_type;
     voice_handle->dec_type = cfg->dec_type;
     voice_handle->spk_type = cfg->spk_type;
+    #if CONFIG_VOICE_SERVICE_EQ
+    voice_handle->eq_en = cfg->eq_en;
+    #endif
     voice_handle->event_handle = cfg->event_handle;
     voice_handle->args = cfg->args;
 
@@ -1555,6 +1560,107 @@ int bk_voice_write_spk_data(voice_handle_t voice_handle, char *buffer, uint32_t 
 
     return raw_stream_write(voice_handle->raw_write, buffer, size);
 }
+
+bk_err_t bk_voice_get_micstr(voice_handle_t voice_handle, audio_element_handle_t *mic_str)
+{
+	VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
+	VOICE_CHECK_NULL(mic_str, return BK_FAIL);
+	if (voice_handle->mic_str) {
+		*mic_str = voice_handle->mic_str;
+		return BK_OK;
+	} else {
+		return BK_FAIL;
+	}
+}
+bk_err_t bk_voice_get_micstr_type(voice_handle_t voice_handle, mic_type_t *mic_type)
+{
+	VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
+	if (voice_handle->mic_str) {
+		*mic_type = voice_handle->mic_type;
+		return BK_OK;
+	} else {
+		return BK_FAIL;
+	}
+}
+
+bk_err_t bk_voice_get_spkstr(voice_handle_t voice_handle, audio_element_handle_t *spk_str)
+{
+	VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
+	VOICE_CHECK_NULL(spk_str, return BK_FAIL);
+	if (voice_handle->spk_str) {
+		*spk_str = voice_handle->spk_str;
+		return BK_OK;
+	} else {
+		return BK_FAIL;
+	}
+}
+bk_err_t bk_voice_get_spkstr_type(voice_handle_t voice_handle, spk_type_t *spk_type)
+{
+	VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
+	if (voice_handle->spk_str) {
+		*spk_type = voice_handle->spk_type;
+		return BK_OK;
+	} else {
+		return BK_FAIL;
+	}
+}
+
+bk_err_t bk_voice_get_aec_alg(voice_handle_t voice_handle, audio_element_handle_t *aec_alg)
+{
+	VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
+	VOICE_CHECK_NULL(aec_alg, return BK_FAIL);
+	if (voice_handle->aec_en) {
+		if (voice_handle->aec_alg) {
+			*aec_alg = voice_handle->aec_alg;
+			return BK_OK;
+		} else {
+			return BK_FAIL;
+		}
+	} else {
+		return BK_FAIL;
+	}
+}
+
+#if CONFIG_VOICE_SERVICE_EQ
+bk_err_t bk_voice_get_eq_alg(voice_handle_t voice_handle, audio_element_handle_t *eq_alg)
+{
+	VOICE_CHECK_NULL(voice_handle, return BK_FAIL);
+	VOICE_CHECK_NULL(eq_alg, return BK_FAIL);
+	if (voice_handle->eq_en) {
+		if (voice_handle->eq_str) {
+		*eq_alg = voice_handle->eq_str;
+		return BK_OK;
+		} else {
+			return BK_FAIL;
+		}
+	} else {
+		return BK_FAIL;
+	}
+}
+#endif
+
+void * bk_voice_get_record_pipeline(voice_handle_t voice_handle)
+{
+	VOICE_CHECK_NULL(voice_handle, return NULL);
+	VOICE_CHECK_NULL(voice_handle->record_pipeline, return NULL);
+	if (voice_handle->record_pipeline) {
+		return voice_handle->record_pipeline;
+	} else {
+		return NULL;
+	}
+}
+
+void * bk_voice_get_play_pipeline(voice_handle_t voice_handle)
+{
+	VOICE_CHECK_NULL(voice_handle, return NULL);
+	VOICE_CHECK_NULL(voice_handle->play_pipeline, return NULL);
+	if (voice_handle->play_pipeline) {
+		return voice_handle->play_pipeline;
+	} else {
+		return NULL;
+	}
+}
+
 
 int bk_voice_get_mic_str(voice_handle_t voice_handle, voice_cfg_t *cfg)
 {
