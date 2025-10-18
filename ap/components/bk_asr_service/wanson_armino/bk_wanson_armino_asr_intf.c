@@ -12,8 +12,9 @@
 Fst fst_1;
 Fst fst_2;
 static unsigned char asr_curr_group_id; // 当前使用的分组ID
+
+static uint8_t __maybe_unused wanson_fst_group_select = 0;
 #endif
-static uint8_t wanson_fst_group_select = 0;
 
 
 #if(CONFIG_WANSON_ASR_GROUP_VERSION)

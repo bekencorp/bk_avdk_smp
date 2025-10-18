@@ -245,12 +245,12 @@ static bk_err_t asr_pipeline_init_with_mic(asr_handle_t asr_handle, asr_cfg_t *c
 		BK_LOGE(TAG, "%s, %d, mic_type: %d is not support \n", __func__, __LINE__, asr_handle->mic_type);
 		goto fail;
 	}
-
+#if CONFIG_ADK_RSP_ALGORITHM
 	if (asr_handle->asr_rsp_en) {
 		asr_handle->asr_rsp = rsp_algorithm_init(&cfg->rsp_cfg.rsp_alg_cfg);
 		ASR_CHECK_NULL(asr_handle->asr_rsp, goto fail);
 	}
-
+#endif
     raw_stream_cfg_t raw_read_cfg = RAW_STREAM_CFG_DEFAULT();
     raw_read_cfg.type = AUDIO_STREAM_READER;
     raw_read_cfg.out_block_size = cfg->read_pool_size * 2 *2;
@@ -259,36 +259,46 @@ static bk_err_t asr_pipeline_init_with_mic(asr_handle_t asr_handle, asr_cfg_t *c
     ASR_CHECK_NULL(asr_handle->asr_raw_read, goto fail);
 
     BK_LOGD(TAG, "step3: asr pipeline register\n");
+
+	if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->mic_str, "mic"))
+	{
+		BK_LOGE(TAG, "%s, %d, register mic_stream fail\n", __func__, __LINE__);
+		goto fail;
+	}
 	if (asr_handle->asr_rsp_en)
 	{
-		if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->mic_str, "mic"))
-		{
-			BK_LOGE(TAG, "%s, %d, register mic_stream fail\n", __func__, __LINE__);
-			goto fail;
-		}
 	    if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->asr_rsp, "asr_rsp"))
 	    {
 	        BK_LOGE(TAG, "%s, %d, register asr_rsp fail\n", __func__, __LINE__);
 	        goto fail;
 	    }
-
-	    if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->asr_raw_read, "asr_raw_read"))
-	    {
-	        BK_LOGE(TAG, "%s, %d, register asr_raw_read stream fail\n", __func__, __LINE__);
-	        goto fail;
-	    }
-
-	    BK_LOGD(TAG, "step4: asr pipeline link\n");
-	    /* pipeline record */
-	    ret = audio_pipeline_link(asr_handle->asr_pipeline, (const char *[])
-	    {"mic", "asr_rsp", "asr_raw_read"
-	    }, 3);
-	    if (ret != BK_OK)
-	    {
-	        BK_LOGE(TAG, "%s, %d, asr_pipeline link fail\n", __func__, __LINE__);
-	        goto fail;
-	    }
 	}
+    if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->asr_raw_read, "asr_raw_read"))
+    {
+        BK_LOGE(TAG, "%s, %d, register asr_raw_read stream fail\n", __func__, __LINE__);
+        goto fail;
+    }
+
+    BK_LOGD(TAG, "step4: asr pipeline link\n");
+    /* pipeline record */
+	if (asr_handle->asr_rsp_en)
+	{
+		ret = audio_pipeline_link(asr_handle->asr_pipeline, (const char *[])
+		{"mic", "asr_rsp", "asr_raw_read"
+		}, 3);
+	} else
+	{
+		ret = audio_pipeline_link(asr_handle->asr_pipeline, (const char *[])
+		{"mic", "asr_raw_read"
+		}, 2);
+	}
+
+	if (ret != BK_OK)
+	{
+		BK_LOGE(TAG, "%s, %d, asr_pipeline link fail\n", __func__, __LINE__);
+		goto fail;
+	}
+
     if (asr_handle->event_handle)
     {
         BK_LOGD(TAG, "step5: init asr event listener\n");
@@ -326,11 +336,11 @@ static bk_err_t asr_pipeline_init(asr_handle_t asr_handle, asr_cfg_t *cfg)
     asr_pipeline_cfg.rb_size = 320;
     asr_handle->asr_pipeline = audio_pipeline_init(&asr_pipeline_cfg);
     ASR_CHECK_NULL(asr_handle->asr_pipeline, goto fail);
-
+#if CONFIG_ADK_RSP_ALGORITHM
     BK_LOGD(TAG, "step2: init asr elements\n");
-	asr_handle->asr_rsp = rsp_algorithm_init(&cfg->rsp_cfg.rsp_alg_cfg);
-	ASR_CHECK_NULL(asr_handle->asr_rsp, goto fail);
-
+    asr_handle->asr_rsp = rsp_algorithm_init(&cfg->rsp_cfg.rsp_alg_cfg);
+    ASR_CHECK_NULL(asr_handle->asr_rsp, goto fail);
+#endif
     raw_stream_cfg_t raw_read_cfg = RAW_STREAM_CFG_DEFAULT();
     raw_read_cfg.type = AUDIO_STREAM_READER;
     raw_read_cfg.out_block_size = cfg->read_pool_size * 2 *2;
@@ -930,14 +940,14 @@ bk_err_t bk_asr_start(asr_handle_t asr_handle)
 
     asr_listener_start(asr_handle);
 
-	if (asr_handle->asr_rsp_en)
-	{
-	    if (BK_OK != asr_pipeline_start(asr_handle->asr_pipeline))
-	    {
-	        BK_LOGE(TAG, "%s, %d, asr_pipeline run fail\n", __func__, __LINE__);
-	        goto fail;
-	    }
-	}
+    if (asr_handle->asr_pipeline)
+    {
+        if (BK_OK != asr_pipeline_start(asr_handle->asr_pipeline))
+        {
+            BK_LOGE(TAG, "%s, %d, asr_pipeline run fail\n", __func__, __LINE__);
+            goto fail;
+        }
+    }
 
     asr_handle->status = ASR_STA_RUNNING;
     return BK_OK;

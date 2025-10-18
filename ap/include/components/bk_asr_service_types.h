@@ -46,7 +46,7 @@ typedef struct {
 	.task_core = 0,									\
 	.task_prio = AUDIO_ASR_TASK_PRIO,				\
 	.mem_type = AUDIO_MEM_TYPE_PSRAM,				\
-	.max_read_size = 960							\
+	.max_read_size = 960,							\
 	.aud_asr_result_handle = NULL,					\
 	.aud_asr_init = NULL,							\
 	.aud_asr_recog = NULL,							\
