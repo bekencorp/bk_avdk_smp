@@ -28,9 +28,13 @@
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
+
+#define CLI_CMD_RSP_SUCCEED               "CMDRSP:OK\r\n"
+#define CLI_CMD_RSP_ERROR                 "CMDRSP:ERROR\r\n"
 
 static voice_handle_t gl_voice_service_handle = NULL;
 static voice_read_handle_t gl_voice_read_service_handle = NULL;
@@ -55,24 +59,15 @@ int voice_service_send_callback(unsigned char *data, unsigned int len, void *arg
 void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
     LOGD("%s +++\n", __func__);
+    char *msg = CLI_CMD_RSP_ERROR;
 
     if ((argc != 9) && (argc != 10))
     {
         LOGE("%s, %d, agc: %d not right\n", __func__, __LINE__, argc);
-        return;
+        goto exit;
     }
 
     voice_cfg_t voice_cfg = {0};
-#if 0
-    mic_type_t mic_type = MIC_TYPE_INVALID;
-    uint32_t mic_samp_rate = 0;
-    uint8_t aec_version = 0;
-    audio_enc_type_t enc_type = 0;
-    audio_dec_type_t dec_type = 0;
-    spk_type_t spk_type = SPK_TYPE_INVALID;
-    uint32_t spk_samp_rate = 0;
-    uint8_t eq_type = 0;
-#endif
 
      LOGD("%s, %d, argc: %d, mic_type: %s, mic_samp_rate: %s, aec_version: %s, enc_type: %s, dec_type: %s, spk_type: %s, spk_samp_rate: %s, eq_type: %s\n", 
         __func__, __LINE__, argc, 
@@ -137,7 +132,7 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             voice_cfg = voice_temp_cfg;
 #else
             LOGW("%s, %d, aac encoder or decoder not support, please config: CONFIG_VOICE_SERVICE_AAC_ENCODER=y CONFIG_VOICE_SERVICE_AAC_DECODER=y\n", __func__, __LINE__);
-            return;
+            goto exit;
 #endif
         }
         else if (os_strcmp(argv[2], "onboard") == 0
@@ -154,13 +149,13 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             voice_cfg = voice_temp_cfg;
 #else
             LOGW("%s, %d, g722 encoder or decoder not support, please config: CONFIG_VOICE_SERVICE_G722_ENCODER=y CONFIG_VOICE_SERVICE_G722_DECODER=y\n", __func__, __LINE__);
-            return;
+            goto exit;
 #endif
         }
         else
         {
             LOGE("%s, %d, test command not support\n", __func__, __LINE__);
-            return;
+            goto exit;
         }
 
         /* start voice */
@@ -168,7 +163,7 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
         if (!gl_voice_service_handle)
         {
             LOGE("%s, %d, voice init fail\n", __func__, __LINE__);
-            goto fail;
+            goto exit;
         }
 
         voice_read_cfg_t voice_read_cfg = VOICE_READ_CFG_DEFAULT();
@@ -178,7 +173,7 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
         if (!gl_voice_read_service_handle)
         {
             LOGE("%s, %d, voice read init fail\n", __func__, __LINE__);
-            goto fail;
+            goto exit;
         }
 
         voice_write_cfg_t voice_write_cfg = VOICE_WRITE_CFG_DEFAULT();
@@ -187,32 +182,33 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
         if (!gl_voice_write_service_handle)
         {
             LOGE("%s, %d, voice write init fail\n", __func__, __LINE__);
-            goto fail;
+            goto exit;
         }
 
         if (BK_OK != bk_voice_start(gl_voice_service_handle))
         {
             LOGE("%s, %d, voice start fail\n", __func__, __LINE__);
-            goto fail;
+            goto exit;
         }
 
         if (BK_OK != bk_voice_read_start(gl_voice_read_service_handle))
         {
             LOGE("%s, %d, voice read start fail\n", __func__, __LINE__);
-            goto fail;
+            goto exit;
         }
 
         if (BK_OK != bk_voice_write_start(gl_voice_write_service_handle))
         {
             LOGE("%s, %d, voice write start fail\n", __func__, __LINE__);
-            goto fail;
+            goto exit;
         }
 
     }
     else if (os_strcmp(argv[1], "stop") == 0)
     {
         LOGD("voice stop\n");
-        goto fail;
+        msg = CLI_CMD_RSP_SUCCEED;
+        goto exit;
     }
     else
     {
@@ -221,9 +217,13 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 
     LOGD("%s ---complete\n", __func__);
 
+    msg = CLI_CMD_RSP_SUCCEED;
+
+    os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+
     return;
 
-fail:
+exit:
     if (gl_voice_read_service_handle)
     {
         bk_voice_read_stop(gl_voice_read_service_handle);
@@ -256,6 +256,8 @@ fail:
     gl_voice_read_service_handle = NULL;
     gl_voice_write_service_handle = NULL;
     gl_voice_service_handle  = NULL;
+
+    os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 }
 
 #define VOICE_SERVICE_CMD_CNT   (sizeof(s_voice_service_commands) / sizeof(struct cli_command))

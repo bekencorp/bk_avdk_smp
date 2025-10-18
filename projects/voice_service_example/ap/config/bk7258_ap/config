@@ -111,177 +111,221 @@ CONFIG_NTP_SYNC_RTC_TASK_STACK_SIZE=3072
 # Adk
 #
 CONFIG_ADK=y
+
+#
+# Audio_pipeline
+#
 # CONFIG_ADK_USE_SRAM is not set
 CONFIG_ADK_USE_PSRAM=y
 # CONFIG_ADK_BIND_TASK_TO_CORE is not set
 # CONFIG_ADK_AUTO_TEST is not set
-# end of Adk
+# end of Audio_pipeline
 
 #
-# Adk::Audio_utils
+# Audio_algorithms
+#
+
+#
+# Aec_algorithm
+#
+# CONFIG_ADK_AEC_ALGORITHM is not set
+# end of Aec_algorithm
+
+#
+# Aec_algorithm V3
+#
+CONFIG_ADK_AEC_V3_ALGORITHM=y
+# CONFIG_AUD_AI_NS_SUPPORT is not set
+# end of Aec_algorithm V3
+
+#
+# Agc_algorithm
+#
+# CONFIG_ADK_AGC_ALGORITHM is not set
+# end of Agc_algorithm
+
+#
+# EQ_algorithm
+#
+# CONFIG_ADK_EQ_ALGORITHM is not set
+# end of EQ_algorithm
+
+#
+# Mix_algorithm
+#
+# CONFIG_ADK_MIX_ALGORITHM is not set
+# end of Mix_algorithm
+
+#
+# Rsp_algorithm
+#
+# CONFIG_ADK_RSP_ALGORITHM is not set
+# end of Rsp_algorithm
+# end of Audio_algorithms
+
+#
+# Audio_decoders
+#
+
+#
+# AAC_decoder
+#
+CONFIG_ADK_AAC_DECODER=y
+# end of AAC_decoder
+
+#
+# G711_decoder
+#
+CONFIG_ADK_G711_DECODER=y
+# end of G711_decoder
+
+#
+# G722_decoder
+#
+CONFIG_ADK_G722_DECODER=y
+# end of G722_decoder
+
+#
+# MP3_decoder
+#
+# CONFIG_ADK_MP3_DECODER is not set
+# end of MP3_decoder
+
+#
+# Opus_decoder
+#
+# CONFIG_ADK_OPUS_DECODER is not set
+# end of Opus_decoder
+
+#
+# SBC_decoder
+#
+# CONFIG_ADK_SBC_DECODER is not set
+# end of SBC_decoder
+
+#
+# Wav_decoder
+#
+CONFIG_ADK_WAV_DECODER=y
+# end of Wav_decoder
+# end of Audio_decoders
+
+#
+# Audio_encoders
+#
+
+#
+# AAC_encoder
+#
+CONFIG_ADK_AAC_ENCODER=y
+# CONFIG_ADK_AAC_ENCODER_TEST is not set
+# end of AAC_encoder
+
+#
+# G711_encoder
+#
+CONFIG_ADK_G711_ENCODER=y
+# end of G711_encoder
+
+#
+# G722_encoder
+#
+CONFIG_ADK_G722_ENCODER=y
+# end of G722_encoder
+
+#
+# Opus_encoder
+#
+# CONFIG_ADK_OPUS_ENCODER is not set
+# end of Opus_encoder
+
+#
+# Sbc_encoder
+#
+# CONFIG_ADK_SBC_ENCODER is not set
+# end of Sbc_encoder
+# end of Audio_encoders
+
+#
+# Audio_streams
+#
+
+#
+# Array_stream
+#
+# CONFIG_ADK_ARRAY_STREAM is not set
+# end of Array_stream
+
+#
+# Frame_array_stream
+#
+# CONFIG_ADK_FRAME_ARRAY_STREAM is not set
+# end of Frame_array_stream
+
+#
+# Onboard_dual_dmic_stream
+#
+# end of Onboard_dual_dmic_stream
+
+#
+# Onboard_mic_stream
+#
+CONFIG_ADK_ONBOARD_MIC_STREAM=y
+# CONFIG_ADK_ONBOARD_MIC_STREAM_TEST is not set
+# end of Onboard_mic_stream
+
+#
+# Onboard_speaker_stream
+#
+CONFIG_ADK_ONBOARD_SPEAKER_STREAM=y
+# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE is not set
+# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_TEST is not set
+# end of Onboard_speaker_stream
+
+#
+# Raw_stream
+#
+CONFIG_ADK_RAW_STREAM=y
+# CONFIG_ADK_RAW_STREAM_TEST is not set
+# end of Raw_stream
+
+#
+# Uac_mic_stream
+#
+CONFIG_ADK_UAC_MIC_STREAM=y
+# CONFIG_ADK_UAC_MIC_STREAM_TEST is not set
+# end of Uac_mic_stream
+
+#
+# Uac_speaker_stream
+#
+CONFIG_ADK_UAC_SPEAKER_STREAM=y
+# CONFIG_ADK_UAC_SPEAKER_STREAM_TEST is not set
+# end of Uac_speaker_stream
+
+#
+# Uart_stream
+#
+CONFIG_ADK_UART_STREAM=y
+# CONFIG_ADK_UART_STREAM_TEST is not set
+# end of Uart_stream
+
+#
+# Vfs_stream
+#
+# CONFIG_ADK_VFS_STREAM is not set
+# end of Vfs_stream
+# end of Audio_streams
+
+#
+# Audio_utils
 #
 CONFIG_ADK_UTILS=y
 CONFIG_ADK_UART_UTIL=y
 CONFIG_ADK_COUNT_UTIL=y
 CONFIG_ADK_VFS_UTIL=y
-# end of Adk::Audio_utils
-
-#
-# Adk::Audio_algorithm::Aec_algorithm
-#
-CONFIG_ADK_AEC_ALGORITHM=y
-# end of Adk::Audio_algorithm::Aec_algorithm
-
-#
-# Adk::Audio_algorithm::Aec_algorithm
-#
-# CONFIG_ADK_AEC_V3_ALGORITHM is not set
-# end of Adk::Audio_algorithm::Aec_algorithm
-
-#
-# Adk::Audio_algorithm::Agc_algorithm
-#
-# CONFIG_ADK_AGC_ALGORITHM is not set
-# end of Adk::Audio_algorithm::Agc_algorithm
-
-#
-# Adk::Audio_algorithm::EQ_algorithm
-#
-# CONFIG_ADK_EQ_ALGORITHM is not set
-# end of Adk::Audio_algorithm::EQ_algorithm
-
-#
-# Adk::Audio_algorithm::Rsp_algorithm
-#
-# CONFIG_ADK_RSP_ALGORITHM is not set
-# end of Adk::Audio_algorithm::Rsp_algorithm
-
-#
-# Adk::Audio_decoders::AAC_decoder
-#
-CONFIG_ADK_AAC_DECODER=y
-# end of Adk::Audio_decoders::AAC_decoder
-
-#
-# Adk::Audio_decoders::G711_decoder
-#
-CONFIG_ADK_G711_DECODER=y
-# end of Adk::Audio_decoders::G711_decoder
-
-#
-# Adk::Audio_decoders::G722_decoder
-#
-CONFIG_ADK_G722_DECODER=y
-# end of Adk::Audio_decoders::G722_decoder
-
-#
-# Adk::Audio_decoders::MP3_decoder
-#
-# CONFIG_ADK_MP3_DECODER is not set
-# end of Adk::Audio_decoders::MP3_decoder
-
-#
-# Adk::Audio_decoders::Opus_dec
-#
-# CONFIG_ADK_OPUS_DEC is not set
-# end of Adk::Audio_decoders::Opus_dec
-
-#
-# Adk::Audio_decoders::Wav_decoder
-#
-CONFIG_ADK_WAV_DECODER=y
-# end of Adk::Audio_decoders::Wav_decoder
-
-#
-# Adk::Audio_encoders::AAC_encoder
-#
-CONFIG_ADK_AAC_ENCODER=y
-# CONFIG_ADK_AAC_ENCODER_TEST is not set
-# end of Adk::Audio_encoders::AAC_encoder
-
-#
-# Adk::Audio_encoders::G711_encoder
-#
-CONFIG_ADK_G711_ENCODER=y
-# end of Adk::Audio_encoders::G711_encoder
-
-#
-# Adk::Audio_encoders::G722_encoder
-#
-CONFIG_ADK_G722_ENCODER=y
-# end of Adk::Audio_encoders::G722_encoder
-
-#
-# Adk::Audio_encoders::Opus_enc
-#
-# CONFIG_ADK_OPUS_ENC is not set
-# end of Adk::Audio_encoders::Opus_enc
-
-#
-# Adk::Audio_streams::Array_stream
-#
-# CONFIG_ADK_ARRAY_STREAM is not set
-# end of Adk::Audio_streams::Array_stream
-
-#
-# Adk::Audio_streams::Array_stream
-#
-# CONFIG_ADK_FRAME_ARRAY_STREAM is not set
-# end of Adk::Audio_streams::Array_stream
-
-#
-# Adk::Audio_streams::Onboard_mic_stream
-#
-# end of Adk::Audio_streams::Onboard_mic_stream
-
-#
-# Adk::Audio_streams::Onboard_mic_stream
-#
-CONFIG_ADK_ONBOARD_MIC_STREAM=y
-# CONFIG_ADK_ONBOARD_MIC_STREAM_TEST is not set
-# end of Adk::Audio_streams::Onboard_mic_stream
-
-#
-# Adk::Audio_streams::Onboard_speaker_stream
-#
-CONFIG_ADK_ONBOARD_SPEAKER_STREAM=y
-# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE is not set
-# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_TEST is not set
-# end of Adk::Audio_streams::Onboard_speaker_stream
-
-#
-# Adk::Audio_streams::raw_stream
-#
-CONFIG_ADK_RAW_STREAM=y
-# CONFIG_ADK_RAW_STREAM_TEST is not set
-# end of Adk::Audio_streams::raw_stream
-
-#
-# Adk::Audio_streams::Uac_mic_stream
-#
-CONFIG_ADK_UAC_MIC_STREAM=y
-# CONFIG_ADK_UAC_MIC_STREAM_TEST is not set
-# end of Adk::Audio_streams::Uac_mic_stream
-
-#
-# Adk::Audio_streams::Uac_speaker_stream
-#
-CONFIG_ADK_UAC_SPEAKER_STREAM=y
-# CONFIG_ADK_UAC_SPEAKER_STREAM_TEST is not set
-# end of Adk::Audio_streams::Uac_speaker_stream
-
-#
-# Adk::Audio_streams::Uart_stream
-#
-CONFIG_ADK_UART_STREAM=y
-# CONFIG_ADK_UART_STREAM_TEST is not set
-# end of Adk::Audio_streams::Uart_stream
-
-#
-# Adk::Audio_streams::Vfs_stream
-#
-# CONFIG_ADK_VFS_STREAM is not set
-# end of Adk::Audio_streams::Vfs_stream
+# end of Audio_utils
+# end of Adk
 
 #
 # Bk_ble
@@ -290,6 +334,8 @@ CONFIG_BLUETOOTH_AP=y
 CONFIG_BLUETOOTH_HOST_ONLY=y
 # CONFIG_BT is not set
 CONFIG_BLE=y
+CONFIG_BLUETOOTH_AUTO_ENABLE=y
+# CONFIG_BLUETOOTH_MULTI_CONTROLLER is not set
 # CONFIG_BLUETOOTH_RELEASE_CODESIZE is not set
 # CONFIG_BLUETOOTH_BLE_SLAVE_ONLY is not set
 CONFIG_BLUETOOTH_BLE_DISCOVER_AUTO=y
@@ -315,6 +361,7 @@ CONFIG_MAX_COMMANDS=256
 CONFIG_SHELL_TASK_STACK_SIZE=7168
 CONFIG_LOG_TASK_STACK_SIZE=512
 CONFIG_IPERF_TEST=y
+CONFIG_WIFI_CLI_ENABLE=y
 # CONFIG_TCP_SERVER_TEST is not set
 # CONFIG_AIRKISS_TEST is not set
 # CONFIG_WIFI_RAW_TX_TEST is not set
@@ -332,7 +379,6 @@ CONFIG_SHELL_ASYNCLOG=y
 CONFIG_DYM_LOG_MEM_MAX=0x10000
 # CONFIG_UART_RING_BUFF is not set
 # CONFIG_TOUCH_TEST is not set
-CONFIG_AUDIO=y
 # CONFIG_PSRAM_TEST is not set
 CONFIG_INTERRUPT_TEST=y
 CONFIG_AON_PMU_TEST=y
@@ -360,20 +406,29 @@ CONFIG_ICU=y
 # end of modules::uart_debug
 
 #
-# Draw Blend
+# Display Service
 #
-CONFIG_BLEND=y
-# end of Draw Blend
+CONFIG_MEDIA_DISPLAY_SERVICE=y
+# end of Display Service
 
 #
-# CAMERA
+# Media::DMA2D_Draw
 #
-CONFIG_DVP_CAMERA_I2C_ID=0
-CONFIG_DVP_CTRL_POWER_GPIO_ID=9
-# CONFIG_ENCODE_BUF_NOT_FREE is not set
+# CONFIG_MEDIA_DAM2D is not set
+# end of Media::DMA2D_Draw
+
+#
+# Media::Draw_osd
+#
+# CONFIG_MEDIA_OSD is not set
+# end of Media::Draw_osd
+
+#
+# DVP
+#
 CONFIG_JPEG_FRAME_SIZE=102400
 CONFIG_H264_FRAME_SIZE=102400
-# end of CAMERA
+# end of DVP
 
 CONFIG_EVENT_TASK_STACK_SIZE=3072
 
@@ -388,6 +443,14 @@ CONFIG_EVENT_TASK_STACK_SIZE=3072
 #
 # CONFIG_HTTPS is not set
 # end of Https
+
+#
+# JPEG Decoder
+#
+CONFIG_JPEG_DECODER=y
+CONFIG_JPEG_DECODER_SW=y
+CONFIG_JPEG_DECODER_HW=y
+# end of JPEG Decoder
 
 #
 # Bk_libs
@@ -504,6 +567,9 @@ CONFIG_FREERTOS_USE_QUEUE_SETS=y
 # CONFIG_FREERTOS_V10 is not set
 CONFIG_FREERTOS_SMP=y
 # CONFIG_FREERTOS_POSIX is not set
+# CONFIG_FREERTOS_TRACE is not set
+CONFIG_TASK_STACK_IN_PSRAM=y
+# CONFIG_QUEUE_IN_PSRAM is not set
 CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED=y
 # CONFIG_FREERTOS_SMP_TEMP is not set
 # CONFIG_FREERTOS_RTT_MONITOR is not set
@@ -634,8 +700,6 @@ CONFIG_UVC_DUAL_DEVICE=1
 #
 # USB Camera
 #
-CONFIG_UVC_URB_NUM=8
-CONFIG_UVC_NUM_PACKET_PER_URB=8
 # end of USB Camera
 
 #
@@ -644,6 +708,18 @@ CONFIG_UVC_NUM_PACKET_PER_URB=8
 CONFIG_VFS=y
 CONFIG_VFS_MAX_FD_NUM=20
 # end of Bk_vfs
+
+#
+# Video Pipeline
+#
+CONFIG_VIDEO_PIPELINE=y
+# end of Video Pipeline
+
+#
+# Bk_video_player
+#
+# CONFIG_AVI_PLAYER is not set
+# end of Bk_video_player
 
 #
 # Voice Service
@@ -709,6 +785,8 @@ CONFIG_BK_MEM_DYNA_APPLY_EN=y
 CONFIG_MAC_SFRAME_SOFTWARE_RETRY=y
 # CONFIG_WIFI_FTM is not set
 CONFIG_WIFI_MAC_SUPPORT_STAS_MAX_NUM=2
+# CONFIG_BK_RAW_LINK is not set
+# CONFIG_WIFI_CLI_DEBUG is not set
 # end of Bk_Wifi
 
 #
@@ -780,15 +858,6 @@ CONFIG_DEMOS_IPERF=y
 # Demos::Peripheral::Touch
 #
 # end of Demos::Peripheral::Touch
-
-#
-# Display Service
-#
-CONFIG_MEDIA_DISPLAY_SERVICE=y
-CONFIG_LCD_SPI_DISPLAY=y
-CONFIG_LCD_QSPI_DISPLAY=y
-# CONFIG_LCD_EXAMPLE is not set
-# end of Display Service
 
 #
 # Easy_flash
@@ -985,9 +1054,9 @@ CONFIG_LCD_SW_DECODE=y
 # CONFIG_MEDIA_BT_AUDIO is not set
 # CONFIG_SOFTWARE_DECODE_SRAM_MAPPING is not set
 # CONFIG_MEDIA_PSRAM_SIZE_4M is not set
-# CONFIG_CLI_MEDIA is not set
 # CONFIG_JPEG_SW_DECODE_SUPPORT_BY_FRAME is not set
 # CONFIG_JPEG_SW_DECODE_SUPPORT_BY_LINE is not set
+# CONFIG_SUPPORTED_IMAGE_MAX_720P is not set
 # end of Media
 
 #
@@ -1162,6 +1231,7 @@ CONFIG_UART_ERR_INTERRUPT=y
 # CONFIG_UART_RX_DMA is not set
 CONFIG_UART_RX_DMA_KFIFO_SIZE=512
 # CONFIG_UART_PM_CB_SUPPORT is not set
+# CONFIG_UART_SW_FLOW_CTRL is not set
 # end of UART
 
 #
@@ -1225,6 +1295,7 @@ CONFIG_QSPI=y
 # CONFIG_QSPI_STATIS is not set
 CONFIG_QSPI_MST_FLASH=y
 CONFIG_QSPI_FLASH_GD=y
+CONFIG_QSPI_LINE_MODE=4
 # end of QSPI
 
 #
@@ -1352,6 +1423,7 @@ CONFIG_SIM_I2C_HW_BOARD_V3=y
 #
 # AUDIO
 #
+CONFIG_AUDIO=y
 CONFIG_AUDIO_ADC=y
 # CONFIG_AUDIO_DMIC is not set
 # CONFIG_AUDIO_DTMF is not set
@@ -1491,6 +1563,12 @@ CONFIG_HW_ROTATE_PFC=y
 CONFIG_LCD=y
 CONFIG_LCD_QSPI=y
 CONFIG_LCD_QSPI_COLOR_DEPTH_BYTE=2
+# CONFIG_LCD_QSPI_TE is not set
+CONFIG_LCD_SPI=y
+CONFIG_LCD_SPI_COLOR_DEPTH_BYTE=2
+CONFIG_LCD_SPI_REFRESH_WITH_QSPI=y
+CONFIG_LCD_SPI_REFRESH_WITH_QSPI_MAPPING_MODE=y
+# CONFIG_LCD_SPI_TE is not set
 # CONFIG_LCD_POWER_GPIO_CTRL is not set
 # CONFIG_LCD_BACKLIGHT_GPIO_CTRL is not set
 # end of LCD
