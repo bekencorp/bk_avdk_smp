@@ -27,6 +27,29 @@
 
 #define TAG  "MP3_DECODER"
 
+
+/* dump mp3_decoder stream output pcm data by uart */
+//#define MP3_DEC_DATA_DUMP_BY_UART
+
+#ifdef MP3_DEC_DATA_DUMP_BY_UART
+#include <components/bk_audio/audio_utils/uart_util.h>
+static struct uart_util gl_mp3_dec_uart_util = {0};
+#define MP3_DEC_DATA_DUMP_UART_ID            (1)
+#define MP3_DEC_DATA_DUMP_UART_BAUD_RATE     (2000000)
+
+#define MP3_DEC_DATA_DUMP_BY_UART_OPEN()                    uart_util_create(&gl_mp3_dec_uart_util, MP3_DEC_DATA_DUMP_UART_ID, MP3_DEC_DATA_DUMP_UART_BAUD_RATE)
+#define MP3_DEC_DATA_DUMP_BY_UART_CLOSE()                   uart_util_destroy(&gl_mp3_dec_uart_util)
+#define MP3_DEC_DATA_DUMP_BY_UART_DATA(data_buf, len)       uart_util_tx_data(&gl_mp3_dec_uart_util, data_buf, len)
+
+#else
+
+#define MP3_DEC_DATA_DUMP_BY_UART_OPEN()
+#define MP3_DEC_DATA_DUMP_BY_UART_CLOSE()
+#define MP3_DEC_DATA_DUMP_BY_UART_DATA(data_buf, len)
+
+#endif  //MP3_DEC_DATA_DUMP_BY_UART
+
+
 typedef struct mp3_decoder
 {
     HMP3Decoder dec_handle;             /**< mp3 decoder handle */
@@ -339,6 +362,7 @@ __retry:
     if (r_size > 0)
     {
         w_size = audio_element_output(self, (char *)mp3_dec->out_pcm_buff, r_size);
+        MP3_DEC_DATA_DUMP_BY_UART_DATA(mp3_dec->out_pcm_buff, r_size);
     }
     else
     {
@@ -368,6 +392,9 @@ static bk_err_t _mp3_decoder_destroy(audio_element_handle_t self)
         mp3_dec->dec_handle = NULL;
     }
     audio_free(mp3_dec);
+
+    MP3_DEC_DATA_DUMP_BY_UART_CLOSE();
+
     return BK_OK;
 }
 
@@ -417,6 +444,8 @@ audio_element_handle_t mp3_decoder_init(mp3_decoder_cfg_t *config)
     info.bits = 16;
     info.codec_fmt = BK_CODEC_TYPE_MP3;
     audio_element_setinfo(el, &info);
+
+    MP3_DEC_DATA_DUMP_BY_UART_OPEN();
 
     return el;
 _mp3_decoder_init_exit:

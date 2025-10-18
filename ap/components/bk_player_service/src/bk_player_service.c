@@ -489,6 +489,8 @@ static void listener_task_main(beken_thread_arg_t param_data)
                                 if (player_handle->spk_dec && el_status == AEL_STATUS_STATE_FINISHED && event_msg.source == player_handle->spk_dec && player_handle->state == PLAYER_STATE_PLAYING)
                                 {
                                     /* stop play pipeline */
+                                    //TODO: delay 2s to ensure the speaker stream has been stopped
+                                    //rtos_delay_milliseconds(2000);
                                     bk_player_stop(player_handle);
                                     audio_pipeline_reset_port(player_handle->play_pipeline);
                                     audio_pipeline_reset_elements(player_handle->play_pipeline);
@@ -1050,8 +1052,6 @@ bk_err_t bk_player_stop(bk_player_handle_t player_handle)
     {
         return BK_OK;
     }
-
-    BK_LOGD(TAG, "%s\n", __func__);
 
     listener_stop(player_handle);
 

@@ -855,43 +855,57 @@ static bk_err_t _update_dac_config(audio_element_handle_t onboard_speaker_stream
 
     if (new_port_info)
     {
-        if (!current_port_info || current_port_info->sample_rate != new_port_info->sample_rate)
+        /* Check whether the port infomation is changed */
+        if (current_port_info && current_port_info->sample_rate == new_port_info->sample_rate && current_port_info->chl_num == new_port_info->chl_num && current_port_info->bits == new_port_info->bits)
         {
-            if (BK_OK != bk_aud_dac_set_samp_rate(new_port_info->sample_rate))
-            {
-                BK_LOGE(TAG, "%s, line: %d, updata onboard speaker sample rate: %d fail \n", __func__, __LINE__, new_port_info->sample_rate);
-            }
-            else
-            {
-                BK_LOGD(TAG, "%s, line: %d, updata onboard speaker sample rate: %d->%d ok \n", __func__, __LINE__, current_port_info ? current_port_info->sample_rate : -1, new_port_info->sample_rate);
-            }
+            BK_LOGV(TAG, "%s, line: %d, the port infomation is not changed \n", __func__, __LINE__);
+            onboard_spk->current_port_id = new_port_id;
         }
-
-        if (!current_port_info || current_port_info->chl_num != new_port_info->chl_num)
+        else
         {
-            aud_dac_chl_t chl_cfg = AUD_DAC_CHL_L;
-            if (new_port_info->chl_num == 1)
-            {
-                chl_cfg = AUD_DAC_CHL_L;
-            }
-            else
-            {
-                chl_cfg = AUD_DAC_CHL_LR;
-            }
-            if (BK_OK != bk_aud_dac_set_chl(chl_cfg))
-            {
-                BK_LOGE(TAG, "%s, line: %d, updata onboard speaker channel: %d fail \n", __func__, __LINE__, new_port_info->chl_num);
-            }
-            else
-            {
-                BK_LOGD(TAG, "%s, line: %d, updata onboard speaker channel: %d->%d ok \n", __func__, __LINE__, current_port_info ? current_port_info->chl_num : -1, new_port_info->chl_num);
-            }
-        }
+            /* update dac configuration */
+            _onboard_speaker_close(onboard_speaker_stream);
 
-        if (!current_port_info || current_port_info->bits != new_port_info->bits)
-        {
-            //TODO
-            BK_LOGD(TAG, "%s, line: %d, updata onboard speaker bits: %d->%d ok \n", __func__, __LINE__, current_port_info ? current_port_info->bits : -1, new_port_info->bits);
+            if (!current_port_info || current_port_info->sample_rate != new_port_info->sample_rate)
+            {
+                if (BK_OK != bk_aud_dac_set_samp_rate(new_port_info->sample_rate))
+                {
+                    BK_LOGE(TAG, "%s, line: %d, updata onboard speaker sample rate: %d fail \n", __func__, __LINE__, new_port_info->sample_rate);
+                }
+                else
+                {
+                    BK_LOGD(TAG, "%s, line: %d, updata onboard speaker sample rate: %d->%d ok \n", __func__, __LINE__, current_port_info ? current_port_info->sample_rate : -1, new_port_info->sample_rate);
+                }
+            }
+
+            if (!current_port_info || current_port_info->chl_num != new_port_info->chl_num)
+            {
+                aud_dac_chl_t chl_cfg = AUD_DAC_CHL_L;
+                if (new_port_info->chl_num == 1)
+                {
+                    chl_cfg = AUD_DAC_CHL_L;
+                }
+                else
+                {
+                    chl_cfg = AUD_DAC_CHL_LR;
+                }
+                if (BK_OK != bk_aud_dac_set_chl(chl_cfg))
+                {
+                    BK_LOGE(TAG, "%s, line: %d, updata onboard speaker channel: %d fail \n", __func__, __LINE__, new_port_info->chl_num);
+                }
+                else
+                {
+                    BK_LOGD(TAG, "%s, line: %d, updata onboard speaker channel: %d->%d ok \n", __func__, __LINE__, current_port_info ? current_port_info->chl_num : -1, new_port_info->chl_num);
+                }
+            }
+
+            if (!current_port_info || current_port_info->bits != new_port_info->bits)
+            {
+                //TODO
+                BK_LOGD(TAG, "%s, line: %d, updata onboard speaker bits: %d->%d ok \n", __func__, __LINE__, current_port_info ? current_port_info->bits : -1, new_port_info->bits);
+            }
+            onboard_spk->current_port_id = new_port_id;
+            _onboard_speaker_open(onboard_speaker_stream);
         }
     }
     else
@@ -976,16 +990,11 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
         {
             INPUT_PORT_LIST_DEBUG(&onboard_spk->input_port_list, __func__, __LINE__);
             BK_LOGD(TAG, "%s, line: %d, valid_port_id: %d -> %d\n", __func__, __LINE__, onboard_spk->current_port_id, valid_port_id);
-            _onboard_speaker_close(self);
-
-            //TODO
             if (BK_OK != _update_dac_config(self, onboard_spk->current_port_id, valid_port_id))
             {
                 BK_LOGE(TAG, "%s, line: %d, update dac config fail \n", __func__, __LINE__);
                 //TODO
             }
-            onboard_spk->current_port_id = valid_port_id;
-            _onboard_speaker_open(self);
         }
 
         /* valid audio port change */
@@ -1058,6 +1067,13 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
     {
         r_size = audio_element_multi_input(self, in_buffer, in_len, onboard_spk->current_port_id - 1, 0);
         //BK_LOGD(TAG, "%s, line: %d, multi_input: %d, r_size: %d \n", __func__, __LINE__, onboard_spk->current_port_id - 1, r_size);
+#if 0
+        /* debug: dump pcm data read from multi input port by uart */
+        if (r_size > 0)
+        {
+            ONBOARD_SPK_DATA_DUMP_BY_UART_DATA(in_buffer, r_size);
+        }
+#endif
     }
 #else
     int r_size = audio_element_input(self, in_buffer, in_len);
