@@ -211,17 +211,27 @@ static bk_err_t play_pipeline_init(bk_player_handle_t player_handle)
     {
         case AUDIO_STRM_TYPE_ARRAY:
         {
+#if CONFIG_PLAYER_SERVICE_SUPPORT_ARRAY_STREAM
             array_stream_cfg_t array_reader_cfg = DEFAULT_ARRAY_STREAM_CONFIG();
             array_reader_cfg.type = AUDIO_STREAM_READER;
             player_handle->in_stream = array_stream_init(&array_reader_cfg);
+#else
+            BK_LOGE(TAG, "%s, %d, array stream is not supported, please config CONFIG_PLAYER_SERVICE_SUPPORT_ARRAY_STREAM=y\n", __func__, __LINE__);
+            goto fail;
+#endif
         }
             break;
 
         case AUDIO_STRM_TYPE_VFS:
         {
+#if CONFIG_PLAYER_SERVICE_SUPPORT_VFS_STREAM
             vfs_stream_cfg_t vfs_reader_cfg = DEFAULT_VFS_STREAM_CONFIG();
             vfs_reader_cfg.type = AUDIO_STREAM_READER;
             player_handle->in_stream = vfs_stream_init(&vfs_reader_cfg);
+#else
+            BK_LOGE(TAG, "%s, %d, vfs stream is not supported, please config CONFIG_PLAYER_SERVICE_SUPPORT_VFS_STREAM=y\n", __func__, __LINE__);
+            goto fail;
+#endif
         }
             break;
 
@@ -237,16 +247,26 @@ static bk_err_t play_pipeline_init(bk_player_handle_t player_handle)
         case AUDIO_DEC_TYPE_G711A:
         case AUDIO_DEC_TYPE_G711U:
         {
+#if CONFIG_PLAYER_SERVICE_SUPPORT_G711_DECODER
             g711_decoder_cfg_t g711_dec_cfg = DEFAULT_G711_DECODER_CONFIG();
             g711_dec_cfg.dec_mode = player_handle->dec_type;
             player_handle->spk_dec = g711_decoder_init(&g711_dec_cfg);
+#else
+            BK_LOGE(TAG, "%s, %d, g711 decoder is not supported, please config CONFIG_PLAYER_SERVICE_SUPPORT_G711_DECODER=y\n", __func__, __LINE__);
+            goto fail;
+#endif
         }
             break;
 
         case AUDIO_DEC_TYPE_MP3:
         {
+#if CONFIG_PLAYER_SERVICE_SUPPORT_MP3_DECODER
             mp3_decoder_cfg_t mp3_dec_cfg = DEFAULT_MP3_DECODER_CONFIG();
             player_handle->spk_dec = mp3_decoder_init(&mp3_dec_cfg);
+#else
+            BK_LOGE(TAG, "%s, %d, mp3 decoder is not supported, please config CONFIG_PLAYER_SERVICE_SUPPORT_MP3_DECODER=y\n", __func__, __LINE__);
+            goto fail;
+#endif
         }
             break;
 
@@ -256,8 +276,13 @@ static bk_err_t play_pipeline_init(bk_player_handle_t player_handle)
 
         case AUDIO_DEC_TYPE_WAV:
         {
+#if CONFIG_PLAYER_SERVICE_SUPPORT_WAV_DECODER
             wav_decoder_cfg_t wav_dec_cfg = DEFAULT_WAV_DECODER_CONFIG();
             player_handle->spk_dec = wav_decoder_init(&wav_dec_cfg);
+#else
+            BK_LOGE(TAG, "%s, %d, wav decoder is not supported, please config CONFIG_PLAYER_SERVICE_SUPPORT_WAV_DECODER=y\n", __func__, __LINE__);
+            goto fail;
+#endif
         }
             break;
 
@@ -295,15 +320,11 @@ static bk_err_t play_pipeline_init(bk_player_handle_t player_handle)
     {
         if (player_handle->spk_dec)
         {
-            ret = audio_pipeline_link(player_handle->play_pipeline, (const char *[])
-            {"input", "decode", "spk"
-            }, 3);
+            ret = audio_pipeline_link(player_handle->play_pipeline, (const char *[]){"input", "decode", "spk"}, 3);
         }
         else
         {
-            ret = audio_pipeline_link(player_handle->play_pipeline, (const char *[])
-            {"input", "spk"
-            }, 2);
+            ret = audio_pipeline_link(player_handle->play_pipeline, (const char *[]){"input", "spk"}, 2);
         }
     }
     else
