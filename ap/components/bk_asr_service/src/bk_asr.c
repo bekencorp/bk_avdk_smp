@@ -13,13 +13,6 @@
 
 #define TAG "asr"
 
-#if 0
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
-#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
-#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-#endif
-
 #define ASR_CHECK_NULL(ptr, act) do {\
         if (ptr == NULL) {\
             BK_LOGD(TAG, "%s, %d, ASR_CHECK_NULL fail \n", __func__, __LINE__);\
