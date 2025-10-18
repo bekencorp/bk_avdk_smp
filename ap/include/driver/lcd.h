@@ -245,13 +245,13 @@ bk_err_t bk_lcd_rgb_init(const lcd_device_t *device);
  *
  *    #define COMMAND_1 0xf
  *    uint32_t param_command1[2]   = {0xc3, 0x29};
- *    bk_lcd_8080_send_cmd(2, COMMAND_1, param_command1);
+ *    bk_lcd_8080_send_cmd(COMMAND_1, param_command1, 2);
  *
   * @return
  *     - BK_OK: succeed
  *     - others: other errors.
  */
-bk_err_t bk_lcd_8080_send_cmd(uint8_t param_count, uint32_t command, uint32_t *param);
+bk_err_t bk_lcd_8080_send_cmd(uint32_t command, uint32_t *param, uint8_t param_count);
 
 
 /**
@@ -270,7 +270,7 @@ bk_err_t bk_lcd_8080_send_cmd(uint8_t param_count, uint32_t command, uint32_t *p
  *     #define PARTICAL_YS   101
  *     #define PARTICAL_YE   380
  *     bk_lcd_set_partical_display(EDGE_PARTICAL_XS, EDGE_PARTICAL_XE, EDGE_PARTICAL_YS, EDGE_PARTICAL_YE);
- *     bk_lcd_8080_send_cmd(2, COMMAND_1, param_command1);
+ *     bk_lcd_8080_send_cmd( COMMAND_1, param_command1, 2);
  *
   * @return
  *     - BK_OK: succeed

@@ -19,9 +19,8 @@ extern "C" {
 #endif
 
 #include "stdbool.h"
-#include "modules/lcd_font.h"
 #include "driver/lcd_qspi_types.h"
-#include <driver/sim_spi.h>
+
 #define  USE_LCD_REGISTER_CALLBACKS  1
 
 typedef void (*lcd_isr_t)(void * args);
@@ -71,6 +70,7 @@ typedef enum {
 	DE_INT = 1 << 8,             /* de signal discontious interrupt status */
 	FRAME_INTERVAL_INT = 1 <<10,
 } lcd_int_type_t;
+
 
 typedef enum {
 	DCLK_UNIT = 0,
@@ -147,11 +147,10 @@ typedef struct
 	lcd_clk_t clk; /**< config lcd clk */
 	bk_err_t (*set_xy_swap)(const void *handle, bool swap_axes); 
 	bk_err_t (*set_mirror)(const void *handle, bool mirror_x, bool mirror_y);
-	/**< if lcd size is smaller then image, and set api bk_lcd_pixel_config is image x y, should set partical display */
 	void (*set_display_area)(const void *handle, uint16_t xs, uint16_t xe, uint16_t ys, uint16_t ye);
 	void (*start_transfer)(const void *handle); 
 	void (*continue_transfer)(const void *handle); 
-} lcd_mcu_t;
+} lcd_mcu_t; 
 
 /** qspi interface config param */
 typedef struct
@@ -194,9 +193,9 @@ typedef struct
         const lcd_qspi_t *qspi;/**< QSPI interface lcd device config */
         const lcd_spi_t *spi;  /**< SPI interface lcd device config */
     };
-    void (*init)(void);                         /**< lcd device initial function */
-    bk_err_t (*lcd_init)(const void *handle);   /**< lcd device initial function by handle */
-    bk_err_t (*lcd_off)(const void *handle);    /**< lcd off by handle */
+
+    bk_err_t (*init)(const void *handle);   /**< lcd device initial function by handle */
+    bk_err_t (*off)(const void *handle);    /**< lcd off by handle */
 } lcd_device_t;
 
 typedef struct {
@@ -210,12 +209,12 @@ typedef struct {
 
 typedef struct bk_lcd_i80_handle
 {
-	bk_err_t (*init)(const struct bk_lcd_i80_handle *handle);
-    bk_err_t (*write_cmd)(const void *i8080_handle, uint8_t param_count, uint32_t command, uint32_t *param);
-    bk_err_t (*deinit)(struct bk_lcd_i80_handle *handle);
+    bk_err_t (*write_cmd)(uint32_t command, uint32_t *param, uint8_t param_count);
+    bk_err_t (*delete)(struct bk_lcd_i80_handle *handle);
 }bk_lcd_i80_handle_t;
 
 bk_lcd_i80_handle_t * lcd_i80_bus_io_register(void *io);
+
 
 /*
  * @}

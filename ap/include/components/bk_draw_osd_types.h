@@ -18,6 +18,7 @@
 #include <components/avdk_utils/avdk_check.h>
 #include <components/avdk_utils/avdk_error.h>
 #include "frame_buffer.h"
+#include "modules/lcd_font.h"
 
 #ifdef __cplusplus
 extern "C" {
