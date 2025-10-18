@@ -196,10 +196,7 @@ static int setup_lfs_config(struct lfs_config *config, const struct bk_little_fs
 			os_free(config->context);
 			return -1;
 		}
-		if (ret) {
-			free(config->context);
-			return -1;
-		}
+
 		config->read = lfs_qspi_flashbd_read;
 		config->prog = lfs_qspi_flashbd_prog;
 		config->erase = lfs_qspi_flashbd_erase;
