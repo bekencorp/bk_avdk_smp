@@ -68,6 +68,10 @@ struct player
     bool                    listener_is_running;
 };
 
+
+static bk_err_t listener_stop(bk_player_handle_t player_handle);
+
+
 static bk_err_t play_pipeline_start(audio_pipeline_handle_t play_pipeline)
 {
     PLAYER_CHECK_NULL(play_pipeline, return BK_FAIL);
@@ -495,7 +499,7 @@ static void listener_task_main(beken_thread_arg_t param_data)
                                     audio_pipeline_change_state(player_handle->play_pipeline, AEL_STATE_INIT);
                                     if (player_handle->event_handle)
                                     {
-                                        player_handle->event_handle(PLAYER_EVENT_STOP, NULL, player_handle->args);
+                                        player_handle->event_handle(PLAYER_EVENT_FINISH, NULL, player_handle->args);
                                     }
                                     /* stop listener */
                                     player_handle->listener_is_running = false;
@@ -507,27 +511,53 @@ static void listener_task_main(beken_thread_arg_t param_data)
                             {
                                 //BK_LOGW(TAG, "%s, %d, ++>>play pipeline event received, state: %d, ele: %p, player state: %d\n", __func__, __LINE__, (int)event_msg.data, event_msg.source, player_handle->state);
                                 /* Stop the player when receiving a finish status report from the speaker stream */
-                                if (player_handle->spk_dec && el_status == AEL_STATUS_STATE_FINISHED && event_msg.source == player_handle->spk_dec && player_handle->state == PLAYER_STATE_PLAYING)
+                                if (player_handle->spk_dec)
                                 {
-                                    /* stop play pipeline */
-                                    //TODO: delay 2s to ensure the speaker stream has been stopped
-                                    //rtos_delay_milliseconds(2000);
-                                    bk_player_stop(player_handle);
-                                    audio_pipeline_reset_port(player_handle->play_pipeline);
-                                    audio_pipeline_reset_elements(player_handle->play_pipeline);
-                                    audio_pipeline_change_state(player_handle->play_pipeline, AEL_STATE_INIT);
-                                    if (player_handle->event_handle)
+                                    if (el_status == AEL_STATUS_STATE_FINISHED && event_msg.source == player_handle->spk_dec && player_handle->state == PLAYER_STATE_PLAYING)
                                     {
-                                        player_handle->event_handle(PLAYER_EVENT_STOP, NULL, player_handle->args);
+                                        /* stop play pipeline */
+                                        listener_stop(player_handle);
+
+                                        play_pipeline_stop(player_handle->play_pipeline);
+                                        /* Do not clear the data in the port, wait for the data to be processed */
+                                        //audio_pipeline_reset_port(player_handle->play_pipeline);
+                                        //audio_pipeline_reset_elements(player_handle->play_pipeline);
+                                        //audio_pipeline_change_state(player_handle->play_pipeline, AEL_STATE_INIT);
+                                        if (player_handle->event_handle)
+                                        {
+                                            player_handle->event_handle(PLAYER_EVENT_FINISH, NULL, player_handle->args);
+                                        }
+                                        /* stop listener */
+                                        player_handle->listener_is_running = false;
+                                        wait_time = BEKEN_WAIT_FOREVER;
+                                        continue;
                                     }
-                                    /* stop listener */
-                                    player_handle->listener_is_running = false;
-                                    wait_time = BEKEN_WAIT_FOREVER;
-                                    continue;
+                                }
+                                else
+                                {
+                                    /* The play pipeline only has one element: input stream */
+                                    if (el_status == AEL_STATUS_STATE_FINISHED && event_msg.source == player_handle->in_stream && player_handle->state == PLAYER_STATE_PLAYING)
+                                    {
+                                        /* stop play pipeline */
+                                        listener_stop(player_handle);
+
+                                        play_pipeline_stop(player_handle->play_pipeline);
+                                        /* Do not clear the data in the port, wait for the data to be processed */
+                                        //audio_pipeline_reset_port(player_handle->play_pipeline);
+                                        //audio_pipeline_reset_elements(player_handle->play_pipeline);
+                                        //audio_pipeline_change_state(player_handle->play_pipeline, AEL_STATE_INIT);
+                                        if (player_handle->event_handle)
+                                        {
+                                            player_handle->event_handle(PLAYER_EVENT_FINISH, NULL, player_handle->args);
+                                        }
+                                        /* stop listener */
+                                        player_handle->listener_is_running = false;
+                                        wait_time = BEKEN_WAIT_FOREVER;
+                                        continue;
+                                    }
                                 }
                             }
                             break;
-
 
                         default:
                             break;
