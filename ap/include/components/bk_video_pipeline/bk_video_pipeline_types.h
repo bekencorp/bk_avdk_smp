@@ -107,6 +107,7 @@ typedef enum
  * 
  * This structure defines the callback functions for H.264 encoding operations,
  * including memory allocation and completion notification.
+ * @attention In the callback functions, no blocking operations or long operations should be performed, otherwise the hardware interrupt will be delayed, leading to abnormal image data.
  */
 typedef struct
 {

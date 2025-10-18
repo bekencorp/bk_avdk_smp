@@ -109,6 +109,7 @@ typedef struct
 /**
  * @brief DVP camera callback functions
  * @details Callback functions for DVP camera operations
+ * @attention In the callback functions, no blocking operations or long operations should be performed, otherwise the hardware interrupt will be delayed, leading to abnormal image data.
  */
 typedef struct
 {

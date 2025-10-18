@@ -92,6 +92,8 @@ typedef struct
  * Contains function pointers for various UVC events and operations.
  * These callbacks allow the application to respond to UVC events and
  * manage frame buffer allocation and processing.
+ *
+ * @attention In the callback functions, no blocking operations or long operations should be performed, otherwise the hardware interrupt will be delayed, leading to abnormal image data.
  */
 typedef struct
 {
