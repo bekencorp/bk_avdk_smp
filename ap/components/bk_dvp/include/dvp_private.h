@@ -87,6 +87,22 @@ typedef struct
     uint8_t dma_collect_yuv;
 } encode_yuv_config_t;
 
+// DVP event type
+typedef enum {
+    DVP_EVENT_NONE = 0,
+    DVP_EVENT_JPEG_EOF,
+    DVP_EVENT_H264_EOF,
+    DVP_EVENT_YUV_EOF,
+    DVP_EVENT_EXIT,
+} dvp_event_type_t;
+
+// DVP event message
+typedef struct {
+    dvp_event_type_t type;
+    uint32_t param1;
+    uint32_t param2;
+} dvp_event_msg_t;
+
 typedef struct
 {
     uint8_t eof;
@@ -107,6 +123,13 @@ typedef struct
     const dvp_sensor_config_t *sensor;
     bk_dvp_config_t *config;
     encode_yuv_config_t yuv_config;
+
+    // Thread processing related
+    beken_thread_t dvp_thread;
+    beken_queue_t dvp_msg_queue;
+    beken_semaphore_t thread_sem;  // Thread semaphore
+    volatile bool thread_should_exit;   // Thread exit flag
+
 #if (MEDIA_DEBUG_TIMER_ENABLE)
     beken_timer_t timer;
     uint32_t curr_length;

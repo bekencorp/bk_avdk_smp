@@ -25,6 +25,15 @@ menu "DVP"
 		bool "encode buffer when repeate malloc and free, cannot malloc success, so not free, until close all vidoe function"
 		default n
 
+	config DVP_THREAD_STACK_SIZE
+		depends on DVP_CAMERA
+		int "DVP work thread stack size (bytes)"
+		range 1024 8192
+		default 2048
+		help
+			Stack size for DVP work thread that handles frame callbacks and module reset.
+			Increase if stack overflow occurs.
+
 	config JPEG_FRAME_SIZE
 		int "config a jpeg frame size unit(byte), range 0-200k, default 100k"
 		range 0 204800

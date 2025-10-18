@@ -41,10 +41,103 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
+#ifndef CONFIG_DVP_THREAD_STACK_SIZE
+#define CONFIG_DVP_THREAD_STACK_SIZE 2048
+#endif
+
+#define DVP_MSG_QUEUE_SIZE 10
+#define DVP_THREAD_PRIORITY 5
+
 uint32_t s_dvp_dma_length = 0;
 static uint8_t *dvp_camera_encode = NULL;
 static const dvp_sensor_config_t **devices_list = NULL;
 static uint16_t devices_size = 0;
+
+// DVP work thread function
+static void dvp_work_thread(void *param)
+{
+    dvp_driver_handle_t *handle = (dvp_driver_handle_t *)param;
+    dvp_event_msg_t msg;
+    bk_err_t ret;
+    LOGD("%s thread started\n", __func__);
+
+    rtos_set_semaphore(&handle->thread_sem);
+
+    while (!handle->thread_should_exit)
+    {
+        ret = rtos_pop_from_queue(&handle->dvp_msg_queue, &msg, BEKEN_WAIT_FOREVER);
+        if (ret != BK_OK)
+        {
+            continue;
+        }
+
+        // Process different types of events
+        switch (msg.type)
+        {
+            case DVP_EVENT_YUV_EOF:
+            {
+                frame_buffer_t *yuv_frame = (frame_buffer_t *)msg.param1;
+                uint8_t status = (uint8_t)msg.param2;
+                if (yuv_frame && handle->callback && handle->callback->complete)
+                {
+                    handle->callback->complete(IMAGE_YUV, yuv_frame, status);
+                }
+                break;
+            }
+
+            case DVP_EVENT_JPEG_EOF:
+            {
+                frame_buffer_t *jpeg_frame = (frame_buffer_t *)msg.param1;
+                uint8_t status = (uint8_t)msg.param2;
+                if (jpeg_frame && handle->callback && handle->callback->complete)
+                {
+                    handle->callback->complete(IMAGE_MJPEG, jpeg_frame, status);
+                }
+                break;
+            }
+
+            case DVP_EVENT_H264_EOF:
+            {
+                frame_buffer_t *h264_frame = (frame_buffer_t *)msg.param1;
+                uint8_t status = (uint8_t)msg.param2;
+                if (h264_frame && handle->callback && handle->callback->complete)
+                {
+#ifdef CONFIG_H264_ADD_SELF_DEFINE_SEI
+                    // Process H264 SEI in thread
+                    h264_frame->crc = hnd_crc8(h264_frame->frame, h264_frame->length, 0xFF);
+                    h264_frame->length += H264_SELF_DEFINE_SEI_SIZE;
+                    os_memcpy(&handle->sei[23], (uint8_t *)h264_frame, sizeof(frame_buffer_t));
+                    os_memcpy(&h264_frame->frame[h264_frame->length - H264_SELF_DEFINE_SEI_SIZE], &handle->sei[0], H264_SELF_DEFINE_SEI_SIZE);
+#endif
+                    handle->callback->complete(IMAGE_H264, h264_frame, status);
+                }
+                break;
+            }
+
+            case DVP_EVENT_EXIT:
+            {
+                LOGD("Exiting DVP work thread\n");
+                goto exit;
+            }
+
+            default:
+                LOGW("Unknown event type: %d\n", msg.type);
+                break;
+        }
+    }
+
+exit:
+    // Release thread exit semaphore to notify deinit that thread has fully exited
+    if (handle->thread_sem != NULL)
+    {
+        rtos_set_semaphore(&handle->thread_sem);
+    }
+
+    handle->thread_should_exit = true;
+    LOGD("%s thread exited\n", __func__);
+    
+    rtos_delete_thread(NULL);
+}
 
 #if (MEDIA_DEBUG_TIMER_ENABLE)
 static void dvp_camera_timer_handle(void *param)
@@ -332,6 +425,77 @@ static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
         }
     }
 
+    // step 0: Stop and cleanup work thread
+    if (handle->dvp_thread != NULL)
+    {
+        LOGD("Stopping DVP work thread...\n");
+        
+        // Send an empty message to wake up the thread and let it exit
+        dvp_event_msg_t exit_msg;
+        exit_msg.type = DVP_EVENT_EXIT;
+        exit_msg.param1 = 0;
+        exit_msg.param2 = 0;
+        rtos_push_to_queue(&handle->dvp_msg_queue, &exit_msg, BEKEN_NO_WAIT);
+        
+        // Use semaphore to wait for thread to fully exit (must wait for semaphore to avoid abnormal access)
+        bk_err_t sem_ret = rtos_get_semaphore(&handle->thread_sem, BEKEN_WAIT_FOREVER);
+        if (sem_ret == BK_OK)
+        {
+            LOGD("DVP work thread exited successfully\n");
+        }
+        else
+        {
+            // Should not reach here in theory
+            LOGE("Wait for thread exit failed! ret=%d\n", sem_ret);
+        }
+        
+        handle->dvp_thread = NULL;
+    }
+    
+    // Process remaining messages in queue to avoid buffer leak
+    if (handle->dvp_msg_queue != NULL)
+    {
+        dvp_event_msg_t msg;
+        int processed_count = 0;
+        
+        // Clear all remaining messages in queue and release corresponding buffers
+        while (rtos_pop_from_queue(&handle->dvp_msg_queue, &msg, BEKEN_NO_WAIT) == BK_OK)
+        {
+            if (msg.type == DVP_EVENT_YUV_EOF || msg.type == DVP_EVENT_JPEG_EOF || msg.type == DVP_EVENT_H264_EOF)
+            {
+                frame_buffer_t *frame = (frame_buffer_t *)msg.param1;
+                if (frame && handle->callback && handle->callback->complete)
+                {
+                    // Notify upper layer to release buffer with error status
+                    switch (msg.type)
+                    {
+                        case DVP_EVENT_YUV_EOF:
+                            handle->callback->complete(IMAGE_YUV, frame, DVP_FRAME_ERR);
+                            break;
+                        case DVP_EVENT_JPEG_EOF:
+                            handle->callback->complete(IMAGE_MJPEG, frame, DVP_FRAME_ERR);
+                            break;
+                        case DVP_EVENT_H264_EOF:
+                            handle->callback->complete(IMAGE_H264, frame, DVP_FRAME_ERR);
+                            break;
+                        default:
+                            break;
+                    }
+                    processed_count++;
+                }
+            }
+        }
+        
+        if (processed_count > 0)
+        {
+            LOGD("Processed %d pending messages in queue during deinit\n", processed_count);
+        }
+        
+        // Cleanup message queue
+        rtos_deinit_queue(&handle->dvp_msg_queue);
+        handle->dvp_msg_queue = NULL;
+    }
+
     if (handle->yuv_frame)
     {
         handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_ERR);
@@ -342,6 +506,12 @@ static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
     {
         rtos_deinit_semaphore(&handle->sem);
         handle->sem = NULL;
+    }
+
+    if (handle->thread_sem)
+    {
+        rtos_deinit_semaphore(&handle->thread_sem);
+        handle->thread_sem = NULL;
     }
 
 #if (MEDIA_DEBUG_TIMER_ENABLE)
@@ -547,6 +717,7 @@ static void dvp_camera_yuv_eof_handler(yuv_buf_unit_t id, void *param)
 {
     frame_buffer_t *new_yuv = NULL;
     dvp_driver_handle_t *handle = (dvp_driver_handle_t *)param;
+    dvp_event_msg_t msg;
 
     DVP_YUV_EOF_ENTRY();
 
@@ -573,7 +744,20 @@ static void dvp_camera_yuv_eof_handler(yuv_buf_unit_t id, void *param)
         new_yuv->height = handle->yuv_frame->height;
         new_yuv->fmt = handle->yuv_frame->fmt;
         new_yuv->length = size;
-        handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_OK);
+        
+        // Put completion notification task into queue for thread processing
+        msg.type = DVP_EVENT_YUV_EOF;
+        msg.param1 = (uint32_t)handle->yuv_frame;
+        msg.param2 = DVP_FRAME_OK;
+        
+        bk_err_t ret = rtos_push_to_queue(&handle->dvp_msg_queue, &msg, BEKEN_NO_WAIT);
+        if (ret != BK_OK)
+        {
+            LOGE("Failed to send YUV EOF event, ret=%d, release frame directly\n", ret);
+            // If queue is full, release the frame directly
+            handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_ERR);
+        }
+        
         handle->yuv_frame = new_yuv;
     }
     else
@@ -662,11 +846,25 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
         }
         else
         {
+            dvp_event_msg_t msg;
             frame_buffer->width = handle->config->width;
             frame_buffer->height = handle->config->height;
             frame_buffer->fmt = PIXEL_FMT_JPEG;
             frame_buffer->length = real_length;
-            handle->callback->complete(IMAGE_MJPEG, handle->encode_frame, DVP_FRAME_OK);
+            
+            // Put completion notification task into queue for thread processing
+            msg.type = DVP_EVENT_JPEG_EOF;
+            msg.param1 = (uint32_t)handle->encode_frame;
+            msg.param2 = DVP_FRAME_OK;
+            
+            bk_err_t ret = rtos_push_to_queue(&handle->dvp_msg_queue, &msg, BEKEN_NO_WAIT);
+            if (ret != BK_OK)
+            {
+                LOGE("Failed to send JPEG EOF event, ret=%d, release frame directly\n", ret);
+                // If queue is full, release the frame directly
+                handle->callback->complete(IMAGE_MJPEG, handle->encode_frame, DVP_FRAME_ERR);
+            }
+            
             handle->encode_frame = frame_buffer;
         }
     }
@@ -702,11 +900,25 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
         new_yuv = handle->callback->malloc(IMAGE_YUV, size);
         if (new_yuv)
         {
+            dvp_event_msg_t yuv_msg;
             new_yuv->width = handle->yuv_frame->width;
             new_yuv->height = handle->yuv_frame->height;
             new_yuv->fmt = handle->yuv_frame->fmt;
             new_yuv->length = size;
-            handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_OK);
+            
+            // Put YUV completion notification task into queue for thread processing
+            yuv_msg.type = DVP_EVENT_YUV_EOF;
+            yuv_msg.param1 = (uint32_t)handle->yuv_frame;
+            yuv_msg.param2 = DVP_FRAME_OK;
+            
+            bk_err_t ret = rtos_push_to_queue(&handle->dvp_msg_queue, &yuv_msg, BEKEN_NO_WAIT);
+            if (ret != BK_OK)
+            {
+                LOGE("Failed to send YUV EOF event in JPEG mode, ret=%d, release frame directly\n", ret);
+                // If queue is full, release the frame directly
+                handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_ERR);
+            }
+            
             handle->yuv_frame = new_yuv;
         }
         else
@@ -828,21 +1040,30 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
 
     handle->encode_frame->timestamp = get_current_timestamp();
 
-#ifdef CONFIG_H264_ADD_SELF_DEFINE_SEI
-    handle->encode_frame->crc = hnd_crc8(handle->encode_frame->frame, handle->encode_frame->length, 0xFF);
-    handle->encode_frame->length += H264_SELF_DEFINE_SEI_SIZE;
-    os_memcpy(&handle->sei[23], (uint8_t *)handle->encode_frame, sizeof(frame_buffer_t));
-    os_memcpy(&handle->encode_frame->frame[handle->encode_frame->length - H264_SELF_DEFINE_SEI_SIZE], &handle->sei[0], H264_SELF_DEFINE_SEI_SIZE);
-#endif
+    // SEI processing has been moved to work thread to avoid long interrupt callback time
 
     new_frame = handle->callback->malloc(IMAGE_H264, CONFIG_H264_FRAME_SIZE);
     if (new_frame)
     {
+        dvp_event_msg_t msg;
         new_frame->width = handle->config->width;
         new_frame->height = handle->config->height;
         new_frame->fmt = PIXEL_FMT_H264;
         new_frame->length = real_length;
-        handle->callback->complete(IMAGE_H264, handle->encode_frame, DVP_FRAME_OK);
+        
+        // Put completion notification task into queue for thread processing
+        msg.type = DVP_EVENT_H264_EOF;
+        msg.param1 = (uint32_t)handle->encode_frame;
+        msg.param2 = DVP_FRAME_OK;
+        
+        bk_err_t ret = rtos_push_to_queue(&handle->dvp_msg_queue, &msg, BEKEN_NO_WAIT);
+        if (ret != BK_OK)
+        {
+            LOGE("Failed to send H264 EOF event, ret=%d, release frame directly\n", ret);
+            // If queue is full, release the frame directly
+            handle->callback->complete(IMAGE_H264, handle->encode_frame, DVP_FRAME_ERR);
+        }
+        
         handle->encode_frame = new_frame;
     }
     else
@@ -874,11 +1095,25 @@ out:
             new_yuv = handle->callback->malloc(IMAGE_YUV, size);
             if (new_yuv)
             {
+                dvp_event_msg_t yuv_msg;
                 new_yuv->width = handle->yuv_frame->width;
                 new_yuv->height = handle->yuv_frame->height;
                 new_yuv->fmt = handle->yuv_frame->fmt;
                 new_yuv->length = size;
-                handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_OK);
+                
+                // Put YUV completion notification task into queue for thread processing
+                yuv_msg.type = DVP_EVENT_YUV_EOF;
+                yuv_msg.param1 = (uint32_t)handle->yuv_frame;
+                yuv_msg.param2 = DVP_FRAME_OK;
+                
+                bk_err_t ret = rtos_push_to_queue(&handle->dvp_msg_queue, &yuv_msg, BEKEN_NO_WAIT);
+                if (ret != BK_OK)
+                {
+                    LOGE("Failed to send YUV EOF event in H264 mode, ret=%d, release frame directly\n", ret);
+                    // If queue is full, release the frame directly
+                    handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_ERR);
+                }
+                
                 handle->yuv_frame = new_yuv;
             }
             else
@@ -1320,6 +1555,43 @@ bk_err_t bk_dvp_open(camera_handle_t *handle, bk_dvp_config_t *cfg, const bk_dvp
         LOGE("%s, dvp_handle->sem malloc fail....\r\n", __func__);
         goto error;
     }
+
+    // Create thread exit semaphore (initial value 1)
+    ret = rtos_init_semaphore(&dvp_handle->thread_sem, 1);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, thread_sem init fail....\r\n", __func__);
+        goto error;
+    }
+
+    // Create message queue
+    ret = rtos_init_queue(&dvp_handle->dvp_msg_queue, 
+                         "dvp_msg_queue",
+                         sizeof(dvp_event_msg_t),
+                         DVP_MSG_QUEUE_SIZE);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, dvp_msg_queue init fail....\r\n", __func__);
+        goto error;
+    }
+
+    // Initialize thread exit flag
+    dvp_handle->thread_should_exit = false;
+
+    // Create work thread
+    ret = rtos_create_thread(&dvp_handle->dvp_thread,
+                            DVP_THREAD_PRIORITY,
+                            "dvp_work_thread",
+                            dvp_work_thread,
+                            CONFIG_DVP_THREAD_STACK_SIZE,
+                            (beken_thread_arg_t)dvp_handle);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, dvp_work_thread create fail....\r\n", __func__);
+        goto error;
+    }
+
+    rtos_get_semaphore(&dvp_handle->thread_sem, BEKEN_WAIT_FOREVER);
 
 #if (MEDIA_DEBUG_TIMER_ENABLE)
     ret = rtos_init_timer(&dvp_handle->timer, MEDIA_DEBUG_TIMER_INTERVAL * 1000,
