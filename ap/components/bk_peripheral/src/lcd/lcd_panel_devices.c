@@ -82,6 +82,10 @@ const lcd_device_t *lcd_devices[] =
 	&lcd_device_aml01,
 #endif
 
+#if CONFIG_LCD_ST7789T3
+    &lcd_device_st7789t3,
+#endif
+
 #if CONFIG_LCD_QSPI_SH8601A
 	&lcd_device_sh8601a,
 #endif
@@ -102,14 +106,37 @@ const lcd_device_t *lcd_devices[] =
 	&lcd_device_spd2010,
 #endif
 
+#if CONFIG_LCD_QSPI_GC9C01
+	&lcd_device_gc9c01,
+#endif
+
+#if CONFIG_LCD_QSPI_JD9855
+	&lcd_device_jd9855,
+#endif
+
+#if CONFIG_LCD_QSPI_JD9855_K18XJ15
+	&lcd_device_jd9855_k18xj15,
+#endif
+
+#if CONFIG_LCD_QSPI_ST77916
+	&lcd_device_st77916,
+#endif
+
+#if CONFIG_LCD_QSPI_JD9853A
+	&lcd_device_jd9853a,
+#endif
+
 #if CONFIG_LCD_SPI_ST7796U
 	&lcd_device_st7796u,
 #endif
 
-#if CONFIG_LCD_ST7789T3
-    &lcd_device_st7789t3,
+#if CONFIG_LCD_SPI_GC9D01
+	&lcd_device_gc9d01,
 #endif
 
+#if CONFIG_LCD_SPI_ST7789V2
+	&lcd_device_st7789v2,
+#endif
 };
 
 
