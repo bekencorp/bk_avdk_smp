@@ -43,7 +43,7 @@ typedef struct
     uint8_t                 chl_num;            /*!< speaker channel number */
     uint32_t                sample_rate;        /*!< speaker sample rate */
     int32_t                 dig_gain;           /*!< audio dac digital gain: value range: 0x00 ~ 0x3f(-45db ~ 18db, 0x2d: 0db), suggest: 0x2d */
-    int32_t                 ana_gain;           /*!< audio dac analog gain: value range: , suggest:  */
+    int32_t                 ana_gain;           /*!< audio dac analog gain: value range: 0x00 ~ 0x3f(-15db ~ 0db, 1db/step), suggest: 0x0A */
     aud_dac_work_mode_t     work_mode;          /*!< audio dac mode: signal_ended/differen */
     uint8_t                 bits;               /*!< Bit wide (8, 16, 24, 32 bits) */
     aud_clk_t               clk_src;            /*!< audio clock: XTAL(26MHz)/APLL */
@@ -93,7 +93,7 @@ typedef struct audio_port_info
         .chl_num = 1,                                          \
         .sample_rate = 8000,                                   \
         .dig_gain = 0x2d,                                      \
-        .ana_gain = 0x07,                                      \
+        .ana_gain = 0x0A,                                      \
         .work_mode = AUD_DAC_WORK_MODE_DIFFEN,                 \
         .bits = 16,                                            \
         .clk_src = AUD_CLK_XTAL,                               \
