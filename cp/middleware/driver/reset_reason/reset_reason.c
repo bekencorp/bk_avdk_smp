@@ -4,6 +4,7 @@
 #include "bk_uart.h"
 
 #include "bk_arm_arch.h"
+#include "arch_interrupt.h"
 #include "sys_ctrl.h"
 #include "bk_sys_ctrl.h"
 
@@ -184,14 +185,13 @@ uint32_t bk_misc_get_ap_reset_reason(void)
 void bk_misc_set_cp_reset_reason(uint32_t type)
 {
 	if (type > 0xff) {
-		BK_LOGE(TAG, "Invalid cp rr type: 0x%x", type);
+		BK_DUMP_OUT("Invalid cp rr type: 0x%x", type);
 		return;
 	}
 
 	/* use PMU_REG0 bit[4:11] for reset reason */
 	uint32_t misc_value = aon_pmu_hal_get_r0();
 
-	BK_LOGD(TAG, "set cp rr: 0x%x\r\n", type);
 	/* clear last reset reason */
 	misc_value &= ~(0xff << 4);
 
@@ -202,14 +202,14 @@ void bk_misc_set_cp_reset_reason(uint32_t type)
 void bk_misc_set_ap_reset_reason(uint32_t type)
 {
 	if (type > 0x7f) {
-		BK_LOGE(TAG, "Invalid ap rr type: 0x%x", type);
+		BK_DUMP_OUT("Invalid ap rr type: 0x%x\r\n", type);
 		return;
 	}
 
 	/* use PMU_REG0 bit[24:30] for reset reason */
 	uint32_t misc_value = aon_pmu_hal_get_r0();
 
-	BK_LOGD(TAG, "set ap rr: 0x%x\r\n", type);
+	BK_DUMP_OUT("set ap rr: 0x%x\r\n", type);
 	/* clear last reset reason */
 	misc_value &= ~(0x7f << 24);
 
@@ -248,6 +248,7 @@ uint32_t reset_reason_init(void)
 	bk_misc_set_cp_reset_reason(RESET_SOURCE_POWERON);
 	bk_misc_set_ap_reset_reason(RESET_SOURCE_POWERON);
 
+	arch_init_exception_magic_status();
 	s_initialized = true;
 	return s_start_type;
 }

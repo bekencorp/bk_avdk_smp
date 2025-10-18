@@ -12,13 +12,16 @@
 #include <modules/pm.h>
 #include <driver/gpio.h>
 #include "bk_wdt.h"
+#include "wdt_driver.h"
 #include <driver/wdt.h>
+
 #if CONFIG_AT
 #include "atsvr_unite.h"
 #if CONFIG_AT_DATA_MODE
 #include "at_sal_ex.h"
 #endif
 #endif
+#include <arch_interrupt.h>
 
 #define DEV_UART        1
 #define DEV_MAILBOX     2
@@ -1041,7 +1044,7 @@ static void tx_req_process(void)
 
 	if(log_busy_queue.free_cnt == 0)
 		return;
-
+	
 	tx_ready = 0;
 
 	log_dev->dev_drv->io_ctrl(log_dev, SHELL_IO_CTRL_GET_STATUS, &tx_ready);
@@ -1923,6 +1926,13 @@ int shell_get_cpu_id(void)
 
 static int shell_cpu_check_valid(void)
 {
+	if(arch_is_ap_in_dump_mode()) {
+		int level = rtos_disable_int();
+		while(1);
+		rtos_enable_int(level);
+		return 0;
+	}
+
 #if (CONFIG_CPU_CNT > 1) && (LOG_DEV != DEV_MAILBOX)
 
 	if(shell_log_owner_cpu == 0)
@@ -2172,14 +2182,13 @@ void shell_log_out_port(int block_mode, int level, char *prefix, const char *for
 	return ;
 }
 
+
 static int shell_assert_out_va(bool bContinue, const char * format, va_list arg_list)
 {
 	u32         int_mask;
 	char       *pbuf;
 	u16         data_len, buf_len;
 
-	if( !shell_cpu_check_valid() )
-		return 0;
 
 	pbuf = (char *)&shell_assert_buff[0];
 	buf_len = sizeof(shell_assert_buff);
@@ -2196,8 +2205,9 @@ static int shell_assert_out_va(bool bContinue, const char * format, va_list arg_
 
 	if(data_len >= buf_len)
 		data_len = buf_len - 1;
-
-	log_dev->dev_drv->write_sync(log_dev, (u8 *)pbuf, data_len);
+	
+	pbuf[data_len] = '\0';
+	emergency_uart_write_string(CONFIG_DUMP_UART_PRINT_PORT, pbuf);
 
 	if( bContinue )
 	{
@@ -2229,8 +2239,6 @@ int shell_assert_raw(bool bContinue, char * data_buff, u16 data_len)
 {
 	u32         int_mask;
 
-	if( !shell_cpu_check_valid() )
-		return 0;
 
 	/* just disabled interrupts even when dump out in SMP. */
 	/* because other core's dump has been blocked by shell_cpu_check_valid(). */
@@ -2240,7 +2248,8 @@ int shell_assert_raw(bool bContinue, char * data_buff, u16 data_len)
 	// int_mask = shell_task_enter_critical();
 	int_mask = rtos_disable_int();
 
-	log_dev->dev_drv->write_sync(log_dev, (u8 *)data_buff, data_len);
+	// log_dev->dev_drv->write_sync(log_dev, (u8 *)data_buff, data_len);
+	emergency_uart_write_buf(CONFIG_DUMP_UART_PRINT_PORT, data_buff, data_len);
 
 	if( bContinue )
 	{
