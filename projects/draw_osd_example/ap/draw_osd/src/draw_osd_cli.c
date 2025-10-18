@@ -2,8 +2,6 @@
 #include <driver/gpio.h>
 #include <common/bk_include.h>
 #include <components/avdk_utils/avdk_error.h>
-// #include <os/str.h>
-// #include <components/shell_task.h>
 #include "components/bk_draw_osd.h"
 #include "components/bk_display.h"
 #include "gpio_driver.h"
@@ -26,6 +24,9 @@ static bk_draw_osd_ctlr_handle_t draw_osd_handle = NULL;
 static bk_display_ctlr_handle_t lcd_display_handle = NULL;
 static const lcd_device_t *lcd_device =  &lcd_device_st7701sn;
 static frame_buffer_t *bg_frame = NULL;
+
+#define BL_PIN  GPIO_7
+#define LCD_LDO_PIN GPIO_13
 
 static avdk_err_t display_frame_free_cb(void *frame)
 {
@@ -64,11 +65,15 @@ void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_rgb_new failed!\n");
         LOGD("bk_display_rgb_new success!\n");
 
-        int bl_io = GPIO_7;
-        gpio_dev_unmap(bl_io);
-        BK_LOG_ON_ERR(bk_gpio_enable_output(bl_io));
-        BK_LOG_ON_ERR(bk_gpio_pull_up(bl_io));
-        bk_gpio_set_output_high(bl_io);
+
+        gpio_dev_unmap(BL_PIN);
+        BK_LOG_ON_ERR(bk_gpio_enable_output(BL_PIN));
+        bk_gpio_set_output_high(BL_PIN);
+
+        gpio_dev_unmap(LCD_LDO_PIN);
+        BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_LDO_PIN));
+        bk_gpio_set_output_high(LCD_LDO_PIN);
+
         ret = bk_display_open(lcd_display_handle);
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_open failed!\n");
     }
@@ -82,9 +87,14 @@ void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         ret = bk_display_delete(lcd_display_handle);
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_delete failed!\n");
         lcd_display_handle = NULL;
+        bk_gpio_set_output_low(LCD_LDO_PIN);
+        bk_gpio_set_output_low(BL_PIN);
     }
     else if (strcmp(argv[1], "array") == 0)
     {
+        AVDK_RETURN_VOID_ON_FALSE(draw_osd_handle, TAG, "draw_osd_handle is NULL!");
+        AVDK_RETURN_VOID_ON_FALSE(lcd_display_handle, TAG, "lcd_display_handle is NULL!");
+
         uint16_t bg_frame_width = 480;
         uint16_t bg_frame_height = 864;
         uint32_t len = bg_frame_width * bg_frame_height * 2;
@@ -93,9 +103,9 @@ void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         AVDK_GOTO_VOID_ON_FALSE(bg_frame, exit, TAG, "frame_buffer_display_malloc failed!\n");
         for( i = 0; i < len; i+=2)
         {
-            *(uint16_t *)(bg_frame->frame + i) = 0xf800;
+            *(uint16_t *)(bg_frame->frame + i) = 0x00;
         }
-        bg_frame->fmt = PIXEL_FMT_RGB565;
+        bg_frame->fmt = PIXEL_FMT_RGB565_LE;
         bg_frame->width = bg_frame_width;
         bg_frame->height = bg_frame_height;
 
@@ -135,7 +145,7 @@ void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
             }
         }
     }
-    else if (strcmp(argv[1], "info") == 0)
+    else if (strcmp(argv[1], "get_info") == 0)
     {
         uint32_t is_printf = 1;
         const blend_info_t *resources = NULL;
@@ -143,20 +153,22 @@ void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         if (argc > 2 && strcmp(argv[2], "no_print") == 0) {
             is_printf = 0;
         }
-        LOGI("获取当前绘制信息 (打印模式: %s)\n", is_printf ? "开启" : "关闭");
+        LOGI("get current draw info (print mode: %s)\n", is_printf ? "open" : "close");  
         ret = bk_draw_osd_ioctl(draw_osd_handle, OSD_CTLR_CMD_GET_DRAW_INFO, is_printf, (uint32_t)&resources, (uint32_t)&size);
     }
-    else if (strcmp(argv[1], "assets") == 0)
+    else if (strcmp(argv[1], "get_assets") == 0)
     {
         uint32_t is_printf = 1;
         if (argc > 2 && strcmp(argv[2], "no_print") == 0) {
             is_printf = 0;
         }
-        LOGI("获取所有可用资源 (打印模式: %s)\n", is_printf ? "开启" : "关闭");
+        LOGI("get all available assets (print mode: %s)\n", is_printf ? "open" : "close");
         ret = bk_draw_osd_ioctl(draw_osd_handle, OSD_CTLR_CMD_GET_ALL_ASSETS, is_printf, 0, 0);
     }
     else if (strcmp(argv[1], "img") == 0)
     {
+        AVDK_RETURN_VOID_ON_FALSE(draw_osd_handle, TAG, "draw_osd_handle is NULL!");
+        AVDK_RETURN_VOID_ON_FALSE(lcd_display_handle, TAG, "lcd_display_handle is NULL!");
         uint16_t bg_frame_width = 480;
         uint16_t bg_frame_height = 864;
 
@@ -169,7 +181,7 @@ void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         bg_frame->height = bg_frame_height;
         for( i = 0; i < bg_frame->width * bg_frame->height * 2; i+=2)
         {
-            *(uint16_t *)(bg_frame->frame + i) = 0x07e0;
+            *(uint16_t *)(bg_frame->frame + i) = 0x001f;
         }
 
         osd_bg_info_t bg_info = {0};
@@ -191,7 +203,9 @@ void cli_draw_osd_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         }
     }
     else if (strcmp(argv[1], "font") == 0)
-    {
+    {    
+        AVDK_RETURN_VOID_ON_FALSE(draw_osd_handle, TAG, "draw_osd_handle is NULL!");
+        AVDK_RETURN_VOID_ON_FALSE(lcd_display_handle, TAG, "lcd_display_handle is NULL!");  
         uint16_t bg_frame_width = 480;
         uint16_t bg_frame_height = 864;
 
@@ -249,7 +263,7 @@ exit:
 
 static const struct cli_command s_draw_osd_test_commands[] =
 {
-    {"osd", "init | info | assets | img | font | deinit", cli_draw_osd_test_cmd},
+    {"osd", "init | assets | img | font | deinit", cli_draw_osd_test_cmd},
 };
 
 int cli_draw_osd_test_init(void)

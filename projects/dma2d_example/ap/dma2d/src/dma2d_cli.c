@@ -1,8 +1,12 @@
-#include "dma2d_test.h"
 #include <os/os.h>
 #include <components/avdk_utils/avdk_error.h>
 #include "cli.h"
 #include "components/bk_dma2d.h"
+#include <driver/gpio.h>
+#include "gpio_driver.h"
+#include "lcd_panel_devices.h"
+#include "components/bk_display.h"
+#include "dma2d_test.h"
 
 #define TAG "dma2d_test"
 
@@ -12,13 +16,18 @@
 
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
+#define BL_PIN  GPIO_7
+#define LCD_LDO_PIN GPIO_13
 static bk_dma2d_ctlr_handle_t dma2d_handle1 = NULL;
 static bk_dma2d_ctlr_handle_t dma2d_handle2 = NULL;
+static const lcd_device_t *lcd_device =  &lcd_device_st7701sn;
+bk_display_ctlr_handle_t lcd_display_handle = NULL;
+
 
 static void cli_dma2d_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
     avdk_err_t ret = AVDK_ERR_GENERIC;
-
+    char *msg = NULL;
     // 修复open命令中的句柄赋值问题
     if (os_strcmp(argv[1], "open") == 0) {
         if (os_strcmp(argv[2], "module1") == 0) 
@@ -38,6 +47,30 @@ static void cli_dma2d_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
             ret = bk_dma2d_open(dma2d_handle2);
             AVDK_RETURN_VOID_ON_ERROR(ret, TAG, "bk_dma2d_open failed!\n");
             LOGD("bk_dma2d_open module2 success! %p\n", dma2d_handle2);
+        }
+        if (lcd_display_handle == NULL)
+        {
+            bk_display_rgb_ctlr_config_t lcd_display_config = {0};
+            lcd_display_config.lcd_device = lcd_device;
+            lcd_display_config.clk_pin = GPIO_0;
+            lcd_display_config.cs_pin = GPIO_12;
+            lcd_display_config.sda_pin = GPIO_1;
+            lcd_display_config.rst_pin = GPIO_6;
+            ret = bk_display_rgb_new(&lcd_display_handle, &lcd_display_config);
+            AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_rgb_new failed!\n");
+            LOGD("bk_display_rgb_new success!\n");
+
+
+            gpio_dev_unmap(BL_PIN);
+            BK_LOG_ON_ERR(bk_gpio_enable_output(BL_PIN));
+            bk_gpio_set_output_high(BL_PIN);
+
+            gpio_dev_unmap(LCD_LDO_PIN);
+            BK_LOG_ON_ERR(bk_gpio_enable_output(LCD_LDO_PIN));
+            bk_gpio_set_output_high(LCD_LDO_PIN);
+
+            ret = bk_display_open(lcd_display_handle);
+            AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_open failed!\n");
         }
     }
 
@@ -63,6 +96,16 @@ static void cli_dma2d_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
             AVDK_RETURN_VOID_ON_ERROR(ret, TAG, "bk_dma2d_delete failed!\n");
             dma2d_handle2 = NULL;
             LOGD("bk_dma2d_delete module2 success!\n");
+        }
+        if (lcd_display_handle != NULL)
+        {
+            ret = bk_display_close(lcd_display_handle);
+            AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_close failed!\n");
+            ret = bk_display_delete(lcd_display_handle);
+            AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_delete failed!\n");
+            lcd_display_handle = NULL;
+            bk_gpio_set_output_low(LCD_LDO_PIN);
+            bk_gpio_set_output_low(BL_PIN);
         }
     }
     
@@ -198,8 +241,9 @@ static void cli_dma2d_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
     else {
         LOGE("%s, %d, not found this cmd!\n", __func__, __LINE__);
     }
-    
-    char *msg = NULL;
+
+   exit: 
+
     if (ret != AVDK_ERR_OK) {
         msg = CLI_CMD_RSP_ERROR;
     } else {

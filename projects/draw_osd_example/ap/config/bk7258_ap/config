@@ -106,156 +106,16 @@ CONFIG_NTP_SYNC_RTC_TASK_STACK_SIZE=3072
 # end of ASR Service
 
 #
+# Audio Parameters
+#
+CONFIG_AUD_PARAM_CTRL=y
+# end of Audio Parameters
+
+#
 # Adk
 #
 # CONFIG_ADK is not set
 # end of Adk
-
-#
-# Adk::Audio_utils
-#
-# CONFIG_ADK_UTILS is not set
-# end of Adk::Audio_utils
-
-#
-# Adk::Audio_algorithm::Aec_algorithm
-#
-# end of Adk::Audio_algorithm::Aec_algorithm
-
-#
-# Adk::Audio_algorithm::Aec_algorithm V3
-#
-# end of Adk::Audio_algorithm::Aec_algorithm V3
-
-#
-# Adk::Audio_algorithm::Agc_algorithm
-#
-# end of Adk::Audio_algorithm::Agc_algorithm
-
-#
-# Adk::Audio_algorithm::EQ_algorithm
-#
-# end of Adk::Audio_algorithm::EQ_algorithm
-
-#
-# Adk::Audio_algorithms::Mix_algorithm
-#
-# end of Adk::Audio_algorithms::Mix_algorithm
-
-#
-# Adk::Audio_algorithm::Rsp_algorithm
-#
-# end of Adk::Audio_algorithm::Rsp_algorithm
-
-#
-# Adk::Audio_decoders::AAC_decoder
-#
-# end of Adk::Audio_decoders::AAC_decoder
-
-#
-# Adk::Audio_decoders::G711_decoder
-#
-# end of Adk::Audio_decoders::G711_decoder
-
-#
-# Adk::Audio_decoders::G722_decoder
-#
-# end of Adk::Audio_decoders::G722_decoder
-
-#
-# Adk::Audio_decoders::MP3_decoder
-#
-# end of Adk::Audio_decoders::MP3_decoder
-
-#
-# Adk::Audio_decoders::Opus_dec
-#
-# end of Adk::Audio_decoders::Opus_dec
-
-#
-# Adk::Audio_decoders::SBC_decoder
-#
-# end of Adk::Audio_decoders::SBC_decoder
-
-#
-# Adk::Audio_decoders::Wav_decoder
-#
-# end of Adk::Audio_decoders::Wav_decoder
-
-#
-# Adk::Audio_encoders::AAC_encoder
-#
-# end of Adk::Audio_encoders::AAC_encoder
-
-#
-# Adk::Audio_encoders::G711_encoder
-#
-# end of Adk::Audio_encoders::G711_encoder
-
-#
-# Adk::Audio_encoders::G722_encoder
-#
-# end of Adk::Audio_encoders::G722_encoder
-
-#
-# Adk::Audio_encoders::Opus_enc
-#
-# end of Adk::Audio_encoders::Opus_enc
-
-#
-# Adk::Audio_encoders::Sbc_encoder
-#
-# end of Adk::Audio_encoders::Sbc_encoder
-
-#
-# Adk::Audio_streams::Array_stream
-#
-# end of Adk::Audio_streams::Array_stream
-
-#
-# Adk::Audio_streams::Array_stream
-#
-# end of Adk::Audio_streams::Array_stream
-
-#
-# Adk::Audio_streams::Onboard_dual_dmic_stream
-#
-# end of Adk::Audio_streams::Onboard_dual_dmic_stream
-
-#
-# Adk::Audio_streams::Onboard_mic_stream
-#
-# end of Adk::Audio_streams::Onboard_mic_stream
-
-#
-# Adk::Audio_streams::Onboard_speaker_stream
-#
-# end of Adk::Audio_streams::Onboard_speaker_stream
-
-#
-# Adk::Audio_streams::raw_stream
-#
-# end of Adk::Audio_streams::raw_stream
-
-#
-# Adk::Audio_streams::Uac_mic_stream
-#
-# end of Adk::Audio_streams::Uac_mic_stream
-
-#
-# Adk::Audio_streams::Uac_speaker_stream
-#
-# end of Adk::Audio_streams::Uac_speaker_stream
-
-#
-# Adk::Audio_streams::Uart_stream
-#
-# end of Adk::Audio_streams::Uart_stream
-
-#
-# Adk::Audio_streams::Vfs_stream
-#
-# end of Adk::Audio_streams::Vfs_stream
 
 #
 # Bk_ble
@@ -291,6 +151,7 @@ CONFIG_MAX_COMMANDS=256
 CONFIG_SHELL_TASK_STACK_SIZE=7168
 CONFIG_LOG_TASK_STACK_SIZE=512
 CONFIG_IPERF_TEST=y
+CONFIG_WIFI_CLI_ENABLE=y
 # CONFIG_TCP_SERVER_TEST is not set
 # CONFIG_AIRKISS_TEST is not set
 # CONFIG_WIFI_RAW_TX_TEST is not set
@@ -351,11 +212,11 @@ CONFIG_MEDIA_OSD=y
 # end of Media::Draw_osd
 
 #
-# CAMERA
+# DVP
 #
 CONFIG_JPEG_FRAME_SIZE=102400
 CONFIG_H264_FRAME_SIZE=102400
-# end of CAMERA
+# end of DVP
 
 CONFIG_EVENT_TASK_STACK_SIZE=3072
 
@@ -370,6 +231,14 @@ CONFIG_EVENT_TASK_STACK_SIZE=3072
 #
 # CONFIG_HTTPS is not set
 # end of Https
+
+#
+# JPEG Decoder
+#
+CONFIG_JPEG_DECODER=y
+CONFIG_JPEG_DECODER_SW=y
+CONFIG_JPEG_DECODER_HW=y
+# end of JPEG Decoder
 
 #
 # Bk_libs
@@ -449,11 +318,6 @@ CONFIG_LCD_ST7796S=y
 #
 # end of TP
 # end of bk peripheral
-
-#
-# Bk_player_service
-#
-# end of Bk_player_service
 
 #
 # PM
@@ -623,6 +487,12 @@ CONFIG_VFS_MAX_FD_NUM=20
 # end of Bk_vfs
 
 #
+# Video Pipeline
+#
+CONFIG_VIDEO_PIPELINE=y
+# end of Video Pipeline
+
+#
 # Bk_video_player
 #
 # CONFIG_AVI_PLAYER is not set
@@ -683,6 +553,7 @@ CONFIG_MAC_SFRAME_SOFTWARE_RETRY=y
 # CONFIG_WIFI_FTM is not set
 CONFIG_WIFI_MAC_SUPPORT_STAS_MAX_NUM=2
 # CONFIG_BK_RAW_LINK is not set
+# CONFIG_WIFI_CLI_DEBUG is not set
 # end of Bk_Wifi
 
 #
@@ -949,7 +820,6 @@ CONFIG_LCD_SW_DECODE=y
 # CONFIG_MEDIA_BT_AUDIO is not set
 # CONFIG_SOFTWARE_DECODE_SRAM_MAPPING is not set
 # CONFIG_MEDIA_PSRAM_SIZE_4M is not set
-# CONFIG_CLI_MEDIA is not set
 CONFIG_JPEG_SW_DECODE_SUPPORT_BY_FRAME=y
 CONFIG_JPEG_SW_DECODE_SUPPORT_BY_LINE=y
 # CONFIG_SUPPORTED_IMAGE_MAX_720P is not set
@@ -1064,8 +934,9 @@ CONFIG_SYSTICK_32K=y
 # CONFIG_CACHE_ENABLE is not set
 # CONFIG_SWD_DEBUG_MODE is not set
 # CONFIG_DUMP_ENABLE is not set
+CONFIG_DUMP_UART_PRINT_PORT=0
+# CONFIG_DUMP_TEST is not set
 CONFIG_MEMDUMP_ALL=y
-# CONFIG_TRAP_TEST is not set
 # CONFIG_INTERRUPT_DEBUG_RECORDER is not set
 CONFIG_INTERRUPT_RECORDER_CNT=40
 # end of Modify Arch Cm33 Config

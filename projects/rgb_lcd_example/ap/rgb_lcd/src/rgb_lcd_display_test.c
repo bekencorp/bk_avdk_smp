@@ -27,6 +27,8 @@ void cli_lcd_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
     {
         AVDK_RETURN_VOID_ON_FALSE(!lcd_display_handle, TAG, "lcd_display_handle not NULL,may not delete last time!");
 
+        lcd_ldo_open(GPIO_13);
+
         bk_display_rgb_ctlr_config_t lcd_display_config = {0};
 
         lcd_display_config.lcd_device = lcd_device;
@@ -80,6 +82,7 @@ void cli_lcd_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         ret = bk_display_delete(lcd_display_handle);
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_delete failed!\n");
         lcd_display_handle = NULL;
+        lcd_ldo_close(GPIO_13);
         LOGD("bk_display_delete success!\n");
     }
     else

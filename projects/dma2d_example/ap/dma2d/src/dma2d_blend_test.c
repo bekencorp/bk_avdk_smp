@@ -3,7 +3,7 @@
 #include <components/avdk_utils/avdk_error.h>
 #include <os/str.h>
 #include "dma2d_test.h"
-
+#include "components/bk_display.h"
 #define TAG "dma2d_test"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -12,6 +12,14 @@
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 extern void bk_mem_dump_ex(const char * title, unsigned char * data, uint32_t data_len);
+extern bk_display_ctlr_handle_t lcd_display_handle;
+
+static avdk_err_t display_frame_free_cb(void *frame)
+{
+    LOGI("display_frame_free_cb, frame = %p\n", frame);
+    frame_buffer_display_free((frame_buffer_t *)frame);
+    return AVDK_ERR_OK;
+}
 
 void bk_dma2d_blend_complete_cb(dma2d_trans_status_t status, void *user_data)
 {
@@ -33,7 +41,8 @@ int dma2d_blend_test(bk_dma2d_ctlr_handle_t handle, const char *fg_format, const
     input_color_mode_t input_fg_mode, input_bg_mode;
     out_color_mode_t output_mode;
     uint8_t fg_pixel_byte, bg_pixel_byte, dst_pixel_byte;
-
+    pixel_format_t fmt;
+    
     if (os_strcmp(fg_format, "ARGB8888") == 0) {
         input_fg_mode = DMA2D_INPUT_ARGB8888;
         fg_pixel_byte = 4;
@@ -59,12 +68,15 @@ int dma2d_blend_test(bk_dma2d_ctlr_handle_t handle, const char *fg_format, const
     if (os_strcmp(output_format, "ARGB8888") == 0) {
         output_mode = DMA2D_OUTPUT_ARGB8888;
         dst_pixel_byte = 4;
+        fmt = PIXEL_FMT_ARGB8888;
     } else if (os_strcmp(output_format, "RGB888") == 0) {
         output_mode = DMA2D_OUTPUT_RGB888;
         dst_pixel_byte = 3;
+        fmt = PIXEL_FMT_RGB888;
     } else {
         output_mode = DMA2D_OUTPUT_RGB565;
         dst_pixel_byte = 2;
+        fmt = PIXEL_FMT_RGB565;
     }
 
     frame_buffer_t *bg_frame = frame_buffer_display_malloc(bg_width * bg_height * bg_pixel_byte);
@@ -90,12 +102,32 @@ int dma2d_blend_test(bk_dma2d_ctlr_handle_t handle, const char *fg_format, const
         bg_color, fg_color, bg_width, bg_height, fg_width, fg_height, dst_width, dst_height,
         bg_frame_xpos, bg_frame_ypos, fg_frame_xpos, fg_frame_ypos, dma2d_width, dma2d_height);
     
+    // Fill background frame based on input_bg_mode
     for (int i = 0; i < bg_width * bg_height; i++) {
-        ((uint16_t *)bg_frame->frame)[i] = bg_color;
+        if (input_bg_mode == DMA2D_INPUT_ARGB8888) {
+            ((uint32_t *)bg_frame->frame)[i] = bg_color;
+        } else if (input_bg_mode == DMA2D_INPUT_RGB888) {
+            uint8_t *pixel = (uint8_t *)bg_frame->frame + i * 3;
+            pixel[0] = (bg_color & 0xFF);         // Blue
+            pixel[1] = (bg_color & 0xFF00) >> 8;  // Green
+            pixel[2] = (bg_color & 0xFF0000) >> 16; // Red
+        } else { // RGB565
+            ((uint16_t *)bg_frame->frame)[i] = bg_color;
+        }
     }
     
+    // Fill foreground frame based on input_fg_mode
     for (int i = 0; i < fg_width * fg_height; i++) {
-        ((uint16_t *)fg_frame->frame)[i] = fg_color;
+        if (input_fg_mode == DMA2D_INPUT_ARGB8888) {
+            ((uint32_t *)fg_frame->frame)[i] = fg_color;
+        } else if (input_fg_mode == DMA2D_INPUT_RGB888) {
+            uint8_t *pixel = (uint8_t *)fg_frame->frame + i * 3;
+            pixel[0] = (fg_color & 0xFF);         // Blue
+            pixel[1] = (fg_color & 0xFF00) >> 8;  // Green
+            pixel[2] = (fg_color & 0xFF0000) >> 16; // Red
+        } else { // RGB565
+            ((uint16_t *)fg_frame->frame)[i] = fg_color;
+        }
     }
     
     dma2d_blend_config_t blend_config = {0};
@@ -142,9 +174,16 @@ int dma2d_blend_test(bk_dma2d_ctlr_handle_t handle, const char *fg_format, const
         LOGE("bk_dma2d_blend failed! \n");
         return ret;
     }
-
-    frame_buffer_display_free(bg_frame);
-    frame_buffer_display_free(fg_frame);
-    frame_buffer_display_free(dst_frame);
+    dst_frame->fmt = fmt;
+    dst_frame->width = dst_width;
+    dst_frame->height = dst_height;
+    ret = bk_display_flush(lcd_display_handle, dst_frame, display_frame_free_cb);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("bk_display_flush failed!\n");
+        frame_buffer_display_free(dst_frame);
+        return ret;
+    }
+        frame_buffer_display_free(bg_frame);
+        frame_buffer_display_free(fg_frame);
     return ret;
 }

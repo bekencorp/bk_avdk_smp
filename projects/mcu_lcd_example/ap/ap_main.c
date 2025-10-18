@@ -42,6 +42,22 @@ static avdk_err_t lcd_backlight_open(uint8_t bl_io)
     return AVDK_ERR_OK;
 }
 
+static avdk_err_t lcd_ldo_open(uint8_t lcd_ldo_io)
+{
+    gpio_dev_unmap(lcd_ldo_io);
+    BK_LOG_ON_ERR(bk_gpio_enable_output(lcd_ldo_io));
+    BK_LOG_ON_ERR(bk_gpio_pull_up(lcd_ldo_io));
+    bk_gpio_set_output_high(lcd_ldo_io);
+    return AVDK_ERR_OK;
+}
+static avdk_err_t lcd_ldo_close(uint8_t lcd_ldo_io)
+{
+    BK_LOG_ON_ERR(bk_gpio_pull_down(lcd_ldo_io));
+    bk_gpio_set_output_low(lcd_ldo_io);
+    return AVDK_ERR_OK;
+}
+
+
 static avdk_err_t lcd_backlight_close(uint8_t bl_io)
 {
     BK_LOG_ON_ERR(bk_gpio_pull_down(bl_io));
@@ -63,7 +79,8 @@ static void cli_lcd_display_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
         AVDK_RETURN_VOID_ON_FALSE(!lcd_display_handle, TAG, "lcd_display_handle not NULL,may not delete last time!");
 
         bk_display_mcu_ctlr_config_t lcd_display_config = {0};
-
+        lcd_ldo_open(GPIO_13);
+        lcd_backlight_open(GPIO_7);
         lcd_display_config.lcd_device = lcd_device;
         ret = bk_display_mcu_new(&lcd_display_handle, &lcd_display_config);
         AVDK_RETURN_VOID_ON_ERROR(ret, TAG, "bk_display_mcu_new failed!");
@@ -75,10 +92,10 @@ static void cli_lcd_display_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
         AVDK_RETURN_VOID_ON_ERROR(ret, TAG, "bk_display_delete failed!");
         lcd_display_handle = NULL;
         LOGD("bk_display_delete success!");
+        lcd_ldo_close(GPIO_13);
     }
     else if (os_strcmp(argv[1], "open") == 0)
     {
-        lcd_backlight_open(GPIO_7);
         ret = bk_display_open(lcd_display_handle);
         AVDK_RETURN_VOID_ON_ERROR(ret, TAG, "bk_display_open failed!");
         LOGD("bk_display_open success!");
@@ -135,13 +152,14 @@ static void cli_lcd_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
     {
         AVDK_RETURN_VOID_ON_FALSE(!lcd_display_handle, TAG, "lcd_display_handle not NULL,may not delete last time!");
 
+        lcd_ldo_open(GPIO_13);
+        lcd_backlight_open(GPIO_7);
         bk_display_mcu_ctlr_config_t lcd_display_config = {0};
         lcd_display_config.lcd_device = lcd_device;
         ret = bk_display_mcu_new(&lcd_display_handle, &lcd_display_config);
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_mcu_new failed!\n");
         LOGD("bk_display_mcu_new success!\n");
 
-        lcd_backlight_open(GPIO_7);
         ret = bk_display_open(lcd_display_handle);
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_open failed!\n");
         uint32_t frame_cnt = 20;
@@ -183,6 +201,7 @@ static void cli_lcd_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
         AVDK_GOTO_VOID_ON_FALSE(ret == AVDK_ERR_OK, exit, TAG, "bk_display_delete failed!\n");
         lcd_display_handle = NULL;
         LOGD("bk_display_delete success!\n");
+        lcd_ldo_close(GPIO_13);
     }
     else
     {

@@ -19,6 +19,8 @@ avdk_err_t lcd_fill_rand_color(uint32_t len, uint8_t *addr);
 avdk_err_t lcd_backlight_open(uint8_t bl_io);
 avdk_err_t lcd_backlight_close(uint8_t bl_io);
 
+avdk_err_t lcd_ldo_open(uint8_t lcd_ldo_io);
+avdk_err_t lcd_ldo_close(uint8_t lcd_ldo_io);
 
 /* CLI命令处理函数声明 */
 void cli_lcd_display_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);

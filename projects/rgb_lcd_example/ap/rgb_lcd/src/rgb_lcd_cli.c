@@ -47,6 +47,20 @@ avdk_err_t lcd_backlight_close(uint8_t bl_io)
     return AVDK_ERR_OK;
 }
 
+avdk_err_t lcd_ldo_open(uint8_t lcd_ldo_io)
+{
+    gpio_dev_unmap(lcd_ldo_io);
+    BK_LOG_ON_ERR(bk_gpio_enable_output(lcd_ldo_io));
+    BK_LOG_ON_ERR(bk_gpio_pull_up(lcd_ldo_io));
+    bk_gpio_set_output_high(lcd_ldo_io);
+    return AVDK_ERR_OK;
+}
+avdk_err_t lcd_ldo_close(uint8_t lcd_ldo_io)
+{
+    BK_LOG_ON_ERR(bk_gpio_pull_down(lcd_ldo_io));
+    bk_gpio_set_output_low(lcd_ldo_io);
+    return AVDK_ERR_OK;
+}
 
 #define CMDS_COUNT  (sizeof(s_lcd_display_commands) / sizeof(struct cli_command))
 
