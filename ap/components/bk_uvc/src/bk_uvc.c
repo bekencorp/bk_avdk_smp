@@ -14,6 +14,20 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
+#ifndef CONFIG_UVC_PROCESS_TASK_STACK_SIZE
+#define CONFIG_UVC_PROCESS_TASK_STACK_SIZE 1024
+#endif
+
+#define UVC_PROCESS_TASK_STACK_SIZE \
+    (CONFIG_UVC_PROCESS_TASK_STACK_SIZE == 0 ? 1024 : CONFIG_UVC_PROCESS_TASK_STACK_SIZE)
+
+#ifndef CONFIG_UVC_STREAM_TASK_STACK_SIZE
+#define CONFIG_UVC_STREAM_TASK_STACK_SIZE 1536
+#endif
+
+#define UVC_STREAM_TASK_STACK_SIZE \
+    (CONFIG_UVC_STREAM_TASK_STACK_SIZE == 0 ? 1536 : CONFIG_UVC_STREAM_TASK_STACK_SIZE)
+
 uvc_stream_handle_t *s_uvc_stream_handle = NULL;
 uvc_separate_config_t uvc_separate_packet_cb = {0};
 uvc_separate_info_t uvc_separate_info;
@@ -1430,7 +1444,7 @@ bk_err_t uvc_camera_process_task_init(uvc_stream_handle_t *handle, const bk_uvc_
                                        BEKEN_DEFAULT_WORKER_PRIORITY - 3,
                                        "uvc_pro_task",
                                        (beken_thread_function_t)uvc_camera_process_task_main,
-                                       1024,
+                                       UVC_PROCESS_TASK_STACK_SIZE,
                                        (beken_thread_arg_t)handle);
 
         if (BK_OK != ret)
@@ -1601,7 +1615,7 @@ bk_err_t uvc_camera_stream_task_init(uvc_stream_handle_t **handle)
                                        BEKEN_DEFAULT_WORKER_PRIORITY - 2,
                                        "uvc_stream_task",
                                        (beken_thread_function_t)uvc_camera_stream_task_main,
-                                       1536,
+                                       UVC_STREAM_TASK_STACK_SIZE,
                                        (beken_thread_arg_t)stream_handle);
 
         if (BK_OK != ret)
