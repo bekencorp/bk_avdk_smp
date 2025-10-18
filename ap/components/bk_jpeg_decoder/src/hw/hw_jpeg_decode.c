@@ -365,7 +365,7 @@ static void hw_jpeg_decode_destory(void)
             while (!rtos_is_queue_empty(&g_hw_jpeg_decode->hw_input_queue))
             {
                 hardware_decode_msg_t msg = {0};
-                rtos_pop_from_queue(&g_hw_jpeg_decode->hw_input_queue, &msg, BEKEN_NO_WAIT);
+                ret = rtos_pop_from_queue(&g_hw_jpeg_decode->hw_input_queue, &msg, BEKEN_NO_WAIT);
                 if (ret == BK_OK)
                 {
                     frame_buffer_t *in_frame = (frame_buffer_t *)msg.param;
@@ -381,7 +381,7 @@ static void hw_jpeg_decode_destory(void)
             while (!rtos_is_queue_empty(&g_hw_jpeg_decode->hw_message_queue))
             {
                 hardware_decode_msg_t msg = {0};
-                rtos_pop_from_queue(&g_hw_jpeg_decode->hw_input_queue, &msg, BEKEN_NO_WAIT);
+                ret = rtos_pop_from_queue(&g_hw_jpeg_decode->hw_input_queue, &msg, BEKEN_NO_WAIT);
                 if (ret == BK_OK)
                 {
                     if (msg.event == HARDWARE_DECODE_EVENT_DECODE_START)

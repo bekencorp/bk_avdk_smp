@@ -75,9 +75,9 @@ typedef struct bk_jpeg_decode_img_info
  * allowing the application to be notified of significant events.
  */
 typedef struct {
-    bk_err_t (*in_complete)(frame_buffer_t *in_frame); /*!< Callback when decoding is complete */
-    frame_buffer_t *(*out_malloc)(uint32_t size); /*!< Callback when decoding encounters an error */
-    bk_err_t (*out_complete)(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame); /*!< Callback when decoding is complete */
+    bk_err_t (*in_complete)(frame_buffer_t *in_frame); /*!< Callback when input data decoding is complete */
+    frame_buffer_t *(*out_malloc)(uint32_t size); /*!< Callback to allocate output buffer */
+    bk_err_t (*out_complete)(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame); /*!< Callback when output data processing is complete */
 } bk_jpeg_decode_callback_t;
 
 #ifdef __cplusplus

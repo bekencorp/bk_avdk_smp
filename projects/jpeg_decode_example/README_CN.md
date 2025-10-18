@@ -191,6 +191,36 @@ jpeg_decode_regular_test software_dtcm_cp1_test
 jpeg_decode_regular_test software_dtcm_cp2_test
 ```
 
+7. DTCM上的软件解码器(CP1)异步测试：
+```
+jpeg_decode_regular_test software_dtcm_cp1_async_test
+```
+
+8. DTCM上的软件解码器(CP1)异步突发测试(连续10次)：
+```
+jpeg_decode_regular_test software_dtcm_cp1_async_burst_test
+```
+
+9. DTCM上的软件解码器(CP2)异步测试：
+```
+jpeg_decode_regular_test software_dtcm_cp2_async_test
+```
+
+10. DTCM上的软件解码器(CP2)异步突发测试(连续10次)：
+```
+jpeg_decode_regular_test software_dtcm_cp2_async_burst_test
+```
+
+11. DTCM上的软件解码器(CP1+CP2)异步测试：
+```
+jpeg_decode_regular_test software_dtcm_cp1_cp2_async_test
+```
+
+12. DTCM上的软件解码器(CP1+CP2)异步突发测试(连续10次)：
+```
+jpeg_decode_regular_test software_dtcm_cp1_cp2_async_burst_test
+```
+
 ## 5. 测试数据
 
 项目中包含了不同格式的JPEG测试图像，存储在 `ap/jpeg_decode/data/` 目录下。主要包括:
@@ -392,12 +422,12 @@ jpeg_decode_regular_test software_dtcm_cp1_test
 
 预期log：
 ```
-CMDRSP:ERROR
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG decoding test completed!
 ```
 
 异常log（表示测试失败）：
 ```
-cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+CMDRSP:ERROR
 ```
 
 #### 6.2.6 DTCM上的软件解码测试(CP2)
@@ -416,6 +446,102 @@ cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG 
 CMDRSP:ERROR
 ```
 
+#### 6.2.7 DTCM上的软件解码器(CP1)异步测试
+
+```
+jpeg_decode_regular_test software_dtcm_cp1_async_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async decode on CP1 test completed!
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.8 DTCM上的软件解码器(CP1)异步突发测试
+
+```
+jpeg_decode_regular_test software_dtcm_cp1_async_burst_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async burst decode on CP1 test completed!
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.9 DTCM上的软件解码器(CP2)异步测试
+
+```
+jpeg_decode_regular_test software_dtcm_cp2_async_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async decode on CP2 test completed!
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.10 DTCM上的软件解码器(CP2)异步突发测试
+
+```
+jpeg_decode_regular_test software_dtcm_cp2_async_burst_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async burst decode on CP2 test completed!
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.11 DTCM上的软件解码器(CP1+CP2)异步测试
+
+```
+jpeg_decode_regular_test software_dtcm_cp1_cp2_async_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async decode on CP1+CP2 test completed!
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.12 DTCM上的软件解码器(CP1+CP2)异步突发测试
+
+```
+jpeg_decode_regular_test software_dtcm_cp1_cp2_async_burst_test
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async burst decode on CP1+CP2 test completed!
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
 ## 7. 注意事项
 
 1. 确保在使用解码器前正确初始化
@@ -425,3 +551,5 @@ CMDRSP:ERROR
    - 软件解码支持YUV420和YUV422格式图像，且需要图像宽度为2的倍数，高度无限制
 4. 在DTCM上运行的软件解码器通常比普通软件解码器提供更快的解码速度
 5. 帧缓冲资源有限，请避免同时占用过多缓冲区
+6. 输入frame中，结构体内的length需要设置为实有效数据的长度，输出frame中，结构体内的size需要设置为最大的可存放的大小；
+   输入frame的length为0或输出frame的size为0均会出现解码错误；

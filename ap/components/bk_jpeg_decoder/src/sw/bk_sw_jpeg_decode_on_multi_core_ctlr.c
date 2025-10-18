@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <os/os.h>
 #include "components/avdk_utils/avdk_types.h"
 #include "components/avdk_utils/avdk_check.h"
 #include "components/media_types.h"
@@ -66,6 +67,141 @@ static frame_buffer_t *sw_jpeg_decode_out_malloc(private_jpeg_decode_sw_multi_co
     return out_frame;
 }
 
+static bk_err_t cp1_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame, frame_buffer_t *in_frame, void *context);
+static bk_err_t cp2_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame, frame_buffer_t *in_frame, void *context);
+
+static bk_err_t start_next_decode_cp1(private_jpeg_decode_sw_multi_core_ctlr_t *controller)
+{
+    bk_err_t ret = BK_OK;
+
+    frame_buffer_t *in_frame = NULL;
+    frame_buffer_t *out_frame = NULL;
+    bk_jpeg_decode_img_info_t img_info = {0};
+    uint32_t frame_ptr = 0;
+
+	ret = rtos_pop_from_queue(&controller->input_queue, &frame_ptr, BEKEN_NO_WAIT);
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+    in_frame = (frame_buffer_t *)frame_ptr;
+    img_info.frame = in_frame;
+    ret = bk_get_jpeg_data_info(&img_info);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
+        sw_jpeg_decode_in_complete(in_frame, controller);
+        return ret;
+    }
+
+    in_frame->width = img_info.width;
+    in_frame->height = img_info.height;
+
+    if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
+    {
+        out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height);
+    }
+    else if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_RGB888)
+    {
+        out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 3);
+    }
+    else
+    {
+        out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 2);
+    }
+
+    if (out_frame == NULL)
+    {
+        LOGE(" %s %d out_malloc failed\n", __func__, __LINE__);
+        ret = BK_ERR_NO_MEM;
+        sw_jpeg_decode_in_complete(in_frame, controller);
+        return ret;
+    }
+    controller->sw_dec_info[0].in_frame = in_frame;
+    controller->sw_dec_info[0].out_frame = out_frame;
+    controller->sw_dec_info[0].complete = cp1_decode_complete;
+    controller->cp1_busy = 1;
+
+    ret = software_decode_task_send_msg_cp1(SOFTWARE_DECODE_START, (uint32_t)&controller->sw_dec_info[0]);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE(" %s %d software_decode_task_send_msg_cp1 failed %d\n", __func__, __LINE__, ret);
+        sw_jpeg_decode_in_complete(in_frame, controller);
+        sw_jpeg_decode_out_complete(out_frame->fmt, BK_FAIL, out_frame, controller);
+        controller->sw_dec_info[0].in_frame = NULL;
+        controller->sw_dec_info[0].out_frame = NULL;
+        controller->sw_dec_info[0].complete = NULL;
+        controller->cp1_busy = 0;
+        return ret;
+    }
+    return ret;
+}
+
+static bk_err_t start_next_decode_cp2(private_jpeg_decode_sw_multi_core_ctlr_t *controller)
+{
+    bk_err_t ret = BK_OK;
+
+    frame_buffer_t *in_frame = NULL;
+    frame_buffer_t *out_frame = NULL;
+    bk_jpeg_decode_img_info_t img_info = {0};
+    uint32_t frame_ptr = 0;
+
+	ret = rtos_pop_from_queue(&controller->input_queue, &frame_ptr, BEKEN_NO_WAIT);
+	if (ret != BK_OK) {
+		return ret;
+	}
+    in_frame = (frame_buffer_t *)frame_ptr;
+    img_info.frame = in_frame;
+    ret = bk_get_jpeg_data_info(&img_info);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
+        sw_jpeg_decode_in_complete(in_frame, controller);
+        return ret;
+    }
+
+    in_frame->width = img_info.width;
+    in_frame->height = img_info.height;
+
+    if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
+    {
+        out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height);
+    }
+    else if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_RGB888)
+    {
+        out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 3);
+    }
+    else
+    {
+        out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 2);
+    }
+    if (out_frame == NULL)
+    {
+        LOGE(" %s %d out_malloc failed\n", __func__, __LINE__);
+        ret = BK_ERR_NO_MEM;
+        sw_jpeg_decode_in_complete(in_frame, controller);
+        return ret;
+    }
+    controller->sw_dec_info[1].in_frame = in_frame;
+    controller->sw_dec_info[1].out_frame = out_frame;
+    controller->sw_dec_info[1].complete = cp2_decode_complete;
+    controller->cp2_busy = 1;
+    ret = software_decode_task_send_msg_cp2(SOFTWARE_DECODE_START, (uint32_t)&controller->sw_dec_info[1]);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE(" %s %d software_decode_task_send_msg_cp2 failed %d\n", __func__, __LINE__, ret);
+        sw_jpeg_decode_in_complete(in_frame, controller);
+        sw_jpeg_decode_out_complete(out_frame->fmt, BK_FAIL, out_frame, controller);
+        controller->sw_dec_info[1].in_frame = NULL;
+        controller->sw_dec_info[1].out_frame = NULL;
+        controller->sw_dec_info[1].complete = NULL;
+        controller->cp2_busy = 0;
+        return ret;
+    }
+
+    return ret;
+}
+
 /**
  * @brief CP1 decoder callback function
  *
@@ -83,6 +219,15 @@ static bk_err_t cp1_decode_complete(uint32_t format_type, uint32_t result, frame
     {
         sw_jpeg_decode_in_complete(in_frame, controller);
         sw_jpeg_decode_out_complete(format_type, result, out_frame, controller);
+
+        controller->sw_dec_info[0].in_frame = NULL;
+        controller->sw_dec_info[0].out_frame = NULL;
+        controller->sw_dec_info[0].complete = NULL;
+        controller->cp1_busy = 0;
+
+        rtos_lock_mutex(&controller->lock);
+        start_next_decode_cp1(controller);
+        rtos_unlock_mutex(&controller->lock);
     }
     else
     {
@@ -109,11 +254,62 @@ static bk_err_t cp2_decode_complete(uint32_t format_type, uint32_t result, frame
     {
         sw_jpeg_decode_in_complete(in_frame, controller);
         sw_jpeg_decode_out_complete(format_type, result, out_frame, controller);
-    }
+
+        controller->sw_dec_info[1].in_frame = NULL;
+        controller->sw_dec_info[1].out_frame = NULL;
+        controller->sw_dec_info[1].complete = NULL;
+        controller->cp2_busy = 0;
+        rtos_lock_mutex(&controller->lock);
+        start_next_decode_cp2(controller);
+        rtos_unlock_mutex(&controller->lock);    }
     else
     {
         LOGE("%s %d core_id %d is not support\n", __func__, __LINE__, controller->config.core_id);
     }
+    return BK_OK;
+}
+
+/**
+ * @brief 同步解码完成回调函数
+ *
+ * @param format_type 输出格式类型
+ * @param result 解码结果
+ * @param out_frame 输出帧
+ * @param in_frame 输入帧
+ * @param context 上下文指针，指向控制器结构体
+ * @return bk_err_t 操作结果
+ */
+static bk_err_t sw_jpeg_decode_sync_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame, frame_buffer_t *in_frame, void *context)
+{
+    bk_err_t ret = BK_OK;
+    private_jpeg_decode_sw_multi_core_ctlr_t *controller = (private_jpeg_decode_sw_multi_core_ctlr_t *)context;
+
+    LOGV("sync decode complete, format: %d, result: %d %p\n", format_type, result, out_frame);
+
+    // 先调用原始的回调函数处理业务逻辑
+    if (controller->config.core_id == JPEG_DECODE_CORE_ID_1)
+    {
+        sw_jpeg_decode_in_complete(in_frame, controller);
+        sw_jpeg_decode_out_complete(format_type, result, out_frame, controller);
+    }
+    else if (controller->config.core_id == JPEG_DECODE_CORE_ID_2)
+    {
+        sw_jpeg_decode_in_complete(in_frame, controller);
+        sw_jpeg_decode_out_complete(format_type, result, out_frame, controller);
+    }
+    else
+    {
+        LOGE("%s %d core_id %d is not support\n", __func__, __LINE__, controller->config.core_id);
+        return BK_FAIL;
+    }
+
+    // 调用信号量同步
+    ret = rtos_set_semaphore(&controller->sem);
+    if (ret != BK_OK)
+    {
+        LOGE("%s %d semaphore set failed: %d\n", __func__, __LINE__, ret);
+    }
+
     return BK_OK;
 }
 
@@ -126,15 +322,128 @@ static avdk_err_t software_jpeg_decode_ctlr_open(bk_jpeg_decode_sw_handle_t hand
 
     if (controller->config.core_id == JPEG_DECODE_CORE_ID_1)
     {
-        ret = software_decode_task_open_cp1(controller);
+        do
+        {
+            // 初始化同步信号量
+            ret = rtos_init_semaphore(&controller->sem, 1);
+            if(ret != BK_OK)
+            {
+                LOGE("%s %d rtos_init_semaphore failed\n", __func__, __LINE__);
+                break;
+            }
+            ret = rtos_init_queue(&controller->input_queue, "input_queue", sizeof(uint32_t), 10);
+            if(ret != BK_OK)
+            {
+                LOGE("%s %d rtos_init_queue failed\n", __func__, __LINE__);
+                break;
+            }
+            ret = rtos_init_mutex(&controller->lock);
+            if(ret != BK_OK)
+            {
+                LOGE("%s %d rtos_init_mutex failed\n", __func__, __LINE__);
+                break;
+            }
+
+            ret = software_decode_task_open_cp1(controller);
+            if(ret != BK_OK)
+            {
+                LOGE("%s %d software_decode_task_open_cp1 failed\n", __func__, __LINE__);
+                break;
+            }
+        } while (0);
+        if (ret != BK_OK)
+        {
+            if (controller->sem)
+            {
+                rtos_deinit_semaphore(&controller->sem);
+                controller->sem = NULL;
+            }
+            if (controller->lock)
+            {
+                rtos_deinit_mutex(&controller->lock);
+                controller->lock = NULL;
+            }
+            if (controller->input_queue)
+            {
+                while (!rtos_is_queue_empty(&controller->input_queue))
+                {
+                    uint32_t frame_ptr = 0;
+                    ret = rtos_pop_from_queue(&controller->input_queue, &frame_ptr, BEKEN_NO_WAIT);
+                    if (ret != BK_OK) {
+                        continue;
+                    }
+                    sw_jpeg_decode_in_complete((frame_buffer_t *)frame_ptr, controller);
+                }
+                rtos_deinit_queue(&controller->input_queue);
+                controller->input_queue = NULL;
+            }
+            return ret;
+        }
     }
     else if (controller->config.core_id == JPEG_DECODE_CORE_ID_2)
     {
-        ret = software_decode_task_open_cp2(controller);
+        do
+        {
+            // 初始化同步信号量
+            ret = rtos_init_semaphore(&controller->sem, 1);
+            if(ret != BK_OK)
+            {
+                LOGE("%s %d rtos_init_semaphore failed\n", __func__, __LINE__);
+                break;
+            }
+            ret = rtos_init_queue(&controller->input_queue, "input_queue", sizeof(uint32_t), 10);
+            if(ret != BK_OK)
+            {
+                LOGE("%s %d rtos_init_queue failed\n", __func__, __LINE__);
+                break;
+            }
+            ret = rtos_init_mutex(&controller->lock);
+            if(ret != BK_OK)
+            {
+                LOGE("%s %d rtos_init_mutex failed\n", __func__, __LINE__);
+                break;
+            }
+
+            ret = software_decode_task_open_cp2(controller);
+            if(ret != BK_OK)
+            {
+                LOGE("%s %d software_decode_task_open_cp2 failed\n", __func__, __LINE__);
+                break;
+            }
+        } while (0);
+        if (ret != BK_OK)
+        {
+            if (controller->sem)
+            {
+                rtos_deinit_semaphore(&controller->sem);
+                controller->sem = NULL;
+            }
+            if (controller->lock)
+            {
+                rtos_deinit_mutex(&controller->lock);
+                controller->lock = NULL;
+            }
+            if (controller->input_queue)
+            {
+                while (!rtos_is_queue_empty(&controller->input_queue))
+                {
+                    uint32_t frame_ptr = 0;
+                    ret = rtos_pop_from_queue(&controller->input_queue, &frame_ptr, BEKEN_NO_WAIT);
+                    if (ret != BK_OK) {
+                        continue;
+                    }
+                    sw_jpeg_decode_in_complete((frame_buffer_t *)frame_ptr, controller);
+                }
+                rtos_deinit_queue(&controller->input_queue);
+                controller->input_queue = NULL;
+            }
+            return ret;
+        }
     }
     else if (controller->config.core_id == (JPEG_DECODE_CORE_ID_1 | JPEG_DECODE_CORE_ID_2))
     {
         ret = software_decode_task_dual_core_open(controller);
+        AVDK_RETURN_ON_FALSE(ret == BK_OK, AVDK_ERR_INVAL, TAG, "software_decode_task_open failed");
     }
     else
     {
@@ -143,13 +452,8 @@ static avdk_err_t software_jpeg_decode_ctlr_open(bk_jpeg_decode_sw_handle_t hand
         return ret;
     }
 
-
-    AVDK_RETURN_ON_FALSE(ret == BK_OK, AVDK_ERR_INVAL, TAG, "software_decode_task_open failed");
-
     bk_jpeg_decode_sw_out_format_t out_format = controller->config.out_format;
     bk_jpeg_decode_byte_order_t byte_order = controller->config.byte_order;
-
-    AVDK_RETURN_ON_FALSE(ret == BK_OK, AVDK_ERR_INVAL, TAG, "software_decode_task_open failed");
 
     controller->rotate_info.rotate_angle = sw_jpeg_decode_get_rotate_angle(out_format);
 
@@ -193,11 +497,59 @@ static avdk_err_t software_jpeg_decode_ctlr_close(bk_jpeg_decode_sw_handle_t han
     if (controller->config.core_id == JPEG_DECODE_CORE_ID_1)
     {
         ret = software_decode_task_close_cp1();
+        if (controller->sem)
+        {
+            rtos_deinit_semaphore(&controller->sem);
+            controller->sem = NULL;
+        }
+        if (controller->lock)
+        {
+            rtos_deinit_mutex(&controller->lock);
+            controller->lock = NULL;
+        }
+        if (controller->input_queue)
+        {
+            while (!rtos_is_queue_empty(&controller->input_queue))
+            {
+                uint32_t frame_ptr = 0;
+                ret = rtos_pop_from_queue(&controller->input_queue, &frame_ptr, BEKEN_NO_WAIT);
+                if (ret != BK_OK) {
+                    continue;
+                }
+                sw_jpeg_decode_in_complete((frame_buffer_t *)frame_ptr, controller);
+            }
+            rtos_deinit_queue(&controller->input_queue);
+            controller->input_queue = NULL;
+        }
+
         controller->module_status[0].status = JPEG_DECODE_DISABLED;
     }
     else if (controller->config.core_id == JPEG_DECODE_CORE_ID_2)
     {
         ret = software_decode_task_close_cp2();
+        if (controller->sem)
+        {
+            rtos_deinit_semaphore(&controller->sem);
+            controller->sem = NULL;
+        }
+        if (controller->lock)
+        {
+            rtos_deinit_mutex(&controller->lock);
+            controller->lock = NULL;
+        }
+
+        while (!rtos_is_queue_empty(&controller->input_queue))
+        {
+            uint32_t frame_ptr = 0;
+            ret = rtos_pop_from_queue(&controller->input_queue, &frame_ptr, BEKEN_NO_WAIT);
+            if (ret != BK_OK) {
+                continue;
+            }
+            sw_jpeg_decode_in_complete((frame_buffer_t *)frame_ptr, controller);
+        }
+        rtos_deinit_queue(&controller->input_queue);
+        controller->input_queue = NULL;
+
         controller->module_status[1].status = JPEG_DECODE_DISABLED;
     }
     else if (controller->config.core_id == (JPEG_DECODE_CORE_ID_1 | JPEG_DECODE_CORE_ID_2))
@@ -206,7 +558,9 @@ static avdk_err_t software_jpeg_decode_ctlr_close(bk_jpeg_decode_sw_handle_t han
     }
     else
     {
-
+        ret = BK_FAIL;
+        LOGE("%s %d Invalid core id\n", __func__, __LINE__);
+        return ret;
     }
 
     AVDK_RETURN_ON_FALSE(ret == BK_OK, AVDK_ERR_INVAL, TAG, "software_decode_task_close failed");
@@ -225,17 +579,25 @@ static avdk_err_t software_jpeg_decode_ctlr_decode(bk_jpeg_decode_sw_handle_t ha
 
     if (controller->config.core_id == JPEG_DECODE_CORE_ID_1)
     {
+        // 使用同步回调函数替代原来的异步回调函数
         controller->sw_dec_info[0].in_frame = in_frame;
         controller->sw_dec_info[0].out_frame = out_frame;
-        controller->sw_dec_info[0].complete = cp1_decode_complete;
+        controller->sw_dec_info[0].complete = sw_jpeg_decode_sync_complete;
         software_decode_task_send_msg_cp1(SOFTWARE_DECODE_START, (uint32_t)&controller->sw_dec_info[0]);
+
+        // 等待解码完成信号
+        rtos_get_semaphore(&controller->sem, BEKEN_WAIT_FOREVER);
     }
     else if (controller->config.core_id == JPEG_DECODE_CORE_ID_2)
     {
+        // 使用同步回调函数替代原来的异步回调函数
         controller->sw_dec_info[1].in_frame = in_frame;
         controller->sw_dec_info[1].out_frame = out_frame;
-        controller->sw_dec_info[1].complete = cp2_decode_complete;
+        controller->sw_dec_info[1].complete = sw_jpeg_decode_sync_complete;
         software_decode_task_send_msg_cp2(SOFTWARE_DECODE_START, (uint32_t)&controller->sw_dec_info[1]);
+
+        // 等待解码完成信号
+        rtos_get_semaphore(&controller->sem, BEKEN_WAIT_FOREVER);
     }
     else if (controller->config.core_id == (JPEG_DECODE_CORE_ID_1 | JPEG_DECODE_CORE_ID_2))
     {
@@ -243,7 +605,8 @@ static avdk_err_t software_jpeg_decode_ctlr_decode(bk_jpeg_decode_sw_handle_t ha
     }
     else
     {
-
+        LOGE("%s %d Invalid core id\n", __func__, __LINE__);
+        return AVDK_ERR_INVAL;
     }
     return AVDK_ERR_OK;
 }
@@ -254,103 +617,39 @@ static avdk_err_t software_jpeg_decode_ctlr_decode_async(bk_jpeg_decode_sw_handl
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(in_frame, AVDK_ERR_INVAL, TAG, "in_frame is NULL");
     AVDK_RETURN_ON_FALSE(in_frame->frame, AVDK_ERR_INVAL, TAG, "in_frame frame is NULL");
+    bk_err_t ret = BK_OK;
 
     if (controller->config.core_id == JPEG_DECODE_CORE_ID_1)
     {
-        frame_buffer_t *out_frame = NULL;
-        bk_jpeg_decode_img_info_t img_info = {0};
-        avdk_err_t ret = AVDK_ERR_OK;
-        img_info.frame = in_frame;
-        ret = bk_get_jpeg_data_info(&img_info);
-        if (ret != AVDK_ERR_OK)
+        ret = rtos_push_to_queue(&controller->input_queue, &in_frame, BEKEN_NO_WAIT);
+        if(ret != AVDK_ERR_OK)
         {
-            LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
             sw_jpeg_decode_in_complete(in_frame, controller);
             return ret;
         }
-
-        if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
+        if (controller->cp1_busy == 1)
         {
-            out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height);
-        }
-        else if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_RGB888)
-        {
-            out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 3);
-        }
-        else
-        {
-            out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 2);
-        }
-        if (out_frame == NULL)
-        {
-            LOGE(" %s %d out_malloc failed\n", __func__, __LINE__);
-            ret = BK_ERR_NO_MEM;
-            sw_jpeg_decode_in_complete(in_frame, controller);
             return ret;
         }
-        controller->sw_dec_info[0].in_frame = in_frame;
-        controller->sw_dec_info[0].out_frame = out_frame;
-        controller->sw_dec_info[0].complete = cp1_decode_complete;
-        ret = software_decode_task_send_msg_cp1(SOFTWARE_DECODE_START, (uint32_t)&controller->sw_dec_info[0]);
-        if (ret != AVDK_ERR_OK)
-        {
-            LOGE(" %s %d software_decode_task_send_msg_cp1 failed %d\n", __func__, __LINE__, ret);
-            sw_jpeg_decode_in_complete(in_frame, controller);
-            sw_jpeg_decode_out_complete(out_frame->fmt, BK_FAIL, out_frame, controller);
-            controller->sw_dec_info[0].in_frame = NULL;
-            controller->sw_dec_info[0].out_frame = NULL;
-            controller->sw_dec_info[0].complete = NULL;
-            return ret;
-        }
+        rtos_lock_mutex(&controller->lock);
+        start_next_decode_cp1(controller);
+        rtos_unlock_mutex(&controller->lock);
     }
     else if (controller->config.core_id == JPEG_DECODE_CORE_ID_2)
     {
-        frame_buffer_t *out_frame = NULL;
-        bk_jpeg_decode_img_info_t img_info = {0};
-        avdk_err_t ret = AVDK_ERR_OK;
-        img_info.frame = in_frame;
-        ret = bk_get_jpeg_data_info(&img_info);
-        if (ret != AVDK_ERR_OK)
+        ret = rtos_push_to_queue(&controller->input_queue, &in_frame, BEKEN_NO_WAIT);
+        if(ret != AVDK_ERR_OK)
         {
-            LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
             sw_jpeg_decode_in_complete(in_frame, controller);
             return ret;
         }
-
-        if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
+        if (controller->cp2_busy == 1)
         {
-            out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height);
-        }
-        else if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_RGB888)
-        {
-            out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 3);
-        }
-        else
-        {
-            out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 2);
-        }
-        if (out_frame == NULL)
-        {
-            LOGE(" %s %d out_malloc failed\n", __func__, __LINE__);
-            ret = BK_ERR_NO_MEM;
-            sw_jpeg_decode_in_complete(in_frame, controller);
             return ret;
         }
-        controller->sw_dec_info[1].in_frame = in_frame;
-        controller->sw_dec_info[1].out_frame = out_frame;
-        controller->sw_dec_info[1].complete = cp2_decode_complete;
-        ret = software_decode_task_send_msg_cp2(SOFTWARE_DECODE_START, (uint32_t)&controller->sw_dec_info[1]);
-        if (ret != AVDK_ERR_OK)
-        {
-            LOGE(" %s %d software_decode_task_send_msg_cp2 failed %d\n", __func__, __LINE__, ret);
-            sw_jpeg_decode_in_complete(in_frame, controller);
-            sw_jpeg_decode_out_complete(out_frame->fmt, BK_FAIL, out_frame, controller);
-            controller->sw_dec_info[1].in_frame = NULL;
-            controller->sw_dec_info[1].out_frame = NULL;
-            controller->sw_dec_info[1].complete = NULL;
-            return ret;
-        }
-    }
+        rtos_lock_mutex(&controller->lock);
+        start_next_decode_cp2(controller);
+        rtos_unlock_mutex(&controller->lock);    }
     else if (controller->config.core_id == (JPEG_DECODE_CORE_ID_1 | JPEG_DECODE_CORE_ID_2))
     {
         avdk_err_t ret = AVDK_ERR_OK;
@@ -364,7 +663,8 @@ static avdk_err_t software_jpeg_decode_ctlr_decode_async(bk_jpeg_decode_sw_handl
     }
     else
     {
-
+        LOGE("%s %d Invalid core id\n", __func__, __LINE__);
+        return AVDK_ERR_INVAL;
     }
     return AVDK_ERR_OK;
 }
@@ -384,6 +684,10 @@ static avdk_err_t software_jpeg_decode_ctlr_set_config(bk_jpeg_decode_sw_handle_
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(out_frame_info, AVDK_ERR_INVAL, TAG, "out_frame_info is NULL");
 
+    if (controller->config.out_format == out_frame_info->out_format && controller->config.byte_order == out_frame_info->byte_order)
+    {
+        return BK_OK;
+    }
     controller->config.out_format = out_frame_info->out_format;
     controller->config.byte_order = out_frame_info->byte_order;
 

@@ -108,196 +108,228 @@ CONFIG_NTP_SYNC_RTC_TASK_STACK_SIZE=3072
 # end of ASR Service
 
 #
+# Audio Parameters
+#
+CONFIG_AUD_PARAM_CTRL=y
+# end of Audio Parameters
+
+#
 # Adk
 #
 CONFIG_ADK=y
+
+#
+# Audio_pipeline
+#
 # CONFIG_ADK_USE_SRAM is not set
 CONFIG_ADK_USE_PSRAM=y
 # CONFIG_ADK_BIND_TASK_TO_CORE is not set
 # CONFIG_ADK_AUTO_TEST is not set
-# end of Adk
+# end of Audio_pipeline
 
 #
-# Adk::Audio_utils
+# Audio_algorithms
+#
+
+#
+# Aec_algorithm
+#
+CONFIG_ADK_AEC_ALGORITHM=y
+# end of Aec_algorithm
+
+#
+# Aec_algorithm V3
+#
+# CONFIG_ADK_AEC_V3_ALGORITHM is not set
+# end of Aec_algorithm V3
+
+#
+# Agc_algorithm
+#
+# CONFIG_ADK_AGC_ALGORITHM is not set
+# end of Agc_algorithm
+
+#
+# EQ_algorithm
+#
+# CONFIG_ADK_EQ_ALGORITHM is not set
+# end of EQ_algorithm
+
+#
+# Mix_algorithm
+#
+# CONFIG_ADK_MIX_ALGORITHM is not set
+# end of Mix_algorithm
+
+#
+# Rsp_algorithm
+#
+# CONFIG_ADK_RSP_ALGORITHM is not set
+# end of Rsp_algorithm
+# end of Audio_algorithms
+
+#
+# Audio_decoders
+#
+
+#
+# AAC_decoder
+#
+# CONFIG_ADK_AAC_DECODER is not set
+# end of AAC_decoder
+
+#
+# G711_decoder
+#
+CONFIG_ADK_G711_DECODER=y
+# end of G711_decoder
+
+#
+# G722_decoder
+#
+# CONFIG_ADK_G722_DECODER is not set
+# end of G722_decoder
+
+#
+# MP3_decoder
+#
+# CONFIG_ADK_MP3_DECODER is not set
+# end of MP3_decoder
+
+#
+# Opus_decoder
+#
+# CONFIG_ADK_OPUS_DECODER is not set
+# end of Opus_decoder
+
+#
+# SBC_decoder
+#
+# CONFIG_ADK_SBC_DECODER is not set
+# end of SBC_decoder
+
+#
+# Wav_decoder
+#
+CONFIG_ADK_WAV_DECODER=y
+# end of Wav_decoder
+# end of Audio_decoders
+
+#
+# Audio_encoders
+#
+
+#
+# AAC_encoder
+#
+# CONFIG_ADK_AAC_ENCODER is not set
+# end of AAC_encoder
+
+#
+# G711_encoder
+#
+CONFIG_ADK_G711_ENCODER=y
+# end of G711_encoder
+
+#
+# G722_encoder
+#
+# CONFIG_ADK_G722_ENCODER is not set
+# end of G722_encoder
+
+#
+# Opus_encoder
+#
+# CONFIG_ADK_OPUS_ENCODER is not set
+# end of Opus_encoder
+
+#
+# Sbc_encoder
+#
+# CONFIG_ADK_SBC_ENCODER is not set
+# end of Sbc_encoder
+# end of Audio_encoders
+
+#
+# Audio_streams
+#
+
+#
+# Array_stream
+#
+# CONFIG_ADK_ARRAY_STREAM is not set
+# end of Array_stream
+
+#
+# Frame_array_stream
+#
+# CONFIG_ADK_FRAME_ARRAY_STREAM is not set
+# end of Frame_array_stream
+
+#
+# Onboard_dual_dmic_stream
+#
+# end of Onboard_dual_dmic_stream
+
+#
+# Onboard_mic_stream
+#
+CONFIG_ADK_ONBOARD_MIC_STREAM=y
+# CONFIG_ADK_ONBOARD_MIC_STREAM_TEST is not set
+# end of Onboard_mic_stream
+
+#
+# Onboard_speaker_stream
+#
+CONFIG_ADK_ONBOARD_SPEAKER_STREAM=y
+# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE is not set
+# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_TEST is not set
+# end of Onboard_speaker_stream
+
+#
+# Raw_stream
+#
+CONFIG_ADK_RAW_STREAM=y
+# CONFIG_ADK_RAW_STREAM_TEST is not set
+# end of Raw_stream
+
+#
+# Uac_mic_stream
+#
+CONFIG_ADK_UAC_MIC_STREAM=y
+# CONFIG_ADK_UAC_MIC_STREAM_TEST is not set
+# end of Uac_mic_stream
+
+#
+# Uac_speaker_stream
+#
+CONFIG_ADK_UAC_SPEAKER_STREAM=y
+# CONFIG_ADK_UAC_SPEAKER_STREAM_TEST is not set
+# end of Uac_speaker_stream
+
+#
+# Uart_stream
+#
+CONFIG_ADK_UART_STREAM=y
+# CONFIG_ADK_UART_STREAM_TEST is not set
+# end of Uart_stream
+
+#
+# Vfs_stream
+#
+# CONFIG_ADK_VFS_STREAM is not set
+# end of Vfs_stream
+# end of Audio_streams
+
+#
+# Audio_utils
 #
 CONFIG_ADK_UTILS=y
 CONFIG_ADK_UART_UTIL=y
 CONFIG_ADK_COUNT_UTIL=y
 CONFIG_ADK_VFS_UTIL=y
-# end of Adk::Audio_utils
-
-#
-# Adk::Audio_algorithm::Aec_algorithm
-#
-CONFIG_ADK_AEC_ALGORITHM=y
-# end of Adk::Audio_algorithm::Aec_algorithm
-
-#
-# Adk::Audio_algorithm::Aec_algorithm V3
-#
-# CONFIG_ADK_AEC_V3_ALGORITHM is not set
-# end of Adk::Audio_algorithm::Aec_algorithm V3
-
-#
-# Adk::Audio_algorithm::Agc_algorithm
-#
-# CONFIG_ADK_AGC_ALGORITHM is not set
-# end of Adk::Audio_algorithm::Agc_algorithm
-
-#
-# Adk::Audio_algorithm::EQ_algorithm
-#
-# CONFIG_ADK_EQ_ALGORITHM is not set
-# end of Adk::Audio_algorithm::EQ_algorithm
-
-#
-# Adk::Audio_algorithms::Mix_algorithm
-#
-# CONFIG_ADK_MIX_ALGORITHM is not set
-# end of Adk::Audio_algorithms::Mix_algorithm
-
-#
-# Adk::Audio_algorithm::Rsp_algorithm
-#
-# CONFIG_ADK_RSP_ALGORITHM is not set
-# end of Adk::Audio_algorithm::Rsp_algorithm
-
-#
-# Adk::Audio_decoders::AAC_decoder
-#
-# CONFIG_ADK_AAC_DECODER is not set
-# end of Adk::Audio_decoders::AAC_decoder
-
-#
-# Adk::Audio_decoders::G711_decoder
-#
-CONFIG_ADK_G711_DECODER=y
-# end of Adk::Audio_decoders::G711_decoder
-
-#
-# Adk::Audio_decoders::G722_decoder
-#
-# CONFIG_ADK_G722_DECODER is not set
-# end of Adk::Audio_decoders::G722_decoder
-
-#
-# Adk::Audio_decoders::MP3_decoder
-#
-# CONFIG_ADK_MP3_DECODER is not set
-# end of Adk::Audio_decoders::MP3_decoder
-
-#
-# Adk::Audio_decoders::Opus_dec
-#
-# CONFIG_ADK_OPUS_DECODER is not set
-# end of Adk::Audio_decoders::Opus_dec
-
-#
-# Adk::Audio_decoders::SBC_decoder
-#
-# end of Adk::Audio_decoders::SBC_decoder
-
-#
-# Adk::Audio_decoders::Wav_decoder
-#
-CONFIG_ADK_WAV_DECODER=y
-# end of Adk::Audio_decoders::Wav_decoder
-
-#
-# Adk::Audio_encoders::AAC_encoder
-#
-# CONFIG_ADK_AAC_ENCODER is not set
-# end of Adk::Audio_encoders::AAC_encoder
-
-#
-# Adk::Audio_encoders::G711_encoder
-#
-CONFIG_ADK_G711_ENCODER=y
-# end of Adk::Audio_encoders::G711_encoder
-
-#
-# Adk::Audio_encoders::G722_encoder
-#
-# CONFIG_ADK_G722_ENCODER is not set
-# end of Adk::Audio_encoders::G722_encoder
-
-#
-# Adk::Audio_encoders::Opus_enc
-#
-# CONFIG_ADK_OPUS_ENCODER is not set
-# end of Adk::Audio_encoders::Opus_enc
-
-#
-# Adk::Audio_encoders::Sbc_encoder
-#
-# CONFIG_ADK_SBC_ENCODER is not set
-# end of Adk::Audio_encoders::Sbc_encoder
-
-#
-# Adk::Audio_streams::Array_stream
-#
-# CONFIG_ADK_ARRAY_STREAM is not set
-# end of Adk::Audio_streams::Array_stream
-
-#
-# Adk::Audio_streams::Array_stream
-#
-# CONFIG_ADK_FRAME_ARRAY_STREAM is not set
-# end of Adk::Audio_streams::Array_stream
-
-#
-# Adk::Audio_streams::Onboard_dual_dmic_stream
-#
-# end of Adk::Audio_streams::Onboard_dual_dmic_stream
-
-#
-# Adk::Audio_streams::Onboard_mic_stream
-#
-CONFIG_ADK_ONBOARD_MIC_STREAM=y
-# CONFIG_ADK_ONBOARD_MIC_STREAM_TEST is not set
-# end of Adk::Audio_streams::Onboard_mic_stream
-
-#
-# Adk::Audio_streams::Onboard_speaker_stream
-#
-CONFIG_ADK_ONBOARD_SPEAKER_STREAM=y
-# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE is not set
-# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_TEST is not set
-# end of Adk::Audio_streams::Onboard_speaker_stream
-
-#
-# Adk::Audio_streams::raw_stream
-#
-CONFIG_ADK_RAW_STREAM=y
-# CONFIG_ADK_RAW_STREAM_TEST is not set
-# end of Adk::Audio_streams::raw_stream
-
-#
-# Adk::Audio_streams::Uac_mic_stream
-#
-CONFIG_ADK_UAC_MIC_STREAM=y
-# CONFIG_ADK_UAC_MIC_STREAM_TEST is not set
-# end of Adk::Audio_streams::Uac_mic_stream
-
-#
-# Adk::Audio_streams::Uac_speaker_stream
-#
-CONFIG_ADK_UAC_SPEAKER_STREAM=y
-# CONFIG_ADK_UAC_SPEAKER_STREAM_TEST is not set
-# end of Adk::Audio_streams::Uac_speaker_stream
-
-#
-# Adk::Audio_streams::Uart_stream
-#
-CONFIG_ADK_UART_STREAM=y
-# CONFIG_ADK_UART_STREAM_TEST is not set
-# end of Adk::Audio_streams::Uart_stream
-
-#
-# Adk::Audio_streams::Vfs_stream
-#
-# CONFIG_ADK_VFS_STREAM is not set
-# end of Adk::Audio_streams::Vfs_stream
+# end of Audio_utils
+# end of Adk
 
 #
 # Bk_ble
@@ -515,7 +547,6 @@ CONFIG_LCD_ST7796S=y
 #
 # Bk_player_service
 #
-# CONFIG_PLAYER_SERVICE is not set
 # end of Bk_player_service
 
 #
@@ -1144,8 +1175,9 @@ CONFIG_SYSTICK_32K=y
 # CONFIG_CACHE_ENABLE is not set
 # CONFIG_SWD_DEBUG_MODE is not set
 # CONFIG_DUMP_ENABLE is not set
+CONFIG_DUMP_UART_PRINT_PORT=0
+# CONFIG_DUMP_TEST is not set
 CONFIG_MEMDUMP_ALL=y
-# CONFIG_TRAP_TEST is not set
 # CONFIG_INTERRUPT_DEBUG_RECORDER is not set
 CONFIG_INTERRUPT_RECORDER_CNT=40
 # end of Modify Arch Cm33 Config

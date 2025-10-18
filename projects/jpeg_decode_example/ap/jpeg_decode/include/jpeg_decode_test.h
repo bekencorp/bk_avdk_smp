@@ -14,6 +14,7 @@ typedef enum {
     JPEG_DECODE_MODE_SOFTWARE,
     JPEG_DECODE_MODE_SOFTWARE_DTCM_CP1,
     JPEG_DECODE_MODE_SOFTWARE_DTCM_CP2,
+    JPEG_DECODE_MODE_SOFTWARE_DTCM_CP1_CP2,
 } jpeg_decode_test_type_t;
 
 void cli_jpeg_decode_error_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
@@ -30,6 +31,9 @@ bk_err_t perform_jpeg_decode_test(void *jpeg_decode_handle, uint32_t jpeg_length
 bk_err_t perform_jpeg_decode_async_test(void *jpeg_decode_handle, uint32_t jpeg_length, const uint8_t *jpeg_data, const char *test_name, jpeg_decode_test_type_t jpeg_decode_test_type);
 bk_err_t perform_jpeg_decode_async_burst_test(void *jpeg_decode_handle, uint32_t jpeg_length, const uint8_t *jpeg_data, 
                                            const char *test_name, uint32_t burst_count);
+bk_err_t perform_jpeg_decode_sw_async_test(void *jpeg_decode_handle, uint32_t jpeg_length, const uint8_t *jpeg_data, const char *test_name, jpeg_decode_test_type_t jpeg_decode_test_type);
+bk_err_t perform_jpeg_decode_sw_async_burst_test(void *jpeg_decode_handle, uint32_t jpeg_length, const uint8_t *jpeg_data, 
+                                           const char *test_name, jpeg_decode_test_type_t jpeg_decode_test_type, uint32_t burst_count);
 
 #ifdef __cplusplus
 }

@@ -174,6 +174,141 @@ void cli_jpeg_decode_regular_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 
         LOGI("%s, %d, software jpeg decode Normal scenario JPEG decoding test completed!\n", __func__, __LINE__);
     }
+    else if (os_strcmp(argv[1], "software_dtcm_cp1_async_test") == 0) {
+        test_type = JPEG_DECODE_MODE_SOFTWARE_DTCM_CP1;
+        config = &jpeg_decode_sw_config;
+
+        // Create and open software decoder
+        ret = create_and_open_decoder(&jpeg_decode_handle, config, test_type);
+        if (ret != BK_OK) {
+            goto exit;
+        }
+
+        // Perform async software decoding test on CP1
+        ret = perform_jpeg_decode_sw_async_test(jpeg_decode_handle, jpeg_length_420_864_480, jpeg_data_420_864_480, "software_dtcm_cp1_async_test", test_type);
+        if (ret != BK_OK) {
+            LOGE("%s, %d, jpeg async decode test failed! ret: %d\n", __func__, __LINE__, ret);
+            goto exit;
+        }
+
+        // Wait decode complete
+        rtos_delay_milliseconds(1000);
+        // Close and delete decoder
+        close_and_delete_decoder(&jpeg_decode_handle, test_type);
+
+        LOGI("%s, %d, software jpeg async decode on CP1 test completed!\n", __func__, __LINE__);
+    }
+    else if (os_strcmp(argv[1], "software_dtcm_cp1_async_burst_test") == 0) {
+        int burst_count = 10;
+        test_type = JPEG_DECODE_MODE_SOFTWARE_DTCM_CP1;
+        config = &jpeg_decode_sw_config;
+
+        // Create and open software decoder
+        ret = create_and_open_decoder(&jpeg_decode_handle, config, test_type);
+        if (ret != BK_OK) {
+            goto exit;
+        }
+
+        perform_jpeg_decode_sw_async_burst_test(jpeg_decode_handle, jpeg_length_420_864_480, jpeg_data_420_864_480, "software_dtcm_cp1_async_burst_test", test_type, burst_count);
+
+        // Wait all frame decode complete
+        rtos_delay_milliseconds(burst_count * 400);
+
+        // Close and delete decoder
+        close_and_delete_decoder(&jpeg_decode_handle, test_type);
+
+        LOGI("%s, %d, software jpeg async burst decode on CP1 test completed!\n", __func__, __LINE__);
+    }
+    else if (os_strcmp(argv[1], "software_dtcm_cp2_async_test") == 0) {
+        test_type = JPEG_DECODE_MODE_SOFTWARE_DTCM_CP2;
+        config = &jpeg_decode_sw_config;
+
+        // Create and open software decoder
+        ret = create_and_open_decoder(&jpeg_decode_handle, config, test_type);
+        if (ret != BK_OK) {
+            goto exit;
+        }
+
+        // Perform async software decoding test on CP2
+        ret = perform_jpeg_decode_sw_async_test(jpeg_decode_handle, jpeg_length_420_864_480, jpeg_data_420_864_480, "software_dtcm_cp2_async_test", test_type);
+        if (ret != BK_OK) {
+            LOGE("%s, %d, jpeg async decode test failed! ret: %d\n", __func__, __LINE__, ret);
+            goto exit;
+        }
+
+        // Wait decode complete
+        rtos_delay_milliseconds(1000);
+        // Close and delete decoder
+        close_and_delete_decoder(&jpeg_decode_handle, test_type);
+
+        LOGI("%s, %d, software jpeg async decode on CP2 test completed!\n", __func__, __LINE__);
+    }
+    else if (os_strcmp(argv[1], "software_dtcm_cp2_async_burst_test") == 0) {
+        int burst_count = 10;
+        test_type = JPEG_DECODE_MODE_SOFTWARE_DTCM_CP2;
+        config = &jpeg_decode_sw_config;
+
+        // Create and open software decoder
+        ret = create_and_open_decoder(&jpeg_decode_handle, config, test_type);
+        if (ret != BK_OK) {
+            goto exit;
+        }
+
+        perform_jpeg_decode_sw_async_burst_test(jpeg_decode_handle, jpeg_length_420_864_480, jpeg_data_420_864_480, "software_dtcm_cp2_async_burst_test", test_type, burst_count);
+
+        // Wait all frame decode complete
+        rtos_delay_milliseconds(burst_count * 400);
+
+        // Close and delete decoder
+        close_and_delete_decoder(&jpeg_decode_handle, test_type);
+
+        LOGI("%s, %d, software jpeg async burst decode on CP2 test completed!\n", __func__, __LINE__);
+    }
+    else if (os_strcmp(argv[1], "software_dtcm_cp1_cp2_async_test") == 0) {
+        test_type = JPEG_DECODE_MODE_SOFTWARE_DTCM_CP1_CP2;
+        config = &jpeg_decode_sw_config;
+
+        // Create and open software decoder
+        ret = create_and_open_decoder(&jpeg_decode_handle, config, test_type);
+        if (ret != BK_OK) {
+            goto exit;
+        }
+
+        // Perform async software decoding test on CP2
+        ret = perform_jpeg_decode_sw_async_test(jpeg_decode_handle, jpeg_length_420_864_480, jpeg_data_420_864_480, "software_dtcm_cp1_cp2_async_test", test_type);
+        if (ret != BK_OK) {
+            LOGE("%s, %d, jpeg async decode test failed! ret: %d\n", __func__, __LINE__, ret);
+            goto exit;
+        }
+
+        // Wait decode complete
+        rtos_delay_milliseconds(1000);
+        // Close and delete decoder
+        close_and_delete_decoder(&jpeg_decode_handle, test_type);
+
+        LOGI("%s, %d, software jpeg async decode on CP2 test completed!\n", __func__, __LINE__);
+    }
+    else if (os_strcmp(argv[1], "software_dtcm_cp1_cp2_async_burst_test") == 0) {
+        int burst_count = 10;
+        test_type = JPEG_DECODE_MODE_SOFTWARE_DTCM_CP1_CP2;
+        config = &jpeg_decode_sw_config;
+
+        // Create and open software decoder
+        ret = create_and_open_decoder(&jpeg_decode_handle, config, test_type);
+        if (ret != BK_OK) {
+            goto exit;
+        }
+
+        perform_jpeg_decode_sw_async_burst_test(jpeg_decode_handle, jpeg_length_420_864_480, jpeg_data_420_864_480, "software_dtcm_cp1_cp2_async_burst_test", test_type, burst_count);
+
+        // Wait all frame decode complete
+        rtos_delay_milliseconds(burst_count * 400);
+
+        // Close and delete decoder
+        close_and_delete_decoder(&jpeg_decode_handle, test_type);
+
+        LOGI("%s, %d, software jpeg async burst decode on CP2 test completed!\n", __func__, __LINE__);
+    }
     else {
         LOGE("%s, %d, not found this cmd!\n", __func__, __LINE__);
         ret = BK_FAIL;

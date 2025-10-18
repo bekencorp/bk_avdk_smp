@@ -196,6 +196,8 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 			LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
 			goto error;
 		}
+		in_frame->width = img_info.width;
+		in_frame->height = img_info.height;
 
 		if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
 		{
@@ -245,6 +247,9 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 			LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
 			goto error;
 		}
+
+		in_frame->width = img_info.width;
+		in_frame->height = img_info.height;
 
 		if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
 		{
@@ -544,7 +549,7 @@ bk_err_t software_decode_task_dual_core_open(private_jpeg_decode_sw_multi_core_c
 		LOGE("%s %d Failed to init message queue\n", __func__, __LINE__);
 		goto exit;
 	}
-	ret = rtos_init_queue(&controller->input_queue, "input_queue", sizeof(uint32_t), 4);
+	ret = rtos_init_queue(&controller->input_queue, "input_queue", sizeof(uint32_t), 10);
 	if (ret != BK_OK) {
 		LOGE("%s %d Failed to init input queue\n", __func__, __LINE__);
 		goto exit;

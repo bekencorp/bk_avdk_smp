@@ -23,6 +23,15 @@ static bk_jpeg_decode_hw_config_t jpeg_decode_hw_config = {
         .out_complete = jpeg_decode_out_complete,
     }
 };
+
+static bk_jpeg_decode_sw_config_t jpeg_decode_sw_config = {
+    .decode_cbs = {
+        .in_complete = jpeg_decode_in_complete,
+        .out_malloc = jpeg_decode_out_malloc,
+        .out_complete = jpeg_decode_out_complete,
+    }
+};
+
 static jpeg_decode_test_type_t test_type = JPEG_DECODE_MODE_HARDWARE;
 static void *config = &jpeg_decode_hw_config;
 
@@ -396,9 +405,114 @@ void cli_jpeg_decode_error_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 
         LOGI("%s, %d, software jpeg decode Normal scenario JPEG decoding test completed!\n", __func__, __LINE__);
     }
+    else if (os_strcmp(argv[1], "software_async_decode_error_1") == 0) {
+        // Create and open software decoder for async error test
+        test_type = JPEG_DECODE_MODE_SOFTWARE;
+        config = &jpeg_decode_sw_config;
+        ret = create_and_open_decoder(&jpeg_decode_handle, config, test_type);
+        if (ret != BK_OK) {
+            goto exit;
+        }
+
+        /* Test image decoding under abnormal scenarios with software async decode */
+        LOGI("%s, %d, Start abnormal scenario Software Async JPEG decoding test!\n", __func__, __LINE__);
+
+        // Test case 9: Invalid JPEG data with software async decode
+        LOGD("%s, %d, Test case 9: Invalid JPEG data with software async decode\n", __func__, __LINE__);
+
+        // Create a small buffer with invalid JPEG data
+        frame_buffer_t *invalid_frame = frame_buffer_encode_malloc(10);
+        if (invalid_frame != NULL) {
+            invalid_frame->length = 10;
+            invalid_frame->size = 10;
+            // Fill with some random data, not valid JPEG data
+            os_memset(invalid_frame->frame, 0xAA, 10);
+
+            // For async decode, the output buffer is managed by the callback
+            ret = bk_jpeg_decode_sw_decode_async(jpeg_decode_handle, invalid_frame);
+            // Wait for async operation to complete
+            rtos_delay_milliseconds(500);
+            if (ret != BK_OK) {
+                LOGD("%s, %d, Expected failure for invalid JPEG data with software async decode! ret: %d\n", __func__, __LINE__, ret);
+            } else {
+                LOGE("%s, %d, Unexpected success for invalid JPEG data with software async decode!\n", __func__, __LINE__);
+            }
+        }
+
+        // Close and delete decoder
+        ret = close_and_delete_decoder(&jpeg_decode_handle, test_type);
+        test_type = JPEG_DECODE_MODE_HARDWARE;
+        config = &jpeg_decode_hw_config;
+    }
+    else if (os_strcmp(argv[1], "software_dtcm_cp1_async_decode_error_1") == 0) {
+        // Create and open software dtcm cp1 decoder for async error test
+        test_type = JPEG_DECODE_MODE_SOFTWARE_DTCM_CP1;
+        config = &jpeg_decode_sw_config;
+        ret = create_and_open_decoder(&jpeg_decode_handle, config, test_type);
+        if (ret != BK_OK) {
+            goto exit;
+        }
+
+        /* Test image decoding under abnormal scenarios with software dtcm cp1 async decode */
+        LOGI("%s, %d, Start abnormal scenario Software DTCM CP1 Async JPEG decoding test!\n", __func__, __LINE__);
+
+        // Test case 10: Invalid parameters with software dtcm cp1 async decode
+        LOGD("%s, %d, Test case 10: Invalid parameters with software dtcm cp1 async decode\n", __func__, __LINE__);
+
+        // Test NULL input frame
+        ret = bk_jpeg_decode_sw_decode_async(jpeg_decode_handle, NULL);
+        if (ret != BK_OK) {
+            LOGD("%s, %d, Expected failure for NULL input frame with software dtcm cp1 async decode! ret: %d\n", __func__, __LINE__, ret);
+        } else {
+            LOGE("%s, %d, Unexpected success for NULL input frame with software dtcm cp1 async decode!\n", __func__, __LINE__);
+        }
+
+        // Close and delete decoder
+        ret = close_and_delete_decoder(&jpeg_decode_handle, test_type);
+        test_type = JPEG_DECODE_MODE_HARDWARE;
+        config = &jpeg_decode_hw_config;
+    }
+    else if (os_strcmp(argv[1], "software_dtcm_cp2_async_decode_error_1") == 0) {
+        // Create and open software dtcm cp2 decoder for async error test
+        test_type = JPEG_DECODE_MODE_SOFTWARE_DTCM_CP2;
+        config = &jpeg_decode_sw_config;
+        ret = create_and_open_decoder(&jpeg_decode_handle, config, test_type);
+        if (ret != BK_OK) {
+            goto exit;
+        }
+
+        /* Test image decoding under abnormal scenarios with software dtcm cp2 async decode */
+        LOGI("%s, %d, Start abnormal scenario Software DTCM CP2 Async JPEG decoding test!\n", __func__, __LINE__);
+
+        // Test case 11: Invalid input frame with software dtcm cp2 async decode
+        LOGD("%s, %d, Test case 11: Invalid input frame with software dtcm cp2 async decode\n", __func__, __LINE__);
+
+        // Create a frame buffer with NULL data pointer
+        in_frame = frame_buffer_encode_malloc(100);
+        if (in_frame != NULL) {
+            // Set frame pointer to NULL to test error handling
+            os_free(in_frame->frame);
+            in_frame->frame = NULL;
+            in_frame->length = 100;
+            in_frame->size = 100;
+
+            ret = bk_jpeg_decode_sw_decode_async(jpeg_decode_handle, in_frame);
+            // Wait for async operation to complete
+            rtos_delay_milliseconds(500);
+            if (ret != BK_OK) {
+                LOGD("%s, %d, Expected failure for NULL frame data with software dtcm cp2 async decode! ret: %d\n", __func__, __LINE__, ret);
+            } else {
+                LOGE("%s, %d, Unexpected success for NULL frame data with software dtcm cp2 async decode!\n", __func__, __LINE__);
+            }
+        }
+
+        // Close and delete decoder
+        ret = close_and_delete_decoder(&jpeg_decode_handle, test_type);
+        test_type = JPEG_DECODE_MODE_HARDWARE;
+        config = &jpeg_decode_hw_config;
+    }
     else {
         LOGE("%s, %d, not found this cmd!\n", __func__, __LINE__);
-
     }
 
     if (ret != BK_OK) {

@@ -198,6 +198,36 @@ jpeg_decode_regular_test software_dtcm_cp1_test
 jpeg_decode_regular_test software_dtcm_cp2_test
 ```
 
+7. Software decoder on DTCM (CP1) asynchronous test:
+```
+jpeg_decode_regular_test software_dtcm_cp1_async_test
+```
+
+8. Software decoder on DTCM (CP1) asynchronous burst test (10 consecutive times):
+```
+jpeg_decode_regular_test software_dtcm_cp1_async_burst_test
+```
+
+9. Software decoder on DTCM (CP2) asynchronous test:
+```
+jpeg_decode_regular_test software_dtcm_cp2_async_test
+```
+
+10. Software decoder on DTCM (CP2) asynchronous burst test (10 consecutive times):
+```
+jpeg_decode_regular_test software_dtcm_cp2_async_burst_test
+```
+
+11. Software decoder on DTCM (CP1+CP2) asynchronous test:
+```
+jpeg_decode_regular_test software_dtcm_cp1_cp2_async_test
+```
+
+12. Software decoder on DTCM (CP1+CP2) asynchronous burst test (10 consecutive times):
+```
+jpeg_decode_regular_test software_dtcm_cp1_cp2_async_burst_test
+```
+
 ## 5. Test Data
 
 The project includes different formats of JPEG test images stored in the `ap/jpeg_decode/data/` directory. These include:
@@ -396,12 +426,12 @@ jpeg_decode_regular_test software_dtcm_cp1_test
 
 Expected log:
 ```
-CMDRSP:ERROR
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg decode Normal scenario JPEG decoding test completed!
 ```
 
 Abnormal log (indicating test failure):
 ```
-cli_jpeg_decode_regular_test_cmd, XX, not found this cmd!
+CMDRSP:ERROR
 ```
 
 #### 6.2.6 Software Decoding Test on DTCM (CP2)
@@ -420,79 +450,101 @@ Abnormal log (indicating test failure):
 CMDRSP:ERROR
 ```
 
-## 7. Notes
-
-### 7.1 Null Pointer Testing
-
-#### 7.1.1 jpeg_decode_handle is NULL pointer
+#### 6.2.7 Software Decoder on DTCM (CP1) Asynchronous Test
 
 ```
-jpeg_decode_error_test input_buffer_null_1
+jpeg_decode_regular_test software_dtcm_cp1_async_test
 ```
 
-Expected behavior: Decoding fails, system properly handles null pointer case
-
-#### 7.1.2 input_frame is NULL pointer
-
+Expected log:
 ```
-jpeg_decode_error_test input_buffer_null_2
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async decode on CP1 test completed!
 ```
 
-Expected behavior: Decoding fails, system properly handles null pointer case
-
-#### 7.1.3 out_frame is NULL pointer
-
+Abnormal log (indicating test failure):
 ```
-jpeg_decode_error_test input_buffer_null_3
+CMDRSP:ERROR
 ```
 
-Expected behavior: Decoding fails, system properly handles null pointer case
-
-### 7.2 Input Data Testing
-
-#### 7.2.1 Invalid JPEG Data
+#### 6.2.8 Software Decoder on DTCM (CP1) Asynchronous Burst Test
 
 ```
-jpeg_decode_error_test invalid_input_data
+jpeg_decode_regular_test software_dtcm_cp1_async_burst_test
 ```
 
-Expected behavior: Decoding fails, system correctly identifies invalid JPEG data
-
-### 7.3 Buffer Testing
-
-#### 7.3.1 Output Buffer Too Small
-
+Expected log:
 ```
-jpeg_decode_error_test output_buffer_small
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async burst decode on CP1 test completed!
 ```
 
-Expected behavior: Decoding fails, system properly handles buffer insufficiency
-
-### 7.4 Hardware Decoding Format Limitation Testing
-
-#### 7.4.1 Hardware Decoding of YUV420 Format Image
-
+Abnormal log (indicating test failure):
 ```
-jpeg_decode_error_test hardware_decode_error_1
+CMDRSP:ERROR
 ```
 
-Expected behavior: Decoding fails, hardware decoding only supports YUV422 format
-
-#### 7.4.2 Hardware Decoding of Image with Width Not Multiple of 16
+#### 6.2.9 Software Decoder on DTCM (CP2) Asynchronous Test
 
 ```
-jpeg_decode_error_test hardware_decode_error_2
+jpeg_decode_regular_test software_dtcm_cp2_async_test
 ```
 
-Expected behavior: Decoding fails, hardware decoding requires image width to be multiple of 16
-
-#### 7.4.3 Hardware Decoding of Image with Height Not Multiple of 8
-
+Expected log:
 ```
-jpeg_decode_error_test hardware_decode_error_3
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async decode on CP2 test completed!
 ```
 
-Expected behavior: Decoding fails, hardware decoding requires image height to be multiple of 8
+Abnormal log (indicating test failure):
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.10 Software Decoder on DTCM (CP2) Asynchronous Burst Test
+
+```
+jpeg_decode_regular_test software_dtcm_cp2_async_burst_test
+```
+
+Expected log:
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async burst decode on CP2 test completed!
+```
+
+Abnormal log (indicating test failure):
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.11 Software Decoder on DTCM (CP1+CP2) Asynchronous Test
+
+```
+jpeg_decode_regular_test software_dtcm_cp1_cp2_async_test
+```
+
+Expected log:
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async decode on CP1+CP2 test completed!
+```
+
+Abnormal log (indicating test failure):
+```
+CMDRSP:ERROR
+```
+
+#### 6.2.12 Software Decoder on DTCM (CP1+CP2) Asynchronous Burst Test
+
+```
+jpeg_decode_regular_test software_dtcm_cp1_cp2_async_burst_test
+```
+
+Expected log:
+```
+cli_jpeg_decode_regular_test_cmd, XX, software jpeg async burst decode on CP1+CP2 test completed!
+```
+
+Abnormal log (indicating test failure):
+```
+CMDRSP:ERROR
+```
 
 ## 7. Notes
 
@@ -503,3 +555,5 @@ Expected behavior: Decoding fails, hardware decoding requires image height to be
    - Software decoding supports both YUV420 and YUV422 format images, and requires image width to be a multiple of 2, with no restrictions on height
 4. Software decoders running on DTCM typically provide faster decoding speeds than regular software decoders
 5. Frame buffer resources are limited; avoid occupying too many buffers simultaneously
+6. In the input frame, the length within the structure needs to be set to the actual valid data length, and in the output frame, the size within the structure needs to be set to the maximum storable size;
+   A length of 0 for the input frame or a size of 0 for the output frame will result in decoding errors;

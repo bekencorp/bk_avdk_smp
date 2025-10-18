@@ -85,6 +85,7 @@ typedef struct
     beken_queue_t output_queue;
     beken_queue_t message_queue;
     beken_semaphore_t sem;
+    beken_mutex_t lock;
     beken_thread_t thread;
     uint8_t task_running;
     uint32_t cp1_busy;
