@@ -6,6 +6,7 @@
 #include "bk_network_provisioning.h"
 #endif
 
+#include "bk_api_ipc_test.h"
 
 #define APP_TIMEOUT_VALUE    BEKEN_WAIT_FOREVER
 
@@ -94,5 +95,10 @@ extern int cli_network_provisioning_init(void);
     bk_network_provisioning_init(BK_NETWORK_PROVISIONING_TYPE_BLE);
     cli_network_provisioning_init();
 #endif
+
+#if (BK_IPC_UT_TEST)
+    bk_ipc_test_init();
+#endif
+
     return 0;
 }

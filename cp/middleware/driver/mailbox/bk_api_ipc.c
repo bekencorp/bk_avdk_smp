@@ -1134,11 +1134,9 @@ out:
 
 int bk_ipc_init(void)
 {
-    bk_ipc_info = bk_ipc_core_init(MB_CHNL_MIPC_SYNC);
-
-#if (BK_IPC_UT_TEST)
-    bk_ipc_test_init();
-#endif
+    if (NULL == bk_ipc_info) {
+        bk_ipc_info = bk_ipc_core_init(MB_CHNL_MIPC_SYNC);
+    }
 
     return BK_OK;
 }
