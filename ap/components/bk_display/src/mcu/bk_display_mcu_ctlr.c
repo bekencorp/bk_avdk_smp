@@ -145,7 +145,7 @@ static bk_err_t lcd_display_frame(private_display_mcu_context_t *lcd_disp_config
         }
         else
         {
-            bk_lcd_8080_send_cmd(0, I8080_LCD_CMD_RAMWR, NULL);
+            bk_lcd_8080_send_cmd(I8080_LCD_CMD_RAMWR, NULL, 0);
         }
         LOGD("display start, frame width, height %d, %d\n", frame->width, frame->height);
     }
@@ -175,7 +175,7 @@ static bk_err_t lcd_display_frame(private_display_mcu_context_t *lcd_disp_config
         }
         else
         {
-            bk_lcd_8080_send_cmd(0, I8080_LCD_CMD_RAMWR, NULL);
+            bk_lcd_8080_send_cmd(I8080_LCD_CMD_RAMWR, NULL, 0);
         }
     }
     ret = rtos_get_semaphore(&lcd_disp_config->disp_sem, BEKEN_NEVER_TIMEOUT);
@@ -417,19 +417,11 @@ static avdk_err_t mcu_display_ctlr_open(bk_display_ctlr_t *controller)
     bk_lcd_isr_register(I8080_OUTPUT_EOF, lcd_driver_display_mcu_isr, context);
 
     context->i80_bus_handle = lcd_i80_bus_io_register(NULL);
-    if (context->i80_bus_handle && context->lcd_device->lcd_init)
+    if (context->i80_bus_handle && context->lcd_device->init)
     {
         LOGD("%s init lcd device %s\n", __func__, context->lcd_device->name);
-        if (context->i80_bus_handle->init)
-        {
-        context->i80_bus_handle->init(context->i80_bus_handle);
-        }
-        context->lcd_device->lcd_init(context->i80_bus_handle);
+        context->lcd_device->init(context->i80_bus_handle);
     }
-    if (context->lcd_device->init)
-	{
-		context->lcd_device->init();
-	}
 
     ret = rtos_init_semaphore(&context->disp_task_sem, 1);
     if (ret != BK_OK)
@@ -488,13 +480,13 @@ static avdk_err_t mcu_display_ctlr_close(bk_display_ctlr_t *controller)
 
     if (lcd_disp_config->i80_bus_handle)
     {
-        if (lcd_disp_config->lcd_device->lcd_off)
+        if (lcd_disp_config->lcd_device->off)
         {
-            lcd_disp_config->lcd_device->lcd_off(lcd_disp_config->i80_bus_handle);
+            lcd_disp_config->lcd_device->off(lcd_disp_config->i80_bus_handle);
         }
-        if (lcd_disp_config->i80_bus_handle->deinit)
+        if (lcd_disp_config->i80_bus_handle->delete)
         {
-            lcd_disp_config->i80_bus_handle->deinit(lcd_disp_config->i80_bus_handle);
+            lcd_disp_config->i80_bus_handle->delete(lcd_disp_config->i80_bus_handle);
         }
         lcd_disp_config->i80_bus_handle = NULL;
     }

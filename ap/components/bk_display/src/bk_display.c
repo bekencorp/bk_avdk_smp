@@ -31,6 +31,7 @@ avdk_err_t bk_display_delete(bk_display_ctlr_handle_t handle)
     return handle->delete(handle);
 }
 
+
 avdk_err_t bk_display_flush(bk_display_ctlr_handle_t handle, frame_buffer_t *frame, bk_err_t (*free_t)(void *args))
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);

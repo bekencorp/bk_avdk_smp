@@ -420,13 +420,9 @@ static avdk_err_t rgb_display_ctlr_open(bk_display_ctlr_t *controller)
             {
                 context->spi_bus_handle->init(context->spi_bus_handle);
             }
-            if (context->lcd_device->lcd_init)
-            {
-                context->lcd_device->lcd_init(context->spi_bus_handle);
-            }
             if (context->lcd_device->init)
             {
-                context->lcd_device->init();
+                context->lcd_device->init(context->spi_bus_handle);
             }
         }
     }
@@ -515,9 +511,9 @@ static avdk_err_t rgb_display_ctlr_close(bk_display_ctlr_t *controller)
 
     if (lcd_disp_config->spi_bus_handle)
     {
-        if (lcd_disp_config->lcd_device->lcd_off)
+        if (lcd_disp_config->lcd_device->off)
         {
-            lcd_disp_config->lcd_device->lcd_off(lcd_disp_config->spi_bus_handle);
+            lcd_disp_config->lcd_device->off(lcd_disp_config->spi_bus_handle);
         }
         if (lcd_disp_config->spi_bus_handle->deinit)
         {
