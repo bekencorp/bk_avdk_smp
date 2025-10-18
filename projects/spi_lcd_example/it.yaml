@@ -1,0 +1,43 @@
+# it.yaml 测试用例配置文件
+
+global:
+  timeout: 5
+
+# ================
+# 编译目标
+# ================
+programs:
+  - name: spi_lcd_example
+    enable: true
+    execute_dir: "$SDK_DIR/"
+    build_cmd: "make bk7258 PROJECT=spi_lcd_example"
+    output_dir: "$SDK_DIR/build/bk7258/spi_lcd_example"
+    output_bin: "$SDK_DIR/build/bk7258/spi_lcd_example/package/all-app.bin"
+
+# ================
+# 测试用例
+# ================
+tests:
+  - name: lcd_open_01
+    enable: true
+    program:  ["spi_lcd_example"]
+    command: "spi_lcd_display open"
+    depends_on: null
+    expected_success: true
+    success_criteria:
+      - "CMDRSP:OK"
+      - "bk_display_flush frame success!"
+    failure_criteria:
+      - "CMDRSP:ERROR"
+
+
+  - name: lcd_close_01
+    enable: true
+    program:  ["spi_lcd_example"]
+    command: "spi_lcd_display close"
+    depends_on: ["lcd_open_01"]
+    expected_success: true
+    success_criteria:
+      - "CMDRSP:OK"
+    failure_criteria:
+      - "CMDRSP:ERROR"

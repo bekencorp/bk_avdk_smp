@@ -1,4 +1,4 @@
-# QSPI LCD Example Project
+# SPI LCD Example Project
 
 * [中文](./README_CN.md)
 
@@ -9,7 +9,7 @@
 
 * For detailed information about display, please refer to:
 
-  - [Display Overview](../../../developer-guide/display/qspi_lcd_display.html)
+  - [Display Overview](../../../developer-guide/display/spi_lcd_display.html)
 
 * For API reference, please refer to:
 
@@ -17,12 +17,12 @@
 
 ## Main Components
 - `bk_display`: display component
-- `lcd_qspi_st77903_h0165y008t`: screen component
+- `lcd_spi_gc9d01`: screen component
 
 ## CLI Command Usage
 ```bash
-qspi_lcd_display open   # Open LCD display
-qspi_lcd_display close  # Close LCD display
+spi_lcd_display open   # Open LCD display
+spi_lcd_display close  # Close LCD display
 ```
 
 Parameter Description:
@@ -36,13 +36,13 @@ Parameter Description:
 
 ### Test Environment
 - Development board: Armino development board
-- Peripheral: st77903_h0165y008t QSPI LCD
+- Peripheral: gc9d01 spi lcd
 
-### rgb_lcd_example Firmware Compilation
+### spi_lcd_example Firmware Compilation
 - Compilation command:
 
 ```bash
-make bk7258 PROJECT=qspi_lcd_example
+make bk7258 PROJECT=spi_lcd_example
 ```
 
 ### Test CASE 1 - LCD Open and Display Test
