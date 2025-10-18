@@ -285,10 +285,21 @@ static bk_err_t record_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *c
             /* not need encoder */
             break;
 
+        case AUDIO_ENC_TYPE_USER:
+            if(cfg->voice_enc_init && cfg->enc_args)
+            {
+                voice_handle->mic_enc = cfg->voice_enc_init(cfg->enc_args);
+            }
+            else
+            {
+                BK_LOGE(TAG, "%s, %d, voice_enc_init: %p or enc_args: %p is NULL\n", __func__, __LINE__, cfg->voice_enc_init, cfg->enc_args);
+                goto fail;
+            }
+            break;
+
         default:
             BK_LOGE(TAG, "%s, %d, enc_type: %d is not support\n", __func__, __LINE__, voice_handle->enc_type);
             goto fail;
-            break;
     }
     if (voice_handle->enc_type != AUDIO_ENC_TYPE_PCM)
     {
@@ -587,10 +598,21 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
             /* not need decoder */
             break;
 
+        case AUDIO_DEC_TYPE_USER:
+            if(cfg->voice_dec_init && cfg->dec_args)
+            {
+                voice_handle->spk_dec = cfg->voice_dec_init(cfg->dec_args);
+            }
+            else
+            {
+                BK_LOGE(TAG, "%s, %d, voice_dec_init: %p or dec_args: %p is NULL\n", __func__, __LINE__, cfg->voice_dec_init, cfg->dec_args);
+                goto fail;
+            }
+            break;
+
         default:
             BK_LOGE(TAG, "%s, %d, dec_type: %d is not support\n", __func__, __LINE__, voice_handle->dec_type);
             goto fail;
-            break;
     }
     if (voice_handle->dec_type != AUDIO_DEC_TYPE_PCM)
     {
@@ -1099,7 +1121,8 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
 #if CONFIG_VOICE_SERVICE_OPUS_ENCODER
             && cfg.enc_type != AUDIO_ENC_TYPE_OPUS
 #endif
-            && cfg.enc_type != AUDIO_ENC_TYPE_PCM)
+            && cfg.enc_type != AUDIO_ENC_TYPE_PCM
+            && cfg.enc_type != AUDIO_ENC_TYPE_USER)
     {
         BK_LOGE(TAG, "%s, %d, enc_type: %d not support\n", __func__, __LINE__, cfg.enc_type);
         return BK_FAIL;
@@ -1117,7 +1140,8 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
 #if CONFIG_VOICE_SERVICE_OPUS_DECODER
             && cfg.dec_type != AUDIO_DEC_TYPE_OPUS
 #endif
-            && cfg.dec_type != AUDIO_DEC_TYPE_PCM)
+            && cfg.dec_type != AUDIO_DEC_TYPE_PCM
+            && cfg.dec_type != AUDIO_DEC_TYPE_USER)
     {
         BK_LOGE(TAG, "%s, %d, dec_type: %d not support\n", __func__, __LINE__, cfg.dec_type);
         return BK_FAIL;

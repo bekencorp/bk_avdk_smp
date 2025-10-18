@@ -85,7 +85,8 @@ typedef enum
     AUDIO_ENC_TYPE_ADPCM,
     AUDIO_ENC_TYPE_LC3,
     AUDIO_ENC_TYPE_OPUS,
-    AUDIO_ENC_TYPE_G722
+    AUDIO_ENC_TYPE_G722,
+    AUDIO_ENC_TYPE_USER             /*!< User private encoding type */
 } audio_enc_type_t;
 
 typedef enum
@@ -101,7 +102,8 @@ typedef enum
     AUDIO_DEC_TYPE_OPUS,
     AUDIO_DEC_TYPE_G722,
     AUDIO_DEC_TYPE_WAV,
-    AUDIO_DEC_TYPE_AMR
+    AUDIO_DEC_TYPE_AMR,
+    AUDIO_DEC_TYPE_USER             /*!< User private decoding type */
 } audio_dec_type_t;
 
 typedef enum

@@ -86,6 +86,16 @@ typedef enum
 typedef bk_err_t (*voice_event_handle)(voice_evt_t evt, void *data, void *args);
 
 /**
+ * @brief Voice service element init callback type
+ *
+ * This typedef defines the function pointer type for initializing voice service elements.
+ *
+ * @param args User defined arguments
+ * @return audio_element_handle_t Returns a handle to the initialized audio element, or NULL on failure
+ */
+typedef audio_element_handle_t (*voice_element_init)(void *args);
+
+/**
  * @brief Voice service handle type
  *
  * This typedef defines a pointer to the voice service structure.
@@ -189,6 +199,11 @@ typedef struct
 
     voice_event_handle      event_handle;  /*!< Voice event handle callback function */
     void *                  args;          /*!< User defined arguments for the event handle function */
+
+    voice_element_init      voice_enc_init; /*!< Voice encoder element init callback function, use this function to create an encoder element when enc_type=AUDIO_ENC_TYPE_USER */
+    void *                  enc_args;       /*!< User defined config arguments for the voice encoder init function */
+    voice_element_init      voice_dec_init; /*!< Voice decoder element init callback function, use this function to create a decoder element when dec_type=AUDIO_DEC_TYPE_USER */
+    void *                  dec_args;       /*!< User defined config arguments for the voice decoder init function */
 } voice_cfg_t;
 
 /**
@@ -316,6 +331,10 @@ typedef struct
     },                                                          \
     .event_handle = NULL,                                       \
     .args = NULL,                                               \
+    .voice_enc_init = NULL,                                     \
+    .enc_args = NULL,                                           \
+    .voice_dec_init = NULL,                                     \
+    .dec_args = NULL,                                           \
 }
 
 /**
@@ -559,6 +578,10 @@ typedef struct
     },                                                         \
     .event_handle = NULL,                                      \
     .args = NULL,                                              \
+    .voice_enc_init = NULL,                                    \
+    .enc_args = NULL,                                          \
+    .voice_dec_init = NULL,                                    \
+    .dec_args = NULL,                                          \
 }
 
 #if CONFIG_VOICE_SERVICE_AAC_ENCODER && CONFIG_VOICE_SERVICE_AAC_DECODER
@@ -700,6 +723,10 @@ typedef struct
         },                                                          \
         .event_handle = NULL,                                       \
         .args = NULL,                                               \
+        .voice_enc_init = NULL,                                     \
+        .enc_args = NULL,                                           \
+        .voice_dec_init = NULL,                                     \
+        .dec_args = NULL,                                           \
     }
 #endif  //CONFIG_VOICE_SERVICE_AAC_ENCODER && CONFIG_VOICE_SERVICE_AAC_DECODER
 
@@ -829,6 +856,10 @@ typedef struct
     },                                                          \
     .event_handle = NULL,                                       \
     .args = NULL,                                               \
+    .voice_enc_init = NULL,                                     \
+    .enc_args = NULL,                                           \
+    .voice_dec_init = NULL,                                     \
+    .dec_args = NULL,                                           \
 }
 
 #if CONFIG_VOICE_SERVICE_G722_ENCODER && CONFIG_VOICE_SERVICE_G722_DECODER
@@ -956,6 +987,10 @@ typedef struct
         },                                                          \
         .event_handle = NULL,                                       \
         .args = NULL,                                               \
+        .voice_enc_init = NULL,                                     \
+        .enc_args = NULL,                                           \
+        .voice_dec_init = NULL,                                     \
+        .dec_args = NULL,                                           \
     }
 #endif  //CONFIG_VOICE_SERVICE_G722_ENCODER && CONFIG_VOICE_SERVICE_G722_DECODER
 
@@ -1122,6 +1157,10 @@ typedef struct
     },                                                          \
     .event_handle = NULL,                                       \
     .args = NULL,                                               \
+    .voice_enc_init = NULL,                                     \
+    .enc_args = NULL,                                           \
+    .voice_dec_init = NULL,                                     \
+    .dec_args = NULL,                                           \
 }
 #endif //CONFIG_VOICE_SERVICE_EQ
 
@@ -1253,6 +1292,10 @@ typedef struct
         },                                                          \
         .event_handle = NULL,                                       \
         .args = NULL,                                               \
+        .voice_enc_init = NULL,                                     \
+        .enc_args = NULL,                                           \
+        .voice_dec_init = NULL,                                     \
+        .dec_args = NULL,                                           \
     }
 #endif  //CONFIG_VOICE_SERVICE_OPUS_ENCODER && CONFIG_VOICE_SERVICE_OPUS_DECODER
 

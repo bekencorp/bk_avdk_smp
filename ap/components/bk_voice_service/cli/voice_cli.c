@@ -35,7 +35,20 @@
 voice_handle_t gl_voice_handle = NULL;
 static voice_read_handle_t gl_voice_read_handle = NULL;
 static voice_write_handle_t gl_voice_write_handle = NULL;
+static g711_encoder_cfg_t gl_g711_enc_cfg = DEFAULT_G711_ENCODER_CONFIG();
+static g711_decoder_cfg_t gl_g711_dec_cfg = DEFAULT_G711_DECODER_CONFIG();
 
+
+
+static audio_element_handle_t user_encoder_init(void *args)
+{
+    return g711_encoder_init((g711_encoder_cfg_t *)args);
+}
+
+static audio_element_handle_t user_decoder_init(void *args)
+{
+    return g711_decoder_init((g711_decoder_cfg_t *)args);
+}
 
 int voice_send_callback(unsigned char *data, unsigned int len, void *args)
 {
@@ -140,6 +153,10 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             enc_type = AUDIO_ENC_TYPE_OPUS;
         }
 #endif
+        else if (os_strcmp(argv[5], "user") == 0)
+        {
+            enc_type = AUDIO_ENC_TYPE_USER;
+        }
         else
         {
             LOGE("%s, %d, enc_type: %s not support\n", __func__, __LINE__, argv[5]);
@@ -176,6 +193,10 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             dec_type = AUDIO_DEC_TYPE_OPUS;
         }
 #endif
+        else if (os_strcmp(argv[6], "user") == 0)
+        {
+            dec_type = AUDIO_DEC_TYPE_USER;
+        }
         else
         {
             LOGE("%s, %d, dec_type: %s not support\n", __func__, __LINE__, argv[6]);
@@ -432,6 +453,26 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             voice_cfg.enc_cfg.opus_enc_cfg = opus_enc_cfg;
         }
 #endif
+        else if (enc_type == AUDIO_ENC_TYPE_USER)
+        {
+            gl_g711_enc_cfg.enc_mode = G711_ENC_MODE_A_LOW;
+
+            if (mic_samp_rate == 8000)
+            {
+                gl_g711_enc_cfg.buf_sz = 320;
+                gl_g711_enc_cfg.out_block_size = 160;
+                voice_cfg.read_pool_size = 160;
+            }
+            else
+            {
+                gl_g711_enc_cfg.buf_sz = 640;
+                gl_g711_enc_cfg.out_block_size = 320;
+                voice_cfg.read_pool_size = 320;
+            }
+            voice_cfg.enc_cfg.pcm_enc_cfg = 0;
+            voice_cfg.voice_enc_init = user_encoder_init;
+            voice_cfg.enc_args = &gl_g711_enc_cfg;
+        }
         else
         {
             //noting todo
@@ -497,6 +538,25 @@ void cli_voice_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
             voice_cfg.dec_cfg.opus_dec_cfg = opus_dec_cfg;
         }
 #endif
+        else if (dec_type == AUDIO_DEC_TYPE_USER)
+        {
+            gl_g711_dec_cfg.dec_mode = G711_DEC_MODE_A_LOW;
+
+            if (spk_samp_rate == 8000)
+            {
+                gl_g711_dec_cfg.buf_sz = 160;
+                gl_g711_dec_cfg.out_block_size = 320;
+                voice_cfg.write_pool_size = 160;
+            }
+            else
+            {
+                gl_g711_dec_cfg.buf_sz = 320;
+                gl_g711_dec_cfg.out_block_size = 640;
+                voice_cfg.write_pool_size = 320;
+            }
+            voice_cfg.voice_dec_init = user_decoder_init;
+            voice_cfg.dec_args = &gl_g711_dec_cfg;
+        }
         else
         {
             //noting todo
@@ -717,15 +777,15 @@ static const struct cli_command s_voice_commands[] =
                         bit2:0 DUAL_MIC_CH_0_DEGREE/1 DUAL_MIC_CH_90_DEGREE
                         bit3:0 no mic swap/1 mic swap
                         bit4:0 no ec ooutput/1 ecoutput
-     * [enc_type]       pcm/g711a/g711u/aac/g722/opus
-     * [dec_type]       pcm/g711a/g711u/aac/g722/opus
+     * [enc_type]       pcm/g711a/g711u/aac/g722/opus/user(g711a)
+     * [dec_type]       pcm/g711a/g711u/aac/g722/opus/user(g711a)
      * [spk_type]       onboard/uac
      * [spk_samp_rate]  8000/16000
      * [eq_type]        eq_mono/eq_stereo
      * [spk_pa]         spk_pa_en:0/1 spk_pa_gpio:according to board design: 0~SOC_GPIO_NUM-1
      */
 
-    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722|opus pcm|g711a|g711u|aac|g722|opus onboard|uac 8000|16000 [eq_mono|eq_stereo] [spk_pa spk_pa_en spk_en_gpio]}", cli_voice_test_cmd},
+    {"voice", "voice {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722|opus|user(g711a) pcm|g711a|g711u|aac|g722|opus|user(g711a) onboard|uac 8000|16000 [eq_mono|eq_stereo] [spk_pa spk_pa_en spk_en_gpio]}", cli_voice_test_cmd},
 };
 
 int cli_voice_init(void)
