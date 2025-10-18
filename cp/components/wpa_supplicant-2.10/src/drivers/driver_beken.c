@@ -863,15 +863,19 @@ static int wpa_driver_hostap_stop_apm(void *priv)
     ret = hostapd_ioctl(drv, &param, sizeof(param));
     
 #ifdef CONFIG_P2P
-    // GO disconnected to reset fsocket
+    // Only reset fsocket when we are actually in GO mode; avoid using STA vif (often 0)
     if (ret == 0) {
-        wpa_printf(MSG_INFO, "GO stop APM successful, resetting fsocket for vif %d", drv->vif_index);
-        wpa_driver_go_disconnect_reset_fsocket(priv);
+        if (drv->nlmode == NL80211_IFTYPE_P2P_GO) {
+            wpa_printf(MSG_INFO, "GO stop APM successful, resetting fsocket for vif %d", drv->vif_index);
+            wpa_driver_go_disconnect_reset_fsocket(priv);
+        } else {
+            wpa_printf(MSG_DEBUG, "STOP_APM: not GO mode (nlmode=%d), skip fsocket reset for vif %d", drv->nlmode, drv->vif_index);
+        }
     } else {
         wpa_printf(MSG_ERROR, "GO stop APM failed for vif %d, ret=%d", drv->vif_index, ret);
     }
 #endif
-    
+
     return ret;
 }
 
