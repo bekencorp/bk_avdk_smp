@@ -45,6 +45,25 @@ avdk_err_t bk_video_pipeline_open_rotate(bk_video_pipeline_handle_t handler, bk_
     AVDK_RETURN_ON_FALSE(config && handler, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     AVDK_RETURN_ON_FALSE(handler->open_rotate, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
 
+    switch (config->rotate_mode) {
+        case NONE_ROTATE:
+        case HW_ROTATE:
+        case SW_ROTATE:
+            break;
+        default:
+            LOGE("Invalid rotate mode: %d\n", config->rotate_mode);
+            return AVDK_ERR_INVAL;
+    }
+    switch (config->rotate_angle) {
+        case 0:
+        case 90:
+        case 180:
+        case 270:
+            break;
+        default:
+            LOGE("Invalid rotate angle: %d\n", config->rotate_angle);
+            return AVDK_ERR_INVAL;
+    }
     ret = handler->open_rotate(handler, config);
     AVDK_RETURN_ON_FALSE(ret == BK_OK, ret, TAG, "open_rotate failed");
 
