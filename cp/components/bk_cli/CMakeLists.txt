@@ -12,7 +12,6 @@ endif()
 if (CONFIG_CLI)
 list(APPEND srcs
 	cli_adc.c
-	cli_ble.c
 	cli_event.c
 	cli_gpio.c
 	cli_common.c

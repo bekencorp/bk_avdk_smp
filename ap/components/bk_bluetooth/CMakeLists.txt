@@ -100,6 +100,12 @@ if (CONFIG_BLUETOOTH_AP)
 	endif()
 endif()
 
+if (CONFIG_CLI)
+	list(APPEND srcs
+		api/bk_cli_ble.c
+	)
+endif()
+
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	PRIV_REQUIRES psa_mbedtls

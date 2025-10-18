@@ -135,6 +135,12 @@ endif()#CONFIG_AT
     endif()
 endif()
 
+if (CONFIG_CLI)
+    list(APPEND srcs
+        api/bk_cli_ble.c
+    )
+endif()
+
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	PRIV_REQUIRES bk_phy psa_mbedtls
