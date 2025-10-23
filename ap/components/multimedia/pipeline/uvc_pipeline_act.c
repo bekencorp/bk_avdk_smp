@@ -178,7 +178,7 @@ bk_err_t h264_jdec_pipeline_open(bk_video_pipeline_h264e_config_t *config, const
 	// step 2: init jpeg_decode_task
 	if (!check_jpeg_decode_task_is_open())
 	{
-		ret = jpeg_decode_task_open(get_rotate_angle(config->sw_rotate_angle), jpeg_cbs, decode_cbs);
+		ret = jpeg_decode_task_open(config->sw_rotate_angle, jpeg_cbs, decode_cbs);
 
 		if (ret != BK_OK)
 		{
@@ -252,7 +252,7 @@ bk_err_t lcd_jdec_pipeline_open(bk_video_pipeline_decode_config_t *config,
 #endif
 
 	rot_open_t rot_open = {0};
-	media_rotate_t rot_angle = get_rotate_angle(config->rotate_angle);
+	media_rotate_t rot_angle = config->rotate_angle;
 	rot_open.mode = config->rotate_mode;
 	rot_open.angle = rot_angle;
 	ret = rotate_task_open(&rot_open, decode_cbs);
