@@ -254,3 +254,17 @@ time_t timestamp_get(void)
 	return mktime(&get_time);
 }
 
+
+time_t time(time_t *timer)
+{
+	time_t result;
+	
+	result = timestamp_get();
+	
+	if (timer != NULL) {
+		*timer = result;
+	}
+	
+	return result;
+}
+

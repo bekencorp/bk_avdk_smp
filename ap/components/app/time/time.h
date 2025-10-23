@@ -21,5 +21,7 @@ int datetime_get_with_zone(struct tm *t, int zone);
 
 time_t timestamp_get(void);
 
+time_t time(time_t *timer);
+
 
 #endif
