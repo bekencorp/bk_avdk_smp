@@ -115,158 +115,15 @@ CONFIG_AT_MAX_PORT_CNT=1
 # end of ASR Service
 
 #
+# Audio Parameters
+#
+CONFIG_AUD_PARAM_CTRL=y
+# end of Audio Parameters
+
+#
 # Adk
 #
 # end of Adk
-
-#
-# Adk::Audio_utils
-#
-CONFIG_ADK_UTILS=y
-CONFIG_ADK_UART_UTIL=y
-CONFIG_ADK_COUNT_UTIL=y
-CONFIG_ADK_VFS_UTIL=y
-# end of Adk::Audio_utils
-
-#
-# Adk::Audio_algorithm::Aec_algorithm
-#
-# end of Adk::Audio_algorithm::Aec_algorithm
-
-#
-# Adk::Audio_algorithm::Aec_algorithm V3
-#
-# end of Adk::Audio_algorithm::Aec_algorithm V3
-
-#
-# Adk::Audio_algorithm::Agc_algorithm
-#
-# end of Adk::Audio_algorithm::Agc_algorithm
-
-#
-# Adk::Audio_algorithm::EQ_algorithm
-#
-# end of Adk::Audio_algorithm::EQ_algorithm
-
-#
-# Adk::Audio_algorithms::Mix_algorithm
-#
-# end of Adk::Audio_algorithms::Mix_algorithm
-
-#
-# Adk::Audio_algorithm::Rsp_algorithm
-#
-# end of Adk::Audio_algorithm::Rsp_algorithm
-
-#
-# Adk::Audio_decoders::AAC_decoder
-#
-# end of Adk::Audio_decoders::AAC_decoder
-
-#
-# Adk::Audio_decoders::G711_decoder
-#
-# end of Adk::Audio_decoders::G711_decoder
-
-#
-# Adk::Audio_decoders::G722_decoder
-#
-# end of Adk::Audio_decoders::G722_decoder
-
-#
-# Adk::Audio_decoders::MP3_decoder
-#
-# end of Adk::Audio_decoders::MP3_decoder
-
-#
-# Adk::Audio_decoders::Opus_dec
-#
-# end of Adk::Audio_decoders::Opus_dec
-
-#
-# Adk::Audio_decoders::SBC_decoder
-#
-# end of Adk::Audio_decoders::SBC_decoder
-
-#
-# Adk::Audio_decoders::Wav_decoder
-#
-# end of Adk::Audio_decoders::Wav_decoder
-
-#
-# Adk::Audio_encoders::AAC_encoder
-#
-# end of Adk::Audio_encoders::AAC_encoder
-
-#
-# Adk::Audio_encoders::G711_encoder
-#
-# end of Adk::Audio_encoders::G711_encoder
-
-#
-# Adk::Audio_encoders::G722_encoder
-#
-# end of Adk::Audio_encoders::G722_encoder
-
-#
-# Adk::Audio_encoders::Opus_enc
-#
-# end of Adk::Audio_encoders::Opus_enc
-
-#
-# Adk::Audio_encoders::Sbc_encoder
-#
-# end of Adk::Audio_encoders::Sbc_encoder
-
-#
-# Adk::Audio_streams::Array_stream
-#
-# end of Adk::Audio_streams::Array_stream
-
-#
-# Adk::Audio_streams::Array_stream
-#
-# end of Adk::Audio_streams::Array_stream
-
-#
-# Adk::Audio_streams::Onboard_dual_dmic_stream
-#
-# end of Adk::Audio_streams::Onboard_dual_dmic_stream
-
-#
-# Adk::Audio_streams::Onboard_mic_stream
-#
-# end of Adk::Audio_streams::Onboard_mic_stream
-
-#
-# Adk::Audio_streams::Onboard_speaker_stream
-#
-# end of Adk::Audio_streams::Onboard_speaker_stream
-
-#
-# Adk::Audio_streams::raw_stream
-#
-# end of Adk::Audio_streams::raw_stream
-
-#
-# Adk::Audio_streams::Uac_mic_stream
-#
-# end of Adk::Audio_streams::Uac_mic_stream
-
-#
-# Adk::Audio_streams::Uac_speaker_stream
-#
-# end of Adk::Audio_streams::Uac_speaker_stream
-
-#
-# Adk::Audio_streams::Uart_stream
-#
-# end of Adk::Audio_streams::Uart_stream
-
-#
-# Adk::Audio_streams::Vfs_stream
-#
-# end of Adk::Audio_streams::Vfs_stream
 
 #
 # Bk_ble
@@ -390,7 +247,9 @@ CONFIG_EVENT_TASK_STACK_SIZE=3072
 #
 CONFIG_JPEG_DECODER=y
 CONFIG_JPEG_DECODER_SW=y
+CONFIG_SW_JPEG_DECODE_TASK_STACK_SIZE=1024
 CONFIG_JPEG_DECODER_HW=y
+CONFIG_HW_JPEG_DECODE_TASK_STACK_SIZE=1024
 # end of JPEG Decoder
 
 #
@@ -459,12 +318,19 @@ CONFIG_LCD_ST7796S=y
 # CONFIG_LCD_QSPI_ST77903_SAT61478M is not set
 # CONFIG_LCD_QSPI_ST77903_H0165Y008T is not set
 # CONFIG_LCD_QSPI_SPD2010 is not set
+# CONFIG_LCD_QSPI_GC9C01 is not set
+# CONFIG_LCD_QSPI_JD9855 is not set
+# CONFIG_LCD_QSPI_JD9855_K18XJ15 is not set
+# CONFIG_LCD_QSPI_ST77916 is not set
+# CONFIG_LCD_QSPI_JD9853A is not set
 # end of QSPI LCD
 
 #
 # SPI LCD
 #
 # CONFIG_LCD_SPI_ST7796U is not set
+# CONFIG_LCD_SPI_GC9D01 is not set
+# CONFIG_LCD_SPI_ST7789V2 is not set
 # end of SPI LCD
 
 #
@@ -476,11 +342,6 @@ CONFIG_LCD_ST7796S=y
 #
 # end of TP
 # end of bk peripheral
-
-#
-# Bk_player_service
-#
-# end of Bk_player_service
 
 #
 # PM
@@ -645,6 +506,8 @@ CONFIG_USB_CAMERA=y
 CONFIG_UVC_CHECK_BULK_JPEG_HEADER=y
 CONFIG_UVC_URB_NUM=8
 CONFIG_UVC_NUM_PACKET_PER_URB=8
+CONFIG_UVC_PROCESS_TASK_STACK_SIZE=1024
+CONFIG_UVC_STREAM_TASK_STACK_SIZE=1536
 # end of USB Camera
 
 #
@@ -722,6 +585,8 @@ CONFIG_MAC_SFRAME_SOFTWARE_RETRY=y
 CONFIG_WIFI_MAC_SUPPORT_STAS_MAX_NUM=2
 # CONFIG_BK_RAW_LINK is not set
 # CONFIG_WIFI_CLI_DEBUG is not set
+CONFIG_PHY_CLIENT=y
+CONFIG_PHY_MB=y
 # end of Bk_Wifi
 
 #
@@ -904,7 +769,7 @@ CONFIG_MQTT_ACK_NOW=y
 # CONFIG_IP_NAPT is not set
 # CONFIG_WIFI_REAPETER is not set
 # CONFIG_BRIDGE is not set
-# CONFIG_PAN is not set
+# CONFIG_NET_PAN is not set
 CONFIG_WIFI_SOFTAP=y
 # CONFIG_FUZZ_TEST is not set
 CONFIG_LWIP_PPP_SUPPORT=y
@@ -969,9 +834,6 @@ CONFIG_MEDIA_DEBUG_TIMER_ENABLE=y
 # Media
 #
 CONFIG_MEDIA=y
-# CONFIG_MEDIA_MAJOR is not set
-# CONFIG_MEDIA_APP is not set
-# CONFIG_MEDIA_MINOR is not set
 # CONFIG_LCD_FLASH_JPEG_DISPLAY is not set
 # CONFIG_LCD_DMA2D_BLEND is not set
 # CONFIG_BLEND_USE_GUI is not set
@@ -984,7 +846,6 @@ CONFIG_LCD_HW_DECODE=y
 # CONFIG_SW_ROTATE_TO_YUYV_AND_DMA2D_TO_YUYV_NOT_RGB888 is not set
 CONFIG_LCD_SW_DECODE=y
 # CONFIG_LCD_AUTO_FILL_FULL is not set
-# CONFIG_MEDIA_SCALE is not set
 # CONFIG_MEDIA_PIPELINE is not set
 # CONFIG_MEDIA_BT_AUDIO is not set
 # CONFIG_SOFTWARE_DECODE_SRAM_MAPPING is not set
@@ -1032,6 +893,9 @@ CONFIG_TRUSTENGINE=y
 # CONFIG_FULL_MBEDTLS is not set
 CONFIG_MBEDTLS_LOG_LEVEL="OFF"
 # end of PSA Mbedtls Options
+
+# CONFIG_MBEDTLS_USE_PSRAM is not set
+# CONFIG_MBEDTLS_CUSTOM_CONFIG_FILE is not set
 # end of PSA Mbedtls
 
 #
@@ -1081,6 +945,13 @@ CONFIG_CS2_TX_BUFFER_THD=5120
 # CONFIG_WANSON_ASR is not set
 # CONFIG_WANSON_SIMD is not set
 # end of Bk_thirdparty::Wanson
+
+#
+# Bk_thirdparty::Wanson_armino
+#
+# CONFIG_WANSON_ARMINO_ASR is not set
+# CONFIG_WANSON_CN_LICENSE is not set
+# end of Bk_thirdparty::Wanson_armino
 # end of Components Configuration
 
 #
@@ -1103,8 +974,9 @@ CONFIG_SYSTICK_32K=y
 # CONFIG_CACHE_ENABLE is not set
 # CONFIG_SWD_DEBUG_MODE is not set
 # CONFIG_DUMP_ENABLE is not set
+CONFIG_DUMP_UART_PRINT_PORT=0
+# CONFIG_DUMP_TEST is not set
 CONFIG_MEMDUMP_ALL=y
-# CONFIG_TRAP_TEST is not set
 # CONFIG_INTERRUPT_DEBUG_RECORDER is not set
 CONFIG_INTERRUPT_RECORDER_CNT=40
 # end of Modify Arch Cm33 Config
@@ -1257,6 +1129,7 @@ CONFIG_GPIO_DEFAULT_SET_SUPPORT=y
 CONFIG_GPIO_RETENTION_DISPOSABLE=y
 CONFIG_USR_GPIO_CFG_EN=y
 # CONFIG_GPIO_DUMP_MAP_DEV_DEBUG is not set
+CONFIG_DEFAULT_WAKEUP_SOURCE=y
 # end of GPIO
 
 #
@@ -1405,9 +1278,6 @@ CONFIG_TIMER_US=y
 # SARADC
 #
 # CONFIG_SARADC is not set
-# CONFIG_SARADC_NEED_FLUSH is not set
-CONFIG_SARADC_RANGE_DIVIDE=y
-CONFIG_ADC_BUF_SIZE=32
 # end of SARADC
 
 #

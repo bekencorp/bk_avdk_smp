@@ -15,7 +15,6 @@
 #include "video_pipeline_test.h"
 #include <os/os.h>
 #include <frame_buffer.h>
-#include <media_app.h>
 #include <components/bk_video_pipeline/bk_video_pipeline.h>
 
 #define TAG "video_pipeline_regular_test"

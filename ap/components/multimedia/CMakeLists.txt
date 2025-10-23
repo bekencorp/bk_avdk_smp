@@ -4,7 +4,6 @@ set(incs include
 	)
 
 set(srcs
-		app/media_app.c
 		comm/frame_buffer.c
 	)
 

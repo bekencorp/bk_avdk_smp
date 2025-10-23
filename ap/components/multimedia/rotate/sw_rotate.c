@@ -21,7 +21,7 @@
 #include "media_evt.h"
 #include "sw_rotate.h"
 
-#define TAG "rot_cp2"
+#define TAG "rot"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)

@@ -867,6 +867,7 @@ CONFIG_MBEDTLS_LOG_LEVEL="OFF"
 # end of PSA Mbedtls Options
 
 # CONFIG_MBEDTLS_USE_PSRAM is not set
+# CONFIG_MBEDTLS_CUSTOM_CONFIG_FILE is not set
 # end of PSA Mbedtls
 
 #
