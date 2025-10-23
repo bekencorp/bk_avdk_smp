@@ -247,11 +247,6 @@ menu "Bk_cli"
 			bool "Enable Rwnx Proto Debug"
 			default n
 
-		config SLCD_TEST
-			depends on SLCD
-			bool "Enable SLCD Test"
-			default n
-
 		config OTP_TEST
 			depends on OTP_V1
 			bool "Enable OTP Test"

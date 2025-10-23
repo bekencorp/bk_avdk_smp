@@ -209,12 +209,6 @@ if (CONFIG_LCD_QSPI_TEST)
 	)
 endif()
 
-if (CONFIG_SLCD_TEST)
-	list(APPEND srcs
-		"cli_slcd.c"
-	)
-endif()
-
 if (CONFIG_EASY_FLASH)
 	list(APPEND srcs
 		"cli_easyflash.c"
