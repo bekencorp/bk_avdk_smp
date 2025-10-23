@@ -288,11 +288,12 @@ __retry:
         return r_size;
     }
 
-    uint32_t offset = MP3FindSyncWord(mp3_dec->main_buff_readptr, mp3_dec->main_buff_remain_size);
+    int offset = MP3FindSyncWord(mp3_dec->main_buff_readptr, mp3_dec->main_buff_remain_size);
     if (offset < 0)
     {
-        BK_LOGE(TAG, "[%s] MP3FindSyncWord not find \n", audio_element_get_tag(self));
+        BK_LOGD(TAG, "[%s] MP3FindSyncWord not find \n", audio_element_get_tag(self));
         mp3_dec->main_buff_remain_size = 0;
+        goto __retry;
     }
     else
     {
