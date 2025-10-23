@@ -30,7 +30,7 @@
 #include "driver/lcd.h"
 #include "driver/pwr_clk.h"
 #include "cpu_id.h"
-
+#include "bk_misc.h"
 #define TAG "lcd_drv"
 
 #if CONFIG_SOC_BK7256XX
@@ -614,11 +614,43 @@ bk_err_t bk_lcd_set_partical_display(bool en, uint16_t partial_clum_l, uint16_t 
 	lcd_hal_set_partical_display(en, partial_clum_l, partial_clum_r, partial_line_l, partial_line_r);
 	return BK_OK;
 }
+uint32_t bk_lcd_rgb_ver_cnt_get(void)
+{
+    return lcd_hal_get_status_ver_cnt_status();
+}
 
 #if CONFIG_FLASH
 void lcd_flash_disable_int(uint32_t enable)
 {
-	lcd_hal_rgb_int_enable(0, enable);
+    if (lcd_hal_get_rbg_dispay_en() == 0)
+        return;
+
+    if(enable)
+    {
+        //check display flush status (vsync cnt) is flushing or not, when vsync_pulse_width timing cnt==0
+        if (bk_lcd_rgb_ver_cnt_get() == 0)
+        {
+            //if not flush, delay 90us (need bigger then vsync_pulse_width times),recheck
+            delay(20);
+            //recheck flush status ,display is also not workking, to reset display
+            if (bk_lcd_rgb_ver_cnt_get() == 0)
+            {
+                LOGD(" %s softreset display %d\n", __func__, bk_lcd_rgb_ver_cnt_get());
+                lcd_disp_ll_set_module_control_soft_reset(0);
+                delay(10);
+                lcd_disp_ll_set_module_control_soft_reset(1);
+            }
+            lcd_hal_rgb_int_enable(0, 1);
+        }
+        else
+        {
+            lcd_hal_rgb_int_enable(0, 1);
+        }
+    }
+    else
+    {
+        lcd_hal_rgb_int_enable(0, 0);
+    }
 }
 #endif
 
