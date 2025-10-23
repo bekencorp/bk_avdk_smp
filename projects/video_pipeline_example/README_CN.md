@@ -164,19 +164,31 @@ video_pipeline close_rotate
 1. 硬件旋转测试：
 
 ```
-video_pipeline_regular_test hardware_rotate_test
+video_pipeline_regular_test hardware_rotate
 ```
 
 2. 软件旋转测试：
 
 ```
-video_pipeline_regular_test software_rotate_test
+video_pipeline_regular_test software_rotate
 ```
 
 3. H.264编码测试：
 
 ```
-video_pipeline_regular_test h264_encoding_test
+video_pipeline_regular_test h264_encode
+```
+
+4. H.264编码+硬件旋转组合测试：
+
+```
+video_pipeline_regular_test h264_encode_and_hw_rotate
+```
+
+5. H.264编码+软件旋转组合测试：
+
+```
+video_pipeline_regular_test h264_encode_and_sw_rotate
 ```
 
 ## 6. 测试数据

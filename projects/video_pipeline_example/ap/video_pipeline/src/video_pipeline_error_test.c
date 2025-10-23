@@ -159,14 +159,14 @@ static int video_pipeline_invalid_config_test(void)
     
     // 测试无效的旋转角度,
     LOGI("Testing invalid rotation angle (91 degrees)...\n");
-    invalid_decode_config.rotate_angle = 91; // 无效的旋转角度
+    invalid_decode_config.rotate_angle = 4; // 无效的旋转角度
     ret = bk_video_pipeline_open_rotate(handle, &invalid_decode_config);
     LOGI("Result: %d (expected: non-zero)\n", ret);
     bk_video_pipeline_close_rotate(handle);
 
     // 测试无效的旋转模式
     LOGI("Testing invalid rotation mode (3)...\n");
-    invalid_decode_config.rotate_angle = 90; // 恢复有效角度
+    invalid_decode_config.rotate_angle = ROTATE_90; // 恢复有效角度
     invalid_decode_config.rotate_mode = 3; // 无效的旋转模式
     ret = bk_video_pipeline_open_rotate(handle, &invalid_decode_config);
     LOGI("Result: %d (expected: non-zero)\n", ret);

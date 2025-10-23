@@ -45,7 +45,7 @@ extern "C" {
     .width = 864, \
     .height = 480, \
     .fps = FPS30, \
-    .sw_rotate_angle = 0, \
+    .sw_rotate_angle = ROTATE_NONE, \
 }
 
 /**
@@ -162,8 +162,7 @@ typedef struct {
 typedef struct {
     frame_buffer_t *(*malloc)(uint32_t size);    /*!< Callback to allocate frame buffer */
     bk_err_t (*free)(frame_buffer_t *frame);     /*!< Callback to free frame buffer */
-    bk_err_t (*complete)(dec_end_type_t format_type, bk_err_t result, frame_buffer_t *out_frame); /*!< Callback when processing is complete */
-    uint32_t rotate_angle;                       /*!< Rotation angle */
+    bk_err_t (*complete)(dec_end_type_t format_type, bk_err_t result, frame_buffer_t *out_frame); /*!< Callback when processing is complete */                   /*!< Rotation angle */
 } decode_callback_t;
 
 /**
@@ -176,7 +175,7 @@ typedef struct bk_video_pipeline_h264e_config
     uint16_t width;            /**< Width of the video frame */
     uint16_t height;           /**< Height of the video frame */
     uint32_t fps;              /**< Frames per second */
-    uint32_t sw_rotate_angle;  /**< Software rotation angle */
+    media_rotate_t sw_rotate_angle;  /**< Software rotation angle */
     const bk_h264e_callback_t *h264e_cb;        /*!< H.264 encoder callback functions */
 } bk_video_pipeline_h264e_config_t;
 
@@ -188,7 +187,7 @@ typedef struct bk_video_pipeline_h264e_config
 typedef struct bk_video_pipeline_decode_config
 {
     media_rotate_mode_t rotate_mode;   /*!< Rotation mode (1: software rotation, 0: hardware rotation) */
-    int rotate_angle;                  /*!< Rotation angle */
+    media_rotate_t rotate_angle;                  /*!< Rotation angle */
 } bk_video_pipeline_decode_config_t;
 
 /**

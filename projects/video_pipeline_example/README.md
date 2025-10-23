@@ -153,17 +153,27 @@ Command execution failure prints: "CMDRSP:ERROR"
 
 1. Hardware rotation test:
 ```
-video_pipeline_regular_test hardware_rotate_test
+video_pipeline_regular_test hardware_rotate
 ```
 
 2. Software rotation test:
 ```
-video_pipeline_regular_test software_rotate_test
+video_pipeline_regular_test software_rotate
 ```
 
 3. H.264 encoding test:
 ```
-video_pipeline_regular_test h264_encoding_test
+video_pipeline_regular_test h264_encode
+```
+
+4. H.264 encoding with hardware rotation test:
+```
+video_pipeline_regular_test h264_encode_and_hw_rotate
+```
+
+5. H.264 encoding with software rotation test:
+```
+video_pipeline_regular_test h264_encode_and_sw_rotate
 ```
 
 

@@ -157,7 +157,7 @@ static int video_pipeline_hardware_rotate_test(void)
     
     // 配置硬件旋转
     video_pipeline_decode_config.rotate_mode = HW_ROTATE;
-    video_pipeline_decode_config.rotate_angle = 90; // 90度旋转
+    video_pipeline_decode_config.rotate_angle = ROTATE_90; // 90度旋转
     
     // 打开旋转模块
     ret = bk_video_pipeline_open_rotate(g_video_pipeline_handle, &video_pipeline_decode_config);
@@ -211,7 +211,7 @@ static int video_pipeline_software_rotate_test(void)
     
     // 配置软件旋转
     video_pipeline_decode_config.rotate_mode = SW_ROTATE;
-    video_pipeline_decode_config.rotate_angle = 180; // 180度旋转
+    video_pipeline_decode_config.rotate_angle = ROTATE_180; // 180度旋转
     
     // 打开旋转模块
     ret = bk_video_pipeline_open_rotate(g_video_pipeline_handle, &video_pipeline_decode_config);
@@ -267,7 +267,7 @@ static int video_pipeline_h264_encode_test(void)
     video_pipeline_h264e_config.width = 864;
     video_pipeline_h264e_config.height = 480;
     video_pipeline_h264e_config.fps = FPS30;
-    video_pipeline_h264e_config.sw_rotate_angle = 0;
+    video_pipeline_h264e_config.sw_rotate_angle = ROTATE_NONE;
     video_pipeline_h264e_config.h264e_cb = &h264e_cbs;
     
     // 打开H.264编码器
@@ -323,7 +323,7 @@ static int video_pipeline_h264_encode_and_hw_rotate_test(void)
     video_pipeline_h264e_config.width = 864;
     video_pipeline_h264e_config.height = 480;
     video_pipeline_h264e_config.fps = FPS30;
-    video_pipeline_h264e_config.sw_rotate_angle = 90;
+    video_pipeline_h264e_config.sw_rotate_angle = ROTATE_90;
     video_pipeline_h264e_config.h264e_cb = &h264e_cbs;
     
     // 打开H.264编码器
@@ -337,7 +337,7 @@ static int video_pipeline_h264_encode_and_hw_rotate_test(void)
     
     // 配置软件旋转
     video_pipeline_decode_config.rotate_mode = HW_ROTATE;
-    video_pipeline_decode_config.rotate_angle = 90; // 90度旋转
+    video_pipeline_decode_config.rotate_angle = ROTATE_90; // 90度旋转
     ret = bk_video_pipeline_open_rotate(g_video_pipeline_handle, &video_pipeline_decode_config);
     if (ret != BK_OK) {
         LOGE("bk_video_pipeline_open_rotate failed, ret: %d\n", ret);
@@ -408,7 +408,7 @@ static int video_pipeline_h264_encode_and_sw_rotate_test(void)
     
     // 配置软件旋转
     video_pipeline_decode_config.rotate_mode = SW_ROTATE;
-    video_pipeline_decode_config.rotate_angle = 180; // 180度旋转
+    video_pipeline_decode_config.rotate_angle = ROTATE_180; // 180度旋转
 
     ret = bk_video_pipeline_open_rotate(g_video_pipeline_handle, &video_pipeline_decode_config);
     if (ret != BK_OK) {

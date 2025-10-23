@@ -178,11 +178,11 @@ void cli_jpeg_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 
         if(jpeg_decode_mode == JPEG_DECODE_MODE_HARDWARE)
         {
-            ret = perform_jpeg_decode_test(&jpeg_decode_hw_handle, jpeg_length, jpeg_data, "manual", jpeg_decode_mode);
+            ret = perform_jpeg_decode_test(jpeg_decode_hw_handle, jpeg_length, jpeg_data, "manual", jpeg_decode_mode);
         }
         else
         {
-            ret = perform_jpeg_decode_test(&jpeg_decode_sw_handle, jpeg_length, jpeg_data, "manual", jpeg_decode_mode);
+            ret = perform_jpeg_decode_test(jpeg_decode_sw_handle, jpeg_length, jpeg_data, "manual", jpeg_decode_mode);
         }
     }
     else {

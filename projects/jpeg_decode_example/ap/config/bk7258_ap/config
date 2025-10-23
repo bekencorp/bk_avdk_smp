@@ -332,6 +332,12 @@ CONFIG_ADK_VFS_UTIL=y
 # end of Adk
 
 #
+# bk_bat_monitor
+#
+# CONFIG_BAT_MONITOR is not set
+# end of bk_bat_monitor
+
+#
 # Bk_ble
 #
 CONFIG_BLUETOOTH_AP=y
@@ -487,6 +493,14 @@ CONFIG_NETIF_LWIP=y
 #
 # CONFIG_BK_NETWORK_PROVISIONING is not set
 # end of Beken Components Network Provisioning
+
+#
+# bk_nfc
+#
+# CONFIG_NFC_ENABLE is not set
+CONFIG_NFC_MFRC522_COMM_SERIAL_PORT=1
+CONFIG_NFC_POLLING_PERIOD_MS=1000
+# end of bk_nfc
 
 #
 # bk peripheral
