@@ -1557,7 +1557,7 @@ bk_err_t audio_element_multi_output(audio_element_handle_t el, char *buffer, int
 
 bk_err_t audio_element_set_multi_input_port(audio_element_handle_t el, audio_port_handle_t port, int index)
 {
-    if ((index < el->multi_in.max_port_num) && port)
+    if (index < el->multi_in.max_port_num)
     {
         el->multi_in.port[index] = port;
         return BK_OK;
@@ -1567,7 +1567,7 @@ bk_err_t audio_element_set_multi_input_port(audio_element_handle_t el, audio_por
 
 bk_err_t audio_element_set_multi_output_port(audio_element_handle_t el, audio_port_handle_t port, int index)
 {
-    if ((index < el->multi_out.max_port_num) && port)
+    if (index < el->multi_out.max_port_num)
     {
         el->multi_out.port[index] = port;
         return BK_OK;

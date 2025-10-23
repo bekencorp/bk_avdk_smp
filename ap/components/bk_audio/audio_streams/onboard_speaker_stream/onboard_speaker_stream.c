@@ -1788,7 +1788,6 @@ bk_err_t onboard_speaker_stream_get_input_port_info_by_port_id(audio_element_han
 
 bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboard_speaker_stream, audio_port_info_t *port_info)
 {
-    input_audio_port_info_item_t *audio_port_info_item = NULL;
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
 
     INPUT_PORT_LIST_DEBUG(&onboard_spk->input_port_list, __func__, __LINE__);
@@ -1806,15 +1805,20 @@ bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboa
         return BK_FAIL;
     }
 
+    BK_LOGD(TAG, "%s, line: %d, port_id: %d, priority: %d, port: %p \n", __func__, __LINE__, port_info->port_id, port_info->priority, port_info->port);
+
+#if 0
     /* Only one input port is allowed under one priority level */
+    input_audio_port_info_item_t *audio_port_info_item = NULL;
     STAILQ_FOREACH(audio_port_info_item, &onboard_spk->input_port_list, next)
     {
-        if (audio_port_info_item && audio_port_info_item->port_info.priority == port_info->priority && audio_port_info_item->port_info.port_id != port_info->port_id)
+        if (audio_port_info_item && audio_port_info_item->port_info.priority == port_info->priority && audio_port_info_item->port_info.port_id == port_info->port_id && port_info->port != NULL)
         {
             BK_LOGE(TAG, "%s, line: %d, audio port: %d, priority: %d is exist, different ports are not allowed to use the same priority\n", __func__, __LINE__, port_info->port_id, port_info->priority);
             return BK_FAIL;
         }
     }
+#endif
 
     /* Check all ports in the input port list to see if there is a port with the same port ID as port_info, and update the port information */
     audio_port_info_t *tmp_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, port_info->port_id);
