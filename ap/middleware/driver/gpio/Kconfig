@@ -69,6 +69,15 @@ menu "GPIO"
 	config GPIO_DUMP_MAP_DEV_DEBUG
 		bool "Enable GPIO MAP DEV DEBUG CODE"
 		default n
-		
+
+	config LDO3V3_CTRL_GPIO
+		int "GPIO pin for LDO 3.3V control"
+		default 255
+		help
+			Specify the GPIO pin number for LDO 3.3V control.
+			Customers should configure the GPIO according to their circuit's LDO pin,
+			otherwise some peripherals may not work properly.
+			Set to 255 to disable this feature.
+
 endmenu
 

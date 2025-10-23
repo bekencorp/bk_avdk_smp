@@ -420,21 +420,8 @@ struct {\
 #define AUD_DAC_PA_ENABLE_LEVEL		(1)
 
 
-#if CONFIG_LDO3V3_CTRL_GPIO
-#define SDCARD_LDO_CTRL_GPIO               (CONFIG_LDO3V3_CTRL_GPIO)
-#define SDCARD_LDO_CTRL_ACTIVE_LEVEL       (1)
-#else
-#define SDCARD_LDO_CTRL_GPIO               (GPIO_42)
-#define SDCARD_LDO_CTRL_ACTIVE_LEVEL       (1)
-#endif
-
-#if CONFIG_LDO3V3_CTRL_GPIO
-#define MOTOR_LDO_CTRL_GPIO                  (CONFIG_LDO3V3_CTRL_GPIO)
-#define MOTOR_LDO_CTRL_ACTIVE_LEVEL          (1)
-#else
-#define MOTOR_LDO_CTRL_GPIO                  (GPIO_42)
-#define MOTOR_LDO_CTRL_ACTIVE_LEVEL          (1)
-#endif
+#define SDCARD_LDO_CTRL_GPIO               CONFIG_LDO3V3_CTRL_GPIO
+#define MOTOR_LDO_CTRL_GPIO                CONFIG_LDO3V3_CTRL_GPIO
 
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
