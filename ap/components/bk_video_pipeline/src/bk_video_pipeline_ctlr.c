@@ -10,15 +10,14 @@
 
 #define TAG "video_pipeline_ctlr"
 
-#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
-#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+#define LOGE(fmt, ...) BK_LOGE(TAG, "[%s:%d] " fmt, __func__, __LINE__, ##__VA_ARGS__)
+#define LOGW(fmt, ...) BK_LOGW(TAG, "[%s:%d] " fmt, __func__, __LINE__, ##__VA_ARGS__)
+#define LOGI(fmt, ...) BK_LOGI(TAG, "[%s:%d] " fmt, __func__, __LINE__, ##__VA_ARGS__)
+#define LOGD(fmt, ...) BK_LOGD(TAG, "[%s:%d] " fmt, __func__, __LINE__, ##__VA_ARGS__)
+#define LOGV(fmt, ...) BK_LOGV(TAG, "[%s:%d] " fmt, __func__, __LINE__, ##__VA_ARGS__)
 
 static avdk_err_t video_pipeline_ctlr_open_h264e(bk_video_pipeline_ctlr_handle_t handler, bk_video_pipeline_h264e_config_t *config)
 {
-    bk_err_t ret = BK_OK;
     private_video_pipeline_ctlr_t *controller = __containerof(handler, private_video_pipeline_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
@@ -29,28 +28,28 @@ static avdk_err_t video_pipeline_ctlr_open_h264e(bk_video_pipeline_ctlr_handle_t
 
     if (controller->module_status.h264e_enable == VIDEO_PIPELINE_MODULE_ENABLED)
     {
-        LOGE("%s, h264e is already opened\n", __func__);
-        return BK_OK;
+        LOGW("h264e is already opened\n");
+        return AVDK_ERR_OK;
     }
+
     controller->h264e_config.width = config->width;
     controller->h264e_config.height = config->height;
     controller->h264e_config.fps = config->fps;
     controller->h264e_config.sw_rotate_angle = config->sw_rotate_angle;
     controller->h264e_config.h264e_cb = config->h264e_cb;
-    ret = h264_jdec_pipeline_open(&controller->h264e_config,
-                                controller->h264e_config.h264e_cb,
-                                controller->config.jpeg_cbs,
-                                controller->config.decode_cbs);
+
+    avdk_err_t ret = h264_jdec_pipeline_open(&controller->h264e_config,
+                                              controller->h264e_config.h264e_cb,
+                                              controller->config.jpeg_cbs,
+                                              controller->config.decode_cbs);
     if (ret != BK_OK)
     {
-        LOGE("%s, h264_jdec_pipeline_open fail\n", __func__);
-        goto error;
+        LOGE("h264_jdec_pipeline_open failed, ret=%d\n", ret);
+        return ret;
     }
+
     controller->module_status.h264e_enable = VIDEO_PIPELINE_MODULE_ENABLED;
     return AVDK_ERR_OK;
-error:
-
-    return ret;
 }
 
 static avdk_err_t video_pipeline_ctlr_close_h264e(bk_video_pipeline_ctlr_handle_t handler)
@@ -68,32 +67,30 @@ static avdk_err_t video_pipeline_ctlr_close_h264e(bk_video_pipeline_ctlr_handle_
 
 static avdk_err_t video_pipeline_ctlr_open_rotate(bk_video_pipeline_ctlr_handle_t handler, bk_video_pipeline_decode_config_t *config)
 {
-    bk_err_t ret = BK_OK;
     private_video_pipeline_ctlr_t *controller = __containerof(handler, private_video_pipeline_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
 
     if (controller->module_status.rotate_enable == VIDEO_PIPELINE_MODULE_ENABLED)
     {
-        LOGE("%s, rotate is already opened\n", __func__);
-        return BK_OK;
+        LOGW("rotate is already opened\n");
+        return AVDK_ERR_OK;
     }
 
     controller->decode_config.rotate_mode = config->rotate_mode;
     controller->decode_config.rotate_angle = config->rotate_angle;
-    ret = lcd_jdec_pipeline_open(&controller->decode_config,
-                                controller->config.jpeg_cbs,
-                                controller->config.decode_cbs);
+    
+    avdk_err_t ret = lcd_jdec_pipeline_open(&controller->decode_config,
+                                             controller->config.jpeg_cbs,
+                                             controller->config.decode_cbs);
     if (ret != BK_OK)
     {
-        LOGE("%s, lcd_jdec_pipeline_open fail\n", __func__);
-        goto error;
+        LOGE("lcd_jdec_pipeline_open failed, ret=%d\n", ret);
+        return ret;
     }
+
     controller->module_status.rotate_enable = VIDEO_PIPELINE_MODULE_ENABLED;
     return AVDK_ERR_OK;
-error:
-
-    return ret;
 }
 
 static avdk_err_t video_pipeline_ctlr_close_rotate(bk_video_pipeline_ctlr_handle_t handler)
@@ -133,7 +130,8 @@ static avdk_err_t video_pipeline_ctlr_get_module_status(bk_video_pipeline_ctlr_h
             *status = controller->module_status.rotate_enable;
             break;
         default:
-            break;
+            LOGW("Unknown module type: %d\n", module);
+            return AVDK_ERR_INVAL;
     }
     return AVDK_ERR_OK;
 }
@@ -162,13 +160,15 @@ static avdk_err_t video_pipeline_ctlr_ioctl(bk_video_pipeline_ctlr_handle_t hand
     private_video_pipeline_ctlr_t *controller = __containerof(handler, private_video_pipeline_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
 
-    //TODO
+    // TODO: Implement specific ioctl command handling logic
     switch (cmd)
     {
     case VIDEO_PIPELINE_IOCTL_CMD_BASE:
+        LOGD("Received ioctl command: VIDEO_PIPELINE_IOCTL_CMD_BASE\n");
         break;
     default:
-        break;
+        LOGW("Unsupported ioctl command: %d\n", cmd);
+        return AVDK_ERR_UNSUPPORTED;
     }
 
     return AVDK_ERR_OK;
@@ -176,20 +176,25 @@ static avdk_err_t video_pipeline_ctlr_ioctl(bk_video_pipeline_ctlr_handle_t hand
 
 avdk_err_t bk_video_pipeline_ctlr_new(bk_video_pipeline_ctlr_handle_t *handle, bk_video_pipeline_ctlr_config_t *config)
 {
-    AVDK_RETURN_ON_FALSE(config && handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle && config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
 
+    // Validate decode callbacks
     AVDK_RETURN_ON_FALSE(config->decode_cbs, AVDK_ERR_INVAL, TAG, "decode_cbs is NULL");
     AVDK_RETURN_ON_FALSE(config->decode_cbs->malloc, AVDK_ERR_INVAL, TAG, "decode_cbs->malloc is NULL");
     AVDK_RETURN_ON_FALSE(config->decode_cbs->free, AVDK_ERR_INVAL, TAG, "decode_cbs->free is NULL");
     AVDK_RETURN_ON_FALSE(config->decode_cbs->complete, AVDK_ERR_INVAL, TAG, "decode_cbs->complete is NULL");
+
+    // Validate jpeg callbacks
     AVDK_RETURN_ON_FALSE(config->jpeg_cbs, AVDK_ERR_INVAL, TAG, "jpeg_cbs is NULL");
     AVDK_RETURN_ON_FALSE(config->jpeg_cbs->read, AVDK_ERR_INVAL, TAG, "jpeg_cbs->read is NULL");
     AVDK_RETURN_ON_FALSE(config->jpeg_cbs->complete, AVDK_ERR_INVAL, TAG, "jpeg_cbs->complete is NULL");
 
-    private_video_pipeline_ctlr_t *controller = os_malloc(sizeof(private_video_pipeline_ctlr_t));
+    // Allocate and initialize controller
+    private_video_pipeline_ctlr_t *controller = (private_video_pipeline_ctlr_t *)os_malloc(sizeof(private_video_pipeline_ctlr_t));
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
     os_memset(controller, 0, sizeof(private_video_pipeline_ctlr_t));
 
+    // Copy configuration and set operation function pointers
     os_memcpy(&controller->config, config, sizeof(bk_video_pipeline_ctlr_config_t));
     controller->ops.open_h264e = video_pipeline_ctlr_open_h264e;
     controller->ops.close_h264e = video_pipeline_ctlr_close_h264e;
