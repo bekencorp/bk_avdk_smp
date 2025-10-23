@@ -29,6 +29,7 @@
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <driver/aud_dac.h>
 #include <driver/dma.h>
+#include <bk_general_dma.h>
 #include <driver/audio_ring_buff.h>
 #include <driver/gpio.h>
 #include "gpio_driver.h"
@@ -816,7 +817,9 @@ static int _onboard_speaker_write(audio_port_handle_t self, char *buffer, int le
 
 static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int rate, int ch, int bits)
 {
-    /* check and set sample rate */
+    bk_err_t ret = BK_OK;
+
+    /* check and set sample rate, channel number, bits */
     if (onboard_spk->sample_rate != rate)
     {
         if (BK_OK != bk_aud_dac_set_samp_rate(rate))
@@ -852,16 +855,25 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
             BK_LOGD(TAG, "%s, line: %d, updata onboard speaker channel: %d ok \n", __func__, __LINE__, ch);
         }
 
-        //TODO
-        //set dest_data_width 16bit or 32bit
-        //lack dma set api
-        /*
-                aud_dac_dma_deconfig(onboard_spk);
-                if (BK_OK != aud_dac_dma_config(onboard_spk)) {
-                    BK_LOGE(TAG, "%s, line: %d, audio_dac_dma_reconfig fail \n", __func__, __LINE__);
-                    return BK_FAIL;
-                }
-        */
+        /* set dma dest_data_width 16bit or 32bit */
+        if (ch == 1)
+        {
+            ret = bk_dma_set_dest_data_width(onboard_spk->spk_dma_id, DMA_DATA_WIDTH_16BITS);
+        }
+        else
+        {
+            ret = bk_dma_set_dest_data_width(onboard_spk->spk_dma_id, DMA_DATA_WIDTH_32BITS);
+        }
+
+        if (ret != BK_OK)
+        {
+            BK_LOGE(TAG, "%s, line: %d, set dest_data_width %d fail \n", __func__, __LINE__, ch == 1 ? 16 : 32);
+            return BK_FAIL;
+        }
+        else
+        {
+            BK_LOGD(TAG, "%s, line: %d, set dest_data_width %d ok \n", __func__, __LINE__, ch == 1 ? 16 : 32);
+        }
     }
 
     return BK_OK;
@@ -872,6 +884,7 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
 static bk_err_t _update_dac_config(audio_element_handle_t onboard_speaker_stream, uint8_t current_port_id, uint8_t new_port_id)
 {
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
+    bk_err_t ret = BK_OK;
 
     audio_port_info_t *current_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, current_port_id);
     audio_port_info_t *new_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, new_port_id);
@@ -919,6 +932,25 @@ static bk_err_t _update_dac_config(audio_element_handle_t onboard_speaker_stream
                 else
                 {
                     BK_LOGD(TAG, "%s, line: %d, updata onboard speaker channel: %d->%d ok \n", __func__, __LINE__, current_port_info ? current_port_info->chl_num : -1, new_port_info->chl_num);
+                }
+
+                /* set dma dest_data_width 16bit or 32bit */
+                if (new_port_info->chl_num == 1)
+                {
+                    ret = bk_dma_set_dest_data_width(onboard_spk->spk_dma_id, DMA_DATA_WIDTH_16BITS);
+                }
+                else
+                {
+                    ret = bk_dma_set_dest_data_width(onboard_spk->spk_dma_id, DMA_DATA_WIDTH_32BITS);
+                }
+
+                if (ret != BK_OK)
+                {
+                    BK_LOGE(TAG, "%s, line: %d, set dest_data_width %d fail \n", __func__, __LINE__, new_port_info->chl_num == 1 ? 16 : 32);
+                }
+                else
+                {
+                    BK_LOGD(TAG, "%s, line: %d, set dest_data_width %d ok \n", __func__, __LINE__, new_port_info->chl_num == 1 ? 16 : 32);
                 }
             }
 

@@ -352,22 +352,19 @@ static bk_err_t play_pipeline_init(bk_player_handle_t player_handle)
         goto fail;
     }
 
-    if (player_handle->event_handle)
+    BK_LOGD(TAG, "step5: init play event listener\n");
+    audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
+    player_handle->play_evt = audio_event_iface_init(&evt_cfg);
+    if (player_handle->play_evt == NULL)
     {
-        BK_LOGD(TAG, "step5: init play event listener\n");
-        audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
-        player_handle->play_evt = audio_event_iface_init(&evt_cfg);
-        if (player_handle->play_evt == NULL)
-        {
-            BK_LOGE(TAG, "%s, %d, play_event init fail\n", __func__, __LINE__);
-            goto fail;
-        }
+        BK_LOGE(TAG, "%s, %d, play_event init fail\n", __func__, __LINE__);
+        goto fail;
+    }
 
-        if (BK_OK != audio_pipeline_set_listener(player_handle->play_pipeline, player_handle->play_evt))
-        {
-            BK_LOGE(TAG, "%s, %d, init play pipeline listener fail\n", __func__, __LINE__);
-            goto fail;
-        }
+    if (BK_OK != audio_pipeline_set_listener(player_handle->play_pipeline, player_handle->play_evt))
+    {
+        BK_LOGE(TAG, "%s, %d, init play pipeline listener fail\n", __func__, __LINE__);
+        goto fail;
     }
 
     return BK_OK;
@@ -681,11 +678,6 @@ static bk_err_t listener_deinit(bk_player_handle_t player_handle)
 {
     PLAYER_CHECK_NULL(player_handle, return BK_FAIL);
 
-    if (!player_handle->event_handle)
-    {
-        return BK_OK;
-    }
-
     BK_LOGD(TAG, "%s\n", __func__);
 
     if (BK_OK != listener_send_msg(player_handle->listener_msg_que, LISTENER_EXIT, NULL))
@@ -707,11 +699,6 @@ static bk_err_t listener_start(bk_player_handle_t player_handle)
 {
     PLAYER_CHECK_NULL(player_handle, return BK_FAIL);
 
-    if (!player_handle->event_handle)
-    {
-        return BK_OK;
-    }
-
     BK_LOGD(TAG, "%s\n", __func__);
 
     bk_err_t ret = listener_send_msg(player_handle->listener_msg_que, LISTENER_START, NULL);
@@ -726,11 +713,6 @@ static bk_err_t listener_start(bk_player_handle_t player_handle)
 static bk_err_t listener_stop(bk_player_handle_t player_handle)
 {
     PLAYER_CHECK_NULL(player_handle, return BK_FAIL);
-
-    if (!player_handle->event_handle)
-    {
-        return BK_OK;
-    }
 
     BK_LOGD(TAG, "%s\n", __func__);
 
@@ -819,11 +801,7 @@ bk_player_handle_t bk_player_create(bk_player_cfg_t *cfg)
     player_handle->event_handle = cfg->event_handle;
     player_handle->args = cfg->args;
 
-     /* check whether event_handle was been register.
-     * If true, init pipeline listener.
-     * If false, not init pipeline listener.
-     */
-    if (player_handle->event_handle && BK_OK != listener_init(player_handle))
+    if (BK_OK != listener_init(player_handle))
     {
         BK_LOGE(TAG, "%s, %d, player listener init fail\n", __func__, __LINE__);
         goto fail;
