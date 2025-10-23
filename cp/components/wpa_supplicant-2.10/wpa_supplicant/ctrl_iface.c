@@ -2091,11 +2091,14 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 	}	break;
 
 	case WPA_CTRL_EVENT_CANCEL_REMAIN_ON_CHANNEL: {
-		union wpa_event_data data;
+		if (g_rwnx_hw.roc_elem == NULL) {
+			union wpa_event_data data;
 
-		os_memset(&data, 0, sizeof(data));
-		data.remain_on_channel.freq = -1;  /* FIXME: P2P */
-		wpa_supplicant_event_sta(wpa_s, EVENT_CANCEL_REMAIN_ON_CHANNEL, &data);
+			os_memset(&data, 0, sizeof(data));
+			data.remain_on_channel.freq = -1;  /* FIXME: P2P */
+			wpa_supplicant_event_sta(wpa_s, EVENT_CANCEL_REMAIN_ON_CHANNEL, &data);
+		} else
+			WPA_LOGE("ROC element is not NULL\n");
 	}	break;
 
 	case WPA_CTRL_EVENT_P2P_GO_NEG_REQUEST: {
@@ -2169,4 +2172,20 @@ static int wpa_ctrl_debug_info_dump(struct wpa_supplicant *wpas, uint32_t type)
 		wpa_ctrl_debug_info_dump_scan(wpas);
 
 	return WPA_OK;
+}
+
+int bk_get_chan_by_ssid_and_bssid(uint8_t *ssid, uint8_t *bssid, int ssid_len)
+{
+	struct wpa_bss *bss;
+	int chan = 0;
+	struct wpa_supplicant *wpa_s = wpa_suppliant_ctrl_get_wpas();
+	if (NULL == wpa_s) {
+		return -1;
+	}
+	bss = wpa_bss_get(wpa_s, bssid, ssid, ssid_len);
+	if (NULL == bss) {
+		return -1;
+	}
+	chan = bss->freq;
+	return chan;
 }

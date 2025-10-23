@@ -1656,10 +1656,10 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 		struct rwnx_roc_elem *roc_elem = rwnx_hw->roc_elem;
 
 		if (roc_elem) {
-			wpa_ctrl_request_async(WPA_CTRL_EVENT_CANCEL_REMAIN_ON_CHANNEL, NULL);
+			rwnx_hw->roc_elem = 0;
 			os_free(roc_elem);
+			wpa_ctrl_request_async(WPA_CTRL_EVENT_CANCEL_REMAIN_ON_CHANNEL, NULL);
 		}
-		rwnx_hw->roc_elem = 0;
 	}	break;
 	case MM_PS_CHANGE_IND:
 #if CONFIG_RWNX_SW_TXQ

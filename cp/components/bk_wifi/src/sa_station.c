@@ -52,7 +52,7 @@ int sa_station_send_associate_cmd(ASSOC_PARAM_T *assoc_param)
 int sa_station_send_associate_cmd(CONNECT_PARAM_T *connect_param)
 {
 	int ret;
-	struct mac_scan_result *desired_ap_ptr;
+	__maybe_unused struct mac_scan_result *desired_ap_ptr;
 	struct sm_connect_cfm sm_connect_cfm;
 
 	if (connect_param->chan.freq) {
@@ -61,6 +61,7 @@ int sa_station_send_associate_cmd(CONNECT_PARAM_T *connect_param)
 		connect_param->chan.flags = 0;
 		connect_param->chan.tx_power = VIF_UNDEF_POWER;
 	} else {
+#if 0
 		/* normal case */
 		desired_ap_ptr = scanu_search_by_ssid((void *)&connect_param->ssid);
 		if (NULL == desired_ap_ptr)
@@ -68,6 +69,23 @@ int sa_station_send_associate_cmd(CONNECT_PARAM_T *connect_param)
 		connect_param->chan = *(desired_ap_ptr->chan);
 		if (0 == connect_param->chan.tx_power)
 			connect_param->chan.tx_power = VIF_UNDEF_POWER;
+#else
+		extern int bk_get_chan_by_ssid_and_bssid(uint8_t *ssid, uint8_t *bssid, int ssid_len);
+		extern struct mac_chan_def *me_freq_to_chan_def(uint8_t band, uint16_t freq);
+		int band = 0;
+		int freq = bk_get_chan_by_ssid_and_bssid(connect_param->ssid.array, (uint8_t *)connect_param->bssid.array, connect_param->ssid.length);
+		if (freq <= 0) {
+			return -1;
+		}
+		if (freq >= 5925) {
+			band = IEEE80211_BAND_6GHZ;
+		} else if (freq >= 4900) {
+			band = IEEE80211_BAND_5GHZ;
+		} else {
+			band = IEEE80211_BAND_2GHZ;
+		}
+		os_memcpy(&connect_param->chan, me_freq_to_chan_def(band, freq), sizeof(struct mac_chan_def));
+#endif
 	}
 
 	if (rw_ieee80211_is_scan_rst_in_countrycode(rw_ieee80211_get_chan_id(connect_param->chan.freq)) == 0) {
