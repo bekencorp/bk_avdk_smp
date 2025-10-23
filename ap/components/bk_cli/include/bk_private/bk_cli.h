@@ -100,7 +100,6 @@ struct cli_st
 #define is_print(c)           ((uint8_t)c >= 0x20 && (uint8_t)c <= 0x7f)
 
 #if (CONFIG_SOC_BK7271)
-void bk7271_dsp_cli_init(void);
 #if CONFIG_BT
 void bk7271_ble_cli_init(void);
 #endif
