@@ -338,7 +338,7 @@ static int psram_hal_APS128XXO_OB9_init(uint32_t *id)
 #if (CONFIG_SOC_BK7256XX)
 	val = (val & ~(0x7 << 10)) | (0x4 << 10);
 #else
-	val = (val & ~(0x7 << 2)) | (0x4 << 2);
+	val = (val & ~(0x1F)) | (0x6 << 2) | 0x2;
 #endif
 	psram_hal_cmd_write(0x00000000, val);
 
