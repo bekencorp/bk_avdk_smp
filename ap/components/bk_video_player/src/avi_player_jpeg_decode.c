@@ -168,6 +168,11 @@ bk_err_t avi_player_jpeg_hw_decode_deinit(bk_avi_player_format_t output_format)
             return ret;
         }
 
+        if (g_dec_out_frame->frame) {
+            psram_free(g_dec_out_frame->frame);
+            g_dec_out_frame->frame = NULL;
+        }
+
         if (g_dec_out_frame != NULL) {
             os_free(g_dec_out_frame);
             g_dec_out_frame = NULL;
@@ -206,10 +211,12 @@ bk_err_t avi_player_jpeg_hw_decode_start(bk_avi_player_t *avi_player)
 
     g_dec_out_frame->size = avi_player->frame_size;
     if (avi_player->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565) {
-        g_dec_out_frame->frame = psram_malloc(g_dec_out_frame->size);
         if (g_dec_out_frame->frame == NULL) {
-            LOGE("%s %d g_dec_out_frame->frame malloc failed\n", __func__, __LINE__);
-            return ret;
+            g_dec_out_frame->frame = psram_malloc(g_dec_out_frame->size);
+            if (g_dec_out_frame->frame == NULL) {
+                LOGE("%s %d g_dec_out_frame->frame malloc failed\n", __func__, __LINE__);
+                return BK_FAIL;
+            }
         }
     } else {
         g_dec_out_frame->frame = avi_player->framebuffer;
@@ -217,19 +224,12 @@ bk_err_t avi_player_jpeg_hw_decode_start(bk_avi_player_t *avi_player)
 
     ret = bk_jpeg_decode_hw_decode(avi_player_jpeg_decode_handle, g_jpeg_frame, g_dec_out_frame);
     if (ret != BK_OK) {
-        LOGE("%s hw decode start fail %d\n", __func__, ret);
-        psram_free(g_dec_out_frame->frame);
-        g_dec_out_frame->frame = NULL;
+        LOGE("%s bk_jpeg_decode_hw_decode fail %d\n", __func__, ret);
         return ret;
     }
 
     if (avi_player->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565) {
         avi_player_dma2d_yuyv2rgb565(g_dec_out_frame->frame, avi_player->framebuffer, avi_player->avi->width, avi_player->avi->height, avi_player->swap_flag);
-
-        if (g_dec_out_frame->frame) {
-            psram_free(g_dec_out_frame->frame);
-            g_dec_out_frame->frame = NULL;
-        }
     }
 
     return ret;
