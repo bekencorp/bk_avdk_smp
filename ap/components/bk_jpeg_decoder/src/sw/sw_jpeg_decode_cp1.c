@@ -68,8 +68,6 @@ typedef struct {
 
 static sw_dec_config_t *sw_dec_config = NULL;
 
-#define BUFFER_SIZE (864 * 8 * 2 * 2)
-
 __attribute__((section(".dtcm_cpu1"), aligned(0x10))) uint8_t rotate_buffer_sw_cp1[16*16*2] = {0};
 __attribute__((section(".dtcm_cpu1"), aligned(0x10))) jd_workbuf_t jpeg_decode_workbuf_cp1 = {0};
 __attribute__((aligned(0x10))) StaticTask_t xSWDecTaskTCB_cp1 = {0};

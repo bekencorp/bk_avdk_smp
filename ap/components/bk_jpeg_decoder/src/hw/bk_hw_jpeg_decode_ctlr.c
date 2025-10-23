@@ -17,6 +17,8 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
+#define YUV_PIXEL_BYTES 2  // YUYV format uses 2 bytes per pixel
+
 static avdk_err_t hardware_jpeg_decode_ctlr_open(bk_jpeg_decode_hw_ctlr_handle_t handler)
 {
     avdk_err_t ret = AVDK_ERR_OK;
@@ -65,27 +67,9 @@ static avdk_err_t hardware_jpeg_decode_ctlr_decode(bk_jpeg_decode_hw_ctlr_handle
     AVDK_RETURN_ON_FALSE(in_frame->frame, AVDK_ERR_INVAL, TAG, "in_frame frame is NULL");
     AVDK_RETURN_ON_FALSE(out_frame->frame, AVDK_ERR_INVAL, TAG, "out_frame frame is NULL");
     AVDK_RETURN_ON_FALSE(controller->module_status.status == JPEG_DECODE_ENABLED, AVDK_ERR_INVAL, TAG, "jpeg decode is disabled");
+    AVDK_RETURN_ON_FALSE(in_frame->length > 0, AVDK_ERR_INVAL, TAG, "in_frame length is 0");
+    AVDK_RETURN_ON_FALSE(out_frame->size > 0, AVDK_ERR_INVAL, TAG, "out_frame size is 0");
 
-    if (in_frame->length == 0)
-    {
-        LOGE(" %s %d in_frame length is 0\n", __func__, __LINE__);
-        return AVDK_ERR_INVAL;
-    }
-    if (out_frame->size == 0)
-    {
-        LOGE(" %s %d out_frame size is 0\n", __func__, __LINE__);
-        return AVDK_ERR_INVAL;
-    }
-    if (in_frame->frame == NULL)
-    {
-        LOGE(" %s %d in_frame frame is NULL\n", __func__, __LINE__);
-        return AVDK_ERR_INVAL;
-    }
-    if (out_frame->frame == NULL)
-    {
-        LOGE(" %s %d out_frame frame is NULL\n", __func__, __LINE__);
-        return AVDK_ERR_INVAL;
-    }
     bk_jpeg_decode_img_info_t img_info = {0};
     img_info.frame = in_frame;
     ret = bk_get_jpeg_data_info(&img_info);
@@ -95,7 +79,7 @@ static avdk_err_t hardware_jpeg_decode_ctlr_decode(bk_jpeg_decode_hw_ctlr_handle
         return AVDK_ERR_INVAL;
     }
 
-    if (img_info.width * img_info.height * 2 > out_frame->size)
+    if (img_info.width * img_info.height * YUV_PIXEL_BYTES > out_frame->size)
     {
         LOGE(" %s %d out_frame size is not enough\n", __func__, __LINE__);
         if (controller->config.decode_cbs.in_complete)
@@ -131,17 +115,7 @@ static avdk_err_t hardware_jpeg_decode_ctlr_decode_async(bk_jpeg_decode_hw_ctlr_
     AVDK_RETURN_ON_FALSE(in_frame, AVDK_ERR_INVAL, TAG, "in_frame is NULL");
     AVDK_RETURN_ON_FALSE(in_frame->frame, AVDK_ERR_INVAL, TAG, "in_frame frame is NULL");
     AVDK_RETURN_ON_FALSE(controller->module_status.status == JPEG_DECODE_ENABLED, AVDK_ERR_INVAL, TAG, "jpeg decode is disabled");
-
-    if (in_frame->length == 0)
-    {
-        LOGE(" %s %d in_frame length is 0\n", __func__, __LINE__);
-        return AVDK_ERR_INVAL;
-    }
-    if (in_frame->frame == NULL)
-    {
-        LOGE(" %s %d in_frame frame is NULL\n", __func__, __LINE__);
-        return AVDK_ERR_INVAL;
-    }
+    AVDK_RETURN_ON_FALSE(in_frame->length > 0, AVDK_ERR_INVAL, TAG, "in_frame length is 0");
 
     ret = hw_jpeg_decode_start_async(in_frame);
     if (ret != BK_OK)

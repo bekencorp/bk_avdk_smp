@@ -16,6 +16,11 @@
 
 #define TAG "hw_dec"
 
+#define HW_DECODE_TIMEOUT_MS        200
+#define HW_DECODE_MSG_QUEUE_SIZE    20
+#define HW_DECODE_INPUT_QUEUE_SIZE  10
+#define HW_DECODE_YUV_PIXEL_BYTES   2
+
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -304,7 +309,7 @@ static void hw_jpeg_decode_thread(void *arg)
                 }
                 in_frame->width = img_info.width;
                 in_frame->height = img_info.height;
-                out_frame = hw_jpeg_decode_out_malloc(img_info.width * img_info.height * 2);
+                out_frame = hw_jpeg_decode_out_malloc(img_info.width * img_info.height * HW_DECODE_YUV_PIXEL_BYTES);
                 if (out_frame == NULL)
                 {
                     LOGE("%s %d out_malloc failed\n", __func__, __LINE__);
@@ -394,7 +399,7 @@ static void hw_jpeg_decode_destory(void)
             while (!rtos_is_queue_empty(&g_hw_jpeg_decode->hw_message_queue))
             {
                 hardware_decode_msg_t msg = {0};
-                ret = rtos_pop_from_queue(&g_hw_jpeg_decode->hw_input_queue, &msg, BEKEN_NO_WAIT);
+                ret = rtos_pop_from_queue(&g_hw_jpeg_decode->hw_message_queue, &msg, BEKEN_NO_WAIT);
                 if (ret == BK_OK)
                 {
                     if (msg.event == HARDWARE_DECODE_EVENT_DECODE_START)
@@ -449,21 +454,21 @@ bk_err_t hw_jpeg_decode_init(bk_jpeg_decode_callback_t *decode_cbs)
         return ret;
     }
 
-    ret = rtos_init_queue(&g_hw_jpeg_decode->hw_message_queue, "hw_msg_queue", sizeof(hardware_decode_msg_t), 20);
+    ret = rtos_init_queue(&g_hw_jpeg_decode->hw_message_queue, "hw_msg_queue", sizeof(hardware_decode_msg_t), HW_DECODE_MSG_QUEUE_SIZE);
     if (ret != BK_OK)
     {
         LOGE("%s hw_message_queue init failed: %d\n", __func__, ret);
         goto error;
     }
 
-    ret = rtos_init_queue(&g_hw_jpeg_decode->hw_input_queue, "hw_input_queue", sizeof(hardware_decode_msg_t), 10);
+    ret = rtos_init_queue(&g_hw_jpeg_decode->hw_input_queue, "hw_input_queue", sizeof(hardware_decode_msg_t), HW_DECODE_INPUT_QUEUE_SIZE);
     if (ret != BK_OK)
     {
-        LOGE("%s hw_message_queue init failed: %d\n", __func__, ret);
+        LOGE("%s hw_input_queue init failed: %d\n", __func__, ret);
         goto error;
     }
 
-    ret = rtos_init_oneshot_timer(&g_hw_jpeg_decode->decode_timer, 200, bk_driver_decoder_timeout, NULL, NULL);
+    ret = rtos_init_oneshot_timer(&g_hw_jpeg_decode->decode_timer, HW_DECODE_TIMEOUT_MS, bk_driver_decoder_timeout, NULL, NULL);
     if (ret != BK_OK)
     {
         LOGE("%s hw decode_timer init failed: %d\n", __func__, ret);

@@ -170,16 +170,16 @@ static avdk_err_t software_jpeg_decode_ctlr_set_config(bk_jpeg_decode_sw_handle_
     controller->config.out_format = out_frame_info->out_format;
     controller->config.byte_order = out_frame_info->byte_order;
 
-    controller->rotate_info.rotate_angle = sw_jpeg_decode_get_rotate_angle(controller->config.out_format);
+    uint32_t new_rotate_angle = sw_jpeg_decode_get_rotate_angle(controller->config.out_format);
 
-    if (controller->rotate_info.rotate_angle != ROTATE_NONE)
+    // Allocate rotate buffer only if rotation is needed and buffer doesn't exist
+    if (new_rotate_angle != ROTATE_NONE && controller->rotate_info.rotate_buf == NULL)
     {
-        if (controller->rotate_info.rotate_buf == NULL)
-        {
-            controller->rotate_info.rotate_buf = os_malloc(SW_DECODE_ROTATE_BUFFER_SIZE);
-            AVDK_RETURN_ON_FALSE(controller->rotate_info.rotate_buf, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
-        }
+        controller->rotate_info.rotate_buf = os_malloc(SW_DECODE_ROTATE_BUFFER_SIZE);
+        AVDK_RETURN_ON_FALSE(controller->rotate_info.rotate_buf, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
     }
+
+    controller->rotate_info.rotate_angle = new_rotate_angle;
 
     jd_set_rotate_by_handle(controller->jpeg_dec_handle,
         controller->rotate_info.rotate_angle,
