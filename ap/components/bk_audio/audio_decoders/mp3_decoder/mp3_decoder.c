@@ -334,9 +334,27 @@ __retry:
                     break;
 
                 default:
-                    BK_LOGE(TAG, "MP3Decode failed, code is %d \n", ret);
+                    /* Fault tolerance: try resynchronization instead of failing directly */
+                    BK_LOGW(TAG, "MP3Decode failed, code is %d, attempting resync\n", ret);
                     BK_LOGW(TAG, "main_buff_remain_size: %d \n", mp3_dec->main_buff_remain_size);
-                    return AEL_PROCESS_FAIL;
+
+                    /* Find the next sync word in the remaining data */
+                    int resync_offset = MP3FindSyncWord(mp3_dec->main_buff_readptr, mp3_dec->main_buff_remain_size);
+                    if (resync_offset >= 0)
+                    {
+                        /* Found the sync word, skip the bad frame and continue decoding */
+                        mp3_dec->main_buff_readptr += resync_offset;
+                        mp3_dec->main_buff_remain_size -= resync_offset;
+                        BK_LOGW(TAG, "Resync successful: offset=%d, remain=%d\n", resync_offset, mp3_dec->main_buff_remain_size);
+                        goto __retry;
+                    }
+                    else
+                    {
+                        /* Not found the sync word, clear the buffer and re-read the data */
+                        BK_LOGW(TAG, "Resync failed, requesting more data\n");
+                        mp3_dec->main_buff_remain_size = 0;
+                        goto __retry;
+                    }
                     break;
             }
         }
