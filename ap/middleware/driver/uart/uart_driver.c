@@ -1052,6 +1052,13 @@ bk_err_t bk_uart_init(uart_id_t id, const uart_config_t *config)
 	UART_RETURN_ON_BAUD_RATE_NOT_SUPPORT(config->baud_rate);
 	UART_CHECK_SECURE(id);
 
+	/* If UART is already initialized, return OK directly */
+	if (s_uart[id].id_init_bits & BIT(id)) {
+
+		return BK_OK;
+	}
+
+
 #if CONFIG_UART_PM_CB_SUPPORT	//this macro config set to n
 	pm_cb_conf_t uart_enter_config = {
 		.cb = (pm_cb)uart_pm_backup,
@@ -1147,6 +1154,12 @@ bk_err_t bk_uart_deinit(uart_id_t id)
 	UART_RETURN_ON_NOT_INIT();
 	UART_RETURN_ON_INVALID_ID(id);
 
+	/* If UART is already deinitialized, return OK directly */
+	if (!(s_uart[id].id_init_bits & BIT(id))) {
+
+		return BK_OK;
+	}
+	
 #if CONFIG_UART_RX_DMA
 	uart_rx_dma_deinit(id);
 #endif
