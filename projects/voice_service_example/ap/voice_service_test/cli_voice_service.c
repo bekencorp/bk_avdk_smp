@@ -39,6 +39,7 @@
 static voice_handle_t gl_voice_service_handle = NULL;
 static voice_read_handle_t gl_voice_read_service_handle = NULL;
 static voice_write_handle_t gl_voice_write_service_handle = NULL;
+static beken_semaphore_t voice_start_sem = NULL;
 
 
 int voice_service_send_callback(unsigned char *data, unsigned int len, void *args)
@@ -51,6 +52,13 @@ int voice_service_send_callback(unsigned char *data, unsigned int len, void *arg
     else
     {
         //LOGD("%s, %d, len: %d\n", __func__, __LINE__, len);
+    }
+
+    // The semaphore only needs to be released once, indicating that the voice service has successfully started and started receiving data
+    if (voice_start_sem)
+    {
+        LOGD("%s, %d, get mic data, set semaphore\n", __func__, __LINE__);
+        rtos_set_semaphore(&voice_start_sem);
     }
 
     return len;
@@ -203,6 +211,29 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             goto exit;
         }
 
+        // Create a semaphore to check if the voice service has successfully started
+        if (BK_OK != rtos_init_semaphore(&voice_start_sem, 1))
+        {
+            LOGE("%s, %d, create semaphore fail\n", __func__, __LINE__);
+            goto exit;
+        }
+
+        // Wait for 5 seconds timeout, check if the callback function is called
+        LOGI("waiting for voice service to start (timeout: 5s)...\n");
+        bk_err_t ret = rtos_get_semaphore(&voice_start_sem, 5000);  // 5 seconds timeout
+        if (ret == BK_OK)
+        {
+            LOGI("voice service started successfully!\n");
+            rtos_deinit_semaphore(&voice_start_sem);
+            voice_start_sem = NULL;
+        }
+        else
+        {
+            LOGE("%s, %d, voice service start timeout, callback not triggered\n", __func__, __LINE__);
+            rtos_deinit_semaphore(&voice_start_sem);
+            voice_start_sem = NULL;
+            goto exit;
+        }
     }
     else if (os_strcmp(argv[1], "stop") == 0)
     {
