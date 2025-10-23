@@ -85,17 +85,17 @@ static bool s_lcd_driver_is_init = false;
 typedef struct
 {
 	lcd_isr_t lcd_8080_frame_start_handler;
-    void *lcd_8080_start_arg;
+	void *lcd_8080_start_arg;
 	lcd_isr_t lcd_8080_frame_end_handler;
-    void *lcd_8080_end_arg;
+	void *lcd_8080_end_arg;
 	lcd_isr_t lcd_rgb_frame_end_handler;
-    void *lcd_rgb_end_arg;
+	void *lcd_rgb_end_arg;
 	lcd_isr_t lcd_rgb_frame_start_handler;
-    void *lcd_rgb_start_arg;
+	void *lcd_rgb_start_arg;
 	lcd_isr_t lcd_rgb_de_handler;
-    void *lcd_rgb_de_arg;
+	void *lcd_rgb_de_arg;
 	lcd_isr_t lcd_rgb_frame_interval_handler;
-    void *lcd_rgb_interval_arg;
+	void *lcd_rgb_interval_arg;
 	const lcd_device_t device;  /**< lcd device config */
 } lcd_driver_t;
 
@@ -187,11 +187,11 @@ bk_err_t lcd_mcu_gpio_init(void)
 	IO_FUNCTION_ENABLE_I8080(LCD_MCU_RESET_PIN, LCD_MCU_RESET_FUNC);
 	IO_FUNCTION_ENABLE_I8080(LCD_MCU_CSX_PIN, LCD_MCU_CSX_FUNC);
 #endif
-    bk_gpio_set_capacity(LCD_MCU_RDX_PIN,GPIO_DRIVER_CAPACITY_3);
-    bk_gpio_set_capacity(LCD_MCU_WRX_PIN,GPIO_DRIVER_CAPACITY_3);
-    bk_gpio_set_capacity(LCD_MCU_RESET_PIN,GPIO_DRIVER_CAPACITY_3);
-    bk_gpio_set_capacity(LCD_MCU_RSX_PIN,GPIO_DRIVER_CAPACITY_3);
-    bk_gpio_set_capacity(LCD_MCU_CSX_PIN,GPIO_DRIVER_CAPACITY_3);
+	bk_gpio_set_capacity(LCD_MCU_RDX_PIN,GPIO_DRIVER_CAPACITY_3);
+	bk_gpio_set_capacity(LCD_MCU_WRX_PIN,GPIO_DRIVER_CAPACITY_3);
+	bk_gpio_set_capacity(LCD_MCU_RESET_PIN,GPIO_DRIVER_CAPACITY_3);
+	bk_gpio_set_capacity(LCD_MCU_RSX_PIN,GPIO_DRIVER_CAPACITY_3);
+	bk_gpio_set_capacity(LCD_MCU_CSX_PIN,GPIO_DRIVER_CAPACITY_3);
 	return BK_OK;
 }
 
@@ -254,19 +254,19 @@ bk_err_t bk_lcd_isr_register(lcd_int_type_t int_type, lcd_isr_t isr, void *args)
 	// Add parameter validation
 	if (isr == NULL)
 	{
-		LOGE("%s: ISR handler is NULL", __func__);
+		LOGE("%s: ISR handler is NULL\n", __func__);
 		return BK_ERR_NULL_PARAM;
 	}
-	
+
 	// Validate interrupt type
 	if (int_type != I8080_OUTPUT_SOF && int_type != I8080_OUTPUT_EOF &&
-	    int_type != RGB_OUTPUT_SOF && int_type != RGB_OUTPUT_EOF &&
-	    int_type != DE_INT && int_type != FRAME_INTERVAL_INT)
+		int_type != RGB_OUTPUT_SOF && int_type != RGB_OUTPUT_EOF &&
+		int_type != DE_INT && int_type != FRAME_INTERVAL_INT)
 	{
-		LOGE("%s: invalid interrupt type: %d", __func__, int_type);
+		LOGE("%s: invalid interrupt type: %d\n", __func__, int_type);
 		return BK_FAIL;
 	}
-	
+
 	if (int_type == I8080_OUTPUT_SOF)
 	{
 		s_lcd.lcd_8080_frame_start_handler = isr;
@@ -297,25 +297,25 @@ bk_err_t bk_lcd_isr_register(lcd_int_type_t int_type, lcd_isr_t isr, void *args)
 		s_lcd.lcd_rgb_frame_interval_handler = isr;
 		s_lcd.lcd_rgb_interval_arg = args;
 	}
-	
-	LOGD("%s: ISR registered for type %d", __func__, int_type);
+
+	LOGD("%s: ISR registered for type %d\n", __func__, int_type);
 	return BK_OK;
 }
 static bk_err_t lcd_i80_bus_delete(bk_lcd_i80_handle_t *handle)
 {
 	if (handle == NULL)
 	{
-		LOGE("%s: handle is NULL", __func__);
+		LOGE("%s: handle is NULL\n", __func__);
 		return BK_FAIL;
 	}
-	
+
 	// Clear the global handle if it matches
 	if (s_lcd_i80_handle == handle)
 	{
 		s_lcd_i80_handle = NULL;
-		LOGD("%s: I80 bus handle deinitialized", __func__);
+		LOGD("%s: I80 bus handle deinitialized\n", __func__);
 	}
-	
+
 	os_free(handle);
 	return BK_OK;
 }
@@ -326,7 +326,7 @@ bk_lcd_i80_handle_t * lcd_i80_bus_io_register(void *io)
 	// Check if handle already exists to prevent multiple registrations
 	if (s_lcd_i80_handle != NULL)
 	{
-		LOGW("%s: I80 bus already registered, returning existing handle", __func__);
+		LOGW("%s: I80 bus already registered, returning existing handle\n", __func__);
 		return s_lcd_i80_handle;
 	}
 
@@ -336,15 +336,15 @@ bk_lcd_i80_handle_t * lcd_i80_bus_io_register(void *io)
 		LOGE("%s: malloc handle fail \n", __func__);
 		return NULL;
 	}
-	
+
 	os_memset(handle, 0, sizeof(bk_lcd_i80_handle_t));
 	handle->write_cmd = bk_lcd_8080_send_cmd;
 	handle->delete = lcd_i80_bus_delete;
-	
+
 	// Store the handle globally to prevent multiple registrations
 	s_lcd_i80_handle = handle;
-	
-	LOGD("%s: I80 bus handle registered successfully", __func__);
+
+	LOGD("%s: I80 bus handle registered successfully\n", __func__);
 	return handle;
 }
 
@@ -427,15 +427,15 @@ bk_err_t bk_lcd_driver_deinit(void)
 		lcd_i80_bus_delete(s_lcd_i80_handle);
 		s_lcd_i80_handle = NULL;
 	}
-	
-    sys_ll_set_cpu_device_clk_enable_disp_cken(0);
-    lcd_disp_ll_set_module_control_soft_reset(0);
+
+	sys_ll_set_cpu_device_clk_enable_disp_cken(0);
+	lcd_disp_ll_set_module_control_soft_reset(0);
 
 	bk_int_isr_unregister(INT_SRC_LCD);
-    sys_drv_core_intr_group1_disable(CPU2_CORE_ID, LCD_INTERRUPT_CTRL_BIT);
+	sys_drv_core_intr_group1_disable(CPU2_CORE_ID, LCD_INTERRUPT_CTRL_BIT);
 
 	s_lcd_driver_is_init = false;
-	LOGD("%s: LCD driver deinitialized successfully", __func__);
+	LOGD("%s: LCD driver deinitialized successfully\n", __func__);
 	return BK_OK;
 }
 
@@ -448,7 +448,7 @@ bk_err_t bk_lcd_driver_init(lcd_clk_t clk)
 	}
 
 	sys_drv_core_intr_group1_enable(CPU2_CORE_ID, LCD_INTERRUPT_CTRL_BIT);
-    sys_ll_set_cpu_device_clk_enable_disp_cken(0);
+	sys_ll_set_cpu_device_clk_enable_disp_cken(0);
 	switch (clk)
 	{
 		case LCD_80M:
@@ -502,11 +502,11 @@ bk_err_t bk_lcd_driver_init(lcd_clk_t clk)
 	}
 
 	bk_int_isr_register(INT_SRC_LCD, lcd_isr, NULL);
-    rtos_delay_milliseconds(1);
-    lcd_disp_ll_set_module_control_soft_reset(0);
-    rtos_delay_milliseconds(1);
-    lcd_disp_ll_set_module_control_soft_reset(1);
-    sys_ll_set_cpu_device_clk_enable_disp_cken(1);
+	rtos_delay_milliseconds(1);
+	lcd_disp_ll_set_module_control_soft_reset(0);
+	rtos_delay_milliseconds(1);
+	lcd_disp_ll_set_module_control_soft_reset(1);
+	sys_ll_set_cpu_device_clk_enable_disp_cken(1);
 	s_lcd_driver_is_init = true;
 	return ret;
 }
@@ -536,11 +536,11 @@ bk_err_t bk_lcd_pixel_config(uint16_t x_pixel, uint16_t y_pixel)
 bk_err_t bk_lcd_8080_send_cmd(uint32_t command, uint32_t *param, uint8_t param_count)
 {
 	LCD_RETURN_ON_NOT_INIT();
-	
+
 	// Add parameter validation
 	if (param_count > 0 && param == NULL)
 	{
-		LOGE("%s: param is NULL but param_count is %d", __func__, param_count);
+		LOGE("%s: param is NULL but param_count is %d\n", __func__, param_count);
 		return BK_ERR_NULL_PARAM;
 	}
 
@@ -660,7 +660,7 @@ bk_err_t bk_lcd_rgb_init(const lcd_device_t *device)
 	lcd_hal_disconti_mode(DISCONTINUE_MODE);
 
 	bk_lcd_pixel_config(x, y); //image xpixel ypixel
-//	bk_lcd_set_yuv_mode(device->fmt);
+	// bk_lcd_set_yuv_mode(device->fmt);
 	lcd_hal_set_data_fifo_thrd(DATA_FIFO_WR_THRD, DATA_FIFO_RD_THRD);
 	return BK_OK;
 }
@@ -681,7 +681,7 @@ bk_err_t bk_lcd_8080_init(const lcd_device_t *device)
 	lcd_hal_pixel_config(x, y);
 	lcd_hal_8080_display_enable(1);
 	lcd_hal_8080_int_enable(0, 1); //set eof int enable
-//	bk_lcd_set_yuv_mode(config->fmt);
+	// bk_lcd_set_yuv_mode(config->fmt);
 	return BK_OK;
 }
 
@@ -726,11 +726,11 @@ bk_err_t lcd_driver_display_disable(void)
 	{
 		lcd_hal_rgb_display_en(0);
 	} else if (type == LCD_TYPE_MCU8080) {
-        lcd_hal_8080_cmd_param_count(0);
-        lcd_hal_8080_start_transfer(0);
-    }
+		lcd_hal_8080_cmd_param_count(0);
+		lcd_hal_8080_start_transfer(0);
+	}
 
-    return BK_OK;
+	return BK_OK;
 }
 
 bk_err_t lcd_driver_display_enable(void)
@@ -797,10 +797,10 @@ void lcd_driver_ppi_set(uint16_t width, uint16_t height)
 		LOGV("%s, offset %d, %d, %d, %d\n", __func__, start_x, end_x, start_y, end_y);
 		bk_lcd_set_partical_display(1, start_x, end_x, start_y, end_y);
 	}
-    else
-    {
-        bk_lcd_set_partical_display(0, 0, 0, 0, 0);
-    }
+	else
+	{
+		bk_lcd_set_partical_display(0, 0, 0, 0, 0);
+	}
 }
 
 bk_err_t lcd_driver_init(const lcd_device_t *device)
@@ -824,10 +824,10 @@ bk_err_t lcd_driver_init(const lcd_device_t *device)
 		// lcd_rgb_gpio_init();
 		bk_lcd_rgb_init(device);
 		lcd_hal_rgb_set_in_out_format(device->src_fmt, device->out_fmt);
-//		lcd_hal_int_enable(DE_INT);
+		// lcd_hal_int_enable(DE_INT);
 
-//		lcd_hal_int_enable(FRAME_INTERVAL_INT);
-//		lcd_hal_frame_interval_config(1, VSYNC_UNIT, 2);
+		// lcd_hal_int_enable(FRAME_INTERVAL_INT);
+		// lcd_hal_frame_interval_config(1, VSYNC_UNIT, 2);
 	}
 	else if (device->type == LCD_TYPE_MCU8080)
 	{
@@ -851,7 +851,7 @@ bk_err_t lcd_driver_deinit(void)
 	// Check if driver is initialized
 	if (!s_lcd_driver_is_init)
 	{
-		LOGD("%s: LCD driver not initialized", __func__);
+		LOGD("%s: LCD driver not initialized\n", __func__);
 		return BK_OK;
 	}
 
@@ -876,13 +876,12 @@ bk_err_t lcd_driver_deinit(void)
 		}
 	}
 
-	out:
-    bk_lcd_driver_deinit();
+out:
+	bk_lcd_driver_deinit();
 	bk_pm_clock_ctrl(PM_CLK_ID_DISP, CLK_PWR_CTRL_PWR_DOWN);
 	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_VIDP_LCD, PM_POWER_MODULE_STATE_OFF);
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DISP, PM_CPU_FRQ_DEFAULT);
-    
-    LOGD("%s: LCD driver deinitialized", __func__);
+	LOGD("%s: LCD driver deinitialized\n", __func__);
 	return ret;
 }
 
