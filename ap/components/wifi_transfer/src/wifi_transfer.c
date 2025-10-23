@@ -158,7 +158,7 @@ static bk_err_t wifi_transfer_buffer_init(wifi_transfer_cfg_t *cfg)
 		cfg->transfer_app_config.pkt_size = cfg->cb->get_tx_size() - cfg->transfer_app_config.pkt_header_size;
 
 		if (cfg->transfer_app_data == NULL
-			|| cfg->transfer_app_config.pkt_size <= 0)
+			|| cfg->cb->get_tx_size() < cfg->transfer_app_config.pkt_header_size)
 		{
 			LOGE("%s transfer_data: %p, size: %d\n", __func__, cfg->transfer_app_data, cfg->transfer_app_config.pkt_size);
 			return BK_FAIL;
@@ -185,13 +185,14 @@ static bk_err_t wifi_transfer_buffer_init(wifi_transfer_cfg_t *cfg)
 
 static void wifi_transfer_buffer_deinit(wifi_transfer_cfg_t *cfg)
 {
-#ifndef CONFIG_INTEGRATION_DOORBELL
-    if (cfg->transfer_app_data)
+    if (cfg->cb->get_tx_buf == NULL)
     {
-        os_free(cfg->transfer_app_data);
-        cfg->transfer_app_data = NULL;
+        if (cfg->transfer_app_data)
+        {
+            os_free(cfg->transfer_app_data);
+            cfg->transfer_app_data = NULL;
+        }
     }
-#endif
 
     if (cfg->sem)
     {
