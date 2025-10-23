@@ -70,5 +70,24 @@ menu "GPIO"
 		bool "Enable GPIO MAP DEV DEBUG CODE"
 		default n
 
+	config DEFAULT_WAKEUP_SOURCE
+		bool "GPIO_10 as default wakeup source"
+		depends on GPIO_WAKEUP_SUPPORT
+		default y
+		help
+			Enable GPIO_10 as the default wakeup source.
+			When set to 'n', you need to define GPIO_STATIC_WAKEUP_SOURCE_MAP in usr_gpio_cfg.h
+			to configure custom wakeup source mapping.
+			Note: This configuration table is only supported on the CP side.
+
+	config LDO3V3_CTRL_GPIO
+		int "GPIO pin for LDO 3.3V control"
+		default 255
+		help
+			Specify the GPIO pin number for LDO 3.3V control.
+			Customers should configure the GPIO according to their circuit's LDO pin,
+			otherwise some peripherals may not work properly.
+			Set to 255 to disable this feature.
+
 endmenu
 
