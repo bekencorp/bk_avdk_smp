@@ -116,6 +116,7 @@ uint32_t ftp_is_running = 0;
 */
 #define msg225 "225 Data connection open; no transfer in progress."
 #define msg226 "226 Closing data connection."
+#define msg226_1 "226 Transfer ok."
 /*
              Requested file action successful (for example, file
              transfer or file abort).
@@ -188,7 +189,8 @@ enum ftpd_state_e {
 	FTPD_RETR,
 	FTPD_RNFR,
 	FTPD_STOR,
-	FTPD_QUIT
+	FTPD_QUIT,
+	FTPD_MLSD,
 };
 
 static const char *month_table[12] = {
@@ -501,7 +503,7 @@ error:
 	}
 }
 
-static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb, int shortlist)
+static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb, int list_type)
 {
 	char buffer[1024];
 	int len;
@@ -512,7 +514,7 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 		}
 
 		if (fsd->vfs_dirent) {
-			if (shortlist) {
+			if (list_type == FTPD_NLST) {
 				len = sprintf(buffer, "%s\r\n", fsd->vfs_dirent->d_name);
 				if (sfifo_space(&fsd->fifo) < len) {
 					send_data(pcb, fsd);
@@ -537,15 +539,53 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 				stat(fsd->vfs_dirent->d_name, &st);
 
 				s_time = gmtime(&st.st_mtime);
-
-				if (s_time->tm_year == current_year) {
-					len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %02i:%02i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_hour, s_time->tm_min, fsd->vfs_dirent->d_name);
+				if(list_type == FTPD_LIST){
+					if (s_time->tm_year == current_year) {
+						len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %02i:%02i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_hour, s_time->tm_min, fsd->vfs_dirent->d_name);
+					} else {
+						len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %5i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_year + 1900, fsd->vfs_dirent->d_name);
+					}
+					if (S_ISDIR(st.st_mode))
+						buffer[0] = 'd';
 				} else {
-					len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %5i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_year + 1900, fsd->vfs_dirent->d_name);
+					//MLDS
+					if (S_ISDIR(st.st_mode))
+					{
+						if (s_time->tm_year == current_year) {
+							len = sprintf(buffer, "type=%s;perm=%s;modify=%d%02d%02d%02d%02d%02d; %s\r\n",
+										 "dir","elrwx",
+										 s_time->tm_year,
+										(s_time->tm_mon==0)?1:s_time->tm_mon, (s_time->tm_mday == 0)?1:s_time->tm_mday,
+										s_time->tm_hour,s_time->tm_min,0,fsd->vfs_dirent->d_name);
+						} else {
+							len = sprintf(buffer, "type=%s;perm=%s;modify=%d%02d%02d%02d%02d%02d; %s\r\n", 
+										"dir","elrwx",
+										s_time->tm_year + 1900,
+										(s_time->tm_mon==0)?1:s_time->tm_mon, (s_time->tm_mday == 0)?1:s_time->tm_mday,
+										s_time->tm_hour,s_time->tm_min,0,fsd->vfs_dirent->d_name);
+						}
+					} 
+					else 
+					{
+						if (s_time->tm_year == current_year) {
+							len = sprintf(buffer, "type=%s;perm=%s;modify=%d%02d%02d%02d%02d%02d;size=%d; %s\r\n", 
+										"file","rwx",
+										s_time->tm_year,
+										(s_time->tm_mon==0)?1:s_time->tm_mon, (s_time->tm_mday == 0)?1:s_time->tm_mday,
+										s_time->tm_hour,s_time->tm_min,0,
+										st.st_size,fsd->vfs_dirent->d_name);
+						} else {
+							len = sprintf(buffer, "type=%s;perm=%s;modify=%d%02d%02d%02d%02d%02d;size=%d; %s\r\n", 
+										"file","rwx",
+										s_time->tm_year + 1900,
+										(s_time->tm_mon==0)?1:s_time->tm_mon, (s_time->tm_mday == 0)?1:s_time->tm_mday,
+										s_time->tm_hour,s_time->tm_min,0,
+										st.st_size,fsd->vfs_dirent->d_name);
+						}
+					}
 				}
 
-				if (S_ISDIR(st.st_mode))
-					buffer[0] = 'd';
+
 				if (sfifo_space(&fsd->fifo) < len) {
 					send_data(pcb, fsd);
 					return;
@@ -553,7 +593,7 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 
 				sfifo_write(&fsd->fifo, buffer, len);
 				fsd->vfs_dirent = NULL;
-			}
+			} 
 		} else {
 			struct ftpd_msgstate *fsm;
 			struct tcp_pcb *msgpcb;
@@ -572,7 +612,7 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 			fsm->datapcb = NULL;
 			fsm->datafs = NULL;
 			fsm->state = FTPD_IDLE;
-			send_msg(msgpcb, fsm, msg226);
+			send_msg(msgpcb, fsm, msg226_1);
 			return;
 		}
 	}
@@ -584,10 +624,9 @@ static err_t ftpd_datasent(void *arg, struct tcp_pcb *pcb, u16_t len)
 
 	switch (fsd->msgfs->state) {
 	case FTPD_LIST:
-		send_next_directory(fsd, pcb, 0);
-		break;
 	case FTPD_NLST:
-		send_next_directory(fsd, pcb, 1);
+	case FTPD_MLSD:
+		send_next_directory(fsd, pcb, fsd->msgfs->state);
 		break;
 	case FTPD_RETR:
 		send_file(fsd, pcb);
@@ -661,10 +700,9 @@ static err_t ftpd_dataconnected(void *arg, struct tcp_pcb *pcb, err_t err)
 
 	switch (fsd->msgfs->state) {
 	case FTPD_LIST:
-		send_next_directory(fsd, pcb, 0);
-		break;
 	case FTPD_NLST:
-		send_next_directory(fsd, pcb, 1);
+	case FTPD_MLSD:
+		send_next_directory(fsd, pcb, fsd->msgfs->state);
 		break;
 	case FTPD_RETR:
 		send_file(fsd, pcb);
@@ -696,10 +734,9 @@ static err_t ftpd_dataaccept(void *arg, struct tcp_pcb *pcb, err_t err)
 
 	switch (fsd->msgfs->state) {
 	case FTPD_LIST:
-		send_next_directory(fsd, pcb, 0);
-		break;
 	case FTPD_NLST:
-		send_next_directory(fsd, pcb, 1);
+	case FTPD_MLSD:
+		send_next_directory(fsd, pcb, fsd->msgfs->state);
 		break;
 	case FTPD_RETR:
 		send_file(fsd, pcb);
@@ -846,6 +883,8 @@ static void cmd_cdup(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	char new_path[MAX_PATH_LEN];
 	char *path = {0};
 
+	path = getcwd(new_path, MAX_PATH_LEN);
+
 	if (chdir("..") != 0) {
 		dbg_printf(" chdir feiled\r\n");
 		send_msg(pcb, fsm, msg550);
@@ -869,6 +908,7 @@ static void cmd_cdup(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 		}
 	}
 
+	send_msg(pcb, fsm, msg250,"CDUP");
 #if 0
     if (chdir(path))
         send_msg(pcb, fsm, msg550);
@@ -903,7 +943,7 @@ static void cmd_pwd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *
 	os_free(buffer);
 }
 
-static void cmd_list_common(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm, int shortlist)
+static void cmd_list_common(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm, int list_type)
 {
 	DIR *vfs_dir;
 	char *cwd;
@@ -935,10 +975,13 @@ static void cmd_list_common(const char *arg, struct tcp_pcb *pcb, struct ftpd_ms
 
 		fsm->datafs->vfs_dir = vfs_dir;
 		fsm->datafs->vfs_dirent = NULL;
+		#if 0
 		if (shortlist != 0)
 			fsm->state = FTPD_NLST;
 		else
 			fsm->state = FTPD_LIST;
+		#endif
+		fsm->state = list_type;
 
 		send_msg(pcb, fsm, msg150);
 	} while(0);
@@ -948,12 +991,12 @@ static void cmd_list_common(const char *arg, struct tcp_pcb *pcb, struct ftpd_ms
 
 static void cmd_nlst(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	cmd_list_common(arg, pcb, fsm, 1);
+	cmd_list_common(arg, pcb, fsm, FTPD_NLST);
 }
 
 static void cmd_list(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	cmd_list_common(arg, pcb, fsm, 0);
+	cmd_list_common(arg, pcb, fsm, FTPD_LIST);
 }
 
 static void cmd_retr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
@@ -1306,7 +1349,7 @@ static void cmd_appe(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 }
 
 static void cmd_mlsd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
-	cmd_list_common(arg, pcb, fsm, 0);
+	cmd_list_common(arg, pcb, fsm, FTPD_MLSD);
 }
 
 static void cmd_mlst(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
@@ -1588,10 +1631,9 @@ static err_t ftpd_msgpoll(void *arg, struct tcp_pcb *pcb)
 		if (fsm->datafs->connected) {
 			switch (fsm->state) {
 			case FTPD_LIST:
-				send_next_directory(fsm->datafs, fsm->datapcb, 0);
-				break;
 			case FTPD_NLST:
-				send_next_directory(fsm->datafs, fsm->datapcb, 1);
+			case FTPD_MLSD:
+				send_next_directory(fsm->datafs, fsm->datapcb, fsm->state);
 				break;
 			case FTPD_RETR:
 				send_file(fsm->datafs, fsm->datapcb);
