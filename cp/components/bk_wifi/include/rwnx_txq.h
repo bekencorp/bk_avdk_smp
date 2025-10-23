@@ -152,6 +152,7 @@ struct rwnx_hwq {
  * @RWNX_TXQ_STOP_MU_POS: TXQ is stopped waiting for all the buffers pushed to
  *                       fw to be confirmed
  * @RWNX_TXQ_STOP: All possible reason to have a txq stopped
+ * @RWNX_TXQ_STOP_P2P_ABSENCE: P2P absence
  * @RWNX_TXQ_NDEV_FLOW_CTRL: associated netdev queue is currently stopped.
  *                          Note: when a TXQ is flowctrl it is NOT stopped
  */
@@ -165,10 +166,12 @@ enum rwnx_txq_flags {
     RWNX_TXQ_STOP_MU_POS  = BIT(6),
     RWNX_TXQ_STOP_RESET   = BIT(7),
     RWNX_TXQ_STOP_TWT_PS  = BIT(8),
+    RWNX_TXQ_STOP_P2P_ABSENCE = BIT(9),
     RWNX_TXQ_STOP         = (RWNX_TXQ_STOP_FULL | RWNX_TXQ_STOP_CSA |
                              RWNX_TXQ_STOP_STA_PS | RWNX_TXQ_STOP_VIF_PS |
-                             RWNX_TXQ_STOP_CHAN | RWNX_TXQ_STOP_RESET | RWNX_TXQ_STOP_TWT_PS),
-    RWNX_TXQ_NDEV_FLOW_CTRL = BIT(9),
+                             RWNX_TXQ_STOP_CHAN | RWNX_TXQ_STOP_RESET |
+                             RWNX_TXQ_STOP_TWT_PS | RWNX_TXQ_STOP_P2P_ABSENCE),
+   RWNX_TXQ_NDEV_FLOW_CTRL = BIT(10),
 };
 
 

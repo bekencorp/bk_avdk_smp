@@ -1346,10 +1346,12 @@ static int rwnx_rx_p2p_vif_ps_change_ind(struct ke_msg *msg)
 
 	if (ps_state == 0 /* MM_PS_MODE_OFF */) {
 		// Start TX queues for provided VIF
-		rwnx_txq_vif_start(vif_entry, RWNX_TXQ_STOP_VIF_PS);
+		RWNX_LOGV("p2p start txq ps_state  %d\r\n", ps_state);
+		rwnx_txq_vif_start(vif_entry, RWNX_TXQ_STOP_P2P_ABSENCE);
 	} else {
 		// Stop TX queues for provided VIF
-		rwnx_txq_vif_stop(vif_entry, RWNX_TXQ_STOP_VIF_PS);
+		RWNX_LOGV("p2p stop txq ps_state  %d\r\n", ps_state);
+		rwnx_txq_vif_stop(vif_entry, RWNX_TXQ_STOP_P2P_ABSENCE);
 	}
 	GLOBAL_INT_RESTORE();
 

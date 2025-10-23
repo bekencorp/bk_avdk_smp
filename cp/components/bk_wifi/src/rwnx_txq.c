@@ -703,6 +703,7 @@ void rwnx_txq_stop(struct rwnx_txq *txq, u16 reason)
  * specified. It can be :
  * - RWNX_TXQ_STOP_STA_PS: the STA is no longer in power save mode
  * - RWNX_TXQ_STOP_VIF_PS: the VIF is in power save mode (p2p absence)
+ * - RWNX_TXQ_STOP_P2P_ABSENCE: P2P absence
  * - RWNX_TXQ_STOP_CHAN: the STA's VIF is now on the current active channel
  *
  * Any TX queue with buffer ready and not Stopped for other reasons, will be
@@ -732,6 +733,7 @@ void rwnx_txq_sta_start(STA_INF_PTR rwnx_sta, u16 reason)
  * specified. It can be :
  * - RWNX_TXQ_STOP_STA_PS: the STA is in power save mode
  * - RWNX_TXQ_STOP_VIF_PS: the VIF is in power save mode (p2p absence)
+ * - RWNX_TXQ_STOP_P2P_ABSENCE: P2P absence
  * - RWNX_TXQ_STOP_CHAN: the STA's VIF is not on the current active channel
  *
  * Any TX queue present in a HW queue list will be removed from this list.
@@ -789,7 +791,7 @@ void rwnx_txq_vif_for_each_sta(VIF_INF_PTR rwnx_vif,
  *                      and vif's TXQ
  *
  * @vif: Interface to start
- * @reason: Start reason (RWNX_TXQ_STOP_CHAN or RWNX_TXQ_STOP_VIF_PS)
+ * @reason: Start reason (RWNX_TXQ_STOP_CHAN or RWNX_TXQ_STOP_VIF_PS or RWNX_TXQ_STOP_P2P_ABSENCE)
  * @rwnx_hw: Driver main data
  *
  * Iterate over all the STA associated to the vif and re-start them for the
@@ -828,11 +830,11 @@ end:
  * rwnx_txq_vif_stop - STOP TX queues of all STA associated to the vif
  *
  * @vif: Interface to stop
- * @arg: Stop reason (RWNX_TXQ_STOP_CHAN or RWNX_TXQ_STOP_VIF_PS)
+ * @arg: Stop reason (RWNX_TXQ_STOP_CHAN or RWNX_TXQ_STOP_VIF_PS or RWNX_TXQ_STOP_P2P_ABSENCE)
  * @rwnx_hw: Driver main data
  *
  * Iterate over all the STA associated to the vif and stop them for the
- * reason RWNX_TXQ_STOP_CHAN or RWNX_TXQ_STOP_VIF_PS
+ * reason RWNX_TXQ_STOP_CHAN or RWNX_TXQ_STOP_VIF_PS or RWNX_TXQ_STOP_P2P_ABSENCE
  * Take tx_lock
  */
 void rwnx_txq_vif_stop(VIF_INF_PTR rwnx_vif, u16 reason)
