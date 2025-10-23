@@ -242,7 +242,15 @@ static bk_err_t _eq_algorithm_destroy(audio_element_handle_t self)
     BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
 
     eq_algorithm_t *eq = (eq_algorithm_t *)audio_element_getdata(self);
-    eq_destroy(eq->eq_handle);
+
+    if(eq)
+    {
+       if(eq->eq_handle)
+       {
+           eq_destroy(eq->eq_handle);
+       }
+       audio_free(eq);
+    }
 
     EQ_DATA_DUMP_CLOSE();
 
