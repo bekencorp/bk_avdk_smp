@@ -989,14 +989,12 @@ out:
 
 int bk_ipc_init(void)
 {
-    bk_ipc_info = bk_ipc_core_init(MB_CHNL_MIPC_SYNC);
+    if (NULL == bk_ipc_info) {
+        bk_ipc_info = bk_ipc_core_init(MB_CHNL_MIPC_SYNC);
+    }
 
     stop_cpu1_register_notification(bk_ipc_cpu1_shutdown_callback, bk_ipc_info);
     bk_ipc_slave_core_state_change(bk_ipc_info, IPC_CPU_STARTUP);
-
-#if (BK_IPC_UT_TEST)
-    bk_ipc_test_init();
-#endif
 
     return BK_OK;
 }

@@ -2,10 +2,9 @@
 #include <components/system.h>
 #include <os/os.h>
 #include <components/shell_task.h>
-
+#include "bk_api_ipc_test.h"
 
 #define APP_TIMEOUT_VALUE    BEKEN_WAIT_FOREVER
-
 
 #if CONFIG_FREERTOS_SMP
 static beken_semaphore_t app_semaphore;
@@ -80,5 +79,9 @@ int main(void)
     app_test_smp_core1();
 #endif
 
-	return 0;
+#if (BK_IPC_UT_TEST)
+    bk_ipc_test_init();
+#endif
+
+    return 0;
 }

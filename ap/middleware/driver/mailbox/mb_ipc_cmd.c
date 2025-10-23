@@ -334,6 +334,10 @@ static bk_err_t ipc_send_cmd(ipc_chnl_cb_t *chnl_cb, u8 cmd, u8 *cmd_buf, u16 cm
 	bk_err_t	ret_val = BK_FAIL;
 	ipc_cmd_t	ipc_cmd;
 
+	if(!chnl_cb->chnl_inited){
+		ipc_init();
+	}
+
 	if(!chnl_cb->chnl_inited)
 		return BK_FAIL;
 
@@ -415,6 +419,10 @@ static bk_err_t ipc_send_special_cmd(ipc_chnl_cb_t *chnl_cb, u8 cmd)
 {
 	bk_err_t	ret_val;
 	ipc_cmd_t	ipc_cmd;
+
+	if(!chnl_cb->chnl_inited){
+		ipc_init();
+	}
 
 	if (!chnl_cb->chnl_inited)
 		return BK_FAIL;
