@@ -732,5 +732,8 @@ uint16_t hw_ipcksum_standard_chksum(const void *dataptr, int len);
 //#define PPP_PROTOCOLNAME                1
 #endif  /* CONFIG_LWIP_PPP_SUPPORT */
 
+/* Enable custom pbuf support for ethernet driver */
+#define LWIP_SUPPORT_CUSTOM_PBUF        1
+
 #endif /* __LWIPOPTS_H__ */
 

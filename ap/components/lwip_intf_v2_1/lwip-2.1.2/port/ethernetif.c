@@ -36,6 +36,7 @@
 #if CONFIG_ETH
 #include <string.h>
 #include "lwip/opt.h"
+#include "lwip/pbuf.h"
 #include "lwip/timeouts.h"
 #include "lwip/tcpip.h"
 #include "lwip/ethip6.h"
