@@ -78,14 +78,11 @@
 #endif
 
 #define TCPIP_THREAD_NAME               "tcp/ip"
-#ifdef CONFIG_KEYVALUE
+
+#if defined(CONFIG_KEYVALUE) || defined(CONFIG_FTP_SERVER)
 #define TCPIP_THREAD_STACKSIZE          1024
-#else
-#if CONFIG_FTP_SERVER
-#define TCPIP_THREAD_STACKSIZE          1024
-#else
-#define TCPIP_THREAD_STACKSIZE          512
-#endif
+#elif defined CONFIG_LWIP_TCPIP_THREAD_STACKSIZE
+#define TCPIP_THREAD_STACKSIZE          CONFIG_LWIP_TCPIP_THREAD_STACKSIZE
 #endif
 
 #if CONFIG_LITEOS_M

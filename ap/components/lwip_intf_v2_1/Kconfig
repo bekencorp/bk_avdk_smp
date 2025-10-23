@@ -360,5 +360,12 @@ menu "Lwip_intf_v2_1"
 			It a term related to the TCP (Transmission Control Protocol) 
 			implementation in networking. TCP will queue segments that arrive out of order.
 			Define to 0 if your device is low on memory.
+
+	config LWIP_TCPIP_THREAD_STACKSIZE
+		int "Default stacksize of tcpip thread"
+		default 512
+		range 512 2048
+		help
+			Set the stacksize of tcpip thread.
 	endmenu #Tcp Config
 endmenu
