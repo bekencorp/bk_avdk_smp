@@ -391,6 +391,23 @@ menu "Adk"
 				bool "Enable vfs stream test"
 				default n
 		endmenu
+
+		menu "I2s_stream"
+			config ADK_I2S_STREAM
+				bool "Enable I2S Stream Component"
+				depends on I2S
+				default n
+				help
+					Enable I2S stream component for audio data transmission via I2S interface.
+
+			config ADK_I2S_STREAM_TEST
+				bool "Enable I2S Stream Test"
+				depends on ADK_I2S_STREAM && ADK_ONBOARD_MIC_STREAM && ADK_ONBOARD_SPEAKER_STREAM
+				default n
+				help
+					Enable I2S stream test functionality.
+		endmenu
+
 	endmenu
 
 	menu "Audio_utils"
