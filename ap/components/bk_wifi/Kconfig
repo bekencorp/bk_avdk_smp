@@ -371,4 +371,12 @@ menu "Bk_Wifi"
 		bool "Enable Wifi CLI Debug"
 		default n
 
+	config PHY_CLIENT
+		bool "Enable PHY client"
+		default y
+
+	config PHY_MB
+		bool "Enable PHY mailbox"
+		default y
+
 endmenu
