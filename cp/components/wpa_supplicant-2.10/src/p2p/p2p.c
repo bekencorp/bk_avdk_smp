@@ -54,7 +54,7 @@ static void p2p_scan_timeout(void *eloop_ctx, void *timeout_ctx);
  * entries will be removed
  */
 #ifndef P2P_PEER_EXPIRATION_AGE
-#define P2P_PEER_EXPIRATION_AGE 60
+#define P2P_PEER_EXPIRATION_AGE 15
 #endif /* P2P_PEER_EXPIRATION_AGE */
 
 
@@ -440,19 +440,41 @@ struct p2p_device * p2p_get_device_interface(struct p2p_data *p2p,
 static struct p2p_device * p2p_create_device(struct p2p_data *p2p,
 					     const u8 *addr)
 {
-	struct p2p_device *dev, *oldest = NULL;
+	struct p2p_device *dev, *oldest = NULL, *n;
 	size_t count = 0;
+	struct os_reltime now;
 
 	dev = p2p_get_device(p2p, addr);
 	if (dev)
 		return dev;
 
+	/* clean up expired devices before creating a new one */
+	os_get_reltime(&now);
+	dl_list_for_each_safe(dev, n, &p2p->devices, struct p2p_device, list) {
+		if (dev->last_seen.sec + P2P_PEER_EXPIRATION_AGE < now.sec) {
+			/* skip devices that are being negotiated or connected */
+			if (dev == p2p->go_neg_peer)
+				continue;
+			if (p2p->cfg->go_connected &&
+			    p2p->cfg->go_connected(p2p->cfg->cb_ctx,
+						   dev->info.p2p_device_addr))
+				continue;
+
+			/* clean up expired devices */
+			dl_list_del(&dev->list);
+			p2p_device_free(p2p, dev);
+		}
+	}
+
+	/* count the number of devices and find the oldest device */
 	dl_list_for_each(dev, &p2p->devices, struct p2p_device, list) {
 		count++;
 		if (oldest == NULL ||
 		    os_reltime_before(&dev->last_seen, &oldest->last_seen))
 			oldest = dev;
 	}
+
+	/* if still over the limit, delete the oldest device */
 	if (count + 1 > p2p->cfg->max_peers && oldest) {
 		p2p_dbg(p2p,
 			"Remove oldest peer entry to make room for a new peer "

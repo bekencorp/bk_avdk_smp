@@ -4966,7 +4966,7 @@ int wpas_p2p_init(struct wpa_global *global, struct wpa_supplicant *wpa_s)
 	p2p.concurrent_operations = !!(wpa_s->drv_flags &
 				       WPA_DRIVER_FLAGS_P2P_CONCURRENT);
 
-	p2p.max_peers = 100;
+	p2p.max_peers = 3;  /* to save memory, max 3 peers */
 
 	if (wpa_s->conf->p2p_ssid_postfix) {
 		p2p.ssid_postfix_len =

@@ -307,7 +307,7 @@ struct wpa_config *wpa_config_read(const char *name, struct wpa_config *cfgp)
 
 	//Temporarily enable persistent_reconnect to support invitation
 	config->persistent_reconnect = 1;
-	config->p2p_listen_channel = DEFAULT_CHANNEL_AP;
+	config->p2p_listen_channel = 0;  // auto-select from social channels(1, 6, 11)
 	config->p2p_listen_reg_class = 81;
 #endif
 
