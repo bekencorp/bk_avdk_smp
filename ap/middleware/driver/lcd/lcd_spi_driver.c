@@ -302,7 +302,7 @@ static void lcd_spi_send_data_with_qspi_mapping_mode(qspi_id_t qspi_id, uint8_t 
     }
 
     lcd_spi_quad_write_start(qspi_id);
-    bk_dma_start(qspi_id);
+    bk_dma_start(s_spi_disp[qspi_id].dma_id);
 }
 #endif
 
