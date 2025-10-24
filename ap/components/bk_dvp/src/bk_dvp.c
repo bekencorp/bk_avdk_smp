@@ -370,7 +370,7 @@ static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
 {
     // step 1: deinit dvp gpio, data cannot transfer
 #ifndef CONFIG_GPIO_DEFAULT_SET_SUPPORT
-    dvp_camera_io_deinit(handle->config->io_config);
+    dvp_camera_io_deinit(&handle->config->io_config);
 #endif
 
     // step 2: deinit i2c
@@ -1484,10 +1484,8 @@ const dvp_sensor_config_t *bk_dvp_detect(bk_dvp_config_t *config)
     i2c_config_t i2c_config = {0};
     const dvp_sensor_config_t *sensor = NULL;
 
-#if 0
     // step 1: power on sensor
-    dvp_sensor_reset(config->io_config.pwdn_pin, config->io_config.reset_pin);
-#endif
+    dvp_sensor_reset(config->pwdn_pin, config->reset_pin);
 
     // step 2: map dvp io by config
 #ifndef CONFIG_GPIO_DEFAULT_SET_SUPPORT
