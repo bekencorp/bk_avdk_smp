@@ -13,7 +13,10 @@
 #include "lv_img_utility.h"
 #endif
 #include "media_service.h"
+#if (CONFIG_VFS)
+#include "driver/flash_partition.h"
 #include "bk_posix.h"
+#endif
 #include "components/bk_display.h"
 #include "driver/gpio.h"
 #include "gpio_driver.h"
@@ -56,18 +59,68 @@ static avdk_err_t lcd_backlight_close(uint8_t bl_io)
     return AVDK_ERR_OK;
 }
 
+static int _fs_mount_lfs(void)
+{
+    int ret;
+
+    struct bk_little_fs_partition partition;
+    char *fs_name = NULL;
+    bk_logic_partition_t *pt = bk_flash_partition_get_info(BK_PARTITION_USR_CONFIG);
+
+    fs_name = "littlefs";
+    partition.part_type = LFS_FLASH;
+    partition.part_flash.start_addr = pt->partition_start_addr;
+    partition.part_flash.size = pt->partition_length;
+    partition.mount_path = VFS_INTERNAL_FLASH_PATITION_0;
+
+    ret = mount("SOURCE_NONE", partition.mount_path, fs_name, 0, &partition);
+
+    return ret;
+}
+
+static bk_err_t lv_vfs_init(void)
+{
+    bk_err_t ret = BK_FAIL;
+
+    do {
+        ret = _fs_mount_lfs();
+        if (BK_OK != ret) {
+            LOGD("[%s][%d] mount fail:%d\r\n", __FUNCTION__, __LINE__, ret);
+            break;
+        }
+        LOGD("[%s][%d] mount success\r\n", __FUNCTION__, __LINE__);
+    } while(0);
+
+    return ret;
+}
+
+static bk_err_t lv_vfs_deinit(void)
+{
+    bk_err_t ret = BK_FAIL;
+
+    ret = umount(VFS_INTERNAL_FLASH_PATITION_0);
+    if (BK_OK != ret) {
+        LOGD(NULL, "[%s][%d] unmount fail:%d\r\n", __FUNCTION__, __LINE__, ret);
+        return ret;
+    }
+
+    LOGD("[%s][%d] unmount success\r\n", __FUNCTION__, __LINE__);
+
+    return ret;
+}
+
 static void lv_example_freetype(void)
 {
-    bk_err_t ret = lv_vendor_fs_init();
+    bk_err_t ret = lv_vfs_init();
     if (ret != BK_OK) {
-        LOGE("lv_vendor_fs_init failed\r\n");
+        LOGE("lv_vfs_init failed\r\n");
         return;
     }
 
     int fd = open(PATH_INTERNAL_FLASH_FILE("Lato-Regular.ttf"), O_RDONLY);
     if (fd < 0) {
         LOGE("file_content open failed\r\n");
-        lv_vendor_fs_deinit();
+        lv_vfs_deinit();
         return;
     }
 
@@ -75,7 +128,7 @@ static void lv_example_freetype(void)
     if (file_len <= 0) {
         LOGE("file len read failed\r\n");
         close(fd);
-        lv_vendor_fs_deinit();
+        lv_vfs_deinit();
         return;
     }
 
@@ -83,16 +136,16 @@ static void lv_example_freetype(void)
     if (file_content == NULL) {
         LOGE("file_content malloc failed\r\n");
         close(fd);
-        lv_vendor_fs_deinit();
+        lv_vfs_deinit();
         return;
     }
 
     uint32_t read_len = read(fd, file_content, file_len);
     LOGD("read_len = %d \r\n", read_len);
     close(fd);
-    ret = lv_vendor_fs_deinit();
+    ret = lv_vfs_deinit();
     if (ret != BK_OK) {
-        LOGE("lv_vendor_fs_deinit failed\r\n");
+        LOGE("lv_vfs_deinit failed\r\n");
         return;
     }
 
