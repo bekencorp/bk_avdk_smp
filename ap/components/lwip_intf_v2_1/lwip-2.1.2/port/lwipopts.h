@@ -32,6 +32,34 @@
 #ifndef __LWIPOPTS_H__
 #define __LWIPOPTS_H__
 
+#ifdef CONFIG_ENABLE_LWIP_CUSTOM_CONFIG
+/**
+ * \brief Custom lwip configuration file
+ * 
+ * When CONFIG_ENABLE_LWIP_CUSTOM_CONFIG is enabled, this file should exist
+ * in the project configuration directory: {PROJECT_DIR}/ap/config/ARMINO_SOC_ap/
+ * 
+ * Example path: projects/app/ap/config/bk7258_ap/lwipopts_custom.h
+ * 
+ * If the custom config file is not found, the default configuration below will be used.
+ */
+#ifdef __has_include
+    #if __has_include("lwipopts_custom.h")
+        #include "lwipopts_custom.h"
+        #define LWIP_NOT_USE_DEFAULT_CONFIG
+    #else
+        #pragma message "lwipopts_custom.h not found, using default configuration"
+    #endif
+#else
+    /* Fallback for compilers without __has_include support */
+    #include "lwipopts_custom.h"
+    #define LWIP_NOT_USE_DEFAULT_CONFIG
+#endif
+#endif
+
+
+
+#ifndef LWIP_NOT_USE_DEFAULT_CONFIG
 #include <common/sys_config.h>
 #include <components/log.h>
 
@@ -731,6 +759,8 @@ uint16_t hw_ipcksum_standard_chksum(const void *dataptr, int len);
 
 /* Enable custom pbuf support for ethernet driver */
 #define LWIP_SUPPORT_CUSTOM_PBUF        1
+
+#endif /* LWIP_NOT_USE_DEFAULT_CONFIG */
 
 #endif /* __LWIPOPTS_H__ */
 

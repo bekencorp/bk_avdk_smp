@@ -87,6 +87,13 @@ menu "Lwip_intf_v2_1"
                 bool "Enable Ppp Protocol"
                 default n
 
+	config ENABLE_LWIP_CUSTOM_CONFIG
+		bool "Enable custom lwip config"
+		default n
+		help
+			Enable custom lwip configuration file support.
+			When enabled, uses lwipopts_custom.h instead of default lwipopts.h
+
 	menu "Modify Lwip Config"
 		depends on LWIP
 
