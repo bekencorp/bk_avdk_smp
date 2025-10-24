@@ -1126,6 +1126,7 @@ void help_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
 
 int cli_register_command(const struct cli_command *command)
 {
+	#if CONFIG_CLI
 	int i;
 	if (!command->name || !command->function)
 		return 0;
@@ -1143,6 +1144,9 @@ int cli_register_command(const struct cli_command *command)
 	}
 
 	return 1;
+	#else
+	return 0;
+	#endif // CONFIG_CLI
 }
 
 int cli_unregister_command(const struct cli_command *command)
@@ -1252,10 +1256,7 @@ static const struct cli_command user_clis[] = {
 beken_thread_t cli_thread_handle = NULL;
 
 int create_shell_task(void) {
-	int ret;
-	void *pxTaskTCBBuffer = NULL;
-	void *pxTaskStackBuffer = NULL;
-	uint32_t ulTaskStackSize;
+	int ret = kNoErr;
 #if CONFIG_SHELL_ASYNCLOG
 #if CONFIG_ATE_TEST
 	ret = rtos_create_thread(&cli_thread_handle,
@@ -1266,6 +1267,10 @@ int create_shell_task(void) {
 							 0);
 #else
 
+	#if CONFIG_CLI
+	uint32_t ulTaskStackSize;
+	void *pxTaskStackBuffer = NULL;
+	void *pxTaskTCBBuffer = NULL;
 	void rtos_get_shelltask_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize);
 	rtos_get_shelltask_memory(&pxTaskTCBBuffer, &pxTaskStackBuffer, &ulTaskStackSize);
 	ret = rtos_create_thread_static(&cli_thread_handle,
@@ -1277,15 +1282,18 @@ int create_shell_task(void) {
 							 pxTaskStackBuffer,
 							 pxTaskTCBBuffer,
 							 -1);
+	#endif // CONFIG_CLI
 
 #endif
 #else // #if CONFIG_SHELL_ASYNCLOG
+	#if CONFIG_CLI
 	ret = rtos_create_thread(&cli_thread_handle,
 							 BEKEN_DEFAULT_WORKER_PRIORITY,
 							 "cli",
 							 (beken_thread_function_t)cli_main,
 							 3072,
 							 0);
+	#endif // CONFIG_CLI
 #endif // #if CONFIG_SHELL_ASYNCLOG
 
 	return ret;

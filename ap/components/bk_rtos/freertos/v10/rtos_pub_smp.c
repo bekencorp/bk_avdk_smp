@@ -1537,7 +1537,7 @@ the stack and so not exists after this function exits. */
 #endif // (configSUPPORT_STATIC_ALLOCATION == 1) && (configUSE_TIMERS == 1)
 
 
-
+#if defined(CONFIG_SHELL_TASK_STACK_SIZE)
 void rtos_get_shelltask_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize)
 {
 
@@ -1553,7 +1553,7 @@ void rtos_get_shelltask_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffe
 
     *pulTaskStackSize = CONFIG_SHELL_TASK_STACK_SIZE;
 }
-
+#endif
 
 void rtos_get_logtask_memory(void **ppxTaskTCBBuffer, void **ppxTaskStackBuffer, uint32_t *pulTaskStackSize)
 {

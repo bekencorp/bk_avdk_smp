@@ -65,12 +65,11 @@ menu "Bk_cli"
 				Set Shell Task Stack Size
 
 		config LOG_TASK_STACK_SIZE
-			depends on CLI
-			int "Set Shell Task Stack Size"
+			int "Set Log Task Stack Size"
 			range 0 65535
 			default 512
 			help
-				Set Shell Task Stack Size
+				Set Log Task Stack Size
 
 
 		config IPERF_TEST

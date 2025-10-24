@@ -1280,6 +1280,7 @@ int cli_register_module_test_feature(const struct cli_command *commands, int num
 
 int cli_register_command(const struct cli_command *command)
 {
+	#if CONFIG_CLI
 	int i;
 	if (!command->name || !command->function)
 		return 0;
@@ -1297,6 +1298,9 @@ int cli_register_command(const struct cli_command *command)
 	}
 
 	return 1;
+	#else
+	return 0;
+	#endif // CONFIG_CLI
 }
 
 int cli_unregister_command(const struct cli_command *command)
@@ -1406,7 +1410,7 @@ static const struct cli_command user_clis[] = {
 beken_thread_t cli_thread_handle = NULL;
 int bk_cli_init(void)
 {
-	int ret;
+	int ret = kNoErr;
 
 #if CONFIG_CLI
 
@@ -1697,22 +1701,25 @@ int bk_cli_init(void)
 							 4096,
 							 0);
 #else
-
+	#if CONFIG_CLI
 	ret = rtos_create_thread(&cli_thread_handle,
 							 SHELL_TASK_PRIORITY,
 							 "cli",
 							 (beken_thread_function_t)shell_task,
 							 1024*3,
 							 0);
+	#endif // CONFIG_CLI
 
 #endif
 #else // #if CONFIG_SHELL_ASYNCLOG
+	#if CONFIG_CLI
 	ret = rtos_create_thread(&cli_thread_handle,
 							 BEKEN_DEFAULT_WORKER_PRIORITY,
 							 "cli",
 							 (beken_thread_function_t)cli_main,
 							 3072,
 							 0);
+	#endif // CONFIG_CLI
 #endif // #if CONFIG_SHELL_ASYNCLOG
 	if (ret != kNoErr) {
 		BK_LOGD(NULL,"Error: Failed to create cli thread: %d\r\n",
