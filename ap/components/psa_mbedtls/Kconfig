@@ -69,4 +69,10 @@ menu "PSA Mbedtls"
 		help
 			mbedtls use PSRAM to allocate memory
 
+	config MBEDTLS_CUSTOM_CONFIG_FILE
+		bool "Enable custom mbedtls config file"
+		default n
+		help
+			Enable custom mbedtls configuration file support.
+
 endmenu

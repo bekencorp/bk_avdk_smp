@@ -19,23 +19,32 @@
 #include <os/mem.h>
 #include "sdkconfig.h"
 
-/* If MBEDTLS_BK_CUSTOMER_CONFIG_FILE is defined, use it.
- * Otherwise, use the default config file.
- *eg, add below code in CMakeLists.txt(locate in project's main directory),
- * and add mbedtls_bk_custom_config_file.h：
- armino_component_register(SRCS "${srcs}" ......
-
- set(bk_mbedtls_custom_define
-	-I${CMAKE_CURRENT_SOURCE_DIR}
-	-DMBEDTLS_BK_CUSTOMER_CONFIG_FILE=<mbedtls_bk_custom_config_file.h>
-	-fvisibility=hidden -Wno-attributes)
-armino_build_set_property(COMPILE_OPTIONS "${bk_mbedtls_custom_define}" APPEND)
-
-*/
-#if defined(MBEDTLS_BK_CUSTOMER_CONFIG_FILE)
-#include MBEDTLS_BK_CUSTOMER_CONFIG_FILE
+#ifdef CONFIG_MBEDTLS_CUSTOM_CONFIG_FILE
+/**
+ * \brief Custom mbedtls configuration file
+ * 
+ * When CONFIG_MBEDTLS_CUSTOM_CONFIG_FILE is enabled, this file should exist
+ * in the project configuration directory: {PROJECT_DIR}/ap/config/ARMINO_SOC_ap/
+ * 
+ * Example path: projects/app/ap/config/bk7258_ap/mbedtls_custom_config_file.h
+ * 
+ * If the custom config file is not found, the default configuration below will be used.
+ */
+#ifdef __has_include
+    #if __has_include("mbedtls_custom_config_file.h")
+        #include "mbedtls_custom_config_file.h"
+        #define MBEDTLS_NOT_USE_DEFAULT_CONFIG
+    #else
+        #pragma message "mbedtls_custom_config_file.h not found, using default configuration"
+    #endif
 #else
+    /* Fallback for compilers without __has_include support */
+    #include "mbedtls_custom_config_file.h"
+    #define MBEDTLS_NOT_USE_DEFAULT_CONFIG
+#endif
+#endif
 
+#ifndef MBEDTLS_NOT_USE_DEFAULT_CONFIG
 #if CONFIG_FULL_MBEDTLS
 
 /**
@@ -4241,7 +4250,6 @@ extern void tls_mbedtls_mem_free(void *ptr);
 #define MBEDTLS_PLATFORM_PRINTF_MACRO        os_printf /**< Default printf macro to use, can be undefined */
 
 #endif //CONFIG_FULL_MBEDTLS
-#endif
 
 #ifdef CRYPTO_NV_SEED
 #include "tfm_mbedcrypto_config_extra_nv_seed.h"
@@ -4263,5 +4271,7 @@ extern void tls_mbedtls_mem_free(void *ptr);
 #endif
 
 // #include "mbedtls/check_config.h"
+
+#endif
 
 #endif /* MBEDTLS_PSA_CRYPTO_CONFIG_H */
