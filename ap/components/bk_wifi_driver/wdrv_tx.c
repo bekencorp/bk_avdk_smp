@@ -2,7 +2,11 @@
 #include "wdrv_ipc.h"
 #include "wdrv_main.h"
 #include "wdrv_cntrl.h"
-
+#include "lwip/stats.h"
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+struct stats_mem *g_cp_lwip_mem = NULL;
+uint32_t g_cp_stats_mem_size = 0;
+#endif
 void __asm_flush_dcache_range(void* begin, void* end);
 
 #if CONFIG_BK_RAW_LINK
@@ -52,6 +56,28 @@ int wdrv_txdata_sender(struct pbuf *p, uint32_t vif_idx)
 //    {
 //        BK_ASSERT(0);
 //    }
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    // Only perform flow-control checks for buffers that do NOT require free
+    if(!cpdu->co_hdr.need_free)
+    {
+        if(wdrv_env.is_controlled && ((100 * g_cp_lwip_mem->tx_used /g_cp_lwip_mem->tx_avail ) < 60) && ((100 * g_cp_lwip_mem->used /g_cp_lwip_mem->avail ) < 70))
+        {
+            //WDRV_LOGE("%s %d,tx_used:%d,avail:%d\r\n",__func__,__LINE__,g_cp_lwip_mem->tx_used,g_cp_lwip_mem->tx_avail);
+            wdrv_env.is_controlled = 0;
+        }
+        /* Enable flow control early when CP memory usage crosses threshold */
+        if((!wdrv_env.is_controlled) && ((100 * g_cp_lwip_mem->tx_used / g_cp_lwip_mem->tx_avail) >= 75) && ((100 * g_cp_lwip_mem->used /g_cp_lwip_mem->avail ) > 80))
+        {
+            wdrv_env.is_controlled = 1;
+            return BK_ERR_NO_MEM;
+        }
+        /* If flow control is active, reject new TX to notify upper layer */
+        if (wdrv_env.is_controlled)
+        {
+            return BK_ERR_NO_MEM;
+        }
+    }
+#endif
     WDRV_LOGV("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, p, p->next, p->payload, sizeof(struct pbuf));
 	msg.type = WDRV_TASK_MSG_TXDATA;
 	msg.arg = (uint32_t)cpdu;
@@ -183,15 +209,6 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
         WDRV_IRQ_ENABLE(int_level);
     }
 
-//    ret = rtos_get_semaphore(&wdrv_ipc_env[ipc_chnl].sema, 0);
-//    if(ret == BK_OK) {
-//        
-//        //BK_LOGD(NULL, "%s,%d,get_sema\n",__func__,__LINE__);
-//    }
-//    if (ret != BK_OK){
-//        return;
-//    }
-
     if(wdrv_ipc_env[ipc_chnl].sending_flag) 
     {
         return;
@@ -201,7 +218,6 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
         wdrv_ipc_env[ipc_chnl].sending_flag =1;
     }
 
-
     first = (void*)wdrv_ipc_env[ipc_chnl].tx_list.first;
     last = (void*)wdrv_ipc_env[ipc_chnl].tx_list.last;
     num = co_list_cnt((void*)&wdrv_ipc_env[ipc_chnl].tx_list);
@@ -209,12 +225,6 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
     if(((first != NULL)&&(last!= NULL))&&(num == 0)) BK_ASSERT(0);
 
     if(first == NULL) goto ERR_EXIT;
-
-
-//    if((first< (void*)&__wifi_start) || (first> (void*)&__wifi_end))
-//    {
-//        BK_ASSERT(0);
-//    }
 
     WDRV_LOGV("%s,%d,p:0x%x,p:0x%x,num:%d\n",__func__,__LINE__,(struct pbuf*)first-1,(struct pbuf*)last-1,num);
 
@@ -230,8 +240,6 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
         return;
     }
 ERR_EXIT:
-    //ret = rtos_set_semaphore(&wdrv_ipc_env[ipc_chnl].sema);
-    
     wdrv_ipc_env[ipc_chnl].sending_flag = 0;
     if(ret != BK_OK) {
         BK_LOGD(NULL, "%s,%d,set_sema fail\n",__func__,__LINE__);

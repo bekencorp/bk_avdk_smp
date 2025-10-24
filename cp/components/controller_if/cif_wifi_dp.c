@@ -62,9 +62,10 @@ bk_err_t cif_handle_txdata(void *head)
 {
     uint8_t ret = BK_OK;
     struct pbuf* pbuf = NULL;
-    cpdu_t* cpdu = (cpdu_t*)head;
-    uint8_t vif_id = cpdu->co_hdr.vif_idx + 0xF;//cif_vif_id_route();
 
+    cpdu_t* cpdu = (cpdu_t*)head;
+    uint8_t vif_id = cpdu->co_hdr.vif_idx + 0xF;
+    BK_ASSERT(vif_id < 17);
 #if CONFIG_BK_RAW_LINK
     if (cpdu->co_hdr.special_type == TX_RAW_LINK_TYPE)
     {
@@ -85,7 +86,6 @@ bk_err_t cif_handle_txdata(void *head)
     }
 #endif
 
-    //struct tx_desc_tag * tx_desc = NULL;
     pbuf = (struct pbuf*)((uint8_t*)head - sizeof(struct pbuf));
 #if CONFIG_CONTROLLER_RX_DIRECT_PSH
     if(cpdu->co_hdr.need_free)
@@ -97,30 +97,44 @@ bk_err_t cif_handle_txdata(void *head)
         return BK_OK;
     }
 #endif
+
     CIF_STATS_INC(buf_in_txdata);
     cif_stats_ptr->cif_tx_cnt++;
-    //CTRL_IF_DATA("%s,1 length:%d\n",__func__,hdr->co_hdr.length);
-    //tx_desc = (struct tx_desc_tag *)(hdr + 1);
-    //stack_mem_dump((uint32_t)head,(uint32_t)head + hdr->co_hdr.length);
-//    pbuf_header_force(pbuf, -(s16_t)sizeof(struct cpdu_t));
-//    pbuf->len = hdr->co_hdr.length - sizeof(struct common_header);
-//    pbuf->tot_len = pbuf->len;
-    //stack_mem_dump((uint32_t)pbuf->payload,(uint32_t)pbuf->payload + pbuf->len);
-    //CTRL_IF_DATA("%s,2 length:%d\n",__func__,hdr->co_hdr.length);
-    //Index offset 0xf is used to distinguish data from the controller interface.
     CIF_LOGV("%s p:%x next:%x payload%x sizeof:%d\r\n",__func__, pbuf, pbuf->next, pbuf->payload, sizeof(struct pbuf));
     CIF_LOGV("%s p:%x,vif_id=%d\r\n",__func__, pbuf,vif_id);
+
 #if CONFIG_CONTROLLER_DEBUG
     TRACK_PBUF_ALLOC(pbuf);
 #endif
-    ret = bmsg_tx_sender(pbuf, vif_id);
 
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+
+    struct pbuf* p_copy = pbuf_clone(PBUF_RAW_TX,PBUF_RAM,pbuf);
+
+    if((p_copy == NULL) || (p_copy->payload == NULL))
+    {
+        cif_free_ap_txbuf(pbuf);
+        return BK_OK;
+    }
+
+    memcpy((void*)(p_copy+1),(void*)(pbuf+1),sizeof(cpdu_t));
+    cif_free_ap_txbuf(pbuf);
+    ret = bmsg_tx_sender(p_copy, vif_id);
+
+    if(ret != BK_OK)
+    {
+        //CIF_LOGE("%s %d,p:0x%x\r\n",__func__,__LINE__,p_copy);
+        pbuf_free(p_copy);
+    }
+
+#else
+    ret = bmsg_tx_sender(pbuf, vif_id);
     if(ret != BK_OK)
     {
         cif_free_ap_txbuf(pbuf);
         ret = false;
     }
-
+#endif
     return ret;
 }
 

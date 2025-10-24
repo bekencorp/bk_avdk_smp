@@ -111,6 +111,8 @@ struct stats_mem {
   mem_size_t rx_used;
   mem_size_t tx_max;
   mem_size_t rx_max;
+  mem_size_t tx_avail;
+  mem_size_t rx_avail;
 #endif
 };
 

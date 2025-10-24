@@ -110,14 +110,15 @@ void wdrv_rxdata_process(struct pbuf *p)
         return;
     }
 
-    WDRV_LOGV("%s p:%p next:%p payload:%p sizeof:%d cpdu:%p\r\n",
-        __func__, p, p->next, p->payload, sizeof(struct pbuf), cpdu);
+    WDRV_LOGV("%s p:%p next:%p payload:%p sizeof:%d cpdu:%p,need_free:%d\r\n",
+        __func__, p, p->next, p->payload, sizeof(struct pbuf), cpdu,cpdu->co_hdr.need_free);
     WDRV_STATS_DEC(rx_alloc_num);
     WDRV_LOGV("%s rx_alloc_num = %d\r\n",__func__,wdrv_stats_ptr->rx_alloc_num );
     wdrv_stats_ptr->wdrv_rx_cnt++;
 #if CONFIG_CONTROLLER_RX_DIRECT_PSH    
     p_copy = pbuf_alloc(PBUF_RAW,p->len + sizeof(cpdu_t),PBUF_RAM_RX);
     //bk_mem_dump("wdrv_rxdata_process",(uint32_t)p->payload,100);
+    
     if(p_copy)
     {
         pbuf_header(p_copy, -(s16)sizeof(struct cpdu_t));

@@ -34,7 +34,11 @@ extern "C" {
 #define CIF_STATS_INC(x) do{uint32_t int_level = 0;int_level = rtos_disable_int();++cif_stats_ptr->x;rtos_enable_int(int_level);BK_ASSERT(cif_stats_ptr->x >= 0);}while(0)
 #define CIF_STATS_DEC(x) do{uint32_t int_level = 0;int_level = rtos_disable_int();--cif_stats_ptr->x;rtos_enable_int(int_level);BK_ASSERT(cif_stats_ptr->x >= 0);}while(0)
 
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+#define CNTRL_IF_QUEUE_LEN                          300
+#else
 #define CNTRL_IF_QUEUE_LEN                          128
+#endif
 #define CNTRL_IF_TASK_PRIO                          2
 
 #define TASK_BASE_INDEX                             12
@@ -104,6 +108,7 @@ enum BK_CMD_TYPE
 
     //Debug info section
     BK_INTERFACE_DEBUG_CMD     = 0x110,
+    BK_CP_LWIP_MEM_ADDR_CMD    = 0x111,
 
     // system command
     BK_CMD_SET_MAC_ADDR        = 0x201,

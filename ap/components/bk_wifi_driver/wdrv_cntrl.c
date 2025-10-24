@@ -32,7 +32,7 @@
 #include <components/netif.h>
 #include "components/event.h"
 #include "wifi_api_ipc.h"
-
+#include "lwip/stats.h"
 #define TAG "wdrv_cntrl"
 
 wdrv_wlan wdrv_host_env;
@@ -76,7 +76,22 @@ uint32_t wdrv_param_init(void)
 
     return 0;
 }
+uint32_t wdrv_param_deinit(void)
+{
+    if (NULL != g_wlan_general_param) {
+        os_free(g_wlan_general_param);
+    }
 
+    if (NULL == g_ap_param_ptr) {
+        os_free(g_ap_param_ptr);
+    }
+
+    if (NULL == g_sta_param_ptr) {
+        os_free(g_sta_param_ptr);
+    }
+
+    return 0;
+}
 bk_err_t bk_wdrv_get_mac(uint8_t *mac, mac_type_t type)
 {
     uint8_t mac_mask = (0xff & (2/*NX_VIRT_DEV_MAX*/ - 1));
@@ -358,7 +373,41 @@ bk_err_t wdrv_cntrl_get_cif_stats()
 
     return BK_OK;
 }
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+bk_err_t wdrv_cntrl_get_cp_lwip_mem_addr()
+{
+    bk_err_t ret = BK_OK;
+    struct get_cif_stats
+    {
+        wdrv_cmd_hdr cmd_hdr;
+        wdrv_cmd_cfm cmd_cfm;
+    };
+    struct get_cif_stats req = {0};
 
+    req.cmd_hdr.cmd_id =  BK_CP_LWIP_MEM_ADDR_CMD;
+    req.cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
+    req.cmd_cfm.cfm_id = 0;
+
+
+    wdrv_tx_msg((uint8_t *)&req, sizeof(req), &req.cmd_cfm, NULL);
+    
+    if(g_cp_lwip_mem == NULL)
+    {
+        WDRV_LOGE("CP side need open macro 'CONFIG_CONTROLLER_AP_BUFFER_COPY' \n");
+        ret = BK_FAIL;
+        BK_ASSERT(0);
+    }
+    if(g_cp_stats_mem_size != sizeof(struct stats_mem))
+    {
+        WDRV_LOGE("AP and CP side 'struct stats_mem' must have same structure \n");
+        ret = BK_FAIL;
+        BK_ASSERT(0);
+    }
+    WDRV_LOGV("%s,%d,addr:0x%x\n","cp_lwip_mem_addr",__LINE__,g_cp_lwip_mem);
+
+    return ret;
+}
+#endif
 void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
 {
     WDRV_LOGV("%s,%d\n",__func__,__LINE__);
@@ -388,8 +437,17 @@ void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg)
         case BK_CMD_START_AP:
             WDRV_LOGV("MCU-AP-STATE: start AP\r\n");
             break;
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+        case BK_CP_LWIP_MEM_ADDR_CMD:
+        {
+            g_cp_lwip_mem = (void*)msg->param[0];
+            g_cp_stats_mem_size =  msg->param[1];
+            WDRV_LOGD("CP_LWIP_MEM_ADDR_CMD addr:0x%x \r\n",g_cp_lwip_mem);
+            break;
+        }
+#endif
         default:
-            WDRV_LOGV("%s,%d\n",__func__,__LINE__);
+            WDRV_LOGD("%s,%d,ID:0x%x\n",__func__,__LINE__,BK_CFM_GET_CMD_ID(msg->id));
             break;
     }
     wdrv_rx_confirm_tx_msg(msg);
@@ -524,20 +582,23 @@ void wdrv_rx_handle_event(wdrv_rx_msg *msg)
     }
 }
 
-void wdrv_host_init(void)
+bk_err_t wdrv_host_init(void)
 {
+    bk_err_t ret = BK_OK;
     WDRV_LOGV("%s, %d\r\n", __func__, __LINE__);
 
     co_list_init((struct co_list *)&wdrv_host_env.cfm_pending_list);
     rtos_init_mutex(&wdrv_host_env.cfm_lock);
 
     if(wdrv_get_mac_addr() != 0)
-        return;
-
+        return BK_FAIL;
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    ret = wdrv_cntrl_get_cp_lwip_mem_addr();
+#endif
     /* init wdrv common params */
     wdrv_param_init();
 
     /* Init Wi-Fi driver netif */
     //bk_wifi_init();
+    return ret;
 }
-

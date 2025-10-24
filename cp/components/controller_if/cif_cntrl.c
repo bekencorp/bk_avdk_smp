@@ -11,6 +11,7 @@
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
 #include "cif_ipc.h"
 #include "cif_wifi_api.h"
+#include "lwip/stats.h"
 
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
 extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
@@ -617,6 +618,23 @@ bk_err_t cif_handle_bk_cmd_interface_debug(struct bk_msg_hdr *msg)
     cif_print_debug_info();
     return ret;
 }
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+bk_err_t cif_handle_bk_cmd_lwipmem_addr_req(struct bk_msg_hdr *msg)
+{
+    struct cif_lwip_stats
+    {
+        uint32_t stats_mem_addr;
+        uint32_t stats_mem_size;
+    };
+    struct cif_lwip_stats param = {0};
+#if MEM_STATS
+    param.stats_mem_addr = (uint32_t)&lwip_stats.mem;
+    param.stats_mem_size = sizeof(struct stats_mem);
+#endif
+    CIF_LOGI("%s,%d,addr:0x%x\n",__func__, __LINE__,param.stats_mem_addr);
+    return cif_bk_cmd_confirm(msg, (uint8_t *)&param.stats_mem_addr, sizeof(struct cif_lwip_stats));
+}
+#endif
 bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
 {
     bk_err_t ret = BK_OK;
@@ -741,6 +759,13 @@ bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
             ret = cif_handle_bk_cmd_interface_debug(msg);
             break;
         }
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+        case BK_CP_LWIP_MEM_ADDR_CMD:
+        {
+            ret = cif_handle_bk_cmd_lwipmem_addr_req(msg);
+            break;
+        }
+#endif
         default:
         {
             CIF_LOGE("%s,error CMD type %x\n",__func__, msg->cmd_id);

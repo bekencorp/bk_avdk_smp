@@ -73,6 +73,7 @@
 #endif
 #include <os/os.h>
 #include "net.h"
+#include <common/bk_err.h>
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "wifi_api.h"
 #endif
@@ -228,12 +229,15 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
         }
         cpdu->co_hdr.vif_idx = vif_idx;
         cpdu->co_hdr.need_free = 0;
-        //bk_mem_dump("low_level",(uint32_t)p->payload,p->len);
+
         ret = wdrv_txdata_sender(p,vif_idx);
 
         if(0 != ret)
         {
-            err = ERR_TIMEOUT;
+            if (ret == BK_ERR_NO_MEM)
+                err = ERR_MEM;
+            else
+                err = ERR_TIMEOUT;
         }
     
         return err;

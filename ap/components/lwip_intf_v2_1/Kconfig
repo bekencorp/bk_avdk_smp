@@ -330,6 +330,13 @@ menu "Lwip_intf_v2_1"
 			Set the number of simultaneously queued TCP segments. 
 			(requires the LWIP_TCP option)
 			as much as (2 * LWIP_TCP_SND_QUEUELEN) for things to work.
+
+	config LWIP_MEM_LIBC_MALLOC_USE_PSRAM
+		bool "LWIP buffer use PSRAM instead of SRAM"
+		depends on PSRAM
+		default n
+		help
+		  This option should be enabled together with CONTROLLER_AP_BUFFER_COPY.
 	endmenu #Memory Config
 
 	menu "Tcp Config"

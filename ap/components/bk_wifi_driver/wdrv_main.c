@@ -340,6 +340,14 @@ void wdrv_main(void *arg)
             default:
                 break;
         }
+        #if CONFIG_CONTROLLER_AP_BUFFER_COPY
+        if(wdrv_env.is_controlled && ((100 * g_cp_lwip_mem->tx_used /g_cp_lwip_mem->tx_avail ) < 60) && ((100 * g_cp_lwip_mem->used /g_cp_lwip_mem->avail ) < 70))
+        {
+            //WDRV_LOGD("%s %d\r\n",__func__,__LINE__);
+            wdrv_env.is_controlled = 0;
+            wdrv_msg_sender(0,WDRV_TASK_MSG_TXDATA,1);
+        }
+        #endif
         if(wdrv_env.is_init)
             wdrv_attach_rx_buffer();
     }
@@ -386,7 +394,12 @@ bk_err_t wdrv_init()
         goto wdrv_init_failed;
     }
 
-    wdrv_host_init();
+    ret = wdrv_host_init();
+    if (ret != BK_OK)
+    {
+        WDRV_LOGE("wdrv_host_init failed:%d\n", ret);
+        goto wdrv_init_failed;
+    }
 
     //wdrv_attach_rx_buffer();
 
@@ -401,6 +414,7 @@ wdrv_init_failed:
 bk_err_t wdrv_deinit()
 {
     WDRV_LOGE("ctrl_if_deinit\n");
+
     if (wdrv_env.handle) {
         rtos_delete_thread(&wdrv_env.handle);
         wdrv_env.handle = NULL;

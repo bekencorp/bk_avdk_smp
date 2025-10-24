@@ -214,6 +214,7 @@ enum BK_CMD_TYPE
 
     //Debug info section
     BK_INTERFACE_DEBUG_CMD     = 0x110,
+    BK_CP_LWIP_MEM_ADDR_CMD    = 0x111,
 
     // system command
     BK_CMD_SET_MAC_ADDR        = 0x201,
@@ -392,10 +393,11 @@ struct wdrv_customer_req
 
 
 /*   API    */
-void wdrv_host_init(void);
+bk_err_t wdrv_host_init(void);
 int wdrv_get_mac_addr();
 bk_err_t bk_wdrv_get_mac(uint8_t *mac, mac_type_t type);
 uint32_t wdrv_param_init(void);
+uint32_t wdrv_param_deinit(void);
 int bk_platform_get_wlan_status(void);
 extern void wdrv_rx_handle_event(wdrv_rx_msg *msg);
 extern void wdrv_rx_handle_cmd_confirm(wdrv_rx_msg *msg);
@@ -423,6 +425,9 @@ void bk_wlan_status_register_cb(FUNC_1PARAM_PTR cb);
 typedef void (* rx_handle_customer_event_cb)(void *data, uint16_t len);
 void bk_customer_event_register_callback(rx_handle_customer_event_cb callback);
 bk_err_t wdrv_cntrl_get_cif_stats();
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+bk_err_t wdrv_cntrl_get_cp_lwip_mem_addr();
+#endif
 extern wdrv_wlan wdrv_host_env;
 
 extern general_param_t *g_wlan_general_param;

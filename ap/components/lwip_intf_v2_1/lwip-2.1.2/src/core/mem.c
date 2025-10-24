@@ -168,6 +168,8 @@ void
 mem_init(void)
 {
   MEM_STATS_AVAIL(avail, MEM_SIZE_ALIGNED);
+  MEM_STATS_AVAIL(tx_avail, MEM_MAX_TX_SIZE);
+  MEM_STATS_AVAIL(rx_avail, MEM_MAX_RX_SIZE);
 }
 
 /** mem_trim is not used when using pools instead of a heap or using
@@ -192,7 +194,11 @@ mem_trim(void *mem, mem_size_t size)
 #define mem_clib_free os_free
 #endif
 #ifndef mem_clib_malloc
+#if CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM
+#define mem_clib_malloc psram_malloc
+#else
 #define mem_clib_malloc os_malloc
+#endif
 #endif
 #ifndef mem_clib_calloc
 #define mem_clib_calloc calloc

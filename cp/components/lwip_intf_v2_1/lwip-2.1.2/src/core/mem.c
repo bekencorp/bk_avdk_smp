@@ -168,6 +168,8 @@ void
 mem_init(void)
 {
   MEM_STATS_AVAIL(avail, MEM_SIZE_ALIGNED);
+  MEM_STATS_AVAIL(tx_avail, MEM_MAX_TX_SIZE);
+  MEM_STATS_AVAIL(rx_avail, MEM_MAX_RX_SIZE);
 }
 
 /** mem_trim is not used when using pools instead of a heap or using

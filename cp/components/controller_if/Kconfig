@@ -11,4 +11,7 @@ menu "Controller IF"
 	config CONTROLLER_DEBUG
 		bool "Controller Debug"
 		default n
+	config CONTROLLER_AP_BUFFER_COPY
+		bool "Controller AP buffer copy to CP buffer when AP use PSRAM instead of SRAM"
+		default n
 endmenu

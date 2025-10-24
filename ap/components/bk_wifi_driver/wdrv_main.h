@@ -16,6 +16,16 @@ extern "C" {
 #include "os/str.h"
 #include "wdrv_co_list.h"
 
+/* Configuration dependency check */
+#if defined(CONFIG_CONTROLLER_AP_BUFFER_COPY) && !defined(CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM)
+#error "CONFIG_CONTROLLER_AP_BUFFER_COPY requires CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM! \
+Please enable 'CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM'."
+#endif
+
+#if defined(CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM) && !defined(CONFIG_CONTROLLER_AP_BUFFER_COPY)
+#error "CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM requires CONFIG_CONTROLLER_AP_BUFFER_COPY! \
+Please enable 'CONFIG_CONTROLLER_AP_BUFFER_COPY'."
+#endif
 
 #define WDRV_TAG "WDRV"
 #define WDRV_LOGI(...)       BK_LOGI(WDRV_TAG, ##__VA_ARGS__)
@@ -245,6 +255,10 @@ struct wdrv_env_t
     uint32_t cmd_idx;
     uint32_t cmd_bank[MAX_NUM_CMD_RX_BANK];
     uint32_t cmd_bank_idx;
+#ifdef CONFIG_CONTROLLER_AP_BUFFER_COPY
+    bool is_controlled;
+#endif
+
 };
 
 
