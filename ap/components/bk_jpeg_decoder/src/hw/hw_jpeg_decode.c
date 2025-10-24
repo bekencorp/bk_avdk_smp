@@ -251,6 +251,8 @@ static void hw_jpeg_decode_thread(void *arg)
     bk_jpeg_dec_isr_register(DEC_ERR, jpeg_dec_err_cb);
     bk_jpeg_dec_isr_register(DEC_END_OF_FRAME, jpeg_dec_eof_cb);
 
+    g_hw_jpeg_decode->hw_state = true;
+
     rtos_set_semaphore(&g_hw_jpeg_decode->hw_sem);
 
     hardware_decode_msg_t msg = {0};
@@ -489,7 +491,6 @@ bk_err_t hw_jpeg_decode_init(bk_jpeg_decode_callback_t *decode_cbs)
 
     rtos_get_semaphore(&g_hw_jpeg_decode->hw_sem, BEKEN_WAIT_FOREVER);
 
-    g_hw_jpeg_decode->hw_state = true;
     return ret;
 
 error:
