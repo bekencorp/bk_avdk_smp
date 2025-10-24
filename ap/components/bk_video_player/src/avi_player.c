@@ -89,8 +89,8 @@ bk_err_t bk_avi_player_video_parse(void)
 
     if (avi_player->segment_flag == true) {
         for (int i = 0; i < avi_player->avi->height; i++) {
-            os_memcpy(avi_player->segmentbuffer + i * (avi_player->avi->width >> 1), avi_player->framebuffer + i * avi_player->avi->width, avi_player->avi->width);
-            os_memcpy(avi_player->segmentbuffer + (avi_player->avi->width >> 1) * avi_player->avi->height + i * (avi_player->avi->width >> 1), avi_player->framebuffer + i * avi_player->avi->width + (avi_player->avi->width >> 1), avi_player->avi->width);
+            os_memcpy(avi_player->segmentbuffer + i * avi_player->avi->width, avi_player->framebuffer + i * avi_player->avi->width * 2, avi_player->avi->width);
+            os_memcpy(avi_player->segmentbuffer + (avi_player->avi->width >> 1) * avi_player->avi->height * 2 + i * avi_player->avi->width, avi_player->framebuffer + i * avi_player->avi->width * 2 + avi_player->avi->width, avi_player->avi->width);
         }
     }
 
@@ -195,6 +195,8 @@ void bk_avi_player_close(void)
         LOGE("%s %d avi_player is NULL\r\n", __func__, __LINE__);
         return;
     }
+
+    avi_player_jpeg_hw_decode_deinit(avi_player->output_format);
 
     bk_avi_player_free();
 

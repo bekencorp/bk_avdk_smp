@@ -111,7 +111,7 @@ static void avi_player_dma2d_yuyv2rgb565(void *src, const void *dst, uint16_t wi
 static bk_err_t avi_player_jpeg_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame)
 {
     if (result == BK_OK) {
-        LOGD("%s, %d, jpeg decode success! format_type: %d, out_frame: %p\n", __func__, __LINE__, format_type, out_frame);
+        LOGV("%s, %d, jpeg decode success! format_type: %d, out_frame: %p\n", __func__, __LINE__, format_type, out_frame);
     } else {
         LOGE("%s, %d, jpeg decode failed! format_type: %d, result: %d, out_frame: %p\n", __func__, __LINE__, format_type, result, out_frame);
     }
