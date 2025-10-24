@@ -60,6 +60,23 @@ static void cli_trng_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	}else if (os_strcmp(argv[1], "get") == 0) {
 		int random_data = bk_rand();
 		CLI_LOGD("trng get random data:%u\r\n", random_data);
+	} else if (os_strcmp(argv[1], "fast") == 0) {
+		if (argc < 3) {
+			cli_trng_help();
+			return;
+		}
+		uint32_t len = os_strtoul(argv[2], NULL, 0);
+		uint8_t *buff = os_malloc(len);
+		BK_LOG_ON_ERR(bk_fill_rand(buff, len));
+		CLI_LOGD("trng fast random data:");
+		for (uint32_t i = 0; i < len; i++) {
+			if (i % 8 == 0) {
+				BK_RAW_LOGI(NULL, "\r\n");
+			}
+			BK_RAW_LOGI(NULL, "%02x ", buff[i]);
+		}
+		BK_RAW_LOGI(NULL, "\r\n");
+		os_free(buff);
 	} else {
 		cli_trng_help();
 		return;
@@ -69,7 +86,7 @@ static void cli_trng_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 #define TRNG_CMD_CNT (sizeof(s_trng_commands) / sizeof(struct cli_command))
 static const struct cli_command s_trng_commands[] = {
 	{"trng_driver", "{init|deinit}", cli_trng_driver_cmd},
-	{"trng", "trng {start|stop|get}", cli_trng_cmd}
+	{"trng", "trng {start|stop|get|fast}", cli_trng_cmd}
 };
 
 int cli_trng_init(void)

@@ -85,6 +85,18 @@ bk_err_t bk_trng_stop(void);
 int bk_rand(void);
 
 /**
+ * @brief     Get the random number to buff
+ *
+ * @param buff the buffer to store the random number
+ * @param len the byte length of the buffer
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_fill_rand(void *buff, size_t len);
+
+/**
  * @}
  */
 

@@ -123,3 +123,41 @@ int bk_rand(void)
 	return (number & RAND_MAX);
 }
 
+int bk_fill_rand(void *buff, size_t len)
+{
+    size_t i = 0;
+    uint32_t rnd;
+
+    if(buff == NULL || len == 0) {
+        return -1;
+    }
+
+    bk_trng_start();
+    bk_delay_us(50);  //add delay to make trng disckg take effect
+
+    /*Different board , same time point, the trng generate random number maybe same*/
+    for(i = 0; i < TRNG_READ_COUNT; i++) {
+        trng_get_random_number();
+    }
+
+    size_t word_count = len / sizeof(uint32_t);
+    size_t remain = len % sizeof(uint32_t);
+    uint8_t *p = (uint8_t *)buff;
+
+    for(i = 0; i < word_count; i++) {
+        rnd = trng_get_random_number();
+        memcpy(p, &rnd, sizeof(uint32_t));
+        p += sizeof(uint32_t);
+    }
+
+    if(remain > 0) {
+        rnd = trng_get_random_number();
+        for(i = 0; i < remain; i++) {
+            p[i] = (rnd >> (8 * i)) & 0xFF;
+        }
+    }
+
+    bk_trng_stop();  //close it after finish for power save
+
+    return 0;
+}
