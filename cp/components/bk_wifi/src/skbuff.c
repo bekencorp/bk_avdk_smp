@@ -176,7 +176,7 @@ void kfree_skb(struct sk_buff *skb)
 	if (!skb)
 		return;
 	struct txdesc *txdesc = &skb->ftxdesc->txdesc;
-#if CONFIG_WIFI_VNET_CONTROLLER
+#if (CONFIG_WIFI_VNET_CONTROLLER && (!CONFIG_CONTROLLER_AP_BUFFER_COPY))
 	bool is_ap_buf = (txdesc->host.flags & TXU_CTRL_IF_DATA) != 0;
 #endif
 	if(txdesc->host.flags & TXU_CNTRL_MGMT){
@@ -194,7 +194,7 @@ void kfree_skb(struct sk_buff *skb)
 		os_free(skb);
 	}else{
 		if (skb->p) {
-#if CONFIG_WIFI_VNET_CONTROLLER
+#if (CONFIG_WIFI_VNET_CONTROLLER && (!CONFIG_CONTROLLER_AP_BUFFER_COPY))
 			if((skb->p->flags & PBUF_FLAG_IS_EXTERNAL)||(is_ap_buf && (skb->ftxdesc != NULL))){
 				//CIF_STATS_DEC(buf_in_txdata);
 				cif_free_ap_txbuf(skb->p);
@@ -204,7 +204,8 @@ void kfree_skb(struct sk_buff *skb)
 #endif
 			{
 				pbuf_free(skb->p);
-				skb->p = NULL;
+				// Note: If skb and p share the same buffer, do not access skb after p is freed
+				//skb->p = NULL;
 			}
 		}
 	}

@@ -529,6 +529,7 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 	bool is_ctrl_if_data = false;
 	if(vif_idx >= 0xF)
 	{
+		TX_STAT_INC(data_tx_xmit);
 		is_ctrl_if_data = true;
 		vif_idx -= 0xF;
 		p->flags |= PBUF_FLAG_IS_EXTERNAL;
@@ -693,7 +694,7 @@ __ITCM_N int rwnx_start_xmit(uint8_t vif_idx, struct pbuf *p, BUS_MSG_T *msg)
 		host->flags &= ~TXU_CTRL_IF_DATA;
 	}
 #endif
-
+	TX_STAT_INC(data_tx_xmit2);
 	// Queue skb
 	if (rwnx_txq_queue_skb(skb, txq, 0, NULL))
 		rwnx_hwq_process(txq->hwq);
@@ -704,7 +705,7 @@ exit:
 	// free pbuf
 	if (p)
 	{
-		#if CONFIG_WIFI_VNET_CONTROLLER
+		#if CONFIG_WIFI_VNET_CONTROLLER && !CONFIG_CONTROLLER_AP_BUFFER_COPY
 		if((p->flags & PBUF_FLAG_IS_EXTERNAL)||is_ctrl_if_data)
 		{
 			cif_free_ap_txbuf(p);

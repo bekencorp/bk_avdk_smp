@@ -28,7 +28,11 @@ extern "C" {
 
 #include "generated/lmac_bus_msg.h"
 
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+#define CORE_QITEM_COUNT          (256)
+#else
 #define CORE_QITEM_COUNT          (64)
+#endif
 
 typedef struct _wifi_core_ {
 	uint32_t queue_item_count;

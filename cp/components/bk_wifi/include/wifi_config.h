@@ -15,8 +15,13 @@ extern "C" {
 #define WIFI_CFG_MAX_RAW_TX_AC					4
 // default RAW_TX_AC_TIMEOUT value
 #define WIFI_CFG_DFT_RAW_TX_AC_TIMEOUT_MS		50
+#if CONFIG_CONTROLLER_AP_BUFFER_COPY
+// default minimux memory size Wi-Fi should reserve value
+#define WIFI_CFG_DFT_MIN_RSV_MEM				6*1024
+#else
 // default minimux memory size Wi-Fi should reserve value
 #define WIFI_CFG_DFT_MIN_RSV_MEM				10*1024
+#endif
 // maximum memory size Wi-Fi should reserve value
 #define WIFI_CFG_MAX_RSV_MEM					30*1024
 // default TX maximum MSDU count value

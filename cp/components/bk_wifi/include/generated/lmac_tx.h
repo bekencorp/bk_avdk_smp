@@ -82,6 +82,8 @@
 #if BK_MAC
 struct tx_statistic_tag
 {
+    uint32_t data_tx_xmit;
+    uint32_t data_tx_xmit2;
     uint32_t data_tx_dld;
     uint32_t data_tx_retry;
     uint32_t data_tx_agg;
