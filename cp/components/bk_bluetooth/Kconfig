@@ -63,6 +63,11 @@ menu "Bk_ble"
 		depends on !BLUETOOTH_RELEASE_CODESIZE
 		default n
 
+	config BLUETOOTH_BLE_SLAVE_OBSERVER
+		bool "only supports ble slave and observer"
+		depends on BTDM_CONTROLLER_ONLY
+		default n
+
     config BLUETOOTH_BLE_DISCOVER_AUTO
         bool "auto ble discover. Only used when single ble host"
         default y

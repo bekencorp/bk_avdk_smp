@@ -194,6 +194,8 @@ if (CONFIG_BLUETOOTH)
 				set(bt_controller_basename ${bt_controller}_ble_slave_only)
 				set(bt_host_basename ${bt_host_ble}_slave_only)
 			endif()
+        elseif(CONFIG_BLUETOOTH_BLE_SLAVE_OBSERVER)
+            set(bt_controller_basename ${bt_controller}_ble_cp_slave_observer)
         endif()
     endif()
 
