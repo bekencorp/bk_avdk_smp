@@ -18,9 +18,12 @@ static frame_buffer_t *g_dec_out_frame = NULL;
 static bk_jpeg_decode_hw_handle_t avi_player_jpeg_decode_handle = NULL;
 
 static bk_err_t avi_player_jpeg_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame);
+static bk_err_t avi_player_jpeg_decode_in_complete(frame_buffer_t *in_frame);
 
 static bk_jpeg_decode_hw_config_t avi_player_jpeg_decode_config = {
-    .decode_cbs = {.out_complete = avi_player_jpeg_decode_complete,}
+    .decode_cbs = {
+        .in_complete = avi_player_jpeg_decode_in_complete,
+        .out_complete = avi_player_jpeg_decode_complete,}
 };
 
 static void avi_player_dma2d_config_error(void *arg)
@@ -116,6 +119,12 @@ static bk_err_t avi_player_jpeg_decode_complete(uint32_t format_type, uint32_t r
         LOGE("%s, %d, jpeg decode failed! format_type: %d, result: %d, out_frame: %p\n", __func__, __LINE__, format_type, result, out_frame);
     }
 
+    return BK_OK;
+}
+
+static bk_err_t avi_player_jpeg_decode_in_complete(frame_buffer_t *in_frame)
+{
+    LOGV("%s %d in_frame: %p\n", __func__, __LINE__, in_frame);
     return BK_OK;
 }
 

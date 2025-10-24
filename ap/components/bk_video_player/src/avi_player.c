@@ -17,7 +17,6 @@
 #include <os/mem.h>
 #include <os/str.h>
 #include "avi_player.h"
-#include "avi_player_vfs.h"
 #include "avi_player_jpeg_decode.h"
 
 
@@ -111,12 +110,6 @@ bk_err_t bk_avi_player_open(bk_avi_player_config_t *player_config)
         return BK_OK;
     }
 
-    ret = bk_avi_player_vfs_init();
-    if (ret != BK_OK) {
-        LOGE("%s %d bk_avi_player_vfs_init failed\r\n", __func__, __LINE__);
-        return ret;
-    }
-
     avi_player = os_malloc(sizeof(bk_avi_player_t));
     if (avi_player == NULL) {
         LOGE("%s %d avi_player malloc failed\r\n", __func__, __LINE__);
@@ -184,8 +177,6 @@ out:
         avi_player = NULL;
     }
 
-    bk_avi_player_vfs_deinit();
-
     return BK_FAIL;
 }
 
@@ -204,8 +195,6 @@ void bk_avi_player_close(void)
         os_free(avi_player);
         avi_player = NULL;
     }
-
-    bk_avi_player_vfs_deinit();
 
     LOGI("%s complete\r\n", __func__);
 }
