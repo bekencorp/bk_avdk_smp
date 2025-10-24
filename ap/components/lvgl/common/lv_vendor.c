@@ -8,9 +8,6 @@
 #include "lv_port_indev.h"
 #include "lv_vendor.h"
 #include "frame_buffer.h"
-#if (CONFIG_VFS)
-#include "lv_vfs.h"
-#endif
 
 #define TAG "lvgl"
 
@@ -51,28 +48,6 @@ void lv_vendor_disp_lock(void)
 void lv_vendor_disp_unlock(void)
 {
     rtos_unlock_mutex(&g_disp_mutex);
-}
-
-bk_err_t lv_vendor_fs_init(void)
-{
-#if (CONFIG_VFS)
-    bk_err_t ret = lv_vfs_init();
-    if (ret != BK_OK) {
-        LOGE("%s lv_vfs_init failed\n", __func__);
-    }
-    return ret;
-#endif
-}
-
-bk_err_t lv_vendor_fs_deinit(void)
-{
-#if (CONFIG_VFS)
-    bk_err_t ret = lv_vfs_deinit();
-    if (ret != BK_OK) {
-        LOGE("%s lv_vfs_deinit fail\n", __func__);
-    }
-    return ret;
-#endif
 }
 
 void lvgl_frame_buffer_init(frame_buffer_t *frame_buffer)

@@ -459,7 +459,6 @@ if(CONFIG_LVGL)
 		common/.
 		common/copy_method
 		common/img_utility
-		common/vfs
 	)
 
 	list(APPEND srcs
@@ -479,7 +478,6 @@ if(CONFIG_LVGL)
 	if(CONFIG_VFS)
 		list(APPEND srcs
 			common/vfs/lv_fs_bk_posix.c
-			common/vfs/lv_vfs.c
 		)
 	endif()
 endif()

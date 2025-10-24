@@ -57,10 +57,6 @@ typedef struct {
     uint32_t param1;
 } lv_frame_msg_t;
 
-bk_err_t lv_vendor_fs_init(void);
-
-bk_err_t lv_vendor_fs_deinit(void);
-
 bk_err_t lv_vendor_init(lv_vnd_config_t *config);
 
 void lv_vendor_deinit(void);
