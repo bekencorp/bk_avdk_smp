@@ -35,19 +35,22 @@ list(APPEND srcs
 	src/wifi_v2.c
 	src/wifi_wpa_cmd.c
 )
+
+# Add modules directory to include path (needed regardless of CONFIG_AT)
+set(components ../../components)
+set(IDK_INC ../../include)
+list(APPEND incs ${IDK_INC}/modules)
+
 if(CONFIG_AT)
 list(APPEND srcs
 	src/wifi_at.c
 )
-set(components ../../components)
-set(IDK_INC ../../include)
 list(APPEND incs
 	${components}/at_server
 	${components}/at_server/_at_server
 	${components}/at_server/_at_server_port
 	${components}/bk_net/include
 	${components}/bk_event
-	${IDK_INC}/modules
 	)
 endif()
 endif()
