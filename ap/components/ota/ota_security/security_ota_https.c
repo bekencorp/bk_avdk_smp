@@ -8,6 +8,7 @@
 #include "utils_httpc.h"
 #include "modules/wifi.h"
 #include "bk_https.h"
+#include "security_ota.h"
 
 #if CONFIG_PSA_MBEDTLS
 #include "psa/crypto.h"
@@ -17,9 +18,6 @@
 #define TAG "HTTPS_OTA"
 
 extern UINT8  ota_flag ;
-#ifdef CONFIG_HTTP_AB_PARTITION
-extern part_flag update_part_flag;
-#endif
 
 #define HTTPS_INPUT_SIZE   (5120)
 
@@ -70,11 +68,9 @@ bk_http_client_handle_t bk_https_client_flash_init(bk_http_input_t config)
 
 	ota_flag = 1;
 #if CONFIG_SYSTEM_CTRL
-	bk_wifi_ota_dtim(1);
+	//bk_wifi_ota_dtim(1);
 #endif
-#if HTTP_WR_TO_FLASH
-	http_flash_init();
-#endif
+	security_ota_init();
 	client = bk_http_client_init(&config);
 
 	return client;
@@ -87,11 +83,12 @@ bk_err_t bk_https_client_flash_deinit(bk_http_client_handle_t client)
 
 	ota_flag = 0;
 #if CONFIG_SYSTEM_CTRL
-	bk_wifi_ota_dtim(0);
+	//bk_wifi_ota_dtim(0);
 #endif
-#if HTTP_WR_TO_FLASH
-	http_flash_deinit();
-#endif
+	if (security_ota_deinit() != 0) {
+		return BK_FAIL;
+	}
+
 	if(!client)
 		err = bk_http_client_cleanup(client);
 	else
@@ -103,8 +100,9 @@ bk_err_t bk_https_client_flash_deinit(bk_http_client_handle_t client)
 
 bk_err_t https_ota_event_cb(bk_http_client_event_t *evt)
 {
-    if(!evt)
-    {
+	int ret = BK_OK;
+
+    if(!evt) {
         return BK_FAIL;
     }
 
@@ -116,7 +114,7 @@ bk_err_t https_ota_event_cb(bk_http_client_event_t *evt)
 	BK_LOGE(TAG, "HTTPS_EVENT_ON_CONNECTED\r\n");
 #ifdef CONFIG_HTTP_OTA_WITH_BLE
 #if CONFIG_BLUETOOTH
-        bk_ble_register_sleep_state_callback(ble_sleep_cb);
+	bk_ble_register_sleep_state_callback(ble_sleep_cb);
 #endif
 #endif
 	break;
@@ -127,18 +125,20 @@ bk_err_t https_ota_event_cb(bk_http_client_event_t *evt)
 	BK_LOGE(TAG, "HTTPS_EVENT_ON_HEADER\r\n");
 	break;
     case HTTP_EVENT_ON_DATA:
-	//do something: evt->data, evt->data_len
-#if HTTP_WR_TO_FLASH
-	http_wr_to_flash((char *)evt->data,evt->data_len);
-#endif
-	BK_LOGV(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
+	ret = security_ota_parse_data((char *)evt->data,evt->data_len);
+	if (ret != BK_OK){
+		BK_LOGE(TAG, "HTTP_EVENT_ON_DATA err, ret:-0x%x\r\n", -ret);
+		return BK_FAIL;
+	}
+	BK_LOGD(TAG, "HTTP_EVENT_ON_DATA, length:%d\r\n", evt->data_len);
 	break;
     case HTTP_EVENT_ON_FINISH:
-#if HTTP_WR_TO_FLASH
-	http_flash_wr(bk_http_ptr->wr_buf, bk_http_ptr->wr_last_len);
-#endif
+	if (security_ota_parse_data((char*)bk_http_ptr->wr_buf, bk_http_ptr->wr_last_len) !=0) {
+		return BK_FAIL;
+	}
+
 	bk_https_client_flash_deinit(evt->client);
-	BK_LOGD(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
+	BK_LOGI(TAG, "HTTPS_EVENT_ON_FINISH\r\n");
 	break;
     case HTTP_EVENT_DISCONNECTED:
 	BK_LOGE(TAG, "HTTPS_EVENT_DISCONNECTED\r\n");
@@ -148,7 +148,6 @@ bk_err_t https_ota_event_cb(bk_http_client_event_t *evt)
     return BK_OK;
 }
 
-
 int bk_https_ota_download(const char *url)
 {
 	int err;
@@ -156,7 +155,7 @@ int bk_https_ota_download(const char *url)
       if(!url)
       {
           err = BK_FAIL;
-          BK_LOGD(TAG, "url is NULL\r\n");
+          BK_LOGI(TAG, "url is NULL\r\n");
 
           return err;
       }
@@ -168,62 +167,19 @@ int bk_https_ota_download(const char *url)
 	    .timeout_ms = 15000
 	};
 
-#ifdef CONFIG_HTTP_AB_PARTITION
-	ota_temp_exec_flag temp_exec_flag = 6;
-	exec_flag exec_temp_part = 6;
-	uint8 current_partition;
-	current_partition = bk_ota_get_current_partition();
-	BK_LOGD(TAG, "current_partition :0x%x",current_partition);
-	if(current_partition == EXEX_A_PART ||current_partition == 0xFF)
-		update_part_flag = UPDATE_B_PART;
-	else if(current_partition == EXEC_B_PART)
-		update_part_flag = UPDATE_A_PART;
-	else
-		return -1;
-#endif
-
 	bk_http_client_handle_t client = bk_https_client_flash_init(config);
 	if (client == NULL) {
-		BK_LOGD(TAG, "client is NULL\r\n");
+		BK_LOGI(TAG, "client is NULL\r\n");
 		err = BK_FAIL;
 		return err;
 	}
 	err = bk_http_client_perform(client);
 	if(err == BK_OK){
-		BK_LOGD(TAG, "bk_http_client_perform ok\r\n");
-
-#ifdef CONFIG_HTTP_AB_PARTITION
-        #ifndef CONFIG_OTA_UPDATE_DEFAULT_PARTITION
-            temp_exec_flag = ota_temp_execute_partition(ret); //temp_exec_flag :3 :A ,4:B
-        #else
-            #ifdef CONFIG_OTA_UPDATE_B_PARTITION
-                temp_exec_flag = CONFIRM_EXEC_B; //update B Partition;
-            #else
-                temp_exec_flag = CONFIRM_EXEC_A; //update A Partition;
-            #endif
-        #endif
-
-        BK_LOGD(TAG, "from cus temp_exec_flag:0x%x \r\n",temp_exec_flag);
-
-        if(temp_exec_flag == CONFIRM_EXEC_A){
-	        BK_LOGD(TAG, "B>>>A \r\n");
-	        exec_temp_part = EXEX_A_PART;
-        }
-        else if(temp_exec_flag == CONFIRM_EXEC_B){
-		BK_LOGD(TAG, "A>>B \r\n");
-		exec_temp_part = EXEC_B_PART;
-        }
-
-        BK_LOGD(TAG, "temp_exec_flag:0x%x \r\n",exec_temp_part);
-        ota_write_flash(BK_PARTITION_OTA_FINA_EXECUTIVE, exec_temp_part, 4); //
-	 bk_reboot();
-#else
-        bk_reboot();
-#endif
-	}
-	else{
+		BK_LOGI(TAG, "bk_http_client_perform ok\r\n");
+		err = security_ota_finish();
+	} else {
 		bk_https_client_flash_deinit(client);
-		BK_LOGD(TAG, "bk_http_client_perform fail, err:%x\r\n", err);
+		BK_LOGI(TAG, "bk_http_client_perform fail, err:%x\r\n", err);
 	}
 
 	return err;

@@ -41,6 +41,13 @@ typedef enum EXEC_CONFIRM_TAG
     CONFIRM_EXEC_B = 4, //excute B partiotion 
 }ota_confirm_flag,ota_temp_exec_flag;
 
+/** @brief   This enumeration defines where resources are written during an OTA update.  */
+typedef enum
+{
+	OTA_WR_TO_FLASH,    //ota write to flash
+	OTA_WR_TO_SD_CARD,  //ota write to sdcard
+	OTA_WR_TO_MAX,
+}ota_wr_destination_t;
 
 /** 
 * @brief  Get ota current execute partition info.
@@ -92,6 +99,20 @@ void bk_ota_accept_image(void);
 * 	 -others:means update failure. 
 */
 int bk_http_ota_download(const char *uri);
+
+/** 
+* @brief  when do ota update,customer can call this new interface .(This interface supports both regular firmware OTA updates and resource upgrades..)
+* 
+* @param1  Enables to execute a single HTTP request on a given URL
+*         (for example: http://192.168.32.78/C%3A/Users/app_pack7237.rbl)
+*
+* @param2  ota_dest_id : Where should OTA downloaded files be written? e.g., 0: flash, 1: SD card.
+*
+* @return ret;
+* 	 0:  means update sucess.
+* 	 -others:means update failure. 
+*/
+int bk_ota_start_download(const char *url,  ota_wr_destination_t ota_dest_id);
 
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB
 /** 

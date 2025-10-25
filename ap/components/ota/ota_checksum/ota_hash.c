@@ -83,7 +83,7 @@ int32_t ota_read_partition(const bk_logic_partition_t *part, uint32_t addr, uint
 
 int32_t ota_get_rbl_head(const bk_logic_partition_t *bk_ptr, struct ota_rbl_head *hdr, uint32_t partition_len)
 {
-    OTA_LOGV("p_start_addr :0x%x,p_length:0x%x, p_name:%s\r\n",bk_ptr->partition_start_addr,bk_ptr->partition_length,bk_ptr->partition_description);
+    OTA_LOGD("p_start_addr :0x%x,p_length:0x%x, p_name:%s\r\n",bk_ptr->partition_start_addr,bk_ptr->partition_length,bk_ptr->partition_description);
 	/* firmware header is on other partition bottom */
     ota_read_partition(bk_ptr, 0, (uint8_t *)hdr, sizeof(struct ota_rbl_head), (partition_len - (RBL_HEAD_POS*34/32)));
 
@@ -107,7 +107,7 @@ int32_t ota_hash_verify(const bk_logic_partition_t *part, const struct ota_rbl_h
     start_addr = 0;
     end_addr = start_addr + (hdr->size_raw);
 
-    OTA_LOGV("end_addr :0x%x,hdr->size_raw :0x%x,hdr->hash :0x%x\r\n ",end_addr,hdr->size_raw,hdr->hash);
+    OTA_LOGD("end_addr :0x%x,hdr->size_raw :0x%x,hdr->hash :0x%x\r\n ",end_addr,hdr->size_raw,hdr->hash);
 
     /* calculate hash */
     for (i = start_addr; i <= end_addr - sizeof(buf); i += sizeof(buf))
@@ -116,7 +116,7 @@ int32_t ota_hash_verify(const bk_logic_partition_t *part, const struct ota_rbl_h
         hash = ota_calc_hash(hash, buf, sizeof(buf));
     }
 
-    OTA_LOGD(" i :0x%x,hash :0x%x\r\n ",i,hash);
+    OTA_LOGI(" i :0x%x,hash :0x%x\r\n ",i,hash);
     /* align process */
     if (i != end_addr - sizeof(buf))
     { 
@@ -126,7 +126,7 @@ int32_t ota_hash_verify(const bk_logic_partition_t *part, const struct ota_rbl_h
         OTA_LOGE(" >>> i :0x%x,hash :0x%x\r\n ",i,hash);
     }
     
-    OTA_LOGD("hash sucess!!!! \r\n");
+    OTA_LOGI("hash sucess!!!! \r\n");
 
     if (hash != hdr->hash)
     {

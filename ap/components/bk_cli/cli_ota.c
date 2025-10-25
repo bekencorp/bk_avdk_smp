@@ -13,14 +13,14 @@ static void tftp_ota_get_Command(char *pcWriteBuffer, int xWriteBufferLen, int a
 	extern char     BootFile[] ;
 
 	if (argc > 3) {
-		BK_LOGD(NULL, "ota server_ip ota_file\r\n");
+		BK_LOGD(NULL,"ota server_ip ota_file\r\n");
 		return;
 	}
 
-	BK_LOGD(NULL, "%s\r\n", argv[1]);
+	BK_LOGD(NULL,"%s\r\n", argv[1]);
 
 	os_strcpy(BootFile, argv[2]);
-	BK_LOGD(NULL, "%s\r\n", BootFile);
+	BK_LOGD(NULL,"%s\r\n", BootFile);
 	string_to_ip(argv[1]);
 
 
@@ -39,23 +39,40 @@ void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	ret_partition = bk_ota_get_current_partition();
 	if(ret_partition == 0x0)
 	{
-    	BK_LOGD(NULL, "partition A\r\n");
+    	BK_LOGD(NULL,"partition A\r\n");
     }
 	else
 	{
-    	BK_LOGD(NULL, "partition B\r\n");
+    	BK_LOGD(NULL,"partition B\r\n");
     }
 #else
 	ret_partition = bk_ota_get_current_partition();
 	if((ret_partition == 0xFF) ||(ret_partition == EXEX_A_PART))
 	{
-    	BK_LOGD(NULL, "partition A\r\n");
+    	BK_LOGD(NULL,"partition A\r\n");
     }
 	else
 	{
-    	BK_LOGD(NULL, "partition B\r\n");
+    	BK_LOGD(NULL,"partition B\r\n");
     }
 #endif
+}
+
+extern int bk_ota_swap_execute_partition(void);
+void swap_ab_execute_partition(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	int32_t ret = 0;
+
+	ret = bk_ota_swap_execute_partition();
+	if(ret == BK_FAIL)
+	{
+		os_printf("swap fail\r\n");
+	}
+	else
+	{
+		os_printf("swap success\r\n");
+		bk_reboot();
+	}
 }
 #endif
 
@@ -65,14 +82,34 @@ void get_http_ab_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	extern uint32_t flash_get_excute_enable();
 	uint32_t id = flash_get_excute_enable();
 	if(id == 0){
-		BK_LOGD(NULL, "partition A\r\n");
+		BK_LOGD(NULL,"partition A\r\n");
 	} else if (id == 1){
-		BK_LOGD(NULL, "partition B\r\n");
+		BK_LOGD(NULL,"partition B\r\n");
 	}
 }
 #endif
 
 #if CONFIG_OTA_HTTP
+void http_new_ota_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	int ret = 0;
+
+	if (argc < 3)
+		goto HTTP_CMD_ERR;
+
+	ota_wr_destination_t  dest_id = os_strtoul(argv[2], NULL, 10);
+	BK_LOGD(NULL,"dest_id :%d \r\n", dest_id);
+	ret = bk_ota_start_download(argv[1], dest_id);
+
+	if (0 != ret)
+		BK_LOGE(NULL,"http_ota download failed.\r\n");
+
+	return;
+
+HTTP_CMD_ERR:
+	BK_LOGE(NULL,"Usage:http_ota [url:] [dest_id]\r\n");
+}
+
 volatile static int s_record_ota_flag = 0;
 void bk_http_start_download(beken_thread_arg_t arg)
 {
@@ -80,7 +117,7 @@ void bk_http_start_download(beken_thread_arg_t arg)
 	int ret = bk_http_ota_download((const char *)arg);
 
 	if (0 != ret)
-		BK_LOGD(NULL, "http_ota download failed.");
+		BK_LOGE(NULL, "http_ota download failed.");
 
 	s_record_ota_flag = 0;
 	rtos_delete_thread(NULL);
@@ -88,10 +125,6 @@ void bk_http_start_download(beken_thread_arg_t arg)
 
 void http_ota_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-
-	if (argc != 2)
-		goto HTTP_CMD_ERR;
-
 #ifdef CONFIG_FREERTOS_SMP
 	if (s_record_ota_flag == 0){
 		int ret = rtos_create_thread(NULL, 
@@ -101,15 +134,12 @@ void http_ota_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 								5120,
 								argv[1]);
 		if (kNoErr != ret)
-			BK_LOGD(NULL, "https_ota_start failed\r\n");
+			BK_LOGE(NULL, "https_ota_start failed\r\n");
 	}
 	else{
 		BK_LOGD(NULL, "already do ota and do wait it finished\r\n");
 	}
 #endif
-
-HTTP_CMD_ERR:
-	BK_LOGD(NULL, "Usage:http_ota [url:]\r\n");
 }
 #endif
 
@@ -120,7 +150,7 @@ void bk_https_start_download(beken_thread_arg_t arg) {
 	int ret;
 	ret = bk_https_ota_download(https_url);
 	if(ret != BK_OK) {
-		BK_LOGD(NULL, "%s download fail, ret:%d\r\n", __func__, ret);
+		BK_LOGE(NULL, "%s download fail, ret:%d\r\n", __func__, ret);
 	}
 	rtos_delete_thread(NULL);
 }
@@ -129,7 +159,7 @@ void https_ota_start(void)
 {
 	UINT32 ret;
 
-	BK_LOGD(NULL, "https_ota_start\r\n");
+	BK_LOGD(NULL,"https_ota_start\r\n");
 	ret = rtos_create_thread(NULL, BEKEN_APPLICATION_PRIORITY,
 							 "https_ota",
 							 (beken_thread_function_t)bk_https_start_download,
@@ -137,7 +167,7 @@ void https_ota_start(void)
 							 0);
 
 	if (kNoErr != ret)
-		BK_LOGD(NULL, "https_ota_start failed\r\n");
+		BK_LOGE(NULL,"https_ota_start failed\r\n");
 
 }
 
@@ -153,7 +183,7 @@ void https_ota_Command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	return;
 
 HTTP_CMD_ERR:
-	BK_LOGD(NULL, "%s,Usage:http_ota [url:]\r\n",__func__);
+	BK_LOGE(NULL,"%s,Usage:http_ota [url:]\r\n",__func__);
 }
 #endif
 
@@ -166,6 +196,7 @@ static const struct cli_command s_ota_commands[] = {
 
 #if CONFIG_OTA_HTTP
 	{"http_ota", "http_ota url", http_ota_Command},
+	{"http_new_ota", "http_ota url [dest_id]", http_new_ota_Command},
 #endif
 
 #if CONFIG_OTA_HTTPS
@@ -175,6 +206,7 @@ static const struct cli_command s_ota_commands[] = {
 
 #if CONFIG_HTTP_AB_PARTITION
 	{"ab_version", NULL, get_http_ab_version},
+	{"swap_ab_partition", NULL, swap_ab_execute_partition},
 #endif
 
 #if CONFIG_DIRECT_XIP && CONFIG_SECURITY_OTA

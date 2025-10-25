@@ -11,7 +11,7 @@
 #include "modules/wifi.h"
 
 #include <driver/flash.h>
-#include <driver/flash_partition.h>
+#include "partitions.h"
 #include "CheckSumUtils.h"
 #include "security_ota.h"
 #include <driver/wdt.h>
@@ -55,10 +55,10 @@ const ota_partition_info_t s_ota_partition_info[] = {
 
 static void security_ota_dump_partition_info(void)
 {
-	BK_LOGD(TAG, "%8s  %8s  %8s\r\n", "offset", "size", "fwu_id");
+	BK_LOGI(TAG, "%8s  %8s  %8s\r\n", "offset", "size", "fwu_id");
 	for (uint32_t partition_id = 0; partition_id < sizeof(s_ota_partition_info)/sizeof(ota_partition_info_t); partition_id++) {
 		const ota_partition_info_t *p = &s_ota_partition_info[partition_id];
-		BK_LOGD(TAG, "%8x  %8x  %-6d\r\n", p->partition_offset, p->partition_size, p->fwu_image_id);
+		BK_LOGI(TAG, "%8x  %8x  %-6d\r\n", p->partition_offset, p->partition_size, p->fwu_image_id);
 	}
 }
 
@@ -168,7 +168,7 @@ void bk_ota_accept_image(void)
 {
 	int32_t ns_interface_lock_init(void);
 	psa_image_id_t psa_image_id = (psa_image_id_t)FWU_CALCULATE_IMAGE_ID(FWU_IMAGE_ID_SLOT_ACTIVE, FWU_IMAGE_TYPE_FULL, 0);
-	BK_LOGD(TAG, "accept image\r\n");
+	BK_LOGI(TAG, "accept image\r\n");
 	ns_interface_lock_init();
 	psa_fwu_accept(psa_image_id);
 }
@@ -188,7 +188,7 @@ static int security_ota_parse_header(uint8_t **data, int *len)
 	if (*len == 0) return 0;
 
 	if (ota_parse.offset == 0) {
-		BK_LOGD(TAG, "downloading OTA global header...\r\n");
+		BK_LOGI(TAG, "downloading OTA global header...\r\n");
 	}
 
 	tmp = (uint8_t *)&ota_parse.ota_header;
@@ -225,7 +225,7 @@ static int security_ota_parse_header(uint8_t **data, int *len)
 			BK_LOGE(TAG, "ota parse image header: oom\r\n");
 			return BK_ERR_OTA_OOM;
 		}
-		BK_LOGD(TAG, "crc %x, version %x, header_len %x, image_num %x\r\n",
+		BK_LOGI(TAG, "crc %x, version %x, header_len %x, image_num %x\r\n",
 			ota_parse.ota_header.crc, ota_parse.ota_header.version, ota_parse.ota_header.header_len, ota_parse.ota_header.image_num);
 	}
 
@@ -241,7 +241,7 @@ static int security_ota_parse_image_header(uint8_t **data, int *len)
 	if (*len == 0) return 0;
 
 	if (ota_parse.offset == 0) {
-		BK_LOGD(TAG, "downloading OTA image header...\r\n");
+		BK_LOGI(TAG, "downloading OTA image header...\r\n");
 	}
 
 	tmp = (uint8_t *)ota_parse.ota_image_header;
@@ -270,7 +270,7 @@ static int security_ota_parse_image_header(uint8_t **data, int *len)
 		ota_parse.phase = OTA_PARSE_IMG;
 		ota_parse.offset = 0;
 		for (i = 0; i < ota_parse.ota_header.image_num; i++) {
-			BK_LOGD(TAG, "image[%d], image_len=%x, image_offset=%x, flash_offset=%x\r\n", i,
+			BK_LOGI(TAG, "image[%d], image_len=%x, image_offset=%x, flash_offset=%x\r\n", i,
 				ota_parse.ota_image_header[i].image_len,
 				ota_parse.ota_image_header[i].image_offset,
 				ota_parse.ota_image_header[i].flash_offset);
@@ -314,7 +314,7 @@ static int security_ota_handle_image(uint8_t **data, int *len)
 	do {
 		bk_wdt_feed();
 		if (ota_parse.offset == 0) {
-			BK_LOGD(TAG, "downloading OTA image%d, expected data len=%x...\r\n", ota_parse.index, ota_parse.ota_image_header[ota_parse.index].image_len);
+			BK_LOGI(TAG, "downloading OTA image%d, expected data len=%x...\r\n", ota_parse.index, ota_parse.ota_image_header[ota_parse.index].image_len);
 			ota_parse.percent = 0;
 			CRC32_Init(&ota_parse.ota_crc);
 		}
@@ -342,7 +342,7 @@ static int security_ota_handle_image(uint8_t **data, int *len)
 		if (ota_parse.offset >= (image_len/10 + image_len*ota_parse.percent/100)) {
 			ota_parse.percent += 10;
 			if (ota_parse.percent < 100) {
-				BK_LOGD(TAG, "download %d%%\r\n", ota_parse.percent);
+				BK_LOGI(TAG, "download %d%%\r\n", ota_parse.percent);
 			}
 		}
 
@@ -366,7 +366,7 @@ static int security_ota_handle_image(uint8_t **data, int *len)
 			*data += data_len;
 			*len = 0;
 
-			BK_LOGD(TAG, "downloaded OTA image%d\r\n", ota_parse.index);
+			BK_LOGI(TAG, "downloaded OTA image%d\r\n", ota_parse.index);
 			//check image CRC, then we can abort quickly!
 			CRC32_Final(&ota_parse.ota_crc,&image_crc);
 			if(image_crc !=  ota_parse.ota_image_header[ota_parse.index].checksum){
@@ -376,7 +376,7 @@ static int security_ota_handle_image(uint8_t **data, int *len)
 			}
 
 			/*to next image*/
-			BK_LOGD(TAG, "\r\n");
+			BK_LOGI(TAG, "\r\n");
 			ota_parse.index++;
 			ota_parse.offset = 0;
 			ota_parse.write_offset = 0;
@@ -420,7 +420,7 @@ int security_ota_parse_data(char *data, int len)
 void security_ota_init(void)
 {
 	if (ota_parse.phase != OTA_PARSE_HEADER) {
-		BK_LOGD(TAG, "abort previous OTA\r\n");
+		BK_LOGI(TAG, "abort previous OTA\r\n");
 #if CONFIG_TFM_FWU
 		psa_image_id_t id = security_ota_fwu2psa_image_id(FWU_IMAGE_TYPE_FULL);
 		psa_fwu_abort(id);
@@ -468,24 +468,24 @@ int security_ota_finish(void)
 		if (ota_flags & 1) {
 #if CONFIG_DIRECT_XIP
 			/*when run in B cannot read A,so don't check A*/
-			BK_LOGD(TAG, "reboot\r\n");
+			BK_LOGI(TAG, "reboot\r\n");
 			psa_fwu_request_reboot();
 #endif
-			BK_LOGD(TAG, "checking fwu image%d...\r\n", fwu_image_id);
+			BK_LOGI(TAG, "checking fwu image%d...\r\n", fwu_image_id);
 			psa_image_id = (psa_image_id_t)FWU_CALCULATE_IMAGE_ID(FWU_IMAGE_ID_SLOT_STAGE, fwu_image_id, 0);
 			ret = bk_ota_check(psa_image_id);
 			if (ret != BK_OK) {
-				BK_LOGD(TAG, "check fwu image%d failed\r\n", fwu_image_id);
+				BK_LOGI(TAG, "check fwu image%d failed\r\n", fwu_image_id);
 				return BK_FAIL;
 			} else {
-				BK_LOGD(TAG, "check fwu image%d success\r\n", fwu_image_id);
+				BK_LOGI(TAG, "check fwu image%d success\r\n", fwu_image_id);
 			}
 		}
 		ota_flags >>= 1;
 		fwu_image_id++;
 	}
 	
-	BK_LOGD(TAG, "reboot\r\n");
+	BK_LOGI(TAG, "reboot\r\n");
 	psa_fwu_request_reboot();
 #else // CONFIG_TFM_FWU
 #if CONFIG_DIRECT_XIP

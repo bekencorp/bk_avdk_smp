@@ -1,6 +1,6 @@
 #include "bk_drv_model.h"
 #if (CONFIG_SECURITY_OTA)
-#include <driver/flash_partition.h>
+#include "partitions.h"
 #endif
 #if CONFIG_FLASH_ORIGIN_API
 #include "BkDriverFlash.h"
