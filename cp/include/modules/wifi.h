@@ -1445,10 +1445,40 @@ void bk_wifi_set_pkt_trx_dbg_cfg(uint32_t cfg_bit);
  * @channel The valid channel ID should range from 1-14.
  *
  * @return
- *    - void: always succeed
+ *    - BK_OK: on success
+ *    - others:real error, used for future.
  */
 
-void bk_wifi_set_ap_channel(uint8_t channel);
+bk_err_t bk_wifi_set_ap_channel(uint8_t channel);
+
+/**
+ * @brief  Set Wi-Fi Softap CSA Count
+ *
+ * This API could be used to change softap operation channel.
+ *
+ * @attention This API can only be used when softap is enabled and make sure the
+              internal CSA strategy is disabled by calling API
+              bk_feature_close_coexist_csa.
+ *
+ * @csa_cnt The valid csa count should range from 0-255.
+ *
+ * @return
+ *    - BK_OK: on success
+ *    - others:real error, used for future.
+ */
+bk_err_t bk_wifi_set_ap_csa_cnt(uint8_t csa_cnt);
+
+/**
+ * @brief  Stop Wi-Fi Softap Channel Switch
+ *
+ * This API could be used to stop softap operation channel.
+ *
+ * @attention This API can only be used when softap is enabled.
+ *
+ * @return
+ *    - void: always succeed
+ */
+bk_err_t bk_wifi_set_ap_channel_stop(void);
 
 /**
  * @brief  Enable Wi-Fi rx block broadcast and multicast frame.

@@ -924,6 +924,7 @@ extern struct wiphy g_wiphy;
 void rwnx_hw_reinit(void);
 uint64_t rwnx_hw_mm_features();
 bool country_code_policy_is_auto(void);
+void rwnx_csa_stop(void);
 
 #endif // _RW_IEEE80211_H_
 // eof

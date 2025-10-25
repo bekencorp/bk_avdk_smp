@@ -196,6 +196,7 @@ int rwnx_cfg80211_channel_switch(uint8_t vif_idx, struct csa_settings *settings)
 	struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
 	BCN_PARAM_ST param;
 	BCN_PARAM_ST *csa;
+	BCN_PARAM_ST *csa_pre;
 
 	if (rwnx_hw->csa) {
 		BK_LOGE(TAG, "CSA in progress\r\n");
@@ -204,11 +205,19 @@ int rwnx_cfg80211_channel_switch(uint8_t vif_idx, struct csa_settings *settings)
 
 	// after csa
 	csa = (BCN_PARAM_ST *)os_malloc(sizeof(*csa));
-	if (!csa)
+	csa_pre = (BCN_PARAM_ST *)os_malloc(sizeof(*csa_pre));
+	if ((!csa) ||(!csa_pre))
 		return -ENOMEM;
 
 	rwnx_hw->csa = csa;
+	rwnx_hw->csa_pre = csa_pre;
 	csa->vif_idx = vif_idx;
+	csa_pre->vif_idx = vif_idx;
+
+	//Pre CSA
+	os_memset(rwnx_hw->csa_pre, 0, sizeof(*rwnx_hw->csa_pre));
+	rwnx_build_bcn(rwnx_hw->csa_pre, vif_idx, &settings->beacon_csa_pre, settings, true);
+	//os_memcpy(&rwnx_hw->freq_params, &settings->freq_params, sizeof(rwnx_hw->freq_params));
 
 	// After CSA
 	os_memset(rwnx_hw->csa, 0, sizeof(*rwnx_hw->csa));

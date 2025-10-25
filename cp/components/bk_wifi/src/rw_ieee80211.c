@@ -301,6 +301,13 @@ static void rwnx_csa_finish(void *arg)
  	struct rwnx_hw *rwnx_hw = (struct rwnx_hw *)arg;
 	int ret;
 
+	if(rwnx_hw->csa_pre)
+	{
+		os_free(rwnx_hw->csa_pre->bcn_ptr);
+		os_free(rwnx_hw->csa_pre);
+		rwnx_hw->csa_pre = 0;
+	}
+
 	if (rwnx_hw->csa) {
 		ret = rw_msg_send_bcn_change(rwnx_hw->csa);  // FIXME: handle Only for AP/P2P-GO
 		if (ret)
@@ -317,6 +324,41 @@ static void rwnx_csa_finish(void *arg)
 				sizeof(rwnx_hw->freq_params));
 	} else {
 		RWNX_LOGD("CSA finish indication but no active CSA\n");
+	}
+}
+
+void rwnx_csa_stop(void)
+{
+	struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
+	int ret;
+	RWNX_LOGD("%s\n", __func__);
+
+	if (rwnx_hw->csa) {
+		if(rwnx_hw->csa_pre)
+		{
+			ret = rw_msg_send_bcn_change(rwnx_hw->csa_pre);
+			if (ret)
+				RWNX_LOGE("%s: failed\n", __func__);
+			
+			os_free(rwnx_hw->csa_pre->bcn_ptr);
+			os_free(rwnx_hw->csa_pre);
+			rwnx_hw->csa_pre = 0;
+		}
+
+		os_free(rwnx_hw->csa->bcn_ptr);
+		os_free(rwnx_hw->csa);
+		rwnx_hw->csa = 0;
+
+		bk_wlan_ap_set_channel_config(bk_wlan_ap_get_channel_config());
+
+		rwnx_hw->freq_params.freq = rw_ieee80211_get_centre_frequency(bk_wlan_ap_get_channel_config());
+		
+		// cfg80211_ch_switch_notify
+		wpa_ctrl_event_copy(WPA_CTRL_EVENT_CHAN_SWITCH_IND, &rwnx_hw->freq_params,
+				sizeof(rwnx_hw->freq_params));
+
+	} else {
+		RWNX_LOGI("%s: no active CSA\n", __func__);
 	}
 }
 

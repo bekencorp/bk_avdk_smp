@@ -2412,6 +2412,7 @@ struct csa_settings {
 	struct hostapd_freq_params freq_params;
 	struct beacon_data beacon_csa;
 	struct beacon_data beacon_after;
+	struct beacon_data beacon_csa_pre;
 
 	u16 counter_offset_beacon[2];
 	u16 counter_offset_presp[2];

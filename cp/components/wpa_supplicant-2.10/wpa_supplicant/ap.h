@@ -54,6 +54,7 @@ int ap_switch_channel(struct wpa_supplicant *wpa_s,
 		      struct csa_settings *settings);
 #ifdef BK_SUPPLICANT
 int ap_channel_switch(struct hostapd_iface *ap_iface, int new_freq);
+int ap_channel_switch_stop(struct hostapd_iface *ap_iface);
 #endif
 int ap_ctrl_iface_chanswitch(struct wpa_supplicant *wpa_s, const char *txtaddr);
 void wpas_ap_ch_switch(struct wpa_supplicant *wpa_s, int freq, int ht,

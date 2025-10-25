@@ -62,6 +62,7 @@
 #include "bk_phy_adapter.h"
 #include "fhost_msg.h"
 #include "ctrl_iface.h"
+#include "rwnx_defs.h"
 #if CONFIG_EASY_FLASH_FAST_CONNECT
 #if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
 #include "bk_ef.h"
@@ -4565,17 +4566,19 @@ bool bk_wifi_get_block_bcmc_en(void)
 	return g_wifi_mac_config.block_bcmc_en;
 }
 
-void bk_wifi_set_ap_channel(uint8_t channel)
+bk_err_t bk_wifi_set_ap_channel(uint8_t channel)
 {
 	int ret = 0;
 	uint16_t frequency;
 
+	//WIFI_LOGI("CP: bk_wifi_set_ap_channel:%d\r\n", channel);
+
 	if (0 == bk_wlan_has_role(VIF_AP))
-		return;
+		return BK_FAIL;
 
 	if ((channel < 1) || (channel > 14)) {
 		WIFI_LOGD("please input the valid param\n");
-		return;
+		return BK_FAIL;
 	}
 
 	frequency = rw_ieee80211_get_centre_frequency(channel);
@@ -4586,7 +4589,30 @@ void bk_wifi_set_ap_channel(uint8_t channel)
 		if (ret)
 			WIFI_LOGD("hostapd_channel_switch failed:%x\r\n", ret);
 	}
+		
+	return ret;
 }
+bk_err_t bk_wifi_set_ap_csa_cnt(uint8_t csa_cnt)
+{
+	BK_ASSERT(g_ap_param_ptr); /* ASSERT VERIFIED */
+	//WIFI_LOGI("CP:bk_wifi_set_ap_csa_cnt:%d\r\n", csa_cnt);
+
+	g_ap_param_ptr->csa_start_cnt = csa_cnt;
+	return BK_OK;
+}
+
+bk_err_t bk_wifi_set_ap_channel_stop(void)
+{
+	//WIFI_LOGI("CP: bk_wifi_set_ap_channel_stop:%d\r\n");
+
+	if (0 == bk_wlan_has_role(VIF_AP))
+		return BK_FAIL;
+
+	hostapd_channel_switch_stop();
+	
+	return BK_OK;
+}
+
 bk_err_t bk_wifi_set_ani_en(bool enable)
 {
 	g_wifi_mac_config.ani_en = enable;

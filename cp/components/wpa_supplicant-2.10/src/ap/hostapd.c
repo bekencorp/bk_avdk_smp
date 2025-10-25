@@ -59,6 +59,8 @@
 #include "errno-base.h"
 #include <common/bk_include.h>
 #endif
+#include "rw_ieee80211.h"
+
 
 static int hostapd_flush_old_stations(struct hostapd_data *hapd, u16 reason);
 #ifdef CONFIG_WEP_AP
@@ -3667,6 +3669,10 @@ static int hostapd_fill_csa_settings(struct hostapd_data *hapd,
 		return -1;
 	}
 
+	ret = hostapd_build_beacon_data(hapd, &settings->beacon_csa_pre);
+	if (ret)
+		return ret;
+
 	settings->freq_params.channel = chan;
 
 	ret = hostapd_change_config_freq(iface->bss[0], iface->conf,
@@ -3692,6 +3698,7 @@ static int hostapd_fill_csa_settings(struct hostapd_data *hapd,
 	ret = hostapd_build_beacon_data(hapd, &settings->beacon_csa);
 	if (ret) {
 		free_beacon_data(&settings->beacon_after);
+		free_beacon_data(&settings->beacon_csa_pre);
 		return ret;
 	}
 
@@ -3770,6 +3777,7 @@ int hostapd_switch_channel(struct hostapd_data *hapd,
 
 	free_beacon_data(&settings->beacon_csa);
 	free_beacon_data(&settings->beacon_after);
+	free_beacon_data(&settings->beacon_csa_pre);
 
 	if (ret) {
 		WPA_LOGD("CSA failed\r\n");
@@ -3908,7 +3916,10 @@ int ap_channel_switch(struct hostapd_iface *ap_iface, int new_freq)
 {
 	struct csa_settings settings = {6};
 
-    settings.cs_count = 8;
+	if(0 != g_ap_param_ptr->csa_start_cnt)
+		settings.cs_count = g_ap_param_ptr->csa_start_cnt;
+	else
+		settings.cs_count = 8;
     settings.freq_params.freq = new_freq;
     settings.freq_params.ht_enabled = ap_iface->conf->ieee80211n;
 
@@ -3917,4 +3928,30 @@ int ap_channel_switch(struct hostapd_iface *ap_iface, int new_freq)
 
 	return hostapd_switch_channel(ap_iface->bss[0], &settings);
 }
+
+int ap_channel_switch_stop(struct hostapd_iface *ap_iface)
+{
+	struct hostapd_data *hapd = ap_iface->bss[0];
+
+	WPA_LOGD("ap_channel_switch_stop\r\n");
+
+	if (!(hapd->iface->drv_flags & WPA_DRIVER_FLAGS_AP_CSA)) {
+		wpa_printf(MSG_INFO, "CSA is not supported");
+		return -1;
+	}
+
+	if (hapd->csa_in_progress) {
+		//WPA_LOGD("CSA in progress\r\n");
+		///stop csa
+		rwnx_csa_stop();
+
+		///clean csa param
+		hostapd_cleanup_cs_params(hapd);
+	}
+	else
+		WPA_LOGI("CSA not in progress,stop fail\r\n");
+
+	return 0;
+}
+
 #endif

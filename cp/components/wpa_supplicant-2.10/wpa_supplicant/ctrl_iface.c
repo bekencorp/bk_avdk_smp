@@ -1699,6 +1699,12 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 		res = ap_channel_switch(interfaces->iface[0], new_freq);
 	}	break;
 
+	case WPA_CTRL_CMD_AP_CHAN_SWITCH_STOP: {
+
+		res = -1;
+		CHECK_HAPD();
+		res = ap_channel_switch_stop(interfaces->iface[0]);
+	}	break;
 	case WPA_CTRL_CMD_AP_STA_DEAUTH: {
 		wlan_ap_sta_deauth_t *req = (wlan_ap_sta_deauth_t *)msg->argu;
 

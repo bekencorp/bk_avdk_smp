@@ -1209,6 +1209,11 @@ int hostapd_channel_switch(int new_freq)
 	return wpa_ctrl_request_async(WPA_CTRL_CMD_AP_CHAN_SWITCH, (void *)new_freq);
 }
 
+int hostapd_channel_switch_stop(void)
+{
+	return wpa_ctrl_request_async(WPA_CTRL_CMD_AP_CHAN_SWITCH_STOP,NULL);
+}
+
 int wpa_hostapd_queue_command(wpah_msg_t *msg)
 {
 	int ret = WPA_FAIL;

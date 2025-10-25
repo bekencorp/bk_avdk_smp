@@ -521,6 +521,21 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_ap_start();
             break;
         }
+        case AP_SET_CHANNEL:
+        {
+            ret = bk_wifi_set_ap_channel((uint8_t)arg_info->args[0]);
+            break;
+        }
+        case AP_SET_CSA_COUNT:
+        {
+            ret = bk_wifi_set_ap_csa_cnt((uint8_t)arg_info->args[0]);
+            break;
+        }
+        case AP_SET_CHANNEL_STOP:
+        {
+            ret = bk_wifi_set_ap_channel_stop();
+            break;
+        }
 #if CONFIG_BRIDGE
         case CHECK_CLIENT_MAC_CONNECTED:
         {

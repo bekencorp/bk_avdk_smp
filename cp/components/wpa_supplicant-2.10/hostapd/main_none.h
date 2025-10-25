@@ -19,6 +19,7 @@ void hostapd_thread_start(void);
 void hostapd_thread_stop(void);
 extern int hostapd_main_entry(int argc, char *argv[]);
 extern int hostapd_channel_switch(int new_freq);
+extern int hostapd_channel_switch_stop(void);
 extern int supplicant_main_entry(char *oob_ssid);
 extern int supplicant_main_exit();
 extern void wpa_supplicant_poll(void *param);

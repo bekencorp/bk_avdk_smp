@@ -159,6 +159,7 @@ struct rwnx_hw {
 
 	//struct rwnx_csa *csa;
 	BCN_PARAM_ST *csa;
+	BCN_PARAM_ST *csa_pre;
 	struct hostapd_freq_params freq_params;
 
 	struct bk_work csa_work;
