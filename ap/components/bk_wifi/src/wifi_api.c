@@ -597,6 +597,52 @@ bk_err_t bk_wifi_ap_get_config(wifi_ap_config_t *ap_config)
     return BK_OK;
 }
 
+bk_err_t bk_wifi_set_ap_channel(uint8_t channel)
+{
+    int ret = 0;
+
+    WIFI_LOGI("bk_wifi_set_ap_channel:%d\r\n", channel);
+
+    if ((channel < 1) || (channel > 14)) {
+        WDRV_LOGW("please input the valid param, channel:%d\n", channel);
+        return BK_FAIL;
+    }
+
+    ret = wifi_send_com_api_cmd(AP_SET_CHANNEL, 1, channel);
+    if (ret != BK_OK) {
+        WDRV_LOGW("ap set channel fail ret %d\n", ret);
+    }
+
+    return ret;
+}
+
+bk_err_t bk_wifi_set_ap_csa_cnt(uint8_t csa_cnt)
+{
+    int ret = 0;
+
+    WIFI_LOGI("bk_wifi_set_ap_csa_cnt:%d\r\n", csa_cnt);
+
+    ret = wifi_send_com_api_cmd(AP_SET_CSA_COUNT, 1, csa_cnt);
+    if (ret != BK_OK) {
+        WDRV_LOGW("ap set csa cnt fail ret %d\n", ret); 
+    }
+
+    return ret;
+}
+
+bk_err_t bk_wifi_set_ap_channel_stop(void)
+{
+    int ret = 0;
+
+    WIFI_LOGI("bk_wifi_set_ap_channel_stop\r\n");
+
+    ret = wifi_send_com_api_cmd(AP_SET_CHANNEL_STOP, 0);
+    if (ret != BK_OK) {
+        WDRV_LOGW("ap set channel stop fail ret %d\n", ret);
+    }
+
+    return ret;
+}
 bk_err_t bk_wifi_sta_get_link_status(wifi_link_status_t *link_status)
 {
     bk_err_t ret = BK_OK;
