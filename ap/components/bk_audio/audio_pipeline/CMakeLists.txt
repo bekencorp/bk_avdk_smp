@@ -15,6 +15,7 @@ list(APPEND srcs
 		cb_port.c
 		rb_port.c
 		fb_port.c
+		audio_port_info_list.c
 	)
 
 if (CONFIG_ADK_AUTO_TEST_PIPELINE)

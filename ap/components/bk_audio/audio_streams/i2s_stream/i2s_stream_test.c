@@ -63,8 +63,8 @@ bk_err_t adk_i2s_stream_test_case_0(void)
 
     BK_LOGD(TAG, "--------- step2: init elements ----------\n");
     onboard_mic_stream_cfg_t onboard_mic_cfg = ONBOARD_MIC_ADC_STREAM_CFG_DEFAULT();
-    onboard_mic_cfg.adc_cfg.sample_rate = 8000;
-    onboard_mic_cfg.adc_cfg.chl_num = 2;
+    onboard_mic_cfg.adc_cfg.sample_rate = 16000;
+    onboard_mic_cfg.adc_cfg.chl_num = 1;
     onboard_mic_cfg.frame_size = 640;
     onboard_mic_cfg.out_block_size = 640;
     onboard_mic_cfg.out_block_num = 2;
@@ -75,7 +75,8 @@ bk_err_t adk_i2s_stream_test_case_0(void)
     i2s_stream_cfg.type = AUDIO_STREAM_WRITER;
     i2s_stream_cfg.gpio_group = I2S_GPIO_GROUP_2;
     i2s_stream_cfg.role = I2S_ROLE_MASTER;
-    i2s_stream_cfg.samp_rate = I2S_SAMP_RATE_8000;
+    i2s_stream_cfg.samp_rate = I2S_SAMP_RATE_16000;
+    i2s_stream_cfg.pcm_chl_num = 1;
     i2s_out = i2s_stream_init(&i2s_stream_cfg);
     TEST_CHECK_NULL(i2s_out);
 
@@ -235,12 +236,12 @@ bk_err_t adk_i2s_stream_test_case_1(void)
     i2s_stream_cfg.type = AUDIO_STREAM_READER;
     i2s_stream_cfg.gpio_group = I2S_GPIO_GROUP_2;
     i2s_stream_cfg.role = I2S_ROLE_SLAVE;
-    i2s_stream_cfg.samp_rate = I2S_SAMP_RATE_8000;
+    i2s_stream_cfg.samp_rate = I2S_SAMP_RATE_16000;
     i2s_in = i2s_stream_init(&i2s_stream_cfg);
     TEST_CHECK_NULL(i2s_in);
 
     onboard_speaker_stream_cfg_t onboard_spk_cfg = ONBOARD_SPEAKER_STREAM_CFG_DEFAULT();
-    onboard_spk_cfg.sample_rate = 8000;
+    onboard_spk_cfg.sample_rate = 16000;
     onboard_spk_cfg.chl_num = 2;
     onboard_spk_cfg.frame_size = 640;
     onboard_spk = onboard_speaker_stream_init(&onboard_spk_cfg);

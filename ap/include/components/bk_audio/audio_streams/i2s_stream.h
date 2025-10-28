@@ -18,6 +18,7 @@
 
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
+#include <components/bk_audio/audio_pipeline/audio_port_info_list.h>
 #include <driver/i2s.h>
 #include <driver/i2s_types.h>
 
@@ -52,10 +53,12 @@ typedef struct
     int                     task_stack;       /*!< Task stack size */
     int                     task_core;        /*!< Task running in core (0 or 1) */
     int                     task_prio;        /*!< Task priority (based on freeRTOS priority) */
+    int                     multi_in_port_num;   /*!< The number of multiple input audio port */
+    int                     multi_out_port_num;  /*!< The number of multiple output audio port */
 } i2s_stream_cfg_t;
 
 
-#define I2S_STREAM_GPIO_GROUP           (I2S_GPIO_GROUP_0)
+#define I2S_STREAM_GPIO_GROUP           (I2S_GPIO_GROUP_2)
 #define I2S_STREAM_ROLE                 (I2S_ROLE_MASTER)
 #define I2S_STREAM_WORK_MODE            (I2S_WORK_MODE_I2S)
 #define I2S_STREAM_SAMP_RATE            (I2S_SAMP_RATE_16000)
@@ -88,6 +91,8 @@ typedef struct
         .task_stack = I2S_STREAM_TASK_STACK,                \
         .task_core = I2S_STREAM_TASK_CORE,                  \
         .task_prio = I2S_STREAM_TASK_PRIO,                  \
+        .multi_in_port_num = 0,                             \
+        .multi_out_port_num = 0,                            \
     }
 
 /**
@@ -100,6 +105,35 @@ typedef struct
  *                 - NULL: failed
  */
 audio_element_handle_t i2s_stream_init(i2s_stream_cfg_t *config);
+
+#if CONFIG_ADK_I2S_STREAM_SUPPORT_MULTIPLE_SOURCE
+/**
+ * @brief      Get the input port information of the i2s stream based on the port ID.
+ *
+ * @param[in]      i2s_stream  The element handle of the i2s stream
+ * @param[in]      port_id  Valid audio port ID (0: element->in, >=1: element->multi_in)
+ * @param[out]     port_info  Pointer to the structure used to store the obtained audio port information pointer
+ *
+ * @return         Result
+ *                 - BK_OK: Success
+ *                 - Others: Failure
+ */
+bk_err_t i2s_stream_get_input_port_info_by_port_id(audio_element_handle_t i2s_stream, uint8_t port_id, audio_port_info_t **port_info);
+
+/**
+ * @brief      Set input audio port info.
+ * @note       Do not call set_input_port_info in audio_port_info_t->notify_cb. 
+ *             Because the callback function is called in the context of the audio port, and the mutex lock is not allowed to be used in the callback function.
+ *
+ * @param[in]      i2s_stream  element handle
+ * @param[in]      port_info  audio port info
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t i2s_stream_set_input_port_info(audio_element_handle_t i2s_stream, audio_port_info_t *port_info);
+#endif
 
 #ifdef __cplusplus
 }

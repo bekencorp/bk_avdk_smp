@@ -83,11 +83,43 @@ int player_not_playback_event_handler(int data, void *params, void *args)
         port_info.port = gl_output_port_handle;
         port_info.notify_cb = player_not_playback_port_state_notify_handler;
         port_info.user_data = NULL;
-        if (BK_OK != onboard_speaker_stream_set_input_port_info(spk_element, &port_info))
+
+        spk_type_t spk_type = SPK_TYPE_INVALID;
+        if (BK_OK != bk_voice_get_spkstr_type(gl_voice_service_handle, &spk_type))
         {
-            LOGE("%s, %d, audio_element_set_multi_input_port fail\n", __func__, __LINE__);
+            LOGE("%s, %d, bk_voice_get_spkstr_type fail\n", __func__, __LINE__);
             return BK_FAIL;
         }
+
+        switch (spk_type)
+        {
+            case SPK_TYPE_ONBOARD:
+                if (BK_OK != onboard_speaker_stream_set_input_port_info(spk_element, &port_info))
+                {
+                    LOGE("%s, %d, audio_element_set_multi_input_port fail\n", __func__, __LINE__);
+                    return BK_FAIL;
+                }
+                break;
+
+            case SPK_TYPE_UAC:
+                LOGE("%s, %d, SPK_TYPE_UAC is not support\n", __func__, __LINE__);
+                return BK_FAIL;
+                break;
+
+            case SPK_TYPE_I2S:
+                if (BK_OK != i2s_stream_set_input_port_info(spk_element, &port_info))
+                {
+                    LOGE("%s, %d, audio_element_set_multi_input_port fail\n", __func__, __LINE__);
+                    return BK_FAIL;
+                }
+                break;
+
+            default:
+                LOGE("%s, %d, spk_type: %d is not support\n", __func__, __LINE__, spk_type);
+                return BK_FAIL;
+                break;
+        }
+
         LOGD("[%s] PLAYER_EVENT_MUSIC_INFO, sample_rates: %d, bits: %d, channels: %d\n", __func__, music_info->sample_rates, music_info->bits, music_info->channels);
         LOGD("port_info, port_id: %d, priority: %d, port: %p\n", port_info.port_id, port_info.priority, port_info.port);
 #endif
@@ -136,10 +168,41 @@ int player1_not_playback_event_handler(int data, void *params, void *args)
         port_info.port = gl_output_port1_handle;
         port_info.notify_cb = player1_not_playback_port_state_notify_handler;
         port_info.user_data = NULL;
-        if (BK_OK != onboard_speaker_stream_set_input_port_info(spk_element, &port_info))
+
+        spk_type_t spk_type = SPK_TYPE_INVALID;
+        if (BK_OK != bk_voice_get_spkstr_type(gl_voice_service_handle, &spk_type))
         {
-            LOGE("%s, %d, audio_element_set_multi_input_port fail\n", __func__, __LINE__);
+            LOGE("%s, %d, bk_voice_get_spkstr_type fail\n", __func__, __LINE__);
             return BK_FAIL;
+        }
+
+        switch (spk_type)
+        {
+            case SPK_TYPE_ONBOARD:
+                if (BK_OK != onboard_speaker_stream_set_input_port_info(spk_element, &port_info))
+                {
+                    LOGE("%s, %d, audio_element_set_multi_input_port fail\n", __func__, __LINE__);
+                    return BK_FAIL;
+                }
+                break;
+
+            case SPK_TYPE_UAC:
+                LOGE("%s, %d, SPK_TYPE_UAC is not support\n", __func__, __LINE__);
+                return BK_FAIL;
+                break;
+
+            case SPK_TYPE_I2S:
+                if (BK_OK != i2s_stream_set_input_port_info(spk_element, &port_info))
+                {
+                    LOGE("%s, %d, audio_element_set_multi_input_port fail\n", __func__, __LINE__);
+                    return BK_FAIL;
+                }
+                break;
+
+            default:
+                LOGE("%s, %d, spk_type: %d is not support\n", __func__, __LINE__, spk_type);
+                return BK_FAIL;
+                break;
         }
         LOGD("[%s] PLAYER_EVENT_MUSIC_INFO, sample_rates: %d, bits: %d, channels: %d\n", __func__, music_info->sample_rates, music_info->bits, music_info->channels);
         LOGD("port_info, port_id: %d, priority: %d, port: %p\n", port_info.port_id, port_info.priority, port_info.port);

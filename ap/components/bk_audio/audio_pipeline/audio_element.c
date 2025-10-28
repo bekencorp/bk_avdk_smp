@@ -1529,7 +1529,7 @@ bk_err_t audio_element_wait_for_stop_ms(audio_element_handle_t el, TickType_t ti
 
 bk_err_t audio_element_multi_input(audio_element_handle_t el, char *buffer, int wanted_size, int index, TickType_t ticks_to_wait)
 {
-    bk_err_t ret = BK_OK;
+    bk_err_t ret = BK_FAIL;
     if (index >= el->multi_in.max_port_num)
     {
         BK_LOGE(TAG, "The index of ringbuffer is gather than and equal to audio port maximum (%d). line %d \n", el->multi_in.max_port_num, __LINE__);

@@ -18,22 +18,13 @@
 
 #include <components/audio_param_ctrl.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
+#include <components/bk_audio/audio_pipeline/audio_port_info_list.h>
 #include <driver/aud_dac_types.h>
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @brief Audio port state of multiple input audio port
- */
-typedef enum
-{
-    APT_STATE_RUNNING       = 0,                /*!< audio port running, onboard speaker play audio port data */
-    APT_STATE_PAUSED        = 1,                /*!< audio port paused, onboard speaker pause play audio port data */
-    APT_STATE_FINISHED      = 2,                /*!< audio port finished, onboard speaker play audio port data finish */
-} audio_port_state_t;
 
 /**
  * @brief   Onboard Speaker Stream configurations, if any entry is zero then the configuration will be set to default values
@@ -62,26 +53,6 @@ typedef struct
     int                     task_core;          /*!< Task running in core (0 or 1) */
     int                     task_prio;          /*!< Task priority (based on freeRTOS priority) */
 } onboard_speaker_stream_cfg_t;
-
-/* Audio port state notify callback function */
-typedef int (*audio_port_state_notify)(int, void *, void *); 
-
-/**
- * @brief Audio port information
- */
-typedef struct audio_port_info
-{
-    uint8_t                 chl_num;            /*!< speaker channel number */
-    uint32_t                sample_rate;        /*!< speaker sample rate */
-    int32_t                 dig_gain;           /*!< audio dac digital gain: value range: 0x00 ~ 0x3f(-45db ~ 18db, 0x2d: 0db), suggest: 0x2d */
-    int32_t                 ana_gain;           /*!< audio dac analog gain: value range: , suggest: */
-    uint8_t                 bits;               /*!< Bit wide (8, 16, 24, 32 bits) */
-    uint8_t                 port_id;            /*!< the valid audio port of currently reading speaker data, 0: element->in, >=1: element->multi_in */
-    uint8_t                 priority;           /*!< the priority of the audio port. The lower the value, the higher the priority to be processed. The default value is 0 (highest priority). */
-    audio_port_handle_t     port;               /*!< the audio port handle */
-    audio_port_state_notify notify_cb;          /*!< the audio port state notify callback function */
-    void                    *user_data;         /*!< the user data of audio port state notify callback function */
-} audio_port_info_t;
 
 #define ONBOARD_SPEAKER_STREAM_TASK_STACK          (1536)
 #define ONBOARD_SPEAKER_STREAM_TASK_CORE           (1)
@@ -190,6 +161,8 @@ bk_err_t onboard_speaker_stream_get_input_port_info_by_port_id(audio_element_han
 
 /**
  * @brief      Set input audio port info.
+ * @note       Do not call set_input_port_info in audio_port_info_t->notify_cb. 
+ *             Because the callback function is called in the context of the audio port, and the mutex lock is not allowed to be used in the callback function.
  *
  * @param[in]      onboard_speaker_stream  element handle
  * @param[in]      port_info  audio port info

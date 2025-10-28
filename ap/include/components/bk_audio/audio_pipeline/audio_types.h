@@ -65,6 +65,7 @@ typedef enum
     AUDIO_STRM_TYPE_VFS,
     AUDIO_STRM_TYPE_RAW,
     AUDIO_STRM_TYPE_UART,
+    AUDIO_STRM_TYPE_I2S,
     AUDIO_STRM_TYPE_MAX,
 } audio_strm_type_t;
 
@@ -73,6 +74,7 @@ typedef enum
     SPK_TYPE_INVALID = 0,
     SPK_TYPE_ONBOARD = 1,
     SPK_TYPE_UAC,
+    SPK_TYPE_I2S,
 } spk_type_t;
 
 typedef enum

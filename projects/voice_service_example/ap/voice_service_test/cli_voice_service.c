@@ -160,6 +160,18 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             goto exit;
 #endif
         }
+        else if (os_strcmp(argv[2], "onboard") == 0
+            && os_strtoul(argv[3], NULL, 10) == 16000
+            && os_strtoul(argv[4], NULL, 10) == 1
+            && os_strcmp(argv[5], "g711a") == 0
+            && os_strcmp(argv[6], "g711a") == 0
+            && os_strcmp(argv[7], "i2s") == 0
+            && os_strtoul(argv[8], NULL, 10) == 16000
+            && os_strtoul(argv[9], NULL, 10) == 0)
+        {
+            voice_cfg_t voice_temp_cfg = DEFAULT_VOICE_BY_ONBOARD_MIC_I2S_SPK_AEC_G711A_16000_CONFIG();
+            voice_cfg = voice_temp_cfg;
+        }
         else
         {
             LOGE("%s, %d, test command not support\n", __func__, __LINE__);
@@ -307,12 +319,12 @@ static const struct cli_command s_voice_service_commands[] =
                         bit4:0 no ec ooutput/1 ecoutput
      * [enc_type]       pcm/g711a/g711u/aac/g722
      * [dec_type]       pcm/g711a/g711u/aac/g722
-     * [spk_type]       onboard/uac
+     * [spk_type]       onboard/uac/i2s
      * [spk_samp_rate]  8000/16000
      * [eq_type]        0: diabale, 1: eq_mono, 2: eq_stereo
      */
 
-    {"voice_service", "voice_service {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722 pcm|g711a|g711u|aac|g722 onboard|uac 8000|16000 0|1|2}", cli_voice_service_test_cmd},
+    {"voice_service", "voice_service {start|stop onboard|uac|onboard_dual_dmic_mic 8000|16000 0|1|3 pcm|g711a|g711u|aac|g722 pcm|g711a|g711u|aac|g722 onboard|uac|i2s 8000|16000 0|1|2}", cli_voice_service_test_cmd},
 };
 
 int cli_voice_service_init(void)

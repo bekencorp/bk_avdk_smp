@@ -27,6 +27,7 @@
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <components/bk_audio/audio_pipeline/audio_port.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
+#include <components/bk_audio/audio_pipeline/audio_port_info_list.h>
 #include <driver/aud_dac.h>
 #include <driver/dma.h>
 #include <bk_general_dma.h>
@@ -128,15 +129,6 @@ static const uint32_t PCM_8000[] = {
 };
 #endif
 
-#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
-typedef struct input_audio_port_info_item
-{
-    STAILQ_ENTRY(input_audio_port_info_item)    next;
-    audio_port_info_t                           port_info;
-} input_audio_port_info_item_t;
-
-typedef STAILQ_HEAD(input_audio_port_info_list, input_audio_port_info_item) input_audio_port_info_list_t;
-#endif
 
 typedef struct onboard_speaker_stream
 {
@@ -194,155 +186,10 @@ static bk_err_t _onboard_speaker_close(audio_element_handle_t self);
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
 //#define PORT_LIST_DEBUG
 #ifdef PORT_LIST_DEBUG
-#define INPUT_PORT_LIST_DEBUG(list_ptr, func, line)  _debug_print_input_port_list(list_ptr, func, line)
+#define INPUT_PORT_LIST_DEBUG(list_ptr, func, line)  audio_port_info_list_debug_print(list_ptr, func, line)
 #else
 #define INPUT_PORT_LIST_DEBUG(list_ptr, func, line)
 #endif
-
-static void _debug_print_input_port_list(input_audio_port_info_list_t *input_port_list, const char *func, int line)
-{
-    if (input_port_list == NULL)
-    {
-        BK_LOGD(TAG, "input_port_list is NULL\n");
-        return;
-    }
-
-    input_audio_port_info_item_t *audio_port_info_item = NULL;
-
-    BK_LOGD(TAG, "----------------- [%s] %d, input_port_list -----------------\n", func, line);
-    STAILQ_FOREACH(audio_port_info_item, input_port_list, next)
-    {
-        if (audio_port_info_item)
-        {
-            BK_LOGD(TAG, "port_id: %d, priority: %d, port: %p, chl_num: %d, sample_rate: %d, dig_gain: %d, ana_gain: %d, bits: %d\n", 
-                    audio_port_info_item->port_info.port_id, 
-                    audio_port_info_item->port_info.priority, 
-                    audio_port_info_item->port_info.port,
-                    audio_port_info_item->port_info.chl_num, 
-                    audio_port_info_item->port_info.sample_rate, 
-                    audio_port_info_item->port_info.dig_gain,
-                    audio_port_info_item->port_info.ana_gain, 
-                    audio_port_info_item->port_info.bits);
-        }
-    }
-    BK_LOGD(TAG, "\n");
-
-}
-
-/* Traverse the input_audio_port_info_list according to port priority to obtain the high-priority port id with valid data */
-static int8_t _get_valid_port_id(input_audio_port_info_list_t *input_port_list)
-{
-    int8_t valid_port_id = -1;
-    input_audio_port_info_item_t *audio_port_info_item = NULL;
-
-    STAILQ_FOREACH(audio_port_info_item, input_port_list, next)
-    {
-        if (audio_port_info_item && audio_port_info_item->port_info.port)
-        {
-            uint32_t filled_size = audio_port_get_filled_size(audio_port_info_item->port_info.port);
-            if (filled_size > 0)
-            {
-                valid_port_id = audio_port_info_item->port_info.port_id;
-                break;
-            }
-        }
-    }
-
-    return valid_port_id;
-}
-
-static audio_port_info_t *_get_audio_port_info_by_port_id(input_audio_port_info_list_t *input_port_list, uint8_t input_poit_id)
-{
-    audio_port_info_t *port_info = NULL;
-    input_audio_port_info_item_t *audio_port_info_item = NULL;
-
-    STAILQ_FOREACH(audio_port_info_item, input_port_list, next)
-    {
-        if (audio_port_info_item && audio_port_info_item->port_info.port_id == input_poit_id)
-        {
-            port_info = &audio_port_info_item->port_info;
-            break;
-        }
-    }
-
-    return port_info;
-}
-
-static bk_err_t _add_audio_port_to_list(input_audio_port_info_list_t *input_port_list, audio_port_info_t *port_info)
-{
-    input_audio_port_info_item_t *audio_port_info_item = NULL;
-    input_audio_port_info_item_t *prev_audio_port_info_item = NULL;
-
-    STAILQ_FOREACH(audio_port_info_item, input_port_list, next)
-    {
-        if (audio_port_info_item && audio_port_info_item->port_info.priority >= port_info->priority)
-        {
-            prev_audio_port_info_item = audio_port_info_item;
-        }
-    }
-
-    input_audio_port_info_item_t *new_audio_port_info_item = audio_calloc(1, sizeof(input_audio_port_info_item_t));
-    AUDIO_MEM_CHECK(TAG, new_audio_port_info_item, return BK_FAIL);
-    os_memcpy(&new_audio_port_info_item->port_info, port_info, sizeof(audio_port_info_t));
-
-    if (prev_audio_port_info_item)
-    {
-        STAILQ_INSERT_AFTER(input_port_list, prev_audio_port_info_item, new_audio_port_info_item, next);
-    }
-    else
-    {
-        STAILQ_INSERT_HEAD(input_port_list, new_audio_port_info_item, next);
-    }
-
-    return BK_OK;
-}
-
-static bk_err_t _update_audio_port_to_list(input_audio_port_info_list_t *input_port_list, audio_port_info_t *port_info)
-{
-    input_audio_port_info_item_t *audio_port_info_item = NULL;
-    input_audio_port_info_item_t *tmp_item = NULL;
-    input_audio_port_info_item_t *prev_audio_port_info_item = NULL;
-    input_audio_port_info_item_t *audio_port_info_item_bk = NULL;
-
-    STAILQ_FOREACH_SAFE(audio_port_info_item, input_port_list, next, tmp_item)
-    {
-        if (audio_port_info_item && audio_port_info_item->port_info.port_id == port_info->port_id)
-        {
-            STAILQ_REMOVE(input_port_list, audio_port_info_item, input_audio_port_info_item, next);
-            audio_port_info_item_bk = audio_port_info_item;
-            break;
-        }
-    }
-
-    /* if port_info->port is NULL, remove this port from list */
-    if (port_info->port == NULL)
-    {
-        audio_free(audio_port_info_item_bk);
-        return BK_OK;
-    }
-
-    os_memcpy(&audio_port_info_item_bk->port_info, port_info, sizeof(audio_port_info_t));
-
-    audio_port_info_item = NULL;
-    STAILQ_FOREACH(audio_port_info_item, input_port_list, next)
-    {
-        if (audio_port_info_item && audio_port_info_item->port_info.priority >= port_info->priority)
-        {
-            prev_audio_port_info_item = audio_port_info_item;
-        }
-    }
-
-    if (prev_audio_port_info_item)
-    {
-        STAILQ_INSERT_AFTER(input_port_list, prev_audio_port_info_item, audio_port_info_item_bk, next);
-    }
-    else
-    {
-        STAILQ_INSERT_HEAD(input_port_list, audio_port_info_item_bk, next);
-    }
-
-    return BK_OK;
-}
 #endif
 
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
@@ -654,7 +501,7 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
     if (audio_element_get_multi_input_max_port_num(self) > 0)
     {
-        audio_port_info_t *port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, 0);
+        audio_port_info_t *port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, 0);
         if (port_info == NULL)
         {
             input_audio_port_info_item_t *port_info_item = audio_calloc(1, sizeof(input_audio_port_info_item_t));
@@ -886,8 +733,8 @@ static bk_err_t _update_dac_config(audio_element_handle_t onboard_speaker_stream
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
     bk_err_t ret = BK_OK;
 
-    audio_port_info_t *current_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, current_port_id);
-    audio_port_info_t *new_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, new_port_id);
+    audio_port_info_t *current_port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, current_port_id);
+    audio_port_info_t *new_port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, new_port_id);
 
     if (new_port_info)
     {
@@ -1032,7 +879,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
     if (audio_element_get_multi_input_max_port_num(self) > 0)
     {
         int old_port_id = onboard_spk->current_port_id;
-        int valid_port_id = _get_valid_port_id(&onboard_spk->input_port_list);
+        int valid_port_id = audio_port_info_list_get_valid_port_id(&onboard_spk->input_port_list);
         if (valid_port_id == -1)
         {
             /* Use default audio port, if all audio port is empty */
@@ -1058,7 +905,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
             if (old_port_id == 0)
             {
                 input_port_list_block(onboard_spk->lock, portMAX_DELAY);
-                audio_port_info_t *current_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, onboard_spk->current_port_id);
+                audio_port_info_t *current_port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, onboard_spk->current_port_id);
                 if (current_port_info && current_port_info->notify_cb)
                 {
                     current_port_info->notify_cb(APT_STATE_RUNNING, (void *)current_port_info, current_port_info->user_data);
@@ -1070,7 +917,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                 if (onboard_spk->current_port_id == 0)
                 {
                     input_port_list_block(onboard_spk->lock, portMAX_DELAY);
-                    audio_port_info_t *old_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, old_port_id);
+                    audio_port_info_t *old_port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, old_port_id);
                     if (old_port_info && old_port_info->notify_cb)
                     {
                         old_port_info->notify_cb(APT_STATE_FINISHED, (void *)old_port_info, old_port_info->user_data);
@@ -1080,8 +927,8 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                 else
                 {
                     input_port_list_block(onboard_spk->lock, portMAX_DELAY);
-                    audio_port_info_t *current_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, onboard_spk->current_port_id);
-                    audio_port_info_t *old_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, old_port_id);
+                    audio_port_info_t *current_port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, onboard_spk->current_port_id);
+                    audio_port_info_t *old_port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, old_port_id);
 
                     if (current_port_info && current_port_info->notify_cb)
                     {
@@ -1333,6 +1180,16 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
         gl_onboard_speaker->pa_turn_on_timer = NULL;
     }
 
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    /* free input port list */
+    if (onboard_spk && onboard_spk->lock)
+    {
+        audio_port_info_list_clear(&onboard_spk->input_port_list);
+        vSemaphoreDelete(onboard_spk->lock);
+        onboard_spk->lock = NULL;
+    }
+#endif
+
     if (onboard_spk)
     {
         audio_free(onboard_spk);
@@ -1474,7 +1331,7 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
     if (cfg.multi_in_port_num > 0)
     {
-        STAILQ_INIT(&gl_onboard_speaker->input_port_list);
+        audio_port_info_list_init(&gl_onboard_speaker->input_port_list);
 
         gl_onboard_speaker->lock = xSemaphoreCreateMutex();
         if (gl_onboard_speaker->lock == NULL)
@@ -1547,6 +1404,7 @@ _onboard_speaker_init_exit:
     }
 
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    /* Delete mutex lock, no need to free list nodes as they are not added yet in init phase */
     if (gl_onboard_speaker->lock)
     {
         vSemaphoreDelete(gl_onboard_speaker->lock);
@@ -1813,7 +1671,7 @@ bk_err_t onboard_speaker_stream_get_input_port_info_by_port_id(audio_element_han
         return BK_FAIL;
     }
 
-    *port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, port_id);
+    *port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, port_id);
 
     return BK_OK;
 }
@@ -1853,7 +1711,7 @@ bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboa
 #endif
 
     /* Check all ports in the input port list to see if there is a port with the same port ID as port_info, and update the port information */
-    audio_port_info_t *tmp_port_info = _get_audio_port_info_by_port_id(&onboard_spk->input_port_list, port_info->port_id);
+    audio_port_info_t *tmp_port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, port_info->port_id);
     if (tmp_port_info)
     {
         /* check whether port_info is same as tmp_port_info */
@@ -1865,7 +1723,7 @@ bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboa
 
         /* update audio port info in port list */
         input_port_list_block(onboard_spk->lock, portMAX_DELAY);
-        _update_audio_port_to_list(&onboard_spk->input_port_list, port_info);
+        audio_port_info_list_update(&onboard_spk->input_port_list, port_info);
         input_port_list_release(onboard_spk->lock);
         /* check and update audio port */
         if (port_info->port_id == 0)
@@ -1890,7 +1748,7 @@ bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboa
         {
             /* add new port */
             input_port_list_block(onboard_spk->lock, portMAX_DELAY);
-            _add_audio_port_to_list(&onboard_spk->input_port_list, port_info);
+            audio_port_info_list_add(&onboard_spk->input_port_list, port_info);
             input_port_list_release(onboard_spk->lock);
         }
         /* check and update audio port */

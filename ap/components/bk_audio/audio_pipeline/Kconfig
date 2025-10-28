@@ -400,6 +400,11 @@ menu "Adk"
 				help
 					Enable I2S stream component for audio data transmission via I2S interface.
 
+			config ADK_I2S_STREAM_SUPPORT_MULTIPLE_SOURCE
+				depends on ADK_I2S_STREAM
+				bool "Enable I2S stream to support multiple sources. The module automatically selects playback based on the priority of multiple sources."
+				default n
+
 			config ADK_I2S_STREAM_TEST
 				bool "Enable I2S Stream Test"
 				depends on ADK_I2S_STREAM && ADK_ONBOARD_MIC_STREAM && ADK_ONBOARD_SPEAKER_STREAM

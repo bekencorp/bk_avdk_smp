@@ -31,6 +31,7 @@
 #include <components/bk_audio/audio_encoders/opus_enc.h>
 #include <components/bk_audio/audio_decoders/opus_dec.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
+#include <components/bk_audio/audio_streams/i2s_stream.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -187,8 +188,9 @@ typedef struct
     {
         onboard_speaker_stream_cfg_t    onboard_spk_cfg; /*!< Onboard speaker configuration */
         uac_speaker_stream_cfg_t        uac_spk_cfg;     /*!< USB audio class speaker configuration */
+        i2s_stream_cfg_t                i2s_cfg;         /*!< I2S speaker configuration */
     } spk_cfg;                              /*!< Speaker configuration union */
-    
+
 #if CONFIG_VOICE_SERVICE_EQ
     bool                    eq_en;         /*!< Equalizer enable flag */
     union
@@ -1299,6 +1301,131 @@ typedef struct
     }
 #endif  //CONFIG_VOICE_SERVICE_OPUS_ENCODER && CONFIG_VOICE_SERVICE_OPUS_DECODER
 
+/**
+ * @brief Default voice service configuration using onboard microphone and i2s speaker with AEC, 16000Hz sample rate and G.711a codec
+ * 
+ * This configuration defines default settings for voice service operations using:
+ * - Input: Onboard microphone
+ * - Output: I2S speaker
+ * - AEC: Enabled
+ * - Mic sample rate: 16000Hz
+ * - Speaker sample rate: 16000Hz
+ * - Encoder: G.711a
+ * - Decoder: G.711a
+ * - Equalizer: Disabled
+ */
+#define DEFAULT_VOICE_BY_ONBOARD_MIC_I2S_SPK_AEC_G711A_16000_CONFIG() {         \
+    .mic_type = MIC_TYPE_ONBOARD,                                               \
+    .mic_cfg.onboard_mic_cfg = {                                                \
+        .adc_cfg = {                                                            \
+           .chl_num = 1,                                                        \
+           .bits = 16,                                                          \
+           .sample_rate = 16000,                                                \
+           .dig_gain = 0x28,                                                    \
+           .ana_gain = 0x8,                                                     \
+           .mode = AUD_ADC_MODE_DIFFEN,                                         \
+           .clk_src = AUD_CLK_XTAL,                                             \
+        },                                                                      \
+        .frame_size = 640,                                                      \
+        .out_block_size = 640,                                                  \
+        .out_block_num = 2,                                                     \
+        .multi_out_port_num = 0,                                                \
+        .task_stack = ONBOARD_MIC_STREAM_TASK_STACK,                            \
+        .task_core = ONBOARD_MIC_STREAM_TASK_CORE,                              \
+        .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,                          \
+    },                                                                          \
+    .aec_en = true,                                                             \
+    .aec_cfg.aec_alg_cfg = {                                                    \
+        .task_stack = AEC_V3_ALGORITHM_TASK_STACK,                              \
+        .task_core = AEC_V3_ALGORITHM_TASK_CORE,                                \
+        .task_prio = AEC_V3_ALGORITHM_TASK_PRIO,                                \
+        .aec_cfg = {                                                            \
+            .mode = AEC_MODE_SOFTWARE,                                          \
+            .fs = AEC_V3_ALGORITHM_FS,                                          \
+            .init_flags = AEC_V3_ALGORITHM_INIT_FLAG,                           \
+            .delay_points = AEC_V3_DELAY_POINTS,                                \
+            .ec_depth = AEC_V3_ALGORITHM_EC_DEPTH,                              \
+            .ref_scale = AEC_V3_ALGORITHM_REF_SCALE,                            \
+            .voice_vol = AEC_V3_ALGORITHM_VOL,                                  \
+            .ns_type = NS_TRADITION,                                            \
+            .ns_filter = AEC_V3_ALGORITHM_NS_FILTER,                            \
+            .ns_level = AEC_V3_ALGORITHM_NS_LEVEL,                              \
+            .ns_para = AEC_V3_ALGORITHM_NS_PARA,                                \
+            .drc = AEC_V3_ALGORITHM_DRC,                                        \
+            .ec_filter = AEC_V3_ALGORITHM_EC_FILTER,                            \
+            .interweave = AEC_V3_ALGORITHM_INTERWEAVE,                          \
+            .dist = AEC_V3_ALGORITHM_MIC_DIST,                                  \
+            .mic_swap = AEC_V3_ALGORITHM_MIC_SWAP,                              \
+            .ec_only_output = AEC_V3_ALGORITHM_EC_ONLY_OUTPUT,                  \
+            .dual_perp = DUAL_CH_0_DEGREE,                                      \
+        },                                                                      \
+        .vad_cfg = {                                                            \
+            .vad_enable = 0,                                                    \
+            .vad_start_threshold = 480,                                         \
+            .vad_stop_threshold = 960,                                          \
+            .vad_silence_threshold = 320,                                       \
+            .vad_eng_threshold =2000,                                           \
+            .vad_bad_frame = AEC_V3_VAD_BAD_FRAME_NUM,                          \
+            .vad_buf_size = 15360,                                              \
+            .vad_frame_size = 640,                                              \
+        },                                                                      \
+        .out_block_size = 640,                                                  \
+        .out_block_num = AEC_V3_ALGORITHM_OUT_BLOCK_NUM,                        \
+        .multi_out_port_num = 0,                                                \
+        .dual_ch = 0,                                                           \
+    },                                                                          \
+    .enc_en = true,                                                             \
+    .enc_type = AUDIO_ENC_TYPE_G711A,                                           \
+    .enc_cfg.g711_enc_cfg = {                                                   \
+        .buf_sz = G711_ENCODER_BUFFER_SIZE,                                     \
+        .out_block_size = 320,                                                  \
+        .out_block_num = 1,                                                     \
+        .task_stack = G711_ENCODER_TASK_STACK,                                  \
+        .task_core = G711_ENCODER_TASK_CORE,                                    \
+        .task_prio = G711_ENCODER_TASK_PRIO,                                    \
+        .enc_mode = G711_ENC_MODE_A_LOW,                                        \
+    },                                                                          \
+    .read_pool_size = 320,                                                      \
+    .write_pool_size = 640,                                                     \
+    .dec_en = true,                                                             \
+    .dec_type = AUDIO_DEC_TYPE_G711A,                                           \
+    .dec_cfg.g711_dec_cfg = {                                                   \
+        .buf_sz = G711_DECODER_BUFFER_SIZE,                                     \
+        .out_block_size = 640,                                                  \
+        .out_block_num = 1,                                                     \
+        .task_stack = G711_DECODER_TASK_STACK,                                  \
+        .task_core = G711_DECODER_TASK_CORE,                                    \
+        .task_prio = G711_DECODER_TASK_PRIO,                                    \
+        .dec_mode = G711_DEC_MODE_A_LOW,                                        \
+    },                                                                          \
+    .spk_type = SPK_TYPE_I2S,                                                   \
+    .spk_cfg.i2s_cfg = {                                                        \
+        .gpio_group = I2S_STREAM_GPIO_GROUP,                                    \
+        .role = I2S_STREAM_ROLE,                                                \
+        .work_mode = I2S_STREAM_WORK_MODE,                                      \
+        .lrck_invert = I2S_LRCK_INVERT_DISABLE,                                 \
+        .sck_invert = I2S_SCK_INVERT_DISABLE,                                   \
+        .lsb_first_en = I2S_LSB_FIRST_DISABLE,                                  \
+        .sync_length = 0,                                                       \
+        .data_length = 16,                                                      \
+        .pcm_dlength = 0,                                                       \
+        .store_mode = I2S_LRCOM_STORE_16R16L,                                   \
+        .samp_rate = I2S_STREAM_SAMP_RATE,                                      \
+        .pcm_chl_num = 1,                                                       \
+        .channel_id = I2S_STREAM_CHANNEL_ID,                                    \
+        .type = AUDIO_STREAM_WRITER,                                            \
+        .buff_size = I2S_STREAM_BUFF_SIZE,                                      \
+        .out_block_size = I2S_STREAM_BLOCK_SIZE,                                \
+        .out_block_num = I2S_STREAM_BLOCK_NUM,                                  \
+        .task_stack = I2S_STREAM_TASK_STACK,                                    \
+        .task_core = I2S_STREAM_TASK_CORE,                                      \
+        .task_prio = I2S_STREAM_TASK_PRIO,                                      \
+        .multi_in_port_num = 0,                                                 \
+        .multi_out_port_num = 1,                                                \
+    },                                                                          \
+    .event_handle = NULL,                                                       \
+    .args = NULL,                                                               \
+}
 
 #ifdef  __cplusplus
 }

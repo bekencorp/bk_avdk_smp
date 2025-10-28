@@ -629,6 +629,12 @@ static bk_err_t play_pipeline_init(voice_handle_t voice_handle, voice_cfg_t *cfg
         voice_handle->spk_str = uac_speaker_stream_init(&cfg->spk_cfg.uac_spk_cfg);
     }
 #endif
+#if CONFIG_ADK_I2S_STREAM
+    else if (voice_handle->spk_type == SPK_TYPE_I2S)
+    {
+        voice_handle->spk_str = i2s_stream_init(&cfg->spk_cfg.i2s_cfg);
+    }
+#endif
     else
     {
         //nothing todo
@@ -1292,6 +1298,15 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
             return BK_FAIL;
         }
 
+    }
+    else if (cfg.spk_type == SPK_TYPE_I2S)
+    {
+        /* When aec enable, multi_out_rb_num is 1 (i2s output speaker data to ring buffer save ref data of aec) */
+        if (cfg.aec_en && cfg.spk_cfg.i2s_cfg.multi_out_port_num != 1)
+        {
+            BK_LOGE(TAG, "%s, %d, aec_en: %d, multi_out_port_num: %d are not match\n", __func__, __LINE__, cfg.aec_en, cfg.spk_cfg.i2s_cfg.multi_out_port_num);
+            return BK_FAIL;
+        }
     }
     else
     {
