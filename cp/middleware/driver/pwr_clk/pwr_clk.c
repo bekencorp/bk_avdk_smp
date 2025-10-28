@@ -207,7 +207,7 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			ret = pm_cp0_send_msg(LOW_PWR_CORE_CLK_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_SLEEP_CTRL_CMD:
-			bk_pm_cp0_response_cp1(PM_SLEEP_CTRL_CMD,BK_OK,0,0);//for more quick when enter lv
+			//bk_pm_cp0_response_cp1(PM_SLEEP_CTRL_CMD,BK_OK,0,0);//for more quick when enter lv
 			ret = pm_cp0_send_msg(LOW_PWR_CORE_SLEEP_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_CPU_FREQ_CTRL_CMD:
@@ -228,7 +228,7 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 				BK_LOGD(NULL,"cpu0 receive the cpu1 boot success event [%d]\r\n",cmd_buf->param1);
 			break;
 		case PM_CP1_PSRAM_MALLOC_STATE_CMD:
-			if(cmd_buf->param1 == 0x1)
+			if(cmd_buf->param1 == PM_CP1_PSRAM_MALLOC_STATE_CMD)//Get the psram malloc count
 			{
 				s_pm_cp1_psram_malloc_count = cmd_buf->param2;
 			}

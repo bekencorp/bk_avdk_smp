@@ -104,6 +104,16 @@ static bk_err_t pm_ap_core_message_handle(void)
                     if(msg.param1 == PM_AP_PSRAM_POWER_OFF)
                     {
                         bk_pm_ap_psram_power_state_handle_callback(PM_POWER_PSRAM_MODULE_NAME_MAX,msg.param1);
+                        //pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,0x2,0,0);//not need to response when psram power off
+                    }
+                    else if(msg.param1 == PM_AP_PSRAM_POWER_ON)
+                    {
+
+                    }
+                    else if(msg.param1 == PM_CP1_PSRAM_MALLOC_STATE_CMD)
+                    {
+                        uint32_t used_count = bk_psram_heap_get_used_count();
+                        pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,PM_CP1_PSRAM_MALLOC_STATE_CMD,used_count,0);
                     }
                 }
                 break;

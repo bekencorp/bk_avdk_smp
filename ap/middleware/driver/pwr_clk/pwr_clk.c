@@ -288,7 +288,7 @@ static void pm_cp1_mailbox_tx_cmpl_isr(int *pm_mb, mb_chnl_ack_t *cmd_buf)
 static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 {
 	bk_err_t ret = BK_OK;
-	uint32_t used_count;
+	//uint32_t used_count;
     pm_ap_core_msg_t msg = {0};
 	GLOBAL_INT_DECLARATION();
 	GLOBAL_INT_DISABLE();
@@ -347,10 +347,9 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			if(cmd_buf->param1 == PM_POWER_MODULE_STATE_ON)
 			{
 				msg.event= PM_AP_CORE_PSRAM_STATE_NOTIFY;
-				msg.param1 = 0x0;//cmd_buf->param1;
+				msg.param1 = PM_AP_PSRAM_POWER_ON;//cmd_buf->param1;
 				msg.param2 = cmd_buf->param2;
 				bk_pm_ap_core_send_msg(&msg);
-
 			}
 			else if(cmd_buf->param1 ==PM_POWER_MODULE_STATE_OFF)
 			{
@@ -363,19 +362,21 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			s_pm_psram_power_ctrl = PM_MAILBOX_COMMUNICATION_FINISH;
 			break;
 		case PM_CP1_PSRAM_MALLOC_STATE_CMD:
-			if(cmd_buf->param1 == 0x1)
+			if(cmd_buf->param1 == PM_AP_PSRAM_POWER_OFF)//recovery resource in ap when psram power off in cp
 			{
 				msg.event= PM_AP_CORE_PSRAM_STATE_NOTIFY;
-				msg.param1 = 0x1;//recovery media using psram
+				msg.param1 = PM_AP_PSRAM_POWER_OFF;
 				msg.param2 = cmd_buf->param2;
 				bk_pm_ap_core_send_msg(&msg);
-				pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,0x2,0,0);
 			}
 			else if(cmd_buf->param1 == 0x0)
 			{
-				used_count = bk_psram_heap_get_used_count();
-				//bk_pm_ap_psram_power_state_handle_callback(0x1);//recovery media using psram
-				pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,0x1,used_count,0);
+				// used_count = bk_psram_heap_get_used_count();
+				// pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,PM_CP1_PSRAM_MALLOC_STATE_CMD,used_count,0);
+				msg.event= PM_AP_CORE_PSRAM_STATE_NOTIFY;
+				msg.param1 = PM_CP1_PSRAM_MALLOC_STATE_CMD;
+				msg.param2 = cmd_buf->param2;
+				bk_pm_ap_core_send_msg(&msg);
 			}
 			//BK_LOGD(NULL, "cp1 bk_psram_heap_get_used_count[%d]\r\n", bk_psram_heap_get_used_count());
 			break;

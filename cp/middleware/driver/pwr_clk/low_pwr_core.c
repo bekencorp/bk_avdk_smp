@@ -236,7 +236,7 @@ static bk_err_t low_pwr_core_message_handle(void)
 				break;
 				case LOW_PWR_CORE_SLEEP_CTRL:
 				{
-					//bk_pm_cp0_response_cp1(PM_SLEEP_CTRL_CMD,BK_OK,0,0);
+					bk_pm_cp0_response_cp1(PM_SLEEP_CTRL_CMD,BK_OK,0,0);
 					ret = bk_pm_module_vote_sleep_ctrl(msg.param1,msg.param2,msg.param3);
 				}
 				break;
