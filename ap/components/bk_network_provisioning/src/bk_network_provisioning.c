@@ -444,9 +444,9 @@ uint8_t *bk_sconf_get_supported_network(uint8_t *len)
 {
     uint8_t tmp_val[3] = {0}, i = 0, *val = NULL;
 
-#ifdef CONFIG_WIFI_ENABLE
+//#ifdef CONFIG_WIFI_ENABLE
     tmp_val[i++] = 0;
-#endif
+//#endif
 #ifdef CONFIG_BK_MODEM
     tmp_val[i++]  = 1;
 #endif
