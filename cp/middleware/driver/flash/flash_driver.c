@@ -823,7 +823,7 @@ bk_err_t bk_flash_set_clk_dco(void)
 }
 
 
-#if CONFIG_FLASH_TEST
+// #if CONFIG_FLASH_TEST
 bk_err_t bk_flash_write_enable(void)
 {
 	return BK_OK;
@@ -860,7 +860,7 @@ uint32_t bk_flash_get_crc_err_num(void)
 {
 	return flash_hal_get_crc_err_num(&s_flash.hal);
 }
-#endif
+// #endif
 
 flash_protect_type_t bk_flash_get_protect_type(void)
 {

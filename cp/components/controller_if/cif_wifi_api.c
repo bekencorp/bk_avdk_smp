@@ -1,6 +1,6 @@
 #include "net.h"
 #include "bk_wifi_types.h"
-#include "wifi.h"
+#include "modules/wifi.h"
 #include "bk_wifi.h"
 #include <stdlib.h>
 #include <string.h>

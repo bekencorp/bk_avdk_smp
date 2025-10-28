@@ -20,7 +20,7 @@
 #define INT_NUMBER_MAX              (64)
 #define TO_NVIC_IRQ(irq)            ((uint32_t)(irq))
 
-static int_group_isr_t s_irq_handler[INT_NUMBER_MAX];
+static __attribute__((section(".dtcm_sec_data"))) int_group_isr_t s_irq_handler[INT_NUMBER_MAX];
 
 void arch_int_enable_irq(uint32_t irq)
 {

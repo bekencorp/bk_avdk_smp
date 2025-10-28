@@ -341,7 +341,7 @@ bk_err_t mb_ipc_heartbeat_init(void)
 	bk_err_t	ret_val = BK_FAIL;
 
 #if defined(MASTER_HB_TASK) || defined(SLAVE_HB_TASK)
-	ret_val = rtos_smp_create_thread(NULL, BEKEN_DEFAULT_WORKER_PRIORITY, "heartbeat", mb_ipc_task, 1536, 0);
+	ret_val = rtos_smp_create_thread(NULL, BEKEN_DEFAULT_WORKER_PRIORITY, "heartbeat", mb_ipc_task, 512, 0);
 #endif
 
 	if(ret_val != BK_OK)

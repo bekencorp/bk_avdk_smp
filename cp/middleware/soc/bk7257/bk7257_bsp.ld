@@ -398,7 +398,7 @@ SECTIONS
         . = ALIGN(512);
         __vector_iram_table = .;
         KEEP(*(.vectors_iram))
-        . = ALIGN(512);
+        . = ALIGN(8);
 
         *(.itcm)
         *(.iram)
@@ -412,7 +412,7 @@ SECTIONS
     .ramcode :
     {
         . = . +  SIZEOF(.iram);
-        . = ALIGN(512);
+        . = ALIGN(4);
     } > RAM AT > FLASH
 
 

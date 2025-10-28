@@ -134,6 +134,10 @@ SECTIONS
         *libwifi.a:*(.text*)
         *liblwip_intf_v2_1.a:*(.text*)
         __wifi_dp_code_end = .;
+        . = ALIGN(4);
+        *(.rodata)
+        *(.rodata.*)
+        . = ALIGN(4);
 
         _etext = .;
         . = ALIGN(4);
@@ -394,7 +398,7 @@ SECTIONS
         . = ALIGN(512);
         __vector_iram_table = .;
         KEEP(*(.vectors_iram))
-        . = ALIGN(512);
+        . = ALIGN(8);
 
         *(.itcm)
         *(.iram)
@@ -408,7 +412,7 @@ SECTIONS
     .ramcode :
     {
         . = . +  SIZEOF(.iram);
-        . = ALIGN(512);
+        . = ALIGN(4);
     } > RAM AT > FLASH
 
 

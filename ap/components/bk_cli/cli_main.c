@@ -639,7 +639,7 @@ static void tab_complete(char *inbuf, unsigned int *bp)
 	}
 
 	/* just redraw input line */
-	os_printf("%s%s", PROMPT, inbuf);
+	BK_LOGD(NULL,"%s%s", PROMPT, inbuf);
 }
 /* Get an input line.
 *
@@ -647,7 +647,7 @@ static void tab_complete(char *inbuf, unsigned int *bp)
 static int get_input(char *inbuf, unsigned int *bp)
 {
 	if (inbuf == NULL) {
-		BK_LOGE(NULL, "inbuf_null\r\n");
+		BK_LOGD(NULL,"inbuf_null\r\n");
 		return 0;
 	}
 
@@ -673,8 +673,8 @@ static int get_input(char *inbuf, unsigned int *bp)
 				(*bp)++;
 
 				if (ch >= INBUF_SIZE) {
-					BK_LOGE(NULL, "Error: input buffer overflow\r\n");
-					os_printf(PROMPT);
+					BK_LOGD(NULL,"Error: input buffer overflow\r\n");
+					BK_LOGD(NULL,PROMPT);
 					*bp = 0;
 					return 0;
 				}
@@ -711,7 +711,7 @@ static int get_input(char *inbuf, unsigned int *bp)
 			if (*bp > 0) {
 				(*bp)--;
 				if (!pCli->echo_disabled)
-					os_printf("%c %c", 0x08, 0x08);
+					BK_LOGD(NULL,"%c %c", 0x08, 0x08);
 			}
 			continue;
 		}
@@ -727,8 +727,8 @@ static int get_input(char *inbuf, unsigned int *bp)
 
 		(*bp)++;
 		if (*bp >= INBUF_SIZE) {
-			BK_LOGE(NULL, "Error: input buffer overflow\r\n");
-			os_printf(PROMPT);
+			BK_LOGD(NULL,"Error: input buffer overflow\r\n");
+			BK_LOGD(NULL,PROMPT);
 			*bp = 0;
 			return 0;
 		}
@@ -745,15 +745,15 @@ static void print_bad_command(char *cmd_string)
 {
 	if (cmd_string != NULL) {
 		char *c = cmd_string;
-		os_printf("command '");
+		BK_LOGD(NULL,"command '");
 		while (*c != '\0') {
 			if (is_print(*c))
-				os_printf("%c", *c);
+				BK_LOGD(NULL,"%c", *c);
 			else
-				os_printf("\\0x%x", *c);
+				BK_LOGD(NULL,"\\0x%x", *c);
 			++c;
 		}
-		os_printf("' not found\r\n");
+		BK_LOGD(NULL,"' not found\r\n");
 	}
 }
 
@@ -797,9 +797,9 @@ static void cli_main(uint32_t data)
 			if (ret == 1)
 				print_bad_command(msg);
 			else if (ret == 2)
-				BK_LOGE(NULL, "syntax error\r\n");
+				BK_LOGD(NULL,"syntax error\r\n");
 
-			os_printf(prompt);
+			BK_LOGD(NULL,prompt);
 		}
 	}
 

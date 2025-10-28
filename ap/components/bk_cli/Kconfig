@@ -13,12 +13,6 @@ menu "Bk_cli"
 			help
 				support cli user configuration header
 
-		config CLI_USER_CONFIG_DIR
-			depends on CLI_USER_CONFIG
-			string "Define Cli User Config Dir"
-			default ""
-			help
-				cli user configuration header directory
 
 		config LOG_LEVEL
 			int "Set LOG LEVEL"
@@ -56,6 +50,14 @@ menu "Bk_cli"
 			help
 				MAX number of commands is configured by default
 
+		config CLI_TASK_PRIO
+			depends on CLI
+			int "Set Cli Task Prio"
+			range 1 10
+			default 4
+			help
+				priority of cli task
+
 		config SHELL_TASK_STACK_SIZE
 			depends on CLI
 			int "Set Shell Task Stack Size"
@@ -63,6 +65,14 @@ menu "Bk_cli"
 			default 7168
 			help
 				Set Shell Task Stack Size
+
+		config LOG_TASK_PRIO
+			depends on CLI
+			int "Set Log Task Prio"
+			range 1 10
+			default 4
+			help
+				priority of log task
 
 		config LOG_TASK_STACK_SIZE
 			int "Set Log Task Stack Size"
@@ -237,10 +247,6 @@ menu "Bk_cli"
 		config RTC_TIMER_PRECISION_TEST_BY_GPIO
 			bool "Enable RTC Timer precision test"
 			default n
-
-		config ICU
-			bool "Enable Icu"
-			default y
 
 		config RWNX_PROTO_DEBUG
 			bool "Enable Rwnx Proto Debug"

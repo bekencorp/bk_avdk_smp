@@ -212,10 +212,10 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
 	if(core_id == 1)
 	{
 	    ret = rtos_core1_create_thread(&shell_handle_thread_handle,
-	                                4,
+	                                CONFIG_CLI_TASK_PRIO,
 	                                "shell_handle",
 	                                (beken_thread_function_t)handle_shell_input_proxy,
-	                                1024*7,
+	                                CONFIG_SHELL_TASK_STACK_SIZE,
 	                                (beken_thread_arg_t)(&cmd_par));
 	}
 	else
@@ -226,19 +226,19 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
     while (1)
     {
         ret = rtos_create_thread(&shell_handle_thread_handle,
-                                    4,
+                                    CONFIG_CLI_TASK_PRIO,
                                     "shell_handle",
                                     (beken_thread_function_t)handle_shell_input_proxy,
-                                    1024*7,
+                                    CONFIG_SHELL_TASK_STACK_SIZE,
                                     (beken_thread_arg_t)(&cmd_par));
 
         if (ret != kNoErr) {
   #if CONFIG_PSRAM_AS_SYS_MEMORY		
         ret = rtos_create_psram_thread(&shell_handle_thread_handle,
-                                    4,
+                                    CONFIG_CLI_TASK_PRIO,
                                     "shell_handle",
                                     (beken_thread_function_t)handle_shell_input_proxy,
-                                    1024*7,
+                                    CONFIG_SHELL_TASK_STACK_SIZE,
                                     (beken_thread_arg_t)(&cmd_par));    
 #endif      
         }
@@ -1516,11 +1516,11 @@ int bk_cli_init(void)
 	cli_mem_init();
 #endif
 
-#if ((CONFIG_SOC_BK7236XX) && (CLI_CFG_FPB == 1))
+#if (CLI_CFG_FPB == 1)
 	cli_fpb_init();
 #endif
 
-#if ((CONFIG_SOC_BK7236XX) && (CLI_CFG_DWT == 1))
+#if (CLI_CFG_DWT == 1)
 	cli_dwt_init();
 #endif
 
@@ -1611,10 +1611,8 @@ int bk_cli_init(void)
     cli_easyflash_init();
 #endif
 
-#if CONFIG_SOC_BK7236XX
-	#if CONFIG_OTP_V1 && CONFIG_OTP_TEST
-		cli_otp_init();
-	#endif
+#if CONFIG_OTP_V1 && CONFIG_OTP_TEST
+	cli_otp_init();
 #endif
 
 
@@ -1706,7 +1704,7 @@ int bk_cli_init(void)
 							 SHELL_TASK_PRIORITY,
 							 "cli",
 							 (beken_thread_function_t)shell_task,
-							 1024*3,
+							 CONFIG_CLI_TASK_STACK_SIZE,
 							 0);
 	#endif // CONFIG_CLI
 

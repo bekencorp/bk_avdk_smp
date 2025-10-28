@@ -1697,7 +1697,7 @@ void create_log_handle_task(void)
 
 	rtos_get_logtask_memory(&pxTaskTCBBuffer, &pxTaskStackBuffer, &ulTaskStackSize);
 	ret = rtos_create_thread_static(&log_thread_handle,
-							4,
+							CONFIG_LOG_TASK_PRIO,
 							"log_hanlder",
 							(beken_thread_function_t)log_handle_task,
 							ulTaskStackSize,

@@ -80,9 +80,11 @@ static void cli_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		CLI_LOGD("flash_id:%x\r\n", flash_id);
 		msg = CLI_CMD_RSP_SUCCEED;
 	} else if (os_strcmp(argv[1], "mutex_test") == 0) {
+	#if CONFIG_FLASH_TEST
 		extern void flash_svr_test_task(void * param);
 		int task_pri = os_strtoul(argv[2], NULL, 16);
 		rtos_create_thread(NULL, task_pri, "flash_test", flash_svr_test_task, 2048, NULL);
+	#endif
 		msg = CLI_CMD_RSP_SUCCEED;
 	} else {
 		cli_flash_help();

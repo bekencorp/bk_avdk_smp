@@ -247,10 +247,8 @@ static u16 s_insert_log_cnt = 0;
 
 #define DYM_NODE_SIZE (sizeof(dynamic_log_node))
 
-#if (CONFIG_CACHE_ENABLE) && (CONFIG_LV_USE_DEMO_METER)
-#define  SHELL_DECLARE_MEMORY_ATTR __attribute__((section(".sram_cache")))
-#elif CONFIG_SOC_BK7258 && CONFIG_SYS_PRINT_DEV_UART
-#define  SHELL_DECLARE_MEMORY_ATTR __attribute__((section(".dtcm_section")))
+#if CONFIG_SYS_PRINT_DEV_UART
+#define  SHELL_DECLARE_MEMORY_ATTR __attribute__((section(".dtcm_sec_data")))
 #else
 #define  SHELL_DECLARE_MEMORY_ATTR
 #endif
@@ -1652,7 +1650,6 @@ static void shell_log_tx_init(void)
 	}
 }
 
-#define LOG_HANDLE_TASK_STACK 0x400
 beken_thread_t log_thread_handle = NULL;
 void create_log_handle_task(void)
 {
@@ -1666,10 +1663,10 @@ void create_log_handle_task(void)
 	rtos_init_semaphore_ex(&log_buf_semaphore, 1, 1);               // semaphore for log block mode.
 
 	ret = rtos_create_thread(&log_thread_handle,
-							 4,
+							 CONFIG_LOG_TASK_PRIO,
 							 "log_hanlder",
 							 (beken_thread_function_t)log_handle_task,
-							 LOG_HANDLE_TASK_STACK,
+							 CONFIG_LOG_TASK_STACK_SIZE,
 							 0);
 	if (ret != 0) {
 		BK_LOGD(NULL,"create log handler task fail!\r\n");

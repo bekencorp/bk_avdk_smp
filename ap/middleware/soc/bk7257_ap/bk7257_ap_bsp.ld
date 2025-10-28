@@ -398,26 +398,6 @@ SECTIONS
     } > DTCM AT > FLASH
 #endif
 
-    .iram :
-    {
-        . = ALIGN(512);
-        PROVIDE(__iram_flash_begin = LOADADDR(.iram));
-        __iram_start__ = .;
-
-        . = ALIGN(512);
-        __vector_iram_table = .;
-        KEEP(*(.vectors_iram))
-        . = ALIGN(512);
-
-        *(.itcm)
-        *(.iram)
-        *(.interrupt)
-
-        . = ALIGN(4);
-        __iram_end__ = .;
-
-    } > IRAM AT > FLASH
-
 #if (CONFIG_SPINLOCK_SECTION && CONFIG_SOC_SMP)
     .spinlock :
     {
@@ -433,10 +413,32 @@ SECTIONS
     } > SPINLOCK AT > FLASH
 #endif
 
+    .iram :
+    {
+        . = ALIGN(512);
+        PROVIDE(__iram_flash_begin = LOADADDR(.iram));
+        __iram_start__ = .;
+
+        . = ALIGN(512);
+        __vector_iram_table = .;
+        KEEP(*(.vectors_iram))
+        . = ALIGN(8);
+
+        *(.itcm)
+        *(.iram)
+        *(.interrupt)
+
+        . = ALIGN(4);
+        __iram_end__ = .;
+
+    } > IRAM AT > FLASH
+
+
+
     .ramcode :
     {
         . = . +  SIZEOF(.iram);
-        . = ALIGN(512);
+        . = ALIGN(4);
     } > RAM AT > FLASH
 
 

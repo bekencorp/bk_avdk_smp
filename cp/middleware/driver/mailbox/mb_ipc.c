@@ -176,14 +176,14 @@ typedef struct
 	mb_ipc_socket_handle_t   handle;
 } mb_ipc_socket_t;
 
-static mb_ipc_route_t		ipc_route_tbl[] = 
+static mb_ipc_route_t   __attribute__((section(".dtcm_sec_data")))  ipc_route_tbl[] = 
 	{
 		{.dst_cpus = (IPC_CPU1_BIT | IPC_CPU2_BIT), .log_chnl = CP1_MB_CHNL_IPC, 
 			.chnl_tx_queue_out_idx = 0, .chnl_tx_queue_in_idx = 0,  },
 	};
 
-static mb_ipc_socket_t    ipc_server_socket_tbl[SERVER_PORT_NUM][MAX_CONNET_PER_SVR];
-static mb_ipc_socket_t    ipc_client_socket_tbl[CLIENT_PORT_NUM];
+static mb_ipc_socket_t   __attribute__((section(".dtcm_sec_data")))  ipc_server_socket_tbl[SERVER_PORT_NUM][MAX_CONNET_PER_SVR];
+static mb_ipc_socket_t   __attribute__((section(".dtcm_sec_data")))  ipc_client_socket_tbl[CLIENT_PORT_NUM];
 
 static int      ipc_socket_rx_handler(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t *ipc_cmd);
 static void     ipc_socket_tx_cmpl_handler(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_t * ipc_cmd);
