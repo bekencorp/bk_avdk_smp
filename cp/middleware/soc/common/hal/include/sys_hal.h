@@ -91,6 +91,7 @@ uint32_t sys_hal_get_sdio_clk_sel();
 
 /*low power feature start*/
 bool sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi();
+bk_err_t sys_hal_get_bus_busy_state(void);
 void sys_hal_enter_deep_sleep(void *param);
 void sys_hal_enter_normal_sleep();
 void sys_hal_enter_normal_wakeup();

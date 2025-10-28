@@ -598,7 +598,16 @@ void sys_hal_gpio_state_switch(bool lock)
 	aon_pmu_ll_set_r25(0x424B55AA);
 	aon_pmu_ll_set_r25(0xBDB4AA55);
 }
-
+bk_err_t sys_hal_get_bus_busy_state()
+{
+	bk_err_t ret = BK_OK;
+	/*if the busmatrix is busy, return error*/
+	if(sys_ll_get_cpu_power_sleep_wakeup_busmatrix_busy() == 0x1)
+	{
+		ret = BK_ERR_BUSY;
+	}
+	return ret;
+}
 __attribute__((section(".itcm_sec_code"))) void sys_hal_enter_deep_sleep(void *param)
 {
 	volatile uint32_t int_state1, int_state2;

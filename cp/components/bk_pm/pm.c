@@ -168,7 +168,7 @@ static uint32_t s_after_low_vol_psram   =  0;
 /*=====================VARIABLE SECTION END=================*/
 
 /*================FUNCTION DECLARATION SECTION START========*/
-#if 1
+
 static void pm_enter_low_vol_modules_config();
 static void pm_enter_deep_sleep_modules_config();
 static void pm_module_check_power_on(pm_power_module_name_e module);
@@ -177,7 +177,7 @@ static void pm_deep_sleep_wakeup_source_set();
 bk_err_t pm_debug_module_state();
 static bk_err_t pm_check_enter_lv_time_out();
 static bk_err_t pm_lv_enter_time_out_clear();
-#endif
+
 static void pm_check_power_on_module();
 static bk_err_t pm_wakeup_from_deepsleep_handle();
 static void pm_enter_normal_sleep();
@@ -211,7 +211,6 @@ extern void bk_delay_us(UINT32 us);
  */
 void pm_hardware_init()
 {
-#if 1
 	sys_drv_low_power_hardware_init();
 
 	/*config vote for entering low vol modules*/
@@ -230,7 +229,6 @@ void pm_hardware_init()
 #if CONFIG_BAKP_POWER_DOMAIN_PM_CONTROL
 	bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_BAKP_PM, PM_POWER_MODULE_STATE_ON);
 #endif
-#endif
 }
 
 bk_err_t pm_module_wakeup_time_set(uint32_t module_name, uint32_t wakeup_time)
@@ -239,7 +237,7 @@ bk_err_t pm_module_wakeup_time_set(uint32_t module_name, uint32_t wakeup_time)
 	return BK_OK;
 }
 /*=========================SLEEP STATE MACHINE START========================*/
-#if 1
+
 static void pm_enter_low_vol_modules_config()
 {
 	uint32_t i = 0;
@@ -261,7 +259,12 @@ static void pm_enter_deep_sleep_modules_config()
 		s_pm_enter_deep_sleep_modules |= 0x1 << enter_deep_sleep_modules[i];
 	}
 }
-#endif
+bk_err_t bk_pm_clear_deep_sleep_modules_config(pm_power_module_name_e module_name)
+{
+	s_pm_enter_deep_sleep_modules &= ~(0x1 << module_name);
+	return BK_OK;
+}
+
 
 static uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_tick)
 {
@@ -303,10 +306,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 	{
 		if (s_debug_en & 0x1)
 		{
-#if 1
 			BK_LOGD(NULL,"lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
 			BK_LOGD(NULL,"lowvol2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
-#endif
 		}
 		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
 			&&(s_bsubcores_wfi))
@@ -337,10 +338,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 	{
 		if (s_debug_en & 0x2)
 		{
-#if 1
 			BK_LOGD(NULL,"deepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
 			BK_LOGD(NULL,"deepsleep2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
-#endif
 		}
 
 		if ((s_pm_off_modules & s_pm_enter_deep_sleep_modules) == s_pm_enter_deep_sleep_modules)
@@ -357,10 +356,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 	{
 		if (s_debug_en & 0x2)
 		{
-#if 1
 			BK_LOGD(NULL,"superdeepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
 			BK_LOGD(NULL,"superdeepsleep2 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state);
-#endif
 		}
 
 		if ((s_pm_off_modules & s_pm_enter_deep_sleep_modules) == s_pm_enter_deep_sleep_modules)
@@ -377,10 +374,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 	{
 		if (s_debug_en & 0x1)
 		{
-#if 1
 			BK_LOGD(NULL,"lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
 			BK_LOGD(NULL,"lowvol2 0x%X 0x%X\r\n", s_pm_video_pm_state, s_pm_audio_pm_state);
-#endif
 		}
 		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
 		&&(s_bsubcores_wfi))
@@ -985,33 +980,52 @@ bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module, uint32_t sl
 	return BK_OK;
 
 }
-static bk_err_t pm_check_multimedia_pwr_state()
+static bk_err_t pm_check_multimedia_pwr_bus_state()
 {
 	uint16_t audio_pwr_state = sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_AUDP);
 	uint16_t video_pwr_state = sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_VIDP);
+	bk_err_t ret = sys_hal_get_bus_busy_state();
+	if(ret != BK_OK)
+	{
+		BK_LOGW(NULL,"Bus is busy,enter sleep fail\r\n");
+	}
 	if(audio_pwr_state == 0x0)
 	{
-		BK_LOGD(NULL,"Audio not power off,enter sleep fail\r\n");
+		BK_LOGW(NULL,"Audio not power off,enter sleep fail\r\n");
 	}
 	if( video_pwr_state == 0x0)
 	{
-		BK_LOGD(NULL,"Video not power off,enter sleep fail\r\n");
+		BK_LOGW(NULL,"Video not power off,enter sleep fail\r\n");
 	}
-	if((audio_pwr_state== 0x0)|| (video_pwr_state == 0x0))
+
+	if((audio_pwr_state== 0x0)|| (video_pwr_state == 0x0)||(ret != BK_OK))
 	{
 		return BK_FAIL;
 	}
 	return BK_OK;
 }
+static bk_err_t pm_force_analog_close(void)
+{
+    /*audio*/
+    sys_hal_set_ana_reg18_value(0);
+    sys_hal_set_ana_reg19_value(0);
+    sys_hal_set_ana_reg20_value(0);
+    sys_hal_set_ana_reg21_value(0);
+    sys_hal_set_ana_reg27_value(0);
+    sys_drv_aud_aud_en(0);
+    sys_drv_aud_audbias_en(0);
+    sys_drv_apll_en(0);
+
+    return 0;
+}
 bk_err_t bk_pm_sleep_mode_set(pm_sleep_mode_e sleep_mode)
 {
-	if(pm_check_multimedia_pwr_state() == BK_FAIL)
+	if(pm_check_multimedia_pwr_bus_state() == BK_FAIL)
 	{
 		return BK_FAIL;
 	}
-	s_pm_sleep_mode = sleep_mode;
 
-	if (s_pm_sleep_mode == PM_MODE_DEEP_SLEEP)
+	if (sleep_mode == PM_MODE_DEEP_SLEEP)
 	{
 		for (uint8_t i = 0; i < PM_DEEPSLEEP_CB_SIZE; i++)
 		{
@@ -1022,7 +1036,7 @@ bk_err_t bk_pm_sleep_mode_set(pm_sleep_mode_e sleep_mode)
 		}
 	}
 #if CONFIG_PM_SUPER_DEEP_SLEEP
-	else if (s_pm_sleep_mode == PM_MODE_SUPER_DEEP_SLEEP)
+	else if (sleep_mode == PM_MODE_SUPER_DEEP_SLEEP)
 	{
 		for (uint8_t i = 0; i < PM_SUPERDEEP_CB_SIZE; i++)
 		{
@@ -1034,13 +1048,30 @@ bk_err_t bk_pm_sleep_mode_set(pm_sleep_mode_e sleep_mode)
 		}
 	}
 #endif
-	else if (s_pm_sleep_mode == PM_MODE_LOW_VOLTAGE)
+	else if (sleep_mode == PM_MODE_LOW_VOLTAGE)
 	{
 		// to do
 	}
-	else
+	else if (sleep_mode == PM_MODE_FORCE_DEEP_SLEEP)
 	{
+		for (uint8_t i = 0; i < PM_DEEPSLEEP_CB_SIZE; i++)
+		{
+			if (s_pm_deepsleep_enter_cb_conf[i].cfg.cb != NULL)
+			{
+				s_pm_deepsleep_enter_cb_conf[i].cfg.cb(0, s_pm_deepsleep_enter_cb_conf[i].cfg.args);
+			}
+		}
+		/*Force deeps sleep, not need care the module power state*/
+		bk_pm_clear_deep_sleep_modules_config(PM_POWER_MODULE_NAME_AUDP);
+		bk_pm_clear_deep_sleep_modules_config(PM_POWER_MODULE_NAME_VIDP);
+		bk_pm_clear_deep_sleep_modules_config(PM_POWER_MODULE_NAME_BTSP);
+		bk_pm_clear_deep_sleep_modules_config(PM_POWER_MODULE_NAME_WIFIP_MAC);
+		pm_force_analog_close();
+
+		sleep_mode = PM_MODE_DEEP_SLEEP;//use the deepsleep flow
 	}
+
+	s_pm_sleep_mode = sleep_mode;
 
 	return BK_OK;
 }
@@ -1144,10 +1175,7 @@ void bk_pm_phy_reinit_flag_clear()
 /*=========================MODULES POWER CTRL START========================*/
 static void pm_check_power_on_module()
 {
-#if 1
 	uint32_t off_modules = 0;
-#endif
-
 	if (!(s_pm_on_modules & ((0x1 << PM_POWER_MODULE_NAME_BTSP)))) // when the module not power on , set the module sleep state
 	{
 		s_pm_sleeped_modules |= 0x1ULL << PM_POWER_MODULE_NAME_BTSP;
@@ -1176,7 +1204,6 @@ static void pm_check_power_on_module()
 		// BK_LOGD(NULL,"video not power on \r\n");
 	}
 
-#if 1
 	if (s_pm_mem_auto_power_down_flag)
 	{
 		off_modules = (0x1 << PM_POWER_MODULE_NAME_VIDP) | (0x1 << PM_POWER_MODULE_NAME_AUDP) | (0x1 << PM_POWER_MODULE_NAME_BTSP);
@@ -1199,7 +1226,6 @@ static void pm_check_power_on_module()
 			}
 		}
 	}
-#endif
 }
 
 void pm_rf_power_ctrl(pm_power_module_name_e module, pm_power_module_state_e power_state)
@@ -1293,7 +1319,7 @@ int32 bk_pm_module_power_state_get(pm_power_module_name_e module)
 	}
 }
 
-#if 1
+
 static void pm_module_check_power_on(pm_power_module_name_e module)
 {
 	if (PM_POWER_MODULE_STATE_OFF == sys_drv_module_power_state_get(module))
@@ -1303,10 +1329,8 @@ static void pm_module_check_power_on(pm_power_module_name_e module)
 		if (module == PM_POWER_MODULE_NAME_MEM3)
 		{
 #if CONFIG_SYSTEM_CTRL
-#if 1
 			extern void smem_reset_lastblock(void);
 			smem_reset_lastblock();
-#endif
 #endif
 		}
 
@@ -1419,7 +1443,7 @@ static bk_err_t pm_lv_enter_time_out_clear()
 	s_pm_check_lv_enter_time_out = 0;
 	return BK_OK;
 }
-#endif
+
 /*=========================MODULES POWER CTRL END========================*/
 
 /*=========================WAKEUP SOURCE CONFIG START========================*/
@@ -1477,13 +1501,6 @@ static void pm_deep_sleep_wakeup_source_set()
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
 			break;
 		}
-#if 0
-		/*clear the wakeup source*/
-		pmu_state = 0;
-		pmu_state = aon_pmu_drv_reg_get(PMU_REG0x43);
-		pmu_state |= (0x1 << 17);
-		aon_pmu_drv_reg_set(PMU_REG0x43, pmu_state);
-#endif
 	}
 #endif
 }
@@ -1580,7 +1597,6 @@ static void pm_enter_super_deep_sleep()
 static void pm_low_voltage_resource_set()
 {
 	pm_dev_id_e dev_id = 0;
-	#if 1
 	pm_psram_malloc_state_and_power_ctrl();
 	pm_lv_enter_time_out_clear();
 	#if CONFIG_PM_LV_WDT_PROTECTION
@@ -1591,8 +1607,6 @@ static void pm_low_voltage_resource_set()
 		}
 		#endif
 	#endif
-	#endif
-
 	bk_pm_exit_low_vol_wakeup_source_clear();
 
 	for (dev_id = 0; dev_id < PM_DEV_ID_MAX; dev_id++)

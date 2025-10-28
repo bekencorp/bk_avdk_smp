@@ -166,6 +166,7 @@ typedef enum
 	PM_MODE_LOW_VOLTAGE ,
 	PM_MODE_DEEP_SLEEP ,
 	PM_MODE_SUPER_DEEP_SLEEP ,
+	PM_MODE_FORCE_DEEP_SLEEP ,
 	PM_MODE_DEFAULT
 }pm_sleep_mode_e;
 
@@ -476,6 +477,27 @@ typedef enum
 #define PM_CP1_AUTO_POWER_DOWN_CTRL      (PM_CP1_AUTO_POWER_DOWN_ENABLE)
 
 /*=====================CONFIG  SECTION  END=======================*/
+/**
+ * @brief clear deep sleep module config
+ *
+ * clear deep sleep module config
+ *
+ * @attention
+ * - This API is used to clear deep sleep module config
+ * - If entering DEEPSLEEP fails, do not call this interface either.
+ * - Instead, proactively investigate the reasons why entering DEEPSLEEP was unsuccessful.
+ * - Calling this interface indicates that you are not concerned with whether the relevant modules were closed before attempting to enter DEEPSLEEP.
+ * - If the relevant modules were prematurely closed before using this method,
+ * - it is highly likely that DEEPSLEEP will fail to wake up properly.
+ * - Therefore, this interface is a special case for forcibly entering DEEPSLEEP,
+ * - but it cannot guarantee that DEEPSLEEP will wake up normally
+ * @param
+ * -module:module name
+ * @return
+ * - BK_OK: succeed
+ * - others: other errors.
+ */
+bk_err_t bk_pm_clear_deep_sleep_modules_config(pm_power_module_name_e module_name);
 /**
  * @brief Set subcores wfi state
  *
