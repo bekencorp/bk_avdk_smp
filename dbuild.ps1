@@ -3,6 +3,7 @@
 $global:DOCKER_IMAGE_LOWEST_VERSION = "1.0"
 $global:DOCKER_IMAGE_VERSION = ""
 $global:DOCKER_IMAGE = "bekencorp/armino-idk"
+$global:CURRENT_FILE_DIR = (Resolve-Path (Split-Path -Parent $MyInvocation.MyCommand.Path)).Path
 
 function Check-DockerInstalled {
     $dockerExecutablePath = Get-Command docker -ErrorAction SilentlyContinue
@@ -97,7 +98,15 @@ function Check-ImageExist {
 
 function Run-DockerBuild {
     $args_array = $args -split " "
-    docker run --rm -v ${PWD}:/armino -w /armino ${DOCKER_IMAGE}:${DOCKER_IMAGE_VERSION} $args_array
+    if ($env:BK_SOLUTION_MODE -eq 1) {
+        $sdk_dir = "$global:CURRENT_FILE_DIR"
+        $solution_dir = "$env:SOLUTION_DIR"
+        $project_dir = "$env:PROJECT_DIR"
+        docker run --rm -v ${sdk_dir}:/armino -v ${solution_dir}:/solution -w /solution/${project_dir} ${DOCKER_IMAGE}:${DOCKER_IMAGE_VERSION} $args_array SDK_DIR=/armino
+    }
+    else {
+        docker run --rm -v ${PWD}:/armino -w /armino ${DOCKER_IMAGE}:${DOCKER_IMAGE_VERSION} $args_array
+    }
 }
 
 function main {

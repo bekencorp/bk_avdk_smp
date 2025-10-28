@@ -7,6 +7,8 @@ DOCKER_IMAGE_VERSION=
 DOCKER_IMAGE_LOWEST_VERSION=1.0
 DOCKER_OPTION=
 
+CURRENT_FILE_DIR=$(realpath $(dirname $0))
+
 function nodocker() {
     cat <<EOF
 
@@ -109,7 +111,12 @@ function set_docker_option() {
 }
 
 function docker_run_build() {
-    docker run $DOCKER_OPTION --rm -v $PWD:/armino -w /armino -u $UID ${DOCKER_IMAGE}:${DOCKER_IMAGE_VERSION} $@
+    if [ $BK_SOLUTION_MODE -eq 1 ]; then
+        docker run $DOCKER_OPTION --rm -v $CURRENT_FILE_DIR:/armino -v $SOLUTION_DIR:/solution \
+        -w /solution/$PROJECT_DIR -u $UID ${DOCKER_IMAGE}:${DOCKER_IMAGE_VERSION} $@ SDK_DIR=/armino
+    else
+        docker run $DOCKER_OPTION --rm -v $PWD:/armino -w /armino -u $UID ${DOCKER_IMAGE}:${DOCKER_IMAGE_VERSION} $@
+    fi
 }
 
 function main() {
