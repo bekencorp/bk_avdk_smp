@@ -44,6 +44,9 @@
     #include "croutine.h"
 #endif
 
+#include <os/mem.h>
+#include <driver/psram.h>
+
 /* Lint e9021, e961 and e750 are suppressed as a MISRA exception justified
  * because the MPU ports require MPU_WRAPPERS_INCLUDED_FROM_API_FILE to be defined
  * for the header files above, but not in this file, in order to generate the
@@ -530,7 +533,6 @@ BaseType_t xQueueGenericReset( QueueHandle_t xQueue,
 
 #endif /* configSUPPORT_STATIC_ALLOCATION */
 /*-----------------------------------------------------------*/
-
 #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
 
     QueueHandle_t xQueueGenericCreate( const UBaseType_t uxQueueLength,
@@ -561,8 +563,12 @@ BaseType_t xQueueGenericReset( QueueHandle_t xQueue,
              * are greater than or equal to the pointer to char requirements the cast
              * is safe.  In other cases alignment requirements are not strict (one or
              * two bytes). */
-            pxNewQueue = ( Queue_t * ) pvPortMalloc( sizeof( Queue_t ) + xQueueSizeInBytes ); /*lint !e9087 !e9079 see comment above. */
+#if CONFIG_QUEUE_IN_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
+            pxNewQueue = ( Queue_t * ) psram_malloc( sizeof( Queue_t ) + xQueueSizeInBytes ); /*lint !e9087 !e9079 see comment above. */
 
+#else
+            pxNewQueue = ( Queue_t * ) pvPortMalloc( sizeof( Queue_t ) + xQueueSizeInBytes ); /*lint !e9087 !e9079 see comment above. */
+#endif
             if( pxNewQueue != NULL )
             {
                 /* Jump past the queue structure to find the location of the queue
