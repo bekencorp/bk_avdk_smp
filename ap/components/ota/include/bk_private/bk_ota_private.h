@@ -119,8 +119,7 @@ int bk_http_ota_download(const char *uri);
 int bk_https_ota_download(const char *url);
 
 #if CONFIG_OTA_DISPLAY_PICTURE_DEMO
-extern void lvgl_app_deinit(void);
-extern bk_err_t audio_turn_off(void);
+extern int bk_sconf_trans_start(void);
 extern bk_err_t media_app_ota_disp_open(void);
 extern bk_err_t media_app_ota_disp_close(void);
 extern bk_err_t bk_ota_reponse_state_to_audio(int ota_state);
