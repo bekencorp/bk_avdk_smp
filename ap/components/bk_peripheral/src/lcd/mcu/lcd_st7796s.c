@@ -167,6 +167,7 @@ static const lcd_mcu_t lcd_mcu =
 
 const lcd_device_t lcd_device_st7796s =
 {
+	.id = LCD_DEVICE_ST7796S,
 	.name = "st7796s",
 	.type = LCD_TYPE_MCU8080,
 	.width = 320,
@@ -176,5 +177,3 @@ const lcd_device_t lcd_device_st7796s =
 	.off = st7796s_lcd_off,
 	.out_fmt = PIXEL_FMT_RGB565,
 };
-
-
