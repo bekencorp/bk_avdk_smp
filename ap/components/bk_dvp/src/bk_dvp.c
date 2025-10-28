@@ -1465,6 +1465,7 @@ static void dvp_sensor_reset(uint8_t pwdn_pin, uint8_t reset_pin)
     // pull low pwdn pin, sensor power enable
     if (pwdn_pin != 0xFF)
     {
+        gpio_dev_unmap(pwdn_pin);
         bk_gpio_set_output_high(pwdn_pin);
         bk_gpio_set_output_low(pwdn_pin);
         rtos_delay_milliseconds(10);
@@ -1473,6 +1474,7 @@ static void dvp_sensor_reset(uint8_t pwdn_pin, uint8_t reset_pin)
     // pull up reset pin, sensor reset disable
     if (reset_pin != 0xFF)
     {
+        gpio_dev_unmap(reset_pin);
         bk_gpio_set_output_low(reset_pin);
         bk_gpio_set_output_high(reset_pin);
         rtos_delay_milliseconds(10);
