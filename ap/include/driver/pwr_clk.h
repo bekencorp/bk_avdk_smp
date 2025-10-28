@@ -343,13 +343,15 @@ uint32_t bk_pm_get_cp1_psram_malloc_count();
  * - This API is used to used to pm vote power/clk on psram ctrl
  *
  * @param
- * -module:gpio ctrl ldo module name;gpio_id:gpio id; value: 0x0:GPIO_OUTPUT_STATE_LOW;0x1:GPIO_OUTPUT_STATE_HIGH
+ * -module:module ID (0~31), can use gpio_ctrl_ldo_module_e enum or custom value
+ * -gpio_id:gpio id
+ * -value: 0x0:GPIO_OUTPUT_STATE_LOW;0x1:GPIO_OUTPUT_STATE_HIGH
  * @return
  * - BK_OK: succeed
  * - others: other errors.
  *
  */
-bk_err_t bk_pm_module_vote_ctrl_external_ldo(gpio_ctrl_ldo_module_e module,gpio_id_t gpio_id,gpio_output_state_e value);
+bk_err_t bk_pm_module_vote_ctrl_external_ldo(uint32_t module,gpio_id_t gpio_id,gpio_output_state_e value);
 /**
  * @brief get cpu1 power ctrl state
  *

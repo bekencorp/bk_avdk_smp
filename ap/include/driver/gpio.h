@@ -30,6 +30,39 @@ extern "C" {
  * @{
  */
 
+/**
+ * @brief GPIO LDO Module ID Helper Macros
+ *
+ * These macros help application layer define custom module IDs safely
+ */
+
+/** @brief Define application module ID with offset from APP_BASE */
+#define GPIO_LDO_DEFINE_APP_MODULE(offset) \
+	((uint32_t)(GPIO_CTRL_LDO_MODULE_APP_BASE + (offset)))
+
+/** @brief Check if module ID is valid (0-31) */
+#define GPIO_LDO_MODULE_IS_VALID(id) \
+	((id) < GPIO_CTRL_LDO_MODULE_MAX)
+
+/** @brief Check if module ID is in application range (10-31) */
+#define GPIO_LDO_MODULE_IS_APP_RANGE(id) \
+	(((id) >= GPIO_CTRL_LDO_MODULE_APP_BASE) && ((id) < GPIO_CTRL_LDO_MODULE_MAX))
+
+/**
+ * @example Application layer usage:
+ *
+ * // Define your custom modules using offset
+ * #define MY_MODULE_AUDIO   GPIO_LDO_DEFINE_APP_MODULE(0)  // = 10
+ * #define MY_MODULE_CAMERA  GPIO_LDO_DEFINE_APP_MODULE(1)  // = 11
+ * #define MY_MODULE_SENSOR  GPIO_LDO_DEFINE_APP_MODULE(2)  // = 12
+ *
+ * // Or define directly based on APP_BASE
+ * enum my_ldo_modules {
+ *     MY_MODULE_BT   = GPIO_CTRL_LDO_MODULE_APP_BASE + 0,
+ *     MY_MODULE_WIFI = GPIO_CTRL_LDO_MODULE_APP_BASE + 1,
+ * };
+ */
+
 
 /**
  * @brief     Init the GPIO driver
@@ -346,14 +379,14 @@ bk_err_t bk_gpio_unregister_isr(gpio_id_t id);
  * - This API is used to use the specific gpio(define in  GPIO_CTRL_LDO_MAP in gpio_map.h) control the external ldo(multi modules power on use one gpio control)
  *
  * @param
- * -module:gpio ctrl ldo module name
+ * -module:module ID (0~31), can use gpio_ctrl_ldo_module_e enum or custom value
  * -gpio_id:gpio id
  * -value:gpio output state 
  * @return
  *  - BK_OK: succeed
  *  - others: other errors.
  */
-bk_err_t bk_gpio_ctrl_external_ldo(gpio_ctrl_ldo_module_e module,gpio_id_t gpio_id,gpio_output_state_e value);
+bk_err_t bk_gpio_ctrl_external_ldo(uint32_t module,gpio_id_t gpio_id,gpio_output_state_e value);
 
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
 /**

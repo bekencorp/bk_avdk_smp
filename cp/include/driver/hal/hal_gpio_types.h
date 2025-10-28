@@ -494,15 +494,29 @@ typedef enum {
 
 /**
  * @brief use the gpio ctrl module name
+ *
+ * Module ID allocation:
+ * - SDK Reserved:    0-9   (for system modules)
+ * - Application:    10-31  (for user-defined modules)
+ *
+ * Application layer can define custom modules like:
+ *   #define MY_MODULE_AUDIO  (GPIO_CTRL_LDO_MODULE_APP_BASE + 0)  // 10
+ *   #define MY_MODULE_CAMERA (GPIO_CTRL_LDO_MODULE_APP_BASE + 1)  // 11
  */
 typedef enum
 {
-	GPIO_CTRL_LDO_MODULE_SDIO = 0, // 0
-	GPIO_CTRL_LDO_MODULE_LCD,      // 1
-	GPIO_CTRL_LDO_MODULE_DVP,
-	GPIO_CTRL_LDO_MODULE_USB,
+	/* SDK Reserved Area (0-9) */
+	GPIO_CTRL_LDO_MODULE_SDIO = 0,  /**< SDIO module */
+	GPIO_CTRL_LDO_MODULE_LCD  = 1,  /**< LCD module */
+	GPIO_CTRL_LDO_MODULE_DVP  = 2,  /**< DVP module */
+	GPIO_CTRL_LDO_MODULE_USB  = 3,  /**< USB module */
+	/* Reserved for future SDK modules: 4-9 */
 
-	GPIO_CTRL_LDO_MODULE_MAX
+	GPIO_CTRL_LDO_MODULE_SDK_MAX = 9,    /**< SDK reserved maximum */
+
+	/* Application Area (10-31) */
+	GPIO_CTRL_LDO_MODULE_APP_BASE = 10,  /**< Application module base ID */
+	GPIO_CTRL_LDO_MODULE_MAX = 32        /**< Maximum module ID */
 }gpio_ctrl_ldo_module_e;
 /**
  * @brief gpio output state

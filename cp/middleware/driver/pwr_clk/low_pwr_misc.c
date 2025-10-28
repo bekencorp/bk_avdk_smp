@@ -289,7 +289,7 @@ static bk_err_t bk_gpio_get_ldo_vote_state(gpio_id_t gpio_id, uint32_t *vote_sta
 
 	return BK_OK;
 }
-bk_err_t bk_gpio_ctrl_external_ldo(gpio_ctrl_ldo_module_e module, gpio_id_t gpio_id, gpio_output_state_e value)
+bk_err_t bk_gpio_ctrl_external_ldo(uint32_t module, gpio_id_t gpio_id, gpio_output_state_e value)
 {
 	bk_err_t ret               = BK_OK;
 	uint32_t module_mask       = 0;
