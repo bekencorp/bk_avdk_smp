@@ -214,7 +214,7 @@ static int bk_nw_pro_netif_event_cb(void *arg, event_module_t event_module, int 
              ping_start("baidu.com", 4, 0);
             }
 #endif
-
+            network_status_check_stop_timeout_check();
             if (network_provisioning_status == BK_NETWORK_PROVISIONING_STATUS_RUNNING)
             {
                 if (got_ip->netif_if == 0) {
