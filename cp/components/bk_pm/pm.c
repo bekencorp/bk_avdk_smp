@@ -229,6 +229,11 @@ void pm_hardware_init()
 #if CONFIG_BAKP_POWER_DOMAIN_PM_CONTROL
 	bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_BAKP_PM, PM_POWER_MODULE_STATE_ON);
 #endif
+
+	/*force on psram*/
+#if CONFIG_PM_PSRAM_FORCE_ON
+	bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_ON);
+#endif
 }
 
 bk_err_t pm_module_wakeup_time_set(uint32_t module_name, uint32_t wakeup_time)
@@ -913,12 +918,13 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 			bk_psram_heap_get_used_state();
 		}
 	}
+	#if !CONFIG_PM_PSRAM_FORCE_ON
 	if((cp0_psram_malloc_count == 0)&&(cp1_psram_malloc_count == 0))
 	{
 		bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_AS_MEM,PM_POWER_MODULE_STATE_OFF);
 		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_OFF);
 	}
-
+	#endif
   #endif
 	return BK_OK;
 }
@@ -2479,6 +2485,7 @@ void pm_debug_ctrl(uint32_t debug_en)
 			}
 		}
 		BK_LOGI(NULL,"pm vote freq:%d,%d\r\n",freq_max_index,freq_max);
+		bk_pm_cpu_freq_dump();
 	}
 
 }

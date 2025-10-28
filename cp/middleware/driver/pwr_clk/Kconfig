@@ -76,5 +76,10 @@ menu "PWR_CLK"
 	config PM_LV_GPIO_WAKEUP_CALL_MAC_CB
 		bool "when gpio wakeup , call mac callback when lv sleep mode"
 		default y
+
+	config PM_PSRAM_FORCE_ON
+		bool "force on psram when enter low voltage"
+		default n
+
 	endmenu
 

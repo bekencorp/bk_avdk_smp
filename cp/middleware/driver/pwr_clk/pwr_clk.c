@@ -658,6 +658,7 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 			GLOBAL_INT_DISABLE();
 			s_pm_psram_ctrl_state &= ~(0x1 << (module));
 			GLOBAL_INT_RESTORE();
+			#if !CONFIG_PM_PSRAM_FORCE_ON
 			if(0x0 == s_pm_psram_ctrl_state)
 			{
 				bk_psram_deinit();
@@ -665,6 +666,7 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 				FIXED_ADDR_PSRAM_POWER_DOWN = PM_PSRAM_POWER_DOWN_MAGIC;
                 bk_pm_get_cp1_psram_malloc_count(0x1);
 			}
+			#endif
 		}
 	}
 #endif
@@ -674,7 +676,11 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 bk_err_t pm_debug_pwr_clk_state()
 {
 #if CONFIG_PSRAM
-	BK_LOGI(NULL,"pm_psram:0x%x 0x%x\r\n",s_pm_psram_ctrl_state,bk_psram_heap_init_flag_get());
+	uint8_t psram_config_state = 0;
+	#if CONFIG_PM_PSRAM_FORCE_ON
+		psram_config_state = 1;
+	#endif
+	BK_LOGI(NULL,"pm_psram:0x%x 0x%x[force on:%d]\r\n",s_pm_psram_ctrl_state,bk_psram_heap_init_flag_get(),psram_config_state,psram_config_state);
 #endif
 #if (CONFIG_CPU_CNT > 1)
 	BK_LOGI(NULL,"pm_cp1_ctr:0x%x \r\n",s_pm_cp1_ctrl_state);
