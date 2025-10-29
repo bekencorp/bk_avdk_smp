@@ -353,6 +353,11 @@ extern int mp_do_startup(int heap_len);
 	bk_can_driver_init();
 #endif
 
+#if CONFIG_GSENSOR_ENABLE
+	extern bk_err_t gsensor_demo_init(void);
+	gsensor_demo_init();
+#endif
+
 #if (CONFIG_PSRAM)
 	bk_psram_id_auto_detect();
 #endif
