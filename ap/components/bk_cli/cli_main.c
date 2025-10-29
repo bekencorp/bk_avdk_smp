@@ -1536,6 +1536,14 @@ int bk_cli_init(void)
 	cli_pwm_api_register_cli_test_feature();
 #endif
 
+#if CONFIG_BATTERY_TEST
+        cli_battery_init();
+#endif
+
+#if CONFIG_GSENSOR_TEST_EN
+        cli_gsensor_init();
+#endif
+
 #if (CLI_CFG_EXCEPTION == 1)
 	cli_exception_init();
 #endif

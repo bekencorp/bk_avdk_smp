@@ -147,6 +147,9 @@ int cli_lin_init(void);
 int cli_scr_init(void);
 int cli_psa_crypto_init(void);
 int cli_psa_customization_init();
+int cli_battery_init(void);
+int cli_gsensor_init(void);
+
 extern int hexstr2bin_cli(const char *hex, u8 *buf, size_t len);
 extern int hexstr2bin(const char *hex, u8 *buf, size_t len);
 #if (CONFIG_BUTTON || CONFIG_ADC_KEY)

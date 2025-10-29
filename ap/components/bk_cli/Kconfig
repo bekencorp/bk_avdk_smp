@@ -188,6 +188,11 @@ menu "Bk_cli"
 			bool "Enable Psram Test"
 			default n
 
+		config BATTERY_TEST
+			depends on CLI && BAT_MONITOR
+			bool "Enable Battery Test"
+			default n
+
 		config INTERRUPT_TEST
 			depends on CLI
 			bool "Enable Interrupt Test"

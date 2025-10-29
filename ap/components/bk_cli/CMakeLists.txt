@@ -108,6 +108,11 @@ if (CONFIG_I2C)
 	)
 endif()
 
+if (CONFIG_GSENSOR_TEST_EN)
+	list(APPEND srcs
+		cli_gsensor.c
+	)
+endif()
 
 if (CONFIG_FLASH)
 	list(APPEND srcs
@@ -243,6 +248,10 @@ if (CONFIG_PSRAM_TEST)
 	list(APPEND srcs cli_psram.c)
 endif()
 
+if (CONFIG_BATTERY_TEST)
+	list(APPEND srcs cli_battery.c)
+endif()
+
 if (CONFIG_GET_UID_TEST)
 	list(APPEND srcs cli_uid.c)
 endif()
@@ -299,9 +308,9 @@ if (CONFIG_BK_MODEM)
 	list(APPEND srcs cli_modem.c)
 endif()
 
-set(PRIV_REQUIRES_LIST bk_common psa_mbedtls bk_netif bk_ps fatfs bk_vfs bk_init bk_libs bk_wifi compal ota cmsis flashdb bk_wifi_driver lwip_intf_v2_1 console)
+set(PRIV_REQUIRES_LIST bk_common psa_mbedtls bk_netif bk_ps fatfs bk_vfs bk_init bk_libs bk_wifi compal ota cmsis flashdb bk_wifi_driver lwip_intf_v2_1 console bk_batt_monitor)
 
-armino_component_register(SRCS "${srcs}"
+armino_component_register(SRCS "cli_gsensor.c" "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	REQUIRES utf8 app driver bk_system iperf fatfs http adc_key key bk_websocket cm33 demos
 	#PRIV_REQUIRES airkiss bk_common bk_netif bk_ps
