@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <common/bk_include.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <driver/int.h>
 #include <os/mem.h>
 #include "clock_driver.h"
@@ -29,6 +32,13 @@
 #define PSRAM_4M_SIZE  (0x00400000)
 #define PSRAM_8M_SIZE  (0x00800000)
 #define PSRAM_16M_SIZE (0x01000000)
+
+#define PSRAM_THREAD_STACK_SIZE    3072
+#define PSRAM_THREAD_PRIORITY      4
+#define PSRAM_SEMAPHORE_COUNT      1
+#define PSRAM_ADDRESS_ALIGNMENT    4
+#define PSRAM_BYTES_PER_WORD       4
+#define PSRAM_MAX_STRING_LEN       1024
 
 #define TAG "psram"
 
@@ -53,6 +63,7 @@ static beken_thread_t psram_task = NULL;
 extern void bk_delay_us(uint32_t us);
 static bool s_psram_heap_is_init = false;
 static beken_mutex_t s_psram_mutex = NULL;
+static beken_mutex_t s_psram_channel_mutex = NULL;
 static volatile bool s_psram_init_done = false;
 static uint8_t s_psram_channelmap = 0;
 #define PSRAM_INIT_WAIT_TIMEOUT_MS   100
@@ -105,6 +116,11 @@ bk_err_t bk_psram_set_transfer_mode(psram_tansfer_mode_t transfer_mode)
 psram_write_through_area_t bk_psram_alloc_write_through_channel(void)
 {
 	uint8_t channel = 0;
+	
+	if (s_psram_channel_mutex) {
+		rtos_lock_mutex(&s_psram_channel_mutex);
+	}
+	
 	for (channel = 0; channel < PSRAM_WRITE_THROUGH_AREA_COUNT; channel++)
 	{
 		if ((s_psram_channelmap & (0x1 << channel)) == 0)
@@ -113,20 +129,33 @@ psram_write_through_area_t bk_psram_alloc_write_through_channel(void)
 			break;
 		}
 	}
+	
+	if (s_psram_channel_mutex) {
+		rtos_unlock_mutex(&s_psram_channel_mutex);
+	}
 
 	return channel;
 }
 
 bk_err_t bk_psram_free_write_through_channel(psram_write_through_area_t area)
 {
-	if (area > PSRAM_WRITE_THROUGH_AREA_COUNT)
+	if (area >= PSRAM_WRITE_THROUGH_AREA_COUNT)
 	{
 		MEM_STATIC_LOGE("%s over range failed\r\n", __func__);
-		return BK_OK;
+		return BK_ERR_PARAM;
 	}
 
-	if (s_psram_channelmap & (0x1 << area))
+	if (s_psram_channel_mutex) {
+		rtos_lock_mutex(&s_psram_channel_mutex);
+	}
+	
+	if (s_psram_channelmap & (0x1 << area)) {
 		s_psram_channelmap &= ~(0x1 << area);
+	}
+	
+	if (s_psram_channel_mutex) {
+		rtos_unlock_mutex(&s_psram_channel_mutex);
+	}
 
 	return BK_OK;
 }
@@ -190,7 +219,7 @@ bk_err_t bk_psram_id_auto_detect(void)
 
 	if (s_psram_sem == NULL)
 	{
-		ret = rtos_init_semaphore(&s_psram_sem, 1);
+		ret = rtos_init_semaphore(&s_psram_sem, PSRAM_SEMAPHORE_COUNT);
 		if (ret != BK_OK)
 		{
 			MEM_STATIC_LOGE("%s, init s_psram_sem error\r\n", __func__);
@@ -199,15 +228,15 @@ bk_err_t bk_psram_id_auto_detect(void)
 	}
 
 	ret = rtos_create_thread(&psram_task,
-						 4,
+						 PSRAM_THREAD_PRIORITY,
 						 "psram_task",
 						 (beken_thread_function_t)psram_id_write,
-						 3072,
+						 PSRAM_THREAD_STACK_SIZE,
 						 NULL);
 
 	if (BK_OK != ret)
 	{
-		MEM_STATIC_LOGE("%s psram_task init failed\n");
+		MEM_STATIC_LOGE("%s psram_task init failed, ret:%d\n", __func__, ret);
 		rtos_deinit_semaphore(&s_psram_sem);
 		s_psram_sem = NULL;
 		return ret;
@@ -220,6 +249,7 @@ bk_err_t bk_psram_id_auto_detect(void)
 bk_err_t bk_psram_init(void)
 {
 	bk_err_t ret = BK_OK;
+	int is_skip_mutex = 0;
 
 	if (s_psram_init_done)
 	{
@@ -229,6 +259,7 @@ bk_err_t bk_psram_init(void)
 	if (!rtos_is_scheduler_started())
 	{
 		MEM_STATIC_LOGD("Scheduler not running, skip mutex\n");
+		is_skip_mutex = 1;
 		goto start_init;
 	}
 
@@ -243,6 +274,15 @@ bk_err_t bk_psram_init(void)
 		ret = rtos_init_mutex(&s_psram_mutex);
 		if (ret != BK_OK) {
 			MEM_STATIC_LOGE("Failed to create psram mutex\n");
+			return ret;
+		}
+	}
+	
+	if (s_psram_channel_mutex == NULL)
+	{
+		ret = rtos_init_mutex(&s_psram_channel_mutex);
+		if (ret != BK_OK) {
+			MEM_STATIC_LOGE("Failed to create psram channel mutex\n");
 			return ret;
 		}
 	}
@@ -274,7 +314,9 @@ start_init:
 	actual_id = psram_hal_config_init(chip_id);
 	if (actual_id == 0) {
 		MEM_STATIC_LOGE("%s, fail!\r\n", __func__);
-		rtos_unlock_mutex(&s_psram_mutex);
+		if (!is_skip_mutex) {
+			rtos_unlock_mutex(&s_psram_mutex);
+		}
 		return BK_FAIL;
 	}
 
@@ -320,7 +362,9 @@ start_init:
 
 	s_psram_init_done = true;
 
-	rtos_unlock_mutex(&s_psram_mutex);
+	if (!is_skip_mutex) {
+		rtos_unlock_mutex(&s_psram_mutex);
+	}
 	MEM_STATIC_LOGD("PSRAM init success\n");
 	return BK_OK;
 }
@@ -346,14 +390,15 @@ bk_err_t bk_psram_memcpy(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 
 	PSRAM_RETURN_ON_SERVER_NOT_INIT();
 
-	if (((uint32_t)start_addr & 0x3) != 0 || ((uint32_t)data_buf & 0x3) != 0)
+	if (((uint32_t)start_addr & (PSRAM_ADDRESS_ALIGNMENT - 1)) != 0 || 
+	    ((uint32_t)data_buf & (PSRAM_ADDRESS_ALIGNMENT - 1)) != 0)
 	{
-		MEM_STATIC_LOGE("address not aligen 4 byte\r\n");
+		MEM_STATIC_LOGE("address not aligned to %d bytes\r\n", PSRAM_ADDRESS_ALIGNMENT);
 		return BK_FAIL;
 	}
 
 	while (len) {
-		if (len < 4) {
+		if (len < PSRAM_BYTES_PER_WORD) {
 			val = *((uint32_t *)(start_addr));
 			pb = (uint8_t *)&val;
 			pd = (uint8_t *)data_buf;
@@ -363,10 +408,11 @@ bk_err_t bk_psram_memcpy(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 			*(uint32_t *)(start_addr) = val;
 			len = 0;
 		} else {
-			val = *data_buf++;
+			val = *((uint32_t *)data_buf);
 			*(uint32_t *)(start_addr) = val;
-			start_addr += 4;
-			len -= 4;
+			data_buf += PSRAM_BYTES_PER_WORD;
+			start_addr += PSRAM_BYTES_PER_WORD;
+			len -= PSRAM_BYTES_PER_WORD;
 		}
 	}
 
@@ -381,14 +427,15 @@ bk_err_t bk_psram_memread(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 
 	PSRAM_RETURN_ON_SERVER_NOT_INIT();
 
-	if (((uint32_t)start_addr & 0x3) != 0 || ((uint32_t)data_buf & 0x3) != 0)
+	if (((uint32_t)start_addr & (PSRAM_ADDRESS_ALIGNMENT - 1)) != 0 || 
+	    ((uint32_t)data_buf & (PSRAM_ADDRESS_ALIGNMENT - 1)) != 0)
 	{
-		MEM_STATIC_LOGE("address not aligen 4 byte\r\n");
+		MEM_STATIC_LOGE("address not aligned to %d bytes\r\n", PSRAM_ADDRESS_ALIGNMENT);
 		return BK_FAIL;
 	}
 
 	while (len) {
-		if (len < 4) {
+		if (len < PSRAM_BYTES_PER_WORD) {
 			val = *((uint32_t *)(start_addr));
 			pb = (uint8_t *)&val;
 			pd = (uint8_t *)data_buf;
@@ -397,10 +444,11 @@ bk_err_t bk_psram_memread(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 			}
 			len = 0;
 		} else {
-			*(uint32_t *)(start_addr) = val;
-			*data_buf++ = val;
-			start_addr += 4;
-			len -= 4;
+			val = *((uint32_t *)(start_addr));
+			*((uint32_t *)data_buf) = val;
+			data_buf += PSRAM_BYTES_PER_WORD;
+			start_addr += PSRAM_BYTES_PER_WORD;
+			len -= PSRAM_BYTES_PER_WORD;
 		}
 	}
 
@@ -409,42 +457,62 @@ bk_err_t bk_psram_memread(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 
 char *bk_psram_strcat(char *start_addr, const char *data_buf)
 {
-	int i;
+	int i, j;
 	uint32_t val;
 	uint8_t *pb;
 	uint8_t *pd = (uint8_t *)data_buf;
+	uint32_t max_iterations = PSRAM_MAX_STRING_LEN / PSRAM_BYTES_PER_WORD;
+	uint32_t iteration_count = 0;
 
 	if (!s_psram_init_done) {
 		return NULL;
 	}
 
-	if(*pd == '\0')
-	{
+	if (start_addr == NULL || data_buf == NULL) {
+		return NULL;
+	}
+
+	if (*pd == '\0') {
 		return start_addr;
 	}
-	do
-	{
-		val = *(uint32_t *)(start_addr);
+
+	do {
+		if (iteration_count++ > max_iterations) {
+			MEM_STATIC_LOGE("String too long or no null terminator found\r\n");
+			return NULL;
+		}
+		
+		val = *((uint32_t *)(start_addr));
 		pb = (uint8_t *)&val;
-		for (i = 0; i < 4; i++) {
-			if(*(pb+i) == '\0')
-			{
-				if(*pd == '\0')
-				{
-					*(pb+i) = *pd;
-					break;
+		
+		// Find the end of the existing string
+		for (i = 0; i < PSRAM_BYTES_PER_WORD; i++) {
+			if (*(pb + i) == '\0') {
+				// Found end of existing string, append new data
+				for (j = i; j < PSRAM_BYTES_PER_WORD && *pd != '\0'; j++) {
+					*(pb + j) = *pd++;
 				}
-				*(pb+i) = *pd++;
+				
+				// If we've reached the end of the input string, add null terminator
+				if (*pd == '\0' && j < PSRAM_BYTES_PER_WORD) {
+					*(pb + j) = '\0';
+				}
+				
+				*((uint32_t *)(start_addr)) = val;
+				
+				if (*pd == '\0') {
+					return start_addr;
+				}
+				break;
 			}
 		}
-		*(uint32_t *)(start_addr) = val;
-
-		if(*pd == '\0')
-		{
-			break;
+		
+		// If no null terminator found in this word, move to next word
+		if (i == PSRAM_BYTES_PER_WORD) {
+			start_addr += PSRAM_BYTES_PER_WORD;
 		}
-		start_addr += 4;
-	} while(true);
+		
+	} while (*pd != '\0');
 
 	return start_addr;
 }

@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <common/bk_include.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <driver/int.h>
 #include <os/mem.h>
 #include "clock_driver.h"
@@ -26,6 +29,11 @@
 #endif
 
 #define PSRAM_CHECK_FLAG   0x3CA5C3A5
+
+#define PSRAM_ADDRESS_ALIGNMENT    4
+#define PSRAM_BYTES_PER_WORD       4
+#define PSRAM_MAX_STRING_LEN       1024
+
 typedef struct {
 	uint32_t psram_id;
 	uint32_t magic_code;
@@ -40,10 +48,9 @@ static beken_thread_t psram_task = NULL;
 extern void bk_delay_us(uint32_t us);
 static bool s_psram_server_is_init = false;
 static bool s_psram_heap_is_init = false;
+static beken_mutex_t s_psram_channel_mutex = NULL;
 static uint8_t s_psram_channelmap = 0;
-#if (0)
-static psram_flash_t s_psram_id = {0};
-#endif
+
 #define PSRAM_RETURN_ON_SERVER_NOT_INIT() do {\
 				if (!s_psram_server_is_init) {\
 					return BK_ERR_PSRAM_SERVER_NOT_INIT;\
@@ -90,6 +97,21 @@ bk_err_t bk_psram_set_transfer_mode(psram_tansfer_mode_t transfer_mode)
 psram_write_through_area_t bk_psram_alloc_write_through_channel(void)
 {
 	uint8_t channel = 0;
+	bk_err_t ret = BK_OK;
+	
+	if (s_psram_channel_mutex == NULL)
+	{
+		ret = rtos_init_mutex(&s_psram_channel_mutex);
+		if (ret != BK_OK) {
+			PSRAM_LOGE("Failed to create psram channel mutex\n");
+			return channel;
+		}
+	}
+
+	if (s_psram_channel_mutex) {
+		rtos_lock_mutex(&s_psram_channel_mutex);
+	}
+	
 	for (channel = 0; channel < PSRAM_WRITE_THROUGH_AREA_COUNT; channel++)
 	{
 		if ((s_psram_channelmap & (0x1 << channel)) == 0)
@@ -98,20 +120,33 @@ psram_write_through_area_t bk_psram_alloc_write_through_channel(void)
 			break;
 		}
 	}
+	
+	if (s_psram_channel_mutex) {
+		rtos_unlock_mutex(&s_psram_channel_mutex);
+	}
 
 	return channel;
 }
 
 bk_err_t bk_psram_free_write_through_channel(psram_write_through_area_t area)
 {
-	if (area > PSRAM_WRITE_THROUGH_AREA_COUNT)
+	if (area >= PSRAM_WRITE_THROUGH_AREA_COUNT)
 	{
 		PSRAM_LOGE("%s over range failed\r\n", __func__);
-		return BK_OK;
+		return BK_ERR_PARAM;
 	}
 
-	if (s_psram_channelmap & (0x1 << area))
+	if (s_psram_channel_mutex) {
+		rtos_lock_mutex(&s_psram_channel_mutex);
+	}
+	
+	if (s_psram_channelmap & (0x1 << area)) {
 		s_psram_channelmap &= ~(0x1 << area);
+	}
+	
+	if (s_psram_channel_mutex) {
+		rtos_unlock_mutex(&s_psram_channel_mutex);
+	}
 
 	return BK_OK;
 }
@@ -136,155 +171,23 @@ bk_err_t bk_psram_calibrate(void)
 #endif
 }
 
-#if (CONFIG_PSRAM_AUTO_DETECT)
-static void psram_id_write(beken_thread_arg_t data)
-{
-	rtos_get_semaphore(&s_psram_sem, BEKEN_WAIT_FOREVER);
-
-	if (s_psram_id_need_write)
-	{
-		bk_set_env_enhance(PSRAM_CHIP_ID, (const void *)&s_psram_id, sizeof(psram_flash_t));
-	}
-
-	PSRAM_LOGD("psram id write to flash success\r\n");
-
-	s_psram_id_need_write = false;
-
-	rtos_deinit_semaphore(&s_psram_sem);
-	s_psram_sem = NULL;
-
-	psram_task = NULL;
-	rtos_delete_thread(NULL);
-}
-#endif
 
 bk_err_t bk_psram_id_auto_detect(void)
 {
-#if (CONFIG_PSRAM_AUTO_DETECT)
-	int ret = bk_get_env_enhance(PSRAM_CHIP_ID, (void *)&s_psram_id, sizeof(psram_flash_t));
-
-	if (ret != 8)
-	{
-		PSRAM_LOGW("%s, %d ret:%d read error\r\n", __func__, sizeof(psram_flash_t), ret);
-	}
-
-	if (s_psram_id.magic_code == PSRAM_CHECK_FLAG)
-	{
-		return BK_OK;
-	}
-
-	if (s_psram_sem == NULL)
-	{
-		ret = rtos_init_semaphore(&s_psram_sem, 1);
-		if (ret != BK_OK)
-		{
-			PSRAM_LOGE("%s, init s_psram_sem error\r\n", __func__);
-			return ret;
-		}
-	}
-
-	ret = rtos_create_thread(&psram_task,
-						 4,
-						 "psram_task",
-						 (beken_thread_function_t)psram_id_write,
-						 3072,
-						 NULL);
-
-	if (BK_OK != ret)
-	{
-		PSRAM_LOGE("%s psram_task init failed\n");
-		rtos_deinit_semaphore(&s_psram_sem);
-		s_psram_sem = NULL;
-		return ret;
-	}
-#endif
-
-	return BK_OK;
+	//psram only init in cp, so return BK_FAIL
+	return BK_FAIL;
 }
 
 bk_err_t bk_psram_init(void)
 {
-#if (0)
-	if (s_psram_server_is_init) {
-		return BK_OK;
-	}
-
-	uint32_t chip_id = 0, actual_id = 0;
-
-	// psram voltage sel
-	bk_psram_set_voltage(PSRAM_OUT_1_95V);
-
-	// power up and clk config
-	psram_hal_power_clk_enable(1);
-
-	if (s_psram_id.magic_code == PSRAM_CHECK_FLAG)
-	{
-		chip_id = s_psram_id.psram_id;
-	}
-
-	PSRAM_LOGD("%s, chip_id:%x\r\n", __func__, chip_id);
-
-	// psram config
-	actual_id =  psram_hal_config_init(chip_id);
-
-	if (actual_id == 0)
-	{
-		PSRAM_LOGE("%s, fail!\r\n", __func__);
-		return BK_FAIL;
-	}
-
-	bk_delay_us(1000);
-	// set psram clk
-	bk_psram_set_clk(PSRAM_120M);
-
-	PSRAM_LOGD("%s, %x-%x\r\n", __func__, actual_id, chip_id);
-
-	if (actual_id != chip_id)
-	{
-		s_psram_id.psram_id = actual_id;
-		s_psram_id.magic_code = PSRAM_CHECK_FLAG;
-#if (CONFIG_PSRAM_AUTO_DETECT)
-		if (s_psram_sem)
-		{
-			s_psram_id_need_write = true;
-
-			rtos_set_semaphore(&s_psram_sem);
-		}
-#endif
-	}
-	else
-	{
-#if (CONFIG_PSRAM_AUTO_DETECT)
-		if (s_psram_sem)
-		{
-			rtos_set_semaphore(&s_psram_sem);
-		}
-#endif
-	}
-
-	s_psram_server_is_init = true;
-
-	return BK_OK;
-#else
+	//psram only init in cp, so return BK_FAIL
 	return BK_FAIL;
-#endif
 }
 
 bk_err_t bk_psram_deinit(void)
 {
-#if (0)
-	if (!s_psram_server_is_init) {
-		return BK_OK;
-	}
-
-	psram_hal_power_clk_enable(0);
-
-	s_psram_server_is_init = false;
-
-	return BK_OK;
-#else
+	//psram only init in cp, so return BK_FAIL
 	return BK_FAIL;
-#endif
 }
 
 bk_err_t bk_psram_memcpy(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
@@ -295,14 +198,15 @@ bk_err_t bk_psram_memcpy(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 
 	PSRAM_RETURN_ON_SERVER_NOT_INIT();
 
-	if (((uint32_t)start_addr & 0x3) != 0 || ((uint32_t)data_buf & 0x3) != 0)
+	if (((uint32_t)start_addr & (PSRAM_ADDRESS_ALIGNMENT - 1)) != 0 || 
+	    ((uint32_t)data_buf & (PSRAM_ADDRESS_ALIGNMENT - 1)) != 0)
 	{
-		PSRAM_LOGE("address not aligen 4 byte\r\n");
+		PSRAM_LOGE("address not aligned to %d bytes\r\n", PSRAM_ADDRESS_ALIGNMENT);
 		return BK_FAIL;
 	}
 
 	while (len) {
-		if (len < 4) {
+		if (len < PSRAM_BYTES_PER_WORD) {
 			val = *((uint32_t *)(start_addr));
 			pb = (uint8_t *)&val;
 			pd = (uint8_t *)data_buf;
@@ -312,10 +216,11 @@ bk_err_t bk_psram_memcpy(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 			*(uint32_t *)(start_addr) = val;
 			len = 0;
 		} else {
-			val = *data_buf++;
+			val = *((uint32_t *)data_buf);
 			*(uint32_t *)(start_addr) = val;
-			start_addr += 4;
-			len -= 4;
+			data_buf += PSRAM_BYTES_PER_WORD;
+			start_addr += PSRAM_BYTES_PER_WORD;
+			len -= PSRAM_BYTES_PER_WORD;
 		}
 	}
 
@@ -330,14 +235,15 @@ bk_err_t bk_psram_memread(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 
 	PSRAM_RETURN_ON_SERVER_NOT_INIT();
 
-	if (((uint32_t)start_addr & 0x3) != 0 || ((uint32_t)data_buf & 0x3) != 0)
+	if (((uint32_t)start_addr & (PSRAM_ADDRESS_ALIGNMENT - 1)) != 0 || 
+	    ((uint32_t)data_buf & (PSRAM_ADDRESS_ALIGNMENT - 1)) != 0)
 	{
-		PSRAM_LOGE("address not aligen 4 byte\r\n");
+		PSRAM_LOGE("address not aligned to %d bytes\r\n", PSRAM_ADDRESS_ALIGNMENT);
 		return BK_FAIL;
 	}
 
 	while (len) {
-		if (len < 4) {
+		if (len < PSRAM_BYTES_PER_WORD) {
 			val = *((uint32_t *)(start_addr));
 			pb = (uint8_t *)&val;
 			pd = (uint8_t *)data_buf;
@@ -346,10 +252,11 @@ bk_err_t bk_psram_memread(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 			}
 			len = 0;
 		} else {
-			*(uint32_t *)(start_addr) = val;
-			*data_buf++ = val;
-			start_addr += 4;
-			len -= 4;
+			val = *((uint32_t *)(start_addr));
+			*((uint32_t *)data_buf) = val;
+			data_buf += PSRAM_BYTES_PER_WORD;
+			start_addr += PSRAM_BYTES_PER_WORD;
+			len -= PSRAM_BYTES_PER_WORD;
 		}
 	}
 
@@ -358,42 +265,62 @@ bk_err_t bk_psram_memread(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 
 char *bk_psram_strcat(char *start_addr, const char *data_buf)
 {
-	int i;
+	int i, j;
 	uint32_t val;
 	uint8_t *pb;
 	uint8_t *pd = (uint8_t *)data_buf;
+	uint32_t max_iterations = PSRAM_MAX_STRING_LEN / PSRAM_BYTES_PER_WORD;
+	uint32_t iteration_count = 0;
 
 	if (!s_psram_server_is_init) {
 		return NULL;
 	}
 
-	if(*pd == '\0')
-	{
+	if (start_addr == NULL || data_buf == NULL) {
+		return NULL;
+	}
+
+	if (*pd == '\0') {
 		return start_addr;
 	}
-	do
-	{
-		val = *(uint32_t *)(start_addr);
+
+	do {
+		if (iteration_count++ > max_iterations) {
+			PSRAM_LOGE("String too long or no null terminator found\r\n");
+			return NULL;
+		}
+		
+		val = *((uint32_t *)(start_addr));
 		pb = (uint8_t *)&val;
-		for (i = 0; i < 4; i++) {
-			if(*(pb+i) == '\0')
-			{
-				if(*pd == '\0')
-				{
-					*(pb+i) = *pd;
-					break;
+		
+		// Find the end of the existing string
+		for (i = 0; i < PSRAM_BYTES_PER_WORD; i++) {
+			if (*(pb + i) == '\0') {
+				// Found end of existing string, append new data
+				for (j = i; j < PSRAM_BYTES_PER_WORD && *pd != '\0'; j++) {
+					*(pb + j) = *pd++;
 				}
-				*(pb+i) = *pd++;
+				
+				// If we've reached the end of the input string, add null terminator
+				if (*pd == '\0' && j < PSRAM_BYTES_PER_WORD) {
+					*(pb + j) = '\0';
+				}
+				
+				*((uint32_t *)(start_addr)) = val;
+				
+				if (*pd == '\0') {
+					return start_addr;
+				}
+				break;
 			}
 		}
-		*(uint32_t *)(start_addr) = val;
-
-		if(*pd == '\0')
-		{
-			break;
+		
+		// If no null terminator found in this word, move to next word
+		if (i == PSRAM_BYTES_PER_WORD) {
+			start_addr += PSRAM_BYTES_PER_WORD;
 		}
-		start_addr += 4;
-	} while(true);
+		
+	} while (*pd != '\0');
 
 	return start_addr;
 }
