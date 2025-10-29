@@ -116,6 +116,9 @@ bk_err_t bk_get_mac(uint8_t *mac, mac_type_t type);
 void bk_reboot(void);
 void bk_reboot_ex(uint32_t reset_reason);
 
+typedef void (*reboot_callback_func)(void);
+void bk_reboot_callback_register(reboot_callback_func func);
+
 int bk_tick_init(void);
 int bk_tick_reload(uint32_t time_ms);
 void bk_tick_handle(uint8_t arg);

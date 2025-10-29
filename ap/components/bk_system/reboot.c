@@ -30,6 +30,31 @@
 #define TAG "sys"
 
 
+#define REBOOT_CALLBACK_FUNC_MAX  8
+static reboot_callback_func s_reboot_cb[REBOOT_CALLBACK_FUNC_MAX] = {NULL};
+
+static void bk_reboot_callback_exe(void)
+{
+	for (size_t i = 0; i < REBOOT_CALLBACK_FUNC_MAX; i++) {
+		if (s_reboot_cb[i] != NULL) {
+			s_reboot_cb[i]();
+		}
+	}
+
+}
+
+void bk_reboot_callback_register(reboot_callback_func func)
+{
+
+	for (size_t i = 0; i < REBOOT_CALLBACK_FUNC_MAX; i++) {
+		if (s_reboot_cb[i] == NULL) {
+			s_reboot_cb[i] = func;
+			return;
+		}
+	}
+	BK_LOGE(TAG, "number of reboot callback function is up to max.\r\n");
+}
+
 void bk_reboot_ex(uint32_t reset_reason)
 {
 	BK_LOGD(TAG, "cpu1 reboot\r\n");
@@ -37,6 +62,9 @@ void bk_reboot_ex(uint32_t reset_reason)
 	if(reset_reason < RESET_SOURCE_UNKNOWN) {
 		bk_misc_set_reset_reason(reset_reason);
 	}
+
+	bk_reboot_callback_exe();
+	
 	ipc_send_cpu1_need_reboot();
 	while(1);
 }
