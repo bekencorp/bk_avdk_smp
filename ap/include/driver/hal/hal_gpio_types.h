@@ -511,8 +511,10 @@ typedef enum
 	GPIO_CTRL_LDO_MODULE_LCD  = 1,  /**< LCD module */
 	GPIO_CTRL_LDO_MODULE_DVP  = 2,  /**< DVP module */
 	GPIO_CTRL_LDO_MODULE_USB  = 3,  /**< USB module */
-	/* Reserved for future SDK modules: 4-9 */
+	GPIO_CTRL_LDO_MODULE_MOTOR = 4, /**< Motor module */
+	GPIO_CTRL_LDO_MODULE_NFC = 5, /**< NFC module */
 
+	/* Reserved for future SDK modules: 6-9 */
 	GPIO_CTRL_LDO_MODULE_SDK_MAX = 9,    /**< SDK reserved maximum */
 
 	/* Application Area (10-31) */
