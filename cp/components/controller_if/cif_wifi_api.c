@@ -7,6 +7,7 @@
 #include "cif_wifi_api.h"
 #include "cif_main.h"
 #include "cif_ipc.h"
+#include "wifi_v2.h"
 #if CONFIG_BK_RAW_LINK
 #include <modules/raw_link.h>
 #include "cif_raw_link_api.h"

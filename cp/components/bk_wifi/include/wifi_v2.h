@@ -71,7 +71,7 @@ void bk_wifi_media_dtim(void);
 bool wifi_sta_is_started(void);
 bool wifi_ap_is_started(void);
 void bk_wifi_ota_dtim(bool is_open);
-
+bk_err_t bk_wifi_free_get_sta_list_memory(wlan_ap_stas_t *stas);
 #ifdef __cplusplus
 }
 #endif
