@@ -342,21 +342,26 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
                 } else {
                     lv_dma_memcpy_wait_transfer_finish();
                 }
-            }
 
-            if (lv_new_frame_flag) {
-                if (disp_buf == NULL) {
-                    do {
-                        disp_buf = lv_vendor_get_ready_frame_buffer();
-                        if (disp_buf != NULL) {
-                            break;
-                        }
-                    } while (disp_buf == NULL);
-                } else {
-                    disp_buf = copy_buf;
-                    copy_buf = NULL;
+                if (lv_new_frame_flag) {
+                    if (disp_buf == NULL) {
+                        do {
+                            disp_buf = lv_vendor_get_ready_frame_buffer();
+                            if (disp_buf != NULL) {
+                                break;
+                            }
+                        } while (disp_buf == NULL);
+                    } else {
+                        disp_buf = copy_buf;
+                        copy_buf = NULL;
+                    }
+                    lv_new_frame_flag = false;
                 }
-                lv_new_frame_flag = false;
+            } else {
+                if (lv_new_frame_flag) {
+                    disp_buf = vendor_config.frame_buffer[0];
+                    lv_new_frame_flag = false;
+                }
             }
 
             #if (LV_COLOR_DEPTH == 32)

@@ -317,7 +317,7 @@ bk_err_t lv_png_img_load(char *filename, lv_img_dsc_t *img_dst)
     }
 
     memcpy(&img_dst->header, &img_decoder_dsc.header, sizeof(lv_img_header_t));
-    img_dst->data_size = lv_img_get_filelen(filename);
+    img_dst->data_size = img_decoder_dsc.header.w * img_decoder_dsc.header.h * 4;
     img_dst->data = img_decoder_dsc.img_data;
     lv_mem_free((void *)img_decoder_dsc.src);
 
