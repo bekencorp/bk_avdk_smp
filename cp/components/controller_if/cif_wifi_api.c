@@ -536,6 +536,16 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_wifi_set_ap_channel_stop();
             break;
         }
+        case AP_GET_STA_LIST:
+        {
+            ret = bk_wifi_ap_get_sta_list((wlan_ap_stas_t *)arg_info->args[0]);
+            break;
+        }
+        case FREE_GET_STA_LIST_MEMORY:
+        {
+            ret = bk_wifi_free_get_sta_list_memory((wlan_ap_stas_t *)arg_info->args[0]);
+            break;
+        }
 #if CONFIG_BRIDGE
         case CHECK_CLIENT_MAC_CONNECTED:
         {

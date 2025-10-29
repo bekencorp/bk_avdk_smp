@@ -368,6 +368,44 @@ void wifi_cli_hidden_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 
 }
 
+void wifi_cli_ap_get_sta_list_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	int ret = 0;
+	char *msg = NULL;
+
+	if (argc == 1) {
+		wlan_ap_stas_t stas = {0};
+		ret = bk_wifi_ap_get_sta_list(&stas);
+		if (0 == ret) {
+			for (int i = 0; i < stas.num; i++) {
+				CLI_LOGD("sta %d: addr %02X:%02X:%02X:%02X:%02X:%02X\n", i, stas.sta[i].addr[0], stas.sta[i].addr[1], 
+					stas.sta[i].addr[2], stas.sta[i].addr[3], stas.sta[i].addr[4], stas.sta[i].addr[5]);
+				CLI_LOGD("sta %d: rssi %d\n", i, stas.sta[i].rssi);
+				CLI_LOGD("sta %d: ip %d.%d.%d.%d\n", i, (stas.sta[i].ipaddr & 0xFF), (stas.sta[i].ipaddr >> 8) & 0xFF,
+					(stas.sta[i].ipaddr >> 16) & 0xFF, (stas.sta[i].ipaddr >> 24) & 0xFF);
+			}
+		}
+		else {
+			CLI_LOGW("get sta list failed\r\n");
+			goto error;
+		}
+	}
+	else {
+		CLI_LOGW("bad parameters\r\n");
+		goto error;
+	}
+
+	if (!ret) {
+		msg = WIFI_CMD_RSP_SUCCEED;
+		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+		return;
+	}
+error:
+	msg = WIFI_CMD_RSP_ERROR;
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+	return;
+}
+
 void wifi_cli_stop_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	int ret = 0;
@@ -2529,6 +2567,7 @@ static const struct cli_command s_wifi_debug_commands[] = {
 	{"ipdbg", "ipdbg [function][value]", wifi_cli_ipdbg_cmd},
 	//{"mem_apply", "mem_apply [module][value]", wifi_cli_mem_apply_cmd},
 	{"ps_debug", "ps enable and debug info config", wifi_cli_ps_debug_cmd},
+	{"ap_get_sta_list", "ap_get_sta_list", wifi_cli_ap_get_sta_list_cmd},
 
 #ifdef CONFIG_WPA_TWT_TEST
 	{"twt", "twt {setup|teardown}", wifi_cli_twt_cmd},

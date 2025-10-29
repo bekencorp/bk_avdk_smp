@@ -3348,6 +3348,21 @@ bk_err_t bk_wifi_ap_get_sta_list(wlan_ap_stas_t *stas)
 	return wlan_ap_sta_info(stas);
 }
 
+bk_err_t bk_wifi_free_get_sta_list_memory(wlan_ap_stas_t *stas)
+{
+	if (stas == NULL) {
+		//WIFI_LOGW("%s failed, invalid stas\r\n", __func__);
+		return BK_ERR_PARAM;
+	}
+
+	if (stas->sta) {
+		os_free(stas->sta);
+		stas->sta = NULL;
+	}
+
+	return BK_OK;
+}
+
 bk_err_t bk_wifi_calculate_pmk(const char *ssid, const char *pwd, char *pmk)
 {
 	uint8_t tmp_pmk[32] = {0};

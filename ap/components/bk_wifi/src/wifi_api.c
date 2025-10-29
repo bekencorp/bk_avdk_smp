@@ -582,6 +582,89 @@ bk_err_t bk_wifi_ap_stop(void)
     return BK_OK;
 }
 
+bk_err_t bk_wifi_free_get_sta_list_memory(wlan_ap_stas_t *stas)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wlan_ap_stas_t);
+
+    if (stas == NULL) {
+        WIFI_LOGW("%s failed, invalid stas\r\n", __func__);
+        return BK_ERR_PARAM;
+    }
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGW("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memcpy(buffer_to_ipc, stas, len);
+    ret = wifi_send_com_api_cmd(FREE_GET_STA_LIST_MEMORY, 1, (uint32_t)buffer_to_ipc);
+
+    if (ret != BK_OK) {
+        WIFI_LOGW("%s wifi_send_com_api_cmd failed with error %d\r\n", __func__, ret);
+    }
+
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_ap_get_sta_list(wlan_ap_stas_t *stas)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len = sizeof(wlan_ap_stas_t);
+
+    if (stas == NULL) {
+        WIFI_LOGW("%s failed, invalid stas\r\n", __func__);
+        return BK_ERR_PARAM;
+    }
+    os_memset(stas, 0, sizeof(*stas));
+
+    buffer_to_ipc = os_malloc(len);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGW("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(buffer_to_ipc, 0, len);
+    ret = wifi_send_com_api_cmd(AP_GET_STA_LIST, 1, (uint32_t)buffer_to_ipc);
+
+    if(ret == BK_OK) {
+        stas->num = ((struct wlan_ap_stas *)buffer_to_ipc)->num;
+        if(stas->num > 0) {
+            /// malloc the cp sta list to ap
+            wlan_ap_sta_t *sta_list = os_malloc(stas->num * sizeof(wlan_ap_sta_t));
+            if (NULL != sta_list) {
+                os_memcpy(sta_list, ((struct wlan_ap_stas *)buffer_to_ipc)->sta, stas->num * sizeof(wlan_ap_sta_t));
+                stas->sta = sta_list;
+                WIFI_LOGV("ap get sta list: %d\n", stas->num);
+                for (int i = 0; i < stas->num; i++) {
+                    WIFI_LOGV("sta %d: addr %02X:%02X:%02X:%02X:%02X:%02X\n", i, stas->sta[i].addr[0], stas->sta[i].addr[1], 
+                        stas->sta[i].addr[2], stas->sta[i].addr[3], stas->sta[i].addr[4], stas->sta[i].addr[5]);
+                    WIFI_LOGV("sta %d: rssi %d\n", i, stas->sta[i].rssi);
+                    WIFI_LOGV("sta %d: ip %d.%d.%d.%d\n", i, (stas->sta[i].ipaddr & 0xFF), (stas->sta[i].ipaddr >> 8) & 0xFF,
+                        (stas->sta[i].ipaddr >> 16) & 0xFF, (stas->sta[i].ipaddr >> 24) & 0xFF);
+                }
+            } else {
+                WIFI_LOGW("%s malloc sta list failed\r\n", __func__);
+                ret = BK_ERR_NO_MEM;
+            }
+
+            /// free the cp sta list memory
+            bk_wifi_free_get_sta_list_memory(buffer_to_ipc);
+        }
+    }
+
+    if(buffer_to_ipc) 
+        os_free(buffer_to_ipc);
+    return ret;
+}
+
 #endif
 
 bk_err_t bk_wifi_ap_get_config(wifi_ap_config_t *ap_config)
@@ -604,13 +687,13 @@ bk_err_t bk_wifi_set_ap_channel(uint8_t channel)
     WIFI_LOGI("bk_wifi_set_ap_channel:%d\r\n", channel);
 
     if ((channel < 1) || (channel > 14)) {
-        WDRV_LOGW("please input the valid param, channel:%d\n", channel);
+        WIFI_LOGW("please input the valid param, channel:%d\n", channel);
         return BK_FAIL;
     }
 
     ret = wifi_send_com_api_cmd(AP_SET_CHANNEL, 1, channel);
     if (ret != BK_OK) {
-        WDRV_LOGW("ap set channel fail ret %d\n", ret);
+        WIFI_LOGI("ap set channel fail ret %d\n", ret);
     }
 
     return ret;
@@ -624,7 +707,7 @@ bk_err_t bk_wifi_set_ap_csa_cnt(uint8_t csa_cnt)
 
     ret = wifi_send_com_api_cmd(AP_SET_CSA_COUNT, 1, csa_cnt);
     if (ret != BK_OK) {
-        WDRV_LOGW("ap set csa cnt fail ret %d\n", ret); 
+        WIFI_LOGW("ap set csa cnt fail ret %d\n", ret); 
     }
 
     return ret;
@@ -638,7 +721,7 @@ bk_err_t bk_wifi_set_ap_channel_stop(void)
 
     ret = wifi_send_com_api_cmd(AP_SET_CHANNEL_STOP, 0);
     if (ret != BK_OK) {
-        WDRV_LOGW("ap set channel stop fail ret %d\n", ret);
+        WIFI_LOGW("ap set channel stop fail ret %d\n", ret);
     }
 
     return ret;
