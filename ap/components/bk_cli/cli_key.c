@@ -19,6 +19,10 @@ static void gpio_key_hold_press_cb()
 {
 	CLI_LOGD("HOLD Demo: GPIO Key Hold Press\r\n");
 }
+static void gpio_key_long_press_up_cb()
+{
+	CLI_LOGI("HOLD Demo: GPIO Key Long Press Up\r\n");
+}
 static void cli_gpio_key_demo_test(char * pcWriteBuffer, int xWriteBufferLen, int argc, char * *argv)
 {
 
@@ -45,7 +49,7 @@ static void cli_gpio_key_demo_test(char * pcWriteBuffer, int xWriteBufferLen, in
 				CLI_LOGD("gpio_key Please fill in the correct information\n");
 			}
 		}
-		ret = key_item_configure(gpio_id,avtive_level,gpio_key_short_press_cb,gpio_key_double_press_cb,gpio_key_long_press_cb,gpio_key_hold_press_cb);
+		ret = key_item_configure(gpio_id,avtive_level,gpio_key_short_press_cb,gpio_key_double_press_cb,gpio_key_long_press_cb,gpio_key_hold_press_cb,gpio_key_long_press_up_cb);
 		CLI_LOGD("gpio_key Configure gpio:%d ret:%d\n", gpio_id, ret);
 	} else if(os_strcmp(argv[1], "unconfigure") == 0) {
 		uint32_t gpio_id = SOC_GPIO_NUM;
