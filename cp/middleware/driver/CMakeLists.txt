@@ -88,6 +88,26 @@ if (CONFIG_AON_WDT)
 	)
 endif()
 
+if (CONFIG_GPIO_API_TEST)
+	list(APPEND srcs gpio/cli_gpio_api.c)
+endif()
+
+if (CONFIG_WDT_API_TEST)
+	list(APPEND srcs wdt/cli_wdt_api.c)
+endif()
+
+if (CONFIG_UART_API_TEST)
+	list(APPEND srcs uart/cli_uart_api.c)
+endif()
+
+if(CONFIG_SPI_API_TEST)
+	list(APPEND srcs spi/cli_spi_api.c)
+endif()
+
+if (CONFIG_FLASH_API_TEST)
+	list(APPEND srcs flash/cli_flash_api.c)
+endif()
+
 if (CONFIG_FLASH_ORIGIN_API)
 	list(APPEND srcs
 		flash/flash.c

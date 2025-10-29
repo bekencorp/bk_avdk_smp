@@ -53,5 +53,12 @@ menu "FLASH"
 	config FLASH_BYPASS_OTP_OPERATION
 		bool "Bypass flash to operate otp in flash"
 		default n
+
+	config FLASH_API_TEST
+		depends on FLASH
+		bool "Enable flash_api test"
+		default n
+		help
+			Enable flash_api test.
 endmenu
 

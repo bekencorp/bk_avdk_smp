@@ -79,5 +79,10 @@ menu "UART"
 		bool "Enable UART software flow control"
 		default n
 
+	config UART_API_TEST
+		bool "Enable UART API test"
+		default n
+		help
+			Enable UART API test.
 endmenu
 

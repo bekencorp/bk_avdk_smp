@@ -85,6 +85,26 @@ if (CONFIG_AON_WDT)
 	)
 endif()
 
+if (CONFIG_GPIO_API_TEST)
+	list(APPEND srcs gpio/cli_gpio_api.c)
+endif()
+
+if (CONFIG_I2C_API_TEST)
+	list(APPEND srcs i2c/cli_i2c_api.c)
+endif()
+
+if (CONFIG_UART_API_TEST)
+	list(APPEND srcs uart/cli_uart_api.c)
+endif()
+
+if (CONFIG_PWM_API_TEST)
+	list(APPEND srcs pwm/cli_pwm_api.c)
+endif()
+
+if (CONFIG_SPI_API_TEST)
+	list(APPEND srcs spi/cli_spi_api.c)
+endif()
+
 if (CONFIG_FLASH_ORIGIN_API)
 	list(APPEND srcs
 		flash/flash.c
@@ -504,5 +524,5 @@ endif()
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	REQUIRES cm33
-	PRIV_REQUIRES bk_log easy_flash cmsis os_source bk_usb part_table unity avdk_utils bk_wifi
+	PRIV_REQUIRES bk_log easy_flash cmsis os_source bk_usb part_table unity avdk_utils bk_wifi console
 )

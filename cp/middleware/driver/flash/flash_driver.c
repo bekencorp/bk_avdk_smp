@@ -611,18 +611,6 @@ bk_err_t bk_flash_driver_init(void)
 
 	s_flash_is_init = true;
 
-#if CONFIG_FLASH_TEST
-//    int bk_flash_register_cli_test_feature(void);
-//    int bk_flash_wr_register_cli_test_feature(void);
-//    bk_flash_register_cli_test_feature();
-//    bk_flash_wr_register_cli_test_feature();
-#endif
-
-#if CONFIG_FLASH_API_TEST
-    int bk_flash_api_register_cli_test_feature(void);
-    bk_flash_api_register_cli_test_feature();
-#endif
-
 	return BK_OK;
 }
 

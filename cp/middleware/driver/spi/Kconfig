@@ -31,5 +31,9 @@ menu "SPI"
 		bool "SPI byte interval"
 		default n
 
+	config SPI_API_TEST
+		bool "Enable spi api test"
+		default n
+
 endmenu
 

@@ -1512,6 +1512,10 @@ int bk_cli_init(void)
 	cli_flash_init();
 #endif
 
+#if (CLI_CFG_FLASH == 1) && CONFIG_FLASH_API_TEST
+	cli_flash_api_register_cli_test_feature();
+#endif
+
 #if (CLI_CFG_MEM == 1)
 	cli_mem_init();
 #endif
@@ -1532,6 +1536,10 @@ int bk_cli_init(void)
 	cli_wdt_init();
 #endif
 
+#if (CLI_CFG_WDT == 1) && CONFIG_WDT_API_TEST
+	cli_wdt_api_register_cli_test_feature();
+#endif
+
 #if (CLI_CFG_TRNG == 1)
 	cli_trng_init();
 #endif
@@ -1548,6 +1556,10 @@ int bk_cli_init(void)
 	cli_gpio_init();
 #endif
 
+#if (CLI_CFG_GPIO == 1) && CONFIG_GPIO_API_TEST
+	cli_gpio_api_register_cli_test_feature();
+#endif
+
 #if (CLI_CFG_OS == 1)
 	cli_os_init();
 #endif
@@ -1562,6 +1574,10 @@ int bk_cli_init(void)
 
 #if (CLI_CFG_UART == 1)
 	cli_uart_init();
+#endif
+
+#if (CLI_CFG_UART == 1) && CONFIG_UART_API_TEST
+	cli_uart_api_register_cli_test_feature();
 #endif
 
 #if (CLI_CFG_AON_RTC == 1)

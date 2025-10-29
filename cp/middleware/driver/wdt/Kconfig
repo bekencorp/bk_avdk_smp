@@ -18,5 +18,12 @@ menu "Watchdog"
 	config NMI_WDT_EN
 		bool "Enable NMI Watchdog"
 		default n
+
+	config WDT_API_TEST
+		bool "Enable WDT API test"
+		default n
+		help
+			Enable WDT API test.
+
 endmenu
 

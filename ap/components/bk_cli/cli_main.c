@@ -1444,6 +1444,10 @@ int bk_cli_init(void)
 	cli_gpio_init();
 #endif
 
+#if CONFIG_GPIO_API_TEST
+	cli_gpio_api_register_cli_test_feature();
+#endif
+
 #if (CLI_CFG_OS == 1)
 	cli_os_init();
 #endif
@@ -1468,8 +1472,16 @@ int bk_cli_init(void)
 	cli_uart_init();
 #endif
 
+#if (CLI_CFG_UART == 1) && CONFIG_UART_API_TEST
+	cli_uart_api_register_cli_test_feature();
+#endif
+
 #if (CLI_CFG_SPI == 1)
 	cli_spi_init();
+#endif
+
+#if (CLI_CFG_SPI == 1) && CONFIG_SPI_API_TEST
+	cli_spi_api_register_cli_test_feature();
 #endif
 
 #if (CLI_CFG_QSPI == 1)
@@ -1484,6 +1496,9 @@ int bk_cli_init(void)
 	cli_i2c_init();
 #endif
 
+#if (CLI_CFG_I2C == 1) && CONFIG_I2C_API_TEST
+	cli_i2c_api_register_cli_test_feature();
+#endif
 
 #if (CLI_CFG_ADC == 1)
 	cli_adc_init();
@@ -1515,6 +1530,10 @@ int bk_cli_init(void)
 
 #if (CLI_CFG_PWM == 1)
 	cli_pwm_init();
+#endif
+
+#if (CLI_CFG_PWM == 1) && CONFIG_PWM_API_TEST
+	cli_pwm_api_register_cli_test_feature();
 #endif
 
 #if (CLI_CFG_EXCEPTION == 1)

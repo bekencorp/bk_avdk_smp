@@ -30,5 +30,11 @@ menu "PWM"
 		bool "PWM phase shift Support"
 		default n
 
+	config PWM_API_TEST
+		bool "Enable pwm api test"
+		default n
+		help
+			Enable pwm api test.
+
 endmenu
 

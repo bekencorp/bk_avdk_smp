@@ -89,5 +89,11 @@ menu "GPIO"
 			otherwise some peripherals may not work properly.
 			Set to 255 to disable this feature.
 
+	config GPIO_API_TEST
+		bool "Enable gpio api test"
+		default n
+		help
+			Enable gpio api test.
+
 endmenu
 

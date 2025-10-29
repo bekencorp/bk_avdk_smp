@@ -22,5 +22,11 @@ menu "I2C"
 	config SIM_I2C_HW_BOARD_V3
 		bool "sim i2c with bk7258 hardware board v3"
 		default y
+
+	config I2C_API_TEST
+		bool "Enable I2C API test"
+		default n
+		help
+			Enable I2C API test.
 endmenu
 
