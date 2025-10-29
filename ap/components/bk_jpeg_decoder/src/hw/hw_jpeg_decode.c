@@ -309,8 +309,13 @@ static void hw_jpeg_decode_thread(void *arg)
                     hw_jpeg_decode_in_complete(in_frame);
                     continue;
                 }
+
+                // Set the image dimensions from parsed JPEG info to input and output frame buffers
                 in_frame->width = img_info.width;
                 in_frame->height = img_info.height;
+                out_frame->width = img_info.width;
+                out_frame->height = img_info.height;
+
                 out_frame = hw_jpeg_decode_out_malloc(img_info.width * img_info.height * HW_DECODE_YUV_PIXEL_BYTES);
                 if (out_frame == NULL)
                 {

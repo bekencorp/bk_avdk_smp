@@ -89,6 +89,12 @@ static avdk_err_t hardware_jpeg_decode_ctlr_decode(bk_jpeg_decode_hw_ctlr_handle
         return AVDK_ERR_INVAL;
     }
 
+    // Set the image dimensions from parsed JPEG info to input and output frame buffers
+    in_frame->width = img_info.width;
+    in_frame->height = img_info.height;
+    out_frame->width = img_info.width;
+    out_frame->height = img_info.height;
+
     ret = hw_jpeg_decode_start(in_frame, out_frame);
     if (ret != BK_OK)
     {

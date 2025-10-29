@@ -142,6 +142,9 @@ static bk_err_t software_decode_frame(frame_buffer_t *in_frame, frame_buffer_t *
 		return BK_ERR_PARAM;
 	}
 
+	// Reconfigure output frame dimensions based on rotation angle
+	// For 90/270 degree rotation, swap width and height
+	// For 0/180 degree rotation or no rotation, keep original dimensions
 	if (sw_dec_config->rotate_angle == ROTATE_90 || sw_dec_config->rotate_angle == ROTATE_270)
 	{
 		out_frame->width = in_frame->height;

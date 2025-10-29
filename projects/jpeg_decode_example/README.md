@@ -91,8 +91,9 @@ The project implements a frame buffer management mechanism for efficiently manag
 3. Perform decoding operations:
    - Allocate input buffer and fill with JPEG data
    - Retrieve image dimension information
+   - Configure input and output frame dimensions: Set the parsed image width and height to input and output frame structures
    - Allocate output buffer
-   - Execute decoding
+   - Execute decoding (if rotation angle is configured, output frame width and height will be reconfigured internally based on the rotation angle during decoding)
    - Release buffers
 4. Close the decoder
 5. Delete the decoder instance
@@ -573,6 +574,16 @@ Note: Adjust the stack size based on actual decoding scenarios and memory resour
 5. Frame buffer resources are limited; avoid occupying too many buffers simultaneously
 6. In the input frame, the length within the structure needs to be set to the actual valid data length, and in the output frame, the size within the structure needs to be set to the maximum storable size;
    A length of 0 for the input frame or a size of 0 for the output frame will result in decoding errors;
-7. **Callback Function Usage Notes**:
+7. **Image Dimension and Rotation Processing Notes**:
+
+   - After retrieving JPEG image information, the decoder sets the parsed width and height to the input and output frame structures
+   - For software decoding, if a rotation angle is configured, the output frame's width and height will be reconfigured internally based on the rotation angle:
+
+     * For 90 or 270 degree rotation: Output frame width and height are swapped (width = original height, height = original width)
+     * For 0 or 180 degree rotation: Output frame maintains original width and height
+
+   - Hardware decoding does not support rotation; output frame dimensions remain consistent with input frame dimensions
+
+8. **Callback Function Usage Notes**:
    - Blocking operations (such as long waits, sleep, etc.) are not recommended in callback functions to avoid impacting decoding performance and system responsiveness
    - It is recommended to perform only lightweight operations in callback functions, such as setting flags, sending messages/semaphores, etc., and move time-consuming operations to other tasks
