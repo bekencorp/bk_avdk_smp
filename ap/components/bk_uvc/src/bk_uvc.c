@@ -2,6 +2,7 @@
 #include <components/usbh_hub_multiple_classes_api.h>
 #include <components/cherryusb/usb_errno.h>
 #include <components/uvc_camera.h>
+#include <driver/pwr_clk.h>
 #include "bk_uvc_common.h"
 #include "uvc_urb_list.h"
 #include "uvc_stream_list.h"
@@ -479,7 +480,7 @@ static void uvc_camera_stream_receive_complete_callback(void *pCompleteParam, in
 
     if (camera_param->camera_state != UVC_STREAMING_STATE)
     {
-        LOGV("[%d]%s, %d, %d\r\n", index, __func__, __LINE__, camera_param->camera_state);
+        LOGV("[%d]%s, %d, %d\r\n", camera_param->info->port, __func__, __LINE__, camera_param->camera_state);
         rtos_set_semaphore(&camera_param->sem);
         return;
     }
@@ -1573,6 +1574,8 @@ bk_err_t uvc_camera_stream_task_deinit(uvc_stream_handle_t *handle)
 
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_USB_1, PM_CPU_FRQ_DEFAULT);
 
+    bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA,PM_POWER_MODULE_STATE_OFF);
+
     return BK_OK;
 }
 
@@ -1594,6 +1597,8 @@ bk_err_t uvc_camera_stream_task_init(uvc_stream_handle_t **handle)
         INIT_LIST_HEAD(&stream_handle->list);
 
         bk_pm_module_vote_cpu_freq(PM_DEV_ID_USB_1, PM_CPU_FRQ_480M);
+
+        bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA,PM_POWER_MODULE_STATE_ON);
 
         ret = rtos_init_event_flags(&stream_handle->handle);
 
