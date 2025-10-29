@@ -2882,6 +2882,11 @@ wpa_supplicant_get_scan_results(struct wpa_supplicant *wpa_s,
 			wifi_event_sta_disconnected_t sta_disconnected = {0};
 			sta_disconnected.disconnect_reason = linkinfo.reason_code;
 			sta_disconnected.local_generated = true;
+
+			#if CONFIG_WIFI_VNET_CONTROLLER
+			cif_handle_bk_cmd_disconnect_ind(sta_disconnected.local_generated, sta_disconnected.disconnect_reason);
+			#endif
+
 			BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
 							&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
 		}
