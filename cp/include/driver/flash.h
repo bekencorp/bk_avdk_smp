@@ -364,6 +364,45 @@ bk_err_t mb_flash_register_op_notify(void * notify_cb);
  */
 bk_err_t mb_flash_unregister_op_notify(void * notify_cb);
 
+/**
+ * @brief  Get status if it is ready to erase flash, which means ble would sleep more than 56ms period.
+ *
+ * @return flash ready status
+ */
+bool is_ble_erase_flash_ready(void);
+
+/**
+ * @brief  Get status if it is ready to write flash, which means ble would sleep more than 4ms period.
+ *
+ * @return flash ready status
+ */
+bool is_ble_write_flash_ready(void);
+
+/*
+ * when bt INT effect the OTA update
+ */
+#define S_WAKE_UP    (0)
+#define S_SLEEP      (1)
+#define S_POWER_OFF  (2)
+#define S_NO_BT      (3)
+
+#define ERASE_TOUCH_TIMEOUT  (3000)//ms
+#define ERASE_FLASH_TIMEOUT  (56)//ms
+#define WRITE_FLASH_TIMEOUT  (4)//ms
+
+/**
+ * @brief  Callbak to register in flash, for ble operate flash using.
+ *
+ * @return
+ */
+void ble_sleep_cb(uint8_t is_sleeping, uint32_t slp_period);
+
+/**
+ * @brief  Get status if it is ready to operate flash, which means ble would sleep more than deal_flash_time ms period.
+ *
+ * @return flash ready status
+ */
+int ble_callback_deal_handler(uint32_t deal_flash_time);
 
 uint32_t flash_get_excute_enable();
 

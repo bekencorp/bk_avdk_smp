@@ -26,6 +26,154 @@
 #include "flash_bypass.h"
 
 
+/*
+ * when bt INT effect the OTA update
+ */
+#define S_WAKE_UP    (0)
+#define S_SLEEP      (1)
+#define S_POWER_OFF  (2)
+#define S_NO_BT      (3)
+
+#define ERASE_TOUCH_TIMEOUT  (3000)//ms
+#define ERASE_FLASH_TIMEOUT  (56)//ms
+#define WRITE_FLASH_TIMEOUT  (4)//ms
+
+static u32  bt_sleepend_time = -1;  //when cb return,bt is sleep ,recoeding the bt will sleep how long
+static u32  bt_cb_anchor_time = 0;    //when cb return ,record current time ;
+static u8   bt_sleep_state = S_NO_BT;  //record bt state;the default is 3(S_NO_BT);
+
+
+void ble_sleep_cb(uint8_t is_sleeping, uint32_t slp_period)
+{
+	GLOBAL_INT_DECLARATION();
+
+	GLOBAL_INT_DISABLE();
+
+    bt_sleep_state = is_sleeping ;
+    bt_cb_anchor_time = rtos_get_time();
+    if (is_sleeping == S_SLEEP)
+    {
+       bt_sleepend_time = bt_cb_anchor_time + slp_period/32;
+    }
+
+    GLOBAL_INT_RESTORE();
+}
+
+int ble_callback_deal_handler(uint32_t deal_flash_time)
+{
+    uint32_t  cur_time =0;
+    uint32_t  temp_time = 0;
+    int       ret_val = 0;
+
+    cur_time = rtos_get_time();
+
+	GLOBAL_INT_DECLARATION();
+
+	GLOBAL_INT_DISABLE();
+
+    do
+    {
+        if(bt_sleep_state == S_POWER_OFF)     //poweroff
+        {
+            ret_val = 1;
+            break;
+        }
+        else if(bt_sleep_state == S_WAKE_UP) //wakeup
+        {
+            if(cur_time >= bt_cb_anchor_time)
+            {
+                temp_time = (cur_time - bt_cb_anchor_time);
+            }
+            else
+            {
+                temp_time = 0xFFFFFFFF - bt_cb_anchor_time + cur_time;
+            }
+
+            if(temp_time >= ERASE_TOUCH_TIMEOUT)
+            {
+                bt_sleep_state = S_NO_BT;
+                ret_val = 1;
+                break;
+            }
+
+            ret_val = 0;
+            break;
+        }
+        else if(bt_sleep_state == S_SLEEP) //sleep
+        {
+            if(bt_sleepend_time > bt_cb_anchor_time)
+            {
+                if(bt_sleepend_time < cur_time)
+                {
+                     ret_val = 1;
+                     break;
+                }
+                else if(cur_time < bt_cb_anchor_time)
+                {
+                     ret_val = 1;
+                     break;
+                }
+                else if((bt_sleepend_time - cur_time) >= deal_flash_time)
+                {
+                     ret_val = 1;
+                     break;
+                }
+                else
+                {
+                     ret_val = 0;
+                     break;
+                }
+            }
+            else
+            {
+                temp_time = 0;
+                if((cur_time > bt_sleepend_time)&&(bt_cb_anchor_time > cur_time))
+                {
+                     ret_val = 1;
+                     break;
+                }
+                else if(bt_cb_anchor_time <= cur_time)
+                {
+                    temp_time = 0xFFFFFFFF - cur_time + bt_sleepend_time;
+                }
+                else
+                {
+                    temp_time = bt_sleepend_time - cur_time;
+                }
+
+                if(temp_time >= deal_flash_time )
+                {
+                     ret_val = 1;
+                     break;
+                }
+                else
+                {
+                     ret_val = 0;
+                     break;
+                }
+            }
+        }
+        else
+        {
+             ret_val = 1;
+             break;
+        }
+    }while(0);
+
+    GLOBAL_INT_RESTORE();
+
+    return ret_val;
+}
+
+
+bool is_ble_erase_flash_ready(void) {
+	return ble_callback_deal_handler(ERASE_FLASH_TIMEOUT);
+}
+
+bool is_ble_write_flash_ready(void) {
+	return ble_callback_deal_handler(WRITE_FLASH_TIMEOUT);
+}
+
 extern bk_err_t bk_flash_erase_sector(uint32_t address);
 extern bk_err_t bk_flash_erase_32k(uint32_t address);
 extern bk_err_t bk_flash_erase_block(uint32_t address);

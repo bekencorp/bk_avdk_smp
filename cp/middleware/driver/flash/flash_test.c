@@ -179,6 +179,7 @@ static void cli_flash_partition_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 	}
 }
 
+#if 0
 /*
  * flash erase will affect ble connecting, unless flash erase while ble is sleeping
  * This test case aims to do flash erasing with ble sleeping and connecting
@@ -317,7 +318,7 @@ static int ble_callback_deal_handler(uint32_t deal_flash_time)
     GLOBAL_INT_RESTORE();
     return ret_val;
 }
-
+#endif
 void flash_erase_with_ble_sleep(uint32_t erase_addr)
 {
     uint32_t  anchor_time = 0;
