@@ -30,8 +30,8 @@
 /* Disable this macro by default, as gpio api way would cost more time to switch output level */
 //#define SIM_I2C_GPIO_API_EN
 
-#define HWD_GPIO_I2C_SDA		GPIO_1
-#define HWD_GPIO_I2C_SCL		GPIO_0
+#define HWD_GPIO_I2C_SDA		CONFIG_SIM_I2C0_SDA_GPIO
+#define HWD_GPIO_I2C_SCL		CONFIG_SIM_I2C0_SCL_GPIO
 
 /*****************************************************
  * These Macros could be used for RISCV 120Mhz.

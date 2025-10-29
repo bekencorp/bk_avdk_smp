@@ -85,5 +85,37 @@ menu "GPIO"
 		help
 			Enable gpio api test.
 
+	config SIM_I2C0_SDA_GPIO
+		int "Simulated I2C0 SDA GPIO pin"
+		default 1
+		range 0 55
+		help
+		GPIO pin number for simulated I2C0 SDA signal
+		Default: GPIO_1
+
+	config SIM_I2C0_SCL_GPIO
+		int "Simulated I2C0 SCL GPIO pin"
+		default 0
+		range 0 55
+		help
+		GPIO pin number for simulated I2C0 SCL signal
+		Default: GPIO_0
+
+	config SIM_I2C1_SDA_GPIO
+		int "Simulated I2C1 SDA GPIO pin"
+		default 5
+		range 0 55
+		help
+		GPIO pin number for simulated I2C1 SDA signal
+		Default: GPIO_5
+
+	config SIM_I2C1_SCL_GPIO
+		int "Simulated I2C1 SCL GPIO pin"
+		default 8
+		range 0 55
+		help
+		GPIO pin number for simulated I2C1 SCL signal
+		Default: GPIO_8
+
 endmenu
 
