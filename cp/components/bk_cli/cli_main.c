@@ -1673,10 +1673,6 @@ int bk_cli_init(void)
 
 #endif// CONFIG_CODE_SIZE_OPTIMIZE
 
-#if (CLI_CFG_MISC == 1)
-	cli_misc_init();
-#endif
-
 #if (CONFIG_PSA_MBEDTLS_TEST && CONFIG_PSA_MBEDTLS)
 	cli_psa_crypto_init();
 #endif
@@ -1690,6 +1686,10 @@ int bk_cli_init(void)
 #endif
 
 #endif //CONFIG_DEBUG_VERSION
+
+#if (CLI_CFG_MISC == 1)
+	cli_misc_init();
+#endif
 
 /*-----open the cli comand both at release and debug vertion begin-----*/
 #if (CLI_CFG_PWR == 1)

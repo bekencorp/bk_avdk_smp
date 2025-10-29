@@ -106,6 +106,7 @@ void get_version(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv
 	CLI_LOGD("get_version\r\n");
 	//BK_LOGD(NULL,"firmware version : %s", BEKEN_SDK_REV);
 	CLI_LOGD("firmware version : %s\r\n", build_version);
+	CLI_LOGD("sdk version: smp\r\n");
 	CLI_LOGD("chip id : %x \r\n", sys_drv_get_chip_id());
 	CLI_LOGD("soc: %s\n", CONFIG_SOC_STR);
 }
