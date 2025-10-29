@@ -67,7 +67,6 @@ menu "Bk_cli"
 				Set Shell Task Stack Size
 
 		config LOG_TASK_PRIO
-			depends on CLI
 			int "Set Log Task Prio"
 			range 1 10
 			default 4
