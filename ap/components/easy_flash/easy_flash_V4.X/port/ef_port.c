@@ -45,6 +45,7 @@ static const ef_env default_env_set[] = {
 
 static beken_semaphore_t env_cache_lock = NULL;
 uint32_t g_ef_start_addr = 0xFFFFFFFF;
+static bool s_easyflash_check_lock = BK_TRUE;
 
 void ef_check_config(void) {
 	bk_logic_partition_t *partition_info = NULL;
@@ -206,6 +207,9 @@ EfErrCode ef_port_write(uint32_t addr, const uint32_t *buf, size_t size)
  */
 void ef_port_env_lock(void)
 {
+	if (s_easyflash_check_lock == BK_FALSE) {
+		return;
+	}
 	rtos_get_semaphore(&env_cache_lock, BEKEN_WAIT_FOREVER);
 }
 
@@ -214,8 +218,20 @@ void ef_port_env_lock(void)
  */
 void ef_port_env_unlock(void)
 {
+	if (s_easyflash_check_lock == BK_FALSE) {
+		return;
+	}
 	rtos_set_semaphore(&env_cache_lock);
 }
+
+/**
+ * set interrupt opeartion state. only allow used in reboot period.
+ */
+void bk_ef_set_check_lock(bool state)
+{
+	s_easyflash_check_lock = state;
+}
+
 
 /**
  * This function is print flash debug info.
