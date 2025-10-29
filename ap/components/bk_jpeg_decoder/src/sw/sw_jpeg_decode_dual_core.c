@@ -205,8 +205,6 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 		// Note: If rotation is applied, the output width and height will be reconfigured internally after rotation
 		in_frame->width = img_info.width;
 		in_frame->height = img_info.height;
-		out_frame->width = img_info.width;
-		out_frame->height = img_info.height;
 
 		if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
 		{
@@ -226,6 +224,9 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 			ret = BK_ERR_NO_MEM;
 			goto error;
 		}
+
+		out_frame->width = img_info.width;
+		out_frame->height = img_info.height;
 		out_frame->sequence = in_frame->sequence;
 		controller->cp2_busy = 1;
 		controller->sw_dec_info[1].in_frame = in_frame;
@@ -261,8 +262,6 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 		// Note: If rotation is applied, the output width and height will be reconfigured internally after rotation
 		in_frame->width = img_info.width;
 		in_frame->height = img_info.height;
-		out_frame->width = img_info.width;
-		out_frame->height = img_info.height;
 
 		if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
 		{
@@ -282,6 +281,9 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 			ret = BK_ERR_NO_MEM;
 			goto error;
 		}
+
+		out_frame->width = img_info.width;
+		out_frame->height = img_info.height;
 		out_frame->sequence = in_frame->sequence;
 		controller->sw_dec_info[0].in_frame = in_frame;
 		controller->sw_dec_info[0].out_frame = out_frame;

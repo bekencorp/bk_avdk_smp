@@ -96,8 +96,6 @@ static bk_err_t start_next_decode_cp1(private_jpeg_decode_sw_multi_core_ctlr_t *
 
     in_frame->width = img_info.width;
     in_frame->height = img_info.height;
-    out_frame->width = img_info.width;
-    out_frame->height = img_info.height;
 
     if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
     {
@@ -119,6 +117,8 @@ static bk_err_t start_next_decode_cp1(private_jpeg_decode_sw_multi_core_ctlr_t *
         sw_jpeg_decode_in_complete(in_frame, controller);
         return ret;
     }
+    out_frame->width = img_info.width;
+    out_frame->height = img_info.height;
     controller->sw_dec_info[0].in_frame = in_frame;
     controller->sw_dec_info[0].out_frame = out_frame;
     controller->sw_dec_info[0].complete = cp1_decode_complete;
@@ -166,8 +166,6 @@ static bk_err_t start_next_decode_cp2(private_jpeg_decode_sw_multi_core_ctlr_t *
     // Note: If rotation is applied, the output width and height will be reconfigured internally after rotation
     in_frame->width = img_info.width;
     in_frame->height = img_info.height;
-    out_frame->width = img_info.width;
-    out_frame->height = img_info.height;
 
     if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
     {
@@ -188,6 +186,8 @@ static bk_err_t start_next_decode_cp2(private_jpeg_decode_sw_multi_core_ctlr_t *
         sw_jpeg_decode_in_complete(in_frame, controller);
         return ret;
     }
+    out_frame->width = img_info.width;
+    out_frame->height = img_info.height;
     controller->sw_dec_info[1].in_frame = in_frame;
     controller->sw_dec_info[1].out_frame = out_frame;
     controller->sw_dec_info[1].complete = cp2_decode_complete;
