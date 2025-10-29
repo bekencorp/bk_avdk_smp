@@ -122,6 +122,9 @@ static char *misc_get_start_type_str(uint32_t start_type)
 	case RESET_SOURCE_OTA_REBOOT:
 		return "ota reboot";
 
+	case RESET_SOURCE_FORCE_DEEPSLEEP:
+		return "enter deep sleep";
+
 	case RESET_SOURCE_UNKNOWN:
 	default:
 		return "unknown";
