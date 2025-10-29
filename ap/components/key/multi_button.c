@@ -4,6 +4,14 @@
 #include "bk_uart.h"
 #include "multi_button.h"
 #include <os/os.h>
+#include <components/log.h>
+
+#define TAG "BUTTON"
+
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 #if CONFIG_BUTTON
 
@@ -30,6 +38,7 @@ void button_init(BUTTON_S *handle, uint8_t(*pin_level)(struct _button_ *), uint8
 	handle->user_data = user_data;
 	handle->hal_button_Level = pin_level;
 	handle->button_level = handle->hal_button_Level(handle);
+	handle->press_up_flag = 0;
 }
 
 /**
@@ -80,6 +89,7 @@ void button_handler(BUTTON_S *handle)
 	switch (handle->state) {
 	case 0:
 		if (handle->button_level == handle->active_level) {	//start press down
+			LOGI("%s PRESS_DOWN,line: %d\r\n", __func__ , __LINE__);
 			handle->event = (uint8_t)PRESS_DOWN;
 			EVENT_CB(PRESS_DOWN);
 			handle->ticks = 0;
@@ -91,12 +101,15 @@ void button_handler(BUTTON_S *handle)
 
 	case 1:
 		if (handle->button_level != handle->active_level) { //released press up
+			LOGI("%s PRESS_UP,line: %d\r\n", __func__ , __LINE__);
 			handle->event = (uint8_t)PRESS_UP;
 			EVENT_CB(PRESS_UP);
 			handle->ticks = 0;
 			handle->state = 2;
 
 		} else if (handle->ticks > LONG_TICKS) {
+			LOGI("%s LONG_PRESS_START,line: %d\r\n", __func__ , __LINE__);
+			handle->press_up_flag = 1;
 			handle->event = (uint8_t)LONG_PRESS_START;
 			EVENT_CB(LONG_PRESS_START);
 			handle->state = 5;
@@ -105,10 +118,12 @@ void button_handler(BUTTON_S *handle)
 
 	case 2:
 		if (handle->button_level == handle->active_level) { //press down again
+			LOGI("%s PRESS_DOWN,line: %d\r\n", __func__ , __LINE__);
 			handle->event = (uint8_t)PRESS_DOWN;
 			EVENT_CB(PRESS_DOWN);
 			handle->repeat++;
 			if (handle->repeat == 2) {
+				LOGI("%s DOUBLE_CLICK,line: %d\r\n", __func__ , __LINE__);
 				EVENT_CB(DOUBLE_CLICK); // repeat hit
 			}
 			EVENT_CB(PRESS_REPEAT); // repeat hit
@@ -116,6 +131,7 @@ void button_handler(BUTTON_S *handle)
 			handle->state = 3;
 		} else if (handle->ticks > SHORT_TICKS) { //released timeout
 			if (handle->repeat == 1) {
+				LOGI("%s SINGLE_CLICK,line: %d\r\n", __func__ , __LINE__);
 				handle->event = (uint8_t)SINGLE_CLICK;
 				EVENT_CB(SINGLE_CLICK);
 			} else if (handle->repeat == 2)
@@ -126,6 +142,7 @@ void button_handler(BUTTON_S *handle)
 
 	case 3:
 		if (handle->button_level != handle->active_level) { //released press up
+			LOGI("%s PRESS_UP,line: %d\r\n", __func__ , __LINE__);
 			handle->event = (uint8_t)PRESS_UP;
 			EVENT_CB(PRESS_UP);
 			if (handle->ticks < SHORT_TICKS) {
@@ -143,8 +160,13 @@ void button_handler(BUTTON_S *handle)
 			EVENT_CB(LONG_PRESS_HOLD);
 
 		} else { //releasd
+			LOGI("%s PRESS_UP,line: %d\r\n", __func__ , __LINE__);
 			handle->event = (uint8_t)PRESS_UP;
-			EVENT_CB(PRESS_UP);
+			if (handle->press_up_flag)
+			{
+				handle->press_up_flag = 0;
+				EVENT_CB(LONG_PRESS_UP_EVENT);
+			}
 			handle->state = 0; //reset
 		}
 		break;
@@ -226,7 +248,7 @@ void button_ticks(void *param1, void *param2)
 	result = rtos_start_oneshot_timer(&g_key_timer);
 	if(kNoErr != result)
 	{
-		BK_LOGD(NULL, "rtos_start_timer fail\r\n");
+		LOGI("rtos_start_timer fail\r\n");
 		return;
 	}
 }

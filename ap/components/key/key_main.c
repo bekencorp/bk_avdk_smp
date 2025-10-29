@@ -220,7 +220,7 @@ uint8_t key_get_gpio_value(BUTTON_S *handle)
 	return bk_gpio_get_input((uint32_t)handle->user_data);//gpio_input((uint32_t)handle->user_data);
 }
 
-int key_item_configure(uint32_t gpio, uint8_t active_level, void short_press(void *), void double_press(void *), void long_press(void *), void hold_press(void *))
+int key_item_configure(uint32_t gpio, uint8_t active_level, void short_press(void *), void double_press(void *), void long_press(void *), void hold_press(void *), void long_press_up_event(void *))
 {
 	BUTTON_S *handle;
 	int result;
@@ -236,6 +236,7 @@ int key_item_configure(uint32_t gpio, uint8_t active_level, void short_press(voi
 	button_attach(handle, DOUBLE_CLICK, (btn_callback)double_press);
 	button_attach(handle, LONG_PRESS_START,	(btn_callback)long_press);
 	button_attach(handle, LONG_PRESS_HOLD, (btn_callback)hold_press);
+	button_attach(handle, LONG_PRESS_UP_EVENT, (btn_callback)long_press_up_event);
 
 	rtos_unlock_mutex(&g_key_mutex);
 	result = button_start(handle);
@@ -244,7 +245,7 @@ int key_item_configure(uint32_t gpio, uint8_t active_level, void short_press(voi
 		os_free(handle);
 		return kGeneralErr;
 	}
-	BK_LOGD(NULL, "key_item_configure\r\n");
+	os_printf("key_item_configure\r\n");
 
 	return kNoErr;
 }

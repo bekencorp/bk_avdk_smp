@@ -8,15 +8,15 @@
 #define KEY_DEBUG
 
 #ifdef KEY_DEBUG
-#define KEY_PRT(...) BK_LOGD(NULL, ##__VA_ARGS__)
-#define KEY_WPRT(...) BK_LOGW(NULL, ##__VA_ARGS__)
+#define KEY_PRT                 os_printf
+#define KEY_WPRT                warning_prf
 #else
 #define KEY_PRT                 os_null_printf
 #define KEY_WPRT                os_null_printf
 #endif
 
 #define GPIO_TEST_ID           GPIO23
-#define KEY_TMR_DURATION       5
+#define KEY_TMR_DURATION       6
 
 typedef enum KEY_ITEM_T {
 	KEY_COMBO_S1S2_CONFIG_NET = 0,
@@ -35,7 +35,7 @@ typedef enum KEY_ITEM_T {
 
 void key_initialization(void);
 void key_uninitialization(void);
-int key_item_configure(uint32_t gpio, uint8_t active_level, void short_press(void *), void double_press(void *), void long_press(void *), void hold_press(void *));
+int key_item_configure(uint32_t gpio, uint8_t active_level, void short_press(void *), void double_press(void *), void long_press(void *), void hold_press(void *), void long_press_up_event(void *));
 int key_item_unconfigure(uint32_t gpio);
 
 #endif // 
