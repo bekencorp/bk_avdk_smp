@@ -36,7 +36,7 @@
 #include "cm_backtrace.h"
 #endif
 
-
+#include "ram_regions.h"
 
 #include <soc/reg_base.h>
 
@@ -85,7 +85,7 @@ volatile unsigned int s_cpu1_int_32_63_en_value = 0;
 volatile unsigned int s_cpu2_int_0_31_en_value = 0;
 volatile unsigned int s_cpu2_int_32_63_en_value = 0;
 
-
+int bk_ipc_heartbeat_is_timeout(void);
 int code_addr_is_valid(uint32_t addr);
 
 int data_addr_is_valid(uint32_t start_addr, uint32_t end_addr) {
@@ -623,6 +623,15 @@ static void dump_context(uint32_t lr, uint32_t msp)
     arch_dump_cpu_registers(0, &regs);
 }
 
+static void dump_ap_psram_heap(void) {
+#if CONFIG_AP_PSRAM_HEAP_ADDR && CONFIG_AP_PSRAM_HEAP_SIZE
+    if(bk_ipc_heartbeat_is_timeout()) {
+        stack_mem_dump(CONFIG_AP_PSRAM_HEAP_ADDR, CONFIG_AP_PSRAM_HEAP_ADDR + CONFIG_AP_PSRAM_HEAP_SIZE);
+    }
+#endif
+}
+
+
 static void rtos_dump_system(void)
 {
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
@@ -637,6 +646,8 @@ static void rtos_dump_system(void)
     BK_DUMP_OUT("rtos_dump_system:bk_psram_heap_dump_data.\r\n");
     bk_psram_heap_dump_data();
 	
+    dump_ap_psram_heap();
+
     BK_DUMP_OUT("rtos_dump_system:s_wifi_dump_func.\r\n");
     if(NULL != s_wifi_dump_func && code_addr_is_valid((uint32_t)s_wifi_dump_func)) {
         s_wifi_dump_func();

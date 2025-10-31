@@ -76,12 +76,19 @@ static u32                          cpu_x_heartbeat_timestamp = 0;
 static volatile u8                  cpu_x_state = CORE_POWER_OFF;
 static volatile u8                  cpu_x_id = 0xFF;   /* invalid ID, */
 static volatile u8                  cpu_x_dump = 0;
+static volatile u8                  cpu_x_heartbeat_timeout = 0;
 static volatile mb_ipc_work_state_e s_mb_ipc_work_state = MB_IPC_WORKING;
 
 extern void start_cpu1_core(void);
 extern void stop_cpu1_core(void);
 extern void start_cpu2_core(void);
 extern void stop_cpu2_core(void);
+
+
+int bk_ipc_heartbeat_is_timeout(void)
+{
+	return cpu_x_heartbeat_timeout;
+}
 
 static int ipc_heartbeat_timeout(void)
 {
@@ -264,6 +271,7 @@ static void mb_ipc_task( void *para )
 			{
 				BK_LOGE(MOD_TAG, "IPC[%d]heartbeat timeout %d,%d\r\n",cpu_x_id,cpu_x_heartbeat_timestamp,(u32)rtos_get_time());
 				/*when cpu1 heartbeat timeout, then system reboot*/
+				cpu_x_heartbeat_timeout = 1;
 				BK_ASSERT(false);
 			}
 		}
