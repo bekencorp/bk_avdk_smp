@@ -513,6 +513,8 @@ bk_err_t jpeg_software_decode_out_complete(uint32_t format_type, uint32_t result
 		return BK_FAIL;
 	}
 
+	media_debug->isr_decoder++;
+
 	if (check_h264_task_is_open())
 	{
 		if (jdec_config->h264_encode_status == H264E_STATE_ENCODING)

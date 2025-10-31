@@ -74,7 +74,7 @@ static frame_buffer_t *sw_jpeg_decode_out_malloc(private_jpeg_decode_sw_multi_co
         out_frame = controller->config.decode_cbs.out_malloc(size);
     }
     LOGV("%s %d %p\n", __func__, __LINE__, out_frame);
-    return out_frame;
+	return out_frame;
 }
 
 static bk_err_t software_decode_task_dual_core_send_msg(software_decode_event_type_t event, uint32_t param, private_jpeg_decode_sw_multi_core_ctlr_t *controller)
@@ -182,9 +182,13 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 	bk_err_t ret = BK_OK;
 	frame_buffer_t *in_frame = NULL;
 	frame_buffer_t *out_frame = NULL;
+	uint8_t is_cp2 = 0;
+
 	if (controller->cp2_busy == 0)
 	{
 		uint32_t frame_ptr = 0;
+		uint32_t alloc_size = 0;
+		is_cp2 = 1;
 
 		ret = rtos_pop_from_queue(&controller->input_queue, &frame_ptr, BEKEN_NO_WAIT);
 		if (ret != BK_OK) {
@@ -206,18 +210,21 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 		in_frame->width = img_info.width;
 		in_frame->height = img_info.height;
 
+		// Calculate allocation size based on format
 		if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
 		{
-			out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height);
+			alloc_size = img_info.width * img_info.height;
 		}
 		else if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_RGB888)
 		{
-			out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 3);
+			alloc_size = img_info.width * img_info.height * 3;
 		}
 		else
 		{
-			out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 2);
+			alloc_size = img_info.width * img_info.height * 2;
 		}
+
+		out_frame = sw_jpeg_decode_out_malloc(controller, alloc_size);
 		if (out_frame == NULL)
 		{
 			LOGE(" %s %d out_malloc failed\n", __func__, __LINE__);
@@ -242,6 +249,8 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 	else if (controller->cp1_busy == 0)
 	{
 		uint32_t frame_ptr = 0;
+		uint32_t alloc_size = 0;
+		is_cp2 = 0;
 
 		ret = rtos_pop_from_queue(&controller->input_queue, &frame_ptr, BEKEN_NO_WAIT);
 		if (ret != BK_OK) {
@@ -256,25 +265,28 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 		{
 			LOGE(" %s %d bk_get_jpeg_data_info failed %d\n", __func__, __LINE__, ret);
 			goto error;
-	}
+		}
 
 		// Set the image dimensions from parsed JPEG info to input and output frame buffers
 		// Note: If rotation is applied, the output width and height will be reconfigured internally after rotation
 		in_frame->width = img_info.width;
 		in_frame->height = img_info.height;
 
+		// Calculate allocation size based on format
 		if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_GRAY)
 		{
-			out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height);
+			alloc_size = img_info.width * img_info.height;
 		}
 		else if (controller->config.out_format == JPEG_DECODE_SW_OUT_FORMAT_RGB888)
 		{
-			out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 3);
+			alloc_size = img_info.width * img_info.height * 3;
 		}
 		else
 		{
-			out_frame = sw_jpeg_decode_out_malloc(controller, img_info.width * img_info.height * 2 + 5);
+			alloc_size = img_info.width * img_info.height * 2;
 		}
+
+		out_frame = sw_jpeg_decode_out_malloc(controller, alloc_size);
 		if (out_frame == NULL)
 		{
 			LOGE(" %s %d out_malloc failed\n", __func__, __LINE__);
@@ -301,14 +313,34 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 	return ret;
 
 error:
+	// Release input frame if exists
 	if (in_frame)
 	{
 		sw_jpeg_decode_in_complete(in_frame, controller);
 	}
+
+	// Release output frame if exists
 	if (out_frame)
 	{
 		sw_jpeg_decode_out_complete(out_frame->fmt, BK_FAIL, out_frame, controller);
 	}
+
+	// Clean up decoder state if busy flag was set
+	if (is_cp2 && controller->cp2_busy)
+	{
+		controller->sw_dec_info[1].in_frame = NULL;
+		controller->sw_dec_info[1].out_frame = NULL;
+		controller->sw_dec_info[1].complete = NULL;
+		controller->cp2_busy = 0;
+	}
+	else if (!is_cp2 && controller->cp1_busy)
+	{
+		controller->sw_dec_info[0].in_frame = NULL;
+		controller->sw_dec_info[0].out_frame = NULL;
+		controller->sw_dec_info[0].complete = NULL;
+		controller->cp1_busy = 0;
+	}
+
 	return ret;
 }
 

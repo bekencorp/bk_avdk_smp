@@ -46,3 +46,6 @@ void *bk_psram_frame_buffer_malloc(psram_heap_type_t type, uint32_t size);
 
 void bk_psram_frame_buffer_free(void* mem_ptr);
 
+// Print detailed memory blocks information (for debugging)
+void bk_psram_frame_buffer_dump_blocks(psram_heap_type_t type);
+

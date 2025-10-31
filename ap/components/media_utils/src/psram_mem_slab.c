@@ -355,3 +355,158 @@ free_end:
 	GLOBAL_INT_RESTORE();
 }
 
+/**
+ * @brief Print detailed memory blocks information for debugging
+ *
+ * @param type Heap type (PSRAM_HEAP_USER, PSRAM_HEAP_AUDIO, PSRAM_HEAP_ENCODE, PSRAM_HEAP_YUV)
+ */
+void bk_psram_frame_buffer_dump_blocks(psram_heap_type_t type)
+{
+	struct fb_block_free *free_node = NULL;
+	fb_block_used *used_block = NULL;
+	uint8_t *heap_start = NULL;
+	uint8_t *heap_end = NULL;
+	uint8_t *current_pos = NULL;
+	const char *type_names[] = {"USER", "AUDIO", "ENCODE", "DISPLAY(YUV)"};
+	const char *type_name = "UNKNOWN";
+	uint8_t heap_id = COMMON_MOD(type, PSRAM_HEAP_MAX);
+	uint32_t block_index = 0;
+	GLOBAL_INT_DECLARATION();
+
+	// Get type name
+	if (type < PSRAM_HEAP_MAX)
+	{
+		type_name = type_names[type];
+	}
+
+	// Check if heap is initialized
+	if (frame_mem_heap.heap_size[heap_id] == 0)
+	{
+		LOGE("=== PSRAM Heap [%s] Not Initialized ===\n", type_name);
+		return;
+	}
+
+	// Get heap boundaries
+	heap_start = (uint8_t *)frame_mem_heap.heap[heap_id];
+	heap_end = heap_start + frame_mem_heap.heap_size[heap_id];
+
+	LOGI("================================================\n");
+	LOGI("=== PSRAM Heap Blocks Detail [%s] ===\n", type_name);
+	LOGI("Heap Range: %p - %p (Total: %u bytes)\n", 
+			heap_start, heap_end, frame_mem_heap.heap_size[heap_id]);
+	LOGI("================================================\n");
+
+	// Protect accesses to descriptors
+	GLOBAL_INT_DISABLE();
+
+	// Print all FREE blocks
+	LOGI("--- FREE BLOCKS ---\n");
+	LOGI("%-4s  %-10s  %-10s  %-10s\n", "No.", "Address", "Size", "Size(KB)");
+	LOGI("----  ----------  ----------  ----------\n");
+
+	free_node = frame_mem_heap.heap[heap_id];
+	block_index = 1;
+
+	while (free_node != NULL)
+	{
+		if (free_node->corrupt_check == FB_LIST_PATTERN)
+		{
+			LOGI("%-4u  %p  %10u  %10u\n",
+				block_index,
+				free_node,
+				free_node->free_size,
+				free_node->free_size / 1024);
+			block_index++;
+		}
+		else
+		{
+			LOGE("%-4u  %p  CORRUPTED! (check=0x%x)\n",
+				block_index, free_node, free_node->corrupt_check);
+			block_index++;
+		}
+
+		free_node = free_node->next;
+	}
+
+	// Print all USED blocks by scanning the heap
+	LOGI("--- USED BLOCKS ---\n");
+	LOGI("%-4s  %-10s  %-10s  %-10s  %-10s\n", 
+			"No.", "Address", "Size", "Size(KB)", "Data@");
+	LOGI("----  ----------  ----------  ----------  ----------\n");
+
+	current_pos = heap_start;
+	block_index = 1;
+
+	// Scan the entire heap to find used blocks
+	while (current_pos < heap_end)
+	{
+		// Check if this position is a free block
+		bool is_free = false;
+		free_node = frame_mem_heap.heap[heap_id];
+
+		while (free_node != NULL)
+		{
+			if ((uint8_t *)free_node == current_pos)
+			{
+				is_free = true;
+				// Skip this free block
+				current_pos += free_node->free_size;
+				break;
+			}
+			free_node = free_node->next;
+		}
+
+		if (is_free || current_pos >= heap_end)
+		{
+			continue;
+		}
+
+		// This should be a used block
+		used_block = (fb_block_used *)current_pos;
+
+		// Verify it's a valid used block
+		if (used_block->corrupt_check == FB_ALLOCATED_PATTERN)
+		{
+			uint32_t block_size = used_block->size;
+			uint8_t *data_addr = (uint8_t *)(used_block + 1);
+
+			LOGI("%-4u  %p  %10u  %10u  %p\n",
+				block_index,
+				used_block,
+				block_size,
+				block_size / 1024,
+				data_addr);
+
+			current_pos += block_size;
+			block_index++;
+		}
+		else if (used_block->corrupt_check == FB_FREE_PATTERN)
+		{
+			// This block was freed but not yet merged
+			LOGW("%-4u  %p  FREED (not merged yet)\n", block_index, used_block);
+			current_pos += used_block->size;
+			block_index++;
+		}
+		else
+		{
+			// Unknown block, might be corrupted or uninitialized
+			LOGE("%-4u  %p  UNKNOWN/CORRUPTED (check=0x%x)\n",
+				block_index, used_block, used_block->corrupt_check);
+			// Try to skip to next aligned position
+			current_pos += sizeof(fb_block_used);
+			block_index++;
+
+			// Safety: prevent infinite loop
+			if (block_index > 1000)
+			{
+				LOGE("Too many blocks, stopping scan (possible heap corruption)\n");
+				break;
+			}
+		}
+	}
+
+	GLOBAL_INT_RESTORE();
+
+	LOGI("================================================\n");
+}
+
