@@ -115,21 +115,6 @@ menu "Lwip_intf_v2_1"
 			help
 				open lwip debug log
 
-		#TODO optimize it
-		choice LWIP_MEM
-			prompt "Select Lwip Mem Policy"
-			default LWIP_MEM_DEFAULT
-
-			config LWIP_MEM_DEFAULT
-				bool "LWIP_MEM_DEFAULT"
-				help
-					Default Memory Policy
-			config LWIP_MEM_REDUCE
-				depends on WIFI_ENABLE
-				bool "LWIP_MEM_REDUCE"
-				help
-					Reduced Memory Policy
-		endchoice
 	endmenu
 
 	menu "Memory Config"
