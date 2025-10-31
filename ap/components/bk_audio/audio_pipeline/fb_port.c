@@ -25,6 +25,15 @@
 
 #define TAG  "FB_PORT"
 
+// Check if fb_port and fb_port->fb are valid
+#define FB_PORT_CHECK(fb_port, self, action) \
+    do { \
+        if (!(fb_port) || !(fb_port)->fb) { \
+            BK_LOGE(TAG, "[%s] %s, fb_port:%p or fb_port->fb:%p is NULL\n", \
+                    audio_port_get_tag(self), __func__, fb_port, (fb_port) ? (fb_port)->fb : NULL); \
+            action; \
+        } \
+    } while (0)
 
 typedef struct framebuf_port
 {
@@ -52,21 +61,27 @@ static bk_err_t _framebuf_port_close(audio_port_handle_t self)
 
 static bk_err_t _framebuf_port_abort(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+    FB_PORT_CHECK(fb_port, self, return BK_FAIL);
 
     return fb_abort(fb_port->fb);
 }
 
 static bk_err_t _framebuf_port_reset(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+    FB_PORT_CHECK(fb_port, self, return BK_FAIL);
 
     return fb_reset(fb_port->fb);
 }
 
 static bk_err_t _framebuf_port_read(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+    FB_PORT_CHECK(fb_port, self, return BK_FAIL);
 
     framebuf_node_item_t *fb_node_item = NULL;
     int ret = fb_read(fb_port->fb, &fb_node_item, ticks_to_wait);
@@ -91,7 +106,9 @@ static bk_err_t _framebuf_port_read(audio_port_handle_t self, char *buffer, int 
 
 static bk_err_t _framebuf_port_write(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+    FB_PORT_CHECK(fb_port, self, return BK_FAIL);
 
     framebuf_node_item_t *fb_node_item = NULL;
     int ret = fb_malloc(fb_port->fb, &fb_node_item, ticks_to_wait);
@@ -118,27 +135,34 @@ static bk_err_t _framebuf_port_write(audio_port_handle_t self, char *buffer, int
 
 static bk_err_t _framebuf_port_get_total_node_num(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+    FB_PORT_CHECK(fb_port, self, return BK_FAIL);
 
     return fb_get_total_node_num(fb_port->fb);
 }
 
 static bk_err_t _framebuf_port_get_ready_node_num(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+    FB_PORT_CHECK(fb_port, self, return BK_FAIL);
 
     return fb_get_ready_node_num(fb_port->fb);
 }
 
 static bk_err_t _framebuf_port_get_free_node_num(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+    FB_PORT_CHECK(fb_port, self, return BK_FAIL);
 
     return fb_get_free_node_num(fb_port->fb);
 }
 
 static bk_err_t _framebuf_port_destroy(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_OK);
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
 
     if (fb_port && fb_port->fb)
@@ -158,7 +182,9 @@ static bk_err_t _framebuf_port_destroy(audio_port_handle_t self)
 
 static bk_err_t _framebuf_port_write_done(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     framebuf_port_t *fb_port = (framebuf_port_t *)audio_port_get_data(self);
+    FB_PORT_CHECK(fb_port, self, return BK_FAIL);
 
     return fb_done_write(fb_port->fb);
 }

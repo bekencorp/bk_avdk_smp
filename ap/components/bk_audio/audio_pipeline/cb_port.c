@@ -24,6 +24,15 @@
 
 #define TAG  "CB_PORT"
 
+// Check if cb_port and cb_port->cb are valid
+#define CB_PORT_CHECK(cb_port, self, action) \
+    do { \
+        if (!(cb_port) || !(cb_port)->cb) { \
+            BK_LOGE(TAG, "[%s] %s, cb_port:%p or cb_port->cb:%p is NULL\n", \
+                    audio_port_get_tag(self), __func__, cb_port, (cb_port) ? (cb_port)->cb : NULL); \
+            action; \
+        } \
+    } while (0)
 
 typedef struct callback_port
 {
@@ -62,30 +71,25 @@ static bk_err_t _callback_port_reset(audio_port_handle_t self)
 
 static bk_err_t _callback_port_read(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     callback_port_t *cb_port = (callback_port_t *)audio_port_get_data(self);
+    CB_PORT_CHECK(cb_port, self, return BK_FAIL);
 
-    if (cb_port->cb)
-    {
-        return cb_port->cb(self, buffer, len, ticks_to_wait, cb_port->ctx);
-    }
-
-    return BK_FAIL;
+    return cb_port->cb(self, buffer, len, ticks_to_wait, cb_port->ctx);
 }
 
 static bk_err_t _callback_port_write(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     callback_port_t *cb_port = (callback_port_t *)audio_port_get_data(self);
+    CB_PORT_CHECK(cb_port, self, return BK_FAIL);
 
-    if (cb_port->cb)
-    {
-        return cb_port->cb(self, buffer, len, ticks_to_wait, cb_port->ctx);
-    }
-
-    return BK_OK;
+    return cb_port->cb(self, buffer, len, ticks_to_wait, cb_port->ctx);
 }
 
 static bk_err_t _callback_port_destroy(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_OK);
     callback_port_t *cb_port = (callback_port_t *)audio_port_get_data(self);
 
     if (cb_port)
@@ -99,6 +103,8 @@ static bk_err_t _callback_port_destroy(audio_port_handle_t self)
 
 static bk_err_t _callback_port_write_done(audio_port_handle_t self)
 {
+    //nothing todo
+
     return BK_OK;
 }
 

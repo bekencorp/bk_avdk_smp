@@ -250,7 +250,7 @@ static bk_err_t spk_data_read_task_init(onboard_speaker_play_priv_t *spk_data_re
     spk_data_read_handle->read_buff = os_malloc(spk_data_read_handle->frame_size);
     ONBOARD_SPK_PLAY_CHECK_NULL(spk_data_read_handle->read_buff);
 
-    os_memset(spk_data_read_handle->read_buff, 0, sizeof(spk_data_read_handle->frame_size));
+    os_memset(spk_data_read_handle->read_buff, 0, spk_data_read_handle->frame_size);
 
     ret = rtos_init_semaphore(&spk_data_read_handle->sem, 1);
     if (ret != BK_OK)

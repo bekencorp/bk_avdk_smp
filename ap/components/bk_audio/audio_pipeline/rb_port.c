@@ -25,6 +25,15 @@
 
 #define TAG  "RB_PORT"
 
+// Check if rb_port and rb_port->rb are valid
+#define RB_PORT_CHECK(rb_port, self, action) \
+    do { \
+        if (!(rb_port) || !(rb_port)->rb) { \
+            BK_LOGE(TAG, "[%s] %s, rb_port:%p or rb_port->rb:%p is NULL\n", \
+                    audio_port_get_tag(self), __func__, rb_port, (rb_port) ? (rb_port)->rb : NULL); \
+            action; \
+        } \
+    } while (0)
 
 typedef struct ringbuf_port
 {
@@ -49,23 +58,27 @@ static bk_err_t _ringbuf_port_close(audio_port_handle_t self)
 
 static bk_err_t _ringbuf_port_abort(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
+    RB_PORT_CHECK(rb_port, self, return BK_FAIL);
 
     return rb_abort(rb_port->rb);
 }
 
 static bk_err_t _ringbuf_port_reset(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
+    RB_PORT_CHECK(rb_port, self, return BK_FAIL);
 
     return rb_reset(rb_port->rb);
 }
 
 static bk_err_t _ringbuf_port_read(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
-
-    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->buff_size);
+    RB_PORT_CHECK(rb_port, self, return BK_FAIL);
 
     int ret = rb_read(rb_port->rb, buffer, len, ticks_to_wait);
     if (ret < 0)
@@ -78,9 +91,9 @@ static bk_err_t _ringbuf_port_read(audio_port_handle_t self, char *buffer, int l
 
 static bk_err_t _ringbuf_port_write(audio_port_handle_t self, char *buffer, int len, TickType_t ticks_to_wait, void *context)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
-
-    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+    RB_PORT_CHECK(rb_port, self, return BK_FAIL);
 
     int ret = rb_write(rb_port->rb, (char *)buffer, len, ticks_to_wait);
     if (ret != len)
@@ -93,42 +106,43 @@ static bk_err_t _ringbuf_port_write(audio_port_handle_t self, char *buffer, int 
 
 static bk_err_t _ringbuf_port_write_done(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
-
-    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+    RB_PORT_CHECK(rb_port, self, return BK_FAIL);
 
     return rb_done_write(rb_port->rb);
 }
 
 static bk_err_t _ringbuf_port_get_size(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
-
-    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+    RB_PORT_CHECK(rb_port, self, return BK_FAIL);
 
     return rb_get_size(rb_port->rb);
 }
 
 static bk_err_t _ringbuf_port_get_filled_size(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
-
-    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+    RB_PORT_CHECK(rb_port, self, return BK_FAIL);
 
     return rb_bytes_filled(rb_port->rb);
 }
 
 static bk_err_t _ringbuf_port_get_free_size(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_FAIL);
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
-
-    //BK_LOGD(TAG, "[%s] %s, len: %d\n", audio_port_get_tag(self), __func__, node_data->length);
+    RB_PORT_CHECK(rb_port, self, return BK_FAIL);
 
     return rb_bytes_available(rb_port->rb);
 }
 
 static bk_err_t _ringbuf_port_destroy(audio_port_handle_t self)
 {
+    AUDIO_MEM_CHECK(TAG, self, return BK_OK);
     ringbuf_port_t *rb_port = (ringbuf_port_t *)audio_port_get_data(self);
 
     if (rb_port && rb_port->rb)
