@@ -193,9 +193,11 @@ bk_err_t rtos_smp_create_thread( beken_thread_t* thread, uint8_t priority, const
 bk_err_t rtos_core0_create_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-
+#if CONFIG_TASK_STACK_IN_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
+    return rtos_core0_create_psram_thread(thread, priority, name, function, stack_size, arg);
+#else
 	return rtos_create_thread_with_affinity(thread, 0, priority, name, function, stack_size, arg);
-
+#endif
 }
 
 bk_err_t rtos_core0_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name,
@@ -214,7 +216,11 @@ bk_err_t rtos_core0_create_psram_thread( beken_thread_t* thread, uint8_t priorit
 bk_err_t rtos_core1_create_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-	return rtos_create_thread_with_affinity(thread, 1, priority, name, function, stack_size, arg);
+#if CONFIG_TASK_STACK_IN_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
+    return rtos_core1_create_psram_thread(thread, priority, name, function, stack_size, arg);
+#else
+    return rtos_create_thread_with_affinity(thread, 1, priority, name, function, stack_size, arg);
+#endif
 }
 
 bk_err_t rtos_core1_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name,
