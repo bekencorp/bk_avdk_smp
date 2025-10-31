@@ -415,24 +415,25 @@ static netif_if_t bk_network_auto_reconnect(bool val)	//val true means from disc
 		np_sta_start((char *)info.sta_ssid, (char *)info.sta_pwd);
 		netif_if = NETIF_IF_STA;
 	}
-	if (info.flag & BIT(NETIF_IF_AP)) {
+	else if (info.flag & BIT(NETIF_IF_AP)) {
 		np_softap_start((char *)info.ap_ssid, (char *)info.ap_pwd, info.ap_channel);
 		netif_if = NETIF_IF_AP;
 	}
 #if CONFIG_NET_PAN
-	if (info.flag & BIT(NETIF_IF_PAN)) {
+	else if (info.flag & BIT(NETIF_IF_PAN)) {
 		pan_service_init();
 		bt_start_pan_reconnect();
 		netif_if = NETIF_IF_PAN;
 	}
 #endif
 #if CONFIG_BK_MODEM
-	if (info.flag & BIT(NETIF_IF_PPP)) {
+	else if (info.flag & BIT(NETIF_IF_PPP)) {
 		extern bk_err_t bk_modem_init(uint8_t comm_proto, uint8_t comm_if);
 		bk_modem_init(1, 1);
 		netif_if = NETIF_IF_PPP;
 	}
 #endif
+
     if (netif_if != NETIF_IF_INVALID) {
         if (val == false) {
 			network_status_check_stop_timeout_check();
