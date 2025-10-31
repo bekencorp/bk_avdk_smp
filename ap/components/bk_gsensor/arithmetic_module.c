@@ -21,7 +21,7 @@ static unsigned int xyz_len = 0;
 static shake_struct shake_info = {0};
 
 /*
-    arithmetic step module opcode define 
+    arithmetic step module opcode define
 */
 typedef enum{
     /* Send */
@@ -249,7 +249,7 @@ static void shake_arithmetic_task_handler(void *param)
     /* if shake close, so return. */
     if(0 == shake_info.onoff)
         return ;
-    
+
     uint64_t timestmp = 0;
 
     uint32_t shake_t_v = shake_alg_param.shake_threshold_v;
@@ -314,22 +314,22 @@ static sport_info_struct g_sport_info = {0};
 static sport_argument_info_struct sport_argument = {0};
 static MIX_SPORT_TYPE sport_type = MIX_SPORT_NULL;
 
-static calculate_struct run_cal_Sum = {0}; //和加速度的计算值
+static calculate_struct run_cal_Sum = {0};
 static smooth_data_struct run_smooth_data = {0};
-static int run_temp = 0; //缓存的计步值
+static int run_temp = 0;
 static unsigned char start_run_steps = 0;
-static int all_run_steps = 0; //总的计步值
+static int all_run_steps = 0;
 
-static calculate_struct cal_Sum = {0}; //和加速度的计算值
+static calculate_struct cal_Sum = {0};
 static smooth_data_struct steps_smooth_data = {0};
-static int steps_temp = 0, last_steps_temp = 0; //缓存的计步值
+static int steps_temp = 0, last_steps_temp = 0;
 static unsigned char start_steps = 0;
-static int all_steps = 0; //总的计步值
+static int all_steps = 0;
 static unsigned short dal_num = 0, y_over_num = 0;
 
 static const steps_argument_struct steps_argument[3] =
 {
-    {//X轴
+    {
         .DIR_LINE_NUM = S_DIR_LINE_NUM,
         .DIR_CHANGE_N = S_DIR_CHANGE_N,
         .MAX_TIME_TWO_POINT = S_MAX_TIME_TWO_POINT,
@@ -338,7 +338,7 @@ static const steps_argument_struct steps_argument[3] =
         .MIN_VALUE = S_MIN_VALUE_WATCH_PHONE,
         .START_STEPS = S_START_STEPS_X,
     },
-    {//Y轴
+    {
         .DIR_LINE_NUM = S_DIR_LINE_NUM,
         .DIR_CHANGE_N = S_DIR_CHANGE_N,
         .MAX_TIME_TWO_POINT = S_MAX_TIME_TWO_POINT,
@@ -347,7 +347,7 @@ static const steps_argument_struct steps_argument[3] =
         .MIN_VALUE = S_MIN_VALUE_NORMAL,
         .START_STEPS = S_START_STEPS_Y,
     },
-    {//Z轴
+    {
         .DIR_LINE_NUM = S_DIR_LINE_NUM_Z,
         .DIR_CHANGE_N = S_DIR_CHANGE_N,
         .MAX_TIME_TWO_POINT = S_MAX_TIME_TWO_POINT,
@@ -364,14 +364,12 @@ void clear_smooth_data(smooth_data_struct *smooth_data)
     memset(smooth_data, 0, sizeof(smooth_data_struct));
 }
 
-//平滑滤波
 signed short smooth_filter_func(smooth_data_struct *smooth_data, signed short acc_data)
 {
     signed short average = 0;
 
     if(smooth_data->first == 0)
     {
-        //清除平滑滤波数据
         clear_smooth_data(smooth_data);
 
         smooth_data->first = 1;
@@ -385,19 +383,14 @@ signed short smooth_filter_func(smooth_data_struct *smooth_data, signed short ac
     if(smooth_data->pos >= SAVE_LEN)
     smooth_data->pos = 0;
 
-    //将旧数据从总和中去掉
     smooth_data->sum -= smooth_data->buf[smooth_data->pos];
 
-    //将新数据保存进当前的位置处
     smooth_data->buf[smooth_data->pos] = acc_data;
 
-    //将新数据加到总和中去
     smooth_data->sum += smooth_data->buf[smooth_data->pos];
 
-    //计算平均值
     average = smooth_data->sum / SAVE_LEN;
 
-    //位置自加1
     smooth_data->pos++;
 
     return average;
@@ -405,7 +398,6 @@ signed short smooth_filter_func(smooth_data_struct *smooth_data, signed short ac
 
 void calculate_run_steps(calculate_struct *cal_axis, signed short value)
 {
-    //判断是否是第一次计数
     if(cal_axis->cur_pos == 0)
     {
         cal_axis->max_value = -32767;
@@ -415,15 +407,12 @@ void calculate_run_steps(calculate_struct *cal_axis, signed short value)
     }
     cal_axis->cur_pos++;
 
-    //如果一定时长内未找到波蜂或波谷，则计步终止
-    //比较宽度是否达标，比较频率是否达标
     if(((cal_axis->cur_pos - cal_axis->old_pos) > cal_axis->MAX_TIME_TWO_POINT)
-        ||(cal_axis->dir_num > cal_axis->DIR_LINE_NUM)) //如果高频波连续出现一定次数，则说明抖动非常剧烈，可以中止计步了
+        ||(cal_axis->dir_num > cal_axis->DIR_LINE_NUM))
     {
-        //连续两点超过一定的时长，则计步停止
         cal_axis->dal_steps = -1;
-        cal_axis->dir_change_flag = 0; //将方向沿清0
-        cal_axis->dir_num = 0; //方向计数清0
+        cal_axis->dir_change_flag = 0;
+        cal_axis->dir_num = 0;
         return ;
     }
 
@@ -431,63 +420,52 @@ void calculate_run_steps(calculate_struct *cal_axis, signed short value)
     {
         if(value < cal_axis->min_value)
         {
-            //如果当前是下降的趋势，则判断当前值是否比最小值还小，
-            //若还小则替换最小值
             cal_axis->min_pos = cal_axis->cur_pos;
-            cal_axis->min_value = value;   //保存当前的点值
-            cal_axis->dir_change = 0; //方向计数清0
-            //如果方向改变的标志已是下降沿方向，则将下一次方向改变标志置为上升沿方向
+            cal_axis->min_value = value;
+            cal_axis->dir_change = 0;
             if(cal_axis->dir_change_flag != 1)
             {
-                cal_axis->dir_change_flag = 1; //将方向置为上升沿方向
-                cal_axis->dir_num++; //方向计数加1
+                cal_axis->dir_change_flag = 1;
+                cal_axis->dir_num++;
             }
         }
         else
         {
-            //如果方向改变的标志已是上升沿方向，则将下一次方向改变标志置为下降沿方向
             if(cal_axis->dir_change_flag != 2)
             {
-                cal_axis->dir_change_flag = 2; //将方向置为下降沿方向
-                cal_axis->dir_num++; //方向计数加1
+                cal_axis->dir_change_flag = 2;
+                cal_axis->dir_num++;
             }
-            //若当前值已比最小值还大了，则判断是否连续大于n次
-            //以判断趋势是否要变化
-            cal_axis->max_pos = cal_axis->cur_pos; //保存当前的点位置到最大值中
-            cal_axis->max_value = value;   //保存当前的点值
 
-            //1. 比较趋势的变化
+            cal_axis->max_pos = cal_axis->cur_pos;
+            cal_axis->max_value = value;
+
             if(++cal_axis->dir_change > cal_axis->DIR_CHANGE_N)
             {
-                cal_axis->last_min_value = cal_axis->min_value;   //当方向变化后，保存最后一次的最小点值
+                cal_axis->last_min_value = cal_axis->min_value;
 
-                //如果最大值与最小值之差大于临界值，则认为是有效的，
                 int dal_value = cal_axis->max_value - cal_axis->min_value;
                 int average_value = (cal_axis->last_max_value + cal_axis->last_min_value)/2;
                 average_value = average_value > 0 ? average_value : (-average_value);
-                //3. 比较幅值及频率数是否达标
+
                 if(dal_value > cal_axis->DIR_DAL_VALUE)
                 {
-                    //且最大值与最小值的平均值要大于临界值
                     if((cal_axis->dir_num < cal_axis->DIR_LINE_NUM)&&(average_value > cal_axis->AVERAGE_VALUE)
                         &&(ABS(cal_axis->last_max_value) > run_cal_Sum.MIN_VALUE)&&
                           (ABS(cal_axis->last_min_value) > run_cal_Sum.MIN_VALUE))
                     {
-                        //计步值自加
                         cal_axis->dal_steps++;
                     }
 
-                    //保存上一次的值
                     cal_axis->old_pos = cal_axis->min_pos;
                     cal_axis->old_value = cal_axis->min_value;
-                    cal_axis->last_max_value = cal_axis->max_value;   //保存当前的最大点值
+                    cal_axis->last_max_value = cal_axis->max_value;
 
-                    //当前低点已达到临界值，则可以改变方向了
-                    cal_axis->dir_change = 0; //方向计数清0
-                    cal_axis->up_down = 1; //改变方向
+                    cal_axis->dir_change = 0;
+                    cal_axis->up_down = 1;
 
-                    cal_axis->dir_change_flag = 0; //将方向沿清0
-                    cal_axis->dir_num = 0; //方向计数清0
+                    cal_axis->dir_change_flag = 0;
+                    cal_axis->dir_num = 0;
                 }
             }
         }
@@ -496,62 +474,51 @@ void calculate_run_steps(calculate_struct *cal_axis, signed short value)
     {
         if(value > cal_axis->max_value)
         {
-            //如果当前是上升的趋势，则判断当前值是否比最大值还大，
-            //若还大则替换最大值
             cal_axis->max_pos = cal_axis->cur_pos;
             cal_axis->max_value = value;
             cal_axis->dir_change = 0;
 
-            //如果方向改变的标志已是下降沿方向，则将下一次方向改变标志置为上升沿方向
+
             if(cal_axis->dir_change_flag != 3)
             {
-                cal_axis->dir_change_flag = 3; //将方向置为上升沿方向
-                cal_axis->dir_num++; //方向计数加1
+                cal_axis->dir_change_flag = 3;
+                cal_axis->dir_num++;
             }
         }
         else
         {
-            //如果方向改变的标志已是上升沿方向，则将下一次方向改变标志置为下降沿方向
             if(cal_axis->dir_change_flag != 4)
             {
-                cal_axis->dir_change_flag = 4; //将方向置为下降沿方向
-                cal_axis->dir_num++; //方向计数加1
+                cal_axis->dir_change_flag = 4;
+                cal_axis->dir_num++;
             }
-            //若当前值已比最大值还小了，则判断是否连续小于n次
-            //以判断趋势是否要变化
             cal_axis->min_pos = cal_axis->cur_pos;
             cal_axis->min_value = value;
-            if(++cal_axis->dir_change > cal_axis->DIR_CHANGE_N) //比较趋势的变化
+            if(++cal_axis->dir_change > cal_axis->DIR_CHANGE_N)
             {
-                cal_axis->last_max_value = cal_axis->max_value;   //当方向变化后，保存最后一次的最大点值
+                cal_axis->last_max_value = cal_axis->max_value;
 
-                //如果最大值与最小值之差大于临界值，则认为是有效的
                 int dal_value = cal_axis->max_value - cal_axis->min_value;
                 int average_value = (cal_axis->last_max_value + cal_axis->last_min_value)/2;
                 average_value = average_value > 0 ? average_value : (-average_value);
-                //3. 比较幅值及频率数是否达标
                 if(dal_value > cal_axis->DIR_DAL_VALUE)
                 {
-                    //且最大值与最小值的平均值要大于临界值
                     if((cal_axis->dir_num < cal_axis->DIR_LINE_NUM)&&(average_value > cal_axis->AVERAGE_VALUE)
                         &&(ABS(cal_axis->last_max_value) > run_cal_Sum.MIN_VALUE)&&
                           (ABS(cal_axis->last_min_value) > run_cal_Sum.MIN_VALUE))
                     {
-                        //计步值自加
                         cal_axis->dal_steps++;
                     }
 
-                    //保存上一次的值
                     cal_axis->old_pos = cal_axis->max_pos;
                     cal_axis->old_value = cal_axis->max_value;
-                    cal_axis->last_min_value = cal_axis->min_value;   //保存当前的最小点值
+                    cal_axis->last_min_value = cal_axis->min_value;
 
-                    //当前低点已达到临界值，则可以改变方向了
-                    cal_axis->dir_change = 0; //方向计数清0
-                    cal_axis->up_down = 0; //改变方向
+                    cal_axis->dir_change = 0;
+                    cal_axis->up_down = 0;
 
-                    cal_axis->dir_change_flag = 0; //将方向沿清0
-                    cal_axis->dir_num = 0; //方向计数清0
+                    cal_axis->dir_change_flag = 0;
+                    cal_axis->dir_num = 0;
                 }
             }
         }
@@ -568,7 +535,7 @@ void arithmetic_fifo_set(unsigned char onoff)
                                 GSENSOR_MODULE_ID,
                                 GSENSOR_OPCODE_SET_NORMAL_MODE,
                                 NULL,
-                                0);                 
+                                0);
 #endif
     }
     else
@@ -578,12 +545,12 @@ void arithmetic_fifo_set(unsigned char onoff)
                                 GSENSOR_MODULE_ID,
                                 GSENSOR_OPCODE_SET_WAKEUP_MODE,
                                 NULL,
-                                0); 
+                                0);
 #endif
     }
 }
 
-void save_sport_steps(unsigned int steps)//保存步数
+void save_sport_steps(unsigned int steps)
 {
     time_t timestmp = 0;
     //unsigned int timesize = 0;
@@ -632,7 +599,6 @@ void save_steps_start_time(void)
 
 void calculate_steps(calculate_struct *cal_axis, signed short value)
 {
-    //判断是否是第一次计数
     if(cal_axis->cur_pos == 0)
     {
         cal_axis->max_value = -32767;
@@ -642,15 +608,12 @@ void calculate_steps(calculate_struct *cal_axis, signed short value)
     }
     cal_axis->cur_pos++;
 
-    //如果一定时长内未找到波蜂或波谷，则计步终止
-    //比较宽度是否达标，比较频率是否达标
     if(((cal_axis->cur_pos - cal_axis->old_pos) > cal_axis->MAX_TIME_TWO_POINT)
-        ||(cal_axis->dir_num > cal_axis->DIR_LINE_NUM)) //如果高频波连续出现一定次数，则说明抖动非常剧烈，可以中止计步了
+        ||(cal_axis->dir_num > cal_axis->DIR_LINE_NUM))
     {
-        //连续两点超过一定的时长，则计步停止
         cal_axis->dal_steps = -1;
-        cal_axis->dir_change_flag = 0; //将方向沿清0
-        cal_axis->dir_num = 0; //方向计数清0
+        cal_axis->dir_change_flag = 0;
+        cal_axis->dir_num = 0;
         return ;
     }
 
@@ -658,62 +621,51 @@ void calculate_steps(calculate_struct *cal_axis, signed short value)
     {
         if(value < cal_axis->min_value)
         {
-            //如果当前是下降的趋势，则判断当前值是否比最小值还小，
-            //若还小则替换最小值
             cal_axis->min_pos = cal_axis->cur_pos;
-            cal_axis->min_value = value;   //保存当前的点值
-            cal_axis->dir_change = 0; //方向计数清0
-            //如果方向改变的标志已是下降沿方向，则将下一次方向改变标志置为上升沿方向
+            cal_axis->min_value = value;
+            cal_axis->dir_change = 0;
+
             if(cal_axis->dir_change_flag != 1)
             {
-                cal_axis->dir_change_flag = 1; //将方向置为上升沿方向
-                cal_axis->dir_num++; //方向计数加1
+                cal_axis->dir_change_flag = 1;
+                cal_axis->dir_num++;
             }
         }
         else{
-            //如果方向改变的标志已是上升沿方向，则将下一次方向改变标志置为下降沿方向
             if(cal_axis->dir_change_flag != 2)
             {
-                cal_axis->dir_change_flag = 2; //将方向置为下降沿方向
-                cal_axis->dir_num++; //方向计数加1
+                cal_axis->dir_change_flag = 2;
+                cal_axis->dir_num++;
             }
-            //若当前值已比最小值还大了，则判断是否连续大于n次
-            //以判断趋势是否要变化
-            cal_axis->max_pos = cal_axis->cur_pos; //保存当前的点位置到最大值中
-            cal_axis->max_value = value;   //保存当前的点值
 
-            //1. 比较趋势的变化
+            cal_axis->max_pos = cal_axis->cur_pos;
+            cal_axis->max_value = value;
+
             if(++cal_axis->dir_change > cal_axis->DIR_CHANGE_N)
             {
-                cal_axis->last_min_value = cal_axis->min_value;   //当方向变化后，保存最后一次的最小点值
+                cal_axis->last_min_value = cal_axis->min_value;
 
-                //如果最大值与最小值之差大于临界值，则认为是有效的，
                 int dal_value = cal_axis->max_value - cal_axis->min_value;
                 int average_value = (cal_axis->last_max_value + cal_axis->last_min_value)/2;
                 average_value = average_value > 0 ? average_value : (-average_value);
-                //3. 比较幅值及频率数是否达标
                 if(dal_value > cal_axis->DIR_DAL_VALUE)
                 {
-                    //且最大值与最小值的平均值要大于临界值
                     if((cal_axis->dir_num < cal_axis->DIR_LINE_NUM)&&(average_value > cal_axis->AVERAGE_VALUE)
                         &&(ABS(cal_axis->last_max_value) > cal_Sum.MIN_VALUE)&&
                           (ABS(cal_axis->last_min_value) > cal_Sum.MIN_VALUE))
                     {
-                        //计步值自加
                         cal_axis->dal_steps++;
                     }
 
-                    //保存上一次的值
                     cal_axis->old_pos = cal_axis->min_pos;
                     cal_axis->old_value = cal_axis->min_value;
-                    cal_axis->last_max_value = cal_axis->max_value;   //保存当前的最大点值
+                    cal_axis->last_max_value = cal_axis->max_value;
 
-                    //当前低点已达到临界值，则可以改变方向了
-                    cal_axis->dir_change = 0; //方向计数清0
-                    cal_axis->up_down = 1; //改变方向
+                    cal_axis->dir_change = 0;
+                    cal_axis->up_down = 1;
 
-                    cal_axis->dir_change_flag = 0; //将方向沿清0
-                    cal_axis->dir_num = 0; //方向计数清0
+                    cal_axis->dir_change_flag = 0;
+                    cal_axis->dir_num = 0;
                 }
             }
         }
@@ -722,62 +674,53 @@ void calculate_steps(calculate_struct *cal_axis, signed short value)
     {
         if(value > cal_axis->max_value)
         {
-            //如果当前是上升的趋势，则判断当前值是否比最大值还大，
-            //若还大则替换最大值
+
             cal_axis->max_pos = cal_axis->cur_pos;
             cal_axis->max_value = value;
             cal_axis->dir_change = 0;
 
-            //如果方向改变的标志已是下降沿方向，则将下一次方向改变标志置为上升沿方向
             if(cal_axis->dir_change_flag != 3)
             {
-                cal_axis->dir_change_flag = 3; //将方向置为上升沿方向
-                cal_axis->dir_num++; //方向计数加1
+                cal_axis->dir_change_flag = 3;
+                cal_axis->dir_num++;
             }
         }
         else
         {
-            //如果方向改变的标志已是上升沿方向，则将下一次方向改变标志置为下降沿方向
             if(cal_axis->dir_change_flag != 4)
             {
-                cal_axis->dir_change_flag = 4; //将方向置为下降沿方向
-                cal_axis->dir_num++; //方向计数加1
+                cal_axis->dir_change_flag = 4;
+                cal_axis->dir_num++;
             }
-            //若当前值已比最大值还小了，则判断是否连续小于n次
-            //以判断趋势是否要变化
+
             cal_axis->min_pos = cal_axis->cur_pos;
             cal_axis->min_value = value;
-            if(++cal_axis->dir_change > cal_axis->DIR_CHANGE_N) //比较趋势的变化
+            if(++cal_axis->dir_change > cal_axis->DIR_CHANGE_N)
             {
-                cal_axis->last_max_value = cal_axis->max_value;   //当方向变化后，保存最后一次的最大点值
+                cal_axis->last_max_value = cal_axis->max_value;
 
-                //如果最大值与最小值之差大于临界值，则认为是有效的
                 int dal_value = cal_axis->max_value - cal_axis->min_value;
                 int average_value = (cal_axis->last_max_value + cal_axis->last_min_value)/2;
                 average_value = average_value > 0 ? average_value : (-average_value);
-                //3. 比较幅值及频率数是否达标
                 if(dal_value > cal_axis->DIR_DAL_VALUE)
                 {
-                    //且最大值与最小值的平均值要大于临界值
                     if((cal_axis->dir_num < cal_axis->DIR_LINE_NUM)&&(average_value > cal_axis->AVERAGE_VALUE)
                         &&(ABS(cal_axis->last_max_value) > cal_Sum.MIN_VALUE)&&
                           (ABS(cal_axis->last_min_value) > cal_Sum.MIN_VALUE))
                     {
-                        //计步值自加
                         cal_axis->dal_steps++;
                     }
 
-                    //保存上一次的值
+
                     cal_axis->old_pos = cal_axis->max_pos;
                     cal_axis->old_value = cal_axis->max_value;
-                    cal_axis->last_min_value = cal_axis->min_value;   //保存当前的最小点值
+                    cal_axis->last_min_value = cal_axis->min_value;
 
-                    //当前低点已达到临界值，则可以改变方向了
-                    cal_axis->dir_change = 0; //方向计数清0
-                    cal_axis->up_down = 0; //改变方向
+                    cal_axis->dir_change = 0;
+                    cal_axis->up_down = 0;
 
-                    cal_axis->dir_change_flag = 0; //将方向沿清0
-                    cal_axis->dir_num = 0; //方向计数清0
+                    cal_axis->dir_change_flag = 0;
+                    cal_axis->dir_num = 0;
                 }
             }
         }
@@ -792,9 +735,7 @@ void run_arithmetic_stop(void)
     start_run_steps = 0;
     /* sport stop. */
     arithmetic_sport_type = ARITHMETIC_TYPE_NULL;
-    //清除计算量数据
     memset(&run_cal_Sum, 0, sizeof(run_cal_Sum));
-    //清除平滑滤波数据
     clear_smooth_data(&run_smooth_data);
 }
 
@@ -805,7 +746,6 @@ void run_arithmetic(void)
     signed short x = 0,y = 0,z = 0;
     int sg = 0;
 
-    //处理和加速度值
     run_cal_Sum.DIR_LINE_NUM = RUN_S_DIR_LINE_NUM;
     run_cal_Sum.DIR_CHANGE_N = RUN_S_DIR_CHANGE_N;
     run_cal_Sum.MAX_TIME_TWO_POINT = RUN_S_MAX_TIME_TWO_POINT;
@@ -842,10 +782,8 @@ void run_arithmetic(void)
             arithmetic_sport_type = ARITHMETIC_TYPE_NULL;
             arithmetic_fifo_set(0); //close arithmetic fifo irq.
 
-            //清除计算量数据
             memset(&run_cal_Sum, 0, sizeof(run_cal_Sum));
 
-            //清除平滑滤波数据
             clear_smooth_data(&run_smooth_data);
         }
         else if(run_cal_Sum.dal_steps > 0)
@@ -859,16 +797,14 @@ void run_arithmetic(void)
                     start_run_steps = 1;
                     if(sport_type != MIX_SPORT_NULL)
                     {
-                        all_run_steps += 20; //加上刚开始的10步
+                        all_run_steps += 20;
                         save_steps_start_time();
                         save_sport_steps(20);
                     }
                     else
                     {
-                        /* 如果混杂运动模式没有打开而进入了跑步算法，则说明是自动识别
-                        ** 进入的跑步模式，此时加上自动识别刚开始的2秒数据，大概为5步
-                        **/
-                        all_run_steps += 30; //加上刚开始的15步
+
+                        all_run_steps += 30;
                         save_steps_start_time();
                         save_sport_steps(30);
                     }
@@ -897,9 +833,7 @@ void steps_arithmetic_stop(void)
     start_steps = 0;
     /* sport stop. */
     arithmetic_sport_type = ARITHMETIC_TYPE_NULL;
-    //清除计算量数据
     memset(&cal_Sum, 0, sizeof(cal_Sum));
-    //清除平滑滤波数据
     clear_smooth_data(&steps_smooth_data);
 }
 
@@ -923,7 +857,6 @@ void steps_arithmetic(void)
         y_max = y_min = xyz_buf[0];
     }
 
-    /* 判断是X轴还是Y轴移动，若X轴平均值大于Y轴，则表示X轴移动，否则表示Y轴移动 */
     for(unsigned int i = 0;i < xyz_len; i+=3)
     {
         //os_printf("xyz_buf1=%d,xyz_buf2=%d,xyz_buf3=%d \r\n",xyz_buf[i+0],xyz_buf[i+1],xyz_buf[i+2]);
@@ -931,7 +864,6 @@ void steps_arithmetic(void)
         y_sum += xyz_buf[i+1];
         z_sum += xyz_buf[i+2];
 
-        /* 计算一段时间内Y轴的最大与最小值 */
         if(y_max < xyz_buf[i+1])
             y_max = xyz_buf[i+1];
         if(y_min > xyz_buf[i+1])
@@ -939,7 +871,6 @@ void steps_arithmetic(void)
     }
     dal_num += xyz_len/3;
 
-    //判断Z轴是否垂直向上，此时相当于是抬手平移走路
     num = xyz_len/3;
     value = z_sum/num;
 
@@ -949,7 +880,6 @@ void steps_arithmetic(void)
 
     if(value < -700)
     {
-        //当Z轴运动时，判断Y轴是否也有运动，若Y轴也有运动则不是Z轴的标准运动
         if(dal_num > 35) //700ms.
         {
             dal_num = 0;
@@ -965,7 +895,6 @@ void steps_arithmetic(void)
                 return;
             }
         }
-        //取Z轴的值
         offset = 2;
         argu_off = 2;
     }
@@ -975,7 +904,6 @@ void steps_arithmetic(void)
         y_over_num = 0;
         if(ABS(x_sum-y_sum) < 50*num)
         {
-            //若X与Y轴的平均差值不是很大，则保持上一次的方向不变
             if(last_offset == 2)
                 last_offset = 0;
             offset = last_offset;
@@ -991,24 +919,21 @@ void steps_arithmetic(void)
             offset = 1;
             argu_off = 1;
         }
-        //若Z轴正方向的平均值大于300，则可以认为是背手走路
         if(value > 300)
         {
             if(ABS(x_sum)/num > 500)
             {
-                //若X轴平均值有效，则取X轴数据
                 offset = 0;
                 argu_off = 0;
             }
             else
             {
                 offset = 2;
-                argu_off = 0;//参数值使用X轴的参数
+                argu_off = 0;
             }
         }
     }
 
-    //若上次的计步方向与当前的不一致且计步已完全启动，则强制加1步的补尝
     if((start_steps > 0)&&(last_offset != offset))
     {
         steps_temp += 2;
@@ -1016,7 +941,6 @@ void steps_arithmetic(void)
         save_sport_steps(2);
     }
 
-    //初始化参数值
     if((last_offset != offset)||(0 == cal_Sum.START_STEPS))
     {
         cal_Sum.DIR_LINE_NUM = steps_argument[argu_off].DIR_LINE_NUM;
@@ -1026,7 +950,6 @@ void steps_arithmetic(void)
         cal_Sum.AVERAGE_VALUE = steps_argument[argu_off].AVERAGE_VALUE;
         cal_Sum.MIN_VALUE = steps_argument[argu_off].MIN_VALUE;
         cal_Sum.START_STEPS = steps_argument[argu_off].START_STEPS;
-        //如果当前不是Y轴计步且上次的数据小于20步，则是小范围内运动，则加大启动步数
         if((1 != argu_off)&&(last_steps_temp < 40))
         {
             if(cal_Sum.START_STEPS < 40)
@@ -1036,7 +959,7 @@ void steps_arithmetic(void)
 
     last_offset = offset;
 
-    //逐个计算每个数据
+
     for(unsigned int i = 0;i < xyz_len; i+=3)
     {
         /* get x,y,z data */
@@ -1069,7 +992,7 @@ void steps_arithmetic(void)
                 if(start_steps == 0)
                 {
                     start_steps = 1;
-                    all_steps += cal_Sum.START_STEPS+1; //加上刚开始的10步
+                    all_steps += cal_Sum.START_STEPS+1;
                     save_steps_start_time();
                     save_sport_steps(cal_Sum.START_STEPS+1);
                 }
@@ -1102,7 +1025,7 @@ static void arithmetic_step_module_handler_data(void)
         {
             m_sport_dir.y_down++;
         }
-        
+
         /* calculate the Z direction charge number. */
         if(xyz_buf[i+2] > -400)
         {
@@ -1113,18 +1036,15 @@ static void arithmetic_step_module_handler_data(void)
             m_sport_dir.z_down++;
         }
     }
-    
-    /* 若在连续的1.5秒内数据上下方向数超过一定时就认为是在快速跑步，否则就是走路 */
+
     if(m_sport_dir.num > 75) //50HZ, 1.5秒
     {
         if((m_sport_dir.y_up > 10)&&(m_sport_dir.y_down > 10))
         {
-            /* 若Y轴变化太大，则是在跑步 */
             m_sport_dir.dir = 1;
         }
         else if((m_sport_dir.z_up > 15)&&(m_sport_dir.z_down > 15))
         {
-            /* 如果Z轴数据变化太大则是平划摆动，可不计步 */
             m_sport_dir.dir = 2;
         }
         else
@@ -1138,12 +1058,10 @@ static void arithmetic_step_module_handler_data(void)
         m_sport_dir.z_down = 0;
     }
     os_printf("m_sport_dir.dir = %d\r\n",m_sport_dir.dir);
-    /* 若运动模式未开启或运动模式是健走，则优先进入正常计步模式，否则一律为跑步模式 */
     if((sport_type == MIX_SPORT_NULL)||(sport_type == MIX_SPORT_WALK))
     {
         if(0 == m_sport_dir.dir) //once direction is walk.
         {
-            /* 若上次跑步算法还没关掉，则这次强制关闭 */
             if(arithmetic_sport_type == ARITHMETIC_TYPE_RUN)
             {
                 run_arithmetic_stop();
@@ -1154,7 +1072,6 @@ static void arithmetic_step_module_handler_data(void)
         }
         else if(1 == m_sport_dir.dir) //Y two direction is run.
         {
-            /* 若上次走路算法还没关掉，则这次强制关闭 */
             if(arithmetic_sport_type == ARITHMETIC_TYPE_WALK)
             {
                 steps_arithmetic_stop();
@@ -1165,12 +1082,11 @@ static void arithmetic_step_module_handler_data(void)
         }
         else// if(2 == m_sport_dir.dir)
         {
-            //若是平划摆动则不计步
+
         }
     }
     else
     {
-        /* 若上次走路算法还没关掉，则这次强制关闭 */
         if(arithmetic_sport_type == ARITHMETIC_TYPE_WALK)
         {
             steps_arithmetic_stop();

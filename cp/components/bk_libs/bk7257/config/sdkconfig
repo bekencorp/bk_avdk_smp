@@ -332,6 +332,7 @@ CONFIG_ADC_BUF_SIZE=32
 # CONFIG_SADC_API_TEST is not set
 # CONFIG_ADC_API_TEST is not set
 # CONFIG_SARADC_MB is not set
+# CONFIG_CLI_SARADC_TEST is not set
 # end of SARADC
 
 #
@@ -537,7 +538,6 @@ CONFIG_DYM_LOG_MEM_MAX=0x2000
 # CONFIG_TOUCH_TEST is not set
 # CONFIG_INTERRUPT_TEST is not set
 # CONFIG_AON_PMU_TEST is not set
-# CONFIG_SDMADC_TEST is not set
 # CONFIG_PM_TEST is not set
 # CONFIG_PUF_TEST is not set
 CONFIG_ICU=y
