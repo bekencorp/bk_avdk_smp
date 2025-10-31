@@ -16,6 +16,7 @@
 #include "bk_uid_adaptor.h"
 #include <modules/uidlib.h>
 #include <components/bk_uid.h>
+#include "bk_api_rpc.h"
 
 bk_err_t bk_uid_driver_init(void)
 {
@@ -24,6 +25,6 @@ bk_err_t bk_uid_driver_init(void)
 
 bk_err_t bk_uid_get_data(unsigned char data[32])
 {
-    return get_uid(data);
+    return bk_api_rpc_get_uid(data);
 }
 

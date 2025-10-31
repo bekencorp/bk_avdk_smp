@@ -18,7 +18,7 @@ static void cli_uid_ops_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	if (os_strcmp(argv[1], "init") == 0) {
 		BK_LOG_ON_ERR(bk_uid_driver_init());
 	} else if(os_strcmp(argv[1], "get") == 0) {
-		unsigned char data[32];
+		unsigned char data[32] = {0};
 		BK_LOG_ON_ERR(bk_uid_get_data(data));
 		for(int j = 0;j < 32; j++)
 		{

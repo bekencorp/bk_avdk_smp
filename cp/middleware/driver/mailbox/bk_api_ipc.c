@@ -18,7 +18,7 @@
 
 #include "bk_api_ipc.h"
 #include "bk_api_ipc_test.h"
-
+#include "bk_api_rpc.h"
 #include <driver/pwr_clk.h>
 
 #if (CONFIG_CACHE_ENABLE)
@@ -1136,6 +1136,7 @@ int bk_ipc_init(void)
 {
     if (NULL == bk_ipc_info) {
         bk_ipc_info = bk_ipc_core_init(MB_CHNL_MIPC_SYNC);
+        bk_api_rpc_init();
     }
 
     return BK_OK;

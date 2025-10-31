@@ -337,6 +337,7 @@ if (CONFIG_MAILBOX)
 			mailbox/mb_ipc_heartbeat.c
 			mailbox/bk_api_ipc.c
 			mailbox/bk_api_ipc_test.c
+			mailbox/bk_api_rpc_server.c
 			mailbox/mb_chnl_buff.c
 			spinlock/amp_res_lock.c
 			spinlock/spinlock.c
