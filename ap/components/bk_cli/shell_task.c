@@ -2092,7 +2092,9 @@ static int combine_log_with_prefix(const char *prefix, char *pbuf, int buf_len, 
 	}
 	log_len += vsnprintf(&pbuf[log_len], buf_len - log_len, format, ap);
 #if !CONFIG_RELEASE_VERSION
-	BK_ASSERT(log_len <= buf_len);
+	if(log_len > buf_len) {
+		BK_DUMP_OUT("\r\nWarning: Log Buffer Overflow\r\n");
+	}
 #endif
 	if (log_len >= buf_len) {
 		log_len = buf_len - 1;
