@@ -2093,9 +2093,10 @@ bk_err_t bk_wifi_p2p_enable(const char *ssid)
 {
     bk_err_t ret = BK_OK;
     void *buffer_to_ipc = NULL;
+    const char *default_ssid = "BEKEN SMP_P2P";
 
     if (ssid == NULL) {
-        return BK_ERR_NULL_PARAM;
+        ssid = default_ssid;
     }
     uint8_t ssid_len = os_strlen(ssid);
     if (ssid_len > SSID_MAX_LEN) {

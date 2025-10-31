@@ -758,16 +758,58 @@ bk_err_t bk_wlan_start_sta(network_InitTypeDef_st *inNetworkInitPara)
 
 #ifdef CONFIG_P2P
 beken_queue_t  g_msg_queue;
+static volatile int g_p2p_queue_inited = 0;
+static volatile int g_p2p_thread_running = 0;
+static char g_p2p_saved_ssid[33] = {0};  // Save P2P SSID for reconnection
+
 void app_p2p_rw_event_func(void *new_evt)
 {
 	int ret;
 	DRONE_MSG_T msg;
 	wifi_link_state_t evt_type = *((wifi_link_state_t *)new_evt);
 
+	if (!g_p2p_queue_inited)
+		return;
+
 	msg.dmsg = evt_type;
-	ret = rtos_push_to_queue(&g_msg_queue, &msg, BEKEN_NO_WAIT);
+	ret = rtos_push_to_queue(&g_msg_queue, &msg, 100);
 	if (ret)
-		WIFI_LOGE("%s, %d, push to queue error\n", __func__, __LINE__);
+		WIFI_LOGE("%s, %d, push old event %d failed\n", __func__, __LINE__, evt_type);
+}
+
+bk_err_t app_p2p_event_cb(void *arg, event_module_t event_module, int event_id, void *event_data)
+{
+	int ret;
+	DRONE_MSG_T msg;
+
+	if (!g_p2p_queue_inited)
+		return BK_OK;
+
+	// Convert wifi_event_t to wifi_link_state_t for unified processing
+	if (event_module == EVENT_MOD_WIFI) {
+		switch (event_id) {
+		case EVENT_WIFI_STA_CONNECTED:
+			msg.dmsg = WIFI_LINKSTATE_STA_CONNECTED;
+			break;
+		case EVENT_WIFI_STA_DISCONNECTED:
+			msg.dmsg = WIFI_LINKSTATE_STA_DISCONNECTED;
+			break;
+		case EVENT_WIFI_AP_CONNECTED:
+			msg.dmsg = WIFI_LINKSTATE_AP_CONNECTED;
+			break;
+		case EVENT_WIFI_AP_DISCONNECTED:
+			msg.dmsg = WIFI_LINKSTATE_AP_DISCONNECTED;
+			break;
+		default:
+			return BK_OK; // Ignore other events
+		}
+
+		ret = rtos_push_to_queue(&g_msg_queue, &msg, 100);
+		if (ret)
+			WIFI_LOGE("%s, push new event %d failed\n", __func__, event_id);
+	}
+
+	return BK_OK;
 }
 
 int app_deinit(void)
@@ -777,29 +819,49 @@ int app_deinit(void)
 	int status = 0;
 
 	ret = rtos_init_queue(&g_msg_queue,
-				"app_demo_p2p_cancel,queue",
-                              sizeof(DRONE_MSG_T),
-                              1);
+						   "p2p_event_queue",
+                            sizeof(DRONE_MSG_T),
+                            10);
+	if (ret) {
+		WIFI_LOGE("P2P queue init failed\n");
+		return ret;
+	}
+	g_p2p_queue_inited = 1;
+
+	// Register new event system callback
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_CONNECTED,
+	                     app_p2p_event_cb, NULL);
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+	                     app_p2p_event_cb, NULL);
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED,
+	                     app_p2p_event_cb, NULL);
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_DISCONNECTED,
+	                     app_p2p_event_cb, NULL);
 
 	while(1) {
 		ret = rtos_pop_from_queue(&g_msg_queue, &msg, BEKEN_WAIT_FOREVER);
+
+		// P2P GO disconnected (as GO)
 		if (msg.dmsg == WIFI_LINKSTATE_AP_DISCONNECTED && status == 1) {
-			rwnx_hw_reinit();
 			uap_ip_down();
 			wlan_p2p_cancel();
 			wlan_p2p_find();
 			status = 0;
 		}
+		// P2P GC connected (as GC) or got IP (as GO)
 		else if ((msg.dmsg == WIFI_LINKSTATE_AP_CONNECTED ||
-				msg.dmsg == WIFI_LINKSTATE_STA_GOT_IP) && status ==0) {
+		          msg.dmsg == WIFI_LINKSTATE_STA_CONNECTED ||
+		          msg.dmsg == WIFI_LINKSTATE_STA_GOT_IP) && status == 0) {
 			status = 1;
 		}
+		// P2P GC disconnected (as GC)
 		else if ((msg.dmsg == WIFI_LINKSTATE_STA_DISCONNECTED ||
-			 msg.dmsg == WIFI_LINKSTATE_STA_CONNECT_FAILED) && status == 1) {
+		 		msg.dmsg == WIFI_LINKSTATE_STA_CONNECT_FAILED) && status == 1) {
 			sta_ip_down();
-			rwnx_hw_reinit();
+			wlan_sta_disable();
 			extern void sys_msleep(u32_t ms);
 			sys_msleep(2000);
+			wlan_p2p_enable(g_p2p_saved_ssid);  // Use saved SSID for reconnection
 			wlan_p2p_find();
 			status = 0;
 		}
@@ -808,15 +870,59 @@ int app_deinit(void)
 	return ret;
 }
 
-beken_thread_t p2p_restart_thread_hdl;
+beken_thread_t p2p_restart_thread_hdl = NULL;
+
 void app_p2p_restart_thread(void)
 {
-	 rtos_create_thread(&p2p_restart_thread_hdl,
-                                 BEKEN_DEFAULT_WORKER_PRIORITY,
-                                 "app_deinit_thread",
-                                 (beken_thread_function_t)app_deinit,
-                                 2048,
-                                 (beken_thread_arg_t)NULL);
+	// Prevent creating duplicate threads
+	if (g_p2p_thread_running) {
+		WIFI_LOGW("P2P event thread already running, skip creation\n");
+		return;
+	}
+
+	int ret = rtos_create_thread(&p2p_restart_thread_hdl,
+	                              BEKEN_DEFAULT_WORKER_PRIORITY,
+	                              "app_deinit_thread",
+	                              (beken_thread_function_t)app_deinit,
+	                              1536,
+	                              (beken_thread_arg_t)NULL);
+	if (ret == kNoErr) {
+		g_p2p_thread_running = 1;
+		WIFI_LOGI("P2P event thread created successfully\n");
+	} else {
+		WIFI_LOGE("Failed to create P2P event thread, ret=%d\n", ret);
+	}
+}
+
+void app_p2p_stop_thread(void)
+{
+	if (!g_p2p_thread_running) {
+		return;
+	}
+
+	// Unregister event callbacks
+	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_CONNECTED, app_p2p_event_cb);
+	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED, app_p2p_event_cb);
+	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED, app_p2p_event_cb);
+	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_DISCONNECTED, app_p2p_event_cb);
+
+	// Mark queue as uninitialized to stop receiving events
+	g_p2p_queue_inited = 0;
+
+	// Delete thread
+	if (p2p_restart_thread_hdl) {
+		rtos_delete_thread(&p2p_restart_thread_hdl);
+		p2p_restart_thread_hdl = NULL;
+	}
+
+	// Delete queue
+	if (g_msg_queue) {
+		rtos_deinit_queue(&g_msg_queue);
+		g_msg_queue = NULL;
+	}
+
+	g_p2p_thread_running = 0;
+	WIFI_LOGD("P2P event thread stopped\n");
 }
 #endif
 
@@ -1506,15 +1612,23 @@ int wlan_p2p_enable(const char *ssid)
 {
 	int ret = 0;
 	network_InitTypeDef_st wNetConfig;
-	char *default_ssid = "beken smp_p2p";
+	char *default_ssid = "BEKEN SMP_P2P";
 	char *connect_key = "12345678";
 	os_memset(&wNetConfig, 0x0, sizeof(network_InitTypeDef_st));
 
 	//If ssid NULL, turn to Default SSID
 	if (ssid && strlen(ssid) > 0) {
 		os_strlcpy((char *)wNetConfig.wifi_ssid, ssid, sizeof(wNetConfig.wifi_ssid));
+		// Save P2P SSID for reconnection
+		os_memset(g_p2p_saved_ssid, 0, sizeof(g_p2p_saved_ssid));
+		os_strlcpy(g_p2p_saved_ssid, ssid, sizeof(g_p2p_saved_ssid));
 	} else {
-		os_strlcpy((char *)wNetConfig.wifi_ssid, default_ssid, sizeof(wNetConfig.wifi_ssid));
+		// Use saved SSID if available, otherwise use default
+		if (g_p2p_saved_ssid[0] != '\0') {
+			os_strlcpy((char *)wNetConfig.wifi_ssid, g_p2p_saved_ssid, sizeof(wNetConfig.wifi_ssid));
+		} else {
+			os_strlcpy((char *)wNetConfig.wifi_ssid, default_ssid, sizeof(wNetConfig.wifi_ssid));
+		}
 	}
 	
 	os_strlcpy((char *)wNetConfig.wifi_key, connect_key, sizeof(wNetConfig.wifi_key));
@@ -1525,6 +1639,12 @@ int wlan_p2p_enable(const char *ssid)
 
 	bk_wlan_sta_init(&wNetConfig);
 	ret = wlan_sta_enable();
+
+	// Register callback and start event thread only once
+	bk_wlan_status_register_cb(app_p2p_rw_event_func);
+	if (!g_p2p_thread_running) {
+		app_p2p_restart_thread();
+	}
 
 	return ret;
 }
