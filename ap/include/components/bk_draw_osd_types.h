@@ -53,7 +53,7 @@ typedef struct {
 }blend_image_t;
 
 typedef struct {
-    const gui_font_digit_struct *const font_digit_type;   /**< character database */
+    const gui_font_digit_struct * font_digit_type;   /**< character database */
     uint32_t color;            /**< font color value used by RGB565 date*/
 }blend_font_t;
 
