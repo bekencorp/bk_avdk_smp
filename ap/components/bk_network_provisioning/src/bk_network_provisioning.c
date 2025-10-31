@@ -428,8 +428,8 @@ static netif_if_t bk_network_auto_reconnect(bool val)	//val true means from disc
 #endif
 #if CONFIG_BK_MODEM
 	if (info.flag & BIT(NETIF_IF_PPP)) {
-extern bk_err_t bk_modem_init(void);
-		bk_modem_init();
+		extern bk_err_t bk_modem_init(uint8_t comm_proto, uint8_t comm_if);
+		bk_modem_init(1, 1);
 		netif_if = NETIF_IF_PPP;
 	}
 #endif
