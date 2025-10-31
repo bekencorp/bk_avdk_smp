@@ -1,15 +1,16 @@
-#include <common/bk_include.h>
-#include <os/os.h>
 #include "FreeRTOS.h"
 #include "task.h"
 
-#include <components/bk_audio/audio_pipeline/audio_types.h>
-#include <components/bk_audio_asr_service.h>
-#include <components/bk_audio_asr_service_types.h>
+#include <os/os.h>
+#include <modules/pm.h>
+#include <common/bk_include.h>
 #include <driver/pwr_clk.h>
 #include <driver/audio_ring_buff.h>
 
-#include <modules/pm.h>
+#include <components/bk_audio_asr_service.h>
+#include <components/bk_audio_asr_service_types.h>
+#include <components/bk_audio/audio_pipeline/audio_types.h>
+#include <components/bk_audio/audio_algorithms/aec_v3_algorithm.h>
 
 #define TAG "asr"
 
@@ -137,6 +138,12 @@ static bk_err_t asr_pipeline_deinit_with_mic(asr_handle_t asr_handle)
         return BK_FAIL;
     }
 
+    if (asr_handle->aec_alg && asr_handle->aec_en && BK_OK != audio_pipeline_unregister(asr_handle->asr_pipeline, asr_handle->aec_alg))
+    {
+        BK_LOGE(TAG, "%s, %d, unregister aec_alg fail\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
     if (asr_handle->asr_rsp && asr_handle->asr_rsp_en)
     {
         if (BK_OK != audio_pipeline_unregister(asr_handle->asr_pipeline, asr_handle->asr_rsp))
@@ -187,6 +194,22 @@ static bk_err_t asr_pipeline_deinit_with_mic(asr_handle_t asr_handle)
         asr_handle->mic_str = NULL;
     }
 
+    if (asr_handle->aec_alg && asr_handle->aec_en && BK_OK != audio_element_deinit(asr_handle->aec_alg))
+    {
+        BK_LOGE(TAG, "%s, %d, aec_alg deinit fail\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    else
+    {
+        asr_handle->aec_alg = NULL;
+    }
+
+    if (asr_handle->aec_alg_ref_rb)
+    {
+        audio_port_deinit(asr_handle->aec_alg_ref_rb);
+        asr_handle->aec_alg_ref_rb = NULL;
+    }
+
     if (asr_handle->asr_rsp && asr_handle->asr_rsp_en)
     {
         if (BK_OK != audio_element_deinit(asr_handle->asr_rsp))
@@ -227,52 +250,77 @@ static bk_err_t asr_pipeline_init_with_mic(asr_handle_t asr_handle, asr_cfg_t *c
     ASR_CHECK_NULL(asr_handle->asr_pipeline, goto fail);
 
     BK_LOGD(TAG, "step2: init asr elements\n");
-	if (asr_handle->mic_type == MIC_TYPE_ONBOARD)
-	{
-		asr_handle->mic_str = onboard_mic_stream_init(&cfg->mic_cfg.onboard_mic_cfg);
-		ASR_CHECK_NULL(asr_handle->mic_str, goto fail);
-	}
+    if (asr_handle->mic_type == MIC_TYPE_ONBOARD)
+    {
+        asr_handle->mic_str = onboard_mic_stream_init(&cfg->mic_cfg.onboard_mic_cfg);
+        ASR_CHECK_NULL(asr_handle->mic_str, goto fail);
+    }
 #if CONFIG_ADK_UAC_MIC_STREAM
-	else if (asr_handle->mic_type == MIC_TYPE_UAC)
-	{
-		asr_handle->mic_str = uac_mic_stream_init(&cfg->mic_cfg.uac_mic_cfg);
-		ASR_CHECK_NULL(asr_handle->mic_str, goto fail);
-	}
+    else if (asr_handle->mic_type == MIC_TYPE_UAC)
+    {
+        asr_handle->mic_str = uac_mic_stream_init(&cfg->mic_cfg.uac_mic_cfg);
+        ASR_CHECK_NULL(asr_handle->mic_str, goto fail);
+    }
 #endif
-	else
-	{
-		//nothing todo
-		BK_LOGE(TAG, "%s, %d, mic_type: %d is not support \n", __func__, __LINE__, asr_handle->mic_type);
-		goto fail;
-	}
+    else
+    {
+        //nothing todo
+        BK_LOGE(TAG, "%s, %d, mic_type: %d is not support \n", __func__, __LINE__, asr_handle->mic_type);
+        goto fail;
+    }
+
+    // Initialize AEC if enabled
+    if (asr_handle->aec_en)
+    {
+        asr_handle->aec_alg = aec_v3_algorithm_init(&cfg->aec_cfg.aec_alg_cfg);
+        ASR_CHECK_NULL(asr_handle->aec_alg, goto fail);
+
+        // Create reference ring buffer for AEC
+        ringbuf_port_cfg_t ref_rb_cfg = {2048 * 2};
+        asr_handle->aec_alg_ref_rb = ringbuf_port_init(&ref_rb_cfg);
+        ASR_CHECK_NULL(asr_handle->aec_alg_ref_rb, goto fail);
+    }
+
 #if CONFIG_ADK_RSP_ALGORITHM
-	if (asr_handle->asr_rsp_en) {
-		asr_handle->asr_rsp = rsp_algorithm_init(&cfg->rsp_cfg.rsp_alg_cfg);
-		ASR_CHECK_NULL(asr_handle->asr_rsp, goto fail);
-	}
+    if (asr_handle->asr_rsp_en) {
+        asr_handle->asr_rsp = rsp_algorithm_init(&cfg->rsp_cfg.rsp_alg_cfg);
+        ASR_CHECK_NULL(asr_handle->asr_rsp, goto fail);
+    }
 #endif
     raw_stream_cfg_t raw_read_cfg = RAW_STREAM_CFG_DEFAULT();
     raw_read_cfg.type = AUDIO_STREAM_READER;
-    raw_read_cfg.out_block_size = cfg->read_pool_size * 2 *2;
+    raw_read_cfg.out_block_size = cfg->read_pool_size * 2 * 2;
     raw_read_cfg.out_block_num = 1;
     asr_handle->asr_raw_read = raw_stream_init(&raw_read_cfg);
     ASR_CHECK_NULL(asr_handle->asr_raw_read, goto fail);
 
     BK_LOGD(TAG, "step3: asr pipeline register\n");
 
-	if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->mic_str, "mic"))
-	{
-		BK_LOGE(TAG, "%s, %d, register mic_stream fail\n", __func__, __LINE__);
-		goto fail;
-	}
-	if (asr_handle->asr_rsp_en)
-	{
-	    if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->asr_rsp, "asr_rsp"))
-	    {
-	        BK_LOGE(TAG, "%s, %d, register asr_rsp fail\n", __func__, __LINE__);
-	        goto fail;
-	    }
-	}
+    if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->mic_str, "mic"))
+    {
+        BK_LOGE(TAG, "%s, %d, register mic_stream fail\n", __func__, __LINE__);
+        goto fail;
+    }
+
+    // Register AEC if enabled
+    if (asr_handle->aec_en)
+    {
+        if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->aec_alg, "aec_alg"))
+        {
+            BK_LOGE(TAG, "%s, %d, register aec_alg fail\n", __func__, __LINE__);
+            goto fail;
+        }
+    }
+
+    if (asr_handle->asr_rsp_en)
+    {
+        if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->asr_rsp, "asr_rsp"))
+        {
+            BK_LOGE(TAG, "%s, %d, register asr_rsp fail\n", __func__, __LINE__);
+            goto fail;
+        }
+    }
+
     if (BK_OK != audio_pipeline_register(asr_handle->asr_pipeline, asr_handle->asr_raw_read, "asr_raw_read"))
     {
         BK_LOGE(TAG, "%s, %d, register asr_raw_read stream fail\n", __func__, __LINE__);
@@ -281,23 +329,40 @@ static bk_err_t asr_pipeline_init_with_mic(asr_handle_t asr_handle, asr_cfg_t *c
 
     BK_LOGD(TAG, "step4: asr pipeline link\n");
     /* pipeline record */
-	if (asr_handle->asr_rsp_en)
-	{
-		ret = audio_pipeline_link(asr_handle->asr_pipeline, (const char *[])
-		{"mic", "asr_rsp", "asr_raw_read"
-		}, 3);
-	} else
-	{
-		ret = audio_pipeline_link(asr_handle->asr_pipeline, (const char *[])
-		{"mic", "asr_raw_read"
-		}, 2);
-	}
+    if (asr_handle->aec_en)
+    {
+        // AEC enabled, insert AEC in the pipeline
+        if (asr_handle->asr_rsp_en)
+        {
+            ret = audio_pipeline_link(asr_handle->asr_pipeline, (const char *[])
+            {"mic", "aec_alg", "asr_rsp", "asr_raw_read"
+            }, 4);
+        } else
+        {
+            ret = audio_pipeline_link(asr_handle->asr_pipeline, (const char *[])
+            {"mic", "aec_alg", "asr_raw_read"
+            }, 3);
+        }
+    }
+    else if (asr_handle->asr_rsp_en)
+    {
+        // No AEC, with resampling
+        ret = audio_pipeline_link(asr_handle->asr_pipeline, (const char *[])
+        {"mic", "asr_rsp", "asr_raw_read"
+        }, 3);
+    } else
+    {
+        // No AEC, no resampling
+        ret = audio_pipeline_link(asr_handle->asr_pipeline, (const char *[])
+        {"mic", "asr_raw_read"
+        }, 2);
+    }
 
-	if (ret != BK_OK)
-	{
-		BK_LOGE(TAG, "%s, %d, asr_pipeline link fail\n", __func__, __LINE__);
-		goto fail;
-	}
+    if (ret != BK_OK)
+    {
+        BK_LOGE(TAG, "%s, %d, asr_pipeline link fail\n", __func__, __LINE__);
+        goto fail;
+    }
 
     if (asr_handle->event_handle)
     {
@@ -321,8 +386,6 @@ fail:
     asr_pipeline_deinit(asr_handle);
     return BK_FAIL;
 }
-
-
 
 static bk_err_t asr_pipeline_init(asr_handle_t asr_handle, asr_cfg_t *cfg)
 {
@@ -693,6 +756,41 @@ static bk_err_t asr_listener_stop(asr_handle_t asr_handle)
 
 static bk_err_t asr_config_check(asr_cfg_t cfg)
 {
+    // Check if AEC mode is compatible with mic type
+    if (cfg.aec_en)
+    {
+        if (cfg.mic_type == MIC_TYPE_UAC)
+        {
+            // UAC mic only supports software AEC mode
+            if (cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode != AEC_MODE_SOFTWARE)
+            {
+                BK_LOGE(TAG, "UAC mic only supports software AEC mode\n");
+                return BK_FAIL;
+            }
+        }
+        else if (cfg.mic_type == MIC_TYPE_ONBOARD)
+        {
+            // Check if channel configuration matches AEC mode
+            if (cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode == AEC_MODE_HARDWARE)
+            {
+                // Hardware AEC requires 2 channels input from mic
+                if (cfg.mic_cfg.onboard_mic_cfg.adc_cfg.chl_num != 2)
+                {
+                    BK_LOGE(TAG, "Hardware AEC requires 2 channels input from mic\n");
+                    return BK_FAIL;
+                }
+            }
+            else
+            {
+                // Software AEC requires 1 channel input from mic
+                if (cfg.mic_cfg.onboard_mic_cfg.adc_cfg.chl_num != 1)
+                {
+                    BK_LOGE(TAG, "Software AEC requires 1 channel input from mic\n");
+                    return BK_FAIL;
+                }
+            }
+        }
+    }
     return BK_OK;
 }
 
@@ -718,6 +816,40 @@ asr_handle_t bk_asr_create(asr_cfg_t *cfg)
 	return asr_handle;
 }
 
+static bk_err_t bk_asr_write_zero_to_aec_ref(asr_handle_t asr_handle)
+{
+    ASR_CHECK_NULL(asr_handle, return BK_FAIL);
+
+    if (!asr_handle->aec_en || !asr_handle->aec_alg_ref_rb)
+    {
+        return BK_OK;
+    }
+
+    // Create buffer filled with zeros
+    uint32_t buf_size = 320; // Same as typical frame size
+    int16_t *zero_buf = (int16_t *)os_malloc(buf_size);
+    if (!zero_buf)
+    {
+        BK_LOGE(TAG, "%s, %d, allocate zero buffer fail\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    // Fill with zeros
+    os_memset(zero_buf, 0, buf_size);
+
+    // Write zeros to AEC reference ring buffer
+    int ret = audio_port_write(asr_handle->aec_alg_ref_rb, (void *)zero_buf, buf_size, BEKEN_NO_WAIT);
+    os_free(zero_buf);
+
+    if (ret != buf_size)
+    {
+        BK_LOGW(TAG, "%s, %d, write zero to aec ref buffer incomplete, written: %d, expected: %d\n",
+                __func__, __LINE__, ret, buf_size);
+    }
+
+    return BK_OK;
+}
+
 bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
 {
     if (BK_OK != asr_config_check(*cfg))
@@ -731,20 +863,31 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
     /* copy config */
     asr_handle->asr_en       = cfg->asr_en;
     asr_handle->asr_rsp_en   = cfg->asr_rsp_en;
-	asr_handle->mic_type     = cfg->mic_type;
-	asr_handle->event_handle = cfg->event_handle;
+    asr_handle->aec_en       = cfg->aec_en;
+    asr_handle->mic_type     = cfg->mic_type;
+    asr_handle->event_handle = cfg->event_handle;
 
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
     bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
 
-//	if (cfg->asr_rsp_en)
-	{
-	    if (BK_OK != asr_pipeline_init_with_mic(asr_handle, cfg))
-	    {
-	        BK_LOGE(TAG, "%s, %d, asr_pipeline_open fail\n", __func__, __LINE__);
-	        goto fail;
-	    }
-	}
+    //if (cfg->asr_rsp_en)
+    {
+        if (BK_OK != asr_pipeline_init_with_mic(asr_handle, cfg))
+        {
+            BK_LOGE(TAG, "%s, %d, asr_pipeline_open fail\n", __func__, __LINE__);
+            goto fail;
+        }
+    }
+
+    // If AEC is enabled, set reference input port
+    if (asr_handle->aec_en && asr_handle->aec_alg && asr_handle->aec_alg_ref_rb)
+    {
+        if (BK_OK != audio_element_set_multi_input_port(asr_handle->aec_alg, asr_handle->aec_alg_ref_rb, 0))
+        {
+            BK_LOGE(TAG, "%s, %d, set aec_alg reference input port fail\n", __func__, __LINE__);
+            goto fail;
+        }
+    }
 
     /* check whether event_handle was been register.
      * If true, init pipeline listener.
@@ -795,14 +938,14 @@ bk_err_t bk_asr_init(asr_cfg_t *cfg, asr_handle_t asr_handle)
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
     bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
 
-	if (cfg->asr_rsp_en)
-	{
-	    if (BK_OK != asr_pipeline_init(asr_handle, cfg))
-	    {
-	        BK_LOGE(TAG, "%s, %d, asr_pipeline_open fail\n", __func__, __LINE__);
-	        goto fail;
-	    }
-	}
+    if (cfg->asr_rsp_en)
+    {
+        if (BK_OK != asr_pipeline_init(asr_handle, cfg))
+        {
+            BK_LOGE(TAG, "%s, %d, asr_pipeline_open fail\n", __func__, __LINE__);
+            goto fail;
+        }
+    }
 
 	if (asr_handle->asr_en)
 	{
@@ -835,14 +978,14 @@ bk_err_t bk_asr_init(asr_cfg_t *cfg, asr_handle_t asr_handle)
 			}
 		}
 
-	//	if (asr_handle->aec_en) 
-	//	{
-	//		if (BK_OK != audio_element_set_multi_output_port(asr_handle->aec_alg, asr_handle->asr_in_rb, 0))
-	//		{
-	//			BK_LOGE(TAG, "%s, %d, link aec_alg_out to asr_in_rb fail\n", __func__, __LINE__);
-	//			goto fail;
-	//		}
-	//	} else
+//		if (asr_handle->aec_en)
+//		{
+//			if (BK_OK != audio_element_set_multi_output_port(asr_handle->aec_alg, asr_handle->asr_in_rb, 0))
+//			{
+//				BK_LOGE(TAG, "%s, %d, link aec_alg_out to asr_in_rb fail\n", __func__, __LINE__);
+//				goto fail;
+//			}
+//		} else
 		{
 			if (BK_OK !=  audio_element_set_multi_output_port(asr_handle->mic_str, asr_handle->asr_in_rb, 0))
 			{
@@ -863,7 +1006,6 @@ bk_err_t bk_asr_init(asr_cfg_t *cfg, asr_handle_t asr_handle)
     }
 
     asr_handle->status = ASR_STA_IDLE;
-
     return BK_OK;
 
 fail:
@@ -873,11 +1015,11 @@ fail:
     asr_listener_deinit(asr_handle);
 
 #if (CONFIG_ASR_SERVICE_USE_PSRAM)
-	psram_free(asr_handle);
+    psram_free(asr_handle);
 #elif (CONFIG_ASR_SERVICE_USE_AUDIO_HEAP)
-	audio_heap_free(asr_handle);
+    audio_heap_free(asr_handle);
 #else
-	os_free(asr_handle);
+    os_free(asr_handle);
 #endif
 
     bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
@@ -947,6 +1089,13 @@ bk_err_t bk_asr_start(asr_handle_t asr_handle)
             BK_LOGE(TAG, "%s, %d, asr_pipeline run fail\n", __func__, __LINE__);
             goto fail;
         }
+
+        // For ASR standalone mode with AEC enabled, write zeros to reference input
+        if (asr_handle->aec_en)
+        {
+            BK_LOGD(TAG, "%s, start writing zeros to AEC reference\n", __func__);
+            bk_asr_write_zero_to_aec_ref(asr_handle);
+        }
     }
 
     asr_handle->status = ASR_STA_RUNNING;
@@ -997,37 +1146,37 @@ bk_err_t bk_asr_stop(asr_handle_t asr_handle)
 
 int bk_aud_asr_read_mic_data(asr_handle_t asr_handle, char *buffer, uint32_t size)
 {
-	ASR_CHECK_NULL(asr_handle, return BK_FAIL);
-	if (!buffer || size == 0)
-	{
-		BK_LOGE(TAG, "%s, %d, buffer: %p, size: %d\n", __func__, __LINE__, buffer, size);
-		return BK_FAIL;
-	}
-	return raw_stream_read(asr_handle->asr_raw_read, buffer, size);
+    ASR_CHECK_NULL(asr_handle, return BK_FAIL);
+    if (!buffer || size == 0)
+    {
+        BK_LOGE(TAG, "%s, %d, buffer: %p, size: %d\n", __func__, __LINE__, buffer, size);
+        return BK_FAIL;
+    }
+    return raw_stream_read(asr_handle->asr_raw_read, buffer, size);
 }
 
 int bk_aud_asr_get_size(asr_handle_t asr_handle)
 {
-	ASR_CHECK_NULL(asr_handle, return BK_FAIL);
-	if (!asr_handle)
-	{
-		BK_LOGE(TAG, "%s, %d\n", __func__, __LINE__);
-		return BK_FAIL;
-	}
-	audio_port_handle_t port = audio_element_get_input_port(asr_handle->asr_raw_read);
-	return audio_port_get_size(port);
+    ASR_CHECK_NULL(asr_handle, return BK_FAIL);
+    if (!asr_handle)
+    {
+        BK_LOGE(TAG, "%s, %d\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    audio_port_handle_t port = audio_element_get_input_port(asr_handle->asr_raw_read);
+    return audio_port_get_size(port);
 }
 
 int bk_aud_asr_get_filled_size(asr_handle_t asr_handle)
 {
-	ASR_CHECK_NULL(asr_handle, return BK_FAIL);
-	if (!asr_handle)
-	{
-		BK_LOGE(TAG, "%s, %d\n", __func__, __LINE__);
-		return BK_FAIL;
-	}
-	audio_port_handle_t port = audio_element_get_input_port(asr_handle->asr_raw_read);
-	return audio_port_get_filled_size(port);
+    ASR_CHECK_NULL(asr_handle, return BK_FAIL);
+    if (!asr_handle)
+    {
+        BK_LOGE(TAG, "%s, %d\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    audio_port_handle_t port = audio_element_get_input_port(asr_handle->asr_raw_read);
+    return audio_port_get_filled_size(port);
 }
 
 bk_err_t bk_asr_get_status(asr_handle_t asr_handle, asr_sta_t *status)

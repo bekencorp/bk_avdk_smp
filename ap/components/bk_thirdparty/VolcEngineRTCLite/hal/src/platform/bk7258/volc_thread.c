@@ -68,12 +68,30 @@ uint32_t volc_thread_create(volc_tid_t* thread, const volc_thread_param_t* param
     }
     *thread = (volc_tid_t *)handle;
     // xTaskCreate((TaskFunction_t)start_routine, param->name, stack_size, args, priority, handle);
+    #if CONFIG_VOLC_RTC_THREAD_BIND_CPU
+    #if CONFIG_VOLC_RTC_THREAD_BIND_CPU_ID == 0
+    ret = rtos_core0_create_thread((beken_thread_t *)handle,
+                                priority,
+                                param->name,
+                                (beken_thread_function_t)start_routine,
+                                (unsigned short)stack_size,
+                                (beken_thread_arg_t)args);
+    #elif CONFIG_VOLC_RTC_THREAD_BIND_CPU_ID == 1
+    ret = rtos_core1_create_thread((beken_thread_t *)handle,
+                                priority,
+                                param->name,
+                                (beken_thread_function_t)start_routine,
+                                (unsigned short)stack_size,
+                                (beken_thread_arg_t)args);
+    #endif
+    #else
     ret = rtos_create_thread((beken_thread_t *)handle,
                                 priority,
                                 param->name,
                                 (beken_thread_function_t)start_routine,
                                 (unsigned short)stack_size,
                                 (beken_thread_arg_t)args);
+    #endif
 
     if (0 != ret) {
         return VOLC_FAILED;

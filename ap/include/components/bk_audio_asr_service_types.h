@@ -3,6 +3,7 @@
 #include <components/bk_audio/audio_streams/raw_stream.h>
 
 #include <components/bk_audio/audio_algorithms/rsp_algorithm.h>
+#include <components/bk_audio/audio_algorithms/aec_v3_algorithm.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
 
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
@@ -57,12 +58,18 @@ typedef struct
 
 	bool asr_en;
 	bool asr_rsp_en;
+	bool aec_en;                               /*!< aec enable flag */
 	uint32_t asr_sample_rate;
 	union
 	{
 		rsp_algorithm_cfg_t rsp_alg_cfg;
 		uint32_t reserved;
 	}rsp_cfg;
+	union
+	{
+		aec_v3_algorithm_cfg_t aec_alg_cfg;
+		uint32_t reserved2;
+	}aec_cfg;
     asr_event_handle      event_handle;   /*!< asr event handle callback */
     void *                args;           /*!< the parameter of event_handle func */
 } asr_cfg_t;
@@ -73,9 +80,12 @@ struct asr
     mic_type_t              mic_type;           /**< onboard mic or uac mic */
     bool                    asr_en;            /**< asr enable handle */
     bool                    asr_rsp_en;        /**< the asr src need to resample */
+    bool                    aec_en;            /**< aec enable flag */
     audio_pipeline_handle_t asr_pipeline;
     audio_element_handle_t  asr_raw_read;
     audio_element_handle_t  asr_rsp;
+    audio_element_handle_t  aec_alg;           /**< aec algorithm handle */
+    audio_port_handle_t     aec_alg_ref_rb;    /**< aec reference ring buffer */
     audio_port_handle_t     asr_in_rb;
     audio_event_iface_handle_t asr_evt;
 
@@ -91,7 +101,7 @@ struct asr
 
 typedef struct asr * asr_handle_t;
 
-#define ASR_BY_ONBOARD_MIC_SPK_CFG_DEFAULT() {                  \
+#define ASR_BY_ONBOARD_MIC_CFG_DEFAULT() {                      \
     .mic_type = MIC_TYPE_ONBOARD,                               \
     .mic_cfg.onboard_mic_cfg = {                                \
         .adc_cfg = {                                            \
@@ -109,10 +119,11 @@ typedef struct asr * asr_handle_t;
         .multi_out_port_num = 0,                                \
         .task_stack = ONBOARD_MIC_STREAM_TASK_STACK,            \
         .task_core = ONBOARD_MIC_STREAM_TASK_CORE,              \
-        .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,          \
+        .task_prio = ONBOARD_MIC_STREAM_TASK_PRIO,              \
     },                                                          \
     .asr_en = 0,                                                \
     .asr_rsp_en = 0,                                            \
+    .aec_en = 0,                                                \
     .asr_sample_rate = 16000,                                   \
     .rsp_cfg.rsp_alg_cfg = {                                    \
         .task_stack = RSP_ALGORITHM_TASK_STACK,                 \
@@ -131,11 +142,12 @@ typedef struct asr * asr_handle_t;
         .out_block_num = 4,                                     \
         .multi_out_port_num = 0,                                \
     },                                                          \
+    .aec_cfg.aec_alg_cfg = DEFAULT_AEC_V3_ALGORITHM_CONFIG(),   \
     .event_handle = NULL,                                       \
     .args = NULL,                                               \
 }
 
-#define ASR_BY_UAC_MIC_SPK_CFG_DEFAULT() {                     \
+#define ASR_BY_UAC_MIC_CFG_DEFAULT() {                         \
     .mic_type = MIC_TYPE_UAC,                                  \
     .mic_cfg.uac_mic_cfg = {                                   \
         .port_index = USB_HUB_PORT_1,                          \
@@ -154,6 +166,7 @@ typedef struct asr * asr_handle_t;
     },                                                         \
     .asr_en = 0,                                               \
     .asr_rsp_en = 0,                                           \
+    .aec_en = 0,                                               \
     .asr_sample_rate = 16000,                                  \
     .rsp_cfg.rsp_alg_cfg = {                                   \
         .task_stack = RSP_ALGORITHM_TASK_STACK,                \
@@ -172,6 +185,7 @@ typedef struct asr * asr_handle_t;
         .out_block_num = 4,                                    \
         .multi_out_port_num = 0,                               \
     },                                                         \
+    .aec_cfg.aec_alg_cfg = DEFAULT_AEC_V3_ALGORITHM_CONFIG(),  \
     .event_handle = NULL,                                      \
     .args = NULL,                                              \
 }

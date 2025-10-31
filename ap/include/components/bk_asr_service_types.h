@@ -37,7 +37,7 @@ typedef struct {
 	void (*aud_asr_deinit)(void);
 } aud_asr_cfg_t;
 
-#define AUDIO_ASR_TASK_PRIO    (BEKEN_DEFAULT_WORKER_PRIORITY - 1)
+#define AUDIO_ASR_TASK_PRIO    4
 
 #define AUDIO_ASR_CFG_DEFAULT() {					\
 	.asr_handle = NULL,								\

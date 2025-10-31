@@ -46,4 +46,18 @@ menu "ASR Service"
 		default n
 		help
 			Enable Aud asr Service to read service mic data
+
+	config ASR_SERVICE_THREAD_BIND_CPU
+		bool "Enable ASR service thread bind cpu"
+		depends on ASR_SERVICE
+		default n
+		help
+			Enable ASR service thread bind cpu
+
+	config ASR_SERVICE_THREAD_BIND_CPU_ID
+		int "ASR service thread bind cpu id"
+		depends on ASR_SERVICE_THREAD_BIND_CPU
+		default 1
+		help
+			ASR service thread bind cpu id
 endmenu

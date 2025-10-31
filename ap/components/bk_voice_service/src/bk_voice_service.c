@@ -1375,7 +1375,7 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
         voice_handle->aec_alg_ref_rb = ringbuf_port_init(&rb_config);
         VOICE_CHECK_NULL(voice_handle->aec_alg_ref_rb, goto fail);
         
-        if(AEC_MODE_HARDWARE == cfg->aec_cfg.aec_alg_cfg.aec_cfg.mode)
+        if(AEC_MODE_HARDWARE == cfg->aec_cfg.aec_alg_cfg.aec_cfg.mode && cfg->aec_cfg.aec_alg_cfg.dual_ch)
         {
             /* link aec_alg_ref_rb to mic stream and aec algorithm */
             if (BK_OK !=  audio_element_set_multi_input_port(voice_handle->aec_alg, voice_handle->aec_alg_ref_rb, 0))
@@ -1390,7 +1390,7 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
                 goto fail;
             }
         }
-        else
+        else if (AEC_MODE_SOFTWARE == cfg->aec_cfg.aec_alg_cfg.aec_cfg.mode)
         {
             /* link aec_alg_ref_rb to spk stream and aec algorithm */
             if (BK_OK !=  audio_element_set_multi_input_port(voice_handle->aec_alg, voice_handle->aec_alg_ref_rb, 0))

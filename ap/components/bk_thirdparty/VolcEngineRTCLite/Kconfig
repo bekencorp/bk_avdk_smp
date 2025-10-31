@@ -14,4 +14,18 @@ menu "VolcEngineRTCLite"
 		default n
 		help
 			Enable volc RTC license check
+
+	config VOLC_RTC_THREAD_BIND_CPU
+		bool "Enable volc RTC thread bind cpu"
+		depends on VOLC_RTC_EN
+		default n
+		help
+			Enable volc RTC thread bind cpu
+
+	config VOLC_RTC_THREAD_BIND_CPU_ID
+		int "Volc RTC thread bind cpu id"
+		depends on VOLC_RTC_THREAD_BIND_CPU
+		default 0
+		help
+			Volc RTC thread bind cpu id
 endmenu

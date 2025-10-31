@@ -178,10 +178,10 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 
 					if ((uint32_t)(stop_time-start_time) >= 30)
 					{
-						BK_LOGI(TAG, "Recogn:%d---%d\n", (uint32_t)(stop_time-start_time), result);
+						BK_LOGV(TAG, "Recogn:%d---%d\n", (uint32_t)(stop_time-start_time), result);
 					} else if ((uint32_t)(stop_time-start_time) < 0)
 					{
-						BK_LOGI(TAG, "Error excute--%d\n", (uint32_t)(stop_time-start_time));
+						BK_LOGV(TAG, "Error excute--%d\n", (uint32_t)(stop_time-start_time));
 					} else {
 						;
 					}
@@ -288,12 +288,31 @@ aud_asr_handle_t bk_aud_asr_init(aud_asr_cfg_t *cfg)
         BK_LOGE(TAG, "%s, %d, ceate aud asr message queue fail\n", __func__, __LINE__);
         goto fail;
     }
-    ret = rtos_core1_create_thread(&aud_asr_handle->aud_asr_task_hdl,
+
+    #if CONFIG_ASR_SERVICE_THREAD_BIND_CPU
+    #if CONFIG_ASR_SERVICE_THREAD_BIND_CPU_ID == 0
+    ret = rtos_core0_create_thread(&aud_asr_handle->aud_asr_task_hdl,
                              aud_asr_handle->task_prio,
                              "aud_asr",
                              (beken_thread_function_t)aud_asr_task_main,
                              aud_asr_handle->task_stack,
                              (beken_thread_arg_t)aud_asr_handle);
+    #elif CONFIG_ASR_SERVICE_THREAD_BIND_CPU_ID == 1
+    ret = rtos_core1_create_thread(&aud_asr_handle->aud_asr_task_hdl,
+                         aud_asr_handle->task_prio,
+                         "aud_asr",
+                         (beken_thread_function_t)aud_asr_task_main,
+                         aud_asr_handle->task_stack,
+                         (beken_thread_arg_t)aud_asr_handle);
+    #endif
+    #else
+    ret = rtos_create_thread(&aud_asr_handle->aud_asr_task_hdl,
+                         aud_asr_handle->task_prio,
+                         "aud_asr",
+                         (beken_thread_function_t)aud_asr_task_main,
+                         aud_asr_handle->task_stack,
+                         (beken_thread_arg_t)aud_asr_handle);
+    #endif
     if (ret != kNoErr)
     {
         BK_LOGE(TAG, "%s, %d, create aud asr task fail\n", __func__, __LINE__);

@@ -168,14 +168,14 @@ typedef struct
     
 #define AEC_V3_ALGORITHM_TASK_STACK          (1 * 1024)
 #define AEC_V3_ALGORITHM_TASK_CORE           (1)
-#define AEC_V3_ALGORITHM_TASK_PRIO           (5)
+#define AEC_V3_ALGORITHM_TASK_PRIO           (4)
 #define AEC_V3_ALGORITHM_OUT_BLOCK_NUM       (2)
     
 #define AEC_V3_ALGORITHM_FS                  (16000)
-#define AEC_V3_DELAY_POINTS                  (211)
+#define AEC_V3_DELAY_POINTS                  (16)
 #define AEC_V3_ALGORITHM_EC_DEPTH            (0xa)
 #define AEC_V3_ALGORITHM_REF_SCALE           (0)
-#define AEC_V3_ALGORITHM_NS_LEVEL            (5)
+#define AEC_V3_ALGORITHM_NS_LEVEL            (7)
 #define AEC_V3_ALGORITHM_NS_PARA             (2)
 #define AEC_V3_ALGORITHM_INIT_FLAG           (0x1f)
 #define AEC_V3_ALGORITHM_NS_FILTER           (0x7)

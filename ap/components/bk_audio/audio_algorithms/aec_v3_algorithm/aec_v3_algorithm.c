@@ -368,7 +368,7 @@ static void aec_vad_flag_update(aec_v3_algorithm_t *aec, int vad_state)
     }
 }
 
-static void aec_vad_proc(aec_v3_algorithm_t *aec)
+static int aec_vad_proc(aec_v3_algorithm_t *aec)
 {
     static int aec_vad_flag=0;
     static int aec_vad_mem=0;
@@ -378,7 +378,7 @@ static void aec_vad_proc(aec_v3_algorithm_t *aec)
         aec_vad_flag = 0;
         aec_vad_mem = 0;
         aec->vad_cfg.vad_bad_frame = 16;
-        return;
+        return aec_vad_flag;
     }
 
     int dc = aec->aec_ctx->dc >> 14;
@@ -442,6 +442,7 @@ static void aec_vad_proc(aec_v3_algorithm_t *aec)
     }
 
     aec_vad_flag_update(aec, aec_vad_flag);
+    return aec_vad_flag;
 }
 
 static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
@@ -611,7 +612,6 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
 
     if(aec->vad_cfg.vad_enable)
     {
-        BK_LOGD(TAG, "aec_cfg 4:vad_rb_size:%d,vad_frame_size:%d\n",aec->vad_cfg.vad_buf_size + aec->vad_cfg.vad_frame_size*4,aec->vad_cfg.vad_frame_size);
 
         if((aec->vad_cfg.vad_start_threshold !=0 && aec->vad_cfg.vad_stop_threshold != 0xff)
         && (aec->vad_cfg.vad_start_threshold != aec->vad_cfg.vad_stop_threshold))
@@ -622,6 +622,10 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
                                 aec->vad_cfg.vad_silence_threshold,
                                 aec->vad_cfg.vad_eng_threshold);
         }
+        uint32 delay_num = 0;
+        delay_num = 2 + (aec->aec_ctx->SPthr[1])/(aec->aec_ctx->SPthr[3] + aec->aec_ctx->SPthr[4]);
+        BK_LOGD(TAG, "aec_cfg 4:vad_rb_size:%d,vad_frame_size:%d,delay_num:%d\n",
+                aec->vad_cfg.vad_buf_size + aec->vad_cfg.vad_frame_size*4,aec->vad_cfg.vad_frame_size, delay_num);
 
         aec->out_read_addr = audio_malloc(aec->frame_size);
         if (!aec->out_read_addr)
@@ -630,14 +634,23 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
             goto fail;
         }
 
-        aec->vad_rb = rb_create(aec->vad_cfg.vad_buf_size + aec->vad_cfg.vad_frame_size*4,1);
+        aec->vad_rb = rb_create(aec->vad_cfg.vad_buf_size + aec->vad_cfg.vad_frame_size*4, 1);
         if (!aec->vad_rb)
         {
             BK_LOGE(TAG, "[%s] %s, create vad ring buffer fail\n",audio_element_get_tag(self), __func__);
             goto fail;
         }
+
+        char *delay_arr = (char *)os_malloc(aec->frame_size);
+        os_memset(delay_arr, 0x00, aec->frame_size);
+        for (uint32_t k = 0; k < delay_num; k++)
+        {
+            rb_write(aec->vad_rb, &delay_arr[0], aec->frame_size, BEKEN_WAIT_FOREVER);
+        }
+        os_free(delay_arr);
+        delay_arr = NULL;
     }
-    
+
     BK_LOGD(TAG, "[%s] _aec_algorithm_open\n", audio_element_get_tag(self));
 
     return BK_OK;
@@ -751,8 +764,11 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         AEC_ALGORITHM_START();
 
         aec_proc(aec->aec_ctx, aec->ref_addr, aec->mic_addr, aec->out_addr);
+
+        audio_element_multi_output(self, (char *)aec->out_addr, aec->frame_size, 0);
+
         aec_vad_proc(aec);
-        
+
         if(aec->ec_out_cb)
         {
             aec->ec_out_cb(buff_ecout,aec->frame_size);
@@ -771,6 +787,8 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
                 {
                     rb_read(aec->vad_rb, (char *)aec->out_read_addr,  aec->frame_size, BEKEN_WAIT_FOREVER);
                     w_size = audio_element_output(self, (char *)aec->out_read_addr, aec->frame_size);
+
+                    //audio_element_multi_output(self, (char *)aec->out_read_addr, aec->frame_size, 0);
                     vad_buff_data_size -= aec->frame_size;
                 }
                 else
@@ -807,7 +825,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
                 /* write data to multiple audio port */
                 /* unblock write, and not check write result */
                 //TODO
-                audio_element_multi_output(self, (char *)aec->out_read_addr, aec->frame_size, 0);
+                //audio_element_multi_output(self, (char *)aec->out_read_addr, aec->frame_size, 0);
             }
         }
         else
@@ -819,7 +837,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
             /* write data to multiple audio port */
             /* unblock write, and not check write result */
             //TODO
-            audio_element_multi_output(self, (char *)aec->out_addr, aec->frame_size, 0);
+            //audio_element_multi_output(self, (char *)aec->out_addr, aec->frame_size, 0);
         }
     }
     else

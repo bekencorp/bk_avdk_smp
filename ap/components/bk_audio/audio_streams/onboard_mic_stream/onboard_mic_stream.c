@@ -596,6 +596,8 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
         goto _onboard_mic_init_exit;
     }
 
+    bk_aud_set_ana_mic0_gain(config->adc_cfg.ana_gain);
+
     ret = aud_adc_dma_config(gl_onboard_mic);
     if (ret != BK_OK)
     {

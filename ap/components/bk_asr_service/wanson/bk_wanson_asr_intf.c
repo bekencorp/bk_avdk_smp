@@ -7,17 +7,13 @@
 
 #include "asr.h"
 
-
 #if(CONFIG_WANSON_ASR_GROUP_VERSION)
+/* 分组相关全局变量 */
 Fst fst_1;
 Fst fst_2;
 static unsigned char asr_curr_group_id; // 当前使用的分组ID
-
 static uint8_t __maybe_unused wanson_fst_group_select = 0;
-#endif
 
-
-#if(CONFIG_WANSON_ASR_GROUP_VERSION)
 /**
  * @brief 分组设置 
  * 
@@ -42,8 +38,13 @@ void wanson_fst_group_change(unsigned char group_id)
 }
 #endif
 
-
-int bk_wanson_armino_asr_init(void)
+/**
+ * @brief ASR通用初始化函数
+ * 
+ * @param with_group 是否启用分组功能
+ * @return int 初始化结果
+ */
+int bk_wanson_asr_common_init(void)
 {
 	int res = Wanson_ASR_Init();
 	if (res < 0)
@@ -51,6 +52,7 @@ int bk_wanson_armino_asr_init(void)
 		os_printf("Wanson_ASR_Init Failed!\n");
 		return res;
 	}
+
 #if (CONFIG_WANSON_ASR_GROUP_VERSION)
 	/* 指令分组初始化 */
 	fst_1.states = fst01_states;
@@ -66,24 +68,36 @@ int bk_wanson_armino_asr_init(void)
 	fst_2.words = fst02_words;
 
 	/* 设置默认分组 */
-	wanson_fst_group_change(2); // 默认设置分组一
+	wanson_fst_group_change(2);
 	os_printf("Wanson_ASR_Init GRP OK!\n");
+	return res;
 #else
 	Wanson_ASR_Reset();
 #endif
 	return res;
 }
 
-
-void bk_wanson_armino_asr_deinit(void)
+/**
+ * @brief ASR反初始化
+ * 
+ * 释放ASR资源
+ */
+void bk_wanson_asr_common_deinit(void)
 {
 	Wanson_ASR_Release();
 }
 
-
-int bk_wanson_armino_asr_recog(void *read_buf, uint32_t read_size, void *p1, void *p2)
+/**
+ * @brief ASR识别函数
+ * 
+ * @param read_buf 音频数据缓冲区
+ * @param read_size 音频数据大小
+ * @param p1 用户参数1
+ * @param p2 用户参数2
+ * @return int 识别结果
+ */
+int bk_wanson_asr_recog(void *read_buf, uint32_t read_size, void *p1, void *p2)
 {
 	return Wanson_ASR_Recog((short*)read_buf, read_size>>1, p1, p2);
 }
-
 

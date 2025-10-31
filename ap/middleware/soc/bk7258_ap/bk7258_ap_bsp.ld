@@ -405,7 +405,7 @@ SECTIONS
         PROVIDE(__spinlock_begin = LOADADDR(.spinlock));
         _spinlock_start = .;
         *(.sram_spinlock_section)
-    #if (CONFIG_ASR_SERVICE)
+    #if (CONFIG_ASR_SERVICE && CONFIG_WANSON_ASR)
         *(.wanson_asr_data11)
         *(.wanson_asr_data12)
         *(.wanson_asr_data13)
@@ -500,7 +500,8 @@ SECTIONS
         _bss_start = .;
         *(.bss)
         *(.bss*)
-        *(COMMON)
+
+	*(COMMON)
 
         . = ALIGN(4);
         _bss_end = .;
