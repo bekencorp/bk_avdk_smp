@@ -123,6 +123,16 @@ extern int bk_sconf_trans_start(void);
 extern bk_err_t media_app_ota_disp_open(void);
 extern bk_err_t media_app_ota_disp_close(void);
 extern bk_err_t bk_ota_reponse_state_to_audio(int ota_state);
+extern int bk_sconf_get_channel_name(char *chan);
+extern int ntwk_trans_stop(void *user_data);
+extern int ntwk_trans_start(void *user_data);
+extern bk_err_t bk_dual_screen_avi_player_stop(void);
+extern int audio_engine_deinit(void);
+extern void bk_ota_display_init(void);
+extern void bk_ota_display_deinit(void);
+extern bk_err_t bk_ota_image_display_open(char *filename);
+extern bk_err_t bk_ota_image_display_close(void);
+int ota_update_with_display_close(void);
 #endif
 
 #endif

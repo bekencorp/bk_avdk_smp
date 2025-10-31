@@ -342,13 +342,8 @@ uint32 http_get_sapp_partition_length(bk_partition_t partition)
 #endif // CONFIG_HTTP_AB_PARTITION
 
 #if CONFIG_OTA_DISPLAY_PICTURE_DEMO
-extern int bk_sconf_get_channel_name(char *chan);
-extern int ntwk_trans_stop(void *user_data);
-extern int ntwk_trans_start(void *user_data);
-extern bk_err_t bk_dual_screen_avi_player_stop(void);
-extern int audio_engine_deinit(void);
+#include "bk_partition.h"
 static char s_device_id[128] = {0};
-
 static int bk_sconf_trans_stop(void)
 {
     int ret = BK_OK;
@@ -391,16 +386,31 @@ int ota_update_with_display_open(void)
     bk_dual_screen_avi_player_stop();
 #endif
 	audio_engine_deinit();
-
-	// if(media_app_ota_disp_open() != BK_OK)
-	// {
-	// 	OTA_LOGE("open disp failed. \r\n");
-	// 	ret = BK_FAIL;
-	// }
+	bk_ota_display_init();	
+	if(bk_ota_image_display_open(PATH_SD_FILE("/ota_image.jpg")) != BK_OK)
+	{
+		OTA_LOGE("open disp failed. \r\n");
+		bk_ota_display_deinit();
+		ret = BK_FAIL;
+	}
 
 	return ret;
 }
 
+int ota_update_with_display_close(void)
+{
+	int ret = BK_FAIL;
+
+	if(bk_ota_image_display_close() != BK_OK)
+	{
+		OTA_LOGE("close disp failed. \r\n");
+		ret = BK_FAIL;
+	}
+
+	bk_ota_display_deinit();
+
+	return ret;
+}
 #endif
 
 static ota_event_callback_t s_ota_event_callback = NULL;

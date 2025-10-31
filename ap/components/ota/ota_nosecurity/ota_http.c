@@ -112,11 +112,11 @@ int bk_http_ota_download(const char *uri)
 			OTA_LOGE("start transfer fail! ret:%d\r\n",ret);
 			return BK_FAIL;
 		}
-		// if(media_app_ota_disp_close() != BK_OK)
-		// {
-		// 	OTA_LOGE("disp close failed.ret:%d\r\n",ret);
-		// 	return BK_FAIL;
-		// }
+		if(ota_update_with_display_close() != BK_OK)
+		{
+			OTA_LOGE("disp close failed.ret:%d\r\n",ret);
+			return BK_FAIL;
+		}
 	#endif
 #if CONFIG_SYSTEM_CTRL
 		//bk_wifi_ota_dtim(0);
@@ -145,10 +145,10 @@ int bk_http_ota_download(const char *uri)
 		ota_do_deinit_operation();
 		ota_input_event_handler(EVT_OTA_SUCCESS);
 #if CONFIG_OTA_DISPLAY_PICTURE_DEMO
-		// if(media_app_ota_disp_close() != BK_OK)
-		// {
-		// 	OTA_LOGE("disp close failed.ret:%d\r\n",ret);
-		// }
+		if(ota_update_with_display_close() != BK_OK)
+		{
+			OTA_LOGE("disp close failed.ret:%d\r\n",ret);
+		}
 #endif
 		OTA_LOGI("ota_success.\r\n");
 		bk_reboot();
