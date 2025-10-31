@@ -501,7 +501,11 @@ SECTIONS
         *(.bss)
         *(.bss*)
 
+	#if (CONFIG_ASR_SERVICE && CONFIG_WANSON_ARMINO_ASR)
+        //*(COMMON)
+	#else
 	*(COMMON)
+	#endif
 
         . = ALIGN(4);
         _bss_end = .;
@@ -604,6 +608,9 @@ SECTIONS
         __psram_bss_start__ = .;
         *(.psram.bss)
         *(.psram.bss*)
+        #if (CONFIG_ASR_SERVICE && CONFIG_WANSON_ARMINO_ASR)
+        *(COMMON)
+	    #endif
         . = ALIGN(4);
         __psram_bss_end__ = .;
     } > PSRAM_SECTION
