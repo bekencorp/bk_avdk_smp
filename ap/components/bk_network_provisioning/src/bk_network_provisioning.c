@@ -217,10 +217,14 @@ static int bk_nw_pro_netif_event_cb(void *arg, event_module_t event_module, int 
             network_status_check_stop_timeout_check();
             if (network_provisioning_status == BK_NETWORK_PROVISIONING_STATUS_RUNNING)
             {
-                if (got_ip->netif_if == 0) {
+                if (got_ip->netif_if == NETIF_IF_STA) {
                     bk_wifi_sta_get_config(&sta_config);
                     save_network_auto_restart_info(got_ip->netif_if, &sta_config);
                 }
+                else {
+                    save_network_auto_restart_info(got_ip->netif_if, NULL);
+                }
+
                 bk_network_provisioning_update_status(BK_NETWORK_PROVISIONING_STATUS_SUCCEED, (void *)got_ip->netif_if);
             }
             else
