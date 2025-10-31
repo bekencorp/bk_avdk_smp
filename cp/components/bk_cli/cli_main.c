@@ -141,8 +141,9 @@ int lookup_cmd_table(const struct cli_command *cmd_table, int table_items, char 
 }
 
 #if (CONFIG_SHELL_ASYNCLOG && !CONFIG_ATE_TEST)
-
+#if CONFIG_CLI
 static beken_thread_t shell_handle_thread_handle = NULL;
+#endif // CONFIG_CLI
 static beken_semaphore_t wait_shell_handle_semaphore = NULL;
 struct cmd_parameter
 {
@@ -167,7 +168,7 @@ static void handle_shell_input_proxy(beken_thread_arg_t arg)
 int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_size)
 {
     int		ret = 0;
-
+#if CONFIG_CLI
 #if CONFIG_AT
 	extern _at_svr_ctrl_env_t _at_svr_env;
 	_at_svr_ctrl_env_t* penv = &_at_svr_env;
@@ -265,7 +266,7 @@ int handle_shell_input(char *inbuf, int in_buf_size, char * outbuf, int out_buf_
 		BK_LOGD(NULL,"get wait_shell_handle_semaphore fail\r\n");
 	}
 	rtos_deinit_semaphore(&wait_shell_handle_semaphore);
-
+#endif // CONFIG_CLI
 	return ret;
 }
 
