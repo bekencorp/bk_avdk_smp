@@ -69,6 +69,11 @@ endif
 export ARMINO_SOC_NAME := $(ARMINO_SOC)
 
 export PROJECT_NAME := $(notdir $(PROJECT_DIR))
+ifdef CONFIG_FILE
+export CONFIG_SUBTITUTE_FILE := $(CONFIG_FILE).config
+export PROJECT_NAME := $(PROJECT_NAME)_$(CONFIG_FILE)
+endif
+
 ifneq ("$(BUILD_DIR)", "")
 	export PROJECT_BUILD_DIR := $(BUILD_DIR)/$(ARMINO_SOC_NAME)/$(PROJECT_NAME)
 else
