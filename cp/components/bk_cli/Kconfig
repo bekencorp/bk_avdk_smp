@@ -178,10 +178,6 @@ menu "Bk_cli"
 			bool "Enable Aon Pmu Test"
 			default n
 
-		config SDMADC_TEST
-			depends on CLI
-			bool "Enable Sdmadc Test"
-
 		config PM_TEST
 			depends on CLI
 			bool "Enable Pm Test"

@@ -1332,17 +1332,6 @@ int bk_cli_init(void)
 	cli_netif_init();
 #endif
 
-#if (CLI_CFG_PHY == 1)
-	cli_phy_init();
-#endif
-
-#if (CLI_CFG_IPERF == 1)
-//#if (CONFIG_WIFI_CLI_ENABLE || CONFIG_BLUETOOTH)
-#if (CLI_CFG_PHY || CONFIG_BLUETOOTH)
-	cli_phy_init();
-#endif
-#endif
-
 #if (CLI_CFG_IPERF == 1)
 	cli_iperf_init();
 #endif
@@ -1355,9 +1344,6 @@ int bk_cli_init(void)
 #endif
 
 #if CONFIG_DEBUG_VERSION
-#if (CLI_CFG_TEMP_DETECT == 1)
-	cli_temp_detect_init();
-#endif
 #if (CLI_CFG_AIRKISS == 1)
 	cli_airkiss_init();
 #endif
@@ -1419,7 +1405,7 @@ int bk_cli_init(void)
 #if (CLI_CFG_DWT == 1)
 	cli_dwt_init();
 #endif
-    
+
 #if (CLI_CFG_TIMER == 1)
 	cli_timer_init();
 #endif
@@ -1500,9 +1486,6 @@ int bk_cli_init(void)
 	cli_i2c_api_register_cli_test_feature();
 #endif
 
-#if (CLI_CFG_ADC == 1)
-	cli_adc_init();
-#endif
 
 #if (CLI_CFG_SD == 1)
 	cli_sd_init();
@@ -1583,9 +1566,7 @@ int bk_cli_init(void)
 #if CONFIG_INTERRUPT_TEST
 	cli_interrupt_init();
 #endif
-#if CONFIG_SDMADC_TEST
-	cli_sdmadc_init();
-#endif
+
 #if CONFIG_MICROPYTHON
 	extern int cli_mp_init(void);
 	cli_mp_init();

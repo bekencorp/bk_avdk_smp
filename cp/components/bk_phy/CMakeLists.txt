@@ -6,6 +6,7 @@ list(APPEND srcs
 	src/bk_phy_api.c
 	src/bk_phy_notify.c
 	src/bk_phy_server.c
+	src/cli_phy.c
 )
 armino_component_register(SRCS "${srcs}"
     INCLUDE_DIRS "${incs}"

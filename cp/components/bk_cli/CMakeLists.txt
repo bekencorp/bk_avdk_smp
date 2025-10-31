@@ -11,7 +11,6 @@ endif()
 
 if (CONFIG_CLI)
 list(APPEND srcs
-	cli_adc.c
 	cli_event.c
 	cli_gpio.c
 	cli_common.c
@@ -23,7 +22,6 @@ list(APPEND srcs
 	cli_rpc.c
 	cli_reg.c
 	cli_timer.c
-	cli_temp_detect.c
 	cli_uart.c
 
 	cli_exception.c
@@ -53,7 +51,6 @@ endif()
 if (CONFIG_WIFI_CLI_ENABLE)
 	list(APPEND srcs
 		cli_wifi.c
-		cli_phy.c
 	)
 endif()
 
@@ -186,9 +183,6 @@ if (CONFIG_INTERRUPT_TEST)
 	list(APPEND srcs cli_interrupt.c)
 endif()
 
-if (CONFIG_SDMADC_TEST)
-	list(APPEND srcs cli_sdmadc.c)
-endif()
 
 if (CONFIG_FLASHDB_DEMO)
 	list(APPEND srcs cli_flashdb.c)

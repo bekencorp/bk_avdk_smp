@@ -1585,16 +1585,16 @@ int bk_cli_init(void)
 	cli_aon_rtc_init();
 #endif
 
-#if (CLI_CFG_ADC == 1 || CONFIG_ADC_API_TEST)
+#if CONFIG_CLI_SARADC_TEST
 	cli_adc_init();
 #endif
 
 #if CONFIG_ADC_API_TEST
-    cli_adc_api_register_cli_test_feature();
+	cli_adc_api_register_cli_test_feature();
 #endif
 
 #if CONFIG_SADC_API_TEST
-    cli_sadc_register_cli_api_test_feature();
+	cli_sadc_register_cli_api_test_feature();
 #endif
 
 #if (CLI_CFG_MICO == 1)

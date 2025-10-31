@@ -18,14 +18,17 @@ void cli_temp_detect_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 
 		if (argc == 3) 
 			init_temperature = os_strtoul(argv[2], NULL, 10);
-
 		BK_LOG_ON_ERR(temp_detect_init(init_temperature));
+		CLI_LOGD("temp init ok\r\n");
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		BK_LOG_ON_ERR(temp_detect_deinit());
+		CLI_LOGD("temp deinit ok\r\n");
 	} else if (os_strcmp(argv[1], "start") == 0) {
 		BK_LOG_ON_ERR(temp_detect_start());
+		CLI_LOGD("temp start ok\r\n");
 	} else if (os_strcmp(argv[1], "stop") == 0) {
 		BK_LOG_ON_ERR(temp_detect_stop());
+		CLI_LOGD("temp stop ok\r\n");
 	} else if (os_strcmp(argv[1], "update") == 0) {
 		//TODO by Frank!!
 	}
@@ -34,7 +37,7 @@ void cli_temp_detect_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 
 #define TEMP_DETECT_CMD_CNT (sizeof(s_temp_detect_commands) / sizeof(struct cli_command))
 static const struct cli_command s_temp_detect_commands[] = {
-	{"tempd", "tempd [init|deinit|stop|start|update]", cli_temp_detect_cmd},
+	{"cp_tempd", "tempd [init|deinit|stop|start|update]", cli_temp_detect_cmd},
 };
 
 int cli_temp_detect_init(void)

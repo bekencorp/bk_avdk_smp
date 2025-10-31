@@ -42,14 +42,12 @@ static const struct cli_command s_phy_commands[] = {
 	{"txevm", "txevm [-m] [-c] [-l] [-r] [-w]", tx_evm_cmd_test},
 	{"rxsens", "rxsens [-m] [-d] [-c] [-l]", rx_sens_cmd_test},
 
-
-#if ((!CONFIG_SOC_BK7231) && (!CONFIG_SOC_BK7271))
 	{"rfcali_cfg_mode",      "1:manual, 0:auto",      cmd_rfcali_cfg_mode},
 	{"rfcali_cfg_tssi_g",    "0-255",                 cmd_rfcali_cfg_tssi_g},
 	{"rfcali_cfg_tssi_b",    "0-255",                 cmd_rfcali_cfg_tssi_b},
 	{"rfcali_show_data",     "",                      cmd_rfcali_show_data},
 	{"rfcali_cfg_rate_dist", "b g n40 ble (0-31)",    cmd_rfcali_cfg_rate_dist},
-#endif
+
 #if CONFIG_POWER_TABLE
 	{"pwrtbl", "pwrtbl cal/set/get <value>", pwr_tbl_command},
 #endif
