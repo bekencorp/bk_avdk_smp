@@ -56,7 +56,7 @@ typedef struct {
 	void (*_rc_drv_set_agc_manual_en)(uint32_t value);
 	void (*_rc_drv_set_rx_mode_enrxsw)(uint32_t value);
 	uint32_t (*_rc_drv_get_rx_mode_enrxsw)();
-	UINT32 (*_rwnx_tpc_get_pwridx_by_rate)(UINT32 rate, UINT32 print_log);
+	UINT32 (*_rwnx_tpc_get_pwridx_by_rate)(UINT32 rate, UINT32 format, UINT32 print_log);
 	UINT32 (*_rwnx_is_enable_pwr_change_by_rssi)(void);
 	void (*_tpc_auto_change_pwr_by_rssi)(INT8 rssi, UINT8 rate, UINT8 *pwr_idx);
 	void (*_bk7011_max_rxsens_setting)(void);

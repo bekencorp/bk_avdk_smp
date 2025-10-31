@@ -44,6 +44,10 @@ menu "SARADC"
 		bool "Enable SARADC mailbox"
 		depends on SARADC
 		default n
+	
+	config CLI_SARADC_TEST
+		bool "Enable saradc test"
+		default n
 
 endmenu	
 

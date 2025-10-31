@@ -13,4 +13,8 @@ menu "Bk_Phy"
 		bool "Enable PHY mailbox"
 		default y
 
+	config WIFI_SIGNAL_CERT
+		bool "Enable WiFi Certification"
+		default n
+
 endmenu

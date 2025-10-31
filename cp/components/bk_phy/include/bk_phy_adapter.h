@@ -187,6 +187,7 @@ typedef struct {
     void (*_sys_ll_set_ana_reg8_violdosel)(uint32_t value);
     void (*_sys_ll_set_ana_reg8_iocurlim)(uint32_t value);
     int(*_bk_feature_phy_log_enable)(void);
+    int(*_bk_feature_wifi_signal_cert_enable)(void);
 } phy_os_funcs_t;
 
 

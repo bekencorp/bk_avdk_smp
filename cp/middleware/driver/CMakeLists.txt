@@ -366,6 +366,14 @@ if (CONFIG_SDMADC)
 		)
 endif()
 
+if (CONFIG_SARADC)
+if (CONFIG_CLI_SARADC_TEST)
+	list(APPEND srcs
+		saradc/cli_adc.c
+		)
+endif()
+endif()
+
 # Ethernet Support
 if (CONFIG_ETH)
 	list(APPEND incs

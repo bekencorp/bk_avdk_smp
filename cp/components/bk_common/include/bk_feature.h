@@ -173,9 +173,19 @@ int bk_feature_save_rfcali_to_otp_enable(void);
  * @brief     Interface for customer to close or open phy log
  *
  *
- * @return
+ * @returne
  *    - 0: close phy log
  *    - 1: open phy log
  *
  */
 int bk_feature_phy_log_enable(void);
+/**
+ * @brief     Interface for customer to enable WiFi signaling cert
+ *
+ *
+ * @return
+ *    - 0: disable wifi signaling cert
+ *    - 1: enable wifi signaling cert
+ *
+ */
+int bk_feature_wifi_signal_cert_enable(void);

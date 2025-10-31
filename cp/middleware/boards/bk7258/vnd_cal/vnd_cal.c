@@ -438,6 +438,20 @@ const INT16 shift_tab_n20[10] = {-10,  -6,  0,  2,  2,  2,  3,  3,  4, 4/*4*/}; 
 const INT16 shift_tab_n40[10] = {-10,  -6,  0,  0,  0,  0,  0,  0,  0, 0/*4*/}; // n40 mcs9 mcs8 mcs7(base) -  mcs0,
 #endif
 
+//signal wifi
+const INT16 fcc_shift_tab_b_ch13[4]    = {0, 0, 0, 0}; // 11M base,5.5M,2M,1M
+// 54M base -54M,48M,36M,24M,18M,12M,9M,6M
+const INT16 fcc_shift_tab_g_ch13[8]    = {0, 0, 0, 0, 0, 0, 0, 0/*4*/}; // 54M base -  12M,9M,6M//do
+const INT16 fcc_shift_tab_n20_ch13[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0/*4*/}; // n20 mcs8 mcs9 mcs7(base) -  mcs0,
+const INT16 fcc_shift_tab_n40_ch13[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0/*4*/}; // n40 mcs8 mcs9 mcs7(base) -  mcs0,
+
+const INT16 fcc_shift_tab_b_ch12[4]    = {0, 0, 0, 0}; // 11M base,5.5M,2M,1M
+// 54M base -54M,48M,36M,24M,18M,12M,9M,6M
+const INT16 fcc_shift_tab_g_ch12[8]    = {0, 0, 0, 0, 0, 0, 0, 0/*4*/}; // 54M base -  12M,9M,6M//do
+const INT16 fcc_shift_tab_n20_ch12[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0/*4*/}; // n20 mcs8 mcs9 mcs7(base) -  mcs0,
+const INT16 fcc_shift_tab_n40_ch12[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0/*4*/}; // n40 mcs8 mcs9 mcs7(base) -  mcs0,
+
+//non_signal wifi
 const INT16 shift_tab_b_fcc[WLAN_2_4_G_CHANNEL_NUM] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // ch1~ch14
 const INT16 shift_tab_g_fcc[WLAN_2_4_G_CHANNEL_NUM] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // ch1~ch14
 const INT16 shift_tab_n20_fcc[WLAN_2_4_G_CHANNEL_NUM] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // ch1~ch14

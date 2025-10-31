@@ -143,3 +143,11 @@ int bk_feature_phy_log_enable(void) {
 	return 0;
 #endif
 }
+
+int bk_feature_wifi_signal_cert_enable(void) {
+#if CONFIG_WIFI_SIGNAL_CERT
+	return 1;
+#else
+	return 0;
+#endif
+}
