@@ -60,6 +60,9 @@ static bk_err_t _mix_algorithm_open(audio_element_handle_t self)
 {
     BK_LOGD(TAG, "[%s] _mix_algorithm_open \n", audio_element_get_tag(self));
 
+    /* set read data timeout */
+    audio_element_set_input_timeout(self, 20 / portTICK_RATE_MS);   // 2000, 15 / portTICK_RATE_MS
+
     return BK_OK;
 }
 

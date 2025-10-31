@@ -151,6 +151,9 @@ static bk_err_t _sbc_decoder_open(audio_element_handle_t self)
     sbc_dec->sample_rate = 0;
     sbc_dec->channel_number = 0;
 
+    /* set read data timeout */
+    audio_element_set_input_timeout(self, 20 / portTICK_RATE_MS);
+
     return BK_OK;
 }
 

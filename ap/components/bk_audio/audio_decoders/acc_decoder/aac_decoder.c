@@ -84,6 +84,9 @@ static bk_err_t _aac_decoder_open(audio_element_handle_t self)
 
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
 
+    /* set read data timeout */
+    audio_element_set_input_timeout(self, 20 / portTICK_RATE_MS);
+
     return BK_OK;
 }
 
