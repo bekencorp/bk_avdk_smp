@@ -74,7 +74,17 @@ typedef struct
     uint8_t te_pin;                 /**< spi te io pin */
 } bk_display_spi_ctlr_config_t;
 
-typedef struct bk_display_ctlr *bk_display_ctlr_handle_t;
+typedef struct
+{
+    bk_display_qspi_ctlr_config_t lcd0_config;
+    bk_display_qspi_ctlr_config_t lcd1_config;
+} bk_display_dual_qspi_ctlr_config_t;
+
+typedef struct
+{
+    bk_display_spi_ctlr_config_t lcd0_config;
+    bk_display_spi_ctlr_config_t lcd1_config;
+} bk_display_dual_spi_ctlr_config_t;
 
 /**
  * @brief Display controller interface structure
@@ -82,14 +92,15 @@ typedef struct bk_display_ctlr *bk_display_ctlr_handle_t;
  * Defines the interface functions that the display controller must implement,
  * including open, close, flush, delete and IO control
  */
+typedef struct bk_display_ctlr *bk_display_ctlr_handle_t;
 typedef struct bk_display_ctlr
 {
     avdk_err_t (*open)(bk_display_ctlr_handle_t controller);
     avdk_err_t (*close)(bk_display_ctlr_handle_t controller);
     avdk_err_t (*flush)(bk_display_ctlr_handle_t controller, frame_buffer_t *frame, bk_err_t (*free_t)(void *args));
     avdk_err_t (*delete)(bk_display_ctlr_handle_t controller);
-    avdk_err_t (*ioctl)(bk_display_ctlr_handle_t controller, uint32_t ioctl_cmd, uint32_t param1, uint32_t param2, uint32_t param3); 
-}bk_display_ctlr_t;
+    avdk_err_t (*ioctl)(bk_display_ctlr_handle_t controller, uint32_t cmd, void *arg); 
+} bk_display_ctlr_t;
 
 #ifdef __cplusplus
 }

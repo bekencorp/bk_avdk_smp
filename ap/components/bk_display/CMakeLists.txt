@@ -7,6 +7,8 @@ if (CONFIG_MEDIA_DISPLAY_SERVICE)
 		src/mcu/bk_display_mcu_ctlr.c
 		src/qspi/bk_display_qspi_ctlr.c
 		src/spi/bk_display_spi_ctlr.c
+		src/dual_qspi/bk_display_dual_qspi_ctlr.c
+		src/dual_spi/bk_display_dual_spi_ctlr.c
 		src/bk_display.c
 	)
 endif()

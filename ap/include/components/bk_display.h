@@ -59,13 +59,11 @@ avdk_err_t bk_display_flush(bk_display_ctlr_handle_t handle, frame_buffer_t *fra
 /**
  * @brief Control IO operations of display controller
  * @param handle Display controller handle
- * @param ioctl_cmd IO control command
- * @param param1 Command parameter 1
- * @param param2 Command parameter 2
- * @param param3 Command parameter 3
+ * @param cmd IO control command
+ * @param param Command data
  * @return Operation result, AVDK_ERR_OK indicates success
  */
-avdk_err_t bk_display_ioctl(bk_display_ctlr_handle_t handle, uint32_t ioctl_cmd, uint32_t param1, uint32_t param2, uint32_t param3);
+avdk_err_t bk_display_ioctl(bk_display_ctlr_handle_t handle, uint32_t cmd, void *arg);
 
 /**
  * @brief Create MCU display controller
@@ -99,6 +97,21 @@ avdk_err_t bk_display_spi_new(bk_display_ctlr_handle_t *handle, bk_display_spi_c
  */
 avdk_err_t bk_display_qspi_new(bk_display_ctlr_handle_t *handle, bk_display_qspi_ctlr_config_t *config);
 
+/**
+ * @brief Create Dual QSPI display controller
+ * @param handle Output parameter, used to store the created display controller handle
+ * @param config Dual QSPI display controller configuration parameters
+ * @return Operation result, AVDK_ERR_OK indicates success
+ */
+avdk_err_t bk_display_dual_qspi_new(bk_display_ctlr_handle_t *handle, bk_display_dual_qspi_ctlr_config_t *config);
+
+/**
+ * @brief Create Dual SPI display controller
+ * @param handle Output parameter, used to store the created display controller handle
+ * @param config Dual SPI display controller configuration parameters
+ * @return Operation result, AVDK_ERR_OK indicates success
+ */
+avdk_err_t bk_display_dual_spi_new(bk_display_ctlr_handle_t *handle, bk_display_dual_spi_ctlr_config_t *config);
 
 #ifdef __cplusplus
 }

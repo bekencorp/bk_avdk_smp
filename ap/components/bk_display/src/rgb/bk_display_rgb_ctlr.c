@@ -545,12 +545,12 @@ static avdk_err_t rgb_display_ctlr_flush(bk_display_ctlr_t *controller, frame_bu
     return lcd_display_task_send_msg(lcd_disp_config, DISPLAY_FRAME_REQUEST, (uint32_t)frame, (uint32_t)free_t);
 }
 
-static avdk_err_t rgb_display_ctlr_ioctl(bk_display_ctlr_t *controller, uint32_t ioctl_cmd, uint32_t param1, uint32_t param2, uint32_t param3)
+static avdk_err_t rgb_display_ctlr_ioctl(bk_display_ctlr_t *controller, uint32_t cmd, void *arg)
 {
-    switch (ioctl_cmd)
+    switch (cmd)
     {
         default:
-            LOGD("%s, no ioctl_cmd: %d \n", __func__, ioctl_cmd);
+            LOGD("%s, no cmd: %d \n", __func__, cmd);
             break;
     }
 

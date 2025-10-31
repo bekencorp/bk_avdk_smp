@@ -138,10 +138,40 @@ typedef struct
     bk_display_ctlr_t ops;
 } private_display_spi_ctlr_t;
 
+typedef struct
+{
+    bk_display_dual_qspi_ctlr_config_t config;
+    bk_display_ctlr_handle_t disp_handle0;
+    bk_display_ctlr_handle_t disp_handle1;
+    frame_buffer_t *disp_buffer1;
+    frame_buffer_t *disp_buffer2;
+    bk_display_ctlr_t ops;
+} private_display_dual_qspi_ctlr_t;
+
+typedef struct
+{
+    bk_display_dual_spi_ctlr_config_t config;
+    bk_display_ctlr_handle_t disp_handle0;
+    bk_display_ctlr_handle_t disp_handle1;
+    frame_buffer_t *disp_buffer1;
+    frame_buffer_t *disp_buffer2;
+    bk_display_ctlr_t ops;
+} private_display_dual_spi_ctlr_t;
+
+
 avdk_err_t bk_display_rgb_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_rgb_ctlr_config_t *config);
+
 avdk_err_t bk_display_mcu_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_mcu_ctlr_config_t *config);
+
 avdk_err_t bk_display_qspi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_qspi_ctlr_config_t *config);
+
 avdk_err_t bk_display_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_spi_ctlr_config_t *config);
+
+avdk_err_t bk_display_dual_qspi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_dual_qspi_ctlr_config_t *config);
+
+avdk_err_t bk_display_dual_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_dual_spi_ctlr_config_t *config);
+
+
 #ifdef __cplusplus
 }
 #endif

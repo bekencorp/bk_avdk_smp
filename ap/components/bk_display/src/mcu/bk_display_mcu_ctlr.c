@@ -519,18 +519,19 @@ static avdk_err_t mcu_display_ctlr_flush(bk_display_ctlr_t *controller, frame_bu
     return lcd_display_task_send_msg(lcd_disp_config, DISPLAY_FRAME_REQUEST, (uint32_t)frame, (uint32_t)free_t);
 }
 
-static avdk_err_t mcu_display_ctlr_ioctl(bk_display_ctlr_t *controller, uint32_t ioctl_cmd, uint32_t param1, uint32_t param2, uint32_t param3)
+static avdk_err_t mcu_display_ctlr_ioctl(bk_display_ctlr_t *controller, uint32_t cmd, void *arg)
 {
     //private_display_mcu_ctlr_t *mcu_controller = __containerof(controller, private_display_mcu_ctlr_t, ops);
     //AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
     //private_display_mcu_context_t *lcd_disp_config = &mcu_controller->mcu_context;
 
-    switch (ioctl_cmd)
+    switch (cmd)
     {
         default:
-            LOGD("%s, no ioctl_cmd: %d \n", __func__, ioctl_cmd);
+            LOGD("%s, no cmd: %d \n", __func__, cmd);
             break;
     }
+
     return AVDK_ERR_OK;
 }
 

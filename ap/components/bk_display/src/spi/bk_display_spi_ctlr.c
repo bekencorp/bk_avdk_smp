@@ -280,6 +280,11 @@ static avdk_err_t spi_display_ctlr_flush(bk_display_ctlr_t *controller, frame_bu
     return lcd_spi_display_task_send_msg(&spi_controller->spi_context, LCD_SPI_DISP_REQUEST, (uint32_t)frame, (uint32_t)free_t);
 }
 
+static avdk_err_t spi_display_ctlr_ioctl(bk_display_ctlr_t *controller, uint32_t cmd, void *arg)
+{
+    return AVDK_ERR_OK;
+}
+
 avdk_err_t bk_display_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_spi_ctlr_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(config && handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
@@ -293,6 +298,7 @@ avdk_err_t bk_display_spi_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_
     controller->ops.close = spi_display_ctlr_close;
     controller->ops.delete = spi_display_ctlr_delete;
     controller->ops.flush = spi_display_ctlr_flush;
+    controller->ops.ioctl = spi_display_ctlr_ioctl;
 
     *handle = &(controller->ops);
 
