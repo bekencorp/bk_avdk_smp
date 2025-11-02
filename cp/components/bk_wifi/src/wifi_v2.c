@@ -2566,7 +2566,8 @@ static int wifi_scan_init_global_config(void)
 static int wifi_sta_set_global_config(const wifi_sta_config_t *config)
 {
 	g_sta_param_ptr->ssid.length = MIN(SSID_MAX_LEN, os_strlen(config->ssid));
-	os_strlcpy((char *)(g_sta_param_ptr->ssid.array), config->ssid, sizeof(g_sta_param_ptr->ssid.array));
+	os_memset(g_sta_param_ptr->ssid.array, 0, sizeof(g_sta_param_ptr->ssid.array));
+	os_memcpy(g_sta_param_ptr->ssid.array, config->ssid, g_sta_param_ptr->ssid.length);
 
 	if (bk_feature_bssid_connect_enable()) {
 		os_memcpy(g_sta_param_ptr->fast_connect.bssid, config->bssid, sizeof(config->bssid));
@@ -2579,7 +2580,9 @@ static int wifi_sta_set_global_config(const wifi_sta_config_t *config)
 #ifdef CONFIG_CONNECT_THROUGH_PSK_OR_SAE_PASSWORD
 	g_sta_param_ptr->psk_len = config->psk_len;
 	g_sta_param_ptr->psk_calculated = config->psk_calculated;
-	os_strlcpy((char *)g_sta_param_ptr->psk, (char *)config->psk, sizeof(g_sta_param_ptr->psk));
+	os_memset(g_sta_param_ptr->key, 0, sizeof(g_sta_param_ptr->psk));
+	os_memcpy(g_sta_param_ptr->key, config->password, g_sta_param_ptr->key_len);
+	g_sta_param_ptr->key[g_sta_param_ptr->key_len] = 0;
 #endif
 
 #if CONFIG_STA_VSIE
@@ -2620,7 +2623,7 @@ static int wifi_sta_get_global_config(wifi_sta_config_t *sta_config)
 		return BK_ERR_NULL_PARAM;
 
 	os_memset(sta_config, 0, sizeof(sta_config));
-	os_strlcpy(sta_config->ssid, (char *)g_sta_param_ptr->ssid.array, sizeof(sta_config->ssid));
+	os_memcpy(sta_config->ssid, g_sta_param_ptr->ssid.array, g_sta_param_ptr->ssid.length);
 
 #ifdef CONFIG_CONNECT_THROUGH_PSK_OR_SAE_PASSWORD
 	sta_config->psk_len = g_sta_param_ptr->psk_len;
@@ -2633,7 +2636,7 @@ static int wifi_sta_get_global_config(wifi_sta_config_t *sta_config)
 		sta_config->channel = g_sta_param_ptr->fast_connect.chann;
 	}
 
-	os_strlcpy(sta_config->password, (char *)g_sta_param_ptr->key, sizeof(sta_config->password));
+	os_memcpy(sta_config->password, g_sta_param_ptr->key, g_sta_param_ptr->key_len);
 
 #if CONFIG_STA_VSIE
 	if (bk_feature_sta_vsie_enable()) {
