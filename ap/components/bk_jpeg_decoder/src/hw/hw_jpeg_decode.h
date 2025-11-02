@@ -36,6 +36,7 @@ typedef struct
 	beken_queue_t hw_message_queue;
 	beken_queue_t hw_input_queue;
 	beken2_timer_t decode_timer;
+	uint8_t decode_timer_is_running;
 	uint8_t decode_err;
 	uint8_t decode_timeout;
 	uint8_t hw_state;
