@@ -70,21 +70,44 @@ uint32_t volc_thread_create(volc_tid_t* thread, const volc_thread_param_t* param
     // xTaskCreate((TaskFunction_t)start_routine, param->name, stack_size, args, priority, handle);
     #if CONFIG_VOLC_RTC_THREAD_BIND_CPU
     #if CONFIG_VOLC_RTC_THREAD_BIND_CPU_ID == 0
-    ret = rtos_core0_create_thread((beken_thread_t *)handle,
-                                priority,
-                                param->name,
-                                (beken_thread_function_t)start_routine,
-                                (unsigned short)stack_size,
-                                (beken_thread_arg_t)args);
+    #if CONFIG_TASK_STACK_IN_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
+        /* Create thread with stack in PSRAM for core0 */
+        ret = rtos_core0_create_psram_thread((beken_thread_t *)handle,
+                                    priority,
+                                    param->name,
+                                    (beken_thread_function_t)start_routine,
+                                    (unsigned short)stack_size,
+                                    (beken_thread_arg_t)args);
+    #else
+        /* Create thread with stack in SRAM for core0 */
+        ret = rtos_core0_create_thread((beken_thread_t *)handle,
+                                    priority,
+                                    param->name,
+                                    (beken_thread_function_t)start_routine,
+                                    (unsigned short)stack_size,
+                                    (beken_thread_arg_t)args);
+    #endif
     #elif CONFIG_VOLC_RTC_THREAD_BIND_CPU_ID == 1
-    ret = rtos_core1_create_thread((beken_thread_t *)handle,
-                                priority,
-                                param->name,
-                                (beken_thread_function_t)start_routine,
-                                (unsigned short)stack_size,
-                                (beken_thread_arg_t)args);
+    #if CONFIG_TASK_STACK_IN_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
+        /* Create thread with stack in PSRAM for core1 */
+        ret = rtos_core1_create_psram_thread((beken_thread_t *)handle,
+                                    priority,
+                                    param->name,
+                                    (beken_thread_function_t)start_routine,
+                                    (unsigned short)stack_size,
+                                    (beken_thread_arg_t)args);
+    #else
+        /* Create thread with stack in SRAM for core1 */
+        ret = rtos_core1_create_thread((beken_thread_t *)handle,
+                                    priority,
+                                    param->name,
+                                    (beken_thread_function_t)start_routine,
+                                    (unsigned short)stack_size,
+                                    (beken_thread_arg_t)args);
+    #endif
     #endif
     #else
+    /* Create thread without CPU binding */
     ret = rtos_create_thread((beken_thread_t *)handle,
                                 priority,
                                 param->name,
