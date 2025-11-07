@@ -343,8 +343,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 	{
 		if (s_debug_en & 0x2)
 		{
-			BK_LOGD(NULL,"deepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
-			BK_LOGD(NULL,"deepsleep2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
+			BK_LOGI(NULL,"deepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
+			BK_LOGI(NULL,"deepsleep2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
 		}
 
 		if ((s_pm_off_modules & s_pm_enter_deep_sleep_modules) == s_pm_enter_deep_sleep_modules)
@@ -379,8 +379,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 	{
 		if (s_debug_en & 0x1)
 		{
-			BK_LOGD(NULL,"lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
-			BK_LOGD(NULL,"lowvol2 0x%X 0x%X\r\n", s_pm_video_pm_state, s_pm_audio_pm_state);
+			BK_LOGI(NULL,"lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
+			BK_LOGI(NULL,"lowvol2 0x%X 0x%X\r\n", s_pm_video_pm_state, s_pm_audio_pm_state);
 		}
 		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
 		&&(s_bsubcores_wfi))
@@ -895,6 +895,7 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 	/*get the cp1 psram malloc count*/
 	#if (CONFIG_CPU_CNT > 1)
 	cp1_psram_malloc_count = FIXED_ADDR_PSRAM_USDE_COUNT;
+	#if CONFIG_PM_PSRAM_DEBUG
 	if (s_debug_en == 64)
 	{
 		if(s_pm_cp1_psram_malloc_count_state > 0)
@@ -905,9 +906,11 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 			bk_pm_dump_cp1_psram_malloc_info();
 		}
 	}
+	#endif/*CONFIG_PM_PSRAM_DEBUG*/
 	#endif
 	/*get the cp0 psram malloc count*/
 	cp0_psram_malloc_count = bk_psram_heap_get_used_count();
+	#if CONFIG_PM_PSRAM_DEBUG
 	if (s_debug_en == 64)
 	{
 		if(cp0_psram_malloc_count > 0)
@@ -918,6 +921,7 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 			bk_psram_heap_get_used_state();
 		}
 	}
+	#endif/*CONFIG_PM_PSRAM_DEBUG*/
 	#if !CONFIG_PM_PSRAM_FORCE_ON
 	if((cp0_psram_malloc_count == 0)&&(cp1_psram_malloc_count == 0))
 	{
