@@ -597,7 +597,6 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         }
         case RLK_REGISTER_SCAN_CFM_CB:
         {
-            os_printf("ML: CP RLK_REGISTER_SCAN_CFM_CB\r\n");
             ret = bk_rlk_register_scan_cfm_cb(bk_rlk_scan_cfm_cp_cb);
             break;
         }
