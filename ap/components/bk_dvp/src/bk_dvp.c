@@ -49,7 +49,6 @@
 #define DVP_THREAD_PRIORITY 5
 
 uint32_t s_dvp_dma_length = 0;
-static uint8_t *dvp_camera_encode = NULL;
 static const dvp_sensor_config_t **devices_list = NULL;
 static uint16_t devices_size = 0;
 
@@ -522,17 +521,6 @@ static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
     }
 #endif
 
-    // step 9: free enode buffer
-#ifndef CONFIG_ENCODE_BUF_NOT_FREE
-    if (dvp_camera_encode)
-    {
-#if !CONFIG_BT_REUSE_MEDIA_MEMORY
-        os_free(dvp_camera_encode);
-#endif
-        dvp_camera_encode = NULL;
-    }
-#endif
-
     handle->dvp_state = MASTER_TURN_OFF;
     os_free(handle);
     bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VIDP_JPEG_EN,PM_POWER_MODULE_STATE_OFF);
@@ -744,12 +732,12 @@ static void dvp_camera_yuv_eof_handler(yuv_buf_unit_t id, void *param)
         new_yuv->height = handle->yuv_frame->height;
         new_yuv->fmt = handle->yuv_frame->fmt;
         new_yuv->length = size;
-        
+
         // Put completion notification task into queue for thread processing
         msg.type = DVP_EVENT_YUV_EOF;
         msg.param1 = (uint32_t)handle->yuv_frame;
         msg.param2 = DVP_FRAME_OK;
-        
+
         bk_err_t ret = rtos_push_to_queue(&handle->dvp_msg_queue, &msg, BEKEN_NO_WAIT);
         if (ret != BK_OK)
         {
@@ -757,7 +745,7 @@ static void dvp_camera_yuv_eof_handler(yuv_buf_unit_t id, void *param)
             // If queue is full, release the frame directly
             handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_ERR);
         }
-        
+
         handle->yuv_frame = new_yuv;
     }
     else
@@ -851,12 +839,12 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
             frame_buffer->height = handle->config->height;
             frame_buffer->fmt = PIXEL_FMT_JPEG;
             frame_buffer->length = real_length;
-            
+
             // Put completion notification task into queue for thread processing
             msg.type = DVP_EVENT_JPEG_EOF;
             msg.param1 = (uint32_t)handle->encode_frame;
             msg.param2 = DVP_FRAME_OK;
-            
+
             bk_err_t ret = rtos_push_to_queue(&handle->dvp_msg_queue, &msg, BEKEN_NO_WAIT);
             if (ret != BK_OK)
             {
@@ -864,7 +852,7 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
                 // If queue is full, release the frame directly
                 handle->callback->complete(IMAGE_MJPEG, handle->encode_frame, DVP_FRAME_ERR);
             }
-            
+
             handle->encode_frame = frame_buffer;
         }
     }
@@ -905,12 +893,12 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
             new_yuv->height = handle->yuv_frame->height;
             new_yuv->fmt = handle->yuv_frame->fmt;
             new_yuv->length = size;
-            
+
             // Put YUV completion notification task into queue for thread processing
             yuv_msg.type = DVP_EVENT_YUV_EOF;
             yuv_msg.param1 = (uint32_t)handle->yuv_frame;
             yuv_msg.param2 = DVP_FRAME_OK;
-            
+
             bk_err_t ret = rtos_push_to_queue(&handle->dvp_msg_queue, &yuv_msg, BEKEN_NO_WAIT);
             if (ret != BK_OK)
             {
@@ -918,7 +906,7 @@ static void dvp_camera_jpeg_eof_handler(jpeg_unit_t id, void *param)
                 // If queue is full, release the frame directly
                 handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_ERR);
             }
-            
+
             handle->yuv_frame = new_yuv;
         }
         else
@@ -1022,7 +1010,6 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
     handle->curr_length = real_length;
 #endif
 
-
     handle->encode_frame->length = real_length;
     handle->encode_frame->timestamp = get_current_timestamp();
 
@@ -1050,12 +1037,12 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
         new_frame->height = handle->config->height;
         new_frame->fmt = PIXEL_FMT_H264;
         new_frame->length = real_length;
-        
+
         // Put completion notification task into queue for thread processing
         msg.type = DVP_EVENT_H264_EOF;
         msg.param1 = (uint32_t)handle->encode_frame;
         msg.param2 = DVP_FRAME_OK;
-        
+
         bk_err_t ret = rtos_push_to_queue(&handle->dvp_msg_queue, &msg, BEKEN_NO_WAIT);
         if (ret != BK_OK)
         {
@@ -1063,7 +1050,7 @@ static void dvp_camera_h264_eof_handler(h264_unit_t id, void *param)
             // If queue is full, release the frame directly
             handle->callback->complete(IMAGE_H264, handle->encode_frame, DVP_FRAME_ERR);
         }
-        
+
         handle->encode_frame = new_frame;
     }
     else
@@ -1100,7 +1087,7 @@ out:
                 new_yuv->height = handle->yuv_frame->height;
                 new_yuv->fmt = handle->yuv_frame->fmt;
                 new_yuv->length = size;
-                
+
                 // Put YUV completion notification task into queue for thread processing
                 yuv_msg.type = DVP_EVENT_YUV_EOF;
                 yuv_msg.param1 = (uint32_t)handle->yuv_frame;
@@ -1113,7 +1100,7 @@ out:
                     // If queue is full, release the frame directly
                     handle->callback->complete(IMAGE_YUV, handle->yuv_frame, DVP_FRAME_ERR);
                 }
-                
+
                 handle->yuv_frame = new_yuv;
             }
             else
@@ -1235,30 +1222,15 @@ bk_err_t dvp_camera_yuv_buf_config_init(dvp_driver_handle_t *handle)
 
     if (config->img_format & IMAGE_H264 || config->img_format & IMAGE_MJPEG)
     {
-        if (dvp_camera_encode == NULL)
+        if (handle->encode_buffer == NULL)
         {
-            dvp_camera_encode = media_bt_share_buffer;
-            if (dvp_camera_encode == NULL)
-            {
-                if (config->img_format & IMAGE_H264)
-                {
-                    dvp_camera_encode = (uint8_t *)os_malloc(config->width * 32 * 2);
-                }
-                else
-                {
-                    dvp_camera_encode = (uint8_t *)os_malloc(config->width * 16 * 2);
-                }
-            }
-
-            if (dvp_camera_encode == NULL)
-            {
-                return BK_ERR_NO_MEM;
-            }
+            LOGE("encode buffer is NULL\r\n");
+            return BK_ERR_NO_MEM;
         }
 
-        LOGD("%s, encode_buf:%p\r\n", __func__, dvp_camera_encode);
+        LOGD("%s, encode_buf:%p\r\n", __func__, handle->encode_buffer);
 
-        yuv_mode_config.base_addr = dvp_camera_encode;
+        yuv_mode_config.base_addr = handle->encode_buffer;
     }
 
     ret = bk_yuv_buf_init(&yuv_mode_config);
@@ -1517,7 +1489,7 @@ const dvp_sensor_config_t *bk_dvp_detect(bk_dvp_config_t *config)
     return sensor;
 }
 
-bk_err_t bk_dvp_open(camera_handle_t *handle, bk_dvp_config_t *cfg, const bk_dvp_callback_t *cb)
+bk_err_t bk_dvp_open(camera_handle_t *handle, bk_dvp_config_t *cfg, const bk_dvp_callback_t *cb, uint8_t *encode_buffer)
 {
     bk_err_t ret = BK_FAIL;
 
@@ -1546,6 +1518,7 @@ bk_err_t bk_dvp_open(camera_handle_t *handle, bk_dvp_config_t *cfg, const bk_dvp
 
     dvp_handle->config = cfg;
     dvp_handle->callback = cb;
+    dvp_handle->encode_buffer = encode_buffer;
 
     bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VIDP_JPEG_EN,PM_POWER_MODULE_STATE_ON);
 

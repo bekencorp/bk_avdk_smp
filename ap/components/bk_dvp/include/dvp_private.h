@@ -6,8 +6,6 @@
 #define DVP_FRAME_OK            (0)
 #define DVP_FRAME_ERR           (-1)
 
-extern uint8_t *media_bt_share_buffer;
-
 //#define DVP_DIAG_DEBUG
 
 #ifdef DVP_DIAG_DEBUG
