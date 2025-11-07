@@ -1097,7 +1097,8 @@ static int p2p_ctrl_connect(struct wpa_supplicant *wpa_s,
 	ht40 = wpa_s->conf->p2p_go_ht40 || vht;
 	he = wpa_s->conf->p2p_go_he;
 
-	go_intent = param->intent;
+	//TODO force device as GC
+	go_intent = 0;//param->intent;
 
 	max_oper_chwidth = CHANWIDTH_USE_HT;
 
