@@ -35,7 +35,7 @@
 #include "l2_packet/l2_packet.h"
 #ifdef CONFIG_P2P
 /* if SQRTMOD_USE_MOD_EXP is not enabled, enlarge stack size to 15K */
-#define WPAS_STACK_SZ	5120//4096*2
+#define WPAS_STACK_SZ	6144//4096*2
 #elif defined(CONFIG_USE_MBEDTLS) && defined(CONFIG_OCV)
 /*
  * FIXME: bk7236, crypto_ec_point_compute_y_sqr -> mbedtls_mpi_exp_mod ->
