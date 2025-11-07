@@ -343,8 +343,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 	{
 		if (s_debug_en & 0x2)
 		{
-			BK_LOGI(NULL,"deepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
-			BK_LOGI(NULL,"deepsleep2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
+			BK_LOGD(NULL,"deepsleep1 0x%X 0x%X\r\n", s_pm_off_modules, s_pm_enter_deep_sleep_modules);
+			BK_LOGD(NULL,"deepsleep2 0x%X 0x%X 0x%X 0x%X\r\n", s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
 		}
 
 		if ((s_pm_off_modules & s_pm_enter_deep_sleep_modules) == s_pm_enter_deep_sleep_modules)
@@ -379,8 +379,8 @@ static uint32_t pm_check_and_ctrl_sleep()
 	{
 		if (s_debug_en & 0x1)
 		{
-			BK_LOGI(NULL,"lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
-			BK_LOGI(NULL,"lowvol2 0x%X 0x%X\r\n", s_pm_video_pm_state, s_pm_audio_pm_state);
+			BK_LOGD(NULL,"lowvol1 0x%X 0x%llX 0x%llX\r\n", s_pm_sleep_mode, s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
+			BK_LOGD(NULL,"lowvol2 0x%X 0x%X\r\n", s_pm_video_pm_state, s_pm_audio_pm_state);
 		}
 		if (((s_pm_sleeped_modules & s_pm_enter_low_vol_modules) == s_pm_enter_low_vol_modules)
 		&&(s_bsubcores_wfi))
@@ -888,10 +888,11 @@ static bk_err_t pm_cp1_psram_malloc_state_get()
 }
 static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 {
+#if !CONFIG_PM_PSRAM_FORCE_ON
   #if CONFIG_PSRAM_AS_SYS_MEMORY
-
 	uint32_t cp0_psram_malloc_count = 0;
 	uint32_t cp1_psram_malloc_count = 0;
+
 	/*get the cp1 psram malloc count*/
 	#if (CONFIG_CPU_CNT > 1)
 	cp1_psram_malloc_count = FIXED_ADDR_PSRAM_USDE_COUNT;
@@ -906,8 +907,8 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 			bk_pm_dump_cp1_psram_malloc_info();
 		}
 	}
-	#endif/*CONFIG_PM_PSRAM_DEBUG*/
-	#endif
+    #endif//CONFIG_PM_PSRAM_DEBUG
+	#endif//CONFIG_CPU_CNT
 	/*get the cp0 psram malloc count*/
 	cp0_psram_malloc_count = bk_psram_heap_get_used_count();
 	#if CONFIG_PM_PSRAM_DEBUG
@@ -921,15 +922,14 @@ static bk_err_t pm_psram_malloc_state_and_power_ctrl()
 			bk_psram_heap_get_used_state();
 		}
 	}
-	#endif/*CONFIG_PM_PSRAM_DEBUG*/
-	#if !CONFIG_PM_PSRAM_FORCE_ON
+	#endif//CONFIG_PM_PSRAM_DEBUG
 	if((cp0_psram_malloc_count == 0)&&(cp1_psram_malloc_count == 0))
 	{
 		bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_AS_MEM,PM_POWER_MODULE_STATE_OFF);
 		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_OFF);
 	}
-	#endif
-  #endif
+  #endif//CONFIG_PSRAM_AS_SYS_MEMORY
+#endif//CONFIG_PM_PSRAM_FORCE_ON
 	return BK_OK;
 }
 
