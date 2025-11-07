@@ -1,9 +1,11 @@
 //#include <stdint.h>
 #include "private_camera_ctlr.h"
-#include "components/avdk_utils/avdk_check.h"
+#include <components/avdk_utils/avdk_check.h>
 #include <components/dvp_camera.h>
 
 #define TAG "camera_dvp_ctlr"
+
+extern uint8_t *media_bt_share_buffer;
 
 static avdk_err_t dvp_camera_ctlr_open(bk_camera_ctlr_t *controller)
 {
@@ -11,7 +13,7 @@ static avdk_err_t dvp_camera_ctlr_open(bk_camera_ctlr_t *controller)
     AVDK_RETURN_ON_FALSE(dvp_controller, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(dvp_controller->state == CAMERA_STATE_INIT, AVDK_ERR_INVAL, TAG, "control state err");
 
-    avdk_err_t ret = bk_dvp_open(&dvp_controller->handle, &dvp_controller->config.config, dvp_controller->config.cbs);
+    avdk_err_t ret = bk_dvp_open(&dvp_controller->handle, &dvp_controller->config.config, dvp_controller->config.cbs, dvp_controller->encode_buffer);
 
     if (ret == AVDK_ERR_OK)
     {
@@ -31,6 +33,7 @@ static avdk_err_t dvp_camera_ctlr_close(bk_camera_ctlr_t *controller)
     if (ret == AVDK_ERR_OK)
     {
         dvp_controller->state = CAMERA_STATE_INIT;
+        dvp_controller->handle = NULL;
     }
 
     return ret;
@@ -42,6 +45,13 @@ static avdk_err_t dvp_camera_ctlr_delete(bk_camera_ctlr_t *controller)
     AVDK_RETURN_ON_FALSE(dvp_controller, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(dvp_controller->state == CAMERA_STATE_INIT, AVDK_ERR_INVAL, TAG, "control state err");
 
+    if (dvp_controller->encode_buffer)
+    {
+#ifndef CONFIG_BT_REUSE_MEDIA_MEMORY
+        os_free(dvp_controller->encode_buffer);
+#endif
+        dvp_controller->encode_buffer = NULL;
+    }
     os_free(dvp_controller);
     return AVDK_ERR_OK;
 }
@@ -71,15 +81,15 @@ static avdk_err_t dvp_camera_ctlr_ioctlr(bk_camera_ctlr_t *controller, uint32_t 
     AVDK_RETURN_ON_FALSE(dvp_controller, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(dvp_controller->state == CAMERA_STATE_OPENED, AVDK_ERR_INVAL, TAG, "control state err");
 
-    if (cmd == 0)
+    if (cmd == DVP_IOCTL_CMD_H264_IDR_RESET)
     {
         ret = bk_dvp_h264_idr_reset(dvp_controller->handle);
     }
-    else if (cmd == 1)
+    else if (cmd == DVP_IOCTL_CMD_SENSOR_WRITE_REGISTER)
     {
         ret = bk_dvp_sensor_write_register(dvp_controller->handle, (dvp_sensor_reg_val_t *)arg);
     }
-    else if (cmd == 2)
+    else if (cmd == DVP_IOCTL_CMD_SENSOR_READ_REGISTER)
     {
         ret = bk_dvp_sensor_read_register(dvp_controller->handle, (dvp_sensor_reg_val_t *)arg);
     }
@@ -103,6 +113,23 @@ avdk_err_t bk_camera_dvp_ctlr_new(bk_camera_ctlr_handle_t *handle, bk_dvp_ctlr_c
 
     os_memset(controller, 0, sizeof(private_camera_dvp_ctlr_t));
     os_memcpy(&controller->config, config, sizeof(bk_dvp_ctlr_config_t));
+
+#ifdef CONFIG_BT_REUSE_MEDIA_MEMORY
+    controller->encode_buffer = media_bt_share_buffer;
+#else
+    if (config->config.img_format & IMAGE_H264)
+    {
+        controller->encode_buffer = os_malloc(config->config.width * 32 * 2);
+    }
+    else if (config->config.img_format & IMAGE_MJPEG)
+    {
+        controller->encode_buffer = os_malloc(config->config.width * 16 * 2);
+    }
+    else
+    {
+        controller->encode_buffer = NULL;
+    }
+#endif
 
     controller->ops.open = dvp_camera_ctlr_open;
     controller->ops.close = dvp_camera_ctlr_close;

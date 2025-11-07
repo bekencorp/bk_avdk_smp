@@ -39,6 +39,7 @@ typedef struct
     bk_dvp_ctlr_config_t config;       /**< DVP camera configuration */
     bk_camera_ctlr_t ops;              /**< Camera operations interface */
     void *handle;                      /**< Handle to the DVP controller */
+    uint8_t *encode_buffer;            /**< Encode buffer */
 }  private_camera_dvp_ctlr_t;
 
 /**
