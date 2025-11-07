@@ -199,6 +199,8 @@ bk_err_t hw_jpeg_decode_start(frame_buffer_t *src_frame, frame_buffer_t *dst_fra
             return ret;
         }
 
+        rtos_get_semaphore(&g_hw_jpeg_decode->hw_sync_sem, BEKEN_NO_WAIT);
+
         ret = hardware_decode_task_send_msg(HARDWARE_DECODE_EVENT_DECODE_START, (uint32_t)dst_frame);
         if (ret != BK_OK)
         {
