@@ -56,14 +56,16 @@ const dvp_sensor_config_t *bk_dvp_detect(bk_dvp_config_t *cfg);
  * @param handle init handle
  * @param config dvp config
  * @param callback frame callback
+ * @param encode_buffer encode buffer
  *
  * @attation 1. you need make sure upper module exist.
+ *           2. only work in encode mode(H264 or MJPEG) need to set encode_buffer.
  *
  * @return
  *    - kNoErr: succeed
  *    - others: other errors.
  */
-bk_err_t bk_dvp_open(camera_handle_t *handle, bk_dvp_config_t *config, const bk_dvp_callback_t *callback);
+bk_err_t bk_dvp_open(camera_handle_t *handle, bk_dvp_config_t *config, const bk_dvp_callback_t *callback, uint8_t *encode_buffer);
 
 /**
  * @brief     close the camera

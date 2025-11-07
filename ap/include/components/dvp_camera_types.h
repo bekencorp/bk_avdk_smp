@@ -61,6 +61,13 @@ typedef enum
     SENSOR_BITS_WIDTH_16BIT = 16, /**< 16-bit data width */
 } sensor_bits_width_t;
 
+typedef enum
+{
+    DVP_IOCTL_CMD_H264_IDR_RESET = 0, /**< Regenerate idr frame */
+    DVP_IOCTL_CMD_SENSOR_WRITE_REGISTER = 1,
+    DVP_IOCTL_CMD_SENSOR_READ_REGISTER = 2, /**< Read sensor register */
+} dvp_ioctl_cmd_t;
+
 /**
  * @brief DVP IO configuration structure
  * @details Configuration parameters for DVP interface IO pins
