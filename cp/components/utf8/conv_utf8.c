@@ -130,7 +130,7 @@ char *Utf8ToGb2312(char *utf8)
 	if (len <= 0)
 		return NULL;
 
-	temp = os_malloc(len * sizeof(char));
+	temp = os_malloc((len + 1) * sizeof(char));
 	if (!temp)
 		return NULL;
 
