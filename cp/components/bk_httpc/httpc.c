@@ -644,7 +644,8 @@ int httpc_conn_setup_user_password_v2(struct httpc_conn *conn, char *user, char 
 	asprintf(&user_info, "%s:%s", user, password);
 	mbedtls_base64_encode(NULL, 0, &n, (const unsigned char *)user_info, strlen(user_info));
 	digest = calloc(1, 6 + n + 1);
-	strcpy(digest, "Basic ");
+	strncpy(digest, "Basic ", 6);
+	digest[6] = '\0';
 	mbedtls_base64_encode((unsigned char *)digest + 6, n, (size_t *)&out, (const unsigned char *)user_info, strlen(user_info));
 	if (!conn) {
 		os_free(digest);
