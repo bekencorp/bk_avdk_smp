@@ -192,7 +192,7 @@ void cli_dvp_api_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
     {
         if (s_dvp_handle != NULL)
         {
-            ret = bk_camera_ioctl(s_dvp_handle, 0, NULL);
+            ret = bk_camera_ioctl(s_dvp_handle, DVP_IOCTL_CMD_H264_IDR_RESET, NULL);
         }
     }
     else
