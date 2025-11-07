@@ -12,6 +12,8 @@ if (CONFIG_JPEG_DECODER_HW)
 		src/bk_jpeg_decode_hw.c
 		src/hw/bk_hw_jpeg_decode_ctlr.c
 		src/hw/hw_jpeg_decode.c
+		src/hw/hw_jpeg_decode_opt.c
+		src/hw/bk_hw_jpeg_decode_opt_ctlr.c
 	)
 endif()
 

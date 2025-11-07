@@ -35,6 +35,12 @@ bk_err_t perform_jpeg_decode_sw_async_test(void *jpeg_decode_handle, uint32_t jp
 bk_err_t perform_jpeg_decode_sw_async_burst_test(void *jpeg_decode_handle, uint32_t jpeg_length, const uint8_t *jpeg_data, 
                                            const char *test_name, jpeg_decode_test_type_t jpeg_decode_test_type, uint32_t burst_count);
 
+bk_err_t perform_jpeg_decode_hw_opt_test(void *jpeg_decode_handle, uint32_t jpeg_length, const uint8_t *jpeg_data, const char *test_name);
+bk_err_t perform_jpeg_decode_hw_opt_async_test(void *jpeg_decode_handle, uint32_t jpeg_length, const uint8_t *jpeg_data, const char *test_name);
+bk_err_t perform_jpeg_decode_hw_opt_async_burst_test(void *jpeg_decode_handle, uint32_t jpeg_length, const uint8_t *jpeg_data, const char *test_name, uint32_t burst_count);
+bk_err_t create_and_open_hw_opt_decoder(void **jpeg_decode_handle, void *jpeg_decode_config);
+bk_err_t close_and_delete_hw_opt_decoder(void **jpeg_decode_handle);
+
 #ifdef __cplusplus
 }
 #endif

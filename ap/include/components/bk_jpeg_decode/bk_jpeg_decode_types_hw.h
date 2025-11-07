@@ -60,6 +60,41 @@ typedef struct bk_jpeg_decode_hw_config
 typedef struct bk_jpeg_decode_hw *bk_jpeg_decode_hw_handle_t;
 
 /**
+ * @brief Copy method enumeration for SRAM to PSRAM transfer
+ */
+typedef enum
+{
+    JPEG_DECODE_OPT_COPY_METHOD_MEMCPY = 0,  /*!< Use os_memcpy for data transfer */
+    JPEG_DECODE_OPT_COPY_METHOD_DMA,         /*!< Use DMA for data transfer (faster) */
+} bk_jpeg_decode_opt_copy_method_t;
+
+/**
+ * @brief Copy method enumeration for SRAM to PSRAM transfer
+ */
+typedef enum
+{
+    JPEG_DECODE_OPT_LINES_PER_BLOCK_8 = 8,         /*!< Use DMA for data transfer (faster) */
+    JPEG_DECODE_OPT_LINES_PER_BLOCK_16 = 16,         /*!< Use DMA for data transfer (faster) */
+} bk_jpeg_decode_opt_lines_per_block_t;
+
+/**
+ * @brief Hardware optimized JPEG decoder configuration structure
+ *
+ * This structure contains configuration parameters for creating a hardware optimized JPEG decoder instance.
+ */
+typedef struct bk_jpeg_decode_hw_opt_config
+{
+    bk_jpeg_decode_callback_t decode_cbs;  /*!< JPEG decode callback functions */
+    uint8_t *sram_buffer;                  /*!< SRAM buffer for optimized decode (NULL to auto-allocate)
+                                                 Buffer size should be: image_max_width * lines_per_block * 2 (bytes per pixel YUYV)
+                                                 If pingpong mode: image_max_width * lines_per_block * 2 * 2 */
+    uint32_t image_max_width;              /*!< Maximum width of the image */
+    uint8_t is_pingpong;                   /*!< Whether to use pingpong mode */
+    bk_jpeg_decode_opt_lines_per_block_t lines_per_block;               /*!< Number of lines to decode per block */
+    bk_jpeg_decode_opt_copy_method_t copy_method;  /*!< Copy method for data transfer */
+} bk_jpeg_decode_hw_opt_config_t;
+
+/**
  * @brief Hardware JPEG decoder operations structure
  *
  * This structure defines the operations that can be performed on a hardware JPEG decoder instance.

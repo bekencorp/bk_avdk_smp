@@ -33,6 +33,19 @@ static bk_jpeg_decode_hw_config_t jpeg_decode_hw_config = {
     }
 };
 
+static bk_jpeg_decode_hw_opt_config_t jpeg_decode_hw_opt_config = {
+    .decode_cbs = {
+        .in_complete = jpeg_decode_in_complete,
+        .out_malloc = jpeg_decode_out_malloc,
+        .out_complete = jpeg_decode_out_complete,
+    },
+    .sram_buffer = NULL,
+    .image_max_width = 864,
+    .is_pingpong = 0,
+    .lines_per_block = 16,  // Using plain number instead of enum
+    .copy_method = 0,       // Using plain number instead of enum
+};
+
 static jpeg_decode_test_type_t jpeg_decode_mode = JPEG_DECODE_MODE_HARDWARE;
 
 void cli_jpeg_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -83,6 +96,15 @@ void cli_jpeg_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         }
         jpeg_decode_mode = JPEG_DECODE_MODE_SOFTWARE;
     }
+    else if (os_strcmp(argv[1], "init_hw_line") == 0) {
+        ret = bk_hardware_jpeg_decode_opt_new(&jpeg_decode_hw_handle, &jpeg_decode_hw_opt_config);
+        if (ret != BK_OK) {
+            LOGE("%s, %d, bk_hardware_jpeg_decode_opt_new failed!\n", __func__, __LINE__);
+        } else {
+            LOGD("%s, %d, bk_hardware_jpeg_decode_opt_new success!\n", __func__, __LINE__);
+        }
+        jpeg_decode_mode = JPEG_DECODE_MODE_HARDWARE;
+    }
     else if (os_strcmp(argv[1], "delete") == 0) {
         if(jpeg_decode_mode == JPEG_DECODE_MODE_HARDWARE)
         {
@@ -122,7 +144,8 @@ void cli_jpeg_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         }
     }
     else if (os_strcmp(argv[1], "close") == 0) {
-        if (jpeg_decode_mode == JPEG_DECODE_MODE_HARDWARE) {
+        if (jpeg_decode_mode == JPEG_DECODE_MODE_HARDWARE)
+        {
             if(jpeg_decode_hw_handle != NULL)
             {
                 ret = bk_jpeg_decode_hw_close(jpeg_decode_hw_handle);

@@ -56,6 +56,8 @@ typedef struct
     uint32_t param;
 } hardware_decode_msg_t;
 
+
+
 bk_err_t hw_jpeg_decode_start(frame_buffer_t *src_frame, frame_buffer_t *dst_frame);
 bk_err_t hw_jpeg_decode_start_async(frame_buffer_t *src_frame);
 bk_err_t hw_jpeg_decode_init(bk_jpeg_decode_callback_t *decode_cbs);

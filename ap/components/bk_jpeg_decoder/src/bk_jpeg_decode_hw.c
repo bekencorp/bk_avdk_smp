@@ -5,6 +5,7 @@
 #include "uvc_pipeline_act.h"
 #include "components/media_types.h"
 #include "components/bk_jpeg_decode/bk_jpeg_decode_hw.h"
+
 #include "bk_jpeg_decode_ctlr.h"
 
 #define TAG "bk_jdec_hw"
@@ -111,6 +112,20 @@ avdk_err_t bk_hardware_jpeg_decode_new(bk_jpeg_decode_hw_handle_t *handle, bk_jp
 
     ret = bk_hardware_jpeg_decode_ctlr_new(handle, config);
     AVDK_RETURN_ON_FALSE(ret == BK_OK, ret, TAG, "new failed");
+
+    return ret;
+}
+
+avdk_err_t bk_hardware_jpeg_decode_opt_new(bk_jpeg_decode_hw_handle_t *handle, bk_jpeg_decode_hw_opt_config_t *config)
+{
+    avdk_err_t ret = AVDK_ERR_OK;
+    AVDK_RETURN_ON_FALSE(handle && config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(*handle == NULL, AVDK_ERR_INVAL, TAG, "handle is not NULL");
+
+    ret = bk_hardware_jpeg_decode_opt_ctlr_new(handle, config);
+    AVDK_RETURN_ON_FALSE(ret == BK_OK, ret, TAG, "new failed");
+
+    LOGI("%s success\n", __func__);
 
     return ret;
 }

@@ -99,6 +99,19 @@ bk_err_t bk_jpeg_dec_line_int_dis(void);
 bk_err_t bk_jpeg_dec_hw_start(uint32_t length, unsigned char *input_buf, unsigned char * output_buf);
 
 /**
+* @brief	 this api start jpeg decode optimized, this is for single sram buffer decode
+*
+* @param     length jpeg length
+*           - input_buf jpeg data src addr
+*           - output_buf jpeg decode output addr
+*
+* @return
+*         0: jpeg decode ok;
+*        others: error
+*/
+bk_err_t bk_jpeg_dec_hw_start_opt(uint32_t length, unsigned char *input_buf, unsigned char * output_buf);
+
+/**
 * @brief	 this api start jpeg decode
 *
 * @param     length jpeg length

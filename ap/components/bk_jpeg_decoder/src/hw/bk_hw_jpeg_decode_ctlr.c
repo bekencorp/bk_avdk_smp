@@ -24,6 +24,7 @@ static avdk_err_t hardware_jpeg_decode_ctlr_open(bk_jpeg_decode_hw_ctlr_handle_t
     avdk_err_t ret = AVDK_ERR_OK;
     private_jpeg_decode_hw_ctlr_t *controller = __containerof(handler, private_jpeg_decode_hw_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(controller->module_status.status == JPEG_DECODE_DISABLED, AVDK_ERR_INVAL, TAG, "jpeg decode is enabled");
 
     ret = hw_jpeg_decode_init(&controller->config.decode_cbs);
     AVDK_RETURN_ON_FALSE(ret == AVDK_ERR_OK, AVDK_ERR_INVAL, TAG, "hw_decode_init failed");
@@ -38,6 +39,7 @@ static avdk_err_t hardware_jpeg_decode_ctlr_close(bk_jpeg_decode_hw_ctlr_handle_
     avdk_err_t ret = AVDK_ERR_OK;
     private_jpeg_decode_hw_ctlr_t *controller = __containerof(handler, private_jpeg_decode_hw_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(controller->module_status.status == JPEG_DECODE_ENABLED, AVDK_ERR_INVAL, TAG, "jpeg decode is disabled");
 
     ret = hw_jpeg_decode_deinit();
     AVDK_RETURN_ON_FALSE(ret == AVDK_ERR_OK, AVDK_ERR_INVAL, TAG, "hw_jpeg_decode_deinit failed");

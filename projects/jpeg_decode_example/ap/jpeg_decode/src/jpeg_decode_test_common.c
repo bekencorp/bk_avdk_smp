@@ -41,6 +41,41 @@ bk_err_t jpeg_decode_out_complete(uint32_t format_type, uint32_t result, frame_b
     return BK_OK;
 }
 
+// Helper function: Allocate and fill input frame buffer
+static frame_buffer_t *allocate_input_frame(uint32_t jpeg_length, const uint8_t *jpeg_data)
+{
+    frame_buffer_t *in_frame = frame_buffer_encode_malloc(jpeg_length);
+    if (in_frame != NULL) {
+        in_frame->length = jpeg_length;
+        in_frame->size = jpeg_length;
+        os_memcpy(in_frame->frame, jpeg_data, jpeg_length);
+    }
+    return in_frame;
+}
+
+// Helper function: Get image info and log
+static bk_err_t get_and_log_image_info(void *jpeg_decode_handle, frame_buffer_t *in_frame, 
+                                       bk_jpeg_decode_img_info_t *img_info, jpeg_decode_test_type_t test_type)
+{
+    bk_err_t ret = BK_OK;
+
+    img_info->frame = in_frame;
+    if (test_type == JPEG_DECODE_MODE_HARDWARE) {
+        ret = bk_jpeg_decode_hw_get_img_info((bk_jpeg_decode_hw_handle_t)jpeg_decode_handle, img_info);
+    } else {
+        ret = bk_jpeg_decode_sw_get_img_info((bk_jpeg_decode_sw_handle_t)jpeg_decode_handle, img_info);
+    }
+
+    if (ret != BK_OK) {
+        LOGE("%s, %d, jpeg decode get img info failed! ret: %d\n", __func__, __LINE__, ret);
+    } else {
+        LOGD("%s, %d, image info: %dx%d, format: %d\n", __func__, __LINE__,
+             img_info->width, img_info->height, img_info->format);
+    }
+
+    return ret;
+}
+
 // Helper function: Create and open decoder
 bk_err_t create_and_open_decoder(void **jpeg_decode_handle, void *jpeg_decode_config, jpeg_decode_test_type_t jpeg_decode_test_type)
 {
@@ -112,25 +147,18 @@ bk_err_t perform_jpeg_decode_sw_async_test(void *jpeg_decode_handle, uint32_t jp
     LOGI("%s, %d, Start %s!\n", __func__, __LINE__, test_name);
 
     // 1. Allocate and fill input buffer
-    in_frame = frame_buffer_encode_malloc(jpeg_length);
+    in_frame = allocate_input_frame(jpeg_length, jpeg_data);
     if (in_frame == NULL) {
-        LOGE("%s, %d, frame_buffer_encode_malloc failed!\n", __func__, __LINE__);
+        LOGE("%s, %d, allocate_input_frame failed!\n", __func__, __LINE__);
         ret = BK_FAIL;
         goto exit;
     }
-    in_frame->length = jpeg_length;
-    in_frame->size = jpeg_length;
-    os_memcpy(in_frame->frame, jpeg_data, jpeg_length);
 
     // 2. Get image dimensions information
-    img_info.frame = in_frame;
-    ret = bk_jpeg_decode_sw_get_img_info((bk_jpeg_decode_sw_handle_t)jpeg_decode_handle, &img_info);
+    ret = get_and_log_image_info(jpeg_decode_handle, in_frame, &img_info, jpeg_decode_test_type);
     if (ret != BK_OK) {
-        LOGE("%s, %d, jpeg decode get img info failed! ret: %d\n", __func__, __LINE__, ret);
         goto exit;
     }
-    LOGD("%s, %d, jpeg decode get img info success! %dx%d %d\n", __func__, __LINE__,
-            img_info.width, img_info.height, img_info.format);
 
     // 3. Configure output format
     bk_jpeg_decode_sw_out_frame_info_t jpeg_decode_sw_config = {0};
@@ -146,13 +174,12 @@ bk_err_t perform_jpeg_decode_sw_async_test(void *jpeg_decode_handle, uint32_t jp
         goto exit;
     }
 
-    LOGD("%s, %d, jpeg sw async decode complete\n", __func__, __LINE__);
+    LOGD("%s, %d, jpeg sw async decode started successfully\n", __func__, __LINE__);
     return ret;
 
-    // 5. Release resources
+exit:
     // Note: For async decoding, the input frame will be released in the callback function
     // This exit path is only for error cases before the decode_async call
-    exit:
     LOGE("%s, %d, jpeg sw async decode failed! ret: %d\n", __func__, __LINE__, ret);
 
     if (in_frame != NULL) {
@@ -245,30 +272,18 @@ bk_err_t perform_jpeg_decode_test(void *jpeg_decode_handle, uint32_t jpeg_length
     LOGI("%s, %d, Start %s!\n", __func__, __LINE__, test_name);
 
     // 1. Allocate and fill input buffer
-    in_frame = frame_buffer_encode_malloc(jpeg_length);
+    in_frame = allocate_input_frame(jpeg_length, jpeg_data);
     if (in_frame == NULL) {
-        LOGE("%s, %d, frame_buffer_encode_malloc failed!\n", __func__, __LINE__);
+        LOGE("%s, %d, allocate_input_frame failed!\n", __func__, __LINE__);
         ret = BK_FAIL;
         goto exit;
     }
-    in_frame->length = jpeg_length;
-    in_frame->size = jpeg_length;
-    os_memcpy(in_frame->frame, jpeg_data, jpeg_length);
 
     // 2. Get image dimensions information
-    img_info.frame = in_frame;
-    if (jpeg_decode_test_type == JPEG_DECODE_MODE_HARDWARE) {
-        ret = bk_jpeg_decode_hw_get_img_info((bk_jpeg_decode_hw_handle_t)jpeg_decode_handle, &img_info);
-    } else {
-        ret = bk_jpeg_decode_sw_get_img_info((bk_jpeg_decode_sw_handle_t)jpeg_decode_handle, &img_info);
-    }
-
+    ret = get_and_log_image_info(jpeg_decode_handle, in_frame, &img_info, jpeg_decode_test_type);
     if (ret != BK_OK) {
-        LOGE("%s, %d, jpeg decode get img info failed! ret: %d\n", __func__, __LINE__, ret);
         goto exit;
     }
-    LOGD("%s, %d, jpeg decode get img info success! %dx%d %d\n", __func__, __LINE__,
-            img_info.width, img_info.height, img_info.format);
 
     // 3. Allocate output buffer
     out_frame = frame_buffer_display_malloc(img_info.width * img_info.height * 2);
@@ -299,19 +314,14 @@ bk_err_t perform_jpeg_decode_test(void *jpeg_decode_handle, uint32_t jpeg_length
     } else {
         ret = bk_jpeg_decode_sw_decode((bk_jpeg_decode_sw_handle_t)jpeg_decode_handle, in_frame, out_frame);
     }
+    beken_time_get_time(&end_time);
 
     if (ret != BK_OK) {
         LOGE("%s, %d, jpeg decode start failed! ret: %d\n", __func__, __LINE__, ret);
         goto exit;
     }
 
-    beken_time_get_time(&end_time);
-
-    if (ret != BK_OK) {
-        LOGE("%s, %d, jpeg decode start failed! ret: %d\n", __func__, __LINE__, ret);
-    } else {
-        LOGD("%s, %d, jpeg decode start success! Decode time: %d ms\n", __func__, __LINE__, end_time - start_time);
-    }
+    LOGD("%s, %d, jpeg decode success! Decode time: %d ms\n", __func__, __LINE__, end_time - start_time);
     return ret;
 
     // 5. Release resources
@@ -336,25 +346,18 @@ bk_err_t perform_jpeg_decode_async_test(void *jpeg_decode_handle, uint32_t jpeg_
     LOGI("%s, %d, Start %s!\n", __func__, __LINE__, test_name);
 
     // 1. Allocate and fill input buffer
-    in_frame = frame_buffer_encode_malloc(jpeg_length);
+    in_frame = allocate_input_frame(jpeg_length, jpeg_data);
     if (in_frame == NULL) {
-        LOGE("%s, %d, frame_buffer_encode_malloc failed!\n", __func__, __LINE__);
+        LOGE("%s, %d, allocate_input_frame failed!\n", __func__, __LINE__);
         ret = BK_FAIL;
         goto exit;
     }
-    in_frame->length = jpeg_length;
-    in_frame->size = jpeg_length;
-    os_memcpy(in_frame->frame, jpeg_data, jpeg_length);
 
     // 2. Get image dimensions information
-    img_info.frame = in_frame;
-    ret = bk_jpeg_decode_hw_get_img_info((bk_jpeg_decode_hw_handle_t)jpeg_decode_handle, &img_info);
+    ret = get_and_log_image_info(jpeg_decode_handle, in_frame, &img_info, jpeg_decode_test_type);
     if (ret != BK_OK) {
-        LOGE("%s, %d, jpeg decode get img info failed! ret: %d\n", __func__, __LINE__, ret);
         goto exit;
     }
-    LOGD("%s, %d, jpeg decode get img info success! %dx%d %d\n", __func__, __LINE__,
-            img_info.width, img_info.height, img_info.format);
 
     // 3. Perform asynchronous decoding
     // For async decoding, the output buffer will be allocated and returned in the callback
@@ -364,11 +367,12 @@ bk_err_t perform_jpeg_decode_async_test(void *jpeg_decode_handle, uint32_t jpeg_
         goto exit;
     }
 
-    LOGD("%s, %d, jpeg async decode complete\n", __func__, __LINE__);
+    LOGD("%s, %d, jpeg async decode started successfully\n", __func__, __LINE__);
     return ret;
 
-    // 4. Release resources
 exit:
+    // Note: For async decoding, the input frame will be released in the callback function
+    // This exit path is only for error cases before the decode_async call
     LOGE("%s, %d, jpeg async decode failed! ret: %d\n", __func__, __LINE__, ret);
 
     if (in_frame != NULL) {
@@ -408,6 +412,68 @@ bk_err_t perform_jpeg_decode_async_burst_test(void *jpeg_decode_handle, uint32_t
     if (ret == BK_OK) {
         LOGI("%s, %d, JPEG async burst test completed! Total time: %d ms, Average time: %d ms\n", 
              __func__, __LINE__, total_time, total_time / burst_count);
+    }
+
+    return ret;
+}
+
+// Helper function: Create and open hardware line decoder
+bk_err_t create_and_open_hw_opt_decoder(void **jpeg_decode_handle, void *jpeg_decode_config)
+{
+    bk_err_t ret = BK_OK;
+
+    // Ensure decoder is released
+    if (*jpeg_decode_handle != NULL) {
+        close_and_delete_hw_opt_decoder(jpeg_decode_handle);
+        *jpeg_decode_handle = NULL;
+    }
+
+    // Create decoder
+    ret = bk_hardware_jpeg_decode_opt_new((bk_jpeg_decode_hw_handle_t *)jpeg_decode_handle, (bk_jpeg_decode_hw_opt_config_t *)jpeg_decode_config);
+    if (ret != BK_OK) {
+        LOGE("%s, %d, jpeg hw opt decode new failed! ret: %d\n", __func__, __LINE__, ret);
+        goto exit;
+    }
+    LOGD("%s, %d, jpeg hw opt decode new success!\n", __func__, __LINE__);
+
+    // Open decoder
+    ret = bk_jpeg_decode_hw_open((bk_jpeg_decode_hw_handle_t)*jpeg_decode_handle);
+    if (ret != BK_OK) {
+        LOGE("%s, %d, jpeg hw opt decode open failed! ret: %d\n", __func__, __LINE__, ret);
+        goto cleanup_jpeg_handle;
+    }
+
+    LOGD("%s, %d, jpeg hw opt decode open success!\n", __func__, __LINE__);
+    return ret;
+
+cleanup_jpeg_handle:
+    bk_jpeg_decode_hw_delete((bk_jpeg_decode_hw_handle_t)*jpeg_decode_handle);
+    *jpeg_decode_handle = NULL;
+
+exit:
+    return ret;
+}
+
+// Helper function: Close and delete hardware line decoder
+bk_err_t close_and_delete_hw_opt_decoder(void **jpeg_decode_handle)
+{
+    bk_err_t ret = BK_OK;
+
+    if (*jpeg_decode_handle != NULL) {
+        ret = bk_jpeg_decode_hw_close((bk_jpeg_decode_hw_handle_t)*jpeg_decode_handle);
+        if (ret != BK_OK) {
+            LOGE("%s, %d, jpeg hw opt decode close failed! ret: %d\n", __func__, __LINE__, ret);
+        } else {
+            LOGD("%s, %d, jpeg hw opt decode close success!\n", __func__, __LINE__);
+        }
+
+        ret = bk_jpeg_decode_hw_delete((bk_jpeg_decode_hw_handle_t)*jpeg_decode_handle);
+        *jpeg_decode_handle = NULL;
+        if (ret != BK_OK) {
+            LOGE("%s, %d, jpeg hw opt decode delete failed! ret: %d\n", __func__, __LINE__, ret);
+        } else {
+            LOGD("%s, %d, jpeg hw opt decode delete success!\n", __func__, __LINE__);
+        }
     }
 
     return ret;

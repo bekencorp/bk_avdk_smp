@@ -132,14 +132,19 @@ jpeg_decode init_sw
 jpeg_decode init_sw_on_dtcm [1|2]
 ```
 
-Choose the appropriate command from 1, 2, and 3 based on your test scenario.
+4. Initialize hardware optimized JPEG decoder:
+```
+jpeg_decode init_hw_opt
+```
 
-4. Open the decoder:
+Choose the appropriate command from 1, 2, 3, and 4 based on your test scenario.
+
+5. Open the decoder:
 ```
 jpeg_decode open
 ```
 
-5. Perform decoding operation:
+6. Perform decoding operation:
 YUV422 format image decoding:
 ```
 jpeg_decode dec 422_864_480
@@ -157,12 +162,12 @@ jpeg_decode dec 420_865_480
 jpeg_decode dec 420_864_479
 ```
 
-6. Close the decoder:
+7. Close the decoder:
 ```
 jpeg_decode close
 ```
 
-7. Delete the decoder instance:
+8. Delete the decoder instance:
 ```
 jpeg_decode delete
 ```
@@ -227,6 +232,27 @@ jpeg_decode_regular_test software_dtcm_cp1_cp2_async_test
 12. Software decoder on DTCM (CP1+CP2) asynchronous burst test (10 consecutive times):
 ```
 jpeg_decode_regular_test software_dtcm_cp1_cp2_async_burst_test
+```
+
+13. Hardware optimized decoder regular test (optional parameter: 0=single buffer mode, 1=ping-pong mode):
+```
+jpeg_decode_regular_test hardware_opt_test [0|1]
+```
+Examples:
+```
+jpeg_decode_regular_test hardware_opt_test       # Use single buffer mode (default)
+jpeg_decode_regular_test hardware_opt_test 0     # Use single buffer mode
+jpeg_decode_regular_test hardware_opt_test 1     # Use ping-pong mode
+```
+
+14. Hardware optimized decoder asynchronous test (optional parameter: 0=single buffer mode, 1=ping-pong mode):
+```
+jpeg_decode_regular_test hardware_opt_async_test [0|1]
+```
+
+15. Hardware optimized decoder asynchronous burst test (optional parameters: count=burst count, default 10; 0=single buffer mode, 1=ping-pong mode):
+```
+jpeg_decode_regular_test hardware_opt_async_burst_test [count] [0|1]
 ```
 
 ## 5. Test Data
@@ -335,6 +361,32 @@ cli_jpeg_decode_cmd, XX, jpeg decode delete success!
 ```
 
 **Supported JPEG Image Formats**: Same as software decoding test
+
+#### 6.1.5 Hardware Optimized Decoder Test
+
+```
+jpeg_decode init_hw_opt
+jpeg_decode open
+jpeg_decode dec 422_864_480
+jpeg_decode close
+jpeg_decode delete
+```
+
+Normal log:
+```
+cli_jpeg_decode_cmd, XX, bk_hardware_jpeg_decode_opt_new success!
+cli_jpeg_decode_cmd, XX, jpeg decode open success!
+cli_jpeg_decode_cmd, XX, jpeg decode get img dimensions success! 864x480 2
+cli_jpeg_decode_cmd, XX, jpeg decode start success! Decode time: XX ms
+cli_jpeg_decode_cmd, XX, jpeg decode delete success!
+```
+
+**Supported JPEG Image Formats**: 422_864_480 (Same limitations as hardware decoding)
+
+**Features**:
+- Uses SRAM buffering for optimized decoding, reducing peak memory usage
+- Supports Ping-Pong buffering mode for improved efficiency
+- Configurable copy method (MEMCPY or DMA)
 
 ### 6.2 Regular Test
 
@@ -547,6 +599,106 @@ Abnormal log (indicating test failure):
 CMDRSP:ERROR
 ```
 
+#### 6.2.13 Hardware Optimized Decoder Regular Test
+
+This test supports an optional parameter to select buffer mode:
+
+Single buffer mode test (default):
+```
+jpeg_decode_regular_test hardware_opt_test
+```
+or
+```
+jpeg_decode_regular_test hardware_opt_test 0
+```
+
+Ping-pong buffer mode test:
+```
+jpeg_decode_regular_test hardware_opt_test 1
+```
+
+Expected log:
+```
+cli_jpeg_decode_regular_test_cmd, XX, Using single buffer mode (or Using pingpong mode)
+cli_jpeg_decode_regular_test_cmd, XX, hardware opt jpeg decode Normal scenario JPEG decoding test completed!
+```
+
+Abnormal log (indicating test failure):
+```
+CMDRSP:ERROR
+```
+
+**Notes**:
+- Parameter 0 or no parameter: Use single buffer mode for lower memory usage
+- Parameter 1: Use ping-pong dual buffer mode for higher decoding efficiency
+
+#### 6.2.14 Hardware Optimized Decoder Asynchronous Test
+
+This test supports an optional parameter to select buffer mode:
+
+Single buffer mode test (default):
+```
+jpeg_decode_regular_test hardware_opt_async_test
+```
+or
+```
+jpeg_decode_regular_test hardware_opt_async_test 0
+```
+
+Ping-pong buffer mode test:
+```
+jpeg_decode_regular_test hardware_opt_async_test 1
+```
+
+Expected log:
+```
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_test, XX, jpeg async decode success!
+ap1:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+cli_jpeg_decode_regular_test_cmd, XX, hardware opt jpeg async decode test completed!
+```
+
+Abnormal log (indicating test failure):
+```
+CMDRSP:ERROR
+```
+
+**Notes**:
+- Parameter 0 or no parameter: Use single buffer mode for lower memory usage
+- Parameter 1: Use ping-pong dual buffer mode for higher decoding efficiency
+
+#### 6.2.15 Hardware Optimized Decoder Asynchronous Burst Test
+
+This command is an asynchronous burst test that calls the asynchronous decoding function multiple times at once.
+
+```
+jpeg_decode_regular_test hardware_opt_async_burst_test
+```
+
+Or with optional parameters:
+```
+jpeg_decode_regular_test hardware_opt_async_burst_test [count] [0|1]
+```
+
+Expected log:
+```
+ap0:jdec_com:I(XX):perform_jpeg_decode_async_burst_test, XX, Start hardware_opt_async_burst_test with 10 bursts!
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_burst_test, XX, Burst test 1/10
+...
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_burst_test, XX, Burst test 10/10
+ap0:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+...
+```
+
+Abnormal log (indicating test failure):
+```
+CMDRSP:ERROR
+```
+
+**Notes**:
+- count parameter is optional, default is 10
+- Parameter 0 or no parameter: Use single buffer mode for lower memory usage
+- Parameter 1: Use ping-pong dual buffer mode for higher decoding efficiency
+
 ## 7. Configuration Options
 
 ### 7.1 Thread Stack Size Configuration
@@ -557,11 +709,39 @@ The decoder thread stack sizes can be configured via Kconfig:
   - Default value: 1024 bytes
   - Configuration path: menuconfig -> JPEG Decoder -> Hardware JPEG decode task stack size
 
+- **CONFIG_HW_JPEG_DECODE_OPT_TASK_STACK_SIZE**: Thread stack size for hardware optimized JPEG decode task (bytes)
+  - Default value: 2048 bytes
+  - Configuration path: menuconfig -> JPEG Decoder -> Hardware optimized JPEG decode task stack size
+
 - **CONFIG_SW_JPEG_DECODE_TASK_STACK_SIZE**: Thread stack size for software JPEG decode task (bytes)
   - Default value: 1024 bytes
   - Configuration path: menuconfig -> JPEG Decoder -> Software JPEG decode task stack size
 
 Note: Adjust the stack size based on actual decoding scenarios and memory resources; increase this value if stack overflow occurs.
+
+### 7.2 Hardware Optimized Decoder Configuration
+
+The hardware optimized decoder provides the following configuration options:
+
+- **is_pingpong**: Whether to enable Ping-Pong buffering mode
+  - true: Enable dual buffering for improved parallelism
+  - false: Use single buffering to reduce memory usage
+
+- **copy_method**: Data copy method
+  - JPEG_DECODE_OPT_COPY_METHOD_MEMCPY: Use os_memcpy for data transfer
+  - JPEG_DECODE_OPT_COPY_METHOD_DMA: Use DMA for data transfer (currently falls back to MEMCPY)
+
+- **sram_buffer**: SRAM buffer pointer
+  - NULL: Automatically allocate SRAM buffer
+  - Non-NULL: Use specified SRAM buffer
+
+- **lines_per_block**: Number of lines to decode per block
+  - Must be 8 or 16
+  - Recommended value: 16 (suitable for most scenarios)
+
+- **image_max_width**: Maximum image width
+  - Used to calculate SRAM buffer size
+  - Default value: 864
 
 ## 8. Notes
 
@@ -569,6 +749,7 @@ Note: Adjust the stack size based on actual decoding scenarios and memory resour
 2. Remember to release related resources after decoding operations are completed
 3. Hardware decoding and software decoding have different capabilities; choose the appropriate decoding method based on actual needs:
    - Hardware decoding only supports YUV422 format images, and requires image width to be a multiple of 16 and height to be a multiple of 8
+   - Hardware optimized decoding has the same format limitations as hardware decoding, but uses SRAM buffering optimization for lower peak memory usage
    - Software decoding supports both YUV420 and YUV422 format images, and requires image width to be a multiple of 2, with no restrictions on height
 4. Software decoders running on DTCM typically provide faster decoding speeds than regular software decoders
 5. Frame buffer resources are limited; avoid occupying too many buffers simultaneously
@@ -582,8 +763,15 @@ Note: Adjust the stack size based on actual decoding scenarios and memory resour
      * For 90 or 270 degree rotation: Output frame width and height are swapped (width = original height, height = original width)
      * For 0 or 180 degree rotation: Output frame maintains original width and height
 
-   - Hardware decoding does not support rotation; output frame dimensions remain consistent with input frame dimensions
+   - Hardware decoding and hardware optimized decoding do not support rotation; output frame dimensions remain consistent with input frame dimensions
 
-8. **Callback Function Usage Notes**:
+8. **Hardware Optimized Decoder Usage Recommendations**:
+   - Recommended for memory-constrained application scenarios
+   - Ping-Pong mode is suitable for high-throughput scenarios
+   - Single buffer mode is suitable for memory-constrained scenarios
+   - lines_per_block is recommended to be set to 16 for optimal performance
+   - SRAM buffer can be reused to avoid frequent allocation and deallocation
+
+9. **Callback Function Usage Notes**:
    - Blocking operations (such as long waits, sleep, etc.) are not recommended in callback functions to avoid impacting decoding performance and system responsiveness
    - It is recommended to perform only lightweight operations in callback functions, such as setting flags, sending messages/semaphores, etc., and move time-consuming operations to other tasks

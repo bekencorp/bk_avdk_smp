@@ -22,10 +22,12 @@
 typedef struct bk_jpeg_decode_hw *bk_jpeg_decode_hw_ctlr_handle_t;
 typedef struct bk_jpeg_decode_hw bk_jpeg_decode_hw_ctlr_t;
 typedef struct bk_jpeg_decode_hw_config bk_jpeg_decode_hw_ctlr_config_t;
+typedef struct bk_jpeg_decode_hw_opt_config bk_jpeg_decode_hw_opt_ctlr_config_t;
 
 typedef struct bk_jpeg_decode_sw *bk_jpeg_decode_sw_ctlr_handle_t;
 typedef struct bk_jpeg_decode_sw bk_jpeg_decode_sw_ctlr_t;
 typedef struct bk_jpeg_decode_sw_config bk_jpeg_decode_sw_ctlr_config_t;
+
 
 typedef struct
 {
@@ -94,12 +96,20 @@ typedef struct
 
 typedef struct
 {
-    bk_jpeg_decode_hw_ctlr_config_t config;
     bk_jpeg_decode_hw_t ops;
+    bk_jpeg_decode_hw_ctlr_config_t config;
     private_jpeg_decode_status_t module_status;
-    jpeg_dec_handle_t jpeg_dec_handle;
 } private_jpeg_decode_hw_ctlr_t;
+
+typedef struct
+{
+    bk_jpeg_decode_hw_t ops;
+    bk_jpeg_decode_hw_opt_ctlr_config_t config;
+    private_jpeg_decode_status_t module_status;
+    uint8_t sram_buffer_need_free;
+} private_jpeg_decode_hw_opt_ctlr_t;
 
 avdk_err_t bk_software_jpeg_decode_ctlr_new(bk_jpeg_decode_sw_ctlr_handle_t *handle, bk_jpeg_decode_sw_ctlr_config_t *config);
 avdk_err_t bk_software_jpeg_decode_on_multi_core_ctlr_new(bk_jpeg_decode_sw_ctlr_handle_t *handle, bk_jpeg_decode_sw_ctlr_config_t *config);
 avdk_err_t bk_hardware_jpeg_decode_ctlr_new(bk_jpeg_decode_hw_ctlr_handle_t *handle, bk_jpeg_decode_hw_ctlr_config_t *config);
+avdk_err_t bk_hardware_jpeg_decode_opt_ctlr_new(bk_jpeg_decode_hw_ctlr_handle_t *handle, bk_jpeg_decode_hw_opt_ctlr_config_t *config);

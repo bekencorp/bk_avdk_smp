@@ -164,6 +164,33 @@ bk_err_t bk_jpeg_dec_hw_start(uint32_t length, unsigned char *input_buf, unsigne
 	return JDR_OK;
 }
 
+bk_err_t bk_jpeg_dec_hw_start_opt(uint32_t length, unsigned char *input_buf, unsigned char * output_buf)
+{
+	int ret = 0;
+	JPEGDEC_RETURN_ON_NOT_INIT();
+
+	jpeg_address = input_buf;
+	jpeg_size = length;
+	//jpeg_dec_ll_set_reg0x56_value(0x04040404);
+	result.ok = true;
+	bk_jpec_dec_int_en(dec_mode, 1);
+	ret = JpegdecInit(length, input_buf, output_buf, &image_ppi);
+	if(ret != JDR_OK)
+	{
+		LOGE("JpegdecInit error %x \r\n", ret);
+		return ret;
+	}
+	uint32_t len = jpeg_dec_ll_get_reg0x5b_value();
+	jpeg_dec_ll_set_reg0x5b_value(len >> 1);
+	ret = jd_decomp_hw();
+	if(ret != JDR_OK)
+	{
+		LOGE("jd_decomp error %x \r\n", ret);
+		return ret;
+	}
+	return JDR_OK;
+}
+
 void bk_jpeg_dec_line_num_set(line_num_t line_num)
 {
 	jpeg_dec_set_line_num(line_num);

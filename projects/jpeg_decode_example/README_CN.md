@@ -125,14 +125,19 @@ jpeg_decode init_sw
 jpeg_decode init_sw_on_dtcm [1|2]
 ```
 
-1,2,3命令中根据测试场景选择对应的命令进行初始化即可
+4. 初始化硬件优化JPEG解码器：
+```
+jpeg_decode init_hw_opt
+```
 
-4. 打开解码器：
+1,2,3,4命令中根据测试场景选择对应的命令进行初始化即可
+
+5. 打开解码器：
 ```
 jpeg_decode open
 ```
 
-5. 执行解码操作：
+6. 执行解码操作：
 YUV422格式图像解码：
 ```
 jpeg_decode dec 422_864_480
@@ -150,12 +155,12 @@ jpeg_decode dec 420_865_480
 jpeg_decode dec 420_864_479
 ```
 
-6. 关闭解码器：
+7. 关闭解码器：
 ```
 jpeg_decode close
 ```
 
-7. 删除解码器实例：
+8. 删除解码器实例：
 ```
 jpeg_decode delete
 ```
@@ -220,6 +225,27 @@ jpeg_decode_regular_test software_dtcm_cp1_cp2_async_test
 12. DTCM上的软件解码器(CP1+CP2)异步突发测试(连续10次)：
 ```
 jpeg_decode_regular_test software_dtcm_cp1_cp2_async_burst_test
+```
+
+13. 硬件优化解码器常规测试（可选参数：0=单缓冲模式，1=Ping-Pong模式）：
+```
+jpeg_decode_regular_test hardware_opt_test [0|1]
+```
+示例：
+```
+jpeg_decode_regular_test hardware_opt_test       # 使用单缓冲模式（默认）
+jpeg_decode_regular_test hardware_opt_test 0     # 使用单缓冲模式
+jpeg_decode_regular_test hardware_opt_test 1     # 使用Ping-Pong模式
+```
+
+14. 硬件优化解码器异步测试（可选参数：0=单缓冲模式，1=Ping-Pong模式）：
+```
+jpeg_decode_regular_test hardware_opt_async_test [0|1]
+```
+
+15. 硬件优化解码器异步突发测试（可选参数：count=突发次数，默认10次；0=单缓冲模式，1=Ping-Pong模式）：
+```
+jpeg_decode_regular_test hardware_opt_async_burst_test [count] [0|1]
 ```
 
 ## 5. 测试数据
@@ -328,6 +354,32 @@ cli_jpeg_decode_cmd, XX, jpeg decode delete success!
 ```
 
 **支持的JPEG图像格式**：与软解码测试相同
+
+#### 6.1.5 使用硬件优化解码器进行测试
+
+```
+jpeg_decode init_hw_opt
+jpeg_decode open
+jpeg_decode dec 422_864_480
+jpeg_decode close
+jpeg_decode delete
+```
+
+正常log：
+```
+cli_jpeg_decode_cmd, XX, bk_hardware_jpeg_decode_opt_new success!
+cli_jpeg_decode_cmd, XX, jpeg decode open success!
+cli_jpeg_decode_cmd, XX, jpeg decode get img dimensions success! 864x480 2
+cli_jpeg_decode_cmd, XX, jpeg decode start success! Decode time: XX ms
+cli_jpeg_decode_cmd, XX, jpeg decode delete success!
+```
+
+**支持的JPEG图像格式**：422_864_480（与硬解码限制相同）
+
+**特点说明**：
+- 使用SRAM缓冲进行优化解码，降低峰值内存占用
+- 支持Ping-Pong缓冲模式，提高解码效率
+- 可配置拷贝方法（MEMCPY或DMA）
 
 ### 6.2 常规测试
 
@@ -543,6 +595,106 @@ cli_jpeg_decode_regular_test_cmd, XX, software jpeg async burst decode on CP1+CP
 CMDRSP:ERROR
 ```
 
+#### 6.2.13 硬件优化解码器常规测试
+
+该测试支持可选参数来选择缓冲模式：
+
+单缓冲模式测试（默认）：
+```
+jpeg_decode_regular_test hardware_opt_test
+```
+或
+```
+jpeg_decode_regular_test hardware_opt_test 0
+```
+
+Ping-Pong缓冲模式测试：
+```
+jpeg_decode_regular_test hardware_opt_test 1
+```
+
+预期log：
+```
+cli_jpeg_decode_regular_test_cmd, XX, Using single buffer mode (or Using pingpong mode)
+cli_jpeg_decode_regular_test_cmd, XX, hardware opt jpeg decode Normal scenario JPEG decoding test completed!
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+**说明**：
+- 参数0或不指定参数：使用单缓冲模式，内存占用更低
+- 参数1：使用Ping-Pong双缓冲模式，解码效率更高
+
+#### 6.2.14 硬件优化解码器异步测试
+
+该测试支持可选参数来选择缓冲模式：
+
+单缓冲模式测试（默认）：
+```
+jpeg_decode_regular_test hardware_opt_async_test
+```
+或
+```
+jpeg_decode_regular_test hardware_opt_async_test 0
+```
+
+Ping-Pong缓冲模式测试：
+```
+jpeg_decode_regular_test hardware_opt_async_test 1
+```
+
+预期log：
+```
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_test, XX, jpeg async decode success!
+ap1:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+cli_jpeg_decode_regular_test_cmd, XX, hardware opt jpeg async decode test completed!
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+**说明**：
+- 参数0或不指定参数：使用单缓冲模式，内存占用更低
+- 参数1：使用Ping-Pong双缓冲模式，解码效率更高
+
+#### 6.2.15 硬件优化解码器异步突发测试
+
+该命令为异步突发测试命令，一次性调用多次异步解码函数。
+
+```
+jpeg_decode_regular_test hardware_opt_async_burst_test
+```
+
+或指定突发次数：
+```
+jpeg_decode_regular_test hardware_opt_async_burst_test [count] [0|1]
+```
+
+预期log：
+```
+ap0:jdec_com:I(XX):perform_jpeg_decode_async_burst_test, XX, Start hardware_opt_async_burst_test with 10 bursts!
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_burst_test, XX, Burst test 1/10
+...
+ap0:jdec_com:D(XX):perform_jpeg_decode_async_burst_test, XX, Burst test 10/10
+ap0:jdec_com:D(XX):jpeg_decode_out_complete, XX, jpeg decode success! format_type: 5, out_frame: 0xXX
+...
+```
+
+异常log（表示测试失败）：
+```
+CMDRSP:ERROR
+```
+
+**说明**：
+- count参数可选，默认为10
+- 参数0或不指定参数：使用单缓冲模式，内存占用更低
+- 参数1：使用Ping-Pong双缓冲模式，解码效率更高
+
 ## 7. 配置选项
 
 ### 7.1 线程栈大小配置
@@ -553,11 +705,39 @@ CMDRSP:ERROR
   - 默认值：1024 字节
   - 配置路径：menuconfig -> JPEG Decoder -> Hardware JPEG decode task stack size
 
+- **CONFIG_HW_JPEG_DECODE_OPT_TASK_STACK_SIZE**: 硬件优化JPEG解码任务的线程栈大小（字节）
+  - 默认值：2048 字节
+  - 配置路径：menuconfig -> JPEG Decoder -> Hardware optimized JPEG decode task stack size
+
 - **CONFIG_SW_JPEG_DECODE_TASK_STACK_SIZE**: 软件JPEG解码任务的线程栈大小（字节）
   - 默认值：1024 字节
   - 配置路径：menuconfig -> JPEG Decoder -> Software JPEG decode task stack size
 
 说明：根据实际解码场景和内存资源调整栈大小，如遇到栈溢出可适当增大此值。
+
+### 7.2 硬件优化解码器配置
+
+硬件优化解码器提供了以下配置选项：
+
+- **is_pingpong**: 是否启用Ping-Pong缓冲模式
+  - true: 启用双缓冲，提高并行度
+  - false: 使用单缓冲，降低内存占用
+
+- **copy_method**: 数据拷贝方法
+  - JPEG_DECODE_OPT_COPY_METHOD_MEMCPY: 使用os_memcpy进行数据拷贝
+  - JPEG_DECODE_OPT_COPY_METHOD_DMA: 使用DMA进行数据拷贝（当前版本会回退到MEMCPY）
+
+- **sram_buffer**: SRAM缓冲区指针
+  - NULL: 自动分配SRAM缓冲区
+  - 非NULL: 使用指定的SRAM缓冲区
+
+- **lines_per_block**: 每次解码的行数
+  - 必须为8或16
+  - 建议值：16（适用于大多数场景）
+
+- **image_max_width**: 图像最大宽度
+  - 用于计算SRAM缓冲区大小
+  - 默认值：864
 
 ## 8. 注意事项
 
@@ -565,6 +745,7 @@ CMDRSP:ERROR
 2. 解码操作完成后，记得释放相关资源
 3. 硬件解码和软件解码功能有所差异，请根据实际需求选择合适的解码方式：
    - 硬件解码仅支持YUV422格式图像,且需要图像宽度为16的倍数，高度为8的倍数
+   - 硬件优化解码与硬件解码格式限制相同，但使用SRAM缓冲优化，内存峰值更低
    - 软件解码支持YUV420和YUV422格式图像，且需要图像宽度为2的倍数，高度无限制
 4. 在DTCM上运行的软件解码器通常比普通软件解码器提供更快的解码速度
 5. 帧缓冲资源有限，请避免同时占用过多缓冲区
@@ -578,8 +759,15 @@ CMDRSP:ERROR
      * 旋转90度或270度时：输出帧的宽度和高度会互换（width = 原height，height = 原width）
      * 旋转0度或180度时：输出帧保持原始的宽度和高度
 
-   - 硬件解码不支持旋转功能，输出帧尺寸与输入帧尺寸保持一致
+   - 硬件解码和硬件优化解码不支持旋转功能，输出帧尺寸与输入帧尺寸保持一致
 
-8. **回调函数使用注意事项**：
+8. **硬件优化解码器使用建议**：
+   - 对于内存受限的应用场景，推荐使用硬件优化解码器
+   - Ping-Pong模式适用于需要高吞吐量的场景
+   - 单缓冲模式适用于内存紧张的场景
+   - lines_per_block建议设置为16以获得最佳性能
+   - SRAM缓冲区可以复用，避免频繁分配和释放
+
+9. **回调函数使用注意事项**：
    - 回调函数中不建议执行阻塞操作（如长时间等待、sleep等），以避免影响解码性能和系统响应
    - 建议在回调函数中仅进行轻量级操作，如设置标志位、发送消息/信号量等，将耗时操作放到其他任务中执行

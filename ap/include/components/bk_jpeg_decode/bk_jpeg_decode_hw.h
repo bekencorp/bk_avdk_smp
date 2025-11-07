@@ -63,6 +63,28 @@ extern "C" {
 avdk_err_t bk_hardware_jpeg_decode_new(bk_jpeg_decode_hw_handle_t *handle, bk_jpeg_decode_hw_config_t *config);
 
 /**
+ * @brief Create a new hardware optimized JPEG decoder instance
+ *
+ * This function initializes and creates a new hardware-based optimized JPEG decoder instance
+ * that utilizes dedicated hardware for JPEG decoding operations. It allocates
+ * memory for the decoder controller structure and initializes it with the provided
+ * configuration and hardware-specific operation functions.
+ *
+ * The optimized decoder allows decoding images in blocks with SRAM buffering,
+ * which reduces peak memory usage and enables efficient image display.
+ *
+ * This is typically the first function called when working with the hardware optimized JPEG decoder.
+ * The returned handle must be used for all subsequent operations on the decoder instance.
+ *
+ * @param handle [out] Pointer to store the hardware optimized decoder handle, which will be used for subsequent operations
+ * @param config [in] Hardware optimized decoder configuration parameters, including lines_per_block setting
+ * @return
+ *  - BK_OK: Success, decoder instance created and handle returned
+ *  - Others: Fail (error code indicates specific failure reason)
+ */
+avdk_err_t bk_hardware_jpeg_decode_opt_new(bk_jpeg_decode_hw_handle_t *handle, bk_jpeg_decode_hw_opt_config_t *config);
+
+/**
  * @brief Open the hardware JPEG decoder
  *
  * This function prepares the hardware JPEG decoder for operation by
