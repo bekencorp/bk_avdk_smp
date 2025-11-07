@@ -91,8 +91,8 @@ bk_err_t bk_pm_demo_send_msg(pm_ap_core_msg_t *msg)
 
 static bk_err_t pm_demo_message_handle(void)
 {
-    bk_err_t ret = BK_OK;
-    pm_ap_core_msg_t msg;
+    bk_err_t ret         = BK_OK;
+    pm_ap_core_msg_t msg = {0};
 
 	pm_demo_init();
 
@@ -107,17 +107,32 @@ static bk_err_t pm_demo_message_handle(void)
                 case PM_DEMO_ENTER_LOW_VOLTAGE:
                 {
                     /*config rtc wakeup source*/
-                    pm_ap_rtc_info_t low_power_info = {0};
-                    low_power_info.period_tick                = 50*1000;//eg:50s;
-                    low_power_info.period_cnt                 = 1;//eg:1 time
+                    pm_ap_rtc_info_t low_power_info           = {0};
+                    uint32_t           rtc_sleep_time         = msg.param1;
+                    uint32_t           rtc_sleep_repeat_count = msg.param2;
+                    #if CONFIG_GPIO_WAKEUP_SUPPORT
+                    uint32_t           gpio_id                = msg.param3;
+                    uint32_t           gpio_wakeup_int_type   = msg.param4;
+                    #endif //CONFIG_GPIO_WAKEUP_SUPPORT
+                    if(rtc_sleep_time == 0)
+                    {
+                        rtc_sleep_time = 50*1000;//default 50s
+                    }
+                    if(rtc_sleep_repeat_count == 0)
+                    {
+                        rtc_sleep_repeat_count = 1;//default 1 time
+                    }
+
+                    low_power_info.period_tick                = rtc_sleep_time;//unit:ms;
+                    low_power_info.period_cnt                 = rtc_sleep_repeat_count;//total period count == 0Xffffffff means forever period;else period how many times
                     low_power_info.callback                   = pm_demo_rtc_sleep_wakeup_callback;
                     low_power_info.param_p                    = NULL;
                     bk_pm_ap_rtc_regsiter_wakeup(PM_MODE_LOW_VOLTAGE,&low_power_info);
 
                     /*config gpio wakeup source*/
                     #if CONFIG_GPIO_WAKEUP_SUPPORT
-                    bk_gpio_register_isr(GPIO_5, pm_demo_gpio_callback);
-                    bk_gpio_register_wakeup_source(GPIO_5,GPIO_INT_TYPE_HIGH_LEVEL);
+                    bk_gpio_register_isr(gpio_id, pm_demo_gpio_callback);
+                    bk_gpio_register_wakeup_source(gpio_id,gpio_wakeup_int_type);
                     #endif //CONFIG_GPIO_WAKEUP_SUPPORT
 
                     /*APP vote enter low voltage*/
@@ -127,17 +142,32 @@ static bk_err_t pm_demo_message_handle(void)
                 case PM_DEMO_ENTER_DEEP_SLEEP:
                 {
                     /*config rtc wakeup source*/
-                    pm_ap_rtc_info_t low_power_info = {0};
-                    low_power_info.period_tick                = 50*1000;//eg:50s;
-                    low_power_info.period_cnt                 = 1;//eg:1 time
+                    pm_ap_rtc_info_t low_power_info           = {0};
+                    uint32_t           rtc_sleep_time         = msg.param1;
+                    uint32_t           rtc_sleep_repeat_count = msg.param2;
+                    #if CONFIG_GPIO_WAKEUP_SUPPORT
+                    uint32_t           gpio_id                = msg.param3;
+                    uint32_t           gpio_wakeup_int_type   = msg.param4;
+                    #endif //CONFIG_GPIO_WAKEUP_SUPPORT
+                    if(rtc_sleep_time == 0)
+                    {
+                        rtc_sleep_time = 50*1000;//default 50s
+                    }
+                    if(rtc_sleep_repeat_count == 0)
+                    {
+                        rtc_sleep_repeat_count = 1;//default 1 time
+                    }
+
+                    low_power_info.period_tick                = rtc_sleep_time;//unit:ms;
+                    low_power_info.period_cnt                 = rtc_sleep_repeat_count;//total period count == 0Xffffffff means forever period;else period how many times
                     low_power_info.callback                   = pm_demo_rtc_sleep_wakeup_callback;
                     low_power_info.param_p                    = NULL;
                     bk_pm_ap_rtc_regsiter_wakeup(PM_MODE_DEEP_SLEEP,&low_power_info);
 
                     /*config gpio wakeup source*/
                     #if CONFIG_GPIO_WAKEUP_SUPPORT
-                    bk_gpio_register_isr(GPIO_5, pm_demo_gpio_callback);
-                    bk_gpio_register_wakeup_source(GPIO_5,GPIO_INT_TYPE_HIGH_LEVEL);
+                    bk_gpio_register_isr(gpio_id, pm_demo_gpio_callback);
+                    bk_gpio_register_wakeup_source(gpio_id,gpio_wakeup_int_type);
                     #endif //CONFIG_GPIO_WAKEUP_SUPPORT
 
                     /*Enter deep sleep*/

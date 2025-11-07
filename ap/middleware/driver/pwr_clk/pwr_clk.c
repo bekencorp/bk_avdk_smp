@@ -401,8 +401,8 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			}
 			break;
 		case PM_GET_PM_DATA_CMD:
-			memset(&s_pm_mb_data,0x0,sizeof(pm_ap_core_msg_t));
-			memcpy(&s_pm_mb_data,cmd_buf,sizeof(pm_ap_core_msg_t));
+			memset(&s_pm_mb_data,0x0,sizeof(mb_chnl_cmd_t));
+			memcpy(&s_pm_mb_data,cmd_buf,sizeof(mb_chnl_cmd_t));
 			bk_pm_ap_getting_cp_data_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
 			break;
 		case PM_CTRL_AP_STATE_CMD:

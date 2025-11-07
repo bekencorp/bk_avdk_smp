@@ -802,18 +802,55 @@ static void cli_pm_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	else if (os_strcmp(argv[1], "deep_sleep") == 0) 
 	{
 		CLI_LOGD("pm demo deep sleep\r\n");
+
+		if (argc != 6)
+		{
+			BK_LOGD(NULL, "set pm demo deep sleep parameter invalid %d\r\n",argc);
+			return;
+		}
+
 		#if CONFIG_PM_DEMO_ENABLE
+		UINT32 rtc_sleep_time         = 0;
+		UINT32 rtc_sleep_repeat_count = 0;
+		UINT32 gpio_id                = 0;
+		UINT32 gpio_wakeup_int_type   = 0;
+		rtc_sleep_time                = os_strtoul(argv[2], NULL, 10);
+		rtc_sleep_repeat_count        = os_strtoul(argv[3], NULL, 10);
+		gpio_id                       = os_strtoul(argv[4], NULL, 10);
+		gpio_wakeup_int_type          = os_strtoul(argv[5], NULL, 10);
+
 		pm_ap_core_msg_t msg = {0};
-		msg.event = PM_DEMO_ENTER_DEEP_SLEEP;
+		msg.event  = PM_DEMO_ENTER_DEEP_SLEEP;
+		msg.param1 = rtc_sleep_time;
+		msg.param2 = rtc_sleep_repeat_count;
+		msg.param3 = gpio_id;
+		msg.param4 = gpio_wakeup_int_type;
 		bk_pm_demo_send_msg(&msg);
 		#endif
 	} 
 	else if (os_strcmp(argv[1], "low_vol") == 0)
 	{
 		CLI_LOGD("pm demo low vol\r\n");
+		if (argc != 6)
+		{
+			BK_LOGD(NULL, "set pm demo low vol parameter invalid %d\r\n",argc);
+			return;
+		}
 		#if CONFIG_PM_DEMO_ENABLE
-		pm_ap_core_msg_t msg = {0};
-		msg.event = PM_DEMO_ENTER_LOW_VOLTAGE;
+		UINT32 rtc_sleep_time         = 0;
+		UINT32 rtc_sleep_repeat_count = 0;
+		UINT32 gpio_id                = 0;
+		UINT32 gpio_wakeup_int_type   = 0;
+		rtc_sleep_time                = os_strtoul(argv[2], NULL, 10);
+		rtc_sleep_repeat_count        = os_strtoul(argv[3], NULL, 10);
+		gpio_id                       = os_strtoul(argv[4], NULL, 10);
+		gpio_wakeup_int_type          = os_strtoul(argv[5], NULL, 10);
+		pm_ap_core_msg_t msg          = {0};
+		msg.event  = PM_DEMO_ENTER_LOW_VOLTAGE;
+		msg.param1 = rtc_sleep_time;
+		msg.param2 = rtc_sleep_repeat_count;
+		msg.param3 = gpio_id;
+		msg.param4 = gpio_wakeup_int_type;
 		bk_pm_demo_send_msg(&msg);
 		#endif
 	} 
