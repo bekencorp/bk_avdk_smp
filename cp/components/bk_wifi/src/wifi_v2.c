@@ -1614,23 +1614,28 @@ int wlan_p2p_enable(const char *ssid)
 	network_InitTypeDef_st wNetConfig;
 	char *default_ssid = "BEKEN SMP_P2P";
 	char *connect_key = "12345678";
+	const char *actual_ssid = NULL;
+
 	os_memset(&wNetConfig, 0x0, sizeof(network_InitTypeDef_st));
 
-	//If ssid NULL, turn to Default SSID
 	if (ssid && strlen(ssid) > 0) {
-		os_strlcpy((char *)wNetConfig.wifi_ssid, ssid, sizeof(wNetConfig.wifi_ssid));
-		// Save P2P SSID for reconnection
-		os_memset(g_p2p_saved_ssid, 0, sizeof(g_p2p_saved_ssid));
-		os_strlcpy(g_p2p_saved_ssid, ssid, sizeof(g_p2p_saved_ssid));
-	} else {
-		// Use saved SSID if available, otherwise use default
-		if (g_p2p_saved_ssid[0] != '\0') {
-			os_strlcpy((char *)wNetConfig.wifi_ssid, g_p2p_saved_ssid, sizeof(wNetConfig.wifi_ssid));
-		} else {
-			os_strlcpy((char *)wNetConfig.wifi_ssid, default_ssid, sizeof(wNetConfig.wifi_ssid));
+		// Use provided SSID
+		actual_ssid = ssid;
+		// Save it for future reconnections (avoid self-overwrite)
+		if (ssid != g_p2p_saved_ssid) {
+			os_strlcpy(g_p2p_saved_ssid, ssid, sizeof(g_p2p_saved_ssid));
 		}
+	} else if (g_p2p_saved_ssid[0] != '\0') {
+		// Use saved SSID
+		actual_ssid = g_p2p_saved_ssid;
+	} else {
+		// Use default SSID and save it
+		actual_ssid = default_ssid;
+		os_strlcpy(g_p2p_saved_ssid, default_ssid, sizeof(g_p2p_saved_ssid));
 	}
 	
+	os_strlcpy((char *)wNetConfig.wifi_ssid, actual_ssid, sizeof(wNetConfig.wifi_ssid));
+
 	os_strlcpy((char *)wNetConfig.wifi_key, connect_key, sizeof(wNetConfig.wifi_key));
 
 	wNetConfig.wifi_mode = BK_STATION;
