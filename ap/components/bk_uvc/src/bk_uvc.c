@@ -2179,7 +2179,7 @@ bk_err_t bk_uvc_resume(camera_handle_t handle)
 
     if (uvc_handle == NULL || uvc_handle->pro_config == NULL)
     {
-        LOGW("%s, not open...\n", __func__);
+        LOGV("%s, not open...\n", __func__);
         return BK_FAIL;
     }
 
