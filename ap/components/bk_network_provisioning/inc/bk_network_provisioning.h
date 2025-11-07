@@ -53,6 +53,7 @@ typedef struct bk_fast_connect_d
     uint8_t ap_pwd[65];
     uint8_t ap_channel;
     uint16_t flag;		//to check if netif_if_t is configed, default 0
+    uint8_t p2p_dev_name[33];
 }BK_FAST_CONNECT_D;
 
 typedef void (*network_provisioning_status_cb_t)(bk_network_provisioning_status_t status, void *user_data);

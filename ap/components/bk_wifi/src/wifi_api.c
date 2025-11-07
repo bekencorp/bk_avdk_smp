@@ -51,6 +51,10 @@ static wifi_monitor_cb_t s_monitor_ap_cb = NULL;
 static wifi_filter_cb_t s_filter_ap_cb = NULL;
 /* State Indication */
 static uint16_t s_wifi_state_bits = 0;
+#if CONFIG_P2P
+static bool s_wifi_p2p_enabled = false;
+static char s_wifi_p2p_dev_name[SSID_MAX_LEN + 1] = {0};
+#endif
 static inline void wifi_set_state_bit(uint16_t state_bit)
 {
     wifi_lock();
@@ -2113,6 +2117,15 @@ bk_err_t bk_wifi_p2p_enable(const char *ssid)
     ((char *)buffer_to_ipc)[ssid_len] = '\0'; // Add EOF
     ret = wifi_send_com_api_cmd(P2P_ENABLE, 1, (uint32_t)buffer_to_ipc);
     os_free(buffer_to_ipc);
+
+    if (ret == BK_OK) {
+        s_wifi_p2p_enabled = true;
+        // 保存 P2P 设备名称
+        os_memset(s_wifi_p2p_dev_name, 0, sizeof(s_wifi_p2p_dev_name));
+        os_memcpy(s_wifi_p2p_dev_name, ssid, ssid_len);
+        s_wifi_p2p_dev_name[ssid_len] = '\0';
+    }
+
     return ret;
 }
 
@@ -2155,6 +2168,27 @@ bk_err_t bk_wifi_p2p_connect(const uint8_t *mac, int method, int intent)
 
 bk_err_t bk_wifi_p2p_cancel(void)
 {
-    return wifi_send_com_api_cmd(P2P_CANCEL, 0);
+    bk_err_t ret = wifi_send_com_api_cmd(P2P_CANCEL, 0);
+
+    if (ret == BK_OK) {
+        s_wifi_p2p_enabled = false;
+        // 清除 P2P 设备名称
+        os_memset(s_wifi_p2p_dev_name, 0, sizeof(s_wifi_p2p_dev_name));
+    }
+
+    return ret;
+}
+
+bool bk_wifi_is_p2p_enabled(void)
+{
+    return s_wifi_p2p_enabled;
+}
+
+const char *bk_wifi_get_p2p_dev_name(void)
+{
+    if (s_wifi_p2p_enabled && s_wifi_p2p_dev_name[0] != '\0') {
+        return s_wifi_p2p_dev_name;
+    }
+    return NULL;
 }
 #endif

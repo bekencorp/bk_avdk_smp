@@ -124,11 +124,11 @@ void network_status_check_stop_timeout_check(void)
   }
 }
 
-static int save_network_auto_restart_info(netif_if_t type, void *val)
+static int save_network_auto_restart_info(netif_if_t type)
 {
 	BK_FAST_CONNECT_D info_tmp = {0};
-	__maybe_unused wifi_ap_config_t *ap_config = NULL;
-	__maybe_unused wifi_sta_config_t *sta_config = NULL;
+	__maybe_unused wifi_ap_config_t ap_config = {0};
+    __maybe_unused wifi_sta_config_t sta_config = {0};
     //TODO np
 #if 0
 	bk_config_read("d_network_id", (void *)&info_tmp, sizeof(BK_FAST_CONNECT_D));
@@ -146,18 +146,18 @@ static int save_network_auto_restart_info(netif_if_t type, void *val)
 	}
 	if (type == NETIF_IF_STA) {
 		info_tmp.flag |= BIT(NETIF_IF_STA);
-		sta_config = (wifi_sta_config_t *)val;
+		bk_wifi_sta_get_config(&sta_config);
 		os_memset((char *)info_tmp.sta_ssid, 0x0, 33);
 		os_memset((char *)info_tmp.sta_pwd, 0x0, 65);
-		os_strcpy((char *)info_tmp.sta_ssid, (char *)sta_config->ssid);
-		os_strcpy((char *)info_tmp.sta_pwd, (char *)sta_config->password);
+		os_strcpy((char *)info_tmp.sta_ssid, (char *)sta_config.ssid);
+		os_strcpy((char *)info_tmp.sta_pwd, (char *)sta_config.password);
 	} else if (type == NETIF_IF_AP) {
 		info_tmp.flag |= BIT(NETIF_IF_AP);
-		ap_config = (wifi_ap_config_t *)val;
+		bk_wifi_ap_get_config(&ap_config);
 		os_memset((char *)info_tmp.ap_ssid, 0x0, 33);
 		os_memset((char *)info_tmp.ap_pwd, 0x0, 65);
-		os_strcpy((char *)info_tmp.ap_ssid, (char *)ap_config->ssid);
-		os_strcpy((char *)info_tmp.ap_pwd, (char *)ap_config->password);
+		os_strcpy((char *)info_tmp.ap_ssid, (char *)ap_config.ssid);
+		os_strcpy((char *)info_tmp.ap_pwd, (char *)ap_config.password);
 #if CONFIG_NET_PAN
 	} else if (type == NETIF_IF_PAN) {
 		info_tmp.flag |= BIT(NETIF_IF_PAN);
@@ -165,6 +165,19 @@ static int save_network_auto_restart_info(netif_if_t type, void *val)
 #if CONFIG_BK_MODEM
 	} else if (type == NETIF_IF_PPP) {
 		info_tmp.flag |= BIT(NETIF_IF_PPP); 
+#endif
+#if CONFIG_P2P
+	} else if (type == NETIF_IF_P2P) {
+		info_tmp.flag |= BIT(NETIF_IF_P2P);
+		// 获取并保存 P2P 设备名称
+		const char *p2p_dev_name = bk_wifi_get_p2p_dev_name();
+		os_memset((char *)info_tmp.p2p_dev_name, 0x0, 33);
+		if (p2p_dev_name != NULL) {
+			os_strcpy((char *)info_tmp.p2p_dev_name, p2p_dev_name);
+			BK_LOGI(TAG, "Save P2P device name: %s\n", p2p_dev_name);
+		} else {
+			BK_LOGW(TAG, "P2P device name is NULL, using empty string\n");
+		}
 #endif
 	} else
 		return -1;
@@ -192,7 +205,6 @@ void erase_network_auto_reconnect_info(void)
 static int bk_nw_pro_netif_event_cb(void *arg, event_module_t event_module, int event_id, void *event_data)
 {
     netif_event_got_ip4_t *got_ip;
-    __maybe_unused wifi_sta_config_t sta_config = {0};
 
     switch (event_id)
     {
@@ -217,19 +229,12 @@ static int bk_nw_pro_netif_event_cb(void *arg, event_module_t event_module, int 
             network_status_check_stop_timeout_check();
             if (network_provisioning_status == BK_NETWORK_PROVISIONING_STATUS_RUNNING)
             {
-                if (got_ip->netif_if == NETIF_IF_STA) {
-                    bk_wifi_sta_get_config(&sta_config);
-                    save_network_auto_restart_info(got_ip->netif_if, &sta_config);
-                }
-                else {
-                    save_network_auto_restart_info(got_ip->netif_if, NULL);
-                }
-
+                save_network_auto_restart_info(got_ip->netif_if);
                 bk_network_provisioning_update_status(BK_NETWORK_PROVISIONING_STATUS_SUCCEED, (void *)got_ip->netif_if);
             }
             else
             {
-                bk_network_provisioning_update_status(BK_NETWORK_PROVISIONING_STATUS_RECONNECT_SUCCEED, NULL);
+                bk_network_provisioning_update_status(BK_NETWORK_PROVISIONING_STATUS_RECONNECT_SUCCEED, (void *)got_ip->netif_if);
             }
 
             break;
@@ -251,6 +256,42 @@ static int bk_nw_pro_wifi_event_cb(void *arg, event_module_t event_module, int e
         case EVENT_WIFI_STA_CONNECTED:
             sta_connected = (wifi_event_sta_connected_t *)event_data;
             BK_LOGI(TAG, "STA connected to %s\n", sta_connected->ssid);
+            break;
+
+        case EVENT_WIFI_AP_CONNECTED:
+        {
+#if CONFIG_P2P
+            netif_if_t netif_type = bk_wifi_is_p2p_enabled() ? NETIF_IF_P2P : NETIF_IF_AP;
+            if (bk_wifi_is_p2p_enabled()) {
+                BK_LOGI(TAG, "GO connected, as P2P GO\n");
+            } else {
+                BK_LOGI(TAG, "AP connected, not in P2P mode\n");
+            }
+#else
+            netif_if_t netif_type = NETIF_IF_AP;
+            BK_LOGI(TAG, "AP connected\n");
+#endif
+            if (network_provisioning_status == BK_NETWORK_PROVISIONING_STATUS_RUNNING) {
+                save_network_auto_restart_info(netif_type);
+                bk_network_provisioning_update_status(BK_NETWORK_PROVISIONING_STATUS_SUCCEED, (void *)netif_type);
+            } else {
+                bk_network_provisioning_update_status(BK_NETWORK_PROVISIONING_STATUS_RECONNECT_SUCCEED, (void *)netif_type);
+            }
+            break;
+        }
+
+        case EVENT_WIFI_AP_DISCONNECTED:
+#if CONFIG_P2P
+            if (bk_wifi_is_p2p_enabled()) {
+                BK_LOGI(TAG, "GO disconnected, as P2P GO\n");
+                // 执行 P2P 相关的逻辑
+            } else {
+                BK_LOGI(TAG, "AP disconnected, not in P2P mode\n");
+                // 执行常规 WiFi 逻辑
+            }
+#else
+            BK_LOGI(TAG, "AP disconnected");
+#endif
             break;
 
         case EVENT_WIFI_STA_DISCONNECTED:
@@ -431,6 +472,13 @@ static netif_if_t bk_network_auto_reconnect(bool val)	//val true means from disc
 		extern bk_err_t bk_modem_init(uint8_t comm_proto, uint8_t comm_if);
 		bk_modem_init(1, 1);
 		netif_if = NETIF_IF_PPP;
+	}
+#endif
+#if CONFIG_P2P
+	else if (info.flag & BIT(NETIF_IF_P2P)) {
+		bk_wifi_p2p_enable((char *)info.p2p_dev_name);
+		bk_wifi_p2p_find();
+		netif_if = NETIF_IF_P2P;
 	}
 #endif
 

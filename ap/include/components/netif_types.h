@@ -43,6 +43,7 @@ typedef enum {
 	NETIF_IF_PAN,       /**< BT PAN interface */
 	NETIF_IF_PPP,		/**< PPP interface */	
 	NETIF_IF_MODEM,     /**< MODEM interface */
+	NETIF_IF_P2P,       /**< WiFi P2P interface */
 	NETIF_IF_COUNT,     /**< Number of BK netif */
 	NETIF_IF_INVALID,   /**< Invalid BK netif */
 } netif_if_t;

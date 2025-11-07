@@ -1763,6 +1763,32 @@ bk_err_t bk_wifi_p2p_connect(const uint8_t *mac, int method, int intent);
  *    - others: other errors
  */
 bk_err_t bk_wifi_p2p_cancel(void);
+
+/**
+ * @brief     Check if Wi-Fi P2P is enabled
+ *
+ * @attention This function checks if P2P mode is currently enabled.
+ *            It returns true if bk_wifi_p2p_enable() was successfully called
+ *            and false if P2P is not enabled or bk_wifi_p2p_cancel() was called.
+ *
+ * @return
+ *    - true: P2P is enabled
+ *    - false: P2P is not enabled
+ */
+bool bk_wifi_is_p2p_enabled(void);
+
+/**
+ * @brief     Get Wi-Fi P2P device name (SSID)
+ *
+ * @attention This function returns the P2P device name that was set when
+ *            bk_wifi_p2p_enable() was called. If P2P is not enabled or
+ *            the device name is empty, it returns NULL.
+ *
+ * @return
+ *    - const char*: P2P device name string (do not modify or free)
+ *    - NULL: P2P is not enabled or device name is empty
+ */
+const char *bk_wifi_get_p2p_dev_name(void);
 #endif
 
 #ifdef __cplusplus

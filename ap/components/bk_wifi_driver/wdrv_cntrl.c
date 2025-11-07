@@ -303,6 +303,12 @@ void wdrv_notify_sta_got_ip(void)
 #if CONFIG_BRIDGE
     bk_wifi_start_softap_for_bridge();
 #endif
+#if CONFIG_P2P
+    //TODO current not support p2p coexist with sta or softap
+    if (bk_wifi_is_p2p_enabled()) {
+        event_data.netif_if = NETIF_IF_P2P;
+    }
+#endif
     BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_STA, &wdrv_got_ip));
     os_memcpy(event_data.ip, wdrv_got_ip.ip, NETIF_IP4_STR_LEN);
 
