@@ -100,7 +100,7 @@ int32_t HAL_TCP_Destroy(uintptr_t fd)
 }
 
 
-int32_t HAL_TCP_Write(uintptr_t fd, const char *buf, uint32_t len, uint32_t timeout_ms)
+static int32_t HAL_TCP_Write(uintptr_t fd, const char *buf, uint32_t len, uint32_t timeout_ms)
 {
 	int ret;
 	uint32_t len_sent;
@@ -166,7 +166,7 @@ int32_t HAL_TCP_Write(uintptr_t fd, const char *buf, uint32_t len, uint32_t time
 	return len_sent;
 }
 
-int32_t HAL_TCP_Read(uintptr_t fd, char *buf, uint32_t len, uint32_t timeout_ms)
+static int32_t HAL_TCP_Read(uintptr_t fd, char *buf, uint32_t len, uint32_t timeout_ms)
 {
 	int ret, err_code = 0, data_over;
 	uint32_t len_recv;
