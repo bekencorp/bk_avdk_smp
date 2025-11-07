@@ -42,11 +42,11 @@
 
 #ifdef ONBOARD_SPK_DEBUG
 
-#define AUD_DAC_DMA_ISR_START()                 do { GPIO_DOWN(4); GPIO_UP(4);} while (0)
-#define AUD_DAC_DMA_ISR_END()                   do { GPIO_DOWN(4); } while (0)
+#define AUD_DAC_DMA_ISR_START()                 do { GPIO_DOWN(0); GPIO_UP(0);} while (0)
+#define AUD_DAC_DMA_ISR_END()                   do { GPIO_DOWN(0); } while (0)
 
-#define AUD_ONBOARD_SPK_PROCESS_START()         do { GPIO_DOWN(5); GPIO_UP(5);} while (0)
-#define AUD_ONBOARD_SPK_PROCESS_END()           do { GPIO_DOWN(5); } while (0)
+#define AUD_ONBOARD_SPK_PROCESS_START()         do { GPIO_DOWN(1); GPIO_UP(1);} while (0)
+#define AUD_ONBOARD_SPK_PROCESS_END()           do { GPIO_DOWN(1); } while (0)
 
 #define AUD_ONBOARD_SPK_INPUT_START()           do { GPIO_DOWN(8); GPIO_UP(8);} while (0)
 #define AUD_ONBOARD_SPK_INPUT_END()             do { GPIO_DOWN(8); } while (0)
@@ -80,19 +80,37 @@
 #ifdef ONBOARD_SPK_DATA_COUNT
 
 #include <components/bk_audio/audio_utils/count_util.h>
-static count_util_t onboard_spk_count_util = {0};
-#define ONBOARD_SPK_DATA_COUNT_INTERVAL     (1000 * 4)
-#define ONBOARD_SPK_DATA_COUNT_TAG          "ONBOARD_SPK"
 
-#define ONBOARD_SPK_DATA_COUNT_OPEN()               count_util_create(&onboard_spk_count_util, ONBOARD_SPK_DATA_COUNT_INTERVAL, ONBOARD_SPK_DATA_COUNT_TAG)
-#define ONBOARD_SPK_DATA_COUNT_CLOSE()              count_util_destroy(&onboard_spk_count_util)
-#define ONBOARD_SPK_DATA_COUNT_ADD_SIZE(size)       count_util_add_size(&onboard_spk_count_util, size)
+/* Multi-parameter count util for onboard speaker statistics */
+static count_util_multi_t onboard_spk_count_util = {0};
+#define ONBOARD_SPK_DATA_COUNT_INTERVAL     (1000 * 4)
+
+/* Parameter indices */
+#define ONBOARD_SPK_PARAM_INDEX             0
+#define FILL_SILENCE_PARAM_INDEX            1
+#define ONBOARD_SPK_PARAM_COUNT             2
+
+/* Parameter tags */
+#define ONBOARD_SPK_DATA_COUNT_TAG          "ONBOARD_SPK"
+#define FILL_SILENCE_DATA_COUNT_TAG         "FILL_SILENCE"
+
+/* Macro definitions */
+#define ONBOARD_SPK_DATA_COUNT_OPEN() \
+    do { \
+        char *tags[ONBOARD_SPK_PARAM_COUNT] = {ONBOARD_SPK_DATA_COUNT_TAG, FILL_SILENCE_DATA_COUNT_TAG}; \
+        count_util_multi_create(&onboard_spk_count_util, ONBOARD_SPK_DATA_COUNT_INTERVAL, tags, ONBOARD_SPK_PARAM_COUNT); \
+    } while(0)
+
+#define ONBOARD_SPK_DATA_COUNT_CLOSE()              count_util_multi_destroy(&onboard_spk_count_util)
+#define ONBOARD_SPK_DATA_COUNT_ADD_SIZE(size)       count_util_multi_add_size(&onboard_spk_count_util, ONBOARD_SPK_PARAM_INDEX, size)
+#define FILL_SILENCE_DATA_COUNT_ADD_SIZE(size)      count_util_multi_add_size(&onboard_spk_count_util, FILL_SILENCE_PARAM_INDEX, size)
 
 #else
 
 #define ONBOARD_SPK_DATA_COUNT_OPEN()
 #define ONBOARD_SPK_DATA_COUNT_CLOSE()
 #define ONBOARD_SPK_DATA_COUNT_ADD_SIZE(size)
+#define FILL_SILENCE_DATA_COUNT_ADD_SIZE(size)
 
 #endif  //ONBOARD_SPK_DATA_COUNT
 
@@ -1019,6 +1037,8 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
             onboard_spk->wr_spk_rb_done = true;
             /* write data to ref ring buffer */
             audio_element_multi_output(self, (char *)onboard_spk->temp_buff, onboard_spk->frame_size, 0);
+
+            FILL_SILENCE_DATA_COUNT_ADD_SIZE(onboard_spk->frame_size);
         }
     }
 
