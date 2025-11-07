@@ -26,6 +26,7 @@
 #include <os/os.h>
 #include <modules/aec_v3.h>
 #include <components/bk_audio/audio_pipeline/ringbuf.h>
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 
 #define TAG  "AEC_ALGORITHM"
@@ -103,6 +104,10 @@ uint32 aec_gtbuf[94*1024/4] __attribute__((section(".aec_bss")));
 
 #define AEC_EC_OUT_BUF_LEN (770*sizeof(int32_t))
 int32_t  *buff_ecout = NULL;
+#if CONFIG_ADK_DEBUG_DUMP_UTIL
+int16_t  *mic_data_save = NULL;
+int16_t  *ref_data_save = NULL;
+#endif
 
 typedef struct aec_algorithm
 {
@@ -511,7 +516,7 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_VOL, aec->aec_cfg.voice_vol);               //通话过程中如果需要经常调节喇叭音量就设置下当前音量等级
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_MAX_DELAY, AEC_DELAY_BUFFER_SIZE/2);
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_GET_FRAME_SAMPLE, (uint32_t)(&aec_frame_sample_cnt));
-    BK_LOGI(TAG, "[%s] fs:%d,aec frame samp cnt:%d, frame_size:%d\n", audio_element_get_tag(self),aec->aec_cfg.fs,aec_frame_sample_cnt,aec->frame_size);
+    BK_LOGI(TAG, "[%s] aec ver:%d fs:%d,aec frame samp cnt:%d, frame_size:%d\n", audio_element_get_tag(self),aec_ver(),aec->aec_cfg.fs,aec_frame_sample_cnt,aec->frame_size);
     
     ///降噪相关
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_LEVEL, aec->aec_cfg.ns_level);           //建议取值范围1~8；值越小底噪越小
@@ -584,6 +589,28 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
         aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_EOBUFF, (uint32_t)buff_ecout);
         BK_LOGD(TAG, "AEC_CTRL_CMD_SET_EOBUFF addr:0x%x\n",buff_ecout);
     }
+
+    #if CONFIG_ADK_DEBUG_DUMP_UTIL
+    uint32_t mic_data_len = aec->frame_size;
+    if(aec->dual_ch)
+    {
+        mic_data_len <<= 1;
+    }
+
+    mic_data_save = (int16_t *)audio_malloc(mic_data_len);
+    if (!mic_data_save)
+    {
+        BK_LOGE(TAG, "[%s] %s, %d, audio_malloc mic_data_save: %d fail \n", audio_element_get_tag(self), __func__, __LINE__, mic_data_len);
+        goto fail;
+    }
+
+    ref_data_save = (int16_t *)audio_malloc(aec->frame_size);
+    if (!ref_data_save)
+    {
+        BK_LOGE(TAG, "[%s] %s, %d, audio_malloc ref_data_save: %d fail \n", audio_element_get_tag(self), __func__, __LINE__, aec->frame_size);
+        goto fail;
+    }
+    #endif
 
     BK_LOGD(TAG, "aec_cfg 1:mode:%d,dual_ch:%d,flags:0x%x,interweave:%d,dual_perp:%d,dist:%d,mic_swap:%d,vol:%d\n",
                  aec->aec_cfg.mode,
@@ -668,6 +695,20 @@ fail:
         buff_ecout = NULL;
     }
 
+    #if CONFIG_ADK_DEBUG_DUMP_UTIL
+    if(mic_data_save)
+    {
+        audio_free(mic_data_save);
+        mic_data_save = NULL;
+    }
+
+    if(ref_data_save)
+    {
+        audio_free(ref_data_save);
+        ref_data_save = NULL;
+    }
+    #endif
+
     if(aec->out_read_addr)
     {
         audio_free(aec->out_read_addr);
@@ -693,6 +734,9 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
 {
     BK_LOGV(TAG, "[%s] %s, in_len: %d \n", audio_element_get_tag(self), __func__, in_len);
     aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(self);
+    #if CONFIG_ADK_DEBUG_DUMP_UTIL
+    uint32_t mic_data_len = aec->frame_size;
+    #endif
 
     AEC_PROCESS_START();
 
@@ -754,6 +798,9 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         if(aec->dual_ch)
         {
             AEC_DATA_DUMP_MIC_DATA(aec->mic_addr, aec->frame_size*2);
+            #if CONFIG_ADK_DEBUG_DUMP_UTIL
+            mic_data_len = aec->frame_size*2;
+            #endif
         }
         else
         {
@@ -761,6 +808,15 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         }
         
         AEC_DATA_DUMP_REF_DATA(aec->ref_addr, aec->frame_size);
+
+        #if CONFIG_ADK_DEBUG_DUMP_UTIL
+        if(is_aud_dump_valid(DUMP_TYPE_AEC_MIC_DATA))
+        {
+            os_memcpy(mic_data_save,aec->mic_addr, mic_data_len);
+            os_memcpy(ref_data_save,aec->ref_addr, aec->frame_size);
+        }
+        #endif
+
         AEC_ALGORITHM_START();
 
         aec_proc(aec->aec_ctx, aec->ref_addr, aec->mic_addr, aec->out_addr);
@@ -777,6 +833,32 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         AEC_ALGORITHM_END();
 
         AEC_DATA_DUMP_OUT_DATA(aec->out_addr, aec->frame_size);
+
+        #if CONFIG_ADK_DEBUG_DUMP_UTIL
+        if(is_aud_dump_valid(DUMP_TYPE_AEC_MIC_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_MIC_DATA, 0, mic_data_len);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_REF_DATA, 1, aec->frame_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_AEC_OUT_DATA, 2, aec->frame_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_AEC_MIC_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_AEC_MIC_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(mic_data_save, mic_data_len);
+            DEBUG_DATA_DUMP_BY_UART_DATA(ref_data_save, aec->frame_size);
+            DEBUG_DATA_DUMP_BY_UART_DATA(aec->out_addr, aec->frame_size);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_AEC_MIC_DATA);
+        }
+        #endif
 
         if((aec->vad_cfg.vad_enable) && (VAD_NONE != aec->vad_state))
         {
@@ -862,6 +944,20 @@ static bk_err_t _aec_v3_algorithm_destroy(audio_element_handle_t self)
         audio_free(buff_ecout);
         buff_ecout = NULL;
     }
+
+    #if CONFIG_ADK_DEBUG_DUMP_UTIL
+    if(mic_data_save)
+    {
+        audio_free(mic_data_save);
+        mic_data_save = NULL;
+    }
+
+    if(ref_data_save)
+    {
+        audio_free(ref_data_save);
+        ref_data_save = NULL;
+    }
+    #endif
 
     if(aec->out_read_addr)
     {

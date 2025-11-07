@@ -10,6 +10,8 @@
 #include <string.h>
 #include <components/bk_audio/audio_decoders/opus_dec.h>
 #include <modules/opus.h>
+#include <os/os.h>
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 #define TAG  "OPUS_DEC"
 
@@ -60,13 +62,55 @@ static int _opus_dec_process(audio_element_handle_t self, char *in_buffer, int i
     int w_size = 0;
     if (r_size > 0)
     {
+        if(is_aud_dump_valid(DUMP_TYPE_DEC_IN_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_DEC_IN_DATA, 0, DUMP_FILE_TYPE_OPUS);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_DEC_IN_DATA, 0, r_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_DEC_IN_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_DEC_IN_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(in_buffer, r_size);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_DEC_IN_DATA);
+        }
+
         /* Decode Opus data */
         int dec_output_size = opus_decode(opus_dec->decoder, (uint8_t *)in_buffer, r_size, opus_dec->out_buf, opus_dec->max_frame_size, 0);
         if (dec_output_size < 0) {
             BK_LOGE(TAG, "[%s] _opus_dec_process err:%d \n", audio_element_get_tag(self),dec_output_size);
             return AEL_PROCESS_FAIL;
         }
-        
+
+        if(is_aud_dump_valid(DUMP_TYPE_DEC_OUT_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_DEC_OUT_DATA, 0, DUMP_FILE_TYPE_PCM);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_DEC_OUT_DATA, 0, dec_output_size<<1);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_DEC_OUT_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_DEC_OUT_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(opus_dec->out_buf, dec_output_size<<1);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_DEC_OUT_DATA);
+        }
+
         w_size = audio_element_output(self, (char *)opus_dec->out_buf, dec_output_size<<1);
         BK_LOGV(TAG, "[%s] %s:r_size:%d,w_size:%d,dec_oputput_size:%d\n", audio_element_get_tag(self),__func__,r_size,w_size,dec_output_size<<1);
     }

@@ -25,6 +25,7 @@
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <modules/bk_g722.h>
 #include <os/os.h>
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 
 #define TAG  "G722_DEC"
@@ -146,6 +147,27 @@ static int _g722_decoder_process(audio_element_handle_t self, char *in_buffer, i
         int16_t *g722_out_ptr = audio_malloc(out_size);
         AUDIO_MEM_CHECK(TAG, g722_out_ptr, return -1);
 
+        if(is_aud_dump_valid(DUMP_TYPE_DEC_IN_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_DEC_IN_DATA, 0, DUMP_FILE_TYPE_G722);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_DEC_IN_DATA, 0, r_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_DEC_IN_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_DEC_IN_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(in_buffer, r_size);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_DEC_IN_DATA);
+        }
+
         // Decode G722 data
         int decoded_len = bk_g722_decode(g722_dec->state, g722_out_ptr, (uint8_t *)in_buffer, r_size);
         if (decoded_len < 0)
@@ -153,6 +175,27 @@ static int _g722_decoder_process(audio_element_handle_t self, char *in_buffer, i
             BK_LOGE(TAG, "g722_decode failed, ret: %d\n", decoded_len);
             audio_free(g722_out_ptr);
             return -1;
+        }
+
+        if(is_aud_dump_valid(DUMP_TYPE_DEC_OUT_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_DEC_OUT_DATA, 0, DUMP_FILE_TYPE_PCM);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_DEC_OUT_DATA, 0, decoded_len * sizeof(int16_t));
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_DEC_OUT_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_DEC_OUT_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(g722_out_ptr, decoded_len * sizeof(int16_t));
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_DEC_OUT_DATA);
         }
 
         G722_DEC_DATA_DUMP_BY_UART_DATA(g722_out_ptr, decoded_len * sizeof(int16_t));

@@ -17,6 +17,8 @@
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <string.h>
 #include <modules/opus.h>
+#include <os/os.h>
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 #define OPUS_ENC_VBR_SCALE 2
 
@@ -177,7 +179,28 @@ static int _opus_enc_process(audio_element_handle_t self, char *in_buffer, int i
     }
     
     opus_int16 *pcm_data = (opus_int16 *)in_buffer;
-    
+
+    if(is_aud_dump_valid(DUMP_TYPE_ENC_IN_DATA))
+    {
+        /*update header*/
+        DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_ENC_IN_DATA, 0, DUMP_FILE_TYPE_PCM);
+        DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_ENC_IN_DATA, 0, frame_size);
+        DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_ENC_IN_DATA);
+
+        /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+        DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+        /*dump header*/
+        DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_ENC_IN_DATA);
+
+        /*dump data*/
+        DEBUG_DATA_DUMP_BY_UART_DATA(in_buffer, frame_size);
+        DEBUG_DATA_DUMP_RESUME_ALL;
+
+        /*update seq*/
+        DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_ENC_IN_DATA);
+    }
+
     // Encode the frame
     int encoded_bytes = opus_encode(opus_enc->encoder, pcm_data, frame_size, encoded_data, max_data_bytes);
     
@@ -185,7 +208,28 @@ static int _opus_enc_process(audio_element_handle_t self, char *in_buffer, int i
         BK_LOGE(TAG, "opus_encode failed: %d\n", encoded_bytes);
         return AEL_IO_FAIL;
     }
-    
+
+    if(is_aud_dump_valid(DUMP_TYPE_ENC_OUT_DATA))
+    {
+        /*update header*/
+        DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_ENC_OUT_DATA, 0, DUMP_FILE_TYPE_OPUS);
+        DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_ENC_OUT_DATA, 0,encoded_bytes);
+        DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_ENC_OUT_DATA);
+
+        /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+        DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+        /*dump header*/
+        DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_ENC_OUT_DATA);
+
+        /*dump data*/
+        DEBUG_DATA_DUMP_BY_UART_DATA(encoded_data, encoded_bytes);
+        DEBUG_DATA_DUMP_RESUME_ALL;
+
+        /*update seq*/
+        DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_ENC_OUT_DATA);
+    }
+
     // Write encoded data to output
     int written = audio_element_output(self, (char *)encoded_data, encoded_bytes);
     

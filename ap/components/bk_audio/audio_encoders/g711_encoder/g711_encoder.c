@@ -24,6 +24,7 @@
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <modules/g711.h>
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 
 #define TAG  "G711_ENC"
@@ -89,6 +90,28 @@ static int _g711_encoder_process(audio_element_handle_t self, char *in_buffer, i
         AUDIO_MEM_CHECK(TAG, g711_out_ptr, return -1);
 
         int16_t *linear = (int16_t *)in_buffer;
+
+        if(is_aud_dump_valid(DUMP_TYPE_ENC_IN_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_ENC_IN_DATA, 0, DUMP_FILE_TYPE_PCM);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_ENC_IN_DATA, 0, r_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_ENC_IN_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_ENC_IN_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(in_buffer, r_size);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_ENC_IN_DATA);
+        }
+
         if (g711_enc->enc_mode == G711_ENC_MODE_U_LOW)
         {
             for (uint32_t i = 0; i < r_size >> 1; i++)
@@ -106,6 +129,34 @@ static int _g711_encoder_process(audio_element_handle_t self, char *in_buffer, i
         //      BK_LOGD(TAG, "[%s] r_size>>1: %d \n", audio_element_get_tag(self), r_size>1);
 
         G711_ENC_DATA_DUMP_BY_UART_DATA(g711_out_ptr, r_size >> 1);
+
+        if(is_aud_dump_valid(DUMP_TYPE_ENC_OUT_DATA))
+        {
+            /*update header*/
+            if (g711_enc->enc_mode == G711_ENC_MODE_U_LOW)
+            {
+                DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_ENC_OUT_DATA, 0, DUMP_FILE_TYPE_G711U);
+            }
+            else
+            {
+                DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_ENC_OUT_DATA, 0, DUMP_FILE_TYPE_G711A);
+            }
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_ENC_OUT_DATA, 0, r_size >> 1);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_ENC_OUT_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_ENC_OUT_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(g711_out_ptr, r_size >> 1);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_ENC_OUT_DATA);
+        }
 
         w_size = audio_element_output(self, (char *)g711_out_ptr, r_size >> 1);
         audio_free(g711_out_ptr);

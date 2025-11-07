@@ -437,6 +437,16 @@ menu "Adk"
 			depends on ADK_UTILS
 			bool "Enable ADK vfs debug util"
 			default y
+
+		config ADK_DEBUG_DUMP_UTIL
+			depends on ADK_UTILS && ADK_UART_UTIL
+			bool "Enable ADK debug dump util"
+			default y
+
+		config ADK_DEBUG_DUMP_DATA_TYPE_EXTENSION
+			depends on ADK_DEBUG_DUMP_UTIL
+			bool "Enable ADK debug dump data type extension"
+			default n
 	endmenu
 
 endmenu

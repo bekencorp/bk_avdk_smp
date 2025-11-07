@@ -25,6 +25,7 @@
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <os/os.h>
 #include <components/bk_audio/audio_pipeline/ringbuf.h>
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 
 #define TAG  "EQ_ALGORITHM"
@@ -209,6 +210,26 @@ static int _eq_algorithm_process(audio_element_handle_t self, char *in_buffer, i
     if (r_size > 0)
     {
         EQ_DATA_DUMP_IN_DATA(in_buffer, r_size);
+        if(is_aud_dump_valid(DUMP_TYPE_EQ_IN_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_EQ_IN_DATA, 0, DUMP_FILE_TYPE_PCM);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_EQ_IN_DATA, 0, r_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_EQ_IN_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_EQ_IN_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(in_buffer, r_size);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_EQ_IN_DATA);
+        }
         EQ_ALGORITHM_START();
 
         eq_process(eq->eq_handle, (int16_t *)in_buffer, r_size/2);
@@ -216,6 +237,27 @@ static int _eq_algorithm_process(audio_element_handle_t self, char *in_buffer, i
         EQ_ALGORITHM_END();
 
         EQ_DATA_DUMP_OUT_DATA(in_buffer, r_size);
+
+        if(is_aud_dump_valid(DUMP_TYPE_EQ_OUT_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_EQ_OUT_DATA, 0, DUMP_FILE_TYPE_PCM);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_EQ_OUT_DATA, 0, r_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_EQ_OUT_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_EQ_OUT_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(in_buffer, r_size);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_EQ_OUT_DATA);
+        }
 
         EQ_OUTPUT_START();
         w_size = audio_element_output(self, in_buffer, r_size);

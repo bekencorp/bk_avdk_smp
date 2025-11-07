@@ -20,4 +20,10 @@ if (CONFIG_ADK_VFS_UTIL)
 	)
 endif()
 
+if (CONFIG_ADK_DEBUG_DUMP_UTIL)
+	list(APPEND srcs
+		debug_dump_util.c
+	)
+endif()
+
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common bk_vfs)

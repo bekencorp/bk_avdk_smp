@@ -23,6 +23,8 @@
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <os/os.h>
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
+
 
 
 #define TAG  "MP3_DECODER"
@@ -259,6 +261,26 @@ __retry:
         {
             mp3_dec->main_buff_remain_size = mp3_dec->main_buff_remain_size + r_size;
             //mp3_dec->main_buff_readptr = mp3_dec->main_buff;
+            if(is_aud_dump_valid(DUMP_TYPE_DEC_IN_DATA))
+            {
+                /*update header*/
+                DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_DEC_IN_DATA, 0, DUMP_FILE_TYPE_MP3);
+                DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_DEC_IN_DATA, 0, r_size);
+                DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_DEC_IN_DATA);
+
+                /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+                DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+                /*dump header*/
+                DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_DEC_IN_DATA);
+
+                /*dump data*/
+                DEBUG_DATA_DUMP_BY_UART_DATA((mp3_dec->main_buff + mp3_dec->main_buff_remain_size), r_size);
+                DEBUG_DATA_DUMP_RESUME_ALL;
+
+                /*update seq*/
+                DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_DEC_IN_DATA);
+            }
         }
         else
         {
@@ -382,6 +404,26 @@ __retry:
     {
         w_size = audio_element_output(self, (char *)mp3_dec->out_pcm_buff, r_size);
         MP3_DEC_DATA_DUMP_BY_UART_DATA(mp3_dec->out_pcm_buff, r_size);
+        if(is_aud_dump_valid(DUMP_TYPE_DEC_OUT_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_DEC_OUT_DATA, 0, DUMP_FILE_TYPE_PCM);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_DEC_OUT_DATA, 0, r_size);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_DEC_OUT_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_DEC_OUT_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(mp3_dec->out_pcm_buff, r_size);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_DEC_OUT_DATA);
+        }
     }
     else
     {
