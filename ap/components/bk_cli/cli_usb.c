@@ -102,7 +102,7 @@ void usb_mount_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 	}
 
 	os_memset(sys_path, 0, sizeof(sys_path));
-	sprintf(sys_path, "%d:", number);
+	snprintf(sys_path, sizeof(sys_path), "%d:", number);
 	fr = f_mount(pfs, sys_path, 1);
 	if (fr != FR_OK) {
 		mount_flag = 0;
@@ -127,7 +127,7 @@ void usb_unmount_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	}
 
 	os_memset(sys_path, 0, sizeof(sys_path));
-	sprintf(sys_path, "%d:", number);
+	snprintf(sys_path, sizeof(sys_path), "%d:", number);
 	fr = f_mount(NULL, sys_path, 1);
 	if (fr != FR_OK) {
 		CLI_LOGV("unmount %s fail.\r\n", sys_path);
@@ -161,7 +161,7 @@ static FRESULT usb_scan_files(char *path)
 			if (fno.fattrib & AM_DIR) {
 				/* It is a directory */
 				os_memset(path_temp, 0, sizeof(path_temp));
-				sprintf(path_temp, "%s/%s", path, fno.fname);
+				snprintf(path_temp, sizeof(path_temp), "%s/%s", path, fno.fname);
 				fr = usb_scan_files(path_temp);
 				if (fr != FR_OK) break;
 			} else {
@@ -188,7 +188,7 @@ void usb_ls_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **a
 	}
 
 	os_memset(sys_path, 0, sizeof(sys_path));
-	sprintf(sys_path, "%d:", number);
+	snprintf(sys_path, sizeof(sys_path), "%d:", number);
 	fr = usb_scan_files(sys_path);
 	if (fr != FR_OK)
 		CLI_LOGV("scan_files failed!\r\n");

@@ -897,9 +897,10 @@ static void cli_main(uint32_t data)
 	char prompt[5];
 
 	if (ate_is_enabled())
-		strcpy(prompt,"\r\n# ");
+		os_strncpy(prompt, "\r\n# ", sizeof(prompt) - 1);
 	else
-		strcpy(prompt,"\r\n$ ");
+		os_strncpy(prompt, "\r\n$ ", sizeof(prompt) - 1);
+	prompt[sizeof(prompt) - 1] = '\0';
 
 #if CONFIG_RF_OTA_TEST
 	demo_sta_app_init("CMW-AP", "12345678");
@@ -937,7 +938,7 @@ static void cli_main(uint32_t data)
 
 static void cli_cmd_rsp(char *buf, u8 cmd_state)
 {
-	sprintf(buf, "CMDRsp:%s\r\n", cmd_state ? "OK" : "Fail");
+	snprintf(buf, OUTBUF_SIZE, "CMDRsp:%s\r\n", cmd_state ? "OK" : "Fail");
 }
 
 void help_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);

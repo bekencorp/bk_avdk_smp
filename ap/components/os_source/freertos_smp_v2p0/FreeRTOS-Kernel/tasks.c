@@ -5342,7 +5342,8 @@ static void prvResetNextTaskUnblockTime( void )
         size_t x;
 
         /* Start by copying the entire string. */
-        strcpy( pcBuffer, pcTaskName );
+        strncpy( pcBuffer, pcTaskName, configMAX_TASK_NAME_LEN - 1 );
+        pcBuffer[configMAX_TASK_NAME_LEN - 1] = '\0';
 
         /* Pad the end of the string with spaces to ensure columns line up when
          * printed out. */

@@ -566,7 +566,13 @@ int bk_vfs_chdir(const char *path) {
 	if (!full_path)
 		return -1;
 
-	strcpy(working_directory, full_path);
+	if (strlen(full_path) > MAX_PATH_LEN - 1) {
+		os_free(full_path);
+		return -1;
+	}
+
+	strncpy(working_directory, full_path, MAX_PATH_LEN - 1);
+	working_directory[MAX_PATH_LEN - 1] = '\0';
 	os_free(full_path);
 
 	return 0;

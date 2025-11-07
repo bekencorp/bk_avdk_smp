@@ -1260,7 +1260,8 @@ static int lfs_dir_getinfo(lfs_t *lfs, lfs_mdir_t *dir,
         uint16_t id, struct lfs_info *info) {
     if (id == 0x3ff) {
         // special case for root
-        strcpy(info->name, "/");
+        strncpy(info->name, "/", LFS_NAME_MAX);
+        info->name[LFS_NAME_MAX] = '\0';
         info->type = LFS_TYPE_DIR;
         return 0;
     }
@@ -2545,12 +2546,14 @@ static int lfs_dir_rawread(lfs_t *lfs, lfs_dir_t *dir, struct lfs_info *info) {
     // special offset for '.' and '..'
     if (dir->pos == 0) {
         info->type = LFS_TYPE_DIR;
-        strcpy(info->name, ".");
+        strncpy(info->name, ".", LFS_NAME_MAX);
+        info->name[LFS_NAME_MAX] = '\0';
         dir->pos += 1;
         return true;
     } else if (dir->pos == 1) {
         info->type = LFS_TYPE_DIR;
-        strcpy(info->name, "..");
+        strncpy(info->name, "..", LFS_NAME_MAX);
+        info->name[LFS_NAME_MAX] = '\0';
         dir->pos += 1;
         return true;
     }

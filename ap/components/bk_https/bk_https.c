@@ -757,7 +757,8 @@ char *http_auth_basic(const char *username, const char *password)
 	mbedtls_base64_encode(NULL, 0, &n, (const unsigned char *)user_info, strlen(user_info));
 	digest = calloc(1, 6 + n + 1);
 	HTTP_MEM_CHECK(TAG, digest, goto _basic_exit);
-	strcpy(digest, "Basic ");
+	strncpy(digest, "Basic ", 6);
+	digest[6] = '\0';
 	mbedtls_base64_encode((unsigned char *)digest + 6, n, (size_t *)&out, (const unsigned char *)user_info, strlen(user_info));
 _basic_exit:
 	free(user_info);
@@ -786,7 +787,8 @@ static int md5_printf(char *md, const char *fmt, ...)
 	bk_rom_md5_final(digest, &md5_ctx);
 
 	for (i = 0; i < 16; ++i) {
-		sprintf(&md[i * 2], "%02x", (unsigned int)digest[i]);
+		/* MD5 output is 32 hex chars + null terminator = 33 bytes */
+		snprintf(&md[i * 2], MD5_MAX_LEN - i * 2, "%02x", (unsigned int)digest[i]);
 	}
 	va_end(ap);
 

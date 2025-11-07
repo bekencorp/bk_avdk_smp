@@ -484,7 +484,7 @@ static void vfs_test_concurrency_task(beken_thread_arg_t arg)
 	int fr = 0;
 
 	CLI_LOGI("taskid=%d\r\n", task_id);
-	sprintf(cFileName, "/vfs_test_task_%u.txt", task_id);
+	snprintf(cFileName, sizeof(cFileName), "/vfs_test_task_%u.txt", task_id);
 	while (1) {
 		//init mem value
 		for(i = 0; i < VFS_TEST_CONCURRENCY_MEM_LEN/4; i++)

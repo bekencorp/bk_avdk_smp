@@ -31,9 +31,15 @@ static void cli_aon_rtc_get_time(char *pcWriteBuffer, int xWriteBufferLen, int a
 {
 	uint32_t aon_rtc_id;
 	uint64_t tick = 0;
+	uint32_t tick_count;
 
 	aon_rtc_id = os_strtoul(argv[1], NULL, 10);
-	tick = bk_aon_rtc_get_current_tick(aon_rtc_id)/bk_rtc_get_ms_tick_count();
+	tick_count = bk_rtc_get_ms_tick_count();
+	if (tick_count == 0) {
+		CLI_LOGE("Error: bk_rtc_get_ms_tick_count() returned 0\r\n");
+		return;
+	}
+	tick = bk_aon_rtc_get_current_tick(aon_rtc_id) / tick_count;
 
 	//CLI_LOGD("id=%d, tick_h=%d tick_l=%d\r\n", aon_rtc_id, (uint32_t)(tick>>32), (uint32_t)tick);
 	CLI_LOGD("id=%d, tick_h=%d tick_l=%d ms\r\n", aon_rtc_id, (uint32_t)((tick)>>32), (uint32_t)(tick));

@@ -242,8 +242,10 @@ static char *get_full_name(struct bk_filesystem *fs, const char *path) {
 	if (!full_path)
 		return NULL;
 
-	strcpy(full_path, bk_ffs->vol_str);
-	strcpy(full_path + 2, path);
+	strncpy(full_path, bk_ffs->vol_str, 2);
+	full_path[2] = '\0';
+	strncpy(full_path + 2, path, strlen(path));
+	full_path[strlen(path) + 2] = '\0';
 	return full_path;
 }
 

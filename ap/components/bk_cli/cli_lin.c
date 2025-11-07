@@ -125,7 +125,7 @@ void cli_lin_master_stress_test(void)
 		rand_count = bk_rand() % 10 + 1;
 		os_memset(tx_buf, 0 ,LIN_DATA_LEN_MAX);
 		os_memset(rx_buf, 0 ,LIN_DATA_LEN_MAX);
-		sprintf((char *)tx_buf, "%08d", rand_count);
+		snprintf((char *)tx_buf, LIN_DATA_LEN_MAX, "%0u", rand_count);
 		CLI_LOGD("tx_buf:[%s]\r\n", tx_buf);
 		bk_lin_tx(1, tx_buf, LIN_DATA_LEN_8BYTES);
 
@@ -159,7 +159,7 @@ void cli_lin_slave_stress_test(void)
 		bk_lin_rx(1, rx_buf, LIN_DATA_LEN_8BYTES, LIN_MAX_DELAY);
 		CLI_LOGD("rx_buf:[%s]\r\n", rx_buf);
 
-		sprintf((char *)tx_buf, "%08d", rand_count);
+		snprintf((char *)tx_buf, LIN_DATA_LEN_MAX, "%08u", rand_count);
 		CLI_LOGD("tx_buf:[%s]\r\n", tx_buf);
 		bk_lin_tx(1, tx_buf, LIN_DATA_LEN_8BYTES);
 		rtos_delay_milliseconds(LIN_DELAY);

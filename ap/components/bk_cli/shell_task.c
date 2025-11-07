@@ -1488,7 +1488,9 @@ static void rx_ind_process(void)
 			buf_len = strlen((char *)cmd_line_buf.rsp_buff);
 			if(buf_len > (SHELL_RSP_BUF_LEN - 4))
 				buf_len = (SHELL_RSP_BUF_LEN - 4);
-			buf_len += sprintf((char *)&cmd_line_buf.rsp_buff[buf_len], shell_prompt_str[prompt_str_idx]);
+			buf_len += snprintf((char *)&cmd_line_buf.rsp_buff[buf_len], 
+			                    SHELL_RSP_BUF_LEN - buf_len - 1, 
+			                    "%s", shell_prompt_str[prompt_str_idx]);
 
 			if( !shell_cpu_check_valid() )
 			{
@@ -2087,7 +2089,7 @@ static int combine_log_with_prefix(const char *prefix, char *pbuf, int buf_len, 
 {
 	int log_len = 0;
 	if (prefix != NULL) {
-		strcpy(pbuf, prefix);
+		os_strncpy(pbuf, prefix, buf_len - 1);
 		log_len = strlen(prefix);
 	}
 	log_len += vsnprintf(&pbuf[log_len], buf_len - log_len, format, ap);

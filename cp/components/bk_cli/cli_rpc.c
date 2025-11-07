@@ -141,7 +141,7 @@ static void debug_ipc_command(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	ipc_inited = 1;
 
 	spinlock_init(&gpio_spinlock);
-	sprintf(pcWriteBuffer,"spinlock_addr: 0x%x\r\n", &gpio_spinlock);
+	snprintf(pcWriteBuffer, xWriteBufferLen, "spinlock_addr: 0x%x\r\n", &gpio_spinlock);
 
 }
 
@@ -259,7 +259,11 @@ static void debug_perfmon_command(char *pcWriteBuffer, int xWriteBufferLen, int 
 //	BK_LOGD(TAG,"elapse time(us): %x:%08x\r\n", (u32)(saved_time >> 32), (u32)(saved_time & 0xFFFFFFFF));
 //	BK_LOGD(TAG,"diff inst_cnt: %x:%08x\r\n", (u32)(saved_inst_cnt >> 32), (u32)(saved_inst_cnt & 0xFFFFFFFF));
 
-	sprintf(pcWriteBuffer,"MIPS: %d KIPS\r\n", (u32)(saved_inst_cnt * 1000 / saved_time));
+	if (saved_time == 0) {
+		snprintf(pcWriteBuffer, xWriteBufferLen, "MIPS: N/A (time is 0)\r\n");
+	} else {
+		snprintf(pcWriteBuffer, xWriteBufferLen, "MIPS: %d KIPS\r\n", (u32)(saved_inst_cnt * 1000 / saved_time));
+	}
 
 	saved_time = cur_time;
 	saved_inst_cnt = cur_inst_cnt;
