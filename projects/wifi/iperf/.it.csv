@@ -1,0 +1,14 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+重启设备,AT+RST,1,wakeup,3
+iperf_tcp_tx_01,ap_cmd wdrv start_ap demo_test_ap 12345678,1,ap started,60
+iperf_tcp_tx_01,ap_cmd ip,1,CMDRSP:OK,60
+iperf_tcp_tx_01,ap_cmd wdrv sta demo_test_ap 12345678,2,BK STA got ip,60
+iperf_tcp_tx_01,ap_cmd ip,2,CMDRSP:OK,60
+iperf_tcp_tx_01,ap_cmd iperf -s -i 1,1,iperf_tcp_s create socked,60
+iperf_tcp_tx_01,ap_cmd iperf -c 192.168.188.1 -i 1 -t 10,2,iperf: is stopped,60
+iperf_tcp_tx_02,ap_cmd wdrv start_ap demo_test_ap 12345678,1,BK STA got ip,60
+iperf_tcp_tx_02,ap_cmd ip,1,CMDRSP:OK,60
+iperf_tcp_tx_02,ap_cmd wdrv sta demo_test_ap 12345678,2,BK STA got ip,60
+iperf_tcp_tx_02,ap_cmd ip,2,CMDRSP:OK,60
+iperf_tcp_tx_02,ap_cmd iperf -s -i 1,2,iperf_tcp_s create socked,60
+iperf_tcp_tx_02,ap_cmd iperf -c 192.168.188.100 -i 1 -t 10,1,iperf: is stopped,60
