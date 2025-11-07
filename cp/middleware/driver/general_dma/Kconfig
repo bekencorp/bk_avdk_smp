@@ -4,18 +4,20 @@ menu "GENERAL_DMA"
 		default y
 
 	config DMA_LOGIC_CHAN_CNT
-		prompt "Current CPU-CORE software system uses how many dma-logic-channels. \
-		        Total of all CPU-COREs dma logic chan count should be not bigger then total dma hardware supportted channels"
-		int "4"
+		int "DMA logic channel count"
 		default 4
+		help
+		  Current CPU-CORE software system uses how many dma-logic-channels.
+		  Total of all CPU-COREs dma logic chan count should be not bigger than total dma hardware supported channels.
 
 	config DMA_LOGIC_CHAN_ID_MIN
-		prompt "Current CPU-CORE software system min dma-logic-channel-id. \
-		        Be care overlap the other CPU-CORE software system's dma-logic-channel-id. \
-		        The value should be set like this: \
-		        CPU0 is from 0; \
-		        CPU1 is from CPU0_DMA_LOGIC_CHAN_CNT"
-		int "12"
+		int "DMA logic channel ID minimum"
 		default 12
+		help
+		  Current CPU-CORE software system min dma-logic-channel-id.
+		  Be careful not to overlap with other CPU-CORE software system's dma-logic-channel-id.
+		  The value should be set like this:
+		    CPU0 is from 0
+		    CPU1 is from CPU0_DMA_LOGIC_CHAN_CNT
 endmenu
 

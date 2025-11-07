@@ -63,7 +63,7 @@ menu "PWR_CLK"
 		help
 			Set Low power voltage default value 0.6v(0.45+0.025*6)
 	config DIGLDO_LOW_VOLTAGE_ENABLE
-		 bool "enable dig ldo low voltage "
+		bool "enable dig ldo low voltage"
 		default y
 	config PM_26M_STABILITY_DELAY_TIME_HARDWARE
 		 int "26M CRYSTAL HARDWARE STABILITY DELAY TIME"
