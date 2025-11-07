@@ -138,6 +138,8 @@ __INLINE void clr_aud_dump_bitmap(void)
     g_aud_data_dump_bitmap = 0;
 }
 
+int aud_dump_cli_init(void);
+
 #else
 
 #define DEBUG_DATA_DUMP_BY_UART_OPEN()

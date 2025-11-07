@@ -16,6 +16,7 @@
 #if CONFIG_VOICE_SERVICE_MP3_DECODER
 #include <components/bk_audio/audio_decoders/modules/mp3_decoder.h>
 #endif
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 
 #define TAG "voc"
@@ -1419,6 +1420,10 @@ voice_handle_t bk_voice_init(voice_cfg_t *cfg)
     }
 
     voice_handle->status = VOICE_STA_IDLE;
+
+    #if CONFIG_ADK_DEBUG_DUMP_UTIL
+    aud_dump_cli_init();
+    #endif
 
     return voice_handle;
 

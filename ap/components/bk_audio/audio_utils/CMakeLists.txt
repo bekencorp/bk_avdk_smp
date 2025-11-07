@@ -23,6 +23,7 @@ endif()
 if (CONFIG_ADK_DEBUG_DUMP_UTIL)
 	list(APPEND srcs
 		debug_dump_util.c
+		debug_dump_cli.c
 	)
 endif()
 
