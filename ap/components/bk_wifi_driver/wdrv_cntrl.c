@@ -234,6 +234,7 @@ void wifi_netif_call_status_cb_when_sta_got_ip(void)
 void wdrv_notify_sta_got_ip(void)
 {
     wifi_linkstate_reason_t info;
+    netif_ip4_config_t wdrv_got_ip = {0};
 
     /* set wifi status */
     info.state = WIFI_LINKSTATE_STA_GOT_IP;
@@ -246,6 +247,9 @@ void wdrv_notify_sta_got_ip(void)
 #if CONFIG_BRIDGE
     bk_wifi_start_softap_for_bridge();
 #endif
+    BK_LOG_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_STA, &wdrv_got_ip));
+    os_memcpy(event_data.ip, wdrv_got_ip.ip, NETIF_IP4_STR_LEN);
+
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
                                 &event_data, sizeof(event_data), BEKEN_NEVER_TIMEOUT));
 }

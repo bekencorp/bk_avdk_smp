@@ -309,9 +309,11 @@ int bk_init(void)
 	vnd_cal_overlay();
 #endif
 
-	app_cli_init();
+#if 1//CONFIG_WIFI_ENABLE
+	app_wifi_init();
+#endif
 
-	bk_event_init();
+	app_cli_init();
 
 #if CONFIG_AT
     set_ap_startup_index(AP_ENTER_AT_SERVER_INIT);
@@ -375,11 +377,6 @@ extern int mp_do_startup(int heap_len);
 
 #if (CONFIG_PSRAM)
 	bk_psram_id_auto_detect();
-#endif
-
-#if 1//CONFIG_WIFI_ENABLE
-    set_ap_startup_index(AP_EXIT_AT_SERVER);
-    app_wifi_init();
 #endif
 
 #ifdef CONFIG_BLUETOOTH_AP
