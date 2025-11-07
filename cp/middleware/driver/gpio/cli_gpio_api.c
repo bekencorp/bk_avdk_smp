@@ -194,9 +194,7 @@ static void cli_gpio_api_cmd_handler(void **argtable)
         }
         return;
     }
-    #endif
 
-    #if CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT
     else if (status->count > 0)
     {
         gpio_id_t gpio_id = 0;
