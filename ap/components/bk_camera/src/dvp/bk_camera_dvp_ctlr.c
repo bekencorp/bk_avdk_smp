@@ -5,6 +5,11 @@
 
 #define TAG "camera_dvp_ctlr"
 
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+
 extern uint8_t *media_bt_share_buffer;
 
 static avdk_err_t dvp_camera_ctlr_open(bk_camera_ctlr_t *controller)
@@ -45,13 +50,11 @@ static avdk_err_t dvp_camera_ctlr_delete(bk_camera_ctlr_t *controller)
     AVDK_RETURN_ON_FALSE(dvp_controller, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_RETURN_ON_FALSE(dvp_controller->state == CAMERA_STATE_INIT, AVDK_ERR_INVAL, TAG, "control state err");
 
-    if (dvp_controller->encode_buffer)
-    {
-#ifndef CONFIG_BT_REUSE_MEDIA_MEMORY
+    if (dvp_controller->encode_buffer) {
         os_free(dvp_controller->encode_buffer);
-#endif
         dvp_controller->encode_buffer = NULL;
     }
+
     os_free(dvp_controller);
     return AVDK_ERR_OK;
 }
@@ -114,22 +117,26 @@ avdk_err_t bk_camera_dvp_ctlr_new(bk_camera_ctlr_handle_t *handle, bk_dvp_ctlr_c
     os_memset(controller, 0, sizeof(private_camera_dvp_ctlr_t));
     os_memcpy(&controller->config, config, sizeof(bk_dvp_ctlr_config_t));
 
-#ifdef CONFIG_BT_REUSE_MEDIA_MEMORY
-    controller->encode_buffer = media_bt_share_buffer;
-#else
     if (config->config.img_format & IMAGE_H264)
     {
         controller->encode_buffer = os_malloc(config->config.width * 32 * 2);
+        if (controller->encode_buffer == NULL)
+        {
+            LOGE("%s, malloc h264 encode buffer failed\n", __func__);
+            os_free(controller);
+            return AVDK_ERR_NOMEM;
+        }
     }
     else if (config->config.img_format & IMAGE_MJPEG)
     {
         controller->encode_buffer = os_malloc(config->config.width * 16 * 2);
+        if (controller->encode_buffer == NULL)
+        {
+            LOGE("%s, malloc mjpeg encode buffer failed\n", __func__);
+            os_free(controller);
+            return AVDK_ERR_NOMEM;
+        }
     }
-    else
-    {
-        controller->encode_buffer = NULL;
-    }
-#endif
 
     controller->ops.open = dvp_camera_ctlr_open;
     controller->ops.close = dvp_camera_ctlr_close;
