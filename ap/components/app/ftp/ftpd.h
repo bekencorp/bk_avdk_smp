@@ -34,12 +34,19 @@
 #ifndef __FTPD_H__
 #define __FTPD_H__
 
+#include "bk_cli.h"
+#include "cli.h"
+
 #define FTPD_COMMON_PORT      0x1020
 
+#define FTPD_CMD_CNT (sizeof(s_ftpd_commands) / sizeof(struct cli_command))
 
 bk_err_t ftpd_server_init(void);
 void ftpd_server_deinit(void);
 
 void ftpd_start(void);
 void ftpd_stop(void);
+
+int ftpd_cli_init(void);
+
 #endif				/* __FTPD_H__ */

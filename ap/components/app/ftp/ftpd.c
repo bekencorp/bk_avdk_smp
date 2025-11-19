@@ -1818,7 +1818,48 @@ void ftpd_server_deinit(void)
 	bk_printf("[%s][%d] unmount success\r\n", __FUNCTION__, __LINE__);
 }
 
-#endif
+#if CONFIG_CLI
+void cli_wifi_ftp_server_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	int ret = 0;
+	char *msg = NULL;
+
+	if (argc < 2) {
+		bk_printf("Invalid ftp server paramter\r\n");
+		goto error;
+	}
+
+	if(os_strcmp(argv[1], "server") == 0) {
+		#if CONFIG_FTP_SERVER
+		#if CONFIG_VFS
+		ftpd_server_init();
+		#endif
+		#endif
+	}
+	else {
+		bk_printf("Invalid ftp server paramter\r\n");
+		goto error;
+	}
+
+	if (!ret) {
+		msg = WIFI_CMD_RSP_SUCCEED;
+		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+		return;
+	}
+error:
+	msg = WIFI_CMD_RSP_ERROR;
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+	return;
+}
 
 //eof
+static const struct cli_command s_ftpd_commands[] = {
+    {"ftp", "ftp server", cli_wifi_ftp_server_cmd},
+};
 
+int ftpd_cli_init(void)
+{
+    return cli_register_commands(s_ftpd_commands, FTPD_CMD_CNT);
+}
+#endif
+#endif

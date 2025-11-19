@@ -36,7 +36,9 @@
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "wifi_cli.h"
 #endif
-
+#ifdef CONFIG_FTP_SERVER
+#include "ftpd.h"
+#endif
 #define TAG "cli"
 
 static struct cli_st *pCli = NULL;
@@ -1327,6 +1329,10 @@ int bk_cli_init(void)
 
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
     wdrv_cli_init();
+#endif
+
+#ifdef CONFIG_FTP_SERVER
+	ftpd_cli_init();
 #endif
 
 #if (CLI_CFG_NETIF == 1)

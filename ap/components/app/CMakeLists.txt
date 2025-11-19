@@ -4,6 +4,10 @@
 set(incs .)
 set(srcs )
 
+if (CONFIG_FTP_SERVER)
+list(APPEND incs ../app/ftp)
+endif()
+
 if (CONFIG_LITTLEFS)
 	list(APPEND srcs
 		littlefs_demo/lfs_example_onchip_flash.c

@@ -12,7 +12,7 @@
 #include <components/netif.h>
 #include "lwip/ping.h"
 #include "bk_private/bk_wifi.h"
-#include "ftp/ftpd.h"
+
 /**
  * @brief default AP configuration
  * */
@@ -495,42 +495,8 @@ static void wdrv_handle_cli_commmand(char *pcWriteBuffer, int xWriteBufferLen, i
     }
 }
 
-void cli_wifi_ftp_server_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-	int ret = 0;
-	char *msg = NULL;
-
-	if (argc < 2) {
-		CLI_LOGI("Invalid ftp server paramter\r\n");
-		goto error;
-	}
-
-	if(os_strcmp(argv[1], "server") == 0) {
-		#if CONFIG_FTP_SERVER
-		#if CONFIG_VFS
-		ftpd_server_init();
-		#endif
-		#endif
-	}
-	else {
-		CLI_LOGI("Invalid ftp server paramter\r\n");
-		goto error;
-	}
-
-	if (!ret) {
-		msg = WIFI_CMD_RSP_SUCCEED;
-		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
-		return;
-	}
-error:
-	msg = WIFI_CMD_RSP_ERROR;
-	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
-	return;
-}
-
 static const struct cli_command s_wdrv_commands[] = {
     {"wdrv", "wdrv", wdrv_handle_cli_commmand},
-    {"ftp", "ftp server", cli_wifi_ftp_server_cmd},
 };
 
 int wdrv_cli_init(void)
