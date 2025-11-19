@@ -174,7 +174,7 @@ uint32_t ftp_is_running = 0;
 #define msg553 "553 Requested action not taken."
 
 
-#define msg_FEAT   "211-Extension supported\r\n UTF8\r\n MLSD\r\n CLNT\r\n SIZE\r\n211 End.\r\n"
+#define msg_FEAT   "211-Extension supported\r\n UTF8\r\n MLSD\r\n CLNT\r\n SIZE\r\n211 End."
 
 /*
              File name not allowed.
