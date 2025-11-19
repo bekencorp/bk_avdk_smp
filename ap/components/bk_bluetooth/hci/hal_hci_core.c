@@ -551,7 +551,7 @@ static void notify_parse_packet_ready_ext_cb(void *input_data, uint16_t input_le
             else
             {
                 LOGE("secondary controller hardware err 0x%x !!!", buff[2]);
-                BK_ASSERT_EX(0, "%s secondary controller hardware err 0x%x !!!\n", buff[2]);
+                BK_ASSERT_EX(0, "%s secondary controller hardware err 0x%x !!!\n", __func__, buff[2]);
             }
         }
         break;
