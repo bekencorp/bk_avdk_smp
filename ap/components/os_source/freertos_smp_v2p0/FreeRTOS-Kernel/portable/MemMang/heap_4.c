@@ -241,6 +241,8 @@ static __attribute__((section(".psram.bss"))) volatile uint32_t s_malloc_record_
 static __attribute__((section(".psram.bss"))) volatile uint32_t s_sram_malloc_record_index = 0;
 static __attribute__((section(".psram.bss"))) free_record_type volatile s_malloc_records[MALLOC_RECORD_MAX];
 static __attribute__((section(".psram.bss"))) free_record_type volatile s_sram_malloc_records[MALLOC_RECORD_MAX];
+static __attribute__((section(".psram.bss"))) free_record_type volatile s_psram_malloc_records[MALLOC_RECORD_MAX];
+static __attribute__((section(".psram.bss"))) volatile uint32_t s_psram_malloc_record_index = 0;
 
 __attribute__((section(".iram")))void CheckFreeList(void);
 #endif
@@ -604,6 +606,11 @@ void *psram_malloc( size_t xWantedSize )
 #endif
 {
 	void *pvReturn = NULL;
+
+#if CONFIG_MEM_DEBUG_OVERFLOW
+	uint32_t lr = __get_LR();
+#endif
+
 #if CONFIG_MEM_DEBUG
 	uint8_t *mem_end = NULL;
 	uint32_t mem_end_len = 0;
@@ -685,6 +692,17 @@ void *psram_malloc( size_t xWantedSize )
 	}
 
 #if CONFIG_MEM_DEBUG_OVERFLOW
+	{
+		s_psram_malloc_records[s_psram_malloc_record_index%MALLOC_RECORD_MAX].free_ptr = pvReturn;
+		s_psram_malloc_records[s_psram_malloc_record_index%MALLOC_RECORD_MAX].time = GET_AON_RTC_TICK; 
+		s_psram_malloc_records[s_psram_malloc_record_index%MALLOC_RECORD_MAX].lr = lr;
+#if CONFIG_MALLOC_STATIS || CONFIG_MEM_DEBUG
+		s_psram_malloc_records[s_psram_malloc_record_index%MALLOC_RECORD_MAX].name = (char *)call_func_name;
+		s_psram_malloc_records[s_psram_malloc_record_index%MALLOC_RECORD_MAX].line = line;
+#endif
+		s_psram_malloc_record_index++;
+	}
+
 	CheckFreeList();
 #endif
 
