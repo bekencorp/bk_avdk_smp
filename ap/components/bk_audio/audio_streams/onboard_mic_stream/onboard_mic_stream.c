@@ -152,14 +152,14 @@ static void flash_op_notify_onboard_mic_stream_handler(uint32_t param, void *arg
     {
         if (param)
         {
-            BK_LOGD(TAG, "%s, start earse or write flash, stop dma and adc \n", __func__);
+            BK_LOGV(TAG, "%s, start earse or write flash, stop dma and adc \n", __func__);
             bk_dma_stop(onboard_mic->mic_dma_id);
             bk_aud_adc_stop();
             ring_buffer_clear(&onboard_mic->mic_rb);
         }
         else
         {
-            BK_LOGD(TAG, "%s, stop earse or write flash, start dma and adc \n", __func__);
+            BK_LOGV(TAG, "%s, stop earse or write flash, start dma and adc \n", __func__);
             bk_dma_start(onboard_mic->mic_dma_id);
             bk_aud_adc_start();
         }
