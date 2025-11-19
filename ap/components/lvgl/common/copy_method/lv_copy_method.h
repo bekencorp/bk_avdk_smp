@@ -1,14 +1,5 @@
-
-#ifndef LV_COPY_METHOD_H
-#define LV_COPY_METHOD_H
-
-typedef enum
-{
-    LV_DMA_COPY,
-    LV_DMA2D_COPY,
-} lv_cpy_method_t;
-
-#define LVGL_DISP_COPY_METHOD    LV_DMA2D_COPY
+#ifndef __LV_COPY_METHOD_H__
+#define __LV_COPY_METHOD_H__
 
 
 void lv_dma2d_memcpy_init(void);

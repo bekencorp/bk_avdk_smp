@@ -1587,7 +1587,7 @@
 /** Place performance critical functions into a faster memory (e.g RAM) */
 #ifndef LV_ATTRIBUTE_FAST_MEM
     #ifdef CONFIG_LV_ATTRIBUTE_FAST_MEM
-        #define LV_ATTRIBUTE_FAST_MEM CONFIG_LV_ATTRIBUTE_FAST_MEM
+        #define LV_ATTRIBUTE_FAST_MEM __attribute__((section(".iram")))
     #else
         #define LV_ATTRIBUTE_FAST_MEM
     #endif

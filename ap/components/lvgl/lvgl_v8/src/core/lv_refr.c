@@ -554,11 +554,11 @@ static void refr_area(const lv_area_t * area_p)
 
     if (vendor_config.render_mode == RENDER_PARTIAL_MODE) {
         if (LV_VER_RES == lv_area_get_height(area_p) && LV_HOR_RES == lv_area_get_width(area_p)) {
-            if (LVGL_DISP_COPY_METHOD == LV_DMA2D_COPY) {
+            #if CONFIG_LV_FRAME_DMA2D_COPY
                 lv_dma2d_stop_memcpy_last_frame();
-            } else {
+            #else
                 lv_dma_stop_memcpy_last_frame();
-            }
+            #endif
         }
     }
 

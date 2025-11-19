@@ -158,16 +158,14 @@ static void disp_init(void)
             return;
         }
     } else {
-        if (LVGL_DISP_COPY_METHOD == LV_DMA2D_COPY) {
+        #if CONFIG_LV_FRAME_DMA2D_COPY
             lv_dma2d_memcpy_init();
-        } else if (LVGL_DISP_COPY_METHOD == LV_DMA_COPY) {
+        #else
             lv_dma_memcpy_init();
             if (vendor_config.draw_buf_2_2 != NULL) {
                 lv_dma2d_memcpy_init();
             }
-        } else {
-            LOGW("LVGL_DISP_COPY_METHOD is not support");
-        }
+        #endif
     }
 }
 
@@ -180,14 +178,14 @@ static void disp_deinit(void)
             return;
         }
     } else {
-        if (LVGL_DISP_COPY_METHOD == LV_DMA2D_COPY) {
+        #if CONFIG_LV_FRAME_DMA2D_COPY
             lv_dma2d_memcpy_deinit();
-        } else if (LVGL_DISP_COPY_METHOD == LV_DMA_COPY) {
+        #else
             lv_dma_memcpy_deinit();
             if (vendor_config.draw_buf_2_2 != NULL) {
                 lv_dma2d_memcpy_deinit();
             }
-        }
+        #endif
     }
 }
 
@@ -218,11 +216,7 @@ static bk_err_t lvgl_frame_buffer_free_cb(void *frame)
     return BK_OK;
 }
 
-/*Flush the content of the internal buffer the specific area on the display.
- *`px_map` contains the rendered image as raw pixel map and it should be copied to `area` on the display.
- *You can use DMA or any hardware acceleration to do this operation in the background but
- *'lv_display_flush_ready()' has to be called when it's finished.*/
-static void disp_flush(lv_display_t * disp_drv, const lv_area_t * area, uint8_t * px_map)
+static void lv_disp_flush_for_partial_mode(lv_display_t * disp_drv, const lv_area_t * area, uint8_t * px_map)
 {
     lv_coord_t lv_hor = 0;
     lv_coord_t lv_ver = 0;
@@ -235,162 +229,179 @@ static void disp_flush(lv_display_t * disp_drv, const lv_area_t * area, uint8_t 
         lv_ver = LV_HOR_RES;
     }
 
-    if (vendor_config.render_mode == RENDER_PARTIAL_MODE) {
-        if (disp_flush_enabled) {
 #if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
-            lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
+    lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
 #endif
-            bk_color_t *color_ptr = NULL;
-            int y = 0, offset = 0;
+    bk_color_t *color_ptr = NULL;
+    int y = 0, offset = 0;
 
-            lv_coord_t width = lv_area_get_width(area);
-            lv_coord_t height = lv_area_get_height(area);
+    lv_coord_t width = lv_area_get_width(area);
+    lv_coord_t height = lv_area_get_height(area);
 
-            if (CONFIG_LVGL_FRAME_BUFFER_NUM > 1) {
-                if (LVGL_DISP_COPY_METHOD == LV_DMA2D_COPY) {
-                    lv_dma2d_memcpy_wait_transfer_finish();
-                } else {
-                    lv_dma_memcpy_wait_transfer_finish();
-                }
+    if (CONFIG_LVGL_FRAME_BUFFER_NUM > 1) {
+        #if CONFIG_LV_FRAME_DMA2D_COPY
+            lv_dma2d_memcpy_wait_transfer_finish();
+        #else
+            lv_dma_memcpy_wait_transfer_finish();
+        #endif
 
-                if (lv_new_frame_flag) {
-                    if (disp_buf == NULL) {
-                        do {
-                            disp_buf = lv_vendor_get_ready_frame_buffer();
-                            if (disp_buf != NULL) {
-                                break;
-                            }
-                        } while (disp_buf == NULL);
-                    } else {
-                        disp_buf = copy_buf;
-                        copy_buf = NULL;
+        if (lv_new_frame_flag) {
+            if (disp_buf == NULL) {
+                do {
+                    disp_buf = lv_vendor_get_ready_frame_buffer();
+                    if (disp_buf != NULL) {
+                        break;
                     }
-                    lv_new_frame_flag = false;
-                }
+                } while (disp_buf == NULL);
             } else {
-                if (lv_new_frame_flag) {
-                    disp_buf = vendor_config.frame_buffer[0];
-                    lv_new_frame_flag = false;
-                }
+                disp_buf = copy_buf;
+                copy_buf = NULL;
             }
-
-            if (vendor_config.rotation != ROTATE_NONE) {
-                lv_color_format_t cf = lv_display_get_color_format(disp_drv);
-                uint32_t w_stride = lv_draw_buf_width_to_stride(width, cf);
-                uint32_t h_stride = lv_draw_buf_width_to_stride(height, cf);
-                if (vendor_config.rotation == ROTATE_180) {
-                    lv_draw_sw_rotate(px_map, rotate_buffer, width, height, w_stride, w_stride, vendor_config.rotation, cf);
-                } else {
-                    lv_draw_sw_rotate(px_map, rotate_buffer, width, height, w_stride, h_stride, vendor_config.rotation, cf);
-                }
-                color_ptr = rotate_buffer;
-
-                lv_area_t rotated_area = *area;
-                lv_display_rotate_area(disp_drv, &rotated_area);
-                area = &rotated_area;
-
-                if (vendor_config.rotation != ROTATE_180) {
-                    width = lv_area_get_width(area);
-                    height = lv_area_get_height(area);
-                }
-            } else {
-                color_ptr = (bk_color_t *)px_map;
-            }
-
-            if (vendor_config.draw_buf_2_2) {
-                lv_dma2d_memcpy_double_draw_buffer(color_ptr, width, height, disp_buf->frame, area->x1, area->y1);
-            } else {
-                offset = area->y1 * lv_hor + area->x1;
-                for (y = area->y1; y <= area->y2; y++) {
-                    lv_memcpy_one_line(disp_buf->frame + offset * 2, color_ptr, width);
-                    offset += lv_hor;
-                    color_ptr += width;
-                }
-            }
-
-            if (lv_disp_flush_is_last(disp_drv)) {
-                media_debug->lvgl_draw++;
-                #if (!CONFIG_LV_USE_DEMO_BENCHMARK)
-                    if (CONFIG_LVGL_FRAME_BUFFER_NUM > 1) {
-                        lv_dma2d_memcpy_wait_transfer_finish();
-                    }
-                #endif
-
-                bk_display_flush(vendor_config.handle, disp_buf, lvgl_frame_buffer_free_cb);
-                lv_new_frame_flag = true;
-
-                if (CONFIG_LVGL_FRAME_BUFFER_NUM > 1) {
-                    if (copy_buf == NULL) {
-                        do {
-                            copy_buf = lv_vendor_get_ready_frame_buffer();
-                            if (copy_buf != NULL) {
-                                break;
-                            }
-                        } while(copy_buf == NULL);
-                    }
-
-                    if (LVGL_DISP_COPY_METHOD == LV_DMA2D_COPY) {
-                        lv_dma2d_memcpy_last_frame(disp_buf->frame, copy_buf->frame, lv_hor, lv_ver, 0, 0);
-                    } else {
-                        lv_dma_memcpy_last_frame(disp_buf->frame, copy_buf->frame, lv_hor, lv_ver);
-                    }
-                }
-            }
-        }
-    } else if (vendor_config.render_mode == RENDER_DIRECT_MODE) {
-        if (disp_flush_enabled) {
-            static bool first_flush = true;
-            #if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
-                if (first_flush) {
-                    lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
-                } else {
-                    uint16_t *color_ptr = (uint16_t *)px_map;
-                    uint16_t width = lv_area_get_width(area);
-                    int offset = 0, y = 0;
-
-                    offset = area->y1 * LV_HOR_RES + area->x1;
-                    for (y = area->y1; y <= area->y2; y++) {
-                        uint16_t *buf16 = color_ptr + offset;
-                        if ((int)buf16 % 4) {
-                            buf16[0] = ((buf16[0] & 0xff00) >> 8) | ((buf16[0] & 0x00ff) << 8);
-                            lv_draw_sw_rgb565_swap(buf16 + 1, width - 1);
-                        } else {
-                            lv_draw_sw_rgb565_swap(buf16, width);
-                        }
-                        offset += LV_HOR_RES;
-                    }
-                }
-            #endif
-
-            if (lv_disp_flush_is_last(disp_drv)) {
-                media_debug->lvgl_draw++;
-                if (px_map == vendor_config.draw_buf_2_1) {
-                    bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[0], lvgl_frame_buffer_free_cb);
-                } else {
-                    bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[1], lvgl_frame_buffer_free_cb);
-                }
-
-                if (first_flush) {
-                    first_flush = false;
-                } else {
-                    bk_err_t ret = rtos_get_semaphore(&lv_disp_sem, 1000);
-                    if (ret != BK_OK) {
-                        LOGE("%s rtos_get_semaphore failed\n", __func__);
-                    }
-                }
-            }
+            lv_new_frame_flag = false;
         }
     } else {
-        if (disp_flush_enabled) {
-            media_debug->lvgl_draw++;
-    #if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
-            lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
-    #endif
-            if (px_map == vendor_config.draw_buf_2_1) {
-                bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[0], lvgl_frame_buffer_free_cb);
-            } else {
-                bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[1], lvgl_frame_buffer_free_cb);
+        if (lv_new_frame_flag) {
+            disp_buf = vendor_config.frame_buffer[0];
+            lv_new_frame_flag = false;
+        }
+    }
+
+    if (vendor_config.rotation != ROTATE_NONE) {
+        lv_color_format_t cf = lv_display_get_color_format(disp_drv);
+        uint32_t w_stride = lv_draw_buf_width_to_stride(width, cf);
+        uint32_t h_stride = lv_draw_buf_width_to_stride(height, cf);
+
+        if (vendor_config.rotation == ROTATE_180) {
+            lv_draw_sw_rotate(px_map, rotate_buffer, width, height, w_stride, w_stride, vendor_config.rotation, cf);
+        } else {
+            lv_draw_sw_rotate(px_map, rotate_buffer, width, height, w_stride, h_stride, vendor_config.rotation, cf);
+        }
+        color_ptr = rotate_buffer;
+
+        lv_area_t rotated_area = *area;
+        lv_display_rotate_area(disp_drv, &rotated_area);
+        area = &rotated_area;
+
+        if (vendor_config.rotation != ROTATE_180) {
+            width = lv_area_get_width(area);
+            height = lv_area_get_height(area);
+        }
+    } else {
+        color_ptr = (bk_color_t *)px_map;
+    }
+
+    if (vendor_config.draw_buf_2_2) {
+        lv_dma2d_memcpy_double_draw_buffer(color_ptr, width, height, disp_buf->frame, area->x1, area->y1);
+    } else {
+        offset = area->y1 * lv_hor + area->x1;
+        for (y = area->y1; y <= area->y2; y++) {
+            lv_memcpy_one_line(disp_buf->frame + offset * sizeof(bk_color_t), color_ptr, width);
+            offset += lv_hor;
+            color_ptr += width;
+        }
+    }
+
+    if (lv_disp_flush_is_last(disp_drv)) {
+        media_debug->lvgl_draw++;
+        #if (!CONFIG_LV_USE_DEMO_BENCHMARK)
+            if (vendor_config.draw_buf_2_2) {
+                lv_dma2d_memcpy_wait_transfer_finish();
             }
+        #endif
+
+        bk_display_flush(vendor_config.handle, disp_buf, lvgl_frame_buffer_free_cb);
+        lv_new_frame_flag = true;
+
+        if (CONFIG_LVGL_FRAME_BUFFER_NUM > 1) {
+            if (copy_buf == NULL) {
+                do {
+                    copy_buf = lv_vendor_get_ready_frame_buffer();
+                    if (copy_buf != NULL) {
+                        break;
+                    }
+                } while(copy_buf == NULL);
+            }
+
+            #if CONFIG_LV_FRAME_DMA2D_COPY
+                lv_dma2d_memcpy_last_frame(disp_buf->frame, copy_buf->frame, lv_hor, lv_ver, 0, 0);
+            #else
+                lv_dma_memcpy_last_frame(disp_buf->frame, copy_buf->frame, lv_hor, lv_ver);
+            #endif
+        }
+    }
+}
+
+static void lv_disp_flush_for_direct_mode(lv_display_t * disp_drv, const lv_area_t * area, uint8_t * px_map)
+{
+    static bool first_flush = true;
+
+    #if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
+        if (first_flush) {
+            lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
+        } else {
+            uint16_t *color_ptr = (uint16_t *)px_map;
+            uint16_t width = lv_area_get_width(area);
+            int offset = 0, y = 0;
+
+            offset = area->y1 * LV_HOR_RES + area->x1;
+            for (y = area->y1; y <= area->y2; y++) {
+                uint16_t *buf16 = color_ptr + offset;
+                if ((int)buf16 % 4) {
+                    buf16[0] = ((buf16[0] & 0xff00) >> 8) | ((buf16[0] & 0x00ff) << 8);
+                    lv_draw_sw_rgb565_swap(buf16 + 1, width - 1);
+                } else {
+                    lv_draw_sw_rgb565_swap(buf16, width);
+                }
+                offset += LV_HOR_RES;
+            }
+        }
+    #endif
+
+    if (lv_disp_flush_is_last(disp_drv)) {
+        media_debug->lvgl_draw++;
+        if (px_map == vendor_config.draw_buf_2_1) {
+            bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[0], lvgl_frame_buffer_free_cb);
+        } else {
+            bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[1], lvgl_frame_buffer_free_cb);
+        }
+
+        if (first_flush) {
+            first_flush = false;
+        } else {
+            bk_err_t ret = rtos_get_semaphore(&lv_disp_sem, 1000);
+            if (ret != BK_OK) {
+                LOGE("%s rtos_get_semaphore failed\n", __func__);
+            }
+        }
+    }
+}
+
+static void lv_disp_flush_for_full_mode(lv_display_t * disp_drv, const lv_area_t * area, uint8_t * px_map)
+{
+    media_debug->lvgl_draw++;
+#if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
+    lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
+#endif
+    if (px_map == vendor_config.draw_buf_2_1) {
+        bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[0], lvgl_frame_buffer_free_cb);
+    } else {
+        bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[1], lvgl_frame_buffer_free_cb);
+    }   
+}
+
+/*Flush the content of the internal buffer the specific area on the display.
+ *`px_map` contains the rendered image as raw pixel map and it should be copied to `area` on the display.
+ *You can use DMA or any hardware acceleration to do this operation in the background but
+ *'lv_display_flush_ready()' has to be called when it's finished.*/
+static void disp_flush(lv_display_t * disp_drv, const lv_area_t * area, uint8_t * px_map)
+{
+    if (disp_flush_enabled) {
+        if (vendor_config.render_mode == RENDER_PARTIAL_MODE) {
+            lv_disp_flush_for_partial_mode(disp_drv, area, px_map);
+        } else if (vendor_config.render_mode == RENDER_DIRECT_MODE) {
+            lv_disp_flush_for_direct_mode(disp_drv, area, px_map);
+        } else {
+            lv_disp_flush_for_full_mode(disp_drv, area, px_map);
         }
     }
 

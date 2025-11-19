@@ -1,8 +1,4 @@
 menu "LVGL"
-    config LVGL_SRAM_MAPPING
-        bool "Enable Lvgl Sram Mapping"
-        default n
-
     config LVGL
         bool "Enable Lvgl"
         default n
@@ -16,6 +12,17 @@ menu "LVGL"
             bool "LVGL V8"
         config LVGL_V9
             bool "LVGL V9"
+    endchoice
+
+    choice LV_FRAME_COPY_METHOD
+        depends on LVGL
+        prompt "Select LVGL Frame Copy Method"
+        default LV_FRAME_DMA2D_COPY
+
+        config LV_FRAME_DMA2D_COPY
+            bool "LV Frame DMA2D Copy Method"
+        config LV_FRAME_DMA_COPY
+            bool "LV Frame DMA Copy Method"
     endchoice
 
     config LV_COLOR_DEPTH
@@ -72,11 +79,6 @@ menu "LVGL"
         depends on LV_USE_DRAW_VG_LITE
         int "Set VG-Lite gradient image maximum cache number"
         default 32
-
-    config LVGL_SRAM_MAPPING
-        depends on LVGL
-        bool "Enable Lvgl Sram Mapping"
-        default n
 
     config LV_COLOR_SCREEN_TRANSP
         bool "Enable Lv Color Screen Transp"
@@ -181,10 +183,6 @@ menu "LVGL"
         help
             Enable use direct mode in LVGL use psram draw buffer
 
-    config LV_ATTRIBUTE_FAST_MEM
-        bool "Enable Lv Attribute Fast Mem"
-        default n
-
     config LVGL_TASK_PRIORITY
         depends on LVGL
         int "Set lvgl task priority"
@@ -203,6 +201,16 @@ menu "LVGL"
     config LV_COLOR_16_SWAP
         depends on LVGL_V8
         bool "Enable Swap the 2 bytes of RGB565 color"
+        default n
+
+    config LVGL_SRAM_MAPPING
+        depends on LVGL
+        bool "Enable Lvgl Sram Mapping"
+        default n
+
+    config LV_ATTRIBUTE_FAST_MEM
+        depends on LVGL
+        bool "Enable Lv Attribute Fast Mem"
         default n
 
     config LV_ATTRIBUTE_FAST_MEM_L2

@@ -156,24 +156,34 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
     }
 
     if (config->render_mode == RENDER_PARTIAL_MODE) {
+        if (config->draw_pixel_size != 0) {
+            LOGW("%s !!!The draw_pixel_size is customized instead of default config\n", __func__);
+            vendor_config.draw_pixel_size = config->draw_pixel_size;
+        } else {
 #if CONFIG_LVGL_V8
-        vendor_config.draw_pixel_size = config->width * config->height / 10;
+            vendor_config.draw_pixel_size = config->width * config->height / 10;
 #else
-        vendor_config.draw_pixel_size = config->width * config->height / 10 * sizeof(bk_color_t);
+            vendor_config.draw_pixel_size = config->width * config->height / 10 * sizeof(bk_color_t);
 #endif
+        }
+
         if (config->draw_buf_2_1 == NULL) {
-            vendor_config.draw_buf_2_1 = os_malloc(config->width * config->height / 10 * sizeof(bk_color_t));
+#if CONFIG_LVGL_V8
+            vendor_config.draw_buf_2_1 = os_malloc(vendor_config.draw_pixel_size * sizeof(bk_color_t));
+#else
+            vendor_config.draw_buf_2_1 = os_malloc(vendor_config.draw_pixel_size);
+#endif
             if (vendor_config.draw_buf_2_1 == NULL) {
                 LOGE("%s vendor_config.draw_buf_2_1 malloc failed\n", __func__);
                 goto fail;
             }
         } else {
-            LOGW("%s !!!The draw_buf_2_1 is custom instead of default config\n", __func__);
+            LOGW("%s !!!The draw_buf_2_1 is customized instead of default config\n", __func__);
             vendor_config.draw_buf_2_1 = config->draw_buf_2_1;
         }
 
         if (config->draw_buf_2_2) {
-            LOGW("%s !!!The draw_buf_2_2 is custom instead of default config. It usually not be used\n", __func__);
+            LOGW("%s !!!The draw_buf_2_2 is customized instead of default config. It usually not be used\n", __func__);
             vendor_config.draw_buf_2_2 = config->draw_buf_2_2;
         } else {
             vendor_config.draw_buf_2_2 = NULL;
@@ -358,11 +368,7 @@ void lv_vendor_start(void)
         return;
     }
 
-#if CONFIG_LVGL_V9
-    ret = rtos_smp_create_thread(&g_disp_thread_handle,
-#else
     ret = rtos_create_sram_thread(&g_disp_thread_handle,
-#endif
                              CONFIG_LVGL_TASK_PRIORITY,
                              "lvgl",
                              (beken_thread_function_t)lv_tast_entry,

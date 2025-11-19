@@ -106,6 +106,12 @@ static void lv_dma2d_memcpy(void *Psrc, uint32_t src_xsize, uint32_t src_ysize,
     dma2d_memcpy_pfc.src_pixel_byte = THREE_BYTES;
     dma2d_memcpy_pfc.output_color_mode = DMA2D_OUTPUT_RGB888;
     dma2d_memcpy_pfc.dst_pixel_byte = THREE_BYTES;
+#elif (LV_COLOR_DEPTH == 32)
+    dma2d_memcpy_pfc.mode = DMA2D_M2M;
+    dma2d_memcpy_pfc.input_color_mode = DMA2D_INPUT_ARGB8888;
+    dma2d_memcpy_pfc.src_pixel_byte = FOUR_BYTES;
+    dma2d_memcpy_pfc.output_color_mode = DMA2D_OUTPUT_ARGB8888;
+    dma2d_memcpy_pfc.dst_pixel_byte = FOUR_BYTES;
 #endif
 #endif
 
@@ -139,8 +145,11 @@ void lv_dma2d_memcpy_wait_transfer_finish(void)
 
 void lv_dma2d_memcpy_last_frame(void *Psrc, void *Pdst, uint32_t xsize, uint32_t ysize, uint32_t src_offline, uint32_t dest_offline)
 {
-    lv_dma2d_memcpy_wait_transfer_finish();
+#if CONFIG_LVGL_V8
     dma2d_memcpy_psram(Psrc, Pdst, xsize, ysize, src_offline, dest_offline);
+#else
+    lv_dma2d_memcpy(Psrc, xsize, ysize, Pdst, xsize, ysize, src_offline, dest_offline);
+#endif
     lv_dma2d_use_flag = 1;
 }
 

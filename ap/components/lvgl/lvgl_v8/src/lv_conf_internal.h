@@ -960,7 +960,7 @@
 
 #ifndef LV_ATTRIBUTE_FAST_MEM_L2
     #ifdef CONFIG_LV_ATTRIBUTE_FAST_MEM_L2
-        #define LV_ATTRIBUTE_FAST_MEM_L2 __attribute__((section(".sram_sec_code")))
+        #define LV_ATTRIBUTE_FAST_MEM_L2 __attribute__((section(".iram")))
     #else
         #define LV_ATTRIBUTE_FAST_MEM_L2
     #endif
