@@ -581,7 +581,7 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
 }
 void wdrv_rx_handle_event(wdrv_rx_msg *msg)
 {
-    WDRV_LOGD("%s,%d\n",__func__,__LINE__);
+    WDRV_LOGV("%s,%d\n",__func__,__LINE__);
     if ((msg->id >= BK_EVT_WIFI_API_START) && (msg->id <= BK_EVT_WIFI_API_END))
     {
         wdrv_rx_handle_wifi_api_event(msg);

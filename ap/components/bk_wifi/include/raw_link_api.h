@@ -35,6 +35,7 @@ extern "C" {
 
 #define RLKD_QUEUE_LEN                          192
 #define RLKD_TASK_PRIO                          2
+#define RLKD_TX_MEM_LIMIT_BYTES                 (50 * 1024)
 
 /**
  * WIFI_API_MEM_ALIGNMENT: should be set to the alignment of the CPU
@@ -69,7 +70,10 @@ struct rlkd_env_t
     void *io_queue;
     void *handle;
     uint32_t is_init;
-
+    beken_mutex_t mem_lock;
+    uint32_t tx_mem_in_use;
+    uint32_t tx_mem_limit;
+    uint8_t mem_lock_init;
 };
 
 extern struct rlkd_env_t rlkd_env;

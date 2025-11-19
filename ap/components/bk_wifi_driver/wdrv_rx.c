@@ -46,7 +46,8 @@ void wdrv_rx_handle_msg(wdrv_rx_msg *msg)
 {
     //bk_mem_dump("wdrv_rx_handle_msg",PTR_TO_U32(msg), 30);
     cpdu_t* cpdu = (struct cpdu_t*)msg -1;
-    WDRV_LOGD("wdrv_rx_handle_msg id:%x cfm_sn:%d len:%d\r\n", msg->id, msg->cfm_sn, msg->param_len);
+
+    WDRV_LOGV("wdrv_rx_handle_msg id:%x cfm_sn:%d len:%d\r\n", msg->id, msg->cfm_sn, msg->param_len);
 
 #if CONFIG_BK_RAW_LINK
     if (cpdu->co_hdr.special_type == TX_RLK_FREE_MEM_TYPE) {

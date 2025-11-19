@@ -16,6 +16,7 @@
 
 #if CONFIG_BK_RAW_LINK
 #include <os/os.h>
+#include <stdbool.h>
 #include "soc/soc.h"
 #include "conv_utf8_pub.h"
 #include "wdrv_tx.h"
@@ -27,6 +28,49 @@ static rlk_transfer_cb_t s_rlk_transfer_cb = {0};
 
 
 struct rlkd_env_t rlkd_env = {0};
+
+static bool rlkd_tx_mem_try_acquire(uint32_t size)
+{
+    bool granted = true;
+
+    if (!size) {
+        return true;
+    }
+
+    if (!rlkd_env.mem_lock_init) {
+        return true;
+    }
+
+    rtos_lock_mutex(&rlkd_env.mem_lock);
+    if ((rlkd_env.tx_mem_in_use + size) <= rlkd_env.tx_mem_limit) {
+        rlkd_env.tx_mem_in_use += size;
+        granted = true;
+    } else {
+        RLKD_LOGV("rlk tx mem limit reached: need=%u used=%u limit=%u\r\n",
+                  size, rlkd_env.tx_mem_in_use, rlkd_env.tx_mem_limit);
+        granted = false;
+    }
+    rtos_unlock_mutex(&rlkd_env.mem_lock);
+
+    return granted;
+}
+
+static void rlkd_tx_mem_release(uint32_t size)
+{
+    if (!size || !rlkd_env.mem_lock_init) {
+        return;
+    }
+
+    rtos_lock_mutex(&rlkd_env.mem_lock);
+    if (rlkd_env.tx_mem_in_use >= size) {
+        rlkd_env.tx_mem_in_use -= size;
+    } else {
+        RLKD_LOGW("rlk tx mem release underflow: release=%u used=%u\r\n",
+                  size, rlkd_env.tx_mem_in_use);
+        rlkd_env.tx_mem_in_use = 0;
+    }
+    rtos_unlock_mutex(&rlkd_env.mem_lock);
+}
 
 
 bk_err_t bk_rlk_register_send_cb(bk_rlk_send_cb_t cb)
@@ -349,11 +393,17 @@ bk_err_t bk_rlk_send(const uint8_t *peer_mac_addr, const void *data, size_t len)
 #endif
 
     total_len = sizeof(struct ctrl_cmd_hdr) + align_mac_len + len;
+
+    if (!rlkd_tx_mem_try_acquire(total_len)) {
+        return BK_ERR_NO_MEM;
+    }
+
     buffer_to_ipc = os_malloc(total_len);
 
     if (!buffer_to_ipc)
     {
         RLKD_LOGV("%s malloc failed\r\n", __func__);
+        rlkd_tx_mem_release(total_len);
         return BK_ERR_NO_MEM;
     }
 
@@ -370,6 +420,12 @@ bk_err_t bk_rlk_send(const uint8_t *peer_mac_addr, const void *data, size_t len)
     cpdu->msg_hdr.id = RLK_TX_SEND_EVT;
 
     ret = wdrv_special_txdata_sender(cpdu,0);
+
+    if (ret != BK_OK)
+    {
+        rlkd_tx_mem_release(total_len);
+        os_free(buffer_to_ipc);
+    }
 
     return (ret == BK_OK ? len : ret);
 }
@@ -929,6 +985,10 @@ bk_err_t ap_rlk_drv_init(void)
         return ret;
     }
 
+    rlkd_env.tx_mem_limit = RLKD_TX_MEM_LIMIT_BYTES;
+    rlkd_env.tx_mem_in_use = 0;
+    rlkd_env.mem_lock_init = 0;
+
     ret = rtos_init_queue(&rlkd_env.io_queue, "rlkd_queue", sizeof(struct rlkd_msg), RLKD_QUEUE_LEN);
 
     if (ret != BK_OK)
@@ -936,6 +996,14 @@ bk_err_t ap_rlk_drv_init(void)
         RLKD_LOGE("%s init queue failed:%d\n", __func__, ret);
         goto rlkd_init_failed;
     }
+
+    ret = rtos_init_mutex(&rlkd_env.mem_lock);
+    if (ret != BK_OK)
+    {
+        RLKD_LOGE("%s init mem mutex failed:%d\n", __func__, ret);
+        goto rlkd_init_failed;
+    }
+    rlkd_env.mem_lock_init = 1;
 
     ret = rtos_smp_create_thread(&rlkd_env.handle,
                                 RLKD_TASK_PRIO,
@@ -965,13 +1033,22 @@ rlkd_init_failed:
 bk_err_t rlkd_handle_free_mem_req(uint32_t mem_addr)
 {
     void *ptr_to_free = (void *)mem_addr;
+    struct ctrl_cmd_hdr *cpdu = NULL;
+    uint32_t total_len = 0;
     
     if (!ptr_to_free) {
         RLKD_LOGE("[RLK] Invalid memory address for free: 0x%08X\r\n", mem_addr);
         return BK_ERR_PARAM;
     }
     
-    RLKD_LOGD("[RLK] Free memory from CP: addr=0x%08X\r\n", mem_addr);
+    RLKD_LOGV("[RLK] Free memory from CP: addr=0x%08X\r\n", mem_addr);
+
+    cpdu = (struct ctrl_cmd_hdr *)ptr_to_free;
+    total_len = sizeof(struct ctrl_cmd_hdr) +
+                RLKD_API_MEM_ALIGN_SIZE(RLK_WIFI_MAC_ADDR_LEN) +
+                cpdu->co_hdr.length;
+
+    rlkd_tx_mem_release(total_len);
     
     // Free memory allocated by AP side
     os_free(ptr_to_free);
@@ -991,6 +1068,14 @@ bk_err_t rlkd_deinit(void)
         rtos_deinit_queue(&rlkd_env.io_queue);
         rlkd_env.io_queue = NULL;
     }
+
+    if (rlkd_env.mem_lock_init) {
+        rtos_deinit_mutex(&rlkd_env.mem_lock);
+        rlkd_env.mem_lock_init = 0;
+    }
+
+    rlkd_env.tx_mem_in_use = 0;
+    rlkd_env.is_init = 0;
 
     return BK_OK;
 }
