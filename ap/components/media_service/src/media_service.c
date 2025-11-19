@@ -72,13 +72,14 @@ static void media_debug_dump(timer_id_t timer_id)
 
 static bk_err_t media_frame_buffer_list_init(uint32_t param1, uint32_t param2)
 {
+    LOGD("%s\n", __func__);
     bk_psram_frame_buffer_init();
     return BK_OK;
 }
 
 static bk_err_t media_frame_buffer_list_deinit(uint32_t param1, uint32_t param2)
 {
-    //bk_psram_frame_buffer_deinit();
+    LOGD("%s\n", __func__);
     return BK_OK;
 }
 
