@@ -757,8 +757,7 @@ char *http_auth_basic(const char *username, const char *password)
 	mbedtls_base64_encode(NULL, 0, &n, (const unsigned char *)user_info, strlen(user_info));
 	digest = calloc(1, 6 + n + 1);
 	HTTP_MEM_CHECK(TAG, digest, goto _basic_exit);
-	strncpy(digest, "Basic ", 6);
-	digest[6] = '\0';
+	strncpy(digest, "Basic ", 7);
 	mbedtls_base64_encode((unsigned char *)digest + 6, n, (size_t *)&out, (const unsigned char *)user_info, strlen(user_info));
 _basic_exit:
 	free(user_info);
