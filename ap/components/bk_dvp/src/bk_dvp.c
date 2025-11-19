@@ -187,25 +187,18 @@ const dvp_sensor_config_t *get_sensor_config_interface_by_id(sensor_id_t id)
 
 const dvp_sensor_config_t *bk_dvp_get_sensor_auto_detect(void)
 {
-    uint32_t i;
-    uint8_t count = 3;
-
-    do
+    const dvp_sensor_config_t *sensor = NULL;
+    for (dvp_sensor_detect_func_t *p = &__camera_sensor_detect_array_start; p < &__camera_sensor_detect_array_end; p++)
     {
-        for (i = 0; i < devices_size; i++)
+        if (p->detect)
         {
-            if (devices_list[i]->detect() == true)
+            sensor = p->detect();
+            if (sensor != NULL)
             {
-                return devices_list[i];
+                return sensor;
             }
         }
-
-        count--;
-
-        //rtos_delay_milliseconds(5);
-
     }
-    while (count > 0);
 
     return NULL;
 }
