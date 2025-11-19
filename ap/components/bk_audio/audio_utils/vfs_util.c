@@ -59,7 +59,7 @@ bk_err_t vfs_util_create(vfs_util_handle_t vfs_util, char *name)
     /* config file name */
     config_file_name(vfs_util->file_name, name);
 
-    vfs_util->fd = open(vfs_util->file_name, O_CREAT | O_WRONLY);
+    vfs_util->fd = open(vfs_util->file_name, O_CREAT | O_WRONLY | O_TRUNC);
     if (vfs_util->fd < 0)
     {
         LOGE("can't open %s\n", vfs_util->file_name);
