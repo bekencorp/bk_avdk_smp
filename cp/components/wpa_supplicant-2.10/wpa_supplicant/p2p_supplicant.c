@@ -43,6 +43,9 @@
 #ifdef CONFIG_P2P
 #include "errno.h"
 #include "bk_wifi_types.h"
+#if defined(BK_SUPPLICANT) && defined(CONFIG_P2P)
+extern sta_param_t *g_sta_param_ptr;
+#endif
 #endif
 
 
@@ -7401,6 +7404,9 @@ int wpas_p2p_find(struct wpa_supplicant *wpa_s, unsigned int timeout,
 		  u8 seek_cnt, const char **seek_string, int freq,
 		  bool include_6ghz)
 {
+	// Update P2P device name before starting find to ensure latest SSID is used
+	wpas_p2p_update_config(wpa_s);
+
 	wpas_p2p_clear_pending_action_tx(wpa_s);
 	wpa_s->global->p2p_long_listen = 0;
 
@@ -8042,6 +8048,20 @@ void wpas_p2p_update_config(struct wpa_supplicant *wpa_s)
 
 	if (!(wpa_s->drv_flags & WPA_DRIVER_FLAGS_P2P_CAPABLE))
 		return;
+
+#if defined(BK_SUPPLICANT) && defined(CONFIG_P2P)
+	// Update device_name from g_sta_param_ptr if it's different
+	// This handles the case where P2P is disabled and re-enabled with a new SSID
+	if (g_sta_param_ptr && g_sta_param_ptr->ssid.array[0] != '\0') {
+		const char *new_device_name = (const char *)(g_sta_param_ptr->ssid.array);
+		if (wpa_s->conf->device_name != new_device_name &&
+		    (wpa_s->conf->device_name == NULL ||
+		     os_strcmp(wpa_s->conf->device_name, new_device_name) != 0)) {
+			wpa_s->conf->device_name = (char *)(g_sta_param_ptr->ssid.array);
+			wpa_s->conf->changed_parameters |= CFG_CHANGED_DEVICE_NAME;
+		}
+	}
+#endif
 
 	if (wpa_s->conf->changed_parameters & CFG_CHANGED_DEVICE_NAME)
 		p2p_set_dev_name(p2p, wpa_s->conf->device_name);

@@ -1594,8 +1594,11 @@ int wpas_wps_init(struct wpa_supplicant *wpa_s)
 	wps->cb_ctx = wpa_s;
 
 #if defined(BK_SUPPLICANT) && defined(CONFIG_P2P)
-	if (g_sta_param_ptr)
+	if (g_sta_param_ptr) {
 		wpa_s->conf->device_name = (char *)(g_sta_param_ptr->ssid.array);
+		// Mark device_name as changed to trigger P2P device name update
+		wpa_s->conf->changed_parameters |= CFG_CHANGED_DEVICE_NAME;
+	}
 #endif
 	wps->dev.device_name = wpa_s->conf->device_name;
 	wps->dev.manufacturer = wpa_s->conf->manufacturer;
@@ -1667,6 +1670,14 @@ int wpas_wps_init(struct wpa_supplicant *wpa_s)
 	}
 
 	wpa_s->wps = wps;
+
+#ifdef CONFIG_P2P
+	// Update P2P device name if P2P is already initialized
+	// This ensures device name changes are reflected in P2P discovery
+	if (wpa_s->global->p2p && (wpa_s->conf->changed_parameters & CFG_CHANGED_DEVICE_NAME)) {
+		wpas_p2p_update_config(wpa_s);
+	}
+#endif
 
 	return 0;
 }
@@ -2246,6 +2257,20 @@ void wpas_wps_update_config(struct wpa_supplicant *wpa_s)
 
 	if (wps == NULL)
 		return;
+
+#if defined(BK_SUPPLICANT) && defined(CONFIG_P2P)
+	// Update device_name from g_sta_param_ptr if it's different
+	// This handles the case where P2P is disabled and re-enabled with a new SSID
+	if (g_sta_param_ptr && g_sta_param_ptr->ssid.array[0] != '\0') {
+		const char *new_device_name = (const char *)(g_sta_param_ptr->ssid.array);
+		if (wpa_s->conf->device_name != new_device_name &&
+		    (wpa_s->conf->device_name == NULL ||
+		     os_strcmp(wpa_s->conf->device_name, new_device_name) != 0)) {
+			wpa_s->conf->device_name = (char *)(g_sta_param_ptr->ssid.array);
+			wpa_s->conf->changed_parameters |= CFG_CHANGED_DEVICE_NAME;
+		}
+	}
+#endif
 
 	if (wpa_s->conf->changed_parameters & CFG_CHANGED_CONFIG_METHODS) {
 		wps->config_methods = wps_config_methods_str2bin(

@@ -35,6 +35,7 @@
 #if CONFIG_LWIP
 #include "net.h"
 #include "bk_net.h"
+#include "lwip/err.h"
 #else
 #include "pbuf.h"
 #endif
@@ -1765,7 +1766,10 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 		wpas_p2p_disconnect(wpa_s);
 		break;
 	case WPA_CTRL_CMD_P2P_DISABLE: {
+		int netif_ret;
 		CHECK_WPA_S();
+		// Stop any ongoing P2P find operation first to prevent reconnection
+		wpas_p2p_stop_find(wpa_s);
 		// Check if we're currently in a P2P group
 		if (wpa_s->current_ssid && wpa_s->current_ssid->p2p_group) {
 			// Disconnect from P2P group (works for both GO and GC)
@@ -1776,7 +1780,11 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 				// This is GC (client mode)
 				if (supplicant_started) {
 #if CONFIG_LWIP
-					net_wlan_remove_netif((uint8_t*)g_sta_param_ptr->own_mac);
+					netif_ret = net_wlan_remove_netif((uint8_t*)g_sta_param_ptr->own_mac);
+					// ERR_ARG means vif not found, which is OK if already cleaned up
+					if (netif_ret && netif_ret != ERR_ARG) {
+						WPA_LOGW("%s:remove netif failed with error %d\n", __func__, netif_ret);
+					}
 #endif
 					supplicant_main_exit();
 					wpa_hostapd_release_scan_rst();
@@ -1784,8 +1792,10 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 				}
 			} else {
 				uap_ip_down();
-				if(net_wlan_remove_netif((uint8_t*)&g_ap_param_ptr->bssid)) {
-					WPA_LOGE("%s:remove netif fail!\n", __func__);
+				netif_ret = net_wlan_remove_netif((uint8_t*)&g_ap_param_ptr->bssid);
+				// ERR_ARG means vif not found, which is OK if already cleaned up by wpas_p2p_disconnect
+				if (netif_ret && netif_ret != ERR_ARG) {
+					WPA_LOGE("%s:remove netif fail! (error %d)\n", __func__, netif_ret);
 					res = -1;
 					break;
 				}
@@ -1805,7 +1815,11 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 			// Not in P2P group, just disable supplicant
 			if (supplicant_started) {
 #if CONFIG_LWIP
-				net_wlan_remove_netif((uint8_t*)g_sta_param_ptr->own_mac);
+				netif_ret = net_wlan_remove_netif((uint8_t*)g_sta_param_ptr->own_mac);
+				// ERR_ARG means vif not found, which is OK if already cleaned up
+				if (netif_ret && netif_ret != ERR_ARG) {
+					WPA_LOGW("%s:remove netif failed with error %d\n", __func__, netif_ret);
+				}
 #endif
 				supplicant_main_exit();
 				wpa_hostapd_release_scan_rst();

@@ -628,14 +628,26 @@ int demo_p2p_app_deinit(void)
 				  msg.dmsg == WIFI_LINKSTATE_STA_CONNECT_FAILED) && status == 1) {
 			sta_ip_down();
 
-			// Get saved SSID before disable
+			// Check if P2P is still enabled before auto-reconnecting
+			// If user manually called bk_wifi_p2p_disable(), skip auto-reconnect
+			if (!bk_wifi_is_p2p_enabled()) {
+				WIFI_LOGW("%s: P2P already disabled, skip auto-reconnect\n", __func__);
+				status = 0;
+				continue;
+			}
+
+			// Get saved SSID before disable (for auto-reconnect)
 			const char *saved_name = bk_wifi_get_p2p_dev_name();
 			bk_wifi_p2p_disable();
 			extern void sys_msleep(u32_t ms);
 			sys_msleep(2000);
 
-			bk_wifi_p2p_enable(saved_name);
-			bk_wifi_p2p_find();
+			// Only re-enable if P2P was not manually disabled during the wait
+			// This handles the case where user calls disable during auto-reconnect
+			if (saved_name) {
+				bk_wifi_p2p_enable(saved_name);
+				bk_wifi_p2p_find();
+			}
 			status = 0;
 		}
 	}
