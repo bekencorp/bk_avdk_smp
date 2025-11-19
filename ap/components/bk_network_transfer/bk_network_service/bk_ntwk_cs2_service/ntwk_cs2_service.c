@@ -62,25 +62,86 @@ static void throughput_anlayse_timer_hdl(void *param)
 
 }
 
-
 void ntwk_cs2_video_timer_deinit(void)
 {
-    if (ntwk_cs2_info)
+    bk_err_t t_err;
+
+    if (!ntwk_cs2_info)
     {
-        rtos_lock_mutex(&ntwk_cs2_info->mutex);
+        return;
+    }
 
-        if (rtos_is_timer_init(&s_throughput_timer))
+    rtos_lock_mutex(&ntwk_cs2_info->mutex);
+
+    if (rtos_is_timer_init(&s_throughput_timer))
+    {
+        if (rtos_is_timer_running(&s_throughput_timer))
         {
-            if (rtos_is_timer_running(&s_throughput_timer))
-            {
-                rtos_stop_timer(&s_throughput_timer);
-            }
+            t_err = rtos_stop_timer(&s_throughput_timer);
 
-            rtos_deinit_timer(&s_throughput_timer);
+            if (t_err != BK_OK)
+            {
+                LOGE("stop throughput timer fail\n");
+                rtos_unlock_mutex(&ntwk_cs2_info->mutex);
+                return ;
+            }
         }
 
-        rtos_unlock_mutex(&ntwk_cs2_info->mutex);
+        t_err = rtos_deinit_timer(&s_throughput_timer);
+        if (t_err != BK_OK)
+        {
+            LOGE("deinit throughput timer fail\n");
+            rtos_unlock_mutex(&ntwk_cs2_info->mutex);
+            return ;
+        }
     }
+
+    rtos_unlock_mutex(&ntwk_cs2_info->mutex);
+}
+
+bk_err_t ntwk_cs2_video_timer_init(void)
+{
+    bk_err_t t_err;
+
+    rtos_lock_mutex(&ntwk_cs2_info->mutex);
+    if (rtos_is_timer_init(&s_throughput_timer))
+    {
+        rtos_unlock_mutex(&ntwk_cs2_info->mutex);
+        return BK_OK;
+    }
+
+    t_err = rtos_init_timer(&s_throughput_timer, THROUGHPUT_ANLAYSE_MS, throughput_anlayse_timer_hdl, NULL);
+
+    if (t_err != BK_OK)
+    {
+        LOGE("init throughput timer fail\n");
+        goto timer_err;
+    }
+
+    t_err = rtos_change_period(&s_throughput_timer, THROUGHPUT_ANLAYSE_MS);
+    if (t_err != BK_OK)
+    {
+        LOGE("change throughput timer period fail\n");
+        goto timer_err;
+    }
+
+    t_err = rtos_start_timer(&s_throughput_timer);
+    if (t_err != BK_OK)
+    {
+        LOGE("start throughput timer fail\n");
+        goto timer_err;
+    }
+
+    rtos_unlock_mutex(&ntwk_cs2_info->mutex);
+
+    return BK_OK;
+
+timer_err:
+
+    rtos_unlock_mutex(&ntwk_cs2_info->mutex);
+    ntwk_cs2_video_timer_deinit();
+
+    return BK_FAIL;
 }
 #endif
 
@@ -205,7 +266,9 @@ int ntwk_cs2_video_send_packet(uint8_t *data, uint32_t length, image_format_t vi
     uint32_t index = 0;
     uint8_t *ptr = data;
     uint16_t size = length;
-
+#if THROUGHPUT_DEBUG
+    uint32_t start_time = 0;
+#endif
 
     if (!ntwk_cs2_info->video_status)
     {
@@ -220,16 +283,9 @@ int ntwk_cs2_video_send_packet(uint8_t *data, uint32_t length, image_format_t vi
     }
 
 #if THROUGHPUT_DEBUG
-    if (!rtos_is_timer_init(&s_throughput_timer))
-    {
-        //        rtos_init_timer(&bt_a2dp_source_write_timer, inter, bt_a2dp_source_write_from_file_timer_hdl, (void *)&pcm_file_fd);
-        rtos_init_timer(&s_throughput_timer, THROUGHPUT_ANLAYSE_MS, throughput_anlayse_timer_hdl, NULL);
-
-        rtos_change_period(&s_throughput_timer, THROUGHPUT_ANLAYSE_MS);
-        rtos_start_timer(&s_throughput_timer);
+    if (rtos_is_timer_running(&s_throughput_timer)) {
+        start_time = rtos_get_time();
     }
-
-    uint32_t start_time = rtos_get_time();
 #endif
 
     do
@@ -253,7 +309,9 @@ int ntwk_cs2_video_send_packet(uint8_t *data, uint32_t length, image_format_t vi
         if (index < size)
         {
 #if THROUGHPUT_DEBUG
-            s_delay_count++;
+           if (rtos_is_timer_running(&s_throughput_timer)) {
+                s_delay_count++;
+           }
 #endif
             //LOGD("%s delay %d, %d\n", __func__, index, size);
             rtos_delay_milliseconds(CS2_P2P_TRANSFER_DELAY);
@@ -265,9 +323,11 @@ int ntwk_cs2_video_send_packet(uint8_t *data, uint32_t length, image_format_t vi
     uint32_t end_time = rtos_get_time();
 
     //LOGE("send: %d, %d\n", index, length);
-    s_send_video_count++;
-    s_send_video_bytes += size;
-    s_send_time += end_time - start_time;
+    if (rtos_is_timer_running(&s_throughput_timer)) {
+        s_send_video_count++;
+        s_send_video_bytes += size;
+        s_send_time += end_time - start_time;
+    }
 #endif
 
     return index;
@@ -602,7 +662,7 @@ static int ntwk_cs2_p2p_interface_core(p2p_cs2_key_t *key)
         if (0 <= session)
         {
             BK_LOGD("p2p", "%s listen Sid %d\n", __func__, s_current_sessionid);
-
+            ntwk_cs2_video_timer_init();
             ntwk_cs2_info->device_connected = BK_TRUE;
 
             ntwk_cs2_info->video_status = BK_TRUE;
