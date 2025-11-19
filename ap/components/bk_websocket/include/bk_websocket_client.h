@@ -91,7 +91,7 @@ typedef struct {
 
 typedef struct {
 	const char					*uri;
-//	  bool						  disable_auto_reconnect;
+	bool						enable_auto_reconnect;
 	int							rx_retry;
 	void						*user_context;
 	int							buffer_size;
