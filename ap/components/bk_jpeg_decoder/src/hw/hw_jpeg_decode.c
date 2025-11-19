@@ -479,6 +479,7 @@ bk_err_t hw_jpeg_decode_init(bk_jpeg_decode_callback_t *decode_cbs)
         LOGE("%s %d g_hw_jpeg_decode malloc failed\n", __func__, __LINE__); 
         return BK_ERR_NO_MEM;
     }
+    os_memset(g_hw_jpeg_decode, 0, sizeof(bk_hw_jpeg_decode_t));
 
     g_hw_jpeg_decode->decode_cbs = decode_cbs;
 
