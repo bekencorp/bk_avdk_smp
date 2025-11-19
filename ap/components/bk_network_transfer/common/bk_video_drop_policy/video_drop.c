@@ -255,11 +255,12 @@ bool ntwk_video_h264_drop_level_check(uint32_t pre_size, UINT32 WriteSize, bool 
 
 bool ntwk_video_h264_drop_check(frame_buffer_t *frame)
 {
+    static bool drop_other_gop_frame = false;
+#ifdef CONFIG_H264
     int Check_wsize = 0;
 
     uint32_t WriteSize = 0;
     bool is_NAL_I_frame = false;
-    static bool drop_other_gop_frame = false;
     uint32_t pre_size = 0;
 
     if (s_h264_drop_info == NULL ||  s_h264_drop_info->buffer_thd == 0)
@@ -334,7 +335,7 @@ bool ntwk_video_h264_drop_check(frame_buffer_t *frame)
 
     pre_size = frame->length;
     drop_other_gop_frame = ntwk_video_h264_drop_level_check(pre_size, WriteSize, is_NAL_I_frame);
-
+#endif
     return drop_other_gop_frame;
 
 }

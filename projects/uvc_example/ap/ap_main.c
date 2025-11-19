@@ -11,6 +11,8 @@ int main(void)
 {
     bk_init();
     media_service_init();
+#ifdef CONFIG_UVC_CAMERA
     cli_uvc_test_init();
+#endif
     return 0;
 }

@@ -11,6 +11,8 @@ int main(void)
 {
     bk_init();
     media_service_init();
+#ifdef CONFIG_DVP_CAMERA
     cli_dvp_test_init();
+#endif
     return 0;
 }

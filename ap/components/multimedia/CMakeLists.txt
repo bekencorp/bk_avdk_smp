@@ -15,8 +15,14 @@ if (CONFIG_MEDIA_PIPELINE)
 		pipeline/uvc_pipeline_act.c
 		pipeline/jpeg_decode_list.c
 		pipeline/jpeg_get_pipeline.c
+	)
+
+if (CONFIG_H264)
+	list(APPEND srcs
 		pipeline/h264_encode_pipeline.c
 	)
+endif()
+
 endif() #CONFIG_MEDIA_PIPELINE
 
 endif() #CONFIG_MEDIA

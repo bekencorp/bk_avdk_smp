@@ -245,13 +245,25 @@ static bk_err_t dvp_camera_dma_config(dvp_driver_handle_t *handle)
 
     if (config->img_format & IMAGE_H264)
     {
+#ifdef CONFIG_H264
         bk_h264_get_fifo_addr(&encode_fifo_addr);
         handle->dma_channel = bk_fixed_dma_alloc(DMA_DEV_H264, DMA_ID_8);
+#else
+        ret = BK_FAIL;
+        LOGE("h264 dma config failed\n");
+        return ret;
+#endif
     }
     else if (config->img_format & IMAGE_MJPEG)
     {
+#ifdef CONFIG_JPEGENC_HW
         bk_jpeg_enc_get_fifo_addr(&encode_fifo_addr);
         handle->dma_channel = bk_fixed_dma_alloc(DMA_DEV_JPEG, DMA_ID_8);
+#else
+        ret = BK_FAIL;
+        LOGE("jpeg dma config failed\n");
+        return ret;
+#endif
     }
 
     LOGV("dvp_dma id:%d \r\n", handle->dma_channel);
@@ -379,9 +391,13 @@ static bk_err_t dvp_camera_deinit(dvp_driver_handle_t *handle)
     if (handle->sensor)
     {
         bk_yuv_buf_deinit();
+#ifdef CONFIG_H264
         bk_h264_encode_disable();
         bk_h264_deinit();
+#endif
+#ifdef CONFIG_JPEGENC_HW
         bk_jpeg_enc_deinit();
+#endif
         handle->sensor = NULL;
     }
 
@@ -533,19 +549,22 @@ static void dvp_camera_reset_hardware_modules_handler(dvp_driver_handle_t *handl
 {
     bk_dvp_config_t *config = handle->config;
 
+#ifdef CONFIG_JPEGENC_HW
     if (config->img_format & IMAGE_MJPEG)
     {
         bk_jpeg_enc_soft_reset();
         bk_yuv_buf_start(JPEG_MODE);
     }
+#endif
 
+#ifdef CONFIG_H264
     if (config->img_format & IMAGE_H264)
     {
         bk_h264_config_reset();
         bk_yuv_buf_start(H264_MODE);
         bk_h264_encode_enable();
     }
-
+#endif
     bk_yuv_buf_soft_reset();
 
     handle->yuv_config.yuv_data_offset = 0;
@@ -691,13 +710,14 @@ static void dvp_camera_vsync_negedge_handler(yuv_buf_unit_t id, void *param)
         DVP_RESET_OUT();
     }
 
+#ifdef CONFIG_H264
     if (handle->regenerate_idr)
     {
         handle->sequence = 0;
         bk_h264_soft_reset();
         handle->regenerate_idr = false;
     }
-
+#endif
     DVP_VSYNC_OUT();
 }
 
@@ -1118,7 +1138,8 @@ out:
 
 static bk_err_t dvp_camera_jpeg_config_init(dvp_driver_handle_t *handle)
 {
-    int ret = BK_OK;
+    int ret = BK_FAIL;
+#ifdef CONFIG_JPEGENC_HW
     jpeg_config_t jpeg_config = {0};
     bk_dvp_config_t *config = handle->config;
     const dvp_sensor_config_t *sensor = handle->sensor;
@@ -1160,6 +1181,7 @@ static bk_err_t dvp_camera_jpeg_config_init(dvp_driver_handle_t *handle)
         LOGE("jpeg init error\n");
     }
 
+#endif
     return ret;
 }
 
@@ -1342,9 +1364,14 @@ static bk_err_t dvp_camera_h264_mode(dvp_driver_handle_t *handle)
         return ret;
     }
 
+#ifdef CONFIG_H264
     ret = bk_h264_init(config->width, config->height);
+#else
+    ret = BK_FAIL;
+#endif
     if (ret != BK_OK)
     {
+        LOGE("h264 init failed\n");
         return ret;
     }
 
@@ -1405,13 +1432,17 @@ static void dvp_camera_register_isr_function(dvp_driver_handle_t *handle)
 
         case IMAGE_MJPEG:
         case (IMAGE_MJPEG | IMAGE_YUV):
+#ifdef CONFIG_JPEGENC_HW
             bk_jpeg_enc_register_isr(JPEG_EOF, dvp_camera_jpeg_eof_handler, (void *)handle);
             bk_jpeg_enc_register_isr(JPEG_FRAME_ERR, dvp_camera_sensor_ppi_err_handler, (void *)handle);
+#endif
             break;
 
         case IMAGE_H264:
         case (IMAGE_H264 | IMAGE_YUV):
+#ifdef CONFIG_H264
             bk_h264_register_isr(H264_FINAL_OUT, dvp_camera_h264_eof_handler, (void *)handle);
+#endif
             break;
 
         default:
@@ -1633,7 +1664,9 @@ bk_err_t bk_dvp_open(camera_handle_t *handle, bk_dvp_config_t *cfg, const bk_dvp
     else if (dvp_handle->config->img_format & IMAGE_H264)
     {
         bk_yuv_buf_start(H264_MODE);
+#ifdef CONFIG_H264
         bk_h264_encode_enable();
+#endif
     }
 
     s_dvp_dma_length = 0;
@@ -1684,6 +1717,7 @@ out:
 bk_err_t bk_dvp_h264_idr_reset(camera_handle_t handle)
 {
     bk_err_t ret = BK_FAIL;
+#ifdef CONFIG_H264
     dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)handle;
     if (dvp_handle && dvp_handle->config->img_format & IMAGE_H264)
     {
@@ -1694,7 +1728,7 @@ bk_err_t bk_dvp_h264_idr_reset(camera_handle_t handle)
     {
         LOGW("%s, not enable h264 func...\n", __func__);
     }
-
+#endif
     return ret;
 }
 

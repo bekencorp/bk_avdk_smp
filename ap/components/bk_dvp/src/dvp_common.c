@@ -16,7 +16,6 @@
 #include "sys_driver.h"
 #include "gpio_driver.h"
 
-//#include <driver/yuv_buf_types.h>
 #include <components/dvp_camera_types.h>
 
 #define TAG "dvp_common"

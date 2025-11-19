@@ -478,7 +478,7 @@ static bk_err_t h264_encode_frame_complete_callback(void *param, void *args)
 
 static bk_err_t start_encode_h264e(frame_buffer_t *out_frame)
 {
-	bk_err_t ret = BK_OK;
+	bk_err_t ret = BK_FAIL;
 	pipeline_encode_request_t jdec_pipeline_info = {0};
 	jdec_config->h264e_complex_buffer.frame_buffer = out_frame;
 	jdec_pipeline_info.buffer = &jdec_config->h264e_complex_buffer;
@@ -489,7 +489,9 @@ static bk_err_t start_encode_h264e(frame_buffer_t *out_frame)
 	jdec_pipeline_info.buffer->index = 1;
 	jdec_config->frame_to_h264e_frame = out_frame;
 	jdec_config->h264_encode_status = H264E_STATE_ENCODING;
+#ifdef CONFIG_H264
 	ret  = bk_h264_encode_request(&jdec_pipeline_info, &h264_encode_frame_complete_callback, jdec_config);
+#endif
 	if (ret != BK_OK)
 	{
 		LOGE("%s %d h264_encode_request error\r\n", __func__, __LINE__);
@@ -503,7 +505,6 @@ static bk_err_t start_encode_h264e(frame_buffer_t *out_frame)
 
 bk_err_t jpeg_software_decode_out_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame)
 {
-	bk_err_t ret = BK_OK;
 	if (result != BK_OK)
 	{
 		if (jdec_config->decode_cbs->complete)
@@ -515,6 +516,8 @@ bk_err_t jpeg_software_decode_out_complete(uint32_t format_type, uint32_t result
 
 	media_debug->isr_decoder++;
 
+#ifdef CONFIG_H264
+	bk_err_t ret = BK_FAIL;
 	if (check_h264_task_is_open())
 	{
 		if (jdec_config->h264_encode_status == H264E_STATE_ENCODING)
@@ -535,6 +538,7 @@ bk_err_t jpeg_software_decode_out_complete(uint32_t format_type, uint32_t result
 		start_encode_h264e(out_frame);
 	}
 	else
+#endif
 	{
 		if (jdec_config->decode_cbs->complete)
 		{

@@ -1,7 +1,12 @@
 set(incs . uvc_test/include)
-set(srcs ap_main.c
-    uvc_test/src/uvc_main.c
-    uvc_test/src/uvc_common.c)
+set(srcs ap_main.c)
+
+if (CONFIG_UVC_CAMERA)
+    list(APPEND srcs
+        uvc_test/src/uvc_main.c
+        uvc_test/src/uvc_common.c
+    )
+endif()
 
 set(priv_req  media_service bk_camera bk_cli)
 

@@ -45,7 +45,7 @@ bk_err_t init_encoder_buffer(void)
 	if (mux_sram_decode_buffer != NULL)
 	{
 		LOGE("%s %d mux_sram_decode_buffer is already init\n", __func__, __LINE__);
-		return BK_FAIL;
+		return BK_OK;
 	}
 	uint8_t *buf = media_bt_share_buffer;
 	if(buf == NULL)
@@ -71,7 +71,7 @@ bk_err_t init_rotate_buffer(void)
 	if (mux_sram_rotate_buffer != NULL)
 	{
 		LOGE("%s %d mux_sram_rotate_buffer is already init\n", __func__, __LINE__);
-		return BK_FAIL;
+		return BK_OK;
 	}
 	uint8_t *buf = media_bt_share_buffer;
 	if(buf == NULL)
@@ -97,7 +97,7 @@ bk_err_t init_scale_buffer(void)
 	if (mux_sram_scale_buffer != NULL)
 	{
 		LOGE("%s %d mux_sram_scale_buffer is already init\n", __func__, __LINE__);
-		return BK_FAIL;
+		return BK_OK;
 	}
 	uint8_t *buf = media_bt_share_buffer;
 	if(buf == NULL)
@@ -142,7 +142,8 @@ static media_rotate_t get_rotate_angle(uint32_t rotate)
 
 bk_err_t h264_jdec_pipeline_regenerate_idr_frame(void)
 {
-	int ret = BK_OK;
+	int ret = BK_FAIL;
+#ifdef CONFIG_H264
 	if (check_h264_task_is_open())
 	{
 		ret = h264_encode_regenerate_idr_frame();
@@ -151,6 +152,7 @@ bk_err_t h264_jdec_pipeline_regenerate_idr_frame(void)
 			LOGE("%s %d h264_encode_regenerate_idr_frame fail\n", __func__, __LINE__);
 		}
 	}
+#endif
 	return ret;
 }
 
@@ -158,6 +160,8 @@ bk_err_t h264_jdec_pipeline_open(bk_video_pipeline_h264e_config_t *config, const
 	 				const jpeg_callback_t *jpeg_cbs, const decode_callback_t *decode_cbs)
 {
 	int ret = BK_FAIL;
+
+#ifdef CONFIG_H264
 
 	uvc_pipeline_init();
 
@@ -202,11 +206,13 @@ error:
 	{
 		jpeg_decode_task_close();
 	}
-	return BK_FAIL;
+#endif
+	return ret;
 }
 
 bk_err_t h264_jdec_pipeline_close(void)
 {
+#ifdef CONFIG_H264
 	LOGV("%s %d\n", __func__, __LINE__);
 
 	if (check_rotate_task_is_open())
@@ -224,7 +230,7 @@ bk_err_t h264_jdec_pipeline_close(void)
 		LOGV("%s decode task close complete \n", __func__);
 	}
 	LOGD("%s complete, %d \n", __func__, __LINE__);
-
+#endif
 	return BK_OK;
 }
 
@@ -292,18 +298,19 @@ bk_err_t lcd_jdec_pipeline_open(bk_video_pipeline_decode_config_t *config,
 error:
 	LOGD("%s fail\n", __func__, __LINE__);
 	rotate_task_close();
-
+#ifdef CONFIG_H264
 	if (check_h264_task_is_open() == false)
 	{
 		jpeg_decode_task_close();
 	}
+#endif
 	return BK_FAIL;
 }
 
 bk_err_t lcd_jdec_pipeline_close(void)
 {
 	int ret = BK_OK;
-
+#ifdef CONFIG_H264
 	LOGV("%s %d\n", __func__, __LINE__);
 
 	if (check_h264_task_is_open())
@@ -320,6 +327,7 @@ bk_err_t lcd_jdec_pipeline_close(void)
 #endif
 	}
 	else
+#endif
 	{
 #if SUPPORTED_IMAGE_MAX_720P
 		LOGV("%s deregister scale, %d \n", __func__, __LINE__);
@@ -362,7 +370,9 @@ bk_err_t uvc_pipeline_init(void)
 
 	bk_rotate_pipeline_init();
 
+#ifdef CONFIG_H264
 	bk_h264_pipeline_init();
+#endif
 
 	pipeline_init = true;
 

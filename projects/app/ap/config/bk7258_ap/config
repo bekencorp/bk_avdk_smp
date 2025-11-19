@@ -126,6 +126,13 @@ CONFIG_AUD_PARAM_CTRL=y
 # end of Adk
 
 #
+# Bk_audio_player
+#
+# CONFIG_AUDIO_PLAYER is not set
+# CONFIG_AUDIO_PLAYER_PA_MUTE_EN is not set
+# end of Bk_audio_player
+
+#
 # bk_bat_monitor
 #
 # CONFIG_BAT_MONITOR is not set
@@ -189,7 +196,6 @@ CONFIG_DYM_LOG_MEM_MAX=0x10000
 # CONFIG_PSRAM_TEST is not set
 CONFIG_INTERRUPT_TEST=y
 CONFIG_AON_PMU_TEST=y
-CONFIG_SDMADC_TEST=y
 # CONFIG_PM_TEST is not set
 # CONFIG_PUF_TEST is not set
 CONFIG_ICU=y
@@ -294,6 +300,15 @@ CONFIG_NETIF_LWIP=y
 #
 # CONFIG_BK_NETWORK_PROVISIONING is not set
 # end of Beken Components Network Provisioning
+
+#
+# Bk Network Transfer
+#
+CONFIG_BK_NTWK_TRANSFER=y
+# CONFIG_MEDIA_DROP_STRATEGY_ENABLE is not set
+CONFIG_DATA_NODE_SIZE=1472
+CONFIG_DATA_POOL_LEN=51520
+# end of Bk Network Transfer
 
 #
 # bk_nfc
@@ -753,7 +768,6 @@ CONFIG_LITTLEFS_NO_CONFIG_PARTITION=y
 #
 # LVGL
 #
-# CONFIG_LVGL_SRAM_MAPPING is not set
 # CONFIG_LVGL is not set
 # CONFIG_LV_COLOR_SCREEN_TRANSP is not set
 # CONFIG_LV_USE_FREETYPE is not set
@@ -778,7 +792,6 @@ CONFIG_LITTLEFS_NO_CONFIG_PARTITION=y
 # CONFIG_LV_FONT_MONTSERRAT_46 is not set
 # CONFIG_LV_FONT_MONTSERRAT_48 is not set
 # CONFIG_LV_USE_PERF_MONITOR is not set
-# CONFIG_LV_ATTRIBUTE_FAST_MEM is not set
 # end of LVGL
 
 #
@@ -820,7 +833,6 @@ CONFIG_LWIP_NETBUF_RECVINFO=y
 # CONFIG_ICMP_ERR_RATELIMIT is not set
 CONFIG_ICMP_ERR_RATE_THRESHOLD=10
 # CONFIG_LWIP_HW_IP_CHECKSUM is not set
-CONFIG_LWIP_MEM_DEFAULT=y
 # end of Modify Lwip Config
 
 #
@@ -938,7 +950,6 @@ CONFIG_USE_CONV_UTF8=y
 #
 # Wifi Transfer
 #
-# CONFIG_MEDIA_DROP_STRATEGY_ENABLE is not set
 # end of Wifi Transfer
 
 #
@@ -946,6 +957,12 @@ CONFIG_USE_CONV_UTF8=y
 #
 # CONFIG_VOLC_RTC_EN is not set
 # end of VolcEngineRTCLite
+
+#
+# Bk_thirdparty::agora-iot-sdk
+#
+# CONFIG_AGORA_IOT_SDK is not set
+# end of Bk_thirdparty::agora-iot-sdk
 
 #
 # cs2p2p
@@ -1158,6 +1175,10 @@ CONFIG_USR_GPIO_CFG_EN=y
 # CONFIG_GPIO_DUMP_MAP_DEV_DEBUG is not set
 CONFIG_LDO3V3_CTRL_GPIO=13
 # CONFIG_GPIO_API_TEST is not set
+CONFIG_SIM_I2C0_SDA_GPIO=1
+CONFIG_SIM_I2C0_SCL_GPIO=0
+CONFIG_SIM_I2C1_SDA_GPIO=5
+CONFIG_SIM_I2C1_SCL_GPIO=8
 # end of GPIO
 
 #
