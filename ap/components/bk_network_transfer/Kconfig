@@ -1,0 +1,28 @@
+menu "Bk Network Transfer"
+
+	config BK_NTWK_TRANSFER
+		bool "Enable BK Network Transfer"
+		default y
+		help
+			Enable BK Network Transfer
+
+	config MEDIA_DROP_STRATEGY_ENABLE
+		bool "Enable Media Drop Strategy"
+		default y
+		help
+			Enable media drop strategy
+
+	config DATA_NODE_SIZE
+		int "Video RX Node Size"
+		default 1472
+		help
+			Video receive node size in bytes
+
+	config DATA_POOL_LEN
+		int "Video Pool Length"
+		default 51520
+		help
+			Video pool length in bytes (default: 1472 * 35 = 51520)
+
+
+endmenu
