@@ -26,6 +26,7 @@ extern "C" {
 #else
 #define __agora_api__
 #endif
+
 #define AGORA_RTC_CHANNEL_NAME_MAX_LEN (64)
 #define AGORA_RTC_PRODUCT_ID_MAX_LEN (63)
 #define AGORA_RTC_USER_ACCOUNT_MAX_LEN (256)
@@ -1167,6 +1168,22 @@ extern __agora_api__ int agora_rtc_request_video_key_frame(connection_id_t conn_
  */
 extern __agora_api__ int agora_rtc_send_audio_data(connection_id_t conn_id, const void *data_ptr, size_t data_len,
                                                    audio_frame_info_t *info_ptr);
+
+/**
+ * @brief Send an audio frame to all channels OR specific channel with reference data for downlink 3A.
+ *        All remote users in this channel will receive the audio frame.
+ * @note Must be PCM audio data, sdk will perform 3A processing internally
+ *        before conducting the encoding and transmission.
+ * @param[in] conn_id   Connection identification
+ * @param[in] pcm_mic   Audio frame buffer ADC from microphone
+ * @param[in] pcm_ref   Audio frame buffer ADC from reference
+ * @param[in] pcm_len   Audio frame date length, must be equal with MIC and REF. 
+ * @return
+ * - = 0: Success
+ * - < 0: Failure
+ */
+extern __agora_api__ int agora_rtc_send_mic_with_ref_audio_data(connection_id_t conn_id, const void *pcm_mic,
+                                                                const void *pcm_ref, size_t pcm_len);
 
 /**
  * @brief Send a video frame to all channels OR specific channel.
