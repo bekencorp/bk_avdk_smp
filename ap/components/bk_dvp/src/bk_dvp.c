@@ -558,6 +558,7 @@ static void dvp_camera_reset_hardware_modules_handler(dvp_driver_handle_t *handl
         bk_h264_encode_enable();
     }
 #endif
+
     bk_yuv_buf_soft_reset();
 
     handle->yuv_config.yuv_data_offset = 0;
@@ -1462,6 +1463,7 @@ static void dvp_sensor_reset(uint8_t pwdn_pin, uint8_t reset_pin)
     if (pwdn_pin != 0xFF)
     {
         gpio_dev_unmap(pwdn_pin);
+        bk_gpio_enable_output(pwdn_pin);
         bk_gpio_set_output_high(pwdn_pin);
         bk_gpio_set_output_low(pwdn_pin);
         rtos_delay_milliseconds(10);
@@ -1471,6 +1473,7 @@ static void dvp_sensor_reset(uint8_t pwdn_pin, uint8_t reset_pin)
     if (reset_pin != 0xFF)
     {
         gpio_dev_unmap(reset_pin);
+        bk_gpio_enable_output(reset_pin);
         bk_gpio_set_output_low(reset_pin);
         bk_gpio_set_output_high(reset_pin);
         rtos_delay_milliseconds(10);
