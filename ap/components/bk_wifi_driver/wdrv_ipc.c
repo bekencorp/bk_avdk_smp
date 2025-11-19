@@ -107,8 +107,6 @@ bk_err_t wdrv_ipc_init()
         return ret;
     }
 
-    wdrv_cli_init();
-
     return ret;
 }
 

@@ -247,33 +247,45 @@ int cli_hexstr2bin(const char *hex, u8 *buf, size_t len)
 #define WDRV_CMD_CNT (sizeof(s_wdrv_commands) / sizeof(struct cli_command))
 static void wdrv_cmd_help(void)
 {
-    printf("wdrv <arg1> <arg2> <arg3> <arg4>\r\n");
-    printf("--------------WLAN COMMAND---------------------------------\r\n");
-    printf("wdrv scan_wifi                                 - scan AP\r\n");
-    printf("wdrv connect [ssid] [password]                 - connect with AP\r\n");
-    printf("wdrv disconnect                                - disconnect with ap\r\n");
-    printf("wdrv start_ap [ssid] [password]                - start SoftAP\r\n");
-    printf("wdrv stop_ap                                   - stop softAP\r\n");
-    printf("wdrv get_wlan_stat                             - get wlan status\r\n");
-    printf("wdrv wifi_mmd [enable]                         - config Wi-Fi multimedia mode\r\n");
-    printf("wdrv set_netinfo [ip] [mask] [gw] [dns]        - config net info\r\n");
-    printf("wdrv set_ar [ar_en]                            - config auto reconnect\r\n");
-    printf("--------------BLE COMMAND----------------------------------\r\n");
-    printf("wdrv open_ble                                  - open ble\r\n");
-    printf("wdrv close ble                                 - close ble\r\n");
-    printf("--------------SYSTEM COMMAND-------------------------------\r\n");
-    printf("wdrv set_mac [mac]                             - set mac addr(set_mac 112233aabbcc)\r\n");
-    printf("wdrv get_mac                                   - get mac addr\r\n");
-    printf("wdrv enter_sleep                               - ask controller goto sleep\r\n");
-    printf("wdrv exit_sleep                                - ask controller exit sleep\r\n");
-    printf("wdrv send_at [AT string]                       - send AT command\r\n");
-    printf("wdrv keepalive_cfg [ip] [port]                 - start keepalive demo\r\n");
-    printf("wdrv set_time [time]                           - set time\r\n");
-    printf("wdrv get_time                                  - get time\r\n");
-    printf("wdrv cust [data string]                        - start customer demo\r\n");
-    printf("wdrv start_ota                                 - notify controller to START OTA\r\n");
-    printf("wdrv send_ota_pkt [offset] [size] [finish]     - send demo OTA packet\r\n");
-    printf("wdrv stop_ota                                  - notify controller to STOP OTA\r\n");
+    printf("Usage: wdrv <command> [args...]\r\n");
+    printf("-------------------- WLAN -----------------------------\r\n");
+    printf("wdrv scan_wifi                                   - Scan nearby access points\r\n");
+    printf("wdrv connect <ssid> [password]                   - Connect to access point\r\n");
+    printf("wdrv sta <ssid> [password]                       - Start STA demo and connect\r\n");
+    printf("wdrv stop_sta                                    - Stop STA mode\r\n");
+    printf("wdrv get_config                                  - Show current STA configuration\r\n");
+    printf("wdrv get_mac                                     - Show MAC addresses\r\n");
+    printf("wdrv set_mac <mac(hex)>                          - Set base MAC address\r\n");
+    printf("wdrv ip                                          - Display IP information\r\n");
+    printf("wdrv ping <host> [count]                         - Ping remote host\r\n");
+    printf("wdrv scan [ssid]                                 - Start scan (optional SSID filter)\r\n");
+    printf("wdrv stop_scan                                   - Stop ongoing scan\r\n");
+    printf("wdrv scan_result                                 - Print scan results\r\n");
+    printf("wdrv stats                                       - Dump driver statistics\r\n");
+    printf("wdrv m_mode <mode>                               - Set media mode\r\n");
+    printf("wdrv m_quality <level>                           - Set video quality level\r\n");
+#if CONFIG_WIFI_SOFTAP
+    printf("------------------- SOFTAP ----------------------------\r\n");
+    printf("wdrv start_ap <ssid> [password] [channel]        - Start SoftAP\r\n");
+    printf("wdrv stop_ap                                     - Stop SoftAP\r\n");
+    printf("wdrv start_hidden_softap <ssid> [password] [ch]  - Start hidden SoftAP\r\n");
+#endif
+#if CONFIG_BRIDGE
+    printf("------------------- BRIDGE ---------------------------\r\n");
+    printf("wdrv bridge_open <ssid> [password]              - Start Wi-Fi bridge\r\n");
+    printf("wdrv bridge_close                               - Stop Wi-Fi bridge\r\n");
+#endif
+#if CONFIG_P2P
+    printf("--------------------- P2P ------------------------------\r\n");
+    printf("wdrv p2p_enable [ssid]                          - Enable P2P mode\r\n");
+    printf("wdrv p2p_find                                   - Discover P2P peers\r\n");
+    printf("wdrv p2p_listen                                 - Enter P2P listen state\r\n");
+    printf("wdrv p2p_stop_find                              - Stop P2P discovery\r\n");
+    printf("wdrv p2p_connect <peer_mac> <method> <go_intent>- Connect to P2P peer\r\n");
+    printf("wdrv p2p_cancel                                 - Cancel P2P operation\r\n");
+#endif
+    printf("------------------ OTHERS ------------------------------\r\n");
+    printf("wdrv filter                                     - Register Wi-Fi filter callback\r\n");
 }
 static int wifi_filter_cb(const uint8_t *data, uint32_t len, const wifi_frame_info_t *frame_info)
 {
