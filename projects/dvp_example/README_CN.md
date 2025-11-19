@@ -4,7 +4,7 @@
 
 ## 1. 工程概述
 
-本工程是一个DVP示例工程，用于实现DVP设备功能。该模块提供CLI测试命令，通过发送命令可以实现打开和关闭DVP，获取实时DVP输出的图像。DVP输出的格式是YUV422，但是此工程不仅可以输出YUV422，还支持输出编码后的数据MJPEG，或H.264，但是不能同时输出两种编码数据。
+本工程是一个DVP示例工程，用于实现DVP设备功能。该模块提供CLI测试命令，通过发送命令可以实现打开和关闭DVP，获取实时DVP输出的图像。DVP输出的格式是YUV422，但是此工程不仅可以输出YUV422，还支持输出编码后的数据MJPEG，或H.264，但是不能同时输出两种编码数据。另外还举例如何适配新的DVP sensor，参考dvp_gc0001_test.c的添加方式。
 
 * 有关DVP使用方法的详细说明，请参考如下链接：
 
@@ -13,6 +13,11 @@
 * 有关DVP API和数据结构的详细说明，请参考如下链接：
 
   - [DVP API](../../../api-reference/multimedia/bk_camera.html)
+
+
+* 有关如何添加支持新的DVP sensor，请参考当前工程，或者如下链接：
+
+  - [DVP ADD](../../../developer-guide/camera/dvp.html)
 
 ### 1.1 测试环境
 
@@ -55,6 +60,7 @@ dvp_example/
 │           ├── dvp_api_test.c  # DVP API测试代码
 │           ├── dvp_frame_list.c # DVP帧列表管理实现
 │           ├── dvp_func_test.c # DVP功能测试代码
+│           ├── dvp_gc0001_test.c # GC0001传感器测试代码
 │           └── dvp_main.c      # DVP测试主程序
 ├── app.rst               # 应用说明文档
 ├── cp/                   # CP端代码目录

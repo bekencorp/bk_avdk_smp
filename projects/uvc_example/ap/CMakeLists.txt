@@ -1,7 +1,7 @@
 set(incs . uvc_test/include)
 set(srcs ap_main.c)
 
-if (CONFIG_UVC_CAMERA)
+if (CONFIG_USB_CAMERA)
     list(APPEND srcs
         uvc_test/src/uvc_main.c
         uvc_test/src/uvc_common.c

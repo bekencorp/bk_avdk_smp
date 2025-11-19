@@ -4,7 +4,7 @@
 
 ## 1. Project Overview
 
-This Project is a DVP Sample Project, which is used to implement DVP device function. This module provides CLI test commands, through which commands can be sent to open and close DVP, and real-time DVP output images can be obtained. The format of DVP output is YUV422, but this project not only supports YUV422 output, but also supports output of encoded data MJPEG or H.264, but cannot output both encoding data at the same time.
+This Project is a DVP Sample Project, which is used to implement DVP device function. This module provides CLI test commands, through which commands can be sent to open and close DVP, and real-time DVP output images can be obtained. The format of DVP output is YUV422, but this project not only supports YUV422 output, but also supports output of encoded data MJPEG or H.264, but cannot output both encoding data at the same time. In addition, it demonstrates how to adapt a new DVP sensor; refer to the integration approach shown in `dvp_gc0001_test.c`.
 
 * For detailed instructions on how to use DVP, please refer to the following link:
 
@@ -13,6 +13,10 @@ This Project is a DVP Sample Project, which is used to implement DVP device func
 * For detailed descriptions of DVP API and data structures, please refer to the following link:
 
   - [DVP API](../../../api-reference/multimedia/bk_camera.html)
+
+ * For guidance on adding support for a new DVP sensor, refer to this sample project or the following link:
+
+ - [DVP Add New](../../../developer-guide/camera/dvp.html)
 
 ### 1.1 Test Environment
 
@@ -56,6 +60,7 @@ dvp_example/
 │           ├── dvp_api_test.c  # DVP API test code
 │           ├── dvp_frame_list.c # DVP frame list management implementation
 │           ├── dvp_func_test.c # DVP function test code
+│           ├── dvp_gc0001_test.c # GC0001 sensor test code
 │           └── dvp_main.c      # DVP test main program
 ├── app.rst               # Application description document
 ├── cp/                   # CP-side code directory
