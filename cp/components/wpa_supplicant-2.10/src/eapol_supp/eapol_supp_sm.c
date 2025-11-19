@@ -1458,8 +1458,13 @@ void eapol_sm_notify_portEnabled(struct eapol_sm *sm, bool enabled)
 {
 	if (sm == NULL)
 		return;
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "EAPOL: External notification - "
 		   "portEnabled=%d", enabled);
+#else
+	WPA_LOGD("EAPOL: External notification - "
+	"portEnabled=%d\n", enabled);
+#endif
 	if (sm->portEnabled != enabled)
 		sm->force_authorized_update = true;
 	sm->portEnabled = enabled;
@@ -1478,8 +1483,13 @@ void eapol_sm_notify_portValid(struct eapol_sm *sm, bool valid)
 {
 	if (sm == NULL)
 		return;
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "EAPOL: External notification - "
 		   "portValid=%d", valid);
+#else
+	WPA_LOGD("EAPOL: External notification - "
+		   "portValid=%d\n", valid);
+#endif
 	sm->portValid = valid;
 	eapol_sm_step(sm);
 }
@@ -1500,8 +1510,13 @@ void eapol_sm_notify_eap_success(struct eapol_sm *sm, bool success)
 {
 	if (sm == NULL)
 		return;
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "EAPOL: External notification - "
 		   "EAP success=%d", success);
+#else
+	WPA_LOGD("EAPOL: External notification - "
+	"EAP success=%d\n", success);
+#endif
 	sm->eapSuccess = success;
 	sm->altAccept = success;
 	if (success)
@@ -1522,8 +1537,13 @@ void eapol_sm_notify_eap_fail(struct eapol_sm *sm, bool fail)
 {
 	if (sm == NULL)
 		return;
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "EAPOL: External notification - "
 		   "EAP fail=%d", fail);
+#else
+	WPA_LOGD("EAPOL: External notification - "
+	"EAP fail=%d\n", fail);
+#endif
 	sm->eapFail = fail;
 	sm->altReject = fail;
 	eapol_sm_step(sm);

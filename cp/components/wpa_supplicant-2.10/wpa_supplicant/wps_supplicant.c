@@ -730,7 +730,7 @@ int wpas_wps_reenable_networks_pending(struct wpa_supplicant *wpa_s)
 
 static void wpa_supplicant_wps_event_success(struct wpa_supplicant *wpa_s)
 {
-	wpa_msg(wpa_s, MSG_INFO, WPS_EVENT_SUCCESS);
+	WPA_LOGD(WPS_EVENT_SUCCESS "\n");
 	wpa_s->wps_success = 1;
 	wpas_notify_wps_event_success(wpa_s);
 	if (wpa_s->current_ssid)
@@ -746,6 +746,8 @@ static void wpa_supplicant_wps_event_success(struct wpa_supplicant *wpa_s)
 			       NULL);
 
 #ifdef CONFIG_P2P
+	if (wpa_s->current_ssid && wpa_s->current_ssid->p2p_group)
+		wpa_s->p2p_waiting_4way_handshake = 1;
 	wpas_p2p_wps_success(wpa_s, wpa_s->bssid, 0);
 #endif
 }

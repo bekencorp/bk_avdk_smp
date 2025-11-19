@@ -1789,6 +1789,20 @@ bool bk_wifi_is_p2p_enabled(void);
  *    - NULL: P2P is not enabled or device name is empty
  */
 const char *bk_wifi_get_p2p_dev_name(void);
+
+/**
+ * @brief Disable P2P Mode
+ *
+ * This API could be used to disable P2P mode.
+ *
+ * @attention This API can only be used when P2P is enabled.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: p2p disable fail.
+ *    - others: other errors
+ */
+bk_err_t bk_wifi_p2p_disable(void);
 #endif
 
 #ifdef __cplusplus

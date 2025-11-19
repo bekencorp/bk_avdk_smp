@@ -4130,7 +4130,11 @@ static void wpa_supplicant_event_disassoc_finish(struct wpa_supplicant *wpa_s,
 			 */
 			fast_reconnect = wpa_s->current_bss;
 			fast_reconnect_ssid = wpa_s->current_ssid;
-		} else if (wpa_s->wpa_state >= WPA_ASSOCIATING) {
+		} else if (wpa_s->wpa_state >= WPA_ASSOCIATING
+#if CONFIG_P2P
+			&& !wpa_s->p2p_waiting_4way_handshake
+#endif
+		) {
 			wpa_supplicant_req_scan(wpa_s, 0, 100000);
 		} else {
 			wpa_dbg(wpa_s, MSG_DEBUG, "Do not request new "

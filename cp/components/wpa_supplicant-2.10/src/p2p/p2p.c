@@ -440,7 +440,7 @@ struct p2p_device * p2p_get_device_interface(struct p2p_data *p2p,
 static struct p2p_device * p2p_create_device(struct p2p_data *p2p,
 					     const u8 *addr)
 {
-	struct p2p_device *dev, *oldest = NULL, *n;
+	struct p2p_device *dev, *oldest = NULL, *removable = NULL, *n;
 	size_t count = 0;
 	struct os_reltime now;
 
@@ -472,15 +472,34 @@ static struct p2p_device * p2p_create_device(struct p2p_data *p2p,
 		if (oldest == NULL ||
 		    os_reltime_before(&dev->last_seen, &oldest->last_seen))
 			oldest = dev;
+		if (dev == p2p->go_neg_peer)
+			continue;
+		if (!removable ||
+		    os_reltime_before(&dev->last_seen, &removable->last_seen))
+			removable = dev;
 	}
 
-	/* if still over the limit, delete the oldest device */
-	if (count + 1 > p2p->cfg->max_peers && oldest) {
+	/* if still over the limit, delete the oldest removable device */
+	if (count + 1 > p2p->cfg->max_peers) {
+		struct p2p_device *victim = removable ? removable : oldest;
+
+		if (!victim) {
+			p2p_dbg(p2p, "Cannot add new peer due to max_peers limit");
+			return NULL;
+		}
+
+		if (victim == p2p->go_neg_peer) {
+			p2p_dbg(p2p,
+				"Delay removing peer " MACSTR " during GO negotiation",
+				MAC2STR(victim->info.p2p_device_addr));
+			return NULL;
+		}
+
 		p2p_dbg(p2p,
 			"Remove oldest peer entry to make room for a new peer "
-			MACSTR, MAC2STR(oldest->info.p2p_device_addr));
-		dl_list_del(&oldest->list);
-		p2p_device_free(p2p, oldest);
+			MACSTR, MAC2STR(victim->info.p2p_device_addr));
+		dl_list_del(&victim->list);
+		p2p_device_free(p2p, victim);
 	}
 
 	dev = os_zalloc(sizeof(*dev));
@@ -921,9 +940,15 @@ int p2p_add_device(struct p2p_data *p2p, const u8 *addr, int freq,
 	     (dev->flags & P2P_DEV_P2PS_REPORTED)))
 		return 0;
 
+#if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Peer found with Listen frequency %d MHz (rx_time=%u.%06u)",
 		freq, (unsigned int) rx_time->sec,
 		(unsigned int) rx_time->usec);
+#else
+	WPA_LOGD("Peer found with Listen frequency %d MHz (rx_time=%u.%06u)\n",
+		freq, (unsigned int) rx_time->sec,
+		(unsigned int) rx_time->usec);
+#endif
 	if (dev->flags & P2P_DEV_USER_REJECTED) {
 		p2p_dbg(p2p, "Do not report rejected device");
 		return 0;
@@ -1631,7 +1656,13 @@ int p2p_connect(struct p2p_data *p2p, const u8 *peer_addr,
 		wps_method, persistent_group, pd_before_go_neg, oob_pw_id,
 		p2p->allow_6ghz);
 #else
-	WPA_LOGD("Request to start group negotiation\r\n");
+	WPA_LOGD("Request to start group negotiation - peer=" MACSTR
+		"  GO Intent=%d  Intended Interface Address=" MACSTR
+		" wps_method=%d persistent_group=%d pd_before_go_neg=%d "
+		"oob_pw_id=%u allow_6ghz=%d\n",
+		MAC2STR(peer_addr), go_intent, MAC2STR(own_interface_addr),
+		wps_method, persistent_group, pd_before_go_neg, oob_pw_id,
+		p2p->allow_6ghz);
 #endif
 
 	dev = p2p_get_device(p2p, peer_addr);
@@ -2987,10 +3018,13 @@ void p2p_wps_success_cb(struct p2p_data *p2p, const u8 *mac_addr)
 			MAC2STR(p2p->go_neg_peer->intended_addr));
 		return; /* Ignore unexpected peer address */
 	}
-
+#if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Group Formation completed successfully with " MACSTR,
 		MAC2STR(mac_addr));
-
+#else
+	WPA_LOGD("Group Formation completed successfully with " MACSTR "\n",
+		MAC2STR(mac_addr));
+#endif
 	p2p_clear_go_neg(p2p);
 }
 

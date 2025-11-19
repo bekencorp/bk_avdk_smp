@@ -2852,47 +2852,63 @@ wpa_supplicant_get_scan_results(struct wpa_supplicant *wpa_s,
 #if BK_SUPPLICANT
 	/* Normal scan, and no scan results returned, post no ap found event */
 	if (!scan_res->num && wpa_s->scan_res_handler != scan_only_handler) {
-		wifi_linkstate_reason_t linkinfo;
+		bool skip_disconnect_event = false;
+
+#ifdef CONFIG_P2P
+		if (wpa_s->global && wpa_s->global->p2p) {
+			const char *p2p_state =
+				p2p_get_state_txt(wpa_s->global->p2p);
+			if (p2p_state && os_strcmp(p2p_state, "SEARCH") == 0) {
+				wpa_dbg(wpa_s, MSG_DEBUG,
+					"Skip STA disconnected notification during P2P find");
+				skip_disconnect_event = true;
+			}
+		}
+#endif /* CONFIG_P2P */
+
+		if (!skip_disconnect_event) {
+			wifi_linkstate_reason_t linkinfo;
 
 #if !CONFIG_DISABLE_DEPRECIATED_WIFI_API
-		FUNC_1PARAM_PTR fn;
-		u32 val;
+			FUNC_1PARAM_PTR fn;
+			u32 val;
 
-		fn = bk_wlan_get_status_cb();
-		if (fn) {
-			val = WIFI_LINKSTATE_STA_DISCONNECTED;
-			(*fn)(&val);
-		}
+			fn = bk_wlan_get_status_cb();
+			if (fn) {
+				val = WIFI_LINKSTATE_STA_DISCONNECTED;
+				(*fn)(&val);
+			}
 #endif
 
-		/* set mac status */
-		linkinfo.state = WIFI_LINKSTATE_STA_DISCONNECTED;
-		linkinfo.reason_code= WIFI_REASON_NO_AP_FOUND;
-		mhdr_set_station_status(linkinfo);
+			/* set mac status */
+			linkinfo.state = WIFI_LINKSTATE_STA_DISCONNECTED;
+			linkinfo.reason_code= WIFI_REASON_NO_AP_FOUND;
+			mhdr_set_station_status(linkinfo);
 
 #ifdef CONFIG_AUTO_RECONNECT
-		if (!wpas_auto_reconnect_limited(wpa_s)) {
+			if (!wpas_auto_reconnect_limited(wpa_s)) {
 #endif
 #ifdef CONFIG_IEEE80211R
-		extern uint32_t sta_ip_is_start(void);
-		if (!sta_ip_is_start())
+			extern uint32_t sta_ip_is_start(void);
+			if (!sta_ip_is_start())
 #endif
-		{
-			/* post event */
-			wifi_event_sta_disconnected_t sta_disconnected = {0};
-			sta_disconnected.disconnect_reason = linkinfo.reason_code;
-			sta_disconnected.local_generated = true;
+			{
+				/* post event */
+				wifi_event_sta_disconnected_t sta_disconnected = {0};
+				sta_disconnected.disconnect_reason = linkinfo.reason_code;
+				sta_disconnected.local_generated = true;
 
-			#if CONFIG_WIFI_VNET_CONTROLLER
-			cif_handle_bk_cmd_disconnect_ind(sta_disconnected.local_generated, sta_disconnected.disconnect_reason);
-			#endif
+				#if CONFIG_WIFI_VNET_CONTROLLER
+				cif_handle_bk_cmd_disconnect_ind(sta_disconnected.local_generated, sta_disconnected.disconnect_reason);
+				#endif
 
-			BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
-							&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
-		}
+				BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+								&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
+			}
 #ifdef CONFIG_AUTO_RECONNECT
-		}
+			}
 #endif
+		}
 
 	}
 #endif

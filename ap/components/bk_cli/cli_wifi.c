@@ -136,6 +136,7 @@ void cli_wifi_p2p_help(void)
 	CLI_RAW_LOGI("  -stop_find: stop peer discovery. \n");
 	CLI_RAW_LOGI("  -connect <dev> <method> <intent>: connect to peer. \n");
 	CLI_RAW_LOGI("  -cancel: cancel ongoing P2P connection. \n");
+	CLI_RAW_LOGI("  -disable: disable P2P. \n");
 }
 #endif
 
@@ -933,6 +934,12 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			CLI_LOGE("p2p cancel failed, err=%d\n", ret);
 			goto error;
 		}
+	} else if (!os_strcmp(argv[1], "disable")) {
+		ret = bk_wifi_p2p_disable();
+		if (ret != BK_OK) {
+			CLI_LOGE("p2p disable failed, err=%d\n", ret);
+			goto error;
+		}
 	} else {
 		CLI_LOGW("invalid p2p command\n");
 		cli_wifi_p2p_help();
@@ -969,7 +976,7 @@ static const struct cli_command s_wifi_commands[] = {
 	{"bridge", "bridge {open|close}", cli_wifi_bridge_cmd},
 #endif
 #if CONFIG_P2P
-	{"p2p", "p2p {enable|find|listen|stop_find|connect|cancel}", cli_wifi_p2p_cmd},
+	{"p2p", "p2p {enable|find|listen|stop_find|connect|cancel|disable}", cli_wifi_p2p_cmd},
 #endif
 };
 

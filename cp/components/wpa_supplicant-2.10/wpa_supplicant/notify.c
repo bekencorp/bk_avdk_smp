@@ -345,6 +345,16 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 	u16 reason = wpa_s->disconnect_reason < 0 ?
 		-wpa_s->disconnect_reason : wpa_s->disconnect_reason;
 
+#ifdef CONFIG_P2P
+	if (wpa_s->p2p_waiting_4way_handshake) {
+		wpa_dbg(wpa_s, MSG_DEBUG,
+			"Skip STA disconnected notification after P2P WPS success without 4-way handshake (reason=%u)",
+			reason);
+		wpa_s->p2p_waiting_4way_handshake = 0;
+		return;
+	}
+#endif
+
 	// take password wrong in action: wpas_notify_psk_mismatch set mac status in advance.
 	if (state.state == WIFI_LINKSTATE_STA_DISCONNECTED &&
 		(state.reason_code == WIFI_REASON_WRONG_PASSWORD ||
@@ -403,6 +413,18 @@ void wpas_notify_state_changed(struct wpa_supplicant *wpa_s,
 		wpas_p2p_notif_connected(wpa_s);
 	else if (old_state >= WPA_ASSOCIATED && new_state < WPA_ASSOCIATED)
 		wpas_p2p_notif_disconnected(wpa_s);
+
+#ifdef CONFIG_P2P
+	if (wpa_s->p2p_waiting_4way_handshake &&
+	    (new_state == WPA_4WAY_HANDSHAKE ||
+	     new_state == WPA_GROUP_HANDSHAKE ||
+	     new_state == WPA_COMPLETED)) {
+		wpa_dbg(wpa_s, MSG_DEBUG,
+			"P2P: 4-way handshake started (state=%d), allow disconnect notifications",
+			new_state);
+		wpa_s->p2p_waiting_4way_handshake = 0;
+	}
+#endif
 
 	sme_state_changed(wpa_s);
 

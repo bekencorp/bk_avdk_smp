@@ -577,10 +577,15 @@ void p2p_process_prov_disc_req(struct p2p_data *p2p, const u8 *sa,
 
 	if (p2p_parse(data, len, &msg))
 		return;
-
+#if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Received Provision Discovery Request from " MACSTR
 		" with config methods 0x%x (freq=%d)",
 		MAC2STR(sa), msg.wps_config_methods, rx_freq);
+#else
+	WPA_LOGD("Received Provision Discovery Request from " MACSTR
+		" with config methods 0x%x (freq=%d)\n",
+		MAC2STR(sa), msg.wps_config_methods, rx_freq);
+#endif
 	group_mac = msg.intended_addr;
 
 	dev = p2p_get_device(p2p, sa);
@@ -979,7 +984,11 @@ out:
 			p2p_parse_free(&msg);
 			return;
 		}
+#if CONFIG_WPA_LOG
 		p2p_dbg(p2p, "Sending Provision Discovery Response");
+#else
+		WPA_LOGD("Sending Provision Discovery Response\n");
+#endif
 		if (rx_freq > 0)
 			freq = rx_freq;
 		else

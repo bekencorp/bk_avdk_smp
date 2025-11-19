@@ -498,8 +498,11 @@ struct wpabuf * wps_build_probe_req_ie(u16 pw_id, struct wps_device_data *dev,
 				       const u8 *req_dev_types)
 {
 	struct wpabuf *ie;
-
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Building WPS IE for Probe Request");
+#else
+	WPA_LOGD("WPS: Building WPS IE for Probe Request\n");
+#endif
 
 	ie = wpabuf_alloc(500);
 	if (ie == NULL)

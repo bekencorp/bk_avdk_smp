@@ -1764,6 +1764,55 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 	case WPA_CTRL_CMD_P2P_CANCEL:
 		wpas_p2p_disconnect(wpa_s);
 		break;
+	case WPA_CTRL_CMD_P2P_DISABLE: {
+		CHECK_WPA_S();
+		// Check if we're currently in a P2P group
+		if (wpa_s->current_ssid && wpa_s->current_ssid->p2p_group) {
+			// Disconnect from P2P group (works for both GO and GC)
+			wpas_p2p_disconnect(wpa_s);
+
+			// For GC (client), additionally disable supplicant
+			if (wpa_s->current_ssid->mode == WPAS_MODE_INFRA) {
+				// This is GC (client mode)
+				if (supplicant_started) {
+#if CONFIG_LWIP
+					net_wlan_remove_netif((uint8_t*)g_sta_param_ptr->own_mac);
+#endif
+					supplicant_main_exit();
+					wpa_hostapd_release_scan_rst();
+					supplicant_started = 0;
+				}
+			} else {
+				uap_ip_down();
+				if(net_wlan_remove_netif((uint8_t*)&g_ap_param_ptr->bssid)) {
+					WPA_LOGE("%s:remove netif fail!\n", __func__);
+					res = -1;
+					break;
+				}
+				if (hostapd_started) {
+					hostapd_main_exit();
+					hostapd_started = 0;
+				}
+				struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
+				if(rwnx_hw->csa)
+				{
+					os_free(rwnx_hw->csa->bcn_ptr);
+					os_free(rwnx_hw->csa);
+					rwnx_hw->csa = 0;
+				}
+			}
+		} else {
+			// Not in P2P group, just disable supplicant
+			if (supplicant_started) {
+#if CONFIG_LWIP
+				net_wlan_remove_netif((uint8_t*)g_sta_param_ptr->own_mac);
+#endif
+				supplicant_main_exit();
+				wpa_hostapd_release_scan_rst();
+				supplicant_started = 0;
+			}
+		}
+	}	break;
 #endif
 
 	/* ============== MISC ======== */
@@ -2114,7 +2163,7 @@ int wpa_supplicant_handle_events(wpah_msg_t *msg)
 
 		WPA_LOGD("WPA_CTRL_EVENT_P2P_GO_NEG_REQUEST: peer_addr %pm\n", req->src);
 		os_memcpy(param.addr, req->src, ETH_ALEN);
-		param.intent = bk_rand()%5 + 1;
+		param.intent = 0;//bk_rand()%5 + 1;
 		param.method = WPS_PBC;
 		p2p_ctrl_connect(wpa_s, &param);
 	}	break;

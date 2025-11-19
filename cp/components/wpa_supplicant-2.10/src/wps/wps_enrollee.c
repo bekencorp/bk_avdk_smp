@@ -112,7 +112,11 @@ static struct wpabuf * wps_build_m1(struct wps_data *wps)
 	wpa_hexdump(MSG_DEBUG, "WPS: Enrollee Nonce",
 		    wps->nonce_e, WPS_NONCE_LEN);
 
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Building Message M1");
+#else
+	WPA_LOGD("WPS: Building Message M1\n");
+#endif
 	msg = wpabuf_alloc(1000);
 	if (msg == NULL)
 		return NULL;
@@ -171,7 +175,11 @@ static struct wpabuf * wps_build_m3(struct wps_data *wps)
 {
 	struct wpabuf *msg;
 
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Building Message M3");
+#else
+	WPA_LOGD("WPS: Building Message M3\n");
+#endif
 
 	if (wps->dev_password == NULL) {
 		wpa_printf(MSG_DEBUG, "WPS: No Device Password available");
@@ -209,7 +217,11 @@ static struct wpabuf * wps_build_m5(struct wps_data *wps)
 {
 	struct wpabuf *msg, *plain;
 
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Building Message M5");
+#else
+	WPA_LOGD("WPS: Building Message M5\n");
+#endif
 
 	plain = wpabuf_alloc(200);
 	if (plain == NULL)
@@ -378,7 +390,11 @@ static struct wpabuf * wps_build_m7(struct wps_data *wps)
 {
 	struct wpabuf *msg, *plain;
 
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Building Message M7");
+#else
+	WPA_LOGD("WPS: Building Message M7\n");
+#endif
 
 	plain = wpabuf_alloc(500 + wps->wps->ap_settings_len);
 	if (plain == NULL)
@@ -424,7 +440,11 @@ static struct wpabuf * wps_build_wsc_done(struct wps_data *wps)
 {
 	struct wpabuf *msg;
 
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Building Message WSC_Done");
+#else
+	WPA_LOGD("WPS: Building Message WSC_Done\n");
+#endif
 
 	msg = wpabuf_alloc(1000);
 	if (msg == NULL)
@@ -962,7 +982,11 @@ static enum wps_process_res wps_process_m2(struct wps_data *wps,
 					   const struct wpabuf *msg,
 					   struct wps_parse_attr *attr)
 {
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Received M2");
+#else
+	WPA_LOGD("WPS: Received M2\n");
+#endif
 
 	if (wps->state != RECV_M2) {
 		wpa_printf(MSG_DEBUG, "WPS: Unexpected state (%d) for "
@@ -1101,7 +1125,11 @@ static enum wps_process_res wps_process_m4(struct wps_data *wps,
 	struct wpabuf *decrypted;
 	struct wps_parse_attr eattr;
 
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Received M4");
+#else
+	WPA_LOGD("WPS: Received M4\n");
+#endif
 
 	if (wps->state != RECV_M4) {
 		wpa_printf(MSG_DEBUG, "WPS: Unexpected state (%d) for "
@@ -1156,7 +1184,11 @@ static enum wps_process_res wps_process_m6(struct wps_data *wps,
 	struct wpabuf *decrypted;
 	struct wps_parse_attr eattr;
 
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Received M6");
+#else
+	WPA_LOGD("WPS: Received M6\n");
+#endif
 
 	if (wps->state != RECV_M6) {
 		wpa_printf(MSG_DEBUG, "WPS: Unexpected state (%d) for "
@@ -1213,7 +1245,11 @@ static enum wps_process_res wps_process_m8(struct wps_data *wps,
 	struct wpabuf *decrypted;
 	struct wps_parse_attr eattr;
 
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "WPS: Received M8");
+#else
+	WPA_LOGD("WPS: Received M8\n");
+#endif
 
 	if (wps->state != RECV_M8) {
 		wpa_printf(MSG_DEBUG, "WPS: Unexpected state (%d) for "

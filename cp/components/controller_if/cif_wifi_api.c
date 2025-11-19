@@ -785,6 +785,11 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = wlan_p2p_cancel();
             break;
         }
+        case P2P_DISABLE:
+        {
+            ret = wlan_p2p_disable();
+            break;
+        }
 #endif
         default:
         {

@@ -526,3 +526,175 @@ void demo_wifi_ipdbg_init(uint32_t ipdbg_func, uint16_t ipdbg_value)
 // #endif
 // }
 
+#if CONFIG_P2P
+beken_queue_t  g_msg_queue;
+static volatile int g_p2p_queue_inited = 0;
+volatile int g_p2p_thread_running = 0;  // Non-static to allow access from wifi_api.c
+extern char s_wifi_p2p_dev_name[SSID_MAX_LEN + 1];
+void app_p2p_rw_event_func(void *new_evt)
+{
+	int ret;
+	DRONE_MSG_T msg;
+	wifi_link_state_t evt_type = *((wifi_link_state_t *)new_evt);
+
+	if (!g_p2p_queue_inited)
+		return;
+
+	msg.dmsg = evt_type;
+	ret = rtos_push_to_queue(&g_msg_queue, &msg, 100);
+	if (ret)
+		WIFI_LOGE("%s, %d, push old event %d failed\n", __func__, __LINE__, evt_type);
+}
+
+bk_err_t app_p2p_event_cb(void *arg, event_module_t event_module, int event_id, void *event_data)
+{
+	int ret;
+	DRONE_MSG_T msg;
+
+	if (!g_p2p_queue_inited)
+		return BK_OK;
+
+	// Convert wifi_event_t to wifi_link_state_t for unified processing
+	if (event_module == EVENT_MOD_WIFI) {
+		switch (event_id) {
+		case EVENT_WIFI_STA_CONNECTED:
+			msg.dmsg = WIFI_LINKSTATE_STA_CONNECTED;
+			break;
+		case EVENT_WIFI_STA_DISCONNECTED:
+			msg.dmsg = WIFI_LINKSTATE_STA_DISCONNECTED;
+			break;
+		case EVENT_WIFI_AP_CONNECTED:
+			msg.dmsg = WIFI_LINKSTATE_AP_CONNECTED;
+			break;
+		case EVENT_WIFI_AP_DISCONNECTED:
+			msg.dmsg = WIFI_LINKSTATE_AP_DISCONNECTED;
+			break;
+		default:
+			return BK_OK; // Ignore other events
+		}
+
+		ret = rtos_push_to_queue(&g_msg_queue, &msg, 100);
+		if (ret)
+			WIFI_LOGE("%s, push new event %d failed\n", __func__, event_id);
+	}
+
+	return BK_OK;
+}
+
+int demo_p2p_app_deinit(void)
+{
+	int ret = 0;
+	DRONE_MSG_T msg;
+	int status = 0;
+
+	ret = rtos_init_queue(&g_msg_queue,
+						   "p2p_event_queue",
+                            sizeof(DRONE_MSG_T),
+                            10);
+	if (ret) {
+		WIFI_LOGE("P2P queue init failed\n");
+		return ret;
+	}
+	g_p2p_queue_inited = 1;
+
+	// Register new event system callback
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_CONNECTED,
+	                     app_p2p_event_cb, NULL);
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+	                     app_p2p_event_cb, NULL);
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED,
+	                     app_p2p_event_cb, NULL);
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_DISCONNECTED,
+	                     app_p2p_event_cb, NULL);
+
+	while(1) {
+		ret = rtos_pop_from_queue(&g_msg_queue, &msg, BEKEN_WAIT_FOREVER);
+
+		// P2P GO disconnected (as GO)
+		if (msg.dmsg == WIFI_LINKSTATE_AP_DISCONNECTED && status == 1) {
+			uap_ip_down();
+			bk_wifi_p2p_cancel();
+			bk_wifi_p2p_find();
+			status = 0;
+		}
+		// P2P GC connected (as GC) or got IP (as GO)
+		else if ((msg.dmsg == WIFI_LINKSTATE_AP_CONNECTED ||
+		          msg.dmsg == WIFI_LINKSTATE_STA_CONNECTED ||
+		          msg.dmsg == WIFI_LINKSTATE_STA_GOT_IP) && status == 0) {
+			status = 1;
+		}
+		// P2P GC disconnected (as GC)
+		else if ((msg.dmsg == WIFI_LINKSTATE_STA_DISCONNECTED ||
+				  msg.dmsg == WIFI_LINKSTATE_STA_CONNECT_FAILED) && status == 1) {
+			sta_ip_down();
+
+			// Get saved SSID before disable
+			const char *saved_name = bk_wifi_get_p2p_dev_name();
+			bk_wifi_p2p_disable();
+			extern void sys_msleep(u32_t ms);
+			sys_msleep(2000);
+
+			bk_wifi_p2p_enable(saved_name);
+			bk_wifi_p2p_find();
+			status = 0;
+		}
+	}
+
+	return ret;
+}
+
+beken_thread_t p2p_restart_thread_hdl = NULL;
+
+void app_p2p_restart_thread(void)
+{
+	// Prevent creating duplicate threads
+	if (g_p2p_thread_running) {
+		WIFI_LOGW("P2P event thread already running, skip creation\n");
+		return;
+	}
+
+	int ret = rtos_create_thread(&p2p_restart_thread_hdl,
+	                              BEKEN_DEFAULT_WORKER_PRIORITY,
+	                              "p2p_restart_thread",
+	                              (beken_thread_function_t)demo_p2p_app_deinit,
+	                              1536,
+	                              (beken_thread_arg_t)NULL);
+	if (ret == kNoErr) {
+		g_p2p_thread_running = 1;
+		WIFI_LOGI("P2P event thread created successfully\n");
+	} else {
+		WIFI_LOGE("Failed to create P2P event thread, ret=%d\n", ret);
+	}
+}
+
+void app_p2p_stop_thread(void)
+{
+	if (!g_p2p_thread_running) {
+		return;
+	}
+
+	// Unregister event callbacks
+	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_CONNECTED, app_p2p_event_cb);
+	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED, app_p2p_event_cb);
+	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED, app_p2p_event_cb);
+	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_DISCONNECTED, app_p2p_event_cb);
+
+	// Mark queue as uninitialized to stop receiving events
+	g_p2p_queue_inited = 0;
+
+	// Delete thread
+	if (p2p_restart_thread_hdl) {
+		rtos_delete_thread(&p2p_restart_thread_hdl);
+		p2p_restart_thread_hdl = NULL;
+	}
+
+	// Delete queue
+	if (g_msg_queue) {
+		rtos_deinit_queue(&g_msg_queue);
+		g_msg_queue = NULL;
+	}
+
+	g_p2p_thread_running = 0;
+	WIFI_LOGD("P2P event thread stopped\n");
+}
+#endif

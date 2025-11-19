@@ -309,6 +309,10 @@ struct wpa_config *wpa_config_read(const char *name, struct wpa_config *cfgp)
 	config->persistent_reconnect = 1;
 	config->p2p_listen_channel = 0;  // auto-select from social channels(1, 6, 11)
 	config->p2p_listen_reg_class = 81;
+
+	// Fixed P2P operating channel for negotiation
+	config->p2p_oper_reg_class = 81;  // 2.4GHz band
+	config->p2p_oper_channel = 0;     // Fixed to channel 6
 #endif
 
 #ifdef CONFIG_IEEE80211R

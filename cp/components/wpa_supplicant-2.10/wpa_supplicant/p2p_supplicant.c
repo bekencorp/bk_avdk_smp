@@ -1411,10 +1411,12 @@ static void wpas_group_formation_completed(struct wpa_supplicant *wpa_s,
 				      P2P_GROUP_REMOVAL_FORMATION_FAILED);
 		return;
 	}
-
+#if CONFIG_WPA_LOG
 	wpa_msg_global(wpa_s->p2pdev, MSG_INFO,
 		       P2P_EVENT_GROUP_FORMATION_SUCCESS);
-
+#else
+	WPA_LOGD(P2P_EVENT_GROUP_FORMATION_SUCCESS "\n");
+#endif
 	ssid = wpa_s->current_ssid;
 	if (ssid && ssid->mode == WPAS_MODE_P2P_GROUP_FORMATION) {
 		ssid->mode = WPAS_MODE_P2P_GO;
@@ -1719,10 +1721,17 @@ static void wpas_start_wps_enrollee(struct wpa_supplicant *wpa_s,
 				    struct p2p_go_neg_results *res)
 {
 	wpa_s->group_formation_reported = 0;
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "P2P: Start WPS Enrollee for peer " MACSTR
 		   " dev_addr " MACSTR " wps_method %d",
 		   MAC2STR(res->peer_interface_addr),
 		   MAC2STR(res->peer_device_addr), res->wps_method);
+#else
+	WPA_LOGD("P2P: Start WPS Enrollee for peer " MACSTR
+		   " dev_addr " MACSTR " wps_method %d\n",
+		   MAC2STR(res->peer_interface_addr),
+		   MAC2STR(res->peer_device_addr), res->wps_method);
+#endif
 	wpa_hexdump_ascii(MSG_DEBUG, "P2P: Start WPS Enrollee for SSID",
 			  res->ssid, res->ssid_len);
 	wpa_supplicant_ap_deinit(wpa_s);
@@ -2472,7 +2481,12 @@ static void wpas_go_neg_completed(void *ctx, struct p2p_go_neg_results *res)
 		       p2p_wps_method_text(res->wps_method));
 #else
 	WPA_LOGD(P2P_EVENT_GO_NEG_SUCCESS "role=%s "
-		  "freq=%d ", res->role_go ? "GO" : "client", res->freq);
+		   "freq=%d ht40=%d peer_dev=" MACSTR " peer_iface=" MACSTR
+		       " wps_method=%s\n",
+		       res->role_go ? "GO" : "client", res->freq, res->ht40,
+		       MAC2STR(res->peer_device_addr),
+		       MAC2STR(res->peer_interface_addr),
+		       p2p_wps_method_text(res->wps_method));
 #endif
 
 	wpas_notify_p2p_go_neg_completed(wpa_s, res);
@@ -2538,10 +2552,15 @@ static void wpas_go_neg_req_rx(void *ctx, const u8 *src, u16 dev_passwd_id,
 			       u8 go_intent)
 {
 	struct wpa_supplicant *wpa_s = ctx;
+#if CONFIG_WPA_LOG
 	wpa_msg_global(wpa_s, MSG_INFO, P2P_EVENT_GO_NEG_REQUEST MACSTR
 		       " dev_passwd_id=%u go_intent=%u", MAC2STR(src),
 		       dev_passwd_id, go_intent);
-
+#else
+	WPA_LOGD(P2P_EVENT_GO_NEG_REQUEST MACSTR
+		       " dev_passwd_id=%u go_intent=%u\n", MAC2STR(src),
+		       dev_passwd_id, go_intent);
+#endif
 	wpas_notify_p2p_go_neg_req(wpa_s, src, dev_passwd_id, go_intent);
 }
 
@@ -2622,6 +2641,14 @@ static void wpas_dev_found(void *ctx, const u8 *addr,
 
 done:
 	os_free(wfd_dev_info_hex);
+#else
+	/* Always log device discovery for debugging */
+	WPA_LOGD("P2P_EVENT_DEVICE_FOUND " MACSTR
+		   " p2p_dev_addr=" MACSTR
+		   " name='%s' config_methods=0x%x new=%d\n",
+		   MAC2STR(addr), MAC2STR(info->p2p_device_addr),
+		   info->device_name, info->config_methods,
+		   new_device);
 #endif /* CONFIG_NO_STDOUT_DEBUG */
 
 	wpas_notify_p2p_device_found(ctx, info->p2p_device_addr, new_device);
@@ -2871,9 +2898,13 @@ static void wpas_prov_disc_req(void *ctx, const u8 *peer, u16 config_methods,
 	} else if (config_methods & WPS_CONFIG_KEYPAD)
 		wpas_prov_disc_local_keypad(wpa_s, peer, params);
 	else if (config_methods & WPS_CONFIG_PUSHBUTTON)
+#if CONFIG_WPA_LOG
 		wpa_msg_global(wpa_s, MSG_INFO, P2P_EVENT_PROV_DISC_PBC_REQ
 			       MACSTR "%s", MAC2STR(peer), params);
-
+#else
+		WPA_LOGD(P2P_EVENT_PROV_DISC_PBC_REQ MACSTR "%s\n",
+			       MAC2STR(peer), params);
+#endif
 	wpas_notify_p2p_provision_discovery(wpa_s, peer, 1 /* request */,
 					    P2P_PROV_DISC_SUCCESS,
 					    config_methods, generated_pin);
@@ -4966,7 +4997,7 @@ int wpas_p2p_init(struct wpa_global *global, struct wpa_supplicant *wpa_s)
 	p2p.concurrent_operations = !!(wpa_s->drv_flags &
 				       WPA_DRIVER_FLAGS_P2P_CONCURRENT);
 
-	p2p.max_peers = 3;  /* to save memory, max 3 peers */
+	p2p.max_peers = 20;  /* to save memory, max 20 peers */
 
 	if (wpa_s->conf->p2p_ssid_postfix) {
 		p2p.ssid_postfix_len =
@@ -6107,9 +6138,15 @@ void wpas_p2p_remain_on_channel_cb(struct wpa_supplicant *wpa_s,
 {
 	if (wpa_s->global->p2p_disabled || wpa_s->global->p2p == NULL)
 		return;
+#if CONFIG_WPA_LOG
 	wpa_printf(MSG_DEBUG, "P2P: remain-on-channel callback (off_channel_freq=%u pending_listen_freq=%d roc_waiting_drv_freq=%d freq=%u duration=%u)",
 		   wpa_s->off_channel_freq, wpa_s->pending_listen_freq,
 		   wpa_s->roc_waiting_drv_freq, freq, duration);
+#else
+	WPA_LOGD("P2P: remain-on-channel callback (off_channel_freq=%u pending_listen_freq=%d roc_waiting_drv_freq=%d freq=%u duration=%u)\n",
+		   wpa_s->off_channel_freq, wpa_s->pending_listen_freq,
+		   wpa_s->roc_waiting_drv_freq, freq, duration);
+#endif
 	if (wpa_s->off_channel_freq &&
 	    wpa_s->off_channel_freq == wpa_s->pending_listen_freq) {
 		p2p_listen_cb(wpa_s->global->p2p, wpa_s->pending_listen_freq,

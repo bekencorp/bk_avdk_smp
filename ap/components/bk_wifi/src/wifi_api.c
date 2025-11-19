@@ -2093,16 +2093,30 @@ bk_err_t bk_bridge_start(bk_bridge_config_t *br_config)
 #endif
 
 #if CONFIG_P2P
+// External declarations for P2P functions from wifi_demo.c
+extern volatile int g_p2p_thread_running;
+extern void app_p2p_restart_thread(void);
+extern void app_p2p_rw_event_func(void *new_evt);
+
 bk_err_t bk_wifi_p2p_enable(const char *ssid)
 {
     bk_err_t ret = BK_OK;
     void *buffer_to_ipc = NULL;
     const char *default_ssid = "BEKEN SMP_P2P";
+    const char *actual_ssid = NULL;
 
-    if (ssid == NULL) {
-        ssid = default_ssid;
+    if (ssid != NULL && os_strlen(ssid) > 0) {
+        // Use provided SSID
+        actual_ssid = ssid;
+    } else if (s_wifi_p2p_dev_name[0] != '\0') {
+        // Use saved SSID if available
+        actual_ssid = s_wifi_p2p_dev_name;
+    } else {
+        // Use default SSID
+        actual_ssid = default_ssid;
     }
-    uint8_t ssid_len = os_strlen(ssid);
+
+    uint8_t ssid_len = os_strlen(actual_ssid);
     if (ssid_len > SSID_MAX_LEN) {
         WIFI_LOGE("%s: SSID too long (%d > %d)\r\n", __func__, ssid_len, SSID_MAX_LEN);
         return BK_ERR_PARAM;
@@ -2113,17 +2127,28 @@ bk_err_t bk_wifi_p2p_enable(const char *ssid)
         WIFI_LOGE("%s malloc failed\r\n", __func__);
         return BK_ERR_NO_MEM;
     }
-    os_memcpy(buffer_to_ipc, ssid, ssid_len);
+    os_memcpy(buffer_to_ipc, actual_ssid, ssid_len);
     ((char *)buffer_to_ipc)[ssid_len] = '\0'; // Add EOF
     ret = wifi_send_com_api_cmd(P2P_ENABLE, 1, (uint32_t)buffer_to_ipc);
     os_free(buffer_to_ipc);
 
     if (ret == BK_OK) {
         s_wifi_p2p_enabled = true;
-        // 保存 P2P 设备名称
+        // save p2p device name to local buffer
+        char temp_ssid[SSID_MAX_LEN + 1];
+        os_memcpy(temp_ssid, actual_ssid, ssid_len);
+        temp_ssid[ssid_len] = '\0';
+
         os_memset(s_wifi_p2p_dev_name, 0, sizeof(s_wifi_p2p_dev_name));
-        os_memcpy(s_wifi_p2p_dev_name, ssid, ssid_len);
+        os_memcpy(s_wifi_p2p_dev_name, temp_ssid, ssid_len);
         s_wifi_p2p_dev_name[ssid_len] = '\0';
+    } else {
+        WIFI_LOGE("AP: IPC P2P_ENABLE FAILED! SSID NOT saved! ret=%d\n", ret);
+    }
+
+    if (!g_p2p_thread_running) {
+        app_p2p_restart_thread();
+        bk_wlan_status_register_cb(app_p2p_rw_event_func);
     }
 
     return ret;
@@ -2168,15 +2193,7 @@ bk_err_t bk_wifi_p2p_connect(const uint8_t *mac, int method, int intent)
 
 bk_err_t bk_wifi_p2p_cancel(void)
 {
-    bk_err_t ret = wifi_send_com_api_cmd(P2P_CANCEL, 0);
-
-    if (ret == BK_OK) {
-        s_wifi_p2p_enabled = false;
-        // 清除 P2P 设备名称
-        os_memset(s_wifi_p2p_dev_name, 0, sizeof(s_wifi_p2p_dev_name));
-    }
-
-    return ret;
+    return wifi_send_com_api_cmd(P2P_CANCEL, 0);
 }
 
 bool bk_wifi_is_p2p_enabled(void)
@@ -2186,9 +2203,19 @@ bool bk_wifi_is_p2p_enabled(void)
 
 const char *bk_wifi_get_p2p_dev_name(void)
 {
-    if (s_wifi_p2p_enabled && s_wifi_p2p_dev_name[0] != '\0') {
+    // Return saved SSID, NULL if empty
+    if (s_wifi_p2p_dev_name[0] != '\0') {
         return s_wifi_p2p_dev_name;
     }
     return NULL;
+}
+
+bk_err_t bk_wifi_p2p_disable(void)
+{
+    bk_err_t ret = wifi_send_com_api_cmd(P2P_DISABLE, 0);
+    if (ret == BK_OK) {
+        s_wifi_p2p_enabled = false;
+    }
+    return ret;
 }
 #endif

@@ -621,6 +621,8 @@ int wlan_p2p_find(void);
 int wlan_p2p_listen(void);
 int wlan_p2p_stop_find(void);
 int wlan_p2p_connect(const uint8_t *mac, int method, int intent);
+int wlan_p2p_disable(void);
+int wlan_p2p_cancel(void);
 #endif
 void bk_wifi_prepare_deepsleep(void);
 void bk_trigger_mqttping(void);

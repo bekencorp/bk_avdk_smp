@@ -114,6 +114,92 @@ u16 p2p_wps_method_pw_id(enum p2p_wps_method wps_method)
 	}
 }
 
+#if BK_SUPPLICANT
+static enum p2p_wps_method p2p_wps_method_from_pw_id(u16 dev_pw_id)
+{
+	switch (dev_pw_id) {
+	case DEV_PW_PUSHBUTTON:
+		return WPS_PBC;
+	case DEV_PW_REGISTRAR_SPECIFIED:
+		return WPS_PIN_KEYPAD;
+	case DEV_PW_USER_SPECIFIED:
+		return WPS_PIN_DISPLAY;
+	case DEV_PW_P2PS_DEFAULT:
+		return WPS_P2PS;
+#ifdef CONFIG_WPS_NFC
+	case DEV_PW_NFC_CONNECTION_HANDOVER:
+		return WPS_NFC;
+#endif /* CONFIG_WPS_NFC */
+	default:
+		return WPS_NOT_READY;
+	}
+}
+
+
+static u16 p2p_wps_method_config_mask(enum p2p_wps_method method)
+{
+	switch (method) {
+	case WPS_PIN_DISPLAY:
+		return WPS_CONFIG_DISPLAY | WPS_CONFIG_VIRT_DISPLAY |
+			WPS_CONFIG_PHY_DISPLAY;
+	case WPS_PIN_KEYPAD:
+		return WPS_CONFIG_KEYPAD;
+	case WPS_PBC:
+		return WPS_CONFIG_PUSHBUTTON | WPS_CONFIG_VIRT_PUSHBUTTON |
+			WPS_CONFIG_PHY_PUSHBUTTON;
+	case WPS_P2PS:
+		return WPS_CONFIG_P2PS;
+	case WPS_NFC:
+		return WPS_CONFIG_NFC_INTERFACE | WPS_CONFIG_INT_NFC_TOKEN |
+			WPS_CONFIG_EXT_NFC_TOKEN;
+	default:
+		return 0;
+	}
+}
+
+
+static const char * p2p_wps_method_str(enum p2p_wps_method wps_method);
+
+static int p2p_auto_set_wps_method(struct p2p_data *p2p,
+				      struct p2p_device *dev,
+				      const struct p2p_message *msg)
+{
+	enum p2p_wps_method method;
+	u16 cfg_mask;
+
+	if (!dev || dev->wps_method != WPS_NOT_READY)
+		return 0;
+	if (!msg->dev_password_id_present)
+		return 0;
+
+	method = p2p_wps_method_from_pw_id(msg->dev_password_id);
+	if (method == WPS_NOT_READY)
+		return 0;
+
+	cfg_mask = p2p_wps_method_config_mask(method);
+	if (cfg_mask && !(p2p->cfg->config_methods & cfg_mask)) {
+		p2p_dbg(p2p,
+			"Auto WPS method %s rejected - not enabled locally (config_methods=0x%x)",
+			p2p_wps_method_str(method), p2p->cfg->config_methods);
+		return 0;
+	}
+	if (cfg_mask && dev->info.config_methods &&
+	    !(dev->info.config_methods & cfg_mask)) {
+		p2p_dbg(p2p,
+			"Auto WPS method %s rejected - not supported by peer (config_methods=0x%x)",
+			p2p_wps_method_str(method), dev->info.config_methods);
+		return 0;
+	}
+
+	dev->wps_method = method;
+	if (method == WPS_NFC)
+		dev->oob_pw_id = msg->dev_password_id;
+	p2p_dbg(p2p,
+		"Auto-selected WPS method %s based on Device Password ID %u",
+		p2p_wps_method_str(method), msg->dev_password_id);
+	return 1;
+}
+#endif
 
 static const char * p2p_wps_method_str(enum p2p_wps_method wps_method)
 {
@@ -854,7 +940,13 @@ void p2p_process_go_neg_req(struct p2p_data *p2p, const u8 *sa,
 
 	if (p2p->go_neg_peer && p2p->go_neg_peer == dev)
 		eloop_cancel_timeout(p2p_go_neg_wait_timeout, p2p, NULL);
-
+#if BK_SUPPLICANT
+	if (dev && !(dev->flags & P2P_DEV_USER_REJECTED) &&
+	    dev->wps_method == WPS_NOT_READY &&
+	    (p2p->authorized_oob_dev_pw_id == 0 ||
+	     p2p->authorized_oob_dev_pw_id != msg.dev_password_id))
+		p2p_auto_set_wps_method(p2p, dev, &msg);
+#endif
 	if (dev && dev->flags & P2P_DEV_USER_REJECTED) {
 		p2p_dbg(p2p, "User has rejected this peer");
 		status = P2P_SC_FAIL_REJECTED_BY_USER;
@@ -863,8 +955,13 @@ void p2p_process_go_neg_req(struct p2p_data *p2p, const u8 *sa,
 		    (p2p->authorized_oob_dev_pw_id == 0 ||
 		     p2p->authorized_oob_dev_pw_id !=
 		     msg.dev_password_id))) {
+#if CONFIG_WPA_LOG
 		p2p_dbg(p2p, "Not ready for GO negotiation with " MACSTR,
 			MAC2STR(sa));
+#else
+		WPA_LOGD("Not ready for GO negotiation with " MACSTR " status=%d\n",
+			MAC2STR(sa), status);
+#endif
 		status = P2P_SC_FAIL_INFO_CURRENTLY_UNAVAILABLE;
 		p2p->cfg->go_neg_req_rx(p2p->cfg->cb_ctx, sa,
 					msg.dev_password_id,
@@ -1049,7 +1146,12 @@ fail:
 	p2p_parse_free(&msg);
 	if (resp == NULL)
 		return;
+#if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Sending GO Negotiation Response");
+#else
+	WPA_LOGD("Sending GO Negotiation Response\n");
+#endif
+
 	if (rx_freq > 0)
 		freq = rx_freq;
 	else
@@ -1437,8 +1539,14 @@ void p2p_process_go_neg_conf(struct p2p_data *p2p, const u8 *sa,
 	struct p2p_device *dev;
 	struct p2p_message msg;
 
+#if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Received GO Negotiation Confirm from " MACSTR,
+			MAC2STR(sa));
+#else
+	WPA_LOGD("Received GO Negotiation Confirm from " MACSTR "\n",
 		MAC2STR(sa));
+#endif
+
 	dev = p2p_get_device(p2p, sa);
 	if (dev == NULL || dev->wps_method == WPS_NOT_READY ||
 	    dev != p2p->go_neg_peer) {

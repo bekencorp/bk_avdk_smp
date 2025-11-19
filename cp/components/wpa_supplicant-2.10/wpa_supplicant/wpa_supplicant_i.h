@@ -1241,6 +1241,7 @@ struct wpa_supplicant {
 	unsigned int p2ps_method_config_any:1;
 	unsigned int p2p_cli_probe:1;
 	unsigned int p2p_go_allow_dfs:1;
+	unsigned int p2p_waiting_4way_handshake:1;
 	enum hostapd_hw_mode p2p_go_acs_band;
 	int p2p_persistent_go_freq;
 	int p2p_persistent_id;
