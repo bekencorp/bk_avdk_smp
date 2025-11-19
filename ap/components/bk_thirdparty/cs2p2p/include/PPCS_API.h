@@ -23,7 +23,7 @@
 #ifndef PPPP_API_API
 #define PPPP_API_API
 #endif
-
+#include "lwip/sockets.h"
 
 #include "PPCS_Type.h"
 #include "PPCS_Error.h"

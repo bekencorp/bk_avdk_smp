@@ -18,6 +18,7 @@ if (CONFIG_CS2_P2P_SERVER OR CONFIG_CS2_P2P_CLIENT)
                 cs2_p2p_main.c
                 cli_cs2_p2p.c
                 cs2_osal.c
+                PPCS_cs2_comm.c
     )
 endif()
 
