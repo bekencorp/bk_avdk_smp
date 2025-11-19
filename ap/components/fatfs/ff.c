@@ -3359,6 +3359,18 @@ FRESULT f_mount (
 	if (opt == 0) return FR_OK;			/* Do not mount now, it will be mounted later */
 
 	res = find_volume(&path, &fs, 0);	/* Force mounted the volume */
+	if (res != FR_OK) {
+#if FF_FS_LOCK != 0
+		clear_lock(fs);
+#endif
+#if FF_FS_REENTRANT
+		ff_del_syncobj(fs->sobj);
+#endif
+		fs->sobj = NULL;
+		FatFs[vol] = NULL;
+		return res;
+	}
+
 	LEAVE_FF(fs, res);
 }
 
