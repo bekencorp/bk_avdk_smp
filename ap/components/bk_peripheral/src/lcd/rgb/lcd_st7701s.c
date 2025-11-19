@@ -268,11 +268,11 @@ static void lcd_st7701s_config(void)
 #define SPI_WriteComm lcd_spi_write_cmd
 #define SPI_WriteData lcd_spi_write_data
 
-	rtos_delay_milliseconds(10);
+	rtos_delay_milliseconds(120);
 	bk_gpio_set_output_low(LCD_SPI_RST);
-	rtos_delay_milliseconds(10);
+	rtos_delay_milliseconds(120);
 	bk_gpio_set_output_high(LCD_SPI_RST);
-	rtos_delay_milliseconds(10);
+	rtos_delay_milliseconds(120);
 
 	SPI_WriteComm(0xFF);
 	SPI_WriteData(0x77);
