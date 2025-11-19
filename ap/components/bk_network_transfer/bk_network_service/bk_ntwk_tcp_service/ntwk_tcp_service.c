@@ -870,6 +870,11 @@ bk_err_t ntwk_tcp_init(chan_type_t chan_type)
 
 bk_err_t ntwk_tcp_deinit(chan_type_t chan_type)
 {
+    if (chan_type >= NTWK_TRANS_CHAN_MAX) {
+        LOGE("%s: invalid chan_type %d\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
     switch (chan_type)
     {
         case NTWK_TRANS_CHAN_CTRL:

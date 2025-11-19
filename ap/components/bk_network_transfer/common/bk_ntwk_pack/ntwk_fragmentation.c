@@ -56,13 +56,18 @@ bk_err_t ntwk_fragmentation_init(chan_type_t chan_type)
 
 bk_err_t ntwk_fragmentation_deinit(chan_type_t chan_type)
 {
-    if (s_fragment_cfg_mgr[chan_type] != NULL)
+    if (chan_type >= NTWK_TRANS_CHAN_MAX) {
+        LOGE("%s: invalid chan_type %d\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
+    if ((s_fragment_cfg_mgr[chan_type] != NULL) && (s_fragment_cfg_mgr[chan_type]->initialized == false))
     {
         os_free(s_fragment_cfg_mgr[chan_type]);
         s_fragment_cfg_mgr[chan_type] = NULL;
     }
 
-    if (s_unfragment_cfg_mgr[chan_type] != NULL)
+    if ((s_unfragment_cfg_mgr[chan_type] != NULL) && (s_unfragment_cfg_mgr[chan_type]->initialized == false))
     {
         os_free(s_unfragment_cfg_mgr[chan_type]);
         s_unfragment_cfg_mgr[chan_type] = NULL;
@@ -101,6 +106,11 @@ bk_err_t ntwk_fragment_start(chan_type_t chan_type, uint32_t fragment_size, void
 
 bk_err_t ntwk_fragment_stop(chan_type_t chan_type)
 {
+    if (chan_type >= NTWK_TRANS_CHAN_MAX) {
+        LOGE("%s: invalid chan_type %d\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
 	if (s_fragment_cfg_mgr[chan_type] == NULL)
 	{
 		LOGW("%s, fragmentation not started\n", __func__);
@@ -412,7 +422,6 @@ static void unfragment_process_task_entry(beken_thread_arg_t data)
     while (unfrag_config->task_running)
     {
         err = rtos_get_semaphore(&pool->sem, 1000);
-
         if(!unfrag_config->task_running)
         {
             break;
@@ -495,10 +504,17 @@ error:
 bk_err_t ntwk_unfragment_stop(chan_type_t chan_type)
 {
     bk_err_t ret = BK_OK;
+    LOGI("%s chan_type %d\r\n", __func__,chan_type);
 
-    if (s_unfragment_cfg_mgr[chan_type] == NULL || s_unfragment_cfg_mgr[chan_type]->task_running == false)
+    if (s_unfragment_cfg_mgr[chan_type] == NULL)
     {
         LOGE("%s, video data process not open\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (s_unfragment_cfg_mgr[chan_type]->initialized == false)
+    {
+        LOGE("%s, task not running\n", __func__);
         return BK_FAIL;
     }
 
@@ -520,6 +536,7 @@ bk_err_t ntwk_unfragment_stop(chan_type_t chan_type)
     s_unfragment_cfg_mgr[chan_type]->initialized = false;
 
     ntwk_fragmentation_deinit(chan_type);
+
     return ret;
 }
 

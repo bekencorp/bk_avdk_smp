@@ -286,9 +286,7 @@ bk_err_t ntwk_trans_ctxt_deinit(void)
 
     ntwk_msg_stop();
     ntwk_msg_deinit();
-
-   ntwk_video_drop_deinit();
-
+    ntwk_video_drop_deinit();
     ntwk_pack_deinit(NTWK_TRANS_CHAN_CTRL);
     ntwk_pack_deinit(NTWK_TRANS_CHAN_VIDEO);
     ntwk_pack_deinit(NTWK_TRANS_CHAN_AUDIO);

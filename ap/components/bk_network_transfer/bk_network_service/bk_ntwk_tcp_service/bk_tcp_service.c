@@ -153,7 +153,6 @@ bk_err_t bk_tcp_trans_service_deinit(void)
         return BK_FAIL;
     }
 
-
     ntwk_pack_chan_stop(NTWK_TRANS_CHAN_CTRL);
 
     ntwk_fragment_stop(NTWK_TRANS_CHAN_VIDEO);

@@ -486,6 +486,11 @@ bk_err_t ntwk_pack_init(chan_type_t chan_type)
 
 bk_err_t ntwk_pack_deinit(chan_type_t chan_type)
 {
+    if (chan_type >= NTWK_TRANS_CHAN_MAX) {
+        LOGE("%s: invalid chan_type %d\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
     if (g_pkt_chan_mgr[chan_type] == NULL) {
         LOGE("%s: g_pkt_chan_mgr not initialized\n", __func__);
         return BK_OK;
@@ -526,6 +531,11 @@ bk_err_t ntwk_pack_chan_stop(chan_type_t chan_type)
     if (chan_type >= NTWK_TRANS_CHAN_MAX) {
         LOGE("%s: invalid chan_type %d\n", __func__, chan_type);
         return BK_ERR_PARAM;
+    }
+
+    if (g_pkt_chan_mgr[chan_type] == NULL) {
+        LOGW("%s: chan_type %d not initialized\n", __func__, chan_type);
+        return BK_OK;
     }
 
     if (!g_pkt_chan_mgr[chan_type]->initialized) {
