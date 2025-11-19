@@ -113,6 +113,32 @@ void cli_wifi_ps_help(void)
 	CLI_RAW_LOGI("  example2: ps close \n");
 }
 
+#if CONFIG_BRIDGE
+void cli_wifi_bridge_help(void)
+{
+	CLI_RAW_LOGI("\r\nbridge {open|close} [ssid] [key]\n");
+	CLI_RAW_LOGI("  Control WiFi bridge. \n");
+	CLI_RAW_LOGI("  -open <string><mandatory>: external STA SSID to connect. \n");
+	CLI_RAW_LOGI("  -key <string><optional>: password of external STA. Set 0 to skip. \n");
+	CLI_RAW_LOGI("  example1: bridge open ext_ap 12345678 \n");
+	CLI_RAW_LOGI("  example2: bridge close \n");
+}
+#endif
+
+#if CONFIG_P2P
+void cli_wifi_p2p_help(void)
+{
+	CLI_RAW_LOGI("\r\np2p {enable|find|listen|stop_find|connect|cancel}\n");
+	CLI_RAW_LOGI("  Control WiFi P2P operations. \n");
+	CLI_RAW_LOGI("  -enable <string><optional>: enable P2P with optional device name. \n");
+	CLI_RAW_LOGI("  -find: start peer discovery. \n");
+	CLI_RAW_LOGI("  -listen: enter listen state. \n");
+	CLI_RAW_LOGI("  -stop_find: stop peer discovery. \n");
+	CLI_RAW_LOGI("  -connect <dev> <method> <intent>: connect to peer. \n");
+	CLI_RAW_LOGI("  -cancel: cancel ongoing P2P connection. \n");
+}
+#endif
+
 
 static int hex2num(char c)
 {
@@ -763,6 +789,170 @@ error:
 	return;
 }
 
+#if CONFIG_BRIDGE
+void cli_wifi_bridge_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	int ret = BK_OK;
+	char *msg = NULL;
+
+	if (argc < 2) {
+		CLI_LOGW("invalid argc number\n");
+		cli_wifi_bridge_help();
+		goto error;
+	}
+
+	if (!os_strncmp(argv[1], "help", 4)) {
+		cli_wifi_bridge_help();
+		goto succeed;
+	}
+
+	if (!os_strcmp(argv[1], "open")) {
+		const char *ssid = NULL;
+		const char *key = NULL;
+		char br_ssid[64] = {0};
+		bk_bridge_config_t br_config = {0};
+
+		if (argc < 3) {
+			CLI_LOGW("missing ssid parameter\n");
+			cli_wifi_bridge_help();
+			goto error;
+		}
+
+		ssid = argv[2];
+		if (!ssid || !ssid[0]) {
+			CLI_LOGW("invalid ssid parameter\n");
+			goto error;
+		}
+
+		if (argc >= 4 && ((os_strlen(argv[3]) > 1) || os_strcmp(argv[3], "0")))
+			key = argv[3];
+
+		br_config.ext_sta_ssid = (char *)ssid;
+		br_config.key = (char *)key;
+		os_snprintf(br_ssid, sizeof(br_ssid), "%s_brr", ssid);
+		br_config.bridge_ssid = br_ssid;
+
+		ret = bk_bridge_start(&br_config);
+		if (ret != BK_OK) {
+			CLI_LOGE("bridge open failed, err=%d\n", ret);
+			goto error;
+		}
+	} else if (!os_strcmp(argv[1], "close")) {
+		ret = bk_bridge_stop();
+		if (ret != BK_OK) {
+			CLI_LOGE("bridge close failed, err=%d\n", ret);
+			goto error;
+		}
+	} else {
+		CLI_LOGW("invalid bridge command\n");
+		cli_wifi_bridge_help();
+		goto error;
+	}
+
+succeed:
+	if (ret == BK_OK) {
+		msg = WIFI_CMD_RSP_SUCCEED;
+		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+		return;
+	}
+
+error:
+	msg = WIFI_CMD_RSP_ERROR;
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+	return;
+}
+
+#endif
+
+#if CONFIG_P2P
+void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	int ret = BK_OK;
+	char *msg = NULL;
+
+	if (argc < 2) {
+		CLI_LOGW("invalid argc number\n");
+		cli_wifi_p2p_help();
+		goto error;
+	}
+
+	if (!os_strncmp(argv[1], "help", 4)) {
+		cli_wifi_p2p_help();
+		goto succeed;
+	}
+
+	if (!os_strcmp(argv[1], "enable")) {
+		const char *p2p_ssid = NULL;
+		if (argc >= 3)
+			p2p_ssid = argv[2];
+		ret = bk_wifi_p2p_enable(p2p_ssid);
+		if (ret != BK_OK) {
+			CLI_LOGE("p2p enable failed, err=%d\n", ret);
+			goto error;
+		}
+	} else if (!os_strcmp(argv[1], "find")) {
+		ret = bk_wifi_p2p_find();
+		if (ret != BK_OK) {
+			CLI_LOGE("p2p find failed, err=%d\n", ret);
+			goto error;
+		}
+	} else if (!os_strcmp(argv[1], "listen")) {
+		ret = bk_wifi_p2p_listen();
+		if (ret != BK_OK) {
+			CLI_LOGE("p2p listen failed, err=%d\n", ret);
+			goto error;
+		}
+	} else if (!os_strcmp(argv[1], "stop_find")) {
+		ret = bk_wifi_p2p_stop_find();
+		if (ret != BK_OK) {
+			CLI_LOGE("p2p stop_find failed, err=%d\n", ret);
+			goto error;
+		}
+	} else if (!os_strcmp(argv[1], "connect")) {
+		uint8_t *peer = NULL;
+		int method = 0;
+		int intent = 0;
+
+		if (argc < 5) {
+			CLI_LOGW("invalid parameters for connect\n");
+			cli_wifi_p2p_help();
+			goto error;
+		}
+
+		peer = (uint8_t *)argv[2];
+		method = os_strtoul(argv[3], NULL, 10);
+		intent = os_strtoul(argv[4], NULL, 10);
+		ret = bk_wifi_p2p_connect(peer, method, intent);
+		if (ret != BK_OK) {
+			CLI_LOGE("p2p connect failed, err=%d\n", ret);
+			goto error;
+		}
+	} else if (!os_strcmp(argv[1], "cancel")) {
+		ret = bk_wifi_p2p_cancel();
+		if (ret != BK_OK) {
+			CLI_LOGE("p2p cancel failed, err=%d\n", ret);
+			goto error;
+		}
+	} else {
+		CLI_LOGW("invalid p2p command\n");
+		cli_wifi_p2p_help();
+		goto error;
+	}
+
+succeed:
+	if (ret == BK_OK) {
+		msg = WIFI_CMD_RSP_SUCCEED;
+		os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+		return;
+	}
+
+error:
+	msg = WIFI_CMD_RSP_ERROR;
+	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+	return;
+}
+#endif
+
 #define WIFI_CMD_CNT (sizeof(s_wifi_commands) / sizeof(struct cli_command))
 static const struct cli_command s_wifi_commands[] = {
 	{"scan", "scan [ssid]", cli_wifi_scan_cmd},
@@ -775,6 +965,12 @@ static const struct cli_command s_wifi_commands[] = {
 	{"monitor", "monitor {start|stop|show|chan}", cli_wifi_monitor_cmd},
 	{"state", "state", cli_wifi_state_cmd},
 	{"ps","ps {open|close}", cli_wifi_ps_cmd},
+#if CONFIG_BRIDGE
+	{"bridge", "bridge {open|close}", cli_wifi_bridge_cmd},
+#endif
+#if CONFIG_P2P
+	{"p2p", "p2p {enable|find|listen|stop_find|connect|cancel}", cli_wifi_p2p_cmd},
+#endif
 };
 
 int cli_wifi_init(void)

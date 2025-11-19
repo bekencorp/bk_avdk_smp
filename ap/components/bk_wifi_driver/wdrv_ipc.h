@@ -9,7 +9,6 @@ extern "C" {
 #include <components/system.h>
 #include <os/os.h>
 #include <components/shell_task.h>
-#include "cli.h"
 #include <driver/pwr_clk.h>
 #include <components/log.h>
 #include <driver/mailbox_channel.h>

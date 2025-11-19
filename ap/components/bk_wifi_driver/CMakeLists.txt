@@ -13,6 +13,7 @@ if(CONFIG_WIFI_VNET_CONTROLLER)
 			wdrv_tx.c
 			wdrv_rx.c
 			wdrv_co_list.c
+			wdrv_debug.c
 		)
 	#list(APPEND prev_req mailbox)
 endif()

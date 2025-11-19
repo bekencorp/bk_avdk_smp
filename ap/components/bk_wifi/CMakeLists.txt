@@ -3,7 +3,6 @@ set(srcs)
 #if(CONFIG_WIFI_ENABLE)
 list(APPEND srcs
 	src/wifi_api.c
-	src/wifi_cli.c
 	src/wifi_api_ipc.c
 	src/phy_client.c
 	src/phy_notify.c

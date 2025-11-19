@@ -1,4 +1,3 @@
-#TODO optimize it
 menu "WiFi Driver"
 	config WIFI_VNET_CONTROLLER
 		bool "Enable Wifi WIFI_VNET_CONTROLLER"
@@ -12,4 +11,8 @@ menu "WiFi Driver"
 	config CONTROLLER_AP_BUFFER_COPY
 		bool "Controller AP buffer copy to CP buffer"
 		default n
+	config WIFI_DRIVER_DEBUG
+		bool "Enable Wifi Driver Debug"
+		depends on CLI && WIFI_VNET_CONTROLLER
+		default y
 endmenu

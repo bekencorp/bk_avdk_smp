@@ -33,7 +33,6 @@
 #include "wdrv_tx.h"
 #include "wifi_api_ipc.h"
 #include "wdrv_cntrl.h"
-#include "wifi_cli.h"
 #if CONFIG_NETIF_LWIP
 #include "lwip/inet.h"
 #include "net.h"
@@ -177,10 +176,6 @@ bk_err_t bk_wifi_init(void)
 
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
     wdrv_init();
-#endif
-
-#if CONFIG_CLI
-    wdrv_cli_init();
 #endif
 
 #if CONFIG_BK_RAW_LINK

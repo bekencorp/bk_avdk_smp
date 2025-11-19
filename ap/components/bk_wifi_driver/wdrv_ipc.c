@@ -1,5 +1,4 @@
 #include "wdrv_ipc.h"
-#include "wifi_cli.h"
 #include "wdrv_rx.h"
 #include "wdrv_tx.h"
 

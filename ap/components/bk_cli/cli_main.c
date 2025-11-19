@@ -33,8 +33,8 @@
 #endif
 #include "bk_uart_debug.h"
 #include "bk_api_cli.h"
-#ifdef CONFIG_WIFI_VNET_CONTROLLER
-#include "wifi_cli.h"
+#ifdef CONFIG_WIFI_DRIVER_DEBUG
+#include "wdrv_debug.h"
 #endif
 #ifdef CONFIG_FTP_SERVER
 #include "ftpd.h"
@@ -1327,8 +1327,8 @@ int bk_cli_init(void)
 	cli_wifi_init();
 #endif
 
-#ifdef CONFIG_WIFI_VNET_CONTROLLER
-    wdrv_cli_init();
+#if CONFIG_WIFI_DRIVER_DEBUG
+	wdrv_cli_init();
 #endif
 
 #ifdef CONFIG_FTP_SERVER
