@@ -27,10 +27,6 @@ void bk_peripheral_init(void)
 	lcd_panel_devices_init();
 #endif
 
-#ifdef CONFIG_DVP_CAMERA
-	dvp_sensor_devices_init();
-#endif
-
 #ifdef CONFIG_TP
 	tp_sensor_devices_init();
 #endif

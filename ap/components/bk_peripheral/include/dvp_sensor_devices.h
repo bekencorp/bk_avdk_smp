@@ -20,17 +20,6 @@
 extern "C" {
 #endif
 
-extern const dvp_sensor_config_t dvp_sensor_gc0328c;
-extern const dvp_sensor_config_t dvp_sensor_gc2145;
-extern const dvp_sensor_config_t dvp_sensor_hm1055;
-extern const dvp_sensor_config_t dvp_sensor_ov2640;
-extern const dvp_sensor_config_t dvp_sensor_gc0308;
-extern const dvp_sensor_config_t dvp_sensor_SC101;
-
-
-void dvp_sensor_devices_init(void);
-
-
 /**
  * @brief     Read sensor register value
  *

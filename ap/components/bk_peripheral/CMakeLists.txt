@@ -1,5 +1,7 @@
 set(BK_PERIPHERAL_PATH $ENV{ARMINO_AP_DIR}/components/bk_peripheral)
 
+set(GLOBAL_FUNCTION_SYMBOLS "")
+
 include(${BK_PERIPHERAL_PATH}/src/lcd/rgb/config.cmake)
 include(${BK_PERIPHERAL_PATH}/src/lcd/mcu/config.cmake)
 include(${BK_PERIPHERAL_PATH}/src/lcd/qspi/config.cmake)
@@ -47,3 +49,7 @@ set(priv_req bk_common)
 
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}" unity include)
+
+foreach(symbol ${GLOBAL_FUNCTION_SYMBOLS})
+	target_link_libraries(${COMPONENT_LIB} INTERFACE "-u ${symbol}")
+endforeach()

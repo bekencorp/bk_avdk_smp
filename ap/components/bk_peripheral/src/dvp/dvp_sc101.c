@@ -592,3 +592,14 @@ const dvp_sensor_config_t dvp_sensor_SC101 =
     .write_register = sc101_write_register,
 };
 
+const dvp_sensor_config_t *sc101_detect_sensor(void)
+{
+    if (SC101_detect())
+    {
+        return &dvp_sensor_SC101;
+    }
+
+    return NULL;
+}
+
+BK_CAMERA_SENSOR_DETECT_SECTION(sc101_detect_sensor);

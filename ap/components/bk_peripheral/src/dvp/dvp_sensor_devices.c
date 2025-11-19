@@ -18,21 +18,6 @@
 
 #define DVP_I2C_TIMEOUT (50)
 
-const dvp_sensor_config_t *dvp_sensor_configs[] =
-{
-    &dvp_sensor_gc0328c,
-    &dvp_sensor_hm1055,
-    &dvp_sensor_gc2145,
-    &dvp_sensor_ov2640,
-    &dvp_sensor_gc0308,
-    &dvp_sensor_SC101,
-};
-
-void dvp_sensor_devices_init(void)
-{
-    bk_dvp_set_devices_list(&dvp_sensor_configs[0], sizeof(dvp_sensor_configs) / sizeof(dvp_sensor_config_t *));
-}
-
 int dvp_camera_i2c_read_uint8(uint8_t addr, uint8_t reg, uint8_t *value)
 {
     i2c_mem_param_t mem_param = {0};

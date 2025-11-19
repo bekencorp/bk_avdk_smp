@@ -1785,3 +1785,14 @@ const dvp_sensor_config_t dvp_sensor_gc2145 =
     .write_register = gc2145_write_register,
 };
 
+const dvp_sensor_config_t *gc2145_detect_sensor(void)
+{
+    if (gc2145_detect())
+    {
+        return &dvp_sensor_gc2145;
+    }
+
+    return NULL;
+}
+
+BK_CAMERA_SENSOR_DETECT_SECTION(gc2145_detect_sensor);

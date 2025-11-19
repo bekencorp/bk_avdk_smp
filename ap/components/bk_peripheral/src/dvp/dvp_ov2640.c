@@ -1242,3 +1242,14 @@ const dvp_sensor_config_t dvp_sensor_ov2640 =
     .write_register = ov2640_write_register,
 };
 
+const dvp_sensor_config_t *ov2640_detect_sensor(void)
+{
+    if (ov2640_detect())
+    {
+        return &dvp_sensor_ov2640;
+    }
+
+    return NULL;
+}
+
+BK_CAMERA_SENSOR_DETECT_SECTION(ov2640_detect_sensor);

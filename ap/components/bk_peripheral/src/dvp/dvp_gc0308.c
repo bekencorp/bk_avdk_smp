@@ -475,3 +475,14 @@ const dvp_sensor_config_t dvp_sensor_gc0308 =
     .write_register = gc0308_write_register,
 };
 
+const dvp_sensor_config_t *gc0308_detect_sensor(void)
+{
+    if (gc0308_detect())
+    {
+        return &dvp_sensor_gc0308;
+    }
+
+    return NULL;
+}
+
+BK_CAMERA_SENSOR_DETECT_SECTION(gc0308_detect_sensor);

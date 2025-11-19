@@ -215,6 +215,47 @@ typedef struct
 } dvp_sensor_config_t;
 
 /**
+ * @brief Camera sensor detection function structure
+ */
+typedef struct
+{
+    const dvp_sensor_config_t *(*detect)(void);  /**< Detection function pointer */
+} dvp_sensor_detect_func_t;
+
+/**
+ * @brief Section attribute macro implementation
+ * @param SECTION Section name
+ * @param COUNTER Counter
+ */
+#define _SECTION_ATTR_IMPL(SECTION, COUNTER)    __attribute__((section(SECTION "." _CPIMTER_STRINGIFY(COUNTER))))
+
+/**
+ * @brief Stringify macro
+ * @param COUNTER Counter
+ */
+#define _CPIMTER_STRINGIFY(COUNTER) #COUNTER
+
+/**
+ * @brief Camera sensor detection function section registration macro
+ * @param f Detection function name
+ *
+ * This macro registers a sensor detection function into a dedicated section,
+ * enabling the system to automatically discover and run detection routines.
+ */
+#define BK_CAMERA_SENSOR_DETECT_SECTION(f)                                                        \
+    const dvp_sensor_config_t * __bk_sensor_##f(void);                                            \
+    __attribute__((used)) _SECTION_ATTR_IMPL(".camera_sensor_detect_function_list", __COUNTER__)  \
+    const dvp_sensor_detect_func_t dvp_sensor_##f = {                                             \
+        .detect = __bk_sensor_##f,                                                          \
+    } ;                                                                                           \
+    const dvp_sensor_config_t * __bk_sensor_##f(void)                                             \
+    { return f(); }
+
+extern dvp_sensor_detect_func_t __camera_sensor_detect_array_start;
+extern dvp_sensor_detect_func_t __camera_sensor_detect_array_end;
+
+
+/**
  * @brief Flag for QVGA subsample usage
  */
 #define GC_QVGA_USE_SUBSAMPLE          1

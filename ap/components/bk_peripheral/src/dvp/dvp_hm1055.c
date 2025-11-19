@@ -894,3 +894,14 @@ const dvp_sensor_config_t dvp_sensor_hm1055 =
     .write_register = hm1055_write_register,
 };
 
+const dvp_sensor_config_t *hm1055_detect_sensor(void)
+{
+    if (hm1055_detect())
+    {
+        return &dvp_sensor_hm1055;
+    }
+
+    return NULL;
+}
+
+BK_CAMERA_SENSOR_DETECT_SECTION(hm1055_detect_sensor);

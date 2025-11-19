@@ -174,6 +174,13 @@ SECTIONS
       __stop_ipc_chan_reg = .;
     } > FLASH
 
+    .sensor_detect :
+    {
+      __camera_sensor_detect_array_start = .;
+      KEEP(*(.camera_sensor_detect_function_list.*))
+      __camera_sensor_detect_array_end = .;
+    } > FLASH
+
     .ARM.extab :
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
