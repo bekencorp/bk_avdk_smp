@@ -50,7 +50,7 @@ typedef struct
     int                     frame_samples_per_channel; /*!< Frame length in samples per channel */
 } opus_enc_cfg_t;
 
-#define OPUS_ENC_TASK_STACK          (18 * 1024)
+#define OPUS_ENC_TASK_STACK          (22 * 1024)
 #define OPUS_ENC_TASK_CORE           (1)
 #define OPUS_ENC_TASK_PRIO           (5)
 #define OPUS_ENC_SAMPLE_RATE         (16000)

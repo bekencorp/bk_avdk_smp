@@ -42,7 +42,7 @@ typedef struct {
     int buf_sz;                /*!< Buffer size */
 } opus_dec_cfg_t;
 
-#define OPUS_DEC_TASK_STACK          (6 * 1024)
+#define OPUS_DEC_TASK_STACK          (8 * 1024)
 #define OPUS_DEC_TASK_CORE           (1)
 #define OPUS_DEC_TASK_PRIO           (5)
 #define OPUS_DEC_SAMPLE_RATE         (16000)
