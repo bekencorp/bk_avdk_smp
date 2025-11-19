@@ -144,6 +144,7 @@ typedef struct onboard_dual_dmic_mic_stream
     int8_t                  *dmic_ring_buff;   /**< dmic ring buffer address */
     beken_event_t            mic_evt;          /**< mic evt for ADC/DMIC DMA */
     uint16_t                 *hw_ref_buf;      /**< save HW reference data */
+    int                      dmic_data_shift;  /**< dmic data shift:defualt 0 */
 } onboard_dual_dmic_mic_stream_t;
 
 static onboard_dual_dmic_mic_stream_t *gl_onboard_mic = NULL;
@@ -577,6 +578,31 @@ static int _onboard_dual_dmic_mic_read(audio_port_handle_t self, char *buffer, i
     return ret;
 }
 
+static void onboard_dual_dmic_data_shift(int16_t *addr, uint16_t len, int shift)
+{
+    uint32_t i;
+
+    if(0 < shift)
+    {
+        for(i = 0; i < len; i++)
+        {
+            *addr++ <<= shift;
+        }
+    }
+    else if(0 > shift)
+    {
+        for(i = 0; i < len; i++)
+        {
+            *addr++ >>= (-shift);
+        }
+    }
+    else
+    {
+
+    }
+
+}
+
 static int _onboard_dual_dmic_mic_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     onboard_dual_dmic_mic_stream_t *onboard_mic = (onboard_dual_dmic_mic_stream_t *)audio_element_getdata(self);
@@ -672,20 +698,26 @@ static int _onboard_dual_dmic_mic_process(audio_element_handle_t self, char *in_
                 }
                 r_size = r_size / 2;
             }
-            
+
+            if(0 != onboard_mic->dmic_data_shift)
+            {
+                onboard_dual_dmic_data_shift((int16_t *)in_buffer, r_size>>1, onboard_mic->dmic_data_shift);
+            }
+
             w_size = audio_element_output(self, in_buffer, r_size);
             AUD_ONBOARD_MIC_OUTPUT_END();
             ONBOARD_MIC_DATA_COUNT_ADD_SIZE(r_size);
-
-            /* write data to multiple audio port */
-            /* unblock write, and not check write result */
-            //TODO
-            audio_element_multi_output(self, in_buffer, r_size, 0);
         }
         else
         {
             ONBOARD_MIC_DATA_DUMP_BY_UART_DATA(in_buffer, r_size);
             AUD_ONBOARD_MIC_OUTPUT_START();
+
+            if(0 != onboard_mic->dmic_data_shift)
+            {
+                onboard_dual_dmic_data_shift((int16_t *)in_buffer, r_size>>1, onboard_mic->dmic_data_shift);
+            }
+
             w_size = audio_element_output(self, in_buffer, r_size);
             if(onboard_mic->ref_mode)
             {
@@ -695,11 +727,6 @@ static int _onboard_dual_dmic_mic_process(audio_element_handle_t self, char *in_
             AUD_ONBOARD_MIC_OUTPUT_END();
 
             ONBOARD_MIC_DATA_COUNT_ADD_SIZE(r_size);
-
-            /* write data to multiple audio port */
-            /* unblock write, and not check write result */
-            //TODO
-            audio_element_multi_output(self, in_buffer, r_size, 0);
         }
     }
     else
@@ -860,6 +887,7 @@ audio_element_handle_t onboard_dual_dmic_mic_stream_init(onboard_dual_dmic_mic_s
     os_memcpy(&gl_onboard_mic->adc_cfg, &config->adc_cfg, sizeof(dual_dmic_adc_cfg_t));
     gl_onboard_mic->out_block_size = config->out_block_size;
     gl_onboard_mic->out_block_num = config->out_block_num;
+    gl_onboard_mic->dmic_data_shift = config->dmic_data_shift;
     BK_LOGD(TAG, "buffer_len: %d, out_block_size: %d, out_block_num: %d\n", cfg.buffer_len, cfg.out_block_size, cfg.out_block_num);
 
     /* init audio adc */

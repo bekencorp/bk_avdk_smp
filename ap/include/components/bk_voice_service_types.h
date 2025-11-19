@@ -768,6 +768,7 @@ typedef struct
         .ref_mode = 0,                                          \
         .dual_dmic = 1,                                         \
         .dual_dmic_sgl_out = 0,                                 \
+        .dmic_data_shift = 0,                                   \
     },                                                          \
     .aec_en = true,                                             \
     .aec_cfg.aec_alg_cfg = {                                    \

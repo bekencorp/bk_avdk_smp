@@ -130,6 +130,7 @@ typedef struct
     int                     ref_mode;           /*!< use SW(0)/HW(1) to capture reference signal for AEC*/
     int                     dual_dmic;          /*!< Enable dual dmic(1)/Disable dual dmic(0)*/
     int                     dual_dmic_sgl_out;  /*!< Enable dual dmic single output*/
+    int                     dmic_data_shift;    /*!< dmic data shift:defualt 0 */
 } onboard_dual_dmic_mic_stream_cfg_t;
 
 
@@ -161,6 +162,7 @@ typedef struct
     .ref_mode =  0,                                         \
     .dual_dmic =  1,                                        \
     .dual_dmic_sgl_out =  0,                                \
+    .dmic_data_shift = 0,                                   \
 }
 
 /**
