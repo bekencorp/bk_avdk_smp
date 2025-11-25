@@ -44,8 +44,8 @@
 #endif
 #if CONFIG_BK_MODEM
 #include "modemif.h"
-#include <components/event.h>
 #endif
+#include <components/event.h>
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "wdrv_cntrl.h"
 #include "wifi_api.h"
