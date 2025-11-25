@@ -44,7 +44,8 @@ frame_buffer_t *frame_buffer_display_malloc(uint32_t size)
 
     if (frame == NULL)
     {
-        bk_psram_frame_buffer_dump_blocks(PSRAM_HEAP_YUV);
+        //dump the heap blocks, default close for performance reason
+        //bk_psram_frame_buffer_dump_blocks(PSRAM_HEAP_YUV);
         return NULL;
     }
 
