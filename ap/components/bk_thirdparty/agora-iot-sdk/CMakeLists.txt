@@ -1,12 +1,18 @@
+set(srcs)
+
 if (CONFIG_AGORA_IOT_SDK)
 
 armino_build_get_property(armino_soc ARMINO_SOC)
 
 set(incs include/bk7258/)
 
+list(APPEND srcs
+            hal/agora_thread.c
+	)
+
 endif()
 
-armino_component_register(INCLUDE_DIRS "${incs}")
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}")
 
 if (CONFIG_AGORA_IOT_SDK)
 	file(GLOB agora_libs ${CMAKE_CURRENT_SOURCE_DIR}/bk7258/libs/*.a)
