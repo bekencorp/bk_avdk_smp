@@ -896,13 +896,17 @@ int wpa_supplicant_ctrl_iface_update_psk(struct wpa_supplicant *wpa_s, wlan_gen_
 		!os_memcmp(ssid->ssid, psk->ssid, ssid->ssid_len) &&
 		!os_strcmp(ssid->passphrase, psk->passphrase)) {
 
+		bool scan_pending = !!radio_work_pending(wpa_s, "scan");
+
 		/* copy caculated PSK from pskc thread */
 		os_memcpy(ssid->psk, psk->psk, PMK_LEN);
 		ssid->psk_set = 1;
 		ssid->mem_only_psk = 0;
 
-		/* reconnect to ap */
-		wpas_select_network_from_last_scan(wpa_s, 0, 1);
+		/* reconnect to ap, if scan pending, wait scan done */
+		WPA_LOGI("update psk, scan pending %d\n", scan_pending);
+		if (!scan_pending)
+			wpas_select_network_from_last_scan(wpa_s, 0, 1);
 	}
 
 	return 0;
