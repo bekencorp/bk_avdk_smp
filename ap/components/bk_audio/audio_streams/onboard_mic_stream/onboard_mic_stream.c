@@ -308,7 +308,7 @@ static bk_err_t _onboard_mic_open(audio_element_handle_t self)
 
     /* set read data timeout */
     //audio_element_set_input_timeout(self, 15 / portTICK_RATE_MS);
-    //ring_buffer_clear(&onboard_mic->mic_rb);
+    ring_buffer_clear(&onboard_mic->mic_rb);
 
     bk_err_t ret = bk_dma_start(onboard_mic->mic_dma_id);
     if (ret != BK_OK)
