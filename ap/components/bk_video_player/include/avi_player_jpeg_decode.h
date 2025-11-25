@@ -4,7 +4,7 @@
 #include "components/media_types.h"
 #include "avi_player.h"
 
-bk_err_t avi_player_jpeg_hw_decode_init(bk_avi_player_format_t output_format, uint32_t image_width);
+bk_err_t avi_player_jpeg_hw_decode_init(bk_avi_player_format_t output_format);
 
 bk_err_t avi_player_jpeg_hw_decode_deinit(bk_avi_player_format_t output_format);
 

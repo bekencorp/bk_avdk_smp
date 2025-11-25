@@ -742,8 +742,6 @@
 /** GIF decoder library */
 #define LV_USE_GIF 0
 #if LV_USE_GIF
-    #define LV_GIF_USE_PSRAM 0
-
     /** GIF decoder accelerate */
     #define LV_GIF_CACHE_DECODE_DATA 0
 #endif

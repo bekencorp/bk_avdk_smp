@@ -140,7 +140,6 @@ ble_err_t bk_ble_gap_set_adv_data_ex(
     tmp.operation = operation;
     tmp.frag_pref = frag_pref;
     tmp.adv_data_len = adv_len;
-    tmp.cmd_type = cmd_type;
 
     if (adv_buff == NULL || tmp.adv_data_len > ADV_DATA_LEN)
     {
@@ -148,12 +147,12 @@ ble_err_t bk_ble_gap_set_adv_data_ex(
         return ret;
     }
 
-    // ret = set_cmd_type(ADV_DATA_CMD, cmd_type);
-    // if (ret)
-    // {
-    //     os_printf("%s err\n", __func__);
-    //     return BK_ERR_BLE_FAIL;
-    // }
+    ret = set_cmd_type(ADV_DATA_CMD, cmd_type);
+    if (ret)
+    {
+        BK_LOGD(NULL,"%s err\n", __func__);
+        return BK_ERR_BLE_FAIL;
+    }
 
     if (adv_len)
     {
@@ -179,7 +178,6 @@ ble_err_t bk_ble_gap_set_scan_rsp_data_ex(
     tmp.operation = operation;
     tmp.frag_pref = fragment_pref;
     tmp.scan_response_data_len = scan_response_data_length;
-    tmp.cmd_type = cmd_type;
 
     if (tmp.scan_response_data_len > ADV_DATA_LEN)
     {
@@ -187,11 +185,11 @@ ble_err_t bk_ble_gap_set_scan_rsp_data_ex(
         return ret;
     }
 
-    // ret = set_cmd_type(SCAN_RSP_DATA_CMD, cmd_type);
-    // if (ret)
-    // {
-    //     return BK_ERR_BLE_FAIL;
-    // }
+    ret = set_cmd_type(SCAN_RSP_DATA_CMD, cmd_type);
+    if (ret)
+    {
+        return BK_ERR_BLE_FAIL;
+    }
 
     if (scan_response_data_length)
     {
@@ -214,11 +212,11 @@ ble_err_t bk_ble_gap_set_adv_enable_ex(
     ble_gap_adv_enable_t tmp = {0};
     tmp.enable = enable;
     tmp.number_of_sets = number_of_sets;
-    // ret = set_cmd_type(ADV_ENABLE_CMD, tmp.enable);
-    // if (ret)
-    // {
-    //     return BK_ERR_BLE_FAIL;
-    // }
+    ret = set_cmd_type(ADV_ENABLE_CMD, tmp.enable);
+    if (ret)
+    {
+        return BK_ERR_BLE_FAIL;
+    }
 
     if (number_of_sets)
     {
@@ -1083,7 +1081,7 @@ ble_err_t bk_ble_gap_set_periodic_adv_data_raw(uint8_t instance, uint16_t length
     periodic_adv_data_raw.adv_handler = instance;
     if (length <= HCI_PER_ADV_DATA_FRAG_MAX_LEN)
     {
-        //set_cmd_type(PERIODIC_ADV_DATA_CMD, 3);
+        set_cmd_type(PERIODIC_ADV_DATA_CMD, 3);
         periodic_adv_data_raw.operation = 3;
         periodic_adv_data_raw.len = length;
         os_memcpy(periodic_adv_data_raw.data, data, length);
@@ -1091,7 +1089,7 @@ ble_err_t bk_ble_gap_set_periodic_adv_data_raw(uint8_t instance, uint16_t length
     }
     else if (length > HCI_PER_ADV_DATA_FRAG_MAX_LEN && length <= HCI_PER_ADV_DATA_FRAG_MAX_LEN * 2)
     {
-        //set_cmd_type(PERIODIC_ADV_DATA_CMD, 1);
+        set_cmd_type(PERIODIC_ADV_DATA_CMD, 1);
         periodic_adv_data_raw.operation = 1;
         periodic_adv_data_raw.len = HCI_PER_ADV_DATA_FRAG_MAX_LEN;
         os_memcpy(periodic_adv_data_raw.data, data, HCI_PER_ADV_DATA_FRAG_MAX_LEN);
@@ -1101,7 +1099,7 @@ ble_err_t bk_ble_gap_set_periodic_adv_data_raw(uint8_t instance, uint16_t length
             goto error;
         }
 
-        //set_cmd_type(PERIODIC_ADV_DATA_CMD, 2);
+        set_cmd_type(PERIODIC_ADV_DATA_CMD, 2);
         periodic_adv_data_raw.operation = 2;
         periodic_adv_data_raw.len = length - HCI_PER_ADV_DATA_FRAG_MAX_LEN;
         os_memcpy(periodic_adv_data_raw.data, data + HCI_PER_ADV_DATA_FRAG_MAX_LEN, length - HCI_PER_ADV_DATA_FRAG_MAX_LEN);
@@ -1110,7 +1108,7 @@ ble_err_t bk_ble_gap_set_periodic_adv_data_raw(uint8_t instance, uint16_t length
     else if (length > 2 * HCI_PER_ADV_DATA_FRAG_MAX_LEN && length <= HCI_PER_ADV_DATA_FRAG_MAX_LEN * 5)
     {
         uint16_t send_len = 0;
-        //set_cmd_type(PERIODIC_ADV_DATA_CMD, 1);
+        set_cmd_type(PERIODIC_ADV_DATA_CMD, 1);
         periodic_adv_data_raw.operation = 1;
         periodic_adv_data_raw.len = HCI_PER_ADV_DATA_FRAG_MAX_LEN;
         os_memcpy(periodic_adv_data_raw.data, data, HCI_PER_ADV_DATA_FRAG_MAX_LEN);
@@ -1122,7 +1120,7 @@ ble_err_t bk_ble_gap_set_periodic_adv_data_raw(uint8_t instance, uint16_t length
         send_len += HCI_PER_ADV_DATA_FRAG_MAX_LEN;
         while (length - send_len > HCI_PER_ADV_DATA_FRAG_MAX_LEN)
         {
-            //set_cmd_type(PERIODIC_ADV_DATA_CMD, 0);
+            set_cmd_type(PERIODIC_ADV_DATA_CMD, 0);
             periodic_adv_data_raw.operation = 0;
             periodic_adv_data_raw.len = HCI_PER_ADV_DATA_FRAG_MAX_LEN;
             os_memcpy(periodic_adv_data_raw.data, data + send_len, HCI_PER_ADV_DATA_FRAG_MAX_LEN);
@@ -1133,7 +1131,7 @@ ble_err_t bk_ble_gap_set_periodic_adv_data_raw(uint8_t instance, uint16_t length
             }
             send_len += HCI_PER_ADV_DATA_FRAG_MAX_LEN;
         }
-        //set_cmd_type(PERIODIC_ADV_DATA_CMD, 2);
+        set_cmd_type(PERIODIC_ADV_DATA_CMD, 2);
         periodic_adv_data_raw.operation = 2;
         periodic_adv_data_raw.len = length - send_len;
         os_memcpy(periodic_adv_data_raw.data, data + send_len, length - send_len);
@@ -1150,11 +1148,11 @@ ble_err_t bk_ble_gap_periodic_adv_start(uint8_t instance)
     ble_gap_periodic_adv_status_t args = {0};
     args.adv_handler = instance;
     args.enable = 0x1;
-    // ret = set_cmd_type(PERIODIC_ADV_ENABLE_CMD, 1);
-    // if (ret)
-    // {
-    //     return BK_ERR_BLE_FAIL;
-    // }
+    ret = set_cmd_type(PERIODIC_ADV_ENABLE_CMD, 1);
+    if (ret)
+    {
+        return BK_ERR_BLE_FAIL;
+    }
     ret = ble_ethermind_post_msg(BLE_ETHERMIND_MSG_GAP_API_REQ, BLE_ETHERMIND_GAP_API_REQ_SUBMSG_PERIODIC_ADV_START, &args, sizeof(args), NULL);
     return ret;
 }
@@ -1165,11 +1163,11 @@ ble_err_t bk_ble_gap_periodic_adv_stop(uint8_t instance)
     ble_gap_periodic_adv_status_t args = {0};
     args.adv_handler = instance;
     args.enable = 0;
-    // ret = set_cmd_type(PERIODIC_ADV_ENABLE_CMD, 0);
-    // if (ret)
-    // {
-    //     return BK_ERR_BLE_FAIL;
-    // }
+    ret = set_cmd_type(PERIODIC_ADV_ENABLE_CMD, 0);
+    if (ret)
+    {
+        return BK_ERR_BLE_FAIL;
+    }
     ret = ble_ethermind_post_msg(BLE_ETHERMIND_MSG_GAP_API_REQ, BLE_ETHERMIND_GAP_API_REQ_SUBMSG_PERIODIC_ADV_STOP, &args, sizeof(args), NULL);
     return ret;
 }
@@ -1260,11 +1258,11 @@ ble_err_t bk_ble_gap_set_scan_params(const bk_ble_ext_scan_params_t *params)
 ble_err_t bk_ble_gap_start_scan(uint32_t duration, uint16_t period)
 {
     ble_err_t ret = BK_ERR_BLE_SUCCESS;
-    // ret = set_cmd_type(SCAN_ENABLE_CMD, 1);
-    // if (ret)
-    // {
-    //     return BK_ERR_BLE_FAIL;
-    // }
+    ret = set_cmd_type(SCAN_ENABLE_CMD, 1);
+    if (ret)
+    {
+        return BK_ERR_BLE_FAIL;
+    }
     ret = bk_ble_gap_set_scan_enable_ex(1, bk_ble_gap_get_scan_duplicate(), duration, period);
     return ret;
 }
@@ -1272,11 +1270,11 @@ ble_err_t bk_ble_gap_start_scan(uint32_t duration, uint16_t period)
 ble_err_t bk_ble_gap_stop_scan(void)
 {
     ble_err_t ret = BK_ERR_BLE_SUCCESS;
-    // ret = set_cmd_type(SCAN_ENABLE_CMD, 0);
-    // if (ret)
-    // {
-    //     return BK_ERR_BLE_FAIL;
-    // }
+    ret = set_cmd_type(SCAN_ENABLE_CMD, 0);
+    if (ret)
+    {
+        return BK_ERR_BLE_FAIL;
+    }
     ret = bk_ble_gap_set_scan_enable_ex(0, 0, 0, 0);
     return ret;
 }

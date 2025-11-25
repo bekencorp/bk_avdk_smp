@@ -235,24 +235,8 @@ bt_err_t bk_bt_gap_disconnect(bk_bd_addr_t addr, uint8_t reason)
 {
     bt_err_t ret = BK_ERR_BLE_SUCCESS;
     bk_bt_disconnection_msg_t msg = {0};
-
     os_memcpy(msg.addr, addr, BK_BT_ADDR_LEN);
     msg.reason = reason;
-    msg.type = 0;
-
-    ret =  bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_DISCONNECTION, &msg, sizeof(msg), NULL);
-    return ret;
-}
-
-bt_err_t bk_bt_gap_disconnect_sco(bk_bd_addr_t addr, uint8_t reason)
-{
-    bt_err_t ret = BK_ERR_BLE_SUCCESS;
-    bk_bt_disconnection_msg_t msg = {0};
-
-    os_memcpy(msg.addr, addr, BK_BT_ADDR_LEN);
-    msg.reason = reason;
-    msg.type = 1;
-
     ret =  bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_DISCONNECTION, &msg, sizeof(msg), NULL);
     return ret;
 }

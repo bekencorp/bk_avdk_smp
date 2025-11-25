@@ -95,42 +95,17 @@ void bk_ble_provisioning_event_notify_with_data(uint16_t opcode, int status, cha
 void bk_ble_provisioning_operation_handle(uint16_t opcode, uint16_t length, uint8_t *data)
 {
     ble_prov_msg_t msg;
-    bk_err_t ret = BK_OK;
-
-    /* Ensure that all fields are clean before populating metadata */
-    os_memset(&msg, 0, sizeof(msg));
     LOGW("%s, opcode: %04X, length: %u\n", __func__, opcode, length);
 
     msg.event = opcode;
-    /* Record payload length for consumers that need binary buffers */
-    msg.length = length;
-
-    if ((length > 0) && (data == NULL))
-    {
-        LOGE("%s, payload is NULL while length=%u\n", __func__, length);
-        return;
-    }
-
     if (length > 0) {
         char *payload = os_zalloc(length + 1);
 
-        if (payload == NULL)
-        {
-            LOGE("%s, malloc %u bytes failed\n", __func__, length + 1);
-            return;
-        }
-
         os_memcpy(payload, data, length);
         msg.param = (uint32_t)payload;
-    }
-    else
+    } else
         msg.param = 0;
-
-    ret = bk_ble_provisioning_send_msg(&msg);
-    if ((ret != BK_OK) && (msg.param != 0))
-    {
-        os_free((void *)msg.param);
-    }
+    bk_ble_provisioning_send_msg(&msg);
 }
 
 int bk_ble_provisioning_init(void)
@@ -187,7 +162,7 @@ static void bk_ble_provisioning_message_handle(void)
 
         if (kNoErr == ret)
         {
-            LOGI("msg.event: %d, msg.param: %d, msg.length: %u\n", msg.event, msg.param, msg.length);
+            LOGI("msg.event: %d, msg.param: %d\n", msg.event, msg.param);
             if (ble_msg_handle_cb) {
                 ble_msg_handle_cb(&msg);
             }

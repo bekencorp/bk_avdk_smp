@@ -67,10 +67,6 @@ void lv_fs_arduino_sd_init(void);
 void lv_fs_uefi_init(void);
 #endif
 
-#if CONFIG_VFS
-void lv_fs_bk_posix_init(void);
-#endif
-
 /**********************
  *      MACROS
  **********************/
