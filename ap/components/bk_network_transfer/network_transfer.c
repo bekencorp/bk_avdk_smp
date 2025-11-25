@@ -26,6 +26,17 @@ ntwk_trans_ctxt_t *ntwk_trans_get_ctxt(void)
 	return s_ntwk_trans_ctxt;
 }
 
+const char *ntwk_trans_get_service_name(void)
+{
+	if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
+	{
+		LOGE("%s, context not initialized\n", __func__);
+		return NULL;
+	}
+
+	return s_ntwk_trans_ctxt->service_name;
+}
+
 bk_err_t ntwk_trans_register_msg_event_cb(ntwk_trans_msg_event_cb_t cb)
 {
     return ntwk_msg_register_event_cb(cb);

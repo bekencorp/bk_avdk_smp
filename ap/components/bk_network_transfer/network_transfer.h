@@ -391,6 +391,15 @@ bk_err_t ntwk_trans_ctxt_deinit(void);
 ntwk_trans_ctxt_t *ntwk_trans_get_ctxt(void);
 
 /**
+ * @brief Get the service name from the currently registered network transfer context
+ *
+ * Get the service name string from the current registered network transfer context
+ *
+ * @return const char* Pointer to the service name string, returns NULL if context is not initialized
+ */
+const char *ntwk_trans_get_service_name(void);
+
+/**
  * @brief Start the service of the specified channel
  *
  * Start the service of the specified channel for the currently registered context and automatically adapt the service type
