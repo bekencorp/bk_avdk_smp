@@ -201,13 +201,19 @@ bk_err_t rtos_core0_create_thread( beken_thread_t* thread, uint8_t priority, con
 bk_err_t rtos_core0_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-	return xTaskCreateInPsram( (native_thread_t)function, 
-                                name, 
-                                (unsigned short) (stack_size/sizeof( portSTACK_TYPE )), 
-                                (void *)arg, 
-                                BK_PRIORITY_TO_NATIVE_PRIORITY(priority), 
+	bk_err_t ret;
+	ret = xTaskCreateInPsram( (native_thread_t)function,
+                                name,
+                                (unsigned short) (stack_size/sizeof( portSTACK_TYPE )),
+                                (void *)arg,
+                                BK_PRIORITY_TO_NATIVE_PRIORITY(priority),
                                 (TaskHandle_t *)thread,
                                 0 );
+
+	if (ret == pdPASS)
+		return kNoErr;
+	else
+		return kGeneralErr;
 }
 
 #if (CONFIG_CPU_CNT > 1)
@@ -220,13 +226,20 @@ bk_err_t rtos_core1_create_thread( beken_thread_t* thread, uint8_t priority, con
 bk_err_t rtos_core1_create_psram_thread( beken_thread_t* thread, uint8_t priority, const char* name,
                         beken_thread_function_t function, uint32_t stack_size, beken_thread_arg_t arg )
 {
-	return xTaskCreateInPsram( (native_thread_t)function, 
-                                name, 
-                                (unsigned short) (stack_size/sizeof( portSTACK_TYPE )), 
-                                (void *)arg, 
-                                BK_PRIORITY_TO_NATIVE_PRIORITY(priority), 
+	bk_err_t ret;
+	ret = xTaskCreateInPsram( (native_thread_t)function,
+                                name,
+                                (unsigned short) (stack_size/sizeof( portSTACK_TYPE )),
+                                (void *)arg,
+                                BK_PRIORITY_TO_NATIVE_PRIORITY(priority),
                                 (TaskHandle_t *)thread,
                                 1 );
+
+
+	if (ret == pdPASS)
+		return kNoErr;
+	else
+		return kGeneralErr;
 }
 #endif
 
