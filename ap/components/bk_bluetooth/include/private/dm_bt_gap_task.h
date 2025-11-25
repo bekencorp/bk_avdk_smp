@@ -97,6 +97,7 @@ typedef struct
 {
     uint8_t addr[6];
     uint8_t reason;
+    uint8_t type; //0 sco 1 acl
 } bk_bt_disconnection_msg_t;
 
 typedef struct
@@ -135,6 +136,7 @@ typedef struct
     uint8_t addr[6];
     uint8_t role;
 } bk_bt_switch_role_msg_t;
+
 
 void bk_bt_call_callback(bk_gap_bt_cb_event_t event, bk_bt_gap_cb_param_t *param);
 bk_bt_gap_cb_t bk_bt_gap_get_callback(void);

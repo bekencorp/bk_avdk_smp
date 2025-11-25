@@ -59,6 +59,13 @@ enum
     BLE_ETHERMIND_GAP_API_REQ_SUBMSG_GENERATE_RPA,
 };
 
+enum
+{
+    BLE_ETHERMIND_GAP_SELF_API_REQ_SUBMSG_START = BLUETOOTH_API_GROUP(BLE_ETHERMIND_MSG_GAP_SELF_REQ_EVT),
+    BLE_ETHERMIND_GAP_SELF_API_REQ_SUBMSG_RESOLVING_LIST_OP,
+};
+
+
 typedef enum
 {
     SCAN_ENABLE_CMD,
@@ -96,6 +103,7 @@ typedef struct
     uint8_t   frag_pref;
     uint8_t   adv_data_len;
     uint8_t   adv_data[MAX_ADV_LEN];
+    uint8_t cmd_type; //CMD_TYPE_ADV_NORMAL
 } ble_gap_adv_data_t;
 
 typedef struct
@@ -105,6 +113,7 @@ typedef struct
     uint8_t   frag_pref;
     uint8_t   scan_response_data_len;
     uint8_t   scan_response_data[MAX_ADV_LEN];
+    uint8_t cmd_type; //CMD_TYPE_SCAN_RSP_NORMAL
 } ble_gap_scan_rsp_data_t;
 
 typedef struct
@@ -328,7 +337,6 @@ enum
     CMD_TYPE_SCAN_RSP_RAW,
 };
 
-ble_err_t set_cmd_type(int type, int cmd_type);
 bk_ble_gap_cb_t bk_ble_gap_get_callback(void);
 void bk_ble_gap_set_callback(bk_ble_gap_cb_t cb);
 uint16_t bk_ble_gap_get_whitelist_avail_size_private(void);;
