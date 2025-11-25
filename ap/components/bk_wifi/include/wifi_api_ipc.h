@@ -49,6 +49,7 @@ enum BK_WIFI_API_CMD_TYPE
     STA_SET_BCN_LOSS_TIME               = 0x319,
     STA_SET_BCN_MISS_TIME               = 0x31A,
     STA_GET_LINK_STATE_WITH_REASON      = 0x31B,
+    STA_SET_IP4_STATIC_IP               = 0x31C,
 
     // AP management command section
     AP_SET_CONFIG                       = 0x320,

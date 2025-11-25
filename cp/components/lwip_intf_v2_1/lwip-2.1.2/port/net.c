@@ -247,7 +247,7 @@ void user_connected_callback(FUNCPTR fn)
 	sta_connected_func = fn;
 }
 extern void TOGGLE_GPIO18_DOWN();
-
+extern uint8 sta_static_ip_flag;
 static void wm_netif_status_static_callback(struct netif *n)
 {
 	if (n->flags & NETIF_FLAG_UP) {
@@ -256,6 +256,17 @@ static void wm_netif_status_static_callback(struct netif *n)
 #ifdef CONFIG_WIFI_ENABLE
 		if (n == &g_mlan.netif) {
 			wifi_netif_notify_sta_got_ip();
+
+			if (bk_feature_fast_dhcp_enable() && !sta_static_ip_flag) {
+				/* read stored IP from flash as the static IP */
+				struct wlan_fast_connect_info fci = {0};
+				wlan_read_fast_connect_info(&fci);
+				ip_addr_set_ip4_u32(&n->ip_addr, *((u32 *)&fci.ip_addr));
+				ip_addr_set_ip4_u32(&n->netmask, *((u32 *)&fci.netmask));
+				ip_addr_set_ip4_u32(&n->gw, *((u32 *)&fci.gw));
+				os_memcpy((char *)&n->dns1, (char *)&fci.dns1, sizeof(n->dns1));
+				LWIP_LOGD("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
+			}
 
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 			wifi_link_status_t link_status = {0};
@@ -266,20 +277,9 @@ static void wm_netif_status_static_callback(struct netif *n)
 			bk_wifi_sta_get_link_status(&link_status);
 			os_memcpy(ssid, link_status.ssid, 32);
 			ctrl_rssi = link_status.rssi;
-
-			cif_handle_bk_cmd_connect_ind(ssid, ctrl_rssi, sta_ip_settings.address,sta_ip_settings.gw,sta_ip_settings.netmask, sta_ip_settings.dns1);
+			cif_handle_bk_cmd_connect_ind(ssid, ctrl_rssi, ip_addr_get_ip4_u32(&n->ip_addr), ip_addr_get_ip4_u32(&n->gw), ip_addr_get_ip4_u32(&n->netmask), n->dns1);
 #endif
 
-			if (bk_feature_fast_dhcp_enable()) {
-				/* read stored IP from flash as the static IP */
-				struct wlan_fast_connect_info fci = {0};
-				wlan_read_fast_connect_info(&fci);
-				ip_addr_set_ip4_u32(&n->ip_addr, *((u32 *)&fci.ip_addr));
-				ip_addr_set_ip4_u32(&n->netmask, *((u32 *)&fci.netmask));
-				ip_addr_set_ip4_u32(&n->gw, *((u32 *)&fci.gw));
-				os_memcpy((char *)&n->dns1, (char *)&fci.dns1, sizeof(n->dns1));
-				LWIP_LOGD("ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip_addr_get_ip4_u32(&n->ip_addr)));
-			}
 #if !CONFIG_DISABLE_DEPRECIATED_WIFI_API
 			if (sta_ipup_cb != NULL)
 				sta_ipup_cb(NULL);

@@ -10,26 +10,42 @@
 #include "lwip/netif.h"
 #endif
 #include <components/event.h>
-#ifdef CONFIG_WIFI_VNET_CONTROLLER
+#ifndef CONFIG_WIFI_VNET_CONTROLLER
 #include "wdrv_cntrl.h"
 #else
 #include "bk_private/bk_wifi.h"
+#include "wifi_api_ipc.h"
 #endif
 
 uint8 sta_static_ip_flag = 0;
-netif_ip4_config_t static_ip = {0};
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 extern wdrv_wlan wdrv_host_env;
 #endif
 
 bk_err_t bk_netif_static_ip(netif_ip4_config_t static_ip4_config)
 {
-	sta_static_ip_flag =1;
+	__maybe_unused bk_err_t ret = BK_OK;
+	__maybe_unused void *buffer_to_ipc = NULL;
+	__maybe_unused uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
 
-	os_strncpy(static_ip.ip, static_ip4_config.ip, NETIF_IP4_STR_LEN);
-	os_strncpy(static_ip.mask, static_ip4_config.mask, NETIF_IP4_STR_LEN);
-	os_strncpy(static_ip.gateway, static_ip4_config.gateway, NETIF_IP4_STR_LEN);
-	os_strncpy(static_ip.dns, static_ip4_config.dns, NETIF_IP4_STR_LEN);
+	sta_static_ip_flag = 1;
+
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+	/* forward static IP configuration to CP */
+	buffer_to_ipc = os_malloc(len_ip4_config);
+	if (!buffer_to_ipc) {
+		BK_LOGE(NULL, "%s malloc failed\r\n", __func__);
+		return BK_ERR_NO_MEM;
+	}
+	os_memcpy(buffer_to_ipc, &static_ip4_config, len_ip4_config);
+	ret = wifi_send_com_api_cmd(STA_SET_IP4_STATIC_IP, 1, (uint32_t)buffer_to_ipc);
+	if (ret != BK_OK) {
+		BK_LOGE(NULL, "%s set sta netif ip4 config failed, ret=%d\n", __func__, ret);
+		os_free(buffer_to_ipc);
+		return ret;
+	}
+	os_free(buffer_to_ipc);
+#endif
 
 	return BK_OK;
 }

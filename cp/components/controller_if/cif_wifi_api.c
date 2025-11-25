@@ -264,6 +264,12 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             break;
         }
 
+        case STA_SET_IP4_STATIC_IP:
+        {
+            ret = bk_netif_static_ip(*(netif_ip4_config_t *)arg_info->args[0]);
+            break;
+        }
+
         case WIFI_GET_SUPPORT_MODE:
         {
             uint8_t *support_mode = (uint8_t *)(arg_info->args[0]);
