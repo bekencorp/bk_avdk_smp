@@ -163,17 +163,17 @@ static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
 
     bt_ipc_cmd.hci_hdr = *msg;
 
+    ret = rtos_get_semaphore(&bt_ipc_env.send_sema, BT_IPC_SEND_TIMEOUT_MS);
+    if (ret != BK_OK)
+    {
+        LOGW("get bt ipc send_sema failed\n");
+    }
+
     ret = mb_chnl_write(BT_IPC_CMD_CHNL, (mb_chnl_cmd_t*)&bt_ipc_cmd);
     if (ret != BK_OK)
     {
         LOGW("mb_chnl_write failed\n");
         return;
-    }
-
-    ret = rtos_get_semaphore(&bt_ipc_env.send_sema, BT_IPC_SEND_TIMEOUT_MS);
-    if (ret != BK_OK)
-    {
-        LOGW("get bt ipc send_sema failed\n");
     }
 }
 
@@ -525,6 +525,8 @@ int32_t bt_ipc_init(void)
     if (ret != BK_OK)
     {
         LOGW("create bt ipc thread fail\n");
+        rtos_deinit_queue(&bt_ipc_env.queue);
+        bt_ipc_env.queue = NULL;
         return -1;
     }
 
@@ -532,9 +534,13 @@ int32_t bt_ipc_init(void)
     bt_ipc_mailbox_config(BT_IPC_CMD_CHNL);
 
     /* init semaphore */
-    ret = rtos_init_semaphore(&bt_ipc_env.send_sema, 5);
+    ret = rtos_init_semaphore_ex(&bt_ipc_env.send_sema, 1, 1);
     if (ret != BK_OK) {
         LOGW("init send_sema fail!\r\n");
+        rtos_deinit_queue(&bt_ipc_env.queue);
+        bt_ipc_env.queue = NULL;
+        rtos_delete_thread(bt_ipc_env.thd);
+        bt_ipc_env.thd = NULL;
         return -1;
     }
 
