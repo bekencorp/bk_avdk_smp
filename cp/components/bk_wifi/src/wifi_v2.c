@@ -3178,9 +3178,10 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 			WIFI_LOGW("the max conn num is more than CFG_SUPPORTED_MAX_STA_NUM, set it is default\n");
 
 		g_ap_param_ptr->max_con = CFG_SUPPORTED_MAX_STA_NUM;
-        } else {
+	} else {
 		g_ap_param_ptr->max_con = ap_config->max_con;
-        }
+	}
+	g_ap_param_ptr->disable_dns_server = ap_config->disable_dns_server;
 	g_wlan_general_param->role = CONFIG_ROLE_AP;
 	//TODO why need this???
 	bk_wlan_set_coexist_at_init_phase(CONFIG_ROLE_AP);

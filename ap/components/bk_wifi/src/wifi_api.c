@@ -459,6 +459,7 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
     } else {
         g_ap_param_ptr->max_con = ap_config->max_con;
     }
+    g_ap_param_ptr->disable_dns_server = ap_config->disable_dns_server;
     g_wlan_general_param->role = CONFIG_ROLE_AP;
     //TODO why need this???
     //bk_wlan_set_coexist_at_init_phase(CONFIG_ROLE_AP);

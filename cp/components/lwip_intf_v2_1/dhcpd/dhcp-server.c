@@ -177,6 +177,8 @@ static unsigned int next_yiaddr()
 #if IP_NAPT
 extern const ip_addr_t *sta_dns;
 #endif
+#include "bk_wifi_types.h"
+extern ap_param_t *g_ap_param_ptr;
 static unsigned int make_response(char *msg, enum dhcp_message_type type)
 {
 	struct bootp_header *hdr;
@@ -233,22 +235,24 @@ static unsigned int make_response(char *msg, enum dhcp_message_type type)
 	opt->length = 4;
 	offset += sizeof(struct bootp_option) + opt->length;
 
-	opt = (struct bootp_option *)offset;
-	opt->type = BOOTP_OPTION_NAMESERVER;
-	if (dhcp_nack_dns_server_handler) {
+	if (g_ap_param_ptr && !g_ap_param_ptr->disable_dns_server) {
+		opt = (struct bootp_option *)offset;
+		opt->type = BOOTP_OPTION_NAMESERVER;
+		if (dhcp_nack_dns_server_handler) {
 #if !IP_NAPT
-		write_u32(opt->value, dhcps.router_ip);
-#else
-		if(!sta_dns)
 			write_u32(opt->value, dhcps.router_ip);
-		else
-			write_u32(opt->value, ip4_addr_get_u32(ip_2_ip4(sta_dns)));
+#else
+			if(!sta_dns)
+				write_u32(opt->value, dhcps.router_ip);
+			else
+				write_u32(opt->value, ip4_addr_get_u32(ip_2_ip4(sta_dns)));
 #endif
+		}
+		else
+			write_u32(opt->value, 0);
+		opt->length = 4;
+		offset += sizeof(struct bootp_option) + opt->length;
 	}
-	else
-		write_u32(opt->value, 0);
-	opt->length = 4;
-	offset += sizeof(struct bootp_option) + opt->length;
 
 	opt = (struct bootp_option *)offset;
 	opt->type = BOOTP_END_OPTION;

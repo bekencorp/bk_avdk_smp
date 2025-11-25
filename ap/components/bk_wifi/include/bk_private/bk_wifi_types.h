@@ -979,6 +979,7 @@ typedef struct ap_param {
 #endif
 	u8 max_statype_num[4];
 	u8 max_con;
+	uint8_t disable_dns_server;
 } ap_param_t;
 
 typedef struct sta_param {

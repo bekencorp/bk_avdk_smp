@@ -539,6 +539,7 @@ typedef struct {
 	wifi_security_t security;          /**< Security type of BK AP, default value TODO */
 	uint8_t hidden: 1;                 /**< Whether the BK AP is hidden */
 	uint8_t acs: 1;                    /**< Whether Auto Channel Selection is enabled */
+	uint8_t disable_dns_server: 1;     /**< Whether to disable DNS server */
 	uint8_t vsie_len;                  /**< Beacon/ProbeResp Vendor Specific IE len */
 	uint8_t vsie[255];                 /**< Beacon/ProbeResp Vendor Specific IE */
 	uint8_t max_con;                   /**< Max number of stations allowed to connect to BK AP, TODO default value? */ 

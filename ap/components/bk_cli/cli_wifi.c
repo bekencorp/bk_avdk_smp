@@ -36,17 +36,19 @@ void cli_wifi_scan_help(void)
 
 void cli_wifi_ap_help(void)
 {
-	CLI_RAW_LOGI("\r\nap {ssid} [password] [channel] [hidden] \n");
+	CLI_RAW_LOGI("\r\nap {ssid} [password] [channel] [hidden] [disable_dns_server] \n");
 	CLI_RAW_LOGI("  Start a softap. \n");
 	CLI_RAW_LOGI("  -ssid <string><mandatory>: SSID of AP. \n");
 	CLI_RAW_LOGI("  -password <string><optional>: password of AP. No need to fill it in if no password. Set 0 to skip this parameter. \n");
 	CLI_RAW_LOGI("  -channel <int><optional>: channel of AP. No need to fill it in if use default channel. Set 0 to use default channel or skip this parameter. \n");
-	CLI_RAW_LOGI("  -hidden <bool><optional>: set softap hidden. No need to fill it in if not to hide softap. \n");
+	CLI_RAW_LOGI("  -hidden <bool><optional>: set softap hidden. No need to fill it in if not to hide softap. Accept true/1 or false/0. \n");
+	CLI_RAW_LOGI("  -disable_dns_server <bool><optional>: disable DNS server. No need to fill it in if not to disable DNS server. Accept true/1 or false/0. \n");
 	CLI_RAW_LOGI("  example1: ap default_ssid  \n");
 	CLI_RAW_LOGI("  example2: ap default_ssid 12345678 \n");
 	CLI_RAW_LOGI("  example3: ap default_ssid 12345678 6 \n");
 	CLI_RAW_LOGI("  example4: ap default_ssid 12345678 0 true \n");
 	CLI_RAW_LOGI("  example5: ap default_ssid 0 0 true \n");
+	CLI_RAW_LOGI("  example6: ap default_ssid 12345678 6 false true \n");
 }
 
 void cli_wifi_sta_help(void)
@@ -290,7 +292,7 @@ void cli_wifi_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 	int ret = 0;
 	char *msg = NULL;
 
-	if ((argc < 2) || (argc > 5)){
+	if ((argc < 2) || (argc > 6)){
 		CLI_LOGW("invalid argc number\n");
 		cli_wifi_ap_help();
 		goto error;
@@ -336,6 +338,18 @@ void cli_wifi_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 		}
 	}
 
+	if (argc > 5) {
+		if ((!os_strncmp(argv[5], "true", 4)) || !os_strcmp(argv[5], "1"))
+			ap_config.disable_dns_server = true;
+		else if ((!os_strncmp(argv[5], "false", 5)) || !os_strcmp(argv[5], "0"))
+			ap_config.disable_dns_server = false;
+		else {
+			CLI_LOGW("invalid paramter of disable_dns_server!\n");
+			cli_wifi_ap_help();
+			goto error;
+		}
+	}
+
 	os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
 	os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
 	os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
@@ -351,8 +365,8 @@ void cli_wifi_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 
 	ap_config.hidden = hide_ssid;
 
-	CLI_LOGI("Start softap. ssid:%s key:%s chan:%d hidden:%d\r\n",
-				ap_config.ssid, ap_config.password, ap_config.channel, ap_config.hidden);
+	CLI_LOGI("Start softap. ssid:%s key:%s chan:%d hidden:%d disable_dns_server:%d\r\n",
+				ap_config.ssid, ap_config.password, ap_config.channel, ap_config.hidden, ap_config.disable_dns_server);
 	ap_config.hidden = true;
 	ret = bk_wifi_ap_set_config(&ap_config);
 	ret = bk_wifi_ap_start();
