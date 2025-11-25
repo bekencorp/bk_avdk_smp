@@ -11,6 +11,51 @@
 #include <os/mem.h>
 #include "arch_interrupt.h"
 
+extern unsigned char _heap_start, _heap_end;
+#if (CONFIG_PSRAM_AS_SYS_MEMORY)
+#if CONFIG_TZ
+#define PSRAM_HEAP_START_ADDRESS    (void*)(CONFIG_CP_PSRAM_HEAP_ADDR + SOC_ADDR_OFFSET)
+#else
+#define PSRAM_HEAP_START_ADDRESS    (void*)(CONFIG_CP_PSRAM_HEAP_ADDR)
+#endif
+#define PSRAM_HEAP_END_ADDRESS      ((uint8_t*)PSRAM_HEAP_START_ADDRESS + CONFIG_CP_PSRAM_HEAP_SIZE)
+#endif
+
+/**
+ * @brief Check if a pointer is within the valid heap range
+ * @param ptr Pointer to check
+ * @return 1 if pointer is within heap range, 0 otherwise
+ */
+static int os_check_heap_range(const void *ptr)
+{
+	if (ptr == NULL) {
+		/* NULL pointer is allowed for free operations */
+		return 1;
+	}
+
+	uintptr_t addr = (uintptr_t)ptr;
+	uintptr_t heap_start = (uintptr_t)&_heap_start;
+	uintptr_t heap_end = (uintptr_t)&_heap_end;
+
+	/* Check if pointer is within normal heap range */
+	if (addr >= heap_start && addr < heap_end) {
+		return 1;
+	}
+
+#if (CONFIG_PSRAM_AS_SYS_MEMORY)
+	/* Check if pointer is within PSRAM heap range */
+	uintptr_t psram_heap_start = (uintptr_t)PSRAM_HEAP_START_ADDRESS;
+	uintptr_t psram_heap_end = (uintptr_t)PSRAM_HEAP_END_ADDRESS;
+
+	if (addr >= psram_heap_start && addr < psram_heap_end) {
+		return 1;
+	}
+#endif
+
+	/* Pointer is not within any valid heap range */
+	return 0;
+}
+
 INT32 os_memcmp(const void *s1, const void *s2, UINT32 n)
 {
 	return memcmp(s1, s2, (unsigned int)n);
@@ -158,6 +203,12 @@ void os_free(void *ptr)
 		BK_ASSERT(false);
 	}
 
+	/* Check if pointer is within valid heap range */
+	if (!os_check_heap_range(ptr)) {
+		BK_LOGE(NULL, "os_free: invalid heap pointer 0x%p\r\n", ptr);
+		BK_ASSERT(false);
+	}
+
 	if (ptr)
 		vPortFree(ptr);
 }
@@ -235,6 +286,13 @@ void *os_free_debug(const char *func_name, int line, void *pv)
 		BK_DUMP_OUT("Error: [%s] line(%d). free_risk.\r\n", func_name, line);
 		BK_ASSERT(false);
 	}
+
+	/* Check if pointer is within valid heap range */
+	if (!os_check_heap_range(pv)) {
+		BK_DUMP_OUT("Error: [%s] line(%d). os_free_debug: invalid heap pointer 0x%p.\r\n", func_name, line, pv);
+		BK_ASSERT(false);
+	}
+
 	return vPortFree_cm(func_name, line, pv);
 }
 
