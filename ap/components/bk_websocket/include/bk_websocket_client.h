@@ -47,6 +47,7 @@ typedef struct {
 	char *buffer;
 	char *sub_protocol;
 	char *user_agent;
+	char *authorization;
 	char *headers;
 	bool propagate_control_frames;
 	ws_transport_frame_state_t frame_state;
@@ -97,13 +98,13 @@ typedef struct {
 	int							buffer_size;
 	const char					*subprotocol;
 	const char					*user_agent;
+	const char					*authorization;
 	const char					*headers;
 //	bool						disable_pingpong_discon;
 	bk_event_handler_t			ws_event_handler;
 } websocket_client_input_t;
 
 typedef websocket_transport_info_t *transport;
-typedef void (*websocket_event_cb)(int32_t event_id, char *event_data, int data_len);
 
 /**
  * @brief Websocket event data
@@ -124,4 +125,5 @@ int websocket_client_start(transport client);
 bool websocket_client_is_connected(transport client);
 int websocket_client_send_text(transport client, const char *data, int len, int timeout);
 int websocket_client_send_binary(transport client, const char *data, int len, int timeout);
+int websocket_client_send_with_opcode(transport client, ws_transport_opcodes_t opcode, const uint8_t *data, int len, int timeout);
 

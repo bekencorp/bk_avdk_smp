@@ -26,6 +26,7 @@
 #include <mbedtls/sha1.h>
 #include "mbedtls/base64.h"
 #include <netdb.h>
+#define TAG "WEBSOCKET"
 
 #define WEBSOCKET_SSL_DEFAULT_PORT		443
 #define WEBSOCKET_TCP_DEFAULT_PORT		80
@@ -38,23 +39,12 @@
 #define WS_SIZE16					126
 
 #define WEBSOCKET_TASK_PRIORITY 		(4)
-#define WEBSOCKET_TASK_STACK			(4*1024)
+#define WEBSOCKET_TASK_STACK			(8*1024)
 #define WEBSOCKET_NETWORK_TIMEOUT_MS	(10*1000)
 #define WEBSOCKET_PINGPONG_TIMEOUT_SEC	(120)
 #define WEBSOCKET_PING_INTERVAL_SEC 	(10)
 #define WEBSOCKET_RECONNECT_TIMEOUT_MS	(5*1000)
 #define WEBSOCKET_RX_RETRY_COUNT		(10)
-
-websocket_event_cb websocket_cb = NULL;
-void bk_websocket_register_cb(websocket_event_cb cb)
-{
-	websocket_cb = cb;
-}
-void bk_websocket_push_cb(int32_t event_id, char *event_data, int data_len)
-{
-	if(websocket_cb)
-		(*websocket_cb)(event_id, event_data, data_len);
-}
 
 static void bk_websocket_client_dispatch_event(transport client,
         int32_t event,
@@ -62,21 +52,22 @@ static void bk_websocket_client_dispatch_event(transport client,
         int data_len,
         int opcode)
 {
-    bk_websocket_event_data_t event_data;
+	bk_websocket_event_data_t event_data;
 
-    event_data.client = client;
-    event_data.user_context = client->config->user_context;
-    event_data.data_ptr = data;
-    event_data.data_len = data_len;
-    event_data.op_code = opcode;
-    event_data.payload_len = client->payload_len;
-    event_data.payload_offset = client->payload_offset;
+	event_data.client = client;
+	event_data.user_context = client->config ? client->config->user_context : NULL;
+	event_data.data_ptr = data;
+	event_data.data_len = data_len;
+	event_data.op_code = opcode;
+	event_data.payload_len = client->payload_len;
+	event_data.payload_offset = client->payload_offset;
 
-    if(client->ws_event_handler)
-        (client->ws_event_handler)(client, NULL, event, (void *)&event_data);
+	if(client->ws_event_handler) {
+		(client->ws_event_handler)(client, 0, event, (void *)&event_data);
+	}
+	return;
 }
 
-#define TAG "WEBSOCKET"
 static uint64_t bk_tick_get_ms(void);
 struct timeval* utils_ms_to_timeval(int timeout_ms, struct timeval *tv);
 void fill_random(void *buf, size_t len);
@@ -134,6 +125,75 @@ static void bk_hex_dump(char *s, int length)
 		for (int i = 0; i < length; i++)
 			BK_RAW_LOGI(NULL, "%c", *(u8 *)(s+i));
 		BK_RAW_LOGI(NULL, "\r\n");
+}
+
+static void parse_close_frame_payload(uint8_t *payload, int length) {
+
+    if (length < 2) {
+        BK_LOGE(TAG, "Invalid close frame payload length: %d\n", length);
+        return;
+    }
+
+    uint16_t status_code = (payload[0] << 8) | payload[1];
+    BK_LOGI(TAG, "Status Code: %d (0x%04X)\n", status_code, status_code);
+
+    switch (status_code) {
+        case 1000:
+            BK_LOGI(TAG, "Status Meaning: Normal closure\n");
+            break;
+        case 1001:
+            BK_LOGI(TAG, "Status Meaning: Going away\n");
+            break;
+        case 1002:
+            BK_LOGI(TAG, "Status Meaning: Protocol error\n");
+            break;
+        case 1003:
+            BK_LOGI(TAG, "Status Meaning: Unsupported data\n");
+            break;
+        case 1005:
+            BK_LOGI(TAG, "Status Meaning: No status received\n");
+            break;
+        case 1006:
+            BK_LOGI(TAG, "Status Meaning: Abnormal closure\n");
+            break;
+        case 1007:
+            BK_LOGI(TAG, "Status Meaning: Invalid frame payload data\n");
+            break;
+        case 1008:
+            BK_LOGI(TAG, "Status Meaning: Policy violation\n");
+            break;
+        case 1009:
+            BK_LOGI(TAG, "Status Meaning: Message too big\n");
+            break;
+        case 1010:
+            BK_LOGI(TAG, "Status Meaning: Mandatory extension\n");
+            break;
+        case 1011:
+            BK_LOGI(TAG, "Status Meaning: Internal server error\n");
+            break;
+        case 1015:
+            BK_LOGI(TAG, "Status Meaning: TLS handshake failure\n");
+            break;
+        default:
+            if (status_code >= 3000 && status_code <= 3999) {
+                BK_LOGI(TAG, "Status Meaning: Reserved for libraries and frameworks\n");
+            } else if (status_code >= 4000 && status_code <= 4999) {
+                BK_LOGI(TAG, "Status Meaning: Reserved for private use\n");
+            } else {
+                BK_LOGI(TAG, "Status Meaning: Unknown status code\n");
+            }
+            break;
+    }
+
+    if (length > 2) {
+        BK_LOGI(TAG, "Reason: ");
+        for (int i = 2; i < length; i++) {
+            BK_RAW_LOGI(NULL, "%c", payload[i]);
+        }
+        BK_RAW_LOGI(NULL, "\n");
+    } else {
+        BK_LOGI(TAG, "Reason: No reason provided\n");
+    }
 }
 
 static int _tcp_close(transport client)
@@ -257,6 +317,15 @@ static int ws_read_payload(transport client, char *buffer, int len, int timeout_
 			buffer[i] = (buffer[i] ^ ws->frame_state.mask_key[i % 4]);
 		}
 	}
+	if (ws->frame_state.opcode == WS_TRANSPORT_OPCODES_CLOSE) {
+		// Print the payload when receiving a close frame
+		if (ws->frame_state.payload_len > 0 && ws->frame_state.payload_len <= len) {
+			parse_close_frame_payload((uint8_t*)buffer, ws->frame_state.payload_len);
+		} else {
+			BK_LOGI(TAG, "Received close frame without payload\r\n");
+		}
+	}
+
 	return rlen;
 }
 
@@ -378,7 +447,7 @@ static int ws_write(transport client, int opcode, int mask_flag, const char *b, 
 	}
 
 	if (len == 0) {
-		return 0;
+		return header_len;
 	}
 
 	BK_LOGV(TAG, "%s, payload buffer len:%d\r\n", __func__, len);
@@ -738,6 +807,7 @@ static bk_err_t ws_disconnect(transport client)
 static int ws_connect(transport client, const char *host, int port, int timeout_ms)
 {
 	transport_ws_t *ws = client->ws_transport;
+	int len = 0;
 
 	if(ws_tcp_connect(client, host, port, timeout_ms) < 0) {
 		return BK_FAIL;
@@ -753,7 +823,22 @@ static int ws_connect(transport client, const char *host, int port, int timeout_
 
 	mbedtls_base64_encode(client_key, sizeof(client_key), &outlen, random_key, sizeof(random_key));
 
-	int len = snprintf(ws->buffer, WS_BUFFER_SIZE,
+	if(ws->authorization) {
+		len = snprintf(ws->buffer, WS_BUFFER_SIZE,
+						"GET %s HTTP/1.1\r\n"
+						"Connection: Upgrade\r\n"
+						"Host: %s:%d\r\n"
+						"Authorization: %s\r\n"
+						"Origin: http://%s\r\n"
+						"User-Agent: %s\r\n"
+						"Upgrade: websocket\r\n"
+						"Sec-WebSocket-Version: 13\r\n"
+						"Sec-WebSocket-Key: %s\r\n",
+						ws->path, host,
+						port, ws->authorization, host, user_agent_ptr,
+						client_key);
+	} else {
+		len = snprintf(ws->buffer, WS_BUFFER_SIZE,
 						"GET %s HTTP/1.1\r\n"
 						"Connection: Upgrade\r\n"
 						"Host: %s:%d\r\n"
@@ -765,7 +850,8 @@ static int ws_connect(transport client, const char *host, int port, int timeout_
 						ws->path,
 						host, port, host, user_agent_ptr,
 						client_key);
-	BK_LOGD(NULL, "http request:\r\n");
+	}
+	os_printf("http request:\r\n");
 	bk_hex_dump(ws->buffer, 200);
 
 	//BK_LOGE(TAG, "len: %d\r\n", len);
@@ -818,7 +904,7 @@ static int ws_connect(transport client, const char *host, int port, int timeout_
 		ws->buffer[header_len] = '\0';
 		BK_LOGE(TAG, "Read header chunk %d, current header size: %d\r\n", len, header_len);
 	} while (NULL == os_strstr(ws->buffer, "\r\n\r\n") && header_len < WS_BUFFER_SIZE);
-	BK_LOGD(NULL, "server buffer:\r\n");
+	os_printf("server buffer:\r\n");
 	bk_hex_dump(ws->buffer, 200);
 
 
@@ -872,17 +958,17 @@ static int ws_poll_connection_closed(int *sockfd, int timeout_ms)
 				// socket is readable, but reads zero bytes -- connection cleanly closed by FIN flag
 				return 1;
 			}
-			BK_LOGW(TAG, "ws_poll_connection_closed: unexpected data readable on socket=%d", *sockfd);
+			BK_LOGW(TAG, "ws_poll_connection_closed: unexpected data readable on socket=%d\r\n", *sockfd);
 		} else if (FD_ISSET(*sockfd, &errset)) {
 			int sock_errno = 0;
 			uint32_t optlen = sizeof(sock_errno);
 			getsockopt(*sockfd, SOL_SOCKET, SO_ERROR, &sock_errno, &optlen);
 			BK_LOGV(TAG, "ws_poll_connection_closed select error %d, errno = %s, fd = %d", sock_errno, strerror(sock_errno), *sockfd);
 			if (sock_errno == ENOTCONN || sock_errno == ECONNRESET || sock_errno == ECONNABORTED) {
-				BK_LOGI(TAG, "ws_poll_connection_closed recv reset error %d, errno = %s, fd = %d", sock_errno, strerror(sock_errno), *sockfd);
+				BK_LOGI(TAG, "ws_poll_connection_closed recv reset error %d, errno = %s, fd = %d\r\n", sock_errno, strerror(sock_errno), *sockfd);
 				return 1;
 			}
-			BK_LOGE(TAG, "ws_poll_connection_closed: unexpected errno=%d on socket=%d", sock_errno, *sockfd);
+			BK_LOGE(TAG, "ws_poll_connection_closed: unexpected errno=%d on socket=%d\r\n", sock_errno, *sockfd);
 		}
 		return BK_FAIL;
 	}
@@ -897,7 +983,11 @@ static int ws_client_recv(transport client)
 	transport_ws_t *ws = client->ws_transport;
 	do {
 		BK_LOGV(TAG, "----------begin receive--------------\r\n");
+#if CONFIG_WEBSOCKET_FULL_SIZE
+		rlen = ws_read(client, client->rx_buffer + client->payload_offset, client->buffer_size - client->payload_offset, WEBSOCKET_NETWORK_TIMEOUT_MS);
+#else
 		rlen = ws_read(client, client->rx_buffer, client->buffer_size, WEBSOCKET_NETWORK_TIMEOUT_MS);
+#endif
 		if (rlen < 0) {
 			BK_LOGE(TAG, "Error read data\r\n");
 			return BK_FAIL;
@@ -910,17 +1000,39 @@ static int ws_client_recv(transport client)
 			BK_LOGE(TAG, "ws read timeouts\r\n");
 			return BK_OK;
 		}
-		bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_DATA, client->rx_buffer, rlen, client->last_opcode);
 		client->payload_offset += rlen;
+#if CONFIG_WEBSOCKET_FULL_SIZE
+		if (client->payload_len >= client->buffer_size) {
+			if (client->payload_offset == client->buffer_size) { //If the size of the received packet exceeds the max length, the event shall be reported according to the max length.
+				bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_DATA, client->rx_buffer, client->payload_offset, client->last_opcode);
+				client->payload_offset = 0;
+			}
+		}
+#else
+		bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_DATA, client->rx_buffer, rlen, client->last_opcode);
+#endif
 	} while (client->payload_offset < client->payload_len);
-	//BK_LOGE(TAG, "%s, len:%d\r\n", __func__, client->payload_len);
-
+#if CONFIG_WEBSOCKET_FULL_SIZE
+	if (client->payload_len < client->buffer_size)
+		bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_DATA, client->rx_buffer, client->payload_offset, client->last_opcode);
+#endif
 	if (client->last_opcode == WS_TRANSPORT_OPCODES_PING) {
 		const char *data = (client->payload_len == 0) ? NULL : client->rx_buffer;
 		BK_LOGE(TAG, "Received ping, Sending PONG with payload len=%d\r\n", client->payload_len);
 		BK_LOGE(TAG, "----------sending pong packet----------\r\n");
-		ws_write(client, WS_TRANSPORT_OPCODES_PONG | WS_TRANSPORT_OPCODES_FIN, WS_MASK, data, client->payload_len,
+		int retry_count = 0;
+retry:
+		rlen = ws_write(client, WS_TRANSPORT_OPCODES_PONG | WS_TRANSPORT_OPCODES_FIN, WS_MASK, data, client->payload_len,
 								WEBSOCKET_NETWORK_TIMEOUT_MS);
+		if (rlen <= 0 && retry_count < 3) {
+			if (rlen == 0 && errno == EINPROGRESS) {
+				retry_count++;
+				BK_LOGE(TAG, "sending pong fail, rlen:%d errno:%d retry_count:%d\r\n", rlen, errno, retry_count);
+				goto retry;
+			}
+			else
+				BK_LOGE(TAG, "sending pong fail, rlen:%d errno:%d\r\n", rlen, errno);
+		}
 	} else if (client->last_opcode == WS_TRANSPORT_OPCODES_PONG) {
 		BK_LOGE(TAG, "Received pong frame, send ping success\r\n");
 		client->wait_for_pong_resp = false;
@@ -928,8 +1040,8 @@ static int ws_client_recv(transport client)
 		BK_LOGE(TAG, "Received close frame\r\n");
 		client->state = WEBSOCKET_STATE_CLOSING;
 	} else if (client->last_opcode == WS_TRANSPORT_OPCODES_TEXT) {
-		BK_LOGE(TAG, "Received text frame: \r\n");
-		bk_hex_dump(client->rx_buffer, client->payload_len);
+		BK_LOGE(TAG, "Received text frame[len=%d]: \r\n", client->payload_len);
+		//bk_hex_dump(client->rx_buffer, client->payload_len);
 	}
 
 	return BK_OK;
@@ -971,7 +1083,7 @@ static bk_err_t websocket_client_destroy_config(transport client)
 	return BK_OK;
 }
 
-static int websocket_client_send_with_opcode(transport client, ws_transport_opcodes_t opcode, const uint8_t *data, int len, int timeout)
+int websocket_client_send_with_opcode(transport client, ws_transport_opcodes_t opcode, const uint8_t *data, int len, int timeout)
 {
 	int need_write = len;
 	int wlen = 0, widx = 0;
@@ -988,7 +1100,10 @@ static int websocket_client_send_with_opcode(transport client, ws_transport_opco
 		return BK_FAIL;
 	}
 
-	rtos_lock_mutex(&client->mutex);
+	if (rtos_lock_recursive_mutex(&client->mutex) != kNoErr) {
+		BK_LOGE(TAG, "Failed to lock sending tasks\r\n");
+		return BK_FAIL;
+	}
 
 	uint32_t current_opcode = opcode;
 	while (widx < len || current_opcode) {
@@ -1020,8 +1135,12 @@ static int websocket_client_send_with_opcode(transport client, ws_transport_opco
 	ret = widx;
 
 unlock_and_return:
-	if (client->mutex)
-		rtos_unlock_mutex(&client->mutex);
+	if (client->mutex) {
+		if (rtos_unlock_recursive_mutex(&client->mutex) != kNoErr) {
+			BK_LOGE(TAG, "Failed to lock sending tasks\r\n");
+			return BK_FAIL;
+		}
+	}
 	else
 		BK_LOGE(TAG, "mutex already deinit\r\n");
 	return ret;
@@ -1038,10 +1157,12 @@ static void free_client(transport client)
 {
 
 	if(client==NULL)
-		return ;
+		return;
 
-	rtos_deinit_mutex(&client->mutex);
+	if (client->mutex)
+		rtos_deinit_recursive_mutex(&client->mutex);
 	client->mutex = NULL;
+
 	client->ws_event_handler = NULL;
 
 	if (client->tx_buffer)
@@ -1096,16 +1217,18 @@ static void websocket_client_task(beken_thread_arg_t *thread_param)
 	client->state = WEBSOCKET_STATE_INIT;
 	int read_select = 0;
 	while (client->run) {
+        if (rtos_lock_recursive_mutex(&client->mutex) != kNoErr) {
+            BK_LOGE(TAG, "Failed to lock ws-client tasks, exiting the task...\r\n");
+            break;
+        }
 		switch ((int)client->state) {
 			case WEBSOCKET_STATE_INIT:
 				BK_LOGE(TAG, "websocket connecting to %s://%s:%d\r\n", client->config->scheme, client->config->host, client->config->port);
 				if (ws_connect(client, client->config->host,
 										client->config->port,
 										WEBSOCKET_NETWORK_TIMEOUT_MS) < 0) {
-					rtos_lock_mutex(&client->mutex);
 					BK_LOGE(TAG, "Error websocket connect\r\n");
 					ws_disconnect(client);
-					rtos_unlock_mutex(&client->mutex);
 					break;
 				}
 				BK_LOGE(TAG, "websocket connected to %s://%s:%d\r\n", client->config->scheme, client->config->host, client->config->port);
@@ -1121,9 +1244,7 @@ static void websocket_client_task(beken_thread_arg_t *thread_param)
 
 						if (status_bits & PING_SENT_BIT) {
 							BK_LOGE(TAG, "----------Sending ping packet----------\r\n");
-							rtos_lock_mutex(&client->mutex);
 							ws_write(client, WS_TRANSPORT_OPCODES_PING | WS_TRANSPORT_OPCODES_FIN, WS_MASK, NULL, 0, WEBSOCKET_NETWORK_TIMEOUT_MS);
-							rtos_unlock_mutex(&client->mutex);
 						} else if(status_bits & TEXT_SENT_BIT) {
 							BK_LOGE(TAG, "----------Sending text packet----------\r\n");
 							test_case_text(client);
@@ -1146,10 +1267,8 @@ static void websocket_client_task(beken_thread_arg_t *thread_param)
 				 }
 				 client->ping_tick_ms = bk_tick_get_ms();
 				 if (ws_client_recv(client) == BK_FAIL) {
-					rtos_lock_mutex(&client->mutex);
 					BK_LOGE(TAG, "Error receive data\r\n");
 					ws_disconnect(client);
-					rtos_unlock_mutex(&client->mutex);
 					break;
 				 }
 				 break;
@@ -1175,14 +1294,18 @@ static void websocket_client_task(beken_thread_arg_t *thread_param)
 				BK_LOGE(TAG, "Client run iteration in a default state: %d\r\n", client->state);
 				break;
 		}
+        if (rtos_unlock_recursive_mutex(&client->mutex) != kNoErr) {
+            BK_LOGE(TAG, "Failed to unlock ws-client tasks, exiting the task...\r\n");
+            break;
+        }
 
 		if (WEBSOCKET_STATE_CONNECTED == client->state) {
 			read_select = ws_tcp_poll_read(client, 1000); //Poll every 1000ms
 			if (read_select < 0) {
 				BK_LOGE(TAG, "Network error: ws_tcp_poll_read() returned %d, errno=%d\r\n", read_select, errno);
-				rtos_lock_mutex(&client->mutex);
+				rtos_lock_recursive_mutex(&client->mutex);
 				ws_disconnect(client);
-				rtos_unlock_mutex(&client->mutex);
+				rtos_unlock_recursive_mutex(&client->mutex);
 			}
 		} else if (WEBSOCKET_STATE_WAIT_TIMEOUT == client->state) {
 			if(client->auto_reconnect)
@@ -1200,15 +1323,15 @@ static void websocket_client_task(beken_thread_arg_t *thread_param)
 			}
 			client->run = false;
 			client->state = WEBSOCKET_STATE_UNKNOW;
-			bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_CLOSED, NULL, 0, -1);
+			//bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_CLOSED, NULL, 0, -1);
 			break;
 		}
 	}
 	BK_LOGE(TAG, "close connection...\r\n");
-	rtos_lock_mutex(&client->mutex);
+	rtos_lock_recursive_mutex(&client->mutex);
 	ws_tcp_close(client);
-	rtos_unlock_mutex(&client->mutex);
-
+	rtos_unlock_recursive_mutex(&client->mutex);
+	client->run = false;
 	client->state = WEBSOCKET_STATE_UNKNOW;
 	bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_CLOSED, NULL, 0, -1);
 
@@ -1231,9 +1354,9 @@ static bk_err_t websocket_client_stop(transport client)
 		return BK_FAIL;
 	}
 	BK_LOGE(TAG, "%s, sockfd :%d\r\n", __func__, client->sockfd);
-	rtos_lock_mutex(&client->mutex);
+	rtos_lock_recursive_mutex(&client->mutex);
 	ws_tcp_close(client);
-	rtos_unlock_mutex(&client->mutex);
+	rtos_unlock_recursive_mutex(&client->mutex);
 	BK_LOGI(TAG, "%s, sockfd :%d stop ws task\r\n", __func__, client->sockfd);
 	client->run = false;
 	client->state = WEBSOCKET_STATE_UNKNOW;
@@ -1271,7 +1394,7 @@ static bk_err_t websocket_client_set_uri(transport client, const char *uri)
 	http_parser_url_init(&puri);
 	int parser_status = http_parser_parse_url(uri, os_strlen(uri), 0, &puri);
 	if (parser_status != 0) {
-		BK_LOGE(TAG, "Error parse uri = %s", uri);
+		BK_LOGE(TAG, "Error parse uri = %s\r\n", uri);
 		return BK_FAIL;
 	}
 	if (NULL == (client->config = (websocket_config_t *)os_malloc(sizeof(websocket_config_t)))) {
@@ -1377,7 +1500,7 @@ transport websocket_client_init(const websocket_client_input_t *input)
 	}
 
 	//init lock
-	rtos_init_mutex(&client->mutex);
+	rtos_init_recursive_mutex(&client->mutex);
 
 	//set ws_transport
 	client->ws_transport = (transport_ws_t *)os_malloc(sizeof(transport_ws_t));
@@ -1398,6 +1521,15 @@ transport websocket_client_init(const websocket_client_input_t *input)
 		free(client->ws_transport->path);
 		client->ws_transport->path = strdup("/");
 	}
+
+	if(input->authorization) {
+		if(client->ws_transport->authorization)
+		{
+			free(client->ws_transport->authorization);
+		}
+		client->ws_transport->authorization = strdup(input->authorization);
+	}
+
 	client->ws_transport->buffer = os_malloc(WS_BUFFER_SIZE + 1);
 	if (!client->ws_transport->buffer) {
 		BK_LOGE(TAG, "alloc ws_transport buffer fail\r\n");
@@ -1462,7 +1594,12 @@ transport websocket_client_init(const websocket_client_input_t *input)
 	return client;
 
 _websocket_init_fail:
-	websocket_client_destroy(client);
+	//websocket_client_destroy(client);
+	if(websocket_client_destroy_config(client)) {
+		BK_LOGE(TAG, "client config already free\r\n");
+	}
+	free_client(client);
+
 	return NULL;
 }
 
