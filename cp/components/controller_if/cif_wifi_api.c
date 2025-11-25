@@ -308,6 +308,14 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             break;
         }
 
+        case WIFI_SET_RC_CONFIG:
+        {
+            uint8_t sta_idx = (uint8_t)(arg_info->args[0]);
+            uint16_t rate_cfg = (uint16_t)(arg_info->args[1]);
+            bk_wifi_rc_config(sta_idx, rate_cfg);
+            break;
+        }
+
         #if CONFIG_WIFI_FTM
         case FTM_START:
         {

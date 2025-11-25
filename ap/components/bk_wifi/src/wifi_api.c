@@ -293,6 +293,18 @@ bk_err_t bk_wifi_ap_get_mac(uint8_t *mac)
     return ret;
 }
 
+void bk_wifi_rc_config(uint8_t sta_idx, uint16_t rate_cfg)
+{
+    bk_err_t ret = BK_OK;
+
+    ret = wifi_send_com_api_cmd(WIFI_SET_RC_CONFIG, 2, sta_idx, rate_cfg);
+
+    if (ret != BK_OK)
+    {
+        WIFI_LOGE("%s failed, ret=%d\n",__func__, ret);
+    }
+}
+
 bk_err_t bk_wifi_set_wifi_media_mode(bool flag)
 {
     return wifi_send_com_api_cmd(WIFI_SET_MEDIA_MODE, 1, flag);

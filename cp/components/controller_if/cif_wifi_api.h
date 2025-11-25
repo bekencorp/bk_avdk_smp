@@ -80,6 +80,7 @@ enum CIF_WIFI_API_CMD_TYPE
     WIFI_GET_BCN_CC                     = 0x36D,
     WIFI_SET_BLOCK_BCMC_EN              = 0x36E,
     WIFI_GET_BLOCK_BCMC_EN              = 0x36F,
+    WIFI_SET_RC_CONFIG                  = 0x370,
 
     //Common PHY command section
     PHY_CAL_RFCALI                      = 0x380,
