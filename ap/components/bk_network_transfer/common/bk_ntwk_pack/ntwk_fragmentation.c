@@ -281,7 +281,7 @@ static bk_err_t data_pool_init(data_pool_t *pool)
 
     if (pool->pool == NULL)
     {
-        pool->pool = (uint8_t *)os_malloc(DATA_POOL_LEN);
+        pool->pool = (uint8_t *)psram_malloc(DATA_POOL_LEN);
         if (pool->pool == NULL)
         {
             LOGE("data_pool alloc failed\r\n");
