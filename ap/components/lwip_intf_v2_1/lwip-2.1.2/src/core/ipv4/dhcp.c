@@ -902,25 +902,8 @@ dhcp_start(struct netif *netif)
     return ERR_OK;
   }
 
-  #if !CONFIG_STA_USE_STATIC_IP
-  extern struct ipv4_config* bk_wifi_get_sta_settings(void);
-  struct ipv4_config* n = bk_wifi_get_sta_settings();
-  uint8_t *addr = (uint8_t *)&(n->address);
-  if((n->addr_type == ADDR_TYPE_FAST_DHCP) && (addr[0] != 0 && addr[0] != 0xFF))
-  {
-    ip_addr_set_ip4_u32(&dhcp->server_ip_addr, n->gw);
-    ip4_addr_set_u32(&dhcp->offered_ip_addr, n->address);
-    ip4_addr_set_u32(&dhcp->offered_gw_addr, n->gw);
-    ip4_addr_set_u32(&dhcp->offered_sn_mask, n->netmask);
-    LWIP_LOGD("fast dhcp rebind ip_addr: "BK_IP4_FORMAT" \r\n", BK_IP4_STR(ip4_addr_get_u32(&dhcp->offered_ip_addr)));
-    result = dhcp_reboot(netif);
-  } else {
-    result = dhcp_discover(netif);
-  }
-  #else
   /* (re)start the DHCP negotiation */
   result = dhcp_discover(netif);
-  #endif //!CONFIG_STA_USE_STATIC_IP
   if (result != ERR_OK) {
     /* free resources allocated above */
     dhcp_release_and_stop(netif);

@@ -111,8 +111,6 @@ static int arp_timeout = ARP_MAXAGE;
 static int arp_rerequest_used_unicast = ARP_AGE_REREQUEST_USED_UNICAST;
 static int arp_rerequest_used_broadcast = ARP_AGE_REREQUEST_USED_BROADCAST;
 
-static beken2_timer_t arp_conflict_tmr = {0};
-
 #if !LWIP_NETIF_HWADDRHINT
 static netif_addr_idx_t etharp_cached_entry;
 #endif /* !LWIP_NETIF_HWADDRHINT */
@@ -227,8 +225,6 @@ etharp_tmr(void)
   int i;
 
   LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer\n"));
-  struct wlan_ip_config sta_addr;
-  net_get_if_addr(&sta_addr, net_get_sta_handle());
 
   /* remove expired entries from the ARP table */
   for (i = 0; i < ARP_TABLE_SIZE; ++i) {
@@ -250,20 +246,6 @@ etharp_tmr(void)
         /* pending or stable entry has become old! */
         LWIP_DEBUGF(ETHARP_DEBUG, ("etharp_timer 1hour: expired %s entry %d.\n",
                                    arp_table[i].state >= ETHARP_STATE_STABLE ? "stable" : "pending", i));
-	 if (bk_feature_fast_dhcp_enable() && (arp_table[i].state == ETHARP_STATE_PENDING) &&
-           (arp_table[i].ctime >= ARP_MAXPENDING)  && ((sta_addr.ipv4.gw) == (arp_table[i].ipaddr.addr))) {
-			if (rtos_is_oneshot_timer_init(&arp_conflict_tmr) == 0) {
-				int clk_time = 1000;
-				rtos_init_oneshot_timer(&arp_conflict_tmr,
-					clk_time,
-					(timer_2handler_t)net_restart_dhcp,
-					NULL,
-					NULL);
-			}
-			if (rtos_is_oneshot_timer_running(&arp_conflict_tmr) == 0) {
-				rtos_start_oneshot_timer(&arp_conflict_tmr);
-			}
-		}
         /* clean up entries that have just been expired */
         etharp_free_entry(i);
       }else if (arp_table[i].state == ETHARP_STATE_STABLE_REREQUESTING_1) {
@@ -821,24 +803,6 @@ etharp_input(struct pbuf *p, struct netif *netif)
        * @todo How should we handle redundant (fail-over) interfaces? */
       dhcp_arp_reply(netif, &sipaddr);
 #endif /* (LWIP_DHCP && DHCP_DOES_ARP_CHECK) */
-
-#if (CONFIG_WIFI_FAST_DHCP) && (CONFIG_STA_USE_STATIC_IP)
-      if (ip4_addr_cmp(&sipaddr, netif_ip4_addr(netif))) {
-        BK_LOGD(NULL, "ip conflict!!!\r\n");	 //check for conflict
-        if (rtos_is_oneshot_timer_init(&arp_conflict_tmr) == 0) {
-          int clk_time = 1000;
-          rtos_init_oneshot_timer(&arp_conflict_tmr,
-                clk_time,
-                (timer_2handler_t)net_restart_dhcp,
-                NULL,
-                NULL);
-        }
-        if (rtos_is_oneshot_timer_running(&arp_conflict_tmr) == 0) {
-          rtos_start_oneshot_timer(&arp_conflict_tmr);
-        }
-      }
-#endif
-
       break;
     default:
       LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE, ("etharp_input: ARP unknown opcode type %"S16_F"\n", lwip_htons(hdr->opcode)));
