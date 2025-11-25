@@ -11,8 +11,8 @@
  *********************/
 #include <os/os.h>
 #include "lv_port_disp.h"
-#include "lv_vendor.h"
 #include <modules/image_scale.h>
+#include "lv_vendor.h"
 #include "frame_buffer.h"
 
 #include <driver/lcd_types.h>

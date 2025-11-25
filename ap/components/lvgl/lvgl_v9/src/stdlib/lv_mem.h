@@ -135,6 +135,22 @@ void lv_free_core(void * p);
 void * lv_realloc_core(void * p, size_t new_size);
 
 /**
+ * Allocate memory dynamically in psram
+ * @param size requested size in bytes
+ * @return pointer to allocated uninitialized memory, or NULL on failure
+ */
+void * lv_psram_malloc(size_t size);
+
+/**
+ * Reallocate a memory with a new size. The old content will be kept.
+ * @param data_p pointer to an allocated memory.
+ *               Its content will be copied to the new memory block and freed
+ * @param new_size the desired new size in byte
+ * @return pointer to the new memory, NULL on failure
+ */
+void * lv_psram_realloc(void * data_p, size_t new_size);
+
+/**
  * Used internally by lv_mem_monitor() to gather LVGL heap state information.
  * @param mon_p      pointer to lv_mem_monitor_t object to be populated.
  */
