@@ -11,11 +11,6 @@ menu "Lwip_intf_v2_1"
 		help
 			Enable Fast DHCP(use previous IP)
 
-	config EASY_FLASH_FAST_DHCP
-		depends on EASY_FLASH_V4 && WIFI_FAST_DHCP
-		bool "Enable Wifi Fast DHCP with easy flash"
-		default y
-
 	config LWIP_RESV_TLEN_ENABLE
 		bool "Enable LWIP reserved tail length"
 		default n
@@ -23,8 +18,9 @@ menu "Lwip_intf_v2_1"
 			Enable LWIP reserved tail length
 
 	config STA_USE_STATIC_IP
+		depends on WIFI_FAST_DHCP
 		bool "Enable sta use static ip"
-		default y
+		default n
 
 	config MQTT_ACK_NOW
 		bool "Enable Mqtt Ack Now"

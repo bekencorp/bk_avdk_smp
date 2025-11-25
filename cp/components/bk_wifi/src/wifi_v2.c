@@ -63,10 +63,8 @@
 #include "fhost_msg.h"
 #include "ctrl_iface.h"
 #include "rwnx_defs.h"
-#if CONFIG_EASY_FLASH_FAST_CONNECT
 #if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
 #include "bk_ef.h"
-#endif
 #endif
 #if (CONFIG_WIFI_CSI_EN && CONFIG_WIFI_CSI_DEMO)
 #include "bk_csi_demo.h"
@@ -673,9 +671,7 @@ bk_err_t bk_wlan_start_sta(network_InitTypeDef_st *inNetworkInitPara)
 	if (bk_feature_fast_connect_enable()) {
 		struct wlan_fast_connect_info fci = {0};
 		int ssid_len, req_ssid_len;
-#if CONFIG_EASY_FLASH_FAST_CONNECT
-		bk_get_env_enhance("fast_connect_id", (void *)&fci, sizeof(struct wlan_fast_connect_info));
-#endif
+		wlan_read_fast_connect_info(&fci);
 
 		ssid_len = os_strlen((char *)fci.ssid);
 		if (ssid_len > SSID_MAX_LEN)
@@ -1798,7 +1794,12 @@ void wlan_read_fast_connect_info(struct wlan_fast_connect_info *fci)
 {
 	/* read fast connect info from flash */
 	if(g_is_get_fci_from_flash && g_is_use_fci_from_flash)
-		get_net_info(FAST_CONNECT_ITEM, (UINT8 *)fci, NULL, NULL);
+	{
+		//get_net_info(FAST_CONNECT_ITEM, (UINT8 *)fci, NULL, NULL);
+		#if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
+		bk_get_env_enhance("fast_connect_id", (void *)fci, sizeof(struct wlan_fast_connect_info));
+		#endif
+	}
 	else
 		os_memcpy((UINT8 *)fci, &g_fci, sizeof(struct wlan_fast_connect_info));
 
@@ -1829,7 +1830,12 @@ void wlan_write_fast_connect_info(struct wlan_fast_connect_info *fci)
 
 	/* save encrypted or plain fast connect info to flash */
 	if(g_is_get_fci_from_flash && g_is_use_fci_from_flash)
-		save_net_info(FAST_CONNECT_ITEM, (UINT8 *)fci, NULL, NULL);
+	{
+		//save_net_info(FAST_CONNECT_ITEM, (UINT8 *)fci, NULL, NULL);
+		#if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
+		bk_set_env_enhance("fast_connect_id", (void *)fci, sizeof(struct wlan_fast_connect_info));
+		#endif
+	}
 	else
 		os_memcpy(&g_fci, (UINT8 *)fci, sizeof(struct wlan_fast_connect_info));
 
@@ -1845,7 +1851,10 @@ void wlan_clear_fast_connect_info(struct wlan_fast_connect_info *fci)
 		if(g_is_get_fci_from_flash && g_is_use_fci_from_flash)
 		{
 			os_memset(fci, 0, sizeof(struct wlan_fast_connect_info));
-			save_net_info(FAST_CONNECT_ITEM, (UINT8 *)fci, NULL, NULL);
+			//save_net_info(FAST_CONNECT_ITEM, (UINT8 *)fci, NULL, NULL);
+			#if (CONFIG_EASY_FLASH && CONFIG_EASY_FLASH_V4)
+			bk_set_env_enhance("fast_connect_id", (void *)fci, sizeof(struct wlan_fast_connect_info));
+			#endif
 		}
 		else
 		{
@@ -2056,9 +2065,7 @@ bk_err_t bk_wifi_sta_start(void)
 		int ssid_len, req_ssid_len;
 
 		os_memset(&fci, 0, sizeof(fci));
-#if CONFIG_EASY_FLASH_FAST_CONNECT
-		bk_get_env_enhance("fast_connect_id", (void *)&fci, sizeof(struct wlan_fast_connect_info));
-#endif
+		wlan_read_fast_connect_info(&fci);
 
 		ssid_len = os_strlen((char *)fci.ssid);
 		if (ssid_len > SSID_MAX_LEN)
@@ -2088,7 +2095,7 @@ bk_err_t bk_wifi_sta_start(void)
 			g_sta_param_ptr->fast_connect.chann = fci.channel;
 			g_sta_param_ptr->fast_connect_set = 1;
 
-			WIFI_LOGD("fast_connect\n");
+			WIFI_LOGI("fast_connect\n");
 #if 0
 			WIFI_LOGD("  chan: %d\n", fci.channel);
 			WIFI_LOGD("  PMK: %s\n", psk);
