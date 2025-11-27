@@ -68,6 +68,11 @@ __attribute__((weak)) void *__wrap_calloc(size_t a, size_t b)
 	return pvReturn;
 }
 
+__attribute__((weak)) void *__wrap__calloc_r(void *p, size_t a, size_t b)
+{
+    return __wrap_calloc(a, b);
+}
+
 __attribute__((weak)) void *__wrap_realloc(void *pv, size_t size)
 {
 #if CONFIG_PSRAM_AS_SYS_MEMORY
