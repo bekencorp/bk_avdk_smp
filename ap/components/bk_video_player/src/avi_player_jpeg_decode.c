@@ -20,11 +20,23 @@ static bk_jpeg_decode_hw_handle_t avi_player_jpeg_decode_handle = NULL;
 static bk_err_t avi_player_jpeg_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame);
 static bk_err_t avi_player_jpeg_decode_in_complete(frame_buffer_t *in_frame);
 
+#if CONFIG_AVI_PLAYER_JPEG_DECODE_OPT
+static bk_jpeg_decode_hw_opt_config_t avi_player_jpeg_decode_opt_config = {
+    .decode_cbs = {
+        .in_complete = avi_player_jpeg_decode_in_complete,
+        .out_complete = avi_player_jpeg_decode_complete,},
+    .image_max_width = 0,
+    .lines_per_block = JPEG_DECODE_OPT_LINES_PER_BLOCK_8,
+    .is_pingpong = 1,
+    .copy_method = JPEG_DECODE_OPT_COPY_METHOD_MEMCPY,
+};
+#else
 static bk_jpeg_decode_hw_config_t avi_player_jpeg_decode_config = {
     .decode_cbs = {
         .in_complete = avi_player_jpeg_decode_in_complete,
-        .out_complete = avi_player_jpeg_decode_complete,}
+        .out_complete = avi_player_jpeg_decode_complete,},
 };
+#endif
 
 static void avi_player_dma2d_config_error(void *arg)
 {
@@ -128,9 +140,16 @@ static bk_err_t avi_player_jpeg_decode_in_complete(frame_buffer_t *in_frame)
     return BK_OK;
 }
 
-bk_err_t avi_player_jpeg_hw_decode_init(bk_avi_player_format_t output_format)
+bk_err_t avi_player_jpeg_hw_decode_init(bk_avi_player_format_t output_format, uint32_t image_width)
 {
     bk_err_t ret = BK_OK;
+
+    g_dec_out_frame = os_malloc(sizeof(frame_buffer_t));
+    if (g_dec_out_frame == NULL) {
+        LOGE("%s %d g_dec_out_frame malloc failed\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    os_memset(g_dec_out_frame, 0x00, sizeof(frame_buffer_t));
 
     if (output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565) {
         ret = avi_player_dma2d_yuyv2rgb565_init();
@@ -138,14 +157,6 @@ bk_err_t avi_player_jpeg_hw_decode_init(bk_avi_player_format_t output_format)
             LOGE("%s %d avi_player_dma2d_yuyv2rgb565_init failed\n", __func__, __LINE__);
             return ret;
         }
-
-        g_dec_out_frame = os_malloc(sizeof(frame_buffer_t));
-        if (g_dec_out_frame == NULL) {
-            LOGE("%s %d g_dec_out_frame malloc failed\n", __func__, __LINE__);
-            return BK_FAIL;
-        }
-
-        os_memset(g_dec_out_frame, 0x00, sizeof(frame_buffer_t));
     }
 
     g_jpeg_frame = os_malloc(sizeof(frame_buffer_t));
@@ -155,7 +166,13 @@ bk_err_t avi_player_jpeg_hw_decode_init(bk_avi_player_format_t output_format)
     }
 
     os_memset(g_jpeg_frame, 0x00, sizeof(frame_buffer_t));
+
+#if CONFIG_AVI_PLAYER_JPEG_DECODE_OPT
+    avi_player_jpeg_decode_opt_config.image_max_width = image_width;
+    bk_hardware_jpeg_decode_opt_new(&avi_player_jpeg_decode_handle, &avi_player_jpeg_decode_opt_config);
+#else
     bk_hardware_jpeg_decode_new(&avi_player_jpeg_decode_handle, &avi_player_jpeg_decode_config);
+#endif
     bk_jpeg_decode_hw_open(avi_player_jpeg_decode_handle);
 
     return ret;
@@ -176,16 +193,16 @@ bk_err_t avi_player_jpeg_hw_decode_deinit(bk_avi_player_format_t output_format)
             LOGE("%s %d avi_player_dma2d_yuyv2rgb565_deinit failed\n", __func__, __LINE__);
             return ret;
         }
+    }
 
-        if (g_dec_out_frame->frame) {
-            psram_free(g_dec_out_frame->frame);
-            g_dec_out_frame->frame = NULL;
-        }
+    if (g_dec_out_frame->frame) {
+        psram_free(g_dec_out_frame->frame);
+        g_dec_out_frame->frame = NULL;
+    }
 
-        if (g_dec_out_frame != NULL) {
-            os_free(g_dec_out_frame);
-            g_dec_out_frame = NULL;
-        }
+    if (g_dec_out_frame != NULL) {
+        os_free(g_dec_out_frame);
+        g_dec_out_frame = NULL;
     }
 
     if (g_jpeg_frame != NULL) {

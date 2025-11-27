@@ -152,7 +152,7 @@ bk_err_t bk_avi_player_open(bk_avi_player_config_t *player_config)
         }
     }
 
-    ret = avi_player_jpeg_hw_decode_init(avi_player->output_format);
+    ret = avi_player_jpeg_hw_decode_init(avi_player->output_format, avi_player->avi->width);
     if (ret != BK_OK) {
         LOGE("%s %d failed\r\n", __func__, __LINE__);
         goto out;
