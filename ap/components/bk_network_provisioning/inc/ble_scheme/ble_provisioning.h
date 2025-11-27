@@ -22,6 +22,7 @@ typedef struct
 {
     uint32_t event;
     uint32_t param;
+    uint16_t length;
 } ble_prov_msg_t;
 
 typedef void (*ble_msg_handle_cb_t)(ble_prov_msg_t *msg);

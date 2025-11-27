@@ -99,7 +99,6 @@ static uint8_t s_ssid[64];
 static uint8_t s_password[64];
 static uint16_t s_conn_ind = ~0;
 
-
 static const bk_gatts_attr_db_t s_gatts_attr_db_service_boarding[] =
 {
     {
@@ -572,7 +571,7 @@ static void dm_ble_gap_common_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_para
     {
         struct ble_connect_complete_param *evt = (typeof(evt))param;
 
-        wboard_logi("BK_BLE_GAP_CONNECT_COMPLETE_EVT %02x:%02x:%02x:%02x:%02x:%02x status 0x%x role %d hci_handle 0x%x",
+        wboard_logi("BK_BLE_GAP_CONNECT_COMPLETE_EVT %02x:%02x:%02x:%02x:%02x:%02x status 0x%x role %d hci_handle 0x%x\n",
                     evt->remote_bda[5],
                     evt->remote_bda[4],
                     evt->remote_bda[3],
@@ -590,7 +589,7 @@ static void dm_ble_gap_common_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_para
     {
         struct ble_disconnect_complete_param *evt = (typeof(evt))param;
 
-        wboard_logi("BK_BLE_GAP_DISCONNECT_COMPLETE_EVT %02x:%02x:%02x:%02x:%02x:%02x %d status 0x%x reason 0x%x hci_handle 0x%x",
+        wboard_logi("BK_BLE_GAP_DISCONNECT_COMPLETE_EVT %02x:%02x:%02x:%02x:%02x:%02x %d status 0x%x reason 0x%x hci_handle 0x%x\n",
                     evt->remote_bda[5],
                     evt->remote_bda[4],
                     evt->remote_bda[3],
@@ -602,7 +601,6 @@ static void dm_ble_gap_common_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_para
                     evt->reason,
                     evt->hci_handle
                    );
-
     }
     break;
 
