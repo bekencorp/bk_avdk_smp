@@ -174,13 +174,6 @@ menu "modules::wpa_supplicant-2.10"
 		help
 			use fast connect
 
-	config WIFI_FAST_DHCP
-		depends on WIFI_FAST_CONNECT
-		bool "Enable WiFi Fast DHCP"
-		default n
-		help
-			use previous dhcp ip address
-
 	config WIFI_WNM
 		depends on WPA_SUPPLICANT
 		bool "WNM"
