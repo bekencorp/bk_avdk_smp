@@ -187,6 +187,56 @@ void * lv_realloc(void * data_p, size_t new_size)
     return new_p;
 }
 
+void * lv_psram_malloc(size_t size)
+{
+    LV_TRACE_MEM("allocating %lu bytes", (unsigned long)size);
+    if(size == 0) {
+        LV_TRACE_MEM("using zero_mem");
+        return &zero_mem;
+    }
+
+    void * alloc = psram_malloc(size);
+    if(alloc == NULL) {
+        LV_LOG_INFO("couldn't allocate memory (%lu bytes)", (unsigned long)size);
+#if LV_LOG_LEVEL <= LV_LOG_LEVEL_INFO
+        lv_mem_monitor_t mon;
+        lv_mem_monitor(&mon);
+        LV_LOG_INFO("used: %zu (%3d %%), frag: %3d %%, biggest free: %zu",
+                    mon.total_size - mon.free_size, mon.used_pct, mon.frag_pct,
+                    mon.free_biggest_size);
+#endif
+        return NULL;
+    }
+
+#if LV_MEM_ADD_JUNK
+    lv_memset(alloc, 0xaa, size);
+#endif
+
+    LV_TRACE_MEM("allocated at %p", alloc);
+    return alloc;
+}
+
+void * lv_psram_realloc(void * data_p, size_t new_size)
+{
+    LV_TRACE_MEM("reallocating %p with %lu size", data_p, (unsigned long)new_size);
+    if(new_size == 0) {
+        LV_TRACE_MEM("using zero_mem");
+        lv_free(data_p);
+        return &zero_mem;
+    }
+
+    if(data_p == &zero_mem) return lv_psram_malloc(new_size);
+
+    void * new_p = psram_realloc(data_p, new_size);
+    if(new_p == NULL) {
+        LV_LOG_ERROR("couldn't reallocate memory");
+        return NULL;
+    }
+
+    LV_TRACE_MEM("reallocated at %p", new_p);
+    return new_p;
+}
+
 lv_result_t lv_mem_test(void)
 {
     if(zero_mem != ZERO_MEM_SENTINEL) {

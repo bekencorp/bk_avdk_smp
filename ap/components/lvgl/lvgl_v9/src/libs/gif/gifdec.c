@@ -8,8 +8,8 @@
 #include <string.h>
 #include <stdbool.h>
 
-#define MIN(A, B) ((A) < (B) ? (A) : (B))
-#define MAX(A, B) ((A) > (B) ? (A) : (B))
+// #define MIN(A, B) ((A) < (B) ? (A) : (B))
+// #define MAX(A, B) ((A) > (B) ? (A) : (B))
 
 typedef struct Entry {
     uint16_t length;
@@ -122,13 +122,21 @@ static gd_GIF * gif_open(gd_GIF * gif_base)
         LV_LOG_WARN("Image dimensions are too large");
         goto fail;
     } 
+#if LV_GIF_USE_PSRAM
+    gif = lv_psram_malloc(sizeof(gd_GIF) + 5 * width * height + LZW_CACHE_SIZE);
+#else
     gif = lv_malloc(sizeof(gd_GIF) + 5 * width * height + LZW_CACHE_SIZE);
+#endif
     #else
     if(0 == (INT_MAX - sizeof(gd_GIF)) / width / height / 5){
         LV_LOG_WARN("Image dimensions are too large");
         goto fail;
     } 
+#if LV_GIF_USE_PSRAM
+    gif = lv_psram_malloc(sizeof(gd_GIF) + 5 * width * height);
+#else
     gif = lv_malloc(sizeof(gd_GIF) + 5 * width * height);
+#endif
     #endif
     if(!gif) goto fail;
     memcpy(gif, gif_base, sizeof(gd_GIF));
@@ -484,7 +492,11 @@ new_table(int key_size)
 {
     int key;
     int init_bulk = MAX(1 << (key_size + 1), 0x100);
+#if LV_GIF_USE_PSRAM
+    Table * table = lv_psram_malloc(sizeof(*table) + sizeof(Entry) * init_bulk);
+#else
     Table * table = lv_malloc(sizeof(*table) + sizeof(Entry) * init_bulk);
+#endif
     if(table) {
         table->bulk = init_bulk;
         table->nentries = (1 << key_size) + 2;
@@ -507,7 +519,11 @@ add_entry(Table ** tablep, uint16_t length, uint16_t prefix, uint8_t suffix)
     Table * table = *tablep;
     if(table->nentries == table->bulk) {
         table->bulk *= 2;
+#if LV_GIF_USE_PSRAM
+        table = lv_psram_realloc(table, sizeof(*table) + sizeof(Entry) * table->bulk);
+#else
         table = lv_realloc(table, sizeof(*table) + sizeof(Entry) * table->bulk);
+#endif
         if(!table) return -1;
         table->entries = (Entry *) &table[1];
         *tablep = table;
