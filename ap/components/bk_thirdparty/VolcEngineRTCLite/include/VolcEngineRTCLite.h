@@ -22,8 +22,8 @@ extern "C" {
 #define __byte_rtc_api__ __attribute__((visibility("default")))
 #endif
 
-#define BYTE_RTC_API_VERSION "1.0.6"
-#define BYTE_RTC_API_VERSION_NUM 0x1006
+#define BYTE_RTC_API_VERSION "1.0.9"
+#define BYTE_RTC_API_VERSION_NUM 0x1009
 
 
 /**
@@ -221,6 +221,12 @@ typedef enum {
      */
     VIDEO_DATA_TYPE_BYTEVC1 = 2,
 
+    /**
+     * @locale zh
+     * @brief MJPEG
+     */
+    VIDEO_DATA_TYPE_MJPEG = 3,
+
 
 } video_data_type_e;
 
@@ -364,6 +370,17 @@ typedef enum {
      * @brief codec type ByteVC1
      */
     VIDEO_CODEC_TYPE_BYTEVC1 = 1,
+
+
+    /**
+     * @locale zh
+     * @brief 编码类型MJPEG
+     */
+    /**
+     * @locale en
+     * @brief codec type MJPEG
+     */
+    VIDEO_CODEC_TYPE_MJPEG = 2,
     
 } video_codec_type_e;
 
@@ -433,6 +450,11 @@ typedef struct {
  * @brief SDK 日志等级。
  */
 typedef enum {
+    /**
+    * @locale zh
+    * @brief 调试级别。
+    */
+    BYTE_RTC_LOG_LEVEL_DEBUG = 0,
     /**
     * @locale zh
     * @brief 信息级别。
@@ -521,6 +543,34 @@ typedef enum {
     RTS_MESSAGE_RELIABLE = 0,
     
 } rts_message_type;
+
+/**
+ * @locale zh
+ * @type keytype
+ * @brief 流状态。
+ */
+typedef enum {
+    /**
+     * @locale zh
+     * @brief 流发布能力已具备，本地用户可以发布流。
+     */
+    STREAM_STATUS_PUBLISHED = 0,
+    /**
+     * @locale zh
+     * @brief 流发布能力已释放，本地用户不能发布流。
+     */
+    STREAM_STATUS_UNPUBLISHED = 1,
+    /**
+     * @locale zh
+     * @brief 流订阅能力已具备，本地用户可以订阅流。
+     */
+    STREAM_STATUS_SUBSCRIBED = 2,
+    /**
+     * @locale zh
+     * @brief 流订阅能力已释放，本地用户不能订阅流。
+     */
+    STREAM_STATUS_UNSUBSCRIBED = 3,
+} stream_status_e;
 
 typedef void * byte_rtc_engine_t;
 
@@ -776,8 +826,37 @@ void (*on_fini_notify)(byte_rtc_engine_t engine);
  * @param extra 扩展信息，暂未使用
 
  */
-void (*on_quota_exceeded)(byte_rtc_engine_t engine, const char* message, void * extra);
+void (*on_quota_exceeded)(byte_rtc_engine_t engine, const char* message, const char* extra);
 
+
+/**
+ * @locale zh
+ * @type callback
+ * @list 回调
+ * @order 17
+ * @brief 当本地用户发布或者订阅流状态发生变化时，触发该回调。
+ * @param engine 通过byte_rtc_create{@link #byte_rtc_create}创建的引擎实例
+ * @param room 房间名
+ * @param uid  用户id
+ * @param status 流状态，参看 stream_status_e{@link #stream_status_e}
+ * @param extra 扩展信息，暂未使用
+ */
+void (*on_stream_status_changed)(byte_rtc_engine_t engine, const char* room, const char* uid, stream_status_e status, const char* extra);
+
+/**
+* @locale zh
+* @type callback
+* @list 回调
+* @order 18
+* @brief 远端用户加入房间且表明自己会发送complete sub信令时<br>
+*        房间内其他用户会收到此事件
+* @param engine 通过byte_rtc_create{@link #byte_rtc_create}创建的引擎实例
+* @param room 房间名
+* @param uid 远端用户名
+* @param enable_audio 是否发送complete sub Audio
+* @param enable_video 是否发送complete sub Video
+*/
+void (*on_user_subscribe_completed)(byte_rtc_engine_t engine, const char* room, const char* uid,bool enable_audio,bool enable_video);
 } byte_rtc_event_handler_t;
 
 
