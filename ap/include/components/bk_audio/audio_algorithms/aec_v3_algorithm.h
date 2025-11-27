@@ -146,6 +146,7 @@ typedef struct {
 } vad_cfg_t;
 
 typedef int (*ec_out_callback)(int32_t *buffer, uint16_t len);
+typedef int (*vad_state_callback)(int32_t state);
 
 /**
  * @brief      AEC algorithm configurations
@@ -162,15 +163,16 @@ typedef struct
     int                     multi_out_port_num; /*!< The number of multiple output audio port */
     int                     dual_ch;            /*!< Enable dual channel input(1)/Disable dual channel input(0)*/
     ec_out_callback         ec_out_cb;          /*!< echo cancellation output callback function */
+    vad_state_callback      vad_state_cb;       /*!< VAD state callback function */
 } aec_v3_algorithm_cfg_t;
 
 #define AEC_V3_DELAY_SAMPLE_POINTS_MAX           (1000)
-    
-#define AEC_V3_ALGORITHM_TASK_STACK          (1 * 1024)
+
+#define AEC_V3_ALGORITHM_TASK_STACK          (4 * 1024)
 #define AEC_V3_ALGORITHM_TASK_CORE           (1)
 #define AEC_V3_ALGORITHM_TASK_PRIO           (4)
 #define AEC_V3_ALGORITHM_OUT_BLOCK_NUM       (2)
-    
+
 #define AEC_V3_ALGORITHM_FS                  (16000)
 #define AEC_V3_DELAY_POINTS                  (16)
 #define AEC_V3_ALGORITHM_EC_DEPTH            (0xa)
@@ -263,6 +265,19 @@ bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void 
  *                 - BK_FAIL: failed
  */
 bk_err_t aec_v3_algorithm_get_config(audio_element_handle_t aec_algorithm, void *aec_config);
+
+/**
+ * @brief      Get current VAD state of AEC V3 algorithm
+ *
+ * @param[in]  aec_algorithm  The aec algorithm handle
+ *
+ * @return     The current VAD state
+ *                 - VAD_NONE: no valid VAD state
+ *                 - VAD_SPEECH_START: speech start detected
+ *                 - VAD_SPEECH_END: speech end detected
+ *                 - VAD_SILENCE: silence detected
+ */
+int aec_v3_algorithm_get_vad_state(audio_element_handle_t aec_algorithm);
 
 #ifdef __cplusplus
 }

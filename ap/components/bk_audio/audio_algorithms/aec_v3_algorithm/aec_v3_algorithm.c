@@ -124,7 +124,8 @@ typedef struct aec_algorithm
     int      vad_state;
     int16_t  *out_read_addr;
     ringbuf_handle_t vad_rb;
-    ec_out_callback  ec_out_cb; 
+    ec_out_callback  ec_out_cb;
+    vad_state_callback vad_state_cb;
 } aec_v3_algorithm_t;
 
 
@@ -370,6 +371,9 @@ static void aec_vad_flag_update(aec_v3_algorithm_t *aec, int vad_state)
         };
         BK_LOGD(TAG, "vad_state:%s -> %s\n", vad_str[aec->vad_state],vad_str[vad_state]);
         aec->vad_state = vad_state;
+        if (aec->vad_state_cb) {
+            aec->vad_state_cb(aec->vad_state);
+        }
     }
 }
 
@@ -480,6 +484,7 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     }
 
     //采样率可以配置8000或者16000
+    aec->aec_ctx->fs = 0;
     aec_init(aec->aec_ctx, aec->aec_cfg.fs);
 
     //获取结构体内部可以复用的ram作为每帧tx,rx,out数据的临时buffer; ram很宽裕的话也可以在外部单独申请获取
@@ -517,7 +522,7 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_MAX_DELAY, AEC_DELAY_BUFFER_SIZE/2);
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_GET_FRAME_SAMPLE, (uint32_t)(&aec_frame_sample_cnt));
     BK_LOGI(TAG, "[%s] aec ver:%d fs:%d,aec frame samp cnt:%d, frame_size:%d\n", audio_element_get_tag(self),aec_ver(),aec->aec_cfg.fs,aec_frame_sample_cnt,aec->frame_size);
-    
+
     ///降噪相关
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_LEVEL, aec->aec_cfg.ns_level);           //建议取值范围1~8；值越小底噪越小
     aec_ctrl(aec->aec_ctx, AEC_CTRL_CMD_SET_NS_PARA, aec->aec_cfg.ns_para);             //只能取值0,1,2; 降噪由弱到强，建议默认值
@@ -926,7 +931,6 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
     {
         w_size = r_size;
     }
-
     AEC_PROCESS_END();
     BK_LOGV(TAG, "[%s] w_size=%d\n",audio_element_get_tag(self), w_size);
 
@@ -1044,8 +1048,8 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     aec_alg->out_addr = NULL;
     aec_alg->dual_ch = config->dual_ch;
     aec_alg->vad_state = VAD_NONE;
-    aec_alg->ec_out_cb = config->ec_out_cb;
-    
+    aec_alg->ec_out_cb    = config->ec_out_cb;
+    aec_alg->vad_state_cb = config->vad_state_cb;
     audio_element_setdata(el, aec_alg);
 
     AEC_DATA_DUMP_OPEN();
@@ -1149,4 +1153,14 @@ bk_err_t aec_v3_algorithm_get_config(audio_element_handle_t aec_algorithm, void 
     os_printf("[+]%s, ec_depth:%d\n", __func__, aec->aec_cfg.ec_depth);
 
     return BK_OK;
+}
+
+int aec_v3_algorithm_get_vad_state(audio_element_handle_t aec_algorithm)
+{
+    aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(aec_algorithm);
+    if (aec == NULL) {
+        BK_LOGE(TAG, "aec is NULL \n");
+        return VAD_NONE;
+    }
+    return aec->vad_state;
 }
