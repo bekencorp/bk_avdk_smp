@@ -6,3 +6,22 @@ set(OVERRIDE_COMPILE_OPTIONS
     "-fstack-protector"
 )
 
+set(OVERRIDE_LINK_OPTIONS
+    "-fno-builtin-printf"
+    "-Wl,--gc-sections"
+    "-Wl,--wrap=malloc"
+    "-Wl,--wrap=_malloc_r"
+    "-Wl,--wrap=free"
+    "-Wl,--wrap=_free_r"
+    "-Wl,--wrap=zalloc"
+    "-Wl,--wrap=calloc"
+    "-Wl,--wrap=calloc_r"
+    "-Wl,--wrap=realloc"
+    "-Wl,--wrap=_realloc_r"
+    "-Wl,--wrap=printf"
+    "-Wl,--wrap=vsnprintf"
+    "-Wl,--wrap=snprintf"
+    "-Wl,--wrap=sprintf"
+    "-Wl,--wrap=puts"
+    "-Wl,--wrap=__assert_func"
+)
