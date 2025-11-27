@@ -7,7 +7,7 @@ menu "Lwip_intf_v2_1"
 
 	config WIFI_FAST_DHCP
 		bool "Enable Wifi Fast Dhcp"
-		default n
+		default y
 		help
 			Enable Fast DHCP(use previous IP)
 
