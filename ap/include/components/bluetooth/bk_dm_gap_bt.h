@@ -320,6 +320,20 @@ bt_err_t bk_bt_gap_connect(bk_bd_addr_t addr, uint8_t allow_role_switch);
 bt_err_t bk_bt_gap_disconnect(bk_bd_addr_t addr, uint8_t reason);
 
 /**
+* @brief            Disconnect sco connection of the remote device
+*
+* @param[in]        addr: The remote device's address
+*
+* @param[in]        reason: The disconnect reason
+*
+* @return           - BK_OK : success
+*                   - BK_ERR_INVALID_STATE: if bluetooth stack is not yet enabled
+*                   - other  : failed
+*
+*/
+bt_err_t bk_bt_gap_disconnect_sco(bk_bd_addr_t addr, uint8_t reason);
+
+/**
  *
  * @brief           This API can be used to request cancellation of the ongoing connection creation process.
  *
@@ -394,7 +408,7 @@ bk_err_t bk_bt_gap_set_auto_sniff_policy(bk_bd_addr_t remote_bda, uint32_t sec, 
 
 /**
  *
- * @brief           This api can be used to place device to sniff mode or end sniff mode 
+ * @brief           This api can be used to place device to sniff mode or end sniff mode
  *
  * @param[in]       addr: The remote device's address
  * @param[in]       exit: 1 means to end sniff mode, 0 means to place device to sniff mode
@@ -408,7 +422,7 @@ bt_err_t bk_bt_gap_sniff_control(uint8_t *addr, uint8_t exit, bk_bt_gap_sniff_co
 
 /**
  *
- * @brief           This api can be used to is called to switch role between master and slave.If the connection is 
+ * @brief           This api can be used to is called to switch role between master and slave.If the connection is
  *                  placed in sniff mode, please exit sniff mode first.
  *
  * @param[in]       addr: The remote device's address
