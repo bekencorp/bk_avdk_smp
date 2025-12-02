@@ -88,26 +88,21 @@ typedef enum {
 
 /** rgb lcd clk select, infulence pfs, user should select according to lcd device spec*/
 typedef enum {
-	LCD_80M,
-	LCD_64M,
-	LCD_60M,
-	LCD_54M,
-	LCD_45M, //45.7M
-	LCD_40M,
-	LCD_35M, //35.5
-	LCD_32M,
-	LCD_30M,
-	LCD_26M, //26.6M
-	LCD_24M, //24.6M
-	LCD_22M, //22.85M
-	LCD_20M,
-	LCD_17M, //17.1M
-	LCD_15M,
-	LCD_12M,
-	LCD_10M,
-	LCD_9M,  //9.2M
-	LCD_8M,
-	LCD_7M   //7.5M
+    LCD_80M,
+    LCD_60M,
+    LCD_54M,
+    LCD_40M,
+    LCD_32M,
+    LCD_30M,
+    LCD_26M, //26.6M
+    LCD_22M, //22.85M
+    LCD_20M,
+    LCD_17M, //17.1M
+    LCD_15M,
+    LCD_12M,
+    LCD_10M,
+    LCD_9M,  //9.2M
+    LCD_8M,
 } lcd_clk_t;
 
 typedef enum {
