@@ -2,7 +2,7 @@ menu "Bk_startup"
 
 	config APP_MAIN_TASK_PRIO
 		int "Set App Main Task Prio"
-		range 1 10
+		range 0 9
 		default 4
 		help
 			priority of application main task
