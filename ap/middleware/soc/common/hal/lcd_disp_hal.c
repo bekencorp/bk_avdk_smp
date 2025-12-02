@@ -237,7 +237,7 @@ __attribute__((section(".itcm_sec_code")))bk_err_t lcd_hal_int_status_clear(lcd_
 	switch (int_type)
 	{
 		case RGB_OUTPUT_SOF:
-			lcd_disp_ll_set_display_int_rgb_eof(1);
+			lcd_disp_ll_set_display_int_rgb_sof(1);
 			break;
 		case RGB_OUTPUT_EOF:
 			lcd_disp_ll_set_display_int_rgb_eof(1);
