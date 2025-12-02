@@ -15,7 +15,7 @@
 #endif
 
 #ifndef CONFIG_HW_JPEG_DECODE_TASK_PRIORITY
-#define CONFIG_HW_JPEG_DECODE_TASK_PRIORITY (1)
+#define CONFIG_HW_JPEG_DECODE_TASK_PRIORITY (6)
 #endif
 
 #define TAG "hw_dec"

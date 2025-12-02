@@ -36,7 +36,7 @@ menu "JPEG Decoder"
 
 	config HW_JPEG_DECODE_TASK_PRIORITY
 		int "Hardware JPEG decode task pirority"
-		default 1
+		default 6
 		depends on JPEG_DECODER_HW
 		help task pirority
 			
