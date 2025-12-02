@@ -14,6 +14,10 @@
 #define CONFIG_HW_JPEG_DECODE_TASK_STACK_SIZE (1024)
 #endif
 
+#ifndef CONFIG_HW_JPEG_DECODE_TASK_PRIORITY
+#define CONFIG_HW_JPEG_DECODE_TASK_PRIORITY (1)
+#endif
+
 #define TAG "hw_dec"
 
 #define HW_DECODE_TIMEOUT_MS        200
@@ -33,7 +37,6 @@ static void bk_driver_decoder_timeout(void *arg1, void *arg2)
 {
     bk_err_t ret = BK_FAIL;
     LOGE("%s %d\n", __func__, __LINE__);
-
     bk_jpeg_dec_stop();
 
     // Check global pointer before accessing
@@ -59,13 +62,17 @@ static void jpeg_dec_err_cb(jpeg_dec_res_t *result)
     bk_err_t ret = BK_FAIL;
     LOGE("%s %d\n", __func__, __LINE__);
 
+    if (g_hw_jpeg_decode->decode_timer_is_running == true)
+    {
+        rtos_stop_oneshot_timer(&g_hw_jpeg_decode->decode_timer);
+        g_hw_jpeg_decode->decode_timer_is_running = false;
+    }
     // Check global pointer before accessing
     if (g_hw_jpeg_decode == NULL)
     {
         LOGE("%s %d CRITICAL: g_hw_jpeg_decode is NULL in ISR!\n", __func__, __LINE__);
         return;
     }
-
     g_hw_jpeg_decode->decode_err = true;
     g_hw_jpeg_decode->hw_decode_status = HARDWARE_DECODE_STATUS_IDLE;
     ret = rtos_set_semaphore(&g_hw_jpeg_decode->hw_sync_sem);
@@ -78,7 +85,11 @@ static void jpeg_dec_err_cb(jpeg_dec_res_t *result)
 static void jpeg_dec_eof_cb(jpeg_dec_res_t *result)
 {
     bk_err_t ret = BK_FAIL;
-
+    if (g_hw_jpeg_decode->decode_timer_is_running == true)
+    {
+        rtos_stop_oneshot_timer(&g_hw_jpeg_decode->decode_timer);
+        g_hw_jpeg_decode->decode_timer_is_running = false;
+    }
     // Check global pointer before accessing
     if (g_hw_jpeg_decode == NULL)
     {
@@ -200,7 +211,6 @@ bk_err_t hw_jpeg_decode_start(frame_buffer_t *src_frame, frame_buffer_t *dst_fra
         }
 
         rtos_get_semaphore(&g_hw_jpeg_decode->hw_sync_sem, BEKEN_NO_WAIT);
-
         ret = hardware_decode_task_send_msg(HARDWARE_DECODE_EVENT_DECODE_START, (uint32_t)dst_frame);
         if (ret != BK_OK)
         {
@@ -209,7 +219,6 @@ bk_err_t hw_jpeg_decode_start(frame_buffer_t *src_frame, frame_buffer_t *dst_fra
         }
 
         ret = rtos_get_semaphore(&g_hw_jpeg_decode->hw_sync_sem, BEKEN_WAIT_FOREVER);
-
         if (g_hw_jpeg_decode->decode_timer_is_running == true)
         {
             rtos_stop_oneshot_timer(&g_hw_jpeg_decode->decode_timer);
@@ -519,7 +528,7 @@ bk_err_t hw_jpeg_decode_init(bk_jpeg_decode_callback_t *decode_cbs)
     }
 
 	ret = rtos_create_thread(&g_hw_jpeg_decode->hw_thread,
-							BEKEN_DEFAULT_WORKER_PRIORITY,
+                            CONFIG_HW_JPEG_DECODE_TASK_PRIORITY,
 							"hw_dec_thread",
 							(beken_thread_function_t)hw_jpeg_decode_thread,
 						    CONFIG_HW_JPEG_DECODE_TASK_STACK_SIZE,

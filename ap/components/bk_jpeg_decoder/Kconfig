@@ -34,4 +34,11 @@ menu "JPEG Decoder"
 		help
 			Stack size in bytes for hardware JPEG decode task (default: 1024)
 
+	config HW_JPEG_DECODE_TASK_PRIORITY
+		int "Hardware JPEG decode task pirority"
+		default 1
+		depends on JPEG_DECODER_HW
+		help task pirority
+			
+
 endmenu
