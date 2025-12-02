@@ -169,7 +169,10 @@ static void voice_read_task_main(beken_thread_arg_t param_data)
                 WIFI_TX_MIC_DATA_START();
                 read_size = voice_read_handle->voice_read_callback(voice_read_handle->read_buff, read_size, voice_read_handle->args);
                 WIFI_TX_MIC_DATA_END();
-                WIFI_TX_DATA_COUNT_ADD_SIZE(read_size);
+                if (read_size > 0)
+                {
+                    WIFI_TX_DATA_COUNT_ADD_SIZE(read_size);
+                }
             }
             else
             {
