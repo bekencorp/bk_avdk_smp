@@ -151,6 +151,8 @@ static bk_err_t h264_reset_request_callback(void *param, void *args);
 static bk_err_t scale_reset_request_callback(void *param, void *args);
 static bk_err_t rotate_reset_request_callback(void *param, void *args);
 
+static void jpeg_decode_reset(void);
+
 extern media_debug_t *media_debug;
 static jdec_config_t *jdec_config = NULL;
 static jdec_info_t *jdec_info = NULL;
@@ -344,8 +346,7 @@ static void jpeg_decode_reset_restart(uint32_t param)
 	{
 		LOGD("%s restart\n", __func__);
 		jdec_config->jdec_line_count = 0;
-		os_memset(&jdec_config->mux_buf[0], 0, sizeof(jdec_config->mux_buf[0]));
-		os_memset(&jdec_config->mux_buf[1], 0, sizeof(jdec_config->mux_buf[1]));
+		jpeg_decode_reset();
 		jpeg_get_task_send_msg(JPEGDEC_START, 0);
 	}
 }
@@ -1252,7 +1253,6 @@ static void jpeg_decode_main(beken_thread_arg_t data)
 
 				case JPEGDEC_RESET:
 					//msg_send_req_to_media_major_mailbox_sync(EVENT_SAVE_FRAME_DATA_IND, APP_MODULE, (uint32_t)jdec_config->jpeg_frame, NULL);
-					jpeg_decode_reset();
 					if(jdec_config->module[PIPELINE_MOD_H264].enable)
 					{
 						jdec_config->reset_cb[PIPELINE_MOD_H264](h264_reset_request_callback, NULL);
@@ -1264,6 +1264,12 @@ static void jpeg_decode_main(beken_thread_arg_t data)
 					if(jdec_config->module[PIPELINE_MOD_ROTATE].enable)
 					{
 						jdec_config->reset_cb[PIPELINE_MOD_ROTATE](rotate_reset_request_callback, NULL);
+					}
+					if (!jdec_config->module[PIPELINE_MOD_ROTATE].enable &&
+						!jdec_config->module[PIPELINE_MOD_SCALE].enable &&
+						!jdec_config->module[PIPELINE_MOD_H264].enable)
+					{
+						jpeg_decode_reset();
 					}
 					break;
 

@@ -107,16 +107,16 @@ typedef struct {
 typedef struct {
 	mux_buffer_state_t state[PIPELINE_MOD_MAX];
 	complex_buffer_t buffer;
-	uint8_t encoded : 1;
+	uint8_t encoded;
 } pipeline_mux_buf_t;
 
 
 typedef struct {
-	uint8_t jdec_type : 1;	 // by line(0) or by complete frame(1)
+	uint8_t jdec_type;	 // by line(0) or by complete frame(1)
+	pixel_format_t fmt;
 	uint16_t width;
 	uint16_t height;
 	uint32_t sequence;
-	pixel_format_t fmt;
 	complex_buffer_t *buffer;
 	LIST_HEADER_T list;
 } pipeline_encode_request_t;
