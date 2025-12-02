@@ -326,7 +326,7 @@ static int32_t wifi_boarding_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t ga
 
         memset(&rsp, 0, sizeof(rsp));
 
-        wboard_logi("write attr handle %d len %d offset %d need rsp %d", param->handle, param->len, param->offset, param->need_rsp);
+        wboard_logv("write attr handle %d len %d offset %d need rsp %d", param->handle, param->len, param->offset, param->need_rsp);
 
         uint8_t *tmp_buff = NULL;
         uint16_t buff_size = 0;
@@ -339,7 +339,7 @@ static int32_t wifi_boarding_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t ga
         else if (s_char_operation_char_handle == param->handle)
         {
             bk_ble_gatts_get_attr_value(param->handle, &buff_size, &tmp_buff);
-            wboard_logi("write boarding op char");
+            wboard_logv("write boarding op char");
         }
         else if (s_char_ssid_char_handle == param->handle)
         {
@@ -482,7 +482,7 @@ static int32_t wifi_boarding_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t ga
     {
         struct gatts_conf_evt_param *param = (typeof(param))comm_param;
 
-        wboard_logi("BK_GATTS_CONF_EVT %d %d %d", param->status, param->conn_id, param->handle);
+        wboard_logv("BK_GATTS_CONF_EVT %d %d %d", param->status, param->conn_id, param->handle);
     }
     break;
 
@@ -490,7 +490,7 @@ static int32_t wifi_boarding_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t ga
     {
         struct gatts_rsp_evt_param *param = (typeof(param))comm_param;
 
-        wboard_logi("BK_GATTS_RESPONSE_EVT %d %d", param->status, param->handle);
+        wboard_logv("BK_GATTS_RESPONSE_EVT %d %d", param->status, param->handle);
     }
     break;
 
@@ -1116,7 +1116,7 @@ int wifi_boarding_notify(uint8_t *data, uint16_t length)
     }
     else
     {
-        wboard_logi("len %d", length);
+        wboard_logv("len %d", length);
         bk_ble_gatts_send_indicate(s_gatts_if, s_conn_ind, s_char_attr_handle, length, data, 0);
         return BK_OK;
     }

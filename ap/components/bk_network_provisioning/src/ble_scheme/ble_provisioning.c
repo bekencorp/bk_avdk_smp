@@ -22,12 +22,13 @@
 #include "pan_service.h"
 #endif
 
+#define TAG "ble_np"
+
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-
-#define TAG "ble_np"
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 static bk_ble_provisioning_info_t *bk_ble_provisioning_info = NULL;
 static bk_ble_provisioning_msg_info_t *db_info = NULL;
@@ -66,7 +67,7 @@ void bk_ble_provisioning_event_notify(uint16_t opcode, int status)
                               0, 0,                                                                   /* payload length   */
     };
 
-    LOGI("%s: %d, %d\n", __func__, opcode, status);
+    LOGV("%s: %d, %d\n", __func__, opcode, status);
     wifi_boarding_notify(data, sizeof(data));
 }
 
@@ -99,7 +100,7 @@ void bk_ble_provisioning_operation_handle(uint16_t opcode, uint16_t length, uint
 
     /* Ensure that all fields are clean before populating metadata */
     os_memset(&msg, 0, sizeof(msg));
-    LOGW("%s, opcode: %04X, length: %u\n", __func__, opcode, length);
+    LOGV("%s, opcode: %04X, length: %u\n", __func__, opcode, length);
 
     msg.event = opcode;
     /* Record payload length for consumers that need binary buffers */
@@ -187,7 +188,7 @@ static void bk_ble_provisioning_message_handle(void)
 
         if (kNoErr == ret)
         {
-            LOGI("msg.event: %d, msg.param: %d, msg.length: %u\n", msg.event, msg.param, msg.length);
+            LOGV("msg.event: %d, msg.param: %d, msg.length: %u\n", msg.event, msg.param, msg.length);
             if (ble_msg_handle_cb) {
                 ble_msg_handle_cb(&msg);
             }
