@@ -294,7 +294,9 @@ bk_err_t crosscore_int_send_dump(int xCoreID);
 bk_err_t crosscore_int_send_dwt_set(int xCoreID);
 bk_err_t crosscore_int_send_dwt_clr(int xCoreID);
 void smp_arch_dwt_trap_write(uint32_t addr, uint32_t data);
+void smp_dwt_set_data_write(uint32_t addr);
 void smp_arch_dwt_trap_disable(void);
+
 
 /*-----------------------------------------------------------*/
 

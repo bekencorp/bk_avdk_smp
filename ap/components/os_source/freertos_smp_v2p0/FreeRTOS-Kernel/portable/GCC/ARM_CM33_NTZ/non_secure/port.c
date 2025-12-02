@@ -1002,12 +1002,20 @@ BaseType_t xPortStartSchedulerOnCore( void ) /* PRIVILEGED_FUNCTION */
     return 0;
 }
 
+typedef enum {
+    SMP_DWT_SYNC_NONE = 0,
+    SMP_DWT_SYNC_WATCHPOINT,
+    SMP_DWT_SYNC_DATA_WRITE,
+} smp_dwt_sync_t;
+
 static SPINLOCK_SECTION volatile spinlock_t crosscore_spin_lock = SPIN_LOCK_INIT;
 static volatile uint32_t   crosscore_mb_cmd[configNUM_CORES] = {0};
 static volatile uint32_t   crosscore_mb_busy[configNUM_CORES] = {0};
+static volatile smp_dwt_sync_t dwt_sync_type = SMP_DWT_SYNC_NONE;
 static uint32_t  dwt_addr, dwt_data;
 extern void arch_dwt_trap_write(uint32_t addr, uint32_t data);
 extern void arch_dwt_trap_disable(void);
+extern void dwt_set_data_address_write(uint32_t data_address);
 
 // message send between cores
 // xCoreID: to where the message will send
@@ -1085,7 +1093,17 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
 	
 	if(cmd & (0x01 << CC_SET_DWT))
 	{
-		arch_dwt_trap_write(dwt_addr, dwt_data);
+		switch (dwt_sync_type)
+		{
+			case SMP_DWT_SYNC_WATCHPOINT:
+				arch_dwt_trap_write(dwt_addr, dwt_data);
+				break;
+			case SMP_DWT_SYNC_DATA_WRITE:
+				dwt_set_data_address_write(dwt_addr);
+				break;
+			default:
+				break;
+		}
 	}
 	
 	if(cmd & (0x01 << CC_CLR_DWT))
@@ -1121,7 +1139,17 @@ void smp_arch_dwt_trap_write(uint32_t addr, uint32_t data)
 {
 	dwt_addr = addr;
 	dwt_data = data;
+	dwt_sync_type = SMP_DWT_SYNC_WATCHPOINT;
 	arch_dwt_trap_write(addr, data);
+	crosscore_int_send_dwt_set(!portGET_CORE_ID());
+}
+
+void smp_dwt_set_data_write(uint32_t addr)
+{
+	dwt_addr = addr;
+	dwt_data = 0;
+	dwt_sync_type = SMP_DWT_SYNC_DATA_WRITE;
+	dwt_set_data_address_write(addr);
 	crosscore_int_send_dwt_set(!portGET_CORE_ID());
 }
 
