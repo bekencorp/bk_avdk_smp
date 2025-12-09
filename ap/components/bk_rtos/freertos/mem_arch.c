@@ -201,10 +201,11 @@ void *os_malloc_debug(const char *func_name, int line, size_t size, int need_zer
 
 void *os_sram_malloc_debug(const char *func_name, int line, size_t size, int need_zero)
 {
-	if (need_zero) {
-		return (void *)os_sram_zalloc(size);
-	}
-	return (void *)os_sram_malloc(size);
+    void *n = (void *)os_sram_malloc(size);
+    if (need_zero && n) {
+        os_memset(n, 0, size);
+    }
+    return n;
 }
 
 void *os_free_debug(const char *func_name, int line, void *pv)
