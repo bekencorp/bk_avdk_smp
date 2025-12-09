@@ -153,6 +153,11 @@ bt_err_t bk_bluetooth_init(void)
 bt_err_t bk_bluetooth_deinit(void)
 {
     bt_err_t ret = 0;
+    if (bluetooth_mutex == NULL)
+    {
+        LOGW("%s, please init bluetooth first\r\n", __func__);
+        return BK_ERR_BT_FAIL;
+    }
     rtos_lock_mutex(&bluetooth_mutex);
     LOGD("%s start, %d \r\n", __func__, bluetooth_already_init);
     if (!bluetooth_already_init)
