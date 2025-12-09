@@ -1679,9 +1679,22 @@ bk_err_t bk_jdec_pipeline_init(void)
 	if (ret != BK_OK)
 	{
 		LOGE("%s, init mutex failed\r\n", __func__);
+		os_free(jdec_info);
+		jdec_info = NULL;
 		return BK_FAIL;
 	}
 
 	return ret;
 }
 
+bk_err_t bk_jdec_pipeline_deinit(void)
+{
+	if(jdec_info != NULL)
+	{
+		rtos_deinit_mutex(&jdec_info->lock);
+		os_free(jdec_info);
+		jdec_info = NULL;
+	}
+
+	return BK_OK;
+}

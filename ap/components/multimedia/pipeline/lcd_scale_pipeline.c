@@ -1404,9 +1404,21 @@ bk_err_t bk_scale_pipeline_init(void)
 	if (ret != BK_OK)
 	{
 		LOGE("%s, init mutex failed\r\n", __func__);
+		os_free(scale_info);
+		scale_info = NULL;
 		return BK_FAIL;
 	}
 
 	return ret;
 }
 
+bk_err_t bk_scale_pipeline_deinit(void)
+{
+	if(scale_info != NULL)
+	{
+		rtos_deinit_mutex(&scale_info->lock);
+		os_free(scale_info);
+		scale_info = NULL;
+	}
+	return BK_OK;
+}

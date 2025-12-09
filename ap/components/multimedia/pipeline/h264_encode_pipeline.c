@@ -1217,10 +1217,24 @@ bk_err_t bk_h264_pipeline_init(void)
 	if (ret != BK_OK)
 	{
 		LOGE("%s, init mutex failed\r\n", __func__);
+		os_free(h264_info);
+		h264_info = NULL;
 		return BK_FAIL;
 	}
 
 	return ret;
+}
+
+bk_err_t bk_h264_pipeline_deinit(void)
+{
+	if(h264_info != NULL)
+	{
+		rtos_deinit_mutex(&h264_info->lock);
+		os_free(h264_info);
+		h264_info = NULL;
+	}
+
+	return BK_OK;
 }
 
 

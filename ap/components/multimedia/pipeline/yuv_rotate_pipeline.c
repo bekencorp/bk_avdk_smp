@@ -1320,8 +1320,21 @@ bk_err_t bk_rotate_pipeline_init(void)
 	if (ret != BK_OK)
 	{
 		LOGE("%s, init mutex failed\r\n", __func__);
+		os_free(rotate_info);
+		rotate_info = NULL;
 		return BK_FAIL;
 	}
 
 	return ret;
+}
+
+bk_err_t bk_rotate_pipeline_deinit(void)
+{
+	if(rotate_info != NULL)
+	{
+		rtos_deinit_mutex(&rotate_info->lock);
+		os_free(rotate_info);
+		rotate_info = NULL;
+	}
+	return BK_OK;
 }

@@ -178,9 +178,13 @@ bk_err_t bk_scale_encode_request(pipeline_encode_request_t *request, mux_callbac
 void bk_jdec_buffer_request_register(pipeline_module_t module, mux_request_callback_t cb, mux_reset_callback_t reset_cb);
 void bk_jdec_buffer_request_deregister(pipeline_module_t module);
 bk_err_t bk_h264_pipeline_init(void);
+bk_err_t bk_h264_pipeline_deinit(void);
 bk_err_t bk_scale_pipeline_init(void);
+bk_err_t bk_scale_pipeline_deinit(void);
 bk_err_t bk_rotate_pipeline_init(void);
+bk_err_t bk_rotate_pipeline_deinit(void);
 bk_err_t bk_jdec_pipeline_init(void);
+bk_err_t bk_jdec_pipeline_deinit(void);
 bk_err_t bk_h264_reset_request(mux_callback_t cb, void *args);
 bk_err_t bk_scale_reset_request(mux_callback_t cb, void *args);
 bk_err_t bk_rotate_reset_request(mux_callback_t cb, void *args);

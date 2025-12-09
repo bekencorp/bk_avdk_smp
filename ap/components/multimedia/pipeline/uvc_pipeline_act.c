@@ -163,9 +163,19 @@ bk_err_t h264_jdec_pipeline_open(bk_video_pipeline_h264e_config_t *config, const
 
 #ifdef CONFIG_H264
 
-	uvc_pipeline_init();
+	ret = uvc_pipeline_init();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, uvc_pipeline_init fail\n", __func__);
+		return ret;
+	}
 
-	init_encoder_buffer();
+	ret = init_encoder_buffer();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, init_encoder_buffer fail\n", __func__);
+		return ret;
+	}
 
 	if (config == NULL || cb == NULL)
 	{
@@ -241,13 +251,33 @@ bk_err_t lcd_jdec_pipeline_open(bk_video_pipeline_decode_config_t *config,
 {
 	int ret = BK_OK;
 
-	uvc_pipeline_init();
+	ret = uvc_pipeline_init();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, uvc_pipeline_init fail\n", __func__);
+		return ret;
+	}
 
-	init_encoder_buffer();
-	init_rotate_buffer();
+	ret = init_encoder_buffer();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, init_encoder_buffer fail\n", __func__);
+		return ret;
+	}
+	ret = init_rotate_buffer();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, init_rotate_buffer fail\n", __func__);
+		return ret;
+	}
 
 #if SUPPORTED_IMAGE_MAX_720P
-	init_scale_buffer();
+	ret = init_scale_buffer();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, init_scale_buffer fail\n", __func__);
+		return ret;
+	}
 
 	lcd_scale_t local_lcd_scale = {PPI_1280X720, PPI_864X480};  // {PPI_864X480, PPI_480X480}, {PPI_1280X720, PPI_864X480}, {PPI_640X480, PPI_480X800};{PPI_480X320, PPI_480X864};
 	ret = scale_task_open(&local_lcd_scale, decode_cbs);
@@ -355,28 +385,62 @@ bk_err_t lcd_jdec_pipeline_close(void)
 
 bk_err_t uvc_pipeline_init(void)
 {
+	bk_err_t ret = BK_OK;
 	static uint8_t pipeline_init = false;
 
 	if (pipeline_init)
 	{
-		return BK_OK;
+		return ret;
 	}
 
-	bk_jdec_pipeline_init();
+	ret = bk_jdec_pipeline_init();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, bk_jdec_pipeline_init fail\n", __func__);
+		goto error;
+	}
 
 #if SUPPORTED_IMAGE_MAX_720P
-	bk_scale_pipeline_init();
+	ret = bk_scale_pipeline_init();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, bk_scale_pipeline_init fail\n", __func__);
+		goto error;
+	}
 #endif
 
-	bk_rotate_pipeline_init();
+	ret = bk_rotate_pipeline_init();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, bk_rotate_pipeline_init fail\n", __func__);
+		goto error;
+	}
 
 #ifdef CONFIG_H264
-	bk_h264_pipeline_init();
+	ret = bk_h264_pipeline_init();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, bk_h264_pipeline_init fail\n", __func__);
+		goto error;
+	}
 #endif
 
 	pipeline_init = true;
 
 	return BK_OK;
+
+error:
+	bk_jdec_pipeline_deinit();
+#if SUPPORTED_IMAGE_MAX_720P
+	bk_scale_pipeline_deinit();
+#endif
+	bk_rotate_pipeline_deinit();
+#ifdef CONFIG_H264
+	bk_h264_pipeline_deinit();
+#endif
+
+	pipeline_init = false;
+	return ret;
 }
 
 uint8_t *get_mux_sram_decode_buffer(void)
