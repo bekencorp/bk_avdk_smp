@@ -126,17 +126,6 @@ menu "Bk_usb"
 			default n
 	endmenu
 
-    config STANDARD_DUALSTREAM
-        bool "Standard dual stream"
-        default n
-    
-    config UVC_DUAL_DEVICE
-        #depends on STANDARD_DUALSTREAM
-        int "the num for uvc_device"
-        range 1 2
-        default 1 if !STANDARD_DUALSTREAM
-        default 2 if STANDARD_DUALSTREAM
-
     config USB_CDC_MODEM
         bool "Enable device usb cdc for 4G module"
         help

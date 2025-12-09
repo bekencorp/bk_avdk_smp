@@ -1028,7 +1028,7 @@ static void uvc_camera_stream_eof_handle(camera_param_t *camera_param, uvc_pro_c
     rtos_lock_mutex(&uvc_handle->mutex);
 
     if (pro_config->packet_error[index]
-        || curr_frame_buffer->length <= 1024 * 5
+        || (curr_frame_buffer->length <= 1024 * 5 && camera_param->info->img_format == IMAGE_MJPEG)
         || pro_config->stream_state != UVC_STREAM_STATE_RUNNING)
     {
         LOGV("%s, %d, length:%d, stream_state:%d\n", __func__, __LINE__, curr_frame_buffer->length, pro_config->stream_state);
@@ -1105,6 +1105,28 @@ static void uvc_camera_stream_eof_handle(camera_param_t *camera_param, uvc_pro_c
 
 out:
     UVC_EOF_END();
+}
+
+static int uvc_camera_stream_check_h264_h265_header(uint8_t *data, uint32_t length)
+{
+    int ret = -1;
+
+    if (length < 4)
+    {
+        return ret;
+    }
+
+    for (uint32_t i = 0; i < 20; i++)
+    {
+        if ((data[i] == 0x00 && data[i + 1] == 0x00)
+        && ((data[i + 2] == 0x00 && data[i + 3] == 0x01)
+            || (data[i + 2] == 0x01)))
+        {
+            ret = i;
+            break;
+        }
+    }
+    return ret;
 }
 
 static void uvc_camera_stream_packet_process(camera_param_t *camera_param, uint8_t *payload, uint32_t payload_len)
@@ -1263,11 +1285,24 @@ static void uvc_camera_stream_packet_process(camera_param_t *camera_param, uint8
             }
             else
             {
-                    UVC_PACKET_COPY_START();
-                    LOGV("uvc payload = %02x %02x...%02x %02x\n", payload[header_len], payload[header_len + 1], payload[payload_len - 2], payload[payload_len - 1]);
-                    os_memcpy(curr_frame_buffer->frame + curr_frame_buffer->length, data, data_len);
-                    curr_frame_buffer->length += data_len;
-                    UVC_PACKET_COPY_END();
+                // check h264/h265 header in the first packet
+                if (curr_frame_buffer->length == 0
+                    && (camera_param->info->img_format == IMAGE_H264 || camera_param->info->img_format == IMAGE_H265))
+                {
+                    // check h264/h265 header
+                    uint32_t header_offset = uvc_camera_stream_check_h264_h265_header(data, data_len);
+                    if (header_offset > 0)
+                    {
+                        data_len -= header_offset;
+                        data = data + header_offset;
+                    }
+                }
+
+                UVC_PACKET_COPY_START();
+                LOGV("uvc payload = %02x %02x...%02x %02x\n", payload[header_len], payload[header_len + 1], payload[payload_len - 2], payload[payload_len - 1]);
+                os_memcpy(curr_frame_buffer->frame + curr_frame_buffer->length, data, data_len);
+                curr_frame_buffer->length += data_len;
+                UVC_PACKET_COPY_END();
             }
         }
     }

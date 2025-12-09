@@ -1,0 +1,8 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+重启设备,AT+RST,1,wakeup,3
+uvc_open_01,ap_cmd uvc open_single 1 MJPEG 640 480,1,CMDRSP:OK,5
+uvc_close_01,ap_cmd uvc close 1 MJPEG,1,CMDRSP:OK,5
+uvc_open_02,ap_cmd uvc open_single 1 H264 1920 1080,1,CMDRSP:OK,5
+uvc_close_02,ap_cmd uvc close 1 H26x,1,CMDRSP:OK,5
+uvc_open_03,ap_cmd uvc open_dual 1 MJPEG 640 360 H265 1920 1080,1,CMDRSP:OK,5
+uvc_open_04,ap_cmd uvc close 1 all,1,CMDRSP:OK,5

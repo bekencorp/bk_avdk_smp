@@ -171,15 +171,6 @@ bk_err_t bk_uvc_suspend(camera_handle_t handle);
  */
 bk_err_t bk_uvc_resume(camera_handle_t handle);
 
-#if (CONFIG_STANDARD_DUALSTREAM)
-
-bk_err_t bk_uvc_h26x_power_on(uint32_t trigger);
-bk_err_t bk_uvc_h26x_power_off(void);
-bk_err_t bk_uvc_h26x_init(uvc_config_t *config, bk_uvc_callback_t *cb);
-bk_err_t bk_uvc_h26x_deinit(uint8_t port);
-bk_usb_hub_port_info *bk_uvc_h26x_get_enum_info(uint8_t port);
-
-#endif
 
 #ifdef __cplusplus
 }

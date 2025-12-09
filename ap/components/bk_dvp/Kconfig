@@ -29,14 +29,4 @@ menu "DVP"
 			Stack size for DVP work thread that handles frame callbacks and module reset.
 			Increase if stack overflow occurs.
 
-	config JPEG_FRAME_SIZE
-		int "config a jpeg frame size unit(byte), range 0-200k, default 100k"
-		range 0 204800
-		default 102400
-
-	config H264_FRAME_SIZE
-		int "config a h264 NALU size unit(byte), range 0-200k, default 100k"
-		range 0 204800
-		default 102400
-
 endmenu

@@ -217,6 +217,18 @@ typedef struct
     .user_data = NULL, \
 }
 
+#define BK_UVC_1920X1080_30FPS_H26X_CONFIG()	\
+    {\
+        .type = UVC_SINGLE_STREAM, \
+        .port = 1, \
+        .drop_num = 0, \
+        .img_format = IMAGE_H264, \
+        .width = 1920, \
+        .height = 1080, \
+        .fps = 15, \
+        .user_data = NULL, \
+    }
+
 #ifdef __cplusplus
 }
 #endif
