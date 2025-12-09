@@ -170,7 +170,7 @@ static int sc7a20_setMode(gsensor_mode_t mode);
 static int sc7a20_setDataRange(gsensor_range_t rg);
 static int sc7a20_registerCallback(gsensor_cb cb);
 
-const gsensor_device_t gs_sc7a20 = 
+const gsensor_device_t gs_sc7a20 =
 {
     .name = "sc7a20",
     .init = sc7a20_init,
@@ -317,7 +317,7 @@ static void gsensor_timer_create(gsensor_timer_handle* timer, GSENSOR_TIMER_TYPE
                                     gsensor_timer_handler,
                                     app_timer,
                                     uarg);
-                                    
+
     SC7A20_LOGI("%s app_timer %p\r\n",__func__,app_timer);
     if(err != 0)
     {
@@ -413,7 +413,7 @@ typedef struct
 {
     uint32_t i2c_id:2;
     uint32_t device_addr:10;
-    uint32_t device_addr_mode:1; //0 7bit, 1 10 bits     
+    uint32_t device_addr_mode:1; //0 7bit, 1 10 bits
     uint32_t reg_addr:16;
     uint32_t reg_addr_mode:1; //0 1byte, 1 2bytes
     uint32_t :2;
@@ -435,7 +435,7 @@ static bk_err_t gsensor_i2c_write(i2c_transfer_t *trx)
     mem_param.mem_addr_size = trx->reg_addr_mode;
     mem_param.data = trx->data;
     mem_param.data_size = trx->data_len;
-    mem_param.timeout_ms = 2000;//2s        
+    mem_param.timeout_ms = 2000;//2s
     ret = bk_i2c_memory_write(trx->i2c_id, &mem_param);
     return ret;
 }
@@ -456,7 +456,7 @@ static bk_err_t gsensor_i2c_read(i2c_transfer_t *trx)
     mem_param.data = trx->data;
     mem_param.data_size = trx->data_len;
     mem_param.timeout_ms = 2000;//2s
-        
+
     ret = bk_i2c_memory_read(trx->i2c_id, &mem_param);
     return ret;
 
@@ -475,7 +475,7 @@ static uint8_t sc7a20_i2c_read(unsigned char reg, unsigned char len, unsigned ch
         bk_err_t ret = gsensor_i2c_read(&tran);
         if(ret != BK_OK)
             return -1;
-        return 0;    
+        return 0;
 }
 
 static uint8_t sc7a20_i2c_write(unsigned char reg, unsigned char data)
@@ -618,12 +618,16 @@ static int sc7a20_open(void)
         sc7a20_i2c_write(SL_SC7A20_CTRL_REG2,0x81);
         sc7a20_i2c_write(SL_SC7A20_CTRL_REG3,0x40);
         sc7a20_i2c_write(SL_SC7A20_CTRL_REG4,0x98);
-        sc7a20_i2c_write(SL_SC7A20_CTRL_REG5,0x00);
+        sc7a20_i2c_write(SL_SC7A20_CTRL_REG5,0x08); //Enable Latch interrupt
         sc7a20_i2c_write(SL_SC7A20_CTRL_REG6,0x02);
         sc7a20_i2c_write(SL_SC7A20_SDOI2C_PU_CFG,0xc);
         sc7a20_i2c_write(SL_SC7A20_INT1_CFG,0xaa);//Draw an similar S-shaped gesture to wake up
-        sc7a20_i2c_write(SL_SC7A20_INT1_THS,0x0f);
+        sc7a20_i2c_write(SL_SC7A20_INT1_THS,0x05);//Threshold value
         sc7a20_i2c_write(SL_SC7A20_INT1_DURATION,0x02);
+
+        unsigned char dummy;
+        sc7a20_i2c_read(SL_SC7A20_INT1_SRC, 1, &dummy); //Clear interrupt
+
         bk_gpio_enable_interrupt(GSENSOR_G_INT_PIN);
     }
     is_running = 1;
