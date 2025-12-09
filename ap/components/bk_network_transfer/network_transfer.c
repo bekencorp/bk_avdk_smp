@@ -463,7 +463,7 @@ int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_t
     {
         if(s_ntwk_trans_ctxt->video_chan->fragment(data, length) >= 0)
         {
-            return BK_OK;
+            return length;
         }
     }
 
@@ -471,8 +471,7 @@ int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_t
     {
         if(s_ntwk_trans_ctxt->video_chan->pack(data, length, &pack_ptr, &pack_ptr_length) >= 0)
         {
-            (s_ntwk_trans_ctxt->video_chan->send)(pack_ptr, pack_ptr_length,s_ntwk_trans_ctxt->video_chan->vid_type);
-            return BK_OK;
+            return (s_ntwk_trans_ctxt->video_chan->send)(pack_ptr, pack_ptr_length,s_ntwk_trans_ctxt->video_chan->vid_type);
         }
     }
 
@@ -508,7 +507,7 @@ int ntwk_trans_audio_send(uint8_t *data, uint32_t length, audio_enc_type_t audio
     {
         if(s_ntwk_trans_ctxt->audio_chan->fragment(data, length) >= 0)
         {
-            return BK_OK;
+            return length;
         }
     }
 
@@ -516,8 +515,7 @@ int ntwk_trans_audio_send(uint8_t *data, uint32_t length, audio_enc_type_t audio
     {
         if(s_ntwk_trans_ctxt->audio_chan->pack(data, length, &pack_ptr, &pack_ptr_length) >= 0)
         {
-            (s_ntwk_trans_ctxt->audio_chan->send)(pack_ptr, pack_ptr_length, s_ntwk_trans_ctxt->audio_chan->aud_type);
-            return BK_OK;
+            return (s_ntwk_trans_ctxt->audio_chan->send)(pack_ptr, pack_ptr_length, s_ntwk_trans_ctxt->audio_chan->aud_type);
         }
     }
 
