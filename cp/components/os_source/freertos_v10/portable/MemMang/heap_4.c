@@ -1272,7 +1272,7 @@ void xPortDumpMemStats(uint32_t start_tick, uint32_t ticks_since_malloc, const c
 			continue;
 
 	#if CONFIG_MEM_DEBUG_TASK_NAME
-		if (task && os_strncmp(task, pxLink->taskName, sizeof(pxLink->taskName)))
+		if (task && pxLink->taskName && os_strncmp(task, pxLink->taskName, 16))
 			continue;
 	#endif
 

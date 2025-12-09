@@ -1278,7 +1278,7 @@ typedef struct xSTATIC_TCB
     StaticListItem_t xDummy3[ 2 ];
     UBaseType_t uxDummy5;
     void * pxDummy6;
-#if configBK_FREERTOS
+#if configBK_FREERTOS && CONFIG_USE_STATIC_TASK_NAME
     uint8_t *ucDummy7;                            //Task Name
 #else
     uint8_t ucDummy7[ configMAX_TASK_NAME_LEN ];

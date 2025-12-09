@@ -269,7 +269,7 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     UBaseType_t uxPriority;                     /*< The priority of the task.  0 is the lowest priority. */
     StackType_t * pxStack;                      /*< Points to the start of the stack. */
 
-    #if configBK_FREERTOS
+    #if configBK_FREERTOS && CONFIG_USE_STATIC_TASK_NAME
     char *pcTaskName;
     #else
     char pcTaskName[ configMAX_TASK_NAME_LEN ]; /*< Descriptive name given to the task when created.  Facilitates debugging only. */ /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
@@ -967,7 +967,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                                   const MemoryRegion_t * const xRegions )
 {
     StackType_t * pxTopOfStack;
-#if !configBK_FREERTOS
+#if !(configBK_FREERTOS && CONFIG_USE_STATIC_TASK_NAME)
     UBaseType_t x;
 #endif
 
@@ -1039,7 +1039,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
     }
     #endif /* portSTACK_GROWTH */
 
-    #if configBK_FREERTOS
+    #if configBK_FREERTOS && CONFIG_USE_STATIC_TASK_NAME
     pxNewTCB->pcTaskName = (char *)pcName;
     #else
     /* Store the task name in the TCB. */
@@ -2556,14 +2556,14 @@ char * pcTaskGetName( TaskHandle_t xTaskToQuery ) /*lint !e971 Unqualified char 
     pxTCB = prvGetTCBFromHandle( xTaskToQuery );
     configASSERT( pxTCB );
 
-    #if configBK_FREERTOS
+    #if configBK_FREERTOS && CONFIG_USE_STATIC_TASK_NAME
     return pxTCB->pcTaskName;
     #else
     return &( pxTCB->pcTaskName[ 0 ] );
     #endif
 }
 
-#if configBK_FREERTOS
+#if configBK_FREERTOS && CONFIG_USE_STATIC_TASK_NAME
 void pcTaskSetName( TaskHandle_t xTaskToQuery, char * pcName )
 {
     TCB_t * pxTCB;
