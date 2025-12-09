@@ -50,9 +50,13 @@ static inline void h264_ll_init(h264_hw_t *hw)
 	hw->global_ctrl.clkg_bypass = 1;
 }
 
-static inline void h264_ll_reset(h264_hw_t *hw)
+static inline void h264_ll_global_soft_reset_enable(h264_hw_t *hw)
 {
 	hw->global_ctrl.soft_reset = 0;
+}
+
+static inline void h264_ll_global_soft_reset_disable(h264_hw_t *hw)
+{
 	hw->global_ctrl.soft_reset = 1;
 }
 

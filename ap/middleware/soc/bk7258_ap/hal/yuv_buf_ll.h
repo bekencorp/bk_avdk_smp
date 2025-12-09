@@ -25,9 +25,13 @@ extern "C" {
 
 #define YUV_BUF_LL_REG_BASE    (SOC_YUV_BUF_REG_BASE)
 
-static inline void yuv_buf_ll_soft_reset(yuv_buf_hw_t *hw)
+static inline void yuv_buf_ll_global_soft_reset_enable(yuv_buf_hw_t *hw)
 {
 	hw->global_ctrl.soft_reset = 0;
+}
+
+static inline void yuv_buf_ll_global_soft_reset_disable(yuv_buf_hw_t *hw)
+{
 	hw->global_ctrl.soft_reset = 1;
 }
 

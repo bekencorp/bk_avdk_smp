@@ -224,9 +224,7 @@ static bk_err_t dvp_camera_init_device(dvp_driver_handle_t *handle)
 
 static void dvp_camera_dma_finish_callback(dma_id_t id)
 {
-    DVP_DMA_ENTRY();
     s_dvp_dma_length += FRAME_BUFFER_CACHE;
-    DVP_DMA_OUT();
 }
 
 static bk_err_t dvp_camera_dma_config(dvp_driver_handle_t *handle)
@@ -542,20 +540,22 @@ static void dvp_camera_reset_hardware_modules_handler(dvp_driver_handle_t *handl
 {
     bk_dvp_config_t *config = handle->config;
 
+    bk_yuv_buf_stop(YUV_MODE);
+
 #ifdef CONFIG_JPEGENC_HW
     if (config->img_format & IMAGE_MJPEG)
     {
+        bk_yuv_buf_stop(JPEG_MODE);
         bk_jpeg_enc_soft_reset();
-        bk_yuv_buf_start(JPEG_MODE);
     }
 #endif
 
 #ifdef CONFIG_H264
     if (config->img_format & IMAGE_H264)
     {
-        bk_h264_config_reset();
-        bk_yuv_buf_start(H264_MODE);
-        bk_h264_encode_enable();
+        bk_yuv_buf_stop(H264_MODE);
+        bk_h264_encode_disable();
+        bk_h264_init(config->width, config->height);
     }
 #endif
 
@@ -565,12 +565,27 @@ static void dvp_camera_reset_hardware_modules_handler(dvp_driver_handle_t *handl
 
     if (handle->dma_channel < DMA_ID_MAX)
     {
+        s_dvp_dma_length = 0;
         bk_dma_stop(handle->dma_channel);
         if (handle->encode_frame)
         {
             handle->encode_frame->length = 0;
         }
         bk_dma_start(handle->dma_channel);
+    }
+
+    if (handle->config->img_format & IMAGE_H264)
+    {
+        bk_yuv_buf_start(H264_MODE);
+        bk_h264_encode_enable();
+    }
+    else if (handle->config->img_format & IMAGE_MJPEG)
+    {
+        bk_yuv_buf_start(JPEG_MODE);
+    }
+    else
+    {
+        bk_yuv_buf_start(YUV_MODE);
     }
 }
 
@@ -1730,12 +1745,29 @@ bk_err_t bk_dvp_h264_idr_reset(camera_handle_t handle)
 
 bk_err_t bk_dvp_suspend(camera_handle_t handle)
 {
-    bk_err_t ret = BK_FAIL;
+    bk_err_t ret = BK_OK;
+    DVP_SOFT_REST_ENTRY();
     dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)handle;
     if (dvp_handle)
     {
-        dvp_handle->error = true;
-        ret = BK_OK;
+        // stop encode and reset hardware modules
+        if (dvp_handle->config->img_format & IMAGE_H264)
+        {
+            bk_yuv_buf_stop(H264_MODE);
+            bk_h264_encode_disable();
+            bk_h264_global_soft_reset(true);
+        }
+        else if (dvp_handle->config->img_format & IMAGE_MJPEG)
+        {
+            bk_yuv_buf_stop(JPEG_MODE);
+            bk_jpeg_enc_global_soft_reset(true);
+        }
+        else
+        {
+            bk_yuv_buf_stop(YUV_MODE);
+        }
+
+        bk_yuv_buf_global_soft_reset(true);
     }
 
     return ret;
@@ -1743,12 +1775,27 @@ bk_err_t bk_dvp_suspend(camera_handle_t handle)
 
 bk_err_t bk_dvp_resume(camera_handle_t handle)
 {
-    bk_err_t ret = BK_FAIL;
+    bk_err_t ret = BK_OK;
+    DVP_SOFT_REST_OUT();
     dvp_driver_handle_t *dvp_handle = (dvp_driver_handle_t *)handle;
     if (dvp_handle)
     {
         dvp_handle->error = true;
-        ret = BK_OK;
+
+        if (dvp_handle->config->img_format & IMAGE_H264)
+        {
+            bk_h264_global_soft_reset(false);
+        }
+        else if (dvp_handle->config->img_format & IMAGE_MJPEG)
+        {
+            bk_jpeg_enc_global_soft_reset(false);
+        }
+        else
+        {
+            bk_yuv_buf_global_soft_reset(false);
+        }
+
+        dvp_camera_vsync_negedge_handler(0, dvp_handle);
     }
 
     return ret;

@@ -42,8 +42,8 @@
 #define DVP_RESET_ENTRY()           GPIO_UP(45)
 #define DVP_RESET_OUT()             GPIO_DOWN(45)
 
-#define DVP_DMA_ENTRY()             GPIO_UP(46)
-#define DVP_DMA_OUT()               GPIO_DOWN(46)
+#define DVP_SOFT_REST_ENTRY()  GPIO_UP(46)
+#define DVP_SOFT_REST_OUT()    GPIO_DOWN(46)
 
 #else
 #define DVP_DIAG_DEBUG_INIT()
@@ -69,8 +69,8 @@
 #define DVP_PPI_ERROR_ENTRY()
 #define DVP_PPI_ERROR_OUT()
 
-#define DVP_DMA_ENTRY()
-#define DVP_DMA_OUT()
+#define DVP_SOFT_REST_ENTRY()
+#define DVP_SOFT_REST_OUT()
 
 #define DVP_VSYNC_ENTRY()
 #define DVP_VSYNC_OUT()
