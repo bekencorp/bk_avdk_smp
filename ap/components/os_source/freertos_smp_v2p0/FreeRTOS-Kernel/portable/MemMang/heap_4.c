@@ -1419,6 +1419,7 @@ void bk_psram_heap_get_used_state(void) {
 #endif //#if CONFIG_PSRAM_AS_SYS_MEMORY
 }
 
+#if (CONFIG_AP_PSRAM_SECTION_ADDR)
 extern unsigned char __psram_data_start__;
 #define PSRAM_DATA_START_ADDRESS ((uint32_t)&__psram_data_start__)
 
@@ -1430,6 +1431,7 @@ extern unsigned char __psram_bss_start__;
 
 extern unsigned char __psram_bss_end__;
 #define PSRAM_BSS_END_ADDRESS ((uint32_t)&__psram_bss_end__)
+#endif //#if (CONFIG_AP_PSRAM_SECTION_ADDR)
 
 
 void bk_psram_heap_dump_data(void)
@@ -1442,7 +1444,9 @@ void bk_psram_heap_dump_data(void)
 	{
 		stack_mem_dump(psram_used_area_begin, psram_used_area_end);
 	}
+#endif //#if CONFIG_PSRAM_AS_SYS_MEMORY
 
+#if (CONFIG_AP_PSRAM_SECTION_ADDR)
     if (PSRAM_DATA_END_ADDRESS > PSRAM_DATA_START_ADDRESS)
     {
         stack_mem_dump(PSRAM_DATA_START_ADDRESS, PSRAM_DATA_END_ADDRESS);
@@ -1452,8 +1456,7 @@ void bk_psram_heap_dump_data(void)
     {
         stack_mem_dump(PSRAM_BSS_START_ADDRESS, PSRAM_BSS_END_ADDRESS);
     }
-    
-#endif
+#endif //#if (CONFIG_AP_PSRAM_SECTION_ADDR)
 }
 
 /*-----------------------------------------------------------*/
