@@ -76,10 +76,18 @@ MEMORY
   PSRAM_SLAB_AUDIO (rwx)       : ORIGIN = CONFIG_PSRAM_MEM_SLAB_AUDIO_ADDR, LENGTH = CONFIG_PSRAM_MEM_SLAB_AUDIO_SIZE
   PSRAM_SLAB_ENCODE (rwx)      : ORIGIN = CONFIG_PSRAM_MEM_SLAB_ENCODE_ADDR, LENGTH = CONFIG_PSRAM_MEM_SLAB_ENCODE_SIZE
   PSRAM_SLAB_DISPLAY (rwx)     : ORIGIN = CONFIG_PSRAM_MEM_SLAB_DISPLAY_ADDR, LENGTH = CONFIG_PSRAM_MEM_SLAB_DISPLAY_SIZE
+#endif
+
 #if (CONFIG_PSRAM_AS_SYS_MEMORY)
   PSRAM_HEAP (rwx)      : ORIGIN = CONFIG_AP_PSRAM_HEAP_ADDR, LENGTH = CONFIG_AP_PSRAM_HEAP_SIZE
 #endif
+
+#if (CONFIG_AP_PSRAM_SECTION_ADDR)
   PSRAM_SECTION (rwx)   : ORIGIN = CONFIG_AP_PSRAM_SECTION_ADDR, LENGTH = CONFIG_AP_PSRAM_SECTION_SIZE
+#endif
+
+#if (CONFIG_AP_PSRAM_TEXT_ADDR)
+  PSRAM_TEXT (rwx)   : ORIGIN = CONFIG_AP_PSRAM_TEXT_ADDR, LENGTH = CONFIG_AP_PSRAM_TEXT_SIZE
 #endif
 }
 
@@ -199,10 +207,15 @@ SECTIONS
         LONG (__data_start__)
         LONG ((__data_end__ - __data_start__) / 4)
 
-#if CONFIG_PSRAM
-        LONG (__psram_text)
+#if CONFIG_AP_PSRAM_SECTION_ADDR
+        LONG (__flash_psram_data)
         LONG (__psram_data_start__)
         LONG ((__psram_data_end__ - __psram_data_start__) / 4)
+#endif
+#if (CONFIG_AP_PSRAM_TEXT_ADDR)
+        LONG (__flash_psram_text)
+        LONG (__psram_text_start__)
+        LONG ((__psram_text_end__ - __psram_text_start__) / 4)
 #endif
 
 #if ((!defined(CONFIG_SOC_SMP)) || (0 == CONFIG_SOC_SMP))
@@ -232,7 +245,7 @@ SECTIONS
         LONG (_heap_start)
         LONG ((_heap_end - _heap_start) / 4)
         /* Add each additional bss section here */
-    #if CONFIG_PSRAM
+    #if CONFIG_AP_PSRAM_SECTION_ADDR
         LONG (__psram_bss_start__)
         LONG ((__psram_bss_end__ - __psram_bss_start__) / 4)
     #endif
@@ -580,11 +593,27 @@ SECTIONS
         _swap_end = .;
     } > SWAP AT > FLASH
 
-#if CONFIG_PSRAM
+
+#if (CONFIG_AP_PSRAM_TEXT_ADDR)
+    .psram.text :
+    {
+        . = ALIGN(4);
+        PROVIDE(__flash_psram_text = LOADADDR(.psram.text));
+        __psram_text_start__ = .;
+        *(.psram.text)
+        *(.psram.text*)
+        
+        *liblvgl.a:*.c.obj*(.text .text.* *.rodata *.rodata.*)
+        . = ALIGN(4);
+        __psram_text_end__ = .;
+    } > PSRAM_TEXT AT > FLASH
+#endif
+
+#if CONFIG_AP_PSRAM_SECTION_ADDR
     .psram.data :
     {
         . = ALIGN(4);
-        PROVIDE(__psram_text = LOADADDR(.psram.data));
+        PROVIDE(__flash_psram_data = LOADADDR(.psram.data));
         __psram_data_start__ = .;
 
         *(.psram.data)
