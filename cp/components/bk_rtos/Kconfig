@@ -121,7 +121,26 @@ menu "Bk_rtos"
 
 		config FREERTOS_HISTORY_CPU_PERCENT
 			bool "Enable FreeRTOS CPU usage percent record"
-			default n   
+			default n
+			help   
+				Enabling this marco allows you to output CPU utilization over 
+				a specified period via commands,with the duration being configurable
+				(e.g.,5 seconds, 10 seconds,etc.).
+
+		config USE_STATIC_TASK_NAME
+			bool "Use Static Task Name"
+			default y
+			help
+				When this marco is enabled, the task name will be set as constant string.
+				and the incoming parameters are directly used internally, not copied.
+
+		config DYNAMIC_TASK_NAME_LEN
+			int "set Dynamic Task Name Len"
+			default 16
+			help
+				When the task name used the native method of FreeRTOS,the
+				task name is copied, and this marco can be configured to 
+				set the maximum length of the task name.
 
 	endmenu
 
