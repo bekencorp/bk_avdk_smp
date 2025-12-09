@@ -193,11 +193,11 @@ bk_err_t avi_player_jpeg_hw_decode_deinit(bk_avi_player_format_t output_format)
             LOGE("%s %d avi_player_dma2d_yuyv2rgb565_deinit failed\n", __func__, __LINE__);
             return ret;
         }
-    }
 
-    if (g_dec_out_frame->frame) {
-        psram_free(g_dec_out_frame->frame);
-        g_dec_out_frame->frame = NULL;
+        if (g_dec_out_frame->frame) {
+            psram_free(g_dec_out_frame->frame);
+            g_dec_out_frame->frame = NULL;
+        }
     }
 
     if (g_dec_out_frame != NULL) {
