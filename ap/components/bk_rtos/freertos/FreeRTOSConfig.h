@@ -140,7 +140,7 @@
 #define configMAX_PRIORITIES                        ( 10 )
 #define configUSE_PREEMPTION                        1
 #define configMINIMAL_STACK_SIZE                    ( ( unsigned short ) (768/2) )
-#define configMAX_TASK_NAME_LEN                     ( 16 )
+#define configMAX_TASK_NAME_LEN                     CONFIG_DYNAMIC_TASK_NAME_LEN  
 #define configIDLE_SHOULD_YIELD                     1
 #define configUSE_CO_ROUTINES                       0
 #define configMAX_CO_ROUTINE_PRIORITIES             ( 2 )
