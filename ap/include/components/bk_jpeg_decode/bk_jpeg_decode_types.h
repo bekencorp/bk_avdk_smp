@@ -15,6 +15,7 @@
 #pragma once
 
 #include "components/avdk_utils/avdk_error.h"
+#include "frame_buffer.h"
 
 #ifdef __cplusplus
 extern "C" {
