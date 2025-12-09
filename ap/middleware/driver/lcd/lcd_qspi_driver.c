@@ -172,14 +172,19 @@ static bk_err_t lcd_qspi_driver_init(qspi_id_t qspi_id, lcd_qspi_clk_t clk)
 
 static bk_err_t lcd_qspi_hardware_reset(gpio_id_t reset_pin)
 {
-    gpio_dev_unmap(reset_pin);
-    gpio_dev_map(reset_pin, 0);
-    bk_gpio_enable_pull(reset_pin);
-    bk_gpio_pull_up(reset_pin);
+    gpio_config_t cfg = {0};
+    gpio_id_t gpio_id = reset_pin;
+
+    BK_LOG_ON_ERR(gpio_dev_unmap(gpio_id));
+    cfg.io_mode = GPIO_OUTPUT_ENABLE;
+    cfg.pull_mode = GPIO_PULL_DISABLE;
+    cfg.func_mode = GPIO_SECOND_FUNC_DISABLE;
+    BK_LOG_ON_ERR(bk_gpio_set_config(gpio_id, &cfg));
+    BK_LOG_ON_ERR(bk_gpio_set_output_high(gpio_id));
     rtos_delay_milliseconds(10);
-    bk_gpio_pull_down(reset_pin);
+    BK_LOG_ON_ERR(bk_gpio_set_output_low(gpio_id));
     rtos_delay_milliseconds(10);
-    bk_gpio_pull_up(reset_pin);
+    BK_LOG_ON_ERR(bk_gpio_set_output_high(gpio_id));
     rtos_delay_milliseconds(120);
 
     return BK_OK;
