@@ -409,7 +409,7 @@ static bk_err_t bk_cal_saradc_start(int32_t adc_channel, int32_t adc_clk, int32_
 	config.steady_ctrl   = steady_time;
 	config.adc_filter    = 0;
 
-	BK_LOG_ON_ERR(bk_adc_set_config(&config));
+	BK_LOG_ON_ERR(bk_adc_set_phy_cali_config(&config));
 	BK_LOG_ON_ERR(bk_adc_enable_bypass_clalibration());
 	BK_LOG_ON_ERR(bk_adc_start());
 	return BK_OK;

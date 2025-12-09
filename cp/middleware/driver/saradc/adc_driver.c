@@ -665,6 +665,32 @@ bk_err_t bk_adc_set_config(adc_config_t *config)
 	return BK_OK;
 }
 
+bk_err_t bk_adc_set_phy_cali_config(adc_config_t *config)
+{
+    BK_RETURN_ON_NULL(config);
+	ADC_RETURN_ON_INVALID_MODE(config->adc_mode);
+	ADC_RETURN_ON_INVALID_SRC_CLK(config->src_clk);
+	ADC_RETURN_ON_INVALID_CHAN(config->chan);
+
+	if (&g_adc_cfg != config) {
+		os_memcpy(&g_adc_cfg, config, sizeof(g_adc_cfg));
+	}
+
+	adc_hal_set_clk(&s_adc.hal, config->src_clk, config->clk);
+	adc_hal_set_mode(&s_adc.hal, config->adc_mode);
+
+	adc_hal_set_steady_ctrl(&s_adc.hal, config->steady_ctrl);
+	adc_hal_set_saturate_mode(&s_adc.hal, config->saturate_mode);
+
+	bk_adc_set_channel(config->chan);
+
+	if(config->adc_mode == ADC_CONTINUOUS_MODE) {
+		adc_hal_set_sample_rate(&s_adc.hal, config->sample_rate);
+		adc_hal_set_adc_filter(&s_adc.hal, config->adc_filter);
+	}
+	return BK_OK;
+}
+
 bk_err_t bk_adc_get_config(uint32 adc_ch, adc_config_t **config)
 {
     if (adc_ch != g_adc_cfg.chan) {
