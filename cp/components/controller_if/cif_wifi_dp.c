@@ -174,11 +174,12 @@ static bool cif_filter_check_bk_filter(uint32_t src_port, uint32_t dst_port)
 }
 static bool cif_filter_check_ip_and_port(struct ip_hdr *iphdr, uint32_t src_port, uint32_t dst_port)
 {
+#if CONFIG_DEMOS_IPERF
     if(iperf_get_state() != 0)
     {
         return true;
     }
-
+#endif
     if (cif_filter_check_customer_filter(iphdr, src_port, dst_port))
     {
         return true;

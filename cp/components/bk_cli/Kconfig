@@ -89,7 +89,7 @@ menu "Bk_cli"
 
 
 		config IPERF_TEST
-			depends on CLI && WIFI_ENABLE
+			depends on CLI && WIFI_ENABLE && DEMOS_IPERF
 			bool "Enable Iperf Test"
 			default y
 
