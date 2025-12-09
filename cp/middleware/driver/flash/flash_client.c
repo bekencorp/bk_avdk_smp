@@ -30,7 +30,7 @@
 
 #define LOCAL_TRACE    (1)
 
-#define FLASH_OPERATE_TIMEOUT         600
+#define FLASH_OPERATE_TIMEOUT         3000
 
 static bool s_flash_client_init = false;
 
@@ -440,7 +440,7 @@ static bk_err_t flash_write_bytes(uint32_t address, const uint8_t *user_buf, uin
 	rtos_lock_mutex(&flash_mutex);
 
 	int ret = mb_ipc_send(flash_socket_handle, FLASH_CMD_WRITE,
-		(u8 *)&cmd_buff, sizeof(cmd_buff), FLASH_OPERATE_TIMEOUT + size / 200);  // flash write speed: write done 200 bytes in 1ms.
+		(u8 *)&cmd_buff, sizeof(cmd_buff), FLASH_OPERATE_TIMEOUT);  // flash write speed: write done 200 bytes in 1ms.
 
 	if(ret != 0)
 	{

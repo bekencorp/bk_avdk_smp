@@ -30,7 +30,7 @@
 
 #define LOCAL_TRACE    (1)
 
-#define FLASH_OPERATE_TIMEOUT         2000
+#define FLASH_OPERATE_TIMEOUT         3000
 
 static bool s_flash_client_init = false;
 
@@ -619,7 +619,7 @@ static bk_err_t flash_write_bytes(uint32_t address, const uint8_t *user_buf, uin
 	mb_ipc_recv(flash_socket_handle, NULL, NULL, 0, 0);  // data_buff == NULL or buff_len == 0 just discard all data.
 
 	int ret = mb_ipc_send(flash_socket_handle, FLASH_CMD_WRITE,
-		(u8 *)&cmd_buff, sizeof(cmd_buff), FLASH_OPERATE_TIMEOUT + size / 200);  // flash write speed: write done 200 bytes in 1ms.
+		(u8 *)&cmd_buff, sizeof(cmd_buff), FLASH_OPERATE_TIMEOUT);  // flash write speed: write done 200 bytes in 1ms.
 
 	if(ret != 0)
 	{
@@ -750,7 +750,7 @@ bk_err_t bk_flash_erase_fast(uint32_t erase_off, uint32_t len)
 	mb_ipc_recv(flash_socket_handle, NULL, NULL, 0, 0);  // data_buff == NULL or buff_len == 0 just discard all data.
 
 	int ret = mb_ipc_send(flash_socket_handle, FLASH_CMD_FAST_ERASE,
-		(u8 *)&cmd_buff, sizeof(cmd_buff), FLASH_OPERATE_TIMEOUT * (1 + len / FLASH_SECTOR_SIZE));
+		(u8 *)&cmd_buff, sizeof(cmd_buff), FLASH_OPERATE_TIMEOUT);
 
 	if(ret != 0)
 	{

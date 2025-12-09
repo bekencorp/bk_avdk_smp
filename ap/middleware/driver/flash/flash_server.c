@@ -47,7 +47,7 @@
 
 #define FLASH_SVR_EVENTS         (FLASH_SVR_CONNECT_EVENTS | FLASH_SVR_QUIT_EVENT)
 
-#define FLASH_SVR_WAIT_TIME      50
+#define FLASH_SVR_WAIT_TIME      3000
 
 
 static u8 s_flash_svr_init = 0;

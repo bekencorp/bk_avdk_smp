@@ -25,7 +25,7 @@
 
 #define LOCAL_TRACE    (1)
 
-#define SARADC_OPERATE_TIMEOUT         600
+#define SARADC_OPERATE_TIMEOUT         3000
 #define ADC_SAMPLE_CNT_DEFAULT         32
 
 static bool s_saradc_client_init = false;

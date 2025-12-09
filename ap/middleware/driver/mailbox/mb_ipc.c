@@ -335,13 +335,16 @@ static int ipc_router_send(mb_ipc_route_t *ipc_route, mb_ipc_cmd_t *ipc_cmd)
 	tx_idx = (tx_idx + 1) % ARRAY_SIZE(ipc_route->chnl_tx_queue);
 	ipc_route->chnl_tx_queue_in_idx = tx_idx;
 
-	mb_ipc_exit_critical(temp);  /* used to protect ipc_route->chnl_tx_queue_in_idx. */
-
 	// it is the first item pushed to the queue, then try to send.
 	if(queue_cnt == 0)
 	{
 		mb_chnl_write(ipc_route->log_chnl, &ipc_cmd->mb_cmd);
 	}
+
+	// Put mb_chnl_write inside the critical section to avoid sending the same message twice
+	// in multi-core operation scenarios. If another core interrupts here after the queue is updated
+	// but before mb_chnl_write is called, two cores might attempt to send the same message simultaneously.
+	mb_ipc_exit_critical(temp);  /* used to protect ipc_route->chnl_tx_queue_in_idx. */
 
 	return IPC_ROUTE_STATUS_OK;
 }
@@ -416,10 +419,12 @@ static void ipc_router_tx_cmpl_isr(void *param, mb_chnl_ack_t *ack_buf)  /* tx_c
 		return;   /* something wrong. */
 	}
 
-	// data sanity check.
+	// data sanity check - protect queue access with critical section
+	u32 temp = mb_ipc_enter_critical();
 	if(ipc_route_tbl[route_id].chnl_tx_queue_in_idx == ipc_route_tbl[route_id].chnl_tx_queue_out_idx)
 	{
 		// queue empty.
+		mb_ipc_exit_critical(temp);
 		BK_LOGE(MOD_TAG, "%s error @%d, indx=%d!\r\n", __FUNCTION__, __LINE__, 
 			ipc_route_tbl[route_id].chnl_tx_queue_in_idx);
 		
@@ -429,6 +434,7 @@ static void ipc_router_tx_cmpl_isr(void *param, mb_chnl_ack_t *ack_buf)  /* tx_c
 	u16  tx_idx = ipc_route_tbl[route_id].chnl_tx_queue_out_idx;
 	
 	mb_ipc_cmd_t * queue_cmd = &ipc_route_tbl[route_id].chnl_tx_queue[tx_idx];
+	mb_ipc_exit_critical(temp);
 
 	// data sanity check.
 	if( (((queue_cmd->mb_cmd.param1 ^ ipc_cmd->mb_cmd.param1) & IPC_PARAM1_MASK) != 0)
@@ -453,8 +459,10 @@ static void ipc_router_tx_cmpl_isr(void *param, mb_chnl_ack_t *ack_buf)  /* tx_c
 	}
 
 	/* remove the first cmd from the queue. */
+	temp = mb_ipc_enter_critical();
 	tx_idx = (tx_idx + 1) % ARRAY_SIZE(ipc_route_tbl[route_id].chnl_tx_queue);
 	ipc_route_tbl[route_id].chnl_tx_queue_out_idx = tx_idx;
+	mb_ipc_exit_critical(temp);
 
 	#if !CONFIG_SOC_SMP
 	// it is a forwarded cmd/rsp.
@@ -490,10 +498,18 @@ tx_cmpl_isr_next_cmd:
 
 	/* refer to <design document> P45 tx_cmpl_isr 3). */
 
+	// protect queue access with critical section to avoid race condition
+	temp = mb_ipc_enter_critical();
 	if(ipc_route_tbl[route_id].chnl_tx_queue_in_idx == ipc_route_tbl[route_id].chnl_tx_queue_out_idx)
+	{
+		mb_ipc_exit_critical(temp);
 		return;  // no pending cmd in the queue.
+	}
 
-	queue_cmd = &ipc_route_tbl[route_id].chnl_tx_queue[tx_idx];
+	// use updated tx_idx (which is the current out_idx after increment)
+	u16 next_tx_idx = ipc_route_tbl[route_id].chnl_tx_queue_out_idx;
+	queue_cmd = &ipc_route_tbl[route_id].chnl_tx_queue[next_tx_idx];
+	mb_ipc_exit_critical(temp);
 
 	// send next pending cmd. // refer to <design document> P45 tx_cmpl_isr 3).
 	mb_chnl_write(ipc_route_tbl[route_id].log_chnl, &queue_cmd->mb_cmd);
@@ -824,6 +840,22 @@ static void ipc_socket_tx_cmpl_handler(mb_ipc_socket_t * ipc_socket, mb_ipc_cmd_
 	}
 
 	// it is a cmd.
+
+	// check if TX_IN_PROCESS flag is still set, if not, tx_cmd may have been overwritten by new request
+	if((ipc_socket->run_state & STATE_TX_IN_PROCESS) == 0)
+	{
+		// TX_IN_PROCESS flag cleared, tx_cmd may have been overwritten by new request
+		// ignore this ACK as it may be for an old request
+		return;
+	}
+
+	// check tag match first to ensure this ACK is for the current request
+	// if tag doesn't match, tx_cmd may have been overwritten by new request
+	if(ipc_socket->tx_tag != ipc_cmd->tag)
+	{
+		// tag mismatch, this ACK is for an old request, ignore it
+		return;
+	}
 
 	// queue_cmd points to the tx_cmd, ipc_cmd must match the current state of tx_cmd.
 	mb_ipc_cmd_t * queue_cmd = &ipc_socket->tx_cmd;

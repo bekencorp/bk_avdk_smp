@@ -41,7 +41,7 @@
 
 #define SARADC_SVR_EVENTS         (SARADC_SVR_CONNECT_EVENTS | SARADC_SVR_QUIT_EVENT)
 
-#define SARADC_SVR_WAIT_TIME      50
+#define SARADC_SVR_WAIT_TIME      3000
 
 static u8 s_saradc_svr_init = 0;
 static rtos_event_ext_t  saradc_svr_event;
