@@ -6347,12 +6347,21 @@ DWORD get_fattime (void)
 	uint32_t year = FF_NORTC_YEAR;
 	uint32_t month = FF_NORTC_MON;
 	uint32_t day = FF_NORTC_MDAY;
+	uint32_t hour = 0;
+	uint32_t min = 0;
+	uint32_t sec = 0;
 #if CONFIG_NTP_SYNC_RTC
 	struct tm t = {0};
 	datetime_get(&t);
 	year = t.tm_year + 1900;
 	month = t.tm_mon + 1;
 	day = t.tm_mday;
+	hour = t.tm_hour;
+	min = t.tm_min;
+	sec = t.tm_sec;
+	if(year < 1980) {
+		year = 1981;
+	}
 #endif
-	return ((DWORD)(year - 1980) << 25 | (DWORD)month << 21 | (DWORD)day << 16);
+	return ((DWORD)(year - 1980) << 25 | (DWORD)month << 21 | (DWORD)day << 16 | (DWORD)hour << 11 | (DWORD)min << 5 | (DWORD)sec);
 }
