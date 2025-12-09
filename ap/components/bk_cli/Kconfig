@@ -82,7 +82,7 @@ menu "Bk_cli"
 
 
 		config IPERF_TEST
-			depends on CLI && CONFIG_DEMOS_IPERF
+			depends on CLI && DEMOS_IPERF
 			bool "Enable Iperf Test"
 			default y
 
