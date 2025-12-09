@@ -40,11 +40,11 @@ bk_err_t bk_bt_gap_start_discovery(bk_bt_inq_mode_t mode, uint8_t inq_len, uint8
     bt_inquiry_msg_t tmp = {0};
     if (mode == BK_BT_INQ_MODE_GENERAL_INQUIRY)
     {
-        tmp.lap = 0x9e8B33U;
+        tmp.lap = 0x9E8B33U;
     }
     else
     {
-        tmp.lap = 0x9e8B33U;
+        tmp.lap = 0x9E8B00U;
     }
     tmp.len = inq_len;
     if (inq_len > BK_BT_GAP_MAX_INQ_LEN || inq_len < BK_BT_GAP_MIN_INQ_LEN)
@@ -333,4 +333,3 @@ bk_err_t bk_bt_gap_switch_role(uint8_t *addr, uint8_t new_role)
 
     return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SWTICH_ROLE, &msg, sizeof(msg), NULL);
 }
-
