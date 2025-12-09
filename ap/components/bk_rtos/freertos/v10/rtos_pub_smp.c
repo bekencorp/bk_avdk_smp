@@ -453,10 +453,19 @@ bk_err_t rtos_deinit_semaphore( beken_semaphore_t* semaphore )
     return kNoErr;
 }
 
+#if CONFIG_CRITICAL_LR_RECORD
+static uint32_t rtos_disable_int_ex(uint32_t lr);
+#endif
+
 static SPINLOCK_SECTION volatile spinlock_t rtos_spin_lock = SPIN_LOCK_INIT;
 uint32_t rtos_enter_critical( void )
 {
+    #if CONFIG_CRITICAL_LR_RECORD
+    uint32_t lr = __get_LR();
+    uint32_t flags = rtos_disable_int_ex(lr);
+    #else
 	uint32_t flags = rtos_disable_int();
+    #endif
 	spin_lock(&rtos_spin_lock);
 	return flags;
 }
@@ -1438,13 +1447,97 @@ size_t rtos_get_psram_minimum_free_heap_size(void)
     return xPortGetPsramMinimumFreeHeapSize();
 }
 
+#if CONFIG_CRITICAL_LR_RECORD
+#define CONFIG_CRITICAL_LR_COUNT 16
+static uint32_t s_critical_lr_stack[CONFIG_CPU_CNT][CONFIG_CRITICAL_LR_COUNT] = {0};
+static uint8_t s_critical_stack_top[CONFIG_CPU_CNT] = {0};
+static uint8_t s_critical_stack_max_size[CONFIG_CPU_CNT] = {0};
+static uint32_t s_critical_lr_record_disable = 0;
+static uint32_t s_critical_overflow_count[CONFIG_CPU_CNT] = {0};
+
+
+void print_critical_lr_record(void)
+{
+    s_critical_lr_record_disable = 1;
+    for (uint32_t i = 0; i < CONFIG_CPU_CNT; i++) {
+        BK_DUMP_OUT("core %d stack top: %d, overflow count: %lu\n", i, s_critical_stack_top[i], s_critical_overflow_count[i]);
+        if (s_critical_stack_top[i] > 0) {
+            BK_DUMP_OUT("core %d stack content:\n", i);
+            for (uint32_t j = 0; j < s_critical_stack_top[i] && j < CONFIG_CRITICAL_LR_COUNT; j++) {
+                BK_DUMP_OUT("  [%d]: 0x%08x\n", j, s_critical_lr_stack[i][j]);
+            }
+        }
+    }
+    s_critical_lr_record_disable = 0;
+}
+
+static void push_critical_lr(uint32_t lr)
+{
+    if (s_critical_lr_record_disable) {
+        return;
+    }
+    uint8_t core_id = portGET_CORE_ID();
+    uint8_t stack_count = 0;
+    if (s_critical_stack_top[core_id] < CONFIG_CRITICAL_LR_COUNT) {
+        s_critical_lr_stack[core_id][s_critical_stack_top[core_id]] = lr;
+        s_critical_stack_top[core_id]++;
+        stack_count = s_critical_stack_top[core_id];
+    } else {
+        s_critical_overflow_count[core_id]++;
+        stack_count = CONFIG_CRITICAL_LR_COUNT + s_critical_overflow_count[core_id];
+    }
+    if (stack_count > s_critical_stack_max_size[core_id])
+    {
+        s_critical_stack_max_size[core_id] = stack_count;
+    }
+}
+
+static void pop_critical_lr(void)
+{
+    if (s_critical_lr_record_disable) {
+        return;
+    }
+    uint8_t core_id = portGET_CORE_ID();
+    
+    if (s_critical_overflow_count[core_id] > 0)
+    {
+        // Has overflow count, decrease overflow count first
+        // This handles the case when stack was full during push
+        s_critical_overflow_count[core_id]--;
+    } else if (s_critical_stack_top[core_id] > 0) {
+        // Stack not empty, pop normally
+        s_critical_stack_top[core_id]--;
+    }
+    // If both stack and overflow count are 0, it's a mismatch (should not happen)
+}
+
+static uint32_t rtos_disable_int_ex(uint32_t lr)
+{
+    uint32_t int_level = port_disable_interrupts_flag();
+    #if CONFIG_CRITICAL_LR_RECORD
+    push_critical_lr(lr);
+    #endif
+    return int_level;
+}
+
+#endif
 uint32_t rtos_disable_int(void)
 {
-    return port_disable_interrupts_flag();
+    #if CONFIG_CRITICAL_LR_RECORD
+    uint32_t lr = __get_LR();
+    #endif
+    uint32_t int_level = port_disable_interrupts_flag();
+    #if CONFIG_CRITICAL_LR_RECORD
+    push_critical_lr(lr);
+    #endif
+    return int_level;
 }
 
 void rtos_enable_int(uint32_t int_level)
 {
+    #if CONFIG_CRITICAL_LR_RECORD
+    pop_critical_lr();
+    #endif
     port_enable_interrupts_flag(int_level);
 }
 

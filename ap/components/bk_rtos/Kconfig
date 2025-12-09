@@ -215,6 +215,19 @@ menu "Bk_rtos"
 			default 8
 			help
 				set memory debug task name length
+
+		config CRITICAL_LR_RECORD
+			bool "Enable critical LR record"
+			default n
+			help
+				Enable critical LR record
+
+		config CRITICAL_LR_COUNT
+			depends on CRITICAL_LR_RECORD
+			int "Set critical LR count"
+			default 16
+			help
+				set critical LR count
        
         config MEM_DEBUG_OVERFLOW
 			bool "Enable memory overflow debug"
