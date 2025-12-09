@@ -417,10 +417,9 @@ static void gpio_isr(void)
 #endif
 			if (s_gpio_isr[gpio_id]) {
 				GPIO_LOGV("gpio int: index:%d \r\n",gpio_id);
-                          	bk_gpio_clear_interrupt(gpio_id);
 				s_gpio_isr[gpio_id](gpio_id);
 			}
-			// bk_gpio_clear_interrupt(gpio_id);
+			bk_gpio_clear_interrupt(gpio_id);
 		}
 	}
 
