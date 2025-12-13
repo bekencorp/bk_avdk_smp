@@ -284,6 +284,11 @@ bt_err_t bk_bt_gap_authentication_request(uint8_t *addr)
     return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_AUTHENTICATION_REQUEST, addr, 6, NULL);
 }
 
+bt_err_t bk_bt_gap_encryption_request(uint8_t *addr)
+{
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_ENCRYPTION_REQUEST, addr, 6, NULL);
+}
+
 bk_err_t bk_bt_gap_set_auto_sniff_policy(bk_bd_addr_t remote_bda, uint32_t sec, bk_bt_gap_sniff_config *config)
 {
     bk_bt_set_auto_sniff_policy_msg_t msg;

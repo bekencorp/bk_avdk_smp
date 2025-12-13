@@ -389,6 +389,19 @@ bt_err_t bk_bt_gap_set_page_scan_activity(uint16_t interval, uint16_t window);
 bt_err_t bk_bt_gap_authentication_request(uint8_t *addr);
 
 /**
+ *
+ * @brief           This api can be used to start encryption request
+ *
+ * @param[in]       addr: The remote device's address
+ *
+ * @return
+ *                  - BK_ERR_BT_SUCCESS: success
+ *                  -  others: fail
+ *
+ */
+bt_err_t bk_bt_gap_encryption_request(uint8_t *addr);
+
+/**
  * @brief           Set auto enter sniff policy.
  *                  bk_bt_gap_cb_t will be called with BK_BT_GAP_SET_AUTO_SNIFF_CMPL_EVT after service discovery ends.
  *
@@ -437,4 +450,3 @@ bt_err_t bk_bt_gap_switch_role(uint8_t *addr, uint8_t new_role);
 #ifdef __cplusplus
 }
 #endif
-
