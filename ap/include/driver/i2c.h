@@ -52,19 +52,28 @@ bk_err_t bk_i2c_driver_deinit(void);
  * This API init the I2C id:
  *  - Power up the I2C id
  *  - Configure the I2C id clock
- *  - Map the I2C id to dedicated GPIO port
+ *  - Map the I2C id to dedicated GPIO port (hardware I2C) or configure GPIO pins (simulated I2C)
  *  - Set the I2C parameters
  *  - Start the I2C id
  *
  * @param id I2C id
- * @param config I2C parameter settings
-
+ *          When CONFIG_SIM_I2C is enabled:
+ *          - Hardware I2C: id = 0 to (SOC_I2C_UNIT_NUM - 1), e.g., id = 0, 1 for BK7258
+ *          - Simulated I2C: id >= SIM_I2C_START_ID (typically SOC_I2C_UNIT_NUM), e.g., id >= 2 for BK7258
+ *          When CONFIG_SIM_I2C is disabled:
+ *          - Only hardware I2C: id = 0 to (SOC_I2C_UNIT_NUM - 1)
+ *          The unified API layer automatically routes to hardware or simulated I2C based on id value.
+ * @param cfg I2C parameter settings (pointer to i2c_config_t structure)
+ *
  * @attention Multifunction GPIO initialization affects other functions
-
+ *
  * @return
- *    - BK_OK: succeed
- *    - BK_ERR_NULL_PARAM: I2C config paramter is NULL
- *    - BK_ERR_I2C_NOT_INIT: I2C driver not init
+ *    - BK_OK (0): succeed
+ *    - BK_ERR_NULL_PARAM: cfg is NULL
+ *    - BK_ERR_I2C_NOT_INIT (BK_ERR_I2C_BASE - 1): I2C driver not initialized, call bk_i2c_driver_init() first
+ *    - BK_ERR_I2C_INVALID_ID (BK_ERR_I2C_BASE - 7): I2C id number is invalid
+ *          - When CONFIG_SIM_I2C enabled: id must be < SOC_I2C_UNIT_NUM (hardware) or >= SIM_I2C_START_ID (simulated)
+ *          - When CONFIG_SIM_I2C disabled: id must be < SOC_I2C_UNIT_NUM (hardware only)
  *    - others: other errors.
  */
 bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg);
@@ -74,13 +83,25 @@ bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg);
  *
  * This API deinit the I2C id:
  *   - Stop the I2C id
- *   - Disable the I2C id interrupt
- *   - Power down the I2C id
+ *   - Disable the I2C id interrupt (hardware I2C only)
+ *   - Power down the I2C id (hardware I2C only)
+ *   - Release GPIO resources (simulated I2C)
  *
  * @param id I2C id
+ *          When CONFIG_SIM_I2C is enabled:
+ *          - Hardware I2C: id = 0 to (SOC_I2C_UNIT_NUM - 1), e.g., id = 0, 1 for BK7258
+ *          - Simulated I2C: id >= SIM_I2C_START_ID (typically SOC_I2C_UNIT_NUM), e.g., id >= 2 for BK7258
+ *          When CONFIG_SIM_I2C is disabled:
+ *          - Only hardware I2C: id = 0 to (SOC_I2C_UNIT_NUM - 1)
+ *          The unified API layer automatically routes to hardware or simulated I2C based on id value.
  *
  * @return
- *    - BK_OK: succeed
+ *    - BK_OK (0): succeed
+ *    - BK_ERR_I2C_NOT_INIT (BK_ERR_I2C_BASE - 1): I2C driver not initialized, call bk_i2c_driver_init() first
+ *    - BK_ERR_I2C_INVALID_ID (BK_ERR_I2C_BASE - 7): I2C id number is invalid
+ *          - When CONFIG_SIM_I2C enabled: id must be < SOC_I2C_UNIT_NUM (hardware) or >= SIM_I2C_START_ID (simulated)
+ *          - When CONFIG_SIM_I2C disabled: id must be < SOC_I2C_UNIT_NUM (hardware only)
+ *    - BK_ERR_I2C_ID_NOT_INIT (BK_ERR_I2C_BASE - 2): I2C id not initialized, call bk_i2c_init() first for this id
  *    - others: other errors.
  */
 bk_err_t bk_i2c_deinit(i2c_id_t id);
@@ -201,14 +222,25 @@ bk_err_t bk_i2c_slave_read(i2c_id_t id, uint8_t *data, uint32_t size, uint32_t t
  *            It shall only be called in I2C master mode.
  *
  * @param id I2C id
+ *          When CONFIG_SIM_I2C is enabled:
+ *          - Hardware I2C: id = 0 to (SOC_I2C_UNIT_NUM - 1), e.g., id = 0, 1 for BK7258
+ *          - Simulated I2C: id >= SIM_I2C_START_ID (typically SOC_I2C_UNIT_NUM), e.g., id >= 2 for BK7258
+ *          When CONFIG_SIM_I2C is disabled:
+ *          - Only hardware I2C: id = 0 to (SOC_I2C_UNIT_NUM - 1)
+ *          The unified API layer automatically routes to hardware or simulated I2C based on id value.
  * @param mem_param memory parameter
  *
  * @return
- *    - BK_OK: succeed
- *    - BK_ERR_NULL_PARAM: I2C mem_param is NULL
- *    - BK_ERR_I2C_NOT_INIT: I2C driver not init
- *    - BK_ERR_I2C_INVALID_ID: I2C id number is invalid
- *    - BK_ERR_I2C_ID_NOT_INIT: I2C id not init
+ *    - BK_OK (0): succeed
+ *    - BK_ERR_NULL_PARAM: mem_param is NULL
+ *    - BK_ERR_I2C_NOT_INIT (BK_ERR_I2C_BASE - 1): I2C driver not initialized, call bk_i2c_driver_init() first
+ *    - BK_ERR_I2C_INVALID_ID (BK_ERR_I2C_BASE - 7): I2C id number is invalid
+ *          - When CONFIG_SIM_I2C enabled: id must be < SOC_I2C_UNIT_NUM (hardware) or >= SIM_I2C_START_ID (simulated)
+ *          - When CONFIG_SIM_I2C disabled: id must be < SOC_I2C_UNIT_NUM (hardware only)
+ *    - BK_ERR_I2C_ID_NOT_INIT (BK_ERR_I2C_BASE - 2): I2C id not initialized, call bk_i2c_init() first for this id
+ *    - BK_ERR_I2C_SM_BUS_BUSY (BK_ERR_I2C_BASE - 3): I2C bus is busy
+ *    - BK_ERR_I2C_ACK_TIMEOUT (BK_ERR_I2C_BASE - 4): I2C receive ACK timeout
+ *    - BK_ERR_I2C_SCL_TIMEOUT (BK_ERR_I2C_BASE - 6): I2C SCL line timeout
  *    - others: other errors.
  */
 bk_err_t bk_i2c_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param);
@@ -218,14 +250,25 @@ bk_err_t bk_i2c_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param);
  *            It shall only be called in I2C master mode.
  *
  * @param id I2C id
+ *          When CONFIG_SIM_I2C is enabled:
+ *          - Hardware I2C: id = 0 to (SOC_I2C_UNIT_NUM - 1), e.g., id = 0, 1 for BK7258
+ *          - Simulated I2C: id >= SIM_I2C_START_ID (typically SOC_I2C_UNIT_NUM), e.g., id >= 2 for BK7258
+ *          When CONFIG_SIM_I2C is disabled:
+ *          - Only hardware I2C: id = 0 to (SOC_I2C_UNIT_NUM - 1)
+ *          The unified API layer automatically routes to hardware or simulated I2C based on id value.
  * @param mem_param memory parameter
  *
  * @return
- *    - BK_OK: succeed
- *    - BK_ERR_NULL_PARAM: I2C mem_param is NULL
- *    - BK_ERR_I2C_NOT_INIT: I2C driver not init
- *    - BK_ERR_I2C_INVALID_ID: I2C id number is invalid
- *    - BK_ERR_I2C_ID_NOT_INIT: I2C id not init
+ *    - BK_OK (0): succeed
+ *    - BK_ERR_NULL_PARAM: mem_param is NULL
+ *    - BK_ERR_I2C_NOT_INIT (BK_ERR_I2C_BASE - 1): I2C driver not initialized, call bk_i2c_driver_init() first
+ *    - BK_ERR_I2C_INVALID_ID (BK_ERR_I2C_BASE - 7): I2C id number is invalid
+ *          - When CONFIG_SIM_I2C enabled: id must be < SOC_I2C_UNIT_NUM (hardware) or >= SIM_I2C_START_ID (simulated)
+ *          - When CONFIG_SIM_I2C disabled: id must be < SOC_I2C_UNIT_NUM (hardware only)
+ *    - BK_ERR_I2C_ID_NOT_INIT (BK_ERR_I2C_BASE - 2): I2C id not initialized, call bk_i2c_init() first for this id
+ *    - BK_ERR_I2C_SM_BUS_BUSY (BK_ERR_I2C_BASE - 3): I2C bus is busy
+ *    - BK_ERR_I2C_ACK_TIMEOUT (BK_ERR_I2C_BASE - 4): I2C receive ACK timeout
+ *    - BK_ERR_I2C_SCL_TIMEOUT (BK_ERR_I2C_BASE - 6): I2C SCL line timeout
  *    - others: other errors.
  */
 bk_err_t bk_i2c_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param);
@@ -330,7 +373,11 @@ uint8_t bk_i2c_get_busstate ( int id );
 uint8_t bk_i2c_get_transstate ( int id );
 
 /**
- * @brief     Init the SIM I2C id
+ * @brief     Init the SIM I2C id (Deprecated)
+ *
+ * @deprecated This function is deprecated. Please use bk_i2c_init() instead.
+ *             The unified API layer (i2c_unified.c) automatically routes to
+ *             the appropriate implementation (hardware or simulated) based on I2C ID.
  *
  * This API init the I2C id:
  *  - Power up the I2C id
@@ -346,16 +393,23 @@ uint8_t bk_i2c_get_transstate ( int id );
 
  * @return
  *    - BK_OK: succeed
- *    - BK_ERR_NULL_PARAM: I2C config paramter is NULL
+ *    - BK_ERR_NULL_PARAM: I2C config parameter is NULL
  *    - BK_ERR_I2C_NOT_INIT: I2C driver not init
  *    - others: other errors.
  */
 bk_err_t bk_i2c_init_v2(i2c_id_t id, const i2c_config_t *cfg);
 
 /**
- * @brief     Deinit the SIM I2C driver
+ * @brief     Deinit the SIM I2C driver (Deprecated)
+ *
+ * @deprecated This function is deprecated. Please use bk_i2c_deinit() instead.
+ *             The unified API layer automatically routes to the appropriate implementation.
  *
  * This API free all resource related to I2C and disable I2C.
+ *
+ * @param id I2C id (should be >= SIM_I2C_START_ID for simulated I2C)
+ *
+ * @attention This is an internal API used by i2c_unified.c. Applications should use bk_i2c_deinit().
  *
  * @return
  *    - BK_OK: succeed
@@ -364,11 +418,16 @@ bk_err_t bk_i2c_init_v2(i2c_id_t id, const i2c_config_t *cfg);
 bk_err_t bk_i2c_deinit_v2(i2c_id_t id);
 
 /**
- * @brief     Write data to the specific memory address from a given buffer and length,
+ * @brief     Write data to the specific memory address from a given buffer and length (Deprecated)
  *            It shall only be called in SIM I2C master mode.
  *
- * @param id I2C id
+ * @deprecated This function is deprecated. Please use bk_i2c_memory_write() instead.
+ *             The unified API layer automatically routes to the appropriate implementation.
+ *
+ * @param id I2C id (should be >= SIM_I2C_START_ID for simulated I2C)
  * @param mem_param memory parameter
+ *
+ * @attention This is an internal API used by i2c_unified.c. Applications should use bk_i2c_memory_write().
  *
  * @return
  *    - BK_OK: succeed
@@ -381,11 +440,16 @@ bk_err_t bk_i2c_deinit_v2(i2c_id_t id);
 bk_err_t bk_i2c_memory_write_v2(i2c_id_t id, const i2c_mem_param_t *mem_param);
 
 /**
- * @brief     SIM I2C read data from I2C specific memory address,
+ * @brief     SIM I2C read data from I2C specific memory address (Deprecated)
  *            It shall only be called in SIM I2C master mode.
  *
- * @param id I2C id
+ * @deprecated This function is deprecated. Please use bk_i2c_memory_read() instead.
+ *             The unified API layer automatically routes to the appropriate implementation.
+ *
+ * @param id I2C id (should be >= SIM_I2C_START_ID for simulated I2C)
  * @param mem_param memory parameter
+ *
+ * @attention This is an internal API used by i2c_unified.c. Applications should use bk_i2c_memory_read().
  *
  * @return
  *    - BK_OK: succeed

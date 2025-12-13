@@ -18,7 +18,15 @@
 extern "C" {
 #endif
 
+// Number of hardware I2C units available on this SOC
+// Hardware I2C IDs: 0, 1, ..., (SOC_I2C_UNIT_NUM - 1)
 #define SOC_I2C_UNIT_NUM              2
+
+// Simulated I2C configuration
+// When CONFIG_SIM_I2C is enabled, simulated I2C IDs start from SOC_I2C_UNIT_NUM
+// Simulated I2C IDs: SOC_I2C_UNIT_NUM, SOC_I2C_UNIT_NUM + 1, ...
+// For BK7257: Hardware I2C uses ID 0-1, Simulated I2C uses ID 2+
+#define SIM_I2C_START_ID              SOC_I2C_UNIT_NUM
 
 #ifdef __cplusplus
 }
