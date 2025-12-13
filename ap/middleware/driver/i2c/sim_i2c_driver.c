@@ -1,6 +1,11 @@
 /*****************************************************************************
  *
- * General Purpose I2C Bus reference driver.
+ * General Purpose I2C Bus reference driver - Unified Implementation
+ * Supports both I2C0 (SIM_I2C0_*) and I2C1 (SIM_I2C1_*) configurations
+ * This unified implementation replaces the previous sim_i2c_driver.c and
+ * sim_i2c_driver_v2.c files, providing a single codebase that handles both
+ * CONFIG_SIM_I2C_HW_BOARD_V3 and non-V3 configurations.
+ *
  * To use this file, you must implement the first 9 functions below according
  * To the specific platform IO implementation.
  * To increase the speed, it is recommended to change the functions
@@ -16,6 +21,8 @@
 #include <os/mem.h>
 #include "power_driver.h"
 #include <os/os.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include "i2c_hw.h"
 #include "i2c_driver.h"
 #include "i2c_hal.h"
@@ -25,13 +32,26 @@
 #define TRUE 1
 #define FALSE 0
 
+// Mutex for protecting simulated I2C bus access
+// Since all simulated I2C instances share GPIO pins (configured at compile time),
+// we need to serialize all I2C transactions to prevent GPIO conflicts
+static beken_mutex_t s_sim_i2c_mutex = NULL;
+static bool s_sim_i2c_mutex_initialized = false;
+
 #define SUPPORT_100K
 
 /* Disable this macro by default, as gpio api way would cost more time to switch output level */
 //#define SIM_I2C_GPIO_API_EN
 
+// GPIO configuration: Use I2C0 GPIOs when CONFIG_SIM_I2C_HW_BOARD_V3 is disabled,
+// Use I2C1 GPIOs when CONFIG_SIM_I2C_HW_BOARD_V3 is enabled
+#if CONFIG_SIM_I2C_HW_BOARD_V3
+#define HWD_GPIO_I2C_SDA		CONFIG_SIM_I2C1_SDA_GPIO
+#define HWD_GPIO_I2C_SCL		CONFIG_SIM_I2C1_SCL_GPIO
+#else
 #define HWD_GPIO_I2C_SDA		CONFIG_SIM_I2C0_SDA_GPIO
 #define HWD_GPIO_I2C_SCL		CONFIG_SIM_I2C0_SCL_GPIO
+#endif
 
 /*****************************************************
  * These Macros could be used for RISCV 120Mhz.
@@ -134,7 +154,7 @@ static inline uint8_t I2cReadSda(void)
 	return (uint8_t)(bk_gpio_get_input(HWD_GPIO_I2C_SDA));
 }
 
-void I2cDelay(uint32_t count)
+static void I2cDelay(uint32_t count)
 {
 	volatile uint32_t 	i;
 
@@ -161,7 +181,7 @@ static inline void I2cSclPulse()
 	I2cDelay(SCL_DELAY);
 }
 
-void I2cSclPulse_ack()
+static void I2cSclPulse_ack()
 {
 	I2cSetSclHigh();
 	I2cDelay(SCL_DELAY);
@@ -171,7 +191,7 @@ void I2cSclPulse_ack()
 	I2cDelay(SCL_DELAY);
 }
 
-void I2cStart(void)
+static void I2cStart(void)
 {
 	// Just to ensure SCL is in LOW state.
 //	I2cSetSclLow();
@@ -196,7 +216,7 @@ void I2cStart(void)
 	I2cDelay(SCL_DELAY);
 }
 
-void I2cStop(void)
+static void I2cStop(void)
 {
 	// Just to ensure SCL is in LOW state.
 	I2cSetSclLow();
@@ -249,7 +269,7 @@ static inline void I2cNoAck(void)
 	#define I2C_SPECIAL_DELAY()
 #endif
 
-void I2cInit( void )
+static void I2cInit( void )
 {
 	I2cSetSdaOutput();
 	I2cSetSclOutput();
@@ -257,7 +277,7 @@ void I2cInit( void )
 	I2cStop();
 }
 
-bool I2cWaitForAck(void)
+static bool I2cWaitForAck(void)
 {
 	bool	Ack;
 
@@ -284,7 +304,7 @@ bool I2cWaitForAck(void)
 	return Ack;
 }
 
-bool I2cSend(uint8_t I2cData)
+static bool I2cSend(uint8_t I2cData)
 {
 	uint8_t	Mask;
 
@@ -315,7 +335,7 @@ bool I2cSend(uint8_t I2cData)
 	return I2cWaitForAck();
 }
 
-uint8_t I2cReceive(bool LastOne)
+static uint8_t I2cReceive(bool LastOne)
 {
 	uint8_t		Mask;
 	uint8_t		I2cData = 0;
@@ -357,8 +377,15 @@ uint8_t I2cReceive(bool LastOne)
 	return I2cData;
 }
 
-bool I2cWrite(uint8_t Addr, const uint8_t * pBuff, uint32_t len)
+static bool I2cWrite(uint8_t Addr, const uint8_t * pBuff, uint32_t len)
 {
+	bool ret = FALSE;
+
+	// Acquire mutex to protect I2C bus access
+	if (s_sim_i2c_mutex_initialized) {
+		rtos_lock_mutex(&s_sim_i2c_mutex);
+	}
+
 	Addr <<= 1;
 
 	I2cStart();
@@ -366,7 +393,7 @@ bool I2cWrite(uint8_t Addr, const uint8_t * pBuff, uint32_t len)
 	if(I2cSend(Addr) == FALSE)
 	{
 		I2cStop();
-		return FALSE;
+		goto exit;
 	}
 
 	while(len-- > 0)
@@ -374,19 +401,36 @@ bool I2cWrite(uint8_t Addr, const uint8_t * pBuff, uint32_t len)
 		if(I2cSend(*pBuff++) == FALSE)
 		{
 			I2cStop();
-			return FALSE;
+			goto exit;
 		}
 	}
 
 	I2cStop();
 
-	return TRUE;
+	ret = TRUE;
+
+exit:
+	// Release mutex
+	if (s_sim_i2c_mutex_initialized) {
+		rtos_unlock_mutex(&s_sim_i2c_mutex);
+	}
+
+	return ret;
 }
 
-bool I2cRead(uint8_t Addr, uint8_t * pBuff, uint32_t len)
+static bool I2cRead(uint8_t Addr, uint8_t * pBuff, uint32_t len)
 {
+	bool ret = FALSE;
+
+	// Acquire mutex to protect I2C bus access
+	if (s_sim_i2c_mutex_initialized) {
+		rtos_lock_mutex(&s_sim_i2c_mutex);
+	}
+
 	if(len == 0)
-		return FALSE;
+	{
+		goto exit;
+	}
 
 	Addr <<= 1;
 	Addr |= 0x01;
@@ -396,7 +440,7 @@ bool I2cRead(uint8_t Addr, uint8_t * pBuff, uint32_t len)
 	if(I2cSend(Addr) == FALSE)
 	{
 		I2cStop();
-		return FALSE;
+		goto exit;
 	}
 
 	while(len > 0)
@@ -406,16 +450,30 @@ bool I2cRead(uint8_t Addr, uint8_t * pBuff, uint32_t len)
 
 	I2cStop();
 
-	return TRUE;
+	ret = TRUE;
+
+exit:
+	// Release mutex
+	if (s_sim_i2c_mutex_initialized) {
+		rtos_unlock_mutex(&s_sim_i2c_mutex);
+	}
+
+	return ret;
 }
 
-bool I2cMemWrite(i2c_id_t id, const i2c_mem_param_t *mem_param)
+static bool I2cMemWrite(i2c_id_t id, const i2c_mem_param_t *mem_param)
 {
 	uint32_t Addr;
 	uint32_t mem_addr;
 	uint8_t * pBuff;
 	uint32_t len;
 	uint32_t mem_addr_size;
+	bool ret = FALSE;
+
+	// Acquire mutex to protect I2C bus access
+	if (s_sim_i2c_mutex_initialized) {
+		rtos_lock_mutex(&s_sim_i2c_mutex);
+	}
 
 	Addr = mem_param->dev_addr;
 	mem_addr = mem_param->mem_addr;
@@ -430,21 +488,21 @@ bool I2cMemWrite(i2c_id_t id, const i2c_mem_param_t *mem_param)
 	if(I2cSend(Addr) == FALSE)
 	{
 		I2cStop();
-		return FALSE;
+		goto exit;
 	}
 
 	if (mem_addr_size == I2C_MEM_ADDR_SIZE_16BIT) {
 		if(I2cSend((mem_addr >> 8) & 0xff) == FALSE)
 		{
 			I2cStop();
-			return FALSE;
+			goto exit;
 		}
 	}
 
 	if(I2cSend((mem_addr & 0xff)) == FALSE)
 	{
 		I2cStop();
-		return FALSE;
+		goto exit;
 	}
 
 	while(len-- > 0)
@@ -452,22 +510,36 @@ bool I2cMemWrite(i2c_id_t id, const i2c_mem_param_t *mem_param)
 		if(I2cSend(*pBuff++) == FALSE)
 		{
 			I2cStop();
-			return FALSE;
+			goto exit;
 		}
 	}
 
 	I2cStop();
 
-	return TRUE;
+	ret = TRUE;
+
+exit:
+	// Release mutex
+	if (s_sim_i2c_mutex_initialized) {
+		rtos_unlock_mutex(&s_sim_i2c_mutex);
+	}
+
+	return ret;
 }
 
-bool I2cMemRead(i2c_id_t id, const i2c_mem_param_t *mem_param)
+static bool I2cMemRead(i2c_id_t id, const i2c_mem_param_t *mem_param)
 {
 	uint32_t Addr;
 	uint32_t mem_addr;
 	uint8_t * pBuff;
 	uint32_t len;
 	uint32_t mem_addr_size;
+	bool ret = FALSE;
+
+	// Acquire mutex to protect I2C bus access
+	if (s_sim_i2c_mutex_initialized) {
+		rtos_lock_mutex(&s_sim_i2c_mutex);
+	}
 
 	Addr = mem_param->dev_addr;
 	mem_addr = mem_param->mem_addr;
@@ -476,7 +548,9 @@ bool I2cMemRead(i2c_id_t id, const i2c_mem_param_t *mem_param)
 	mem_addr_size = mem_param->mem_addr_size;
 
 	if(len == 0)
-		return FALSE;
+	{
+		goto exit;
+	}
 
 	I2cStart();
 
@@ -484,22 +558,29 @@ bool I2cMemRead(i2c_id_t id, const i2c_mem_param_t *mem_param)
 	if(I2cSend(Addr) == FALSE)
 	{
 		I2cStop();
-		return FALSE;
+		goto exit;
 	}
 
 	if (mem_addr_size == I2C_MEM_ADDR_SIZE_16BIT) {
 		if(I2cSend((mem_addr >> 8) & 0xff) == FALSE)
 		{
 			I2cStop();
-			return FALSE;
+			goto exit;
 		}
 	}
 
 	if(I2cSend((mem_addr & 0xff)) == FALSE)
 	{
 		I2cStop();
-		return FALSE;
+		goto exit;
 	}
+
+	// Special handling for CONFIG_AIRPLAY (required for MFI chip)
+	// NOTE: MFI chip need add this stop signal and delay for 30 ms
+#if defined(CONFIG_AIRPLAY) && CONFIG_SIM_I2C_HW_BOARD_V3
+	I2cStop();
+	rtos_delay_milliseconds(40);
+#endif
 
 	I2cStart();
 	Addr |= 0x01;
@@ -507,7 +588,7 @@ bool I2cMemRead(i2c_id_t id, const i2c_mem_param_t *mem_param)
 	if(I2cSend(Addr) == FALSE)
 	{
 		I2cStop();
-		return FALSE;
+		goto exit;
 	}
 
 	while(len > 0)
@@ -517,34 +598,60 @@ bool I2cMemRead(i2c_id_t id, const i2c_mem_param_t *mem_param)
 
 	I2cStop();
 
-	return TRUE;
+	ret = TRUE;
+
+exit:
+	// Release mutex
+	if (s_sim_i2c_mutex_initialized) {
+		rtos_unlock_mutex(&s_sim_i2c_mutex);
+	}
+
+	return ret;
 }
 
-bk_err_t bk_i2c_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param)
+// ============================================================================
+// API Functions - Different naming based on CONFIG_SIM_I2C_HW_BOARD_V3
+// ============================================================================
+
+#if CONFIG_SIM_I2C_HW_BOARD_V3
+// For CONFIG_SIM_I2C_HW_BOARD_V3: Export _v2 functions
+bk_err_t bk_i2c_memory_write_v2(i2c_id_t id, const i2c_mem_param_t *mem_param)
 {
-	I2cMemWrite(id, mem_param);
+	return !I2cMemWrite(id, mem_param);
+}
+
+bk_err_t bk_i2c_memory_read_v2(i2c_id_t id, const i2c_mem_param_t *mem_param)
+{
+	return !I2cMemRead(id, mem_param);
+}
+
+bk_err_t bk_i2c_driver_init_v2(void)
+{
+	bk_err_t ret = BK_OK;
+
+	// Initialize mutex for protecting I2C bus access
+	if (!s_sim_i2c_mutex_initialized) {
+		ret = rtos_init_mutex(&s_sim_i2c_mutex);
+		if (ret == BK_OK) {
+			s_sim_i2c_mutex_initialized = true;
+		}
+	}
+
+	return ret;
+}
+
+bk_err_t bk_i2c_driver_deinit_v2(void)
+{
+	// Deinitialize mutex
+	if (s_sim_i2c_mutex_initialized) {
+		rtos_deinit_mutex(&s_sim_i2c_mutex);
+		s_sim_i2c_mutex_initialized = false;
+	}
 
 	return BK_OK;
 }
 
-bk_err_t bk_i2c_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param)
-{
-	I2cMemRead(id, mem_param);
-
-	return BK_OK;
-}
-
-bk_err_t bk_i2c_driver_init(void)
-{
-	return BK_OK;
-}
-
-bk_err_t bk_i2c_driver_deinit(void)
-{
-	return BK_OK;
-}
-
-bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg)
+bk_err_t bk_i2c_init_v2(i2c_id_t id, const i2c_config_t *cfg)
 {
 	bk_gpio_pull_down(HWD_GPIO_I2C_SDA);
 	bk_gpio_pull_down(HWD_GPIO_I2C_SCL);
@@ -555,23 +662,67 @@ bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg)
 	return BK_OK;
 }
 
-bk_err_t bk_i2c_deinit(i2c_id_t id)
+bk_err_t bk_i2c_deinit_v2(i2c_id_t id)
 {
 	I2cSetSclLow();
 	I2cSetSdaLow();
 	return BK_OK;
 }
 
-bk_err_t bk_i2c_master_write(i2c_id_t id, uint32_t dev_addr, const uint8_t *data, uint32_t size, uint32_t timeout_ms)
+bk_err_t bk_i2c_master_write_v2(i2c_id_t id, uint32_t dev_addr, const uint8_t *data, uint32_t size, uint32_t timeout_ms)
 {
 	I2cWrite(dev_addr, data, size);
-
 	return BK_OK;
 }
 
-bk_err_t bk_i2c_master_read(i2c_id_t id, uint32_t dev_addr, uint8_t *data, uint32_t size, uint32_t timeout_ms)
+bk_err_t bk_i2c_master_read_v2(i2c_id_t id, uint32_t dev_addr, uint8_t *data, uint32_t size, uint32_t timeout_ms)
 {
 	I2cRead(dev_addr, data, size);
-
 	return BK_OK;
 }
+
+#else
+// For non-CONFIG_SIM_I2C_HW_BOARD_V3: Export sim_i2c_* functions
+bk_err_t sim_i2c_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param)
+{
+	I2cMemWrite(id, mem_param);
+	return BK_OK;
+}
+
+bk_err_t sim_i2c_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param)
+{
+	I2cMemRead(id, mem_param);
+	return BK_OK;
+}
+
+bk_err_t sim_i2c_init(i2c_id_t id, const i2c_config_t *cfg)
+{
+	bk_err_t ret = BK_OK;
+
+	// Initialize mutex for protecting I2C bus access (only once)
+	if (!s_sim_i2c_mutex_initialized) {
+		ret = rtos_init_mutex(&s_sim_i2c_mutex);
+		if (ret == BK_OK) {
+			s_sim_i2c_mutex_initialized = true;
+		} else {
+			return ret;
+		}
+	}
+
+	bk_gpio_pull_down(HWD_GPIO_I2C_SDA);
+	bk_gpio_pull_down(HWD_GPIO_I2C_SCL);
+	gpio_dev_unmap(HWD_GPIO_I2C_SDA);
+	gpio_dev_unmap(HWD_GPIO_I2C_SCL);
+	I2cInit();
+	return BK_OK;
+}
+
+bk_err_t sim_i2c_deinit(i2c_id_t id)
+{
+	// Note: We don't deinit mutex here because other I2C instances might still be using it
+	// Mutex will be cleaned up when driver is fully deinitialized
+	I2cSetSclLow();
+	I2cSetSdaLow();
+	return BK_OK;
+}
+#endif

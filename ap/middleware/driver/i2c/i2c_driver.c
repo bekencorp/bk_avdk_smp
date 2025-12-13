@@ -532,7 +532,9 @@ static int i2c_pm_restore(uint64_t sleep_time, void *args)
 #define I2C_PM_CHECK_RESTORE(id)
 #endif
 
-bk_err_t bk_i2c_driver_init(void)
+// Internal hardware I2C implementation
+// Always provide as internal function, unified layer will call it
+static bk_err_t i2c_hardware_driver_init_impl(void)
 {
 	if (s_i2c_driver_is_init) {
 		return BK_OK;
@@ -563,7 +565,13 @@ bk_err_t bk_i2c_driver_init(void)
 	return BK_OK;
 }
 
-bk_err_t bk_i2c_driver_deinit(void)
+// Expose hardware implementation function for unified layer
+bk_err_t i2c_hardware_driver_init(void)
+{
+	return i2c_hardware_driver_init_impl();
+}
+
+static bk_err_t i2c_hardware_driver_deinit_impl(void)
 {
 	if (!s_i2c_driver_is_init) {
 		return BK_OK;
@@ -591,7 +599,14 @@ bk_err_t bk_i2c_driver_deinit(void)
 	return BK_OK;
 }
 
-bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg)
+// Expose hardware implementation function for unified layer
+bk_err_t i2c_hardware_driver_deinit(void)
+{
+	return i2c_hardware_driver_deinit_impl();
+}
+
+
+static bk_err_t i2c_hardware_init_impl(i2c_id_t id, const i2c_config_t *cfg)
 {
 	BK_RETURN_ON_NULL(cfg);
 	I2C_RETURN_ON_NOT_INIT();
@@ -619,7 +634,14 @@ bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg)
 	return BK_OK;
 }
 
-bk_err_t bk_i2c_deinit(i2c_id_t id)
+// Expose hardware implementation function for unified layer
+bk_err_t i2c_hardware_init(i2c_id_t id, const i2c_config_t *cfg)
+{
+	return i2c_hardware_init_impl(id, cfg);
+}
+
+
+static bk_err_t i2c_hardware_deinit_impl(i2c_id_t id)
 {
 	I2C_RETURN_ON_NOT_INIT();
 
@@ -635,6 +657,12 @@ bk_err_t bk_i2c_deinit(i2c_id_t id)
 #endif
 
 	return BK_OK;
+}
+
+// Expose hardware implementation function for unified layer
+bk_err_t i2c_hardware_deinit(i2c_id_t id)
+{
+	return i2c_hardware_deinit_impl(id);
 }
 
 bk_err_t bk_i2c_master_write(i2c_id_t id, uint32_t dev_addr, const uint8_t *data, uint32_t size, uint32_t timeout_ms)
@@ -804,7 +832,7 @@ bk_err_t bk_i2c_slave_read(i2c_id_t id, uint8_t *data, uint32_t size, uint32_t t
 	return BK_OK;
 }
 
-bk_err_t bk_i2c_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param)
+static bk_err_t i2c_hardware_memory_write_impl(i2c_id_t id, const i2c_mem_param_t *mem_param)
 {
 	I2C_RETURN_ON_NOT_INIT();
 	I2C_RETURN_ON_ID_NOT_INIT(id);
@@ -832,7 +860,13 @@ bk_err_t bk_i2c_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param)
 	return s_i2c[id].err_code;
 }
 
-bk_err_t bk_i2c_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param)
+// Expose hardware implementation function for unified layer
+bk_err_t i2c_hardware_memory_write(i2c_id_t id, const i2c_mem_param_t *mem_param)
+{
+	return i2c_hardware_memory_write_impl(id, mem_param);
+}
+
+static bk_err_t i2c_hardware_memory_read_impl(i2c_id_t id, const i2c_mem_param_t *mem_param)
 {
 	I2C_RETURN_ON_NOT_INIT();
 	I2C_RETURN_ON_ID_NOT_INIT(id);
@@ -859,6 +893,13 @@ bk_err_t bk_i2c_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param)
 
 	return s_i2c[id].err_code;
 }
+
+// Expose hardware implementation function for unified layer
+bk_err_t i2c_hardware_memory_read(i2c_id_t id, const i2c_mem_param_t *mem_param)
+{
+	return i2c_hardware_memory_read_impl(id, mem_param);
+}
+
 
 bk_err_t bk_i2c_set_baud_rate(i2c_id_t id, uint32_t baud_rate)
 {

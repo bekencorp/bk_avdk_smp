@@ -133,18 +133,20 @@ if (CONFIG_GENERAL_DMA)
 endif()
 
 if (CONFIG_I2C)
-if (NOT CONFIG_SIM_I2C)
+	# Unified I2C interface layer - always included to provide standard API
+	list(APPEND srcs
+		i2c/i2c_unified.c
+	)
+	# Hardware I2C driver - always included (provides hardware implementation)
 	list(APPEND srcs
 		i2c/i2c_driver.c
 		i2c/i2c_statis.c
 	)
-endif()
-if (CONFIG_SIM_I2C)
-	list(APPEND srcs
-		i2c/sim_i2c_driver.c
-		i2c/sim_i2c_driver_v2.c
-	)
-endif()
+	# Simulated I2C driver - only included when CONFIG_SIM_I2C is enabled
+	# Unified implementation: sim_i2c_driver.c handles both CONFIG_SIM_I2C_HW_BOARD_V3 and non-V3 cases
+	if (CONFIG_SIM_I2C)
+		list(APPEND srcs i2c/sim_i2c_driver.c)
+	endif()
 endif()  #if (CONFIG_I2C)
 
 if (CONFIG_SUPPORT_IRDA)
