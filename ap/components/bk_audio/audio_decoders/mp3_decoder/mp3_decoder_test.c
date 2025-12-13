@@ -133,11 +133,19 @@ bk_err_t adk_mp3_decoder_test_case_0(void)
 
     while (1)
     {
+        static int count = 0;
         audio_event_iface_msg_t msg;
-        bk_err_t ret = audio_event_iface_listen(evt, &msg, portMAX_DELAY);
+        bk_err_t ret = audio_event_iface_listen(evt, &msg, 500 / portTICK_RATE_MS);
         if (ret != BK_OK)
         {
             BK_LOGE(TAG, "[ * ] Event interface error : %d \n", ret);
+            count++;
+            if (count == 2)
+            {
+                audio_pipeline_pause(pipeline);
+                rtos_delay_milliseconds(5000);
+                audio_pipeline_resume(pipeline);
+            }
             continue;
         }
 
@@ -157,8 +165,19 @@ bk_err_t adk_mp3_decoder_test_case_0(void)
                 || ((int)msg.data == AEL_STATUS_STATE_FINISHED)
                 || (int)msg.data == AEL_STATUS_ERROR_PROCESS))
         {
-            BK_LOGW(TAG, "[ * ] Stop event received \n");
-            break;
+            if ((int)msg.data == AEL_STATUS_ERROR_PROCESS)
+            {
+                BK_LOGW(TAG, "[ * ] Stop event received \n");
+                break;
+            }
+
+            if (msg.source == (void *) speaker_stream && 
+                ((int)msg.data == AEL_STATUS_STATE_FINISHED
+                || (int)msg.data == AEL_STATUS_STATE_STOPPED))
+            {
+                BK_LOGW(TAG, "[ * ] Speaker stream finished or stopped \n");
+                break;
+            }
         }
     }
 
@@ -378,11 +397,19 @@ bk_err_t adk_mp3_decoder_test_case_1(char *file_path)
 
     while (1)
     {
+        static int count = 0;
         audio_event_iface_msg_t msg;
-        bk_err_t ret = audio_event_iface_listen(evt, &msg, portMAX_DELAY);
+        bk_err_t ret = audio_event_iface_listen(evt, &msg, 1000 / portTICK_RATE_MS);
         if (ret != BK_OK)
         {
             BK_LOGE(TAG, "[ * ] Event interface error : %d \n", ret);
+            count++;
+            if (count == 10)
+            {
+                audio_pipeline_pause(pipeline);
+                rtos_delay_milliseconds(5000);
+                audio_pipeline_resume(pipeline);
+            }
             continue;
         }
 

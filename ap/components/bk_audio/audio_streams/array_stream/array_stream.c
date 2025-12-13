@@ -77,10 +77,10 @@ static bk_err_t _array_open(audio_element_handle_t self)
     audio_element_set_input_timeout(self, 40 / portTICK_RATE_MS);
     //audio_element_set_output_timeout(self, 40 / portTICK_RATE_MS);
 
-    //BK_LOGD(TAG, "array size: 0x%x%x byte, array position: 0x%x%x \n", (int)(info.total_bytes >> 32), (int)info.total_bytes, (int)(info.byte_pos >> 32), (int)info.byte_pos);
+    BK_LOGV(TAG, "array size: 0x%x%x byte, array position: 0x%x%x \n", (int)(info.total_bytes >> 32), (int)info.total_bytes, (int)(info.byte_pos >> 32), (int)info.byte_pos);
     if (info.byte_pos > 0)
     {
-        //array->array_offset = info.byte_pos;
+        array->array_offset = info.byte_pos;
     }
 
     return ret;
@@ -186,7 +186,7 @@ static bk_err_t _array_close(audio_element_handle_t self)
     {
         if (array->type == AUDIO_STREAM_READER)
         {
-            array->array_offset = array->array_size;
+            array->array_offset = 0;
         }
         else
         {

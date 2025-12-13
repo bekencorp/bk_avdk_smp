@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include <components/bk_audio/audio_decoders/mp3_decoder.h>
@@ -62,54 +63,110 @@ typedef struct mp3_decoder
     int16_t *out_pcm_buff;              /**< out pcm buffer save data decoded */
     uint32_t out_pcm_buff_size;         /**< out pcm buffer size */
     uint8_t *main_buff_readptr;         /**< read ptr of main buffer */
+    bool skip_idtag_done;               /**< flag to indicate if skip_idtag operation has been done */
 } mp3_decoder_t;
 
+
+static int codec_mp3_read_bytes(audio_element_handle_t self, char *buffer, int wanted_size)
+{
+    int total_read = 0;
+    int remaining = wanted_size;
+
+    while (remaining > 0)
+    {
+        int r_size = audio_element_input(self, buffer + total_read, remaining);
+
+        if (r_size > 0)
+        {
+            // Successfully read some data
+            total_read += r_size;
+            remaining -= r_size;
+        }
+        else if (r_size == AEL_IO_TIMEOUT)
+        {
+            // Timeout occurred, continue reading (data may not be ready yet)
+            // Keep looping until data is available, exhausted, or error occurs
+            BK_LOGV(TAG, "[%s] %s, timeout, continue reading, total_read:%d/%d \n", audio_element_get_tag(self), __func__, total_read, wanted_size);
+            continue;
+        }
+        else
+        {
+            // Return value <= 0 (AEL_IO_DONE, AEL_IO_FAIL, AEL_IO_ABORT, etc.)
+            // Return partial read if we got some data, otherwise return the error code directly
+            BK_LOGW(TAG, "[%s] %s, audio_element_input return: %d, total_read:%d/%d \n", audio_element_get_tag(self), __func__, r_size, total_read, wanted_size);
+            return r_size;
+        }
+    }
+
+    return total_read;
+}
 
 /* skip id3 tag */
 static int codec_mp3_skip_idtag(audio_element_handle_t self)
 {
-    int  offset = 0;
+    int offset = 0;
     uint8_t *tag;
     int r_size = 0;
 
     mp3_decoder_t *mp3_dec = (mp3_decoder_t *)audio_element_getdata(self);
 
     tag = mp3_dec->main_buff_readptr;
-    /* read idtag v2 */
 
-    r_size = audio_element_input(self, (char *)(mp3_dec->main_buff), 3);
+    // Set timeout to maximum delay for skip_idtag operation
+    audio_element_set_input_timeout(self, portMAX_DELAY);
+
+    /* read idtag v2 */
+    // Read first 3 bytes to check if it's ID3 tag
+    r_size = codec_mp3_read_bytes(self, (char *)(mp3_dec->main_buff), 3);
     if (r_size != 3)
     {
-        BK_LOGE(TAG, "[%s] %s, %d, audio_element_input fail, r_size:%d \n", audio_element_get_tag(self), __func__, __LINE__, r_size);
-        return -1;
-    }
-    else
-    {
-        mp3_dec->main_buff_remain_size = 3;
-    }
-
-    if (tag[0] == 'I' && tag[1] == 'D' && tag[2] == '3')
-    {
-        int  size;
-
-        if (audio_element_input(self, (char *)(mp3_dec->main_buff + 3), 7) != 7)
+        // Return value is not the expected length, check if it's AEL_IO_FAIL
+        if (r_size == AEL_IO_FAIL)
         {
-            BK_LOGE(TAG, "[%s] %s, %d, audio_element_input fail \n", audio_element_get_tag(self), __func__, __LINE__);
+            BK_LOGE(TAG, "[%s] %s, failed to read 3 bytes, AEL_IO_FAIL \n", audio_element_get_tag(self), __func__);
             return -1;
         }
+        return 0;
+    }
 
+    mp3_dec->main_buff_remain_size = 3;
+
+    // Check if it's ID3 tag
+    if (tag[0] == 'I' && tag[1] == 'D' && tag[2] == '3')
+    {
+        int size;
+
+        // Read next 7 bytes to get ID3 tag size
+        r_size = codec_mp3_read_bytes(self, (char *)(mp3_dec->main_buff + 3), 7);
+        if (r_size != 7)
+        {
+            // Return value is not the expected length, check if it's AEL_IO_FAIL
+            if (r_size == AEL_IO_FAIL)
+            {
+                BK_LOGE(TAG, "[%s] %s, failed to read ID3 tag header, AEL_IO_FAIL \n", audio_element_get_tag(self), __func__);
+                return -1;
+            }
+            return 0;
+        }
+
+        // Calculate ID3 tag size
         size = ((tag[6] & 0x7F) << 21) | ((tag[7] & 0x7F) << 14) | ((tag[8] & 0x7F) << 7) | ((tag[9] & 0x7F));
-
         offset = size + 10;
 
-        /* read all of idv3 */
+        BK_LOGV(TAG, "[%s] %s, ID3 tag detected, size: %d, total offset: %d \n", audio_element_get_tag(self), __func__, size, offset);
+
+        /* read all of idv3 tag data */
+        if (size > 0)
         {
             int rest_size = size;
-            while (rest_size)
-            {
-                int length;
-                int chunk;
+            int total_read = 0;
 
+            while (rest_size > 0)
+            {
+                int chunk;
+                int length;
+
+                // Determine chunk size based on remaining size and buffer size
                 if (rest_size > mp3_dec->main_buff_size)
                 {
                     chunk = mp3_dec->main_buff_size;
@@ -119,21 +176,39 @@ static int codec_mp3_skip_idtag(audio_element_handle_t self)
                     chunk = rest_size;
                 }
 
-                length = audio_element_input(self, (char *)(mp3_dec->main_buff), chunk);
-                if (length > 0)
+                // Read chunk of data
+                length = codec_mp3_read_bytes(self, (char *)(mp3_dec->main_buff), chunk);
+
+                if (length == chunk)
                 {
+                    // Successfully read the expected chunk size
+                    total_read += length;
                     rest_size -= length;
                 }
                 else
                 {
-                    BK_LOGE(TAG, "[%s] %s, %d, audio_element_input fail, length:%d \n", audio_element_get_tag(self), __func__, __LINE__, length);
-                    return -1; /* read failed */
+                    // Return value is not the expected length, check if it's AEL_IO_FAIL
+                    if (length == AEL_IO_FAIL)
+                    {
+                        BK_LOGE(TAG, "[%s] %s, AEL_IO_FAIL while reading ID3 tag, read %d/%d bytes \n", audio_element_get_tag(self), __func__, total_read, size);
+                        return -1;
+                    }
+                    return 0;
                 }
             }
 
-            mp3_dec->main_buff_remain_size = 0;
-            mp3_dec->main_buff_readptr = mp3_dec->main_buff;
+            BK_LOGV(TAG, "[%s] %s, successfully skipped ID3 tag, total size: %d bytes \n", audio_element_get_tag(self), __func__, total_read);
         }
+
+        // Reset buffer pointers after skipping ID3 tag
+        mp3_dec->main_buff_remain_size = 0;
+        mp3_dec->main_buff_readptr = mp3_dec->main_buff;
+    }
+    else
+    {
+        // Not an ID3 tag, no offset
+        BK_LOGV(TAG, "[%s] %s, no ID3 tag detected \n", audio_element_get_tag(self), __func__);
+        offset = 0;
     }
 
     return offset;
@@ -145,15 +220,8 @@ static bk_err_t _mp3_decoder_open(audio_element_handle_t self)
     mp3_decoder_t *mp3_dec = (mp3_decoder_t *)audio_element_getdata(self);
     mp3_dec->main_buff_readptr = mp3_dec->main_buff;
 
-    int ret = codec_mp3_skip_idtag(self);
-    if (ret < 0)
-    {
-        BK_LOGE(TAG, "[%s] codec_mp3_skip_idtag fail \n", audio_element_get_tag(self));
-        return BK_FAIL;
-    }
-
     /* set read data timeout */
-    audio_element_set_input_timeout(self, 20 / portTICK_RATE_MS);   // 2000, 15 / portTICK_RATE_MS
+    audio_element_set_input_timeout(self, portMAX_DELAY);   // 2000, 15 / portTICK_RATE_MS
 
     return BK_OK;
 }
@@ -161,6 +229,20 @@ static bk_err_t _mp3_decoder_open(audio_element_handle_t self)
 static bk_err_t _mp3_decoder_close(audio_element_handle_t self)
 {
     BK_LOGV(TAG, "[%s] _mp3_decoder_close \n", audio_element_get_tag(self));
+    mp3_decoder_t *mp3_dec = (mp3_decoder_t *)audio_element_getdata(self);
+    audio_element_state_t state = audio_element_get_state(self);
+
+    // Reset skip_idtag_done flag only when component is in STOPPED state
+    // Keep the flag unchanged when in PAUSED state to avoid re-executing skip_idtag after resume
+    if (state == AEL_STATE_STOPPED)
+    {
+        mp3_dec->skip_idtag_done = false;
+        BK_LOGV(TAG, "[%s] Component in STOPPED state, reset skip_idtag_done flag \n", audio_element_get_tag(self));
+    }
+    else if (state == AEL_STATE_PAUSED)
+    {
+        BK_LOGV(TAG, "[%s] Component in PAUSED state, keep skip_idtag_done flag unchanged \n", audio_element_get_tag(self));
+    }
 
     return BK_OK;
 }
@@ -246,6 +328,24 @@ static int _mp3_decoder_process(audio_element_handle_t self, char *in_buffer, in
 
     BK_LOGV(TAG, "[%s] _mp3_decoder_process \n", audio_element_get_tag(self));
     mp3_decoder_t *mp3_dec = (mp3_decoder_t *)audio_element_getdata(self);
+
+    // Check if skip_idtag operation needs to be performed
+    // This is done in process function instead of open to avoid timeout issues
+    // when data stream is not ready yet
+    if (!mp3_dec->skip_idtag_done)
+    {
+        int skip_ret = codec_mp3_skip_idtag(self);
+        if (skip_ret < 0)
+        {
+            BK_LOGE(TAG, "[%s] codec_mp3_skip_idtag fail \n", audio_element_get_tag(self));
+            return AEL_PROCESS_FAIL;
+        }
+        mp3_dec->skip_idtag_done = true;
+        BK_LOGV(TAG, "[%s] skip_idtag completed, offset: %d \n", audio_element_get_tag(self), skip_ret);
+    }
+
+    /* set read data timeout */
+    audio_element_set_input_timeout(self, 20 / portTICK_RATE_MS);
 
 __retry:
     if (mp3_dec->main_buff_remain_size < mp3_dec->main_buff_size)
@@ -529,4 +629,5 @@ _mp3_decoder_init_exit:
     mp3_dec = NULL;
     return NULL;
 }
+
 
