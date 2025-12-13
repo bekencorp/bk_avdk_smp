@@ -76,7 +76,11 @@ static inline uint16_t bswap16_self(uint16_t x)
     return (uint16_t)(result >> 16);
 }
 
+#if CONFIG_LVGL_V8
 bk_err_t lv_jpeg_sw_decode_start(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst, bool byte_swap)
+#else
+bk_err_t lv_jpeg_sw_decode_start(frame_buffer_t *jpeg_frame, lv_image_dsc_t *img_dst, bool byte_swap)
+#endif
 {
     bk_err_t ret = BK_FAIL;
     bk_jpeg_decode_img_info_t img_info = {0};
@@ -98,8 +102,14 @@ bk_err_t lv_jpeg_sw_decode_start(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_d
         return ret;
     }
 
+#if CONFIG_LVGL_V8
     img_dst->header.always_zero = 0;
     img_dst->header.cf = LV_IMG_CF_TRUE_COLOR;
+#else
+    img_dst->header.cf = LV_COLOR_FORMAT_RGB565;
+    img_dst->header.magic = LV_IMAGE_HEADER_MAGIC;
+    img_dst->header.stride = img_info.width * 2;
+#endif
     img_dst->header.w = img_info.width;
     img_dst->header.h = img_info.height;
     img_dst->data_size = img_info.width * img_info.height * 2;

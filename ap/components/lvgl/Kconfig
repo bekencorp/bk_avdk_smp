@@ -233,6 +233,11 @@ menu "LVGL"
         bool "Enable LVGL use customized image decoding method"
         default n
 
+    config LVGL_JPEG_HW_DECODE_OPT
+        depends on LV_IMG_UTILITY_CUSTOMIZE
+        bool "Enable LVGL JPEG HW Decode Opt"
+        default n
+
     config LVGL_FRAME_BUFFER_NUM
         depends on LVGL
         int "Set the display frame buffer number"

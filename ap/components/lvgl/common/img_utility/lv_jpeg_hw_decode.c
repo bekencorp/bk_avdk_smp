@@ -17,10 +17,25 @@ static frame_buffer_t *g_dec_out_frame = NULL;
 static bk_jpeg_decode_hw_handle_t lv_jpeg_decode_handle = NULL;
 
 static bk_err_t lv_jpeg_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame);
+static bk_err_t lv_jpeg_decode_in_complete(frame_buffer_t *in_frame);
 
-static bk_jpeg_decode_hw_config_t lv_jpeg_decode_config = {
-    .decode_cbs = {.out_complete = lv_jpeg_decode_complete,}
+#if CONFIG_LVGL_JPEG_HW_DECODE_OPT
+static bk_jpeg_decode_hw_opt_config_t lv_jpeg_decode_opt_config = {
+    .decode_cbs = {
+        .in_complete = lv_jpeg_decode_in_complete,
+        .out_complete = lv_jpeg_decode_complete,},
+    .image_max_width = 0,
+    .lines_per_block = JPEG_DECODE_OPT_LINES_PER_BLOCK_8,
+    .is_pingpong = 1,
+    .copy_method = JPEG_DECODE_OPT_COPY_METHOD_MEMCPY,
 };
+#else
+static bk_jpeg_decode_hw_config_t lv_jpeg_decode_config = {
+    .decode_cbs = {
+        .in_complete = lv_jpeg_decode_in_complete,
+        .out_complete = lv_jpeg_decode_complete,}
+};
+#endif
 
 static void lv_dma2d_config_error(void *arg)
 {
@@ -62,7 +77,7 @@ static bk_err_t lv_dma2d_yuyv2rgb565_deinit(void)
 
     bk_dma2d_stop_transfer();
     bk_dma2d_int_enable(DMA2D_CFG_ERROR | DMA2D_TRANS_ERROR | DMA2D_TRANS_COMPLETE, 0);
-    bk_dma2d_driver_deinit();
+    // bk_dma2d_driver_deinit();
     ret = rtos_deinit_semaphore(&lv_dma2d_sem);
     if (BK_OK != ret) {
         LOGE("%s %d lv_dma2d_sem deinit failed\n", __func__, __LINE__);
@@ -110,7 +125,7 @@ static void lv_dma2d_yuyv2rgb565(void *src, const void *dst, uint16_t width, uin
 static bk_err_t lv_jpeg_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame)
 {
     if (result == BK_OK) {
-        LOGD("%s, %d, jpeg decode success! format_type: %d, out_frame: %p\n", __func__, __LINE__, format_type, out_frame);
+        LOGV("%s, %d, jpeg decode success! format_type: %d, out_frame: %p\n", __func__, __LINE__, format_type, out_frame);
     } else {
         LOGE("%s, %d, jpeg decode failed! format_type: %d, result: %d, out_frame: %p\n", __func__, __LINE__, format_type, result, out_frame);
     }
@@ -118,47 +133,58 @@ static bk_err_t lv_jpeg_decode_complete(uint32_t format_type, uint32_t result, f
     return BK_OK;
 }
 
-bk_err_t lv_jpeg_hw_decode_init(void)
+static bk_err_t lv_jpeg_decode_in_complete(frame_buffer_t *in_frame)
 {
-    bk_err_t ret = BK_FAIL;
+    LOGV("%s %d in_frame: %p\n", __func__, __LINE__, in_frame);
+    return BK_OK;
+}
 
+bk_err_t lv_jpeg_hw_decode_init(uint32_t image_width)
+{
     lv_dma2d_yuyv2rgb565_init();
 
+#if CONFIG_LVGL_JPEG_HW_DECODE_OPT
+    lv_jpeg_decode_opt_config.image_max_width = image_width;
+    bk_hardware_jpeg_decode_opt_new(&lv_jpeg_decode_handle, &lv_jpeg_decode_opt_config);
+#else
     bk_hardware_jpeg_decode_new(&lv_jpeg_decode_handle, &lv_jpeg_decode_config);
+#endif
     bk_jpeg_decode_hw_open(lv_jpeg_decode_handle);
 
     g_dec_out_frame = os_malloc(sizeof(frame_buffer_t));
     if (!g_dec_out_frame) {
         LOGD("[%s][%d] g_dec_out_frame malloc fail\n", __FUNCTION__, __LINE__);
-        return ret;
+        return BK_FAIL;
     }
     os_memset(g_dec_out_frame, 0, sizeof(frame_buffer_t));
 
-    return ret;
+    return BK_OK;
 }
 
 bk_err_t lv_jpeg_hw_decode_deinit(void)
 {
-    bk_err_t ret = BK_FAIL;
-
-    lv_dma2d_yuyv2rgb565_deinit();
     bk_jpeg_decode_hw_close(lv_jpeg_decode_handle);
 
     bk_jpeg_decode_hw_delete(lv_jpeg_decode_handle);
     lv_jpeg_decode_handle = NULL;
+
+    lv_dma2d_yuyv2rgb565_deinit();
 
     if (g_dec_out_frame) {
         os_free(g_dec_out_frame);
         g_dec_out_frame = NULL;
     }
 
-    return ret;
+    return BK_OK;
 }
 
+#if CONFIG_LVGL_V8
 bk_err_t lv_jpeg_hw_decode_start(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_dst, bool byte_swap)
+#else
+bk_err_t lv_jpeg_hw_decode_start(frame_buffer_t *jpeg_frame, lv_image_dsc_t *img_dst, bool byte_swap)
+#endif
 {
     bk_err_t ret = BK_FAIL;
-    bk_jpeg_decode_img_info_t img_info = {0}; 
 
     if (jpeg_frame == NULL) {
         LOGE("[%s][%d] jpeg_frame is null\r\n", __func__, __LINE__);
@@ -167,25 +193,6 @@ bk_err_t lv_jpeg_hw_decode_start(frame_buffer_t *jpeg_frame, lv_img_dsc_t *img_d
 
     if (img_dst == NULL) {
         LOGE("[%s][%d] img_dst is null\r\n", __func__, __LINE__);
-        return ret;
-    }
-
-    img_info.frame = jpeg_frame;
-    ret = bk_jpeg_decode_hw_get_img_info(lv_jpeg_decode_handle, &img_info);
-    if (ret != BK_OK) {
-        LOGE("[%s][%d] get img info failed, ret: %d\r\n", __func__, __LINE__, ret);
-        return ret;
-    }
-
-    img_dst->header.always_zero = 0;
-    img_dst->header.cf = LV_IMG_CF_TRUE_COLOR;
-    img_dst->header.w = img_info.width;
-    img_dst->header.h = img_info.height;
-    img_dst->data_size = img_info.width * img_info.height * 2;
-    img_dst->data = psram_malloc(img_dst->data_size);
-    if (!img_dst->data) {
-        LOGE("[%s][%d] malloc psram size %d fail\r\n", __FUNCTION__, __LINE__, img_dst->data_size);
-        ret = BK_ERR_NO_MEM;
         return ret;
     }
 
