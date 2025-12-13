@@ -901,9 +901,8 @@ static bk_err_t rotate_init(media_rotate_mode_t mode)
 			LOGE("rott driver init failed\n");
 			return ret;
 		}
-		bk_rott_int_enable(ROTATE_COMPLETE_INT | ROTATE_CFG_ERR_INT | ROTATE_WARTERMARK_INT, 1);
+		bk_rott_int_enable(ROTATE_COMPLETE_INT | ROTATE_CFG_ERR_INT, 1);
 		bk_rott_isr_register(ROTATE_COMPLETE_INT, rotate_complete_cb);
-		bk_rott_isr_register(ROTATE_WARTERMARK_INT, rotate_watermark_cb);
 		bk_rott_isr_register(ROTATE_CFG_ERR_INT, rotate_cfg_err_cb);
 	}
 	bk_dma2d_driver_init();
