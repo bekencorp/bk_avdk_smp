@@ -267,7 +267,7 @@ extern dvp_sensor_detect_func_t __camera_sensor_detect_array_end;
 #define BK_DVP_864X480_30FPS_MJPEG_CONFIG()	\
 {	\
 	.i2c_config = {	\
-		.id = 1,	\
+		.id = 2,	\
 		.scl_pin = 0,	\
 		.sda_pin = 1,	\
 		.baud_rate = 100000,	\
