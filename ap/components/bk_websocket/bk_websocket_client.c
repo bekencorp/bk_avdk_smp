@@ -1000,8 +1000,8 @@ static int ws_client_recv(transport client)
 			BK_LOGE(TAG, "ws read timeouts\r\n");
 			return BK_OK;
 		}
-		client->payload_offset += rlen;
 #if CONFIG_WEBSOCKET_FULL_SIZE
+		client->payload_offset += rlen;
 		if (client->payload_len >= client->buffer_size) {
 			if (client->payload_offset == client->buffer_size) { //If the size of the received packet exceeds the max length, the event shall be reported according to the max length.
 				bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_DATA, client->rx_buffer, client->payload_offset, client->last_opcode);
@@ -1010,8 +1010,15 @@ static int ws_client_recv(transport client)
 		}
 #else
 		bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_DATA, client->rx_buffer, rlen, client->last_opcode);
+		client->payload_offset += rlen;
 #endif
-	} while (client->payload_offset < client->payload_len);
+	} while (
+#if CONFIG_WEBSOCKET_FULL_SIZE
+		ws->frame_state.bytes_remaining > 0
+#else
+		client->payload_offset < client->payload_len
+#endif
+	);
 #if CONFIG_WEBSOCKET_FULL_SIZE
 	if (client->payload_len < client->buffer_size)
 		bk_websocket_client_dispatch_event(client, WEBSOCKET_EVENT_DATA, client->rx_buffer, client->payload_offset, client->last_opcode);
