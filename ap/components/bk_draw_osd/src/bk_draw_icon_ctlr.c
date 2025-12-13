@@ -176,8 +176,10 @@ avdk_err_t bk_draw_icon_ctlr_draw_image(bk_draw_icon_ctlr_t *controller, icon_im
     p_yuv_temp = icon_ctlr->context.buf2.addr;
     
     /* Step 1: Copy background YUV data */
+    // For RGB565 format, pixel_bit=2, width may be odd, so bytes may not be 4-byte aligned
+    // Use byte pointer instead of uint32_t* to avoid alignment issues
     for (i = 0; i < cfg->ysize; i++) {
-        os_memcpy((uint32_t *)p_yuv_dst, (uint32_t *)p_yuv_src, cfg->xsize * pixel_bit);
+        os_memcpy(p_yuv_dst, p_yuv_src, cfg->xsize * pixel_bit);
         p_yuv_dst += (cfg->xsize * pixel_bit);
         p_yuv_src += (cfg->bg_width * pixel_bit);
     }
@@ -209,8 +211,15 @@ avdk_err_t bk_draw_icon_ctlr_draw_image(bk_draw_icon_ctlr_t *controller, icon_im
         argb8888_to_yuyv_blend((uint8_t *)cfg->pfg_addr, p_yuv_dst, cfg->xsize, cfg->ysize);
     } else if (PIXEL_FMT_RGB888 == bg_fmt) {
         argb8888_to_rgb888_blend((uint8_t *)cfg->pfg_addr, p_yuv_dst, cfg->xsize, cfg->ysize);
-    } else {
+    } else if (PIXEL_FMT_RGB565_LE == bg_fmt){
+        // PIXEL_FMT_RGB565_LE: pixel big endian format
         argb8888_to_rgb565_blend((uint8_t *)cfg->pfg_addr, p_yuv_dst, cfg->xsize, cfg->ysize);
+    } else if (PIXEL_FMT_RGB565 == bg_fmt){
+        // PIXEL_FMT_RGB565: pixel little endian format
+        argb8888_to_rgb565le_blend((uint8_t *)cfg->pfg_addr, p_yuv_dst, cfg->xsize, cfg->ysize);
+    } else {
+        LOGE("bg_data_format is not support. only support PIXEL_FMT_YUYV, PIXEL_FMT_RGB888, PIXEL_FMT_RGB565\n");
+        return AVDK_ERR_INVAL;
     }
     
     /* If need to rotate back 270 degrees */
@@ -232,11 +241,13 @@ avdk_err_t bk_draw_icon_ctlr_draw_image(bk_draw_icon_ctlr_t *controller, icon_im
     }
     
     /* Step 3: Copy result back to background image */
+    // For RGB565 format, pixel_bit=2, width may be odd, so bytes may not be 4-byte aligned
+    // Use byte pointer instead of uint32_t* to avoid alignment issues
     p_yuv_src = p_yuv_src_temp;
     p_yuv_dst = icon_ctlr->context.buf1.addr;
     
     for (i = 0; i < cfg->ysize; i++) {
-        os_memcpy((uint32_t *)p_yuv_src, (uint32_t *)p_yuv_dst, cfg->xsize * pixel_bit);
+        os_memcpy(p_yuv_src, p_yuv_dst, cfg->xsize * pixel_bit);
         p_yuv_dst += (cfg->xsize * pixel_bit);
         p_yuv_src += (cfg->bg_width * pixel_bit);
     }

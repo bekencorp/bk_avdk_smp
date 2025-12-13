@@ -184,8 +184,20 @@ int vuyy_to_rgb565(uint8_t *src_buff, uint8_t *dst_buff, int width, int height);
 
 void argb8888_to_vuyy_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
 void argb8888_to_yuyv_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
+
+/**
+ * @brief Blend ARGB8888 icon onto RGB565 background (big-endian pixel storage)
+ * RGB565 format: [31:16] = pixel1（0xf800）, [15:0] = pixel2（0x001f）, e.g. 0xf800001f
+ */
 void argb8888_to_rgb565_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
+
 void argb8888_to_rgb888_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
+
+/**
+ * @brief Blend ARGB8888 icon onto RGB565LE background
+ * RGB565LE format: [15:0] = pixel1（0xf800）, [31:16] = pixel2（0x001f）, e.g. 0x001ff800
+ */
+void argb8888_to_rgb565le_blend(uint8_t *src, uint8_t *dst, uint32_t width, uint32_t height);
 
 int vuyy_image_resize(uint8_t *src_img, uint8_t *dst_img, uint32_t src_width, uint32_t src_height, uint32_t dst_width, uint32_t dst_height);
 
