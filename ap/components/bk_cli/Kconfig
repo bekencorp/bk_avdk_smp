@@ -142,11 +142,6 @@ menu "Bk_cli"
 			bool "Enable SPI Test"
 			default n
 
-		config LCD_QSPI_TEST
-			depends on LCD_QSPI
-			bool "Enable Lcd Qspi Test"
-			default n
-
 		config PERI_TEST
 			depends on CLI
 			bool "Enable Peri Test"

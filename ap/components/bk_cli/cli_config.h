@@ -144,12 +144,6 @@ extern "C" {
 #define CLI_CFG_AON_RTC     0
 #endif
 
-#if (CONFIG_JPEGDEC_SW)
-#define CLI_CFG_JPEGDEC     0
-#else
-#define CLI_CFG_JPEGDEC     0
-#endif
-
 #if (CONFIG_CALENDAR)
 #define CLI_CFG_CALENDAR    1
 #else
@@ -199,30 +193,6 @@ extern "C" {
 #define CLI_CFG_IPERF       1
 #else
 #define CLI_CFG_IPERF       0
-#endif
-
-#if (CONFIG_LCD_TEST)
-#define CLI_CFG_LCD  0
-#else
-#define CLI_CFG_LCD  0
-#endif
-
-#if (CONFIG_HW_ROTT_TEST)
-#define CLI_CFG_ROTT  0
-#else
-#define CLI_CFG_ROTT  0
-#endif
-
-#if (CONFIG_LCD_QSPI_TEST)
-#define CLI_CFG_LCD_QSPI	1
-#else
-#define CLI_CFG_LCD_QSPI	0
-#endif
-
-#if (CONFIG_DMA2D_TEST)
-#define CLI_CFG_DMA2D  0
-#else
-#define CLI_CFG_DMA2D  0
 #endif
 
 #if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX)
