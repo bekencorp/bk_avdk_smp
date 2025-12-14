@@ -200,7 +200,6 @@ bk_err_t spi_hal_enable_tx_rx(spi_hal_t *hal)
 bk_err_t spi_hal_duplex_config(spi_hal_t *hal)
 {
 	spi_ll_disable_tx_underflow_int(hal->hw);
-	spi_ll_disable_rx_overflow_int(hal->hw);
 	spi_ll_disable_tx_fifo_int(hal->hw);
 	spi_ll_disable_rx_fifo_int(hal->hw);
 	spi_ll_enable_slave_release_int(hal->hw);

@@ -126,6 +126,7 @@ extern "C" {
 
 #if (CONFIG_SOC_BK7236XX)
 #define IQR_PRI_DEFAULT                          (6) //Temp for BK7236
+#define IQR_PRI_HIGH                             (2)
 #else
 #define IQR_PRI_DEFAULT                          (1) //Temp for BK7256 RISC-V
 #endif

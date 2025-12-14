@@ -20,7 +20,7 @@
 #include "spi_driver.h"
 
 #define FLASH_PHY_PAGE_SIZE       256
-#define FLASH_PHY_SECTOR_SIZE     4096
+#define SPI_FLASH_MAX_TRANS_SIZE  (4092)
 #define FLASH_PHY_BLK_32K         (32*1024)
 #define FLASH_PHY_BLK_64K         (64*1024)
 
@@ -153,7 +153,7 @@ static int spi_flash_read_page(spi_id_t id, uint32_t base_addr, uint32_t size, u
     if(dst_data == NULL)
         return 1;
 
-    if(size > FLASH_PHY_SECTOR_SIZE)
+    if(size > SPI_FLASH_MAX_TRANS_SIZE)
         return 1;
 
     if(size == 0)
@@ -248,8 +248,8 @@ bk_err_t bk_spi_flash_read(spi_id_t id, uint32_t base_addr, uint8_t *dst_data, u
         int ret;
         uint32_t dsize;
 
-        if((size - i) >= FLASH_PHY_SECTOR_SIZE)
-            dsize = FLASH_PHY_SECTOR_SIZE;
+        if((size - i) >= SPI_FLASH_MAX_TRANS_SIZE)
+            dsize = SPI_FLASH_MAX_TRANS_SIZE;
         else
             dsize = size - i;
 

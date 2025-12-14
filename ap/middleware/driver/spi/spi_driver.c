@@ -57,6 +57,7 @@ typedef struct {
 	beken_semaphore_t rx_sema;
 	dma_id_t spi_tx_dma_chan;
 	dma_id_t spi_rx_dma_chan;
+	bool dma_inited;
 #if CONFIG_SPI_PM_CB_SUPPORT
 	uint32_t pm_backup[SPI_PM_BACKUP_REG_NUM];
 	uint8_t pm_backup_is_valid;
@@ -139,6 +140,7 @@ static volatile spi_id_t s_current_spi_dma_rd_id;
 static spi_callback_t s_spi_rx_isr[SOC_SPI_UNIT_NUM] = {NULL};
 static spi_callback_t s_spi_tx_finish_isr[SOC_SPI_UNIT_NUM] = {NULL};
 static spi_callback_t s_spi_rx_finish_isr[SOC_SPI_UNIT_NUM] = {NULL};
+static bool is_xfer_overflow = false;
 
 static void spi_isr(void);
 #if (SOC_SPI_UNIT_NUM > 1)
@@ -337,8 +339,13 @@ static void spi_id_deinit_common(spi_id_t id)
 	icu_disable_spi_interrupt(id);
 	power_down_spi(id);
 #endif
-	rtos_deinit_semaphore(&(s_spi[id].tx_sema));
-	rtos_deinit_semaphore(&(s_spi[id].rx_sema));
+	if(s_spi[id].tx_sema){
+		rtos_deinit_semaphore(&(s_spi[id].tx_sema));
+	}
+
+	if(s_spi[id].rx_sema){
+		rtos_deinit_semaphore(&(s_spi[id].rx_sema));
+	}
 	s_spi[id].id_init_bits &= ~BIT(id);
 }
 
@@ -397,8 +404,6 @@ static void spi_dma_tx_init(spi_id_t id, dma_id_t spi_tx_dma_chan, dma_data_widt
 	dma_config_t dma_config = {0};
 	spi_int_config_t int_cfg_table[] = SPI_INT_CONFIG_TABLE;
 
-	s_spi[id].spi_tx_dma_chan = spi_tx_dma_chan;
-
 	dma_config.mode = DMA_WORK_MODE_SINGLE;
 	dma_config.chan_prio = 0;
 	dma_config.src.dev = DMA_DEV_DTCM;
@@ -422,8 +427,6 @@ static void spi_dma_rx_init(spi_id_t id, dma_id_t spi_rx_dma_chan, dma_data_widt
 {
 	dma_config_t dma_config = {0};
 	spi_int_config_t int_cfg_table[] = SPI_RX_INT_CONFIG_TABLE;
-
-	s_spi[id].spi_rx_dma_chan = spi_rx_dma_chan;
 
 	dma_config.mode = DMA_WORK_MODE_SINGLE;
 	dma_config.chan_prio = 0;
@@ -555,12 +558,19 @@ bk_err_t bk_spi_init(spi_id_t id, const spi_config_t *config)
 	spi_hal_configure(&s_spi[id].hal, config);
 	spi_hal_start_common(&s_spi[id].hal);
 #if (CONFIG_SPI_DMA)
+	if (!s_spi[id].dma_inited) {
+		s_spi[id].spi_tx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0 + id * 2);
+		s_spi[id].spi_rx_dma_chan = bk_dma_alloc(DMA_DEV_GSPI0_RX + id * 2);
+
+		s_spi[id].dma_inited = true;
+	}
+
 	if (config->dma_mode) {
 #if (!CONFIG_SYSTEM_CTRL)
 		gpio_spi_sel(GPIO_SPI_MAP_MODE0);
 #endif
-		spi_dma_tx_init(id, config->spi_tx_dma_chan, config->spi_tx_dma_width);
-		spi_dma_rx_init(id, config->spi_rx_dma_chan, config->spi_rx_dma_width);
+		spi_dma_tx_init(id, s_spi[id].spi_tx_dma_chan, config->spi_tx_dma_width);
+		spi_dma_rx_init(id, s_spi[id].spi_rx_dma_chan, config->spi_rx_dma_width);
 	}
 #endif
 
@@ -571,6 +581,20 @@ bk_err_t bk_spi_deinit(spi_id_t id)
 {
 	SPI_RETURN_ON_NOT_INIT();
 	SPI_RETURN_ON_INVALID_ID(id);
+
+#if CONFIG_SPI_DMA
+    if (s_spi[id].dma_inited) {
+        if (s_spi[id].spi_tx_dma_chan != DMA_ID_MAX) {
+            BK_LOG_ON_ERR(bk_dma_free(DMA_DEV_GSPI0 + id * 2, s_spi[id].spi_tx_dma_chan));
+            s_spi[id].spi_tx_dma_chan = DMA_ID_MAX;
+        }
+        if (s_spi[id].spi_rx_dma_chan != DMA_ID_MAX) {
+            BK_LOG_ON_ERR(bk_dma_free(DMA_DEV_GSPI0_RX + id * 2, s_spi[id].spi_rx_dma_chan));
+            s_spi[id].spi_rx_dma_chan = DMA_ID_MAX;
+        }
+        s_spi[id].dma_inited = false;
+    }
+#endif
 
 	spi_id_deinit_common(id);
 #if (CONFIG_SPI_PM_CB_SUPPORT)
@@ -898,8 +922,7 @@ static bk_err_t spi_duplex_tx_rx_enable(spi_id_t id)
 {
 	bk_dma_start(s_spi[id].spi_tx_dma_chan);
 	bk_dma_start(s_spi[id].spi_rx_dma_chan);
-	spi_hal_enable_tx(&s_spi[id].hal);
-	spi_hal_enable_rx(&s_spi[id].hal);
+	spi_hal_enable_tx_rx(&s_spi[id].hal);
 	return BK_OK;
 }
 
@@ -919,6 +942,7 @@ bk_err_t bk_spi_dma_duplex_deinit(spi_id_t id)
 	return BK_OK;
 }
 
+extern uint32_t dma_wait_to_idle(dma_id_t id);
 bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_size, void *rx_data, uint32_t rx_size)
 {
 	SPI_RETURN_ON_NOT_INIT();
@@ -930,49 +954,101 @@ bk_err_t bk_spi_dma_duplex_xfer(spi_id_t id, const void *tx_data, uint32_t tx_si
 		return BK_ERR_SPI_DUPLEX_SIZE_NOT_EQUAL;
 	}
 
-	uint32_t len = rx_size > 0 ? rx_size : tx_size;
-	uint32_t offset = 0;
-	s_current_spi_dma_wr_id = id;
-	s_current_spi_dma_rd_id = id;
+	int max_retry_times = 10;
+	for(int i = 0; i < max_retry_times; i++) {
+		uint32_t len = rx_size > 0 ? rx_size : tx_size;
+		uint32_t offset = 0;
+		uint32_t int_level = 0;
+		s_current_spi_dma_wr_id = id;
+		s_current_spi_dma_rd_id = id;
 
-	while(len > 0) {
-		if(rx_data) {
-			s_spi[id].is_rx_blocked = true;
-			spi_hal_clear_rx_fifo(&s_spi[id].hal);
-			spi_hal_set_rx_trans_len(&s_spi[id].hal, rx_size);
-			bk_dma_set_dest_start_addr(s_spi[id].spi_rx_dma_chan,((uint32_t)rx_data + offset));
-			bk_dma_set_transfer_len(s_spi[id].spi_rx_dma_chan,rx_size);
+		while(len > 0) {
+			int_level = spi_enter_critical();
+			if(rx_data) {
+				s_spi[id].is_rx_blocked = true;
+				spi_hal_clear_rx_fifo(&s_spi[id].hal);
+				spi_hal_set_rx_trans_len(&s_spi[id].hal, rx_size);
+				bk_dma_set_dest_start_addr(s_spi[id].spi_rx_dma_chan,((uint32_t)rx_data + offset));
+				bk_dma_set_transfer_len(s_spi[id].spi_rx_dma_chan,rx_size);
+			}
+
+			if(tx_data) {
+				s_spi[id].is_tx_blocked = true;
+				spi_hal_clear_tx_fifo(&s_spi[id].hal);
+				spi_hal_set_tx_trans_len(&s_spi[id].hal, tx_size);
+				bk_dma_set_src_start_addr(s_spi[id].spi_tx_dma_chan,((uint32_t)tx_data + offset));
+				bk_dma_set_transfer_len(s_spi[id].spi_tx_dma_chan,tx_size);
+			}
+
+			if(tx_data) {
+				bk_dma_start(s_spi[id].spi_tx_dma_chan);
+			}
+			if(rx_data) {
+				bk_dma_start(s_spi[id].spi_rx_dma_chan);
+			}
+
+			if(tx_data && rx_data) {
+				spi_hal_enable_tx_rx(&s_spi[id].hal);
+			} else {
+				if(tx_data) {
+					spi_hal_enable_tx(&s_spi[id].hal);
+				}
+				if(rx_data) {
+					spi_hal_enable_rx(&s_spi[id].hal);
+				}
+			}
+			spi_exit_critical(int_level);
+
+			if(tx_data) {
+				rtos_get_semaphore(&s_spi[id].tx_sema, BEKEN_NEVER_TIMEOUT);
+			}
+			if(rx_data) {
+				rtos_get_semaphore(&s_spi[id].rx_sema, BEKEN_NEVER_TIMEOUT);
+			}
+
+			if(is_xfer_overflow){
+				goto error;
+			}
+			int_level = spi_enter_critical();
+
+			if(tx_data) {
+				spi_hal_disable_tx(&s_spi[id].hal);
+				spi_hal_disable_tx_fifo_int(&s_spi[id].hal);
+				dma_wait_to_idle(s_spi[id].spi_tx_dma_chan);
+				bk_dma_stop(s_spi[id].spi_tx_dma_chan);
+			}
+			if(rx_data) {
+				spi_hal_disable_rx(&s_spi[id].hal);
+				spi_hal_disable_rx_fifo_int(&s_spi[id].hal);
+				dma_wait_to_idle(s_spi[id].spi_rx_dma_chan);
+				bk_dma_stop(s_spi[id].spi_rx_dma_chan);
+			}
+			spi_exit_critical(int_level);
+
+			len = rx_size > 0 ? (len-rx_size) : (len-tx_size);
+			offset += rx_size > 0 ? (rx_size) : (tx_size);
 		}
 
-		if(tx_data) {
-			s_spi[id].is_tx_blocked = true;
-			spi_hal_clear_tx_fifo(&s_spi[id].hal);
-			spi_hal_set_tx_trans_len(&s_spi[id].hal, tx_size);
-			bk_dma_set_src_start_addr(s_spi[id].spi_tx_dma_chan,((uint32_t)tx_data + offset));
-			bk_dma_set_transfer_len(s_spi[id].spi_tx_dma_chan,tx_size);
-		}
-		uint32_t int_level = spi_enter_critical();
-		spi_duplex_tx_rx_enable(id);
-		spi_exit_critical(int_level);
+		return BK_OK;
 
-		rtos_get_semaphore(&s_spi[id].tx_sema, BEKEN_NEVER_TIMEOUT);
-		rtos_get_semaphore(&s_spi[id].rx_sema, BEKEN_NEVER_TIMEOUT);
-
+error:
+		is_xfer_overflow = false;
 		int_level = spi_enter_critical();
-		spi_hal_disable_rx(&s_spi[id].hal);
-		spi_hal_disable_tx(&s_spi[id].hal);
-		spi_hal_disable_tx_fifo_int(&s_spi[id].hal);
-		spi_hal_disable_rx_fifo_int(&s_spi[id].hal);
-		extern uint32_t dma_wait_to_idle(dma_id_t id);
-		dma_wait_to_idle(s_spi[id].spi_tx_dma_chan);
-		dma_wait_to_idle(s_spi[id].spi_rx_dma_chan);
+		if(tx_data) {
+			spi_hal_disable_tx(&s_spi[id].hal);
+			spi_hal_disable_tx_fifo_int(&s_spi[id].hal);
+			bk_dma_stop(s_spi[id].spi_tx_dma_chan);
+		}
+		if(rx_data) {
+			spi_hal_disable_rx(&s_spi[id].hal);
+			spi_hal_disable_rx_fifo_int(&s_spi[id].hal);
+			bk_dma_stop(s_spi[id].spi_rx_dma_chan);
+		}
 		spi_exit_critical(int_level);
-
-		len = rx_size > 0 ? (len-rx_size) : (len-tx_size);
-		offset += rx_size > 0 ? (rx_size) : (tx_size);
+		SPI_LOGI("read again.\r\n");
 	}
 
-	return BK_OK;
+	return BK_ERR_SPI_RX_TIMEOUT;
 }
 
 bk_err_t bk_spi_dma_write_bytes(spi_id_t id, const void *data, uint32_t size)
@@ -1127,6 +1203,7 @@ static void spi_isr_common(spi_id_t id)
 	if (spi_hal_is_rx_overflow_int_triggered(hal, int_status)) {
 		SPI_STATIS_INC(spi_statis->rx_overflow_isr_cnt);
 		SPI_LOGW("rx overflow int triggered\r\n");
+		is_xfer_overflow = true;
 	}
 
 	if (spi_hal_is_tx_fifo_int_triggered_with_status(hal, int_status)) {
