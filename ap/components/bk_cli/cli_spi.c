@@ -43,6 +43,89 @@ static void cli_spi_tx_isr(spi_id_t id, void *param)
 	CLI_LOGD("spi_tx_isr(%d)\n", id);
 }
 
+#ifdef CONFIG_SPI_MST_FLASH
+//extern uint32_t spi_flash_read_id(void);
+//extern int spi_flash_read(uint32_t addr, uint32_t size, uint8_t *dst);
+//extern int spi_flash_write(uint32_t addr, uint32_t size, uint8_t *src);
+//extern int spi_flash_erase(uint32_t addr, uint32_t size);
+#define TEST_BUF_SIZE (1024 * 100)
+
+static void spi_test_thread(beken_thread_arg_t arg)
+{
+    uint8_t *write_buf = NULL;
+    uint8_t *read_buf = NULL;
+    uint32_t addr = 0;
+    uint32_t test_cnt = 0;
+	spi_id_t spi_id = (spi_id_t)arg;
+    CLI_LOGD("spi_test\n");
+
+    rtos_thread_sleep(2);
+    //lfs_spi_flashbd_init();
+
+    //write_buf = (uint8_t *)os_malloc(TEST_BUF_SIZE);
+    write_buf = (uint8_t *)psram_malloc(TEST_BUF_SIZE);
+    if (write_buf == NULL)
+    {
+        CLI_LOGW("malloc failed\n");
+        return;
+    }
+
+    //read_buf = (uint8_t *)os_malloc(TEST_BUF_SIZE);
+    read_buf = (uint8_t *)psram_malloc(TEST_BUF_SIZE);
+
+    if (read_buf == NULL)
+    {
+        CLI_LOGW("malloc failed\n");
+        return;
+    }
+
+    for (;;)
+    {
+        CLI_LOGD("erase\n");
+        bk_spi_flash_erase(spi_id, 0, 0x80000);
+
+        for (;;)
+        {
+            CLI_LOGD("test addr: 0x%x\n", addr);
+
+            for (int i = 0; i < TEST_BUF_SIZE; i++)
+            {
+                write_buf[i] = rand() % 256;
+            }
+            bk_spi_flash_write(spi_id, addr, write_buf, TEST_BUF_SIZE);
+
+            memset(read_buf, 0, TEST_BUF_SIZE);
+            bk_spi_flash_read(spi_id, addr, read_buf, TEST_BUF_SIZE);
+
+            for (int i = 0; i < TEST_BUF_SIZE; i++)
+            {
+                if (write_buf[i] != read_buf[i])
+                {
+                    CLI_LOGD("test failed=%d, write: 0x%x, read: 0x%x\n", i, write_buf[i], read_buf[i]);
+                    goto exit;
+                }
+            }
+
+            addr += TEST_BUF_SIZE;
+            if ((addr + TEST_BUF_SIZE) >= 0x80000)
+            {
+                break;
+            }
+        }
+
+        CLI_LOGD("test success, test_cnt = %d.\n", test_cnt++);
+        addr = 0;
+    }
+
+exit:
+    //os_free(write_buf);
+    //os_free(read_buf);
+    free(write_buf);
+    free(read_buf);
+    rtos_delete_thread(NULL);
+}
+#endif
+
 static void cli_spi_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	if (argc < 2) {
@@ -215,6 +298,7 @@ transmit_exit:
 		for (int i = 0; i < buf_len; i++) {
 			CLI_LOGD("recv_buffer[%d]=0x%x\n", i, recv_data[i]);
 		}
+		CLI_LOGD("===spi dma recv finish===\n");
 		if (recv_data) {
 			os_free(recv_data);
 		}
@@ -711,6 +795,12 @@ static void cli_spi_flash_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		bk_spi_flash_read_id(spi_id);
 		return;
 	}
+
+	if (os_strcmp(argv[2], "auto_test") == 0) {
+		rtos_create_thread(NULL, 4, "spi_flash_test", (beken_thread_function_t)spi_test_thread, 2048, (beken_thread_arg_t)spi_id);
+		return;
+	}
+
 	if (argc < 5) {
 		cli_spi_help();
 		return;
