@@ -462,7 +462,7 @@ static void send_file(struct ftpd_datastate *fsd, struct tcp_pcb *pcb)
 
 		len = read(fsd->fd, buffer, len);
 
-		if (len == 0) {
+		if (len <= 0) {
 			if (feof(fsd->fd) == 0)
 				goto error;
 
