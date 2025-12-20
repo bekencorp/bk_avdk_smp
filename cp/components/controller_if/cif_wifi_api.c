@@ -179,14 +179,7 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         case STA_GET_LINK_STATUS:
         {
             wifi_link_status_t *link_status = (wifi_link_status_t *)arg_info->args[0];
-            if ((wifi_netif_sta_is_connected() || wifi_netif_sta_is_got_ip()))
-            {
-                    bk_wifi_sta_get_link_status(link_status);
-                    link_status->state = WIFI_LINKSTATE_STA_CONNECTED;
-            }
-            else
-                link_status->state = WIFI_LINKSTATE_STA_DISCONNECTED;
-
+            ret = bk_wifi_sta_get_link_status(link_status);
             break;
         }
 
