@@ -46,17 +46,14 @@ static void low_pwr_core_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *pa
 	low_pwr_core_msg_t msg = {0};
 	msg.event= LOW_PWR_CORE_RTC_WAKEUPED;
 	bk_low_pwr_core_send_msg(&msg);
-	LOGD("rtc_cb[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
-	bk_pm_cp0_response_cp1(PM_SLEEP_WAKEUP_NOTIFY_CMD,PM_MODE_LOW_VOLTAGE,PM_WAKEUP_SOURCE_INT_RTC,0);
 }
 static void low_pwr_core_gpio_callback(gpio_id_t gpio_id)
 {
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
-	LOGD("gpio_cb[%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),gpio_id);
 	low_pwr_core_msg_t msg = {0};
 	msg.event= LOW_PWR_CORE_GPIO_WAKEUPED;
+	msg.param1 = gpio_id;
 	bk_low_pwr_core_send_msg(&msg);
-	bk_pm_cp0_response_cp1(PM_SLEEP_WAKEUP_NOTIFY_CMD,PM_MODE_LOW_VOLTAGE,PM_WAKEUP_SOURCE_INT_GPIO,gpio_id);
 }
 static bk_err_t low_pwr_core_rtc_wakeup_config(low_pwr_core_msg_t* msg)
 {
@@ -260,6 +257,8 @@ static bk_err_t low_pwr_core_message_handle(void)
 				break;
 				case LOW_PWR_CORE_RTC_WAKEUPED:
 				{
+					bk_pm_cp0_response_cp1(PM_SLEEP_WAKEUP_NOTIFY_CMD,PM_MODE_LOW_VOLTAGE,PM_WAKEUP_SOURCE_INT_RTC,0);
+					LOGD("rtc_cb[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
 					if(!bk_pm_cp1_work_state_get())
 					{
 						bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
@@ -268,6 +267,8 @@ static bk_err_t low_pwr_core_message_handle(void)
 				break;
 				case LOW_PWR_CORE_GPIO_WAKEUPED:
 				{
+					bk_pm_cp0_response_cp1(PM_SLEEP_WAKEUP_NOTIFY_CMD,PM_MODE_LOW_VOLTAGE,PM_WAKEUP_SOURCE_INT_GPIO,msg.param1);
+					LOGD("gpio_cb[%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),msg.param1);
 					if(!bk_pm_cp1_work_state_get())
 					{
 						bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
@@ -326,7 +327,7 @@ bk_err_t bk_low_pwr_core_init(void)
     }
 
     ret = rtos_create_thread(&s_pm_info->thd,
-                             BEKEN_DEFAULT_WORKER_PRIORITY - 2,/*pm contrl cmd thread priority need higher*/
+                             BEKEN_DEFAULT_WORKER_PRIORITY - 3,/*pm contrl cmd thread priority need higher*/
                              "pm_info->thd",
                              (beken_thread_function_t)low_pwr_core_message_handle,
                              LOW_PWR_CORE_STACK_SIZE,
