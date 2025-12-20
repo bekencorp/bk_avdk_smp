@@ -16,7 +16,7 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 #define PM_AP_CORE_STACK_SIZE              (1536)
-#define PM_AP_CORE_QUEUE_NUMBER_OF_MESSAGE (10)
+#define PM_AP_CORE_QUEUE_NUMBER_OF_MESSAGE (30)
 
 /*=====================DEFINE  SECTION  END=====================*/
 
@@ -55,7 +55,7 @@ bk_err_t bk_pm_ap_core_send_msg(pm_ap_core_msg_t *msg)
 
         if (BK_OK != ret)
         {
-            LOGE("%s failed\n", __func__);
+            LOGE("%s failed[%d]\n", __func__,ret);
             return BK_FAIL;
         }
 
@@ -178,14 +178,14 @@ bk_err_t bk_pm_ap_core_init(void)
     }
 
     ret = rtos_core0_create_thread(&s_pm_info->thd,
-                             BEKEN_DEFAULT_WORKER_PRIORITY - 2,/*pm contrl cmd thread priority need higher*/
+                             BEKEN_DEFAULT_WORKER_PRIORITY - 3,/*pm contrl cmd thread priority need higher*/
                              "pm_info->thd",
                              (beken_thread_function_t)pm_ap_core_message_handle,
                              PM_AP_CORE_STACK_SIZE,
                              NULL);
     if (ret != BK_OK)
     {
-        LOGE("create thread fail\n");
+        LOGE("create thread fail[%d]\n",ret);
         goto error;
     }
 
