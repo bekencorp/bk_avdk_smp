@@ -73,7 +73,7 @@ static bk_err_t _vfs_open(audio_element_handle_t self)
         BK_LOGE(TAG, "Error, uri is not set \n");
         return BK_FAIL;
     }
-    char *path = strstr(uri, VFS_SD_0_PATITION_0);
+    char * path = uri;
     BK_LOGD(TAG, "_fatfs_open, uri:%s \n", uri);
     audio_element_getinfo(self, &info);
     if (path == NULL)
