@@ -574,6 +574,16 @@ void rwnx_txq_credit_update(int sta_idx, u8 tid, s8 update)
 	spin_unlock(&rwnx_hw->tx_lock);
 }
 
+int rwnx_txq_get_credits(int sta_idx, u8 tid)
+{
+	STA_INF_PTR sta = sta_mgmt_get_entry(sta_idx);
+	struct rwnx_txq *txq = rwnx_txq_sta_get(sta, tid);
+
+	if (!txq)
+		return 0;
+
+	return txq->credits;
+}
 
 /**
  * rwnx_txq_prepare - Global initialization of txq

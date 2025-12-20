@@ -308,6 +308,7 @@ int rwnx_txq_queue_skb(struct sk_buff *skb, struct rwnx_txq *txq, bool retry, st
 void rwnx_txq_drop_skb(struct rwnx_txq *txq,  struct sk_buff *skb, bool retry_packet);
 void rwnx_txq_cleanup_timer_cb(void *dummy);
 void rwnx_txq_credit_update(int sta_idx, u8 tid, s8 update);
+int rwnx_txq_get_credits(int sta_idx, u8 tid);
 void rwnx_hwq_init();
 void rwnx_hwq_process(struct rwnx_hwq *hwq);
 void rwnx_hwq_process_all(int);
