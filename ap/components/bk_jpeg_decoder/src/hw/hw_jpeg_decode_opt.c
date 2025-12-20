@@ -642,8 +642,12 @@ static void hw_jpeg_decode_opt_destroy(void)
         
         if (g_hw_jpeg_decode_opt->decode_timer_is_running == true)
         {
-            rtos_deinit_oneshot_timer(&g_hw_jpeg_decode_opt->decode_timer);
+            rtos_stop_oneshot_timer(&g_hw_jpeg_decode_opt->decode_timer);
             g_hw_jpeg_decode_opt->decode_timer_is_running = false;
+        }
+        if (rtos_is_oneshot_timer_init(&g_hw_jpeg_decode_opt->decode_timer))
+        {
+            rtos_deinit_oneshot_timer(&g_hw_jpeg_decode_opt->decode_timer);
         }
         if (g_hw_jpeg_decode_opt->hw_sem != NULL)
         {
