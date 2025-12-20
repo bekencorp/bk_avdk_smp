@@ -1209,6 +1209,9 @@ void ap_mgmt_rx(void *ctx, struct rx_mgmt *rx_mgmt)
 {
 #ifdef NEED_AP_MLME
 	struct wpa_supplicant *wpa_s = ctx;
+	/* fixme: GO/AP maybe deinit, ap_iface is NULL, return directly to avoid accessing illegal pointer */
+	if (!wpa_s || !wpa_s->ap_iface)
+		return;
 	struct hostapd_frame_info fi;
 	os_memset(&fi, 0, sizeof(fi));
 	fi.datarate = rx_mgmt->datarate;

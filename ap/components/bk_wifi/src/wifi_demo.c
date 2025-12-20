@@ -9,6 +9,7 @@
 #include "bk_wifi.h"
 #include "bk_wifi_private.h"
 #include <common/bk_err.h>
+#include <modules/wifi_types.h>
 #include <modules/wifi.h>
 #include "components/event.h"
 #include <../../lwip_intf_v2_1/lwip-2.1.2/port/net.h>
@@ -569,6 +570,9 @@ bk_err_t app_p2p_event_cb(void *arg, event_module_t event_module, int event_id, 
 		case EVENT_WIFI_AP_DISCONNECTED:
 			msg.dmsg = WIFI_LINKSTATE_AP_DISCONNECTED;
 			break;
+		case EVENT_WIFI_GO_DISCONNECTED:
+			msg.dmsg = WIFI_LINKSTATE_AP_DISCONNECTED;
+			break;
 		default:
 			return BK_OK; // Ignore other events
 		}
@@ -606,6 +610,8 @@ int demo_p2p_app_deinit(void)
 	                     app_p2p_event_cb, NULL);
 	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_DISCONNECTED,
 	                     app_p2p_event_cb, NULL);
+	bk_event_register_cb(EVENT_MOD_WIFI, EVENT_WIFI_GO_DISCONNECTED,
+						                     app_p2p_event_cb, NULL);
 
 	while(1) {
 		ret = rtos_pop_from_queue(&g_msg_queue, &msg, BEKEN_WAIT_FOREVER);
@@ -613,8 +619,10 @@ int demo_p2p_app_deinit(void)
 		// P2P GO disconnected (as GO)
 		if (msg.dmsg == WIFI_LINKSTATE_AP_DISCONNECTED && status == 1) {
 			uap_ip_down();
+
 			bk_wifi_p2p_cancel();
-			bk_wifi_p2p_find();
+			bk_wifi_p2p_stop_find();
+
 			status = 0;
 		}
 		// P2P GC connected (as GC) or got IP (as GO)
@@ -645,7 +653,8 @@ int demo_p2p_app_deinit(void)
 			// Only re-enable if P2P was not manually disabled during the wait
 			// This handles the case where user calls disable during auto-reconnect
 			if (saved_name) {
-				bk_wifi_p2p_enable(saved_name);
+				/* Use previous/default intent when auto re-enabling */
+				bk_wifi_p2p_enable_with_intent(saved_name, -1);
 				bk_wifi_p2p_find();
 			}
 			status = 0;
@@ -690,6 +699,7 @@ void app_p2p_stop_thread(void)
 	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED, app_p2p_event_cb);
 	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED, app_p2p_event_cb);
 	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_AP_DISCONNECTED, app_p2p_event_cb);
+	bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_WIFI_GO_DISCONNECTED, app_p2p_event_cb);
 
 	// Mark queue as uninitialized to stop receiving events
 	g_p2p_queue_inited = 0;

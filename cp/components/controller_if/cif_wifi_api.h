@@ -113,6 +113,7 @@ enum CIF_WIFI_API_CMD_TYPE
     P2P_CONNECT                         = 0x3D4,
     P2P_CANCEL                          = 0x3D5,
     P2P_DISABLE                         = 0x3D6,
+    P2P_ENABLE_WITH_INTENT              = 0x3D7,
 
     // RLK command section
     RLK_REGISTER_SEND_CB                = 0x400,

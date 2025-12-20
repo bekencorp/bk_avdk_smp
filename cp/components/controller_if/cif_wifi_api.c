@@ -767,6 +767,11 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = wlan_p2p_enable((char *)arg_info->args[0]);
             break;
         }
+        case P2P_ENABLE_WITH_INTENT:
+        {
+            ret = wlan_p2p_enable_with_intent((char *)arg_info->args[0], (int)arg_info->args[1]);
+            break;
+        }
         case P2P_FIND:
         {
             ret = wlan_p2p_find();

@@ -1102,8 +1102,15 @@ static int p2p_ctrl_connect(struct wpa_supplicant *wpa_s,
 	ht40 = wpa_s->conf->p2p_go_ht40 || vht;
 	he = wpa_s->conf->p2p_go_he;
 
-	//TODO force device as GC
-	go_intent = 0;//param->intent;
+#if BK_SUPPLICANT
+	// Use intent from param, or fallback to config default
+	if (param->intent >= 0 && param->intent <= 15) {
+		go_intent = param->intent;
+	} else {
+		// If intent is -1 or invalid, use config default
+		go_intent = wpa_s->conf->p2p_go_intent;
+	}
+#endif
 
 	max_oper_chwidth = CHANWIDTH_USE_HT;
 

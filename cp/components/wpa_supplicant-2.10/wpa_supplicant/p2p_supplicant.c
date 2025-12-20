@@ -16,6 +16,7 @@
 #include "common/wpa_ctrl.h"
 #include "wps/wps_i.h"
 #include "p2p/p2p.h"
+#include "p2p/p2p_i.h"
 #include "ap/hostapd.h"
 #include "ap/ap_config.h"
 #include "ap/sta_info.h"
@@ -2442,6 +2443,7 @@ static void wpas_go_neg_completed(void *ctx, struct p2p_go_neg_results *res)
 {
 	struct wpa_supplicant *wpa_s = ctx;
 	struct wpa_supplicant *group_wpa_s;
+	u8 go_intent = 0;
 
 	if (wpa_s->off_channel_freq || wpa_s->roc_waiting_drv_freq) {
 		wpa_drv_cancel_remain_on_channel(wpa_s);
@@ -2474,22 +2476,34 @@ static void wpas_go_neg_completed(void *ctx, struct p2p_go_neg_results *res)
 	res->max_oper_chwidth = wpa_s->p2p_go_max_oper_chwidth;
 	res->vht_center_freq2 = wpa_s->p2p_go_vht_center_freq2;
 
+	/* Get GO Intent from p2p_data structure */
+	if (wpa_s->global->p2p) {
+		go_intent = wpa_s->global->p2p->go_intent;
+		/* Update wpa_s->p2p_go_intent if it's 0 or different */
+		if (wpa_s->p2p_go_intent == 0 || wpa_s->p2p_go_intent != go_intent) {
+			wpa_s->p2p_go_intent = go_intent;
+		}
+	} else {
+		/* Fallback to wpa_s->p2p_go_intent if p2p_data is not available */
+		go_intent = wpa_s->p2p_go_intent;
+	}
+
 #if CONFIG_WPA_LOG
 	wpa_msg_global(wpa_s, MSG_INFO, P2P_EVENT_GO_NEG_SUCCESS "role=%s "
 		       "freq=%d ht40=%d peer_dev=" MACSTR " peer_iface=" MACSTR
-		       " wps_method=%s",
+		       " wps_method=%s GO Intent=%d",
 		       res->role_go ? "GO" : "client", res->freq, res->ht40,
 		       MAC2STR(res->peer_device_addr),
 		       MAC2STR(res->peer_interface_addr),
-		       p2p_wps_method_text(res->wps_method));
+		       p2p_wps_method_text(res->wps_method), go_intent);
 #else
 	WPA_LOGD(P2P_EVENT_GO_NEG_SUCCESS "role=%s "
 		   "freq=%d ht40=%d peer_dev=" MACSTR " peer_iface=" MACSTR
-		       " wps_method=%s\n",
+		       " wps_method=%s GO Intent=%d\n",
 		       res->role_go ? "GO" : "client", res->freq, res->ht40,
 		       MAC2STR(res->peer_device_addr),
 		       MAC2STR(res->peer_interface_addr),
-		       p2p_wps_method_text(res->wps_method));
+		       p2p_wps_method_text(res->wps_method), go_intent);
 #endif
 
 	wpas_notify_p2p_go_neg_completed(wpa_s, res);
@@ -5034,6 +5048,19 @@ int wpas_p2p_init(struct wpa_global *global, struct wpa_supplicant *wpa_s)
 	}
 
 	p2p_set_no_go_freq(global->p2p, &wpa_s->conf->p2p_no_go_freq);
+
+#ifdef BK_SUPPLICANT
+	// If p2p_go_intent is default (15), try to get from saved intent
+	// Note: intent=0 is a valid user setting (GC), so we only override default 15
+	extern int wlan_p2p_get_saved_intent(void);
+	if (wpa_s->conf->p2p_go_intent == 15) {
+		int saved_intent = wlan_p2p_get_saved_intent();
+		if (saved_intent >= 0 && saved_intent <= 15) {
+			wpa_s->conf->p2p_go_intent = saved_intent;
+			wpa_printf(MSG_DEBUG, "P2P: Set p2p_go_intent to %d from saved intent in wpas_p2p_init\n", saved_intent);
+		}
+	}
+#endif
 
 	return 0;
 }

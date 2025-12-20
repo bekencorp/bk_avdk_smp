@@ -1711,7 +1711,7 @@ bk_err_t bk_bridge_stop(void);
 /**
  * @brief    Enable BK P2P Mode
  *
- * @param ssid the ssid of the p2p group
+ * @param ssid   P2P device name (SSID), NULL to use saved/default
  * @return
  *    - BK_OK: succeed
  *    - BK_FAIL: p2p enable fail.
@@ -1803,6 +1803,22 @@ const char *bk_wifi_get_p2p_dev_name(void);
  *    - others: other errors
  */
 bk_err_t bk_wifi_p2p_disable(void);
+
+/**
+ * @brief    Enable BK P2P Mode
+ *
+ * @param ssid   P2P device name (SSID), NULL to use saved/default
+ * @param intent GO Intent value:
+ *               -1: keep previous/default value
+ *                0: force GC (client)
+ *             1-14: negotiation preference (higher => more likely GO)
+ *               15: force GO
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_FAIL: p2p enable fail.
+ *    - others: other errors
+ */
+bk_err_t bk_wifi_p2p_enable_with_intent(const char *ssid, int intent);
 #endif
 
 #ifdef __cplusplus

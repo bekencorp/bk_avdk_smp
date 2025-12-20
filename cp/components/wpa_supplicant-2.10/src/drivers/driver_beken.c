@@ -2810,6 +2810,13 @@ int wpa_driver_nl80211_deinit_ap(void *priv)
 		return -1;
 	wpa_driver_hostap_stop_apm(drv);
 
+#ifdef CONFIG_P2P_GO  //fixme
+	if (drv->nlmode == NL80211_IFTYPE_P2P_GO) {
+		WPA_LOGD("P2P GO deinit: vif=%d, will switch back to STA mode on p2p device interface\r\n", drv->vif_index);
+		return 0;
+	}
+#endif
+
 	return wpa_driver_set_mode(drv, NL80211_IFTYPE_STATION);
 }
 

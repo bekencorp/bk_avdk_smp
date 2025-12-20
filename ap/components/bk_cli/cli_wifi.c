@@ -132,7 +132,8 @@ void cli_wifi_p2p_help(void)
 {
 	CLI_RAW_LOGI("\r\np2p {enable|find|listen|stop_find|connect|cancel}\n");
 	CLI_RAW_LOGI("  Control WiFi P2P operations. \n");
-	CLI_RAW_LOGI("  -enable <string><optional>: enable P2P with optional device name. \n");
+	CLI_RAW_LOGI("  -enable [ssid] [intent]: enable P2P with optional device name and GO Intent (0-15). \n");
+	CLI_RAW_LOGI("                           intent: 0=GC, 15=GO, 1-14=preference, -1=keep default. \n");
 	CLI_RAW_LOGI("  -find: start peer discovery. \n");
 	CLI_RAW_LOGI("  -listen: enter listen state. \n");
 	CLI_RAW_LOGI("  -stop_find: stop peer discovery. \n");
@@ -898,12 +899,27 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 
 	if (!os_strcmp(argv[1], "enable")) {
 		const char *p2p_ssid = NULL;
-		if (argc >= 3)
+		int intent = -1;  // Default: keep previous/default
+
+		if (argc >= 3) {
 			p2p_ssid = argv[2];
-		ret = bk_wifi_p2p_enable(p2p_ssid);
-		if (ret != BK_OK) {
-			CLI_LOGE("p2p enable failed, err=%d\n", ret);
-			goto error;
+			ret = bk_wifi_p2p_enable(p2p_ssid);
+			if (ret != BK_OK) {
+				CLI_LOGE("p2p enable failed, err=%d\n", ret);
+				goto error;
+			}
+		}
+		if (argc >= 4) {
+			intent = atoi(argv[3]);
+			if (intent < -1 || intent > 15) {
+				CLI_LOGE("invalid intent value (must be -1 or 0-15)\n");
+				goto error;
+			}
+			ret = bk_wifi_p2p_enable_with_intent(p2p_ssid, intent);
+			if (ret != BK_OK) {
+				CLI_LOGE("p2p enable with intent failed, err=%d\n", ret);
+				goto error;
+			}
 		}
 	} else if (!os_strcmp(argv[1], "find")) {
 		ret = bk_wifi_p2p_find();

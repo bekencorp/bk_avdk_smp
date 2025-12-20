@@ -32,6 +32,8 @@
 #ifdef CONFIG_P2P
 #include "rw_tx_buffering.h"
 #include "fhost_msg.h"
+#include "../../wpa_supplicant-2.10/wpa_supplicant/wpa_supplicant_i.h"
+#include "../../wpa_supplicant-2.10/wpa_supplicant/config.h"
 #endif
 #include "rw_ieee80211.h"
 #include "ieee802_11_defs.h"
@@ -1438,6 +1440,14 @@ int wlan_dhcp_done_ind(u8 vif_idx)
 #if CONFIG_P2P
 // Save P2P SSID from AP side for reconnection or manual restart
 static char g_p2p_saved_ssid[33] = {0};
+// Save P2P intent for future connect operations
+static int g_p2p_saved_intent = -1;  // -1 means not set, use default
+
+// Get saved P2P intent (for use by wpa_supplicant)
+int wlan_p2p_get_saved_intent(void)
+{
+	return g_p2p_saved_intent;
+}
 
 int wlan_p2p_enable(const char *ssid)
 {
@@ -1479,6 +1489,76 @@ int wlan_p2p_enable(const char *ssid)
 	return ret;
 }
 
+int wlan_p2p_enable_with_intent(const char *ssid, int intent)
+{
+	int ret = 0;
+	network_InitTypeDef_st wNetConfig;
+	char *default_ssid = "BEKEN SMP_P2P";
+	char *connect_key = "12345678";
+	const char *actual_ssid = NULL;
+	int actual_intent = intent;
+
+	// Validate intent value (0-15, or -1 for default)
+	if (actual_intent < -1 || actual_intent > 15) {
+		WIFI_LOGE("%s: Invalid intent value (%d), must be -1 or 0-15\r\n", __func__, intent);
+		return -1;
+	}
+
+	// If intent not provided (-1), use saved intent or default
+	if (actual_intent == -1) {
+		if (g_p2p_saved_intent >= 0) {
+			actual_intent = g_p2p_saved_intent;
+		} else {
+			actual_intent = 15;  // Default to GO intent
+		}
+	}
+
+	// Save intent for future use
+	g_p2p_saved_intent = actual_intent;
+
+	os_memset(&wNetConfig, 0x0, sizeof(network_InitTypeDef_st));
+
+	if (ssid && strlen(ssid) > 0) {
+		// Use provided SSID
+		actual_ssid = ssid;
+		// Save it for future reconnections (avoid self-overwrite)
+		if (ssid != g_p2p_saved_ssid) {
+			os_strlcpy(g_p2p_saved_ssid, ssid, sizeof(g_p2p_saved_ssid));
+		}
+	} else if (g_p2p_saved_ssid[0] != '\0') {
+		// Use saved SSID
+		actual_ssid = g_p2p_saved_ssid;
+	} else {
+		// Use default SSID and save it
+		actual_ssid = default_ssid;
+		os_strlcpy(g_p2p_saved_ssid, default_ssid, sizeof(g_p2p_saved_ssid));
+	}
+
+	os_strlcpy((char *)wNetConfig.wifi_ssid, actual_ssid, sizeof(wNetConfig.wifi_ssid));
+
+	os_strlcpy((char *)wNetConfig.wifi_key, connect_key, sizeof(wNetConfig.wifi_key));
+
+	wNetConfig.wifi_mode = BK_STATION;
+	wNetConfig.dhcp_mode = DHCP_CLIENT;
+	wNetConfig.wifi_retry_interval = 100;
+
+	bk_wlan_sta_init(&wNetConfig);
+	ret = wlan_sta_enable();
+
+	// Set intent in wpa_supplicant configuration for passive negotiation
+	// Try after wlan_sta_enable() since wpa_s may not be available before
+	struct wpa_supplicant *wpa_s = wpa_suppliant_ctrl_get_wpas();
+	if (wpa_s != NULL && wpa_s->conf != NULL) {
+		wpa_s->conf->p2p_go_intent = actual_intent;
+		WIFI_LOGI("%s: Set p2p_go_intent to %d in wpa_s->conf\r\n", __func__, actual_intent);
+	} else {
+		WIFI_LOGW("%s: Failed to set p2p_go_intent: wpa_s=%p, conf=%p (will retry later)\r\n",
+			__func__, wpa_s, wpa_s ? wpa_s->conf : NULL);
+	}
+
+	return ret;
+}
+
 int wlan_p2p_listen(void)
 {
 	return wpa_ctrl_request(WPA_CTRL_CMD_P2P_LISTEN, NULL);
@@ -1502,10 +1582,19 @@ int wlan_p2p_cancel(void)
 int wlan_p2p_connect(const uint8_t *mac, int method, int intent)
 {
 	struct wlan_p2p_connect_param param;
+	int actual_intent = intent;
+	// If intent not provided (-1), use saved intent from enable
+	if (actual_intent == -1) {
+		if (g_p2p_saved_intent >= 0) {
+			actual_intent = g_p2p_saved_intent;
+		} else {
+			actual_intent = 15;  // Default to GO intent
+		}
+	}
 
 	os_memcpy(param.addr, mac, 6);
 	param.method = method;
-	param.intent = intent;
+	param.intent = actual_intent;
 
 	return wpa_ctrl_request(WPA_CTRL_CMD_P2P_CONNECT, &param);
 }

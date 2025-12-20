@@ -15,11 +15,22 @@
 #include "wps/wps_defs.h"
 #include "p2p_i.h"
 #include "p2p.h"
+#ifdef BK_SUPPLICANT
+#include "../../wpa_supplicant/wpa_supplicant_i.h"
+#include "../../wpa_supplicant/config.h"
+#endif
 
 
 static int p2p_go_det(u8 own_intent, u8 peer_value)
 {
 	u8 peer_intent = peer_value >> 1;
+
+	/* If own_intent is 0, we explicitly want to be client (GC), not GO */
+	if (own_intent == 0) {
+		/* Always be client when go_intent is 0, regardless of peer's intent */
+		return 0;
+	}
+
 	if (own_intent == peer_intent) {
 		if (own_intent == P2P_MAX_GO_INTENT)
 			return -1; /* both devices want to become GO */
@@ -1013,12 +1024,41 @@ void p2p_process_go_neg_req(struct p2p_data *p2p, const u8 *sa,
 			return;
 		}
 
+		/* If p2p->go_intent is 0 (uninitialized), read from config */
+		if (p2p->go_intent == 0 && !p2p->go_neg_peer) {
+#ifdef BK_SUPPLICANT
+			struct wpa_supplicant *wpa_s = (struct wpa_supplicant *)p2p->cfg->cb_ctx;
+			if (wpa_s && wpa_s->conf) {
+				int config_intent = wpa_s->conf->p2p_go_intent;
+				if (config_intent >= 0 && config_intent <= 15) {
+					p2p->go_intent = config_intent;
+					WPA_LOGD("Setting GO Intent to %d from config for incoming GO Negotiation Request\n", p2p->go_intent);
+				} else {
+					p2p->go_intent = 14;
+					WPA_LOGD("Setting default GO Intent to 14 for incoming GO Negotiation Request (invalid config value)\n");
+				}
+			} else {
+				p2p->go_intent = 14;
+				WPA_LOGD("Setting default GO Intent to 14 for incoming GO Negotiation Request (wpa_s or conf not available)\n");
+			}
+#else
+			p2p->go_intent = 14;
+			WPA_LOGD("Setting default GO Intent to 14 for incoming GO Negotiation Request (go_intent was uninitialized)\n");
+#endif
+		} else if (p2p->go_intent == 0) {
+			WPA_LOGD("GO Intent is explicitly set to 0, will negotiate as client (GC)\n");
+		}
+
+		WPA_LOGD("GO Negotiation: local go_intent=%d, peer go_intent=%d (raw=0x%02x)\n",
+			p2p->go_intent, *msg.go_intent >> 1, *msg.go_intent);
 		go = p2p_go_det(p2p->go_intent, *msg.go_intent);
 		if (go < 0) {
 			p2p_dbg(p2p, "Incompatible GO Intent");
 			status = P2P_SC_FAIL_BOTH_GO_INTENT_15;
 			goto fail;
 		}
+		WPA_LOGD("GO Negotiation result: go=%d (1=local GO, 0=remote GO), tie_breaker=%d\n",
+			go, *msg.go_intent & 0x01);
 
 		if (p2p_peer_channels(p2p, dev, msg.channel_list,
 				      msg.channel_list_len) < 0) {

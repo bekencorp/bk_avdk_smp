@@ -617,10 +617,12 @@ int wlan_ap_set_beacon_vsie(wlan_ap_vsie_t *vsie);
 int wlan_dhcp_done_ind(u8 vif_idx);
 #if CONFIG_P2P
 int wlan_p2p_enable(const char *ssid);
+int wlan_p2p_enable_with_intent(const char *ssid, int intent);
 int wlan_p2p_find(void);
 int wlan_p2p_listen(void);
 int wlan_p2p_stop_find(void);
 int wlan_p2p_connect(const uint8_t *mac, int method, int intent);
+int wlan_p2p_get_saved_intent(void);  // Get saved P2P intent for wpa_supplicant
 int wlan_p2p_disable(void);
 int wlan_p2p_cancel(void);
 #endif

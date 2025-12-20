@@ -54,6 +54,9 @@ static uint16_t s_wifi_state_bits = 0;
 #if CONFIG_P2P
 static bool s_wifi_p2p_enabled = false;
 static char s_wifi_p2p_dev_name[SSID_MAX_LEN + 1] = {0};
+/* Default GO Intent for P2P negotiation, set via bk_wifi_p2p_enable()
+ * -1 means "use underlying default (usually 15)" */
+static int s_wifi_p2p_default_intent = -1;
 #endif
 static inline void wifi_set_state_bit(uint16_t state_bit)
 {
@@ -2142,7 +2145,79 @@ bk_err_t bk_wifi_p2p_enable(const char *ssid)
     }
     os_memcpy(buffer_to_ipc, actual_ssid, ssid_len);
     ((char *)buffer_to_ipc)[ssid_len] = '\0'; // Add EOF
+
     ret = wifi_send_com_api_cmd(P2P_ENABLE, 1, (uint32_t)buffer_to_ipc);
+    os_free(buffer_to_ipc);
+
+    if (ret == BK_OK) {
+        s_wifi_p2p_enabled = true;
+        // save p2p device name to local buffer
+        char temp_ssid[SSID_MAX_LEN + 1];
+        os_memcpy(temp_ssid, actual_ssid, ssid_len);
+        temp_ssid[ssid_len] = '\0';
+
+        os_memset(s_wifi_p2p_dev_name, 0, sizeof(s_wifi_p2p_dev_name));
+        os_memcpy(s_wifi_p2p_dev_name, temp_ssid, ssid_len);
+        s_wifi_p2p_dev_name[ssid_len] = '\0';
+    } else {
+        WIFI_LOGE("AP: IPC P2P_ENABLE FAILED! SSID NOT saved! ret=%d\n", ret);
+    }
+
+    if (!g_p2p_thread_running) {
+        app_p2p_restart_thread();
+        bk_wlan_status_register_cb(app_p2p_rw_event_func);
+    }
+
+    return ret;
+}
+
+bk_err_t bk_wifi_p2p_enable_with_intent(const char *ssid, int intent)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    const char *default_ssid = "BEKEN SMP_P2P";
+    const char *actual_ssid = NULL;
+
+    /* Validate and save default GO Intent if provided:
+     * intent: -1 => keep previous/default; 0..15 => new default */
+    if (intent < -1 || intent > 15) {
+        WIFI_LOGE("%s: invalid intent value %d (must be -1 or 0..15)\r\n", __func__, intent);
+        return BK_ERR_PARAM;
+    }
+    if (intent != -1) {
+        s_wifi_p2p_default_intent = intent;
+    }
+
+    if (ssid != NULL && os_strlen(ssid) > 0) {
+        // Use provided SSID
+        actual_ssid = ssid;
+    } else if (s_wifi_p2p_dev_name[0] != '\0') {
+        // Use saved SSID if available
+        actual_ssid = s_wifi_p2p_dev_name;
+    } else {
+        // Use default SSID
+        actual_ssid = default_ssid;
+    }
+
+    uint8_t ssid_len = os_strlen(actual_ssid);
+    if (ssid_len > SSID_MAX_LEN) {
+        WIFI_LOGE("%s: SSID too long (%d > %d)\r\n", __func__, ssid_len, SSID_MAX_LEN);
+        return BK_ERR_PARAM;
+    }
+    buffer_to_ipc = os_malloc(ssid_len + 1);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+    os_memcpy(buffer_to_ipc, actual_ssid, ssid_len);
+    ((char *)buffer_to_ipc)[ssid_len] = '\0'; // Add EOF
+    // Pass intent to CP side: use saved default if intent is -1
+    int intent_to_send = (intent == -1) ? s_wifi_p2p_default_intent : intent;
+    if (intent_to_send == -1) {
+        intent_to_send = 0;  // Fallback to default GC intent
+    }
+    ret = wifi_send_com_api_cmd(P2P_ENABLE_WITH_INTENT, 2, (uint32_t)buffer_to_ipc, intent_to_send);
     os_free(buffer_to_ipc);
 
     if (ret == BK_OK) {
@@ -2186,9 +2261,20 @@ bk_err_t bk_wifi_p2p_connect(const uint8_t *mac, int method, int intent)
 {
     bk_err_t ret = BK_OK;
     void *buffer_to_ipc = NULL;
+    int actual_intent = intent;
 
     if (!mac)
         return BK_ERR_NULL_PARAM;
+
+    /* If caller passes -1, use default intent set by bk_wifi_p2p_enable().
+     * Fallback to 0 (GC preference) if no default configured. */
+    if (actual_intent == -1) {
+        if (s_wifi_p2p_default_intent >= 0) {
+            actual_intent = s_wifi_p2p_default_intent;
+        } else {
+            actual_intent = 0;
+        }
+    }
 
     buffer_to_ipc = os_malloc(WIFI_MAC_LEN);
     if (!buffer_to_ipc)
@@ -2198,7 +2284,7 @@ bk_err_t bk_wifi_p2p_connect(const uint8_t *mac, int method, int intent)
     }
 
     os_memcpy(buffer_to_ipc, mac, WIFI_MAC_LEN);
-    ret = wifi_send_com_api_cmd(P2P_CONNECT, 3, (uint32_t)buffer_to_ipc, method, intent);
+    ret = wifi_send_com_api_cmd(P2P_CONNECT, 3, (uint32_t)buffer_to_ipc, method, actual_intent);
     os_free(buffer_to_ipc);
 
     return ret;
@@ -2231,4 +2317,5 @@ bk_err_t bk_wifi_p2p_disable(void)
     }
     return ret;
 }
+
 #endif
