@@ -367,7 +367,7 @@ void cli_wifi_ap_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **
 
 	CLI_LOGI("Start softap. ssid:%s key:%s chan:%d hidden:%d disable_dns_server:%d\r\n",
 				ap_config.ssid, ap_config.password, ap_config.channel, ap_config.hidden, ap_config.disable_dns_server);
-	ap_config.hidden = true;
+
 	ret = bk_wifi_ap_set_config(&ap_config);
 	ret = bk_wifi_ap_start();
 
