@@ -9,7 +9,7 @@ menu "Bk_thirdparty::Wanson_armino"
 	config WANSON_ASR_GROUP_VERSION
 		depends on WANSON_ARMINO_ASR
 		bool "Enable Wanson ASR_GROUP_VERSION"
-		default n
+		default y
 		help
 			Enable Wanson ASR_GROUP_VERSION
 

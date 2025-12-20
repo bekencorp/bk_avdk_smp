@@ -14,8 +14,6 @@
         }\
     } while(0)
 
-#define AUD_ASR_RAW_READ_SIZE    (480)
-
 typedef enum
 {
     AUD_ASR_IDLE = 0,
@@ -31,22 +29,24 @@ typedef struct
 
 struct aud_asr
 {
-	asr_handle_t asr_handle;                                                        /**< asr handle */
-	void *args;                                                                     /**< the pravate parameter of callback */
-	int task_stack;                                                                 /**< Task stack size */
-	int task_core;                                                                  /**< Task running in core (0 or 1) */
-	int task_prio;                                                                  /**< Task priority (based on freeRTOS priority) */
-	audio_mem_type_t mem_type;                                                      /**< memory type used, sram, psram, audio_heap */
-	beken_thread_t aud_asr_task_hdl;
-	beken_queue_t aud_asr_msg_que;
-	beken_semaphore_t sem;
-	uint8_t *read_buff;
-	bool running;
-	uint32_t max_read_size;                                                         /**< the max size of data read from asr handle, used in asr_read_callback */
-	void (*aud_asr_result_handle)(uint32_t param);
-	int (*aud_asr_init)(void);
-	int (*aud_asr_recog)(void *read_buf, uint32_t read_size, void *p1, void *p2);
-	void (*aud_asr_deinit)(void);
+    asr_handle_t asr_handle;                                                        /**< asr handle */
+    void *args;                                                                     /**< the pravate parameter of callback */
+    int task_stack;                                                                 /**< Task stack size */
+    int task_core;                                                                  /**< Task running in core (0 or 1) */
+    int task_prio;                                                                  /**< Task priority (based on freeRTOS priority) */
+    audio_mem_type_t mem_type;                                                      /**< memory type used, sram, psram, audio_heap */
+    beken_thread_t aud_asr_task_hdl;
+    beken_queue_t aud_asr_msg_que;
+    beken_semaphore_t sem;
+    uint8_t *read_buff;
+    bool running;
+    uint32_t max_read_size;                                                         /**< the max size of data read from asr handle, used in asr_read_callback */
+    void (*aud_asr_result_handle)(void *p1, void *p2);
+    int (*aud_asr_init)(void);
+    int (*aud_asr_recog)(void *read_buf, uint32_t read_size, void *p1, void *p2);
+    void (*aud_asr_deinit)(void);
+    void *p1;                                                                   /*!< user parameter 1 */
+    void *p2;                                                                   /*!< user parameter 2 */
 };
 
 #define UAC_MIC_DEBUG (0)
@@ -75,10 +75,27 @@ static struct uart_util gl_asr_util = {0};
 #define ASR_DATA_DUMP_BY_UART_CLOSE()
 #define ASR_DATA_DUMP_BY_UART_DATA(data_buf, len)
 #endif  //ASR_DATA_DUMP_BY_UART
-#endif
 
-const static char *text;
-static float score;
+// Define macro to control time difference statistics
+#define ASR_TIME_DEBUG (0)
+#if ASR_TIME_DEBUG
+#define ASR_TIME_START()    uint64_t start_time = rtos_get_time()
+#define ASR_TIME_END()      uint64_t stop_time = rtos_get_time()
+#define ASR_TIME_CHECK()    do { \
+                                if ((uint32_t)(stop_time-start_time) >= 30) \
+                                { \
+                                    BK_LOGI(TAG, "Recogn:%d---%d\n", (uint32_t)(stop_time-start_time), result); \
+                                } else if ((uint32_t)(stop_time-start_time) < 0) \
+                                { \
+                                    BK_LOGI(TAG, "Error excute--%d\n", (uint32_t)(stop_time-start_time)); \
+                                } \
+                            } while(0)
+#else
+#define ASR_TIME_START()
+#define ASR_TIME_END()
+#define ASR_TIME_CHECK()
+#endif  //ASR_TIME_DEBUG
+#endif
 
 static bk_err_t aud_asr_send_msg(beken_queue_t queue, aud_asr_op_t op, void *param)
 {
@@ -103,9 +120,9 @@ static bk_err_t aud_asr_send_msg(beken_queue_t queue, aud_asr_op_t op, void *par
 	return ret;
 }
 
-static void aud_asr_result_handle(uint32_t param)
+static void aud_asr_result_handle(void *p1, void *p2)
 {
-	BK_LOGI(TAG, "asr_result : %s\r\n", (char *)param);
+	BK_LOGI(TAG, "%s\r\n", __func__);
 }
 
 static void aud_asr_task_main(beken_thread_arg_t param_data)
@@ -123,7 +140,7 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 	if (aud_asr_handle->aud_asr_init) {
 		if (aud_asr_handle->aud_asr_init() < 0)
 		{
-			os_printf("Wanson_ASR_Init Failed!\n");
+			BK_LOGE(TAG, "ASR_Init Failed!\n");
 			goto aud_asr_exit;
 		}
 	}
@@ -167,32 +184,23 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 				read_size = bk_aud_asr_read_mic_data(aud_asr_handle->asr_handle, (char *)aud_asr_handle->read_buff, aud_asr_handle->max_read_size);
 				if (read_size == aud_asr_handle->max_read_size)
 				{
-					uint64_t __maybe_unused start_time = rtos_get_time();
+					ASR_TIME_START();
 					ASR_INPUT_START();
 					if (aud_asr_handle->aud_asr_recog) {
-						result = aud_asr_handle->aud_asr_recog((void*)aud_asr_handle->read_buff, aud_asr_handle->max_read_size, (void*)&text, (void*)&score);
+						result = aud_asr_handle->aud_asr_recog((void*)aud_asr_handle->read_buff, aud_asr_handle->max_read_size, aud_asr_handle->p1, aud_asr_handle->p2);
 					}
 					ASR_INPUT_END();
-					uint64_t __maybe_unused stop_time = rtos_get_time();
+					ASR_TIME_END();
 					ASR_DATA_DUMP_BY_UART_DATA(aud_asr_handle->read_buff, read_size);
-
-					if ((uint32_t)(stop_time-start_time) >= 30)
-					{
-						BK_LOGV(TAG, "Recogn:%d---%d\n", (uint32_t)(stop_time-start_time), result);
-					} else if ((uint32_t)(stop_time-start_time) < 0)
-					{
-						BK_LOGV(TAG, "Error excute--%d\n", (uint32_t)(stop_time-start_time));
-					} else {
-						;
-					}
+					ASR_TIME_CHECK();
 
 					if (result == 1) {
 						if (aud_asr_handle->aud_asr_result_handle) {
-							aud_asr_handle->aud_asr_result_handle((uint32_t)text);
+							aud_asr_handle->aud_asr_result_handle(aud_asr_handle->p1, aud_asr_handle->p2);
 						} else
 						{
 							BK_LOGE(TAG, "aud_asr_handle->aud_asr_result_handle is NULL\n");
-							aud_asr_result_handle((uint32_t)text);
+							aud_asr_result_handle(aud_asr_handle->p1, aud_asr_handle->p2);
 						}
 					} else {
 						;
@@ -258,6 +266,8 @@ aud_asr_handle_t bk_aud_asr_init(aud_asr_cfg_t *cfg)
     aud_asr_handle->aud_asr_init          = cfg->aud_asr_init;
     aud_asr_handle->aud_asr_recog         = cfg->aud_asr_recog;
     aud_asr_handle->aud_asr_deinit        = cfg->aud_asr_deinit;
+    aud_asr_handle->p1                    = cfg->p1;
+    aud_asr_handle->p2                    = cfg->p2;
 
     /* malloc read buffer */
     if (cfg->mem_type == AUDIO_MEM_TYPE_PSRAM)

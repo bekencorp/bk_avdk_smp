@@ -49,6 +49,11 @@
 static asr_handle_t gl_asr_service_handle = NULL;
 static aud_asr_handle_t gl_aud_asr_service_handle = NULL;
 
+#if (CONFIG_WANSON_ARMINO_ASR || CONFIG_WANSON_ASR)
+const static char *text = NULL;
+static float score = 0.0;
+#endif
+
 #if (CONFIG_VOICE_SERVICE)
 static voice_handle_t gl_voice_service_handle = NULL;
 static voice_read_handle_t gl_voice_read_service_handle = NULL;
@@ -88,9 +93,9 @@ int voice_service_send_callback(unsigned char *data, unsigned int len, void *arg
  * @brief ASR result processing function
  * @param param Recognition result string pointer
  */
-static void bk_asr_service_result_handle(uint32_t param)
+static void bk_asr_service_result_handle(void *p1, void *p2)
 {
-    char *result = (char *)param;
+    char *result = *((char **)p1);
 
 #if CONFIG_WANSON_ASR
     if (os_strcmp(result, "小叮小叮") == 0)
@@ -140,6 +145,8 @@ static void bk_asr_service_result_handle(uint32_t param)
     }
     // No processing for other cases
 #endif
+#else
+    LOGW("Need open the Macro for asr. result : %s\n", result);
 #endif
 }
 
@@ -222,9 +229,14 @@ static int bk_init_audio_asr_service(asr_handle_t asr_handle)
     aud_asr_cfg.aud_asr_result_handle = bk_asr_service_result_handle;
 
 #if (CONFIG_WANSON_ARMINO_ASR || CONFIG_WANSON_ASR)
-    aud_asr_cfg.aud_asr_init = bk_wanson_asr_common_init;
+    aud_asr_cfg.aud_asr_init   = bk_wanson_asr_common_init;
     aud_asr_cfg.aud_asr_deinit = bk_wanson_asr_common_deinit;
-    aud_asr_cfg.aud_asr_recog = bk_wanson_asr_recog;
+    aud_asr_cfg.aud_asr_recog  = bk_wanson_asr_recog;
+    aud_asr_cfg.p1 = (void*)&text;
+    aud_asr_cfg.p2 = (void*)&score;
+#else
+    LOGW("Need open the Macro for asr. line : %d\n", __LINE__);
+    return BK_FAIL;
 #endif
 
     gl_aud_asr_service_handle = bk_aud_asr_init(&aud_asr_cfg);
