@@ -242,4 +242,13 @@ menu "LVGL"
         depends on LVGL
         int "Set the display frame buffer number"
         default 2
+
+    config LVGL_RGB888_HIGH_BIT_SHIFT
+        depends on LVGL
+        bool "Enable rgb888 high bit shift" 
+        default n
+        help
+            Enable rgb888 high bit shift when CONFIG_LV_COLOR_DEPTH is 24, 
+            set LVGL_FRAME_BUFFER_NUM to 4 if LVGL_USE_DIRECT_MODE is enabled,
+            set LVGL_FRAME_BUFFER_NUM to 3 if LVGL_USE_PARTIAL_MODE is enabled
 endmenu
