@@ -123,7 +123,11 @@ bk_err_t bk_avi_player_open(bk_avi_player_config_t *player_config)
         goto out;
     } else {
         avi_player->video_num = AVI_video_frames(avi_player->avi);
-        avi_player->frame_size = avi_player->avi->width * avi_player->avi->height * 2;
+        if (player_config->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB888) {
+            avi_player->frame_size = avi_player->avi->width * avi_player->avi->height * 3;
+        } else {
+            avi_player->frame_size = avi_player->avi->width * avi_player->avi->height * 2;
+        }
         LOGI("avi video_num: %d, width: %d, height: %d, frame_size: %d, fps: %d\r\n", avi_player->video_num, avi_player->avi->width, avi_player->avi->height, avi_player->frame_size, (uint32_t)avi_player->avi->fps);
     }
 

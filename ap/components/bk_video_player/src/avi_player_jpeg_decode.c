@@ -87,7 +87,7 @@ static bk_err_t avi_player_dma2d_yuyv2rgb565_deinit(void)
     return ret;
 }
 
-static void avi_player_dma2d_yuyv2rgb565(void *src, const void *dst, uint16_t width, uint16_t height, bool byte_swap)
+static void avi_player_dma2d_yuyv2rgb565(void *src, const void *dst, uint16_t width, uint16_t height, bool byte_swap, bk_avi_player_format_t output_format)
 {
     dma2d_memcpy_pfc_t dma2d_memcpy_pfc = {0};
 
@@ -95,9 +95,16 @@ static void avi_player_dma2d_yuyv2rgb565(void *src, const void *dst, uint16_t wi
     dma2d_memcpy_pfc.output_addr = (char *)dst;
     dma2d_memcpy_pfc.mode = DMA2D_M2M_PFC;
     dma2d_memcpy_pfc.input_color_mode = DMA2D_INPUT_YUYV;
-    dma2d_memcpy_pfc.output_color_mode = DMA2D_OUTPUT_RGB565;
     dma2d_memcpy_pfc.src_pixel_byte = TWO_BYTES;
-    dma2d_memcpy_pfc.dst_pixel_byte = TWO_BYTES;
+
+    if (output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565) {
+        dma2d_memcpy_pfc.output_color_mode = DMA2D_OUTPUT_RGB565;
+        dma2d_memcpy_pfc.dst_pixel_byte = TWO_BYTES;
+    } else if (output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB888) {
+        dma2d_memcpy_pfc.output_color_mode = DMA2D_OUTPUT_RGB888;
+        dma2d_memcpy_pfc.dst_pixel_byte = THREE_BYTES;
+    }
+
     dma2d_memcpy_pfc.dma2d_width = width;
     dma2d_memcpy_pfc.dma2d_height = height;
     dma2d_memcpy_pfc.src_frame_width = width;
@@ -151,7 +158,7 @@ bk_err_t avi_player_jpeg_hw_decode_init(bk_avi_player_format_t output_format, ui
     }
     os_memset(g_dec_out_frame, 0x00, sizeof(frame_buffer_t));
 
-    if (output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565) {
+    if (output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565 || output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB888) {
         ret = avi_player_dma2d_yuyv2rgb565_init();
         if (ret != BK_OK) {
             LOGE("%s %d avi_player_dma2d_yuyv2rgb565_init failed\n", __func__, __LINE__);
@@ -187,7 +194,7 @@ bk_err_t avi_player_jpeg_hw_decode_deinit(bk_avi_player_format_t output_format)
     bk_jpeg_decode_hw_delete(avi_player_jpeg_decode_handle);
     avi_player_jpeg_decode_handle = NULL;
 
-    if (output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565) {
+    if (output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565 || output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB888) {
         ret = avi_player_dma2d_yuyv2rgb565_deinit();
         if (ret != BK_OK) {
             LOGE("%s %d avi_player_dma2d_yuyv2rgb565_deinit failed\n", __func__, __LINE__);
@@ -236,7 +243,7 @@ bk_err_t avi_player_jpeg_hw_decode_start(bk_avi_player_t *avi_player)
     g_jpeg_frame->frame = avi_player->video_frame;
 
     g_dec_out_frame->size = avi_player->frame_size;
-    if (avi_player->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565) {
+    if (avi_player->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565 || avi_player->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB888) {
         if (g_dec_out_frame->frame == NULL) {
             g_dec_out_frame->frame = psram_malloc(g_dec_out_frame->size);
             if (g_dec_out_frame->frame == NULL) {
@@ -254,8 +261,8 @@ bk_err_t avi_player_jpeg_hw_decode_start(bk_avi_player_t *avi_player)
         return ret;
     }
 
-    if (avi_player->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565) {
-        avi_player_dma2d_yuyv2rgb565(g_dec_out_frame->frame, avi_player->framebuffer, avi_player->avi->width, avi_player->avi->height, avi_player->swap_flag);
+    if (avi_player->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB565 || avi_player->output_format == AVI_PLAYER_OUTPUT_FORMAT_RGB888) {
+        avi_player_dma2d_yuyv2rgb565(g_dec_out_frame->frame, avi_player->framebuffer, avi_player->avi->width, avi_player->avi->height, avi_player->swap_flag, avi_player->output_format);
     }
 
     return ret;

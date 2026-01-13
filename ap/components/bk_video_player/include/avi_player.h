@@ -28,6 +28,7 @@ typedef enum
 {
     AVI_PLAYER_OUTPUT_FORMAT_RGB565 = 0,
     AVI_PLAYER_OUTPUT_FORMAT_YUYV = 1,
+    AVI_PLAYER_OUTPUT_FORMAT_RGB888 = 2,
 } bk_avi_player_format_t;
 
 typedef struct
