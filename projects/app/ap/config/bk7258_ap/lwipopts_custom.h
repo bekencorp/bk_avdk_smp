@@ -99,11 +99,7 @@
 /* 禁用 lwIP 断言 */
 #define LWIP_NOASSERT			        1
 
-#if CONFIG_AGORA_IOT_SDK
-#define LWIP_DEBUG                      1
-#else
 #define LWIP_DEBUG                      0
-#endif
 
 /* 关闭所有调试输出 */
 #define LWIP_DEBUG_TRACE                0
@@ -250,19 +246,11 @@
 #define LWIP_SO_LINGER				1
 
 /* ========== TCP 配置 ========== */
-#if CONFIG_AGORA_IOT_SDK
-//#define TCP_LISTEN_BACKLOG		        1
-#else
 #define TCP_LISTEN_BACKLOG		        1
-#endif
 #define LWIP_PROVIDE_ERRNO		        1
 
-#if CONFIG_AGORA_IOT_SDK
-#include "sys/errno.h"
-#else
 #include <errno.h>
 #define ERRNO				            1
-#endif
 
 /* ========== 网络接口配置 ========== */
 #define LWIP_NETIF_HOSTNAME             1

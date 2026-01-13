@@ -99,11 +99,7 @@
 /* Disable lwIP asserts */
 #define LWIP_NOASSERT			        1
 
-#if CONFIG_AGORA_IOT_SDK
-#define LWIP_DEBUG                      1
-#else
 #define LWIP_DEBUG                      0
-#endif
 #define LWIP_DEBUG_TRACE                0
 #define SOCKETS_DEBUG                   LWIP_DBG_OFF
 #define IP_DEBUG                        LWIP_DBG_OFF
@@ -250,19 +246,6 @@ u32_t beken_random(void);
 /* ---------- IP options ---------- */
 #define BK_DNS			1
 #define LWIP_SIOCOUTQ                  1
-
-#if CONFIG_AGORA_IOT_SDK
-#define LWIP_TCPIP_CORE_LOCKING         1
-/**
- * LWIP_TCPIP_CORE_LOCKING_INPUT: when LWIP_TCPIP_CORE_LOCKING is enabled,
- * this lets tcpip_input() grab the mutex for input packets as well,
- * instead of allocating a message and passing it to tcpip_thread.
- *
- * ATTENTION: this does not work when tcpip_input() is called from
- * interrupt context!
- */
-#define LWIP_TCPIP_CORE_LOCKING_INPUT 1
-#endif
 
 /*
    ------------------------------------------------
@@ -497,22 +480,11 @@ u32_t beken_random(void);
 /**
  * TCP_LISTEN_BACKLOG==1: Handle backlog connections.
  */
-#if CONFIG_AGORA_IOT_SDK
-//#define TCP_LISTEN_BACKLOG		        1
-#else
 #define TCP_LISTEN_BACKLOG		        1
-#endif
 #define LWIP_PROVIDE_ERRNO		        1
 
-#if CONFIG_AGORA_IOT_SDK
-//#include <errno.h>
-//#define ERRNO				            1
-
-#include "sys/errno.h"
-#else
 #include <errno.h>
 #define ERRNO				            1
-#endif
 //#define LWIP_SNMP 1
 
 

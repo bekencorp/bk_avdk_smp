@@ -41,11 +41,7 @@
 
 #if LWIP_SOCKET /* don't build if not configured for use in lwipopts.h */
 
-#if defined(CONFIG_AGORA_IOT_SDK)
-/*  errno defined in sdk */
-#else
 int errno=0;
-#endif
 
 #include "lwip/sockets.h"
 #include "lwip/priv/sockets_priv.h"

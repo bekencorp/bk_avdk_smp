@@ -37,7 +37,6 @@
 #ifndef LWIP_HDR_ERRNO_H
 #define LWIP_HDR_ERRNO_H
 
-#ifndef CONFIG_AGORA_IOT_SDK
 #include "lwip/opt.h"
 
 #ifdef __cplusplus
@@ -194,11 +193,6 @@ extern int errno;
 
 #ifdef __cplusplus
 }
-#endif
-#endif /* CONFIG_AGORA_IOT_SDK */
-
-#if CONFIG_AGORA_IOT_SDK
-#include <sys/errno.h>
 #endif
 
 #endif /* LWIP_HDR_ERRNO_H */

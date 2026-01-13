@@ -27,6 +27,7 @@ extern "C" {
 #define __agora_api__
 #endif
 
+
 #define AGORA_RTC_CHANNEL_NAME_MAX_LEN (64)
 #define AGORA_RTC_PRODUCT_ID_MAX_LEN (63)
 #define AGORA_RTC_USER_ACCOUNT_MAX_LEN (256)
@@ -160,14 +161,6 @@ typedef enum {
   ERR_AUDIO_INVALID_PCM_LEN = 201,
   // Invalid audio codec param
   ERR_AUDIO_INVALID_CODEC_PARAM = 202,
-  /** Audio decoder does not match incoming audio data type.
-   *  The audio codec of send and recv must be the same
-   */
-  ERR_AUDIO_DECODER_NOT_MATCH = 221,
-  /** Audio decoder does not enable
-   *  Currently SDK built-in audio codec only supports G722 and OPUS.
-   */
-  ERR_AUDIO_DECODER_NOT_ENABLE = 222,
 #endif // Audio End
 
 /******************************************************************************|
@@ -221,7 +214,7 @@ typedef enum {
   ERR_RTM_SEND_TO_SELF = 1003,
   ERR_RTM_EXCEED_MSG_SIZE = 1004,
   ERR_RTM_EXCEED_MSG_CNT = 1005,
-  ERR_RTM_EXCEED_TCP_SKB = 1006,
+  ERR_RTM_EXCEED_SND_BUFFER = 1006,
 #endif // RTM End
 
 } agora_err_code_e;
@@ -464,6 +457,26 @@ typedef enum {
    */
   AUDIO_DATA_TYPE_HEAAC2_2CH = 15,
   /**
+   * 16: AACLC1, sample=44100
+   */
+  AUDIO_DATA_TYPE_AACLC1 = 16,
+  /**
+   * 17: AACLC1_2CH, sample=48000, 2CH
+   */
+  AUDIO_DATA_TYPE_AACLC1_2CH = 17,
+  /**
+   * 18: HWAAC, sample=32k
+   */
+  AUDIO_DATA_TYPE_HWAAC = 18,
+  /**
+   * 20: OPUSSWB, sample=32k
+   */
+  AUDIO_DATA_TYPE_OPUSSWB = 20,
+  /**
+   * 21: OPUSFB, sample=48k, 2CH
+   */
+  AUDIO_DATA_TYPE_OPUSFB_2CH = 21,
+  /**
    * 100: PCM (audio codec should be enabled)
    */
   AUDIO_DATA_TYPE_PCM = 100,
@@ -471,6 +484,10 @@ typedef enum {
    * 253: GENERIC
    */
   AUDIO_DATA_TYPE_GENERIC = 253,
+  /**
+   * 254: Unknown
+   */
+  AUDIO_DATA_TYPE_UNKNOW = 254,
 } audio_data_type_e;
 
 /**
@@ -499,7 +516,7 @@ typedef enum {
 } rtc_log_level_e;
 
 /**
- * IP areas.
+ * region code
  */
 typedef enum {
   /* the same as AREA_CODE_GLOB */
@@ -516,6 +533,15 @@ typedef enum {
   AREA_CODE_JP = 0x00000010,
   /* India. */
   AREA_CODE_IN = 0x00000020,
+  /* (Default) Global. */
+  AREA_CODE_GLOB = (0xFFFFFFFF),
+} area_code_e;
+
+/**
+  Extra region code
+  @technical preview
+*/
+typedef enum {
   /* Oceania */
   AREA_CODE_OC = 0x00000040,
   /* South-American */
@@ -532,9 +558,7 @@ typedef enum {
   AREA_CODE_RU = 0x00001000,
   /* The global area (except China) */
   AREA_CODE_OVS = 0xFFFFFFFE,
-  /* (Default) Global. */
-  AREA_CODE_GLOB = (0xFFFFFFFF),
-} area_code_e;
+} area_code_ex_e;
 
 /**
  * log config
@@ -580,6 +604,10 @@ typedef struct {
    */
   bool domain_limit;
 
+  /**
+   * Determines whether to enable string uid
+   */
+  bool use_string_uid;
 } rtc_service_option_t;
 
 typedef struct {
@@ -603,25 +631,6 @@ typedef struct {
    */
   int pcm_duration;
 } audio_codec_option_t;
-
-/**
- * The definition of the rtc_audio_process_options_t struct.
- */
-typedef struct{
-  // whether to open audio process
-  bool enable_audio_process;
-  // whether to open uplink aec
-  bool enable_aec;
-  // whether to open downlink aec;
-  bool enable_downlink_aec;
-  // whether to open ns
-  bool enable_ns;
-
-  bool ref_data_from_sdk;
-  // whether to dump audio data from audio process
-  bool enable_dump_data;
-} rtc_audio_process_options_t;
-
 
 /**
  * @brief rtc packet type enum
@@ -650,17 +659,21 @@ typedef struct {
   bool enable_audio_jitter_buffer;
   // whether to use the audio mixing function, depends on enable_audio_jitter_buffer
   bool enable_audio_mixer;
-  // audio encode and decode configuration when send pcm audio data by #agora_rtc_send_audio_data
+  // whether to decode received audio
+  bool enable_audio_decode;
+  // whether to enable audio ai qos
+  bool enable_audio_ai_qos;
+  // whether to open downlink aec
+  bool enable_audio_downlink_aec;
+  // whether to dump pcm data when do downlink aec
+  bool enable_audio_downlink_aec_pcm_dump;
+  // local audio encode configuration when send pcm audio data by #agora_rtc_send_audio_data
   audio_codec_option_t audio_codec_opt;
-  // audio process options
-  rtc_audio_process_options_t audio_process_opt;
-  // configure jitter buffer process pcm frame length; such as 20, 40, 60, etc .. only support 16K 16bit 1channel
-  int jitter_buffer_per_pcm_frame_ms;
 
-
+  // enable rdt feature
+  bool enable_rdt;
 
 } rtc_channel_options_t;
-
 
 /**
  * Network event type enum
@@ -673,6 +686,36 @@ typedef enum {
   NETWORK_EVENT_CHANGE,
 } network_event_e;
 
+/**
+ * Reliable Data Transmission Tunnel message type
+ */
+typedef enum rdt_stream_type {
+  RDT_STREAM_CMD,    // Reliable; High priority; Limit 256 bytes per packet, 100 packets per second
+  RDT_STREAM_DATA,   // Reliable; Low priority; Restricted by congestion control; Limit 1024 bytes per packet
+  RDT_STREAM_COUNT,
+} rdt_stream_type_e;
+
+/**
+ * Reliable Data Transmission tunnel state
+ */
+typedef enum rdt_state {
+  RDT_STATE_CLOSED,  // initial or closed
+  RDT_STATE_OPENED,  // opened and can send data
+  RDT_STATE_BLOCKED, // send buffer is full, can't send data, but can send cmd
+  RDT_STATE_PENDING, // reconnecting tunnel, can't send data
+  RDT_STATE_BROKEN,  // rdt tunnel broken, will auto reset and rebuild tunnel
+} rdt_state_e;
+
+/**
+ * Reliable Data Transmission tunnel status info
+ */
+typedef struct rdt_status_info {
+  uint32_t     conn_id;
+  uint32_t     peer_uid; // peer uid
+  rdt_state_e  state;    // rdt state
+  int send_queue_size[RDT_STREAM_COUNT];  // queue size of waiting for send
+  int recv_queue_size[RDT_STREAM_COUNT];  // queue size of waitting for delivery
+} rdt_status_info_t;
 
 /**
  * Connection identification
@@ -699,6 +742,13 @@ typedef struct {
   char channel_name[AGORA_RTC_CHANNEL_NAME_MAX_LEN + 1];
 } connection_info_t;
 
+/**
+ * User info for string uid
+ */
+typedef struct user_info_s {
+    uint32_t uid;
+    char user_account[AGORA_RTC_USER_ACCOUNT_MAX_LEN];
+} user_info_t;
 
 /**
  * rtc statistics
@@ -706,6 +756,13 @@ typedef struct {
  * @technical preview
  */
 typedef struct rtc_stats_s {
+  uint16_t tx_audio_kbitrate;
+  uint16_t tx_video_kbitrate;
+  uint16_t rx_audio_kbitrate;
+  uint16_t rx_video_kbitrate;
+  uint16_t tx_video_input_kbitrate;
+  uint16_t lastmile_delay;
+  uint16_t user_count;
   bool lan_accelerate_state;
 } rtc_stats_t;
 
@@ -794,6 +851,32 @@ typedef struct {
    */
   void (*on_user_offline)(connection_id_t conn_id, uint32_t uid, int reason);
 
+  /**
+   * Occurs when a remote user joins channel successfully.
+   *
+   * @param[in] conn_id Connection identification
+   * @param[in] user    Remote user info
+   * @param[in] elapsed_ms Time elapsed (ms) since channel is established
+   */
+  void (*on_user_joined_with_user_account)(connection_id_t conn_id, const user_info_t *user, int elapsed_ms);
+
+  /**
+   * Occurs when remote user leaves the channel.
+   *
+   * @param[in] conn_id Connection identification
+   * @param[in] user    Remote user info
+   * @param[in] reason  Reason, see #user_offline_reason_e
+   */
+  void (*on_user_offline_with_user_account)(connection_id_t conn_id, const user_info_t *user, int reason);
+
+  /**
+   * Occurs when remote user info updated
+   *
+   * @note Need to re-change the subscription rule based on the new uid information
+   * @param[in] conn_id Connection identification
+   * @param[in] user    Remote user info
+   */
+  void (*on_user_info_updated)(connection_id_t conn_id, const user_info_t *user);
 
   /**
    * Occurs when a remote user sends notification before enable/disable sending audio.
@@ -881,7 +964,33 @@ typedef struct {
    */
   void (*on_rtc_stats)(connection_id_t conn_id, rtc_stats_t stats);
 
+  /**
+   * Occur when receive a media ctrl message.
+   *
+   * @param[in] conn_id  Connection identification
+   * @param[in] uid      Remote user ID
+   * @param[in] payload  payload of message
+   * @param[in] length   length of payload
+   */
+  void (*on_media_ctrl_msg)(connection_id_t conn_id, uint32_t uid, const void *payload, size_t length);
 
+  /**
+   * Occur when user rdt state changed
+   * @param[in] conn_id  Connection identification
+   * @param[in] uid      Remote user ID
+   * @param[in] state    Rdt tunnel state
+   */
+  void (*on_rdt_state)(connection_id_t conn_id, uint32_t uid, rdt_state_e state);
+
+  /**
+   * Occur when receive rdt message from uid
+   * @param[in] conn_id  Connection identification
+   * @param[in] uid      Remote user ID
+   * @param[in] type     Rdt message type
+   * @param[in] msg      Rdt message content
+   * @param[in] len      Rdt message length
+   */
+  void (*on_rdt_msg)(connection_id_t conn_id, uint32_t uid, rdt_stream_type_e type, const void *msg, size_t len);
 
   /**
    * Occur when receive a stream message.
@@ -950,7 +1059,6 @@ extern const char *agora_rtc_get_version(void);
  * @return Const static error string
  */
 extern __agora_api__ const char *agora_rtc_err_2_str(int err);
-
 
 /**
  * @brief Initialize the Agora RTSA service.
@@ -1024,6 +1132,27 @@ extern __agora_api__ int agora_rtc_destroy_connection(connection_id_t conn_id);
  */
 extern __agora_api__ int agora_rtc_get_connection_info(connection_id_t conn_id, connection_info_t *conn_info);
 
+/**
+ * @brief Get user info by user account
+ * @param[in] conn_id      : Connection identification
+ * @param[in] user_account : user account
+ * @param[out] user        : user info
+ * @return
+ *  - =0: Success
+ *  - <0: Failure
+ */
+extern __agora_api__ int agora_rtc_get_user_info_by_user_account(connection_id_t conn_id, const char *user_account, user_info_t *user);
+
+/**
+ * @brief Get user info by user id
+ * @param[in] conn_id      : Connection identification
+ * @param[in] uid          : user id
+ * @param[out] user        : user info
+ * @return
+ *  - =0: Success
+ *  - <0: Failure
+ */
+extern __agora_api__ int agora_rtc_get_user_info_by_uid(connection_id_t conn_id, uint32_t uid, user_info_t *user);
 
 /**
  * @brief Local user joins channel.
@@ -1055,6 +1184,41 @@ extern __agora_api__ int agora_rtc_get_connection_info(connection_id_t conn_id, 
 extern __agora_api__ int agora_rtc_join_channel(connection_id_t conn_id, const char *channel_name, uint32_t uid,
                                                 const char *token, rtc_channel_options_t *options);
 
+/**
+ * @brief Local user joins channel with user account.
+ * @note Users in the same channel with the same App ID can send data to each other.
+ *   You can join more than one channel at the same time. All channels that
+ *   you join will receive the audio/video data stream that you send unless
+ *   you stop sending the audio/video data stream in a specific channel.
+ * @param[in] conn_id      : Connection identification
+ * @param[in] channel_name : Channel name
+ *   Length=strlen(channel_name) should be less than 64 bytes, Supported character scopes are:
+ *   - The 26 lowercase English letters: a to z
+ *   - The 26 uppercase English letters: A to Z
+ *   - The 10 numbers: 0 to 9
+ *   - The space
+ *   - "!", "#", "$", "%", "&", "(", ")", "+", "-", ":", ";", "<",
+ *     "=", ".", ">", "?", "@", "[", "]", "^", "_", " {", "}", "|", "~", ","
+ * @param[in] user_account  : The user account. The maximum length of this parameter is 255 bytes.
+ * Ensure that you set this parameter and do not set it as null. Supported character scopes are:
+ * - All lowercase English letters: a to z.
+ * - All uppercase English letters: A to Z.
+ * - All numeric characters: 0 to 9.
+ * - The space character.
+ * - Punctuation characters and other symbols, including:
+ *    "!", "#", "$", "%", "&", "(", ")", "+", "-", ":", ";", "<", "=",
+ *    ".", ">", "?", "@", "[", "]", "^", "_", " {", "}", "|", "~", ",".
+ * @param[in] token : Token string generated by the server, length=strlen(token) Range is [32, 512]
+ *   - if token authorization is enabled on developer website, it should be set correctly
+ *   - else token can be set as `NULL`
+ * @param[in] options   channel options when create channel. If do not set channel options, set NULL
+ * @return
+ * - = 0: Success
+ * - < 0: Failure
+ */
+extern __agora_api__ int agora_rtc_join_channel_with_user_account(connection_id_t conn_id, const char *channel_name,
+                                                                  const char *user_account, const char *token,
+                                                                  rtc_channel_options_t *options);
 
 /**
  * @brief Allow Local user leaves channel.
@@ -1110,6 +1274,7 @@ extern __agora_api__ int agora_rtc_mute_local_audio(connection_id_t conn_id, boo
  * - < 0: Failure
  */
 extern __agora_api__ int agora_rtc_mute_local_video(connection_id_t conn_id, bool mute);
+
 /**
  * @brief Decide whether to enable/disable receiving remote audio data from specific channel OR all channels.
  * @param[in] conn_id      Connection identification, if set CONNECTION_ID_ALL(0) is for all connections
@@ -1153,6 +1318,7 @@ extern __agora_api__ int agora_rtc_mute_remote_video(connection_id_t conn_id, ui
  */
 extern __agora_api__ int agora_rtc_request_video_key_frame(connection_id_t conn_id, uint32_t remote_uid,
                                                            video_stream_type_e stream_type);
+
 /**
  * @brief Send an audio frame to all channels OR specific channel.
  *        All remote users in this channel will receive the audio frame.
@@ -1168,22 +1334,6 @@ extern __agora_api__ int agora_rtc_request_video_key_frame(connection_id_t conn_
  */
 extern __agora_api__ int agora_rtc_send_audio_data(connection_id_t conn_id, const void *data_ptr, size_t data_len,
                                                    audio_frame_info_t *info_ptr);
-
-/**
- * @brief Send an audio frame to all channels OR specific channel with reference data for downlink 3A.
- *        All remote users in this channel will receive the audio frame.
- * @note Must be PCM audio data, sdk will perform 3A processing internally
- *        before conducting the encoding and transmission.
- * @param[in] conn_id   Connection identification
- * @param[in] pcm_mic   Audio frame buffer ADC from microphone
- * @param[in] pcm_ref   Audio frame buffer ADC from reference
- * @param[in] pcm_len   Audio frame date length, must be equal with MIC and REF. 
- * @return
- * - = 0: Success
- * - < 0: Failure
- */
-extern __agora_api__ int agora_rtc_send_mic_with_ref_audio_data(connection_id_t conn_id, const void *pcm_mic,
-                                                                const void *pcm_ref, size_t pcm_len);
 
 /**
  * @brief Send a video frame to all channels OR specific channel.
@@ -1214,9 +1364,6 @@ extern __agora_api__ int agora_rtc_send_video_data(connection_id_t conn_id, cons
 extern __agora_api__ int agora_rtc_set_bwe_param(connection_id_t conn_id, uint32_t min_bps, uint32_t max_bps,
                                                  uint32_t start_bps);
 
-
-
-
 /**
  * Set config params
  *
@@ -1228,7 +1375,56 @@ extern __agora_api__ int agora_rtc_set_bwe_param(connection_id_t conn_id, uint32
  */
 extern __agora_api__ int agora_rtc_set_params(connection_id_t conn_id, const char *params);
 
+/**
+ * Send an message to all channels OR specific channel.
+ *
+ * All remote users in this channel will receive the message.
+ *
+ * @note All channels that you joined will receive the message that you send
+ *       unless you stop sending the message to a specific channel.
+ *
+ * @param[in] conn_id       Connection identification
+ * @param[in] remote_uid    Remote user ID
+ *                          - if `remote_uid` is set 0, it's for all users
+ *                          - else it's for specific use
+ * @param[in] payload       Message's payload buffer
+ * @param[in] length        Message's payload buffer length (max 1024 bytes)
+ *
+ * @return
+ * - = 0: Success
+ * - < 0: Failure
+ */
+extern __agora_api__ int agora_rtc_send_media_ctrl_msg(connection_id_t conn_id, uint32_t remote_uid,
+                                                       const void *payload, size_t length);
 
+/**
+ * Send Reliable message to remote uid in channel
+ *
+ * @param[in] conn_id       Connection identification
+ * @param[in] remote_uid    Remote user ID
+ * @param[in] type          Reliable Data Transmission tunnel message type
+ * @param[in] msg           Message's payload buffer
+ * @param[in] length        Message's payload buffer length (cmd: max 256 bytes, data: max 128KB)
+ *
+ * @return
+ * - = 0: Success
+ * - < 0: Failure
+ */
+extern __agora_api__ int agora_rtc_send_rdt_msg(connection_id_t conn_id, uint32_t remote_uid, rdt_stream_type_e type,
+                                                const void *msg, size_t length);
+
+/**
+ * Get rdt tunnel info
+ *
+ * @param[in] conn_id       Connection identification
+ * @param[in] remote_uid    Remote user ID
+ * @param[out] info         rdt tunnel status info
+ *
+ * @return
+ * - = 0: Success
+ * - < 0: Failure
+ */
+extern __agora_api__ int agora_rtc_get_rdt_status_info(connection_id_t conn_id, uint32_t remote_uid, rdt_status_info_t *info);
 
 /**
 * Creates a data stream.
@@ -1271,8 +1467,6 @@ extern __agora_api__ int agora_rtc_create_data_stream(connection_id_t conn_id, i
 * - < 0: Failure.
 */
 extern __agora_api__ int agora_rtc_send_stream_message(connection_id_t conn_id, int stream_id, const char* data, size_t length);
-
-
 
 #ifdef __cplusplus
 }
