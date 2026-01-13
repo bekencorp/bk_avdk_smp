@@ -2210,6 +2210,8 @@ bk_err_t bk_wifi_sta_start(void)
 			wlan_mfp_connect_deauth(!!(fci.pmf == MGMT_FRAME_PROTECTION_REQUIRED),fci.bssid, fci.tk,false);
 			// #endif
 		} else {
+			g_sta_param_ptr->fast_connect_set = 0;
+			g_sta_param_ptr->fast_connect.chann = 0;
 			sta_ip_mode_set(1);
 		}
 	}
@@ -2778,6 +2780,10 @@ bk_err_t bk_wifi_sta_set_config(const wifi_sta_config_t *config)
 		need_reconnect = true;
 	}
 
+	/* bugfix:clear fast_connect_set when config changes, let bk_wifi_sta_start re-evaluate fast connect */
+	g_sta_param_ptr->fast_connect_set = 0;
+	g_sta_param_ptr->fast_connect.chann = 0;
+
 	wifi_sta_set_global_config(config);
 	if (wifi_sta_is_started())
 		wifi_sta_set_wpa_config(config);
@@ -2967,6 +2973,9 @@ bk_err_t bk_wifi_ap_update_hidden_cap(bool flag)
 bk_err_t bk_wifi_sta_connect(void)
 {
 	wifi_linkstate_reason_t info;
+	wifi_sta_config_t sta_config = {0};
+	struct wlan_fast_connect_info fci = {0};
+	int ssid_len, req_ssid_len;
 
 	WIFI_LOGV("sta connecting\n");
 
@@ -2997,6 +3006,35 @@ bk_err_t bk_wifi_sta_connect(void)
 	wifi_station_status_event_notice(0, WIFI_LINKSTATE_STA_CONNECTING);
 #endif
 	//TODO
+	if (bk_feature_fast_connect_enable()) {
+		wifi_sta_get_global_config(&sta_config);
+		os_memset(&fci, 0, sizeof(fci));
+		wlan_read_fast_connect_info(&fci);
+
+		ssid_len = os_strlen((char *)fci.ssid);
+		if (ssid_len > SSID_MAX_LEN)
+			ssid_len = SSID_MAX_LEN;
+
+		req_ssid_len = os_strlen(sta_config.ssid);
+		if (req_ssid_len > SSID_MAX_LEN)
+			req_ssid_len = SSID_MAX_LEN;
+
+		if (((ssid_len == req_ssid_len &&
+			os_memcmp(sta_config.ssid, fci.ssid, ssid_len) == 0) ||
+			(os_memcmp(sta_config.bssid, fci.bssid, 6) == 0)) &&
+			((os_strcmp(sta_config.password, (char *)fci.pwd) == 0) ||
+			(os_strcmp(sta_config.password, (char *)fci.psk) == 0))) {
+
+			g_sta_param_ptr->fast_connect.chann = fci.channel;
+			g_sta_param_ptr->fast_connect_set = 1;
+			WIFI_LOGD("fast_connect re-evaluated, channel=%d\n", fci.channel);
+		} else {
+			/* Not matched, clear fast_connect_set to use full channel scan */
+			g_sta_param_ptr->fast_connect_set = 0;
+			g_sta_param_ptr->fast_connect.chann = 0;
+			WIFI_LOGD("fast_connect not matched, use full channel scan\n");
+		}
+	}
 
 	if (bk_feature_bssid_connect_enable()) {
 		wlan_sta_config_t wpa_config = {0};
@@ -3038,6 +3076,10 @@ bk_err_t bk_wifi_sta_disconnect(void)
 		//TODO do we need to post the disconnect event?
 		wifi_clear_state_bit(WIFI_STA_CONNECTED_BIT);
 	}
+
+	/* bugfix:Clear fast_connect_set when disconnect, so next connection will re-evaluate fast connect */
+	g_sta_param_ptr->fast_connect_set = 0;
+	g_sta_param_ptr->fast_connect.chann = 0;
 
 	WIFI_LOGV("sta disconnected(%x)\n", s_wifi_state_bits);
 	return BK_OK;
