@@ -73,7 +73,7 @@ int player_event_handler(int data, void *params, void *args)
             return BK_FAIL;
         }
 
-        audio_port_info_t port_info = {0};
+        audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
         port_info.chl_num = music_info->channels;
         port_info.sample_rate = music_info->sample_rates;
         port_info.dig_gain = 0x2d;
@@ -120,7 +120,7 @@ int player1_event_handler(int data, void *params, void *args)
             return BK_FAIL;
         }
 
-        audio_port_info_t port_info = {0};
+        audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
         port_info.chl_num = music_info->channels;
         port_info.sample_rate = music_info->sample_rates;
         port_info.dig_gain = 0x2d;
@@ -536,7 +536,7 @@ void cli_player_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
                 return;
             }
 
-            audio_port_info_t port_info = {0};
+            audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
             port_info.chl_num = 1;
             port_info.sample_rate = 8000;
             port_info.dig_gain = 0x2d;

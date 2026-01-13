@@ -60,7 +60,22 @@ typedef struct audio_port_info
     audio_port_handle_t     port;               /*!< the audio port handle */
     audio_port_state_notify notify_cb;          /*!< the audio port state notify callback function */
     void                    *user_data;         /*!< the user data of audio port state notify callback function */
+    bool                    port_data_valid;    /*!< port data validity flag, true: valid (data can be used for playback), false: invalid (data will be replaced with silence) */
 } audio_port_info_t;
+
+#define DEFAULT_AUDIO_PORT_INFO() {     \
+    .chl_num = 1,                       \
+    .sample_rate = 8000,                \
+    .dig_gain = 0x2d,                   \
+    .ana_gain = 0x0A,                   \
+    .bits = 16,                         \
+    .port_id = 0,                       \
+    .priority = 0,                      \
+    .port = NULL,                       \
+    .notify_cb = NULL,                  \
+    .user_data = NULL,                  \
+    .port_data_valid = true,            \
+}
 
 /**
  * @brief Input audio port info item

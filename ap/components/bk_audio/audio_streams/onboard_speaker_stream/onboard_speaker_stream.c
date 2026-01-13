@@ -187,6 +187,8 @@ typedef struct onboard_speaker_stream
     int                             current_port_id;        /**< the valid audio port of currently reading speaker data, 0: element->in, >=1: element->multi_in */
     SemaphoreHandle_t               lock;                   /**< input audio port info list lock */
     input_audio_port_info_list_t    input_port_list;        /**< the list of input audio port info */
+#else
+    bool                            port_data_valid;        /**< port data valid flag for element->in port (0: element->in) */
 #endif
 } onboard_speaker_stream_t;
 
@@ -536,6 +538,7 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
             port_info_item->port_info.port_id = 0;
             port_info_item->port_info.priority = 0;
             port_info_item->port_info.port = audio_element_get_input_port(self);
+            port_info_item->port_info.port_data_valid = true;  /* Initialize port data valid flag to true (default: valid) */
             STAILQ_INSERT_TAIL(&gl_onboard_speaker->input_port_list, port_info_item, next);
         }
     }
@@ -1004,6 +1007,40 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
     {
         if (r_size == onboard_spk->frame_size)
         {
+            /* Check port data validity, replace with silence if invalid */
+            bool is_port_data_valid = true;
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+            if (audio_element_get_multi_input_max_port_num(self) > 0)
+            {
+                /* Get port data validity from audio_port_info_t */
+                audio_port_info_t *port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, onboard_spk->current_port_id);
+                if (port_info != NULL)
+                {
+                    is_port_data_valid = port_info->port_data_valid;
+                }
+            }
+            else
+            {
+                /* Single source mode, use default port 0 */
+                is_port_data_valid = true;
+            }
+#else
+            /* Single source mode, use port_data_valid from onboard_speaker_stream_t */
+            is_port_data_valid = onboard_spk->port_data_valid;
+#endif
+
+            if (!is_port_data_valid)
+            {
+                /* Replace port data with silence when port data is invalid */
+                os_memset(in_buffer, 0x00, onboard_spk->frame_size);
+                BK_LOGV(TAG, "[%s] port %d data invalid, fill silence data \n", audio_element_get_tag(self),
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+                        audio_element_get_multi_input_max_port_num(self) > 0 ? onboard_spk->current_port_id : 0
+#else
+                        0
+#endif
+                        );
+            }
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
             aec_mic_delay_debug((int16_t *)in_buffer, onboard_spk->frame_size);
 #endif
@@ -1347,6 +1384,11 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
         BK_LOGE(TAG, "%s, %d, rtos_init_semaphore fail\n", __func__, __LINE__);
         goto _onboard_speaker_init_exit;
     }
+
+#if !CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    /* Initialize port data valid flag to true (default: valid) for element->in port */
+    gl_onboard_speaker->port_data_valid = true;
+#endif
 
 #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
     if (cfg.multi_in_port_num > 0)
@@ -1784,5 +1826,56 @@ bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboa
 
     INPUT_PORT_LIST_DEBUG(&onboard_spk->input_port_list, __func__, __LINE__);
     return BK_OK;
+}
+
+bk_err_t onboard_speaker_stream_set_input_port_data_valid(audio_element_handle_t onboard_speaker_stream, uint8_t port_id, bool valid)
+{
+    onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
+
+    /* check param */
+    if (onboard_spk == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, onboard_spk is not init \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
+    /* Multiple source mode: set port_data_valid in audio_port_info_t */
+    /* Check port_id range: 0 (element->in) to max_port_num (element->multi_in) */
+    int max_port_num = audio_element_get_multi_input_max_port_num(onboard_speaker_stream);
+    if (port_id > (uint8_t)(max_port_num + 1))
+    {
+        BK_LOGE(TAG, "%s, line: %d, port_id: %d out of range: 0 ~ %d \n", __func__, __LINE__, port_id, max_port_num + 1);
+        return BK_FAIL;
+    }
+
+    /* Get port info from list */
+    input_port_list_block(onboard_spk->lock, portMAX_DELAY);
+    audio_port_info_t *port_info = audio_port_info_list_get_by_port_id(&onboard_spk->input_port_list, port_id);
+    if (port_info == NULL)
+    {
+        input_port_list_release(onboard_spk->lock);
+        BK_LOGE(TAG, "%s, line: %d, port_id: %d not found in port list \n", __func__, __LINE__, port_id);
+        return BK_FAIL;
+    }
+
+    /* Set port data validity in audio_port_info_t */
+    port_info->port_data_valid = valid;
+    input_port_list_release(onboard_spk->lock);
+
+    BK_LOGD(TAG, "%s, line: %d, set port %d data valid: %d \n", __func__, __LINE__, port_id, valid);
+    return BK_OK;
+#else
+    /* Single source mode: set port_data_valid in onboard_speaker_stream_t (only support port_id == 0) */
+    if (port_id != 0)
+    {
+        BK_LOGE(TAG, "%s, line: %d, port_id: %d is not supported in single source mode, only port_id 0 is supported \n", __func__, __LINE__, port_id);
+        return BK_FAIL;
+    }
+
+    onboard_spk->port_data_valid = valid;
+    BK_LOGD(TAG, "%s, line: %d, set port %d data valid: %d \n", __func__, __LINE__, port_id, valid);
+    return BK_OK;
+#endif
 }
 #endif

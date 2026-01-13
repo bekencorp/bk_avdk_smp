@@ -72,7 +72,7 @@ int player_not_playback_event_handler(int data, void *params, void *args)
             return BK_FAIL;
         }
 
-        audio_port_info_t port_info = {0};
+        audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
         port_info.chl_num = music_info->channels;
         port_info.sample_rate = music_info->sample_rates;
         port_info.dig_gain = 0x2d;
@@ -157,7 +157,7 @@ int player1_not_playback_event_handler(int data, void *params, void *args)
             return BK_FAIL;
         }
 
-        audio_port_info_t port_info = {0};
+        audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
         port_info.chl_num = music_info->channels;
         port_info.sample_rate = music_info->sample_rates;
         port_info.dig_gain = 0x2d;
@@ -511,7 +511,7 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                     goto exit;
                 }
 
-                audio_port_info_t port_info = {0};
+                audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
                 port_info.chl_num = 1;
                 port_info.sample_rate = 16000;
                 port_info.dig_gain = 0x2d;
@@ -577,7 +577,7 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                 return;
             }
 
-            audio_port_info_t port_info = {0};
+            audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
             port_info.chl_num = 1;
             port_info.sample_rate = 8000;
             port_info.dig_gain = 0x2d;
@@ -662,7 +662,7 @@ exit:
 #if CONFIG_VOICE_SERVICE_TEST && CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE
         if (gl_output_port_handle)
         {
-            audio_port_info_t port_info = {0};
+            audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
             port_info.port_id = 1;
             port_info.priority = 1;
             port_info.port = NULL;
@@ -681,7 +681,7 @@ exit:
         bk_player_stop(gl_player1_handle);
         if (gl_output_port1_handle)
         {
-            audio_port_info_t port_info = {0};
+            audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
             port_info.port_id = 2;
             port_info.priority = 2;
             port_info.port = NULL;

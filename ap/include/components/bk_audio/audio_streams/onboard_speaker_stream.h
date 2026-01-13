@@ -198,6 +198,21 @@ bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_s
  */
 bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_speaker_stream, uint8_t *gain);
 
+/**
+ * @brief      Set input port data validity.
+ *             When port data is valid, the data from the port can be used for playback.
+ *             When port data is invalid, the data from the port will be replaced with silence packets.
+ *
+ * @param[in]      onboard_speaker_stream  element handle
+ * @param[in]      port_id  port id (0: element->in, >=1: element->multi_in)
+ * @param[in]      valid  port data validity (true: valid, false: invalid)
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t onboard_speaker_stream_set_input_port_data_valid(audio_element_handle_t onboard_speaker_stream, uint8_t port_id, bool valid);
+
 #ifdef __cplusplus
 }
 #endif
