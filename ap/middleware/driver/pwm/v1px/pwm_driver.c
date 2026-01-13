@@ -27,6 +27,9 @@
 #include "sys_driver.h"
 #include "gpio_driver.h"
 #include <driver/gpio.h>
+#if !CONFIG_PWM_USE_DEFAULT_GPIO_MAP
+#include "usr_gpio_cfg.h"
+#endif
 #if CONFIG_PWM_PM_CB_SUPPORT
 #include <modules/pm.h>
 #endif

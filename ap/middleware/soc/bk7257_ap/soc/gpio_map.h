@@ -183,7 +183,7 @@ extern "C" {
 }
 #endif
 
-
+#if CONFIG_PWM_USE_DEFAULT_GPIO_MAP
 #define GPIO_PWM_MAP_TABLE \
 { \
 	{ \
@@ -195,6 +195,7 @@ extern "C" {
 		{GPIO_25, GPIO_DEV_PWM5},\
 	} \
 }
+#endif
 
 #define GPIO_MAP_TABLE(DEV_NUM, MODE_NUM, table) \
 struct {\
