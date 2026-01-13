@@ -56,6 +56,10 @@
 #define APP_RSP_CMD               63
 #define SDIO_GET_WR_STS_MAX_COUNT     (100)
 #endif
+// Callback function type for init and deinit
+typedef void (*sdio_host_init_callback_t)(void *user_data);
+typedef void (*sdio_host_deinit_callback_t)(void *user_data);
+
 typedef struct {
 	sdio_host_hal_t hal;
 	uint32_t int_status;
@@ -82,6 +86,11 @@ typedef struct {
 	uint32_t rx_transfered_len;
 	uint32_t rx_cur_trans_len;
 #endif
+	// Callback functions for init and deinit
+	sdio_host_init_callback_t init_callback;
+	void *init_user_data;
+	sdio_host_deinit_callback_t deinit_callback;
+	void *deinit_user_data;
 } sdio_host_driver_t;
 
 #define SDIO_HOST_RETURN_ON_NOT_INIT() do {\
@@ -356,10 +365,21 @@ static void sdio_host_init_common(void)
 	/* config sdio host gpio */
 	sdio_host_init_gpio();
 #endif
+
+	// Execute init callback if registered
+	if (s_sdio_host.init_callback != NULL) {
+		s_sdio_host.init_callback(s_sdio_host.init_user_data);
+	}
+
 }
 
 static void sdio_host_deinit_common(void)
 {
+	// Execute deinit callback if registered
+	if (s_sdio_host.deinit_callback != NULL) {
+		s_sdio_host.deinit_callback(s_sdio_host.deinit_user_data);
+	}
+
 	sdio_host_hal_reset_config_to_default(&s_sdio_host.hal);
 
 #if (CONFIG_SYSTEM_CTRL)
@@ -406,6 +426,38 @@ static int bk_sdio_restore(uint64_t sleep_time, void *args)
 #else
 #define SDIO_PM_CHECK_RESTORE(id)
 #endif
+
+
+bk_err_t bk_sdio_host_register_init_callback(sdio_host_init_callback_t callback, void *user_data)
+{
+	s_sdio_host.init_callback = callback;
+	s_sdio_host.init_user_data = user_data;
+	return BK_OK;
+}
+
+
+bk_err_t bk_sdio_host_register_deinit_callback(sdio_host_deinit_callback_t callback, void *user_data)
+{
+	s_sdio_host.deinit_callback = callback;
+	s_sdio_host.deinit_user_data = user_data;
+	return BK_OK;
+}
+
+
+bk_err_t bk_sdio_host_unregister_init_callback(void)
+{
+	s_sdio_host.init_callback = NULL;
+	s_sdio_host.init_user_data = NULL;
+	return BK_OK;
+}
+
+
+bk_err_t bk_sdio_host_unregister_deinit_callback(void)
+{
+	s_sdio_host.deinit_callback = NULL;
+	s_sdio_host.deinit_user_data = NULL;
+	return BK_OK;
+}
 
 bk_err_t bk_sdio_host_driver_init(void)
 {

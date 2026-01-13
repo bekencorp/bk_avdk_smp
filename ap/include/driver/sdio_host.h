@@ -203,6 +203,52 @@ bk_err_t bk_sdio_host_read_fifo(uint32_t *save_v_p);
  */
 bk_err_t bk_sdio_host_read_blks_fifo(uint8_t *read_data, uint32_t blk_cnt);
 
+/**
+ * @brief     Register init callback function
+ *
+ * Register a callback function that will be called after GPIO configuration in sdio_host_init_common.
+ * The callback is executed after GPIO initialization is complete.
+ *
+ * @param callback Callback function pointer, NULL to unregister
+ * @param user_data User data pointer to be passed to callback function
+ * @return
+ *    - BK_OK: succeed
+ */
+bk_err_t bk_sdio_host_register_init_callback(void (*callback)(void *user_data), void *user_data);
+
+/**
+ * @brief     Register deinit callback function
+ *
+ * Register a callback function that will be called before reset config in sdio_host_deinit_common.
+ * The callback is executed before the SDIO host configuration is reset to default.
+ *
+ * @param callback Callback function pointer, NULL to unregister
+ * @param user_data User data pointer to be passed to callback function
+ * @return
+ *    - BK_OK: succeed
+ */
+bk_err_t bk_sdio_host_register_deinit_callback(void (*callback)(void *user_data), void *user_data);
+
+/**
+ * @brief     Unregister init callback function
+ *
+ * Unregister the init callback function that was previously registered.
+ *
+ * @return
+ *    - BK_OK: succeed
+ */
+bk_err_t bk_sdio_host_unregister_init_callback(void);
+
+/**
+ * @brief     Unregister deinit callback function
+ *
+ * Unregister the deinit callback function that was previously registered.
+ *
+ * @return
+ *    - BK_OK: succeed
+ */
+bk_err_t bk_sdio_host_unregister_deinit_callback(void);
+
 #ifdef __cplusplus
 }
 #endif
