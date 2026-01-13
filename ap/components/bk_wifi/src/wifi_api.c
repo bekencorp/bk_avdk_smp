@@ -2109,11 +2109,6 @@ bk_err_t bk_bridge_start(bk_bridge_config_t *br_config)
 #endif
 
 #if CONFIG_P2P
-// External declarations for P2P functions from wifi_demo.c
-extern volatile int g_p2p_thread_running;
-extern void app_p2p_restart_thread(void);
-extern void app_p2p_rw_event_func(void *new_evt);
-
 bk_err_t bk_wifi_p2p_enable(const char *ssid)
 {
     bk_err_t ret = BK_OK;
@@ -2161,11 +2156,6 @@ bk_err_t bk_wifi_p2p_enable(const char *ssid)
         s_wifi_p2p_dev_name[ssid_len] = '\0';
     } else {
         WIFI_LOGE("AP: IPC P2P_ENABLE FAILED! SSID NOT saved! ret=%d\n", ret);
-    }
-
-    if (!g_p2p_thread_running) {
-        app_p2p_restart_thread();
-        bk_wlan_status_register_cb(app_p2p_rw_event_func);
     }
 
     return ret;
@@ -2232,11 +2222,6 @@ bk_err_t bk_wifi_p2p_enable_with_intent(const char *ssid, int intent)
         s_wifi_p2p_dev_name[ssid_len] = '\0';
     } else {
         WIFI_LOGE("AP: IPC P2P_ENABLE FAILED! SSID NOT saved! ret=%d\n", ret);
-    }
-
-    if (!g_p2p_thread_running) {
-        app_p2p_restart_thread();
-        bk_wlan_status_register_cb(app_p2p_rw_event_func);
     }
 
     return ret;

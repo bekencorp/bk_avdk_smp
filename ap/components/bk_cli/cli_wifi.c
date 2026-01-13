@@ -881,6 +881,7 @@ error:
 #endif
 
 #if CONFIG_P2P
+extern bk_err_t demo_p2p_event_cb(void *arg, event_module_t event_module, int event_id, void *event_data);
 void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	int ret = BK_OK;
@@ -921,6 +922,7 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 				goto error;
 			}
 		}
+		bk_event_register_cb(EVENT_MOD_WIFI, EVENT_ID_ALL, demo_p2p_event_cb, NULL);
 	} else if (!os_strcmp(argv[1], "find")) {
 		ret = bk_wifi_p2p_find();
 		if (ret != BK_OK) {
@@ -970,6 +972,7 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			CLI_LOGE("p2p disable failed, err=%d\n", ret);
 			goto error;
 		}
+		bk_event_unregister_cb(EVENT_MOD_WIFI, EVENT_ID_ALL, demo_p2p_event_cb);
 	} else {
 		CLI_LOGW("invalid p2p command\n");
 		cli_wifi_p2p_help();
