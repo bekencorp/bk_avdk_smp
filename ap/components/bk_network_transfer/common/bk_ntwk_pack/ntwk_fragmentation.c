@@ -381,7 +381,7 @@ static void unfragment_process_packet(unfragment_cfg_t *config, uint8_t *data, u
                 }
                 else
                 {
-                    LOGE("frame buffer malloc failed\r\n");
+                    LOGV("frame buffer malloc failed\r\n");
                 }
 
                 frame_buffer->buf_ptr = frame_buffer->frame->frame;
