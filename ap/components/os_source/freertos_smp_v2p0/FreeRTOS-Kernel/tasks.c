@@ -466,6 +466,7 @@ const volatile UBaseType_t uxTopUsedPriority = configMAX_PRIORITIES - 1U;
  * kernel to move the task from the pending ready list into the real ready list
  * when the scheduler is unsuspended.  The pending ready list itself can only be
  * accessed from a critical section. */
+__attribute__((section(".sram_spinlock_section")))
 PRIVILEGED_DATA static volatile UBaseType_t uxSchedulerSuspended[ configNUMBER_OF_CORES ] = { ( UBaseType_t ) pdFALSE };
 
 #if ( configGENERATE_RUN_TIME_STATS == 1 )
