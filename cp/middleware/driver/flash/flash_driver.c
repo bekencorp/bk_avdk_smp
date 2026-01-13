@@ -87,6 +87,8 @@ static const flash_config_t flash_config[] = {
 	{0xEB6015,   FLASH_SIZE_2M,   2,             FLASH_LINE_MODE_FOUR,   14,       2,            0x1F,         0x1F,        0x00,         0x101,                9,            1,           0xA0,                         }, //zg_th25q16b
 	{0xC86517,	 FLASH_SIZE_8M,   2,             FLASH_LINE_MODE_FOUR,   14,	   2,            0x1F,         0x1F,        0x00,         0x00E,                9,            1,           0xA0,                         }, //gd_25Q32E
 	{0xCD6017,   FLASH_SIZE_8M,   3,             FLASH_LINE_MODE_FOUR,   14,       2,            0x1F,         0x1F,        0x00,         0x00E,                9,            1,           0xA0,                         }, //th_25q64ha
+	{0xC86019,	 FLASH_SIZE_16M,  2, 			 FLASH_LINE_MODE_FOUR,   14,	   2,			  0x1F, 		0x1F,		 0x00,		   0x0E,		        9,			  1, 		   0xA0,                         }, //for FPGA simulation and debugging type size 16M
+	{0xC84016,	 FLASH_SIZE_4M,   2,             FLASH_LINE_MODE_FOUR,   14,	   2,			  0x1F, 		0x1F,		 0x00,		   0x0E,		        9,			  1, 		   0xA0,                         }, //for FPGA simulation and debugging type size 4M
 	{0x000000,   FLASH_SIZE_4M,   2,             FLASH_LINE_MODE_TWO,    0,        2,            0x1F,         0x00,        0x00,         0x000,                0,            0,           0x00,                         }, //default
 };
 
