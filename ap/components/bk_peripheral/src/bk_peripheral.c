@@ -9,15 +9,12 @@
 #include "lcd_panel_devices.h"
 #include "tp_sensor_devices.h"
 
-
 #define TAG "bk_peripheral"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-
-
 
 
 void bk_peripheral_init(void)

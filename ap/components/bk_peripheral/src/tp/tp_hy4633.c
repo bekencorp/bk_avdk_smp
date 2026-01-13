@@ -16,10 +16,10 @@
 #include <os/mem.h>
 #include <driver/tp.h>
 #include <driver/tp_types.h>
-#include "tp_sensor_devices.h"
 
 
 #define TAG "hy4633"
+
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -278,3 +278,16 @@ const tp_sensor_config_t tp_sensor_hy4633 =
 	.init = hy4633_init,
 	.read_tp_info = hy4633_read_tp_info,
 };
+
+// Detection function wrapper for section registration
+const tp_sensor_config_t *hy4633_detect_sensor(const tp_i2c_callback_t *cb)
+{
+	if (hy4633_detect(cb))
+	{
+		return &tp_sensor_hy4633;
+	}
+
+	return NULL;
+}
+
+BK_TP_SENSOR_DETECT_SECTION(hy4633_detect_sensor);

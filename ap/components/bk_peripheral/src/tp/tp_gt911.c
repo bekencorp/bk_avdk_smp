@@ -16,10 +16,10 @@
 #include <os/mem.h>
 #include <driver/tp.h>
 #include <driver/tp_types.h>
-#include "tp_sensor_devices.h"
 
 
 #define TAG "gt911"
+
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -616,3 +616,16 @@ const tp_sensor_config_t tp_sensor_gt911 =
 	.init = gt911_init,
 	.read_tp_info = gt911_read_tp_info,
 };
+
+// Detection function wrapper for section registration
+const tp_sensor_config_t *gt911_detect_sensor(const tp_i2c_callback_t *cb)
+{
+	if (gt911_detect(cb))
+	{
+		return &tp_sensor_gt911;
+	}
+
+	return NULL;
+}
+
+BK_TP_SENSOR_DETECT_SECTION(gt911_detect_sensor);
