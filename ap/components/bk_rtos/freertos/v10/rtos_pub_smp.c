@@ -1477,6 +1477,9 @@ static void push_critical_lr(uint32_t lr)
         return;
     }
     uint8_t core_id = portGET_CORE_ID();
+    if (core_id >= CONFIG_CPU_CNT) {
+        return;
+    }
     uint8_t stack_count = 0;
     if (s_critical_stack_top[core_id] < CONFIG_CRITICAL_LR_COUNT) {
         s_critical_lr_stack[core_id][s_critical_stack_top[core_id]] = lr;
@@ -1498,6 +1501,9 @@ static void pop_critical_lr(void)
         return;
     }
     uint8_t core_id = portGET_CORE_ID();
+    if (core_id >= CONFIG_CPU_CNT) {
+        return;
+    }
     
     if (s_critical_overflow_count[core_id] > 0)
     {
