@@ -3,6 +3,8 @@
 #include "driver/lcd.h"
 #include "bk_display_ctlr.h"
 #include "frame_buffer.h"
+#include <os/mem.h>
+#include <modules/image_scale.h>
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
 #endif
@@ -416,12 +418,12 @@ static avdk_err_t rgb_display_ctlr_open(bk_display_ctlr_t *controller)
         context->spi_bus_handle = lcd_spi_bus_io_register(&io);
         if (context->spi_bus_handle)
         {
-            if (context->spi_bus_handle->init)
-            {
-                context->spi_bus_handle->init(context->spi_bus_handle);
-            }
             if (context->lcd_device->init)
             {
+                if (context->spi_bus_handle->init)
+                {
+                    context->spi_bus_handle->init(context->spi_bus_handle);
+                }
                 context->lcd_device->init(context->spi_bus_handle);
             }
         }
@@ -531,10 +533,49 @@ static avdk_err_t rgb_display_ctlr_delete(bk_display_ctlr_t *controller)
     private_display_rgb_ctlr_t *rgb_controller = __containerof(controller, private_display_rgb_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(rgb_controller, AVDK_ERR_INVAL, TAG, "control is NULL");
 
+#ifdef CONFIG_DISPLAY_RGB888_HIGH_BIT_SHIFT
+        os_free(rgb_controller->rgb888_bitshift_sram);
+        rgb_controller->rgb888_bitshift_sram = NULL;
+#endif
     os_free(rgb_controller);
     bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_VIDP_LCD, PM_POWER_MODULE_STATE_OFF);
     return AVDK_ERR_OK;
 }
+
+#ifdef CONFIG_DISPLAY_RGB888_HIGH_BIT_SHIFT
+// Wrapper functions to call image_scale.c functions
+static void rgb888_bit_shift_process_wrapper(private_display_rgb_ctlr_t *rgb_controller, uint8_t *src_psram, uint8_t *dst_psram, uint32_t width, uint32_t height)
+{
+    if (rgb_controller == NULL || rgb_controller->rgb888_bitshift_sram == NULL || src_psram == NULL || dst_psram == NULL || width == 0 || height == 0) {
+        LOGE("%s rgb_controller or rgb_controller->rgb888_bitshift_sram or src_psram or dst_psram is NULL or width or height is 0\n", __func__);
+        return;
+    }
+    rgb888_bit_shift_process(rgb_controller->rgb888_bitshift_sram, src_psram, dst_psram, width, height);
+}
+
+static void rgb565_process_to_rgb888_bitshift_wrapper(private_display_rgb_ctlr_t *rgb_controller, uint8_t *src_psram, uint8_t *dst_psram, uint32_t width, uint32_t height)
+{
+    if (rgb_controller == NULL || rgb_controller->rgb888_bitshift_sram == NULL || src_psram == NULL || dst_psram == NULL || width == 0 || height == 0) {
+        LOGE("%s rgb_controller or rgb_controller->rgb888_bitshift_sram or src_psram or dst_psram is NULL or width or height is 0\n", __func__);
+        return;
+    }
+    rgb565_process_to_rgb888_bitshift(rgb_controller->rgb888_bitshift_sram, src_psram, dst_psram, width, height);
+}
+
+static void yuyv_to_rgb888_bitshift_wrapper(private_display_rgb_ctlr_t *rgb_controller, uint8_t *src_psram, uint8_t *dst_psram, uint32_t width, uint32_t height)
+{
+    if (rgb_controller == NULL || rgb_controller->rgb888_bitshift_sram == NULL || src_psram == NULL || dst_psram == NULL || width == 0 || height == 0) {
+        LOGE("%s rgb_controller or rgb_controller->rgb888_bitshift_sram or src_psram or dst_psram is NULL or width or height is 0\n", __func__);
+        return;
+    }
+    yuyv_to_rgb565_process_to_rgb888_bitshift(rgb_controller->rgb888_bitshift_sram, src_psram, dst_psram, width, height);
+}
+static bk_err_t private_rgb888_process_free_cb(void *frame)
+{
+    frame_buffer_display_free(frame);
+    return BK_OK;
+}
+#endif
 
 static avdk_err_t rgb_display_ctlr_flush(bk_display_ctlr_t *controller, frame_buffer_t *frame, bk_err_t (*free_t)(void *args))
 {
@@ -542,6 +583,57 @@ static avdk_err_t rgb_display_ctlr_flush(bk_display_ctlr_t *controller, frame_bu
     AVDK_RETURN_ON_FALSE(rgb_controller, AVDK_ERR_INVAL, TAG, "control is NULL");
 
     private_display_rgb_context_t *lcd_disp_config = &rgb_controller->rgb_context;
+#ifdef CONFIG_DISPLAY_RGB888_HIGH_BIT_SHIFT
+    // Get destination frame buffer for pixel conversion
+    frame_buffer_t *dst_frame = NULL;
+    dst_frame = frame_buffer_display_malloc(frame->width * frame->height * 3);
+    if (dst_frame == NULL) {
+        LOGE("%s dst_frame malloc failed, release source frame\n", __func__);
+        // Release source frame if dst_frame allocation failed
+        if (free_t != NULL) {
+            free_t(frame);
+        }
+        return AVDK_ERR_NOMEM;
+    }
+
+    // Initialize dst_frame format information
+    dst_frame->width = frame->width;
+    dst_frame->height = frame->height;
+    //dst_frame->fmt = frame->fmt;
+    // Convert pixels from source frame to dst_frame
+    if (frame->fmt == PIXEL_FMT_RGB565) {
+        rgb565_process_to_rgb888_bitshift_wrapper(rgb_controller, frame->frame, dst_frame->frame, frame->width, frame->height);
+        dst_frame->fmt = PIXEL_FMT_RGB888;
+    } else if (frame->fmt == PIXEL_FMT_RGB888) {
+        rgb888_bit_shift_process_wrapper(rgb_controller, frame->frame, dst_frame->frame, frame->width, frame->height);
+        dst_frame->fmt = PIXEL_FMT_RGB888;
+    } else if (frame->fmt == PIXEL_FMT_YUYV) {
+        yuyv_to_rgb888_bitshift_wrapper(rgb_controller, frame->frame, dst_frame->frame, frame->width, frame->height);
+        dst_frame->fmt = PIXEL_FMT_RGB888;
+    } else {
+        LOGE("%s frame->fmt %d is not supported, release dst_frame\n", __func__, frame->fmt);
+        // Release dst_frame if frame->fmt is not supported
+        if (free_t != NULL) {
+            free_t(frame);
+        }
+        private_rgb888_process_free_cb(dst_frame);
+        return AVDK_ERR_INVAL;
+    }
+
+    // Release source frame immediately after conversion (no need to wait for display)
+    if (free_t != NULL) {
+        free_t(frame);
+    }
+    // Flush dst_frame to display, callback will release it after display completes
+    bk_err_t ret = lcd_display_task_send_msg(lcd_disp_config, DISPLAY_FRAME_REQUEST, (uint32_t)dst_frame, (uint32_t)private_rgb888_process_free_cb);
+    if (ret != BK_OK) {
+        LOGE("%s lcd_display_task_send_msg failed, ret:%d, release dst_frame manually\n", __func__, ret);
+        // If send failed, manually release dst_frame
+        private_rgb888_process_free_cb(dst_frame);
+        return AVDK_ERR_GENERIC;
+    }
+    return AVDK_ERR_OK;
+#endif
     return lcd_display_task_send_msg(lcd_disp_config, DISPLAY_FRAME_REQUEST, (uint32_t)frame, (uint32_t)free_t);
 }
 
@@ -567,6 +659,15 @@ avdk_err_t bk_display_rgb_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_
     os_memset(controller, 0, sizeof(private_display_rgb_ctlr_t));
 
     os_memcpy(&controller->config, config, sizeof(bk_display_rgb_ctlr_config_t));
+   
+#ifdef CONFIG_DISPLAY_RGB888_HIGH_BIT_SHIFT
+    controller->rgb888_bitshift_sram = os_malloc(config->lcd_device->width * 3);
+    if (controller->rgb888_bitshift_sram == NULL) {
+        LOGE("%s controller->rgb888_bitshift_sram malloc failed\n", __func__);
+        os_free(controller);
+        return AVDK_ERR_NOMEM;
+    }
+#endif
 
     controller->ops.open = rgb_display_ctlr_open;
     controller->ops.close = rgb_display_ctlr_close;

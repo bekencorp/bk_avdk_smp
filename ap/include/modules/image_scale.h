@@ -172,6 +172,38 @@ void vuyy_to_rgb888(uint8_t *input_ptr, uint8_t *output_ptr, uint32_t width, uin
 
 void vyuy_to_rgb888_convert(uint8_t *input_ptr, uint8_t *output_ptr, uint32_t width, uint32_t height);
 
+/**
+ * @brief RGB888 pixel conversion with bit shift process
+ * Transfer high bits to low bits: R7,R6,R5,R4,R3,R2,R1,R0 -> R7,R6,R5,R7,R6,R5,R4,R3
+ * @param sram_buffer SRAM buffer for temporary storage (must be at least width * 3 bytes)
+ * @param src_psram Source RGB888 data buffer
+ * @param dst_psram Destination RGB888 data buffer
+ * @param width Image width
+ * @param height Image height
+ */
+void rgb888_bit_shift_process(uint8_t *sram_buffer, uint8_t *src_psram, uint8_t *dst_psram, uint32_t width, uint32_t height);
+
+/**
+ * @brief RGB565 to RGB888 conversion with bit shift process
+ * Directly expand RGB565 to RGB888 with high bits set to 1
+ * @param sram_buffer SRAM buffer for temporary storage (must be at least width * 3 bytes)
+ * @param src_psram Source RGB565 data buffer
+ * @param dst_psram Destination RGB888 data buffer
+ * @param width Image width
+ * @param height Image height
+ */
+void rgb565_process_to_rgb888_bitshift(uint8_t *sram_buffer, uint8_t *src_psram, uint8_t *dst_psram, uint32_t width, uint32_t height);
+
+/**
+ * @brief YUYV to RGB888 conversion with bit shift process
+ * Merged from yuyv_to_rgb565_convert + rgb565_process_to_rgb888_bitshift
+ * @param sram_buffer SRAM buffer for temporary storage (must be at least width * 3 bytes)
+ * @param src_psram Source YUYV data buffer
+ * @param dst_psram Destination RGB888 data buffer
+ * @param width Image width
+ * @param height Image height
+ */
+void yuyv_to_rgb565_process_to_rgb888_bitshift(uint8_t *sram_buffer, uint8_t *src_psram, uint8_t *dst_psram, uint32_t width, uint32_t height);
 
 int rgb565_to_vuyy_convert(uint16_t *sourceLcdBuffer, uint16_t *destLcdBuffer,int img_width, int img_height);
 

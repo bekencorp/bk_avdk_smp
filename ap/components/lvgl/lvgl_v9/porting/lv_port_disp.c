@@ -61,9 +61,7 @@ static frame_buffer_t *disp_buf = NULL;
 static frame_buffer_t *copy_buf = NULL;
 static bool lv_new_frame_flag = true;
 static beken_semaphore_t lv_disp_sem = NULL;
-#if CONFIG_LVGL_RGB888_HIGH_BIT_SHIFT
-static uint8_t *sram_buffer = NULL;
-#endif
+
 
 void lv_port_disp_init(void)
 {
@@ -126,17 +124,6 @@ void lv_port_disp_init(void)
         }
     }
 #endif
-
-#if CONFIG_LVGL_RGB888_HIGH_BIT_SHIFT
-    if (sram_buffer == NULL) {
-        uint32_t sram_buffer_size = vendor_config.width * 3 * 1;
-        sram_buffer = os_malloc(sram_buffer_size);
-        if (sram_buffer == NULL) {
-            LOGE("%s sram_buffer malloc failed\n", __func__);
-            return;
-        }
-    }
-#endif
 }
 
 void lv_port_disp_deinit(void)
@@ -151,13 +138,6 @@ void lv_port_disp_deinit(void)
     lv_display_delete(lv_disp_get_default());
 
     disp_deinit();
-
-    #if CONFIG_LVGL_RGB888_HIGH_BIT_SHIFT
-        if (sram_buffer != NULL) {
-            os_free(sram_buffer);
-            sram_buffer = NULL;
-        }
-    #endif
 }
 
 /**********************
@@ -237,58 +217,7 @@ static bk_err_t lvgl_frame_buffer_free_cb(void *frame)
     return BK_OK;
 }
 
-#if CONFIG_LVGL_RGB888_HIGH_BIT_SHIFT
-static void rgb888_process_psram_to_dst_optimized(uint8_t *src_psram, uint8_t *dst_psram, uint32_t width, uint32_t height)
-{
-    if (src_psram == NULL || dst_psram == NULL || width == 0 || height == 0) {
-        LOGE("%s src_psram or dst_psram is NULL or width or height is 0\n", __func__);
-        return;
-    }
 
-    uint32_t bytes_per_row = width * 3;
-
-    for (uint32_t y = 0; y < height; y++) {
-        uint8_t* src = src_psram + y * bytes_per_row;
-        uint8_t* dst_psram_row = dst_psram + y * bytes_per_row;
-        uint8_t* dst = sram_buffer;
-
-        // Use 8-pixel unrolling for optimal performance
-        uint32_t pixel_count = width;
-        uint32_t i = 0;
-
-        // Main loop: 8-pixel unrolling
-        for (; i + 7 < pixel_count; i += 8) {
-            uint8_t* s = src + i * 3;
-            uint8_t* d = dst + i * 3;
-
-            // Process 8 pixels at once
-            for (int j = 0; j < 8; j++) {
-                uint8_t b = s[j * 3];
-                uint8_t g = s[j * 3 + 1];
-                uint8_t r = s[j * 3 + 2];
-
-                d[j * 3] = (b & 0xE0) | ((b >> 3) & 0x1F);
-                d[j * 3 + 1] = (g & 0xC0) | ((g >> 2) & 0x3F);
-                d[j * 3 + 2] = (r & 0xE0) | ((r >> 3) & 0x1F);
-            }
-        }
-
-        // Process remaining pixels
-        for (; i < pixel_count; i++) {
-            uint8_t* s = src + i * 3;
-            uint8_t* d = dst + i * 3;
-
-            uint8_t b = s[0], g = s[1], r = s[2];
-            d[0] = (b & 0xE0) | ((b >> 3) & 0x1F);
-            d[1] = (g & 0xC0) | ((g >> 2) & 0x3F);
-            d[2] = (r & 0xE0) | ((r >> 3) & 0x1F);
-        }
-
-        // Write processed data from SRAM buffer to destination PSRAM
-        memcpy(dst_psram_row, dst, bytes_per_row);
-    }
-}
-#endif
 
 static void lv_disp_flush_for_partial_mode(lv_display_t * disp_drv, const lv_area_t * area, uint8_t * px_map)
 {
@@ -383,28 +312,7 @@ static void lv_disp_flush_for_partial_mode(lv_display_t * disp_drv, const lv_are
             }
         #endif
 
-#if CONFIG_LVGL_RGB888_HIGH_BIT_SHIFT
-        // Get destination frame buffer for pixel conversion
-        frame_buffer_t *dst_frame = lv_vendor_get_ready_frame_buffer();
-        if (dst_frame == NULL) {
-            LOGE("%s dst_frame is NULL, release disp_buf\n", __func__);
-            // Release disp_buf if dst_frame allocation failed
-            lv_vendor_set_ready_frame_buffer(disp_buf);
-            return;
-        }
-
-        // Convert pixels from disp_buf to dst_frame
-        rgb888_process_psram_to_dst_optimized(disp_buf->frame, dst_frame->frame, vendor_config.width, vendor_config.height);
-        // Flush dst_frame to display, callback will release it after display completes
-        avdk_err_t ret = bk_display_flush(vendor_config.handle, dst_frame, lvgl_frame_buffer_free_cb);
-        if (ret != AVDK_ERR_OK) {
-            LOGE("%s bk_display_flush failed, ret:%d, release dst_frame manually\n", __func__, ret);
-            // If flush failed, manually release dst_frame
-            lvgl_frame_buffer_free_cb(dst_frame);
-        }
-#else
-         bk_display_flush(vendor_config.handle, disp_buf, lvgl_frame_buffer_free_cb);
-#endif
+        bk_display_flush(vendor_config.handle, disp_buf, lvgl_frame_buffer_free_cb);
         lv_new_frame_flag = true;
 
         if (CONFIG_LVGL_FRAME_BUFFER_NUM > 1) {
@@ -423,11 +331,6 @@ static void lv_disp_flush_for_partial_mode(lv_display_t * disp_drv, const lv_are
                 lv_dma_memcpy_last_frame(disp_buf->frame, copy_buf->frame, lv_hor, lv_ver);
             #endif
         }
-        #if CONFIG_LVGL_RGB888_HIGH_BIT_SHIFT
-        if (disp_buf != NULL) {
-            lv_vendor_set_ready_frame_buffer(disp_buf);
-        }
-        #endif
     }
 }
 
@@ -459,22 +362,11 @@ static void lv_disp_flush_for_direct_mode(lv_display_t * disp_drv, const lv_area
 
     if (lv_disp_flush_is_last(disp_drv)) {
         media_debug->lvgl_draw++;
-#if CONFIG_LVGL_RGB888_HIGH_BIT_SHIFT
-        if (px_map == vendor_config.draw_buf_2_1) {
-            rgb888_process_psram_to_dst_optimized(vendor_config.frame_buffer[0]->frame, vendor_config.frame_buffer[2]->frame, vendor_config.width, vendor_config.height);
-            bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[2], lvgl_frame_buffer_free_cb);
-        } else {     
-            rgb888_process_psram_to_dst_optimized(vendor_config.frame_buffer[1]->frame, vendor_config.frame_buffer[3]->frame, vendor_config.width, vendor_config.height);
-            bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[3], lvgl_frame_buffer_free_cb);
-        }
-#else
         if (px_map == vendor_config.draw_buf_2_1) {
             bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[0], lvgl_frame_buffer_free_cb);
         } else {
             bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[1], lvgl_frame_buffer_free_cb);
         }
-
-#endif
         if (first_flush) {
             first_flush = false;
         } else {

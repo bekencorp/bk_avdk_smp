@@ -115,6 +115,9 @@ typedef struct
     bk_display_rgb_ctlr_config_t config;
     private_display_rgb_context_t rgb_context;
     bk_display_ctlr_t ops;
+#ifdef CONFIG_DISPLAY_RGB888_HIGH_BIT_SHIFT
+    uint8_t *rgb888_bitshift_sram;
+#endif
 } private_display_rgb_ctlr_t;
 
 typedef struct
