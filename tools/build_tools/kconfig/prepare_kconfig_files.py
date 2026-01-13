@@ -170,36 +170,25 @@ def _prepare_source_files(env_dict, list_separator):
                 # Flat group
                 flat_groups[group_name] = kconfig_paths
         
-        # Generate files for flat groups
-        for group_name in sorted(flat_groups.keys()):
-            kconfig_paths = sorted(flat_groups[group_name])
-            group_file = os.path.join(group_kconfigs_dir, '{}_group.kconfig'.format(group_name.lower().replace(' ', '_').replace('::', '_')))
-            
-            content_lines = ['menu "{}"'.format(group_name), '']
-            for kconfig_path in kconfig_paths:
-                # Convert absolute path to relative path using ARMINO_AP_DIR
-                if armino_ap_dir and armino_ap_dir in kconfig_path:
-                    rel_path = kconfig_path.replace(armino_ap_dir, '${ARMINO_AP_DIR}')
-                else:
-                    rel_path = kconfig_path
-                content_lines.append('    source "{}"'.format(rel_path))
-            content_lines.append('')
-            content_lines.append('endmenu')
-            
-            with open(group_file, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(content_lines))
-            
-            generated_files.append(group_file)
+        # Merge flat groups and nested groups by top-level menu name
+        # This ensures that groups with the same top-level name (e.g., "Demos" and "Demos::Net")
+        # are merged into a single file
+        merged_top_level_groups = {}
         
-        # Generate files for nested groups
-        # Group by top-level menu to merge common paths
-        top_level_groups = {}
+        # Process flat groups - treat them as top-level groups
+        for group_name in sorted(flat_groups.keys()):
+            if group_name not in merged_top_level_groups:
+                merged_top_level_groups[group_name] = {'components': [], 'children': {}}
+            # Add flat group components directly to top level
+            merged_top_level_groups[group_name]['components'].extend(flat_groups[group_name])
+        
+        # Process nested groups - merge by top-level menu
         for path_key, group_info in nested_groups.items():
             top_level = group_info['path'][0]
-            if top_level not in top_level_groups:
-                top_level_groups[top_level] = {}
+            if top_level not in merged_top_level_groups:
+                merged_top_level_groups[top_level] = {'components': [], 'children': {}}
             # Build menu tree structure
-            current = top_level_groups[top_level]
+            current = merged_top_level_groups[top_level]
             menu_path = group_info['path'][1:]  # Skip top level
             for menu_name in menu_path:
                 if 'children' not in current:
@@ -212,17 +201,17 @@ def _prepare_source_files(env_dict, list_separator):
                 current['components'] = []
             current['components'].extend(group_info['components'])
         
-        # Generate one file per top-level group
-        for top_level in sorted(top_level_groups.keys()):
-            group_file = os.path.join(group_kconfigs_dir, '{}_group.kconfig'.format(top_level.lower().replace(' ', '_')))
+        # Generate one file per top-level group (merged)
+        for top_level in sorted(merged_top_level_groups.keys()):
+            group_file = os.path.join(group_kconfigs_dir, '{}_group.kconfig'.format(top_level.lower().replace(' ', '_').replace('::', '_')))
             content_lines = []
             
             # Start with top-level menu
             content_lines.append('menu "{}"'.format(top_level))
             content_lines.append('')
             
-            # Generate nested menu structure from tree
-            menu_tree = top_level_groups[top_level]
+            # Generate nested menu structure from merged tree
+            menu_tree = merged_top_level_groups[top_level]
             _generate_nested_menu_structure(content_lines, menu_tree, armino_ap_dir, 1)
             
             content_lines.append('')
@@ -252,6 +241,8 @@ def _prepare_source_files(env_dict, list_separator):
         content_lines = []
         # Ensure group_kconfigs_dir is absolute
         group_kconfigs_dir_abs = os.path.abspath(os.path.normpath(group_kconfigs_dir))
+        # Use set to deduplicate file paths
+        seen_files = set()
         for group_file in sorted(group_files):
             # Use absolute path for source statement
             # Ensure path is absolute and normalized
@@ -259,7 +250,10 @@ def _prepare_source_files(env_dict, list_separator):
                 abs_path = os.path.normpath(group_file)
             else:
                 abs_path = os.path.abspath(os.path.normpath(os.path.join(group_kconfigs_dir_abs, group_file)))
-            content_lines.append('source "{}"'.format(abs_path))
+            # Deduplicate: only add if not seen before
+            if abs_path not in seen_files:
+                seen_files.add(abs_path)
+                content_lines.append('source "{}"'.format(abs_path))
         
         with open(index_file, 'w', encoding='utf-8') as f:
             f.write('\n'.join(content_lines))
