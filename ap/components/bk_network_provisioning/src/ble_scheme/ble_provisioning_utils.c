@@ -22,6 +22,7 @@
 
 static ble_provisioning_info_t *s_ble_boarding_info = NULL;
 static beken_semaphore_t s_ble_sema = NULL;
+static beken_semaphore_t s_notify_sema = NULL;
 static bk_gatt_if_t s_gatts_if = 0;
 
 #define SYNC_CMD_TIMEOUT_MS 4000
@@ -483,6 +484,11 @@ static int32_t wifi_boarding_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t ga
         struct gatts_conf_evt_param *param = (typeof(param))comm_param;
 
         wboard_logv("BK_GATTS_CONF_EVT %d %d %d", param->status, param->conn_id, param->handle);
+
+        if (s_notify_sema)
+        {
+            rtos_set_semaphore(&s_notify_sema);
+        }
     }
     break;
 
@@ -742,6 +748,17 @@ int wifi_boarding_init(ble_provisioning_info_t *info)
         }
     }
 
+    if(!s_notify_sema)
+    {
+        ret = rtos_init_semaphore(&s_notify_sema, 1);
+
+        if (ret != 0)
+        {
+            wboard_loge("rtos_init_semaphore s_notify_sema err %d", ret);
+            return -1;
+        }
+    }
+
     bk_ble_gap_register_callback(dm_ble_gap_common_cb);
 
     bk_ble_gatts_register_callback(wifi_boarding_gatts_cb);
@@ -835,6 +852,19 @@ int wifi_boarding_deinit(void)
         }
 
         s_ble_sema = NULL;
+    }
+
+    if (s_notify_sema)
+    {
+        ret = rtos_deinit_semaphore(&s_notify_sema);
+
+        if (ret != 0)
+        {
+            wboard_loge("rtos_deinit_semaphore s_notify_sema err %d", ret);
+            return -1;
+        }
+
+        s_notify_sema = NULL;
     }
 
     bk_ble_gatts_register_callback(NULL);
@@ -1118,6 +1148,13 @@ int wifi_boarding_notify(uint8_t *data, uint16_t length)
     {
         wboard_logv("len %d", length);
         bk_ble_gatts_send_indicate(s_gatts_if, s_conn_ind, s_char_attr_handle, length, data, 0);
+
+        if(rtos_get_semaphore(&s_notify_sema, SYNC_CMD_TIMEOUT_MS))
+        {
+            wboard_loge("wait send notify compl err");
+            return BK_FAIL;
+        }
+
         return BK_OK;
     }
 }
