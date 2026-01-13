@@ -91,7 +91,7 @@ uint32_t ftp_is_running = 0;
 #define msg202 "202 Command not implemented, superfluous at this site."
 #define msg211 "211 System status, or system help reply."
 #define msg212 "212 Directory status."
-#define msg213 "213 File status."
+#define msg213 "213 %ld"
 #define msg214 "214 %s."
 /*
              214 Help message.
@@ -368,6 +368,7 @@ struct ftpd_msgstate {
 	struct ftpd_datastate *datafs;
 	int passive;
 	char *renamefrom;
+	off_t restart_offset;
 };
 
 static void send_msg(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm, char *msg, ...);
@@ -531,6 +532,9 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 #if CONFIG_NTP_SYNC_RTC
 				extern time_t timestamp_get();
 				current_time = timestamp_get();
+#else
+				/* Fallback to time() if NTP is not configured */
+				current_time = time(NULL);
 #endif
 
 				s_time = gmtime(&current_time);
@@ -538,7 +542,14 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 
 				stat(fsd->vfs_dirent->d_name, &st);
 
-				s_time = gmtime(&st.st_mtime);
+				/* If st_mtime is 0 (file system doesn't support timestamps),
+				 * use current time instead */
+				if (st.st_mtime == 0) {
+					/* Display UTC (Greenwich Mean Time) */
+					s_time = gmtime(&current_time);
+				} else {
+					s_time = gmtime(&st.st_mtime);
+				}
 				if(list_type == FTPD_LIST){
 					if (s_time->tm_year == current_year) {
 						len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %02i:%02i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_hour, s_time->tm_min, fsd->vfs_dirent->d_name);
@@ -548,40 +559,33 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 					if (S_ISDIR(st.st_mode))
 						buffer[0] = 'd';
 				} else {
-					//MLDS
+					//MLSD
 					if (S_ISDIR(st.st_mode))
 					{
-						if (s_time->tm_year == current_year) {
-							len = sprintf(buffer, "type=%s;perm=%s;modify=%d%02d%02d%02d%02d%02d; %s\r\n",
-										 "dir","elrwx",
-										 s_time->tm_year,
-										(s_time->tm_mon==0)?1:s_time->tm_mon, (s_time->tm_mday == 0)?1:s_time->tm_mday,
-										s_time->tm_hour,s_time->tm_min,0,fsd->vfs_dirent->d_name);
-						} else {
-							len = sprintf(buffer, "type=%s;perm=%s;modify=%d%02d%02d%02d%02d%02d; %s\r\n", 
-										"dir","elrwx",
-										s_time->tm_year + 1900,
-										(s_time->tm_mon==0)?1:s_time->tm_mon, (s_time->tm_mday == 0)?1:s_time->tm_mday,
-										s_time->tm_hour,s_time->tm_min,0,fsd->vfs_dirent->d_name);
-						}
+						/* MLSD format: modify=YYYYMMDDHHmmss */
+						len = sprintf(buffer, "type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d; %s\r\n",
+									 "dir","elrwx",
+									 s_time->tm_year + 1900,
+									 s_time->tm_mon + 1,
+									 s_time->tm_mday,
+									 s_time->tm_hour,
+									 s_time->tm_min,
+									 s_time->tm_sec,
+									 fsd->vfs_dirent->d_name);
 					} 
 					else 
 					{
-						if (s_time->tm_year == current_year) {
-							len = sprintf(buffer, "type=%s;perm=%s;modify=%d%02d%02d%02d%02d%02d;size=%d; %s\r\n", 
-										"file","rwx",
-										s_time->tm_year,
-										(s_time->tm_mon==0)?1:s_time->tm_mon, (s_time->tm_mday == 0)?1:s_time->tm_mday,
-										s_time->tm_hour,s_time->tm_min,0,
-										st.st_size,fsd->vfs_dirent->d_name);
-						} else {
-							len = sprintf(buffer, "type=%s;perm=%s;modify=%d%02d%02d%02d%02d%02d;size=%d; %s\r\n", 
-										"file","rwx",
-										s_time->tm_year + 1900,
-										(s_time->tm_mon==0)?1:s_time->tm_mon, (s_time->tm_mday == 0)?1:s_time->tm_mday,
-										s_time->tm_hour,s_time->tm_min,0,
-										st.st_size,fsd->vfs_dirent->d_name);
-						}
+						/* MLSD format: modify=YYYYMMDDHHmmss */
+						len = sprintf(buffer, "type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d;size=%ld; %s\r\n", 
+									"file","rwx",
+									s_time->tm_year + 1900,
+									s_time->tm_mon + 1,
+									s_time->tm_mday,
+									s_time->tm_hour,
+									s_time->tm_min,
+									s_time->tm_sec,
+									st.st_size,
+									fsd->vfs_dirent->d_name);
 					}
 				}
 
@@ -1002,22 +1006,18 @@ static void cmd_list(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 static void cmd_retr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
 	int ret = -1;
-	int fd = -1; //vfs_file_t *vfs_file;
-	//struct stat st = {0}; //vfs_stat_t st;
-	struct stat st; //vfs_stat_t st;
-#if 0
-	char path[DATA_CMD_MAX_SIZE];
+	int fd = -1;
+	struct stat st;
+	off_t transfer_size;
 
-	if(arg[0] == '/')
-	{
-		ret = stat(arg, &st);
+	if (arg == NULL) {
+		send_msg(pcb, fsm, msg501);
+		return;
 	}
-	else
-	{
-		sprintf(path, "/%s", arg);
-		ret = stat(path, &st);
+	if (*arg == '\0') {
+		send_msg(pcb, fsm, msg501);
+		return;
 	}
-#endif
 
 	ret = stat(arg, &st);
 	if (0 != ret || !S_ISREG(st.st_mode)) {
@@ -1030,7 +1030,25 @@ static void cmd_retr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 		return;
 	}
 
-	send_msg(pcb, fsm, msg150recv, arg, st.st_size);
+	/* If REST command was used, seek to the restart position */
+	if (fsm->restart_offset > 0) {
+		if (lseek(fd, fsm->restart_offset, SEEK_SET) == (off_t)-1) {
+			close(fd);
+			send_msg(pcb, fsm, msg550);
+			return;
+		}
+		/* Calculate remaining size to transfer */
+		if (fsm->restart_offset >= st.st_size) {
+			close(fd);
+			send_msg(pcb, fsm, msg550);
+			return;
+		}
+		transfer_size = st.st_size - fsm->restart_offset;
+	} else {
+		transfer_size = st.st_size;
+	}
+
+	send_msg(pcb, fsm, msg150recv, arg, transfer_size);
 
 	if (open_dataconnection(pcb, fsm) != 0) {
 		close(fd);
@@ -1039,6 +1057,8 @@ static void cmd_retr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 	fsm->datafs->fd = fd;
 	fsm->state = FTPD_RETR;
+	/* Reset restart offset after use */
+	fsm->restart_offset = 0;
 }
 
 static void cmd_stor(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
@@ -1321,31 +1341,167 @@ static void cmd_dele(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 }
 
 static void cmd_size(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
-	send_msg(pcb, fsm, msg213);
+	struct stat st;
+
+	if (arg == NULL) {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+	if (*arg == '\0') {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+	if (stat(arg, &st) != 0) {
+		send_msg(pcb, fsm, msg550);
+		return;
+	}
+	if (!S_ISREG(st.st_mode)) {
+		send_msg(pcb, fsm, msg550);
+		return;
+	}
+	send_msg(pcb, fsm, msg213, st.st_size);
 }
 
 static void cmd_reset(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
-	send_msg(pcb, fsm, msg504);
+	long offset;
+	char *endptr;
+
+	if (arg == NULL) {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+	if (*arg == '\0') {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+
+	offset = strtol(arg, &endptr, 10);
+	if (*endptr != '\0' || offset < 0) {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+
+	fsm->restart_offset = (off_t)offset;
+	send_msg(pcb, fsm, msg350);
 }
 
-
 static void cmd_clnt(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
+	/* CLNT command: Client identification
+	 * Format: CLNT <client-name>
+	 * We just acknowledge it, optionally we could log the client name
+	 */
+	if (arg == NULL || *arg == '\0') {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
+
+	/* Log client name for debugging */
+	dbg_printf("FTP client: %s\r\n", arg);
+
 	send_msg(pcb, fsm, msg200);
 }
 
-
 static void cmd_feat(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
-
+	/* FEAT command: Feature list
+	 * Returns the list of features supported by the server
+	 */
 	send_msg(pcb, fsm, msg_FEAT);
 }
 
 static void cmd_opts(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
+	/* OPTS command: Set options
+	 * Format: OPTS <option> [<value>]
+	 * Common options: UTF8 ON/OFF
+	 */
+	if (arg == NULL || *arg == '\0') {
+		send_msg(pcb, fsm, msg501);
+		return;
+	}
 
-	send_msg(pcb, fsm, msg200);
+	/* Parse option and value */
+	if (strncmp(arg, "UTF8", 4) == 0) {
+		/* UTF8 option - we support it */
+		if (strlen(arg) > 5 && arg[4] == ' ') {
+			/* OPTS UTF8 ON or OPTS UTF8 OFF */
+			send_msg(pcb, fsm, msg200);
+		} else {
+			/* OPTS UTF8 */
+			send_msg(pcb, fsm, msg200);
+		}
+	} else {
+		/* Unknown option - return 501 */
+		send_msg(pcb, fsm, msg501);
+	}
 }
 
 static void cmd_appe(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
-	send_msg(pcb, fsm, msg125);
+	/* APPE command: Append to file
+	 * Similar to STOR but appends to existing file or creates new one
+	 */
+	int fd = -1;
+	char path[DATA_CMD_MAX_SIZE] = {0};
+	char *buffer = os_malloc(MAX_PATH_LEN);
+	char *temp_path;
+
+	if (arg == NULL) {
+		send_msg(pcb, fsm, msg501);
+		if (buffer)
+			os_free(buffer);
+		return;
+	}
+	if (*arg == '\0') {
+		send_msg(pcb, fsm, msg501);
+		if (buffer)
+			os_free(buffer);
+		return;
+	}
+
+	if (NULL == buffer) {
+		dbg_printf("cmd_appe: Out of memory\r\n");
+		send_msg(pcb, fsm, msg451);
+		return;
+	}
+
+	temp_path = getcwd(buffer, MAX_PATH_LEN);
+	if ((strncmp(temp_path, arg, strlen(temp_path)) != 0) && (strcmp(temp_path, "/") != 0)) {
+		sprintf(path, "%s", temp_path);
+	}
+
+	if (arg[0] == '/') {
+		if (path[0] == '\0') {
+			sprintf(path, "%s", arg);
+		} else {
+			strcat(path, arg);
+		}
+	} else {
+		if (path[0] == '\0') {
+			sprintf(path, "/%s", arg);
+		} else {
+			strcat(path, "/");
+			strcat(path, arg);
+		}
+	}
+
+	/* Open file in append mode - creates if doesn't exist */
+	fd = open(path, O_RDWR | O_CREAT | O_APPEND);
+	if (-1 == fd) {
+		send_msg(pcb, fsm, msg550);
+		goto error;
+	}
+
+	send_msg(pcb, fsm, msg150stor, arg);
+
+	if (open_dataconnection(pcb, fsm) != 0) {
+		close(fd);
+		goto error;
+	}
+
+	fsm->datafs->fd = fd;
+	fsm->state = FTPD_STOR;
+
+error:
+	if (buffer)
+		os_free(buffer);
 }
 
 static void cmd_mlsd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
@@ -1354,58 +1510,101 @@ static void cmd_mlsd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 static void cmd_mlst(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
 	struct stat st = {0};
-	int current_year = 0;
 	struct tm *s_time = NULL;
 	time_t current_time = {0};
-	int len;
 	char *buffer = os_malloc(1024);
+	char *path_to_stat = NULL;
+	char *cwd = NULL;
+	char *cwd_buffer = NULL;
 
-	if(NULL == buffer) {
-		dbg_printf("cmd_list_common: Out of memory\r\n");
+	if (NULL == buffer) {
+		dbg_printf("cmd_mlst: Out of memory\r\n");
+		send_msg(pcb, fsm, msg451);
 		return;
 	}
 
 #if CONFIG_NTP_SYNC_RTC
 	extern time_t timestamp_get();
 	current_time = timestamp_get();
+#else
+	/* Fallback to time() if NTP is not configured */
+	current_time = time(NULL);
 #endif
 
-	s_time = gmtime(&current_time);
-	current_year = s_time->tm_year;
-
-	if (fsm->datafs) {
-		if (fsm->datafs->connected) {
-			if (stat(arg, &st) == -1) {
-				send_msg(pcb, fsm, msg550);
-				goto error;
-			} else {
-				s_time = gmtime(&st.st_mtime);
-
-				if (s_time->tm_year == current_year) {
-					len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %02i:%02i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_hour, s_time->tm_min, arg);
-				} else {
-					len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %5i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_year + 1900, arg);
-				}
-
-				if (S_ISDIR(st.st_mode)) {
-					buffer[0] = 'd';
-				}
-
-				sfifo_write(&fsm->datafs->fifo, buffer, len);
-				send_data(pcb, fsm->datafs);
-
-				send_msg(pcb, fsm, msg250);
-			}
-		} else {
-			send_msg(pcb, fsm, msg550);
+	/* If no argument, use current directory */
+	if (arg == NULL || *arg == '\0') {
+		cwd_buffer = os_malloc(MAX_PATH_LEN);
+		if (cwd_buffer == NULL) {
+			os_free(buffer);
+			send_msg(pcb, fsm, msg451);
+			return;
 		}
+		cwd = getcwd(cwd_buffer, MAX_PATH_LEN);
+		if (cwd == NULL) {
+			os_free(buffer);
+			os_free(cwd_buffer);
+			send_msg(pcb, fsm, msg550);
+			return;
+		}
+		path_to_stat = cwd;
 	} else {
-		send_msg(pcb, fsm, msg550);
+		path_to_stat = (char *)arg;
 	}
 
-error:
-	if (buffer)
+	/* Get file/directory information */
+	if (stat(path_to_stat, &st) == -1) {
+		if (cwd_buffer)
+			os_free(cwd_buffer);
 		os_free(buffer);
+		send_msg(pcb, fsm, msg550);
+		return;
+	}
+
+	/* If st_mtime is 0 (file system doesn't support timestamps),
+	 * use current time instead */
+	if (st.st_mtime == 0) {
+		s_time = gmtime(&current_time);
+	} else {
+		s_time = gmtime(&st.st_mtime);
+	}
+
+	/* MLST command returns MLSD format on control connection
+	 * Format: 250- <MLSD line>
+	 *         250 End
+	 */
+	if (S_ISDIR(st.st_mode)) {
+		/* MLSD format: modify=YYYYMMDDHHmmss */
+		sprintf(buffer, "250- type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d; %s",
+				"dir","elrwx",
+				s_time->tm_year + 1900,
+				s_time->tm_mon + 1,
+				s_time->tm_mday,
+				s_time->tm_hour,
+				s_time->tm_min,
+				s_time->tm_sec,
+				path_to_stat);
+	} else {
+		/* MLSD format: modify=YYYYMMDDHHmmss */
+		sprintf(buffer, "250- type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d;size=%ld; %s",
+				"file","rwx",
+				s_time->tm_year + 1900,
+				s_time->tm_mon + 1,
+				s_time->tm_mday,
+				s_time->tm_hour,
+				s_time->tm_min,
+				s_time->tm_sec,
+				st.st_size,
+				path_to_stat);
+	}
+
+	/* Send MLSD line on control connection */
+	send_msg(pcb, fsm, buffer);
+	/* Send final 250 response */
+	send_msg(pcb, fsm, msg250);
+
+	if (cwd_buffer)
+		os_free(cwd_buffer);
+	os_free(buffer);
 }
 
 struct ftpd_command {
@@ -1446,7 +1645,7 @@ static struct ftpd_command ftpd_commands[] = {
 	{"APPE", cmd_appe},
 	{"REST", cmd_reset},
 	{"SIZE", cmd_size},
-	//{"MLST", cmd_mlst},
+	{"MLST", cmd_mlst},
 	{NULL, NULL}
 };
 
