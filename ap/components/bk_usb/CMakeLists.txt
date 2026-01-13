@@ -33,6 +33,7 @@ if (CONFIG_USB)
 		if (CONFIG_USBD_MSC)
 			list(APPEND srcs
 				CherryUSB/class/msc/usbd_msc.c
+				CherryUSB/class/msc/usb_vfs.c
 			)
 		endif() # CONFIG_USBD_MSC
 
@@ -154,4 +155,4 @@ if (CONFIG_ATE_TEST)
 		)
 endif() # CONFIG_ATE
 
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common driver)
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common driver bk_vfs)

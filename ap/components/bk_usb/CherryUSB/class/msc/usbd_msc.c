@@ -1068,7 +1068,7 @@ static void usbd_msc_thread(void *argument)
 		#endif
 		if(flag_vfs_init == 0) {
 			flag_vfs_init = 1;
-			lv_vfs_init();
+			usb_vfs_init();
 		}
 #endif
             usbd_set_status(1);
@@ -1077,7 +1077,7 @@ static void usbd_msc_thread(void *argument)
             case MSC_THREAD_OP_SUSPEND:
 #if CONFIG_VFS
 		if(flag_vfs_init == 1) {
-			lv_vfs_deinit();
+			usb_vfs_deinit();
 			flag_vfs_init = 0;
 		}
 #endif
