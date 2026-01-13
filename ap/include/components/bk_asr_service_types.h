@@ -31,30 +31,26 @@ typedef struct {
 	int task_prio;                                                              /*!< Task priority (based on freeRTOS priority) */
 	audio_mem_type_t mem_type;                                                  /*!< memory type used, sram or psram */
 	uint32_t max_read_size;                                                     /*!< the max size of data read from voice handle, used in voice_read_callback */
-	void (*aud_asr_result_handle)(void *p1, void *p2);
+	void (*aud_asr_result_handle)(uint32_t param);
 	int (*aud_asr_init)(void);
 	int (*aud_asr_recog)(void *read_buf, uint32_t read_size, void *p1, void *p2);
 	void (*aud_asr_deinit)(void);
-	void *p1;                                                                   /*!< user parameter 1 */
-	void *p2;                                                                   /*!< user parameter 2 */
 } aud_asr_cfg_t;
 
 #define AUDIO_ASR_TASK_PRIO    4
 
-#define AUDIO_ASR_CFG_DEFAULT() {             \
-    .asr_handle = NULL,                       \
-    .args = NULL,                             \
-    .task_stack = 2048,                       \
-    .task_core = 0,                           \
-    .task_prio = AUDIO_ASR_TASK_PRIO,         \
-    .mem_type = AUDIO_MEM_TYPE_PSRAM,         \
-    .max_read_size = 960,                     \
-    .aud_asr_result_handle = NULL,            \
-    .aud_asr_init = NULL,                     \
-    .aud_asr_recog = NULL,                    \
-    .aud_asr_deinit = NULL,                   \
-    .p1 = NULL,                               \
-    .p2 = NULL,                               \
+#define AUDIO_ASR_CFG_DEFAULT() {					\
+	.asr_handle = NULL,								\
+	.args = NULL,									\
+	.task_stack = 2048,								\
+	.task_core = 0,									\
+	.task_prio = AUDIO_ASR_TASK_PRIO,				\
+	.mem_type = AUDIO_MEM_TYPE_PSRAM,				\
+	.max_read_size = 960,							\
+	.aud_asr_result_handle = NULL,					\
+	.aud_asr_init = NULL,							\
+	.aud_asr_recog = NULL,							\
+	.aud_asr_deinit = NULL,							\
 }
 
 #ifdef __cplusplus

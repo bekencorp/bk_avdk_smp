@@ -269,7 +269,6 @@ static bk_err_t asr_pipeline_init_with_mic(asr_handle_t asr_handle, asr_cfg_t *c
         goto fail;
     }
 
-#if CONFIG_ADK_AEC_V3_ALGORITHM
     // Initialize AEC if enabled
     if (asr_handle->aec_en)
     {
@@ -281,7 +280,6 @@ static bk_err_t asr_pipeline_init_with_mic(asr_handle_t asr_handle, asr_cfg_t *c
         asr_handle->aec_alg_ref_rb = ringbuf_port_init(&ref_rb_cfg);
         ASR_CHECK_NULL(asr_handle->aec_alg_ref_rb, goto fail);
     }
-#endif
 
 #if CONFIG_ADK_RSP_ALGORITHM
     if (asr_handle->asr_rsp_en) {
