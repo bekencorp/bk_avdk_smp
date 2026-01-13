@@ -332,11 +332,16 @@ static int bk_nw_pro_wifi_event_cb(void *arg, event_module_t event_module, int e
     return BK_OK;
 }
 
-
+#if CONFIG_P2P
+extern bk_err_t demo_p2p_event_cb(void *arg, event_module_t event_module, int event_id, void *event_data);
+#endif
 static void bk_nw_pro_event_handler_init(void)
 {
     BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_WIFI, EVENT_ID_ALL, bk_nw_pro_wifi_event_cb, NULL));
     BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_NETIF, EVENT_ID_ALL, bk_nw_pro_netif_event_cb, NULL));
+#if CONFIG_P2P
+    BK_LOG_ON_ERR(bk_event_register_cb(EVENT_MOD_WIFI, EVENT_ID_ALL, demo_p2p_event_cb, NULL));
+#endif
 }
 
 static void bk_nw_pro_common_init(void)
