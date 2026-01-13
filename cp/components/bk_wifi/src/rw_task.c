@@ -196,10 +196,11 @@ void bmsg_tx_handler(BUS_MSG_T *msg)
 				td_start(vif_idx - 0xF);
 				rxu_cntrl_reuse_reord_timer(vif_idx - 0xF);
 			}
-			else
+			else{
 #endif
 			td_start(vif_idx);
 			rxu_cntrl_reuse_reord_timer(vif_idx);
+			}
 			ps_close_timer = false;
 		}
 	}
