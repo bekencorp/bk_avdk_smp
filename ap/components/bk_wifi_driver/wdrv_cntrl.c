@@ -194,6 +194,16 @@ void wdrv_notify_sap_sta_connected(void)
                                 &ap_connected, sizeof(ap_connected), BEKEN_NEVER_TIMEOUT));
 }
 
+void wdrv_notify_sta_got_ipv6(void)
+{
+    wifi_event_got_ipv6_t got_ipv6 = {0};
+    /* post event got_ipv6*/
+    os_memcpy(&got_ipv6, &wdrv_host_env.ipv6_ind, sizeof(got_ipv6));
+
+    BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_GOT_IPV6,
+                                &got_ipv6, sizeof(got_ipv6), BEKEN_NEVER_TIMEOUT));
+}
+
 void wdrv_notify_sap_sta_disconnected(void)
 {
     wifi_event_ap_connected_t ap_disconnected = {0};
@@ -472,7 +482,7 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
     WDRV_LOGD("%s,%d,%d\n",__func__,__LINE__,msg->id);
     //int loop_idx = 0;
     switch(msg->id) {
-        case BK_EVT_CONNECT_IND:
+        case BK_EVT_IPV4_IND:
             wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_CONNECTED;
             wdrv_host_env.wlan_mode = WIFI_MODE_STA;
             os_memcpy(&wdrv_host_env.connect_ind, msg->param, sizeof(struct wdrv_connect_ind));
@@ -492,6 +502,13 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
 #endif
             wdrv_notify_sta_connected();
 
+            break;
+        case BK_EVT_IPV6_IND:
+#if CONFIG_IPV6
+            os_memcpy(&wdrv_host_env.ipv6_ind, msg->param, sizeof(struct wdrv_ipv6_ind));
+            WDRV_LOGE(TAG, "%s IPv6 address count: %d\n", __func__, wdrv_host_env.ipv6_ind.addr_count);
+            wdrv_notify_sta_got_ipv6();
+#endif
             break;
         case BK_EVT_DISCONNECT_IND:
             wdrv_host_env.wlan_link_sta_status = WIFI_LINKSTATE_STA_DISCONNECTED;

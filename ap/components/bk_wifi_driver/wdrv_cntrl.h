@@ -103,6 +103,17 @@ struct wdrv_connect_ind
     u32  dns;
 };
 
+#define MAX_IPV6_ADDRESSES_IN_MSG 3
+struct wdrv_ipv6_ind
+{
+    uint8_t addr_count;
+    struct {
+        uint8_t address[16];  // (128 bits = 16 bytes)
+        uint8_t addr_state;
+        uint8_t addr_type;
+    } ipv6_addr[MAX_IPV6_ADDRESSES_IN_MSG];
+};
+
 struct wdrv_mac_addr_cfm
 {
     uint8_t mac_addr[6];
@@ -287,19 +298,19 @@ struct wdrv_scan_result_cfm
 /* event-table from CP to AP */
 enum BK_EVENT_TYPE
 {
-    BK_EVT_CONNECT_IND          = 0x1,
-    BK_EVT_DISCONNECT_IND       = 0x2,
-    BK_EVT_START_AP_IND         = 0x3,
-    BK_EVT_ASSOC_AP_IND         = 0x4,
-    BK_EVT_DISASSOC_AP_IND      = 0x5,
-    BK_EVT_STOP_AP_IND          = 0x6,
-    BK_EVT_SCAN_WIFI_IND        = 0x7,
-    BK_EVT_WIFI_FAIL_IND        = 0x8,
-    BK_EVT_BCN_CC_RXED          = 0x9,
-    BK_EVT_CSI_INFO_IND         = 0xA,
-    BK_EVT_ASSOC_GO_IND         = 0xB,
-    BK_EVT_DISASSOC_GO_IND      = 0xC,
-
+    BK_EVT_IPV4_IND             = 0x1,
+    BK_EVT_IPV6_IND             = 0x2,
+    BK_EVT_DISCONNECT_IND       = 0x3,
+    BK_EVT_START_AP_IND         = 0x4,
+    BK_EVT_ASSOC_AP_IND         = 0x5,
+    BK_EVT_DISASSOC_AP_IND      = 0x6,
+    BK_EVT_STOP_AP_IND          = 0x7,
+    BK_EVT_SCAN_WIFI_IND        = 0x8,
+    BK_EVT_WIFI_FAIL_IND        = 0x9,
+    BK_EVT_BCN_CC_RXED          = 0xA,
+    BK_EVT_CSI_INFO_IND         = 0xB,
+    BK_EVT_ASSOC_GO_IND         = 0xC,
+    BK_EVT_DISASSOC_GO_IND      = 0xD,
     // BLE event
     // BK_EVT_BLE_XX            = 0x101
 
@@ -331,6 +342,7 @@ typedef struct _wdrv_wlan {
     struct wdrv_mac_addr_cfm macaddr_cfm;
     struct wdrv_wlan_status_cfm get_wlan_cfm;
     struct wdrv_connect_ind connect_ind;
+    struct wdrv_ipv6_ind ipv6_ind;
     struct wdrv_ap_status_cfm ap_status_cfm;
     struct wdrv_ap_assoc_sta_ind ap_assoc_sta_addr_ind;
     struct wdrv_scan_result_cfm *scan_wifi_cfm_ptr;
@@ -408,6 +420,7 @@ int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len);
 int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t * data, uint16_t len);
 void wdrv_notify_sta_disconnected(void *data, uint16_t len);
 void wdrv_notify_sap_sta_connected(void);
+void wdrv_notify_sta_got_ipv6(void);
 void wdrv_notify_sap_sta_disconnected(void);
 #if CONFIG_P2P
 void wdrv_notify_local_as_go(void);
