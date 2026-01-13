@@ -95,5 +95,12 @@ menu "GPIO"
 		help
 			Enable gpio api test.
 
+    config GPIO_DYNAMIC_KEEP_STATUS_MAX_CNT
+		int "how many gpio can dynamic set to keep io status at low power status"
+		range 0 56
+		default 4
+		help
+		The value should be changed if need more then 4 gpio.
+
 endmenu
 
