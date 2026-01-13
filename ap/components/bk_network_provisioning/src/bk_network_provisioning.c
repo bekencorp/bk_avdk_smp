@@ -522,6 +522,8 @@ bk_err_t bk_network_provisioning_start(bk_network_provisioning_type_t type)
 {
     int ret = 0;
 
+    network_disc_evt_posted = 0;
+
     if (network_provisioning_thread_handle) {
         BK_LOGI(TAG, "Network provisioning ongoing, please try later!\n");
         return BK_OK;
