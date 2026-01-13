@@ -159,6 +159,7 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     set(projects_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/projects_kconfigs.in")
     set(properties_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/properties_kconfigs.in")
     set(extra_kconfigs_path "${CMAKE_CURRENT_BINARY_DIR}/extra_kconfigs.in")
+    set(group_kconfigs_index_path "${CMAKE_CURRENT_BINARY_DIR}/group_kconfigs/group_index.kconfig")
 
     # Place config-related environment arguments into config.env file
     # to work around command line length limits for execute_process
@@ -307,6 +308,7 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
         "PROJECTS_KCONFIGS_SOURCE_FILE=${projects_kconfigs_path}"
         "PROPERTIES_KCONFIGS_SOURCE_FILE=${properties_kconfigs_path}"
         "EXTRA_KCONFIGS_SOURCE_FILE=${extra_kconfigs_path}"
+        "GROUP_KCONFIGS_INDEX_FILE=${group_kconfigs_index_path}"
         "ARMINO_CMAKE=y"
         "KCONFIG_CONFIG=${sdkconfig}"
         "ARMINO_SOC=${armino_target}"

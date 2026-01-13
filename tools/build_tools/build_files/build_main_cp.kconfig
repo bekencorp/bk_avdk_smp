@@ -110,6 +110,10 @@ mainmenu "Armino SDK $(ARMINO_SOC)_cp Configuration"
 
 		menu "Modules Configuration"
 			menu "Components Configuration"
+				# Auto-generated group Kconfig files (if any components have KCONFIG_GROUP markers)
+				# This file is always generated, even if empty
+				source "$GROUP_KCONFIGS_INDEX_FILE"
+				# Ungrouped components (auto-sourced, excludes components with KCONFIG_GROUP markers)
 				source "$COMPONENTS_KCONFIGS_SOURCE_FILE"
 			endmenu
 			menu "Middleware Configuration"
