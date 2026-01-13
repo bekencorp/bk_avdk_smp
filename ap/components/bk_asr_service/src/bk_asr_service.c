@@ -86,13 +86,6 @@ static struct uart_util gl_asr_util = {0};
 #define ASR_DATA_DUMP_BY_UART_CLOSE()                   uart_util_destroy(&gl_asr_util)
 #define ASR_DATA_DUMP_BY_UART_DATA(data_buf, len)       uart_util_tx_data(&gl_asr_util, data_buf, len)
 
-<<<<<<< HEAD   (3d7eae Revert "[Jira BK7236SW-12588]: <multimedia> <perf> Adjust th)
-#define ASR_DATA_DUMP_BY_UART_OPEN()
-#define ASR_DATA_DUMP_BY_UART_CLOSE()
-#define ASR_DATA_DUMP_BY_UART_DATA(data_buf, len)
-#endif  //ASR_DATA_DUMP_BY_UART
-#endif
-=======
 
 static volatile uint8_t g_asr_dump_enable = 0;
 static volatile uint8_t g_asr_time_debug_enable = 0;
@@ -127,7 +120,6 @@ static inline void asr_time_check_internal(uint64_t start_time, uint64_t stop_ti
                                     asr_time_check_internal(start_time, stop_time, result); \
                                 } \
                             } while(0)
->>>>>>> CHANGE (112d9b [Jira BK7236SW-12963]: <multimedia> <feat> Add Cli debugging)
 
 const static char *text;
 static float score;
@@ -218,29 +210,14 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 				read_size = bk_aud_asr_read_mic_data(aud_asr_handle->asr_handle, (char *)aud_asr_handle->read_buff, aud_asr_handle->max_read_size);
 				if (read_size == aud_asr_handle->max_read_size)
 				{
-					uint64_t __maybe_unused start_time = rtos_get_time();
+					ASR_TIME_START();
 					ASR_INPUT_START();
 					if (aud_asr_handle->aud_asr_recog) {
 						result = aud_asr_handle->aud_asr_recog((void*)aud_asr_handle->read_buff, aud_asr_handle->max_read_size, (void*)&text, (void*)&score);
 					}
 					ASR_INPUT_END();
-<<<<<<< HEAD   (3d7eae Revert "[Jira BK7236SW-12588]: <multimedia> <perf> Adjust th)
-					uint64_t __maybe_unused stop_time = rtos_get_time();
-					ASR_DATA_DUMP_BY_UART_DATA(aud_asr_handle->read_buff, read_size);
-
-					if ((uint32_t)(stop_time-start_time) >= 30)
-					{
-						BK_LOGV(TAG, "Recogn:%d---%d\n", (uint32_t)(stop_time-start_time), result);
-					} else if ((uint32_t)(stop_time-start_time) < 0)
-					{
-						BK_LOGV(TAG, "Error excute--%d\n", (uint32_t)(stop_time-start_time));
-					} else {
-						;
-					}
-=======
 					ASR_TIME_END();
 					ASR_TIME_CHECK();
->>>>>>> CHANGE (112d9b [Jira BK7236SW-12963]: <multimedia> <feat> Add Cli debugging)
 
                     if (g_asr_dump_enable)
                     {
