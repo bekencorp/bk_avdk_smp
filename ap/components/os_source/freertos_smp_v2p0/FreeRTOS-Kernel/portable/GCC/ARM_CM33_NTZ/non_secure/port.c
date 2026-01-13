@@ -1450,6 +1450,95 @@ unsigned port_interruptNesting[portNUM_PROCESSORS] = {0};  // Interrupt nesting 
 BaseType_t port_uxCriticalNesting[portNUM_PROCESSORS] = {0};
 BaseType_t port_uxOldInterruptState[portNUM_PROCESSORS] = {0};
 
+#if CONFIG_CRITICAL_LR_RECORD
+#define LR_TEST_MAX_COUNT 20
+#define LR_TEST_SECTION __attribute__((used, section(".sram_spinlock_section"))) 
+LR_TEST_SECTION static uint32_t port_uxCriticalCrc[portNUM_PROCESSORS] = {0};
+LR_TEST_SECTION static uint32_t port_uxCriticalCrcEnabled[portNUM_PROCESSORS] = {0};
+
+LR_TEST_SECTION static BaseType_t port_uxCriticalNestingCheckBackup[portNUM_PROCESSORS] = {0};
+LR_TEST_SECTION static BaseType_t port_uxOldInterruptStateCheckBackup[portNUM_PROCESSORS] = {0};
+
+LR_TEST_SECTION static uint32_t port_uxEnterCriticalLrRecord[portNUM_PROCESSORS][LR_TEST_MAX_COUNT] = {0};
+LR_TEST_SECTION static uint32_t port_uxEnterCriticalLrRecordCount[portNUM_PROCESSORS] = {0};
+LR_TEST_SECTION static uint32_t port_uxEnterCriticalLrStack[portNUM_PROCESSORS][LR_TEST_MAX_COUNT] = {0};
+LR_TEST_SECTION static uint32_t port_uxEnterCriticalLrStackCount[portNUM_PROCESSORS] = {0};
+
+LR_TEST_SECTION static uint32_t port_uxExitCriticalLrRecord[portNUM_PROCESSORS][LR_TEST_MAX_COUNT] = {0};
+LR_TEST_SECTION static uint32_t port_uxExitCriticalLrRecordCount[portNUM_PROCESSORS] = {0};
+
+static void vPortEnterCriticalLrRecord(uint32_t lr)
+{
+    uint32_t core_id = portGET_CORE_ID();
+    port_uxEnterCriticalLrRecord[core_id][port_uxEnterCriticalLrRecordCount[core_id]] = lr;
+    port_uxEnterCriticalLrRecordCount[core_id] = (port_uxEnterCriticalLrRecordCount[core_id] + 1) % LR_TEST_MAX_COUNT;
+
+    BK_ASSERT(port_uxEnterCriticalLrStackCount[core_id] < LR_TEST_MAX_COUNT);
+    port_uxEnterCriticalLrStack[core_id][port_uxEnterCriticalLrStackCount[core_id]] = lr;
+    port_uxEnterCriticalLrStackCount[core_id]++;
+}
+
+static void vPortExitCriticalLrRecord(uint32_t lr)
+{
+    uint32_t core_id = portGET_CORE_ID();
+    port_uxExitCriticalLrRecord[core_id][port_uxExitCriticalLrRecordCount[core_id]] = lr;
+    port_uxExitCriticalLrRecordCount[core_id] = (port_uxExitCriticalLrRecordCount[core_id] + 1) % LR_TEST_MAX_COUNT;
+    port_uxEnterCriticalLrStackCount[core_id]--;
+}
+
+static uint32_t crc32_calculate_direct(const uint8_t *data, size_t length)
+{
+    uint32_t polynomial = 0xEDB88320;
+    uint32_t crc = 0xFFFFFFFF;
+    
+    for (size_t i = 0; i < length; i++) {
+        crc ^= data[i];
+        for (int j = 0; j < 8; j++) {
+            if (crc & 1) {
+                crc = (crc >> 1) ^ polynomial;
+            } else {
+                crc >>= 1;
+            }
+        }
+    }
+    
+    return crc ^ 0xFFFFFFFF; // Final XOR
+}
+
+static uint32_t get_critical_crc(uint32_t num1, uint32_t num2)
+{
+    uint32_t data[2] = {num1, num2};
+    return crc32_calculate_direct((uint8_t *)data, sizeof(data));
+}
+
+static void update_critical_crc(void)
+{
+    BaseType_t coreID = portGET_CORE_ID();
+    port_uxCriticalCrc[coreID] = get_critical_crc(port_uxCriticalNesting[coreID], port_uxOldInterruptState[coreID]);
+    port_uxCriticalNestingCheckBackup[coreID] = port_uxCriticalNesting[coreID];
+    port_uxOldInterruptStateCheckBackup[coreID] = port_uxOldInterruptState[coreID];
+    port_uxCriticalCrcEnabled[coreID] = 1;
+}
+
+static void check_critical_crc(void)
+{
+    BaseType_t coreID = portGET_CORE_ID();
+    BK_ASSERT(coreID < 2);
+    if (!port_uxCriticalCrcEnabled[coreID]) {
+        return;
+    }
+    uint32_t crc = get_critical_crc(port_uxCriticalNesting[coreID], port_uxOldInterruptState[coreID]);
+    if (crc != port_uxCriticalCrc[coreID]) {
+        BK_DUMP_OUT("port_uxCriticalNesting, %u\r\n", port_uxCriticalNesting[coreID]);
+        BK_DUMP_OUT("port_uxOldInterruptState, %u\r\n", port_uxOldInterruptState[coreID]);
+        BK_DUMP_OUT("port_uxCriticalNestingCheckBackup, %u\r\n", port_uxCriticalNestingCheckBackup[coreID]);
+        BK_DUMP_OUT("port_uxOldInterruptStateCheckBackup, %u\r\n", port_uxOldInterruptStateCheckBackup[coreID]);
+        BK_DUMP_OUT("crc, %u\r\n", crc);
+        BK_DUMP_OUT("port_uxCriticalCrc, %u\r\n", port_uxCriticalCrc[coreID]);
+        BK_ASSERT(0);
+    }
+}
+#endif
 // --------------------- Interrupts ------------------------
 
 BaseType_t xPortInIsrContext(void)
@@ -1473,12 +1562,19 @@ BaseType_t __attribute__((optimize("-O3"))) xPortEnterCriticalTimeout(portMUX_TY
      * critical section), we will save the previous interrupt level so that the
      * saved level can be restored on the last call to exit the critical.
      */
+    #if CONFIG_CRITICAL_LR_RECORD
+    uint32_t lr = __get_LR();
+    #endif
     BaseType_t xOldInterruptLevel = portSET_INTERRUPT_MASK_FROM_ISR();
     if (!spinlock_acquire(mux, timeout)) {
         //Timed out attempting to get spinlock. Restore previous interrupt level and return
         portCLEAR_INTERRUPT_MASK_FROM_ISR(xOldInterruptLevel);
         return pdFAIL;
     }
+    #if CONFIG_CRITICAL_LR_RECORD
+    check_critical_crc();
+    vPortEnterCriticalLrRecord(lr);
+    #endif
     //Spinlock acquired. Increment the critical nesting count.
     BaseType_t coreID = portGET_CORE_ID();
     BaseType_t newNesting = port_uxCriticalNesting[coreID] + 1;
@@ -1487,6 +1583,9 @@ BaseType_t __attribute__((optimize("-O3"))) xPortEnterCriticalTimeout(portMUX_TY
     if ( newNesting == 1 ) {
         port_uxOldInterruptState[coreID] = xOldInterruptLevel;
     }
+    #if CONFIG_CRITICAL_LR_RECORD
+    update_critical_crc();
+    #endif
     return pdPASS;
 }
 
@@ -1496,14 +1595,23 @@ void vPortExitCritical(portMUX_TYPE *mux)
      * to reenable interrupts if this is the last call to exit the critical. We
      * can use the nesting count to determine whether this is the last exit call.
      */
+    #if CONFIG_CRITICAL_LR_RECORD
+    uint32_t lr = __get_LR();
+    #endif
     BaseType_t coreID = portGET_CORE_ID();
     spinlock_release(mux, port_uxOldInterruptState[coreID]);
-
+    #if CONFIG_CRITICAL_LR_RECORD
+    check_critical_crc();
+    vPortExitCriticalLrRecord(lr);
+    #endif
     BaseType_t nesting = port_uxCriticalNesting[coreID];
 
     if (nesting > 0) {
         nesting--;
         port_uxCriticalNesting[coreID] = nesting;
+        #if CONFIG_CRITICAL_LR_RECORD
+        update_critical_crc();
+        #endif
         //This is the last exit call, restore the saved interrupt level
         if ( nesting == 0 ) {
             portCLEAR_INTERRUPT_MASK_FROM_ISR(port_uxOldInterruptState[coreID]);
