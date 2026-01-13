@@ -7,7 +7,6 @@
 #include <components/log.h>
 
 #include "lcd_panel_devices.h"
-#include "dvp_sensor_devices.h"
 #include "tp_sensor_devices.h"
 
 
