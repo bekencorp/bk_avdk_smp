@@ -76,8 +76,6 @@ bk_err_t bk_aon_wdt_feed(void)
 {
 	aon_wdt_hal_set_period(s_aon_wdt_period);
 
-	bk_misc_set_reset_reason(RESET_SOURCE_WATCHDOG);
-
 	return BK_OK;
 }
 
