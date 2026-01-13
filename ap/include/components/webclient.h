@@ -85,6 +85,7 @@ enum WEBCLIENT_METHOD
     WEBCLIENT_USER_METHOD,
     WEBCLIENT_GET,
     WEBCLIENT_POST,
+    WEBCLIENT_HEAD
 };
 
 struct  webclient_header
@@ -110,7 +111,7 @@ struct webclient_session
     int content_length;
     char *Cookie;
     size_t content_remainder;           /* remainder of content length */
-
+    int (*handle_function)(char *buffer, int size); /* handle function */
     BOOL is_tls;                   /* HTTPS connect */
 #ifdef WEBCLIENT_USING_MBED_TLS
     MbedTLSSession *tls_session;        /* mbedtls connect session */
@@ -156,7 +157,14 @@ struct webclient_session *webclient_session_create(size_t header_sz);
 
 /* send HTTP GET request */
 int webclient_get(struct webclient_session *session, const char *URI);
-int webclient_get_position(struct webclient_session *session, const char *URI, int position);
+
+/* send HTTP HEAD request */
+int webclient_shard_head_function(struct webclient_session *session, const char *URI, int *length);
+
+/* send HTTP Range parameter, shard download */
+int webclient_shard_position_function(struct webclient_session *session, const char *URI, int start, int length, int mem_size);
+int *webclient_register_shard_position_function(struct webclient_session *session, int (*handle_function)(char *buffer, int size));
+ 
 
 /* send HTTP POST request */
 int webclient_post(struct webclient_session *session, const char *URI, const void *post_data, size_t data_len);

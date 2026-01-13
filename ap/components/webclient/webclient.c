@@ -41,8 +41,10 @@
 #define TAG  "http"
 
 /* default receive or send timeout */
-#define WEBCLIENT_DEFAULT_TIMEO        30
+#define WEBCLIENT_DEFAULT_TIMEO        g_webclient_timeout
 #define POST_DATA_LEN 2*1024
+
+static int g_webclient_timeout = 30;
 
 static void bk_webclient_hex_dump(const char *s, int length)
 {
@@ -448,9 +450,12 @@ int webclient_connect(struct webclient_session *session, const char *URI)
             return -WEBCLIENT_ERROR;
         }
 
+        mbedtls_ssl_conf_handshake_timeout(&session->tls_session->conf, 1, timeout.tv_sec*1000);
+        mbedtls_ssl_conf_read_timeout(&session->tls_session->conf, timeout.tv_sec*1000);
+
         if ((tls_ret = mbedtls_client_connect(session->tls_session)) < 0)
         {
-            BK_LOGE(TAG,"connect failed, https client connect return: -0x%x\r\n", -tls_ret);
+            BK_LOGE(TAG, "[%s][%d] not enough header buffer size(%d, %d)!\r\n", __FUNCTION__, __LINE__, session->header->length, session->header->size);
             return -WEBCLIENT_CONNECT_FAILED;
         }
 
@@ -800,7 +805,7 @@ int webclient_handle_response(struct webclient_session *session)
 
         if (session->header->length >= session->header->size)
         {
-            BK_LOGE(TAG,"not enough header buffer size(%d)!\r\n", session->header->size);
+            BK_LOGE(TAG, "[%s][%d] no memory for get http status code buffer!\r\n", __FUNCTION__, __LINE__);
             return -WEBCLIENT_NOMEM;
         }
     }
@@ -983,72 +988,181 @@ int webclient_get(struct webclient_session *session, const char *URI)
 }
 
 /**
- *  http breakpoint resume.
+ *  register a handle function for http breakpoint resume and shard download.
+ *
+ * @param function
+ *
+ * @return the pointer
+ */
+int *webclient_register_shard_position_function(struct webclient_session *session, int (*handle_function)(char *buffer, int size))
+{
+    session->handle_function = handle_function;
+
+    return (int *)session->handle_function;
+}
+
+/**
+ *  http breakpoint resume and shard download.
  *
  * @param session webclient session
  * @param URI input server URI address
- * @param position last downloaded position
+ * @param length the length of point
  *
  * @return <0: send GET request failed
  *         >0: response http status code
  */
-int webclient_get_position(struct webclient_session *session, const char *URI, int position)
+int webclient_shard_head_function(struct webclient_session *session, const char *URI, int *length)
 {
-    int rc = WEBCLIENT_OK;
-    int resp_status = 0;
-
     BK_ASSERT(session);
     BK_ASSERT(URI);
 
-    rc = webclient_connect(session, URI);
+    int rc = WEBCLIENT_OK;
+    int resp_status = 0;
+
+    if(session->socket == -1)
+    {
+        rc = webclient_connect(session, URI);
+        if (rc != WEBCLIENT_OK)
+        {
+            return rc;
+        }
+    }
+
+    /* clean header buffer and size */
+    memset(session->header->buffer, 0x00, session->header->size);
+    session->header->length = 0;
+
+    rc = webclient_send_header(session, WEBCLIENT_HEAD);
     if (rc != WEBCLIENT_OK)
     {
         return rc;
     }
 
-    /* splice header*/
-    if (webclient_header_fields_add(session, "Range: bytes=%d-\r\n", position) <= 0)
-    {
-        rc = -WEBCLIENT_ERROR;
-        return rc;
-    }
-
-    rc = webclient_send_header(session, WEBCLIENT_GET);
-    if (rc != WEBCLIENT_OK)
-    {
-        return rc;
-    }
-
-    /* handle the response header of webclient server */
+    /* handle the response header of webclient server by HEAD request */
     resp_status = webclient_handle_response(session);
-
-    BK_LOGD(TAG,"get position handle response(%d).\r\n", resp_status);
-
-    if (resp_status > 0)
+    if(resp_status >= 0)
     {
-        const char *location = webclient_header_fields_get(session, "Location:");
-        /* relocation */
+           *length = webclient_content_length_get(session);
+           BK_LOGD(TAG, "The length[%04d] of real data of URI.", *length);
+    }
+    return rc;
+}
+
+/**
+ *  http breakpoint resume and shard download.
+ *
+ * @param session webclient session
+ * @param URI input server URI address
+ * @param start the position of you want to receive
+ * @param length the length of data length from "webclient_shard_head_function"
+ * @param mem_size the buffer size that you alloc
+ *
+ * @return <0: send GET request failed
+ *         >0: response http status code
+ */
+int webclient_shard_position_function(struct webclient_session *session, const char *URI, int start, int length, int mem_size)
+{
+    int rc = WEBCLIENT_OK;
+    int result = BK_OK;
+    int resp_status = 0;
+    size_t resp_len = 0;
+    char *buffer = RT_NULL;
+    int start_position, end_position = 0;
+    int total_len = 0;
+
+    BK_ASSERT(session);
+    BK_ASSERT(URI);
+    BK_ASSERT(mem_size);
+
+    /* set the offset of "Range" and "total_len"  */
+    end_position = start;
+    total_len = length;
+
+    for(start_position = end_position; start_position < total_len;)
+    {
+#ifdef WEBCLIENT_USING_MBED_TLS
+        if(!session->tls_session)
+#else
+        if(session->socket == -1)
+#endif
+        {
+            rc = webclient_connect(session, URI);
+            if (rc != WEBCLIENT_OK)
+            {
+                break;
+            }
+        }
+
+        end_position = start_position + mem_size - 1;
+        if(end_position >= total_len)
+        {
+            end_position = total_len - 1;
+        }
+
+        /* clean header buffer and size */;
+        session->header->length = 0;
+                memset(session->header->buffer, 0, session->header->size);
+        /* splice header and send header */
+        BK_LOGD(TAG, "[%s][%d] Range: [%04d -> %04d]\r\n", __FUNCTION__, __LINE__, start_position, end_position);
+        webclient_header_fields_add(session, "Range: bytes=%d-%d\r\n", start_position, end_position);
+        rc = webclient_send_header(session, WEBCLIENT_GET);
+        if (rc != WEBCLIENT_OK)
+        {
+           break;
+        }
+
+        /* handle the response header of webclient server */
+        resp_status = webclient_handle_response(session);
+        BK_LOGD(TAG, "[%s][%d] get position handle response(%d).\r\n", __FUNCTION__, __LINE__, resp_status);
+        if (resp_status < 0)
+        {
+            webclient_clean(session);
+            continue;
+        }
+
+        const char *location = webclient_header_fields_get(session, "Location");
         if ((resp_status == 302 || resp_status == 301) && location)
         {
             char *new_url;
             new_url = web_strdup(location);
             if (new_url == RT_NULL)
             {
-                return -WEBCLIENT_NOMEM;
+                rc = -WEBCLIENT_NOMEM;
+                break;
             }
 
             /* clean webclient session */
             webclient_clean(session);
-            /* clean webclient session header */
-            session->header->length = 0;
-            memset(session->header->buffer, 0, session->header->size);
-            rc = webclient_get_position(session, new_url, position);
+            rc = webclient_shard_position_function(session, new_url, start, length, mem_size);
             web_free(new_url);
-            return rc;
+            break;
+        }
+
+        if (resp_status != 206)
+        {
+            continue;
+        }
+
+        /* receive the incoming data */
+        int data_len = webclient_response(session, (void **)&buffer, &resp_len);
+        if(data_len <= 0)
+        {
+            BK_LOGE(TAG, "[%s][%d] get data fail (%d).\r\n", __FUNCTION__, __LINE__, data_len);
+            webclient_clean(session);
+            continue;
+       }
+
+        start_position += data_len;
+        result = session->handle_function(buffer, data_len);
+        if(result != BK_OK)
+        {
+            rc = -WEBCLIENT_ERROR;
+            break;
         }
     }
 
-    return resp_status;
+    webclient_clean(session);
+    return rc;
 }
 
 /**
@@ -1313,7 +1427,7 @@ int webclient_read(struct webclient_session *session, void *buffer, size_t lengt
             }
 
 #endif
-            BK_LOGD(TAG,"receive data error(%d).\r\n", bytes_read);
+            BK_LOGE(TAG,"receive data error(-0x%x).\r\n", -bytes_read);
 
             if (total_read)
             {
@@ -1430,6 +1544,7 @@ static int webclient_clean(struct webclient_session *session)
     if (session->tls_session)
     {
         mbedtls_client_close(session->tls_session);
+        session->tls_session = NULL;
     }
     else
     {
@@ -2168,6 +2283,11 @@ int demo_webclient_ota_get(char *webclient_url)
 	}
 
 	return err;
+}
+
+void bk_webclient_set_timeout(int timeout_sec)
+{
+    g_webclient_timeout = timeout_sec;
 }
 
 #if 1
