@@ -154,6 +154,45 @@ typedef struct
 	uint8_t tp_num;  /**< sensor touch number */
 } tp_device_t;
 
+/**
+ * @brief TP sensor detection function structure
+ */
+typedef struct
+{
+    const tp_sensor_config_t *(*detect)(const tp_i2c_callback_t *cb);  /**< Detection function pointer */
+} tp_sensor_detect_func_t;
+
+/**
+ * @brief Section attribute macro implementation
+ * @param SECTION Section name
+ * @param COUNTER Counter
+ */
+#define _SECTION_ATTR_IMPL(SECTION, COUNTER)    __attribute__((section(SECTION "." _CPIMTER_STRINGIFY(COUNTER))))
+
+/**
+ * @brief Stringify macro
+ * @param COUNTER Counter
+ */
+#define _CPIMTER_STRINGIFY(COUNTER) #COUNTER
+
+/**
+ * @brief TP sensor detection function section registration macro
+ * @param f Detection function name
+ *
+ * This macro registers a sensor detection function into a dedicated section,
+ * enabling the system to automatically discover and run detection routines.
+ */
+#define BK_TP_SENSOR_DETECT_SECTION(f)                                                             \
+    const tp_sensor_config_t * __bk_tp_sensor_##f(const tp_i2c_callback_t *cb);                   \
+    __attribute__((used)) _SECTION_ATTR_IMPL(".tp_sensor_detect_function_list", __COUNTER__)       \
+    const tp_sensor_detect_func_t tp_sensor_##f = {                                               \
+        .detect = __bk_tp_sensor_##f,                                                              \
+    } ;                                                                                             \
+    const tp_sensor_config_t * __bk_tp_sensor_##f(const tp_i2c_callback_t *cb)                     \
+    { return f(cb); }
+
+extern tp_sensor_detect_func_t __tp_sensor_detect_array_start;
+extern tp_sensor_detect_func_t __tp_sensor_detect_array_end;
 
 /*
  * @}

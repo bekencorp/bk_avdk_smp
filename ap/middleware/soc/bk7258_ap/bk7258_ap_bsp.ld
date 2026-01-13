@@ -189,6 +189,13 @@ SECTIONS
       __camera_sensor_detect_array_end = .;
     } > FLASH
 
+    .tp_detect :
+    {
+      __tp_sensor_detect_array_start = .;
+      KEEP(*(.tp_sensor_detect_function_list.*))
+      __tp_sensor_detect_array_end = .;
+    } > FLASH
+
     .ARM.extab :
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
