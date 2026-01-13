@@ -1357,6 +1357,12 @@ void sme_external_auth_mgmt_rx(struct wpa_supplicant *wpa_s,
 
 		if (sme_sae_set_pmk(wpa_s, wpa_s->sme.ext_auth_bssid) < 0)
 			return;
+#if BK_SUPPLICANT
+	} else if (le_to_host16(header->u.auth.auth_alg) == WLAN_AUTH_OPEN) {
+		/*Notify status to the driver*/
+		sme_send_external_auth_status(wpa_s, le_to_host16(header->u.auth.status_code));
+		return;
+#endif
 	}
 }
 #endif

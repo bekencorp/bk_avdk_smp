@@ -2274,6 +2274,20 @@ bk_err_t bk_wifi_sta_start(void)
 	wlan_sta_set_autoreconnect(&ar);
 #endif
 
+#if CONFIG_WLAN_FAST_CONNECT_WPA3
+	WIFI_LOGD("wpa3 fast connect %d, pmk_len %d\n", fast_connect, fci.pmk_len);
+	if (fast_connect && fci.pmk_len) {
+		wlan_sta_add_pmksa_cache_entry_t entry;
+		os_memset(&entry, 0, sizeof(entry));
+		os_memcpy(entry.bssid, fci.bssid, ETH_ALEN);
+		entry.akmp = fci.akmp;
+		entry.pmk_len = fci.pmk_len;
+		os_memcpy(entry.pmk, fci.pmk, entry.pmk_len);
+		os_memcpy(entry.pmkid, fci.pmkid, 16);
+		wpa_ctrl_request(WPA_CTRL_CMD_STA_ADD_PMKSA_CACHE_ENTRY, &entry);
+	}
+#endif
+
 	wifi_set_state_bit(WIFI_STA_STARTED_BIT);
 	WIFI_LOGV("sta started(%x)\n", s_wifi_state_bits);
 
