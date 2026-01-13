@@ -174,14 +174,6 @@ if(CONFIG_SLCD)
 	)
 endif()
 
-if (CONFIG_TP)
-	list(APPEND srcs
-		"tp/tp_driver.c"
-		"tp/bk_queue.c"
-		"tp/drv_tp.c"
-	)
-endif()
-
 if (CONFIG_JPEGDEC_HW)
 	list(APPEND srcs
 		"jpeg_dec/jpeg_dec_driver.c"
