@@ -37,6 +37,7 @@
 #ifdef CONFIG_P2P
 #include "reg_access.h"
 #include "fhost_msg.h"
+#include "../p2p/p2p_i.h"
 #endif
 #if CONFIG_LWIP
 #include "net.h"
@@ -754,8 +755,14 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 #endif
 #ifdef CONFIG_P2P_GO
 			if (nlmode == NL80211_IFTYPE_P2P_GO) {
-				g_ap_param_ptr->chann = bk_wlan_ap_get_default_channel();
-				wpa_printf(MSG_DEBUG, "%s, %d, channel: %u", __func__, __LINE__, g_ap_param_ptr->chann);
+				/* Use P2P GO operation channel if available, otherwise use default channel */
+				if (drv->wpa_s && drv->wpa_s->global && drv->wpa_s->global->p2p &&
+				    drv->wpa_s->global->p2p->op_channel > 0) {
+					g_ap_param_ptr->chann = drv->wpa_s->global->p2p->op_channel;
+				} else {
+					g_ap_param_ptr->chann = bk_wlan_ap_get_default_channel();
+				}
+				WPA_LOGD("%s, %d, channel: %u\r\n", __func__, __LINE__, g_ap_param_ptr->chann);
 				drv->sock_xmit = l2_packet_p2p_init(drv->iface, drv->own_addr, ETH_P_EAPOL,
                                     wpa_supplicant_rx_eapol, drv->wpa_s, 0);
 

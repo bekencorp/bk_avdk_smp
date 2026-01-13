@@ -884,6 +884,12 @@ static void ap_sta_disassoc_cb_timeout(void *eloop_ctx, void *timeout_ctx)
 	struct hostapd_data *hapd = eloop_ctx;
 	struct sta_info *sta = timeout_ctx;
 
+	/* Check if sta is still valid (may have been freed by ap_free_sta) */
+	if (sta == NULL || ap_get_sta(hapd, sta->addr) != sta) {
+		WPA_LOGD("%s: STA already freed, ignore callback\n", __func__);
+		return;
+	}
+
 	wpa_printf(MSG_DEBUG, "%s: Disassociation callback for STA " MACSTR,
 		   hapd->conf->iface, MAC2STR(sta->addr));
 	ap_sta_remove(hapd, sta);
@@ -937,6 +943,12 @@ static void ap_sta_deauth_cb_timeout(void *eloop_ctx, void *timeout_ctx)
 {
 	struct hostapd_data *hapd = eloop_ctx;
 	struct sta_info *sta = timeout_ctx;
+
+	/* Check if sta is still valid (may have been freed by ap_free_sta) */
+	if (sta == NULL || ap_get_sta(hapd, sta->addr) != sta) {
+		WPA_LOGD("%s: STA already freed, ignore callback\n", __func__);
+		return;
+	}
 
 	wpa_printf(MSG_DEBUG, "%s: Deauthentication callback for STA " MACSTR,
 		   hapd->conf->iface, MAC2STR(sta->addr));
@@ -1500,6 +1512,12 @@ void ap_sta_disconnect(struct hostapd_data *hapd, struct sta_info *sta,
 
 void ap_sta_deauth_cb(struct hostapd_data *hapd, struct sta_info *sta)
 {
+	/* Check if sta is still valid (may have been freed by ap_free_sta) */
+	if (sta == NULL || ap_get_sta(hapd, sta->addr) != sta) {
+		WPA_LOGD("%s: STA already freed, ignore callback\n", __func__);
+		return;
+	}
+
 	if (!(sta->flags & WLAN_STA_PENDING_DEAUTH_CB)) {
 		wpa_printf(MSG_DEBUG, "Ignore deauth cb for test frame");
 		return;
@@ -1512,6 +1530,12 @@ void ap_sta_deauth_cb(struct hostapd_data *hapd, struct sta_info *sta)
 
 void ap_sta_disassoc_cb(struct hostapd_data *hapd, struct sta_info *sta)
 {
+	/* Check if sta is still valid (may have been freed by ap_free_sta) */
+	if (sta == NULL || ap_get_sta(hapd, sta->addr) != sta) {
+		WPA_LOGD("%s: STA already freed, ignore callback\n", __func__);
+		return;
+	}
+
 	if (!(sta->flags & WLAN_STA_PENDING_DISASSOC_CB)) {
 		wpa_printf(MSG_DEBUG, "Ignore disassoc cb for test frame");
 		return;
@@ -1591,6 +1615,12 @@ static void ap_sta_delayed_1x_auth_fail_cb(void *eloop_ctx, void *timeout_ctx)
 	struct hostapd_data *hapd = eloop_ctx;
 	struct sta_info *sta = timeout_ctx;
 	u16 reason;
+
+	/* Check if sta is still valid (may have been freed by ap_free_sta) */
+	if (sta == NULL || ap_get_sta(hapd, sta->addr) != sta) {
+		WPA_LOGD("%s: STA already freed, ignore callback\n", __func__);
+		return;
+	}
 
 	wpa_dbg(hapd->msg_ctx, MSG_DEBUG,
 		"IEEE 802.1X: Scheduled disconnection of " MACSTR
