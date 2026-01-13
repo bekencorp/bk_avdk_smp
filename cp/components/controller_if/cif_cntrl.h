@@ -13,6 +13,9 @@ struct bk_msg_hdr;
 bk_err_t cif_bk_send_event(uint16_t event_id, uint8_t *event_data, uint16_t event_len);
 bk_err_t cif_bk_cmd_confirm(struct bk_msg_hdr *rx_msg, uint8_t *cfm_data, uint16_t cfm_len);
 bk_err_t cif_handle_bk_cmd_connect_ind(char *ssid, uint8_t rssi, uint32_t ip, uint32_t gw, uint32_t mk, uint32_t dns);
+#ifdef CONFIG_IPV6
+bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n);
+#endif
 bk_err_t cif_handle_bk_cmd_disconnect_ind(bool local_generated, uint16_t reason_code);
 bk_err_t cif_send_exit_sleep_cfm(void);
 bk_err_t cif_handle_bk_cmd(void *cmd);

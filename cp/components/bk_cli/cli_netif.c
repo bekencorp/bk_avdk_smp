@@ -107,7 +107,7 @@ error:
 }
 
 
-#if 0// CONFIG_IPV6
+#if CONFIG_IPV6
 static void ip6_cmd_show_ip(int ifx)
 {
 	if (ifx == NETIF_IF_STA || ifx == NETIF_IF_AP) {
@@ -471,7 +471,7 @@ static const struct cli_command s_netif_commands[] = {
 	{"ipconfig", "ipconfig [sta|ap][{ip}{mask}{gate}{dns}]", cli_ip_cmd},
 	{"dhcpc", "dhcpc", cli_dhcpc_cmd},
 	{"ping", "ping <ip>", cli_ping_cmd},
-#if 0//def CONFIG_IPV6
+#ifdef CONFIG_IPV6
 	{"ping6", "ping6 xxx", cli_ping_cmd},
 	{"ip6", "ip6 [sta|ap][{ip}{state}]", cli_ip6_cmd},
 #endif

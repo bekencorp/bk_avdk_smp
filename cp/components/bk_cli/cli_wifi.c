@@ -1634,12 +1634,14 @@ int cli_netif_event_cb(void *arg, event_module_t event_module,
 
 	switch (event_id) {
 	case EVENT_NETIF_GOT_IP4:
+	case EVENT_NETIF_GOT_IP6:
 		if (wifi_cmd_sema != NULL) {
 			wifi_cmd_status = 1;
 			rtos_set_semaphore(&wifi_cmd_sema);
 		}
 		got_ip = (netif_event_got_ip4_t *)event_data;
-		CLI_LOGD("%s got ip\n", got_ip->netif_if == NETIF_IF_STA ? "BK STA" : "unknown netif");
+		CLI_LOGI("%s got ip%d\n", got_ip->netif_if == NETIF_IF_STA ? "BK STA" : "unknown netif",
+			event_id== EVENT_NETIF_GOT_IP4 ? 4 : 6);
 		break;
 	default:
 		CLI_LOGD("rx event <%d %d>\n", event_module, event_id);

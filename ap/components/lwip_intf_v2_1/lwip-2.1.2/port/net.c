@@ -1109,6 +1109,11 @@ int net_get_if_macaddr(void *macaddr, void *intrfc_handle)
 	return 0;
 }
 
+void wlan_set_multicast_flag(void)
+{
+	return;
+}
+
 #ifdef CONFIG_IPV6
 int net_get_if_ipv6_addr(struct wlan_ip_config *addr, void *intrfc_handle)
 {
@@ -1136,6 +1141,82 @@ int net_get_if_ipv6_pref_addr(struct wlan_ip_config *addr, void *intrfc_handle)
 		}
 	}
 	return ret;
+}
+
+int net_configure_ipv6_address(struct ipv6_config *ipv6_addrs, int addr_count, void *intrfc_handle)
+{
+	if (!intrfc_handle || !ipv6_addrs || addr_count <= 0)
+		return -1;
+
+	struct iface *if_handle = (struct iface *)intrfc_handle;
+	int i;
+
+	LWIP_LOGV("%s line:%d configuring IPv6 addresses on iface %s (count: %d)\n", __func__, __LINE__, if_handle->name, addr_count);
+
+	if (!netif_is_up(&if_handle->netif)) {
+		LWIP_LOGD("netif is down, setting it up for IPv6\n");
+		return BK_FAIL;
+	}
+
+	/* Clear all global addresses (index 1+) before adding new ones
+	 * to avoid address type mismatch issues on reconnection */
+	for (i = 1; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
+		if (!ip6_addr_isinvalid(netif_ip6_addr_state(&if_handle->netif, i))) {
+			netif_ip6_addr_set(&if_handle->netif, i, (const ip6_addr_t *)IP6_ADDR_ANY);
+			netif_ip6_addr_set_state(&if_handle->netif, i, IP6_ADDR_INVALID);
+		}
+	}
+
+	/* Add each IPv6 address */
+	for (i = 0; i < addr_count && i < MAX_IPV6_ADDRESSES; i++) {
+		ip6_addr_t *ip6addr = (ip6_addr_t *)&ipv6_addrs[i].address;
+		s8_t addr_idx = -1;
+
+		addr_idx = netif_get_ip6_addr_match(&if_handle->netif, ip6addr);
+		if (addr_idx >= 0) {
+			LWIP_LOGE("IPv6 address already exists at index %d, updating state\n", addr_idx);
+			if (ipv6_addrs[i].addr_state != 0) {
+				netif_ip6_addr_set_state(&if_handle->netif, addr_idx, ipv6_addrs[i].addr_state);
+			}
+			continue;
+		}
+
+		/* Special handling for link-local addresses: if index 0 already has a link-local address,
+		 * skip adding new one even if addresses don't match exactly (e.g., zone difference) */
+		if (ip6_addr_islinklocal(ip6addr)) {
+			const ip6_addr_t *existing_ll = netif_ip6_addr(&if_handle->netif, 0);
+			if (ip6_addr_islinklocal(existing_ll) &&
+			    !ip6_addr_isinvalid(netif_ip6_addr_state(&if_handle->netif, 0))) {
+				LWIP_LOGD("Link-local address already exists at index 0, skipping\n");
+				continue;
+			}
+		}
+
+		/* Find an empty slot for the IPv6 address */
+		/* Link-local addresses should use index 0, others use 1+ */
+		s8_t start_idx = ip6_addr_islinklocal(ip6addr) ? 0 : 1;
+		for (addr_idx = start_idx; addr_idx < LWIP_IPV6_NUM_ADDRESSES; addr_idx++) {
+			if (ip6_addr_isinvalid(netif_ip6_addr_state(&if_handle->netif, addr_idx))) {
+				/* Found an empty slot, set the address */
+				netif_ip6_addr_set(&if_handle->netif, addr_idx, ip6addr);
+				if (ipv6_addrs[i].addr_state != 0) {
+					netif_ip6_addr_set_state(&if_handle->netif, addr_idx, ipv6_addrs[i].addr_state);
+				} else {
+					/* Default to PREFERRED if state not specified */
+					netif_ip6_addr_set_state(&if_handle->netif, addr_idx, IP6_ADDR_PREFERRED);
+				}
+				LWIP_LOGD("IPv6 address added at index %d [%s]: %s\n", addr_idx,
+					start_idx ? "global":"linklocal", ip6addr_ntoa(ip6addr));
+				break;
+			}
+		}
+
+		if (addr_idx >= LWIP_IPV6_NUM_ADDRESSES) {
+			LWIP_LOGW("No free slot for IPv6 address at index %d\n", i);
+		}
+	}
+
+	return 0;
 }
 #endif /* CONFIG_IPV6 */
 

@@ -348,7 +348,7 @@ menu "Lwip_intf_v2_1"
 	config LWIP_TCPIP_THREAD_STACKSIZE
 		int "Default stacksize of tcpip thread"
 		default 512
-		range 512 2048
+		range 512 4096
 		help
 			Set the stacksize of tcpip thread.
 	endmenu #Tcp Config

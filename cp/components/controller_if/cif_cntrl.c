@@ -12,6 +12,10 @@
 #include "cif_ipc.h"
 #include "cif_wifi_api.h"
 #include "lwip/stats.h"
+#ifdef CONFIG_IPV6
+#include "lwip/netif.h"
+#include "lwip/ip6_addr.h"
+#endif
 
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
 extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
@@ -148,8 +152,35 @@ bk_err_t cif_handle_bk_cmd_connect_ind(char *ssid, uint8_t rssi, uint32_t ip, ui
     ind.gw = gw;
     ind.mk = mk;
     ind.dns = dns;
-    return cif_bk_send_event(BK_EVT_CONNECT_IND, (uint8_t *)&ind, sizeof(ind));
+    return cif_bk_send_event(BK_EVT_IPV4_IND, (uint8_t *)&ind, sizeof(ind));
 }
+
+#ifdef CONFIG_IPV6
+bk_err_t cif_handle_bk_cmd_ipv6_ind(void *n)
+{
+    struct bk_msg_ipv6_ind ind = {0};
+    int i;
+    u8 *ipv6_addr;
+    int valid_count = 0;
+    struct netif *netif = (struct netif *)n;
+    for (i = 0; i < MAX_IPV6_ADDRESSES_IN_MSG; i++) {
+        if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
+            ipv6_addr = (u8 *)(ip_2_ip6(&netif->ip6_addr[i]))->addr;
+            os_memcpy(ind.ipv6_addr[valid_count].address, ipv6_addr, 16);
+            ind.ipv6_addr[valid_count].addr_state = netif->ip6_addr_state[i];
+            ind.ipv6_addr[valid_count].addr_type = netif->ip6_addr[i].type;
+            valid_count++;
+        }
+    }
+    ind.addr_count = valid_count;
+
+    if (valid_count > 0) {
+        return cif_bk_send_event(BK_EVT_IPV6_IND, (uint8_t *)&ind, sizeof(ind));
+    }
+    return BK_OK;
+}
+#endif
+
 bk_err_t cif_handle_bk_cmd_disconnect_req(struct bk_msg_hdr *msg)
 {
     CTRL_IF_CMD("%s\n",__func__);

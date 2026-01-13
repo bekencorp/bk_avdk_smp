@@ -85,6 +85,19 @@ bk_err_t netif_wifi_event_cb(void *arg, event_module_t event_module,
     }
 #endif
 		break;
+	case EVENT_WIFI_STA_GOT_IPV6:
+	{
+#ifdef CONFIG_IPV6
+		struct ipv6_config ipv6_configs[MAX_IPV6_ADDRESSES];
+		LWIP_LOGE("%s IPv6 address count: %d\n", __func__, wdrv_host_env.ipv6_ind.addr_count);
+		for (int i = 0; i < wdrv_host_env.ipv6_ind.addr_count && i < MAX_IPV6_ADDRESSES; i++) {
+			os_memcpy(&ipv6_configs[i].address, wdrv_host_env.ipv6_ind.ipv6_addr[i].address, 16);
+			ipv6_configs[i].addr_state = wdrv_host_env.ipv6_ind.ipv6_addr[i].addr_state;
+		}
+		net_configure_ipv6_address(ipv6_configs, wdrv_host_env.ipv6_ind.addr_count, net_get_sta_handle());
+#endif
+	}
+		break;
 	case EVENT_WIFI_STA_DISCONNECTED:
 #if CONFIG_NETIF_LWIP
 		sta_ip_down();
