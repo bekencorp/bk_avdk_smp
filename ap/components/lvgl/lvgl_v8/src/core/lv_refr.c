@@ -552,6 +552,7 @@ static void refr_area(const lv_area_t * area_p)
     lv_draw_ctx_t * draw_ctx = disp_refr->driver->draw_ctx;
     draw_ctx->buf = disp_refr->driver->draw_buf->buf_act;
 
+#if ((LV_COLOR_DEPTH == 16) && CONFIG_LVGL_FRAME_BUFFER_NUM > 1)
     if (vendor_config.render_mode == RENDER_PARTIAL_MODE) {
         if (LV_VER_RES == lv_area_get_height(area_p) && LV_HOR_RES == lv_area_get_width(area_p)) {
             #if CONFIG_LV_FRAME_DMA2D_COPY
@@ -561,6 +562,7 @@ static void refr_area(const lv_area_t * area_p)
             #endif
         }
     }
+#endif
 
     /*With full refresh just redraw directly into the buffer*/
     /*In direct mode draw directly on the absolute coordinates of the buffer*/
