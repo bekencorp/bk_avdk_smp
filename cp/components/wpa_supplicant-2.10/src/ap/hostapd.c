@@ -389,9 +389,19 @@ void hostapd_free_hapd_data(struct hostapd_data *hapd)
 	hapd->p2p_probe_resp_ie = NULL;
 #endif /* CONFIG_P2P */
 
+	/* Free authsrv resources if allocated (e.g., in P2P GO mode) */
+	/* Must be called before started check to prevent memory leak */
+#if defined(CONFIG_EAPOL) || defined(CONFIG_P2P)
+	if (hapd->eap_cfg) {
+		wpa_printf(MSG_DEBUG, "%s: Freeing eap_cfg before started check, eap_cfg=%p",
+			   __func__, hapd->eap_cfg);
+		authsrv_deinit(hapd);
+	}
+#endif
+
 	if (!hapd->started) {
-		wpa_printf(MSG_ERROR, "%s: Interface %s wasn't started",
-			   __func__, hapd->conf ? hapd->conf->iface : "N/A");
+		wpa_printf(MSG_ERROR, "%s: Interface %s wasn't started, eap_cfg=%p",
+			   __func__, hapd->conf ? hapd->conf->iface : "N/A", hapd->eap_cfg);
 		return;
 	}
 	hapd->started = 0;
@@ -424,8 +434,17 @@ void hostapd_free_hapd_data(struct hostapd_data *hapd)
 	gas_query_ap_deinit(hapd->gas);
 	hapd->gas = NULL;
 #endif /* CONFIG_DPP_AP */
-#ifdef CONFIG_EAPOL
-	authsrv_deinit(hapd);
+#if defined(CONFIG_EAPOL) || defined(CONFIG_P2P)
+	/* authsrv_deinit was already called above if eap_cfg existed */
+	/* Only call here if it wasn't already freed above */
+	if (hapd->eap_cfg) {
+		wpa_printf(MSG_DEBUG, "%s: Calling authsrv_deinit (eap_cfg still exists)",
+			   __func__);
+		authsrv_deinit(hapd);
+	} else {
+		wpa_printf(MSG_DEBUG, "%s: Skipping authsrv_deinit (already freed above)",
+			   __func__);
+	}
 #endif
 
 	if (hapd->interface_added) {
