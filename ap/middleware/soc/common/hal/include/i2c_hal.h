@@ -71,6 +71,7 @@ typedef struct {
 #define i2c_hal_set_byte_interval(hal, interval) i2c_ll_set_byte_interval(&(hal)->hw, (hal)->id, interval)
 
 bk_err_t i2c_hal_init(i2c_hal_t *hal);
+bk_err_t i2c_hal_init_instance(i2c_hal_t *hal);
 bk_err_t i2c_hal_set_baud_rate(i2c_hal_t *hal, uint32_t baud_rate);
 bk_err_t i2c_hal_configure(i2c_hal_t *hal, const i2c_config_t *cfg);
 bk_err_t i2c_hal_start_common(i2c_hal_t *hal);

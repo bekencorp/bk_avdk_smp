@@ -612,6 +612,7 @@ static bk_err_t i2c_hardware_init_impl(i2c_id_t id, const i2c_config_t *cfg)
 	I2C_RETURN_ON_NOT_INIT();
 	I2C_CHECK_SECURE(id);
 
+	i2c_hal_init_instance(&s_i2c[id].hal);
 #if (CONFIG_I2C_PM_CB_SUPPORT)
 	pm_cb_conf_t enter_config = {i2c_pm_backup, (void *)id};
 	if (id == I2C_ID_0) {

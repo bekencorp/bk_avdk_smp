@@ -53,6 +53,15 @@ static inline void i2c_ll_soft_reset(i2c_hw_t *hw)
 	hw->i2c1_hw->global_ctrl.soft_reset = 1;
 }
 
+static inline void i2c_ll_soft_reset_instance(i2c_hw_t *hw, i2c_id_t id)
+{
+	if (id == I2C_ID_0) {
+		hw->i2c0_hw->global_ctrl.soft_reset = 1;
+	} else if (id == I2C_ID_1) {
+		hw->i2c1_hw->global_ctrl.soft_reset = 1;
+	}
+}
+
 static inline uint32_t i2c_ll_get_device_id(i2c_hw_t *hw, i2c_id_t id)
 {
 	if (id == I2C_ID_0) {
@@ -80,16 +89,30 @@ static inline uint32_t i2c_ll_get_dev_status(i2c_hw_t *hw, i2c_id_t id)
 	}
 }
 
-static inline void i2c_ll_init(i2c_hw_t *hw)
+// Set base address only, no hardware initialization
+static inline void i2c_ll_set_base_addr(i2c_hw_t *hw)
 {
 	hw->i2c0_hw = (i2c_typedef_t *)I2C_LL_REG_BASE(0);
 	hw->i2c1_hw = (i2c_typedef_t *)I2C_LL_REG_BASE(1);
+}
 
-	i2c_ll_soft_reset(hw);
-	hw->i2c0_hw->sm_bus_cfg.v = 0;
-	hw->i2c0_hw->sm_bus_status.v = 0;
-	hw->i2c1_hw->sm_bus_cfg.v = 0;
-	hw->i2c1_hw->sm_bus_status.v = 0;
+// Initialize single I2C instance (soft reset and clear registers)
+static inline void i2c_ll_init_instance(i2c_hw_t *hw, i2c_id_t id)
+{
+	i2c_ll_soft_reset_instance(hw, id);
+	if (id == I2C_ID_0) {
+		hw->i2c0_hw->sm_bus_cfg.v = 0;
+		hw->i2c0_hw->sm_bus_status.v = 0;
+	} else if (id == I2C_ID_1) {
+		hw->i2c1_hw->sm_bus_cfg.v = 0;
+		hw->i2c1_hw->sm_bus_status.v = 0;
+	}
+}
+
+// Legacy function: set base address only (for backward compatibility)
+static inline void i2c_ll_init(i2c_hw_t *hw)
+{
+	i2c_ll_set_base_addr(hw);
 }
 
 static inline void i2c_ll_enable(i2c_hw_t *hw, i2c_id_t id)

@@ -26,6 +26,12 @@ bk_err_t i2c_hal_init(i2c_hal_t *hal)
 	return BK_OK;
 }
 
+bk_err_t i2c_hal_init_instance(i2c_hal_t *hal)
+{
+	i2c_ll_init_instance(&hal->hw, hal->id);
+	return BK_OK;
+}
+
 bk_err_t i2c_hal_set_baud_rate(i2c_hal_t *hal, uint32_t baud_rate)
 {
 	uint32_t freq_div = I2C_CLK_DIVID(baud_rate);
