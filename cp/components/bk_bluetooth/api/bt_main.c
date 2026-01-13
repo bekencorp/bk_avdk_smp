@@ -58,6 +58,8 @@ bk_bluetooth_status_t bk_bluetooth_get_status(void)
 
 static int bluetooth_deepsleep_enter_cb(uint64_t expected_time_ms, void *args)
 {
+    LOGW("%s start %p\n", __func__, bluetooth_mutex);
+
     if(bluetooth_mutex)
     {
         rtos_lock_recursive_mutex(&bluetooth_mutex);
@@ -66,11 +68,12 @@ static int bluetooth_deepsleep_enter_cb(uint64_t expected_time_ms, void *args)
     if (bluetooth_already_init)
     {
 #if !CONFIG_BTDM_CONTROLLER_ONLY
+        LOGW("%s 1\n", __func__);
         bluetooth_host_deinit();
 #endif
-
+        LOGW("%s 2\n", __func__);
         bluetooth_controller_deinit();
-
+        LOGW("%s 3\n", __func__);
         bluetooth_already_init = 0;
     }
     else
@@ -83,12 +86,23 @@ static int bluetooth_deepsleep_enter_cb(uint64_t expected_time_ms, void *args)
         rtos_unlock_recursive_mutex(&bluetooth_mutex);
     }
 
+    LOGW("%s end %p\n", __func__, bluetooth_mutex);
+
     return 0;
 }
 
 bt_err_t bk_bluetooth_init(void)
 {
     bt_err_t ret = 0;
+
+    if (!bluetooth_mutex)
+    {
+        if(rtos_init_recursive_mutex(&bluetooth_mutex))
+        {
+            LOGE("%s init bluetooth_mutex err\n", __func__);
+            BK_ASSERT(0);
+        }
+    }
 
     if (bluetooth_already_init)
     {
@@ -175,10 +189,6 @@ bt_err_t bk_bluetooth_init(void)
     extern void ble_at_cmd_init(void);
     ble_at_cmd_init();
 #endif
-    if (bluetooth_mutex == NULL)
-    {
-        rtos_init_recursive_mutex(&bluetooth_mutex);
-    }
 
     bluetooth_already_init = 1;
     LOGD("%s ok\r\n", __func__);
