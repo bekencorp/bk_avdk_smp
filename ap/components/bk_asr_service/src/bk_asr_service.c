@@ -1,5 +1,5 @@
 #include <os/os.h>
-
+#include "cli.h"
 #include <common/bk_include.h>
 #include <components/bk_audio_asr_service.h>
 #include <components/bk_asr_service_types.h>
@@ -49,8 +49,11 @@ struct aud_asr
 	void (*aud_asr_deinit)(void);
 };
 
-#define UAC_MIC_DEBUG (0)
-#if UAC_MIC_DEBUG
+extern int cli_asr_dump_init(void);
+extern int cli_asr_dump_deinit(void);
+
+#define ASR_INPUT_DEBUG (0)
+#if ASR_INPUT_DEBUG
 #define ASR_INPUT_START()    do { GPIO_DOWN(34); GPIO_UP(34);} while (0)
 #define ASR_INPUT_END()      do { GPIO_DOWN(34); } while (0)
 #else
@@ -58,24 +61,73 @@ struct aud_asr
 #define ASR_INPUT_END()
 #endif
 
-#if CONFIG_ADK_UTILS
-#define ASR_DATA_DUMP_BY_UART (0)
-#if ASR_DATA_DUMP_BY_UART
-#include <components/bk_audio/audio_utils/uart_util.h>
-static struct uart_util gl_asr_util = {0};
-#define ASR_DATA_DUMP_UART_ID            (2)
-#define ASR_DATA_DUMP_UART_BAUD_RATE     (1000000)
 
-#define ASR_DATA_DUMP_BY_UART_OPEN()                    uart_util_create(&gl_asr_util, ASR_DATA_DUMP_UART_ID, ASR_DATA_DUMP_UART_BAUD_RATE)
+#include <components/bk_audio/audio_utils/uart_util.h>
+
+#define ASR_DATA_DUMP_HEADER_MAGICWORD_PART1    (0xDEADBEEF)
+#define ASR_DATA_DUMP_HEADER_MAGICWORD_PART2    (0x0F1001F0)
+
+typedef struct
+{
+    uint32_t header_magicword_part1;
+    uint32_t header_magicword_part2;
+    uint32_t seq_no;
+} asr_data_dump_header_t;
+
+static asr_data_dump_header_t g_asr_data_dump_header = {
+    .header_magicword_part1 = ASR_DATA_DUMP_HEADER_MAGICWORD_PART1,
+    .header_magicword_part2 = ASR_DATA_DUMP_HEADER_MAGICWORD_PART2,
+    .seq_no = 0,
+};
+static struct uart_util gl_asr_util = {0};
+#define ASR_DATA_DUMP_UART_ID            (1)
+#define ASR_DATA_DUMP_UART_BAUD_RATE     (2000000)
+#define ASR_DATA_DUMP_BY_UART_OPEN(id, baud_rate)       uart_util_create(&gl_asr_util, id, baud_rate)
 #define ASR_DATA_DUMP_BY_UART_CLOSE()                   uart_util_destroy(&gl_asr_util)
 #define ASR_DATA_DUMP_BY_UART_DATA(data_buf, len)       uart_util_tx_data(&gl_asr_util, data_buf, len)
-#else
 
+<<<<<<< HEAD   (3d7eae Revert "[Jira BK7236SW-12588]: <multimedia> <perf> Adjust th)
 #define ASR_DATA_DUMP_BY_UART_OPEN()
 #define ASR_DATA_DUMP_BY_UART_CLOSE()
 #define ASR_DATA_DUMP_BY_UART_DATA(data_buf, len)
 #endif  //ASR_DATA_DUMP_BY_UART
 #endif
+=======
+
+static volatile uint8_t g_asr_dump_enable = 0;
+static volatile uint8_t g_asr_time_debug_enable = 0;
+static volatile uint32_t g_asr_time_threshold = 30;  // Default time threshold in milliseconds
+
+// Runtime time statistics control
+// Note: start_time and stop_time should be declared in the same scope where these macros are used
+#define ASR_TIME_START()    uint64_t start_time = 0; \
+                            if (g_asr_time_debug_enable) { start_time = rtos_get_time(); }
+
+#define ASR_TIME_END()      uint64_t stop_time = 0; \
+                            if (g_asr_time_debug_enable) { stop_time = rtos_get_time(); }
+
+static inline void asr_time_check_internal(uint64_t start_time, uint64_t stop_time, int result)
+{
+    if (g_asr_time_debug_enable)
+    {
+        uint32_t time_diff = (uint32_t)(stop_time - start_time);
+        if (time_diff >= g_asr_time_threshold)
+        {
+            BK_LOGI(TAG, "Recogn:%d---%d\n", time_diff, result);
+        }
+        else if ((int32_t)(stop_time - start_time) < 0)
+        {
+            BK_LOGI(TAG, "Error execute--%d\n", time_diff);
+        }
+    }
+}
+
+#define ASR_TIME_CHECK()    do { \
+                                if (g_asr_time_debug_enable) { \
+                                    asr_time_check_internal(start_time, stop_time, result); \
+                                } \
+                            } while(0)
+>>>>>>> CHANGE (112d9b [Jira BK7236SW-12963]: <multimedia> <feat> Add Cli debugging)
 
 const static char *text;
 static float score;
@@ -115,7 +167,6 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 	bk_err_t ret = BK_OK;
 
 	aud_asr_handle_t aud_asr_handle = (aud_asr_handle_t)param_data;
-	ASR_DATA_DUMP_BY_UART_OPEN();
 
 	aud_asr_handle->running = false;
 	long unsigned int wait_time = BEKEN_WAIT_FOREVER;
@@ -173,6 +224,7 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 						result = aud_asr_handle->aud_asr_recog((void*)aud_asr_handle->read_buff, aud_asr_handle->max_read_size, (void*)&text, (void*)&score);
 					}
 					ASR_INPUT_END();
+<<<<<<< HEAD   (3d7eae Revert "[Jira BK7236SW-12588]: <multimedia> <perf> Adjust th)
 					uint64_t __maybe_unused stop_time = rtos_get_time();
 					ASR_DATA_DUMP_BY_UART_DATA(aud_asr_handle->read_buff, read_size);
 
@@ -185,6 +237,17 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 					} else {
 						;
 					}
+=======
+					ASR_TIME_END();
+					ASR_TIME_CHECK();
+>>>>>>> CHANGE (112d9b [Jira BK7236SW-12963]: <multimedia> <feat> Add Cli debugging)
+
+                    if (g_asr_dump_enable)
+                    {
+                        ASR_DATA_DUMP_BY_UART_DATA((uint8_t *)&g_asr_data_dump_header, sizeof(asr_data_dump_header_t));
+                        ASR_DATA_DUMP_BY_UART_DATA(aud_asr_handle->read_buff, read_size);
+                        g_asr_data_dump_header.seq_no++;
+                    }
 
 					if (result == 1) {
 						if (aud_asr_handle->aud_asr_result_handle) {
@@ -194,8 +257,6 @@ static void aud_asr_task_main(beken_thread_arg_t param_data)
 							BK_LOGE(TAG, "aud_asr_handle->aud_asr_result_handle is NULL\n");
 							aud_asr_result_handle((uint32_t)text);
 						}
-					} else {
-						;
 					}
 				}
 				else {
@@ -275,7 +336,7 @@ aud_asr_handle_t bk_aud_asr_init(aud_asr_cfg_t *cfg)
     ret = rtos_init_semaphore(&aud_asr_handle->sem, 1);
     if (ret != kNoErr)
     {
-        BK_LOGE(TAG, "%s, %d, ceate semaphore fail\n", __func__, __LINE__);
+        BK_LOGE(TAG, "%s, %d, create semaphore fail\n", __func__, __LINE__);
         goto fail;
     }
 
@@ -285,7 +346,7 @@ aud_asr_handle_t bk_aud_asr_init(aud_asr_cfg_t *cfg)
                           32);
     if (ret != kNoErr)
     {
-        BK_LOGE(TAG, "%s, %d, ceate aud asr message queue fail\n", __func__, __LINE__);
+        BK_LOGE(TAG, "%s, %d, create aud asr message queue fail\n", __func__, __LINE__);
         goto fail;
     }
 
@@ -320,6 +381,9 @@ aud_asr_handle_t bk_aud_asr_init(aud_asr_cfg_t *cfg)
     }
 
     rtos_get_semaphore(&aud_asr_handle->sem, BEKEN_NEVER_TIMEOUT);
+
+    cli_asr_dump_init();
+
     BK_LOGD(TAG, "init aud asr task complete\n");
     return aud_asr_handle;
 
@@ -398,6 +462,7 @@ bk_err_t bk_aud_asr_deinit(aud_asr_handle_t aud_asr_handle)
         os_free(aud_asr_handle);
     }
 
+    cli_asr_dump_deinit();
     BK_LOGD(TAG, "deinit aud asr complete\n");
     return ret;
 }
@@ -438,3 +503,97 @@ bk_err_t bk_aud_asr_stop(aud_asr_handle_t aud_asr_handle)
     return ret;
 }
 
+void cli_asr_dump_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    if (argc < 2)
+    {
+        BK_LOGE(TAG, "Usage: asr_dump {start [uart_id] [baud_rate]|stop|time_debug [0|1]|time_debug threshold <value>}\n");
+        return;
+    }
+
+    if (os_strcmp(argv[1], "start") == 0)
+    {
+        bk_err_t ret = BK_OK;
+        if (argc == 4)
+        {
+            uint32_t uart_id = 0;
+            uint32_t baud_rate = 0;
+            uart_id = os_strtoul(argv[2], NULL, 10);
+            baud_rate = os_strtoul(argv[3], NULL, 10);
+            ret = ASR_DATA_DUMP_BY_UART_OPEN(uart_id, baud_rate);
+        }
+        else if (argc == 2)
+        {
+            ret = ASR_DATA_DUMP_BY_UART_OPEN(ASR_DATA_DUMP_UART_ID, ASR_DATA_DUMP_UART_BAUD_RATE);
+        }
+        else
+        {
+            BK_LOGE(TAG, "Usage: asr_dump start [uart_id] [baud_rate]\n");
+            return;
+        }
+
+        if (ret == BK_OK)
+        {
+            g_asr_dump_enable = 1;
+            BK_LOGI(TAG, "asr service start\n");
+        }
+        else
+        {
+            BK_LOGE(TAG, "Failed to open UART for ASR data dump\n");
+        }
+    }
+    else if (os_strcmp(argv[1], "stop") == 0)
+    {
+        g_asr_dump_enable = 0;  // Disable first to avoid writing to UART while closing
+        ASR_DATA_DUMP_BY_UART_CLOSE();
+        g_asr_data_dump_header.seq_no = 0;
+        BK_LOGI(TAG, "asr service stop complete\n");
+    }
+    else if (os_strcmp(argv[1], "time_debug") == 0)
+    {
+        if (argc == 3)
+        {
+            uint32_t enable = os_strtoul(argv[2], NULL, 10);
+            g_asr_time_debug_enable = (enable != 0) ? 1 : 0;
+            BK_LOGI(TAG, "asr time debug %s\n", g_asr_time_debug_enable ? "enabled" : "disabled");
+        }
+        else if (argc == 4 && os_strcmp(argv[2], "threshold") == 0)
+        {
+            uint32_t threshold = os_strtoul(argv[3], NULL, 10);
+            if (threshold > 0)
+            {
+                g_asr_time_threshold = threshold;
+                BK_LOGI(TAG, "asr time threshold set to %d ms\n", g_asr_time_threshold);
+            }
+            else
+            {
+                BK_LOGE(TAG, "Invalid threshold value, must be > 0\n");
+            }
+        }
+        else
+        {
+            BK_LOGE(TAG, "Usage: asr_dump time_debug [0|1] or asr_dump time_debug threshold <value>\n");
+        }
+    }
+    else
+    {
+        BK_LOGE(TAG, "Usage: asr_dump {start [uart_id] [baud_rate]|stop|time_debug [0|1]|time_debug threshold <value>}\n");
+    }
+}
+
+static const struct cli_command s_asr_dump_commands[] =
+{
+    {"asr_dump", "asr_dump {start [uart_id] [baud_rate]|stop|time_debug [0|1]|time_debug threshold <value>}", cli_asr_dump_test_cmd},
+};
+
+#define ASR_DUMP_CMD_CNT   (sizeof(s_asr_dump_commands) / sizeof(struct cli_command))
+
+int cli_asr_dump_init(void)
+{
+    return cli_register_commands(s_asr_dump_commands, ASR_DUMP_CMD_CNT);
+}
+
+int cli_asr_dump_deinit(void)
+{
+    return cli_unregister_commands(s_asr_dump_commands, ASR_DUMP_CMD_CNT);
+}
