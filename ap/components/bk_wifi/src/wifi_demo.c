@@ -529,63 +529,51 @@ void demo_wifi_ipdbg_init(uint32_t ipdbg_func, uint16_t ipdbg_value)
 
 #if CONFIG_P2P
 extern char s_wifi_p2p_dev_name[SSID_MAX_LEN + 1];
-// Static status variable to track P2P connection state
-static int g_p2p_status = 0;
 bk_err_t demo_p2p_event_cb(void *arg, event_module_t event_module, int event_id, void *event_data)
 {
-	if (event_module != EVENT_MOD_WIFI)
+	if ((event_module != EVENT_MOD_WIFI) || (!bk_wifi_is_p2p_enabled()))
 		return BK_OK;
 	WIFI_LOGD("demo_p2p_event_cb: event_id: %d\r\n", event_id);
 	switch (event_id) {
 	// P2P GO disconnected (as GO)
 	case EVENT_WIFI_AP_DISCONNECTED:
 	case EVENT_WIFI_GO_DISCONNECTED:
-		if (g_p2p_status == 1) {
-			uap_ip_down();
-			// Get saved SSID before disable (for auto-reconnect)
-			bk_wifi_p2p_cancel();
-			rtos_delay_milliseconds(2000);
-			bk_wifi_p2p_find();
-			g_p2p_status = 0;
-		}
+		uap_ip_down();
+		// Get saved SSID before disable (for auto-reconnect)
+		bk_wifi_p2p_cancel();
+		rtos_delay_milliseconds(2000);
+		bk_wifi_p2p_find();
 		break;
 
 	// P2P GC connected (as GC) or GO connected (as GO)
 	case EVENT_WIFI_STA_CONNECTED:
 	case EVENT_WIFI_AP_CONNECTED:
-		if (g_p2p_status == 0) {
-			g_p2p_status = 1;
-			//EVENT_WIFI_STA_CONNECTED means GC connected,EVENT_WIFI_AP_CONNECTED means GO connected
-			WIFI_LOGD("demo_p2p_event_cb: P2P connected as %s\r\n", event_id == EVENT_WIFI_STA_CONNECTED ? "GC" : "GO");
-		}
+		//EVENT_WIFI_STA_CONNECTED means GC connected,EVENT_WIFI_AP_CONNECTED means GO connected
+		WIFI_LOGD("demo_p2p_event_cb: P2P connected as %s\r\n", event_id == EVENT_WIFI_STA_CONNECTED ? "GC" : "GO");
 		break;
 
 	// P2P GC disconnected (as GC)
 	case EVENT_WIFI_STA_DISCONNECTED:
-		if (g_p2p_status == 1) {
-			sta_ip_down();
-			// Check if P2P is still enabled before auto-reconnecting
-			// If user manually called bk_wifi_p2p_disable(), skip auto-reconnect
-			if (!bk_wifi_is_p2p_enabled()) {
-				WIFI_LOGW("%s: P2P already disabled, skip auto-reconnect\n", __func__);
-				g_p2p_status = 0;
-				return BK_OK;
-			}
+		sta_ip_down();
+		// Check if P2P is still enabled before auto-reconnecting
+		// If user manually called bk_wifi_p2p_disable(), skip auto-reconnect
+		if (!bk_wifi_is_p2p_enabled()) {
+			WIFI_LOGW("%s: P2P already disabled, skip auto-reconnect\n", __func__);
+			return BK_OK;
+		}
 
-			// Get saved SSID before disable (for auto-reconnect)
-			const char *saved_name = bk_wifi_get_p2p_dev_name();
-			bk_wifi_p2p_disable();
+		// Get saved SSID before disable (for auto-reconnect)
+		const char *saved_name = bk_wifi_get_p2p_dev_name();
+		bk_wifi_p2p_disable();
 
-			// Note: Delay removed as it would block the callback
-			// If delay is required, consider using a timer or work queue
+		// Note: Delay removed as it would block the callback
+		// If delay is required, consider using a timer or work queue
 
-			// Only re-enable if P2P was not manually disabled
-			if (saved_name) {
-				/* Use previous/default intent when auto re-enabling */
-				bk_wifi_p2p_enable_with_intent(saved_name, -1);
-				bk_wifi_p2p_find();
-			}
-			g_p2p_status = 0;
+		// Only re-enable if P2P was not manually disabled
+		if (saved_name) {
+			/* Use previous/default intent when auto re-enabling */
+			bk_wifi_p2p_enable_with_intent(saved_name, -1);
+			bk_wifi_p2p_find();
 		}
 		break;
 
