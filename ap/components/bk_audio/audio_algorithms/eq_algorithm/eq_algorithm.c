@@ -177,9 +177,8 @@ static bk_err_t _eq_algorithm_open(audio_element_handle_t self)
         BK_LOGE(TAG, "%s, %d, eq element create fail\n", __func__, __LINE__);
         return BK_FAIL;
     }
-    
-    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
 
+    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
     return BK_OK;
 }
 
@@ -361,18 +360,18 @@ bk_err_t eq_algorithm_set_config(audio_element_handle_t eq_algorithm, void * eq_
     eq->eq_cfg.eq_gain      = eq_cfg->globle_gain;
     eq->eq_cfg.eq_valid_num = eq_cfg->filters;
     os_memcpy(&eq->eq_cfg.eq_para, &eq_cfg->eq_para, sizeof(eq_para_t)*eq_cfg->filters);
-
     os_memcpy(&eq->eq_load, &eq_cfg->eq_load, sizeof(app_eq_load_t));
 
-    eq_destroy(eq->eq_handle);
-    eq->eq_handle = eq_create(&eq->eq_cfg);
-    if (!eq->eq_handle)
+    eq_handle_t new_eq_handle = eq_create(&eq->eq_cfg);
+    if (!new_eq_handle)
     {
         BK_LOGE(TAG, "%s, %d, eq element create fail\n", __func__, __LINE__);
         return BK_FAIL;
     }
 
-    audio_element_setdata(eq_algorithm, eq);
+    eq_destroy(eq->eq_handle);
+    eq->eq_handle = new_eq_handle;
+
     return BK_OK;
 }
 
