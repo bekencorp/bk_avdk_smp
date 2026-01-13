@@ -9,4 +9,10 @@ menu "Display Service"
 		depends on MEDIA_DISPLAY_SERVICE
 		bool "Enable Display Service"
 		default n
+
+	config RGB_FLUSH_BY_SOF
+		depends on MEDIA_DISPLAY_SERVICE
+		bool "Enable RGB Flush by SOF"
+		default n
+
 endmenu

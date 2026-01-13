@@ -640,12 +640,12 @@ void lcd_flash_disable_int(uint32_t enable)
                 delay(10);
                 lcd_disp_ll_set_module_control_soft_reset(1);
             }
-            lcd_hal_rgb_int_enable(0, 1);
         }
-        else
-        {
-            lcd_hal_rgb_int_enable(0, 1);
-        }
+#if (CONFIG_RGB_FLUSH_BY_SOF)
+		lcd_hal_rgb_int_enable(1, 0);
+#else
+		lcd_hal_rgb_int_enable(0, 1);
+#endif
     }
     else
     {
@@ -673,7 +673,11 @@ bk_err_t bk_lcd_rgb_init(const lcd_device_t *device)
 	{
 		lcd_hal_set_sync_low(rgb->hsync_pulse_width, rgb->vsync_pulse_width);
 	}
+#if (CONFIG_RGB_FLUSH_BY_SOF)
+	lcd_hal_rgb_int_enable(1, 0);
+#else
 	lcd_hal_rgb_int_enable(0, 1);
+#endif
 #if CONFIG_FLASH
 	mb_flash_register_op_notify(lcd_flash_disable_int);
 #endif

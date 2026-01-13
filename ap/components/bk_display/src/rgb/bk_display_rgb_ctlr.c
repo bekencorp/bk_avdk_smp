@@ -403,7 +403,12 @@ static avdk_err_t rgb_display_ctlr_open(bk_display_ctlr_t *controller)
     }
 
     // 注册中断处理函数
+#if (CONFIG_RGB_FLUSH_BY_SOF)
+    bk_lcd_isr_register(RGB_OUTPUT_SOF, lcd_driver_display_rgb_isr, context);
+#else
     bk_lcd_isr_register(RGB_OUTPUT_EOF, lcd_driver_display_rgb_isr, context);
+#endif
+
     if (config->clk_pin >= 0 && config->clk_pin < GPIO_NUM && \
         config->cs_pin >= 0 && config->cs_pin < GPIO_NUM && \
         config->sda_pin >= 0 && config->sda_pin < GPIO_NUM && \
