@@ -604,6 +604,36 @@ static inline void i2c_ll_set_byte_interval(i2c_hw_t *hw, i2c_id_t id, uint32_t 
 	}
 }
 
+#if (CONFIG_I2C_PM_CB_SUPPORT)
+#define I2C_PM_BACKUP_REG_NUM    3
+
+static inline void i2c_ll_backup(i2c_hw_t *hw, i2c_id_t id, uint32_t *pm_backup)
+{
+	if (id == I2C_ID_0) {
+		pm_backup[0] = hw->i2c0_hw->global_ctrl.v;
+		pm_backup[1] = hw->i2c0_hw->sm_bus_cfg.v;
+		pm_backup[2] = hw->i2c0_hw->sm_bus_status.v;
+	} else {
+		pm_backup[0] = hw->i2c1_hw->global_ctrl.v;
+		pm_backup[1] = hw->i2c1_hw->sm_bus_cfg.v;
+		pm_backup[2] = hw->i2c1_hw->sm_bus_status.v;
+	}
+}
+
+static inline void i2c_ll_restore(i2c_hw_t *hw, i2c_id_t id, uint32_t *pm_backup)
+{
+	if (id == I2C_ID_0) {
+		hw->i2c0_hw->global_ctrl.v = pm_backup[0];
+		hw->i2c0_hw->sm_bus_cfg.v = pm_backup[1];
+		hw->i2c0_hw->sm_bus_status.v = pm_backup[2];
+	} else {
+		hw->i2c1_hw->global_ctrl.v = pm_backup[0];
+		hw->i2c1_hw->sm_bus_cfg.v = pm_backup[1];
+		hw->i2c1_hw->sm_bus_status.v = pm_backup[2];
+	}
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif
