@@ -8,4 +8,9 @@ menu "Bk_video_player"
         depends on AVI_PLAYER
         bool "Enable AVI Player jpeg decode optimization"
         default n
+
+    config AVI_PLAYER_MAX_JPEG_FRAME_LEN
+        depends on AVI_PLAYER
+        int "Set AVI Player max jpeg frame length"
+        default 30720
 endmenu

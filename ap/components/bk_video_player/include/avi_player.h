@@ -22,7 +22,7 @@ extern "C" {
 
 #include "modules/avilib.h"
 
-#define AVI_VIDEO_MAX_JPEG_FRAME_LEN    (30 * 1024)
+#define AVI_VIDEO_MAX_JPEG_FRAME_LEN    CONFIG_AVI_PLAYER_MAX_JPEG_FRAME_LEN
 
 typedef enum
 {
