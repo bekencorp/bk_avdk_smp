@@ -66,6 +66,11 @@ void bk_app_aud_get_service_handle(void * service, app_aud_service_type_t servic
         #endif
             break;
         case AUD_SERVICE_AI_VOC:
+        #if CONFIG_VOICE_SERVICE
+            aud_service_param_ctrl[service_type].service = (voice_handle_t)service;
+            aud_service_param_ctrl[service_type].service_type = service_type;
+            break;
+        #endif
         case AUD_SERVICE_SINGLE_SPK:
         case AUD_SERVICE_SINGLE_MIC:
             LOGW("The service is not supported now! service_type:%d\n", service_type);
@@ -93,6 +98,11 @@ void bk_app_aud_set_service_off(app_aud_service_type_t service_type)
         #endif
             break;
         case AUD_SERVICE_AI_VOC:
+        #if CONFIG_VOICE_SERVICE
+            aud_service_param_ctrl[service_type].service = NULL;
+            aud_service_param_ctrl[service_type].service_type = AUD_SERVICE_MAX;
+        #endif
+            break;
         case AUD_SERVICE_SINGLE_SPK:
         case AUD_SERVICE_SINGLE_MIC:
             LOGW("The service is not supported now! service_type:%d\n", service_type); 
@@ -109,9 +119,10 @@ void bk_app_aud_set_service_off(app_aud_service_type_t service_type)
 
     switch(service_type)
     {
+        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_DOORBELL_VOC:
         #if CONFIG_VOICE_SERVICE
-            if (aud_service_param_ctrl[service_type].service && aud_service_param_ctrl[service_type].service_type == AUD_SERVICE_DOORBELL_VOC)
+            if (aud_service_param_ctrl[service_type].service)
             {
                 voice_handle_t voice_handle = (voice_handle_t)aud_service_param_ctrl[service_type].service;
 
@@ -157,7 +168,6 @@ void bk_app_aud_set_service_off(app_aud_service_type_t service_type)
              }
             #endif
             break; 
-        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_SINGLE_MIC:
         case AUD_SERVICE_SINGLE_SPK:
             LOGW("The service is not supported now! service_type:%d\n", service_type);
@@ -175,9 +185,10 @@ void bk_app_load_aud_sys_config(app_aud_sys_config_t *sys_config, app_aud_servic
 
     switch(service_type)
     {
+        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_DOORBELL_VOC:
          #if CONFIG_VOICE_SERVICE
-            if (aud_service_param_ctrl[service_type].service && aud_service_param_ctrl[service_type].service_type == AUD_SERVICE_DOORBELL_VOC)
+            if (aud_service_param_ctrl[service_type].service)
             {
                 voice_handle_t voice_handle = (voice_handle_t)aud_service_param_ctrl[service_type].service;
 
@@ -223,7 +234,6 @@ void bk_app_load_aud_sys_config(app_aud_sys_config_t *sys_config, app_aud_servic
                 }
             #endif
             break;
-        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_SINGLE_MIC:
         case AUD_SERVICE_SINGLE_SPK:
             break;
@@ -239,9 +249,10 @@ void bk_app_update_aud_aec_v3_config(app_aud_aec_v3_config_t *aec_config, app_au
     LOGD("[+]%s, ec_depth:%d\n", __func__, aec_config->ec_depth);
     switch(service_type)
     {
+        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_DOORBELL_VOC:
         #if CONFIG_VOICE_SERVICE && CONFIG_ADK_AEC_V3_ALGORITHM
-            if (aud_service_param_ctrl[service_type].service && aud_service_param_ctrl[service_type].service_type == AUD_SERVICE_DOORBELL_VOC)
+            if (aud_service_param_ctrl[service_type].service)
             {
                 voice_handle_t voice_handle = (voice_handle_t)aud_service_param_ctrl[service_type].service;
                 audio_element_handle_t aec_alg = NULL;
@@ -255,7 +266,6 @@ void bk_app_update_aud_aec_v3_config(app_aud_aec_v3_config_t *aec_config, app_au
         break;
         case AUD_SERVICE_ASR:
             //break;
-        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_SINGLE_MIC:
         case AUD_SERVICE_SINGLE_SPK:
             LOGW("The service is not supported now! service_type:%d\n", service_type);
@@ -273,9 +283,10 @@ void bk_app_load_aud_aec_v3_config(app_aud_aec_v3_config_t *aec_config, app_aud_
 
     switch(service_type)
     {
+        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_DOORBELL_VOC:
         #if CONFIG_VOICE_SERVICE && CONFIG_ADK_AEC_V3_ALGORITHM
-            if (aud_service_param_ctrl[service_type].service && aud_service_param_ctrl[service_type].service_type == AUD_SERVICE_DOORBELL_VOC)
+            if (aud_service_param_ctrl[service_type].service)
             {
                 voice_handle_t voice_handle = (voice_handle_t)aud_service_param_ctrl[service_type].service;
                 audio_element_handle_t aec_alg = NULL;
@@ -289,7 +300,6 @@ void bk_app_load_aud_aec_v3_config(app_aud_aec_v3_config_t *aec_config, app_aud_
         break;
         case AUD_SERVICE_ASR:
             //break;
-        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_SINGLE_MIC:
         case AUD_SERVICE_SINGLE_SPK:
             LOGW("The service is not supported now! service_type:%d\n", service_type);
@@ -306,9 +316,10 @@ void bk_app_update_aud_eq_config(app_aud_eq_config_t *eq_config, app_aud_service
 
     switch(service_type)
     {
+        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_DOORBELL_VOC:
         #if CONFIG_VOICE_SERVICE && CONFIG_VOICE_SERVICE_EQ
-            if (aud_service_param_ctrl[service_type].service && aud_service_param_ctrl[service_type].service_type == AUD_SERVICE_DOORBELL_VOC)
+            if (aud_service_param_ctrl[service_type].service)
             {
                 voice_handle_t voice_handle = (voice_handle_t)aud_service_param_ctrl[service_type].service;
                 audio_element_handle_t eq_alg = NULL;
@@ -321,7 +332,6 @@ void bk_app_update_aud_eq_config(app_aud_eq_config_t *eq_config, app_aud_service
         #endif
             break;
         case AUD_SERVICE_ASR:
-        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_SINGLE_MIC:
         case AUD_SERVICE_SINGLE_SPK:
             LOGW("The service is not supported now! service_type:%d\n", service_type);
@@ -338,9 +348,10 @@ void bk_app_load_aud_eq_config(app_eq_load_t *eq_load, app_aud_service_type_t se
 
     switch(service_type)
     {
+        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_DOORBELL_VOC:
         #if CONFIG_VOICE_SERVICE && CONFIG_VOICE_SERVICE_EQ
-            if (aud_service_param_ctrl[service_type].service && aud_service_param_ctrl[service_type].service_type == AUD_SERVICE_DOORBELL_VOC)
+            if (aud_service_param_ctrl[service_type].service)
             {
                 voice_handle_t voice_handle = (voice_handle_t)aud_service_param_ctrl[service_type].service;
                 audio_element_handle_t eq_alg = NULL;
@@ -353,7 +364,6 @@ void bk_app_load_aud_eq_config(app_eq_load_t *eq_load, app_aud_service_type_t se
         #endif
             break;
         case AUD_SERVICE_ASR:
-        case AUD_SERVICE_AI_VOC:
         case AUD_SERVICE_SINGLE_MIC:
         case AUD_SERVICE_SINGLE_SPK:
             LOGW("The service is not supported now! service_type:%d\n", service_type);
@@ -362,3 +372,4 @@ void bk_app_load_aud_eq_config(app_eq_load_t *eq_load, app_aud_service_type_t se
             break;
     }
 }
+

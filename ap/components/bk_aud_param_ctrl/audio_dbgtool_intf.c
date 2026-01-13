@@ -39,7 +39,8 @@ void bk_aud_debug_set_service_type(app_aud_service_type_t service_type)
 
 void bk_aud_debug_get_audpara(app_aud_para_t * aud_para_ptr, app_aud_service_type_t service_type)
 {
-	p_aud_para[service_type] = aud_para_ptr;
+    g_service_type = service_type;
+    p_aud_para[service_type] = aud_para_ptr;
 }
 
 static void app_load_eq_params(void)
@@ -435,5 +436,3 @@ void app_dbg_audparam(uint8_t * params, int len)
 			break;
 	}
 }
-
-
