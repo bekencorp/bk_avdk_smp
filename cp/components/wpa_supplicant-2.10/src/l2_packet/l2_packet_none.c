@@ -14,6 +14,7 @@
 #include "eloop.h"
 #include "l2_packet.h"
 #include "fake_socket.h"
+#include "sk_intf.h"
 #include "rw_msdu.h"
 #include "fhost_msg.h"
 
@@ -206,7 +207,13 @@ static void l2_packet_receive(int sock, void *eloop_ctx, void *sock_ctx)
 	buf = os_malloc(TMP_BUF_LEN);
 	BK_ASSERT(buf);
 
-	len = fsocket_recv(sock, buf, TMP_BUF_LEN, 0);
+	struct ke_sk_params params = {
+		.buf = buf,
+		.len = TMP_BUF_LEN,
+		.flag = 0,
+		.freq = 0
+	};
+	len = fsocket_recv(sock, &params);
 	if (len < 0) {
 		wpa_printf(MSG_ERROR, "fsocket_recv_len_err");
 		goto recv_exit;
@@ -258,42 +265,6 @@ struct l2_packet_data * l2_packet_init(
 
 	return l2;
 }
-
-#if CONFIG_P2P
-struct l2_packet_data * l2_packet_p2p_init(
-	const char *ifname, const u8 *own_addr, unsigned short protocol,
-	void (*rx_callback)(void *ctx, const u8 *src_addr,
-			    const u8 *buf, size_t len),
-	void *rx_callback_ctx, int l2_hdr)
-{
-	struct l2_packet_data *l2;
-
-	l2 = os_zalloc(sizeof(struct l2_packet_data));
-	if (l2 == NULL)
-		return NULL;
-	os_strlcpy(l2->ifname, ifname, sizeof(l2->ifname));
-	os_memcpy(l2->own_addr, own_addr, ETH_ALEN);
-
-	l2->vif_index = rwm_mgmt_vif_mac2idx((void *)own_addr);
-	if (l2->vif_index == 0xff)
-		WPA_LOGE("not found vif_index in l2_packet_init\r\n");
-
-	l2->rx_callback = rx_callback;
-	l2->rx_callback_ctx = rx_callback_ctx;
-	l2->l2_hdr = l2_hdr;
-
-	/*
-	 * TODO: open connection for receiving frames
-	 */
-	protocol += l2->vif_index;
-	l2->fd = fsocket_reinit(PF_PACKET, SOCK_RAW, protocol);
-	if (l2->fd >= 0) {
-		eloop_register_read_sock(l2->fd, l2_packet_receive, l2, NULL);
-	}
-
-	return l2;
-}
-#endif
 
 struct l2_packet_data * l2_packet_init_bridge(
 	const char *br_ifname, const char *ifname, const u8 *own_addr,

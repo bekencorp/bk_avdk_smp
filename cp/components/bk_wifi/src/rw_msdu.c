@@ -63,7 +63,9 @@ void ethernetif_input(int iface, struct pbuf *p);
 #if !CONFIG_SPECIAL_TX_TYPE
 UINT32 rwm_transfer_node(MSDU_NODE_T *node, u8 flag);
 #endif
-extern int ke_mgmt_packet_tx(unsigned char *buf, int len, int flag);
+/* Forward declaration */
+struct ke_sk_params;
+extern int ke_mgmt_packet_tx(const struct ke_sk_params *params);
 
 LIST_HEAD_DEFINE(msdu_rx_list);
 

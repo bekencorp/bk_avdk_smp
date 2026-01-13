@@ -25,6 +25,7 @@
 #include "prot/ethernet.h"
 #include <os/str.h>
 #include <lwip/def.h>
+#include "generated/lmac_msg.h"
 #ifdef CONFIG_WIFI_VNET_CONTROLLER
 #include "controller_wifi_if.h"
 #endif
@@ -248,6 +249,41 @@ UINT32 rwm_get_rx_free_node(uint32_t *host_id, int len)
 }
 
 /**
+ * Extract frequency in MHz from phy_info
+ * @param phy_info: PHY channel information (by value)
+ * @return: Frequency in MHz, or 0 if invalid
+ */
+static uint32_t rwnx_phy_info_to_freq(struct phy_channel_info phy_info)
+{
+	uint32_t freq = 0;
+	uint8_t band;
+	uint16_t channel;
+	uint16_t cent_freq1;
+
+	/* Try to get center frequency 1 first (most accurate) */
+	cent_freq1 = PHY_INFO_CENT_FREQ1(phy_info);
+	if (cent_freq1 > 0) {
+		freq = cent_freq1;
+	} else {
+		/* Fallback: calculate from band and channel */
+		band = PHY_INFO_BAND(phy_info);
+		channel = PHY_INFO_CHAN(phy_info);
+		if (band == PHY_BAND_2G4 && channel >= 1 && channel <= 14) {
+			/* 2.4GHz band: 2407 + channel * 5, except channel 14 = 2484 */
+			if (channel == 14)
+				freq = 2484;
+			else
+				freq = 2407 + channel * 5;
+		} else if (band == PHY_BAND_5G && channel >= 1 && channel <= 165) {
+			/* 5GHz band: 5000 + channel * 5 */
+			freq = 5000 + channel * 5;
+		}
+	}
+
+	return freq;
+}
+
+/**
  * rwnx_rx_mgmt - Process one 802.11 management frame
  *
  * @pbuf: pbuf received
@@ -277,8 +313,15 @@ static int rwnx_rx_mgmt(struct pbuf *p, struct fhost_rx_header *rxhdr, int vif_i
 		if (mac_vif_mgmt_get_type(vif) == VIF_STA)
 			return 0;
 #endif
-		if (!is_wpah_queue_full())
-			ke_mgmt_packet_tx(p->payload, p->len, vif_idx);
+		if (!is_wpah_queue_full()) {
+			struct ke_sk_params params = {
+				.buf = p->payload,
+				.len = p->len,
+				.flag = vif_idx,
+				.freq = rwnx_phy_info_to_freq(rxhdr->phy_info)
+			};
+			ke_mgmt_packet_tx(&params);
+		}
 		return 0;
 	} else if ((ieee80211_is_deauth(mgmt->frame_control) ||
 				ieee80211_is_disassoc(mgmt->frame_control)) &&
@@ -315,8 +358,15 @@ static int rwnx_rx_mgmt(struct pbuf *p, struct fhost_rx_header *rxhdr, int vif_i
 		}
 #endif
 		if (!is_wpah_queue_full())
-			ke_mgmt_packet_tx(p->payload, p->len, vif_idx);
-
+		{
+			struct ke_sk_params params = {
+				.buf = p->payload,
+				.len = p->len,
+				.flag = vif_idx,
+				.freq = rwnx_phy_info_to_freq(rxhdr->phy_info)
+			};
+			ke_mgmt_packet_tx(&params);
+		}
 		return 0;
 	}
 }

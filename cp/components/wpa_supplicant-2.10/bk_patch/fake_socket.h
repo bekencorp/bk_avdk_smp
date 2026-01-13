@@ -22,7 +22,7 @@ typedef struct
 
 	unsigned char *msg;
 	int len;
-
+	uint32_t extra_info;
 }SOCKET_MSG;
 
 typedef struct
@@ -245,15 +245,15 @@ typedef struct socket_type_st {
 	void *args;
 } S_TYPE_ST,*S_TYPE_PTR;
 
+/* Forward declaration */
+struct ke_sk_params;
+
 extern SOCKET fsocket_init(int af, int type, int protocol);
-#if CONFIG_P2P
-extern SOCKET fsocket_reinit(int af, int type, int protocol);
-#endif
 extern int fsocket_send(SOCKET sk, const unsigned char *buf, int len, S_TYPE_PTR type);
-extern int fsocket_recv(SOCKET sk, const unsigned char *buf, int len, int flag);
+extern int fsocket_recv(SOCKET sk, struct ke_sk_params *params);
 extern void fsocket_close(SOCKET sk);
-extern int ke_sk_send(SOCKET sk, const unsigned char *buf, int len, int flag);
-extern int ke_sk_recv(SOCKET sk, const unsigned char *buf, int len, int flag);
+extern int ke_sk_send(SOCKET sk, const struct ke_sk_params *params);
+extern int ke_sk_recv(SOCKET sk, struct ke_sk_params *params);
 extern BK_SOCKET *sk_get_sk_element(SOCKET sk);
 extern int ke_sk_recv_peek_next_payload_size(SOCKET sk);
 extern int fsocket_peek_recv_next_payload_size(SOCKET sk);

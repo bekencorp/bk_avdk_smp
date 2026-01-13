@@ -1,9 +1,11 @@
 #include <common/bk_include.h>
 #include "common.h"
 #include "fake_socket.h"
+#include "sk_intf.h"
 #include <os/mem.h>
 #include "bk_wifi_private.h"
 #include "wpa_debug.h"
+#include "ieee802_11_defs.h"
 
 /*
  * RWIP use ke_sk_xx to recv/send mesages, while non-RWIP use fsocket_xxxx.
@@ -23,14 +25,13 @@ extern void bmsg_skt_tx_sender(void *arg);
 /**
  * append @buf to socket->sk_rx_msg list
  */
-int ke_sk_send(SOCKET sk, const unsigned char *buf, int len, int flag)
+int ke_sk_send(SOCKET sk, const struct ke_sk_params *params)
 {
 	int ret = 0;
 	unsigned char *data_buf;
 	BK_SOCKET *element;
 	SOCKET_MSG *sk_msg;
-
-	WPA_LOGV("ke_tx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
+	WPA_LOGV("ke_tx:%d,buf:0x%x, len:%d\r\n", sk, params->buf, params->len);
 	rtos_lock_mutex(&socket_entity.fs_mutex);
 	element = sk_get_sk_element(sk);
 	if(0 == element)
@@ -43,17 +44,18 @@ int ke_sk_send(SOCKET sk, const unsigned char *buf, int len, int flag)
 	{
 		goto tx_exit;
 	}
-	data_buf = (unsigned char *)os_malloc(len);
+	data_buf = (unsigned char *)os_malloc(params->len);
 	if(0 == data_buf)
 	{
 		goto malloc_buf_exit;
 	}
-	ret = len;
-	sk_msg->len = len;
+	ret = params->len;
+	sk_msg->len = params->len;
 	sk_msg->msg = data_buf;
 
-	os_memcpy(sk_msg->msg, buf, len);
+	os_memcpy(sk_msg->msg, params->buf, params->len);
 
+	sk_msg->extra_info = params->freq;
 	dl_list_add_tail(&element->sk_rx_msg, &sk_msg->data);
 	rtos_unlock_mutex(&socket_entity.fs_mutex);
 
@@ -72,14 +74,14 @@ tx_exit:
 /**
  * recv buf from socket->sk_tx_msg list.
  */
-int ke_sk_recv(SOCKET sk, const unsigned char *buf, int len, int flag)
+int ke_sk_recv(SOCKET sk, struct ke_sk_params *params)
 {
 	int count;
 	int ret = 0;
 	BK_SOCKET *element;
 	SOCKET_MSG *sk_msg, *tmp;
 
-	WPA_LOGV("ke_rx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
+	WPA_LOGV("ke_rx:%d,buf:0x%x, len:%d\r\n", sk, params->buf, params->len);
 	rtos_lock_mutex(&socket_entity.fs_mutex);
 	element = sk_get_sk_element(sk);
 	if(0 == element)
@@ -88,13 +90,13 @@ int ke_sk_recv(SOCKET sk, const unsigned char *buf, int len, int flag)
 	}
 	dl_list_for_each_safe(sk_msg, tmp, &element->sk_tx_msg, SOCKET_MSG, data)
 	{
-		if (len != 0 && buf != NULL) {
-			count = MIN(sk_msg->len, len);
+		if (params->len != 0 && params->buf != NULL) {
+			count = MIN(sk_msg->len, params->len);
 
 			BK_ASSERT(count); /* BK_ASSERT VERIFIED */
 			BK_ASSERT(sk_msg); /* BK_ASSERT VERIFIED */
-			WPA_LOGV("r1:%d,buf:0x%x, len:%d\r\n", sk, buf, count);
-			os_memcpy((void *)buf, (void *)sk_msg->msg, count);
+			WPA_LOGV("r1:%d,buf:0x%x, len:%d\r\n", sk, params->buf, count);
+			os_memcpy((void *)params->buf, (void *)sk_msg->msg, count);
 
 			ret = count;
 		} else {
@@ -217,48 +219,6 @@ SOCKET fsocket_init(int af, int type, int protocol)
 	WPA_LOGV("create fsocket_init:%d\r\n", sk);
 	return sk;
 }
-
-#if CONFIG_P2P
-SOCKET fsocket_reinit(int af, int type, int protocol)
-{
-	SOCKET sk;
-	BK_SOCKET *sk_ptr, *tmp;
-	rtos_lock_mutex(&socket_entity.fs_mutex);
-	// calc sk
-	sk = af + type + protocol;
-	// find existing socket
-	//socket_entity.sk_head.next = socket_entity.sk_head.next;
-	dl_list_for_each_safe(sk_ptr, tmp, &socket_entity.sk_head, BK_SOCKET, sk_element)
-	{
-		if((sk-1) == sk_ptr->sk)
-		{
-			WPA_LOGD("fsocket_reinit: find existing socket %d\r\n", sk);
-			// update socket
-			sk_ptr->sk = sk;
-			rtos_unlock_mutex(&socket_entity.fs_mutex);
-			WPA_LOGD("fsocket_reinit success\r\n");
-			return sk;
-		}
-	}
-	// if no exist, create new one
-	sk_ptr = (BK_SOCKET *)os_malloc(sizeof(BK_SOCKET));
-	if(0 == sk_ptr)
-	{
-		WPA_LOGE("fsocket_reinit: malloc failed\r\n");
-		rtos_unlock_mutex(&socket_entity.fs_mutex);
-		return 0;
-	}
-	// init socket
-	sk_ptr->sk = sk;
-	dl_list_init(&sk_ptr->sk_rx_msg);
-	dl_list_init(&sk_ptr->sk_tx_msg);
-	// add to socket list
-	dl_list_add(&socket_entity.sk_head, &sk_ptr->sk_element);
-	rtos_unlock_mutex(&socket_entity.fs_mutex);
-	WPA_LOGD("fsocket_reinit: create new socket %d\r\n", sk);
-	return sk;
-}
-#endif
 /*
  *
  */
@@ -310,14 +270,14 @@ tx_exit:
 	return ret;
 }
 
-int fsocket_recv(SOCKET sk, const unsigned char *buf, int len, int flag)
+int fsocket_recv(SOCKET sk, struct ke_sk_params *params)
 {
 	int count;
 	int ret = 0;
 	BK_SOCKET *element;
 	SOCKET_MSG *sk_msg, *tmp;
 
-	WPA_LOGV("hapd_rx:%d,buf:0x%x, len:%d\r\n", sk, buf, len);
+	WPA_LOGV("hapd_rx:%d,buf:0x%x, len:%d\r\n", sk, params->buf, params->len);
 	rtos_lock_mutex(&socket_entity.fs_mutex);
 	element = sk_get_sk_element(sk);
 	if(0 == element)
@@ -327,22 +287,24 @@ int fsocket_recv(SOCKET sk, const unsigned char *buf, int len, int flag)
 
 	dl_list_for_each_safe(sk_msg, tmp, &element->sk_rx_msg, SOCKET_MSG, data)
 	{
-		if(sk_msg->len > len)
+		if(sk_msg->len > params->len)
 		{
-			WPA_LOGW("recv_buf_small:%d:%d\r\n", sk_msg->len, len);
+			WPA_LOGW("recv_buf_small:%d:%d\r\n", sk_msg->len, params->len);
 		}
 
-		count = MIN(sk_msg->len, len);
+		count = MIN(sk_msg->len, params->len);
 
 		BK_ASSERT(count); /* BK_ASSERT VERIFIED */
 		BK_ASSERT(sk_msg); /* BK_ASSERT VERIFIED */
 
-		os_memcpy((void *)buf, (void *)sk_msg->msg, count);
+		os_memcpy((void *)params->buf, (void *)sk_msg->msg, count);
 		ret = count;
+		params->freq = sk_msg->extra_info;
 
 		os_free(sk_msg->msg);
 		sk_msg->msg = 0;
 		sk_msg->len = 0;
+		sk_msg->extra_info = 0;
 
 		dl_list_del(&sk_msg->data);
 		os_free(sk_msg);
@@ -355,7 +317,6 @@ rx_exit:
 	rtos_unlock_mutex(&socket_entity.fs_mutex);
 
 	return ret;
-;
 }
 
 void fsocket_close(SOCKET sk)

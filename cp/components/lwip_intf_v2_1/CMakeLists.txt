@@ -88,5 +88,5 @@ endif()
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	REQUIRES driver controller_if
-	PRIV_REQUIRES bk_common bk_wifi bk_rtos os_source 
+	PRIV_REQUIRES bk_common bk_wifi bk_rtos os_source wpa_supplicant-2.10
 	)

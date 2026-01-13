@@ -146,12 +146,19 @@ void bmsg_skt_tx_handler(BUS_MSG_T *msg)
 		S_TYPE_PTR type_ptr = (S_TYPE_PTR)dummy;
 
 		RWNX_LOGW("hapd_intf_ke_rx_handle resend 3 times, drop it!\r\n");
+		struct ke_sk_params params = {
+			.buf = NULL,
+			.len = 0,
+			.flag = type_ptr->vif_index,
+			.freq = 0
+		};
 		if (type_ptr->type == HOSTAPD_MGMT ||
-			type_ptr->type == HOSTAPD_MGMT_ROBUST)
-			ke_mgmt_packet_rx(NULL, 0, type_ptr->vif_index);
-		else if ((type_ptr->type == HOSTAPD_DATA) ||
-                           (type_ptr->type == HOSTAPD_DATA_SPECIAL))
-			ke_l2_packet_rx(NULL, 0, type_ptr->vif_index);
+			type_ptr->type == HOSTAPD_MGMT_ROBUST) {
+			ke_mgmt_packet_rx(&params);
+		} else if ((type_ptr->type == HOSTAPD_DATA) ||
+                           (type_ptr->type == HOSTAPD_DATA_SPECIAL)) {
+			ke_l2_packet_rx(&params);
+		}
 		os_free((void *)(msg->arg));
 		resend_num = 0;
 		return;

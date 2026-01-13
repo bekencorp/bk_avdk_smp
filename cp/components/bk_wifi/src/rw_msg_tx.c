@@ -1300,7 +1300,6 @@ int rw_msg_get_channel(void *cfm)
 int rw_msg_set_filter(uint32_t filter)
 {
 	struct mm_set_filter_req *set_filter_req_param;
-	uint32_t rx_filter = 0;
 
 	/* Build the MM_SET_FILTER_REQ message */
 	set_filter_req_param =
@@ -1310,8 +1309,9 @@ int rw_msg_set_filter(uint32_t filter)
 		return BK_ERR_NO_MEM;
 
 	/* Now copy all the flags into the message parameter */
-	set_filter_req_param->filter = rx_filter;
+	set_filter_req_param->filter = filter;
 
+	RWNX_LOGI("set_filter: filter=0x%x", filter);
 
 	/* Send the MM_SET_FILTER_REQ message to LMAC FW */
 	return rw_msg_send(set_filter_req_param, 1, MM_SET_FILTER_CFM, NULL);
@@ -1733,7 +1733,7 @@ int rw_msg_send_roc(u8 vif_index, unsigned int freq, uint32_t duration)
 	/* Send the MM_REMAIN_ON_CHANNEL_REQ message to LMAC FW */
 	ret = rw_msg_send(req, 1, MM_REMAIN_ON_CHANNEL_CFM, &cfm);
 	if (ret || cfm.status) {
-		RWNX_LOGE("%s: failed ret %d, cfm.status %d\n", __func__, ret, cfm.status);
+		RWNX_LOGW("%s: failed ret %d, cfm.status %d\n", __func__, ret, cfm.status);
 		os_free(roc_elem);
 		return -1;
 	} else {

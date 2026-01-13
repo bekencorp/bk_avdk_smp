@@ -1323,7 +1323,6 @@ int hapd_intf_ioctl(unsigned long arg)
 	case PRISM2_HOSTAPD_ROC:
 		ret = rw_msg_send_roc(param->vif_idx, param->u.roc.freq,
 			param->u.roc.duration);
-
 		break;
 
 	case PRISM2_HOSTAPD_CANCEL_ROC: {
@@ -1360,7 +1359,13 @@ static void hapd_intf_mgmt_tx_cb(void *arg, bool acked)
 		hdr->frame_control |= 1;
 
 	/* send to hostapd / wpa supplicant */
-	ke_mgmt_packet_tx(mpdu, skb->len, skb->vif_idx);
+	struct ke_sk_params params = {
+		.buf = mpdu,
+		.len = skb->len,
+		.flag = skb->vif_idx,
+		.freq = 0
+	};
+	ke_mgmt_packet_tx(&params);
 }
 
 int hapd_intf_ke_rx_handle(int dummy)
@@ -1387,7 +1392,13 @@ int hapd_intf_ke_rx_handle(int dummy)
 		}
 
 		// TODO: BK7236, avoid memcpy. copy payload from socket to MSDU
-		ke_mgmt_packet_rx(rwm_get_mpdu_content_ptr(node), payload_size, type_ptr->vif_index);
+		struct ke_sk_params params = {
+			.buf = rwm_get_mpdu_content_ptr(node),
+			.len = payload_size,
+			.flag = type_ptr->vif_index,
+			.freq = 0
+		};
+		ke_mgmt_packet_rx(&params);
 
 		node->sta_idx = 0xFF;  // FIXME BK7236
 		node->vif_idx = type_ptr->vif_index;
@@ -1412,7 +1423,13 @@ int hapd_intf_ke_rx_handle(int dummy)
 		}
 
 		// TODO: BK7236, avoid memcpy. copy payload from socket to MSDU
-		ke_mgmt_packet_rx(skb->msdu_ptr, payload_size, type_ptr->vif_index);
+		struct ke_sk_params params = {
+			.buf = skb->msdu_ptr,
+			.len = payload_size,
+			.flag = type_ptr->vif_index,
+			.freq = 0
+		};
+		ke_mgmt_packet_rx(&params);
 
 		skb->sta_idx = 0xFF;  // FIXME BK7236
 		skb->vif_idx = type_ptr->vif_index;
@@ -1433,7 +1450,13 @@ int hapd_intf_ke_rx_handle(int dummy)
 			goto exit;
 		}
 
-		ke_l2_packet_rx(p->payload, payload_size, type_ptr->vif_index);
+		struct ke_sk_params params = {
+			.buf = p->payload,
+			.len = payload_size,
+			.flag = type_ptr->vif_index,
+			.freq = 0
+		};
+		ke_l2_packet_rx(&params);
 
 #if CONFIG_RWNX_SW_TXQ
 		BUS_MSG_T msg = {0};

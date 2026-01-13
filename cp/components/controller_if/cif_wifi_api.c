@@ -794,6 +794,8 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
         }
         case P2P_CANCEL:
         {
+            uap_ip_down();
+            sta_ip_down();
             ret = wlan_p2p_cancel();
             break;
         }

@@ -2,6 +2,7 @@
 #include "sk_intf.h"
 #include "main_none.h"
 #include "eloop.h"
+#include "ieee802_11_defs.h"
 
 //#include "bk_wifi_types.h"
 //#include "bk_rw.h"
@@ -62,7 +63,13 @@ void handle_dummy_read(int sock, void *eloop_ctx, void *sock_ctx)
         goto dummy_exit;
     }
 
-    len = fsocket_recv(sock, buf, TMP_BUF_LEN, 0);
+    struct ke_sk_params params = {
+		.buf = buf,
+		.len = TMP_BUF_LEN,
+		.flag = 0,
+		.freq = 0
+	};
+    len = fsocket_recv(sock, &params);
     if (len < 0)
     {
         wpa_printf(MSG_ERROR, "recv: %s", strerror(errno));
@@ -81,15 +88,15 @@ dummy_exit:
 /*
  * send to wpad or hapd.
  */
-int ke_mgmt_packet_tx(unsigned char *buf, int len, int flag)
+int ke_mgmt_packet_tx(const struct ke_sk_params *params)
 {
 	int ret, poll_flag = 0;
-	SOCKET sk = mgmt_get_socket_num(flag);
+	SOCKET sk = mgmt_get_socket_num(params->flag);
 
-	ret = ke_sk_send(sk, buf, len, flag);
+	ret = ke_sk_send(sk, params);
 	if(ret)
 	{
-    	poll_flag = wpa_hostapd_queue_poll((uint32_t)flag);
+    	poll_flag = wpa_hostapd_queue_poll((uint32_t)params->flag);
 	}
 
 	if(poll_flag)
@@ -100,11 +107,11 @@ int ke_mgmt_packet_tx(unsigned char *buf, int len, int flag)
 	return ret;
 }
 
-int ke_mgmt_packet_rx(unsigned char *buf, int len, int flag)
+int ke_mgmt_packet_rx(struct ke_sk_params *params)
 {
-	SOCKET sk = mgmt_get_socket_num(flag);
+	SOCKET sk = mgmt_get_socket_num(params->flag);
 
-	return ke_sk_recv(sk, buf, len, flag);
+	return ke_sk_recv(sk, params);
 }
 
 int ke_mgmt_peek_txed_next_payload_size(int flag)
@@ -121,15 +128,15 @@ int ke_mgmt_peek_rxed_next_payload_size(int flag)
 	return ke_sk_recv_peek_next_payload_size(sk);
 }
 
-int ke_l2_packet_tx(unsigned char *buf, int len, int flag)
+int ke_l2_packet_tx(const struct ke_sk_params *params)
 {
 	int ret, poll_flag = 0;
-	SOCKET sk = data_get_socket_num(flag);
+	SOCKET sk = data_get_socket_num(params->flag);
 
-	ret = ke_sk_send(sk, buf, len, flag);
+	ret = ke_sk_send(sk, params);
 	if(0 != ret)
 	{
-    	poll_flag = wpa_hostapd_queue_poll((uint32_t)flag);
+    	poll_flag = wpa_hostapd_queue_poll((uint32_t)params->flag);
 	}
 
 	if(poll_flag)
@@ -140,11 +147,11 @@ int ke_l2_packet_tx(unsigned char *buf, int len, int flag)
 	return ret;
 }
 
-int ke_l2_packet_rx(unsigned char *buf, int len, int flag)
+int ke_l2_packet_rx(struct ke_sk_params *params)
 {
-	SOCKET sk = data_get_socket_num(flag);
+	SOCKET sk = data_get_socket_num(params->flag);
 
-	return ke_sk_recv(sk, buf, len, flag);
+	return ke_sk_recv(sk, params);
 }
 
 int ke_data_peek_txed_next_payload_size(int flag)
@@ -168,13 +175,13 @@ int ws_mgmt_peek_rxed_next_payload_size(int flag)
 	return fsocket_peek_recv_next_payload_size(sk);
 }
 
-int ws_get_mgmt_packet(unsigned char *buf, int len, int flag)
+int ws_get_mgmt_packet(struct ke_sk_params *params)
 {
 	SOCKET sk;
 
-	sk = mgmt_get_socket_num(flag);
+	sk = mgmt_get_socket_num(params->flag);
 
-	return fsocket_recv(sk, buf, len, flag);
+	return fsocket_recv(sk, params);
 }
 
 int ws_data_peek_rxed_next_payload_size(int flag)
@@ -184,13 +191,13 @@ int ws_data_peek_rxed_next_payload_size(int flag)
 	return fsocket_peek_recv_next_payload_size(sk);
 }
 
-int ws_get_data_packet(unsigned char *buf, int len, int flag)
+int ws_get_data_packet(struct ke_sk_params *params)
 {
 	SOCKET sk;
 
-	sk = data_get_socket_num(flag);
+	sk = data_get_socket_num(params->flag);
 
-	return fsocket_recv(sk, buf, len, flag);
+	return fsocket_recv(sk, params);
 }
 
 // eof

@@ -18,6 +18,7 @@
 #include "common/ieee802_11_common.h"
 #include "l2_packet/l2_packet.h"
 #include "fake_socket.h"
+#include "sk_intf.h"
 #include "priv_netlink.h"
 #include "netlink.h"
 #include "hostapd_cfg.h"
@@ -92,6 +93,7 @@ struct hostap_driver_data {
 #ifdef CONFIG_P2P_GO
 	enum nl80211_iftype nlmode;
 #endif
+    uint32_t mgmt_freq;
 };
 
 static int hostapd_ioctl(void *priv, struct prism2_hostapd_param *param, int len);
@@ -242,6 +244,7 @@ static void handle_frame(struct hostap_driver_data *drv, u8 *buf, size_t len)
         os_memset(&event, 0, sizeof(event));
         event.rx_mgmt.frame = buf;
         event.rx_mgmt.frame_len = data_len;
+        event.rx_mgmt.freq = drv->mgmt_freq;
 		if (drv->wpa_s)
 	        wpa_supplicant_event_sta(drv->wpa_s, EVENT_RX_MGMT, &event);
 		else
@@ -273,7 +276,14 @@ static void handle_read(int sock, void *eloop_ctx, void *sock_ctx)
         goto read_exit;
     }
 
-    len = fsocket_recv(sock, buf, TMP_BUF_LEN, 0);
+    struct ke_sk_params params = {
+		.buf = buf,
+		.len = TMP_BUF_LEN,
+		.flag = 0,
+		.freq = 0
+	};
+    len = fsocket_recv(sock, &params);
+    drv->mgmt_freq = params.freq;
     if (len < 0)
     {
         wpa_printf(MSG_ERROR, "recv: %s", strerror(errno));
@@ -332,31 +342,6 @@ static int hostap_init_sockets(struct hostap_driver_data *drv, u8 *own_addr)
 
     return hostap_get_ifhwaddr(drv->sock, drv->iface, own_addr);
 }
-
-#if CONFIG_P2P
-static int hostap_reinit_sockets(struct hostap_driver_data *drv, u8 *own_addr)
-{
-    int protocol = ETH_P_ALL;
-    protocol += drv->vif_index;
-
-    drv->sock = fsocket_reinit(PF_PACKET, SOCK_RAW, protocol);
-    drv->sock_xmit = l2_packet_p2p_init(drv->iface, drv->own_addr, ETH_P_EAPOL,
-                                    handle_eapol, drv, 0);
-
-    if (eloop_register_read_sock(drv->sock, handle_read, drv, NULL))
-    {
-        wpa_printf(MSG_ERROR, "Could not register read socket");
-        return -1;
-    }
-
-    if (hostap_set_iface_flags(drv, 1))
-    {
-        return -1;
-    }
-
-    return hostap_get_ifhwaddr(drv->sock, drv->iface, own_addr);
-}
-#endif
 
 static int hostap_send_mlme(void *priv, const u8 *msg, size_t len, int noack,
                             unsigned int freq, const u16 *csa_offs, size_t csa_offs_len,
@@ -663,46 +648,113 @@ static int hostap_read_sta_data(void *priv,
 
 #ifdef CONFIG_P2P
 /**
- * wpa_driver_go_disconnect_reset_fsocket - GO disconnected to reset fsocket
- * @priv: Private driver interface data
+ * clean_socket_msg_queues - Clean up message queues for a socket
+ * @sk: Socket descriptor
+ * @socket_name: Name of the socket for debug logging
  * 
- * When P2P GO disconnected, need to reset fsockets to invoid leak
- * and make sure next GO will work
+ * Clean up both tx and rx message queues for the specified socket
  */
-static int wpa_driver_go_disconnect_reset_fsocket(void *priv)
+static void clean_socket_msg_queues(SOCKET sk, const char *socket_name)
 {
-    struct hostap_driver_data *drv = priv;
-    
+	SOCKET_ENTITY *socket_entity = get_fsocket_entity();
+	BK_SOCKET *sk_ptr;
+	SOCKET_MSG *sk_msg, *msg_tmp;
+
+	if (sk < 0) {
+		return;
+	}
+
+	sk_ptr = sk_get_sk_element(sk);
+	if (!sk_ptr) {
+		return;
+	}
+
+	rtos_lock_mutex(&socket_entity->fs_mutex);
+	dl_list_for_each_safe(sk_msg, msg_tmp, &sk_ptr->sk_tx_msg, SOCKET_MSG, data) {
+		dl_list_del(&sk_msg->data);
+		if (sk_msg->msg) {
+			os_free(sk_msg->msg);
+			sk_msg->msg = 0;
+			sk_msg->len = 0;
+		}
+		os_free(sk_msg);
+	}
+	dl_list_for_each_safe(sk_msg, msg_tmp, &sk_ptr->sk_rx_msg, SOCKET_MSG, data) {
+		dl_list_del(&sk_msg->data);
+		if (sk_msg->msg) {
+			os_free(sk_msg->msg);
+			sk_msg->msg = 0;
+			sk_msg->len = 0;
+		}
+		os_free(sk_msg);
+	}
+	dl_list_init(&sk_ptr->sk_rx_msg);
+	dl_list_init(&sk_ptr->sk_tx_msg);
+	rtos_unlock_mutex(&socket_entity->fs_mutex);
+	wpa_printf(MSG_DEBUG, "wpa_sta_reinit_sockets: cleaned up %s %d message queues", socket_name, sk);
+}
+
+/**
+ * wpa_sta_reinit_sockets - Reinitialize sockets for STA mode
+ * @drv: Private driver interface data
+ * 
+ * Reinitialize ioctl_sock, mgmt socket, and sock_xmit for STA mode P2P operations
+ */
+static int wpa_reinit_sockets(struct hostap_driver_data *drv)
+{
     if (!drv) {
-        wpa_printf(MSG_ERROR, "GO disconnect reset: invalid driver data");
+        wpa_printf(MSG_ERROR, "wpa_reinit_sockets: invalid driver data");
         return -1;
     }
     
-    wpa_printf(MSG_DEBUG, "GO disconnect: resetting fsocket for vif %d", drv->vif_index);
-    
-    // close ioctl socket
+    /* Reinitialize ioctl socket */
     if (drv->ioctl_sock >= 0) {
         fsocket_close(drv->ioctl_sock);
-        drv->ioctl_sock = -1;
-        wpa_printf(MSG_DEBUG, "GO disconnect: closed ioctl_sock");
+    }
+    drv->ioctl_sock = fsocket_init(PF_INET, SOCK_DGRAM, drv->vif_index);
+    if (drv->ioctl_sock < 0) {
+        wpa_printf(MSG_ERROR, "wpa_reinit_sockets: failed to init ioctl_sock");
+        return -1;
     }
     
-    // close main socket
+    /* Reinitialize mgmt socket */
     if (drv->sock >= 0) {
         eloop_unregister_read_sock(drv->sock);
         fsocket_close(drv->sock);
+    }
+    drv->sock = fsocket_init(PF_PACKET, SOCK_RAW, ETH_P_ALL + drv->vif_index);
+    if (drv->sock < 0) {
+        wpa_printf(MSG_ERROR, "wpa_reinit_sockets: failed to init mgmt sock");
+        return -1;
+    }
+    if (eloop_register_read_sock(drv->sock, handle_read, drv, NULL)) {
+        wpa_printf(MSG_ERROR, "wpa_reinit_sockets: failed to register read socket");
+        fsocket_close(drv->sock);
         drv->sock = -1;
-        wpa_printf(MSG_DEBUG, "GO disconnect: closed main sock");
+        return -1;
     }
     
-    // reset socket
+    /* Reinitialize sock_xmit for EAPOL packet handling */
     if (drv->sock_xmit) {
         l2_packet_deinit(drv->sock_xmit);
         drv->sock_xmit = NULL;
-        wpa_printf(MSG_DEBUG, "GO disconnect: reset sock_xmit");
+    }
+    if (drv->wpa_s) {
+        drv->sock_xmit = l2_packet_init(drv->iface, drv->own_addr, ETH_P_EAPOL,
+                                        wpa_supplicant_rx_eapol, drv->wpa_s, 0);
+        if (!drv->sock_xmit) {
+            wpa_printf(MSG_ERROR, "wpa_reinit_sockets: failed to init xmit sock");
+            return -1;
+        }
     }
     
-    wpa_printf(MSG_DEBUG, "GO disconnect: fsocket reset completed");
+    /* Clean up message queues for all reinitialized sockets */
+    clean_socket_msg_queues(drv->ioctl_sock, "ioctl_sock");
+    clean_socket_msg_queues(drv->sock, "mgmt sock");
+    if (drv->sock_xmit) {
+        clean_socket_msg_queues(PF_PACKET + SOCK_RAW + ETH_P_EAPOL + drv->vif_index, "sock_xmit");
+    }
+    
     return 0;
 }
 
@@ -749,7 +801,6 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 			if (ret || cfm.status)
 				return -1;
 			drv->vif_index = cfm.inst_nbr;
-			drv->ioctl_sock = fsocket_reinit(PF_INET, SOCK_DGRAM, drv->vif_index);
 #if CONFIG_LWIP
 			net_wlan_add_netif(mac);
 #endif
@@ -763,21 +814,21 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 					g_ap_param_ptr->chann = bk_wlan_ap_get_default_channel();
 				}
 				WPA_LOGD("%s, %d, channel: %u\r\n", __func__, __LINE__, g_ap_param_ptr->chann);
-				drv->sock_xmit = l2_packet_p2p_init(drv->iface, drv->own_addr, ETH_P_EAPOL,
-                                    wpa_supplicant_rx_eapol, drv->wpa_s, 0);
 
-			ip_address_set(BK_SOFT_AP,
-	                   DHCP_SERVER,
-	                   WLAN_DEFAULT_GO_IP,
-	                   WLAN_DEFAULT_GO_MASK,
-	                   WLAN_DEFAULT_GO_GW,
-	                   WLAN_DEFAULT_GO_GW);
+                if (wpa_reinit_sockets(drv) < 0) {
+                    wpa_printf(MSG_ERROR, "Failed to reinitialize sockets for P2P mode");
+                    return -1;
+                }
 
-			/* restart lwip network */
-			uap_ip_start();
+                ip_address_set(BK_SOFT_AP,
+                        DHCP_SERVER,
+                        WLAN_DEFAULT_GO_IP,
+                        WLAN_DEFAULT_GO_MASK,
+                        WLAN_DEFAULT_GO_GW,
+                        WLAN_DEFAULT_GO_GW);
 
-			hostap_reinit_sockets(drv, drv->own_addr);
-
+                /* restart lwip network */
+                uap_ip_start();
 			}
 #endif
 		}
@@ -786,13 +837,6 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 		if (mac_vif_mgmt_get_type(vif) != VIF_STA || mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
 #if CONFIG_LWIP
 			net_wlan_remove_netif(mac);
-#endif
-			// if previous mode is GO, need to reset fsocket
-#ifdef CONFIG_P2P_GO
-			if (drv->nlmode == NL80211_IFTYPE_P2P_GO) {
-				wpa_printf(MSG_INFO, "Switching from GO mode to Station mode, resetting fsocket for vif %d", drv->vif_index);
-				wpa_driver_go_disconnect_reset_fsocket(drv);
-			}
 #endif
 			ret = rw_msg_send_remove_if(drv->vif_index);
 			if (ret)
@@ -804,6 +848,12 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 			if (ret || cfm.status)
 				return -1;
 			drv->vif_index = cfm.inst_nbr;
+            
+            /* Reinitialize sockets for STA mode */
+            if (wpa_reinit_sockets(drv) < 0) {
+                wpa_printf(MSG_ERROR, "Failed to reinitialize sockets for STA mode");
+                return -1;
+            }
 #if CONFIG_LWIP
 			net_wlan_add_netif(mac);
 #endif
@@ -860,30 +910,13 @@ static int wpa_driver_hostap_stop_apm(void *priv)
 {
     struct hostap_driver_data *drv = priv;
     struct prism2_hostapd_param param;
-    int ret;
 
     memset(&param, 0, sizeof(param));
     param.cmd = PRISM2_HOSTAPD_STOP_APM;
     memcpy(param.sta_addr, drv->own_addr, ETH_ALEN);
     param.vif_idx = drv->vif_index;
 
-    ret = hostapd_ioctl(drv, &param, sizeof(param));
-    
-#ifdef CONFIG_P2P
-    // Only reset fsocket when we are actually in GO mode; avoid using STA vif (often 0)
-    if (ret == 0) {
-        if (drv->nlmode == NL80211_IFTYPE_P2P_GO) {
-            wpa_printf(MSG_INFO, "GO stop APM successful, resetting fsocket for vif %d", drv->vif_index);
-            wpa_driver_go_disconnect_reset_fsocket(priv);
-        } else {
-            wpa_printf(MSG_DEBUG, "STOP_APM: not GO mode (nlmode=%d), skip fsocket reset for vif %d", drv->nlmode, drv->vif_index);
-        }
-    } else {
-        wpa_printf(MSG_ERROR, "GO stop APM failed for vif %d, ret=%d", drv->vif_index, ret);
-    }
-#endif
-
-    return ret;
+    return hostapd_ioctl(drv, &param, sizeof(param));
 }
 
 /*
@@ -2816,13 +2849,6 @@ int wpa_driver_nl80211_deinit_ap(void *priv)
 	if (!is_ap_interface(drv->nlmode))
 		return -1;
 	wpa_driver_hostap_stop_apm(drv);
-
-#ifdef CONFIG_P2P_GO  //fixme
-	if (drv->nlmode == NL80211_IFTYPE_P2P_GO) {
-		WPA_LOGD("P2P GO deinit: vif=%d, will switch back to STA mode on p2p device interface\r\n", drv->vif_index);
-		return 0;
-	}
-#endif
 
 	return wpa_driver_set_mode(drv, NL80211_IFTYPE_STATION);
 }

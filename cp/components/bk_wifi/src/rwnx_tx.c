@@ -53,7 +53,9 @@
 /// Array converting a TID to its associated AC
 extern const uint8_t mac_tid2ac[];
 
-extern int ke_mgmt_packet_tx(unsigned char *buf, int len, int flag);
+/* Forward declaration */
+struct ke_sk_params;
+extern int ke_mgmt_packet_tx(const struct ke_sk_params *params);
 #if CONFIG_WIFI_VNET_CONTROLLER
 extern struct cif_env_t cif_env;
 #endif

@@ -85,7 +85,7 @@
 #endif
 
 //TODO should use registered callback here!!!
-extern int ke_l2_packet_tx(unsigned char *buf, int len, int flag);
+#include "sk_intf.h"
 extern int bmsg_tx_sender(struct pbuf *p, uint32_t vif_idx);
 #if CONFIG_WIFI6_CODE_STACK
 extern int bmsg_special_tx_sender(struct pbuf *p, uint32_t vif_idx);
@@ -327,7 +327,15 @@ process:
     case ETHTYPE_WAI:
 #endif
     case ETHTYPE_EAPOL:
-	 	ke_l2_packet_tx(p->payload, p->len, iface);
+		{
+			struct ke_sk_params params = {
+				.buf = p->payload,
+				.len = p->len,
+				.flag = iface,
+				.freq = 0
+			};
+			ke_l2_packet_tx(&params);
+		}
 		pbuf_free(p);
 		p = NULL;
         break;
