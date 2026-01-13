@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "fatfs_adapter.h"
 #include "bk_filesystem.h"
@@ -369,6 +370,34 @@ static int _bk_fatfs_unlink(struct bk_filesystem *fs, const char *pathname) {
 	return ret;
 }
 
+/* Convert FATFS date/time format to time_t
+ * FATFS format:
+ *   fdate: (year-1980)<<9 | month<<5 | day
+ *   ftime: hour<<11 | min<<5 | sec/2
+ */
+static time_t fatfs_time_to_time_t(WORD fdate, WORD ftime) {
+	struct tm tm_info = {0};
+
+	/* Extract date components from fdate */
+	tm_info.tm_year = ((fdate >> 9) & 0x7F) + 80;  /* year - 1900, FATFS base year is 1980 */
+	tm_info.tm_mon = ((fdate >> 5) & 0x0F) - 1;     /* month (0-11) */
+	tm_info.tm_mday = fdate & 0x1F;                 /* day (1-31) */
+
+	/* Extract time components from ftime */
+	tm_info.tm_hour = (ftime >> 11) & 0x1F;        /* hour (0-23) */
+	tm_info.tm_min = (ftime >> 5) & 0x3F;          /* minute (0-59) */
+	tm_info.tm_sec = (ftime & 0x1F) * 2;           /* second (0-58, even numbers only) */
+
+	/* Validate the extracted values */
+	if (tm_info.tm_year < 0 || tm_info.tm_mon < 0 || tm_info.tm_mon > 11 ||
+	    tm_info.tm_mday < 1 || tm_info.tm_mday > 31 ||
+	    tm_info.tm_hour > 23 || tm_info.tm_min > 59 || tm_info.tm_sec > 59) {
+		return 0;  /* Invalid time, return 0 */
+	}
+
+	return mktime(&tm_info);
+}
+
 static int _bk_fatfs_stat(struct bk_filesystem *fs, const char *pathname, struct stat *statbuf) {
 	int ret;
 	char *full_name;
@@ -387,6 +416,13 @@ static int _bk_fatfs_stat(struct bk_filesystem *fs, const char *pathname, struct
 			statbuf->st_mode = S_IFDIR;
 		else
 			statbuf->st_mode = S_IFREG;
+
+		/* Convert FATFS date/time to time_t */
+		if (file_info.fdate != 0 || file_info.ftime != 0) {
+			statbuf->st_mtime = fatfs_time_to_time_t(file_info.fdate, file_info.ftime);
+		} else {
+			statbuf->st_mtime = 0;  /* No timestamp available */
+		}
 	}
 
 	return ret;
