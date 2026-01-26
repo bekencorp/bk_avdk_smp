@@ -778,8 +778,8 @@ ble_err_t bk_ble_gap_set_scan_params(const bk_ble_ext_scan_params_t *params);
 /**
 * @brief           This function is used to enable scanning.
 *
-* @param[in]       duration : Scan duration
-* @param[in]       period  : Time interval from when the Controller started its last Scan Duration until it begins the subsequent Scan Duration.
+* @param[in]       duration : Scan duration (in unit of 10ms, Range: 10 ms to 655.35s)
+* @param[in]       period  : Time interval from when the Controller started its last Scan Duration until it begins the subsequent Scan Duration. (in unit of 1.28s, Range: 1.28 s to 83884.8s)
 *
 * @return            - BK_OK : success
 *                    - other  : failed
@@ -861,4 +861,3 @@ ble_err_t bk_ble_gap_generate_rpa(uint8_t *irk);
 #ifdef __cplusplus
 }
 #endif
-
