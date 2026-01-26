@@ -93,8 +93,8 @@ extern uint16_t g_aud_data_dump_bitmap;
 #endif
 #define DEBUG_DATA_DUMP_BY_UART_HEADER(dump_type)                     DEBUG_DATA_DUMP_BY_UART_DATA((void *)&dump_header[g_dump_type2header_array_idx[dump_type]], sizeof(debug_dump_data_header_t))
 
-#define DEBUG_DATA_DUMP_SUSPEND_ALL rtos_suspend_all_thread()
-#define DEBUG_DATA_DUMP_RESUME_ALL  rtos_resume_all_thread()
+#define DEBUG_DATA_DUMP_SUSPEND_ALL uint32_t irq_level = rtos_enter_critical();
+#define DEBUG_DATA_DUMP_RESUME_ALL  rtos_exit_critical(irq_level);
 
 __INLINE void set_aud_dump_bitmap_bit(uint8_t dump_type)
 {

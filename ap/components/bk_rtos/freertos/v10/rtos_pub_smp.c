@@ -1300,13 +1300,89 @@ void rtos_resume_thread(beken_thread_t* thread)
         vTaskResume(*thread);
 }
 
+#if ( CONFIG_CRITICAL_LR_RECORD )
+/* Track suspend context per core to detect cross-core calls */
+static BaseType_t s_suspend_core_tracker[ configNUMBER_OF_CORES ] = {-1, -1};
+static UBaseType_t s_suspend_nest_count[ configNUMBER_OF_CORES ] = {0, 0};
+
+static bool rtos_any_other_core_suspended(BaseType_t core_id)
+{
+    for (BaseType_t i = 0; i < (BaseType_t)configNUMBER_OF_CORES; i++) {
+        if ((i != core_id) && (s_suspend_nest_count[i] > 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+#endif
+
 void rtos_suspend_all_thread(void)
 {
+#if ( CONFIG_CRITICAL_LR_RECORD )
+    const BaseType_t xCoreID = portGET_CORE_ID();
+    
+    /* Check if this is a nested call on the same core */
+    if( s_suspend_nest_count[ xCoreID ] > 0 )
+    {
+        /* Nested call on same core - allowed */
+        vTaskSuspendAll();
+        s_suspend_nest_count[ xCoreID ]++;
+        return;
+    }
+    
+    /* First call on this core - record core ID */
+    s_suspend_core_tracker[ xCoreID ] = xCoreID;
+    s_suspend_nest_count[ xCoreID ] = 1;
+#endif
+    
     vTaskSuspendAll();
 }
 
 void rtos_resume_all_thread(void)
 {
+#if ( CONFIG_CRITICAL_LR_RECORD )
+    const BaseType_t xCoreID = portGET_CORE_ID();
+    
+    /* Check if there is a matching suspend call */
+    if( s_suspend_nest_count[ xCoreID ] == 0 )
+    {
+        if (rtos_any_other_core_suspended(xCoreID)) {
+            /* Cross-core resume detected! */
+            configASSERT( false );
+            BK_LOGE(TAG, "Cross-core resume detected! Core %d resume without matching suspend\n", xCoreID);
+            return;
+        }
+
+        /* No matching suspend call detected on any core */
+        configASSERT( false );
+        BK_LOGE(TAG, "Resume without matching suspend detected! Core %d\n", xCoreID);
+        return;
+    }
+    
+    /* Check if resume is on the same core as suspend */
+    if( s_suspend_core_tracker[ xCoreID ] != xCoreID )
+    {
+        /* Cross-core resume detected! */
+        configASSERT( false );
+        BK_LOGE(TAG, "Cross-core resume detected! Core %d trying to resume, but suspend was on core %d\n", 
+                xCoreID, s_suspend_core_tracker[ xCoreID ]);
+        return;
+    }
+    
+    /* Check if this is a nested resume */
+    if( s_suspend_nest_count[ xCoreID ] > 1 )
+    {
+        /* Nested resume - just decrement count */
+        xTaskResumeAll();
+        s_suspend_nest_count[ xCoreID ]--;
+        return;
+    }
+    
+    /* Last resume on this core - clear tracker */
+    s_suspend_core_tracker[ xCoreID ] = -1;
+    s_suspend_nest_count[ xCoreID ] = 0;
+#endif
+    
     xTaskResumeAll();
 }
 
