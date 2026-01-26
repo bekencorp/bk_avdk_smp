@@ -67,7 +67,9 @@
 /* uac spk data count depends on debug utils, so must config CONFIG_ADK_UTILS=y when count uac spk data. */
 #if CONFIG_ADK_UTILS
 
+#if CONFIG_ADK_COUNT_UTIL
 #define UAC_SPK_DATA_COUNT
+#endif
 
 #endif  //CONFIG_ADK_UTILS
 

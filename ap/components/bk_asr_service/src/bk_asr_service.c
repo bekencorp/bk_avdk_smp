@@ -79,13 +79,19 @@ static asr_data_dump_header_t g_asr_data_dump_header = {
     .header_magicword_part2 = ASR_DATA_DUMP_HEADER_MAGICWORD_PART2,
     .seq_no = 0,
 };
-static struct uart_util gl_asr_util = {0};
+static struct uart_util __maybe_unused gl_asr_util = {0};
 #define ASR_DATA_DUMP_UART_ID            (1)
 #define ASR_DATA_DUMP_UART_BAUD_RATE     (2000000)
+
+#if CONFIG_ADK_UART_UTIL
 #define ASR_DATA_DUMP_BY_UART_OPEN(id, baud_rate)       uart_util_create(&gl_asr_util, id, baud_rate)
 #define ASR_DATA_DUMP_BY_UART_CLOSE()                   uart_util_destroy(&gl_asr_util)
 #define ASR_DATA_DUMP_BY_UART_DATA(data_buf, len)       uart_util_tx_data(&gl_asr_util, data_buf, len)
-
+#else
+#define ASR_DATA_DUMP_BY_UART_OPEN(id, baud_rate)
+#define ASR_DATA_DUMP_BY_UART_CLOSE()
+#define ASR_DATA_DUMP_BY_UART_DATA(data_buf, len)
+#endif
 
 static volatile uint8_t g_asr_dump_enable = 0;
 static volatile uint8_t g_asr_time_debug_enable = 0;
@@ -493,15 +499,15 @@ void cli_asr_dump_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         bk_err_t ret = BK_OK;
         if (argc == 4)
         {
-            uint32_t uart_id = 0;
-            uint32_t baud_rate = 0;
+            uint32_t __maybe_unused uart_id = 0;
+            uint32_t __maybe_unused baud_rate = 0;
             uart_id = os_strtoul(argv[2], NULL, 10);
             baud_rate = os_strtoul(argv[3], NULL, 10);
-            ret = ASR_DATA_DUMP_BY_UART_OPEN(uart_id, baud_rate);
+            ASR_DATA_DUMP_BY_UART_OPEN(uart_id, baud_rate);
         }
         else if (argc == 2)
         {
-            ret = ASR_DATA_DUMP_BY_UART_OPEN(ASR_DATA_DUMP_UART_ID, ASR_DATA_DUMP_UART_BAUD_RATE);
+            ASR_DATA_DUMP_BY_UART_OPEN(ASR_DATA_DUMP_UART_ID, ASR_DATA_DUMP_UART_BAUD_RATE);
         }
         else
         {

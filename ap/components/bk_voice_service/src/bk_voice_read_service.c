@@ -73,8 +73,9 @@ struct voice_read
 #define WIFI_TX_MIC_DATA_END()
 #endif
 
-
+#if CONFIG_ADK_COUNT_UTIL
 #define WIFI_TX_DATA_COUNT
+#endif
 
 #ifdef WIFI_TX_DATA_COUNT
 

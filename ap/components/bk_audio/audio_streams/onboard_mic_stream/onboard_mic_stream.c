@@ -77,7 +77,9 @@
 /* onboard mic data count depends on debug utils, so must config CONFIG_ADK_UTILS=y when count onboard mic data. */
 #if CONFIG_ADK_UTILS
 
+#if CONFIG_ADK_COUNT_UTIL
 #define ONBOARD_MIC_DATA_COUNT
+#endif
 
 #endif  //CONFIG_ADK_UTILS
 

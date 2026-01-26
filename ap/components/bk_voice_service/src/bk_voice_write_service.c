@@ -86,8 +86,9 @@ struct voice_write
 
 #endif
 
-
+#if CONFIG_ADK_COUNT_UTIL
 #define WIFI_RX_DATA_COUNT
+#endif
 
 #ifdef WIFI_RX_DATA_COUNT
 

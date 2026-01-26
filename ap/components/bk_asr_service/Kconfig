@@ -2,7 +2,7 @@ menu "ASR Service"
 
 	config ASR_SERVICE
 		bool "Enable ASR Service"
-		depends on ADK && ADK_RAW_STREAM && ADK_ONBOARD_MIC_STREAM && ADK_ONBOARD_SPEAKER_STREAM && (ADK_AEC_ALGORITHM || ADK_AEC_V3_ALGORITHM) && (WANSON_ASR || WANSON_ARMINO_ASR)
+		depends on ADK && ADK_RAW_STREAM && (ADK_ONBOARD_MIC_STREAM || ADK_ONBOARD_DUAL_DMIC_MIC_STREAM)
 		default n
 		help
 			Enable ASR Service Interface API used for ASR

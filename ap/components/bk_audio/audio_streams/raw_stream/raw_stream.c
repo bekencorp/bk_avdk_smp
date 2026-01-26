@@ -58,7 +58,9 @@
 /* read raw data count depends on debug utils, so must config CONFIG_ADK_UTILS=y when count read raw data. */
 #if CONFIG_ADK_UTILS
 
+#if CONFIG_ADK_COUNT_UTIL
 #define RAW_READ_DATA_COUNT
+#endif
 
 #endif  //CONFIG_ADK_UTILS
 
@@ -84,7 +86,9 @@ static count_util_t raw_read_count_util = {0};
 /* write raw data count depends on debug utils, so must config CONFIG_ADK_UTILS=y when count write raw data. */
 #if CONFIG_ADK_UTILS
 
+#if CONFIG_ADK_COUNT_UTIL
 #define RAW_WRITE_DATA_COUNT
+#endif
 
 #endif  //CONFIG_ADK_UTILS
 
