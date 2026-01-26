@@ -110,6 +110,7 @@ static volatile uint32_t s_pm_ahpb_pm_state                      = 0;
 static volatile uint32_t s_pm_audio_pm_state                     = 0;
 static volatile uint32_t s_pm_video_pm_state                     = 0;
 static volatile uint32_t s_pm_phy_pm_state                       = 0;
+static volatile uint32_t s_pm_encp_pm_state                      = 0;
 static volatile uint32_t s_pm_cp1_auto_power_down_flag           = PM_CP1_AUTO_POWER_DOWN_CTRL;
 static volatile pm_mem_auto_ctrl_e s_pm_mem_auto_power_down_flag = PM_MEM_AUTO_CTRL_ENABLE;
 static volatile uint64_t s_pm_check_lv_enter_time_out            = 0;
@@ -681,6 +682,25 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 			s_pm_sleeped_modules &= ~(0x1ULL << PM_POWER_MODULE_NAME_BTSP);
 			GLOBAL_INT_RESTORE();
 		}
+		else if ((module == PM_POWER_SUB_MODULE_NAME_ENCP_OTP)
+			|| (module == PM_POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE))
+		{
+			GLOBAL_INT_DISABLE();
+			s_pm_encp_pm_state |= 0x1 << (module % (PM_POWER_MODULE_NAME_ENCP * PM_MODULE_SUB_POWER_DOMAIN_MAX));
+			s_pm_off_modules &= ~(0x1 << PM_POWER_MODULE_NAME_ENCP);
+			s_pm_on_modules |= 0x1 << PM_POWER_MODULE_NAME_ENCP;
+
+			GLOBAL_INT_RESTORE();
+
+			if (0x0 == sys_drv_module_power_state_get(PM_POWER_MODULE_NAME_ENCP))
+			{
+				return BK_OK;
+			}
+			else
+			{
+				sys_drv_module_power_ctrl(PM_POWER_MODULE_NAME_AHBP, power_state);
+			}
+		}
 		else
 		{
 			sys_drv_module_power_ctrl(module, power_state);
@@ -812,6 +832,21 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 			bk_pm_cp1_work_state_set(PM_MAILBOX_COMMUNICATION_INIT);
 			#endif
 		}
+		else if ((module == PM_POWER_SUB_MODULE_NAME_ENCP_OTP)
+			|| (module == PM_POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE))
+		{
+			GLOBAL_INT_DISABLE();
+			s_pm_encp_pm_state &= ~(0x1 << (module % (PM_POWER_MODULE_NAME_ENCP * PM_MODULE_SUB_POWER_DOMAIN_MAX)));
+
+			if (0x0 == s_pm_encp_pm_state)
+			{
+				sys_drv_module_power_ctrl(PM_POWER_MODULE_NAME_ENCP, power_state);
+				s_pm_off_modules |= 0x1 << PM_POWER_MODULE_NAME_ENCP;
+				s_pm_on_modules &= ~(0x1 << PM_POWER_MODULE_NAME_ENCP);
+			}
+			GLOBAL_INT_RESTORE();
+		}
+
 		else
 		{
 			if ((module == PM_POWER_MODULE_NAME_VIDP)
@@ -2456,7 +2491,7 @@ void pm_debug_ctrl(uint32_t debug_en)
 	if(debug_en == PM_DEBUG_CTRL_STATE)
 	{
 		BK_LOGI(NULL,"pm video,audio:0x%x 0x%x \r\n",s_pm_video_pm_state,s_pm_audio_pm_state);
-		BK_LOGI(NULL,"pm ahpb,bakp:0x%x 0x%x\r\n",s_pm_ahpb_pm_state,s_pm_bakp_pm_state);
+		BK_LOGI(NULL,"pm ahpb,bakp,encp:0x%x 0x%x 0x%x\r\n",s_pm_ahpb_pm_state,s_pm_bakp_pm_state,s_pm_encp_pm_state);
 		BK_LOGI(NULL,"pm low vol[module:0x%llx] [need module:0x%llx]\r\n",s_pm_sleeped_modules,s_pm_enter_low_vol_modules);
 		BK_LOGI(NULL,"pm deepsleep[module:0x%x][need module:0x%x]\r\n",s_pm_off_modules,s_pm_enter_deep_sleep_modules);
 		BK_LOGI(NULL,"pm power,pmu[0x%x][0x%x][%d],[0x%x][0x%x][0x%x],[0x%x][0x%x][0x%x]\r\n",REG_READ(PM_DEBUG_SYS_REG_BASE+0x10*4),REG_READ(PM_DEBUG_PMU_REG_BASE+0x41*4),s_pm_exit_low_vol_wakeup_source,
