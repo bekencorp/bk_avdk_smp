@@ -388,12 +388,13 @@ static void mb_ipc_task( void *para )
 
 #endif
 
+#define BEKEN_HIGHEST_PRIORITY             (0)  /**< Highest Priority */
 bk_err_t mb_ipc_heartbeat_init(void)
 {
 	bk_err_t	ret_val = BK_FAIL;
 
 #if defined(MASTER_HB_TASK) || defined(SLAVE_HB_TASK)
-	ret_val = rtos_create_thread(NULL, BEKEN_DEFAULT_WORKER_PRIORITY, "heartbeat", mb_ipc_task, 1024, 0);
+	ret_val = rtos_create_thread(NULL, BEKEN_HIGHEST_PRIORITY, "heartbeat", mb_ipc_task, 1024, 0);
 #endif
 
 	if(ret_val != BK_OK)
