@@ -106,12 +106,22 @@ struct ipv4_config pan_ip_settings = {
 #endif
 
 #if CONFIG_BK_MODEM
+/*
+struct ipv4_config modem_ip_settings = {
+	.addr_type = ADDR_TYPE_DHCP,
+	.address = 0,
+	.gw = 0,
+	.netmask = 0,
+	.dns1 = 0,
+	.dns2 = 0,
+};
+*/
 struct ipv4_config modem_ip_settings = {
 	.addr_type = ADDR_TYPE_STATIC,
-	.address = 0xc0a80a02, //192.168.10.2
-	.gw = 0xc0a80a02,      //192.168.10.2
-	.netmask = 0xffffff00, //255.255.255.0
-	.dns1 = 0xc0a80a02,    //192.168.10.2
+	.address = 0x020AA8C0,
+	.gw = 0x010AA8C0,
+	.netmask = 0x00FFFFFF,
+	.dns1 = 0x010AA8C0,
 	.dns2 = 0,
 };
 #endif
@@ -312,14 +322,7 @@ bk_err_t bk_modem_get_mac(uint8_t *mac)
 	if (!mac)
 		return BK_ERR_NULL_PARAM;
 
-	//bk_get_mac(mac, MAC_TYPE_BASE);
-	//mac[5] += 3;
-	mac[0] = 0xC8;
-	mac[1] = 0x47;
-	mac[2] = 0x8C;
-	mac[3] = 0x00;
-	mac[4] = 0x00;
-	mac[5] = 0x00;
+	bk_get_mac(mac, MAC_TYPE_STA);
 	return BK_OK;
 }
 
@@ -988,6 +991,12 @@ int net_configure_address(struct ipv4_config *addr, void *intrfc_handle)
 			net_configure_dns(if_handle, (struct wlan_ip_config *)addr);
 #ifdef CONFIG_ETH
 		} else if (if_handle == &g_eth) {
+			netif_set_status_callback(&if_handle->netif, wm_netif_status_static_callback);
+			netifapi_netif_set_up(&if_handle->netif);
+			net_configure_dns(if_handle, (struct wlan_ip_config *)addr);
+#endif
+#if CONFIG_BK_MODEM
+		} else if (if_handle == &g_modem) {
 			netif_set_status_callback(&if_handle->netif, wm_netif_status_static_callback);
 			netifapi_netif_set_up(&if_handle->netif);
 			net_configure_dns(if_handle, (struct wlan_ip_config *)addr);

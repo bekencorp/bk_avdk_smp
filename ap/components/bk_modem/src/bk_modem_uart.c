@@ -506,14 +506,14 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
     }
 
     /* Create receive and transmit threads */
-    ret = rtos_create_thread(&bk_modem_uart_rx_thread, 3, "bk_modem_uart_rx", bk_modem_uart_rx_thread_main, 1024, (beken_thread_arg_t)0);
+    ret = rtos_create_thread(&bk_modem_uart_rx_thread, 3, "bk_modem_uart_rx", bk_modem_uart_rx_thread_main, 3072, (beken_thread_arg_t)0);
     if(BK_OK != ret)
     {
         temp_flag = 4;
         goto fail;
     }
 
-    ret = rtos_create_thread(&bk_modem_uart_tx_thread, 3, "bk_modem_uart_tx", bk_modem_uart_tx_thread_main, 1024, (beken_thread_arg_t)0);
+    ret = rtos_create_thread(&bk_modem_uart_tx_thread, 3, "bk_modem_uart_tx", bk_modem_uart_tx_thread_main, 3072, (beken_thread_arg_t)0);
     if(BK_OK != ret)
     {
         temp_flag = 5;
