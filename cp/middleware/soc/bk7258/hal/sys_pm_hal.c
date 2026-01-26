@@ -1449,13 +1449,13 @@ static int sys_hal_power_config_default()
 #if CONFIG_SPE
 	sys_hal_module_power_ctrl(POWER_MODULE_NAME_ENCP,POWER_MODULE_STATE_OFF);
 #endif
-	//sys_hal_module_power_ctrl(POWER_MODULE_NAME_BAKP,POWER_MODULE_STATE_OFF);
 	sys_hal_module_power_ctrl(POWER_MODULE_NAME_AUDP,POWER_MODULE_STATE_OFF);
 	sys_hal_module_power_ctrl(POWER_MODULE_NAME_VIDP,POWER_MODULE_STATE_OFF);
 	sys_hal_module_power_ctrl(POWER_MODULE_NAME_BTSP,POWER_MODULE_STATE_OFF);
 	sys_hal_module_power_ctrl(POWER_MODULE_NAME_WIFIP_MAC,POWER_MODULE_STATE_OFF);
 	sys_hal_module_power_ctrl(POWER_MODULE_NAME_WIFI_PHY,POWER_MODULE_STATE_OFF);
-	//sys_hal_module_power_ctrl(POWER_MODULE_NAME_MEM5,POWER_MODULE_STATE_OFF);
+	sys_hal_module_power_ctrl(POWER_MODULE_NAME_AHBP,POWER_MODULE_STATE_OFF);
+
 	sys_hal_module_power_ctrl(POWER_MODULE_NAME_CPU1,POWER_MODULE_STATE_OFF);
 	sys_hal_module_power_ctrl(POWER_MODULE_NAME_CPU2,POWER_MODULE_STATE_OFF);
 
