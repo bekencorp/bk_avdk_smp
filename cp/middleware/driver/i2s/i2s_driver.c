@@ -351,6 +351,158 @@ bk_err_t bk_i2s_init(i2s_gpio_group_id_t id, const i2s_config_t *config)
 	return BK_OK;
 }
 
+bk_err_t bk_i2s_init_without_gpio(i2s_gpio_group_id_t id, const i2s_config_t *config)
+{
+	i2s_int_config_t int_config_table;
+	i2s_drv_info_t *drv_info;
+
+	if (!config)
+		return BK_ERR_I2S_PARAM;
+
+	switch (id) {
+		case I2S_GPIO_GROUP_0:
+			if (s_i2s_driver_is_init) {
+				return BK_OK;
+			}
+			i2s_hal_set_cfg_index(0);
+			sys_drv_i2s_clock_en(CLK_PWR_CTRL_PWR_UP);
+			i2s_hal_soft_reset();
+			sys_drv_i2s_int_en(1);
+			os_memset(&s_i2s_isr, 0, sizeof(s_i2s_isr));
+			int_config_table.int_src = INT_SRC_I2S0;
+			int_config_table.isr = i2s_isr;
+			s_i2s_driver_is_init = true;
+			if (i2s_drv_info == NULL) {
+				i2s_drv_info = (i2s_drv_info_t *)os_malloc(sizeof(i2s_drv_info_t));
+                if (!i2s_drv_info) {
+                    return BK_FAIL;
+                }
+				i2s_drv_info->chl1_cfg = NULL;
+				i2s_drv_info->chl2_cfg = NULL;
+				i2s_drv_info->chl3_cfg = NULL;
+			}
+			drv_info = i2s_drv_info;
+			break;
+
+		case I2S_GPIO_GROUP_1:
+			if (s_i2s1_driver_is_init) {
+				return BK_OK;
+			}
+			i2s_hal_set_cfg_index(1);
+			sys_drv_i2s1_clock_en(CLK_PWR_CTRL_PWR_UP);
+			i2s_hal_soft_reset();
+			sys_drv_i2s1_int_en(1);
+			os_memset(&s_i2s1_isr, 0, sizeof(s_i2s1_isr));
+			int_config_table.int_src = INT_SRC_I2S1;
+			int_config_table.isr = i2s_isr;
+			s_i2s1_driver_is_init = true;
+			if (i2s1_drv_info == NULL) {
+				i2s1_drv_info = (i2s_drv_info_t *)os_malloc(sizeof(i2s_drv_info_t));
+                if (!i2s1_drv_info) {
+                    return BK_FAIL;
+                }
+				i2s1_drv_info->chl1_cfg = NULL;
+				i2s1_drv_info->chl2_cfg = NULL;
+				i2s1_drv_info->chl3_cfg = NULL;
+			}
+			drv_info = i2s1_drv_info;
+			break;
+
+		case I2S_GPIO_GROUP_2:
+			if (s_i2s2_driver_is_init) {
+				return BK_OK;
+			}
+			i2s_hal_set_cfg_index(2);
+			sys_drv_i2s2_clock_en(CLK_PWR_CTRL_PWR_UP);
+			i2s_hal_soft_reset();
+			sys_drv_i2s2_int_en(1);
+			os_memset(&s_i2s2_isr, 0, sizeof(s_i2s2_isr));
+			int_config_table.int_src = INT_SRC_I2S2;
+			int_config_table.isr = i2s_isr;
+			s_i2s2_driver_is_init = true;
+			if (i2s2_drv_info == NULL) {
+				i2s2_drv_info = (i2s_drv_info_t *)os_malloc(sizeof(i2s_drv_info_t));
+                if (!i2s2_drv_info) {
+                    return BK_FAIL;
+                }
+				i2s2_drv_info->chl1_cfg = NULL;
+				i2s2_drv_info->chl2_cfg = NULL;
+				i2s2_drv_info->chl3_cfg = NULL;
+			}
+			drv_info = i2s2_drv_info;
+			break;
+
+		default:
+			return BK_ERR_I2S_PARAM;
+	}
+	bk_int_isr_register(int_config_table.int_src, int_config_table.isr, NULL);
+
+	// Note: GPIO initialization is skipped, must be done by application layer
+
+	drv_info->config.i2s_en = I2S_DISABLE;
+	drv_info->config.role = config->role;
+	drv_info->config.work_mode = config->work_mode;
+	drv_info->config.lrck_invert = config->lrck_invert;
+	drv_info->config.sck_invert = config->sck_invert;
+	drv_info->config.lsb_first_en = config->lsb_first_en;
+	drv_info->config.sync_length = config->sync_length;
+	drv_info->config.data_length = config->data_length;
+	drv_info->config.pcm_dlength = config->pcm_dlength;
+	drv_info->config.sample_ratio = 0;
+	drv_info->config.sck_ratio = 0;
+
+	drv_info->config.store_mode = config->store_mode;
+	drv_info->config.sck_ratio_h4b = 0;
+	drv_info->config.sample_ratio_h2b = 0;
+	drv_info->config.txint_level = 0;
+	drv_info->config.rxint_level = 0;
+
+	drv_info->config.pcm_chl_num = config->pcm_chl_num;
+	drv_info->config.samp_rate = config->samp_rate;
+
+	/* set parallel_en according to work mode */
+	switch (drv_info->config.work_mode) {
+		case I2S_WORK_MODE_I2S:
+		case I2S_WORK_MODE_LEFTJUST:
+		case I2S_WORK_MODE_RIGHTJUST:
+			drv_info->config.parallel_en = I2S_PARALLEL_ENABLE;
+			break;
+
+		case I2S_WORK_MODE_SHORTFAMSYNC:
+		case I2S_WORK_MODE_LONGFAMSYNC:
+			I2S_LOGE("pcm_chl_num: %d, data_length: %d \n", drv_info->config.pcm_chl_num, drv_info->config.data_length);
+			if ((drv_info->config.pcm_chl_num * drv_info->config.data_length) > 32) {
+				drv_info->config.parallel_en = I2S_PARALLEL_DISABLE;
+				I2S_LOGE("disenable parallel \n");
+			} else {
+				drv_info->config.parallel_en = I2S_PARALLEL_ENABLE;
+			}
+			break;
+
+		case I2S_WORK_MODE_NORMAL2BD:
+		case I2S_WORK_MODE_DELAY2BD:
+			drv_info->config.parallel_en = I2S_PARALLEL_ENABLE;
+			break;
+
+		case I2S_WORK_MODE_RSVD:
+			break;
+
+		default:
+			break;
+	}
+
+	i2s_hal_config(&(drv_info->config));
+
+	if (bk_i2s_set_samp_rate(drv_info->config.samp_rate) != BK_OK) {
+		I2S_LOGE("config sample rate fail \n");
+		return BK_FAIL;
+	}
+
+	drv_info->i2s_enable_state = false;
+
+	return BK_OK;
+}
+
 bk_err_t bk_i2s_deinit(void)
 {
 	i2s_drv_info_t *drv_info;

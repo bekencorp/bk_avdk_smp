@@ -107,6 +107,42 @@ bk_err_t bk_i2s_driver_deinit(void);
 bk_err_t bk_i2s_init(i2s_gpio_group_id_t id, const i2s_config_t *config);
 
 /**
+ * @brief     Init i2s module without GPIO initialization
+ *
+ * This API init the i2s module without GPIO initialization:
+ *  - Configure the i2s parameters
+ *  - Enable clock, reset, interrupt, etc.
+ *  - Note: GPIO must be initialized by application before calling this API
+ *
+ * Usage example:
+ *
+ *     //init GPIO manually (application layer)
+ *     gpio_dev_unmap(GPIO_6);
+ *     gpio_dev_map(GPIO_6, GPIO_DEV_I2S1_CLK);
+ *     // ... other GPIO initialization ...
+ *
+ *     //init i2s driver
+ *     bk_i2s_driver_init();
+ *
+ *     //init i2s configure without GPIO
+ *     i2s_config_t i2s_config;
+ *     i2s_config.i2s_en = I2S_DISABLE;
+ *     i2s_config.role = I2S_ROLE_MASTER;
+ *     i2s_config.work_mode = I2S_WORK_MODE_I2S;
+ *     // ... other config ...
+ *     bk_i2s_init_without_gpio(I2S_GPIO_GROUP_0, &i2s_config);
+ *
+ * @param id gpio config group id (used for driver selection, not for GPIO init)
+ * @param config i2s parameters include work role, work mode and so on
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_I2S_PARAM: config is NULL
+ *    - others: other errors.
+ */
+bk_err_t bk_i2s_init_without_gpio(i2s_gpio_group_id_t id, const i2s_config_t *config);
+
+/**
  * @brief     Deinit i2s module
  *
  * This API deinit the i2s module:
