@@ -1493,18 +1493,22 @@ static void pm_deep_sleep_wakeup_source_set()
 		{
 		case 0x1: // gpio
 			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_GPIO);
+			bk_misc_set_ap_reset_reason(RESET_SOURCE_DEEPPS_GPIO);
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_GPIO;
 			break;
 		case 0x2: // rtc
 			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_RTC);
+			bk_misc_set_ap_reset_reason(RESET_SOURCE_DEEPPS_RTC);
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_RTC;
 			break;
 		case 0x10: // bk7256 use touch and bk7236 use usb
 			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_TOUCH);
+			bk_misc_set_ap_reset_reason(RESET_SOURCE_DEEPPS_TOUCH);
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_TOUCHED;
 			break;
 		case 0x20: // touch
 			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_TOUCH);
+			bk_misc_set_ap_reset_reason(RESET_SOURCE_DEEPPS_TOUCH);
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_TOUCHED;
 			break;
 		default:
