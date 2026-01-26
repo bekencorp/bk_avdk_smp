@@ -1,5 +1,5 @@
 #ifndef __KERNEL_ATOMIC_H__
-#define __KERNEL_ATOMIC_H
+#define __KERNEL_ATOMIC_H__
 
 #include <hal/aosl_hal_atomic.h>
 
