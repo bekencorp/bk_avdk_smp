@@ -28,7 +28,6 @@ extern "C" {
 #include "bk_wifi_private.h"
 
 
-#define MAX_SCAN_AP_NUM             48
 #define SSID_MAX_LEN                33     /**< Maximum **NULL-terminated** WiFi SSID length */
 #define PASSWORD_MAX_LEN            64     /**< Maximum **NULL-terminated** WiFi password length */
 #define NETIF_IP4_STR_LEN           16
@@ -284,17 +283,6 @@ struct wdrv_wlan_status_cfm
     char  dns[NETIF_IP4_STR_LEN];
 };
 
-struct wdrv_scan_result_cfm
-{
-    uint8_t  scan_num;
-    int8_t   rssi;
-    uint8_t  bssid[6];
-    uint8_t  ssid[SSID_MAX_LEN];
-    uint32_t  akm;
-    int      channal;
-};
-
-
 /* event-table from CP to AP */
 enum BK_EVENT_TYPE
 {
@@ -345,9 +333,6 @@ typedef struct _wdrv_wlan {
     struct wdrv_ipv6_ind ipv6_ind;
     struct wdrv_ap_status_cfm ap_status_cfm;
     struct wdrv_ap_assoc_sta_ind ap_assoc_sta_addr_ind;
-    struct wdrv_scan_result_cfm *scan_wifi_cfm_ptr;
-    struct wdrv_scan_result_cfm scan_wifi_cfm[MAX_SCAN_AP_NUM];
-
 }wdrv_wlan;
 
 
