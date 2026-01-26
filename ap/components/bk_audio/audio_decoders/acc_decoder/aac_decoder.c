@@ -93,8 +93,23 @@ static bk_err_t _aac_decoder_open(audio_element_handle_t self)
 static bk_err_t _aac_decoder_close(audio_element_handle_t self)
 {
     BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
+    audio_element_state_t state = audio_element_get_state(self);
 
-    //nothing todo
+    // Reset info to default values to ensure music info will be reported on next open
+    // Keep info unchanged when in PAUSED state to avoid re-reporting after resume
+    if (state != AEL_STATE_PAUSED)
+    {
+        audio_element_info_t info = {0};
+        bk_err_t ret = audio_element_getinfo(self, &info);
+        if (ret == BK_OK)
+        {
+            info.sample_rates = 0;
+            info.channels = 0;
+            info.bits = 0;
+            audio_element_setinfo(self, &info);
+        }
+        BK_LOGV(TAG, "[%s] Component in state %d, reset info \n", audio_element_get_tag(self), state);
+    }
 
     return BK_OK;
 }
@@ -297,9 +312,9 @@ audio_element_handle_t aac_decoder_init(aac_decoder_cfg_t *config)
 
     audio_element_info_t info = {0};
     audio_element_getinfo(el, &info);
-    info.sample_rates = 8000;
-    info.channels = 2;
-    info.bits = 16;
+    info.sample_rates = 0;
+    info.channels = 0;
+    info.bits = 0;
     info.codec_fmt = BK_CODEC_TYPE_AAC;
     audio_element_setinfo(el, &info);
 

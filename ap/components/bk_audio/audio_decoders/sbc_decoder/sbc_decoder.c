@@ -147,10 +147,6 @@ static bk_err_t _sbc_decoder_open(audio_element_handle_t self)
         return BK_FAIL;
     }
 
-    /* Initialize default sbc frame info, the value will be updated in the decoding process */
-    sbc_dec->sample_rate = 0;
-    sbc_dec->channel_number = 0;
-
     /* set read data timeout */
     audio_element_set_input_timeout(self, 20 / portTICK_RATE_MS);
 
@@ -182,30 +178,6 @@ static int _sbc_decoder_process(audio_element_handle_t self, char *in_buffer, in
                 BK_LOGW(TAG, "[%s] %s, %d, the frame data is not one frame, cosumed_size: %d, input_size: %d \n", audio_element_get_tag(self), __func__, __LINE__, ret, r_size);
             }
 
-#if 0
-            /* 更新当前帧的音频信息 */
-            sbc_dec->channel_number = sbc_dec->sbc.channel_number;
-
-            /* 根据sbc_sample_rates_t枚举值计算实际采样率 */
-            switch (sbc_dec->sbc.sample_rate)
-            {
-                case SBC_SAMPLE_RATE_16000:
-                    sbc_dec->sample_rate = 16000;
-                    break;
-                case SBC_SAMPLE_RATE_32000:
-                    sbc_dec->sample_rate = 32000;
-                    break;
-                case SBC_SAMPLE_RATE_44100:
-                    sbc_dec->sample_rate = 44100;
-                    break;
-                case SBC_SAMPLE_RATE_48000:
-                    sbc_dec->sample_rate = 48000;
-                    break;
-                default:
-                    sbc_dec->sample_rate = 44100; // 默认值
-                    break;
-            }
-#endif
             /* Check and report audio frame information changes */
             ret = music_info_report(self);
             if (ret != BK_OK)
@@ -261,9 +233,30 @@ static int _sbc_decoder_process(audio_element_handle_t self, char *in_buffer, in
 static bk_err_t _sbc_decoder_close(audio_element_handle_t self)
 {
     BK_LOGV(TAG, "[%s] _sbc_decoder_close \n", audio_element_get_tag(self));
+    sbc_decoder_t *sbc_dec = (sbc_decoder_t *)audio_element_getdata(self);
+    audio_element_state_t state = audio_element_get_state(self);
     
     /* Deinitialize SBC decoder */
     bk_sbc_decoder_deinit();
+
+    // Reset info to default values to ensure music info will be reported on next open
+    // Keep info unchanged when in PAUSED state to avoid re-reporting after resume
+    if (state != AEL_STATE_PAUSED)
+    {
+        audio_element_info_t info = {0};
+        bk_err_t ret = audio_element_getinfo(self, &info);
+        if (ret == BK_OK)
+        {
+            info.sample_rates = 0;
+            info.channels = 0;
+            info.bits = 0;
+            audio_element_setinfo(self, &info);
+        }
+        /* Initialize default sbc frame info, the value will be updated in the decoding process */
+        sbc_dec->sample_rate = 0;
+        sbc_dec->channel_number = 0;
+        BK_LOGV(TAG, "[%s] Component in state %d, reset info \n", audio_element_get_tag(self), state);
+    }
 
     return BK_OK;
 }
