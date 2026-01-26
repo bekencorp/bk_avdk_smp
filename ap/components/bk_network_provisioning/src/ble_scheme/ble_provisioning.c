@@ -134,7 +134,7 @@ void bk_ble_provisioning_operation_handle(uint16_t opcode, uint16_t length, uint
     }
 }
 
-int bk_ble_provisioning_init(void)
+static int bk_ble_provisioning_init(void)
 {
     LOGI("%s\n", __func__);
 
@@ -169,6 +169,24 @@ error:
     return BK_FAIL;
 }
 
+static int bk_ble_provisioning_deinit(void)
+{
+    LOGI("%s\n", __func__);
+
+    wifi_boarding_deinit();
+
+    if (bk_ble_provisioning_info)
+    {
+        os_free(bk_ble_provisioning_info);
+        bk_ble_provisioning_info = NULL;
+    }
+
+#if CONFIG_NET_PAN
+    pan_service_deinit();
+#endif
+    return BK_OK;
+}
+
 static ble_msg_handle_cb_t ble_msg_handle_cb = NULL;
 
 void bk_ble_provisioning_set_msg_handle_cb(ble_msg_handle_cb_t cb)
@@ -181,6 +199,8 @@ static void bk_ble_provisioning_message_handle(void)
     bk_err_t ret = BK_OK;
     ble_prov_msg_t msg;
 
+    LOGI("%s tart\n", __func__);
+
     while (1)
     {
 
@@ -189,6 +209,13 @@ static void bk_ble_provisioning_message_handle(void)
         if (kNoErr == ret)
         {
             LOGV("msg.event: %d, msg.param: %d, msg.length: %u\n", msg.event, msg.param, msg.length);
+
+            if(msg.event == -1)
+            {
+                LOGW("%s exit evt\n", __func__);
+                break;
+            }
+
             if (ble_msg_handle_cb) {
                 ble_msg_handle_cb(&msg);
             }
@@ -202,29 +229,16 @@ static void bk_ble_provisioning_message_handle(void)
         }
     }
 
-    /* delate msg queue */
-    ret = rtos_deinit_queue(&db_info->queue);
 
-    if (ret != kNoErr)
-    {
-        LOGE("delate message queue fail\n");
-    }
-
-    db_info->queue = NULL;
-
-    LOGE("delate message queue complete\n");
-
-    /* delate task */
+    LOGE("%s end\n", __func__);
     rtos_delete_thread(NULL);
-
-    db_info->thd = NULL;
-
-    LOGE("delate task complete\n");
 }
 
-void bk_ble_provisioning_core_init(void)
+static void bk_ble_provisioning_core_init(void)
 {
     bk_err_t ret = BK_OK;
+
+    LOGI("%s start\n", __func__);
 
     if (db_info == NULL)
     {
@@ -289,6 +303,55 @@ error:
     LOGE("%s fail\n", __func__);
 }
 
+static void bk_ble_provisioning_core_deinit(void)
+{
+    bk_err_t ret = BK_OK;
+
+    LOGI("%s start\n", __func__);
+
+    if(db_info)
+    {
+        if(db_info->thd)
+        {
+            ble_prov_msg_t msg = {.event = -1};
+
+            if (db_info->queue)
+            {
+                ret = rtos_push_to_queue(&db_info->queue, &msg, BEKEN_WAIT_FOREVER);
+
+                if (BK_OK != ret)
+                {
+                    LOGE("%s push failed\n", __func__);
+                    return;
+                }
+
+                rtos_thread_join(db_info->thd);
+            }
+            else
+            {
+                LOGE("%s task exist but queue not exist !!!\n", __func__);
+            }
+        }
+
+        if(db_info->queue)
+        {
+            ret = rtos_deinit_queue(&db_info->queue);
+
+            if (ret != kNoErr)
+            {
+                LOGE("%s delete message queue fail\n", __func__);
+            }
+        }
+
+        os_free(db_info);
+        db_info = NULL;
+    }
+
+    LOGE("%s end\n", __func__);
+
+    return;
+}
+
 void bk_ble_np_init(void)
 {
     bk_ble_provisioning_core_init();
@@ -318,4 +381,22 @@ void bk_ble_np_init(void)
         BK_LOGW(TAG, "%s ATE is enable, ble will not enable!!!!!!\n", __func__);
     }
 #endif
+}
+
+void bk_ble_np_deinit(void)
+{
+    if(!bk_ble_provisioning_info)
+    {
+        LOGE("%s no need deinit !!!\n", __func__);
+        return;
+    }
+
+    wifi_boarding_adv_stop();
+    bk_ble_provisioning_deinit();
+    bk_ble_provisioning_core_deinit();
+
+    if(bk_bluetooth_deinit())
+    {
+        LOGE("%s bluetooth deinit err\n", __func__);
+    }
 }

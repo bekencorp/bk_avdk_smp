@@ -193,7 +193,7 @@ bt_err_t bk_bluetooth_deinit(void)
             return ret;
         }
 
-        s_bsc_cb = NULL;
+        //s_bsc_cb = NULL;
     }
 #endif
 

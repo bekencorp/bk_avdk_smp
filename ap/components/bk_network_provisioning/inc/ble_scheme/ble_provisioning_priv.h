@@ -52,5 +52,6 @@ int wifi_boarding_adv_stop(void);
 int wifi_boarding_notify(uint8_t *data, uint16_t length);
 
 void bk_ble_np_init(void);
+void bk_ble_np_deinit(void);
 
 #endif

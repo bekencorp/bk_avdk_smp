@@ -615,6 +615,8 @@ int hal_hci_driver_secondary_controller_init(bk_bluetooth_secondary_callback_t *
 {
     int32_t ret = 0;
 
+    LOGI("start");
+
     ret = rtos_init_queue(&s_multi_controller_cmd_queue,
                           "multi_controller_cmd_queue",
                           sizeof(multi_ct_cmd_t),
@@ -705,11 +707,13 @@ int hal_hci_driver_secondary_controller_init(bk_bluetooth_secondary_callback_t *
 
 #endif
 
+    LOGI("end");
     return 0;
 }
 
 int hal_hci_driver_secondary_controller_deinit(void)
 {
+    LOGI("start");
 #if CONFIG_BLUETOOTH_HOST_ENABLE_H5
 
     if (hci_parser_get_interface()->set_h5_enable(0))
@@ -730,6 +734,7 @@ int hal_hci_driver_secondary_controller_deinit(void)
     rtos_deinit_mutex(&s_multi_controller_mutex);
     s_multi_controller_mutex = NULL;
 
+    LOGI("end");
     return 0;
 }
 
