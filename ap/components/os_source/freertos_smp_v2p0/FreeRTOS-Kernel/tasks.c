@@ -2392,6 +2392,37 @@ void vTaskEndScheduler( void )
     vPortEndScheduler();
 }
 /*----------------------------------------------------------*/
+#if CONFIG_CRITICAL_LR_RECORD
+#include "cmsis_gcc.h"
+#define CONFIG_CRITICAL_LR_COUNT 16
+#define LR_TEST_SECTION __attribute__((used, section(".sram_spinlock_section")))
+LR_TEST_SECTION static uint32_t s_suspend_critical_lr_stack[CONFIG_CPU_CNT][CONFIG_CRITICAL_LR_COUNT] = {0};
+LR_TEST_SECTION static uint8_t s_suspend_critical_stack_top[CONFIG_CPU_CNT] = {0};
+LR_TEST_SECTION static uint32_t s_suspend_critical_lr_overflow_count[CONFIG_CPU_CNT] = {0};
+
+static void push_suspend_critical_lr(uint32_t lr)
+{
+    uint8_t core_id = portGET_CORE_ID();
+    configASSERT(core_id < CONFIG_CPU_CNT);
+    if (s_suspend_critical_stack_top[core_id] < CONFIG_CRITICAL_LR_COUNT) {
+        s_suspend_critical_lr_stack[core_id][s_suspend_critical_stack_top[core_id]] = lr;
+        s_suspend_critical_stack_top[core_id]++;
+    } else {
+        s_suspend_critical_lr_overflow_count[core_id]++;
+    }
+}
+
+static void pop_suspend_critical_lr(void)
+{
+    uint8_t core_id = portGET_CORE_ID();
+    configASSERT(core_id < CONFIG_CPU_CNT);
+    if (s_suspend_critical_lr_overflow_count[core_id] > 0) {
+        s_suspend_critical_lr_overflow_count[core_id]--;
+    } else if (s_suspend_critical_stack_top[core_id] > 0) {
+        s_suspend_critical_stack_top[core_id]--;
+    }
+}
+#endif
 
 void vTaskSuspendAll( void )
 {
@@ -2402,6 +2433,9 @@ void vTaskSuspendAll( void )
 
     /* portSOFTWARE_BARRIER() is only implemented for emulated/simulated ports that
      * do not otherwise exhibit real time behaviour. */
+#if CONFIG_CRITICAL_LR_RECORD
+    uint32_t lr = __get_LR();
+#endif
     if( xSchedulerRunning != pdFALSE )
     {
 	    portSOFTWARE_BARRIER();
@@ -2409,6 +2443,9 @@ void vTaskSuspendAll( void )
 	    /* The scheduler is suspended if uxSchedulerSuspended is non-zero.  An increment
 	     * is used to allow calls to vTaskSuspendAll() to nest. */
 	    ++uxSchedulerSuspended[ portGET_CORE_ID() ];
+    #if CONFIG_CRITICAL_LR_RECORD
+        push_suspend_critical_lr(lr);
+    #endif
 
 	    /* Enforces ordering for ports and optimised compilers that may otherwise place
 	     * the above increment elsewhere. */
@@ -2509,6 +2546,9 @@ BaseType_t xTaskResumeAll( void )
 	        /* Get current core ID as we can no longer be preempted. */
 	        const BaseType_t xCurCoreID = portGET_CORE_ID();
 
+        #if CONFIG_CRITICAL_LR_RECORD
+            pop_suspend_critical_lr();
+        #endif
 	        --uxSchedulerSuspended[ xCurCoreID ];
 
 	        if( uxSchedulerSuspended[ xCurCoreID ] == ( UBaseType_t ) pdFALSE )
