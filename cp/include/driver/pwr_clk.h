@@ -62,6 +62,9 @@ extern "C" {
 
 #define FIXED_ADDR_DEEP_WAKEUP_GPIO_ID       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+56))
 
+#define FIXED_ADDR_PM_AP_SLEEP_VOTE          (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+60))
+#define FIXED_ADDR_PM_AP_CLK_VOTE_STATE      (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+68))
+
 #define PM_PSRAM_POWER_DOWN_MAGIC            (0x123)
 
 typedef enum
@@ -171,6 +174,21 @@ typedef enum
 	PM_CP_DATE_TYPE_EXIT_LOW_VOL_WAKEUP_SOURCE,
 	PM_CP_DATE_TYPE_MAX,                            // attention: MAX value can not exceed 31.
 }pm_ap_get_cp_data_type_e;
+/**
+ * @brief get mailbox busy state
+ *
+ * get mailbox busy state
+ *
+ * @attention
+ * - This API is used to get mailbox busy state
+ *
+ * @param
+ * - void
+ * @return
+ * - 1: busy
+ * - 0: idle
+ */
+uint8_t bk_pm_cp_mb_busy(void);
 /**
  * @brief get psram ctrl state
  *

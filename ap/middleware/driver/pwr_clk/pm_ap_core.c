@@ -17,6 +17,7 @@
 
 #define PM_AP_CORE_STACK_SIZE              (1536)
 #define PM_AP_CORE_QUEUE_NUMBER_OF_MESSAGE (30)
+#define PM_AP_CORE_THREAD_PRIORITY         (2)
 
 /*=====================DEFINE  SECTION  END=====================*/
 
@@ -178,7 +179,7 @@ bk_err_t bk_pm_ap_core_init(void)
     }
 
     ret = rtos_core0_create_thread(&s_pm_info->thd,
-                             BEKEN_DEFAULT_WORKER_PRIORITY - 3,/*pm contrl cmd thread priority need higher*/
+                             PM_AP_CORE_THREAD_PRIORITY,/*pm contrl cmd thread priority need higher*/
                              "pm_info->thd",
                              (beken_thread_function_t)pm_ap_core_message_handle,
                              PM_AP_CORE_STACK_SIZE,

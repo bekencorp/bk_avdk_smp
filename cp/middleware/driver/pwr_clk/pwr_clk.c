@@ -47,6 +47,8 @@
 #define PM_CP_NOTIFY_AP_MAX_COUNT            (100)
 #define PM_CP_NOTIFY_DELAY_TIME_US           (10)  //10us
 
+#define PM_CHNL_STATE_BUSY                  (1)
+#define PM_CHNL_STATE_IDLE                  (0)
 #define TAG "CP"
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -164,7 +166,7 @@ static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t 
 	mb_chnl_cmd_t mb_cmd = {0};
 	int ret              = 0;
 	uint8_t  retry_count = 0;
-
+	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_MAILBOX,0,0);
 	mb_cmd.hdr.cmd = cmd;
 	mb_cmd.param1 = param1;
 	mb_cmd.param2 = param2;
@@ -178,9 +180,11 @@ static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t 
         if(retry_count > 5)
         {
             LOGE("Mailbox send data fail[ret:%d]\r\n",ret);
+			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_MAILBOX,1,0);
             return ret;
         }
 	}
+	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_MAILBOX,1,0);
 	return BK_OK;
 }
 
@@ -742,4 +746,11 @@ bk_err_t bk_pm_module_vote_vdddig_ctrl(pm_vdddig_module_e module,pm_vdddig_high_
 	}
 #endif
 	return BK_OK;
+}
+
+uint8_t bk_pm_cp_mb_busy(void)
+{
+    uint8_t state = 0;
+    mb_chnl_ctrl(MB_CHNL_PWC,MB_CHNL_GET_STATUS, &state);
+    return (state == PM_CHNL_STATE_BUSY) ? 1 : 0;
 }

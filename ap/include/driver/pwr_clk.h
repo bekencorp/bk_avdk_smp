@@ -63,6 +63,9 @@ extern "C" {
 
 #define FIXED_ADDR_DEEP_WAKEUP_GPIO_ID       (*(volatile uint32_t *)(CONFIG_PWR_MNG_ADDR+56))
 
+#define FIXED_ADDR_PM_AP_SLEEP_VOTE          (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+60))
+#define FIXED_ADDR_PM_AP_CLK_VOTE_STATE      (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+68))
+
 #define PM_PSRAM_POWER_DOWN_MAGIC            (0x123)
 
 typedef enum

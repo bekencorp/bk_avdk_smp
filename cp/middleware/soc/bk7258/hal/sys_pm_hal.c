@@ -1165,7 +1165,11 @@ bool sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi()
 	#if CONFIG_PM_LV_SUBCORES_ON
 	uint64_t previous_tick = 0;
 	uint64_t current_tick  = 0;
-	if(bk_pm_low_vol_vote_state_get())
+
+	if(bk_pm_low_vol_vote_state_get() &&
+	(FIXED_ADDR_PM_AP_SLEEP_VOTE == 0)&&
+	(FIXED_ADDR_PM_AP_CLK_VOTE_STATE == 0)&&
+	(bk_pm_cp_mb_busy() == 0))
 	{
 		aon_pmu_ll_set_r3_cp0_sleep_vote_state(1);
 
@@ -1199,7 +1203,11 @@ bool sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi()
 			}
 		}
 
-		if (aon_pmu_ll_get_r3_cp1_enter_wfi_state()&&aon_pmu_ll_get_r3_cp2_enter_wfi_state())
+		if (aon_pmu_ll_get_r3_cp1_enter_wfi_state() &&
+			aon_pmu_ll_get_r3_cp2_enter_wfi_state() &&
+			(FIXED_ADDR_PM_AP_SLEEP_VOTE == 0) &&
+			(FIXED_ADDR_PM_AP_CLK_VOTE_STATE == 0) &&
+			(bk_pm_cp_mb_busy() == 0))
 		{
 			ret = true;
 		}
@@ -1217,6 +1225,7 @@ bool sys_hal_set_cp_sleep_vote_and_check_subcores_enter_wfi()
 	else
 	{
 		aon_pmu_ll_set_r3_cp0_sleep_vote_state(0);
+		ret = false;
 	}
 	#endif
 	return ret;
@@ -1528,10 +1537,13 @@ void sys_hal_low_power_hardware_init()
 	sys_hal_dco_cali(DCO_CALIB_SPEED_240M);
 
 	/*Psram used state init*/
-	FIXED_ADDR_PSRAM_POWER_DOWN  = 0x0;
-	FIXED_ADDR_PSRAM_USDE_COUNT  = 0x0;
-	FIXED_ADDR_WAKEUP_CP_COUNT   = 0x0;
-	FIXED_ADDR_WAKEUP_AP0_COUNT  = 0x0;
-	FIXED_ADDR_WAKEUP_AP1_COUNT  = 0x0;
-	FIXED_ADDR_WAKEUP_AP1_DEBUG  = 0x0;
+	FIXED_ADDR_PSRAM_POWER_DOWN     = 0x0;
+	FIXED_ADDR_PSRAM_USDE_COUNT     = 0x0;
+	FIXED_ADDR_WAKEUP_CP_COUNT      = 0x0;
+	FIXED_ADDR_WAKEUP_AP0_COUNT     = 0x0;
+	FIXED_ADDR_WAKEUP_AP1_COUNT     = 0x0;
+	FIXED_ADDR_WAKEUP_AP1_DEBUG     = 0x0;
+
+	FIXED_ADDR_PM_AP_SLEEP_VOTE     = 0x0;
+	FIXED_ADDR_PM_AP_CLK_VOTE_STATE = 0x0;
 }

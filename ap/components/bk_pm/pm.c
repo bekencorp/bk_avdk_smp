@@ -475,11 +475,17 @@ bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module, uint32_t sl
 	{
 		return BK_OK;
 	}
+	uint32_t flag = rtos_enter_critical();
+	FIXED_ADDR_PM_AP_SLEEP_VOTE |= (0x1ULL << module);
+	rtos_exit_critical(flag);
 	bk_pm_cp1_sleep_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
 
     ret = pm_cp1_mailbox_send_data(PM_SLEEP_CTRL_CMD, module,sleep_state,sleep_time);
     if(ret != BK_OK)
     {
+		flag = rtos_enter_critical();
+		FIXED_ADDR_PM_AP_SLEEP_VOTE &= ~(0x1ULL << module);
+		rtos_exit_critical(flag);
         return BK_FAIL;
     }
 
@@ -498,6 +504,10 @@ bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module, uint32_t sl
 	{
 	    BK_LOGD(NULL, "cp1 wait cp0 vote sleep[%d] time out\r\n",module);
 	}
+
+	flag = rtos_enter_critical();
+	FIXED_ADDR_PM_AP_SLEEP_VOTE &= ~(0x1ULL << module);
+	rtos_exit_critical(flag);
 #endif
 	return BK_OK;
 
@@ -1340,13 +1350,6 @@ pm_cpu_freq_e bk_pm_module_current_cpu_freq_get(pm_dev_id_e module)
 
 bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 {
-#if CONFIG_CLK_FORCE_MAX_CPU_FREQ_320M
-	if(PM_CPU_FRQ_480M == cpu_freq)
-	{
-		cpu_freq = PM_CPU_FRQ_320M;
-	}
-#endif
-
 #if CONFIG_MAILBOX
 	uint64_t previous_tick  = 0;
 	uint64_t current_tick   = 0;
@@ -1385,17 +1388,23 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 
 bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
 {
-
 #if CONFIG_MAILBOX
 	uint64_t previous_tick  = 0;
 	uint64_t current_tick   = 0;
     int ret                 = 0;
+
+	int32_t flag = rtos_enter_critical();
+	FIXED_ADDR_PM_AP_CLK_VOTE_STATE |= (1 << module);
+	rtos_exit_critical(flag);
 
 	bk_pm_cp1_clk_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
 
     ret = pm_cp1_mailbox_send_data(PM_CLK_CTRL_CMD, module,clock_state,0);
     if(ret != BK_OK)
     {
+		flag = rtos_enter_critical();
+		FIXED_ADDR_PM_AP_CLK_VOTE_STATE &= ~(1 << module);
+		rtos_exit_critical(flag);
         return BK_FAIL;
     }
 	previous_tick = pm_cp1_aon_rtc_counter_get();
@@ -1413,7 +1422,9 @@ bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
 	{
 	    BK_LOGD(NULL, "cp1 vote freq[%d] time out\r\n",module);
 	}
-
+	flag = rtos_enter_critical();
+	FIXED_ADDR_PM_AP_CLK_VOTE_STATE &= ~(1 << module);
+	rtos_exit_critical(flag);
 #endif
 	return BK_OK;
 
