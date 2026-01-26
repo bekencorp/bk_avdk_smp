@@ -615,6 +615,10 @@ mem_init(void)
   lfree = (struct mem *)(void *)ram;
 
   MEM_STATS_AVAIL(avail, MEM_SIZE_ALIGNED);
+#if MEM_TRX_DYNAMIC_EN
+  MEM_STATS_AVAIL(tx_avail, MEM_MAX_TX_SIZE);
+  MEM_STATS_AVAIL(rx_avail, MEM_MAX_RX_SIZE);
+#endif
 
   if (sys_mutex_new(&mem_mutex) != ERR_OK) {
     LWIP_ASSERT("failed to create mem_mutex", 0);
