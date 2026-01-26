@@ -555,26 +555,7 @@ bk_err_t demo_p2p_event_cb(void *arg, event_module_t event_module, int event_id,
 	// P2P GC disconnected (as GC)
 	case EVENT_WIFI_STA_DISCONNECTED:
 		sta_ip_down();
-		// Check if P2P is still enabled before auto-reconnecting
-		// If user manually called bk_wifi_p2p_disable(), skip auto-reconnect
-		if (!bk_wifi_is_p2p_enabled()) {
-			WIFI_LOGW("%s: P2P already disabled, skip auto-reconnect\n", __func__);
-			return BK_OK;
-		}
-
-		// Get saved SSID before disable (for auto-reconnect)
-		const char *saved_name = bk_wifi_get_p2p_dev_name();
-		bk_wifi_p2p_disable();
-
-		// Note: Delay removed as it would block the callback
-		// If delay is required, consider using a timer or work queue
-
-		// Only re-enable if P2P was not manually disabled
-		if (saved_name) {
-			/* Use previous/default intent when auto re-enabling */
-			bk_wifi_p2p_enable_with_intent(saved_name, -1);
-			bk_wifi_p2p_find();
-		}
+		bk_wifi_p2p_find();
 		break;
 
 	default:
