@@ -52,7 +52,9 @@ static void otp_sleep()
 #if CONFIG_ATE_TEST
 	return ;
 #endif
-	//otp_hal_power_off(&s_otp.hal);
+#if CONFIG_PM_OTP_POWERDOWN_ENABLE
+	otp_hal_power_off(&s_otp.hal);
+#endif
 }
 
 static int otp_active()

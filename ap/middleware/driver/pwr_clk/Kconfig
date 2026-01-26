@@ -82,5 +82,8 @@ menu "PWR_CLK"
 	config PM_LV_SUBCORES_ON
 		bool "CPU0 and CPU1,CPU2 ON when enter low voltage"
 		default n
+	config PM_OTP_POWERDOWN_ENABLE
+		bool "otp powerdown enable after finish otp operation"
+		default n
 endmenu
 
