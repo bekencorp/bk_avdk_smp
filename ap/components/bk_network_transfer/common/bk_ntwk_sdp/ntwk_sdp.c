@@ -11,6 +11,7 @@
 #include "net.h"
 #include "string.h"
 #include <components/netif.h>
+#include "network_transfer_internal.h"
 
 #include "ntwk_sdp.h"
 
@@ -95,7 +96,7 @@ int ntwk_sdp_generate(const char *name, uint32_t cmd_port, uint32_t img_port, ui
 
     if (ntwk_sdp->sdp_data == NULL)
     {
-        ntwk_sdp->sdp_data = os_malloc(adv_len);
+        ntwk_sdp->sdp_data = ntwk_malloc(adv_len);
 
         if (ntwk_sdp->sdp_data == NULL)
         {
@@ -295,7 +296,7 @@ int ntwk_sdp_start(const char *name, uint32_t cmd_port, uint32_t img_port, uint3
 
     if (ntwk_sdp == NULL)
     {
-        ntwk_sdp = os_malloc(sizeof(ntwk_sdp_t));
+        ntwk_sdp = ntwk_malloc(sizeof(ntwk_sdp_t));
 
         if (ntwk_sdp == NULL)
         {

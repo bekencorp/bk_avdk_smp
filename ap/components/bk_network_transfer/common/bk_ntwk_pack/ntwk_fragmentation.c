@@ -5,6 +5,7 @@
 
 #include "ntwk_fragmentation.h"
 #include "network_transfer.h"
+#include "network_transfer_internal.h"
 
 #define TAG "ntwk-fragm"
 
@@ -28,7 +29,7 @@ bk_err_t ntwk_fragmentation_init(chan_type_t chan_type)
 {
     if (s_fragment_cfg_mgr[chan_type] == NULL)
     {
-        s_fragment_cfg_mgr[chan_type] = (fragment_cfg_t *)os_malloc(sizeof(fragment_cfg_t));
+        s_fragment_cfg_mgr[chan_type] = (fragment_cfg_t *)ntwk_malloc(sizeof(fragment_cfg_t));
 
         if (s_fragment_cfg_mgr[chan_type] == NULL)
         {
@@ -41,7 +42,7 @@ bk_err_t ntwk_fragmentation_init(chan_type_t chan_type)
 
     if (s_unfragment_cfg_mgr[chan_type] == NULL)
     {
-        s_unfragment_cfg_mgr[chan_type] = (unfragment_cfg_t *)os_malloc(sizeof(unfragment_cfg_t));
+        s_unfragment_cfg_mgr[chan_type] = (unfragment_cfg_t *)ntwk_malloc(sizeof(unfragment_cfg_t));
         if (s_unfragment_cfg_mgr[chan_type] == NULL)
         {
             LOGE("%s, malloc s_unfragment_cfg_mgr[chan_type] fail\n", __func__);
@@ -89,7 +90,7 @@ bk_err_t ntwk_fragment_start(chan_type_t chan_type, uint32_t fragment_size, void
 		LOGW("%s, fragment not started\n", __func__);
 		return BK_FAIL;
 	}
-    s_fragment_cfg_mgr[chan_type]->fragment_data = (ntwk_fragm_head_t *)os_malloc(NTWK_FRAG_HEADER_SIZE + fragment_size);
+    s_fragment_cfg_mgr[chan_type]->fragment_data = (ntwk_fragm_head_t *)ntwk_malloc(NTWK_FRAG_HEADER_SIZE + fragment_size);
     if (s_fragment_cfg_mgr[chan_type]->fragment_data == NULL)
     {
         LOGE("%s, malloc failed\n", __func__);
@@ -281,7 +282,7 @@ static bk_err_t data_pool_init(data_pool_t *pool)
 
     if (pool->pool == NULL)
     {
-        pool->pool = (uint8_t *)psram_malloc(DATA_POOL_LEN);
+        pool->pool = (uint8_t *)ntwk_malloc(DATA_POOL_LEN);
         if (pool->pool == NULL)
         {
             LOGE("data_pool alloc failed\r\n");

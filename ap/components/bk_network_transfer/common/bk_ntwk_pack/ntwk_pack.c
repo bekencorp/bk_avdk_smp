@@ -28,6 +28,7 @@
 #include "network_transfer.h"
 #include "ntwk_pack.h"
 #include "network_type.h"
+#include "network_transfer_internal.h"
 
 
 #define TAG "ntwk-pack"
@@ -86,7 +87,7 @@ void ntwk_hex_dump(uint8_t *data, uint32_t length)
 
 ntwk_pack_chan_t *ntwk_pkt_malloc(uint16_t max_rx_size, uint16_t max_tx_size)
 {
-    ntwk_pack_chan_t *ntwk_db_chan = (ntwk_pack_chan_t *)os_malloc(sizeof(ntwk_pack_chan_t));
+    ntwk_pack_chan_t *ntwk_db_chan = (ntwk_pack_chan_t *)ntwk_malloc(sizeof(ntwk_pack_chan_t));
 
     if (ntwk_db_chan == NULL)
     {
@@ -96,7 +97,7 @@ ntwk_pack_chan_t *ntwk_pkt_malloc(uint16_t max_rx_size, uint16_t max_tx_size)
 
     os_memset(ntwk_db_chan, 0, sizeof(ntwk_pack_chan_t));
 
-    ntwk_db_chan->cbuf = os_malloc(max_rx_size + sizeof(ntwk_pack_head_t));
+    ntwk_db_chan->cbuf = ntwk_malloc(max_rx_size + sizeof(ntwk_pack_head_t));
 
     if (ntwk_db_chan->cbuf == NULL)
     {
@@ -106,7 +107,7 @@ ntwk_pack_chan_t *ntwk_pkt_malloc(uint16_t max_rx_size, uint16_t max_tx_size)
 
     ntwk_db_chan->csize = max_rx_size + sizeof(ntwk_pack_head_t);
 
-    ntwk_db_chan->tbuf = os_malloc(max_tx_size + sizeof(ntwk_pack_head_t));
+    ntwk_db_chan->tbuf = ntwk_malloc(max_tx_size + sizeof(ntwk_pack_head_t));
 
     if (ntwk_db_chan->tbuf == NULL)
     {
@@ -526,7 +527,7 @@ bk_err_t ntwk_pack_init(chan_type_t chan_type)
         return BK_OK;
     }
 
-    g_pkt_chan_mgr[chan_type] = os_malloc(sizeof(ntwk_pkt_chan_mgr_t));
+    g_pkt_chan_mgr[chan_type] = ntwk_malloc(sizeof(ntwk_pkt_chan_mgr_t));
     if (g_pkt_chan_mgr[chan_type] == NULL) {
         LOGE("%s: failed to allocate g_pkt_chan_mgr\n", __func__);
         return BK_ERR_NO_MEM;

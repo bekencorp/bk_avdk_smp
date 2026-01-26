@@ -1,6 +1,7 @@
 #pragma once
 
 #include <os/os.h>
+#include <os/mem.h>
 #include <common/bk_include.h>
 #include <common/bk_err.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
@@ -11,6 +12,11 @@
 extern "C" {
 #endif
 
+#if CONFIG_NTWK_USE_PSARM_MEM
+#define ntwk_malloc   psram_malloc
+#else
+#define ntwk_malloc   os_malloc
+#endif
 
 typedef bk_err_t (*ntwk_in_start_cb_t)(void *user_data);
 typedef bk_err_t (*ntwk_in_stop_cb_t)(void);

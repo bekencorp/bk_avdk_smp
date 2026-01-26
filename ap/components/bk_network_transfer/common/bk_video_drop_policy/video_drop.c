@@ -7,6 +7,7 @@
 #include <components/video_types.h>
 #include <stdlib.h>
 #include <driver/h264.h>
+#include "network_transfer_internal.h"
 
 #include "video_drop.h"
 
@@ -29,7 +30,7 @@ bk_err_t ntwk_video_drop_init(void)
         return BK_OK;
     }
 
-    s_h264_drop_info = (ntwk_h264_drop_info_t *)os_malloc(sizeof(ntwk_h264_drop_info_t));
+    s_h264_drop_info = (ntwk_h264_drop_info_t *)ntwk_malloc(sizeof(ntwk_h264_drop_info_t));
     if (s_h264_drop_info == NULL)
     {
         LOGE("%s: malloc failed\n", __func__);

@@ -175,10 +175,10 @@ static void ntwk_udp_ctrl_server_thread(beken_thread_arg_t data)
     LOGD("%s entry\n", __func__);
     (void)(data);
 
-    rcv_buf = (u8 *) os_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
+    rcv_buf = (u8 *) ntwk_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("tcp os_malloc failed\n");
+        LOGE("udp ntwk_malloc failed\n");
         goto out;
     }
 
@@ -405,10 +405,10 @@ static void ntwk_udp_video_service_main(beken_thread_arg_t data)
     video_udp_service->chan_state = NTWK_TRANS_CHAN_START;
     ntwk_msg_event_report(NTWK_TRANS_EVT_START, 0, NTWK_TRANS_CHAN_VIDEO);
 
-    rcv_buf = (u8 *)os_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
+    rcv_buf = (u8 *)ntwk_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("video udp os_malloc failed\n");
+        LOGE("video udp ntwk_malloc failed\n");
         goto out;
     }
 
@@ -514,10 +514,10 @@ static void ntwk_udp_aud_service_main(beken_thread_arg_t data)
     aud_udp_service->chan_state = NTWK_TRANS_CHAN_START;
     ntwk_msg_event_report(NTWK_TRANS_EVT_START, 0, NTWK_TRANS_CHAN_AUDIO);
 
-    rcv_buf = (u8 *)os_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
+    rcv_buf = (u8 *)ntwk_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("aud udp os_malloc failed\n");
+        LOGE("aud udp ntwk_malloc failed\n");
         goto out;
     }
 
@@ -773,7 +773,7 @@ bk_err_t ntwk_udp_init(chan_type_t chan_type)
         {
             if (ntwl_udp_ctrl_info == NULL)
             {
-                ntwl_udp_ctrl_info = os_malloc(sizeof(ntwk_udp_ctrl_info_t));
+                ntwl_udp_ctrl_info = ntwk_malloc(sizeof(ntwk_udp_ctrl_info_t));
                 if (ntwl_udp_ctrl_info == NULL)
                 {
                     LOGE("malloc ntwl_udp_ctrl_info\n");
@@ -792,7 +792,7 @@ bk_err_t ntwk_udp_init(chan_type_t chan_type)
         {
             if (video_udp_service == NULL)
             {
-                video_udp_service = os_malloc(sizeof(video_udp_service_t));
+                video_udp_service = ntwk_malloc(sizeof(video_udp_service_t));
                 if (video_udp_service == NULL)
                 {
                     LOGE("video_udp_service malloc failed\n");
@@ -810,7 +810,7 @@ bk_err_t ntwk_udp_init(chan_type_t chan_type)
         {
             if (aud_udp_service == NULL)
             {
-                aud_udp_service = os_malloc(sizeof(aud_udp_service_t));
+                aud_udp_service = ntwk_malloc(sizeof(aud_udp_service_t));
                 if (aud_udp_service == NULL)
                 {
                     LOGE("aud_udp_service malloc failed\n");

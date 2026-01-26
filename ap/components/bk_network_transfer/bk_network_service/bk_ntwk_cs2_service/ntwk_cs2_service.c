@@ -541,7 +541,7 @@ static int ntwk_cs2_p2p_audio_receiver(beken_thread_arg_t arg)
 
     uint8_t *tmp_read_buf = NULL;
 
-    tmp_read_buf = os_malloc(NTWK_CS2_RECV_TMP_BUFF_SIZE);
+    tmp_read_buf = ntwk_malloc(NTWK_CS2_RECV_TMP_BUFF_SIZE);
 
     if (!tmp_read_buf)
     {
@@ -634,7 +634,7 @@ static int ntwk_cs2_p2p_interface_core(p2p_cs2_key_t *key)
     ret = PPCS_NetworkDetect(&s_cs2_p2p_networkinfo, 0);
     show_network(s_cs2_p2p_networkinfo);
 
-    tmp_read_buf = os_malloc(RECV_TMP_CMD_BUFF_SIZE);
+    tmp_read_buf = ntwk_malloc(RECV_TMP_CMD_BUFF_SIZE);
 
     if (!tmp_read_buf)
     {
@@ -843,7 +843,7 @@ bk_err_t ntwk_cs2_init(void)
         return BK_OK;
     }
 
-    ntwk_cs2_info = os_malloc(sizeof(ntwk_cs2_info_t));
+    ntwk_cs2_info = ntwk_malloc(sizeof(ntwk_cs2_info_t));
 
     if (ntwk_cs2_info == NULL)
     {

@@ -154,10 +154,11 @@ static void ntwk_tcp_ctrl_server_thread(beken_thread_arg_t data)
     LOGD("%s entry\n", __func__);
     (void)(data);
 
-    rcv_buf = (u8 *) os_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
+    rcv_buf = (u8 *) ntwk_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
+
     if (!rcv_buf)
     {
-        LOGE("tcp os_malloc failed\n");
+        LOGE("tcp ntwk_malloc failed\n");
         goto out;
     }
 
@@ -386,11 +387,11 @@ static void ntwk_tcp_video_server_thread(beken_thread_arg_t data)
     ntwk_msg_event_report(NTWK_TRANS_EVT_START, 0, NTWK_TRANS_CHAN_VIDEO);
     video_tcp_service->chan_state = NTWK_TRANS_CHAN_START;
 
-    rcv_buf = (u8 *) os_malloc((NTWK_TCP_BUFFER + 1) * sizeof(u8));
+    rcv_buf = (u8 *) ntwk_malloc((NTWK_TCP_BUFFER + 1) * sizeof(u8));
 
     if (!rcv_buf)
     {
-        LOGE("tcp os_malloc failed\n");
+        LOGE("tcp ntwk_malloc failed\n");
         goto out;
     }
 
@@ -587,11 +588,11 @@ static void ntwk_tcp_audio_server_thread(beken_thread_arg_t data)
 
     ntwk_msg_event_report(NTWK_TRANS_EVT_START, 0, NTWK_TRANS_CHAN_AUDIO);
     aud_tcp_service->chan_state = NTWK_TRANS_CHAN_START;
-    rcv_buf = (u8 *) os_malloc((NTWK_TCP_BUFFER + 1) * sizeof(u8));
+    rcv_buf = (u8 *) ntwk_malloc((NTWK_TCP_BUFFER + 1) * sizeof(u8));
 
     if (!rcv_buf)
     {
-        LOGE("tcp os_malloc failed\n");
+        LOGE("tcp ntwk_malloc failed\n");
         goto out;
     }
 
@@ -823,7 +824,7 @@ bk_err_t ntwk_tcp_init(chan_type_t chan_type)
                 LOGE("%s: ntwl_tcp_ctrl_info already initialized\n", __func__);
                 return BK_OK;
             }
-            ntwl_tcp_ctrl_info = os_malloc(sizeof(ntwk_tcp_ctrl_info_t));
+            ntwl_tcp_ctrl_info = ntwk_malloc(sizeof(ntwk_tcp_ctrl_info_t));
             if (ntwl_tcp_ctrl_info == NULL)
             {
                 LOGE("%s: malloc ntwl_tcp_ctrl_info failed\n", __func__);
@@ -838,7 +839,7 @@ bk_err_t ntwk_tcp_init(chan_type_t chan_type)
                 LOGE("%s: video_tcp_service already initialized\n", __func__);
                 return BK_OK;
             }
-            video_tcp_service = os_malloc(sizeof(video_tcp_service_t));
+            video_tcp_service = ntwk_malloc(sizeof(video_tcp_service_t));
             if (video_tcp_service == NULL)
             {
                 LOGE("%s: malloc video_tcp_service failed\n", __func__);
@@ -853,7 +854,7 @@ bk_err_t ntwk_tcp_init(chan_type_t chan_type)
                 LOGE("%s: aud_tcp_service already initialized\n", __func__);
                 return BK_OK;
             }
-            aud_tcp_service = os_malloc(sizeof(aud_tcp_service_t));
+            aud_tcp_service = ntwk_malloc(sizeof(aud_tcp_service_t));
             if (aud_tcp_service == NULL)
             {
                 LOGE("%s: malloc aud_tcp_service failed\n", __func__);
