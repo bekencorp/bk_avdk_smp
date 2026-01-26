@@ -516,6 +516,19 @@ ble_err_t bk_ble_gattc_execute_write (bk_gatt_if_t gattc_if, uint16_t conn_id, b
 */
 ble_err_t bk_ble_gattc_discover(bk_gatt_if_t gattc_if, uint16_t conn_id, bk_gatt_auth_req_t auth_req);
 
+/**
+* @brief           Triggle discovery service of the remote device.
+*
+* @param[in]       gattc_if: Gatt client access interface.
+* @param[in]       handle : GATT characteristic handle.
+* @param[in]       uuid : uuid
+* @param[in]       auth_req : authentication request.
+* @return
+*                  - BK_ERR_BLE_SUCCESS: success
+*                  - other: failed
+*
+*/
+ble_err_t bk_ble_gattc_discover_service_by_uuid(bk_gatt_if_t gattc_if, uint16_t handle, bk_bt_uuid_t *uuid, bk_gatt_auth_req_t auth_req);
 ///@}
 
 ///@}
