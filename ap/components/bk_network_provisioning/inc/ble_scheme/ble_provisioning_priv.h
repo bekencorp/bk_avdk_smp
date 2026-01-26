@@ -45,11 +45,11 @@ typedef struct
     beken_queue_t queue;
 } bk_ble_provisioning_msg_info_t;
 
-int wifi_boarding_init(ble_provisioning_info_t *info);
-int wifi_boarding_deinit(void);
-int wifi_boarding_adv_start(void);
-int wifi_boarding_adv_stop(void);
-int wifi_boarding_notify(uint8_t *data, uint16_t length);
+int bk_ble_np_wifi_boarding_init(ble_provisioning_info_t *info);
+int bk_ble_np_wifi_boarding_deinit(void);
+int bk_ble_np_wifi_boarding_adv_start(void);
+int bk_ble_np_wifi_boarding_adv_stop(void);
+int bk_ble_np_wifi_boarding_notify(uint8_t *data, uint16_t length);
 
 void bk_ble_np_init(void);
 void bk_ble_np_deinit(void);

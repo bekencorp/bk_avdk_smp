@@ -99,7 +99,7 @@ bk_err_t bk_network_provisioning_start(bk_network_provisioning_type_t type);
 
 /**
  * @brief       init network provisioning, used when system boot up
- * 
+ *
  * example:
  *      projects/app/ap/ap_main.c
  *      void ap_main(void)
@@ -120,6 +120,19 @@ bk_err_t bk_network_provisioning_init(bk_network_provisioning_type_t default_typ
  * @return      none
  */
 void erase_network_auto_reconnect_info(void);
+
+/**
+ * @brief       get np send method
+ *
+ * @param       send: send op
+ * @param       send_with_data: send op with data
+ *
+ * @return      none
+ */
+void bk_network_provisioning_get_send_cb(
+    void (**send)(uint16_t opcode, int status),
+    void (**send_with_data)(uint16_t opcode, int status, char *payload, uint16_t length)
+);
 
 #if CONFIG_BK_BLE_PROVISIONING
 /**

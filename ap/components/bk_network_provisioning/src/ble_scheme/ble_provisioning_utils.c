@@ -464,7 +464,7 @@ static int32_t wifi_boarding_gatts_cb(bk_gatts_cb_event_t event, bk_gatt_if_t ga
             test_data[2] = 0;
             os_memcpy(test_data + 3, &test_data_len, sizeof(test_data_len));
 
-            wifi_boarding_notify(test_data, sizeof(test_data));
+            bk_ble_np_wifi_boarding_notify(test_data, sizeof(test_data));
 #endif
         }
 
@@ -731,7 +731,7 @@ static void dm_ble_gap_common_cb(bk_ble_gap_cb_event_t event, bk_ble_gap_cb_para
 }
 
 #if CONFIG_BT//dm
-int wifi_boarding_init(ble_provisioning_info_t *info)
+int bk_ble_np_wifi_boarding_init(ble_provisioning_info_t *info)
 {
     bt_err_t ret = BK_FAIL;
 
@@ -808,7 +808,7 @@ int wifi_boarding_init(ble_provisioning_info_t *info)
     return BK_OK;
 }
 
-int wifi_boarding_deinit(void)
+int bk_ble_np_wifi_boarding_deinit(void)
 {
     int32_t ret = 0;
 
@@ -884,7 +884,7 @@ int wifi_boarding_deinit(void)
     return BK_OK;
 }
 
-void dm_ble_gap_get_identity_addr(uint8_t *addr)
+static void dm_ble_gap_get_identity_addr(uint8_t *addr)
 {
     uint8_t *identity_addr = addr;
     bk_get_mac((uint8_t *)identity_addr, MAC_TYPE_BLUETOOTH);
@@ -897,7 +897,7 @@ void dm_ble_gap_get_identity_addr(uint8_t *addr)
     }
 }
 
-int wifi_boarding_adv_start(void)
+int bk_ble_np_wifi_boarding_adv_start(void)
 {
     bt_err_t ret = BK_FAIL;
 
@@ -1089,7 +1089,7 @@ error:
 
 }
 
-int wifi_boarding_adv_stop(void)
+int bk_ble_np_wifi_boarding_adv_stop(void)
 {
     int32_t ret = 0;
 #if 0
@@ -1137,7 +1137,7 @@ int wifi_boarding_adv_stop(void)
     return BK_OK;
 }
 
-int wifi_boarding_notify(uint8_t *data, uint16_t length)
+int bk_ble_np_wifi_boarding_notify(uint8_t *data, uint16_t length)
 {
     if (s_conn_ind == 0xFF)
     {
@@ -1178,7 +1178,7 @@ int ble_boarding_notify(uint8_t *data, uint16_t length);
 
 #define BOARDING_UUID                       (0xFE01)
 
-int wifi_boarding_init(ble_provisioning_info_t *info)
+int bk_ble_np_wifi_boarding_init(ble_provisioning_info_t *info)
 {
     bt_err_t ret = BK_FAIL;
 
@@ -1188,7 +1188,7 @@ int wifi_boarding_init(ble_provisioning_info_t *info)
     return ret;
 }
 
-int wifi_boarding_deinit()
+int bk_ble_np_wifi_boarding_deinit()
 {
     int32_t ret = 0;
 
@@ -1197,7 +1197,7 @@ int wifi_boarding_deinit()
     return ret;
 }
 
-int wifi_boarding_adv_start(void)
+int bk_ble_np_wifi_boarding_adv_start(void)
 {
     uint8_t adv_data[ADV_MAX_SIZE] = {0};
     uint8_t adv_index = 0;
@@ -1262,7 +1262,7 @@ int wifi_boarding_adv_start(void)
     return ret;
 }
 
-int wifi_boarding_adv_stop(void)
+int bk_ble_np_wifi_boarding_adv_stop(void)
 {
     int32_t ret = 0;
     //TODO np
@@ -1278,7 +1278,7 @@ int wifi_boarding_adv_stop(void)
     return ret;
 }
 
-int wifi_boarding_notify(uint8_t *data, uint16_t length)
+int bk_ble_np_wifi_boarding_notify(uint8_t *data, uint16_t length)
 {
     return ble_boarding_notify(data, length);
 }

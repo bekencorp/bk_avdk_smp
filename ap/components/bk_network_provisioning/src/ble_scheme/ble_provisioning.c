@@ -68,7 +68,7 @@ void bk_ble_provisioning_event_notify(uint16_t opcode, int status)
     };
 
     LOGV("%s: %d, %d\n", __func__, opcode, status);
-    wifi_boarding_notify(data, sizeof(data));
+    bk_ble_np_wifi_boarding_notify(data, sizeof(data));
 }
 
 void bk_ble_provisioning_event_notify_with_data(uint16_t opcode, int status, char *payload, uint16_t length)
@@ -90,7 +90,7 @@ void bk_ble_provisioning_event_notify_with_data(uint16_t opcode, int status, cha
     os_memcpy(&data[5], payload, length);
 
     LOGI("%s: %d, %d\n", __func__, opcode, status);
-    wifi_boarding_notify(data, length + 5);
+    bk_ble_np_wifi_boarding_notify(data, length + 5);
 }
 
 void bk_ble_provisioning_operation_handle(uint16_t opcode, uint16_t length, uint8_t *data)
@@ -159,7 +159,7 @@ static int bk_ble_provisioning_init(void)
 
     bk_ble_provisioning_info->ble_prov_info.cb = bk_ble_provisioning_operation_handle;
 
-    wifi_boarding_init(&bk_ble_provisioning_info->ble_prov_info);
+    bk_ble_np_wifi_boarding_init(&bk_ble_provisioning_info->ble_prov_info);
 
 #if CONFIG_NET_PAN
     pan_service_init();
@@ -173,7 +173,7 @@ static int bk_ble_provisioning_deinit(void)
 {
     LOGI("%s\n", __func__);
 
-    wifi_boarding_deinit();
+    bk_ble_np_wifi_boarding_deinit();
 
     if (bk_ble_provisioning_info)
     {
@@ -373,8 +373,8 @@ void bk_ble_np_init(void)
     if (1)
     {
         bk_ble_provisioning_init();
-        wifi_boarding_adv_stop();
-        wifi_boarding_adv_start();
+        bk_ble_np_wifi_boarding_adv_stop();
+        bk_ble_np_wifi_boarding_adv_start();
     }
     else
     {
@@ -391,7 +391,7 @@ void bk_ble_np_deinit(void)
         return;
     }
 
-    wifi_boarding_adv_stop();
+    bk_ble_np_wifi_boarding_adv_stop();
     bk_ble_provisioning_deinit();
     bk_ble_provisioning_core_deinit();
 

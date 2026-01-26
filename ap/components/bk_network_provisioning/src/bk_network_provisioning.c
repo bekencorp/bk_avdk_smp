@@ -31,6 +31,7 @@
 
 #if CONFIG_BK_BLE_PROVISIONING
 #include "ble_provisioning_priv.h"
+#include "ble_provisioning.h"
 #endif
 
 #if CONFIG_NET_PAN
@@ -164,7 +165,7 @@ static int save_network_auto_restart_info(netif_if_t type)
 #endif
 #if CONFIG_BK_MODEM
 	} else if (type == NETIF_IF_PPP) {
-		info_tmp.flag |= BIT(NETIF_IF_PPP); 
+		info_tmp.flag |= BIT(NETIF_IF_PPP);
 #endif
 #if CONFIG_P2P
 	} else if (type == NETIF_IF_P2P) {
@@ -520,6 +521,46 @@ uint8_t *bk_sconf_get_supported_network(uint8_t *len)
 bk_network_provisioning_type_t bk_network_provisioning_get_type(void)
 {
     return config_network_type;
+}
+
+void bk_network_provisioning_get_send_cb(
+    void (**send)(uint16_t opcode, int status),
+    void (**send_with_data)(uint16_t opcode, int status, char *payload, uint16_t length)
+)
+{
+#if CONFIG_BK_BLE_PROVISIONING
+    if(send)
+    {
+        switch(config_network_type)
+        {
+        case BK_NETWORK_PROVISIONING_TYPE_BLE:
+            *send = bk_ble_provisioning_event_notify;
+            break;
+
+        default:
+            BK_LOGE(TAG, "unknow network type %d\r\n", config_network_type);
+            return;
+            break;
+        }
+    }
+
+    if(send_with_data)
+    {
+        switch(config_network_type)
+        {
+        case BK_NETWORK_PROVISIONING_TYPE_BLE:
+            *send_with_data = bk_ble_provisioning_event_notify_with_data;
+            break;
+
+        default:
+            BK_LOGE(TAG, "unknow network type %d\r\n", config_network_type);
+            return;
+            break;
+        }
+    }
+#else
+    BK_LOGE(TAG, "%s component not enable\n", __func__);
+#endif
 }
 
 /*used for press button to start network provisioning*/

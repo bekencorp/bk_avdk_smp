@@ -31,7 +31,6 @@ bk_ble_provisioning_info_t * bk_ble_provisioning_get_boarding_info(void);
 // int bk_ble_provisioning_init(void);
 // int bk_ble_provisioning_deinit(void);
 void bk_ble_provisioning_event_notify(uint16_t opcode, int status);
-int wifi_boarding_notify(uint8_t *data, uint16_t length);
 void bk_ble_provisioning_event_notify_with_data(uint16_t opcode, int status, char *payload, uint16_t length);
 
 #endif
