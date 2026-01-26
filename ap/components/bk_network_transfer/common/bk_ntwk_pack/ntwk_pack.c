@@ -163,6 +163,35 @@ void ntwk_pkt_free(ntwk_pack_chan_t *channel)
     os_free(channel);
 }
 
+bk_err_t ntwk_pack_clear_ccount(chan_type_t chan_type)
+{
+    if (chan_type >= NTWK_TRANS_CHAN_MAX) {
+        //LOGE("%s: invalid chan_type %d\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
+    if (g_pkt_chan_mgr[chan_type] == NULL) {
+        //LOGE("%s: chan_type %d not initialized\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
+    if (!g_pkt_chan_mgr[chan_type]->initialized) {
+        //LOGE("%s: chan_type %d not initialized\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
+    ntwk_pack_chan_t *chan = g_pkt_chan_mgr[chan_type]->channel;
+    if (chan == NULL) {
+        LOGE("%s: channel is NULL for chan_type %d\n", __func__, chan_type);
+        return BK_ERR_PARAM;
+    }
+
+    chan->ccount = 0;
+    LOGD("%s: cleared ccount for chan_type %d\n", __func__, chan_type);
+
+    return BK_OK;
+}
+
 void ntwk_pkt_unpack(void *channel, uint8_t *data, uint32_t length, pack_recive_cb_t cb)
 {
     ntwk_pack_chan_t *chan = (ntwk_pack_chan_t *)channel;
@@ -189,6 +218,10 @@ void ntwk_pkt_unpack(void *channel, uint8_t *data, uint32_t length, pack_recive_
             if (left < HEAD_SIZE_TOTAL)
             {
                 //LOGE("left head size not enough: %d, ccount: %d\n", left, chan->ccount);
+                // Check buffer boundary to prevent overflow
+                if (chan->ccount + left > chan->csize) {
+                    LOGE("cbuf overflow L%d: ccount=%d, left=%d, csize=%d\n",__LINE__, chan->ccount, left, chan->csize);
+                }
                 os_memcpy(chan->cbuf + chan->ccount, p, left);
                 chan->ccount += left;
                 break;
@@ -237,6 +270,10 @@ void ntwk_pkt_unpack(void *channel, uint8_t *data, uint32_t length, pack_recive_
             if (left < head.length + HEAD_SIZE_TOTAL)
             {
                 //LOGE("left payload size not enough: %d, ccount: %d, pay len: %d\n", left, chan->ccount, head.length);
+                // Check buffer boundary to prevent overflow
+                if (chan->ccount + left > chan->csize) {
+                    LOGE("cbuf overflow L%d: ccount=%d, left=%d, csize=%d, head.length=%d\n",__LINE__, chan->ccount, left, chan->csize, head.length);
+                }
                 os_memcpy(chan->cbuf + chan->ccount, p, left);
                 chan->ccount += left;
                 break;
@@ -280,6 +317,10 @@ void ntwk_pkt_unpack(void *channel, uint8_t *data, uint32_t length, pack_recive_
 
                 if (left < cp_len)
                 {
+                    // Check buffer boundary to prevent overflow
+                    if (chan->ccount + left > chan->csize) {
+                        LOGE("cbuf overflow: ccount=%d, left=%d, csize=%d\n", chan->ccount, left, chan->csize);
+                    }
                     os_memcpy(chan->cbuf + chan->ccount, p, left);
                     chan->ccount += left;
                     left = 0;
@@ -288,6 +329,10 @@ void ntwk_pkt_unpack(void *channel, uint8_t *data, uint32_t length, pack_recive_
                 }
                 else
                 {
+                    // Check buffer boundary to prevent overflow
+                    if (chan->ccount + cp_len > chan->csize) {
+                        LOGE("cbuf overflow L%d: ccount=%d, cp_len=%d, csize=%d\n",__LINE__, chan->ccount, cp_len, chan->csize);
+                    }
                     os_memcpy(chan->cbuf + chan->ccount, p, cp_len);
                     chan->ccount += cp_len;
                     p += cp_len;
@@ -346,6 +391,10 @@ void ntwk_pkt_unpack(void *channel, uint8_t *data, uint32_t length, pack_recive_
 
                 if (left < cp_len)
                 {
+                    // Check buffer boundary to prevent overflow
+                    if (chan->ccount + left > chan->csize) {
+                        LOGE("cbuf overflow L%d: ccount=%d, left=%d, csize=%d\n",__LINE__, chan->ccount, left, chan->csize);
+                    }
                     os_memcpy(chan->cbuf + chan->ccount, p, left);
                     chan->ccount += left;
                     left = 0;
@@ -354,6 +403,10 @@ void ntwk_pkt_unpack(void *channel, uint8_t *data, uint32_t length, pack_recive_
                 }
                 else
                 {
+                    // Check buffer boundary to prevent overflow
+                    if (chan->ccount + cp_len > chan->csize) {
+                        LOGE("cbuf overflow L%d: ccount=%d, cp_len=%d, csize=%d\n",__LINE__, chan->ccount, cp_len, chan->csize);
+                    }
                     os_memcpy(chan->cbuf + chan->ccount, p, cp_len);
                     left -= cp_len;
                     p += cp_len;

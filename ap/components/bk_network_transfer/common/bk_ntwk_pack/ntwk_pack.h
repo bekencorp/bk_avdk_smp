@@ -156,6 +156,8 @@ int ntwk_pack_audio_unpack(uint8_t *data, uint32_t length);
 
 int ntwk_pack_get_header_size(void);
 
+bk_err_t ntwk_pack_clear_ccount(chan_type_t chan_type);
+
 #ifdef __cplusplus
 }
 #endif

@@ -6,6 +6,7 @@
 #include "network_transfer_internal.h"
 #include "network_transfer.h"
 #include "network_type.h"
+#include "ntwk_pack.h"
 
 #define TAG "ntwk-trans"
 
@@ -56,6 +57,12 @@ static void ntwk_msg_message_handle(void)
                 case NTWK_TRANS_EVT_DISCONNECTED:
                 case NTWK_TRANS_EVT_STOP:
                 {
+                    if ((msg.code == NTWK_TRANS_EVT_DISCONNECTED) ||
+                        (msg.code == NTWK_TRANS_EVT_STOP))
+                    {
+                        ntwk_pack_clear_ccount(msg.chan_type);
+                    }
+
                     // Call user registered event callback
                     if (ntwk_in_cfg->event_cb != NULL)
                     {
