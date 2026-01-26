@@ -902,7 +902,7 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 		const char *p2p_ssid = NULL;
 		int intent = -1;  // Default: keep previous/default
 
-		if (argc >= 3) {
+		if (argc == 3) {
 			p2p_ssid = argv[2];
 			ret = bk_wifi_p2p_enable(p2p_ssid);
 			if (ret != BK_OK) {
@@ -911,6 +911,7 @@ void cli_wifi_p2p_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char *
 			}
 		}
 		if (argc >= 4) {
+			p2p_ssid = argv[2];
 			intent = atoi(argv[3]);
 			if (intent < -1 || intent > 15) {
 				CLI_LOGE("invalid intent value (must be -1 or 0-15)\n");

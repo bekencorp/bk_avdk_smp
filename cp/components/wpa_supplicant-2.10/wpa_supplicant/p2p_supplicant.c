@@ -47,6 +47,9 @@
 #if defined(BK_SUPPLICANT) && defined(CONFIG_P2P)
 extern sta_param_t *g_sta_param_ptr;
 #endif
+#if CONFIG_EASY_FLASH
+#include "bk_ef.h"
+#endif
 #endif
 
 
@@ -1164,6 +1167,109 @@ static int wpas_p2p_persistent_group(struct wpa_supplicant *wpa_s,
 	return !!(group_capab & P2P_GROUP_CAPAB_PERSISTENT_GROUP);
 }
 
+#if BK_SUPPLICANT
+static void wpas_p2p_save_persistent_group_to_flash(struct wpa_ssid *s,
+						    const u8 *go_dev_addr,
+						    int changed)
+{
+	/* Only printf log & save to Flash when we are the GO (Group Owner) */
+	if (changed && s->mode == WPAS_MODE_P2P_GO) {
+		WPA_LOGD("P2P: ========== Persistent Group Saved Info ==========\r\n");
+		WPA_LOGD("P2P: Network ID: %d\r\n", s->id);
+		WPA_LOGD("P2P: GO Device Address: " MACSTR "\r\n", MAC2STR(s->bssid));
+		if (s->ssid && s->ssid_len > 0) {
+			char ssid_str[33];
+			os_memcpy(ssid_str, s->ssid, s->ssid_len < 32 ? s->ssid_len : 32);
+			ssid_str[s->ssid_len < 32 ? s->ssid_len : 32] = '\0';
+			WPA_LOGD("P2P: SSID: %s (len=%d)\r\n", ssid_str, s->ssid_len);
+		} else {
+			WPA_LOGD("P2P: SSID: (empty)\r\n");
+		}
+		WPA_LOGD("P2P: Mode: %s\r\n", s->mode == WPAS_MODE_P2P_GO ? "GO" :
+			   s->mode == WPAS_MODE_INFRA ? "Client/Infra" :
+			   s->mode == WPAS_MODE_P2P_GROUP_FORMATION ? "Group Formation" : "Unknown");
+		WPA_LOGD("P2P: Key Management: %s\r\n", s->key_mgmt == WPA_KEY_MGMT_PSK ? "WPA-PSK" : "Other");
+		WPA_LOGD("P2P: Protocol: %s\r\n", s->proto == WPA_PROTO_RSN ? "RSN" : "Other");
+		WPA_LOGD("P2P: Pairwise Cipher: %s\r\n",
+			   s->pairwise_cipher == WPA_CIPHER_CCMP ? "CCMP" :
+			   s->pairwise_cipher == WPA_CIPHER_GCMP ? "GCMP" : "Other");
+		if (s->passphrase) {
+			WPA_LOGD("P2P: Passphrase: %s (len=%d)\r\n", s->passphrase, (int)os_strlen(s->passphrase));
+		} else {
+			WPA_LOGD("P2P: Passphrase: (none)\r\n");
+		}
+		WPA_LOGD("P2P: PSK Set: %s\r\n", s->psk_set ? "Yes" : "No");
+		WPA_LOGD("P2P: Disabled: %d (2=Persistent Group)\r\n", s->disabled);
+		WPA_LOGD("P2P: P2P Group: %d, Persistent Group: %d\r\n", s->p2p_group, s->p2p_persistent_group);
+
+		p2p_persistent_group_flash_t pg_data;
+		int ret;
+		WPA_LOGI("P2P: ==========Persistent Group ready to save to Flash==========\r\n");
+		os_memcpy(pg_data.magic, "P2PG", 4);
+		os_memcpy(pg_data.go_dev_addr, go_dev_addr, ETH_ALEN);
+		pg_data.ssid_len = s->ssid_len < 32 ? s->ssid_len : 32;
+		if (s->ssid && pg_data.ssid_len > 0) {
+			os_memcpy(pg_data.ssid, s->ssid, pg_data.ssid_len);
+		} else {
+			pg_data.ssid_len = 0;
+			os_memset(pg_data.ssid, 0, sizeof(pg_data.ssid));
+		}
+
+		if (s->psk_set) {
+			os_memcpy(pg_data.psk, s->psk, 32);
+			pg_data.psk_set = 1;
+		} else {
+			os_memset(pg_data.psk, 0, 32);
+			pg_data.psk_set = 0;
+		}
+
+		if (s->passphrase) {
+			int passphrase_len = os_strlen(s->passphrase);
+			pg_data.passphrase_len = passphrase_len < 64 ? passphrase_len : 63;
+			os_memcpy(pg_data.passphrase, s->passphrase, pg_data.passphrase_len);
+			pg_data.passphrase[pg_data.passphrase_len] = '\0';
+		} else {
+			pg_data.passphrase_len = 0;
+			os_memset(pg_data.passphrase, 0, sizeof(pg_data.passphrase));
+		}
+
+		pg_data.mode = s->mode;
+		os_memset(pg_data.reserved, 0, sizeof(pg_data.reserved));
+
+		/* Save to Flash */
+		ret = bk_set_env_enhance("p2p_persist_grp", (const void *)&pg_data, sizeof(pg_data));
+		if (ret == EF_NO_ERR) {
+			WPA_LOGD("P2P: Persistent Group saved to Flash successfully\r\n");
+		} else {
+			WPA_LOGE("P2P: Failed to save Persistent Group to Flash (ret=%d)\r\n", ret);
+		}
+		WPA_LOGD("P2P: =================================================\r\n");
+	}
+}
+
+
+int wpas_p2p_set_ssid_postfix(struct wpa_supplicant *wpa_s, char *postfix)
+{
+	size_t len;
+
+	if (wpa_s == NULL || wpa_s->global == NULL || wpa_s->global->p2p == NULL ||
+	    wpa_s->conf == NULL)
+		return -1;
+
+	if (postfix == NULL)
+		return -1;
+
+	len = os_strlen(postfix);
+	if (len > 32)
+		return -1;
+	WPA_LOGD("%s CFG_CHANGED_P2P_SSID_POSTFIX: %s\r\n", __func__, postfix);
+	wpa_s->conf->changed_parameters |= CFG_CHANGED_P2P_SSID_POSTFIX;
+	os_free(wpa_s->conf->p2p_ssid_postfix);
+	wpa_s->conf->p2p_ssid_postfix = os_strdup(postfix);
+
+	return 0;
+}
+#endif
 
 static int wpas_p2p_store_persistent_group(struct wpa_supplicant *wpa_s,
 					   struct wpa_ssid *ssid,
@@ -1250,7 +1356,9 @@ static int wpas_p2p_store_persistent_group(struct wpa_supplicant *wpa_s,
 	    wpa_config_write(wpa_s->confname, wpa_s->conf)) {
 		wpa_printf(MSG_DEBUG, "P2P: Failed to update configuration");
 	}
-
+#if BK_SUPPLICANT && CONFIG_EASY_FLASH
+	wpas_p2p_save_persistent_group_to_flash(s, go_dev_addr, changed);
+#endif
 	return s->id;
 }
 
@@ -2476,6 +2584,15 @@ static void wpas_go_neg_completed(void *ctx, struct p2p_go_neg_results *res)
 	res->max_oper_chwidth = wpa_s->p2p_go_max_oper_chwidth;
 	res->vht_center_freq2 = wpa_s->p2p_go_vht_center_freq2;
 
+#if BK_SUPPLICANT
+	if (res->role_go && !res->persistent_group) {
+		if (wpa_s->conf->persistent_reconnect)
+			res->persistent_group = 2;
+		else
+			res->persistent_group = 1;
+		WPA_LOGI("P2P: Force enable persistent group (value=%d) for GO\r\n", res->persistent_group);
+	}
+#endif
 	/* Get GO Intent from p2p_data structure */
 	if (wpa_s->global->p2p) {
 		go_intent = wpa_s->global->p2p->go_intent;

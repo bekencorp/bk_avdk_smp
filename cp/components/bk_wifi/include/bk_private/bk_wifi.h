@@ -628,6 +628,7 @@ int wlan_p2p_listen(void);
 int wlan_p2p_stop_find(void);
 int wlan_p2p_connect(const uint8_t *mac, int method, int intent);
 int wlan_p2p_get_saved_intent(void);  // Get saved P2P intent for wpa_supplicant
+char *wlan_p2p_get_saved_ssid(void);
 int wlan_p2p_disable(void);
 int wlan_p2p_cancel(void);
 #endif

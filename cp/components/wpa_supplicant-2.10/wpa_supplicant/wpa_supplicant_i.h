@@ -281,6 +281,20 @@ struct p2p_srv_upnp {
 	char *service;
 };
 
+/* Persistent Group data structure for Flash storage */
+typedef struct {
+	u8 magic[4];			  /* Magic number: "P2PG" */
+	u8 go_dev_addr[ETH_ALEN]; /* GO Device Address */
+	u8 ssid_len;			 /* SSID length */
+	u8 ssid[32];			 /* SSID (max 32 bytes) */
+	u8 psk[32]; 			 /* PSK (256 bits) */
+	u8 psk_set; 			 /* PSK is set flag */
+	u8 passphrase_len;		 /* Passphrase length */
+	char passphrase[64];	 /* Passphrase (max 63 chars + null) */
+	u8 mode;				 /* Mode: GO/Client */
+	u8 reserved[3]; 		 /* Reserved for alignment */
+} p2p_persistent_group_flash_t;
+
 /**
  * struct wpa_global - Internal, global data for all %wpa_supplicant interfaces
  *

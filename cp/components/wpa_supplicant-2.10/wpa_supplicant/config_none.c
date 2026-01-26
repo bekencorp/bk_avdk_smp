@@ -24,6 +24,9 @@
 #include <modules/wifi.h>
 #include "wpa_supplicant_i.h"
 #include "bss.h"
+#if CONFIG_P2P && CONFIG_EASY_FLASH
+#include "bk_ef.h"
+#endif
 
 #if !CONFIG_QUICK_TRACK
 /**
@@ -265,6 +268,145 @@ static struct wpa_ssid *wpa_config_read_network(int *line, int id)
 	return ssid;
 }
 
+#if CONFIG_EASY_FLASH && CONFIG_P2P
+static int p2p_check_ssid_postfix_match(const u8 *flash_ssid, u8 flash_ssid_len, const char *enabled_ssid)
+{
+	/* If no enabled SSID, always restore */
+	if (!enabled_ssid || enabled_ssid[0] == '\0') {
+		return 1;
+	}
+
+	/* Check if Flash SSID is in "DIRECT-XX" format */
+	if (flash_ssid_len < 9 || os_memcmp(flash_ssid, "DIRECT-", 7) != 0) {
+		return 1;
+	}
+
+	/* Extract postfix from "DIRECT-XX" (skip "DIRECT-" prefix) */
+	size_t flash_postfix_len = flash_ssid_len - 9;
+	if (flash_postfix_len == 0) {
+		WPA_LOGD("P2P: Skip Flash restore - empty SSID postfix\r\n");
+		return 0;
+	}
+
+	char flash_postfix[33] = {0};
+	if (flash_postfix_len >= sizeof(flash_postfix)) {
+		flash_postfix_len = sizeof(flash_postfix) - 1;
+	}
+	os_memcpy(flash_postfix, &flash_ssid[9], flash_postfix_len);
+	flash_postfix[flash_postfix_len] = '\0';
+
+	if (os_strcmp(flash_postfix, enabled_ssid) != 0) {
+		WPA_LOGI("P2P: Skip Flash restore - SSID postfix mismatch (Flash=%s, Enable=%s)\r\n",
+			flash_postfix, enabled_ssid);
+		return 0;
+	}
+
+	WPA_LOGI("P2P: SSID postfix matches (Flash=%s, Enable=%s), will restore\r\n",
+		flash_postfix, enabled_ssid);
+	return 1;
+}
+
+static int p2p_restore_persistent_group(struct wpa_config *config,
+					const p2p_persistent_group_flash_t *pg_data,
+					struct wpa_ssid **head, struct wpa_ssid **tail)
+{
+	struct wpa_ssid *pg_ssid;
+
+	/* Create a new network entry for Persistent Group */
+	pg_ssid = wpa_config_add_network(config);
+	if (pg_ssid == NULL) {
+		WPA_LOGE("P2P: Failed to allocate memory for restored Persistent Group\r\n");
+		return -1;
+	}
+
+	/* Set P2P group flags */
+	pg_ssid->p2p_group = 1;
+	pg_ssid->p2p_persistent_group = 1;
+	pg_ssid->disabled = 2;	/* 2 = Persistent Group */
+	pg_ssid->bssid_set = 1;
+	os_memcpy(pg_ssid->bssid, pg_data->go_dev_addr, ETH_ALEN);
+
+	if (pg_data->ssid_len > 0 && pg_data->ssid_len <= 32) {
+		pg_ssid->ssid = os_malloc(pg_data->ssid_len);
+		if (pg_ssid->ssid == NULL) {
+			WPA_LOGE("P2P: Failed to allocate memory for SSID\r\n");
+			goto error;
+		}
+		os_memcpy(pg_ssid->ssid, pg_data->ssid, pg_data->ssid_len);
+		pg_ssid->ssid_len = pg_data->ssid_len;
+	}
+
+	if (pg_data->psk_set) {
+		os_memcpy(pg_ssid->psk, pg_data->psk, 32);
+		pg_ssid->psk_set = 1;
+	}
+
+	if (pg_data->passphrase_len > 0 && pg_data->passphrase_len < 64) {
+		pg_ssid->passphrase = os_malloc(pg_data->passphrase_len + 1);
+		if (pg_ssid->passphrase == NULL) {
+			WPA_LOGE("P2P: Failed to allocate memory for passphrase\r\n");
+			goto error;
+		}
+		os_memcpy(pg_ssid->passphrase, pg_data->passphrase, pg_data->passphrase_len);
+		pg_ssid->passphrase[pg_data->passphrase_len] = '\0';
+	}
+
+	pg_ssid->mode = pg_data->mode;
+
+	/* Set default security parameters */
+	pg_ssid->auth_alg = WPA_AUTH_ALG_OPEN;
+	pg_ssid->key_mgmt = WPA_KEY_MGMT_PSK;
+	pg_ssid->proto = WPA_PROTO_RSN;
+	pg_ssid->pairwise_cipher = WPA_CIPHER_CCMP;
+	pg_ssid->group_cipher = WPA_CIPHER_CCMP;
+	pg_ssid->export_keys = 1;
+
+	/* If passphrase exists but PSK is not set, calculate PSK */
+	if (pg_ssid->passphrase && !pg_ssid->psk_set) {
+		wpa_config_update_psk(pg_ssid);
+	}
+
+	/* Add to network list */
+	if (*head == NULL) {
+		*head = *tail = pg_ssid;
+	} else {
+		(*tail)->next = pg_ssid;
+		*tail = pg_ssid;
+	}
+
+	if (wpa_config_add_prio_network(config, pg_ssid)) {
+		WPA_LOGE("P2P: Failed to add restored Persistent Group to priority list\r\n");
+		return -1;
+	}
+
+	WPA_LOGD("P2P: Persistent Group restored from Flash successfully (ID=%d)\r\n", pg_ssid->id);
+	WPA_LOGD("P2P: GO Dev Addr: %02x:%02x:%02x:%02x:%02x:%02x\r\n",
+		pg_ssid->bssid[0], pg_ssid->bssid[1], pg_ssid->bssid[2],
+		pg_ssid->bssid[3], pg_ssid->bssid[4], pg_ssid->bssid[5]);
+	if (pg_ssid->ssid && pg_ssid->ssid_len > 0) {
+		char ssid_str[33];
+		size_t copy_len = pg_ssid->ssid_len < 32 ? pg_ssid->ssid_len : 32;
+		os_memcpy(ssid_str, pg_ssid->ssid, copy_len);
+		ssid_str[copy_len] = '\0';
+		WPA_LOGD("P2P: SSID: %s (len=%d)\r\n", ssid_str, pg_ssid->ssid_len);
+	}
+	config->ssid = *head;
+	return 0;
+
+error:
+	/* Cleanup on error */
+	if (pg_ssid->ssid) {
+		os_free(pg_ssid->ssid);
+		pg_ssid->ssid = NULL;
+	}
+	if (pg_ssid->passphrase) {
+		os_free(pg_ssid->passphrase);
+		pg_ssid->passphrase = NULL;
+	}
+	return -1;
+}
+#endif /* CONFIG_EASY_FLASH && CONFIG_P2P */
+
 struct wpa_config *wpa_config_read(const char *name, struct wpa_config *cfgp)
 {
 	struct wpa_config *config;
@@ -313,6 +455,34 @@ struct wpa_config *wpa_config_read(const char *name, struct wpa_config *cfgp)
 	// Fixed P2P operating channel for negotiation
 	config->p2p_oper_reg_class = 81;  // 2.4GHz band
 	config->p2p_oper_channel = 0;     // Fixed to channel 6
+#if CONFIG_EASY_FLASH
+	char *set_ssid = wlan_p2p_get_saved_ssid();
+	int set_intent = wlan_p2p_get_saved_intent();
+	p2p_persistent_group_flash_t pg_data;
+	int ret;
+
+	if (set_intent != 15) {
+		WPA_LOGD("P2P: Skip Flash restore - intent=%d (Client mode, not GO)\r\n", set_intent);
+	} else {
+		config->update_config = 1;
+		ret = bk_get_env_enhance("p2p_persist_grp", (void *)&pg_data, sizeof(pg_data));
+		if (ret <= 0 || ret != sizeof(pg_data)) {
+			WPA_LOGE("P2P: No Persistent Group found in Flash (ret=%d)\r\n", ret);
+		} else if (os_memcmp(pg_data.magic, "P2PG", 4) != 0) {
+			WPA_LOGE("P2P: Invalid magic number in Flash data, ignoring\r\n");
+		} else {
+			WPA_LOGD("P2P: ==========Found Persistent Group in Flash==========\r\n");
+
+			if (!p2p_check_ssid_postfix_match(pg_data.ssid, pg_data.ssid_len, set_ssid)) {
+				WPA_LOGD("P2P: Persistent Group found in Flash but skipped due to enable params\r\n");
+			} else if (p2p_restore_persistent_group(config, &pg_data, &head, &tail) != 0) {
+				WPA_LOGE("P2P: Failed to restore Persistent Group from Flash\r\n");
+			}
+		}
+		WPA_LOGD("P2P: =================================================\r\n");
+	}
+#endif /* CONFIG_EASY_FLASH */
+
 #endif
 
 #ifdef CONFIG_IEEE80211R

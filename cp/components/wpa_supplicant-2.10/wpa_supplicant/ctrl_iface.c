@@ -1774,6 +1774,11 @@ int wpa_supplicant_ctrl_iface_receive(wpah_msg_t *msg)
 	case WPA_CTRL_CMD_P2P_CANCEL:
 		wpas_p2p_disconnect(wpa_s);
 		break;
+	case WPA_CTRL_CMD_P2P_SET_SSID: {
+		char *param = (char *)msg->argu;
+		wpas_p2p_set_ssid_postfix(wpa_s, param);
+		break;
+	}
 	case WPA_CTRL_CMD_P2P_DISABLE: {
 		int netif_ret;
 		CHECK_WPA_S();

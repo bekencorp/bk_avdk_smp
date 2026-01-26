@@ -140,6 +140,7 @@ int wpas_p2p_set_cross_connect(struct wpa_supplicant *wpa_s, int enabled);
 int wpas_p2p_cancel(struct wpa_supplicant *wpa_s);
 int wpas_p2p_unauthorize(struct wpa_supplicant *wpa_s, const char *addr);
 int wpas_p2p_disconnect(struct wpa_supplicant *wpa_s);
+int wpas_p2p_set_ssid_postfix(struct wpa_supplicant *wpa_s, char *postfix);
 struct wpa_ssid * wpas_p2p_get_persistent(struct wpa_supplicant *wpa_s,
 					  const u8 *addr, const u8 *ssid,
 					  size_t ssid_len);

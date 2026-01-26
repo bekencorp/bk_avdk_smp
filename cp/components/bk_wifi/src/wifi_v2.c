@@ -1439,14 +1439,24 @@ int wlan_dhcp_done_ind(u8 vif_idx)
 
 #if CONFIG_P2P
 // Save P2P SSID from AP side for reconnection or manual restart
-static char g_p2p_saved_ssid[33] = {0};
+char g_p2p_saved_ssid[33] = {0};
 // Save P2P intent for future connect operations
-static int g_p2p_saved_intent = -1;  // -1 means not set, use default
+int g_p2p_saved_intent = -1;  // -1 means not set, use default
 
 // Get saved P2P intent (for use by wpa_supplicant)
 int wlan_p2p_get_saved_intent(void)
 {
 	return g_p2p_saved_intent;
+}
+
+char *wlan_p2p_get_saved_ssid(void)
+{
+	return g_p2p_saved_ssid;
+}
+
+int wlan_p2p_set_ssid(char *param)
+{
+	return wpa_ctrl_request(WPA_CTRL_CMD_P2P_SET_SSID, param);
 }
 
 int wlan_p2p_enable(const char *ssid)
@@ -1556,6 +1566,10 @@ int wlan_p2p_enable_with_intent(const char *ssid, int intent)
 			__func__, wpa_s, wpa_s ? wpa_s->conf : NULL);
 	}
 
+	if (actual_intent == 15) {
+		ret = wlan_p2p_set_ssid((void *)actual_ssid);
+		WIFI_LOGD("%s: Set P2P SSID postfix (intent=%d, actual_ssid=%s, GO mode)\r\n", __func__, actual_intent, actual_ssid);
+	}
 	return ret;
 }
 
