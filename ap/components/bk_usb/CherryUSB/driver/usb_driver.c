@@ -211,6 +211,8 @@ static void bk_usb_device_custom_register_set()
 static void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops)
 {
 	if(ops){
+		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_USB, PM_POWER_MODULE_STATE_ON);
+		delay(100);
 		sys_drv_usb_clock_ctrl(true, NULL);
 		delay(100);
 
@@ -227,6 +229,7 @@ static void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops)
 	} else {
 		sys_drv_usb_analog_phy_en(0, NULL);
 		sys_drv_usb_clock_ctrl(false, NULL);
+		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_USB, PM_POWER_MODULE_STATE_OFF);
 	}
 }
 
