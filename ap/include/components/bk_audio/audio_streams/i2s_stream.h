@@ -55,6 +55,7 @@ typedef struct
     int                     task_prio;        /*!< Task priority (based on freeRTOS priority) */
     int                     multi_in_port_num;   /*!< The number of multiple input audio port */
     int                     multi_out_port_num;  /*!< The number of multiple output audio port */
+    uint8_t                 manual_config_gpio_en; /*!< Manual GPIO configuration enable: 0=auto config GPIO, 1=manual config GPIO by application */
 } i2s_stream_cfg_t;
 
 
@@ -93,6 +94,7 @@ typedef struct
         .task_prio = I2S_STREAM_TASK_PRIO,                  \
         .multi_in_port_num = 0,                             \
         .multi_out_port_num = 0,                            \
+        .manual_config_gpio_en = 0,                         \
     }
 
 /**

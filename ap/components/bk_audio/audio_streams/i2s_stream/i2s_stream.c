@@ -144,6 +144,7 @@ typedef struct i2s_stream
     bool                    need_channel_expand;  /**< whether need to expand mono to stereo */
     char                    *expand_buffer;   /**< buffer for channel expansion, used when converting mono to stereo */
     int                     expand_buffer_size;  /**< size of expand buffer */
+    uint8_t                 manual_config_gpio_en;  /**< Manual GPIO configuration enable flag */
 
 #if CONFIG_ADK_I2S_STREAM_SUPPORT_MULTIPLE_SOURCE
     int                             current_port_id;        /**< the valid audio port of currently writing i2s data, 0: element->in, >=1: element->multi_in */
@@ -912,6 +913,7 @@ audio_element_handle_t i2s_stream_init(i2s_stream_cfg_t *config)
     i2s_stream->need_channel_expand = false;
     i2s_stream->expand_buffer = NULL;
     i2s_stream->expand_buffer_size = 0;
+    i2s_stream->manual_config_gpio_en = config->manual_config_gpio_en;
 
     /* init semaphore */
     bk_err_t ret = rtos_init_semaphore(&i2s_stream->can_process, 1);
@@ -929,10 +931,23 @@ audio_element_handle_t i2s_stream_init(i2s_stream_cfg_t *config)
     }
 
     /* init i2s configure */
-    if (BK_OK != bk_i2s_init(i2s_stream->gpio_group, &i2s_stream->i2s_cfg))
+    if (config->manual_config_gpio_en)
     {
-        BK_LOGE(TAG, "%s, %d, init i2s config fail \n", __func__, __LINE__);
-        goto _i2s_init_exit;
+        // GPIO configuration is done by application layer
+        if (BK_OK != bk_i2s_init_without_gpio(i2s_stream->gpio_group, &i2s_stream->i2s_cfg))
+        {
+            BK_LOGE(TAG, "%s, %d, init i2s config without gpio fail \n", __func__, __LINE__);
+            goto _i2s_init_exit;
+        }
+    }
+    else
+    {
+        // GPIO configuration is done by driver
+        if (BK_OK != bk_i2s_init(i2s_stream->gpio_group, &i2s_stream->i2s_cfg))
+        {
+            BK_LOGE(TAG, "%s, %d, init i2s config fail \n", __func__, __LINE__);
+            goto _i2s_init_exit;
+        }
     }
 
     /* init i2s channel */
