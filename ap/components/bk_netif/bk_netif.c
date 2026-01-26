@@ -143,11 +143,28 @@ bk_err_t bk_netif_set_ip4_config(netif_if_t ifx, const netif_ip4_config_t *ip4_c
 {
 	netif_ip4_config_t *config = (netif_ip4_config_t*)ip4_config;
 	int ret;
+	uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
+	void *buffer_to_ipc = NULL;
 
 	ret = netif_validate_ip4_config(ip4_config);
 	if (ret != BK_OK) {
 		return ret;
 	}
+
+	buffer_to_ipc = os_malloc(len_ip4_config);
+	if (!buffer_to_ipc)
+	{
+		BK_LOGE(NULL, "%s malloc failed\r\n", __func__);
+		return BK_ERR_NO_MEM;
+	}
+	os_memcpy(buffer_to_ipc, ip4_config, len_ip4_config);
+	ret = wifi_send_com_api_cmd(AP_NETIF_IP4_CONFIG, 1, (uint32_t)buffer_to_ipc);
+	if (ret != BK_OK)
+	{
+		BK_LOGE(NULL, "%s set ap netif ip4 config failed, ret=%d\n", __func__, ret);
+		return ret;
+	}
+	os_free(buffer_to_ipc);
 
 	if (ifx == NETIF_IF_STA) {
 		ip_address_set(1 /*STA*/, 0/*static IP*/, config->ip, config->mask, config->gateway, config->dns);

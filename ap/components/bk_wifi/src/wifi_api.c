@@ -509,34 +509,10 @@ static bk_err_t wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 bk_err_t bk_wifi_ap_set_config(const wifi_ap_config_t *ap_config)
 {
     int ret = BK_OK;
-    netif_ip4_config_t ip4_config = {0};
     void *buffer_to_ipc = NULL;
     uint32_t len = sizeof(wifi_ap_config_t);
-    uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
 
     WDRV_LOGD("ap configuring\n");
-
-    os_strcpy(ip4_config.ip, WLAN_DEFAULT_IP);
-    os_strcpy(ip4_config.mask, WLAN_DEFAULT_MASK);
-    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GW);
-    os_strcpy(ip4_config.dns, WLAN_DEFAULT_GW);
-
-    BK_RETURN_ON_ERR(bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config));
-
-    buffer_to_ipc = os_malloc(len_ip4_config);
-    if (!buffer_to_ipc)
-    {
-        WIFI_LOGE("%s malloc failed\r\n", __func__);
-        return BK_ERR_NO_MEM;
-    }
-    os_memcpy(buffer_to_ipc, &ip4_config, len_ip4_config);
-    ret = wifi_send_com_api_cmd(AP_NETIF_IP4_CONFIG, 1, (uint32_t)buffer_to_ipc);
-    if (ret != BK_OK)
-    {
-        WDRV_LOGE("%s set ap netif ip4 config failed, ret=%d\n", __func__, ret);
-        return ret;
-    }
-    os_free(buffer_to_ipc);
 
 #if 0
     if (!wifi_is_inited()) {
