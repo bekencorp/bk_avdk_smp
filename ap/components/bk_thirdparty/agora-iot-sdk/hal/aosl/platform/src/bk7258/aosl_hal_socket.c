@@ -57,7 +57,7 @@ static inline void conv_addr_to_os(const aosl_sockaddr_t *ah_addr, struct sockad
     case AOSL_AF_INET6: {
 #if LWIP_IPV6
       struct sockaddr_in6 *v6 = (struct sockaddr_in6 *)os_addr;
-      v6->sin6_family = AF_INET;
+      v6->sin6_family = AF_INET6;
       v6->sin6_port = ah_addr->sa_port;
       v6->sin6_flowinfo = ah_addr->sin6_flowinfo;
       v6->sin6_scope_id = ah_addr->sin6_scope_id;
@@ -206,7 +206,7 @@ ssize_t aosl_hal_sk_recv(int sockfd, void* buf, size_t len, int flags)
 }
 
 ssize_t aosl_hal_sk_sendto(int sockfd, const void *buffer, size_t length,
-                           int flags, const aosl_sockaddr_t *dest_addr)
+                        int flags, const aosl_sockaddr_t *dest_addr)
 {
 #if LWIP_IPV6
   struct sockaddr_in6 com_addr = {0};
@@ -224,7 +224,7 @@ ssize_t aosl_hal_sk_sendto(int sockfd, const void *buffer, size_t length,
 }
 
 ssize_t aosl_hal_sk_recvfrom(int sockfd, void *buffer, size_t length,
-                             int flags, aosl_sockaddr_t *src_addr)
+                          int flags, aosl_sockaddr_t *src_addr)
 {
 #if LWIP_IPV6
   struct sockaddr_in6 com_addr = {0};

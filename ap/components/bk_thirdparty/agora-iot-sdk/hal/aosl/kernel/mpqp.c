@@ -127,7 +127,7 @@ static void __mpqp_q_check_shrink (aosl_timer_t timer, const aosl_ts_t *now_p, u
 	 * 2. Shrink one after idle q_max_idles seconds;
 	 **/
 	if (idle_counter >= (2 * qp->q_max_idles)) {
-		aosl_mpqp_shrink_all ((aosl_mpqp_t)qp, 0);
+		aosl_mpqp_shrink_all ((aosl_mpqp_t)qp, 1);
 	} else if (idle_counter >= qp->q_max_idles) {
 		aosl_mpqp_shrink ((aosl_mpqp_t)qp);
 	}
@@ -881,6 +881,7 @@ __export_in_so__ int aosl_mpqp_pool_tail_queue_argv (aosl_mpqp_t qp, aosl_mpq_t 
 static int __mpqp_shrink (struct mpq_pool *qp)
 {
 	struct mp_queue *q = NULL;
+	struct q_wait_entry wait_entry = { 0 };
 
 	if (!qp) {
 		return -1;
@@ -906,9 +907,11 @@ static int __mpqp_shrink (struct mpq_pool *qp)
 	k_lock_unlock (&qp->lock);
 
 	if (q != NULL) {
+		__mpq_add_wait (q, &wait_entry);
 		____q_get (q);
 		__mpq_destroy (q);
 		____q_put (q);
+		__mpq_destroy_wait (&wait_entry);
 		return 0;
 	}
 
@@ -930,7 +933,7 @@ static void __mpqp_shrink_all (struct mpq_pool *qp, int wait)
 	q_count = qp->q_count;
 	if (q_count > 0) {
 		if (wait)
-			wait_entries = alloca (sizeof (struct q_wait_entry *) * q_count);
+			wait_entries = alloca (sizeof (struct q_wait_entry) * q_count);
 
 		for (i = 0; i < q_count; i++) {
 			struct pool_entry *entry = &qp->pool_entries [i];
@@ -967,10 +970,10 @@ static void __mpqp_shrink_all (struct mpq_pool *qp, int wait)
 
 void mpqp_shrink_pools (void)
 {
-	__mpqp_shrink_all (cpu_pool, 0 /* No need to wait */);
-	__mpqp_shrink_all (gpu_pool, 0 /* No need to wait */);
-	__mpqp_shrink_all (gen_pool, 0 /* No need to wait */);
-	__mpqp_shrink_all (ltw_pool, 0 /* No need to wait */);
+	__mpqp_shrink_all (cpu_pool, 1);
+	__mpqp_shrink_all (gpu_pool, 1);
+	__mpqp_shrink_all (gen_pool, 1);
+	__mpqp_shrink_all (ltw_pool, 1);
 }
 
 /**
@@ -1069,6 +1072,7 @@ __export_in_so__ void aosl_mpqp_destroy (aosl_mpqp_t qpobj, int wait)
 static void __mpqp_destroy(struct mpq_pool *qp)
 {
 	if (qp) {
+		__mpqp_shrink_all (qp, 1);
 		aosl_free (qp->pool_entries);
 		k_lock_destroy (&qp->lock);
 		aosl_free (qp);
@@ -1077,8 +1081,8 @@ static void __mpqp_destroy(struct mpq_pool *qp)
 
 void k_mpqp_fini (void)
 {
-	__mpqp_destroy(cpu_pool);
-	__mpqp_destroy(gpu_pool);
-	__mpqp_destroy(gen_pool);
-	__mpqp_destroy(ltw_pool);
+	__mpqp_destroy (cpu_pool);
+	__mpqp_destroy (gpu_pool);
+	__mpqp_destroy (gen_pool);
+	__mpqp_destroy (ltw_pool);
 }

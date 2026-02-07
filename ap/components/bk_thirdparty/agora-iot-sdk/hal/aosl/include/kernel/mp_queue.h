@@ -191,6 +191,7 @@ extern void __mpq_put (struct mp_queue *q);
 extern struct mp_queue *__mpq_get_or_this (aosl_mpq_t mpq_obj_id);
 extern void __mpq_put_or_this (struct mp_queue *q);
 extern struct mp_queue *__get_or_create_current ();
+extern int __is_mpq_valid (aosl_mpq_t mpq_obj_id);
 
 extern int __mpq_queue (struct mp_queue *q, aosl_mpq_t done_qid, aosl_ref_t ref, const char *f_name, aosl_mpq_func_argv_t f, uintptr_t argc, ...);
 extern int __mpq_queue_args (struct mp_queue *q, aosl_mpq_t done_qid, aosl_ref_t ref, const char *f_name, aosl_mpq_func_argv_t f, uintptr_t argc, va_list args);

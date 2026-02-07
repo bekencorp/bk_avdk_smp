@@ -1,4 +1,5 @@
 #include <os/mem.h>
+#include <string.h>
 
 #include <hal/aosl_hal_memory.h>
 #include <hal/aosl_hal_atomic.h>
@@ -48,8 +49,12 @@ static void* __mm_trace_unmask(void *ptr)
 
 void *aosl_hal_malloc(size_t size)
 {
-  void *p = psram_malloc(size + __mm_trace_get_mask_size());
-  return __mm_trace_mask(p, size);
+  void *ptr = psram_malloc(size + __mm_trace_get_mask_size());
+  if (ptr != NULL) {
+    ptr = __mm_trace_mask(ptr, size);
+  }
+
+  return ptr;
 }
 
 void *aosl_hal_calloc(size_t nmemb, size_t size)
@@ -76,7 +81,7 @@ void *aosl_hal_realloc(void *ptr, size_t size)
   }
 
   ptr = __mm_trace_unmask(ptr);
-  ptr = psram_realloc(ptr, size + __mm_trace_get_mask_size());
+  ptr = bk_psram_realloc(ptr, size + __mm_trace_get_mask_size());
   if (NULL == ptr) return NULL;
   return __mm_trace_mask(ptr, size);
 }
@@ -108,7 +113,7 @@ void *aosl_hal_calloc(size_t nmemb, size_t size)
 
 void *aosl_hal_realloc(void *ptr, size_t size)
 {
-  return psram_realloc(ptr, size);
+  return bk_psram_realloc(ptr, size);
 }
 
 void aosl_hal_free(void *ptr)

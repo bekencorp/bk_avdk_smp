@@ -239,6 +239,32 @@ static int __mpq_id_uninstall (int mpq_id, struct mp_queue *q)
 	return err;
 }
 
+int __is_mpq_valid (aosl_mpq_t mpq_obj_id)
+{
+	int16_t mpq_id = get_mpq_id (mpq_obj_id);
+	struct mp_queue *q;
+
+	if (mpq_id < MIN_MPQ_ID)
+		return 0;
+
+	mpq_id -= MIN_MPQ_ID;
+
+	k_rwlock_rdlock (&mpq_table_lock);
+	if (mpq_id < mpq_table_size) {
+		q = mpq_table [mpq_id];
+		if (q != NULL) {
+			if (q->qid != mpq_obj_id) {
+				q = NULL;
+			}
+		}
+	} else {
+		q = NULL;
+	}
+	k_rwlock_rdunlock (&mpq_table_lock);
+
+	return q != NULL;
+}
+
 struct mp_queue *__mpq_get (aosl_mpq_t mpq_obj_id)
 {
 	int16_t mpq_id = get_mpq_id (mpq_obj_id);

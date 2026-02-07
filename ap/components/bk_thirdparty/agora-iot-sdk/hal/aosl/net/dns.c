@@ -21,6 +21,7 @@
 #include <api/aosl_mpq_net.h>
 #include <kernel/kernel.h>
 #include <kernel/err.h>
+#include <kernel/mp_queue.h>
 #include <hal/aosl_hal_socket.h>
 
 #define MAX_DNS_RES_CNT 8
@@ -153,7 +154,10 @@ static void ____dns_resolve_host (const aosl_ts_t *queued_ts_p, aosl_refobj_t ro
 	aosl_mpq_func_argv_t f = (aosl_mpq_func_argv_t)argv [7];
 	uintptr_t f_argc = argv [8];
 
-	count = hostbyname_timed_do (hostname, port, sk_type, sk_prot, 0, __resolved_an_addr, addrs, addr_count);
+	int not_free_only = __is_mpq_valid(q);
+	if (not_free_only) {
+		count = hostbyname_timed_do (hostname, port, sk_type, sk_prot, 0, __resolved_an_addr, addrs, addr_count);
+	}
 
 	__queue_resolve_async_reply (q, AOSL_REF_INVALID, f, f_argc, &argv [9], hostname, count, addrs);
 }
