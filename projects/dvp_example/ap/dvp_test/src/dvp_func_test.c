@@ -23,6 +23,46 @@ static void dvp_func_cmd_help(void)
     LOGD("dvp close\n");
 }
 
+
+extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
+
+void dvp_api_dump_jpeg(void)
+{
+    frame_buffer_t *frame = dvp_frame_queue_get_frame(IMAGE_MJPEG, 500);
+    if (frame)
+    {
+        stack_mem_dump((uint32_t)frame->frame, (uint32_t)frame->frame + frame->length);
+
+        dvp_frame_queue_free(IMAGE_MJPEG, frame);
+    } else {
+        LOGE("%s, %d: dvp_frame_queue_get_frame failed\n", __func__, __LINE__);
+    }
+}
+
+void dvp_api_dump_h264(void)
+{
+    frame_buffer_t *frame = dvp_frame_queue_get_frame(IMAGE_H264, 500);
+    if (frame)
+    {
+        stack_mem_dump((uint32_t)frame->frame, (uint32_t)frame->frame + frame->length);
+        dvp_frame_queue_free(IMAGE_H264, frame);
+    } else {
+        LOGE("%s, %d: dvp_frame_queue_get_frame failed\n", __func__, __LINE__);
+    }
+}
+
+void dvp_api_dump_yuv(void)
+{
+    frame_buffer_t *frame = dvp_frame_queue_get_frame(IMAGE_YUV, 500);
+    if (frame)
+    {
+        stack_mem_dump((uint32_t)frame->frame, (uint32_t)frame->frame + frame->size);
+        dvp_frame_queue_free(IMAGE_YUV, frame);
+    } else {
+        LOGE("%s, %d: dvp_frame_queue_get_frame failed\n", __func__, __LINE__);
+    }
+}
+
 static frame_buffer_t *dvp_frame_malloc(image_format_t format, uint32_t size)
 {
     frame_buffer_t *frame = dvp_frame_queue_malloc(format, size);
@@ -164,6 +204,28 @@ void cli_dvp_func_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
         {
             LOGE("%s, %d: dvp handle is NULL\n", __func__, __LINE__);
             ret = AVDK_ERR_OK;
+        }
+    }
+    else if (strcmp(argv[1], "dump") == 0)
+    {
+        ret = AVDK_ERR_OK;
+        if (output_format == IMAGE_MJPEG)
+        {
+            dvp_api_dump_jpeg();
+        }
+        else if (output_format == IMAGE_H264)
+        {
+            dvp_api_dump_h264();
+        }
+        else if (output_format == IMAGE_YUV)
+        {
+            dvp_api_dump_yuv();
+        }
+        else
+        {
+            ret = AVDK_ERR_INVAL;
+            LOGE("%s, %d: invalid arguments\n", __func__, __LINE__);
+            dvp_func_cmd_help();
         }
     }
     else

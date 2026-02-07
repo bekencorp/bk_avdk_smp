@@ -1,0 +1,7 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+重启设备,AT+RST,1,wakeup,3
+jpeg_encode_open_01,ap_cmd jpeg_encode open,1,CMDRSP:OK,5
+jpeg_encode_compress_01,ap_cmd jpeg_encode compress 10240 40960,1,CMDRSP:OK,5
+jpeg_encode_get_compress_01,ap_cmd jpeg_encode get_compress,1,CMDRSP:OK,5
+jpeg_encode_encode_01,ap_cmd jpeg_encode encode,1,CMDRSP:OK,20
+jpeg_encode_close_01,ap_cmd jpeg_encode close,1,CMDRSP:OK,5
