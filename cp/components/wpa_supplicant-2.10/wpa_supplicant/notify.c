@@ -382,6 +382,21 @@ void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 				&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
 	}
 }
+
+void wpas_notify_disconnected_with_reason(int reason_code, bool local_generated)
+{
+	wifi_event_sta_disconnected_t sta_disconnected = {0};
+	sta_disconnected.disconnect_reason = reason_code;
+	sta_disconnected.local_generated = local_generated;
+
+#if CONFIG_WIFI_VNET_CONTROLLER
+	cif_handle_bk_cmd_disconnect_ind(sta_disconnected.local_generated, sta_disconnected.disconnect_reason);
+#endif
+
+	BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
+					&sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
+}
+
 #endif
 extern wifi_connect_tick_t sta_tick;
 extern sta_param_t *g_sta_param_ptr;

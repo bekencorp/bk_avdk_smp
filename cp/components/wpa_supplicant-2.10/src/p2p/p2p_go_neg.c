@@ -1216,6 +1216,12 @@ fail:
 			 */
 			dev->flags &= ~P2P_DEV_WAIT_GO_NEG_RESPONSE;
 		}
+#if BK_SUPPLICANT
+		wpabuf_free(dev->go_neg_resp);
+		dev->go_neg_resp = wpabuf_dup(resp);
+		dev->go_neg_resp_freq = freq;
+		dev->go_neg_resp_sent = 0;
+#endif
 	} else
 		p2p->pending_action_state =
 			P2P_PENDING_GO_NEG_RESPONSE_FAILURE;
@@ -1223,6 +1229,14 @@ fail:
 			    p2p->cfg->dev_addr,
 			    wpabuf_head(resp), wpabuf_len(resp), 100) < 0) {
 		p2p_dbg(p2p, "Failed to send Action frame");
+#if BK_SUPPLICANT
+		wpabuf_free(resp);
+		if (status == P2P_SC_SUCCESS) {
+			wpabuf_free(dev->go_neg_resp);
+			dev->go_neg_resp = NULL;
+		}
+		return;
+#endif
 	}
 
 	wpabuf_free(resp);

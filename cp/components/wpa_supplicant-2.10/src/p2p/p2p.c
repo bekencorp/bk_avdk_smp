@@ -232,7 +232,7 @@ void p2p_go_neg_failed(struct p2p_data *p2p, int status)
 
 	if (!peer)
 		return;
-
+	WPA_LOGW("%s\r\n", __func__);
 	eloop_cancel_timeout(p2p_go_neg_wait_timeout, p2p, NULL);
 	if (p2p->state != P2P_SEARCH) {
 		/*
@@ -248,6 +248,10 @@ void p2p_go_neg_failed(struct p2p_data *p2p, int status)
 	peer->oob_pw_id = 0;
 	wpabuf_free(peer->go_neg_conf);
 	peer->go_neg_conf = NULL;
+#if BK_SUPPLICANT
+	wpabuf_free(peer->go_neg_resp);
+	peer->go_neg_resp = NULL;
+#endif
 	p2p->go_neg_peer = NULL;
 
 	os_memset(&res, 0, sizeof(res));
@@ -1016,6 +1020,9 @@ static void p2p_device_free(struct p2p_data *p2p, struct p2p_device *dev)
 	wpabuf_free(dev->info.wfd_subelems);
 	wpabuf_free(dev->info.vendor_elems);
 	wpabuf_free(dev->go_neg_conf);
+#if BK_SUPPLICANT
+	wpabuf_free(dev->go_neg_resp);
+#endif
 	wpabuf_free(dev->info.p2ps_instance);
 
 	os_free(dev);
@@ -1943,7 +1950,10 @@ void p2p_go_complete(struct p2p_data *p2p, struct p2p_device *peer)
 	peer->oob_pw_id = 0;
 	wpabuf_free(peer->go_neg_conf);
 	peer->go_neg_conf = NULL;
-
+#if BK_SUPPLICANT
+	wpabuf_free(peer->go_neg_resp);
+	peer->go_neg_resp = NULL;
+#endif
 	p2p_set_state(p2p, P2P_PROVISIONING);
 	p2p->cfg->go_neg_completed(p2p->cfg->cb_ctx, &res);
 }
@@ -3802,10 +3812,45 @@ static void p2p_go_neg_resp_cb(struct p2p_data *p2p, int success)
 {
 	p2p_dbg(p2p, "GO Negotiation Response TX callback: success=%d",
 		success);
+#if BK_SUPPLICANT
+	struct p2p_device *dev = p2p->go_neg_peer;
+	if (!dev && p2p->state == P2P_PROVISIONING) {
+		p2p_dbg(p2p, "Ignore TX callback event - GO Negotiation is not running anymore");
+		return;
+	}
+	if (!success && dev && dev->go_neg_resp &&
+	    dev->go_neg_resp_sent <= P2P_GO_NEG_CNF_MAX_RETRY_COUNT) {
+		/*
+		 * Retry GO Negotiation Response
+		 * P2P_GO_NEG_CNF_MAX_RETRY_COUNT times
+		 */
+		WPA_LOGE("GO Negotiation Response retry %d\r\n",
+			dev->go_neg_resp_sent);
+		p2p->pending_action_state = P2P_PENDING_GO_NEG_RESPONSE;
+		if (p2p_send_action(p2p, dev->go_neg_resp_freq,
+				    dev->info.p2p_device_addr,
+				    p2p->cfg->dev_addr,
+				    p2p->cfg->dev_addr,
+				    wpabuf_head(dev->go_neg_resp),
+				    wpabuf_len(dev->go_neg_resp), 300) >= 0) {
+			dev->go_neg_resp_sent++;
+			return;
+		}
+		p2p_dbg(p2p, "Failed to re-send Action frame");
+	}
+
+	/* Clean up saved response frame */
+	if (dev && dev->go_neg_resp) {
+		wpabuf_free(dev->go_neg_resp);
+		dev->go_neg_resp = NULL;
+		dev->go_neg_resp_sent = 0;
+	}
+#else
 	if (!p2p->go_neg_peer && p2p->state == P2P_PROVISIONING) {
 		p2p_dbg(p2p, "Ignore TX callback event - GO Negotiation is not running anymore");
 		return;
 	}
+#endif
 	p2p_set_state(p2p, P2P_CONNECT);
 	p2p_set_timeout(p2p, 0, 500000);
 }

@@ -187,10 +187,13 @@ void p2p_process_invitation_req(struct p2p_data *p2p, const u8 *sa,
 	int persistent;
 
 	os_memset(group_bssid, 0, sizeof(group_bssid));
-
+#if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Received Invitation Request from " MACSTR " (freq=%d)",
 		MAC2STR(sa), rx_freq);
-
+#else
+	WPA_LOGD("Received Invitation Request from " MACSTR " (freq=%d)\r\n",
+		MAC2STR(sa), rx_freq);
+#endif
 	if (p2p_parse(data, len, &msg))
 		return;
 
@@ -434,10 +437,12 @@ void p2p_process_invitation_resp(struct p2p_data *p2p, const u8 *sa,
 	struct p2p_device *dev;
 	struct p2p_message msg;
 	struct p2p_channels intersection, *channels = NULL;
-
+#if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Received Invitation Response from " MACSTR,
 		MAC2STR(sa));
-
+#else
+	WPA_LOGD("Received Invitation Response from " MACSTR "\r\n", MAC2STR(sa));
+#endif
 	dev = p2p_get_device(p2p, sa);
 	if (dev == NULL) {
 		p2p_dbg(p2p, "Ignore Invitation Response from unknown peer "
@@ -606,8 +611,11 @@ int p2p_invite_send(struct p2p_data *p2p, struct p2p_device *dev,
 
 void p2p_invitation_req_cb(struct p2p_data *p2p, int success)
 {
+#if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Invitation Request TX callback: success=%d", success);
-
+#else
+	WPA_LOGD("Invitation Request TX callback: success=%d\r\n", success);
+#endif
 	if (p2p->invite_peer == NULL) {
 		p2p_dbg(p2p, "No pending Invite");
 		return;
@@ -627,7 +635,12 @@ void p2p_invitation_req_cb(struct p2p_data *p2p, int success)
 
 void p2p_invitation_resp_cb(struct p2p_data *p2p, int success)
 {
+#if CONFIG_WPA_LOG
 	p2p_dbg(p2p, "Invitation Response TX callback: success=%d", success);
+#else
+	WPA_LOGD("Invitation Response TX callback: success=%d\r\n", success);
+#endif
+
 	p2p->cfg->send_action_done(p2p->cfg->cb_ctx);
 
 	if (!success)

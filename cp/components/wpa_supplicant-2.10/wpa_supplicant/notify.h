@@ -185,5 +185,6 @@ void hapd_notify_sta_disconnected(struct hostapd_data *hapd, const u8 *mac);
 void hapd_notify_sta_psk_failure(struct hostapd_data *hapd, const u8 *mac);
 void wpas_notify_disconnected(struct wpa_supplicant *wpa_s);
 void wpas_notify_connected(struct wpa_supplicant *wpa_s);
+void wpas_notify_disconnected_with_reason(int reason_code, bool local_generated);
 #endif
 #endif /* NOTIFY_H */

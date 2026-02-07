@@ -63,6 +63,8 @@ beken_mutex_t sr_mutex;
 uint32_t mac_ie_he_capa_find(uint32_t buffer, uint16_t buflen, uint8_t *ie_len);
 
 wifi_rlk_base_info_t wifi_rlk_info = {0};
+
+int roc_channel = 0;
 /**
  ****************************************************************************************
  * Test whether the specified capability is supported locally
@@ -1642,6 +1644,7 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 
 		msg_ptr = (struct ke_msg *)rx_msg;
 		ind = (struct mm_channel_switch_ind *)msg_ptr->param;
+		roc_channel = ind->freq;
 		if (ind->roc)
 			wpa_ctrl_event_copy(WPA_CTRL_EVENT_REMAIN_ON_CHANNEL, ind, sizeof(*ind));
 	}	break;
@@ -1654,7 +1657,7 @@ void rwnx_handle_recv_msg(struct ke_msg *rx_msg)
 	case MM_REMAIN_ON_CHANNEL_EXP_IND: {
 		struct rwnx_hw *rwnx_hw = &g_rwnx_hw;
 		struct rwnx_roc_elem *roc_elem = rwnx_hw->roc_elem;
-
+		roc_channel = 0;
 		if (roc_elem) {
 			rwnx_hw->roc_elem = 0;
 			os_free(roc_elem);

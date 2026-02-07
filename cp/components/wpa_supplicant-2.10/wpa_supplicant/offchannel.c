@@ -15,6 +15,7 @@
 #include "p2p_supplicant.h"
 #include "driver_i.h"
 #include "offchannel.h"
+extern int roc_channel;
 
 
 
@@ -366,7 +367,12 @@ int offchannel_send_action(struct wpa_supplicant *wpa_s, unsigned int freq,
 			freq = 0;
 		}
 	}
-
+#if BK_SUPPLICANT
+	if (wpa_s->off_channel_freq == freq && roc_channel == 0) {
+		WPA_LOGE("Off-channel: Roc cancel already requested, offchannel:%d should be set zero\r\n", wpa_s->off_channel_freq);		
+		wpa_s->off_channel_freq = 0;
+	}
+#endif
 	if (wpa_s->off_channel_freq == freq || freq == 0) {
 		wpa_printf(MSG_DEBUG, "Off-channel: Already on requested "
 			   "channel; send Action frame immediately");
@@ -411,12 +417,31 @@ int offchannel_send_action(struct wpa_supplicant *wpa_s, unsigned int freq,
 		wait_time += wpa_s->extra_roc_dur;
 	}
 #endif /* CONFIG_TESTING_OPTIONS */
+#if BK_SUPPLICANT
+	int err = wpa_drv_remain_on_channel(wpa_s, freq, wait_time);
+	if (err < 0) {
+		WPA_LOGE("Off-channel: Failed to request driver to remain on channel (%u MHz) for Action Frame TX ret:%d\r\n", freq, err);
+		if (err == BK_ERR_BUSY) {
+			/* Driver already has an ongoing RoC; mark that we are waiting
+			 * for that RoC to complete so subsequent requests don't
+			 * re-enter the driver. Do not free pending_action_tx here
+			 * so the pending frame can be transmitted once the RoC
+			 * completes.
+			 */
+			WPA_LOGE("Off-channel: Roc is ongoing - mark waiting for freq=%u\r\n", freq);
+			wpa_s->roc_waiting_drv_freq = freq;
+			return 0;
+		} else
+			return -1;
+	}
+#else
 	if (wpa_drv_remain_on_channel(wpa_s, freq, wait_time) < 0) {
 		wpa_printf(MSG_DEBUG, "Off-channel: Failed to request driver "
 			   "to remain on channel (%u MHz) for Action "
 			   "Frame TX", freq);
 		return -1;
 	}
+#endif
 	wpa_s->off_channel_freq = 0;
 	wpa_s->roc_waiting_drv_freq = freq;
 

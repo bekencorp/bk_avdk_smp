@@ -146,7 +146,22 @@ struct p2p_device {
 	 * go_neg_conf - GO Negotiation Confirmation frame
 	 */
 	struct wpabuf *go_neg_conf;
+#if BK_SUPPLICANT
+	/**
+	 * go_neg_resp_sent - Number of GO Negotiation Response retries
+	 */
+	u8 go_neg_resp_sent;
 
+	/**
+	 * go_neg_resp_freq - Frequency on which the GO Negotiation Response is sent
+	 */
+	int go_neg_resp_freq;
+
+	/**
+	 * go_neg_resp - GO Negotiation Response frame
+	 */
+	struct wpabuf *go_neg_resp;
+#endif
 	int sd_pending_bcast_queries;
 };
 
