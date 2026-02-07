@@ -87,14 +87,7 @@ CONFIG_NTP_SYNC_RTC_TASK_STACK_SIZE=3072
 #
 # At_server
 #
-CONFIG_AT=y
-CONFIG_WIFI_AT_ENABLE=y
-CONFIG_MISC_AT_ENABLE=y
-CONFIG_BT_AT_ENABLE=y
-CONFIG_BLE_AT_ENABLE=y
-CONFIG_DEFAULT_AT_PORT=1
-CONFIG_AT_MAX_PORT_CNT=1
-# CONFIG_AT_DATA_MODE is not set
+# CONFIG_AT is not set
 # end of At_server
 
 #
@@ -112,6 +105,7 @@ CONFIG_AT_MAX_PORT_CNT=1
 #
 # ASR Service
 #
+# CONFIG_ASR_SERVICE is not set
 # end of ASR Service
 
 #
@@ -123,6 +117,229 @@ CONFIG_AUD_PARAM_CTRL=y
 #
 # Adk
 #
+CONFIG_ADK=y
+
+#
+# Audio_pipeline
+#
+# CONFIG_ADK_USE_SRAM is not set
+CONFIG_ADK_USE_PSRAM=y
+# CONFIG_ADK_BIND_TASK_TO_CORE is not set
+# CONFIG_ADK_AUTO_TEST is not set
+# end of Audio_pipeline
+
+#
+# Audio_algorithms
+#
+
+#
+# Aec_algorithm
+#
+# CONFIG_ADK_AEC_ALGORITHM is not set
+# end of Aec_algorithm
+
+#
+# Aec_algorithm V3
+#
+CONFIG_ADK_AEC_V3_ALGORITHM=y
+CONFIG_AUD_AI_NS_SUPPORT=y
+# CONFIG_AUD_AI_NS_USE_STATIC_SRAM is not set
+# end of Aec_algorithm V3
+
+#
+# Agc_algorithm
+#
+# CONFIG_ADK_AGC_ALGORITHM is not set
+# end of Agc_algorithm
+
+#
+# EQ_algorithm
+#
+# CONFIG_ADK_EQ_ALGORITHM is not set
+# end of EQ_algorithm
+
+#
+# Mix_algorithm
+#
+# CONFIG_ADK_MIX_ALGORITHM is not set
+# end of Mix_algorithm
+
+#
+# Rsp_algorithm
+#
+# CONFIG_ADK_RSP_ALGORITHM is not set
+# end of Rsp_algorithm
+# end of Audio_algorithms
+
+#
+# Audio_decoders
+#
+
+#
+# AAC_decoder
+#
+# CONFIG_ADK_AAC_DECODER is not set
+# end of AAC_decoder
+
+#
+# G711_decoder
+#
+CONFIG_ADK_G711_DECODER=y
+# end of G711_decoder
+
+#
+# G722_decoder
+#
+# CONFIG_ADK_G722_DECODER is not set
+# end of G722_decoder
+
+#
+# MP3_decoder
+#
+# CONFIG_ADK_MP3_DECODER is not set
+# end of MP3_decoder
+
+#
+# Opus_decoder
+#
+# CONFIG_ADK_OPUS_DECODER is not set
+# end of Opus_decoder
+
+#
+# SBC_decoder
+#
+# CONFIG_ADK_SBC_DECODER is not set
+# end of SBC_decoder
+
+#
+# Wav_decoder
+#
+CONFIG_ADK_WAV_DECODER=y
+# end of Wav_decoder
+# end of Audio_decoders
+
+#
+# Audio_encoders
+#
+
+#
+# AAC_encoder
+#
+# CONFIG_ADK_AAC_ENCODER is not set
+# end of AAC_encoder
+
+#
+# G711_encoder
+#
+CONFIG_ADK_G711_ENCODER=y
+# end of G711_encoder
+
+#
+# G722_encoder
+#
+# CONFIG_ADK_G722_ENCODER is not set
+# end of G722_encoder
+
+#
+# Opus_encoder
+#
+# CONFIG_ADK_OPUS_ENCODER is not set
+# end of Opus_encoder
+
+#
+# Sbc_encoder
+#
+# CONFIG_ADK_SBC_ENCODER is not set
+# end of Sbc_encoder
+# end of Audio_encoders
+
+#
+# Audio_streams
+#
+
+#
+# Array_stream
+#
+# CONFIG_ADK_ARRAY_STREAM is not set
+# end of Array_stream
+
+#
+# Frame_array_stream
+#
+# CONFIG_ADK_FRAME_ARRAY_STREAM is not set
+# end of Frame_array_stream
+
+#
+# Onboard_dual_dmic_stream
+#
+# end of Onboard_dual_dmic_stream
+
+#
+# Onboard_mic_stream
+#
+CONFIG_ADK_ONBOARD_MIC_STREAM=y
+# CONFIG_ADK_ONBOARD_MIC_STREAM_TEST is not set
+# end of Onboard_mic_stream
+
+#
+# Onboard_speaker_stream
+#
+CONFIG_ADK_ONBOARD_SPEAKER_STREAM=y
+# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_SUPPORT_MULTIPLE_SOURCE is not set
+# CONFIG_ADK_ONBOARD_SPEAKER_STREAM_TEST is not set
+# end of Onboard_speaker_stream
+
+#
+# Raw_stream
+#
+CONFIG_ADK_RAW_STREAM=y
+# CONFIG_ADK_RAW_STREAM_TEST is not set
+# end of Raw_stream
+
+#
+# Uac_mic_stream
+#
+CONFIG_ADK_UAC_MIC_STREAM=y
+# CONFIG_ADK_UAC_MIC_STREAM_TEST is not set
+# end of Uac_mic_stream
+
+#
+# Uac_speaker_stream
+#
+CONFIG_ADK_UAC_SPEAKER_STREAM=y
+# CONFIG_ADK_UAC_SPEAKER_STREAM_TEST is not set
+# end of Uac_speaker_stream
+
+#
+# Uart_stream
+#
+CONFIG_ADK_UART_STREAM=y
+# CONFIG_ADK_UART_STREAM_TEST is not set
+# end of Uart_stream
+
+#
+# Vfs_stream
+#
+# CONFIG_ADK_VFS_STREAM is not set
+# end of Vfs_stream
+
+#
+# I2s_stream
+#
+# CONFIG_ADK_I2S_STREAM is not set
+# end of I2s_stream
+# end of Audio_streams
+
+#
+# Audio_utils
+#
+CONFIG_ADK_UTILS=y
+CONFIG_ADK_UART_UTIL=y
+CONFIG_ADK_COUNT_UTIL=y
+CONFIG_ADK_VFS_UTIL=y
+CONFIG_ADK_DEBUG_DUMP_UTIL=y
+# CONFIG_ADK_DEBUG_DUMP_DATA_TYPE_EXTENSION is not set
+# end of Audio_utils
 # end of Adk
 
 #
@@ -134,17 +351,10 @@ CONFIG_AUD_PARAM_CTRL=y
 #
 # Bk_ble
 #
-CONFIG_BLUETOOTH_AP=y
-CONFIG_BLUETOOTH_HOST_ONLY=y
-# CONFIG_BT is not set
-CONFIG_BLE=y
-CONFIG_BLUETOOTH_AUTO_ENABLE=y
-# CONFIG_BLUETOOTH_MULTI_CONTROLLER is not set
-# CONFIG_BLUETOOTH_RELEASE_CODESIZE is not set
-# CONFIG_BLUETOOTH_BLE_SLAVE_ONLY is not set
+# CONFIG_BLUETOOTH_AP is not set
+CONFIG_BLUETOOTH_BLE_SLAVE_ONLY=y
 # CONFIG_BLUETOOTH_BLE_SLAVE_OBSERVER is not set
 CONFIG_BLUETOOTH_BLE_DISCOVER_AUTO=y
-CONFIG_BLUETOOTH_SUPPORT_IPC=y
 # end of Bk_ble
 
 #
@@ -233,6 +443,10 @@ CONFIG_MEDIA_DISPLAY_SERVICE=y
 #
 # DVP
 #
+CONFIG_DVP_CAMERA=y
+CONFIG_DVP_CAMERA_I2C_ID=2
+CONFIG_DVP_CTRL_POWER_GPIO_ID=28
+CONFIG_DVP_THREAD_STACK_SIZE=2048
 # end of DVP
 
 CONFIG_EVENT_TASK_STACK_SIZE=3072
@@ -278,7 +492,7 @@ CONFIG_TICK_CALI=y
 #
 # Mcu_4g_modem
 #
-CONFIG_BK_MODEM=y
+# CONFIG_BK_MODEM is not set
 # end of Mcu_4g_modem
 
 #
@@ -302,7 +516,7 @@ CONFIG_BK_NTWK_TRANSFER=y
 CONFIG_DATA_NODE_SIZE=1472
 CONFIG_DATA_POOL_LEN=51520
 CONFIG_NTWK_USE_PSARM_MEM=y
-# CONFIG_NTWK_CLIENT_SERVICE_ENABLE is not set
+CONFIG_NTWK_CLIENT_SERVICE_ENABLE=y
 # end of Bk Network Transfer
 
 #
@@ -369,6 +583,12 @@ CONFIG_LCD_ST7796S=y
 #
 # DVP Camera
 #
+CONFIG_DVP_GC0308=y
+CONFIG_DVP_GC0328C=y
+CONFIG_DVP_GC2145=y
+CONFIG_DVP_HM1055=y
+CONFIG_DVP_OV2640=y
+CONFIG_DVP_SC101=y
 # end of DVP Camera
 
 #
@@ -376,6 +596,11 @@ CONFIG_LCD_ST7796S=y
 #
 # end of TP
 # end of bk peripheral
+
+#
+# Bk_player_service
+#
+# end of Bk_player_service
 
 #
 # PM
@@ -396,7 +621,7 @@ CONFIG_CUSTOMIZE_HEAP_SIZE=163840
 #
 CONFIG_FREERTOS=y
 CONFIG_FREERTOS_FPU_ENABLE=y
-# CONFIG_FREERTOS_USE_QUEUE_SETS is not set
+CONFIG_FREERTOS_USE_QUEUE_SETS=y
 # CONFIG_MEM_MGMT is not set
 # CONFIG_FREERTOS_V9 is not set
 # CONFIG_FREERTOS_V10 is not set
@@ -487,8 +712,7 @@ CONFIG_FWD_CMD_TO_CPUx=y
 #
 # bk_uid
 #
-CONFIG_GET_UID_ENABLE=y
-CONFIG_GET_UID_TEST=y
+# CONFIG_GET_UID_ENABLE is not set
 # end of bk_uid
 
 #
@@ -513,7 +737,7 @@ CONFIG_USB_HUB_MULTIPLE_DEVICES=y
 # CONFIG_USB_HUB_MULTIPLE_DEVICES_DEBUG is not set
 CONFIG_USBHOST_HUB_MAX_EHPORTS=4
 CONFIG_USBHOST_HUB_PORT_SUPPORT_MAX_DEVICE=5
-CONFIG_USBHOST_HUB_PORT_1_VBAT_CONTROL_GPIO_ID=0xFF
+CONFIG_USBHOST_HUB_PORT_1_VBAT_CONTROL_GPIO_ID=0
 # end of USB_HUB_MULTIPLE_DEVICES_IDENTIFICATION
 
 CONFIG_USBH_MSC=y
@@ -525,14 +749,13 @@ CONFIG_USBH_UAC=y
 # CONFIG_USBH_HID is not set
 # CONFIG_USBD_HID is not set
 # CONFIG_USB_UPC is not set
-CONFIG_USB_CDC=y
+# CONFIG_USB_CDC is not set
 # CONFIG_USB_CHARGE is not set
 CONFIG_USBH_SERIAL_CH340=y
 # CONFIG_USBH_SERIAL_CH340_TEST is not set
 # end of Modify Usb Config
 
-CONFIG_USB_CDC_MODEM=y
-CONFIG_USBHOST_MAX_CDC_ACM_CLASS=1
+# CONFIG_USB_CDC_MODEM is not set
 # end of Bk_usb
 
 #
@@ -568,6 +791,12 @@ CONFIG_VIDEO_PIPELINE=y
 #
 # Voice Service
 #
+CONFIG_VOICE_SERVICE=y
+# CONFIG_VOICE_SERVICE_USE_SRAM is not set
+CONFIG_VOICE_SERVICE_USE_PSRAM=y
+CONFIG_VOICE_READ_SERVICE=y
+CONFIG_VOICE_WRITE_SERVICE=y
+# CONFIG_VOICE_SERVICE_TEST is not set
 # end of Voice Service
 
 #
@@ -806,7 +1035,7 @@ CONFIG_MQTT_ACK_NOW=y
 # CONFIG_NET_PAN is not set
 CONFIG_WIFI_SOFTAP=y
 # CONFIG_FUZZ_TEST is not set
-CONFIG_LWIP_PPP_SUPPORT=y
+# CONFIG_LWIP_PPP_SUPPORT is not set
 # CONFIG_ENABLE_LWIP_CUSTOM_CONFIG is not set
 
 #
@@ -879,12 +1108,16 @@ CONFIG_MEDIA=y
 CONFIG_LCD_ROTATE=y
 CONFIG_LCD_HW_PFC=y
 CONFIG_LCD_HW_DECODE=y
-# CONFIG_SW_ROTATE_TO_YUYV_AND_DMA2D_TO_YUYV_NOT_RGB888 is not set
+CONFIG_SW_ROTATE_TO_YUYV_AND_DMA2D_TO_YUYV_NOT_RGB888=y
 CONFIG_LCD_SW_DECODE=y
 # CONFIG_LCD_AUTO_FILL_FULL is not set
-# CONFIG_MEDIA_PIPELINE is not set
+CONFIG_MEDIA_PIPELINE=y
+CONFIG_JPEG_DECODE_PIPELINE_TASK_STACK_SIZE=4096
+CONFIG_JPEG_GET_PIPELINE_TASK_STACK_SIZE=1024
+CONFIG_YUV_ROTATE_PIPELINE_TASK_STACK_SIZE=2048
+CONFIG_H264_ENCODE_PIPELINE_TASK_STACK_SIZE=2048
 # CONFIG_MEDIA_BT_AUDIO is not set
-# CONFIG_SOFTWARE_DECODE_SRAM_MAPPING is not set
+CONFIG_SOFTWARE_DECODE_SRAM_MAPPING=y
 # CONFIG_MEDIA_PSRAM_SIZE_4M is not set
 CONFIG_JPEG_SW_DECODE_SUPPORT_BY_FRAME=y
 CONFIG_JPEG_SW_DECODE_SUPPORT_BY_LINE=y
@@ -965,10 +1198,10 @@ CONFIG_USE_CONV_UTF8=y
 #
 # cs2p2p
 #
-# CONFIG_CS2_P2P_SERVER is not set
+CONFIG_CS2_P2P_SERVER=y
 # CONFIG_CS2_P2P_CLIENT is not set
 # CONFIG_CS2_P2P_TEST is not set
-CONFIG_CS2_TX_BUFFER_THD=5120
+CONFIG_CS2_TX_BUFFER_THD=262144
 # CONFIG_CS2_MALLOC_USE_PSRAM is not set
 # CONFIG_CS2_DEBUG_LIB is not set
 # end of cs2p2p
@@ -1085,7 +1318,7 @@ CONFIG_UART_RX_DMA_KFIFO_SIZE=512
 #
 # TRNG
 #
-CONFIG_TRNG_SUPPORT=y
+# CONFIG_TRNG_SUPPORT is not set
 # end of TRNG
 
 #
@@ -1171,7 +1404,7 @@ CONFIG_GPIO_DEFAULT_SET_SUPPORT=y
 CONFIG_GPIO_RETENTION_DISPOSABLE=y
 CONFIG_USR_GPIO_CFG_EN=y
 # CONFIG_GPIO_DUMP_MAP_DEV_DEBUG is not set
-CONFIG_LDO3V3_CTRL_GPIO=13
+CONFIG_LDO3V3_CTRL_GPIO=255
 # CONFIG_GPIO_API_TEST is not set
 CONFIG_SIM_I2C0_SDA_GPIO=1
 CONFIG_SIM_I2C0_SCL_GPIO=0
@@ -1210,6 +1443,7 @@ CONFIG_DMA_LOGIC_CHAN_ID_MIN=0
 #
 # JPEG_ENC
 #
+CONFIG_JPEGENC_HW=y
 # end of JPEG_ENC
 
 #
@@ -1272,9 +1506,9 @@ CONFIG_I2S=y
 #
 CONFIG_I2C=y
 CONFIG_I2C_SUPPORT_ID_BITS=2
-# CONFIG_SIM_I2C is not set
+CONFIG_SIM_I2C=y
 # CONFIG_I2C_PM_CB_SUPPORT is not set
-CONFIG_SIM_I2C_HW_BOARD_V3=y
+# CONFIG_SIM_I2C_HW_BOARD_V3 is not set
 # CONFIG_I2C_API_TEST is not set
 # end of I2C
 
@@ -1350,6 +1584,11 @@ CONFIG_FLASH_PARTITION_CHECK_VALID=y
 #
 # H264_CONFIG
 #
+CONFIG_H264=y
+CONFIG_H264_QUALITY_LEVEL=2
+CONFIG_H264_GOP_START_IDR_FRAME=y
+CONFIG_H264_ADD_SELF_DEFINE_SEI=y
+CONFIG_H264_P_FRAME_CNT=29
 # end of H264_CONFIG
 
 #
@@ -1386,7 +1625,7 @@ CONFIG_PM_26M_STABILITY_DELAY_TIME_HARDWARE=1300
 CONFIG_PM_DEMO_ENABLE=y
 CONFIG_PM_CLI_ENABLE=y
 CONFIG_PM_LV_SUBCORES_ON=y
-CONFIG_PM_OTP_POWERDOWN_ENABLE=y
+# CONFIG_PM_OTP_POWERDOWN_ENABLE is not set
 # end of PWR_CLK
 
 #
@@ -1412,7 +1651,7 @@ CONFIG_HW_ROTATE_PFC=y
 #
 # YUV_BUF
 #
-# CONFIG_YUV_BUF is not set
+CONFIG_YUV_BUF=y
 # end of YUV_BUF
 
 #
@@ -1553,7 +1792,7 @@ CONFIG_DTCM_SIZE=0x4000
 CONFIG_TZ=y
 CONFIG_SPE=1
 # CONFIG_RX_OPTIMIZE is not set
-# CONFIG_BT_REUSE_MEDIA_MEMORY is not set
+CONFIG_BT_REUSE_MEDIA_MEMORY=y
 # end of bk7258
 # end of Middleware Configuration
 
