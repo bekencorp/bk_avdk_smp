@@ -279,15 +279,8 @@ function(__kconfig_generate_config sdkconfig sdkconfig_defaults sdkconfig_defaul
     armino_build_set_property(SDKCONFIG_JSON_MENUS ${sdkconfig_json_menus})
     armino_build_set_property(CONFIG_DIR ${config_dir})
 
-    if(CMAKE_HOST_WIN32 AND DEFINED ENV{MSYSTEM})
-        armino_build_get_property(menuconfig_depends __MENUCONFIG_DEPENDS)
-        armino_build_get_property(mconf __MCONF)
-
-        set(MENUCONFIG_CMD ${mconf})
-    else()
-        set(MENUCONFIG_CMD ${python} ${armino_tools_path}/build_tools/kconfig/menuconfig.py)
-        set(TERM_CHECK_CMD ${python} ${armino_tools_path}/build_tools/check_term.py)
-    endif()
+    set(MENUCONFIG_CMD ${python} ${armino_tools_path}/build_tools/kconfig/menuconfig.py)
+    set(TERM_CHECK_CMD ${python} ${armino_tools_path}/build_tools/check_term.py)
 
     # Generate the menuconfig target
     add_custom_target(menuconfig
