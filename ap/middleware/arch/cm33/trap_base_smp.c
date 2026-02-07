@@ -597,6 +597,7 @@ static void arch_dump_cpu_registers(uint32_t mcause, SAVED_CONTEXT *context) {
 		BK_DUMP_OUT((char *)fault_type[mcause]);
 	}
 
+    BK_DUMP_OUT("SMP-Core-id:%u\r\n", portGET_CORE_ID() & 0x1);
 }
 
 static void dump_context(uint32_t lr, uint32_t msp)
