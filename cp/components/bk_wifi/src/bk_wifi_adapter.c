@@ -1216,6 +1216,21 @@ static int sync_assert_out(bool bContinue, char *format, ...)
 }
 #endif
 
+static void wifi_notify_state_to_bt_wrapper(uint8_t is_active)
+{
+#if CONFIG_BLUETOOTH
+#if CONFIG_BLUETOOTH_USE_MIN_POWER_MODE
+    void wifi_notify_state_to_bt(uint8_t is_active);
+    wifi_notify_state_to_bt(is_active);
+#endif
+#endif
+}
+
+static void bk_restore_all_regs_for_mac_wrapper(void)
+{
+    restore_all_regs_for_mac();
+}
+
 __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t g_wifi_os_funcs = {
 	._version = BK_WIFI_OS_ADAPTER_VERSION,
 	._manual_cal_rfcali        = manual_cal_rfcali_status,
@@ -1439,6 +1454,8 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t g_wifi_os_funcs = {
 	._tpc_set_media_pwr_level = NULL,
 	._tpc_get_media_pwr_level = NULL,
 	#endif
+	._wifi_notify_state_to_bt = wifi_notify_state_to_bt_wrapper,
+	._bk_restore_all_regs_for_mac = bk_restore_all_regs_for_mac_wrapper,
 	._rw_ieee80211_init_scan_chan = rw_ieee80211_init_scan_chan,
 	._rw_ieee80211_get_scan_default_chan_num = rw_ieee80211_get_scan_default_chan_num,
 	._rwnx_set_bk_rlk_start = rwnx_set_wifi_rlk_start,
@@ -1520,6 +1537,11 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_variable_t g_wifi_os_variabl
 	#endif
 	#if (CONFIG_SOC_BK7236XX)
 	._pm_low_voltage_delta_wakeup_delay_in_us = PM_LOW_VOLTAGE_DELTA_WAKEUP_DELAY_IN_US,
+	#endif
+	#if (CONFIG_BLUETOOTH_USE_MIN_POWER_MODE)
+	._ble_polar_enable = true,
+	#else
+	._ble_polar_enable = false,
 	#endif
 };
 

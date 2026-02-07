@@ -258,6 +258,8 @@ typedef struct {
 	void(*_tpc_change_pwr_by_media)(UINT8 rate, UINT8 *pwr_idx, UINT8 level);
 	void(*_tpc_set_media_pwr_level)(UINT8 level);
 	UINT8(*_tpc_get_media_pwr_level)(void);
+	void (*_wifi_notify_state_to_bt)(uint8_t is_active);
+	void (*_bk_restore_all_regs_for_mac)(void);
 	UINT8 (*_rw_ieee80211_init_scan_chan)(void *req);
 	UINT8 (*_rw_ieee80211_get_scan_default_chan_num)(void);
 	void (*_rwnx_set_bk_rlk_start)(uint32_t rlk_start);
@@ -344,6 +346,7 @@ typedef struct {
 	int32_t  _pm_low_voltage_delta_wakeup_delay_in_us;
 	#endif
 	bool _improve_he_tb_enable;
+	bool _ble_polar_enable;
 } wifi_os_variable_t;
 extern wifi_os_variable_t g_wifi_os_variable;
 

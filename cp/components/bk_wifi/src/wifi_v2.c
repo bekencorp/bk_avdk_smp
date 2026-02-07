@@ -1625,6 +1625,7 @@ int wlan_p2p_disable(void)
 
 
 static uint16_t s_wifi_state_bits = 0;
+bool g_wifi_enable_flag = false;
 
 static inline void wifi_set_state_bit(uint16_t state_bit)
 {
@@ -1745,7 +1746,8 @@ bk_err_t bk_wifi_init(const wifi_init_config_t *config)
 
 	//TODO set the init flag according to the return value!
 	wifi_set_state_bit(WIFI_INIT_BIT);
-	WIFI_LOGD("wifi inited(%x) ret(%x)\n", s_wifi_state_bits, ret);
+	g_wifi_enable_flag = WIFI_INIT_BIT;
+	WIFI_LOGI("wifi inited(%x) ret(%x)\n", s_wifi_state_bits, ret);
 
 	if (bk_pm_sleep_register_wrapper(wifi_deepsleep_enter_cb))
 		WIFI_LOGD("register wifi pm sleep cb fail!\n");
@@ -2145,6 +2147,12 @@ bk_err_t bk_wifi_sta_start(void)
 		return BK_ERR_WIFI_STA_NOT_CONFIG;
 	}
 
+	if(g_wifi_enable_flag == false)
+	{
+		WIFI_LOGE("sta start fail, wifi disable\n");
+		return BK_ERR_WIFI_STA_NOT_CONFIG;
+	}
+
 	if (!wifi_sta_is_configured()) {
 		WIFI_LOGD("sta start fail, sta not configured\n");
 		return BK_ERR_WIFI_STA_NOT_CONFIG;
@@ -2372,6 +2380,12 @@ bk_err_t bk_wifi_scan_start(const wifi_scan_config_t *config)
 	if (wifi_monitor_is_started()) {
 		WIFI_LOGV("scan refused, monitor in progress\n");
 		return BK_ERR_WIFI_MONITOR_IP;
+	}
+
+	if(g_wifi_enable_flag == false)
+	{
+		WIFI_LOGE("scan refused, wifi disable\n");
+		return BK_ERR_WIFI_NOT_INIT;
 	}
 
 	wifi_scan_init_global_config();
@@ -3234,6 +3248,12 @@ static bk_bridge_state_t bridge_state = BRIDGE_STATE_DISABLED;
 bk_err_t bk_wifi_ap_start(void)
 {
 	WIFI_LOGV("ap starting\n");
+
+	if(g_wifi_enable_flag == false)
+	{
+		WIFI_LOGE("start ap fail, wifi disable\n");
+		return BK_ERR_WIFI_AP_NOT_CONFIG;
+	}
 
 	if (!wifi_ap_is_configured()) {
 		WIFI_LOGV("start ap failed, ap not configured\n");
@@ -4764,6 +4784,66 @@ bk_err_t bk_wifi_set_ani_en(bool enable)
 bool bk_wifi_get_ani_en(void)
 {
 	return g_wifi_mac_config.ani_en;
+}
+
+bk_err_t bk_wifi_disable(void)
+{
+    int ret = 0;
+
+    ret = bk_wifi_ap_stop();
+    if(BK_OK != ret)
+    {
+        g_wifi_funcs->_wifi_notify_state_to_bt(1);
+        g_wifi_enable_flag = true;
+        return ret;
+    }
+
+    ret = bk_wifi_sta_stop();
+    if(BK_OK != ret)
+    {
+        g_wifi_funcs->_wifi_notify_state_to_bt(1);
+        g_wifi_enable_flag = true;
+        return ret;
+    }
+
+    ret = bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_WIFIP_MAC, PM_POWER_MODULE_STATE_OFF);
+    if(BK_OK != ret)
+    {
+        g_wifi_funcs->_wifi_notify_state_to_bt(1);
+        g_wifi_enable_flag = true;
+    }
+    else
+    {
+        g_wifi_funcs->_wifi_notify_state_to_bt(0);
+        g_wifi_enable_flag = false;
+    }
+    WIFI_LOGI("wifi_enable_flag:%x\r\n", g_wifi_enable_flag);
+    return ret;
+}
+
+bk_err_t bk_wifi_enable(void)
+{
+    int ret = 0;
+
+    ret = bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_WIFIP_MAC, PM_POWER_MODULE_STATE_ON);
+
+    if(g_wifi_enable_flag == false)
+    {
+        g_wifi_funcs->_bk_restore_all_regs_for_mac();
+    }
+
+    if(BK_OK != ret)
+    {
+        g_wifi_funcs->_wifi_notify_state_to_bt(0);
+        g_wifi_enable_flag = false;
+    }
+    else
+    {
+        g_wifi_funcs->_wifi_notify_state_to_bt(1);
+        g_wifi_enable_flag = true;
+    }
+    WIFI_LOGI("wifi_enable_flag:%x\r\n", g_wifi_enable_flag);
+    return ret;
 }
 
 #if CONFIG_WIFI_SCAN_COUNTRY_CODE

@@ -179,6 +179,8 @@ struct bt_osi_funcs_t
     void (*_ble_exit_dut)(void);
     uint8_t (*_set_bluetooth_power_level)(float pwr_gain);
     int (*_bluetooth_int_isr_unregister)(uint8_t type);
+    void  (*_set_rfconfig_rf_mode)(uint8_t mode);
+    int (*wifi_mac_power_ctrl)(uint8_t power_state);
 };
 
 int bt_os_adapter_init(void *osi_funcs);

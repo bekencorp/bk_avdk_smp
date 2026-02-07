@@ -37,12 +37,14 @@
 //#include "bk_cal_ex.h"
 #include "bk_rf_internal.h"
 #include "driver/ckmn.h"
+#include "bk_feature.h"
 #include "sdkconfig.h"
 
 #if CONFIG_CACHE_ENABLE
 #include "cache.h"
 #endif
 
+extern uint32_t rwnx_rfconfig;
 #define BT_OSI_VERSION              0x00010001
 
 typedef struct
@@ -278,6 +280,12 @@ static bk_err_t phy_power_ctrl_wrapper(uint8_t power_state)
 {
     pm_power_module_state_e state = (power_state ? PM_POWER_MODULE_STATE_ON : PM_POWER_MODULE_STATE_OFF);
     return bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_PHY_BT, state);
+}
+
+static bk_err_t wifi_mac_power_ctrl_wrapper(uint8_t power_state)
+{
+    pm_power_module_state_e state = (power_state ? PM_POWER_MODULE_STATE_ON : PM_POWER_MODULE_STATE_OFF);
+    return bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_WIFIP_MAC, state);
 }
 
 static bk_err_t bt_mac_clock_ctrl_wrapper(uint8_t clock_state)
@@ -1028,8 +1036,6 @@ static uint32_t get_test_rfconfig(void)
 
 static uint8_t get_rf_mode(void)
 {
-    extern uint32_t rwnx_rfconfig;
-
     if ((rwnx_rfconfig & BLUETOOTH_RF_PLL_MASK) == BLUETOOTH_RF_PLL_WIFI)
     {
         return BT_RF_MODE_WIFI;
@@ -1150,16 +1156,48 @@ static void ble_exit_dut()
 static uint8_t set_bluetooth_power_level(float pwr_gain)
 {
     extern bk_err_t bk_ble_set_tx_power(float powerdBm);
+    extern bk_err_t bk_ble_set_polar_tx_power(float powerdBm);
     extern uint8_t manual_cal_get_ble_pwr_idx(uint8_t channel);
     extern uint8_t get_ble_txpwr_table_size(void);
+    extern uint8_t get_bt_polar_txpwr_table_size(void);
     extern void ble_cal_set_txpwr(uint8_t idx);
 
-    bk_ble_set_tx_power(pwr_gain);
+    if((rwnx_rfconfig & BLUETOOTH_RF_MODE_MASK) == BLUETOOTH_RF_MODE_POLAR)
+    {
+        bk_ble_set_polar_tx_power(pwr_gain);
+    }else
+    {
+        bk_ble_set_tx_power(pwr_gain);
+    }
     uint8_t pwr_index = manual_cal_get_ble_pwr_idx(19);
     uint8_t max_pwr_index = get_ble_txpwr_table_size() - 1;
+    if((rwnx_rfconfig & BLUETOOTH_RF_MODE_MASK) == BLUETOOTH_RF_MODE_POLAR)
+    {
+        max_pwr_index = get_bt_polar_txpwr_table_size() - 1;
+    }
     uint8_t new_pwr_index = pwr_index > max_pwr_index ? max_pwr_index : pwr_index;
     ble_cal_set_txpwr(pwr_index);
     return new_pwr_index;
+}
+
+static void set_rfconfig_rf_mode(uint8_t mode)
+{
+#if CONFIG_BLUETOOTH_USE_MIN_POWER_MODE
+    if (1 == mode)//polar
+    {
+        extern void ble_enter_polar_mode();
+        ble_enter_polar_mode();
+    }
+    else if (0 == mode)//IQ
+    {
+        extern void ble_enter_iq_mode();
+        ble_enter_iq_mode();
+    }
+    else
+    {
+        os_printf("%s, unsupported mode %d\r\n", __func__,mode);
+    }
+#endif
 }
 
 //warning: bt_osi_funcs must be data section, otherwise a2dp_source_pcm and a2dp_source_decode will trig watchdog !!!!!!!!
@@ -1271,6 +1309,8 @@ static struct bt_osi_funcs_t bt_osi_funcs =
     ._ble_enter_dut = ble_enter_dut,
     ._ble_exit_dut = ble_exit_dut,
     ._set_bluetooth_power_level = set_bluetooth_power_level,
+    ._set_rfconfig_rf_mode = set_rfconfig_rf_mode,
+    .wifi_mac_power_ctrl = wifi_mac_power_ctrl_wrapper,
     ._bluetooth_int_isr_unregister = bluetooth_int_isr_unregister_wrapper,
 };
 
