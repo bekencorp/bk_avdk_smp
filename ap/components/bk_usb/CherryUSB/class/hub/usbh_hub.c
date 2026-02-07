@@ -432,13 +432,13 @@ static void usbh_roothub_register(void)
         }
 
         if(!roothub_parent_port){
-            roothub_parent_port = psram_malloc(sizeof(struct usbh_hub));
+            roothub_parent_port = psram_malloc(sizeof(struct usbh_hubport));
             if(!roothub_parent_port) {
                 USB_LOG_DBG("%s roothub Malloc Fail\r\n", __func__);
                 psram_malloc_fail_flag = 1;
                 break;
             } else {
-            	memset(roothub_parent_port, 0, sizeof(struct usbh_hub));
+            	memset(roothub_parent_port, 0, sizeof(struct usbh_hubport));
             }
         }
     }while(0);
@@ -962,6 +962,17 @@ int usbh_hub_deinitialize(void)
 
     uint32_t flags = usb_hc_enter_critical();
     usbh_roothub_free_port1_hub();
+    
+    // Delete thread first to avoid race condition:
+    // If thread is blocked in rtos_pop_from_queue() waiting on hub_event_queue,
+    // deleting the queue first will cause xQueueReceive() to assert.
+    // By deleting thread first, FreeRTOS will handle the cleanup properly.
+    if (hub_thread) {
+        usb_osal_thread_delete(&hub_thread);
+        hub_thread = NULL;
+    }
+
+    // Now safe to delete queue since thread is gone
     if(hub_event_queue) {
         rtos_deinit_queue(&hub_event_queue);
         hub_event_queue = NULL;
@@ -972,10 +983,6 @@ int usbh_hub_deinitialize(void)
         hub_event_wait = NULL;
     }
 
-    if (hub_thread) {
-        usb_osal_thread_delete(&hub_thread);
-        hub_thread = NULL;
-    }
     usb_hc_exit_critical(flags);
     usbh_hub_event_unlock_mutex();
     if (hub_event_mutex) {

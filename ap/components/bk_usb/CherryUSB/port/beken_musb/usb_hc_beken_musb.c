@@ -1159,6 +1159,7 @@ int usbh_pipe_alloc(usbh_pipe_t *pipe, const struct usbh_endpoint_cfg *ep_cfg)
         uint8_t ep_local_idx;
 #if ALLOC_FIX_EP_LOCAL_IDX_ENABLE 
         if(*pipe) if(((struct musb_pipe *)*pipe)->ep_local_index != CONFIG_USBHOST_PIPE_NUM) {
+            USB_LOG_DBG("%s pipe->ep_local_index has been used, ep_local_index:%d\r\n", __func__, ((struct musb_pipe *)*pipe)->ep_local_index);
             return 0;
         }
 
@@ -1844,8 +1845,8 @@ void USBH_IRQHandler(void)
                     urb->errorcode = -EBUSY;
                     musb_pipe_waitup(pipe);
                     //goto pipe_wait;
-                } else if (ep_csrl_status & USB_TXCSRL1_STALL) {
-                    HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) &= ~USB_TXCSRL1_STALL;
+                } else if (ep_csrl_status & USB_TXCSRL1_STALLED) {
+                    HWREGB(USB_BASE + MUSB_IND_TXCSRL_OFFSET) &= ~USB_TXCSRL1_STALLED;
                     urb->errorcode = -EPERM;
                     USB_LOG_VBS("[=]%s ep_idx:%d USB_TXCSRL1_STALL\r\n", __func__, ep_idx);
                     musb_pipe_waitup(pipe);
@@ -1886,8 +1887,8 @@ void USBH_IRQHandler(void)
                    urb->errorcode = -EBUSY;
                    musb_pipe_waitup(pipe);
                    //goto pipe_wait;
-               } else if (ep_csrl_status & USB_RXCSRL1_STALL) {
-                   HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_STALL;
+               } else if (ep_csrl_status & USB_RXCSRL1_STALLED) {
+                   HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) &= ~USB_RXCSRL1_STALLED;
                    urb->errorcode = -EPERM;
                    USB_LOG_VBS("[=]%s ep_idx:%d USB_RXCSRL1_STALL\r\n", __func__, ep_idx);
                    musb_pipe_waitup(pipe);
