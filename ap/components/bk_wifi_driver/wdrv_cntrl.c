@@ -225,20 +225,21 @@ extern void bk_bridge_event_hapd_sta_disconnected(uint8_t *mac);
 void wdrv_notify_local_as_go(void)
 {
     wifi_event_ap_connected_t ap_connected = {0};
-    netif_ip4_config_t ip4_config = {0};
 
-    /*set go ip address*/
-    os_strcpy(ip4_config.ip, WLAN_DEFAULT_GO_IP);
-    os_strcpy(ip4_config.mask, WLAN_DEFAULT_GO_MASK);
-    os_strcpy(ip4_config.gateway, WLAN_DEFAULT_GO_GW);
+    ip_address_set(BK_SOFT_AP,
+        DHCP_SERVER,
+        WLAN_DEFAULT_GO_IP,
+        WLAN_DEFAULT_GO_MASK,
+        WLAN_DEFAULT_GO_GW,
+        WLAN_DEFAULT_GO_GW);
 
-    bk_netif_set_ip4_config(NETIF_IF_AP, &ip4_config);
-
-    /* start uap service */
+    /* If uap_ip_start has already been called, restart it to apply new IP config */
+    if (uap_ip_is_start()) {
+        uap_ip_down();
+    }
     uap_ip_start();
 
-    /* post evevnt EVENT_WIFI_AP_CONNECTED */
-    os_memset(&ap_connected, 0, sizeof(ap_connected));
+    /* Post event EVENT_WIFI_AP_CONNECTED */
     os_memcpy(ap_connected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_AP_CONNECTED,
                                 &ap_connected, sizeof(ap_connected), BEKEN_NEVER_TIMEOUT));
