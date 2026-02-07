@@ -456,6 +456,11 @@ void entry_main(void)
 	mb_ipc_heartbeat_init();
 #endif
 
+#if  CONFIG_DL_QSPI_ENABLE && CONFIG_QSPI
+	extern void download_qspi_flash(void);
+	download_qspi_flash();
+#endif
+
 	rtos_start_scheduler();
 }
 // eof

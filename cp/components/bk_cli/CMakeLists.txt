@@ -170,6 +170,9 @@ if (CONFIG_GET_UID_TEST)
 	list(APPEND srcs cli_uid.c)
 endif()
 
+if (CONFIG_QSPI)
+	list(APPEND srcs cli_qspi.c)
+endif()
 
 if (CONFIG_MPC_TEST)
 	list(APPEND srcs cli_mpc.c)
@@ -216,7 +219,7 @@ set(PRIV_REQUIRES_LIST bk_common psa_mbedtls temp_detect bk_netif bk_ps bk_init 
 
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
-	REQUIRES utf8 app driver bk_system iperf adc_key cm33 controller_if
+	REQUIRES utf8 app driver bk_system iperf adc_key cm33 controller_if bk_download
 	#PRIV_REQUIRES airkiss bk_common bk_netif bk_ps
 	PRIV_REQUIRES ${PRIV_REQUIRES_LIST}
 	)

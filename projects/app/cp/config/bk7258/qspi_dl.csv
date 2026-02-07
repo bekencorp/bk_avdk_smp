@@ -1,0 +1,2 @@
+#qspi_dl,Enable(if do not need qspi downlaod flash function, set this parameter to 'False')
+qspi_dl,TRUE

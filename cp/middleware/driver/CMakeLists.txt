@@ -131,6 +131,19 @@ if (CONFIG_EFUSE)
 	)
 endif()
 
+if (CONFIG_QSPI)
+	list(APPEND srcs
+		"qspi/qspi_driver.c"
+		"qspi/qspi_statis.c"
+		"qspi/qspi_psram.c"
+		)
+if (CONFIG_QSPI_MST_FLASH)
+	list(APPEND srcs
+		"qspi/qspi_flash.c"
+		)
+endif() #if (CONFIG_QSPI_MST_FLASH)
+endif() #if (CONFIG_QSPI)
+
 if (CONFIG_GENERAL_DMA)
 	list(APPEND srcs
 		general_dma/dma_driver.c

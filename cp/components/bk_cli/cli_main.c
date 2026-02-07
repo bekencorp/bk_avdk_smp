@@ -1477,7 +1477,14 @@ int bk_cli_init(void)
 	cli_scr_init();
 #endif
 
+#if CONFIG_DL_QSPI_TEST_ENABLE
+int cli_dl_qspi_init(void);
+	cli_dl_qspi_init();
+#endif
 
+#if CONFIG_QSPI
+	cli_qspi_init();
+#endif
 /*-------------BT&MultMedia cli command init begin----------------*/
 #if !CONFIG_CLI_CODE_SIZE_OPTIMIZE_ENABLE
 #if (CLI_CFG_BLE == 1)

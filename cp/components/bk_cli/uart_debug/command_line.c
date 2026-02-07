@@ -404,6 +404,35 @@ void bkreg_tx(HCI_EVENT_PACKET *pHCItxBuf)
 #endif //#ifndef KEIL_SIMULATOR
 }
 
+void qspi_dl_tx(HCI_QSPI_DL_EVENT_PACKET *pHCItxBuf)
+{
+	char *tmp;
+#if (!CONFIG_SHELL_ASYNCLOG)
+	unsigned int i, port = 1;
+#endif
+	unsigned int tx_len = HCI_EVENT_HEAD_LENGTH + pHCItxBuf->total;
+
+#if (!CONFIG_SHELL_ASYNCLOG)
+	port = bkreg_tx_get_uart_port();
+#endif
+
+	pHCItxBuf->code  = TRA_HCIT_EVENT;
+	pHCItxBuf->event = HCI_COMMAND_COMPLETE_EVENT;
+
+	tmp = (char *)pHCItxBuf;
+#if CONFIG_SHELL_ASYNCLOG
+	shell_log_raw_data((uint8_t *)tmp, tx_len);
+	extern bool bk_uart_is_tx_over(uart_id_t id);
+	while(bk_uart_is_tx_over(0) == 0)
+	{
+	}
+#else
+	for (i = 0; i < tx_len; i ++) {
+		uart_write_byte(port, tmp[i]); //BK_UART_2
+	}
+#endif //#if CONFIG_SHELL_ASYNCLOG
+}
+
 cmd_tbl_t *cmd_find_tbl(const char *cmd, cmd_tbl_t *table, int table_len)
 {
 	return 0;
@@ -669,6 +698,29 @@ static int bkreg_run_command_implement(const char *content, int cnt)
 			bk_reboot();
 	}
 	break;
+#if CONFIG_DL_QSPI_ENABLE && CONFIG_QSPI
+	extern beken_semaphore_t dl_ack_semph;
+	#define MAGIC_PAYLOAD_LEN  (4)
+	// 01 e0 fc 05 BB  95 28 95 28
+	//04 0e 08 01 e0 fc BB  95 28 95 28
+	case BEKEN_DO_DL_QSPI_EXTERNAL_FLASH: {
+		if ((pHCIrxBuf->param[0] == 0x95)
+			&& (pHCIrxBuf->param[1] == 0x28)
+			&& (pHCIrxBuf->param[2] == 0x95)
+			&& (pHCIrxBuf->param[3] == 0x28)){
+			HCI_QSPI_DL_EVENT_PACKET  *pQSPItxBuf = (HCI_QSPI_DL_EVENT_PACKET *)tx_buf;
+			uint8_t hci_head_buf[3] ={0x01, 0xe0, 0xfc};
+
+			pQSPItxBuf->total = MAGIC_PAYLOAD_LEN + 4;
+			os_memcpy(&pQSPItxBuf->hci_head[0], hci_head_buf,sizeof(hci_head_buf));
+			pQSPItxBuf->param[0] = pHCIrxBuf->cmd;
+			os_memcpy(&pQSPItxBuf->param[1], &pHCIrxBuf->param[0], MAGIC_PAYLOAD_LEN);
+			qspi_dl_tx(pQSPItxBuf);
+			rtos_set_semaphore(&dl_ack_semph);
+		}
+	}
+	break;
+#endif
 
 	case BEKEN_UART_LINK_CHECK: {
 		pHCItxBuf->total = 1;

@@ -76,6 +76,17 @@ typedef struct {
 	unsigned char param[];
 } __attribute__((packed)) HCI_EVENT_PACKET;
 
+typedef struct {
+	unsigned char code;             /**< 0x01: HCI Command Packet
+                                         0x02: HCI ACL Data Packet
+                                         0x03: HCI Synchronous Data Packet
+                                         0x04: HCI Event Packet */
+	unsigned char event;            /**< 0x00-0xFF: Each event is assigned a 1-Octet event code used to uniquely identify different types of events*/
+	unsigned char total;            /**< Parameter Total Length */
+	unsigned char hci_head[3];
+	unsigned char param[];
+} __attribute__((packed)) HCI_QSPI_DL_EVENT_PACKET;
+
 #define RX_RB_LENGTH               (128)
 #define TX_RB_LENGTH               (64)
 
@@ -262,6 +273,7 @@ enum {
 	BEKEN_ENTRY_DUT_MODE                        = 0XAF,
 	BEKEN_READ_OTP_CMD                          = 0XA7,
 	BEKEN_WRITE_OTP_CMD                         = 0XA8,
+	BEKEN_DO_DL_QSPI_EXTERNAL_FLASH             = 0xBB,
 	LOOP_MODE_CMD                               = 0XCC,
 	BEKEN_TEMP_CMD                              = 0XDD,
 	BEKEN_TEMP_TCP                              = 0XEE,

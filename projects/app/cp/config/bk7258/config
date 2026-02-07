@@ -132,6 +132,10 @@ CONFIG_BTDM_CONTROLLER_ONLY=y
 CONFIG_BLUETOOTH_BLE_DISCOVER_AUTO=y
 # CONFIG_BLUETOOTH_SUPPORT_LPO_ROSC is not set
 CONFIG_BLUETOOTH_SUPPORT_IPC=y
+# CONFIG_BLUETOOTH_SUPPORT_IRAM_CODE is not set
+# CONFIG_BLUETOOTH_USE_MIN_POWER_MODE is not set
+# CONFIG_BLUETOOTH_SUPPORT_COEX_RF_MODE_SWITCH is not set
+# CONFIG_BLUETOOTH_SLEEP_PHY_SWITCH is not set
 # end of Bk_ble
 
 #
@@ -199,6 +203,15 @@ CONFIG_ICU=y
 # modules::uart_debug
 #
 # end of modules::uart_debug
+
+#
+# bk_download
+#
+# CONFIG_DL_QSPI_ENABLE is not set
+# CONFIG_DL_QSPI_TEST_ENABLE is not set
+CONFIG_DL_QSPI_ID_NUMBER=1
+CONFIG_DL_QSPI_UART_PORT=0
+# end of bk_download
 
 #
 # Httpc
@@ -1014,6 +1027,14 @@ CONFIG_SPINLOCK_STATIC_CNT=128
 #
 # CONFIG_SLCD is not set
 # end of SLCD
+
+#
+# QSPI
+#
+# CONFIG_QSPI is not set
+# CONFIG_QSPI_STATIS is not set
+CONFIG_QSPI_LINE_MODE=4
+# end of QSPI
 # end of Driver
 
 #

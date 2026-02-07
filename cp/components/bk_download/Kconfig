@@ -1,0 +1,24 @@
+menu "bk_download"
+
+	config DL_QSPI_ENABLE
+		bool "Enable download qspi flash"
+		default n
+
+	config DL_QSPI_TEST_ENABLE
+		bool "Enable test download qspi flash"
+		default n
+
+	config DL_QSPI_ID_NUMBER
+		int "Config downlaod qspi id number"
+		range 0 2
+		default 0
+		help
+		Default 0 mean use qspi_id_0
+
+	config DL_QSPI_UART_PORT
+		int "Config uart port to download qspi flash"
+		range 0 2
+		default 0
+		help
+		Default 0 mean use uart0
+endmenu

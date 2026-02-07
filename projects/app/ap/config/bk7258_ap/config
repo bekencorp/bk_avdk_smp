@@ -894,6 +894,11 @@ CONFIG_H264_FRAME_SIZE=102400
 # end of Media
 
 #
+# JPEG encoder service
+#
+# end of JPEG encoder service
+
+#
 # Ota
 #
 CONFIG_OTA_FUNCTION=y

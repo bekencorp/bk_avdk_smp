@@ -33,4 +33,5 @@ menu "Driver"
 	source "${ARMINO_PATH}/middleware/driver/scr/Kconfig"
 	source "${ARMINO_PATH}/middleware/driver/spinlock/Kconfig"
 	source "${ARMINO_PATH}/middleware/driver/slcd/Kconfig"
+	source "${ARMINO_PATH}/middleware/driver/qspi/Kconfig"
 endmenu

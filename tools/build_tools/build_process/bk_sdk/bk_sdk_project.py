@@ -194,9 +194,11 @@ class bk_sdk_project(bk_project):
 
     def post_package(self) -> None:
         from .bk_ota_pack import ota_pack
+        from .dl_qspi import do_qspi_dl_flash_package
 
         ota_bin = ota_pack()
         self.build_summary += f"ota binary: {ota_bin}\n"
+        do_qspi_dl_flash_package("all-app.bin", 0, 0, "all_final_qspi_dl.bin")
 
     def _copy_bootloader_to_pack_dir(self, pack_dir: Path):
         """ override super class method"""
