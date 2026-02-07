@@ -545,7 +545,7 @@ uint8_t bk_wlan_ap_get_channel_config(void);
 VOID bk_wlan_ap_set_channel_config(uint8_t channel);
 uint8_t bk_wlan_has_role(uint8_t role);
 void bk_wlan_reg_csa_cb_coexist_mode(void);
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 uint8_t bk_wlan_ap_get_default_channel(void);
 void app_p2p_rw_event_func(void *new_evt);
 void app_p2p_restart_thread(void);

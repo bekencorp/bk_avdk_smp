@@ -90,7 +90,7 @@ struct hostap_driver_data {
 	size_t ft_ie_len;
 #endif
 
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	enum nl80211_iftype nlmode;
 #endif
     uint32_t mgmt_freq;
@@ -775,17 +775,17 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 	if (!vif)
 		return -1;
 	os_memcpy(mac, (void *)mac_vif_mgmt_get_mac_address(vif), ETH_ALEN);
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	drv->nlmode = nlmode;
 #endif
 
 	if (nlmode == NL80211_IFTYPE_P2P_CLIENT
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 		|| nlmode == NL80211_IFTYPE_P2P_GO
 #endif
 		) {
 		if (((nlmode == NL80211_IFTYPE_P2P_CLIENT) && (mac_vif_mgmt_get_type(vif) != VIF_STA))
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 			|| ((nlmode == NL80211_IFTYPE_P2P_GO) && (mac_vif_mgmt_get_type(vif) != VIF_AP))
 #endif
 			|| !mac_vif_mgmt_interface_is_configured_for_p2p(vif)) {
@@ -804,7 +804,7 @@ static int wpa_driver_set_mode(void *priv, enum nl80211_iftype nlmode)
 #if CONFIG_LWIP
 			net_wlan_add_netif(mac);
 #endif
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 			if (nlmode == NL80211_IFTYPE_P2P_GO) {
 				/* Use P2P GO operation channel if available, otherwise use default channel */
 				if (drv->wpa_s && drv->wpa_s->global && drv->wpa_s->global->p2p &&
@@ -1799,13 +1799,13 @@ int hostap_set_ap(void *priv, struct wpa_driver_ap_params *params)
     int bcn_len;
     int ret;
     struct prism2_hostapd_param param;
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
     int bcn_extra_size = 0, i;
 #endif
 
     memset(&param, 0, sizeof(param));
 
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
     if (params->beacon_ies && params->beacon_ies->size > 0)
 	bcn_extra_size = params->beacon_ies->size;
     bcn_len = params->head_len + params->tail_len + WLAN_EID_TIM_LEN + bcn_extra_size;
@@ -1832,7 +1832,7 @@ int hostap_set_ap(void *priv, struct wpa_driver_ap_params *params)
     os_memcpy(pos, params->tail, params->tail_len);
     pos = pos + params->tail_len;
 
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
     if (bcn_extra_size > 0) {
 	for (i = 0; i < bcn_extra_size; i ++)
 		*pos++ = params->beacon_ies->buf[i];
@@ -2351,9 +2351,7 @@ int wpa_driver_get_capa(void *priv, struct wpa_driver_capa *capa)
 #endif
 #ifdef CONFIG_P2P
 	capa->flags |= WPA_DRIVER_FLAGS_P2P_CAPABLE;
-#ifdef CONFIG_P2P_GO
 	capa->flags |= WPA_DRIVER_FLAGS_AP;
-#endif
 #endif
 #ifdef CONFIG_IEEE80211R
 	capa->flags |= WPA_DRIVER_FLAGS_UPDATE_FT_IES;

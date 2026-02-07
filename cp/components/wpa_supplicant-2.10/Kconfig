@@ -97,17 +97,10 @@ menu "modules::wpa_supplicant-2.10"
 			bool "Enable P2P"
 			default n
 
-		config P2P_GO
-			bool "Enable P2P Go"
-			default n
-
-		config WIFI_WPS
-			bool "Enable WiFi WPS"
-			default n
-
 		config WPS
+			depends on P2P
 			bool "Enable WPS"
-			default n
+			default y
 
 		config WPA2_ENTERPRISE
 			bool "Enable Wpa2 Enterprise"

@@ -219,7 +219,7 @@ struct hostapd_data {
 	int michael_mic_failures;
 	int tkip_countermeasures;
 
-#if CONFIG_P2P_GO
+#if CONFIG_P2P
 	int ctrl_sock;
 	struct dl_list ctrl_dst;
 
@@ -448,7 +448,7 @@ struct hostapd_data {
 	unsigned int airtime_weight;
 #endif /* CONFIG_AIRTIME_POLICY_AP */
 
-//#ifdef CONFIG_P2P_GO
+//#ifdef CONFIG_P2P
 	u8 last_1x_eapol_key_replay_counter[8];
 //#endif
 

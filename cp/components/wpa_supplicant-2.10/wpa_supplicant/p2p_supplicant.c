@@ -1874,7 +1874,7 @@ static void wpas_start_wps_enrollee(struct wpa_supplicant *wpa_s,
 }
 
 
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 static void wpas_p2p_add_psk_list(struct wpa_supplicant *wpa_s,
 				  struct wpa_ssid *ssid)
 {
@@ -1987,7 +1987,7 @@ static void p2p_go_configured(void *ctx, void *data)
 
 	ssid = wpa_s->current_ssid;
 
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	if (ssid && ssid->mode == WPAS_MODE_P2P_GO) {
 		wpa_printf(MSG_DEBUG, "P2P: Group setup without provisioning");
 		if (wpa_s->global->p2p_group_formation == wpa_s)
@@ -2060,7 +2060,7 @@ static void p2p_go_configured(void *ctx, void *data)
 		return;
 	}
 	if (params->wps_method == WPS_PBC) {
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 		wpa_supplicant_ap_wps_pbc(wpa_s, params->peer_interface_addr,
 					  params->peer_device_addr);
 #endif
@@ -2079,7 +2079,7 @@ static void p2p_go_configured(void *ctx, void *data)
 			wpa_s->p2pdev->p2p_peer_oob_pubkey_hash : NULL);
 #endif /* CONFIG_WPS_NFC */
 	} else if (wpa_s->p2p_pin[0]) {
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 		wpa_supplicant_ap_wps_pin(wpa_s, params->peer_interface_addr,
 					  wpa_s->p2p_pin, NULL, 0, 0);
 #endif

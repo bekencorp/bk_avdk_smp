@@ -155,9 +155,7 @@
 //#define CFG_SMARTCONFIG
 #if CONFIG_P2P
 #define CFG_P2P             2
-#if CONFIG_P2P_GO
 #define CFG_P2P_GO
-#endif //CONFIG_P2P_GO
 #else //CONFIG_P2P
 #define CFG_P2P             0
 #endif //CONFIG_P2P

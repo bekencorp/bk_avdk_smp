@@ -165,7 +165,7 @@ void hostapd_config_defaults_bss(struct hostapd_bss_config *bss)
 	bss->mbo_cell_data_conn_pref = -1;
 #endif /* CONFIG_MBO_AP */
 
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	/* Disable TLS v1.3 by default for now to avoid interoperability issue.
 	 * This can be enabled by default once the implementation has been fully
 	 * completed and tested with other implementations. */

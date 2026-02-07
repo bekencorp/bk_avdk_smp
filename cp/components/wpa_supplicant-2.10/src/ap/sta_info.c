@@ -310,7 +310,7 @@ void ap_free_sta(struct hostapd_data *hapd, struct sta_info *sta)
 	eloop_cancel_timeout(ap_handle_session_warning_timer, hapd, sta);
 	ap_sta_clear_disconnect_timeouts(hapd, sta);
 	sae_clear_retransmit_timer(hapd, sta);
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	ieee802_1x_free_station(hapd, sta);
 #endif
 	wpa_auth_sta_deinit(sta->wpa_sm);
@@ -924,7 +924,7 @@ void ap_sta_disassociate(struct hostapd_data *hapd, struct sta_info *sta,
 	eloop_register_timeout(AP_MAX_INACTIVITY_AFTER_DISASSOC, 0,
 			       ap_handle_timer, hapd, sta);
 	accounting_sta_stop(hapd, sta);
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	ieee802_1x_free_station(hapd, sta);
 	wpa_auth_sta_deinit(sta->wpa_sm);
 	sta->wpa_sm = NULL;
@@ -986,7 +986,7 @@ void ap_sta_deauthenticate(struct hostapd_data *hapd, struct sta_info *sta,
 	eloop_register_timeout(AP_MAX_INACTIVITY_AFTER_DEAUTH, 0,
 			       ap_handle_timer, hapd, sta);
 	accounting_sta_stop(hapd, sta);
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	ieee802_1x_free_station(hapd, sta);
 #endif
 	sta->deauth_reason = reason;
@@ -1459,7 +1459,7 @@ void ap_sta_disconnect(struct hostapd_data *hapd, struct sta_info *sta,
 		return;
 	ap_sta_set_authorized(hapd, sta, 0);
 
-#if BK_SUPPLICANT && CONFIG_P2P_GO
+#if BK_SUPPLICANT && CONFIG_P2P
 	if (!(sta->flags & (WLAN_STA_AUTH | WLAN_STA_ASSOC |
 			WLAN_STA_ASSOC_REQ_OK))) {
 		WPA_LOGD("%s, already disconnected %d\r\n", __func__, __LINE__);
@@ -1497,7 +1497,7 @@ void ap_sta_disconnect(struct hostapd_data *hapd, struct sta_info *sta,
 #endif
 	sta->deauth_reason = reason;
 	sta->flags |= WLAN_STA_PENDING_DEAUTH_CB;
-#if BK_SUPPLICANT && CONFIG_P2P_GO
+#if BK_SUPPLICANT && CONFIG_P2P
 	if (!(sta->flags & WLAN_STA_PENDING_DEAUTH_CB)) {
 		WPA_LOGD("%s, already disconnected %d\n", __func__, __LINE__);
 		return;
@@ -1609,7 +1609,7 @@ int ap_sta_flags_txt(u32 flags, char *buf, size_t buflen)
 	return res;
 }
 
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 static void ap_sta_delayed_1x_auth_fail_cb(void *eloop_ctx, void *timeout_ctx)
 {
 	struct hostapd_data *hapd = eloop_ctx;

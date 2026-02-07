@@ -305,7 +305,7 @@
 /* fixed scan interval from previous connect request regardless of connection time */
 //#define CONFIG_WPA_FIXED_SCAN_INTERVAL
 
-#if CONFIG_WPA2_ENTERPRISE || CONFIG_WIFI_WPS
+#if CONFIG_WPA2_ENTERPRISE || CONFIG_WPS
 #define IEEE8021X_EAPOL
 #define CONFIG_CRYPTO_INTERNAL
 #define CONFIG_INTERNAL_LIBTOMMATH
@@ -337,8 +337,7 @@
 // #define IEEE8021X_EAPOL_DEMO
 #endif
 
-#if CONFIG_WIFI_WPS
-#define CONFIG_WPS
+#if CONFIG_WPS
 #define CONFIG_WSC
 #define EAP_WSC
 #define CONFIG_BK_WPS_WORKAROUND
@@ -347,14 +346,12 @@
 #if CONFIG_P2P
 #define CONFIG_OFFCHANNEL
 #define CONFIG_AP
-#ifdef CONFIG_P2P_GO
 #define CONFIG_WPS_AP
 #define EAP_SERVER_WSC
 #define EAP_SERVER_IDENTITY
 #define CONFIG_EAP_SERVER
 #define IEEE8021X_EAPOL
 #define IEEE8021X_EAPOL_AP
-#endif
 #endif
 
 #endif /* BUILD_CONFIG_H */

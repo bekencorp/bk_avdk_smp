@@ -293,7 +293,7 @@ __IRAM_SEC bool sta_check_user_is_11b_1mbps_supported()
 #if BK_SUPPLICANT
 void wpas_notify_connected(struct wpa_supplicant *wpa_s)
 {
-#if CONFIG_P2P_GO
+#if CONFIG_P2P
 	if (wpa_s->ap_iface)
 		return;
 #endif

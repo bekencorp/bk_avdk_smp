@@ -312,10 +312,6 @@ menu "Bk_Wifi"
 		bool "Enable P2P"
 		default n
 
-	config P2P_GO
-	    bool "Enable P2P Go"
-		default n
-
 	config TX_BUFING
 		bool "Enable Tx Bufing"
 		default n

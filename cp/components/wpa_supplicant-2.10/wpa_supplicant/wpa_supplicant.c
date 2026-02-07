@@ -7941,7 +7941,7 @@ void wpa_supplicant_deinit(struct wpa_global *global)
 
 #ifdef IEEE8021X_EAPOL
 	eap_peer_unregister_methods();
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	eap_server_unregister_methods();  //FIXME: P2P
 #endif /* CONFIG_AP */
 #endif

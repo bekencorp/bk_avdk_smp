@@ -5958,7 +5958,7 @@ static void handle_disassoc(struct hostapd_data *hapd,
 	/* Stop Accounting and IEEE 802.1X sessions, but leave the STA
 	 * authenticated. */
 	accounting_sta_stop(hapd, sta);
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	ieee802_1x_free_station(hapd, sta);
 #endif
 	if (sta->ipaddr)

@@ -180,7 +180,7 @@ struct sta_info {
 
 	/* IEEE 802.1X related data */
 	struct eapol_state_machine *eapol_sm;
-#if 1//CONFIG_P2P_GO
+#if 1//CONFIG_P2P
 	struct pending_eapol_rx *pending_eapol_rx;
 
 	u64 acct_session_id;

@@ -113,7 +113,7 @@ struct hostapd_ssid {
 
 	struct hostapd_wpa_psk *wpa_psk;
 	char *wpa_passphrase;
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	char *wpa_psk_file;
 #endif
 	struct sae_pt *pt;
@@ -301,7 +301,7 @@ struct hostapd_bss_config {
 	int max_num_sta; /* maximum number of STAs in station table */
 
 	int dtim_period;
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	unsigned int bss_load_update_period;
 	unsigned int chan_util_avg_period;
 #endif
@@ -310,7 +310,7 @@ struct hostapd_bss_config {
 	int eapol_version;
 	int eap_server; /* Use internal EAP server instead of external
 			 * RADIUS server */
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 	struct hostapd_eap_user *eap_user;
 	char *eap_user_sqlite;
 #endif
@@ -821,7 +821,7 @@ struct hostapd_bss_config {
 
 	u8 transition_disable;
 
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 #define BACKHAUL_BSS 1
 #define FRONTHAUL_BSS 2
 	int multi_ap; /* bitmap of BACKHAUL_BSS, FRONTHAUL_BSS */

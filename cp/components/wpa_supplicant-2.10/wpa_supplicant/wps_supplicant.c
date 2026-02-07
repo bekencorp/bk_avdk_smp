@@ -891,7 +891,7 @@ static void wpa_supplicant_wps_event(void *ctx, enum wps_event event,
 		wpa_supplicant_wps_event_success(wpa_s);
 		break;
 	case WPS_EV_PWD_AUTH_FAIL:
-#ifdef CONFIG_P2P_GO
+#ifdef CONFIG_P2P
 		if (wpa_s->ap_iface && data->pwd_auth_fail.enrollee)
 			wpa_supplicant_ap_pwd_auth_fail(wpa_s);
 #endif /* CONFIG_AP */
@@ -1360,7 +1360,7 @@ void wpas_wps_pbc_overlap(struct wpa_supplicant *wpa_s)
 /* Cancel the wps pbc/pin requests */
 int wpas_wps_cancel(struct wpa_supplicant *wpa_s)
 {
-#if defined(CONFIG_AP) && CONFIG_P2P_GO
+#if defined(CONFIG_AP) && CONFIG_P2P
 	if (wpa_s->ap_iface) {
 		wpa_printf(MSG_DEBUG, "WPS: Cancelling in AP mode");
 		return wpa_supplicant_ap_wps_cancel(wpa_s);
