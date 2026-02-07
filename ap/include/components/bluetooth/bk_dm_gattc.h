@@ -184,6 +184,7 @@ typedef union
             uint16_t end_handle;            /*!< char end handle */
             uint16_t char_value_handle;          /*!< char declar value handle */
             bk_gatt_id_t uuid;          /*!< uuid */
+            uint16_t prop;
         }*array;
         uint32_t count;
     } dis_res_char;                       /*!< Gatt client callback param of BK_GATTC_DIS_RES_CHAR_EVT */
@@ -535,4 +536,3 @@ ble_err_t bk_ble_gattc_discover_service_by_uuid(bk_gatt_if_t gattc_if, uint16_t 
 #ifdef __cplusplus
 }
 #endif
-
