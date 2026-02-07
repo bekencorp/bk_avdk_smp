@@ -16,6 +16,11 @@
 #include "armstar.h"
 #include "arch_interrupt.h"
 #include "components/log.h"
+#include "sys_driver.h"
+
+#if CONFIG_SOC_SMP
+#include "cpu_id.h"
+#endif
 
 #define INT_NUMBER_MAX              (64)
 #define TO_NVIC_IRQ(irq)            ((uint32_t)(irq))
@@ -121,6 +126,9 @@ void arch_int_disable_all_irq(void)
 {
 	__disable_irq();
 	__disable_fault_irq();
+
+	sys_drv_core_intr_group1_disable(CPU1_CORE_ID, 0xFFFFFFFF);
+	sys_drv_core_intr_group2_disable(CPU1_CORE_ID, 0xFFFFFFFF);
 
 	for (uint32_t irq_type = 0; irq_type < INT_NUMBER_MAX; irq_type++) {
 		NVIC_DisableIRQ(irq_type);
