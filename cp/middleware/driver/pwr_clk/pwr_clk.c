@@ -333,7 +333,9 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 		if(module == PM_POWER_MODULE_NAME_CPU1)
 		{
 boot_cp1:
-			//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
+			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
+			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
+			#endif
             bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU1, PM_POWER_MODULE_STATE_ON);
 
 			#if defined(RECV_LOG_FROM_MBOX)
@@ -395,7 +397,9 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 		if(module == PM_POWER_MODULE_NAME_CPU1)
 		{
 			stop_cpu1_core();
-			//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
+			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
+			bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
+			#endif
 			bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU1, PM_POWER_MODULE_STATE_OFF);
 			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 
@@ -409,8 +413,13 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			{
 				rtos_deinit_semaphore(&s_sync_cp1_open_sema);
 			}
+			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
+			extern void stop_cpu2_core(void);
+			stop_cpu2_core();
+			bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU2, PM_POWER_MODULE_STATE_OFF);
 
-			//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
+			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
+			#endif
 			BK_LOGD(NULL,"Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count);
 		}
 	}
@@ -484,7 +493,7 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 bk_err_t bk_pm_cp_wakeup_ap_from_wfi(uint8_t core_id)
 {
 	int ret                       = BK_OK;
-#if CONFIG_PM_LV_SUBCORES_ON
+#if CONFIG_PM_LV_SUBCORES_ON && !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	mb_chnl_cmd_t mb_cmd          = {0};
 
 	mb_cmd.hdr.cmd = PM_SLEEP_WAKEUP_NOTIFY_CMD;

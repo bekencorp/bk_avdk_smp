@@ -81,5 +81,9 @@ menu "PWR_CLK"
 		bool "force on psram when enter low voltage"
 		default n
 
+	config PM_AP_POWERDOWN_WHEN_LV
+		bool "Power down ap when low voltage sleep"
+		default n
+
 	endmenu
 

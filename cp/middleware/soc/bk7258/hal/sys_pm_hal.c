@@ -517,7 +517,7 @@ static inline void sys_hal_set_sleep_condition(void)
 	//sleep_en_need_cpu1_wfi = 1
 	//sleep_en_need_flash_idle = 0
 
-	#if CONFIG_PM_LV_SUBCORES_ON
+	#if CONFIG_PM_LV_SUBCORES_ON && !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	v |= (0x8 << 16);
 	#else
 	v |= (0x2a << 16);
