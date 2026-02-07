@@ -60,6 +60,8 @@ typedef struct {
 #define jpeg_hal_disable_jpeg_mode(hal) jpeg_ll_disable_jpeg_mode((hal)->hw)
 
 #define jpeg_hal_get_frame_byte_number(hal) jpeg_ll_get_frame_byte_number((hal)->hw)
+#define jpeg_hal_get_target_high_byte(hal) jpeg_ll_get_target_high_byte((hal)->hw)
+#define jpeg_hal_get_target_low_byte(hal) jpeg_ll_get_target_low_byte((hal)->hw)
 
 #define jpeg_hal_get_interrupt_status(hal) jpeg_ll_get_interrupt_status((hal)->hw)
 #define jpeg_hal_clear_interrupt_status(hal, int_status) jpeg_ll_clear_interrupt_status((hal)->hw, int_status)

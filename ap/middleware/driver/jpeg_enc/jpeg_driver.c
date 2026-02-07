@@ -38,8 +38,8 @@ typedef struct {
 typedef struct {
 	uint8_t  set_enable  : 1; // 0:1/enable:disable config jpeg_encode
 	uint8_t  auto_enable : 1; // enable/disable set encode size
-	uint16_t up_size;
-	uint16_t low_size;
+	uint32_t up_size;
+	uint32_t low_size;
 } jpeg_encode_size_t;
 
 #define JPEG_RETURN_ON_NOT_INIT() do {\
@@ -336,7 +336,7 @@ bk_err_t bk_jpeg_enc_set_mclk_div(mclk_div_t div)
 	return BK_OK;
 }
 
-bk_err_t bk_jpeg_enc_encode_config(uint8_t enable, uint16_t up_size, uint16_t low_size)
+bk_err_t bk_jpeg_enc_encode_config(uint8_t enable, uint32_t up_size, uint32_t low_size)
 {
 	JPEG_RETURN_ON_NOT_INIT();
 
@@ -354,6 +354,14 @@ bk_err_t bk_jpeg_enc_encode_config(uint8_t enable, uint16_t up_size, uint16_t lo
 
 	rtos_exit_critical(int_level);
 
+	return BK_OK;
+}
+
+bk_err_t bk_jpeg_enc_get_encode_config(uint32_t *up_size, uint32_t *low_size)
+{
+	JPEG_RETURN_ON_NOT_INIT();
+	*up_size = jpeg_hal_get_target_high_byte(&s_jpeg.hal);
+	*low_size = jpeg_hal_get_target_low_byte(&s_jpeg.hal);
 	return BK_OK;
 }
 
