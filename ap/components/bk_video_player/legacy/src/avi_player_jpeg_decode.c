@@ -20,7 +20,7 @@ static bk_jpeg_decode_hw_handle_t avi_player_jpeg_decode_handle = NULL;
 static bk_err_t avi_player_jpeg_decode_complete(uint32_t format_type, uint32_t result, frame_buffer_t *out_frame);
 static bk_err_t avi_player_jpeg_decode_in_complete(frame_buffer_t *in_frame);
 
-#if CONFIG_AVI_PLAYER_JPEG_DECODE_OPT
+#if defined(CONFIG_AVI_PLAYER_JPEG_DECODE_OPT) && (CONFIG_AVI_PLAYER_JPEG_DECODE_OPT)
 static bk_jpeg_decode_hw_opt_config_t avi_player_jpeg_decode_opt_config = {
     .decode_cbs = {
         .in_complete = avi_player_jpeg_decode_in_complete,
@@ -174,7 +174,7 @@ bk_err_t avi_player_jpeg_hw_decode_init(bk_avi_player_format_t output_format, ui
 
     os_memset(g_jpeg_frame, 0x00, sizeof(frame_buffer_t));
 
-#if CONFIG_AVI_PLAYER_JPEG_DECODE_OPT
+#if defined(CONFIG_AVI_PLAYER_JPEG_DECODE_OPT) && (CONFIG_AVI_PLAYER_JPEG_DECODE_OPT)
     avi_player_jpeg_decode_opt_config.image_max_width = image_width;
     bk_hardware_jpeg_decode_opt_new(&avi_player_jpeg_decode_handle, &avi_player_jpeg_decode_opt_config);
 #else

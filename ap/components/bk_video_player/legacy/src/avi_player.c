@@ -61,23 +61,23 @@ bk_err_t bk_avi_player_video_parse(void)
         return BK_FAIL;
     }
 
-    ret = AVI_set_video_position(avi_player->avi, avi_player->pos, (long *)&avi_player->video_len);
+    ret = AVI_set_video_read_index(avi_player->avi, avi_player->pos, (long *)&avi_player->video_len);
     if (ret != BK_OK) {
-        LOGE("%s %d AVI_set_video_position failed\r\n", __func__, __LINE__);
+        LOGE("%s %d AVI_set_video_read_index failed\r\n", __func__, __LINE__);
         return ret;
     }
 
-    AVI_read_frame(avi_player->avi, (char *)avi_player->video_frame, avi_player->video_len);
+    AVI_read_next_video_frame(avi_player->avi, (char *)avi_player->video_frame, avi_player->video_len);
 
     if (avi_player->video_len == 0) {
         avi_player->pos = avi_player->pos + 1;
-        ret = AVI_set_video_position(avi_player->avi, avi_player->pos, (long *)&avi_player->video_len);
+        ret = AVI_set_video_read_index(avi_player->avi, avi_player->pos, (long *)&avi_player->video_len);
         if (ret != BK_OK) {
-            LOGE("%s %d AVI_set_video_position failed\r\n", __func__, __LINE__);
+            LOGE("%s %d AVI_set_video_read_index failed\r\n", __func__, __LINE__);
             return ret;
         }
 
-        AVI_read_frame(avi_player->avi, (char *)avi_player->video_frame, avi_player->video_len);
+        AVI_read_next_video_frame(avi_player->avi, (char *)avi_player->video_frame, avi_player->video_len);
     }
 
     ret = avi_player_jpeg_hw_decode_start(avi_player);
@@ -117,7 +117,7 @@ bk_err_t bk_avi_player_open(bk_avi_player_config_t *player_config)
     }
     os_memset(avi_player, 0x00, sizeof(bk_avi_player_t));
 
-    avi_player->avi = AVI_open_input_file((const char *)player_config->file_path, 1);
+    avi_player->avi = AVI_open_input_file((const char *)player_config->file_path, 1, AVI_MEM_PSRAM);
     if (avi_player->avi == NULL) {
         LOGE("%s %d open avi file failed\r\n", __func__, __LINE__);
         goto out;

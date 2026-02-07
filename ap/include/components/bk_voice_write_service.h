@@ -57,9 +57,9 @@ bk_err_t bk_voice_write_stop(voice_write_handle_t voice_write_handle);
  * @param[in]      buffer              The speech data buffer.
  * @param[in]      len                 The speech data length.
  *
- * @return         Error code.
- *                 - 0: Success.
- *                 - Non-zero: Failed.
+ * @return         The number of bytes written.
+ *                 - >= 0: Success. Note: it may return 0 if internal buffer is insufficient and data is dropped.
+ *                 - < 0 : Failed.
  */
 bk_err_t bk_voice_write_frame_data(voice_write_handle_t voice_write_handle, char *buffer, uint32_t len);
 

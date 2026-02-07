@@ -214,6 +214,20 @@ static int f_size_wrapper(void *fp)
 #endif
 }
 
+static int f_unlink_wrapper(const char *path)
+{
+	if (path == NULL) {
+		return -1;
+	}
+#if (CONFIG_FATFS) && (!CONFIG_VFS)
+	return f_unlink(path);
+#elif (CONFIG_VFS)
+	return unlink(path) < 0 ? -1 : 0;
+#else
+	return -1;
+#endif
+}
+
 static uint32_t get_avi_index_start_addr_wrapper(void)
 {
 	return AVI_INDEX_START_ADDR;
@@ -247,6 +261,7 @@ static bk_video_osi_funcs_t video_osi_funcs =
 	.f_lseek = f_lseek_wrapper,
 	.f_tell = f_tell_wrapper,
 	.f_size = f_size_wrapper,
+	.f_unlink = f_unlink_wrapper,
 
 	.get_avi_index_start_addr = get_avi_index_start_addr_wrapper,
 	.get_avi_index_count = get_avi_index_count_wrapper,

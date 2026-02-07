@@ -90,7 +90,7 @@ typedef struct {
     .pause_threshold = VOICE_WRITE_PAUSE_THRESHOLD, \
     .task_stack = 2048,                             \
     .task_core = 0,                                 \
-    .task_prio = VOICE_READ_TASK_PRIO,              \
+    .task_prio = VOICE_WRITE_TASK_PRIO,              \
     .mem_type = AUDIO_MEM_TYPE_PSRAM,               \
     .write_buf_type = AUDIO_BUF_TYPE_RB,            \
     .node_size = VOICE_WRITE_POOL_SIZE,             \

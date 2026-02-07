@@ -1,0 +1,19 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+重启设备,AT+RST,1,wakeup,3
+video_record_start_avi,ap_cmd video_record start /sd0/record.avi 480 320 mjpeg,1,CMDRSP:OK,20
+video_record_stop_avi,ap_cmd video_record stop,1,CMDRSP:OK,15
+video_record_start_mp4,ap_cmd video_record start /sd0/record.mp4 480 320 mjpeg mp4 aac,1,CMDRSP:OK,20
+video_record_stop_mp4,ap_cmd video_record stop,1,CMDRSP:OK,15
+video_file_info,ap_cmd video_file_info /sd0/record.mp4,1,CMDRSP:OK,10
+video_play_engine_start,ap_cmd video_play_engine start /sd0/record.mp4,1,CMDRSP:OK,15
+video_play_engine_pause,ap_cmd video_play_engine pause,1,CMDRSP:OK,10
+video_play_engine_resume,ap_cmd video_play_engine resume,1,CMDRSP:OK,10
+video_play_engine_stop,ap_cmd video_play_engine stop,1,CMDRSP:OK,10
+video_play_playlist_start,ap_cmd video_play_playlist start /sd0/record.mp4,1,CMDRSP:OK,15
+video_play_playlist_add,ap_cmd video_play_playlist add /sd0/record.avi,1,CMDRSP:OK,10
+video_play_playlist_pause,ap_cmd video_play_playlist pause,1,CMDRSP:OK,10
+video_play_playlist_resume,ap_cmd video_play_playlist resume,1,CMDRSP:OK,10
+video_play_playlist_next,ap_cmd video_play_playlist next,1,CMDRSP:OK,10
+video_play_playlist_prev,ap_cmd video_play_playlist prev,1,CMDRSP:OK,10
+video_play_playlist_stop,ap_cmd video_play_playlist stop,1,CMDRSP:OK,10
+sd_card_unmount,ap_cmd sd_card_test unmount,1,CMDRSP:OK,10

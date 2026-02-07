@@ -23,6 +23,7 @@ typedef struct
 	int (* f_lseek)(void *fp, uint32_t ofs, uint32_t whence);
 	int (* f_tell)(void *fp);
 	int (* f_size)(void *fp);
+	int (* f_unlink)(const char *path);
 
 	uint32_t (* get_avi_index_start_addr)(void);
 	uint32_t (* get_avi_index_count)(void);

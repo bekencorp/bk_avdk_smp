@@ -22,7 +22,11 @@ extern "C" {
 
 #include "modules/avilib.h"
 
-#define AVI_VIDEO_MAX_JPEG_FRAME_LEN    CONFIG_AVI_PLAYER_MAX_JPEG_FRAME_LEN
+// Keep legacy AVI player always buildable without depending on Kconfig macros.
+// If you need a different limit, define AVI_VIDEO_MAX_JPEG_FRAME_LEN in the build flags.
+#ifndef AVI_VIDEO_MAX_JPEG_FRAME_LEN
+#define AVI_VIDEO_MAX_JPEG_FRAME_LEN    (102400)
+#endif
 
 typedef enum
 {
