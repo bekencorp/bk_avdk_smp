@@ -50,12 +50,14 @@ enum BK_WIFI_API_CMD_TYPE
     STA_SET_BCN_MISS_TIME               = 0x31A,
     STA_GET_LINK_STATE_WITH_REASON      = 0x31B,
     STA_SET_IP4_STATIC_IP               = 0x31C,
+    STA_GET_NETIF_IP4_CONFIG            = 0x31D,
 
     // AP management command section
     AP_SET_CONFIG                       = 0x320,
     AP_START                            = 0x321,
     AP_STOP                             = 0x322,
     AP_NETIF_IP4_CONFIG                 = 0x323,
+    AP_GET_NETIF_IP4_CONFIG             = 0x329,
     AP_SET_CHANNEL                      = 0x324,
     AP_SET_CSA_COUNT                    = 0x325,
     AP_SET_CHANNEL_STOP                 = 0x326,

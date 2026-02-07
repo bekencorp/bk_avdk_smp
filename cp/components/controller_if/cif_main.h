@@ -22,6 +22,7 @@ extern "C" {
 #include "cif_ps.h"
 #include "rw_msdu.h"
 #include "cif_mem_mgmt.h"
+#include "modules/cif_common.h"
 
 #define CIF_TAG "CIF"
 #define CIF_LOGI(...)       BK_LOGI(CIF_TAG, ##__VA_ARGS__)
@@ -282,14 +283,7 @@ typedef struct cpdu_t
     struct common_header co_hdr;
 }cpdu_t;
 
-struct bk_msg_hdr
-{
-    uint32_t rsv0;
-    uint16_t cmd_id;
-    uint16_t cmd_sn;
-    uint16_t rsv1;
-    uint16_t len;//msg payload length
-};
+
 /// Temporarily rx cmd structure
 struct bk_rx_msg_hdr
 {
@@ -421,7 +415,7 @@ struct bk_msg_get_ip_config_req
 };
 
 
-typedef int(*cif_customer_msg_cb_t)(struct bk_msg_hdr *msg);
+
 struct cif_env_t
 {
     bool host_wifi_init;
@@ -459,7 +453,7 @@ bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_retry);
 void cif_rx_data_complete(void *param, void *ack_buf);
 void cif_rx_evt_complete(void *param, void *ack_buf);
 bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry);
-void cif_register_customer_msg_handler(cif_customer_msg_cb_t func);
+
 void cif_print_debug_info();
 #ifdef __cplusplus
 }

@@ -353,12 +353,12 @@ int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len)
     return 0;
 }
 
-int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
+bk_err_t bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
 {
     int ret = 0;
 
     if (data == NULL || len == 0) {
-        WDRV_LOGE("bk_wdrv_customer_transfer : Invalid input parameters");
+        WDRV_LOGE("%s : Invalid input parameters\n", __func__);
         return -1;
     }
 
@@ -367,13 +367,69 @@ int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
     cust_trans->cmd_id = cmd_id;
     cust_trans->len = len;
 
-    WDRV_LOGV("bk_wdrv_customer_transfer : %d, len: %d\n", cust_trans->cmd_id, sizeof(cifd_cust_msg_hdr_t) + cust_trans->len);
+    WDRV_LOGV("%s, cmd_id: %d, len: %d\n", __func__, cust_trans->cmd_id, sizeof(cifd_cust_msg_hdr_t) + cust_trans->len);
     os_memcpy((uint8_t*)cust_trans + sizeof(cifd_cust_msg_hdr_t), data, len);
     ret = bk_wdrv_send_customer_data((uint8_t*)cust_trans, sizeof(cifd_cust_msg_hdr_t) + cust_trans->len);
 
     os_free(cust_trans);
 
     return ret;
+}
+
+
+bk_err_t bk_wdrv_customer_transfer_rsp(uint16_t cmd_id, uint8_t *data, uint16_t len,
+                      uint8_t *response_buf, uint16_t response_buf_size, uint16_t *response_len)
+{
+    int ret = 0;
+    cifd_cust_msg_hdr_t *cust_trans = NULL;
+    struct wdrv_customer_req cust_req = {0};
+    wdrv_cmd_cfm cmd_cfm = {0};
+    uint32_t total_len = 0;
+
+    if (response_buf == NULL || response_len == NULL) {
+        WIFI_LOGE("%s : Invalid response parameters\n", __func__);
+        return BK_ERR_PARAM;
+    }
+
+    total_len = sizeof(cifd_cust_msg_hdr_t) + (data ? len : 0);
+    cust_trans = os_malloc(total_len);
+    if (cust_trans == NULL) {
+        WIFI_LOGE("%s : malloc failed\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    cust_trans->cmd_id = cmd_id;
+    cust_trans->len = len;
+    if (data && len > 0) {
+        os_memcpy(cust_trans->payload, data, len);
+    }
+
+    cust_req.cmd_hdr.cmd_id = BK_CMD_CUSTOMER_DATA;
+    cust_req.cmd_hdr.len = total_len;
+    cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
+    cmd_cfm.cfm_id = 0;
+
+    os_memcpy(cust_req.data, (uint8_t*)cust_trans, total_len);
+
+    ret = wdrv_tx_msg((uint8_t *)&cust_req, sizeof(wdrv_cmd_hdr) + total_len, &cmd_cfm, response_buf);
+
+    os_free(cust_trans);
+
+    if (ret < 0) {
+        WIFI_LOGE("%s : send failed, ret=%d\n", __func__, ret);
+        *response_len = 0;
+        return BK_ERR_TIMEOUT;
+    }
+
+    if (ret > 0 && ret <= response_buf_size) {
+        *response_len = (uint16_t)ret;
+        WIFI_LOGV("%s : received response, len=%d\n", __func__, *response_len);
+        return BK_OK;
+    } else {
+        WIFI_LOGE("%s : invalid response len=%d\n", __func__, ret);
+        *response_len = 0;
+        return BK_ERR_PARAM;
+    }
 }
 
 bk_err_t wdrv_cntrl_get_cif_stats()

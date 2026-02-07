@@ -571,6 +571,26 @@ bk_err_t cif_handle_wifi_api_cmd(struct bk_msg_hdr *msg)
             ret = bk_netif_set_ip4_config(NETIF_IF_AP, (netif_ip4_config_t *)arg_info->args[0]);
             break;
         }
+        case AP_GET_NETIF_IP4_CONFIG:
+        {
+            netif_ip4_config_t *ip_config = (netif_ip4_config_t *)arg_info->args[0];
+            if (ip_config) {
+                ret = bk_netif_get_ip4_config(NETIF_IF_AP, ip_config);
+            } else {
+                ret = BK_ERR_NULL_PARAM;
+            }
+            break;
+        }
+        case STA_GET_NETIF_IP4_CONFIG:
+        {
+            netif_ip4_config_t *ip_config = (netif_ip4_config_t *)arg_info->args[0];
+            if (ip_config) {
+                ret = bk_netif_get_ip4_config(NETIF_IF_STA, ip_config);
+            } else {
+                ret = BK_ERR_NULL_PARAM;
+            }
+            break;
+        }
 #if CONFIG_BK_RAW_LINK
         case RLK_REGISTER_SEND_CB:
         {

@@ -34,12 +34,10 @@ enum {
 void cif_update_ps_state(uint8_t cif_fsm_evt);
 void cif_enter_lv_timer_cb(void *Larg, void *Rarg);
 void cif_host_wakeup_gpio_init(void);
-void cif_start_lv_sleep(void);
-bk_err_t cif_exit_sleep(void);
-bk_err_t cif_power_up_host(void);
-bk_err_t cif_power_down_host(void);
-bk_err_t cif_exit_sleep(void);
-void cif_start_deep_sleep(void);
+
+
+
+
 void cif_battery_test_mode(bool test_mode);
 #ifdef __cplusplus
 }

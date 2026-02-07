@@ -31,6 +31,7 @@ enum CIF_WIFI_API_CMD_TYPE
     STA_SET_BCN_MISS_TIME               = 0x31A,
     STA_GET_LINK_STATE_WITH_REASON      = 0x31B,
     STA_SET_IP4_STATIC_IP               = 0x31C,
+    STA_GET_NETIF_IP4_CONFIG            = 0x31D,
 
     // AP management command section
     AP_SET_CONFIG                       = 0x320,
@@ -42,6 +43,7 @@ enum CIF_WIFI_API_CMD_TYPE
     AP_SET_CHANNEL_STOP                 = 0x326,
     AP_GET_STA_LIST                     = 0x327,
     FREE_GET_STA_LIST_MEMORY            = 0x328,
+    AP_GET_NETIF_IP4_CONFIG             = 0x329,
 
     // PM management Wi-Fi command section
     STA_PM_ENABLE                       = 0x330,

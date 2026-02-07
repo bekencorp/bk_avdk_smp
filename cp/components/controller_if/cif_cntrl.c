@@ -832,6 +832,7 @@ bk_err_t cif_handle_bk_cmd(void *head)
 
     CIF_LOGV("cif_handle_bk_cmd cmd_id:%x\n", msg->cmd_id);
     cif_env.no_host = false;
+    cif_env.host_wifi_init = true;
 
     if ((msg->cmd_id >= BK_CMD_WIFI_API_START) && (msg->cmd_id < BK_CMD_WIFI_API_END))
     {

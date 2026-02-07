@@ -402,7 +402,6 @@ void wdrv_notify_sta_connected(void);
 void wdrv_notify_sta_got_ip(void);
 void bk_rx_handle_customer_event(void *data, uint16_t len);
 int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len);
-int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t * data, uint16_t len);
 void wdrv_notify_sta_disconnected(void *data, uint16_t len);
 void wdrv_notify_sap_sta_connected(void);
 void wdrv_notify_sta_got_ipv6(void);
