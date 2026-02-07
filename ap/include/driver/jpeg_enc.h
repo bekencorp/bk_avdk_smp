@@ -289,7 +289,21 @@ uint32_t bk_jpeg_get_em_base_addr(void);
  *    - BK_OK: succeed
  *    - others: other errors.
  */
-bk_err_t bk_jpeg_enc_encode_config(uint8_t enable, uint16_t up_size, uint16_t low_size);
+bk_err_t bk_jpeg_enc_encode_config(uint8_t enable, uint32_t up_size, uint32_t low_size);
+
+/**
+ * @brief     get jpeg encode config
+ *
+ * This API will use for get jpeg encode config
+ *
+ * @param up_size the jpeg image upper limit, unit byte
+ * @param low_size the jpeg image lower limit, unit byte
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_jpeg_enc_get_encode_config(uint32_t *up_size, uint32_t *low_size);
 
 /**
  * @brief     jpeg encode mode and yuv mode switch

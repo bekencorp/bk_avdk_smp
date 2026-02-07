@@ -119,6 +119,28 @@ typedef enum {
     H264_NAL_UNSPECIFIED31   = 31,
 } h264_type_t;
 
+/**
+ * @brief H264 compress ratio default config
+ *
+ * This is the default configuration for the H264 compress ratio.
+ * The init_qp/i_min_qp/i_max_qp/p_min_qp/p_max_qp range is [15, 51].
+ * The imb_bits/pmb_bits range is [50, 4095].
+ *
+ * @return h264_compress_ratio_t
+ */
+#define H264_COMPRESS_RATIO_DEFAULT_CONFIG() { \
+    .qp = {                               \
+        .init_qp = 25,                   \
+        .i_min_qp = 25,                  \
+        .i_max_qp = 51,                  \
+        .p_min_qp = 25,                  \
+        .p_max_qp = 51,                  \
+    },                                \
+    .enable = true,                    \
+    .imb_bits = 160,                    \
+    .pmb_bits = 60,                    \
+}
+
 #ifdef __cplusplus
 }
 #endif
