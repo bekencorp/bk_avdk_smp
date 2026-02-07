@@ -14,6 +14,8 @@ typedef enum
     BOARDING_OP_SRRVICE_CS2_START = 9,
     BOARDING_OP_BLE_DISABLE = 10,
     BOARDING_OP_SET_WIFI_CHANNEL = 11,
+    BOARDING_OP_SET_SERVER_NET_INFO = 17,
+    BOARDING_OP_CONNECTION_SERVER_FAILED = 18,
 } boarding_opcode_t;
 
 typedef void (*ble_boarding_op_cb_t)(uint16_t opcode, uint16_t length, uint8_t *data);

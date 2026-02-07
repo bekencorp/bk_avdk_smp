@@ -125,7 +125,6 @@ bk_err_t ntwk_fragment_stop(chan_type_t chan_type)
 	}
 
 	s_fragment_cfg_mgr[chan_type]->initialized = false;
-	ntwk_fragmentation_deinit(chan_type);
 
 	LOGI("%s, stopped\n", __func__);
 
@@ -535,8 +534,6 @@ bk_err_t ntwk_unfragment_stop(chan_type_t chan_type)
     s_unfragment_cfg_mgr[chan_type]->frame_size = 0;
 
     s_unfragment_cfg_mgr[chan_type]->initialized = false;
-
-    ntwk_fragmentation_deinit(chan_type);
 
     return ret;
 }

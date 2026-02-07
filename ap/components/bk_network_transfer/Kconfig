@@ -31,4 +31,10 @@ menu "Bk Network Transfer"
 		help
 			Use PSRAM for memory allocation in network transfer component
 
+	config NTWK_CLIENT_SERVICE_ENABLE
+		bool "Enable Network Client Service"
+		default n
+		help
+			Enable network client service
+
 endmenu

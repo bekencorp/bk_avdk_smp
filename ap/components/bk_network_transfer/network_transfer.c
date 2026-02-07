@@ -20,6 +20,9 @@
 
 
 static ntwk_trans_ctxt_t *s_ntwk_trans_ctxt = NULL;
+#if CONFIG_NTWK_CLIENT_SERVICE_ENABLE
+static ntwk_server_net_info_t s_ntwk_server_net_info = {0};
+#endif
 
 ntwk_trans_ctxt_t *ntwk_trans_get_ctxt(void)
 {
@@ -233,7 +236,7 @@ bk_err_t ntwk_trans_ctxt_init(ntwk_trans_ctxt_t *ctxt)
     }
     else
     {
-        s_ntwk_trans_ctxt = os_malloc(sizeof(ntwk_trans_ctxt_t));
+        s_ntwk_trans_ctxt = ntwk_malloc(sizeof(ntwk_trans_ctxt_t));
         if (s_ntwk_trans_ctxt == NULL)
         {
             LOGE("malloc ctxt failed\n");
@@ -241,7 +244,7 @@ bk_err_t ntwk_trans_ctxt_init(ntwk_trans_ctxt_t *ctxt)
         }
         os_memset(s_ntwk_trans_ctxt, 0, sizeof(ntwk_trans_ctxt_t));
 
-        s_ntwk_trans_ctxt->cntrl_chan = os_malloc(sizeof(ntwk_trans_ctrl_chan_t));
+        s_ntwk_trans_ctxt->cntrl_chan = ntwk_malloc(sizeof(ntwk_trans_ctrl_chan_t));
         if (s_ntwk_trans_ctxt->cntrl_chan == NULL)
         {
             LOGE("malloc cntrl_chan failed\n");
@@ -249,7 +252,7 @@ bk_err_t ntwk_trans_ctxt_init(ntwk_trans_ctxt_t *ctxt)
         }
         os_memset(s_ntwk_trans_ctxt->cntrl_chan, 0, sizeof(ntwk_trans_ctrl_chan_t));
         
-        s_ntwk_trans_ctxt->video_chan = os_malloc(sizeof(ntwk_trans_video_chan_t));
+        s_ntwk_trans_ctxt->video_chan = ntwk_malloc(sizeof(ntwk_trans_video_chan_t));
         if (s_ntwk_trans_ctxt->video_chan == NULL)
         {
             LOGE("malloc video_chan failed\n");
@@ -257,7 +260,7 @@ bk_err_t ntwk_trans_ctxt_init(ntwk_trans_ctxt_t *ctxt)
         }
         os_memset(s_ntwk_trans_ctxt->video_chan, 0, sizeof(ntwk_trans_video_chan_t));
         
-        s_ntwk_trans_ctxt->audio_chan = os_malloc(sizeof(ntwk_trans_audio_chan_t));
+        s_ntwk_trans_ctxt->audio_chan = ntwk_malloc(sizeof(ntwk_trans_audio_chan_t));
         if (s_ntwk_trans_ctxt->audio_chan == NULL)
         {
             LOGE("malloc audio_chan failed\n");
@@ -659,6 +662,7 @@ bk_err_t ntwk_trans_register_unfragment_malloc_cb(chan_type_t chan, ntwk_trans_u
 
     return ntwk_unfragment_register_malloc_cb(chan, cb);
 }
+
 bk_err_t ntwk_trans_register_unfragment_send_cb(chan_type_t chan, ntwk_trans_unfragment_send_cb_t cb)
 {
     if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
@@ -669,6 +673,7 @@ bk_err_t ntwk_trans_register_unfragment_send_cb(chan_type_t chan, ntwk_trans_unf
 
     return ntwk_unfragment_register_send_cb(chan, cb);
 }
+
 bk_err_t ntwk_trans_register_unfragment_free_cb(chan_type_t chan, ntwk_trans_unfragment_free_cb_t cb)
 {
     if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
@@ -679,3 +684,28 @@ bk_err_t ntwk_trans_register_unfragment_free_cb(chan_type_t chan, ntwk_trans_unf
 
     return ntwk_unfragment_register_free_cb(chan, cb);
 }
+
+#if CONFIG_NTWK_CLIENT_SERVICE_ENABLE
+bk_err_t ntwk_trans_set_server_net_info(ntwk_server_net_info_t *net_info)
+{
+    if (!net_info)
+    {
+        LOGE("%s, invalid parameter\n", __func__);
+        return BK_ERR_PARAM;
+    }
+
+    os_memset(&s_ntwk_server_net_info, 0, sizeof(ntwk_server_net_info_t));
+
+    os_memcpy(&s_ntwk_server_net_info, net_info, sizeof(ntwk_server_net_info_t));
+
+    LOGI("%s, server net info configured\n", __func__);
+
+    return BK_OK;
+}
+
+ntwk_server_net_info_t *ntwk_trans_get_server_net_info(void)
+{
+    return &s_ntwk_server_net_info;
+}
+
+#endif

@@ -46,10 +46,24 @@ static void ntwk_msg_message_handle(void)
 
     while (1)
     {
+        // Check if queue is still valid
+        if (ntwk_in_cfg == NULL || ntwk_in_cfg->queue == NULL)
+        {
+            LOGD("%s, queue is NULL, exiting\n", __func__);
+            break;
+        }
+
         ret = rtos_pop_from_queue(&ntwk_in_cfg->queue, &msg, BEKEN_WAIT_FOREVER);
 
         if (kNoErr == ret)
         {
+            // Check if this is an exit signal (queue is being deinitialized)
+            if (ntwk_in_cfg == NULL || ntwk_in_cfg->queue == NULL)
+            {
+                LOGD("%s, queue deinitialized, exiting\n", __func__);
+                break;
+            }
+
             switch (msg.code)
             {
                 case NTWK_TRANS_EVT_START:
@@ -64,7 +78,7 @@ static void ntwk_msg_message_handle(void)
                     }
 
                     // Call user registered event callback
-                    if (ntwk_in_cfg->event_cb != NULL)
+                    if (ntwk_in_cfg && ntwk_in_cfg->event_cb != NULL)
                     {
                         LOGD("%s, event:%d, param:%d, chan_type:%d\n", __func__, msg.code, msg.param, msg.chan_type);
                         // Convert internal msg format to ntwk_trans_event_t
@@ -86,7 +100,16 @@ static void ntwk_msg_message_handle(void)
                     break;
             }
         }
+        else
+        {
+            // Queue error (queue deleted or invalid), exit the thread
+            LOGD("%s, queue pop error (ret:%d), exiting\n", __func__, ret);
+            break;
+        }
     }
+
+    LOGD("%s exit\n", __func__);
+    rtos_delete_thread(NULL);
 }
 
 
@@ -142,7 +165,10 @@ bk_err_t ntwk_msg_stop(void)
         return BK_FAIL;
     }
 
-    /* delete message queue */
+    /* clear event callback first */
+    ntwk_in_cfg->event_cb = NULL;
+
+    /* delete message queue - this will wake up the thread waiting on rtos_pop_from_queue */
     if (ntwk_in_cfg->queue)
     {
         ret = rtos_deinit_queue(&ntwk_in_cfg->queue);
@@ -153,17 +179,13 @@ bk_err_t ntwk_msg_stop(void)
         ntwk_in_cfg->queue = NULL;
     }
 
-    /* delete task */
+    /* wait for thread to exit naturally */
     if (ntwk_in_cfg->thd)
     {
-        rtos_delete_thread(NULL);
+        rtos_thread_join(ntwk_in_cfg->thd);
         ntwk_in_cfg->thd = NULL;
     }
 
-    /* clear event callback */
-    ntwk_in_cfg->event_cb = NULL;
-
-    ntwk_msg_deinit();
     LOGD("%s complete\n", __func__);
     return BK_OK;
 }
@@ -178,7 +200,7 @@ bk_err_t ntwk_msg_init(void)
         return BK_OK;
     }
 
-    ntwk_in_cfg = os_malloc(sizeof(ntwk_in_cfg_t));
+    ntwk_in_cfg = ntwk_malloc(sizeof(ntwk_in_cfg_t));
 
     if (ntwk_in_cfg == NULL)
     {

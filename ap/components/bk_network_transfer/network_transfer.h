@@ -51,6 +51,16 @@ typedef struct
     int param;            /**< Additional event-specific parameters or data, context dependent */
 } ntwk_trans_event_t;
 
+#if CONFIG_NTWK_CLIENT_SERVICE_ENABLE
+typedef struct ntwk_server_net_info
+{
+    uint8_t ip_addr[16];
+    uint8_t cmd_port[6];
+    uint8_t video_port[6];
+    uint8_t audio_port[6];
+}ntwk_server_net_info_t;
+#endif
+
 /**
  * @brief Event callback function type for network transfer events
  * @param event Pointer to event structure
@@ -577,6 +587,27 @@ bk_err_t ntwk_trans_register_unfragment_send_cb(chan_type_t chan, ntwk_trans_unf
  * @return bk_err_t BK_OK on success, error code on failure
  */
 bk_err_t ntwk_trans_register_unfragment_free_cb(chan_type_t chan, ntwk_trans_unfragment_free_cb_t cb);
+
+#if CONFIG_NTWK_CLIENT_SERVICE_ENABLE
+/**
+ * @brief Set server network information
+ *
+ * Configure the server network information including IP address and ports for control, video, and audio channels.
+ *
+ * @param net_info Pointer to the server network information structure
+ * @return bk_err_t BK_OK on success, error code on failure
+ */
+bk_err_t ntwk_trans_set_server_net_info(ntwk_server_net_info_t *net_info);
+
+/**
+ * @brief Get server network information
+ *
+ * Retrieve the currently configured server network information including IP address and ports for control, video, and audio channels.
+ *
+ * @return ntwk_server_net_info_t* Pointer to the server network information structure, NULL if not configured
+ */
+ntwk_server_net_info_t *ntwk_trans_get_server_net_info(void);
+#endif
 
 #ifdef __cplusplus
 }

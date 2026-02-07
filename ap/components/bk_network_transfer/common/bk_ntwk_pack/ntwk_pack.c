@@ -605,7 +605,7 @@ bk_err_t ntwk_pack_chan_stop(chan_type_t chan_type)
 
     g_pkt_chan_mgr[chan_type]->recv_cb = NULL;
     g_pkt_chan_mgr[chan_type]->initialized = false;
-    ntwk_pack_deinit(chan_type);
+
     LOGD("%s: chan_type %d stopped\n", __func__, chan_type);
 
     return BK_OK;
