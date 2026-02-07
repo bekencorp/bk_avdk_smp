@@ -38,7 +38,7 @@
 #include "low_pwr_misc.h"
 /*=====================DEFINE  SECTION  START=====================*/
 #define PM_SEND_CMD_CP1_RESPONSE_TIEM        (100)  //100ms
-#define PM_BOOT_CP1_WAITING_TIEM             (500) // 0.5s
+#define PM_BOOT_CP1_WAITING_TIEM             (3000) // 3s
 #define PM_CP1_RECOVERY_DEFAULT_VALUE        (0xFFFFFFFFFFFFFFFF)
 #define PM_OPEN_CP1_TIMEOUT                  (20000) //20s
 #define PM_SEMA_WAIT_FOREVER                 (0xFFFFFFFF)    /*Wait Forever*/
