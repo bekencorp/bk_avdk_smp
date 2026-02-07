@@ -65,6 +65,10 @@ extern "C" {
 #define FIXED_ADDR_PM_AP_SLEEP_VOTE          (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+60))
 #define FIXED_ADDR_PM_AP_CLK_VOTE_STATE      (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+68))
 
+#define FIXED_ADDR_PM_MODULE_LV_SLEEP_STATE  (*(volatile uint64_t *)(CONFIG_PWR_MNG_ADDR+76))
+
+/*Attention: Max PM share memory size is 256 bytes*/
+
 #define PM_PSRAM_POWER_DOWN_MAGIC            (0x123)
 
 typedef enum

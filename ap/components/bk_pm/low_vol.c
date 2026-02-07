@@ -13,13 +13,13 @@
 // limitations under the License.
 
 #include <modules/pm.h>
-
+#include <driver/pwr_clk.h>
 /*=====================DEFINE  SECTION  START=====================*/
 
 /*=====================DEFINE  SECTION  END=======================*/
 
 /*=====================VARIABLE  SECTION  START===================*/
-static volatile  uint64_t s_pm_module_lv_sleep_state               = 0;
+//static volatile  uint64_t s_pm_module_lv_sleep_state               = 0;
 
 
 /*=====================VARIABLE  SECTION  END=====================*/
@@ -30,21 +30,21 @@ static volatile  uint64_t s_pm_module_lv_sleep_state               = 0;
 /*================FUNCTION DECLARATION  SECTION  END===============*/
 uint64_t bk_pm_module_lv_sleep_state_get(pm_dev_id_e module)
 {
-	return s_pm_module_lv_sleep_state & (0x1ULL << module);
+	return FIXED_ADDR_PM_MODULE_LV_SLEEP_STATE & (0x1ULL << module);
 }
 __attribute__((section(".itcm_sec_code"))) bk_err_t bk_pm_module_lv_sleep_state_set()
 {
-	s_pm_module_lv_sleep_state = 0xFFFFFFFFFFFFFFFF;
+	FIXED_ADDR_PM_MODULE_LV_SLEEP_STATE = 0xFFFFFFFFFFFFFFFF;
 	return BK_OK;
 }
 bk_err_t bk_pm_module_lv_sleep_state_clear(pm_dev_id_e module)
 {
-	s_pm_module_lv_sleep_state &= ~(0x1ULL << module);
+	FIXED_ADDR_PM_MODULE_LV_SLEEP_STATE &= ~(0x1ULL << module);
 	return BK_OK;
 }
 
 bk_err_t pm_debug_lv_state()
 {
-	BK_LOGD(NULL, "pm_module_lv_sleep_state:0x%llx\r\n",s_pm_module_lv_sleep_state);
+	BK_LOGD(NULL, "pm_module_lv_sleep_state:0x%llx\r\n",FIXED_ADDR_PM_MODULE_LV_SLEEP_STATE);
 	return BK_OK;
 }
