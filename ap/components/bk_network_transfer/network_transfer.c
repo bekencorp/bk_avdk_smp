@@ -222,7 +222,7 @@ int ntwk_trans_fragment_rx_handler(chan_type_t chan, uint8_t *data, uint32_t len
 
 bk_err_t ntwk_trans_ctxt_init(ntwk_trans_ctxt_t *ctxt)
 {
-    LOGI("%s start\r\n", __func__);
+    LOGV("%s start\r\n", __func__);
     if (s_ntwk_trans_ctxt != NULL)
     {
         LOGW("%s, context already initialized\n", __func__);
@@ -283,14 +283,14 @@ bk_err_t ntwk_trans_ctxt_init(ntwk_trans_ctxt_t *ctxt)
 
     s_ntwk_trans_ctxt->initialized = true;
 
-    LOGI("%s, service: %s\n", __func__, s_ntwk_trans_ctxt->service_name);
+    LOGV("%s, service: %s\n", __func__, s_ntwk_trans_ctxt->service_name);
 
     return BK_OK;
 }
 
 bk_err_t ntwk_trans_ctxt_deinit(void)
 {
-    LOGI("%s start\r\n", __func__);
+    LOGV("%s start\r\n", __func__);
 
     if (s_ntwk_trans_ctxt == NULL)
     {
@@ -330,14 +330,14 @@ bk_err_t ntwk_trans_ctxt_deinit(void)
     os_free(s_ntwk_trans_ctxt);
     s_ntwk_trans_ctxt = NULL;
 
-    LOGI("%s, completed\n", __func__);
+    LOGV("%s, completed\n", __func__);
 
     return BK_OK;
 }
 
 bk_err_t ntwk_trans_chan_start(chan_type_t chan_type, void *param)
 {
-    LOGI("%s start\r\n", __func__);
+    LOGV("%s start\r\n", __func__);
 
     if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
     {
@@ -351,7 +351,7 @@ bk_err_t ntwk_trans_chan_start(chan_type_t chan_type, void *param)
 
     if (ret == BK_OK)
     {
-        LOGI("%s, channel %d started\n", __func__, chan_type);
+        LOGV("%s, channel %d started\n", __func__, chan_type);
     }
     else
     {
@@ -363,7 +363,7 @@ bk_err_t ntwk_trans_chan_start(chan_type_t chan_type, void *param)
 
 bk_err_t ntwk_trans_chan_stop(chan_type_t chan_type)
 {
-    LOGI("%s start\r\n", __func__);
+    LOGV("%s start\r\n", __func__);
 
     if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
     {
@@ -375,11 +375,7 @@ bk_err_t ntwk_trans_chan_stop(chan_type_t chan_type)
 
     ret = ntwk_in_stop(chan_type);
 
-    if (ret == BK_OK)
-    {
-        LOGI("%s, channel %d stopped\n", __func__, chan_type);
-    }
-    else
+    if (ret != BK_OK)
     {
         LOGE("%s, channel %d stop failed: %d\n", __func__, chan_type, ret);
     }
@@ -698,7 +694,7 @@ bk_err_t ntwk_trans_set_server_net_info(ntwk_server_net_info_t *net_info)
 
     os_memcpy(&s_ntwk_server_net_info, net_info, sizeof(ntwk_server_net_info_t));
 
-    LOGI("%s, server net info configured\n", __func__);
+    LOGV("%s, server net info configured\n", __func__);
 
     return BK_OK;
 }

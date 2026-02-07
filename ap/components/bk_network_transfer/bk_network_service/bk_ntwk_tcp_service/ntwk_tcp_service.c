@@ -59,7 +59,7 @@ static int ntwk_tcp_set_keepalive(int sockfd,  int keepalive, int keepidle, int 
 		LOGW("setsockopt TCP_KEEPCNT failed: %d\n", errno);
 	}
 
-	LOGI("TCP keepalive enabled: idle=%ds, interval=%ds, count=%d\n", 
+	LOGV("TCP keepalive enabled: idle=%ds, interval=%ds, count=%d\n", 
 		keepidle, keepintvl, keepcnt);
 
 	return BK_OK;
@@ -959,7 +959,7 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
     int connect_retry = 0;
     const int max_retry = 5;
 
-    LOGD("%s entry\n", __func__);
+    LOGV("%s entry\n", __func__);
     (void)(data);
 
     rcv_buf = (u8 *) ntwk_malloc((NTWK_TRANS_CMD_BUFFER + 1) * sizeof(u8));
@@ -995,7 +995,7 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
         ntwk_tcp_ctrl_client_info->server_addr.sin_addr.s_addr = ntwk_tcp_ctrl_client_info->server_address;
 
         ntwk_tcp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_WAITING_CONNECTED;
-        LOGD("%s, connecting to server %s:%d\n", __func__,
+        LOGV("tcp-ctrl, connecting to server %s:%d\n",
              inet_ntoa(*(struct in_addr *)&ntwk_tcp_ctrl_client_info->server_address),
              ntwk_tcp_ctrl_client_info->server_port);
 
@@ -1027,7 +1027,7 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
         ntwk_tcp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_CONNECTED;
         ntwk_tcp_ctrl_client_info->client_state = BK_TRUE;
 
-        LOGD("%s, Connected to server fd:%d\n", __func__, ntwk_tcp_ctrl_client_info->client_fd);
+        LOGD("ctrl, Connected to server fd:%d\n", ntwk_tcp_ctrl_client_info->client_fd);
 
         ntwk_tcp_set_keepalive(ntwk_tcp_ctrl_client_info->client_fd,
                                NTWK_TRANS_CTRL_CHAN_KEEPALIVE_ENABLE,
@@ -1044,12 +1044,12 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
             rcv_len = recv(ntwk_tcp_ctrl_client_info->client_fd, rcv_buf, NTWK_TRANS_CMD_BUFFER, 0);
             if (rcv_len > 0)
             {
-                LOGD("%s, got length: %d\n", __func__, rcv_len);
+                LOGD("got length: %d\n", rcv_len);
                 ntwk_tcp_ctrl_client_receive_data(rcv_buf, rcv_len);
             }
             else
             {
-                LOGD("%s, recv close fd:%d, rcv_len:%d, error:%d\n", __func__,
+                LOGD("recv close fd:%d, rcv_len:%d, error:%d\n",
                      ntwk_tcp_ctrl_client_info->client_fd, rcv_len, errno);
                 close(ntwk_tcp_ctrl_client_info->client_fd);
                 ntwk_tcp_ctrl_client_info->client_fd = -1;
@@ -1213,7 +1213,7 @@ bk_err_t ntwk_tcp_ctrl_client_register_receive_cb(ntwk_tcp_ctrl_receive_cb_t cb)
     }
 
     ntwk_tcp_ctrl_client_info->receive_cb = cb;
-    LOGD("%s: Receive callback registered successfully\n", __func__);
+    LOGV("%s: Receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -1237,7 +1237,7 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
     int connect_retry = 0;
     const int max_retry = 5;
 
-    LOGD("%s entry\n", __func__);
+    LOGV("%s entry\n", __func__);
     (void)(data);
 
     ntwk_msg_event_report(NTWK_TRANS_EVT_START, 0, NTWK_TRANS_CHAN_VIDEO);
@@ -1255,7 +1255,7 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
         // Check if stop was called
         if (video_tcp_client_service->chan_state == NTWK_TRANS_CHAN_STOP)
         {
-            LOGD("%s, stop called, exiting\n", __func__);
+            LOGV("%s, stop called, exiting\n", __func__);
             break;
         }
 
@@ -1273,7 +1273,7 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
         video_tcp_client_service->server_addr.sin_addr.s_addr = video_tcp_client_service->server_address;
 
         video_tcp_client_service->chan_state = NTWK_TRANS_CHAN_WAITING_CONNECTED;
-        LOGD("%s, connecting to server %s:%d\n", __func__,
+        LOGV("connecting to server %s:%d\n",
              inet_ntoa(*(struct in_addr *)&video_tcp_client_service->server_address),
              video_tcp_client_service->server_port);
 
@@ -1310,7 +1310,7 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
 
         connect_retry = 0;
         video_tcp_client_service->chan_state = NTWK_TRANS_CHAN_CONNECTED;
-        LOGD("%s, Connected to server fd:%d\n", __func__, video_tcp_client_service->video_fd);
+        LOGD("video, Connected to server fd:%d\n", video_tcp_client_service->video_fd);
 
         ntwk_tcp_set_keepalive(video_tcp_client_service->video_fd,
                                NTWK_TRANS_VIDEO_CHAN_KEEPALIVE_ENABLE,
@@ -1392,7 +1392,7 @@ bk_err_t ntwk_tcp_video_client_chan_start(void *param)
         return BK_FAIL;
     }
 
-    LOGD("%s, %d\n", __func__, __LINE__);
+    LOGV("%s, %d\n", __func__, __LINE__);
 
     if (video_tcp_client_service == NULL)
     {
@@ -1488,7 +1488,7 @@ bk_err_t ntwk_tcp_video_client_register_receive_cb(ntwk_video_receive_cb_t cb)
     }
 
     video_tcp_client_service->receive_cb = cb;
-    LOGD("%s: Video receive callback registered successfully\n", __func__);
+    LOGV("%s: Video receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -1512,7 +1512,7 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
     int connect_retry = 0;
     const int max_retry = 5;
 
-    LOGD("%s entry\n", __func__);
+    LOGV("%s entry\n", __func__);
     (void)(data);
 
     ntwk_msg_event_report(NTWK_TRANS_EVT_START, 0, NTWK_TRANS_CHAN_AUDIO);
@@ -1530,7 +1530,7 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
         // Check if stop was called
         if (aud_tcp_client_service->chan_state == NTWK_TRANS_CHAN_STOP)
         {
-            LOGD("%s, stop called, exiting\n", __func__);
+            LOGV("%s, stop called, exiting\n", __func__);
             break;
         }
 
@@ -1548,7 +1548,7 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
         aud_tcp_client_service->server_addr.sin_addr.s_addr = aud_tcp_client_service->server_address;
 
         aud_tcp_client_service->chan_state = NTWK_TRANS_CHAN_WAITING_CONNECTED;
-        LOGD("%s, connecting to server %s:%d\n", __func__,
+        LOGV("connecting to server %s:%d\n",
              inet_ntoa(*(struct in_addr *)&aud_tcp_client_service->server_address),
              aud_tcp_client_service->server_port);
 
@@ -1585,7 +1585,7 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
 
         connect_retry = 0;
         aud_tcp_client_service->chan_state = NTWK_TRANS_CHAN_CONNECTED;
-        LOGD("%s, Connected to server fd:%d\n", __func__, aud_tcp_client_service->aud_fd);
+        LOGD("audio, Connected to server fd:%d\n", aud_tcp_client_service->aud_fd);
 
         ntwk_tcp_set_keepalive(aud_tcp_client_service->aud_fd,
                                NTWK_TRANS_AUDIO_CHAN_KEEPALIVE_ENABLE,
@@ -1759,7 +1759,7 @@ bk_err_t ntwk_tcp_audio_client_register_receive_cb(ntwk_audio_receive_cb_t cb)
     }
 
     aud_tcp_client_service->receive_cb = cb;
-    LOGD("%s: Audio receive callback registered successfully\n", __func__);
+    LOGV("%s: Audio receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -1861,7 +1861,7 @@ bk_err_t ntwk_tcp_client_deinit(chan_type_t chan_type)
             return BK_ERR_PARAM;
     }
 
-    LOGD("%s: chan_type %d deinitialized\n", __func__, chan_type);
+    LOGV("%s: chan_type %d deinitialized\n", __func__, chan_type);
 
     return BK_OK;
 }

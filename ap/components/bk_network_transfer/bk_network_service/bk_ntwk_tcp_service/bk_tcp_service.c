@@ -28,7 +28,7 @@ bk_err_t bk_tcp_trans_service_init(char *service_name)
 
     ntwk_trans_ctxt_t *ctxt = NULL;
 
-    LOGI("%s start\r\n", __func__);
+    LOGV("%s start\r\n", __func__);
 
     ret = ntwk_trans_ctxt_init(ctxt);
     if (ret != BK_OK)
@@ -185,7 +185,7 @@ bk_err_t bk_tcp_trans_service_init(char *service_name)
 #endif // CONFIG_NTWK_CLIENT_SERVICE_ENABLE
     }
 
-    LOGI("%s end\r\n", __func__);
+    LOGV("%s end\r\n", __func__);
     return BK_OK;
 
 error:
@@ -199,7 +199,7 @@ bk_err_t bk_tcp_trans_service_deinit(void)
 {
     ntwk_trans_ctxt_t *ctxt = ntwk_trans_get_ctxt();
 
-    LOGI("%s start\r\n", __func__);
+    LOGV("%s start\r\n", __func__);
 
     if (ctxt == NULL)
     {
@@ -227,7 +227,7 @@ bk_err_t bk_tcp_trans_service_deinit(void)
 
     ntwk_trans_ctxt_deinit();
 
-    LOGI("%s end\r\n", __func__);
+    LOGV("%s end\r\n", __func__);
     return BK_OK;
 }
 

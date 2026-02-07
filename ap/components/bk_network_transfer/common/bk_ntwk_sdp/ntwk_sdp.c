@@ -109,11 +109,11 @@ int ntwk_sdp_generate(const char *name, uint32_t cmd_port, uint32_t img_port, ui
 
     if (uap_ip_is_start())
     {
-        LOGD("%s, ap mode\n", __func__);
+        LOGV("%s, ap mode\n", __func__);
     }
     else if (sta_ip_is_start())
     {
-        LOGD("%s, sta mode\n", __func__);
+        LOGV("%s, sta mode\n", __func__);
     }
 
     sprintf(ntwk_sdp->sdp_data, adv_temp,
@@ -124,7 +124,7 @@ int ntwk_sdp_generate(const char *name, uint32_t cmd_port, uint32_t img_port, ui
 
     ntwk_sdp->sdp_length = strlen(ntwk_sdp->sdp_data);
 
-    LOGD("adv_data:%s,%u\r\n", ntwk_sdp->sdp_data, ntwk_sdp->sdp_length);
+    LOGV("adv_data:%s,%u\r\n", ntwk_sdp->sdp_data, ntwk_sdp->sdp_length);
 
     return 0;
 }
@@ -260,7 +260,7 @@ int ntwk_sdp_reload_timer(uint32_t time_ms)
 
 int ntwk_sdp_pub_deinit(void)
 {
-    LOGD("ntwk_sdp_deint\r\n");
+    LOGV("ntwk_sdp_deint\r\n");
 
     if (ntwk_sdp != NULL)
     {
@@ -280,7 +280,7 @@ int ntwk_sdp_pub_deinit(void)
         os_free(ntwk_sdp);
         ntwk_sdp = NULL;
 
-        LOGD("ntwk_sdp_deint ok\r\n");
+        LOGV("ntwk_sdp_deint ok\r\n");
         return kNoErr;
     }
 
@@ -356,7 +356,7 @@ int ntwk_sdp_stop(void)
         return -2;
     }
 
-    LOGD("%s done\n", __func__);
+    LOGV("%s done\n", __func__);
 
     return 0;
 }
@@ -370,7 +370,7 @@ int ntwk_sdp_reload(uint32_t time_ms)
         return -1;
     }
 
-    LOGD("%s done\n", __func__);
+    LOGV("%s done\n", __func__);
 
     return 0;
 }

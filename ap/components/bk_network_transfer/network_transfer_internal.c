@@ -80,7 +80,7 @@ static void ntwk_msg_message_handle(void)
                     // Call user registered event callback
                     if (ntwk_in_cfg && ntwk_in_cfg->event_cb != NULL)
                     {
-                        LOGD("%s, event:%d, param:%d, chan_type:%d\n", __func__, msg.code, msg.param, msg.chan_type);
+                        LOGV("%s, event:%d, param:%d, chan_type:%d\n", __func__, msg.code, msg.param, msg.chan_type);
                         // Convert internal msg format to ntwk_trans_event_t
                         ntwk_trans_event_t event;
                         event.chan_type = msg.chan_type;
@@ -147,7 +147,7 @@ bk_err_t ntwk_msg_start(void)
         goto error;
     }
 
-    LOGD("%s success\n", __func__);
+    LOGV("%s success\n", __func__);
     return BK_OK;
 
 error:
@@ -186,7 +186,7 @@ bk_err_t ntwk_msg_stop(void)
         ntwk_in_cfg->thd = NULL;
     }
 
-    LOGD("%s complete\n", __func__);
+    LOGV("%s complete\n", __func__);
     return BK_OK;
 }
 
@@ -236,15 +236,11 @@ void ntwk_msg_event_report(uint32_t event, uint32_t param, uint32_t chan_type)
     msg.chan_type = chan_type;
 
     bk_err_t ret = ntwk_msg_send(&msg);
+
     if (ret != BK_OK)
     {
         LOGE("%s, failed to send event:%d, chan_type:%d\n", __func__, event, chan_type);
     }
-    else
-    {
-        LOGD("%s, event:%d, param:%d, chan_type:%d sent\n", __func__, event, param, chan_type);
-    }
-
 }
 
 bk_err_t ntwk_msg_register_event_cb(ntwk_trans_msg_event_cb_t cb)

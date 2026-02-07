@@ -63,7 +63,7 @@ static int ntwk_udp_cntrl_set_keepalive(int sockfd,  int keepalive, int keepidle
 		LOGW("setsockopt TCP_KEEPCNT failed: %d\n", errno);
 	}
 
-	LOGI("TCP keepalive enabled: idle=%ds, interval=%ds, count=%d\n", 
+	LOGV("TCP keepalive enabled: idle=%ds, interval=%ds, count=%d\n", 
 		keepidle, keepintvl, keepcnt);
 
 	return BK_OK;
@@ -909,14 +909,14 @@ static ntwk_udp_ctrl_client_info_t *ntwk_udp_ctrl_client_info = NULL;
 // UDP Client control channel receive data handler
 static void ntwk_udp_ctrl_client_receive_data(uint8_t *data, uint16_t length)
 {
-    LOGD("%s start\r\n", __func__);
+    LOGV("%s start\r\n", __func__);
 
     if (ntwk_udp_ctrl_client_info && ntwk_udp_ctrl_client_info->receive_cb) {
         ntwk_udp_ctrl_client_info->receive_cb(data, length);
     } else {
         LOGW("%s: No receive callback registered\n", __func__);
     }
-    LOGD("%s end\r\n", __func__);
+    LOGV("%s end\r\n", __func__);
 }
 
 // UDP Client control channel thread (actually uses TCP client)
@@ -928,7 +928,7 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
     int connect_retry = 0;
     const int max_retry = 5;
 
-    LOGD("%s entry\n", __func__);
+    LOGV("%s entry\n", __func__);
     (void)(data);
 
     rcv_buf = (u8 *) ntwk_malloc((NTWK_TRANS_CMD_BUFFER + 1) * sizeof(u8));
@@ -964,7 +964,7 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
         ntwk_udp_ctrl_client_info->server_addr.sin_addr.s_addr = ntwk_udp_ctrl_client_info->server_address;
 
         ntwk_udp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_WAITING_CONNECTED;
-        LOGD("%s, connecting to server %s:%d\n", __func__,
+        LOGV("%s, connecting to server %s:%d\n", __func__,
              inet_ntoa(*(struct in_addr *)&ntwk_udp_ctrl_client_info->server_address),
              ntwk_udp_ctrl_client_info->server_port);
 
@@ -981,7 +981,7 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
             // Check if stop was called during retry
             if (ntwk_udp_ctrl_client_info->chan_state == NTWK_TRANS_CHAN_STOP)
             {
-                LOGD("%s, stop called during connect retry\n", __func__);
+                LOGV("%s, stop called during connect retry\n", __func__);
                 break;
             }
 
@@ -1003,7 +1003,7 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
         ntwk_udp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_CONNECTED;
         ntwk_udp_ctrl_client_info->client_state = BK_TRUE;
 
-        LOGD("Connected to server fd:%d\n", ntwk_udp_ctrl_client_info->client_fd);
+        LOGD("ctrl, Connected to server fd:%d\n", ntwk_udp_ctrl_client_info->client_fd);
 
         ntwk_udp_cntrl_set_keepalive(ntwk_udp_ctrl_client_info->client_fd,
                                NTWK_TRANS_CTRL_CHAN_KEEPALIVE_ENABLE,
@@ -1020,7 +1020,7 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
             rcv_len = recv(ntwk_udp_ctrl_client_info->client_fd, rcv_buf, NTWK_TRANS_CMD_BUFFER, 0);
             if (rcv_len > 0)
             {
-                LOGD("%s, got length: %d\n", __func__, rcv_len);
+                LOGD("ctrl, got length: %d\n", rcv_len);
                 ntwk_udp_ctrl_client_receive_data(rcv_buf, rcv_len);
             }
             else
@@ -1143,7 +1143,7 @@ bk_err_t ntwk_udp_ctrl_client_chan_stop(void)
     ntwk_udp_ctrl_client_info->receive_cb = NULL;
    // ntwk_udp_client_deinit(NTWK_TRANS_CHAN_CTRL);
 
-    LOGD("%s end\n", __func__);
+    LOGV("%s end\n", __func__);
     return BK_OK;
 }
 
@@ -1189,7 +1189,7 @@ bk_err_t ntwk_udp_ctrl_client_register_receive_cb(ntwk_udp_ctrl_receive_cb_t cb)
     }
 
     ntwk_udp_ctrl_client_info->receive_cb = cb;
-    LOGD("%s: Receive callback registered successfully\n", __func__);
+    LOGV("%s: Receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -1214,7 +1214,7 @@ static void ntwk_udp_video_client_thread(beken_thread_arg_t data)
     struct timeval timeout;
     u8 *rcv_buf = NULL;
 
-    LOGD("%s entry\n", __func__);
+    LOGV("%s entry\n", __func__);
     (void)(data);
 
     video_udp_client_service->chan_state = NTWK_TRANS_CHAN_START;
@@ -1252,7 +1252,7 @@ static void ntwk_udp_video_client_thread(beken_thread_arg_t data)
     video_udp_client_service->chan_state = NTWK_TRANS_CHAN_CONNECTED;
     ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, video_udp_client_service->server_address, NTWK_TRANS_CHAN_VIDEO);
 
-    LOGD("%s: connected to server %s:%d\n", __func__,
+    LOGV("%s: connected to server %s:%d\n", __func__,
          inet_ntoa(*(struct in_addr *)&video_udp_client_service->server_address),
          video_udp_client_service->server_port);
 
@@ -1274,7 +1274,7 @@ static void ntwk_udp_video_client_thread(beken_thread_arg_t data)
             // Check if stop was called
             if (video_udp_client_service->chan_state == NTWK_TRANS_CHAN_STOP)
             {
-                LOGD("%s, stop called during select\n", __func__);
+                LOGV("%s, stop called during select\n", __func__);
                 break;
             }
             LOGE("video select ret:%d\n", ret);
@@ -1346,7 +1346,7 @@ bk_err_t ntwk_udp_video_client_chan_start(void *param)
         return BK_FAIL;
     }
 
-    LOGD("%s\n", __func__);
+    LOGV("%s\n", __func__);
 
     if (video_udp_client_service == NULL)
     {
@@ -1384,7 +1384,7 @@ bk_err_t ntwk_udp_video_client_chan_start(void *param)
 
 bk_err_t ntwk_udp_video_client_chan_stop(void)
 {
-    LOGD("%s\n", __func__);
+    LOGV("%s\n", __func__);
 
     if (video_udp_client_service == NULL)
     {
@@ -1408,8 +1408,7 @@ bk_err_t ntwk_udp_video_client_chan_stop(void)
         video_udp_client_service->thd = NULL;
     }
 
-    //ntwk_udp_client_deinit(NTWK_TRANS_CHAN_VIDEO);
-    LOGD("UDP video client channel deinitialized\n");
+    LOGV("UDP video client channel deinitialized\n");
     return BK_OK;
 }
 
@@ -1440,7 +1439,7 @@ bk_err_t ntwk_udp_video_client_register_receive_cb(ntwk_udp_video_receive_cb_t c
     }
 
     video_udp_client_service->receive_cb = cb;
-    LOGD("%s: UDP Video receive callback registered successfully\n", __func__);
+    LOGV("%s: UDP Video receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -1465,7 +1464,7 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
     struct timeval timeout;
     u8 *rcv_buf = NULL;
 
-    LOGD("%s entry\n", __func__);
+    LOGV("%s entry\n", __func__);
     (void)(data);
 
     aud_udp_client_service->chan_state = NTWK_TRANS_CHAN_START;
@@ -1503,7 +1502,7 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
     aud_udp_client_service->chan_state = NTWK_TRANS_CHAN_CONNECTED;
     ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, aud_udp_client_service->server_address, NTWK_TRANS_CHAN_AUDIO);
 
-    LOGD("%s: connected to server %s:%d\n", __func__,
+    LOGV("%s: connected to server %s:%d\n", __func__,
          inet_ntoa(*(struct in_addr *)&aud_udp_client_service->server_address),
          aud_udp_client_service->server_port);
 
@@ -1512,7 +1511,7 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
         // Check if stop was called
         if (aud_udp_client_service->chan_state == NTWK_TRANS_CHAN_STOP)
         {
-            LOGD("%s, stop called, exiting\n", __func__);
+            LOGV("%s, stop called, exiting\n", __func__);
             break;
         }
 
@@ -1553,7 +1552,7 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
                         // Check if stop was called before setting disconnected state
                         if (aud_udp_client_service->chan_state == NTWK_TRANS_CHAN_STOP)
                         {
-                            LOGD("%s, stop called during recvfrom\n", __func__);
+                            LOGV("%s, stop called during recvfrom\n", __func__);
                             break;
                         }
                         LOGE("aud client recvfrom error: %d\n", errno);
@@ -1597,7 +1596,7 @@ bk_err_t ntwk_udp_audio_client_chan_start(void *param)
         return BK_FAIL;
     }
 
-    LOGD("%s\n", __func__);
+    LOGV("%s\n", __func__);
 
     if (aud_udp_client_service == NULL)
     {
@@ -1635,7 +1634,7 @@ bk_err_t ntwk_udp_audio_client_chan_start(void *param)
 
 bk_err_t ntwk_udp_audio_client_chan_stop(void)
 {
-    LOGD("%s\n", __func__);
+    LOGV("%s\n", __func__);
 
     if (aud_udp_client_service == NULL)
     {
@@ -1660,7 +1659,7 @@ bk_err_t ntwk_udp_audio_client_chan_stop(void)
     }
 
    // ntwk_udp_client_deinit(NTWK_TRANS_CHAN_AUDIO);
-    LOGD("UDP audio client channel deinitialized\n");
+    LOGV("UDP audio client channel deinitialized\n");
     return BK_OK;
 }
 
@@ -1691,7 +1690,7 @@ bk_err_t ntwk_udp_audio_client_register_receive_cb(ntwk_udp_audio_receive_cb_t c
     }
 
     aud_udp_client_service->receive_cb = cb;
-    LOGD("%s: UDP Audio receive callback registered successfully\n", __func__);
+    LOGV("%s: UDP Audio receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }

@@ -100,7 +100,7 @@ bk_err_t ntwk_fragment_start(chan_type_t chan_type, uint32_t fragment_size, void
     s_fragment_cfg_mgr[chan_type]->fragment_size = fragment_size;
 	s_fragment_cfg_mgr[chan_type]->initialized = true;
 
-	LOGI("%s, end\n", __func__);
+	LOGV("%s, end\n", __func__);
 
 	return BK_OK;
 }
@@ -126,7 +126,7 @@ bk_err_t ntwk_fragment_stop(chan_type_t chan_type)
 
 	s_fragment_cfg_mgr[chan_type]->initialized = false;
 
-	LOGI("%s, stopped\n", __func__);
+	LOGV("%s, stopped\n", __func__);
 
 	return BK_OK;
 }
@@ -141,7 +141,7 @@ bk_err_t ntwk_fragment_register_recv_cb(chan_type_t chan_type, fragment_recv_t c
 
 	s_fragment_cfg_mgr[chan_type]->frag_recv = cb;
 
-	LOGI("%s, callback registered\n", __func__);
+	LOGV("%s, callback registered\n", __func__);
 
 	return BK_OK;
 }
@@ -504,7 +504,7 @@ error:
 bk_err_t ntwk_unfragment_stop(chan_type_t chan_type)
 {
     bk_err_t ret = BK_OK;
-    LOGI("%s chan_type %d\r\n", __func__,chan_type);
+    LOGV("%s chan_type %d\r\n", __func__,chan_type);
 
     if (s_unfragment_cfg_mgr[chan_type] == NULL)
     {

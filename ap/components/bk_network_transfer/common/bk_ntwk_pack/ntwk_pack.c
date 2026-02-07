@@ -117,7 +117,7 @@ ntwk_pack_chan_t *ntwk_pkt_malloc(uint16_t max_rx_size, uint16_t max_tx_size)
 
     ntwk_db_chan->tsize = max_tx_size;
 
-    LOGD("%s, %p, %p %d, %p %d\n", __func__, ntwk_db_chan, ntwk_db_chan->cbuf, ntwk_db_chan->csize, ntwk_db_chan->tbuf, ntwk_db_chan->tsize);
+    LOGV("%s, %p, %p %d, %p %d\n", __func__, ntwk_db_chan, ntwk_db_chan->cbuf, ntwk_db_chan->csize, ntwk_db_chan->tbuf, ntwk_db_chan->tsize);
 
     return ntwk_db_chan;
 
@@ -147,7 +147,7 @@ void ntwk_pkt_free(ntwk_pack_chan_t *channel)
         return;
     }
 
-    LOGD("%s, %p, %p, %p\n", __func__, channel, channel->cbuf, channel->tbuf);
+    LOGV("%s, %p, %p, %p\n", __func__, channel, channel->cbuf, channel->tbuf);
 
     if (channel->cbuf)
     {
@@ -188,7 +188,7 @@ bk_err_t ntwk_pack_clear_ccount(chan_type_t chan_type)
     }
 
     chan->ccount = 0;
-    LOGD("%s: cleared ccount for chan_type %d\n", __func__, chan_type);
+    LOGV("%s: cleared ccount for chan_type %d\n", __func__, chan_type);
 
     return BK_OK;
 }
@@ -606,7 +606,7 @@ bk_err_t ntwk_pack_chan_stop(chan_type_t chan_type)
     g_pkt_chan_mgr[chan_type]->recv_cb = NULL;
     g_pkt_chan_mgr[chan_type]->initialized = false;
 
-    LOGD("%s: chan_type %d stopped\n", __func__, chan_type);
+    LOGV("%s: chan_type %d stopped\n", __func__, chan_type);
 
     return BK_OK;
 }

@@ -31,7 +31,7 @@ int ntwk_socket_set_qos(int fd, int qos)
 {
     int ret = setsockopt(fd, IPPROTO_IP, IP_TOS, &qos, sizeof(qos));
 
-    LOGD("%s\n", __func__);
+    LOGV("%s\n", __func__);
 
     if (ret < 0)
     {
