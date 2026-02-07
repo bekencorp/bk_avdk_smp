@@ -190,7 +190,12 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
         }
     } else {
 #if CONFIG_LVGL_V8
+#if (CONFIG_LV_COLOR_DEPTH == 32)
+        LOGE("%s direct mode does not support display RGB888 format data\n", __func__);
+        goto fail;
+#else
         vendor_config.draw_pixel_size = config->width * config->height;
+#endif
 #else
         vendor_config.draw_pixel_size = config->width * config->height * sizeof(bk_color_t);
 #endif
@@ -207,7 +212,8 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
         vendor_config.draw_buf_2_2 = vendor_config.frame_buffer[1]->frame;
 
         if (config->rotation != ROTATE_NONE) {
-            LOGW("%s Direct mode and full mode don't support rotation because of very low frame rate\r\n", __func__);
+            LOGE("%s Direct mode and full mode don't support rotation because of very low frame rate\r\n", __func__);
+            goto fail;
         }
     }
 
