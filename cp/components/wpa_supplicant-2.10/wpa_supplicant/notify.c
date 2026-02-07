@@ -335,6 +335,16 @@ void wpas_notify_connected(struct wpa_supplicant *wpa_s)
 void wpas_notify_disconnected(struct wpa_supplicant *wpa_s)
 {
 	wifi_event_sta_disconnected_t sta_disconnected = {0};
+
+#ifdef CONFIG_P2P
+	/* P2P GO only: already reported via hapd_notify_sta_disconnected -> BK_EVT_DISASSOC_GO_IND */
+	if (wpa_s->ap_iface &&
+	    (wpa_s->p2p_group_interface == P2P_GROUP_INTERFACE_GO ||
+	     wpa_s->p2p_group ||
+	     (wpa_s->current_ssid && wpa_s->current_ssid->p2p_group)))
+		return;
+#endif
+
 	// get previous state
 	wifi_linkstate_reason_t state = mhdr_get_station_status();
 	bool local_generated = !!(wpa_s->disconnect_reason < 0);

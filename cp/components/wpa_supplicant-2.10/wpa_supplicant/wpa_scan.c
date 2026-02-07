@@ -2855,12 +2855,17 @@ wpa_supplicant_get_scan_results(struct wpa_supplicant *wpa_s,
 		bool skip_disconnect_event = false;
 
 #ifdef CONFIG_P2P
+		/* Skip disconnect when this scan was requested by P2P (e.g. device
+		 * discovery with ssid=DIRECT-). State may have left SEARCH by the
+		 * time we get empty results (e.g. GO Negotiation started during scan). */
 		if (wpa_s->global && wpa_s->global->p2p) {
 			const char *p2p_state =
 				p2p_get_state_txt(wpa_s->global->p2p);
-			if (p2p_state && os_strcmp(p2p_state, "SEARCH") == 0) {
+			if (p2p_state && os_strcmp(p2p_state, "IDLE") != 0 &&
+			    os_strcmp(p2p_state, "LISTEN_ONLY") != 0) {
 				wpa_dbg(wpa_s, MSG_DEBUG,
-					"Skip STA disconnected notification during P2P find");
+					"Skip STA disconnected notification during P2P (state=%s)",
+					p2p_state);
 				skip_disconnect_event = true;
 			}
 		}
