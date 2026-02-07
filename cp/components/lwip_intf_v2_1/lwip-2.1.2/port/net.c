@@ -57,10 +57,10 @@ struct ipv4_config sta_ip_settings = {
 
 struct ipv4_config uap_ip_settings = {
 	.addr_type = ADDR_TYPE_STATIC,
-	.address = 0xc0a80001, //192.168.0.1
-	.gw = 0xc0a80001,      //192.168.0.1
-	.netmask = 0xffffff00, //255.255.255.0
-	.dns1 = 0xc0a80001,    //192.168.0.1
+	.address = 0x01bca8c0, //192.168.188.1
+	.gw = 0x01bca8c0,      //192.168.188.1
+	.netmask = 0x00ffffff, //255.255.255.0
+	.dns1 = 0x01bca8c0,    //192.168.188.1
 	.dns2 = 0,
 };
 
