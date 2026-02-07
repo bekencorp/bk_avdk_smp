@@ -41,7 +41,7 @@ static bk_err_t uvc_camera_stream_packet_urb(camera_param_t *camera_param);
 static void uvc_camera_stream_timer_handle(void *arg1)
 {
     uvc_stream_handle_t *uvc_stream_handle = (uvc_stream_handle_t *)arg1;
-    char log_buf[128] = {0};
+    char log_buf[UVC_PORT_MAX * 32] = {0};
     int write_len = 0;
     int offset = 0;
 
@@ -1441,6 +1441,7 @@ static void uvc_camera_process_task_deinit(uvc_stream_handle_t *handle)
         handle->pro_enable = false;
         uvc_camera_urb_list_clear();
 
+        rtos_set_event_flags(&handle->handle, UVC_PROCESS_TASK_START_BIT);
         rtos_wait_for_event_flags(&handle->handle, UVC_PROCESS_TASK_DISABLE_BIT, true, true, BEKEN_WAIT_FOREVER);
 
 #if (MEDIA_DEBUG_TIMER_ENABLE)
