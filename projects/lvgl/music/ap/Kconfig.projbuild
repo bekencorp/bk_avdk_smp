@@ -1,0 +1,59 @@
+menu "LVGL Music Configuration"
+
+    config LV_USE_DEMO_MUSIC
+        bool "LVGL Music"
+        default y
+
+    choice LV_DEMO_MUSIC_SCREEN_TYPE
+        prompt "Screen Type"
+        depends on LV_USE_DEMO_MUSIC
+        default LV_DEMO_MUSIC_SCREEN_SQUARE
+        help
+            Select the screen type for the music demo.
+            This affects the layout and positioning of UI elements.
+
+        config LV_DEMO_MUSIC_SCREEN_SQUARE
+            bool "Square Screen"
+            help
+                Optimized layout for square screens (e.g. 480x480).
+                UI elements are arranged vertically to make full use of square space.
+
+        config LV_DEMO_MUSIC_SCREEN_LANDSCAPE
+            bool "Landscape Screen"
+            help
+                Optimized layout for landscape screens (width > height).
+                Album cover and controls are arranged side by side.
+                Suitable for car displays and tablets in landscape mode.
+
+        config LV_DEMO_MUSIC_SCREEN_ROUND
+            bool "Round Screen"
+            help
+                Optimized layout for round screens (e.g. smart watches).
+                UI elements are arranged around the circular center to avoid corners.
+
+    endchoice
+
+    config LV_DEMO_MUSIC_LARGE
+        depends on LV_USE_DEMO_MUSIC
+        bool "Use Large Fonts and Icons"
+        default n
+        help
+            Enable larger fonts and icons for better readability on big screens.
+            When enabled:
+              - Font size: 22/32 (vs 12/16 in small mode)
+              - Larger buttons and spacing
+            Recommended for screens larger than 480x480 or high DPI displays.
+
+    config LV_DEMO_MUSIC_AUTO_PLAY
+        depends on LV_USE_DEMO_MUSIC
+        bool "Enable Auto Play Demo Mode"
+        default n
+        help
+            Enable automatic demonstration mode without user interaction.
+            When enabled, the demo will:
+              - Automatically switch songs
+              - Simulate play/pause
+              - Auto scroll through UI
+            Useful for trade shows, product demonstrations, and automated testing.
+
+endmenu

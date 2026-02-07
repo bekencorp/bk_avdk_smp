@@ -8,6 +8,7 @@ extern "C" {
 typedef struct
 {
 	void *(* psram_malloc)(size_t size);
+	void *(* psram_realloc)(void *old_mem, size_t size);
 	void *(* malloc)(size_t size);
 	void *(* zalloc)(size_t num, size_t size);
 	void *(* realloc)(void *old_mem, size_t size);

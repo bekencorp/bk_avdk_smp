@@ -1,0 +1,20 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+重启设备,AT+RST,1,wakeup,3
+voice_service_vfs_test_case_01,ap_cmd audio_player sd_mount,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player init,1,CMDRSP:OK,5
+voice_service_vfs_mp3_test_case_01,ap_cmd audio_player add 1 /sd0/test.mp3,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player start,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player pause,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player resume,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player stop,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player deinit,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player sd_unmount,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player sd_mount,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player init,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player add 1 /sd0/test.mp3,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player start,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player pause,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player resume,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player stop,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player deinit,1,CMDRSP:OK,5
+voice_service_vfs_test_case_01,ap_cmd audio_player sd_unmount,1,CMDRSP:OK,5

@@ -25,6 +25,17 @@ static void *psram_malloc_wrapper(size_t size)
 #endif
 }
 
+static void *psram_realloc_wrapper(void *old_mem, size_t size)
+{
+#if CONFIG_PSRAM
+	return bk_psram_realloc(old_mem, size);
+#else
+	(void)old_mem;
+	(void)size;
+	return NULL;
+#endif
+}
+
 static void *malloc_wrapper(size_t size)
 {
 	return os_malloc(size);
@@ -87,6 +98,7 @@ static uint32_t get_time_wrapper(void)
 static bk_audio_osi_funcs_t audio_osi_funcs =
 {
 	.psram_malloc = psram_malloc_wrapper,
+	.psram_realloc = psram_realloc_wrapper,
 	.malloc = malloc_wrapper,
 	.zalloc = zalloc_wrapper,
 	.realloc = realloc_wrapper,
