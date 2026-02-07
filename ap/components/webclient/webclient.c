@@ -988,6 +988,75 @@ int webclient_get(struct webclient_session *session, const char *URI)
 }
 
 /**
+ *  http breakpoint resume.
+ *
+ * @param session webclient session
+ * @param URI input server URI address
+ * @param position last downloaded position
+ *
+ * @return <0: send GET request failed
+ *         >0: response http status code
+ */
+ int webclient_get_position(struct webclient_session *session, const char *URI, int position)
+ {
+     int rc = WEBCLIENT_OK;
+     int resp_status = 0;
+
+     BK_ASSERT(session);
+     BK_ASSERT(URI);
+
+     rc = webclient_connect(session, URI);
+     if (rc != WEBCLIENT_OK)
+     {
+         return rc;
+     }
+
+     /* splice header*/
+     if (webclient_header_fields_add(session, "Range: bytes=%d-\r\n", position) <= 0)
+     {
+         rc = -WEBCLIENT_ERROR;
+         return rc;
+     }
+ 
+     rc = webclient_send_header(session, WEBCLIENT_GET);
+     if (rc != WEBCLIENT_OK)
+     {
+         return rc;
+     }
+
+     /* handle the response header of webclient server */
+     resp_status = webclient_handle_response(session);
+
+     BK_LOGD(TAG,"get position handle response(%d).\r\n", resp_status);
+
+     if (resp_status > 0)
+     {
+         const char *location = webclient_header_fields_get(session, "Location:");
+         /* relocation */
+         if ((resp_status == 302 || resp_status == 301) && location)
+         {
+             char *new_url;
+             new_url = web_strdup(location);
+             if (new_url == RT_NULL)
+             {
+                 return -WEBCLIENT_NOMEM;
+             }
+
+             /* clean webclient session */
+             webclient_clean(session);
+             /* clean webclient session header */
+             session->header->length = 0;
+             memset(session->header->buffer, 0, session->header->size);
+             rc = webclient_get_position(session, new_url, position);
+             web_free(new_url);
+             return rc;
+         }
+     }
+
+     return resp_status;
+ }
+
+/**
  *  register a handle function for http breakpoint resume and shard download.
  *
  * @param function
