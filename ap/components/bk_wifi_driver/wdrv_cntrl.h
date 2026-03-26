@@ -353,7 +353,7 @@ typedef enum{
     CIFD_CMD_BLE_DATA_TO_APK             = 0x0001,
 
     CIFD_EVENT_BLE_DATA_TO_USER          = 0x1001,
-
+    CIFD_EVENT_KEEPALIVE_DISCONNECTION   = 0x1002,
 }CIFD_CMD_EVENT;
 
 typedef struct{
