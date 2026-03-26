@@ -169,7 +169,6 @@ static void mb_phy_ipc_rx_isr(void *chn_param, mb_chnl_cmd_t *cmd_buf)
 bk_err_t mb_phy_ipc_init(void)
 {
     bk_err_t ret_code = mb_chnl_open(MB_CHNL_PHY, NULL);
-    bk_printf("ret_code444444444=%d\r\n",ret_code);
     if(ret_code != BK_OK)
     {
         return ret_code;

@@ -23,7 +23,7 @@
 #define TAG                        "phy_client_c"
 
 #define LOCAL_TRACE               (1)
-
+#define BK_MAC_ADDR_LEN           6
 #define PHY_OPERATE_TIMEOUT       600
 
 static bool s_phy_client_init     = false;
@@ -178,7 +178,7 @@ bk_err_t bk_phy_get_current_temperature(float *temperature)
 		ret = cmd_buff.ret_status;
 		goto get_temp_exit;
 	}
-    *temperature = cmd_buff.param;
+	*temperature = cmd_buff.param;
 	ret_val = BK_OK;
 
 get_temp_exit:
@@ -242,10 +242,284 @@ bk_err_t bk_sensor_get_current_voltage(float *volt)
 		ret = cmd_buff.ret_status;
 		goto get_temp_exit;
 	}
-    *volt = cmd_buff.param;
+	*volt = cmd_buff.param;
 	ret_val = BK_OK;
 
 get_temp_exit:
+
+	rtos_unlock_mutex(&phy_mutex);
+
+#if LOCAL_TRACE
+	if(ret_val != BK_OK)
+		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+#endif
+
+	return ret_val;
+}
+
+bk_err_t bk_ap_get_mac(uint8_t *mac, mac_type_t type)
+{
+	int ret_val = BK_FAIL;
+	int line_num;
+
+	(void)type;
+	if (mac == NULL)
+		return BK_FAIL;
+
+	if(bk_phy_driver_init() != BK_OK)
+		return BK_FAIL;
+
+	phy_cmd_t cmd_buff;
+
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+	cmd_buff.param = type;
+
+	rtos_lock_mutex(&phy_mutex);
+
+	int ret = mb_ipc_send(phy_socket_handle, PHY_CMD_GET_MAC_ADDR,
+		(u8 *)&cmd_buff, sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
+
+	if(ret != 0)
+	{
+		line_num = __LINE__;
+		goto get_mac_exit;
+	}
+
+	u8 user_cmd = INVALID_USER_CMD_ID;
+
+	memset(&cmd_buff, 0, sizeof(phy_cmd_t));
+
+	ret = mb_ipc_recv(phy_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+		sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
+
+	if(ret != sizeof(phy_cmd_t))
+	{
+		line_num = __LINE__;
+		goto get_mac_exit;
+	}
+
+	if(user_cmd != PHY_CMD_GET_MAC_ADDR)
+	{
+		line_num = __LINE__;
+		ret = user_cmd;
+		goto get_mac_exit;
+	}
+
+	if(cmd_buff.ret_status != BK_OK)
+	{
+		line_num = __LINE__;
+		ret = cmd_buff.ret_status;
+		goto get_mac_exit;
+	}
+
+	memcpy(mac, cmd_buff.mac, BK_MAC_ADDR_LEN);
+	ret_val = BK_OK;
+
+get_mac_exit:
+
+	rtos_unlock_mutex(&phy_mutex);
+
+#if LOCAL_TRACE
+	if(ret_val != BK_OK)
+		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+#endif
+
+	return ret_val;
+}
+
+bk_err_t bk_ap_wifi_sta_get_mac(uint8_t *mac)
+{
+	int ret_val = BK_FAIL;
+	int line_num;
+
+	if (mac == NULL)
+		return BK_FAIL;
+
+	if(bk_phy_driver_init() != BK_OK)
+		return BK_FAIL;
+
+	phy_cmd_t cmd_buff;
+
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+
+	rtos_lock_mutex(&phy_mutex);
+
+	int ret = mb_ipc_send(phy_socket_handle, PHY_CMD_GET_STA_MAC_ADDR,
+		(u8 *)&cmd_buff, sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
+
+	if(ret != 0)
+	{
+		line_num = __LINE__;
+		goto get_mac_exit;
+	}
+
+	u8 user_cmd = INVALID_USER_CMD_ID;
+
+	memset(&cmd_buff, 0, sizeof(phy_cmd_t));
+
+	ret = mb_ipc_recv(phy_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+		sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
+
+	if(ret != sizeof(phy_cmd_t))
+	{
+		line_num = __LINE__;
+		goto get_mac_exit;
+	}
+
+	if(user_cmd != PHY_CMD_GET_STA_MAC_ADDR)
+	{
+		line_num = __LINE__;
+		ret = user_cmd;
+		goto get_mac_exit;
+	}
+
+	if(cmd_buff.ret_status != BK_OK)
+	{
+		line_num = __LINE__;
+		ret = cmd_buff.ret_status;
+		goto get_mac_exit;
+	}
+
+	memcpy(mac, cmd_buff.mac, BK_MAC_ADDR_LEN);
+	ret_val = BK_OK;
+
+get_mac_exit:
+
+	rtos_unlock_mutex(&phy_mutex);
+
+#if LOCAL_TRACE
+	if(ret_val != BK_OK)
+		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+#endif
+
+	return ret_val;
+}
+
+bk_err_t bk_ap_wifi_ap_get_mac(uint8_t *mac)
+{
+	int ret_val = BK_FAIL;
+	int line_num;
+
+	if (mac == NULL)
+		return BK_FAIL;
+
+	if(bk_phy_driver_init() != BK_OK)
+		return BK_FAIL;
+
+	phy_cmd_t cmd_buff;
+
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+
+	rtos_lock_mutex(&phy_mutex);
+
+	int ret = mb_ipc_send(phy_socket_handle, PHY_CMD_GET_AP_MAC_ADDR,
+		(u8 *)&cmd_buff, sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
+
+	if(ret != 0)
+	{
+		line_num = __LINE__;
+		goto get_mac_exit;
+	}
+
+	u8 user_cmd = INVALID_USER_CMD_ID;
+
+	memset(&cmd_buff, 0, sizeof(phy_cmd_t));
+
+	ret = mb_ipc_recv(phy_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+		sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
+
+	if(ret != sizeof(phy_cmd_t))
+	{
+		line_num = __LINE__;
+		goto get_mac_exit;
+	}
+
+	if(user_cmd != PHY_CMD_GET_AP_MAC_ADDR)
+	{
+		line_num = __LINE__;
+		ret = user_cmd;
+		goto get_mac_exit;
+	}
+
+	if(cmd_buff.ret_status != BK_OK)
+	{
+		line_num = __LINE__;
+		ret = cmd_buff.ret_status;
+		goto get_mac_exit;
+	}
+
+	memcpy(mac, cmd_buff.mac, BK_MAC_ADDR_LEN);
+	ret_val = BK_OK;
+
+get_mac_exit:
+
+	rtos_unlock_mutex(&phy_mutex);
+
+#if LOCAL_TRACE
+	if(ret_val != BK_OK)
+		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+#endif
+
+	return ret_val;
+}
+
+bk_err_t bk_ap_set_base_mac(uint8_t *mac)
+{
+	int ret_val = BK_FAIL;
+	int line_num;
+
+	if (mac == NULL)
+		return BK_FAIL;
+
+	if(bk_phy_driver_init() != BK_OK)
+		return BK_FAIL;
+
+	phy_cmd_t cmd_buff;
+
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+	memcpy(cmd_buff.mac, mac, BK_MAC_ADDR_LEN);
+
+	rtos_lock_mutex(&phy_mutex);
+
+	int ret = mb_ipc_send(phy_socket_handle, PHY_CMD_SET_MAC_ADDR,
+		(u8 *)&cmd_buff, sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
+
+	if(ret != 0)
+	{
+		line_num = __LINE__;
+		goto set_mac_exit;
+	}
+
+	u8 user_cmd = INVALID_USER_CMD_ID;
+
+	memset(&cmd_buff, 0, sizeof(phy_cmd_t));
+
+	ret = mb_ipc_recv(phy_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+		sizeof(phy_cmd_t), PHY_OPERATE_TIMEOUT);
+
+	if(ret != sizeof(phy_cmd_t))
+	{
+		line_num = __LINE__;
+		goto set_mac_exit;
+	}
+
+	if(user_cmd != PHY_CMD_SET_MAC_ADDR)
+	{
+		line_num = __LINE__;
+		ret = user_cmd;
+		goto set_mac_exit;
+	}
+
+	if(cmd_buff.ret_status != BK_OK)
+	{
+		line_num = __LINE__;
+		ret = cmd_buff.ret_status;
+		goto set_mac_exit;
+	}
+
+	ret_val = BK_OK;
+
+set_mac_exit:
 
 	rtos_unlock_mutex(&phy_mutex);
 

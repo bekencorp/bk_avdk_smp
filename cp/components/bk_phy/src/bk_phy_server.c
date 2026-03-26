@@ -17,6 +17,7 @@
 #include <os/mem.h>
 #include <os/os.h>
 #include "bk_phy_ipc.h"
+#include "bk_wifi.h"
 #include <driver/mb_ipc.h>
 #include <driver/mb_ipc_port_cfg.h>
 #include <os/rtos_ext.h>
@@ -87,6 +88,37 @@ static void bk_phy_get_current_voltage_handler(u32 handle, phy_cmd_t *cmd_buff)
 		TRACE_I(TAG, "0x%x, start: %d, %d.\r\n", handle, cmd_buff->ret_status, ret_val);
 }
 
+static void bk_phy_get_mac_addr_handler(u32 handle, phy_cmd_t *cmd_buff)
+{
+	cmd_buff->ret_status = bk_get_mac(cmd_buff->mac, cmd_buff->param);
+	int ret_val = mb_ipc_send(handle, PHY_CMD_GET_MAC_ADDR, (u8 *)cmd_buff, sizeof(phy_cmd_t), PHY_SVR_WAIT_TIME);
+	if(ret_val != 0)
+		TRACE_I(TAG, "0x%x, start: %d, %d.\r\n", handle, cmd_buff->ret_status, ret_val);
+}
+
+static void bk_phy_wifi_sta_get_mac_addr_handler(u32 handle, phy_cmd_t *cmd_buff)
+{
+	cmd_buff->ret_status = bk_wifi_sta_get_mac(cmd_buff->mac);
+	int ret_val = mb_ipc_send(handle, PHY_CMD_GET_STA_MAC_ADDR, (u8 *)cmd_buff, sizeof(phy_cmd_t), PHY_SVR_WAIT_TIME);
+	if(ret_val != 0)
+		TRACE_I(TAG, "0x%x, start: %d, %d.\r\n", handle, cmd_buff->ret_status, ret_val);
+}
+
+static void bk_phy_wifi_ap_get_mac_addr_handler(u32 handle, phy_cmd_t *cmd_buff)
+{
+	cmd_buff->ret_status = bk_wifi_ap_get_mac(cmd_buff->mac);
+	int ret_val = mb_ipc_send(handle, PHY_CMD_GET_AP_MAC_ADDR, (u8 *)cmd_buff, sizeof(phy_cmd_t), PHY_SVR_WAIT_TIME);
+	if(ret_val != 0)
+		TRACE_I(TAG, "0x%x, start: %d, %d.\r\n", handle, cmd_buff->ret_status, ret_val);
+}
+
+static void bk_phy_set_mac_addr_handler(u32 handle, phy_cmd_t *cmd_buff)
+{
+	cmd_buff->ret_status = bk_set_base_mac(cmd_buff->mac);
+	int ret_val = mb_ipc_send(handle, PHY_CMD_SET_MAC_ADDR, (u8 *)cmd_buff, sizeof(phy_cmd_t), PHY_SVR_WAIT_TIME);
+	if(ret_val != 0)
+		TRACE_I(TAG, "0x%x, start: %d, %d.\r\n", handle, cmd_buff->ret_status, ret_val);
+}
 
 static void phy_cmd_handler(u32 handle, u8 connect_id)
 {
@@ -131,6 +163,18 @@ static void phy_cmd_handler(u32 handle, u8 connect_id)
 			break;
 		case PHY_CMD_GET_VOLT:
 			bk_phy_get_current_voltage_handler(handle, &cmd_buff);
+			break;
+		case PHY_CMD_GET_MAC_ADDR:
+			bk_phy_get_mac_addr_handler(handle, &cmd_buff);
+			break;
+		case PHY_CMD_GET_STA_MAC_ADDR:
+			bk_phy_wifi_sta_get_mac_addr_handler(handle, &cmd_buff);
+			break;
+		case PHY_CMD_GET_AP_MAC_ADDR:
+			bk_phy_wifi_ap_get_mac_addr_handler(handle, &cmd_buff);
+			break;
+		case PHY_CMD_SET_MAC_ADDR:
+			bk_phy_set_mac_addr_handler(handle, &cmd_buff);
 			break;
 		default:
 			phy_error_handler(handle, user_cmd);

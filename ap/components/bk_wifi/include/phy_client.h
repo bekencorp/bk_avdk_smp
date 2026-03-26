@@ -45,6 +45,47 @@ bk_err_t bk_phy_driver_init(void);
  */
 bk_err_t bk_phy_driver_deinit(void);
 
+/**
+ * @brief Get MAC Address
+ *
+ * This API to get mac addr
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_ap_get_mac(uint8_t *mac, mac_type_t type);
+/**
+ * @brief Get Sta MAC Address
+ *
+ * This API to get sta mac addr
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_ap_wifi_sta_get_mac(uint8_t *mac);
+/**
+ * @brief Get AP MAC Address
+ *
+ * This API to get ap mac addr
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_ap_wifi_ap_get_mac(uint8_t *mac);
+/**
+ * @brief Set MAC Address
+ *
+ * This API to set mac addr
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_ap_set_base_mac(uint8_t *mac);
+
 #ifdef __cplusplus
 }
 #endif

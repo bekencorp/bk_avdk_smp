@@ -7,6 +7,10 @@ enum
 {
 	PHY_CMD_GET_TEMP,
 	PHY_CMD_GET_VOLT,
+	PHY_CMD_GET_MAC_ADDR,
+	PHY_CMD_GET_STA_MAC_ADDR,
+	PHY_CMD_GET_AP_MAC_ADDR,
+	PHY_CMD_SET_MAC_ADDR,
 };
 
 typedef struct
@@ -14,6 +18,7 @@ typedef struct
     float                        param;
     u32                          timeout;
     int16                        ret_status;
+    u8                           mac[6];
     u32                          crc;
 } phy_cmd_t;
 

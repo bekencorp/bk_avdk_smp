@@ -26,6 +26,7 @@
 #include <driver/aon_rtc.h>
 #endif
 #include <driver/timer.h>
+#include "phy_client.h"
 
 
 void cli_misc_version_help(void)
@@ -263,59 +264,51 @@ void reboot(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 	bk_reboot();
 }
 
-
-#if (CONFIG_WIFI_ENABLE) || (CONFIG_ETH)
 static void mac_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	if ((argc == 2) && (!os_strncmp(argv[1], "help", 4))) {
-		cli_misc_mac_help();
-		return;
-	}
-
-	uint8_t base_mac[BK_MAC_ADDR_LEN] = {0};
-#if CONFIG_WIFI_ENABLE
-	uint8_t sta_mac[BK_MAC_ADDR_LEN] = {0};
-	uint8_t ap_mac[BK_MAC_ADDR_LEN] = {0};
-#endif
+	uint8_t base_mac[BK_MAC_ADDR_LEN]  = {0};
+	uint8_t sta_mac[BK_MAC_ADDR_LEN]   = {0};
+	uint8_t ap_mac[BK_MAC_ADDR_LEN]    = {0};
 #if CONFIG_ETH
-	uint8_t eth_mac[BK_MAC_ADDR_LEN] = {0};
+	uint8_t eth_mac[BK_MAC_ADDR_LEN]   = {0};
 #endif
 
-	if (argc == 1) {
-		BK_LOG_ON_ERR(bk_get_mac(base_mac, MAC_TYPE_BASE));
-#if CONFIG_WIFI_ENABLE
-		BK_LOG_ON_ERR(bk_wifi_sta_get_mac(sta_mac));
-		BK_LOG_ON_ERR(bk_wifi_ap_get_mac(ap_mac));
-#endif
+	if (argc == 1)
+	{
+		BK_LOG_ON_ERR(bk_ap_get_mac(base_mac, MAC_TYPE_BASE));
+		BK_LOG_ON_ERR(bk_ap_wifi_sta_get_mac(sta_mac));
+		BK_LOG_ON_ERR(bk_ap_wifi_ap_get_mac(ap_mac));
 #if CONFIG_ETH
-		BK_LOG_ON_ERR(bk_get_mac(eth_mac, MAC_TYPE_ETH));
+		BK_LOG_ON_ERR(bk_ap_get_mac(eth_mac, MAC_TYPE_ETH));
 #endif
-		if (ate_is_enabled()) {
-			BK_LOGD(NULL, "MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
+		if (0)//(ate_is_enabled())
+		{
+			BK_LOG_RAW("MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
 						base_mac[0],base_mac[1],base_mac[2],base_mac[3],base_mac[4],base_mac[5]);
-		} else {
-#if CONFIG_WIFI_ENABLE
-			CLI_LOGD("base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
-			CLI_LOGD("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
-			CLI_LOGD("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
-#endif
+		}
+		else
+		{
+			BK_LOG_RAW("base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+			BK_LOG_RAW("sta mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(sta_mac));
+			BK_LOG_RAW("ap mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(ap_mac));
 #if CONFIG_ETH
 			CLI_LOGD("eth mac: %pm\n", eth_mac);
 #endif
 		}
-	} else if (argc == 2) {
+	}
+	else if (argc == 2)
+	{
 		hexstr2bin_cli(argv[1], base_mac, BK_MAC_ADDR_LEN);
-		bk_set_base_mac(base_mac);
-		if (ate_is_enabled())
-			BK_LOGD(NULL, "Set MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
+		bk_ap_set_base_mac(base_mac);
+		if (0)//(ate_is_enabled())
+			BK_LOG_RAW("Set MAC address: %02x-%02x-%02x-%02x-%02x-%02x\r\n",
 						base_mac[0],base_mac[1],base_mac[2],base_mac[3],base_mac[4],base_mac[5]);
 		else
-			CLI_LOGD("set base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
-	} else
-		cli_misc_help();
-
+			BK_LOG_RAW("set base mac: "BK_MAC_FORMAT"\n", BK_MAC_STR(base_mac));
+	}
+	else
+		BK_LOG_RAW("mac cmd err\r\n");
 }
-#endif //#if (CONFIG_WIFI_ENABLE)
 
 
 void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id);
@@ -681,9 +674,7 @@ static const struct cli_command s_misc_commands[] = {
 	{"id", NULL, get_id},
 	{"reboot", "reboot system", reboot},
 	{"time",   "system time",   uptime_Command},
-#if (CONFIG_WIFI_ENABLE)
-	{"mac", "mac <mac>, get/set mac. e.g. mac c89346000001", mac_command},
-#endif
+	{"mac", "mac [mac], get/set mac. e.g. mac c89346000001", mac_command},
 
 	{"cputest", "cputest [count]", cli_cpu_test},
 #if CONFIG_CACHE_ENABLE
