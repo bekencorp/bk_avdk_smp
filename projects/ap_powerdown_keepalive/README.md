@@ -55,13 +55,13 @@ Scenario: Device-A = Server, Device-B = Client. Device-B's AP starts keepalive t
 2) Start server on Device-A (CP serial console):
 
 ```
-lp server -p 8000
+lp server -p 4100
 ```
 
 3) From Device-B AP serial console request CP to start keepalive via IPC:
 
 ```
-ap_cmd lp start_ka <server_ip> 8000
+ap_cmd lp start_ka <server_ip> 4100
 ```
 
 This will make the AP request the local CP to start the keepalive toward the server. The default transmit interval is defined by `KEEPALIVE_TX_INTERVAL_SEC` in `cp/keepalive/keepalive_msg.h`.

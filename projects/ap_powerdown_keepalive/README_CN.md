@@ -89,13 +89,13 @@ Device-B：作为 keepalive Client，AP 侧通过 IPC 发起 keepalive，随后 
 2) 启动 Server（Device-A，CP 串口）：
 
 ```
-lp server -p 8000
+lp server -p 4100
 ```
 
 3) 在 Device-B 上通过 AP 串口下发 IPC 命令启动 CP 的 keepalive（AP -> CP）：
 
 ```
-ap_cmd lp start_ka <server_ip> 8000
+ap_cmd lp start_ka <server_ip> 4100
 ```
 
 此命令会让 AP 通过 IPC 请求 CP 启动对指定 server 的 keepalive。默认心跳间隔与超时配置位于 `cp/keepalive/keepalive_msg.h`（例如 `KEEPALIVE_TX_INTERVAL_SEC`）。
