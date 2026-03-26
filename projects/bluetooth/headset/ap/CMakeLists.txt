@@ -42,6 +42,16 @@ if (CONFIG_BT)
 		)
 endif()
 
+if (CONFIG_PBAP_PCE_DEMO)
+	list(APPEND incs
+		pbap_pce
+		)
+	list(APPEND srcs
+		pbap_pce/pbap_pce_demo.c
+		pbap_pce/pbap_pce_demo_cli.c
+		)
+endif()
+
 set(priv_req  bk_init media_service multimedia bk_cli audio_play audio_record lwip_intf_v2_1)
 
 if ("${ARMINO_SOC}" STREQUAL "bk7258")

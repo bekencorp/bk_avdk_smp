@@ -329,7 +329,7 @@ __error:
     os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
 }
 
-static const struct cli_command s_headset_commands[] =
+static const struct cli_command s_headset_commands[] = 
 {
     {"headset", "see -h", cmd_headset_demo},
 };

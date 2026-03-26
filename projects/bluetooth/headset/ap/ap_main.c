@@ -27,9 +27,18 @@ int main(void)
 	hfp_hf_demo_init(0);
 #endif
 
+#if CONFIG_PBAP_PCE_DEMO
+	extern int pbap_pce_demo_init(void);
+	pbap_pce_demo_init();
+#endif
+
 #if CONFIG_BT
 	extern int cli_headset_demo_init(void);
 	cli_headset_demo_init();
+#if CONFIG_PBAP_PCE_DEMO
+	extern int cli_pbap_pce_demo_init(void);
+	cli_pbap_pce_demo_init();
+#endif
 #endif
 
 #endif

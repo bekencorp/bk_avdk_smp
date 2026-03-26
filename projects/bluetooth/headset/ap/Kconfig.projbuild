@@ -9,4 +9,12 @@ menu "Headset Example Configuration"
         bool "hfp hf demo"
         depends on BT
         default n
+
+    config PBAP_PCE_DEMO
+        bool "pbap pce demo"
+        depends on BT
+        default n
+        help
+            PBAP PCE (Phone Book Access Profile - Phone Book Client) demo.
+            Enables pbap CLI commands for bk_dm_pbap_pce.h API functional testing.
 endmenu
