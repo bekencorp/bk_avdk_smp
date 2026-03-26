@@ -405,12 +405,11 @@ static avdk_err_t video_play_app_audio_output_config_cb(void *user_data, const v
         return AVDK_ERR_INVAL;
     }
 
-    // Note: audio output might not be opened yet (probe media info first).
-    // Treat it as best-effort and return OK to avoid failing playback when audio output is disabled.
     video_play_user_ctx_t *ctx = (video_play_user_ctx_t *)user_data;
-    if (ctx == NULL || ctx->audio_player_handle == NULL)
+    if (ctx == NULL)
     {
-        return AVDK_ERR_OK;
+        LOGE("%s: user_data is NULL\n", __func__);
+        return AVDK_ERR_INVAL;
     }
 
     if (params->channels == 0 || params->channels > 2 || params->sample_rate == 0)
@@ -428,19 +427,29 @@ static avdk_err_t video_play_app_audio_output_config_cb(void *user_data, const v
     }
 
     /*
-     * Clear buffered old audio on file switching by recreating audio output:
-     * deinit -> init -> start.
+     * Root fix:
+     * - When "start" is called without a file_path, audio output is not pre-opened.
+     * - The first "play" relies on audio_output_config_cb to create the audio device.
+     * Therefore this callback must support BOTH:
+     * - first-time creation (init -> start)
+     * - reconfiguration on file switching (deinit -> init -> start)
      */
     audio_player_device_handle_t old_handle = ctx->audio_player_handle;
-    avdk_err_t ret = audio_player_device_deinit(old_handle);
-    if (ret != AVDK_ERR_OK)
+    if (old_handle != NULL)
     {
-        LOGE("%s: audio_player_device_deinit failed, ret=%d\n", __func__, ret);
-        return ret;
-    }
+        avdk_err_t ret = audio_player_device_deinit(old_handle);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGE("%s: audio_player_device_deinit failed, ret=%d\n", __func__, ret);
+            return ret;
+        }
 
-    ctx->audio_player_handle = NULL;
-    s_audio_player_handle = NULL;
+        ctx->audio_player_handle = NULL;
+        if (s_audio_player_handle == old_handle)
+        {
+            s_audio_player_handle = NULL;
+        }
+    }
 
     // Calculate PCM frame size for buffering (20ms of audio).
     // Use ceil to avoid zero frame size on low sample rates.
@@ -466,7 +475,7 @@ static avdk_err_t video_play_app_audio_output_config_cb(void *user_data, const v
     audio_cfg.frame_size = frame_size;
 
     audio_player_device_handle_t new_handle = NULL;
-    ret = audio_player_device_init(&audio_cfg, &new_handle);
+    avdk_err_t ret = audio_player_device_init(&audio_cfg, &new_handle);
     if (ret != AVDK_ERR_OK || new_handle == NULL)
     {
         LOGE("%s: audio_player_device_init failed, ret=%d\n", __func__, ret);
