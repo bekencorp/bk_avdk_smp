@@ -760,8 +760,10 @@ void rwnx_start_xmit_mgmt(struct sk_buff *skb)
 		else
 			txq = rwnx_txq_vif_get(mac_vif_mgmt_get_entry(skb->vif_idx), NX_UNK_TXQ_TYPE);
 	}
-	if (!txq || txq->idx == TXQ_INACTIVE)
+	if (!txq || txq->idx == TXQ_INACTIVE) {
+		RWNX_LOGW("%s txq is invalid\n", __func__);
 		goto tx_exit;
+	}
 
 #if 0	 //TODO
 	if (txq->credits <= 0)
@@ -812,9 +814,14 @@ void rwnx_start_xmit_mgmt(struct sk_buff *skb)
 	return;
 
 tx_exit:
-	if (skb)
-		kfree_skb(skb);
-	else if (fhost_txdesc)
+	if (skb) {
+		if (skb->msdu_ptr) {
+	        os_free(skb->msdu_ptr);
+	        skb->msdu_ptr = NULL;
+	    }
+		os_free(skb);
+	}
+	if (fhost_txdesc)
 		os_free(fhost_txdesc);
 }
 
@@ -918,7 +925,7 @@ void rwnx_start_xmit_raw_ex(struct sk_buff *skb, raw_tx_cntrl_t *raw_tx_cntrl)
 tx_exit:
 	if (skb)
 		kfree_skb(skb);
-	else if (fhost_txdesc)
+	if (fhost_txdesc)
 		os_free(fhost_txdesc);
 }
 #endif /* CONFIG_RWNX_SW_TXQ */

@@ -68,6 +68,47 @@ wpas_get_tx_interface(struct wpa_supplicant *wpa_s, const u8 *src)
 }
 
 
+#if defined(BK_SUPPLICANT) && defined(CONFIG_P2P)
+/**
+ * offchannel_send_action_timeout - Action TX Timeout callback
+ * @wpa_s: Pointer to wpa_supplicant data
+ *
+ * This function is called when the timer of a frame sent by offchannel_send_action()
+ * expires
+ */
+void offchannel_send_action_timeout_cb(void *eloop_ctx, void *timeout_ctx)
+{
+	struct wpa_supplicant *wpa_s = eloop_ctx;
+
+	wpa_printf(MSG_DEBUG,
+		   "(%d) Off-channel: Send Action timeout: pending_action_tx=%p",
+		   rtos_get_time(), wpa_s->pending_action_tx);
+
+	if (NULL == wpa_s->pending_action_tx)
+	{
+		wpa_printf(MSG_DEBUG, "Off-channel: Send Action timeout: No Pending Action");
+		return;
+	}
+
+	/* If driver doesn't report TX status, report failure on timeout */
+	if (wpa_s->pending_action_tx_status_cb) {
+		WPA_LOGW("Off-channel: Send Action timeout - reporting TX status FAILED (driver didn't report status)\r\n");
+		wpa_s->pending_action_tx_status_cb(
+			wpa_s, wpa_s->pending_action_freq,
+			wpa_s->pending_action_dst, wpa_s->pending_action_src,
+			wpa_s->pending_action_bssid,
+			wpabuf_head(wpa_s->pending_action_tx),
+			wpabuf_len(wpa_s->pending_action_tx),
+			OFFCHANNEL_SEND_ACTION_FAILED);
+	}
+	wpabuf_free(wpa_s->pending_action_tx);
+	wpa_s->pending_action_tx = NULL;
+	wpa_s->action_tx_wait_time_used = 0;
+	wpa_s->pending_action_tx_done = 1;
+}
+#endif
+
+
 static void wpas_send_action_cb(void *eloop_ctx, void *timeout_ctx)
 {
 	struct wpa_supplicant *wpa_s = eloop_ctx;
@@ -165,36 +206,17 @@ static void wpas_send_action_cb(void *eloop_ctx, void *timeout_ctx)
 #if defined(BK_SUPPLICANT) && defined(CONFIG_P2P)
 			wpa_s->pending_action_tx_done = 1;
 #endif
-	}
-}
-
-
+	} else {
 #if defined(BK_SUPPLICANT) && defined(CONFIG_P2P)
-/**
- * offchannel_send_action_timeout - Action TX Timeout callback
- * @wpa_s: Pointer to wpa_supplicant data
- *
- * This function is called when the timer of a frame sent by offchannel_send_action()
- * expires
- */
-void offchannel_send_action_timeout_cb(void *eloop_ctx, void *timeout_ctx)
-{
-	struct wpa_supplicant *wpa_s = eloop_ctx;
-
-	wpa_printf(MSG_DEBUG,
-			"(%d) Off-channel: Send Action timeout: pending_action_tx=%p",
-			rtos_get_time(), wpa_s->pending_action_tx);
-
-	if (NULL == wpa_s->pending_action_tx)
-	{
-		wpa_printf(MSG_DEBUG, "Off-channel: Send Action timeout: No Pending Action");
-		return;
-	}
-	wpabuf_free(wpa_s->pending_action_tx);
-	wpa_s->pending_action_tx = NULL;
-	wpa_s->action_tx_wait_time_used = 0;
-}
+		if (0 == wpa_s->pending_action_tx_done) {
+			WPA_LOGW("Off-channel: wpa_drv_send_action succeeded, set timeout 200ms for TX status\r\n");
+			eloop_cancel_timeout(offchannel_send_action_timeout_cb, wpa_s, NULL);
+			eloop_register_timeout(0, 200 * 1000, offchannel_send_action_timeout_cb,
+				wpa_s, NULL);
+		}
 #endif
+	}
+}
 
 
 /**
