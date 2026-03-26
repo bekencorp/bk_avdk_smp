@@ -130,7 +130,9 @@ bt_err_t bk_bluetooth_init(void)
         //only init ipc
         //bluetooth_already_init = 1;
         LOGD("%s init ipc ok\r\n", __func__);
+#if CONFIG_BLUETOOTH_MULTI_CONTROLLER
         return 0;
+#endif
     }
     else if(ret == 1)
     {
