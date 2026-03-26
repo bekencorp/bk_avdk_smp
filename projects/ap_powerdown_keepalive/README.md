@@ -6,6 +6,8 @@ AP Powerdown Keepalive Example Project
 
 This project demonstrates keepalive and power-management interactions between the AP (Application core) and CP (Communication core) in a dual-core system. It shows how the AP can be powered down while the CP continues to keep a heartbeat with a remote server and how wakeup flows are performed.
 
+**Note:** This example includes a way to have keepalive-related packets delivered directly to the CP-side protocol stack: when establishing the keepalive TCP connection, the CP side can bind the socket to the CP port range so that incoming keepalive traffic is handled by the CP stack.
+
 ## 2. Test environment
 
 - Recommended board: BK7258 family (or compatible)

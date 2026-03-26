@@ -5,6 +5,12 @@
 
 #define KA_CLIENT_TAG "KA_CLIENT"
 
+/* Bind keepalive socket to a port in CIF LOCAL_PORT_RANGE (cif_wifi_dp.h: 0x1000..0x1010)
+ * so that reply packets (e.g. FIN+ACK) are forwarded to CP; otherwise they may go to AP. */
+#define KA_CLIENT_CP_BIND_PORT_START  0x1000
+#define KA_CLIENT_CP_BIND_PORT_END    0x1010
+#define KA_CLIENT_CP_BIND_PORT_COUNT  (KA_CLIENT_CP_BIND_PORT_END - KA_CLIENT_CP_BIND_PORT_START + 1)
+
 #define LOGI(...)   BK_LOGI(KA_CLIENT_TAG, ##__VA_ARGS__)
 #define LOGW(...)   BK_LOGW(KA_CLIENT_TAG, ##__VA_ARGS__)
 #define LOGE(...)   BK_LOGE(KA_CLIENT_TAG, ##__VA_ARGS__)
@@ -83,6 +89,10 @@ bk_err_t ka_client_deinit_connection(ka_client_env_t *client)
 bk_err_t ka_client_init_connection(ka_client_env_t *client)
 {
     struct sockaddr_in addr;
+    struct sockaddr_in local = {0};
+    uint16_t bind_port;
+    uint8_t bind_attempt;
+    static uint32_t s_bind_seed = 0;
     uint8_t retry_cnt = 0;
     int ret;
 
@@ -96,6 +106,30 @@ bk_err_t ka_client_init_connection(ka_client_env_t *client)
             rtos_delay_milliseconds(1000);
             continue;
         }
+
+        /* Bind to a random port in CP's CIF port range so server reply is delivered to CP. */
+        local.sin_family = AF_INET;
+        local.sin_addr.s_addr = INADDR_ANY;
+        for (bind_attempt = 0; bind_attempt < KA_CLIENT_CP_BIND_PORT_COUNT; bind_attempt++) {
+            s_bind_seed = (s_bind_seed * 1103515245u + 12345u) & 0x7fffffffu;
+            bind_port = (uint16_t)(KA_CLIENT_CP_BIND_PORT_START +
+                (s_bind_seed % KA_CLIENT_CP_BIND_PORT_COUNT));
+            local.sin_port = htons(bind_port);
+            ret = bind(client->sock, (const struct sockaddr *)&local, sizeof(local));
+            if (ret == 0) {
+                break;
+            }
+        }
+        if (ret != 0) {
+            LOGI("bind in range [%u,%u] failed after %u tries, err=%d\n",
+                 (unsigned)KA_CLIENT_CP_BIND_PORT_START, (unsigned)KA_CLIENT_CP_BIND_PORT_END,
+                 (unsigned)KA_CLIENT_CP_BIND_PORT_COUNT, errno);
+            closesocket(client->sock);
+            client->sock = -1;
+            rtos_delay_milliseconds(1000);
+            continue;
+        }
+        LOGI("bound to local port %u (CP port range)\n", (unsigned)bind_port);
 
         addr.sin_family = PF_INET;
         addr.sin_port = htons(client->keepalive_cfg.port);
