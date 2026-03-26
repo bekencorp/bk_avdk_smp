@@ -665,6 +665,8 @@ bk_err_t uvc_camera_stream_rx_config(uvc_stream_handle_t *uvc_handle, camera_par
     uint8_t index = uvc_param->index;
     frame_buffer_t *new_frame = NULL;
 
+    LOGD("%s, %d, camera:%d, state:%d\r\n", __func__, __LINE__, uvc_param->info->port, uvc_param->camera_state);
+
     rtos_lock_mutex(&uvc_handle->mutex);
 
     if (uvc_param->camera_state != UVC_CONNECT_STATE || uvc_handle->pro_enable == false)
@@ -848,7 +850,7 @@ void uvc_camera_stream_stop_handle(uint32_t param)
     uvc_stream_handle_t *uvc_handle = s_uvc_stream_handle;
     camera_param_t *uvc_param = (camera_param_t *)param;
 
-    LOGV("%s, %d, camera:%d\r\n", __func__, __LINE__, uvc_param->info->port);
+    LOGD("%s, %d, camera:%d, state:%d\r\n", __func__, __LINE__, uvc_param->info->port, uvc_param->camera_state);
 
     if (uvc_param->camera_state == UVC_CLOSING_STATE)
     {
@@ -856,13 +858,17 @@ void uvc_camera_stream_stop_handle(uint32_t param)
         {
             LOGE("%s, %d timeout\r\n", __func__, __LINE__);
         }
-
-        uvc_param->camera_state = UVC_CONNECT_STATE;
     }
 
+    LOGD("%s, %d, camera:%d, state:%d\r\n", __func__, __LINE__, uvc_param->info->port, uvc_param->camera_state);
     if (uvc_param->port_info && uvc_param->camera_state != UVC_DISCONNECT_STATE)
     {
         bk_usbh_hub_port_dev_close(uvc_param->info->port, uvc_param->port_info->device_index, uvc_param->port_info);
+    }
+
+    if (uvc_param->camera_state != UVC_DISCONNECT_STATE)
+    {
+        uvc_param->camera_state = UVC_CONNECT_STATE;
     }
 
     // step 1: free urb
@@ -872,16 +878,12 @@ void uvc_camera_stream_stop_handle(uint32_t param)
         uvc_param->urb = NULL;
     }
 
-    LOGV("%s, %d\r\n", __func__, __LINE__);
-
     // step 2: free frame_buffer
     if (uvc_param->frame)
     {
         uvc_handle->callback->complete(uvc_param->info->port, uvc_param->info->img_format, uvc_param->frame, UVC_FRAME_ERR);
         uvc_param->frame = NULL;
     }
-
-    LOGV("%s, %d\r\n", __func__, __LINE__);
 
     if (uvc_separate_packet_cb.uvc_init_packet_cb != NULL && uvc_separate_packet_cb.id == uvc_param->info->port)
     {
@@ -2152,6 +2154,7 @@ bk_err_t bk_uvc_set_stop(camera_handle_t handle)
 
     if (uvc_param)
     {
+        LOGD("%s, %d, camera_state:%d\r\n", __func__, __LINE__, uvc_param->camera_state);
         if (uvc_param->camera_state == UVC_CLOSED_STATE)
         {
             LOGE("%s, %d camera have been closed\r\n", __func__, __LINE__);
@@ -2175,7 +2178,8 @@ bk_err_t bk_uvc_set_stop(camera_handle_t handle)
         else
         {
             rtos_wait_for_event_flags(&uvc_handle->handle, UVC_CLOSE_BIT, true, true, BEKEN_NEVER_TIMEOUT);
-            uvc_param->camera_state = UVC_CONNECT_STATE;
+            LOGD("%s, %d, camera_state:%d\r\n", __func__, __LINE__, uvc_param->camera_state);
+            //uvc_param->camera_state = UVC_CONNECT_STATE;
         }
     }
 
