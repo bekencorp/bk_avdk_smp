@@ -31,6 +31,8 @@ extern int32_t lcd_driver_get_spi_gpio(LCD_SPI_GPIO_TYPE_E gpio_type);
 void lcd_spi_write_cmd(uint8_t data);
 void lcd_spi_init_gpio(void);
 void lcd_spi_write_data(uint8_t data);
+void lcd_spi_write_hf_word_cmd(unsigned int cmd);
+void lcd_spi_write_hf_word_data(unsigned int data);
 
 
 typedef struct bk_lcd_spi_handle_t bk_lcd_spi_handle_t;

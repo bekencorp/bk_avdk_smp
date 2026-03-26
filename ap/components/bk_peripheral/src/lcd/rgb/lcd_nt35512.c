@@ -36,11 +36,11 @@ static const lcd_rgb_t lcd_rgb =
 static void lcd_nt35512_config(void)
 {
 	bk_gpio_set_output_high(LCD_SPI_RST);
-	delay_us(10);
+	bk_delay_us(10);
 	bk_gpio_set_output_low(LCD_SPI_RST);
-	delay_us(800);
+	bk_delay_us(800);
 	bk_gpio_set_output_high(LCD_SPI_RST);
-	delay_us(800);
+	bk_delay_us(800);
 
 	lcd_spi_write_hf_word_cmd(0xF000);
 	lcd_spi_write_hf_word_data(0x0055);

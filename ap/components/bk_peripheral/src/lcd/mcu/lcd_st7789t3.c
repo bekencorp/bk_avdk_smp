@@ -20,6 +20,8 @@
 
 #define TAG "st7789t3"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define COUNT(A)        sizeof(A)/sizeof(A[0])
 
 

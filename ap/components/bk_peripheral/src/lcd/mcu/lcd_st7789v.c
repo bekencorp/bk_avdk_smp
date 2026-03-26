@@ -21,6 +21,7 @@
 #define TAG "st7789v"
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define COUNT(A)        sizeof(A)/sizeof(A[0])
 
 
@@ -137,14 +138,14 @@ static bk_err_t st7789v_lcd_off(const void *handle)
 }
 
 
-void lcd_st7789v_init(const void* handle)
+bk_err_t lcd_st7789v_init(const void* handle)
 {
 	LOGD("%s\n", __func__);
 
 	if (handle == NULL)
 	{
 		LOGE("%s: handle is NULL", __func__);
-		return;
+		return BK_ERR_NULL_PARAM;
 	}
 
 	rtos_delay_milliseconds(131);
@@ -154,13 +155,13 @@ void lcd_st7789v_init(const void* handle)
 	if (i80_handle == NULL)
 	{
 		LOGE("%s: Failed to register I80 bus", __func__);
-		return;
+		return BK_FAIL;
 	}
 	
 	if (i80_handle->write_cmd == NULL)
 	{
 		LOGE("%s: write_cmd function is NULL", __func__);
-		return;
+		return BK_FAIL;
 	}
 	i80_handle->write_cmd(0x01, NULL, 0);
 	rtos_delay_milliseconds(120);
@@ -187,9 +188,10 @@ void lcd_st7789v_init(const void* handle)
 	i80_handle->write_cmd(0x21, NULL, 0);
 	rtos_delay_milliseconds(120);
 	i80_handle->write_cmd(0x29, NULL, 0);
+	return BK_OK;
 }
 
-void lcd_st7789v_set_display_mem_area(void *handle, uint16 xs, uint16 xe, uint16 ys, uint16 ye)
+void lcd_st7789v_set_display_mem_area(const void *handle, uint16_t xs, uint16_t xe, uint16_t ys, uint16_t ye)
 {
 	if (handle == NULL)
 	{
@@ -211,8 +213,8 @@ void lcd_st7789v_set_display_mem_area(void *handle, uint16 xs, uint16 xe, uint16
 		return;
 	}
 
-	uint16 xs_l, xs_h, xe_l, xe_h;
-	uint16 ys_l, ys_h, ye_l, ye_h;
+	uint16_t xs_l, xs_h, xe_l, xe_h;
+	uint16_t ys_l, ys_h, ye_l, ye_h;
 
 	xs_h = xs >> 8;
 	xs_l = xs & 0xff;
@@ -233,7 +235,7 @@ void lcd_st7789v_set_display_mem_area(void *handle, uint16 xs, uint16 xe, uint16
 	i80_handle->write_cmd(0x2b, param_row, 4);  // Fixed: should be 0x2b for row
 }
 
-static void lcd_st7789v_start_transfer(void *handle)
+static void lcd_st7789v_start_transfer(const void *handle)
 {
 	if (handle == NULL)
 	{
@@ -251,7 +253,7 @@ static void lcd_st7789v_start_transfer(void *handle)
 	i80_handle->write_cmd(0x2C, NULL, 0);
 }
 
-static void lcd_st7789v_continue_transfer(void *handle)
+static void lcd_st7789v_continue_transfer(const void *handle)
 {
 	if (handle == NULL)
 	{
