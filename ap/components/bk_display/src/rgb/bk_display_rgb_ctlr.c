@@ -1,5 +1,6 @@
 #include <driver/flash.h>
 #include "components/avdk_utils/avdk_types.h"
+#include "lcd_disp_hal.h"
 #include "driver/lcd.h"
 #include "bk_display_ctlr.h"
 #include "frame_buffer.h"
@@ -123,6 +124,9 @@ __attribute__((section(".itcm_sec_code"))) static void lcd_driver_display_rgb_is
                 if (lcd_disp_config->display_frame->fmt != lcd_disp_config->pingpong_frame->fmt)
                 {
                     bk_lcd_set_yuv_mode(lcd_disp_config->pingpong_frame->fmt);
+#if (CONFIG_RGB_FLUSH_BY_SOF)
+                    lcd_hal_soft_reset();
+#endif
                 }
 
                 temp_buffer = lcd_disp_config->display_frame;
