@@ -53,7 +53,7 @@ typedef enum
     BK_GATT_UUID_HID_SVC =                       0x1812,          ///  HID service
     BK_GATT_UUID_SCAN_PARAMETERS_SVC =           0x1813,          ///  Scan Parameters service
     BK_GATT_UUID_RUNNING_SPEED_CADENCE_SVC =     0x1814,          ///  Running Speed and Cadence service
-    BK_GATT_UUID_Automation_IO_SVC =             0x1815,          ///  Automation IO service
+    BK_GATT_UUID_AUTOMATION_IO_SVC =             0x1815,          ///  Automation IO service
     BK_GATT_UUID_CYCLING_SPEED_CADENCE_SVC =     0x1816,          ///  Cycling Speed and Cadence service
     BK_GATT_UUID_CYCLING_POWER_SVC =             0x1818,          ///  Cycling Power service
     BK_GATT_UUID_LOCATION_AND_NAVIGATION_SVC =   0x1819,          ///  Location and Navigation service
@@ -93,6 +93,8 @@ typedef enum
     BK_GATT_UUID_MANUFACTURER_LIMITS =           0x2913,
     BK_GATT_UUID_PROCESS_TOLERANCES =            0x2914,
     BK_GATT_UUID_IMD_TRIGGER_SETTING =           0x2915,
+    BK_GATT_UUID_COOK_SENSOR_INFO =              0x2916,
+    BK_GATT_UUID_COOK_TRIGGER_SETTING =          0x2917,
 
     /// GAP Profile Attributes
     BK_GATT_UUID_GAP_DEVICE_NAME =               0x2A00,
@@ -408,4 +410,3 @@ typedef struct
 #ifdef __cplusplus
 }
 #endif
-

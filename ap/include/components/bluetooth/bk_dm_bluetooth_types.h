@@ -139,6 +139,7 @@ typedef enum {
     BK_BT_STATUS_PKT_TOO_LONG                    = 0x45,
     BK_BT_STATUS_TOO_LATE                        = 0x46,
     BK_BT_STATUS_TOO_EARLY                       = 0x47,
+    BK_BT_STATUS_INSUFFICIENT_CHANNELS           = 0x48,
 
     BK_BT_STATUS_UNDEFINED                       = 0xFF,
 } bk_bt_status_t;

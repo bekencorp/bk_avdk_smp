@@ -828,6 +828,40 @@ int bt_avrcp_demo_init(void)
     bk_bt_avrcp_tg_register_callback(avrcp_tg_cb);
     bk_bt_avrcp_ct_register_callback(avrcp_ct_cb);
 
+    if (1)
+    {
+        uint16_t feat = 0;
+        uint16_t allow = 0;
+        bk_bt_avrcp_ct_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_ALLOWED, &allow);
+        bk_bt_avrcp_ct_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_CURRENT_ENABLE, &feat);
+        avrcp_logi("current ct enable 0x%x\n", feat);
+        feat &= ~(BK_AVRCP_SDP_FEATURE_CT_CAT_1 //central doesn't need cat 1 as ct
+                  //| BK_AVRCP_SDP_FEATURE_CT_CAT_2 //As central, if you need disable abs vol as ct, disable ct category 2 here.
+                  | BK_AVRCP_SDP_FEATURE_CT_CAT_3 | BK_AVRCP_SDP_FEATURE_CT_CAT_4
+                  | BK_AVRCP_SDP_FEATURE_CT_SUPPORT_BROWSING | BK_AVRCP_SDP_FEATURE_CT_SUPPORT_CA_GIP | BK_AVRCP_SDP_FEATURE_CT_SUPPORT_CA_GI | BK_AVRCP_SDP_FEATURE_CT_SUPPORT_CA_GLT);
+        feat &= allow;
+        bk_bt_avrcp_ct_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_SET, &feat);
+        feat = 0;
+        allow = 0;
+        bk_bt_avrcp_ct_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_CURRENT_ENABLE, &feat);
+        avrcp_logi("current ct enable 0x%x\n", feat);
+        feat = 0;
+        bk_bt_avrcp_tg_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_ALLOWED, &allow);
+        bk_bt_avrcp_tg_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_CURRENT_ENABLE, &feat);
+        avrcp_logi("current tg enable 0x%x\n", feat);
+        feat &= ~(BK_AVRCP_SDP_FEATURE_TG_CAT_2 //central doesn't need cat 2 as tg
+                  | BK_AVRCP_SDP_FEATURE_TG_CAT_3 | BK_AVRCP_SDP_FEATURE_TG_CAT_4
+                  | BK_AVRCP_SDP_FEATURE_TG_PLAYER_APP_SET | BK_AVRCP_SDP_FEATURE_TG_GROUP_NAV | BK_AVRCP_SDP_FEATURE_TG_SUPPORT_BROWSING | BK_AVRCP_SDP_FEATURE_TG_SUPPORT_MULT_MEDIA_PA
+                  | BK_AVRCP_SDP_FEATURE_TG_SUPPORT_CA);
+        feat &= allow;
+        bk_bt_avrcp_tg_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_SET, &feat);
+        feat = 0;
+        allow = 0;
+        bk_bt_avrcp_tg_sdp_feature_operation(BK_AVRCP_SDP_FEATURE_API_METHOD_GET_CURRENT_ENABLE, &feat);
+        avrcp_logi("current tg enable 0x%x\n", feat);
+        feat = 0;
+    }
+
     s_avrcp_env.inited = 1;
     return 0;
 }

@@ -220,6 +220,20 @@ typedef enum
     BK_BLE_AD_TYPE_TRANS_DISC_DATA    = 0x26,
     BK_BLE_AD_TYPE_LE_SUPPORT_FEATURE = 0x27,
     BK_BLE_AD_TYPE_CHAN_MAP_UPDATE    = 0x28,
+    BK_BLE_AD_TYPE_PB_ADV             = 0x29,
+    BK_BLE_AD_TYPE_MESH_MESSAGE       = 0x2a,
+    BK_BLE_AD_TYPE_MESH_BEACON        = 0x2b,
+    BK_BLE_AD_TYPE_BIG_INFO           = 0x2c,
+    BK_BLE_AD_TYPE_BROADCAST_CODE     = 0x2d,
+    BK_BLE_AD_TYPE_RESOLV_SET_ID      = 0x2e,
+    BK_BLE_AD_TYPE_ADV_INTERVAL_LONG  = 0x2f,
+    BK_BLE_AD_TYPE_BROADCAST_NAME     = 0x30,
+    BK_BLE_AD_TYPE_ENCRYPTED_ADV      = 0x31,
+    BK_BLE_AD_TYPE_PER_ADV_RTI        = 0x32,
+
+    BK_BLE_AD_TYPE_ELEC_SHELF_LABEL   = 0x34,
+
+    BK_BLE_AD_TYPE_3D_INFO_DATA       = 0x3d,
 
     BK_BLE_AD_TYPE_MANU               = 0xFF,
 } bk_ble_adv_data_type;
