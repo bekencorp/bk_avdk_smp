@@ -430,6 +430,9 @@ static bk_err_t bk_cal_saradc_start(int32_t adc_channel, int32_t adc_clk, int32_
 	config.sample_rate   = 0;
 	config.steady_ctrl   = steady_time;
 	config.adc_filter    = 0;
+	if (adc_channel == 8) {
+		config.vol_div = ADC_VOL_DIV_1;
+	}
 
 	BK_LOG_ON_ERR(bk_adc_set_phy_cali_config(&config));
 	BK_LOG_ON_ERR(bk_adc_enable_bypass_clalibration());
@@ -489,7 +492,7 @@ static bk_err_t bk_saradc_stop(uint8_t adc_channel)
 
 static UINT8 bk_phy_get_wifi_media_mode_config_wrapper(void)
 {
-#if (CONFIG_SOC_BK7258)
+#if (CONFIG_SOC_BK7258 || CONFIG_SOC_BK7257)
     bool flag = 0;
 
     bk_wifi_get_wifi_media_mode_config(&flag);
