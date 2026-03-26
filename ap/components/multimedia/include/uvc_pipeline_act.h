@@ -22,20 +22,28 @@
 extern "C" {
 #endif
 
-
+//this function is called by h264_jdec_pipeline_open and lcd_jdec_pipeline_open
 bk_err_t uvc_pipeline_init(void);
 
+//this function call uvc_pipeline_init when the h264 pipeline is opened
 bk_err_t h264_jdec_pipeline_open(bk_video_pipeline_h264e_config_t *config, const bk_h264e_callback_t *cb,
 	 				const jpeg_callback_t *jpeg_cbs, const decode_callback_t *decode_cbs);
+//this function don't call uvc_pipeline_deinit when the h264 pipeline is closed
 bk_err_t h264_jdec_pipeline_close(void);
 bk_err_t h264_jdec_pipeline_regenerate_idr_frame(void);
 
+//this function call uvc_pipeline_init when the lcd pipeline is opened
 bk_err_t lcd_jdec_pipeline_open(bk_video_pipeline_decode_config_t *config, const jpeg_callback_t *jpeg_cbs, const decode_callback_t *decode_cbs);
+//this function don't call uvc_pipeline_deinit when the lcd pipeline is closed
 bk_err_t lcd_jdec_pipeline_close(void);
 
 uint8_t *get_mux_sram_decode_buffer(void);
 uint8_t *get_mux_sram_rotate_buffer(void);
 uint8_t *get_mux_sram_scale_buffer(void);
+
+//this two functions should be called when the uvc pipeline is not used
+bk_err_t uvc_pipeline_deinit(void);
+bk_err_t deinit_all_buffer(void);
 
 #ifdef __cplusplus
 }

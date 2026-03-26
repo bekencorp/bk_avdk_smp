@@ -14,6 +14,7 @@
 
 #include "frame_buffer.h"
 #include "video_pipeline_test.h"
+#include "uvc_pipeline_act.h"
 #include <os/os.h>
 
 #define TAG "video_pipeline_cli"
@@ -121,6 +122,7 @@ void cli_video_pipeline_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
         } else {
             LOGD("%s, %d, bk_video_pipeline_delete success!\n", __func__, __LINE__);
         }
+        handle = NULL;
     } else if (os_strcmp(argv[1], "open_h264e") == 0) {
         bk_video_pipeline_h264e_config_t bk_video_pipeline_h264e_config = {0};
         bk_video_pipeline_h264e_config.h264e_cb = &h264e_cb;
@@ -157,6 +159,15 @@ void cli_video_pipeline_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
             LOGE("%s, %d, bk_video_pipeline_close_rotate failed!\n", __func__, __LINE__);
         } else {
             LOGD("%s, %d, bk_video_pipeline_close_rotate success!\n", __func__, __LINE__);
+        }
+    }
+    else if (os_strcmp(argv[1], "deinit_buffer") == 0) {
+        uvc_pipeline_deinit();
+        ret = deinit_all_buffer();
+        if (ret != BK_OK) {
+            LOGE("%s, %d, deinit_all_buffer failed!\n", __func__, __LINE__);
+        } else {
+            LOGD("%s, %d, deinit_all_buffer success!\n", __func__, __LINE__);
         }
     }
     else {

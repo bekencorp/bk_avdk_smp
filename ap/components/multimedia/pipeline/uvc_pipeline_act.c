@@ -39,6 +39,9 @@ extern uint8_t *media_bt_share_buffer;
 mux_sram_decode_buffer_t *mux_sram_decode_buffer = NULL;
 mux_sram_rotate_buffer_t *mux_sram_rotate_buffer = NULL;
 mux_sram_scale_buffer_t *mux_sram_scale_buffer = NULL;
+static uint8_t pipeline_init = false;
+static uint8_t h264_pipeline_init = false;
+static uint8_t lcd_pipeline_init = false;
 
 bk_err_t init_encoder_buffer(void)
 {
@@ -207,6 +210,7 @@ bk_err_t h264_jdec_pipeline_open(bk_video_pipeline_h264e_config_t *config, const
 		bk_jdec_buffer_request_register(PIPELINE_MOD_H264, bk_h264_encode_request, bk_h264_reset_request);
 		LOGV("%s, jdec_h264_enc_en \n", __func__);
 	}
+	h264_pipeline_init = true;
 	return ret;
 
 error:
@@ -216,6 +220,7 @@ error:
 	{
 		jpeg_decode_task_close();
 	}
+	h264_pipeline_init = false;
 #endif
 	return ret;
 }
@@ -240,6 +245,7 @@ bk_err_t h264_jdec_pipeline_close(void)
 		LOGV("%s decode task close complete \n", __func__);
 	}
 	LOGD("%s complete, %d \n", __func__, __LINE__);
+	h264_pipeline_init = false;
 #endif
 	return BK_OK;
 }
@@ -323,6 +329,7 @@ bk_err_t lcd_jdec_pipeline_open(bk_video_pipeline_decode_config_t *config,
 #endif
 	}
 	LOGV("%s %d\n", __func__, __LINE__);
+	lcd_pipeline_init = true;
 	return ret;
 
 error:
@@ -334,6 +341,7 @@ error:
 		jpeg_decode_task_close();
 	}
 #endif
+	lcd_pipeline_init = false;
 	return BK_FAIL;
 }
 
@@ -377,7 +385,7 @@ bk_err_t lcd_jdec_pipeline_close(void)
 			return ret;
 		}
 	}
-
+	lcd_pipeline_init = false;
 	LOGV("%s complete, %d \n", __func__, __LINE__);
 
 	return BK_OK;
@@ -386,7 +394,6 @@ bk_err_t lcd_jdec_pipeline_close(void)
 bk_err_t uvc_pipeline_init(void)
 {
 	bk_err_t ret = BK_OK;
-	static uint8_t pipeline_init = false;
 
 	if (pipeline_init)
 	{
@@ -440,6 +447,135 @@ error:
 #endif
 
 	pipeline_init = false;
+	return ret;
+}
+
+bk_err_t uvc_pipeline_deinit(void)
+{
+	bk_err_t ret = BK_FAIL;
+
+	if (h264_pipeline_init)
+	{
+		LOGW("%s, h264 is open , don't deinit uvc pipeline\n", __func__);
+		return ret;
+	}
+	if (lcd_pipeline_init)
+	{
+		LOGW("%s, lcd is open , don't deinit uvc pipeline\n", __func__);
+		return ret;
+	}
+	ret = bk_jdec_pipeline_deinit();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, bk_jdec_pipeline_deinit fail\n", __func__);
+	}
+#if SUPPORTED_IMAGE_MAX_7200P
+	ret = bk_scale_pipeline_deinit();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, bk_scale_pipeline_deinit fail\n", __func__);
+	}
+#endif
+	ret = bk_rotate_pipeline_deinit();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, bk_rotate_pipeline_deinit fail\n", __func__);
+	}
+#ifdef CONFIG_H264
+	ret = bk_h264_pipeline_deinit();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, bk_h264_pipeline_deinit fail\n", __func__);
+	}
+#endif
+
+	pipeline_init = false;
+	LOGW("%s %d complete\n", __func__, __LINE__);
+	return ret;
+}
+
+static bk_err_t deinit_encoder_buffer(void)
+{
+	uint8_t *buf = media_bt_share_buffer;
+	if(buf == NULL)
+	{
+		if (mux_sram_decode_buffer != NULL)
+		{
+			os_free(mux_sram_decode_buffer);
+			mux_sram_decode_buffer = NULL;
+		}
+	}
+	else
+	{
+		mux_sram_decode_buffer = NULL;
+	}
+	return BK_OK;
+}
+
+static bk_err_t deinit_rotate_buffer(void)
+{
+	uint8_t *buf = media_bt_share_buffer;
+	if(buf == NULL)
+	{
+		if (mux_sram_rotate_buffer != NULL)
+		{
+			os_free(mux_sram_rotate_buffer);
+			mux_sram_rotate_buffer = NULL;
+		}
+	}
+	else
+	{
+		mux_sram_rotate_buffer = NULL;
+	}
+	return BK_OK;
+}
+
+static bk_err_t deinit_scale_buffer(void)
+{
+	uint8_t *buf = media_bt_share_buffer;
+	if(buf == NULL)
+	{
+		if (mux_sram_scale_buffer != NULL)
+		{
+			os_free(mux_sram_scale_buffer);
+			mux_sram_scale_buffer = NULL;
+		}
+	}
+	else{
+		mux_sram_scale_buffer = NULL;
+	}
+	return BK_OK;
+}
+
+bk_err_t deinit_all_buffer(void)
+{
+	bk_err_t ret = BK_OK;
+	if (h264_pipeline_init)
+	{
+		LOGW("%s, h264 is open , don't deinit all buffer\n", __func__);
+		return ret;
+	}
+	if (lcd_pipeline_init)
+	{
+		LOGW("%s, lcd is open , don't deinit all buffer\n", __func__);
+		return ret;
+	}
+	ret = deinit_encoder_buffer();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, deinit_encoder_buffer fail\n", __func__);
+	}
+	ret = deinit_rotate_buffer();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, deinit_rotate_buffer fail\n", __func__);
+	}
+	ret = deinit_scale_buffer();
+	if (ret != BK_OK)
+	{
+		LOGW("%s, deinit_scale_buffer fail\n", __func__);
+	}
+	LOGW("%s %d\n", __func__, __LINE__);
 	return ret;
 }
 
