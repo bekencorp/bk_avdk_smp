@@ -329,7 +329,7 @@ menu "Adk"
 				default n
 
 			config ADK_ONBOARD_SPEAKER_STREAM_TEST
-				depends on ADK_ONBOARD_SPEAKER_STREAM
+				depends on ADK_ONBOARD_SPEAKER_STREAM && ADK_ARRAY_STREAM
 				bool "Enable onboard speaker stream test"
 				default n
 		endmenu
