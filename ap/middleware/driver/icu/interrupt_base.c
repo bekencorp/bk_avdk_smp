@@ -24,11 +24,6 @@
 #include <driver/int_types.h>
 #include <driver/int.h>
 #include <common/bk_assert.h>
-#include "sys_driver.h"
-
-#if CONFIG_SOC_SMP
-#include "cpu_id.h"
-#endif
 
 #define ICU_RETURN_ON_INVALID_DEVS(dev) do {\
 				if ((dev) >= INT_SRC_NONE) {\
@@ -64,9 +59,6 @@ void secondary_core_interrupt_init(void)
 {
     const icu_int_map_t startup_cpu1_int_map_table[] = ICU_DEV_MAP;
     uint16_t src;
-
-	sys_drv_core_intr_group1_disable(CPU2_CORE_ID, 0xFFFFFFFF);
-	sys_drv_core_intr_group2_disable(CPU2_CORE_ID, 0xFFFFFFFF);
 
     /* set cpu1 NVIC */
     arch_isr_entry_init();
