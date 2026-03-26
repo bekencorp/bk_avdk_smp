@@ -37,6 +37,18 @@
 #include "bk_cli.h"
 #include "cli.h"
 
+#if CONFIG_FTP_USE_PSARM_MEM
+#define ftp_malloc   psram_malloc
+#else
+#define ftp_malloc   os_malloc
+#endif
+
+#if (CONFIG_SDCARD)
+#define FTP_MOUNT_PATH		VFS_SD_0_PATITION_0
+#else
+#define FTP_MOUNT_PATH		VFS_INTERNAL_FLASH_PATITION_0
+#endif
+
 #define FTPD_COMMON_PORT      0x1020
 
 #define FTPD_CMD_CNT (sizeof(s_ftpd_commands) / sizeof(struct cli_command))
