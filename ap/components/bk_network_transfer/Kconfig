@@ -27,7 +27,7 @@ menu "Bk Network Transfer"
 	config NTWK_USE_PSARM_MEM
 		bool "Use PSRAM for Network Transfer Memory Allocation"
 		depends on PSRAM
-		default y
+		default n
 		help
 			Use PSRAM for memory allocation in network transfer component
 
@@ -36,5 +36,13 @@ menu "Bk Network Transfer"
 		default n
 		help
 			Enable network client service
+
+	config NTWK_PKT_USE_PSARM_MEM
+		bool "Use PSRAM for Network Transfer Packet Memory Allocation"
+		depends on PSRAM
+		default y
+		help
+			Use PSRAM for packet memory allocation in network transfer component
+
 
 endmenu

@@ -183,7 +183,7 @@ static void ntwk_udp_ctrl_server_thread(beken_thread_arg_t data)
 
     if (!rcv_buf)
     {
-        LOGE("udp ntwk_malloc failed\n");
+        LOGE("udp malloc failed\n");
         goto out;
     }
 
@@ -427,7 +427,7 @@ static void ntwk_udp_video_service_main(beken_thread_arg_t data)
     rcv_buf = (u8 *)ntwk_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("video udp ntwk_malloc failed\n");
+        LOGE("video udp malloc failed\n");
         goto out;
     }
 
@@ -542,7 +542,7 @@ static void ntwk_udp_aud_service_main(beken_thread_arg_t data)
     rcv_buf = (u8 *)ntwk_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("aud udp ntwk_malloc failed\n");
+        LOGE("aud udp malloc failed\n");
         goto out;
     }
 
@@ -934,7 +934,7 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
     rcv_buf = (u8 *) ntwk_malloc((NTWK_TRANS_CMD_BUFFER + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("tcp client ntwk_malloc failed\n");
+        LOGE("tcp client malloc failed\n");
         goto out;
     }
 
@@ -1223,7 +1223,7 @@ static void ntwk_udp_video_client_thread(beken_thread_arg_t data)
     rcv_buf = (u8 *)ntwk_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("video udp client ntwk_malloc failed\n");
+        LOGE("video udp client malloc failed\n");
         goto out;
     }
 
@@ -1473,7 +1473,7 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
     rcv_buf = (u8 *)ntwk_malloc((NTWK_TRANS_DATA_MAX_SIZE + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("aud udp client ntwk_malloc failed\n");
+        LOGE("aud udp client malloc failed\n");
         goto out;
     }
 

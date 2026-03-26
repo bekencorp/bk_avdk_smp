@@ -162,7 +162,7 @@ static void ntwk_tcp_ctrl_server_thread(beken_thread_arg_t data)
 
     if (!rcv_buf)
     {
-        LOGE("tcp ntwk_malloc failed\n");
+        LOGE("tcp malloc failed\n");
         goto out;
     }
 
@@ -405,7 +405,7 @@ static void ntwk_tcp_video_server_thread(beken_thread_arg_t data)
 
     if (!rcv_buf)
     {
-        LOGE("tcp ntwk_malloc failed\n");
+        LOGE("tcp malloc failed\n");
         goto out;
     }
 
@@ -612,7 +612,7 @@ static void ntwk_tcp_audio_server_thread(beken_thread_arg_t data)
 
     if (!rcv_buf)
     {
-        LOGE("tcp ntwk_malloc failed\n");
+        LOGE("tcp malloc failed\n");
         goto out;
     }
 
@@ -965,7 +965,7 @@ static void ntwk_tcp_ctrl_client_thread(beken_thread_arg_t data)
     rcv_buf = (u8 *) ntwk_malloc((NTWK_TRANS_CMD_BUFFER + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("tcp client ntwk_malloc failed\n");
+        LOGE("tcp client malloc failed\n");
         goto out;
     }
 
@@ -1246,7 +1246,7 @@ static void ntwk_tcp_video_client_thread(beken_thread_arg_t data)
     rcv_buf = (u8 *) ntwk_malloc((NTWK_TCP_BUFFER + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("tcp video client ntwk_malloc failed\n");
+        LOGE("tcp video client malloc failed\n");
         goto out;
     }
 
@@ -1521,7 +1521,7 @@ static void ntwk_tcp_audio_client_thread(beken_thread_arg_t data)
     rcv_buf = (u8 *) ntwk_malloc((NTWK_TCP_BUFFER + 1) * sizeof(u8));
     if (!rcv_buf)
     {
-        LOGE("tcp audio client ntwk_malloc failed\n");
+        LOGE("tcp audio client malloc failed\n");
         goto out;
     }
 

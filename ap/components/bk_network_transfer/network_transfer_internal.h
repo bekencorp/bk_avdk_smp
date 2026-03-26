@@ -18,6 +18,12 @@ extern "C" {
 #define ntwk_malloc   os_malloc
 #endif
 
+#if CONFIG_NTWK_PKT_USE_PSARM_MEM
+#define ntwk_packet_malloc   psram_malloc
+#else
+#define ntwk_packet_malloc   os_malloc
+#endif
+
 typedef bk_err_t (*ntwk_in_start_cb_t)(void *user_data);
 typedef bk_err_t (*ntwk_in_stop_cb_t)(void);
 
