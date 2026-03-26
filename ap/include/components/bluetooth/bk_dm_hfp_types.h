@@ -267,7 +267,10 @@ typedef struct{
         {
             bk_hf_client_audio_state_t state;        /*!< audio connection state */
             bk_hf_codec_type_t codec_type;           /*!< cvsd or msbc */
-        } audio_state;                                /*!< HF callback param of BK_HF_CLIENT_AUDIO_STATE_EVT */
+            uint8_t interval;                        /*!< tx interval in 625us */
+            uint16_t tx_packet_len;                  /*!< tx packet len in byte */
+            uint16_t rx_packet_len;                  /*!< rx packet len in byte */
+        } audio_state;                               /*!< HF callback param of BK_HF_CLIENT_AUDIO_STATE_EVT */
 
         /**
          * @brief BK_HF_CLIENT_BVRA_EVT
@@ -458,4 +461,3 @@ typedef void (* bk_bt_hf_client_data_cb_t)(const uint8_t *buf, uint16_t len);
 #ifdef __cplusplus
 }
 #endif
-

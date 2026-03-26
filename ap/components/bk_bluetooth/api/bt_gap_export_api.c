@@ -279,6 +279,15 @@ bt_err_t bk_bt_gap_set_page_scan_activity(uint16_t interval, uint16_t window)
     return bt_ethermind_post_msg(BT_ETHERMIND_MSG_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_PAGE_SCAN_ACTIVITY, &msg, sizeof(msg), NULL);
 }
 
+bt_err_t bk_bt_gap_set_inquiry_scan_activity(uint16_t interval, uint16_t window)
+{
+    bt_page_scan_activity_msg_t msg = {0};
+    msg.interval = interval;
+    msg.window = window;
+
+    return bt_ethermind_post_msg(BT_ETHERMIND_MSG_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_SET_INQUIRY_SCAN_ACTIVITY, &msg, sizeof(msg), NULL);
+}
+
 bt_err_t bk_bt_gap_authentication_request(uint8_t *addr)
 {
     return bt_ethermind_post_msg(BT_ETHERMIND_MSG_GAP_API_REQ, BT_ETHERMIND_GAP_API_REQ_SUBMSG_AUTHENTICATION_REQUEST, addr, 6, NULL);
