@@ -769,7 +769,7 @@ bk_err_t ntwk_udp_video_register_receive_cb(ntwk_udp_video_receive_cb_t cb)
     }
 
     video_udp_service->receive_cb = cb;
-    LOGD("%s: UDP Video receive callback registered successfully\n", __func__);
+    //LOGD("%s: UDP Video receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -789,7 +789,7 @@ bk_err_t ntwk_udp_audio_register_receive_cb(ntwk_udp_audio_receive_cb_t cb)
     }
 
     aud_udp_service->receive_cb = cb;
-    LOGD("%s: UDP Audio receive callback registered successfully\n", __func__);
+    //LOGD("%s: UDP Audio receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -938,11 +938,20 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
         goto out;
     }
 
+    if (ntwk_udp_ctrl_client_info == NULL) {
+        LOGV("%s: service freed, exit\n", __func__);
+        goto out;
+    }
+
     ntwk_udp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_START;
     ntwk_msg_event_report(NTWK_TRANS_EVT_START, 0, NTWK_TRANS_CHAN_CTRL);
 
     while (1)
     {
+        if (ntwk_udp_ctrl_client_info == NULL) {
+            LOGV("%s: service freed during run, exit\n", __func__);
+            break;
+        }
         // Check if stop was called
         if (ntwk_udp_ctrl_client_info->chan_state == NTWK_TRANS_CHAN_STOP)
         {
@@ -1003,7 +1012,20 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
         ntwk_udp_ctrl_client_info->chan_state = NTWK_TRANS_CHAN_CONNECTED;
         ntwk_udp_ctrl_client_info->client_state = BK_TRUE;
 
-        LOGD("ctrl, Connected to server fd:%d\n", ntwk_udp_ctrl_client_info->client_fd);
+        //LOGV("ctrl, Connected to server fd:%d\n", ntwk_udp_ctrl_client_info->client_fd);
+        #if 0
+        {
+            struct sockaddr_in local_addr, peer_addr;
+            socklen_t len = sizeof(local_addr);
+            if (getsockname(ntwk_udp_ctrl_client_info->client_fd, (struct sockaddr *)&local_addr, &len) == 0) {
+                len = sizeof(peer_addr);
+                if (getpeername(ntwk_udp_ctrl_client_info->client_fd, (struct sockaddr *)&peer_addr, &len) == 0) {
+                    LOGI("ctrl, connected: local_port=%u, peer_port=%u\n",
+                         (unsigned)ntohs(local_addr.sin_port), (unsigned)ntohs(peer_addr.sin_port));
+                }
+            }
+        }
+        #endif
 
         ntwk_udp_cntrl_set_keepalive(ntwk_udp_ctrl_client_info->client_fd,
                                NTWK_TRANS_CTRL_CHAN_KEEPALIVE_ENABLE,
@@ -1015,7 +1037,7 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
         ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, ntwk_udp_ctrl_client_info->server_address, NTWK_TRANS_CHAN_CTRL);
 
         // Receive data loop
-        while (ntwk_udp_ctrl_client_info->client_state == BK_TRUE)
+        while (ntwk_udp_ctrl_client_info != NULL && ntwk_udp_ctrl_client_info->client_state == BK_TRUE)
         {
             rcv_len = recv(ntwk_udp_ctrl_client_info->client_fd, rcv_buf, NTWK_TRANS_CMD_BUFFER, 0);
             if (rcv_len > 0)
@@ -1049,19 +1071,17 @@ static void ntwk_udp_ctrl_client_thread(beken_thread_arg_t data)
     }
 
 out:
-    LOGE("%s exit %d\n", __func__, ntwk_udp_ctrl_client_info->client_state);
-    if (rcv_buf)
-    {
+    if (ntwk_udp_ctrl_client_info != NULL) {
+        LOGE("%s exit %d\n", __func__, ntwk_udp_ctrl_client_info->client_state);
+        ntwk_udp_ctrl_client_info->client_state = BK_FALSE;
+        if (ntwk_udp_ctrl_client_info->client_fd != -1) {
+            close(ntwk_udp_ctrl_client_info->client_fd);
+            ntwk_udp_ctrl_client_info->client_fd = -1;
+        }
+    }
+    if (rcv_buf) {
         os_free(rcv_buf);
         rcv_buf = NULL;
-    }
-
-    ntwk_udp_ctrl_client_info->client_state = BK_FALSE;
-
-    if (ntwk_udp_ctrl_client_info->client_fd != -1)
-    {
-        close(ntwk_udp_ctrl_client_info->client_fd);
-        ntwk_udp_ctrl_client_info->client_fd = -1;
     }
 
     rtos_delete_thread(NULL);
@@ -1189,7 +1209,7 @@ bk_err_t ntwk_udp_ctrl_client_register_receive_cb(ntwk_udp_ctrl_receive_cb_t cb)
     }
 
     ntwk_udp_ctrl_client_info->receive_cb = cb;
-    LOGV("%s: Receive callback registered successfully\n", __func__);
+    //LOGV("%s: Receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -1200,7 +1220,7 @@ static void ntwk_udp_video_client_receive_data(uint8_t *data, uint16_t length)
     if (video_udp_client_service && video_udp_client_service->receive_cb) {
         video_udp_client_service->receive_cb(data, length);
     } else {
-        LOGW("%s: No receive callback registered\n", __func__);
+        LOGW("%s\n", __func__);
     }
 }
 
@@ -1217,6 +1237,11 @@ static void ntwk_udp_video_client_thread(beken_thread_arg_t data)
     LOGV("%s entry\n", __func__);
     (void)(data);
 
+    if (video_udp_client_service == NULL) {
+        LOGV("%s: service freed, exit\n", __func__);
+        goto out;
+    }
+
     video_udp_client_service->chan_state = NTWK_TRANS_CHAN_START;
     ntwk_msg_event_report(NTWK_TRANS_EVT_START, 0, NTWK_TRANS_CHAN_VIDEO);
 
@@ -1227,12 +1252,28 @@ static void ntwk_udp_video_client_thread(beken_thread_arg_t data)
         goto out;
     }
 
+    if (video_udp_client_service == NULL) {
+        LOGV("%s: service freed, exit\n", __func__);
+        goto out;
+    }
+
     // Create socket
     video_udp_client_service->video_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (video_udp_client_service->video_fd == -1)
     {
         LOGE("video socket failed\n");
         goto out;
+    }
+
+    /* Bind to port 0 so kernel assigns local port immediately; else getsockname() returns 0 until first send/recv */
+    {
+        struct sockaddr_in bind_addr;
+        bind_addr.sin_family = AF_INET;
+        bind_addr.sin_port = 0;
+        bind_addr.sin_addr.s_addr = INADDR_ANY;
+        if (bind(video_udp_client_service->video_fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) < 0) {
+            LOGW("video bind(0) failed: %d\n", errno);
+        }
     }
 
     // Set server address
@@ -1251,12 +1292,22 @@ static void ntwk_udp_video_client_thread(beken_thread_arg_t data)
     video_udp_client_service->video_status = 1;
     video_udp_client_service->chan_state = NTWK_TRANS_CHAN_CONNECTED;
     ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, video_udp_client_service->server_address, NTWK_TRANS_CHAN_VIDEO);
-
+#if 0
     LOGV("%s: connected to server %s:%d\n", __func__,
          inet_ntoa(*(struct in_addr *)&video_udp_client_service->server_address),
          video_udp_client_service->server_port);
 
-    while (video_udp_client_service->video_status)
+
+    {
+        struct sockaddr_in local_addr;
+        socklen_t len = sizeof(local_addr);
+        if (getsockname(video_udp_client_service->video_fd, (struct sockaddr *)&local_addr, &len) == 0) {
+            LOGI("video, connected: local_port=%u, peer_port=%u\n",
+                 (unsigned)ntohs(local_addr.sin_port), (unsigned)video_udp_client_service->server_port);
+        }
+    }
+#endif
+    while (video_udp_client_service != NULL && video_udp_client_service->video_status)
     {
         // Check if stop was called
         if (video_udp_client_service->chan_state == NTWK_TRANS_CHAN_STOP)
@@ -1293,6 +1344,16 @@ static void ntwk_udp_video_client_thread(beken_thread_arg_t data)
                 {
                     rcv_len = (rcv_len > NTWK_TRANS_DATA_MAX_SIZE) ? NTWK_TRANS_DATA_MAX_SIZE : rcv_len;
                     rcv_buf[rcv_len] = 0;
+#if 0
+                    {
+                        struct sockaddr_in local_addr;
+                        socklen_t local_len = sizeof(local_addr);
+                        if (getsockname(video_udp_client_service->video_fd, (struct sockaddr *)&local_addr, &local_len) == 0) {
+                            LOGI("video recv: len=%d, local_port=%u, peer_port=%u\n",
+                                 rcv_len, (unsigned)ntohs(local_addr.sin_port), (unsigned)ntohs(from_addr.sin_port));
+                        }
+                    }
+#endif
                     ntwk_udp_video_client_receive_data(rcv_buf, rcv_len);
                 }
                 else if (rcv_len < 0)
@@ -1316,20 +1377,17 @@ static void ntwk_udp_video_client_thread(beken_thread_arg_t data)
     }
 
 out:
-    LOGE("%s exit %d\n", __func__, video_udp_client_service->video_status);
-
-    if (rcv_buf)
-    {
+    if (video_udp_client_service != NULL) {
+        LOGE("%s exit %d\n", __func__, video_udp_client_service->video_status);
+        video_udp_client_service->video_status = 0;
+        if (video_udp_client_service->video_fd != -1) {
+            close(video_udp_client_service->video_fd);
+            video_udp_client_service->video_fd = -1;
+        }
+    }
+    if (rcv_buf) {
         os_free(rcv_buf);
         rcv_buf = NULL;
-    }
-
-    video_udp_client_service->video_status = 0;
-
-    if (video_udp_client_service->video_fd != -1)
-    {
-        close(video_udp_client_service->video_fd);
-        video_udp_client_service->video_fd = -1;
     }
 
     rtos_delete_thread(NULL);
@@ -1439,7 +1497,7 @@ bk_err_t ntwk_udp_video_client_register_receive_cb(ntwk_udp_video_receive_cb_t c
     }
 
     video_udp_client_service->receive_cb = cb;
-    LOGV("%s: UDP Video receive callback registered successfully\n", __func__);
+    LOGI("%s: UDP Video receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -1467,6 +1525,11 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
     LOGV("%s entry\n", __func__);
     (void)(data);
 
+    if (aud_udp_client_service == NULL) {
+        LOGV("%s: service freed, exit\n", __func__);
+        goto out;
+    }
+
     aud_udp_client_service->chan_state = NTWK_TRANS_CHAN_START;
     ntwk_msg_event_report(NTWK_TRANS_EVT_START, 0, NTWK_TRANS_CHAN_AUDIO);
 
@@ -1477,12 +1540,28 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
         goto out;
     }
 
+    if (aud_udp_client_service == NULL) {
+        LOGV("%s: service freed, exit\n", __func__);
+        goto out;
+    }
+
     // Create socket
     aud_udp_client_service->aud_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (aud_udp_client_service->aud_fd == -1)
     {
         LOGE("aud socket failed\n");
         goto out;
+    }
+
+    /* Bind to port 0 so kernel assigns local port immediately; else getsockname() returns 0 until first send/recv */
+    {
+        struct sockaddr_in bind_addr;
+        bind_addr.sin_family = AF_INET;
+        bind_addr.sin_port = 0;
+        bind_addr.sin_addr.s_addr = INADDR_ANY;
+        if (bind(aud_udp_client_service->aud_fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) < 0) {
+            LOGW("audio bind(0) failed: %d\n", errno);
+        }
     }
 
     // Set server address
@@ -1501,12 +1580,20 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
     aud_udp_client_service->aud_status = 1;
     aud_udp_client_service->chan_state = NTWK_TRANS_CHAN_CONNECTED;
     ntwk_msg_event_report(NTWK_TRANS_EVT_CONNECTED, aud_udp_client_service->server_address, NTWK_TRANS_CHAN_AUDIO);
-
+#if 0
     LOGV("%s: connected to server %s:%d\n", __func__,
          inet_ntoa(*(struct in_addr *)&aud_udp_client_service->server_address),
          aud_udp_client_service->server_port);
-
-    while (aud_udp_client_service->aud_status)
+    {
+        struct sockaddr_in local_addr;
+        socklen_t len = sizeof(local_addr);
+        if (getsockname(aud_udp_client_service->aud_fd, (struct sockaddr *)&local_addr, &len) == 0) {
+            LOGI("audio, connected: local_port=%u, peer_port=%u\n",
+                 (unsigned)ntohs(local_addr.sin_port), (unsigned)aud_udp_client_service->server_port);
+        }
+    }
+#endif
+    while (aud_udp_client_service != NULL && aud_udp_client_service->aud_status)
     {
         // Check if stop was called
         if (aud_udp_client_service->chan_state == NTWK_TRANS_CHAN_STOP)
@@ -1543,6 +1630,16 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
                 {
                     rcv_len = (rcv_len > NTWK_TRANS_DATA_MAX_SIZE) ? NTWK_TRANS_DATA_MAX_SIZE : rcv_len;
                     rcv_buf[rcv_len] = 0;
+#if 1
+                    {
+                        struct sockaddr_in local_addr;
+                        socklen_t local_len = sizeof(local_addr);
+                        if (getsockname(aud_udp_client_service->aud_fd, (struct sockaddr *)&local_addr, &local_len) == 0) {
+                            LOGI("audio recv: len=%d, local_port=%u, peer_port=%u\n",
+                                 rcv_len, (unsigned)ntohs(local_addr.sin_port), (unsigned)ntohs(from_addr.sin_port));
+                        }
+                    }
+#endif
                     ntwk_udp_audio_client_receive_data(rcv_buf, rcv_len);
                 }
                 else if (rcv_len < 0)
@@ -1566,20 +1663,25 @@ static void ntwk_udp_audio_client_thread(beken_thread_arg_t data)
     }
 
 out:
-    LOGE("%s exit %d\n", __func__, aud_udp_client_service->aud_status);
+    if (aud_udp_client_service != NULL) {
+        LOGE("%s exit %d\n", __func__, aud_udp_client_service->aud_status);
 
-    if (rcv_buf)
-    {
-        os_free(rcv_buf);
-        rcv_buf = NULL;
-    }
+        if (rcv_buf) {
+            os_free(rcv_buf);
+            rcv_buf = NULL;
+        }
 
-    aud_udp_client_service->aud_status = 0;
+        aud_udp_client_service->aud_status = 0;
 
-    if (aud_udp_client_service->aud_fd != -1)
-    {
-        close(aud_udp_client_service->aud_fd);
-        aud_udp_client_service->aud_fd = -1;
+        if (aud_udp_client_service->aud_fd != -1) {
+            close(aud_udp_client_service->aud_fd);
+            aud_udp_client_service->aud_fd = -1;
+        }
+    } else {
+        if (rcv_buf) {
+            os_free(rcv_buf);
+            rcv_buf = NULL;
+        }
     }
 
     rtos_delete_thread(NULL);
@@ -1690,7 +1792,7 @@ bk_err_t ntwk_udp_audio_client_register_receive_cb(ntwk_udp_audio_receive_cb_t c
     }
 
     aud_udp_client_service->receive_cb = cb;
-    LOGV("%s: UDP Audio receive callback registered successfully\n", __func__);
+    LOGI("%s: UDP Audio receive callback registered successfully\n", __func__);
 
     return BK_OK;
 }
@@ -1765,6 +1867,7 @@ bk_err_t ntwk_udp_client_deinit(chan_type_t chan_type)
         {
             if (ntwk_udp_ctrl_client_info != NULL)
             {
+                ntwk_udp_ctrl_client_chan_stop();
                 os_free(ntwk_udp_ctrl_client_info);
                 ntwk_udp_ctrl_client_info = NULL;
             }
@@ -1773,6 +1876,7 @@ bk_err_t ntwk_udp_client_deinit(chan_type_t chan_type)
         {
             if (video_udp_client_service != NULL)
             {
+                ntwk_udp_video_client_chan_stop();
                 os_free(video_udp_client_service);
                 video_udp_client_service = NULL;
             }
@@ -1781,6 +1885,7 @@ bk_err_t ntwk_udp_client_deinit(chan_type_t chan_type)
         {
             if (aud_udp_client_service != NULL)
             {
+                ntwk_udp_audio_client_chan_stop();
                 os_free(aud_udp_client_service);
                 aud_udp_client_service = NULL;
             }

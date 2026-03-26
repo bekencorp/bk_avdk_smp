@@ -694,7 +694,7 @@ bk_err_t ntwk_trans_set_server_net_info(ntwk_server_net_info_t *net_info)
 
     os_memcpy(&s_ntwk_server_net_info, net_info, sizeof(ntwk_server_net_info_t));
 
-    LOGV("%s, server net info configured\n", __func__);
+    LOGI("%s, server net info configured\n", __func__);
 
     return BK_OK;
 }

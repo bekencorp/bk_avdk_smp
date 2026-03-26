@@ -215,8 +215,6 @@ int ntwk_fragment(chan_type_t chan_type, uint8_t *data, uint32_t length)
 		frag_hdr->cnt = count + 1;
 		frag_hdr->eof = 1;
 
-		os_memcpy(frag_hdr->data, data + (count * fragment_size), tail);
-
         os_memcpy_word((uint32_t *)frag_hdr->data, (uint32_t *)(src_address + (fragment_size * i)), (tail % 4) ? ((tail / 4 + 1) * 4) : tail);
 
         LOGV("seq: %d [%d %d %d]\n", buffer->sequence,frag_hdr->id,frag_hdr->eof,frag_hdr->cnt);
@@ -546,7 +544,7 @@ bk_err_t ntwk_unfragment(uint32_t chan_type, uint8_t *data, uint32_t length)
 
     if ((config == NULL) || (config->initialized == false) || (config->task_running == false))
     {
-        LOGE("%s, not initialized or task not running\n", __func__);
+        LOGE("unfr uninit type %d\n", chan_type);
         return -1;
     }
 
@@ -554,7 +552,7 @@ bk_err_t ntwk_unfragment(uint32_t chan_type, uint8_t *data, uint32_t length)
 
     if (length <= 4)
     {
-        LOGE("%s, length is too short\n", __func__);
+        //LOGE("%s, length is too short\n", __func__);
         return -1;
     }
 
