@@ -409,7 +409,7 @@ static int usbh_video_ctrl_intf_connect(struct usbh_hubport *hport, uint8_t intf
                             video_class->format[format_index - 1].frame[frame_index - 1].fps =usb_malloc(sizeof(uint32_t) * video_class->format[format_index - 1].frame[frame_index - 1].fps_num);
                             for(int i = 0; i < video_class->format[format_index - 1].frame[frame_index - 1].fps_num; i++)
                             {
-                                video_class->format[format_index - 1].frame[frame_index - 1].fps[i] = ((struct video_cs_if_vs_frame_uncompressed_descriptor *)p)->dwFrameInterval[i];
+                                video_class->format[format_index - 1].frame[frame_index - 1].fps[i] = 10000000/((struct video_cs_if_vs_frame_uncompressed_descriptor *)p)->dwFrameInterval[i];
                                 USB_LOG_VBS("fps:%d\r\n", video_class->format[format_index - 1].frame[frame_index - 1].fps[i]);
                             }
                             break;
@@ -423,7 +423,7 @@ static int usbh_video_ctrl_intf_connect(struct usbh_hubport *hport, uint8_t intf
                             video_class->format[format_index - 1].frame[frame_index - 1].fps =usb_malloc(sizeof(uint32_t) * video_class->format[format_index - 1].frame[frame_index - 1].fps_num);
                             for(int i = 0; i < video_class->format[format_index - 1].frame[frame_index - 1].fps_num; i++)
                             {
-                                video_class->format[format_index - 1].frame[frame_index - 1].fps[i] = ((struct video_cs_if_vs_frame_mjpeg_descriptor *)p)->dwFrameInterval[i];
+                                video_class->format[format_index - 1].frame[frame_index - 1].fps[i] = 10000000/((struct video_cs_if_vs_frame_mjpeg_descriptor *)p)->dwFrameInterval[i];
                                 USB_LOG_VBS("fps:%d\r\n", video_class->format[format_index - 1].frame[frame_index - 1].fps[i]);
                             }
                             break;
@@ -437,7 +437,7 @@ static int usbh_video_ctrl_intf_connect(struct usbh_hubport *hport, uint8_t intf
                             video_class->format[format_index - 1].frame[frame_index - 1].fps =usb_malloc(sizeof(uint32_t) * video_class->format[format_index - 1].frame[frame_index - 1].fps_num);
                             for(int i = 0; i < video_class->format[format_index - 1].frame[frame_index - 1].fps_num; i++)
                             {
-                                video_class->format[format_index - 1].frame[frame_index - 1].fps[i] = ((struct video_cs_if_vs_frame_h26x_descriptor *)p)->dwFrameInterval[i];
+                                video_class->format[format_index - 1].frame[frame_index - 1].fps[i] = 10000000/((struct video_cs_if_vs_frame_h26x_descriptor *)p)->dwFrameInterval[i];
                                 USB_LOG_VBS("fps:%d\r\n", video_class->format[format_index - 1].frame[frame_index - 1].fps[i]);
                             }
                             break;
