@@ -4393,6 +4393,12 @@ void bk_wifi_mask_td_info()
 
 void bk_wifi_set_td_info(uint8_t interval, uint8_t max_pnk)
 {
+	if(interval < 10 || interval > 100)
+	{
+		WIFI_LOGE("Error config interval must belong {10|100}\r\n");
+		return;
+	}
+
 	rw_msg_send_td_interval_req(interval,max_pnk);
 	return;
 }
