@@ -51,7 +51,7 @@ void bk_reboot_ex(uint32_t reset_reason)
 		}
 	}
 	//fix reboot hang 16s issue
-	//bk_flash_power_saving_enter();
+	bk_flash_power_saving_enter();
 
 #if 1 //CONFIG_AON_WDT
 	// TTODO:20260209,IN SMP,this cfg may cause reboot failed
