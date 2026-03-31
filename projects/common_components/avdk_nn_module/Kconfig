@@ -1,0 +1,40 @@
+menu "AVDK NN Module"
+
+	config TFLM_PERSON_DETECTION_V1
+		depends on TFLITE_MICRO
+		bool "Enable tflm PERSON_DETECTTION_V1"
+		default n
+
+	config TFLM_FACE_DETECTION_V1
+		depends on TFLITE_MICRO
+		bool "Enable tflm FACE_DETECTION_V2"
+		default n
+
+	config TFLM_GESTURE_DETECTION_V1
+		depends on TFLITE_MICRO
+		bool "Enable tflm GESTURE_DETECTION_V1"
+		default n
+
+	config TFLM_MOBILEFACENET_V1
+		depends on TFLITE_MICRO
+		bool "Enable tflm MOBILEFACENET_V1"
+		default n
+
+	config FACE_DETECTION_V2
+		bool "Enable FACE_DETECTION_V2"
+		default n
+
+	config TFLM_YOLOFACE_V1
+		depends on TFLITE_MICRO
+		bool "Enable tflm YOLOFACE_V1"
+		default n
+
+	config TFLM_PALM_DETECTION_V1
+		depends on TFLITE_MICRO
+		bool "Enable tflm PALM_V1"
+		default n
+
+	config COMMON_LVGL_UI
+		bool "Enable common LVGL UI"
+		default y
+endmenu

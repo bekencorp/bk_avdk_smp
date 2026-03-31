@@ -1,0 +1,126 @@
+// Copyright 2020-2021 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#pragma once
+
+#include <avdk_error.h>
+#include <driver/dpu_types.h>
+#include <components/bk_lcd_types.h>
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+* Bus Types Start
+*/
+typedef enum
+{
+    DSI_DISPLAY_PORT = 1,     /**< dsi port */
+    RGB_DISPLAY_PORT,         /**< rgb port */
+} bk_display_dsi_port_t;
+
+typedef struct
+{
+} bk_display_dsi_bus_config_t;
+
+typedef struct
+{
+    uint8_t reset_pin;   /**< lcd reset io */
+    uint8_t clk_pin;     /**< lcd clk io */
+    uint8_t csx_pin;     /**< lcd csx io */
+    uint8_t sda_pin;     /**< lcd sda io */
+} bk_display_rgb_bus_config_t;
+
+typedef struct
+{
+    uint8_t scl_pin;     /**< i2c scl io */
+    uint8_t sda_pin;     /**< i2c sda io */
+} bk_display_i2c_bus_config_t;
+
+typedef struct
+{
+    const bk_lcd_panel_t *lcd_panel;
+    uint8_t spi_id;      /**< spi id */
+    uint8_t reset_pin;   /**< lcd reset io */
+    uint8_t dc_pin;      /**< lcd data or command io */
+    uint8_t te_pin;      /**< lcd te io */
+} bk_display_spi_bus_config_t;
+
+typedef struct
+{
+    uint32_t clk;                /**< dpu clk */
+    uint8_t  n_lanes;            /**< mipi lcd active data lanes (1~4) */
+    bk_display_timing_t timing;    /**< dpu video timing */
+} bk_panel_clock_config_t;
+
+
+typedef struct
+{
+    uint32_t id;   
+    const char *name;               /**< rgb panel name */
+    bk_display_timing_t timing;       /**< rgb panel timing */
+    const lcd_rgb_spi_init_cmd_t *init_cmds;  /**< initialization command sequence (8-bit or 16-bit, determined by spi_cmd_16bit flag) */
+    uint8_t spi_cmd_16bit;          /**< 0=8-bit command format (use lower 8 bits of cmd), 1=16-bit command format (use full 16 bits) */
+    const uint8_t *read_id_regs;     /**< ID register addresses (array, terminated by 0) */
+    uint8_t read_id_bytes;           /**< number of bytes to read for ID (1-3, 0 means auto) */
+    bk_err_t (*custom_reset)(bk_avdk_lcd_panel_t *panel, void *priv); /**< optional custom reset */
+} bk_display_rgb_panel_t;
+
+typedef struct
+{
+    uint32_t id;                    /**< dsi panel id */
+    const char *name;               /**< dsi panel name */
+    uint8_t n_lanes;                /**< mipi lcd active data lanes (1~4) */
+    bk_display_timing_t timing;     /**< dsi panel timing */
+    const lcd_mipi_init_cmd_t *init_cmds; /**< initialization command sequence */
+    const uint8_t *read_id_regs;    /**< ID register addresses (array, terminated by 0) */
+    uint8_t read_id_bytes;          /**< number of bytes to read for ID (1-3, 0 means auto) */
+    bk_err_t (*custom_reset)(bk_avdk_lcd_panel_t *panel, void *priv); /**< optional custom reset */
+    bk_err_t (*custom_init)(bk_avdk_lcd_panel_t *panel, void *priv);  /**< optional custom init, called in panel init */
+} bk_display_dsi_panel_t;
+
+typedef struct
+{
+    /* Video timing configuration */
+    bk_display_timing_t       timing;     /**< dpu timing */
+    dpu_video_layer_config_t video;    /**< dpu layer config */
+    dpu_graphic_layer_config_t graphic;    /**< dpu graphic layer config */
+} bk_display_dpu_config_t;
+
+/** Display ioctl*/
+typedef enum {
+    BK_DISPLAY_IOCTL_DPU_PIXEL_CLK = 0,
+} bk_display_ioctl_cmd_t;
+
+typedef struct bk_display_ctlr_t *bk_display_ctlr_handle_t;
+typedef struct bk_display_ctlr_t bk_display_ctlr_t;
+struct bk_display_ctlr_t
+{
+    avdk_err_t (*init)(bk_display_ctlr_t *controller);
+    avdk_err_t (*open)(bk_display_ctlr_t *controller);
+    avdk_err_t (*close)(bk_display_ctlr_t *controller);
+    avdk_err_t (*deinit)(bk_display_ctlr_t *controller);
+    avdk_err_t (*suspend)(bk_display_ctlr_t *controller);
+    avdk_err_t (*resume)(bk_display_ctlr_t *controller);
+    avdk_err_t (*flush)(bk_display_ctlr_t *controller, uint8_t *frame, flush_free_cb_t cb);
+    avdk_err_t (*layer_flush)(bk_display_ctlr_t *controller, dpu_layer_t layer, uint8_t *frame, flush_free_cb_t cb);
+    avdk_err_t (*ioctl)(bk_display_ctlr_t *controller, bk_display_ioctl_cmd_t cmd, void *arg);
+    avdk_err_t (*del)(bk_display_ctlr_t *controller);
+};
+
+#ifdef __cplusplus
+}
+#endif

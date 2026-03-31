@@ -1,0 +1,1 @@
+./dbuild.sh make bk7259 PROJECT=multimedia/asr_service_example

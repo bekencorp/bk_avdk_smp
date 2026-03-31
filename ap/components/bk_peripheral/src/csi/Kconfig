@@ -1,0 +1,32 @@
+menu "CSI Camera"
+    config CSI_CAMERA
+        depends on BK_CAMERA
+        bool "Enable csi camera"
+        default n
+
+    config CSI_F58
+        depends on CSI_CAMERA
+        bool "Enable CSI_F58"
+        default n
+
+    config CSI_GC2053
+        depends on CSI_CAMERA
+        bool "Enable CSI_GC2053"
+        default n
+
+    config CSI_GC4653
+        depends on CSI_CAMERA
+        bool "Enable CSI_GC4653"
+        default n
+
+    config CSI_OV2775
+        depends on CSI_CAMERA
+        bool "Enable CSI_OV2775"
+        default n
+
+    config CSI_SC4336
+        depends on CSI_CAMERA
+        bool "Enable CSI_SC4336"
+        default n
+
+endmenu

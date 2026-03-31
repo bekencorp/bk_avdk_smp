@@ -1,0 +1,24 @@
+menu "TFLite Micro"
+	config TFLITE_MICRO
+		bool "Enable TFLite Micro"
+		default n
+
+	config NPU
+		bool "Enable Arm Ethos-U65 NPU support"
+		depends on TFLITE_MICRO
+		default n
+		help
+			Enable Arm Ethos-U65 NPU support for TensorFlow Lite Micro.
+			When enabled, operators supported by NPU will be offloaded to NPU,
+			and unsupported operators will fall back to CMSIS-NN implementation.
+
+	config NPU_CACHE
+		bool "Enable NPU driver support cache operations"
+		depends on NPU
+		default n
+		help
+			Enable cache API adaptation for NPU driver.
+			When enabled, bk_ethosu.c will implement cache operations using
+			arch_dcache_flush_range and arch_dcache_invd_range, overriding the
+			weak functions in ethosu_driver.c.
+endmenu

@@ -1,0 +1,11 @@
+config DRIVER_TEST
+	bool "Enable Peripheral Test"
+	default y
+
+config INIT_EXPORT_WITH_NAME
+	bool "Enable Device Name"
+	default n
+
+config SUPPORT_INIT_EXPORT
+	bool "Enable The Feature of Init Export"
+	default n

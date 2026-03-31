@@ -1,0 +1,27 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+# CONFIG_LWIP is not set
+CONFIG_DPU_DRIVER=y
+CONFIG_DSI_DRIVER=y
+CONFIG_BK_DISPLAY=y
+CONFIG_MIPI_DSI=y
+CONFIG_DPU_FLUSH_TIMER_DEBUG=y
+CONFIG_FRAME_BUFFER=y
+# CONFIG_BK_NETIF is not set
+CONFIG_BK_PERIPHERAL=y
+CONFIG_LCD_RGB=y
+CONFIG_LCD_H050IWV=y
+CONFIG_LCD_HX8282=y
+CONFIG_LCD_ST7282=y
+CONFIG_LCD_ST7701S=y
+CONFIG_LCD_ST7701SN=y
+CONFIG_LCD_AML01=y
+# CONFIG_WIFI_CLI_DEBUG is not set
+# CONFIG_WIFI_VNET_CONTROLLER is not set
+CONFIG_MEDIA_SERVICE=y
+# CONFIG_SPI is not set
+# CONFIG_PSRAM is not set
+

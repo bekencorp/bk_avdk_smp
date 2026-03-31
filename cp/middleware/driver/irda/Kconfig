@@ -1,0 +1,10 @@
+menu "IRDA"
+	config SUPPORT_IRDA
+		bool "Enable IRDA"
+		default n
+
+	config IRDA_TEST
+		depends on SUPPORT_IRDA && DRIVER_TEST
+		bool "Enable IRDA TEST"
+		default n
+endmenu

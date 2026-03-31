@@ -1,0 +1,7 @@
+list(APPEND incs timer)
+list(APPEND srcs "timer/timer_driver.c")
+if (CONFIG_CLI AND CONFIG_TIMER_TEST)
+	list(APPEND srcs "timer/timer_test.c")
+endif()
+set(incs ${incs} PARENT_SCOPE)
+set(srcs ${srcs} PARENT_SCOPE)

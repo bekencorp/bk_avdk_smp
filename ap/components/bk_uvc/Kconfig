@@ -1,0 +1,58 @@
+menu "USB Camera"
+
+	config USB_CAMERA
+		depends on USBH_UVC
+		bool "Enable USB Camera"
+		default n
+		help
+			Enable USB Camera
+
+	config UVC_URB_NUM
+		depends on USB_CAMERA
+		int "UVC URB count"
+		default 8
+		help
+			URB number advice large than camera_num * 4
+
+	config UVC_NUM_PACKET_PER_URB
+		depends on USB_CAMERA
+		int "The packets per urb contain"
+		default 8
+		help
+			because high speed 125us generate a packet
+
+	config UVC_PROCESS_TASK_STACK_SIZE
+		depends on USB_CAMERA
+		int "UVC process task stack size"
+		default 1024
+		help
+			UVC process task stack size in bytes. If set to 0, will use default value 1024.
+
+	config UVC_STREAM_TASK_STACK_SIZE
+		depends on USB_CAMERA
+		int "UVC stream task stack size"
+		default 1536
+		help
+			UVC stream task stack size in bytes. If set to 0, will use default value 1536.
+
+	config UVC_FRAME_SIZE
+		depends on USB_CAMERA
+		int "UVC Stream output a complete frame size, unit: byte, for all format<mjpeg, h264, h265>"
+		default 102400
+		help
+			UVC Stream output a complete frame size in bytes. If set to 0, will use default value 102400.
+
+	config UVC_DEBUG_TIMER_ENABLE
+		depends on USB_CAMERA
+		bool "Enable UVC debug time"
+		default n
+		help
+			Enable UVC debug time. If set to y, will print the UVC debug time.
+
+	config UVC_USE_PSRAM_ALLOC
+		depends on USB_CAMERA && PSRAM_AS_SYS_MEMORY
+		bool "Use PSRAM Heap to allocate for UVC"
+		default n
+		help
+			Use PSRAM Heap to allocate for UVC.
+endmenu

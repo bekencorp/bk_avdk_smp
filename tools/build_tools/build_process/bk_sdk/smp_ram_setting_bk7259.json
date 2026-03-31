@@ -1,0 +1,15 @@
+{
+    "SRAM_BASE_ADDR": "0x28000000",
+    "SRAM_CAPACITY": "1280K",
+    "PSRAM_BASE_ADDR": "0x60000000",
+    "PSRAM_CAPACITY": "8M",
+    "Default_Regions": [
+        {
+            "name": "AP_SPINLOCK",
+            "type": "SRAM",
+            "addr": "0x28060000",
+            "size": "0x10000"
+        }
+    ]
+}
+

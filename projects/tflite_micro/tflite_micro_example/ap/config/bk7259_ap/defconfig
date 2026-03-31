@@ -1,0 +1,23 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+# CONFIG_LWIP is not set
+CONFIG_FRAME_BUFFER=y
+# CONFIG_BK_NETIF is not set
+CONFIG_FREERTOS_POSIX=y
+CONFIG_SYS_PRINT_DEV_UART=y
+# CONFIG_SYS_PRINT_DEV_MAILBOX is not set
+CONFIG_UART_PRINT_BAUD_RATE=1000000
+CONFIG_TFLITE_MICRO=y
+CONFIG_NPU=y
+# CONFIG_WIFI_CLI_DEBUG is not set
+# CONFIG_WIFI_VNET_CONTROLLER is not set
+CONFIG_MEDIA_SERVICE=y
+
+
+# CONFIG_DRIVER_TEST is not set
+# CONFIG_UART_TEST is not set
+# CONFIG_PSRAM is not set
+# CONFIG_IPI is not set
+CONFIG_ALL_CODE_IN_PSRAM=n

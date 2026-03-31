@@ -1,0 +1,5 @@
+menu "SYS_SW_REGS"
+	config SYS_SW_REGS
+		bool "Enable SYS_SW_REGS"
+		default y
+endmenu

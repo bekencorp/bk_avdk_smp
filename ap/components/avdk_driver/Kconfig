@@ -1,0 +1,42 @@
+menu "AVDK Driver"
+
+	config ISP
+		bool "ISP Drvier"
+		default n
+
+	config GPU
+		bool "GPU Driver"
+	default n
+
+	config H264E
+		bool "H264E Driver"
+	default n
+
+	config H264D
+		bool "H264D Driver"
+	default n
+
+	config JPEGE
+		bool "JPEGE Driver"
+	default n
+
+	config JPEGD
+		bool "JPEGD Driver"
+	default n
+
+	config MIPI
+		bool "MIPI Driver"
+	default n
+
+	config MIPI_CSI
+		bool "MIPI CSI Driver"
+	default n
+
+	config DPU_DRIVER
+		bool "Enable display process unit driver"
+		default n
+
+	config DSI_DRIVER
+		bool "Enable mipi dsi"
+		default n
+endmenu

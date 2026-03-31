@@ -1,0 +1,58 @@
+menu "PSRAM"
+	config PSRAM
+		bool "Enable PSRAM"
+		default n
+
+	config PSRAM_AS_SYS_MEMORY
+		depends on PSRAM
+		bool "Enable psram_malloc API"
+		default n
+
+	config PSRAM_WRITE_THROUGH
+		depends on PSRAM
+		bool "Enable PSRAM write through"
+		default n
+
+	config PSRAM_CALIBRATE
+		depends on PSRAM
+		bool "Enable PSRAM calibrate"
+		default n
+
+	config PSRAM_INTERLEAVE
+		depends on PSRAM
+		bool "Enable PSRAM interleave mode"
+		help
+		  Interleave mode: merge two PSRAMs into one virtual PSRAM via virtual address 0x80000000.
+		  Data is arranged as: psram0:0-255 | psram1:0-255 | psram0:256-511 | psram1:256-511 | ...
+		  Interleave granularity can be 32/64/128/256 bytes. Default is 256 bytes.
+		default n
+
+	config PSRAM_INTERLEAVE_OFFSET
+		depends on PSRAM_INTERLEAVE
+		hex "PSRAM interleave offset"
+		help
+		  Interleave virtual address offset.
+		default 0x20000000
+
+	config PSRAM_INTERLEAVE_STEP
+		depends on PSRAM_INTERLEAVE
+		int "PSRAM interleave step (0=256B 1=128B 2=64B 3=32B)"
+		help
+		  Hardware interleave block size. 0=256 bytes, 1=128 bytes, 2=64 bytes, 3=32 bytes.
+		  Must match AP/ram_regions if AP uses interleave PSRAM.
+		default 0
+		range 0 3
+
+	config PSRAM_AUTO_DETECT
+		depends on PSRAM && EASY_FLASH && EASY_FLASH_V4
+		bool "Enable PSRAM id auto detect function"
+		default n
+
+	config PSRAM_TEST
+		depends on CLI && PSRAM
+		bool "Enable Psram Test"
+		default n
+
+
+endmenu
+

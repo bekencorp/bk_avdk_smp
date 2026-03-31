@@ -1,0 +1,42 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+CONFIG_SOC_SMP=y
+CONFIG_CPU_ID_OFFSET=0
+CONFIG_SMP_CORE_CNT=2
+# CONFIG_BLUETOOTH is not set
+# CONFIG_AT is not set
+CONFIG_CPU_PERF_TEST=y
+# CONFIG_PHY_SERVER is not set
+# CONFIG_PHY_MB is not set
+# CONFIG_FREERTOS_V10 is not set
+CONFIG_FREERTOS_SMP=y
+CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED=y
+# CONFIG_WIFI_ENABLE is not set
+# CONFIG_WIFI_TX_RAW_ENABLE is not set
+# CONFIG_WIFI_AUTO_COUNTRY_CODE is not set
+# CONFIG_WIFI_SCAN_COUNTRY_CODE is not set
+# CONFIG_NET_PARAM is not set
+# CONFIG_PM_V2 is not set
+# CONFIG_RWNX_QOS_MSDU is not set
+# CONFIG_RWNX_TD is not set
+# CONFIG_BK_MEM_DYNA_APPLY_EN is not set
+# CONFIG_MAC_SFRAME_SOFTWARE_RETRY is not set
+# CONFIG_PSA_MBEDTLS is not set
+# CONFIG_TEMP_DETECT is not set
+# CONFIG_VOLT_DETECT is not set
+# CONFIG_GENERAL_DMA is not set
+# CONFIG_PSRAM_TEST is not set
+# CONFIG_IPI is not set
+# CONFIG_SARADC is not set
+# CONFIG_SARADC_V1P2_COMPATIBLE_MODE is not set
+# CONFIG_FLASH_TEST is not set
+# CONFIG_PARTITION_TEST is not set
+# CONFIG_FLASH_API_TEST is not set
+# CONFIG_EFUSE is not set
+
+CONFIG_SPINLOCK=y
+# CONFIG_SPI is not set
+# CONFIG_DRIVER_TEST is not set
+CONFIG_PWM_V2P2=y

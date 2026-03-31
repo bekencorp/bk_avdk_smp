@@ -1,0 +1,11 @@
+Your gesture was not detected.
+Image is being detected.
+draw.
+Get ready to play rock-paper-scissors. Please make your move: 3, 2, 1.
+I played
+you played
+rock
+paper
+scissors
+you win
+Please take back your hand.

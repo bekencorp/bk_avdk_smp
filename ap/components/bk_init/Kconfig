@@ -1,0 +1,5 @@
+menu "init"
+	config UT_REG
+		bool "Enable uinity UT register" 
+		default n
+endmenu

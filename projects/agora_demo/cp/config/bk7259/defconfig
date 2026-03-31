@@ -1,0 +1,9 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+CONFIG_BTDM_CONTROLLER_ONLY=y
+CONFIG_GET_UID_ENABLE=y
+CONFIG_DUMP_BY_LOG_UART=y
+CONFIG_OTP_V1=y
+CONFIG_PWM_V2P2=y

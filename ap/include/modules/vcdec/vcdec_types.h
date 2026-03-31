@@ -1,0 +1,84 @@
+#pragma once
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum {
+	VCDEC_OK = 0,
+	VCDEC_FRAME_READY = (1 << 0),
+	VCDEC_SLICE_READY  = (1 << 1),
+	VCDEC_ERROR = -1,
+	VCDEC_NULL_ARGUMENT = -2,
+	VCDEC_INVALID_ARGUMENT = -3,
+	VCDEC_MEMORY_ERROR = -4,
+	VCDEC_HW_TIMEOUT = -5,
+	VCDEC_HW_ERROR = -6,
+	VCDEC_HW_BUS_ERROR = -7,
+	VCDEC_SW_ABORT = -8,
+} vcdec_ret_e;
+
+typedef enum {
+	VCDEC_DEC_MODE_H264  = 0,
+	VCDEC_DEC_MODE_MPEG4 = 1,
+	VCDEC_DEC_MODE_H263  = 2,
+	VCDEC_DEC_MODE_JPEG  = 3,
+	VCDEC_DEC_MODE_VC1   = 4,
+	VCDEC_DEC_MODE_MPEG2 = 5,
+	VCDEC_DEC_MODE_MPEG1 = 6,
+	VCDEC_DEC_MODE_VP6   = 7,
+	VCDEC_DEC_MODE_RV    = 8,
+	VCDEC_DEC_MODE_VP7   = 9,
+	VCDEC_DEC_MODE_VP8   = 10,
+	VCDEC_DEC_MODE_AVS   = 11,
+} vcdec_dec_mode_e;
+
+typedef enum {
+	VCDEC_FLEXA_MODE_NONE = 0,
+	VCDEC_FLEXA_MODE_FLEXA,
+	VCDEC_FLEXA_MODE_SLICE,
+} vcdec_flexa_mode_e;
+
+typedef enum {
+	VCDEC_JPEG_FMT_YUV400 = 0,
+	VCDEC_JPEG_FMT_YUV444 = 1,
+	VCDEC_JPEG_FMT_YUV422 = 2,
+	VCDEC_JPEG_FMT_YUV420 = 3,
+} vcdec_jpeg_fmt_e;
+
+typedef void *vcdec_handle;
+typedef void (*vcdec_frame_done_cb)(int status, void *args);
+typedef void (*vcdec_flexa_done_cb)(uint32_t line_cnt, void *args);
+
+typedef struct {
+	uint32_t width;
+	uint32_t height;
+	uint8_t *input_stream;
+	uint32_t input_stream_len;
+	vcdec_jpeg_fmt_e format;
+} vcdec_info_t;
+
+typedef struct vcdec_decode_config_t {
+	uint8_t *input_stream;
+	uint32_t input_stream_len;
+	uint8_t *output_buffer;
+	uint32_t output_size;
+	uint16_t width;
+	uint16_t height;
+	uint16_t segment_height;
+	uint8_t segment_number;
+} vcdec_decode_config_t;
+
+typedef struct vcdec_config_t {
+	vcdec_flexa_mode_e mode;
+	uint32_t timeout_ms;
+	vcdec_frame_done_cb frame_done_cb;
+	vcdec_flexa_done_cb flexa_done_cb;
+	void *args;
+} vcdec_config_t;
+
+#ifdef __cplusplus
+}
+#endif

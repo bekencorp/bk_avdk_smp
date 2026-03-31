@@ -1,0 +1,82 @@
+menu "DSI LCD"
+	config LCD_DSI
+		depends on BK_PERIPHERAL
+		bool "Enable LCD_DSI intf"
+		default n
+
+	config LCD_HX8394F_MIPI_720x1280
+		depends on LCD_DSI
+		bool "Enable LCD_HX8394F_MIPI_720x1280 API"
+		default n
+
+	config LCD_HX8399C_MIPI_1080x1920
+		depends on LCD_DSI
+		bool "Enable LCD_HX8399C_MIPI_1080x1920 API"
+		default n
+
+	config LCD_FL7703NP_MIPI_720x1280
+		depends on LCD_DSI
+		bool "Enable LCD_FL7703NP_MIPI_720x1280 API"
+		default n
+
+	config LCD_GC9702_MIPI_720x1280
+		depends on LCD_DSI
+		bool "Enable LCD_GC9702_MIPI_720x1280 API"
+		default n
+
+	config LCD_JD9522Z_MIPI_1080x1920
+		depends on LCD_DSI
+		bool "Enable LCD_JD9522Z_MIPI_1080x1920 API"
+		default n
+
+	config LCD_ST7701SN_MIPI_360x640
+		depends on LCD_DSI
+		bool "Enable LCD_ST7701SN_MIPI_360x640 API"
+		default n
+
+	config LCD_ST7701S_MIPI_412x960
+		depends on LCD_DSI
+		bool "Enable LCD_ST7701S_MIPI_412x960 API"
+		default n
+
+	config LCD_ST7701SN_MIPI_480x640
+		depends on LCD_DSI
+		bool "Enable LCD_ST7701SN_MIPI_480x640 API"
+		default n
+
+	config LCD_ST7701SN_MIPI_480x854
+		depends on LCD_DSI
+		bool "Enable LCD_ST7701SN_MIPI_480x854 API"
+		default n
+	config LCD_LT8912B_MIPI_BRIDGE
+		depends on LCD_DSI
+		bool "Enable LCD_LT8912B_MIPI_BRIDGE"
+		default n
+
+	if LCD_LT8912B_MIPI_BRIDGE
+	choice
+		prompt "LT8912B HDMI resolution"
+		default LCD_LT8912B_RES_1280x720
+		config LCD_LT8912B_RES_800x600
+			bool "800x600@60Hz"
+		config LCD_LT8912B_RES_1024x768
+			bool "1024x768@60Hz"
+		config LCD_LT8912B_RES_1280x720
+			bool "1280x720@60Hz"
+		config LCD_LT8912B_RES_1280x800
+			bool "1280x800@60Hz"
+		config LCD_LT8912B_RES_1920x1080
+			bool "1920x1080@30Hz"
+	endchoice
+
+	config LCD_LT8912B_AVI_ENABLE
+		depends on LCD_LT8912B_MIPI_BRIDGE
+		bool "Enable LT8912B AVI infoframe and audio IIS config"
+		default n
+
+	config LCD_LT8912B_LVDS_ENABLE
+		depends on LCD_LT8912B_MIPI_BRIDGE
+		bool "Enable LT8912B LVDS scaler config and disable LVDS output"
+		default n
+	endif
+endmenu

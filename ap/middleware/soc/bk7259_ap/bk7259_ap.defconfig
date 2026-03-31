@@ -1,0 +1,1511 @@
+#
+# Automatically generated file. DO NOT EDIT.
+# BEKEN IoT Development Framework (BEKEN-ARMINO)  Project Configuration
+#
+
+#
+# SOC_CONFIG
+#
+CONFIG_SOC_BK7259=y
+
+CONFIG_CPU_CNT=4
+CONFIG_SOC_STR="bk7259_ap"
+CONFIG_SOC_ARCH="cm55"
+# CONFIG_SOC_BK7236XX is not set
+CONFIG_SOC_SMP=y
+CONFIG_CPU_ID_OFFSET=2
+CONFIG_SMP_CORE_CNT=2
+CONFIG_ALL_CODE_IN_PSRAM=y
+CONFIG_COMPILER_STACK_CHECK_MODE_NORM=y
+# CONFIG_COMPILER_STACK_CHECK_MODE_STRONG is not set
+# CONFIG_COMPILER_STACK_CHECK_MODE_ALL is not set
+# end of SOC_CONFIG
+
+#
+# ARMINO Configuration
+#
+
+#
+# Common Configuration
+#
+
+#
+# Compile/Build
+#
+# CONFIG_OBJDUMP is not set
+CONFIG_BUILD_DEFAULT_VERSION=y
+# CONFIG_DEBUG_VERSION is not set
+# CONFIG_RELEASE_VERSION is not set
+# end of Compile/Build
+
+#
+# Debug
+#
+# CONFIG_ASSERT_IGNORE is not set
+# CONFIG_ASSERT_HALT is not set
+CONFIG_ASSERT_REBOOT=y
+# CONFIG_JTAG is not set
+# end of Debug
+# end of Common Configuration
+
+#
+# Features Configuration
+#
+CONFIG_LWIP=y
+# CONFIG_LWIP_V2_0 is not set
+CONFIG_LWIP_V2_1=y
+CONFIG_NO_HOSTED=y
+# CONFIG_SEMI_HOSTED is not set
+# CONFIG_FULLY_HOSTED is not set
+# CONFIG_WIFI_SENSOR is not set
+# CONFIG_BLUETOOTH is not set
+# end of Features Configuration
+
+#
+# Modules Configuration
+#
+
+#
+# Components Configuration
+#
+
+#
+# Adc_key
+#
+# CONFIG_ADC_KEY is not set
+# end of Adc_key
+
+#
+# App
+#
+# CONFIG_DEMO_TEST is not set
+# CONFIG_FTPD_UPGRADE is not set
+# CONFIG_OTA_HTTP is not set
+# CONFIG_OTA_TFTP is not set
+# CONFIG_NTP_SYNC_RTC is not set
+# CONFIG_SECURITY_OTA is not set
+CONFIG_NTP_SYNC_RTC_TASK_STACK_SIZE=3072
+# CONFIG_FTP_SERVER is not set
+# end of App
+
+#
+# At_server
+#
+# CONFIG_AT is not set
+# end of At_server
+
+#
+# Audio Play
+#
+# end of Audio Play
+
+#
+# Audio Record
+#
+# end of Audio Record
+
+#
+# AVDK Driver
+#
+# CONFIG_ISP is not set
+# CONFIG_GPU is not set
+# CONFIG_H264E is not set
+# CONFIG_H264D is not set
+# CONFIG_JPEGE is not set
+# CONFIG_JPEGD is not set
+# CONFIG_MIPI is not set
+# CONFIG_MIPI_CSI is not set
+# CONFIG_DPU_DRIVER is not set
+# CONFIG_DSI_DRIVER is not set
+# end of AVDK Driver
+
+#
+# ASR Service
+#
+# end of ASR Service
+
+#
+# Audio Parameters
+#
+# CONFIG_AUD_PARAM_CTRL is not set
+# end of Audio Parameters
+
+#
+# Adk
+#
+# end of Adk
+
+#
+# bk_bat_monitor
+#
+# CONFIG_BAT_MONITOR is not set
+# end of bk_bat_monitor
+
+#
+# Bk_ble
+#
+# CONFIG_BLUETOOTH_AP is not set
+# CONFIG_BLUETOOTH_BLE_SLAVE_ONLY is not set
+# CONFIG_BLUETOOTH_BLE_SLAVE_OBSERVER is not set
+CONFIG_BLUETOOTH_BLE_DISCOVER_AUTO=y
+# end of Bk_ble
+
+#
+# Demos::Bluetooth
+#
+
+#
+# BK Camera
+#
+# CONFIG_BK_CAMERA is not set
+# CONFIG_ENCODE_BUF_NOT_FREE is not set
+# end of BK Camera
+
+#
+# Bk_cli
+#
+
+#
+# Modify Cli Config
+#
+CONFIG_CLI=y
+# CONFIG_CLI_USER_CONFIG is not set
+CONFIG_LOG_LEVEL=6
+# CONFIG_BKREG is not set
+CONFIG_MAX_COMMANDS=255
+CONFIG_CLI_TASK_PRIO=4
+CONFIG_CLI_TASK_STACK_SIZE=7168
+CONFIG_SHELL_TASK_STACK_SIZE=7168
+CONFIG_LOG_TASK_PRIO=4
+CONFIG_LOG_TASK_STACK_SIZE=512
+# CONFIG_IPERF_TEST is not set
+CONFIG_WIFI_CLI_ENABLE=y
+# CONFIG_TCP_SERVER_TEST is not set
+# CONFIG_AIRKISS_TEST is not set
+# CONFIG_WIFI_RAW_TX_TEST is not set
+# CONFIG_WIFI_CLI_RAW_LINK_ENABLE is not set
+# CONFIG_CONNECT_THROUGH_PSK_OR_SAE_PASSWORD is not set
+# CONFIG_VFS_TEST is not set
+# CONFIG_PERI_TEST is not set
+# CONFIG_RF_OTA_TEST is not set
+CONFIG_SHELL_ASYNCLOG=y
+CONFIG_DYM_LOG_MEM_MAX=0x2000
+# CONFIG_UART_RING_BUFF is not set
+# CONFIG_TOUCH_TEST is not set
+CONFIG_PSRAM_TEST=y
+CONFIG_INTERRUPT_TEST=y
+CONFIG_AON_PMU_TEST=y
+# CONFIG_PM_TEST is not set
+# CONFIG_PUF_TEST is not set
+CONFIG_ICU=y
+# CONFIG_KEYVALUE is not set
+# CONFIG_IDLE_UART_OUT_TEST is not set
+# CONFIG_COMPONENTS_WPA2_ENTERPRISE is not set
+# CONFIG_COMPONENTS_WPA_TWT_TEST is not set
+# CONFIG_COMPONENTS_WFA_CA is not set
+# CONFIG_ENABLE_WIFI_DEFAULT_CONNECT is not set
+# CONFIG_RTC_TIMER_PRECISION_TEST is not set
+# CONFIG_RTC_TIMER_PRECISION_TEST_BY_GPIO is not set
+# CONFIG_RWNX_PROTO_DEBUG is not set
+CONFIG_ARCH_CLI_SUPPORT=y
+CONFIG_COMPONENT_CLI_SUPPORT=y
+CONFIG_DRV_CLI_SUPPORT=y
+# end of Modify Cli Config
+# end of Bk_cli
+
+#
+# modules::uart_debug
+#
+# CONFIG_UART_DEBUG is not set
+# CONFIG_ATE is not set
+# CONFIG_ATE_TEST is not set
+# end of modules::uart_debug
+
+#
+# BK Display
+#
+# end of BK Display
+
+#
+# Media::DMA2D_Draw
+#
+# end of Media::DMA2D_Draw
+
+#
+# Media::Draw_osd
+#
+# CONFIG_MEDIA_OSD is not set
+# end of Media::Draw_osd
+
+CONFIG_EVENT_TASK_STACK_SIZE=3072
+
+#
+# frame Buffer
+#
+# CONFIG_FRAME_BUFFER is not set
+# end of frame Buffer
+
+#
+# BK_GPU
+#
+# CONFIG_VG_LITE_GPU is not set
+CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ=0x20000
+CONFIG_VG_LITE_GPU_COMMAND_BUFFER_SIZE=0x2000
+# CONFIG_VG_LITE_TESSELLATION is not set
+# end of BK_GPU
+
+#
+# bk_gsensor
+#
+# CONFIG_GSENSOR_ENABLE is not set
+# end of bk_gsensor
+
+#
+# Httpc
+#
+# CONFIG_HTTPC is not set
+# end of Httpc
+
+#
+# Https
+#
+# CONFIG_HTTPS is not set
+# end of Https
+
+#
+# init
+#
+# CONFIG_UT_REG is not set
+# end of init
+
+#
+# BEKEN CODEC ENCODER
+#
+# CONFIG_BK_ENCODER_V2 is not set
+CONFIG_BK_ENCODER_H264_TASK_SIZE=10240
+# end of BEKEN CODEC ENCODER
+
+#
+# Bk_libs
+#
+CONFIG_MCU_PS=y
+# CONFIG_DEEP_PS is not set
+CONFIG_TICK_CALI=y
+# CONFIG_STA_PS is not set
+# end of Bk_libs
+
+#
+# Mcu_4g_modem
+#
+# CONFIG_BK_MODEM is not set
+# end of Mcu_4g_modem
+
+#
+# Bk_netif
+#
+CONFIG_BK_NETIF=y
+CONFIG_NETIF_LWIP=y
+# end of Bk_netif
+
+#
+# Beken Components Network Provisioning
+#
+# CONFIG_BK_NETWORK_PROVISIONING is not set
+# end of Beken Components Network Provisioning
+
+#
+# Bk Network Transfer
+#
+# CONFIG_BK_NTWK_TRANSFER is not set
+# CONFIG_MEDIA_DROP_STRATEGY_ENABLE is not set
+CONFIG_DATA_NODE_SIZE=1472
+CONFIG_DATA_POOL_LEN=51520
+# end of Bk Network Transfer
+
+#
+# bk_nfc
+#
+# CONFIG_NFC_ENABLE is not set
+CONFIG_NFC_MFRC522_COMM_SERIAL_PORT=1
+CONFIG_NFC_POLLING_PERIOD_MS=1000
+# end of bk_nfc
+
+#
+# bk peripheral
+#
+# CONFIG_BK_PERIPHERAL is not set
+
+#
+# RGB LCD
+#
+# end of RGB LCD
+
+#
+# MCU LCD
+#
+# end of MCU LCD
+
+#
+# QSPI LCD
+#
+# end of QSPI LCD
+
+#
+# SPI LCD
+#
+# CONFIG_LCD_SPI_ST7796U is not set
+# CONFIG_LCD_SPI_GC9D01 is not set
+# CONFIG_LCD_SPI_ST7789V2 is not set
+# end of SPI LCD
+
+#
+# DSI LCD
+#
+# end of DSI LCD
+
+#
+# DVP Camera
+#
+
+#
+# TP
+#
+# CONFIG_TP is not set
+# end of TP
+# end of bk peripheral
+
+#
+# PM
+#
+CONFIG_PM_ENABLE=y
+CONFIG_PM_CLIENT=y
+CONFIG_PM_CLIENT_MAILBOX=y
+# CONFIG_PM_SUPER_DEEP_SLEEP is not set
+# CONFIG_PM_EXTEND_CPU_FREQ is not set
+# CONFIG_PM_LV_TIME_COST_DEBUG is not set
+CONFIG_PM_ENTER_LV_TIME_OUT_PERIOD_MS=30000
+# CONFIG_PM_LV_WDT_PROTECTION is not set
+CONFIG_PM_CPU_FRQ_HIGHEST=4
+CONFIG_PM_CPU_FRQ_DEFAULT=3
+# CONFIG_PM_PROTECT_TIME_CHECK is not set
+CONFIG_PM_LOWEST_POWER_MODE=0
+# end of PM
+
+#
+# Bk_rtos
+#
+
+#
+# Modify BK Heap Config
+#
+CONFIG_BK_HEAP_ENABLE=y
+CONFIG_OS_HEAP_USE_SRAM=y
+# CONFIG_OS_HEAP_USE_PSRAM is not set
+# CONFIG_OS_HEAP_USE_HSRAM is not set
+# end of Modify BK Heap Config
+
+CONFIG_CUSTOMIZE_HEAP_SIZE=163840
+# CONFIG_PSRAM_HEAP_INIT_SET_ZERO is not set
+# CONFIG_PSRAM_HEAP_INIT_CODE_IN_IRAM is not set
+
+#
+# Modify FreeRTOS Config
+#
+CONFIG_FREERTOS=y
+CONFIG_FREERTOS_FPU_ENABLE=y
+CONFIG_FREERTOS_MVE_ENABLE=y
+# CONFIG_FREERTOS_USE_QUEUE_SETS is not set
+# CONFIG_MEM_MGMT is not set
+# CONFIG_FREERTOS_V10 is not set
+CONFIG_FREERTOS_SMP=y
+# CONFIG_FREERTOS_POSIX is not set
+# CONFIG_FREERTOS_TRACE is not set
+# CONFIG_TASK_STACK_IN_PSRAM is not set
+# CONFIG_QUEUE_IN_PSRAM is not set
+CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED=y
+# CONFIG_FREERTOS_RTT_MONITOR is not set
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=0
+CONFIG_FREERTOS_TICK_RATE_HZ=1000
+# CONFIG_BK_OS_TIMER_DEBUG is not set
+# CONFIG_DEBUG_RTOS_TIMER is not set
+# CONFIG_FREERTOS_HISTORY_CPU_PERCENT is not set
+# end of Modify FreeRTOS Config
+
+#
+# Modify NON_OS Config
+#
+# CONFIG_NON_OS is not set
+# end of Modify NON_OS Config
+
+#
+# Modify Memory Debug Config
+#
+# CONFIG_MALLOC_STATIS is not set
+CONFIG_MEM_DEBUG=y
+CONFIG_MEM_DEBUG_FUNC_NAME=y
+CONFIG_MEM_DEBUG_FUNC_NAME_LEN=16
+CONFIG_MEM_DEBUG_TASK_NAME=y
+CONFIG_MEM_DEBUG_TASK_NAME_LEN=8
+# CONFIG_MEM_DEBUG_OVERFLOW is not set
+# end of Modify Memory Debug Config
+
+#
+# Modify System Config
+#
+# CONFIG_DEBUG_AP_STARTUP is not set
+# end of Modify System Config
+# end of Bk_rtos
+
+#
+# Bk_startup
+#
+CONFIG_APP_MAIN_TASK_PRIO=4
+CONFIG_APP_MAIN_TASK_STACK_SIZE=4096
+# CONFIG_MATTER_START is not set
+# end of Bk_startup
+
+#
+# BK_system
+#
+
+#
+# Mac Config
+#
+# CONFIG_BASE_MAC_FROM_RF_OTP_FLASH is not set
+CONFIG_NEW_MAC_POLICY=y
+# CONFIG_BASE_MAC_FROM_OTP1 is not set
+CONFIG_RANDOM_MAC_ADDR=y
+# CONFIG_BK_MAC_ADDR_CHECK is not set
+CONFIG_CUS_MAC_MASK=0
+# end of Mac Config
+
+#
+# Print Config
+#
+# CONFIG_SYS_PRINT_DEV_UART is not set
+CONFIG_SYS_PRINT_DEV_MAILBOX=y
+# CONFIG_SYS_PRINT_DEV_NULL is not set
+# CONFIG_FWD_CMD_TO_CPUx is not set
+# CONFIG_SMP_SYNC_PRINTF is not set
+# end of Print Config
+# end of BK_system
+
+#
+# TFLite Micro
+#
+# CONFIG_TFLITE_MICRO is not set
+# end of TFLite Micro
+
+#
+# bk_uid
+#
+# CONFIG_GET_UID_ENABLE is not set
+# end of bk_uid
+
+#
+# Bk_usb
+#
+# CONFIG_USB is not set
+# CONFIG_STANDARD_DUALSTREAM is not set
+CONFIG_UVC_DUAL_DEVICE=1
+# CONFIG_USB_CDC_MODEM is not set
+# end of Bk_usb
+
+#
+# USB Camera
+#
+# end of USB Camera
+
+#
+# Bk_vfs
+#
+CONFIG_VFS_MAX_FD_NUM=20
+# end of Bk_vfs
+
+#
+# Video Pipeline
+#
+# CONFIG_VIDEO_PIPELINE is not set
+# end of Video Pipeline
+
+#
+# Bk_video_player
+#
+# CONFIG_AVI_PLAYER is not set
+# end of Bk_video_player
+
+#
+# Voice Service
+#
+# end of Voice Service
+
+#
+# BK_H264D
+#
+# CONFIG_BK_H264D is not set
+# end of BK_H264D
+
+#
+# BK_H264E
+#
+# CONFIG_BK_H264E is not set
+# end of BK_H264E
+
+#
+# Bk_websocket
+#
+# CONFIG_WEBSOCKET is not set
+# end of Bk_websocket
+
+#
+# Bk_Wifi
+#
+# CONFIG_WIFI_ENABLE is not set
+CONFIG_WIFI_TX_RAW_ENABLE=y
+# CONFIG_WAPI_SUPPORT is not set
+# CONFIG_WIFI_PS_DISABLE is not set
+CONFIG_MSDU_RESV_HEAD_LENGTH=96
+CONFIG_MSDU_RESV_DESC_LENGTH=600
+CONFIG_MSDU_RESV_TAIL_LENGTH=16
+CONFIG_TASK_RECONNECT_PRIO=4
+# CONFIG_AP_MONITOR_COEXIST is not set
+# CONFIG_WIFI_FAST_CONNECT is not set
+# CONFIG_WFA_CERT is not set
+# CONFIG_LESS_MEMERY_IN_RWNX is not set
+# CONFIG_RECEIVE_BCMC_IN_DTIM10 is not set
+# CONFIG_NOT_CHECK_SSID_CHANGE is not set
+CONFIG_NET_PARAM=y
+# CONFIG_DEAUTH_BEFORE_CONNECT is not set
+# CONFIG_IMPROVE_HE_TB_ENABLE is not set
+# CONFIG_CLOSE_COEXIST_CSA is not set
+CONFIG_SCAN_SPEED_LEVEL=3
+# CONFIG_NETWORK_FOUND_EVENT_ENABLE is not set
+# CONFIG_POWER_TABLE is not set
+CONFIG_PM_V2=y
+CONFIG_WIFI_KMSG_TASK_PRIO=3
+CONFIG_WIFI_KMSG_TASK_STACK_SIZE=4096
+CONFIG_WIFI_CORE_TASK_PRIO=2
+CONFIG_WIFI_CORE_TASK_STACK_SIZE=2048
+CONFIG_RWNX_QOS_MSDU=y
+# CONFIG_WPA_TWT_TEST is not set
+CONFIG_RWNX_TD=y
+CONFIG_BK_MEM_DYNA_APPLY_EN=y
+# CONFIG_P2P is not set
+# CONFIG_P2P_GO is not set
+# CONFIG_TX_BUFING is not set
+# CONFIG_AP_PS is not set
+# CONFIG_USE_P2P_PS is not set
+# CONFIG_AP_PROBEREQ_CB is not set
+CONFIG_MAC_SFRAME_SOFTWARE_RETRY=y
+# CONFIG_WIFI_FTM is not set
+CONFIG_WIFI_MAC_SUPPORT_STAS_MAX_NUM=2
+# CONFIG_BK_RAW_LINK is not set
+CONFIG_WIFI_CLI_DEBUG=y
+CONFIG_PHY_CLIENT=y
+CONFIG_PHY_MB=y
+# end of Bk_Wifi
+
+#
+# WiFi Driver
+#
+CONFIG_WIFI_VNET_CONTROLLER=y
+CONFIG_CONTROLLER_RX_DIRECT_PSH=y
+# CONFIG_CONTROLLER_DEBUG is not set
+# CONFIG_CONTROLLER_AP_BUFFER_COPY is not set
+CONFIG_WIFI_DRIVER_DEBUG=y
+# end of WiFi Driver
+
+#
+# Cmsis
+#
+# CONFIG_CMSIS is not set
+CONFIG_DCACHE=y
+CONFIG_ICACHE=y
+# end of Cmsis
+
+#
+# CODEC
+#
+# CONFIG_VIDEO_DTCM is not set
+# CONFIG_VIDEO_ITCM is not set
+# CONFIG_VIDEO_DTCM_ALL is not set
+# end of CODEC
+
+#
+# decompress
+#
+CONFIG_LZMA1900=y
+# CONFIG_LZMA2301 is not set
+# end of decompress
+
+CONFIG_CONSOLE=y
+
+#
+# Coredump
+#
+# CONFIG_CM_BACKTRACE is not set
+# end of Coredump
+
+#
+# Demos::Os
+#
+# CONFIG_OS_THREAD_DEMO is not set
+# CONFIG_OS_QUEUE_DEMO is not set
+# CONFIG_OS_SEM_DEMO is not set
+# CONFIG_OS_MUTEX_DEMO is not set
+# CONFIG_OS_TIMER_DEMO is not set
+# CONFIG_OS_EVENT_DEMO is not set
+# CONFIG_OS_SMP_BLINKY_DEMO is not set
+# CONFIG_OS_SMP_AFFINITY_DEMO is not set
+# CONFIG_OS_SMP_DEEP_LV_DEMO is not set
+# end of Demos::Os
+
+#
+# Demos::Net::Iperf
+#
+# CONFIG_DEMOS_IPERF is not set
+# end of Demos::Net::Iperf
+
+#
+# Demos::Peripheral::Touch
+#
+# end of Demos::Peripheral::Touch
+
+#
+# Easy_flash
+#
+# end of Easy_flash
+
+#
+# GCov
+#
+# CONFIG_GCOV is not set
+# end of GCov
+
+#
+# FATFS
+#
+CONFIG_FATFS_TEST=y
+CONFIG_FATFS=y
+CONFIG_FATFS_SDCARD=y
+
+# end of FATFS
+
+#
+# flashdb
+#
+# CONFIG_FLASHDB is not set
+# end of flashdb
+
+#
+# Http
+#
+CONFIG_HTTP=y
+# CONFIG_HTTP_OTA_WITH_BLE is not set
+# CONFIG_LITE_LOG_ENABLED is not set
+# end of Http
+
+#
+# json
+#
+# CONFIG_CJSON_USE is not set
+# end of json
+
+# CONFIG_BUTTON is not set
+
+#
+# Key_Handle
+#
+# CONFIG_COMPONENTS_TX_BUFING is not set
+# end of Key_Handle
+
+#
+# Littlefs
+#
+# CONFIG_LITTLEFS is not set
+# end of Littlefs
+
+#
+# LVGL
+#
+# CONFIG_LVGL is not set
+# CONFIG_LV_COLOR_SCREEN_TRANSP is not set
+# CONFIG_LV_USE_FREETYPE is not set
+# CONFIG_LV_FONT_MONTSERRAT_8 is not set
+# CONFIG_LV_FONT_MONTSERRAT_10 is not set
+# CONFIG_LV_FONT_MONTSERRAT_12 is not set
+# CONFIG_LV_FONT_MONTSERRAT_16 is not set
+# CONFIG_LV_FONT_MONTSERRAT_18 is not set
+# CONFIG_LV_FONT_MONTSERRAT_20 is not set
+# CONFIG_LV_FONT_MONTSERRAT_22 is not set
+# CONFIG_LV_FONT_MONTSERRAT_24 is not set
+# CONFIG_LV_FONT_MONTSERRAT_26 is not set
+# CONFIG_LV_FONT_MONTSERRAT_28 is not set
+# CONFIG_LV_FONT_MONTSERRAT_30 is not set
+# CONFIG_LV_FONT_MONTSERRAT_32 is not set
+# CONFIG_LV_FONT_MONTSERRAT_34 is not set
+# CONFIG_LV_FONT_MONTSERRAT_36 is not set
+# CONFIG_LV_FONT_MONTSERRAT_38 is not set
+# CONFIG_LV_FONT_MONTSERRAT_40 is not set
+# CONFIG_LV_FONT_MONTSERRAT_42 is not set
+# CONFIG_LV_FONT_MONTSERRAT_44 is not set
+# CONFIG_LV_FONT_MONTSERRAT_46 is not set
+# CONFIG_LV_FONT_MONTSERRAT_48 is not set
+# CONFIG_LV_USE_PERF_MONITOR is not set
+# end of LVGL
+
+#
+# Lwip_intf_v2_1
+#
+# CONFIG_IPV6 is not set
+# CONFIG_LWIP_RESV_TLEN_ENABLE is not set
+CONFIG_MQTT_ACK_NOW=y
+# CONFIG_LWIP_TCP_SACK_OUT is not set
+# CONFIG_IP_FORWARD is not set
+# CONFIG_IP_NAPT is not set
+# CONFIG_WIFI_REAPETER is not set
+# CONFIG_BRIDGE is not set
+# CONFIG_NET_PAN is not set
+# CONFIG_WIFI_SOFTAP is not set
+# CONFIG_FUZZ_TEST is not set
+# CONFIG_LWIP_PPP_SUPPORT is not set
+# CONFIG_ENABLE_LWIP_CUSTOM_CONFIG is not set
+
+#
+# Modify Lwip Config
+#
+# CONFIG_DHCP_ONGOING_OPTIM is not set
+# CONFIG_AUTOIP is not set
+# CONFIG_MDNS is not set
+CONFIG_DNS_TABLE_SIZE=4
+# CONFIG_MIDEA is not set
+CONFIG_LWIP_MEM_TRX_DYNAMIC_EN=y
+# CONFIG_LWIP_MEM_LIBC_MALLOC is not set
+# CONFIG_LWIP_MEMP_MEM_MALLOC is not set
+CONFIG_LWIP_MEMP_STATS=y
+CONFIG_LWIP_MEM_STATS=y
+# CONFIG_LWIP_DEBUG_LOG is not set
+CONFIG_LWIP_PTP=y
+CONFIG_LWIP_NETBUF_RECVINFO=y
+# CONFIG_LWIP_HTTPD is not set
+# CONFIG_ICMP_ERR_RATELIMIT is not set
+CONFIG_ICMP_ERR_RATE_THRESHOLD=10
+# CONFIG_LWIP_HW_IP_CHECKSUM is not set
+# end of Modify Lwip Config
+
+#
+# Memory Config
+#
+CONFIG_LWIP_UDP_RECVMBOX_SIZE=24
+CONFIG_LWIP_MEM_SIZE=51200
+CONFIG_LWIP_MEM_MAX_RX_SIZE=38400
+CONFIG_LWIP_MEM_MAX_TX_SIZE=42666
+CONFIG_LWIP_TCP_MSS=1400
+CONFIG_LWIP_TCP_SND_BUF=21900
+CONFIG_LWIP_TCP_WND=21900
+CONFIG_LWIP_MEMP_NUM_NETBUF=32
+CONFIG_LWIP_PBUF_POOL_SIZE=10
+CONFIG_LWIP_TCP_SND_QUEUELEN=40
+CONFIG_LWIP_MEMP_NUM_TCP_SEG=80
+# CONFIG_LWIP_MEM_LIBC_MALLOC_USE_PSRAM is not set
+# end of Memory Config
+
+#
+# Tcp Config
+#
+CONFIG_LWIP_TCP_RTO_TIMEOUT=3000
+# CONFIG_LWIP_TCP_FAST_RETRANSMISSION is not set
+CONFIG_LWIP_TCP_SYNMAXRTX=6
+CONFIG_LWIP_TCP_QUEUE_OOSEQ=y
+CONFIG_LWIP_TCPIP_THREAD_STACKSIZE=512
+# end of Tcp Config
+# end of Lwip_intf_v2_1
+
+# CONFIG_MEDIA_SERVICE is not set
+CONFIG_VG_LITE_GPU_BASE_ADDRESS=0x4c280000
+
+#
+# Media Utils
+#
+
+#
+# Ota
+#
+# CONFIG_OTA_FUNCTION is not set
+# CONFIG_HTTP_AB_PARTITION is not set
+# CONFIG_OTA_UPDATE_DEFAULT_PARTITION is not set
+# CONFIG_OTA_UPDATE_B_PARTITION is not set
+# CONFIG_OTA_EVADE_METHOD is not set
+CONFIG_OTA_HTTPS=y
+# CONFIG_OTA_HASH_FUNCTION is not set
+# CONFIG_OTA_DEBUG_LOG_OPEN is not set
+# CONFIG_OTA_POSITION_INDEPENDENT_AB is not set
+CONFIG_BLE_OTA_WAIT_TIMEOUT=3000
+# CONFIG_OTA_DISPLAY_PICTURE_DEMO is not set
+# end of Ota
+
+#
+# PSA Mbedtls
+#
+# CONFIG_PSA_MBEDTLS is not set
+# CONFIG_MBEDTLS_USE_PSRAM is not set
+# CONFIG_MBEDTLS_CUSTOM_CONFIG_FILE is not set
+# end of PSA Mbedtls
+
+#
+# utf8
+#
+CONFIG_USE_CONV_UTF8=y
+# end of utf8
+
+#
+# Webclient
+#
+# CONFIG_WEBCLIENT is not set
+# end of Webclient
+
+#
+# Wifi Transfer
+#
+# end of Wifi Transfer
+
+#
+# VolcEngineRTCLite
+#
+# CONFIG_VOLC_RTC_EN is not set
+# end of VolcEngineRTCLite
+
+#
+# Bk_thirdparty::agora-iot-sdk
+#
+# CONFIG_AGORA_IOT_SDK is not set
+# end of Bk_thirdparty::agora-iot-sdk
+
+#
+# cs2p2p
+#
+# CONFIG_CS2_P2P_SERVER is not set
+# CONFIG_CS2_P2P_CLIENT is not set
+# CONFIG_CS2_P2P_TEST is not set
+CONFIG_CS2_TX_BUFFER_THD=5120
+# CONFIG_CS2_MALLOC_USE_PSRAM is not set
+# CONFIG_CS2_DEBUG_LIB is not set
+# end of cs2p2p
+
+#
+# Bk_thirdparty::zlib
+#
+# CONFIG_ZLIB_ENABLE is not set
+# end of Bk_thirdparty::zlib
+
+#
+# Bk_thirdparty::Wanson
+#
+# CONFIG_WANSON_ASR is not set
+# CONFIG_WANSON_SIMD is not set
+# end of Bk_thirdparty::Wanson
+
+#
+# Bk_thirdparty::Wanson_armino
+#
+# CONFIG_WANSON_ARMINO_ASR is not set
+# CONFIG_WANSON_CN_LICENSE is not set
+# end of Bk_thirdparty::Wanson_armino
+# end of Components Configuration
+
+#
+# Middleware Configuration
+#
+
+#
+# Arch::Core
+#
+# CONFIG_ARM_CORE_STAR is not set
+# CONFIG_ARM_CORE_CM52 is not set
+CONFIG_ARM_CORE_CM55=y
+CONFIG_ARM_INTERRUPT_CONTROLLER_CNT=2
+# end of Arch::Core
+
+#
+# Arch::Cm
+#
+CONFIG_ARCH_CORTEX_M=y
+# CONFIG_ARMV8_M_BASELINE is not set
+# CONFIG_ARMV8_M_MAINLINE is not set
+# CONFIG_ARMV7_M_ARMV8_M_MAINLINE is not set
+# CONFIG_ARMV6_M_ARMV8_M_BASELINE is not set
+CONFIG_ARMV8_1_M_MAINLINE=y
+CONFIG_SOC_PREP_HOOK=y
+
+#
+# Modify Arch Cortex-M Config
+#
+CONFIG_SUPPORT_FPU=y
+# CONFIG_SUPPORT_ITCM is not set
+# CONFIG_SUPPORT_DTCM is not set
+# CONFIG_SUPPORT_ARM_FEATURE_CMSE is not set
+# CONFIG_SUPPORT_ARCH_UNALIGNED is not set
+CONFIG_CPU_FREQ_HZ=480000000
+# CONFIG_ARCH_INT_STATIS is not set
+# CONFIG_SYSTICK_32K is not set
+# CONFIG_SUPPORT_CACHEABLE_SRAM is not set
+CONFIG_SUPPORT_L1_CACHE=y
+CONFIG_L2_CACHE_ENABLE=y
+CONFIG_DUMP_ENABLE=y
+# CONFIG_MEMDUMP_ALL is not set
+# CONFIG_TRAP_TEST is not set
+# CONFIG_INTERRUPT_DEBUG_RECORDER is not set
+CONFIG_INTERRUPT_RECORDER_CNT=40
+# end of Modify Arch Cortex-M Config
+# end of Arch::Cm
+
+#
+# Arch::MPU
+#
+CONFIG_MPU=y
+# end of Arch::MPU
+
+#
+# Compal
+#
+# end of Compal
+
+#
+# Driver
+#
+CONFIG_DRIVER_TEST=y
+# CONFIG_INIT_EXPORT_WITH_NAME is not set
+# CONFIG_SUPPORT_INIT_EXPORT is not set
+
+#
+# device
+#
+CONFIG_DEVICE_MAX_NAME_LEN=32
+# CONFIG_DM is not set
+# end of device
+
+#
+# ===Main Tip: On the AP side, the WDT related configuration should not be set to Y. If you want to configure WDT, please go to the CP side to configure it. Please refer to the documentation for the reason..===
+#
+
+#
+# Watchdog
+#
+# CONFIG_WDT_EN is not set
+# end of Watchdog
+
+#
+# AON_Watchdog
+#
+CONFIG_AON_WDT=y
+# CONFIG_INT_AON_WDT is not set
+CONFIG_INT_AON_WDT_PERIOD_MS=1000
+# end of AON_Watchdog
+
+#
+# UART
+#
+CONFIG_UART0=y
+# CONFIG_UART0_FLOW_CTRL is not set
+# CONFIG_UART1 is not set
+# CONFIG_UART2 is not set
+# CONFIG_UART3 is not set
+# CONFIG_UART4 is not set
+CONFIG_UART5=y
+CONFIG_UART_PRINT_PORT=5
+CONFIG_PRINTF_BUF_SIZE=256
+# CONFIG_BACKGROUND_PRINT is not set
+CONFIG_KFIFO_SIZE=128
+# CONFIG_UART_STATIS is not set
+# CONFIG_UART_LOW_VOLTAGE_SUPPORT is not set
+# CONFIG_UART_ERR_INTERRUPT is not set
+# CONFIG_UART_TX_DMA is not set
+# CONFIG_UART_RX_DMA is not set
+CONFIG_UART_RX_DMA_KFIFO_SIZE=512
+# CONFIG_UART_PM_CB_SUPPORT is not set
+# CONFIG_UART_SW_FLOW_CTRL is not set
+CONFIG_UART=y
+CONFIG_UART_TEST=y
+# CONFIG_UART_API_TEST is not set
+# end of UART
+
+#
+# TRNG
+#
+# CONFIG_TRNG_SUPPORT is not set
+# end of TRNG
+
+#
+# SDIO_HOST
+#
+# CONFIG_SDIO_HOST is not set
+CONFIG_SDIO_HOST_DEFAULT_CLOCK_FREQ=1
+CONFIG_SDIO_HOST_CLR_WRITE_INT=y
+# CONFIG_PIN_SDIO_GROUP_1 is not set
+# end of SDIO_HOST
+
+#
+# SDCARD
+#
+# CONFIG_SDCARD is not set
+CONFIG_SDCARD_DEFAULT_CLOCK_FREQ=11
+# CONFIG_SDCARD_CHECK_INSERTION_EN is not set
+# CONFIG_SDCARD_BUSWIDTH_4LINE is not set
+# CONFIG_SDCARD_DEBUG_SUPPORT is not set
+# end of SDCARD
+
+#
+# SDIO
+#
+CONFIG_SDIO=n
+# CONFIG_SDIO_V1P0 is not set
+CONFIG_SDIO_V2P0=n
+# CONFIG_SDIO_SLAVE is not set
+# CONFIG_SDIO_4LINES_EN is not set
+# end of SDIO
+CONFIG_SDIO_DWC
+CONFIG_SDIO_V3P0=y
+CONFIG_SUPPORT_SDIO_DWC=y
+CONFIG_SDIO_DWC_TEST=y
+:
+#
+# SPI
+#
+CONFIG_SPI=y
+CONFIG_SPI_TEST=y
+CONFIG_SPI_DMA=y
+CONFIG_SPI_STATIS=y
+CONFIG_SPI_SUPPORT_TX_FIFO_WR_READY=y
+# CONFIG_SPI_MST_PSRAM is not set
+# CONFIG_SPI_PM_CB_SUPPORT is not set
+CONFIG_SPI_BYTE_INTERVAL=y
+CONFIG_SPI_MST_FLASH=y
+# end of SPI
+
+#
+# QSPI
+#
+# CONFIG_QSPI is not set
+CONFIG_QSPI_STATIS=y
+CONFIG_QSPI_LINE_MODE=4
+# end of QSPI
+
+#
+# AON_RTC
+#
+CONFIG_AON_RTC=y
+# CONFIG_ANA_RTC is not set
+# CONFIG_ANA_RTC_SUPPORT_64BIT is not set
+CONFIG_RTC_INIT=y
+# CONFIG_ANA_RTC_WAKUP_BY_RTC is not set
+# CONFIG_ANA_RTC_DEBUG is not set
+CONFIG_AON_RTC_64BIT=y
+CONFIG_AON_RTC_MANY_USERS=y
+CONFIG_AON_RTC_TEST=y
+# CONFIG_AON_RTC_DEBUG is not set
+# CONFIG_AON_RTC_KEEP_TIME_SUPPORT is not set
+CONFIG_RTC_ANA_WAKEUP_SUPPORT=y
+# CONFIG_AON_RTC_DYNAMIC_CLOCK_SUPPORT is not set
+# end of AON_RTC
+
+#
+# GPIO
+#
+CONFIG_GPIO=y
+# CONFIG_AON_GPIO is not set
+# CONFIG_ANA_GPIO is not set
+# CONFIG_GPIO_WAKEUP_SUPPORT is not set
+CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT=4
+CONFIG_CONFIG_GPIO_WAKEUP_ID=22
+CONFIG_CONFIG_GPIO_WAKEUP_INT_TYPE=0
+# CONFIG_GPIO_SIMULATE_UART_WRITE is not set
+# CONFIG_GPIO_DEFAULT_SET_SUPPORT is not set
+# CONFIG_GPIO_ANA_WAKEUP_SUPPORT is not set
+# CONFIG_GPIO_RETENTION_SUPPORT is not set
+# CONFIG_GPIO_RETENTION_DISPOSABLE is not set
+CONFIG_GPIO_TEST=y
+# CONFIG_GPIO_DUMP_MAP_DEV_DEBUG is not set
+CONFIG_LDO3V3_CTRL_GPIO=255
+# CONFIG_GPIO_API_TEST is not set
+# CONFIG_GPIO_CLOCK_PIN_SUPPORT is not set
+# CONFIG_GPIO_V1PX is not set
+CONFIG_GPIO_V2PX=y
+CONFIG_SIM_I2C0_SDA_GPIO=1
+CONFIG_SIM_I2C0_SCL_GPIO=0
+CONFIG_SIM_I2C1_SDA_GPIO=5
+CONFIG_SIM_I2C1_SCL_GPIO=8
+# end of GPIO
+
+#
+# io_matrix
+#
+# CONFIG_SUPPORT_IO_MATRIX is not set
+# CONFIG_IO_MATRIX_VER1_0 is not set
+# CONFIG_IO_MATRIX_VER2_0 is not set
+# end of io_matrix
+
+#
+# AON_PMU
+#
+CONFIG_AON_PMU=y
+# end of AON_PMU
+
+#
+# GENERAL_DMA
+#
+CONFIG_GENERAL_DMA=y
+CONFIG_GENERAL_DMA_V2P6=y
+# CONFIG_GENERAL_DMA_V2PX is not set
+CONFIG_GENERAL_DMA_LINK_MODE=y
+CONFIG_DMA_LOGIC_CHAN_CNT=4
+CONFIG_DMA_LOGIC_CHAN_ID_MIN=4
+# end of GENERAL_DMA
+
+#
+# TOUCH
+#
+# CONFIG_TOUCH is not set
+# CONFIG_TOUCH_INTERNAL_SERIAL_CAP is not set
+# CONFIG_TOUCH_PM_SUPPORT is not set
+# end of TOUCH
+
+#
+# SBC
+#
+# CONFIG_SBC is not set
+# end of SBC
+
+#
+# JPEG_ENC
+#
+# end of JPEG_ENC
+
+#
+# PSRAM
+#
+CONFIG_PSRAM=y
+CONFIG_PSRAM_AS_SYS_MEMORY=y
+CONFIG_PSRAM_WRITE_THROUGH=y
+CONFIG_PSRAM_CALIBRATE=y
+# end of PSRAM
+
+#
+# CALENDAR
+#
+# CONFIG_CALENDAR is not set
+# end of CALENDAR
+
+#
+# SYS_CTRL
+#
+# CONFIG_SYS_REDUCE_NORMAL_POWER is not set
+# CONFIG_XTAL_FREQ_40M is not set
+CONFIG_XTAL_FREQ_26M=y
+CONFIG_XTAL_FREQ=26000000
+CONFIG_DCO_FREQ=120000000
+# CONFIG_HAL_DEBUG_SYS is not set
+# CONFIG_POWER_CLOCK_RF is not set
+CONFIG_SYSTEM_CLOCK=y
+# CONFIG_ROSC_TEST_MODE is not set
+CONFIG_DEFAULT_LPO_SRC=2
+# CONFIG_CP_SUB_POWER_DOMAIN_ENA is not set
+CONFIG_LDO_SELF_LOW_POWER_MODE_ENA=y
+CONFIG_CLK_APLL=y
+# end of SYS_CTRL
+
+#
+# PHY
+#
+# CONFIG_PTA is not set
+CONFIG_MAC_PHY_BYPASS=y
+# end of PHY
+
+#
+# I2S
+#
+# CONFIG_I2S is not set
+# end of I2S
+
+#
+# I2C
+#
+CONFIG_I2C=y
+CONFIG_I2C_SUPPORT_ID_BITS=3
+CONFIG_I2C_TEST=y
+# CONFIG_FM_I2C is not set
+# CONFIG_SIM_I2C is not set
+CONFIG_SIM_I2C_HW_BOARD_V3=n
+CONFIG_I2C_DIRECT_DRIVE_MODE=y
+# end of I2C
+
+#
+# AUDIO
+#
+# CONFIG_AUDIO is not set
+CONFIG_AUDIO_RING_BUFF=y
+# end of AUDIO
+
+#
+# PWM
+#
+# CONFIG_PWM is not set
+CONFIG_PWM_V1PX=y
+# CONFIG_PWM_V2P2 is not set
+# CONFIG_PWM_HAS_TWO_INT is not set
+# CONFIG_PWM_PM_CB_SUPPORT is not set
+# CONFIG_PWM_PHASE_SHIFT is not set
+# CONFIG_PWM_FADE is not set
+# end of PWM
+
+#
+# ICU
+#
+# CONFIG_ICU_GPIO is not set
+# end of ICU
+
+#
+# Interrupt
+#
+# CONFIG_ISR_REG_DISABLE is not set
+# end of Interrupt
+
+#
+# IPI
+#
+CONFIG_IPI=y
+# CONFIG_IPI_TEST is not set
+# end of IPI
+
+#
+# TIMER
+#
+CONFIG_TIMER=y
+CONFIG_TIMER_COUNTER=y
+CONFIG_TIMER_SUPPORT_ID_BITS=0
+CONFIG_TIMER_US=y
+# CONFIG_TIMER_PM_CB_SUPPORT is not set
+CONFIG_TIMER_TEST=y
+# end of TIMER
+
+#
+# SARADC
+#
+# CONFIG_SARADC is not set
+# end of SARADC
+
+#
+# FLASH
+#
+# CONFIG_FLASH is not set
+CONFIG_FLASH_QUAD_ENABLE=y
+# CONFIG_FLASH_SRC_CLK_60M is not set
+# CONFIG_FLASH_ORIGIN_API is not set
+# CONFIG_FLASH_MB is not set
+# CONFIG_FLASH_WRITE_STATUS_VOLATILE is not set
+# CONFIG_FLASH_BYPASS_OTP_OPERATION is not set
+# end of FLASH
+
+#
+# H264_CONFIG
+#
+# end of H264_CONFIG
+
+#
+# SDMADC
+#
+# CONFIG_SDMADC is not set
+# end of SDMADC
+
+#
+# PWR_CLK
+#
+# CONFIG_EXTERN_32K is not set
+# CONFIG_MEM_AUTO_POWER_DISABLE is not set
+# CONFIG_CP1_AUTO_POWER_DISABLE is not set
+CONFIG_CPU_DEFAULT_FREQ_60M=y
+# CONFIG_RESERVE_1K_SRAM_UNINITIAL is not set
+# CONFIG_LPO_SRC_26M32K is not set
+CONFIG_BUCK_ENABLE=y
+# CONFIG_BUCK_ANALOG_DISABLE is not set
+CONFIG_BAKP_POWER_DOMAIN_DISABLE=y
+CONFIG_BAKP_POWER_DOMAIN_PM_CONTROL=y
+CONFIG_AHBP_POWER_DOMAIN_LV_DISABLE=y
+CONFIG_PSRAM_POWER_DOMAIN_LV_DISABLE=y
+# CONFIG_DCO_CLK_ENABLE is not set
+# CONFIG_EXTERN_32K_PIN_MULT is not set
+# CONFIG_CLI_CODE_SIZE_OPTIMIZE_ENABLE is not set
+CONFIG_VBSPBUFLP1V_ENABLE=y
+# CONFIG_LPO_MP_A_FORCE_USE_EXT32K is not set
+CONFIG_ROSC_CALIB_SW=y
+CONFIG_ROSC_COMPENSATION=y
+CONFIG_LP_VOL=0x6
+CONFIG_DIGLDO_LOW_VOLTAGE_ENABLE=y
+# CONFIG_CLK_FORCE_MAX_CPU_FREQ_320M is not set
+CONFIG_PM_26M_STABILITY_DELAY_TIME_HARDWARE=1300
+# CONFIG_PM_DEMO_ENABLE is not set
+CONFIG_PM_CLI_ENABLE=y
+# CONFIG_PM_LV_SUBCORES_ON is not set
+# end of PWR_CLK
+
+#
+# OTP
+#
+# CONFIG_OTP_V1 is not set
+# CONFIG_PHY_RFCALI_TO_OTP is not set
+# CONFIG_AON_ENCP is not set
+# end of OTP
+
+#
+# FFT
+#
+# CONFIG_FFT is not set
+# end of FFT
+
+#
+# YUV_BUF
+#
+# CONFIG_YUV_BUF is not set
+# end of YUV_BUF
+
+#
+# IRDA
+#
+# CONFIG_SUPPORT_IRDA is not set
+# end of IRDA
+
+#
+# RESET_REASON
+#
+CONFIG_RESET_REASON=y
+# end of RESET_REASON
+
+#
+# MAILBOX
+#
+CONFIG_MAILBOX=y
+CONFIG_MAILBOX_V2_0=y
+CONFIG_MAILBOX_IPC=y
+CONFIG_MAILBOX_IPC_API_TASK_STACK_SIZE=2048
+# CONFIG_SLAVE_HEART_BEAT is not set
+# end of MAILBOX
+
+#
+# SOFTWARE_SUPPORT_CHIP
+#
+# CONFIG_CHIP_SUPPORT is not set
+# end of SOFTWARE_SUPPORT_CHIP
+
+#
+# ETH
+#
+# CONFIG_ETH is not set
+CONFIG_ETH_PIN_GROUP0=y
+# CONFIG_ETH_PIN_GROUP1 is not set
+# CONFIG_ETH_PTP is not set
+# CONFIG_ETH_VLAN is not set
+# CONFIG_ETH_LPI is not set
+# CONFIG_ETH_EEE is not set
+# CONFIG_ETH_REGISTER_CALLBACKS is not set
+# CONFIG_ETH_TSO is not set
+CONFIG_ETH_CSUM_OFFLOAD=y
+# CONFIG_ETH_PM_CB_SUPPORT is not set
+CONFIG_PHY_SMSC=y
+# CONFIG_PHY_MICREL_KSZ90X1 is not set
+# CONFIG_PHY_REALTEK is not set
+# end of ETH
+
+#
+# CKMN
+#
+# CONFIG_CKMN is not set
+# end of CKMN
+
+#
+# LIN
+#
+# CONFIG_LIN is not set
+# end of LIN
+
+#
+# SCR
+#
+# CONFIG_SCR is not set
+# end of SCR
+
+#
+# SPINLOCK
+#
+CONFIG_SPINLOCK=y
+CONFIG_SPINLOCK_SECTION=y
+CONFIG_SPINLOCK_DYNAMIC_CNT=160
+CONFIG_SPINLOCK_STATIC_CNT=64
+# end of SPINLOCK
+
+#
+# HSPL
+#
+CONFIG_HSPL=y
+CONFIG_HSPL_TEST=y
+# end of HSPL
+
+#
+# SLCD
+#
+# CONFIG_SLCD is not set
+# end of SLCD
+
+#
+# CAN
+#
+# CONFIG_CAN is not set
+# end of CAN
+
+#
+# HIGH PERFORMANCE DMA
+#
+CONFIG_HIGH_PERFORMANCE_DMA=y
+CONFIG_HPDMA_LOGIC_CHAN_CNT=4
+CONFIG_HPDMA_LOGIC_CHAN_ID_MIN=0
+CONFIG_HIGH_PERFORMANCE_DMA_TEST=y
+# end of HIGH PERFORMANCE DMA
+
+#
+# Watchdog
+#
+# end of Watchdog
+
+#
+# multicore
+#
+CONFIG_SUPPORT_MULTICORE=y
+# CONFIG_MULTICORE_TEST is not set
+# end of multicore
+# end of Driver
+
+#
+# bk7259
+#
+CONFIG_ITCM_SIZE=0x4000
+CONFIG_DTCM_SIZE=0x3FE0
+# CONFIG_ANA_REG_WRITE_POLL_REG_B is not set
+# CONFIG_PM_HAL_DEBUG is not set
+# CONFIG_PM_HAL_CTRL is not set
+CONFIG_TZ=y
+CONFIG_SPE=1
+CONFIG_RX_OPTIMIZE=y
+# end of bk7259
+# end of Middleware Configuration
+
+#
+# Projects Configuration
+#
+
+#
+# Properties Configuration
+#
+
+#
+# Extra Modules Configuration
+#
+# end of Modules Configuration
+# end of ARMINO Configuration

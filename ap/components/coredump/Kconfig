@@ -1,0 +1,61 @@
+menu "Coredump"
+	config CM_BACKTRACE
+		bool "Enable Cm Backtrace"
+		default n
+
+	config DUMP_ENABLE
+			bool "Enable Dump Feature"
+			default n
+			help
+				Dump all memory when exception happen
+
+	config MEMDUMP_ALL
+			bool "Enable Memdump All"
+			default n
+			help
+				Dump all memory when exception happen
+
+	config DUMP_UART_PRINT_PORT
+		int "Config DumpUart Print Port"
+		range 0 5
+		default 0
+		help
+			Default 0 mean use UART0
+
+	choice DUMP_UART_MEM_ENCODING
+		prompt "Config DumpUart Memory Encoding"
+		default DUMP_UART_MEM_ENCODING_ASCII
+		help
+			Default ASCII format
+
+		config DUMP_UART_MEM_ENCODING_ASCII
+			bool "ASCII"
+			help
+				Dump memory in ASCII format
+		config DUMP_UART_MEM_ENCODING_BASE64
+			bool "Base64"
+			help
+				Dump memory in Base64 format
+	endchoice
+
+	choice DUMP_BY_UART
+		prompt "Dump output method"
+		default DUMP_BY_LOG_UART
+		help
+			Dump output method
+		config DUMP_BY_LOG_UART
+			bool "Log UART"
+			help
+				Dump to log UART
+		config DUMP_BY_FLASH
+			bool "Flash"
+			help
+				Dump to flash
+	endchoice
+
+	config TRAP_TEST
+			bool "Enable trap test"
+			default n
+			help
+				trap test
+endmenu

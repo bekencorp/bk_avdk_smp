@@ -1,0 +1,41 @@
+menu "DVP Camera"
+    config DVP_CAMERA
+        depends on BK_CAMERA
+        bool "use dvp camera"
+        default n
+
+    config DVP_GC0308
+        depends on DVP_CAMERA
+        bool "Enable DVP_GC0308"
+        default n
+
+    config DVP_GC0308C
+        depends on DVP_CAMERA
+        bool "Enable DVP_GC0308C"
+        default n
+
+    config DVP_GC2053
+        depends on DVP_CAMERA
+        bool "Enable DVP_GC2053"
+        default n
+
+    config DVP_GC2145
+        depends on DVP_CAMERA
+        bool "Enable DVP_GC2145"
+        default n
+
+    config DVP_HM1055
+        depends on DVP_CAMERA
+        bool "Enable DVP_HM1055"
+        default n
+
+    config DVP_SC101
+        depends on DVP_CAMERA
+        bool "Enable DVP_SC101"
+        default n
+
+    config DVP_OV2640
+        depends on DVP_CAMERA
+        bool "Enable DVP_OV2640"
+        default n
+endmenu

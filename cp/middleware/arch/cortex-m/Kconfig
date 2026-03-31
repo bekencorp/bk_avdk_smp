@@ -1,0 +1,124 @@
+menu "Arch::Cm"
+	config ARCH_CORTEX_M
+		bool "Enable Cortex-M"
+		default n
+
+	config ARMV8_M_BASELINE
+		# ARMv8-M baseline is ARMv6-M with additional features from ARMv8-M.
+		bool "armv8 m-profile baseline, for instance: cortex m23"
+		default n
+
+	config ARMV8_M_MAINLINE
+		select ARCH_CORTEX_M
+		# ARMv8-M mainline is ARMv7-M with additional features from ARMv8-M.
+		bool "armv8 m-profile mainline, for instance: cortex m33"
+		default y
+
+	config ARMV7_M_ARMV8_M_MAINLINE
+		# ARMV7_M_ARMV8_M_MAINLINE means that ARMv7-M or backward compatible ARMv8-M
+		# processor is used.
+		bool "armv7-m armv8-m"
+		default n
+
+	config ARMV6_M_ARMV8_M_BASELINE
+		# ARMV6_M_ARMV8_M_BASELINE means that ARMv6-M or ARMv8-M supporting the
+		# Baseline implementation processor is used.
+		bool "armv6-m armv8-m baseline"
+		default n
+
+	config ARMV8_1_M_MAINLINE
+		select ARMV8_M_MAINLINE
+		bool "armv8.1 m-profile mainline, for instance: cortex m52"
+		default n
+
+	config SOC_PREP_HOOK
+		bool "soc prepare hook interface"
+		default n
+
+	menu "Modify Arch Cortex-M Config"
+		depends on ARCH_CORTEX_M
+
+		config SUPPORT_FPU
+			bool "Enable Float Process Unit Feature"
+			default n
+
+		config SUPPORT_ITCM
+			bool "Support ITCM"
+			default n
+			
+		config SUPPORT_DTCM
+			bool "Support DTCM"
+			default n
+
+		config SUPPORT_ARM_FEATURE_CMSE
+			bool "Enable Float Process Unit Feature"
+			default n
+
+		config SUPPORT_ARCH_UNALIGNED
+			bool "Enable Arch Unalign Feature"
+			default n
+	
+		config CPU_FREQ_HZ
+			int "Set Cpu Freq Hz"
+			default 120000000
+			help
+				CPU frequency
+
+		config ARCH_INT_STATIS
+			bool "Enable Arch Int Statis"
+			default n
+			help
+				Enable interrupt statis
+
+		config SYSTICK_32K
+			bool "Systick use external 32K clock"
+			default n
+
+		config DCACHE
+			bool "Enable Dcache"
+			default y
+			help
+				Enable data cache
+
+		config ICACHE
+			bool "Enable Icache"
+			default y
+			help
+				Enable code cache
+			
+		config SUPPORT_CACHEABLE_SRAM
+            depends on MPU && DCACHE
+			bool "Enable Cacheable Sram"
+			default n
+			help
+				Enable Sram Cache
+			
+		config SUPPORT_L1_CACHE
+			bool "Enable l1 Cache"
+			default n
+
+		config L2_CACHE_ENABLE
+			bool "Enable l2 Cache"
+			default n
+
+		config HEAP_IN_CACHE
+			depends on SUPPORT_CACHEABLE_SRAM
+			bool "Enable Heap in Cache"
+			default n
+			help
+				Custom enable heap in Cache
+        
+        config INTERRUPT_DEBUG_RECORDER
+			bool "Enable interrupt debug"
+			default n
+			help
+				interrupt debug
+        
+        config INTERRUPT_RECORDER_CNT
+            int "Set recorder interrupt count"
+			default 40
+			help
+				interrupt recorder count
+
+	endmenu
+endmenu

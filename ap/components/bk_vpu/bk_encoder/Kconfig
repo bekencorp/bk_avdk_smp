@@ -1,0 +1,20 @@
+menu "BEKEN CODEC ENCODER"
+
+	config BK_ENCODER
+		bool "BEKEN CODEC ENCODER"
+		default n
+		help
+			"BEKEN CODEC ENCODER for BK7259"
+
+	config BK_ENCODER_H264_TASK_SIZE
+		int "BK_ENCODER_H264_TASK_SIZE"
+		default 10240
+
+	config H264_ENCODER_USE_OS_MALLOC
+		bool "H264 Encoder Use OS Malloc"
+		default n
+		depends on BK_ENCODER
+		help
+			"Use OS malloc for encoder memory allocation instead of frame buffer"
+
+endmenu

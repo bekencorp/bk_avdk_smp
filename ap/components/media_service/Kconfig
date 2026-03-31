@@ -1,0 +1,4 @@
+config MEDIA_SERVICE
+	bool "Enable Media Service"
+	default n
+

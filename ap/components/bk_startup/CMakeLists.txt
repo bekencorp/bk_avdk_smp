@@ -1,0 +1,16 @@
+set(srcs system_main.c)
+
+if(CONFIG_FREERTOS)
+	set(incs freertos)
+	list(APPEND srcs freertos/rtos_init.c)
+elseif(CONFIG_NON_OS)
+	set(incs non_os)
+	list(APPEND srcs non_os/rtos_init.c)
+endif()
+
+set(PRIV_REQUIRES_LIST bk_common embeded_gcov)
+
+armino_component_register(SRCS "${srcs}"
+			INCLUDE_DIRS "${incs}"
+			REQUIRES easy_flash bk_init
+			PRIV_REQUIRES ${PRIV_REQUIRES_LIST})

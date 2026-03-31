@@ -1,0 +1,99 @@
+// Copyright 2020-2021 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * @file lcd_mipi_st7701s_412x960.c
+ * @brief ST7701S MIPI DSI Panel Driver (412x960)
+ * 
+ * This file uses the common panel driver to simplify code.
+ * Panel configuration is defined in this file.
+ */
+
+#include <components/bk_display_types.h>
+
+#include <components/bk_lcd_types.h>
+#include <driver/mipi_dsi_types.h>
+#include <common/avdk_pixel_types.h>
+
+#if CONFIG_LCD_ST7701S_MIPI_412x960
+
+// ST7701S 412x960 Panel Configuration
+static const lcd_mipi_init_cmd_t st7701s_mipi_412x960_init_cmds[] = {
+    {0xFF, (const uint8_t []){0x77,0x01,0x00,0x00,0x13}, 5},
+    {0xEF, (const uint8_t []){0x08}, 1},
+    {0xFF, (const uint8_t []){0x77,0x01,0x00,0x00,0x10}, 5},
+    {0xC0, (const uint8_t []){0x77,0x00}, 2},
+    {0xC1, (const uint8_t []){0x0C,0x0C}, 2},
+    {0xC2, (const uint8_t []){0x07,0x02}, 2},
+    {0xCC, (const uint8_t []){0x10}, 1},
+    {0xB0, (const uint8_t []){0x00,0x0C,0x19,0x0B,0x0F,0x06,0x05,0x08,0x08,0x1F,0x04,0x11,0x0F,0x26,0x2F,0x1D}, 16},
+    {0xB1, (const uint8_t []){0x00,0x17,0x19,0x0F,0x12,0x05,0x05,0x08,0x07,0x1F,0x03,0x10,0x10,0x27,0x2F,0x1D}, 16},
+    {0xFF, (const uint8_t []){0x77,0x01,0x00,0x00,0x11}, 5},
+    {0xB0, (const uint8_t []){0x4D}, 1},
+    {0xB1, (const uint8_t []){0x4F}, 1},
+    {0xB2, (const uint8_t []){0x82}, 1},
+    {0xB3, (const uint8_t []){0x80}, 1},
+    {0xB5, (const uint8_t []){0x4E}, 1},
+    {0xB7, (const uint8_t []){0x85}, 1},
+    {0xB8, (const uint8_t []){0x20}, 1},
+    {0xC1, (const uint8_t []){0x78}, 1},
+    {0xC2, (const uint8_t []){0x78}, 1},
+    {0xD0, (const uint8_t []){0x88}, 1},
+    {0xE0, (const uint8_t []){0x00,0x00,0x02,0x00,0x00,0x0C}, 6},
+    {0xE1, (const uint8_t []){0x02,0x8C,0x04,0x8C,0x01,0x8C,0x03,0x8C,0x00,0x44,0x44}, 11},
+    {0xE2, (const uint8_t []){0x03,0x03,0x03,0x03,0x00,0x00,0xD4,0x00,0x00,0x00,0xD4,0x00}, 12},
+    {0xE3, (const uint8_t []){0x00,0x00,0x33,0x33}, 4},
+    {0xE4, (const uint8_t []){0x44,0x44}, 2},
+    {0xE5, (const uint8_t []){0x09,0xD2,0x35,0x8C,0x0B,0xD4,0x35,0x8C,0x05,0xCE,0x35,0x8C,0x07,0xD0,0x35,0x8C}, 16},
+    {0xE6, (const uint8_t []){0x00,0x00,0x33,0x33}, 4},
+    {0xE7, (const uint8_t []){0x44,0x44}, 2},
+    {0xE8, (const uint8_t []){0x08,0xD1,0x35,0x8C,0x0A,0xD3,0x35,0x8C,0x04,0xCD,0x35,0x8C,0x06,0xCF,0x35,0x8C}, 16},
+    {0xEB, (const uint8_t []){0x00,0x01,0xE4,0xE4,0x44,0x33}, 6},
+    {0xED, (const uint8_t []){0xFF,0xFF,0xF7,0x65,0x4A,0x10,0x3B,0xFF,0xFF,0xB3,0x01,0xA4,0x56,0x7F,0xFF,0xFF}, 16},
+    {0xEF, (const uint8_t []){0x10,0x0D,0x04,0x08,0x3F,0x1F}, 6},
+    {0xFF, (const uint8_t []){0x77,0x01,0x00,0x00,0x00}, 5},
+    {0x3A, (const uint8_t []){0x66}, 1},
+    {0x11, (const uint8_t []){0x00}, 0},  // sleep out
+    {0x29, (const uint8_t []){0x00}, 0},  // disp on
+    {0x35, (const uint8_t []){0x00}, 1},
+    {0x00, NULL, 0}  // End marker
+};
+
+static const uint8_t st7701s_mipi_412x960_read_id_regs[] = {0xA1, 0};  // ST7701S uses 0xA1
+
+// Panel descriptor - referenced by board config and CLI
+const bk_display_dsi_panel_t lcd_device_st7701s_mipi_412x960 = {
+    .id = 0x8802,
+    .name = "st7701s_mipi_412x960",
+    .n_lanes = DSI_ACTIVE_LANES_2,
+    .timing = {
+        .clk = LCD_20M,
+        .h_size = PIXEL_412,
+        .v_size = PIXEL_960,
+        .hsync_pulse_width = 7,
+        .vsync_pulse_width = 7,
+        .hsync_back_porch = 40,
+        .hsync_front_porch = 40,
+        .vsync_back_porch = 40,
+        .vsync_front_porch = 40,
+    },
+    .init_cmds = st7701s_mipi_412x960_init_cmds,
+    .read_id_regs = st7701s_mipi_412x960_read_id_regs,
+    .read_id_bytes = 2,
+    .custom_reset = NULL,
+    .custom_init = NULL,
+};
+
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st7701s_mipi_412x960, "st7701s_mipi_412x960", 1);
+#endif

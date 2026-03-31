@@ -1,0 +1,46 @@
+menu "AUDIO"
+
+	config AUDIO
+		bool "Enable Audio"
+		default n
+
+	choice AUD_DRIVER_VERSION
+		prompt "AUD driver version"
+		depends on AUDIO
+		default AUD_DRIVER_V2
+		help
+			Select AUD (audio driver) implementation: V1 or V2.
+
+		config AUD_DRIVER_V1
+			bool "AUD driver V1"
+
+		config AUD_DRIVER_V2
+			bool "AUD driver V2"
+	endchoice
+
+	config AUDIO_ADC
+		depends on AUDIO
+		bool "Enable audio adc driver"
+		default n
+
+	config AUDIO_DAC
+		depends on AUDIO
+		bool "Enable audio dac driver"
+		default n
+
+	config AUDIO_DMIC
+		depends on AUD_DRIVER_V1
+		bool "Enable audio dmic driver"
+		default n
+
+	config AUDIO_DTMF
+		depends on AUD_DRIVER_V1
+		bool "Enable audio dtmf driver"
+		default n
+
+	config AUDIO_RING_BUFF
+		bool "Enable Audio Ring Buff"
+		default y
+		help
+			Enable Audio ring buffer
+endmenu

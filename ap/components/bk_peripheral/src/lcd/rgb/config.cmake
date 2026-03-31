@@ -1,0 +1,58 @@
+set(RGB_LCD_DEVICE_FILES "")
+set(RGB_LCD_PATH src/lcd/rgb)
+
+
+if (CONFIG_LCD_GC9503V)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_gc9503v_480x800.c)
+endif()
+
+if (CONFIG_LCD_H050IWV)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_h050iwv_800x480.c)
+endif()
+
+if (CONFIG_LCD_HX8282)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_hx8282_1024x600.c)
+endif()
+
+if (CONFIG_LCD_MD0430R)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_md0430r_800x480.c)
+endif()
+
+if (CONFIG_LCD_MD0700R)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_md0700r_1024x600.c)
+endif()
+
+if (CONFIG_LCD_NT35512)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_nt35512_480x800.c)
+endif()
+
+if (CONFIG_LCD_NT35510)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_nt35510_480x854.c)
+endif()
+
+if (CONFIG_LCD_ST7282)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_st7282_480x272.c)
+endif()
+
+
+if (CONFIG_LCD_ST7701S_LY)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_st7701s_ly.c)
+endif()
+
+if (CONFIG_LCD_ST7701S)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_st7701s_480x480.c)
+endif()
+
+if (CONFIG_LCD_ST7701SN)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_st7701sn_480x854.c)
+endif()
+
+if (CONFIG_LCD_AML01)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_aml01_720x1280.c)
+endif()
+
+if (CONFIG_LCD_FPGA272P)
+	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_fpga272p_480x384.c)
+endif()
+
+# Common RGB panel driver has been moved to bk_display component

@@ -1,0 +1,5 @@
+menu "Arch::MPU"
+	config MPU
+		bool "Enable Memory Protect Unit Feature"
+		default n
+endmenu

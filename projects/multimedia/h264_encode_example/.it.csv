@@ -1,0 +1,30 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+jpeg_decode_01,ap_cmd jpeg_decode_regular_test hardware_test,,CMDRSP:OK,5
+jpeg_decode_02,ap_cmd jpeg_decode_regular_test software_test,,CMDRSP:OK,5
+jpeg_decode_03,ap_cmd jpeg_decode_regular_test software_dtcm_cp1_test,,CMDRSP:OK,5
+jpeg_decode_04,ap_cmd jpeg_decode_regular_test software_dtcm_cp2_test,,CMDRSP:OK,5
+jpeg_decode_05,ap_cmd jpeg_decode_regular_test hardware_async_test,,CMDRSP:OK,5
+jpeg_decode_06,ap_cmd jpeg_decode_regular_test hardware_async_burst_test,,CMDRSP:OK,10
+jpeg_decode_07,ap_cmd jpeg_decode_regular_test software_dtcm_cp1_async_test,,CMDRSP:OK,5
+jpeg_decode_08,ap_cmd jpeg_decode_regular_test software_dtcm_cp1_async_burst_test,,CMDRSP:OK,5
+jpeg_decode_09,ap_cmd jpeg_decode_regular_test software_dtcm_cp2_async_test,,CMDRSP:OK,5
+jpeg_decode_10,ap_cmd jpeg_decode_regular_test software_dtcm_cp2_async_burst_test,,CMDRSP:OK,5
+jpeg_decode_11,ap_cmd jpeg_decode_regular_test software_dtcm_cp1_cp2_async_test,,CMDRSP:OK,5
+jpeg_decode_12,ap_cmd jpeg_decode_regular_test software_dtcm_cp1_cp2_async_burst_test,,CMDRSP:OK,5
+jpeg_decode_13,ap_cmd jpeg_decode_regular_test hardware_opt_test 0,,CMDRSP:OK,5
+jpeg_decode_14,ap_cmd jpeg_decode_regular_test hardware_opt_test 1,,CMDRSP:OK,5
+jpeg_decode_15,ap_cmd jpeg_decode_regular_test hardware_opt_async_test 0,,CMDRSP:OK,5
+jpeg_decode_16,ap_cmd jpeg_decode_regular_test hardware_opt_async_test 1,,CMDRSP:OK,5
+jpeg_decode_17,ap_cmd jpeg_decode_regular_test hardware_opt_async_burst_test,,CMDRSP:OK,10
+jpeg_decode_error_01,ap_cmd jpeg_decode_error_test input_buffer_null_1,,CMDRSP:OK,5
+jpeg_decode_error_02,ap_cmd jpeg_decode_error_test input_buffer_null_2,,CMDRSP:OK,5
+jpeg_decode_error_03,ap_cmd jpeg_decode_error_test input_buffer_null_3,,CMDRSP:OK,5
+jpeg_decode_error_04,ap_cmd jpeg_decode_error_test invalid_input_data,,CMDRSP:OK,5
+jpeg_decode_error_05,ap_cmd jpeg_decode_error_test output_buffer_small,,CMDRSP:OK,5
+jpeg_decode_error_06,ap_cmd jpeg_decode_error_test hardware_decode_error_1,,CMDRSP:OK,5
+jpeg_decode_error_07,ap_cmd jpeg_decode_error_test hardware_decode_error_2,,CMDRSP:OK,5
+jpeg_decode_error_08,ap_cmd jpeg_decode_error_test hardware_decode_error_3,,CMDRSP:OK,5
+jpeg_decode_error_09,ap_cmd jpeg_decode_error_test software_async_decode_error_1,,CMDRSP:OK,5
+jpeg_decode_error_10,ap_cmd jpeg_decode_error_test software_dtcm_cp1_async_decode_error_1,,CMDRSP:OK,5
+jpeg_decode_error_11,ap_cmd jpeg_decode_error_test software_dtcm_cp2_async_decode_error_1,,CMDRSP:OK,5
+

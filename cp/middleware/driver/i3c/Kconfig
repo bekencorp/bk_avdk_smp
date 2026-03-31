@@ -1,0 +1,17 @@
+# I3C driver (controller + Beken wrapper)
+
+menu "I3C"
+	config I3C
+		bool "Enable I3C"
+		default n
+		help
+			Enable I3C driver (master/slave, SDR/HDR).
+
+	config I3C_TEST
+		bool "Enable I3C test"
+		depends on I3C
+		default n
+		help
+			Enable I3C test and CLI commands for master/slave communication demo.
+			Use CLI: i3c mst <mode> [clk_div] [tx_rx] | i3c slv <id>
+endmenu

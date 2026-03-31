@@ -1,0 +1,2 @@
+./dbuild.sh make bk7259
+./dbuild.sh make bk7259 PROJECT=multimedia/audio_example_ap

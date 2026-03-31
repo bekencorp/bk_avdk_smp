@@ -1,0 +1,25 @@
+menu "sensor_detect"
+	config TEMP_DETECT
+		bool "Enable Temp Detect"
+		default n
+		help
+			Enable temperature detect
+
+	config SDMADC_TEMP
+		bool "Enable Sdmadc temp"
+		default n
+		help
+			Use Sigma Delta ADC to detect temperature
+
+	config VOLT_DETECT
+		bool "Enable voltage detect"
+		default n
+
+	config TEMPERATURE_HIGH_VOLT
+		bool "Switch code25 temp"
+		default n
+		help
+			Use low-voltage temp_code if the scenario involves operations from low voltage to high voltage
+			Use temp_code if it consistently works at high voltage (Vbat >= 2.8V)
+endmenu
+

@@ -1,0 +1,6 @@
+menu "mac802154"
+	config MAC802154_ENABLE
+		bool "Enable IEEE802.15.4"
+		default n
+
+endmenu

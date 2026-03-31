@@ -1,0 +1,6 @@
+if (CONFIG_LPVAD)
+	list(APPEND incs lpvad)
+	list(APPEND srcs lpvad/aud_lp_vad.c)
+	set(incs ${incs} PARENT_SCOPE)
+	set(srcs ${srcs} PARENT_SCOPE)
+endif()

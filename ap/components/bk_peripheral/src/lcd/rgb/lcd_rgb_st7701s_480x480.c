@@ -1,0 +1,138 @@
+// Copyright 2020-2021 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * @file lcd_rgb_st7701s_480x480.c
+ * @brief ST7701S RGB Panel Driver (480x480)
+ * 
+ * This file uses the common RGB panel driver to simplify code.
+ * Panel configuration is defined in this file.
+ */
+
+#include <components/bk_display_types.h>
+
+#include <components/bk_lcd_types.h>
+#include <common/avdk_pixel_types.h>
+
+
+#if CONFIG_LCD_ST7701S
+
+// ST7701S 480x480 RGB Panel Configuration
+static const lcd_rgb_spi_init_cmd_t st7701s_rgb_480x480_init_cmds[] = {
+    {0xFF, (const uint8_t []){0x77}, 1},
+    {0xFF, (const uint8_t []){0x01}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x13}, 1},
+    {0xEF, (const uint8_t []){0x08}, 1},
+    {0xFF, (const uint8_t []){0x77}, 1},
+    {0xFF, (const uint8_t []){0x01}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x10}, 1},
+    {0xC0, (const uint8_t []){0x3B,0x00}, 2},
+    {0xC1, (const uint8_t []){0x0D,0x02}, 2},
+    {0xC2, (const uint8_t []){0x21,0x08}, 2},
+    {0xCD, (const uint8_t []){0x08}, 1},
+    {0xB0, (const uint8_t []){0x00,0x11,0x18,0x0E,0x11,0x06,0x07,0x08,0x07,0x22,0x04,0x12,0x0F,0xAA,0x31,0x18}, 16},
+    {0xB1, (const uint8_t []){0x00,0x11,0x19,0x0E,0x12,0x07,0x08,0x08,0x08,0x22,0x04,0x11,0x11,0xA9,0x32,0x18}, 16},
+    {0xFF, (const uint8_t []){0x77}, 1},
+    {0xFF, (const uint8_t []){0x01}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x11}, 1},
+    {0xB0, (const uint8_t []){0x60}, 1},
+    {0xB1, (const uint8_t []){0x30}, 1},
+    {0xB2, (const uint8_t []){0x87}, 1},
+    {0xB3, (const uint8_t []){0x80}, 1},
+    {0xB5, (const uint8_t []){0x49}, 1},
+    {0xB7, (const uint8_t []){0x85}, 1},
+    {0xB8, (const uint8_t []){0x21}, 1},
+    {0xC1, (const uint8_t []){0x78}, 1},
+    {0xC2, (const uint8_t []){0x78}, 1},
+    {0xFF, (const uint8_t []){20}, 0xFF},  // delay 20ms
+    {0xE0, (const uint8_t []){0x00,0x1B,0x02}, 3},
+    {0xE1, (const uint8_t []){0x08,0xA0,0x00,0x00,0x00,0x07,0xA0,0x00,0x00,0x00,0x00,0x44,0x44}, 13},
+    {0xE2, (const uint8_t []){0x11,0x11,0x44,0x44,0xED,0xA0,0x00,0x00,0xEC,0xA0,0x00,0x00}, 12},
+    {0xE3, (const uint8_t []){0x00,0x00,0x11,0x11}, 4},
+    {0xE4, (const uint8_t []){0x44,0x44}, 2},
+    {0xE5, (const uint8_t []){0x0A,0xE9,0xD8,0xA0,0x0C,0xEB,0xD8,0xA0,0x0E,0xED,0xD8,0xA0,0x10,0xEF,0xD8,0xA0}, 16},
+    {0xE6, (const uint8_t []){0x00,0x00,0x11,0x11}, 4},
+    {0xE7, (const uint8_t []){0x44,0x44}, 2},
+    {0xE8, (const uint8_t []){0x09,0xE8,0xD8,0xA0,0x0B,0xEA,0xD8,0xA0,0x0D,0xEC,0xD8,0xA0,0x0F,0xEE,0xD8,0xA0}, 16},
+    {0xEB, (const uint8_t []){0x02,0x00,0xE4,0xE4,0x88,0x00,0x40}, 7},
+    {0xEC, (const uint8_t []){0x3C,0x00}, 2},
+    {0xED, (const uint8_t []){0xAB,0x89,0x76,0x54,0x02,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x20,0x45,0x67,0x98,0xBA}, 16},
+    {0xEF, (const uint8_t []){0x10,0x0D,0x04,0x08,0x3F,0x1F}, 6},
+    {0xFF, (const uint8_t []){0x77}, 1},
+    {0xFF, (const uint8_t []){0x01}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0x3A, (const uint8_t []){0x66}, 1},
+    {0xFF, (const uint8_t []){0x77}, 1},
+    {0xFF, (const uint8_t []){0x01}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x13}, 1},
+    {0xE8, (const uint8_t []){0x00,0x0E}, 2},
+    {0xFF, (const uint8_t []){0x77}, 1},
+    {0xFF, (const uint8_t []){0x01}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0x11, NULL, 0},  // sleep out
+    {0xFF, (const uint8_t []){120}, 0xFF},  // delay 120ms
+    {0xFF, (const uint8_t []){0x77}, 1},
+    {0xFF, (const uint8_t []){0x01}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x13}, 1},
+    {0xE8, (const uint8_t []){0x00,0x0C}, 2},
+    {0xFF, (const uint8_t []){10}, 0xFF},  // delay 10ms
+    {0xFF, (const uint8_t []){0x77}, 1},
+    {0xFF, (const uint8_t []){0x01}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0xFF, (const uint8_t []){0x00}, 1},
+    {0x29, NULL, 0},  // disp on
+    {0x00, NULL, 0}  // End marker
+};
+
+static const uint8_t st7701s_rgb_480x480_read_id_regs[] = {0xA1, 0};  // ST7701S uses 0xA1
+
+// Panel descriptor - single source of truth for ST7701S RGB panel
+const bk_display_rgb_panel_t st7701s_rgb_panel = {
+    .id = 0x7701,
+    .name = "st7701s_rgb_480x480",
+    .timing = {
+        .clk = LCD_26M,
+        .h_size = 480,
+        .v_size = 480,
+        .hsync_pulse_width = 2,
+        .vsync_pulse_width = 2,
+        .hsync_back_porch = 10,
+        .hsync_front_porch = 10,
+        .vsync_back_porch = 10,
+        .vsync_front_porch = 10,
+    },
+    .init_cmds = st7701s_rgb_480x480_init_cmds,
+    .spi_cmd_16bit = 0,
+    .read_id_regs = st7701s_rgb_480x480_read_id_regs,
+    .read_id_bytes = 2,
+    .custom_reset = NULL,
+};
+
+BK_LCD_PANEL_DEVICE_SECTION(st7701s_rgb_panel, "st7701s_rgb_480x480", 0);
+#endif

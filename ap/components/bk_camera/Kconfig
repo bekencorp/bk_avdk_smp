@@ -1,0 +1,7 @@
+menu "BK Camera"
+
+	config BK_CAMERA
+		bool "Enable bk camera"
+		default n
+
+endmenu

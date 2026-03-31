@@ -1,0 +1,6 @@
+menu "xdac"
+	config XDAC
+		bool "Enable xdac"
+		default n
+endmenu
+

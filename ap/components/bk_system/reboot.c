@@ -1,0 +1,70 @@
+// Copyright 2020-2021 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <common/bk_include.h>
+#include <components/log.h>
+#include <common/bk_err.h>
+#include <components/system.h>
+#include <driver/wdt.h>
+#include "bk_misc.h"
+#include "reset_reason.h"
+#include "drv_model_pub.h"
+#include "bk_wifi_types.h"
+#include "bk_wifi.h"
+#include "aon_pmu_driver.h"
+#include "wdt_driver.h"
+#include "driver/flash.h"
+#include <modules/pm.h>
+
+#define TAG "sys"
+
+void bk_reboot_ex(uint32_t reset_reason)
+{
+	static uint32_t entry_cnt = 0;
+	if(entry_cnt == 0)	//first time come here, or force reboot:avoid these codes cause system abnormal.
+	{
+		entry_cnt++;
+
+		if (reset_reason < RESET_SOURCE_UNKNOWN) {
+			bk_misc_set_reset_reason(reset_reason);
+		}
+
+		BK_LOGD(TAG, "bk_reboot\r\n");
+		delay_ms(100); //add delay for bk_writer BEKEN_DO_REBOOT cmd
+		bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_60M);
+
+		BK_LOGD(TAG, "wdt reboot\r\n");
+		rtos_disable_int();
+		if (reset_reason < RESET_SOURCE_UNKNOWN) {
+			bk_misc_set_reset_reason(reset_reason);
+		}
+	}
+	//fix reboot hang 16s issue
+	//bk_flash_power_saving_enter();
+
+#if 1 //CONFIG_AON_WDT
+	// TTODO:20260209,IN SMP,this cfg may cause reboot failed
+	// REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2 * 4, 0x102);
+	REG_WRITE(SOC_AON_WDT_REG_BASE, 0x5A000A);
+    REG_WRITE(SOC_AON_WDT_REG_BASE, 0xA5000A);
+#endif
+
+	while(1);
+}
+
+void bk_reboot(void)
+{
+	BK_LOGD(TAG, "bk_reboot\r\n");
+	bk_reboot_ex(RESET_SOURCE_REBOOT);
+}

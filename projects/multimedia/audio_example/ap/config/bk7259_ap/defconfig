@@ -1,0 +1,26 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+CONFIG_SOC_STR="bk7259"
+# CONFIG_SOC_SMP is not set
+# CONFIG_LWIP is not set
+CONFIG_CLI_TASK_STACK_SIZE=1536
+# CONFIG_BK_NETIF is not set
+CONFIG_FREERTOS_V10=y
+# CONFIG_FREERTOS_SMP is not set
+CONFIG_SYS_PRINT_DEV_UART=y
+# CONFIG_SYS_PRINT_DEV_MAILBOX is not set
+CONFIG_UART_PRINT_BAUD_RATE=1000000
+# CONFIG_WIFI_CLI_DEBUG is not set
+# CONFIG_WIFI_VNET_CONTROLLER is not set
+
+# CONFIG_SPI is not set
+# CONFIG_SPI_DMA is not set
+# CONFIG_GENERAL_DMA is not set
+CONFIG_DMA_LOGIC_CHAN_CNT=16
+CONFIG_DMA_LOGIC_CHAN_ID_MIN=0
+# CONFIG_PSRAM is not set
+CONFIG_XTAL_FREQ=12000000
+

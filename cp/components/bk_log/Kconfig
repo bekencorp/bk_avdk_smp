@@ -1,0 +1,30 @@
+menu "GPIO_LOG"
+
+	config GPIO_LOG_ENABLE
+		bool "Enable GPIO LOG"
+		default n
+
+	config GPIO_LOG_CLK_PIN
+		int "Set GPIO LOG CLK PIN"
+		depends on GPIO_LOG_ENABLE
+		range 0 255
+		default 5
+
+	config GPIO_LOG_DATA_PIN
+		int "Set GPIO LOG DATA PIN"
+		depends on GPIO_LOG_ENABLE
+		range 0 255
+		default 4
+
+	config GPIO_LOG_CLK_IDLE_STATE
+		int "Set GPIO LOG CLK IDLE STATE"
+		depends on GPIO_LOG_ENABLE
+		range 0 1
+		default 0  # 0: idle state is low, 1: idle state is high
+
+	config BK_TRACE_PRINT_ENABLE
+		bool "Enable BK TRACE PRINT"
+		depends on GPIO_LOG_ENABLE
+		default n
+
+endmenu

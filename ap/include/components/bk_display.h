@@ -1,0 +1,28 @@
+// Copyright 2020-2021 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#pragma once
+#include "components/bk_display_types.h"
+#include <driver/dpu_types.h>
+
+
+
+avdk_err_t bk_display_init(bk_display_ctlr_handle_t handle);
+avdk_err_t bk_display_deinit(bk_display_ctlr_handle_t handle);
+avdk_err_t bk_display_open(bk_display_ctlr_handle_t handle);
+avdk_err_t bk_display_close(bk_display_ctlr_handle_t handle);
+avdk_err_t bk_display_delete(bk_display_ctlr_handle_t handle);
+avdk_err_t bk_display_flush(bk_display_ctlr_handle_t handle, void *frame, flush_free_cb_t cb);
+avdk_err_t bk_display_layer_flush(bk_display_ctlr_handle_t handle, dpu_layer_t layer, void *frame, flush_free_cb_t cb);
+avdk_err_t bk_display_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioctl_cmd_t cmd, void *arg);

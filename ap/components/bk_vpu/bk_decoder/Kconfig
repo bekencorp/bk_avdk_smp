@@ -1,0 +1,16 @@
+menu "BEKEN CODEC DECODER"
+
+	config BK_DECODER
+		bool "Enable decoder (vcdec)"
+		default n
+
+	config BK_DECODER_TASK_PRIO
+		depends on BK_DECODER
+		int "BK_DECODER_TASK_PRIO"
+		default 6
+
+	config BK_DECODER_TASK_SIZE
+		depends on BK_DECODER
+		int "BK_DECODER_TASK_SIZE"
+		default 4096
+endmenu

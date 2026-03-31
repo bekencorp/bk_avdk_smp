@@ -1,0 +1,46 @@
+menu "Watchdog"
+	config WDT_EN
+		bool "Enable Watchdog"
+		default n
+
+	config INT_WDT
+		depends on WDT_EN
+		bool "Enable Interrupt Watchdog"
+		default y
+
+	config SUPPORT_AON_WDT
+		depends on WDT_EN
+		bool "Enable Interrupt Watchdog"
+		default y
+
+	config INT_WDT_PERIOD_MS
+		depends on WDT_EN
+		int "Interrupt Watchdog Period(ms)"
+		default 1000
+
+	config TASK_WDT
+		depends on WDT_EN
+		bool "Enable Task Watchdog"
+		default y
+
+	config TASK_WDT_PERIOD_MS
+		depends on WDT_EN
+		int "Task Watchdog Period(ms)"
+		default 60000
+
+	config NMI_WDT_EN
+		depends on WDT_EN
+		bool "Enable NMI Watchdog"
+		default n
+
+	config WDT_TEST
+		depends on INT_WDT && DRIVER_TEST
+		bool "Enable watchdog test"
+		default y
+
+	config WDT_API_TEST
+		depends on INT_WDT && DRIVER_TEST
+		bool "Enable watchdog api test"
+		default n
+endmenu
+

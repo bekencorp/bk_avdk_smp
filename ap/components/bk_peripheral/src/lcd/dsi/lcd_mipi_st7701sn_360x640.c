@@ -1,0 +1,92 @@
+// Copyright 2020-2021 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * @file lcd_mipi_st7701sn_360x640.c
+ * @brief ST7701SN MIPI DSI Panel Driver (360x640)
+ * 
+ * This file uses the common panel driver to simplify code.
+ * Panel configuration is defined in this file.
+ */
+
+#include <components/bk_display_types.h>
+
+#include <components/bk_lcd_types.h>
+#include <driver/mipi_dsi_types.h>
+#include <common/avdk_pixel_types.h>
+
+#if CONFIG_LCD_ST7701SN_MIPI_360x640
+
+// ST7701SN 360x640 Panel Configuration
+static const lcd_mipi_init_cmd_t st7701sn_mipi_360x640_init_cmds[] = {
+    {0xFF, (const uint8_t []){0x77,0x01,0x00,0x00,0x10}, 5},
+    {0xC0, (const uint8_t []){0x4F,0x00}, 2},
+    {0xC1, (const uint8_t []){0x07,0x02}, 2},
+    {0xC2, (const uint8_t []){0x31,0x05}, 2},
+    {0xB0, (const uint8_t []){0x00,0x0A,0x11,0x0C,0x10,0x05,0x00,0x08,0x08,0x1F,0x07,0x13,0x10,0xA9,0x30,0x18}, 16},
+    {0xB1, (const uint8_t []){0x00,0x0B,0x11,0x0D,0x0F,0x05,0x02,0x07,0x06,0x20,0x05,0x15,0x13,0xA9,0x30,0x18}, 16},
+    {0xFF, (const uint8_t []){0x77,0x01,0x00,0x00,0x11}, 5},
+    {0xB0, (const uint8_t []){0x53}, 1},
+    {0xB1, (const uint8_t []){0x60}, 1},
+    {0xB2, (const uint8_t []){0x07}, 1},
+    {0xB3, (const uint8_t []){0x80}, 1},
+    {0xB5, (const uint8_t []){0x49}, 1},
+    {0xB7, (const uint8_t []){0x85}, 1},
+    {0xB8, (const uint8_t []){0x21}, 1},
+    {0xC1, (const uint8_t []){0x78}, 1},
+    {0xC2, (const uint8_t []){0x78}, 1},
+    {0xE0, (const uint8_t []){0x00,0x00,0x02}, 3},
+    {0xE1, (const uint8_t []){0x03,0xA0,0x00,0x00,0x02,0xA0,0x00,0x00,0x00,0x33,0x33}, 11},
+    {0xE2, (const uint8_t []){0x22,0x22,0x33,0x33,0x88,0xA0,0x00,0x00,0x87,0xA0,0x00,0x00}, 12},
+    {0xE3, (const uint8_t []){0x00,0x00,0x22,0x22}, 4},
+    {0xE4, (const uint8_t []){0x44,0x44}, 2},
+    {0xE5, (const uint8_t []){0x04,0x84,0xA0,0xA0,0x06,0x86,0xA0,0xA0,0x08,0x88,0xA0,0xA0,0x0A,0x8A,0xA0,0xA0}, 16},
+    {0xE6, (const uint8_t []){0x00,0x00,0x22,0x22}, 4},
+    {0xE7, (const uint8_t []){0x44,0x44}, 2},
+    {0xE8, (const uint8_t []){0x03,0x83,0xA0,0xA0,0x05,0x85,0xA0,0xA0,0x07,0x87,0xA0,0xA0,0x09,0x89,0xA0,0xA0}, 16},
+    {0xEB, (const uint8_t []){0x00,0x01,0xE4,0xE4,0x88,0x00,0x40}, 7},
+    {0xEC, (const uint8_t []){0x3C,0x01}, 2},
+    {0xED, (const uint8_t []){0xAB,0x89,0x76,0x54,0x02,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x20,0x45,0x67,0x98,0xBA}, 16},
+    {0x11, (const uint8_t []){0x00}, 0},  // sleep out
+    {0x29, (const uint8_t []){0x00}, 0},  // disp on
+    {0x00, NULL, 0}  // End marker
+};
+
+static const uint8_t st7701sn_mipi_360x640_read_id_regs[] = {0xA1, 0};  // ST7701SN uses 0xA1
+
+// Panel descriptor - referenced by board config and CLI
+const bk_display_dsi_panel_t lcd_device_st7701sn_mipi_360x640 = {
+    .id = 0x9903,
+    .name = "st7701sn_360x640",
+    .n_lanes = DSI_ACTIVE_LANES_2,
+    .timing = {
+        .clk = LCD_20M,
+        .h_size = PIXEL_480,
+        .v_size = PIXEL_640,
+        .hsync_pulse_width = 5,
+        .vsync_pulse_width = 5,
+        .hsync_back_porch = 30,
+        .hsync_front_porch = 30,
+        .vsync_back_porch = 20,
+        .vsync_front_porch = 20,
+    },
+    .init_cmds = st7701sn_mipi_360x640_init_cmds,
+    .read_id_regs = st7701sn_mipi_360x640_read_id_regs,
+    .read_id_bytes = 2,
+    .custom_reset = NULL,
+    .custom_init = NULL,
+};
+
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st7701sn_mipi_360x640, "st7701sn_mipi_360x640", 1);
+#endif

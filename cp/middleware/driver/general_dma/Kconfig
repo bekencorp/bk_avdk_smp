@@ -1,0 +1,53 @@
+menu "GENERAL_DMA"
+	config GENERAL_DMA
+		bool "Enable General DMA"
+		default y
+
+	choice GENERAL_DMA_VERSION
+		prompt "DMA Driver Version"
+		default GENERAL_DMA_V2P6
+		help
+		  Select the DMA driver version to use.
+		  
+		config GENERAL_DMA_V2P6
+			bool "DMA v2p6"
+			help
+			  Use DMA driver version 2p6.
+			  
+		config GENERAL_DMA_V2PX
+			bool "DMA v2px"
+			help
+			  Use DMA driver version 2px (for BK7258 project).
+	endchoice
+
+	config GENERAL_DMA_LINK_MODE
+		depends on GENERAL_DMA_V2P6
+		bool "Enable DMA linked list mode"
+		default y
+		help
+		  Enable DMA linked list transfer mode support.
+		  This feature allows DMA to transfer data using descriptor linked lists.
+
+	config DMA_LOGIC_CHAN_CNT
+		int "DMA logic channel count"
+		default 4
+		help
+		  Current CPU-CORE software system uses how many dma-logic-channels.
+		  Total of all CPU-COREs dma logic chan count should be not bigger than total dma hardware supported channels.
+
+	config DMA_LOGIC_CHAN_ID_MIN
+		int "DMA logic channel ID minimum"
+		default 0
+		help
+		  Current CPU-CORE software system min dma-logic-channel-id.
+		  Be careful not to overlap with other CPU-CORE software system's dma-logic-channel-id.
+		  The value should be set like this:
+		    CPU0 is from 0
+		    CPU1 is from CPU0_DMA_LOGIC_CHAN_CNT
+
+	config GENERAL_DMA_TEST
+		depends on GENERAL_DMA
+		bool "Enable general dma test"
+		default n
+endmenu
+

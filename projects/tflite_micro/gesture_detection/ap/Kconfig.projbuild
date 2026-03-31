@@ -1,0 +1,22 @@
+menu "Gesture Detection Application Configuration"
+
+	choice GESTURE_DET_PROMPT_TONE_LANG
+		prompt "Select prompt tone language"
+		default GESTURE_DET_PROMPT_TONE_LANG_CHINESE
+		help
+			Select which language is used for prompt tones.
+
+		config GESTURE_DET_PROMPT_TONE_LANG_CHINESE
+			bool "Chinese prompt tones"
+			help
+				Use Chinese prompt tones for the gesture detection demo.
+
+		config GESTURE_DET_PROMPT_TONE_LANG_ENGLISH
+			bool "English prompt tones"
+			help
+				Use English prompt tones for the gesture detection demo.
+
+	endchoice
+
+endmenu
+

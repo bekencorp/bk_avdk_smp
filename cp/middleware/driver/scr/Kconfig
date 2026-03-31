@@ -1,0 +1,10 @@
+menu "SCR"
+	config SCR
+		bool "Enable smart_card_reader"
+		default n
+
+	config SCR_TEST
+		depends on SCR && DRIVER_TEST
+		bool "Enable smart_card_reader test"
+		default n
+endmenu

@@ -1,0 +1,93 @@
+menu "bk7259"
+
+	config ITCM_SIZE
+		hex "Total ITCM size"
+		default 0x4000
+
+	config DTCM_SIZE
+		hex "Total DTCM size"
+		default 0x4000
+
+	config ANA_REG_WRITE_POLL_REG_B
+		bool "Write analog register polls sys reg0xb"
+		default y
+
+	config PM_HAL_DEBUG
+		bool "Enable PM hal debug"
+		default n
+
+	config PM_HAL_CTRL
+		bool "Enable PM hal debug"
+		default n
+
+	config TZ
+		bool "Supported TrustZone"
+		default y
+
+	config SPE
+		int "Enable SPE"
+		default 0
+
+	config RX_OPTIMIZE
+		bool "Optimize rx current"
+		default n
+
+	menu "UART_PIN"
+
+		config UART0_TX_PIN
+			int "UART0 TX pin"
+			default 11
+
+		config UART0_RX_PIN
+			int "UART0 RX pin"
+			default 10
+
+		config UART0_CTS_PIN
+			int "UART0 CTS pin"
+			default 12
+
+		config UART0_RTS_PIN
+			int "UART0 RTS pin"
+			default 13
+
+		config UART1_TX_PIN
+			int "UART1 TX pin"
+			default 0
+
+		config UART1_RX_PIN
+			int "UART1 RX pin"
+			default 1
+
+		config UART2_TX_PIN
+			int "UART2 TX pin"
+			default 41
+
+		config UART2_RX_PIN
+			int "UART2 RX pin"
+			default 40
+
+		config UART3_TX_PIN
+			int "UART3 TX pin"
+			default 0
+
+		config UART3_RX_PIN
+			int "UART3 RX pin"
+			default 1
+
+		config UART4_TX_PIN
+			int "UART4 TX pin"
+			default 41
+
+		config UART4_RX_PIN
+			int "UART4 RX pin"
+			default 40
+
+		config UART5_TX_PIN
+			int "UART5 TX pin"
+			default 65
+
+		config UART5_RX_PIN
+			int "UART5 RX pin"
+			default 64
+	endmenu
+endmenu

@@ -1,0 +1,7 @@
+menu "LPVAD"
+	config LPVAD
+		bool "Enable LP VAD"
+		default y
+		depends on SOC_BK7259
+endmenu
+

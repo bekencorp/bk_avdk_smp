@@ -1,0 +1,11 @@
+menu "TRNG"
+	config TRNG_SUPPORT
+		bool "Support hardware TRNG"
+		default y
+
+
+	config TRNG_TEST
+		depends on TRNG_SUPPORT && DRIVER_TEST
+		bool "Enable trng test"
+		default y
+endmenu

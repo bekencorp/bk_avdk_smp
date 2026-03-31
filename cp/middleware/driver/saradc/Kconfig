@@ -1,0 +1,100 @@
+menu "SARADC"
+	config SARADC
+		bool "Enable saradc"
+		default y
+	config SARADC_INIT
+		depends on SARADC
+		bool "Enable saradc init"
+		default y
+
+	config SARADC_SERVER
+		bool "Enable SARADC server"
+		depends on SARADC
+		default y
+
+	config SARADC_NEED_FLUSH
+		bool "SARADC whether need flush data"
+		default y
+
+	config SARADC_RANGE_DIVIDE
+		bool "Enable saradc measure range divide"
+		default n
+
+	config SARADC_PM_CB_SUPPORT
+		bool "saradc pm support"
+		depends on SARADC
+		default n
+
+	config ADC_SAMPLE_CAPACITY_CNT
+		int "config adc receive sample count"
+		default 32
+
+	config ADC_BUF_SIZE
+		int "config adc receive buffer size"
+		default 32
+
+	choice SARADC_VERSION
+		prompt "ASIC SARADC IP Version"
+		default SARADC_V1P1
+
+		config SARADC_V1P1
+			bool "SARADC_V1P1"
+			help
+				ASIC SARADC Version ID: V1.1
+
+		config SARADC_V1P2
+			bool "SARADC_V1P2"
+			help
+				ASIC SARADC Version ID: V1.2
+	endchoice
+
+	config SARADC_V1P2_COMPATIBLE_MODE
+		bool "Enable v1p2 compatible mode, and adapte the compatible interfaces"
+		depends on SARADC_V1P2
+		default n
+		
+	config SARADC_TEST
+		depends on SARADC && DRIVER_TEST
+		bool "Enable saradc test"
+		default y
+
+	config SADC_API_TEST
+		bool "saradc api test"
+		depends on SARADC
+		default n
+
+	config SARADC_REVISION
+		bool "revision raw data"
+		depends on SARADC
+		default n
+
+	config ADC_API_TEST
+		depends on SARADC
+		bool "Enable adc api test"
+		default n
+
+	config SARADC_MB
+		bool "Enable SARADC mailbox"
+		depends on SARADC
+		default n
+	
+	config CLI_SARADC_TEST
+		bool "Enable saradc test"
+		default n
+
+	choice SARADC_VERSION
+		prompt "ASIC SARADC IP Version"
+		default SARADC_V1P2
+
+		config SARADC_V1P1
+			bool "SARADC_V1P1"
+			help
+				ASIC SARADC Version ID: V1.1
+
+		config SARADC_V1P2
+			bool "SARADC_V1P2"
+			help
+				ASIC SARADC Version ID: V1.2
+	endchoice
+endmenu	
+

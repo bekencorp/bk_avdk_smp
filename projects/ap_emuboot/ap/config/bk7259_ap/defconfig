@@ -1,0 +1,13 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+# CONFIG_SOC_SMP is not set
+# CONFIG_LWIP is not set
+# CONFIG_BK_NETIF is not set
+CONFIG_FREERTOS_V10=y
+# CONFIG_FREERTOS_SMP is not set
+# CONFIG_WIFI_CLI_DEBUG is not set
+# CONFIG_WIFI_VNET_CONTROLLER is not set
+# CONFIG_PSRAM is not set

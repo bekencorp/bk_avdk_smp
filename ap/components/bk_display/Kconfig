@@ -1,0 +1,17 @@
+menu "BK Display"
+
+	config BK_DISPLAY
+		depends on DPU_DRIVER
+		bool "BK Display"
+		default n
+
+		config MIPI_DSI
+		depends on DSI_DRIVER
+		bool "MIPI DSI Driver"
+		default n
+
+	config DPU_FLUSH_TIMER_DEBUG
+		depends on BK_DISPLAY
+		bool "dpu flush fps printf"
+	default n
+endmenu

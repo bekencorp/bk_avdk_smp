@@ -1,0 +1,10 @@
+menu "multicore"
+	config SUPPORT_MULTICORE
+		bool "Enable multicore"
+		default n
+
+	config MULTICORE_TEST
+		depends on SUPPORT_MULTICORE && DRIVER_TEST
+		bool "Enable multicore test"
+		default n
+endmenu

@@ -1,0 +1,5 @@
+menu "BK7259_ASR_DEBUG"
+	config BK7259_ASR_DEBUG
+		bool "Enable DEBUG"
+		default n
+endmenu

@@ -1,0 +1,86 @@
+menu "FLASH"
+	config FLASH
+		bool "Enable flash"
+		default y
+
+	config FLASH_QUAD_ENABLE
+		bool "Enable flash quad enable"
+		default n
+
+	config FLASH_CLK
+		int "flash clk,recommend value:80000000, unit:Hz. If not set, the flash clock will be configured by XTAL"
+		range 26000000 120000000
+		default 80000000
+
+	config FLASH_SRC_CLK_60M
+		bool "Enable flash source clock 60M,used in property document.If not set, the flash clock will be configured by CONFIG_FLASH_CLK"
+		default n
+
+	config FLASH_ORIGIN_API
+		bool "Enable flash old api"
+		default n
+
+	config FLASH_MB
+		bool "Enable flash mailbox channel"
+		depends on MAILBOX
+		depends on !SOC_SMP
+		default n
+
+	config FLASH_TEST
+		depends on FLASH
+		bool "Enable flash test"
+		default y
+
+	config PARTITION_TEST
+		depends on FLASH
+		bool "Enable pattition test"
+		default y
+
+	config FLASH_API_TEST
+		depends on FLASH
+		bool "Enable flash_api test"
+		default n
+
+	config FLASH_CLEAR_RD_RESIDUAL
+		depends on FLASH
+		bool "Enable The Feature of Clearing Read Residual Data"
+		default n
+
+	config FLASH_WRITE_STATUS_VOLATILE
+		bool "Enable write volatile status register"
+		default n
+
+	config FLASH_PARTITION_CHECK_VALID
+		depends on FLASH
+		bool "Enable flash driver check write permission and address range"
+		default y
+
+	config FLASH_BYPASS
+		bool "enable flash bypass"
+		default n
+
+	config FLASH_BYPASS_OTP_OPERATION
+		bool "Bypass flash to operate otp in flash"
+		default n
+
+	config PARTITION_OP_BY_NAME
+		depends on FLASH
+		bool "Enable flash partition operation by name"
+		default n
+
+	config FLASH_MONITER
+			bool "Enable flash moniter"
+			default n
+
+	config SYS_CTRL_FLASH_LINE_MODE
+		bool "Use system bit to resume flash line mode"
+		default n
+
+	config FLASH_API_TEST
+		depends on FLASH
+		bool "Enable flash_api test"
+		default n
+		help
+			Enable flash_api test.
+endmenu
+

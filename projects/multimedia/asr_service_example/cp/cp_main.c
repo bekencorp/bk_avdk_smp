@@ -1,0 +1,31 @@
+#include "bk_private/bk_init.h"
+#include <components/system.h>
+#include <os/os.h>
+#include <components/shell_task.h>
+#include <modules/pm.h>
+#include <driver/pwr_clk.h>
+#include "bk_api_ipc_test.h"
+
+extern void rtos_set_user_app_entry(beken_thread_function_t entry);
+
+
+void user_app_main(void) {
+    bk_start_ap_system();
+}
+
+int main(void)
+{
+    rtos_set_user_app_entry((beken_thread_function_t)user_app_main);
+    bk_init();
+
+#if (BK_IPC_UT_TEST)
+    bk_ipc_test_init();
+#endif
+
+#if CONFIG_AUDIO
+    extern int cli_aud_init(void);
+    cli_aud_init();
+#endif
+    os_printf("main exit!\n");
+    return 0;
+}

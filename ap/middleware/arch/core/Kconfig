@@ -1,0 +1,19 @@
+menu "Arch::Core"
+	choice CORE_TYPE
+		prompt "Select Processor/Core"
+		default ARM_CORE_STAR
+
+		config ARM_CORE_STAR
+			bool "armstar"
+
+		config ARM_CORE_CM52
+			bool "Cortex M52"
+
+		config ARM_CORE_CM55
+			bool "ARM_CORE_CM55"
+	endchoice
+
+	config ARM_INTERRUPT_CONTROLLER_CNT
+		int "the count of interrupt contorller"
+		default 1
+endmenu

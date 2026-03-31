@@ -1,0 +1,15 @@
+menu "HSPL"
+	config HSPL
+		bool "Enable HSPL (Hardware Spin Lock)"
+		default y
+		help
+			Enable HSPL hardware spinlock driver.
+
+	config HSPL_TEST
+		depends on HSPL && DRIVER_TEST
+		bool "Enable HSPL test"
+		default n
+		help
+			Enable HSPL driver CLI test commands.
+endmenu
+

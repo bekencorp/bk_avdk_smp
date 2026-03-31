@@ -1,0 +1,10 @@
+menu "Wakeup"
+	config WAKEUP
+		bool "Enable Interrupt Wakeup"
+		default n
+
+	config WAKEUP_TEST
+		depends on WAKEUP
+		bool "Enable wakeup test"
+		default n
+endmenu

@@ -1,0 +1,6 @@
+menu "Smart Lock"
+
+    config INTEGRATION_DOORBELL
+        bool "Doorbell integration"
+        default n
+endmenu

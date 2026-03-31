@@ -1,0 +1,151 @@
+menu "GPIO"
+	config GPIO
+		bool "Enable GPIO"
+		default y
+
+	config AON_GPIO
+		bool "Enable AON_GPIO"
+		default y
+
+	config ANA_GPIO
+		bool "Enable ANA_GPIO"
+		default n
+
+	config GPIO_WAKEUP_SUPPORT
+		bool "Enable GPIO WAKEUP system if at low voltage status"
+		default n
+
+	config GPIO_DYNAMIC_WAKEUP_SUPPORT
+		bool "Enable GPIO dynamic config to wake system if at low volatage status"
+		depends on GPIO_WAKEUP_SUPPORT
+		default n
+
+	config GPIO_KPSTAT_SUPPORT
+		bool "Enable GPIO keep status during low voltage"
+		default n
+
+	config GPIO_DYNAMIC_KPSTAT_SUPPORT
+		bool "Enable GPIO dynamic config to keep gpio status at low voltage status"
+		depends on GPIO_KPSTAT_SUPPORT
+		default n
+
+	config GPIO_DYNAMIC_KEEP_STATUS_MAX_CNT
+		int "how many gpio can dynamic set to keep status at low power status"
+		range 0 48
+		default 4
+		help
+		The value should be changed if need more then 4 gpio
+
+	config GPIO_WAKEUP_DEBUG
+		bool "Enable GPIO wakeup module debug code"
+		depends on GPIO_WAKEUP_SUPPORT
+		default n
+
+	config GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT
+		int "how many gpio can dynamic set to wakeup system at low power status"
+		range 0 48
+		default 4
+		help
+		The value should be changed if need more then 4 gpio
+
+	config CONFIG_GPIO_WAKEUP_ID
+		int "specific port for GPIO wakeup"
+		range 0 48
+		default 22
+		help
+		Only one port is supported for now
+
+	config CONFIG_GPIO_WAKEUP_INT_TYPE
+		int "which intterupt type for GPIO wakeup"
+		range 0 3
+		default 0
+		help
+		0: set gpio as low level intterrupt type
+		1: set gpio as high level intterrupt type
+		2: set gpio as rising edge intterrupt type
+		3: set gpio as falling edge intterrupt type
+
+	config GPIO_SIMULATE_UART_WRITE
+		bool "Enable GPIO simulate uart write data"
+		default n
+
+	config GPIO_DEFAULT_SET_SUPPORT
+		bool "Enable GPIO default set devs"
+		default n
+
+	config GPIO_ANA_WAKEUP_SUPPORT
+		bool "Enable GPIO wakeup system from analog channel"
+		default n
+		help
+			This is for super deep sleep
+
+	config GPIO_CLOCK_SWITCH_EN
+		bool "Enable GPIO clock select from 32k/26m"
+		default n
+
+	config GPIO_RETENTION_SUPPORT
+		bool "Enable GPIO retention for (super) deep sleep and soft reset"
+		default n
+		help
+			If not open, gpio could not keep state when the always on power domain is off
+
+	config GPIO_RETENTION_DISPOSABLE
+		bool "Decide GPIO retention is disposable or permanent"
+		default y
+
+	config USR_GPIO_CFG_EN
+		bool "Enable user-defined GPIO config for each project"
+		depends on GPIO_DEFAULT_SET_SUPPORT
+		default n
+
+	config GPIO_TEST
+		depends on GPIO && DRIVER_TEST
+		bool "Enable gpio test"
+		default y
+
+	config GPIO_DUMP_MAP_DEV_DEBUG
+		bool "Enable GPIO MAP DEV DEBUG CODE"
+		default n
+
+	config DEFAULT_WAKEUP_SOURCE
+		bool "GPIO_10 as default wakeup source"
+		depends on GPIO_WAKEUP_SUPPORT
+		default y
+		help
+			Enable GPIO_10 as the default wakeup source.
+			When set to 'n', you need to define GPIO_STATIC_WAKEUP_SOURCE_MAP in usr_gpio_cfg.h
+			to configure custom wakeup source mapping.
+			Note: This configuration table is only supported on the CP side.
+
+	config LDO3V3_CTRL_GPIO
+		int "GPIO pin for LDO 3.3V control"
+		default 255
+		help
+			Specify the GPIO pin number for LDO 3.3V control.
+			Customers should configure the GPIO according to their circuit's LDO pin,
+			otherwise some peripherals may not work properly.
+			Set to 255 to disable this feature.
+
+	config GPIO_API_TEST
+		depends on GPIO && DRIVER_TEST
+		bool "Enable gpio api test"
+		default n
+		help
+			Enable gpio api test.
+
+	config GPIO_CLOCK_PIN_SUPPORT
+		bool "Enable gpio clock pin test"
+		default n
+
+	choice GPIO_VERSION
+		prompt "ASIC GPIO IP Version"
+		default GPIO_V1PX
+
+		config GPIO_V1PX
+			bool "GPIO_V1PX"
+
+		config GPIO_V2PX
+			bool "GPIO_V2PX"
+	endchoice
+endmenu
+

@@ -1,0 +1,22 @@
+menu "Palm Recognition AI Car Configuration"
+
+	choice PALM_AI_CAR_CONTROL_MODE
+		prompt "Select AI car control mode"
+		default PALM_AI_CAR_CONTROL_MODE_DIRECT
+		help
+			Select how palm recognition results are used by the AI car.
+
+		config PALM_AI_CAR_CONTROL_MODE_DIRECT
+			bool "Directly control AI car"
+			help
+				Use palm recognition results to directly drive the AI car.
+
+		config PALM_AI_CAR_CONTROL_MODE_SEND_COORD
+			bool "Send recognition coordinates"
+			help
+				Send palm recognition coordinates instead of directly controlling the AI car.
+
+	endchoice
+
+endmenu
+

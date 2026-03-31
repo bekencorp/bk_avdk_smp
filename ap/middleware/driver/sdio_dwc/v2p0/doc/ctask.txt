@@ -1,0 +1,62 @@
+CTask
+========
+
+1.Introduction 
+============
+	CTask is an pseudo task schedular in os-less enviroment,
+designed based on function schedular, where each task is an
+function, ctask_schedular() invokes list of function/ctasks 
+created based on order of creation. 
+	In os-less enviroment, there are no way to create the
+task/thread, however there exist only two threads, one main
+application thread running in background (referred as background task)
+and other interrupt service routines based on interrupt events
+(referred as foreground task).
+	Due to this there are limitations to software design
+to partition the software components into independent modules 
+running parallel to each other with synchronization or
+communication between them. Hence each function modules has
+to run sequentially by interleaving in the main program.
+	Ctask overcome the limitation by scheduling the each
+funtion task sequentially with additional features like task
+sleep/delay, suspend/resume functionality.
+
+2. Limitations
+==============
+1) There is no real task context switching.
+2) Purely based on function schedular.
+3) The function or task cannot remember its last executed
+   instruction or statement. Hence the user has to take
+   to design the task based on state driven model, where
+   each state is one executable steps and transition to 
+   next step by state transition.
+4) CTask preseves the states of each task and resume from
+   current state when it is reschedular by ctask schedular.
+
+3. CTask Features
+==================
+	CTasks can suspend when CSemaphore is taken and
+NOT available and resume automatically when Csempahore 
+becomes available. 
+	CTasks can sleep/delay to specific amount of 
+time or duration in ms.
+
+4.CTask source directory structure
+==================================
+
+├── os
+│   └── nos
+│       ├── ctask.c
+│       └── ctask.h
+
+4. CTask API
+==================
+int ctask_create(char *name, int (*fn)(uint8_t task_id, uint32_t *arg_list),
+        uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t arg4);
+int ctask_enable(uint8_t task_id);
+int ctask_suspend(uint8_t task_id);
+int ctask_resume(uint8_t task_id);
+int ctask_sleep(uint8_t task_id, uint32_t delay_ms);
+void ctask_schedular(void);
+int ctask_get_fnstate(uint8_t task_id);
+int ctask_set_fnstate(uint8_t task_id, uint8_t nxt_state);

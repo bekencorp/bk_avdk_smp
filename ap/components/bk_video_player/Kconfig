@@ -1,0 +1,11 @@
+menu "Bk_video_player"
+
+    config AVI_PLAYER
+        bool "Enable AVI Player"
+        default n
+
+    config AVI_PLAYER_JPEG_DECODE_OPT
+        depends on AVI_PLAYER
+        bool "Enable AVI Player jpeg decode optimization"
+        default n
+endmenu

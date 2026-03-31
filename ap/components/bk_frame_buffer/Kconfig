@@ -1,0 +1,5 @@
+menu "frame Buffer"
+	config FRAME_BUFFER
+		bool "enable psram as frame buffer for saving image"
+		default n
+endmenu

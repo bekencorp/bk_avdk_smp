@@ -1,0 +1,10 @@
+menu "EFUSE"
+	config EFUSE
+		bool "Enable efuse"
+		default y
+
+	config EFUSE_TEST
+		depends on EFUSE && DRIVER_TEST
+		bool "Enable efuse test"
+		default y
+endmenu

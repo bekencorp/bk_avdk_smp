@@ -1,0 +1,162 @@
+#
+# Automatically generated file. DO NOT EDIT.
+# BEKEN IoT Development Framework (BEKEN-ARMINO)  Project Configuration
+#
+
+#
+# SOC_CONFIG
+#
+CONFIG_SOC_BK7259=y
+# CONFIG_SOC_BK7259_AP is not set
+# CONFIG_SOC_BK7258 is not set
+# CONFIG_SOC_BK7257 is not set
+CONFIG_CPU_CNT=1
+CONFIG_SOC_STR="bk7259"
+CONFIG_SOC_ARCH="cm55"
+# CONFIG_SOC_BK7236XX is not set
+# CONFIG_SOC_SMP is not set
+CONFIG_COMPILER_STACK_CHECK_MODE_NORM=y
+# CONFIG_COMPILER_STACK_CHECK_MODE_STRONG is not set
+# CONFIG_COMPILER_STACK_CHECK_MODE_ALL is not set
+# end of SOC_CONFIG
+
+#
+# ARMINO Configuration
+#
+
+#
+# Common Configuration
+#
+
+#
+# Compile/Build
+#
+CONFIG_OBJDUMP=y
+CONFIG_BUILD_DEFAULT_VERSION=y
+# CONFIG_DEBUG_VERSION is not set
+# CONFIG_RELEASE_VERSION is not set
+# end of Compile/Build
+
+#
+# Debug
+#
+# CONFIG_ASSERT_IGNORE is not set
+# CONFIG_ASSERT_HALT is not set
+CONFIG_ASSERT_REBOOT=y
+# CONFIG_JTAG is not set
+# CONFIG_SWD_DEBUG_MODE is not set
+# end of Debug
+# end of Common Configuration
+
+#
+# Features Configuration
+#
+CONFIG_NO_HOSTED=y
+# CONFIG_SEMI_HOSTED is not set
+# CONFIG_FULLY_HOSTED is not set
+# CONFIG_WIFI_SENSOR is not set
+# CONFIG_BLUETOOTH is not set
+# end of Features Configuration
+
+#
+# Modules Configuration
+#
+
+#
+# Components Configuration
+#
+
+#
+# Middleware Configuration
+#
+
+#
+# Projects Configuration
+#
+
+#
+# Properties Configuration
+#
+
+#
+# modules::uid
+#
+CONFIG_UID=y
+CONFIG_UID_GET_ITEM_FROM_OTP=30
+CONFIG_UID_GET_SIZE_FROM_OTP=5
+# CONFIG_UID_TEST is not set
+CONFIG_UID_GET_OFFSET_FROM_OTP=0x3C0
+# end of modules::uid
+
+#
+# modules::usb
+#
+CONFIG_USB=y
+
+#
+# Modify USB Config
+#
+CONFIG_USB_OS=y
+# CONFIG_USB_NONE is not set
+# end of Modify USB Config
+# end of modules::usb
+
+#
+# AUDIO_AACDEC
+#
+# CONFIG_AUDIO_AACDEC is not set
+# end of AUDIO_AACDEC
+
+# CONFIG_DPU is not set
+# CONFIG_DPU_VIV_TEST is not set
+# CONFIG_DPU_BK_TEST is not set
+
+#
+# modules::ISP
+#
+CONFIG_ISP_LOG_LEVEL=3
+# CONFIG_ISP_CASE_SP_FLEXA is not set
+# CONFIG_ISP_CASE_SP_FRAME is not set
+# CONFIG_ISP_CASE_SP_GPU is not set
+# CONFIG_ISP_CASE_SP_PD is not set
+CONFIG_ISP_BLS_V10=y
+CONFIG_ISP_GAMMA_IN_V10=y
+CONFIG_ISP_LSC_V10=y
+CONFIG_ISP_WB_V10=y
+CONFIG_ISP_DMSC_V10=y
+CONFIG_ISP_CCM_V10=y
+CONFIG_ISP_GAMMA_OUT_V20=y
+CONFIG_ISP_CSM_V10=y
+CONFIG_ISP_CPROC_V11=y
+CONFIG_ISP_HIST256=y
+CONFIG_ISP_DPF_V10=y
+CONFIG_ISP_DG_V11=y
+CONFIG_ISP_DPCC_V10=y
+CONFIG_ISP_2DNR_V30=y
+CONFIG_ISP_SCALE_V20=y
+CONFIG_ISP_GE_V20=y
+CONFIG_ISP_AE_V10=y
+CONFIG_ISP_WBM_V10=y
+CONFIG_ISP_SBI_V10=y
+CONFIG_ISP_FLEXA_V10=y
+CONFIG_ISP_WDR_V30=y
+CONFIG_ISP_SENSOR="ov2775"
+CONFIG_ISP_OS="freertos"
+CONFIG_ISP_AE_ALGO_V10=y
+CONFIG_ISP_AWB_ALGO_V10=y
+CONFIG_ISP_FLT_V10=y
+# end of modules::ISP
+
+#
+# modules::vg_lite_gpu
+#
+# CONFIG_VG_LITE_GPU is not set
+CONFIG_VG_LITE_LOG_LEVEL=0
+# end of modules::vg_lite_gpu
+# end of Properties Configuration
+
+#
+# Extra Modules Configuration
+#
+# end of Modules Configuration
+# end of ARMINO Configuration

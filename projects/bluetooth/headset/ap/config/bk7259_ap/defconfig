@@ -1,0 +1,20 @@
+#
+# Automatically generated project default config. You can update it with menuconfig [D] option.
+# This file contains only differences compared to board defconfig.
+#
+
+# CONFIG_SOC_SMP is not set
+# CONFIG_ALL_CODE_IN_PSRAM is not set
+CONFIG_BLUETOOTH_AP=y
+CONFIG_BT=y
+CONFIG_FREERTOS_V10=y
+# CONFIG_FREERTOS_SMP is not set
+CONFIG_MEDIA_SERVICE=y
+
+# CONFIG_SPI is not set
+# CONFIG_SPI_DMA is not set
+# CONFIG_GENERAL_DMA is not set
+CONFIG_DMA_LOGIC_CHAN_CNT=16
+CONFIG_DMA_LOGIC_CHAN_ID_MIN=0
+CONFIG_XTAL_FREQ=12000000
+CONFIG_HFP_HF_DEMO=y

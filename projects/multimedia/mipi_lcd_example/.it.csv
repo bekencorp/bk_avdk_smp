@@ -1,0 +1,7 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+mipi_lcd_01,  lcd open hx8399c_mipi_1080x1920 rgb565,,CMDRSP:OK,5
+mipi_lcd_02,  lcd open hx8399c_mipi_1080x1920 nv12 software_test,,CMDRSP:OK,5
+mipi_lcd_03,  lcd open hx8399c_mipi_1080x1920 argb8888_compress,,CMDRSP:OK,5
+mipi_lcd_04,  lcd close,,CMDRSP:OK,5
+
+

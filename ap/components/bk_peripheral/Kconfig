@@ -1,0 +1,15 @@
+menu "bk peripheral"
+
+	config BK_PERIPHERAL
+		bool "Enable bk peripheral"
+		default n
+
+	source "${ARMINO_AP_DIR}/components/bk_peripheral/src/lcd/rgb/Kconfig"
+	source "${ARMINO_AP_DIR}/components/bk_peripheral/src/lcd/mcu/Kconfig"
+	source "${ARMINO_AP_DIR}/components/bk_peripheral/src/lcd/qspi/Kconfig"
+	source "${ARMINO_AP_DIR}/components/bk_peripheral/src/lcd/spi/Kconfig"
+	source "${ARMINO_AP_DIR}/components/bk_peripheral/src/lcd/dsi/Kconfig"
+	source "${ARMINO_AP_DIR}/components/bk_peripheral/src/dvp/Kconfig"
+	source "${ARMINO_AP_DIR}/components/bk_peripheral/src/tp/Kconfig"
+	source "${ARMINO_AP_DIR}/components/bk_peripheral/src/csi/Kconfig"
+endmenu

@@ -1,0 +1,16 @@
+menu "IPI"
+	config IPI
+		bool "Enable IPI (Inter-Processor Interrupt)"
+		default y
+		help
+			Enable IPI driver for inter-core communication.
+			IPI allows different CPU cores to send interrupts to each other.
+
+	config IPI_TEST
+		depends on IPI && DRIVER_TEST
+		bool "Enable IPI test"
+		default n
+		help
+			Enable IPI driver test cases.
+endmenu
+

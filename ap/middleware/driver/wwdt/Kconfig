@@ -1,0 +1,17 @@
+menu "Watchdog"
+	config SUPPORT_WWDT
+		depends on WDT_EN
+		bool "Enable Window Watchdog"
+		default n
+
+	config INT_WWDT_PERIOD_MS
+		depends on SUPPORT_WWDT
+		int "Interrupt Watchdog Period(ms)"
+		default 8000
+
+	config WWDT_TEST
+		depends on SUPPORT_WWDT && DRIVER_TEST
+		bool "Enable window watchdog test"
+		default y
+endmenu
+

@@ -1,0 +1,7 @@
+menu "ASPL"
+	config SSPL_TEST
+		bool "Enable SSPL test"
+		default n
+		help
+			Enable SSPL driver CLI test commands.
+endmenu
