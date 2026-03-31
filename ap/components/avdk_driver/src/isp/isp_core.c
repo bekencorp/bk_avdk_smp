@@ -364,7 +364,8 @@ bk_err_t bk_cis_auxs_clock_enable(uint32_t clk, uint32_t gpio, uint8_t enable)
         uint32_t reg_value = REG_READ(REG_SYS_BASE_ADDR + (0x9 << 2));
 
         // sel 1, 240MHz, div 10
-        sys_drv_cisp_cksel_clkdiv_set(CKSEL_CIS_AUXS_240M, 9);
+        sys_hal_cis_auxs_cksel_set(CKSEL_CIS_AUXS_240M);
+        sys_drv_cis_auxs_clkdiv_set(9);
 
         // enable csi auxs clock
         bk_pm_clock_ctrl(PM_CLK_ID_CISP, PM_CLK_CTRL_PWR_UP);
@@ -387,7 +388,7 @@ bk_err_t bk_cis_mclk_clock_enable(uint32_t clk, uint8_t gpio, uint8_t enable)
 
         // csi mclk clock configuration, default 24MHz
         // default sel 1, 240MHz div 10
-        sys_drv_cisp_cksel_clkdiv_set(CKSEL_CIS_MCLK_240M, 9);
+        sys_drv_cis_mclk_cksel_clkdiv_set(CKSEL_CIS_MCLK_240M, 9);
 
         // enable csi/mclk clock
         bk_pm_clock_ctrl(PM_CLK_ID_CISP, PM_CLK_CTRL_PWR_UP);
