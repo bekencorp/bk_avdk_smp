@@ -39,12 +39,20 @@ static void gpu_driver_init(void)
     bk_pm_clock_ctrl(PM_CLK_ID_GPU, PM_CLK_CTRL_PWR_UP);
 
     bk_int_isr_register(INT_SRC_GPU, vg_lite_IRQHandler, NULL);
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_GPU, 1);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GPU, 1);
+#endif
 }
 
 static void gpu_driver_deinit(void)
 {
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_GPU, 0);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GPU, 0);
+#endif
     bk_int_isr_unregister(INT_SRC_GPU);
 
     bk_pm_clock_ctrl(PM_CLK_ID_GPU, PM_CLK_CTRL_PWR_DOWN);

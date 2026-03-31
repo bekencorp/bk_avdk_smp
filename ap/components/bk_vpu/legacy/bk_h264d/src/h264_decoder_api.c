@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <os/os.h>
 #include "os/mem.h"
 #include <modules/h264d/dwl.h>
 #include <modules/h264d/ppapi.h>
@@ -125,8 +126,13 @@ static void h264d_int_register(void)
     bk_int_isr_register(INT_SRC_H264D_PP, (int_group_isr_t)&int_handler_h26d_pp, NULL);
     //enable_irq();
 
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H264D, 1);
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H264D_PP, 1);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_H264D, 1);
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_H264D_PP, 1);
+#endif
 
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_H26D, PM_POWER_MODULE_STATE_ON);
 }

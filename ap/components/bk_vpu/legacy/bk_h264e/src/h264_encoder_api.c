@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <os/os.h>
 #include <modules/h264e/enccfg.h>
 #include <modules/h264e/jpegencapi.h>
 #include <modules/h264e/hevcencapi.h>
@@ -88,7 +89,11 @@ static void h264e_int_isr()
 void h264e_int_register(void)
 {
     bk_int_isr_register(INT_SRC_H26E, (int_group_isr_t)&h264e_int_isr, NULL);
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H26E, 1);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_H26E, 1);
+#endif
 }
 
 static uint8_t vcenc_platform_inited = 0;

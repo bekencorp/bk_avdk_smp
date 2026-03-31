@@ -1,4 +1,4 @@
-#include "os/os.h"
+#include <os/os.h>
 #include <driver/int.h>
 #include "sys_driver.h"
 
@@ -189,15 +189,27 @@ static void bk_isp_int_config(int enable)
         bk_int_isr_register(INT_SRC_ISP_MI, bk_isp_isr, NULL);
         bk_int_isr_register(INT_SRC_ISP_FE, bk_isp_isr, NULL);
 
+#if CONFIG_SOC_SMP
         sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_ISP_ISP, 1);
         sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_ISP_MI, 1);
         sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_ISP_FE, 1);
+#else
+        sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_ISP_ISP, 1);
+        sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_ISP_MI, 1);
+        sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_ISP_FE, 1);
+#endif
     }
     else if (enable == 0)
     {
+#if CONFIG_SOC_SMP
         sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_ISP_ISP, 0);
         sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_ISP_MI, 0);
         sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_ISP_FE, 0);
+#else
+        sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_ISP_ISP, 0);
+        sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_ISP_MI, 0);
+        sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_ISP_FE, 0);
+#endif
 
         bk_int_isr_unregister(INT_SRC_ISP_ISP);
         bk_int_isr_unregister(INT_SRC_ISP_MI);

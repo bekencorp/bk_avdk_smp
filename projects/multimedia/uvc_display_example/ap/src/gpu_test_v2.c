@@ -61,7 +61,11 @@ static void gpu_test_int_config(void)
     REG_WRITE(SYS_M55_BASE_ADDR + 0x0A * 4, reg);
 
     bk_int_isr_register(INT_SRC_GPU, vg_lite_IRQHandler, NULL);
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_GPU, 1);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GPU, 1);
+#endif
 }
 
 static void gpu_test_addr_mapping_config(uint16_t width, uint16_t height, uint8_t buf_cnt, uint32_t y_addr)

@@ -163,7 +163,11 @@ void bk_mipi_csi_enable_debug_pin(void)
     REG_WRITE(0x48000000 + 0x23 * 4, reg); //mipi debug mode
 
     bk_int_isr_register(INT_SRC_CSI, bk_csi_isr, NULL);
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_CSI, 1);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_CSI, 1);
+#endif
 }
 
 void bk_mipi_csi_disable_debug_pin(void)

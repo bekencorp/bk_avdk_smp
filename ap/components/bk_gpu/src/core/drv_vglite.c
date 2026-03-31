@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <os/os.h>
 #include <driver/int.h>
 #include "sys_driver.h"
 #include <driver/sys_pm.h>
@@ -36,7 +37,11 @@ int gpu_bsp_init(uint32_t tess_width, uint32_t tess_heigth)
     bk_pm_clock_ctrl(PM_CLK_ID_GPU, PM_CLK_CTRL_PWR_UP);
 
     bk_int_isr_register(INT_SRC_GPU, vg_lite_IRQHandler, NULL);
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_GPU, 1);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GPU, 1);
+#endif
 
     return vg_lite_init(tess_width, tess_heigth);
 }
@@ -45,7 +50,11 @@ int gpu_bsp_terminate(void)
 {
     vg_lite_close();
 
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_GPU, 0);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GPU, 0);
+#endif
     bk_int_isr_unregister(INT_SRC_GPU);
 
     bk_pm_clock_ctrl(PM_CLK_ID_GPU, PM_CLK_CTRL_PWR_DOWN);

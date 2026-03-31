@@ -160,7 +160,11 @@ static void mipi_dsi_isr()
 void mipi_dsi_interrupt_init(void)
 {
     bk_int_isr_register(INT_SRC_DSI, (int_group_isr_t)mipi_dsi_isr, NULL);
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_DSI, 1);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_DSI, 1);
+#endif
 }
 
 void mipi_dsi_sys_init(void)
@@ -282,7 +286,11 @@ static bk_err_t mipi_dsi_bus_io_del(bk_lcd_bus_io_t *panel)
     /* dphy power down */
     hal_dsi_dphy_power_down();
     /* interrupt disable*/
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_DSI, 0);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_DSI, 0);
+#endif
     bk_int_isr_unregister(INT_SRC_DSI);
     /* clk close */
     hal_dsi_sys_clk_switch(0);

@@ -248,12 +248,20 @@ void dpu_syc_clk_deinit(void)
 void dpu_sys_interrupt_init(void)
 {
     bk_int_isr_register(INT_SRC_DPU, (int_group_isr_t)dpu_isr, NULL);
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_DPU, 1);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_DPU, 1);
+#endif
 }
 
 void dpu_sys_interrupt_deinit(void)
 {
+#if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_DPU, 0);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_DPU, 0);
+#endif
     bk_int_isr_unregister(INT_SRC_DPU);
 }
 
