@@ -827,11 +827,11 @@ int httpclient_response_parse(httpclient_t *client, char *data, int len, uint32_
 		n = sscanf(data, "%31[^:]: %31[^\r\n]", key, value);
 		if (n == 2) {
 			log_debug("Read header : %s: %s", key, value);
-			if (!os_strcmp(key, "Content-Length")) {
+			if (!os_strcasecmp(key, "Content-Length")) {
 				sscanf(value, "%d", &(client_data->response_content_len));
 				client_data->retrieve_len = client_data->response_content_len;
-			} else if (!os_strcmp(key, "Transfer-Encoding")) {
-				if (!os_strcmp(value, "Chunked") || !os_strcmp(value, "chunked")) {
+			} else if (!os_strcasecmp(key, "Transfer-Encoding")) {
+				if (!os_strcasecmp(value, "Chunked")) {
 					client_data->is_chunked = true;
 					client_data->response_content_len = 0;
 					client_data->retrieve_len = 0;
