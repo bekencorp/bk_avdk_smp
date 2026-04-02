@@ -349,6 +349,7 @@ u32_t beken_random(void);
  * LWIP_RAW==1: Enable application layer to hook into the IP layer itself.
  */
 #define LWIP_RAW                        1
+#define LWIP_SUPPORT_CUSTOM_PBUF        1
 #ifdef CONFIG_IPV6
 #define LWIP_IPV6                        1
 #define LWIP_NETIF_EXT_STATUS_CALLBACK  1

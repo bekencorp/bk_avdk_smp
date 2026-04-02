@@ -341,10 +341,10 @@ static bk_err_t low_level_init(struct netif *netif)
   heth.Init.RxDesc = DMARxDscrTab;
   heth.Init.RxBuffLen = 1536;
 
-  hal_eth_init_status = HAL_ETH_Init(&heth);
-
-  /* Initialize the RX POOL */
+  /* Initialize the RX POOL (must be before HAL_ETH_Init which allocates RX buffers) */
   LWIP_MEMPOOL_INIT(RX_POOL);
+
+  hal_eth_init_status = HAL_ETH_Init(&heth);
 
 #if LWIP_ARP || LWIP_ETHERNET
 
@@ -425,7 +425,7 @@ static bk_err_t low_level_init(struct netif *netif)
   rtos_init_queue(&priv->eventq, "core_queue", sizeof(BUS_MSG_T), 64);
 
   /* create ethernet main thread */
-  ret = rtos_create_thread(NULL, 1 /* BEKEN_APPLICATION_PRIORITY */, /* TBD: ETH priority */
+  ret = rtos_create_sram_thread(NULL, BEKEN_APPLICATION_PRIORITY , /* TBD: ETH priority */
       "EthIf", ethernetif_core_thread, 4096, netif);
   if (ret != BK_OK) {
     LWIP_LOGE("%s create EthIf thread failed: %d\n", __func__, ret);
