@@ -64,7 +64,7 @@ extern "C" {
 #endif /* ETH_TX_DESC_CNT */
 
 #ifndef ETH_RX_DESC_CNT
-#define ETH_RX_DESC_CNT         16U
+#define ETH_RX_DESC_CNT         12U
 #endif /* ETH_RX_DESC_CNT */
 
 #ifndef ETH_SWRESET_TIMEOUT
