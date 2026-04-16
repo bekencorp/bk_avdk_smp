@@ -94,7 +94,6 @@ static void *_net_source_bg_thread(void *param)
     source = (bk_audio_player_source_t *)param;
     priv = (net_source_priv_t *)source->source_priv;
 
-    priv->runing = 1;
     retry = WEB_RETRY_COUNT;
 
     net_set_socket_timeout(priv->session, 500);
@@ -194,6 +193,8 @@ static int net_source_start_worker(bk_audio_player_source_t *source)
 
     osal_init_sema(&priv->thread_sem, 1, 0);
 
+    priv->runing = 1;
+
     ret = osal_create_thread(&priv->tid, (osal_thread_func)_net_source_bg_thread, 4096, "net", source, BEKEN_DEFAULT_WORKER_PRIORITY);
     if (ret)
     {
@@ -202,6 +203,7 @@ static int net_source_start_worker(bk_audio_player_source_t *source)
         priv->net_buffer = NULL;
         rb_destroy(priv->pipe);
         priv->pipe = NULL;
+        priv->runing = 0;
         return AUDIO_PLAYER_ERR;
     }
     else
@@ -418,7 +420,14 @@ static int net_source_seek(bk_audio_player_source_t *source, int offset, uint32_
     {
         if (priv->content_length != -1)
         {
-            seek_offset = priv->content_length - offset;
+            if (offset < 0)
+            {
+                seek_offset = priv->content_length + offset;
+            }
+            else
+            {
+                seek_offset = priv->content_length - offset;
+            }
         }
     }
 

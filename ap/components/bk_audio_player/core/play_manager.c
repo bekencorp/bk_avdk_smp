@@ -192,11 +192,14 @@ static const char *event_strs[] =
     "SONG_PAUSE",
     "SONG_RESUME",
     "SONG_TICK",
+    "SEEK_COMPLETE",
 };
 
 static const char *get_event_str(int event)
 {
-    if (event >= 0 && event < AUDIO_PLAYER_EVENT_LAST)
+    const int n = (int)(sizeof(event_strs) / sizeof(event_strs[0]));
+
+    if (event >= 0 && event < n && event < (int)AUDIO_PLAYER_EVENT_LAST)
     {
         return event_strs[event];
     }
