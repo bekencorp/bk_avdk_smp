@@ -232,6 +232,7 @@ typedef struct
            .sample_rate = 8000,                                 \
            .dig_gain = 0x28,                                    \
            .ana_gain = 0x8,                                     \
+           .mic_swap = false,                                   \
            .mode = AUD_ADC_MODE_DIFFEN,                         \
            .clk_src = AUD_CLK_XTAL,                             \
         },                                                      \
@@ -361,6 +362,7 @@ typedef struct
            .sample_rate = 16000,                                                \
            .dig_gain = 0x28,                                                    \
            .ana_gain = 0x8,                                                     \
+           .mic_swap = false,                                                   \
            .mode = AUD_ADC_MODE_DIFFEN,                                         \
            .clk_src = AUD_CLK_XTAL,                                             \
         },                                                                      \
@@ -611,6 +613,7 @@ typedef struct
                 .sample_rate = 8000,                                \
                 .dig_gain = 0x28,                                   \
                 .ana_gain = 0x8,                                    \
+                .mic_swap = false,                                  \
                 .mode = AUD_ADC_MODE_DIFFEN,                        \
                 .clk_src = AUD_CLK_XTAL,                            \
             },                                                      \
@@ -755,6 +758,7 @@ typedef struct
            .sample_rate = 16000,                                \
            .dig_gain = 0x28,                                    \
            .ana_gain = 0x8,                                     \
+           .mic_swap = false,                                   \
            .mode = AUD_ADC_MODE_DIFFEN,                         \
            .clk_src = AUD_CLK_APLL,                             \
         },                                                      \
@@ -887,6 +891,7 @@ typedef struct
                 .sample_rate = 16000,                               \
                 .dig_gain = 0x28,                                   \
                 .ana_gain = 0x8,                                    \
+                .mic_swap = false,                                  \
                 .mode = AUD_ADC_MODE_DIFFEN,                        \
                 .clk_src = AUD_CLK_XTAL,                            \
             },                                                      \
@@ -1022,6 +1027,7 @@ typedef struct
            .sample_rate = 8000,                                 \
            .dig_gain = 0x28,                                    \
            .ana_gain = 0x8,                                     \
+           .mic_swap = false,                                   \
            .mode = AUD_ADC_MODE_DIFFEN,                         \
            .clk_src = AUD_CLK_XTAL,                             \
         },                                                      \
@@ -1189,6 +1195,7 @@ typedef struct
                 .sample_rate = 16000,                               \
                 .dig_gain = 0x28,                                   \
                 .ana_gain = 0x8,                                    \
+                .mic_swap = false,                                  \
                 .mode = AUD_ADC_MODE_DIFFEN,                        \
                 .clk_src = AUD_CLK_XTAL,                            \
             },                                                      \
@@ -1324,6 +1331,7 @@ typedef struct
            .sample_rate = 16000,                                                \
            .dig_gain = 0x28,                                                    \
            .ana_gain = 0x8,                                                     \
+           .mic_swap = false,                                                   \
            .mode = AUD_ADC_MODE_DIFFEN,                                         \
            .clk_src = AUD_CLK_XTAL,                                             \
         },                                                                      \

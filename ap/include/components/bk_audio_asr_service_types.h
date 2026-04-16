@@ -110,6 +110,7 @@ typedef struct asr * asr_handle_t;
            .sample_rate = 8000,                                 \
            .dig_gain = 0x28,                                    \
            .ana_gain = 0x8,                                     \
+           .mic_swap = false,                                   \
            .mode = AUD_ADC_MODE_DIFFEN,                         \
            .clk_src = AUD_CLK_XTAL,                             \
         },                                                      \

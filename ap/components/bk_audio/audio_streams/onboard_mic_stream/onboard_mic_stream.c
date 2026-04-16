@@ -379,7 +379,11 @@ static int _onboard_mic_read(audio_port_handle_t self, char *buffer, int len, Ti
         int16_t *ptr = (int16_t *)buffer;
         for (uint32_t i = 0; i < ret / 4; i++)
         {
-            ptr[i] = ptr[2 * i];
+            if (onboard_mic->adc_cfg.mic_swap) {
+                ptr[i] = ptr[2 * i + 1];  // remain ADCR data
+            } else {
+                ptr[i] = ptr[2 * i];      // remain ADCL data
+            }
         }
         ret = ret / 2;
     }
@@ -586,7 +590,11 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     }
     if (config->adc_cfg.chl_num == 1)
     {
-        ret = bk_aud_adc_set_mic_mode(AUD_MIC_MIC1, config->adc_cfg.mode);
+        if (config->adc_cfg.mic_swap) {
+            ret = bk_aud_adc_set_mic_mode(AUD_MIC_MIC2, config->adc_cfg.mode);
+        } else {
+            ret = bk_aud_adc_set_mic_mode(AUD_MIC_MIC1, config->adc_cfg.mode);
+        }
     }
     else
     {
@@ -598,7 +606,11 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
         goto _onboard_mic_init_exit;
     }
 
-    bk_aud_set_ana_mic0_gain(config->adc_cfg.ana_gain);
+    if (config->adc_cfg.mic_swap) {
+        bk_aud_set_ana_mic1_gain(config->adc_cfg.ana_gain);
+    } else {
+        bk_aud_set_ana_mic0_gain(config->adc_cfg.ana_gain);
+    }
 
     ret = aud_adc_dma_config(gl_onboard_mic);
     if (ret != BK_OK)
@@ -711,6 +723,7 @@ bk_err_t onboard_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_
 
 bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_stream, uint8_t gain)
 {
+    bk_err_t ret = BK_OK;
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
 
     /* check param */
@@ -733,15 +746,21 @@ bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_s
         return BK_OK;
     }
 
-	if (BK_OK == bk_aud_set_ana_mic0_gain(gain))
-	{
-		onboard_mic->adc_cfg.ana_gain = gain;
-		audio_element_setdata(onboard_mic_stream, onboard_mic);
-	} else
-	{
-		BK_LOGE(TAG, "%s, line: %d, update mic analog gain fail \n", __func__, __LINE__);
-		return BK_FAIL;
-	}
+    if (onboard_mic->adc_cfg.mic_swap) {
+        ret = bk_aud_set_ana_mic1_gain(gain);
+    } else {
+        ret = bk_aud_set_ana_mic0_gain(gain);
+    }
+
+    if (ret == BK_OK)
+    {
+        onboard_mic->adc_cfg.ana_gain = gain;
+        audio_element_setdata(onboard_mic_stream, onboard_mic);
+    } else
+    {
+        BK_LOGE(TAG, "%s, line: %d, update mic analog gain fail \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
 
     return BK_OK;
 }

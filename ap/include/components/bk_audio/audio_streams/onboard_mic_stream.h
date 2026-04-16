@@ -35,6 +35,7 @@ typedef struct
     uint32_t                sample_rate;      /*!< mic sample rate */
     int32_t                 dig_gain;         /*!< audio adc digital gain: value range: 0x00 ~ 0x3f(-45db ~ 18db, 0x2d: 0db), suggest: 0x2d */
     int32_t                 ana_gain;         /*!< audio adc analog gain: value range: , suggest: */
+    bool                    mic_swap;         /*!< main mic select, false:mic1 default, true:mic2, */
     aud_adc_mode_t          mode;             /*!< mic interface mode: signal_ended/differen */
     aud_clk_t               clk_src;          /*!< audio clock: XTAL(26MHz)/APLL */
 } adc_cfg_t;
@@ -145,6 +146,7 @@ typedef struct
                    .sample_rate = 8000,                     \
                    .dig_gain = 0x2D,                        \
                    .ana_gain = 0x00,                        \
+                   .mic_swap = false,                       \
                    .mode = AUD_ADC_MODE_DIFFEN,             \
                    .clk_src = AUD_CLK_XTAL,                 \
                },                                           \

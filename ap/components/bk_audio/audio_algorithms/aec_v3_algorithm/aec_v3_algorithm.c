@@ -567,8 +567,8 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     if(aec->dual_ch)
     {
         aec->aec_ctx->interweave = aec->aec_cfg.interweave;
-        aec->aec_ctx->dist = aec->aec_cfg.dist;
-        aec->aec_ctx->mic_swap = aec->aec_cfg.mic_swap;
+        aec->aec_ctx->dist       = aec->aec_cfg.dist;
+        aec->aec_ctx->mic_swap   = aec->aec_cfg.mic_swap;
         if(aec->vad_cfg.vad_enable)
         {
             aec->aec_ctx->vad = 1;
@@ -772,10 +772,15 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         if (aec->aec_cfg.mode == AEC_MODE_HARDWARE)
         {
             int16_t *lr_data_ptr = (int16_t *)in_buffer;
-            for (uint16_t i = 0; i < r_size / 4; i++)
+            for (uint16_t i = 0; i < (r_size>>2); i++)
             {
-                aec->mic_addr[i] = lr_data_ptr[2 * i];
-                aec->ref_addr[i] = lr_data_ptr[2 * i + 1];
+                if (aec->aec_cfg.mic_swap) {
+                    aec->mic_addr[i] = lr_data_ptr[2 * i + 1];
+                    aec->ref_addr[i] = lr_data_ptr[2 * i];
+                } else {
+                    aec->mic_addr[i] = lr_data_ptr[2 * i];
+                    aec->ref_addr[i] = lr_data_ptr[2 * i + 1];
+                }
             }
         }
         else
