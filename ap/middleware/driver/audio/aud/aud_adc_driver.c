@@ -72,6 +72,11 @@ bk_err_t bk_aud_adc_init(aud_adc_config_t *adc_config)
 	/* select audio clock */
 	bk_aud_clk_config(adc_config->clk_src);
 
+	if (adc_config->clk_src == AUD_CLK_APLL)
+	{
+		sys_drv_dmic_clk_div_set(0x1);
+	}
+
 //	sys_drv_analog_reg12_set(0x81B0E0E0);
 
 	//enable mic1 and mic2
@@ -149,6 +154,8 @@ bk_err_t bk_aud_adc_deinit(void)
 	aud_hal_set_adc_config0_adc_hpf2_bypass(0);
 
 	bk_aud_adc_set_samp_rate(8000);
+
+	sys_drv_dmic_clk_div_set(0);
 
 	bk_err_t ret = bk_aud_set_module_init_sta(AUD_MODULE_ADC, false);
 
