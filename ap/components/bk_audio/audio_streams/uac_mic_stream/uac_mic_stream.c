@@ -168,6 +168,7 @@ typedef struct uac_mic_stream
     uac_mic_sta_t                 status;                /**< uac mic status */
 } uac_mic_stream_t;
 
+static bk_err_t usb_hub_uac_mic_port_device_urb_fill(uac_mic_stream_t *uac_mic);
 
 bk_err_t uac_mic_drv_send_msg(uac_mic_stream_t *uac_mic, uac_mic_drv_op_t op, void *param)
 {
@@ -308,6 +309,17 @@ static void usb_hub_uac_mic_port_dev_complete_callback(void *pCompleteParam, int
         {
             ring_buffer_write(&uac_mic->mic_rb, (uint8_t *)uac_mic->uac_mic_urb->transfer_buffer, nbytes);
         }
+    }
+    else
+    {
+        BK_LOGW(TAG, "%s, %d, usb hub port receive data error, re-trigger ep\n", __func__, __LINE__);
+        usb_hub_uac_mic_port_device_urb_fill(uac_mic);
+        ret = bk_usbh_hub_dev_request_data(uac_mic->port_index, USB_UAC_MIC_DEVICE, uac_mic->uac_mic_urb);
+        if (ret != BK_OK)
+        {
+            BK_LOGE(TAG, "%s, %d, re-trigger ep fail: %d\n", __func__, __LINE__, ret);
+        }
+        return;
     }
 
     ret = rtos_set_semaphore(&uac_mic->can_process);

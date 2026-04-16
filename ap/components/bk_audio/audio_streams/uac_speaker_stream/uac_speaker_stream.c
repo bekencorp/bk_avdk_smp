@@ -174,6 +174,8 @@ typedef struct uac_speaker_stream
 } uac_speaker_stream_t;
 
 
+static bk_err_t usb_hub_uac_spk_port_device_urb_fill(uac_speaker_stream_t *uac_spk);
+
 //#define AEC_MIC_DELAY_POINTS_DEBUG
 
 #ifdef AEC_MIC_DELAY_POINTS_DEBUG
@@ -327,6 +329,18 @@ static void usb_hub_uac_spk_port_dev_complete_callback(void *pCompleteParam, int
     else
     {
         BK_LOGE(TAG, "%s, %d, uac spk status: %d, not need write uac speaker data \n", __func__, __LINE__, uac_spk->status);
+        return;
+    }
+
+    if (nbytes <= 0)
+    {
+        BK_LOGW(TAG, "%s, %d, usb hub port send data error, re-trigger ep\n", __func__, __LINE__);
+        usb_hub_uac_spk_port_device_urb_fill(uac_spk);
+        ret = bk_usbh_hub_dev_request_data(uac_spk->port_index, USB_UAC_SPEAKER_DEVICE, uac_spk->uac_spk_urb);
+        if (ret != BK_OK)
+        {
+            BK_LOGE(TAG, "%s, %d, re-trigger ep fail: %d\n", __func__, __LINE__, ret);
+        }
         return;
     }
 
