@@ -56,13 +56,73 @@ enum {
     CMD_RF_WIFIPLL_HOLD_BIT_CLR,
 };
 
+enum MODULE_TYPE_E{
+    MODULE_TYPE_BLE_BT,
+    MODULE_TYPE_WIFI,
+    MODULE_TYPE_THREAD,
+    MODULE_TYPE_MAX,
+};
 
+enum RF_OPERATION_E{
+    RF_OPERATION_INVALID,
+    RF_OPERATION_FREE,
+    RF_OPERATION_APPLY,
+    RF_OPERATION_MAX,
+};
+
+enum RF_PATH_E{
+    RF_PATH_WIFI_IQ,
+    RF_PATH_BT_IQ,
+    RF_PATH_BT_POLAR,
+    RF_PATH_MAX,
+};
+
+enum RF_PRIORITY_E{
+    RF_PRIORITY_BLE_BT_HIGH,
+    RF_PRIORITY_WIFI_HIGH,
+    RF_PRIORITY_BLE_BT_NORMAL,
+    RF_PRIORITY_WIFI_NORMAL,
+    RF_PRIORITY_MAX,
+};
+
+enum RF_PLL_E{
+    RF_PLL_LOW,
+    RF_PLL_HIGH,
+    RF_PLL_MAX,
+};
+
+struct RF_ARBITRATION_T{
+    enum MODULE_TYPE_E module_type;
+    enum RF_OPERATION_E operation;
+    enum RF_PATH_E rf_path;
+    enum RF_PLL_E rf_pll;
+    enum RF_PRIORITY_E priority;
+    bool is_save_when_failed;
+    bool is_need_switch_rf;
+};
+
+enum RF_ARBIT_RESULT_E{
+    RF_ARBIT_RESULT_SUCCESS,
+    RF_ARBIT_RESULT_CONFLICT,
+    RF_ARBIT_RESULT_ERROR,
+    RF_ARBIT_RESULT_MAX,
+};
 /*
  * FUNCTION
  ****************************************************************************************
  */
-
-UINT32 rf_pll_ctrl(UINT32 cmd, UINT32 param);
+ #if 0
+ UINT32 rf_pll_ctrl(UINT32 cmd, UINT32 param);
+ #else
+ enum RF_ARBIT_RESULT_E rf_pll_ctrl(
+     enum MODULE_TYPE_E module_type, 
+     enum RF_OPERATION_E operation, 
+     enum RF_PATH_E rf_path, 
+     enum RF_PLL_E rf_pll,
+     enum RF_PRIORITY_E priority, 
+     bool is_save_when_failed
+     );
+ #endif
 void rf_module_vote_ctrl(uint8_t cmd,uint32_t module);
 void phy_clk_close_handler(uint32_t module);
 void phy_clk_open_handler(uint32_t module);

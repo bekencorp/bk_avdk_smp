@@ -808,7 +808,19 @@ static uint32_t rtos_get_ms_per_tick_wrapper(void)
 static UINT32 rf_pll_ctrl_wrapper(UINT32 cmd, UINT32 param)
 {
 #if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX)
-    return rf_pll_ctrl(cmd, param);
+    //return rf_pll_ctrl(cmd, param);
+    if (cmd == CMD_RF_WIFIPLL_HOLD_BIT_SET)
+    {
+        return rf_pll_ctrl(MODULE_TYPE_WIFI, RF_OPERATION_APPLY, RF_PATH_WIFI_IQ, RF_PLL_HIGH, RF_PRIORITY_WIFI_NORMAL, true);
+    }
+    else if (cmd == CMD_RF_WIFIPLL_HOLD_BIT_CLR)
+    {
+        return rf_pll_ctrl(MODULE_TYPE_WIFI, RF_OPERATION_APPLY, RF_PATH_WIFI_IQ, RF_PLL_LOW, RF_PRIORITY_WIFI_NORMAL, true);
+    }
+    else
+    {
+        return 0;
+    }
 #else
    return 0;
 #endif
