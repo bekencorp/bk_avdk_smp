@@ -22,16 +22,23 @@ int bk_bt_feature_init(void)
     s_bt_feature_struct._support_lpo_rosc = 1;
 #endif
 
-#if CONFIG_BLUETOOTH_USE_MIN_POWER_MODE
-    extern bool ate_is_enabled(void);
-    if(!ate_is_enabled())
-    {
-        s_bt_feature_struct._use_min_power_mode = 1;
-    }else
-    {
-        s_bt_feature_struct._use_min_power_mode = 0;
-    }
+extern bool ate_is_enabled(void);
+if(!ate_is_enabled())
+{
+#if CONFIG_BLUETOOTH_RF_MODE_POLAR
+    s_bt_feature_struct.rf_mode = RF_MODE_POLAR;
+#elif CONFIG_BLUETOOTH_RF_MODE_IQ_HIGH_PLL
+    s_bt_feature_struct.rf_mode = RF_MODE_IQ_HIGH_PLL;
+#elif CONFIG_BLUETOOTH_RF_MODE_IQ_LOW_PLL
+    s_bt_feature_struct.rf_mode = RF_MODE_IQ_LOW_PLL;
+#else
+    s_bt_feature_struct.rf_mode = RF_MODE_IQ_HIGH_PLL;
 #endif
+}
+else
+{
+    s_bt_feature_struct.rf_mode = RF_MODE_IQ_HIGH_PLL;
+}
 
 #if CONFIG_BLUETOOTH_SUPPORT_COEX_RF_MODE_SWITCH
     s_bt_feature_struct._support_coex_rf_mode_switch = 1;

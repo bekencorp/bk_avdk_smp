@@ -325,7 +325,7 @@ static void txpwr_max_set_bt_iq_wrapper()
 {
 #if CONFIG_BLUETOOTH
 #if (CONFIG_SOC_BK7239N) || (CONFIG_SOC_BK7236) || (CONFIG_SOC_BK7286 || CONFIG_SOC_BK7258)
-#if CONFIG_BLUETOOTH_USE_MIN_POWER_MODE
+#if CONFIG_BLUETOOTH_RF_MODE_POLAR
     txpwr_max_set_bt_iq();
 #endif
 #endif
@@ -334,7 +334,7 @@ static void txpwr_max_set_bt_iq_wrapper()
 
 static bool get_ble_polar_mode()
 {
-#if CONFIG_BLUETOOTH_USE_MIN_POWER_MODE
+#if CONFIG_BLUETOOTH_RF_MODE_POLAR
     return true;
 #else
     return false;

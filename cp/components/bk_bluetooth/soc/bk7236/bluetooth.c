@@ -863,15 +863,18 @@ __attribute__((weak)) uint32_t rf_pll_ctrl(uint32_t cmd, uint32_t param)
 }
 #endif
 
-static uint32_t bt_rf_pll_ctrl_wrapper(uint32_t set)
+static uint32_t bt_rf_pll_ctrl_wrapper(uint32_t apply, uint8_t rf_mode, uint8_t rf_pll, uint8_t ble_priority_level)
 {
-#if CONFIG_WIFI_ENABLE
-    uint32_t cmd = (set ? CMD_RF_WIFIPLL_HOLD_BIT_SET : CMD_RF_WIFIPLL_HOLD_BIT_CLR);
-
-    return rf_pll_ctrl(cmd, RF_WIFIPLL_HOLD_BY_BLE_BIT);
-#else
-    return 0;
-#endif
+    enum RF_ARBIT_RESULT_E e;
+    if(apply)
+    {
+        e = rf_pll_ctrl(MODULE_TYPE_BLE_BT, RF_OPERATION_APPLY, rf_mode, rf_pll, ble_priority_level, false);
+    }
+    else
+    {
+        e = rf_pll_ctrl(MODULE_TYPE_BLE_BT, RF_OPERATION_FREE, rf_mode, rf_pll, ble_priority_level, false);
+    }
+    return (uint32_t)e;
 }
 
 static void reboot_wrapper(void)
@@ -1182,7 +1185,7 @@ static uint8_t set_bluetooth_power_level(float pwr_gain)
 
 static void set_rfconfig_rf_mode(uint8_t mode)
 {
-#if CONFIG_BLUETOOTH_USE_MIN_POWER_MODE
+#if CONFIG_BLUETOOTH_RF_MODE_POLAR
     if (1 == mode)//polar
     {
         extern void ble_enter_polar_mode();
