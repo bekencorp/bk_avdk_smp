@@ -11,4 +11,10 @@ if (CONFIG_BUTTON)
 		key_adapter.c
 	)
 endif() # CONFIG_BUTTON
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common)
+
+set(priv_requires bk_common)
+if (CONFIG_ADC_KEY)
+	list(APPEND priv_requires adc_key)
+endif()
+
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES ${priv_requires})

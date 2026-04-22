@@ -34,7 +34,20 @@ typedef enum {
     AI_AGENT_CONFIG,
     FACTORY_RESET,
     AUDIO_BUF_APPEND,
-    
+
+    /* ADC key events (KEY2: S4/S5 via GPIO28/ADC4) */
+    ADC_KEY_S4_SHORT,
+    ADC_KEY_S4_DOUBLE,
+    ADC_KEY_S4_LONG,
+    ADC_KEY_S5_SHORT,
+    ADC_KEY_S5_DOUBLE,
+    ADC_KEY_S5_LONG,
+
+    /* GPIO key events (KEY1: S2+S3 via GPIO39, cannot distinguish) */
+    GPIO_KEY1_ANY_SHORT,
+    GPIO_KEY1_ANY_DOUBLE,
+    GPIO_KEY1_ANY_LONG,
+
     /* BK Internal event range maximum */
     INTERNAL_EVENT_MAX = 99,
     
@@ -82,15 +95,22 @@ typedef struct
 typedef void (*key_handler_t)(uint8_t event);
 
 /* API functions */
-// Initialize key driver
+// Initialize GPIO key driver (original multi_button based)
 void bk_key_driver_init(KeyConfig_t* configs, uint8_t num_keys);
 
-// Deinitialize key driver
+// Deinitialize GPIO key driver
 void bk_key_driver_deinit(KeyConfig_t* configs, uint8_t num_keys);
 
 // Register global event handler (implemented by application layer)
 void bk_key_register_event_handler(key_handler_t handler);
 
+#if CONFIG_ADC_KEY
+// Initialize all keys: KEY1(GPIO) + KEY2(ADC) and register with global handler
+void bk_all_keys_init(key_handler_t handler);
+
+// Deinitialize all keys
+void bk_all_keys_deinit(void);
+#endif
 
 #ifdef __cplusplus
 }

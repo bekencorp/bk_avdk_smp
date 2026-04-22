@@ -7,6 +7,10 @@
 
 #include <components/log.h>
 
+#if CONFIG_ADC_KEY
+#include "adc_key_main.h"
+#endif
+
 #define TAG "key"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -291,3 +295,133 @@ void long_press_up_cb(void *param) {
     
    
 }
+
+/* ======================== ADC + GPIO Key Integration ======================== */
+
+#if CONFIG_ADC_KEY
+
+/*
+ * ADC Key callbacks (KEY2: S4, S5 via GPIO28/ADC4)
+ * These fire from the adc_key timer context, dispatch to global_handler.
+ */
+static void adckey_s4_short_cb(void *param) {
+    LOGI("ADC KEY S4 short press\r\n");
+    if(global_handler) global_handler(ADC_KEY_S4_SHORT);
+}
+static void adckey_s4_double_cb(void *param) {
+    LOGI("ADC KEY S4 double press\r\n");
+    if(global_handler) global_handler(ADC_KEY_S4_DOUBLE);
+}
+static void adckey_s4_long_cb(void *param) {
+    LOGI("ADC KEY S4 long press\r\n");
+    if(global_handler) global_handler(ADC_KEY_S4_LONG);
+}
+static void adckey_s5_short_cb(void *param) {
+    LOGI("ADC KEY S5 short press\r\n");
+    if(global_handler) global_handler(ADC_KEY_S5_SHORT);
+}
+static void adckey_s5_double_cb(void *param) {
+    LOGI("ADC KEY S5 double press\r\n");
+    if(global_handler) global_handler(ADC_KEY_S5_DOUBLE);
+}
+static void adckey_s5_long_cb(void *param) {
+    LOGI("ADC KEY S5 long press\r\n");
+    if(global_handler) global_handler(ADC_KEY_S5_LONG);
+}
+
+/*
+ * GPIO Key callbacks (KEY1: GPIO39, any-press of S2/S3)
+ * Fires from the multi_button timer context.
+ */
+static void gpio_key1_short_cb(void *param) {
+    LOGI("GPIO KEY1 any short press\r\n");
+    if(global_handler) global_handler(GPIO_KEY1_ANY_SHORT);
+}
+static void gpio_key1_double_cb(void *param) {
+    LOGI("GPIO KEY1 any double press\r\n");
+    if(global_handler) global_handler(GPIO_KEY1_ANY_DOUBLE);
+}
+static void gpio_key1_long_cb(void *param) {
+    LOGI("GPIO KEY1 any long press\r\n");
+    if(global_handler) global_handler(GPIO_KEY1_ANY_LONG);
+}
+
+/* ADC voltage ranges for KEY2 buttons (configurable via Kconfig) */
+#define S4_VOLTAGE_LOW    CONFIG_ADC_KEY_S4_VOLTAGE_LOW
+#define S4_VOLTAGE_HIGH   CONFIG_ADC_KEY_S4_VOLTAGE_HIGH
+#define S5_VOLTAGE_LOW    CONFIG_ADC_KEY_S5_VOLTAGE_LOW
+#define S5_VOLTAGE_HIGH   CONFIG_ADC_KEY_S5_VOLTAGE_HIGH
+
+void bk_all_keys_init(key_handler_t handler)
+{
+    bk_key_register_event_handler(handler);
+
+    /* --- KEY2: ADC key (S4, S5) via GPIO28/ADC4 --- */
+    bk_adc_key_init(ADC_KEY2_GPIO_ID, ADC_KEY2_SADC_CHAN_ID);
+
+    adckey_configure_t s4_config = {
+        .lowest_level = S4_VOLTAGE_LOW,
+        .highest_level = S4_VOLTAGE_HIGH,
+        .user_index = ADCKEY_S4,
+        .short_press_cb = adckey_s4_short_cb,
+        .double_press_cb = adckey_s4_double_cb,
+        .long_press_cb = adckey_s4_long_cb,
+        .hold_press_cb = NULL,
+    };
+    LOGI("S4 config: range=%d~%dmV index=%d short_cb=%p\r\n",
+         s4_config.lowest_level, s4_config.highest_level,
+         s4_config.user_index, s4_config.short_press_cb);
+    bk_adckey_item_configure(&s4_config);
+
+    adckey_configure_t s5_config = {
+        .lowest_level = S5_VOLTAGE_LOW,
+        .highest_level = S5_VOLTAGE_HIGH,
+        .user_index = ADCKEY_S5,
+        .short_press_cb = adckey_s5_short_cb,
+        .double_press_cb = adckey_s5_double_cb,
+        .long_press_cb = adckey_s5_long_cb,
+        .hold_press_cb = NULL,
+    };
+    LOGI("S5 config: range=%d~%dmV index=%d short_cb=%p\r\n",
+         s5_config.lowest_level, s5_config.highest_level,
+         s5_config.user_index, s5_config.short_press_cb);
+    bk_adckey_item_configure(&s5_config);
+
+    /* --- KEY1: GPIO key (S2+S3, any-press) via GPIO39 --- */
+#if !CONFIG_ADC_KEY_DUAL_CHANNEL
+    bk_init_keys();
+    bk_gpio_key_init(GPIO_KEY1_GPIO_ID, GPIO_KEY1_ACTIVE_LEVEL);
+
+    gpio_key_configure_t gpio_key1_config = {
+        .gpio_id = GPIO_KEY1_GPIO_ID,
+        .active_level = GPIO_KEY1_ACTIVE_LEVEL,
+        .short_press_cb = gpio_key1_short_cb,
+        .double_press_cb = gpio_key1_double_cb,
+        .long_press_cb = gpio_key1_long_cb,
+        .hold_press_cb = NULL,
+    };
+    bk_gpio_key_configure(&gpio_key1_config);
+#else
+    /*
+     * Dual ADC channel mode: KEY1 is also on ADC.
+     * TODO: When PCB is fixed, add KEY1 ADC channel item configs here.
+     */
+    LOGI("Dual ADC mode: KEY1 uses ADC channel %d\r\n", ADC_KEY1_SADC_CHAN_ID);
+#endif
+
+    LOGI("All keys initialized\r\n");
+}
+
+void bk_all_keys_deinit(void)
+{
+    bk_adc_key_deinit();
+
+#if !CONFIG_ADC_KEY_DUAL_CHANNEL
+    bk_gpio_key_deinit();
+    bk_deinit_keys();
+#endif
+
+    LOGI("All keys deinitialized\r\n");
+}
+
+#endif /* CONFIG_ADC_KEY */

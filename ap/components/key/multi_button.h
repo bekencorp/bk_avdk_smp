@@ -15,7 +15,7 @@
 #define TICKS_INTERVAL    6	//ms
 #define DEBOUNCE_TICKS    3	//MAX 8
 #define SHORT_TICKS       (96 /TICKS_INTERVAL)
-#define LONG_TICKS        (3000 /TICKS_INTERVAL)
+#define LONG_TICKS        CONFIG_GPIO_KEY_LONG_PRESS_TICKS
 
 
 typedef void (*btn_callback)(void *);
