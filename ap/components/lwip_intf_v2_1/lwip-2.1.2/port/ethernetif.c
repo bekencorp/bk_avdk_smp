@@ -966,7 +966,7 @@ static int HAL_ETH_Enter_LP(uint64_t sleep_time, void *args)
   // Stop ETH
   HAL_ETH_Stop_IT(&heth);
 
-  sys_ll_set_reserver_reg0xd_enet_cken(0);
+  sys_hal_set_eth_clk_en(0);
 
   SET_BIT(ETH_RESET_CTRL, 0);
 
@@ -1012,7 +1012,14 @@ static int __HAL_ETH_Exit_LP()
   WRITE_REG(ETH_RESET_CTRL, 0x3);
 
   // ETH CLK enable
-  sys_ll_set_reserver_reg0xd_enet_cken(1);
+  sys_hal_set_eth_clk_en(1);
+
+  // PHY interface select: GRMII(1) or RMII(4)
+#ifdef CONFIG_ETH_GPHY
+  eth_set_phy_intf_sel(0x1);
+#else
+  eth_set_phy_intf_sel(0x4);
+#endif
 
   // Enable ETH IRQ
   sys_hal_enable_eth_int(1);
@@ -1039,62 +1046,58 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   //LWIP_LOGD("HW DeviceID: 0x%x\n", REG_READ((ETH_BASE + 0x800*4)));
   //LWIP_LOGD("HW VersionID: 0x%x\n", REG_READ((ETH_BASE + 0x801*4)));
 
-  // GPIO PinMUX: group0(27, 29-39), or group2(46-55)
-  // FIXME: BK7236, use dts instead of hard coding.
-#ifdef CONFIG_ETH_PIN_GROUP0
-  gpio_dev_unmap(GPIO_27);  // PHY INT
-  gpio_dev_unmap(GPIO_29);  // MDC
-  gpio_dev_unmap(GPIO_32);  // MDIO
-  gpio_dev_unmap(GPIO_33);  // RXD[0]
-  gpio_dev_unmap(GPIO_34);  // RXD[1]
-  gpio_dev_unmap(GPIO_35);  // RXDV
-  gpio_dev_unmap(GPIO_36);  // TXD[0]
-  gpio_dev_unmap(GPIO_37);  // TXD[1]
-  gpio_dev_unmap(GPIO_38);  // TXEN
-  gpio_dev_unmap(GPIO_39);  // REF_CLK
-
-  gpio_dev_map(GPIO_27, GPIO_DEV_ENET_PHY_INT);
-  gpio_dev_map(GPIO_29, GPIO_DEV_ENET_MDC);
-  gpio_dev_map(GPIO_32, GPIO_DEV_ENET_MDIO);
-  gpio_dev_map(GPIO_33, GPIO_DEV_ENET_RXD0);
-  gpio_dev_map(GPIO_34, GPIO_DEV_ENET_RXD1);
-  gpio_dev_map(GPIO_35, GPIO_DEV_ENET_RXDV);
-  gpio_dev_map(GPIO_36, GPIO_DEV_ENET_TXD0);
-  gpio_dev_map(GPIO_37, GPIO_DEV_ENET_TXD1);
-  gpio_dev_map(GPIO_38, GPIO_DEV_ENET_TXEN);
-  gpio_dev_map(GPIO_39, GPIO_DEV_ENET_REF_CLK);
-#elif defined(CONFIG_ETH_PIN_GROUP1)
-  // group2(46-55)
-  gpio_dev_unmap(GPIO_46);  // PHY INT
+  gpio_dev_unmap(GPIO_55);  // PHY INT
   gpio_dev_unmap(GPIO_47);  // MDC
-  gpio_dev_unmap(GPIO_48);  // MDIO
-  gpio_dev_unmap(GPIO_49);  // RXD[0]
-  gpio_dev_unmap(GPIO_50);  // RXD[1]
-  gpio_dev_unmap(GPIO_51);  // RXDV
-  gpio_dev_unmap(GPIO_52);  // TXD[0]
-  gpio_dev_unmap(GPIO_53);  // TXD[1]
-  gpio_dev_unmap(GPIO_54);  // TXEN
-  gpio_dev_unmap(GPIO_55);  // REF_CLK
+  gpio_dev_unmap(GPIO_48);  // MDIO     1
+  gpio_dev_unmap(GPIO_51);  // RXD[0]
+  gpio_dev_unmap(GPIO_52);  // RXD[1]
+  gpio_dev_unmap(GPIO_50);  // RXDV
+  gpio_dev_unmap(GPIO_44);  // TXD[0]
+  gpio_dev_unmap(GPIO_43);  // TXD[1]
+  gpio_dev_unmap(GPIO_45);  // TXEN
+  gpio_dev_unmap(GPIO_49);  // REF_CLK
+  #ifdef CONFIG_ETH_GPHY
+  gpio_dev_unmap(GPIO_53);      //P53
+  gpio_dev_unmap(GPIO_54);      //P54
+  gpio_dev_unmap(GPIO_40);      //P40
+  gpio_dev_unmap(GPIO_41);      //P41
+  gpio_dev_unmap(GPIO_42);      //P42
+  #endif
 
-  gpio_dev_map(GPIO_46, GPIO_DEV_ENET_PHY_INT);
-  gpio_dev_map(GPIO_47, GPIO_DEV_ENET_MDC);
-  gpio_dev_map(GPIO_48, GPIO_DEV_ENET_MDIO);
-  gpio_dev_map(GPIO_49, GPIO_DEV_ENET_RXD0);
-  gpio_dev_map(GPIO_50, GPIO_DEV_ENET_RXD1);
-  gpio_dev_map(GPIO_51, GPIO_DEV_ENET_RXDV);
-  gpio_dev_map(GPIO_52, GPIO_DEV_ENET_TXD0);
-  gpio_dev_map(GPIO_53, GPIO_DEV_ENET_TXD1);
-  gpio_dev_map(GPIO_54, GPIO_DEV_ENET_TXEN);
-  gpio_dev_map(GPIO_55, GPIO_DEV_ENET_REF_CLK);
-#endif
+  gpio_dev_map(GPIO_55, GPIO_DEV_ENET_PHY_INT);   //P55
+  gpio_dev_map(GPIO_47, GPIO_DEV_ENET_MDC);       //P47
+  gpio_dev_map(GPIO_48, GPIO_DEV_ENET_MDIO);      //P48
+  gpio_dev_map(GPIO_51, GPIO_DEV_ENET_RXD0);      //P51
+  gpio_dev_map(GPIO_52, GPIO_DEV_ENET_RXD1);      //P52
+  #ifdef CONFIG_ETH_GPHY
+  gpio_dev_map(GPIO_53, GPIO_DEV_ENET_RXD2);      //P53
+  gpio_dev_map(GPIO_54, GPIO_DEV_ENET_RXD3);      //P54
+  #endif
+  gpio_dev_map(GPIO_50, GPIO_DEV_ENET_RXDV);      //P50
+  gpio_dev_map(GPIO_44, GPIO_DEV_ENET_TXD0);      //P44
+  gpio_dev_map(GPIO_43, GPIO_DEV_ENET_TXD1);      //P43
+  #ifdef CONFIG_ETH_GPHY
+  gpio_dev_map(GPIO_42, GPIO_DEV_ENET_TXD2);      //P42
+  gpio_dev_map(GPIO_41, GPIO_DEV_ENET_TXD3);      //P41
+  #endif
+  gpio_dev_map(GPIO_45, GPIO_DEV_ENET_TXEN);       //P45
+  #ifdef CONFIG_ETH_GPHY
+  gpio_dev_map(GPIO_49, GPIO_DEV_ENET_GRCLK);    //P49
+  gpio_dev_map(GPIO_40, GPIO_DEV_ENET_GTCLK);    //P40
+  #else
+  gpio_dev_map(GPIO_49, GPIO_DEV_ENET_REF_CLK);    //P49
+  #endif
 
-#ifdef CONFIG_ETH_PM_CB_SUPPORT
-  // Power On AHBP
+  // Power On AHBP 
   bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_ENET, PM_POWER_MODULE_STATE_ON);
 
+#ifdef CONFIG_ETH_PM_CB_SUPPORT
   // Don't allow ETH enters PS
   bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_ENET, 0x0, 0x0);
 #endif
+
+  // ETH CLK enable
+  sys_hal_set_eth_clk_en(1);
 
   LWIP_LOGD("ETH SoftRest\n");
   // ETH soft reset
@@ -1103,11 +1106,15 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   // ETH bypass clockgate
   WRITE_REG(ETH_RESET_CTRL, 0x3);
 
-  // ETH CLK enable
-  sys_ll_set_reserver_reg0xd_enet_cken(1);
+  // PHY interface select: GRMII(1) or RMII(4)
+#ifdef CONFIG_ETH_GPHY
+  eth_set_phy_intf_sel(0x1);
+#else
+  eth_set_phy_intf_sel(0x4);
+#endif
 
   // Register ETH interrupt ISR
-  bk_int_isr_register(INT_SRC_ETH, ETH_IRQHandler, NULL);
+  bk_int_isr_register(INT_SRC_INET0, ETH_IRQHandler, NULL);
 
   // Enable ETH IRQ
   sys_hal_enable_eth_int(1);
