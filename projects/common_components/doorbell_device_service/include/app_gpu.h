@@ -34,7 +34,7 @@ extern "C" {
  */
 avdk_err_t app_gpu_turn_on(gpu_board_config_t *config);
 
-avdk_err_t app_gpu_turn_off(bk_gpu_ctlr_handle_t gpu_handle);
+avdk_err_t app_gpu_turn_off(bk_gpu_ctlr_handle_t ctlr);
 
 avdk_err_t app_gpu_v2_turn_on(uint16_t width, uint16_t height);
 

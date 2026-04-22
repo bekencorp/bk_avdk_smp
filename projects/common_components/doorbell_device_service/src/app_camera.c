@@ -366,6 +366,8 @@ err:
 int app_isp_mipi_camera_turn_on(const camera_board_config_t *config)
 {
     bk_err_t ret = BK_OK;
+
+    AVDK_RETURN_ON_FALSE((isp_cam_handle.camera_ctlr_handle == NULL), AVDK_ERR_BUSY, TAG, "camera already turned on"); 
     bk_isp_camera_ctlr_config_t isp_ctlr_config = CAM_CSI_DEFAULT_RAW10_CONFIG(config->mipi.sensor_max_width, config->mipi.sensor_max_height, config->mipi.sensor_fps);
 
     AVDK_GOTO_ON_FALSE(config, AVDK_ERR_INVAL, err, TAG, "config is null");

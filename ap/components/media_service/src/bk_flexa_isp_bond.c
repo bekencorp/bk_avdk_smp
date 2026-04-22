@@ -401,6 +401,8 @@ void bk_flexa_isp_gpu_bond_stop(void *bond)
 	if (out_stream != NULL && out_stream->handle != NULL) {
 		(void)bk_gpu_ioctl((bk_gpu_ctlr_handle_t)out_stream->handle, BK_GPU_IOCTL_UNREGISTER_BOND,
 				   out_stream);
+		(void)bk_gpu_ioctl((bk_gpu_ctlr_handle_t)out_stream->handle, BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING,
+				   (void *)0);
 	}
 	bk_flexa_bond_t *in_stream = bond_p->in_stream;
 	if (in_stream != NULL && in_stream->handle != NULL) {
