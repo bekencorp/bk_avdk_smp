@@ -40,15 +40,20 @@ static SPINLOCK_SECTION volatile spinlock_t aosl_atomic_spin_lock = SPIN_LOCK_IN
 uint32_t aosl_atomic_seq_lock( void )
 {
 	uint32_t flags = rtos_disable_int();
+	#if CONFIG_SOC_SMP
 	spin_lock(&aosl_atomic_spin_lock);
+	#endif
 	return flags;
 }
 
 void aosl_atomic_seq_unlock( uint32_t state )
 {
+	#if CONFIG_SOC_SMP
 	spin_unlock(&aosl_atomic_spin_lock);
+	#endif
 	rtos_enable_int(state);
 }
+
 
 
 intptr_t aosl_hal_atomic_read(const intptr_t *v)
