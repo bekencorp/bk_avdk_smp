@@ -16,6 +16,7 @@
 #include "cli.h"
 #include "ipi_driver.h"
 #include <components/log.h>
+#include "cli_section.h"
 
 #define IPI_TEST_TAG "ipi_test"
 #define IPI_TEST_LOGI(...) BK_LOGI(IPI_TEST_TAG, ##__VA_ARGS__)
@@ -29,7 +30,8 @@ static void ipi_test_callback(ipi_core_id_t core_id, uint32_t value, void *param
 
 static void cli_ipi_help(void)
 {
-	CLI_LOGD("ipi_driver {init|deinit}\r\n");
+	CLI_LOGD("ipi_driver init [local|all] (default: local) - Register test callbacks and enable channels\r\n");
+	CLI_LOGD("ipi_driver deinit - Unregister callbacks and disable channels\r\n");
 	CLI_LOGD("ipi send {core_id} {value} - Send IPI interrupt to core (0-4)\r\n");
 	CLI_LOGD("ipi status {core_id|all} - Get IPI interrupt status\r\n");
 	CLI_LOGD("ipi enable {core_id} - Enable IPI interrupt for core (0-4)\r\n");
@@ -48,23 +50,35 @@ static void cli_ipi_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 	}
 
 	if (os_strcmp(argv[1], "init") == 0) {
+		/* IPI driver is initialized in driver_init() by default */
 
-        /* Register test callback for all cores by default */
-        for (core_id = 0; core_id < IPI_CORE_MAX; core_id++) {
-            BK_LOG_ON_ERR(bk_ipi_register_callback(core_id, ipi_test_callback, (void *)(unsigned long)core_id));
-            BK_LOG_ON_ERR(bk_ipi_enable(core_id));
-        }
+		bool init_all = false;
+		if (argc >= 3 && os_strcmp(argv[2], "all") == 0) {
+			init_all = true;
+		}
 
-		CLI_LOGD("IPI driver initialized successfully\r\n");
+		/*
+		 * Default: only enable local AP channels (2/3) to avoid interfering with CP/DSP.
+		 * Use `ipi_driver init all` if you want to enable all channels.
+		 */
+		for (core_id = 0; core_id < IPI_CORE_MAX; core_id++) {
+			if (!init_all && (core_id != IPI_AP_CORE0) && (core_id != IPI_AP_CORE1)) {
+				continue;
+			}
+			BK_LOG_ON_ERR(bk_ipi_register_callback(core_id, ipi_test_callback, (void *)(unsigned long)core_id));
+			BK_LOG_ON_ERR(bk_ipi_enable(core_id));
+		}
+
+		CLI_LOGD("IPI test callbacks registered successfully\r\n");
 
 
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
-		bk_err_t ret = bk_ipi_driver_deinit();
-		if (ret == BK_OK) {
-			CLI_LOGD("IPI driver deinitialized successfully\r\n");
-		} else {
-			CLI_LOGE("IPI driver deinitialization failed: %d\r\n", ret);
+		/* Only disable channels/unregister callbacks; keep driver initialized */
+		for (core_id = 0; core_id < IPI_CORE_MAX; core_id++) {
+			BK_LOG_ON_ERR(bk_ipi_disable(core_id));
+			BK_LOG_ON_ERR(bk_ipi_unregister_callback(core_id));
 		}
+		CLI_LOGD("IPI test callbacks unregistered successfully\r\n");
 	} else {
 		cli_ipi_help();
 		return;
@@ -84,10 +98,13 @@ static void cli_ipi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			return;
 		}
 		ipi_core_id_t core_id = (ipi_core_id_t)os_strtoul(argv[2], NULL, 10);
-		uint32_t value = os_strtoul(argv[3], NULL, 16);
+		uint32_t raw_value = os_strtoul(argv[3], NULL, 16);
+		uint32_t src_cpu = rtos_get_core_id() & 0xF;
+		uint32_t value = (raw_value & 0x0FFFFFFF) | (src_cpu << 28);
 		bk_err_t ret = bk_ipi_send(core_id, value);
 		if (ret == BK_OK) {
-			CLI_LOGD("Sent IPI to core %d with value 0x%08X\r\n", core_id, value);
+			CLI_LOGD("Sent IPI: from_cpu=%u -> core %d, raw=0x%08X, encoded=0x%08X\r\n",
+			         (unsigned)rtos_get_core_id(), core_id, raw_value, value);
 		} else {
 			CLI_LOGE("Failed to send IPI: %d\r\n", ret);
 		}
@@ -146,7 +163,11 @@ static void cli_ipi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 			CLI_LOGE("Failed to clear IPI interrupt: %d\r\n", ret);
 		}
 	} else if (os_strcmp(argv[1], "dump") == 0) {
+#if CONFIG_IPI_DUMP
 		bk_ipi_dump_info();
+#else
+		CLI_LOGW("IPI dump disabled (enable CONFIG_IPI_DUMP)\r\n");
+#endif
 	} else {
 		cli_ipi_help();
 		return;

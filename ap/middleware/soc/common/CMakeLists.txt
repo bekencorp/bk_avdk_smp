@@ -56,6 +56,12 @@ if(CONFIG_TRNG_SUPPORT)
 	)
 endif()
 
+if(CONFIG_IPI)
+	list(APPEND srcs
+		"hal/ipi_hal.c"
+	)
+endif()
+
 if(CONFIG_MAILBOX)
 	if (NOT CONFIG_MAILBOX_V2_0)
 	list(APPEND srcs
