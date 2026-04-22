@@ -142,6 +142,14 @@ typedef struct {
 	 */
 	uart_dma_enable_t rx_dma_en;
 	uart_dma_enable_t tx_dma_en;
+	/*
+	 * Optional customer-specific RX DMA behavior.
+	 * Keep it 0 by default. Set it to 1 only when the application drains the
+	 * RX software FIFO in one read, and the peer will not send data while the
+	 * application is reading and rewinding the RX DMA destination.
+	 * Enabling it without meeting the above conditions may cause RX data abnormal.
+	 */
+	uint8_t rx_dma_rewind_when_fifo_empty;
 #endif
 
 #if 1
