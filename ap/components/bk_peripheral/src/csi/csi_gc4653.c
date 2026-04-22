@@ -36,6 +36,10 @@
 #include "gc4653_1080p_calib.h"
 #include <driver/isp_base.h>
 
+#include <driver/gpio.h>
+#include <driver/gpio_types.h>
+#include "gpio_driver.h"
+
 #define LOGTAG "GC4653"
 
 // Use OS abstraction APIs directly to avoid pulling in VeriSilicon OSI headers.
@@ -1100,6 +1104,7 @@ avdk_err_t gc4653_set_ppi(bk_camera_sensor_ctlr_t *controller, uint16_t width, u
 	{
 		return -1;
 	}
+    bk_mipi_csi_controller_init(width, height, 0x2b);
 
 	uint16_t win_y_start = (WIN_MAX_Y - height) / 2;
 	uint16_t win_x_start = (WIN_MAX_X - width) / 2;
@@ -1274,6 +1279,64 @@ const ISP_PUB_ATTR_S gc4653_mipi_linear_attr = {
     .snsFps      = 60 * ISP_SNS_FPS_ACCU,
 };
 
+static const bk_camera_sensor_format_t gc4653_format_array[] = {
+    {
+        .width = 1280,
+        .height = 720,
+        .fps = 30,
+    },
+    {
+        .width = 1280,
+        .height = 720,
+        .fps = 25,
+    },
+    {
+        .width = 1280,
+        .height = 720,
+        .fps = 20,
+    },
+    {
+        .width = 1920,
+        .height = 1080,
+        .fps = 30,
+    },
+    {
+        .width = 1920,
+        .height = 1080,
+        .fps = 25,
+    },
+    {
+        .width = 1920,
+        .height = 1080,
+        .fps = 20,
+    },
+
+    {
+        .width = 1920,
+        .height = 1080,
+        .fps = 15,
+    },
+
+    {
+        .width = 640,
+        .height = 480,
+        .fps = 30,
+    },
+
+    {
+        .width = 1088,
+        .height = 1088,
+        .fps = 15,
+    },
+
+    {
+        .width = 2560,
+        .height = 1440,
+        .fps = 20,
+    },
+
+};
+
 void *gc4653_get_sensor_object(bk_camera_sensor_ctlr_t *controller)
 {
     bk_camera_csi_sensor_t *csi_sensor = __containerof(controller, bk_camera_csi_sensor_t, ops);
@@ -1288,8 +1351,35 @@ void *gc4653_get_sensor_cfg(bk_camera_sensor_ctlr_t *controller)
     return (void*)csi_sensor->sensor_config;
 }
 
+static avdk_err_t gc4653_query_support_formats(bk_camera_sensor_ctlr_t *controller, bk_camera_sensor_format_array_t *format_array)
+{
+    AVDK_RETURN_ON_FALSE(format_array, AVDK_ERR_INVAL, TAG, "format array is NULL");
+    format_array->format_array = &gc4653_format_array[0];
+    format_array->size = ARRAY_SIZE(gc4653_format_array);
+    return AVDK_ERR_OK;
+}
+
 avdk_err_t gc4653_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_config_t *config)
 {
+    /* enable camera power */
+    if (config->pin_pwdn != 0xFF)
+    {
+        gpio_dev_unmap(config->pin_pwdn);
+        BK_LOG_ON_ERR(bk_gpio_enable_output(config->pin_pwdn));
+        bk_gpio_set_capacity(config->pin_pwdn, GPIO_DRIVER_CAPACITY_3);
+        bk_gpio_set_output_high(config->pin_pwdn);
+        rtos_delay_milliseconds(10);
+    }
+
+    if (config->pin_reset != 0xFF)
+    {
+        gpio_dev_unmap(config->pin_reset);
+        BK_LOG_ON_ERR(bk_gpio_enable_output(config->pin_reset));
+        bk_gpio_set_capacity(config->pin_reset, GPIO_DRIVER_CAPACITY_3);
+        bk_gpio_set_output_high(config->pin_reset);
+        rtos_delay_milliseconds(10);
+    }
+
 	uint8_t hb_id = 0, lb_id;
 	config->bus->write_address = GC4653_WRITE_ADDRESS;
 
@@ -1316,6 +1406,7 @@ avdk_err_t gc4653_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
     csi_sensor->ops.reg_ctrl = gc4653_ctrl;
     csi_sensor->ops.get_sensor_object = gc4653_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = gc4653_get_sensor_cfg;
+    csi_sensor->ops.query_support_formats = gc4653_query_support_formats;
 
 	csi_sensor->isp_pub_attr = &gc4653_mipi_linear_attr;
 	csi_sensor->sensor_config = &csi_sensor_gc4653;
