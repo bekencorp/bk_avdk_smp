@@ -7,7 +7,8 @@
 #include "lv_port_disp.h"
 #include "lv_port_indev.h"
 #include "lv_vendor.h"
-// #include "frame_buffer.h"
+#include "gpu_core.h"
+#include <modules/vg_lite_gpu/vg_lite.h>
 
 #define TAG "lvgl"
 
@@ -24,10 +25,14 @@ static beken_queue_t lvgl_frame_queue = NULL;
 static u8 lvgl_task_state = STATE_INIT;
 static bool lv_vendor_initialized = false;
 
-
 void *lv_vendor_malloc(size_t size)
 {
     return hsram_malloc(size);
+}
+
+void *lv_vendor_realloc(void *ptr, size_t size)
+{
+    return hsram_realloc(ptr, size);
 }
 
 void lv_vendor_free(void *ptr)
@@ -46,6 +51,22 @@ static void lv_log_print(lv_log_level_t level, const char * buf)
 static uint32_t lv_tick_get_callback(void)
 {
     return rtos_get_time();
+}
+#endif
+
+#if (CONFIG_GPU)
+void lv_gpu_init(uint32_t tess_width, uint32_t tess_height)
+{
+    bk_gpu_driver_init();
+
+    vg_lite_init(tess_width, tess_height);
+}
+
+void lv_gpu_deinit(void)
+{
+    vg_lite_close();
+
+    bk_gpu_driver_deinit();
 }
 #endif
 
@@ -102,13 +123,30 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
     }
 
     lv_vnd_data_t *vnd_data = (lv_vnd_data_t *)lv_vendor_malloc(sizeof(lv_vnd_data_t));
-
     if (vnd_data == NULL) {
         LOGE("%s vnd_data malloc failed\n", __func__);
         return BK_FAIL;
     }
+    os_memset(vnd_data, 0, sizeof(lv_vnd_data_t));
 
-    os_memcpy(&vnd_data->config, config, sizeof(lv_vnd_config_t));
+    if (config) {
+        os_memcpy(&vnd_data->config, config, sizeof(lv_vnd_config_t));
+    } else {
+        LOGE("%s config is NULL\n", __func__);
+        lv_vendor_free(vnd_data);
+        vnd_data = NULL;
+        return BK_FAIL;
+    }
+
+    vnd_data->lv_new_frame_flag = true;
+
+#if (CONFIG_LV_USE_DRAW_VG_LITE)
+    lv_gpu_init(vnd_data->config.width / 4, vnd_data->config.height / 4);
+#else
+    if (vnd_data->config.output_compress || (vnd_data->config.rotation != ROTATE_NONE && LV_USE_GPU_ROTATE)) {
+        lv_gpu_init(0, 0);
+    }
+#endif
 
     ret = rtos_init_mutex(&g_disp_mutex);
     if (BK_OK != ret) {
@@ -133,7 +171,6 @@ bk_err_t lv_vendor_init(lv_vnd_config_t *config)
 
     for (int i = 0; i < CONFIG_LVGL_FRAME_BUFFER_NUM; i++) {
         vnd_data->config.frame_buffer[i] = config->frame_buffer[i];
-        // lvgl_frame_buffer_init(vendor_config.frame_buffer[i]);
         lv_vendor_set_ready_frame_buffer(vnd_data->config.frame_buffer[i]);
     }
 
@@ -276,7 +313,7 @@ void lv_vendor_deinit(void)
         return;
     }
 
-    lv_port_disp_deinit();
+    lv_port_disp_deinit(vnd_data);
 
     lv_port_indev_deinit();
 
@@ -309,6 +346,14 @@ void lv_vendor_deinit(void)
     }
     lvgl_frame_queue = NULL;
 
+#if (CONFIG_LV_USE_DRAW_VG_LITE)
+    lv_gpu_deinit();
+#else
+    if (vnd_data->config.output_compress || (vnd_data->config.rotation != ROTATE_NONE && LV_USE_GPU_ROTATE)) {
+        lv_gpu_deinit();
+    }
+#endif
+
     if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE) {
         if (vnd_data->config.draw_buf_2_1) {
             os_free(vnd_data->config.draw_buf_2_1);
@@ -323,7 +368,6 @@ void lv_vendor_deinit(void)
         vnd_data->config.draw_buf_2_1 = NULL;
         vnd_data->config.draw_buf_2_2 = NULL;
     }
-
 
     lv_display_set_user_data(lv_display_get_default(), NULL);
     os_free(vnd_data);

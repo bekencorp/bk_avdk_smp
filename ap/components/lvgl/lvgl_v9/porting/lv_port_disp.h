@@ -31,7 +31,7 @@ extern "C" {
 /* Initialize low level display driver */
 void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data);
 
-void lv_port_disp_deinit(void);
+void lv_port_disp_deinit(lv_vnd_data_t *vnd_data);
 
 /* Enable updating the screen (the flushing process) when disp_flush() is called by LVGL
  */

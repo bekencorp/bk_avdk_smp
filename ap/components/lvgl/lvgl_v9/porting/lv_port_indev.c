@@ -207,12 +207,6 @@ static void touchpad_read(lv_indev_t * indev_drv, lv_indev_data_t * data)
     static lv_indev_state_t last_state = LV_INDEV_STATE_RELEASED;
     tp_point_infor_t point;
 
-    lv_vnd_data_t *vnd_data = (lv_vnd_data_t *)lv_display_get_user_data(lv_disp_get_default());
-
-    if (vnd_data == NULL) {
-        return;
-    }
-
     do {
         ret = drv_tp_read(&point);
         if (kNoErr != ret)
@@ -232,20 +226,6 @@ static void touchpad_read(lv_indev_t * indev_drv, lv_indev_data_t * data)
         }
 
         indev_reset_count = 0;
-
-        if (vnd_data->config.rotation == ROTATE_90)
-        {
-            lv_coord_t tmp = point.m_y;
-            point.m_y = point.m_x;
-            point.m_x = LV_HOR_RES - tmp - 1;
-        }
-
-        if (vnd_data->config.rotation == ROTATE_270)
-        {
-            lv_coord_t tmp = point.m_x;
-            point.m_x = point.m_y;
-            point.m_y = LV_VER_RES - tmp - 1;
-        }
 
         last_x = point.m_x;
         last_y = point.m_y;

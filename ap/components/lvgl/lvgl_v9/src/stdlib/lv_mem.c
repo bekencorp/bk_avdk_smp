@@ -146,7 +146,7 @@ void lv_free(void * data)
     if(data == NULL) return;
 
 #if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    os_free(data);
+    lv_vendor_free(data);
 #else
     lv_free_core(data);
 #endif
@@ -173,7 +173,7 @@ void * lv_realloc(void * data_p, size_t new_size)
     if(data_p == &zero_mem) return lv_malloc(new_size);
 
 #if (LV_USE_STDLIB_MALLOC == LV_STDLIB_CUSTOM)
-    void * new_p = os_realloc(data_p, new_size);
+    void * new_p = lv_vendor_realloc(data_p, new_size);
 #else
     void * new_p = lv_realloc_core(data_p, new_size);
 #endif

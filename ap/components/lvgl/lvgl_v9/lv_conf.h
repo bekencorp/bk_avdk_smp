@@ -117,7 +117,7 @@
 
 /** Align stride of all layers and images to this bytes */
 #if CONFIG_LV_USE_DRAW_VG_LITE
-#define LV_DRAW_BUF_STRIDE_ALIGN                4
+#define LV_DRAW_BUF_STRIDE_ALIGN                12
 #else
 #define LV_DRAW_BUF_STRIDE_ALIGN                1
 #endif

@@ -16,6 +16,12 @@ extern "C" {
 #include <driver/hal/hal_hpdma_types.h>
 
 
+#if CONFIG_LVGL_GPU_ROTATE_ENABLE
+#define LV_USE_GPU_ROTATE    1
+#else
+#define LV_USE_GPU_ROTATE    0
+#endif
+
 #if CONFIG_LVGL_V8
     #define bk_color_t    lv_color_t
 #else
@@ -49,17 +55,18 @@ typedef struct {
     void (*flush_cb)(void *args, void *frame_buffer, int (*cb)(void *args));
 
     /**< The following parameters do not need to be configured by default. */
-    uint32_t draw_pixel_size;       /**< v8 size is in pixel, v9 size is in byte. */
+    uint32_t draw_pixel_size;       /**< v8 size is in pixel, v9 size is in byte. It's recommended to choose size of 1/10 screen sized*/
     void *draw_buf_2_1;             /**< LVGL draw buffer 1. */
     void *draw_buf_2_2;             /**< LVGL draw buffer 2. Not used by default and only is used when requires high performance. It will cost more memory. */
-    void *frame_buffer[CONFIG_LVGL_FRAME_BUFFER_NUM];    /**< LVGL frame buffer */
+    void *frame_buffer[CONFIG_LVGL_FRAME_BUFFER_NUM];    /**< LVGL frame buffers */
 
-    bool compress_enable;
+    bool output_compress;          /**< Just for partial mode and must use the GPU */
+    uint16_t disp_width;           /**< No need config, only used for output compress enable */
+    uint16_t disp_height;          /**< No need config, only used for output compress enable */
 } lv_vnd_config_t;
 
 typedef struct {
     lv_vnd_config_t config;
-
     void *rotate_buffer;
     void *disp_buf;
     void *copy_buf;
@@ -77,10 +84,14 @@ typedef struct {
     uint32_t param1;
 } lv_frame_msg_t;
 
-bk_err_t lv_vendor_init(lv_vnd_config_t *config);
 
 void *lv_vendor_malloc(size_t size);
+
+void *lv_vendor_realloc(void *ptr, size_t size);
+
 void lv_vendor_free(void *ptr);
+
+bk_err_t lv_vendor_init(lv_vnd_config_t *config);
 
 void lv_vendor_deinit(void);
 
