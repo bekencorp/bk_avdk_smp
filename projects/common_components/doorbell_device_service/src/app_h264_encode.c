@@ -201,6 +201,7 @@ fail:
         }
 
         if (ctx->enc_ctlr_handle) {
+            bk_h264_encode_ioctl(ctx->enc_ctlr_handle, BK_H264_ENCODE_IOCTL_DEBUG_STOP, NULL);
             bk_h264_encode_close(ctx->enc_ctlr_handle);
             bk_h264_encode_deinit(ctx->enc_ctlr_handle);
             bk_h264_encode_delete(ctx->enc_ctlr_handle);
@@ -238,6 +239,7 @@ avdk_err_t doorbell_h264_encode_close(void)
     }
 
     if (ctx->enc_ctlr_handle) {
+        bk_h264_encode_ioctl(ctx->enc_ctlr_handle, BK_H264_ENCODE_IOCTL_DEBUG_STOP, NULL);
         bk_h264_encode_close(ctx->enc_ctlr_handle);
         bk_h264_encode_deinit(ctx->enc_ctlr_handle);
         bk_h264_encode_delete(ctx->enc_ctlr_handle);

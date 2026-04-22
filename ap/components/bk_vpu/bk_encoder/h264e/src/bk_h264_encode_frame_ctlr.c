@@ -299,6 +299,21 @@ static avdk_err_t h264_encode_ctlr_close(bk_h264_encode_ctlr_handle_t handle)
     rtos_set_semaphore(&control->enc_start_sem);
     rtos_get_semaphore(&control->sem, BEKEN_WAIT_FOREVER);
 
+    if (rtos_is_timer_init(&control->debug_timer)) {
+        bk_err_t ret = rtos_stop_timer(&control->debug_timer);
+        if (ret != BK_OK) {
+            LOGE("Stop timer failed: %d\r\n", ret);
+        }
+
+        ret = rtos_deinit_timer(&control->debug_timer);
+        if (ret != BK_OK) {
+            LOGE("Deinit timer failed: %d\r\n", ret);
+        }
+
+        control->debug_time_ms = 0;
+        LOGI("H.264 debug stopped\r\n");
+    }
+
     // Deregister encoder callbacks
     h264e_deregister_callback(&control->h264e_handler);
     // Close and deinitialize encoder
