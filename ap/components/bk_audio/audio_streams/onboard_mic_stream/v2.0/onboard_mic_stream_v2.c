@@ -243,15 +243,7 @@ static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
     uint32_t frame_size = 0;
 
     os_memset(&dma_config, 0, sizeof(dma_config_t));
-#if 0
-    /* init dma driver */
-    ret = bk_dma_driver_init();
-    if (ret != BK_OK)
-    {
-        BK_LOGE(TAG, "%s, %d, dma_driver_init fail\n", __func__, __LINE__);
-        goto exit;
-    }
-#endif
+
     /* malloc dma channel */
     onboard_mic->mic_dma_id = bk_dma_alloc(DMA_DEV_AUDIO);
     if ((onboard_mic->mic_dma_id < DMA_ID_0) || (onboard_mic->mic_dma_id >= DMA_ID_MAX))
@@ -285,7 +277,7 @@ static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
     dma_config.trans_type = DMA_TRANS_DEFAULT;
     dma_config.src.dev    = DMA_DEV_AUD_MIC0;
     dma_config.dst.dev    = DMA_DEV_DTCM;
-    dma_config.src.width  = DMA_DATA_WIDTH_16BITS;
+    dma_config.src.width  = DMA_DATA_WIDTH_32BITS;
     dma_config.dst.width  = DMA_DATA_WIDTH_32BITS;
     /* get adc fifo address */
     if (bk_aud_adc_get_fifo_addr(AUD_ADC_MIC_DATA_BUS_0, &adc_port_addr) != BK_OK)
@@ -295,10 +287,10 @@ static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
     }
     else
     {
-        dma_config.src.addr_inc_en = DMA_ADDR_INC_ENABLE;
+        dma_config.src.addr_inc_en  = DMA_ADDR_INC_ENABLE;
         dma_config.src.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
-        dma_config.src.start_addr = adc_port_addr;
-        dma_config.src.end_addr = adc_port_addr + 4;
+        dma_config.src.start_addr   = adc_port_addr;
+        dma_config.src.end_addr     = adc_port_addr + 4;
     }
     dma_config.trans_type       = DMA_TRANS_DEFAULT;
     dma_config.dst.addr_inc_en  = DMA_ADDR_INC_ENABLE;
@@ -418,6 +410,31 @@ static int _onboard_mic_read(audio_port_handle_t self, char *buffer, int len, Ti
     {
         ret = len;
     }
+    if (ret > 0)
+    {
+        if (onboard_mic->adc_cfg.chl_cfg[0].bits == 16)
+        {
+            int16_t *ptr = (int16_t *)buffer;
+            for (uint32_t i = 0; i < ret / 4; i++)
+            {
+                ptr[i] = ptr[2 * i];
+            }
+            ret = ret / 2;
+        }
+        #if 0
+        else if (onboard_mic->adc_cfg.chl_cfg[0].bits == 24)
+        {
+            int32_t *ptr = (int32_t *)buffer;
+            uint32_t val = 0;
+            for (uint32_t i = 0; i < ret / 4; i++)
+            {
+                val = ptr[i];
+                ptr[i] = (int32_t)(uint32_t)(val & 0xFFFFFFu);
+            }
+        }
+        #endif
+    }
+
     return ret;
 }
 
@@ -428,10 +445,10 @@ static int _onboard_mic_process(audio_element_handle_t self, char *in_buffer, in
     AUD_ONBOARD_MIC_PROCESS_START();
 
     AUD_ONBOARD_MIC_SEM_WAIT_START();
-    if (kNoErr != rtos_get_semaphore(&onboard_mic->can_process, 20000)) //portMAX_DELAY
+    if (kNoErr != rtos_get_semaphore(&onboard_mic->can_process, 2000)) //portMAX_DELAY
     {
         BK_LOGE(TAG, "[%s] %s, rtos_get_semaphore fail\n", audio_element_get_tag(self), __func__);
-        return -1;
+        //return -1;
     }
     AUD_ONBOARD_MIC_SEM_WAIT_END();
 
@@ -657,11 +674,13 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
         BK_LOGE(TAG, "%s, %d, bk_aud_dmic_init fail\n", __func__, __LINE__);
         goto _onboard_mic_init_exit;
     }
-    
+
+    //uint32_t adc_bits = config->adc_cfg.chl_cfg[0].bits;
     for(i = 0; i < AUD_ADC_CHL_MAX; i++)
     {
         if(gl_onboard_mic->ch_bitmap & (1 << i))
         {
+            gl_onboard_mic->adc_cfg.chl_cfg[i].bits = 16;//adc_bits;   // Force all channels to the same 16bits!
             bk_aud_adc_set_ana_gain(i, config->adc_cfg.chl_cfg[i].ana_gain);
             BK_LOGD(TAG, "adc_cfg chl_num: %d, adc_gain: 0x%02x, samp_rate: %d, clk_src: %s, adc_mode: %s \n",
                 i, gl_onboard_mic->adc_cfg.chl_cfg[i].dig_gain, gl_onboard_mic->adc_cfg.sample_rate, gl_onboard_mic->adc_cfg.clk_src == 1 ? "APLL" : "XTAL", gl_onboard_mic->adc_cfg.chl_cfg[i].adc_mode == 1 ? "AUD_ADC_MODE_SIGNAL_END" : "AUD_ADC_MODE_DIFFEN");

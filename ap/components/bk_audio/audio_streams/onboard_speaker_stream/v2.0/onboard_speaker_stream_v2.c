@@ -454,8 +454,8 @@ static bk_err_t aud_dac_dma_config(onboard_speaker_stream_t *onboard_spk)
     bk_err_t ret = BK_OK;
     dma_config_t dma_config = {0};
     uint32_t dac_port_addr;
-    uint32_t i,k;
-    uint32_t dma_buf_size,transfer_len;
+    uint32_t i = 0, k = 0;
+    uint32_t dma_buf_size, transfer_len;
 
 #if 0
     /* init dma driver */
@@ -466,20 +466,20 @@ static bk_err_t aud_dac_dma_config(onboard_speaker_stream_t *onboard_spk)
         goto exit;
     }
 #endif
-    
-    BK_LOGD(TAG, "dac_source_bitmap:0x%x,chl_num:%d\n",onboard_spk->dac_source_bitmap,onboard_spk->chl_num);
+
+    BK_LOGD(TAG, "dac_source_bitmap:0x%x, chl_num:%d\n",onboard_spk->dac_source_bitmap, onboard_spk->chl_num);
     for(i = 0; i < AUD_DAC_SOURCE_MAX; i++)
     {
         if(onboard_spk->dac_source_bitmap & (1 << i))
         {
             if(0 == i)
             {
-                dma_buf_size = DEFAULT_AUD_DAC_SAMPLE_RATE*20/1000*4;//A2DP always use 48000 sample rate
+                dma_buf_size = DEFAULT_AUD_DAC_SAMPLE_RATE * 20 / 1000 * 4;//A2DP always use 48000 sample rate
                 transfer_len = onboard_spk->dma_frame_size;
             }
             else
             {
-                dma_buf_size = onboard_spk->frame_size[i]*2;
+                dma_buf_size = onboard_spk->frame_size[i] * 2;
                 transfer_len = onboard_spk->frame_size[i];
             }
             for(k = 0; k < MAX_CH_NUM; k++)
@@ -506,10 +506,10 @@ static bk_err_t aud_dac_dma_config(onboard_speaker_stream_t *onboard_spk)
                               dma_buf_size * 2 + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL);
                 /* init dma channel */
                 os_memset(&dma_config, 0, sizeof(dma_config_t));
-                dma_config.mode = DMA_WORK_MODE_REPEAT;
-                dma_config.chan_prio = 1;
-                dma_config.src.dev = DMA_DEV_DTCM;    
-                dma_config.src.width = DMA_DATA_WIDTH_32BITS;
+                dma_config.mode       = DMA_WORK_MODE_REPEAT;
+                dma_config.chan_prio  = 1;
+                dma_config.src.dev    = DMA_DEV_DTCM;
+                dma_config.src.width  = DMA_DATA_WIDTH_32BITS;
                 dma_config.trans_type = DMA_TRANS_DEFAULT;
                 #if 1
                 switch (onboard_spk->bits)
@@ -536,14 +536,14 @@ static bk_err_t aud_dac_dma_config(onboard_speaker_stream_t *onboard_spk)
                     goto exit;
                 }
 
-                dma_config.dst.addr_inc_en = DMA_ADDR_INC_ENABLE;
+                dma_config.dst.addr_inc_en  = DMA_ADDR_INC_ENABLE;
                 dma_config.dst.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
-                dma_config.dst.start_addr = dac_port_addr;
-                dma_config.dst.end_addr = dac_port_addr + 4;
-                dma_config.src.addr_inc_en = DMA_ADDR_INC_ENABLE;
+                dma_config.dst.start_addr   = dac_port_addr;
+                dma_config.dst.end_addr     = dac_port_addr + 4;
+                dma_config.src.addr_inc_en  = DMA_ADDR_INC_ENABLE;
                 dma_config.src.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
-                dma_config.src.start_addr = (uint32_t)(uintptr_t)onboard_spk->spk_ring_buff[i][k];
-                dma_config.src.end_addr = (uint32_t)(uintptr_t)(onboard_spk->spk_ring_buff[i][k]) + dma_buf_size * 2 + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL;
+                dma_config.src.start_addr   = (uint32_t)(uintptr_t)onboard_spk->spk_ring_buff[i][k];
+                dma_config.src.end_addr     = (uint32_t)(uintptr_t)(onboard_spk->spk_ring_buff[i][k]) + dma_buf_size * 2 + DMA_CARRY_SPK_RINGBUF_SAFE_INTERVAL;
                 BK_LOGD(TAG, "%s, %d, dma dst width:%d,\n", __func__, __LINE__, dma_config.dst.width);
                 ret = bk_dma_init(onboard_spk->spk_dma_id[i][k], &dma_config);
                 if (ret != BK_OK)
