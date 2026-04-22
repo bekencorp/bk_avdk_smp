@@ -10,7 +10,7 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 static tp_dev_t g_tp_dev = {0};
 static tp_touch_event_notify g_event_notify_func = NULL;

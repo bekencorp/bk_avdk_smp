@@ -16,10 +16,10 @@
 #include <os/mem.h>
 #include <driver/tp.h>
 #include <driver/tp_types.h>
-#include "tp_sensor_devices.h"
 
 
 #define TAG "cst816d"
+
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -234,5 +234,18 @@ const tp_sensor_config_t tp_sensor_cst816d =
 	.init = cst816d_init,
 	.read_tp_info = cst816d_read_tp_info,
 };
+
+// Detection function wrapper for section registration
+const tp_sensor_config_t *cst816d_detect_sensor(const tp_i2c_callback_t *cb)
+{
+	if (cst816d_detect(cb))
+	{
+		return &tp_sensor_cst816d;
+	}
+
+	return NULL;
+}
+
+BK_TP_SENSOR_DETECT_SECTION(cst816d_detect_sensor);
 
 

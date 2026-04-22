@@ -20,12 +20,29 @@
 
 const dvp_sensor_config_t *dvp_sensor_configs[] =
 {
+#if CONFIG_DVP_GC0328C
     &dvp_sensor_gc0328c,
+#endif
+
+#if CONFIG_DVP_HM1055
     &dvp_sensor_hm1055,
+#endif
+
+#if CONFIG_DVP_GC2145
     &dvp_sensor_gc2145,
+#endif
+
+#if CONFIG_DVP_OV2640
     &dvp_sensor_ov2640,
+#endif
+
+#if CONFIG_DVP_GC0308
     &dvp_sensor_gc0308,
+#endif
+
+#if CONFIG_DVP_SC101
     &dvp_sensor_SC101,
+#endif
 };
 
 

@@ -9,7 +9,6 @@
 #include "dvp_sensor_devices.h"
 #include "tp_sensor_devices.h"
 
-
 #define TAG "bk_peripheral"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -23,7 +22,6 @@ void bk_peripheral_init(void)
 #ifdef CONFIG_DVP_CAMERA
     dvp_sensor_devices_init();
 #endif
-
 
 #ifdef CONFIG_TP
 	tp_sensor_devices_init();

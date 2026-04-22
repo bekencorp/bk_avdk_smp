@@ -9,9 +9,9 @@ menu "DVP Camera"
         bool "Enable DVP_GC0308"
         default n
 
-    config DVP_GC0308C
+    config DVP_GC0328C
         depends on DVP_CAMERA
-        bool "Enable DVP_GC0308C"
+        bool "Enable DVP_GC0328C"
         default n
 
     config DVP_GC2053

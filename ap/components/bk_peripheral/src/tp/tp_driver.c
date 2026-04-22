@@ -48,12 +48,9 @@
 #endif
 
 // pin definition.
-#ifndef TP_RST_GPIO_ID
-	#define TP_RST_GPIO_ID (GPIO_5)
-#endif
-#ifndef TP_INT_GPIO_ID
-	#define TP_INT_GPIO_ID (GPIO_6)
-#endif
+#define TP_RST_GPIO_ID    CONFIG_TP_RST_GPIO_ID
+
+#define TP_INT_GPIO_ID    CONFIG_TP_INT_GPIO_ID
 
 #ifndef TP_I2C_SDA_PIN
 	#define TP_I2C_SDA_PIN (GPIO_1)
@@ -91,48 +88,36 @@ static const tp_i2c_callback_t tp_i2c_cb =
 	tp_i2c_write_uint16,
 };
 
-const tp_sensor_config_t **get_tp_sensor_devices_list(void)
-{
-    return tp_sensor_devices_list;
-}
-
-uint32_t get_tp_sensor_devices_num(void)
-{
-    return tp_sensor_devices_size;
-}
-
-const tp_sensor_config_t *tp_get_sensor_config_interface_by_id(tp_sensor_id_t id)
-{
-    uint8_t i;
-
-	for (i = 0; i < tp_sensor_devices_size; i++)
-	{
-		if (tp_sensor_devices_list[i]->id == id)
-		{
-			return tp_sensor_devices_list[i];
-		}
-	}
-
-	return NULL;
-}
-
 const tp_sensor_config_t *tp_get_sensor_auto_detect(const tp_i2c_callback_t *cb)
 {
-    uint8_t i;
-
-	if(NULL == cb)
+	if (NULL == cb)
 	{
 		LOGE("%s, pointer is null!\r\n", __func__);
 		return NULL;
 	}
 
-	for (i = 0; i < tp_sensor_devices_size; i++)
-	{
-		if (NULL != tp_sensor_devices_list[i]->detect)
+	if (&__tp_sensor_detect_array_end != &__tp_sensor_detect_array_start) {
+		const tp_sensor_config_t *sensor = NULL;
+		for (tp_sensor_detect_func_t *p = &__tp_sensor_detect_array_start; p < &__tp_sensor_detect_array_end; p++)
 		{
-			if (true == tp_sensor_devices_list[i]->detect(cb))
+			if (p->detect)
 			{
-				return tp_sensor_devices_list[i];
+				sensor = p->detect(cb);
+				if (sensor != NULL)
+				{
+					return sensor;
+				}
+			}
+		}
+	} else {
+		for (uint32_t i = 0; i < tp_sensor_devices_size; i++)
+		{
+			if (NULL != tp_sensor_devices_list[i]->detect)
+			{
+				if (true == tp_sensor_devices_list[i]->detect(cb))
+				{
+					return tp_sensor_devices_list[i];
+				}
 			}
 		}
 	}
