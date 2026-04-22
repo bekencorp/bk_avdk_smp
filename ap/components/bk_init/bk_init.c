@@ -347,6 +347,11 @@ int bk_init(void)
     app_ble_init();
 #endif
 #endif
+
+#if CONFIG_ETH
+	app_eth_init();
+#endif
+
     set_ap_startup_index(AP_EXIT_BK_INIT);
 	return 0;
 }
