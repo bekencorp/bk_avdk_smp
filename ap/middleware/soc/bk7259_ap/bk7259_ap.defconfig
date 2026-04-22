@@ -124,7 +124,7 @@ CONFIG_NTP_SYNC_RTC_TASK_STACK_SIZE=3072
 # AVDK Driver
 #
 # CONFIG_ISP is not set
-# CONFIG_GPU is not set
+CONFIG_GPU=y
 # CONFIG_H264E is not set
 # CONFIG_H264D is not set
 # CONFIG_JPEGE is not set

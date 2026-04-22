@@ -14,3 +14,17 @@
 
 #pragma once
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+void bk_gpu_driver_init(void);
+
+void bk_gpu_driver_deinit(void);
+
+
+#ifdef __cplusplus
+}
+#endif

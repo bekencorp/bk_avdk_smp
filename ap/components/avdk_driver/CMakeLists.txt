@@ -9,7 +9,6 @@ if (CONFIG_ISP)
 	list(APPEND incs src/isp)
 endif()
 
-
 if (CONFIG_GPU)
 	list(APPEND srcs
 		src/gpu/gpu_core.c
