@@ -146,6 +146,12 @@ if(CONFIG_LIN)
 	)
 endif()
 
+if(CONFIG_IPI)
+	list(APPEND srcs
+		"hal/ipi_hal.c"
+	)
+endif()
+
 if(CONFIG_CAN) 
 	list(APPEND srcs 
 		"hal/can_hal.c" 

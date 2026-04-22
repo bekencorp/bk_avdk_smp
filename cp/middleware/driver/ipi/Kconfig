@@ -12,5 +12,13 @@ menu "IPI"
 		default n
 		help
 			Enable IPI driver test cases.
+
+	config IPI_DUMP
+		depends on IPI
+		bool "Enable IPI dump"
+		default n
+		help
+			Enable bk_ipi_dump_info() detailed dump output.
+			Disable it for smaller code size.
 endmenu
 

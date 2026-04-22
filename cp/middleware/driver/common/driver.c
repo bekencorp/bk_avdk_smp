@@ -32,6 +32,7 @@
 #include <modules/pm.h>
 #include <driver/psram.h>
 #include <driver/lin.h>
+#include <driver/ipi_driver.h>
 #include "bk_driver.h"
 #include "interrupt_base.h"
 #include <driver/otp.h>
@@ -272,6 +273,10 @@ int driver_init(void) {
 
 #if CONFIG_TIMER
 	bk_timer_driver_init();
+#endif
+
+#if CONFIG_IPI
+	bk_ipi_driver_init();
 #endif
 
 #if CONFIG_GENERAL_DMA
