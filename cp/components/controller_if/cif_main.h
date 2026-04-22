@@ -65,8 +65,8 @@ extern "C" {
 #define MAX_NUM_TX_BUFFERS ((CONFIG_LWIP_MEM_MAX_TX_SIZE/MAX_TX_DATA_LENGTH) * 95 / 100) // 5% buffer reserved for local tcpip stack
 #define MAX_NUM_RX_BUFFERS 60
 
-#define MAX_NUM_CMD_SHORT_BUF 6
-#define MAX_NUM_CMD_LONG_BUF 4
+#define MAX_NUM_CMD_SHORT_BUF 3
+#define MAX_NUM_CMD_LONG_BUF 1
 
 #define PATTERN_BUSY 0xCAFEBABE
 #define PATTERN_FREE 0xF3EEF3EE
