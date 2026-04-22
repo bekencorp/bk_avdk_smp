@@ -114,21 +114,17 @@ static void cli_adc_key_op(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		CLI_LOGD("adc_key deinit\n");
 	} else if(os_strcmp(argv[1], "configure") == 0) {
 		if (argc < 4) {
-			CLI_LOGD("Configure More parameters required");
+			CLI_LOGD("Configure: adc_key configure S4/S5 low high\n");
 			return;
 		}
 		adckey_configure_t config;
 
-		if(os_strcmp(argv[2], "PEV") == 0) {
-			config.user_index = ADCKEY_PEV;
-		} else if(os_strcmp(argv[2], "NEXT") == 0) {
-			config.user_index = ADCKEY_NEXT;
-		} else if(os_strcmp(argv[2], "MENU") == 0) {
-			config.user_index = ADCKEY_MENU;
-		} else if(os_strcmp(argv[2], "PLAY_PAUSE") == 0) {
-			config.user_index = ADCKEY_PLAY_PAUSE;
-		}else {
-			CLI_LOGD("adc_key Configure fail STRING\n");
+		if(os_strcmp(argv[2], "S4") == 0) {
+			config.user_index = ADCKEY_S4;
+		} else if(os_strcmp(argv[2], "S5") == 0) {
+			config.user_index = ADCKEY_S5;
+		} else {
+			CLI_LOGD("adc_key Configure fail: use S4 or S5\n");
 			return;
 		}
 
@@ -143,15 +139,11 @@ static void cli_adc_key_op(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 		bk_adckey_item_configure(&config);
 		CLI_LOGD("adc_key Configure\n");
 	} else if(os_strcmp(argv[1], "unconfigure") == 0) {
-		if(os_strcmp(argv[2], "PEV") == 0) {
-			index = ADCKEY_PEV;
-		} else if(os_strcmp(argv[2], "NEXT") == 0) {
-			index = ADCKEY_NEXT;
-		} else if(os_strcmp(argv[2], "MENU") == 0) {
-			index = ADCKEY_MENU;
-		} else if(os_strcmp(argv[2], "PLAY_PAUSE") == 0) {
-			index = ADCKEY_PLAY_PAUSE;
-		}else
+		if(os_strcmp(argv[2], "S4") == 0) {
+			index = ADCKEY_S4;
+		} else if(os_strcmp(argv[2], "S5") == 0) {
+			index = ADCKEY_S5;
+		} else
 			return;
 		bk_adckey_item_unconfigure(index);
 		CLI_LOGD("adc_key Unconfigure\n");
