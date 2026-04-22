@@ -100,6 +100,14 @@ bk_err_t bk_network_provisioning_start(bk_network_provisioning_type_t type);
 /**
  * @brief       init network provisioning, used when system boot up
  * 
+ * This API does auto-reconnect first. If no saved network info is found,
+ * it will fallback to start network provisioning with default_type.
+ *
+ * NOTE: If you do NOT want to enter provisioning mode automatically at bootup
+ *       (e.g. provisioning should only be triggered by a button press), use
+ *       bk_network_auto_reconnect_init() at bootup and call
+ *       bk_network_provisioning_start() from the button handler instead.
+ *
  * example:
  *      projects/app/ap/ap_main.c
  *      void ap_main(void)
@@ -113,6 +121,32 @@ bk_err_t bk_network_provisioning_start(bk_network_provisioning_type_t type);
  * @return      BK_OK: success, others: fail
  */
 bk_err_t bk_network_provisioning_init(bk_network_provisioning_type_t default_type);
+
+/**
+ * @brief       Auto-reconnect init at system bootup, WITHOUT entering provisioning mode.
+ *
+ * This API registers network/wifi event handlers and tries to reconnect based on
+ * the network info saved in NV. If no saved info is found, it does nothing and
+ * returns, leaving the device idle. Use this when provisioning should only be
+ * started by user action (e.g. a button press calling
+ * bk_network_provisioning_start()).
+ *
+ * example:
+ *      void ap_main(void)
+ *      {
+ *          ......
+ *          bk_network_auto_reconnect_init();
+ *          // provisioning is NOT started here; trigger it from a button handler
+ *          // by calling bk_network_provisioning_start(BK_NETWORK_PROVISIONING_TYPE_BLE)
+ *      }
+ *
+ * @param[out]  reconnect_netif_if: if not NULL, filled with the netif type being
+ *                                  reconnected, or NETIF_IF_INVALID if no saved
+ *                                  info was found.
+ *
+ * @return      BK_OK on success.
+ */
+bk_err_t bk_network_auto_reconnect_init(netif_if_t *reconnect_netif_if);
 
 /**
  * @brief       erase network auto reconnect info, used when user click erase button

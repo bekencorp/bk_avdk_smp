@@ -542,13 +542,61 @@ bk_err_t bk_network_provisioning_start(bk_network_provisioning_type_t type)
     return BK_OK;
 }
 
-/*used in app_main.c when system bootup*/
-bk_err_t bk_network_provisioning_init(bk_network_provisioning_type_t default_type)
+/*
+ * Internal helper: register event handlers and try to auto-reconnect.
+ * Returns the reconnecting netif_if (or NETIF_IF_INVALID if no saved info).
+ */
+static netif_if_t bk_network_auto_reconnect_internal(void)
 {
     netif_if_t netif_if = NETIF_IF_INVALID;
 
     bk_nw_pro_event_handler_init();
     netif_if = bk_network_auto_reconnect(false);
+
+    if (netif_if != NETIF_IF_INVALID)
+    {
+#if CONFIG_NET_PAN
+        if (netif_if != NETIF_IF_PAN)
+#endif
+        {
+#if CONFIG_NET_PAN && !(CONFIG_A2DP_SINK_DEMO || CONFIG_HFP_HF_DEMO)
+            bk_bluetooth_deinit();
+#endif
+        }
+    }
+
+    return netif_if;
+}
+
+/*
+ * Public API: auto-reconnect only, WITHOUT entering provisioning mode.
+ * Intended for boards where provisioning is triggered by user action (button).
+ */
+bk_err_t bk_network_auto_reconnect_init(netif_if_t *reconnect_netif_if)
+{
+    netif_if_t netif_if = bk_network_auto_reconnect_internal();
+
+    if (netif_if == NETIF_IF_INVALID)
+    {
+        BK_LOGI(TAG, "no saved network info, provisioning must be triggered by user\n");
+    }
+    else
+    {
+        BK_LOGI(TAG, "auto reconnecting on netif %d\n", netif_if);
+    }
+
+    if (reconnect_netif_if)
+    {
+        *reconnect_netif_if = netif_if;
+    }
+
+    return BK_OK;
+}
+
+/*used in app_main.c when system bootup*/
+bk_err_t bk_network_provisioning_init(bk_network_provisioning_type_t default_type)
+{
+    netif_if_t netif_if = bk_network_auto_reconnect_internal();
 
     if (netif_if == NETIF_IF_INVALID)
     {
@@ -561,17 +609,6 @@ bk_err_t bk_network_provisioning_init(bk_network_provisioning_type_t default_typ
 #if CONFIG_BK_BLE_PROVISIONING
             /*default use BLE network provisioning*/
             bk_network_provisioning_start(BK_NETWORK_PROVISIONING_TYPE_BLE);
-#endif
-        }
-    }
-    else
-    {
-#if CONFIG_NET_PAN
-        if (netif_if != NETIF_IF_PAN)
-#endif
-        {
-#if CONFIG_NET_PAN && !(CONFIG_A2DP_SINK_DEMO || CONFIG_HFP_HF_DEMO)
-            bk_bluetooth_deinit();
 #endif
         }
     }
