@@ -32,7 +32,7 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-#define HW_ENCODER_TASK_PRIO        5
+#define HW_ENCODER_TASK_PRIO        3
 #define HW_ENCODER_TASK_STACK_SIZE  (4 * 1024)
 #define HW_ENCODER_QUEUE_SIZE       16
 

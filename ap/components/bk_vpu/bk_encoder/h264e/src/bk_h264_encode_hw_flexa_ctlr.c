@@ -265,7 +265,7 @@ static avdk_err_t h264_encode_ctlr_open(bk_h264_encode_ctlr_handle_t handle)
     control->enc_start_first = 1;
     // Create encoding thread
     ret = rtos_create_hsram_thread(&control->thread,
-                           BEKEN_DEFAULT_WORKER_PRIORITY,
+                           3,
                            "h264e_encoder",
                            (beken_thread_function_t)h264_encoder_entry,
                            CONFIG_BK_ENCODER_H264_TASK_SIZE,
