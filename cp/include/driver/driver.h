@@ -20,7 +20,6 @@
 #include "aud.h"
 #include "bk_queue.h"
 #include "calendar.h"
-#include "dma2d.h"
 #include "dma.h"
 #include "drv_tp.h"
 #include "dvp_camera.h"

@@ -1989,41 +1989,6 @@ uint32 sys_hal_get_bts_wakeup_platform_en()
 //Audio
 /**  Audio End **/
 /**  Video Start **/
-/**
-  * @brief	lcd_disp  system config
-  * param1: clk source sel 0:clk_320M      1:clk_480M,
-  * param2: clk_div  F/(1+clkdiv_disp_l+clkdiv_disp_h*2)
-  * param1: int_en eanble lcd cpu int
-  * param2: clk_always_on, BUS_CLK ENABLE,0: bus clock open when module is select,1:bus clock always open,  0 by defult
-  * return none
-  */
-void sys_hal_lcd_disp_clk_en(uint8_t clk_src_sel, uint8_t clk_div_l, uint8_t clk_div_h, uint8_t clk_always_on)
-{
-	return;
-}
-/**
-  * @brief	lcd clk close and int disable, reg value recover default.
-  * return none
-  */
-void sys_hal_lcd_disp_close(void)
-{
-	return;
-}
-/**
-  * @brief	dma2d system config
-  * param1: clk source sel 0:clk_320M	   1:clk_480M,
-  * param2: clk_always_on  ENABLE,0: bus clock auto open when module is select,1:bus clock always open
-  * param1: int_en eanble lcd cpu int
-  * return none
-  */
-void sys_hal_dma2d_clk_en(uint8_t clk_always_on)
-{
-	return;
-}
-void sys_hal_set_jpeg_dec_disckg(uint32_t value)
-{
-	return;
-}
 /**  Video End **/
 /**  WIFI Start **/
 //WIFI

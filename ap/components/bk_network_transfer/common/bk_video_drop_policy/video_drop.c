@@ -6,7 +6,6 @@
 #include <common/bk_kernel_err.h>
 #include <components/video_types.h>
 #include <stdlib.h>
-#include <driver/h264.h>
 #include "network_transfer_internal.h"
 
 #include "video_drop.h"

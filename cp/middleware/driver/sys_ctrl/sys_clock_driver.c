@@ -431,48 +431,6 @@ void sys_drv_trng_disckg_set(uint32_t value)
 	sys_drv_exit_critical(int_level);
 }
 
-void sys_drv_yuv_buf_pwr_up(void)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-	sys_hal_set_yuv_buf_clock_en(1);
-	sys_drv_exit_critical(int_level);
-}
-
-void sys_drv_yuv_buf_pwr_down(void)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-	sys_hal_set_yuv_buf_clock_en(0);
-	sys_drv_exit_critical(int_level);
-}
-
-void sys_drv_h264_pwr_up(void)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-	sys_hal_set_h264_clock_en(1);
-	sys_drv_exit_critical(int_level);
-}
-
-void sys_drv_h264_pwr_down(void)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-	sys_hal_set_h264_clock_en(0);
-	sys_drv_exit_critical(int_level);
-}
-
-void sys_drv_slcd_clock_enable(void)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-	sys_hal_set_slcd_clk_en(1);
-	sys_drv_exit_critical(int_level);
-}
-
-void sys_drv_slcd_clock_disable(void)
-{
-	uint32_t int_level = sys_drv_enter_critical();
-	sys_hal_set_slcd_clk_en(0);
-	sys_drv_exit_critical(int_level);
-}
-
 /* SOC cpu_clk_div_mode1/2/3 (see driver/sys_pm.h) */
 
 bk_err_t sys_drv_flash_cksel_clkdiv_set(cksel_sys_flash_t cksel, uint32_t ckdiv)

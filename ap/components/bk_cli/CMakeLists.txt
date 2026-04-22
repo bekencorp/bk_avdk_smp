@@ -134,28 +134,6 @@ if (CONFIG_AT_CMD)
 	list(APPEND srcs "cli_at.c")
 endif()
 
-if (CONFIG_LCD_TEST)
-	list(APPEND srcs
-		"cli_lcd.c")
-endif() #CONFIG_LCD_TEST
-if (CONFIG_DMA2D_TEST)
-	list(APPEND srcs
-		"cli_dma2d.c"
-	)
-endif() #CONFIG_DMA2D_TEST
-
-if (CONFIG_HW_ROTT_TEST)
-	list(APPEND srcs
-		"cli_rott.c"
-	)
-endif() #CONFIG_ROTT_TEST
-
-if (CONFIG_LCD_QSPI_TEST)
-	list(APPEND srcs
-		"cli_lcd_qspi.c"
-	)
-endif()
-
 if (CONFIG_EASY_FLASH)
 	list(APPEND srcs
 		"cli_easyflash.c"

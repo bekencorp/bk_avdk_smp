@@ -36,7 +36,6 @@ set(incs
 	wdt
 	timer
 	scr
-	slcd
 	pwr_clk
 	)
 
@@ -80,7 +79,6 @@ endif()
 		sys_ctrl/sys_wifi_driver.c
 		sys_ctrl/sys_bt_driver.c
 		sys_ctrl/sys_audio_driver.c
-		sys_ctrl/sys_video_driver.c
 		#sys_ctrl/sys_psram_driver.c
 		#sys_ctrl/sys_touch_driver.c
 		#gpio/gpio_driver_base.c
@@ -157,12 +155,6 @@ if (CONFIG_I2S)
 
 	list(APPEND srcs
 		i2s/i2s_driver.c
-	)
-endif()
-
-if(CONFIG_SLCD)
-	list(APPEND srcs
-		"slcd/slcd_driver.c"
 	)
 endif()
 

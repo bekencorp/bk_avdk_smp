@@ -81,9 +81,6 @@ int mcheck_ate(uint16_t check_res[48])
    // cpu2_3->pram overall 14 points, share 8 points
     res += mcheck_section(reg_start_addr + 64, SOC_PSRAM_DATA_BASE, 14, 8, 13, 2);
 
-   // usb2->dmad overall 4 points, share 2 points
-    // res += mcheck_section(reg_start_addr + 78, SOC_DMA2D_REG_BASE, 4, 2, 12, 2);
-
     return res;
 }
 

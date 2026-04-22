@@ -271,36 +271,6 @@ void sys_drv_thread_rf_ctrl(bool en);
 
 
 /**  Video Start **/
-/**
-  * @brief	lcd_disp  system config
-  * param1: clk source sel 0:clk_320M      1:clk_480M,
-  * param2: clk_div  F/(1+clkdiv_disp_l+clkdiv_disp_h*2)
-  * param3: int_en eanble lcd cpu int
-  * param4: clk_always_on, BUS_CLK ENABLE,0: bus clock open when module is select,1:bus clock always open,  0 by defult
-  * return none
-  */
-uint32_t sys_drv_lcd_set(uint8_t clk_src_sel, uint8_t clk_div_l, uint8_t clk_div_h,uint8_t clk_always_on);
-
-/**
-  * @brief	lcd clk close and int disable, reg value recover default.
-  * return none
-  */
-uint32_t  sys_drv_lcd_close(void);
-
-/**
-  * @brief	dma2d system config
-  * param1: clk source sel 0:clk_320M	   1:clk_480M,
-  * param2: clk_always_on  ENABLE,0: bus clock open when module is select,1:bus clock always open
-  * return none
-  */
-uint32_t sys_drv_dma2d_set(uint8_t clk_always_on);
-
-/**
-  * @brief	jpeg dec system config
-  * param1: clk_always_on  ENABLE,0: bus clock open when module is select,1:bus clock always open
-  * return none
-  */
-uint32_t sys_drv_set_jpeg_dec_disckg(uint32_t value);
 
 /**  Video End **/
 
@@ -604,9 +574,6 @@ void sys_drv_h264_pwr_up(void);
 void sys_drv_h264_pwr_down(void);
 void sys_drv_slcd_clock_enable(void);
 void sys_drv_slcd_clock_disable(void);
-void sys_drv_set_ana_lcd_enable(void);
-void sys_drv_set_ana_lcd_disable(void);
-void sys_drv_set_ana_sw_bias(uint32_t value);
 void sys_drv_set_ana_crb(uint32_t value);
 void sys_drv_set_ana_com_port_enable(uint32_t value);
 void sys_drv_set_ana_seg_port_enable(uint32_t value);

@@ -287,20 +287,6 @@ void sys_hal_thread_interrupt_ctrl(bool en);
 
 
 /**  Video Start **/
-void sys_hal_lcd_disp_clk_en(uint8_t clk_src_sel, uint8_t clk_div_l, uint8_t clk_div_h,uint8_t clk_always_on);
-void sys_hal_lcd_disp_close(void);
-
-void sys_hal_set_jpeg_dec_disckg(uint32_t value);
-void sys_hal_dma2d_clk_en(uint8_t clk_always_on);
-
-void sys_hal_set_slcd_clk_en(bool enable);
-void sys_hal_set_slcd_sw_bias(uint32_t value);
-void sys_hal_set_slcd_crb(uint32_t value);
-void sys_hal_set_slcd_com_enable(uint32_t value);
-void sys_hal_set_slcd_seg_enable(uint32_t value);
-uint32_t sys_hal_get_slcd_seg_enable_status(void);
-void sys_hal_set_slcd_enable(bool enable);
-
 /**  Video End **/
 
 
