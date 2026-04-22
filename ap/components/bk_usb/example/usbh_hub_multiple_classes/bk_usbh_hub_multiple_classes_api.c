@@ -839,48 +839,53 @@ bk_err_t bk_usbh_hub_port_video_open_handle(bk_usb_hub_port_info *port_dev_info)
 			USBH_MAX_ISOC_TRANSACTIONS_PER_UFRAME,
 			USBH_MAX_ISOC_MPS_PER_TRANSACTION);
 
-	for (uint8_t i = 1; i < uvc_device->num_of_intf_altsettings; i++) {
-		struct usb_endpoint_descriptor *ep_desc = &uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].ep[0].ep_desc;
-		uint8_t mult = (ep_desc->wMaxPacketSize >> 11) & 0x3;
-		uint16_t mps = ep_desc->wMaxPacketSize & 0x7FF;
-
-		/* Skip high-bandwidth (mult != 0) altsettings */
-		if (mult != 0) {
-			USB_HUB_MD_LOGD("Altsetting %d: Mps=%d, Mult=%d - skipped (high-bandwidth)\r\n",
-					uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].intf_desc.bAlternateSetting,
-					mps, mult);
-			continue;
+	if (uvc_device->num_of_intf_altsettings > 1)
+	{
+		for (uint8_t i = 1; i < uvc_device->num_of_intf_altsettings; i++) {
+			struct usb_endpoint_descriptor *ep_desc = &uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].ep[0].ep_desc;
+			uint8_t mult = (ep_desc->wMaxPacketSize >> 11) & 0x3;
+			uint16_t mps = ep_desc->wMaxPacketSize & 0x7FF;
+	
+			/* Skip high-bandwidth (mult != 0) altsettings */
+			if (mult != 0) {
+				USB_HUB_MD_LOGD("Altsetting %d: Mps=%d, Mult=%d - skipped (high-bandwidth)\r\n",
+						uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].intf_desc.bAlternateSetting,
+						mps, mult);
+				continue;
+			}
+	
+			/* Check hardware limit */
+			if (mps > USBH_MAX_ISOC_MPS_PER_TRANSACTION) {
+				USB_HUB_MD_LOGW("Altsetting %d skipped: Mps=%d exceeds hw limit %u\r\n",
+						uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].intf_desc.bAlternateSetting,
+						mps, USBH_MAX_ISOC_MPS_PER_TRANSACTION);
+				continue;
+			}
+	
+			/* Check FIFO limit */
+			if (mps > MAX_RX_FIFO_SIZE) {
+				USB_HUB_MD_LOGW("Altsetting %d skipped: Mps=%d exceeds FIFO limit %d\r\n",
+						uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].intf_desc.bAlternateSetting,
+						mps, MAX_RX_FIFO_SIZE);
+				continue;
+			}
+	
+			/* Pick the one with largest mps */
+			if (mps > best_mps) {
+				best_mps = mps;
+				best_altsetting = uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].intf_desc.bAlternateSetting;
+				USB_HUB_MD_LOGD("Candidate Altsetting %d: Mps=%d (mult=0)\r\n", best_altsetting, mps);
+			}
 		}
-
-		/* Check hardware limit */
-		if (mps > USBH_MAX_ISOC_MPS_PER_TRANSACTION) {
-			USB_HUB_MD_LOGW("Altsetting %d skipped: Mps=%d exceeds hw limit %u\r\n",
-					uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].intf_desc.bAlternateSetting,
-					mps, USBH_MAX_ISOC_MPS_PER_TRANSACTION);
-			continue;
+	
+		if (best_altsetting == 0) {
+			USB_HUB_MD_LOGW("No mult=0 altsetting found within hw limit, using default Altsetting 1\r\n");
+			best_altsetting = 1;
 		}
-
-		/* Check FIFO limit */
-		if (mps > MAX_RX_FIFO_SIZE) {
-			USB_HUB_MD_LOGW("Altsetting %d skipped: Mps=%d exceeds FIFO limit %d\r\n",
-					uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].intf_desc.bAlternateSetting,
-					mps, MAX_RX_FIFO_SIZE);
-			continue;
-		}
-
-		/* Pick the one with largest mps */
-		if (mps > best_mps) {
-			best_mps = mps;
-			best_altsetting = uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[i].intf_desc.bAlternateSetting;
-			USB_HUB_MD_LOGD("Candidate Altsetting %d: Mps=%d (mult=0)\r\n", best_altsetting, mps);
-		}
+	} else {
+		best_altsetting = 0;
 	}
-
-	if (best_altsetting == 0) {
-		USB_HUB_MD_LOGW("No mult=0 altsetting found within hw limit, using default Altsetting 1\r\n");
-		best_altsetting = 1;
-	}
-	USB_HUB_MD_LOGD("Final selection: Altsetting %d, Mps=%d bytes/microframe\r\n", best_altsetting, best_mps);
+	
 	altsettings = best_altsetting;
 
 	config->ep_desc = (struct s_bk_usb_endpoint_descriptor *)&uvc_device->hport->config.intf[uvc_device->data_intf].altsetting[altsettings].ep[0].ep_desc;
