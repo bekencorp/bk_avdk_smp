@@ -311,6 +311,7 @@ typedef struct {
 	void (*_coex_wifi_request)(uint32_t event,uint8_t mode,uint32_t duration);
 	void (*_coex_wifi_release)(uint32_t event);
 	uint32_t (*_coex_wifi_event_get)(void);
+	bk_err_t (*_bk_pm_clock_ctrl)(uint32_t module, uint32_t clock_state);
 } wifi_os_funcs_t;
 extern wifi_os_funcs_t g_wifi_os_funcs;
 
@@ -387,6 +388,11 @@ typedef struct {
 	uint32_t _int_src_modem_rc;
 	int32_t  _pm_low_voltage_delta_wakeup_delay_in_us;
 	bool _improve_he_tb_enable;
+	uint32_t _pm_clk_module_mac;
+	uint32_t _pm_clk_module_phy;
+	uint32_t _pm_clk_module_ofdm;
+	uint32_t _pm_clk_on;
+	uint32_t _pm_clk_off;
 } wifi_os_variable_t;
 extern wifi_os_variable_t g_wifi_os_variable;
 

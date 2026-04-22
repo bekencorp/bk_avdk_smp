@@ -305,7 +305,12 @@ static uint32_t sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm_wrapper(void)
 	#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX)
 	return sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm();
 	#elif CONFIG_SOC_BK7259
-	return 0;
+	#if 1 //workaround
+	bool get_dsss_only_flag();
+	return get_dsss_only_flag();
+	#else//platform wakeup failure,to Do...
+	return (0 == sys_ll_get_reserver_reg0xd_ofdm_cken());
+	#endif
 	#else
 	return 0;
 	#endif
@@ -373,6 +378,11 @@ static int32 bk_pm_module_power_state_get_wrapper(unsigned int module)
 static bk_err_t bk_pm_module_vote_power_ctrl_wrapper(unsigned int             module, uint32_t power_state)
 {
     return bk_pm_module_vote_power_ctrl((pm_power_module_name_e)module, (pm_power_module_state_e)power_state);
+}
+
+static bk_err_t bk_pm_clock_ctrl_wrapper(uint32_t module, uint32_t clock_state)
+{
+    return bk_pm_clock_ctrl((pm_dev_clk_e)module, (pm_dev_clk_pwr_e)clock_state);
 }
 
 static bk_err_t bk_pm_module_vote_cpu_freq_wrapper(uint32_t module, uint32_t cpu_freq)
@@ -1668,6 +1678,7 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t g_wifi_os_funcs = {
 	._coex_wifi_request = coex_wifi_request_wrapper,
 	._coex_wifi_release = coex_wifi_release_wrapper,
 	._coex_wifi_event_get = coex_wifi_event_get_wrapper,
+	._bk_pm_clock_ctrl = bk_pm_clock_ctrl_wrapper,
 };
 
 __attribute__((section(".dtcm_sec_data "))) wifi_os_variable_t g_wifi_os_variable = {
@@ -1747,6 +1758,11 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_variable_t g_wifi_os_variabl
 	#if (CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7259)
 	._pm_low_voltage_delta_wakeup_delay_in_us = PM_LOW_VOLTAGE_DELTA_WAKEUP_DELAY_IN_US,
 	#endif
+	._pm_clk_module_mac = PM_CLK_ID_MAC,
+	._pm_clk_module_phy = PM_CLK_ID_PHY,
+	._pm_clk_module_ofdm = PM_CLK_ID_OFDM,
+	._pm_clk_on = PM_CLK_CTRL_PWR_UP,
+	._pm_clk_off = PM_CLK_CTRL_PWR_DOWN,
 };
 
 Countryregulations country_regulation_table[] = {
