@@ -2,6 +2,7 @@
 #include <driver/int.h>
 #include "nano_osi_wrapper.h"
 #include "sys_driver.h"
+#include "aspl_lock.h"
 
 static void *nano_malloc_wrapper(uint32_t size)
 {
@@ -150,13 +151,13 @@ static uint32_t nano_module_enter_critical_wrapper(bk_nano_module_t module)
 {
 #if CONFIG_HSPL
     if (module == BK_NANO_MODULE_VENC) {
-        return bk_hspl_venc_enter_critical();
+        return bk_aspl_venc_enter_critical();
     }
     else if (module == BK_NANO_MODULE_VDEC) {
-        return bk_hspl_vdec_enter_critical();
+        return bk_aspl_vdec_enter_critical();
     }
     else if (module == BK_NANO_MODULE_ISP) {
-        return bk_hspl_isp_enter_critical();
+        return bk_aspl_isp_enter_critical();
     }
     else {
         return rtos_enter_critical();
@@ -170,13 +171,13 @@ static void nano_module_exit_critical_wrapper(bk_nano_module_t module, uint32_t 
 {
 #if CONFIG_HSPL
     if (module == BK_NANO_MODULE_VENC) {
-        bk_hspl_venc_exit_critical(flags);
+        bk_aspl_venc_exit_critical(flags);
     }
     else if (module == BK_NANO_MODULE_VDEC) {
-        bk_hspl_vdec_exit_critical(flags);
+        bk_aspl_vdec_exit_critical(flags);
     }
     else if (module == BK_NANO_MODULE_ISP) {
-        bk_hspl_isp_exit_critical(flags);
+        bk_aspl_isp_exit_critical(flags);
     }
     else {
         rtos_exit_critical(flags);

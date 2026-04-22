@@ -31,7 +31,7 @@ static inline uint8_t hspl_core_index(void)
 }
 
 /* Recursive lock count: [res][core_id]. Same core locking again only increments count. */
-static uint8_t s_rec_count[BK_HSPL_RES_MAX][HSPL_MAX_CORES];
+static volatile uint8_t s_rec_count[BK_HSPL_RES_MAX][HSPL_MAX_CORES];
 bk_err_t bk_sspl_res_unlock(bk_hspl_res_t res)
 {
     uint8_t core_id;

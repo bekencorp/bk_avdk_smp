@@ -138,23 +138,6 @@ uint32_t bk_hspl_driver_enter_critical(void);
 void bk_hspl_driver_exit_critical(uint32_t flags);
 
 /**
- * @brief Enter critical section for OS (disable IRQ and acquire HSPL lock)
- *
- * @note This function disables interrupts and acquires the OS resource lock.
- *       Must be paired with bk_hspl_os_exit_critical().
- *
- * @return Interrupt state flags (must be passed to exit_critical)
- */
-uint32_t bk_hspl_os_enter_critical(void);
-
-/**
- * @brief Exit critical section for OS (release HSPL lock and restore IRQ)
- *
- * @param flags Interrupt state flags returned by bk_hspl_os_enter_critical()
- */
-void bk_hspl_os_exit_critical(uint32_t flags);
-
-/**
  * @brief Enter critical section for UART log
  *
  * @note This function disables interrupts and acquires the UART_LOG resource lock.
@@ -191,36 +174,6 @@ void bk_hspl_sys_sw_regs_lock(void);
  * @brief Unlock SYS_SW_REGS (release SYS_SW_REGS lock)
  */
 void bk_hspl_sys_sw_regs_unlock(void);
-
-/**
- * @brief Enter critical section for VDEC (disable IRQ and acquire HSPL lock)
- */
-uint32_t bk_hspl_vdec_enter_critical(void);
-
-/**
- * @brief Exit critical section for VDEC (release HSPL lock and restore IRQ)
- */
-void bk_hspl_vdec_exit_critical(uint32_t flags);
-
-/**
- * @brief Enter critical section for VENC (disable IRQ and acquire HSPL lock)
- */
-uint32_t bk_hspl_venc_enter_critical(void);
-
-/**
- * @brief Exit critical section for VENC (release HSPL lock and restore IRQ)
- */
-void bk_hspl_venc_exit_critical(uint32_t flags);
-
-/**
- * @brief Enter critical section for ISP (disable IRQ and acquire HSPL lock)
- */
-uint32_t bk_hspl_isp_enter_critical(void);
-
-/**
- * @brief Exit critical section for ISP (release HSPL lock and restore IRQ)
- */
-void bk_hspl_isp_exit_critical(uint32_t flags);
 
 #ifdef __cplusplus
 }

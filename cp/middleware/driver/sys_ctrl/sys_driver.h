@@ -8,9 +8,7 @@
 #include "sys_types.h"
 #include "sys_hal.h"
 #include <modules/pm.h>
-#if CONFIG_HSPL
-#include "hspl_res_lock.h"
-#endif
+#include "aspl_lock.h"
 
 #define SYS_DRV_DEBUG   0
 
@@ -38,20 +36,12 @@
 
 static inline uint32_t sys_drv_enter_critical()
 {
-  #if CONFIG_HSPL
-	return bk_hspl_driver_enter_critical();
-  #else
-	return rtos_enter_critical();
-  #endif
+	return bk_aspl_driver_enter_critical();
 }
 
 static inline void sys_drv_exit_critical(uint32_t flags)
 {
-  #if CONFIG_HSPL
-	return bk_hspl_driver_exit_critical(flags);
-  #else
-	rtos_exit_critical(flags);
-  #endif
+	return bk_aspl_driver_exit_critical(flags);
 }
 
 /**  Platform Start **/

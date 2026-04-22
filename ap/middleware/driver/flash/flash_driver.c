@@ -23,7 +23,7 @@
 #include "driver/flash_partition.h"
 #include <modules/chip_support.h>
 #include "flash_bypass.h"
-#include "hspl_res_lock.h"
+#include "aspl_lock.h"
 
 
 typedef struct {
@@ -115,7 +115,7 @@ static inline uint32_t flash_enter_critical(void)
 	/* Use recursive lock counter to prevent deadlock */
 #ifdef CONFIG_FREERTOS_SMP
 	if (s_flash_hspl_lock_count == 0) {
-		bk_hspl_res_must_lock(BK_HSPL_RES_FLASH);
+		bk_aspl_flash_enter_critical();
 	}
 	s_flash_hspl_lock_count++;
 #else
@@ -132,7 +132,7 @@ static inline void flash_exit_critical(uint32_t flags)
 	if (s_flash_hspl_lock_count > 0) {
 		s_flash_hspl_lock_count--;
 		if (s_flash_hspl_lock_count == 0) {
-			bk_hspl_res_unlock(BK_HSPL_RES_FLASH);
+			bk_aspl_flash_exit_critical(flags);
 		}
 	}
 #else

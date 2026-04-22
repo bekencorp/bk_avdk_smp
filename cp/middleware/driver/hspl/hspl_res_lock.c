@@ -23,7 +23,7 @@
 #define HSPL_REC_COUNT_MAX     255
 
 /* Recursive lock count: [res][core_id]. Same core locking again only increments count. */
-static uint8_t s_rec_count[BK_HSPL_RES_MAX][HSPL_MAX_CORES];
+static volatile uint8_t s_rec_count[BK_HSPL_RES_MAX][HSPL_MAX_CORES];
 
 static inline uint8_t hspl_core_index(void)
 {
@@ -283,48 +283,4 @@ bk_err_t bk_hspl_res_unlock_irqrestore(bk_hspl_res_t res, uint32_t flags)
 	return ret;
 }
 
-uint32_t bk_hspl_driver_enter_critical(void)
-{
-	uint32_t flags = rtos_disable_int();
-	bk_hspl_res_must_lock(BK_HSPL_RES_SYS);
-	return flags;
-}
 
-void bk_hspl_driver_exit_critical(uint32_t flags)
-{
-	bk_hspl_res_unlock(BK_HSPL_RES_SYS);
-	rtos_enable_int(flags);
-}
-
-void bk_hspl_uart_log_lock(void)
-{
-	bk_hspl_res_must_lock(BK_HSPL_RES_UART_LOG);
-}
-
-void bk_hspl_uart_log_unlock(void)
-{
-	bk_hspl_res_unlock(BK_HSPL_RES_UART_LOG);
-}
-
-uint32_t bk_hspl_uart_log_enter_critical(void)
-{
-	uint32_t flags = rtos_disable_int();
-	bk_hspl_res_must_lock(BK_HSPL_RES_UART_LOG);
-	return flags;
-}
-
-void bk_hspl_uart_log_exit_critical(uint32_t flags)
-{
-	bk_hspl_res_unlock(BK_HSPL_RES_UART_LOG);
-	rtos_enable_int(flags);
-}
-
-void bk_hspl_sys_sw_regs_lock(void)
-{
-	bk_hspl_res_must_lock(BK_HSPL_RES_SYS_SW_REGS);
-}
-
-void bk_hspl_sys_sw_regs_unlock(void)
-{
-	bk_hspl_res_unlock(BK_HSPL_RES_SYS_SW_REGS);
-}
