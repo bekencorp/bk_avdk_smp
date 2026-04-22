@@ -2867,7 +2867,11 @@ static void prvCopyDataFromQueue( Queue_t * const pxQueue,
     {
         BaseType_t xReturn;
 
+#if CONFIG_SPINLOCK_SECTION
+        taskENTER_CRITICAL( ( ( ( Queue_t * ) pxQueue )->xQueueLock ) );
+#else
         taskENTER_CRITICAL( &( ( ( Queue_t * ) pxQueue )->xQueueLock ) );
+#endif
         {
             if( pxQueue->uxMessagesWaiting == ( UBaseType_t ) 0 )
             {
@@ -2878,7 +2882,11 @@ static void prvCopyDataFromQueue( Queue_t * const pxQueue,
                 xReturn = pdFALSE;
             }
         }
+#if CONFIG_SPINLOCK_SECTION
+        taskEXIT_CRITICAL( ( ( ( Queue_t * ) pxQueue )->xQueueLock ) );
+#else
         taskEXIT_CRITICAL( &( ( ( Queue_t * ) pxQueue )->xQueueLock ) );
+#endif
 
         return xReturn;
     }
@@ -2910,7 +2918,11 @@ BaseType_t xQueueIsQueueEmptyFromISR( const QueueHandle_t xQueue )
     {
         BaseType_t xReturn;
 
+#if CONFIG_SPINLOCK_SECTION
+        taskENTER_CRITICAL( ( ( ( Queue_t * ) pxQueue )->xQueueLock ) );
+#else
         taskENTER_CRITICAL( &( ( ( Queue_t * ) pxQueue )->xQueueLock ) );
+#endif
         {
             if( pxQueue->uxMessagesWaiting == pxQueue->uxLength )
             {
@@ -2921,7 +2933,11 @@ BaseType_t xQueueIsQueueEmptyFromISR( const QueueHandle_t xQueue )
                 xReturn = pdFALSE;
             }
         }
+#if CONFIG_SPINLOCK_SECTION
+        taskEXIT_CRITICAL( ( ( ( Queue_t * ) pxQueue )->xQueueLock ) );
+#else
         taskEXIT_CRITICAL( &( ( ( Queue_t * ) pxQueue )->xQueueLock ) );
+#endif
 
         return xReturn;
     }
