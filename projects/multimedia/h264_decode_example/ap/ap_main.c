@@ -4,6 +4,7 @@
 #include "cli.h"
 #include <components/bk_frame_buffer.h>
 #include "h264_decode_test.h"
+#include "h264_decode_flexa_test.h"
 #include "h264_decode_stress.h"
 #include "media_service.h"
 
@@ -25,6 +26,7 @@ static const struct cli_command s_h264_decode_commands[] =
 {
     // Decode command
     {"h264_decode", "h264_decode", cli_h264_decode_cmd},
+    {"h264_decode_flexa_test", "h264 decode flexa test", cli_h264_decode_flexa_test_cmd},
     {"h264_decode_stress", "h264 decode pressure test", cli_h264_decode_stress_cmd},
     {"mjpeg_decode_stress", "mjpeg_decode_stress", cli_mjpeg_decode_stress_cmd},
 };

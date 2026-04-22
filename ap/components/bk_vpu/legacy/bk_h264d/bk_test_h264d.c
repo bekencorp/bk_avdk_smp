@@ -15750,10 +15750,11 @@ const static unsigned char H264Data[13225] =
 
 static void FlexaDoneCallback(uint32_t wrCnt)
 {
-    // bk_printf("[W]: %d\n", wrCnt);
-    // vcdec_flexa_input_linebuf_rdcnt_set(0, wrCnt);
-    extern void ppRbReadPointerSet(uint32_t value);
-    ppRbReadPointerSet(wrCnt);
+    //#if OUTPUT_DUMP_ENABLE == 0
+    bk_printf("[W]: %d\n", wrCnt);
+    //#endif
+
+    vcdec_flexa_input_linebuf_rdcnt_set(0, wrCnt);
 }
 
 void H264DecTrace(const char *string)

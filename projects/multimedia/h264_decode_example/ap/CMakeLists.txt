@@ -2,8 +2,10 @@ set(incs . include ./h264_decode/include ./h264_decode_stress/include)
 set(srcs
     ap_main.c
     h264_decode/src/h264_decode_cli.c
+    h264_decode_stress/src/h264_decode_flexa_test.c
     h264_decode_stress/src/h264_decode_stress.c
     h264_decode_stress/src/h264_decode_stress_stream.c
+    h264_decode_stress/src/h264_decode_stream_1280x720.c
     mjpeg_decode/mjpeg_decode_stress.c
 )
 

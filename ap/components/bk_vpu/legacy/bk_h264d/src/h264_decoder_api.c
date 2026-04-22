@@ -104,7 +104,7 @@ void ppRbReadPointerSet(uint32_t value)
 void ppRbReadyClear(void)
 {
     *(volatile uint32_t*)(H264D_ASIC_BASE_ADDR + 0x0F0) &= ~(1 << 9);
-    *(volatile uint32_t*)(H264D_ASIC_BASE_ADDR + 200 * 4) = 0x1;
+    *(volatile uint32_t*)(H264D_ASIC_BASE_ADDR + 0x320) |=  (1 << 0);
 }
 
 static void int_handler_h26d(void)
@@ -298,7 +298,7 @@ static int32_t vcdec_pp_set_config(PPInst handle, PPCfg* config, uint32_t inWidt
 void vcdec_flexa_input_linebuf_rdcnt_set(void* handle, uint32_t rdcnt)
 {
     //ppRbReadPointerSet(rdcnt);
-    // do { ppRbReadPointerSet(rdcnt); } while(ppRbReadPointerGet() != rdcnt);
+    do { ppRbReadPointerSet(rdcnt); } while(ppRbReadPointerGet() != rdcnt);
     //os_printf("ppRbReadPointerSet(%d)\n", rdcnt);
 }
 
@@ -345,7 +345,7 @@ int32_t h264_decoder_init(void** handle, uint32_t flexaMode, VCDecFlexaDoneCallb
         }
     }
 
-    H264DecSliceIntEnable(decoder, flexaMode == VCDEC_FLEXA_MODE_FLEXA || flexaMode == VCDEC_FLEXA_MODE_SLICE);
+    H264DecSliceIntEnable(decoder, 0);
 
     context->ppCfged   = 0;
     context->decHandle = decoder;
