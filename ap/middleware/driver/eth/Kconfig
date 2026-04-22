@@ -1,21 +1,27 @@
 menu "ETH"
 	config ETH
 		bool "Enable Ethernet"
+		default y
+
+	# choice ETH_PIN_GROUP
+	# 	prompt "Ethernet PIN Group"
+	# 	default ETH_PIN_GROUP1
+
+	# 	config ETH_PIN_GROUP0
+	# 		bool "Ethernet PIN Group (27, 29-39)"
+	# 		help
+	# 			Ethernet uses pin 27,29-39. Conflicts with DVP.
+	# 	config ETH_PIN_GROUP1
+	# 		bool "Ethernet PIN Group (46-55)"
+	# 		help
+	# 			Ethernet uses pin 46-55, Conflicts with LCD.
+	# endchoice
+
+	config ETH_GPHY
+		bool "Ethernet GPHY Support"
 		default n
-
-	choice ETH_PIN_GROUP
-		prompt "Ethernet PIN Group"
-		default ETH_PIN_GROUP0
-
-		config ETH_PIN_GROUP0
-			bool "Ethernet PIN Group (27, 29-39)"
-			help
-				Ethernet uses pin 27,29-39. Conflicts with DVP.
-		config ETH_PIN_GROUP1
-			bool "Ethernet PIN Group (46-55)"
-			help
-				Ethernet uses pin 46-55, Conflicts with LCD.
-	endchoice
+		help
+			Ethernet GPHY Support.
 
 	config ETH_PTP
 		bool "Support PTP"
@@ -50,7 +56,7 @@ menu "ETH"
 	config ETH_CSUM_OFFLOAD
 		bool "IP/TCP/UDP/ICMP Checksum offload"
 		default y
-	
+
 	config ETH_DHCP
 		depends on ETH
 		bool "ETH use dhcp or static"

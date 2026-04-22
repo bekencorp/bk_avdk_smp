@@ -607,6 +607,7 @@ void sys_hal_set_ana_vlsel_ldodig(uint32_t value);
 void sys_hal_set_ana_vhsel_ldodig(uint32_t value);
 void sys_hal_set_ana_vctrl_sysldo(uint32_t value);
 void sys_hal_enable_eth_int(uint32_t value);
+void sys_hal_set_eth_clk_en(uint32_t value);
 void sys_hal_set_yuv_buf_clock_en(uint32_t value);
 void sys_hal_set_h264_clock_en(uint32_t value);
 void sys_hal_set_ana_reg11_apfms(uint32_t value);

@@ -16,6 +16,7 @@
 #include "sys_hal.h"
 #include "sys_ll.h"
 #include "sys_ahbp_ll.h"
+#include "sys_aonp_struct.h"
 #include "aon_pmu_hal.h"
 #include "gpio_hal_v2px.h"
 #include "gpio_driver_base.h"
@@ -2385,6 +2386,12 @@ __IRAM_SEC void sys_hal_set_sys2flsh_2wire(uint32_t value)
 void sys_hal_enable_eth_int(uint32_t value)
 {
 	return;
+}
+
+void sys_hal_set_eth_clk_en(uint32_t value)
+{
+	sys_aonp_regd_t *r = (sys_aonp_regd_t *)(SOC_SYS_AONP_REG_BASE + (0xd << 2));
+	r->auxs_enet_cken = value;
 }
 #endif
 /** Ethernet End**/

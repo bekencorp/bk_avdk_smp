@@ -26,9 +26,9 @@
 
 /* Register Base Address */
 #ifdef CONFIG_SPE
-#define ETH_BASE (0x460a0000 + SOC_ADDR_OFFSET)
+#define ETH_BASE (0x48080000 + SOC_ADDR_OFFSET)
 #else
-#define ETH_BASE 0x460a0000
+#define ETH_BASE 0x48080000
 #endif // CONFIG_SPE
 #define ETH                 ((ETH_TypeDef *)ETH_BASE)
 
@@ -1896,6 +1896,20 @@
 
 #define ETH_RESET_CTRL                                *((volatile unsigned int *)(ETH_BASE + 0x802*4))
 
+/* Reg0x804: phy_intf_sel[17:14] - PHY interface select */
+#define ETH_PHY_INTF_SEL_REG                          *((volatile unsigned int *)(ETH_BASE + 0x804*4))
+#define ETH_PHY_INTF_SEL_POS                          (14U)
+#define ETH_PHY_INTF_SEL_MASK                         (0xFUL << ETH_PHY_INTF_SEL_POS)
+#define ETH_PHY_INTF_SEL_GRMII                        (0x1UL << ETH_PHY_INTF_SEL_POS)
+#define ETH_PHY_INTF_SEL_RMII                         (0x4UL << ETH_PHY_INTF_SEL_POS)
+
+static inline void eth_set_phy_intf_sel(uint32_t value)
+{
+	uint32_t reg = ETH_PHY_INTF_SEL_REG;
+	reg &= ~ETH_PHY_INTF_SEL_MASK;
+	reg |= ((value & 0xF) << ETH_PHY_INTF_SEL_POS);
+	ETH_PHY_INTF_SEL_REG = reg;
+}
 
 #endif /* __ETH_MAC_REGS_H_ */
 
