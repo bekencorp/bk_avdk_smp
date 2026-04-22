@@ -1278,6 +1278,11 @@ static void bt_delay_us(uint32_t us)
     bk_delay_us(us);
 }
 
+static uint16_t bt_get_low_voltage_wakeup_margin_cycles(void)
+{
+    return 208;//about 6.5ms
+}
+
 //warning: bt_osi_funcs must be data section, otherwise a2dp_source_pcm and a2dp_source_decode will trig watchdog !!!!!!!!
 static struct bt_osi_funcs_t bt_osi_funcs =
 {
@@ -1395,6 +1400,7 @@ static struct bt_osi_funcs_t bt_osi_funcs =
     ._bt_lp_rtc_clear       = bt_lp_rtc_clear,
     ._get_rtc_max_value     = bt_get_rtc_max_value,
     ._bt_delay_us           = bt_delay_us,
+    ._bt_get_low_voltage_wakeup_margin_cycles = bt_get_low_voltage_wakeup_margin_cycles,
 };
 
 int bk_bt_os_adapter_init(void)
