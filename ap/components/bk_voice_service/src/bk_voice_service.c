@@ -1465,7 +1465,7 @@ fail:
     os_free(voice_handle);
 #endif
 
-    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
+    //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
 
     return NULL;
 }
@@ -1508,7 +1508,7 @@ bk_err_t bk_voice_deinit(voice_handle_t voice_handle)
         os_free(voice_handle);
 #endif
 
-    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
+    //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
 
     return BK_OK;
 }

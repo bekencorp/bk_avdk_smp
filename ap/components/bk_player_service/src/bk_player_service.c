@@ -811,9 +811,9 @@ bk_player_handle_t bk_player_create(bk_player_cfg_t *cfg)
         goto fail;
     }
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
+    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_480M);
 
-    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
+    //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 0, 0);
 
     player_handle->state = PLAYER_STATE_IDLE;
 
@@ -821,7 +821,7 @@ bk_player_handle_t bk_player_create(bk_player_cfg_t *cfg)
 
 fail:
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     listener_deinit(player_handle);
 
@@ -833,7 +833,7 @@ fail:
 
     os_free(player_handle);
 
-    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
+    //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
 
     return NULL;
 }
@@ -1019,7 +1019,7 @@ bk_err_t bk_player_destroy(bk_player_handle_t player_handle)
     play_pipeline_deinit(player_handle);
     BK_LOGD(TAG, "%s, play_pipeline deinit complete\n", __func__);
 
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
+    //bk_pm_module_vote_cpu_freq(PM_DEV_ID_AUDIO, PM_CPU_FRQ_DEFAULT);
 
     listener_deinit(player_handle);
 
@@ -1033,7 +1033,7 @@ bk_err_t bk_player_destroy(bk_player_handle_t player_handle)
 
     os_free(player_handle);
 
-    bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
+    //bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_AUDP, 1, 0);
 
     return BK_OK;
 }
