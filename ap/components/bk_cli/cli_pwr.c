@@ -757,7 +757,30 @@ static void cli_pm_wakeup_source(char *pcWriteBuffer, int xWriteBufferLen, int a
 	}
 
 }
+static void cli_pm_auxldo(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	UINT32 ldo = 0;
+	UINT32 out = 0;
+	UINT32 state = 0;
+	UINT32 user = 0;
+	
+	if (argc != 5)
+	{
+		BK_LOGD(NULL, "auxldo parameter invalid %d\r\n",argc);
+		return;
+	}
+	ldo = os_strtoul(argv[1], NULL, 10);
+	out = os_strtoul(argv[2], NULL, 10);
+	state = os_strtoul(argv[3], NULL, 10);
+	user = os_strtoul(argv[4], NULL, 10);
 
+	pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+	auxldo_cfg.ldo = (auxldo_sel_t)ldo;
+	auxldo_cfg.out = (uint32_t)out;
+	auxldo_cfg.state = (pm_auxldo_enable_t)state;
+	auxldo_cfg.user = (pm_auxldo_2p8v_user_t)user;
+	bk_pm_auxldo_ctrl_vote(&auxldo_cfg);
+}
 #if (CONFIG_CPU_CNT > 2)
 static void cli_pm_boot_cp2(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -878,6 +901,7 @@ static const struct cli_command s_pwr_commands[] = {
 	{"pm_pwr_state", "pm_pwr_state [pwr_state]", cli_pm_pwr_state},
 	{"pm_auto_vote", "pm_auto_vote [auto_vote_value]", cli_pm_auto_vote},
 	{"pm_wakeup_source", "pm_wakeup_source [pm_sleep_mode]", cli_pm_wakeup_source},
+	{"pm_auxldo", "pm_auxldo [ldo] [out] [state] [user]", cli_pm_auxldo},
 #if (CONFIG_CPU_CNT > 2)
 	{"pm_boot_cp2", "pm_boot_cp2 [module_name] [ctrl_state:0x0:bootup; 0x1:shutdowm]", cli_pm_boot_cp2},
 #endif
