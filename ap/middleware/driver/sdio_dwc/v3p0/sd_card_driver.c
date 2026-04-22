@@ -33,7 +33,7 @@
 #include "sys_driver.h"
 
 #define INIT_400K	 1
-#define MAX_WAIT_STATE_TRANS_TIMES	100
+#define MAX_WAIT_STATE_TRANS_TIMES	200
 
 
 uint32 adma3_wr_descriptor_addr[42];
@@ -276,6 +276,7 @@ bk_err_t sd_card_init(uintptr_t addr)
 			return BK_FAIL;
 		}
 	}
+	s_sd_card_obj.sd_card.card_type = ((resp[0] >> 30) & 1) ? SD_CARD_TYPE_SDHC_SDXC : SD_CARD_TYPE_SDSC;
 	rtos_delay_milliseconds(1);
 
 	resp[0] = send_cmd(addr, CMD2, 1, 0); //send CMD2
@@ -342,7 +343,7 @@ sd_card_state_t bk_sd_card_get_card_state(void)
 	uint32_t resp1 = 0;
 
 	/* Send status command(CMD13) */
-	resp1 = send_cmd(sdio_mshc_0_base, CMD13, 2, sdio_rca);
+	resp1 = send_cmd(SDIO_ACTIVE_BASE, CMD13, 2, sdio_rca);
 
 	/* The response format R1 contains a 32-bit field named card status.
 	 * BIT[12:9] current_state
@@ -363,12 +364,12 @@ bk_err_t send_mult_data(uintptr_t addr, const uint8_t *data, uint16 BLOCK_SIZE,u
 	NORMAL_INT_SIGNAL_EN_R(addr)= CMD_COMPLETE_SIGNAL_EN | XFER_COMPLETE_SIGNAL_EN | BUF_WR_READY_SIGNAL_EN;
 	ERROR_INT_SIGNAL_EN_R(addr) = 0x870;
 
-	send_cmd(sdio_mshc_0_base, CMD23, 2, BLOCK_CNT);  //CMD23 to set card block cnt
 
 	BLOCKSIZE_R(addr) = BLOCK_SIZE;
 	BLOCKCOUNT_R(addr)= BLOCK_CNT;
 	ARGUMENT_R(addr)  = ARGUMENT;
-	XFER_MODE_R(addr) = 0xa2;////RESP TYPE: 0X2,NO CHECK CMD INDEX ,NO CHECK CMD CRC;multi blocks;block counter enable;resp_err_check_enable
+	XFER_MODE_R(addr) = XFR_MODE_RESP_ERRCHK_EN | XFR_MODE_MULTBLK_SEL | XFR_MODE_AUTOCMD12_EN | XFR_MODE_BLKCNT_EN; //0xa6
+
 	CMD_R(addr) = (CMD<<8) | DATA_PRESENT_SEL | 0x2;
 
 	int ret = 0;
@@ -465,7 +466,7 @@ int receive_mult_data(uintptr_t addr, uint8_t *data, uint16 BLOCK_SIZE,uint16 BL
 
 bk_err_t adma2_send_data(uintptr_t addr,uint32 SYS_ADDR,uint16 BLOCK_SIZE,uint16 BLOCK_CNT,uint16 CMD,uint32 ARGUMENT)
 {
-	send_cmd(sdio_mshc_0_base, CMD23, 2, BLOCK_CNT);  //CMD23 to set card block cnt
+	send_cmd(SDIO_ACTIVE_BASE, CMD23, 2, BLOCK_CNT);  //CMD23 to set card block cnt
 
 	uint32_t int_level = rtos_disable_int();
 	uint32 adma2_wr_descriptor_tbl[2];
@@ -563,7 +564,7 @@ bk_err_t adma2_receive_data (uintptr_t addr,uint32 SYS_ADDR,uint16 BLOCK_SIZE,ui
 
 #define  GPIO_CFG(port)	*((volatile unsigned int *) (0x44000400+port*4))
 
-#if 1
+#if !SDIO_VERIFY_USE_SDIO1
 void sdio_gpio_init(uint8_t io_pos, sdio_wire_width_sel_t width_sel)
 {
 	if(io_pos == 0)
@@ -648,6 +649,7 @@ void sdio_gpio_init(uint8_t io_pos, sdio_wire_width_sel_t width_sel)
 #else
 void sdio_gpio_init(uint8_t io_pos, sdio_wire_width_sel_t width_sel)
 {
+	SDIOD_LOGI("[DBG]sdio_gpio_init=%d,width_sel:%d\r\n", io_pos,width_sel);
 	if(io_pos == 0)
 	{
 		GPIO_CFG(14) = 0x0378;
@@ -702,6 +704,16 @@ void sdio_gpio_init(uint8_t io_pos, sdio_wire_width_sel_t width_sel)
 			gpio_dev_map(GPIO_23, GPIO_DEV_SDIO1_HOST_DATA7);
 			GPIO_CFG(23) |= 0x0300;
 		}
+	}
+	else if(width_sel == SDIO_WIRE_WIDTH_SEL_1)
+	{
+		// DAT3/CS# must be HIGH during CMD0 to keep SD NAND in SD mode (not SPI mode)
+		if(io_pos == 0)
+		{
+			gpio_dev_unmap(GPIO_19);
+			bk_gpio_enable_output(GPIO_19);
+			bk_gpio_set_output_high(GPIO_19);
+		}		
 	}
 }
 #endif
@@ -769,15 +781,20 @@ void sdio_reset(void)
 {
 	SDIOD_LOGI("func %s .\r\n", __func__);
 
-	SW_RST_R(sdio_mshc_0_base)=0xff;
-	CLK_CTRL_R(sdio_mshc_0_base) = 0;
-	HOST_CTRL2_R(sdio_mshc_0_base) = 0;
-	PWR_CTRL_R(sdio_mshc_0_base) = 0;
-	sdio_reg2(sdio_mshc_0_base)= 0<<0;
-	sdio_reg2(sdio_mshc_0_base)= 3<<0;
-	card_clk_stop(sdio_mshc_0_base);
+	SW_RST_R(SDIO_ACTIVE_BASE)=0xff;
+	CLK_CTRL_R(SDIO_ACTIVE_BASE) = 0;
+	HOST_CTRL2_R(SDIO_ACTIVE_BASE) = 0;
+	PWR_CTRL_R(SDIO_ACTIVE_BASE) = 0;
+	sdio_reg2(SDIO_ACTIVE_BASE)= 0<<0;
+	sdio_reg2(SDIO_ACTIVE_BASE)= 3<<0;
+	card_clk_stop(SDIO_ACTIVE_BASE);
+#if SDIO_VERIFY_USE_SDIO1
+	sys_hal_sdio1_set_cken(0);
+	sys_hal_sdio1_set_cken(1);
+#else
 	sys_hal_sdio0_set_cken(0);
 	sys_hal_sdio0_set_cken(1);
+#endif
 }
 
 bk_err_t sdio_host_init()
@@ -802,30 +819,30 @@ bk_err_t sdio_host_init()
 //	sys_ana_ll_set_reg5_en_vout(1);
 
 	sdio_gpio_init(0, SDIO_WIRE_WIDTH_SEL_1);
-	PWR_CTRL_R(sdio_mshc_0_base) = 0x01;
+	PWR_CTRL_R(SDIO_ACTIVE_BASE) = 0x01;
 
-	//tuning_cfg(sdio_mshc_0_base,0x0,0x0,0,0,0x0,0x0,0,0,1);
-	tuning_cfg(sdio_mshc_0_base,0x0,0x0,0,0,0x0,0x0,0,0,0);	//TODO: V2 chip positive edge tuning
+	//tuning_cfg(SDIO_ACTIVE_BASE,0x0,0x0,0,0,0x0,0x0,0,0,1);
+	tuning_cfg(SDIO_ACTIVE_BASE,0x0,0x0,0,0,0x0,0x0,0,0,0);	//TODO: V2 chip positive edge tuning
 
-	ret = mshc_host_init(sdio_mshc_0_base,0x3,300,0xff,0xa,SD_CARD,UHS_MODE_SDR12,DATA_WIDTH1);	  //400k //addr,sys_div,sdclk_div,tmclk_div,cqetmclk_div,CARD_IS_EMMC,UHS_MODE_SEL,DAT_XFER_WIDTH
+	ret = mshc_host_init(SDIO_ACTIVE_BASE,0x3,300,0xff,0xa,SD_CARD,UHS_MODE_SDR12,DATA_WIDTH1);	  //400k //addr,sys_div,sdclk_div,tmclk_div,cqetmclk_div,CARD_IS_EMMC,UHS_MODE_SEL,DAT_XFER_WIDTH
 	if(BK_OK != ret)
 		return ret;
 
 	rtos_delay_milliseconds(1);
 
-	send_cmd(sdio_mshc_0_base, CMD55, 2, sdio_rca);
+	send_cmd(SDIO_ACTIVE_BASE, CMD55, 2, sdio_rca);
 	rtos_delay_milliseconds(1);
 	//send_cmd(sdio_mshc_1_base, CMD6, 2, 2); //send CMD6 4 line
-	send_cmd(sdio_mshc_0_base, CMD6, 2, 0); //send CMD6 1 line
+	send_cmd(SDIO_ACTIVE_BASE, CMD6, 2, 0); //send CMD6 1 line
 	rtos_delay_milliseconds(1);
 
 	// sdio_gpio_init(0, SDIO_WIRE_WIDTH_SEL_4);
-	// HOST_CTRL1_R(sdio_mshc_0_base) = (HOST_CTRL1_R(sdio_mshc_0_base) & ~((1<<1)|(1<<5))) | (1 << 1);
+	// HOST_CTRL1_R(SDIO_ACTIVE_BASE) = (HOST_CTRL1_R(SDIO_ACTIVE_BASE) & ~((1<<1)|(1<<5))) | (1 << 1);
 
-	send_cmd(sdio_mshc_0_base, CMD16, 1, 0x200);	//send CMD16 set block size
+	send_cmd(SDIO_ACTIVE_BASE, CMD16, 1, 0x200);	//send CMD16 set block size
 	rtos_delay_milliseconds(1);
-	sd_card_interface_set(sdio_mshc_0_base,UHS_MODE_SDR50);
-	sd_clk_change(sdio_mshc_0_base, 3);  //时钟分频: 80/(3+1)=20MHz
+	sd_card_interface_set(SDIO_ACTIVE_BASE,UHS_MODE_SDR50);
+	sd_clk_change(SDIO_ACTIVE_BASE, 3);  //时钟分频: 80/(3+1)=20MHz
 	rtos_delay_milliseconds(1);
 
 	return ret;
@@ -841,32 +858,32 @@ void sdio_dwc_isr0(void)
 	volatile  uint16  normal_int;
 	volatile  uint16  error_int;
 
-	normal_int = NORMAL_INT_STAT_R(sdio_mshc_0_base);
-	error_int  = ERROR_INT_STAT_R(sdio_mshc_0_base);
+	normal_int = NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE);
+	error_int  = ERROR_INT_STAT_R(SDIO_ACTIVE_BASE);
 
 	if(normal_int & CMD_COMPLETE_STAT_EN)
 	{
 		//CMD_COMPLETE_STATE = 1;
 		rtos_set_semaphore(&s_sdio_cmd_done_sema);
 		//SDIOD_LOGD("CMD_COMP\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_COMPLETE_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_COMPLETE_STAT;
 	}
 	if(normal_int & XFER_COMPLETE_STAT_EN)
 	{
 		//XFER_COMPLETE_STATE = 1;
 		//SDIOD_LOGD("XFER_COMP\r\n");
 		rtos_set_semaphore(&s_sdio_data_xfer_done_sema);
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_XFER_COMPLETE_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_XFER_COMPLETE_STAT;
 	}
 	if(normal_int & BGAP_EVENT_STAT_EN)
 	{
 		BGAP_EVENT_STATE = 1;
 		SDIOD_LOGD("BGAP_EVENT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_BGAP_EVENT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_BGAP_EVENT_STAT;
 	}
 	if(normal_int & DMA_INTERRUPT_STAT_EN)
 	{
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_DMA_INTERRUPT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_DMA_INTERRUPT_STAT;
 		SDIOD_LOGD("DMA_INT\r\n");
 		DMA_INTERRUPT_STATE = 1;
 	}
@@ -875,68 +892,68 @@ void sdio_dwc_isr0(void)
 		//BUF_WR_READY_STATE = 1;
 		//SDIOD_LOGD("BUF_WR_READY\r\n");
 		rtos_set_semaphore(&s_sdio_wr_buf_ready_sema);
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_BUF_WR_READY_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_BUF_WR_READY_STAT;
 	}
 	if(normal_int & BUF_RD_READY_STAT_EN)
 	{
 		//BUF_RD_READY_STATE = 1;
 		rtos_set_semaphore(&s_sdio_rd_buf_ready_sema);
 		//SDIOD_LOGD("BUF_RD_READY\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_BUF_RD_READY_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_BUF_RD_READY_STAT;
 	}
 	if(normal_int & CARD_INSERTION_STAT_EN)
 	{
 		CARD_INSERTION_STATE = 1;
 		SDIOD_LOGD("CARD_INSERTION\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CARD_INSERTION_STAT;//clear the card insertion bit
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CARD_INSERTION_STAT;//clear the card insertion bit
 	}
 	if(normal_int & CARD_REMOVAL_STAT_EN)
 	{
 		CARD_REMOVAL_STATE = 1;
 		SDIOD_LOGD("CARD_REMOVAL\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CARD_REMOVAL_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CARD_REMOVAL_STAT;
 	}
 	if(normal_int & CARD_INTERRUPT_STAT_EN)
 	{
 		CARD_INTERRUPT_STATE = 1;
 		SDIOD_LOGD("CARD_INTERRUPT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CARD_INTERRUPT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CARD_INTERRUPT_STAT;
 	}
 	if(normal_int & INT_A_STAT_EN)
 	{
 		INT_A_STATE = 1;
 		SDIOD_LOGD("INT_A\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_INT_A_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_INT_A_STAT;
 	}
 	if(normal_int & INT_B_STAT_EN)
 	{
 		INT_B_STATE = 1;
 		SDIOD_LOGD("INT_B\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_INT_B_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_INT_B_STAT;
 	}
 	if(normal_int & INT_C_STAT_EN)
 	{
 		INT_C_STATE = 1;
 		SDIOD_LOGD("INT_C\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_INT_C_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_INT_C_STAT;
 	}
 	if(normal_int & RE_TUNE_EVENT_STAT_EN)
 	{
 		RE_TUNE_EVENT_STATE = 1;
 		SDIOD_LOGD("RE_TUNE_EVENT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_RE_TUNE_EVENT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_RE_TUNE_EVENT_STAT;
 	}
 	if(normal_int & FX_EVENT_STAT_EN)
 	{
 		FX_EVENT_STATE = 1;
 		SDIOD_LOGD("FX_EVENT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_FX_EVENT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_FX_EVENT_STAT;
 	}
 	if(normal_int & CQE_EVENT_STAT_EN)
 	{
 		CQE_EVENT_STATE = 1;
 		SDIOD_LOGD("CQE_EVENT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CQE_EVENT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CQE_EVENT_STAT;
 	}
 #if 1
 	if(error_int & ERROR_INTERRUPT_STAT_EN)
@@ -956,108 +973,108 @@ void sdio_dwc_isr0(void)
 	{
 		CMD_TOUT_ERR_STATE = 1;
 		SDIOD_LOGI("CMD_TOUT_ERR, command timeout error\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_TOUT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_TOUT_ERR_STAT;
 	}
 	if(error_int & CMD_CRC_ERR_STAT_EN)
 	{
 		CMD_CRC_ERR_STATE = 1;
 		SDIOD_LOGI("CMD_CRC_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_CRC_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_CRC_ERR_STAT;
 	}
 	if(error_int & CMD_END_BIT_ERR_STAT_EN)
 	{
 		CMD_END_BIT_ERR_STATE = 1;
 		SDIOD_LOGI("CMD_END_BIT_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_END_BIT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_END_BIT_ERR_STAT;
 	}
 	if(error_int & CMD_IDX_ERR_STAT_EN)
 	{
 		CMD_IDX_ERR_STATE = 1;
 		SDIOD_LOGI("CMD_IDX_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_IDX_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_IDX_ERR_STAT;
 	}
 	if(error_int & DATA_TOUT_ERR_STAT_EN)
 	{
 		DATA_TOUT_ERR_STATE = 1;
 		SDIOD_LOGI("DATA_TOUT_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_DATA_TOUT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_DATA_TOUT_ERR_STAT;
 	}
 	if(error_int & DATA_CRC_ERR_STAT_EN)
 	{
 		DATA_CRC_ERR_STATE = 1;
 		SDIOD_LOGI("DATA_CRC_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_DATA_CRC_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_DATA_CRC_ERR_STAT;
 	}
 	if(error_int & DATA_END_BIT_ERR_STAT_EN)
 	{
 		DATA_END_BIT_ERR_STATE = 1;
 		SDIOD_LOGI("DATA_END_BIT_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_DATA_END_BIT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_DATA_END_BIT_ERR_STAT;
 	}
 	if(error_int & CUR_LMT_ERR_STAT_EN)
 	{
 		CUR_LMT_ERR_STATE = 1;
 		SDIOD_LOGI("CUR_LMT_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CUR_LMT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CUR_LMT_ERR_STAT;
 	}
 	if(error_int & AUTO_CMD_ERR_STAT_EN)
 	{
 		AUTO_CMD_ERR_STATE = 1;
 		SDIOD_LOGI("AUTO_CMD_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_AUTO_CMD_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_AUTO_CMD_ERR_STAT;
 	}
 	if(error_int & ADMA_ERR_STAT_EN)
 	{
 		ADMA_ERR_STATE = 1;
 		SDIOD_LOGI("ADMA_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_ADMA_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_ADMA_ERR_STAT;
 	}
 	if(error_int & TUNING_ERR_STAT_EN)
 	{
 		TUNING_ERR_STATE = 1;
 		SDIOD_LOGI("TUNING_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_TUNING_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_TUNING_ERR_STAT;
 	}
 	if(error_int & RESP_ERR_STAT_EN)
 	{
-		//uint32_t xfer_mode = UHS2_XFER_MODE_R(sdio_mshc_0_base);
-		uint32_t resp_err = RESP01_R(sdio_mshc_0_base);
-		uint32_t resp_err2 = RESP23_R(sdio_mshc_0_base);
-		uint32_t resp_err3 = RESP45_R(sdio_mshc_0_base);
-		uint32_t resp_err6 = RESP67_R(sdio_mshc_0_base);
+		//uint32_t xfer_mode = UHS2_XFER_MODE_R(SDIO_ACTIVE_BASE);
+		uint32_t resp_err = RESP01_R(SDIO_ACTIVE_BASE);
+		uint32_t resp_err2 = RESP23_R(SDIO_ACTIVE_BASE);
+		uint32_t resp_err3 = RESP45_R(SDIO_ACTIVE_BASE);
+		uint32_t resp_err6 = RESP67_R(SDIO_ACTIVE_BASE);
 		//SDIOD_LOGI("RESP_ERR, xfer_mode=0x%08x\r\n", xfer_mode);
 		RESP_ERR_STATE = 1;
 		SDIOD_LOGI("RESP_ERR, resp_err=0x%08x, resp_err2=0x%08x, resp_err3=0x%08x, resp_err6=0x%08x\r\n", resp_err, resp_err2, resp_err3, resp_err6);
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_RESP_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_RESP_ERR_STAT;
 	}
 	if(error_int & BOOT_ACK_ERR_STAT_EN)
 	{
 		BOOT_ACK_ERR_STATE = 1;
 		SDIOD_LOGI("BOOT_ACK_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_BOOT_ACK_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_BOOT_ACK_ERR_STAT;
 	}
 	if(error_int & VENDOR_ERR1_STAT_EN)
 	{
 		VENDOR_ERR1_STATE = 1;
 		SDIOD_LOGI("VENDOR_ERR1\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_VENDOR_ERR1_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_VENDOR_ERR1_STAT;
 	}
 	if(error_int & VENDOR_ERR2_STAT_EN)
 	{
 		VENDOR_ERR2_STATE = 1;
 		SDIOD_LOGI("VENDOR_ERR2\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_VENDOR_ERR2_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_VENDOR_ERR2_STAT;
 	}
 	if(error_int & VENDOR_ERR3_STAT_EN)
 	{
 		VENDOR_ERR3_STATE = 1;
 		SDIOD_LOGI("VENDOR_ERR3\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_VENDOR_ERR3_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_VENDOR_ERR3_STAT;
 	}
 
 
-	normal_int = NORMAL_INT_STAT_R(sdio_mshc_0_base);
-	error_int  = ERROR_INT_STAT_R(sdio_mshc_0_base);
+	normal_int = NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE);
+	error_int  = ERROR_INT_STAT_R(SDIO_ACTIVE_BASE);
 
 }
 
@@ -1066,98 +1083,98 @@ void sdio_dwc_isr1(void)
 	volatile  uint16	normal_int;
 	volatile  uint16	error_int;
 
-	normal_int = NORMAL_INT_STAT_R(sdio_mshc_0_base);
-	error_int  = ERROR_INT_STAT_R(sdio_mshc_0_base);
+	normal_int = NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE);
+	error_int  = ERROR_INT_STAT_R(SDIO_ACTIVE_BASE);
 
 	if(normal_int & CMD_COMPLETE_STAT_EN)
 	{
 		CMD_COMPLETE_STATE = 1;
 		SDIOD_LOGD("CMD_COMP\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_COMPLETE_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_COMPLETE_STAT;
 	}
 	if(normal_int & XFER_COMPLETE_STAT_EN)
 	{
 		XFER_COMPLETE_STATE = 1;
 		//SDIOD_LOGD("XFER_COMP\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_XFER_COMPLETE_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_XFER_COMPLETE_STAT;
 	}
 	if(normal_int & BGAP_EVENT_STAT_EN)
 	{
 		BGAP_EVENT_STATE = 1;
 		SDIOD_LOGD("BGAP_EVENT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_BGAP_EVENT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_BGAP_EVENT_STAT;
 	}
 	if(normal_int & DMA_INTERRUPT_STAT_EN)
 	{
 		DMA_INTERRUPT_STATE = 1;
 		SDIOD_LOGD("DMA_INT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_DMA_INTERRUPT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_DMA_INTERRUPT_STAT;
 	}
 	if(normal_int & BUF_WR_READY_STAT_EN)
 	{
 		BUF_WR_READY_STATE = 1;
 		SDIOD_LOGD("BUF_WR_READY\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_BUF_WR_READY_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_BUF_WR_READY_STAT;
 	}
 	if(normal_int & BUF_RD_READY_STAT_EN)
 	{
 		BUF_RD_READY_STATE = 1;
 		//SDIOD_LOGD("BUF_RD_READY\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_BUF_RD_READY_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_BUF_RD_READY_STAT;
 	}
 	if(normal_int & CARD_INSERTION_STAT_EN)
 	{
 		CARD_INSERTION_STATE = 1;
 		SDIOD_LOGD("CARD_INSERTION\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CARD_INSERTION_STAT;//clear the card insertion bit
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CARD_INSERTION_STAT;//clear the card insertion bit
 	}
 	if(normal_int & CARD_REMOVAL_STAT_EN)
 	{
 		CARD_REMOVAL_STATE = 1;
 		SDIOD_LOGD("CARD_REMOVAL\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CARD_REMOVAL_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CARD_REMOVAL_STAT;
 	}
 	if(normal_int & CARD_INTERRUPT_STAT_EN)
 	{
 		CARD_INTERRUPT_STATE = 1;
 		SDIOD_LOGD("CARD_INTERRUPT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CARD_INTERRUPT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CARD_INTERRUPT_STAT;
 	}
 	if(normal_int & INT_A_STAT_EN)
 	{
 		INT_A_STATE = 1;
 		SDIOD_LOGD("INT_A\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_INT_A_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_INT_A_STAT;
 	}
 	if(normal_int & INT_B_STAT_EN)
 	{
 		INT_B_STATE = 1;
 		SDIOD_LOGD("INT_B\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_INT_B_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_INT_B_STAT;
 	}
 	if(normal_int & INT_C_STAT_EN)
 	{
 		INT_C_STATE = 1;
 		SDIOD_LOGD("INT_C\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_INT_C_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_INT_C_STAT;
 	}
 	if(normal_int & RE_TUNE_EVENT_STAT_EN)
 	{
 		RE_TUNE_EVENT_STATE = 1;
 		SDIOD_LOGD("RE_TUNE_EVENT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_RE_TUNE_EVENT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_RE_TUNE_EVENT_STAT;
 	}
 	if(normal_int & FX_EVENT_STAT_EN)
 	{
 		FX_EVENT_STATE = 1;
 		SDIOD_LOGD("FX_EVENT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_FX_EVENT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_FX_EVENT_STAT;
 	}
 	if(normal_int & CQE_EVENT_STAT_EN)
 	{
 		CQE_EVENT_STATE = 1;
 		SDIOD_LOGD("CQE_EVENT\r\n");
-		NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CQE_EVENT_STAT;
+		NORMAL_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CQE_EVENT_STAT;
 	}
 	if(error_int & ERROR_INTERRUPT_STAT_EN)
 	{
@@ -1169,97 +1186,97 @@ void sdio_dwc_isr1(void)
 	{
 		CMD_TOUT_ERR_STATE = 1;
 		SDIOD_LOGI("CMD_TOUT_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_TOUT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_TOUT_ERR_STAT;
 	}
 	if(error_int & CMD_CRC_ERR_STAT_EN)
 	{
 		CMD_CRC_ERR_STATE = 1;
 		SDIOD_LOGI("CMD_CRC_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_CRC_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_CRC_ERR_STAT;
 	}
 	if(error_int & CMD_END_BIT_ERR_STAT_EN)
 	{
 		CMD_END_BIT_ERR_STATE = 1;
 		SDIOD_LOGI("CMD_END_BIT_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_END_BIT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_END_BIT_ERR_STAT;
 	}
 	if(error_int & CMD_IDX_ERR_STAT_EN)
 	{
 		CMD_IDX_ERR_STATE = 1;
 		SDIOD_LOGI("CMD_IDX_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_IDX_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CMD_IDX_ERR_STAT;
 	}
 	if(error_int & DATA_TOUT_ERR_STAT_EN)
 	{
 		DATA_TOUT_ERR_STATE = 1;
 		SDIOD_LOGI("DATA_TOUT_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_DATA_TOUT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_DATA_TOUT_ERR_STAT;
 	}
 	if(error_int & DATA_CRC_ERR_STAT_EN)
 	{
 		DATA_CRC_ERR_STATE = 1;
 		SDIOD_LOGI("DATA_CRC_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_DATA_CRC_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_DATA_CRC_ERR_STAT;
 	}
 	if(error_int & DATA_END_BIT_ERR_STAT_EN)
 	{
 		DATA_END_BIT_ERR_STATE = 1;
 		SDIOD_LOGI("DATA_END_BIT_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_DATA_END_BIT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_DATA_END_BIT_ERR_STAT;
 	}
 	if(error_int & CUR_LMT_ERR_STAT_EN)
 	{
 		CUR_LMT_ERR_STATE = 1;
 		SDIOD_LOGI("CUR_LMT_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CUR_LMT_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_CUR_LMT_ERR_STAT;
 	}
 	if(error_int & AUTO_CMD_ERR_STAT_EN)
 	{
 		AUTO_CMD_ERR_STATE = 1;
 		SDIOD_LOGI("AUTO_CMD_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_AUTO_CMD_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_AUTO_CMD_ERR_STAT;
 	}
 	if(error_int & ADMA_ERR_STAT_EN)
 	{
 		ADMA_ERR_STATE = 1;
 		SDIOD_LOGI("ADMA_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_ADMA_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_ADMA_ERR_STAT;
 	}
 	if(error_int & TUNING_ERR_STAT_EN)
 	{
 		TUNING_ERR_STATE = 1;
 		SDIOD_LOGI("TUNING_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_TUNING_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_TUNING_ERR_STAT;
 	}
 	if(error_int & RESP_ERR_STAT_EN)
 	{
 		RESP_ERR_STATE = 1;
 		SDIOD_LOGI("RESP_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_RESP_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_RESP_ERR_STAT;
 	}
 	if(error_int & BOOT_ACK_ERR_STAT_EN)
 	{
 		BOOT_ACK_ERR_STATE = 1;
 		SDIOD_LOGI("BOOT_ACK_ERR\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_BOOT_ACK_ERR_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_BOOT_ACK_ERR_STAT;
 	}
 	if(error_int & VENDOR_ERR1_STAT_EN)
 	{
 		VENDOR_ERR1_STATE = 1;
 		SDIOD_LOGI("VENDOR_ERR1\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_VENDOR_ERR1_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_VENDOR_ERR1_STAT;
 	}
 	if(error_int & VENDOR_ERR2_STAT_EN)
 	{
 		VENDOR_ERR2_STATE = 1;
 		SDIOD_LOGI("VENDOR_ERR2\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_VENDOR_ERR2_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_VENDOR_ERR2_STAT;
 	}
 	if(error_int & VENDOR_ERR3_STAT_EN)
 	{
 		VENDOR_ERR3_STATE = 1;
 		SDIOD_LOGI("VENDOR_ERR3\r\n");
-		ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_VENDOR_ERR3_STAT;
+		ERROR_INT_STAT_R(SDIO_ACTIVE_BASE)= CLR_VENDOR_ERR3_STAT;
 	}
 }
 
@@ -1397,23 +1414,27 @@ bk_err_t bk_sd_card_deinit(void)
 
 bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint32_t block_num)
 {
+	uint32_t addr = (s_sd_card_obj.sd_card.card_type == SD_CARD_TYPE_SDSC) ? (block_addr << 9) : block_addr;
 	//CPU buffer write
-	send_mult_data(sdio_mshc_0_base, data, 0x200, block_num,25,block_addr);
+	bk_err_t ret = send_mult_data(SDIO_ACTIVE_BASE, data, 0x200, block_num,25,addr);
 
 	//SDMA write
 	
 	//ADMA2 write
 	//arch_dcache_flush_and_invd_range((void*)((uintptr_t)data - 64), block_num*512 + 128);
-	//adma2_send_data(sdio_mshc_0_base,(uintptr_t)data,0x200,block_num,CMD25,block_addr);
+	//adma2_send_data(SDIO_ACTIVE_BASE,(uintptr_t)data,0x200,block_num,CMD25,block_addr);
 
-	return BK_OK;
+	return ret;
 }
 
 bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t block_num)
 {
-	receive_mult_data(sdio_mshc_0_base, data, 0x200, block_num, 18, block_addr);
+	uint32_t addr = (s_sd_card_obj.sd_card.card_type == SD_CARD_TYPE_SDSC) ? (block_addr << 9) : block_addr;
+	//CPU buffer read
+	bk_err_t ret = receive_mult_data(SDIO_ACTIVE_BASE, data, 0x200,block_num,18,addr);
 
-	return BK_OK;
+
+	return ret;
 }
 
 
@@ -1429,24 +1450,46 @@ uint32_t bk_sd_card_get_card_size(void)
 	sd_card_csd_t *csd_p = (sd_card_csd_t *)&s_sd_card_obj.csd;
 	uint32_t ver = 0, size = 0;
 
-	//csd_structure-0:ver1.0; 1:ver2.0; 2:ver3.0
-	ver = csd_p->csd_3.csd_structure+1;
+	// #region agent log CSD parse diagnostics (H-A)
+	uint32_t csd_struct_raw = csd_p->csd_3.csd_structure;
+	uint32_t card_type = s_sd_card_obj.sd_card.card_type;
+	SD_CARD_LOGI("[DBG] csd_structure=%d, card_type=%d (0=SDSC,1=SDHC)\r\n", csd_struct_raw, card_type);
+	// #endregion
+
+	/*
+	 * SD NAND chips may report wrong csd_structure (e.g. v3.0) while
+	 * ACMD41 CCS=0 indicates SDSC.  CCS from OCR is authoritative for
+	 * capacity class, so force v1.0 parsing for SDSC cards.
+	 */
+	if (card_type == SD_CARD_TYPE_SDSC) {
+		ver = 1;
+		if (csd_struct_raw != 0) {
+			SD_CARD_LOGW("SDSC(CCS=0) but csd_structure=%d, force v1.0 parse\r\n", csd_struct_raw);
+		}
+	} else {
+		ver = csd_struct_raw + 1;
+	}
+
 	switch(ver)
 	{
 		case 1:	//ver1.0
 		{
-			uint32_t c_size, c_size_mul, block_nr, block_len, read_bl_len;
+			uint32_t c_size, c_size_mul, block_nr, read_bl_len;
 			c_size = (csd_p->csd_2.v1p0.c_size_high<<2) + csd_p->csd_1.v1p0.c_size_low;
 			c_size_mul = 1 << (csd_p->csd_1.v1p0.c_size_mult + 2);
 			block_nr = (c_size + 1) * c_size_mul;
 			size = block_nr;
 
 			read_bl_len = csd_p->csd_2.v1p0.read_bl_len;
-			if(read_bl_len > 9)	//default:read_bl_len == 9;
-			{
-				block_len = 1 << read_bl_len;
-				size = block_nr * (read_bl_len - 9);
-				SD_CARD_LOGW("card ver=%d.0,block_len=%d != 512bytes\r\n", ver, block_len);
+			// #region agent log v1.0 parse details (H-A, H-B)
+			SD_CARD_LOGI("[DBG] v1.0: c_size=%u, c_size_mult=%u, block_nr=%u, read_bl_len=%u\r\n",
+				c_size, csd_p->csd_1.v1p0.c_size_mult, block_nr, read_bl_len);
+			// #endregion
+			if (read_bl_len > 9 && read_bl_len <= 11) {
+				size = block_nr << (read_bl_len - 9);
+				SD_CARD_LOGW("card ver=%d.0,block_len=%d != 512bytes\r\n", ver, 1 << read_bl_len);
+			} else if (read_bl_len > 11) {
+				SD_CARD_LOGW("SDSC: invalid read_bl_len=%d (>11), treat as 9\r\n", read_bl_len);
 			}
 
 			break;
@@ -1470,10 +1513,8 @@ uint32_t bk_sd_card_get_card_size(void)
 	}
 
 	SD_CARD_LOGI("card ver=%d.0,size:0x%08x sector(sector=512bytes)\r\n", ver, (uint32_t)size);
-	if(size > 0x1000000)
-	{
-		SD_CARD_LOGI("card size is too large, size:0x%08x\r\n", size);
-		size = 0x1000000;	//TODO: add card size limit
-	}
+	// #region agent log final capacity (H-C)
+	SD_CARD_LOGI("[DBG] final capacity: %u sectors = %u MB\r\n", size, size / 2048);
+	// #endregion
 	return size;
 }

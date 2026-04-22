@@ -117,7 +117,7 @@ struct cmd_param_t {
 #define sdio_mshc_1_base     0x48050000
 
 /* Temporary switch for chip verification: 1 = use SDIO1, 0 = use SDIO0. Revert to 0 after verification. */
-#define SDIO_VERIFY_USE_SDIO1    0
+#define SDIO_VERIFY_USE_SDIO1    1
 #if SDIO_VERIFY_USE_SDIO1
 #define SDIO_ACTIVE_BASE         sdio_mshc_1_base
 #else
