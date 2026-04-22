@@ -852,3 +852,21 @@ bk_err_t bk_modem_ec_at_rst(void)
     
 	return BK_OK;
 }
+
+/**
+ * @brief Set modem UART baud rate to 5.2M via AT+XJCFG
+ * @return BK_OK if response contains OK, BK_FAIL otherwise
+ */
+bk_err_t bk_modem_at_xjcfg_set_baud_5m2(void)
+{
+	if (BK_OK == bk_modem_at_cmd_send(AT_XJCFG_BAUD_5M2, 3, 5000))
+	{
+		BK_MODEM_LOGI("AT+XJCFG=netPortBaudRate,5200000 rsp:%s\r\n", g_modem_at_rsp_buf);
+		return BK_OK;
+	}
+	else
+	{
+		BK_MODEM_LOGI("at_cmd_send fail!, AT+XJCFG=netPortBaudRate,5200000\r\n");
+		return BK_FAIL;
+	}
+}

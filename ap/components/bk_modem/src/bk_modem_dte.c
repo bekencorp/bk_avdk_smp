@@ -198,7 +198,7 @@ void bk_modem_dte_recv_data_uart(uint32_t data_length, uint8_t *data, uint8_t da
             struct netif *netif = net_get_modem_handle();
             if (netif)
             {
-                struct pbuf *p = pbuf_alloc(PBUF_RAW, data_length, PBUF_POOL);
+                struct pbuf *p = pbuf_alloc(PBUF_RAW, data_length, PBUF_RAM);
                         
                 if (p)
                 {
@@ -278,6 +278,12 @@ void bk_modem_dte_handle_modem_check(void)
             break;
         }
 
+        if (!bk_modem_dce_exit_flight_mode())
+        {
+            temp_flag = 6;
+            break;
+        }
+        
         if (!bk_modem_dce_check_sim())
         {
             temp_flag = 2;
@@ -659,8 +665,26 @@ void bk_modem_dte_handle_uart_nic_start(void)
             temp_flag =3;
             goto fail;
         }
+
+        /* If UART is at 2M, send AT+XJCFG to set modem to 5.2M before reset */
+        if ((bk_modem_env.comm_if == UART_IF) && (bk_modem_uart_get_baud_rate() == BK_MODEM_UART_2M_BAUD))
+        {
+            if (BK_OK != bk_modem_at_xjcfg_set_baud_5m2())
+            {
+                BK_MODEM_LOGW("AT+XJCFG=netPortBaudRate,5200000 fail\r\n");
+            }
+            rtos_delay_milliseconds(200);
+        }
+
         bk_modem_env.is_ec_nat_set = true;
+
         bk_modem_dce_ec_rst();
+
+        /* After ec_rst, modem uses 5.2M, set UART baud rate to 5.2M */
+        if ((bk_modem_env.comm_if == UART_IF) && (bk_modem_uart_get_baud_rate() == BK_MODEM_UART_2M_BAUD))
+        {
+            bk_modem_uart_set_baud_rate(BK_MODEM_UART_5M2_BAUD);
+        }
         rtos_delay_milliseconds(3000);
 
         bk_modem_set_state(MODEM_CHECK);

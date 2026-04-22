@@ -4,4 +4,16 @@ menu "Mcu_4g_modem"
 	bool "Enable Beken Modem"
 	default n
 
+	config UART_NIC_MASTER_READY_GPIO
+		int  "the gpio used to nodify 4G module, bk7258 ready to send data"
+		depends on BK_MODEM
+		default 255
+		range 0 100
+		
+	config UART_NIC_SLAVE_READY_GPIO
+		int  "the gpio used to nodify BK7258, 4G module ready to send data"
+		depends on BK_MODEM
+		default 255
+		range 0 100
+		
 endmenu

@@ -3,6 +3,7 @@
 #define _BK_MODEM_MAIN_H_
 
 #include <common/bk_include.h>
+#include <components/modem_driver.h>
 
 #define BK_MODEM_LOG 				"bkmodem"
 #define BK_MODEM_LOGI(...)			BK_LOGI(BK_MODEM_LOG, ##__VA_ARGS__)
@@ -79,21 +80,6 @@ enum bk_modem_ppp_mode_e
     PPP_INIT_MODE,
     PPP_CMD_MODE,
     PPP_DATA_MODE,
-};
-
-enum bk_modem_comm_proto_e
-{
-    INVALID_MODE,
-    PPP_MODE,
-    UART_NIC_MODE,
-};
-
-enum bk_modem_comm_if_e
-{
-    INVALID_IF,
-    USB_IF,
-    UART_IF,
-    SPI_IF,
 };
 
 enum bk_modem_uart_trx_mode_e

@@ -4,16 +4,18 @@
 
 #define BK_MODEM_UART_ID    UART_ID_1
 #define BK_MODEM_UART_BAUD   115200
+#define BK_MODEM_UART_2M_BAUD 2000000
 #define BK_MODEM_UART_3M_BAUD 3000000
 #define BK_MODEM_UART_6M_BAUD 6000000
+#define BK_MODEM_UART_5M2_BAUD 5200000
 #define BK_MODEM_UART_READ_BUFF_SIZE   2048
 
 /// ec begin
-#define MASTER_MRDY_GPIO           4 //gpio 4
-#define MASTER_SRDY_GPIO            5//gpio 5
+#define MASTER_MRDY_GPIO           CONFIG_UART_NIC_MASTER_READY_GPIO
+#define MASTER_SRDY_GPIO            CONFIG_UART_NIC_SLAVE_READY_GPIO
 #define UART_NIC_HD_SIZE           sizeof(UART_NIC_HD_T)
 #define UART_NIC_SLEEP_TIMER     15000  //15s
-#define UART_NIC_RX_MTU             1600    // includes 4 bytes UART_NIC_HD_SIZE
+#define UART_NIC_RX_MTU             2048    // includes 4 bytes UART_NIC_HD_SIZE
 typedef union
 {
     uint8_t bytes[4];
@@ -43,4 +45,6 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate);
 bk_err_t bk_modem_uart_send_data(uint8_t *buff, uint32_t size);
 bk_err_t bk_modem_uart_deinit(void);
 void bk_modem_uart_data_send(uint32_t data_length, uint8_t *data, enum bk_modem_uart_trx_mode_e uart_trx_mode);
+bk_err_t bk_modem_uart_set_baud_rate(uint32_t baud_rate);
+uint32_t bk_modem_uart_get_baud_rate(void);
 #endif

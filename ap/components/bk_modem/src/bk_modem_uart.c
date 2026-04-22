@@ -16,6 +16,7 @@
 #include "bk_modem_uart.h"
 #include <driver/gpio.h>
 #include <driver/uart.h>
+#include <driver/uart_types.h>
 #include <modules/pm.h>
 #include <driver/hal/hal_uart_types.h>
 #include <os/mem.h>
@@ -31,6 +32,7 @@ static beken_queue_t bk_modem_uart_tx_queue = NULL;       /* UART transmit messa
 uint8_t *g_uart_rx_buff = NULL;                           /* UART receive buffer pointer */
 static uint32_t s_uart_tx_no = 0;                         /* UART transmit sequence number */
 beken2_timer_t uar_nic_sleep_timer;                       /* Sleep timer in NIC mode */
+static uint32_t s_modem_uart_baud_rate = BK_MODEM_UART_5M2_BAUD;  /* Current UART baud rate */
 
 /**
  * @brief Calculate checksum in UART NIC mode
@@ -175,6 +177,10 @@ static void bk_modem_uart_nic_send(BUS_MSG_T *msg)
     bk_pm_module_vote_power_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, PM_POWER_MODULE_STATE_ON);
 }
 
+/* NIC RX: wait for full frame (header + payload); per-chunk read timeout (ms) */
+#define BK_MODEM_UART_NIC_RX_CHUNK_MS   40
+#define BK_MODEM_UART_NIC_RX_DEADLINE_MS 400
+
 /**
  * @brief Receive data in NIC mode
  * @param msg Pointer to bus message
@@ -183,53 +189,104 @@ static void bk_modem_uart_nic_send(BUS_MSG_T *msg)
  */
 static void bk_modem_uart_nic_rx(BUS_MSG_T *msg)
 {
-    uint8_t length;
-    /* Clear receive buffer */
-    os_memset(g_uart_rx_buff, 0, UART_NIC_RX_MTU);
-    /* Read data from UART */
-    length = bk_uart_read_bytes(BK_MODEM_UART_ID, g_uart_rx_buff, UART_NIC_RX_MTU, 0);
+	uint32_t total_read = 0;
+	uint32_t t_start = rtos_get_time();
 
-    if(length)
+	(void)msg;
+	os_memset(g_uart_rx_buff, 0, UART_NIC_RX_MTU);
+
+	/* Assemble one NIC frame: ISR may fire before all bytes are in the RX kfifo. */
+	while (total_read < UART_NIC_RX_MTU) {
+		if ((rtos_get_time() - t_start) > BK_MODEM_UART_NIC_RX_DEADLINE_MS) {
+			break;
+		}
+
+		bk_err_t r = bk_uart_read_bytes(BK_MODEM_UART_ID, g_uart_rx_buff + total_read,
+						UART_NIC_RX_MTU - total_read, BK_MODEM_UART_NIC_RX_CHUNK_MS);
+
+		if (r == BK_ERR_UART_RX_TIMEOUT) {
+			if (total_read >= UART_NIC_HD_SIZE) {
+				UART_NIC_HD_T *h = (UART_NIC_HD_T *)g_uart_rx_buff;
+				if (bk_modem_uart_nic_csum(h) == h->field.checksum) {
+					uint32_t need = h->field.data_len + UART_NIC_HD_SIZE;
+					if (need <= UART_NIC_RX_MTU && total_read >= need) {
+						break;
+					}
+				}
+			}
+			if (total_read == 0) {
+				return;
+			}
+			continue;
+		}
+
+		if (r < 0) {
+			break;
+		}
+
+		total_read += (uint32_t)r;
+
+		if (total_read >= UART_NIC_HD_SIZE) {
+			UART_NIC_HD_T *h = (UART_NIC_HD_T *)g_uart_rx_buff;
+			if (bk_modem_uart_nic_csum(h) == h->field.checksum) {
+				uint32_t need = h->field.data_len + UART_NIC_HD_SIZE;
+				if (need > UART_NIC_RX_MTU) {
+					BK_MODEM_LOGW("%s: need %u > mtu\r\n", __func__, need);
+					return;
+				}
+				if (total_read >= need) {
+					break;
+				}
+			}
+		}
+	}
+
+	if (total_read < UART_NIC_HD_SIZE) {
+		return;
+	}
+
+	UART_NIC_HD_T *header = (UART_NIC_HD_T *)g_uart_rx_buff;
+	if (bk_modem_uart_nic_csum(header) != header->field.checksum) {
+		BK_MODEM_LOGW("%s: bad checksum total_read=%u\r\n", __func__, total_read);
+		return;
+	}
+
+	uint32_t rx_data_len = header->field.data_len;
+	if ((rx_data_len + UART_NIC_HD_SIZE) > total_read
+	    || (rx_data_len + UART_NIC_HD_SIZE) > UART_NIC_RX_MTU) {
+		BK_MODEM_LOGW("%s: incomplete frame rx_data_len=%u total_read=%u\r\n",
+			__func__, rx_data_len, total_read);
+		return;
+	}
+
+	if (header->field.type == AT_CMD_MODE) {
+		if (total_read < UART_NIC_RX_MTU) {
+			g_uart_rx_buff[total_read] = 0;
+			BK_MODEM_LOGI("bk_modem_uart_nic_rx at cmd, len %u, rx_data_len %u\r\n",
+				total_read, rx_data_len);
+			bk_modem_dte_recv_data_uart(rx_data_len, g_uart_rx_buff + UART_NIC_HD_SIZE, AT_CMD_MODE);
+		}
+	} else if (header->field.type == NIC_DATA_MODE) {
+		BK_MODEM_LOGI("bk_modem_uart_nic_rx data, len %u, rx_data_len %u\r\n", total_read, rx_data_len);
+		bk_modem_dte_recv_data_uart(rx_data_len, g_uart_rx_buff + UART_NIC_HD_SIZE, NIC_DATA_MODE);
+	} else {
+		BK_MODEM_LOGW("%s: unknown type %u\r\n", __func__, (unsigned)header->field.type);
+		return;
+	}
+
+    /* Send handshake signal to slave device indicating data has been received */
+    if (bk_gpio_get_output(MASTER_MRDY_GPIO))
     {
-        UART_NIC_HD_T *header = (UART_NIC_HD_T *)g_uart_rx_buff;
-        /* Verify checksum */
-        if (bk_modem_uart_nic_csum(header) == header->field.checksum)
-        {
-            uint32_t rx_data_len = header->field.data_len;
-            if ((rx_data_len + UART_NIC_HD_SIZE) <= length)
-            {
-                /* Different processing according to data type */
-                if (header->field.type == AT_CMD_MODE)
-                {
-                    if (length < UART_NIC_RX_MTU)
-                    {
-                        g_uart_rx_buff[length] = 0;
-                        BK_MODEM_LOGI("bk_modem_uart_nic_rx at cmd, len %d, rx_data_len %d\r\n",length, rx_data_len);
-                        bk_modem_dte_recv_data_uart(rx_data_len, g_uart_rx_buff+UART_NIC_HD_SIZE, AT_CMD_MODE);
-                    }
-                }
-                else if (header->field.type == NIC_DATA_MODE)
-                {
-                    BK_MODEM_LOGI("bk_modem_uart_nic_rx data, len %d, rx_data_len %d\r\n",length, rx_data_len);
-                    bk_modem_dte_recv_data_uart(rx_data_len, g_uart_rx_buff+UART_NIC_HD_SIZE, NIC_DATA_MODE);
-                }
-            }
-        }
-
-        /* Send handshake signal to slave device indicating data has been received */
-        if (bk_gpio_get_output(MASTER_MRDY_GPIO))
-        {
-            bk_gpio_set_output_low(MASTER_MRDY_GPIO);
-            bk_delay_us(50);
-        }
-
-        bk_gpio_set_output_high(MASTER_MRDY_GPIO);
-        bk_delay_us(50);
         bk_gpio_set_output_low(MASTER_MRDY_GPIO);
-
-        /* Turn on Modem power module */
-        bk_pm_module_vote_power_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, PM_POWER_MODULE_STATE_ON);
+        bk_delay_us(50);
     }
+
+    bk_gpio_set_output_high(MASTER_MRDY_GPIO);
+    bk_delay_us(50);
+    bk_gpio_set_output_low(MASTER_MRDY_GPIO);
+
+    /* Turn on Modem power module */
+    bk_pm_module_vote_power_ctrl(PM_SLEEP_MODULE_NAME_BK_MODEM, PM_POWER_MODULE_STATE_ON);
 }
 
 /**
@@ -476,7 +533,16 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
     {
         config.src_clk = UART_SCLK_APLL;
     }
+
+    #if CONFIG_UART_RX_DMA
+    // Set special flag for modem uart.
+    config.rx_dma_rewind_when_fifo_empty = 1;
+    config.rx_dma_en = UART_DMA_ENABLE;
+    #endif
     
+    #if CONFIG_UART_TX_DMA
+    config.tx_dma_en = UART_DMA_ENABLE;
+    #endif
     BK_MODEM_LOGI("[%s][%d] set baud:%d, uart id %d\r\n", __FUNCTION__, __LINE__, config.baud_rate,BK_MODEM_UART_ID);
     /* Initialize UART */
     ret = bk_uart_init(BK_MODEM_UART_ID, &config);
@@ -506,14 +572,14 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
     }
 
     /* Create receive and transmit threads */
-    ret = rtos_create_thread(&bk_modem_uart_rx_thread, 3, "bk_modem_uart_rx", bk_modem_uart_rx_thread_main, 1024, (beken_thread_arg_t)0);
+    ret = rtos_create_thread(&bk_modem_uart_rx_thread, 3, "bk_modem_uart_rx", bk_modem_uart_rx_thread_main, 3072, (beken_thread_arg_t)0);
     if(BK_OK != ret)
     {
         temp_flag = 4;
         goto fail;
     }
 
-    ret = rtos_create_thread(&bk_modem_uart_tx_thread, 3, "bk_modem_uart_tx", bk_modem_uart_tx_thread_main, 1024, (beken_thread_arg_t)0);
+    ret = rtos_create_thread(&bk_modem_uart_tx_thread, 3, "bk_modem_uart_tx", bk_modem_uart_tx_thread_main, 3072, (beken_thread_arg_t)0);
     if(BK_OK != ret)
     {
         temp_flag = 5;
@@ -526,6 +592,11 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
         /* Initialize sleep timer */
         rtos_init_oneshot_timer(&uar_nic_sleep_timer,UART_NIC_SLEEP_TIMER,bk_modem_uart_nic_timer_cb,(void *)0,(void *)0);
 
+        BK_MODEM_LOGI("[%s][%d] NIC_MASTER_READY_GPIO:%d, NIC_SLAVE_READY_GPIO:%d\r\n", 
+                                                            __FUNCTION__, __LINE__, 
+                                                            CONFIG_UART_NIC_MASTER_READY_GPIO,
+                                                            CONFIG_UART_NIC_SLAVE_READY_GPIO);
+        
         /* Configure MASTER_MRDY_GPIO pin (host ready signal) */
         gpio_config_t cfg;
         gpio_dev_unmap(MASTER_MRDY_GPIO);
@@ -533,7 +604,9 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
         cfg.io_mode = GPIO_OUTPUT_ENABLE;
         cfg.pull_mode = GPIO_PULL_DOWN_EN;
         bk_gpio_set_config(MASTER_MRDY_GPIO, &cfg);
+        #if CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT
         bk_gpio_register_lowpower_keep_status(MASTER_MRDY_GPIO, &cfg);
+        #endif
         bk_gpio_set_output_low(MASTER_MRDY_GPIO);
 
         /* Configure MASTER_SRDY_GPIO pin (slave ready signal) */
@@ -544,8 +617,10 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
         bk_gpio_set_interrupt_type(MASTER_SRDY_GPIO, GPIO_INT_TYPE_FALLING_EDGE);
         /* Register SRDY pin interrupt handler */
         bk_gpio_register_isr(MASTER_SRDY_GPIO, bk_modem_uart_sdry_int_cb);
+        #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
         /* Register wakeup source */
         bk_gpio_register_wakeup_source(MASTER_SRDY_GPIO, GPIO_INT_TYPE_FALLING_EDGE);
+        #endif
         /* Enable interrupt */
         bk_gpio_enable_interrupt(MASTER_SRDY_GPIO);
         
@@ -639,8 +714,14 @@ bk_err_t bk_modem_uart_deinit(void)
     }
     
     /* Deinitialize message queues */
-    rtos_deinit_queue(&bk_modem_uart_rx_queue);
-    rtos_deinit_queue(&bk_modem_uart_tx_queue);
+    if (bk_modem_uart_rx_queue != NULL) {
+        rtos_deinit_queue(&bk_modem_uart_rx_queue);
+        bk_modem_uart_rx_queue = NULL;
+    }
+    if (bk_modem_uart_tx_queue != NULL) {
+        rtos_deinit_queue(&bk_modem_uart_tx_queue);
+        bk_modem_uart_tx_queue = NULL;
+    }
     
     /* Deinitialize UART */
     ret = bk_uart_deinit(BK_MODEM_UART_ID);
@@ -648,6 +729,33 @@ bk_err_t bk_modem_uart_deinit(void)
     BK_MODEM_LOGI("[%s][%d] modem uart deinit success\r\n", __FUNCTION__, __LINE__);
 
     return ret;
+}
+
+/**
+ * @brief Set UART baud rate at runtime
+ * @param baud_rate Target baud rate (e.g. BK_MODEM_UART_2M_BAUD, BK_MODEM_UART_5M2_BAUD)
+ * @return BK_OK on success
+ */
+bk_err_t bk_modem_uart_set_baud_rate(uint32_t baud_rate)
+{
+    bk_err_t ret;
+
+    ret = bk_uart_set_baud_rate(BK_MODEM_UART_ID, baud_rate);
+    if (ret == BK_OK)
+    {
+        s_modem_uart_baud_rate = baud_rate;
+        BK_MODEM_LOGI("[%s][%d] modem uart baud rate set to %d\r\n", __FUNCTION__, __LINE__, baud_rate);
+    }
+    return ret;
+}
+
+/**
+ * @brief Get current UART baud rate
+ * @return Current baud rate
+ */
+uint32_t bk_modem_uart_get_baud_rate(void)
+{
+    return s_modem_uart_baud_rate;
 }
 
 //#endif

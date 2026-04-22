@@ -115,7 +115,7 @@ static void bk_modem_thread_main(void *args)
                 rtos_delay_milliseconds(3000);
                 bk_modem_power_on_modem();              
 
-                if (BK_OK == bk_modem_uart_init(BK_MODEM_UART_3M_BAUD))
+                if (BK_OK == bk_modem_uart_init(BK_MODEM_UART_5M2_BAUD))
                 {
                     bk_modem_set_state(MODEM_CHECK);
                     bk_modem_send_msg(MSG_MODEM_CHECK, 0, 0, 0);                
@@ -235,7 +235,7 @@ bk_err_t bk_modem_deinit(void)
  * @details Creates thread and queue, initializes AT commands, and starts the
  *          appropriate communication interface based on parameters
  */
-bk_err_t bk_modem_init(uint8_t comm_proto, uint8_t comm_if)
+bk_err_t bk_modem_init(bk_modem_comm_proto comm_proto, bk_modem_comm_if comm_if)
 {
     int ret;
 

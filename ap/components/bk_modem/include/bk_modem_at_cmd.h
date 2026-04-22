@@ -33,6 +33,7 @@
 #define AT_ECNETCFG_S			"AT+ECNETCFG=\"nat\",1,\"192.168.10.2\"\r"
 #define AT_ECNETDEVCTL			"AT+ECNETDEVCTL=3,1,1\r"
 #define AT_ECRST				"AT+ECRST\r"
+#define AT_XJCFG_BAUD_5M2		"AT+XJCFG=netPortBaudRate,5200000\r"
 ///ec at end
 
 //AT
@@ -79,4 +80,5 @@ bk_err_t bk_modem_ec_at_set_nat(void);
 bk_err_t bk_modem_ec_at_close_rndis(void);
 bk_err_t bk_modem_ec_at_open_datapath(void);
 bk_err_t bk_modem_ec_at_rst(void);
+bk_err_t bk_modem_at_xjcfg_set_baud_5m2(void);
 #endif

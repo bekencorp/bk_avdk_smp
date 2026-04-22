@@ -10,7 +10,9 @@
 #include "bk_modem_main.h"
 #include "bk_modem_dte.h"
 #include "bk_modem_usbh_if.h"
+#if CONFIG_USB_CDC_MODEM
 #include "bk_usb_cdc_modem.h"
+#endif
 
 static BK_MODEM_USB_STATE_T g_modem_usb_state = MODEM_USB_IDLE;
 
@@ -36,13 +38,17 @@ void bk_modem_usbh_disconn_ind(void)
 
 void bk_modem_usbh_close(void)
 {
+#if CONFIG_USB_CDC_MODEM
 	bk_usb_cdc_close();
 	g_modem_usb_state = MODEM_USB_IDLE;
+#endif
 }
 
 void bk_modem_usbh_bulkout_ind(char *p_tx, uint32_t l_tx)
 {
+#if CONFIG_USB_CDC_MODEM
 	bk_cdc_acm_modem_write(p_tx, l_tx);
+#endif
 }
 
 void bk_modem_usbh_bulkin_ind(uint8_t *p_rx, uint32_t l_rx)
@@ -53,12 +59,16 @@ void bk_modem_usbh_bulkin_ind(uint8_t *p_rx, uint32_t l_rx)
 
 void bk_modem_usbh_poweron_ind(void)
 {
+#if CONFIG_USB_CDC_MODEM
 	bk_usb_cdc_modem();
 	bk_usb_cdc_open();
+#endif
 }
 
+#if CONFIG_USB_CDC_MODEM
 const bk_modem_usbh_if_t bk_modem_usbh_if = {
     .bk_modem_usbh_conn_ind = bk_modem_usbh_conn_ind,
     .bk_modem_usbh_disconn_ind = bk_modem_usbh_disconn_ind,
     .bk_modem_usbh_bulkin_ind = bk_modem_usbh_bulkin_ind,
 };
+#endif

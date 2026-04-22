@@ -10,10 +10,40 @@
 #include <common/bk_include.h>
 #include "bk_modem_dce.h"
 #include "bk_modem_at_cmd.h"
+#include "bk_modem_main.h"
+#include "bk_modem_uart.h"
+#include "os/os.h"
 
 bool bk_modem_dce_send_at(void)
 {
-    return (BK_OK == bk_modem_at_ready());
+    /* USB interface: use original logic */
+    if (bk_modem_env.comm_if != UART_IF)
+    {
+        return (BK_OK == bk_modem_at_ready());
+    }
+
+    /* UART: try AT at current baud rate, switch 2M<->5.2M on 3 failures, loop until success */
+    while (1)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            if (BK_OK == bk_modem_at_ready())
+            {
+                return true;
+            }
+        }
+
+        /* AT failed 2 times at current rate, switch to the other rate */
+        uint32_t current_baud = bk_modem_uart_get_baud_rate();
+        uint32_t new_baud = (current_baud == BK_MODEM_UART_5M2_BAUD) ? BK_MODEM_UART_2M_BAUD : BK_MODEM_UART_5M2_BAUD;
+        BK_MODEM_LOGI("AT fail at %d, switch to %d\r\n", (int)current_baud, (int)new_baud);
+        if (bk_modem_uart_set_baud_rate(new_baud) != BK_OK)
+        {
+            BK_MODEM_LOGW("set baud rate to %d fail\r\n", (int)new_baud);
+            return false;
+        }
+        rtos_delay_milliseconds(100);
+    }
 }
 
 bool bk_modem_dce_check_sim(void)
