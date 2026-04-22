@@ -551,7 +551,7 @@ long bk_vfs_telldir(DIR *dirp) {
 void bk_vfs_rewinddir(DIR *dirp) {
 }
 
-static char working_directory[MAX_PATH_LEN] = {"/"};
+static char working_directory[BK_VFS_MAX_PATH_LEN] = {"/"};
 
 int bk_vfs_chdir(const char *path) {
 	char *full_path;
@@ -559,20 +559,20 @@ int bk_vfs_chdir(const char *path) {
 	if (!path)
 		return -1;
 
-	if (strlen(path) > MAX_PATH_LEN - 1)
+	if (strlen(path) > BK_VFS_MAX_PATH_LEN - 1)
 		return -1;
 
 	full_path = bk_normalize_path(path);
 	if (!full_path)
 		return -1;
 
-	if (strlen(full_path) > MAX_PATH_LEN - 1) {
+	if (strlen(full_path) > BK_VFS_MAX_PATH_LEN - 1) {
 		os_free(full_path);
 		return -1;
 	}
 
-	strncpy(working_directory, full_path, MAX_PATH_LEN - 1);
-	working_directory[MAX_PATH_LEN - 1] = '\0';
+	strncpy(working_directory, full_path, BK_VFS_MAX_PATH_LEN - 1);
+	working_directory[BK_VFS_MAX_PATH_LEN - 1] = '\0';
 	os_free(full_path);
 
 	return 0;

@@ -1418,8 +1418,14 @@ int mbedtls_ssl_setup(mbedtls_ssl_context *ssl,
     return 0;
 
 error:
-    mbedtls_free(ssl->in_buf);
-    mbedtls_free(ssl->out_buf);
+    if (ssl->in_buf != NULL) {
+        mbedtls_free(ssl->in_buf);
+        ssl->in_buf = NULL;
+    }
+    if (ssl->out_buf != NULL) {
+        mbedtls_free(ssl->out_buf);
+        ssl->out_buf = NULL;
+    }
 
     ssl->conf = NULL;
 
@@ -4137,8 +4143,11 @@ void mbedtls_ssl_handshake_free(mbedtls_ssl_context *ssl)
     mbedtls_ecjpake_free(&handshake->ecjpake_ctx);
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
 #if defined(MBEDTLS_SSL_CLI_C)
-    mbedtls_free(handshake->ecjpake_cache);
-    handshake->ecjpake_cache = NULL;
+    /* Beken os_free_debug asserts on NULL; C free(NULL) is otherwise valid. */
+    if (handshake->ecjpake_cache != NULL) {
+        mbedtls_free(handshake->ecjpake_cache);
+        handshake->ecjpake_cache = NULL;
+    }
     handshake->ecjpake_cache_len = 0;
 #endif
 #endif
@@ -4147,7 +4156,10 @@ void mbedtls_ssl_handshake_free(mbedtls_ssl_context *ssl)
     defined(MBEDTLS_KEY_EXCHANGE_WITH_ECDSA_ANY_ENABLED) || \
     defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
     /* explicit void pointer cast for buggy MS compiler */
-    mbedtls_free((void *) handshake->curves_tls_id);
+    if (handshake->curves_tls_id != NULL) {
+        mbedtls_free((void *) handshake->curves_tls_id);
+        handshake->curves_tls_id = NULL;
+    }
 #endif
 
 #if defined(MBEDTLS_SSL_HANDSHAKE_WITH_PSK_ENABLED)
@@ -4192,7 +4204,11 @@ void mbedtls_ssl_handshake_free(mbedtls_ssl_context *ssl)
 
 #if defined(MBEDTLS_SSL_CLI_C) && \
     (defined(MBEDTLS_SSL_PROTO_DTLS) || defined(MBEDTLS_SSL_PROTO_TLS1_3))
-    mbedtls_free(handshake->cookie);
+    /* Beken os_free_debug asserts on NULL; C free(NULL) is otherwise valid. */
+    if (handshake->cookie != NULL) {
+        mbedtls_free(handshake->cookie);
+        handshake->cookie = NULL;
+    }
 #endif /* MBEDTLS_SSL_CLI_C &&
           ( MBEDTLS_SSL_PROTO_DTLS || MBEDTLS_SSL_PROTO_TLS1_3 ) */
 
@@ -4208,11 +4224,17 @@ void mbedtls_ssl_handshake_free(mbedtls_ssl_context *ssl)
 #endif /* MBEDTLS_KEY_EXCHANGE_SOME_XXDH_PSA_ANY_ENABLED */
 
 #if defined(MBEDTLS_SSL_PROTO_TLS1_3)
-    mbedtls_ssl_transform_free(handshake->transform_handshake);
-    mbedtls_free(handshake->transform_handshake);
+    if (handshake->transform_handshake != NULL) {
+        mbedtls_ssl_transform_free(handshake->transform_handshake);
+        mbedtls_free(handshake->transform_handshake);
+        handshake->transform_handshake = NULL;
+    }
 #if defined(MBEDTLS_SSL_EARLY_DATA)
-    mbedtls_ssl_transform_free(handshake->transform_earlydata);
-    mbedtls_free(handshake->transform_earlydata);
+    if (handshake->transform_earlydata != NULL) {
+        mbedtls_ssl_transform_free(handshake->transform_earlydata);
+        mbedtls_free(handshake->transform_earlydata);
+        handshake->transform_earlydata = NULL;
+    }
 #endif
 #endif /* MBEDTLS_SSL_PROTO_TLS1_3 */
 
@@ -4244,9 +4266,16 @@ void mbedtls_ssl_session_free(mbedtls_ssl_session *session)
 #if defined(MBEDTLS_SSL_SESSION_TICKETS) && defined(MBEDTLS_SSL_CLI_C)
 #if defined(MBEDTLS_SSL_PROTO_TLS1_3) && \
     defined(MBEDTLS_SSL_SERVER_NAME_INDICATION)
-    mbedtls_free(session->hostname);
+    /* Beken os_free_debug asserts on NULL; C free(NULL) is otherwise valid. */
+    if (session->hostname != NULL) {
+        mbedtls_free(session->hostname);
+        session->hostname = NULL;
+    }
 #endif
-    mbedtls_free(session->ticket);
+    if (session->ticket != NULL) {
+        mbedtls_free(session->ticket);
+        session->ticket = NULL;
+    }
 #endif
 
     mbedtls_platform_zeroize(session, sizeof(mbedtls_ssl_session));
@@ -4860,17 +4889,27 @@ void mbedtls_ssl_free(mbedtls_ssl_context *ssl)
         mbedtls_free(ssl->handshake);
 
 #if defined(MBEDTLS_SSL_PROTO_TLS1_2)
-        mbedtls_ssl_transform_free(ssl->transform_negotiate);
-        mbedtls_free(ssl->transform_negotiate);
+        /* Beken os_free_debug asserts on NULL; C free(NULL) is otherwise valid. */
+        if (ssl->transform_negotiate != NULL) {
+            mbedtls_ssl_transform_free(ssl->transform_negotiate);
+            mbedtls_free(ssl->transform_negotiate);
+            ssl->transform_negotiate = NULL;
+        }
 #endif
 
-        mbedtls_ssl_session_free(ssl->session_negotiate);
-        mbedtls_free(ssl->session_negotiate);
+        if (ssl->session_negotiate != NULL) {
+            mbedtls_ssl_session_free(ssl->session_negotiate);
+            mbedtls_free(ssl->session_negotiate);
+            ssl->session_negotiate = NULL;
+        }
     }
 
 #if defined(MBEDTLS_SSL_PROTO_TLS1_3)
-    mbedtls_ssl_transform_free(ssl->transform_application);
-    mbedtls_free(ssl->transform_application);
+    if (ssl->transform_application != NULL) {
+        mbedtls_ssl_transform_free(ssl->transform_application);
+        mbedtls_free(ssl->transform_application);
+        ssl->transform_application = NULL;
+    }
 #endif /* MBEDTLS_SSL_PROTO_TLS1_3 */
 
     if (ssl->session) {
@@ -4885,7 +4924,11 @@ void mbedtls_ssl_free(mbedtls_ssl_context *ssl)
 #endif
 
 #if defined(MBEDTLS_SSL_DTLS_HELLO_VERIFY) && defined(MBEDTLS_SSL_SRV_C)
-    mbedtls_free(ssl->cli_id);
+    /* Beken os_free_debug asserts on NULL; cli_id unused on many client/server paths. */
+    if (ssl->cli_id != NULL) {
+        mbedtls_free(ssl->cli_id);
+        ssl->cli_id = NULL;
+    }
 #endif
 
     MBEDTLS_SSL_DEBUG_MSG(2, ("<= free"));

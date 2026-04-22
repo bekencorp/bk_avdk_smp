@@ -502,6 +502,22 @@ int pthread_setschedparam( pthread_t thread,
                            int policy,
                            const struct sched_param * param );
 
+#if defined(CONFIG_KVS_PTHREAD_CANCEL_DETACH)
+/**
+ * @brief Request thread cancellation (KVS stub for FreeRTOS POSIX).
+ * @param thread Thread to cancel.
+ * @return 0 on success; ESRCH if thread invalid.
+ */
+int pthread_cancel( pthread_t thread );
+
+/**
+ * @brief Mark thread as detached (KVS extension for FreeRTOS POSIX).
+ * @param thread Thread to detach.
+ * @return 0 on success; ESRCH if thread invalid; EINVAL if already detached.
+ */
+int pthread_detach( pthread_t thread );
+#endif /* CONFIG_KVS_PTHREAD_CANCEL_DETACH */
+
 #ifdef __cplusplus
 }
 #endif

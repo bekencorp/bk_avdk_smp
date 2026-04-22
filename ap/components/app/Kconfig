@@ -34,6 +34,15 @@ menu "App"
 		help
 			Stack size of NTP Sync task
 
+	config RTC_NTP_TIMEZONE
+		int "NTP local timezone offset from UTC (hours)"
+		default 8
+		range -12 14
+		depends on NTP_SYNC_RTC
+		help
+			Applied after NTP returns UTC: local_time = utc + (RTC_NTP_TIMEZONE * 3600).
+			Example: 8 for China Standard Time (UTC+8), -5 for US Eastern standard time.
+
 	config FTP_SERVER
 		bool "Enable FTP server"
 		default n

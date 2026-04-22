@@ -21,7 +21,7 @@ struct statfs {
 
 #endif
 
-#define MAX_PATH_LEN 128
+#define BK_VFS_MAX_PATH_LEN 128
 
 #ifndef DIRENT
 #define DIRENT
@@ -34,7 +34,7 @@ struct dirent {
 	uint8_t d_ino;
 	uint8_t d_type;
 	uint16_t d_reclen;
-	char d_name[MAX_PATH_LEN];
+	char d_name[BK_VFS_MAX_PATH_LEN];
 };
 
 #endif

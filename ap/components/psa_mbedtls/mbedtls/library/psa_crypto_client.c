@@ -16,7 +16,11 @@
 
 void psa_reset_key_attributes(psa_key_attributes_t *attributes)
 {
-    mbedtls_free(attributes->domain_parameters);
+    /* Only free when non-NULL: platform os_free can assert on NULL (e.g. Beken os_free_debug). */
+    if (attributes->domain_parameters != NULL) {
+        mbedtls_free(attributes->domain_parameters);
+        attributes->domain_parameters = NULL;
+    }
     memset(attributes, 0, sizeof(*attributes));
 }
 

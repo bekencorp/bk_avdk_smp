@@ -8,6 +8,10 @@
 #include <stdio.h>
 #include "common.h"
 
+#if CONFIG_TRNG_SUPPORT
+#include <driver/trng.h>
+#endif
+
 #if defined(MBEDTLS_PLATFORM_C)
 
 #include "mbedtls/platform.h"

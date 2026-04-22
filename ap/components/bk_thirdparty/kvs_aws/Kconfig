@@ -1,0 +1,25 @@
+# Kconfig for AWS Kinesis Video Streams WebRTC (kvs_aws)
+
+menu "AWS KVS WebRTC"
+
+	config KVS_AWS
+		bool "Enable AWS KVS WebRTC component"
+		default n
+		select KVS_PTHREAD_CANCEL_DETACH if FREERTOS_POSIX
+		help
+			Enable Amazon Kinesis Video Streams WebRTC C SDK (kvsWebrtcClient + signaling + kvsCommonLws + PIC).
+
+	config KVS_AWS_DATA_CHANNEL
+		bool "Enable WebRTC Data Channel (SCTP)"
+		depends on KVS_AWS
+		default n
+		help
+			Enable Data Channel support. Requires usrsctp component. Leave disabled for audio/video-only use.
+
+	config KVS_AWS_ROLE_VIEWER
+		bool "Build kvs_aws_sample as Viewer (receive from Master)"
+		depends on KVS_AWS
+		default n
+		help
+			When set, sample runs as Viewer (receive H264/H265/Opus). When unset, runs as Master (send from h264/h265/opusSampleFrames).
+endmenu

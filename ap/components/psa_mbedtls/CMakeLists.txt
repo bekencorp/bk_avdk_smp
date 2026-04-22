@@ -64,6 +64,8 @@ list(APPEND srcs
 	mbedtls/library/ssl_tls13_client.c
 	mbedtls/library/ssl_tls13_generic.c
 
+	mbedtls/library/version.c
+
 	# src_crypto
 	mbedtls/library/aes.c
 	mbedtls/library/aesni.c

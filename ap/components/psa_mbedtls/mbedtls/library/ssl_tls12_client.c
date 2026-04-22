@@ -1236,8 +1236,11 @@ static int ssl_parse_server_hello(mbedtls_ssl_context *ssl)
             return ssl_parse_hello_verify_request(ssl);
         } else {
             /* We made it through the verification process */
-            mbedtls_free(ssl->handshake->cookie);
-            ssl->handshake->cookie = NULL;
+            /* Beken os_free_debug asserts on NULL; C free(NULL) is otherwise valid. */
+            if (ssl->handshake->cookie != NULL) {
+                mbedtls_free(ssl->handshake->cookie);
+                ssl->handshake->cookie = NULL;
+            }
             ssl->handshake->cookie_len = 0;
         }
     }
@@ -3454,10 +3457,12 @@ static int ssl_parse_new_session_ticket(mbedtls_ssl_context *ssl)
         ssl->session->ticket_len = 0;
     }
 
-    mbedtls_zeroize_and_free(ssl->session_negotiate->ticket,
-                             ssl->session_negotiate->ticket_len);
-    ssl->session_negotiate->ticket = NULL;
-    ssl->session_negotiate->ticket_len = 0;
+    if (ssl->session_negotiate != NULL && ssl->session_negotiate->ticket != NULL) {
+        mbedtls_zeroize_and_free(ssl->session_negotiate->ticket,
+                                ssl->session_negotiate->ticket_len);
+            ssl->session_negotiate->ticket = NULL;
+            ssl->session_negotiate->ticket_len = 0;
+    }
 
     if ((ticket = mbedtls_calloc(1, ticket_len)) == NULL) {
         MBEDTLS_SSL_DEBUG_MSG(1, ("ticket alloc failed"));

@@ -529,3 +529,48 @@ int pthread_setschedparam( pthread_t thread,
 }
 
 /*-----------------------------------------------------------*/
+
+#if defined(CONFIG_KVS_PTHREAD_CANCEL_DETACH)
+
+int pthread_cancel( pthread_t thread )
+{
+    int iStatus = 0;
+    pthread_internal_t * pxThread = ( pthread_internal_t * ) thread;
+
+    if( pxThread == NULL )
+    {
+        return iStatus;
+    }
+
+    /* FreeRTOS has no POSIX-style cancellation points; treat as success (KVS compatibility). */
+    ( void ) pxThread;
+    return iStatus;
+}
+
+/*-----------------------------------------------------------*/
+
+int pthread_detach( pthread_t thread )
+{
+    int iStatus = 0;
+    pthread_internal_t * pxThread = ( pthread_internal_t * ) thread;
+
+    if( pxThread == NULL )
+    {
+        return iStatus;
+    }
+
+    if( !pthreadIS_JOINABLE( pxThread->xAttr.usSchedPriorityDetachState ) )
+    {
+        iStatus = EINVAL;
+    }
+
+    if (iStatus == 0) {
+        pxThread->xAttr.usSchedPriorityDetachState &= ( uint16_t ) ~pthreadDETACH_STATE_MASK;
+    }
+
+    return iStatus;
+}
+
+#endif /* CONFIG_KVS_PTHREAD_CANCEL_DETACH */
+
+/*-----------------------------------------------------------*/

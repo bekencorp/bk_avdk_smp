@@ -87,6 +87,14 @@ menu "Bk_rtos"
 			bool "Enable FreeRTOS Posix"
 			default n
 
+		config KVS_PTHREAD_CANCEL_DETACH
+			depends on FREERTOS_POSIX
+			bool "KVS pthread_cancel/pthread_detach (FreeRTOS POSIX stub)"
+			default n
+			help
+				Provide pthread_cancel and pthread_detach for components that need them
+				(e.g. kvs_aws). Enable when building with CONFIG_KVS_AWS.
+
 		config FREERTOS_TRACE
 			depends on FREERTOS_V10 || FREERTOS_SMP
 			bool "FreeRTOS Trace"

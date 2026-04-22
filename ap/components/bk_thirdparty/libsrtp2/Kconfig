@@ -1,0 +1,17 @@
+menu "libsrtp2"
+	config LIBSRTP
+		bool "Enable libsrtp2"
+		default n
+		help
+			enable libsrtp2
+	menu "libsrtp2 Options"
+		depends on LIBSRTP
+
+		config LIBSRTP2_TEST
+			bool "Enable libsrtp2 test"
+			default n
+			help
+				control libsrtp2 testing code
+
+	endmenu
+endmenu

@@ -1228,8 +1228,14 @@ extern void tls_mbedtls_mem_free(void *ptr);
  * \def MBEDTLS_FS_IO
  *
  * Enable functions that use the filesystem.
+ * Enabled when CONFIG_FULL_MBEDTLS so libwebsockets mbedtls wrapper can use
+ * mbedtls_x509_crt_parse_file (e.g. load cert from SD path in kvs_aws_sample).
+ * MBEDTLS_NO_POSIX_DIRENT: arm-none-eabi has no <dirent.h>; parse_path is stubbed.
  */
-// #define MBEDTLS_FS_IO
+#if CONFIG_FULL_MBEDTLS
+#define MBEDTLS_FS_IO
+#define MBEDTLS_NO_POSIX_DIRENT
+#endif
 
 /**
  * \def MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES
@@ -1992,8 +1998,11 @@ extern void tls_mbedtls_mem_free(void *ptr);
  * Requires: MBEDTLS_SSL_PROTO_DTLS
  *
  * Uncomment this to enable support for use_srtp extension.
+ * Enabled when CONFIG_FULL_MBEDTLS (e.g. kvs_aws_sample WebRTC needs DTLS-SRTP).
  */
-//#define MBEDTLS_SSL_DTLS_SRTP
+#if CONFIG_FULL_MBEDTLS
+#define MBEDTLS_SSL_DTLS_SRTP
+#endif
 
 /**
  * \def MBEDTLS_SSL_DTLS_CLIENT_PORT_REUSE

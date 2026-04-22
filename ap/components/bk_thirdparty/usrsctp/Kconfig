@@ -1,0 +1,10 @@
+# usrsctp (SCTP userland stack) for beken
+# Adapted from ESP/AWS usrsctp; requires lwIP and mbedTLS (psa_mbedtls)
+
+config USRSCTP
+	bool "Enable usrsctp (SCTP userland library)"
+	default n
+	help
+		Enable usrsctp component for SCTP over lwIP.
+		Used by WebRTC and other SCTP-based protocols.
+		Depends on: bk_common, lwip_intf_v2_1, os_source, bk_rtos, psa_mbedtls.

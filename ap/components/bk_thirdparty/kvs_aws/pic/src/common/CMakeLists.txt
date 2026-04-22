@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.6.3)
+
+project(common LANGUAGES C)
+set(LIBRARY_NAME ${PROJECT_NAME})
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
+  DESTINATION .
+  FILES_MATCHING PATTERN "*.h")

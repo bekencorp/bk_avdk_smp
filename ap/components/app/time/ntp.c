@@ -9,7 +9,7 @@
 #include <driver/aon_rtc.h>
 
 
-#define NTP_TIMEZONE      				8             
+#define NTP_TIMEZONE                   CONFIG_RTC_NTP_TIMEZONE
 #define NTP_HOSTNAME                   "cn.pool.ntp.org"
 #define NTP_TIMESTAMP_DELTA            2208988800ull
 #define NTP_GET_TIMEOUT                1
