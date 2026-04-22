@@ -965,7 +965,7 @@ static int HAL_ETH_Enter_LP(uint64_t sleep_time, void *args)
   // Stop ETH
   HAL_ETH_Stop_IT(&heth);
 
-  sys_ll_set_reserver_reg0xd_enet_cken(0);
+  sys_hal_set_eth_clk_en(0);
 
   SET_BIT(ETH_RESET_CTRL, 0);
 
@@ -1011,7 +1011,14 @@ static int __HAL_ETH_Exit_LP()
   WRITE_REG(ETH_RESET_CTRL, 0x3);
 
   // ETH CLK enable
-  sys_ll_set_reserver_reg0xd_enet_cken(1);
+  sys_hal_set_eth_clk_en(1);
+
+  // PHY interface select: GRMII(1) or RMII(4)
+#ifdef CONFIG_ETH_GPHY
+  eth_set_phy_intf_sel(0x1);
+#else
+  eth_set_phy_intf_sel(0x4);
+#endif
 
   // Enable ETH IRQ
   sys_hal_enable_eth_int(1);
@@ -1087,13 +1094,16 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   gpio_dev_map(GPIO_55, GPIO_DEV_ENET_REF_CLK);
 #endif
 
-#ifdef CONFIG_ETH_PM_CB_SUPPORT
-  // Power On AHBP
+  // Power On AHBP (must be before any ETH register access)
   bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_ENET, PM_POWER_MODULE_STATE_ON);
 
+#ifdef CONFIG_ETH_PM_CB_SUPPORT
   // Don't allow ETH enters PS
   bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_ENET, 0x0, 0x0);
 #endif
+
+  // ETH CLK enable (must be before any ETH MAC register access)
+  sys_hal_set_eth_clk_en(1);
 
   LWIP_LOGD("ETH SoftRest\n");
   // ETH soft reset
@@ -1102,8 +1112,12 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   // ETH bypass clockgate
   WRITE_REG(ETH_RESET_CTRL, 0x3);
 
-  // ETH CLK enable
-  sys_ll_set_reserver_reg0xd_enet_cken(1);
+  // PHY interface select: GRMII(1) or RMII(4)
+#ifdef CONFIG_ETH_GPHY
+  eth_set_phy_intf_sel(0x1);
+#else
+  eth_set_phy_intf_sel(0x4);
+#endif
 
   // Register ETH interrupt ISR
   bk_int_isr_register(INT_SRC_ETH, ETH_IRQHandler, NULL);
