@@ -152,6 +152,8 @@ void *psram_zalloc_release(size_t size);
 
 void *hsram_malloc_debug(const char *func_name, int line, size_t size, int need_zero);
 void *hsram_malloc_release(size_t size);
+void *hsram_realloc_debug(const char *func_name, int line, void *ptr, size_t size, int need_zero);
+void *hsram_realloc_release(void *ptr, size_t size);
 void *hsram_zalloc_release(size_t size);
 
 #if (CONFIG_MALLOC_STATIS || CONFIG_MEM_DEBUG)
@@ -171,7 +173,7 @@ void *hsram_zalloc_release(size_t size);
 
 #define hsram_malloc(size)      hsram_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 0)
 #define hsram_zalloc(size)      hsram_malloc_debug((const char*)__FUNCTION__,__LINE__,size, 1)
-#define hsram_realloc(ptr, size) hsram_realloc_debug((const char*)__FUNCTION__,__LINE__,ptr,size)
+#define hsram_realloc(ptr, size) hsram_realloc_debug((const char*)__FUNCTION__,__LINE__,ptr,size, 0)
 
 void os_dump_memory_stats(uint32_t start_tick, uint32_t ticks_since_malloc, const char* task);
 
