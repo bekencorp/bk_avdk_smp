@@ -98,7 +98,6 @@ bk_err_t bk_trng_stop(void)
 
 int bk_rand(void)
 {
-	static int seed = 0;
 #if 0
 	int i = 0, number = 0;
 
@@ -116,13 +115,13 @@ int bk_rand(void)
 
 	return (number & RAND_MAX);
 #else
-	return seed++;
-	// return 0;
+	return rand();
 #endif
 }
 
 int bk_fill_rand(void *buff, size_t len)
 {
+#if 0
     size_t i = 0;
     uint32_t rnd;
 
@@ -158,4 +157,7 @@ int bk_fill_rand(void *buff, size_t len)
     bk_trng_stop();  //close it after finish for power save
 
     return 0;
+#else
+	return rand();
+#endif
 }
