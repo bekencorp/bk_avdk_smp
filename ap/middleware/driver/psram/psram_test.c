@@ -31,6 +31,21 @@
 #include "bk_ef.h"
 #endif
 
+#include "ram_regions.h"
+
+#ifndef CONFIG_PSRAM_TEST_CPU_ADDR
+#define CONFIG_PSRAM_TEST_CPU_ADDR       0x60000000
+#define CONFIG_PSRAM_TEST_CPU_SIZE       0x00400000
+#endif
+#ifndef CONFIG_PSRAM_TEST_CPU_DMA_ADDR
+#define CONFIG_PSRAM_TEST_CPU_DMA_ADDR   0x60C00000
+#define CONFIG_PSRAM_TEST_CPU_DMA_SIZE   0x00100000
+#endif
+#ifndef CONFIG_PSRAM_TEST_TASK_ADDR
+#define CONFIG_PSRAM_TEST_TASK_ADDR      0x60400000
+#define CONFIG_PSRAM_TEST_TASK_SIZE      0x00200000
+#endif
+
 /* PSRAM test DMA: 1 = HPDMA (default), 0 = GDMA (general_dma). See Kconfig PSRAM_TEST_USE_HPDMA. */
 #if !defined(CONFIG_PSRAM_TEST_USE_HPDMA)
 #define CONFIG_PSRAM_TEST_USE_HPDMA 1
@@ -58,9 +73,20 @@ extern bk_err_t bk_psram_init_with_para(uint32_t psram_clk,uint32_t psram_vol);
 
 static void cli_psram_help(void)
 {
-	CLI_LOGD("psram_test start <cpu|conexist|continue_write|dma|calibrate|new> <cacheable 0|1> [delay_ms] [silent 0|1] [data_type] [psram_id 0|1]\r\n");
+	CLI_LOGD("psram_test start <cpu|conexist|continue_write|dma|calibrate|new> 0 [delay_ms] [silent 0|1] [data_type] [psram_id 0|1]\r\n");
 	CLI_LOGD("psram_test stop\r\n");
 	CLI_LOGD("  - psram_id: 0=PSRAM0(base=SOC_PSRAM_DATA_BASE), 1=PSRAM1(base=SOC_PSRAM1_DATA_BASE if defined, else fallback to SOC_QSPI0_DATA_BASE)\r\n");
+	CLI_LOGD("psram_test_ext cpu_dma_verify [half_size_kb]  -- CPU write + DMA copy + CPU verify, runs until stop (region: 0x%08x, %uKB)\r\n",
+		CONFIG_PSRAM_TEST_CPU_DMA_ADDR, CONFIG_PSRAM_TEST_CPU_DMA_SIZE / 1024);
+	CLI_LOGD("psram_test_ext cpu_dma_verify_stop            -- stop cpu_dma_verify\r\n");
+	CLI_LOGD("psram_test_ext stack_stress_start             -- PSRAM-stack parent+10 workers, runs until stop\r\n");
+	CLI_LOGD("psram_test_ext stack_stress_stop              -- stop stack_stress test\r\n");
+	CLI_LOGD("psram_test_ext psram_soak_start [soak_ms]     -- write-soak-readback bit-flip test (region: 0x%08x, %uKB, default soak=30000ms)\r\n",
+		CONFIG_PSRAM_TEST_TASK_ADDR, CONFIG_PSRAM_TEST_TASK_SIZE / 1024);
+	CLI_LOGD("psram_test_ext psram_soak_stop                -- stop psram_soak test\r\n");
+	CLI_LOGD("psram_test_ext psram_rapid_start              -- fast write-then-read pattern verify (region: 0x%08x, %uKB)\r\n",
+		CONFIG_PSRAM_TEST_TASK_ADDR, CONFIG_PSRAM_TEST_TASK_SIZE / 1024);
+	CLI_LOGD("psram_test_ext psram_rapid_stop               -- stop psram_rapid test\r\n");
 }
 
 static inline uint32_t psram_test_get_base_addr(uint32_t psram_id)
@@ -152,35 +178,20 @@ static uint64_t bk_get_spend_time_us(uint64_t before, uint64_t after)
 }
 
 
+static uint32_t s_cpu_test_pass_count = 0;
+static uint32_t s_cpu_test_fail_count = 0;
+static uint64_t s_cpu_test_last_status_time = 0;
+
 static void psram_cpu_write_test(void)
 {
 	uint32_t i = 0;
+	uint32_t error_num = 0;
+	uint32_t value = 0;
+	uint32_t base_addr = CONFIG_PSRAM_TEST_CPU_ADDR;
+	uint32_t test_len = CONFIG_PSRAM_TEST_CPU_SIZE;
+
 #if TEST_PSRAM_ACCURACY
 	uint32_t j = 0;
-	uint32_t error_num = 0;
-#endif
-
-	uint64_t rate = 0;
-	uint64_t timer0, timer1;
-	uint64_t total_time = 0;
-	uint32_t value = 0;
-	uint32_t base_addr = psram_test_get_base_addr(psram_debug->psram_id);
-	bool silent_mode = psram_debug->silent_mode;
-
-#if (CONFIG_PSRAM_APS128XXO_OB9)
-	uint32_t test_len = 1024 * 1024 * 16;
-#elif (CONFIG_PSRAM_W955D8MKY_5J)
-	uint32_t test_len = 1024 * 1024 * 4;
-#else //CONFIG_PSRAM_APS6408L_O
-	uint32_t test_len = 1024 * 1024 * 8;
-#endif
-
-	if(!silent_mode)
-		CLI_LOGD("begin write %08x-%08x test\r\n", base_addr, base_addr + test_len);
-
-	timer0 = bk_get_current_timer();
-
-#if TEST_PSRAM_ACCURACY
 	for (j = 0; j < test_len / psram_debug->length; j ++)
 	{
 		for (i = 0; i < psram_debug->length; i += 4)
@@ -188,43 +199,11 @@ static void psram_cpu_write_test(void)
 	}
 #else
 	for (i = 0; i < test_len; i +=4)
-	{
 		write_data(base_addr + i, 0x11223344);
-	}
 #endif
-
-	timer1 = bk_get_current_timer();
-
-	if (timer1 > timer0)
-	{
-		total_time = bk_get_spend_time_us(timer0, timer1);
-		rate = ((uint64_t)test_len) * 1000000 / total_time;
-		if(!silent_mode)
-		{
-			CLI_LOGD("finish write, use time: %ld ms, write_rate:%ld%ld byte/s\r\n", (uint32_t)(total_time / 1000),
-			(uint32_t)(rate >> 32), (uint32_t)(rate & 0xFFFFFFFF));
-		}
-	}
-
-	if(!silent_mode)
-		CLI_LOGD("begin read %08x-%08x test\r\n", base_addr, base_addr + test_len);
-
-	timer0 = bk_get_current_timer();
 
 	for (i = 0; i < test_len / 4; i++)
 		read_data((base_addr + i * 0x4), value);
-
-	timer1 = bk_get_current_timer();
-	if (timer1 > timer0)
-	{
-		total_time = bk_get_spend_time_us(timer0, timer1);
-		rate = ((uint64_t)test_len) * 1000000 / total_time;
-		if(!silent_mode)
-		{
-			CLI_LOGD("finish read, use time: %ld ms, read_rate:%d%ld byte/s\r\n", (uint32_t)(total_time / 1000),
-			(uint32_t)(rate >> 32), (uint32_t)(rate & 0xFFFFFFFF));
-		}
-	}
 
 #if TEST_PSRAM_ACCURACY
 	for (i = 0; i < test_len / 4; i++)
@@ -232,21 +211,31 @@ static void psram_cpu_write_test(void)
 		value = get_addr_data(base_addr + i * 0x4);
 		if (value != (psram_debug->data[i & 0x1FFF]))
 		{
-			if(!silent_mode)
-			{
-				CLI_LOGD("==========%08x %08x %08x %08x=======\n",base_addr + i * 0x4, value, psram_debug->data[i & 0x1FFF], value^psram_debug->data[i & 0x1FFF]);
-			}
+			if (error_num < 10)
+				CLI_LOGE("cpu_test ERR @%08x: got %08x expect %08x xor %08x\r\n",
+					base_addr + i * 0x4, value, psram_debug->data[i & 0x1FFF],
+					value ^ psram_debug->data[i & 0x1FFF]);
 			error_num++;
 		}
 	}
-	if(!silent_mode)
-	{
-		CLI_LOGD("finish compare, error_num: %ld, corr_rate: %ld.\r\n", error_num, ((test_len / 4 - error_num) * 100 / (test_len / 4)));
-	}
 #endif
 
-	rtos_delay_milliseconds(psram_debug->delay_time);
+	if (error_num > 0) {
+		s_cpu_test_fail_count++;
+		CLI_LOGE("cpu_test FAIL: error_num=%u (pass=%u, fail=%u)\r\n",
+			error_num, s_cpu_test_pass_count, s_cpu_test_fail_count);
+	} else {
+		s_cpu_test_pass_count++;
+	}
 
+	uint64_t now = bk_get_current_timer();
+	if (now - s_cpu_test_last_status_time >= 5000000) {
+		CLI_LOGD("cpu_test running [%08x-%08x]: pass=%u, fail=%u\r\n",
+			base_addr, base_addr + test_len, s_cpu_test_pass_count, s_cpu_test_fail_count);
+		s_cpu_test_last_status_time = now;
+	}
+
+	rtos_delay_milliseconds(psram_debug->delay_time);
 }
 
 /*
@@ -931,6 +920,16 @@ static void psram_write_test_new(void)
 
 static void psram_test_main(void)
 {
+	if (psram_debug->test_mode == 0) {
+		s_cpu_test_pass_count = 0;
+		s_cpu_test_fail_count = 0;
+		s_cpu_test_last_status_time = bk_get_current_timer();
+		CLI_LOGD("cpu_test started: region [%08x-%08x] (%uKB)\r\n",
+			CONFIG_PSRAM_TEST_CPU_ADDR,
+			CONFIG_PSRAM_TEST_CPU_ADDR + CONFIG_PSRAM_TEST_CPU_SIZE,
+			CONFIG_PSRAM_TEST_CPU_SIZE / 1024);
+	}
+
 	while (psram_debug->test_running)
 	{
 		if (psram_debug->test_mode == 0)
@@ -2117,9 +2116,638 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 		msg = CLI_CMD_RSP_SUCCEED;
 	}
 #endif
+	else if (os_strcmp(argv[1], "cpu_dma_verify") == 0)
+	{
+		extern void psram_cdv_start(uint32_t half_size_kb);
+		uint32_t half_kb = 0;
+		if (argc >= 3)
+			half_kb = os_strtoul(argv[2], NULL, 10);
+		psram_cdv_start(half_kb);
+		msg = CLI_CMD_RSP_SUCCEED;
+	}
+	else if (os_strcmp(argv[1], "cpu_dma_verify_stop") == 0)
+	{
+		extern void psram_cdv_stop(void);
+		psram_cdv_stop();
+		msg = CLI_CMD_RSP_SUCCEED;
+	}
+	else if (os_strcmp(argv[1], "stack_stress_start") == 0)
+	{
+		extern void psram_stack_stress_start(void);
+		psram_stack_stress_start();
+		msg = CLI_CMD_RSP_SUCCEED;
+	}
+	else if (os_strcmp(argv[1], "stack_stress_stop") == 0)
+	{
+		extern void psram_stack_stress_stop(void);
+		psram_stack_stress_stop();
+		msg = CLI_CMD_RSP_SUCCEED;
+	}
+	else if (os_strcmp(argv[1], "psram_soak_start") == 0)
+	{
+		extern void psram_soak_start(uint32_t soak_ms);
+		uint32_t soak_ms = 30000;
+		if (argc >= 3)
+			soak_ms = os_strtoul(argv[2], NULL, 10);
+		psram_soak_start(soak_ms);
+		msg = CLI_CMD_RSP_SUCCEED;
+	}
+	else if (os_strcmp(argv[1], "psram_soak_stop") == 0)
+	{
+		extern void psram_soak_stop(void);
+		psram_soak_stop();
+		msg = CLI_CMD_RSP_SUCCEED;
+	}
+	else if (os_strcmp(argv[1], "psram_rapid_start") == 0)
+	{
+		extern void psram_rapid_start(void);
+		psram_rapid_start();
+		msg = CLI_CMD_RSP_SUCCEED;
+	}
+	else if (os_strcmp(argv[1], "psram_rapid_stop") == 0)
+	{
+		extern void psram_rapid_stop(void);
+		psram_rapid_stop();
+		msg = CLI_CMD_RSP_SUCCEED;
+	}
 
 out:
 	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+}
+
+
+/* ========== cpu_dma_verify: background task ========== */
+
+typedef struct {
+	volatile uint8_t running;
+	uint32_t half_size;
+	volatile uint32_t pass_count;
+	volatile uint32_t fail_count;
+	beken_thread_t task_hdl;
+} cdv_ctx_t;
+
+static cdv_ctx_t s_cdv_ctx = {0};
+
+#define CDV_DMA_CHUNK 65535u
+
+static void cdv_task_main(void *arg)
+{
+	uint32_t half_size = s_cdv_ctx.half_size;
+	uint32_t src_base = CONFIG_PSRAM_TEST_CPU_DMA_ADDR;
+	uint32_t dst_base = src_base + half_size;
+	uint64_t last_status_time = bk_get_current_timer();
+
+	CLI_LOGD("cpu_dma_verify started: src=[%08x-%08x] dst=[%08x-%08x] half=%uKB\r\n",
+		src_base, src_base + half_size, dst_base, dst_base + half_size, half_size / 1024);
+
+	while (s_cdv_ctx.running) {
+		uint32_t error_num = 0;
+		bk_err_t dma_ret = BK_OK;
+
+		for (uint32_t idx = 0; idx < half_size / 4; idx++)
+			write_data(src_base + idx * 4, (uint32_t)(idx * 0x10004001 + 0xA5A5A5A5));
+
+		{
+			uint32_t offset = 0;
+			while (offset < half_size && dma_ret == BK_OK) {
+				uint32_t chunk = half_size - offset;
+				if (chunk > CDV_DMA_CHUNK)
+					chunk = CDV_DMA_CHUNK;
+#if (PSRAM_TEST_USE_HPDMA_EFF)
+				dma_ret = bk_hpdma_memcpy((void *)(dst_base + offset),
+					(const void *)(src_base + offset), chunk);
+#else
+				dma_ret = dma_memcpy((void *)(dst_base + offset),
+					(const void *)(src_base + offset), chunk);
+#endif
+				offset += chunk;
+			}
+		}
+
+		if (dma_ret != BK_OK) {
+			s_cdv_ctx.fail_count++;
+			CLI_LOGE("cpu_dma_verify: DMA copy failed (%d), fail=%u\r\n", dma_ret, s_cdv_ctx.fail_count);
+			rtos_delay_milliseconds(100);
+			continue;
+		}
+
+		for (uint32_t idx = 0; idx < half_size / 4; idx++) {
+			uint32_t expect = (uint32_t)(idx * 0x10004001 + 0xA5A5A5A5);
+			uint32_t actual = get_addr_data(dst_base + idx * 4);
+			if (actual != expect) {
+				error_num++;
+				if (error_num <= 10)
+					CLI_LOGE("cpu_dma_verify ERR @%08x: got %08x expect %08x xor %08x\r\n",
+						dst_base + idx * 4, actual, expect, actual ^ expect);
+			}
+		}
+
+		if (error_num > 0) {
+			s_cdv_ctx.fail_count++;
+			CLI_LOGE("cpu_dma_verify FAIL: error_num=%u (pass=%u, fail=%u)\r\n",
+				error_num, s_cdv_ctx.pass_count, s_cdv_ctx.fail_count);
+		} else {
+			s_cdv_ctx.pass_count++;
+		}
+
+		uint64_t now = bk_get_current_timer();
+		if (now - last_status_time >= 5000000) {
+			CLI_LOGD("cpu_dma_verify running [%08x-%08x]: pass=%u, fail=%u\r\n",
+				CONFIG_PSRAM_TEST_CPU_DMA_ADDR,
+				CONFIG_PSRAM_TEST_CPU_DMA_ADDR + CONFIG_PSRAM_TEST_CPU_DMA_SIZE,
+				s_cdv_ctx.pass_count, s_cdv_ctx.fail_count);
+			last_status_time = now;
+		}
+
+		rtos_delay_milliseconds(10);
+	}
+
+	CLI_LOGD("cpu_dma_verify stopped: pass=%u, fail=%u\r\n", s_cdv_ctx.pass_count, s_cdv_ctx.fail_count);
+	s_cdv_ctx.task_hdl = NULL;
+	rtos_delete_thread(NULL);
+}
+
+void psram_cdv_start(uint32_t half_size_kb)
+{
+	if (s_cdv_ctx.running) {
+		CLI_LOGD("cpu_dma_verify already running\r\n");
+		return;
+	}
+	os_memset(&s_cdv_ctx, 0, sizeof(s_cdv_ctx));
+
+	uint32_t max_half = CONFIG_PSRAM_TEST_CPU_DMA_SIZE / 2;
+	uint32_t half = max_half;
+	if (half_size_kb > 0 && (half_size_kb * 1024) <= max_half)
+		half = half_size_kb * 1024;
+
+	s_cdv_ctx.half_size = half;
+	s_cdv_ctx.running = 1;
+
+	bk_err_t ret = rtos_create_thread(&s_cdv_ctx.task_hdl,
+		4, "cdv_task",
+		(beken_thread_function_t)cdv_task_main,
+		4 * 1024,
+		(beken_thread_arg_t)NULL);
+	if (ret != BK_OK) {
+		CLI_LOGE("cpu_dma_verify: create task failed %d\r\n", ret);
+		s_cdv_ctx.running = 0;
+		s_cdv_ctx.task_hdl = NULL;
+	}
+}
+
+void psram_cdv_stop(void)
+{
+	if (!s_cdv_ctx.running) {
+		CLI_LOGD("cpu_dma_verify not running\r\n");
+		return;
+	}
+	s_cdv_ctx.running = 0;
+	while (s_cdv_ctx.task_hdl != NULL)
+		rtos_delay_milliseconds(10);
+	CLI_LOGD("cpu_dma_verify stopped: pass=%u, fail=%u\r\n", s_cdv_ctx.pass_count, s_cdv_ctx.fail_count);
+}
+
+
+/* ========== stack_stress: PSRAM-stack parent + 10 PSRAM-stack workers ========== */
+
+#define STACK_STRESS_WORKER_CNT     10
+#define STACK_STRESS_LOCAL_BUF_SZ   (4 * 1024)
+#define STACK_STRESS_WORKER_STACK   (48 * 1024)
+#define STACK_STRESS_PARENT_STACK   (16 * 1024)
+
+typedef struct {
+	volatile uint8_t running;
+	volatile uint32_t error_count;
+	volatile uint32_t completed_rounds;
+	volatile uint8_t worker_done[STACK_STRESS_WORKER_CNT];
+	beken_thread_t parent_hdl;
+} stack_stress_ctx_t;
+
+static stack_stress_ctx_t s_ss_ctx = {0};
+
+static void stack_stress_worker(void *arg)
+{
+	uint32_t packed = (uint32_t)(uintptr_t)arg;
+	uint32_t slot_id = packed & 0xFF;
+	uint32_t worker_id = packed >> 8;
+	uint8_t buf_a[STACK_STRESS_LOCAL_BUF_SZ];
+	uint8_t buf_b[STACK_STRESS_LOCAL_BUF_SZ];
+
+	for (uint32_t i = 0; i < STACK_STRESS_LOCAL_BUF_SZ; i++)
+		buf_a[i] = (uint8_t)(i + worker_id * 37 + 0x5A);
+
+	os_memcpy(buf_b, buf_a, STACK_STRESS_LOCAL_BUF_SZ);
+
+	for (uint32_t i = 0; i < STACK_STRESS_LOCAL_BUF_SZ; i++) {
+		if (buf_a[i] != buf_b[i]) {
+			s_ss_ctx.error_count++;
+			CLI_LOGE("worker%u: mismatch @%u: %02x vs %02x\r\n",
+				worker_id, i, buf_a[i], buf_b[i]);
+			break;
+		}
+	}
+
+	if (slot_id < STACK_STRESS_WORKER_CNT)
+		s_ss_ctx.worker_done[slot_id] = 1;
+
+	while (1)
+		rtos_delay_milliseconds(1000);
+}
+
+static uint32_t ss_simple_rand(uint32_t *seed)
+{
+	*seed = (*seed) * 1103515245u + 12345u;
+	return (*seed >> 16) & 0x7FFF;
+}
+
+static int ss_generate_cd_sequence(uint8_t *seq, uint32_t *seed)
+{
+	for (int retry = 0; retry < 200; retry++) {
+		uint8_t tmp[STACK_STRESS_WORKER_CNT * 2];
+		for (int i = 0; i < STACK_STRESS_WORKER_CNT; i++) {
+			tmp[i] = 'C';
+			tmp[i + STACK_STRESS_WORKER_CNT] = 'D';
+		}
+		int n = STACK_STRESS_WORKER_CNT * 2;
+		for (int i = n - 1; i > 0; i--) {
+			int j = ss_simple_rand(seed) % (i + 1);
+			uint8_t t = tmp[i]; tmp[i] = tmp[j]; tmp[j] = t;
+		}
+		int depth = 0, valid = 1;
+		for (int i = 0; i < n; i++) {
+			if (tmp[i] == 'C') depth++;
+			else depth--;
+			if (depth < 0) { valid = 0; break; }
+		}
+		if (valid && depth == 0) {
+			os_memcpy(seq, tmp, n);
+			return 0;
+		}
+	}
+	return -1;
+}
+
+static void stack_stress_parent(void *arg)
+{
+	beken_thread_t workers[STACK_STRESS_WORKER_CNT] = {NULL};
+	uint32_t seed = (uint32_t)bk_get_current_timer() ^ 0xDEADBEEF;
+	uint8_t cd_seq[STACK_STRESS_WORKER_CNT * 2];
+	int total_steps = STACK_STRESS_WORKER_CNT * 2;
+	uint64_t last_status_time = bk_get_current_timer();
+
+	CLI_LOGD("stack_stress started: task_region [%08x-%08x] (%uKB), worker_stack=%uKB, local_buf=%uKB\r\n",
+		CONFIG_PSRAM_TEST_TASK_ADDR,
+		CONFIG_PSRAM_TEST_TASK_ADDR + CONFIG_PSRAM_TEST_TASK_SIZE,
+		CONFIG_PSRAM_TEST_TASK_SIZE / 1024,
+		STACK_STRESS_WORKER_STACK / 1024,
+		STACK_STRESS_LOCAL_BUF_SZ / 1024);
+
+	while (s_ss_ctx.running) {
+		if (ss_generate_cd_sequence(cd_seq, &seed) != 0) {
+			CLI_LOGE("stack_stress: failed to generate CD sequence\r\n");
+			rtos_delay_milliseconds(100);
+			continue;
+		}
+
+		os_memset((void *)s_ss_ctx.worker_done, 0, sizeof(s_ss_ctx.worker_done));
+
+		int create_idx = 0, destroy_idx = 0;
+		for (int step = 0; step < total_steps && s_ss_ctx.running; step++) {
+			if (cd_seq[step] == 'C') {
+				int slot = -1;
+				for (int s = 0; s < STACK_STRESS_WORKER_CNT; s++) {
+					if (workers[s] == NULL) { slot = s; break; }
+				}
+				if (slot < 0) {
+					CLI_LOGE("stack_stress: no free slot (bug)\r\n");
+					break;
+				}
+				char name[12];
+				s_ss_ctx.worker_done[slot] = 0;
+				os_snprintf(name, sizeof(name), "ss_w%d", slot);
+				uint32_t packed_arg = ((s_ss_ctx.completed_rounds * STACK_STRESS_WORKER_CNT + slot) << 8) | (slot & 0xFF);
+				bk_err_t ret = rtos_create_psram_thread(&workers[slot],
+					5, name,
+					(beken_thread_function_t)stack_stress_worker,
+					STACK_STRESS_WORKER_STACK,
+					(beken_thread_arg_t)(uintptr_t)packed_arg);
+				if (ret != BK_OK) {
+					CLI_LOGE("stack_stress: create %s failed %d\r\n", name, ret);
+					workers[slot] = NULL;
+				} else {
+					CLI_LOGD("stack_stress: create %s (round=%u)\r\n", name, s_ss_ctx.completed_rounds);
+				}
+				create_idx++;
+				rtos_delay_milliseconds(50 + ss_simple_rand(&seed) % 100);
+			} else {
+				int slot = -1;
+				for (int s = 0; s < STACK_STRESS_WORKER_CNT; s++) {
+					if (workers[s] != NULL) { slot = s; break; }
+				}
+				if (slot < 0) {
+					CLI_LOGE("stack_stress: no active slot (bug)\r\n");
+					break;
+				}
+				while (!s_ss_ctx.worker_done[slot])
+					rtos_delay_milliseconds(10);
+				CLI_LOGD("stack_stress: destroy ss_w%d (round=%u)\r\n", slot, s_ss_ctx.completed_rounds);
+				rtos_delete_thread(&workers[slot]);
+				workers[slot] = NULL;
+				destroy_idx++;
+			}
+		}
+
+		for (int s = 0; s < STACK_STRESS_WORKER_CNT; s++) {
+			if (workers[s] != NULL) {
+				while (!s_ss_ctx.worker_done[s])
+					rtos_delay_milliseconds(10);
+				CLI_LOGD("stack_stress: cleanup ss_w%d\r\n", s);
+				rtos_delete_thread(&workers[s]);
+				workers[s] = NULL;
+			}
+		}
+
+		s_ss_ctx.completed_rounds++;
+
+		uint64_t now = bk_get_current_timer();
+		if (now - last_status_time >= 5000000) {
+			CLI_LOGD("stack_stress running [%08x-%08x]: rounds=%u, errors=%u\r\n",
+				CONFIG_PSRAM_TEST_TASK_ADDR,
+				CONFIG_PSRAM_TEST_TASK_ADDR + CONFIG_PSRAM_TEST_TASK_SIZE,
+				s_ss_ctx.completed_rounds, s_ss_ctx.error_count);
+			last_status_time = now;
+		}
+	}
+
+	CLI_LOGD("stack_stress stopped: rounds=%u, errors=%u\r\n",
+		s_ss_ctx.completed_rounds, s_ss_ctx.error_count);
+	s_ss_ctx.parent_hdl = NULL;
+	rtos_delete_thread(NULL);
+}
+
+void psram_stack_stress_start(void)
+{
+	if (s_ss_ctx.running) {
+		CLI_LOGD("stack_stress already running\r\n");
+		return;
+	}
+	os_memset(&s_ss_ctx, 0, sizeof(s_ss_ctx));
+	s_ss_ctx.running = 1;
+
+	bk_err_t ret = rtos_create_psram_thread(&s_ss_ctx.parent_hdl,
+		4, "ss_parent",
+		(beken_thread_function_t)stack_stress_parent,
+		STACK_STRESS_PARENT_STACK,
+		(beken_thread_arg_t)NULL);
+	if (ret != BK_OK) {
+		CLI_LOGE("stack_stress: create parent failed %d\r\n", ret);
+		s_ss_ctx.running = 0;
+		s_ss_ctx.parent_hdl = NULL;
+	}
+}
+
+void psram_stack_stress_stop(void)
+{
+	if (!s_ss_ctx.running) {
+		CLI_LOGD("stack_stress not running\r\n");
+		return;
+	}
+	s_ss_ctx.running = 0;
+	while (s_ss_ctx.parent_hdl != NULL)
+		rtos_delay_milliseconds(10);
+	CLI_LOGD("stack_stress stopped: rounds=%u, errors=%u\r\n",
+		s_ss_ctx.completed_rounds, s_ss_ctx.error_count);
+}
+
+
+/* ========== psram_soak: write-soak-readback bit-flip detection ========== */
+
+static const uint32_t s_soak_patterns[] = {
+	0x55555555, 0xAAAAAAAA,
+	0x00000000, 0xFFFFFFFF,
+	0x12345678, 0xA5A5A5A5,
+	0x0F0F0F0F, 0xF0F0F0F0,
+};
+#define SOAK_PATTERN_CNT  (sizeof(s_soak_patterns) / sizeof(s_soak_patterns[0]))
+#define SOAK_TASK_STACK   (8 * 1024)
+
+typedef struct {
+	volatile uint8_t running;
+	volatile uint32_t pass_count;
+	volatile uint32_t fail_count;
+	volatile uint32_t bitflip_words;
+	uint32_t soak_ms;
+	beken_thread_t task_hdl;
+} soak_ctx_t;
+
+static soak_ctx_t s_soak_ctx = {0};
+
+static void soak_task_main(void *arg)
+{
+	uint32_t base_addr = CONFIG_PSRAM_TEST_TASK_ADDR;
+	uint32_t region_size = CONFIG_PSRAM_TEST_TASK_SIZE;
+	uint32_t words = region_size / 4;
+	volatile uint32_t *p32 = (volatile uint32_t *)base_addr;
+	uint32_t soak_ms = s_soak_ctx.soak_ms;
+	uint32_t pat_idx = 0;
+	uint64_t last_status_time = bk_get_current_timer();
+
+	CLI_LOGD("psram_soak started: region [%08x-%08x] (%uKB), soak_ms=%u, patterns=%u\r\n",
+		base_addr, base_addr + region_size, region_size / 1024, soak_ms, SOAK_PATTERN_CNT);
+
+	while (s_soak_ctx.running) {
+		uint32_t pat = s_soak_patterns[pat_idx % SOAK_PATTERN_CNT];
+
+		for (uint32_t i = 0; i < words; i++)
+			p32[i] = pat ^ i;
+
+		rtos_delay_milliseconds(soak_ms);
+
+		uint32_t error_num = 0;
+		for (uint32_t i = 0; i < words; i++) {
+			uint32_t actual = p32[i];
+			uint32_t expect = pat ^ i;
+			if (actual != expect) {
+				error_num++;
+				if (error_num <= 10)
+					CLI_LOGE("soak bit-flip @%08x: got %08x expect %08x xor %08x (pat[%u]=%08x)\r\n",
+						base_addr + i * 4, actual, expect, actual ^ expect, pat_idx % SOAK_PATTERN_CNT, pat);
+			}
+		}
+
+		if (error_num > 0) {
+			s_soak_ctx.fail_count++;
+			s_soak_ctx.bitflip_words += error_num;
+			CLI_LOGE("soak FAIL pat[%u]=%08x: %u words flipped (total_pass=%u, total_fail=%u, total_flip=%u)\r\n",
+				pat_idx % SOAK_PATTERN_CNT, pat, error_num,
+				s_soak_ctx.pass_count, s_soak_ctx.fail_count, s_soak_ctx.bitflip_words);
+		} else {
+			s_soak_ctx.pass_count++;
+		}
+
+		uint64_t now = bk_get_current_timer();
+		if (now - last_status_time >= 5000000) {
+			CLI_LOGD("psram_soak running [%08x-%08x]: pat[%u]=%08x, pass=%u, fail=%u, flip_words=%u\r\n",
+				base_addr, base_addr + region_size,
+				pat_idx % SOAK_PATTERN_CNT, pat,
+				s_soak_ctx.pass_count, s_soak_ctx.fail_count, s_soak_ctx.bitflip_words);
+			last_status_time = now;
+		}
+
+		pat_idx++;
+	}
+
+	CLI_LOGD("psram_soak stopped: pass=%u, fail=%u, flip_words=%u\r\n",
+		s_soak_ctx.pass_count, s_soak_ctx.fail_count, s_soak_ctx.bitflip_words);
+	s_soak_ctx.task_hdl = NULL;
+	rtos_delete_thread(NULL);
+}
+
+void psram_soak_start(uint32_t soak_ms)
+{
+	if (s_soak_ctx.running) {
+		CLI_LOGD("psram_soak already running\r\n");
+		return;
+	}
+	os_memset(&s_soak_ctx, 0, sizeof(s_soak_ctx));
+	s_soak_ctx.running = 1;
+	s_soak_ctx.soak_ms = soak_ms ? soak_ms : 30000;
+
+	bk_err_t ret = rtos_create_thread(&s_soak_ctx.task_hdl,
+		5, "soak_task",
+		(beken_thread_function_t)soak_task_main,
+		SOAK_TASK_STACK,
+		(beken_thread_arg_t)NULL);
+	if (ret != BK_OK) {
+		CLI_LOGE("psram_soak: create task failed %d\r\n", ret);
+		s_soak_ctx.running = 0;
+		s_soak_ctx.task_hdl = NULL;
+	}
+}
+
+void psram_soak_stop(void)
+{
+	if (!s_soak_ctx.running) {
+		CLI_LOGD("psram_soak not running\r\n");
+		return;
+	}
+	s_soak_ctx.running = 0;
+	while (s_soak_ctx.task_hdl != NULL)
+		rtos_delay_milliseconds(10);
+	CLI_LOGD("psram_soak stopped: pass=%u, fail=%u, flip_words=%u\r\n",
+		s_soak_ctx.pass_count, s_soak_ctx.fail_count, s_soak_ctx.bitflip_words);
+}
+
+
+/* ========== psram_rapid: fast write-then-read pattern verify ========== */
+
+#define RAPID_TASK_STACK  (8 * 1024)
+
+typedef struct {
+	volatile uint8_t running;
+	volatile uint32_t pass_count;
+	volatile uint32_t fail_count;
+	volatile uint32_t bitflip_words;
+	beken_thread_t task_hdl;
+} rapid_ctx_t;
+
+static rapid_ctx_t s_rapid_ctx = {0};
+
+static void rapid_task_main(void *arg)
+{
+	uint32_t base_addr = CONFIG_PSRAM_TEST_TASK_ADDR;
+	uint32_t region_size = CONFIG_PSRAM_TEST_TASK_SIZE;
+	uint32_t words = region_size / 4;
+	volatile uint32_t *p32 = (volatile uint32_t *)base_addr;
+	uint32_t pat_idx = 0;
+	uint64_t last_status_time = bk_get_current_timer();
+
+	CLI_LOGD("psram_rapid started: region [%08x-%08x] (%uKB), patterns=%u\r\n",
+		base_addr, base_addr + region_size, region_size / 1024, SOAK_PATTERN_CNT);
+
+	while (s_rapid_ctx.running) {
+		uint32_t pat = s_soak_patterns[pat_idx % SOAK_PATTERN_CNT];
+
+		for (uint32_t i = 0; i < words; i++)
+			p32[i] = pat ^ i;
+
+		uint32_t error_num = 0;
+		for (uint32_t i = 0; i < words; i++) {
+			uint32_t actual = p32[i];
+			uint32_t expect = pat ^ i;
+			if (actual != expect) {
+				error_num++;
+				if (error_num <= 10)
+					CLI_LOGE("rapid err @%08x: got %08x expect %08x xor %08x (pat[%u]=%08x)\r\n",
+						base_addr + i * 4, actual, expect, actual ^ expect,
+						pat_idx % SOAK_PATTERN_CNT, pat);
+			}
+		}
+
+		if (error_num > 0) {
+			s_rapid_ctx.fail_count++;
+			s_rapid_ctx.bitflip_words += error_num;
+			CLI_LOGE("rapid FAIL pat[%u]=%08x: %u words err (pass=%u, fail=%u, total_err=%u)\r\n",
+				pat_idx % SOAK_PATTERN_CNT, pat, error_num,
+				s_rapid_ctx.pass_count, s_rapid_ctx.fail_count, s_rapid_ctx.bitflip_words);
+		} else {
+			s_rapid_ctx.pass_count++;
+		}
+
+		uint64_t now = bk_get_current_timer();
+		if (now - last_status_time >= 5000000) {
+			CLI_LOGD("psram_rapid running [%08x-%08x]: pat[%u]=%08x, pass=%u, fail=%u, err_words=%u\r\n",
+				base_addr, base_addr + region_size,
+				pat_idx % SOAK_PATTERN_CNT, pat,
+				s_rapid_ctx.pass_count, s_rapid_ctx.fail_count, s_rapid_ctx.bitflip_words);
+			last_status_time = now;
+		}
+
+		pat_idx++;
+	}
+
+	CLI_LOGD("psram_rapid stopped: pass=%u, fail=%u, err_words=%u\r\n",
+		s_rapid_ctx.pass_count, s_rapid_ctx.fail_count, s_rapid_ctx.bitflip_words);
+	s_rapid_ctx.task_hdl = NULL;
+	rtos_delete_thread(NULL);
+}
+
+void psram_rapid_start(void)
+{
+	if (s_rapid_ctx.running) {
+		CLI_LOGD("psram_rapid already running\r\n");
+		return;
+	}
+	if (s_soak_ctx.running) {
+		CLI_LOGE("psram_rapid: cannot start while psram_soak is running (shared region)\r\n");
+		return;
+	}
+	os_memset(&s_rapid_ctx, 0, sizeof(s_rapid_ctx));
+	s_rapid_ctx.running = 1;
+
+	bk_err_t ret = rtos_create_thread(&s_rapid_ctx.task_hdl,
+		5, "rapid_task",
+		(beken_thread_function_t)rapid_task_main,
+		RAPID_TASK_STACK,
+		(beken_thread_arg_t)NULL);
+	if (ret != BK_OK) {
+		CLI_LOGE("psram_rapid: create task failed %d\r\n", ret);
+		s_rapid_ctx.running = 0;
+		s_rapid_ctx.task_hdl = NULL;
+	}
+}
+
+void psram_rapid_stop(void)
+{
+	if (!s_rapid_ctx.running) {
+		CLI_LOGD("psram_rapid not running\r\n");
+		return;
+	}
+	s_rapid_ctx.running = 0;
+	while (s_rapid_ctx.task_hdl != NULL)
+		rtos_delay_milliseconds(10);
+	CLI_LOGD("psram_rapid stopped: pass=%u, fail=%u, err_words=%u\r\n",
+		s_rapid_ctx.pass_count, s_rapid_ctx.fail_count, s_rapid_ctx.bitflip_words);
 }
 
 
@@ -2170,7 +2798,7 @@ static void cli_delete_psram_task_handle(char *pcWriteBuffer, int xWriteBufferLe
 
 #define PSRAM_CNT (sizeof(s_psram_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_psram_commands[] = {
-	{"psram_test_ext", "init|byte|word|rewrite|read|speed|speed_dma|timer_check|deinit|wt_start|wt_verify_8k|wt_verify_512k|wt_verify_stop|wt_stop", cli_psram_cmd_handle_ext},
+	{"psram_test_ext", "init|byte|word|rewrite|read|speed|speed_dma|timer_check|deinit|wt_start|wt_verify_8k|wt_verify_512k|wt_verify_stop|wt_stop|cpu_dma_verify|cpu_dma_verify_stop|stack_stress_start|stack_stress_stop|psram_soak_start|psram_soak_stop|psram_rapid_start|psram_rapid_stop", cli_psram_cmd_handle_ext},
 	{"psram_test", "start|stop", cli_psram_cmd_handle},
 	{"psram_cache", "psram_cache <addr> <size>", cli_test_psram_cache_cmd},
 #if (CONFIG_MPC)
@@ -2185,4 +2813,6 @@ int cli_psram_init(void)
 	return cli_register_module_test_feature(s_psram_commands, PSRAM_CNT);
 }
 // eof
+
+
 

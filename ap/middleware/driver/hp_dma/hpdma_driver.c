@@ -216,7 +216,7 @@ bk_err_t bk_hpdma_driver_init(void)
     os_memset(&s_hpdma_bus_err_isr, 0, sizeof(s_hpdma_bus_err_isr));
 
     bk_int_isr_register(INT_SRC_HPDMA, hpdma_isr, NULL);
-    
+
 
     for (uint32_t uint_id = 0; uint_id < SOC_HPDMA_UNIT_NUM; uint_id++) {
 	    s_hpdma.hal.id = uint_id;
@@ -338,12 +338,12 @@ bk_err_t bk_hpdma_init(hpdma_id_t id, const hpdma_config_t *config)
     // Total size = xsize * ysize (user input)
     uint32_t src_total_size = config->src.xsize * config->src.ysize;
     uint32_t dst_total_size = config->dst.xsize * config->dst.ysize;
-    
+
     // Flush source cache to ensure DMA reads latest CPU-written data
     if (src_total_size > 0) {
         flush_dcache((void *)config->src.start_addr, src_total_size);
     }
-    
+
     // Flush destination cache to prepare for DMA write
     // This ensures any dirty cache lines are written back before DMA overwrites memory
     if (dst_total_size > 0) {
@@ -475,7 +475,7 @@ bk_err_t bk_hpdma_disable_bus_err_interrupt(hpdma_id_t id)
     return BK_OK;
 }
 
-bk_err_t bk_hpdma_register_isr(hpdma_id_t id, hpdma_isr_t half_finish_isr, void *half_finish_data, 
+bk_err_t bk_hpdma_register_isr(hpdma_id_t id, hpdma_isr_t half_finish_isr, void *half_finish_data,
                                 hpdma_isr_t finish_isr, void *finish_data)
 {
     HPDMA_RETURN_ON_NOT_INIT();
@@ -815,9 +815,10 @@ bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_
     hpdma_config.dst.ysize = 1;  // 1 row (user input: 1 = 1 row, will be decremented in bk_hpdma_init)
     hpdma_config.dst.step = 0;
 
-    HPDMA_LOGD("hpdma_memcpy cpy_chnl: %d\r\n", cpy_chnl);
+    HPDMA_LOGV("hpdma_memcpy cpy_chnl: %d\r\n", cpy_chnl);
 
     GLOBAL_INT_DECLARATION();
+    
     GLOBAL_INT_DISABLE();
 
     hpdma_wait_to_idle(cpy_chnl);
@@ -906,7 +907,7 @@ void *bk_hpdma_link_init(uint32_t link_cnt)
     // Calculate aligned size per descriptor (24 bytes -> 32 bytes for 16-byte alignment)
     const uint32_t desc_size = sizeof(hpdma_descriptor_t);  // 24 bytes
     const uint32_t desc_aligned_size = (desc_size + 15) & ~15;  // 32 bytes (aligned to 16)
-    
+
     // Allocate memory: each descriptor needs aligned_size, plus space for alignment and raw pointer storage
     // Total: link_cnt * desc_aligned_size + 15 (for first descriptor alignment) + sizeof(void*) (for raw pointer)
     void *raw_ptr = os_malloc(link_cnt * desc_aligned_size + 15 + sizeof(void*));
@@ -914,47 +915,47 @@ void *bk_hpdma_link_init(uint32_t link_cnt)
         HPDMA_LOGE("Failed to allocate descriptor table\r\n");
         return NULL;
     }
-    
+
     // Align first descriptor to 16-byte boundary
     uintptr_t first_desc_addr = ((uintptr_t)raw_ptr + 15 + sizeof(void*)) & ~15;
-    
+
     // Store raw pointer before aligned address for deinit
     void **raw_ptr_storage = (void **)(first_desc_addr - sizeof(void*));
     *raw_ptr_storage = raw_ptr;
-    
-    HPDMA_LOGV("%s raw_ptr=0x%x first_desc=0x%x desc_size=%d aligned_size=%d\r\n", 
+
+    HPDMA_LOGV("%s raw_ptr=0x%x first_desc=0x%x desc_size=%d aligned_size=%d\r\n",
                __func__, raw_ptr, first_desc_addr, desc_size, desc_aligned_size);
-    
+
     // Clear all descriptors
     os_memset((void *)first_desc_addr, 0, link_cnt * desc_aligned_size);
-    
+
     // Link descriptors together - each descriptor's next_desc_addr points to next 16-byte aligned address
     for (int i = 0; i < link_cnt - 1; i++) {
         uintptr_t curr_desc_addr = first_desc_addr + i * desc_aligned_size;
         uintptr_t next_desc_addr = first_desc_addr + (i + 1) * desc_aligned_size;
         hpdma_descriptor_t *curr_desc = (hpdma_descriptor_t *)curr_desc_addr;
-        
+
         // Verify alignment
         if ((curr_desc_addr & 15) != 0 || (next_desc_addr & 15) != 0) {
             HPDMA_LOGE("Descriptor alignment error: curr=0x%x next=0x%x\r\n", curr_desc_addr, next_desc_addr);
         }
-        
+
         curr_desc->next_desc_addr = (uint32_t)next_desc_addr;
         HPDMA_LOGV("Desc[%d] addr=0x%x next_addr=0x%x\r\n", i, curr_desc_addr, curr_desc->next_desc_addr);
     }
-    
+
     // Last descriptor: next_addr = 0 (end of list)
     uintptr_t last_desc_addr = first_desc_addr + (link_cnt - 1) * desc_aligned_size;
     hpdma_descriptor_t *last_desc = (hpdma_descriptor_t *)last_desc_addr;
     last_desc->next_desc_addr = 0;
     HPDMA_LOGV("Desc[%d] addr=0x%x next_addr=0 (end of list)\r\n", link_cnt - 1, last_desc_addr);
-    
+
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     // Flush descriptor table to ensure DMA sees latest data after initialization
     // This ensures next_desc_addr is visible to DMA
     flush_dcache((void *)first_desc_addr, link_cnt * desc_aligned_size);
 #endif
-    
+
     return (void *)first_desc_addr;
 }
 
@@ -964,14 +965,14 @@ void bk_hpdma_link_deinit(void *desc_table)
     if (desc_table == NULL) {
         return;
     }
-    
+
     // Get raw pointer stored before aligned address
     void **raw_ptr_storage = (void **)((uint32_t)desc_table - sizeof(void*));
     void *raw_ptr = *raw_ptr_storage;
-    
+
     // Validate: raw_ptr should be within reasonable range
     // (desc_table - 15 - sizeof(void*) to desc_table - sizeof(void*))
-    if (raw_ptr != NULL && 
+    if (raw_ptr != NULL &&
         (uint32_t)raw_ptr >= ((uint32_t)desc_table - 15 - sizeof(void*)) &&
         (uint32_t)raw_ptr < (uint32_t)desc_table) {
         // Free raw pointer (which was allocated with extra space)
@@ -990,7 +991,7 @@ bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index,
         HPDMA_LOGE("Invalid parameters\r\n");
         return BK_ERR_NULL_PARAM;
     }
-    
+
     // Validate ysize: user input should be >= 1 (1 = 1 row, 2 = 2 rows, etc.)
     if (config->src_ysize == 0) {
         HPDMA_LOGE("Source ysize must be >= 1 (1 = 1 row, 2 = 2 rows, etc.)\r\n");
@@ -1000,10 +1001,10 @@ bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index,
         HPDMA_LOGE("Destination ysize must be >= 1 (1 = 1 row, 2 = 2 rows, etc.)\r\n");
         return BK_ERR_PARAM;
     }
-    
+
     // Get descriptor by index (handles 16-byte alignment spacing)
     hpdma_descriptor_t *desc = hpdma_get_desc_by_index(desc_table, index);
-    
+
     // Configure descriptor for 2D transfer
     // User input: ysize = 1 means 1 row, ysize = 2 means 2 rows, etc.
     // Hardware expects: ysize = 0 means 1 row, ysize = 1 means 2 rows, etc.
@@ -1018,13 +1019,13 @@ bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index,
     desc->ctrl.bits.dest_step = config->dst_step;
     desc->ctrl.bits.int_finish_en = config->finish_int_en;
     desc->ctrl.bits.int_half_finish_en = config->half_finish_int_en;
-    
+
     HPDMA_LOGV("Desc[%d] src=0x%x dst=0x%x src_x=%d src_y=%d dst_x=%d dst_y=%d step_src=%d step_dst=%d\r\n",
                index, config->src_addr, config->dst_addr,
                config->src_xsize, config->src_ysize,
                config->dst_xsize, config->dst_ysize,
                config->src_step, config->dst_step);
-    
+
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     // Flush descriptor to ensure DMA sees latest data
     // Note: Source and destination addresses cache will be flushed in bk_hpdma_link_transfer
@@ -1044,7 +1045,7 @@ bk_err_t bk_hpdma_link_set_descs(void *desc_table,
         HPDMA_LOGE("Invalid parameters\r\n");
         return BK_ERR_NULL_PARAM;
     }
-    
+
     for (uint32_t i = 0; i < link_cnt; i++) {
         bk_err_t ret = bk_hpdma_link_set_desc(desc_table, i, &configs[i]);
         if (ret != BK_OK) {
@@ -1052,7 +1053,7 @@ bk_err_t bk_hpdma_link_set_descs(void *desc_table,
             return ret;
         }
     }
-    
+
     return BK_OK;
 }
 
@@ -1063,18 +1064,18 @@ bk_err_t bk_hpdma_link_transfer(hpdma_id_t id, void *desc_table)
         HPDMA_LOGE("Invalid descriptor table\r\n");
         return BK_ERR_NULL_PARAM;
     }
-    
+
     if (id >= HPDMA_ID_MAX) {
         HPDMA_LOGE("Invalid DMA channel ID: %d\r\n", id);
         return BK_ERR_HPDMA_ID;
     }
-    
+
     HPDMA_LOGV("%s DMA channel = %d\r\n", __func__, id);
 
     hpdma_config_t hpdma_config;
 
     os_memset(&hpdma_config, 0, sizeof(hpdma_config_t));
-    
+
     // Configure DMA for linked list mode (all info in descriptors)
     // Mode 1: Set register values to 0, hardware reads all info from descriptors
     hpdma_config.mode = HPDMA_WORK_MODE_SINGLE;
@@ -1086,7 +1087,7 @@ bk_err_t bk_hpdma_link_transfer(hpdma_id_t id, void *desc_table)
     hpdma_config.src.ysize = 1;  // 1 row (user input: 1 = 1 row, will be decremented in bk_hpdma_init)
     hpdma_config.src.step = 0;
     hpdma_config.src.addr_loop_en = HPDMA_ADDR_LOOP_DISABLE;
-    
+
     hpdma_config.dst.dev = HPDMA_DEV_DTCM;
     hpdma_config.dst.width = HPDMA_DATA_WIDTH_128BITS;
     hpdma_config.dst.addr_inc_en = HPDMA_ADDR_INC_ENABLE;
@@ -1123,7 +1124,7 @@ bk_err_t bk_hpdma_link_transfer(hpdma_id_t id, void *desc_table)
 #endif
 
     bk_hpdma_start(id);
-    
+
     HPDMA_LOGV("%s DMA started\r\n", __func__);
 
     return BK_OK;
