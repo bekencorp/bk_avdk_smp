@@ -18,6 +18,9 @@
 #include <os/str.h>
 #include "uvc_urb_list.h"
 #include <common/avdk_pixel_types.h>
+#if CONFIG_SOC_SMP
+#include "spinlock.h"
+#endif
 
 #define TAG "uvc_urb"
 
@@ -28,18 +31,46 @@
 
 uvc_urb_list_t g_uvc_list = {0};
 
+#if CONFIG_SOC_SMP
+static SPINLOCK_SECTION volatile spinlock_t s_uvc_urb_spin_lock = SPIN_LOCK_INIT;
+#endif
+
+static inline uint32_t uvc_urb_list_enter_critical(void)
+{
+    uint32_t flags = rtos_disable_int();
+
+#if CONFIG_SOC_SMP
+    spin_lock(&s_uvc_urb_spin_lock);
+#endif
+
+    return flags;
+}
+
+static inline void uvc_urb_list_exit_critical(uint32_t flags)
+{
+#if CONFIG_SOC_SMP
+    spin_unlock(&s_uvc_urb_spin_lock);
+#endif
+
+    rtos_enable_int(flags);
+}
+
 bk_err_t uvc_camera_urb_list_init(void)
 {
     int ret = BK_OK;
-
+    uint32_t flags;
     uvc_urb_list_t *mem_list = &g_uvc_list;
     uint32_t offset0 = 0, offset1 = 0;
 
+    flags = uvc_urb_list_enter_critical();
     if (mem_list->enable)
     {
+        uvc_urb_list_exit_critical(flags);
         LOGD("%s, urb list already init\r\n", __func__);
         return ret;
     }
+    mem_list->deiniting = false;
+    uvc_urb_list_exit_critical(flags);
 
     INIT_LIST_HEAD(&mem_list->free);
     INIT_LIST_HEAD(&mem_list->ready);
@@ -117,7 +148,10 @@ bk_err_t uvc_camera_urb_list_init(void)
         list_add_tail(&node->list, &mem_list->free);
     }
 
+    flags = uvc_urb_list_enter_critical();
     mem_list->enable = true;
+    mem_list->deiniting = false;
+    uvc_urb_list_exit_critical(flags);
 
     return ret;
 }
@@ -126,59 +160,62 @@ bk_err_t uvc_camera_urb_list_deinit(void)
 {
     int ret = BK_OK;
     uvc_urb_list_t *mem_list = NULL;
+    uint8_t *buffer = NULL;
     uvc_urb_node_t *tmp = NULL;
+    LIST_HEADER_T free_list;
+    LIST_HEADER_T ready_list;
     LIST_HEADER_T *pos, *n;
+    uint32_t flags;
 
     mem_list = &g_uvc_list;
 
+    INIT_LIST_HEAD(&free_list);
+    INIT_LIST_HEAD(&ready_list);
+
+    flags = uvc_urb_list_enter_critical();
     if (mem_list->enable == false)
     {
+        uvc_urb_list_exit_critical(flags);
         LOGE("%s already deinit\n", __func__);
         return ret;
     }
 
-    rtos_lock_mutex(&mem_list->lock);
-
-    if (!list_empty(&mem_list->free))
-    {
-        list_for_each_safe(pos, n, &mem_list->free)
-        {
-            tmp = list_entry(pos, uvc_urb_node_t, list);
-            LOGD("free list: %p\n", tmp);
-            if (tmp != NULL)
-            {
-                list_del(pos);
-                os_free(tmp);
-                tmp = NULL;
-            }
-        }
-
-        INIT_LIST_HEAD(&mem_list->free);
-    }
-
-    if (!list_empty(&mem_list->ready))
-    {
-        list_for_each_safe(pos, n, &mem_list->ready)
-        {
-            LOGD("ready list: %p\n", tmp);
-            tmp = list_entry(pos, uvc_urb_node_t, list);
-            if (tmp != NULL)
-            {
-                list_del(pos);
-                os_free(tmp);
-                tmp = NULL;
-            }
-        }
-
-        INIT_LIST_HEAD(&mem_list->ready);
-    }
-
-    os_free(mem_list->buffer);
-    mem_list->buffer = NULL;
-
+    mem_list->deiniting = true;
     mem_list->enable = false;
+    list_splice_init(&mem_list->free, &free_list);
+    list_splice_init(&mem_list->ready, &ready_list);
+    buffer = mem_list->buffer;
+    mem_list->buffer = NULL;
+    uvc_urb_list_exit_critical(flags);
 
-    rtos_unlock_mutex(&mem_list->lock);
+    rtos_set_semaphore(&mem_list->sem);
+
+    list_for_each_safe(pos, n, &free_list)
+    {
+        tmp = list_entry(pos, uvc_urb_node_t, list);
+        LOGD("free list: %p\n", tmp);
+        if (tmp != NULL)
+        {
+            list_del(pos);
+            os_free(tmp);
+            tmp = NULL;
+        }
+    }
+
+    list_for_each_safe(pos, n, &ready_list)
+    {
+        tmp = list_entry(pos, uvc_urb_node_t, list);
+        LOGD("ready list: %p\n", tmp);
+        if (tmp != NULL)
+        {
+            list_del(pos);
+            os_free(tmp);
+            tmp = NULL;
+        }
+    }
+
+    os_free(buffer);
+
     rtos_deinit_semaphore(&mem_list->sem);
     rtos_deinit_mutex(&mem_list->lock);
 
@@ -192,28 +229,28 @@ void uvc_camera_urb_list_clear(void)
     uvc_urb_list_t *mem_list = NULL;
     uvc_urb_node_t *tmp = NULL;
     LIST_HEADER_T *pos, *n;
+    uint32_t flags;
 
     mem_list = &g_uvc_list;
 
-    if (mem_list->enable == false)
+    flags = uvc_urb_list_enter_critical();
+    if (mem_list->enable == false || mem_list->deiniting)
     {
+        uvc_urb_list_exit_critical(flags);
         LOGE("%s already deinit\n", __func__);
         return;
     }
-
-    rtos_lock_mutex(&mem_list->lock);
 
     list_for_each_safe(pos, n, &mem_list->ready)
     {
         tmp = list_entry(pos, uvc_urb_node_t, list);
         if (tmp != NULL)
         {
-            list_del(pos);
-            list_add_tail(&tmp->list, &mem_list->free);
+            list_move_tail(&tmp->list, &mem_list->free);
         }
     }
 
-    rtos_unlock_mutex(&mem_list->lock);
+    uvc_urb_list_exit_critical(flags);
 }
 
 struct usbh_urb *uvc_camera_urb_malloc(void)
@@ -221,25 +258,16 @@ struct usbh_urb *uvc_camera_urb_malloc(void)
     uvc_urb_list_t *mem_list = NULL;
     uvc_urb_node_t *tmp = NULL, *node = NULL;
     LIST_HEADER_T *pos, *n;
-    uint32_t isr_context = platform_is_in_interrupt_context();
-
-    GLOBAL_INT_DECLARATION();
+    uint32_t flags;
 
     mem_list = &g_uvc_list;
 
-    if (mem_list->enable == false)
+    flags = uvc_urb_list_enter_critical();
+    if (mem_list->enable == false || mem_list->deiniting)
     {
+        uvc_urb_list_exit_critical(flags);
         LOGE("%s already deinit\n", __func__);
         return NULL;
-    }
-
-    if (!isr_context)
-    {
-        rtos_lock_mutex(&mem_list->lock);
-    }
-    else
-    {
-        GLOBAL_INT_DISABLE();
     }
 
     list_for_each_safe(pos, n, &mem_list->free)
@@ -252,15 +280,7 @@ struct usbh_urb *uvc_camera_urb_malloc(void)
             break;
         }
     }
-
-    if (!isr_context)
-    {
-        rtos_unlock_mutex(&mem_list->lock);
-    }
-    else
-    {
-        GLOBAL_INT_RESTORE();
-    }
+    uvc_urb_list_exit_critical(flags);
 
     if (node == NULL)
     {
@@ -284,75 +304,41 @@ void uvc_camera_urb_free(struct usbh_urb *urb)
 {
     uvc_urb_list_t *mem_list = NULL;
     uvc_urb_node_t *node = list_entry(urb, uvc_urb_node_t, urb);
-    uint32_t isr_context = platform_is_in_interrupt_context();
-
-    GLOBAL_INT_DECLARATION();
+    uint32_t flags;
 
     mem_list = &g_uvc_list;
 
-    if (mem_list->enable == false)
+    flags = uvc_urb_list_enter_critical();
+    if (mem_list->enable == false || mem_list->deiniting)
     {
+        uvc_urb_list_exit_critical(flags);
         LOGE("%s already deinit\n", __func__);
         return;
     }
 
-    if (!isr_context)
-    {
-        rtos_lock_mutex(&mem_list->lock);
-    }
-    else
-    {
-        GLOBAL_INT_DISABLE();
-    }
-
     urb->pipe = NULL;
     list_add_tail(&node->list, &mem_list->free);
-
-    if (!isr_context)
-    {
-        rtos_unlock_mutex(&mem_list->lock);
-    }
-    else
-    {
-        GLOBAL_INT_RESTORE();
-    }
+    uvc_urb_list_exit_critical(flags);
 }
 
 void uvc_camera_urb_push(struct usbh_urb *urb)
 {
     uvc_urb_list_t *mem_list = NULL;
     uvc_urb_node_t *node = list_entry(urb, uvc_urb_node_t, urb);
-    uint32_t isr_context = platform_is_in_interrupt_context();
-
-    GLOBAL_INT_DECLARATION();
+    uint32_t flags;
 
     mem_list = &g_uvc_list;
 
-    if (mem_list->enable == false)
+    flags = uvc_urb_list_enter_critical();
+    if (mem_list->enable == false || mem_list->deiniting)
     {
+        uvc_urb_list_exit_critical(flags);
         LOGE("%s already deinit\n", __func__);
         return;
     }
 
-    if (!isr_context)
-    {
-        rtos_lock_mutex(&mem_list->lock);
-    }
-    else
-    {
-        GLOBAL_INT_DISABLE();
-    }
-
     list_add_tail(&node->list, &mem_list->ready);
-
-    if (!isr_context)
-    {
-        rtos_unlock_mutex(&mem_list->lock);
-    }
-    else
-    {
-        GLOBAL_INT_RESTORE();
-    }
+    uvc_urb_list_exit_critical(flags);
 
     rtos_set_semaphore(&mem_list->sem);
 }
@@ -362,16 +348,17 @@ struct usbh_urb *uvc_camera_urb_pop(void)
     uvc_urb_list_t *mem_list = NULL;
     uvc_urb_node_t *tmp = NULL, *node = NULL;
     LIST_HEADER_T *pos, *n;
+    uint32_t flags;
 
     mem_list = &g_uvc_list;
 
-    if (mem_list->enable == false)
+    flags = uvc_urb_list_enter_critical();
+    if (mem_list->enable == false || mem_list->deiniting)
     {
+        uvc_urb_list_exit_critical(flags);
         LOGE("%s already deinit\n", __func__);
         return NULL;
     }
-
-    rtos_lock_mutex(&mem_list->lock);
 
     list_for_each_safe(pos, n, &mem_list->ready)
     {
@@ -383,11 +370,18 @@ struct usbh_urb *uvc_camera_urb_pop(void)
             break;
         }
     }
-
-    rtos_unlock_mutex(&mem_list->lock);
+    uvc_urb_list_exit_critical(flags);
 
     if (node == NULL)
     {
+        flags = uvc_urb_list_enter_critical();
+        if (mem_list->enable == false || mem_list->deiniting)
+        {
+            uvc_urb_list_exit_critical(flags);
+            return NULL;
+        }
+        uvc_urb_list_exit_critical(flags);
+
         if (rtos_get_semaphore(&mem_list->sem, 100) != BK_OK)
         {
             LOGD("%s, get node timeout, do not urb push!\r\n", __func__);

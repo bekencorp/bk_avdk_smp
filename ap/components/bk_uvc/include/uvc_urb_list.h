@@ -45,6 +45,7 @@ typedef struct
     beken_mutex_t lock;
     beken_semaphore_t sem;
     uint8_t  enable;
+    uint8_t  deiniting;
     uint8_t  count;
     uint8_t *buffer;
     uint32_t size;
