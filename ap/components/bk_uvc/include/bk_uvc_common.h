@@ -32,6 +32,7 @@
 #define UVC_STREAM_STOP_BIT          INDEX_MASK(6)
 #define UVC_STREAM_SUSPEND_BIT       INDEX_MASK(7)
 #define UVC_STREAM_RESUME_BIT        INDEX_MASK(8)
+#define UVC_PORT_IDLE_BIT(port)      INDEX_MASK((8 + (port)))
 
 
 
@@ -135,6 +136,10 @@ typedef struct
 typedef struct
 {
     beken_semaphore_t sem;
+    uint8_t port;
+    volatile uint8_t stop_requested;
+    volatile uint8_t processing;
+    volatile uint32_t pending_urb_num;
     bk_cam_uvc_config_t *info;
     uvc_stream_state_t stream_state;
     struct usbh_urb *urb;
