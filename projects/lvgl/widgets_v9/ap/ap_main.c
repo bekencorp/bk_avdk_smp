@@ -4,16 +4,14 @@
 #include <components/shell_task.h>
 #include "cli.h"
 #include "components/media_types.h"
-#include "driver/drv_tp.h"
 #if CONFIG_LVGL
 #include "lvgl.h"
 #include "lv_vendor.h"
 #include "lv_demo_widgets.h"
 #endif
-#include "sys_driver.h"
+#include "driver/drv_tp.h"
 #include "media_service.h"
 #include <components/bk_frame_buffer.h>
-#include "tp_sensor_devices.h"
 #include <common/avdk_pixel_types.h>
 #include <components/bk_display.h>
 #include <components/bk_display_dpu_ctlr.h>
@@ -34,15 +32,9 @@
 
 extern void user_app_main(void);
 extern void rtos_set_user_app_entry(beken_thread_function_t entry);
-extern int bk_cli_init(void);
-
 
 #define SYS_ANA_REG_BASE    (0x44010000)
 #define LDO_ANA_REG         (0x69)
-
-#define SYS_M55_BASE_ADDR    (0x48000000)
-#define SYS_GPIO_BASE_ADDR    (0x44000400)
-
 
 static void bk_lodoen_enable(void)
 {
@@ -51,25 +43,6 @@ static void bk_lodoen_enable(void)
     reg &= ~(0xF << 11);
     reg |= (0x8 << 11);
     REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
-
-    // close multimedia clock
-    reg = REG_READ(SYS_M55_BASE_ADDR + 0xA * 4);
-    reg &= ~(1 << 2); // usb hs clock
-    reg &= ~(1 << 5); // qspi0 clock
-    reg &= ~(1 << 6); // qspi1 clock
-    reg &= ~(1 << 7); // sdio0 clock
-    reg &= ~(1 << 8); // sdio1 clock
-    reg &= ~(1 << 9); // isp clock
-    reg &= ~(1 << 10); // gpu clock
-    reg &= ~(1 << 11); // h264e clock
-    reg &= ~(1 << 12); // csi clock
-    reg &= ~(1 << 13); // dsi clock
-    reg &= ~(1 << 14); // dpu clock
-    reg &= ~(1 << 15); // usb fs clock
-    reg &= ~(1 << 22); // npu clock
-
-    reg &= ~(0x3F << 26); // not used clock
-    REG_WRITE(SYS_M55_BASE_ADDR + 0xA * 4, reg);
 }
 
 typedef struct
@@ -235,11 +208,6 @@ int main(void)
     bk_lodoen_enable();
 
     bk_frame_buffer_init();
-
-#if CONFIG_TP
-    extern void bk_peripheral_init(void);
-    tp_sensor_devices_init();
-#endif
 
     lvgl_app_widgets_init();
 
