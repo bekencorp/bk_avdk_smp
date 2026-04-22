@@ -285,13 +285,28 @@ void usbh_video_list_info(struct usbh_video *video_class)
                      mult);
     }
 
+    uint8_t format_count = video_class->num_of_formats;
+    if (format_count > USBH_VIDEO_FORMAT_MAX_NUM) {
+        USB_LOG_WRN("Clamp bNumFormats from %u to %u\r\n", format_count, USBH_VIDEO_FORMAT_MAX_NUM);
+        format_count = USBH_VIDEO_FORMAT_MAX_NUM;
+    }
+
     USB_LOG_DBG("bNumFormats:%u\r\n", video_class->num_of_formats);
-    for (uint8_t i = 0; i < video_class->num_of_formats; i++) {
+    for (uint8_t i = 0; i < format_count; i++) {
+        uint8_t fmt = video_class->format[i].format_type;
+        uint8_t frame_count = video_class->format[i].num_of_frames;
         USB_LOG_DBG("  FormatIndex:%u\r\n", i + 1);
-        USB_LOG_DBG("  FormatType:%s\r\n", format_type[video_class->format[i].format_type]);
-        USB_LOG_DBG("  bNumFrames:%u\r\n", video_class->format[i].num_of_frames);
+        USB_LOG_DBG("  FormatTypeId:%u\r\n", fmt);
+        USB_LOG_DBG("  FormatType:%s\r\n",
+                    (fmt < (sizeof(format_type) / sizeof(format_type[0]))) ? format_type[fmt] : "unknown");
+        if (frame_count > USBH_VIDEO_FRAME_MAX_NUM) {
+            USB_LOG_WRN("Clamp bNumFrames from %u to %u for format %u\r\n",
+                        frame_count, USBH_VIDEO_FRAME_MAX_NUM, i + 1);
+            frame_count = USBH_VIDEO_FRAME_MAX_NUM;
+        }
+        USB_LOG_DBG("  bNumFrames:%u\r\n", frame_count);
         USB_LOG_VBS("  Resolution:\r\n");
-        for (uint8_t j = 0; j < video_class->format[i].num_of_frames; j++) {
+        for (uint8_t j = 0; j < frame_count; j++) {
             USB_LOG_DBG("      FrameIndex:%u\r\n", j + 1);
             USB_LOG_DBG("      wWidth: %d, wHeight: %d\r\n",
                          video_class->format[i].frame[j].wWidth,
@@ -378,6 +393,15 @@ static int usbh_video_ctrl_intf_connect(struct usbh_hubport *hport, uint8_t intf
                         case VIDEO_VS_FORMAT_UNCOMPRESSED_DESCRIPTOR_SUBTYPE:
                             format_index = p[DESC_bFormatIndex];
                             num_of_frames = p[DESC_bNumFrameDescriptors];
+                            if ((format_index == 0) || (format_index > USBH_VIDEO_FORMAT_MAX_NUM)) {
+                                USB_LOG_WRN("Ignore invalid uncompressed format_index:%u\r\n", format_index);
+                                break;
+                            }
+                            if (num_of_frames > USBH_VIDEO_FRAME_MAX_NUM) {
+                                USB_LOG_WRN("Clamp uncompressed num_of_frames from %u to %u\r\n",
+                                            num_of_frames, USBH_VIDEO_FRAME_MAX_NUM);
+                                num_of_frames = USBH_VIDEO_FRAME_MAX_NUM;
+                            }
 
                             video_class->format[format_index - 1].num_of_frames = num_of_frames;
                             video_class->format[format_index - 1].format_type = USBH_VIDEO_FORMAT_UNCOMPRESSED;
@@ -385,6 +409,15 @@ static int usbh_video_ctrl_intf_connect(struct usbh_hubport *hport, uint8_t intf
                         case VIDEO_VS_FORMAT_MJPEG_DESCRIPTOR_SUBTYPE:
                             format_index = p[DESC_bFormatIndex];
                             num_of_frames = p[DESC_bNumFrameDescriptors];
+                            if ((format_index == 0) || (format_index > USBH_VIDEO_FORMAT_MAX_NUM)) {
+                                USB_LOG_WRN("Ignore invalid mjpeg format_index:%u\r\n", format_index);
+                                break;
+                            }
+                            if (num_of_frames > USBH_VIDEO_FRAME_MAX_NUM) {
+                                USB_LOG_WRN("Clamp mjpeg num_of_frames from %u to %u\r\n",
+                                            num_of_frames, USBH_VIDEO_FRAME_MAX_NUM);
+                                num_of_frames = USBH_VIDEO_FRAME_MAX_NUM;
+                            }
 
                             video_class->format[format_index - 1].num_of_frames = num_of_frames;
                             video_class->format[format_index - 1].format_type = USBH_VIDEO_FORMAT_MJPEG;
@@ -392,6 +425,15 @@ static int usbh_video_ctrl_intf_connect(struct usbh_hubport *hport, uint8_t intf
                         case VIDEO_VS_FORMAT_FRAME_BASED_DESCRIPTOR_SUBTYPE:
                             format_index = p[DESC_bFormatIndex];
                             num_of_frames = p[DESC_bNumFrameDescriptors];
+                            if ((format_index == 0) || (format_index > USBH_VIDEO_FORMAT_MAX_NUM)) {
+                                USB_LOG_WRN("Ignore invalid frame-based format_index:%u\r\n", format_index);
+                                break;
+                            }
+                            if (num_of_frames > USBH_VIDEO_FRAME_MAX_NUM) {
+                                USB_LOG_WRN("Clamp frame-based num_of_frames from %u to %u\r\n",
+                                            num_of_frames, USBH_VIDEO_FRAME_MAX_NUM);
+                                num_of_frames = USBH_VIDEO_FRAME_MAX_NUM;
+                            }
 
                             video_class->format[format_index - 1].num_of_frames = num_of_frames;
                             if(p[DESC_H26X_FORMAT_CHECK_NUM] == DESC_H264_FORMAT_GUID_INDEX)
@@ -401,6 +443,15 @@ static int usbh_video_ctrl_intf_connect(struct usbh_hubport *hport, uint8_t intf
                             break;
                         case VIDEO_VS_FRAME_UNCOMPRESSED_DESCRIPTOR_SUBTYPE:
                             frame_index = p[DESC_bFrameIndex];
+                            if ((format_index == 0) || (format_index > USBH_VIDEO_FORMAT_MAX_NUM)) {
+                                USB_LOG_WRN("Ignore uncompressed frame with invalid format_index:%u\r\n", format_index);
+                                break;
+                            }
+                            if ((frame_index == 0) || (frame_index > USBH_VIDEO_FRAME_MAX_NUM)) {
+                                USB_LOG_WRN("Ignore invalid uncompressed frame_index:%u for format:%u\r\n",
+                                            frame_index, format_index);
+                                break;
+                            }
 
                             video_class->format[format_index - 1].frame[frame_index - 1].wWidth = ((struct video_cs_if_vs_frame_uncompressed_descriptor *)p)->wWidth;
                             video_class->format[format_index - 1].frame[frame_index - 1].wHeight = ((struct video_cs_if_vs_frame_uncompressed_descriptor *)p)->wHeight;
@@ -415,6 +466,15 @@ static int usbh_video_ctrl_intf_connect(struct usbh_hubport *hport, uint8_t intf
                             break;
                         case VIDEO_VS_FRAME_MJPEG_DESCRIPTOR_SUBTYPE:
                             frame_index = p[DESC_bFrameIndex];
+                            if ((format_index == 0) || (format_index > USBH_VIDEO_FORMAT_MAX_NUM)) {
+                                USB_LOG_WRN("Ignore mjpeg frame with invalid format_index:%u\r\n", format_index);
+                                break;
+                            }
+                            if ((frame_index == 0) || (frame_index > USBH_VIDEO_FRAME_MAX_NUM)) {
+                                USB_LOG_WRN("Ignore invalid mjpeg frame_index:%u for format:%u\r\n",
+                                            frame_index, format_index);
+                                break;
+                            }
 
                             video_class->format[format_index - 1].frame[frame_index - 1].wWidth = ((struct video_cs_if_vs_frame_mjpeg_descriptor *)p)->wWidth;
                             video_class->format[format_index - 1].frame[frame_index - 1].wHeight = ((struct video_cs_if_vs_frame_mjpeg_descriptor *)p)->wHeight;
@@ -429,6 +489,15 @@ static int usbh_video_ctrl_intf_connect(struct usbh_hubport *hport, uint8_t intf
                             break;
                         case VIDEO_VS_FRAME_FRAME_BASED_DESCRIPTOR_SUBTYPE:
                             frame_index = p[DESC_bFrameIndex];
+                            if ((format_index == 0) || (format_index > USBH_VIDEO_FORMAT_MAX_NUM)) {
+                                USB_LOG_WRN("Ignore frame-based frame with invalid format_index:%u\r\n", format_index);
+                                break;
+                            }
+                            if ((frame_index == 0) || (frame_index > USBH_VIDEO_FRAME_MAX_NUM)) {
+                                USB_LOG_WRN("Ignore invalid frame-based frame_index:%u for format:%u\r\n",
+                                            frame_index, format_index);
+                                break;
+                            }
 
                             video_class->format[format_index - 1].frame[frame_index - 1].wWidth = ((struct video_cs_if_vs_frame_h26x_descriptor *)p)->wWidth;
                             video_class->format[format_index - 1].frame[frame_index - 1].wHeight = ((struct video_cs_if_vs_frame_h26x_descriptor *)p)->wHeight;

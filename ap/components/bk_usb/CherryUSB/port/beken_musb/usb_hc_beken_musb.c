@@ -783,14 +783,14 @@ void musb_isoc_pipe_init(struct musb_pipe *pipe, uint8_t *buffer, uint32_t bufle
     musb_set_active_ep(pipe->ep_local_index);
 
     if (pipe->ep_addr & 0x80) {
-#if NANENG_PHY_CFG
-        naneng_usb_phy_0f_byte_set(1);
-#endif
+// #if NANENG_PHY_CFG
+//         naneng_usb_phy_0f_byte_set(1);
+// #endif
         HWREGB(USB_BASE + MUSB_IND_RXCSRL_OFFSET) = USB_RXCSRL1_REQPKT;//| USB_RXCSRL1_CLRDT;
     } else {
-#if NANENG_PHY_CFG
-        naneng_usb_phy_0f_byte_set(1);
-#endif
+// #if NANENG_PHY_CFG
+//         naneng_usb_phy_0f_byte_set(1);
+// #endif
         if(buffer) {
             musb_write_packet(pipe->ep_local_index, buffer, buflen);
         }
@@ -834,7 +834,7 @@ __WEAK void usb_hc_low_level_init(void)
     USB_LOG_VBS("[+]%s\r\n", __func__);
 #if NANENG_PHY_CFG
     //NANENG_PHY_CFG_HSRX_TEST
-	HWREGB(USB_PHY_BASE + NANENG_PHY_FC_REG0F) |= (0x1 << 4);
+	// HWREGB(USB_PHY_BASE + NANENG_PHY_FC_REG0F) |= (0x1 << 4);
 	////0xc为E0，这里需要还原为0x44
 	HWREGB(USB_PHY_BASE + NANENG_PHY_FC_REG0B) = 0x44;
 #endif
@@ -2215,9 +2215,9 @@ void USBH_IRQHandler(void)
     if(rxis) {
         for (ep_idx = 1; ep_idx < CONIFG_USB_MUSB_PIPE_NUM; ep_idx++) {
            if (rxis & (1 << ep_idx)) {
-#if NANENG_PHY_CFG
-               naneng_usb_phy_0f_byte_set(0);
-#endif
+// #if NANENG_PHY_CFG
+//                naneng_usb_phy_0f_byte_set(0);
+// #endif
                HWREGH(USB_BASE + MUSB_RXIS_OFFSET) = (1 << ep_idx); // clear isr flag
                pipe = &g_musb_hcd.pipe_pool[ep_idx][1];
                urb = pipe->urb;

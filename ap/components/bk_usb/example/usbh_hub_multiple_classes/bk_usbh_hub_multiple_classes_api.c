@@ -503,7 +503,11 @@ static uint32_t bk_usbh_hub_uvc_parse_param(struct usbh_hubport *hport, uint8_t 
 	uvc_device_info->support_devs = 0;
 
 	USB_HUB_MD_LOGV("[=]%s begin format\r\n", __func__);
-	for(int index = 0; index < 3; index++)
+	uint8_t format_count = uvc_device->num_of_formats;
+	if (format_count > USBH_VIDEO_FORMAT_MAX_NUM) {
+		format_count = USBH_VIDEO_FORMAT_MAX_NUM;
+	}
+	for(uint8_t index = 0; index < format_count; index++)
 	{
 		switch(uvc_device->format[index].format_type)
 		{

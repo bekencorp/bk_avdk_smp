@@ -249,15 +249,17 @@ static int parse_config_descriptor(struct usbh_hubport *hport, struct usb_config
                     cur_alt_setting = intf_desc->bAlternateSetting;
                     cur_ep_num = intf_desc->bNumEndpoints;
                     cur_ep = 0;
-                    if (cur_iface > (CONFIG_USBHOST_MAX_INTERFACES)) {
-                        USB_LOG_ERR("Interface num overflow :%d\r\n", cur_iface);
+                    if (cur_iface >= CONFIG_USBHOST_MAX_INTERFACES) {
+                        USB_LOG_ERR("Interface num overflow:%d, max index:%d\r\n",
+                                    cur_iface, CONFIG_USBHOST_MAX_INTERFACES - 1);
                         return -ENOMEM;
                     }
-                    if (cur_alt_setting > (CONFIG_USBHOST_MAX_INTF_ALTSETTINGS)) {
-                        USB_LOG_ERR("Interface altsetting num overflow :%d\r\n", cur_alt_setting);
+                    if (cur_alt_setting >= CONFIG_USBHOST_MAX_INTF_ALTSETTINGS) {
+                        USB_LOG_ERR("Interface altsetting num overflow:%d, intf:%d, max index:%d\r\n",
+                                    cur_alt_setting, cur_iface, CONFIG_USBHOST_MAX_INTF_ALTSETTINGS - 1);
                         return -ENOMEM;
                     }
-                    if (cur_ep_num > CONFIG_USBHOST_MAX_ENDPOINTS) {
+                    if (cur_ep_num >= CONFIG_USBHOST_MAX_ENDPOINTS) {
                         USB_LOG_ERR("Endpoint num overflow %d\r\n", cur_ep_num);
                         return -ENOMEM;
                     }
@@ -286,8 +288,8 @@ static int parse_config_descriptor(struct usbh_hubport *hport, struct usb_config
                     break;
             }
             /* skip to next descriptor */
-            p += p[DESC_bLength];
             desc_len += p[DESC_bLength];
+            p += p[DESC_bLength];
         }
     }
     USB_LOG_VBS("[-]%s\r\n", __func__);
