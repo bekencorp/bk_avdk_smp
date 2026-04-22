@@ -871,12 +871,12 @@ static void gpu_flex_main_entry(void *arg)
         uint32_t gpu_rd_cnt = flex->read_lines / config->flexa_lines;
 
         if (gpu_vn_ctlr->bond != NULL && gpu_vn_ctlr->bond->flexa_done != NULL) {
-            gpu_vn_ctlr->bond->flexa_done(gpu_rd_cnt, gpu_vn_ctlr->bond);
+            gpu_vn_ctlr->bond->flexa_done(gpu_rd_cnt + 1, gpu_vn_ctlr->bond);
         }
 
         if (gpu_vn_ctlr->config.flexa_line_done)
         {
-            gpu_vn_ctlr->config.flexa_line_done(gpu_rd_cnt, gpu_vn_ctlr->config.flexa_line_done_args);
+            gpu_vn_ctlr->config.flexa_line_done(gpu_rd_cnt + 1, gpu_vn_ctlr->config.flexa_line_done_args);
         }
 
         /* Check if frame is complete */
