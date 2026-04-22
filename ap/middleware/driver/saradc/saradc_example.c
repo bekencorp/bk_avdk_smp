@@ -99,7 +99,7 @@ uint16_t saradc_example(UINT8 adc_chan)
     }
 
     // Step 5: Read ADC data
-    ret = bk_adc_read_raw(&adc_data, SARADC_EXAMPLE_BUFFER_SIZE, SARADC_EXAMPLE_TIMEOUT);
+    ret = bk_adc_read(&adc_data, SARADC_EXAMPLE_TIMEOUT);
     if (ret != BK_OK) {
         BK_LOGI(TAG, "ADC read raw failed: %d\r\n", ret);
         bk_adc_stop();
