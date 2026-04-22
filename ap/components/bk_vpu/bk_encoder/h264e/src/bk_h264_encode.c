@@ -64,8 +64,8 @@ avdk_err_t bk_h264_encode_force_idr(bk_h264_encode_ctlr_handle_t handle)
 avdk_err_t bk_h264_encode_delete(bk_h264_encode_ctlr_handle_t handle)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-    AVDK_RETURN_ON_FALSE(handle->delete, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
-    return handle->delete(handle);
+    AVDK_RETURN_ON_FALSE(handle->del, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
+    return handle->del(handle);
 }
 
 avdk_err_t bk_h264_encode_hw_flexa_new(bk_h264_encode_ctlr_handle_t *handle, bk_h264_encode_hw_flexa_config_t *config)

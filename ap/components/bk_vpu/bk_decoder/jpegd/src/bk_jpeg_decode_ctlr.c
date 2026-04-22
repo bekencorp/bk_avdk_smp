@@ -504,7 +504,7 @@ avdk_err_t bk_jpeg_decode_ctlr_new(bk_jpeg_decode_ctlr_handle_t *handle, bk_jpeg
 	ctrl->ops.close = jpeg_decode_ctlr_close;
 	ctrl->ops.deinit = jpeg_decode_ctlr_deinit;
 	ctrl->ops.ioctl = jpeg_decode_ctlr_ioctl;
-	ctrl->ops.delete = jpeg_decode_ctlr_delete;
+	ctrl->ops.del = jpeg_decode_ctlr_delete;
 
 	*handle = &ctrl->ops;
 	LOGI("JPEG decoder controller created\r\n");

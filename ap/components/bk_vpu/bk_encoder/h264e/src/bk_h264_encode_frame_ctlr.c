@@ -472,7 +472,7 @@ avdk_err_t bk_h264_encode_frame_ctlr_new(bk_h264_encode_ctlr_handle_t *handle, b
     controller->ops.ioctl = h264_encode_ctlr_ioctl;
     controller->ops.force_idr = h264_encode_ctlr_force_idr;
     controller->ops.deinit = h264_encode_ctlr_deinit;
-    controller->ops.delete = h264_encode_ctlr_delete;
+    controller->ops.del = h264_encode_ctlr_delete;
     *handle = &(controller->ops);
     LOGI("H.264 encoder controller created\r\n");
     return AVDK_ERR_OK;
