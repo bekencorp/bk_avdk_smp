@@ -69,16 +69,6 @@ static void h264d_test_task_entry(void *arg)
         h264_decoder_test();
     } else if (test_id == H264D_TEST_ID_H264_FLEXA) {
         h264_decoder_flexa_test();
-    } else if (test_id == H264D_TEST_ID_JPEG) {
-        jpeg_decoder_test();
-    } else if (test_id == H264D_TEST_ID_JPEG_FLEXA) {
-        jpeg_decoder_flexa_test();
-#ifdef CONFIG_BK_DECODER
-    } else if (test_id == H264D_TEST_ID_VCDEC_JPEG) {
-        vcdec_jpeg_test();
-    } else if (test_id == H264D_TEST_ID_VCDEC_JPEG_FLEXA) {
-        vcdec_jpeg_flexa_test();
-#endif
     } else {
         LOGE("invalid test id=%u\r\n", (unsigned)test_id);
     }
@@ -135,20 +125,6 @@ void cli_h264_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
     } else if (os_strcmp(argv[1], "h264d_flexa") == 0) {
         test_id = H264D_TEST_ID_H264_FLEXA;
         task_name = "h264d_flexa_test";
-    } else if (os_strcmp(argv[1], "jpegd") == 0) {
-        test_id = H264D_TEST_ID_JPEG;
-        task_name = "jpegd_test";
-    } else if (os_strcmp(argv[1], "jpegd_flexa") == 0) {
-        test_id = H264D_TEST_ID_JPEG_FLEXA;
-        task_name = "jpegd_flexa_test";
-#ifdef CONFIG_BK_DECODER
-    } else if (os_strcmp(argv[1], "vcdec_jpegd") == 0) {
-        test_id = H264D_TEST_ID_VCDEC_JPEG;
-        task_name = "vcdec_jpegd_test";
-    } else if (os_strcmp(argv[1], "vcdec_jpegd_flexa") == 0) {
-        test_id = H264D_TEST_ID_VCDEC_JPEG_FLEXA;
-        task_name = "vcdec_jpegd_flexa_test";
-#endif
     } else {
         LOGE("%s: unknown subcommand: %s\r\n", __func__, argv[1]);
         h264_decode_print_usage();

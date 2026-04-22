@@ -1,0 +1,3 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+vcdec_jpeg_01,ap_cmd jpeg_decode vcdec_jpegd,1,[RESULT][PASS] vcdec_jpeg_test success,60
+vcdec_jpeg_flexa_01,ap_cmd jpeg_decode vcdec_jpegd_flexa,1,[RESULT][PASS] vcdec_jpeg_flexa_test success,60

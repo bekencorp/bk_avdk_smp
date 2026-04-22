@@ -21,21 +21,6 @@ typedef enum {
 } vcdec_ret_e;
 
 typedef enum {
-	VCDEC_DEC_MODE_H264  = 0,
-	VCDEC_DEC_MODE_MPEG4 = 1,
-	VCDEC_DEC_MODE_H263  = 2,
-	VCDEC_DEC_MODE_JPEG  = 3,
-	VCDEC_DEC_MODE_VC1   = 4,
-	VCDEC_DEC_MODE_MPEG2 = 5,
-	VCDEC_DEC_MODE_MPEG1 = 6,
-	VCDEC_DEC_MODE_VP6   = 7,
-	VCDEC_DEC_MODE_RV    = 8,
-	VCDEC_DEC_MODE_VP7   = 9,
-	VCDEC_DEC_MODE_VP8   = 10,
-	VCDEC_DEC_MODE_AVS   = 11,
-} vcdec_dec_mode_e;
-
-typedef enum {
 	VCDEC_FLEXA_MODE_NONE = 0,
 	VCDEC_FLEXA_MODE_FLEXA,
 } vcdec_flexa_mode_e;

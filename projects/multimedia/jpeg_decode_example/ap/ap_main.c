@@ -3,9 +3,8 @@
 #include <os/os.h>
 #include "cli.h"
 #include <components/bk_frame_buffer.h>
-#include "h264_decode_test.h"
-#include "h264_decode_flexa_test.h"
-#include "h264_decode_stress.h"
+#include "jpeg_decode_test.h"
+#include "jpeg_decode_stress.h"
 #include "media_service.h"
 
 #define SYS_ANA_REG_BASE    (0x44010000)
@@ -18,19 +17,18 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-#define CMDS_COUNT  (sizeof(s_h264_decode_commands) / sizeof(struct cli_command))
+#define CMDS_COUNT  (sizeof(s_jpeg_decode_commands) / sizeof(struct cli_command))
 
-static const struct cli_command s_h264_decode_commands[] =
+static const struct cli_command s_jpeg_decode_commands[] =
 {
     // Decode command
-    {"h264_decode", "h264_decode", cli_h264_decode_cmd},
-    {"h264_decode_flexa_test", "h264 decode flexa test", cli_h264_decode_flexa_test_cmd},
-    {"h264_decode_stress", "h264 decode pressure test", cli_h264_decode_stress_cmd},
+    {"jpeg_decode", "jpeg_decode", cli_jpeg_decode_cmd},
+    {"jpeg_decode_stress", "jpeg decode pressure test", cli_jpeg_decode_stress_cmd},
 };
 
-int cli_h264_decode_init(void)
+int cli_jpeg_decode_init(void)
 {
-    return cli_register_commands(s_h264_decode_commands, CMDS_COUNT);
+    return cli_register_commands(s_jpeg_decode_commands, CMDS_COUNT);
 }
 
 static void bk_auxldo_enable(void)
@@ -62,6 +60,10 @@ int main(void)
     bk_frame_buffer_init();
 #endif
 
-    cli_h264_decode_init();
+    cli_jpeg_decode_init();
+
+#ifdef CONFIG_BK_DECODER
+    vcdec_jpeg_run_boot_demo();
+#endif
     return 0;
 }

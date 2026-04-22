@@ -4,87 +4,154 @@
 
 ## 1. Project Overview
 
-This project is an H264 decoding test module designed to test H264 decoding functionality on the Beken platform. It provides a Command Line Interface (CLI) that supports H264 decoding.
+This project demonstrates H264 decoding on the Beken platform. The current implementation provides three main usage paths:
 
-* For detailed information about H264 decoding, please refer to:
+- Basic H264 decode CLI: `h264_decode`
+- Standalone FLEXA decode demo: `h264_decode_flexa_test`
+- Loop decode stress test with optional DMA pressure: `h264_decode_stress`
+
+Unlike `jpeg_decode_example`, the current `h264_decode_example` `main()` only performs initialization and CLI registration. It does not start any decode test automatically at boot. All tests are triggered manually from the serial console.
+
+* For more details about H264 decoding, refer to:
 
   - [H264 Decoding (SW) Overview](../../../developer-guide/video_codec/h264_decoding_sw.html)
 
 ### 1.1 Test Environment
 
-   * Hardware configuration:
-      * Core board, **BK7258_QFN88_9X9_V3.2**
-      * PSRAM 8M/16M
-   * Supports H264 decoding
-      * Input: H264 stream (built-in demo stream in `bk_test_h264d.c`)
-      * Output: Decoded frame callback and basic information logs
+- Hardware
+  - Core board: `BK7258_QFN88_9X9_V3.2`
+  - PSRAM: `8M/16M`
+- Input
+  - Built-in H264 demo stream
+- Output
+  - Decode flow logs
+  - FLEXA callback logs
+  - Stress-test round/exit logs
 
 .. warning::
-    Please use reference peripherals for familiarization and learning of the demo project. If peripheral specifications are different, the code may need to be reconfigured.
+    Please use the reference peripherals when evaluating this demo. If the peripheral specification is different, corresponding code and configuration changes may be required.
 
 ## 2. Directory Structure
 
-The project adopts an AP-CP dual-core architecture, with the main source code located in the AP directory. The project structure is as follows:
+The project uses an AP-CP dual-core layout, with the main logic on the AP side:
 
-```
+```text
 h264_decode_example/
-├── .ci                   # CI configuration directory
-├── .gitignore            # Git ignore file
-├── CMakeLists.txt        # Project-level CMake build file
-├── Makefile              # Make build file
-├── README.md             # Project documentation (English)
-├── README_CN.md          # Project documentation (Chinese)
-├── ap/                   # AP-side code
-│   ├── CMakeLists.txt    # AP-side CMake build file
-│   ├── Kconfig.projbuild # Kconfig configuration
-│   ├── ap_main.c         # AP main entry file
-│   ├── config/           # AP configuration directory
-│   └── h264_decode/      # H264 decode implementation
-│       ├── include/      # Header files
-│       └── src/          # Source code files
-├── cp/                   # CP-side code
-│   ├── CMakeLists.txt    # CP-side CMake build file
-│   ├── cp_main.c         # CP main entry file
-│   └── config/           # CP configuration directory
-├── it.yaml               # Integration test configuration
-├── partitions/           # Partition configuration
-└── pj_config.mk          # Project configuration
+├── README.md
+├── README_CN.md
+├── ap/
+│   ├── ap_main.c                           # AP entry, registers H264-related CLI commands
+│   ├── h264_decode/
+│   │   ├── include/
+│   │   └── src/h264_decode_cli.c          # h264_decode CLI implementation
+│   └── h264_decode_stress/
+│       ├── include/
+│       └── src/
+│           ├── h264_decode_flexa_test.c   # Standalone FLEXA example
+│           ├── h264_decode_stress.c       # H264 decode stress test
+│           └── h264_decode_stress_stream.c
+├── cp/
+├── partitions/
+└── pj_config.mk
 ```
 
-## 3. Feature Description
+## 3. Features
 
-### 3.1 Main Features
+### 3.1 Currently Implemented Features
 
-- Supports H264 decoding
-- Provides CLI for decoding tests
+- `h264_decode h264d` for normal H264 decode demo
+- `h264_decode h264d_flexa` for H264 FLEXA decode demo
+- `h264_decode_flexa_test start` for a dedicated FLEXA demo thread
+- `h264_decode_stress` for loop decode stress with optional DMA pressure
 
-## 4. Compilation and Execution
+## 4. Build And Run
 
-### 4.1 Compilation Method
+### 4.1 Build
 
-Compile the project using the following command:
-
-```
+```bash
 make bk7259 PROJECT=multimedia/h264_decode_example
 ```
 
-### 4.2 Execution Method
+### 4.2 Run
 
-After successful compilation, flash the generated firmware to the development board and use the following commands through the serial terminal to test the H264 decoding functionality:
+After flashing the firmware, trigger tests manually from the serial console.
 
-Command execution success prints: "CMDRSP:OK"
-Command execution failure prints: "CMDRSP:ERROR"
+#### 4.2.1 CLI Command List
 
-#### 4.2.1 Basic Decoding Commands
+Basic decode commands:
 
-```
+```text
+h264_decode help
 h264_decode h264d
-h264_decode jpegd
+h264_decode h264d_flexa
 ```
 
-## 7. Notes
+Standalone FLEXA demo command:
 
-1. Ensure `CONFIG_BK_H264D` is enabled before running.
-2. Ensure `CONFIG_BK_H264D_DEMO` is enabled before running.
-3. `h264_decode h264d` calls `h264_decoder_test()` implemented in `bk_test_h264d.c`.
-4. The CLI command only creates a task; decode runs asynchronously in that task.
+```text
+h264_decode_flexa_test start
+```
+
+Stress-test commands:
+
+```text
+h264_decode_stress start
+h264_decode_stress start 512
+h264_decode_stress stop
+h264_decode_stress dma_open
+h264_decode_stress dma_close
+```
+
+Notes:
+
+- `start` uses the default DMA copy size
+- `start 512` is an example that sets `dma_copy_size_kb`
+- `dma_open` / `dma_close` can be used to manage the DMA pressure source separately
+
+Successful command submission returns:
+
+```text
+CMDRSP:OK
+```
+
+Failed command submission returns:
+
+```text
+CMDRSP:ERROR
+```
+
+#### 4.2.2 How To Judge Pass Or Fail
+
+`CMDRSP:OK` only means the CLI created the worker task successfully. The current H264 demos do not print a unified `[RESULT][PASS]` line, so the outcome must be judged from the task logs.
+
+Typical guidance:
+
+- `h264_decode h264d`
+  - No immediate CLI error, and the decode flow keeps running normally
+- `h264_decode h264d_flexa` / `h264_decode_flexa_test start`
+  - No error such as `h264_decoder_init failed` or `h264_decoder_decode failed`
+  - The task reaches `exit h264_decode_flexa_test`
+- `h264_decode_stress`
+  - No allocation/init/decode failure log is printed while running
+  - After `h264_decode_stress stop`, the task exits with a log like:
+
+```text
+h264 decode stress thread exit, rounds=123 stop=1
+```
+
+Common failure logs include:
+
+```text
+h264_decoder_init failed, ret=...
+h264_decoder_decode failed at round=... ret=...
+failed to allocate ... buffer
+psram_dma_stress_start failed, ret=...
+```
+
+## 5. Notes
+
+1. The current `h264_decode` CLI parser only accepts `h264d` and `h264d_flexa`. Use the actual parser behavior in source code as the reference.
+2. `h264_decode`, `h264_decode_flexa_test`, and `h264_decode_stress` all run tests in dedicated worker threads to avoid blocking the CLI thread.
+3. The optional argument of `h264_decode_stress start [dma_copy_size_kb]` is in KB.
+4. The stress path allocates extra output, stream, and DMA buffers, so sufficient memory is required.
+5. If you need a demo with unified `[RESULT][PASS/FAIL]` logs, refer to the `vcdec` JPEG demos in `jpeg_decode_example`.
