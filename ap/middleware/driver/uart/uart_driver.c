@@ -72,6 +72,18 @@ typedef struct {
 	dma_id_t rx_dma_id;
 	bool tx_dma_enable;
 	dma_id_t tx_dma_id;
+	bool rx_dma_stopped;              // Whether DMA is stopped
+	bool rx_hw_stopped;              // Whether UART RX hardware is stopped
+	uint32_t last_dma_len;           // Last DMA configured transfer length (critical!)
+	uint32_t rx_dma_accounted_len;   // Bytes already accounted into kfifo in current DMA transfer
+		/*
+	 * Optional customer-specific RX DMA behavior.
+	 * Keep it 0 by default. Set it to 1 only when the application drains the
+	 * RX software FIFO in one read, and the peer will not send data while the
+	 * application is reading and rewinding the RX DMA destination.
+	 * Enabling it without meeting the above conditions may cause RX data abnormal.
+	 */
+	uint8_t rx_dma_rewind_when_fifo_empty;
 #endif
 #if 1
 	bool sw_flow_ctrl_en;
@@ -99,6 +111,8 @@ typedef struct
 
 #define CONFIG_UART_MIN_BAUD_RATE (UART_CLOCK / (0xffff + 1))
 #define CONFIG_UART_MAX_BAUD_RATE (UART_CLOCK / (4 + 1))
+// RX_DMA Resume threshold: At least 25% free space
+#define RESUME_THRESHOLD (s_uart_rx_kfifo[id]->size / 4)
 #ifndef CONFIG_PRINTF_BUF_SIZE
 #define CONFIG_PRINTF_BUF_SIZE    (128)
 #endif
@@ -604,6 +618,7 @@ static bk_err_t uart_id_init_common(uart_id_t id)
 #if CONFIG_UART_RX_DMA
 	//default not enable rx dma
 	s_uart[id].rx_dma_enable = 0;
+	s_uart[id].rx_dma_rewind_when_fifo_empty = 0;
 #endif
 #if CONFIG_UART_TX_DMA
 	//default not enable tx dma
@@ -618,6 +633,7 @@ static void uart_id_deinit_common(uart_id_t id)
 	s_uart[id].id_init_bits &= ~BIT(id);
 #if CONFIG_UART_RX_DMA
 	s_uart[id].rx_dma_enable = 0;
+	s_uart[id].rx_dma_rewind_when_fifo_empty = 0;
 #endif
 #if CONFIG_UART_TX_DMA
 	s_uart[id].tx_dma_enable = 0;
@@ -1249,12 +1265,91 @@ static inline dma_dev_t uart_id_to_dma_dev(uart_id_t id, bool rx)
 #endif
 
 #if (CONFIG_UART_RX_DMA)
-static void uart_rx_dma_fifo_full(dma_id_t dma_id)
+static inline uart_id_t uart_rx_dma_id_to_uart_id(dma_id_t dma_id)
 {
-	bk_dma_stop(dma_id);
-	BK_LOGD(NULL, "WARN:%s:dma_id=%d\r\n", __func__, dma_id);
+    for (uart_id_t id = UART_ID_0; id < SOC_UART_ID_NUM_PER_UNIT; id++) {
+        if (s_uart[id].rx_dma_enable && s_uart[id].rx_dma_id == dma_id) {
+            return id;
+        }
+    }
+    return UART_ID_MAX;
 }
 
+static void uart_rx_dma_fifo_full(dma_id_t dma_id)
+{
+	uart_id_t id = uart_rx_dma_id_to_uart_id(dma_id);
+	
+	if (id >= SOC_UART_ID_NUM_PER_UNIT) {
+		UART_LOGE("FATAL: Unknown DMA ID %d in RX ISR\n", dma_id);
+		return;
+	}
+	
+	// ========================================
+	// Step 1: Update write pointer
+	// ========================================
+	uint32_t completed_len = s_uart[id].last_dma_len;
+	uint32_t accounted_len = s_uart[id].rx_dma_accounted_len;
+	uint32_t unprocessed_len = completed_len - accounted_len;
+	
+	s_uart_rx_kfifo[id]->in += unprocessed_len;
+	s_uart[id].rx_dma_accounted_len = 0;
+	
+	// ========================================
+	// Step 2: Calculate available space and decide whether to restart DMA
+	// ========================================
+	uint32_t unused = kfifo_unused(s_uart_rx_kfifo[id]);
+	
+	if (unused > 0) {
+		// ========================================
+		// Has space: Reconfigure and start DMA
+		// ========================================
+		uint32_t in = s_uart_rx_kfifo[id]->in;
+		uint32_t write_pos = in & s_uart_rx_kfifo[id]->mask;
+		uint32_t space_to_end = s_uart_rx_kfifo[id]->size - write_pos;
+		uint32_t next_dma_len = min(unused, space_to_end);
+		uint32_t dma_dest_addr = (uint32_t)s_uart_rx_kfifo[id]->buffer + write_pos;
+		
+		bk_dma_set_dest_start_addr(s_uart[id].rx_dma_id, dma_dest_addr);
+		bk_dma_set_transfer_len(s_uart[id].rx_dma_id, next_dma_len);
+		bk_dma_start(s_uart[id].rx_dma_id);
+		
+		s_uart[id].rx_dma_stopped = false;
+		s_uart[id].last_dma_len = next_dma_len;
+		
+	} else {
+		// ========================================
+		// Software FIFO full: Stop DMA and UART RX
+		// ========================================
+
+		// [Critical] Immediately disable UART RX to protect hardware FIFO data
+		bk_uart_set_enable_rx(id, 0);
+
+		// Disable RX interrupt (no need to trigger again)
+		bk_uart_disable_rx_interrupt(id);
+
+		s_uart[id].rx_hw_stopped = true;
+		s_uart[id].rx_dma_stopped = true;
+
+		// ========================================
+		// Step 3: Wake up application thread
+		// ========================================
+		if (s_uart_sema[id].rx_int_sema && s_uart_sema[id].rx_blocked) {
+			rtos_set_semaphore(&(s_uart_sema[id].rx_int_sema));
+			s_uart_sema[id].rx_blocked = false;
+		}
+		
+		// ========================================
+		// Step 4: User callback
+		// ========================================
+		if (s_uart_rx_isr[id].callback) {
+			s_uart_rx_isr[id].callback(id, s_uart_rx_isr[id].param);
+		}
+
+		UART_LOGW("UART%d: DMA stopped, RX disabled\n", id);
+		
+	}
+	
+}
 
 
 static void uart_rx_dma_reset_dst_addr(uart_id_t id, uint32_t dma_start_addr, uint32_t len)
@@ -1268,6 +1363,16 @@ static void uart_rx_dma_reset_dst_addr(uart_id_t id, uint32_t dma_start_addr, ui
 	bk_dma_start(s_uart[id].rx_dma_id);
 }
 
+static void uart_rx_dma_rewind_when_fifo_empty(uart_id_t id)
+{
+	s_uart_rx_kfifo[id]->in = 0;
+	s_uart_rx_kfifo[id]->out = 0;
+	uart_rx_dma_reset_dst_addr(id, (uint32_t)s_uart_rx_kfifo[id]->buffer, s_uart_rx_kfifo[id]->size);
+	s_uart[id].last_dma_len = s_uart_rx_kfifo[id]->size;
+	s_uart[id].rx_dma_accounted_len = 0;
+	s_uart[id].rx_dma_stopped = false;
+}
+
 static inline void uart_rx_dma_src_port_config(uart_id_t id, dma_port_config_t *cfg_ptr)
 {
 	cfg_ptr->width = DMA_DATA_WIDTH_8BITS;
@@ -1278,7 +1383,7 @@ static inline void uart_rx_dma_src_port_config(uart_id_t id, dma_port_config_t *
 	cfg_ptr->end_addr = cfg_ptr->start_addr = (uint32_t)uart_hal_get_read_data_addr(&s_uart[id].hal, id) & 0xffffffffc;
 }
 
-static bk_err_t uart_rx_dma_init(uart_id_t id)
+bk_err_t uart_rx_dma_init(uart_id_t id)
 {
 	bk_err_t ret = BK_OK;
 	dma_config_t dma_cfg = {0};
@@ -1328,6 +1433,12 @@ static bk_err_t uart_rx_dma_init(uart_id_t id)
 #endif
 		bk_dma_register_isr(dma_id, NULL, uart_rx_dma_fifo_full);
 		BK_LOG_ON_ERR(bk_dma_enable_finish_interrupt(dma_id));
+
+		s_uart[id].rx_dma_stopped = false;
+		s_uart[id].rx_hw_stopped = false;
+		s_uart[id].last_dma_len = s_uart_rx_kfifo[id]->size;
+		s_uart[id].rx_dma_accounted_len = 0;
+
 		BK_LOG_ON_ERR(bk_dma_start(dma_id));
 	}
 	else
@@ -1342,11 +1453,22 @@ static bk_err_t uart_rx_dma_init(uart_id_t id)
 	return BK_OK;
 }
 
-static bk_err_t uart_rx_dma_deinit(uart_id_t id)
+bk_err_t uart_rx_dma_deinit(uart_id_t id)
 {
 	dma_id_t dma_id = s_uart[id].rx_dma_id;
+
+	if (dma_id < DMA_ID_MAX)
+	{
+		bk_dma_stop(dma_id);
+	}
+
 	s_uart[id].rx_dma_id = 0;
 	s_uart[id].rx_dma_enable = 0;
+	s_uart[id].rx_dma_stopped = false;
+	s_uart[id].rx_hw_stopped = false;
+	s_uart[id].last_dma_len = 0;
+	s_uart[id].rx_dma_accounted_len = 0;
+
 	return bk_dma_free(uart_id_to_dma_dev(id, 1), dma_id);
 }
 #endif
@@ -1409,7 +1531,7 @@ static bk_err_t uart_tx_dma_init(uart_id_t id)
 		dma_cfg.src = dma_mem_port_config;
 		dma_cfg.mode = DMA_WORK_MODE_SINGLE;
 		dma_cfg.chan_prio = 0;	//UART speed is slow, so no need high priority
-		dma_cfg.dest_wr_intlv = 4;
+		dma_cfg.dest_wr_intlv = 8;
 		BK_LOG_ON_ERR(bk_dma_init(dma_id, &dma_cfg));
 		bk_dma_set_dest_burst_len(dma_id, BURST_LEN_SINGLE);
 		bk_dma_set_src_burst_len(dma_id, BURST_LEN_SINGLE);
@@ -1510,6 +1632,7 @@ bk_err_t bk_uart_init(uart_id_t id, const uart_config_t *config)
 	{
 		uart_rx_dma_init(id);
 	}
+	s_uart[id].rx_dma_rewind_when_fifo_empty = (config->rx_dma_en && config->rx_dma_rewind_when_fifo_empty);
 #else	//avoid set err parameter.
 	if(config->rx_dma_en)
 	{
@@ -1867,62 +1990,87 @@ bk_err_t bk_uart_read_bytes(uart_id_t id, void *data, uint32_t size, uint32_t ti
 			GLOBAL_INT_RESTORE();
 		}
 
-		kfifo_data_len = kfifo_data_size(s_uart_rx_kfifo[id]); /* updata kfifo data size */
-		UART_LOGV("kfifo data length is %d.\n", kfifo_data_len);
-		if (size >= kfifo_data_len) {
+		// ========================================
+		// Step 1: Read data
+		// ========================================
+		kfifo_data_len = kfifo_data_size(s_uart_rx_kfifo[id]);
+		uint32_t read_len = min(size, kfifo_data_len);
+
 #if CONFIG_UART_RX_DMA
-			uint32_t dma_start_addr = (uint32_t)s_uart_rx_kfifo[id]->buffer;
-			uart_rx_dma_reset_dst_addr(id, dma_start_addr, s_uart_rx_kfifo[id]->size);
-			bk_uart_set_enable_rx(id, 1);
+		if (s_uart[id].rx_dma_enable) {
+			read_len = kfifo_get_no_reset(s_uart_rx_kfifo[id], (uint8_t *)data, read_len);
+
+			if (s_uart[id].rx_dma_rewind_when_fifo_empty && (kfifo_data_size(s_uart_rx_kfifo[id]) == 0)) {
+				uart_rx_dma_rewind_when_fifo_empty(id);
+			}
+		} else
 #endif
-			if (kfifo_data_len) {
-				kfifo_get(s_uart_rx_kfifo[id], (uint8_t *)data, kfifo_data_len);
-#if CONFIG_UART_SW_FLOW_CTRL
-				usfc_sw_fifo_will_empty(id);
-				if (!s_uart[id].rx_int_enable)
-				{
-					uint32_t unused = kfifo_unused(s_uart_rx_kfifo[id]);
-					if (unused > UART_HW_FIFO_SIZE)
-					{
-						bk_uart_enable_rx_interrupt(id);
-						s_uart[id].rx_int_enable = true;
-					}
+		{
+			read_len = kfifo_get(s_uart_rx_kfifo[id], (uint8_t *)data, read_len);
+		}
+
+		
+		// ========================================
+		// Step 2: Check and resume DMA and UART RX
+		// ========================================
+	#if CONFIG_UART_RX_DMA
+		if (s_uart[id].rx_dma_stopped || s_uart[id].rx_hw_stopped) 
+		{
+			// uint32_t data_size = kfifo_data_size(s_uart_rx_kfifo[id]);
+			uint32_t unused = kfifo_unused(s_uart_rx_kfifo[id]);
+			
+			if (unused >= RESUME_THRESHOLD) 
+			{
+				GLOBAL_INT_DISABLE();
+
+				// ========================================
+				// Step 3: Resume DMA (if stopped)
+				// ========================================
+				if (s_uart[id].rx_dma_stopped && unused > 0) {
+					uint32_t write_pos = s_uart_rx_kfifo[id]->in & s_uart_rx_kfifo[id]->mask;
+					uint32_t space_to_end = s_uart_rx_kfifo[id]->size - write_pos;
+					uint32_t dma_len = min(unused, space_to_end);
+					uint32_t dma_addr = (uint32_t)s_uart_rx_kfifo[id]->buffer + write_pos;
+					
+					// Reconfigure and start DMA
+					bk_dma_set_dest_start_addr(s_uart[id].rx_dma_id, dma_addr);
+					bk_dma_set_transfer_len(s_uart[id].rx_dma_id, dma_len);
+					bk_dma_start(s_uart[id].rx_dma_id);
+					
+					s_uart[id].rx_dma_stopped = false;
+					s_uart[id].last_dma_len = dma_len;
+					s_uart[id].rx_dma_accounted_len = 0;
+					
+					UART_LOGD("UART%d: DMA resumed - pos=%u, len=%u\n", 
+							id, write_pos, dma_len);
+				}
+				
+				// ========================================
+				// Step 4: Resume UART RX (enable last)
+				// ========================================
+				if (s_uart[id].rx_hw_stopped) {
+					// Re-enable RX interrupt
+					bk_uart_enable_rx_interrupt(id);
+					
+					// Enable UART RX (start receiving new data)
+					bk_uart_set_enable_rx(id, 1);
+					s_uart[id].rx_hw_stopped = false;
+					
+					UART_LOGD("UART%d: UART RX resumed! Buffer unused=%d bytes\n", 
+							id, unused);
 					
 				}
-#endif
+				
+				GLOBAL_INT_RESTORE();
 			} else {
-				UART_LOGW("kfifo data is empty\n");
-				UART_STATIS_INC(uart_statis->kfifo_status.empty_cnt);
+				GLOBAL_INT_RESTORE();
+				UART_LOGW("UART%d: DMA not stopped, Buffer unused=%d bytes\n", 
+							id, unused);
 			}
-#if CONFIG_UART_SW_FLOW_CTRL
-			usfc_hw_fifo_will_empty(id);
-#endif
-			UART_STATIS_SET(uart_statis->kfifo_status.in, s_uart_rx_kfifo[id]->in);
-			UART_STATIS_SET(uart_statis->kfifo_status.out, s_uart_rx_kfifo[id]->out);
-
-			return kfifo_data_len;
 		}
-		kfifo_get(s_uart_rx_kfifo[id], (uint8_t *)data, size);
-#if CONFIG_UART_SW_FLOW_CTRL
-		usfc_sw_fifo_will_empty(id);
-		usfc_hw_fifo_will_empty(id);
-		if (!s_uart[id].rx_int_enable)
-		{
-			uint32_t unused = kfifo_unused(s_uart_rx_kfifo[id]);
-			if (unused > UART_HW_FIFO_SIZE)
-			{
-				bk_uart_enable_rx_interrupt(id);
-				s_uart[id].rx_int_enable = true;
-			}
-			bk_uart_enable_rx_interrupt(id);
-			s_uart[id].rx_int_enable = true;
-		}
-		
-#endif
-		UART_STATIS_SET(uart_statis->kfifo_status.in, s_uart_rx_kfifo[id]->in);
-		UART_STATIS_SET(uart_statis->kfifo_status.out, s_uart_rx_kfifo[id]->out);
+	#endif
 
-		return size;
+		return read_len;
 	}else {
 		int ret = 0;
 		uint8_t rx_data;
@@ -2094,6 +2242,55 @@ void uart_clear_interrupt_status(uart_id_t id, uint32_t int_status)
 	uart_hal_clear_interrupt_status(&s_uart[id].hal, id, int_status);
 }
 
+#if CONFIG_UART_RX_DMA
+static void uart_rx_idle_isr(uart_id_t id)
+{
+	// ========================================
+	// Step 1: Read DMA current progress
+	// ========================================
+	uint32_t dma_remain_len = bk_dma_get_remain_len(s_uart[id].rx_dma_id);
+	uint32_t last_dma_len = s_uart[id].last_dma_len;
+	uint32_t accounted_len = s_uart[id].rx_dma_accounted_len;
+	
+	// ========================================
+	// Step 2: Calculate newly added data length (critical!)
+	// ========================================
+	// Current transferred = Total length - Remaining length
+	uint32_t current_transferred = last_dma_len - dma_remain_len;
+	
+	// New data = Current transferred - Already accounted
+	// This avoids duplicate counting
+	uint32_t new_data_len = current_transferred - accounted_len;
+	
+	
+	UART_LOGV("UART%d: Idle ISR - total=%u, remain=%u, accounted=%u, new=%u\n",
+			id, last_dma_len, dma_remain_len, accounted_len, new_data_len);
+	
+	// ========================================
+	// Step 3: Update in pointer (only update newly added part)
+	// ========================================
+	s_uart_rx_kfifo[id]->in += new_data_len;
+	// ========================================
+	// Step 4: Record accounted length (prevent DMA completion interrupt duplicate counting)
+	// ========================================
+	s_uart[id].rx_dma_accounted_len = current_transferred;
+	
+	// ========================================
+	// Step 5: Wake up application thread
+	// ========================================
+	if (s_uart_sema[id].rx_int_sema && s_uart_sema[id].rx_blocked) 
+	{
+		rtos_set_semaphore(&(s_uart_sema[id].rx_int_sema));
+		s_uart_sema[id].rx_blocked = false;
+	}
+	
+	if (s_uart_rx_isr[id].callback)
+	{
+		s_uart_rx_isr[id].callback(id, s_uart_rx_isr[id].param);
+	}
+}
+#endif
+
 /* read int enable status
  * read int status
  * clear int status
@@ -2158,9 +2355,30 @@ static void uart_isr_common(uart_id_t id)
 #if CONFIG_UART_RX_DMA
 			if(s_uart[id].rx_dma_enable)
 			{
-				//force all of the UART RX FIFO data to DMA RAM space
-				bk_dma_flush_src_buffer(s_uart[id].rx_dma_id);
-				if (uart_id_dma_read_fifo_frame(id, s_uart_rx_kfifo[id]) > 0)
+					// ========================================
+					// DMA mode
+					// ========================================
+				
+				if (s_uart[id].rx_dma_stopped) {
+					// ========================================
+					// DMA stopped, RX interrupt should be disabled in theory
+					// This branch should not be executed
+					// ========================================
+					UART_LOGW("UART%d: Unexpected RX INT while DMA stopped\n", id);
+					
+				} else {
+					// ========================================
+					// DMA running, only handle idle interrupt
+					// ========================================
+					// Idle interrupt: Process scattered data packets
+					bk_dma_flush_src_buffer(s_uart[id].rx_dma_id);
+					uart_rx_idle_isr(id);
+				}
+			}
+			else
+			{
+#endif
+				if (uart_id_read_fifo_frame(id, s_uart_rx_kfifo[id]) > 0)
 				{
 					if (s_uart_sema[id].rx_int_sema && s_uart_sema[id].rx_blocked)
 					{
@@ -2168,26 +2386,18 @@ static void uart_isr_common(uart_id_t id)
 						s_uart_sema[id].rx_blocked = false;
 					}
 				}
-			}
-			else
-#endif
-			if (uart_id_read_fifo_frame(id, s_uart_rx_kfifo[id]) > 0)
-			{
-				if (s_uart_sema[id].rx_int_sema && s_uart_sema[id].rx_blocked)
-				{
-					rtos_set_semaphore(&(s_uart_sema[id].rx_int_sema));
-					s_uart_sema[id].rx_blocked = false;
-				}
-			}
 
-			if (s_uart_rx_isr[id].callback)
-			{
+				if (s_uart_rx_isr[id].callback)
+				{
 					s_uart_rx_isr[id].callback(id, s_uart_rx_isr[id].param);
+				}
+#if CONFIG_UART_RX_DMA
 			}
+#endif
 		}
 		else if (s_uart_rx_isr[id].callback)
 		{
-				s_uart_rx_isr[id].callback(id, s_uart_rx_isr[id].param);
+			s_uart_rx_isr[id].callback(id, s_uart_rx_isr[id].param);
 		}
 		else
 		{
@@ -2195,7 +2405,7 @@ static void uart_isr_common(uart_id_t id)
 			uint8_t rx_data;
 
 			/* read all data from rx-FIFO. */
-		 	while (1)
+			while (1)
 			{
 				ret = uart_read_byte_ex(id, &rx_data);
 				if (ret == -1)

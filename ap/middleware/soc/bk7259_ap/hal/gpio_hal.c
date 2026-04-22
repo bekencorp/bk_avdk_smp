@@ -87,6 +87,11 @@ bk_err_t gpio_hal_set_output_value(gpio_id_t gpio_id, uint32 output_value)
 	return BK_OK;
 }
 
+bk_err_t gpio_hal_get_output(gpio_id_t gpio_id)
+{
+	return (gpio_ll_get_cfg_gpio_output(gpio_id));
+}
+
 bk_err_t gpio_hal_get_input(gpio_id_t gpio_id)
 {
 	return gpio_ll_get_cfg_gpio_input(gpio_id);

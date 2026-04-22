@@ -81,7 +81,7 @@ static void cli_uart_dma_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
                 }
                 bk_uart_disable_sw_fifo(uart_id);
 
-#if CONFIG_UART_TX_DMA
+#if 0
                 char *tx_string = "abcdefghijklmnopqrstuvwxyz";
 
                 uart_tx_dma_init(uart_id);

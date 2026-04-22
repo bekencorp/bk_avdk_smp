@@ -40,6 +40,7 @@ bk_err_t gpio_hal_monitor_input_enable(gpio_id_t gpio_id, uint32 enable);
 bk_err_t gpio_hal_set_capacity(gpio_id_t gpio_id, uint32 capacity);
 bk_err_t gpio_hal_set_output_value(gpio_id_t gpio_id, uint32 output_value);
 bk_err_t gpio_hal_get_input(gpio_id_t gpio_id);
+bk_err_t gpio_hal_get_output(gpio_id_t gpio_id);
 bk_err_t gpio_hal_set_int_type(gpio_id_t gpio_id, uint32_t type);
 bk_err_t gpio_hal_enable_interrupt(gpio_id_t gpio_id);
 bk_err_t gpio_hal_disable_interrupt(gpio_id_t gpio_id);

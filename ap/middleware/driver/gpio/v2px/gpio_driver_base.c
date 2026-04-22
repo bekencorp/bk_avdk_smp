@@ -260,6 +260,13 @@ bk_err_t bk_gpio_set_output_low(gpio_id_t gpio_id)
 	return gpio_hal_set_output_value(gpio_id, 0);
 }
 
+bool bk_gpio_get_output(gpio_id_t gpio_id)
+{
+	GPIO_RETURN_ON_INVALID_ID(gpio_id);
+
+	return gpio_hal_get_output(gpio_id);
+}
+
 bool bk_gpio_get_input(gpio_id_t gpio_id)
 {
 	return gpio_hal_get_input(gpio_id);

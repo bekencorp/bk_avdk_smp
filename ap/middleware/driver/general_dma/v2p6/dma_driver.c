@@ -516,7 +516,9 @@ bk_err_t bk_dma_set_transfer_len(dma_id_t id, uint32_t tran_len)
         return BK_ERR_DMA_TRANS_LEN;
     }
 
+#if !CONFIG_SOC_BK7259
     dma_wait_to_idle(id);
+#endif
     dma_hal_set_transfer_len(&s_dma.hal, id, tran_len);
     return BK_OK;
 }
@@ -552,7 +554,9 @@ bk_err_t bk_dma_set_dest_start_addr(dma_id_t id, uint32_t start_addr)
 {
     DMA_RETURN_ON_NOT_INIT();
     DMA_RETURN_ON_INVALID_ID(id);
+#if !CONFIG_SOC_BK7259
     dma_wait_to_idle(id);
+#endif
     dma_hal_set_dest_start_addr(&s_dma.hal, id, start_addr);
     return BK_OK;
 }
