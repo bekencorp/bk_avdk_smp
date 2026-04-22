@@ -9,9 +9,9 @@ void bk_coredump_memory(void) __attribute__((alias("bk_coredump_memory_all")));
 
 void bk_coredump_memory_all(void)
 {
-    bk_dump_peri_regs();
     bk_dump_dtcm();
     bk_dump_all_sram();
     bk_dump_extra_mem();
     bk_dump_psram_mem();
+    bk_dump_peri_regs();
 }
