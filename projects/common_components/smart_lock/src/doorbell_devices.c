@@ -461,7 +461,12 @@ int doorbell_display_turn_on(display_board_config_t *config)
             LOGE("%s, uvc_device not found\n", __func__);
             goto error;
         }
+        gpu_board_config_t *gpu_board = app_gpu_board_config_get();
 
+        if(uvc_device->width != config->mipi.panel->timing.h_size || uvc_device->height != config->mipi.panel->timing.v_size)
+        {
+            gpu_board->flexa.scale = true;
+        }
         ret = app_gpu_v2_turn_on(uvc_device->width, uvc_device->height);
 
         if (ret != BK_OK) {

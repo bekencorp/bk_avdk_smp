@@ -246,9 +246,13 @@ avdk_err_t app_gpu_v2_turn_on(uint16_t width, uint16_t height)
 
     uint8_t *decode_buffer = NULL;
     uint8_t decode_buf_cnt = 0;
-    doorbell_decode_get_flexa_context(&decode_buffer, &decode_buf_cnt);
+    ret = doorbell_decode_get_flexa_context(&decode_buffer, &decode_buf_cnt);
+    if (ret != AVDK_ERR_OK) {
+        LOGW("%s, %d get flexa context failed: %d\n", __func__, __LINE__, ret);
+        return ret;
+    }
     if (decode_buffer == NULL || decode_buf_cnt == 0) {
-        LOGW("%s, %d\n", __func__, __LINE__);
+        LOGW("%s, %d decode buffer %p\n", __func__, __LINE__, decode_buffer);
         return AVDK_ERR_GENERIC;
     }
 
