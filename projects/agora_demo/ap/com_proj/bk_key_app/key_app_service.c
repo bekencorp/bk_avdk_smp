@@ -148,6 +148,7 @@ static void handle_system_event(uint8_t event)
 
 void bk_key_register_wakeup_source(void)
 {
+#if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
     for (uint8_t i = 0; i < sizeof(key_config) / sizeof(KeyConfig_t); i++)
     {
         if ((key_config[i].short_event == POWER_ON) || (key_config[i].double_event == POWER_ON) || (key_config[i].long_event == POWER_ON))
@@ -164,6 +165,9 @@ void bk_key_register_wakeup_source(void)
             }
         }
     }
+#else
+    LOGW("GPIO dynamic wakeup not supported, skip wakeup source registration\r\n");
+#endif
 }
 
 
