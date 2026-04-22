@@ -75,8 +75,6 @@ bk_err_t uvc_camera_urb_list_init(void)
     INIT_LIST_HEAD(&mem_list->free);
     INIT_LIST_HEAD(&mem_list->ready);
 
-    rtos_init_mutex(&mem_list->lock);
-
     rtos_init_semaphore(&mem_list->sem, 1);
 
     mem_list->count = UVC_URB_MAX_NUM;
@@ -217,7 +215,6 @@ bk_err_t uvc_camera_urb_list_deinit(void)
     os_free(buffer);
 
     rtos_deinit_semaphore(&mem_list->sem);
-    rtos_deinit_mutex(&mem_list->lock);
 
     LOGI("uvc urb list deinit finish\n");
 

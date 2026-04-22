@@ -42,7 +42,6 @@ typedef struct
 {
     LIST_HEADER_T free;
     LIST_HEADER_T ready;
-    beken_mutex_t lock;
     beken_semaphore_t sem;
     uint8_t  enable;
     uint8_t  deiniting;
