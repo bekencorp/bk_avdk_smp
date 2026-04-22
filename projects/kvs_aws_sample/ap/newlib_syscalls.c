@@ -1,13 +1,13 @@
 /**
  * Newlib syscall stubs for kvs_aws_sample (arm-none-eabi).
- * Implements _gettimeofday, _open, _stat, _unlink so that libc's
- * _gettimeofday_r, _open_r, _stat_r, _unlink_r resolve to real
- * Beken RTC and bk_posix (VFS) instead of the "not implemented, will always fail" stubs.
+ * Implements newlib syscalls so libc uses Beken RTC + bk_posix (VFS) instead of
+ * platform_stub.c weak stubs (those call BK_ASSERT in prompt_unimplemented_function_warning).
  */
 #include <errno.h>
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/types.h>
 
 #include <driver/aon_rtc.h>
 #include "bk_posix.h"
@@ -74,4 +74,42 @@ int _write(int file, const char *ptr, int len)
 		return orig_len;
 	}
 	return (int)write(file, (const void *)ptr, (size_t)len);
+}
+
+int _close(int file)
+{
+	return close(file);
+}
+
+int _read(int file, char *ptr, int len)
+{
+	if (ptr == NULL || len < 0) {
+		errno = EINVAL;
+		return -1;
+	}
+	return (int)read(file, ptr, (size_t)len);
+}
+
+int _lseek(int file, int ptr, int dir)
+{
+	return (int)lseek(file, (off_t)ptr, dir);
+}
+
+int _getpid(void)
+{
+	return 1;
+}
+
+int _isatty(int file)
+{
+	(void)file;
+	return 0;
+}
+
+int _kill(int pid, int sig)
+{
+	(void)pid;
+	(void)sig;
+	errno = EINVAL;
+	return -1;
 }

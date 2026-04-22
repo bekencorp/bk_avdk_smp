@@ -80,7 +80,7 @@ INT32 kvs_aws_viewer_main(INT32 argc, CHAR* argv[])
 #else
     pChannelName = argc > 1 ? argv[1] : SAMPLE_CHANNEL_NAME;
 #endif
-os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     if (argc > 2) {
         if (!STRCMP(argv[2], AUDIO_CODEC_NAME_OPUS)) {
             audioCodec = RTC_CODEC_OPUS;
@@ -102,15 +102,15 @@ os_printf("ML:%s %d\r\n", __func__,__LINE__);
             DLOGI("[KVS Viewer] Defaulting to H264 video codec");
         }
     }
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     CHK_STATUS(createSampleConfiguration(pChannelName, SIGNALING_CHANNEL_ROLE_TYPE_VIEWER, TRUE, TRUE, logLevel, &pSampleConfiguration));
     pSampleConfiguration->mediaType = SAMPLE_STREAMING_AUDIO_VIDEO;
     pSampleConfiguration->audioCodec = audioCodec;
     pSampleConfiguration->videoCodec = videoCodec;
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     CHK_STATUS(initKvsWebRtc());
     DLOGI("[KVS Viewer] KVS WebRTC initialization completed successfully");
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
 #ifdef ENABLE_DATA_CHANNEL
     pSampleConfiguration->onDataChannel = onDataChannel;
 #endif
@@ -118,7 +118,7 @@ os_printf("ML:%s %d\r\n", __func__,__LINE__);
     SPRINTF(clientId, "%s_%u", SAMPLE_VIEWER_CLIENT_ID, RAND() % MAX_UINT32);
     CHK_STATUS(initSignaling(pSampleConfiguration, clientId));
     DLOGI("[KVS Viewer] Signaling client connection established");
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     MUTEX_LOCK(pSampleConfiguration->sampleConfigurationObjLock);
     locked = TRUE;
     CHK_STATUS(createSampleStreamingSession(pSampleConfiguration, NULL, FALSE, &pSampleStreamingSession));
@@ -143,10 +143,10 @@ os_printf("ML:%s %d\r\n", __func__,__LINE__);
     #endif
 
     DLOGI("[KVS Viewer] Completed setting local description");
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     CHK_STATUS(transceiverOnFrame(pSampleStreamingSession->pAudioRtcRtpTransceiver, (UINT64)(uintptr_t) pSampleStreamingSession, sampleAudioFrameHandler));
     CHK_STATUS(transceiverOnFrame(pSampleStreamingSession->pVideoRtcRtpTransceiver, (UINT64)(uintptr_t) pSampleStreamingSession, sampleVideoFrameHandler));
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     if (!pSampleConfiguration->trickleIce) {
         DLOGI("[KVS Viewer] Non trickle ice. Wait for Candidate collection to complete");
         MUTEX_LOCK(pSampleConfiguration->sampleConfigurationObjLock);
@@ -163,21 +163,21 @@ os_printf("ML:%s %d\r\n", __func__,__LINE__);
 
         DLOGI("[KVS Viewer] Candidate collection completed");
     }
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     #if 0
     CHK_STATUS(createOffer(pSampleStreamingSession->pPeerConnection, &offerSessionDescriptionInit));
     #else
     CHK_STATUS(createOffer(pSampleStreamingSession->pPeerConnection, pOfferSessionDescriptionInit));
     #endif
     DLOGI("[KVS Viewer] Offer creation successful");
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     DLOGI("[KVS Viewer] Generating JSON of session description....");
     #if 0
     CHK_STATUS(serializeSessionDescriptionInit(&offerSessionDescriptionInit, NULL, &buffLen));
     #else
     CHK_STATUS(serializeSessionDescriptionInit(pOfferSessionDescriptionInit, NULL, &buffLen));
     #endif
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     #if 0
     if (buffLen >= SIZEOF(message.payload))
     #else
@@ -194,7 +194,7 @@ os_printf("ML:%s %d\r\n", __func__,__LINE__);
     #else
     CHK_STATUS(serializeSessionDescriptionInit(pOfferSessionDescriptionInit, pSignalingMessage->payload, &buffLen));
     #endif
-    os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     #if 0
     message.version = SIGNALING_MESSAGE_CURRENT_VERSION;
     message.messageType = SIGNALING_MESSAGE_TYPE_OFFER;
@@ -229,13 +229,12 @@ os_printf("ML:%s %d\r\n", __func__,__LINE__);
     CHK_STATUS(dataChannelOnOpen(pDataChannel, (UINT64) &datachannelLocalOpenCount, dataChannelOnOpenCallback));
     DLOGI("[KVS Viewer] Data Channel open now...");
 #endif
-os_printf("ML:%s %d\r\n", __func__,__LINE__);
+
     while (!ATOMIC_LOAD_BOOL(&pSampleConfiguration->interrupted) && !ATOMIC_LOAD_BOOL(&pSampleStreamingSession->terminateFlag)) {
         THREAD_SLEEP(HUNDREDS_OF_NANOS_IN_A_SECOND);
     }
 
 CleanUp:
-os_printf("ML:%s %d\r\n", __func__,__LINE__);
 
 #if 1
     SAFE_MEMFREE(pOfferSessionDescriptionInit);
