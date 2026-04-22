@@ -47,6 +47,7 @@ typedef struct
     app_eq_t                eq_cal_para;        /*!< eq calculation parameters from/to audio tools */
     int                     eq_chl_num;         /*!< eq channel number */
     int                     eq_frame_size;      /*!< eq frame size */
+    int                     eq_mode;            /*!< eq mode, 0:software, 1:hardware*/
     int                     out_block_num;      /*!< Number of output block, the size of block is frame size of 20ms audio data */
     int                     multi_out_port_num; /*!< The number of multiple output audio port */
 } eq_algorithm_cfg_t;
@@ -54,6 +55,9 @@ typedef struct
 #define EQ_ALGORITHM_TASK_STACK          (1 * 1024)
 #define EQ_ALGORITHM_TASK_CORE           (1)
 #define EQ_ALGORITHM_TASK_PRIO           (5)
+
+#define EQ_MODE_SOFTWARE 0
+#define EQ_MODE_HARDWARE 1
 
 #define EQ0 1
 #define EQ0A0   -1668050
@@ -80,8 +84,8 @@ typedef struct
 #define EQSAMP         0x3e80
 #define EQGAIN         0x4000
 #define EQFGAIN        0x00000000
-#define EQGLOBALGAIN  (uint32_t)(1.12f * (1 << FILTER_PREGAIN_FRA_BITS))
-#define EQFRAMESIZE   EQSAMP*20/1000*2
+#define EQGLOBALGAIN   (uint32_t)(1.12f * (1 << FILTER_PREGAIN_FRA_BITS))
+#define EQFRAMESIZE    EQSAMP*20/1000*2
 
 #define DEFAULT_EQ_ALGORITHM_CONFIG() {                                             \
     .task_stack            = EQ_ALGORITHM_TASK_STACK,                               \
@@ -93,14 +97,14 @@ typedef struct
         .globle_gain = EQGLOBALGAIN,                                                \
         .eq_para[0].a[0] = -EQ0A0,                                                  \
         .eq_para[0].a[1] = -EQ0A1,                                                  \
-        .eq_para[0].b[0] = EQ0B0,                                                   \
-        .eq_para[0].b[1] = EQ0B1,                                                   \
-        .eq_para[0].b[2] = EQ0B2,                                                   \
+        .eq_para[0].b[0] =  EQ0B0,                                                  \
+        .eq_para[0].b[1] =  EQ0B1,                                                  \
+        .eq_para[0].b[2] =  EQ0B2,                                                  \
         .eq_para[1].a[0] = -EQ1A0,                                                  \
         .eq_para[1].a[1] = -EQ1A1,                                                  \
-        .eq_para[1].b[0] = EQ1B0,                                                   \
-        .eq_para[1].b[1] = EQ1B1,                                                   \
-        .eq_para[1].b[2] = EQ1B2,                                                   \
+        .eq_para[1].b[0] =  EQ1B0,                                                  \
+        .eq_para[1].b[1] =  EQ1B1,                                                  \
+        .eq_para[1].b[2] =  EQ1B2,                                                  \
         .eq_load.f_gain     = EQFGAIN,                                              \
         .eq_load.samplerate = EQSAMP,                                               \
         .eq_load.eq_load_para[0].freq   = EQ0FREQ,                                  \
@@ -116,6 +120,7 @@ typedef struct
     },                                                                              \
     .eq_chl_num            = 1,                                                     \
     .eq_frame_size         = EQFRAMESIZE,                                           \
+    .eq_mode               = EQ_MODE_SOFTWARE,                                      \
     .out_block_num         = 2,                                                     \
     .multi_out_port_num    = 0,                                                     \
 }

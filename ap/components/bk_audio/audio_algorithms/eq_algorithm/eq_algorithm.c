@@ -26,6 +26,7 @@
 #include <os/os.h>
 #include <components/bk_audio/audio_pipeline/ringbuf.h>
 #include <components/bk_audio/audio_utils/debug_dump_util.h>
+#include "aud_hal.h"
 
 
 #define TAG  "EQ_ALGORITHM"
@@ -99,7 +100,78 @@ typedef struct eq_algorithm
     eq_cfg_t      eq_cfg;
     eq_handle_t   eq_handle;
     app_eq_load_t eq_load;
+    int           eq_mode;
 } eq_algorithm_t;
+
+#define EQ_HW_DAC_EQ_FILTER_NUM          (10)
+#define EQ_HW_DAC_EQ_BPS_BITS            (10)
+#define EQ_HW_DAC_EQ_BPS_ALL_ON          ((1u << EQ_HW_DAC_EQ_BPS_BITS) - 1u)
+#define EQ_HW_DAC_EQ_COEF_NUM_PER_FILTER (5)
+
+#define EQ_HW_DAC0_EQ_COEF_MEM_BASE_ADDR ((volatile int32_t *)0x41016600)
+#define EQ_HW_DAC1_EQ_COEF_MEM_BASE_ADDR ((volatile int32_t *)0x41016800)
+
+static void eq_hw_write_coef_mem(volatile int32_t *base, const eq_algorithm_t *eq, uint32_t filters)
+{
+    uint32_t i = 0;
+    const int32_t b0_identity = (int32_t)(1 << FILTER_COEFS_FRA_BITS);
+
+    for (i = 0; i < EQ_HW_DAC_EQ_FILTER_NUM; i++)
+    {
+        uint32_t o = i * EQ_HW_DAC_EQ_COEF_NUM_PER_FILTER;
+
+        if (filters > 0 && i < filters)
+        {
+            eq_para_t const *p = &eq->eq_cfg.eq_para[i];
+
+            base[o + 0] =  p->b[0] * 1024;
+            base[o + 1] =  p->b[1] * 1024;
+            base[o + 2] =  p->b[2] * 1024;
+            base[o + 3] = -p->a[0] * 1024;
+            base[o + 4] = -p->a[1] * 1024;
+        }
+        else
+        {
+            base[o + 0] = 0;
+            base[o + 1] = 0;
+            base[o + 2] = b0_identity;
+            base[o + 3] = 0;
+            base[o + 4] = 0;
+        }
+    }
+}
+
+static void eq_hw_apply(eq_algorithm_t *eq)
+{
+    uint32_t bps_mask;
+    uint32_t filters = (uint32_t)eq->eq_cfg.eq_valid_num;
+
+    if (filters > EQ_HW_DAC_EQ_FILTER_NUM)
+    {
+        BK_LOGW(TAG, "HW EQ: cap filters %u to %d\n", filters, EQ_HW_DAC_EQ_FILTER_NUM);
+        filters = EQ_HW_DAC_EQ_FILTER_NUM;
+    }
+
+    if (filters == 0)
+    {
+        bps_mask = EQ_HW_DAC_EQ_BPS_ALL_ON;
+    }
+    else
+    {
+        bps_mask = EQ_HW_DAC_EQ_BPS_ALL_ON & ~((1u << filters) - 1u);
+    }
+
+    BK_LOGD(TAG, "HW EQ apply: eq_valid_num=%u filters=%u bps_mask=0x%x\n",
+            (unsigned)eq->eq_cfg.eq_valid_num, (unsigned)filters, (unsigned)bps_mask);
+
+    audio_reg_hal_set_sys_cfg_mem_dac_eq_sw_init(1);
+    eq_hw_write_coef_mem(EQ_HW_DAC0_EQ_COEF_MEM_BASE_ADDR, eq, filters);
+    eq_hw_write_coef_mem(EQ_HW_DAC1_EQ_COEF_MEM_BASE_ADDR, eq, filters);
+    audio_reg_hal_set_sys_cfg_mem_dac_eq_sw_init(0);
+
+    audio_reg_hal_set_dac_cfg1_dac_eq_bps(bps_mask);
+
+}
 
 
 #ifdef EQ_DATA_DUMP
@@ -170,14 +242,16 @@ static bk_err_t _eq_algorithm_open(audio_element_handle_t self)
     BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
     eq_algorithm_t *eq = (eq_algorithm_t *)audio_element_getdata(self);
 
-    eq->eq_handle = eq_create(&eq->eq_cfg);
-
-    if (!eq->eq_handle)
+    if (eq->eq_mode == EQ_MODE_SOFTWARE)
     {
-        BK_LOGE(TAG, "%s, %d, eq element create fail\n", __func__, __LINE__);
-        return BK_FAIL;
+        eq->eq_handle = eq_create(&eq->eq_cfg);
+
+        if (!eq->eq_handle)
+        {
+            BK_LOGE(TAG, "%s, %d, eq element create fail\n", __func__, __LINE__);
+            return BK_FAIL;
+        }
     }
-    
     BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
 
     return BK_OK;
@@ -232,7 +306,14 @@ static int _eq_algorithm_process(audio_element_handle_t self, char *in_buffer, i
         }
         EQ_ALGORITHM_START();
 
-        eq_process(eq->eq_handle, (int16_t *)in_buffer, r_size/2);
+        if (eq->eq_mode == EQ_MODE_HARDWARE)
+        {
+            /* EQ in DAC hardware; pipeline only passes data */
+        }
+        else
+        {
+            eq_process(eq->eq_handle, (int16_t *)in_buffer, r_size / 2);
+        }
 
         EQ_ALGORITHM_END();
 
@@ -285,13 +366,13 @@ static bk_err_t _eq_algorithm_destroy(audio_element_handle_t self)
 
     eq_algorithm_t *eq = (eq_algorithm_t *)audio_element_getdata(self);
 
-    if(eq)
+    if (eq)
     {
-       if(eq->eq_handle)
-       {
-           eq_destroy(eq->eq_handle);
-       }
-       audio_free(eq);
+        if (eq->eq_handle)
+        {
+            eq_destroy(eq->eq_handle);
+        }
+        audio_free(eq);
     }
 
     EQ_DATA_DUMP_CLOSE();
@@ -314,34 +395,39 @@ audio_element_handle_t eq_algorithm_init(eq_algorithm_cfg_t *config)
     AUDIO_MEM_CHECK(TAG, eq_alg, return NULL);
 
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
-    cfg.open = _eq_algorithm_open;
+    cfg.open  = _eq_algorithm_open;
     cfg.close = _eq_algorithm_close;
-    cfg.seek = NULL;
+    cfg.seek  = NULL;
     cfg.process = _eq_algorithm_process;
     cfg.destroy = _eq_algorithm_destroy;
     cfg.in_type = PORT_TYPE_RB;
-    cfg.read = NULL;
+    cfg.read    = NULL;
     cfg.out_type = PORT_TYPE_RB;
-    cfg.write = NULL;
+    cfg.write    = NULL;
     cfg.task_stack = config->task_stack;
-    cfg.task_prio = config->task_prio;
-    cfg.task_core = config->task_core;
+    cfg.task_prio  = config->task_prio;
+    cfg.task_core  = config->task_core;
 
-    cfg.out_block_size = config->eq_frame_size*config->eq_chl_num;
-    cfg.out_block_num = config->out_block_num;
+    cfg.out_block_size     = config->eq_frame_size * config->eq_chl_num;
+    cfg.out_block_num      = config->out_block_num;
     cfg.multi_out_port_num = config->multi_out_port_num;
-    cfg.buffer_len = config->eq_frame_size*config->eq_chl_num;
+    cfg.buffer_len         = config->eq_frame_size * config->eq_chl_num;
 
     cfg.tag = "eq_algorithm";
     el = audio_element_init(&cfg);
     AUDIO_MEM_CHECK(TAG, el, goto _eq_algorithm_init_exit);
 
     /* config */
+    eq_alg->eq_mode             = config->eq_mode;
     eq_alg->eq_cfg.chl_num      = config->eq_chl_num;
     eq_alg->eq_cfg.eq_gain      = config->eq_cal_para.globle_gain;
     eq_alg->eq_cfg.eq_valid_num = config->eq_cal_para.filters;
     os_memcpy(&eq_alg->eq_cfg.eq_para ,&config->eq_cal_para.eq_para,sizeof(eq_para_t)*config->eq_cal_para.filters);
     os_memcpy(&eq_alg->eq_load, &config->eq_cal_para.eq_load, sizeof(app_eq_load_t));
+    if (eq_alg->eq_mode == EQ_MODE_HARDWARE)
+    {
+        eq_hw_apply(eq_alg);
+    }
 
     audio_element_setdata(el, eq_alg);
 
@@ -360,16 +446,21 @@ bk_err_t eq_algorithm_set_config(audio_element_handle_t eq_algorithm, void * eq_
 
     eq->eq_cfg.eq_gain      = eq_cfg->globle_gain;
     eq->eq_cfg.eq_valid_num = eq_cfg->filters;
+
     os_memcpy(&eq->eq_cfg.eq_para, &eq_cfg->eq_para, sizeof(eq_para_t)*eq_cfg->filters);
-
     os_memcpy(&eq->eq_load, &eq_cfg->eq_load, sizeof(app_eq_load_t));
-
-    eq_destroy(eq->eq_handle);
-    eq->eq_handle = eq_create(&eq->eq_cfg);
-    if (!eq->eq_handle)
+    if (eq->eq_mode == EQ_MODE_SOFTWARE)
     {
-        BK_LOGE(TAG, "%s, %d, eq element create fail\n", __func__, __LINE__);
-        return BK_FAIL;
+        eq_destroy(eq->eq_handle);
+        eq->eq_handle = eq_create(&eq->eq_cfg);
+        if (!eq->eq_handle)
+        {
+            BK_LOGE(TAG, "%s, %d, eq element create fail\n", __func__, __LINE__);
+            return BK_FAIL;
+        }
+    } else
+    {
+        eq_hw_apply(eq);
     }
 
     audio_element_setdata(eq_algorithm, eq);
