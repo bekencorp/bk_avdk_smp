@@ -292,11 +292,12 @@ const VECTOR_ENTRY_TYPE __VECTOR_TABLE[] __VECTOR_TABLE_ATTRIBUTE = {
  *----------------------------------------------------------------------------*/
 __NO_RETURN ENTRY_SECTION void Reset_Handler(void)
 {
+  __disable_irq();
   dlv_hook();
 
   __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 
-  __disable_irq();
+  //__disable_irq();
 
   bk_wdt_close();
   bk_enable_swd();

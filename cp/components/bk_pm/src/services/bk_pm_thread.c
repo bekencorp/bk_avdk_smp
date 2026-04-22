@@ -6,6 +6,9 @@
 #include "cli.h"
 #include <driver/pwr_clk.h>
 #include <modules/pm.h>
+#include <driver/hal/hal_aon_rtc_types.h>
+#include <driver/aon_rtc_types.h>
+#include <driver/aon_rtc.h>
 
 /*=====================DEFINE  SECTION  START=====================*/
 #define TAG "pm"
@@ -29,18 +32,31 @@ static  beken_queue_t  s_queue;
 /* Statistics for monitoring queue status */
 static volatile uint32_t s_msg_send_success = 0;
 static volatile uint32_t s_msg_send_fail    = 0;
+
+extern UINT32 s_pm_rtc_sleep_count;
 /*=====================VARIABLE  SECTION  END==================*/
 
 /*================FUNCTION DECLARATION  SECTION  START==========*/
 bk_err_t bk_pm_send_msg(pm_ap_core_msg_t *msg);
 /*================FUNCTION DECLARATION  SECTION  END===========*/
+#if CONFIG_AON_RTC
+static void pm_deep_lv_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
+{
+	pm_ap_core_msg_t msg;
+	msg.event  = PM_CALLBACK_HANDLE_MSG;
+	msg.param1 = PM_MODE_LOW_VOLTAGE;
+	msg.param2 = PM_WAKEUP_SOURCE_INT_RTC;
+	msg.param3 = 2;
+	bk_pm_send_msg(&msg);
+}
+#endif
 static bk_err_t pm_rtc_sleep_wakeup_callback(pm_sleep_mode_e sleep_mode,pm_wakeup_source_e wake_source,void* param_p)
 {
     pm_ap_core_msg_t msg = {0};
     msg.event= PM_CALLBACK_HANDLE_MSG;
     msg.param1 = PM_MODE_LOW_VOLTAGE;
     msg.param2 = PM_WAKEUP_SOURCE_INT_RTC;
-    msg.param3 = 0;
+    msg.param3 = 2;
     bk_pm_send_msg(&msg);
     return BK_OK;
 }
@@ -135,12 +151,34 @@ static bk_err_t pm_message_handle(void)
                                 /* Just maintain the vote state, no delay */
                                 bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0x0, 0x0);
                                 bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0x1, 0x0);
-                            } else {
+                            }
+                            else if (msg.param3 == 1)
+                            {
                                 /* State changed - log and process */
                                 LOGI("LV RTC wakeup[reason:%d]\r\n", bk_pm_sleep_wakeup_reason_get());
                                 bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0x0, 0x0);
                                 rtos_delay_milliseconds(2);
                                 bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0x1, 0x0);
+                            }
+                            else if (msg.param3 == 2)
+                            {
+                                /* State changed - log and process */
+                               // LOGI("Deep_LV RTC wakeup\r\n");
+                                #if CONFIG_AON_RTC
+                                alarm_info_t low_valtage_alarm = {0};
+                                memcpy(low_valtage_alarm.name, "low_vol", sizeof("low_vol"));
+                                low_valtage_alarm.period_tick = 1000*AON_RTC_MS_TICK_CNT;
+                                low_valtage_alarm.period_cnt = 1;
+                                low_valtage_alarm.callback = pm_deep_lv_rtc_callback;
+                                low_valtage_alarm.param_p = NULL;
+
+                                bk_alarm_unregister(AON_RTC_ID_1, low_valtage_alarm.name);
+                                bk_alarm_register(AON_RTC_ID_1, &low_valtage_alarm);
+                                #endif //CONFIG_AON_RTC
+
+                                bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_RTC, NULL);
+                                rtos_delay_milliseconds(2);
+                               bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0x1, 0x0);
                             }
                         }
                         else if (msg.param1 == PM_MODE_NORMAL_SLEEP)

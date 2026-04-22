@@ -62,5 +62,9 @@ menu "PM"
 		bool "Enable deep low voltage"
 		default n
 
+	config DEEP_LV_DEBUG
+		bool "Enable deep low voltage debug"
+		default n
+
 endmenu
 

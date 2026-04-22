@@ -2151,7 +2151,7 @@ void sys_hal_set_xtalh_ctune(uint32_t value)
 	sys_ll_set_ana_reg3_ctune(value);
 	return;
 }
-void sys_hal_analog_set(analog_reg_t reg, uint32_t value)
+__attribute__((section(".iram"))) void sys_hal_analog_set(analog_reg_t reg, uint32_t value)
 {
 	uint32_t analog_reg_address;
 

@@ -248,12 +248,21 @@ uint32_t  g_debug_jtag_enable = 1;
 void dlv_hook(void)
 {
 #if CONFIG_DEEP_LV
-    extern void bk_wdt_close(void);
-    bk_wdt_close();
-    early_jtag_gpio_map();
-
+    asm volatile ("nop");
+    asm volatile ("nop");
+    asm volatile ("nop");
+    asm volatile ("nop");
+    asm volatile ("nop");
     if (dlv_is_startup())
     {
+#if CONFIG_DEEP_LV_DEBUG
+        GPIO_UP(27);//1
+        GPIO_DOWN(27);
+#endif
+        extern void bk_wdt_close(void);
+        bk_wdt_close();
+        early_jtag_gpio_map();
+    
         extern uint32_t __STACK_LIMIT;
         __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 

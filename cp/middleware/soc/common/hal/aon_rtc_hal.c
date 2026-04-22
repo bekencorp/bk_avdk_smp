@@ -154,7 +154,7 @@ void aon_rtc_hal_clear_upper_int_status(aon_rtc_hal_t *hal)
 	aon_rtc_ll_clear_upper_int_status(hal->hw);
 }
 
-uint32_t aon_rtc_hal_get_counter_val(aon_rtc_hal_t *hal)
+__attribute__((section(".iram"))) uint32_t aon_rtc_hal_get_counter_val(aon_rtc_hal_t *hal)
 {
 	hal->hw = (aon_rtc_hw_t *)AON_RTC_LL_REG_BASE(hal->id);
 	volatile uint32_t val = aon_rtc_ll_get_counter_val(hal->hw);

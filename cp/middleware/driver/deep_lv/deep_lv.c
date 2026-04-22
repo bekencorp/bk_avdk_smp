@@ -117,7 +117,8 @@ __IRAM_SEC void dlv_trigger_backup_context(void)
 		" svc %0                    \n"
 		" nop                       \n"
 		"                           \n"
-		::"i"(portSVC_DEEP_LV_ENTER):"memory"
+		" .align 4                  \n"
+		::"i"(portSVC_DEEP_LV_ENTER):"r1","r2","memory"
 	);
 
 	/*PATCH:get control register*/
@@ -286,28 +287,29 @@ __IRAM_SEC void mini_dlv_stack_frame_save_and_dlv(void)
 #endif
 }
 
-__IRAM_SEC void dlv_stack_frame_save_and_dlv(uint32_t exc_return)
+__attribute__((naked)) __IRAM_SEC void dlv_stack_frame_save_and_dlv(uint32_t exc_return)
 {
 	__asm volatile
 	(
-		"    .syntax unified                               \n"
-		"                                                  \n"
-		"    mov r3, r0                                    \n"/* r3 = LR/EXC_RETURN. */
-		"    mov r0, %0                                  \n"/* Read s_dlv_context.stk_frame. */
-		"    mrs r1, psp                                   \n"/* Read PSP in r1. */
-		"    mrs r2, psplim                                \n"/* r2 = PSPLIM. */
-		"    stmia r0!, {r1-r11}                           \n"/* Store on the s_dlv_context.stk_frame - PSP, PSPLIM, LR, R4-R11 */
-		"                                                  \n"
-		"    .align 4                                      \n"
-		::"r"(s_current_stack_frame):"r3"
-	);
-
-	mini_dlv_stack_frame_save_and_dlv();
-
-	__asm volatile
-	(
-		"dsb          \n"
-		"isb          \n"
+		"    .syntax unified                                \n"
+		"                                                   \n"
+		"    mov r3, r0                                     \n"/* r3 = EXC_RETURN from naked SVC entry. */
+		"    ldr r0, stack_frame_const1                     \n"
+		"    ldr r0, [r0]                                   \n"/* Read s_current_stack_frame. */
+		"    mrs r1, psp                                    \n"/* Read PSP in r1. */
+		"    mrs r2, psplim                                 \n"/* r2 = PSPLIM. */
+		"    stmia r0!, {r1-r11}                            \n"/* Save PSP, PSPLIM, EXC_RETURN and the task's r4-r11 before any C prologue runs. */
+		"    bl mini_dlv_stack_frame_save_and_dlv           \n"
+		"    bl deep_lv_enter                               \n"
+		"    dsb                                            \n"
+		"    isb                                            \n"
+		"    ldr r0, stack_frame_const1                     \n"
+		"    ldr r0, [r0]                                   \n"/* Read s_current_stack_frame. */
+		"    ldr lr, [r0, #8]                               \n"/* Reload EXC_RETURN from stk_frame.exc_return. */
+		"    bx lr                                          \n"
+		"                                                   \n"
+		"    .align 4                                       \n"
+		"stack_frame_const1: .word s_current_stack_frame    \n"
 	);
 }
 
@@ -525,6 +527,10 @@ __IRAM_SEC void dlv_trigger_restore_context(void)
 	__asm volatile
 	(
 		" .syntax unified           \n"
+		" mrs r0, control          \n"
+		" orr r0, r0, #2           \n" /* Force Thread mode to use PSP so SVC stacks on PSP, not MSP. */
+		" msr control, r0          \n"
+		" isb                      \n"
 		" cpsie i                   \n" /* Globally enable interrupts. */
 		" cpsie f                   \n"
 		" dsb                       \n"
@@ -533,35 +539,91 @@ __IRAM_SEC void dlv_trigger_restore_context(void)
 		" nop                       \n"
 		"                           \n"
 		" .align 4                  \n"
-		::"i"(portSVC_DEEP_LV_EXIT):"memory"
+		::"i"(portSVC_DEEP_LV_EXIT):"r0", "memory"
+	);
+}
+
+__IRAM_SEC __attribute__((noinline)) void dlv_restore_post_core_prepare(void)
+{
+	dlv_context_t *dlv = &s_dlv_context;
+	dlv_scb_t *scb_info = &(dlv->sys_ctrl);
+
+	arch_int_set_default_priority();
+	dlv_nvic_restore(dlv);
+	portNVIC_SHPR3_REG = scb_info->shpr3_val;
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(27);//3
+	GPIO_DOWN(27);
+	#endif
+}
+
+__IRAM_SEC __attribute__((naked, noreturn)) static void dlv_restore_post_core_finish(void)
+{
+	__asm volatile
+	(
+		"    .syntax unified                               \n"
+		"    ldr r3, restore_post_core_prepare_const       \n"
+		"    blx r3                                        \n"
+#if CONFIG_RESTORE_VIA_EXC_RETURN
+		"    ldr r3, dlv_trigger_restore_context_const     \n"
+		"    bx r3                                         \n"
+#else
+		"    ldr r3, dlv_stack_frame_restore_const         \n"
+		"    bx r3                                         \n"
+#endif
+		"                                                  \n"
+		"    .align 4                                      \n"
+		"restore_post_core_prepare_const: .word dlv_restore_post_core_prepare + 1 \n"
+#if CONFIG_RESTORE_VIA_EXC_RETURN
+		"dlv_trigger_restore_context_const: .word dlv_trigger_restore_context + 1 \n"
+#else
+		"dlv_stack_frame_restore_const: .word dlv_stack_frame_restore + 1 \n"
+#endif
 	);
 }
 
 __IRAM_SEC void dlv_context_restore(void)
 {
 	dlv_context_t *dlv = &s_dlv_context;
-
+#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(27);//2
+	GPIO_DOWN(27);
+#endif
 	/* Match demo restore order; skip ITCM/DTCM (not present on M52). */
 	dlv_scb_restore(dlv);
 	dlv_sau_restore(dlv);
 	dlv_mpu_restore(dlv);
 	dlv_fpu_restore(dlv);
 	dlv_core_restore(dlv);
-	arch_int_set_default_priority();
-	dlv_nvic_restore(dlv);
-	dlv_scb_t *scb_info = &(dlv->sys_ctrl);
-	portNVIC_SHPR3_REG = scb_info->shpr3_val;
-
-#if CONFIG_RESTORE_VIA_EXC_RETURN
-	dlv_trigger_restore_context();
-#else
-	dlv_stack_frame_restore();
-#endif
+	dlv_restore_post_core_finish();
 }
 
-__IRAM_SEC void deep_lv_exit(void)
+__IRAM_SEC __attribute__((noinline)) void dlv_deep_lv_exit_prepare(void)
 {
-	dlv_stack_frame_restore();
+	if (aon_pmu_ll_get_r7b_dlv_startup()) {
+		uint32_t dlv_startup = aon_pmu_hal_get_dlv_startup_iram();
+		if (dlv_startup) {
+			aon_pmu_hal_set_dlv_startup(0);
+		}
+#if CONFIG_DEEP_LV_DEBUG
+		GPIO_UP(27);//4
+		GPIO_DOWN(27);
+#endif
+	}
+}
+
+__IRAM_SEC __attribute__((naked)) void deep_lv_exit(void)
+{
+	__asm volatile
+	(
+		"    .syntax unified                               \n"
+		"    ldr r3, deep_lv_exit_prepare_const            \n"
+		"    blx r3                                        \n"
+		"    b dlv_stack_frame_restore                     \n"
+		"                                                  \n"
+		"    .align 4                                      \n"
+		"deep_lv_exit_prepare_const: .word dlv_deep_lv_exit_prepare + 1 \n"
+	);
 }
 // eof
 

@@ -135,7 +135,7 @@ bk_err_t bk_gpio_driver_init(void)
 	gpio_default_map_init();
 #endif
 
-#if 0
+#if CONFIG_PM_ONLY_CP_ENABLE
 #if CONFIG_TZ && (!CONFIG_SPE)
 	bk_int_isr_register(INT_SRC_GPIO_NS, gpio_isr, NULL);
 #else
@@ -371,6 +371,9 @@ static void gpio_isr(void)
 				GPIO_LOGV("gpio int: index:%d \r\n",gpio_id);
 				s_gpio_isr[gpio_id](gpio_id);
 			}
+			#if CONFIG_PM_ONLY_CP_ENABLE
+			bk_gpio_clear_interrupt(gpio_id);
+			#endif
 		}
 	}
 }

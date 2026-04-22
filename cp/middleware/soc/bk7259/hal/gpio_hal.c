@@ -17,6 +17,9 @@
 #include "gpio_hal_v2px.h"
 #include "gpio_ll.h"
 
+#define GPIO_CFG_RESERVED_16_23_MASK    (0x00FF0000U)
+#define GPIO_CFG_RESTORE_MASK           (0xFF001FB2U)
+
 #define GPIO_FOREACH(i) \
 	for (gpio_id_t i = 0; i < GPIO_NUM_MAX; i++)
 
@@ -153,15 +156,16 @@ bk_err_t gpio_hal_bakup_configs(uint32_t *gpio_cfgs)
 
 	return BK_OK;
 }
-
 bk_err_t gpio_hal_restore_configs(uint32_t *gpio_cfgs)
 {
 	if (!gpio_cfgs) {
 		return BK_FAIL;
 	}
 
-	GPIO_FOREACH(i) {
-		gpio_ll_set_cfg_value(i, gpio_cfgs[i]);
+	for (gpio_id_t i = 0; i < GPIO_NUM_MAX; i++) {
+		uint32_t current_cfg = gpio_ll_get_cfg_value(i);
+		uint32_t restore_cfg = (current_cfg & ~GPIO_CFG_RESTORE_MASK) | (gpio_cfgs[i] & GPIO_CFG_RESTORE_MASK);
+		gpio_ll_set_cfg_value(i, restore_cfg);
 	}
 
 	return BK_OK;

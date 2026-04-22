@@ -366,6 +366,6 @@ __IRAM_SEC void aon_pmu_hal_restore(void)
 {
 	uint32_t reg = aon_pmu_ll_get_r7b();
 	aon_pmu_ll_set_r0(reg);
-	aon_pmu_ll_set_r40(s_pmu_saved_regs[0]);
+	// aon_pmu_ll_set_r40(s_pmu_saved_regs[0]);
 	aon_pmu_ll_set_r41(s_pmu_saved_regs[1]);
 }

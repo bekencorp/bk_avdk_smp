@@ -383,13 +383,9 @@ __IRAM_SEC int64_t bk_rosc_32k_get_tick_diff(uint64_t tick)
 
 	if (s_base_tick == 0)
 	{
-#if !CONFIG_ANA_RTC
-		if (aon_pmu_drv_lpo_src_get() == PM_LPO_SRC_ROSC)
-		{
-			ROSC_LOGE("should not be here: %s %d\r\n", __func__, __LINE__);
-		}
-#endif
-		ROSC_LOGI("rosc rtc tick compensation start\r\n");
+		/* Temporarily mute wake-path ROSC logs during LV/MSP debug to reduce
+		 * UART0 interrupt pressure immediately after wakeup.
+		 */
 	}
 
 	GLOBAL_INT_DECLARATION();
