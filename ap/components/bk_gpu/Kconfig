@@ -5,14 +5,17 @@ menu "BK_GPU"
 		default n
 
 	config VG_LITE_GPU_BASE_ADDRESS
+		depends on VG_LITE_GPU
 		hex "vg-lite gpu module base address"
 		default 0x4c280000
 
 	config VG_LITE_GPU_CONTIGUOUS_MEM_SZ
+		depends on VG_LITE_GPU
 		hex "vg-lite gpu contigours memory size in sram"
 		default 0x20000
 
 	config VG_LITE_GPU_COMMAND_BUFFER_SIZE
+		depends on VG_LITE_GPU
 		hex "vg-lite gpu command buffer size, Default 16KB."
 		default 0x2000
 endmenu

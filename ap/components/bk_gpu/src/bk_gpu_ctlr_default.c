@@ -1,11 +1,10 @@
 #include <os/os.h>
 #include <os/mem.h>
-#include <driver/sys_pm.h>
 #include <components/bk_gpu_ctlr.h>
 #include <components/bk_hardware_ram.h>
-#include <modules/vg_lite_gpu/vg_lite_platform.h>
 #include "avdk_monitor.h"
 #include "gpu_vn_ctlr.h"
+#include "gpu_core.h"
 #include "sys_driver.h"
 #include <bk_flexa_bond_types.h>
 
@@ -29,35 +28,6 @@
 #endif
 
 #define HDMA_OPEN_ISR_ENABLE 1
-
-static void gpu_driver_init(void)
-{
-    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_GPU, PM_POWER_MODULE_STATE_ON);
-
-    sys_drv_gpu_cksel_clkdiv_set(CKSEL_GPU_480M, 0);
-
-    bk_pm_clock_ctrl(PM_CLK_ID_GPU, PM_CLK_CTRL_PWR_UP);
-
-    bk_int_isr_register(INT_SRC_GPU, vg_lite_IRQHandler, NULL);
-#if CONFIG_SOC_SMP
-    sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_GPU, 1);
-#else
-    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GPU, 1);
-#endif
-}
-
-static void gpu_driver_deinit(void)
-{
-#if CONFIG_SOC_SMP
-    sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_GPU, 0);
-#else
-    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_GPU, 0);
-#endif
-    bk_int_isr_unregister(INT_SRC_GPU);
-
-    bk_pm_clock_ctrl(PM_CLK_ID_GPU, PM_CLK_CTRL_PWR_DOWN);
-    bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_GPU, PM_POWER_MODULE_STATE_OFF);
-}
 
 static void gpu_flexa_addr_mapping(uint16_t width, uint16_t height, uint32_t base_addr, uint16_t flexa_lines, uint8_t buf_cnt)
 {
@@ -935,9 +905,12 @@ static avdk_err_t gpu_ctlr_init(bk_gpu_ctlr_handle_t handle)
             LOGE("%s, %d rtos_init_mutex failed\n", __func__, __LINE__);
             return ret;
         }
+    } else {
+        LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
+        return AVDK_ERR_INVAL;
     }
 
-    gpu_driver_init();
+    bk_gpu_driver_init();
 
     control->gpu_contiguous_buffer = bk_get_gpu_flexa_buffer(CONFIG_VG_LITE_GPU_CONTIGUOUS_MEM_SZ);
     if (control->gpu_contiguous_buffer == NULL)
@@ -964,16 +937,19 @@ static avdk_err_t gpu_ctlr_deinit(bk_gpu_ctlr_handle_t handle)
                 return ret;
             }
         }
+    } else {
+        LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
+        return AVDK_ERR_INVAL;
     }
+
+    vg_lite_close();
+
+    bk_gpu_driver_deinit();
 
     if (control->gpu_contiguous_buffer) {
         os_free(control->gpu_contiguous_buffer);
         control->gpu_contiguous_buffer = NULL;
     }
-
-    vg_lite_close();
-
-    gpu_driver_deinit();
 
     return AVDK_ERR_OK;
 }
@@ -1012,6 +988,9 @@ static avdk_err_t gpu_ctlr_open(bk_gpu_ctlr_handle_t handle)
         rtos_get_semaphore(&control->gpu_flex_task_sem, BEKEN_WAIT_FOREVER);
 
         LOGI("%s, %d sem get successful\n", __func__, __LINE__);
+    } else {
+        LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
+        return AVDK_ERR_INVAL;
     }
 
     return AVDK_ERR_OK;
@@ -1050,6 +1029,9 @@ static avdk_err_t gpu_ctlr_close(bk_gpu_ctlr_handle_t handle)
         control->gpu_flex_task_sem = NULL;
 
         LOGI("%s, %d sem get successful, flexa thread has exited\n", __func__, __LINE__);
+    } else {
+        LOGE("%s %d flexa is not enabled\r\n", __func__, __LINE__);
+        return AVDK_ERR_INVAL;
     }
 
     return AVDK_ERR_OK;
