@@ -43,7 +43,10 @@ static uint32_t s_pm_video_post_state                   = 0;
 static uint32_t s_pm_h26e_state                         = 0;
 static uint32_t s_pm_isp_state                          = 0;
 static uint32_t s_pm_npu_state                          = 0;
+static uint32_t s_pm_auxldo_1p2v_vote_state             = 0;
+static uint32_t s_pm_auxldo_1p8v_vote_state             = 0;
 static uint32_t s_pm_auxldo_2p8v_vote_state             = 0;
+static uint32_t s_pm_auxldo_3v_vote_state               = 0;
 
 extern void bk_delay_us(UINT32 us);
 
@@ -364,6 +367,7 @@ static bool pm_auxldo_enable_is_valid(const pm_auxldo_enable_cfg_t *auxldo_enabl
 static bk_err_t pm_auxldo_enable_vote(const pm_auxldo_enable_cfg_t *auxldo_enable_cfg)
 {
 	bk_err_t ret = BK_OK;
+	uint32_t *vote_state = NULL;
 
 	if (auxldo_enable_cfg == NULL) {
 		return BK_ERR_NULL_PARAM;
@@ -373,29 +377,26 @@ static bk_err_t pm_auxldo_enable_vote(const pm_auxldo_enable_cfg_t *auxldo_enabl
 		return BK_ERR_PARAM;
 	}
 
-	if (auxldo_enable_cfg->ldo != AUXLDOS_SEL_2P8V) {
-		if(auxldo_enable_cfg->state == PM_AUXLDO_ENABLE)
-		{
-			if(sys_drv_auxldo_enable_state_get(auxldo_enable_cfg->ldo) != PM_AUXLDO_ENABLE)
-			{
-				ret = sys_drv_auxldo_enable(auxldo_enable_cfg->ldo, (uint32_t)auxldo_enable_cfg->state);
-				bk_delay_us(PM_AUXLDO_ENABLE_DELAY_US);
-			}
-		}
-		else
-		{//PM_AUXLDO_DISABLE
-			if(sys_drv_auxldo_enable_state_get(auxldo_enable_cfg->ldo) != PM_AUXLDO_DISABLE)
-			{
-				ret = sys_drv_auxldo_enable(auxldo_enable_cfg->ldo, (uint32_t)auxldo_enable_cfg->state);
-			}
-		}
-
-		return ret;
+	switch (auxldo_enable_cfg->ldo) {
+		case AUXLDOS_SEL_1P2V:
+			vote_state = &s_pm_auxldo_1p2v_vote_state;
+			break;
+		case AUXLDOS_SEL_1P8V:
+			vote_state = &s_pm_auxldo_1p8v_vote_state;
+			break;
+		case AUXLDOS_SEL_2P8V:
+			vote_state = &s_pm_auxldo_2p8v_vote_state;
+			break;
+		case AUXLDOS_SEL_3V:
+			vote_state = &s_pm_auxldo_3v_vote_state;
+			break;
+		default:
+			return BK_ERR_PARAM;
 	}
 
 	if (auxldo_enable_cfg->state == PM_AUXLDO_ENABLE)
-	{//enable 2p8v
-		if(s_pm_auxldo_2p8v_vote_state == 0U)//enable 2p8v
+	{
+		if (*vote_state == 0U)
 		{
 			if(sys_drv_auxldo_enable_state_get(auxldo_enable_cfg->ldo) != PM_AUXLDO_ENABLE)
 			{
@@ -404,14 +405,14 @@ static bk_err_t pm_auxldo_enable_vote(const pm_auxldo_enable_cfg_t *auxldo_enabl
 			}
 		}
 
-		s_pm_auxldo_2p8v_vote_state |= (uint32_t)auxldo_enable_cfg->user;
+		*vote_state |= (uint32_t)auxldo_enable_cfg->user;
 	}
 	else
-	{//disable 2p8v
-		if(s_pm_auxldo_2p8v_vote_state & (uint32_t)auxldo_enable_cfg->user)
+	{
+		if (*vote_state & (uint32_t)auxldo_enable_cfg->user)
 		{
-			s_pm_auxldo_2p8v_vote_state &= ~((uint32_t)auxldo_enable_cfg->user);
-			if(s_pm_auxldo_2p8v_vote_state == 0U)
+			*vote_state &= ~((uint32_t)auxldo_enable_cfg->user);
+			if (*vote_state == 0U)
 			{
 				ret = sys_drv_auxldo_enable(auxldo_enable_cfg->ldo, (uint32_t)auxldo_enable_cfg->state);
 			}
