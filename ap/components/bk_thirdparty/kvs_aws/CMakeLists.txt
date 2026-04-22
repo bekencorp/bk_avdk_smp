@@ -71,6 +71,9 @@ if(CONFIG_KVS_AWS)
 	file(GLOB WEBRTC_SIGNALING "${WEBRTC_ROOT}/source/Signaling/*.c")
 	file(GLOB WEBRTC_METRICS "${WEBRTC_ROOT}/source/Metrics/*.c")
 	list(FILTER WEBRTC_CRYPTO EXCLUDE REGEX ".*_openssl\\.c$")
+	if(CONFIG_KVS_GET_CA_FROM_ARRAY)
+	list(APPEND srcs ${WEBRTC_ROOT}/source/Platform/beken/kvs_embedded_ca_cert.c)
+	endif()
 	list(APPEND srcs
 		${WEBRTC_CRYPTO}
 		${WEBRTC_ICE}

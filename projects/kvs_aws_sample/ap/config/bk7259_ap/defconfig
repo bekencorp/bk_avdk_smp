@@ -3,6 +3,7 @@
 # Build with: make -C projects/kvs_aws_sample
 #
 CONFIG_KVS_AWS=y
+CONFIG_KVS_GET_CA_FROM_ARRAY=y
 #CONFIG_KVS_AWS_DATA_CHANNEL=y
 
 CONFIG_LIBWEBSOCKETS=y

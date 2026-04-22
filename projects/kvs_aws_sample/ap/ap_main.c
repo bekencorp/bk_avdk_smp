@@ -4,8 +4,9 @@
  * Viewer: receive and hand off to sampleVideoFrameHandler/sampleAudioFrameHandler in Common.c.
  * Role selected by CLI: run "kvs master" or "kvs viewer [channel_name]".
  *
- * Media and cert are on SD card: /sdcard/certs/cert.pem, /sdcard/h264SampleFrames/, etc.
- * SD is auto-mounted at SAMPLE_MEDIA_ROOT (/sdcard) at startup.
+ * TLS CA: enable CONFIG_KVS_GET_CA_FROM_ARRAY to use embedded PEM (kvs_embedded_ca_cert.c).
+ * Sample media dirs remain on SD:
+ * /sdcard/h264SampleFrames/, etc. SD is auto-mounted at SAMPLE_MEDIA_ROOT (/sdcard) at startup.
  */
 #include "bk_private/bk_init.h"
 #include <components/system.h>
@@ -19,7 +20,7 @@
 
 extern int kvs_cli_init(void);
 
-/** Mount SD card FATFS at SAMPLE_MEDIA_ROOT so cert and sample frames are available. */
+/** Mount SD card FATFS at SAMPLE_MEDIA_ROOT so sample frames (and optional files) are available. */
 static void kvs_mount_sdcard(void)
 {
 	struct bk_fatfs_partition partition = {

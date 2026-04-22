@@ -4,6 +4,10 @@
 #define LOG_CLASS "TLS_mbedtls"
 #include "../Include_i.h"
 
+#if CONFIG_KVS_GET_CA_FROM_ARRAY
+#include "kvs_embedded_ca_cert.h"
+#endif
+
 // Read and parse CA certificate
 PRIVATE_API STATUS readAndParseCACertificate(PTlsSession pTlsSession)
 {
@@ -15,11 +19,19 @@ PRIVATE_API STATUS readAndParseCACertificate(PTlsSession pTlsSession)
 
     CHK(pTlsSession != NULL, STATUS_NULL_ARG);
 
+#if ONFIG_KVS_GET_CA_FROM_ARRAY
+    cert_len = STRLEN(kvs_embedded_ca_pem);
+    CHK(cert_len > 0, STATUS_INVALID_CERT_PATH_LENGTH);
+    cert_buf = (PBYTE) MEMCALLOC(1, cert_len + 1);
+    CHK(cert_buf != NULL, STATUS_NOT_ENOUGH_MEMORY);
+    MEMCPY(cert_buf, kvs_embedded_ca_pem, cert_len + 1);
+#else
     CHK_STATUS(readFile(DEFAULT_KVS_CACERT_PATH, FALSE, NULL, &cert_len));
     CHK(cert_len > 0, STATUS_INVALID_CERT_PATH_LENGTH);
     cert_buf = (PBYTE) MEMCALLOC(1, cert_len + 1);
     CHK(cert_buf != NULL, STATUS_NOT_ENOUGH_MEMORY);
     CHK_STATUS(readFile(DEFAULT_KVS_CACERT_PATH, FALSE, cert_buf, &cert_len));
+#endif
     int ret = mbedtls_x509_crt_parse(&pTlsSession->cacert, cert_buf, (SIZE_T) (cert_len + 1));
     if (ret != 0) {
         mbedtls_strerror(ret, errBuf, SIZEOF(errBuf));

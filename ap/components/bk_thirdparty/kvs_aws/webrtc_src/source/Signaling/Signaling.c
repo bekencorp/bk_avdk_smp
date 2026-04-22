@@ -3,6 +3,10 @@
 #include <libwebsockets.h>
 #include "LwsApiCalls.h"
 
+#if CONFIG_KVS_GET_CA_FROM_ARRAY
+#include "kvs_embedded_ca_cert.h"
+#endif
+
 extern StateMachineState SIGNALING_STATE_MACHINE_STATES[];
 extern UINT32 SIGNALING_STATE_MACHINE_STATE_COUNT;
 
@@ -19,11 +23,20 @@ PRIVATE_API STATUS readCACertificate(PCHAR pCaCertPath, PBYTE* ppCaCertBuf, PUIN
     *ppCaCertBuf = NULL;
     *pCaCertBufLen = 0;
 
+#if CONFIG_KVS_GET_CA_FROM_ARRAY
+    UNUSED_PARAM(pCaCertPath);
+    cert_len = STRLEN(kvs_embedded_ca_pem);
+    CHK(cert_len > 0, STATUS_INVALID_CERT_PATH_LENGTH);
+    cert_buf = (PBYTE) MEMCALLOC(1, cert_len + 1);
+    CHK(cert_buf != NULL, STATUS_NOT_ENOUGH_MEMORY);
+    MEMCPY(cert_buf, kvs_embedded_ca_pem, cert_len + 1);
+#else
     CHK_STATUS(readFile(pCaCertPath, FALSE, NULL, &cert_len));
     CHK(cert_len > 0, STATUS_INVALID_CERT_PATH_LENGTH);
     cert_buf = (PBYTE) MEMCALLOC(1, cert_len + 1); // +1 for the null terminator
     CHK(cert_buf != NULL, STATUS_NOT_ENOUGH_MEMORY);
     CHK_STATUS(readFile(pCaCertPath, FALSE, cert_buf, &cert_len));
+#endif
 
     *ppCaCertBuf = cert_buf;
     *pCaCertBufLen = (UINT32) cert_len;

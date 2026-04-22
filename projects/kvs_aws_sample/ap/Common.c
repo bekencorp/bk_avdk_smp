@@ -850,6 +850,15 @@ STATUS traverseDirectoryPEMFileScan(UINT64 customData, DIR_ENTRY_TYPES entryType
 
 STATUS lookForSslCert(PSampleConfiguration* ppSampleConfiguration)
 {
+#if CONFIG_KVS_GET_CA_FROM_ARRAY
+    STATUS retStatus = STATUS_SUCCESS;
+    PSampleConfiguration pSampleConfiguration = *ppSampleConfiguration;
+
+    /* CA PEM from kvs_embedded_ca_cert.c when CONFIG_KVS_GET_CA_FROM_ARRAY; label only for pCertPath */
+    pSampleConfiguration->pCaCertPath = (PCHAR) "embedded";
+    CHK_LOG_ERR(retStatus);
+    return retStatus;
+#else
     STATUS retStatus = STATUS_SUCCESS;
     struct stat pathStat;
     #if 0
@@ -900,6 +909,7 @@ CleanUp:
 #endif
     CHK_LOG_ERR(retStatus);
     return retStatus;
+#endif /* !CONFIG_KVS_GET_CA_FROM_ARRAY */
 }
 
 STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE roleType, BOOL trickleIce, BOOL useTurn, UINT32 logLevel,
@@ -1006,7 +1016,8 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
     pSampleConfiguration->channelInfo.pTags = NULL;
     pSampleConfiguration->channelInfo.channelType = SIGNALING_CHANNEL_TYPE_SINGLE_MASTER;
     pSampleConfiguration->channelInfo.channelRoleType = roleType;
-    pSampleConfiguration->channelInfo.cachingPolicy = SIGNALING_API_CALL_CACHE_TYPE_FILE;
+    //pSampleConfiguration->channelInfo.cachingPolicy = SIGNALING_API_CALL_CACHE_TYPE_FILE;
+    pSampleConfiguration->channelInfo.cachingPolicy = SIGNALING_API_CALL_CACHE_TYPE_NONE;
     pSampleConfiguration->channelInfo.cachingPeriod = SIGNALING_API_CALL_CACHE_TTL_SENTINEL_VALUE;
     pSampleConfiguration->channelInfo.asyncIceServerConfig = TRUE; // has no effect
     pSampleConfiguration->channelInfo.retry = TRUE;

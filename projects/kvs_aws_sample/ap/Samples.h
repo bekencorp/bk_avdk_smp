@@ -35,8 +35,9 @@ extern "C" {
 #define SAMPLE_VIEWER_CLIENT_ID "ConsumerViewer"
 #define SAMPLE_CHANNEL_NAME     (PCHAR) "ScaryTestChannel"
 
-/* Root path for media and cert on SD card (VFS mount point). Put cert.pem and
- * h264SampleFrames/, h265SampleFrames/, opusSampleFrames/ under this path. */
+/* Root path for sample media on SD card (VFS mount point). Put
+ * h264SampleFrames/, h265SampleFrames/, opusSampleFrames/ under this path.
+ * TLS CA: with CONFIG_KVS_GET_CA_FROM_ARRAY, PEM is embedded in kvs_aws (not from SD). */
 #define SAMPLE_MEDIA_ROOT       "/sdcard"
 /* Signaling cache file on SD card (same mount). */
 #define SAMPLE_SIGNALING_CACHE_FILE_PATH  (SAMPLE_MEDIA_ROOT "/.SignalingCache_v1")

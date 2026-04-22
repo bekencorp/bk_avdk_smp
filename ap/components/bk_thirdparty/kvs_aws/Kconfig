@@ -16,6 +16,15 @@ menu "AWS KVS WebRTC"
 		help
 			Enable Data Channel support. Requires usrsctp component. Leave disabled for audio/video-only use.
 
+	config KVS_GET_CA_FROM_ARRAY
+		bool "Load KVS TLS CA from embedded PEM array (not SD/file)"
+		depends on KVS_AWS
+		default n
+		help
+			When enabled, the AWS KVS / WebRTC CA trust anchor is taken from the compiled-in PEM in
+			kvs_embedded_ca_cert.c instead of DEFAULT_KVS_CACERT_PATH on SD (e.g. /sdcard/certs/cert.pem).
+			Disable to use file-based CA as before on Beken.
+
 	config KVS_AWS_ROLE_VIEWER
 		bool "Build kvs_aws_sample as Viewer (receive from Master)"
 		depends on KVS_AWS

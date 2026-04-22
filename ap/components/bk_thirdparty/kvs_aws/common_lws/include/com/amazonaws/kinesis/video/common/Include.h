@@ -251,8 +251,9 @@ extern "C" {
 #define ENABLE_FILE_LOGGING ((PCHAR) "AWS_ENABLE_FILE_LOGGING")
 /*!@} */
 
-#if defined(BEKEN_PLATFORM)
-/* Beken: CA cert on SD card */
+#if CONFIG_KVS_GET_CA_FROM_ARRAY
+#define DEFAULT_KVS_CACERT_PATH ((PCHAR) "embedded")
+#elif defined(BEKEN_PLATFORM)
 #define DEFAULT_KVS_CACERT_PATH ((PCHAR) "/sdcard/certs/cert.pem")
 #else
 #define DEFAULT_KVS_CACERT_PATH EMPTY_STRING

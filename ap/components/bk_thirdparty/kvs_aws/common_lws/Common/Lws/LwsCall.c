@@ -4,6 +4,10 @@
 #define LOG_CLASS "CurlCall"
 #include "../Include_i.h"
 
+#if CONFIG_KVS_GET_CA_FROM_ARRAY
+#include "kvs_embedded_ca_cert.h"
+#endif
+
 STATUS blockingLwsCall(PRequestInfo pRequestInfo, PCallInfo pCallInfo)
 {
     ENTERS();
@@ -35,7 +39,13 @@ STATUS blockingLwsCall(PRequestInfo pRequestInfo, PCallInfo pCallInfo)
     creationInfo.gid = -1;
     creationInfo.uid = -1;
     creationInfo.fd_limit_per_thread = 1 + 1 + 1;
+#if CONFIG_KVS_GET_CA_FROM_ARRAY
+    creationInfo.client_ssl_ca_mem = (void*) kvs_embedded_ca_pem;
+    creationInfo.client_ssl_ca_mem_len = (unsigned int) STRLEN(kvs_embedded_ca_pem);
+    creationInfo.client_ssl_ca_filepath = NULL;
+#else
     creationInfo.client_ssl_ca_filepath = pRequestInfo->certPath;
+#endif
     creationInfo.client_ssl_cert_filepath = pRequestInfo->sslCertPath;
     creationInfo.client_ssl_private_key_filepath = pRequestInfo->sslPrivateKeyPath;
 
