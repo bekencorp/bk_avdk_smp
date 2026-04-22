@@ -309,7 +309,7 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
     int ret = 0;
     uint32_t int_level = 0;
     wdrv_cmd_hdr *hdr = NULL;
-
+    static uint16_t s_cmd_sn = 0;
     WDRV_LOGV("%s msg:%x len:%d\r\n",__func__, msg, msg_len);
     BK_ASSERT(msg_len < MAX_CMD_BUF_PAYLOAD);
     if (!msg) {
@@ -318,7 +318,10 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
         return ret;
     }
     hdr = (wdrv_cmd_hdr *)msg;
-
+    WDRV_ENTER_TXMSG_CRITICAL(int_level);
+    s_cmd_sn++;
+    hdr->cmd_sn = s_cmd_sn;
+    WDRV_EXIT_TXMSG_CRITICAL(int_level);
     WDRV_LOGD("%s: msg_id:0x%x len:%d sn:%d waitcfm:%d cfm_id:%x cfm_sn:%d \n", __func__, 
             hdr->cmd_id, msg_len, hdr->cmd_sn, cfm->waitcfm, cfm->cfm_id, cfm->cfm_sn);
 
@@ -327,23 +330,25 @@ int wdrv_tx_msg(uint8_t *msg, uint16_t msg_len, wdrv_cmd_cfm *cfm, uint8_t *resu
         ret = rtos_init_semaphore(&cfm->sema, 1);
         if(ret == BK_OK) 
         {
+            cfm->cfm_buf = (uint8_t *)result;
+            cfm->cfm_id  = hdr->cmd_id + WDRV_CMD_CFM_OFFSET;
+            cfm->waitcfm = WDRV_CMD_WAITCFM;
+            cfm->cfm_sn  = hdr->cmd_sn;
 
             WDRV_ENTER_TXMSG_CRITICAL(int_level);
             co_list_push_back((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cfm->list);
             WDRV_EXIT_TXMSG_CRITICAL(int_level);
 
-            cfm->cfm_buf = (uint8_t *)result;
-            cfm->cfm_id  = hdr->cmd_id + WDRV_CMD_CFM_OFFSET;
-            cfm->waitcfm = WDRV_CMD_WAITCFM;
-            cfm->cfm_sn  = hdr->cmd_sn;
             wdrv_tx_msg_send(msg, msg_len, WDRV_CMD_WAITCFM);
 
             // The len of result-buff is PRIVATE_COMMAND_DEF_LEN.
             if ((rtos_get_semaphore(&cfm->sema, WDRV_CMDCFM_TIMEOUT)) != 0) {
 
+                rtos_lock_mutex(&wdrv_host_env.cfm_lock);
                 WDRV_ENTER_TXMSG_CRITICAL(int_level);
                 co_list_extract((struct co_list *)&wdrv_host_env.cfm_pending_list,(struct co_list_hdr *)&cfm->list);
                 WDRV_EXIT_TXMSG_CRITICAL(int_level);
+                rtos_unlock_mutex(&wdrv_host_env.cfm_lock);
 
                 //Print AP/CP debug statistics
                 wdrv_print_debug_info();
