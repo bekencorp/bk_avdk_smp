@@ -155,9 +155,6 @@ static void h264_encoder_entry(void *arg)
             .param = ctrl,
             .sem = &ctrl->enc_done_sem
         };
-        if(ctrl->bond != NULL && ctrl->bond->frame_start != NULL) {
-            ctrl->bond->frame_start(ctrl->bond);
-        }
         avdk_err_t ret = hw_encoder_send_msg(&msg, BEKEN_WAIT_FOREVER);
         if (ret != AVDK_ERR_OK) {
             LOGE("hw_encoder_send_msg failed: %d\r\n", ret);

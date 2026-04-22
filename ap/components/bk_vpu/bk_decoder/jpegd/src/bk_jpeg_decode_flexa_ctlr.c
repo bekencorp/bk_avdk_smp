@@ -157,17 +157,18 @@ static void flexa_done_cb(uint32_t wr_ptr, void *args)
             continue;
         }
         bk_flexa_bond_t *b = (bk_flexa_bond_t *)ctrl->port[i].bond;
-        if (b->flexa_done == NULL) {
-            continue;
-        }
         /* 首次 REGISTER_BOND：本帧剩余 flexa 行中断不派发该模块，下一帧 wr_ptr==1 起正常 */
         if (ctrl->port[i].first_bond) {
             if (wr_ptr == 1U) {
                 ctrl->port[i].first_bond = 0;
-                b->flexa_done(wr_ptr, b);
+                if (b->flexa_done != NULL) {
+                    b->flexa_done(wr_ptr, b);
+                }
             }
         } else {
-            b->flexa_done(wr_ptr, b);
+            if (b->flexa_done != NULL) {
+                b->flexa_done(wr_ptr, b);
+            }
         }
     }
     if (ctrl->config.flexa_done_cb != NULL)
@@ -341,12 +342,48 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
     ret = rtos_get_semaphore(&ctrl->decode_done_sem, 2000);
     if (ret != AVDK_ERR_OK) {
         LOGE("%s %d rtos_get_semaphore failed: %d\r\n", __func__, __LINE__, ret);
+        if (ctrl->config.frame_done_cb != NULL)
+        {
+            ctrl->config.frame_done_cb(BK_FAIL, ctrl->config.frame_done_args);
+        }
+        for (uint32_t i = 0; i < BK_JPEG_DECODE_RD_PORT_MAX; i++) {
+            if (ctrl->port[i].bond != NULL) {
+                bk_flexa_bond_t *b = (bk_flexa_bond_t *)ctrl->port[i].bond;
+                if (b->frame_done != NULL) {
+                    b->frame_done(BK_FAIL, b);
+                }
+            }
+        }
         jpeg_decode_notify_flexa_bonds_error(ctrl);
         return AVDK_ERR_GENERIC;
     }
 
     if(ctrl->decode_result != BK_OK) {
+        if (ctrl->config.frame_done_cb != NULL)
+        {
+            ctrl->config.frame_done_cb(BK_FAIL, ctrl->config.frame_done_args);
+        }
+        for (uint32_t i = 0; i < BK_JPEG_DECODE_RD_PORT_MAX; i++) {
+            if (ctrl->port[i].bond != NULL) {
+                bk_flexa_bond_t *b = (bk_flexa_bond_t *)ctrl->port[i].bond;
+                if (b->frame_done != NULL) {
+                    b->frame_done(BK_FAIL, b);
+                }
+            }
+        }
         jpeg_decode_notify_flexa_bonds_error(ctrl);
+        return AVDK_ERR_GENERIC;
+    }
+    for (uint32_t i = 0; i < BK_JPEG_DECODE_RD_PORT_MAX; i++) {
+        if (ctrl->port[i].bond != NULL) {
+            bk_flexa_bond_t *b = (bk_flexa_bond_t *)ctrl->port[i].bond;
+            if (b->frame_done != NULL) {
+                b->frame_done(BK_OK, b);
+            }
+        }
+    }
+    if (ctrl->config.frame_done_cb != NULL) {
+        ctrl->config.frame_done_cb(BK_OK, ctrl->config.frame_done_args);
     }
     return AVDK_ERR_OK;
 }

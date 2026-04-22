@@ -46,7 +46,6 @@ typedef struct bk_flexa_bond {
 	void *handle;
 	uint32_t last_lines;
 	void (*flexa_done)(uint32_t lines, void *arg);
-	void (*frame_start)(void *arg);
 	void (*frame_done)(uint32_t status, void *arg);
 
 	void (*error)(uint32_t reason, void *arg);

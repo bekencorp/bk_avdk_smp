@@ -185,6 +185,7 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
         if (ctrl->config.frame_done_cb != NULL) {
             ctrl->config.frame_done_cb(BK_FAIL, ctrl->config.frame_done_args);
         }
+        return ctrl->decode_result;
     }
     return AVDK_ERR_OK;
 }

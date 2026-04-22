@@ -71,22 +71,6 @@ static void isp_h264e_handle_frame_end_cb(uint32_t seq, uint32_t line, uint8_t c
     (void)bk_h264_encode_ioctl(enc, BK_H264_ENCODE_IOCTL_SET_FRAME_READY, (void *)0);
 }
 
-static void isp_h264e_enc_frame_start(void *args)
-{
-    bk_flexa_bond_t *out_stream = (bk_flexa_bond_t *)args;
-    if (out_stream == NULL || out_stream->handle == NULL) {
-        return;
-    }
-    bk_flexa_bond_t *in_stream = out_stream->bond_config->in_stream;
-    if (in_stream == NULL || in_stream->handle == NULL) {
-        return;
-    }
-    isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
-    if (isp_h == NULL) {
-        return;
-    }
-}
-
 static void isp_h264e_enc_frame_done(uint32_t status, void *args)
 {
     bk_flexa_bond_t *out_stream = (bk_flexa_bond_t *)args;
@@ -180,7 +164,6 @@ avdk_err_t bk_flexa_isp_h264e_bond_start(void **bond, void *isp, bk_h264_encode_
 
     out_stream->handle = (void *)h264;
     out_stream->frame_done = isp_h264e_enc_frame_done;
-    out_stream->frame_start = isp_h264e_enc_frame_start;
     out_stream->bond_config = bond_new;
 
     ret = bk_h264_encode_ioctl(h264, BK_H264_ENCODE_IOCTL_REGISTER_BOND, out_stream);
