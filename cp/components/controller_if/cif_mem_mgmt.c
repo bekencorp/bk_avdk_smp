@@ -236,7 +236,7 @@ void cif_free_cmd_buffer(uint8_t* buf)
 void cif_tx_event_buffer_init()
 {
     memset(cif_tx_event_buffer, 0, MAX_NUM_CMD_LONG_BUF*CIF_MAX_CFM_DATA_LEN);
-    memset(cif_tx_event_short_buffer, 0, MAX_NUM_CMD_LONG_BUF*CIF_MAX_CFM_SHORT_LEN);
+    memset(cif_tx_event_short_buffer, 0, MAX_NUM_CMD_SHORT_BUF*CIF_MAX_CFM_SHORT_LEN);
 
     for(uint8_t i=0; i<MAX_NUM_CMD_LONG_BUF ; i++)
     {
