@@ -8,7 +8,11 @@ extern "C" {
 #include <common/bk_include.h>
 #include <components/bk_decode/bk_jpeg_decode_types.h>
 
+#if CONFIG_DECODE_BUFFER_CNT
+#define DECODE_BUFFER_CNT (CONFIG_DECODE_BUFFER_CNT) // Flexa ring buffer count for decode
+#else
 #define DECODE_BUFFER_CNT (2) // Flexa ring buffer count for decode
+#endif
 #define DECODE_FLEXA_LINES (16) // 16 flexa lines for decode
 #define DECODE_FLEXA_ALIGN_SIZE (16) // 16 bytes for flexa align
 #define DECODE_DUMP_FRAME_ENABLE (0) // 1: dump frame, 0: not dump frame

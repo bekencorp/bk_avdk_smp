@@ -18,5 +18,8 @@ menu "Gesture Detection Application Configuration"
 
 	endchoice
 
+	config DECODE_BUFFER_CNT
+		int "Set Decode Buffer Count"
+		default 2
 endmenu
 

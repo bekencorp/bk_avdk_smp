@@ -103,8 +103,12 @@ int ai_main_start()
     model->setImageCallback(gesture_image_callback);
     video_reator = new AvdkVideoReator(model);
     video_reator->init_model();
+#if CONFIG_USB_CAMERA
+    video_reator->OpenUVCCameraWithDisplay();
+#else
     video_reator->OpenCameraWithoutDisplay();
     video_reator->OpenDisplayWithoutGPU();
+#endif
     //video_reator->start(AVDK_VIDEO_REATOR_MODE_NODISPLAY);
 
     return 0;
@@ -220,7 +224,6 @@ int main(void)
     display_board.dpu_video.enable = true;
     display_board.dpu_video.decompress = false;
     display_board.dpu_video.format = BK_PIXEL_FORMAT_RGB565;
-
 
     gpu_board.flexa.enable = true;
     gpu_board.flexa.degree = 90;

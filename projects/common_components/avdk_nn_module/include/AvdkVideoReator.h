@@ -129,6 +129,12 @@ public:
 
     int OpenCameraWithDisplay();
     int OpenCameraWithoutDisplay();
+
+#if CONFIG_USB_CAMERA
+    int OpenUVCCameraWithDisplay();
+    int CloseUVCCameraWithDisplay();
+#endif
+
     int CloseCamera();
     int ReadCameraFrame(uint8_t *frame, uint32_t size, uint32_t timeout);
 

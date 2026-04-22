@@ -276,8 +276,11 @@ avdk_err_t doorbell_jpeg_decode_open(uint16_t width,
     if (flexa_mode) { // flexa mode
         decoder_config->ring_buffer_cnt = DECODE_BUFFER_CNT;
         decoder_config->flexa_size = width * DECODE_FLEXA_LINES * 3 / 2 * DECODE_BUFFER_CNT;
+#if CONFIG_DECODE_BUFFER_CNT
+        decoder_config->decode_buffer = (uint8_t *)psram_aligned_malloc(64, decoder_config->flexa_size);
+#else
         decoder_config->decode_buffer = (uint8_t *)hsram_aligned_malloc(64, decoder_config->flexa_size);
-        // decoder_config->decode_buffer = (uint8_t *)psram_aligned_malloc(64, decoder_config->flexa_size);
+#endif
         if (decoder_config->decode_buffer == NULL) {
             LOGE("%s, %d, malloc 64-byte aligned decode buffer:%dbytes failed\n", __func__, __LINE__, decoder_config->flexa_size);
             return AVDK_ERR_NOMEM;
