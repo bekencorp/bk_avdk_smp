@@ -35,14 +35,25 @@ extern "C" {
 #define ADC_KEY_LOGD(...) BK_LOGD(ADC_KEY_TAG, ##__VA_ARGS__)
 #define ADC_KEY_LOGV(...) BK_LOGV(ADC_KEY_TAG, ##__VA_ARGS__)
 
-#define ADC_KEY_GPIO_ID   GPIO_28
-#define ADC_KEY_SADC_CHAN_ID   4
+/* KEY2: ADC key pin and channel (configurable via Kconfig) */
+#define ADC_KEY2_GPIO_ID      CONFIG_ADC_KEY2_GPIO
+#define ADC_KEY2_SADC_CHAN_ID  CONFIG_ADC_KEY2_ADC_CHAN
 
-#define ADCKEY_TMR_DURATION 10
+/* KEY1: GPIO-only key pin (configurable via Kconfig) */
+#define GPIO_KEY1_GPIO_ID     CONFIG_GPIO_KEY1_PIN
+#define GPIO_KEY1_ACTIVE_LEVEL  CONFIG_GPIO_KEY1_ACTIVE_LEVEL
+
+#if CONFIG_ADC_KEY_DUAL_CHANNEL
+/* Dual ADC channel mode (configurable via Kconfig) */
+#define ADC_KEY1_GPIO_ID      CONFIG_ADC_KEY1_GPIO
+#define ADC_KEY1_SADC_CHAN_ID  CONFIG_ADC_KEY1_ADC_CHAN
+#endif
+
+#define ADCKEY_TMR_DURATION      10
 #define ADCKEY_TICKS_INTERVAL    10	//ms
 #define ADCKEY_DEBOUNCE_TICKS    6	//MAX 8
 #define ADCKEY_SHORT_TICKS       (400 /ADCKEY_TICKS_INTERVAL)
-#define ADCKEY_LONG_TICKS        (1000 /ADCKEY_TICKS_INTERVAL)
+#define ADCKEY_LONG_TICKS        (CONFIG_ADC_KEY_LONG_PRESS_MS /ADCKEY_TICKS_INTERVAL)
 
 typedef void (*adc_key_callback)(void *);
 
@@ -74,11 +85,8 @@ typedef struct _adckey_ {
 } ADCKEY_S;
 
 typedef enum {
-
-	ADCKEY_PEV = 0,
-	ADCKEY_NEXT,
-	ADCKEY_MENU,
-	ADCKEY_PLAY_PAUSE,
+	ADCKEY_S4 = 0,
+	ADCKEY_S5,
 	ADCKEY_NULL,
 } ADCKEY_INDEX;
 
@@ -93,10 +101,37 @@ typedef struct
 	adc_key_callback hold_press_cb;
 } adckey_configure_t;
 
+/*
+ * GPIO key (KEY1) - can only detect any-press, not which button.
+ * Reuses the same state machine as ADCKEY_S via the BUTTON_S framework.
+ */
+typedef struct {
+	gpio_id_t gpio_id;
+	uint8_t active_level;
+	adc_key_callback short_press_cb;
+	adc_key_callback double_press_cb;
+	adc_key_callback long_press_cb;
+	adc_key_callback hold_press_cb;
+} gpio_key_configure_t;
+
+/* ADC voltage read (shared, usable by monitor tasks) */
+uint32_t adc_key_get_gpio_voltage(adc_chan_t chan);
+
+/* ADC key API (KEY2 channel) */
 void bk_adc_key_init(gpio_id_t gpio_id, adc_chan_t adc_chan);
 void bk_adc_key_deinit(void);
 uint32_t bk_adckey_item_configure(adckey_configure_t *config);
 uint32_t bk_adckey_item_unconfigure(ADCKEY_INDEX user_data);
+
+/* GPIO key API (KEY1) */
+void bk_gpio_key_init(gpio_id_t gpio_id, uint8_t active_level);
+void bk_gpio_key_deinit(void);
+uint32_t bk_gpio_key_configure(gpio_key_configure_t *config);
+
+#if CONFIG_ADC_KEY_DUAL_CHANNEL
+void bk_adc_key_dual_init(void);
+void bk_adc_key_dual_deinit(void);
+#endif
 
 #ifdef __cplusplus
 }

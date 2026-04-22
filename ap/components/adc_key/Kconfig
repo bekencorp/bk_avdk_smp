@@ -4,4 +4,103 @@ menu "Adc_key"
 		bool "Enable Adc Key"
 		default n
 
+	config ADC_KEY_DUAL_CHANNEL
+		bool "Enable Dual ADC Channel Key (for next PCB revision)"
+		default n
+		depends on ADC_KEY
+		help
+		  Enable this option when PCB is fixed and KEY1 is rewired
+		  to an ADC-capable GPIO. Both KEY1 and KEY2 will use ADC
+		  for button detection, allowing all 4 buttons (S2-S5) to
+		  be individually identified.
+
+	menu "KEY2 (ADC Key) Pin Config"
+		depends on ADC_KEY
+
+		config ADC_KEY2_GPIO
+			int "KEY2 GPIO pin number"
+			default 28
+			help
+			  GPIO pin number for KEY2 (ADC input). Default: GPIO28.
+
+		config ADC_KEY2_ADC_CHAN
+			int "KEY2 ADC channel number"
+			default 4
+			help
+			  SARADC channel number for KEY2. Default: ADC_4.
+
+		config ADC_KEY_S4_VOLTAGE_LOW
+			int "S4 button voltage lower bound (mV)"
+			default 500
+			help
+			  ADC voltage lower bound for S4 button detection.
+
+		config ADC_KEY_S4_VOLTAGE_HIGH
+			int "S4 button voltage upper bound (mV)"
+			default 1500
+			help
+			  ADC voltage upper bound for S4 button detection.
+
+		config ADC_KEY_S5_VOLTAGE_LOW
+			int "S5 button voltage lower bound (mV)"
+			default 4500
+			help
+			  ADC voltage lower bound for S5 button detection.
+
+		config ADC_KEY_S5_VOLTAGE_HIGH
+			int "S5 button voltage upper bound (mV)"
+			default 6000
+			help
+			  ADC voltage upper bound for S5 button detection.
+
+		config ADC_KEY_LONG_PRESS_MS
+			int "ADC key long press threshold (ms)"
+			default 1000
+			help
+			  Time in ms to hold an ADC key before long press is triggered.
+
+	endmenu
+
+	menu "KEY1 (GPIO Key) Pin Config"
+		depends on ADC_KEY
+
+		config GPIO_KEY1_PIN
+			int "KEY1 GPIO pin number"
+			default 39
+			help
+			  GPIO pin number for KEY1 (GPIO-only input). Default: GPIO39.
+
+		config GPIO_KEY1_ACTIVE_LEVEL
+			int "KEY1 active level (0=low, 1=high)"
+			default 0
+			help
+			  GPIO active level when KEY1 is pressed. 0=active low, 1=active high.
+
+		config GPIO_KEY_LONG_PRESS_TICKS
+			int "GPIO key long press ticks"
+			default 100
+			help
+			  Number of timer ticks to hold GPIO key before long press.
+			  Actual tick interval is ~10ms (6ms configured + OS overhead),
+			  so 100 ticks is approximately 1 second.
+
+	endmenu
+
+	menu "Dual Channel KEY1 ADC Config"
+		depends on ADC_KEY_DUAL_CHANNEL
+
+		config ADC_KEY1_GPIO
+			int "KEY1 ADC GPIO pin number (dual channel mode)"
+			default 25
+			help
+			  GPIO pin for KEY1 when rewired to ADC-capable pin.
+
+		config ADC_KEY1_ADC_CHAN
+			int "KEY1 ADC channel number (dual channel mode)"
+			default 1
+			help
+			  SARADC channel number for KEY1 in dual channel mode.
+
+	endmenu
+
 endmenu
