@@ -386,9 +386,11 @@ SECTIONS
         . = ALIGN(4);
 #endif
         *(.sram_spinlock_section)
+        __dtcm_start__ = .;
         *(.dtcm)
         *(.dtcm_section*)
         *(.dtcm_sec_data*)
+        __dtcm_end__ = .;
         *(.data)
         *(".data.*")
         *(.sdata)
