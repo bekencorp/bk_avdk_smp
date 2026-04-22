@@ -207,7 +207,7 @@ static avdk_err_t hw_encoder_ctlr_create(void)
     }
     
     // 创建任务
-    ret = rtos_create_thread(&g_hw_encoder_ctlr->task,
+    ret = rtos_create_hsram_thread(&g_hw_encoder_ctlr->task,
                             HW_ENCODER_TASK_PRIO,
                             "hw_encoder",
                             (beken_thread_function_t)hw_encoder_task,
