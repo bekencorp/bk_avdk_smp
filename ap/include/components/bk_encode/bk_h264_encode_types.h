@@ -107,8 +107,8 @@ struct bk_h264_encode_ctlr_t
     avdk_err_t (*deinit)(bk_h264_encode_ctlr_t *controller);
     avdk_err_t (*ioctl)(bk_h264_encode_ctlr_t *controller, uint32_t cmd, void *arg);
     avdk_err_t (*force_idr)(bk_h264_encode_ctlr_t *controller);
-    avdk_err_t (*delete)(bk_h264_encode_ctlr_t *controller);
-} ;
+    avdk_err_t (*del)(bk_h264_encode_ctlr_t *controller);
+};
 
 
 #ifdef __cplusplus

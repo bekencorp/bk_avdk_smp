@@ -125,7 +125,7 @@ struct bk_jpeg_decode_ctlr_t {
 	avdk_err_t (*close)(bk_jpeg_decode_ctlr_t *controller);
 	avdk_err_t (*deinit)(bk_jpeg_decode_ctlr_t *controller);
 	avdk_err_t (*ioctl)(bk_jpeg_decode_ctlr_t *controller, uint32_t cmd, void *arg);
-	avdk_err_t (*delete)(bk_jpeg_decode_ctlr_t *controller);
+	avdk_err_t (*del)(bk_jpeg_decode_ctlr_t *controller);
 };
 
 #ifdef __cplusplus
