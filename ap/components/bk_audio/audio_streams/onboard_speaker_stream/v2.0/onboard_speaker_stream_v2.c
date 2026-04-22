@@ -805,10 +805,10 @@ static bk_err_t audio_dac_reconfig(onboard_speaker_stream_t *onboard_spk, int ra
     /* check and set channel num */
     if (onboard_spk->chl_num != ch)
     {
-        aud_dac_chl_t chl_cfg = AUD_DAC_CHL_L;
+        aud_dac_chl_t chl_cfg = AUD_DAC_CHL_LR;
         if (ch == 1)
         {
-            chl_cfg = AUD_DAC_CHL_L;
+            chl_cfg = AUD_DAC_CHL_LR;
         }
         else
         {
@@ -1715,7 +1715,7 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
                         goto _onboard_speaker_init_exit;
                     }
 
-                    gl_onboard_speaker->rsp_cfg[i].complexity  = 2;
+                    gl_onboard_speaker->rsp_cfg[i].complexity  = 1;
                     gl_onboard_speaker->rsp_cfg[i].src_ch      = 1;
                     gl_onboard_speaker->rsp_cfg[i].dest_ch     = 1;
                     gl_onboard_speaker->rsp_cfg[i].src_bits    = gl_onboard_speaker->bits;
