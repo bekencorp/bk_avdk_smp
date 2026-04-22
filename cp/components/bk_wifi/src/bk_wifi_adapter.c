@@ -1339,7 +1339,7 @@ static void sys_hal_set_low_voltage_sleep_duration_us_wrapper(uint64_t sleep_dur
 static uint64_t sys_hal_get_low_voltage_wakeup_time_us_wrapper(void)
 {
 	//TODO
-    return 0;
+    return sys_hal_get_low_voltage_wakeup_time_us();
 }
 
 static void sys_hal_set_low_voltage_wakeup_time_us_wrapper(uint64_t wakeup_time)
@@ -1700,7 +1700,7 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_variable_t g_wifi_os_variabl
 	._low_power_delay_time_hardware = LOW_POWER_DELAY_TIME_HARDWARE,
     ._low_power_extern_32k_hardware = LOW_POWER_EXTERN_32K_HARDWARE,
 	._low_power_26m_stability_delay_time_hardware = LOW_POWER_26M_STABILITY_DELAY_TIME_HARDWARE,
-#if CONFIG_SOC_BK7239XX
+#if CONFIG_SOC_BK7239XX || CONFIG_SOC_BK7259
 	._low_power_bootup_restore_delay_time = LOW_POWER_BOOTUP_RESTORE_TIME,
 #endif
 	._pm_power_sub_module_name_phy_wifi = PM_POWER_SUB_DOMAIN_PHY,

@@ -771,6 +771,8 @@ void sys_hal_set_7816_int_en(uint32_t core_id, uint32_t value);
 void sys_hal_set_scr_clk(uint32_t value);
 uint64_t sys_hal_get_low_voltage_sleep_duration_us(void);
 void sys_hal_set_low_voltage_sleep_duration_us(uint64_t sleep_duration);
+uint64_t sys_hal_get_low_voltage_wakeup_time_us(void);
+void sys_hal_set_low_voltage_wakeup_time_us(uint64_t wakeup_time);
 void sys_hal_set_cpu_device_clk_enable_otp_cken(uint32_t value);
 void sys_hal_set_cpu_power_sleep_wakeup_ticktimer_32k_enable(uint32_t value);
 
