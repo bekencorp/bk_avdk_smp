@@ -269,12 +269,14 @@ static bk_err_t app_prompt_play(const unsigned char *data, unsigned int len)
     /* Create a new player for this playback */
     bk_player_cfg_t player_cfg = DEFAULT_PLAYER_WITH_PLAYBACK_CONFIG();
     /* Set event callback to handle playback finish */
-    player_cfg.spk_cfg.onboard_spk_cfg.ana_gain = 0x08;
+    player_cfg.spk_cfg.onboard_spk_cfg.ana_gain   = 0x07;
     player_cfg.spk_cfg.onboard_spk_cfg.pa_ctrl_en = true;
     player_cfg.spk_cfg.onboard_spk_cfg.pa_ctrl_gpio = 29;
-    player_cfg.spk_cfg.onboard_spk_cfg.pa_on_level = 1;
-    player_cfg.spk_cfg.onboard_spk_cfg.pa_on_delay = 2;
+    player_cfg.spk_cfg.onboard_spk_cfg.pa_on_level  = 1;
+    player_cfg.spk_cfg.onboard_spk_cfg.pa_on_delay  = 2;
     player_cfg.spk_cfg.onboard_spk_cfg.pa_off_delay = 0;
+    player_cfg.spk_cfg.onboard_spk_cfg.sample_rate[AUD_DAC_SOURCE_A2DP] = 16000;
+    player_cfg.spk_cfg.onboard_spk_cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_A2DP_BIT;
     player_cfg.event_handle = app_player_event_handler;
     player_cfg.args = NULL;
     s_app_evt_ctx.player = bk_player_create(&player_cfg);
