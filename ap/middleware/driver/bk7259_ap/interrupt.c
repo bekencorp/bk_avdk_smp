@@ -23,6 +23,7 @@
 #include "cmsis_gcc.h"
 #include <common/bk_assert.h>
 #include "interrupt_controller.h"
+#include "stack_base.h"
 #include "sys_hal.h"
 #include "sys_driver.h"
 
@@ -30,6 +31,11 @@
 
 #if CONFIG_FREERTOS_TRACE
 #include "trcRecorder.h"
+#endif
+
+#if CONFIG_INTERRUPT_DEBUG_RECORDER
+#include <driver/aon_rtc.h>
+#include <string.h>
 #endif
 
 #include "bk_arch.h"
@@ -49,6 +55,117 @@ static uint32_t s_int_statis[InterruptMAX_IRQn] = {0};
 #define IRQ_TRACE_END()
 #endif
 
+#if CONFIG_INTERRUPT_DEBUG_RECORDER
+#define BK_INTERRUPT_DEBUG_EXIT_FLAG 0xF0000000U
+
+typedef struct {
+	uint32_t int_flag;
+	uint32_t current_cnt;
+	uint64_t enter_time;
+	uint64_t exit_time;
+} interrupt_recorder_t;
+
+typedef struct {
+	volatile uint32_t count;
+	volatile interrupt_recorder_t recorder[CONFIG_INTERRUPT_RECORDER_CNT];
+} interrupt_recorder_dump_t;
+
+__attribute__((__used__)) static volatile interrupt_recorder_dump_t s_interrupt_core0_dump;
+__attribute__((__used__)) static volatile interrupt_recorder_dump_t s_interrupt_core1_dump;
+static volatile uint32_t s_interrupt_debug_dump_registered = 0;
+
+static inline volatile interrupt_recorder_dump_t *bk_interrupt_debug_get_core_dump(uint32_t core_id)
+{
+	return (core_id == 0) ? &s_interrupt_core0_dump : &s_interrupt_core1_dump;
+}
+
+void bk_interrupt_debug_isr_enter(uint32_t irq)
+{
+	uint32_t core_id = portGET_CORE_ID();
+	volatile interrupt_recorder_dump_t *core_dump = bk_interrupt_debug_get_core_dump(core_id);
+	uint32_t current_cnt = core_dump->count;
+	uint32_t index = current_cnt % CONFIG_INTERRUPT_RECORDER_CNT;
+
+	core_dump->recorder[index].int_flag = irq;
+	core_dump->recorder[index].current_cnt = current_cnt;
+	core_dump->recorder[index].enter_time = bk_aon_rtc_get_us();
+	core_dump->recorder[index].exit_time = 0;
+}
+
+void bk_interrupt_debug_isr_exit(uint32_t irq)
+{
+	uint32_t core_id = portGET_CORE_ID();
+	volatile interrupt_recorder_dump_t *core_dump = bk_interrupt_debug_get_core_dump(core_id);
+	uint32_t current_cnt = core_dump->count;
+	uint32_t index = current_cnt % CONFIG_INTERRUPT_RECORDER_CNT;
+
+	core_dump->recorder[index].int_flag = irq | BK_INTERRUPT_DEBUG_EXIT_FLAG;
+	core_dump->recorder[index].exit_time = bk_aon_rtc_get_us();
+	core_dump->count = current_cnt + 1;
+}
+
+static void bk_interrupt_debug_dump_core_recorder(const char *core_name, volatile interrupt_recorder_dump_t *core_dump)
+{
+	uint32_t total_cnt = core_dump->count;
+	uint32_t recorder_cnt = (total_cnt < CONFIG_INTERRUPT_RECORDER_CNT) ? total_cnt : CONFIG_INTERRUPT_RECORDER_CNT;
+	uint32_t start_cnt;
+
+	BK_DUMP_OUT("interrupt recorder %s total=%u depth=%u\r\n", core_name, total_cnt, recorder_cnt);
+	if (recorder_cnt == 0) {
+		BK_DUMP_OUT("interrupt recorder %s empty\r\n", core_name);
+		return;
+	}
+
+	start_cnt = total_cnt - recorder_cnt;
+	for (uint32_t seq = start_cnt; seq < total_cnt; seq++) {
+		uint32_t index = seq % CONFIG_INTERRUPT_RECORDER_CNT;
+		const volatile interrupt_recorder_t *rec = &core_dump->recorder[index];
+		uint32_t irq = rec->int_flag & ~BK_INTERRUPT_DEBUG_EXIT_FLAG;
+		uint32_t completed = (rec->int_flag & BK_INTERRUPT_DEBUG_EXIT_FLAG) ? 1 : 0;
+
+		BK_DUMP_OUT("  [%s][%u] irq=%u done=%u enter=%llu exit=%llu\r\n",
+			core_name,
+			rec->current_cnt,
+			irq,
+			completed,
+			(unsigned long long)rec->enter_time,
+			(unsigned long long)rec->exit_time);
+	}
+}
+
+void bk_interrupt_dump_recorder(void)
+{
+	bk_interrupt_debug_dump_core_recorder("core0", &s_interrupt_core0_dump);
+	bk_interrupt_debug_dump_core_recorder("core1", &s_interrupt_core1_dump);
+}
+
+static void bk_interrupt_debug_init(void)
+{
+	memset((void *)&s_interrupt_core0_dump, 0, sizeof(s_interrupt_core0_dump));
+	memset((void *)&s_interrupt_core1_dump, 0, sizeof(s_interrupt_core1_dump));
+
+	if (s_interrupt_debug_dump_registered == 0) {
+		rtos_regist_plat_dump_hook((uint32_t)&s_interrupt_core0_dump, sizeof(s_interrupt_core0_dump));
+		rtos_regist_plat_dump_hook((uint32_t)&s_interrupt_core1_dump, sizeof(s_interrupt_core1_dump));
+		s_interrupt_debug_dump_registered = 1;
+	}
+}
+#else
+void bk_interrupt_debug_isr_enter(uint32_t irq)
+{
+	(void)irq;
+}
+
+void bk_interrupt_debug_isr_exit(uint32_t irq)
+{
+	(void)irq;
+}
+
+void bk_interrupt_dump_recorder(void)
+{
+}
+#endif
+
 extern uint32_t get_relocate_vector_table(void);
 #if CONFIG_SOC_SMP
 extern uint32_t get_core1_vtor_addr(void);
@@ -65,6 +182,9 @@ void soc_isr_init(void)
 	arch_isr_entry_init();
 	
 	if (portGET_CORE_ID() == 0) {
+#if CONFIG_INTERRUPT_DEBUG_RECORDER
+		bk_interrupt_debug_init();
+#endif
     	primary_intc = int_controller_create(INT_CONTROLLER_ID_PRIMARY, __INT_NUMBER_MAX, (void *)vtor_addr); /* primary controller with capacity 16 */
 		BK_ASSERT(NULL != primary_intc);
 

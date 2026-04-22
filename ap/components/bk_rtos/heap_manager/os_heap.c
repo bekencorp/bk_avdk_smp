@@ -3,8 +3,62 @@
 #include "os_heap.h"
 #include "bk_heap/port/port_heap.h"
 #include "os_heap_debug.h"
+#include "sys_sw_regs.h"
+
+extern unsigned char _heap_start;
+#define SRAM_HEAP_START_ADDRESS ((uint32_t)&_heap_start)
 
 #define IF_NULL_RETURN_NULL(ptr) do { if (ptr == NULL) { return NULL; } } while (0)
+
+static void bk_heap_track_ap_heap_window(void *ptr, size_t size)
+{
+    volatile sys_sw_regs_t *sys_sw_regs;
+    volatile ap_heap_dump_info_t *slot;
+    uint32_t pool_base;
+    uint32_t alloc_end;
+    bk_sys_sw_regs_ap_heap_id_t heap_id;
+
+    if ((ptr == NULL) || (size == 0U)) {
+        return;
+    }
+
+    alloc_end = (uint32_t)ptr + (uint32_t)size;
+
+    if (ptr_is_sram_heap(ptr)) {
+        heap_id = BK_SYS_SW_REGS_AP_HEAP_SRAM;
+        pool_base = SRAM_HEAP_START_ADDRESS;
+    }
+#ifdef CONFIG_AP_PSRAM_HEAP_ADDR
+    else if (ptr_is_psram_heap(ptr)) {
+        heap_id = BK_SYS_SW_REGS_AP_HEAP_PSRAM;
+        pool_base = CONFIG_AP_PSRAM_HEAP_ADDR;
+    }
+#endif
+#ifdef CONFIG_AP_HSRAM_HEAP_ADDR
+    else if (ptr_is_hsram_heap(ptr)) {
+        heap_id = BK_SYS_SW_REGS_AP_HEAP_HSRAM;
+        pool_base = CONFIG_AP_HSRAM_HEAP_ADDR;
+    }
+#endif
+    else {
+        return;
+    }
+
+    sys_sw_regs = bk_sys_sw_regs_ptr();
+    slot = &sys_sw_regs->ap_heap_dump[heap_id];
+
+    port_heap_enter_critical();
+    if ((slot->valid != BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID) || (slot->pool_base != pool_base)) {
+        slot->valid = 0U;
+        slot->pool_base = pool_base;
+        slot->max_alloc_end = alloc_end;
+        slot->reserved = 0U;
+        slot->valid = BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID;
+    } else if (alloc_end > slot->max_alloc_end) {
+        slot->max_alloc_end = alloc_end;
+    }
+    port_heap_exit_critical();
+}
 
 static void check_heap_risk_release(const char *risk_type)
 {
@@ -66,6 +120,7 @@ static void *bk_heap_malloc_impl(const bk_heap_t *self, const char *func_name, i
     bk_heap_debug_add_debug_info(self->used_list, ptr, func_name, line, size);
     bk_heap_fill_overflow_tag(ptr);
 #endif
+    bk_heap_track_ap_heap_window(ptr, real_size);
     return bk_heap_debug_get_ptr(ptr);
 }
 

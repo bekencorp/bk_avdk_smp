@@ -7,6 +7,7 @@
 #include "os/mem.h"
 #include "reg_base.h"
 #include "bk_rtos_debug.h"
+#include "multicore_driver.h"
 
 #define BK_EXCEPTION_MAGIC 0xA55AA55A
 #define BK_ASSERT_MAGIC 0x55AA55AA
@@ -16,6 +17,10 @@ static volatile uint32_t s_core_id = 0;
 
 static hook_func s_wifi_dump_func = NULL;
 static hook_func s_ble_dump_func = NULL;
+
+#if CONFIG_INTERRUPT_DEBUG_RECORDER
+extern void bk_interrupt_dump_recorder(void);
+#endif
 
 bool bk_check_assert(void)
 {
@@ -31,7 +36,15 @@ static inline void coredump_stop_other_cores(void)
 {
     // smp needs stop other cores
 #if CONFIG_SOC_SMP
-    // TODO
+    uint32_t core_id = rtos_get_core_id();
+
+    if (core_id == CPU2_CORE_ID) {
+        bk_multicore_stop(CPU3_CORE_ID);
+    } else if (core_id == CPU3_CORE_ID) {
+        bk_multicore_stop(CPU2_CORE_ID);
+    } else {
+        BK_DUMP_OUT("warning: unexpected AP core id %u, cannot stop peer core\r\n", core_id);
+    }
 #endif
 }
 
@@ -99,6 +112,9 @@ static void coredump_prompt_info(void)
     os_dump_memory_stats(0, 0, NULL);
 #endif
 
+#if CONFIG_INTERRUPT_DEBUG_RECORDER
+    bk_interrupt_dump_recorder();
+#endif
     rtos_dump_backtrace();
     rtos_dump_task_list();
 #if CONFIG_FREERTOS

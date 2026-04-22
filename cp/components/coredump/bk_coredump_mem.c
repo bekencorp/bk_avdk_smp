@@ -1,8 +1,29 @@
+#include <stddef.h>
 #include "common/bk_assert.h"
 #include "bk_arch.h"
 #include "os/mem.h"
 #include "bk_coredump.h"
 #include "memory.h"
+
+typedef void (*bk_dump_mem_getter_t)(bk_dump_mem_info_t *info);
+
+static void bk_dump_ap_heap_window(const char *name, bk_dump_mem_getter_t getter)
+{
+    bk_dump_mem_info_t mem_info = {0};
+
+    getter(&mem_info);
+    if ((mem_info.start_addr == 0U) || (mem_info.size == 0U)) {
+        bk_coredump_write_prompt("%s empty heap window, skip\r\n", name);
+        return;
+    }
+
+    bk_coredump_write_memory(name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
+}
+
+static void bk_dump_ap_heap_mem(void)
+{
+    bk_dump_ap_heap_window("AP_PSRAM_HEAP", bk_get_ap_psram_heap_info);
+}
 
 void bk_dump_peri_regs(void)
 {
@@ -97,4 +118,6 @@ void bk_dump_psram_mem(void)
     if (mem_info.start_addr != 0 && mem_info.size != 0) {
         bk_coredump_write_memory(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
     }
+
+    bk_dump_ap_heap_mem();
 }

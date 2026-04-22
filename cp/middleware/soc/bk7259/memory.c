@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stddef.h>
 #include "os/os.h"
 #include "os/mem.h"
 #include "bk_arch.h"
 #include "common/bk_assert.h"
 #include "sdkconfig.h"
 #include "stack_base.h"
+#include "sys_sw_regs.h"
 #include "memory.h"
 
 extern unsigned char _data_ram_begin;
@@ -97,6 +99,23 @@ extern unsigned char __etext;
 #define CORE0_MSP_BOTTOM (uint32_t)&_estack
 #endif
 
+static void bk_get_ap_heap_info_common(bk_sys_sw_regs_ap_heap_id_t id, const char *name, bk_dump_mem_info_t *info)
+{
+    ap_heap_dump_info_t heap_info = {0};
+
+    info->name = name;
+
+    if (!bk_sys_sw_regs_get_ap_heap_dump(id, &heap_info) ||
+        (heap_info.max_alloc_end <= heap_info.pool_base)) {
+        info->start_addr = 0U;
+        info->size = 0U;
+        return;
+    }
+
+    info->start_addr = heap_info.pool_base;
+    info->size = heap_info.max_alloc_end - heap_info.pool_base;
+}
+
 const bk_dump_mem_info_t bk7259_sram_info[] = {
     {"SRAM0", SOC_SRAM0_DATA_BASE, SOC_SRAM0_DATA_SIZE},
     {"SRAM1", SOC_SRAM1_DATA_BASE, SOC_SRAM1_DATA_SIZE},
@@ -172,6 +191,11 @@ void bk_get_psram_heap_info(bk_dump_mem_info_t *info)
 	info->start_addr = 0;
 	info->size = 0;
 #endif
+}
+
+void bk_get_ap_psram_heap_info(bk_dump_mem_info_t *info)
+{
+    bk_get_ap_heap_info_common(BK_SYS_SW_REGS_AP_HEAP_PSRAM, "AP_PSRAM_HEAP", info);
 }
 
 void bk_get_psram_bss_info(bk_dump_mem_info_t *info)

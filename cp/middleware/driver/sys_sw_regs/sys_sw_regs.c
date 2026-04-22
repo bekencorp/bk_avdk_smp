@@ -20,6 +20,7 @@
  * @version 1.0
  */
 
+#include <stddef.h>
 #include "sys_sw_regs.h"
 #include "aspl_lock.h"
 
@@ -42,6 +43,15 @@ static inline void sys_sw_regs_unlock(uint32_t flags)
     bk_aspl_sys_sw_regs_exit_critical(flags);
 }
 
+static inline volatile ap_heap_dump_info_t *sys_sw_regs_ap_heap_slot(bk_sys_sw_regs_ap_heap_id_t id)
+{
+    if ((uint32_t)id >= BK_SYS_SW_REGS_AP_HEAP_MAX) {
+        return NULL;
+    }
+
+    return &s_sys_sw_regs.ap_heap_dump[id];
+}
+
 /* --------------------------------------------------------------------------
  * Read API
  * -------------------------------------------------------------------------- */
@@ -59,6 +69,22 @@ uint32_t bk_sys_sw_regs_get_cp_reset_reason(void)
 uint32_t bk_sys_sw_regs_get_ap_reset_reason(void)
 {
     return s_sys_sw_regs.ap_reset_reason;
+}
+
+uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap_dump_info_t *info)
+{
+    volatile ap_heap_dump_info_t *slot = sys_sw_regs_ap_heap_slot(id);
+
+    if ((slot == NULL) || (info == NULL)) {
+        return 0;
+    }
+
+    info->valid = slot->valid;
+    info->pool_base = slot->pool_base;
+    info->max_alloc_end = slot->max_alloc_end;
+    info->reserved = slot->reserved;
+
+    return (info->valid == BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID) ? 1 : 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -83,6 +109,30 @@ void bk_sys_sw_regs_set_ap_reset_reason(uint32_t value)
 {
     uint32_t flags = sys_sw_regs_lock();
     s_sys_sw_regs.ap_reset_reason = value;
+    sys_sw_regs_unlock(flags);
+}
+
+void bk_sys_sw_regs_update_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, uint32_t pool_base, uint32_t max_alloc_end)
+{
+    volatile ap_heap_dump_info_t *slot = sys_sw_regs_ap_heap_slot(id);
+    uint32_t flags;
+
+    if ((slot == NULL) || (pool_base == 0U) || (max_alloc_end <= pool_base)) {
+        return;
+    }
+
+    flags = sys_sw_regs_lock();
+
+    if ((slot->valid != BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID) || (slot->pool_base != pool_base)) {
+        slot->valid = 0U;
+        slot->pool_base = pool_base;
+        slot->max_alloc_end = max_alloc_end;
+        slot->reserved = 0U;
+        slot->valid = BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID;
+    } else if (max_alloc_end > slot->max_alloc_end) {
+        slot->max_alloc_end = max_alloc_end;
+    }
+
     sys_sw_regs_unlock(flags);
 }
 
