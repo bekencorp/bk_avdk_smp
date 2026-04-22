@@ -617,6 +617,7 @@ exit:
 bk_err_t dpu_core_deinit(dpu_handle_t *handle)
 {
     AVDK_RETURN_ON_FALSE(handle, BK_ERR_NULL_PARAM, TAG, "invalid argument");
+    AVDK_RETURN_ON_FALSE(*handle, BK_ERR_NULL_PARAM, TAG, "invalid handle");
     dpu_context_t *context = (dpu_context_t*)*handle;
 
     dpu_frame_deinit();
@@ -652,7 +653,10 @@ bk_err_t dpu_core_deinit(dpu_handle_t *handle)
             if (context->update_frame[layer])
             {
                 LOGV("%s free update frame %p\n", __func__, context->update_frame[layer]);
-                context->update_cb[layer](context->update_frame[layer]);
+                if (context->update_cb[layer])
+                {
+                    context->update_cb[layer](context->update_frame[layer]);
+                }
             }
         }
     }
@@ -663,7 +667,10 @@ bk_err_t dpu_core_deinit(dpu_handle_t *handle)
             if (context->display_frame[layer])
             {
                 LOGV("%s free display frame %p\n", __func__, context->display_frame[layer]);
-                context->display_cb[layer](context->display_frame[layer]);
+                if (context->display_cb[layer])
+                {
+                    context->display_cb[layer](context->display_frame[layer]);
+                }
             }
         }
     }
@@ -699,6 +706,7 @@ bk_err_t dpu_core_flush_restart(dpu_handle_t *handle)
 bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flush_free_cb_t cb)
 {
     AVDK_RETURN_ON_FALSE(handle, BK_ERR_NULL_PARAM, TAG, "invalid argument");
+    AVDK_RETURN_ON_FALSE(*handle, BK_ERR_NULL_PARAM, TAG, "invalid handle");
     bk_err_t ret = BK_OK;
     dpu_context_t *context = (dpu_context_t*)*handle;
     void *old_display_frame = NULL;
@@ -768,6 +776,15 @@ bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flu
         context->update_cb[layer] = cb;
         context->frame_rate[layer]++;
         ret = dpu_frame_update(layer, buff);
+        if (ret != BK_OK)
+        {
+            context->update_frame[layer] = NULL;
+            context->update_cb[layer] = NULL;
+            if (cb)
+            {
+                cb(buff);
+            }
+        }
     }
 exit:
     rtos_unlock_mutex(&context->flush_mutex);

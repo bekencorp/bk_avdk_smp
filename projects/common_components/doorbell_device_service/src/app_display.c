@@ -26,9 +26,17 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 
+typedef enum
+{
+    APP_DISPLAY_STATE_OFF = 0,
+    APP_DISPLAY_STATE_TURNING_ON,
+    APP_DISPLAY_STATE_ON,
+    APP_DISPLAY_STATE_TURNING_OFF,
+} app_display_state_t;
+
 typedef struct
 {
-    uint8_t enable;
+    app_display_state_t state;
 #if (DISP_DEBUG_TIMER_ENABLE)
     beken_timer_t timer;
     float rps;             //hw refreash per second
@@ -45,77 +53,139 @@ typedef struct
 } display_ctx_t;
 
 display_ctx_t *s_disp_ctx = NULL;
+static beken_mutex_t s_disp_mutex = NULL;
 
 
 display_board_config_t *display_board_config = NULL;
 
+static bool app_display_state_is_on(const display_ctx_t *ctx)
+{
+    return (ctx != NULL) && (ctx->state == APP_DISPLAY_STATE_ON) && (ctx->dpu_ctlr_handle != NULL);
+}
+
+static void app_display_ctx_destroy(display_ctx_t *ctx)
+{
+    if (ctx == NULL)
+    {
+        return;
+    }
+
+    if (ctx->dpu_ctlr_handle)
+    {
+        (void)bk_display_close(ctx->dpu_ctlr_handle);
+        (void)bk_display_deinit(ctx->dpu_ctlr_handle);
+        (void)bk_display_delete(ctx->dpu_ctlr_handle);
+        ctx->dpu_ctlr_handle = NULL;
+    }
+
+    if (ctx->panel_handle)
+    {
+        bk_lcd_panel_reset(ctx->panel_handle);
+        bk_lcd_panel_del(ctx->panel_handle);
+        ctx->panel_handle = NULL;
+    }
+
+    if (ctx->dis_bus_handle)
+    {
+        bk_display_bus_delete(ctx->dis_bus_handle);
+        ctx->dis_bus_handle = NULL;
+    }
+
+    if (ctx->cfg_bus_handle)
+    {
+        bk_display_bus_delete(ctx->cfg_bus_handle);
+        ctx->cfg_bus_handle = NULL;
+    }
+
+    ctx->state = APP_DISPLAY_STATE_OFF;
+    os_memset(ctx, 0, sizeof(display_ctx_t));
+    os_free(ctx);
+}
+
+static bk_err_t app_display_lock(void)
+{
+    if (s_disp_mutex == NULL)
+    {
+        bk_err_t ret = rtos_init_mutex(&s_disp_mutex);
+        if (ret != BK_OK)
+        {
+            LOGE("%s, init mutex failed: %d\n", __func__, ret);
+            return ret;
+        }
+    }
+
+    bk_err_t ret = rtos_lock_mutex(&s_disp_mutex);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, lock mutex failed: %d\n", __func__, ret);
+    }
+    return ret;
+}
+
+static void app_display_unlock(void)
+{
+    if (s_disp_mutex != NULL)
+    {
+        (void)rtos_unlock_mutex(&s_disp_mutex);
+    }
+}
+
 void *app_mipi_lcd_handle_get(void)
 {
-    AVDK_RETURN_ON_FALSE(s_disp_ctx, NULL, TAG, "s_disp_ctx NULL \n");
-    return s_disp_ctx->dpu_ctlr_handle;
+    void *handle = NULL;
+
+    if (app_display_lock() != BK_OK)
+    {
+        return NULL;
+    }
+
+    if (s_disp_ctx != NULL)
+    {
+        if (s_disp_ctx->state == APP_DISPLAY_STATE_ON)
+        {
+            handle = s_disp_ctx->dpu_ctlr_handle;
+        }
+    }
+
+    app_display_unlock();
+    return handle;
 }
 
-
-int app_display_flush_complete(uint32_t frame)
-{
-#if (DISP_DEBUG_TIMER_ENABLE)
-    display_ctx_t *config = s_disp_ctx;
-    AVDK_RETURN_ON_FALSE(config, BK_FAIL, TAG, "s_disp_ctx NULL \n");
-
-    config->refreash_count++;
-#endif
-    return BK_OK;
-}
 
 int app_mipi_lcd_turn_off(void)
 {
     bk_err_t ret = BK_OK;
-
-    display_ctx_t *config = s_disp_ctx;
+    display_ctx_t *config = NULL;
     display_board_config_t *board_config = app_display_board_config_get();
-    if (config == NULL)
-    {
-        LOGI("%s, already turn off %d \n", __func__, __LINE__);
-        return ret;
-    }
 
-    if (config->enable == false)
+    if (app_display_lock() != BK_OK)
     {
-        LOGE("%s, display state is already disable, may be turning off now\n", __func__);
         return BK_FAIL;
     }
 
-    config->enable = false;
+    config = s_disp_ctx;
+    if (config == NULL)
+    {
+        LOGI("%s, already turn off %d \n", __func__, __LINE__);
+        app_display_unlock();
+        return ret;
+    }
+
+    if (config->state != APP_DISPLAY_STATE_ON)
+    {
+        LOGE("%s, invalid display state: %d\n", __func__, config->state);
+        app_display_unlock();
+        return BK_FAIL;
+    }
+
+    config->state = APP_DISPLAY_STATE_TURNING_OFF;
     if (board_config && board_config->mipi.enable) {
         bk_gpio_set_output_low(board_config->mipi.pin_backlight);
     }
-    if (config->dpu_ctlr_handle)
-    {
-        ret = bk_display_deinit(config->dpu_ctlr_handle);
-        bk_display_delete(config->dpu_ctlr_handle);
-        config->dpu_ctlr_handle = NULL;
-    }
-    if (config->panel_handle)
-    {
-        bk_lcd_panel_reset(config->panel_handle);
-        bk_lcd_panel_del(config->panel_handle);
-        config->panel_handle = NULL;
-    }
 
-    if (config->dis_bus_handle)
-    {
-        bk_display_bus_delete(config->dis_bus_handle);
-        config->dis_bus_handle = NULL;
-    }
-
-    if (config->cfg_bus_handle) {
-        bk_display_bus_delete(config->cfg_bus_handle);
-        config->cfg_bus_handle = NULL;
-    }
-//    display_frame_manager_deinit();
-    os_memset(config, 0, sizeof(display_ctx_t));
-    os_free(config);
     s_disp_ctx = NULL;
+    app_display_ctx_destroy(config);
+    app_display_unlock();
     LOGI("%s complete\n", __func__);
     return BK_OK;
 }
@@ -124,7 +194,7 @@ int app_mipi_lcd_turn_off(void)
 int app_mipi_lcd_turn_on(display_board_config_t *config)
 {
     int ret = BK_OK;
-    display_ctx_t *content = s_disp_ctx;
+    display_ctx_t *content = NULL;
 
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
 
@@ -135,21 +205,34 @@ int app_mipi_lcd_turn_on(display_board_config_t *config)
         return BK_FAIL;
     }
 
+    if (app_display_lock() != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    content = s_disp_ctx;
     if (content)
     {
         LOGW("%s already turned on\n", __func__);
-        if (!content->enable)
+        if (content->state != APP_DISPLAY_STATE_ON)
         {
-            LOGE("%s, display state is error, may be turning off now\n", __func__);
+            LOGE("%s, display state is invalid: %d\n", __func__, content->state);
             ret = BK_FAIL;
         }
+        app_display_unlock();
         return ret;
     }
 
     content = (display_ctx_t *)os_malloc(sizeof(display_ctx_t));
-    AVDK_RETURN_ON_FALSE(content, BK_ERR_NO_MEM, TAG, "malloc s_disp_ctx NUL \n");
+    if (content == NULL)
+    {
+        LOGE("malloc s_disp_ctx NULL \n");
+        app_display_unlock();
+        return BK_ERR_NO_MEM;
+    }
 
     os_memset(content, 0, sizeof(display_ctx_t));
+    content->state = APP_DISPLAY_STATE_TURNING_ON;
 
     bk_display_dpu_config_t lcd_cfg =
     {
@@ -184,44 +267,35 @@ int app_mipi_lcd_turn_on(display_board_config_t *config)
     AVDK_GOTO_ON_ERROR(bk_lcd_mipi_panel_new(content->dis_bus_handle, &panel_dev_config, config->mipi.panel, &content->panel_handle),
                        err, TAG, "create panel err\n");
 
-    bk_lcd_panel_reset(content->panel_handle);
-    bk_lcd_panel_init(content->panel_handle);
+    AVDK_GOTO_ON_ERROR(bk_lcd_panel_reset(content->panel_handle), err, TAG, "panel reset err\n");
+    AVDK_GOTO_ON_ERROR(bk_lcd_panel_init(content->panel_handle), err, TAG, "panel init err\n");
 
-    bk_lcd_panel_get_disp_timing(content->panel_handle, &lcd_cfg.timing);
+    AVDK_GOTO_ON_ERROR(bk_lcd_panel_get_disp_timing(content->panel_handle, &lcd_cfg.timing), err, TAG, "get panel timing err\n");
     AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&content->dpu_ctlr_handle, &lcd_cfg), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(content->dpu_ctlr_handle), err, TAG, "display init err\n");
     AVDK_GOTO_ON_ERROR(bk_display_open(content->dpu_ctlr_handle), err, TAG, "display open err\n");
 
-    /* enable backlight */
-    gpio_dev_unmap(config->mipi.pin_backlight);
-    BK_LOG_ON_ERR(bk_gpio_enable_output(config->mipi.pin_backlight));
-    BK_LOG_ON_ERR(bk_gpio_pull_up(config->mipi.pin_backlight));
-    bk_gpio_set_capacity(config->mipi.pin_backlight, GPIO_DRIVER_CAPACITY_3);  // Enhance GPIO Driver Capacity
-    bk_gpio_set_output_high(config->mipi.pin_backlight);
-    content->enable = true;
+    if (config->mipi.enable)
+    {
+        gpio_dev_unmap(config->mipi.pin_backlight);
+        BK_LOG_ON_ERR(bk_gpio_enable_output(config->mipi.pin_backlight));
+        BK_LOG_ON_ERR(bk_gpio_pull_up(config->mipi.pin_backlight));
+        bk_gpio_set_capacity(config->mipi.pin_backlight, GPIO_DRIVER_CAPACITY_3);
+        bk_gpio_set_output_high(config->mipi.pin_backlight);
+    }
+    content->state = APP_DISPLAY_STATE_ON;
 
     s_disp_ctx = content;
+    app_display_unlock();
     return BK_OK;
 
 err:
     if (content != NULL) {
-        if (content->cfg_bus_handle) {
-            bk_display_bus_delete(content->cfg_bus_handle);
-            content->cfg_bus_handle = NULL;
-        }
-        if (content->dis_bus_handle) {
-            bk_display_bus_delete(content->dis_bus_handle);
-            content->dis_bus_handle = NULL;
-        }
-        if (content->dpu_ctlr_handle) {
-            bk_display_deinit(content->dpu_ctlr_handle);
-            bk_display_delete(content->dpu_ctlr_handle);
-            content->dpu_ctlr_handle = NULL;
-        }
-        os_memset(content, 0, sizeof(display_ctx_t));
-        os_free(content);
+        content->state = APP_DISPLAY_STATE_OFF;
+        app_display_ctx_destroy(content);
         s_disp_ctx = NULL;
     }
+    app_display_unlock();
     LOGE("%s fail\n", __func__);
     return ret;
 }
@@ -230,20 +304,36 @@ int app_mipi_lcd_flush(void *frame, avdk_err_t (*free_t)(void *args))
 {
     bk_err_t ret = AVDK_ERR_GENERIC;
 
-    if (s_disp_ctx && s_disp_ctx->dpu_ctlr_handle)
+    if (app_display_lock() != BK_OK)
     {
-         ret = bk_display_flush(s_disp_ctx->dpu_ctlr_handle, frame, free_t);
+        return ret;
     }
+
+    if (app_display_state_is_on(s_disp_ctx))
+    {
+        ret = bk_display_flush(s_disp_ctx->dpu_ctlr_handle, frame, free_t);
+    }
+
+    app_display_unlock();
     return ret;
 }
 
 bool app_mipi_lcd_state_get(void)
 {
-    if (s_disp_ctx && s_disp_ctx->dpu_ctlr_handle)
+    bool enabled = false;
+
+    if (app_display_lock() != BK_OK)
     {
-        return true;
+        return false;
     }
-    return false;
+
+    if (app_display_state_is_on(s_disp_ctx))
+    {
+        enabled = true;
+    }
+
+    app_display_unlock();
+    return enabled;
 }
 
 
