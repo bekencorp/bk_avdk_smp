@@ -239,6 +239,13 @@ SECTIONS
       __lcd_panel_device_array_end = .;
     } > FLASH
 
+    .tp_detect :
+    {
+      __tp_sensor_detect_array_start = .;
+      KEEP(*(.tp_sensor_detect_function_list.*))
+      __tp_sensor_detect_array_end = .;
+    } > FLASH
+
     .avdk_ipc :
     {
       __start_ipc_chan_reg = .;

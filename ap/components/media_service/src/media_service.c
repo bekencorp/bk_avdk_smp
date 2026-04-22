@@ -5,6 +5,8 @@
 #include "nano_osi_wrapper.h"
 #include "isp_socket_wrapper.h"
 #include "isp_i2c_wrapper.h"
+#include "bk_peripheral.h"
+
 
 #define TAG "media_sev"
 
@@ -47,6 +49,7 @@ int media_service_init(void)
         return ret;
     }
 #endif
+
 #ifdef CONFIG_LWIP_V2_1
     ret = bk_isp_socket_funcs_init();
     if (ret != BK_OK)
@@ -55,6 +58,8 @@ int media_service_init(void)
         return ret;
     }
 #endif // CONFIG_LWIP_V2_1
+
+    bk_peripheral_init();
 
     return 0;
 }

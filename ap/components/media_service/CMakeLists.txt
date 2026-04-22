@@ -19,6 +19,6 @@ list(APPEND srcs
 
 endif() #CONFIG_MEDIA_SERVICE
 
-set(priv_req bk_common bk_vfs bk_display bk_rtos lwip_intf_v2_1 bk_h264d bk_h264e bk_encoder bk_decoder bk_gpu avdk_driver)
+set(priv_req bk_common bk_vfs bk_display bk_rtos lwip_intf_v2_1 bk_h264d bk_h264e bk_encoder bk_decoder bk_gpu avdk_driver bk_peripheral)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}" REQUIRES)
