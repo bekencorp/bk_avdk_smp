@@ -100,9 +100,9 @@ bk_err_t sys_drv_auxs_enet_cksel_clkdiv_set(cksel_sys_dco_apll_t cksel, uint32_t
 bk_err_t sys_drv_trace_cksel_clkdiv_set(cksel_sys_trace_t cksel, uint32_t ckdiv);
 
 
-bk_err_t sys_drv_auxldo_set(auxldo_sel_t auxldo_sel,uint32_t value);
+bk_err_t sys_drv_auxldo_enable(auxldo_sel_t auxldo_sel,uint32_t value);
+uint32_t sys_drv_auxldo_enable_state_get(auxldo_sel_t auxldo_sel);
 bk_err_t sys_drv_auxldo_swb_set(auxldo_swb_t swb, bool bypass);
 uint32_t sys_drv_auxldo_swb_get(auxldo_swb_t swb);
-bk_err_t sys_drv_auxldo_vsel_set(auxldo_vsel_t vsel, uint32_t value);
-uint32_t sys_drv_auxldo_vsel_get(auxldo_vsel_t vsel);
-
+bk_err_t sys_drv_auxldo_out_set(auxldo_sel_t auxldo_sel, uint32_t out);
+uint32_t sys_drv_auxldo_out_get(auxldo_sel_t auxldo_sel);

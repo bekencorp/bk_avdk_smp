@@ -350,14 +350,6 @@ typedef enum
 	AUXLDO_SWB_3V,
 } auxldo_swb_t;
 
-typedef enum
-{
-	AUXLDO_VSEL_1P2V = 0,
-	AUXLDO_VSEL_1P8V,
-	AUXLDO_VSEL_2P8V,
-	AUXLDO_VSEL_3V,
-} auxldo_vsel_t;
-
 extern const clk_src_t flash_clk_src[];
 
 extern const clk_div_t flash_clk_div[];
@@ -935,6 +927,117 @@ typedef enum
 	DIAG_DEBUG_MAC, 	 // wifip_mac_dbg[31:0]
 	DIAG_DEBUG_PHY, 	 // wifip_phy_dbg[31:0]
 } diag_debug_mux_t;
+
+typedef enum
+{
+	PM_AUXLDO_1P2V_OUT_1P0V = 0, /*0*< 1.0V */
+	PM_AUXLDO_1P2V_OUT_1P1V,     /*1*< 1.1V */
+	PM_AUXLDO_1P2V_OUT_1P2V,     /*2*< 1.2V */
+	PM_AUXLDO_1P2V_OUT_1P3V,     /*3*< 1.3V */
+	PM_AUXLDO_1P2V_OUT_1P4V,     /*4*< 1.4V */
+	PM_AUXLDO_1P2V_OUT_1P5V,     /*5*< 1.5V */
+	PM_AUXLDO_1P2V_OUT_1P6V,     /*6*< 1.6V */
+	PM_AUXLDO_1P2V_OUT_1P7V,     /*7*< 1.7V */
+	PM_AUXLDO_1P2V_OUT_MAX,      /*8*< max:not use*/
+} bk_pm_auxldo_1p2v_out_t;
+
+typedef enum
+{
+	PM_AUXLDO_1P8V_OUT_1P1V = 0, /*0*< 1.1V */
+	PM_AUXLDO_1P8V_OUT_1P2V,     /*1*< 1.2V */
+	PM_AUXLDO_1P8V_OUT_1P3V,     /*2*< 1.3V */
+	PM_AUXLDO_1P8V_OUT_1P4V,     /*3*< 1.4V */
+	PM_AUXLDO_1P8V_OUT_1P5V,     /*4*< 1.5V */
+	PM_AUXLDO_1P8V_OUT_1P6V,     /*5*< 1.6V */
+	PM_AUXLDO_1P8V_OUT_1P7V,     /*6*< 1.7V */
+	PM_AUXLDO_1P8V_OUT_1P8V,     /*7*< 1.8V */
+	PM_AUXLDO_1P8V_OUT_1P9V,     /*8*< 1.9V */
+	PM_AUXLDO_1P8V_OUT_2P0V,     /*9*< 2.0V */
+	PM_AUXLDO_1P8V_OUT_2P1V,     /*10*< 2.1V */
+	PM_AUXLDO_1P8V_OUT_2P2V,     /*11*< 2.2V */
+	PM_AUXLDO_1P8V_OUT_2P3V,     /*12*< 2.3V */
+	PM_AUXLDO_1P8V_OUT_2P4V,     /*13*< 2.4V */
+	PM_AUXLDO_1P8V_OUT_2P5V,     /*14*< 2.5V */
+	PM_AUXLDO_1P8V_OUT_2P6V,     /*15*< 2.6V */
+	PM_AUXLDO_1P8V_OUT_MAX,      /*16*< max:not use*/
+} bk_pm_auxldo_1p8v_out_t;
+
+typedef enum
+{
+	PM_AUXLDO_2P8V_OUT_2P1V = 0, /*0*< 2.1V */
+	PM_AUXLDO_2P8V_OUT_2P2V,     /*1*< 2.2V */
+	PM_AUXLDO_2P8V_OUT_2P3V,     /*2*< 2.3V */
+	PM_AUXLDO_2P8V_OUT_2P4V,     /*3*< 2.4V */
+	PM_AUXLDO_2P8V_OUT_2P5V,     /*4*< 2.5V */
+	PM_AUXLDO_2P8V_OUT_2P6V,     /*5*< 2.6V */
+	PM_AUXLDO_2P8V_OUT_2P7V,     /*6*< 2.7V */
+	PM_AUXLDO_2P8V_OUT_2P8V,     /*7*< 2.8V */
+	PM_AUXLDO_2P8V_OUT_2P9V,     /*8*< 2.9V */
+	PM_AUXLDO_2P8V_OUT_3P0V,     /*9*< 3.0V */
+	PM_AUXLDO_2P8V_OUT_3P1V,     /*10*< 3.1V */
+	PM_AUXLDO_2P8V_OUT_3P2V,     /*11*< 3.2V */
+	PM_AUXLDO_2P8V_OUT_3P3V,     /*12*< 3.3V */
+	PM_AUXLDO_2P8V_OUT_3P4V,     /*13*< 3.4V */
+	PM_AUXLDO_2P8V_OUT_3P5V,     /*14*< 3.5V */
+	PM_AUXLDO_2P8V_OUT_3P6V,     /*15*< 3.6V */
+	PM_AUXLDO_2P8V_OUT_MAX,      /*16*< max:not use*/
+} bk_pm_auxldo_2p8v_out_t;
+
+typedef enum
+{
+	PM_AUXLDO_3V_OUT_2P1V = 0, /*0*< 2.1V */
+	PM_AUXLDO_3V_OUT_2P2V,     /*1*< 2.2V */
+	PM_AUXLDO_3V_OUT_2P3V,     /*2*< 2.3V */
+	PM_AUXLDO_3V_OUT_2P4V,     /*3*< 2.4V */
+	PM_AUXLDO_3V_OUT_2P5V,     /*4*< 2.5V */
+	PM_AUXLDO_3V_OUT_2P6V,     /*5*< 2.6V */
+	PM_AUXLDO_3V_OUT_2P7V,     /*6*< 2.7V */
+	PM_AUXLDO_3V_OUT_2P8V,     /*7*< 2.8V */
+	PM_AUXLDO_3V_OUT_2P9V,     /*8*< 2.9V */
+	PM_AUXLDO_3V_OUT_3P0V,     /*9*< 3.0V */
+	PM_AUXLDO_3V_OUT_3P1V,     /*10*< 3.1V */
+	PM_AUXLDO_3V_OUT_3P2V,     /*11*< 3.2V */
+	PM_AUXLDO_3V_OUT_3P3V,     /*12*< 3.3V */
+	PM_AUXLDO_3V_OUT_3P4V,     /*13*< 3.4V */
+	PM_AUXLDO_3V_OUT_3P5V,     /*14*< 3.5V */
+	PM_AUXLDO_3V_OUT_3P6V,     /*15*< 3.6V */
+	PM_AUXLDO_3V_OUT_MAX,      /*16*< max:not use*/
+} bk_pm_auxldo_3v_out_t;
+
+typedef enum
+{
+	PM_AUXLDO_2P8V_USER_CAMERA =  0x1 << 0, /*1*< camera*/
+	PM_AUXLDO_2P8V_USER_DISPLAY = 0x1 << 1, /*2*< display*/
+	PM_AUXLDO_2P8V_USER_NONE   =  0x1 << 2, /*4*< none*/
+} pm_auxldo_2p8v_user_t;
+
+typedef struct
+{
+	auxldo_sel_t ldo;
+	uint32_t out;
+} pm_auxldo_out_cfg_t;
+
+typedef enum
+{
+	PM_AUXLDO_DISABLE = 0,
+	PM_AUXLDO_ENABLE,
+	PM_AUXLDO_ENABLE_MAX,
+} pm_auxldo_enable_t;
+
+typedef struct
+{
+	auxldo_sel_t ldo;
+	pm_auxldo_enable_t state;
+	pm_auxldo_2p8v_user_t user;
+} pm_auxldo_enable_cfg_t;
+
+typedef struct
+{
+	auxldo_sel_t ldo;
+	uint32_t out;
+	pm_auxldo_enable_t state;
+	pm_auxldo_2p8v_user_t user;
+} pm_auxldo_ctrl_cfg_t;
 
 
 /* AP: sub domain hsusb power */

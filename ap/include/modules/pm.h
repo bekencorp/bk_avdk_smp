@@ -657,6 +657,22 @@ typedef enum {
 #define PM_CP1_AUTO_POWER_DOWN_CTRL      (PM_CP1_AUTO_POWER_DOWN_ENABLE)
 
 /*=====================CONFIG  SECTION  END=======================*/
+/****************************************************************************
+ * Name: bk_pm_auxldo_ctrl_vote
+ *
+ * Description:
+ *   Apply AUXLDO voltage configuration and enable state in one request.
+ *   The function programs output voltage first, then applies enable/disable.
+ *
+ * Input Parameters:
+ *   auxldo_cfg - Pointer to AUXLDO control configuration
+ *
+ * Returns:
+ *   BK_OK on success, or error code on failure
+ *
+ ****************************************************************************/
+bk_err_t bk_pm_auxldo_ctrl_vote(const pm_auxldo_ctrl_cfg_t *auxldo_cfg);
+
 /**
  * @brief send message to pm thread for enter deepsleep or low voltage
  *

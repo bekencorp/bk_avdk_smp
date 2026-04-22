@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <common/bk_include.h>
+#include <sys_types.h>
 
 /****************************************************************************
  * Name: bk_pm_module_power_on

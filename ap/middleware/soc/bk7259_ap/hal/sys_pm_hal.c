@@ -923,7 +923,7 @@ bk_err_t sys_hal_trace_cksel_clkdiv_set(cksel_sys_trace_t cksel, uint32_t ckdiv)
 	sys_ll_set_cpu_clk_div_mode3_ckdiv_trace(ckdiv);
 	return BK_OK;
 }
-bk_err_t sys_hal_auxldo_set(auxldo_sel_t auxldo_sel,uint32_t value)
+bk_err_t sys_hal_auxldo_enable(auxldo_sel_t auxldo_sel,uint32_t value)
 {
 	if(value > 1)
 	{
@@ -932,16 +932,28 @@ bk_err_t sys_hal_auxldo_set(auxldo_sel_t auxldo_sel,uint32_t value)
 	switch (auxldo_sel)
 	{
 		case AUXLDOS_SEL_3V:
-			sys_ll_set_ana_reg41_vsel_auxldo3v(value);
+			if(sys_ll_get_ana_reg41_en_auxldo3v() != value)
+			{
+				sys_ll_set_ana_reg41_en_auxldo3v(value);
+			}
 			break;
 		case AUXLDOS_SEL_2P8V:
-			sys_ll_set_ana_reg41_vsel_auxldo2p8v(value);
+			if(sys_ll_get_ana_reg41_en_auxldo2p8v() != value)
+			{
+				sys_ll_set_ana_reg41_en_auxldo2p8v(value);
+			}
 			break;
 		case AUXLDOS_SEL_1P8V:
-			sys_ll_set_ana_reg41_vsel_auxldo1p8v(value);
+			if(sys_ll_get_ana_reg41_en_auxldo_1p8v() != value)
+			{
+				sys_ll_set_ana_reg41_en_auxldo_1p8v(value);
+			}
 			break;
 		case AUXLDOS_SEL_1P2V:
-			sys_ll_set_ana_reg41_vsel_auxldo1p2v(value);
+			if(sys_ll_get_ana_reg41_en_auxldo_1p2v() != value)
+			{
+				sys_ll_set_ana_reg41_en_auxldo_1p2v(value);
+			}
 			break;
 		case AUXLDOS_SEL_NONE:
 			break;
@@ -950,10 +962,28 @@ bk_err_t sys_hal_auxldo_set(auxldo_sel_t auxldo_sel,uint32_t value)
 	}
 	return BK_OK;
 }
-
+uint32_t sys_hal_auxldo_enable_state_get(auxldo_sel_t auxldo_sel)
+{
+	switch (auxldo_sel)
+	{
+		case AUXLDOS_SEL_3V:
+			return sys_ll_get_ana_reg41_en_auxldo3v();
+		case AUXLDOS_SEL_2P8V:
+			return sys_ll_get_ana_reg41_en_auxldo2p8v();
+		case AUXLDOS_SEL_1P8V:
+			return sys_ll_get_ana_reg41_en_auxldo_1p8v();
+		case AUXLDOS_SEL_1P2V:
+			return sys_ll_get_ana_reg41_en_auxldo_1p2v();
+		case AUXLDOS_SEL_NONE:
+			return BK_ERR_NOT_SUPPORT;
+		default:
+			return BK_ERR_NOT_SUPPORT;
+	}
+}
 bk_err_t sys_hal_auxldo_swb_set(auxldo_swb_t swb, bool bypass)
 {
-	/* ana_reg41: 0 = bypass, 1 = LDO */
+	/* ana_reg41: 0 = bypass：This interface is used so that, when configured to 0,
+	 the 2.8 V and 3 V LDOs are directly connected to VBAT, and their output voltage is the same as VBAT */
 	uint32_t v = bypass ? 0U : 1U;
 
 	switch (swb)
@@ -983,29 +1013,49 @@ uint32_t sys_hal_auxldo_swb_get(auxldo_swb_t swb)
 	}
 }
 
-bk_err_t sys_hal_auxldo_vsel_set(auxldo_vsel_t vsel, uint32_t value)
+bk_err_t sys_hal_auxldo_out_set(auxldo_sel_t auxldo_sel, uint32_t value)
 {
-	switch (vsel)
+	switch (auxldo_sel)
 	{
-		case AUXLDO_VSEL_1P2V:
+		case AUXLDOS_SEL_1P2V://for 1.2v camera peripheral
 			if (value > 7U)
+			{
 				return BK_ERR_PARAM;
-			sys_ll_set_ana_reg41_vsel_auxldo1p2v(value);
+			}
+			if(sys_ll_get_ana_reg41_vsel_auxldo1p2v() != value)
+			{
+				sys_ll_set_ana_reg41_vsel_auxldo1p2v(value);
+			}
 			break;
-		case AUXLDO_VSEL_1P8V:
+		case AUXLDOS_SEL_1P8V://for 1.8v camera peripheral
 			if (value > 15U)
+			{
 				return BK_ERR_PARAM;
-			sys_ll_set_ana_reg41_vsel_auxldo1p8v(value);
+			}
+			if(sys_ll_get_ana_reg41_vsel_auxldo1p8v() != value)
+			{
+				sys_ll_set_ana_reg41_vsel_auxldo1p8v(value);
+			}
 			break;
-		case AUXLDO_VSEL_2P8V:
+		case AUXLDOS_SEL_2P8V://for PHY: DSI VDDH:display, CSI_VDDH:camera  and the current load is 50 mA
 			if (value > 15U)
+			{
 				return BK_ERR_PARAM;
-			sys_ll_set_ana_reg41_vsel_auxldo2p8v(value);
+			}
+			if(sys_ll_get_ana_reg41_vsel_auxldo2p8v() != value)
+			{
+				sys_ll_set_ana_reg41_vsel_auxldo2p8v(value);
+			}
 			break;
-		case AUXLDO_VSEL_3V:
+		case AUXLDOS_SEL_3V://for 3.0v camera peripheral and the current load is 100 mA
 			if (value > 15U)
+			{
 				return BK_ERR_PARAM;
-			sys_ll_set_ana_reg41_vsel_auxldo3v(value);
+			}
+			if(sys_ll_get_ana_reg41_vsel_auxldo3v() != value)
+			{
+				sys_ll_set_ana_reg41_vsel_auxldo3v(value);
+			}
 			break;
 		default:
 			return BK_ERR_PARAM;
@@ -1013,17 +1063,17 @@ bk_err_t sys_hal_auxldo_vsel_set(auxldo_vsel_t vsel, uint32_t value)
 	return BK_OK;
 }
 
-uint32_t sys_hal_auxldo_vsel_get(auxldo_vsel_t vsel)
+uint32_t sys_hal_auxldo_out_get(auxldo_sel_t auxldo_sel)
 {
-	switch (vsel)
+	switch (auxldo_sel)
 	{
-		case AUXLDO_VSEL_1P2V:
+		case AUXLDOS_SEL_1P2V:
 			return sys_ll_get_ana_reg41_vsel_auxldo1p2v();
-		case AUXLDO_VSEL_1P8V:
+		case AUXLDOS_SEL_1P8V:
 			return sys_ll_get_ana_reg41_vsel_auxldo1p8v();
-		case AUXLDO_VSEL_2P8V:
+		case AUXLDOS_SEL_2P8V:
 			return sys_ll_get_ana_reg41_vsel_auxldo2p8v();
-		case AUXLDO_VSEL_3V:
+		case AUXLDOS_SEL_3V:
 			return sys_ll_get_ana_reg41_vsel_auxldo3v();
 		default:
 			return 0U;

@@ -714,11 +714,12 @@ bk_err_t sys_hal_spi2_cksel_set(cksel_sys_xtal_160m_t cksel);
 bk_err_t sys_hal_spi3_cksel_set(cksel_sys_xtal_160m_t cksel);
 
 /* ana_reg41: aux LDO enable / bypass (swb) / output trim (vsel) */
-bk_err_t sys_hal_auxldo_set(auxldo_sel_t auxldo_sel,uint32_t value);
+bk_err_t sys_hal_auxldo_enable(auxldo_sel_t auxldo_sel,uint32_t value);
+uint32_t sys_hal_auxldo_enable_state_get(auxldo_sel_t auxldo_sel);
 bk_err_t sys_hal_auxldo_swb_set(auxldo_swb_t swb, bool bypass);
 uint32_t sys_hal_auxldo_swb_get(auxldo_swb_t swb);
-bk_err_t sys_hal_auxldo_vsel_set(auxldo_vsel_t vsel, uint32_t value);
-uint32_t sys_hal_auxldo_vsel_get(auxldo_vsel_t vsel);
+bk_err_t sys_hal_auxldo_out_set(auxldo_sel_t vsel, uint32_t value);
+uint32_t sys_hal_auxldo_out_get(auxldo_sel_t vsel);
 
 bk_err_t sys_hal_uart0_cksel_set(cksel_sys_xtal_120m_t cksel);
 bk_err_t sys_hal_uart1_cksel_set(cksel_sys_xtal_120m_t cksel);

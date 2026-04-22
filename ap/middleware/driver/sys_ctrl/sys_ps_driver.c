@@ -453,10 +453,18 @@ uint32_t sys_pm_get_power(power_module_name_t module)
 	return sys_drv_module_power_state_get(module);
 }
 
-bk_err_t sys_drv_auxldo_set(auxldo_sel_t auxldo_sel,uint32_t value)
+bk_err_t sys_drv_auxldo_enable(auxldo_sel_t auxldo_sel,uint32_t value)
 {
 	uint32_t int_level = sys_drv_enter_critical();
-	bk_err_t ret = sys_hal_auxldo_set(auxldo_sel,value);
+	bk_err_t ret = sys_hal_auxldo_enable(auxldo_sel,value);
+	sys_drv_exit_critical(int_level);
+	return ret;
+}
+
+uint32_t sys_drv_auxldo_enable_state_get(auxldo_sel_t auxldo_sel)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	bk_err_t ret = sys_hal_auxldo_enable_state_get(auxldo_sel);
 	sys_drv_exit_critical(int_level);
 	return ret;
 }
@@ -477,18 +485,18 @@ uint32_t sys_drv_auxldo_swb_get(auxldo_swb_t swb)
 	return ret;
 }
 
-bk_err_t sys_drv_auxldo_vsel_set(auxldo_vsel_t vsel, uint32_t value)
+bk_err_t sys_drv_auxldo_out_set(auxldo_sel_t auxldo_sel, uint32_t out)
 {
 	uint32_t int_level = sys_drv_enter_critical();
-	bk_err_t ret = sys_hal_auxldo_vsel_set(vsel,value);
+	bk_err_t ret = sys_hal_auxldo_out_set(auxldo_sel,out);
 	sys_drv_exit_critical(int_level);
 	return ret;
 }
 
-uint32_t sys_drv_auxldo_vsel_get(auxldo_vsel_t vsel)
+uint32_t sys_drv_auxldo_out_get(auxldo_sel_t auxldo_sel)
 {
 	uint32_t int_level = sys_drv_enter_critical();
-	uint32_t ret = sys_hal_auxldo_vsel_get(vsel);
+	uint32_t ret = sys_hal_auxldo_out_get(auxldo_sel);
 	sys_drv_exit_critical(int_level);
 	return ret;
 }
