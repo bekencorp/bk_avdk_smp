@@ -324,27 +324,7 @@ uint32_t bk_pm_phy_pm_state_get()
 /*=========================MODULES POWER CTRL END========================*/
 
 /*=========================RF POWER CTRL START========================*/
-// TODO: is still in use ?
-static uint32_t s_pm_rf_on_modules;
-static uint32_t s_pm_rf_off_modules;
-void pm_rf_power_ctrl(pm_power_module_name_e module, pm_power_module_state_e power_state)
-{
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
-	if (power_state == PM_POWER_MODULE_STATE_ON)
-	{
-		s_pm_rf_on_modules |= 0x1 << module;
-	}
-	else
-	{
-		s_pm_rf_off_modules |= 0x1 << module;
-	}
-	sys_drv_module_RF_power_ctrl(module, power_state);
-	GLOBAL_INT_RESTORE();
-}
-void pm_rf_switch(pm_power_module_name_e name)
-{
-}
+
 /*=========================RF POWER CTRL END========================*/
 
 /*=========================SPECIFIC API START========================*/
