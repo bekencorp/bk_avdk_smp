@@ -15,6 +15,7 @@
 #include "hspl_driver.h"
 #include <components/log.h>
 #include <driver/int.h>
+#include <modules/pm.h>
 
 #define HSPL_TAG "hspl"
 #define HSPL_LOGI(...) BK_LOGI(HSPL_TAG, ##__VA_ARGS__)
@@ -53,6 +54,8 @@
 /* Timeout control (based on BK7259 verification tests) */
 #define HSPL_TIMEOUT_IRQ_CLR_BIT  (1U << 0)
 #define HSPL_TIMEOUT_IRQ_EN_BIT   (1U << 1)
+
+
 
 static inline uintptr_t hspl_get_base(bk_hspl_id_t hspl_id)
 {
@@ -94,6 +97,122 @@ static inline void hspl_lazy_init(void)
 	(void)bk_hspl_driver_init();
 }
 
+static uint32_t hspl_get_bus_clock_hz(pm_cpu_freq_e cpu_freq)
+{
+	switch (cpu_freq) {
+	case PM_CPU_FRQ_XTAL:
+		return CONFIG_XTAL_FREQ;
+	case PM_CPU_FRQ_60M:
+		return 60000000U;
+	case PM_CPU_FRQ_80M:
+		return 80000000U;
+	case PM_CPU_FRQ_120M:
+		return 120000000U;
+	case PM_CPU_FRQ_160M:
+		return 160000000U;
+	case PM_CPU_FRQ_240M:
+		return 120000000U;
+	case PM_CPU_FRQ_320M:
+		return 160000000U;
+	case PM_CPU_FRQ_480M:
+		return 240000000U;
+	case PM_CPU_FRQ_HIGHEST:
+	case PM_CPU_FRQ_DEFAULT:
+	default:
+		/* Fall back to the maximum documented bus rate. */
+		return 240000000U;
+	}
+}
+
+static uint32_t hspl_get_timeout_threshold_cycles(void)
+{
+	uint32_t bus_hz;
+	uint64_t cycles;
+
+	bus_hz = hspl_get_bus_clock_hz(bk_pm_current_max_cpu_freq_get());
+	cycles = ((uint64_t)bus_hz * CONFIG_HSPL_TIMEOUT_MONITOR_MS) / 1000U;
+
+	if (cycles == 0U) {
+		cycles = 1U;
+	} else if (cycles > HSPL_TIMEOUT_TH_MASK) {
+		cycles = HSPL_TIMEOUT_TH_MASK;
+	}
+
+	return (uint32_t)cycles;
+}
+
+static void hspl_timeout_monitor_init(bk_hspl_id_t hspl_id)
+{
+	uintptr_t base = hspl_get_base(hspl_id);
+	uint32_t threshold_cycles;
+	uint32_t cfg;
+
+	if (!base) {
+		return;
+	}
+
+	threshold_cycles = hspl_get_timeout_threshold_cycles();
+	s_timeout_ctx[hspl_id].sel_channel =
+		(uint8_t)CONFIG_HSPL_TIMEOUT_MONITOR_CHANNEL;
+
+	cfg = (((uint32_t)s_timeout_ctx[hspl_id].sel_channel
+		<< HSPL_TIMEOUT_SEL_SHIFT) & HSPL_TIMEOUT_SEL_MASK) |
+	      (threshold_cycles & HSPL_TIMEOUT_TH_MASK) |
+	      HSPL_TIMEOUT_EN_BIT;
+
+	HSPL_REG_WR32(base, HSPL_REG_TIMEOUT_CFG, cfg);
+	HSPL_REG_WR32(base, HSPL_REG_TIMEOUT_CTL, HSPL_TIMEOUT_IRQ_CLR_BIT);
+	HSPL_REG_WR32(base, HSPL_REG_TIMEOUT_CTL, HSPL_TIMEOUT_IRQ_EN_BIT);
+
+	HSPL_LOGI("timeout monitor: hspl_id=%u ch=%u timeout_ms=%u cycles=%u\r\n",
+	          hspl_id,
+	          s_timeout_ctx[hspl_id].sel_channel,
+	          CONFIG_HSPL_TIMEOUT_MONITOR_MS,
+	          threshold_cycles);
+}
+
+static void hspl_dump_timeout_state(bk_hspl_id_t hspl_id)
+{
+	uintptr_t base = hspl_get_base(hspl_id);
+	uint32_t timeout_cfg;
+	uint32_t timeout_sta;
+	uint32_t timeout_ctl;
+	uint32_t state;
+	uint8_t ch;
+
+	if (!base) {
+		return;
+	}
+
+	timeout_cfg = HSPL_REG_RD32(base, HSPL_REG_TIMEOUT_CFG);
+	timeout_sta = HSPL_REG_RD32(base, HSPL_REG_TIMEOUT_STA);
+	timeout_ctl = HSPL_REG_RD32(base, HSPL_REG_TIMEOUT_CTL);
+	state = HSPL_REG_RD32(base, HSPL_REG_STATE);
+
+	HSPL_LOGE("timeout irq: hspl_id=%u mon_ch=%u cfg=0x%08X sta=0x%08X ctl=0x%08X state=0x%08X\r\n",
+	          hspl_id,
+	          s_timeout_ctx[hspl_id].sel_channel,
+	          timeout_cfg,
+	          timeout_sta,
+	          timeout_ctl,
+	          state);
+
+	for (ch = 0; ch < HSPL_CHANNEL_MAX; ch++) {
+		hspl_state_t lock_state = {0};
+
+		if (bk_hspl_get_state(hspl_id, ch, &lock_state) != BK_OK) {
+			continue;
+		}
+
+		if (lock_state.locked) {
+			HSPL_LOGE("locked ch=%u owner_valid=%u owner_id=%u\r\n",
+			          ch,
+			          lock_state.owner_valid,
+			          lock_state.owner_id);
+		}
+	}
+}
+
 /*
  * Local HSPL interrupt handling:
  * - CP(M52) handles BK_HSPL_ID_0
@@ -129,6 +248,8 @@ bk_err_t bk_hspl_driver_init(void)
 		HSPL_REG_WR32(base1, HSPL_REG_TIMEOUT_CFG, 0x0);
 		HSPL_REG_WR32(base1, HSPL_REG_TIMEOUT_CTL, 0x0);
 	}
+
+	hspl_timeout_monitor_init(HSPL_LOCAL_HSPL_ID);
 
 	/* Register HSPL interrupt for local domain */
 	bk_int_isr_register(HSPL_LOCAL_INT_SRC, bk_hspl_isr_dispatch, NULL);
@@ -322,10 +443,13 @@ void bk_hspl_isr_dispatch(void)
 {
 	/* Clear and callback for local HSPL instance */
 	bk_hspl_timeout_irq_clear(HSPL_LOCAL_HSPL_ID);
+	hspl_dump_timeout_state(HSPL_LOCAL_HSPL_ID);
 
 	if (s_timeout_ctx[HSPL_LOCAL_HSPL_ID].cb) {
 		s_timeout_ctx[HSPL_LOCAL_HSPL_ID].cb(s_timeout_ctx[HSPL_LOCAL_HSPL_ID].sel_channel,
 		                                     s_timeout_ctx[HSPL_LOCAL_HSPL_ID].cb_param);
 	}
+
+	BK_ASSERT(0);
 }
 

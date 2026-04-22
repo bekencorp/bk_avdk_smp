@@ -11,5 +11,24 @@ menu "HSPL"
 		default n
 		help
 			Enable HSPL driver CLI test commands.
+
+	config HSPL_TIMEOUT_MONITOR_MS
+		depends on HSPL
+		int "HSPL timeout monitor threshold in ms"
+		range 1 1000
+		default 2
+		help
+			Timeout threshold used by the local HSPL timeout monitor.
+			If a lock is held longer than this threshold, the HSPL timeout
+			interrupt dumps state and triggers BK_ASSERT(0).
+
+	config HSPL_TIMEOUT_MONITOR_CHANNEL
+		depends on HSPL
+		int "HSPL timeout monitor channel"
+		range 0 15
+		default 9
+		help
+			Channel selected in the local HSPL timeout monitor. The hardware
+			timeout monitor can track one selected channel per HSPL instance.
 endmenu
 

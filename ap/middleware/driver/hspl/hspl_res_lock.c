@@ -43,6 +43,11 @@ static inline uint32_t hspl_get_time_ms(void)
 #endif
 }
 
+static inline void hspl_sync_barrier(void)
+{
+	__asm volatile ("dsb\n\tisb" ::: "memory");
+}
+
 /*
  * Resource mapping:
  * - Resources 0-15:  use HSPL_0 (BK_HSPL_ID_0) channels 0-15
@@ -102,6 +107,7 @@ bk_err_t bk_hspl_res_lock(bk_hspl_res_t res, uint32_t timeout_us)
 		return BK_OK;
 	}
 	if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
+		hspl_sync_barrier();
 		s_rec_count[res][core_id] = 1;
 		rtos_enable_int(flags);
 		return BK_OK;
@@ -126,6 +132,7 @@ bk_err_t bk_hspl_res_lock(bk_hspl_res_t res, uint32_t timeout_us)
 
 	while (1) {
 		if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
+			hspl_sync_barrier();
 			flags = rtos_disable_int();
 			s_rec_count[res][core_id] = 1;
 			rtos_enable_int(flags);
@@ -184,6 +191,7 @@ bk_err_t bk_hspl_res_unlock(bk_hspl_res_t res)
 	}
 	s_rec_count[res][core_id]--;
 	if (s_rec_count[res][core_id] == 0) {
+		hspl_sync_barrier();
 		ret = bk_hspl_unlock(hspl_id, channel);
 	}
 	rtos_enable_int(flags);
@@ -221,6 +229,7 @@ bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res)
 		/* Spin until lock is acquired */
 	}
 
+	hspl_sync_barrier();
 	flags = rtos_disable_int();
 	s_rec_count[res][core_id] = 1;
 	rtos_enable_int(flags);
@@ -257,6 +266,7 @@ bk_err_t bk_hspl_res_lock_irqsave(bk_hspl_res_t res, uint32_t *flags)
 		return BK_OK;
 	}
 	if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
+		hspl_sync_barrier();
 		s_rec_count[res][core_id] = 1;
 		return BK_OK;
 	}
