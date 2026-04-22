@@ -177,6 +177,26 @@ __BK_INLINE unsigned int kfifo_get(struct kfifo *fifo,
 	return len;
 }
 
+/*
+ * DMA helper: read data without resetting in/out when fifo becomes empty.
+ */
+__BK_INLINE unsigned int kfifo_get_no_reset(struct kfifo *fifo,
+	unsigned char *buffer, unsigned int len)
+{
+	unsigned int l;
+	GLOBAL_INT_DECLARATION();
+	GLOBAL_INT_DISABLE();
+	len = min(len, fifo->in - fifo->out);
+	/* first get the data from fifo->out until the end of the buffer */
+	l = min(len, fifo->size - (fifo->out & (fifo->size - 1)));
+	os_memcpy(buffer, fifo->buffer + (fifo->out & (fifo->size - 1)), l);
+	/* then get the rest (if any) from the beginning of the buffer */
+	os_memcpy(buffer + l, fifo->buffer, len - l);
+	fifo->out += len;
+	GLOBAL_INT_RESTORE();
+	return len;
+}
+
 __BK_INLINE unsigned int kfifo_data_size(struct kfifo *fifo)
 {
 	return (fifo->in - fifo->out);
