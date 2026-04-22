@@ -668,6 +668,10 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
     #endif
 
     aud_dmic_config_t dmic_config = DEFAULT_AUD_DMIC_CONFIG();
+    dmic_config.dmic_clk_gpio  = config->dmic_cfg.dmic_clk_gpio;
+    dmic_config.dmic_data_gpio = config->dmic_cfg.dmic_data_gpio;
+    // dmic_config.dmic_mode      = config->dmic_cfg.dmic_mode;
+    // dmic_config.channel        = config->dmic_cfg.channel;
     ret = bk_aud_dmic_init(&dmic_config);
     if (ret != BK_OK)
     {

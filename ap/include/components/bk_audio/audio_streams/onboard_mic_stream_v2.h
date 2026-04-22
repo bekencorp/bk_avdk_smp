@@ -121,6 +121,7 @@ typedef struct
 typedef struct
 {
     aud_adc_config_t        adc_cfg;            /*!< ADC mode configuration */
+    aud_dmic_config_t       dmic_cfg;           /*!< DMIC mode configuration */
     uint32_t                frame_size;         /*!< the length of one frame (bytes) */
     int                     out_block_size;     /*!< Size of output block */
     int                     out_block_num;      /*!< Number of output block */
@@ -176,14 +177,20 @@ typedef struct
                         },                                              \
                     },                                                  \
                },                                                       \
-    .frame_size = 320,                                                  \
+    .dmic_cfg = {                                                       \
+                    .dmic_clk_gpio  = GPIO_6,                           \
+                    .dmic_data_gpio = GPIO_5,                           \
+                    .dmic_mode      = AUD_DMIC_MODE_1,                  \
+                    .channel        = AUD_DMIC_CHANNEL_L,               \
+                },                                                      \
+    .frame_size     = 320,                                              \
     .out_block_size = 320,                                              \
-    .out_block_num = 2,                                                 \
+    .out_block_num  = 2,                                                \
     .multi_out_port_num = 1,                                            \
     .task_stack = ONBOARD_MIC_STREAM_TASK_STACK,                        \
-    .task_core = ONBOARD_MIC_STREAM_TASK_CORE,                          \
-    .task_prio = ONBOARD_MIC_STREAM_TASK_PRIO,                          \
-    .ch_bitmap = ONBOARD_MIC_ADC_DEFAULT_ACTIVE_CH_BITS,                \
+    .task_core  = ONBOARD_MIC_STREAM_TASK_CORE,                         \
+    .task_prio  = ONBOARD_MIC_STREAM_TASK_PRIO,                         \
+    .ch_bitmap  = ONBOARD_MIC_ADC_DEFAULT_ACTIVE_CH_BITS,               \
 }
 
 /**
