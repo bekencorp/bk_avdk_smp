@@ -55,6 +55,7 @@ typedef struct
     int                     task_core;          /*!< Task running in core (0 or 1) */
     int                     task_prio;          /*!< Task priority (based on freeRTOS priority) */
     uint32_t                dac_source_bitmap;  /*!< bitmap of active dac source,bit[x]:0:source_x inactive;1:source_x active*/
+    aud_dac_source_t        main_dac_source;    /*!< main input source mapped to element->in */
 } onboard_speaker_stream_cfg_t;
 
 #define ONBOARD_SPEAKER_STREAM_TASK_STACK          (1536)
@@ -88,23 +89,24 @@ typedef struct
         .work_mode = AUD_DAC_WORK_MODE_DIFFEN,                 \
         .bits = 16,                                            \
         .clk_src = AUD_CLK_APLL,                               \
-        .multi_in_port_num = 0,                                \
+        .multi_in_port_num  = 0,                               \
         .multi_out_port_num = 1,                               \
         .frame_size[0] = 320,                                  \
         .frame_size[1] = 320,                                  \
         .frame_size[2] = 320,                                  \
         .pool_length = 0,                                      \
-        .pool_play_thold = 0,                                  \
+        .pool_play_thold  = 0,                                 \
         .pool_pause_thold = 0,                                 \
         .pa_ctrl_en = false,                                   \
         .pa_ctrl_gpio = 0,                                     \
-        .pa_on_level = 0,                                      \
-        .pa_on_delay = 0,                                      \
+        .pa_on_level  = 0,                                     \
+        .pa_on_delay  = 0,                                     \
         .pa_off_delay = 0,                                     \
         .task_stack = ONBOARD_SPEAKER_STREAM_TASK_STACK,       \
-        .task_core = ONBOARD_SPEAKER_STREAM_TASK_CORE,         \
-        .task_prio = ONBOARD_SPEAKER_STREAM_TASK_PRIO,         \
+        .task_core  = ONBOARD_SPEAKER_STREAM_TASK_CORE,        \
+        .task_prio  = ONBOARD_SPEAKER_STREAM_TASK_PRIO,        \
         .dac_source_bitmap = DEFAULT_ACTIVE_DAC_SOURCE_BITMAP, \
+        .main_dac_source   = DEFAULT_DAC_SOURCE,               \
     }
 
 /**

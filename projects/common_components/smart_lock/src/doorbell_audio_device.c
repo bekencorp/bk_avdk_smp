@@ -574,12 +574,20 @@ int doorbell_audio_turn_on(audio_parameters_t *parameters)
         voice_cfg.mic_cfg.onboard_mic_cfg.out_block_num       = 2;
 
         #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2
-        for(uint32_t i = 0; i < AUD_DAC_SOURCE_MAX; i++)
+        if (spk_sample_rate == 8000)
         {
-            voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate[i] = spk_sample_rate;
-            voice_cfg.spk_cfg.onboard_spk_cfg.frame_size[i]  = spk_sample_rate * 2 * 20 / 1000; //one frame size(20ms)
+            voice_cfg.spk_cfg.onboard_spk_cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_CALL_BIT;
+            voice_cfg.spk_cfg.onboard_spk_cfg.main_dac_source   = AUD_DAC_SOURCE_CALL;
+            voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate[AUD_DAC_SOURCE_CALL] = spk_sample_rate;
+            voice_cfg.spk_cfg.onboard_spk_cfg.frame_size[AUD_DAC_SOURCE_CALL]  = spk_sample_rate * 2 * 20 / 1000; //one frame size(20ms)
+
+        } else
+        {
+            voice_cfg.spk_cfg.onboard_spk_cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_A2DP_BIT;
+            voice_cfg.spk_cfg.onboard_spk_cfg.main_dac_source   = AUD_DAC_SOURCE_A2DP;
+            voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate[AUD_DAC_SOURCE_A2DP] = spk_sample_rate;
+            voice_cfg.spk_cfg.onboard_spk_cfg.frame_size[AUD_DAC_SOURCE_A2DP]  = spk_sample_rate * 2 * 20 / 1000; //one frame size(20ms)
         }
-        voice_cfg.spk_cfg.onboard_spk_cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_A2DP_BIT;
         #else
         voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate = spk_sample_rate;
         voice_cfg.spk_cfg.onboard_spk_cfg.frame_size  = spk_sample_rate * 2 * 20 / 1000; //one frame size(20ms)
