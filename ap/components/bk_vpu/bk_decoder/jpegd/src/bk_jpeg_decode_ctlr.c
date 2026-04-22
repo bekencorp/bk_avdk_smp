@@ -23,6 +23,7 @@
 #include "private_jpeg_decode_ctlr.h"
 #include "hw_decoder_ctlr.h"
 #include "modules/vcdec/vcdec_jpeg_api.h"
+#include "avdk_monitor.h"
 
 #define TAG "bk_jpeg_dec"
 
@@ -48,13 +49,18 @@ static void jpeg_decode_apply_min_rd_to_hw(private_jpeg_decode_ctlr_t *ctrl)
 	}
 
 	if (min_rd != 0xFFFFFFFFU) {
-		if (min_rd >= ctrl->all_ports_min_rd) {
+		if (min_rd > ctrl->all_ports_min_rd) {
 			ctrl->all_ports_min_rd = min_rd;
+			DECODE_LINE_START;
 			vcdec_jpeg_set_rd_ptr(ctrl->vcdec_handle, min_rd);
 		}
-		else
+		else if(min_rd < ctrl->all_ports_min_rd)
 		{
-			LOGE("%s %d min_rd %u is less than all_ports_min_rd %u\r\n", __func__, __LINE__, min_rd, ctrl->all_ports_min_rd);
+			LOGW("%s %d min_rd %u is less than all_ports_min_rd %u\r\n", __func__, __LINE__, min_rd, ctrl->all_ports_min_rd);
+		}
+		else if(min_rd == ctrl->all_ports_min_rd)
+		{
+			// LOGE("%s %d min_rd %u is equal to all_ports_min_rd %u\r\n", __func__, __LINE__, min_rd, ctrl->all_ports_min_rd);
 		}
 	}
 }
@@ -123,6 +129,7 @@ static void jpeg_decode_notify_flexa_bonds_error(private_jpeg_decode_ctlr_t *ctr
 
 static void frame_done_cb(int status, void *args)
 {
+	DECODE_FRAME_DONE;
 	private_jpeg_decode_ctlr_t *ctrl = (private_jpeg_decode_ctlr_t *)args;
 	if(ctrl == NULL) {
 		LOGE("control is NULL\r\n");
@@ -136,6 +143,7 @@ static void frame_done_cb(int status, void *args)
 
 static void flexa_done_cb(uint32_t wr_ptr, void *args)
 {
+	DECODE_LINE_END;
 	private_jpeg_decode_ctlr_t *ctrl = (private_jpeg_decode_ctlr_t *)args;
 	if(ctrl == NULL) {
 		LOGE("control is NULL\r\n");
@@ -253,12 +261,16 @@ static avdk_err_t jpeg_decode_callback(void *param)
 		}
 		ctrl->port[i].rd_blocks = 0;
 	}
+	DECODE_FRAME_START;
+	DECODE_LINE_START;
 	vcdec_ret_e ret = vcdec_jpeg_decode_frame(ctrl->vcdec_handle, &ctrl->decode_config);
 	if (ret != VCDEC_FRAME_READY && ret != VCDEC_OK) {
 		LOGE("%s %d vcdec_jpeg_decode_frame failed: %d\r\n", __func__, __LINE__, ret);
 		ctrl->decode_result = AVDK_ERR_GENERIC;
+		DECODE_FRAME_END;
 		return AVDK_ERR_GENERIC;
 	}
+	DECODE_FRAME_END;
 	ctrl->decode_result = BK_OK;
 
 	if (ctrl->config.decode_mode == BK_JPEG_DECODE_FLEXA_MODE_FLEXA) {

@@ -8,6 +8,7 @@
 #include "private_h264_encode_ctlr.h"
 #include "hw_encoder_ctlr.h"
 #include <components/bk_frame_buffer.h>
+#include "avdk_monitor.h"
 
 #define TAG "bk_h264_encode_ctlr"
 
@@ -69,6 +70,7 @@ static void signal_encode_done(private_h264_encode_frame_ctlr_t *ctrl)
 // H.264 encoding completion callback
 static void h264e_end_cb(void *buffer, uint32_t size, uint32_t type, uint32_t result, uint32_t param)
 {
+    ENCODE_FRAME_DONE;
     // Validate parameters
     if (!param || !buffer) {
         LOGE("Invalid parameters in h264e_end_cb\r\n");
@@ -93,19 +95,6 @@ static void h264e_end_cb(void *buffer, uint32_t size, uint32_t type, uint32_t re
     signal_encode_done(ctrl);
 }
 
-// Flexa slice done callback: driver expects (yDst, uDst, vDst, uint32_t param), returns uint32_t
-static uint32_t h264_encode_flexa_done_cb(uint8_t *yDst, uint8_t *uDst, uint8_t *vDst, uint32_t param)
-{
-    private_h264_encode_frame_ctlr_t *ctrl = (private_h264_encode_frame_ctlr_t *)(uintptr_t)param;
-    if (ctrl == NULL) {
-        return 0;
-    }
-    if (ctrl->config.encode_flexa_done_cb != NULL) {
-        ctrl->config.encode_flexa_done_cb(ctrl, h264e_get_encoded_lines());
-    }
-    return 0;
-}
-
 // Callback run in hw_encoder task: start one frame encode
 static avdk_err_t h264_encode_msg_callback(void *param)
 {
@@ -119,7 +108,9 @@ static avdk_err_t h264_encode_msg_callback(void *param)
         signal_encode_done(ctrl);
         return AVDK_ERR_INVAL;
     }
+    ENCODE_FRAME_START;
     bk_err_t ret = h264e_start_encode(&ctrl->h264e_handler, ctrl->h264_encoder_param);
+    ENCODE_FRAME_END;
     if (ret != BK_OK) {
         LOGE("h264e_start_encode failed: %d\r\n", ret);
         signal_encode_done(ctrl);
@@ -247,7 +238,7 @@ static avdk_err_t h264_encode_ctlr_open(bk_h264_encode_ctlr_handle_t handle)
     }
     // Register encoding completion callback
     h264_encoder_callback_t callback = {0};
-    callback.fcb = h264_encode_flexa_done_cb;
+    callback.fcb = NULL;
     callback.ocb = h264e_end_cb;
     callback.param = (uint32_t)control;
     ret = h264e_register_callback(&control->h264e_handler, &callback);

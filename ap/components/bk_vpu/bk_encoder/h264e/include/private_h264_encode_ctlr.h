@@ -45,8 +45,6 @@ typedef struct
     enc_h264_debug_t last_debug_info; // 上次调试信息
     h264_encoder_parameters_t *h264_encoder_param;  // 编码器参数指针
     beken_semaphore_t enc_done_sem;   // Signalled when one frame encode completes (in h264e_end_cb)
-    uint32_t soft_flexa_pic_buf;      // Software FLEXA: pic_buf set at init from config.param
-    uint32_t soft_flexa_pic_lines;    // Software FLEXA: pic_lines set at init from config.param
 
     bk_h264_encode_frame_config_t config;   // 编码器配置
     bk_h264_encode_ctlr_t ops;        // 操作接口
@@ -68,8 +66,6 @@ typedef struct
     h264_encoder_parameters_t *h264_encoder_param;  // 编码器参数指针
     uint32_t encode_result;            // 编码结果
     beken_semaphore_t enc_done_sem;   // Signalled when one frame encode completes (in h264e_end_cb)
-    uint32_t soft_flexa_pic_buf;      // Software FLEXA: pic_buf set at init from config.param
-    uint32_t soft_flexa_pic_lines;    // Software FLEXA: pic_lines set at init from config.param
 
     bk_flexa_bond_t *bond;      // Bond operations
 
@@ -92,8 +88,6 @@ typedef struct
     enc_h264_debug_t last_debug_info; // 上次调试信息
     h264_encoder_parameters_t *h264_encoder_param;  // 编码器参数指针
     beken_semaphore_t enc_done_sem;   // Signalled when one frame encode completes (in h264e_end_cb)
-    uint32_t soft_flexa_pic_buf;      // Software FLEXA: pic_buf set at init from config.param
-    uint32_t soft_flexa_pic_lines;    // Software FLEXA: pic_lines set at init from config.param
 
     bk_flexa_bond_t *bond;      // Bond operations
     /** 每帧 Flexa 块数（height / 16），供 rd_blocks 钳位 */

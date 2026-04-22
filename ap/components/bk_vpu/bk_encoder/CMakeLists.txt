@@ -21,7 +21,7 @@ if (CONFIG_BK_ENCODER)
     )
 endif()
 
-set(priv_req bk_common avdk_driver bk_libs media_service)
+set(priv_req bk_common avdk_driver bk_libs media_service avdk_utils)
 
 armino_component_register(INTERNAL_LIB SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
 

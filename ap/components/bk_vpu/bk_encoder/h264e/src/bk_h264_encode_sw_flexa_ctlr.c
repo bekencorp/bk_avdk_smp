@@ -9,6 +9,7 @@
 #include "private_h264_encode_ctlr.h"
 #include "hw_encoder_ctlr.h"
 #include <components/bk_frame_buffer.h>
+#include "avdk_monitor.h"
 
 #define TAG "bk_h264_encode_ctlr"
 
@@ -67,6 +68,7 @@ static void handle_video_frame(private_h264_encode_sw_flexa_ctlr_t *ctrl, void *
 // H.264 encoding completion callback
 static void h264e_end_cb(void *buffer, uint32_t size, uint32_t type, uint32_t result, uint32_t param)
 {
+    ENCODE_FRAME_DONE;
     // Validate parameters
     if (!param || !buffer) {
         LOGE("Invalid parameters in h264e_end_cb\r\n");
@@ -95,6 +97,7 @@ static void h264e_end_cb(void *buffer, uint32_t size, uint32_t type, uint32_t re
 // Flexa slice done callback: driver expects (yDst, uDst, vDst, uint32_t param), returns uint32_t
 static uint32_t h264_encode_flexa_done_cb(uint8_t *yDst, uint8_t *uDst, uint8_t *vDst, uint32_t param)
 {
+    ENCODE_LINE_END;
     private_h264_encode_sw_flexa_ctlr_t *ctrl = (private_h264_encode_sw_flexa_ctlr_t *)(uintptr_t)param;
     if (ctrl == NULL) {
         return 0;
@@ -136,11 +139,15 @@ static avdk_err_t h264_encode_msg_callback(void *param)
         return AVDK_ERR_INVAL;
     }
     ctrl->last_flexa_line = 0;
+    ENCODE_FRAME_START;
+    ENCODE_LINE_START;
     bk_err_t ret = h264e_start_encode(&ctrl->h264e_handler, ctrl->h264_encoder_param);
     if (ret != BK_OK) {
         LOGE("h264e_start_encode failed: %d\r\n", ret);
+        ENCODE_FRAME_END;
         return AVDK_ERR_GENERIC;
     }
+    ENCODE_FRAME_END;
     return AVDK_ERR_OK;
 }
 
@@ -472,6 +479,7 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             break;
         case BK_H264_ENCODE_IOCTL_SET_FLEXA_LINES_READY: {
             h264e_flexa_input_linebuf_wrcnt_set(&control->h264e_handler, (uint32_t)arg);
+            ENCODE_LINE_START;
             break;
         }
         case BK_H264_ENCODE_IOCTL_SET_FRAME_READY: {

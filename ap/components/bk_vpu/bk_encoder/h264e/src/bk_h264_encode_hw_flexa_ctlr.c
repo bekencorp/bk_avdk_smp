@@ -8,6 +8,7 @@
 #include "private_h264_encode_ctlr.h"
 #include "hw_encoder_ctlr.h"
 #include <components/bk_frame_buffer.h>
+#include "avdk_monitor.h"
 
 #define TAG "bk_h264_encode_ctlr"
 
@@ -61,6 +62,7 @@ static void handle_video_frame(private_h264_encode_hw_flexa_ctlr_t *ctrl, void *
 // H.264 encoding completion callback
 static void h264e_end_cb(void *buffer, uint32_t size, uint32_t type, uint32_t result, uint32_t param)
 {
+    ENCODE_FRAME_DONE;
     // Validate parameters
     if (!param || !buffer) {
         LOGE("Invalid parameters in h264e_end_cb\r\n");
@@ -95,12 +97,16 @@ static avdk_err_t h264_encode_msg_callback(void *param)
         LOGW("No encoder parameters available\r\n");
         return AVDK_ERR_INVAL;
     }
+    ENCODE_FRAME_START;
     bk_err_t ret= h264e_start_encode(&ctrl->h264e_handler, ctrl->h264_encoder_param);
     if (ret != BK_OK) {
         LOGE("h264e_start_encode failed: %d\r\n", ret);
         ctrl->encode_result = ret;
+        ENCODE_FRAME_END;
+        rtos_get_semaphore(&ctrl->enc_start_sem, BEKEN_NO_WAIT);
         return AVDK_ERR_GENERIC;
     }
+    ENCODE_FRAME_END;
     ctrl->encode_result = BK_OK;
     return AVDK_ERR_OK;
 }
