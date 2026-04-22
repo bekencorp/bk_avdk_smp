@@ -1,5 +1,5 @@
 // Copyright 2020-2021 Beken
-// MIPI LCD example: DSI open/close + flush thread (single file, no queue).
+// MIPI LCD example: DSI open/close and flush thread start/stop (single file, no queue).
 // Flush thread uses direct malloc -> fill -> flush(..., display_frame_free) -> delay per frame.
 
 #include <os/os.h>
@@ -33,17 +33,23 @@ static avdk_err_t display_frame_free(void *args)
 }
 
 
+
 /* Frame size in bytes for given format and resolution. */
-static uint32_t get_frame_size(bk_pixel_format_t format, uint16_t width, uint16_t height)
+static uint32_t get_frame_size(bk_pixel_format_t format, uint16_t width, uint16_t height, bool decompress)
 {
     switch (format)
     {
     case BK_PIXEL_FORMAT_RGB565:
         return (uint32_t)width * height * 2;
+    case BK_PIXEL_FORMAT_RGB888:
+        return (uint32_t)width * height * 3;
     case BK_PIXEL_FORMAT_NV12:
         return (uint32_t)width * height + (uint32_t)width * ((height + 1) / 2);
     case BK_PIXEL_FORMAT_ARGB8888:
-        return (uint32_t)width * height * 4;
+        if (decompress)
+            return (uint32_t)width * height * 2;
+        else
+            return (uint32_t)width * height * 4;
     default:
         return (uint32_t)width * height * 2;
     }
@@ -92,6 +98,43 @@ static void fill_frame_rgb565(void *frame_base, uint16_t width, uint16_t height,
     while (copied_rows < total_rows)
     {
         uint32_t rows_to_copy = (total_rows - copied_rows > 8) ? 8 : (total_rows - copied_rows);
+        uint32_t copy_size = row_size * rows_to_copy;
+        os_memcpy(frame_ptr, sram_buffer, copy_size);
+        frame_ptr += copy_size;
+        copied_rows += rows_to_copy;
+    }
+}
+
+static void fill_frame_rgb888(void *frame_base, uint16_t width, uint16_t height,
+                              uint16_t rgb565_color, uint8_t *sram_buffer, uint32_t sram_buffer_size)
+{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint32_t row_size;
+    uint32_t copied_rows;
+    uint8_t *frame_ptr;
+
+    if (!frame_base || !sram_buffer)
+        return;
+
+    r = ((rgb565_color >> 11) & 0x1F) << 3;
+    g = ((rgb565_color >> 5) & 0x3F) << 2;
+    b = (rgb565_color & 0x1F) << 3;
+    row_size = width * 3;
+
+    for (uint32_t i = 0; i < row_size * 8; i += 3)
+    {
+        sram_buffer[i] = r;
+        sram_buffer[i + 1] = g;
+        sram_buffer[i + 2] = b;
+    }
+
+    copied_rows = 0;
+    frame_ptr = (uint8_t *)frame_base;
+    while (copied_rows < height)
+    {
+        uint32_t rows_to_copy = (height - copied_rows > 8) ? 8 : (height - copied_rows);
         uint32_t copy_size = row_size * rows_to_copy;
         os_memcpy(frame_ptr, sram_buffer, copy_size);
         frame_ptr += copy_size;
@@ -212,6 +255,7 @@ avdk_err_t lcd_example_dsi_open(display_ctx_t *context, const char *panel_name, 
     context->width = dpu_config.timing.h_size;
     context->height = dpu_config.timing.v_size;
     context->format = format;
+    context->decompress = dpu_config.video.decompress;
 
     if (os_strcmp(panel_name, "lt8912b_mipi_1280x720") != 0)
     {
@@ -233,30 +277,11 @@ avdk_err_t lcd_example_dsi_close(display_ctx_t *context)
     if (context == NULL)
         return AVDK_ERR_INVAL;
 
-    if (context->thread)
+    if (context->dpu_ctlr_handle)
     {
-        context->enable = 0;
-        bk_display_ctlr_handle_t handle_to_close = context->dpu_ctlr_handle;
+        bk_display_deinit(context->dpu_ctlr_handle);
+        bk_display_delete(context->dpu_ctlr_handle);
         context->dpu_ctlr_handle = NULL;
-        rtos_get_semaphore(&context->sem, BEKEN_WAIT_FOREVER);
-        context->thread = NULL;
-        rtos_deinit_semaphore(&context->sem);
-        if (handle_to_close)
-        {
-            bk_display_deinit(handle_to_close);
-            bk_display_delete(handle_to_close);
-        }
-    }
-    else
-    {
-        if (context->dpu_ctlr_handle)
-        {
-            bk_display_deinit(context->dpu_ctlr_handle);
-            bk_display_delete(context->dpu_ctlr_handle);
-            context->dpu_ctlr_handle = NULL;
-        }
-        if (context->sem)
-            rtos_deinit_semaphore(&context->sem);
     }
 
     if (context->panel_handle)
@@ -280,7 +305,16 @@ static void lcd_example_flush_thread(void *args)
 {
     display_ctx_t *disp_ctx = (display_ctx_t *)args;
     avdk_err_t ret;
-    uint32_t frame_size = get_frame_size(disp_ctx->format, disp_ctx->width, disp_ctx->height);
+    uint32_t frame_size = get_frame_size(disp_ctx->format, disp_ctx->width, disp_ctx->height, disp_ctx->decompress);
+
+    if (frame_size == 0)
+    {
+        LOGE("Unsupported frame config: format=%d decompress=%d %ux%u\n",
+             disp_ctx->format, disp_ctx->decompress, disp_ctx->width, disp_ctx->height);
+        rtos_set_semaphore(&disp_ctx->sem);
+        rtos_delete_thread(NULL);
+        return;
+    }
 
     rtos_set_semaphore(&disp_ctx->sem);
 
@@ -293,6 +327,18 @@ static void lcd_example_flush_thread(void *args)
         if (!sram_buffer)
         {
             LOGE("Failed to allocate SRAM buffer for RGB565\n");
+            rtos_set_semaphore(&disp_ctx->sem);
+            rtos_delete_thread(NULL);
+            return;
+        }
+    }
+    else if (disp_ctx->format == BK_PIXEL_FORMAT_RGB888)
+    {
+        sram_buffer_size = disp_ctx->width * 3 * 8;
+        sram_buffer = os_malloc(sram_buffer_size);
+        if (!sram_buffer)
+        {
+            LOGE("Failed to allocate SRAM buffer for RGB888\n");
             rtos_set_semaphore(&disp_ctx->sem);
             rtos_delete_thread(NULL);
             return;
@@ -330,6 +376,9 @@ static void lcd_example_flush_thread(void *args)
         case BK_PIXEL_FORMAT_RGB565:
             fill_frame_rgb565(frame, disp_ctx->width, disp_ctx->height, fill_color, (uint16_t *)sram_buffer, sram_buffer_size);
             break;
+        case BK_PIXEL_FORMAT_RGB888:
+            fill_frame_rgb888(frame, disp_ctx->width, disp_ctx->height, fill_color, (uint8_t *)sram_buffer, sram_buffer_size);
+            break;
         case BK_PIXEL_FORMAT_NV12:
             fill_frame_nv12(frame, disp_ctx->width, disp_ctx->height, fill_color, (uint8_t *)sram_buffer, sram_buffer_size);
             break;
@@ -356,7 +405,7 @@ static void lcd_example_flush_thread(void *args)
             bk_frame_buffer_free(frame);
         }
         frame = NULL;
-        rtos_delay_milliseconds(50);
+        rtos_delay_milliseconds(500);
     }
     if (sram_buffer != NULL)
         os_free(sram_buffer);
@@ -398,5 +447,19 @@ avdk_err_t lcd_example_flush_thread_start(display_ctx_t *context)
         return ret;
     }
     LOGI("Flush thread started\n");
+    return AVDK_ERR_OK;
+}
+
+avdk_err_t lcd_example_flush_thread_stop(display_ctx_t *context)
+{
+    if (context == NULL)
+        return AVDK_ERR_INVAL;
+
+    if (context->thread == NULL)
+        return AVDK_ERR_OK;
+
+    context->enable = 0;
+    rtos_get_semaphore(&context->sem, BEKEN_WAIT_FOREVER);
+    rtos_deinit_semaphore(&context->sem);
     return AVDK_ERR_OK;
 }

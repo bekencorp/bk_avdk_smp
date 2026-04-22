@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #pragma once
+#include <components/bk_display_types.h>
 #include "components/bk_lcd_types.h"
 #include <driver/dpu_types.h>
 
@@ -65,6 +66,7 @@ typedef struct  {
     uint32_t h_pixels;            // Horizontal pixels
     uint32_t v_pixels;            // Vertical pixels
     uint32_t bits_per_pixel;        // Bits per pixel
+    dpu_config_t current_config;
     //bk_pixel_format_t pixel_format; // RGB Pixel format
     int (*draw)(dpu_handle_t *handle, dpu_layer_t layer, void *data, flush_free_cb_t free_cb);
 #if CONFIG_DPU_FLUSH_TIMER_DEBUG
@@ -94,5 +96,7 @@ uint32_t dpu_core_get_flush_addr(dpu_handle_t *handle);
 bk_err_t dpu_core_flush_stop(dpu_handle_t *handle);
 
 bk_err_t dpu_core_flush_restart(dpu_handle_t *handle);
+
+bk_err_t dpu_core_runtime_switch(dpu_handle_t *handle, const bk_display_pixel_format_config_t *config);
 
 

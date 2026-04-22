@@ -14,6 +14,7 @@
 
 #include <os/os.h>
 #include <os/mem.h>
+#include <stdint.h>
 #include <common/bk_err.h>
 #include "dpu_core.h"
 #include <components/bk_display_dpu_ctlr.h>
@@ -183,19 +184,30 @@ avdk_err_t dpu_ctlr_layer_flush(bk_display_ctlr_handle_t handle, dpu_layer_t lay
 static avdk_err_t dpu_ctlr_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioctl_cmd_t cmd, void *arg)
 {
     dpu_vn_ctlr_t *control = __containerof(handle, dpu_vn_ctlr_t, ops);
+    bk_display_pixel_format_config_t *runtime_config = (bk_display_pixel_format_config_t *)arg;
+    avdk_err_t ret = AVDK_ERR_OK;
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
+    AVDK_RETURN_ON_FALSE(control->state == DISP_STATE_OPEN, AVDK_ERR_GENERIC, TAG, "display is not open");
 
     switch (cmd)
     {
-    case BK_DISPLAY_IOCTL_DPU_PIXEL_CLK:
-        // if (dpu_core_pixel_clk_set(&control->dpu_handle, (uint32_t)arg) != BK_OK)
-        //     return AVDK_ERR_GENERIC;
-        LOGI("DPU pixel clk set to %d MHz\n", (uint32_t)arg);
-        return AVDK_ERR_OK;
-    default:
-        LOGE("unsupported ioctl cmd: %d\n", (int)cmd);
-        return AVDK_ERR_UNSUPPORTED;
+        case BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT:
+            AVDK_RETURN_ON_FALSE(runtime_config, AVDK_ERR_INVAL, TAG, "pixel format arg is NULL");
+            ret = dpu_core_runtime_switch(&control->dpu_handle, runtime_config);
+            if (ret == AVDK_ERR_OK)
+            {
+                control->config.video.format = runtime_config->format;
+                control->config.video.decompress = runtime_config->decompress;
+                LOGI("DPU runtime switch format=%d decompress=%d\n",
+                     runtime_config->format, runtime_config->decompress);
+            }
+        break;
+        default:
+            LOGE("unsupported ioctl cmd: %d\n", (int)cmd);
+            ret = AVDK_ERR_UNSUPPORTED;
+        break;
     }
+    return ret;
 }
 
 avdk_err_t bk_display_dpu_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_dpu_config_t *config)

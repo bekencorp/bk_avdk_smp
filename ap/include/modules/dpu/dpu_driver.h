@@ -66,6 +66,7 @@ int dpu_frame_display_config( uint16_t width,
                               );
 int dpu_frame_commit(uint8_t layer_id, uint8_t *buff);
 int dpu_frame_update(uint8_t layer_id, uint8_t *buff);
+int dpu_frame_switch_video_config(layer_config *layer);
 int dpu_frame_flush_isr(uint32_t *vblank_count);
 int dpu_frame_flush_complete_register(dpu_isr_cb_t dpu_cb, void *cb_data);
 int dpu_frame_get_layer_address(uint8_t layer_id);

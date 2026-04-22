@@ -101,9 +101,15 @@ typedef struct
     dpu_graphic_layer_config_t graphic;    /**< dpu graphic layer config */
 } bk_display_dpu_config_t;
 
+typedef struct
+{
+    bk_pixel_format_t format;
+    bool decompress;
+} bk_display_pixel_format_config_t;
+
 /** Display ioctl*/
 typedef enum {
-    BK_DISPLAY_IOCTL_DPU_PIXEL_CLK = 0,
+    BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT = 0,
 } bk_display_ioctl_cmd_t;
 
 typedef struct bk_display_ctlr_t *bk_display_ctlr_handle_t;

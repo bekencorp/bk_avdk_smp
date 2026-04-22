@@ -44,6 +44,7 @@ extern "C" {
 typedef struct
 {
     uint8_t enable;
+    uint8_t decompress;
     bk_display_ctlr_handle_t dpu_ctlr_handle;
     bk_display_bus_handle_t dis_bus_handle;
     bk_avdk_lcd_panel_handle_t panel_handle;
@@ -60,6 +61,8 @@ typedef struct
 avdk_err_t lcd_example_dsi_open(display_ctx_t *context, const char *panel_name, bk_pixel_format_t format);
 avdk_err_t lcd_example_dsi_close(display_ctx_t *context);
 avdk_err_t lcd_example_flush_thread_start(display_ctx_t *context);
+avdk_err_t lcd_example_flush_thread_stop(display_ctx_t *context);
+void cli_mipi_lcd_switch_format(const bk_display_pixel_format_config_t *config, const char *name);
 
 
 #ifdef __cplusplus

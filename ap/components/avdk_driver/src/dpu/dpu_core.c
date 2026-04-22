@@ -185,6 +185,41 @@ static uint16_t dpu_pixel_format_set(bk_pixel_format_t bk_format)
     return viv_fomat;
 }
 
+static bool dpu_runtime_format_supported(const bk_display_pixel_format_config_t *config)
+{
+    if (config == NULL)
+        return false;
+
+    if (config->decompress)
+        return config->format == BK_PIXEL_FORMAT_ARGB8888;
+
+    return config->format == BK_PIXEL_FORMAT_RGB565 ||
+           config->format == BK_PIXEL_FORMAT_RGB888 ||
+           config->format == BK_PIXEL_FORMAT_NV12;
+}
+
+static void dpu_fill_video_layer_config(const dpu_config_t *dpu_config, layer_config *layer)
+{
+    os_memset(layer, 0, sizeof(*layer));
+
+    if (!dpu_config->video.enable)
+    {
+        return;
+    }
+
+    layer->layer_enable = true;
+    layer->format = dpu_pixel_format_set(dpu_config->video.format);
+    layer->decompress_enable = dpu_config->video.decompress;
+    layer->blend_enable = false;
+    layer->blend_mode = 0;
+    layer->width = dpu_config->video_timing.h_size;
+    layer->height = dpu_config->video_timing.v_size;
+    layer->disp_x = dpu_config->video.disp_x;
+    layer->disp_y = dpu_config->video.disp_y;
+    layer->disp_w = dpu_config->video.disp_w;
+    layer->disp_h = dpu_config->video.disp_h;
+}
+
 static int dpu_flush_complete_handle(void *param)
 {
     AVDK_RETURN_ON_FALSE(param, BK_ERR_NULL_PARAM, TAG, "invalid argument");
@@ -298,6 +333,7 @@ bk_err_t dpu_core_init(dpu_config_t * dpu_config, dpu_handle_t *handle)
     //context->pixel_format = dpu_config->video.format;
     context->h_pixels = dpu_config->video_timing.h_size;
     context->v_pixels = dpu_config->video_timing.v_size;
+    context->current_config = *dpu_config;
     //context->dpu_decompress_en = dpu_config->video.decompress;
     //context->dpu_blend_en = dpu_config->graphic.enable;
     //context->dpu_blend_mode = dpu_config->graphic.blend_mode;
@@ -357,20 +393,7 @@ bk_err_t dpu_core_layer_config(dpu_config_t * dpu_config, dpu_handle_t *handle)
     dpu_context_t *context = (dpu_context_t*)*handle;
     layer_config layers[2] = {0};
 
-    if (dpu_config->video.enable)
-    {
-        layers[DPU_LAYER_VIDEO].layer_enable = true;
-        layers[DPU_LAYER_VIDEO].format = dpu_pixel_format_set(dpu_config->video.format);
-        layers[DPU_LAYER_VIDEO].decompress_enable = dpu_config->video.decompress;
-        layers[DPU_LAYER_VIDEO].blend_enable = false;
-        layers[DPU_LAYER_VIDEO].blend_mode = 0;
-        layers[DPU_LAYER_VIDEO].width = dpu_config->video_timing.h_size;
-        layers[DPU_LAYER_VIDEO].height = dpu_config->video_timing.v_size;
-        layers[DPU_LAYER_VIDEO].disp_x = dpu_config->video.disp_x;
-        layers[DPU_LAYER_VIDEO].disp_y = dpu_config->video.disp_y;
-        layers[DPU_LAYER_VIDEO].disp_w = dpu_config->video.disp_w;
-        layers[DPU_LAYER_VIDEO].disp_h = dpu_config->video.disp_h;
-    }
+    dpu_fill_video_layer_config(dpu_config, &layers[DPU_LAYER_VIDEO]);
 
     if (dpu_config->graphic.enable)
     {
@@ -388,9 +411,53 @@ bk_err_t dpu_core_layer_config(dpu_config_t * dpu_config, dpu_handle_t *handle)
     }
 
     dpu_frame_layer_config(layers);
-    
+    context->current_config = *dpu_config;
     context->display_dirty = true;
 
+    return ret;
+}
+
+bk_err_t dpu_core_runtime_switch(dpu_handle_t *handle, const bk_display_pixel_format_config_t *config)
+{
+    dpu_context_t *context;
+    beken_event_flags_t wait_event = 0;
+    layer_config video_layer = {0};
+    bk_err_t ret = BK_OK;
+
+    AVDK_RETURN_ON_FALSE(handle && config, BK_ERR_NULL_PARAM, TAG, "invalid argument");
+
+    context = (dpu_context_t *)*handle;
+    AVDK_RETURN_ON_FALSE(context, BK_ERR_NULL_PARAM, TAG, "invalid handle");
+    AVDK_RETURN_ON_FALSE(dpu_runtime_format_supported(config),
+                         BK_ERR_PARAM, TAG, "runtime switch only supports RGB565, RGB888, NV12 and compressed ARGB8888");
+
+    rtos_lock_mutex(&context->flush_mutex);
+
+    if (context->update_frame[DPU_LAYER_VIDEO])
+    {
+        wait_event = rtos_wait_for_event_flags(&context->dpu_event_handle,
+                EVENT_BIT_AVAILABLE, true, WAIT_FOR_ANY_EVENT, BEKEN_WAIT_FOREVER);
+
+        if ((wait_event & EVENT_BIT_AVAILABLE) != EVENT_BIT_AVAILABLE || context->update_frame[DPU_LAYER_VIDEO])
+        {
+            LOGE("%s wait pending frame failed\n", __func__);
+            ret = BK_FAIL;
+            goto exit;
+        }
+    }
+
+    context->current_config.video.format = config->format;
+    context->current_config.video.decompress = config->decompress;
+    dpu_fill_video_layer_config(&context->current_config, &video_layer);
+
+    ret = dpu_frame_switch_video_config(&video_layer);
+    if (ret == BK_OK)
+    {
+        context->display_dirty = true;
+    }
+
+exit:
+    rtos_unlock_mutex(&context->flush_mutex);
     return ret;
 }
 
@@ -481,6 +548,8 @@ bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flu
     AVDK_RETURN_ON_FALSE(handle, BK_ERR_NULL_PARAM, TAG, "invalid argument");
     bk_err_t ret = BK_OK;
     dpu_context_t *context = (dpu_context_t*)*handle;
+    void *old_display_frame = NULL;
+    flush_free_cb_t old_display_cb = NULL;
 
     /* Validate layer index before accessing layer-specific resources */
     if (layer >= DPU_LAYER_MAX)
@@ -498,11 +567,24 @@ bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flu
     rtos_lock_mutex(&context->flush_mutex);
     if ((!context->display_frame[layer]) || (context->display_dirty == true))
     {
-        context->display_frame[layer] = buff;
-        context->display_cb[layer] = cb;
+        old_display_frame = context->display_frame[layer];
+        old_display_cb = context->display_cb[layer];
         ret = dpu_frame_commit(layer, buff);
-        context->display_dirty = false;
-        context->frame_rate[layer]++;
+        if (ret == BK_OK)
+        {
+            context->display_frame[layer] = buff;
+            context->display_cb[layer] = cb;
+            context->display_dirty = false;
+            context->frame_rate[layer]++;
+            if (old_display_frame && old_display_cb && old_display_frame != buff)
+            {
+                old_display_cb(old_display_frame);
+            }
+        }
+        else if (cb)
+        {
+            cb(buff);
+        }
         LOGI("%s %s, cb: %p \n", __func__, (ret == BK_OK) ? "success" : "fail", cb);
     }
     else
