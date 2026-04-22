@@ -10,8 +10,6 @@ set(MAKEFILE_DIR ${TENSORFLOW_ROOT}/tensorflow/lite/micro/tools/make)
 
 set(DOWNLOADS_DIR ${MAKEFILE_DIR}/downloads)
 
-set(BASE_GENDIR ${TENSORFLOW_ROOT}/gen)
-
 get_filename_component(COMPILER_DIR ${CMAKE_C_COMPILER} DIRECTORY)
 
 
@@ -113,9 +111,34 @@ armino_build_get_property(build_dir BUILD_DIR)
 get_filename_component(PROJECT_CONFIG_PATH "${build_dir}/config" ABSOLUTE)
 list(APPEND tflm_make_extra_args "PROJECT_CONFIG_PATH=${PROJECT_CONFIG_PATH}")
 
+# Put TFLM object/lib output under this project's BUILD_DIR instead of
+# ${TENSORFLOW_ROOT}/gen. Multiple projects/jobs sharing the same SDK tree used to
+# race on the same gen/ tree (rm -rf / parallel writes), which breaks CI.
+get_filename_component(TFLM_HOST_GENDIR "${build_dir}/tflite_micro_gen" ABSOLUTE)
+list(APPEND tflm_make_extra_args "BASE_GENDIR=${TFLM_HOST_GENDIR}")
+
 message(STATUS "TFLM: Using target_arch=${target_arch} (${target_arch_reason})")
+message(STATUS "TFLM: Per-build gen directory (BASE_GENDIR): ${TFLM_HOST_GENDIR}")
 message(STATUS "TFLM: Project include path: ${PROJECT_INCLUDE_PATH}")
 message(STATUS "TFLM: Project config path: ${PROJECT_CONFIG_PATH}")
+
+# Parallel jobs for the embedded TensorFlow Lite Micro Makefile (GNU make -j).
+# With GEN isolated per BUILD_DIR, parallel projects no longer contend on the same gen/ tree;
+# BK_TFLM_MAKE_JOBS still overrides microlite make parallelism.
+if(DEFINED ENV{BK_TFLM_MAKE_JOBS} AND NOT "$ENV{BK_TFLM_MAKE_JOBS}" STREQUAL "")
+    set(TFLM_MAKE_JOBS "$ENV{BK_TFLM_MAKE_JOBS}")
+else()
+    cmake_host_system_information(RESULT _tflm_nproc QUERY NUMBER_OF_LOGICAL_CORES)
+    if(NOT _tflm_nproc OR _tflm_nproc LESS 1)
+        set(_tflm_nproc 4)
+    endif()
+    if(_tflm_nproc GREATER 8)
+        set(TFLM_MAKE_JOBS 8)
+    else()
+        set(TFLM_MAKE_JOBS ${_tflm_nproc})
+    endif()
+endif()
+message(STATUS "TFLM: microlite make parallelism: -j${TFLM_MAKE_JOBS} (set BK_TFLM_MAKE_JOBS to override)")
 
 # Configure build parameters based on NPU support
 if (CONFIG_NPU)
@@ -126,16 +149,18 @@ if (CONFIG_NPU)
     set(ethosu_arch "u65")
     # When CO_PROCESSOR is set, the generated directory includes the coprocessor name
     # Use detected target_arch in the path
-    set(TFLM_LIB_DIR ${BASE_GENDIR}/cortex_m_generic_${target_arch}_default_cmsis_nn_ethos_u_gcc/lib/libtensorflow-microlite.a)
-    
+    set(TFLM_LIB_DIR ${TFLM_HOST_GENDIR}/cortex_m_generic_${target_arch}_default_cmsis_nn_ethos_u_gcc/lib/libtensorflow-microlite.a)
+    get_filename_component(_tflm_lib_dir ${TFLM_LIB_DIR} DIRECTORY)
+    get_filename_component(TFLM_VARIANT_DIR ${_tflm_lib_dir} DIRECTORY)
+
     # Note: Cache API adaptation is now implemented in bk_ethosu.c
     # ETHOSU_EXTRA_FLAGS is no longer needed as cache functions are conditionally
     # compiled based on CONFIG_NPU_CACHE in bk_ethosu.c
     set(make_env_cmd ${CMAKE_COMMAND} -E env)
     
     add_custom_command(OUTPUT ${TFLM_LIB_DIR}
-        COMMAND rm -rf ${BASE_GENDIR}
-        COMMAND ${make_env_cmd} make -f ${MAKEFILE_DIR}/Makefile ${tflm_make_extra_args} TARGET_TOOLCHAIN_ROOT=${COMPILER_DIR}/ TARGET=${target} TARGET_ARCH=${target_arch} OPTIMIZED_KERNEL_DIR=${optimized_kernel_dir} CO_PROCESSOR=${co_processor} ETHOSU_ARCH=${ethosu_arch} microlite -j16
+        COMMAND rm -rf ${TFLM_VARIANT_DIR}
+        COMMAND ${make_env_cmd} make -f ${MAKEFILE_DIR}/Makefile ${tflm_make_extra_args} TARGET_TOOLCHAIN_ROOT=${COMPILER_DIR}/ TARGET=${target} TARGET_ARCH=${target_arch} OPTIMIZED_KERNEL_DIR=${optimized_kernel_dir} CO_PROCESSOR=${co_processor} ETHOSU_ARCH=${ethosu_arch} microlite -j${TFLM_MAKE_JOBS}
         WORKING_DIRECTORY ${TENSORFLOW_ROOT}
         VERBATIM
         USES_TERMINAL
@@ -144,11 +169,13 @@ if (CONFIG_NPU)
 else()
     # Use CMSIS-NN only (no NPU)
     # Use detected target_arch in the path
-    set(TFLM_LIB_DIR ${BASE_GENDIR}/cortex_m_generic_${target_arch}_default_cmsis_nn_gcc/lib/libtensorflow-microlite.a)
-    
+    set(TFLM_LIB_DIR ${TFLM_HOST_GENDIR}/cortex_m_generic_${target_arch}_default_cmsis_nn_gcc/lib/libtensorflow-microlite.a)
+    get_filename_component(_tflm_lib_dir ${TFLM_LIB_DIR} DIRECTORY)
+    get_filename_component(TFLM_VARIANT_DIR ${_tflm_lib_dir} DIRECTORY)
+
     add_custom_command(OUTPUT ${TFLM_LIB_DIR}
-        COMMAND rm -rf ${BASE_GENDIR}
-        COMMAND make -f ${MAKEFILE_DIR}/Makefile ${tflm_make_extra_args} TARGET=${target} TARGET_ARCH=${target_arch} OPTIMIZED_KERNEL_DIR=${optimized_kernel_dir} microlite -j16
+        COMMAND rm -rf ${TFLM_VARIANT_DIR}
+        COMMAND make -f ${MAKEFILE_DIR}/Makefile ${tflm_make_extra_args} TARGET=${target} TARGET_ARCH=${target_arch} OPTIMIZED_KERNEL_DIR=${optimized_kernel_dir} microlite -j${TFLM_MAKE_JOBS}
         WORKING_DIRECTORY ${TENSORFLOW_ROOT}
         VERBATIM
         USES_TERMINAL
