@@ -83,6 +83,11 @@ avdk_err_t app_gpu_turn_on(gpu_board_config_t *config)
     uint16_t src_width, src_height, dst_width, dst_height;
     uint8_t r_degree;
 
+    if(isp_control == NULL) {
+        LOGW("%s, %d, isp control is NULL, cannot open GPU first\n", __func__, __LINE__);
+        return AVDK_ERR_NO_RESOURCE;
+    }
+
     AVDK_RETURN_ON_FALSE((s_gpu_handle == NULL), AVDK_ERR_BUSY, TAG, "alread turned on");
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
 #if (CONFIG_VG_LITE_GPU)
