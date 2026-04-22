@@ -660,16 +660,43 @@ void YolofaceDetectionModel::resourceUnload(void)
 }
 
 
-int YolofaceDetectionModel::run(uint8_t *data, uint32_t size)
+int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t format)
 {
+    uint32_t expected_size = 0;
+
+    if (format == BK_PIXEL_FORMAT_RGB888) {
+        expected_size = (uint32_t)width * (uint32_t)height * 3U;
+    } else if (format == BK_PIXEL_FORMAT_BGRA8888) {
+        expected_size = (uint32_t)width * (uint32_t)height * 4U;
+    } else {
+        MicroPrintf("YolofaceDetectionModel: unsupported pixel format %u\r\n", (unsigned)format);
+        return 0;
+    }
+
+    if (size != expected_size) {
+        MicroPrintf("YolofaceDetectionModel: invalid size %u, expected %u\r\n",
+                    (unsigned)size, (unsigned)expected_size);
+        return 0;
+    }
+
     TfLiteTensor* input = pinterpreter->input(0);
 
-    // Convert input from BGRA to RGB and normalize
-    for (int i = 0; i < width * height; i++)
-    {
-        input->data.int8[i * 3 + 0] = (int8_t)data[i * 4 + 2] - 128;
-        input->data.int8[i * 3 + 1] = (int8_t)data[i * 4 + 1] - 128;
-        input->data.int8[i * 3 + 2] = (int8_t)data[i * 4 + 0] - 128;
+    /* Convert input to model RGB (int8, zero-centered) per bk_pixel_format_t. */
+    if (format == BK_PIXEL_FORMAT_BGRA8888) {
+        for (int i = 0; i < width * height; i++) {
+            input->data.int8[i * 3 + 0] = (int8_t)data[i * 4 + 2] - 128;
+            input->data.int8[i * 3 + 1] = (int8_t)data[i * 4 + 1] - 128;
+            input->data.int8[i * 3 + 2] = (int8_t)data[i * 4 + 0] - 128;
+        }
+    } else if (format == BK_PIXEL_FORMAT_RGB888) {
+        for (int i = 0; i < width * height; i++) {
+            input->data.int8[i * 3 + 0] = (int8_t)data[i * 3 + 0] - 128;
+            input->data.int8[i * 3 + 1] = (int8_t)data[i * 3 + 1] - 128;
+            input->data.int8[i * 3 + 2] = (int8_t)data[i * 3 + 2] - 128;
+        }
+    } else {
+        MicroPrintf("Unsupported format: %d\r\n", format);
+        return 0;
     }
 
     if(kTfLiteOk != pinterpreter->Invoke())

@@ -16,7 +16,7 @@ public:
     void resolverLoad(void);
     void resourceLoad(void);
     void resourceUnload(void);
-    int run(uint8_t *data, uint32_t size);
+    int run(uint8_t *data, uint32_t size, bk_pixel_format_t format);
 
     /**
      * @brief Set per-instance result callback. Enables multiple model instances with separate callbacks.

@@ -67,45 +67,74 @@ void PalmDetectionModel::resourceUnload(void)
 }
 
 
-int PalmDetectionModel::run(uint8_t *data, uint32_t size)
+int PalmDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t format)
 {
+    uint32_t expected_size = 0;
+
+    if (format == BK_PIXEL_FORMAT_RGB888) {
+        expected_size = (uint32_t)width * (uint32_t)height * 3U;
+    } else if (format == BK_PIXEL_FORMAT_BGRA8888) {
+        expected_size = (uint32_t)width * (uint32_t)height * 4U;
+    } else {
+        LOGE("Unsupported pixel format: %u\n", (unsigned)format);
+        return 0;
+    }
+
+    if (size != expected_size) {
+        LOGE("Invalid input size: %u, expected: %u\n", (unsigned)size, (unsigned)expected_size);
+        return 0;
+    }
+
     TfLiteTensor* input = pinterpreter->input(0);
-    const int expected_bgra = width * height * 4;
     int input_is_float = (input->type == kTfLiteFloat32);
 
     /* Preprocess: align with tflite_micro_example (GetImage / GetImageFloat).
      * Support RGB (size=196608) or BGRA (size=262144); support int8 or float32 input tensor. */
     if (input_is_float) {
-        for (int i = 0; i < width * height; i++) {
-            float r, g, b;
-            if (size >= (uint32_t)expected_bgra) {
-                b = (float)data[i * 4 + 0] / 255.0f;
-                g = (float)data[i * 4 + 1] / 255.0f;
-                r = (float)data[i * 4 + 2] / 255.0f;
-            } else {
-                r = (float)data[i * 3 + 0] / 255.0f;
-                g = (float)data[i * 3 + 1] / 255.0f;
-                b = (float)data[i * 3 + 2] / 255.0f;
+        if (format == BK_PIXEL_FORMAT_BGRA8888) {
+            for (int i = 0; i < width * height; i++) {
+                float b = (float)data[i * 4 + 0] / 255.0f;
+                float g = (float)data[i * 4 + 1] / 255.0f;
+                float r = (float)data[i * 4 + 2] / 255.0f;
+                input->data.f[i * 3 + 0] = 2.0f * (r - 0.5f);
+                input->data.f[i * 3 + 1] = 2.0f * (g - 0.5f);
+                input->data.f[i * 3 + 2] = 2.0f * (b - 0.5f);
             }
-            input->data.f[i * 3 + 0] = 2.0f * (r - 0.5f);
-            input->data.f[i * 3 + 1] = 2.0f * (g - 0.5f);
-            input->data.f[i * 3 + 2] = 2.0f * (b - 0.5f);
+        } else if (format == BK_PIXEL_FORMAT_RGB888) {
+            for (int i = 0; i < width * height; i++) {
+                float r = (float)data[i * 3 + 0] / 255.0f;
+                float g = (float)data[i * 3 + 1] / 255.0f;
+                float b = (float)data[i * 3 + 2] / 255.0f;
+                input->data.f[i * 3 + 0] = 2.0f * (r - 0.5f);
+                input->data.f[i * 3 + 1] = 2.0f * (g - 0.5f);
+                input->data.f[i * 3 + 2] = 2.0f * (b - 0.5f);
+            }
+        } else {
+            LOGI("Unsupported format: %d\r\n", format);
+            return 0;
         }
     } else {
-        for (int i = 0; i < width * height; i++) {
-            uint8_t r, g, b;
-            if (size >= (uint32_t)expected_bgra) {
-                b = data[i * 4 + 0];
-                g = data[i * 4 + 1];
-                r = data[i * 4 + 2];
-            } else {
-                r = data[i * 3 + 0];
-                g = data[i * 3 + 1];
-                b = data[i * 3 + 2];
+        if (format == BK_PIXEL_FORMAT_BGRA8888) {
+            for (int i = 0; i < width * height; i++) {
+                uint8_t b = data[i * 4 + 0];
+                uint8_t g = data[i * 4 + 1];
+                uint8_t r = data[i * 4 + 2];
+                input->data.int8[i * 3 + 0] = (int8_t)(r - 128);
+                input->data.int8[i * 3 + 1] = (int8_t)(g - 128);
+                input->data.int8[i * 3 + 2] = (int8_t)(b - 128);
             }
-            input->data.int8[i * 3 + 0] = (int8_t)(r - 128);
-            input->data.int8[i * 3 + 1] = (int8_t)(g - 128);
-            input->data.int8[i * 3 + 2] = (int8_t)(b - 128);
+        } else if (format == BK_PIXEL_FORMAT_RGB888) {
+            for (int i = 0; i < width * height; i++) {
+                uint8_t r = data[i * 3 + 0];
+                uint8_t g = data[i * 3 + 1];
+                uint8_t b = data[i * 3 + 2];
+                input->data.int8[i * 3 + 0] = (int8_t)(r - 128);
+                input->data.int8[i * 3 + 1] = (int8_t)(g - 128);
+                input->data.int8[i * 3 + 2] = (int8_t)(b - 128);
+            }
+        } else {
+            LOGI("Unsupported format: %d\r\n", format);
+            return 0;
         }
     }
 

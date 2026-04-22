@@ -92,6 +92,8 @@ typedef struct
     uint32_t          backup_image_height;
     uint32_t          backup_image_format;
     uint8_t           need_backup_image;
+    /** When set, APP_EVENT_PROMPT_PLS_STOP_HAND is posted from app_event_on_image after backup (gesture cb runs before image cb in the same run). */
+    uint8_t           pls_stop_hand_pending;
 
     /* Converted RGB565 image for LVGL display */
     uint8_t          *rgb565_image_data;
@@ -114,6 +116,7 @@ static void app_game_reset(void)
     s_app_evt_ctx.gesture_timeout_happened = 0;
     s_app_evt_ctx.sequence_step = 0;
     s_app_evt_ctx.need_backup_image = 0;
+    s_app_evt_ctx.pls_stop_hand_pending = 0;
 
     /* Free backup image if exists. */
     if (s_app_evt_ctx.backup_image_data != NULL)
@@ -121,6 +124,9 @@ static void app_game_reset(void)
         psram_free(s_app_evt_ctx.backup_image_data);
         s_app_evt_ctx.backup_image_data = NULL;
         s_app_evt_ctx.backup_image_size = 0;
+        s_app_evt_ctx.backup_image_width = 0;
+        s_app_evt_ctx.backup_image_height = 0;
+        s_app_evt_ctx.backup_image_format = 0;
     }
 
     /* Free RGB565 image if exists. */
@@ -887,6 +893,7 @@ void app_event_on_image(const uint8_t *image_data, uint32_t width, uint32_t heig
         (s_app_evt_ctx.phase != GAME_PHASE_WAIT_GESTURE &&
          s_app_evt_ctx.phase != GAME_PHASE_WAIT_PLS_STOP_FINISH))
     {
+        LOGI("%s, %d state and phase are not correct\r\n", __func__, __LINE__);
         return;
     }
 
@@ -896,6 +903,7 @@ void app_event_on_image(const uint8_t *image_data, uint32_t width, uint32_t heig
      */
     if (!s_app_evt_ctx.need_backup_image)
     {
+        LOGI("%s, %d need_backup_image is 0\r\n", __func__, __LINE__);
         return;
     }
 
@@ -906,23 +914,43 @@ void app_event_on_image(const uint8_t *image_data, uint32_t width, uint32_t heig
         s_app_evt_ctx.backup_image_data = NULL;
     }
 
-    /* Allocate memory for backup image from PSRAM. */
-    s_app_evt_ctx.backup_image_data = (uint8_t *)psram_malloc(data_size);
-    if (s_app_evt_ctx.backup_image_data == NULL)
+    /* Allocate and fill backup off the global pointer first: gesture result is delivered
+     * (and may post APP_EVENT_PROMPT_PLS_STOP_HAND) before the image callback returns.
+     * Another thread must not see backup_image_data != NULL until size/format/geometry match the buffer. */
+    uint8_t *new_backup = (uint8_t *)psram_malloc(data_size);
+    if (new_backup == NULL)
     {
         LOGE("psram_malloc backup image failed, size: %u\n", data_size);
+        if (s_app_evt_ctx.pls_stop_hand_pending)
+        {
+            s_app_evt_ctx.pls_stop_hand_pending = 0;
+            if (app_event_post(APP_EVENT_PROMPT_PLS_STOP_HAND, 0) != BK_OK)
+            {
+                LOGE("post APP_EVENT_PROMPT_PLS_STOP_HAND after backup malloc fail failed\n");
+            }
+        }
         return;
     }
 
-    /* Copy image data. */
-    os_memcpy(s_app_evt_ctx.backup_image_data, image_data, data_size);
+    os_memcpy(new_backup, image_data, data_size);
     s_app_evt_ctx.backup_image_size = data_size;
     s_app_evt_ctx.backup_image_width = width;
     s_app_evt_ctx.backup_image_height = height;
     s_app_evt_ctx.backup_image_format = format;
+    s_app_evt_ctx.backup_image_data = new_backup;
 
     /* Clear the flag after backup. */
     s_app_evt_ctx.need_backup_image = 0;
+
+    /* Gesture result_callback runs before image_callback in the same inference run; defer PLS_STOP until here so backup_image_data is visible to the event task. */
+    if (s_app_evt_ctx.pls_stop_hand_pending)
+    {
+        s_app_evt_ctx.pls_stop_hand_pending = 0;
+        if (app_event_post(APP_EVENT_PROMPT_PLS_STOP_HAND, 0) != BK_OK)
+        {
+            LOGE("post APP_EVENT_PROMPT_PLS_STOP_HAND after backup failed\n");
+        }
+    }
 
     LOGD("image backed up: %ux%u, format: %u, size: %u\n", width, height, format, data_size);
 }
@@ -953,6 +981,44 @@ static void bgra8888_to_rgb565_convert(const uint8_t *src_bgra, uint16_t *dst_rg
     }
 }
 
+static int rgb888_to_rgb565_convert(uint8_t *src, uint16_t *dst, uint32_t width, uint32_t height)
+{
+    if (src == NULL || dst == NULL || width == 0 || height == 0) {
+        LOGE("%s, %d src or dst is NULL or width or height is 0\r\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    /*
+     * Input format assumption:
+     * - src is packed RGB888, 3 bytes per pixel: [R, G, B][R, G, B]...
+     * Output format:
+     * - dst is RGB565, 16-bit per pixel: R[4:0], G[5:0], B[4:0]
+     */
+    const uint64_t pixel_cnt = (uint64_t)width * (uint64_t)height;
+    const uint64_t src_bytes_needed = pixel_cnt * 3ULL;
+
+    /* Prevent 32-bit index overflow when computing i*3 */
+    if (pixel_cnt == 0 || src_bytes_needed > (uint64_t)UINT32_MAX) {
+        LOGE("%s, %d invalid size: width=%u height=%u\r\n", __func__, __LINE__, (unsigned)width, (unsigned)height);
+        return BK_FAIL;
+    }
+
+    for (uint32_t i = 0; i < (uint32_t)pixel_cnt; ++i) {
+        const uint32_t base = i * 3U;
+        const uint8_t r = src[base + 0U];
+        const uint8_t g = src[base + 1U];
+        const uint8_t b = src[base + 2U];
+
+        const uint16_t r5 = (uint16_t)(r >> 3);
+        const uint16_t g6 = (uint16_t)(g >> 2);
+        const uint16_t b5 = (uint16_t)(b >> 3);
+
+        dst[i] = (uint16_t)((r5 << 11) | (g6 << 5) | b5);
+    }
+
+    return BK_OK;
+}
+
 /**
  * @brief Convert backup image to RGB565 format for LVGL display.
  *
@@ -969,9 +1035,9 @@ static bk_err_t app_convert_backup_image_to_rgb565(void)
         return BK_FAIL;
     }
 
-    if (s_app_evt_ctx.backup_image_format != BK_PIXEL_FORMAT_BGRA8888)
+    if (s_app_evt_ctx.backup_image_format != BK_PIXEL_FORMAT_BGRA8888 && s_app_evt_ctx.backup_image_format != BK_PIXEL_FORMAT_RGB888)
     {
-        LOGE("backup image format is not BGRA8888: %u\n", s_app_evt_ctx.backup_image_format);
+        LOGE("backup image format is not BGRA8888 or RGB888: %u\n", s_app_evt_ctx.backup_image_format);
         return BK_FAIL;
     }
 
@@ -997,9 +1063,15 @@ static bk_err_t app_convert_backup_image_to_rgb565(void)
     }
 
     /* Convert BGRA8888 to RGB565. */
+#if CONFIG_USB_CAMERA
+    rgb888_to_rgb565_convert(s_app_evt_ctx.backup_image_data,
+                               (uint16_t *)s_app_evt_ctx.rgb565_image_data,
+                               width, height);
+#else
     bgra8888_to_rgb565_convert(s_app_evt_ctx.backup_image_data,
                                (uint16_t *)s_app_evt_ctx.rgb565_image_data,
                                width, height);
+#endif
 
     /* Create LVGL image descriptor. */
     s_app_evt_ctx.rgb565_image_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
@@ -1180,7 +1252,13 @@ void app_event_on_gesture(int gesture)
      *   - has_user_gesture == 0: go through cant_det_wav path.
      */
     s_app_evt_ctx.phase = GAME_PHASE_WAIT_PLS_STOP_FINISH;
-    if (app_event_post(APP_EVENT_PROMPT_PLS_STOP_HAND, 0) != BK_OK)
+    if (s_app_evt_ctx.need_backup_image)
+    {
+        /* Image callback runs after this gesture callback in GestureDetectionModel::run().
+         * Post PLS_STOP from app_event_on_image once backup is published, so the event task never runs with NULL backup. */
+        s_app_evt_ctx.pls_stop_hand_pending = 1;
+    }
+    else if (app_event_post(APP_EVENT_PROMPT_PLS_STOP_HAND, 0) != BK_OK)
     {
         LOGE("post APP_EVENT_PROMPT_PLS_STOP_HAND failed\n");
         return;

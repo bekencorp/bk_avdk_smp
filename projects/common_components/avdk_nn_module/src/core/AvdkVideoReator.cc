@@ -165,7 +165,7 @@ void AvdkVideoReator::WorkerThread()
 
         LOGV("read frame: %p, size: %d, %d\n", soruce_frame, frame_size, ret);
 
-        ret = detection_model->run(soruce_frame, frame_size);
+        ret = detection_model->run(soruce_frame, frame_size, BK_PIXEL_FORMAT_RGBA8888);
     }
 
     LOGI("############### Thread Exit ################\n");
@@ -237,7 +237,7 @@ void AvdkVideoReator::InferThread()
 
         LOGV("read frame: %p, size: %d, %d\n", soruce_frame, frame_size, ret);
 
-        ret = detection_model->run(soruce_frame, frame_size);
+        ret = detection_model->run(soruce_frame, frame_size, BK_PIXEL_FORMAT_RGBA8888);
     }
 
     /* Free allocated frame buffer */
@@ -324,7 +324,11 @@ void AvdkVideoReator::DisplayThread()
 
     if (BK_PIXEL_FORMAT_RGB888 == detection_model->getFormat())
     {
+#if CONFIG_USB_CAMERA
+        frame_size = detection_model->getWidth() * detection_model->getHeight() * 3;
+#else
         frame_size = detection_model->getWidth() * detection_model->getHeight() * 4;
+#endif
     }
     else
     {
@@ -371,7 +375,11 @@ void AvdkVideoReator::DisplayThread()
 
         if (detect_enable)
         {
-            ret = detection_model->run(display_frame, frame_size);
+        #if (CONFIG_USB_CAMERA)
+            ret = detection_model->run(display_frame, frame_size, BK_PIXEL_FORMAT_RGB888);
+        #else
+            ret = detection_model->run(display_frame, frame_size, BK_PIXEL_FORMAT_RGBA8888);
+        #endif
         }
 
 #if (CONFIG_USB_CAMERA)

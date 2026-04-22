@@ -148,16 +148,32 @@ uint8_t GestureDetectionModel::post_process(int8_t *out_data, uint8_t *result)
 }
 
 
-int GestureDetectionModel::run(uint8_t *data, uint32_t size)
+int GestureDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t format)
 {
     TfLiteTensor* input = pinterpreter->input(0);
 
-    // Convert input from BGRA to RGB and normalize
-    for (int i = 0; i < width * height; i++)
+    if (format == BK_PIXEL_FORMAT_BGRA8888)
     {
-        input->data.int8[i * 3 + 0] = (int8_t)data[i * 4 + 2] - 128;
-        input->data.int8[i * 3 + 1] = (int8_t)data[i * 4 + 1] - 128;
-        input->data.int8[i * 3 + 2] = (int8_t)data[i * 4 + 0] - 128;
+        for (int i = 0; i < width * height; i++)
+        {
+            input->data.int8[i * 3 + 0] = (int8_t)data[i * 4 + 2] - 128;
+            input->data.int8[i * 3 + 1] = (int8_t)data[i * 4 + 1] - 128;
+            input->data.int8[i * 3 + 2] = (int8_t)data[i * 4 + 0] - 128;
+        }
+    }
+    else if (format == BK_PIXEL_FORMAT_RGB888)
+    {
+        for (int i = 0; i < width * height; i++)
+        {
+            input->data.int8[i * 3 + 0] = (int8_t)data[i * 3 + 0] - 128;
+            input->data.int8[i * 3 + 1] = (int8_t)data[i * 3 + 1] - 128;
+            input->data.int8[i * 3 + 2] = (int8_t)data[i * 3 + 2] - 128;
+        }
+    }
+    else
+    {
+        LOGI("Invalid format: %d\r\n", format);
+        return 0;
     }
 
     if(kTfLiteOk != pinterpreter->Invoke())
@@ -189,14 +205,29 @@ int GestureDetectionModel::run(uint8_t *data, uint32_t size)
     }
 
     /* Invoke per-instance image callback if set.
-     * Provide the input image data (BGRA8888 format) that was fed to the model.
+     * Pass through the same buffer and bk_pixel_format_t as inference input.
      * Note: The image data pointer is valid only during callback execution.
      */
     if (image_callback_ != nullptr)
     {
-        /* Input data is BGRA8888 format (4 bytes per pixel). */
-        uint32_t image_data_size = width * height * 4;
-        image_callback_(data, width, height, BK_PIXEL_FORMAT_BGRA8888, image_data_size);
+        uint32_t image_data_size = 0;
+
+        if (format == BK_PIXEL_FORMAT_BGRA8888)
+        {
+            image_data_size = width * height * 4;
+        }
+        else if (format == BK_PIXEL_FORMAT_RGB888)
+        {
+            image_data_size = width * height * 3;
+        }
+
+        if (size != image_data_size)
+        {
+            LOGI("Invalid input size: %u, expected: %u\r\n", (unsigned)size, (unsigned)image_data_size);
+            return 0;
+        }
+
+        image_callback_(data, width, height, format, image_data_size);
     }
 
     return 1;

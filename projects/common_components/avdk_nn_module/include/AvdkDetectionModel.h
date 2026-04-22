@@ -83,7 +83,7 @@ public:
     virtual void resolverLoad() = 0;
     virtual void resourceLoad() = 0;
     virtual void resourceUnload() = 0;
-    virtual int run(uint8_t *data, uint32_t size) = 0;
+    virtual int run(uint8_t *data, uint32_t size, bk_pixel_format_t format) = 0;
 
     int init();
     int deinit();
