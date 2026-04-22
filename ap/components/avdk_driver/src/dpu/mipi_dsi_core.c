@@ -190,67 +190,136 @@ bk_err_t mipi_dsi_panel_set_pattern(bk_lcd_bus_io_t *panel, mipi_dsi_pattern_typ
     return BK_OK;
 }
 
+/*
+ * DWC MIPI DSI Host video mode: VID_HSA_TIME, VID_HBP_TIME, VID_HLINE_TIME are in units of
+ * lane byte clock (txbyteclkhs), i.e. DPI pixel intervals scaled by (F_byte_hs / F_pclk),
+ * F_byte_hs = (per-lane HS bit rate) / 8.
+ *
+ * cycles = T_dpi_px * F_byte_hs / F_pclk = dpi_px * (lane_bitrate_mbps * 1e6 / 8) / pclk_hz
+ *
+ * Extra margin (permille) accounts for DSI packet overhead (HSS/HSA/HSE, long packet header, etc.).
+ */
+#define DSI_VID_HBLANK_OVERHEAD_PERMILLE  300u  /* HSA/HBP regions, ~1.30x */
+#define DSI_VID_HLINE_OVERHEAD_PERMILLE   300u  /* full horizontal line, ~1.30x */
+/* DSI 链路带宽余量（与面板注释中 bpp * 1.3 / n_lanes 一致），用于 Naneng PHY 每 lane 最低 Mbps */
+#define DSI_LINK_BANDWIDTH_OVERHEAD_PERMILLE  DSI_VID_HBLANK_OVERHEAD_PERMILLE
+
 static inline uint16_t dsi_time_round(float t)
 {
-    if (t <= 0.f) return 0;
+    if (t <= 0.f) {
+        return 0;
+    }
     t += 0.5f;
     return (t > 65535.f) ? 65535 : (uint16_t)t;
 }
 
-bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)
+static uint64_t mipi_dsi_panel_pclk_hz(const bk_panel_clock_config_t *dsi)
 {
-    float hsa_time = 0;
-    float hbp_time = 0;
-    float hline_time = 0;
-    float scale1 = 1.3f;
-    float scale2 = 1.3f;
-    float clk_coefficient = 0;
-    uint32_t bitrate = 0;
-    uint32_t lane_count = (uint32_t)dsi->n_lanes + 1u;
-    uint32_t min_bitrate;
-
-   bitrate = dsi_dphy_bitrate_calc(dsi->clk, dsi->n_lanes);
-   //bitrate = dsi->clk*32/dsi->n_lanes;
-    if (bitrate == 0) {
-        LOGE("%s dsi_dphy_bitrate_calc failed\n", __func__);
-        return BK_FAIL;
+    if (dsi->fps != 0U) {
+        uint32_t h_total = (uint32_t)dsi->timing.h_size + (uint32_t)dsi->timing.hsync_pulse_width
+            + (uint32_t)dsi->timing.hsync_back_porch + (uint32_t)dsi->timing.hsync_front_porch;
+        uint32_t v_total = (uint32_t)dsi->timing.v_size + (uint32_t)dsi->timing.vsync_pulse_width
+            + (uint32_t)dsi->timing.vsync_back_porch + (uint32_t)dsi->timing.vsync_front_porch;
+        LOGI("h_total:%u v_total:%u fps:%u\n", h_total, v_total, dsi->fps);
+        return (uint64_t)h_total * (uint64_t)v_total * (uint64_t)dsi->fps;
     }
-    clk_coefficient = ((float)bitrate) / (8.f * ((float)dsi->clk));     // lane_byte_clk / dpu_clk
+
+    return 60000000ULL;
+}
+
+static uint16_t dsi_host_vid_byte_cycles(uint32_t dpi_pixels, uint32_t lane_bitrate_mbps,
+                                         uint64_t pclk_hz, uint32_t overhead_permille)
+{
+    if (dpi_pixels == 0U || lane_bitrate_mbps == 0U || pclk_hz == 0ULL) {
+        return 0;
+    }
+
+    uint64_t num = (uint64_t)dpi_pixels * (uint64_t)lane_bitrate_mbps * 1000000ULL
+        * (1000ULL + (uint64_t)overhead_permille);
+    uint64_t den = 8ULL * pclk_hz * 1000ULL;
+    uint64_t q = (num + den / 2ULL) / den;
+
+    return (q > 65535ULL) ? 65535U : (uint16_t)q;
+}
+
+typedef struct {
+    uint16_t hsa;
+    uint16_t hbp;
+    uint16_t hline;
+} mipi_dsi_host_vid_hparams_t;
 
 #if ((SFT_VERSION == FPGA_7259_CM55) || (SFT_VERSION == FPGA_7259_A35))
-    clk_coefficient = ((float)DPHY_BR_800M) / (8.f * ((float)15.0f));   // fpga dphy bitrate set 800Mhz, dpu clk set 15Mhz
-    scale1 = 1.0f;
-    scale2 = 1.1f;
+static void mipi_dsi_host_vid_hparams_fpga(const bk_display_timing_t *t, mipi_dsi_host_vid_hparams_t *out)
+{
+    const float byte_hs_per_pclk = (float)DPHY_BR_800M / (8.f * 15.f);
+
+    out->hsa = dsi_time_round((float)t->hsync_pulse_width * byte_hs_per_pclk * 1.0f);
+    out->hbp = dsi_time_round((float)t->hsync_back_porch * byte_hs_per_pclk * 1.0f);
+    out->hline = dsi_time_round(((float)t->hsync_pulse_width + (float)t->hsync_back_porch
+                                 + (float)t->hsync_front_porch + (float)t->h_size) * byte_hs_per_pclk * 1.1f);
+}
+#else
+static void mipi_dsi_host_vid_hparams_asic(const bk_panel_clock_config_t *dsi, uint32_t lane_bitrate_mbps,
+                                           uint64_t pclk_hz, mipi_dsi_host_vid_hparams_t *out)
+{
+    const bk_display_timing_t *t = &dsi->timing;
+
+    out->hsa = dsi_host_vid_byte_cycles(t->hsync_pulse_width, lane_bitrate_mbps, pclk_hz,
+                                        DSI_VID_HBLANK_OVERHEAD_PERMILLE);
+    out->hbp = dsi_host_vid_byte_cycles(t->hsync_back_porch, lane_bitrate_mbps, pclk_hz,
+                                        DSI_VID_HBLANK_OVERHEAD_PERMILLE);
+
+    uint32_t h_total_px = (uint32_t)t->hsync_pulse_width + (uint32_t)t->hsync_back_porch
+        + (uint32_t)t->hsync_front_porch + (uint32_t)t->h_size;
+    out->hline = dsi_host_vid_byte_cycles(h_total_px, lane_bitrate_mbps, pclk_hz,
+                                          DSI_VID_HLINE_OVERHEAD_PERMILLE);
+}
 #endif
 
-    hsa_time   = (float)dsi->timing.hsync_pulse_width * clk_coefficient * scale1;
-    hbp_time   = (float)dsi->timing.hsync_back_porch * clk_coefficient * scale1;
-    hline_time = ((float)dsi->timing.hsync_pulse_width + (float)dsi->timing.hsync_back_porch + (float)dsi->timing.hsync_front_porch \
-                   + (float)dsi->timing.h_size) * clk_coefficient * scale2;
+bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)
+{
+    (void)ret_panel;
 
-    LOGI("%s, n_lanes:%d, bitrate:%u, hsa:%.2f->%u, hbp:%.2f->%u, hline:%.2f->%u\n", __func__,
-         dsi->n_lanes + 1, (unsigned)bitrate, hsa_time, dsi_time_round(hsa_time),
-         hbp_time, dsi_time_round(hbp_time), hline_time, dsi_time_round(hline_time));
+    uint32_t lane_bitrate_mbps;
+    mipi_dsi_host_vid_hparams_t hp;
+    uint64_t pclk_hz = mipi_dsi_panel_pclk_hz(dsi);
+
+    if (pclk_hz == 0ULL) {
+        LOGE("%s invalid pixel clock (clk/fps/timing)\n", __func__);
+        return BK_FAIL;
+    }
+
+#if ((SFT_VERSION == FPGA_7259_CM55) || (SFT_VERSION == FPGA_7259_A35))
+    lane_bitrate_mbps = DPHY_BR_800M;
+    mipi_dsi_host_vid_hparams_fpga(&dsi->timing, &hp);
+#else
+    if (hal_dsi_dphy_init_for_panel(pclk_hz, dsi->n_lanes, 24u, DSI_LINK_BANDWIDTH_OVERHEAD_PERMILLE,
+                                    &lane_bitrate_mbps) != BK_OK) {
+        LOGE("%s hal_dsi_dphy_init_for_panel failed\n", __func__);
+        return BK_FAIL;
+    }
+    mipi_dsi_host_vid_hparams_asic(dsi, lane_bitrate_mbps, pclk_hz, &hp);
+#endif
+
+    LOGI("%s n_lanes:%u lane:%u Mbps pclk:%llu Hz -> VID_HSA:%u VID_HBP:%u VID_HLINE:%u\n", __func__,
+         (unsigned)(dsi->n_lanes + 1U), (unsigned)lane_bitrate_mbps, (unsigned long long)pclk_hz,
+         (unsigned)hp.hsa, (unsigned)hp.hbp, (unsigned)hp.hline);
 
 #if ((SFT_VERSION == FPGA_7259_CM55) || (SFT_VERSION == FPGA_7259_A35))
     hal_dsi_wait_fpga_dphy_done();
-#else
-	// naneng_dphy-init
-	hal_dsi_dphy_init(bitrate);
 #endif
 
-    hal_dsi_config( dsi->n_lanes,
-        dsi->timing.h_size,
-        dsi->timing.v_size,
-        dsi_time_round(hsa_time),
-        dsi_time_round(hbp_time),
-        dsi_time_round(hline_time),
-        dsi->timing.vsync_pulse_width,
-        dsi->timing.vsync_back_porch,
-        dsi->timing.vsync_front_porch
-    );
+    hal_dsi_config(dsi->n_lanes,
+                   dsi->timing.h_size,
+                   dsi->timing.v_size,
+                   hp.hsa,
+                   hp.hbp,
+                   hp.hline,
+                   dsi->timing.vsync_pulse_width,
+                   dsi->timing.vsync_back_porch,
+                   dsi->timing.vsync_front_porch);
 
-    hal_dsi_operation_mode_set(0);          // in vedio mode
+    hal_dsi_operation_mode_set(0);
     return BK_OK;
 }
 

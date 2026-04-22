@@ -14,6 +14,7 @@
 
 #include <os/os.h>
 #include <os/mem.h>
+#include <common/bk_err.h>
 #include "dpu_core.h"
 #include <components/bk_display_dpu_ctlr.h>
 #include "display_dpu_vn_ctlr.h"
@@ -150,7 +151,7 @@ err:
     return ret;
 }
 
-bk_err_t dpu_ctlr_flush(bk_display_ctlr_handle_t handle, uint8_t *frame, flush_free_cb_t cb)
+avdk_err_t dpu_ctlr_flush(bk_display_ctlr_handle_t handle, uint8_t *frame, flush_free_cb_t cb)
 {
     dpu_vn_ctlr_t *control =  __containerof(handle, dpu_vn_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
@@ -160,13 +161,10 @@ bk_err_t dpu_ctlr_flush(bk_display_ctlr_handle_t handle, uint8_t *frame, flush_f
         LOGE("%s, %d disp not init\n", __func__, __LINE__);
         return AVDK_ERR_GENERIC;
     }
-
-    if (control->flush)
-        control->flush(&control->dpu_handle, DPU_LAYER_VIDEO, frame, cb);
-    return AVDK_ERR_OK;
+    return control->flush(&control->dpu_handle, DPU_LAYER_VIDEO, frame, cb);
 }
 
-bk_err_t dpu_ctlr_layer_flush(bk_display_ctlr_handle_t handle, dpu_layer_t layer, uint8_t *frame, flush_free_cb_t cb)
+avdk_err_t dpu_ctlr_layer_flush(bk_display_ctlr_handle_t handle, dpu_layer_t layer, uint8_t *frame, flush_free_cb_t cb)
 {
     dpu_vn_ctlr_t *control =  __containerof(handle, dpu_vn_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
@@ -176,10 +174,7 @@ bk_err_t dpu_ctlr_layer_flush(bk_display_ctlr_handle_t handle, dpu_layer_t layer
         LOGE("%s, %d disp not init\n", __func__, __LINE__);
         return AVDK_ERR_GENERIC;
     }
-
-    if (control->flush)
-        control->flush(&control->dpu_handle, layer, frame, cb);
-    return AVDK_ERR_OK;
+    return control->flush(&control->dpu_handle, layer, frame, cb);
 }
 
 

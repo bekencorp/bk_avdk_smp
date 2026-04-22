@@ -38,12 +38,12 @@ static bk_err_t lcd_panel_common_init(bk_avdk_lcd_panel_t *panel)
     AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
 
     // Configure clock
-    AVDK_RETURN_ON_FALSE(priv->panel->timing.clk != 0, BK_ERR_NOT_SUPPORT, TAG, "panel timing.clk not set");
+    //AVDK_RETURN_ON_FALSE(priv->panel->timing.clk != 0, BK_ERR_NOT_SUPPORT, TAG, "panel timing.clk not set");
     AVDK_RETURN_ON_FALSE(priv->panel->n_lanes != 0, BK_ERR_NOT_SUPPORT, TAG, "panel n_lanes not set");
 
     bk_panel_clock_config_t clock_config = {
-        .clk = priv->panel->timing.clk,
         .n_lanes = priv->panel->n_lanes,
+        .fps = priv->panel->fps,
         .timing = priv->panel->timing,
     };
     AVDK_RETURN_ON_ERROR(bk_display_bus_set_clock(priv->bus_handle, &clock_config), TAG, "set clock failed");

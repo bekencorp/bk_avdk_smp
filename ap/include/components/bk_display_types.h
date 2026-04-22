@@ -61,8 +61,8 @@ typedef struct
 
 typedef struct
 {
-    uint32_t clk;                /**< dpu clk */
     uint8_t  n_lanes;            /**< mipi lcd active data lanes (1~4) */
+    uint8_t  fps;                /**< frame rate;  according to fps calculate dsi rate, should not over max dsi lane clock rate*/
     bk_display_timing_t timing;    /**< dpu video timing */
 } bk_panel_clock_config_t;
 
@@ -84,6 +84,7 @@ typedef struct
     uint32_t id;                    /**< dsi panel id */
     const char *name;               /**< dsi panel name */
     uint8_t n_lanes;                /**< mipi lcd active data lanes (1~4) */
+    uint8_t fps;                    /**< mipi lcd fps */
     bk_display_timing_t timing;     /**< dsi panel timing */
     const lcd_mipi_init_cmd_t *init_cmds; /**< initialization command sequence */
     const uint8_t *read_id_regs;    /**< ID register addresses (array, terminated by 0) */

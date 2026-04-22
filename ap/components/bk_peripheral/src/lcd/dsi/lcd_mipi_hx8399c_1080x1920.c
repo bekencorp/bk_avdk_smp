@@ -66,8 +66,8 @@ const bk_display_dsi_panel_t lcd_device_hx8399c_mipi_1080x1920 = {
     .id = 0x83990c,
     .name = "hx8399c_mipi_1080x1920",
     .n_lanes = DSI_ACTIVE_LANES_4,
+    .fps = 36,   //max 48fps, (1080+20+20)*(1920+3+5+7) * 48 * 24 * 1.3 = 999 Mbps /4-lane
     .timing = {
-        .clk = LCD_80M,
         .h_size = PIXEL_1080,
         .v_size = PIXEL_1920,
         .hsync_pulse_width = 20,

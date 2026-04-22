@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <common/bk_err.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,7 +29,6 @@ void hal_dsi_wait_for_dphy_pwrup(void);
 
 void hal_dsi_dphy_power_down(void);
 
-uint32_t dsi_dphy_bitrate_calc(lcd_clk_t dpu_clk, uint8_t n_lanes);
 
 void hal_dsi_host_reset(void);
 
@@ -47,7 +48,14 @@ void hal_dsi_config(uint8_t n_lanes,
                 );
 
 
-void hal_dsi_dphy_init(uint32_t br);
+/**
+ * Program Naneng D-PHY PLL (reg_NN_PHY_R5c) and analog timing from panel pixel clock.
+ * Bandwidth: min lane rate so that n_lanes * lane_bps >= pclk_hz * bpp * (1 + overhead).
+ * PLL: FVCO = 26MHz * 8 * (NI + NF/1024), lane_hs = FVCO / 2^rate, DPI pclk = lane_hs / (pixdiv+2).
+ * @param out_lane_mbps HS bit rate per data lane in Mbps (for DSI host byte-cycle timing)
+ */
+bk_err_t hal_dsi_dphy_init_for_panel(uint64_t pclk_hz, uint8_t n_lanes, uint16_t bpp,
+                                     uint32_t overhead_permille, uint32_t *out_lane_mbps);
 
 
 /**

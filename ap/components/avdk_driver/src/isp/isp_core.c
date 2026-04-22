@@ -23,7 +23,7 @@
 #include <driver/int.h>
 #include <driver/sys_pm.h>
 #include "sys_driver.h"
-#include "media_reg.h"
+// #include "media_reg.h"
 
 #include <driver/gpio.h>
 #include "gpio_driver.h"
