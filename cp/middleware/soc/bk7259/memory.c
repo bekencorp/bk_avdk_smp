@@ -141,8 +141,10 @@ const bk_dump_mem_info_t bk7259_peri_reg_info[] = {
     {"SYS", (uint32_t)SOC_SYS_REG_BASE, (0x5c*4)},
     // flash regs warning!!!
     {"FLASH", (uint32_t)SOC_FLASH_REG_BASE, (0x20*4)},
-    {"HSPL0", (uint32_t)SOC_HSPL0_REG_BASE, (0x30*4)},
-    {"HSPL1", (uint32_t)SOC_HSPL1_REG_BASE, (0x30*4)},
+    {"HSPL0_CFG", (uint32_t)SOC_HSPL0_REG_BASE, (0x10*4)},
+    {"HSPL0_STA", (uint32_t)SOC_HSPL0_REG_BASE + (0x20*4), (0x10*4)},
+    {"HSPL1_CFG", (uint32_t)SOC_HSPL1_REG_BASE, (0x10*4)},
+    {"HSPL1_STA", (uint32_t)SOC_HSPL1_REG_BASE + (0x20*4), (0x10*4)},
     {"AON_PMU", (uint32_t)SOC_AON_PMU_REG_BASE, (0x7f*4)},
 #if (CONFIG_SUPPORT_IO_MATRIX)
     {"IOMX", (uint32_t)SOC_IOMX_REG_BASE + (0x40*4), (0x52*4)},
