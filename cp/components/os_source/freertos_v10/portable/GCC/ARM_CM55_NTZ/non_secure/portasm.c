@@ -355,11 +355,36 @@ void soc_svc_handler( void ) /* __attribute__ (( naked )) PRIVILEGED_FUNCTION */
         "	ite eq											\n"
         "	mrseq r0, msp									\n"
         "	mrsne r0, psp									\n"
+        #if CONFIG_DEEP_LV
+        "	ldr r2, [r0, #24]								\n"/* Read the stacked PC. */
+        "	ldrb r2, [r2, #-2]								\n"/* Read the SVC immediate from the triggering instruction. */
+        "	cmp r2, %0										\n"
+        "	beq soc_dlv_restore_svchandler					\n"
+        "	cmp r2, %1										\n"
+        "	beq soc_dlv_svchandler							\n"
+        #endif
         "	ldr r1, svchandler_address_const				\n"
         "	bx r1											\n"
+        #if CONFIG_DEEP_LV
+        "soc_dlv_restore_svchandler:						\n"
+        "	ldr r1, dlv_restore_svchandler_address_const	\n"
+        "	bx r1											\n"
+        "soc_dlv_svchandler:								\n"
+        "	mov r3, lr										\n"
+        "	lsrs r3, r3, #2								\n"
+        "	and r3, r3, #1									\n"
+        "	mov r0, lr										\n"/* Pass EXC_RETURN before any C prologue can touch r4-r11. */
+        "	ldr r1, dlv_svchandler_address_const			\n"
+        "	bx r1											\n"
+        #endif
         "													\n"
         "	.align 4										\n"
         "svchandler_address_const: .word vPortSVCHandler_C	\n"
+        #if CONFIG_DEEP_LV
+        "dlv_restore_svchandler_address_const: .word deep_lv_exit \n"
+        "dlv_svchandler_address_const: .word dlv_stack_frame_save_and_dlv	\n"
+        #endif
+        ::"i" ( portSVC_DEEP_LV_EXIT ), "i" ( portSVC_DEEP_LV_ENTER )
     );
 }
 /*-----------------------------------------------------------*/

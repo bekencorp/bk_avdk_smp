@@ -860,9 +860,6 @@ vPortSVCHandler_C(uint32_t * pulCallerStackAddress ) /* PRIVILEGED_FUNCTION port
     #endif /* configENABLE_MPU */
 
     volatile uint32_t ulPC;
-#if CONFIG_DEEP_LV
-    volatile uint32_t ulLR = __get_LR();
-#endif
 
     #if ( configENABLE_TRUSTZONE == 1 )
         uint32_t ulR0, ulR1;
@@ -878,16 +875,6 @@ vPortSVCHandler_C(uint32_t * pulCallerStackAddress ) /* PRIVILEGED_FUNCTION port
     ulPC = pulCallerStackAddress[ 6 ];
 
     ucSVCNumber = ( ( uint8_t * ) ulPC )[ -2 ];
-    #if CONFIG_DEEP_LV
-    if(aon_pmu_ll_get_r7b_dlv_startup())
-    {
-        uint32_t dlv_startup = aon_pmu_hal_get_dlv_startup_iram();
-        if (dlv_startup) {
-            aon_pmu_hal_set_dlv_startup(0);
-        }
-        deep_lv_exit();
-    }
-    #endif
     switch( ucSVCNumber )
     {
         #if ( configENABLE_TRUSTZONE == 1 )
@@ -968,13 +955,7 @@ vPortSVCHandler_C(uint32_t * pulCallerStackAddress ) /* PRIVILEGED_FUNCTION port
                     }
                     break;
             #endif /* configENABLE_MPU */
-
 #if CONFIG_DEEP_LV
-        case portSVC_DEEP_LV_ENTER:
-            dlv_stack_frame_save_and_dlv(ulLR);
-            deep_lv_enter();
-            break;
-
         case portSVC_DEEP_LV_EXIT:
             deep_lv_exit();
             break;
