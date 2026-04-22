@@ -340,7 +340,7 @@ bk_err_t bk_isp_clock_enable(uint32_t clk, uint8_t enable)
     {
         // isp clock configuration 60MHz
         // isp clock sel 1, div 4, 60MHz
-        sys_drv_cisp_cksel_clkdiv_set(CKSEL_CISP_240M, 3);
+        sys_drv_cisp_cksel_clkdiv_set(CKSEL_CISP_240M, 1);
 
         // enable isp clock
         bk_pm_clock_ctrl(PM_CLK_ID_CISP, PM_CLK_CTRL_PWR_UP);
@@ -360,20 +360,17 @@ bk_err_t bk_cis_auxs_clock_enable(uint32_t clk, uint32_t gpio, uint8_t enable)
     {
         *(volatile uint32_t*)(0x44000400 + 0x3b * 4) |= (129 << 24); // gpio 59 for csi clk
 
-        // csi auxs clock configuration, default 24MHz
-        uint32_t reg_value = REG_READ(REG_SYS_BASE_ADDR + (0x9 << 2));
-
         // sel 1, 240MHz, div 10
-        sys_hal_cis_auxs_cksel_set(CKSEL_CIS_AUXS_240M);
+        sys_drv_cis_auxs_cksel_set(CKSEL_CIS_AUXS_240M);
         sys_drv_cis_auxs_clkdiv_set(9);
 
         // enable csi auxs clock
-        bk_pm_clock_ctrl(PM_CLK_ID_CISP, PM_CLK_CTRL_PWR_UP);
+        bk_pm_clock_ctrl(PM_CLK_ID_CSI, PM_CLK_CTRL_PWR_UP);
     }
     else
     {
         // disable csi auxs clock
-        bk_pm_clock_ctrl(PM_CLK_ID_CISP, PM_CLK_CTRL_PWR_DOWN);
+        bk_pm_clock_ctrl(PM_CLK_ID_CSI, PM_CLK_CTRL_PWR_DOWN);
     }
     return BK_OK;
 }
@@ -391,12 +388,12 @@ bk_err_t bk_cis_mclk_clock_enable(uint32_t clk, uint8_t gpio, uint8_t enable)
         sys_drv_cis_mclk_cksel_clkdiv_set(CKSEL_CIS_MCLK_240M, 9);
 
         // enable csi/mclk clock
-        bk_pm_clock_ctrl(PM_CLK_ID_CISP, PM_CLK_CTRL_PWR_UP);
+        bk_pm_clock_ctrl(PM_CLK_ID_CSI, PM_CLK_CTRL_PWR_UP);
     }
     else
     {
         // disable csi mclk clock
-        bk_pm_clock_ctrl(PM_CLK_ID_CISP, PM_CLK_CTRL_PWR_DOWN);
+        bk_pm_clock_ctrl(PM_CLK_ID_CSI, PM_CLK_CTRL_PWR_DOWN);
         //gpio_dev_unmap(gpio);
     }
     return BK_OK;
@@ -410,7 +407,7 @@ static void isp_clock_enable(uint32_t clk)
 
     // isp clock configuration
     // isp clock div default div 4, 60MHz
-    sys_drv_cisp_cksel_clkdiv_set(CKSEL_CISP_240M, 3);
+    sys_drv_cisp_cksel_clkdiv_set(CKSEL_CISP_240M, 1);
 
     // enable isp clock
     bk_pm_clock_ctrl(PM_CLK_ID_CISP, PM_CLK_CTRL_PWR_UP);
