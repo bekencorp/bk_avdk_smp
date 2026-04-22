@@ -34,9 +34,7 @@
 
 #define JPEG_DECODE_PORT_DONE_BIT(id) (1U << (id))
 
-static avdk_err_t jpeg_decode_callback(void *param);
-
-static void jpeg_decode_apply_min_rd_to_hw(private_jpeg_decode_ctlr_t *ctrl)
+static void jpeg_decode_apply_min_rd_to_hw(private_jpeg_decode_flexa_ctlr_t *ctrl)
 {
 	uint32_t min_rd = 0xFFFFFFFFU;
 
@@ -65,7 +63,7 @@ static void jpeg_decode_apply_min_rd_to_hw(private_jpeg_decode_ctlr_t *ctrl)
 	}
 }
 
-static void jpeg_decode_flexa_clear_port_done_events(private_jpeg_decode_ctlr_t *ctrl)
+static void jpeg_decode_flexa_clear_port_done_events(private_jpeg_decode_flexa_ctlr_t *ctrl)
 {
 	uint32_t mask = 0;
 
@@ -79,7 +77,7 @@ static void jpeg_decode_flexa_clear_port_done_events(private_jpeg_decode_ctlr_t 
 	}
 }
 
-static avdk_err_t jpeg_decode_wait_flexa_registered_ports_done(private_jpeg_decode_ctlr_t *ctrl)
+static avdk_err_t jpeg_decode_wait_flexa_registered_ports_done(private_jpeg_decode_flexa_ctlr_t *ctrl)
 {
 	uint32_t mask = 0;
 	if (ctrl->port_done_events == NULL) {
@@ -114,7 +112,7 @@ static avdk_err_t jpeg_decode_wait_flexa_registered_ports_done(private_jpeg_deco
 	return AVDK_ERR_OK;
 }
 
-static void jpeg_decode_notify_flexa_bonds_error(private_jpeg_decode_ctlr_t *ctrl)
+static void jpeg_decode_notify_flexa_bonds_error(private_jpeg_decode_flexa_ctlr_t *ctrl)
 {
 	for (uint32_t i = 0; i < BK_JPEG_DECODE_RD_PORT_MAX; i++) {
 		if (ctrl->port[i].bond == NULL) {
@@ -130,21 +128,21 @@ static void jpeg_decode_notify_flexa_bonds_error(private_jpeg_decode_ctlr_t *ctr
 static void frame_done_cb(int status, void *args)
 {
 	DECODE_FRAME_DONE;
-	private_jpeg_decode_ctlr_t *ctrl = (private_jpeg_decode_ctlr_t *)args;
+	private_jpeg_decode_flexa_ctlr_t *ctrl = (private_jpeg_decode_flexa_ctlr_t *)args;
 	if(ctrl == NULL) {
 		LOGE("control is NULL\r\n");
 		return;
 	}
 	if (ctrl->config.frame_done_cb != NULL)
 	{
-		ctrl->config.frame_done_cb(status, ctrl->config.args);
+		ctrl->config.frame_done_cb(status, ctrl->config.frame_done_args);
 	}
 }
 
 static void flexa_done_cb(uint32_t wr_ptr, void *args)
 {
 	DECODE_LINE_END;
-	private_jpeg_decode_ctlr_t *ctrl = (private_jpeg_decode_ctlr_t *)args;
+	private_jpeg_decode_flexa_ctlr_t *ctrl = (private_jpeg_decode_flexa_ctlr_t *)args;
 	if(ctrl == NULL) {
 		LOGE("control is NULL\r\n");
 		return;
@@ -169,13 +167,13 @@ static void flexa_done_cb(uint32_t wr_ptr, void *args)
 	}
 	if (ctrl->config.flexa_done_cb != NULL)
 	{
-		ctrl->config.flexa_done_cb(wr_ptr, ctrl->config.args);
+		ctrl->config.flexa_done_cb(wr_ptr, ctrl->config.flexa_done_args);
 	}
 }
 
 static avdk_err_t jpeg_decode_ctlr_init(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	private_jpeg_decode_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_ctlr_t, ops);
+	private_jpeg_decode_flexa_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_flexa_ctlr_t, ops);
 	AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_INVAL, TAG, "control is NULL");
 
 	avdk_err_t ret = hw_decoder_register(HW_DECODER_TYPE_JPEG, ctrl);
@@ -197,10 +195,10 @@ static avdk_err_t jpeg_decode_ctlr_init(bk_jpeg_decode_ctlr_handle_t handle)
 	}
 
 	vcdec_config_t cfg = {0};
-	cfg.mode = ctrl->config.decode_mode;
+	cfg.mode = ctrl->mode;
 	cfg.timeout_ms = (ctrl->config.timeout_ms != 0U) ? ctrl->config.timeout_ms : 1000U;
 	cfg.frame_done_cb = frame_done_cb;
-	cfg.flexa_done_cb = (ctrl->config.decode_mode == BK_JPEG_DECODE_FLEXA_MODE_FLEXA) ? flexa_done_cb : NULL;
+	cfg.flexa_done_cb = flexa_done_cb;
 	cfg.args = ctrl;
 
 	ret = vcdec_jpeg_init(&ctrl->vcdec_handle, &cfg);
@@ -226,7 +224,7 @@ error:
 
 static avdk_err_t jpeg_decode_ctlr_open(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	private_jpeg_decode_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_ctlr_t, ops);
+	private_jpeg_decode_flexa_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_flexa_ctlr_t, ops);
 	AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_INVAL, TAG, "control is NULL");
 
 	vcdec_ret_e ret = vcdec_jpeg_open(ctrl->vcdec_handle);
@@ -246,12 +244,12 @@ static avdk_err_t jpeg_decode_callback(void *param)
 		return AVDK_ERR_INVAL;
 	}
 
-	private_jpeg_decode_ctlr_t *ctrl = (private_jpeg_decode_ctlr_t *)param;
+	private_jpeg_decode_flexa_ctlr_t *ctrl = (private_jpeg_decode_flexa_ctlr_t *)param;
 	if (!ctrl->vcdec_handle) {
 		return AVDK_ERR_INVAL;
 	}
 
-	if (ctrl->config.decode_mode == BK_JPEG_DECODE_FLEXA_MODE_FLEXA) {
+	if (ctrl->mode == BK_JPEG_DECODE_FLEXA_MODE_FLEXA) {
 		jpeg_decode_flexa_clear_port_done_events(ctrl);
 	}
 	ctrl->all_ports_min_rd = 0;
@@ -273,7 +271,7 @@ static avdk_err_t jpeg_decode_callback(void *param)
 	DECODE_FRAME_END;
 	ctrl->decode_result = BK_OK;
 
-	if (ctrl->config.decode_mode == BK_JPEG_DECODE_FLEXA_MODE_FLEXA) {
+	if (ctrl->mode == BK_JPEG_DECODE_FLEXA_MODE_FLEXA) {
 		ret = jpeg_decode_wait_flexa_registered_ports_done(ctrl);
 		if (ret != AVDK_ERR_OK) {
 			LOGE("%s %d wait flexa registered ports done failed: %d\r\n", __func__, __LINE__, ret);
@@ -285,7 +283,7 @@ static avdk_err_t jpeg_decode_callback(void *param)
 
 static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t handle, bk_jpeg_decode_input_t *input)
 {
-	private_jpeg_decode_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_ctlr_t, ops);
+	private_jpeg_decode_flexa_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_flexa_ctlr_t, ops);
 	AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_INVAL, TAG, "control is NULL");
 	AVDK_RETURN_ON_FALSE(input, AVDK_ERR_INVAL, TAG, "input is NULL");
 	AVDK_RETURN_ON_FALSE(input->stream && input->stream_len > 0, AVDK_ERR_INVAL, TAG, "invalid stream");
@@ -294,13 +292,12 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
 	uint8_t *out_buffer = input->out_buffer;
 	uint32_t out_buffer_size = input->out_buffer_size;
 
-	const bool flexa = (ctrl->config.decode_mode == BK_JPEG_DECODE_FLEXA_MODE_FLEXA);
 	const uint16_t seg_ht_mb = ctrl->config.segment_height;
 	const uint8_t seg_num = ctrl->config.segment_number;
-	const uint32_t rb_h = flexa ? (16U * (uint32_t)seg_ht_mb * (uint32_t)seg_num) : (uint32_t)ctrl->config.height;
-	const uint32_t out_w = (uint32_t)ctrl->config.width;
+	const uint32_t rb_h = 16U * (uint32_t)seg_ht_mb * (uint32_t)seg_num;
+	const uint32_t out_w = (uint32_t)ctrl->config.out_width;
 
-	if (flexa && out_w == 0U) {
+	if (out_w == 0U) {
 		LOGE("Flexa mode requires out_width set via ioctl\r\n");
 		return AVDK_ERR_INVAL;
 	}
@@ -319,10 +316,10 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
 	ctrl->decode_config.input_stream_len = input->stream_len;
 	ctrl->decode_config.output_buffer = out_buffer;
 	ctrl->decode_config.output_size = out_buffer_size;
-	ctrl->decode_config.width = ctrl->config.width;
-	ctrl->decode_config.height = ctrl->config.height;
-	ctrl->decode_config.segment_height = flexa ? seg_ht_mb : 1U;
-	ctrl->decode_config.segment_number = flexa ? seg_num : 1U;
+	ctrl->decode_config.width = ctrl->config.out_width;
+	ctrl->decode_config.height = ctrl->config.out_height;
+	ctrl->decode_config.segment_height = seg_ht_mb;
+	ctrl->decode_config.segment_number = seg_num;
 
 	hw_decoder_msg_t msg = {
 		.type = HW_DECODER_MSG_DECODE,
@@ -349,7 +346,7 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
 	return AVDK_ERR_OK;
 }
 
-static void jpeg_decode_os_resources_deinit(private_jpeg_decode_ctlr_t *ctrl)
+static void jpeg_decode_resources_deinit(private_jpeg_decode_flexa_ctlr_t *ctrl)
 {
 	if (ctrl->port_done_events != NULL) {
 		(void)rtos_deinit_event_flags(&ctrl->port_done_events);
@@ -362,7 +359,7 @@ static void jpeg_decode_os_resources_deinit(private_jpeg_decode_ctlr_t *ctrl)
 
 static avdk_err_t jpeg_decode_ctlr_close(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	private_jpeg_decode_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_ctlr_t, ops);
+	private_jpeg_decode_flexa_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_flexa_ctlr_t, ops);
 	AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_INVAL, TAG, "control is NULL");
 
 	if (ctrl->vcdec_handle) {
@@ -374,7 +371,7 @@ static avdk_err_t jpeg_decode_ctlr_close(bk_jpeg_decode_ctlr_handle_t handle)
 
 static avdk_err_t jpeg_decode_ctlr_deinit(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	private_jpeg_decode_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_ctlr_t, ops);
+	private_jpeg_decode_flexa_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_flexa_ctlr_t, ops);
 	AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_INVAL, TAG, "control is NULL");
 
 	avdk_err_t ret = hw_decoder_unregister(ctrl);
@@ -386,14 +383,14 @@ static avdk_err_t jpeg_decode_ctlr_deinit(bk_jpeg_decode_ctlr_handle_t handle)
 		vcdec_jpeg_deinit(ctrl->vcdec_handle);
 		ctrl->vcdec_handle = NULL;
 	}
-	jpeg_decode_os_resources_deinit(ctrl);
+	jpeg_decode_resources_deinit(ctrl);
 	LOGI("JPEG decoder unregistered from hw controller\r\n");
 	return AVDK_ERR_OK;
 }
 
 static avdk_err_t jpeg_decode_ctlr_ioctl(bk_jpeg_decode_ctlr_handle_t handle, uint32_t cmd, void *arg)
 {
-	private_jpeg_decode_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_ctlr_t, ops);
+	private_jpeg_decode_flexa_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_flexa_ctlr_t, ops);
 	AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_INVAL, TAG, "control is NULL");
 
 	switch (cmd) {
@@ -492,23 +489,25 @@ static avdk_err_t jpeg_decode_ctlr_ioctl(bk_jpeg_decode_ctlr_handle_t handle, ui
 
 static avdk_err_t jpeg_decode_ctlr_delete(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	private_jpeg_decode_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_ctlr_t, ops);
+	private_jpeg_decode_flexa_ctlr_t *ctrl = __containerof(handle, private_jpeg_decode_flexa_ctlr_t, ops);
 	AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_INVAL, TAG, "control is NULL");
 	os_free(ctrl);
 	LOGI("JPEG decoder deleted\r\n");
 	return AVDK_ERR_OK;
 }
 
-avdk_err_t bk_jpeg_decode_ctlr_new(bk_jpeg_decode_ctlr_handle_t *handle, bk_jpeg_decode_config_t *config)
+avdk_err_t bk_jpeg_decode_flexa_ctlr_new(bk_jpeg_decode_ctlr_handle_t *handle, bk_jpeg_decode_flexa_config_t *config)
 {
 	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, "handle is NULL");
 	AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
 
-	private_jpeg_decode_ctlr_t *ctrl = (private_jpeg_decode_ctlr_t *)os_malloc(sizeof(private_jpeg_decode_ctlr_t));
+	private_jpeg_decode_flexa_ctlr_t *ctrl = (private_jpeg_decode_flexa_ctlr_t *)os_malloc(sizeof(private_jpeg_decode_flexa_ctlr_t));
 	AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
 
-	os_memset(ctrl, 0, sizeof(private_jpeg_decode_ctlr_t));
-	os_memcpy(&ctrl->config, config, sizeof(bk_jpeg_decode_config_t));
+	os_memset(ctrl, 0, sizeof(private_jpeg_decode_flexa_ctlr_t));
+	os_memcpy(&ctrl->config, config, sizeof(bk_jpeg_decode_flexa_config_t));
+
+	ctrl->mode = BK_JPEG_DECODE_FLEXA_MODE_FLEXA;
 
 	ctrl->ops.init = jpeg_decode_ctlr_init;
 	ctrl->ops.open = jpeg_decode_ctlr_open;

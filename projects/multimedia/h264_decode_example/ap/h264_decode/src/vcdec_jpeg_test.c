@@ -11,6 +11,7 @@
 #include "components/bk_frame_buffer.h"
 #include "cache.h"
 #include "components/bk_decode/bk_jpeg_decode_ctlr.h"
+#include "bk_flexa_bond_types.h"
 #include "jpeg_176_144.h"
 
 #define TAG "vcdec_jpeg_test"
@@ -68,13 +69,9 @@ typedef struct {
 
 static vcdec_jpeg_flexa_copy_ctx_t s_flexa_copy_ctx;
 
-/*
- * PORT_SET_RD_PTR matches ctrl->port[i].bond (see bk_jpeg_decode_ctlr_ioctl).
- * It must be the same pointer passed to REGISTER_BOND — not the decoder handle.
- * Zero-filled blob: flexa_done is NULL so flexa_done_cb skips bond dispatch.
- */
-#define VCDEC_JPEG_FLEXA_BOND_STUB_BYTES 128U
-static uint8_t s_jpeg_flexa_bond_stub[VCDEC_JPEG_FLEXA_BOND_STUB_BYTES];
+// if flexa_done_cb is NULL, flexa_done_cb will not be called
+// then shold send BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR in flexa_done_cb
+static bk_flexa_bond_t s_jpeg_flexa_bond = {0};
 
 static void vcdec_jpeg_flexa_done_cb(uint32_t wrCnt, void *args)
 {
@@ -99,7 +96,7 @@ static void vcdec_jpeg_flexa_done_cb(uint32_t wrCnt, void *args)
 		ctx->pp_seg_num == 0U || ctx->pp_seg_rows == 0U) {
 		{
 			bk_jpeg_decode_port_rd_t rd_cmd = {
-				.port_ptr = s_jpeg_flexa_bond_stub,
+				.port_ptr = &s_jpeg_flexa_bond,
 				.rd_blocks = wrCnt,
 			};
 			bk_jpeg_decode_ioctl(ctx->dec, BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
@@ -113,7 +110,7 @@ static void vcdec_jpeg_flexa_done_cb(uint32_t wrCnt, void *args)
 	const uint32_t start_row = rd * 16U;
 	if (start_row >= ctx->frame_height) {
 		bk_jpeg_decode_port_rd_t rd_cmd = {
-			.port_ptr = s_jpeg_flexa_bond_stub,
+			.port_ptr = &s_jpeg_flexa_bond,
 			.rd_blocks = wrCnt,
 		};
 		bk_jpeg_decode_ioctl(ctx->dec, BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
@@ -146,7 +143,7 @@ static void vcdec_jpeg_flexa_done_cb(uint32_t wrCnt, void *args)
 	/* Release the segment after copying. */
 	{
 		bk_jpeg_decode_port_rd_t rd_cmd = {
-			.port_ptr = s_jpeg_flexa_bond_stub,
+			.port_ptr = &s_jpeg_flexa_bond,
 			.rd_blocks = wrCnt,
 		};
 		bk_jpeg_decode_ioctl(ctx->dec, BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
@@ -196,18 +193,16 @@ void vcdec_jpeg_test(void)
 	os_memset(out_buf, 0, out_size);
 	cache_data_flush_range(out_buf, out_size);
 
-	bk_jpeg_decode_config_t cfg = {0};
-	cfg.decode_mode = BK_JPEG_DECODE_FLEXA_MODE_NONE;
+	bk_jpeg_decode_frame_config_t cfg = {0};
 	cfg.frame_done_cb = vcdec_jpeg_frame_done_cb;
-	cfg.args = &s_flexa_copy_ctx;
+	cfg.frame_done_args = NULL;
 	cfg.timeout_ms = 1000;
-	cfg.width = (uint16_t)out_width;
-	cfg.height = (uint16_t)out_height;
-	cfg.segment_height = (uint16_t)1;
-	cfg.segment_number = (uint8_t)2;
-	ret = bk_jpeg_decode_new(&dec, &cfg);
+	cfg.out_width = out_width;
+	cfg.out_height = out_height;
+	cfg.out_format = BK_PIXEL_FORMAT_NV12;
+	ret = bk_jpeg_decode_frame_ctlr_new(&dec, &cfg);
 	if (ret != AVDK_ERR_OK) {
-		LOGE("bk_jpeg_decode_new failed %d\r\n", (int)ret);
+		LOGE("bk_jpeg_decode_frame_ctlr_new failed %d\r\n", (int)ret);
 		goto cleanup;
 	}
 	ret = bk_jpeg_decode_init(dec);
@@ -326,19 +321,20 @@ void vcdec_jpeg_flexa_test(void)
 	s_flexa_copy_ctx.pp_seg_num = seg_num;
 	s_flexa_copy_ctx.pp_seg_rows = seg_rows;
 
-	bk_jpeg_decode_config_t cfg = {0};
-	cfg.decode_mode = BK_JPEG_DECODE_FLEXA_MODE_FLEXA;
+	bk_jpeg_decode_flexa_config_t cfg = {0};
 	cfg.frame_done_cb = vcdec_jpeg_frame_done_cb;
+	cfg.frame_done_args = NULL;
 	cfg.flexa_done_cb = vcdec_jpeg_flexa_done_cb;
-	cfg.args = &s_flexa_copy_ctx;
+	cfg.flexa_done_args = &s_flexa_copy_ctx;
 	cfg.timeout_ms = 1000;
 	cfg.segment_height = (uint16_t)seg_ht_mb;
 	cfg.segment_number = (uint8_t)seg_num;
-	cfg.width = (uint16_t)out_width;
-	cfg.height = (uint16_t)out_height;
-	ret = bk_jpeg_decode_new(&s_flexa_copy_ctx.dec, &cfg);
+	cfg.out_width = out_width;
+	cfg.out_height = out_height;
+	cfg.out_format = BK_PIXEL_FORMAT_NV12;
+	ret = bk_jpeg_decode_flexa_ctlr_new(&s_flexa_copy_ctx.dec, &cfg);
 	if (ret != AVDK_ERR_OK) {
-		LOGE("bk_jpeg_decode_new failed %d\r\n", (int)ret);
+		LOGE("bk_jpeg_decode_flexa_ctlr_new failed %d\r\n", (int)ret);
 		goto cleanup;
 	}
 	ret = bk_jpeg_decode_init(s_flexa_copy_ctx.dec);
@@ -353,9 +349,7 @@ void vcdec_jpeg_flexa_test(void)
 		goto cleanup;
 	}
 
-	os_memset(s_jpeg_flexa_bond_stub, 0, sizeof(s_jpeg_flexa_bond_stub));
-	ret = bk_jpeg_decode_ioctl(s_flexa_copy_ctx.dec, BK_JPEG_DECODE_IOCTL_REGISTER_BOND,
-				   s_jpeg_flexa_bond_stub);
+	ret = bk_jpeg_decode_ioctl(s_flexa_copy_ctx.dec, BK_JPEG_DECODE_IOCTL_REGISTER_BOND, &s_jpeg_flexa_bond);
 	if (ret != AVDK_ERR_OK) {
 		LOGE("REGISTER_BOND failed %d\r\n", (int)ret);
 		goto cleanup;
@@ -389,8 +383,7 @@ void vcdec_jpeg_flexa_test(void)
 	}
 
 	LOGI("flexa decode done\r\n");
-	(void)bk_jpeg_decode_ioctl(s_flexa_copy_ctx.dec, BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND,
-				   s_jpeg_flexa_bond_stub);
+	(void)bk_jpeg_decode_ioctl(s_flexa_copy_ctx.dec, BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND, &s_jpeg_flexa_bond);
 	(void)bk_jpeg_decode_close(s_flexa_copy_ctx.dec);
 	(void)bk_jpeg_decode_deinit(s_flexa_copy_ctx.dec);
 	(void)bk_jpeg_decode_delete(s_flexa_copy_ctx.dec);
@@ -398,8 +391,7 @@ void vcdec_jpeg_flexa_test(void)
 
 cleanup:
 	if (s_flexa_copy_ctx.dec != NULL) {
-		(void)bk_jpeg_decode_ioctl(s_flexa_copy_ctx.dec, BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND,
-					   s_jpeg_flexa_bond_stub);
+		(void)bk_jpeg_decode_ioctl(s_flexa_copy_ctx.dec, BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND, &s_jpeg_flexa_bond);
 		(void)bk_jpeg_decode_close(s_flexa_copy_ctx.dec);
 		(void)bk_jpeg_decode_deinit(s_flexa_copy_ctx.dec);
 		(void)bk_jpeg_decode_delete(s_flexa_copy_ctx.dec);

@@ -125,6 +125,11 @@ static void doorbell_jpeg_frame_done_cb(int status, void *args)
     }
 }
 
+static void doorbell_decode_flexa_done_callback(uint32_t wr_cnt, void *args)
+{
+    
+}
+
 static void app_decode_thread_entry(void *arg)
 {
     LOGD("%s, %d, decode thread entry\n", __func__, __LINE__);
@@ -230,10 +235,7 @@ static void app_decode_thread_entry(void *arg)
     rtos_delete_thread(NULL);
 }
 
-static void doorbell_decode_flexa_done_callback(uint32_t wr_cnt, void *args)
-{
 
-}
 
 avdk_err_t doorbell_jpeg_decode_open(uint16_t width,
                                 uint16_t height,
@@ -290,20 +292,19 @@ avdk_err_t doorbell_jpeg_decode_open(uint16_t width,
     }
 
     if (format == BK_IMAGE_FORMAT_MJPEG) {
-        bk_jpeg_decode_config_t cfg = {0};
-        cfg.decode_mode = BK_JPEG_DECODE_FLEXA_MODE_FLEXA;
+        bk_jpeg_decode_flexa_config_t cfg = DEFAULT_JPEG_DECODE_FLEXA_CONFIG;
         cfg.frame_done_cb = doorbell_jpeg_frame_done_cb;
+        cfg.frame_done_args = NULL;
         cfg.flexa_done_cb = doorbell_decode_flexa_done_callback;
-        cfg.args = decoder_config;
-        cfg.timeout_ms = 1000;
-        cfg.width = width;
-        cfg.height = height;
+        cfg.flexa_done_args = NULL;
+        cfg.out_width = width;
+        cfg.out_height = height;
         cfg.segment_height = (uint16_t)(DECODE_FLEXA_LINES / 16);
         cfg.segment_number = DECODE_BUFFER_CNT;
 
-        ret = bk_jpeg_decode_new(&decoder_config->decode_handle, &cfg);
+        ret = bk_jpeg_decode_flexa_ctlr_new(&decoder_config->decode_handle, &cfg);
         if (ret != AVDK_ERR_OK) {
-            LOGE("%s, %d, bk_jpeg_decode_new failed, ret=%d\n", __func__, __LINE__, ret);
+            LOGE("%s, %d, bk_jpeg_decode_flexa_ctlr_new failed, ret=%d\n", __func__, __LINE__, ret);
             goto out;
         }
         ret = bk_jpeg_decode_init(decoder_config->decode_handle);

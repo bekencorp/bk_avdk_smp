@@ -173,9 +173,9 @@ avdk_err_t bk_flexa_mjpegd_h264e_bond_start(void **bond,
 	in_stream->bond_config = bond_new;
 
 	{
-		private_jpeg_decode_ctlr_t *ctrl = (private_jpeg_decode_ctlr_t *)jpeg;
+		private_jpeg_decode_flexa_ctlr_t *ctrl = (private_jpeg_decode_flexa_ctlr_t *)jpeg;
 
-		out_stream->max_lines_per_frame = (ctrl->config.height + 15) / 16;
+		out_stream->max_lines_per_frame = (ctrl->config.out_height + 15) / 16;
 	}
 
 	out_stream->handle = (void *)h264;
@@ -380,9 +380,9 @@ avdk_err_t bk_flexa_mjpegd_gpu_bond_start(void **bond,
 	in_stream->bond_config = bond_new;
 
 	{
-		private_jpeg_decode_ctlr_t *ctrl = (private_jpeg_decode_ctlr_t *)jpeg;
+		private_jpeg_decode_flexa_ctlr_t *ctrl = (private_jpeg_decode_flexa_ctlr_t *)jpeg;
 
-		out_stream->max_lines_per_frame = (ctrl->config.height + 15) / 16;
+		out_stream->max_lines_per_frame = (ctrl->config.out_height + 15) / 16;
 	}
 
 	out_stream->handle = (void *)gpu;

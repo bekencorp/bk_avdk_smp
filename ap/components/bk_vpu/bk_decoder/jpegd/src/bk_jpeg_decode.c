@@ -65,10 +65,3 @@ avdk_err_t bk_jpeg_decode_delete(bk_jpeg_decode_ctlr_handle_t handle)
 	AVDK_RETURN_ON_FALSE(handle->del, AVDK_ERR_UNSUPPORTED, TAG, "del not supported");
 	return handle->del(handle);
 }
-
-avdk_err_t bk_jpeg_decode_new(bk_jpeg_decode_ctlr_handle_t *handle, bk_jpeg_decode_config_t *config)
-{
-	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-	AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-	return bk_jpeg_decode_ctlr_new(handle, config);
-}

@@ -30,7 +30,19 @@ typedef struct {
 } bk_jpeg_decode_port_entry_t;
 
 typedef struct {
+	vcdec_handle vcdec_handle; 	 /* from vcdec_jpeg_open */
+	bk_jpeg_decode_flexa_mode_t mode;		/* flexa mode */
+	vcdec_decode_config_t decode_config;  /* filled per decode */
+	uint32_t decode_result;
+	beken_semaphore_t decode_done_sem;
+
+	bk_jpeg_decode_frame_config_t config;
+	bk_jpeg_decode_ctlr_t ops;
+} private_jpeg_decode_frame_ctlr_t;
+
+typedef struct {
 	vcdec_handle vcdec_handle;  /* from vcdec_jpeg_open */
+	bk_jpeg_decode_flexa_mode_t mode;		/* flexa mode */
 	vcdec_decode_config_t decode_config;  /* filled per decode */
 	uint32_t decode_result;
 	beken_semaphore_t decode_done_sem;
@@ -40,9 +52,9 @@ typedef struct {
 
 	bk_jpeg_decode_port_entry_t port[BK_JPEG_DECODE_RD_PORT_MAX];
 
-	bk_jpeg_decode_config_t config;
+	bk_jpeg_decode_flexa_config_t config;
 	bk_jpeg_decode_ctlr_t ops;
-} private_jpeg_decode_ctlr_t;
+} private_jpeg_decode_flexa_ctlr_t;
 
 #ifdef __cplusplus
 }

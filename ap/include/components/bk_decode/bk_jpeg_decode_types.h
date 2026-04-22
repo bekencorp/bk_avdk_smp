@@ -26,12 +26,6 @@ typedef void (*bk_jpeg_decode_frame_done_cb)(int status, void *args);
 /** Flexa done callback: (wr_ptr, args). */
 typedef void (*bk_jpeg_decode_flexa_done_cb)(uint32_t wr_ptr, void *args);
 
-/** Request output buffer for decoded frame. Returns pointer to buffer that can hold at least size bytes; or NULL. */
-typedef void *(*bk_jpeg_decode_buffer_request_cb)(uint32_t width, uint32_t height, uint32_t *out_y_size, uint32_t *out_c_size);
-
-/** Optional: notify that output buffer is no longer used. */
-typedef void (*bk_jpeg_decode_buffer_release_cb)(void *buf);
-
 typedef enum {
 	BK_JPEG_DECODE_IOCTL_GET_INFO,
 	BK_JPEG_DECODE_IOCTL_ABORT,
@@ -48,76 +42,50 @@ typedef enum {
 	BK_JPEG_DECODE_RD_PORT_H264E = 1,
 } bk_jpeg_decode_rd_port_id_t;
 
+/** this is for bond*/
 typedef struct {
 	void *port_ptr;
 	uint32_t rd_blocks;
 } bk_jpeg_decode_port_rd_t;
 
-
 typedef enum {
 	BK_JPEG_DECODE_FLEXA_MODE_NONE = 0,
 	BK_JPEG_DECODE_FLEXA_MODE_FLEXA,
-	BK_JPEG_DECODE_FLEXA_MODE_SLICE,
 } bk_jpeg_decode_flexa_mode_t;
 
-/**
- * Parameters for hardware JPEG decode via vcdec.
- * Pass this struct as arg for BK_JPEG_DECODE_IOCTL_SET_PARAM before bk_jpeg_decode_open().
- */
 typedef struct {
-	/** vcdec mode: NONE for full-frame; FLEXA enables PP ring-buffer output. */
-	bk_jpeg_decode_flexa_mode_t flexa_mode;
-	/**
-	 * Flexa done callback (Flexa mode only). Note: underlying ISR passes ring-buffer write pointer
-	 * as the first argument.
-	 */
-	bk_jpeg_decode_flexa_done_cb flexa_done_cb;
-	/** User argument passed to flexa_done_cb. */
-	void *flexa_args;
-	/** Decode timeout in seconds. 0 means use default (10). */
-	uint32_t timeout_sec;
-	/** Output width/height for buffer layout. For Flexa, out_width must be non-zero. */
-	uint16_t out_width;
-	uint16_t out_height;
-	/** Flexa ring-buffer segment height in macroblocks (16 lines per MB). 0 means use default (1). */
-	uint16_t segment_height_mb;
-	/** Flexa ring-buffer segment number. 0 means use default (2). */
-	uint8_t segment_number;
-} bk_jpeg_decode_param_t;
+	uint32_t timeout_ms;								/*!< timeout in milliseconds */
+	uint16_t out_width;									/*!< output width */
+	uint16_t out_height;								/*!< output height */
+	uint32_t out_format;								/*!< output format */
+	bk_jpeg_decode_frame_done_cb frame_done_cb;			/*!< frame done callback */
+	void *frame_done_args;								/*!< frame done arguments */
+} bk_jpeg_decode_frame_config_t;
 
 typedef struct {
-	bk_jpeg_decode_flexa_mode_t decode_mode;
-	uint32_t timeout_ms;
-	uint16_t width;
-	uint16_t height;
-	uint16_t segment_height;
-	uint8_t segment_number;
-	bk_jpeg_decode_frame_done_cb frame_done_cb;
-	bk_jpeg_decode_flexa_done_cb flexa_done_cb;
-	void *args;
-	bk_jpeg_decode_buffer_request_cb buffer_request_cb;
-	bk_jpeg_decode_buffer_release_cb buffer_release_cb;
-	void *user_data;
-} bk_jpeg_decode_config_t;
+	uint32_t timeout_ms;								/*!< timeout in milliseconds */
+	uint16_t out_width;									/*!< output width */
+	uint16_t out_height;								/*!< output height */
+	uint32_t out_format;								/*!< output format */
+	uint16_t segment_height;							/*!< segment height */
+	uint8_t segment_number;								/*!< segment number */
+	bk_jpeg_decode_frame_done_cb frame_done_cb;			/*!< frame done callback */
+	void *frame_done_args;								/*!< frame done arguments */
+	bk_jpeg_decode_flexa_done_cb flexa_done_cb;			/*!< flexa done callback */
+	void *flexa_done_args;								/*!< flexa done arguments */
+} bk_jpeg_decode_flexa_config_t;
 
-/** Input for one decode: JPEG stream and optional pre-allocated output buffers. */
 typedef struct {
-	uint8_t *stream;
-	uint32_t stream_len;
-	/** If non-NULL, use these buffers (Y and C/UV); otherwise use buffer_request_cb. */
-	uint8_t *out_buffer;
-	uint32_t out_buffer_size;
+	uint8_t *stream;									/*!< input stream */
+	uint32_t stream_len;								/*!< input stream length */
+	uint8_t *out_buffer;								/*!< output buffer */
+	uint32_t out_buffer_size;							/*!< output buffer size */
 } bk_jpeg_decode_input_t;
 
-/** Decoded frame info (e.g. from header or after decode). */
-typedef struct {
-	uint32_t width;
-	uint32_t height;
-} bk_jpeg_decode_info_t;
-
 typedef struct bk_jpeg_decode_ctlr_t *bk_jpeg_decode_ctlr_handle_t;
-typedef struct bk_jpeg_decode_ctlr_t bk_jpeg_decode_ctlr_t;
 
+
+typedef struct bk_jpeg_decode_ctlr_t bk_jpeg_decode_ctlr_t;
 struct bk_jpeg_decode_ctlr_t {
 	avdk_err_t (*init)(bk_jpeg_decode_ctlr_t *controller);
 	avdk_err_t (*open)(bk_jpeg_decode_ctlr_t *controller);
@@ -127,6 +95,28 @@ struct bk_jpeg_decode_ctlr_t {
 	avdk_err_t (*ioctl)(bk_jpeg_decode_ctlr_t *controller, uint32_t cmd, void *arg);
 	avdk_err_t (*del)(bk_jpeg_decode_ctlr_t *controller);
 };
+
+#define DEFAULT_JPEG_DECODE_FLEXA_CONFIG {	\
+	.timeout_ms = 1000U,					\
+	.out_width = 1280,						\
+	.out_height = 720,						\
+	.out_format = BK_PIXEL_FORMAT_NV12,		\
+	.segment_height = 16,					\
+	.segment_number = 2,					\
+	.frame_done_cb = NULL,					\
+	.frame_done_args = NULL,				\
+	.flexa_done_cb = NULL,					\
+	.frame_done_args = NULL,				\
+}
+
+#define DEFAULT_JPEG_DECODE_FRAME_CONFIG {	\
+	.timeout_ms = 1000U,					\
+	.out_width = 1280,						\
+	.out_height = 720,						\
+	.out_format = BK_PIXEL_FORMAT_NV12,		\
+	.frame_done_cb = NULL,					\
+	.frame_done_args = NULL,				\
+}
 
 #ifdef __cplusplus
 }
