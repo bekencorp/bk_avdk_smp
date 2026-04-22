@@ -48,19 +48,17 @@ typedef enum
 
 typedef struct
 {
-    void *param;
     uint32_t width;
     uint32_t height;
-    uint32_t flexa_mode;
-    uint32_t buf_cnt;
-    uint32_t idr_interval;
-    uint32_t pic_buf;
-    uint32_t pic_lines;
-    void *(*buffer_request_cb)(uint32_t);
-    uint32_t (*buffer_complete_cb)(void *, uint32_t);
-    void (*encode_flexa_done_cb)(void *ctx, uint32_t done_lines);
-    void (*frame_status_change)(void *ctx, uint32_t chnl_id, uint32_t status);
-    uint8_t chnl_id;
+    uint32_t pframe_number;
+    uint32_t input_format;
+    uint32_t input_flexa_cnt;
+    uint32_t input_buf;
+    uint32_t input_size;
+    void *(*outbuf_malloc)(uint32_t outbuf_size, void *args);
+    void *outbuf_malloc_args;
+    uint32_t (*outbuf_complete)(void *outbuf, uint32_t status, void *args);
+    void *outbuf_complete_args;
 } bk_h264_encode_frame_config_t;
 
 typedef struct

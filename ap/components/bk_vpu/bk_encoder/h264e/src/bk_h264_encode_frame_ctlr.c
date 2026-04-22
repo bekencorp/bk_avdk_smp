@@ -18,16 +18,16 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-#define ENC_BUFFER_LEN (500 * 1024)
-
 // Handle encoding failure
 static void handle_encode_error(private_h264_encode_frame_ctlr_t *ctrl, void *buffer, uint32_t size)
 {
     frame_buffer_t *frame = (frame_buffer_t *)buffer;
-    frame->length = size;
+    if (frame != NULL) {
+        frame->length = size;
+    }
 
-    if (ctrl->config.buffer_complete_cb && ctrl->h264_encoder_param) {
-        ctrl->config.buffer_complete_cb(frame, BK_FAIL);
+    if (ctrl->config.outbuf_complete && ctrl->h264_encoder_param) {
+        ctrl->config.outbuf_complete(frame, BK_FAIL, ctrl->config.outbuf_complete_args);
         ctrl->h264_encoder_param->out_buf = 0;
     }
     h264e_set_force_idr(&ctrl->h264e_handler);
@@ -38,8 +38,9 @@ static void handle_video_frame(private_h264_encode_frame_ctlr_t *ctrl, void *buf
 {
     // Pre-allocate buffer for next frame
     frame_buffer_t *next_buffer = NULL;
-    if (ctrl->config.buffer_request_cb) {
-        next_buffer = (frame_buffer_t *)ctrl->config.buffer_request_cb(ENC_BUFFER_LEN);
+    if (ctrl->config.outbuf_malloc) {
+        next_buffer = (frame_buffer_t *)ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER,
+                                                                   ctrl->config.outbuf_malloc_args);
         if (!next_buffer) {
             LOGD("Failed to get next buffer, force IDR\r\n");
             handle_encode_error(ctrl, buffer, size);
@@ -53,8 +54,8 @@ static void handle_video_frame(private_h264_encode_frame_ctlr_t *ctrl, void *buf
     frame->length = size;
 
     // Notify upper layer and save buffer for next frame
-    if (ctrl->config.buffer_complete_cb && ctrl->h264_encoder_param) {
-        ctrl->config.buffer_complete_cb(frame, BK_OK);
+    if (ctrl->config.outbuf_complete && ctrl->h264_encoder_param) {
+        ctrl->config.outbuf_complete(frame, BK_OK, ctrl->config.outbuf_complete_args);
         ctrl->h264_encoder_param->out_buf = (uint32_t)next_buffer;
     }
 }
@@ -137,24 +138,25 @@ static void h264_encoder_entry(void *arg)
         if (!ctrl->enc_status) {
             break;
         }
-        if (ctrl->config.frame_status_change != NULL) {
-            ctrl->config.frame_status_change(ctrl, ctrl->config.chnl_id, BK_H264_ENCODER_STATUS_START);
-        }
-        param.out_size = ENC_BUFFER_LEN;
-        if (param.out_buf == 0 && ctrl->config.buffer_request_cb != NULL) {
-            param.out_buf = (uint32_t)ctrl->config.buffer_request_cb(ENC_BUFFER_LEN);
+        if (param.out_buf == 0 && ctrl->config.outbuf_malloc != NULL) {
+            frame_buffer_t *temp_buffer = (frame_buffer_t *)ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER,
+                                                                                       ctrl->config.outbuf_malloc_args);
+            if (temp_buffer != NULL) {
+                param.out_buf = (uint32_t)temp_buffer;
+                param.out_size = temp_buffer->size;
+            } else {
+                param.out_buf = 0;
+                param.out_size = 0;
+            }
         }
         if (param.out_buf == 0) {
             LOGW("Failed to get output buffer, skip this frame\r\n");
-            if (ctrl->config.frame_status_change != NULL) {
-                ctrl->config.frame_status_change(ctrl, ctrl->config.chnl_id, BK_H264_ENCODER_STATUS_STOP);
-            }
             handle_encode_error(ctrl, (void *)param.out_buf, 0);
             signal_encode_done(ctrl);
             continue;
         }
-        param.pic_buf = ctrl->config.pic_buf;
-        param.pic_lines = ctrl->config.pic_lines;
+        param.pic_buf = ctrl->config.input_buf;
+        param.pic_lines = ctrl->config.input_size;
 
         hw_encoder_msg_t msg = {
             .type = HW_ENCODER_MSG_ENCODE,
@@ -168,9 +170,6 @@ static void h264_encoder_entry(void *arg)
             handle_encode_error(ctrl, (void *)param.out_buf, 0);
             continue;
         }
-    }
-    if (ctrl->config.frame_status_change != NULL) {
-        ctrl->config.frame_status_change(ctrl, ctrl->config.chnl_id, BK_H264_ENCODER_STATUS_STOP);
     }
     // Clean up resources
     if (param.out_buf != 0) {
@@ -223,12 +222,12 @@ static avdk_err_t h264_encode_ctlr_open(bk_h264_encode_ctlr_handle_t handle)
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
     // Configure H.264 encoder
     h264_encoder_config_t config = {0};
-    // TODO: Set width and height from config or frame buffer
-    config.width = control->config.width;  // Default width
-    config.height = control->config.height; // Default height
-    config.flexa_mode = control->config.flexa_mode;
-    config.buf_cnt = control->config.buf_cnt;
-    config.idr_interval = control->config.idr_interval;
+    config.width = control->config.width;
+    config.height = control->config.height;
+    config.flexa_mode = BK_H264_ENCODE_FLEXA_MODE_NONE;
+    config.input_type = control->config.input_format;
+    config.buf_cnt = control->config.input_flexa_cnt;
+    config.idr_interval = control->config.pframe_number;
     LOGI("Start H.264 encoder %dx%d, mode=%d\r\n", config.width, config.height, config.flexa_mode);
     // Initialize H.264 encoder
     bk_err_t ret = h264e_init(&control->h264e_handler, &config);
@@ -447,7 +446,7 @@ avdk_err_t bk_h264_encode_frame_ctlr_new(bk_h264_encode_ctlr_handle_t *handle, b
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, "handle is NULL");
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
 
-    if (config->buffer_request_cb == NULL || config->buffer_complete_cb == NULL) {
+    if (config->outbuf_malloc == NULL || config->outbuf_complete == NULL) {
         LOGE("Buffer callbacks are required\r\n");
         return AVDK_ERR_INVAL;
     }

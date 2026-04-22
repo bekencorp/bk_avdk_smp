@@ -46,6 +46,8 @@ typedef struct
     h264_encoder_parameters_t *h264_encoder_param;  // 编码器参数指针
     beken_semaphore_t enc_done_sem;   // Signalled when one frame encode completes (in h264e_end_cb)
 
+    bk_flexa_bond_t *bond;      // Bond operations
+
     bk_h264_encode_frame_config_t config;   // 编码器配置
     bk_h264_encode_ctlr_t ops;        // 操作接口
 } private_h264_encode_frame_ctlr_t;

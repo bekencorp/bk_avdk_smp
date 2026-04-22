@@ -18,8 +18,6 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-#define ENC_BUFFER_LEN (500 * 1024)
-
 // Handle encoding failure
 static void handle_encode_error(private_h264_encode_hw_flexa_ctlr_t *ctrl, void *buffer, uint32_t size)
 {
@@ -39,7 +37,7 @@ static void handle_video_frame(private_h264_encode_hw_flexa_ctlr_t *ctrl, void *
     // Pre-allocate buffer for next frame
     frame_buffer_t *next_buffer = NULL;
     if (ctrl->config.outbuf_malloc) {
-        next_buffer = (frame_buffer_t *)ctrl->config.outbuf_malloc(ENC_BUFFER_LEN, ctrl->config.outbuf_malloc_args);
+        next_buffer = (frame_buffer_t *)ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER, ctrl->config.outbuf_malloc_args);
         if (!next_buffer) {
             // LOGD("Failed to get next buffer, force IDR\r\n");
             handle_encode_error(ctrl, buffer, size);
@@ -129,9 +127,16 @@ static void h264_encoder_entry(void *arg)
         if (!ctrl->enc_status) {
             break;
         }
-        param.out_size = ENC_BUFFER_LEN;
         if (param.out_buf == 0 && ctrl->config.outbuf_malloc != NULL) {
-            param.out_buf = (uint32_t)ctrl->config.outbuf_malloc(ENC_BUFFER_LEN, ctrl->config.outbuf_malloc_args);
+            frame_buffer_t *temp_buffer = (frame_buffer_t *)ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER, ctrl->config.outbuf_malloc_args);
+            if (temp_buffer != NULL) {
+                param.out_buf = (uint32_t)temp_buffer;
+                param.out_size = temp_buffer->size;
+            } else {
+                param.out_buf = 0;
+                param.out_size = 0;
+            }
+            param.out_size = temp_buffer->size;
         }
         if (param.out_buf == 0) {
             LOGW("Failed to get output buffer, skip this frame\r\n");

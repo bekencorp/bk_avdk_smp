@@ -10,11 +10,19 @@ menu "BEKEN CODEC ENCODER"
 		int "BK_ENCODER_H264_TASK_SIZE"
 		default 10240
 
+	config BK_ENCODER_H264_MAX_OUTPUT_BUFFER
+		int "BK_ENCODER_H264_MAX_OUTPUT_BUFFER"
+		default 512000
+		depends on BK_ENCODER
+		help
+			"Maximum H.264 encoder output buffer size in bytes"
+
 	config H264_ENCODER_USE_OS_MALLOC
 		bool "H264 Encoder Use OS Malloc"
 		default n
 		depends on BK_ENCODER
 		help
 			"Use OS malloc for encoder memory allocation instead of frame buffer"
+	
 
 endmenu
