@@ -25,3 +25,4 @@ avdk_err_t bk_display_close(bk_display_ctlr_handle_t handle);
 avdk_err_t bk_display_delete(bk_display_ctlr_handle_t handle);
 avdk_err_t bk_display_flush(bk_display_ctlr_handle_t handle, void *frame, flush_free_cb_t cb);
 avdk_err_t bk_display_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioctl_cmd_t cmd, void *arg);
+avdk_err_t bk_display_pixel_format_set(bk_display_ctlr_handle_t handle, const bk_display_pixel_format_config_t *config);
