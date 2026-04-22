@@ -250,18 +250,6 @@ static inline uintptr_t align_buffer_address(uintptr_t addr)
 }
 
 /**
- * @brief Initialize GPU buffer allocation
- * @param data GPU flex data structure
- * @return 0 on success, -1 on failure
- */
-static int gpu_flex_init_gpu_buffer(gpu_flex_data_t *data)
-{
-
-
-    return 0;
-}
-
-/**
  * @brief Initialize ping-pong buffer for GPU processing
  * @param data GPU flex data structure
  * @return 0 on success, -1 on failure
@@ -327,7 +315,7 @@ static void gpu_flex_configure_dst_buffer(gpu_flex_data_t *data, bk_gpu_ctlr_con
     data->dst_buf.compress_mode = config->compress ? VG_LITE_DEC_HV_SAMPLE : VG_LITE_DEC_DISABLE;
     data->dst_buf.format = gpu_format_convert(config->dst_format);
 
-    data->dst_buf.tiled = VG_LITE_TILED;
+    data->dst_buf.tiled = config->compress == true ? VG_LITE_TILED : VG_LITE_LINEAR;
     vg_lite_allocate_with_data(&data->dst_buf, (void *)(uintptr_t)data->buffers[data->dst_buf_idx], NULL, NULL, NULL);
 }
 
@@ -593,8 +581,8 @@ static inline void gpu_flex_data_line_pull_out(gpu_flex_data_t *data, gpu_vn_ctl
 
         dma_config[0].src_addr = (uint32_t)data->dst_buf.memory;
         dma_config[0].dst_addr = (uint32_t)(data->dpu_frame_buffers + offset);
-        dma_config[0].src_xsize = data->output_width;
-        dma_config[0].dst_xsize = data->output_width;
+        dma_config[0].src_xsize = data->output_width * bk_pixel_size_get(config->dst_format);
+        dma_config[0].dst_xsize = data->output_width * bk_pixel_size_get(config->dst_format);
         dma_config[0].src_ysize = 16;
         dma_config[0].dst_ysize = 16;
         dma_config[0].src_step = 0;
