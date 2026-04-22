@@ -47,7 +47,7 @@ typedef struct
     u32                          timeout;
     int16                        ret_status;
     u8                           sample_cnt;
-    u16                          adc_cali_data;
+    float                        adc_cali_data;
     u32                          crc;
     adc_config_t                 config;
     void                         *callback;

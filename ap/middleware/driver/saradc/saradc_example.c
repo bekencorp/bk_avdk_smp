@@ -20,8 +20,8 @@
 
 #define TAG "saradc_example"
 
-#define SARADC_EXAMPLE_BUFFER_SIZE 32
-#define SARADC_EXAMPLE_TIMEOUT 1000
+#define SARADC_EXAMPLE_BUFFER_SIZE  16
+#define SARADC_EXAMPLE_TIMEOUT      1000
 /**
  * @brief SARADC basic usage example
  *
@@ -54,7 +54,7 @@ uint16_t saradc_example(UINT8 adc_chan)
     // Configure ADC parameters
     adc_config.chan = adc_chan;
     adc_config.adc_mode = ADC_CONTINUOUS_MODE;
-    adc_config.src_clk = ADC_SCLK_XTAL_26M;
+    adc_config.src_clk = ADC_SCLK_XTAL;
     adc_config.clk = 0x30A0C5;
     adc_config.saturate_mode = ADC_SATURATE_MODE_3;
     adc_config.steady_ctrl = 7;
@@ -99,7 +99,7 @@ uint16_t saradc_example(UINT8 adc_chan)
     }
 
     // Step 5: Read ADC data
-    ret = bk_adc_read(&adc_data, SARADC_EXAMPLE_TIMEOUT);
+    ret = bk_adc_read_raw(&adc_data, SARADC_EXAMPLE_BUFFER_SIZE, SARADC_EXAMPLE_TIMEOUT);
     if (ret != BK_OK) {
         BK_LOGI(TAG, "ADC read raw failed: %d\r\n", ret);
         bk_adc_stop();

@@ -392,7 +392,7 @@ adc_mode_t bk_adc_get_mode(void);
  * @return
  *    - float: volt
  */
-float bk_adc_data_calculate(UINT16 adc_val, UINT8 adc_chan);
+UINT16 bk_adc_data_calculate(UINT16 adc_val, UINT8 adc_chan);
 /**
  * @brief     Init the ADC GPIO
  *

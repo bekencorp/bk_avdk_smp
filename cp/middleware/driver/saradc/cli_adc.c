@@ -130,9 +130,6 @@ static float cli_adc_read_single_chan(UINT8 adc_chan)
     // This mapping needs to be done only once, and the GPIO must remain dedicated to ADC functionality afterward.
     bk_adc_chan_init_gpio(adc_chan);
 
-
-
-
     BK_LOG_ON_ERR(bk_adc_acquire());
     sys_drv_set_ana_hres_sel0v9();
     BK_LOG_ON_ERR(bk_adc_init(adc_chan));
@@ -153,7 +150,7 @@ static float cli_adc_read_single_chan(UINT8 adc_chan)
     BK_LOG_ON_ERR(bk_adc_set_config(&config));
     BK_LOG_ON_ERR(bk_adc_enable_bypass_clalibration());
     BK_LOG_ON_ERR(bk_adc_start());
-    BK_LOG_ON_ERR(bk_adc_read(&value, ADC_READ_SEMAPHORE_WAIT_TIME));
+    BK_LOG_ON_ERR(bk_adc_read_raw(&value, 16, ADC_READ_SEMAPHORE_WAIT_TIME));
 
     cali_value = bk_adc_data_calculate(value, adc_chan);
 

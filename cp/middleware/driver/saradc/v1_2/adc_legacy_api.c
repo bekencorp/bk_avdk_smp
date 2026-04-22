@@ -23,6 +23,9 @@
 static adc_chan_t s_current_channel_id = 0;
 #endif
 
+extern bk_err_t mb_saradc_op_prepare(void);
+extern bk_err_t mb_saradc_op_finish(void);
+
 /* These functions will be deprecated; obsolete interfaces*/
 bk_err_t bk_adc_init(adc_chan_t adc_chan)
 {
@@ -40,11 +43,13 @@ bk_err_t bk_adc_deinit(adc_chan_t chan)
 
 bk_err_t bk_adc_acquire(void)
 {
+    mb_saradc_op_prepare();
     return BK_OK;
 }
 
 bk_err_t bk_adc_release(void)
 {
+    mb_saradc_op_finish();
     return BK_OK;
 }
 

@@ -693,7 +693,7 @@ static inline uint32_t adc_ll_get_reg19_int_state(void) {
 	return r->int_state;
 }
 
-static inline bool adc_ll_is_analog_channel(adc_hw_t *hw, int id)
+static inline bool adc_ll_is_analog_channel(int id)
 {
 	//channel	function
 	//ADC0	Vbat
@@ -716,7 +716,7 @@ static inline bool adc_ll_is_analog_channel(adc_hw_t *hw, int id)
 	return (ANALOG_CHANNEL & (1 << id));
 }
 
-static inline bool adc_ll_is_digital_channel(adc_hw_t *hw, int id)
+static inline bool adc_ll_is_digital_channel(int id)
 {
 	//digital channel map: B11110100 01111110 = 0x0B81
 	return ((~ANALOG_CHANNEL) & (1 << id));

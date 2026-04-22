@@ -85,9 +85,9 @@ void hal_calib_apply(void);
 #define adc_hal_disable_bypass_calib(hal)           adc_ll_disable_bypass_calib((hal)->hw)
 #endif // CONFIG_SARADC_V1P2
 
-#define adc_hal_is_analog_channel(hal, id)          adc_ll_is_analog_channel((hal)->hw, (id))
-#define adc_hal_is_valid_channel(hal, id)           (adc_ll_is_analog_channel((hal)->hw, (id)) ||\
-                                                    adc_ll_is_digital_channel((hal)->hw, (id)))
+#define adc_hal_is_analog_channel(id)               adc_ll_is_analog_channel(id)
+#define adc_hal_is_valid_channel(id)                (adc_ll_is_analog_channel(id) ||\
+                                                    adc_ll_is_digital_channel(id))
 
 bk_err_t adc_hal_init(adc_hal_t *hal);
 bk_err_t adc_hal_deinit(adc_hal_t *hal);

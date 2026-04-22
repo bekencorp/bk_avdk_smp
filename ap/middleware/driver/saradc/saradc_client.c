@@ -21,7 +21,7 @@
 #include <driver/mb_ipc.h>
 #include <driver/mb_ipc_port_cfg.h>
 
-#define TAG		"saradc_c"
+#define TAG             "saradc_c"
 
 #define LOCAL_TRACE    (1)
 
