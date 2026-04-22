@@ -6,7 +6,8 @@
 #ifndef PTHREAD_RWLOCK_COMPAT_H
 #define PTHREAD_RWLOCK_COMPAT_H
 
-#include <pthread.h>
+#include <FreeRTOS_POSIX.h>
+#include <posix/pthread.h>
 
 #ifdef __cplusplus
 extern "C" {

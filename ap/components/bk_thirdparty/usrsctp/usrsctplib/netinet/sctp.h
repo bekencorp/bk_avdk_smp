@@ -41,6 +41,9 @@
 #if defined(__FreeBSD__) && !defined(__Userspace__)
 #include <sys/cdefs.h>
 #endif
+#if defined(__Userspace__) && defined(USRSCTP_PTHREAD_RWLOCK_COMPAT)
+#include "port/sctp_os_userland_pthread.h"
+#endif
 #include <sys/types.h>
 
 #if !defined(_WIN32)

@@ -92,7 +92,6 @@ extern "C" {
  * is later pulled in via errno.h -> lwip -> log.h -> bk_include.h -> bk_typedef.h */
 #if defined(BEKEN_PLATFORM)
 #include <common/bk_typedef.h>
-// #include "bk_posix.h"
 #include <FreeRTOS_POSIX.h>
 #include <posix/pthread.h>
 #endif

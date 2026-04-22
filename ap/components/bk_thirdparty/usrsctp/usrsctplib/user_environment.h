@@ -31,6 +31,9 @@
 #ifndef _USER_ENVIRONMENT_H_
 #define _USER_ENVIRONMENT_H_
 /* __Userspace__ */
+#if defined(__Userspace__) && defined(USRSCTP_PTHREAD_RWLOCK_COMPAT)
+#include "port/sctp_os_userland_pthread.h"
+#endif
 #include <sys/types.h>
 
 #ifdef __FreeBSD__

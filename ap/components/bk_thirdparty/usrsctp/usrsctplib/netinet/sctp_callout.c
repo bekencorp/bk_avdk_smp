@@ -33,6 +33,9 @@
  */
 
 #if defined(__Userspace__)
+#if defined(USRSCTP_PTHREAD_RWLOCK_COMPAT)
+#include "port/sctp_os_userland_pthread.h"
+#endif
 #include <sys/types.h>
 #if !defined(_WIN32)
 #include <sys/wait.h>

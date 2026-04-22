@@ -39,4 +39,5 @@ set(srcs
 	usrsctplib/user_recv_thread.c
 	usrsctplib/user_socket.c
 	usrsctplib/port/pthread_rwlock_compat.c
+	usrsctplib/port/usrsctp_atomic_spin.c
 )

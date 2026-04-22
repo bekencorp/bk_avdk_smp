@@ -67,19 +67,29 @@ VOID fileLoggerLogPrintFn(UINT32 level, PCHAR tag, PCHAR fmt, ...)
     va_list valist;
     UINT32 logLevel = GET_LOGGER_LOG_LEVEL();
 
-    if (logLevel != LOG_LEVEL_SILENT && level >= logLevel && gFileLogger != NULL) {
-        MUTEX_LOCK(gFileLogger->lock);
+    if (logLevel != LOG_LEVEL_SILENT && level >= logLevel && gFileLogger == NULL) {
+        static UINT32 s_nullLoggerHits;
+        if (s_nullLoggerHits < 8u) {
+            PRINTF("[KVS_FL] fileLoggerLogPrintFn: gFileLogger=NULL lvl=%u logLvl=%u fmt=%.48s\n", level, logLevel, (fmt != NULL) ? fmt : "(nil)");
+            s_nullLoggerHits++;
+        }
+    }
+
+    /* Single load avoids TOCTOU: another thread may set gFileLogger=NULL between a check and ->lock. */
+    PFileLogger fl = gFileLogger;
+    if (logLevel != LOG_LEVEL_SILENT && level >= logLevel && fl != NULL) {
+        MUTEX_LOCK(fl->lock);
         addLogMetadata(logFmtString, (UINT32) ARRAY_SIZE(logFmtString), fmt, level);
 
-        if (gFileLogger->printLog) {
+        if (fl->printLog) {
             va_start(valist, fmt);
             vprintf(logFmtString, valist);
             va_end(valist);
         }
-        if (level == gFileLogger->filterLevel) {
-            levelLoggerParameters = &gFileLogger->levelLogger;
-        } else if (gFileLogger->enableAllLevels && level != gFileLogger->filterLevel) {
-            levelLoggerParameters = &gFileLogger->mainLogger;
+        if (level == fl->filterLevel) {
+            levelLoggerParameters = &fl->levelLogger;
+        } else if (fl->enableAllLevels && level != fl->filterLevel) {
+            levelLoggerParameters = &fl->mainLogger;
         }
 
         if (levelLoggerParameters != NULL) {
@@ -150,14 +160,14 @@ VOID fileLoggerLogPrintFn(UINT32 level, PCHAR tag, PCHAR fmt, ...)
 
 #endif
             levelLoggerParameters->currentOffset += offset;
-            if (level == gFileLogger->filterLevel) {
-                gFileLogger->levelLogger = *levelLoggerParameters;
-            } else if (gFileLogger->enableAllLevels && level != gFileLogger->filterLevel) {
-                gFileLogger->mainLogger = *levelLoggerParameters;
+            if (level == fl->filterLevel) {
+                fl->levelLogger = *levelLoggerParameters;
+            } else if (fl->enableAllLevels && level != fl->filterLevel) {
+                fl->mainLogger = *levelLoggerParameters;
             }
         }
 
-        MUTEX_UNLOCK(gFileLogger->lock);
+        MUTEX_UNLOCK(fl->lock);
     }
 }
 
@@ -221,7 +231,7 @@ CleanUp:
 
     if (STATUS_FAILED(retStatus)) {
         freeFileLogger();
-        gFileLogger = NULL;
+        //gFileLogger = NULL;
     } else if (pFilePrintFn != NULL) {
         *pFilePrintFn = fileLoggerLogPrintFn;
     }
@@ -352,7 +362,7 @@ CleanUp:
 
     if (STATUS_FAILED(retStatus)) {
         freeFileLogger();
-        gFileLogger = NULL;
+        //gFileLogger = NULL;
     } else if (pFilePrintFn != NULL) {
         *pFilePrintFn = fileLoggerLogPrintFn;
     }
@@ -379,13 +389,17 @@ STATUS freeFileLogger()
         }
 
         retStatus = STATUS_SUCCESS;
+
+        // Restore global log hook while still holding lock so no concurrent logger sees a freed struct.
+        if (gFileLogger->storedLoggerLogPrintFn != NULL) {
+            globalCustomLogPrintFn = gFileLogger->storedLoggerLogPrintFn;
+        }
+
         MUTEX_UNLOCK(gFileLogger->lock);
 
         MUTEX_FREE(gFileLogger->lock);
-    }
-
-    // Reset the original logger functionality
-    if (gFileLogger->storedLoggerLogPrintFn != NULL) {
+    } else if (gFileLogger->storedLoggerLogPrintFn != NULL) {
+        /* Mutex invalid or create partially failed before MUTEX_CREATE; still restore global hook. */
         globalCustomLogPrintFn = gFileLogger->storedLoggerLogPrintFn;
     }
 

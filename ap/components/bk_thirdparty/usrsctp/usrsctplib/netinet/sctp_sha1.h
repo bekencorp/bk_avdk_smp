@@ -35,6 +35,9 @@
 #ifndef __NETINET_SCTP_SHA1_H__
 #define __NETINET_SCTP_SHA1_H__
 
+#if defined(__Userspace__) && defined(USRSCTP_PTHREAD_RWLOCK_COMPAT)
+#include "port/sctp_os_userland_pthread.h"
+#endif
 #include <sys/types.h>
 #if defined(SCTP_USE_NSS_SHA1)
 #include <pk11pub.h>

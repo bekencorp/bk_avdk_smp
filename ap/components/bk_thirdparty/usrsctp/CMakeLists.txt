@@ -36,7 +36,7 @@ if(DEFINED COMPONENT_DIR)
 		armino_component_register(
 			SRCS ${srcs}
 			INCLUDE_DIRS ${incs}
-			PRIV_REQUIRES bk_common lwip_intf_v2_1 os_source bk_rtos bk_vfs psa_mbedtls
+			PRIV_REQUIRES bk_common lwip_intf_v2_1 os_source bk_rtos bk_vfs psa_mbedtls driver
 		)
 		# usrsctp build defines (SCTP_USE_LWIP, INET only, mbedTLS SHA1, no ESP_PLATFORM)
 		# USRSCTP_PTHREAD_RWLOCK_COMPAT: use port/pthread_rwlock_compat (bk_rtos has no pthread_rwlock)
@@ -52,7 +52,11 @@ if(DEFINED COMPONENT_DIR)
 			INET
 			SCTP_USE_MBEDTLS_SHA1
 			USRSCTP_PTHREAD_RWLOCK_COMPAT
+			USRSCTP_ATOMIC_SPINLOCK_COMPAT
 		)
+		if(CONFIG_IPV6)
+		component_compile_definitions(INET6)
+		endif()
 		# Suppress warnings to match esp_usrsctp / embedded build
 		component_compile_options(
 			-Wno-address-of-packed-member

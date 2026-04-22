@@ -3,6 +3,7 @@
  * Uses pthread_mutex_t + pthread_cond_t; logic mirrors ESP-IDF pthread_rwlock.c.
  */
 #include "port/pthread_rwlock_compat.h"
+#include <os/mem.h>
 #include <stdlib.h>
 #include <errno.h>
 
@@ -14,17 +15,17 @@ int pthread_rwlock_init(pthread_rwlock_t *rwlock, const pthread_rwlockattr_t *at
 	if (!rwlock)
 		return EINVAL;
 
-	impl = (usrsctp_rwlock_impl_t *)malloc(sizeof(usrsctp_rwlock_impl_t));
+	impl = (usrsctp_rwlock_impl_t *)os_malloc(sizeof(usrsctp_rwlock_impl_t));
 	if (!impl)
 		return ENOMEM;
 
 	if (pthread_mutex_init(&impl->mutex, NULL) != 0) {
-		free(impl);
+		os_free(impl);
 		return ENOMEM;
 	}
 	if (pthread_cond_init(&impl->cond, NULL) != 0) {
 		pthread_mutex_destroy(&impl->mutex);
-		free(impl);
+		os_free(impl);
 		return ENOMEM;
 	}
 
@@ -45,7 +46,7 @@ int pthread_rwlock_destroy(pthread_rwlock_t *rwlock)
 	impl = *rwlock;
 	pthread_cond_destroy(&impl->cond);
 	pthread_mutex_destroy(&impl->mutex);
-	free(impl);
+	os_free(impl);
 	*rwlock = NULL;
 	return 0;
 }

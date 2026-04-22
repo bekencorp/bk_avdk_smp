@@ -295,6 +295,9 @@ typedef char* caddr_t;
 #endif
 
 #else /* !defined(Userspace_os_Windows) */
+#if !defined(SCTP_OS_USERLAND_PTHREAD_H)
+#include "port/sctp_os_userland_pthread.h"
+#endif
 #include <sys/socket.h>
 /* lwIP and some embedded socket layers do not define SOCK_SEQPACKET / SOMAXCONN / MSG_EOR */
 #ifndef SOCK_SEQPACKET
@@ -311,21 +314,6 @@ typedef char* caddr_t;
 #error "Unsupported build configuration."
 #endif
 
-#include <pthread.h>
-#if defined(USRSCTP_PTHREAD_RWLOCK_COMPAT)
-#include "port/pthread_rwlock_compat.h"
-#endif
-
-#if defined(SCTP_USE_LWIP)
-#define IPVERSION  4
-#define CMSG_ALIGN(len) (((len) + sizeof (size_t) - 1) \
-                        & (size_t) ~(sizeof (size_t) - 1))
-#endif/* */
-
-typedef pthread_mutex_t userland_mutex_t;
-typedef pthread_rwlock_t userland_rwlock_t;
-typedef pthread_cond_t userland_cond_t;
-typedef pthread_t userland_thread_t;
 #endif
 
 #if defined(_WIN32) || defined(__native_client__)

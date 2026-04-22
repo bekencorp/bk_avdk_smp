@@ -53,10 +53,12 @@ extern "C" {
  * srtp2/srtp.h declares legacy 3-arg srtp_protect*; linking mismatched symbols caused UB/crashes. */
 #include <srtp.h>
 #endif
-// INET/INET6 MUST be defined before usrsctp
-// If removed will cause corruption that is hard to determine at runtime
-#define INET  1
+/* INET/INET6 must match usrsctp component (see usrsctp/CMakeLists.txt) and LwIP:
+ * only define INET6 when CONFIG_IPV6 is on, or sockaddr_in6 is absent (usrsctp.h). */
+#define INET 1
+#if CONFIG_IPV6
 #define INET6 1
+#endif
 #ifdef ENABLE_DATA_CHANNEL
 #include <usrsctp.h>
 #endif

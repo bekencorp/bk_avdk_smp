@@ -40,6 +40,9 @@ extern "C" {
 #else
 #include <errno.h>
 #endif
+#if defined(__Userspace__) && defined(USRSCTP_PTHREAD_RWLOCK_COMPAT)
+#include "port/sctp_os_userland_pthread.h"
+#endif
 #include <sys/types.h>
 #ifdef _WIN32
 #ifdef _MSC_VER
@@ -141,7 +144,9 @@ struct sockaddr_conn {
 
 union sctp_sockstore {
 	struct sockaddr_in sin;
+#ifdef INET6
 	struct sockaddr_in6 sin6;
+#endif
 	struct sockaddr_conn sconn;
 	struct sockaddr sa;
 };

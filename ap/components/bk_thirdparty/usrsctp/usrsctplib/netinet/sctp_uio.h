@@ -44,6 +44,9 @@
 #if !defined(_KERNEL)
 #include <stdint.h>
 #endif
+#if defined(__Userspace__) && defined(USRSCTP_PTHREAD_RWLOCK_COMPAT)
+#include "port/sctp_os_userland_pthread.h"
+#endif
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>

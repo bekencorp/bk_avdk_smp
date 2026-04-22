@@ -104,7 +104,7 @@ extern "C" {
 #if 0
 #define MAX_SDP_SESSION_MEDIA_COUNT   5
 #else
-#define MAX_SDP_SESSION_MEDIA_COUNT   2
+#define MAX_SDP_SESSION_MEDIA_COUNT   3
 #endif
 #define MAX_SDP_MEDIA_BANDWIDTH_COUNT 2
 

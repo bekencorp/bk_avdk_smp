@@ -40,6 +40,9 @@
  */
 
 #include <stdio.h>
+#if defined(__Userspace__) && defined(USRSCTP_PTHREAD_RWLOCK_COMPAT)
+#include "port/sctp_os_userland_pthread.h"
+#endif
 #include <sys/types.h>
 
 #if defined(__APPLE__) || defined(_WIN32)
@@ -82,6 +85,40 @@ static void atomic_init(void) {} /* empty when we are not using atomic_mtx */
 #else
 static inline void atomic_init(void) {} /* empty when we are not using atomic_mtx */
 #endif
+
+#elif defined(USRSCTP_ATOMIC_SPINLOCK_COMPAT)
+/*
+ * Beken Armino: same serialization model as kvs_aws pic/AtomicsGnu.h (disable ints +
+ * spin_lock around RMW). See port/usrsctp_atomic_spin.c.
+ */
+#include "port/usrsctp_atomic_spin.h"
+
+#define atomic_add_int(P, V)	 usrsctp_atomic_add_int((volatile int *)(P), (int)(V))
+#define atomic_subtract_int(P, V) usrsctp_atomic_subtract_int((volatile int *)(P), (int)(V))
+#define atomic_fetchadd_int(p, v) usrsctp_atomic_fetch_add_int((volatile int *)(p), (int)(v))
+#define atomic_cmpset_int(dst, exp, src) usrsctp_atomic_cmpset_int((volatile int *)(dst), (int)(exp), (int)(src))
+
+#define SCTP_DECREMENT_AND_CHECK_REFCOUNT(addr) (atomic_fetchadd_int(addr, -1) == 1)
+#if defined(INVARIANTS)
+#define SCTP_SAVE_ATOMIC_DECREMENT(addr, val) \
+{ \
+	int32_t oldval; \
+	oldval = atomic_fetchadd_int(addr, -val); \
+	if (oldval < val) { \
+		panic("Counter goes negative"); \
+	} \
+}
+#else
+#define SCTP_SAVE_ATOMIC_DECREMENT(addr, val) \
+{ \
+	int32_t oldval; \
+	oldval = atomic_fetchadd_int(addr, -val); \
+	if (oldval < val) { \
+		*addr = 0; \
+	} \
+}
+#endif
+static inline void atomic_init(void) {}
 
 #else
 /* Using gcc built-in functions for atomic memory operations
