@@ -234,6 +234,7 @@ int pthread_cond_timedwait( pthread_cond_t * cond,
     int iStatus = 0;
     pthread_cond_internal_t * pxCond = ( pthread_cond_internal_t * ) ( cond );
     TickType_t xDelay = portMAX_DELAY;
+    BaseType_t xWaiterRegistered = pdFALSE;
 
     /* If the cond is uninitialized, perform initialization. */
     prvInitializeStaticCond( pxCond );
@@ -264,6 +265,7 @@ int pthread_cond_timedwait( pthread_cond_t * cond,
         /* Atomically increments thread waiting by 1, and
          * stores number of threads waiting before increment. */
         iLocalWaitingThreads = Atomic_Increment_u32( ( uint32_t * ) &pxCond->iWaitingThreads );
+        xWaiterRegistered = pdTRUE;
 
         iStatus = pthread_mutex_unlock( mutex );
     }
@@ -283,14 +285,17 @@ int pthread_cond_timedwait( pthread_cond_t * cond,
             iStatus = ETIMEDOUT;
             ( void ) pthread_mutex_lock( mutex );
 
-            /* Atomically decrements thread waiting by 1.
-             * If iLocalWaitingThreads is updated by other thread(s) in between,
-             * this implementation guarantees to decrement by 1 based on the
-             * value currently in pxCond->iWaitingThreads. */
-            prvTestAndDecrement( pxCond, iLocalWaitingThreads + 1 );
+            if( xWaiterRegistered == pdTRUE )
+            {
+                /* Atomically decrements thread waiting by 1.
+                 * If iLocalWaitingThreads is updated by other thread(s) in between,
+                 * this implementation guarantees to decrement by 1 based on the
+                 * value currently in pxCond->iWaitingThreads. */
+                prvTestAndDecrement( pxCond, iLocalWaitingThreads + 1 );
+            }
         }
     }
-    else
+    else if( xWaiterRegistered == pdTRUE )
     {
         /* Atomically decrements thread waiting by 1.
          * If iLocalWaitingThreads is updated by other thread(s) in between,

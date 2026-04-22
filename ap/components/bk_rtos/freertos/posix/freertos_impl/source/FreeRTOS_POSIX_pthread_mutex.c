@@ -288,35 +288,41 @@ int pthread_mutex_unlock( pthread_mutex_t * mutex )
 {
     int iStatus = 0;
     pthread_mutex_internal_t * pxMutex = ( pthread_mutex_internal_t * ) ( mutex );
+    BaseType_t xFreeRTOSMutexGiveStatus = pdFALSE;
 
     /* If mutex in uninitialized, perform initialization. */
     prvInitializeStaticMutex( pxMutex );
 
     /* Check if trying to unlock an unowned mutex. */
-    /*
     if( ( ( pxMutex->xAttr.iType == PTHREAD_MUTEX_ERRORCHECK ) ||
           ( pxMutex->xAttr.iType == PTHREAD_MUTEX_RECURSIVE ) ) &&
         ( pxMutex->xTaskOwner != xTaskGetCurrentTaskHandle() ) )
     {
         iStatus = EPERM;
     }
-    */
 
     if( iStatus == 0 )
     {
         /* Call the correct FreeRTOS mutex unlock function based on mutex type. */
         if( pxMutex->xAttr.iType == PTHREAD_MUTEX_RECURSIVE )
         {
-            ( void ) xSemaphoreGiveRecursive( ( SemaphoreHandle_t ) &pxMutex->xMutex );
+            xFreeRTOSMutexGiveStatus = xSemaphoreGiveRecursive( ( SemaphoreHandle_t ) &pxMutex->xMutex );
         }
         else
         {
-            ( void ) xSemaphoreGive( ( SemaphoreHandle_t ) &pxMutex->xMutex );
+            xFreeRTOSMutexGiveStatus = xSemaphoreGive( ( SemaphoreHandle_t ) &pxMutex->xMutex );
         }
 
-        /* Update the owner of the mutex. A recursive mutex may still have an
-         * owner, so it should be updated with xSemaphoreGetMutexHolder. */
-        //pxMutex->xTaskOwner = xSemaphoreGetMutexHolder( ( SemaphoreHandle_t ) &pxMutex->xMutex );
+        if( xFreeRTOSMutexGiveStatus != pdPASS )
+        {
+            iStatus = EPERM;
+        }
+        else
+        {
+            /* A recursive mutex may still have an owner. Query the kernel so
+             * deadlock detection keeps tracking the current holder correctly. */
+            pxMutex->xTaskOwner = xSemaphoreGetMutexHolder( ( SemaphoreHandle_t ) &pxMutex->xMutex );
+        }
     }
 
     return iStatus;

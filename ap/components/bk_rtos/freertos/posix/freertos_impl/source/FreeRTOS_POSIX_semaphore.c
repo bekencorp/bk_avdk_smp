@@ -180,6 +180,9 @@ int sem_timedwait( sem_t * sem,
         if( xSemaphoreTake( ( SemaphoreHandle_t ) &pxSem->xSemaphore,
                             xDelay ) != pdTRUE )
         {
+            /* Roll back the logical waiter count when the blocking path fails. */
+            ( void ) Atomic_Increment_u32( ( uint32_t * ) &pxSem->value );
+
             if( iStatus == 0 )
             {
                 errno = ETIMEDOUT;

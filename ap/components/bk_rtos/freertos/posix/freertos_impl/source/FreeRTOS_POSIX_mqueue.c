@@ -58,6 +58,7 @@ typedef struct QueueListElement
     Link_t xLink;              /**< Pointer to the next element in the list. */
     QueueHandle_t xQueue;      /**< FreeRTOS queue handle. */
     size_t xOpenDescriptors;   /**< Number of threads that have opened this queue. */
+    size_t xInFlightOperations; /**< Number of send/receive operations currently using this queue. */
     char * pcName;             /**< Null-terminated queue name. */
     struct mq_attr xAttr;      /**< Queue attibutes. */
     BaseType_t xPendingUnlink; /**< If pdTRUE, this queue will be unlinked once all descriptors close. */
@@ -103,6 +104,15 @@ static BaseType_t prvCreateNewMessageQueue( QueueListElement_t ** ppxMessageQueu
  * @return nothing
  */
 static void prvDeleteMessageQueue( const QueueListElement_t * const pxMessageQueue );
+
+/**
+ * @brief Release an in-flight send/receive reference on a queue.
+ *
+ * @param[in] pxMessageQueue Queue whose in-flight operation has completed.
+ *
+ * @return nothing
+ */
+static void prvReleaseMessageQueueReference( QueueListElement_t * const pxMessageQueue );
 
 /**
  * @brief Attempt to find the queue identified by pcName or xMqId in the queue list.
@@ -257,6 +267,7 @@ static BaseType_t prvCreateNewMessageQueue( QueueListElement_t ** ppxMessageQueu
 
         /* A newly-created queue will have 1 open descriptor for it. */
         ( *ppxMessageQueue )->xOpenDescriptors = 1;
+        ( *ppxMessageQueue )->xInFlightOperations = 0;
 
         /* A newly-created queue will not be pending unlink. */
         ( *ppxMessageQueue )->xPendingUnlink = pdFALSE;
@@ -287,6 +298,36 @@ static void prvDeleteMessageQueue( const QueueListElement_t * const pxMessageQue
     vQueueDelete( pxMessageQueue->xQueue );
     vPortFree( ( void * ) pxMessageQueue->pcName );
     vPortFree( ( void * ) pxMessageQueue );
+}
+
+/*-----------------------------------------------------------*/
+
+static void prvReleaseMessageQueueReference( QueueListElement_t * const pxMessageQueue )
+{
+    BaseType_t xQueueRemoved = pdFALSE;
+
+    /* Lock the mutex that guards access to the queue list. This call will
+     * never fail because it blocks forever. */
+    ( void ) xSemaphoreTake( ( SemaphoreHandle_t ) &xQueueListMutex, portMAX_DELAY );
+
+    configASSERT( pxMessageQueue->xInFlightOperations > 0 );
+    pxMessageQueue->xInFlightOperations--;
+
+    if( ( pxMessageQueue->xInFlightOperations == 0 ) &&
+        ( pxMessageQueue->xOpenDescriptors == 0 ) &&
+        ( pxMessageQueue->xPendingUnlink == pdTRUE ) )
+    {
+        listREMOVE( &pxMessageQueue->xLink );
+        xQueueRemoved = pdTRUE;
+    }
+
+    /* Release the mutex protecting the queue list. */
+    ( void ) xSemaphoreGive( ( SemaphoreHandle_t ) &xQueueListMutex );
+
+    if( xQueueRemoved == pdTRUE )
+    {
+        prvDeleteMessageQueue( pxMessageQueue );
+    }
 }
 
 /*-----------------------------------------------------------*/
@@ -438,11 +479,14 @@ int mq_close( mqd_t mqdes )
              * remove the queue. */
             if( pxMessageQueue->xPendingUnlink == pdTRUE )
             {
-                listREMOVE( &pxMessageQueue->xLink );
+                if( pxMessageQueue->xInFlightOperations == 0 )
+                {
+                    listREMOVE( &pxMessageQueue->xLink );
 
-                /* Set the flag to delete the queue. Deleting the queue is deferred
-                 * until xQueueListMutex is released. */
-                xQueueRemoved = pdTRUE;
+                    /* Set the flag to delete the queue. Deleting the queue is deferred
+                     * until xQueueListMutex is released. */
+                    xQueueRemoved = pdTRUE;
+                }
             }
             /* Otherwise, wait for the call to mq_unlink. */
             else
@@ -652,7 +696,10 @@ ssize_t mq_timedreceive( mqd_t mqdes,
     int iCalculateTimeoutReturn = 0;
     TickType_t xTimeoutTicks = 0;
     QueueListElement_t * pxMessageQueue = ( QueueListElement_t * ) mqdes;
+    QueueHandle_t xKernelQueue = NULL;
     QueueElement_t xReceiveData = { 0 };
+    long lMessageQueueFlags = 0;
+    BaseType_t xQueueReferenced = pdFALSE;
 
     /* Silence warnings about unused parameters. */
     ( void ) msg_prio;
@@ -694,18 +741,26 @@ ssize_t mq_timedreceive( mqd_t mqdes,
         }
     }
 
+    if( xStatus == 0 )
+    {
+        xKernelQueue = pxMessageQueue->xQueue;
+        lMessageQueueFlags = pxMessageQueue->xAttr.mq_flags;
+        pxMessageQueue->xInFlightOperations++;
+        xQueueReferenced = pdTRUE;
+    }
+
     /* Release the mutex protecting the queue list. */
     ( void ) xSemaphoreGive( ( SemaphoreHandle_t ) &xQueueListMutex );
 
     if( xStatus == 0 )
     {
         /* Receive data from the FreeRTOS queue. */
-        if( xQueueReceive( pxMessageQueue->xQueue,
+        if( xQueueReceive( xKernelQueue,
                            &xReceiveData,
                            xTimeoutTicks ) == pdFALSE )
         {
             /* If queue receive fails, set the appropriate errno. */
-            if( pxMessageQueue->xAttr.mq_flags & O_NONBLOCK )
+            if( lMessageQueueFlags & O_NONBLOCK )
             {
                 /* Set errno to EAGAIN for nonblocking mq. */
                 errno = EAGAIN;
@@ -730,6 +785,11 @@ ssize_t mq_timedreceive( mqd_t mqdes,
         vPortFree( xReceiveData.pcData );
     }
 
+    if( xQueueReferenced == pdTRUE )
+    {
+        prvReleaseMessageQueueReference( pxMessageQueue );
+    }
+
     return xStatus;
 }
 
@@ -744,7 +804,10 @@ int mq_timedsend( mqd_t mqdes,
     int iStatus = 0, iCalculateTimeoutReturn = 0;
     TickType_t xTimeoutTicks = 0;
     QueueListElement_t * pxMessageQueue = ( QueueListElement_t * ) mqdes;
+    QueueHandle_t xKernelQueue = NULL;
     QueueElement_t xSendData = { 0 };
+    long lMessageQueueFlags = 0;
+    BaseType_t xQueueReferenced = pdFALSE;
 
     /* Silence warnings about unused parameters. */
     ( void ) msg_prio;
@@ -786,6 +849,14 @@ int mq_timedsend( mqd_t mqdes,
         }
     }
 
+    if( iStatus == 0 )
+    {
+        xKernelQueue = pxMessageQueue->xQueue;
+        lMessageQueueFlags = pxMessageQueue->xAttr.mq_flags;
+        pxMessageQueue->xInFlightOperations++;
+        xQueueReferenced = pdTRUE;
+    }
+
     /* Release the mutex protecting the queue list. */
     ( void ) xSemaphoreGive( ( SemaphoreHandle_t ) &xQueueListMutex );
 
@@ -812,12 +883,12 @@ int mq_timedsend( mqd_t mqdes,
     if( iStatus == 0 )
     {
         /* Send data to the FreeRTOS queue. */
-        if( xQueueSend( pxMessageQueue->xQueue,
+        if( xQueueSend( xKernelQueue,
                         &xSendData,
                         xTimeoutTicks ) == pdFALSE )
         {
             /* If queue send fails, set the appropriate errno. */
-            if( pxMessageQueue->xAttr.mq_flags & O_NONBLOCK )
+            if( lMessageQueueFlags & O_NONBLOCK )
             {
                 /* Set errno to EAGAIN for nonblocking mq. */
                 errno = EAGAIN;
@@ -833,6 +904,11 @@ int mq_timedsend( mqd_t mqdes,
 
             iStatus = -1;
         }
+    }
+
+    if( xQueueReferenced == pdTRUE )
+    {
+        prvReleaseMessageQueueReference( pxMessageQueue );
     }
 
     return iStatus;
@@ -871,11 +947,18 @@ int mq_unlink( const char * name )
              * remove it from the list. */
             if( pxMessageQueue->xOpenDescriptors == 0 )
             {
-                listREMOVE( &pxMessageQueue->xLink );
+                if( pxMessageQueue->xInFlightOperations == 0 )
+                {
+                    listREMOVE( &pxMessageQueue->xLink );
 
-                /* Set the flag to delete the queue. Deleting the queue is deferred
-                 * until xQueueListMutex is released. */
-                xQueueRemoved = pdTRUE;
+                    /* Set the flag to delete the queue. Deleting the queue is deferred
+                     * until xQueueListMutex is released. */
+                    xQueueRemoved = pdTRUE;
+                }
+                else
+                {
+                    pxMessageQueue->xPendingUnlink = pdTRUE;
+                }
             }
             else
             {
