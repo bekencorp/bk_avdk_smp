@@ -3,7 +3,7 @@
 #include <common/bk_err.h>
 #include <components/system.h>
 #include "cli.h"
-#include "fisheye_calibration.h"
+#include "modules/fisheye_calibration.h"
 #include <components/bk_frame_buffer.h>
 
 #define TAG "fisheye"
