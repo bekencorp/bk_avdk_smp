@@ -541,7 +541,7 @@ error:
     info->isp_handle = NULL;
     info->lcd_enable = false;
     LOGD("%s failed\n", __func__);
-    return ret;
+    return BK_FAIL;
 }
 
 int doorbell_display_turn_off(void)

@@ -16,10 +16,10 @@
 
 static bk_h264_encode_ctlr_handle_t h264_encode_handle = NULL;
 static bk_h264_encode_frame_config_t h264_encode_config = {
-    .buffer_request_cb = h264_encode_buffer_request_cb,
-    .buffer_complete_cb = h264_encode_buffer_complete_cb,
-    .chnl_id = 0,
-    .param = NULL,
+    .outbuf_malloc = h264_encode_outbuf_malloc,
+    .outbuf_malloc_args = NULL,
+    .outbuf_complete = h264_encode_outbuf_complete,
+    .outbuf_complete_args = NULL,
 };
 
 // Regular test

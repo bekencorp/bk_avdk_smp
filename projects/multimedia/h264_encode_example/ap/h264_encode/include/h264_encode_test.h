@@ -21,8 +21,8 @@ void cli_h264_encode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 void cli_h264e_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 
 // Buffer callback functions
-void *h264_encode_buffer_request_cb(uint32_t size);
-uint32_t h264_encode_buffer_complete_cb(void *buffer, uint32_t result);
+void *h264_encode_outbuf_malloc(uint32_t size, void *args);
+uint32_t h264_encode_outbuf_complete(void *buffer, uint32_t result, void *args);
 
 // Helper functions
 bk_err_t create_and_open_encoder(void **h264_encode_handle, void *h264_encode_config);

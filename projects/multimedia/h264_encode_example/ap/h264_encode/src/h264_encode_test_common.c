@@ -16,8 +16,9 @@
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
 // Buffer request callback - allocate output buffer for encoded data
-void *h264_encode_buffer_request_cb(uint32_t size)
+void *h264_encode_outbuf_malloc(uint32_t size, void *args)
 {
+    (void)args;
     frame_buffer_t *buffer = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, size + sizeof(frame_buffer_t));
     if (buffer != NULL) {
         LOGD("%s, %d, Allocated buffer: %p, size: %d\n", __func__, __LINE__, buffer, size);
@@ -29,8 +30,9 @@ void *h264_encode_buffer_request_cb(uint32_t size)
 }
 
 // Buffer complete callback - handle encoded frame
-uint32_t h264_encode_buffer_complete_cb(void *buffer, uint32_t result)
+uint32_t h264_encode_outbuf_complete(void *buffer, uint32_t result, void *args)
 {
+    (void)args;
     frame_buffer_t *frame = (frame_buffer_t *)buffer;
     if (result == BK_OK) {
         LOGD("%s, %d, H264 encode success! frame: %p, length: %d, h264_type: %d\n", 
