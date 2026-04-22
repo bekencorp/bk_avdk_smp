@@ -259,7 +259,7 @@ void pm_check_power_on_module(uint32_t *pm_off_modules, uint32_t *pm_on_modules,
 
 	if (!(*pm_on_modules & ((0x1 << PM_POWER_SUB_DOMAIN_MAC%PM_MODULE_SUB_POWER_DOMAIN_MAX)))) // when the module not power on , set the module sleep state
 	{
-		*pm_sleeped_modules |= 0x1ULL << PM_SLEEP_MODULE_NAME_WIFIP_MAC;
+		//*pm_sleeped_modules |= 0x1ULL << PM_SLEEP_MODULE_NAME_WIFIP_MAC;
 		*pm_off_modules |= (0x1 << (PM_POWER_SUB_DOMAIN_MAC%PM_MODULE_SUB_POWER_DOMAIN_MAX));
 		// BK_LOGD(NULL, "wifi not power on \r\n");
 	}

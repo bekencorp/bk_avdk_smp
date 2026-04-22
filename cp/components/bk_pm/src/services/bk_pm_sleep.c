@@ -163,20 +163,20 @@ extern void pm_enable_int(uint32_t irq_level);
 
 uint64_t pm_low_voltage_process()
 {
-	//GLOBAL_INT_DECLARATION();
-	uint32_t irq_level = 0;
-	irq_level = pm_disable_int();
+	GLOBAL_INT_DECLARATION();
+	//uint32_t irq_level = 0;
+	//irq_level = pm_disable_int();
 	uint64_t sleep_tick         = 0ULL;
 
-	//GLOBAL_INT_DISABLE();
+	GLOBAL_INT_DISABLE();
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t entry_tick         = 0ULL;
 	entry_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 #endif
 	if(pm_low_voltage_resource_set() != 0)
 	{
-		//GLOBAL_INT_RESTORE();
-		pm_enable_int(irq_level);
+		GLOBAL_INT_RESTORE();
+		//pm_enable_int(irq_level);
 		return sleep_tick;
 	}
 
@@ -213,7 +213,8 @@ uint64_t pm_low_voltage_process()
 	}
 #endif
 
-	pm_enable_int(irq_level);
+	GLOBAL_INT_RESTORE();
+	//pm_enable_int(irq_level);
 	/* Execute post-sleep (wakeup) callbacks */
 	//bk_pm_post_sleep_callback_execute();
 

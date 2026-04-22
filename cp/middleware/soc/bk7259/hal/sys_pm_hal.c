@@ -1197,7 +1197,7 @@ __attribute__((section(".iram"))) void sys_hal_regs_digital_restore(void)
 	//keep flash 120M
 	s_sys_saved_regs[0] |= (0x3 << 6);
 	s_sys_saved_regs[0] |= (0x3 << 8);
-	//sys_ll_set_cpu_clk_div_mode1_value(s_sys_saved_regs[0]); // reg_0x8
+	sys_ll_set_cpu_clk_div_mode1_value(s_sys_saved_regs[0]); // reg_0x8
 
 	sys_ll_set_cpu_clk_div_mode2_value(s_sys_saved_regs[1]); // reg_0x9
 	sys_ll_set_cpu_clk_div_mode3_value(s_sys_saved_regs[2]); // reg_0xa
@@ -1205,8 +1205,8 @@ __attribute__((section(".iram"))) void sys_hal_regs_digital_restore(void)
 	sys_ll_set_cpu_device_clk_enable_value(s_sys_saved_regs[4]); // reg_0xc
 
 	sys_ll_set_reserver_reg0xf_value(s_sys_saved_regs[6]); // reg_0xf
-	//sys_ll_set_reserver_reg0x10_value(s_sys_saved_regs[7]); // reg_0x10
-	//sys_ll_set_cpu_power_sleep_wakeup_value(s_sys_saved_regs[8]); // reg_0x11
+	sys_ll_set_reserver_reg0x10_value(s_sys_saved_regs[7]); // reg_0x10
+	sys_ll_set_cpu_power_sleep_wakeup_value(s_sys_saved_regs[8]); // reg_0x11
 	sys_ll_set_cpu0_int_0_31_en_value(s_sys_saved_regs[9]); // reg_0x14
 	sys_ll_set_cpu0_int_32_63_en_value(s_sys_saved_regs[10]); // reg_0x15
 	sys_ll_set_cpu0_int_64_95_en_value(s_sys_saved_regs[11]); // reg_0x16
@@ -1434,7 +1434,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 
 /*--------------------wake up---------------------*/
 #if CONFIG_DEEP_LV
-	//sys_hal_regs_analog_restore();
+	sys_hal_regs_analog_restore();
 	//bk_flash_restore();
 	#if CONFIG_DEEP_LV
 	extern void mpu_enable(void);
