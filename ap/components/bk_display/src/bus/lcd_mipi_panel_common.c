@@ -39,9 +39,8 @@ static bk_err_t lcd_panel_common_init(bk_avdk_lcd_panel_t *panel)
 
     // Configure clock
     //AVDK_RETURN_ON_FALSE(priv->panel->timing.clk != 0, BK_ERR_NOT_SUPPORT, TAG, "panel timing.clk not set");
-    AVDK_RETURN_ON_FALSE(priv->panel->n_lanes != 0, BK_ERR_NOT_SUPPORT, TAG, "panel n_lanes not set");
-
     bk_panel_clock_config_t clock_config = {
+        .clk = priv->panel->timing.clk,
         .n_lanes = priv->panel->n_lanes,
         .fps = priv->panel->fps,
         .timing = priv->panel->timing,
@@ -61,6 +60,12 @@ static bk_err_t lcd_panel_common_init(bk_avdk_lcd_panel_t *panel)
         for (uint32_t i = 0; priv->panel->init_cmds[i].cmd != 0 || priv->panel->init_cmds[i].data != NULL; i++) {
             if (priv->panel->init_cmds[i].cmd == 0 && priv->panel->init_cmds[i].data == NULL) {
                 break;  // End marker
+            }
+            /* Delay: {0, (const uint8_t []){ms}, 0xFF} — same convention as RGB SPI init */
+            if (priv->panel->init_cmds[i].cmd == 0 && priv->panel->init_cmds[i].data_len == 0xFF
+                && priv->panel->init_cmds[i].data != NULL) {
+                rtos_delay_milliseconds(((const uint8_t *)priv->panel->init_cmds[i].data)[0]);
+                continue;
             }
             AVDK_RETURN_ON_ERROR(bk_display_bus_write(priv->bus_handle, BK_DISPLAY_BUS_RW_DSI_CMD,
                                                       priv->panel->init_cmds[i].cmd,

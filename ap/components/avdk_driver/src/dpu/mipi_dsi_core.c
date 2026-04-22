@@ -194,14 +194,9 @@ bk_err_t mipi_dsi_panel_set_pattern(bk_lcd_bus_io_t *panel, mipi_dsi_pattern_typ
  * DWC MIPI DSI Host video mode: VID_HSA_TIME, VID_HBP_TIME, VID_HLINE_TIME are in units of
  * lane byte clock (txbyteclkhs), i.e. DPI pixel intervals scaled by (F_byte_hs / F_pclk),
  * F_byte_hs = (per-lane HS bit rate) / 8.
- *
- * cycles = T_dpi_px * F_byte_hs / F_pclk = dpi_px * (lane_bitrate_mbps * 1e6 / 8) / pclk_hz
- *
- * Extra margin (permille) accounts for DSI packet overhead (HSS/HSA/HSE, long packet header, etc.).
  */
-#define DSI_VID_HBLANK_OVERHEAD_PERMILLE  300u  /* HSA/HBP regions, ~1.30x */
-#define DSI_VID_HLINE_OVERHEAD_PERMILLE   300u  /* full horizontal line, ~1.30x */
-/* DSI 链路带宽余量（与面板注释中 bpp * 1.3 / n_lanes 一致），用于 Naneng PHY 每 lane 最低 Mbps */
+#define DSI_VID_HBLANK_OVERHEAD_PERMILLE  300u
+#define DSI_VID_HLINE_OVERHEAD_PERMILLE   300u
 #define DSI_LINK_BANDWIDTH_OVERHEAD_PERMILLE  DSI_VID_HBLANK_OVERHEAD_PERMILLE
 
 static inline uint16_t dsi_time_round(float t)
@@ -276,7 +271,8 @@ static void mipi_dsi_host_vid_hparams_asic(const bk_panel_clock_config_t *dsi, u
 }
 #endif
 
-bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)
+/** Naneng internal PLL path: hal_dsi_dphy_init_for_panel + byte-accurate VID timing (default for UNKNOWN / NANENG). */
+static bk_err_t mipi_dsi_clock_set_internal_pll_path(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)
 {
     (void)ret_panel;
 
@@ -301,7 +297,7 @@ bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_
     mipi_dsi_host_vid_hparams_asic(dsi, lane_bitrate_mbps, pclk_hz, &hp);
 #endif
 
-    LOGI("%s n_lanes:%u lane:%u Mbps pclk:%llu Hz -> VID_HSA:%u VID_HBP:%u VID_HLINE:%u\n", __func__,
+    LOGI("%s (internal_pll) n_lanes:%u lane:%u Mbps pclk:%llu Hz -> VID_HSA:%u VID_HBP:%u VID_HLINE:%u\n", __func__,
          (unsigned)(dsi->n_lanes + 1U), (unsigned)lane_bitrate_mbps, (unsigned long long)pclk_hz,
          (unsigned)hp.hsa, (unsigned)hp.hbp, (unsigned)hp.hline);
 
@@ -321,6 +317,70 @@ bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_
 
     hal_dsi_operation_mode_set(0);
     return BK_OK;
+}
+
+/** Legacy 320M/480M root: dsi_dphy_bitrate_calc + hal_dsi_dphy_init + float-scaled VID timing. */
+static bk_err_t mipi_dsi_clock_set_legacy_ext_dphy_path(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)
+{
+    (void)ret_panel;
+
+    float hsa_time = 0;
+    float hbp_time = 0;
+    float hline_time = 0;
+    float scale1 = 1.3f;
+    float scale2 = 1.3f;
+    float clk_coefficient = 0;
+    uint32_t bitrate = 0;
+
+    bitrate = dsi_dphy_bitrate_calc(dsi->clk, dsi->n_lanes);
+    clk_coefficient = ((float)bitrate) / (8.f * ((float)dsi->clk));
+
+#if ((SFT_VERSION == FPGA_7259_CM55) || (SFT_VERSION == FPGA_7259_A35))
+    clk_coefficient = ((float)DPHY_BR_800M) / (8.f * ((float)15.0f));
+    scale1 = 1.0f;
+    scale2 = 1.1f;
+#endif
+
+    hsa_time   = (float)dsi->timing.hsync_pulse_width * clk_coefficient * scale1;
+    hbp_time   = (float)dsi->timing.hsync_back_porch * clk_coefficient * scale1;
+    hline_time = ((float)dsi->timing.hsync_pulse_width + (float)dsi->timing.hsync_back_porch
+                  + (float)dsi->timing.hsync_front_porch + (float)dsi->timing.h_size) * clk_coefficient * scale2;
+
+    LOGI("%s (320m_480m) bitrate:%u clk_coefficient:%.2f n_lanes:%u hsa:%.2f hbp:%.2f hline:%.2f\n", __func__,
+         (unsigned)bitrate, clk_coefficient, (unsigned)(dsi->n_lanes + 1U), hsa_time, hbp_time, hline_time);
+
+#if ((SFT_VERSION == FPGA_7259_CM55) || (SFT_VERSION == FPGA_7259_A35))
+    hal_dsi_wait_fpga_dphy_done();
+#else
+    hal_dsi_dphy_init(bitrate);
+#endif
+
+    hal_dsi_config(dsi->n_lanes,
+                   dsi->timing.h_size,
+                   dsi->timing.v_size,
+                   (uint16_t)hsa_time,
+                   (uint16_t)hbp_time,
+                   (uint16_t)hline_time,
+                   dsi->timing.vsync_pulse_width,
+                   dsi->timing.vsync_back_porch,
+                   dsi->timing.vsync_front_porch);
+
+    hal_dsi_operation_mode_set(0);
+    return BK_OK;
+}
+
+bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)
+{
+    if (dsi == NULL) {
+        return BK_ERR_NULL_PARAM;
+    }
+
+    if (dsi->clk_src == DPU_CLK_SRC_320M_480M) {
+        return mipi_dsi_clock_set_legacy_ext_dphy_path(dsi, ret_panel);
+    }
+
+    /* DPU_CLK_SRC_UNKNOWN (default) and DPU_CLK_SRC_NANENG_DPHY_INTERNAL_DPLL */
+    return mipi_dsi_clock_set_internal_pll_path(dsi, ret_panel);
 }
 
 bk_err_t mipi_dsi_bus_register(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)   // dsi_init need dpu clk enable before

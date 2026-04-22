@@ -63,8 +63,10 @@ static avdk_err_t bk_display_dsi_set_clock(bk_display_bus_ctlr_t *controller, bk
 
     bk_panel_clock_config_t dsi =
     {
+        .clk = clock->clk,
         .n_lanes = clock->n_lanes,
         .fps = clock->fps,
+        .clk_src = bus->dsi_clk_src,
         .timing = clock->timing,
     };
 
@@ -95,6 +97,10 @@ avdk_err_t bk_display_dsi_bus_new(bk_display_bus_handle_t *handle, bk_display_ds
     AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
 
     os_memset(bus, 0, sizeof(dsi_bus_vn_ctlr_t));
+    if (config != NULL) {
+        bus->config = *config;
+        bus->dsi_clk_src = config->clk_src;
+    }
 
     bus->ops.enable = bk_display_dsi_bus_enable;
     bus->ops.disable = bk_display_dsi_bus_disable;

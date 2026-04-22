@@ -503,7 +503,7 @@ bk_err_t hal_dsi_dphy_init_for_panel(uint64_t pclk_hz, uint8_t n_lanes, uint16_t
     uint64_t den = (uint64_t)lane_cnt * 1000000ULL * 1000ULL;
     uint64_t min_lane_mbps = (pclk_hz * (uint64_t)bpp * (1000ULL + (uint64_t)overhead_permille) + den - 1ULL) / den;
 
-    for (uint32_t pixdiv = 0u; pixdiv <= 8u; pixdiv++) {
+    for (uint32_t pixdiv = 0u; pixdiv <= 14u; pixdiv++) {
         uint32_t pdiv = pixdiv + 2u;
         uint64_t lane_hz = pclk_hz * (uint64_t)pdiv;
         uint64_t lane_mbps_floor = lane_hz / 1000000ULL;
@@ -532,12 +532,358 @@ bk_err_t hal_dsi_dphy_init_for_panel(uint64_t pclk_hz, uint8_t n_lanes, uint16_t
              (unsigned)overhead_permille, (unsigned)*out_lane_mbps, (unsigned)pixdiv, (unsigned)r5c);
         return BK_OK;
     }
-
     LOGE("%s no PLL: pclk:%llu Hz min_lane_mbps:%llu\n", __func__,
          (unsigned long long)pclk_hz, (unsigned long long)min_lane_mbps);
     return BK_FAIL;
 }
 
+void hal_dsi_dphy_init(uint32_t br)
+{
+    LOGI("%s, bitrate:%dM bps\n", __func__, br);
+
+    //clane_param0, time cunt, lptx after rset
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R00 = 0x28;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R00 = 0x50;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R00 = 0xC8;
+    else                        reg_NN_PHY_R00 = 0xFA;
+
+    //clane_param1, lp11 hold during initial.
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R04 = 0xFA0;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R04 = 0x1F40;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R04 = 0x4E20;
+    else                        reg_NN_PHY_R04 = 0x61A8;
+
+    //clane_param2
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R08 = (0x0<<16) + (0x07<<8) + 0x2;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R08 = (0x1<<16) + (0x0D<<8) + 0x2;
+    else if(br < DPHY_BR_800M)  reg_NN_PHY_R08 = (0x3<<16) + (0x1A<<8) + 0x2;
+    else if(br < DPHY_BR_1000M) reg_NN_PHY_R08 = (0x5<<16) + (0x20<<8) + 0x2;
+    else if(br < DPHY_BR_1200M) reg_NN_PHY_R08 = (0x7<<16) + (0x28<<8) + 0x2;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R08 = (0x8<<16) + (0x2D<<8) + 0x2;
+    else                        reg_NN_PHY_R08 = (0x9<<16) + (0x33<<8) + 0x2;
+
+    //clane_param3
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R0c = (0x08<<16) + (0x03<<8) + 0x03;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R0c = (0x0A<<16) + (0x03<<8) + 0x06;
+    else if(br < DPHY_BR_800M)  reg_NN_PHY_R0c = (0x0D<<16) + (0x07<<8) + 0x0B;
+    else if(br < DPHY_BR_1000M) reg_NN_PHY_R0c = (0x0F<<16) + (0x08<<8) + 0x0D;
+    else if(br < DPHY_BR_1200M) reg_NN_PHY_R0c = (0x10<<16) + (0x0A<<8) + 0x10;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R0c = (0x12<<16) + (0x0C<<8) + 0x12;
+    else                        reg_NN_PHY_R0c = (0x14<<16) + (0x0D<<8) + 0x15;
+
+    //dlane0_param0
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R10 = 0x28;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R10 = 0x50;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R10 = 0xc8;
+    else                        reg_NN_PHY_R10 = 0xFA;
+
+    //dlane0_param1
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R14 = 0xFA0;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R14 = 0x1F40;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R14 = 0x4E20;
+    else                        reg_NN_PHY_R14 = 0x61A8;
+
+    //dlane0_param2, hs-prepare, hs-zero, hs-trail, hs-exit hold time in byteclk.
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R18 = (0x0<<24) + (0x03<<16) + (0x3<<8) + 0x03;  // hs-zero must set 0x64 ???
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R18 = (0x2<<24) + (0x05<<16) + (0x4<<8) + 0x06;
+    else if(br < DPHY_BR_800M)  reg_NN_PHY_R18 = (0x4<<24) + (0x0B<<16) + (0x7<<8) + 0x0B;
+    else if(br < DPHY_BR_1000M) reg_NN_PHY_R18 = (0x6<<24) + (0x0C<<16) + (0x8<<8) + 0x0D;
+    else if(br < DPHY_BR_1200M) reg_NN_PHY_R18 = (0x8<<24) + (0x0E<<16) + (0xA<<8) + 0x10;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R18 = (0xA<<24) + (0x0F<<16) + (0xC<<8) + 0x12;
+    else                        reg_NN_PHY_R18 = (0xA<<24) + (0x14<<16) + (0xE<<8) + 0x15;
+
+    //dlane0_param3
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R1c = 0x9C40;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R1c = 0x13880;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R1c = 0x30D40;
+    else                        reg_NN_PHY_R1c = 0x3D090;
+
+    //dlane0_param4
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R20 = (0x0B<<16) + (0x04<<8) + 0x0E;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R20 = (0x0F<<16) + (0x04<<8) + 0x13;
+    else if(br < DPHY_BR_800M)  reg_NN_PHY_R20 = (0x0F<<16) + (0x04<<8) + 0x13;//(0x23<<16) + (0x0A<<8) + 0x2C;
+    else if(br < DPHY_BR_1000M) reg_NN_PHY_R20 = (0x2B<<16) + (0x0C<<8) + 0x36;
+    else if(br < DPHY_BR_1200M) reg_NN_PHY_R20 = (0x33<<16) + (0x0E<<8) + 0x40;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R20 = (0x3F<<16) + (0x12<<8) + 0x4F;
+    else                        reg_NN_PHY_R20 = (0x53<<16) + (0x16<<8) + 0x68;
+
+    //dlane1_param0
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R24 = 0x28;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R24 = 0x50;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R24 = 0xC8;
+    else                        reg_NN_PHY_R24 = 0xFA;
+
+    //dlane1_param1
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R28 = 0xFA0;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R28 = 0x1F40;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R28 = 0x4E20;
+    else                        reg_NN_PHY_R28 = 0x61A8;
+
+    //dlane1_param2, hs-prepare, hs-zero, hs-rail, hs-exit hold time in byteclk.
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R2c = (0x0<<24) + (0x03<<16) + (0x3<<8) + 0x03; // hs-zero must set 0x64 ???
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R2c = (0x2<<24) + (0x05<<16) + (0x4<<8) + 0x06;
+    else if(br < DPHY_BR_800M)  reg_NN_PHY_R2c = (0x4<<24) + (0x0B<<16) + (0x7<<8) + 0x0B;
+    else if(br < DPHY_BR_1000M) reg_NN_PHY_R2c = (0x6<<24) + (0x0C<<16) + (0x8<<8) + 0x0D;
+    else if(br < DPHY_BR_1200M) reg_NN_PHY_R2c = (0x8<<24) + (0x0E<<16) + (0xA<<8) + 0x10;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R2c = (0xA<<24) + (0x0F<<16) + (0xC<<8) + 0x12;
+    else                        reg_NN_PHY_R2c = (0xA<<24) + (0x14<<16) + (0xE<<8) + 0x15;
+
+    //dlane1_pram3
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R30 = 0x9C40;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R30 = 0x13880;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R30 = 0x30D40;
+    else                        reg_NN_PHY_R30 = 0x3D090;
+
+    //dlane2_param0
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R34 = 0x28;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R34 = 0x50;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R34 = 0xC8;
+    else                        reg_NN_PHY_R34 = 0xFA;
+
+    //dlane2_param1
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R38 = 0xFA0;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R38 = 0x1F40;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R38 = 0x4E20;
+    else                        reg_NN_PHY_R38 = 0x61A8;
+
+    //dlane2_param2, hs-prepare, hs-zero, hs-rail, hs-exit hold time in byteclk.
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R3c = (0x0<<24) + (0x03<<16) + (0x3<<8) + 0x03; // hs-zero must set 0x64 ???
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R3c = (0x2<<24) + (0x05<<16) + (0x4<<8) + 0x06;
+    else if(br < DPHY_BR_800M)  reg_NN_PHY_R3c = (0x4<<24) + (0x0B<<16) + (0x7<<8) + 0x0B;
+    else if(br < DPHY_BR_1000M) reg_NN_PHY_R3c = (0x6<<24) + (0x0C<<16) + (0x8<<8) + 0x0D;
+    else if(br < DPHY_BR_1200M) reg_NN_PHY_R3c = (0x8<<24) + (0x0E<<16) + (0xA<<8) + 0x10;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R3c = (0xA<<24) + (0x0F<<16) + (0xC<<8) + 0x12;
+    else                        reg_NN_PHY_R3c = (0xA<<24) + (0x14<<16) + (0xE<<8) + 0x15;
+
+    //dlane2_param3
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R40 = 0x9C40;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R40 = 0x13880;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R40 = 0x30D40;
+    else                        reg_NN_PHY_R40 = 0x3D090;
+
+    //dlane3_param0
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R44 = 0x28;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R44 = 0x50;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R44 = 0xC8;
+    else                        reg_NN_PHY_R44 = 0xFA;
+
+    //dlane3_param1
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R48 = 0xFA0;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R48 = 0x1F40;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R48 = 0x4E20;
+    else                        reg_NN_PHY_R48 = 0x61A8;
+
+    //dlane3_param2, hs-prepare, hs-zero, hs-rail, hs-exit hold time in byteclk.
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R4c = (0x0<<24) + (0x03<<16) + (0x3<<8) + 0x03; // hs-zero must set 0x64 ???
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R4c = (0x2<<24) + (0x05<<16) + (0x4<<8) + 0x06;
+    else if(br < DPHY_BR_800M)  reg_NN_PHY_R4c = (0x4<<24) + (0x0B<<16) + (0x7<<8) + 0x0B;
+    else if(br < DPHY_BR_1000M) reg_NN_PHY_R4c = (0x6<<24) + (0x0C<<16) + (0x8<<8) + 0x0D;
+    else if(br < DPHY_BR_1200M) reg_NN_PHY_R4c = (0x8<<24) + (0x0E<<16) + (0xA<<8) + 0x10;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R4c = (0xA<<24) + (0x0F<<16) + (0xC<<8) + 0x12;
+    else                        reg_NN_PHY_R4c = (0xA<<24) + (0x14<<16) + (0xE<<8) + 0x15;
+
+    //dlane3_param3
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R50 = 0x9C40;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R50 = 0x13880;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R50 = 0x30D40;
+    else                        reg_NN_PHY_R50 = 0x3D090;
+
+    //com_param0, the number of byteclk cycles of transmitted length of lp state period
+    reg_NN_PHY_R54 = 0x0A; //0x15;
+
+    //ctrl_param0
+    reg_NN_PHY_R58 = 0x38;
+
+    //pll_ctrl_param0
+    if(br == DPHY_BR_100M)       reg_NN_PHY_R5c = (0x4<<24) + (0x0<<19) + (0x8<<14) + (0x155<<4) + 0x6;  //fvco=1.6g, data rate=fvco/16=0.1g, dpi_clk=data_rate/8=12.5m
+    else if(br == DPHY_BR_200M)  reg_NN_PHY_R5c = (0x3<<24) + (0x0<<19) + (0x8<<14) + (0x155<<4) + 0x6;  //fvco=1.6g, data rate=fvco/8=0.2g, dpi_clk=data_rate/8=25m
+    else if(br == DPHY_BR_300M)  reg_NN_PHY_R5c = (0x3<<24) + (0x0<<19) + (0xC<<14) + (0x200<<4) + 0x6;  //fvco=2.4g, data rate=fvco/8=0.3g, dpi_clk=data_rate/8=37.5m
+    else if(br == DPHY_BR_400M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0x8<<14) + (0x155<<4) + 0x6;  //fvco=1.6g, data rate=fvco/4=0.4g, dpi_clk=data_rate/8=50m
+    else if(br == DPHY_BR_440M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0x9<<14) + (0x0AB<<4) + 0x9;  //fvco=24Mhz*8*(9+0xAB/0x400)=1.76g, data rate=fvco/4=0.44g, pixel_clk=data_rate/9=48.89Mhz
+    else if(br == DPHY_BR_500M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0xA<<14) + (0x1AB<<4) + 0x6;  //fvco=2.0g, data rate=fvco/4=0.5g, dpi_clk=data_rate/8=62.5m
+    else if(br == DPHY_BR_600M)  reg_NN_PHY_R5c = (0x2<<24) + (0x0<<19) + (0xC<<14) + (0x200<<4) + 0x6;  //fvco=24Mhz*8*(12+0x200/0x400)=2.4g, data rate=fvco/4=0.6g, pixel_clk=data_rate/8=75Mhz
+    else if(br == DPHY_BR_700M)  reg_NN_PHY_R5c = (0x1<<24) + (0x0<<19) + (0x7<<14) + (0x12B<<4) + 0x6;  //fvco=24Mhz*8*(7+0x12B/0x400)=1.4g, data rate=fvco/2=0.7g, pixel_clk=data_rate/8=87.5Mhz
+    else if(br == DPHY_BR_800M)  reg_NN_PHY_R5c = (0x1<<24) + (0x0<<19) + (0x8<<14) + (0x155<<4) + 0x6;  //fvco=1.6g, data rate=fvco/2=0.8g, dpi_clk=data_rate/8=100m
+    else if(br == DPHY_BR_1000M) reg_NN_PHY_R5c = (0x1<<24) + (0x0<<19) + (0xA<<14) + (0x1AB<<4) + 0x6;  //fvco=2.0g, data rate=fvco/2=1.0g, dpi_clk=data_rate/8=125m
+    else if(br == DPHY_BR_1200M) reg_NN_PHY_R5c = (0x1<<24) + (0x0<<19) + (0xC<<14) + (0x200<<4) + 0x6;  //fvco=2.4g, data rate=fvco/2=1.2g, dpi_clk=data_rate/8=150m
+    else if(br == DPHY_BR_1400M) reg_NN_PHY_R5c = (0x1<<24) + (0x0<<19) + (0xE<<14) + (0x255<<4) + 0x6;  //fvco=2.8g, data rate=fvco/2=1.4g, dpi_clk=data_rate/8=175m
+    else if(br == DPHY_BR_1500M) reg_NN_PHY_R5c = (0x1<<24) + (0x0<<19) + (0xF<<14) + (0x280<<4) + 0x6;  //fvco=3.0g, data rate=fvco/2=1.5g, dpi_clk=data_rate/8=187.5m;
+    else if(br == DPHY_BR_1600M) reg_NN_PHY_R5c = (0x0<<24) + (0x0<<19) + (0x8<<14) + (0x155<<4) + 0x6;  //fvco=1.6g, data rate=fvco/1=1.6g, dpi_clk=data_rate/8=200m
+    else                         reg_NN_PHY_R5c = 0x1029ab6;                                             //fvco=2.0g, data rate=fvco/2=1.0g, dpi_clk=data_rate/8=125m;
+
+    //pll_ctrl_param1 //!do not cfg temp
+    //reg_NN_PHY_R60 = 0x0;
+    //rcal_ctrl //!do not cfg temp
+    //reg_NN_PHY_R64 = 0x2e00;
+    //trim_param //!do not cfg temp
+    //reg_NN_PHY_R68 = 0x3322;
+    //test_pram0
+    reg_NN_PHY_R6c = 0x0;
+    //test_param1
+    reg_NN_PHY_R70 = 0x9c40c0;
+    //misc_param
+    reg_NN_PHY_R74 = 0x7f;
+
+    //clane_param4
+    if (br < DPHY_BR_200M)      reg_NN_PHY_R78 = 0x9C40;
+    else if(br < DPHY_BR_400M)  reg_NN_PHY_R78 = 0x13880;
+    else if(br < DPHY_BR_1400M) reg_NN_PHY_R78 = 0x30D40;
+    else                        reg_NN_PHY_R78 = 0x3D090;
+
+    //interf_param
+    reg_NN_PHY_R7c = (0x10<<8) + 0x01;
+
+    //pcs_resev_pin_param
+    reg_NN_PHY_R80 = 0x0;
+    //pma_resev_pin_param0
+    reg_NN_PHY_R84 = 0x21d9b36;
+    //pam_resev_pin_param1
+    reg_NN_PHY_R88 = 0x0;
+    //clane_data_param
+    reg_NN_PHY_R8c = 0x0aa;
+    //pam_lane_sel_param
+    reg_NN_PHY_R90 = 0x0d;
+    //dphytx_pma_dbg //!do not cfg temp
+    //reg_NN_PHY_R94 = 0x0;
+    //dphytx_pcs_dbg0 //!do not cfg temp
+    //reg_NN_PHY_R98 = 0x0;
+    //dphytx_pcs_dbg1 //!do not cfg temp
+    //reg_NN_PHY_R9c = 0x0;
+    //dphytx_pcs_dbg2 //!do not cfg temp
+    //reg_NN_PHY_Ra0 = 0x0;
+    //dphytx_pcs_dbg3 //!do not cfg temp
+    //reg_NN_PHY_Ra4 = 0x0;
+    //dphytx_pcs_dbg4 //!do not cfg temp
+    //reg_NN_PHY_Ra8 = 0x0;
+    //dphytx_pcs_dbg5 //!do not cfg temp
+    //reg_NN_PHY_Rac = 0x0;
+    //dphytx_pcs_dbg6 //!do not cfg temp
+    //reg_NN_PHY_Rb0 = 0x0;
+    //dphytx_pcs_dbg7 //!do not cfg temp
+    //reg_NN_PHY_Rb4 = 0x0;
+    //dphytx_pcs_dbg8 //!do not cfg temp
+    //reg_NN_PHY_Rb8 = 0x0;
+    //dphytx_pcs_dbg9 //!do not cfg temp
+    //reg_NN_PHY_Rbc = 0x0;
+
+    // dcreg_DPU_Beken_01 = 0x00000002 + 1;
+
+    // LOGI("%s finish\n", __func__);
+}
+
+uint32_t dsi_dphy_bitrate_calc(lcd_clk_t dpu_clk, uint8_t n_lanes)
+{
+    uint32_t bitrate = 0;
+
+    /* calc equation: dpu_clk*3*8 < bitrate*n_lanes */
+    switch(dpu_clk)
+    {
+        case LCD_320M:
+        case LCD_240M:                 // use for dphy test, 1.5g bps, 60fps
+            if(n_lanes == DSI_ACTIVE_LANES_4)
+                bitrate = DPHY_BR_1500M;
+            else
+                goto err;
+            break;
+
+        case LCD_160M:
+            if(n_lanes == DSI_ACTIVE_LANES_4)
+                bitrate = DPHY_BR_1000M;
+            else if(n_lanes == DSI_ACTIVE_LANES_3)
+                bitrate = DPHY_BR_1500M;
+            else
+                goto err;
+            break;
+
+        case LCD_120M:
+        case LCD_106M:
+        case LCD_80M:
+            if(n_lanes == DSI_ACTIVE_LANES_4)
+                bitrate = DPHY_BR_800M;
+            else if(n_lanes == DSI_ACTIVE_LANES_3)
+                bitrate = DPHY_BR_1000M;
+            else if(n_lanes == DSI_ACTIVE_LANES_2)
+                bitrate = DPHY_BR_1500M; 
+            else //if(n_lanes == DSI_ACTIVE_LANES_1)
+                goto err;
+            break;
+        case LCD_64M:
+        case LCD_60M:
+        case LCD_53M:
+        case LCD_48M:
+        case LCD_45M:
+            if(n_lanes == DSI_ACTIVE_LANES_4)
+                bitrate = DPHY_BR_440M;
+            else if(n_lanes == DSI_ACTIVE_LANES_3)
+                bitrate = DPHY_BR_600M;
+            else if(n_lanes == DSI_ACTIVE_LANES_2)
+                bitrate = DPHY_BR_800M; 
+            else //if(n_lanes == DSI_ACTIVE_LANES_1)
+                bitrate = DPHY_BR_1500M;
+            break;
+
+        case LCD_40M:
+        case LCD_35M:
+        case LCD_34M:
+        case LCD_32M:
+        case LCD_30M:
+        case LCD_29M:
+            if(n_lanes == DSI_ACTIVE_LANES_4)
+                bitrate = DPHY_BR_300M;
+            else if(n_lanes == DSI_ACTIVE_LANES_3)
+                bitrate = DPHY_BR_440M;
+            else if(n_lanes == DSI_ACTIVE_LANES_2)
+                bitrate = DPHY_BR_600M; 
+            else //if(n_lanes == DSI_ACTIVE_LANES_1)
+                bitrate = DPHY_BR_1200M;
+            break;
+        case LCD_26M:
+        case LCD_24M:
+        case LCD_22M:
+        case LCD_21M:
+        case LCD_20M:
+        case LCD_18M:
+        case LCD_17M:
+            if(n_lanes == DSI_ACTIVE_LANES_4)
+                bitrate = DPHY_BR_200M;
+            else if(n_lanes == DSI_ACTIVE_LANES_3)
+                bitrate = DPHY_BR_300M;
+            else if(n_lanes == DSI_ACTIVE_LANES_2)
+                bitrate = DPHY_BR_400M; 
+            else //if(n_lanes == DSI_ACTIVE_LANES_1)
+                bitrate = DPHY_BR_800M;
+            break;
+        case LCD_16M:
+        case LCD_15M:
+        case LCD_14M:
+        case LCD_13M:
+        case LCD_12M:
+        case LCD_11M:
+        case LCD_10M:
+        case LCD_9M:
+        case LCD_8M:
+        case LCD_7M:
+            if(n_lanes == DSI_ACTIVE_LANES_4)
+                bitrate = DPHY_BR_100M;
+            else if(n_lanes == DSI_ACTIVE_LANES_3)
+                bitrate = DPHY_BR_200M;
+            else if(n_lanes == DSI_ACTIVE_LANES_2)
+                bitrate = DPHY_BR_200M; 
+            else //if(n_lanes == DSI_ACTIVE_LANES_1)
+                bitrate = DPHY_BR_400M;
+            break;
+
+        default:
+            goto err;
+            break;
+    }
+
+    return bitrate;
+
+err:
+    LOGE("dsi clk:%d, n_lanes=%d, not support!\n", dpu_clk, n_lanes);
+    return 0;
+}
 
 /**
  * Send READ packet to peripheral using the generic interface

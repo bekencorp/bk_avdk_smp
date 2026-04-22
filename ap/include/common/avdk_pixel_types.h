@@ -30,6 +30,7 @@ extern "C" {
 #define PIXEL_288   (288)
 #define PIXEL_320   (320)
 #define PIXEL_360   (360)
+#define PIXEL_390   (390)
 #define PIXEL_400   (400)
 #define PIXEL_412   (412)
 #define PIXEL_432   (432)

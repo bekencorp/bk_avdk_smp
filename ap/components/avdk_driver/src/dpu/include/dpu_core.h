@@ -23,11 +23,7 @@ typedef void * dpu_handle_t;
 
 #define EVENT_BIT_AVAILABLE (1 << 0)
 
-typedef enum {
-    DPU_CLK_SRC_320M_480M = 0,
-    DPU_CLK_SRC_NANENG_DPHY_INTERNAL_DPLL = 1,
-} dpu_clk_src_t;
-
+/* dpu_clk_src_t is defined in components/bk_display_types.h */
 
 /**
  * @brief MIPI DSI DPI panel configuration structure

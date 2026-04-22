@@ -40,7 +40,7 @@ static avdk_err_t dpu_ctlr_init(bk_display_ctlr_handle_t handle)
 
     dpu_config_t dpu_config =
     {
-        .dpu_clk_src = DPU_CLK_SRC_320M_480M,
+        .dpu_clk_src = config->clk_src,
         .dpi_clock_freq_mhz = config->timing.clk,               /*!< DPI clock frequency in MHz */
         .video_timing = config->timing,
 
@@ -116,6 +116,7 @@ static avdk_err_t dpu_ctlr_open(bk_display_ctlr_handle_t handle)
 
     dpu_config_t dpu_config =
     {
+        .dpu_clk_src = config->clk_src,
         .dpi_clock_freq_mhz = config->timing.clk,               /*!< DPI clock frequency in MHz */
         .video_timing = config->timing,
 

@@ -29,6 +29,7 @@ void hal_dsi_wait_for_dphy_pwrup(void);
 
 void hal_dsi_dphy_power_down(void);
 
+uint32_t dsi_dphy_bitrate_calc(lcd_clk_t dpu_clk, uint8_t n_lanes);
 
 void hal_dsi_host_reset(void);
 
@@ -57,6 +58,7 @@ void hal_dsi_config(uint8_t n_lanes,
 bk_err_t hal_dsi_dphy_init_for_panel(uint64_t pclk_hz, uint8_t n_lanes, uint16_t bpp,
                                      uint32_t overhead_permille, uint32_t *out_lane_mbps);
 
+void hal_dsi_dphy_init(uint32_t br);
 
 /**
  * Send READ packet to peripheral using the generic interface

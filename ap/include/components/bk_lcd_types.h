@@ -59,6 +59,11 @@ typedef enum {
 
 /***lcd clk***/
 typedef enum {
+    LCD_320M = 320,
+    LCD_240M = 240,
+    LCD_160M = 160,
+    LCD_120M = 120,
+	
     LCD_106M = 106,  // PLL CLK
     LCD_100M = 100,  // PLL CLK
     LCD_96M  = 96,   //PLL CLK
@@ -114,9 +119,9 @@ typedef struct {
     uint32_t clk;
     uint16_t h_size;            /*!< Horizontal resolution, i.e. the number of pixels in a line */
     uint16_t v_size;            /*!< Vertical resolution, i.e. the number of lines in the frame  */
-    uint8_t hsync_pulse_width; /*!< Horizontal sync width, in pixel clock */
+    uint16_t hsync_pulse_width; /*!< Horizontal sync width, in pixel clock */
     uint16_t vsync_pulse_width; /*!< Vertical sync width, in number of lines */
-    uint8_t hsync_back_porch;  /*!< Horizontal back porch, number of pixel clock between hsync and start of line active data */
+    uint16_t hsync_back_porch;  /*!< Horizontal back porch, number of pixel clock between hsync and start of line active data */
     uint16_t hsync_front_porch; /*!< Horizontal front porch, number of pixel clock between the end of active data and the next hsync */
     uint16_t vsync_back_porch;  /*!< Vertical back porch, number of invalid lines between vsync and start of frame */
     uint16_t vsync_front_porch; /*!< Vertical front porch, number of invalid lines between the end of frame and the next vsync */
@@ -193,7 +198,7 @@ typedef struct
 {
     uint8_t cmd;
     const void *data;       /*<! Buffer that holds the command specific data */
-    uint8_t data_len;
+    uint8_t data_len;       /**< Payload length; or cmd==0 and data_len==0xFF for delay ms in ((uint8_t *)data)[0] */
 } lcd_mipi_init_cmd_t;
 
 /**
