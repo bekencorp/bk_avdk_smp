@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <os/os.h>
 #include <components/bk_display_types.h>
 #include <components/bk_display_dpu_ctlr.h>
 #include <driver/dpu_types.h>
@@ -26,11 +27,16 @@ typedef enum
 {
     DISP_STATE_DEINIT,
     DISP_STATE_READY,
+    DISP_STATE_CLOSED,
+    DISP_STATE_DEINITING,
 } display_state_t;
 
 typedef struct
 {
     display_state_t state;
+    beken_mutex_t lock;
+    beken_semaphore_t flush_idle_sem;
+    uint32_t inflight_flush;
     dpu_handle_t dpu_handle;
     bk_display_dpu_config_t config;
     bk_display_ctlr_t ops;
