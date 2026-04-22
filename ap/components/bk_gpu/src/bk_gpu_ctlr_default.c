@@ -1014,8 +1014,7 @@ static avdk_err_t gpu_ctlr_close(bk_gpu_ctlr_handle_t handle)
 	    {
 	        bk_err_t ret = rtos_set_semaphore(&control->gpu_process_sem);
             if (ret != BK_OK) {
-                LOGE("%s, %d rtos_set_semaphore failed\n", __func__, __LINE__);
-                return ret;
+                LOGW("%s, %d rtos_set_semaphore failed\n", __func__, __LINE__);
             }
 	    }
 #if HDMA_OPEN_ISR_ENABLE
