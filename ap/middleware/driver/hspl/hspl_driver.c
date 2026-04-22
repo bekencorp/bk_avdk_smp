@@ -218,15 +218,10 @@ static void hspl_dump_timeout_state(bk_hspl_id_t hspl_id)
  * - CP(M52) handles BK_HSPL_ID_0
  * - AP(M55) handles BK_HSPL_ID_1
  */
-#if defined(CONFIG_AP_SYS_MASTER_CPU_ID)
 /* AP side: handle BK_HSPL_ID_1 */
 #define HSPL_LOCAL_HSPL_ID  BK_HSPL_ID_1
 #define HSPL_LOCAL_INT_SRC  INT_SRC_HSPL
-#else
-/* CP side: handle BK_HSPL_ID_0 */
-#define HSPL_LOCAL_HSPL_ID  BK_HSPL_ID_0
-#define HSPL_LOCAL_INT_SRC  INT_SRC_HSPL
-#endif
+
 
 bk_err_t bk_hspl_driver_init(void)
 {

@@ -16,7 +16,7 @@ menu "HSPL"
 		depends on HSPL
 		int "HSPL timeout monitor threshold in ms"
 		range 1 1000
-		default 2
+		default 1
 		help
 			Timeout threshold used by the local HSPL timeout monitor.
 			If a lock is held longer than this threshold, the HSPL timeout
@@ -26,7 +26,7 @@ menu "HSPL"
 		depends on HSPL
 		int "HSPL timeout monitor channel"
 		range 0 15
-		default 9
+		default 8
 		help
 			Channel selected in the local HSPL timeout monitor. The hardware
 			timeout monitor can track one selected channel per HSPL instance.

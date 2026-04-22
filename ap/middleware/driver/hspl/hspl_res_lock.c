@@ -45,7 +45,7 @@ static inline uint32_t hspl_get_time_ms(void)
 
 static inline void hspl_sync_barrier(void)
 {
-	__asm volatile ("dsb\n\tisb" ::: "memory");
+	__asm volatile ("dsb" ::: "memory");
 }
 
 /*
