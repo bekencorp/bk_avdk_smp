@@ -26,6 +26,7 @@
 #define IPI_LOGW(...) BK_LOGW(IPI_TAG, ##__VA_ARGS__)
 #define IPI_LOGE(...) BK_LOGE(IPI_TAG, ##__VA_ARGS__)
 #define IPI_LOGD(...) BK_LOGD(IPI_TAG, ##__VA_ARGS__)
+#define IPI_LOGV(...) BK_LOGV(IPI_TAG, ##__VA_ARGS__)
 
 /* Callback structure */
 typedef struct {
@@ -281,7 +282,7 @@ static void bk_ipi_isr_dispatch(void)
 			/* Read IPIG value to get the value field */
 			ipig_val = ipi_ll_unpack_ipig(ipi_ll_read_ipig(s_ipi_hal.hw, core_id));
 
-			IPI_LOGD("IPI recv: on_cpu=%u < src_cpu=%u, value=0x%08X\r\n",
+			IPI_LOGV("IPI recv: on_cpu=%u < src_cpu=%u, value=0x%08X\r\n",
 			         (unsigned)rtos_get_core_id(),
 			         (unsigned)((ipig_val >> 28) & 0xF),
 			         (unsigned)ipig_val);
