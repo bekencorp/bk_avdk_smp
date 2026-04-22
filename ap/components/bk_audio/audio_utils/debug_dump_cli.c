@@ -28,6 +28,8 @@
 #define LOGE(...) BK_LOGE(AUD_DUMP_CLI_TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(AUD_DUMP_CLI_TAG, ##__VA_ARGS__)
 
+static uint8_t g_aud_dump_enable = 0;
+
 void aud_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
     uint16_t dump_bitmap_pre = get_aud_dump_bitmap();
@@ -155,7 +157,7 @@ void aud_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **arg
     }
 
     dump_bitmap = get_aud_dump_bitmap();
-    LOGI("pre dump_bitmap:0x%x cur:0x%x \n!",dump_bitmap_pre,dump_bitmap);
+    LOGI("pre dump_bitmap : 0x%x, cur : 0x%x \n!", dump_bitmap_pre, dump_bitmap);
     if((!dump_bitmap_pre) && (dump_bitmap))
     {
         LOGI("open dump uart\n!");
@@ -183,7 +185,25 @@ static const struct cli_command s_aud_dump_commands[] =
 
 int aud_dump_cli_init(void)
 {
-    return cli_register_commands(s_aud_dump_commands, AUD_ENGINE_CMD_CNT);
+    if (g_aud_dump_enable)
+    {
+        LOGW("audio dump cli already init\n!");
+        return 0;
+    } else
+    {
+        int ret = cli_register_commands(s_aud_dump_commands, AUD_ENGINE_CMD_CNT);
+        if (ret)
+        {
+            g_aud_dump_enable = 1;
+            LOGI("audio dump cli init success\n!");
+        }
+        else
+        {
+            g_aud_dump_enable = 0;
+            LOGE("audio dump cli init fail\n!");
+        }
+        return ret;
+    }
 }
 #endif /*CONFIG_ADK_DEBUG_DUMP_UTIL*/
 

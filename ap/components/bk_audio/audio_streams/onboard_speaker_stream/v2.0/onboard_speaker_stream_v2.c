@@ -1476,7 +1476,7 @@ static bk_err_t _onboard_speaker_destroy(audio_element_handle_t self)
     BK_LOGD(TAG, "[%s] _onboard_speaker_destroy \n", audio_element_get_tag(self));
 
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(self);
-    uint32_t i,k;
+    uint32_t i = 0, k = 0;
     /* deinit dma */
     aud_dac_dma_deconfig(onboard_spk);
     /* deinit dac */

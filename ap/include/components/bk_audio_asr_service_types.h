@@ -169,19 +169,19 @@ typedef struct asr * asr_handle_t;
         .chl_cfg =                                              \
             {                                                   \
                 {                                               \
-                    .dig_gain = 0x4000,                         \
+                    .dig_gain = 0x1c000,                        \
                     .ana_gain = 0x07,                           \
                     .adc_mode = AUD_ADC_MODE_DIFFEN,            \
                     .bits = 16,                                 \
                 },                                              \
                 {                                               \
-                    .dig_gain = 0x4000,                         \
+                    .dig_gain = 0x1c000,                        \
                     .ana_gain = 0x07,                           \
                     .adc_mode = AUD_ADC_MODE_DIFFEN,            \
                     .bits = 16,                                 \
                 },                                              \
                 {                                               \
-                    .dig_gain = 0x4000,                         \
+                    .dig_gain = 0x1c000,                        \
                     .ana_gain = 0x07,                           \
                     .adc_mode = AUD_ADC_MODE_DIFFEN,            \
                     .bits = 16,                                 \

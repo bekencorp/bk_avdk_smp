@@ -763,13 +763,13 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
             goto fail;
         }
 
-        char *delay_arr = (char *)os_malloc(aec->frame_size);
+        char *delay_arr = (char *)audio_malloc(aec->frame_size);
         os_memset(delay_arr, 0x00, aec->frame_size);
         for (uint32_t k = 0; k < delay_num; k++)
         {
             rb_write(aec->vad_rb, &delay_arr[0], aec->frame_size, BEKEN_WAIT_FOREVER);
         }
-        os_free(delay_arr);
+        audio_free(delay_arr);
         delay_arr = NULL;
     }
     aec->aec_ctx->phs_s1     = 50;
