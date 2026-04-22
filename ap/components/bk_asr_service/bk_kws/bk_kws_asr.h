@@ -35,6 +35,18 @@ int  bk_tflite_ASR_Recog(short *buf, int buf_len, const char **text, float *scor
     // 0 #
 // };
 
+typedef enum {
+    BK_KWS_NONE        = 0,
+    BK_KWS_ARMINO      = 1,
+    BK_KWS_BYEBYE      = 2,
+    BK_KWS_PLAY_MUSIC  = 3,
+    BK_KWS_STOP_PLAY   = 4,
+    BK_KWS_NEXT_SONG   = 5,
+    BK_KWS_VOLUME_UP   = 6,
+    BK_KWS_VOLUME_DOWN = 7,
+    BK_KWS_MAX_WORDS,
+} bk_kws_word_t;
+
 #ifdef __cplusplus
 }
 #endif

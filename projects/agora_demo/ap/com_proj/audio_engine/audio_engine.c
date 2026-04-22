@@ -216,32 +216,35 @@ void bk_audio_engine_asr_result_handle(void *p1, void *p2)
     //LOGD("result : %s\n", result);
     if (os_strcmp(result, "Hi Armino") == 0)
     {
-        LOGI("Armino\r\n");
-        asr_result = 1;
+        LOGI("Hi Armino\r\n");
+        asr_result = BK_KWS_ARMINO;
     } else if ((os_strcmp(result, "Byebye") == 0))
     {
         LOGI("%s \n", "Byebye");
-        asr_result = 2;
+        asr_result = BK_KWS_BYEBYE;
     } else if (os_strcmp(result, "Play Music") == 0)
     {
         LOGI("play music\r\n");
-        asr_result = 3;
+        asr_result = BK_KWS_PLAY_MUSIC;
     } else if (os_strcmp(result, "Stop Play") == 0)
     {
         LOGI("stop play\r\n");
-        asr_result = 4;
+        asr_result = BK_KWS_STOP_PLAY;
     }else if (os_strcmp(result, "Next song") == 0)
     {
         LOGI("next song\r\n");
-        asr_result = 5;
+        asr_result = BK_KWS_NEXT_SONG;
     } else if (os_strcmp(result, "Volume Up") == 0)
     {
         LOGI("volume up\r\n");
-        asr_result = 6;
+        asr_result = BK_KWS_VOLUME_UP;
     } else if (os_strcmp(result, "Volume Down") == 0)
     {
         LOGI("volume down\r\n");
-        asr_result = 7;
+        asr_result = BK_KWS_VOLUME_DOWN;
+    } else {
+        LOGE("Invalid asr result: %s\n", result);
+        asr_result = BK_KWS_NONE;
     }
 #endif
 
@@ -298,8 +301,8 @@ void bk_audio_engine_asr_result_handle(void *p1, void *p2)
 #endif
 
 #if CONFIG_BEKEN_KWS
-    if ((asr_result < 0) || (asr_result > 7)) {
-        LOGE("Invalid asr_result: %d, valid range is 0-7\n", asr_result);
+    if ((asr_result <= BK_KWS_NONE) || (asr_result >= BK_KWS_MAX_WORDS)) {
+        LOGE("Invalid asr_result: %d, valid range is %d-%d\n", asr_result, BK_KWS_NONE+1, BK_KWS_MAX_WORDS-1);
         return;
     }
 #else
@@ -326,6 +329,37 @@ void bk_audio_engine_asr_result_handle(void *p1, void *p2)
 #endif
 
 #if CONFIG_APP_EVT
+#if CONFIG_BEKEN_KWS
+    bk_err_t ret = BK_FAIL;
+    if (g_audio_engine.asr_result == BK_KWS_ARMINO) {
+        ret = app_event_send_msg(APP_EVT_ASR_WAKEUP, 0);
+        if (BK_OK != ret) {
+            LOGE("Failed to send APP_EVT_ASR_WAKEUP event, ret: %d\n", ret);
+        } else {
+            LOGD("APP_EVT_ASR_WAKEUP event sent successfully\n");
+        }
+    }
+    else if (g_audio_engine.asr_result == BK_KWS_BYEBYE) {
+        ret = app_event_send_msg(APP_EVT_ASR_STANDBY, 0);
+        if (BK_OK != ret) {
+            LOGE("Failed to send APP_EVT_ASR_STANDBY event, ret: %d\n", ret);
+        } else {
+            LOGD("APP_EVT_ASR_STANDBY event sent successfully\n");
+        }
+    }
+    else if (g_audio_engine.asr_result == BK_KWS_VOLUME_UP) {
+        audio_engine_volume_increase();
+    }
+    else if (g_audio_engine.asr_result == BK_KWS_VOLUME_DOWN) {
+        audio_engine_volume_decrease();
+    }
+    else if (g_audio_engine.asr_result >= BK_KWS_PLAY_MUSIC && g_audio_engine.asr_result <= BK_KWS_NEXT_SONG) {
+        //nothing to do
+    }
+    else {
+        LOGE("Unexpected asr_result: %d\n", g_audio_engine.asr_result);
+    }
+#else
     bk_err_t ret = BK_FAIL;
     if (g_audio_engine.asr_result == 1) {
         ret = app_event_send_msg(APP_EVT_ASR_WAKEUP, 0);
@@ -343,18 +377,7 @@ void bk_audio_engine_asr_result_handle(void *p1, void *p2)
             LOGD("APP_EVT_ASR_STANDBY event sent successfully\n");
         }
     }
-    else if (g_audio_engine.asr_result == 6) {
-        audio_engine_volume_increase();
-    }
-    else if (g_audio_engine.asr_result == 7) {
-        audio_engine_volume_decrease();
-    }
-    else if (g_audio_engine.asr_result >= 3 && g_audio_engine.asr_result <= 5) {
-        //nothing to do
-    }
-    else {
-        LOGE("Unexpected asr_result: %d\n", g_audio_engine.asr_result);
-    }
+ #endif
 #else
     //LOGW("CONFIG_APP_EVT is not enabled, skipping event notification\n");
 #endif
@@ -943,7 +966,11 @@ int audio_engine_stop(void)
     if (g_audio_engine.asr_handle) {
         bk_asr_deinit(g_audio_engine.asr_handle);
     }
+#if CONFIG_BEKEN_KWS
+    g_audio_engine.asr_result = BK_KWS_NONE;
+#else
     g_audio_engine.asr_result = 0;
+#endif
     g_audio_engine.asr_handle = NULL;
     g_audio_engine.aud_asr_handle = NULL;
 #endif
@@ -1056,7 +1083,11 @@ static int voice_read_callback(unsigned char *data, unsigned int len, void *args
 
     #if CONFIG_BK_NETWORK_TRANSFER
     #if (CONFIG_ASR_SERVICE)
-    if (g_audio_engine.asr_result == 1)
+    #if CONFIG_BEKEN_KWS
+        if (g_audio_engine.asr_result == BK_KWS_ARMINO)
+    #else
+        if (g_audio_engine.asr_result == 1)
+    #endif
     #endif
     {
         ret = ntwk_trans_send_audio(data, len, g_audio_engine_cfg.enc_type);
@@ -1083,7 +1114,11 @@ int audio_engine_write_data(const uint8_t *data, uint32_t size, uint32_t timeout
     }
 
     #if (CONFIG_ASR_SERVICE)
-    if (g_audio_engine.asr_result != 1)
+    #if CONFIG_BEKEN_KWS
+        if (g_audio_engine.asr_result == BK_KWS_BYEBYE)
+    #else
+        if (g_audio_engine.asr_result != 1)
+    #endif
     {
         return AUDIO_ENGINE_ERR_ASR_STOP;
     }
