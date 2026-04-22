@@ -64,13 +64,6 @@ avdk_err_t bk_display_flush(bk_display_ctlr_handle_t handle, void *frame, flush_
     return handle->flush(handle, (uint8_t *)frame, cb);
 }
 
-avdk_err_t bk_display_layer_flush(bk_display_ctlr_handle_t handle, dpu_layer_t layer, void *frame, flush_free_cb_t cb)
-{
-    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-    AVDK_RETURN_ON_FALSE(handle->layer_flush, AVDK_ERR_UNSUPPORTED, TAG, AVDK_ERR_UNSUPPORTED_FUNCTION_TEXT);
-    return handle->layer_flush(handle, layer, (uint8_t *)frame, cb);
-}
-
 avdk_err_t bk_display_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioctl_cmd_t cmd, void *arg)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);

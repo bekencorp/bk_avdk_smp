@@ -77,7 +77,6 @@ bk_err_t lvgl_app_widgets_init(void)
         .video.enable = true,
         .video.decompress = false,
         .video.format = BK_PIXEL_FORMAT_RGB565,
-        .graphic.enable = false,
     };
 
     const bk_lcd_panel_dev_config_t panel_dev_config =
@@ -108,11 +107,6 @@ bk_err_t lvgl_app_widgets_init(void)
     dpu_config.video.disp_w = dpu_config.timing.h_size;
     dpu_config.video.disp_h = dpu_config.timing.v_size;
     
-    dpu_config.graphic.disp_x = 0;
-    dpu_config.graphic.disp_y = 0;
-    dpu_config.graphic.disp_w = dpu_config.timing.h_size;
-    dpu_config.graphic.disp_h = dpu_config.timing.v_size;
-	
     AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&g_disp_ctx->dpu_ctlr_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(g_disp_ctx->dpu_ctlr_handle), err, TAG, "display init err\n");
     AVDK_GOTO_ON_ERROR(bk_display_open(g_disp_ctx->dpu_ctlr_handle), err, TAG, "display open err\n");

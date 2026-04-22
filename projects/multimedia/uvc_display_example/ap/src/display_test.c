@@ -48,7 +48,6 @@ static avdk_err_t lcd_example_dsi_open(app_display_config_t *display_config)
     dpu_config.video.enable = true;
     dpu_config.video.decompress = true;
     dpu_config.video.format = BK_PIXEL_FORMAT_ARGB8888;
-    dpu_config.graphic.enable = false;
 
     // Configure panel device
     const bk_lcd_panel_dev_config_t panel_dev_config = 

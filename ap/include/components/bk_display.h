@@ -24,5 +24,4 @@ avdk_err_t bk_display_open(bk_display_ctlr_handle_t handle);
 avdk_err_t bk_display_close(bk_display_ctlr_handle_t handle);
 avdk_err_t bk_display_delete(bk_display_ctlr_handle_t handle);
 avdk_err_t bk_display_flush(bk_display_ctlr_handle_t handle, void *frame, flush_free_cb_t cb);
-avdk_err_t bk_display_layer_flush(bk_display_ctlr_handle_t handle, dpu_layer_t layer, void *frame, flush_free_cb_t cb);
 avdk_err_t bk_display_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioctl_cmd_t cmd, void *arg);

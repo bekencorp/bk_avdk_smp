@@ -80,6 +80,10 @@ avdk_err_t app_gpu_turn_on(gpu_board_config_t *config)
 {
     bk_gpu_ctlr_config_t gpu_config;
     isp_control_t *isp_control = (isp_control_t *)app_isp_handle_get();
+    if (isp_control == NULL) {
+        LOGW("%s, %d, isp handle is NULL\n", __func__, __LINE__);
+        return AVDK_ERR_GENERIC;
+    }
     uint16_t src_width, src_height, dst_width, dst_height;
     uint8_t r_degree;
 

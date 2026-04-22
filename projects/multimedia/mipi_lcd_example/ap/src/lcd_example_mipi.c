@@ -209,7 +209,6 @@ avdk_err_t lcd_example_dsi_open(display_ctx_t *context, const char *panel_name, 
     dpu_config.video.enable = true;
     dpu_config.video.decompress = (format == BK_PIXEL_FORMAT_ARGB8888);
     dpu_config.video.format = format;
-    dpu_config.graphic.enable = false;
 
     const bk_lcd_panel_dev_config_t panel_dev_config = {
         .reset_pin = GPIO_60,

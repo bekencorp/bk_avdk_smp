@@ -55,6 +55,7 @@ typedef struct
 
 typedef struct
 {
+    bool enable;
     uint8_t scl_pin;     /**< i2c scl io */
     uint8_t sda_pin;     /**< i2c sda io */
 } bk_display_i2c_bus_config_t;
@@ -109,8 +110,7 @@ typedef struct
     dpu_clk_src_t clk_src;  /**< DPU clock mux + MIPI DSI PHY init path */
     /* Video timing configuration */
     bk_display_timing_t       timing;     /**< dpu timing */
-    dpu_video_layer_config_t video;    /**< dpu layer config */
-    dpu_graphic_layer_config_t graphic;    /**< dpu graphic layer config */
+    dpu_video_layer_config_t video;    /**< dpu video layer config; graphic/layer1 is not exposed on this chip */
 } bk_display_dpu_config_t;
 
 typedef struct
@@ -121,7 +121,8 @@ typedef struct
 
 /** Display ioctl*/
 typedef enum {
-    BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT = 0,
+    BK_DISPLAY_IOCTL_UNKNOWN = 0,
+    BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT = 1,
 } bk_display_ioctl_cmd_t;
 
 typedef struct bk_display_ctlr_t *bk_display_ctlr_handle_t;
@@ -135,7 +136,6 @@ struct bk_display_ctlr_t
     avdk_err_t (*suspend)(bk_display_ctlr_t *controller);
     avdk_err_t (*resume)(bk_display_ctlr_t *controller);
     avdk_err_t (*flush)(bk_display_ctlr_t *controller, uint8_t *frame, flush_free_cb_t cb);
-    avdk_err_t (*layer_flush)(bk_display_ctlr_t *controller, dpu_layer_t layer, uint8_t *frame, flush_free_cb_t cb);
     avdk_err_t (*ioctl)(bk_display_ctlr_t *controller, bk_display_ioctl_cmd_t cmd, void *arg);
     avdk_err_t (*del)(bk_display_ctlr_t *controller);
 };

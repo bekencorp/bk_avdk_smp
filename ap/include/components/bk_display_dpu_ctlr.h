@@ -22,7 +22,6 @@ extern "C" {
 
 avdk_err_t bk_display_dpu_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_dpu_config_t *config);
 
-avdk_err_t bk_display_dpu_layer_config(bk_display_ctlr_handle_t handle, bk_display_dpu_config_t *config);
 
 #ifdef __cplusplus
 }

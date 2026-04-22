@@ -156,16 +156,13 @@ int app_mipi_lcd_turn_on(display_board_config_t *config)
         .video.enable = config->dpu_video.enable,
         .video.decompress = config->dpu_video.decompress,
         .video.format = config->dpu_video.format,
-
-        .graphic.enable = false,
     };
-
 
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&content->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_bus_enable(content->dis_bus_handle), err, TAG, "display bus enable err\n");
 
     /* Create config bus for MIPI bridge when pin_scl/pin_sda are configured (I2C). */
-    if (config->mipi.pin_scl >= 0 && config->mipi.pin_sda >= 0) {
+    if (config->mipi.pin_scl >= 0 && config->mipi.pin_sda >= 0 &&  (config->mipi.pin_scl != 0 || config->mipi.pin_sda != 0)) {
         bk_display_i2c_bus_config_t i2c_cfg = {
             .scl_pin = (uint8_t)config->mipi.pin_scl,
             .sda_pin = (uint8_t)config->mipi.pin_sda,

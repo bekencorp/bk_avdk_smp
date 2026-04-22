@@ -80,7 +80,6 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
         .video.enable = true,
         .video.decompress = (format == BK_PIXEL_FORMAT_ARGB8888),
         .video.format = format,
-        .graphic.enable = false,
     };
 
     bk_display_rgb_bus_config_t rgb_bus_cfg = {

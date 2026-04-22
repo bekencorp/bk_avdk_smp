@@ -29,10 +29,6 @@ static display_ctx_t s_mipi_disp_ctx;
 #define SYS_ANA_REG_BASE    (0x44010000)
 #define LDO_ANA_REG         (0x69)
 
-#define SYS_M55_BASE_ADDR    (0x48000000)
-#define SYS_GPIO_BASE_ADDR    (0x44000400)
-
-
 static void bk_lodoen_enable(void)
 {
     uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
