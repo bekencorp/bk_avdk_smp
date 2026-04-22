@@ -1300,8 +1300,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	flash_ab_info_backup(&ab_flash_reg);
 #endif
 
-	//sys_ll_set_cpu0_int_32_63_en_int_mac_wakeup_int(0x1);
-	//sys_ll_set_cpu0_int_32_63_en_cpu0_mac_int_gen_n_int_en(0x1);
+#if !CONFIG_DEEP_LV
 #if CONFIG_SPE
 	sys_ll_set_cpu0_int_32_63_en_cpu0_gpio_s_int_en(0x1);
 #else
@@ -1310,11 +1309,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 #endif
 	sys_ll_set_cpu0_int_32_63_en_cpu0_rtc_int_en(0x1);
 	sys_ll_set_cpu0_int_32_63_en_cpu0_touched_int_en(0x1);
-	//sys_ll_set_cpu1_int_32_63_en_cpu1_dm_irq_int_en(0x1);
-	// if (int_state2 & (0x1 << 10))//check btdm wakeup int
-	// {
-	// 	sys_ll_set_cpu0_int_32_63_en_cpu0_btdm_wake_up_int_en(0x1);
-	// }
+#endif
+
 	lpo_src = aon_pmu_ll_get_r41_lpo_config();
 	sys_hal_set_power_parameter(PM_MODE_LOW_VOLTAGE);
 	sys_hal_set_sleep_condition();
@@ -1545,7 +1541,10 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 /*---------------wifi debug end -----------------*/
 	volatile uint64_t previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 	sys_hal_set_exit_low_voltage_tick(previous_tick);
-
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(27);//13
+	GPIO_DOWN(27);
+	#endif
 /*---------------at least delay 190us-----------------*/
 	volatile uint64_t current_tick  = 0;
 	current_tick = previous_tick;
@@ -1553,19 +1552,26 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	{
 		current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 	}
-
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(27);//14
+	GPIO_DOWN(27);
+	#endif
 	/*restore power domain*/
 	if(pwd_cpu1 != sys_ll_get_reserver_reg0x10_pwd_cpu1())
 	{
 		sys_ll_set_reserver_reg0x10_pwd_cpu1(pwd_cpu1);
 	}
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(27);//15
+	GPIO_DOWN(27);
+	#endif
 
 	if(pwd_vehp != sys_ll_get_reserver_reg0x10_pwd_vehp())
 	{
 		sys_ll_set_reserver_reg0x10_pwd_vehp(pwd_vehp);
 	}
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//13
+	GPIO_UP(27);//16
 	GPIO_DOWN(27);
 	#endif
 	if(pwd_wrls != sys_ll_get_reserver_reg0x10_pwd_wrls())
@@ -1579,7 +1585,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 
 /*---------------at least delay 190us end -----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//14
+	GPIO_UP(27);//17
 	GPIO_DOWN(27);
 	#endif
 	#if CONFIG_DEEP_LV
@@ -1589,7 +1595,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	sys_hal_restore_flash_freq(cksel_flash, clkdiv_flash);
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//15
+	GPIO_UP(27);//18
 	GPIO_DOWN(27);
 	#endif
 
@@ -1597,7 +1603,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(27);//16
+	GPIO_UP(27);//19
 	GPIO_DOWN(27);
 	#endif
 }
