@@ -295,11 +295,18 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                 for(uint32_t i = 0; i < AUD_DAC_SOURCE_MAX; i++)
                 {
                     player_cfg.spk_cfg.onboard_spk_cfg.sample_rate[i] = 16000;
-                    player_cfg.spk_cfg.onboard_spk_cfg.frame_size[i] = 320;
+                    player_cfg.spk_cfg.onboard_spk_cfg.frame_size[i]  = 640;
                 }
+                #if 0
+                player_cfg.spk_cfg.onboard_spk_cfg.main_dac_source   = AUD_DAC_SOURCE_CALL;
+                player_cfg.spk_cfg.onboard_spk_cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_CALL_BIT;
+                #else
+                player_cfg.spk_cfg.onboard_spk_cfg.main_dac_source   = AUD_DAC_SOURCE_A2DP;
+                player_cfg.spk_cfg.onboard_spk_cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_A2DP_BIT;
+                #endif
                 #else
                 player_cfg.spk_cfg.onboard_spk_cfg.sample_rate = 16000;
-                player_cfg.spk_cfg.onboard_spk_cfg.frame_size = 320;
+                player_cfg.spk_cfg.onboard_spk_cfg.frame_size  = 320;
                 #endif
                 player_cfg.args = NULL;
                 player_cfg.event_handle = player_with_playback_event_handler;
