@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 import subprocess
 import sys
 import re
@@ -222,6 +223,38 @@ def translate_md2rst(src_path, dst_path, lan):
     converter = MarkdownToRST(src_path, dst_path)
     converter.convert_file(src_file, dst_file)
 
+def write_projects_index(dst_path, title, entries):
+    index_path = os.path.join(dst_path, "index.rst")
+    if os.path.exists(index_path):
+        return
+
+    normalized_entries = sorted(set(entries))
+    if not normalized_entries:
+        return
+
+    lines = [
+        title,
+        "=" * len(title),
+        "",
+        ".. toctree::",
+        "   :maxdepth: 1",
+        "",
+    ]
+    for entry in normalized_entries:
+        lines.append(f"   {entry}/index")
+    lines.append("")
+
+    with open(index_path, "w", encoding="utf-8") as index_file:
+        index_file.write("\n".join(lines))
+
+def get_projects_index_title(src_path, lan):
+    dirname = os.path.basename(src_path)
+    if dirname == "projects":
+        return "Projects" if lan == "en" else "项目示例"
+
+    title = dirname.replace("_", " ").replace("-", " ")
+    return title.title() if lan == "en" else title
+
 def run_cmd(cmd):
     p = subprocess.Popen(cmd, shell=True)
     ret = p.wait()
@@ -232,45 +265,30 @@ def copy_projects_doc(src_path, dst_path, lan):
     if not os.path.isdir(src_path):
         return 0
 
-    has_doc = False
-    has_cmakelist = 0
-
-    # 检查当前文件夹是否为projects，如果是则设置has_doc = True
-    if os.path.basename(src_path) == 'projects':
-        has_doc = True
-
-    for item in os.listdir(src_path):
-        item_path = os.path.join(src_path, item)
-        if os.path.isfile(item_path):
-            if item == "README.md" and lan == 'en':
-                has_doc = True
-            elif item == "README_CN.md" and lan == 'zh_CN':
-                has_doc = True
-            elif item == "projects.rst":
-                has_doc = True
-
-            if item == "CMakeLists.txt":
-                has_cmakelist = 1
-
-    if has_doc == False:
-        return 0
-
-    run_cmd(f'mkdir -p {dst_path}')
-    translate_md2rst(src_path, dst_path, lan)
-
-    if has_cmakelist == 1:
-        return 1
-
-    for item in os.listdir(src_path):
+    child_doc_dirs = []
+    for item in sorted(os.listdir(src_path)):
         item_path = os.path.join(src_path, item)
         item_dst_path = os.path.join(dst_path, item)
         if os.path.isdir(item_path):
-            has_cmakelist = has_cmakelist + copy_projects_doc(item_path, item_dst_path, lan)
+            if copy_projects_doc(item_path, item_dst_path, lan):
+                child_doc_dirs.append(item)
 
-    if (has_cmakelist == 0):
-        run_cmd(f'rm -rf {dst_path}')
+    readme_name = "README.md" if lan == 'en' else "README_CN.md"
+    readme_path = os.path.join(src_path, readme_name)
+    projects_rst_path = os.path.join(src_path, "projects.rst")
+    has_local_doc = os.path.isfile(readme_path) or os.path.isfile(projects_rst_path)
 
-    return has_cmakelist
+    if not has_local_doc and not child_doc_dirs:
+        return 0
+
+    run_cmd(f'mkdir -p {dst_path}')
+    if os.path.isfile(readme_path):
+        translate_md2rst(src_path, dst_path, lan)
+    elif os.path.isfile(projects_rst_path):
+        shutil.copyfile(projects_rst_path, os.path.join(dst_path, "index.rst"))
+
+    write_projects_index(dst_path, get_projects_index_title(src_path, lan), child_doc_dirs)
+    return 1
 
 def build_lan_doc(doc_path, target, lan):
     # 无论路径是否包含ap/docs，都确保lan_dir被定义
@@ -284,6 +302,7 @@ def build_lan_doc(doc_path, target, lan):
         armino_path = os.getenv('ARMINO_PATH')
         print(f"armino_path: {armino_path}")
         print(f"lan_dir: {lan_dir}")
+        run_cmd(f'rm -rf {lan_dir}/examples/projects')
         if (target == 'bk7236' or target == 'bk7258'):
             copy_projects_doc(f'{lan_dir}/../../../../projects', f'{lan_dir}/examples/projects', lan)
 
@@ -330,7 +349,7 @@ def build_with_target(clean, target, doc_build_path):
         run_cmd(f'rm -rf {DOCS_PATH}/zh_CN/xml_in')
         run_cmd(f'rm -rf {DOCS_PATH}/zh_CN/man')
         run_cmd(f'rm -rf {DOCS_PATH}/__pycache__')
-        if (target == 'bk7236' or target == 'bk7258'):
+        if (target == 'bk7259'):
             run_cmd(f'rm -rf {DOCS_PATH}/en/projects')
             run_cmd(f'rm -rf {DOCS_PATH}/zh_CN/projects')
         return
@@ -365,7 +384,7 @@ def build_doc_internal(clean, target):
         os.makedirs(doc_build_path)
 
     if (target == "all"):
-        build_with_target(clean, "bk7258", doc_build_path)
+        build_with_target(clean, "bk7259", doc_build_path)
     else:
         build_with_target(clean, target, doc_build_path)
 

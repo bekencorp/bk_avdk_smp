@@ -196,7 +196,7 @@ voice_service_example README_ref.md 目录下的 voice_service_example 工程是
     # 测试用例2: 带语言标记的代码块
     test_content_2 = """使用以下命令编译项目：
 ```bash
-make bk7258 PROJECT=voice_service_example
+make bk7259 PROJECT=voice_service_example
 ```"""
     
     # 测试用例3: 跨多行的代码块
@@ -229,7 +229,7 @@ voice_service_example/
     print("输入:", test_content_2)
     print("输出:", result_2)
     assert ".. code-block:: bash" in result_2, "代码块语言标记未被正确转换"
-    assert "   make bk7258 PROJECT=voice_service_example" in result_2, "代码内容未被正确缩进"
+    assert "   make bk7259 PROJECT=voice_service_example" in result_2, "代码内容未被正确缩进"
     
     print("\n测试用例3 (跨多行代码块):")
     print("输入:", test_content_3)

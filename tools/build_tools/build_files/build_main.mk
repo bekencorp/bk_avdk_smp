@@ -31,10 +31,10 @@ all_targets = cmake_not_supported_targets soc_targets cmake_supported_targets
 export SOC_SUPPORTED_TARGETS := ${soc_targets}
 ifeq ($(MAKECMDGOALS), menuconfig)
 	ifeq (${MENUCONFIG_DEST_TYPE}, ap)
-		# bk7258_ap
+		# bk7259_ap
 		export ARMINO_SOC := ${SOC_NAME}_ap
 	else ifeq (${MENUCONFIG_DEST_TYPE}, cp)
-		# bk7258 cp
+		# bk7259 cp
 		export ARMINO_SOC := ${SOC_NAME}
 	endif
 	export ARMINO_SOC := $(findstring $(ARMINO_SOC), $(soc_targets))
@@ -77,7 +77,7 @@ endif
 
 ifeq ("$(ARMINO_SOC)", "")
 ifeq ("$(ARMINO_SOC_LIB)", "")
-	ARMINO_SOC := bk7258
+	ARMINO_SOC := bk7259
 	ARMINO_TARGET := $(MAKECMDGOALS)
 endif
 else

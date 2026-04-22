@@ -74,8 +74,8 @@ class bk_ram_region:
         self._parse_ram_mem_csv()
 
     def _check_default_setting(self) -> None:
-        # Only check default setting for bk7258 and bk7257
-        if self.soc_name not in ("bk7258", "bk7257"):
+        # Only check default setting for bk7259
+        if self.soc_name not in ("bk7259"):
             return
 
         def find_region(def_region_name: str) -> int:

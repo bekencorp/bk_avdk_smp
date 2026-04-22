@@ -374,9 +374,9 @@ def min_config_with_labels(config: kconfiglib.Kconfig, header: str) -> str:
 def write_min_config(_, config: kconfiglib.Kconfig, filename: str) -> None:
     armino_version = os.environ.get("ARMINO_VERSION", "")
     target_symbol = config.syms["ARMINO_SOC"]
-    # 'bk7258` is harcoded here because the default value of ARMINO_SOC is set on the first run from the environment
-    # variable. I.E. `bk7258  is not defined as default value.
-    write_target = target_symbol.str_value != "bk7258"
+    # 'bk7259` is harcoded here because the default value of ARMINO_SOC is set on the first run from the environment
+    # variable. I.E. `bk7259  is not defined as default value.
+    write_target = target_symbol.str_value != "bk7259"
 
     CONFIG_HEADING = textwrap.dedent(
         f"""\

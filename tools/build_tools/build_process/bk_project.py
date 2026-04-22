@@ -9,7 +9,7 @@ import bk_packager
 
 @dataclass
 class app_info:
-    app_name: str  # eg. bk7258 bk7258_ap
+    app_name: str  # eg. bk7259 bk7259_ap
     app_name_in_sdk: str  # eg. cp ap
     build_bin: Path
     pack_bin_name: str

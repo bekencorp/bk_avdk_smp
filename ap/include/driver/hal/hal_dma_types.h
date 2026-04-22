@@ -234,16 +234,16 @@ typedef volatile struct {
     
     union {
         struct {
-            // 注意：位域顺序从左到右对应高位到低位（高位在前）
-            // 表格顺序：int_half_finish_en | int_finish_en | Length[29:0]
+            // Bit field order is shown from left to right, high bit to low bit.
+            // Table order: int_half_finish_en | int_finish_en | Length[29:0]
             uint32_t length : 30;      // Bit 29-0: Length
             uint32_t int_finish_en : 1;    // Bit 30: Finish interrupt enable
-            uint32_t int_half_finish_en : 1; // Bit 31: Half finish interrupt enable (高位，表格最左边)
+            uint32_t int_half_finish_en : 1; // Bit 31: Half finish interrupt enable (high bit, leftmost column)
         } bits;
         uint32_t control;                  // DES2: Control word
     } ctrl;
     
-    uint32_t next_desc_addr;               // DES3: Next descriptor address，address must be 128 bit aligned
+    uint32_t next_desc_addr;               // DES3: Next descriptor address, must be 128-bit aligned
 } dma_descriptor_t;
 
 typedef struct {

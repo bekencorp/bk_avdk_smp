@@ -295,11 +295,11 @@ function print_tips_info(){
 }
 
 function set_soc_target(){
-    prompt_en='Please set SOC[bk7258]:'
-    prompt_zh='请设置需要使用的soc[bk7258]:'
+    prompt_en='Please set SOC[bk7259]:'
+    prompt_zh='请设置需要使用的soc[bk7259]:'
     prompt=$(eval echo \${prompt_${LANG}})
     read -p "$prompt" user_input
-    TARGET_SOC=${user_input:-bk7258}
+    TARGET_SOC=${user_input:-bk7259}
     check_soc_valid $TARGET_SOC
 }
 
@@ -362,7 +362,7 @@ set -e
 bk7236_soc_name="bk7236"
 bk7236_soc_func="install_cross_compiler_cm"
 
-bk7258_soc_name="bk7258"
+bk7258_soc_name="bk7259"
 bk7258_soc_func="install_cross_compiler_cm"
 
 armono_soc=([0]=bk7236_soc [1]=bk7258_soc)

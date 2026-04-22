@@ -154,7 +154,7 @@ def build_all(docs_path, build_path, version):
 	print("build all docs")
 
 	subdirectories = [d for d in os.listdir(docs_path) if os.path.isdir(os.path.join(docs_path, d))]
-	black_list = {"common", ".git", "bk7258"}
+	black_list = {"common", ".git"}
 	target_dirs = [x for x in subdirectories if x not in black_list]
 
 	for subdir in target_dirs:

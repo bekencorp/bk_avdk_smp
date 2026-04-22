@@ -59,7 +59,7 @@ endif
 
 ifeq ("$(ARMINO_SOC)", "")
 ifeq ("$(ARMINO_SOC_LIB)", "")
-	ARMINO_SOC := bk7258
+	ARMINO_SOC := bk7259
 	ARMINO_TARGET := $(MAKECMDGOALS)
 endif
 else
@@ -195,8 +195,7 @@ cp_doc:
 smp_doc:
 	@python3 ./tools/armino_doc.py $(DOCS_PARAMTERS)
 
-# doc: smp_doc ap_doc cp_doc
-doc: smp_doc
+doc: smp_doc ap_doc cp_doc
 
 # only build bootloader
 bootloader_build_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_sdk/bl_build.py
