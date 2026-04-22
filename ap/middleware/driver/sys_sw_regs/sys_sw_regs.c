@@ -21,6 +21,8 @@
  */
 
 #include <stddef.h>
+#include "cmsis_gcc.h"
+#include "cache.h"
 #include "sys_sw_regs.h"
 #include "aspl_lock.h"
 
@@ -71,6 +73,15 @@ uint32_t bk_sys_sw_regs_get_ap_reset_reason(void)
     return s_sys_sw_regs.ap_reset_reason;
 }
 
+uint32_t bk_sys_sw_regs_get_flash_init_done(void)
+{
+    flush_dcache((void *)&s_sys_sw_regs.flash_init_done, sizeof(s_sys_sw_regs.flash_init_done));
+    __DMB();
+    uint32_t value = s_sys_sw_regs.flash_init_done;
+    __DMB();
+    return value;
+}
+
 uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap_dump_info_t *info)
 {
     volatile ap_heap_dump_info_t *slot = sys_sw_regs_ap_heap_slot(id);
@@ -109,6 +120,16 @@ void bk_sys_sw_regs_set_ap_reset_reason(uint32_t value)
 {
     uint32_t flags = sys_sw_regs_lock();
     s_sys_sw_regs.ap_reset_reason = value;
+    sys_sw_regs_unlock(flags);
+}
+
+void bk_sys_sw_regs_set_flash_init_done(uint32_t value)
+{
+    uint32_t flags = sys_sw_regs_lock();
+    s_sys_sw_regs.flash_init_done = value;
+    __DMB();
+    flush_dcache((void *)&s_sys_sw_regs.flash_init_done, sizeof(s_sys_sw_regs.flash_init_done));
+    __DMB();
     sys_sw_regs_unlock(flags);
 }
 

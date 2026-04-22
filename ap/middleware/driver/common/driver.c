@@ -41,6 +41,8 @@
 #include <driver/otp.h>
 #include <driver/pwr_clk.h>
 #include "bk_rtos_debug.h"
+#include "bk_misc.h"
+#include "sys_sw_regs.h"
 #if CONFIG_SARADC_MB
 #include "saradc_client.h"
 #endif
@@ -63,6 +65,28 @@
 
 #if CONFIG_EASY_FLASH
 #include "bk_ef.h"
+#endif
+
+#if CONFIG_FLASH
+#define CP_FLASH_INIT_WAIT_TIMEOUT_US 5000000U
+#define CP_FLASH_INIT_WAIT_POLL_US    100U
+
+static bk_err_t wait_for_cp_flash_init_done(void)
+{
+	uint32_t waited_us = 0;
+
+	while (bk_sys_sw_regs_get_flash_init_done() != BK_SYS_SW_REGS_FLASH_INIT_DONE) {
+		if (waited_us >= CP_FLASH_INIT_WAIT_TIMEOUT_US) {
+			BK_LOGE(NULL, "wait cp flash init timeout\r\n");
+			return BK_FAIL;
+		}
+
+		bk_delay_us(CP_FLASH_INIT_WAIT_POLL_US);
+		waited_us += CP_FLASH_INIT_WAIT_POLL_US;
+	}
+
+	return BK_OK;
+}
 #endif
 
 #if ((CONFIG_SDIO_HOST) || (CONFIG_SDCARD))
@@ -309,7 +333,14 @@ int driver_init(void) {
 	os_show_memory_config_info();
 
 #if CONFIG_FLASH
-	bk_flash_driver_init();
+	if (wait_for_cp_flash_init_done() != BK_OK) {
+		return BK_FAIL;
+	}
+
+	if (bk_flash_driver_init() != BK_OK) {
+		BK_LOGE(NULL, "ap flash driver init failed\r\n");
+		return BK_FAIL;
+	}
 #endif
 
 #if CONFIG_EASY_FLASH

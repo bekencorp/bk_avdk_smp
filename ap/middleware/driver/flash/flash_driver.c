@@ -17,9 +17,11 @@
 #include <os/mem.h>
 #include <driver/flash.h>
 #include <os/os.h>
+#include "bk_misc.h"
 #include "flash_driver.h"
 #include "flash_hal.h"
 #include "sys_driver.h"
+#include "sys_sw_regs.h"
 #include "driver/flash_partition.h"
 #include <modules/chip_support.h>
 #include "flash_bypass.h"
@@ -87,6 +89,9 @@ static const flash_config_t flash_config[] = {
 static flash_driver_t s_flash = {0};
 static bool s_flash_is_init = false;
 
+#define CP_FLASH_INIT_WAIT_TIMEOUT_US 5000000U
+#define CP_FLASH_INIT_WAIT_POLL_US    100U
+
 
 extern bk_err_t    mb_flash_ipc_init(void);
 extern bk_err_t    mb_flash_op_prepare(void);
@@ -96,6 +101,37 @@ extern bk_err_t    bk_flash_partition_write_perm_check_by_addr(uint32_t addr, ui
 
 extern int xTaskResumeAll( void );
 extern void vTaskSuspendAll( void );
+
+static bk_err_t wait_for_cp_flash_init_done_in_flash_api(void)
+{
+	uint32_t waited_us = 0;
+
+	while (bk_sys_sw_regs_get_flash_init_done() != BK_SYS_SW_REGS_FLASH_INIT_DONE) {
+		if (waited_us >= CP_FLASH_INIT_WAIT_TIMEOUT_US) {
+			FLASH_LOGW("wait cp flash init timeout\r\n");
+			return BK_FAIL;
+		}
+
+		bk_delay_us(CP_FLASH_INIT_WAIT_POLL_US);
+		waited_us += CP_FLASH_INIT_WAIT_POLL_US;
+	}
+
+	return BK_OK;
+}
+
+static bk_err_t ensure_flash_driver_initialized(void)
+{
+	if (s_flash_is_init && (s_flash.flash_cfg != NULL)) {
+		return BK_OK;
+	}
+
+	bk_err_t ret = wait_for_cp_flash_init_done_in_flash_api();
+	if (ret != BK_OK) {
+		return ret;
+	}
+
+	return bk_flash_driver_init();
+}
 
 /* Recursive lock counter for hardware spinlock to prevent deadlock */
 /* Shared between flash_lock/unlock and flash_enter_critical/exit_critical */
@@ -110,35 +146,16 @@ static volatile uint32_t s_flash_hspl_lock_count = 0;
  */
 static inline uint32_t flash_enter_critical(void)
 {
-	uint32_t flags = rtos_disable_int();
-	/* Acquire HSPL lock for cross-core synchronization */
-	/* Use recursive lock counter to prevent deadlock */
-#ifdef CONFIG_FREERTOS_SMP
-	if (s_flash_hspl_lock_count == 0) {
-		bk_aspl_flash_enter_critical();
-	}
-	s_flash_hspl_lock_count++;
-#else
-	/* Single core: only use interrupt disable */
-#endif
+
+	uint32_t flags = bk_aspl_flash_enter_critical();
+	
 	return flags;
 }
 
 static inline void flash_exit_critical(uint32_t flags)
 {
 	/* Release HSPL lock */
-	/* Use recursive lock counter to prevent deadlock */
-#ifdef CONFIG_FREERTOS_SMP
-	if (s_flash_hspl_lock_count > 0) {
-		s_flash_hspl_lock_count--;
-		if (s_flash_hspl_lock_count == 0) {
-			bk_aspl_flash_exit_critical(flags);
-		}
-	}
-#else
-	/* Single core: only restore interrupt */
-#endif
-	rtos_enable_int(flags);
+	bk_aspl_flash_exit_critical(flags);
 }
 
 
@@ -667,7 +684,7 @@ bk_err_t bk_flash_erase_sector(uint32_t address)
 {
 	// Auto-initialize if not initialized
 	if (!s_flash_is_init || s_flash.flash_cfg == NULL) {
-		bk_err_t ret = bk_flash_driver_init();
+		bk_err_t ret = ensure_flash_driver_initialized();
 		if (ret != BK_OK) {
 			FLASH_LOGW("erase error: flash driver init failed\r\n");
 			return ret;
@@ -692,7 +709,7 @@ bk_err_t bk_flash_erase_32k(uint32_t address)
 {
 	// Auto-initialize if not initialized
 	if (!s_flash_is_init || s_flash.flash_cfg == NULL) {
-		bk_err_t ret = bk_flash_driver_init();
+		bk_err_t ret = ensure_flash_driver_initialized();
 		if (ret != BK_OK) {
 			FLASH_LOGW("erase error: flash driver init failed\r\n");
 			return ret;
@@ -717,7 +734,7 @@ bk_err_t bk_flash_erase_block(uint32_t address)
 {
 	// Auto-initialize if not initialized
 	if (!s_flash_is_init || s_flash.flash_cfg == NULL) {
-		bk_err_t ret = bk_flash_driver_init();
+		bk_err_t ret = ensure_flash_driver_initialized();
 		if (ret != BK_OK) {
 			FLASH_LOGW("erase error: flash driver init failed\r\n");
 			return ret;
@@ -742,7 +759,7 @@ bk_err_t bk_flash_read_bytes(uint32_t address, uint8_t *user_buf, uint32_t size)
 {
 	// Auto-initialize if not initialized
 	if (!s_flash_is_init || s_flash.flash_cfg == NULL) {
-		bk_err_t ret = bk_flash_driver_init();
+		bk_err_t ret = ensure_flash_driver_initialized();
 		if (ret != BK_OK) {
 			FLASH_LOGW("read error: flash driver init failed\r\n");
 			return ret;
@@ -816,7 +833,7 @@ bk_err_t bk_flash_write_bytes(uint32_t address, const uint8_t *user_buf, uint32_
 {
 	// Auto-initialize if not initialized
 	if (!s_flash_is_init || s_flash.flash_cfg == NULL) {
-		bk_err_t ret = bk_flash_driver_init();
+		bk_err_t ret = ensure_flash_driver_initialized();
 		if (ret != BK_OK) {
 			FLASH_LOGW("write error: flash driver init failed\r\n");
 			return ret;
