@@ -249,7 +249,10 @@ static void doorbell_message_handle(void *param)
 #ifdef CONFIG_VOICE_SERVICE
                     doorbell_audio_turn_off();
 #endif
-
+                #if (CONFIG_ASR_SERVICE_WITH_MIC)
+                    extern int doorbell_asr_turn_on(void);
+                    doorbell_asr_turn_on();
+                #endif
                     if (db_info->service == DOORBELL_SERVICE_LAN_UDP)
                     {
                         ntwk_sdp_start("doorbell-udp", NTWK_TRANS_CMD_PORT, NTWK_TRANS_UDP_VIDEO_PORT, NTWK_TRANS_UDP_AUDIO_PORT);

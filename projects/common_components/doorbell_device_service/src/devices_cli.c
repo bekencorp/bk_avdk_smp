@@ -32,6 +32,15 @@
 
 #define TAG "db-cli"
 
+#if CONFIG_VOICE_SERVICE
+void cli_doorbell_audio_turn_on(uint32_t aec, uint32_t uac, uint32_t sample_rate, uint32_t fmt);
+void cli_doorbell_audio_turn_off(void);
+#endif
+#if (CONFIG_ASR_SERVICE)
+void cli_doorbell_asr_turn_on(uint32_t aec, uint32_t uac, uint32_t sample_rate, uint8_t asr_en);
+void cli_doorbell_asr_turn_off(void);
+#endif
+
 #define CMD_CONTAIN(value) cmd_contain(argc, argv, value)
 #define GET_PPI(value)     get_ppi_from_cmd(argc, argv, value)
 #define GET_NAME(value)    get_name_from_cmd(argc, argv, value)
@@ -979,6 +988,67 @@ void cli_avdk_doorbell_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 #endif
 }
 
+void cli_avdk_doorbell_audio_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    if (argc < 2 || argv[1] == NULL)
+    {
+        LOGE("Usage: audio <turn_on|turn_off>\n");
+        return;
+    }
+
+#if CONFIG_VOICE_SERVICE
+    if (os_strcmp(argv[1], "turn_on") == 0)
+    {
+        uint32_t aec = 1;
+        uint32_t uac = 0;
+        uint32_t fmt  = 2;
+        uint32_t sample_rate = 8000;
+        if (argc > 5 && argv[2] != NULL && argv[3] != NULL && argv[4] != NULL && argv[5] != NULL)
+        {
+            aec = os_strtoul(argv[2], NULL, 10);
+            uac = os_strtoul(argv[3], NULL, 10);
+            fmt = os_strtoul(argv[5], NULL, 10);
+            sample_rate = os_strtoul(argv[4], NULL, 10);
+        }
+        cli_doorbell_audio_turn_on(aec, uac, sample_rate, fmt);
+    }
+    else if (os_strcmp(argv[1], "turn_off") == 0)
+    {
+        cli_doorbell_audio_turn_off();
+    }
+#endif
+#if (CONFIG_ASR_SERVICE_WITH_MIC)
+    else if (os_strcmp(argv[1], "asr_turn_on") == 0)
+    {
+        uint32_t aec = 0;
+        uint32_t uac = 0;
+        uint32_t sample_rate = 16000;
+        uint8_t asr_en = 1;
+        if (argc > 4)
+        {
+            aec         = os_strtoul(argv[2], NULL, 10);
+            uac         = os_strtoul(argv[3], NULL, 10);
+            sample_rate = os_strtoul(argv[4], NULL, 10);
+            if (argv[5]) {
+                asr_en = os_strtoul(argv[5], NULL, 10);
+            }
+        } else {
+            LOGE("Usage: audio asr_turn_on <aec> <uac> <sample_rate>\n");
+            return; // TODO: add default value
+        }
+        cli_doorbell_asr_turn_on(aec, uac, sample_rate, asr_en);
+    }
+    else if (os_strcmp(argv[1], "asr_turn_off") == 0)
+    {
+        cli_doorbell_asr_turn_off();
+    }
+#endif
+    else
+    {
+        LOGE("Usage: audio <turn_on|turn_off>\n");
+    }
+}
+
 static const struct cli_command s_devices_cli_commands[] =
 {
     {"isp", "isp...", cli_avdk_doorbell_isp_cmd},
@@ -986,6 +1056,7 @@ static const struct cli_command s_devices_cli_commands[] =
     {"joint_test", "joint_test open mipi|uvc [h264e] | test | close uvc|mipi", cli_avdk_doorbell_joint_test_cmd},
     {"uvc", "uvc...", cli_avdk_doorbell_uvc_cmd},
     {"doorbell", "doorbell...", cli_avdk_doorbell_cmd},
+    {"audio", "audio...", cli_avdk_doorbell_audio_cmd},
 };
 
 #define DEVICES_CLI_CMD_CNT  (sizeof(s_devices_cli_commands) / sizeof(struct cli_command))

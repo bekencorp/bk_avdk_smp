@@ -20,7 +20,7 @@ endif()
 
 endif()
 
-set(priv_req media_utils bk_network_transfer avdk_utils lwip_intf_v2_1 bk_wifi_driver cs2p2p bt doorbell_device_service bk_peripheral media_service)
+set(priv_req media_utils bk_network_transfer avdk_utils lwip_intf_v2_1 bk_wifi_driver cs2p2p bt doorbell_device_service bk_peripheral media_service bk_asr_service)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}"
 )

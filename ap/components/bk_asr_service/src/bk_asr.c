@@ -10,6 +10,7 @@
 #include <components/bk_audio_asr_service.h>
 #include <components/bk_audio_asr_service_types.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 #define TAG "asr"
 
@@ -755,7 +756,6 @@ static bk_err_t asr_listener_stop(asr_handle_t asr_handle)
     return BK_OK;
 }
 
-
 static bk_err_t asr_config_check(asr_cfg_t cfg)
 {
     // Check if AEC mode is compatible with mic type
@@ -772,24 +772,18 @@ static bk_err_t asr_config_check(asr_cfg_t cfg)
         }
         else if (cfg.mic_type == MIC_TYPE_ONBOARD)
         {
-            // Check if channel configuration matches AEC mode
             if (cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode == AEC_MODE_HARDWARE)
             {
-                // Hardware AEC requires 2 channels input from mic
-                if (cfg.mic_cfg.onboard_mic_cfg.adc_cfg.chl_num < 2)
+                if (!cfg.mic_cfg.onboard_mic_cfg.adc_cfg.aec_en)
                 {
-                    BK_LOGE(TAG, "Hardware AEC requires 2 channels input from mic\n");
+                    BK_LOGE(TAG, "Hardware AEC on onboard mic requires adc_cfg.aec_en enabled\n");
                     return BK_FAIL;
                 }
             }
             else
             {
-                // Software AEC requires 1 channel input from mic
-                if (cfg.mic_cfg.onboard_mic_cfg.adc_cfg.chl_num > 2)
-                {
-                    BK_LOGE(TAG, "Software AEC requires 1 channel input from mic\n");
-                    return BK_FAIL;
-                }
+                BK_LOGE(TAG, "Don't support Software AEC on onboard mic now\n");
+                return BK_FAIL;
             }
         }
     }
@@ -882,6 +876,7 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
     }
 
     // If AEC is enabled, set reference input port
+    #if !CONFIG_ADK_AEC_V3_ALGORITHM_COMPONENT_V2
     if (asr_handle->aec_en && asr_handle->aec_alg && asr_handle->aec_alg_ref_rb)
     {
         if (BK_OK != audio_element_set_multi_input_port(asr_handle->aec_alg, asr_handle->aec_alg_ref_rb, 0))
@@ -890,7 +885,7 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
             goto fail;
         }
     }
-
+    #endif
     /* check whether event_handle was been register.
      * If true, init pipeline listener.
      * If false, not init pipeline listener.
@@ -900,6 +895,10 @@ bk_err_t bk_asr_init_with_mic(asr_cfg_t *cfg, asr_handle_t asr_handle)
         BK_LOGE(TAG, "%s, %d, asr listener init fail\n", __func__, __LINE__);
         goto fail;
     }
+
+#if CONFIG_ADK_DEBUG_DUMP_UTIL
+    aud_dump_cli_init();
+#endif
 
     asr_handle->status = ASR_STA_IDLE;
 
@@ -1093,11 +1092,13 @@ bk_err_t bk_asr_start(asr_handle_t asr_handle)
         }
 
         // For ASR standalone mode with AEC enabled, write zeros to reference input
+    #if !CONFIG_ADK_AEC_V3_ALGORITHM_COMPONENT_V2
         if (asr_handle->aec_en)
         {
             BK_LOGD(TAG, "%s, start writing zeros to AEC reference\n", __func__);
             bk_asr_write_zero_to_aec_ref(asr_handle);
         }
+    #endif
     }
 
     asr_handle->status = ASR_STA_RUNNING;

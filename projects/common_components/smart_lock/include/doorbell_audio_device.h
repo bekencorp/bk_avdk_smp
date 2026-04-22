@@ -63,6 +63,7 @@ typedef struct
     voice_read_handle_t voice_read_handle;
     voice_write_handle_t voice_write_handle;
 #if (CONFIG_ASR_SERVICE)
+    uint32_t asr_enable;
     asr_handle_t asr_handle;
     aud_asr_handle_t aud_asr_handle;
 #endif
