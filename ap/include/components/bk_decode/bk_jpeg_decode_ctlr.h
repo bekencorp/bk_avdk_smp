@@ -86,6 +86,14 @@ avdk_err_t bk_jpeg_decode_ioctl(bk_jpeg_decode_ctlr_handle_t handle, bk_jpeg_dec
  */
 avdk_err_t bk_jpeg_decode_delete(bk_jpeg_decode_ctlr_handle_t handle);
 
+/*
+ * Get the image information
+ * handle: decoder handle
+ * img_info: image information
+ * return: AVDK_ERR_OK if successful, otherwise an error code
+ */
+avdk_err_t bk_jpeg_decode_get_img_info(bk_jpeg_decode_img_info_t *img_info);
+
 #ifdef __cplusplus
 }
 #endif

@@ -16,6 +16,7 @@ if (CONFIG_BK_DECODER)
         jpegd/src/bk_jpeg_decode.c
         jpegd/src/bk_jpeg_decode_frame_ctlr.c
         jpegd/src/bk_jpeg_decode_flexa_ctlr.c
+        jpegd/src/bk_jpeg_decode_utils.c
     )
 endif()
 

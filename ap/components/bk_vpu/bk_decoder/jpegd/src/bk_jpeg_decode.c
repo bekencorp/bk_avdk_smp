@@ -19,49 +19,49 @@
 
 avdk_err_t bk_jpeg_decode_init(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-	AVDK_RETURN_ON_FALSE(handle->init, AVDK_ERR_UNSUPPORTED, TAG, "init not supported");
-	return handle->init(handle);
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->init, AVDK_ERR_UNSUPPORTED, TAG, "init not supported");
+    return handle->init(handle);
 }
 
 avdk_err_t bk_jpeg_decode_deinit(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-	AVDK_RETURN_ON_FALSE(handle->deinit, AVDK_ERR_UNSUPPORTED, TAG, "deinit not supported");
-	return handle->deinit(handle);
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->deinit, AVDK_ERR_UNSUPPORTED, TAG, "deinit not supported");
+    return handle->deinit(handle);
 }
 
 avdk_err_t bk_jpeg_decode_open(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-	AVDK_RETURN_ON_FALSE(handle->open, AVDK_ERR_UNSUPPORTED, TAG, "open not supported");
-	return handle->open(handle);
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->open, AVDK_ERR_UNSUPPORTED, TAG, "open not supported");
+    return handle->open(handle);
 }
 
 avdk_err_t bk_jpeg_decode_close(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-	AVDK_RETURN_ON_FALSE(handle->close, AVDK_ERR_UNSUPPORTED, TAG, "close not supported");
-	return handle->close(handle);
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->close, AVDK_ERR_UNSUPPORTED, TAG, "close not supported");
+    return handle->close(handle);
 }
 
 avdk_err_t bk_jpeg_decode_frame(bk_jpeg_decode_ctlr_handle_t handle, bk_jpeg_decode_input_t *input)
 {
-	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-	AVDK_RETURN_ON_FALSE(handle->decode_frame, AVDK_ERR_UNSUPPORTED, TAG, "decode_frame not supported");
-	return handle->decode_frame(handle, input);
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->decode_frame, AVDK_ERR_UNSUPPORTED, TAG, "decode_frame not supported");
+    return handle->decode_frame(handle, input);
 }
 
 avdk_err_t bk_jpeg_decode_ioctl(bk_jpeg_decode_ctlr_handle_t handle, bk_jpeg_decode_ioctl_cmd_t cmd, void *arg)
 {
-	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-	AVDK_RETURN_ON_FALSE(handle->ioctl, AVDK_ERR_UNSUPPORTED, TAG, "ioctl not supported");
-	return handle->ioctl(handle, cmd, arg);
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->ioctl, AVDK_ERR_UNSUPPORTED, TAG, "ioctl not supported");
+    return handle->ioctl(handle, cmd, arg);
 }
 
 avdk_err_t bk_jpeg_decode_delete(bk_jpeg_decode_ctlr_handle_t handle)
 {
-	AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-	AVDK_RETURN_ON_FALSE(handle->del, AVDK_ERR_UNSUPPORTED, TAG, "del not supported");
-	return handle->del(handle);
+    AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(handle->del, AVDK_ERR_UNSUPPORTED, TAG, "del not supported");
+    return handle->del(handle);
 }

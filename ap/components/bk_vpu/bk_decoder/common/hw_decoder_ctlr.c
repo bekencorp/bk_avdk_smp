@@ -120,7 +120,7 @@ static void hw_decoder_task(void *arg)
 			if (msg.callback) {
 				ret = msg.callback(msg.param);
 				if (ret != AVDK_ERR_OK) {
-					LOGE("Callback execution failed: %d\r\n", ret);
+					LOGE("%s %d Callback execution failed: %d\r\n", __func__, __LINE__, ret);
 				}
 			}
 			if (msg.sem) {

@@ -24,36 +24,36 @@ extern "C" {
 #endif
 
 typedef struct {
-	bk_flexa_bond_t *bond;
-	uint8_t first_bond;
-	uint32_t rd_blocks;
+    bk_flexa_bond_t *bond;
+    uint8_t first_bond;
+    uint32_t rd_blocks;
 } bk_jpeg_decode_port_entry_t;
 
 typedef struct {
-	vcdec_handle vcdec_handle; 	 /* from vcdec_jpeg_open */
-	bk_jpeg_decode_flexa_mode_t mode;		/* flexa mode */
-	vcdec_decode_config_t decode_config;  /* filled per decode */
-	uint32_t decode_result;
-	beken_semaphore_t decode_done_sem;
+    vcdec_handle vcdec_handle;      /* from vcdec_jpeg_open */
+    bk_jpeg_decode_flexa_mode_t mode;        /* flexa mode */
+    vcdec_decode_config_t decode_config;  /* filled per decode */
+    uint32_t decode_result;
+    beken_semaphore_t decode_done_sem;
 
-	bk_jpeg_decode_frame_config_t config;
-	bk_jpeg_decode_ctlr_t ops;
+    bk_jpeg_decode_frame_config_t config;
+    bk_jpeg_decode_ctlr_t ops;
 } private_jpeg_decode_frame_ctlr_t;
 
 typedef struct {
-	vcdec_handle vcdec_handle;  /* from vcdec_jpeg_open */
-	bk_jpeg_decode_flexa_mode_t mode;		/* flexa mode */
-	vcdec_decode_config_t decode_config;  /* filled per decode */
-	uint32_t decode_result;
-	beken_semaphore_t decode_done_sem;
-	/** Flexa 各输出端口完成：bit i 对应 port_id == i（BK_JPEG_DECODE_RD_PORT_MAX 路） */
-	beken_event_t port_done_events;
-	uint32_t all_ports_min_rd;
+    vcdec_handle vcdec_handle;  /* from vcdec_jpeg_open */
+    bk_jpeg_decode_flexa_mode_t mode;        /* flexa mode */
+    vcdec_decode_config_t decode_config;  /* filled per decode */
+    uint32_t decode_result;
+    beken_semaphore_t decode_done_sem;
+    /** Flexa 各输出端口完成：bit i 对应 port_id == i（BK_JPEG_DECODE_RD_PORT_MAX 路） */
+    beken_event_t port_done_events;
+    uint32_t all_ports_min_rd;
 
-	bk_jpeg_decode_port_entry_t port[BK_JPEG_DECODE_RD_PORT_MAX];
+    bk_jpeg_decode_port_entry_t port[BK_JPEG_DECODE_RD_PORT_MAX];
 
-	bk_jpeg_decode_flexa_config_t config;
-	bk_jpeg_decode_ctlr_t ops;
+    bk_jpeg_decode_flexa_config_t config;
+    bk_jpeg_decode_ctlr_t ops;
 } private_jpeg_decode_flexa_ctlr_t;
 
 #ifdef __cplusplus
