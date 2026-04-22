@@ -106,7 +106,7 @@ struct ipv4_config pan_ip_settings = {
 #endif
 
 #if CONFIG_BK_MODEM
-/*
+
 struct ipv4_config modem_ip_settings = {
 	.addr_type = ADDR_TYPE_DHCP,
 	.address = 0,
@@ -115,15 +115,16 @@ struct ipv4_config modem_ip_settings = {
 	.dns1 = 0,
 	.dns2 = 0,
 };
-*/
+/*
 struct ipv4_config modem_ip_settings = {
 	.addr_type = ADDR_TYPE_STATIC,
 	.address = 0x020AA8C0,
 	.gw = 0x010AA8C0,
 	.netmask = 0x00FFFFFF,
-	.dns1 = 0x010AA8C0,
-	.dns2 = 0,
+	.dns1 = 0x72727272,
+	.dns2 = 0x73727272,
 };
+*/
 #endif
 
 static char up_iface;

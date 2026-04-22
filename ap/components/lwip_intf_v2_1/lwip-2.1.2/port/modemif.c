@@ -57,13 +57,11 @@ modemif_input(struct netif *netif, struct pbuf *p)
     struct eth_hdr *ethhdr;
     if (p->len <= SIZEOF_ETH_HDR) {
         goto free_pbuf;
-
     }
 
     netif = net_get_modem_handle();
     if(!netif) {
         //LWIP_LOGD("ethernetif_input no netif found %d\r\n", iface);
-        pbuf_free(p);
         goto free_pbuf;
     }
 
@@ -91,12 +89,10 @@ modemif_input(struct netif *netif, struct pbuf *p)
     case ETHTYPE_PPPOE:
 #endif /* PPPOE_SUPPORT */
         /* full packet send to tcpip_thread to process */
-        if (netif->input(p, netif) != ERR_OK)	 // ethernet_input
-        {
+        if (netif->input(p, netif) == ERR_OK)	 // ethernet_input
+            return;
+        else
             LWIP_DEBUGF(NETIF_DEBUG, ("ethernetif_input: IP input error\r\n"));
-            pbuf_free(p);
-            p = NULL;
-        }
         break;
 
     case ETHTYPE_EAPOL:
@@ -107,9 +103,10 @@ modemif_input(struct netif *netif, struct pbuf *p)
         LWIP_DEBUGF(NETIF_DEBUG, ("panif_input: unsupported frame type: 0x%04x\r\n", htons(ethhdr->type)));
         break;
     }
+
 free_pbuf:
      pbuf_free(p);
-
+     return;
 }
 
 err_t
