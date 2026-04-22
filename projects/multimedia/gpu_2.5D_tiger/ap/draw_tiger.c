@@ -14,7 +14,7 @@
 #include <driver/gpio_types.h>
 #include "gpio_driver.h"
 
-#include "drv_vglite.h"
+#include "gpu_core.h"
 
 #include <components/bk_display.h>
 #include <components/bk_display_dpu_ctlr.h>
@@ -22,6 +22,8 @@
 #include <components/bk_lcd_panel.h>
 #include "tiger_paths.h"
 #include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+
+
 #define TAG "app"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -324,9 +326,8 @@ avdk_err_t draw_tiger(void)
     g_disp_ctx->frame_buffer[0] = (void*)((uint32_t)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, (dpu_config.timing.h_size + 64) * dpu_config.timing.v_size) & 0xFFFFFFC0);
     g_disp_ctx->frame_buffer[1] = (void*)((uint32_t)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, (dpu_config.timing.h_size + 64) * dpu_config.timing.v_size) & 0xFFFFFFC0);
 
-    if(gpu_bsp_init(dpu_config.timing.h_size / 2, dpu_config.timing.v_size / 2) == 0) {
-        LOGI("gpu_bsp_init ok\r\n");
-    }
+    bk_gpu_driver_init();
+    vg_lite_init(dpu_config.timing.h_size / 2, dpu_config.timing.v_size / 2);
 
     memset(&g_disp_ctx->draw_buffer,0,sizeof(vg_lite_buffer_t));
     vg_lite_buffer_t *pdraw_buffer = &g_disp_ctx->draw_buffer;

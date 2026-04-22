@@ -118,20 +118,31 @@ bk_err_t lvgl_app_widgets_init(void)
     bk_gpio_set_capacity(GPIO_7, GPIO_DRIVER_CAPACITY_3);  // Enhance GPIO Driver Capacity
     bk_gpio_set_output_high(GPIO_7);
 
-#if (CONFIG_LV_USE_DRAW_VG_LITE || LV_USE_GPU_ROTATE)
-    extern int gpu_bsp_init(uint32_t tess_width, uint32_t tess_heigth);
-    gpu_bsp_init(WIDTH / 4, HEIGHT / 4);
-#endif
-
     lv_vnd_config.width = WIDTH;
     lv_vnd_config.height = HEIGHT;
-    lv_vnd_config.render_mode = RENDER_DIRECT_MODE;
+    lv_vnd_config.render_mode = RENDER_PARTIAL_MODE;
     if (lv_vnd_config.render_mode == RENDER_PARTIAL_MODE) {
-        lv_vnd_config.draw_pixel_size = 120 * 1024;
+        lv_vnd_config.draw_pixel_size = WIDTH * 64 * sizeof(bk_color_t);
     }
     lv_vnd_config.rotation = ROTATE_NONE;
-    lv_vnd_config.frame_buffer[0] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, WIDTH * HEIGHT * sizeof(lv_color_t));
-    lv_vnd_config.frame_buffer[1] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, WIDTH * HEIGHT * sizeof(lv_color_t));
+    lv_vnd_config.disp_width = WIDTH;
+    lv_vnd_config.disp_height = HEIGHT;
+    lv_vnd_config.output_compress = false;
+    if (lv_vnd_config.output_compress && lv_vnd_config.render_mode == RENDER_PARTIAL_MODE) {
+        if (WIDTH % 16 || HEIGHT % 4) {
+            lv_vnd_config.disp_width = (WIDTH + 15) & ~15;
+            lv_vnd_config.disp_height = (HEIGHT + 3) & ~3;
+        }
+        LOGI("lv_vnd_config.disp_width:%d, lv_vnd_config.disp_height:%d\r\n", lv_vnd_config.disp_width, lv_vnd_config.disp_height);
+    }
+
+    for (int i = 0; i < CONFIG_LVGL_FRAME_BUFFER_NUM; i++) {
+        if (i % 2) {
+            lv_vnd_config.frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, lv_vnd_config.disp_width * lv_vnd_config.disp_height * sizeof(bk_color_t));
+        } else {
+            lv_vnd_config.frame_buffer[i] = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, lv_vnd_config.disp_width * lv_vnd_config.disp_height * sizeof(bk_color_t));
+        }
+    }
     lv_vnd_config.args = g_disp_ctx->dpu_ctlr_handle;
     lv_vnd_config.flush_cb = bk_widgets_flush_cb;
 
@@ -202,6 +213,8 @@ int main(void)
     bk_lodoen_enable();
 
     bk_frame_buffer_init();
+
+    cli_widgets_init();
 
     lvgl_app_widgets_init();
 
