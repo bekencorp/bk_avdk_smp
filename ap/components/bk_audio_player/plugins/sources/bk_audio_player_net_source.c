@@ -242,7 +242,7 @@ static int net_source_open(char *url, bk_audio_player_source_t **source_pp)
     char *mime;
     int ret;
 
-    if (strncmp(url, "http://", 7) != 0
+    if (strncmp(url, "http", 4) != 0
         || strncmp(&url[os_strlen(url) - 6], ".m3u8", 5) == 0
         || strncmp(&url[os_strlen(url) - 5], ".m3u", 4) == 0
         || strncmp(&url[os_strlen(url) - 5], "m3u8", 4) == 0
