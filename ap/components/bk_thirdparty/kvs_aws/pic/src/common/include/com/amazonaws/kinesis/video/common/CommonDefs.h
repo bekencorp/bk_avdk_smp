@@ -757,7 +757,74 @@ extern getTmTime globalGetThreadSafeTmTime;
 /**
  * Current version of the thread parameters structure
  */
-#define THREAD_PARAMS_CURRENT_VERSION 0
+#define THREAD_PARAMS_CURRENT_VERSION 1
+
+/*
+ * [KVS-PRIO] Thread priority knob (added in ThreadParams v1).
+ *
+ * The absolute value passed here is the POSIX sched_priority that
+ * defaultCreateThreadWithParams() hands to pthread_attr_setschedparam().
+ * On the FreeRTOS/POSIX layer this maps 1:1 to a FreeRTOS task priority.
+ *
+ * Use KVS_THREAD_PRIO_DEFAULT (0) to ask the platform layer for its
+ * compile-time default (currently KVS_THREAD_PRIO_WORKER). Any non-zero
+ * value is taken as an absolute priority.
+ *
+ * Full KVS thread priority ladder (low -> high):
+ *
+ *   KVS_THREAD_PRIO_DEFAULT     (0)  - sentinel: use platform default
+ *                                      (resolves to KVS_THREAD_PRIO_WORKER
+ *                                      in defaultCreateThreadWithParams()).
+ *   KVS_THREAD_PRIO_WORKER      (3)  - generic background work: threadpool
+ *                                      actors, per-signaling-message
+ *                                      dispatcher, sample media
+ *                                      coordinator threads that just
+ *                                      THREAD_JOIN() children.
+ *   KVS_THREAD_PRIO_SIGNALING   (4)  - WSS listener / reconnect handler.
+ *                                      Needs to process SDP & ICE
+ *                                      candidates promptly but is idle
+ *                                      once media is flowing, so it sits
+ *                                      below the media hot path.
+ *   KVS_THREAD_PRIO_MEDIA       (5)  - sample-app audio/video capture /
+ *                                      encode / send / receive loops.
+ *                                      Hot path, but must stay strictly
+ *                                      below TIMER_QUEUE and RX_LISTENER
+ *                                      so ICE/DTLS timers and inbound
+ *                                      STUN are never starved by media.
+ *   KVS_THREAD_PRIO_TIMER_QUEUE (6)  - ICE keep-alive / DTLS retransmit.
+ *                                      Not on the media hot path, but
+ *                                      misses here cause ICE failures.
+ *   KVS_THREAD_PRIO_RX_LISTENER (7)  - RX demux: must outrun media tasks
+ *                                      so inbound STUN REQUEST can be
+ *                                      parsed and responded to in time.
+ */
+#define KVS_THREAD_PRIO_DEFAULT     0
+#define KVS_THREAD_PRIO_WORKER      3
+#define KVS_THREAD_PRIO_SIGNALING   4
+#define KVS_THREAD_PRIO_MEDIA       5
+#define KVS_THREAD_PRIO_TIMER_QUEUE 6
+#define KVS_THREAD_PRIO_RX_LISTENER 7
+
+/*
+ * [KVS-PRIO] Stack size selector for ThreadParams v1 call sites.
+ *
+ * Mirrors the #ifdef chain that defaultCreateThread() uses internally.
+ * Call sites that want the platform default stack should assign this to
+ * ThreadParams::stackSize so they stay in sync with defaultCreateThread()
+ * and don't have to duplicate the ifdef cascade at every call point.
+ *
+ * NOTE: THREAD_STACK_SIZE_ON_CONSTRAINED_DEVICE lives in
+ *       ap/.../pic/src/utils/include/.../utils/Include.h, which the
+ *       callers transitively include via the normal KVS headers, so the
+ *       symbol is visible by the time this macro is evaluated.
+ */
+#if defined(CONFIG_KVS_DEFAULT_STACK_SIZE_BYTES)
+#define KVS_DEFAULT_STACK_SIZE ((SIZE_T) CONFIG_KVS_DEFAULT_STACK_SIZE_BYTES)
+#elif defined(CONSTRAINED_DEVICE)
+#define KVS_DEFAULT_STACK_SIZE ((SIZE_T) THREAD_STACK_SIZE_ON_CONSTRAINED_DEVICE)
+#else
+#define KVS_DEFAULT_STACK_SIZE ((SIZE_T) 0)
+#endif
 
 typedef struct __ThreadParams ThreadParams;
 struct __ThreadParams {
@@ -766,6 +833,16 @@ struct __ThreadParams {
 
     // Stack size, in bytes. 0 = use defaults
     SIZE_T stackSize;
+
+    /*
+     * [v1] POSIX sched_priority to apply via pthread_attr_setschedparam().
+     * KVS_THREAD_PRIO_DEFAULT (0) means "use platform default" so existing
+     * call sites that zero-init the struct keep their old behaviour.
+     *
+     * NOTE: readers MUST gate access on (version >= 1); v0 callers allocate
+     * a shorter struct and reading past stackSize is undefined behaviour.
+     */
+    INT32 schedPriority;
 };
 typedef struct __ThreadParams* PThreadParams;
 

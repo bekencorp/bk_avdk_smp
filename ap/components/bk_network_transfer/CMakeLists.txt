@@ -7,6 +7,7 @@ set(incs .
 	bk_network_service/bk_net_tcp_service
 	bk_network_service/bk_net_udp_service
 	bk_network_service/bk_net_cs2_service
+	bk_network_service/bk_ntwk_kvs_service
 )
 
 set(srcs)
@@ -33,12 +34,29 @@ list(APPEND srcs
 	bk_network_service/bk_ntwk_cs2_service/bk_cs2_service.c
 )
 endif()
+
+if (CONFIG_KVS_NTWK_BRIDGE)
+	list(APPEND srcs
+		bk_network_service/bk_ntwk_kvs_service/ntwk_kvs_service.c
+		bk_network_service/bk_ntwk_kvs_service/bk_kvs_service.c
+	)
+endif()
 endif()
 
 set(req bk_common multimedia media_utils lwip_intf_v2_1 avdk_utils bk_wifi_driver cs2p2p)
+
+if (CONFIG_KVS_NTWK_BRIDGE)
+	list(APPEND req kvs_aws)
+endif()
 
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
 	REQUIRES "${req}"
 	)
+
+# Armino REQUIRES wires the static lib but not always CMake usage propagation; link the target so
+# INTERFACE_INCLUDE_DIRECTORIES from kvs_aws (see bk_thirdparty/kvs_aws/CMakeLists.txt incs) reach this build.
+if(CONFIG_KVS_NTWK_BRIDGE)
+	target_link_libraries(${COMPONENT_LIB} PRIVATE armino::kvs_aws)
+endif()
  

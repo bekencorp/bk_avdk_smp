@@ -17,7 +17,9 @@
 #include "devices_mgmt.h"
 #include <sys_types.h>
 #include <modules/pm.h>
-
+#if CONFIG_INTEGRATION_DOORBELL_KVS
+#include "doorbell_kvs_network_transfer.h"
+#endif
 #define TAG "db-device"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -794,6 +796,7 @@ static void doorbell_devices_task_entry(beken_thread_arg_t data)
     cfg->enable = true;
     rtos_set_semaphore(&cfg->sem);
     uint8_t log_enable = 0;
+    bk_err_t ret = BK_OK;
 
     while (cfg->enable)
     {
@@ -812,20 +815,34 @@ static void doorbell_devices_task_entry(beken_thread_arg_t data)
 
         if (frame->sequence < 5)
         {
+            #if CONFIG_INTEGRATION_DOORBELL_KVS
+            char buf[64];
+            doorbell_kvs_get_format_utc_ts(buf, sizeof(buf));
+            LOGD("%s, frame sequence %d, utc: %s\n", __func__, frame->sequence, buf);
+            #else
             LOGD("%s, frame sequence %d\n", __func__, frame->sequence);
+            #endif
         }
 
         log_enable = 0;
 
         if (cfg->port_id == 0)
         {
-            ntwk_trans_video_send((uint8_t *)frame, frame->length, cfg->img_format);
+            ret = ntwk_trans_video_send((uint8_t *)frame, frame->length, cfg->img_format);
+            if (ret != BK_OK)
+            {
+                LOGV("%s,failed, ret = %d\n", __func__, ret);
+            }
         }
         else
         {
             // if (frame->h264_type == cfg->port_id)
             {
-                ntwk_trans_video_send((uint8_t *)frame, frame->length, BK_IMAGE_FORMAT_H264);
+                ret = ntwk_trans_video_send((uint8_t *)frame, frame->length, BK_IMAGE_FORMAT_H264);
+                if (ret != BK_OK)
+                {
+                    LOGV("%s,failed1, ret = %d\n", __func__, ret);
+                }
             }
         }
 
@@ -870,7 +887,7 @@ bk_err_t doorbell_devices_start(uint16_t img_format)
                                 BEKEN_DEFAULT_WORKER_PRIORITY,
                                 "trs_task",
                                 (beken_thread_function_t)doorbell_devices_task_entry,
-                                2560,
+                                4096,
                                 (beken_thread_arg_t)s_db_trans_cfg);
 
     if (BK_OK != ret)

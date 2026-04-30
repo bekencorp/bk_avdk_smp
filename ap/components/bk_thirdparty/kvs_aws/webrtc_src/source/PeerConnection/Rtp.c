@@ -374,8 +374,8 @@ STATUS writeFrame(PRtcRtpTransceiver pRtcRtpTransceiver, PFrame pFrame)
         // Get the required size first
         CHK_STATUS(createBytesFromRtpPacket(pRtpPacket, NULL, &packetLen));
 
-        // Account for SRTP authentication tag
-        allocSize = packetLen + SRTP_AUTH_TAG_OVERHEAD;
+        /* encryptRtpPacket passes buf_cap = packetLen + SRTP_MAX_TRAILER_LEN to srtp_protect; buffer must be that large. */
+        allocSize = packetLen + SRTP_MAX_TRAILER_LEN;
         CHK(NULL != (rawPacket = (PBYTE) MEMALLOC(allocSize)), STATUS_NOT_ENOUGH_MEMORY);
         CHK_STATUS(createBytesFromRtpPacket(pRtpPacket, rawPacket, &packetLen));
 
@@ -480,7 +480,7 @@ STATUS writeRtpPacket(PKvsPeerConnection pKvsPeerConnection, PRtpPacket pRtpPack
     MUTEX_LOCK(pKvsPeerConnection->pSrtpSessionLock);
     locked = TRUE;
     CHK(pKvsPeerConnection->pSrtpSession != NULL, STATUS_SUCCESS);               // Discard packets till SRTP is ready
-    pRawPacket = MEMALLOC(pRtpPacket->rawPacketLength + SRTP_AUTH_TAG_OVERHEAD); // For SRTP authentication tag
+    pRawPacket = MEMALLOC(pRtpPacket->rawPacketLength + SRTP_MAX_TRAILER_LEN);
     rawLen = pRtpPacket->rawPacketLength;
     MEMCPY(pRawPacket, pRtpPacket->pRawPacket, pRtpPacket->rawPacketLength);
     CHK_STATUS(encryptRtpPacket(pKvsPeerConnection->pSrtpSession, pRawPacket, &rawLen));

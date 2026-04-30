@@ -1946,7 +1946,9 @@ STATUS turnStateFailedFn(PSocketConnection pSocketConnection, UINT64 data)
     }
 
 CleanUp:
-    MUTEX_UNLOCK(pNewCandidate->pIceAgent->lock);
+    if (pNewCandidate->pIceAgent->lock) {
+        MUTEX_UNLOCK(pNewCandidate->pIceAgent->lock);
+    }
     return retStatus;
 }
 

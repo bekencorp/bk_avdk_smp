@@ -5,7 +5,9 @@ menu "AWS KVS WebRTC"
 	config KVS_AWS
 		bool "Enable AWS KVS WebRTC component"
 		default n
-		select KVS_PTHREAD_CANCEL_DETACH if FREERTOS_POSIX
+		# CommonDefs.h (BEKEN_PLATFORM) includes <FreeRTOS_POSIX.h>; bk_rtos only exports that path when this is on.
+		select FREERTOS_POSIX
+		select KVS_PTHREAD_CANCEL_DETACH
 		help
 			Enable Amazon Kinesis Video Streams WebRTC C SDK (kvsWebrtcClient + signaling + kvsCommonLws + PIC).
 
@@ -24,6 +26,22 @@ menu "AWS KVS WebRTC"
 			When enabled, the AWS KVS / WebRTC CA trust anchor is taken from the compiled-in PEM in
 			kvs_embedded_ca_cert.c instead of DEFAULT_KVS_CACERT_PATH on SD (e.g. /sdcard/certs/cert.pem).
 			Disable to use file-based CA as before on Beken.
+
+	config KVS_DEFAULT_STACK_SIZE_BYTES
+		int "KVS/WebRTC default pthread stack size (bytes)"
+		depends on KVS_AWS
+		default 30720
+		range 4096 131072
+		help
+			Raise if stack overflows; lower to save RAM when thread count is small.
+
+	config KVS_SIGNALING_CACHE_ENTRY_COUNT
+		int "Signaling file cache entry count (embedded)"
+		depends on KVS_AWS
+		default 4
+		range 1 32
+		help
+			Each entry uses heap (~order of KB). Use 1 for single fixed channel; up to 32 for desktop-like behavior.
 
 	config KVS_AWS_ROLE_VIEWER
 		bool "Build kvs_aws_sample as Viewer (receive from Master)"

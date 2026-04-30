@@ -44,5 +44,14 @@ menu "Bk Network Transfer"
 		help
 			Use PSRAM for packet memory allocation in network transfer component
 
+	config KVS_NTWK_BRIDGE
+		bool "Bridge KVS WebRTC to bk_network_transfer (cmd=data channel, A/V=RTP)"
+		depends on BK_NTWK_TRANSFER
+		depends on KVS_AWS
+		depends on KVS_AWS_DATA_CHANNEL
+		default n
+		help
+			Maps SampleStreamingSession to ntwk_trans_* (passthrough payloads).
+			Enables hooks in projects/kvs_aws_sample/ap/Common.c.
 
 endmenu

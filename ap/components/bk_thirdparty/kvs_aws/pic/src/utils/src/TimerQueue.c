@@ -446,8 +446,13 @@ STATUS timerQueueCreateInternal(UINT32 maxTimers, PTimerQueue* ppTimerQueue)
     MUTEX_LOCK(pTimerQueue->startLock);
     locked = TRUE;
 
-    // Create the executor thread
-    CHK_STATUS(THREAD_CREATE(&threadId, timerQueueExecutor, (PVOID) pTimerQueue));
+    {
+        ThreadParams tqThreadParams;
+        tqThreadParams.version = THREAD_PARAMS_CURRENT_VERSION;
+        tqThreadParams.stackSize = KVS_DEFAULT_STACK_SIZE;
+        tqThreadParams.schedPriority = KVS_THREAD_PRIO_TIMER_QUEUE;
+        CHK_STATUS(THREAD_CREATE_WITH_PARAMS(&threadId, &tqThreadParams, timerQueueExecutor, (PVOID) pTimerQueue));
+    }
     CHK_STATUS(THREAD_DETACH(threadId));
 
     pTimerQueue->executorTid = threadId;

@@ -368,7 +368,14 @@ INT32 lwsWssCallbackRoutine(PVOID wsi, INT32 reason, PVOID user, PVOID pDataIn, 
                 // Handle re-connection in a reconnect handler thread. Set the terminated indicator before the thread
                 // creation and the thread itself will reset it. NOTE: Need to check for a failure and reset.
                 ATOMIC_STORE_BOOL(&pSignalingClient->reconnecterTracker.terminated, FALSE);
-                retStatus = THREAD_CREATE(&pSignalingClient->reconnecterTracker.threadId, reconnectHandler, (PVOID) pSignalingClient);
+                {
+                    ThreadParams rcThreadParams;
+                    rcThreadParams.version = THREAD_PARAMS_CURRENT_VERSION;
+                    rcThreadParams.stackSize = KVS_DEFAULT_STACK_SIZE;
+                    rcThreadParams.schedPriority = KVS_THREAD_PRIO_SIGNALING;
+                    retStatus = THREAD_CREATE_WITH_PARAMS(&pSignalingClient->reconnecterTracker.threadId, &rcThreadParams, reconnectHandler,
+                                                          (PVOID) pSignalingClient);
+                }
                 if (STATUS_FAILED(retStatus)) {
                     ATOMIC_STORE_BOOL(&pSignalingClient->reconnecterTracker.terminated, TRUE);
                     CHK(FALSE, retStatus);
@@ -414,7 +421,14 @@ INT32 lwsWssCallbackRoutine(PVOID wsi, INT32 reason, PVOID user, PVOID pDataIn, 
                 // Handle re-connection in a reconnect handler thread. Set the terminated indicator before the thread
                 // creation and the thread itself will reset it. NOTE: Need to check for a failure and reset.
                 ATOMIC_STORE_BOOL(&pSignalingClient->reconnecterTracker.terminated, FALSE);
-                retStatus = THREAD_CREATE(&pSignalingClient->reconnecterTracker.threadId, reconnectHandler, (PVOID) pSignalingClient);
+                {
+                    ThreadParams rcThreadParams;
+                    rcThreadParams.version = THREAD_PARAMS_CURRENT_VERSION;
+                    rcThreadParams.stackSize = KVS_DEFAULT_STACK_SIZE;
+                    rcThreadParams.schedPriority = KVS_THREAD_PRIO_SIGNALING;
+                    retStatus = THREAD_CREATE_WITH_PARAMS(&pSignalingClient->reconnecterTracker.threadId, &rcThreadParams, reconnectHandler,
+                                                          (PVOID) pSignalingClient);
+                }
                 if (STATUS_FAILED(retStatus)) {
                     ATOMIC_STORE_BOOL(&pSignalingClient->reconnecterTracker.terminated, TRUE);
                     CHK(FALSE, retStatus);
@@ -1696,7 +1710,13 @@ STATUS connectSignalingChannelLws(PSignalingClient pSignalingClient, UINT64 time
 
     // The actual connection will be handled in a separate thread
     // Start the request/response thread
-    CHK_STATUS(THREAD_CREATE(&pSignalingClient->listenerTracker.threadId, lwsListenerHandler, (PVOID) pLwsCallInfo));
+    {
+        ThreadParams lsThreadParams;
+        lsThreadParams.version = THREAD_PARAMS_CURRENT_VERSION;
+        lsThreadParams.stackSize = KVS_DEFAULT_STACK_SIZE;
+        lsThreadParams.schedPriority = KVS_THREAD_PRIO_SIGNALING;
+        CHK_STATUS(THREAD_CREATE_WITH_PARAMS(&pSignalingClient->listenerTracker.threadId, &lsThreadParams, lwsListenerHandler, (PVOID) pLwsCallInfo));
+    }
     CHK_STATUS(THREAD_DETACH(pSignalingClient->listenerTracker.threadId));
 
     timeout = (pSignalingClient->clientInfo.connectTimeout != 0) ? pSignalingClient->clientInfo.connectTimeout : SIGNALING_CONNECT_TIMEOUT;
@@ -2561,8 +2581,15 @@ STATUS receiveLwsMessage(PSignalingClient pSignalingClient, PCHAR pMessage, UINT
     // This would fail if threadpool was not created
     CHK_STATUS(threadpoolContextPush(receiveLwsMessageWrapper, pSignalingMessageWrapper));
 #else
-    // Issue the callback on a separate thread
-    CHK_STATUS(THREAD_CREATE(&receivedTid, receiveLwsMessageWrapper, (PVOID) pSignalingMessageWrapper));
+    // Issue the callback on a separate thread. Per-message dispatcher is off
+    // the media hot path, so it runs at generic worker priority.
+    {
+        ThreadParams rxMsgThreadParams;
+        rxMsgThreadParams.version = THREAD_PARAMS_CURRENT_VERSION;
+        rxMsgThreadParams.stackSize = KVS_DEFAULT_STACK_SIZE;
+        rxMsgThreadParams.schedPriority = KVS_THREAD_PRIO_WORKER;
+        CHK_STATUS(THREAD_CREATE_WITH_PARAMS(&receivedTid, &rxMsgThreadParams, receiveLwsMessageWrapper, (PVOID) pSignalingMessageWrapper));
+    }
     CHK_STATUS(THREAD_DETACH(receivedTid));
 #endif
 

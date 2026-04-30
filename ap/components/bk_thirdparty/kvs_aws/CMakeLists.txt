@@ -115,8 +115,6 @@ armino_component_register(
 )
 
 if(CONFIG_KVS_AWS)
-	# SSL via psa_mbedtls (PRIV_REQUIRES psa_mbedtls)
-	# LWS_AMAZON_RTOS: use <FreeRTOS.h> not <freertos/FreeRTOS.h> so include works with os_source include path (same as libwebsockets).
 	target_compile_definitions(${COMPONENT_LIB} PRIVATE
 		KVS_USE_MBEDTLS
 		#CONFIG_PSA_MBEDTLS
@@ -127,9 +125,6 @@ if(CONFIG_KVS_AWS)
 		#CONFIG_KVS_PTHREAD_CANCEL_DETACH
 		# Thread pool: WebRTC client singleton + async STUN DNS; signaling uses pool instead of per-message THREAD_CREATE
 		ENABLE_KVS_THREADPOOL
-		KVS_DEFAULT_STACK_SIZE_BYTES=30720
-		# Embedded: reduce signaling file cache entries to save heap (~7KB per entry). 4 allows a few channels; use 1 for single-channel.
-		KVS_SIGNALING_CACHE_ENTRY_COUNT=4
 	)
 	if(CONFIG_KVS_AWS_DATA_CHANNEL)
 		target_compile_definitions(${COMPONENT_LIB} PRIVATE ENABLE_DATA_CHANNEL)

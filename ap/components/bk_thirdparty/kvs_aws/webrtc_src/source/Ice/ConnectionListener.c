@@ -216,7 +216,15 @@ STATUS connectionListenerStart(PConnectionListener pConnectionListener)
     locked = TRUE;
 
     CHK(!IS_VALID_TID_VALUE(pConnectionListener->receiveDataRoutine), retStatus);
-    CHK_STATUS(THREAD_CREATE(&pConnectionListener->receiveDataRoutine, connectionListenerReceiveDataRoutine, (PVOID) pConnectionListener));
+
+    {
+        ThreadParams rxThreadParams;
+        rxThreadParams.version = THREAD_PARAMS_CURRENT_VERSION;
+        rxThreadParams.stackSize = KVS_DEFAULT_STACK_SIZE;
+        rxThreadParams.schedPriority = KVS_THREAD_PRIO_RX_LISTENER;
+        CHK_STATUS(THREAD_CREATE_WITH_PARAMS(&pConnectionListener->receiveDataRoutine, &rxThreadParams, connectionListenerReceiveDataRoutine,
+                                             (PVOID) pConnectionListener));
+    }
 
 CleanUp:
 

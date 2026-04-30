@@ -37,7 +37,7 @@ static void kvs_set_aws_credentials_env(void)
 {
 	setenv("AWS_ACCESS_KEY_ID", "YOUR_ACCESS_KEY_ID", 1);
 	setenv("AWS_SECRET_ACCESS_KEY", "YOUR_SECRET_ACCESS_KEY", 1);
-	/* Optional: setenv("AWS_DEFAULT_REGION", "us-east-1", 1); */
+	/* Optional: setenv("AWS_DEFAULT_REGION", "us-west-2", 1); */
 }
 
 int main(void)

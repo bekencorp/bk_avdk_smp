@@ -1,5 +1,13 @@
 #define LOG_CLASS "WebRtcSamples"
-#include "Samples.h"
+#include "kvs_common.h"
+
+#if CONFIG_KVS_NTWK_BRIDGE
+#include "ntwk_kvs_bridge.h"
+#endif
+
+#if CONFIG_INTEGRATION_DOORBELL_KVS
+#include "bk_multimedia.h"
+#endif
 
 PSampleConfiguration gSampleConfiguration = NULL;
 
@@ -18,8 +26,8 @@ UINT32 setLogLevel()
     UINT32 logLevel = LOG_LEVEL_DEBUG;
     if (NULL == (pLogLevel = GETENV(DEBUG_LOG_LEVEL_ENV_VAR)) || STATUS_SUCCESS != STRTOUI32(pLogLevel, NULL, 10, &logLevel) ||
         logLevel < LOG_LEVEL_VERBOSE || logLevel > LOG_LEVEL_SILENT) {
-        //logLevel = LOG_LEVEL_WARN;
-        logLevel = LOG_LEVEL_VERBOSE;
+        logLevel = LOG_LEVEL_WARN;
+       // logLevel = LOG_LEVEL_VERBOSE;
 
     }
     SET_LOGGER_LOG_LEVEL(logLevel);
@@ -56,16 +64,28 @@ VOID onConnectionStateChange(UINT64 customData, RTC_PEER_CONNECTION_STATE newSta
             if (pSampleConfiguration->enableIceStats) {
                 CHK_LOG_ERR(logSelectedIceCandidatesInformation(pSampleStreamingSession));
             }
+#if CONFIG_INTEGRATION_DOORBELL_KVS
+            mm_on_peer_connected();
+#endif
             break;
         case RTC_PEER_CONNECTION_STATE_FAILED:
             // explicit fallthrough
         case RTC_PEER_CONNECTION_STATE_CLOSED:
             // explicit fallthrough
         case RTC_PEER_CONNECTION_STATE_DISCONNECTED:
-            DLOGD("p2p connection disconnected");
+            DLOGW("p2p connection disconnected");
             ATOMIC_STORE_BOOL(&pSampleStreamingSession->terminateFlag, TRUE);
             CVAR_BROADCAST(pSampleConfiguration->cvar);
-            // explicit fallthrough
+#if CONFIG_KVS_NTWK_BRIDGE
+            /* Stop writeFrame paths immediately; freeSampleStreamingSession also detaches later. */
+            ntwk_kvs_bridge_detach_session(pSampleStreamingSession);
+#endif
+#if CONFIG_INTEGRATION_DOORBELL_KVS
+            mm_on_peer_disconnected();
+#endif
+            ATOMIC_STORE_BOOL(&pSampleConfiguration->connected, FALSE);
+            CVAR_BROADCAST(pSampleConfiguration->cvar);
+            break;
         default:
             ATOMIC_STORE_BOOL(&pSampleConfiguration->connected, FALSE);
             CVAR_BROADCAST(pSampleConfiguration->cvar);
@@ -672,6 +692,10 @@ STATUS createSampleStreamingSession(PSampleConfiguration pSampleConfiguration, P
                                                              sampleSenderBandwidthEstimationHandler));
     }
     pSampleStreamingSession->startUpLatency = 0;
+#if CONFIG_KVS_NTWK_BRIDGE
+    ntwk_kvs_bridge_attach_session(pSampleStreamingSession, pSampleStreamingSession->pVideoRtcRtpTransceiver,
+                                   pSampleStreamingSession->pAudioRtcRtpTransceiver);
+#endif
 CleanUp:
 
     if (STATUS_FAILED(retStatus) && pSampleStreamingSession != NULL) {
@@ -696,6 +720,10 @@ STATUS freeSampleStreamingSession(PSampleStreamingSession* ppSampleStreamingSess
     pSampleStreamingSession = *ppSampleStreamingSession;
     CHK(pSampleStreamingSession != NULL && pSampleStreamingSession->pSampleConfiguration != NULL, retStatus);
     pSampleConfiguration = pSampleStreamingSession->pSampleConfiguration;
+
+#if CONFIG_KVS_NTWK_BRIDGE
+    ntwk_kvs_bridge_detach_session(pSampleStreamingSession);
+#endif
 
     DLOGD("Freeing streaming session with peer id: %s ", pSampleStreamingSession->peerId);
 
@@ -1120,7 +1148,9 @@ STATUS initSignaling(PSampleConfiguration pSampleConfiguration, PCHAR clientId)
     CHK_STATUS(signalingClientFetchSync(pSampleConfiguration->signalingClientHandle));
 
 #ifdef ENABLE_DATA_CHANNEL
-    pSampleConfiguration->onDataChannel = onDataChannel;
+    if (pSampleConfiguration->onDataChannel == NULL) {
+        pSampleConfiguration->onDataChannel = onDataChannel;
+    }
 #endif
 
     CHK_STATUS(signalingClientConnectSync(pSampleConfiguration->signalingClientHandle));

@@ -72,8 +72,8 @@ PUBLIC_API STATUS defaultCreateThread(PTID pThreadId, startRoutine start, PVOID 
     ThreadParams threadParams;
     threadParams.version = 0;
 
-#if defined(KVS_DEFAULT_STACK_SIZE_BYTES)
-    threadParams.stackSize = (SIZE_T) KVS_DEFAULT_STACK_SIZE_BYTES;
+#if defined(CONFIG_KVS_DEFAULT_STACK_SIZE_BYTES)
+    threadParams.stackSize = (SIZE_T) CONFIG_KVS_DEFAULT_STACK_SIZE_BYTES;
 #else
     threadParams.stackSize = 0;
 #endif
@@ -182,21 +182,40 @@ PUBLIC_API STATUS defaultCreateThreadWithParams(PTID pThreadId, PThreadParams pT
     pthread_t threadId;
     INT32 result;
     SIZE_T stackSize;
+    pthread_attr_t attr;
     pthread_attr_t* pAttr = NULL;
+    struct sched_param sch;
+    int prio = KVS_THREAD_PRIO_WORKER;
 
     CHK(pThreadId != NULL && pThreadParams != NULL, STATUS_NULL_ARG); // TODO: Move to own validation function.
     CHK(pThreadParams->version <= THREAD_PARAMS_CURRENT_VERSION, STATUS_INVALID_THREAD_PARAMS_VERSION);
 
     stackSize = pThreadParams->stackSize;
 
-    pthread_attr_t attr;
+    /* Always init attr so we can set priority even if stackSize == 0 */
+    pAttr = &attr;
+    result = pthread_attr_init(pAttr);
+    CHK_ERR(result == 0, STATUS_THREAD_ATTR_INIT_FAILED, "pthread_attr_init failed with %d", result);
+
     if (stackSize != 0) {
-        pAttr = &attr;
-        result = pthread_attr_init(pAttr);
-        CHK_ERR(result == 0, STATUS_THREAD_ATTR_INIT_FAILED, "pthread_attr_init failed with %d", result);
         result = pthread_attr_setstacksize(&attr, stackSize);
         CHK_ERR(result == 0, STATUS_THREAD_ATTR_SET_STACK_SIZE_FAILED, "pthread_attr_setstacksize failed with %d", result);
     }
+
+    /* [KVS-PRIO] Pick a priority that fits this platform.
+     * Non-SMP: larger sched_priority -> higher FreeRTOS priority.
+     * SMP:     smaller sched_priority -> higher FreeRTOS priority.
+     *
+     * ThreadParams v1 added a schedPriority field so callers can override
+     * the platform default per-thread.  v0 callers (or v1 callers that set
+     * KVS_THREAD_PRIO_DEFAULT) get the historical hard-coded value so
+     * behaviour stays backward compatible. */
+    //prio = 6; /* <= platform default, matches legacy v0 behaviour */
+    if (pThreadParams->version >= 1 && pThreadParams->schedPriority != KVS_THREAD_PRIO_DEFAULT) {
+        prio = (int) pThreadParams->schedPriority;
+    }
+    sch.sched_priority = prio;
+    (void) pthread_attr_setschedparam(pAttr, &sch);
 
     result = pthread_create(&threadId, pAttr, start, args);
     switch (result) {
@@ -232,19 +251,14 @@ PUBLIC_API STATUS defaultCreateThread(PTID pThreadId, startRoutine start, PVOID 
 {
     STATUS retStatus = STATUS_SUCCESS;
     ThreadParams threadParams;
-    threadParams.version = 0;
-
-#if defined(KVS_DEFAULT_STACK_SIZE_BYTES) && defined(CONSTRAINED_DEVICE)
-    DLOGW("KVS_DEFAULT_STACK_SIZE_BYTES and CONSTRAINED_DEVICE are both defined. KVS_DEFAULT_STACK_SIZE_BYTES will take priority.");
-#endif
-
-#if defined(KVS_DEFAULT_STACK_SIZE_BYTES)
-    threadParams.stackSize = (SIZE_T) KVS_DEFAULT_STACK_SIZE_BYTES;
-#elif defined(CONSTRAINED_DEVICE)
-    threadParams.stackSize = THREAD_STACK_SIZE_ON_CONSTRAINED_DEVICE;
-#else
-    threadParams.stackSize = 0;
-#endif
+    /* [KVS-PRIO] Use v1 so we can explicitly mark schedPriority as "default"
+     * via the sentinel.  defaultCreateThreadWithParams() will fall back to
+     * the platform hard-coded value when it sees KVS_THREAD_PRIO_DEFAULT.
+     * stackSize uses the shared KVS_DEFAULT_STACK_SIZE helper so call sites
+     * that build their own ThreadParams stay in sync with us. */
+    threadParams.version = THREAD_PARAMS_CURRENT_VERSION;
+    threadParams.schedPriority = KVS_THREAD_PRIO_DEFAULT;
+    threadParams.stackSize = KVS_DEFAULT_STACK_SIZE;
 
     CHK_STATUS(defaultCreateThreadWithParams(pThreadId, &threadParams, start, args));
 

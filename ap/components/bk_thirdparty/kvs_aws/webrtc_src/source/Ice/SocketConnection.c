@@ -418,7 +418,7 @@ STATUS socketSendDataWithRetry(PSocketConnection pSocketConnection, PBYTE buf, U
         result = sendto(pSocketConnection->localSocket, buf + bytesWritten, bufLen - bytesWritten, NO_SIGNAL_SEND, destAddr, addrLen);
         if (result < 0) {
             errorNum = getErrorCode();
-            if (errorNum == EAGAIN || errorNum == EWOULDBLOCK) {
+            if (errorNum == EAGAIN || errorNum == EWOULDBLOCK || errorNum == ENOMEM) {
                 MEMSET(&wfds, 0x00, SIZEOF(struct pollfd));
                 wfds.fd = pSocketConnection->localSocket;
                 wfds.events = POLLOUT;
