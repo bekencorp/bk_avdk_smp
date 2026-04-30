@@ -86,7 +86,7 @@ static avdk_err_t jpeg_decode_wait_flexa_registered_ports_done(private_jpeg_deco
     }
 
     for (uint32_t i = 0; i < BK_JPEG_DECODE_RD_PORT_MAX; i++) {
-        if (ctrl->port[i].bond != NULL) {
+        if (ctrl->port[i].bond != NULL && ctrl->port[i].first_bond == 0) {
             mask |= JPEG_DECODE_PORT_DONE_BIT(i);
         }
     }
@@ -95,7 +95,7 @@ static avdk_err_t jpeg_decode_wait_flexa_registered_ports_done(private_jpeg_deco
         return AVDK_ERR_OK;
     }
 
-    /* 同一帧内需等齐所有已 REGISTER_BOND 的下游（与 clear mask 一致，含 first_bond 端口） */
+    /* Wait for all already-registered downstream bonds in the same frame (same mask as clear, including first_bond ports). */
     beken_event_flags_t ux = rtos_wait_for_event_flags(&ctrl->port_done_events, mask,
                                true, WAIT_FOR_ALL_EVENTS, 800U);
     if ((ux & mask) != mask) {
@@ -103,7 +103,8 @@ static avdk_err_t jpeg_decode_wait_flexa_registered_ports_done(private_jpeg_deco
             uint32_t bit = JPEG_DECODE_PORT_DONE_BIT(i);
 
             if ((mask & bit) != 0U && (ux & bit) == 0U) {
-                LOGW("%s %d flexa port[%u] decode timeout\r\n", __func__, __LINE__, (unsigned)i);
+                LOGW("%s %d flexa port[%u] decode timeout last:%d all_ports_min_rd:%d\r\n",
+                    __func__, __LINE__, (unsigned)i, ctrl->port[i].rd_blocks, ctrl->all_ports_min_rd);
             }
         }
         return AVDK_ERR_GENERIC;
@@ -157,7 +158,7 @@ static void flexa_done_cb(uint32_t wr_ptr, void *args)
             continue;
         }
         bk_flexa_bond_t *b = (bk_flexa_bond_t *)ctrl->port[i].bond;
-        /* 首次 REGISTER_BOND：本帧剩余 flexa 行中断不派发该模块，下一帧 wr_ptr==1 起正常 */
+        /* On the first REGISTER_BOND, do not dispatch the remaining flexa line interrupts of the current frame; normal dispatch resumes from wr_ptr == 1 in the next frame. */
         if (ctrl->port[i].first_bond) {
             if (wr_ptr == 1U) {
                 ctrl->port[i].first_bond = 0;
@@ -496,6 +497,8 @@ static avdk_err_t jpeg_decode_ctlr_ioctl(bk_jpeg_decode_ctlr_handle_t handle, ui
             if (ctrl->port[i].bond == bond_ptr) {
                 ctrl->port[i].bond = NULL;
                 ctrl->port[i].first_bond = 0;
+                ctrl->port[i].rd_blocks = 0;
+                rtos_set_event_flags(&ctrl->port_done_events, JPEG_DECODE_PORT_DONE_BIT(i));
                 break;
             }
         }

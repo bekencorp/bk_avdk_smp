@@ -251,7 +251,8 @@ static avdk_err_t jpeg_decode_ctlr_ioctl(bk_jpeg_decode_ctlr_handle_t handle, ui
     case BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR:
     case BK_JPEG_DECODE_IOCTL_REGISTER_BOND:
     case BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND:
-    case BK_JPEG_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE: {
+    case BK_JPEG_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE:
+    {
         LOGI("%s %d cmd %u is unsupported in frame mode\r\n", __func__, __LINE__, cmd);
         break;
     }
