@@ -29,6 +29,15 @@
 #define LOGW(...) BK_LOGW(TAG, __VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, __VA_ARGS__)
 
+static private_jpeg_decode_flexa_ctlr_t *jpeg_flexa_ctrl_from_handle(bk_jpeg_decode_ctlr_handle_t handle)
+{
+    if (handle == NULL) {
+        return NULL;
+    }
+
+    return __containerof(handle, private_jpeg_decode_flexa_ctlr_t, ops);
+}
+
 static void h264e_flexa_done(uint32_t wr_ptr, void *args)
 {
     bk_flexa_bond_t *out_stream = (bk_flexa_bond_t *)args;
@@ -170,9 +179,14 @@ avdk_err_t bk_flexa_mjpegd_h264e_bond_start(void **bond,
     in_stream->bond_config = bond_new;
 
     {
-        private_jpeg_decode_flexa_ctlr_t *ctrl = (private_jpeg_decode_flexa_ctlr_t *)jpeg;
+        private_jpeg_decode_flexa_ctlr_t *ctrl = jpeg_flexa_ctrl_from_handle(jpeg);
 
-        out_stream->max_lines_per_frame = (ctrl->config.out_height + 15) / 16;
+        if (ctrl == NULL) {
+            ret = AVDK_ERR_INVAL;
+            goto error;
+        }
+
+        out_stream->max_lines_per_frame = (ctrl->config.out_height + 15U) / 16U;
     }
 
     out_stream->handle = (void *)h264;
@@ -377,9 +391,14 @@ avdk_err_t bk_flexa_mjpegd_gpu_bond_start(void **bond,
     in_stream->bond_config = bond_new;
 
     {
-        private_jpeg_decode_flexa_ctlr_t *ctrl = (private_jpeg_decode_flexa_ctlr_t *)jpeg;
+        private_jpeg_decode_flexa_ctlr_t *ctrl = jpeg_flexa_ctrl_from_handle(jpeg);
 
-        out_stream->max_lines_per_frame = (ctrl->config.out_height + 15) / 16;
+        if (ctrl == NULL) {
+            ret = AVDK_ERR_INVAL;
+            goto error;
+        }
+
+        out_stream->max_lines_per_frame = (ctrl->config.out_height + 15U) / 16U;
     }
 
     out_stream->handle = (void *)gpu;
