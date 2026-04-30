@@ -87,6 +87,7 @@ static void app_display_ctx_destroy(display_ctx_t *ctx)
 
     if (ctx->dis_bus_handle)
     {
+        bk_display_bus_disable(ctx->dis_bus_handle);
         bk_display_bus_delete(ctx->dis_bus_handle);
         ctx->dis_bus_handle = NULL;
     }

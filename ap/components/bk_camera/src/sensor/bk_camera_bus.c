@@ -6,6 +6,7 @@
 #include <driver/isp.h>
 #include <driver/i2c.h>
 #include <driver/io_matrix.h>
+#include <modules/pm.h>
 #include <avdk_check.h>
 #include <components/bk_camera_bus.h>
 #include "sw_i2c.h"
@@ -136,10 +137,26 @@ bk_camera_bus_t *bk_camera_bus_new(bk_camera_bus_config_t *config)
 
 avdk_err_t bk_camera_bus_enable(bk_camera_bus_t *bus)
 {
-    // AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+
     // auxs/mclk (csi/dvp) clk en
     if (bus->mipi_port_en == 1)
     {
+        AVDK_RETURN_ON_ERROR(bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_MIPI_CSI, PM_POWER_MODULE_STATE_ON), TAG, "mipi csi power on failed");
+        pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+        auxldo_cfg.ldo = AUXLDOS_SEL_2P8V;  //csi phy ldo
+        auxldo_cfg.out = PM_AUXLDO_2P8V_OUT_2P8V;
+        auxldo_cfg.state = PM_AUXLDO_ENABLE;
+        auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+        AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 2p8v ldo on failed");
+
+        auxldo_cfg = (pm_auxldo_ctrl_cfg_t){0};
+        auxldo_cfg.ldo = AUXLDOS_SEL_3V;  //csi mipi ldo
+        auxldo_cfg.out = PM_AUXLDO_3V_OUT_2P8V;
+        auxldo_cfg.state = PM_AUXLDO_ENABLE;
+        auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+        AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 3v ldo on failed");
+
         bk_cis_auxs_clock_enable(20000000, 59, 1);
     }
     if (bus->dvp_port_en == 1)
@@ -155,15 +172,30 @@ avdk_err_t bk_camera_bus_enable(bk_camera_bus_t *bus)
 
 avdk_err_t bk_camera_bus_disable(bk_camera_bus_t *bus)
 {
-    AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    //AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
 
     //TODO FIX ME
     bk_isp_clock_enable(0, 0);
-    if (bus->mipi_port_en == 0)
+    if (bus->mipi_port_en == 1)
     {
         bk_cis_auxs_clock_enable(20000000, 59, 0);
+        pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+        auxldo_cfg.ldo = AUXLDOS_SEL_2P8V;  //csi phy ldo
+        auxldo_cfg.out = PM_AUXLDO_2P8V_OUT_2P8V;
+        auxldo_cfg.state = PM_AUXLDO_DISABLE;
+        auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+        AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 2p8v ldo off failed");
+
+        auxldo_cfg = (pm_auxldo_ctrl_cfg_t){0};
+        auxldo_cfg.ldo = AUXLDOS_SEL_3V;  //csi mipi ldo
+        auxldo_cfg.out = PM_AUXLDO_3V_OUT_2P8V;
+        auxldo_cfg.state = PM_AUXLDO_DISABLE;
+        auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+        AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 3v ldo off failed");
+
+        AVDK_RETURN_ON_ERROR(bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_MIPI_CSI, PM_POWER_MODULE_STATE_OFF), TAG, "mipi csi power off failed");
     }
-    if (bus->dvp_port_en == 0)
+    if (bus->dvp_port_en == 1)
     {
         bk_cis_mclk_clock_enable(20000000, 27, 0);
     }

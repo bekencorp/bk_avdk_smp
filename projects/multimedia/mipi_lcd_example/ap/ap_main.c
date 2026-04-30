@@ -14,7 +14,9 @@
 #include "lcd_example.h"
 #include <components/bk_display.h>
 
-#define TAG "mipi_lcd_ap"
+#include <modules/pm.h>
+
+#define TAG "mipi_lcd"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
@@ -29,13 +31,15 @@ static display_ctx_t s_mipi_disp_ctx;
 #define SYS_ANA_REG_BASE    (0x44010000)
 #define LDO_ANA_REG         (0x69)
 
-static void bk_lodoen_enable(void)
+static avdk_err_t bk_lodoen_enable(void)
 {
-    uint32_t reg = REG_READ(SYS_ANA_REG_BASE + LDO_ANA_REG * 4);
-    reg |= (0xF << 28) | (0x2 << 23) | (0x7 << 19) | (0x7 << 15);
-    reg &= ~(0xF << 11);
-    reg |= (0x8 << 11);
-    REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
+    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_1P8V; 
+    auxldo_cfg.out = PM_AUXLDO_1P8V_OUT_1P8V;
+    auxldo_cfg.user = PM_AUXLDO_USER_DISPLAY;
+    auxldo_cfg.state = PM_AUXLDO_ENABLE;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "display 1p8v ldo vote failed");
+    return AVDK_ERR_OK;
 }
 
 void cli_mipi_lcd_switch_format(const bk_display_pixel_format_config_t *config, const char *name)

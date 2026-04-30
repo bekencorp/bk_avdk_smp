@@ -15,6 +15,9 @@
 #include "doorbell_img_manager.h"
 #include <lcd/lcd_hx8399c_mipi_1080x1920.h>
 #include "devices_mgmt.h"
+#include <sys_types.h>
+#include <modules/pm.h>
+
 #define TAG "db-device"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -122,6 +125,57 @@ int doorbell_get_lcd_status(int opcode)
     return 0;
 }
 
+static avdk_err_t bk_camera_auxldo_enable(bool enable)
+{
+    int ldo_en = PM_AUXLDO_DISABLE;
+    if (enable)
+    {
+        ldo_en = PM_AUXLDO_ENABLE;
+    }
+    else
+    {
+        ldo_en = PM_AUXLDO_DISABLE;
+    }
+    LOGI("%s, iovdd dvdd enable: %d\n", __func__, ldo_en); 
+
+    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_1P8V;
+    auxldo_cfg.out = PM_AUXLDO_1P8V_OUT_1P8V;
+    auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+    auxldo_cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 1p8v ldo vote failed");
+
+
+    auxldo_cfg = (pm_auxldo_ctrl_cfg_t){0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_1P2V;  
+    auxldo_cfg.out = PM_AUXLDO_1P2V_OUT_1P2V;
+    auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+    auxldo_cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 1p2v ldo vote failed");
+    return BK_OK;
+}
+static avdk_err_t bk_display_auxldo_enable(bool enable)
+{
+    int ldo_en = PM_AUXLDO_DISABLE;
+    if (enable)
+    {
+        ldo_en = PM_AUXLDO_ENABLE;
+    }
+    else
+    {
+        ldo_en = PM_AUXLDO_DISABLE;
+    }
+    LOGI("%s, vddio enable: %d\n", __func__, ldo_en); 
+
+    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_1P8V; 
+    auxldo_cfg.out = PM_AUXLDO_1P8V_OUT_1P8V;
+    auxldo_cfg.user = PM_AUXLDO_USER_DISPLAY;
+    auxldo_cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "display 1p8v ldo vote failed");
+    return BK_OK;
+}
+
 int doorbell_camera_turn_on(camera_parameters_t *parameters)
 {
     bk_err_t ret = BK_FAIL;
@@ -152,7 +206,12 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
     {
         info->transfer_format = BK_IMAGE_FORMAT_MJPEG;
     }
-
+    ret = bk_camera_auxldo_enable(true);
+    if (ret != BK_OK)
+    {
+        LOGE("%s(%d), bk_camera_auxldo_enable failed, ret = %d\n", __func__, __LINE__, ret);
+        return ret;
+    }
     if (parameters->id == UVC_DEVICE_ID)
     {
 #ifdef CONFIG_USB_CAMERA
@@ -166,33 +225,33 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
         if (ret != BK_OK)
         {
             LOGE("%s, app_uvc_turn_on failed, ret = %d\n", __func__, ret);
-            return ret;
+            goto err;
         }
 
         ret = doorbell_jpeg_decode_open(parameters->width, parameters->height, BK_IMAGE_FORMAT_MJPEG, 1);
         if (ret != BK_OK)
         {
             LOGE("%s, decode_test_open failed, ret = %d\n", __func__, ret);
-            return ret;
+            goto err;
         }
         ret = doorbell_decode_get_handle(&info->decode_handle);
         if (ret != BK_OK)
         {
             LOGE("%s, doorbell_decode_get_handle failed, ret = %d\n", __func__, ret);
-            return ret;
+            goto err;
         }
         ret = doorbell_h264_encode_open(parameters->width, parameters->height);
         if (ret != BK_OK)
         {
             LOGE("%s, h264_encode_open failed, ret = %d\n", __func__, ret);
-            return ret;
+            goto err;
         }
 
         ret = doorbell_h264_encode_get_handle(&info->encode_handle);
         if (ret != BK_OK)
         {
             LOGE("%s, doorbell_h264_encode_get_handle failed, ret = %d\n", __func__, ret);
-            return ret;
+            goto err;
         }
 
         LOGI("%s %d decode_handle = %p, encode_handle = %p\r\n", __func__, __LINE__, info->decode_handle, info->encode_handle);
@@ -201,14 +260,14 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
         if (ret != BK_OK)
         {
             LOGE("%s, bk_flexa_mjpegd_h264e_bond_start failed, ret = %d\n", __func__, ret);
-            return ret;
+            goto err;
         }
 
         if (info->gpu_handle != NULL) {
             ret = bk_flexa_mjpegd_gpu_bond_start(&info->gpu_bond, info->decode_handle, info->gpu_handle);
             if (ret != BK_OK) {
                 LOGE("%s, bk_flexa_mjpegd_gpu_bond_start failed, ret = %d\n", __func__, ret);
-                return ret;
+                goto err;
             }
         }
 #endif
@@ -220,7 +279,7 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
         if (ret != BK_OK)
         {
             LOGE("app_isp_mipi_camera_turn_on failed\n");
-            return ret;
+            goto err;
         }
 
         ret = devices_mgmt_set_display_source(DISPLAY_STREAM_ID_MIPI_CSI, NULL);
@@ -228,7 +287,7 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
         if (ret != BK_OK)
         {
             LOGE("devices_mgmt_set_display_source failed\n");
-            return ret;
+            goto err;
         }
 
         ret = app_h264e_turn_on();
@@ -236,32 +295,32 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
         if (ret != BK_OK)
         {
             LOGE("app_h264e_turn_on failed\n");
-            return ret;
+            goto err;
         }
 
         info->isp_handle = app_isp_handle_get();
         if (info->isp_handle == NULL) {
             LOGE("%s, app_isp_handle_get failed\n", __func__);
-            return ret;
+            goto err;
         }
 
         info->encode_handle = app_h264_encode_handle_get();
         if (info->encode_handle == NULL) {
             LOGE("%s, app_h264_encode_handle_get failed\n", __func__);
-            return ret;
+            goto err;
         }
 
         ret = bk_flexa_isp_h264e_bond_start(&info->h264e_bond, info->isp_handle, info->encode_handle);
         if (ret != BK_OK) {
             LOGE("%s, bk_flexa_isp_bond_start failed, ret = %d\n", __func__, ret);
-            return ret;
+            goto err;
         }
 
         if (info->gpu_handle != NULL) {
             ret = bk_flexa_isp_gpu_bond_start(&info->gpu_bond, info->isp_handle, info->gpu_handle);
             if (ret != BK_OK) {
                 LOGE("%s, bk_flexa_isp_gpu_bond_start failed, ret = %d\n", __func__, ret);
-                return ret;
+                goto err;
             }
         }
 
@@ -270,13 +329,21 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
     if (ret != BK_OK)
     {
         LOGE("%s, camera turn on failed, ret = %d\n", __func__, ret);
-        return ret;
+        goto err;
     }
 
     info->video_enable = true;
 
     LOGD("%s success\n", __func__);
 
+    return BK_OK;
+
+err:
+    ret = bk_camera_auxldo_enable(false);
+    if (ret != BK_OK)
+    {
+        LOGE("%s(%d), bk_camera_auxldo_enable failed, ret = %d\n", __func__, __LINE__, ret);
+    }
     return ret;
 }
 
@@ -359,6 +426,7 @@ int doorbell_camera_turn_off(void)
     }
 
     info->video_enable = false;
+    bk_camera_auxldo_enable(false);
     LOGD("%s success\n", __func__);
 
     return ret;
@@ -494,6 +562,12 @@ int doorbell_display_turn_on(display_board_config_t *config)
         LOGE("%s, display_source id is invalid\n", __func__);
         return ret;
     }
+    ret = bk_display_auxldo_enable(true);
+    if (ret != BK_OK)
+    {
+        LOGE("%s %d failed, ret = %d\n", __func__, __LINE__, ret);
+        return ret;
+    }
     ret = app_mipi_lcd_turn_on(config);
     if (ret != BK_OK)
     {
@@ -575,6 +649,11 @@ error:
         LOGE("%s, app_mipi_lcd_turn_off failed, ret = %d\n", __func__, ret);
     }
     info->lcd_enable = false;
+    ret = bk_display_auxldo_enable(false);
+    if (ret != BK_OK)
+    {
+        LOGE("%s %d failed, ret = %d\n", __func__, __LINE__, ret);
+    }
     LOGD("%s failed\n", __func__);
     return BK_FAIL;
 }
@@ -606,7 +685,11 @@ int doorbell_display_turn_off(void)
     }
 
     info->lcd_enable = false;
-
+    ret = bk_display_auxldo_enable(false);
+    if (ret != BK_OK)
+    {
+        LOGE("%s %d failed, ret = %d\n", __func__, __LINE__, ret);
+    }
     LOGD("%s success\n", __func__);
 
     return ret;

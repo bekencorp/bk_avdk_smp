@@ -1006,10 +1006,10 @@ typedef enum
 
 typedef enum
 {
-	PM_AUXLDO_2P8V_USER_CAMERA =  0x1 << 0, /*1*< camera*/
-	PM_AUXLDO_2P8V_USER_DISPLAY = 0x1 << 1, /*2*< display*/
-	PM_AUXLDO_2P8V_USER_NONE   =  0x1 << 2, /*4*< none*/
-} pm_auxldo_2p8v_user_t;
+	PM_AUXLDO_USER_CAMERA =  0x1 << 0, /*1*< camera*/
+	PM_AUXLDO_USER_DISPLAY = 0x1 << 1, /*2*< display*/
+	PM_AUXLDO_USER_NONE   =  0x1 << 2, /*4*< none*/
+} pm_auxldo_user_t;
 
 typedef struct
 {
@@ -1028,7 +1028,7 @@ typedef struct
 {
 	auxldo_sel_t ldo;
 	pm_auxldo_enable_t state;
-	pm_auxldo_2p8v_user_t user;
+	pm_auxldo_user_t user;
 } pm_auxldo_enable_cfg_t;
 
 typedef struct
@@ -1036,7 +1036,7 @@ typedef struct
 	auxldo_sel_t ldo;
 	uint32_t out;
 	pm_auxldo_enable_t state;
-	pm_auxldo_2p8v_user_t user;
+	pm_auxldo_user_t user;
 } pm_auxldo_ctrl_cfg_t;
 
 

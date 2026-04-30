@@ -778,7 +778,7 @@ static void cli_pm_auxldo(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 	auxldo_cfg.ldo = (auxldo_sel_t)ldo;
 	auxldo_cfg.out = (uint32_t)out;
 	auxldo_cfg.state = (pm_auxldo_enable_t)state;
-	auxldo_cfg.user = (pm_auxldo_2p8v_user_t)user;
+	auxldo_cfg.user = (pm_auxldo_user_t)user;
 	bk_pm_auxldo_ctrl_vote(&auxldo_cfg);
 }
 #if (CONFIG_CPU_CNT > 2)

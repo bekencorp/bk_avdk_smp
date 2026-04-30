@@ -5,7 +5,9 @@
 #include <avdk_check.h>
 #include "display_dsi_bus_vn_ctlr.h"
 #include <driver/mipi_dsi.h>
+#include <sys_types.h>
 #include "sys_driver.h"
+#include <modules/pm.h>
 #define TAG "bk_dis_bus"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -23,6 +25,20 @@ static avdk_err_t bk_display_dsi_bus_enable(bk_display_bus_ctlr_t *controller)
     AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, "bus is NULL");
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_MIPI_DSI, PM_POWER_MODULE_STATE_ON);
 
+    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_2P8V;   ///dsi phy ldo
+    auxldo_cfg.out = PM_AUXLDO_2P8V_OUT_2P8V;
+    auxldo_cfg.state = PM_AUXLDO_ENABLE;
+    auxldo_cfg.user = PM_AUXLDO_USER_DISPLAY;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), (char *)TAG, "dsi 2p8v ldo on err");
+
+    auxldo_cfg = (pm_auxldo_ctrl_cfg_t){0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_3V;    //dpu ldo
+    auxldo_cfg.out = PM_AUXLDO_3V_OUT_2P8V;
+    auxldo_cfg.state = PM_AUXLDO_ENABLE;
+    auxldo_cfg.user = PM_AUXLDO_USER_DISPLAY;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), (char *)TAG, "dsi 3v ldo on err");
+
     AVDK_RETURN_ON_ERROR(mipi_dsi_bus_register(NULL, &bus->dsi_handle), (char *)TAG, "mipi dsi io enable err");
 
     return AVDK_ERR_OK;
@@ -30,6 +46,20 @@ static avdk_err_t bk_display_dsi_bus_enable(bk_display_bus_ctlr_t *controller)
 
 static avdk_err_t bk_display_dsi_bus_disable(bk_display_bus_ctlr_t *controller)
 {
+    AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+
+    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_2P8V;   ///dsi phy ldo
+    auxldo_cfg.out = PM_AUXLDO_2P8V_OUT_2P8V;
+    auxldo_cfg.state = PM_AUXLDO_DISABLE;
+    auxldo_cfg.user = PM_AUXLDO_USER_DISPLAY;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), (char *)TAG, "dsi 2p8v ldo off err");
+
+    auxldo_cfg.ldo = AUXLDOS_SEL_3V;    //dpu ldo
+    auxldo_cfg.out = PM_AUXLDO_3V_OUT_2P8V;
+    auxldo_cfg.state = PM_AUXLDO_DISABLE;
+    auxldo_cfg.user = PM_AUXLDO_USER_DISPLAY;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), (char *)TAG, "dsi 3v ldo off err");
 
     return AVDK_ERR_OK;
 }
