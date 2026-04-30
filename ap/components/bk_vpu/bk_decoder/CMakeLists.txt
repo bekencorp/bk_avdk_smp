@@ -1,6 +1,7 @@
 set(incs ./
     common
     jpegd/include
+    h264d/include
 )
 
 set(srcs "")
@@ -17,6 +18,9 @@ if (CONFIG_BK_DECODER)
         jpegd/src/bk_jpeg_decode_frame_ctlr.c
         jpegd/src/bk_jpeg_decode_flexa_ctlr.c
         jpegd/src/bk_jpeg_decode_utils.c
+        h264d/src/bk_h264_decode.c
+        h264d/src/bk_h264_decode_frame_ctlr.c
+        h264d/src/bk_h264_decode_flexa_ctlr.c
     )
 endif()
 

@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include "h264_decode_stream_1280x720.h"
 
 /*
  * Embedded 1280x720 Annex-B H.264 elementary stream for decode stress test.

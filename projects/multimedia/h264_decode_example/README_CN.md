@@ -4,13 +4,14 @@
 
 ## 1. 项目概述
 
-本工程用于演示 Beken 平台上的 H264 解码流程，当前主要包含三类使用方式：
+本工程用于演示 Beken 平台上的 H264 解码流程，当前主要包含以下几类使用方式：
 
-- 基础 H264 解码 CLI：`h264_decode`
-- 独立 FLEXA 解码示例：`h264_decode_flexa_test`
+- 传统 H264D CLI：`h264_decode h264d` / `h264_decode h264d_flexa`
+- 基于 `bk_decoder` 的 VCDEC CLI：`h264_decode vcdec_h264d` / `h264_decode vcdec_h264d_flexa`
+- 直接寄存器路径 VCDEC CLI：`vcdec_h264_driver`
 - 带 DMA 压力的循环解码测试：`h264_decode_stress`
 
-和 `jpeg_decode_example` 不同，当前 `h264_decode_example` 的 `main()` 仅负责初始化和注册 CLI，不会在开机时自动启动解码测试。所有测试都需要通过串口手动触发。
+当前 `main()` 除了初始化和注册 CLI 外，在使能 `CONFIG_BK_DECODER` 时还会自动创建 boot demo 线程，按顺序执行一次 `vcdec_h264_flexa_test` 和 `vcdec_h264_test`。本工程默认 `defconfig` 已开启 `CONFIG_BK_DECODER`。
 
 * 有关 H264 解码的详细信息，请参阅：
 
@@ -43,17 +44,23 @@ h264_decode_example/
 ├── ap/
 │   ├── ap_main.c                           # AP 主入口，注册 h264 相关 CLI
 │   ├── h264_decode/
+│   │   ├── common/
+│   │   │   ├── h264_decode_stream_1280x720.c
+│   │   │   └── h264_decode_stream_256x128.c
 │   │   ├── include/
-│   │   └── src/h264_decode_cli.c          # h264_decode CLI 实现
+│   │   └── src/
+│   │       ├── h264_decode_cli.c          # h264_decode CLI 实现
+│   │       ├── h264_decode_flexa_test.c   # 传统 FLEXA CLI 示例
+│   │       ├── vcdec_h264_driver_test.c   # 直接寄存器 VCDEC CLI
+│   │       └── vcdec_h264_test.c          # bk_decoder VCDEC 示例与 boot demo
 │   └── h264_decode_stress/
 │       ├── include/
 │       └── src/
-│           ├── h264_decode_flexa_test.c   # 独立 FLEXA 示例
 │           ├── h264_decode_stress.c       # H264 解码压力测试
 │           └── h264_decode_stress_stream.c
 ├── cp/
 ├── partitions/
-└── pj_config.mk
+└── .it.csv
 ```
 
 ## 3. 功能说明
@@ -62,8 +69,11 @@ h264_decode_example/
 
 - `h264_decode h264d`：执行普通 H264 解码示例
 - `h264_decode h264d_flexa`：执行 H264 FLEXA 解码示例
-- `h264_decode_flexa_test start`：运行独立 FLEXA 线程示例
+- `h264_decode vcdec_h264d [1280x720|256x128]`：执行基于 `bk_decoder` 的 VCDEC 帧模式解码
+- `h264_decode vcdec_h264d_flexa [1280x720|256x128]`：执行基于 `bk_decoder` 的 VCDEC FLEXA 解码
+- `vcdec_h264_driver frame|flexa [1280x720|256x128]`：执行直接寄存器 VCDEC 解码验证
 - `h264_decode_stress`：执行循环解码压力测试，并可叠加 DMA 压力
+- 上电后自动 boot demo：在 `CONFIG_BK_DECODER=y` 时自动执行一次 `vcdec_h264_flexa_test(1280x720)` 和 `vcdec_h264_test(1280x720)`
 
 ## 4. 编译与运行
 
@@ -75,7 +85,7 @@ make bk7259 PROJECT=multimedia/h264_decode_example
 
 ### 4.2 运行方式
 
-烧录固件后，通过串口终端手动输入命令触发测试。
+烧录固件后，若 `CONFIG_BK_DECODER=y`，系统会上电自动触发一次 VCDEC boot demo；其余测试可通过串口终端手动输入命令触发。
 
 #### 4.2.1 CLI 命令列表
 
@@ -85,12 +95,19 @@ make bk7259 PROJECT=multimedia/h264_decode_example
 h264_decode help
 h264_decode h264d
 h264_decode h264d_flexa
+h264_decode vcdec_h264d
+h264_decode vcdec_h264d 256x128
+h264_decode vcdec_h264d_flexa
+h264_decode vcdec_h264d_flexa 256x128
 ```
 
-独立 FLEXA 示例命令：
+直接寄存器 VCDEC 命令：
 
 ```text
-h264_decode_flexa_test start
+vcdec_h264_driver frame
+vcdec_h264_driver frame 256x128
+vcdec_h264_driver flexa
+vcdec_h264_driver flexa 256x128
 ```
 
 压力测试命令：
@@ -123,15 +140,32 @@ CMDRSP:ERROR
 
 #### 4.2.2 如何判断测试成功或失败
 
-`CMDRSP:OK` 仅表示 CLI 成功创建任务，不代表测试已经通过。当前 H264 示例没有统一的 `[RESULT][PASS]` 结果行，需要结合日志判断。
+`CMDRSP:OK` 仅表示 CLI 成功创建任务，不代表测试已经通过。不同路径的通过标志如下：
 
 通常可按以下方式判断：
 
 - `h264_decode h264d`
   - 提交后无立即报错，且解码流程持续输出正常日志
-- `h264_decode h264d_flexa` / `h264_decode_flexa_test start`
+- `h264_decode h264d_flexa`
   - 无 `h264_decoder_init failed`、`h264_decoder_decode failed` 等错误日志
   - 运行结束时可看到 `exit h264_decode_flexa_test`
+- `h264_decode vcdec_h264d` / `h264_decode vcdec_h264d_flexa`
+  - 运行结束时可看到类似如下结果行：
+
+```text
+[RESULT][PASS] vcdec_h264_test success, decoded_aus=..., rounds=...
+[RESULT][PASS] vcdec_h264_flexa_test success, decoded_aus=..., rounds=...
+```
+
+- `vcdec_h264_driver frame` / `vcdec_h264_driver flexa`
+  - 运行过程中无 `vcdec_h264_* failed`、`unexpected output size`、`all decoded outputs sampled as zero` 等错误日志
+  - 运行结束时可看到类似如下结果行：
+
+```text
+vcdec h264 frame test PASS: stream=1280x720 aus=... frame_cb=... flexa_cb=... last_wr=...
+vcdec_h264_test_thread exit, mode=frame stream=1280x720 ret=0
+```
+
 - `h264_decode_stress`
   - 运行过程中无分配失败、初始化失败或解码失败日志
   - 执行 `h264_decode_stress stop` 后可看到类似如下退出日志：
@@ -145,14 +179,19 @@ h264 decode stress thread exit, rounds=123 stop=1
 ```text
 h264_decoder_init failed, ret=...
 h264_decoder_decode failed at round=... ret=...
+vcdec_h264_decode_frame failed, ret=...
+vcdec_h264_get_info failed, au=...
+unexpected output size ... expect ...
+all decoded outputs sampled as zero
 failed to allocate ... buffer
 psram_dma_stress_start failed, ret=...
 ```
 
 ## 5. 注意事项
 
-1. 当前 `h264_decode` CLI 实际仅支持 `h264d` 和 `h264d_flexa` 两个子命令，请以源码中的参数解析逻辑为准。
-2. `h264_decode`、`h264_decode_flexa_test`、`h264_decode_stress` 都通过独立线程运行测试，避免阻塞 CLI 线程。
+1. 当前 `h264_decode` CLI 实际支持 `h264d`、`h264d_flexa`，以及在 `CONFIG_BK_DECODER` 使能时支持 `vcdec_h264d`、`vcdec_h264d_flexa`；后两者可额外携带 `1280x720` 或 `256x128` 码流参数。
+2. `h264_decode`、`vcdec_h264_driver`、`h264_decode_stress` 以及上电 boot demo 都通过独立线程运行测试，避免阻塞 CLI 线程。
 3. `h264_decode_stress start [dma_copy_size_kb]` 中的可选参数单位为 KB。
-4. 压力测试会额外申请输出缓冲区、码流缓冲区以及 DMA 压测缓冲区，运行前请确认系统有足够内存。
-5. 如果需要查看统一的 `[RESULT][PASS/FAIL]` 风格日志，请参考 `jpeg_decode_example` 中的 `vcdec` JPEG 示例。
+4. `vcdec_h264_driver` 与 `h264_decode vcdec_h264d*` 路径都内置了 `1280x720` 和 `256x128` 两组码流；不带参数时默认使用 `1280x720`。
+5. 压力测试会额外申请输出缓冲区、码流缓冲区以及 DMA 压测缓冲区，运行前请确认系统有足够内存。
+6. `bk7259_ap` 默认配置已开启 `CONFIG_BK_DECODER=y`，因此首次上电时会自动输出一轮 VCDEC boot demo 日志。

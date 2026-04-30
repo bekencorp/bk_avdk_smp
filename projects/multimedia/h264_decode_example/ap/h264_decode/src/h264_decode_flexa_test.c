@@ -6,9 +6,7 @@
 #include <components/log.h>
 #include "h264_decoder_api.h"
 #include "h264_decode_flexa_test.h"
-
-extern const uint8_t h264_decode_stream_1280x720[];
-extern const uint32_t h264_decode_stream_1280x720_bytes;
+#include "h264_decode_stream_1280x720.h"
 
 #define TAG "h264d_flexa"
 
@@ -274,12 +272,12 @@ exit_thread:
     rtos_delete_thread(NULL);
 }
 
-void cli_h264_decode_flexa_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+void cli_h264_decode_flexa_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
     bk_err_t ret = BK_OK;
 
     if (argc != 2 || os_strcmp(argv[1], "start") != 0) {
-        LOGE("usage: h264_decode_flexa_test start\n");
+        LOGE("usage: h264_decode_flexa start\n");
         h264d_flexa_cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
         return;
     }

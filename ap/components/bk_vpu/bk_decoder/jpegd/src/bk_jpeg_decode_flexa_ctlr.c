@@ -328,6 +328,7 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
     ctrl->decode_config.segment_number = seg_num;
 
     hw_decoder_msg_t msg = {
+        .decoder_type = HW_DECODER_TYPE_JPEG,
         .type = HW_DECODER_MSG_DECODE,
         .callback = jpeg_decode_callback,
         .param = ctrl,

@@ -4,13 +4,14 @@
 
 ## 1. Project Overview
 
-This project demonstrates H264 decoding on the Beken platform. The current implementation provides three main usage paths:
+This project demonstrates H264 decoding on the Beken platform. The current implementation provides the following usage paths:
 
-- Basic H264 decode CLI: `h264_decode`
-- Standalone FLEXA decode demo: `h264_decode_flexa_test`
+- Legacy H264D CLI: `h264_decode h264d` / `h264_decode h264d_flexa`
+- VCDEC CLI based on `bk_decoder`: `h264_decode vcdec_h264d` / `h264_decode vcdec_h264d_flexa`
+- Direct-register VCDEC CLI: `vcdec_h264_driver`
 - Loop decode stress test with optional DMA pressure: `h264_decode_stress`
 
-Unlike `jpeg_decode_example`, the current `h264_decode_example` `main()` only performs initialization and CLI registration. It does not start any decode test automatically at boot. All tests are triggered manually from the serial console.
+In addition to initialization and CLI registration, the current `main()` also starts a boot demo thread when `CONFIG_BK_DECODER` is enabled. That boot demo runs `vcdec_h264_flexa_test` once and then `vcdec_h264_test` once. The default project `defconfig` enables `CONFIG_BK_DECODER`.
 
 * For more details about H264 decoding, refer to:
 
@@ -42,17 +43,23 @@ h264_decode_example/
 ├── ap/
 │   ├── ap_main.c                           # AP entry, registers H264-related CLI commands
 │   ├── h264_decode/
+│   │   ├── common/
+│   │   │   ├── h264_decode_stream_1280x720.c
+│   │   │   └── h264_decode_stream_256x128.c
 │   │   ├── include/
-│   │   └── src/h264_decode_cli.c          # h264_decode CLI implementation
+│   │   └── src/
+│   │       ├── h264_decode_cli.c          # h264_decode CLI implementation
+│   │       ├── h264_decode_flexa_test.c   # Legacy FLEXA CLI example
+│   │       ├── vcdec_h264_driver_test.c   # Direct-register VCDEC CLI
+│   │       └── vcdec_h264_test.c          # bk_decoder VCDEC examples and boot demo
 │   └── h264_decode_stress/
 │       ├── include/
 │       └── src/
-│           ├── h264_decode_flexa_test.c   # Standalone FLEXA example
 │           ├── h264_decode_stress.c       # H264 decode stress test
 │           └── h264_decode_stress_stream.c
 ├── cp/
 ├── partitions/
-└── pj_config.mk
+└── .it.csv
 ```
 
 ## 3. Features
@@ -61,8 +68,11 @@ h264_decode_example/
 
 - `h264_decode h264d` for normal H264 decode demo
 - `h264_decode h264d_flexa` for H264 FLEXA decode demo
-- `h264_decode_flexa_test start` for a dedicated FLEXA demo thread
+- `h264_decode vcdec_h264d [1280x720|256x128]` for VCDEC frame-mode decode based on `bk_decoder`
+- `h264_decode vcdec_h264d_flexa [1280x720|256x128]` for VCDEC FLEXA decode based on `bk_decoder`
+- `vcdec_h264_driver frame|flexa [1280x720|256x128]` for direct-register VCDEC verification
 - `h264_decode_stress` for loop decode stress with optional DMA pressure
+- Automatic boot demo: when `CONFIG_BK_DECODER=y`, the firmware automatically runs `vcdec_h264_flexa_test(1280x720)` and `vcdec_h264_test(1280x720)` once after boot
 
 ## 4. Build And Run
 
@@ -74,7 +84,7 @@ make bk7259 PROJECT=multimedia/h264_decode_example
 
 ### 4.2 Run
 
-After flashing the firmware, trigger tests manually from the serial console.
+After flashing the firmware, if `CONFIG_BK_DECODER=y`, the system automatically triggers one VCDEC boot demo at startup. Other tests can be triggered manually from the serial console.
 
 #### 4.2.1 CLI Command List
 
@@ -84,12 +94,19 @@ Basic decode commands:
 h264_decode help
 h264_decode h264d
 h264_decode h264d_flexa
+h264_decode vcdec_h264d
+h264_decode vcdec_h264d 256x128
+h264_decode vcdec_h264d_flexa
+h264_decode vcdec_h264d_flexa 256x128
 ```
 
-Standalone FLEXA demo command:
+Direct-register VCDEC commands:
 
 ```text
-h264_decode_flexa_test start
+vcdec_h264_driver frame
+vcdec_h264_driver frame 256x128
+vcdec_h264_driver flexa
+vcdec_h264_driver flexa 256x128
 ```
 
 Stress-test commands:
@@ -122,15 +139,32 @@ CMDRSP:ERROR
 
 #### 4.2.2 How To Judge Pass Or Fail
 
-`CMDRSP:OK` only means the CLI created the worker task successfully. The current H264 demos do not print a unified `[RESULT][PASS]` line, so the outcome must be judged from the task logs.
+`CMDRSP:OK` only means the CLI created the worker task successfully. Pass criteria depend on the path being tested:
 
 Typical guidance:
 
 - `h264_decode h264d`
   - No immediate CLI error, and the decode flow keeps running normally
-- `h264_decode h264d_flexa` / `h264_decode_flexa_test start`
+- `h264_decode h264d_flexa`
   - No error such as `h264_decoder_init failed` or `h264_decoder_decode failed`
   - The task reaches `exit h264_decode_flexa_test`
+- `h264_decode vcdec_h264d` / `h264_decode vcdec_h264d_flexa`
+  - The run ends with logs like:
+
+```text
+[RESULT][PASS] vcdec_h264_test success, decoded_aus=..., rounds=...
+[RESULT][PASS] vcdec_h264_flexa_test success, decoded_aus=..., rounds=...
+```
+
+- `vcdec_h264_driver frame` / `vcdec_h264_driver flexa`
+  - No error such as `vcdec_h264_* failed`, `unexpected output size`, or `all decoded outputs sampled as zero`
+  - The run ends with logs like:
+
+```text
+vcdec h264 frame test PASS: stream=1280x720 aus=... frame_cb=... flexa_cb=... last_wr=...
+vcdec_h264_test_thread exit, mode=frame stream=1280x720 ret=0
+```
+
 - `h264_decode_stress`
   - No allocation/init/decode failure log is printed while running
   - After `h264_decode_stress stop`, the task exits with a log like:
@@ -144,14 +178,19 @@ Common failure logs include:
 ```text
 h264_decoder_init failed, ret=...
 h264_decoder_decode failed at round=... ret=...
+vcdec_h264_decode_frame failed, ret=...
+vcdec_h264_get_info failed, au=...
+unexpected output size ... expect ...
+all decoded outputs sampled as zero
 failed to allocate ... buffer
 psram_dma_stress_start failed, ret=...
 ```
 
 ## 5. Notes
 
-1. The current `h264_decode` CLI parser only accepts `h264d` and `h264d_flexa`. Use the actual parser behavior in source code as the reference.
-2. `h264_decode`, `h264_decode_flexa_test`, and `h264_decode_stress` all run tests in dedicated worker threads to avoid blocking the CLI thread.
+1. The current `h264_decode` CLI supports `h264d`, `h264d_flexa`, and, when `CONFIG_BK_DECODER` is enabled, also `vcdec_h264d` and `vcdec_h264d_flexa`. The latter two optionally accept `1280x720` or `256x128` as stream arguments.
+2. `h264_decode`, `vcdec_h264_driver`, `h264_decode_stress`, and the boot demo all run in dedicated worker threads to avoid blocking the CLI thread.
 3. The optional argument of `h264_decode_stress start [dma_copy_size_kb]` is in KB.
-4. The stress path allocates extra output, stream, and DMA buffers, so sufficient memory is required.
-5. If you need a demo with unified `[RESULT][PASS/FAIL]` logs, refer to the `vcdec` JPEG demos in `jpeg_decode_example`.
+4. Both `vcdec_h264_driver` and `h264_decode vcdec_h264d*` include two built-in streams: `1280x720` and `256x128`. If no stream argument is given, they default to `1280x720`.
+5. The stress path allocates extra output, stream, and DMA buffers, so sufficient memory is required.
+6. The default `bk7259_ap` configuration enables `CONFIG_BK_DECODER=y`, so a VCDEC boot demo log is expected on first boot.

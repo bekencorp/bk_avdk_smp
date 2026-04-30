@@ -23,6 +23,8 @@ extern "C" {
 
 typedef enum {
 	HW_DECODER_TYPE_JPEG,
+	HW_DECODER_TYPE_H264,
+	HW_DECODER_TYPE_MAX,
 } hw_decoder_type_t;
 
 typedef enum {
@@ -34,6 +36,7 @@ typedef enum {
 typedef avdk_err_t (*hw_decoder_msg_cb_t)(void *param);
 
 typedef struct {
+	hw_decoder_type_t decoder_type;
 	hw_decoder_msg_type_t type;
 	hw_decoder_msg_cb_t callback;
 	void *param;
@@ -43,6 +46,7 @@ typedef struct {
 avdk_err_t hw_decoder_register(hw_decoder_type_t type, void *decoder_id);
 avdk_err_t hw_decoder_unregister(void *decoder_id);
 avdk_err_t hw_decoder_send_msg(hw_decoder_msg_t *msg, uintptr_t timeout);
+hw_decoder_type_t hw_decoder_get_active_decoder_type(void);
 
 #ifdef __cplusplus
 }

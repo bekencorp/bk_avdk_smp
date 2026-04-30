@@ -5,6 +5,7 @@ if(CONFIG_MEDIA_SERVICE)
 
 list(APPEND srcs src/media_service.c
 	src/bk_flexa_mjpeg_bond.c
+	src/bk_flexa_h264d_bond.c
 	src/bk_flexa_isp_bond.c
 )
 
