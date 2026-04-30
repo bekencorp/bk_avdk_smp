@@ -284,6 +284,7 @@ typedef enum
 	PM_CLK_ID_DISP,     // 29
 	PM_CLK_ID_AUDIO,    // 30
 	PM_CLK_ID_WDG_CPU,  // 31
+	PM_CLK_ID_ENET,     // 32
 
 	PM_CLK_ID_NONE
 }pm_dev_clk_e;
@@ -465,6 +466,7 @@ typedef enum
 	PM_SLEEP_MODULE_NAME_LV_WAKEUP,\
 	PM_SLEEP_MODULE_NAME_BK_MODEM,\
 	PM_SLEEP_MODULE_NAME_MAILBOX,\
+	PM_SLEEP_MODULE_NAME_ENET,\
 }
 	/*Attention: ap/include/modules/pm.h also need add the vote*/
 
