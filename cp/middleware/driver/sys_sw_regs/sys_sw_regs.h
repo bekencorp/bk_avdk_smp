@@ -64,8 +64,6 @@ typedef struct {
 } riscv_usb_probe_t;
 
 #define BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID 0x41504844U
-#define BK_SYS_SW_REGS_FLASH_INIT_NOT_DONE 0U
-#define BK_SYS_SW_REGS_FLASH_INIT_DONE     1U
 
 typedef enum {
     BK_SYS_SW_REGS_AP_HEAP_SRAM = 0,
@@ -87,7 +85,6 @@ typedef union {
         volatile uint32_t psram_power_down; /**< PSRAM power-down flag */
         volatile uint32_t cp_reset_reason;  /**< CP reset reason code  */
         volatile uint32_t ap_reset_reason;  /**< AP reset reason code  */
-        volatile uint32_t flash_init_done;  /**< CP flash init completion flag */
         volatile riscv_usb_probe_t riscv_usb_probe; /**< AP/RISC-V USB host probe context */
         volatile ap_heap_dump_info_t ap_heap_dump[BK_SYS_SW_REGS_AP_HEAP_MAX]; /**< AP heap dump windows */
     };
@@ -122,12 +119,6 @@ uint32_t bk_sys_sw_regs_get_cp_reset_reason(void);
 uint32_t bk_sys_sw_regs_get_ap_reset_reason(void);
 
 /**
- * @brief Get the CP flash init completion flag.
- * @return Current value of flash_init_done.
- */
-uint32_t bk_sys_sw_regs_get_flash_init_done(void);
-
-/**
  * @brief Read the AP heap dump window for the selected heap pool.
  * @param id Heap pool identifier.
  * @param info Output buffer for the shared register contents.
@@ -156,12 +147,6 @@ void bk_sys_sw_regs_set_cp_reset_reason(uint32_t value);
  * @param value Value to write.
  */
 void bk_sys_sw_regs_set_ap_reset_reason(uint32_t value);
-
-/**
- * @brief Set the CP flash init completion flag.
- * @param value Value to write.
- */
-void bk_sys_sw_regs_set_flash_init_done(uint32_t value);
 
 /**
  * @brief Update the AP heap dump window for the selected heap pool.

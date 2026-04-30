@@ -38,7 +38,6 @@
 #include <driver/otp.h>
 #include <driver/pwr_clk.h>
 #include "bk_api_ipc.h"
-#include "sys_sw_regs.h"
 
 #if CONFIG_AON_PMU
 #include "aon_pmu_driver.h"
@@ -305,15 +304,7 @@ int driver_init(void) {
 	os_show_memory_config_info();
 
 #if CONFIG_FLASH
-	bk_sys_sw_regs_set_flash_init_done(BK_SYS_SW_REGS_FLASH_INIT_NOT_DONE);
-
-	if (bk_flash_driver_init() != BK_OK) {
-		BK_LOGE(NULL, "cp flash driver init failed\r\n");
-		return BK_FAIL;
-	}
-
-	
-	bk_sys_sw_regs_set_flash_init_done(BK_SYS_SW_REGS_FLASH_INIT_DONE);
+	bk_flash_driver_init();
 // #if CONFIG_FLASH_ORIGIN_API
 // 	extern int hal_flash_init();
 // 	hal_flash_init();

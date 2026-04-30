@@ -23,9 +23,7 @@
 #include "sdkconfig.h"
 #include <reset_reason.h>
 #include "cache.h"
-#include "cmsis_gcc.h"
 #include <driver/psram.h>
-#include "sys_sw_regs.h"
 
 #include "bk_arch.h"
 
@@ -128,14 +126,10 @@ void _soc_start(void)
     pm_hardware_init();
 
 #if CONFIG_AP_EMUBOOT
-// #if (CONFIG_PSRAM)
-//     bk_psram_init();
-//     is_psram_init_done = true;
-// #endif
-	bk_sys_sw_regs_ptr()->flash_init_done = BK_SYS_SW_REGS_FLASH_INIT_NOT_DONE;
-	__DMB();
-	flush_dcache((void *)&bk_sys_sw_regs_ptr()->flash_init_done, sizeof(bk_sys_sw_regs_ptr()->flash_init_done));
-	__DMB();
+#if (CONFIG_PSRAM)
+    bk_psram_init();
+    is_psram_init_done = true;
+#endif
 	bk_start_ap_system();
 #endif
 
