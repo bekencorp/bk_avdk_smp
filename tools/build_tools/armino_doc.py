@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Match
 
 class MarkdownToRST:
@@ -306,22 +307,19 @@ def build_lan_doc(doc_path, target, lan):
         if (target == 'bk7236' or target == 'bk7258'):
             copy_projects_doc(f'{lan_dir}/../../../../projects', f'{lan_dir}/examples/projects', lan)
 
-    os.chdir(lan_dir)
-
-    # clean build space
+    # clean build space (use absolute paths; no chdir so zh/en can build in parallel)
     run_cmd(f'rm -rf {doc_path}/{lan}/_build')
     run_cmd(f'rm -rf {doc_path}/{lan}/xml')
     run_cmd(f'rm -rf {doc_path}/{lan}/xml_in')
     run_cmd(f'rm -rf {doc_path}/{lan}/man')
     run_cmd(f'rm -rf {doc_path}/{lan}/__pycache__')
 
-    p = run_cmd(f'make arminodocs -j32')
+    p = run_cmd(f'make -C {lan_dir} arminodocs -j8')
     if p.returncode:
         print("make doc failed!")
-        exit(1)
-    run_cmd(f'mkdir -p ../build/{lan}')
-    run_cmd(f'cp -r _build/* ../build/{lan}')
-    os.chdir(doc_path)
+        raise RuntimeError(f"make arminodocs failed for {lan} ({lan_dir})")
+    run_cmd(f'mkdir -p {doc_path}/build/{lan}')
+    run_cmd(f'cp -r {lan_dir}/_build/* {doc_path}/build/{lan}/')
 
 def build_with_target(clean, target, doc_build_path):
     cur_dir_is_docs_dir = True
@@ -357,8 +355,13 @@ def build_with_target(clean, target, doc_build_path):
     if not os.path.exists(build_dir):
         run_cmd(f'mkdir -p {build_dir}')
 
-    build_lan_doc(DOCS_PATH, target, 'zh_CN')
-    build_lan_doc(DOCS_PATH, target, 'en')
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = {
+            pool.submit(build_lan_doc, DOCS_PATH, target, 'zh_CN'): 'zh_CN',
+            pool.submit(build_lan_doc, DOCS_PATH, target, 'en'): 'en',
+        }
+        for fut in as_completed(futures):
+            fut.result()
 
     if cur_dir_is_docs_dir == False:
         run_cmd(f'rm -rf {build_dir}/{target}')

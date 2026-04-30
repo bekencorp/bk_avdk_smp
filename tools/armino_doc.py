@@ -56,7 +56,7 @@ def latex_error_check(path):
 
 def build_armino_doc(source_path, dest_path, build_path, landir, version):
 	print("found souce: " + source_path + " dest: " + dest_path + " build: " + build_path)
-	command = "make -C " + source_path + " arminodocs -j32 " + "TARGET_DIR=" + dest_path + " TARGET_VERSION=" + version
+	command = "make -C " + source_path + " arminodocs -j8 " + "TARGET_DIR=" + dest_path + " TARGET_VERSION=" + version
 	print("\t" + command)
 
 
@@ -84,7 +84,7 @@ def build_armino_doc(source_path, dest_path, build_path, landir, version):
 
 def build_html(source_path, dest_path, build_path, landir):
 	print("found souce: " + source_path + " dest: " + dest_path + " build: " + build_path)
-	command = "make -C " + source_path + " arminodocs -j32 " + "TARGET_DIR=" + dest_path
+	command = "make -C " + source_path + " arminodocs -j8 " + "TARGET_DIR=" + dest_path
 	print("\t" + command)
 
 
@@ -170,10 +170,8 @@ def main(argv):
 	args = parser.parse_args()
 
 	root_path = os.getcwd()
-	if 'ARMINO_SOC' in os.environ:
-		soc_name = os.getenv('ARMINO_SOC')
-	else:
-		raise RuntimeError("not get soc name")
+	soc_name = os.environ.get('ARMINO_SOC', 'bk7259')
+	os.environ.setdefault('ARMINO_SOC', soc_name)
 	build_path = root_path + f"/build/doc/smp_doc"
 	if os.path.exists(build_path) == False:
 		os.makedirs(build_path, exist_ok=True)

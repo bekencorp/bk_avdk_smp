@@ -86,9 +86,10 @@ ifdef USE_LIBS_DETERMINED_MODE
 	export ARMINO_WRAPPER_NEW_PATH := /armino_avdk_smp
 endif
 
-# verify enable multithread build.
+# Jenkins: cap sub-make parallelism (override: BK_JENKINS_JOBS=8 make ...)
 ifdef BK_JENKINS_ID
-    MAKEFLAGS += -j2
+    BK_JENKINS_JOBS ?= 2
+    MAKEFLAGS += -j$(BK_JENKINS_JOBS)
 endif
 
 ifndef PRINT_SUMMARY
@@ -105,7 +106,9 @@ help:
 	@echo " make all - build all soc"
 	@echo " make clean - clean build"
 	@echo " make help - display this help info"
-	@echo " make doc - generate smp doc and cp doc and ap doc"
+	@echo " make doc - generate smp doc and cp doc and ap doc (parallel where possible)"
+	@echo " ccache: install ccache and set ARMINO_CCACHE_ENABLE=1 (auto if unset and ccache exists, see build.sh)"
+	@echo " Jenkins: set BK_JENKINS_JOBS to override default -j when BK_JENKINS_ID is set"
 	@echo " make ap_doc - generate ap doc"
 	@echo " make cp_doc - generate cp doc"
 	@echo " make smp_doc - generate smp doc"
@@ -186,6 +189,8 @@ ifneq ($(PRINT_SUMMARY), 0)
 	@cat $(build_summary)
 endif
 
+.PHONY: smp_doc ap_doc cp_doc doc
+
 ap_doc:
 	@make doc ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) -C $(ARMINO_AP_DIR)
 
@@ -193,9 +198,11 @@ cp_doc:
 	@make doc ARMINO_TOOLS_PATH=$(ARMINO_TOOLS_PATH) -C $(ARMINO_CP_DIR)
 
 smp_doc:
-	@python3 ./tools/armino_doc.py $(DOCS_PARAMTERS)
+	@ARMINO_SOC=$${ARMINO_SOC:-bk7259} ARMINO_AVDK_DIR=$(ARMINO_AVDK_DIR) python3 ./tools/armino_doc.py $(DOCS_PARAMTERS)
 
-doc: smp_doc ap_doc cp_doc
+# Run SMP / AP / CP doc in parallel (total wall time ~ max, not sum).
+doc:
+	+@$(MAKE) -j3 smp_doc ap_doc cp_doc
 
 # only build bootloader
 bootloader_build_script := $(ARMINO_AVDK_DIR)/tools/build_tools/build_process/bk_sdk/bl_build.py

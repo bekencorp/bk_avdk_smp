@@ -23,6 +23,11 @@ SDK_BUILD_DIR=$(dirname ${BUILD_DIR})
 ARMINO_TOOL=${ARMINO_TOOLS_DIR}/build_tools/armino
 BUILD_TARGET_PREFIX=${BUILD_TARGET:0:5}
 
+# Enable ccache when available; disable with ARMINO_CCACHE_ENABLE=0
+if [ -z "${ARMINO_CCACHE_ENABLE-}" ] && command -v ccache >/dev/null 2>&1; then
+	export ARMINO_CCACHE_ENABLE=1
+fi
+
 need_build_properties_lib=0
 need_build_soc=0
 need_clean=0
