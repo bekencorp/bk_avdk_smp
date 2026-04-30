@@ -369,5 +369,9 @@ extern int mp_do_startup(int heap_len);
 #endif
 #endif
     set_ap_startup_index(AP_EXIT_BK_INIT);
+#if CONFIG_ETH
+	app_eth_init();
+#endif
+
 	return 0;
 }
