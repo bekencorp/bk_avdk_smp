@@ -81,23 +81,24 @@ bk_err_t cif_power_up_host(void)
 
     if (cif_env.host_powerup == true)
     {
-        CTRL_IF_PS("cif_power_down_host host alread up, return\r\n");
+        CTRL_IF_PS("%s, host alread up, return\r\n",__func__);
         return BK_FAIL;
     }
     //cif_power_up_host_by_gpio();
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_CIF, PM_CPU_FRQ_480M);
     ret = cif_exit_sleep();
     cif_env.host_powerup = true;
+
     return ret;
 }
 bk_err_t cif_power_down_host(void)
 {
     if (cif_env.host_powerup == false)
     {
-        CTRL_IF_PS("cif_power_down_host host not up, return\r\n");
+        CTRL_IF_PS("%s, host not up, return\r\n",__func__);
         return BK_FAIL;
     }
-    bluetooth_controller_deinit_api();
+    //bluetooth_controller_deinit_api();
     //cif_power_down_host_by_gpio();
     cif_env.host_powerup = false;
     cif_env.host_wifi_init = false;
@@ -111,7 +112,7 @@ bk_err_t cif_exit_sleep(void)
 
     if (cif_env.cif_sleeping == false)
     {
-        CTRL_IF_PS("cif_exit_sleep no sleeping, return\r\n");
+        CTRL_IF_PS("%s, no sleeping, return\r\n",__func__);
         return BK_OK;
     }
 

@@ -3,7 +3,7 @@ set(srcs
     ap_main.c
     )
 
-set(priv_req  media_service multimedia)
+set(priv_req  media_service)
 
 if ("${ARMINO_SOC}" STREQUAL "bk7258")
 list(APPEND priv_req)

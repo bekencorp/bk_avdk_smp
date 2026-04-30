@@ -27,62 +27,14 @@ bk_err_t bk_lcd_panel_init(bk_avdk_lcd_panel_handle_t panel)
 bk_err_t bk_lcd_panel_del(bk_avdk_lcd_panel_handle_t panel)
 {
     AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
-    AVDK_RETURN_ON_FALSE(panel->del, BK_ERR_NOT_SUPPORT, TAG, "reset is not supported by this panel");
+    AVDK_RETURN_ON_FALSE(panel->del, BK_ERR_NOT_SUPPORT, TAG, "del is not supported by this panel");
     return panel->del(panel);
-}
-
-
-bk_err_t bk_lcd_panel_mirror(bk_avdk_lcd_panel_handle_t panel, bool mirror_x, bool mirror_y)
-{
-    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
-    AVDK_RETURN_ON_FALSE(panel->mirror, BK_ERR_NOT_SUPPORT, TAG, "mirror is not supported by this panel");
-    return panel->mirror(panel, mirror_x, mirror_y);
-}
-
-bk_err_t bk_lcd_panel_swap_xy(bk_avdk_lcd_panel_handle_t panel, bool swap_axes)
-{
-    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
-    AVDK_RETURN_ON_FALSE(panel->swap_xy, BK_ERR_NOT_SUPPORT, TAG, "swap_xy is not supported by this panel");
-    return panel->swap_xy(panel, swap_axes);
-}
-
-bk_err_t bk_lcd_panel_set_gap(bk_avdk_lcd_panel_handle_t panel, int x_gap, int y_gap)
-{
-    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
-    AVDK_RETURN_ON_FALSE(panel->set_gap, BK_ERR_NOT_SUPPORT, TAG, "set_gap is not supported by this panel");
-    return panel->set_gap(panel, x_gap, y_gap);
-}
-
-bk_err_t bk_lcd_panel_invert_color(bk_avdk_lcd_panel_handle_t panel, bool invert_color_data)
-{
-    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
-    AVDK_RETURN_ON_FALSE(panel->invert_color, BK_ERR_NOT_SUPPORT, TAG, "invert_color is not supported by this panel");
-    return panel->invert_color(panel, invert_color_data);
-}
-
-bk_err_t bk_lcd_panel_disp_on_off(bk_avdk_lcd_panel_handle_t panel, bool on_off)
-{
-    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
-    AVDK_RETURN_ON_FALSE(panel->disp_on_off, BK_ERR_NOT_SUPPORT, TAG, "disp_on_off is not supported by this panel");
-    return panel->disp_on_off(panel, on_off);
-}
-
-bk_err_t bk_lcd_panel_disp_off(bk_avdk_lcd_panel_handle_t panel, bool off)
-{
-    return bk_lcd_panel_disp_on_off(panel, !off);
-}
-
-bk_err_t bk_lcd_panel_disp_sleep(bk_avdk_lcd_panel_handle_t panel, bool sleep)
-{
-    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
-    AVDK_RETURN_ON_FALSE(panel->disp_sleep, BK_ERR_NOT_SUPPORT, TAG, "sleep is not supported by this panel");
-    return panel->disp_sleep(panel, sleep);
 }
 
 bk_err_t bk_lcd_panel_read_id(bk_avdk_lcd_panel_handle_t panel, uint32_t* id)
 {
     AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
-    AVDK_RETURN_ON_FALSE(panel->read_id, BK_ERR_NOT_SUPPORT, TAG, "sleep is not supported by this panel");
+    AVDK_RETURN_ON_FALSE(panel->read_id, BK_ERR_NOT_SUPPORT, TAG, "read_id is not supported by this panel");
     return panel->read_id(panel, id);
 }
 

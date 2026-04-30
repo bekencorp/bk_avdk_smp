@@ -78,13 +78,13 @@ void bk_audio_engine_asr_result_handle(void *p1, void *p2)
 
 #if CONFIG_BEKEN_KWS
     //LOGD("result : %s\n", result);
-    if (os_strcmp(result, "Hi Armino") == 0)
+    if (os_strcmp(result, "nihaobotong") == 0)
     {
-        LOGI("Armino\r\n");
+        LOGI("nihaobotong\r\n");
         asr_result = 1;
-    } else if ((os_strcmp(result, "Byebye") == 0))
+    } else if ((os_strcmp(result, "zaijianbotong") == 0))
     {
-        LOGI("%s \n", "Byebye");
+        LOGI("%s \n", "zaijianbotong");
         asr_result = 2;
     } else if (os_strcmp(result, "Play Music") == 0)
     {

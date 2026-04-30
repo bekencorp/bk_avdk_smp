@@ -25,6 +25,7 @@
 #include <components/bk_encode/bk_h264_encode_ctlr.h>
 #include <lcd/lcd_hx8399c_mipi_1080x1920.h>
 #include <lcd/lcd_hx8394f_mipi_720x1280.h>
+
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
@@ -45,6 +46,7 @@ void cli_doorbell_asr_turn_off(void);
 #define GET_PPI(value)     get_ppi_from_cmd(argc, argv, value)
 #define GET_NAME(value)    get_name_from_cmd(argc, argv, value)
 #define GET_ROTATE()    get_rotate_from_cmd(argc, argv)
+
 
 //isp open [mipi|dvp|dual] [camera_width] [camera_height] [isp_output_width] [isp_output_height]
 //isp open mipi 1280 720 960 412
@@ -596,6 +598,14 @@ static void joint_test_mipi_lcd_on(void)
     app_mipi_lcd_turn_on(app_display_board_config_get());
 }
 
+/// @brief joint_test open mipi [720p|1080p] [fps] [h264e] | open uvc [h264e]
+/// @param pcWriteBuffer 
+/// @param xWriteBufferLen 
+/// @param argc 
+/// @param argv 
+/// ap_cmd joint_test open mipi 1080p 25
+//  ap_cmd joint_test open mipi 720p 30
+
 void cli_avdk_doorbell_joint_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
     avdk_err_t ret = AVDK_ERR_GENERIC;
@@ -604,15 +614,36 @@ void cli_avdk_doorbell_joint_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
     {
         if (argc >= 3 && argv[2] != NULL && os_strcmp(argv[2], "mipi") == 0) {
             bool want_h264e = false;
+            bool use_1080p = false;
+            uint16_t sensor_fps = 25;
             camera_board_config_t camera_board = {0};
             gpu_board_config_t gpu_board = {0};
 
-            if (argc >= 4) {
-                if (argv[3] == NULL || os_strcmp(argv[3], "h264e") != 0) {
-                    LOGE("Usage: joint_test open mipi [h264e]\n");
+            for (int i = 3; i < argc; ++i) {
+                if (argv[i] == NULL) {
+                    continue;
+                }
+
+                if (os_strcmp(argv[i], "h264e") == 0) {
+                    want_h264e = true;
+                    continue;
+                }
+
+                if (os_strcmp(argv[i], "720p") == 0) {
+                    use_1080p = false;
+                    continue;
+                }
+
+                if (os_strcmp(argv[i], "1080p") == 0) {
+                    use_1080p = true;
+                    continue;
+                }
+
+                sensor_fps = (uint16_t)os_strtoul(argv[i], NULL, 10);
+                if (sensor_fps == 0) {
+                    LOGE("Usage: joint_test open mipi [720p|1080p] [fps] [h264e]\n");
                     return;
                 }
-                want_h264e = true;
             }
 
             joint_test_mipi_lcd_on();
@@ -624,11 +655,22 @@ void cli_avdk_doorbell_joint_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
             camera_board.mipi.pin_reset = GPIO_71;
             camera_board.mipi.pin_pwdn = -1;
             camera_board.mipi.pin_xclk = GPIO_59;
-            camera_board.mipi.sensor_max_width = 1920;
-            camera_board.mipi.sensor_max_height = 1080;
-            camera_board.mipi.sensor_fps = 25;
-            camera_board.isp.mp_width = 1920;
-            camera_board.isp.mp_height = 1080;
+            if (use_1080p) {
+                camera_board.mipi.sensor_max_width = 1920;
+                camera_board.mipi.sensor_max_height = 1080;
+                camera_board.isp.mp_width = 1920;
+                camera_board.isp.mp_height = 1080;
+            } else {
+                camera_board.mipi.sensor_max_width = 1280;
+                camera_board.mipi.sensor_max_height = 720;
+                camera_board.isp.mp_width = 1280;
+                camera_board.isp.mp_height = 720;
+            }
+            camera_board.mipi.sensor_fps = sensor_fps;
+            LOGI("joint_test open mipi %s fps=%u h264e=%d\n",
+                 use_1080p ? "1080p" : "720p",
+                 camera_board.mipi.sensor_fps,
+                 want_h264e);
             camera_board.isp.mp_enable = true;
             camera_board.isp.mp_flexa = true;
             camera_board.isp.mp_format = BK_PIXEL_FORMAT_NV12;
@@ -671,13 +713,20 @@ void cli_avdk_doorbell_joint_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
                     return;
                 }
             }
-
-            gpu_board.flexa.src_width = 1920;
-            gpu_board.flexa.src_height = 1080;
-            gpu_board.flexa.dst_width = 1920;
-            gpu_board.flexa.dst_height = 1080;
+            if (use_1080p) {
+                gpu_board.flexa.src_width = 1920;
+                gpu_board.flexa.src_height = 1080;
+                gpu_board.flexa.dst_width = 1920;
+                gpu_board.flexa.dst_height = 1080;
+                gpu_board.flexa.scale = false;
+            } else {
+                gpu_board.flexa.src_width = 1280;
+                gpu_board.flexa.src_height = 720;
+                gpu_board.flexa.dst_width = 1920;
+                gpu_board.flexa.dst_height = 1080;
+                gpu_board.flexa.scale = true;
+            }
             gpu_board.flexa.degree = 90;
-            gpu_board.flexa.scale = false;
             gpu_board.flexa.enable = true;
             gpu_board.flexa.src_format = BK_PIXEL_FORMAT_NV12;
             gpu_board.flexa.dst_format = BK_PIXEL_FORMAT_ARGB8888;
@@ -798,7 +847,7 @@ void cli_avdk_doorbell_joint_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 #endif
             return;
         }
-        LOGE("Usage: joint_test open mipi|uvc [h264e]\n");
+        LOGE("Usage: joint_test open mipi [720p|1080p] [fps] [h264e] | open uvc [h264e]\n");
         return;
     }
     if (argc >= 2 && argv[1] != NULL && os_strcmp(argv[1], "close") == 0)
@@ -891,7 +940,7 @@ void cli_avdk_doorbell_joint_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
         test_hdma();
         return;
     }
-    LOGE("Usage: joint_test open mipi|uvc [h264e] | test | close uvc|mipi\n");
+    LOGE("Usage: joint_test open mipi [720p|1080p] [fps] [h264e] | open uvc [h264e] | test | close uvc|mipi\n");
 }
 
 
@@ -1053,7 +1102,7 @@ static const struct cli_command s_devices_cli_commands[] =
 {
     {"isp", "isp...", cli_avdk_doorbell_isp_cmd},
     {"display", "display...", cli_avdk_doorbell_display_cmd},
-    {"joint_test", "joint_test open mipi|uvc [h264e] | test | close uvc|mipi", cli_avdk_doorbell_joint_test_cmd},
+    {"joint_test", "joint_test open mipi [720p|1080p] [fps] [h264e] | open uvc [h264e] | test | close uvc|mipi", cli_avdk_doorbell_joint_test_cmd},
     {"uvc", "uvc...", cli_avdk_doorbell_uvc_cmd},
     {"doorbell", "doorbell...", cli_avdk_doorbell_cmd},
     {"audio", "audio...", cli_avdk_doorbell_audio_cmd},

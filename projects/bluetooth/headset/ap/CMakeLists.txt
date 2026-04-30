@@ -42,7 +42,7 @@ if (CONFIG_BT)
 		)
 endif()
 
-set(priv_req  bk_init media_service multimedia bk_cli audio_play audio_record lwip_intf_v2_1)
+set(priv_req  bk_init media_service bk_cli audio_play audio_record lwip_intf_v2_1)
 
 if ("${ARMINO_SOC}" STREQUAL "bk7258")
 list(APPEND priv_req)

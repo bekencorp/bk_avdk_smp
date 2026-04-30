@@ -1,6 +1,0 @@
-if (CONFIG_YUV_BUF)
-	list(APPEND incs yuv_buf)
-	list(APPEND srcs "yuv_buf/yuv_buf_driver.c")
-	set(incs ${incs} PARENT_SCOPE)
-	set(srcs ${srcs} PARENT_SCOPE)
-endif()

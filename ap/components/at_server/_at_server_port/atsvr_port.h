@@ -13,6 +13,8 @@
 #define AT_UART_PORT_CFG              	  1
 #elif (CONFIG_DEFAULT_AT_PORT == 2)
 #define AT_UART_PORT_CFG              	  2
+#elif (CONFIG_DEFAULT_AT_PORT == 5)
+#define AT_UART_PORT_CFG              	  5
 #endif
 
 

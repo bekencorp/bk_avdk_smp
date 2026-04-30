@@ -41,6 +41,10 @@
 #include <driver/otp.h>
 #include <driver/pwr_clk.h>
 #include "bk_rtos_debug.h"
+#if CONFIG_AP_EMUBOOT
+#include "bk_misc.h"
+#include "sys_sw_regs.h"
+#endif
 #if CONFIG_SARADC_MB
 #include "saradc_client.h"
 #endif
@@ -63,6 +67,28 @@
 
 #if CONFIG_EASY_FLASH
 #include "bk_ef.h"
+#endif
+
+#if CONFIG_FLASH && CONFIG_AP_EMUBOOT
+#define CP_FLASH_INIT_WAIT_TIMEOUT_US 5000000U
+#define CP_FLASH_INIT_WAIT_POLL_US    100U
+
+static bk_err_t wait_for_cp_flash_init_done(void)
+{
+	uint32_t waited_us = 0;
+
+	while (bk_sys_sw_regs_get_flash_init_done() != BK_SYS_SW_REGS_FLASH_INIT_DONE) {
+		if (waited_us >= CP_FLASH_INIT_WAIT_TIMEOUT_US) {
+			BK_LOGE(NULL, "wait cp flash init timeout\r\n");
+			return BK_FAIL;
+		}
+
+		bk_delay_us(CP_FLASH_INIT_WAIT_POLL_US);
+		waited_us += CP_FLASH_INIT_WAIT_POLL_US;
+	}
+
+	return BK_OK;
+}
 #endif
 
 #if ((CONFIG_SDIO_HOST) || (CONFIG_SDCARD))
@@ -95,10 +121,6 @@
 
 #if CONFIG_CHIP_SUPPORT
 #include "modules/chip_support.h"
-#endif
-
-#if CONFIG_YUV_BUF
-#include <driver/yuv_buf.h>
 #endif
 
 #if CONFIG_H264
@@ -309,7 +331,18 @@ int driver_init(void) {
 	os_show_memory_config_info();
 
 #if CONFIG_FLASH
+#if CONFIG_AP_EMUBOOT
+	if (wait_for_cp_flash_init_done() != BK_OK) {
+		return BK_FAIL;
+	}
+
+	if (bk_flash_driver_init() != BK_OK) {
+		BK_LOGE(NULL, "ap flash driver init failed\r\n");
+		return BK_FAIL;
+	}
+#else
 	bk_flash_driver_init();
+#endif
 #endif
 
 #if CONFIG_EASY_FLASH
@@ -342,10 +375,6 @@ int driver_init(void) {
 
 #if CONFIG_QSPI
 	bk_qspi_driver_init();
-#endif
-
-#if CONFIG_YUV_BUF
-	bk_yuv_buf_driver_init();
 #endif
 
 #if CONFIG_JPEGENC_HW

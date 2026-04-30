@@ -22,7 +22,16 @@ static bool s_adckey_inited_flag = 0;
 static adc_chan_t s_adc_chan2 = ADC_MAX;
 #endif
 
-static void adckey_adc_config(adc_chan_t chan)
+#define ADCKEY_ERR_LOG_INTERVAL        500
+#define ADCKEY_REINIT_INTERVAL_TICKS   200
+#define ADCKEY_REINIT_MAX_ATTEMPTS     0
+
+static bool s_adc_chan_ready = false;
+static uint32_t s_adc_err_count = 0;
+static uint32_t s_reinit_tick_counter = 0;
+static uint32_t s_reinit_attempts = 0;
+
+static bool adckey_try_adc_init(adc_chan_t chan)
 {
 	adc_config_t config = {0};
 	os_memset(&config, 0, sizeof(adc_config_t));
@@ -35,31 +44,80 @@ static void adckey_adc_config(adc_chan_t chan)
 	config.steady_ctrl= 7;
 	config.adc_filter = 0;
 
-	BK_LOG_ON_ERR(bk_adc_init(chan));
-	BK_LOG_ON_ERR(bk_adc_set_config(&config));
-	BK_LOG_ON_ERR(bk_adc_enable_bypass_clalibration());
+	if (bk_adc_init(chan) == BK_OK &&
+	    bk_adc_set_config(&config) == BK_OK &&
+	    bk_adc_enable_bypass_clalibration() == BK_OK) {
+		s_adc_chan_ready = true;
+		s_adc_err_count = 0;
+		ADC_KEY_LOGI("ADC chan %d init OK (attempt %d)\r\n",
+		             chan, s_reinit_attempts + 1);
+		return true;
+	}
+	return false;
 }
 
 uint32_t adc_key_get_gpio_voltage(adc_chan_t chan)
 {
 	uint32_t value = 0;
 	float cali_value = 0;
+	bk_err_t ret;
 
-	BK_LOG_ON_ERR(bk_adc_acquire());
-	BK_LOG_ON_ERR(bk_adc_start());
-	if(bk_adc_set_channel(chan)) {
-		BK_LOG_ON_ERR(bk_adc_release());
+	if (!s_adc_chan_ready) {
+		s_reinit_tick_counter++;
+		if (s_reinit_tick_counter >= ADCKEY_REINIT_INTERVAL_TICKS) {
+			s_reinit_tick_counter = 0;
+			s_reinit_attempts++;
+			if (ADCKEY_REINIT_MAX_ATTEMPTS == 0 ||
+			    s_reinit_attempts <= ADCKEY_REINIT_MAX_ATTEMPTS) {
+				if (adckey_try_adc_init(chan))
+					goto do_read;
+				ADC_KEY_LOGW("ADC reinit attempt %d failed\r\n",
+				             s_reinit_attempts);
+			}
+		}
 		return 9999;
 	}
-	bk_adc_read((uint16_t *)&value, 100);
+
+do_read:
+	ret = bk_adc_acquire();
+	if (ret != BK_OK)
+		goto err_out;
+
+	ret = bk_adc_start();
+	if (ret != BK_OK) {
+		bk_adc_release();
+		goto err_out;
+	}
+
+	ret = bk_adc_set_channel(chan);
+	if (ret != BK_OK) {
+		bk_adc_stop();
+		bk_adc_release();
+		goto err_out;
+	}
+
+	ret = bk_adc_read((uint16_t *)&value, 100);
+	if (ret != BK_OK) {
+		bk_adc_stop();
+		bk_adc_release();
+		goto err_out;
+	}
+
 	cali_value = ((float)value/4096*2)*1.2;
 	value = cali_value * 1000;
 
-	BK_LOG_ON_ERR(bk_adc_stop());
-	BK_LOG_ON_ERR(bk_adc_release());
+	bk_adc_stop();
+	bk_adc_release();
+	s_adc_err_count = 0;
 	ADC_KEY_LOGV("adc_key voltage chan=%d value=%dmv\r\n", chan, value);
-
 	return value;
+
+err_out:
+	s_adc_err_count++;
+	if (s_adc_err_count == 1 || (s_adc_err_count % ADCKEY_ERR_LOG_INTERVAL) == 0)
+		ADC_KEY_LOGW("adc_key read fail: ret=%d, err_count=%d\r\n",
+		             ret, s_adc_err_count);
+	return 9999;
 }
 
 /*
@@ -217,11 +275,15 @@ void bk_adc_key_init(gpio_id_t gpio_id, adc_chan_t adc_chan)
 
 	BK_LOG_ON_ERR(gpio_dev_unmap(gpio_id));
 	s_adc_chan = adc_chan;
-	adckey_adc_config(adc_chan);
+
+	if (!adckey_try_adc_init(adc_chan))
+		ADC_KEY_LOGW("ADC init deferred, will retry at runtime\r\n");
+
 	adc_key_configure();
 
 	s_adckey_inited_flag = 1;
-	ADC_KEY_LOGI("ADC key init: gpio=%d chan=%d\r\n", gpio_id, adc_chan);
+	ADC_KEY_LOGI("ADC key init: gpio=%d chan=%d ready=%d\r\n",
+	             gpio_id, adc_chan, s_adc_chan_ready);
 }
 
 static void adckey_unconfig(void)
@@ -480,7 +542,8 @@ void bk_adc_key_dual_init(void)
 
 	BK_LOG_ON_ERR(gpio_dev_unmap(ADC_KEY1_GPIO_ID));
 	s_adc_chan2 = ADC_KEY1_SADC_CHAN_ID;
-	adckey_adc_config(s_adc_chan2);
+	if (!adckey_try_adc_init(s_adc_chan2))
+		ADC_KEY_LOGW("ADC chan2 init deferred\r\n");
 	ADC_KEY_LOGI("Dual ADC key init: ch1_gpio=%d ch1_adc=%d, ch2_gpio=%d ch2_adc=%d\r\n",
 	             ADC_KEY1_GPIO_ID, ADC_KEY1_SADC_CHAN_ID,
 	             ADC_KEY2_GPIO_ID, ADC_KEY2_SADC_CHAN_ID);

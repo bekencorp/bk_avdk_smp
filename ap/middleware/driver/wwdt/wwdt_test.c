@@ -73,6 +73,7 @@ static void cli_wwdt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		if (argc > 4) {
 			win_val = os_strtoul(argv[4], NULL, 10);
 		}
+
 		BK_LOG_ON_ERR(bk_wwdt_start(timeout, (is_enable_window ? true : false), win_val));
 		CLI_LOGI("wwdt start, timeout=%d, is_enable_window:%d\n", timeout, is_enable_window);
 	} else if (os_strcmp(argv[1], "stop") == 0) {

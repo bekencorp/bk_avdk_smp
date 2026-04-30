@@ -71,7 +71,6 @@ list(APPEND srcs
 	"hal/aon_pmu_hal.c"
 	"hal/aon_pmu_hal_debug.c"
 	#"hal/sdio_hal_debug.c"
-	# "hal/yuv_buf_hal_debug.c"
 	"hal/qspi_hal_debug.c"
 	"hal/i2s_hal.c"
 	"hal/ckmn_hal_debug.c"

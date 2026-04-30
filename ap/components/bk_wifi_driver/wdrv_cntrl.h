@@ -27,6 +27,23 @@ extern "C" {
 #include <modules/wifi_types.h>
 #include "bk_wifi_private.h"
 
+#define MODEXP_MAX_LEN      192
+#define MODEXP_RESULT_CMD   0x100
+
+typedef struct {
+    uint16_t base_len;
+    uint16_t exp_len;
+    uint16_t mod_len;
+    uint16_t result_max_len;
+    uint8_t  data[MODEXP_MAX_LEN * 3];
+} __attribute__((packed)) ap_modexp_req_t;
+
+typedef struct {
+    int32_t  ret;
+    uint16_t result_len;
+    uint8_t  result[MODEXP_MAX_LEN];
+} __attribute__((packed)) ap_modexp_cfm_t;
+
 
 #define SSID_MAX_LEN                33     /**< Maximum **NULL-terminated** WiFi SSID length */
 #define PASSWORD_MAX_LEN            64     /**< Maximum **NULL-terminated** WiFi password length */
@@ -239,6 +256,7 @@ enum BK_CMD_TYPE
     BK_CMD_START_OTA           = 0x20A,
     BK_CMD_SEND_OTA_PKT        = 0x20B,
     BK_CMD_STOP_OTA            = 0x20C,
+    BK_CMD_MODEXP_RESULT       = 0x20D,
 
     BK_CMD_WIFI_API_START      = 0x300,
     BK_CMD_WIFI_API_END        = 0x5FF,
@@ -299,6 +317,7 @@ enum BK_EVENT_TYPE
     BK_EVT_CSI_INFO_IND         = 0xB,
     BK_EVT_ASSOC_GO_IND         = 0xC,
     BK_EVT_DISASSOC_GO_IND      = 0xD,
+    BK_EVT_MODEXP_REQ           = 0xE,
     // BLE event
     // BK_EVT_BLE_XX            = 0x101
 
@@ -353,7 +372,7 @@ typedef enum{
     CIFD_CMD_BLE_DATA_TO_APK             = 0x0001,
 
     CIFD_EVENT_BLE_DATA_TO_USER          = 0x1001,
-
+    CIFD_EVENT_KEEPALIVE_DISCONNECTION   = 0x1002,
 }CIFD_CMD_EVENT;
 
 typedef struct{
@@ -402,7 +421,6 @@ void wdrv_notify_sta_connected(void);
 void wdrv_notify_sta_got_ip(void);
 void bk_rx_handle_customer_event(void *data, uint16_t len);
 int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len);
-int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t * data, uint16_t len);
 void wdrv_notify_sta_disconnected(void *data, uint16_t len);
 void wdrv_notify_sap_sta_connected(void);
 void wdrv_notify_sta_got_ipv6(void);

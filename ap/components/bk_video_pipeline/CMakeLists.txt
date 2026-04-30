@@ -11,7 +11,7 @@ if (CONFIG_VIDEO_PIPELINE)
 
 endif()
 
-set(priv_req avdk_utils multimedia)
+set(priv_req avdk_utils)
 
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")

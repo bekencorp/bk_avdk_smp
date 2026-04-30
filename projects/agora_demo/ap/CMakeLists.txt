@@ -107,7 +107,7 @@ list(APPEND srcs
 endif()
 
 
-set(priv_req bk_network_provisioning media_service easy_flash bk_cli psa_mbedtls multimedia 
+set(priv_req bk_network_provisioning media_service easy_flash bk_cli psa_mbedtls
     key bk_common bk_init lwip_intf_v2_1 json agora-iot-sdk bk_vfs ota bk_batt_monitor bk_uid bk_pan
     bk_voice_service bk_player_service bk_asr_service)
 

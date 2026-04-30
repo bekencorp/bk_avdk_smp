@@ -642,8 +642,8 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
                     .max =  300000,
                 },
                 .againRange = {
-                    .min = 3 * 1024,
-                    .max = 1056 * 1024,
+                    .min = 64 * 1024,
+                    .max = 832 * 1024,
                 },
                 .dgainRange = {
                     .min = 1024,
@@ -661,25 +661,7 @@ const static ISP_CALIB_DATA_S GC2053_720P_CalibParam = {
                 .aeMode = AE_MODE_FIX_FRAME_RATE,
                 .gainThreshold = 1024,
                 .aeRoute = {
-                    .totalNum = 16,
-                    .routeNode = {
-                        {  100,   3 * 1024, 1024},  //Short exposure, minimum analog gain
-                        {  400,   3 * 1024, 1024},
-                        {  800,   3 * 1024, 1024},
-                        { 1600,   3 * 1024, 1024},
-                        { 3200,   3 * 1024, 1024},
-                        { 6400,   3 * 1024, 1024},
-                        {12800,   3 * 1024, 1024},
-                        {25600,   3 * 1024, 1024},
-                        {25600,   4 * 1024, 1024},
-                        {25600,   6 * 1024, 1024},
-                        {25600,   8 * 1024, 1024},
-                        {25600,  12 * 1024, 1024},
-                        {25600,  16 * 1024, 1024},
-                        {25600,  24 * 1024, 1024},
-                        {25600,  32 * 1024, 1024},
-                        {25600,  48 * 1024, 1024},
-                    },
+                    .totalNum = 0,
                 },
                 .aeDelayAttr = {
                     .blackDelayFrame = 0,

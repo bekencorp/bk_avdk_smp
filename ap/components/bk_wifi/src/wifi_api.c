@@ -33,6 +33,9 @@
 #include "wdrv_tx.h"
 #include "wifi_api_ipc.h"
 #include "wdrv_cntrl.h"
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+#include <components/netif.h>
+#endif
 #if CONFIG_NETIF_LWIP
 #include "lwip/inet.h"
 #include "net.h"
@@ -46,6 +49,12 @@ general_param_t *g_wlan_general_param = NULL;
 ap_param_t *g_ap_param_ptr = NULL;
 sta_param_t *g_sta_param_ptr = NULL;
 struct scan_cfg_scan_param_tag scan_param_env = {0};
+
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+static bk_err_t bk_wifi_sta_get_ip4_config_from_cp(netif_ip4_config_t *ip_config);
+static bk_err_t bk_wifi_ap_get_ip4_config_from_cp(netif_ip4_config_t *ip_config);
+bk_err_t bk_wifi_sync_ip4_config_from_cp(void);
+#endif
 
 static wifi_monitor_cb_t s_monitor_ap_cb = NULL;
 static wifi_filter_cb_t s_filter_ap_cb = NULL;
@@ -197,6 +206,10 @@ bk_err_t bk_wifi_init(void)
     bk_wifi_ap_get_mac((uint8_t *)mac);
     host_wlan_add_netif(mac);
 
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+    bk_wifi_sync_ip4_config_from_cp();
+#endif
+
     wifi_set_state_bit(WIFI_INIT_BIT);
     WDRV_LOGD("wifi inited(%x)\n", s_wifi_state_bits);
 
@@ -295,6 +308,149 @@ bk_err_t bk_wifi_ap_get_mac(uint8_t *mac)
 
     return ret;
 }
+
+#ifdef CONFIG_WIFI_VNET_CONTROLLER
+static bk_err_t bk_wifi_sta_get_ip4_config_from_cp(netif_ip4_config_t *ip_config)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
+
+    if (!ip_config)
+        return BK_ERR_NULL_PARAM;
+
+    buffer_to_ipc = os_malloc(len_ip4_config);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(buffer_to_ipc, 0, len_ip4_config);
+    ret = wifi_send_com_api_cmd(STA_GET_NETIF_IP4_CONFIG, 1, (uint32_t)buffer_to_ipc);
+    if (ret == BK_OK)
+    {
+        os_memcpy(ip_config, buffer_to_ipc, len_ip4_config);
+        if (ip_config->ip[0] != '\0' && os_strcmp(ip_config->ip, "0.0.0.0") != 0)
+        {
+            WDRV_LOGV("Got STA IP config from CP: %s/%s gw:%s dns:%s\r\n",
+                     ip_config->ip, ip_config->mask,
+                     ip_config->gateway, ip_config->dns);
+        }
+    }
+    else
+    {
+        WDRV_LOGE("Failed to get STA IP config from CP, ret=%d\r\n", ret);
+    }
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+static bk_err_t bk_wifi_ap_get_ip4_config_from_cp(netif_ip4_config_t *ip_config)
+{
+    bk_err_t ret = BK_OK;
+    void *buffer_to_ipc = NULL;
+    uint32_t len_ip4_config = sizeof(netif_ip4_config_t);
+
+    if (!ip_config)
+        return BK_ERR_NULL_PARAM;
+
+    buffer_to_ipc = os_malloc(len_ip4_config);
+    if (!buffer_to_ipc)
+    {
+        WIFI_LOGE("%s malloc failed\r\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    os_memset(buffer_to_ipc, 0, len_ip4_config);
+    ret = wifi_send_com_api_cmd(AP_GET_NETIF_IP4_CONFIG, 1, (uint32_t)buffer_to_ipc);
+    if (ret == BK_OK)
+    {
+        os_memcpy(ip_config, buffer_to_ipc, len_ip4_config);
+        if (ip_config->ip[0] != '\0' && os_strcmp(ip_config->ip, "0.0.0.0") != 0)
+        {
+            WDRV_LOGV("Got AP IP config from CP: %s/%s gw:%s dns:%s\r\n",
+                     ip_config->ip, ip_config->mask,
+                     ip_config->gateway, ip_config->dns);
+        }
+    }
+    else
+    {
+        WDRV_LOGE("Failed to get AP IP config from CP, ret=%d\r\n", ret);
+    }
+    os_free(buffer_to_ipc);
+
+    return ret;
+}
+
+bk_err_t bk_wifi_sync_ip4_config_from_cp(void)
+{
+    netif_ip4_config_t sta_ip_config = {0};
+    netif_ip4_config_t ap_ip_config = {0};
+    bk_err_t ret = BK_OK;
+
+    // Get STA IP config from CP
+    if (bk_wifi_sta_get_ip4_config_from_cp(&sta_ip_config) == BK_OK)
+    {
+        if (sta_ip_config.ip[0] != '\0' && os_strcmp(sta_ip_config.ip, "0.0.0.0") != 0)
+        {
+            // Reference the processing flow of EVENT_WIFI_STA_CONNECTED:
+            // 1. Disable DHCP and set static IP
+            // 2. Close STA interface
+            // 3. Set IP configuration
+            // 4. Start STA interface
+#if CONFIG_NETIF_LWIP
+            sta_ip_mode_set(0);
+            sta_ip_down();
+#endif
+
+            ret = bk_netif_set_ip4_config(NETIF_IF_STA, &sta_ip_config);
+            if (ret == BK_OK) {
+#if CONFIG_NETIF_LWIP
+                sta_ip_start();
+#endif
+                WDRV_LOGV("STA IP config synced from CP: %s/%s gw:%s dns:%s\r\n",
+                        sta_ip_config.ip, sta_ip_config.mask,
+                        sta_ip_config.gateway, sta_ip_config.dns);
+            } else {
+                WDRV_LOGE("Failed to set STA IP config, ret=%d\r\n", ret);
+            }
+        }
+    }
+
+    // Get AP IP config from CP
+    if (bk_wifi_ap_get_ip4_config_from_cp(&ap_ip_config) == BK_OK)
+    {
+        if (ap_ip_config.ip[0] != '\0' && os_strcmp(ap_ip_config.ip, "0.0.0.0") != 0)
+        {
+            // Reference the processing flow similar to STA:
+            // 1. Close AP interface if it's already started
+            // 2. Set IP configuration
+            // 3. Start AP interface
+#if CONFIG_NETIF_LWIP
+            if (uap_ip_is_start()) {
+                uap_ip_down();
+            }
+#endif
+
+            ret = bk_netif_set_ip4_config(NETIF_IF_AP, &ap_ip_config);
+            if (ret == BK_OK) {
+#if CONFIG_NETIF_LWIP
+                uap_ip_start();
+#endif
+                WDRV_LOGV("AP IP config synced from CP: %s/%s gw:%s dns:%s\r\n",
+                        ap_ip_config.ip, ap_ip_config.mask,
+                        ap_ip_config.gateway, ap_ip_config.dns);
+            } else {
+                WDRV_LOGE("Failed to set AP IP config, ret=%d\r\n", ret);
+            }
+        }
+    }
+
+    return BK_OK;
+}
+#endif
 
 void bk_wifi_rc_config(uint8_t sta_idx, uint16_t rate_cfg)
 {

@@ -3,3 +3,5 @@
 # This file contains only differences compared to board defconfig.
 #
 CONFIG_P2P=y
+CONFIG_PSA_MBEDTLS=y
+CONFIG_SW_CRYPTO=y

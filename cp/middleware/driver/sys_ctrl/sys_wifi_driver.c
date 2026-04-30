@@ -580,6 +580,49 @@ uint32_t sys_drv_mac_clk_ctrl(bool clk_en)
 	return ret;
 }
 
+static uint32_t sys_drv_wifi_wrls_reg_access_is_valid(void)
+{
+#if CONFIG_SOC_BK7259
+	return (sys_hal_module_power_state_get(PM_POWER_DOMAIN_2) == POWER_MODULE_STATE_ON)
+		&& sys_hal_wifi_wlss_clk_is_enabled();
+#else
+	return 1;
+#endif
+}
+
+uint32_t sys_drv_wifi_mac_reg_access_is_valid(void)
+{
+#if CONFIG_SOC_BK7259
+	return sys_drv_wifi_wrls_reg_access_is_valid() && sys_hal_wifi_mac_clk_is_enabled();
+#else
+	return 1;
+#endif
+}
+
+uint32_t sys_drv_wifi_phy_reg_access_is_valid(void)
+{
+#if CONFIG_SOC_BK7259
+	return sys_drv_wifi_wrls_reg_access_is_valid() && sys_hal_wifi_phy_clk_is_enabled();
+#else
+	return 1;
+#endif
+}
+
+void sys_drv_wifi_reg_access_status_get(uint32_t *clk_status, uint32_t *power_status)
+{
+#if CONFIG_SOC_BK7259
+	sys_hal_wifi_reg_access_status_get(clk_status, power_status);
+#else
+	if (clk_status) {
+		*clk_status = 0;
+	}
+
+	if (power_status) {
+		*power_status = 0;
+	}
+#endif
+}
+
 //CMD_SCTRL_SET_VDD_VALUE
 uint32_t sys_drv_set_vdd_value(uint32_t param)
 {

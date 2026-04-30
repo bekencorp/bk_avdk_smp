@@ -84,12 +84,6 @@ if(CONFIG_JPEGENC_HW)
 	)
 endif()
 
-if(CONFIG_YUV_BUF)
-	list(APPEND srcs
-		"hal/yuv_buf_hal.c"
-	)
-endif()
-
 if(CONFIG_H264)
 	list(APPEND srcs
 		"hal/h264_hal.c"

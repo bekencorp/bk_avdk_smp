@@ -1241,9 +1241,9 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	volatile uint32_t v_ana_r9, core_low_voltage;
 	volatile uint32_t v_sys_r10    = 0;
 	uint32_t systick_ctrl_value    = 0;
-	uint32_t valoldosel            = 0;
+	//uint32_t valoldosel            = 0;
 	// uint32_t violdosel          = 0;
-	uint8_t  ustep                 = 0;
+	//uint8_t  ustep                 = 0;
 ///	uint32_t chip_id               = 0;
 	pm_lpo_src_e lpo_src           = PM_LPO_SRC_ROSC;
 
@@ -1405,8 +1405,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	// violdosel = sys_ana_ll_get_reg8_violdosel();
 	// sys_ana_ll_set_reg8_violdosel(PM_LOW_VOL_VIO_LDO_SEL); //0x0:2.9V vio voltage
 	/*aon voltage*/
-	valoldosel = sys_ll_get_ana_reg9_valoldosel();
-	sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL); //0x4:0.8V aon voltage
+	// valoldosel = sys_ll_get_ana_reg9_valoldosel();
+	// sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL); //0x4:0.8V aon voltage
 	sys_hal_disable_spi_latch();
 
 	uint64_t before = bk_aon_rtc_get_us();
@@ -1458,10 +1458,10 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 /*-----------restore voltage  start----------------*/
 	sys_hal_enable_spi_latch();
 	/*aon voltage*/
-	for(ustep = PM_LOW_VOL_AON_LDO_SEL+1; ustep <= valoldosel; ustep++)
-	{
-		sys_ll_set_ana_reg9_valoldosel(ustep); //restore to 0.9V aon voltage
-	}
+	// for(ustep = PM_LOW_VOL_AON_LDO_SEL+1; ustep <= valoldosel; ustep++)
+	// {
+	// 	sys_ll_set_ana_reg9_valoldosel(ustep); //restore to 0.9V aon voltage
+	// }
 
 	#if CONFIG_SPE
 	aon_pmu_ll_set_r2(otp_vdd);// restore OTPLDO

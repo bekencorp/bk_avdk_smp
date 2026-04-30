@@ -22,6 +22,7 @@ extern "C" {
 #include "cif_ps.h"
 #include "rw_msdu.h"
 #include "cif_mem_mgmt.h"
+#include "modules/cif_common.h"
 
 #define CIF_TAG "CIF"
 #define CIF_LOGI(...)       BK_LOGI(CIF_TAG, ##__VA_ARGS__)
@@ -123,6 +124,7 @@ enum BK_CMD_TYPE
     BK_CMD_START_OTA           = 0x20A,
     BK_CMD_SEND_OTA_PKT        = 0x20B,
     BK_CMD_STOP_OTA            = 0x20C,
+    BK_CMD_MODEXP_RESULT       = 0x20D,
 
     BK_CMD_WIFI_API_START      = 0x300,
     BK_CMD_WIFI_API_END        = 0x5FF,
@@ -146,6 +148,7 @@ enum BK_EVENT_TYPE
     BK_EVT_CSI_INFO_IND         = 0xB,
     BK_EVT_ASSOC_GO_IND         = 0xC,
     BK_EVT_DISASSOC_GO_IND      = 0xD,
+    BK_EVT_MODEXP_REQ           = 0xE,
     // BLE event
     // BK_EVT_BLE_XX            = 0x101
 
@@ -282,14 +285,7 @@ typedef struct cpdu_t
     struct common_header co_hdr;
 }cpdu_t;
 
-struct bk_msg_hdr
-{
-    uint32_t rsv0;
-    uint16_t cmd_id;
-    uint16_t cmd_sn;
-    uint16_t rsv1;
-    uint16_t len;//msg payload length
-};
+
 /// Temporarily rx cmd structure
 struct bk_rx_msg_hdr
 {
@@ -421,7 +417,7 @@ struct bk_msg_get_ip_config_req
 };
 
 
-typedef int(*cif_customer_msg_cb_t)(struct bk_msg_hdr *msg);
+
 struct cif_env_t
 {
     bool host_wifi_init;
@@ -448,18 +444,33 @@ struct cif_env_t
     struct cif_rx_bank_t rx_bank;
 };
 
+#define MODEXP_MAX_LEN      192         /* 1536-bit = 192 bytes */
+#define MODEXP_RESULT_CMD   0x100
+
+typedef struct {
+    uint16_t base_len;
+    uint16_t exp_len;
+    uint16_t mod_len;
+    uint16_t result_max_len;
+    uint8_t  data[MODEXP_MAX_LEN * 3]; /* base | exp | mod */
+} __attribute__((packed)) cif_modexp_req_t;  /* 8 + 576 = 584 bytes */
+
+typedef struct {
+    int32_t  ret;
+    uint16_t result_len;
+    uint8_t  result[MODEXP_MAX_LEN];
+} __attribute__((packed)) cif_modexp_cfm_t;  /* 198 bytes */
+
 extern struct cif_env_t cif_env;
 extern struct cif_stats * cif_stats_ptr;
-
 extern bk_err_t cif_init();
-
 extern uint8_t cif_dnld_buffer(void *param, void *node);
 bk_err_t cif_rxbuf_push(uint8_t channel,void* head,void* tail,uint8_t num);
 bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_retry);
 void cif_rx_data_complete(void *param, void *ack_buf);
 void cif_rx_evt_complete(void *param, void *ack_buf);
 bk_err_t cif_msg_sender(void* head,enum cif_task_msg_evt type,uint8_t retry);
-void cif_register_customer_msg_handler(cif_customer_msg_cb_t func);
+
 void cif_print_debug_info();
 #ifdef __cplusplus
 }

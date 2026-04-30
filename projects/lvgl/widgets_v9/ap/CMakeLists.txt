@@ -12,7 +12,7 @@ list(APPEND srcs
     assets/img_lvgl_logo.c
 )
 
-set(priv_req  media_service multimedia bk_network_provisioning bk_display bk_peripheral bk_cli avdk_utils lvgl)
+set(priv_req  media_service bk_network_provisioning bk_display bk_peripheral bk_cli avdk_utils lvgl)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
 

@@ -14,8 +14,7 @@
 
 #include "bk_arch.h"
 
-
-__attribute__((section(".itcm_sec_code"))) void arch_deep_sleep(void)
+__attribute__((section(".iram"))) void arch_deep_sleep(void)
 {
 	SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
 	__WFI();
@@ -25,4 +24,9 @@ __attribute__((section(".iram"))) void arch_sleep(void)
 {
 	SCB->SCR &= ~SCB_SCR_SLEEPDEEP_Msk;
 	__WFI();
+}
+
+__attribute__((section(".iram"))) uint64_t check_IRQ_pending(void)
+{
+	return NVIC_GetAllPendingIRQ();
 }

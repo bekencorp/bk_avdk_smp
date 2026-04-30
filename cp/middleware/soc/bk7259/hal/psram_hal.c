@@ -383,16 +383,19 @@ static int psram_hal_SCB18X128XX_OAF_init_with_id(psram_id_t psram_id, uint32_t 
 	psram_hal_cmd_read_with_id(psram_id, 0x00000000);//1 0001 10001101
 	val = psram_ll_get_regb_value(psram_id);
 	val = (val & ~(0x7 << 2)) | (0x0 << 2) | (0x0 << 5);//320M
+	//val = (val & ~(0x7 << 2)) | (0x6 << 2) | (0x0 << 5);//240M
 	psram_hal_cmd_write_with_id(psram_id, 0x00000000, val);
 
 	psram_hal_cmd_read_with_id(psram_id, 0x00000004);//1 0001 10001101
 	val = psram_ll_get_regb_value(psram_id);
-	val = (val & ~(0x7 << 5)) | (0x0 << 5);//320mhz write latency
+	val = (val & ~(0x7 << 5)) | (0x4 << 5);//320mhz write latency
+	//val = (val & ~(0x7 << 5)) | (0x3 << 5);//240mhz write latency
 	psram_hal_cmd_write_with_id(psram_id, 0x00000004, val);
 
 	psram_hal_cmd_read_with_id(psram_id, 0x00000008);//1 0001 10001101
 	val = psram_ll_get_regb_value(psram_id);
 	val = 0x3 << 0 | 0x3 << 5 ;//x16 1k hword wrap en high freq(320Mhz)
+	//val = 0x3 << 0 | 0x2 << 5 ;//x16 1k hword wrap not en high freq(240Mhz)
 	psram_hal_cmd_write_with_id(psram_id, 0x00000008, val);
 
 	return 0;

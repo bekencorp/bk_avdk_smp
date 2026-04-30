@@ -797,6 +797,15 @@ bk_err_t cif_handle_wifi_ctrnl_cmd(struct bk_msg_hdr *msg)
             break;
         }
 #endif
+#if CONFIG_P2P
+		case BK_CMD_MODEXP_RESULT:
+		{
+			extern void crypto_mod_exp_on_ipc_result(const uint8_t *data, uint16_t len);
+			crypto_mod_exp_on_ipc_result((const uint8_t *)(msg + 1), msg->len);
+			break;
+		}
+#endif
+
         default:
         {
             CIF_LOGE("%s,error CMD type %x\n",__func__, msg->cmd_id);
@@ -832,6 +841,7 @@ bk_err_t cif_handle_bk_cmd(void *head)
 
     CIF_LOGV("cif_handle_bk_cmd cmd_id:%x\n", msg->cmd_id);
     cif_env.no_host = false;
+    cif_env.host_wifi_init = true;
 
     if ((msg->cmd_id >= BK_CMD_WIFI_API_START) && (msg->cmd_id < BK_CMD_WIFI_API_END))
     {
@@ -857,4 +867,26 @@ bk_err_t cif_handle_bk_cmd_disassoc_go_ind(uint8_t* mac_addr)
 {
     return cif_bk_send_event(BK_EVT_DISASSOC_GO_IND, mac_addr, 6);
 }
+
+bk_err_t cif_send_modexp_req(const uint8_t *base, uint16_t base_len,
+                              const uint8_t *exp,  uint16_t exp_len,
+                              const uint8_t *mod,  uint16_t mod_len,
+                              uint16_t result_max_len)
+{
+    cif_modexp_req_t req;
+    uint8_t *p = req.data;
+
+    req.base_len       = base_len;
+    req.exp_len        = exp_len;
+    req.mod_len        = mod_len;
+    req.result_max_len = result_max_len;
+
+    os_memcpy(p, base, base_len); p += base_len;
+    os_memcpy(p, exp,  exp_len);  p += exp_len;
+    os_memcpy(p, mod,  mod_len);
+
+    return cif_bk_send_event(BK_EVT_MODEXP_REQ,
+                             (uint8_t *)&req, sizeof(cif_modexp_req_t));
+}
+
 #endif

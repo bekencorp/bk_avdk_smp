@@ -24,6 +24,11 @@
 #include "sys_sw_regs.h"
 #include "aspl_lock.h"
 
+#if CONFIG_AP_EMUBOOT
+#include "cmsis_gcc.h"
+#include "cache.h"
+#endif
+
 /* Shared configuration data placed in the dedicated linker section.
  * Using static to prevent direct external access; all reads/writes
  * must go through the provided API functions. */
@@ -111,6 +116,27 @@ void bk_sys_sw_regs_set_ap_reset_reason(uint32_t value)
     s_sys_sw_regs.ap_reset_reason = value;
     sys_sw_regs_unlock(flags);
 }
+
+#if CONFIG_AP_EMUBOOT
+uint32_t bk_sys_sw_regs_get_flash_init_done(void)
+{
+    flush_dcache((void *)&s_sys_sw_regs.flash_init_done, sizeof(s_sys_sw_regs.flash_init_done));
+    __DMB();
+    uint32_t value = s_sys_sw_regs.flash_init_done;
+    __DMB();
+    return value;
+}
+
+void bk_sys_sw_regs_set_flash_init_done(uint32_t value)
+{
+    uint32_t flags = sys_sw_regs_lock();
+    s_sys_sw_regs.flash_init_done = value;
+    __DMB();
+    flush_dcache((void *)&s_sys_sw_regs.flash_init_done, sizeof(s_sys_sw_regs.flash_init_done));
+    __DMB();
+    sys_sw_regs_unlock(flags);
+}
+#endif
 
 void bk_sys_sw_regs_update_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, uint32_t pool_base, uint32_t max_alloc_end)
 {

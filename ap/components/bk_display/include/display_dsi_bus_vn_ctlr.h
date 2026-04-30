@@ -22,7 +22,6 @@ extern "C" {
 
 typedef struct
 {
-    bk_display_dsi_bus_config_t config;
     bk_display_bus_ctlr_t ops;
     bk_lcd_bus_io_t *dsi_handle;
     /** MIPI DSI PHY path; set from bk_display_dsi_bus_new(..., &{ .clk_src = dpu_config.clk_src }). */

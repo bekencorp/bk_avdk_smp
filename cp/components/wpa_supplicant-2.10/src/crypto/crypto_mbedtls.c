@@ -11,7 +11,12 @@
 #include "crypto.h"
 #include "random.h"
 #include "sha256.h"
-
+#if CONFIG_P2P
+#include "modules/pm.h"
+#include "cif_cntrl.h"
+#include "cif_main.h"
+#endif
+#include <os/os.h>
 #if !defined(MBEDTLS_CONFIG_FILE)
 #include "mbedtls/config.h"
 #else
@@ -761,14 +766,58 @@ int crypto_dh_init(u8 generator, const u8 *prime, size_t prime_len, u8 *privkey,
 	return 0;
 }
 
+#if CONFIG_P2P
+static beken_semaphore_t s_modexp_sem  = NULL;
+static cif_modexp_cfm_t  s_modexp_cfm = { 0 };
+void crypto_mod_exp_on_ipc_result(const uint8_t *data, uint16_t len)
+{
+    if (!data || len < sizeof(cif_modexp_cfm_t)) {
+        WPA_LOGD("modexp: short result len=%u\n", len);
+        return;
+    }
+    os_memcpy(&s_modexp_cfm, data, sizeof(cif_modexp_cfm_t));
+    if (s_modexp_sem)
+        rtos_set_semaphore(&s_modexp_sem);
+}
+#endif
+
 /* result = base ^ power mod modulus */
 int crypto_mod_exp(const uint8_t *base, size_t base_len,
 		   const uint8_t *power, size_t power_len,
 		   const uint8_t *modulus, size_t modulus_len,
 		   uint8_t *result, size_t *result_len)
 {
-	mbedtls_mpi bn_base, bn_exp, bn_modulus, bn_result, bn_rinv;
 	int ret = 0;
+#if CONFIG_P2P
+	if (s_modexp_sem == NULL) {
+		rtos_init_semaphore(&s_modexp_sem, 1);
+	}
+	os_memset(&s_modexp_cfm, 0, sizeof(s_modexp_cfm));
+	bk_err_t ipc_ret = cif_send_modexp_req(base, (uint16_t)base_len,
+	                                        power, (uint16_t)power_len,
+	                                        modulus, (uint16_t)modulus_len,
+	                                        (uint16_t)*result_len);
+	if (ipc_ret != BK_OK) {
+		WPA_LOGD("%s: IPC send failed (%d)\n",
+		         __func__, ipc_ret);
+		ret = -1;
+	}
+	if (rtos_get_semaphore(&s_modexp_sem, 2000) != BK_OK) {
+		WPA_LOGD("%s: IPC timeout\n", __func__);
+		ret = -1;
+	}
+
+	ret = s_modexp_cfm.ret;
+	if (ret == 0 && s_modexp_cfm.result_len <= *result_len) {
+		os_memcpy(result, s_modexp_cfm.result, s_modexp_cfm.result_len);
+		*result_len = s_modexp_cfm.result_len;
+	} else {
+		WPA_LOGD("%s: AP returned ret=%d result_len=%u\n",
+		         __func__, ret, s_modexp_cfm.result_len);
+		ret = -1;
+	}
+#else
+	mbedtls_mpi bn_base, bn_exp, bn_modulus, bn_result, bn_rinv;
 
 	mbedtls_mpi_init(&bn_base);
 	mbedtls_mpi_init(&bn_exp);
@@ -799,6 +848,7 @@ int crypto_mod_exp(const uint8_t *base, size_t base_len,
 	mbedtls_mpi_free(&bn_result);
 	mbedtls_mpi_free(&bn_rinv);
 
+#endif
 	return ret;
 }
 

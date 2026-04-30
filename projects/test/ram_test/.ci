@@ -1,1 +1,2 @@
-#make bk7258 PROJECT=test/ram_test
+./dbuild.sh make bk7259
+./dbuild.sh make bk7259 PROJECT=test/ram_test

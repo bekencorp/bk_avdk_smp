@@ -469,9 +469,9 @@ start_init:
 	}
 
 	bk_delay_us(1000);
-	/* SCB18X128XX_OAF uses 640M source; actual PSRAM bus clock is half (divided by 2). */
+	/* SCB18X128XX_OAF uses 480M source; actual PSRAM bus clock is half (divided by 2). */
 	if (actual_id == PSRAM_SCB18X128XX_OAF_ID)
-		psram_hal_set_clk_with_id(psram_id, PSRAM_640M);
+		psram_hal_set_clk_with_id(psram_id, PSRAM_480M);
 	else
 		psram_hal_set_default_clk_with_id(psram_id);
 

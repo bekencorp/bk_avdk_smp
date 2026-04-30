@@ -39,7 +39,6 @@ typedef void (*lcd_isr_t)(void);
 typedef enum
 {
     LCD_TYPE_RGB,     /**< lcd hardware interface is parallel RGB interface */
-    LCD_TYPE_MCU8080, /**< lcd device output data hardware interface is MCU 8BIT format */
     LCD_TYPE_QSPI,    /**< lcd device hardware interface is QSPI interface */
     LCD_TYPE_SPI,     /**< lcd device hardware interface is SPI interface */
     LCD_TYPE_DSI      /**< lcd device hardware interface is DSI interface */
@@ -127,19 +126,6 @@ typedef struct {
     uint16_t vsync_front_porch; /*!< Vertical front porch, number of invalid lines between the end of frame and the next vsync */
 } bk_display_timing_t;
 
-/** mcu interface config param */
-typedef struct
-{
-    lcd_clk_t clk; /**< config lcd clk */
-    bk_err_t (*set_xy_swap)(bool swap_axes);
-    bk_err_t (*set_mirror)(bool mirror_x, bool mirror_y);
-    void (*set_display_area)(uint16 xs, uint16 xe, uint16 ys, uint16 ye);
-    /**< if lcd size is smaller then image, and set api bk_lcd_pixel_config is image x y, should set partical display */
-
-    void (*start_transform)(void);
-    void (*continue_transform)(void);
-} lcd_mcu_t;
-
 /** qspi interface config param */
 typedef struct
 {
@@ -175,7 +161,6 @@ typedef struct
     bk_pixel_format_t out_fmt;      /**< display module output data format(rgb565/rgb666/rgb888), input to lcd device,*/
     union
     {
-        const lcd_mcu_t  *mcu;   /**< MCU interface lcd device config */
         const lcd_qspi_t *qspi;  /**< QSPI interface lcd device config */
         const lcd_spi_t *spi;    /**< SPI interface lcd device config */
     };
@@ -249,131 +234,51 @@ typedef struct bk_avdk_lcd_panel_t *bk_avdk_lcd_panel_handle_t;       /*!< Type 
 
 /**
  * @brief LCD panel interface
+ *
+ * Only the operations that are actually exercised by the current MIPI/RGB
+ * code paths are exposed here. Optional/legacy hooks (mirror, swap_xy,
+ * set_gap, invert_color, disp_on_off, disp_sleep, draw_bitmap) were
+ * removed: they were declared but never called by application code.
+ * Re-introduce them as a separate `bk_display_panel_ops_t` table when a
+ * concrete use-case appears.
  */
  struct bk_avdk_lcd_panel_t{
     /**
      * @brief Reset LCD panel
      *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @return
-     *          - BK_OK on success
+     * @param[in] panel LCD panel handle
+     * @return BK_OK on success
      */
     bk_err_t (*reset)(bk_avdk_lcd_panel_t *panel);
 
     /**
-     * @brief Initialize LCD panel
+     * @brief Initialize LCD panel (clock, init command sequence, ...)
      *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @return
-     *          - BK_OK on success
+     * @param[in] panel LCD panel handle
+     * @return BK_OK on success
      */
     bk_err_t (*init)(bk_avdk_lcd_panel_t *panel);
 
     /**
-     * @brief Destroy LCD panel
+     * @brief Destroy/free the LCD panel object
      *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @return
-     *          - BK_OK on success
+     * @param[in] panel LCD panel handle
+     * @return BK_OK on success
      */
     bk_err_t (*del)(bk_avdk_lcd_panel_t *panel);
 
     /**
-     * @brief Draw bitmap on LCD panel
+     * @brief Read LCD panel IC id (optional)
      *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @param[in] x_start Start pixel index in the target frame buffer, on x-axis (x_start is included)
-     * @param[in] y_start Start pixel index in the target frame buffer, on y-axis (y_start is included)
-     * @param[in] x_end End pixel index in the target frame buffer, on x-axis (x_end is not included)
-     * @param[in] y_end End pixel index in the target frame buffer, on y-axis (y_end is not included)
-     * @param[in] color_data RGB color data that will be dumped to the specific window range
-     * @return
-     *          - BK_OK on success
-     */
-    bk_err_t (*draw_bitmap)(bk_avdk_lcd_panel_t *panel, int x_start, int y_start, int x_end, int y_end, const void *color_data);
-
-    /**
-     * @brief Mirror the LCD panel on specific axis
-     *
-     * @note Combine this function with `swap_xy`, one can realize screen rotatation
-     *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @param[in] x_axis Whether the panel will be mirrored about the x_axis
-     * @param[in] y_axis Whether the panel will be mirrored about the y_axis
-     * @return
-     *          - BK_OK on success
-     *          - BK_ERR_NOT_SUPPORTED if this function is not supported by the panel
-     */
-    bk_err_t (*mirror)(bk_avdk_lcd_panel_t *panel, bool x_axis, bool y_axis);
-
-    /**
-     * @brief Swap/Exchange x and y axis
-     *
-     * @note Combine this function with `mirror`, one can realize screen rotatation
-     *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @param[in] swap_axes Whether to swap the x and y axis
-     * @return
-     *          - BK_OK on success
-     *          - BK_ERR_NOT_SUPPORTED if this function is not supported by the panel
-     */
-    bk_err_t (*swap_xy)(bk_avdk_lcd_panel_t *panel, bool swap_axes);
-
-    /**
-     * @brief Set extra gap in x and y axis
-     *
-     * @note The gap is only used for calculating the real coordinates.
-     *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @param[in] x_gap Extra gap on x axis, in pixels
-     * @param[in] y_gap Extra gap on y axis, in pixels
-     * @return
-     *          - BK_OK on success
-     */
-    bk_err_t (*set_gap)(bk_avdk_lcd_panel_t *panel, int x_gap, int y_gap);
-
-    /**
-     * @brief Invert the color (bit 1 -> 0 for color data line, and vice versa)
-     *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @param[in] invert_color_data Whether to invert the color data
-     * @return
-     *          - BK_OK on success
-     */
-    bk_err_t (*invert_color)(bk_avdk_lcd_panel_t *panel, bool invert_color_data);
-
-    /**
-     * @brief Turn on or off the display
-     *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @param[in] on_off True to turns on display, False to turns off display
-     * @return
-     *          - BK_OK on success
-     *          - BK_ERR_NOT_SUPPORTED if this function is not supported by the panel
-     */
-    bk_err_t (*disp_on_off)(bk_avdk_lcd_panel_t *panel, bool on_off);
-
-    /**
-     * @brief Enter or exit sleep mode
-     *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @param[in] sleep True to enter sleep mode, False to wake up
-     * @return
-     *          - BK_OK on success
-     *          - BK_ERR_NOT_SUPPORTED if this function is not supported by the panel
-     */
-    bk_err_t (*disp_sleep)(bk_avdk_lcd_panel_t *panel, bool sleep);
-
-    /**
-     * @brief Read LCD panel IC id
-     *
-     * @param[in] panel LCD panel handle, which is created by other factory API like `bk_lcd_new_panel_st7789()`
-     * @param[in] id LCD panel IC id
-     * @return
-     *          - BK_OK on success
+     * @param[in]  panel LCD panel handle
+     * @param[out] id    LCD panel IC id
+     * @return BK_OK on success, BK_ERR_NOT_SUPPORT if unsupported
      */
     bk_err_t (*read_id)(bk_avdk_lcd_panel_t *panel, uint32_t* id);
 
+    /**
+     * @brief Get LCD panel display timing snapshot
+     */
     bk_err_t (*get_disp_timing)(bk_avdk_lcd_panel_t *panel, bk_display_timing_t *timing);
 
     void *user_data;    /*!< User data, used to store externally customized data */

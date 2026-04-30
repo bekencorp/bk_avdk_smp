@@ -1056,6 +1056,55 @@ __IRAM_SEC void sys_hal_clk_pwr_ctrl(dev_clk_pwr_id_t dev, dev_clk_pwr_ctrl_t po
 	}
 }
 
+uint32_t sys_hal_clk_pwr_status_get(dev_clk_pwr_id_t dev)
+{
+	if (dev < PM_CLOCK_MODE_1_POS) {
+		return sys_ll_get_cpu_device_clk_enable_value();
+	} else if (dev < PM_CLOCK_MODE_2_POS) {
+		return sys_ll_get_reserver_reg0xd_value();
+	} else {
+		return sys_ahbp_ll_get_rega_value();
+	}
+}
+
+uint32_t sys_hal_clk_pwr_is_enabled(dev_clk_pwr_id_t dev)
+{
+	uint32_t reg_val = sys_hal_clk_pwr_status_get(dev);
+
+	if (dev < PM_CLOCK_MODE_1_POS) {
+		return (reg_val >> dev) & 0x1;
+	} else if (dev < PM_CLOCK_MODE_2_POS) {
+		return (reg_val >> (dev - PM_CLOCK_MODE_1_POS)) & 0x1;
+	} else {
+		return (reg_val >> (dev - PM_CLOCK_MODE_2_POS)) & 0x1;
+	}
+}
+
+void sys_hal_set_cpu_power_sleep_wakeup_pwd_ofdm(uint32_t v)
+{
+#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX)
+	sys_ll_set_cpu_power_sleep_wakeup_pwd_ofdm(v);
+#else
+	(void)v;
+#endif
+}
+
+uint32_t sys_hal_get_cpu_power_sleep_wakeup_pwd_ofdm(void)
+{
+#if (CONFIG_SOC_BK7236XX || CONFIG_SOC_BK7239XX)
+	return sys_ll_get_cpu_power_sleep_wakeup_pwd_ofdm();
+#elif CONFIG_SOC_BK7259
+#if 1 //workaround
+	bool get_dsss_only_flag(void);
+	return get_dsss_only_flag();
+#else//platform wakeup failure,to Do...
+	return (0 == sys_ll_get_reserver_reg0xd_ofdm_cken());
+#endif
+#else
+	return 0;
+#endif
+}
+
 void sys_hal_uart_select_clock(uart_id_t id, uart_src_clk_t mode)
 {
 	int sel_xtal = 0;
@@ -2044,6 +2093,32 @@ void sys_hal_mac_bus_clk_ctrl(bool clk_en)
 void sys_hal_mac_clk_ctrl(bool clk_en)
 {
 	sys_ll_set_reserver_reg0xd_mac_cken(clk_en);
+}
+
+uint32_t sys_hal_wifi_wlss_clk_is_enabled(void)
+{
+	return sys_ll_get_reserver_reg0xd_wlss_cken();
+}
+
+uint32_t sys_hal_wifi_mac_clk_is_enabled(void)
+{
+	return sys_ll_get_reserver_reg0xd_mac_cken();
+}
+
+uint32_t sys_hal_wifi_phy_clk_is_enabled(void)
+{
+	return sys_ll_get_reserver_reg0xd_phy_cken();
+}
+
+void sys_hal_wifi_reg_access_status_get(uint32_t *clk_status, uint32_t *power_status)
+{
+	if (clk_status) {
+		*clk_status = sys_ll_get_reserver_reg0xd_value();
+	}
+
+	if (power_status) {
+		*power_status = sys_ll_get_reserver_reg0x10_value();
+	}
 }
 
 void sys_hal_set_vdd_value(uint32_t param)

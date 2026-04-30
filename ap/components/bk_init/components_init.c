@@ -133,12 +133,6 @@ __IRAM_SEC int wdt_init(void)
 	BK_LOGV(TAG, "task watchdog enabled, period=%u\r\n", CONFIG_TASK_WDT_PERIOD_MS);
 #endif
 
-#if CONFIG_SUPPORT_WWDT
-	bk_wwdt_driver_init();
-	bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0);
-	BK_LOGV(TAG, "wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
-#endif
-
 #endif //CONFIG_WDT_EN
 	return BK_OK;
 }
@@ -264,6 +258,11 @@ int components_init(void)
 	if(driver_init())
 		return BK_FAIL;
 
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_driver_init();
+	// bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0);
+	BK_LOGV(TAG, "wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
+#endif
 #if CONFIG_UT_REG
 	ut_reg_init();
 #endif

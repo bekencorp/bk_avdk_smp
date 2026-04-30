@@ -65,6 +65,11 @@ typedef struct {
 
 #define BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID 0x41504844U
 
+#if CONFIG_AP_EMUBOOT
+#define BK_SYS_SW_REGS_FLASH_INIT_NOT_DONE 0U
+#define BK_SYS_SW_REGS_FLASH_INIT_DONE     1U
+#endif
+
 typedef enum {
     BK_SYS_SW_REGS_AP_HEAP_SRAM = 0,
     BK_SYS_SW_REGS_AP_HEAP_HSRAM,
@@ -87,6 +92,7 @@ typedef union {
         volatile uint32_t ap_reset_reason;  /**< AP reset reason code  */
         volatile riscv_usb_probe_t riscv_usb_probe; /**< AP/RISC-V USB host probe context */
         volatile ap_heap_dump_info_t ap_heap_dump[BK_SYS_SW_REGS_AP_HEAP_MAX]; /**< AP heap dump windows */
+        volatile uint32_t flash_init_done;  /**< CP flash init completion flag */
     };
     volatile uint32_t reserved[256];        /**< Reserved for future use */
 } sys_sw_regs_t;
@@ -147,6 +153,20 @@ void bk_sys_sw_regs_set_cp_reset_reason(uint32_t value);
  * @param value Value to write.
  */
 void bk_sys_sw_regs_set_ap_reset_reason(uint32_t value);
+
+#if CONFIG_AP_EMUBOOT
+/**
+ * @brief Get the CP flash init completion flag.
+ * @return Current value of flash_init_done.
+ */
+uint32_t bk_sys_sw_regs_get_flash_init_done(void);
+
+/**
+ * @brief Set the CP flash init completion flag.
+ * @param value Value to write.
+ */
+void bk_sys_sw_regs_set_flash_init_done(uint32_t value);
+#endif
 
 /**
  * @brief Update the AP heap dump window for the selected heap pool.

@@ -163,6 +163,10 @@ void sys_drv_gpio_ana_wakeup_enable(uint32_t count, uint32_t index, uint32_t typ
 void sys_drv_cpu_clk_div_set(uint32_t core_index, uint32_t value);
 uint32_t sys_drv_cpu_clk_div_get(uint32_t core_index);
 void sys_drv_low_power_hardware_init();
+uint32_t sys_drv_dev_clk_pwr_status_get(dev_clk_pwr_id_t dev);
+uint32_t sys_drv_dev_clk_pwr_is_enabled(dev_clk_pwr_id_t dev);
+void sys_drv_set_cpu_power_sleep_wakeup_pwd_ofdm(uint32_t v);
+uint32_t sys_drv_get_cpu_power_sleep_wakeup_pwd_ofdm(void);
 int32 sys_drv_lp_vol_set(uint32_t value);
 uint32_t sys_drv_lp_vol_get();
 int32 sys_drv_rf_tx_vol_set(uint32_t value);
@@ -309,6 +313,9 @@ uint32_t sys_drv_modem_clk_ctrl(bool clk_en);
 uint32_t sys_drv_mac_bus_clk_ctrl(bool clk_en);
 //CMD_SCTRL_MAC_CLOCK480M_DISABLE,CMD_SCTRL_MAC_CLOCK480M_ENABLE
 uint32_t sys_drv_mac_clk_ctrl(bool clk_en);
+uint32_t sys_drv_wifi_mac_reg_access_is_valid(void);
+uint32_t sys_drv_wifi_phy_reg_access_is_valid(void);
+void sys_drv_wifi_reg_access_status_get(uint32_t *clk_status, uint32_t *power_status);
 //CMD_SCTRL_SET_VDD_VALUE
 uint32_t sys_drv_set_vdd_value(uint32_t param);
 //CMD_SCTRL_GET_VDD_VALUE

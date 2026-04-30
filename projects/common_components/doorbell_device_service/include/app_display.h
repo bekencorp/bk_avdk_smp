@@ -18,6 +18,7 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 #include "avdk_error.h"
 #include "app_display_types.h"
 #include <components/bk_lcd_types.h>
@@ -44,6 +45,14 @@ void *app_mipi_lcd_handle_get(void);
 
 int app_display_board_config_set(display_board_config_t *config);
 display_board_config_t *app_display_board_config_get(void);
+
+/**
+ * @brief Vote display-domain AuxLDO (1.8V vddio) on/off.
+ *
+ * Single owner of PM_AUXLDO_USER_DISPLAY. Used internally by app_mipi_lcd_turn_on/off.
+ * Higher-level layers MUST NOT vote PM_AUXLDO_USER_DISPLAY directly.
+ */
+avdk_err_t app_display_power_enable(bool enable);
 
 #ifdef __cplusplus
 }

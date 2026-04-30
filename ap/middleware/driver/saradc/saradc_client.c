@@ -24,6 +24,13 @@
 #define TAG             "saradc_c"
 
 #define LOCAL_TRACE    (1)
+#define SARADC_ERR_LOG_INTERVAL  200
+static uint32_t s_saradc_err_log_cnt = 0;
+#define SARADC_RATE_LIMITED_LOG(line_num, ret) do { \
+	s_saradc_err_log_cnt++; \
+	if (s_saradc_err_log_cnt == 1 || (s_saradc_err_log_cnt % SARADC_ERR_LOG_INTERVAL) == 0) \
+		BK_LOGI(TAG, "%s @%d, data=%d, cnt=%u.\r\n", __FUNCTION__, line_num, ret, s_saradc_err_log_cnt); \
+} while(0)
 
 #define SARADC_OPERATE_TIMEOUT         600
 #define ADC_SAMPLE_CNT_DEFAULT         32
@@ -191,7 +198,7 @@ acquire_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -256,7 +263,7 @@ init_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -320,7 +327,7 @@ bypass_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -384,7 +391,7 @@ start_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -485,7 +492,7 @@ read_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -574,7 +581,7 @@ stop_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -639,7 +646,7 @@ deinit_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -703,7 +710,7 @@ release_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -771,7 +778,7 @@ set_config_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -836,7 +843,7 @@ init_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -901,7 +908,7 @@ deinit_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -965,7 +972,7 @@ en_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1058,7 +1065,7 @@ read_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1123,7 +1130,7 @@ single_read_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1188,7 +1195,7 @@ set_channel_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1254,7 +1261,7 @@ set_mode_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1318,7 +1325,7 @@ get_mode_exit:
 
 #if LOCAL_TRACE
 	if(ret != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_mode;
@@ -1384,7 +1391,7 @@ set_clk_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1449,7 +1456,7 @@ set_sample_rate_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1514,7 +1521,7 @@ set_filter_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1579,7 +1586,7 @@ set_steady_time_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1644,7 +1651,7 @@ set_sample_cnt_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1709,7 +1716,7 @@ set_saturate_mode_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1775,7 +1782,7 @@ register_isr_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return ret_val;
@@ -1843,7 +1850,7 @@ adc_calculate_exit:
 
 #if LOCAL_TRACE
 	if(ret_val != BK_OK)
-		BK_LOGI(TAG, "%s @%d, data=%d.\r\n", __FUNCTION__, line_num, ret);
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
 #endif
 
 	return adc_calculate;

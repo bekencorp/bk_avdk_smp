@@ -7,6 +7,9 @@
 #include "network_type.h"
 #include "network_transfer_internal.h"
 #include "video_drop.h"
+#if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
+#include "video_fps.h"
+#endif
 #include "ntwk_pack.h"
 #include "ntwk_fragmentation.h"
 
@@ -272,6 +275,9 @@ bk_err_t ntwk_trans_ctxt_init(ntwk_trans_ctxt_t *ctxt)
     ntwk_msg_init();
     ntwk_msg_start();
     ntwk_video_drop_init();
+#if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
+    (void)ntwk_video_fps_init();
+#endif
 
     ntwk_pack_init(NTWK_TRANS_CHAN_CTRL);
     ntwk_pack_init(NTWK_TRANS_CHAN_VIDEO);
@@ -301,6 +307,9 @@ bk_err_t ntwk_trans_ctxt_deinit(void)
     ntwk_msg_stop();
     ntwk_msg_deinit();
     ntwk_video_drop_deinit();
+#if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
+    (void)ntwk_video_fps_deinit();
+#endif
     ntwk_pack_deinit(NTWK_TRANS_CHAN_CTRL);
     ntwk_pack_deinit(NTWK_TRANS_CHAN_VIDEO);
     ntwk_pack_deinit(NTWK_TRANS_CHAN_AUDIO);
@@ -430,6 +439,7 @@ int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_t
 {
     uint8_t *pack_ptr = NULL;
     uint32_t pack_ptr_length = 0;
+    int ret = BK_FAIL;
 
     if (s_ntwk_trans_ctxt == NULL || !s_ntwk_trans_ctxt->initialized)
     {
@@ -458,10 +468,18 @@ int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_t
         }
     }
 
+#if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
+    ntwk_video_fps_frame_begin();
+#endif
+
     if (s_ntwk_trans_ctxt->video_chan->fragment != NULL)
     {
-        if(s_ntwk_trans_ctxt->video_chan->fragment(data, length) >= 0)
+        ret = s_ntwk_trans_ctxt->video_chan->fragment(data, length);
+        if(ret >= 0)
         {
+#if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
+            ntwk_video_fps_frame_end(length, ret);
+#endif
             return length;
         }
     }
@@ -470,11 +488,20 @@ int ntwk_trans_video_send(uint8_t *data, uint32_t length, image_format_t video_t
     {
         if(s_ntwk_trans_ctxt->video_chan->pack(data, length, &pack_ptr, &pack_ptr_length) >= 0)
         {
-            return (s_ntwk_trans_ctxt->video_chan->send)(pack_ptr, pack_ptr_length,s_ntwk_trans_ctxt->video_chan->vid_type);
+            ret = (s_ntwk_trans_ctxt->video_chan->send)(pack_ptr, pack_ptr_length,s_ntwk_trans_ctxt->video_chan->vid_type);
+#if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
+            ntwk_video_fps_frame_end(length, ret);
+#endif
+            return ret;
         }
     }
 
-    return (s_ntwk_trans_ctxt->video_chan->send)(data, length, s_ntwk_trans_ctxt->video_chan->vid_type);
+    ret = (s_ntwk_trans_ctxt->video_chan->send)(data, length, s_ntwk_trans_ctxt->video_chan->vid_type);
+#if CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE
+    ntwk_video_fps_frame_end(length, ret);
+#endif
+
+    return ret;
 }
 
 int ntwk_trans_audio_send(uint8_t *data, uint32_t length, audio_enc_type_t audio_type)

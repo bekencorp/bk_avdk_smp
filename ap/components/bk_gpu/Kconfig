@@ -1,6 +1,7 @@
 menu "BK_GPU"
 
 	config VG_LITE_GPU
+		depends on FREERTOS_FPU_ENABLE
 		bool "Enable VG_LITE_GPU"
 		default n
 

@@ -12,6 +12,12 @@ menu "Bk Network Transfer"
 		help
 			Enable media drop strategy
 
+	config NTWK_VIDEO_FPS_CALC_ENABLE
+		bool "Enable Network Video FPS Calculation"
+		default y
+		help
+			Enable the common video transfer FPS calculation strategy.
+
 	config DATA_NODE_SIZE
 		int "Video RX Node Size"
 		default 1472

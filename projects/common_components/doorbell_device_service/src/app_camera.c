@@ -20,7 +20,8 @@
 #include <driver/mipi_csi.h>
 #include <components/bk_camera_sensor.h>
 #include <components/bk_camera_bus.h>
-
+#include <sys_types.h>
+#include <modules/pm.h>
 #define TAG "db-camera"
 
 #define LOGI(...) BK_LOGW(TAG, ##__VA_ARGS__)
@@ -48,6 +49,34 @@ static camera_board_config_t *camera_board_config = NULL;
  */
 static bool s_isp_camera_read_used = false;
 
+/**
+ * @brief Vote MIPI camera AuxLDOs (1.8V iovdd + 1.2V dvdd) on/off.
+ *
+ * Only MIPI sensors on this board need these two rails. DVP/UVC paths must NOT
+ * call this helper. This is the single owner of PM_AUXLDO_USER_CAMERA; higher
+ * layers MUST NOT vote PM_AUXLDO_USER_CAMERA themselves to avoid double voting.
+ */
+avdk_err_t app_mipi_camera_power_enable(bool enable)
+{
+    int ldo_en = enable ? PM_AUXLDO_ENABLE : PM_AUXLDO_DISABLE;
+    LOGI("%s, iovdd dvdd enable: %d\n", __func__, ldo_en);
+
+    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_1P8V;
+    auxldo_cfg.out = PM_AUXLDO_1P8V_OUT_1P8V;
+    auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+    auxldo_cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 1p8v ldo vote failed");
+
+    auxldo_cfg = (pm_auxldo_ctrl_cfg_t){0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_1P2V;
+    auxldo_cfg.out = PM_AUXLDO_1P2V_OUT_1P2V;
+    auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+    auxldo_cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 1p2v ldo vote failed");
+    rtos_delay_milliseconds(1);
+    return AVDK_ERR_OK;
+}
 
 void *app_isp_handle_get(void)
 {
@@ -138,7 +167,7 @@ int app_isp_camera_turn_off(void)
         bk_camera_sensor_destroy(isp_cam_handle.mipi_sensor_handle);
         isp_cam_handle.mipi_sensor_handle = NULL;
     }
-
+    AVDK_RETURN_ON_ERROR(app_mipi_camera_power_enable(false), TAG, "app_mipi_camera_power_enable disable");
     return AVDK_ERR_OK;
 }
 
@@ -176,6 +205,7 @@ int app_isp_dvp_camera_turn_on(camera_parameters_ext_t *paramters)
         paramters->fps = camera_board_config->mipi.sensor_fps;
     }
 
+    AVDK_RETURN_ON_ERROR(app_mipi_camera_power_enable(true), TAG, "app_mipi_camera_power_enable enable");
     LOGI("%s width: %d, height: %d, fps: %d\n", __func__, paramters->camera_width, paramters->camera_height, paramters->fps);
 
     //step 1. create/enable bus
@@ -246,10 +276,10 @@ err:
 int app_isp_mipi_sensor_init(const camera_board_config_t *config, bk_isp_camera_ctlr_config_t *isp_ctlr_config)
 {
     bk_err_t ret = BK_OK;
-
-    AVDK_GOTO_ON_FALSE(config, AVDK_ERR_INVAL, err, TAG, "config is null");
-
     bk_camera_bus_t *bus = NULL;
+
+    AVDK_GOTO_ON_FALSE(config, AVDK_ERR_INVAL, err, TAG, "config is null\n");
+
     bk_camera_bus_config_t bus_config = CSI_CAM_BUS_I2C1_8BIT_2000TIMEOUT();
     bus_config.pin_scl = camera_board_config->mipi.pin_scl;
     bus_config.pin_sda = camera_board_config->mipi.pin_sda;
@@ -271,11 +301,11 @@ int app_isp_mipi_sensor_init(const camera_board_config_t *config, bk_isp_camera_
     //step 2. sensor detect
     sensor_config.bus = bus;
     isp_cam_handle.sensor_handle = bk_camera_sensor_auto_detect(&sensor_config, CSI_CAMERA_PORT);
-    AVDK_RETURN_ON_FALSE(isp_cam_handle.sensor_handle, ret, TAG, "sensor handle is NULL");
+    AVDK_GOTO_ON_FALSE(isp_cam_handle.sensor_handle, AVDK_ERR_NODEV, err, TAG, "sensor handle is NULL");
 
     bk_camera_sensor_format_array_t format_array = {0};
-    AVDK_RETURN_ON_ERROR(bk_camera_sensor_query_support_formats(isp_cam_handle.sensor_handle, &format_array), TAG, "bk_camera_sensor_query_support_formats failed");
-    AVDK_RETURN_ON_FALSE(format_array.size > 0, ret, TAG, "format array size is 0");
+    AVDK_GOTO_ON_ERROR(bk_camera_sensor_query_support_formats(isp_cam_handle.sensor_handle, &format_array), err, TAG, "bk_camera_sensor_query_support_formats failed");
+    AVDK_GOTO_ON_FALSE(format_array.size > 0, AVDK_ERR_INVAL, err, TAG, "format array size is 0");
 
     int detect_index = 0;
     for (detect_index = 0; detect_index < format_array.size; detect_index++)
@@ -301,13 +331,24 @@ int app_isp_mipi_sensor_init(const camera_board_config_t *config, bk_isp_camera_
         format_array.format_array[detect_index].fps);
 
     const void *sensor_object = bk_camera_sensor_get_sensor_object(isp_cam_handle.sensor_handle);
-    AVDK_RETURN_ON_FALSE(sensor_object, ret, TAG, "sensor object is NULL");
+    AVDK_GOTO_ON_FALSE(sensor_object, AVDK_ERR_GENERIC, err, TAG, "sensor object is NULL");
     isp_ctlr_config->sensor_object = sensor_object;
 
     return AVDK_ERR_OK;
 
 err:
-    return AVDK_ERR_GENERIC;
+    /* Cleanup on failure: destroy sensor handle and bus to avoid stale state. */
+    if (isp_cam_handle.sensor_handle)
+    {
+        bk_camera_sensor_destroy(isp_cam_handle.sensor_handle);
+        isp_cam_handle.sensor_handle = NULL;
+    }
+    if (bus)
+    {
+        bk_camera_bus_disable(bus);
+        bk_camera_bus_delete(bus);
+    }
+    return (ret != BK_OK) ? ret : AVDK_ERR_GENERIC;
 }
 
 int app_isp_mipi_sensor_start(const camera_board_config_t *config)
@@ -366,43 +407,49 @@ err:
 int app_isp_mipi_camera_turn_on(const camera_board_config_t *config)
 {
     bk_err_t ret = BK_OK;
+    bool ldo_voted = false;
 
-    AVDK_RETURN_ON_FALSE((isp_cam_handle.camera_ctlr_handle == NULL), AVDK_ERR_BUSY, TAG, "camera already turned on"); 
+    /* Validate state and arguments before voting LDO so a duplicate/invalid call
+     * does not leave a dangling LDO vote. */
+    AVDK_RETURN_ON_FALSE((isp_cam_handle.camera_ctlr_handle == NULL), AVDK_ERR_BUSY, TAG, "camera already turned on");
+    AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is null");
+
+    AVDK_RETURN_ON_ERROR(app_mipi_camera_power_enable(true), TAG, "app_mipi_camera_power_enable failed");
+    ldo_voted = true;
+
     bk_isp_camera_ctlr_config_t isp_ctlr_config = CAM_CSI_DEFAULT_RAW10_CONFIG(config->mipi.sensor_max_width, config->mipi.sensor_max_height, config->mipi.sensor_fps);
 
-    AVDK_GOTO_ON_FALSE(config, AVDK_ERR_INVAL, err, TAG, "config is null");
-
     ret = app_isp_mipi_sensor_init(config, &isp_ctlr_config);
-    AVDK_RETURN_ON_FALSE(ret == AVDK_ERR_OK, ret, TAG, "app_isp_mipi_sensor_turn_on failed");
-
+    AVDK_GOTO_ON_FALSE(ret == AVDK_ERR_OK, ret, err, TAG, "app_isp_mipi_sensor_turn_on failed");
     ret = app_isp_mipi_camera_mp_turn_on(config, &isp_ctlr_config);
-    AVDK_RETURN_ON_FALSE(ret == AVDK_ERR_OK, ret, TAG, "app_isp_mipi_camera_mp_turn_on failed");
-
+    AVDK_GOTO_ON_FALSE(ret == AVDK_ERR_OK, ret, err, TAG, "app_isp_mipi_camera_mp_turn_on failed");
     return app_isp_mipi_sensor_start(config);
 
 err:
-    if (isp_cam_handle.camera_ctlr_handle)
+    if (ldo_voted)
     {
-        //TODO
+        (void)app_mipi_camera_power_enable(false);
     }
-
-    return AVDK_ERR_GENERIC;
+    return (ret != BK_OK) ? ret : AVDK_ERR_GENERIC;
 }
 
 int app_isp_dual_camera_turn_on(camera_parameters_ext_t *paramters)
 {
     bk_err_t ret = BK_OK;
-    AVDK_GOTO_ON_FALSE(paramters, AVDK_ERR_INVAL, err, TAG, "cparamters is null");
+    bk_camera_bus_t *bus = NULL;
+    bool ldo_voted = false;
+
+    AVDK_RETURN_ON_FALSE(paramters, AVDK_ERR_INVAL, TAG, "cparamters is null");
     camera_parameters_ext_t param_temp = {
         .camera_width = 1920,
         .camera_height = 1080,
         .fps = 20,
     };
-
+    AVDK_RETURN_ON_ERROR(app_mipi_camera_power_enable(true), TAG, "app_mipi_camera_power_enable failed");
+    ldo_voted = true;
     bk_isp_camera_ctlr_config_t isp_ctlr_dvp_config = CAM_DVP_DEFAULT_RAW8_CONFIG(paramters->camera_width, paramters->camera_height, paramters->fps);
     bk_isp_camera_ctlr_config_t isp_ctlr_mipi_config = CAM_CSI_DEFAULT_RAW10_CONFIG(param_temp.camera_width, param_temp.camera_height, paramters->fps);
 
-    bk_camera_bus_t *bus = NULL;
     bk_camera_bus_config_t bus_config = DUAL_CAM_BUS_I2C1_8BIT_2000TIMEOUT();
     bus_config.pin_scl = camera_board_config->mipi.pin_scl;
     bus_config.pin_sda = camera_board_config->mipi.pin_sda;
@@ -439,24 +486,24 @@ int app_isp_dual_camera_turn_on(camera_parameters_ext_t *paramters)
     //step 2. sensor detect
     sensor_config.bus = bus;
     isp_cam_handle.dvp_sensor_handle = bk_camera_sensor_auto_detect(&sensor_config, DVP_CAMERA_PORT);
-    AVDK_RETURN_ON_FALSE(isp_cam_handle.dvp_sensor_handle, ret, TAG, "dvp sensor handle is NULL");
+    AVDK_GOTO_ON_FALSE(isp_cam_handle.dvp_sensor_handle, AVDK_ERR_NODEV, err, TAG, "dvp sensor handle is NULL");
 
     isp_cam_handle.mipi_sensor_handle = bk_camera_sensor_auto_detect(&sensor_config, CSI_CAMERA_PORT);
-    AVDK_RETURN_ON_FALSE(isp_cam_handle.mipi_sensor_handle, ret, TAG, "mipi sensor handle is NULL");
+    AVDK_GOTO_ON_FALSE(isp_cam_handle.mipi_sensor_handle, AVDK_ERR_NODEV, err, TAG, "mipi sensor handle is NULL");
 
     const void *dvp_sensor_object = bk_camera_sensor_get_sensor_object(isp_cam_handle.dvp_sensor_handle);
-    AVDK_RETURN_ON_FALSE(dvp_sensor_object, ret, TAG, "dvp sensor object is NULL");
+    AVDK_GOTO_ON_FALSE(dvp_sensor_object, AVDK_ERR_GENERIC, err, TAG, "dvp sensor object is NULL");
     const void *mipi_sensor_object = bk_camera_sensor_get_sensor_object(isp_cam_handle.mipi_sensor_handle);
-    AVDK_RETURN_ON_FALSE(mipi_sensor_object, ret, TAG, "mipi sensor object is NULL");
+    AVDK_GOTO_ON_FALSE(mipi_sensor_object, AVDK_ERR_GENERIC, err, TAG, "mipi sensor object is NULL");
 
     isp_ctlr_dvp_config.sensor_object = dvp_sensor_object;
     isp_ctlr_mipi_config.sensor_object = mipi_sensor_object;
 
 
     // step 3: new/init camera device
-    AVDK_RETURN_ON_ERROR(bk_camera_isp_ctlr_new(&isp_cam_handle.camera_ctlr_handle), TAG, "bk_camera_isp_ctlr_new failed");
+    AVDK_GOTO_ON_ERROR(bk_camera_isp_ctlr_new(&isp_cam_handle.camera_ctlr_handle), err, TAG, "bk_camera_isp_ctlr_new failed");
     bk_camera_isp_ctlr_t *control =  __containerof(isp_cam_handle.camera_ctlr_handle, bk_camera_isp_ctlr_t, ops);
-    AVDK_RETURN_ON_FALSE(control, ret, TAG, "control is NULL");
+    AVDK_GOTO_ON_FALSE(control, AVDK_ERR_GENERIC, err, TAG, "control is NULL");
 
     AVDK_GOTO_ON_ERROR(bk_isp_camera_dev_init(isp_cam_handle.camera_ctlr_handle), err, TAG, "bk_isp_camera_dev_init failed");
     isp_cam_handle.isp_handle = control->isp_handle;
@@ -492,8 +539,6 @@ int app_isp_dual_camera_turn_on(camera_parameters_ext_t *paramters)
     };
     bk_camera_sensor_init(isp_cam_handle.dvp_sensor_handle);
     bk_camera_sensor_set_format(isp_cam_handle.dvp_sensor_handle, &dvp_format);
-    rtos_delay_milliseconds(100);
-
     bk_camera_sensor_init(isp_cam_handle.mipi_sensor_handle);
     bk_camera_sensor_set_format(isp_cam_handle.mipi_sensor_handle, &mipi_format);
 
@@ -505,12 +550,11 @@ int app_isp_dual_camera_turn_on(camera_parameters_ext_t *paramters)
     return AVDK_ERR_OK;
 
 err:
-    if (isp_cam_handle.camera_ctlr_handle)
+    if (ldo_voted)
     {
-        //TODO
+        (void)app_mipi_camera_power_enable(false);
     }
-
-    return AVDK_ERR_GENERIC;
+    return (ret != BK_OK) ? ret : AVDK_ERR_GENERIC;
 }
 
 int app_isp_dual_camera_port_change()
@@ -525,11 +569,9 @@ int app_isp_dual_dvp_on(camera_parameters_ext_t *paramters)
         .height = paramters->camera_height,
         .fps = paramters->fps,
     };
-
+    AVDK_RETURN_ON_ERROR(app_mipi_camera_power_enable(true), TAG, "app_mipi_camera_power_enable failed");
     bk_camera_sensor_init(isp_cam_handle.dvp_sensor_handle);
     bk_camera_sensor_set_format(isp_cam_handle.dvp_sensor_handle, &dvp_format);
-    rtos_delay_milliseconds(100);
-
     return AVDK_ERR_OK;
 }
 
@@ -599,7 +641,6 @@ bool app_isp_camera_state_get(void)
 int app_camera_board_config_set(camera_board_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
-
     if (camera_board_config == NULL)
     {
         camera_board_config = os_malloc(sizeof(camera_board_config_t));

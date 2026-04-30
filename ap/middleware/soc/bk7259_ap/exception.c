@@ -53,15 +53,14 @@ __STATIC_FORCEINLINE void dump_system_info(uint32_t rr, uint32_t lr, uint32_t sp
 	while(1);\
 }
 
+extern bk_err_t bk_wwdt_feed(void);
 void user_nmi_handler(uint32_t lr, uint32_t sp)
 {
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
-	// AP should not enter this function
-	BK_DUMP_OUT("AP should not enter nmi exception\r\n");
-	dump_fault_info(RESET_SOURCE_NMI_WDT);
-	while(1){
-		;
-	}
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_feed();
+#endif
+	dump_system_info(RESET_SOURCE_NMI_WDT, lr, sp);
 #endif // CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
 }
 

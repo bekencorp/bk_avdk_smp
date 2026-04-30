@@ -46,7 +46,8 @@ typedef struct {
 #define wwdt_hal_get_wdt_win_get_win_val()        wwdt_ll_get_wdt_win_set_win_val()
 #define wwdt_hal_get_cpuid_magic_word()           wwdt_ll_get_cpuid_magic_word()
 #define wwdt_hal_get_cpuid_cpu_id()               wwdt_ll_get_cpuid_cpu_id()
-#define wwdt_hal_set_wdt_win_set_win_en(val)      wwdt_ll_set_wdt_win_set_win_en(val)
+#define wwdt_hal_set_wdt_win_1st_set_win_en(val) wwdt_ll_set_wdt_win_1st_set_win_en(val)
+#define wwdt_hal_set_wdt_win_2nd_set_win_en(val) wwdt_ll_set_wdt_win_2nd_set_win_en(val)
 
 bk_err_t wwdt_hal_init(wwdt_hal_t *hal);
 bk_err_t wwdt_hal_init_wwdt(wwdt_hal_t *hal, uint32_t timeout);

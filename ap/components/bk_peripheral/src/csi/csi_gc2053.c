@@ -365,8 +365,8 @@ static int GC2053_InitAeDefault(ISP_PORT IspPort)
             pAeSnsDft->minIntLine  = 1;
             pAeSnsDft->intLineStep = 1;
 
-            pAeSnsDft->maxAgain  = 1056 * 1024;
-            pAeSnsDft->minAgain  = 3 * 1024;
+            pAeSnsDft->maxAgain  = 832 * 1024;
+            pAeSnsDft->minAgain  = 64 * 1024;
             pAeSnsDft->againStep = 1;
 
             pAeSnsDft->maxDgain  = 1024;
@@ -599,9 +599,9 @@ static int GC2053_GainUpdate(ISP_PORT IspPort, vsi_u32_t *pAgain, vsi_u32_t *pDg
 
     switch(pGC2053Dev->snsModeId) {
         case GC2053_720P_30FPS_LINEAR_MODE:
-            gain = (uint32_t)(*pAgain);
+            gain = (uint32_t)(*pAgain)/1024;
             GC2053_CalcGain(&gain, &reg_val, &dGainReg, &convReg);
-            *pAgain = (vsi_u32_t)gain;
+            *pAgain = (vsi_u32_t)gain * 1024;
             *pDgain = 1024;
 
             /* Program analog gain registers according to calculated level */
@@ -634,7 +634,6 @@ static int GC2053_IntTimeUpdate(ISP_PORT IspPort, vsi_u32_t *pIntLine)
     ISP_SNS_REGS_INFO_S *pSnsRegsInfo = &pGC2053Dev->snsRegsInfo;
 
     // uint32_t new_lines = (((*pIntLine) - 1)/10 + 1) * 10;
-
 
     switch(pGC2053Dev->snsModeId) {
         case GC2053_720P_30FPS_LINEAR_MODE:

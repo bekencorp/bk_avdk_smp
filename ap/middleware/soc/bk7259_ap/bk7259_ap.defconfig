@@ -1048,7 +1048,7 @@ CONFIG_UART_TEST=y
 #
 # TRNG
 #
-# CONFIG_TRNG_SUPPORT is not set
+CONFIG_TRNG_SUPPORT=y
 # end of TRNG
 
 #
@@ -1265,8 +1265,8 @@ CONFIG_AUDIO_RING_BUFF=y
 # PWM
 #
 # CONFIG_PWM is not set
-CONFIG_PWM_V1PX=y
-# CONFIG_PWM_V2P2 is not set
+# CONFIG_PWM_V1PX is not set
+CONFIG_PWM_V2P2=y
 # CONFIG_PWM_HAS_TWO_INT is not set
 # CONFIG_PWM_PM_CB_SUPPORT is not set
 # CONFIG_PWM_PHASE_SHIFT is not set
@@ -1377,12 +1377,6 @@ CONFIG_PM_CLI_ENABLE=y
 #
 # CONFIG_FFT is not set
 # end of FFT
-
-#
-# YUV_BUF
-#
-# CONFIG_YUV_BUF is not set
-# end of YUV_BUF
 
 #
 # IRDA

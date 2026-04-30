@@ -2,6 +2,7 @@ set(incs .
 	common/transfer_list
 	common/bk_ntwk_pack
 	common/bk_video_drop_policy
+	common/bk_video_fps_strategy
 	common/bk_ntwk_sdp
 	bk_network_service/bk_ntwk_socket
 	bk_network_service/bk_net_tcp_service
@@ -28,6 +29,12 @@ list(APPEND srcs
 	network_transfer.c
 	)
 
+if (CONFIG_NTWK_VIDEO_FPS_CALC_ENABLE)
+list(APPEND srcs
+	common/bk_video_fps_strategy/video_fps.c
+)
+endif()
+
 if (CONFIG_CS2_P2P_SERVER OR CONFIG_CS2_P2P_CLIENT)
 list(APPEND srcs
 	bk_network_service/bk_ntwk_cs2_service/ntwk_cs2_service.c
@@ -43,7 +50,7 @@ if (CONFIG_KVS_NTWK_BRIDGE)
 endif()
 endif()
 
-set(req bk_common multimedia media_utils lwip_intf_v2_1 avdk_utils bk_wifi_driver cs2p2p)
+set(req bk_common media_utils lwip_intf_v2_1 avdk_utils bk_wifi_driver cs2p2p)
 
 if (CONFIG_KVS_NTWK_BRIDGE)
 	list(APPEND req kvs_aws)

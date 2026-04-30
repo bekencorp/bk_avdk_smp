@@ -128,7 +128,6 @@ avdk_err_t bk_display_dsi_bus_new(bk_display_bus_handle_t *handle, bk_display_ds
 
     os_memset(bus, 0, sizeof(dsi_bus_vn_ctlr_t));
     if (config != NULL) {
-        bus->config = *config;
         bus->dsi_clk_src = config->clk_src;
     }
 

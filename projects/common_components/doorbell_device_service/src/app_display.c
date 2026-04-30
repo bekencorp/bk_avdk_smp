@@ -17,7 +17,8 @@
 #include <components/bk_display_dpu_ctlr.h>
 #include <components/bk_display_bus.h>
 #include <components/bk_lcd_panel.h>
-
+#include <sys_types.h>
+#include <modules/pm.h>
 #define TAG "app-disp"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
@@ -57,7 +58,26 @@ static beken_mutex_t s_disp_mutex = NULL;
 
 
 display_board_config_t *display_board_config = NULL;
+/**
+ * @brief Vote display-domain AuxLDO (1.8V vddio) on/off.
+ *
+ * Single owner of PM_AUXLDO_USER_DISPLAY. Called by app_mipi_lcd_turn_on/off;
+ * higher layers MUST NOT vote PM_AUXLDO_USER_DISPLAY themselves.
+ */
+avdk_err_t app_display_power_enable(bool enable)
+{
+    int ldo_en = enable ? PM_AUXLDO_ENABLE : PM_AUXLDO_DISABLE;
+    LOGI("%s, vddio enable: %d\n", __func__, ldo_en);
 
+    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_1P8V;
+    auxldo_cfg.out = PM_AUXLDO_1P8V_OUT_1P8V;
+    auxldo_cfg.user = PM_AUXLDO_USER_DISPLAY;
+    auxldo_cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "display 1p8v ldo vote failed");
+    rtos_delay_milliseconds(1);
+    return AVDK_ERR_OK;
+}
 static bool app_display_state_is_on(const display_ctx_t *ctx)
 {
     return (ctx != NULL) && (ctx->state == APP_DISPLAY_STATE_ON) && (ctx->dpu_ctlr_handle != NULL);
@@ -187,6 +207,7 @@ int app_mipi_lcd_turn_off(void)
     s_disp_ctx = NULL;
     app_display_ctx_destroy(config);
     app_display_unlock();
+    app_display_power_enable(false);
     LOGI("%s complete\n", __func__);
     return BK_OK;
 }
@@ -242,6 +263,7 @@ int app_mipi_lcd_turn_on(display_board_config_t *config)
         .video.format = config->dpu_video.format,
     };
 
+    app_display_power_enable(true);
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&content->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_bus_enable(content->dis_bus_handle), err, TAG, "display bus enable err\n");
 
@@ -297,6 +319,7 @@ err:
         s_disp_ctx = NULL;
     }
     app_display_unlock();
+    app_display_power_enable(false);
     LOGE("%s fail\n", __func__);
     return ret;
 }
@@ -341,7 +364,6 @@ bool app_mipi_lcd_state_get(void)
 int app_display_board_config_set(display_board_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, "config is NULL");
-
     if (display_board_config == NULL)
     {
         display_board_config = os_malloc(sizeof(display_board_config_t));

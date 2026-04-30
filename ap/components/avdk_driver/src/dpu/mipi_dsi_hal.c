@@ -853,10 +853,13 @@ uint32_t dsi_dphy_bitrate_calc(lcd_clk_t dpu_clk, uint8_t n_lanes)
             else //if(n_lanes == DSI_ACTIVE_LANES_1)
                 bitrate = DPHY_BR_800M;
             break;
+        case LCD_13M:
+            if(n_lanes == DSI_ACTIVE_LANES_1)
+                bitrate = DPHY_BR_800M;
+            break;
         case LCD_16M:
         case LCD_15M:
         case LCD_14M:
-        case LCD_13M:
         case LCD_12M:
         case LCD_11M:
         case LCD_10M:

@@ -606,7 +606,7 @@ bk_err_t bk_aud_adc_set_bits_width(aud_adc_chl_t chl, uint8_t bits_width)
     }
     else
     {
-        LOGE("%s, bits_width: %d, not support\n", __func__, __LINE__, bits_width);
+        LOGE("%s, bits_width: %d, not support\n", __func__, bits_width);
         return BK_FAIL;
     }
 

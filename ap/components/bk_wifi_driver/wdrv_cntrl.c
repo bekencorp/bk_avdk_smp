@@ -33,6 +33,9 @@
 #include "components/event.h"
 #include "wifi_api_ipc.h"
 #include "lwip/stats.h"
+#if CONFIG_PSA_MBEDTLS
+#include "mbedtls/bignum.h"
+#endif
 #define TAG "wdrv_cntrl"
 
 wdrv_wlan wdrv_host_env;
@@ -353,12 +356,12 @@ int bk_wdrv_send_customer_data(uint8_t *data, uint16_t len)
     return 0;
 }
 
-int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
+bk_err_t bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
 {
     int ret = 0;
 
     if (data == NULL || len == 0) {
-        WDRV_LOGE("bk_wdrv_customer_transfer : Invalid input parameters");
+        WDRV_LOGE("%s : Invalid input parameters\n", __func__);
         return -1;
     }
 
@@ -367,13 +370,69 @@ int bk_wdrv_customer_transfer(uint16_t cmd_id, uint8_t *data, uint16_t len)
     cust_trans->cmd_id = cmd_id;
     cust_trans->len = len;
 
-    WDRV_LOGV("bk_wdrv_customer_transfer : %d, len: %d\n", cust_trans->cmd_id, sizeof(cifd_cust_msg_hdr_t) + cust_trans->len);
+    WDRV_LOGV("%s, cmd_id: %d, len: %d\n", __func__, cust_trans->cmd_id, sizeof(cifd_cust_msg_hdr_t) + cust_trans->len);
     os_memcpy((uint8_t*)cust_trans + sizeof(cifd_cust_msg_hdr_t), data, len);
     ret = bk_wdrv_send_customer_data((uint8_t*)cust_trans, sizeof(cifd_cust_msg_hdr_t) + cust_trans->len);
 
     os_free(cust_trans);
 
     return ret;
+}
+
+
+bk_err_t bk_wdrv_customer_transfer_rsp(uint16_t cmd_id, uint8_t *data, uint16_t len,
+                      uint8_t *response_buf, uint16_t response_buf_size, uint16_t *response_len)
+{
+    int ret = 0;
+    cifd_cust_msg_hdr_t *cust_trans = NULL;
+    struct wdrv_customer_req cust_req = {0};
+    wdrv_cmd_cfm cmd_cfm = {0};
+    uint32_t total_len = 0;
+
+    if (response_buf == NULL || response_len == NULL) {
+        WIFI_LOGE("%s : Invalid response parameters\n", __func__);
+        return BK_ERR_PARAM;
+    }
+
+    total_len = sizeof(cifd_cust_msg_hdr_t) + (data ? len : 0);
+    cust_trans = os_malloc(total_len);
+    if (cust_trans == NULL) {
+        WIFI_LOGE("%s : malloc failed\n", __func__);
+        return BK_ERR_NO_MEM;
+    }
+
+    cust_trans->cmd_id = cmd_id;
+    cust_trans->len = len;
+    if (data && len > 0) {
+        os_memcpy(cust_trans->payload, data, len);
+    }
+
+    cust_req.cmd_hdr.cmd_id = BK_CMD_CUSTOMER_DATA;
+    cust_req.cmd_hdr.len = total_len;
+    cmd_cfm.waitcfm = WDRV_CMD_WAITCFM;
+    cmd_cfm.cfm_id = 0;
+
+    os_memcpy(cust_req.data, (uint8_t*)cust_trans, total_len);
+
+    ret = wdrv_tx_msg((uint8_t *)&cust_req, sizeof(wdrv_cmd_hdr) + total_len, &cmd_cfm, response_buf);
+
+    os_free(cust_trans);
+
+    if (ret < 0) {
+        WIFI_LOGE("%s : send failed, ret=%d\n", __func__, ret);
+        *response_len = 0;
+        return BK_ERR_TIMEOUT;
+    }
+
+    if (ret > 0 && ret <= response_buf_size) {
+        *response_len = (uint16_t)ret;
+        WIFI_LOGV("%s : received response, len=%d\n", __func__, *response_len);
+        return BK_OK;
+    } else {
+        WIFI_LOGE("%s : invalid response len=%d\n", __func__, ret);
+        *response_len = 0;
+        return BK_ERR_PARAM;
+    }
 }
 
 bk_err_t wdrv_cntrl_get_cif_stats()
@@ -573,6 +632,50 @@ void wdrv_rx_handle_wifi_cntrl_event(wdrv_rx_msg *msg)
             bk_wifi_csi_info_cb(msg->param);
             break;
 #if CONFIG_P2P
+        case BK_EVT_MODEXP_REQ:
+        {
+            const ap_modexp_req_t *req = (const ap_modexp_req_t *)msg->param;
+            ap_modexp_cfm_t cfm = { 0 };
+            struct { wdrv_cmd_hdr hdr; ap_modexp_cfm_t data; } result_msg = { 0 };
+            mbedtls_mpi X, A, E, N, RR;
+            mbedtls_mpi_init(&X);
+            mbedtls_mpi_init(&A);
+            mbedtls_mpi_init(&E);
+            mbedtls_mpi_init(&N);
+            mbedtls_mpi_init(&RR);
+
+            const uint8_t *base_p = req->data;
+            const uint8_t *exp_p  = base_p + req->base_len;
+            const uint8_t *mod_p  = exp_p  + req->exp_len;
+
+            if (mbedtls_mpi_read_binary(&A, base_p, req->base_len) != 0 ||
+                mbedtls_mpi_read_binary(&E, exp_p,  req->exp_len)  != 0 ||
+                mbedtls_mpi_read_binary(&N, mod_p,  req->mod_len)  != 0) {
+                cfm.ret = -1;
+            } else {
+                cfm.ret = mbedtls_mpi_exp_mod(&X, &A, &E, &N, &RR);
+                if (cfm.ret == 0) {
+                    cfm.ret = mbedtls_mpi_write_binary(&X, cfm.result,
+                                                       req->result_max_len);
+                    cfm.result_len = (cfm.ret == 0) ? req->result_max_len : 0;
+                }
+            }
+            mbedtls_mpi_free(&X);
+            mbedtls_mpi_free(&A);
+            mbedtls_mpi_free(&E);
+            mbedtls_mpi_free(&N);
+            mbedtls_mpi_free(&RR);
+
+            WDRV_LOGI(TAG, "modexp done: ret=%d result_len=%u\n",
+                      cfm.ret, cfm.result_len);
+
+            wdrv_cmd_cfm no_wait_cfm = { .waitcfm = WDRV_CMD_NOWAITCFM };
+            result_msg.hdr.cmd_id = BK_CMD_MODEXP_RESULT;
+            result_msg.hdr.len    = sizeof(ap_modexp_cfm_t);
+            result_msg.data       = cfm;
+            wdrv_tx_msg((uint8_t *)&result_msg, sizeof(result_msg), &no_wait_cfm, NULL);
+            break;
+        }
         case BK_EVT_ASSOC_GO_IND:
             os_memcpy(&wdrv_host_env.ap_assoc_sta_addr_ind, msg->param, sizeof(struct wdrv_ap_assoc_sta_ind));
             WDRV_LOGD("GO-INDICATE: go %x:%x:%x:%x:%x:%x connected\n",

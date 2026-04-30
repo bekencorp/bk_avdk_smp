@@ -738,6 +738,147 @@ static void cli_pwm_idle_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int 
 	}
 }
 
+/*
+ * Servo motor control via PWM
+ *
+ * Standard servo: 50Hz (20ms period), pulse width 0.5ms~2.5ms -> 0~180 degrees
+ * Clock source: PWM_CLOCK_SRC_XTAL (320MHz)
+ * With psc=249: effective clock = 320MHz / (249+1) = 1.28MHz
+ * period_cycle for 50Hz = 1.28MHz / 50 = 25600
+ * 0.5ms duty = 1.28MHz * 0.0005 = 640
+ * 2.5ms duty = 1.28MHz * 0.0025 = 3200
+ */
+#define SERVO_PSC             249
+#define SERVO_EFFECTIVE_CLK   (PWM_CLOCK_SRC_XTAL / (SERVO_PSC + 1))
+#define SERVO_FREQ            50
+#define SERVO_PERIOD_CYCLE    (SERVO_EFFECTIVE_CLK / SERVO_FREQ)
+#define SERVO_PULSE_MIN       (SERVO_EFFECTIVE_CLK * 5 / 10000)
+#define SERVO_PULSE_MAX       (SERVO_EFFECTIVE_CLK * 25 / 10000)
+#define SERVO_ANGLE_MIN       0
+#define SERVO_ANGLE_MAX       180
+
+static bool s_servo_inited[SOC_PWM_CHAN_NUM_MAX] = {false};
+
+static uint32_t servo_angle_to_duty(uint32_t angle)
+{
+	if (angle > SERVO_ANGLE_MAX)
+		angle = SERVO_ANGLE_MAX;
+	return SERVO_PULSE_MIN + (uint32_t)angle * (SERVO_PULSE_MAX - SERVO_PULSE_MIN) / SERVO_ANGLE_MAX;
+}
+
+static void cli_servo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	if (argc < 2) {
+		CLI_LOGD("servo init {chan}\n");
+		CLI_LOGD("servo set {chan} {angle 0~180}\n");
+		CLI_LOGD("servo sweep {chan} [step] [delay_ms]\n");
+		CLI_LOGD("servo stop {chan}\n");
+		CLI_LOGD("servo deinit {chan}\n");
+		CLI_LOGD("\nServo params: freq=%dHz, period=%d, psc=%d\n",
+				 SERVO_FREQ, SERVO_PERIOD_CYCLE, SERVO_PSC);
+		CLI_LOGD("pulse range: %d~%d (0.5ms~2.5ms)\n", SERVO_PULSE_MIN, SERVO_PULSE_MAX);
+		return;
+	}
+
+	if (os_strcmp(argv[1], "init") == 0) {
+		if (argc < 3) {
+			CLI_LOGD("Usage: servo init {chan}\n");
+			return;
+		}
+		uint32_t chan = os_strtoul(argv[2], NULL, 10);
+		pwm_init_config_t config = {0};
+
+		config.period_cycle = SERVO_PERIOD_CYCLE;
+		config.duty_cycle = servo_angle_to_duty(90);
+		config.duty2_cycle = 0;
+		config.duty3_cycle = 0;
+		config.psc = SERVO_PSC;
+
+		BK_LOG_ON_ERR(bk_pwm_driver_init());
+		BK_LOG_ON_ERR(bk_pwm_init(chan, &config));
+		BK_LOG_ON_ERR(bk_pwm_start(chan));
+		s_servo_inited[chan] = true;
+		CLI_LOGD("servo init chan=%d, angle=90, duty=%d\n", chan, config.duty_cycle);
+	} else if (os_strcmp(argv[1], "set") == 0) {
+		if (argc < 4) {
+			CLI_LOGD("Usage: servo set {chan} {angle 0~180}\n");
+			return;
+		}
+		uint32_t chan = os_strtoul(argv[2], NULL, 10);
+		uint32_t angle = os_strtoul(argv[3], NULL, 10);
+
+		if (!s_servo_inited[chan]) {
+			CLI_LOGD("servo chan=%d not inited, run 'servo init %d' first\n", chan, chan);
+			return;
+		}
+
+		uint32_t duty = servo_angle_to_duty(angle);
+		pwm_period_duty_config_t config = {0};
+		config.period_cycle = SERVO_PERIOD_CYCLE;
+		config.duty_cycle = duty;
+		config.psc = SERVO_PSC;
+
+		BK_LOG_ON_ERR(bk_pwm_set_period_duty(chan, &config));
+		CLI_LOGD("servo set chan=%d angle=%d duty=%d\n", chan, angle, duty);
+	} else if (os_strcmp(argv[1], "sweep") == 0) {
+		if (argc < 3) {
+			CLI_LOGD("Usage: servo sweep {chan} [step] [delay_ms]\n");
+			return;
+		}
+		uint32_t chan = os_strtoul(argv[2], NULL, 10);
+		uint32_t step = (argc > 3) ? os_strtoul(argv[3], NULL, 10) : 10;
+		uint32_t delay_ms = (argc > 4) ? os_strtoul(argv[4], NULL, 10) : 500;
+
+		if (!s_servo_inited[chan]) {
+			CLI_LOGD("servo chan=%d not inited, run 'servo init %d' first\n", chan, chan);
+			return;
+		}
+
+		if (step == 0) step = 10;
+		if (delay_ms == 0) delay_ms = 500;
+
+		CLI_LOGD("servo sweep chan=%d step=%d delay=%dms\n", chan, step, delay_ms);
+
+		pwm_period_duty_config_t config = {0};
+		config.period_cycle = SERVO_PERIOD_CYCLE;
+		config.psc = SERVO_PSC;
+
+		for (uint32_t angle = SERVO_ANGLE_MIN; angle <= SERVO_ANGLE_MAX; angle += step) {
+			config.duty_cycle = servo_angle_to_duty(angle);
+			BK_LOG_ON_ERR(bk_pwm_set_period_duty(chan, &config));
+			CLI_LOGD("  -> angle=%d duty=%d\n", angle, config.duty_cycle);
+			rtos_delay_milliseconds(delay_ms);
+		}
+		for (int angle = SERVO_ANGLE_MAX; angle >= (int)SERVO_ANGLE_MIN; angle -= step) {
+			config.duty_cycle = servo_angle_to_duty((uint32_t)angle);
+			BK_LOG_ON_ERR(bk_pwm_set_period_duty(chan, &config));
+			CLI_LOGD("  -> angle=%d duty=%d\n", angle, config.duty_cycle);
+			rtos_delay_milliseconds(delay_ms);
+		}
+		CLI_LOGD("servo sweep done\n");
+	} else if (os_strcmp(argv[1], "stop") == 0) {
+		if (argc < 3) {
+			CLI_LOGD("Usage: servo stop {chan}\n");
+			return;
+		}
+		uint32_t chan = os_strtoul(argv[2], NULL, 10);
+		BK_LOG_ON_ERR(bk_pwm_stop(chan));
+		CLI_LOGD("servo stop chan=%d\n", chan);
+	} else if (os_strcmp(argv[1], "deinit") == 0) {
+		if (argc < 3) {
+			CLI_LOGD("Usage: servo deinit {chan}\n");
+			return;
+		}
+		uint32_t chan = os_strtoul(argv[2], NULL, 10);
+		BK_LOG_ON_ERR(bk_pwm_stop(chan));
+		BK_LOG_ON_ERR(bk_pwm_deinit(chan));
+		s_servo_inited[chan] = false;
+		CLI_LOGD("servo deinit chan=%d\n", chan);
+	} else {
+		CLI_LOGD("Unknown servo command: %s\n", argv[1]);
+	}
+}
+
 #define PWM_CMD_CNT (sizeof(s_pwm_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_pwm_commands[] = {
 	{"pwm_driver", "{init|deinit}}", cli_pwm_driver_cmd},
@@ -753,6 +894,7 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_pwm_commands[] = {
 #if CONFIG_PWM_FADE
 	{"pwm_fade", "pwm_fade", cli_pwm_fade_cmd},
 #endif
+	{"servo", "servo {init|set|sweep|stop|deinit} {chan} [angle] [step] [delay_ms]", cli_servo_cmd},
 };
 
 int bk_pwm_register_cli_test_feature(void)

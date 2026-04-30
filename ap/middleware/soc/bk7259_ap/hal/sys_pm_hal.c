@@ -515,12 +515,12 @@ void sys_hal_gpio_ana_wakeup_enable(uint32_t count, uint32_t index, uint32_t typ
 
 void sys_hal_enter_cpu_wfi()
 {
-    return;
+    arch_sleep();
 }
 
 void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 {
-    return;
+	arch_sleep();
 }
 
 void sys_hal_enter_normal_wakeup()

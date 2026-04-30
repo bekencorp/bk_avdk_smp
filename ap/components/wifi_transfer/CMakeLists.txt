@@ -7,7 +7,7 @@ if (1)
 		)
 endif()
 
-set(priv_req bk_common multimedia media_utils)
+set(priv_req bk_common media_utils)
 
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"

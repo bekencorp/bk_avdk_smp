@@ -187,20 +187,20 @@ int aud_dump_cli_init(void)
 {
     if (g_aud_dump_enable)
     {
-        LOGW("audio dump cli already init\n!");
+        LOGW("%s already init\n!", __func__);
         return 0;
     } else
     {
         int ret = cli_register_commands(s_aud_dump_commands, AUD_ENGINE_CMD_CNT);
-        if (ret)
+        if (ret == 0)
         {
             g_aud_dump_enable = 1;
-            LOGI("audio dump cli init success\n!");
+            LOGI("%s init success\n!", __func__);
         }
         else
         {
             g_aud_dump_enable = 0;
-            LOGE("audio dump cli init fail\n!");
+            LOGE("%s init fail\n!", __func__);
         }
         return ret;
     }

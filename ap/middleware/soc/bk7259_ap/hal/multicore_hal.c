@@ -46,9 +46,9 @@ static void multicore_hal_m55_core_init_common(void)
 		delay_ms(1);
 	}
 
-	reg_val = sys_ll_get_ana_reg10_value();
-	reg_val |= BIT(19);
-	sys_ll_set_ana_reg10_value(reg_val);
+	// reg_val = sys_ll_get_ana_reg10_value();
+	// reg_val |= BIT(19);
+	// sys_ll_set_ana_reg10_value(reg_val);
 
 	while(aon_pmu_ll_get_r74_por_corehs_n() == 0x0);
 

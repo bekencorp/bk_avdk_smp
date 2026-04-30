@@ -641,6 +641,7 @@ avdk_err_t app_uvc_turn_on(camera_parameters_ext_t *parameters)
     {
         LOGE("uvc open failed\n");
         ret = AVDK_ERR_INVAL;
+        goto err;
     }
 
     app_uvc_device_t uvc_device = {
@@ -654,7 +655,7 @@ avdk_err_t app_uvc_turn_on(camera_parameters_ext_t *parameters)
     if (ret != BK_OK)
     {
         LOGE("devices_mgmt_add_uvc_device failed\n");
-        return ret;
+        goto err;
     }
 
     ret = devices_mgmt_set_display_source(DISPLAY_STREAM_ID_PORT_0_UVC, NULL);
@@ -662,9 +663,17 @@ avdk_err_t app_uvc_turn_on(camera_parameters_ext_t *parameters)
     if (ret != BK_OK)
     {
         LOGE("devices_mgmt_set_display_source failed\n");
-        return ret;
+        goto err;
     }
 
+    return ret;
+
+err:
+    if (s_uvc_handle[index] != NULL)
+    {
+        (void)uvc_camera_turn_off(index);
+        s_uvc_handle[index] = NULL;
+    }
     return ret;
 }
 
@@ -677,5 +686,6 @@ avdk_err_t app_uvc_turn_off(uint8_t port_id)
         return AVDK_ERR_INVAL;
     }
     ret = uvc_camera_turn_off(port_id - 1);// convert to index
+    s_uvc_handle[port_id - 1] = NULL;
     return ret;
 }

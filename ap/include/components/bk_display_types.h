@@ -33,12 +33,6 @@ typedef enum {
 /*
 * Bus Types Start
 */
-typedef enum
-{
-    DSI_DISPLAY_PORT = 1,     /**< dsi port */
-    RGB_DISPLAY_PORT,         /**< rgb port */
-} bk_display_dsi_port_t;
-
 typedef struct
 {
     /** Same value as bk_display_dpu_config_t.clk_src; NULL config to bk_display_dsi_bus_new → DPU_CLK_SRC_UNKNOWN */
@@ -55,7 +49,6 @@ typedef struct
 
 typedef struct
 {
-    bool enable;
     uint8_t scl_pin;     /**< i2c scl io */
     uint8_t sda_pin;     /**< i2c sda io */
 } bk_display_i2c_bus_config_t;

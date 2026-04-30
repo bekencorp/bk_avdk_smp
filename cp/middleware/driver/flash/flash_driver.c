@@ -108,34 +108,19 @@ static volatile uint32_t s_flash_hspl_lock_count = 0;
  * is wrong, and HSPL unlock must be done by the core that took it (bk_hspl_res_unlock asserts
  * per-core rec count). Do not migrate while holding flash lock.
  */
-static inline uint32_t flash_enter_critical(void)
-{
-	uint32_t flags = rtos_disable_int();
-	/* Acquire HSPL lock for cross-core synchronization */
-	/* Use recursive lock counter to prevent deadlock */
-#ifdef CONFIG_HSPL
-	if (s_flash_hspl_lock_count == 0) {
-		bk_hspl_res_must_lock(BK_HSPL_RES_FLASH);
-	}
-	s_flash_hspl_lock_count++;
-#endif
-	return flags;
-}
-
-static inline void flash_exit_critical(uint32_t flags)
-{
-	/* Release HSPL lock */
-	/* Use recursive lock counter to prevent deadlock */
-#ifdef CONFIG_HSPL
-	if (s_flash_hspl_lock_count > 0) {
-		s_flash_hspl_lock_count--;
-		if (s_flash_hspl_lock_count == 0) {
-			bk_hspl_res_unlock(BK_HSPL_RES_FLASH);
-		}
-	}
-#endif
-	rtos_enable_int(flags);
-}
+ static inline uint32_t flash_enter_critical(void)
+ {
+ 
+	 uint32_t flags = bk_aspl_flash_enter_critical();
+	 
+	 return flags;
+ }
+ 
+ static inline void flash_exit_critical(uint32_t flags)
+ {
+	 /* Release HSPL lock */
+	 bk_aspl_flash_exit_critical(flags);
+ }
 
 #if 1
 #ifdef CONFIG_FREERTOS_SMP
@@ -572,6 +557,9 @@ bk_err_t bk_flash_driver_init(void)
 	FLASH_LOGI("dev_version=0x%x\r\n", s_flash.dev_version);
 
     flash_hal_disable_cpu_data_wr(hal_ptr);
+
+	uint32_t int_level = flash_enter_critical();
+
     flash_set_line_mode(FLASH_LINE_MODE_TWO);
 
     s_flash.flash_id = flash_get_id();
@@ -588,6 +576,8 @@ bk_err_t bk_flash_driver_init(void)
     flash_set_line_mode(s_flash.flash_cfg->line_mode);
 
     flash_hal_set_default_clk(hal_ptr);
+
+	flash_exit_critical(int_level);
 
 	if(s_flash.dev_version != 0x20000)
 	{

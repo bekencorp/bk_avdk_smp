@@ -214,9 +214,22 @@ static inline uint32_t wwdt_ll_get_wdt_win_set_win_key(void) {
 	return r->win_key;
 }
 
-static inline void wwdt_ll_set_wdt_win_set_win_en(uint32_t v) {
+static inline void wwdt_ll_set_wdt_win_1st_set_win_en(uint32_t v) {
+	uint32_t val;
 	wwdt_wdt_win_set_t *r = (wwdt_wdt_win_set_t*)(SOC_WWDT_REG_BASE + (0x6 << 2));
-	r->win_en = v;
+
+	val = (v & WWDT_WDT_WIN_SET_WIN_EN_MASK) << WWDT_WDT_WIN_SET_WIN_EN_POS;
+	val |= (WWDT_V_KEY_1ST & WWDT_WDT_WIN_SET_WIN_KEY_MASK) << WWDT_WDT_WIN_SET_WIN_KEY_POS;
+	r->v = val;
+}
+
+static inline void wwdt_ll_set_wdt_win_2nd_set_win_en(uint32_t v) {
+	uint32_t val;
+	wwdt_wdt_win_set_t *r = (wwdt_wdt_win_set_t*)(SOC_WWDT_REG_BASE + (0x6 << 2));
+
+	val = (v & WWDT_WDT_WIN_SET_WIN_EN_MASK) << WWDT_WDT_WIN_SET_WIN_EN_POS;
+	val |= (WWDT_V_KEY_2ND & WWDT_WDT_WIN_SET_WIN_KEY_MASK) << WWDT_WDT_WIN_SET_WIN_KEY_POS;
+	r->v = val;
 }
 
 //reg cpuid:

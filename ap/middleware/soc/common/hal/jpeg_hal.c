@@ -98,9 +98,7 @@ bk_err_t jpeg_hal_switch_mode(jpeg_hal_t *hal, const jpeg_config_t *config)
 		jpeg_ll_set_default_bitrate_step(hal->hw);
 		jpeg_ll_enable_video_byte_reverse(hal->hw);
 		jpeg_ll_enable_enc_size(hal->hw);
-#if (!CONFIG_YUV_BUF)
 		jpeg_ll_set_em_base_addr(hal->hw, (uint32_t)JPEG_SHARE_MEM);
-#endif
 	}
 	else
 	{
@@ -109,9 +107,7 @@ bk_err_t jpeg_hal_switch_mode(jpeg_hal_t *hal, const jpeg_config_t *config)
 		jpeg_ll_set_x_pixel(hal->hw, config->x_pixel);
 		jpeg_ll_set_y_pixel(hal->hw, config->y_pixel);
 		jpeg_ll_enable_yuv_word_reverse(hal->hw, 1);
-#if (!CONFIG_YUV_BUF)
 		jpeg_ll_set_em_base_addr(hal->hw, PSRAM_BASEADDR);//PSRAM_BASEADDR
-#endif
 	}
 
 	return BK_OK;

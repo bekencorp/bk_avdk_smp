@@ -1,3 +1,4 @@
+
 #include "bk_private/bk_init.h"
 #include <components/system.h>
 #include <os/os.h>
@@ -5,6 +6,7 @@
 #include <components/bk_frame_buffer.h>
 #include "h264_encode_test.h"
 #include "h264_encode_stress.h"
+#include "h264_encode_time_statisticsi.h"
 #include "media_service.h"
 
 #define SYS_ANA_REG_BASE    (0x44010000)
@@ -34,6 +36,7 @@ static const struct cli_command s_h264_encode_commands[] =
     {"h264_encode_error_test", "null_handle_test/invalid_config_test", cli_h264_encode_error_test_cmd},
     // Legacy H264 encoder pressure test
     {"h264_encode_stress", "h264 encode pressure test", cli_h264_encode_stress_cmd},
+    {"h264_encode_time_statisticsi", "frame|sw_flexa [n] GPIO32/33 timing", cli_h264_encode_time_statisticsi_cmd},
 
     {"mjpeg_encode_stress", "mjpeg encode stress", cli_mjpeg_encode_stress_cmd},
     {"mjpeg_flexa_dump", "mjpeg flexa encode+dump one frame", cli_mjpeg_flexa_dump_cmd},

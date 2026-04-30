@@ -5,7 +5,6 @@ set(BK_PERIPHERAL_PATH $ENV{ARMINO_AP_DIR}/components/bk_peripheral)
 set(GLOBAL_FUNCTION_SYMBOLS "")
 
 include(${BK_PERIPHERAL_PATH}/src/lcd/rgb/config.cmake)
-include(${BK_PERIPHERAL_PATH}/src/lcd/mcu/config.cmake)
 include(${BK_PERIPHERAL_PATH}/src/lcd/qspi/config.cmake)
 include(${BK_PERIPHERAL_PATH}/src/lcd/spi/config.cmake)
 include(${BK_PERIPHERAL_PATH}/src/lcd/dsi/config.cmake)
@@ -23,10 +22,6 @@ if (CONFIG_BK_PERIPHERAL)
 
 list(APPEND srcs
 	${RGB_LCD_DEVICE_FILES}
-)
-
-list(APPEND srcs
-	${MCU_LCD_DEVICE_FILES}
 )
 
 list(APPEND srcs

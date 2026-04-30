@@ -11,6 +11,6 @@ endif()
 armino_component_register(
     SRCS "${srcs}"
     INCLUDE_DIRS "${incs}"
-    PRIV_REQUIRES bk_common include multimedia avdk_utils lvgl bk_h264d
+    PRIV_REQUIRES bk_common include avdk_utils lvgl bk_h264d
 )
 

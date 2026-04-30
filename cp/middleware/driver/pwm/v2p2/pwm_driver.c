@@ -157,7 +157,11 @@ static void pwm_chan_init_common(pwm_chan_t sw_ch)
 {
 	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM0, CLK_PWR_CTRL_PWR_UP);
 	sys_drv_pwm_select_clock(SYS_SEL_PWM0, PWM_SCLK_XTAL);
+#if CONFIG_SOC_SMP
+	sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_PWM, 1);
+#else
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_PWM, 1);
+#endif
 	pwm_chan_init_gpio(sw_ch);
 	s_pwm.chan_init_bits |= BIT(sw_ch);
 }
@@ -267,7 +271,11 @@ static bk_err_t pwm_group_validate_param(pwm_chan_t sw_ch1,
 
 static void pwm_chan_enable_interrupt_common(pwm_chan_t sw_ch)
 {
+#if CONFIG_SOC_SMP
+	sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_PWM, 1);
+#else
 	sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_PWM, 1);
+#endif
 	pwm_hal_set_uie(sw_ch, 1);
 }
 
@@ -1184,6 +1192,7 @@ bk_err_t bk_pwm_phase_shift_set_duty_and_update(const pwm_phase_shift_config_t *
 
 #endif
 
+#if CONFIG_PWM_FADE
 static uint32_t pwm_adjust_fade_num(pwm_chan_t chan, pwm_fade_mode_t fade_mode)
 {
 	uint32_t ccr2 = pwm_hal_get_ccr2(chan);
@@ -1262,6 +1271,7 @@ bk_err_t bk_pwm_fade_stop(pwm_chan_t chan)
 
 	return BK_OK;
 }
+#endif
 
 static void pwm_isr_common(pwm_unit_t id)
 {

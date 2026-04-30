@@ -3,4 +3,9 @@
 # This file contains only differences compared to board defconfig.
 #
 
-
+CONFIG_BLUETOOTH_AP=y
+CONFIG_AT=y
+CONFIG_DEFAULT_AT_PORT=5
+CONFIG_WIFI_AT_ENABLE=y
+CONFIG_MISC_AT_ENABLE=y
+CONFIG_AT_MAX_PORT_CNT=1

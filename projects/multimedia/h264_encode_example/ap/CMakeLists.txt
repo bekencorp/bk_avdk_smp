@@ -6,6 +6,7 @@ set(srcs ap_main.c
     h264_encode/src/h264_encode_error_test.c
     h264_encode/src/h264e_api_cli.c
     h264_stress/src/h264_encode_stress.c
+    h264_stress/src/h264_encode_time_statisticsi.c
     mjpeg_encode/mjpeg_encode_stress.c
     )
 

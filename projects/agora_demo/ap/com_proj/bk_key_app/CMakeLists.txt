@@ -9,6 +9,6 @@ list(APPEND srcs
 armino_component_register(
     SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
-	PRIV_REQUIRES bk_common media_service multimedia bk_vfs 
+	PRIV_REQUIRES bk_common media_service bk_vfs 
 				  bk_app_event key ap bk_smart_config  bk_factory_config
 				  )

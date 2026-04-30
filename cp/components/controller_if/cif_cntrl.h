@@ -30,12 +30,15 @@ bk_err_t cif_handle_bk_cmd_scan_wifi_cfm(void);
 bk_err_t cif_handle_bk_cmd_scan_wifi_ind(uint32_t scan_id,uint32_t scan_use_time);
 bk_err_t cif_handle_bk_cmd_bcn_cc_ind(uint8_t *cc, uint8_t cc_len);
 bk_err_t cif_handle_bk_cmd_csi_info_ind(void *data);
-bk_err_t cif_send_customer_cmd_cfm(uint8_t *data, uint16_t len, struct bk_msg_hdr *msg);
-bk_err_t cif_send_customer_event(uint8_t *data, uint16_t len);
+
 int32_t bluetooth_controller_deinit_api(void);
 #if CONFIG_P2P
 bk_err_t cif_handle_bk_cmd_assoc_go_ind(uint8_t* mac_addr);
 bk_err_t cif_handle_bk_cmd_disassoc_go_ind(uint8_t* mac_addr);
+bk_err_t cif_send_modexp_req(const uint8_t *base, uint16_t base_len,
+							  const uint8_t *exp,  uint16_t exp_len,
+							  const uint8_t *mod,  uint16_t mod_len,
+							  uint16_t result_max_len);
 #endif
 #ifdef __cplusplus
 }

@@ -46,6 +46,18 @@ menu "PM"
 		help
 			Primarily protect the BT sleep time until re-entering the sleep scenario
 
+	config PM_POWER_VOTE_RECORD
+		bool "Enable PM power vote record"
+		default n
+		help
+			Record PM power votes for debugging.
+
+	config PM_CLOCK_VOTE_RECORD
+		bool "Enable PM clock vote record"
+		default n
+		help
+			Record PM clock votes for debugging.
+
 	config PM_LOWEST_POWER_MODE
 		int "config lowest power mode"
 		default 0

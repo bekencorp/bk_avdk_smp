@@ -127,57 +127,6 @@ int doorbell_get_lcd_status(int opcode)
     return 0;
 }
 
-static avdk_err_t bk_camera_auxldo_enable(bool enable)
-{
-    int ldo_en = PM_AUXLDO_DISABLE;
-    if (enable)
-    {
-        ldo_en = PM_AUXLDO_ENABLE;
-    }
-    else
-    {
-        ldo_en = PM_AUXLDO_DISABLE;
-    }
-    LOGI("%s, iovdd dvdd enable: %d\n", __func__, ldo_en); 
-
-    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
-    auxldo_cfg.ldo = AUXLDOS_SEL_1P8V;
-    auxldo_cfg.out = PM_AUXLDO_1P8V_OUT_1P8V;
-    auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
-    auxldo_cfg.state = ldo_en;
-    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 1p8v ldo vote failed");
-
-
-    auxldo_cfg = (pm_auxldo_ctrl_cfg_t){0};
-    auxldo_cfg.ldo = AUXLDOS_SEL_1P2V;  
-    auxldo_cfg.out = PM_AUXLDO_1P2V_OUT_1P2V;
-    auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
-    auxldo_cfg.state = ldo_en;
-    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 1p2v ldo vote failed");
-    return BK_OK;
-}
-static avdk_err_t bk_display_auxldo_enable(bool enable)
-{
-    int ldo_en = PM_AUXLDO_DISABLE;
-    if (enable)
-    {
-        ldo_en = PM_AUXLDO_ENABLE;
-    }
-    else
-    {
-        ldo_en = PM_AUXLDO_DISABLE;
-    }
-    LOGI("%s, vddio enable: %d\n", __func__, ldo_en); 
-
-    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
-    auxldo_cfg.ldo = AUXLDOS_SEL_1P8V; 
-    auxldo_cfg.out = PM_AUXLDO_1P8V_OUT_1P8V;
-    auxldo_cfg.user = PM_AUXLDO_USER_DISPLAY;
-    auxldo_cfg.state = ldo_en;
-    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "display 1p8v ldo vote failed");
-    return BK_OK;
-}
-
 int doorbell_camera_turn_on(camera_parameters_t *parameters)
 {
     bk_err_t ret = BK_FAIL;
@@ -207,12 +156,6 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
     else
     {
         info->transfer_format = BK_IMAGE_FORMAT_MJPEG;
-    }
-    ret = bk_camera_auxldo_enable(true);
-    if (ret != BK_OK)
-    {
-        LOGE("%s(%d), bk_camera_auxldo_enable failed, ret = %d\n", __func__, __LINE__, ret);
-        return ret;
     }
     if (parameters->id == UVC_DEVICE_ID)
     {
@@ -341,11 +284,6 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
     return BK_OK;
 
 err:
-    ret = bk_camera_auxldo_enable(false);
-    if (ret != BK_OK)
-    {
-        LOGE("%s(%d), bk_camera_auxldo_enable failed, ret = %d\n", __func__, __LINE__, ret);
-    }
     return ret;
 }
 
@@ -428,7 +366,6 @@ int doorbell_camera_turn_off(void)
     }
 
     info->video_enable = false;
-    bk_camera_auxldo_enable(false);
     LOGD("%s success\n", __func__);
 
     return ret;
@@ -564,12 +501,6 @@ int doorbell_display_turn_on(display_board_config_t *config)
         LOGE("%s, display_source id is invalid\n", __func__);
         return ret;
     }
-    ret = bk_display_auxldo_enable(true);
-    if (ret != BK_OK)
-    {
-        LOGE("%s %d failed, ret = %d\n", __func__, __LINE__, ret);
-        return ret;
-    }
     ret = app_mipi_lcd_turn_on(config);
     if (ret != BK_OK)
     {
@@ -651,11 +582,6 @@ error:
         LOGE("%s, app_mipi_lcd_turn_off failed, ret = %d\n", __func__, ret);
     }
     info->lcd_enable = false;
-    ret = bk_display_auxldo_enable(false);
-    if (ret != BK_OK)
-    {
-        LOGE("%s %d failed, ret = %d\n", __func__, __LINE__, ret);
-    }
     LOGD("%s failed\n", __func__);
     return BK_FAIL;
 }
@@ -687,11 +613,6 @@ int doorbell_display_turn_off(void)
     }
 
     info->lcd_enable = false;
-    ret = bk_display_auxldo_enable(false);
-    if (ret != BK_OK)
-    {
-        LOGE("%s %d failed, ret = %d\n", __func__, __LINE__, ret);
-    }
     LOGD("%s success\n", __func__);
 
     return ret;

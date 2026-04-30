@@ -9,7 +9,6 @@
 
 #include <components/bk_lcd_panel_io.h>
 #include <components/bk_lcd_types.h>
-#include <bk_lcd_panel_commands.h>
 #include <avdk_check.h>
 #include <components/log.h>
 
@@ -186,79 +185,6 @@ static bk_err_t lcd_panel_common_del(bk_avdk_lcd_panel_t *panel)
     return BK_OK;
 }
 
-// Common display on/off function
-static bk_err_t lcd_panel_common_disp_on_off(bk_avdk_lcd_panel_t *panel, bool on_off)
-{
-    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
-    AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
-
-    uint8_t command = on_off ? LCD_CMD_DISPON : LCD_CMD_DISPOFF;
-    AVDK_RETURN_ON_ERROR(bk_display_bus_write(priv->bus_handle, BK_DISPLAY_BUS_RW_DSI_CMD,
-                                              command, NULL, 0),
-                         TAG, "send display on/off command failed");
-    rtos_delay_milliseconds(100);
-    return BK_OK;
-}
-
-// Common sleep function
-static bk_err_t lcd_panel_common_sleep(bk_avdk_lcd_panel_t *panel, bool sleep)
-{
-    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
-    AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
-
-    uint8_t command = sleep ? LCD_CMD_SLPIN : LCD_CMD_SLPOUT;
-    AVDK_RETURN_ON_ERROR(bk_display_bus_write(priv->bus_handle, BK_DISPLAY_BUS_RW_DSI_CMD,
-                                              command, NULL, 0),
-                         TAG, "send sleep command failed");
-    rtos_delay_milliseconds(100);
-    return BK_OK;
-}
-
-// Common invert color function
-static bk_err_t lcd_panel_common_invert_color(bk_avdk_lcd_panel_t *panel, bool invert_color_data)
-{
-    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
-    AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
-
-    uint8_t command = invert_color_data ? LCD_CMD_INVON : LCD_CMD_INVOFF;
-    AVDK_RETURN_ON_ERROR(bk_display_bus_write(priv->bus_handle, BK_DISPLAY_BUS_RW_DSI_CMD,
-                                              command, NULL, 0),
-                         TAG, "send invert color command failed");
-    return BK_OK;
-}
-
-// Common mirror function (basic implementation, may need customization for specific panels)
-static bk_err_t lcd_panel_common_mirror(bk_avdk_lcd_panel_t *panel, bool mirror_x, bool mirror_y)
-{
-    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
-    AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
-
-    uint8_t madctl_val = 0;
-    // Read current MADCTL value
-    avdk_err_t ret = bk_display_bus_read(priv->bus_handle, BK_DISPLAY_BUS_RW_DSI_CMD,
-                                         LCD_CMD_MADCTL, &madctl_val, 1);
-    if (ret != AVDK_ERR_OK) {
-        return ret;
-    }
-
-    // Control mirror through LCD command bits
-    if (mirror_x) {
-        madctl_val |= LCD_CMD_MX_BIT;  // Column address order
-    } else {
-        madctl_val &= ~LCD_CMD_MX_BIT;
-    }
-    if (mirror_y) {
-        madctl_val |= LCD_CMD_MY_BIT;  // Row address order
-    } else {
-        madctl_val &= ~LCD_CMD_MY_BIT;
-    }
-
-    AVDK_RETURN_ON_ERROR(bk_display_bus_write(priv->bus_handle, BK_DISPLAY_BUS_RW_DSI_CMD,
-                                              LCD_CMD_MADCTL, (const uint8_t[]){madctl_val}, 1),
-                         TAG, "send mirror command failed");
-    return BK_OK;
-}
-
 // Common panel creation function - used by all standard panels
 bk_err_t bk_lcd_new_mipi_panel_common(bk_display_bus_handle_t bus_handle,
                                  const bk_lcd_panel_dev_config_t *panel_dev_config,
@@ -283,16 +209,12 @@ bk_err_t bk_lcd_new_mipi_panel_common(bk_display_bus_handle_t bus_handle,
     panel->reset_active_level = panel_dev_config->flags.reset_active_level;
     panel->base.user_data = panel_dev_config->vendor_config;
 
-    // Set common operation functions
+    // Set common operation functions (only the ops actually exposed by the public API)
     panel->base.init = lcd_panel_common_init;
     panel->base.reset = lcd_panel_common_reset;
     panel->base.read_id = lcd_panel_common_read_id;
     panel->base.get_disp_timing = lcd_panel_common_get_disp_timing;
     panel->base.del = lcd_panel_common_del;
-    panel->base.disp_on_off = lcd_panel_common_disp_on_off;
-    panel->base.disp_sleep = lcd_panel_common_sleep;
-    panel->base.invert_color = lcd_panel_common_invert_color;
-    panel->base.mirror = lcd_panel_common_mirror;
 
     *ret_panel = (bk_avdk_lcd_panel_handle_t)&panel->base;
     return BK_OK;
