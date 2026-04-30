@@ -455,11 +455,13 @@ static inline void gpu_flex_data_deinit(gpu_flex_data_t *data, gpu_vn_ctlr_t *gp
     if (data->transfer_sem)
     {
         rtos_deinit_semaphore(&data->transfer_sem);
+        data->transfer_sem = NULL;
     }
 
     if (data->draw_mutex)
     {
         rtos_deinit_mutex(&data->draw_mutex);
+        data->draw_mutex = NULL;
     }
 }
 
@@ -1010,6 +1012,12 @@ static avdk_err_t gpu_ctlr_close(bk_gpu_ctlr_handle_t handle)
 
         control->flexa_stop = true;
 
+#if HDMA_OPEN_ISR_ENABLE
+        if (control->flex.transfer_sem) {
+            rtos_set_semaphore(&control->flex.transfer_sem);
+        }
+#endif
+
 	    if (control->gpu_process_sem)
 	    {
 	        bk_err_t ret = rtos_set_semaphore(&control->gpu_process_sem);
@@ -1017,11 +1025,6 @@ static avdk_err_t gpu_ctlr_close(bk_gpu_ctlr_handle_t handle)
                 LOGW("%s, %d rtos_set_semaphore failed\n", __func__, __LINE__);
             }
 	    }
-#if HDMA_OPEN_ISR_ENABLE
-        if (control->flex.transfer_sem) {
-            rtos_set_semaphore(&control->flex.transfer_sem);
-        }
-#endif
         rtos_get_semaphore(&control->gpu_flex_task_sem, BEKEN_WAIT_FOREVER);
 
         rtos_deinit_semaphore(&control->gpu_flex_task_sem);
