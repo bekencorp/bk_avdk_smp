@@ -1487,7 +1487,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	#endif
 /*----------restore analog clock  start--------------*/
 	sys_ll_set_ana_reg5_en_cb(1);
-
+	bk_delay_us(10);
 	#if CONFIG_DEEP_LV
 	#if CONFIG_DEEP_LV_DEBUG
 	GPIO_UP(27);//7
@@ -1505,9 +1505,16 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	GPIO_UP(27);//9
 	GPIO_DOWN(27);
 	#endif
-
 	sys_hal_restore_hf_clock(hf_reg_v);
 
+	volatile uint64_t previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+	volatile uint64_t current_tick  = 0;
+	current_tick = previous_tick;
+	while(((current_tick - previous_tick)) < (LOW_POWER_DPLL_STABILITY_DELAY_TIME*AON_RTC_MS_TICK_CNT))
+	{
+		current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+	}
+	/*---------------wifi debug end -----------------*/
 	#if CONFIG_DEEP_LV_DEBUG
 		GPIO_UP(27);//10
 		GPIO_DOWN(27);
@@ -1538,20 +1545,13 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	GPIO_UP(27);//12
 	GPIO_DOWN(27);
 	#endif
-/*---------------wifi debug end -----------------*/
-	volatile uint64_t previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+
 	sys_hal_set_exit_low_voltage_tick(previous_tick);
 	#if CONFIG_DEEP_LV_DEBUG
 	GPIO_UP(27);//13
 	GPIO_DOWN(27);
 	#endif
 /*---------------at least delay 190us-----------------*/
-	volatile uint64_t current_tick  = 0;
-	current_tick = previous_tick;
-	while(((current_tick - previous_tick)) < (LOW_POWER_DPLL_STABILITY_DELAY_TIME*AON_RTC_MS_TICK_CNT))
-	{
-		current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-	}
 	#if CONFIG_DEEP_LV_DEBUG
 	GPIO_UP(27);//14
 	GPIO_DOWN(27);
