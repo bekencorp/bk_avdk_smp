@@ -4,8 +4,8 @@ FLASH_CAPACITY=8M
 #Name,Offset,Size,Type,Read,Write
 #primary_bootloader,,68k,code,TRUE,FALSE
 primary_cp_app,,1224k,code,TRUE,FALSE
-primary_ap_app,,1700k,code,TRUE,FALSE
-ota,,1360K,data,TRUE,TRUE
+primary_ap_app,,1972k,code,TRUE,FALSE
+ota,,1088K,data,TRUE,TRUE
 usr_config,,60K,data,TRUE,TRUE
 easyflash,,8K,data,TRUE,TRUE
 easyflash_ap,,8K,data,TRUE,TRUE
