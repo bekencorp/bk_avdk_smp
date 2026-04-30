@@ -187,6 +187,7 @@ avdk_err_t bk_flexa_mjpegd_h264e_bond_start(void **bond,
         }
 
         out_stream->max_lines_per_frame = (ctrl->config.out_height + 15U) / 16U;
+        in_stream->max_lines_per_frame = out_stream->max_lines_per_frame;
     }
 
     out_stream->handle = (void *)h264;
@@ -248,6 +249,13 @@ void bk_flexa_mjpegd_h264e_bond_stop(void *bond)
     }
     bk_flexa_bond_t *in_stream = bond_p->in_stream;
     if (in_stream != NULL && in_stream->handle != NULL) {
+        bk_jpeg_decode_port_rd_t rd_cmd = {
+            .port_ptr = in_stream,
+            .rd_blocks = out_stream->max_lines_per_frame,
+        };
+        (void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle, BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
+        (void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle, BK_JPEG_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE,
+            (void *)in_stream);
         (void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle,
                        BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND, in_stream);
     }
@@ -282,7 +290,17 @@ static void gpu_bond_mjpegd_decode_error(uint32_t reason, void *args)
 {
     (void)reason;
     bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)args;
-    (void)in_stream;
+    bk_flexa_bond_t *out_stream = (bk_flexa_bond_t *)in_stream->bond_config->out_stream;
+    if (out_stream == NULL) {
+        return;
+    }
+    bk_jpeg_decode_port_rd_t rd_cmd = {
+        .port_ptr = in_stream,
+        .rd_blocks = out_stream->max_lines_per_frame,
+    };
+    (void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle, BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
+    (void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle, BK_JPEG_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE,
+                    (void *)in_stream);
 }
 
 static void gpu_flexa_done(uint32_t wr_ptr, void *args)
@@ -325,10 +343,8 @@ static void gpu_frame_done(uint32_t status, void *args)
             };
             (void)bk_jpeg_decode_ioctl(src, BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
         }
-        {
-            (void)bk_jpeg_decode_ioctl(src, BK_JPEG_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE,
-                           (void *)in_stream);
-        }
+        (void)bk_jpeg_decode_ioctl(src, BK_JPEG_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE,
+                        (void *)in_stream);
     }
 }
 
@@ -399,6 +415,7 @@ avdk_err_t bk_flexa_mjpegd_gpu_bond_start(void **bond,
         }
 
         out_stream->max_lines_per_frame = (ctrl->config.out_height + 15U) / 16U;
+        in_stream->max_lines_per_frame = out_stream->max_lines_per_frame;
     }
 
     out_stream->handle = (void *)gpu;
@@ -460,6 +477,13 @@ void bk_flexa_mjpegd_gpu_bond_stop(void *bond)
                    BK_GPU_IOCTL_UNREGISTER_BOND, out_stream);
     }
     if (in_stream != NULL && in_stream->handle != NULL) {
+        bk_jpeg_decode_port_rd_t rd_cmd = {
+            .port_ptr = in_stream,
+            .rd_blocks = out_stream->max_lines_per_frame,
+        };
+        (void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle, BK_JPEG_DECODE_IOCTL_PORT_SET_RD_PTR, &rd_cmd);
+        (void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle, BK_JPEG_DECODE_IOCTL_FLEXA_NOTIFY_PORT_DONE,
+            (void *)in_stream);
         (void)bk_jpeg_decode_ioctl((bk_jpeg_decode_ctlr_handle_t)in_stream->handle,
                        BK_JPEG_DECODE_IOCTL_UNREGISTER_BOND, in_stream);
     }

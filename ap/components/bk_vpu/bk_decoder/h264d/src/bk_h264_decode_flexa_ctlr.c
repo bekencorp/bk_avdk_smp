@@ -81,7 +81,7 @@ static avdk_err_t h264_decode_wait_flexa_registered_ports_done(private_h264_deco
 	}
 
 	for (uint32_t i = 0; i < BK_H264_DECODE_RD_PORT_MAX; i++) {
-		if (ctrl->port[i].bond != NULL) {
+		if (ctrl->port[i].bond != NULL && ctrl->port[i].first_bond == 0U) {
 			mask |= H264_DECODE_PORT_DONE_BIT(i);
 		}
 	}
@@ -137,11 +137,6 @@ static void flexa_done_cb(uint32_t wr_ptr, void *args)
 	if (ctrl == NULL) {
 		LOGE("control is NULL\r\n");
 		return;
-	}
-
-	if (wr_ptr == 0U && ctrl->config.segment_height != 0U) {
-		wr_ptr = ((uint32_t)ctrl->config.out_height + ((uint32_t)ctrl->config.segment_height * 16U - 1U)) /
-			 ((uint32_t)ctrl->config.segment_height * 16U);
 	}
 
 	for (uint32_t i = 0; i < BK_H264_DECODE_RD_PORT_MAX; i++) {

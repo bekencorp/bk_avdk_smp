@@ -46,9 +46,10 @@ typedef struct {
     vcdec_decode_config_t decode_config;  /* filled per decode */
     uint32_t decode_result;
     beken_semaphore_t decode_done_sem;
-    /** Flexa 各输出端口完成：bit i 对应 port_id == i（BK_JPEG_DECODE_RD_PORT_MAX 路） */
+    /** Flexa completion flags for each output port: bit i corresponds to port_id == i (BK_JPEG_DECODE_RD_PORT_MAX ports). */
     beken_event_t port_done_events;
     uint32_t all_ports_min_rd;
+    uint32_t last_flexa_line;
 
     bk_jpeg_decode_port_entry_t port[BK_JPEG_DECODE_RD_PORT_MAX];
 

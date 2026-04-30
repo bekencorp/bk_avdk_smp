@@ -103,8 +103,11 @@ static avdk_err_t jpeg_decode_wait_flexa_registered_ports_done(private_jpeg_deco
             uint32_t bit = JPEG_DECODE_PORT_DONE_BIT(i);
 
             if ((mask & bit) != 0U && (ux & bit) == 0U) {
-                LOGW("%s %d flexa port[%u] decode timeout last:%d all_ports_min_rd:%d\r\n",
-                    __func__, __LINE__, (unsigned)i, ctrl->port[i].rd_blocks, ctrl->all_ports_min_rd);
+                bk_flexa_bond_t *b = (bk_flexa_bond_t *)ctrl->port[i].bond;
+                bk_flexa_bond_t *b_out = (bk_flexa_bond_t *)b->bond_config->out_stream;
+                LOGW("%s %d flexa port[%u] decode timeout last:%d all_ports_min_rd:%d %d %d %d\r\n",
+                    __func__, __LINE__, (unsigned)i, ctrl->port[i].rd_blocks, ctrl->all_ports_min_rd,
+                    b->last_lines, b_out->last_lines, ctrl->last_flexa_line);
             }
         }
         return AVDK_ERR_GENERIC;
@@ -148,11 +151,7 @@ static void flexa_done_cb(uint32_t wr_ptr, void *args)
         LOGE("control is NULL\r\n");
         return;
     }
-
-    if (wr_ptr == 0) {
-        wr_ptr = (ctrl->config.out_height + (ctrl->config.segment_height * 16 - 1)) / (ctrl->config.segment_height * 16);
-    }
-
+    ctrl->last_flexa_line = wr_ptr;
     for (uint32_t i = 0; i < BK_JPEG_DECODE_RD_PORT_MAX; i++) {
         if (ctrl->port[i].bond == NULL) {
             continue;
@@ -498,7 +497,6 @@ static avdk_err_t jpeg_decode_ctlr_ioctl(bk_jpeg_decode_ctlr_handle_t handle, ui
                 ctrl->port[i].bond = NULL;
                 ctrl->port[i].first_bond = 0;
                 ctrl->port[i].rd_blocks = 0;
-                rtos_set_event_flags(&ctrl->port_done_events, JPEG_DECODE_PORT_DONE_BIT(i));
                 break;
             }
         }
