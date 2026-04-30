@@ -165,7 +165,7 @@ if (CONFIG_SCR)
 	list(APPEND srcs cli_scr.c)
 endif()
 
-set(PRIV_REQUIRES_LIST bk_common psa_mbedtls temp_detect bk_netif bk_ps bk_init bk_libs bk_wifi compal cmsis bk_bluetooth bk_phy lwip_intf_v2_1 console )
+set(PRIV_REQUIRES_LIST bk_common psa_mbedtls temp_detect bk_netif bk_ps bk_init bk_libs bk_wifi compal cmsis bk_bluetooth bk_phy lwip_intf_v2_1 console at )
 
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
