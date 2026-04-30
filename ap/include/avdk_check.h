@@ -29,7 +29,7 @@ extern "C" {
 
 #define AVDK_GOTO_ON_FALSE(cond, err_code, goto_err, tag, format, ...) do {                                             \
         if (unlikely(!(cond))) {                                                                                        \
-            BK_LOGE((char *)tag, "%s line: %d, " format, __FUNCTION__, __LINE__ __VA_OPT__(,) __VA_ARGS__);             \
+            BK_LOGE((char *)tag, "%s line: %d, " format "\n", __FUNCTION__, __LINE__ __VA_OPT__(,) __VA_ARGS__);        \
             ret = err_code;                                                                                             \
             goto goto_err;                                                                                              \
         }                                                                                                               \
@@ -39,7 +39,7 @@ extern "C" {
         bk_err_t err_rc_ = (func);                                                                                      \
         if (unlikely(err_rc_ != BK_OK)) {                                                                               \
             ret = err_rc_;                                                                                              \
-            BK_LOGE((char *)tag, "%s line: %d, " format, __FUNCTION__, __LINE__ __VA_OPT__(,) __VA_ARGS__);             \
+            BK_LOGE((char *)tag, "%s line: %d, " format "\n", __FUNCTION__, __LINE__ __VA_OPT__(,) __VA_ARGS__);        \
             goto goto_err;                                                                                              \
         }                                                                                                               \
     } while(0)
@@ -61,9 +61,9 @@ extern "C" {
         }                                                                                                               \
     } while (0)
 
-#define AVDK_GOTO_VOID_ON_FALSE(cond, goto_err, tag, format, ...) do {                                                 \
+#define AVDK_GOTO_VOID_ON_FALSE(cond, goto_err, tag, format, ...) do {                                                  \
         if (unlikely(!(cond))) {                                                                                        \
-            BK_LOGE((char *)tag, "%s line: %d, " format, __FUNCTION__, __LINE__ __VA_OPT__(,) __VA_ARGS__);             \
+            BK_LOGE((char *)tag, "%s line: %d, " format "\n", __FUNCTION__, __LINE__ __VA_OPT__(,) __VA_ARGS__);        \
             goto goto_err;                                                                                              \
         }                                                                                                               \
     } while (0)
