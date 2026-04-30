@@ -230,6 +230,7 @@ typedef enum
 	PM_SLEEP_MODULE_NAME_LV_WAKEUP,// 34
 	PM_SLEEP_MODULE_NAME_BK_MODEM, // 35
 	PM_SLEEP_MODULE_NAME_MAILBOX,  // 36
+	PM_SLEEP_MODULE_NAME_ENET,     // 37
 	/*Attention: if you add vote ,the following[ #define PM_ENTER_LOW_VOL_MODULES_CONFIG] also need add the vote*/
 	/*Attention: cp/include/modules/pm.h also need add the vote*/
 	PM_SLEEP_MODULE_NAME_MAX
@@ -287,6 +288,7 @@ typedef enum
 	PM_CLK_ID_DISP,     // 29
 	PM_CLK_ID_AUDIO,    // 30
 	PM_CLK_ID_WDG_CPU,  // 31
+	PM_CLK_ID_ENET,     // 32
 
 	PM_CLK_ID_NONE
 }pm_dev_clk_e;
@@ -336,8 +338,8 @@ typedef enum
 	PM_DEV_ID_SECURE_WORLD,// 36
 	PM_DEV_ID_KEY,      // 37
 	PM_DEV_ID_CPU1,     // 38
-
-	PM_DEV_ID_DEFAULT,  // 39  it is used by pm module set default cpu frequency
+	PM_DEV_ID_ENET,     // 39
+	PM_DEV_ID_DEFAULT,  // 40  it is used by pm module set default cpu frequency
 
 	PM_DEV_ID_MAX       //attention:max 63
 }pm_dev_id_e;
@@ -452,6 +454,7 @@ typedef enum
 	PM_SLEEP_MODULE_NAME_LV_WAKEUP,\
 	PM_SLEEP_MODULE_NAME_BK_MODEM,\
 	PM_SLEEP_MODULE_NAME_MAILBOX,\
+	PM_SLEEP_MODULE_NAME_ENET,\
 }
 	/*Attention: cp/include/modules/pm.h also need add the vote*/
 
