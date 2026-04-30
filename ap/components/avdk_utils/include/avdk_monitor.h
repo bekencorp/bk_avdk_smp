@@ -1,16 +1,16 @@
 #pragma once
 
 
-//#define ISP_LOGIC_DEBUG
-//#define GPU_LOGIC_DEBUG
+// #define ISP_LOGIC_DEBUG
+// #define GPU_LOGIC_DEBUG
 //#define DPU_LOGIC_DEBUG
 //#define DECODE_LOGIC_DEBUG
 //#define ENCODE_LOGIC_DEBUG
 
 #ifdef ISP_LOGIC_DEBUG
-#define ISP_MP_FRAME_START() do { GPIO_DOWN(0); GPIO_UP(0); } while (0);
+#define ISP_MP_FRAME_START() do {GPIO_UP(0); } while (0);
 #define ISP_MP_FRAME_END() do { GPIO_DOWN(0); } while (0);
-#define ISP_MP_LINE_START() do { GPIO_DOWN(1); GPIO_UP(1); } while (0);
+#define ISP_MP_LINE_START() do {GPIO_UP(1); } while (0);
 #define ISP_MP_LINE_END() do { GPIO_DOWN(1); } while (0);
 #define ISP_SP_FRAME_START() //do { GPIO_DOWN(3); GPIO_UP(3); } while (0);
 #define ISP_SP_FRAME_END() //do { GPIO_DOWN(3); } while (0);
@@ -28,12 +28,12 @@
 #endif
 
 #ifdef GPU_LOGIC_DEBUG
-#define GPU_FRAME_START() do { GPIO_DOWN(8); GPIO_UP(8); } while (0);
+#define GPU_FRAME_START() do {GPIO_UP(8); } while (0);
 #define GPU_FRAME_END() do { GPIO_DOWN(8); } while (0);
-#define GPU_LINE_START() do { GPIO_DOWN(9); GPIO_UP(9); } while (0);
+#define GPU_LINE_START() do {GPIO_UP(9); } while (0);
 #define GPU_LINE_END() do { GPIO_DOWN(9); } while (0);
-#define HPDMA_LINE_START() do { GPIO_DOWN(10); GPIO_UP(10); } while (0);
-#define HPDMA_LINE_END() do { GPIO_DOWN(10); } while (0);
+#define HPDMA_LINE_START() do {GPIO_UP(20); } while (0);
+#define HPDMA_LINE_END() do { GPIO_DOWN(20); } while (0);
 
 #else
 #define GPU_FRAME_START()
@@ -46,13 +46,13 @@
 #endif
 
 #ifdef DPU_LOGIC_DEBUG
-#define DPU_VIDEO_FRAME_START() do { GPIO_DOWN(11); GPIO_UP(11); } while (0);
-#define DPU_VIDEO_FRAME_END() do { GPIO_DOWN(11); } while (0);
-#define DPU_VIDEO_ISR_START() do { GPIO_DOWN(20); GPIO_UP(20); } while (0);
-#define DPU_VIDEO_ISR_END() do { GPIO_DOWN(20); } while (0);
+#define DPU_VIDEO_FRAME_START() do {GPIO_UP(15); } while (0);
+#define DPU_VIDEO_FRAME_END() do { GPIO_DOWN(15); } while (0);
+#define DPU_VIDEO_ISR_START() do {GPIO_UP(16); } while (0);
+#define DPU_VIDEO_ISR_END() do { GPIO_DOWN(16); } while (0);
 #define DPU_GRAPHIC_FRAME_START() //do { GPIO_DOWN(11); GPIO_UP(11); } while (0);
 #define DPU_GRAPHIC_FRAME_END() //do { GPIO_DOWN(11); } while (0);
-#define DPU_GRAPHIC_ISR_START() //do { GPIO_DOWN(20); GPIO_UP(20); } while (0);
+#define DPU_GRAPHIC_ISR_START() //do {GPIO_UP(20); } while (0);
 #define DPU_GRAPHIC_ISR_END() //do { GPIO_DOWN(20); } while (0);
 #else
 #define DPU_VIDEO_FRAME_START()
@@ -66,9 +66,9 @@
 #endif
 
 #ifdef DECODE_LOGIC_DEBUG
-#define DECODE_FRAME_START      do { GPIO_DOWN(34); GPIO_UP(34); } while (0);
+#define DECODE_FRAME_START      do {GPIO_UP(34); } while (0);
 #define DECODE_FRAME_END        do { GPIO_DOWN(34); } while (0);
-#define DECODE_LINE_START       do { GPIO_DOWN(35); GPIO_UP(35); } while (0);
+#define DECODE_LINE_START       do {GPIO_UP(35); } while (0);
 #define DECODE_LINE_END         do { GPIO_DOWN(35); } while (0);
 #define DECODE_FRAME_DONE       do { GPIO_UP(36); GPIO_DOWN(36); } while (0);
 #else
@@ -80,11 +80,11 @@
 #endif
 
 #ifdef ENCODE_LOGIC_DEBUG
-#define ENCODE_FRAME_START      do { GPIO_DOWN(37); GPIO_UP(37); } while (0);
+#define ENCODE_FRAME_START      do {GPIO_UP(37); } while (0);
 #define ENCODE_FRAME_END        do { GPIO_DOWN(37); } while (0);
-#define ENCODE_LINE_START       do { GPIO_DOWN(38); GPIO_UP(38); } while (0);
+#define ENCODE_LINE_START       do {GPIO_UP(38); } while (0);
 #define ENCODE_LINE_END         do { GPIO_DOWN(38); } while (0);
-#define ENCODE_FRAME_DONE       do { GPIO_UP(39); GPIO_DOWN(39); } while (0);
+#define ENCODE_FRAME_DONE       do {GPIO_UP(39); } while (0);
 #else
 #define ENCODE_FRAME_START
 #define ENCODE_FRAME_END
