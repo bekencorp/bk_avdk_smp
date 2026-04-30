@@ -7,9 +7,26 @@
 #endif
 
 #include "bk_api_ipc_test.h"
+#include <components/netif.h>
+#include <modules/pm.h>
 
 #define APP_TIMEOUT_VALUE    BEKEN_WAIT_FOREVER
 
+
+static void eth_status_monitor(void *arg)
+{
+    netif_ip4_config_t config;
+
+    while (1) {
+        rtos_delay_milliseconds(5000);
+        if (bk_netif_get_ip4_config(NETIF_IF_ETH, &config) == BK_OK) {
+            os_printf("ETH: ip=%s, mask=%s, gw=%s, dns=%s\n",
+                     config.ip, config.mask, config.gateway, config.dns);
+        } else {
+            os_printf("ETH: netif not ready\n");
+        }
+    }
+}
 
 #if CONFIG_FREERTOS_SMP
 static beken_semaphore_t app_semaphore;
@@ -26,7 +43,7 @@ static void cpu1_test_task(void *arg)
 static void cpu2_test_task(void *arg)
 {
     BK_LOGD(NULL, "cpu2_test_task run core: %d\r\n", rtos_get_core_id());
-  
+
     for(;;) {
         rtos_set_semaphore(&app_semaphore);
         BK_LOGD(NULL, "cpu2_test_task run core: %d\r\n", rtos_get_core_id());
@@ -61,7 +78,7 @@ void app_test_smp_core1(void)
 {
     int ret;
     beken_thread_t cpu2_thread;
-    
+
     /* create a thread on core 1 */
     ret = rtos_core1_create_thread(&cpu2_thread,
                              BEKEN_DEFAULT_WORKER_PRIORITY,
@@ -78,6 +95,8 @@ void app_test_smp_core1(void)
 int main(void)
 {
     bk_init();
+
+    bk_pm_module_vote_cpu_freq(PM_DEV_ID_ENET, PM_CPU_FRQ_480M);
 
 #if CONFIG_FREERTOS_SMP_TEST
     app_test_smp_core0();
@@ -99,6 +118,8 @@ extern int cli_network_provisioning_init(void);
 #if (BK_IPC_UT_TEST)
     bk_ipc_test_init();
 #endif
+
+    //rtos_create_thread(NULL, 1, "eth_mon", eth_status_monitor, 2048, NULL);
 
     return 0;
 }
