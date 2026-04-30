@@ -124,6 +124,8 @@ static void jpeg_get_start_handle(void)
 						jpeg_get_config->module_decode_status = false;
 					}
 					rtos_unlock_mutex(&jpeg_get_config->jdec_lock);
+					rtos_delay_milliseconds(5);
+					jpeg_get_task_send_msg(JPEGDEC_START, 0);
 					break;
 				}
 			}
