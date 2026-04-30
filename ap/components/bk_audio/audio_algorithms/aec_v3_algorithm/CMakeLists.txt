@@ -8,6 +8,11 @@ if (CONFIG_ADK_AEC_V3_ALGORITHM)
         list(APPEND srcs
                 v2.0/aec_v3_algorithm_v2.c
             )
+        if (CONFIG_AEC_RUN_ON_M52)
+            list(APPEND srcs
+                    v2.0/audio_mp52_ipc_ap.c
+                )
+        endif()
     else()
         list(APPEND srcs
                 v1.0/aec_v3_algorithm.c

@@ -87,6 +87,7 @@ enum
 	MB_CHNL_FLASH,
 	MB_CHNL_SARADC,
 	MB_CHNL_PHY,
+	MB_CHNL_AUD_AEC,
 	
 	/*                  !!!!!   Note   !!!!!              */
 	/* ===> MB_CHNL_LOG should be the LAST one. LOWEST priority. */

@@ -25,17 +25,23 @@
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 #include <os/os.h>
 
-#if CONFIG_SOC_BK7259
 #include <modules/aec_v3_1.h>
-#else
-#include <modules/aec_v3.h>
-#endif
 
 #include <components/bk_audio/audio_pipeline/ringbuf.h>
 #include <components/bk_audio/audio_utils/debug_dump_util.h>
 
-
 #define TAG  "AEC_ALGORITHM"
+
+#if CONFIG_AEC_RUN_ON_M52
+#include "audio_mp52_ipc_ap.h"
+
+typedef struct {
+    uint32_t no_out_cnt;
+    uint32_t submit_fail_cnt;
+} aec_m52_debug_stats_t;
+
+static aec_m52_debug_stats_t s_aec_m52_dbg_stats = {0};
+#endif
 
 //#define AEC_DEBUG   //GPIO debug
 
@@ -107,7 +113,6 @@ static struct vfs_util g_aec_vfs_util_out = {0};
 uint8_t * gtbuff = NULL;
 #if (CONFIG_AUD_AI_NS_SUPPORT && (CONFIG_AUD_AI_NS_USE_STATIC_SRAM))
 uint32 aec_gtbuf[94*1024/4] __attribute__((section(".aec_bss")));
-
 #endif
 
 #define AEC_EC_OUT_BUF_LEN (770*sizeof(int32_t))
@@ -140,8 +145,76 @@ typedef struct aec_algorithm
     int16_t *out_phase_interleave_buf; /*!< malloc when interleaved_out_phase_enable; size frame_size*2 bytes */
     /** when ec_only_output=1: 0=multi_output use aec out, 1=multi_output use ec out; when ec_only_output=0, multi_output always aec out */
     int multi_output_use_ec_out;
+#if CONFIG_AEC_RUN_ON_M52
+    aec_m52_proxy_t *m52_proxy;
+#endif
 } aec_v3_algorithm_t;
 
+#if CONFIG_AEC_RUN_ON_M52
+static void aec_m52_fill_ctrl_cfg(const aec_v3_algorithm_t *aec, aec_m52_ctrl_cfg_t *ctrl_cfg)
+{
+    uint32_t mic_bytes = 0;
+
+    if ((aec == NULL) || (ctrl_cfg == NULL)) {
+        return;
+    }
+
+    mic_bytes = aec->dual_ch ? (aec->frame_size * 2) : aec->frame_size;
+    os_memset(ctrl_cfg, 0, sizeof(*ctrl_cfg));
+    ctrl_cfg->magic   = AEC_M52_CTRL_MAGIC;
+    ctrl_cfg->version = AEC_M52_CTRL_VERSION;
+    ctrl_cfg->fs           = aec->aec_cfg.fs;
+    ctrl_cfg->frame_bytes  = aec->frame_size;
+    ctrl_cfg->ref_bytes    = aec->frame_size;
+    ctrl_cfg->mic_bytes    = mic_bytes;
+    ctrl_cfg->out_bytes    = aec->frame_size;
+    ctrl_cfg->init_flags   = (uint16_t)aec->aec_ctx->flags;
+    ctrl_cfg->delay_points = (uint32_t)aec->aec_ctx->mic_delay;
+    ctrl_cfg->ec_depth     = (uint32_t)aec->aec_ctx->ec_depth;
+    ctrl_cfg->ref_scale    = (uint8_t)aec->aec_ctx->ref_scale;
+    ctrl_cfg->voice_vol    = (uint8_t)aec->aec_ctx->vol;
+    ctrl_cfg->ns_type      = aec->aec_cfg.ns_type;
+    ctrl_cfg->phs_s1       = aec->aec_ctx->phs_s1;
+    ctrl_cfg->ns_filter    = (uint8_t)aec->aec_ctx->ns_filter;
+    ctrl_cfg->ns_level = aec->aec_cfg.ns_level;
+    ctrl_cfg->ns_para  = aec->aec_cfg.ns_para;
+    ctrl_cfg->drc      = (uint8_t)aec->aec_ctx->drc_mode;
+    ctrl_cfg->ec_filter  = (uint8_t)aec->aec_ctx->ec_filter;
+    ctrl_cfg->interweave = (uint8_t)aec->aec_ctx->interweave;
+    ctrl_cfg->dist       = aec->aec_ctx->dist;
+    ctrl_cfg->mic_swap   = (uint8_t)aec->aec_ctx->mic_swap;
+    ctrl_cfg->ec_only_output = aec->aec_cfg.ec_only_output;
+    ctrl_cfg->dual_perp      = aec->aec_cfg.dual_perp;
+    ctrl_cfg->multi_output_use_ec_out = aec->aec_cfg.multi_output_use_ec_out;
+    ctrl_cfg->dual_ch        = (uint8_t)(aec->dual_ch ? 1 : 0);
+    ctrl_cfg->vad_enable     = (uint8_t)(aec->aec_ctx->vad ? 1 : 0);
+    ctrl_cfg->max_delay_points = (uint32_t)aec->aec_ctx->max_mic_delay;
+    ctrl_cfg->spthr_valid = 1;
+    os_memcpy(ctrl_cfg->spthr, aec->aec_ctx->SPthr, sizeof(ctrl_cfg->spthr));
+}
+
+static void aec_m52_sync_feedback(aec_v3_algorithm_t *aec)
+{
+    aec_m52_feedback_t feedback;
+
+    if ((aec == NULL) || (aec->m52_proxy == NULL) || (aec->aec_ctx == NULL)) {
+        return;
+    }
+
+    if (aec_m52_proxy_copy_last_feedback(aec->m52_proxy, &feedback) != BK_OK) {
+        return;
+    }
+
+    aec->aec_ctx->test  = feedback.test;
+    aec->aec_ctx->spcnt = feedback.spcnt;
+    aec->aec_ctx->dcnt  = feedback.dcnt;
+    aec->aec_ctx->dc    = feedback.dc;
+    aec->aec_ctx->mic_max = feedback.mic_max;
+    aec->aec_ctx->vad_hr  = feedback.vad_hr;
+    aec->aec_ctx->phs_cur = feedback.phs_cur;
+}
+
+#endif
 
 #ifdef AEC_DATA_DUMP
 
@@ -528,7 +601,7 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     uint32_t val = 0;
     uint32_t aec_context_size = 0;
 
-    BK_LOGD(TAG, "[%s] %s \n", audio_element_get_tag(self), __func__);
+    BK_LOGD(TAG, "[%s] %s\n", audio_element_get_tag(self), __func__);
     aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(self);
 
     uint32_t offset = 0;
@@ -777,6 +850,19 @@ static bk_err_t _aec_v3_algorithm_open(audio_element_handle_t self)
     BK_LOGD(TAG, "warning: close dual direction ns %x\r\n", aec->aec_ctx->ns_filter);
     BK_LOGD(TAG, "[%s] _aec_algorithm_open\n", audio_element_get_tag(self));
 
+#if CONFIG_AEC_RUN_ON_M52
+    {
+        aec_m52_ctrl_cfg_t ctrl_cfg;
+        uint32_t mic_bytes = aec->dual_ch ? (aec->frame_size * 2) : aec->frame_size;
+        aec_m52_fill_ctrl_cfg(aec, &ctrl_cfg);
+
+        aec->m52_proxy = aec_m52_proxy_create(&ctrl_cfg, aec->frame_size, mic_bytes, aec->frame_size);
+        if (aec->m52_proxy == NULL) {
+            BK_LOGW(TAG, "[%s] M52 proxy init failed, fallback local aec_proc\n", audio_element_get_tag(self));
+        }
+    }
+#endif
+
     return BK_OK;
 fail:
     if (aec->aec_ctx)
@@ -788,7 +874,6 @@ fail:
         #endif
         aec->aec_ctx = NULL;
     }
-
 
     if(buff_ecout)
     {
@@ -821,7 +906,7 @@ fail:
         rb_destroy(aec->vad_rb);
         aec->vad_rb = NULL;
     }
-    
+
     return BK_FAIL;
 }
 
@@ -973,7 +1058,33 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
         #endif
 
         AEC_ALGORITHM_START();
-        aec_proc(aec->aec_ctx, aec->ref_addr, aec->mic_addr, aec->out_addr);
+#if CONFIG_AEC_RUN_ON_M52
+        if (aec->m52_proxy) 
+        {
+             if (aec_m52_proxy_copy_last_output(aec->m52_proxy, aec->out_addr, aec->frame_size) != BK_OK) {
+                 os_memset(aec->out_addr, 0, aec->frame_size);
+                 s_aec_m52_dbg_stats.no_out_cnt++;
+                if (s_aec_m52_dbg_stats.no_out_cnt == 1) {
+                     BK_LOGW(TAG, "mp52 no previous out cnt = %d\n", s_aec_m52_dbg_stats.no_out_cnt);
+                 }
+             }
+             if (aec_m52_proxy_submit(aec->m52_proxy, aec->ref_addr, aec->mic_addr) != BK_OK) {
+                 s_aec_m52_dbg_stats.submit_fail_cnt++;
+                if (s_aec_m52_dbg_stats.submit_fail_cnt == 1) {
+                     BK_LOGW(TAG, "mp52 submit fail cnt = %d\n", s_aec_m52_dbg_stats.submit_fail_cnt);
+                 }
+             }
+            if (buff_ecout != NULL) {
+                if (aec_m52_proxy_copy_last_ecout(aec->m52_proxy, (uint8_t *)buff_ecout, aec->frame_size) != BK_OK) {
+                    os_memset(buff_ecout, 0x00, aec->frame_size);
+                }
+            }
+            aec_m52_sync_feedback(aec);
+        } else
+#endif
+        {
+            aec_proc(aec->aec_ctx, aec->ref_addr, aec->mic_addr, aec->out_addr);
+        }
 
         if (aec->aec_cfg.ec_only_output && aec->multi_output_use_ec_out && buff_ecout) {
             audio_element_multi_output(self, (char *)buff_ecout, aec->frame_size, 0);
@@ -985,7 +1096,7 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
 
         aec_phase_update(aec, aec->vad_state);
 
-        if(aec->ec_out_cb)
+        if(aec->ec_out_cb && buff_ecout)
         {
             aec->ec_out_cb(buff_ecout, aec->frame_size);
         }
@@ -1120,6 +1231,14 @@ static bk_err_t _aec_v3_algorithm_destroy(audio_element_handle_t self)
 
     aec_v3_algorithm_t *aec = (aec_v3_algorithm_t *)audio_element_getdata(self);
 
+#if CONFIG_AEC_RUN_ON_M52
+    if (aec->m52_proxy) {
+        aec_m52_proxy_destroy(aec->m52_proxy);
+        aec->m52_proxy = NULL;
+    }
+    os_memset(&s_aec_m52_dbg_stats, 0x00, sizeof(s_aec_m52_dbg_stats));
+#endif
+
     if(buff_ecout)
     {
         audio_free(buff_ecout);
@@ -1251,6 +1370,9 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     aec_alg->aec_phase_cb = config->aec_phase_cb;
     aec_alg->interleaved_out_phase_enable = (config->interleaved_out_phase_enable != 0) ? 1 : 0;
     aec_alg->out_phase_interleave_buf = NULL;
+#if CONFIG_AEC_RUN_ON_M52
+    aec_alg->m52_proxy = NULL;
+#endif
     if (aec_alg->interleaved_out_phase_enable)
     {
         uint32_t interleave_bytes = aec_alg->frame_size * 2;
@@ -1327,6 +1449,15 @@ bk_err_t aec_v3_algorithm_set_config(audio_element_handle_t aec_algorithm, void 
                             aec->vad_cfg.vad_silence_threshold,
                             aec->vad_cfg.vad_eng_threshold);
     }
+#if CONFIG_AEC_RUN_ON_M52
+    if (aec->m52_proxy) {
+        aec_m52_ctrl_cfg_t ctrl_cfg;
+        aec_m52_fill_ctrl_cfg(aec, &ctrl_cfg);
+        if (aec_m52_proxy_update_ctrl(aec->m52_proxy, &ctrl_cfg) != BK_OK) {
+            BK_LOGW(TAG, "[%s] sync ctrl to M52 failed\n", audio_element_get_tag(aec_algorithm));
+        }
+    }
+#endif
     os_printf("[+]%s, ec_depth:%d\n", __func__, aec->aec_cfg.ec_depth);
     audio_element_setdata(aec_algorithm, aec);
     return BK_OK;

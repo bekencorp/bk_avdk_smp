@@ -79,6 +79,11 @@ menu "Adk"
 				bool "Enable Audio AEC V3 algorithm test"
 				default n
 
+			config AEC_RUN_ON_M52
+				depends on ADK_AEC_V3_ALGORITHM_COMPONENT_V2 && MAILBOX
+				bool "Run AEC V3 process on CP(M52) via mailbox"
+				default n
+
 			config AUD_AI_NS_SUPPORT
 				depends on ADK_AEC_V3_ALGORITHM
 				bool "Support AEC AI NS function"

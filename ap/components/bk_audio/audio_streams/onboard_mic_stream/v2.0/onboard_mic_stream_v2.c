@@ -34,7 +34,8 @@
 
 #define TAG  "OB_MIC"
 
-#define DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL    (8)
+#define DMA_CARRY_MIC_FRAME_NUM                (2)
+#define DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL    (DMA_CARRY_MIC_FRAME_NUM * 2)
 
 //#define ONBOARD_MIC_DEBUG   //GPIO debug
 
@@ -269,7 +270,7 @@ static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
     frame_size = active_ch_num * onboard_mic->frame_size;
 
     /* init ringbuffer to save two frame data. */
-    onboard_mic->mic_ring_buff = (int8_t *)audio_dma_mem_calloc(2, frame_size + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL / 2);
+    onboard_mic->mic_ring_buff = (int8_t *)audio_dma_mem_calloc(DMA_CARRY_MIC_FRAME_NUM, frame_size + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL / DMA_CARRY_MIC_FRAME_NUM);
     AUDIO_MEM_CHECK(TAG, onboard_mic->mic_ring_buff, return BK_FAIL);
     /* init dma channel */
     dma_config.mode       = DMA_WORK_MODE_REPEAT;
@@ -296,7 +297,7 @@ static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
     dma_config.dst.addr_inc_en  = DMA_ADDR_INC_ENABLE;
     dma_config.dst.addr_loop_en = DMA_ADDR_LOOP_ENABLE;
     dma_config.dst.start_addr   = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff;
-    dma_config.dst.end_addr     = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff + frame_size * 2 + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL;
+    dma_config.dst.end_addr     = (uint32_t)(uintptr_t)onboard_mic->mic_ring_buff + frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL;
     ret = bk_dma_init(onboard_mic->mic_dma_id, &dma_config);
     if (ret != BK_OK)
     {
@@ -315,7 +316,7 @@ static bk_err_t aud_adc_dma_config(onboard_mic_stream_t *onboard_mic)
     bk_dma_set_src_sec_attr(onboard_mic->mic_dma_id, DMA_ATTR_SEC);
 #endif
 
-    ring_buffer_init(&onboard_mic->mic_rb, (uint8_t *)onboard_mic->mic_ring_buff, frame_size * 2 + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL, onboard_mic->mic_dma_id, RB_DMA_TYPE_WRITE);
+    ring_buffer_init(&onboard_mic->mic_rb, (uint8_t *)onboard_mic->mic_ring_buff, frame_size * DMA_CARRY_MIC_FRAME_NUM + DMA_CARRY_MIC_RINGBUF_SAFE_INTERVAL, onboard_mic->mic_dma_id, RB_DMA_TYPE_WRITE);
 
     BK_LOGD(TAG, "adc_dma_cfg mic_dma_id: %d, transfer_len: %d \n", onboard_mic->mic_dma_id, frame_size);
     BK_LOGD(TAG, "src_start_addr: 0x%08x, src_end_addr: 0x%08x \n", dma_config.src.start_addr, dma_config.src.end_addr);

@@ -1,0 +1,8 @@
+menu "Audio"
+
+	config AEC_RUN_ON_M52
+		depends on MAILBOX
+		bool "Enable AEC mailbox service for AP offload"
+		default n
+
+endmenu
