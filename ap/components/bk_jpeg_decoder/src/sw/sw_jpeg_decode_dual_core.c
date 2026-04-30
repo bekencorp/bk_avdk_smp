@@ -227,7 +227,7 @@ static bk_err_t software_decode_dual_core_decode(private_jpeg_decode_sw_multi_co
 		out_frame = sw_jpeg_decode_out_malloc(controller, alloc_size);
 		if (out_frame == NULL)
 		{
-			LOGE(" %s %d out_malloc failed\n", __func__, __LINE__);
+			LOGD(" %s %d no idle buffer found, skip this frame\n", __func__, __LINE__);
 			ret = BK_ERR_NO_MEM;
 			goto error;
 		}
