@@ -158,7 +158,7 @@ bt_err_t bk_bluetooth_init(void)
 #if CONFIG_PM_SUPER_DEEP_SLEEP
     bk_pm_sleep_register_cb(PM_MODE_SUPER_DEEP_SLEEP, PM_DEV_ID_BTDM, &enter_conf_bt, NULL);
 #endif
-#if defined (CONFIG_BLE_AT_ENABLE) && !defined(CONFIG_BTDM_CONTROLLER_ONLY) && defined(CONFIG_BLE)
+#if defined (CONFIG_BLE_AT_ENABLE) && !defined(CONFIG_BTDM_CONTROLLER_ONLY) && defined(CONFIG_BLE) && !defined(CONFIG_AT_CMD)
     extern void ble_at_cmd_init(void);
     ble_at_cmd_init();
 #endif
