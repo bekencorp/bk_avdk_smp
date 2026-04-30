@@ -11,7 +11,7 @@ extern "C" {
 #if CONFIG_DECODE_BUFFER_CNT
 #define DECODE_BUFFER_CNT (CONFIG_DECODE_BUFFER_CNT) // Flexa ring buffer count for decode
 #else
-#define DECODE_BUFFER_CNT (2) // Flexa ring buffer count for decode
+#define DECODE_BUFFER_CNT (3) // Flexa ring buffer count for decode
 #endif
 #define DECODE_FLEXA_LINES (16) // 16 flexa lines for decode
 #define DECODE_FLEXA_ALIGN_SIZE (16) // 16 bytes for flexa align
