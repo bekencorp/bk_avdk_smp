@@ -90,6 +90,7 @@ static const flash_config_t flash_config[] = {
 	{0x852018,   FLASH_SIZE_16M,  2,             FLASH_LINE_MODE_FOUR,   14,       2,            0x1F,         0x1F,        0x00,         0x00E,                9,            1,           0xA0,                         }, //py_25q129ha
 	{0xC86019,	 FLASH_SIZE_16M,  2, 			 FLASH_LINE_MODE_FOUR,   14,	   2,			  0x1F, 		0x1F,		 0x00,		   0x0E,		        9,			  1, 		   0xA0,                         }, //for FPGA simulation and debugging type size 16M
 	{0xC84016,	 FLASH_SIZE_4M,   2,             FLASH_LINE_MODE_FOUR,   14,	   2,			  0x1F, 		0x1F,		 0x00,		   0x0E,		        9,			  1, 		   0xA0,                         }, //for FPGA simulation and debugging type size 4M
+	{0xCD6016,   FLASH_SIZE_4M,   2,             FLASH_LINE_MODE_FOUR,   14,       2,            0x1F,         0x1F,        0x00,         0x00E,                9,            1,           0xA0,                         }, //th_25q32ha
 	{0x000000,   FLASH_SIZE_4M,   2,             FLASH_LINE_MODE_TWO,    0,        2,            0x1F,         0x00,        0x00,         0x000,                0,            0,           0x00,                         }, //default
 };
 
