@@ -75,6 +75,13 @@
 /* MAX RX threshold per process */
 #define ETH_RX_FRAME_PREP_THD                  16
 
+/*
+ * EthIf thread priority: must be lower than tcpip_thread (TCPIP_THREAD_PRIO)
+ * but higher than application threads (e.g. iperf at priority 4) to ensure
+ * timely MAC-layer TX/RX processing without starving the TCP/IP stack.
+ */
+#define ETHIF_THREAD_PRIO                      (TCPIP_THREAD_PRIO + 1)
+
 /* Private variables ---------------------------------------------------------*/
 /*
 @Note: This interface is implemented to operate in zero-copy mode only:
@@ -177,6 +184,33 @@ extern u8_t memp_memory_RX_POOL_base[];
 extern int32_t xTaskGetTickCount( void );
 volatile int32_t bmsg_eth_rx_count = 0;
 volatile int32_t bmsg_eth_tx_compl_count = 0;
+
+typedef struct {
+  ETH_TxPacketConfig config;
+  ETH_BufferTypeDef  buffers[ETH_TX_DESCS_PER_TX];
+  struct pbuf       *p;
+} eth_txcfg_entry_t;
+
+#define ETH_TXCFG_POOL_SIZE  ETH_TX_DESC_CNT
+static eth_txcfg_entry_t eth_txcfg_pool[ETH_TXCFG_POOL_SIZE];
+static volatile uint32_t eth_txcfg_alloc_idx = 0;
+static volatile uint32_t eth_txcfg_free_idx = 0;
+
+static eth_txcfg_entry_t *eth_txcfg_alloc(void)
+{
+  uint32_t next = (eth_txcfg_alloc_idx + 1) & (ETH_TXCFG_POOL_SIZE - 1);
+  if (next == eth_txcfg_free_idx)
+    return NULL;
+  eth_txcfg_entry_t *entry = &eth_txcfg_pool[eth_txcfg_alloc_idx];
+  eth_txcfg_alloc_idx = next;
+  return entry;
+}
+
+static void eth_txcfg_free(void)
+{
+  if (eth_txcfg_free_idx != eth_txcfg_alloc_idx)
+    eth_txcfg_free_idx = (eth_txcfg_free_idx + 1) & (ETH_TXCFG_POOL_SIZE - 1);
+}
 
 /* Global Ethernet handle */
 static ETH_HandleTypeDef heth;
@@ -423,10 +457,15 @@ static bk_err_t low_level_init(struct netif *netif)
 #endif // ETH_MULTI_PHY_SUPPORT
 
   // Init event Queue
-  rtos_init_queue(&priv->eventq, "core_queue", sizeof(BUS_MSG_T), 64);
+  rtos_init_queue(&priv->eventq, "core_queue", sizeof(BUS_MSG_T), 256);
 
-  /* create ethernet main thread */
-  ret = rtos_create_thread(NULL, 1 /* BEKEN_APPLICATION_PRIORITY */, /* TBD: ETH priority */
+  /*
+   * EthIf thread handles MAC-layer RX/TX and descriptor recycling.
+   * Priority = TCPIP_THREAD_PRIO + 1, i.e. one level below tcpip_thread so
+   * the TCP/IP stack can process frames promptly, yet higher than iperf/app
+   * threads to avoid TX descriptor starvation under heavy traffic.
+   */
+  ret = rtos_core0_create_thread(NULL, ETHIF_THREAD_PRIO,
       "EthIf", ethernetif_core_thread, 4096, netif);
   if (ret != BK_OK) {
     LWIP_LOGE("%s create EthIf thread failed: %d\n", __func__, ret);
@@ -479,15 +518,22 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
 {
   uint32_t i = 0U;
   struct pbuf *q = NULL;
-  err_t errval = ERR_OK;
-  ETH_BufferTypeDef *Txbuffer;
+  eth_txcfg_entry_t *entry;
   ETH_TxPacketConfig *txconfig;
+  ETH_BufferTypeDef *Txbuffer;
+  bk_err_t ret;
+  BUS_MSG_T msg;
+  struct eth_mac_priv *priv;
 
-  txconfig = os_malloc(sizeof(*txconfig) + ETH_TX_DESCS_PER_TX * sizeof(ETH_BufferTypeDef));
-  if (!txconfig) {
+  entry = eth_txcfg_alloc();
+  if (!entry)
     return ERR_MEM;
-  }
-  Txbuffer = (ETH_BufferTypeDef *)(txconfig + 1);
+
+  txconfig = &entry->config;
+  Txbuffer = entry->buffers;
+
+  memset(txconfig, 0, sizeof(*txconfig));
+  memset(Txbuffer, 0, sizeof(entry->buffers));
 
   txconfig->Length = p->tot_len;
   txconfig->TxBuffer = Txbuffer;
@@ -496,14 +542,10 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
   txconfig->ChecksumCtrl = ETH_CHECKSUM_IPHDR_PAYLOAD_INSERT_PHDR_CALC;
   txconfig->CRCPadCtrl = ETH_CRC_PAD_INSERT;
 
-  // Fill txl buffer control
-  memset(Txbuffer, 0, ETH_TX_DESCS_PER_TX * sizeof(ETH_BufferTypeDef));
-
   for (q = p; q != NULL; q = q->next)
   {
     if (i >= ETH_TX_DESCS_PER_TX) {
       LWIP_LOGE("%s: txdesc overflow\n", __func__);
-      os_free(txconfig);
       return ERR_IF;
     }
 
@@ -511,30 +553,28 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
     Txbuffer[i].len = q->len;
 
     if (i > 0)
-    {
       Txbuffer[i-1].next = &Txbuffer[i];
-    }
 
     if (q->next == NULL)
-    {
       Txbuffer[i].next = NULL;
-    }
 
     i++;
   }
 
-  // Put txconfig pointer in pbuf
-  errval = pbuf_header(p, sizeof(txconfig));
-  if (errval) {
-    LWIP_LOGE("no headroom for pbuf\n");
-    os_free(txconfig);
-    return errval;
+  pbuf_ref(p);
+  entry->p = p;
+
+  msg.type = BMSG_TX_TYPE;
+  msg.arg = (uint32_t)entry;
+
+  priv = heth.priv;
+  ret = rtos_push_to_queue(&priv->eventq, &msg, 100);
+  if (kNoErr != ret) {
+    pbuf_free(p);
+    return ERR_MEM;
   }
 
-  os_memcpy(p->payload, &txconfig, sizeof(txconfig));
-
-  // Send to eth core thread
-  return bmsg_eth_tx_sender(p);
+  return ERR_OK;
 }
 
 /**
@@ -629,7 +669,7 @@ static void bmsg_eth_tx_compl_sender(void *arg)
   msg.arg = (uint32_t)arg;
 
   GLOBAL_INT_DISABLE();
-  if (bmsg_eth_tx_compl_count >= 2) {
+  if (bmsg_eth_tx_compl_count >= 4) {
     GLOBAL_INT_RESTORE();
     return;
   }
@@ -661,13 +701,11 @@ static void bmsg_eth_rx_handler(BUS_MSG_T *msg, struct netif *netif)
       if (netif->input(p, netif) != ERR_OK)
         pbuf_free(p);
 
-      // ....
       if (++processed > ETH_RX_FRAME_PREP_THD) {
         bmsg_eth_rx_sender(0);
         break;
       }
     } else {
-      // BK_LOGD(NULL, "%s: no rx pbuf, RxAllocStatus %d\n", __func__, RxAllocStatus);
     }
   } while (p != NULL);
 }
@@ -684,7 +722,7 @@ static int bmsg_eth_tx_sender(struct pbuf *p)
 
   pbuf_ref(p);
   priv = heth.priv;
-  ret = rtos_push_to_queue(&priv->eventq, &msg, 1 * SECONDS);
+  ret = rtos_push_to_queue(&priv->eventq, &msg, 100);
   if (kNoErr != ret) {
     LWIP_LOGE("bmsg_tx_sender failed, ret=%d\r\n", ret);
     pbuf_free(p);
@@ -696,41 +734,30 @@ static int bmsg_eth_tx_sender(struct pbuf *p)
 // bus msg handler
 static void bmsg_eth_tx_handler(BUS_MSG_T *msg)
 {
-  struct pbuf *p = (struct pbuf *)msg->arg;
+  eth_txcfg_entry_t *entry = (eth_txcfg_entry_t *)msg->arg;
   ETH_TxPacketConfig *txconfig;
   struct eth_mac_priv *priv __maybe_unused = heth.priv;
+  int tx_retry = 0;
 
-  if (!p) {
-    LWIP_LOGE("no pbuf for tx\n");
+  if (!entry)
     return;
+
+  txconfig = &entry->config;
+
+  while (HAL_ETH_Transmit_IT(&heth, txconfig)) {
+    if (++tx_retry > 5000) {
+      pbuf_free(entry->p);
+      goto tx_done;
+    }
+    HAL_ETH_ReleaseTxPacket(&heth);
   }
 
-  // Get txconfig from pbuf
-  os_memcpy(&txconfig, p->payload, sizeof(txconfig));
-  // Remove txconfig from payload
-  pbuf_remove_header(p, sizeof(txconfig));
-
-  if (!txconfig) {
-    LWIP_LOGE("pbuf has no txconfig\n");
-    pbuf_free(p);
-    return;
-  }
-
-  if (HAL_ETH_Transmit_IT(&heth, txconfig))  // FIXME: may failed, revise me
-  {
-    LWIP_LOGV("HAL_ETH_Transmit_IT failed\n");
-    pbuf_free(p);
-  }
-  else
-  {
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
-     // Increase tx counter for LV
-     priv->tx_count++;
+  priv->tx_count++;
 #endif
-  }
 
-  // Free txconfig previous allocated in low_level_output
-  os_free(txconfig);
+tx_done:
+  eth_txcfg_free();
 }
 
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
@@ -814,44 +841,43 @@ static void ethernetif_core_thread(void *argument)
   for (;;) {
     ret = rtos_pop_from_queue(&priv->eventq, &msg, BEKEN_WAIT_FOREVER);
 
-    // check ethernet wakeup
     if (ret != kNoErr) {
       BK_LOGD(NULL, "pop queue failed\n");
       continue;
     }
 
+    do {
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
-    eth_wakeup_check(&msg);
+      eth_wakeup_check(&msg);
 #endif
 
-    //BK_LOGD(NULL, "enter: msg.type %d\n", msg.type);
-    switch (msg.type) {
-    case BMSG_RX_TYPE:
-      bmsg_eth_rx_handler(&msg, netif);
-      break;
+      switch (msg.type) {
+      case BMSG_RX_TYPE:
+        bmsg_eth_rx_handler(&msg, netif);
+        break;
 
-    case BMSG_TX_TYPE:
-      bmsg_eth_tx_handler(&msg);
-      break;
+      case BMSG_TX_TYPE:
+        bmsg_eth_tx_handler(&msg);
+        break;
 
-    case BMSG_TX_COMPLETE:
-      GLOBAL_INT_DISABLE();
-      if (bmsg_eth_tx_compl_count > 0)
-        bmsg_eth_tx_compl_count -= 1;
-      GLOBAL_INT_RESTORE();
+      case BMSG_TX_COMPLETE:
+        GLOBAL_INT_DISABLE();
+        if (bmsg_eth_tx_compl_count > 0)
+          bmsg_eth_tx_compl_count -= 1;
+        GLOBAL_INT_RESTORE();
 
-      HAL_ETH_ReleaseTxPacket(&heth);
-      break;
+        HAL_ETH_ReleaseTxPacket(&heth);
+        break;
 
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
-    case BMSG_PS_KEEP_END:
-      eth_clear_ps_prevent(priv, ETH_PS_PREVENT_KEEP_TIMER);
-      break;
+      case BMSG_PS_KEEP_END:
+        eth_clear_ps_prevent(priv, ETH_PS_PREVENT_KEEP_TIMER);
+        break;
 #endif
-    }
+      }
+    } while (rtos_pop_from_queue(&priv->eventq, &msg, BEKEN_NO_WAIT) == kNoErr);
 
 #ifdef CONFIG_ETH_PM_CB_SUPPORT
-    // Check whether ETH may sleep
     eth_sleep_check();
 #endif
   }
@@ -1262,6 +1288,8 @@ void ethernet_link_thread(void *argument)
   // LOCK_TCPIP_CORE();
 
   /* ETH link init */
+  int link_down_debounce = 0;
+#define LINK_DOWN_DEBOUNCE_CNT  3
 
   for(;;)
   {
@@ -1282,12 +1310,19 @@ void ethernet_link_thread(void *argument)
 #endif
 
     if (netif_is_link_up(netif) && !phydev->link) {
+      link_down_debounce++;
+      if (link_down_debounce < LINK_DOWN_DEBOUNCE_CNT) {
+        rtos_delay_milliseconds(50);
+        continue;
+      }
+      link_down_debounce = 0;
     LWIP_LOGD("ETH link down\n");
     HAL_ETH_Stop_IT(&heth);
 
     // stop dynamic address or static ip address
     eth_ip_down();  // XXX: netifapi_XXX
     } else if (!netif_is_link_up(netif) && phydev->link) {
+      link_down_debounce = 0;
       linkchanged = 1;
 
       switch (phydev->duplex) {
@@ -1332,6 +1367,8 @@ void ethernet_link_thread(void *argument)
 
         eth_ip_start();   // netifapi_XXX
       }
+    } else {
+      link_down_debounce = 0;
     }
 
 #ifdef CONFIG_ETH_PM_CB_SUPPORT

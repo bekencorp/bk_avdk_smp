@@ -75,10 +75,10 @@ struct ipv4_config eth_ip_settings = {
 #else
 	.addr_type = ADDR_TYPE_STATIC, // ADDR_TYPE_STATIC
 #endif
-	.address = 0x0afaa8c0, //192.168.250.10, network order
-	.gw = 0x01faa8c0,      //192.168.250.1, network order
+	.address = 0x0101a8c0, //192.168.1.1, network order
+	.gw = 0x0101a8c0,      //192.168.1.1, network order
 	.netmask = 0x00ffffff, //255.255.255.0, network order
-	.dns1 = 0x01faa8c0,    //192.168.250.1, network order
+	.dns1 = 0x0101a8c0,    //192.168.1.1, network order
 	.dns2 = 0,
 };
 #endif
@@ -131,6 +131,7 @@ static bool sta_ip_start_flag = false;
 bool uap_ip_start_flag = false;
 #ifdef CONFIG_ETH
 static bool eth_ip_start_flag = false;
+void eth_netif_notify_got_ip(void);
 #endif
 #if CONFIG_BRIDGE
 static bool bridge_ip_start_flag = false;
@@ -460,9 +461,9 @@ static void wm_netif_status_callback(struct netif *n)
 				}
 #endif
 #ifdef CONFIG_ETH
-			} else if (n == &g_mlan.netif) {
-				// Ethernet DHCP handler, clear ps prevent
-				// TODO: ETH, DHCP, IPv6, RA, DHCPv6 handler
+				 else if (n == &g_eth.netif) {
+					eth_netif_notify_got_ip();
+				}
 #endif
 			} else {
 				// dhcp fail
@@ -1634,6 +1635,20 @@ void eth_ip_down(void)
 		}
 #endif
 	}
+}
+
+void eth_netif_notify_got_ip(void)
+{
+	struct wlan_ip_config addr = {0};
+	netif_event_got_ip4_t event_data = {0};
+
+	event_data.netif_if = NETIF_IF_ETH;
+	net_get_if_addr(&addr, net_get_eth_handle());
+
+	LWIP_LOGI("ETH got ip: %pIn\n", &addr.ipv4.address);
+
+	BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_NETIF, EVENT_NETIF_GOT_IP4,
+								&event_data, sizeof(event_data), BEKEN_NEVER_TIMEOUT));
 }
 #endif
 
