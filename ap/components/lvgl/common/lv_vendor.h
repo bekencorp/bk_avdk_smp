@@ -25,11 +25,11 @@ extern "C" {
 #if CONFIG_LVGL_V8
     #define bk_color_t    lv_color_t
 #else
-#if (CONFIG_LV_COLOR_DEPTH == 16)
+#if (LV_COLOR_DEPTH == 16)
     #define bk_color_t    lv_color16_t
-#elif (CONFIG_LV_COLOR_DEPTH == 24)
+#elif (LV_COLOR_DEPTH == 24)
     #define bk_color_t    lv_color_t
-#elif (CONFIG_LV_COLOR_DEPTH == 32)
+#elif (LV_COLOR_DEPTH == 32)
     #define bk_color_t    lv_color32_t
 #endif
 #endif

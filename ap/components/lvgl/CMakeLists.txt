@@ -1,3 +1,5 @@
+armino_build_get_property(project_dir PROJECT_DIR)
+
 if(CONFIG_LVGL)
 	if(CONFIG_LVGL_V8)
 		set(incs
@@ -507,6 +509,11 @@ armino_component_register(SRCS "${srcs}"
 	)
 
 if (CONFIG_LVGL)
-target_compile_options(${COMPONENT_LIB} PRIVATE -O3)
+	set(_project_lv_conf_custom "${project_dir}/ap/lv_conf_custom.h")
+	if(EXISTS "${_project_lv_conf_custom}")
+		target_compile_definitions(${COMPONENT_LIB} PUBLIC LV_CONF_PATH="${_project_lv_conf_custom}")
+	endif()
+
+	target_compile_options(${COMPONENT_LIB} PRIVATE -O3)
 endif()
 

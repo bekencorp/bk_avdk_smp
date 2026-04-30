@@ -297,11 +297,11 @@ static void disp_init(lv_vnd_data_t *vnd_data)
 
         if (vnd_data->config.output_compress || (vnd_data->config.rotation != ROTATE_NONE && LV_USE_GPU_ROTATE)) {
             os_memset(&lv_dst_buf, 0, sizeof(vg_lite_buffer_t));
-            #if (CONFIG_LV_COLOR_DEPTH == 16)
+            #if (LV_COLOR_DEPTH == 16)
                 lv_dst_buf.format = VG_LITE_BGR565;
-            #elif (CONFIG_LV_COLOR_DEPTH == 24)
+            #elif (LV_COLOR_DEPTH == 24)
                 lv_dst_buf.format = VG_LITE_BGR888;
-            #elif (CONFIG_LV_COLOR_DEPTH == 32)
+            #elif (LV_COLOR_DEPTH == 32)
                 lv_dst_buf.format = VG_LITE_BGRA8888;
             #endif
             lv_dst_buf.compress_mode = VG_LITE_DEC_DISABLE;
@@ -313,11 +313,11 @@ static void disp_init(lv_vnd_data_t *vnd_data)
             }
 
             os_memset(&lv_src_buf, 0, sizeof(vg_lite_buffer_t));
-            #if (CONFIG_LV_COLOR_DEPTH == 16)
+            #if (LV_COLOR_DEPTH == 16)
                 lv_src_buf.format = VG_LITE_BGR565;
-            #elif (CONFIG_LV_COLOR_DEPTH == 24)
+            #elif (LV_COLOR_DEPTH == 24)
                 lv_src_buf.format = VG_LITE_BGR888;
-            #elif (CONFIG_LV_COLOR_DEPTH == 32)
+            #elif (LV_COLOR_DEPTH == 32)
                 lv_src_buf.format = VG_LITE_BGRA8888;
             #endif
             lv_src_buf.compress_mode = VG_LITE_DEC_DISABLE;
@@ -543,18 +543,13 @@ static void lv_partial_flush_copy_to_disp_buf(lv_vnd_data_t *vnd_data, const lv_
 
 static void lv_partial_flush_frame_buffer_copy(lv_display_t *disp_drv, lv_vnd_data_t *vnd_data, lv_coord_t lv_hor)
 {
-    uint32_t color_size = lv_color_format_get_size(lv_display_get_color_format(disp_drv));
-
     if (vnd_data->config.output_compress) {
-        uint16_t copy_width = vnd_data->config.disp_width ? vnd_data->config.disp_width : vnd_data->config.width;
-        uint16_t copy_height = vnd_data->config.disp_height ? vnd_data->config.disp_height : vnd_data->config.height;
-        uint16_t line_bytes = copy_width * color_size;
-
         lv_hpdma_memcpy_start(vnd_data->disp_buf, vnd_data->copy_buf,
-                              line_bytes, copy_height,
-                              line_bytes, copy_height,
+                              vnd_data->config.disp_width, vnd_data->config.disp_height,
+                              vnd_data->config.disp_width, vnd_data->config.disp_height,
                               0, 0);
     } else {
+        uint32_t color_size = lv_color_format_get_size(lv_display_get_color_format(disp_drv));
         uint32_t area_width = lv_area_get_width(&vnd_data->d_area);
         uint32_t area_height = lv_area_get_height(&vnd_data->d_area);
         uint32_t line_bytes = area_width * color_size;
@@ -615,7 +610,7 @@ static void lv_disp_flush_for_partial_mode(lv_display_t * disp_drv, const lv_are
         ctx.lv_hor = LV_VER_RES;
     }
 
-#if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
+#if (LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
     lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
 #endif
 
@@ -642,7 +637,7 @@ static void lv_disp_flush_for_direct_mode(lv_display_t * disp_drv, const lv_area
         return;
     }
 
-    #if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
+    #if (LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
         if (first_flush) {
             lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
         } else {
@@ -680,7 +675,7 @@ static void lv_disp_flush_for_direct_mode(lv_display_t * disp_drv, const lv_area
 
 static void lv_disp_flush_for_full_mode(lv_display_t * disp_drv, const lv_area_t * area, uint8_t * px_map)
 {
-#if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
+#if (LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
     lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
 #endif
 

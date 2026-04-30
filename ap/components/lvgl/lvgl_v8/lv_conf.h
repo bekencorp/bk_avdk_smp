@@ -1,6 +1,6 @@
 /**
  * @file lv_conf.h
- * Configuration file for v8.3.3
+ * Configuration file for v8.3.9
  */
 
 /*
@@ -12,7 +12,6 @@
  */
 
 /* clang-format off */
-#if 1 /*Set it to "1" to enable content*/
 
 #ifndef LV_CONF_H
 #define LV_CONF_H
@@ -21,6 +20,13 @@
 #include "os/os.h"
 #include <common/sys_config.h>
 
+/*Color depth: 1 (1 byte per pixel), 8 (RGB332), 16 (RGB565), 32 (ARGB8888)*/
+#define LV_COLOR_DEPTH 16
+
+/*Enable features to draw on transparent background.
+ *It's required if opa, and transform_* style properties are used.
+ *Can be also used if the UI is above another layer, e.g. an OSD menu or video player.*/
+#define LV_COLOR_SCREEN_TRANSP 0
 
 /* Adjust color mix functions rounding. GPUs might calculate color mix (blending) differently.
  * 0: round down, 64: round up from x.75, 128: round up from half, 192: round up from x.25, 254: round up */
@@ -35,7 +41,6 @@
 
 /*1: use custom malloc/free, 0: use the built-in `lv_mem_alloc()` and `lv_mem_free()`*/
 #define LV_MEM_CUSTOM      1
-#include <os/mem.h>   /*Header for the dynamic memory function*/
 #if LV_MEM_CUSTOM == 0
     /*Size of the memory available for `lv_mem_alloc()` in bytes (>= 2kB)*/
     #define LV_MEM_SIZE (128U * 1024U)          /*[bytes]*/
@@ -100,11 +105,7 @@
     /*Allow buffering some shadow calculation.
     *LV_SHADOW_CACHE_SIZE is the max. shadow size to buffer, where shadow size is `shadow_width + radius`
     *Caching has LV_SHADOW_CACHE_SIZE^2 RAM cost*/
-#if (CONFIG_LV_USE_DEMO_BENCHMARK) && (CONFIG_SOC_BK7258)
-    #define LV_SHADOW_CACHE_SIZE 100
-#else
     #define LV_SHADOW_CACHE_SIZE 0
-#endif
 
     /* Set number of maximally cached circle data.
     * The circumference of 1/4 circle are saved for anti-aliasing
@@ -163,55 +164,6 @@
 #define LV_DISP_ROT_MAX_BUF (10*1024)
 
 /*-------------
- * GPU
- *-----------*/
-#if 0
-/*Use Arm's 2D acceleration library Arm-2D */
-#define LV_USE_GPU_ARM2D 0
-
-/*Use STM32's DMA2D (aka Chrom Art) GPU*/
-#define LV_USE_GPU_STM32_DMA2D 0
-#if LV_USE_GPU_STM32_DMA2D
-    /*Must be defined to include path of CMSIS header of target processor
-    e.g. "stm32f769xx.h" or "stm32f429xx.h"*/
-    #define LV_GPU_DMA2D_CMSIS_INCLUDE
-#endif
-#define LV_USE_GPU_RA6M3_G2D 0
-#if LV_USE_GPU_RA6M3_G2D
-    #define LV_GPU_RA6M3_G2D_INCLUDE "hal_data.h"
-#endif
-
-/*Use SWM341's DMA2D GPU*/
-#define LV_USE_GPU_SWM341_DMA2D 0
-#if LV_USE_GPU_SWM341_DMA2D
-    #define LV_GPU_SWM341_DMA2D_INCLUDE "SWM341.h"
-#endif
-
-/*Use NXP's PXP GPU iMX RTxxx platforms*/
-#define LV_USE_GPU_NXP_PXP 0
-#if LV_USE_GPU_NXP_PXP
-    /*1: Add default bare metal and FreeRTOS interrupt handling routines for PXP (lv_gpu_nxp_pxp_osa.c)
-    *   and call lv_gpu_nxp_pxp_init() automatically during lv_init(). Note that symbol SDK_OS_FREE_RTOS
-    *   has to be defined in order to use FreeRTOS OSA, otherwise bare-metal implementation is selected.
-    *0: lv_gpu_nxp_pxp_init() has to be called manually before lv_init()
-    */
-    #define LV_USE_GPU_NXP_PXP_AUTO_INIT 0
-#endif
-
-/*Use NXP's VG-Lite GPU iMX RTxxx platforms*/
-#define LV_USE_GPU_NXP_VG_LITE 0
-
-/*Use SDL renderer API*/
-#define LV_USE_GPU_SDL 0
-#if LV_USE_GPU_SDL
-    #define LV_GPU_SDL_INCLUDE_PATH <SDL2/SDL.h>
-    /*Texture cache size, 8MB by default*/
-    #define LV_GPU_SDL_LRU_SIZE (1024 * 1024 * 8)
-    /*Custom blend mode for mask drawing, disable if you need to link with older SDL2 lib*/
-    #define LV_GPU_SDL_CUSTOM_BLEND_MODE (SDL_VERSION_ATLEAST(2, 0, 6))
-#endif
-#endif
-/*-------------
  * Logging
  *-----------*/
 
@@ -257,12 +209,15 @@
 #define LV_USE_ASSERT_OBJ           0   /*Check the object's type and existence (e.g. not deleted). (Slow)*/
 
 /*Add a custom handler when assert happens e.g. to restart the MCU*/
-#define LV_ASSERT_HANDLER_INCLUDE <stdint.h>
+#define LV_ASSERT_HANDLER_INCLUDE <common/bk_assert.h>
 #define LV_ASSERT_HANDLER BK_ASSERT(0);   /*Halt by default*/
 
 /*-------------
  * Others
  *-----------*/
+#if LV_USE_PERF_MONITOR
+    #define LV_USE_PERF_MONITOR_POS LV_ALIGN_BOTTOM_RIGHT
+#endif
 
 /*1: Show the used memory and the memory fragmentation
  * Requires LV_MEM_CUSTOM = 0*/
@@ -322,6 +277,9 @@
 /*Compiler prefix for a big array declaration in RAM*/
 #define LV_ATTRIBUTE_LARGE_RAM_ARRAY
 
+/*Place performance critical functions into a faster memory (e.g RAM)*/
+#define LV_ATTRIBUTE_FAST_MEM
+
 /*Prefix variables that are used in GPU accelerated operations, often these need to be placed in RAM sections that are DMA accessible*/
 #define LV_ATTRIBUTE_DMA
 
@@ -338,7 +296,27 @@
 
 /*Montserrat fonts with ASCII range and some symbols using bpp = 4
  *https://fonts.google.com/specimen/Montserrat*/
+#define LV_FONT_MONTSERRAT_8  0
+#define LV_FONT_MONTSERRAT_10 0
+#define LV_FONT_MONTSERRAT_12 0
 #define LV_FONT_MONTSERRAT_14 1
+#define LV_FONT_MONTSERRAT_16 0
+#define LV_FONT_MONTSERRAT_18 0
+#define LV_FONT_MONTSERRAT_20 0
+#define LV_FONT_MONTSERRAT_22 0
+#define LV_FONT_MONTSERRAT_24 0
+#define LV_FONT_MONTSERRAT_26 0
+#define LV_FONT_MONTSERRAT_28 0
+#define LV_FONT_MONTSERRAT_30 0
+#define LV_FONT_MONTSERRAT_32 0
+#define LV_FONT_MONTSERRAT_34 0
+#define LV_FONT_MONTSERRAT_36 0
+#define LV_FONT_MONTSERRAT_38 0
+#define LV_FONT_MONTSERRAT_40 0
+#define LV_FONT_MONTSERRAT_42 0
+#define LV_FONT_MONTSERRAT_44 0
+#define LV_FONT_MONTSERRAT_46 0
+#define LV_FONT_MONTSERRAT_48 0
 
 /*Demonstrate special features*/
 #define LV_FONT_MONTSERRAT_12_SUBPX      0
@@ -355,29 +333,19 @@
  *E.g. #define LV_FONT_CUSTOM_DECLARE   LV_FONT_DECLARE(my_font_1) LV_FONT_DECLARE(my_font_2)*/
 #define LV_FONT_CUSTOM_DECLARE
 
+/*Always set a default font*/
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 
 /*Enable handling large font and/or fonts with a lot of characters.
  *The limit depends on the font size, font face and bpp.
  *Compiler error will be triggered if a font needs it.*/
-#if CONFIG_LV_USE_DEMO_BENCHMARK
-#define LV_FONT_FMT_TXT_LARGE 1
-#else
 #define LV_FONT_FMT_TXT_LARGE 0
-#endif
+
 /*Enables/disables support for compressed fonts.*/
-#if CONFIG_LV_USE_DEMO_BENCHMARK
-#define LV_USE_FONT_COMPRESSED 1
-#else
 #define LV_USE_FONT_COMPRESSED 0
-#endif
 
 /*Enable subpixel rendering*/
-#if CONFIG_LV_USE_DEMO_BENCHMARK
-#define LV_USE_FONT_SUBPX 1
-#else
 #define LV_USE_FONT_SUBPX 0
-#endif
 #if LV_USE_FONT_SUBPX
     /*Set the pixel order of the display. Physical order of RGB channels. Doesn't matter with "normal" fonts.*/
     #define LV_FONT_SUBPX_BGR 0  /*0: RGB; 1:BGR order*/
@@ -573,42 +541,6 @@
  * 3rd party libraries
  *--------------------*/
 
-/*File system interfaces for common APIs */
-
-/*API for fopen, fread, etc*/
-#define LV_USE_FS_STDIO 0
-#if LV_USE_FS_STDIO
-    #define LV_FS_STDIO_LETTER '\0'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
-    #define LV_FS_STDIO_PATH ""         /*Set the working directory. File/directory paths will be appended to it.*/
-    #define LV_FS_STDIO_CACHE_SIZE 0    /*>0 to cache this number of bytes in lv_fs_read()*/
-#endif
-
-/*API for open, read, etc*/
-#define LV_USE_FS_POSIX 0
-#if LV_USE_FS_POSIX
-    #define LV_FS_POSIX_LETTER '\0'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
-    #define LV_FS_POSIX_PATH ""         /*Set the working directory. File/directory paths will be appended to it.*/
-    #define LV_FS_POSIX_CACHE_SIZE 0    /*>0 to cache this number of bytes in lv_fs_read()*/
-#endif
-
-/*API for CreateFile, ReadFile, etc*/
-#define LV_USE_FS_WIN32 0
-#if LV_USE_FS_WIN32
-    #define LV_FS_WIN32_LETTER '\0'     /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
-    #define LV_FS_WIN32_PATH ""         /*Set the working directory. File/directory paths will be appended to it.*/
-    #define LV_FS_WIN32_CACHE_SIZE 0    /*>0 to cache this number of bytes in lv_fs_read()*/
-#endif
-
-
-/*API for FATFS (needs to be added separately). Uses f_open, f_read, etc*/
-#define LV_USE_FS_FATFS 0
-#if LV_USE_FS_FATFS
-    #define LV_FS_FATFS_LETTER '/'      /*Set an upper cased letter on which the drive will accessible (e.g. 'A')*/
-    #define LV_FS_FATFS_CACHE_SIZE 0    /*>0 to cache this number of bytes in lv_fs_read()*/
-    #define LV_FS_FATFS_DISK_NUM 3      /* 0: RAM, 1: SDIO_SD, 2: UDISK, 3: FLASH. */
-#endif
-
-
 /*PNG decoder library*/
 #define LV_USE_PNG 0
 #if LV_USE_PNG
@@ -632,9 +564,10 @@
 #endif
 
 /*QR code library*/
-#define LV_USE_QRCODE 1
+#define LV_USE_QRCODE 0
 
 /*FreeType library*/
+#define LV_USE_FREETYPE 0
 #if LV_USE_FREETYPE
     /*Memory used by FreeType to cache characters [bytes] (-1: no caching)*/
     #define LV_FREETYPE_CACHE_SIZE (16 * 1024)
@@ -642,7 +575,7 @@
         /* 1: bitmap cache use the sbit cache, 0:bitmap cache use the image cache. */
         /* sbit cache:it is much more memory efficient for small bitmaps(font size < 256) */
         /* if font size >= 256, must be configured as image cache */
-        #define LV_FREETYPE_SBIT_CACHE (16 * 1024)
+        #define LV_FREETYPE_SBIT_CACHE 0
         /* Maximum number of opened FT_Face/FT_Size objects managed by this cache instance. */
         /* (0:use system defaults) */
         #define LV_FREETYPE_CACHE_FT_FACES 0
@@ -711,24 +644,40 @@
 /*Enable the examples to be built with the library*/
 #define LV_BUILD_EXAMPLES 1
 
-#ifndef LVGL_USE_PSRAM
-    #ifdef CONFIG_LVGL_USE_PSRAM
-        #define LVGL_USE_PSRAM CONFIG_LVGL_USE_PSRAM
-    #else
-        #define LVGL_USE_PSRAM 0
-    #endif
+/*===================
+ * DEMO USAGE
+ ====================*/
+
+/*Show some widget. It might be required to increase `LV_MEM_SIZE` */
+#define LV_USE_DEMO_WIDGETS 0
+#if LV_USE_DEMO_WIDGETS
+#define LV_DEMO_WIDGETS_SLIDESHOW 0
 #endif
 
-#ifndef LVGL_USE_DIRECT_MODE
-    #ifdef CONFIG_LVGL_USE_DIRECT_MODE
-        #define LVGL_USE_DIRECT_MODE CONFIG_LVGL_USE_DIRECT_MODE
-    #else
-        #define LVGL_USE_DIRECT_MODE 0
-    #endif
+/*Demonstrate the usage of encoder and keyboard*/
+#define LV_USE_DEMO_KEYPAD_AND_ENCODER 0
+
+/*Benchmark your system*/
+#define LV_USE_DEMO_BENCHMARK 0
+#if LV_USE_DEMO_BENCHMARK
+/*Use RGB565A8 images with 16 bit color depth instead of ARGB8565*/
+#define LV_DEMO_BENCHMARK_RGB565A8 0
+#endif
+
+/*Stress test for LVGL*/
+#define LV_USE_DEMO_STRESS 0
+
+/*Music player demo*/
+#define LV_USE_DEMO_MUSIC 0
+#if LV_USE_DEMO_MUSIC
+    #define LV_DEMO_MUSIC_SQUARE    0
+    #define LV_DEMO_MUSIC_LANDSCAPE 0
+    #define LV_DEMO_MUSIC_ROUND     0
+    #define LV_DEMO_MUSIC_LARGE     0
+    #define LV_DEMO_MUSIC_AUTO_PLAY 0
 #endif
 
 /*--END OF LV_CONF_H--*/
 
 #endif /*LV_CONF_H*/
 
-#endif /*End of "Content enable"*/

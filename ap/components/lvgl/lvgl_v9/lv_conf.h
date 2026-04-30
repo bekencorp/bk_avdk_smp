@@ -12,15 +12,16 @@
  */
 
 /* clang-format off */
-#if 1 /* Set this to "1" to enable content */
 
 #ifndef LV_CONF_H
 #define LV_CONF_H
 
-/* If you need to include anything here, do it inside the `__ASSEMBLY__` guard */
-#if  0 && defined(__ASSEMBLY__)
-#include "my_include.h"
-#endif
+/*====================
+   COLOR SETTINGS
+ *====================*/
+
+/** Color depth: 1 (I1), 8 (L8), 16 (RGB565), 24 (RGB888), 32 (XRGB8888) */
+#define LV_COLOR_DEPTH 16
 
 /*=========================
    STDLIB WRAPPER SETTINGS
@@ -53,6 +54,12 @@
  */
 #define LV_USE_STDLIB_SPRINTF   LV_STDLIB_BUILTIN
 
+#define LV_STDINT_INCLUDE       <stdint.h>
+#define LV_STDDEF_INCLUDE       <stddef.h>
+#define LV_STDBOOL_INCLUDE      <stdbool.h>
+#define LV_INTTYPES_INCLUDE     <inttypes.h>
+#define LV_LIMITS_INCLUDE       <limits.h>
+#define LV_STDARG_INCLUDE       <stdarg.h>
 
 #if LV_USE_STDLIB_MALLOC == LV_STDLIB_BUILTIN
     /** Size of memory available for `lv_malloc()` in bytes (>= 2kB) */
@@ -149,6 +156,11 @@
  * Set it to 0 to have no limit. */
 #define LV_DRAW_LAYER_MAX_MEMORY 0  /**< No limit by default [bytes]*/
 
+/** Stack size of drawing thread.
+ * NOTE: If FreeType or ThorVG is enabled, it is recommended to set it to 32KB or more.
+ */
+#define LV_DRAW_THREAD_STACK_SIZE    (8 * 1024)         /**< [bytes]*/
+
 /** Thread priority of the drawing task.
  *  Higher values mean higher priority.
  *  Can use values from lv_thread_prio_t enum in lv_os.h: LV_THREAD_PRIO_LOWEST,
@@ -173,14 +185,19 @@
     #define LV_DRAW_SW_SUPPORT_XRGB8888     1
     #define LV_DRAW_SW_SUPPORT_ARGB8888     1
     #define LV_DRAW_SW_SUPPORT_ARGB8888_PREMULTIPLIED 1
-    #define LV_DRAW_SW_SUPPORT_L8           0
-    #define LV_DRAW_SW_SUPPORT_AL88         0
-    #define LV_DRAW_SW_SUPPORT_A8           0
-    #define LV_DRAW_SW_SUPPORT_I1           0
+    #define LV_DRAW_SW_SUPPORT_L8           1
+    #define LV_DRAW_SW_SUPPORT_AL88         1
+    #define LV_DRAW_SW_SUPPORT_A8           1
+    #define LV_DRAW_SW_SUPPORT_I1           1
 
     /* The threshold of the luminance to consider a pixel as
      * active in indexed color format */
     #define LV_DRAW_SW_I1_LUM_THRESHOLD 127
+
+    /** Set number of draw units.
+     *  - > 1 requires operating system to be enabled in `LV_USE_OS`.
+     *  - > 1 means multiple threads will render the screen in parallel. */
+    #define LV_DRAW_SW_DRAW_UNIT_CNT    1
 
     /** Use Arm-2D to accelerate software (sw) rendering. */
     #define LV_USE_DRAW_ARM2D_SYNC      0
@@ -463,7 +480,28 @@
 
 /* Montserrat fonts with ASCII range and some symbols using bpp = 4
  * https://fonts.google.com/specimen/Montserrat */
+#define LV_FONT_MONTSERRAT_8  0
+#define LV_FONT_MONTSERRAT_10 0
+#define LV_FONT_MONTSERRAT_12 0
 #define LV_FONT_MONTSERRAT_14 1
+#define LV_FONT_MONTSERRAT_16 0
+#define LV_FONT_MONTSERRAT_18 0
+#define LV_FONT_MONTSERRAT_20 0
+#define LV_FONT_MONTSERRAT_22 0
+#define LV_FONT_MONTSERRAT_24 0
+#define LV_FONT_MONTSERRAT_26 0
+#define LV_FONT_MONTSERRAT_28 0
+#define LV_FONT_MONTSERRAT_30 0
+#define LV_FONT_MONTSERRAT_32 0
+#define LV_FONT_MONTSERRAT_34 0
+#define LV_FONT_MONTSERRAT_36 0
+#define LV_FONT_MONTSERRAT_38 0
+#define LV_FONT_MONTSERRAT_40 0
+#define LV_FONT_MONTSERRAT_42 0
+#define LV_FONT_MONTSERRAT_44 0
+#define LV_FONT_MONTSERRAT_46 0
+#define LV_FONT_MONTSERRAT_48 0
+
 /* Demonstrate special features */
 #define LV_FONT_MONTSERRAT_28_COMPRESSED    0  /**< bpp = 3 */
 #define LV_FONT_DEJAVU_16_PERSIAN_HEBREW    0  /**< Hebrew, Arabic, Persian letters and all their forms */
@@ -692,49 +730,6 @@
  *====================*/
 /* Documentation for libraries can be found here: https://docs.lvgl.io/master/details/libs/index.html . */
 
-/* File system interfaces for common APIs */
-
-/** Setting a default driver letter allows skipping the driver prefix in filepaths.
- *  Documentation about how to use the below driver-identifier letters can be found at
- *  https://docs.lvgl.io/master/details/main-modules/fs.html#lv-fs-identifier-letters . */
-#define LV_FS_DEFAULT_DRIVER_LETTER '\0'
-
-/** API for fopen, fread, etc. */
-#define LV_USE_FS_STDIO 0
-#if LV_USE_FS_STDIO
-    #define LV_FS_STDIO_LETTER '\0'     /**< Set an upper-case driver-identifier letter for this driver (e.g. 'A'). */
-    #define LV_FS_STDIO_PATH ""         /**< Set the working directory. File/directory paths will be appended to it. */
-    #define LV_FS_STDIO_CACHE_SIZE 0    /**< >0 to cache this number of bytes in lv_fs_read() */
-#endif
-
-/** API for open, read, etc. */
-#define LV_USE_FS_POSIX 0
-#if LV_USE_FS_POSIX
-    #define LV_FS_POSIX_LETTER '\0'     /**< Set an upper-case driver-identifier letter for this driver (e.g. 'A'). */
-    #define LV_FS_POSIX_PATH ""         /**< Set the working directory. File/directory paths will be appended to it. */
-    #define LV_FS_POSIX_CACHE_SIZE 0    /**< >0 to cache this number of bytes in lv_fs_read() */
-#endif
-
-/** API for FATFS (needs to be added separately). Uses f_open, f_read, etc. */
-#define LV_USE_FS_FATFS 0
-#if LV_USE_FS_FATFS
-    #define LV_FS_FATFS_LETTER '\0'     /**< Set an upper-case driver-identifier letter for this driver (e.g. 'A'). */
-    #define LV_FS_FATFS_PATH ""         /**< Set the working directory. File/directory paths will be appended to it. */
-    #define LV_FS_FATFS_CACHE_SIZE 0    /**< >0 to cache this number of bytes in lv_fs_read() */
-#endif
-
-/** API for memory-mapped file access. */
-#define LV_USE_FS_MEMFS 0
-#if LV_USE_FS_MEMFS
-    #define LV_FS_MEMFS_LETTER '\0'     /**< Set an upper-case driver-identifier letter for this driver (e.g. 'A'). */
-#endif
-
-/** API for LittleFs. */
-#define LV_USE_FS_LITTLEFS 0
-#if LV_USE_FS_LITTLEFS
-    #define LV_FS_LITTLEFS_LETTER '\0'  /**< Set an upper-case driver-identifier letter for this driver (e.g. 'A'). */
-    #define LV_FS_LITTLEFS_PATH ""      /**< Set the working directory. File/directory paths will be appended to it. */
-#endif
 
 /** LODEPNG decoder library */
 #define LV_USE_LODEPNG 0
@@ -776,6 +771,7 @@
 #define LV_USE_BARCODE 0
 
 /** FreeType library */
+#define LV_USE_FREETYPE 0
 #if LV_USE_FREETYPE
     /** Let FreeType use LVGL memory and file porting */
     #define LV_FREETYPE_USE_LVGL_PORT 0
@@ -818,17 +814,6 @@
 #define LV_USE_SVG_ANIMATION 0
 #define LV_USE_SVG_DEBUG 0
 
-/** FFmpeg library for image decoding and playing videos.
- *  Supports all major image formats so do not enable other image decoder with it. */
-#define LV_USE_FFMPEG 0
-#if LV_USE_FFMPEG
-    /** Dump input information to stderr */
-    #define LV_FFMPEG_DUMP_FORMAT 0
-    /** Use lvgl file path in FFmpeg Player widget
-     *  You won't be able to open URLs after enabling this feature.
-     *  Note that FFmpeg image decoder will always use lvgl file system. */
-    #define LV_FFMPEG_PLAYER_USE_LV_FS 0
-#endif
 
 /*==================
  * OTHERS
@@ -992,9 +977,75 @@
 /** Build the demos */
 #define LV_BUILD_DEMOS 1
 
+/*===================
+ * DEMO USAGE
+ ====================*/
+
+#if LV_BUILD_DEMOS
+    /** Show some widgets. This might be required to increase `LV_MEM_SIZE`. */
+    #define LV_USE_DEMO_WIDGETS 0
+
+    /** Demonstrate usage of encoder and keyboard. */
+    #define LV_USE_DEMO_KEYPAD_AND_ENCODER 0
+
+    /** Benchmark your system */
+    #define LV_USE_DEMO_BENCHMARK 0
+
+    #if LV_USE_DEMO_BENCHMARK
+        /** Use fonts where bitmaps are aligned 16 byte and has Nx16 byte stride */
+        #define LV_DEMO_BENCHMARK_ALIGNED_FONTS 0
+    #endif
+
+    /** Render test for each primitive.
+     *  - Requires at least 480x272 display. */
+    #define LV_USE_DEMO_RENDER 0
+
+    /** Stress test for LVGL */
+    #define LV_USE_DEMO_STRESS 0
+
+    /** Music player demo */
+    #define LV_USE_DEMO_MUSIC 0
+    #if LV_USE_DEMO_MUSIC
+        #define LV_DEMO_MUSIC_SQUARE    0
+        #define LV_DEMO_MUSIC_LANDSCAPE 0
+        #define LV_DEMO_MUSIC_ROUND     0
+        #define LV_DEMO_MUSIC_LARGE     0
+        #define LV_DEMO_MUSIC_AUTO_PLAY 0
+    #endif
+
+    /** Vector graphic demo */
+    #define LV_USE_DEMO_VECTOR_GRAPHIC  0
+
+    /*---------------------------
+     * Demos from lvgl/lv_demos
+      ---------------------------*/
+
+    /** Flex layout demo */
+    #define LV_USE_DEMO_FLEX_LAYOUT     0
+
+    /** Smart-phone like multi-language demo */
+    #define LV_USE_DEMO_MULTILANG       0
+
+    /** Widget transformation demo */
+    #define LV_USE_DEMO_TRANSFORM       0
+
+    /** Demonstrate scroll settings */
+    #define LV_USE_DEMO_SCROLL          0
+
+    /*E-bike demo with Lottie animations (if LV_USE_LOTTIE is enabled)*/
+    #define LV_USE_DEMO_EBIKE           0
+    #if LV_USE_DEMO_EBIKE
+        #define LV_DEMO_EBIKE_PORTRAIT  0    /*0: for 480x270..480x320, 1: for 480x800..720x1280*/
+    #endif
+
+    /** High-resolution demo */
+    #define LV_USE_DEMO_HIGH_RES        0
+
+    /* Smart watch demo */
+    #define LV_USE_DEMO_SMARTWATCH      0
+#endif /* LV_BUILD_DEMOS */ 
 
 /*--END OF LV_CONF_H--*/
 
 #endif /*LV_CONF_H*/
 
-#endif /*End of "Content enable"*/
