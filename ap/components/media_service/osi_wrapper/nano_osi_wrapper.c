@@ -6,7 +6,7 @@
 
 static void *nano_malloc_wrapper(uint32_t size)
 {
-    return os_malloc(size);
+    return hsram_malloc(size);
 }
 
 static void nano_free_wrapper(void *ptr)
