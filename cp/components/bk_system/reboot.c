@@ -46,13 +46,12 @@ void bk_reboot_ex(uint32_t reset_reason)
 
 		BK_LOGD(TAG, "wdt reboot\r\n");
 		rtos_disable_int();
-		if (reset_reason < RESET_SOURCE_UNKNOWN) {
-			bk_misc_set_reset_reason(reset_reason);
-		}
 	}
 	//fix reboot hang 16s issue
 	bk_flash_power_saving_enter();
-
+#if CONFIG_AON_PMU_REG0_REFACTOR_DEV
+    aon_pmu_drv_r0_latch_to_r7b();
+#endif
 #if CONFIG_AON_WDT
 	// TTODO:20260209,IN SMP,this cfg may cause reboot failed
 	// REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2 * 4, 0x102);
