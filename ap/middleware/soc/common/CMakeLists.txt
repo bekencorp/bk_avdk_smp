@@ -78,18 +78,6 @@ if(CONFIG_QSPI)
 	endif()
 endif()
 
-if(CONFIG_JPEGENC_HW)
-	list(APPEND srcs
-		"hal/jpeg_hal.c"
-	)
-endif()
-
-if(CONFIG_H264)
-	list(APPEND srcs
-		"hal/h264_hal.c"
-	)
-endif()
-
 if(CONFIG_PSRAM)
 	list(APPEND srcs
 		"hal/psram_hal.c"
@@ -160,13 +148,6 @@ endif()
 if(CONFIG_JPEGDEC_HW)
 	list(APPEND srcs
 		"hal/jpeg_dec_hal.c"
-	)
-endif()
-
-if(CONFIG_HW_SCALE)
-	list(APPEND srcs
-		"hal/scale0_hal.c"
-		"hal/scale1_hal.c"
 	)
 endif()
 

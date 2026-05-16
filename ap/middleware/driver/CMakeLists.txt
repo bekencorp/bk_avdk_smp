@@ -127,7 +127,6 @@ if (NOT CMAKE_BUILD_EARLY_EXPANSION)
 	add_subdirectory(multicore)
 	add_subdirectory(ipi)
 	add_subdirectory(hspl)
-	add_subdirectory(h264)
 	add_subdirectory(device)
 	add_subdirectory(lin)
 	add_subdirectory(hp_dma)
@@ -168,14 +167,6 @@ if (CONFIG_LCD_SPI)
 		"lcd/lcd_spi_driver.c"
 		)
 endif()
-
-if (CONFIG_JPEGENC_HW)
-	list(APPEND srcs
-		"jpeg_enc/jpeg_driver.c"
-		"jpeg_enc/jpeg_statis.c"
-		)
-endif() #if (CONFIG_JPEGENC_HW)
-
 
 if (CONFIG_CALENDAR)
 	list(APPEND srcs
