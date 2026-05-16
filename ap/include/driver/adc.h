@@ -420,6 +420,28 @@ bk_err_t bk_adc_chan_init_gpio(adc_chan_t chan);
  * @return
  */
 bk_err_t bk_adc_chan_deinit_gpio(adc_chan_t chan);
+
+/**
+ * @brief Start CP-side periodic ADC key sampler.
+ *
+ * @param chan ADC channel to sample.
+ * @param sample_period_ms Sampling period in milliseconds.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_period_ms);
+
+/**
+ * @brief Stop CP-side periodic ADC key sampler.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_adc_key_sampler_stop(void);
+
 /**
  * @brief     only use for saradc
  */
