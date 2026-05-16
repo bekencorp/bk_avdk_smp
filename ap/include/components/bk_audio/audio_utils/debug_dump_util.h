@@ -68,7 +68,7 @@ extern volatile debug_dump_data_header_t dump_header[HEADER_ARRAY_CNT];
 extern const uint8_t g_dump_type2header_array_idx[DUMP_TYPE_MAX];
 extern uint16_t g_aud_data_dump_bitmap;
 
-#define DEBUG_DATA_DUMP_UART_ID            (1)
+#define DEBUG_DATA_DUMP_UART_ID            (2)
 #define DEBUG_DATA_DUMP_UART_BAUD_RATE     (2000000)
 
 #define DEBUG_DATA_DUMP_BY_UART_OPEN()                        uart_util_create(&g_debug_data_uart_util, DEBUG_DATA_DUMP_UART_ID, DEBUG_DATA_DUMP_UART_BAUD_RATE)
