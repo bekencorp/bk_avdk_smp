@@ -1,7 +1,7 @@
 menu "Audio Record"
 
 	config AUDIO_RECORD
-		depends on AUDIO_ADC
+		depends on AUDIO_ADC && ADK && ADK_RAW_STREAM && ADK_ONBOARD_MIC_STREAM_V2
 		bool "Enable Audio Record"
 		default n
 

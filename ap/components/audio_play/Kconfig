@@ -1,8 +1,18 @@
 menu "Audio Play"
 
 	config AUDIO_PLAY
-		depends on AUDIO_DAC
+		depends on AUDIO_DAC && ADK && ADK_RAW_STREAM && ADK_ONBOARD_SPEAKER_STREAM_V2
 		bool "Enable Audio Play"
 		default n
+
+	config AUDIO_PLAY_SUPPORT_SBC_DECODER
+		depends on AUDIO_PLAY && ADK_SBC_DECODER
+		bool "Enable SBC decoder path in audio_play"
+		default y
+
+	config AUDIO_PLAY_SUPPORT_AAC_DECODER
+		depends on AUDIO_PLAY && ADK_AAC_DECODER
+		bool "Enable AAC decoder path in audio_play"
+		default y
 
 endmenu

@@ -24,7 +24,7 @@
 #include "test_sbc_enc_array.h"
 
 #if (CONFIG_ADK_SBC_DECODER)
-#include <components/bk_audio/audio_decoders/sbc_decoder.h>
+#include <components/bk_audio/audio_decoders/sbc_dec.h>
 #endif
 
 #define TAG "sbc_encoder_test"

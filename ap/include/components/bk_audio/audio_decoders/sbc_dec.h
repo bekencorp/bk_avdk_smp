@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef _SBC_DECODER_H_
-#define _SBC_DECODER_H_
+#ifndef _SBC_DEC_H_
+#define _SBC_DEC_H_
 
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 
@@ -51,16 +51,18 @@ typedef struct
 }
 
 /**
- * @brief      Create a SBC decoder of Audio Element to decode incoming data using SBC format
+ * @brief      Create a SBC decoder audio element
  *
- * @param[in]      config  The configuration
+ * @param[in]  config  The configuration
  *
  * @return     The audio element handle
- *                 - Not NULL: success
- *                 - NULL: failed
+ *             - Not NULL: success
+ *             - NULL: failed
  */
-audio_element_handle_t sbc_decoder_init(sbc_decoder_cfg_t *config);
+audio_element_handle_t sbc_dec_init(sbc_decoder_cfg_t *config);
 
+/* Backward-compatible API name. */
+audio_element_handle_t sbc_decoder_init(sbc_decoder_cfg_t *config);
 
 #ifdef __cplusplus
 }

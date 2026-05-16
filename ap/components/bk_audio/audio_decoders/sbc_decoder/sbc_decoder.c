@@ -16,17 +16,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include "FreeRTOS.h"
-#include "semphr.h"
 #include "task.h"
-#include <components/bk_audio/audio_decoders/sbc_decoder.h>
+#include <components/bk_audio/audio_decoders/sbc_dec.h>
 #include <components/bk_audio/audio_pipeline/audio_types.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
 #include <components/bk_audio/audio_pipeline/audio_error.h>
 #include <components/bk_audio/audio_pipeline/audio_element.h>
-#include <driver/sbc.h>
-#include <driver/sbc_types.h>
 #include <os/os.h>
-
+#include <os/mem.h>
+#include <modules/sbc_decoder.h>
+#include <components/bk_audio/audio_utils/debug_dump_util.h>
 
 #define TAG  "SBC_DEC"
 
@@ -77,15 +76,19 @@ static struct uart_util gl_sbc_dec_uart_util = {0};
 
 #endif  //SBC_ENC_DATA_DUMP_BY_UART
 
-
 /**
  * @brief SBC decoder context structure
  */
-typedef struct sbc_decoder
-{
-    sbcdecodercontext_t    sbc;            /*!< SBC decoder context */
-    uint32_t               sample_rate;    /*!< Record the sample rate of the previous frame */
-    uint8_t                channel_number; /*!< Record the channel number of the previous frame */
+typedef struct {
+    sbc_t             sbc;
+    struct sbc_frame  frame;
+    uint32_t          sample_rate;
+    uint8_t           channel_number;
+    uint8_t           pending[2048];
+    uint32_t          pending_len;
+    int16_t           pcml[SBC_MAX_SAMPLES];
+    int16_t           pcmr[SBC_MAX_SAMPLES];
+    int16_t           pcm_out[2 * SBC_MAX_SAMPLES];
 } sbc_decoder_t;
 
 /**
@@ -96,40 +99,44 @@ typedef struct sbc_decoder
 static bk_err_t music_info_report(audio_element_handle_t self)
 {
     sbc_decoder_t *sbc_dec = (sbc_decoder_t *)audio_element_getdata(self);
+    int sample_rate    = sbc_get_freq_hz(sbc_dec->frame.freq);
+    int channel_number = (sbc_dec->frame.mode == SBC_MODE_MONO) ? 1 : 2;
 
-    /* Check the frame information. If it changes, report the new frame information. */
-    if (sbc_dec->sample_rate != sbc_dec->sbc.sample_rate || sbc_dec->channel_number != sbc_dec->sbc.channel_number)
-    {
-        BK_LOGD(TAG, "[%s] new sbc frame info sample_rate: %d, new channel_number: %d, bits: 16 \n", audio_element_get_tag(self), sbc_dec->sbc.sample_rate, sbc_dec->sbc.channel_number);
+    if (sample_rate <= 0) {
+        BK_LOGE(TAG, "[%s] invalid sample_rate from frame freq:%d", audio_element_get_tag(self), sbc_dec->frame.freq);
+        return BK_FAIL;
+    }
+
+    /* Check frame information and report only when it changes. */
+    if (sbc_dec->sample_rate != (uint32_t)sample_rate || sbc_dec->channel_number != (uint8_t)channel_number) {
+        BK_LOGD(TAG, "[%s] new sbc frame info sample_rate:%d, channel_number:%d, bits:16",
+                audio_element_get_tag(self), sample_rate, channel_number);
 
         audio_element_info_t info = {0};
         bk_err_t ret = audio_element_getinfo(self, &info);
-        if (ret != BK_OK)
-        {
-            BK_LOGE(TAG, "[%s] audio_element_getinfo fail \n", audio_element_get_tag(self));
+        if (ret != BK_OK) {
+            BK_LOGE(TAG, "[%s] audio_element_getinfo fail", audio_element_get_tag(self));
             return BK_FAIL;
         }
 
-        /* SBC decoding output is fixed at 16 bits */
+        /* SBC decoder output is fixed at 16 bits PCM. */
         info.bits = 16;
-        info.sample_rates = sbc_dec->sbc.sample_rate;
-        info.channels = sbc_dec->sbc.channel_number;
+        info.sample_rates = sample_rate;
+        info.channels     = channel_number;
         ret = audio_element_setinfo(self, &info);
-        if (ret != BK_OK)
-        {
-            BK_LOGE(TAG, "[%s] audio_element_setinfo fail \n", audio_element_get_tag(self));
-            return BK_FAIL;
-        }
-        ret = audio_element_report_info(self);
-        if (ret != BK_OK)
-        {
-            BK_LOGE(TAG, "[%s] audio_element_report_info fail \n", audio_element_get_tag(self));
+        if (ret != BK_OK) {
+            BK_LOGE(TAG, "[%s] audio_element_setinfo fail", audio_element_get_tag(self));
             return BK_FAIL;
         }
 
-        /* update sample rate and channel number */
-        sbc_dec->sample_rate = sbc_dec->sbc.sample_rate;
-        sbc_dec->channel_number = sbc_dec->sbc.channel_number;
+        ret = audio_element_report_info(self);
+        if (ret != BK_OK) {
+            BK_LOGE(TAG, "[%s] audio_element_report_info fail", audio_element_get_tag(self));
+            return BK_FAIL;
+        }
+
+        sbc_dec->sample_rate    = (uint32_t)sample_rate;
+        sbc_dec->channel_number = (uint8_t)channel_number;
     }
 
     return BK_OK;
@@ -137,175 +144,159 @@ static bk_err_t music_info_report(audio_element_handle_t self)
 
 static bk_err_t _sbc_decoder_open(audio_element_handle_t self)
 {
-    BK_LOGV(TAG, "[%s] _sbc_decoder_open \n", audio_element_get_tag(self));
-    sbc_decoder_t *sbc_dec = (sbc_decoder_t *)audio_element_getdata(self);
+    sbc_decoder_t *dec = (sbc_decoder_t *)audio_element_getdata(self);
 
-    /* Initialize SBC decoder */
-    if (BK_OK != bk_sbc_decoder_init(&sbc_dec->sbc))
-    {
-        BK_LOGE(TAG, "[%s] bk_sbc_decoder_init fail \n", audio_element_get_tag(self));
-        return BK_FAIL;
-    }
+    sbc_reset(&dec->sbc);
+    dec->sample_rate    = 0;
+    dec->channel_number = 0;
+    dec->pending_len    = 0;
 
-    /* Initialize default sbc frame info, the value will be updated in the decoding process */
-    sbc_dec->sample_rate = 0;
-    sbc_dec->channel_number = 0;
-
-    /* set read data timeout */
     audio_element_set_input_timeout(self, 20 / portTICK_RATE_MS);
+    BK_LOGD(TAG, "[%s] opened (sw-sbc)\n", audio_element_get_tag(self));
 
     return BK_OK;
 }
 
 static int _sbc_decoder_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
-    //BK_LOGV(TAG, "[%s] _sbc_decoder_process \n", audio_element_get_tag(self));
-    sbc_decoder_t *sbc_dec = (sbc_decoder_t *)audio_element_getdata(self);
-
-    SBC_DECODER_PROCESS_START();
-
-    SBC_DECODER_INPUT_START();
+    sbc_decoder_t *dec = (sbc_decoder_t *)audio_element_getdata(self);
     int r_size = audio_element_input(self, in_buffer, in_len);
-    SBC_DECODER_INPUT_END();
-
     int w_size = 0;
-    if (r_size > 0)
-    {
-        /* Decode SBC frame */
-        bk_err_t ret = bk_sbc_decoder_frame_decode(&sbc_dec->sbc, (uint8_t *)in_buffer, r_size);
-        /* Check if the decoding is successful. */
-        if (ret >= 0)
-        {
-            /* Check if the consumed data length is consistent with the input data length. */
-            if (ret != r_size)
-            {
-                BK_LOGW(TAG, "[%s] %s, %d, the frame data is not one frame, cosumed_size: %d, input_size: %d \n", audio_element_get_tag(self), __func__, __LINE__, ret, r_size);
-            }
 
-#if 0
-            /* 更新当前帧的音频信息 */
-            sbc_dec->channel_number = sbc_dec->sbc.channel_number;
-
-            /* 根据sbc_sample_rates_t枚举值计算实际采样率 */
-            switch (sbc_dec->sbc.sample_rate)
-            {
-                case SBC_SAMPLE_RATE_16000:
-                    sbc_dec->sample_rate = 16000;
-                    break;
-                case SBC_SAMPLE_RATE_32000:
-                    sbc_dec->sample_rate = 32000;
-                    break;
-                case SBC_SAMPLE_RATE_44100:
-                    sbc_dec->sample_rate = 44100;
-                    break;
-                case SBC_SAMPLE_RATE_48000:
-                    sbc_dec->sample_rate = 48000;
-                    break;
-                default:
-                    sbc_dec->sample_rate = 44100; // 默认值
-                    break;
-            }
-#endif
-            /* Check and report audio frame information changes */
-            ret = music_info_report(self);
-            if (ret != BK_OK)
-            {
-                BK_LOGE(TAG, "music_info_report failed, ret: %d\n", ret);
-            }
-
-            /* Calculate output size: channels * pcm_length * 2 bytes per sample */
-            int output_size = sbc_dec->sbc.channel_number * sbc_dec->sbc.pcm_length * 2;
-
-            SBC_DEC_DATA_DUMP_BY_UART_DATA((char *)sbc_dec->sbc.pcm_sample, output_size);
-
-            SBC_DECODER_OUTPUT_START();
-            w_size = audio_element_output(self, (char *)sbc_dec->sbc.pcm_sample, output_size);
-            SBC_DECODER_OUTPUT_END();
-        }
-        else
-        {
-            switch (ret)
-            {
-                case SBC_DECODER_ERROR_SYNC_INCORRECT:
-                    BK_LOGE(TAG, "SBC decode fail: SBC_DECODER_ERROR_SYNC_INCORRECT, skip this frame of data\n");
-                    w_size = in_len;
-                    break;
-
-                case SBC_DECODER_ERROR_STREAM_EMPTY:
-                    BK_LOGE(TAG, "SBC decode fail: SBC_DECODER_ERROR_STREAM_EMPTY, skip this frame of data\n");
-                    w_size = in_len;
-                    break;
-
-                case SBC_DECODER_ERROR_BITPOOL_OUT_BOUNDS:
-                    BK_LOGE(TAG, "SBC decode fail: SBC_DECODER_ERROR_BITPOOL_OUT_BOUNDS, skip this frame of data\n");
-                    w_size = in_len;
-                    break;
-
-                default:
-                    BK_LOGE(TAG, "SBC decode failed, ret: %d\n", ret);
-                    w_size = AEL_IO_FAIL;
-                    break;
-            }
-        }
-    }
-    else
-    {
-        w_size = r_size;
+    if (r_size <= 0) {
+        return r_size;
     }
 
-    SBC_DECODER_PROCESS_END();
+    if ((dec->pending_len + (uint32_t)r_size) > sizeof(dec->pending)) {
+        dec->pending_len = 0;
+    }
 
-    return w_size;
+    os_memcpy(dec->pending + dec->pending_len, in_buffer, r_size);
+    dec->pending_len += (uint32_t)r_size;
+
+    uint32_t offset = 0;
+    while (offset < dec->pending_len) {
+        uint8_t *d = dec->pending + offset;
+        uint32_t remain = dec->pending_len - offset;
+
+        if (d[0] != 0x9C && d[0] != 0xAD) {
+            offset++;
+            continue;
+        }
+        if (remain < SBC_HEADER_SIZE) {
+            break;
+        }
+        if (sbc_probe(d, &dec->frame) < 0) {
+            offset++;
+            continue;
+        }
+
+        uint32_t fsize = sbc_get_frame_size(&dec->frame);
+        if (fsize == 0 || remain < fsize) {
+            break;
+        }
+
+        int ret = sbc_decode(&dec->sbc, d, fsize, &dec->frame, dec->pcml, 1, dec->pcmr, 1);
+        if (ret < 0) {
+            BK_LOGW(TAG, "[%s] sbc_decode err, resync", audio_element_get_tag(self));
+            offset++;
+            continue;
+        }
+        offset += fsize;
+
+        int nch     = (dec->frame.mode == SBC_MODE_MONO) ? 1 : 2;
+        int pcm_len = dec->frame.nblocks * dec->frame.nsubbands;
+
+        if (music_info_report(self) != BK_OK) {
+            BK_LOGW(TAG, "[%s] report info failed", audio_element_get_tag(self));
+        }
+        int out_len = 0;
+        int output_size = 0;
+
+        if (nch == 1) {
+            output_size = pcm_len * (int)sizeof(int16_t);
+            out_len = audio_element_output(self, (char *)dec->pcml, output_size);
+            if (out_len > 0) {
+                w_size += out_len;
+            }
+        } else {
+            for (int i = 0; i < pcm_len; i++) {
+                dec->pcm_out[2 * i]     = dec->pcml[i];
+                dec->pcm_out[2 * i + 1] = dec->pcmr[i];
+            }
+            output_size = pcm_len * 2 * (int)sizeof(int16_t);
+            out_len = audio_element_output(self, (char *)dec->pcm_out, output_size);
+            if (out_len > 0) {
+                w_size += out_len;
+            }
+        }
+        if(is_aud_dump_valid(DUMP_TYPE_DEC_OUT_DATA))
+        {
+            /*update header*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_DEC_OUT_DATA, 0, DUMP_FILE_TYPE_PCM);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_DEC_OUT_DATA, 0, out_len);
+            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_DEC_OUT_DATA);
+
+            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+            /*dump header*/
+            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_DEC_OUT_DATA);
+
+            /*dump data*/
+            DEBUG_DATA_DUMP_BY_UART_DATA(dec->pcm_out, out_len);
+            DEBUG_DATA_DUMP_RESUME_ALL;
+
+            /*update seq*/
+            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_DEC_OUT_DATA);
+        }
+    }
+
+    if (offset > 0 && offset <= dec->pending_len) {
+        os_memmove(dec->pending, dec->pending + offset, dec->pending_len - offset);
+        dec->pending_len -= offset;
+    }
+    return (w_size > 0) ? w_size : r_size;
 }
 
 static bk_err_t _sbc_decoder_close(audio_element_handle_t self)
 {
-    BK_LOGV(TAG, "[%s] _sbc_decoder_close \n", audio_element_get_tag(self));
-    
-    /* Deinitialize SBC decoder */
-    bk_sbc_decoder_deinit();
-
+    BK_LOGI(TAG, "[%s] closed\n", audio_element_get_tag(self));
     return BK_OK;
 }
 
 static bk_err_t _sbc_decoder_destroy(audio_element_handle_t self)
 {
-    sbc_decoder_t *sbc_dec = (sbc_decoder_t *)audio_element_getdata(self);
-    audio_free(sbc_dec);
-
-    SBC_DEC_DATA_DUMP_BY_UART_CLOSE();
-
+    sbc_decoder_t *dec = (sbc_decoder_t *)audio_element_getdata(self);
+    audio_free(dec);
     return BK_OK;
 }
 
-audio_element_handle_t sbc_decoder_init(sbc_decoder_cfg_t *config)
+audio_element_handle_t sbc_dec_init(sbc_decoder_cfg_t *config)
 {
-    audio_element_handle_t el;
+    audio_element_handle_t el = NULL;
     sbc_decoder_t *sbc_dec = audio_calloc(1, sizeof(sbc_decoder_t));
-
     AUDIO_MEM_CHECK(TAG, sbc_dec, return NULL);
 
     audio_element_cfg_t cfg = DEFAULT_AUDIO_ELEMENT_CONFIG();
-    cfg.open = _sbc_decoder_open;
+    cfg.open  = _sbc_decoder_open;
     cfg.close = _sbc_decoder_close;
-    cfg.seek = NULL;
+    cfg.seek  = NULL;
     cfg.process = _sbc_decoder_process;
     cfg.destroy = _sbc_decoder_destroy;
-    cfg.in_type = PORT_TYPE_FB;
-    cfg.read = NULL;
+    cfg.in_type = PORT_TYPE_RB;
+    cfg.read    = NULL;
     cfg.out_type = PORT_TYPE_RB;
-    cfg.write = NULL;
+    cfg.write    = NULL;
     cfg.task_stack = config->task_stack;
-    cfg.task_prio = config->task_prio;
-    cfg.task_core = config->task_core;
+    cfg.task_prio  = config->task_prio;
+    cfg.task_core  = config->task_core;
     cfg.out_block_size = config->out_block_size;
-    cfg.out_block_num = config->out_block_num;
-    cfg.buffer_len = config->buf_sz;
-
+    cfg.out_block_num  = config->out_block_num;
+    cfg.buffer_len     = config->buf_sz;
     cfg.tag = "sbc_decoder";
 
     el = audio_element_init(&cfg);
-
     AUDIO_MEM_CHECK(TAG, el, goto _sbc_decoder_init_exit);
     audio_element_setdata(el, sbc_dec);
 
@@ -313,15 +304,19 @@ audio_element_handle_t sbc_decoder_init(sbc_decoder_cfg_t *config)
     audio_element_info_t info = {0};
     audio_element_getinfo(el, &info);
     info.sample_rates = 0;
-    info.channels = 0;
-    info.bits = 0;
-    info.codec_fmt = BK_CODEC_TYPE_SBC;
+    info.channels     = 0;
+    info.bits         = 0;
+    info.codec_fmt    = BK_CODEC_TYPE_SBC;
     audio_element_setinfo(el, &info);
 
-    SBC_DEC_DATA_DUMP_BY_UART_OPEN();
-
     return el;
+
 _sbc_decoder_init_exit:
     audio_free(sbc_dec);
     return NULL;
+}
+
+audio_element_handle_t sbc_decoder_init(sbc_decoder_cfg_t *config)
+{
+    return sbc_dec_init(config);
 }

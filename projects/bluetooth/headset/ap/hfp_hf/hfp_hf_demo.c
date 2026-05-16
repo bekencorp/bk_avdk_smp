@@ -63,8 +63,8 @@ enum
 {
     BT_AUDIO_MSG_NULL = 0,
     BT_AUDIO_VOICE_START_MSG = 1,
-    BT_AUDIO_VOICE_STOP_MSG = 2,
-    BT_AUDIO_VOICE_IND_MSG = 3,
+    BT_AUDIO_VOICE_STOP_MSG  = 2,
+    BT_AUDIO_VOICE_IND_MSG   = 3,
 };
 
 
@@ -130,16 +130,27 @@ static beken_semaphore_t hf_mic_speaker_exit_sema = NULL;
 static uint16_t mic_read_size = 0;
 #endif
 
+#ifdef CONFIG_AUDIO
 static void speaker_task(void *arg);
 static int speaker_task_init();
 static void mic_task(void *arg);
 static int mic_task_init();
+#endif
 
 int bt_audio_hf_demo_task_init(void);
 
+static uint32_t hfp_vol_to_dac_dig_gain(uint8_t vol)
+{
+    /* HFP volume is 0~15, map to v2 DAC dig_gain register */
+    if (vol == 0) {
+        return 0;
+    }
+    return 0x01000000;//(uint32_t)((uint64_t)0x07000000 * vol / 15);
+}
+
 static bk_err_t bk_bt_dac_set_gain(uint8_t hfp_vol)
 {
-    uint8_t gain = (0x7f / 15.0) * hfp_vol;
+    uint32_t gain = hfp_vol_to_dac_dig_gain(hfp_vol);
 
     if(s_audio_play_obj)
     {
@@ -621,9 +632,11 @@ void bt_audio_hf_demo_main(void *arg)
 #ifdef CONFIG_AUDIO
                     if (CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec)
                     {
+#if CONFIG_SBC
                         bk_sbc_decoder_init(&bt_audio_hf_sbc_decoder);
                         sbc_encoder_init(&bt_audio_hf_sbc_encoder, 16000, 1);
                         sbc_encoder_ctrl(&bt_audio_hf_sbc_encoder, SBC_ENCODER_CTRL_CMD_SET_MSBC_ENCODE_MODE, (uint32_t)NULL);
+#endif //CONFIG_SBC
                     }
 
                     if(ring_buffer_particle_init(&s_hfp_sco_spk_data_rb, 1024) < 0)
@@ -634,8 +647,10 @@ void bt_audio_hf_demo_main(void *arg)
 
                     hf_auido_start = 1;
 #if !HF_REMOTE_ROLLBACK_TEST || HF_LOCAL_ROLLBACK_TEST
+#ifdef CONFIG_AUDIO
                     mic_task_init();
                     speaker_task_init();
+#endif
 #endif
                     LOGI("hfp audio init ok\r\n");
 #endif
@@ -650,11 +665,11 @@ void bt_audio_hf_demo_main(void *arg)
 
                     if(hf_speaker_thread_handle || hf_mic_thread_handle)
                     {
-                        hf_auido_start = 0;
                         if (kNoErr != rtos_init_semaphore(&hf_mic_speaker_exit_sema, 1))
                         {
                             LOGE("init sema fail, %d \n", __LINE__);
                         }
+                        hf_auido_start = 0;
                     }
 
                     if(hf_mic_thread_handle)
@@ -705,6 +720,7 @@ void bt_audio_hf_demo_main(void *arg)
 
                     if (CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec)
                     {
+#if CONFIG_SBC
                         fb += 2; //Skip Synchronization Header
                         ret = bk_sbc_decoder_frame_decode(&bt_audio_hf_sbc_decoder, fb, msg.len - 2);
 //                        LOGI("sbc decod %d \n", ret);
@@ -719,6 +735,7 @@ void bt_audio_hf_demo_main(void *arg)
                             packet_len = r_len = SCO_MSBC_SAMPLES_PER_FRAME*2;
                             packet_num = 4;
                         }
+#endif
                     }
                     else
                     {
@@ -758,13 +775,13 @@ void bt_audio_hf_demo_main(void *arg)
                             LOGE("%s rb write err %d %d %d\n", __func__, r_len, ring_buffer_particle_len(&s_hfp_sco_spk_data_rb), msg.len);
                         }
 
-						if (hf_speaker_sema)
-						{
-							rtos_set_semaphore(&hf_speaker_sema);
-						}
+                    if (hf_speaker_sema)
+                    {
+                        rtos_set_semaphore(&hf_speaker_sema);
+                    }
 #endif
                     }
-					else
+                    else
                     {
 //                        LOGE("write spk data fail \r\n");
                     }
@@ -889,29 +906,34 @@ static void mic_task(void *arg)
 
     audio_record_cfg_t cfg = DEFAULT_AUDIO_RECORD_CONFIG();
 
-    cfg.nChans = 1;
+    cfg.nChans   = 1;
     cfg.sampRate = ((CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec) ? 16000 : 8000);
-    cfg.adc_gain = 0x2d;
+    cfg.bitsPerSample = 16;
+    cfg.adc_gain = 0x1c000;
+    cfg.frame_size = cfg.sampRate * cfg.nChans / 1000 * 20 * cfg.bitsPerSample / 8;
+    cfg.pool_size  = cfg.frame_size * 2;
+    cfg.encoder_type = AUDIO_RECORD_ENCODER_PCM;
+    cfg.ch_bitmap = ONBOARD_MIC_ADC_ACTIVE_CH_0_BIT;
 
     LOGI("%s wait a2dp task end\n", __func__);
     extern int32_t wait_a2dp_speaker_task_end(void);
     wait_a2dp_speaker_task_end();
+
+#if CONFIG_AUDIO_RECORD
     s_audio_record_obj = audio_record_create(AUDIO_RECORD_ONBOARD_MIC, &cfg);
 
     if(!s_audio_record_obj)
     {
         LOGE("%s create audio record err\n", __func__);
-
         goto end;
     }
 
     if((ret = audio_record_open(s_audio_record_obj)) != 0)
     {
         LOGE("%s open audio record err\n", __func__, ret);
-
         goto end;
     }
-
+#endif
 
     LOGI("%s init success!! \r\n", __func__);
     hf_mic_data_count = 0;
@@ -921,6 +943,7 @@ static void mic_task(void *arg)
     {
         if (hf_mic_data_count+read_size < sizeof(hf_mic_sco_data))
         {
+#if CONFIG_AUDIO_RECORD
             int size = audio_record_read_data(s_audio_record_obj, (char *)(hf_mic_sco_data + hf_mic_data_count), read_size);
             if (size > 0)
             {
@@ -942,7 +965,7 @@ static void mic_task(void *arg)
                     if (CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec)
                     {
                         int32_t produced = sbc_encoder_encode(&bt_audio_hf_sbc_encoder, (int16_t *)(hf_mic_sco_data + send_len * i));
-//                        LOGI("[send_mic_data_to_air_msbc]  %d \r\n",produced);
+                        //LOGI("[send_mic_data_to_air_msbc]  %d \r\n",produced);
                         bk_bt_hf_client_voice_out_write(hfp_peer_addr, (uint8_t *)&bt_audio_hf_sbc_encoder.stream [ -2 ], produced + 2);
                     }
                     else
@@ -958,6 +981,7 @@ static void mic_task(void *arg)
                 }
 #endif
             }
+#endif
         }
         else
         {
@@ -966,11 +990,10 @@ static void mic_task(void *arg)
         }
     }
 
-end:;
-
-    LOGI("%s exit start!! \r\n", __func__);
+end:
+    LOGD("%s exit start!! \r\n", __func__);
+#if CONFIG_AUDIO_RECORD
     ret = audio_record_close(s_audio_record_obj);
-
     if(ret)
     {
         LOGE("%s close audio record err %d\n", __func__, ret);
@@ -982,7 +1005,7 @@ end:;
     {
         LOGE("%s destroy audio record err %d\n", __func__, ret);
     }
-
+#endif
     s_audio_record_obj = NULL;
 
     LOGI("%s end!! %d\r\n", __func__, hf_auido_start);
@@ -1026,17 +1049,20 @@ static void speaker_task(void *arg)
 
     audio_play_cfg_t cfg = DEFAULT_AUDIO_PLAY_CONFIG();
 
-    cfg.nChans = 1;
+    cfg.nChans   = 1;
     cfg.sampRate = ((CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec) ? 16000 : 8000);
-    cfg.volume = 0x2d;
+    cfg.volume   = 0x07000000;
     cfg.frame_size = cfg.sampRate * cfg.nChans / 1000 * 20 * cfg.bitsPerSample / 8;
-    cfg.pool_size = cfg.frame_size * 2;
+    cfg.pool_size  = cfg.frame_size * 2;
+    cfg.decoder_type = AUDIO_PLAY_DECODER_PCM;
+    cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_CALL_BIT;
+    cfg.main_dac_source   = AUD_DAC_SOURCE_CALL;
+
     LOGI("%s wait a2dp task end\n", __func__);
     extern int32_t wait_a2dp_speaker_task_end(void);
     wait_a2dp_speaker_task_end();
 
     s_audio_play_obj = audio_play_create(AUDIO_PLAY_ONBOARD_SPEAKER, &cfg);
-
     if(!s_audio_play_obj)
     {
         LOGE("%s create audio play err\n", __func__);
@@ -1075,7 +1101,6 @@ static void speaker_task(void *arg)
 #else
 
         int size = 0;
-
         while(ring_buffer_particle_len(&s_hfp_sco_spk_data_rb) >= 100)
         {
             uint32_t write_len = 0;
@@ -1123,7 +1148,9 @@ end:;
 
     if (CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec)
     {
+#if CONFIG_SBC
         bk_sbc_decoder_deinit();
+#endif
     }
 
     LOGI("%s hfp end!!\r\n", __func__);

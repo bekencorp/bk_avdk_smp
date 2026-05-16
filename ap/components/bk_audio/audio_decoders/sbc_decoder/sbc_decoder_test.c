@@ -18,7 +18,7 @@
 #include "task.h"
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
 #include <components/bk_audio/audio_pipeline/audio_mem.h>
-#include <components/bk_audio/audio_decoders/sbc_decoder.h>
+#include <components/bk_audio/audio_decoders/sbc_dec.h>
 #include <components/bk_audio/audio_streams/uart_stream.h>
 #include <components/bk_audio/audio_streams/raw_stream.h>
 #include "test_sbc_array.h"
@@ -64,7 +64,7 @@ bk_err_t adk_sbc_decoder_test_case_0(void)
 
     // 初始化SBC解码器
     sbc_decoder_cfg_t sbc_decoder_cfg = DEFAULT_SBC_DECODER_CONFIG();
-    sbc_dec = sbc_decoder_init(&sbc_decoder_cfg);
+    sbc_dec = sbc_dec_init(&sbc_decoder_cfg);
     TEST_CHECK_NULL(sbc_dec);
 
     // 初始化UART流用于输出

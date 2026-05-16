@@ -20,6 +20,9 @@
 extern "C" {
 #endif
 
+#include <components/bk_audio/audio_streams/onboard_speaker_stream_v2.h>
+#include <driver/aud_dac_types.h>
+
 
 typedef enum
 {
@@ -30,6 +33,13 @@ typedef enum
     AUDIO_PLAY_ONBOARD_SPEAKER,
     //AUDIO_SINK_NET,
 } audio_play_type_t;
+
+typedef enum
+{
+    AUDIO_PLAY_DECODER_PCM = 0,
+    AUDIO_PLAY_DECODER_SBC,
+    AUDIO_PLAY_DECODER_AAC,
+} audio_play_decoder_t;
 
 typedef enum {
 	AUDIO_PLAY_MODE_DIFFEN = 0,
@@ -63,6 +73,9 @@ typedef struct
     audio_play_mode_t play_mode;
     uint32_t frame_size;            /*!< frame size unit byte */
     uint32_t pool_size;             /*!< the size (unit byte) of ringbuffer pool saved speaker data need to play */
+    uint32_t                dac_source_bitmap;  /*!< bitmap of active dac source,bit[x]:0:source_x inactive;1:source_x active*/
+    aud_dac_source_t        main_dac_source;    /*!< main input source mapped to element->in */
+    audio_play_decoder_t    decoder_type;       /*!< decoder type, PCM means input data is pcm stream */
 } audio_play_cfg_t;
 
 #define DEFAULT_AUDIO_PLAY_CONFIG() {       \
@@ -70,10 +83,13 @@ typedef struct
     .nChans = 1,                            \
     .sampRate = 8000,                       \
     .bitsPerSample = 16,                    \
-    .volume = 0x2d,                         \
+    .volume = 0x07000000,                   \
     .play_mode = AUDIO_PLAY_MODE_DIFFEN,    \
     .frame_size = 320,                      \
     .pool_size = 640,                       \
+    .dac_source_bitmap = DEFAULT_ACTIVE_DAC_SOURCE_BITMAP, \
+    .main_dac_source   = DEFAULT_DAC_SOURCE,               \
+    .decoder_type = AUDIO_PLAY_DECODER_PCM, \
 }
 
 typedef struct audio_play audio_play_t;

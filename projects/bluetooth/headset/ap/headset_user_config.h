@@ -13,7 +13,7 @@
 // limitations under the License.
 #pragma once
 
-//#define CONFIG_A2DP_AUDIO
+#define CONFIG_A2DP_AUDIO
 
 #define BT_AUDIO_SINK_DEMO_MSG_COUNT          (60)
 
@@ -34,4 +34,4 @@
 #define CONFIG_WIFI_COEX_SCHEME  0
 
 #define CONFIG_USE_AUDIO_LEGACY_INTERFACE  0
-#define CONFIG_BOARD_AUDIO_CHANNLE_NUM     1
+#define CONFIG_BOARD_AUDIO_CHANNLE_NUM     2
