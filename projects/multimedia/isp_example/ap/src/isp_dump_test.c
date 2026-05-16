@@ -25,6 +25,8 @@
 #include <driver/gpio_types.h>
 #include <driver/isp_base.h>
 #include <components/bk_frame_buffer.h>
+#include <sys_types.h>
+#include <modules/pm.h>
 
 #define ISP_DUMP_TAG "isp-dump"
 #define ISP_DUMP_LOGI(...) BK_LOGI(ISP_DUMP_TAG, ##__VA_ARGS__)
@@ -94,6 +96,28 @@ static int isp_dump_send_all(int sock, const uint8_t *data, uint32_t len)
     }
 
     return 0;
+}
+
+static avdk_err_t camera_power_enable(bool enable)
+{
+    int ldo_en = enable ? PM_AUXLDO_ENABLE : PM_AUXLDO_DISABLE;
+    ISP_DUMP_LOGI("%s, iovdd dvdd enable: %d\n", __func__, ldo_en);
+
+    pm_auxldo_ctrl_cfg_t auxldo_cfg = {0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_1P8V;
+    auxldo_cfg.out = PM_AUXLDO_1P8V_OUT_1P8V;
+    auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+    auxldo_cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 1p8v ldo vote failed");
+
+    auxldo_cfg = (pm_auxldo_ctrl_cfg_t){0};
+    auxldo_cfg.ldo = AUXLDOS_SEL_1P2V;
+    auxldo_cfg.out = PM_AUXLDO_1P2V_OUT_1P2V;
+    auxldo_cfg.user = PM_AUXLDO_USER_CAMERA;
+    auxldo_cfg.state = ldo_en;
+    AVDK_RETURN_ON_ERROR(bk_pm_auxldo_ctrl_vote(&auxldo_cfg), TAG, "camera 1p2v ldo vote failed");
+    rtos_delay_milliseconds(1);
+    return AVDK_ERR_OK;
 }
 
 /**
@@ -323,6 +347,12 @@ static avdk_err_t isp_dump_open_mipi_camera(uint16_t sensor_w, uint16_t sensor_h
 
     if (!s_isp_dump_cam.is_initialized)
     {
+        ret = camera_power_enable(true);
+        if (ret != AVDK_ERR_OK)
+        {
+            return ret;
+        }
+
         ret = isp_dump_init_mipi_camera(sensor_w, sensor_h, fps);
         if (ret != AVDK_ERR_OK)
         {
@@ -453,6 +483,13 @@ static avdk_err_t isp_dump_close_mp_channel(void)
         return ret;
     }
 
+    ret = camera_power_enable(false);
+    if (ret != AVDK_ERR_OK)
+    {
+        ISP_DUMP_LOGE("Failed to power down camera: %d\n", ret);
+        return ret;
+    }
+
     return isp_dump_cleanup_all_resources();
 }
 
@@ -512,7 +549,7 @@ bk_err_t isp_ui_capture_frame(uint8_t **frame, uint32_t *frame_len)
         return BK_FAIL;
     }
 
-    buf = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, size);
+    buf = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, size);
     if (buf == NULL)
     {
         ISP_DUMP_LOGE("isp_ui_capture_frame: malloc failed\n");
