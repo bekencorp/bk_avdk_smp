@@ -62,11 +62,11 @@ static inline void rotate_point(int rot, int src_w, int src_h,
  * @param dst_width    Width  of the canvas the boxes are drawn on.
  * @param dst_height   Height of the canvas the boxes are drawn on.
  */
-int box_detection_path_build(FaceBox *faces, int count, int buffer_count, int rotate,
+int box_detection_path_build(Box *boxes, int count, int buffer_count, int rotate,
                              int src_width, int src_height,
                              int dst_width, int dst_height)
 {
-    if (faces == NULL || buffer_count <= 0 ||
+    if (boxes == NULL || buffer_count <= 0 ||
         src_width <= 0 || src_height <= 0 ||
         dst_width <= 0 || dst_height <= 0) {
         LOGE("box_detection_path_build: bad args\n");
@@ -96,9 +96,9 @@ int box_detection_path_build(FaceBox *faces, int count, int buffer_count, int ro
     for (int i = 0; i < count; i++) {
         int rx0, ry0, rx1, ry1;
         rotate_point(rot, src_width, src_height,
-                     faces[i].xmin, faces[i].ymin, &rx0, &ry0);
+                     boxes[i].x1, boxes[i].y1, &rx0, &ry0);
         rotate_point(rot, src_width, src_height,
-                     faces[i].xmax, faces[i].ymax, &rx1, &ry1);
+                     boxes[i].x2, boxes[i].y2, &rx1, &ry1);
 
         int xmin = (int)(rx0 * xscale + 0.5f);
         int ymin = (int)(ry0 * yscale + 0.5f);

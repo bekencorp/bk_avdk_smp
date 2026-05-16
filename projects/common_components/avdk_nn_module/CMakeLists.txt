@@ -1,6 +1,5 @@
 set(incs
     include
-    src/face_detection
     ../../tflite_micro/gesture_detection/ap/ui/beken_generated
 )
 set(srcs
@@ -42,13 +41,6 @@ if (CONFIG_TFLM_GESTURE_DETECTION_V1)
 	list(APPEND srcs
 		src/tflm_gesture_detection/gesture_detection_model_data.cc
 		src/tflm_gesture_detection/GestureDetectionModel.cc
-	)
-endif()
-
-if (CONFIG_FACE_DETECTION_V2)
-	list(APPEND srcs
-		src/face_detection/cfacedetectcnn.c
-		src/face_detection/face_detection.c
 	)
 endif()
 

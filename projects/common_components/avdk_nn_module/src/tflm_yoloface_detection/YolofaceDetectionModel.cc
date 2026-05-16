@@ -120,16 +120,16 @@ static const FaceDetectionConfig g_face_detection_config = {
 // Forward declarations (using pointers for C compatibility)
 static int ProcessYoloGrid4D(const TfLiteTensor* output, float output_scale, int32_t output_zero_point,
                               int batch_size, int grid_h, int grid_w, int output_channels,
-                              int width, int height, FaceBox* all_faces, int* all_face_count);
+                              int width, int height, Box* all_faces, int* all_face_count);
 static int ProcessYolo2D(const TfLiteTensor* output, float output_scale, int32_t output_zero_point,
-                         int width, int height, FaceBox* all_faces, int* all_face_count);
+                         int width, int height, Box* all_faces, int* all_face_count);
 static int ProcessYolo3D(const TfLiteTensor* output, float output_scale, int32_t output_zero_point,
-                         int width, int height, FaceBox* all_faces, int* all_face_count);
+                         int width, int height, Box* all_faces, int* all_face_count);
 static int ProcessYoloOther(const TfLiteTensor* output, float output_scale, int32_t output_zero_point,
-                             int output_dims, int width, int height, FaceBox* all_faces, int* all_face_count);
-static void SortFacesByScore(FaceBox* faces, int count);
-static int FilterAndSelectBestFace(FaceBox* all_faces, int all_face_count, int width, int height,
-                                   FaceBox* best_face, int* filtered_count);
+                             int output_dims, int width, int height, Box* all_faces, int* all_face_count);
+static void SortFacesByScore(Box* faces, int count);
+static int FilterAndSelectBestFace(Box* all_faces, int all_face_count, int width, int height,
+                                   Box* best_face, int* filtered_count);
 static void AdjustBoxCoordinates(float* box_w, float* box_h, float* normalized_x, float* normalized_y,
                                  int width, int height);
 
@@ -238,7 +238,7 @@ static void ConvertToPixelCoordinates(float normalized_x, float normalized_y, fl
  */
 static int ProcessYoloGrid4D(const TfLiteTensor* output, float output_scale, int32_t output_zero_point,
                              int batch_size, int grid_h, int grid_w, int output_channels,
-                             int width, int height, FaceBox* all_faces, int* all_face_count) {
+                             int width, int height, Box* all_faces, int* all_face_count) {
     const FaceDetectionConfig& cfg = g_face_detection_config;
 
     int num_anchors = 0;
@@ -363,10 +363,10 @@ MicroPrintf("  final pixel: [%d, %d, %d, %d] size=%dx%d (ratio=%.1f%%x%.1f%%) in
 }
 
 all_faces[*all_face_count].score = score;
-all_faces[*all_face_count].xmin = (short)xmin;
-all_faces[*all_face_count].ymin = (short)ymin;
-all_faces[*all_face_count].xmax = (short)xmax;
-all_faces[*all_face_count].ymax = (short)ymax;
+all_faces[*all_face_count].x1 = (int)xmin;
+all_faces[*all_face_count].y1 = (int)ymin;
+all_faces[*all_face_count].x2 = (int)xmax;
+all_faces[*all_face_count].y2 = (int)ymax;
 (*all_face_count)++;
 }
 }
@@ -381,7 +381,7 @@ return *all_face_count;
  * Rarely used, kept for compatibility
  */
 static int ProcessYolo2D(const TfLiteTensor* output, float output_scale, int32_t output_zero_point,
-int width, int height, FaceBox* all_faces, int* all_face_count) {
+int width, int height, Box* all_faces, int* all_face_count) {
 int num_boxes = output->dims->data[0];
 float width_float = (float)width;
 float height_float = (float)height;
@@ -427,10 +427,10 @@ else y1 = y2 - 1.0f;
 }
 
 all_faces[*all_face_count].score = score;
-all_faces[*all_face_count].xmin = (short)x1;
-all_faces[*all_face_count].ymin = (short)y1;
-all_faces[*all_face_count].xmax = (short)x2;
-all_faces[*all_face_count].ymax = (short)y2;
+all_faces[*all_face_count].x1 = (int)x1;
+all_faces[*all_face_count].y1 = (int)y1;
+all_faces[*all_face_count].x2 = (int)x2;
+all_faces[*all_face_count].y2 = (int)y2;
 (*all_face_count)++;
 }
 
@@ -442,7 +442,7 @@ return *all_face_count;
  * Rarely used, kept for compatibility
  */
 static int ProcessYolo3D(const TfLiteTensor* output, float output_scale, int32_t output_zero_point,
-int width, int height, FaceBox* all_faces, int* all_face_count) {
+int width, int height, Box* all_faces, int* all_face_count) {
 int batch_size = output->dims->data[0];
 int num_boxes = output->dims->data[1];
 float width_float = (float)width;
@@ -490,10 +490,10 @@ else y1 = y2 - 1.0f;
 }
 
 all_faces[*all_face_count].score = score;
-all_faces[*all_face_count].xmin = (short)x1;
-all_faces[*all_face_count].ymin = (short)y1;
-all_faces[*all_face_count].xmax = (short)x2;
-all_faces[*all_face_count].ymax = (short)y2;
+all_faces[*all_face_count].x1 = (int)x1;
+all_faces[*all_face_count].y1 = (int)y1;
+all_faces[*all_face_count].x2 = (int)x2;
+all_faces[*all_face_count].y2 = (int)y2;
 (*all_face_count)++;
 }
 }
@@ -506,7 +506,7 @@ return *all_face_count;
  * Very rarely used, kept for compatibility
  */
 static int ProcessYoloOther(const TfLiteTensor* output, float output_scale, int32_t output_zero_point,
-                            int output_dims, int width, int height, FaceBox* all_faces, int* all_face_count) {
+                            int output_dims, int width, int height, Box* all_faces, int* all_face_count) {
     int total_elements = 1;
     for (int i = 0; i < output_dims; i++) {
         total_elements *= output->dims->data[i];
@@ -543,10 +543,10 @@ static int ProcessYoloOther(const TfLiteTensor* output, float output_scale, int3
         if (y2 > height) y2 = height;
 
         all_faces[*all_face_count].score = score;
-        all_faces[*all_face_count].xmin = (short)x1;
-        all_faces[*all_face_count].ymin = (short)y1;
-        all_faces[*all_face_count].xmax = (short)x2;
-        all_faces[*all_face_count].ymax = (short)y2;
+        all_faces[*all_face_count].x1 = (int)x1;
+        all_faces[*all_face_count].y1 = (int)y1;
+        all_faces[*all_face_count].x2 = (int)x2;
+        all_faces[*all_face_count].y2 = (int)y2;
         (*all_face_count)++;
     }
 
@@ -556,11 +556,11 @@ static int ProcessYoloOther(const TfLiteTensor* output, float output_scale, int3
 /**
  * @brief Sort faces by score in descending order
  */
-static void SortFacesByScore(FaceBox* faces, int count) {
+static void SortFacesByScore(Box* faces, int count) {
     for (int i = 0; i < count - 1; i++) {
         for (int j = 0; j < count - i - 1; j++) {
             if (faces[j].score < faces[j + 1].score) {
-                FaceBox temp = faces[j];
+                Box temp = faces[j];
                 faces[j] = faces[j + 1];
                 faces[j + 1] = temp;
             }
@@ -571,8 +571,8 @@ static void SortFacesByScore(FaceBox* faces, int count) {
 /**
  * @brief Filter faces and select the best one based on score, size, aspect ratio, and position
  */
-static int FilterAndSelectBestFace(FaceBox* all_faces, int all_face_count, int width, int height,
-                                   FaceBox* best_face, int* filtered_count) {
+static int FilterAndSelectBestFace(Box* all_faces, int all_face_count, int width, int height,
+                                   Box* best_face, int* filtered_count) {
     const FaceDetectionConfig& cfg = g_face_detection_config;
 
     int best_face_idx = -1;
@@ -581,12 +581,12 @@ static int FilterAndSelectBestFace(FaceBox* all_faces, int all_face_count, int w
 
     for (int i = 0; i < all_face_count; i++) {
         if (all_faces[i].score > cfg.score_threshold) {
-            int box_w = all_faces[i].xmax - all_faces[i].xmin;
-            int box_h = all_faces[i].ymax - all_faces[i].ymin;
+            int box_w = all_faces[i].x2 - all_faces[i].x1;
+            int box_h = all_faces[i].y2 - all_faces[i].y1;
             float aspect_ratio = (box_h > 0) ? ((float)box_w / (float)box_h) : 0.0f;
 
-            float center_x = ((float)(all_faces[i].xmin + all_faces[i].xmax) / 2.0f) / (float)width;
-            float center_y = ((float)(all_faces[i].ymin + all_faces[i].ymax) / 2.0f) / (float)height;
+            float center_x = ((float)(all_faces[i].x1 + all_faces[i].x2) / 2.0f) / (float)width;
+            float center_y = ((float)(all_faces[i].y1 + all_faces[i].y2) / 2.0f) / (float)height;
 
             bool is_valid = (box_w >= cfg.min_box_size_pixels && box_h >= cfg.min_box_size_pixels);
             bool has_good_aspect = (aspect_ratio >= cfg.filter_min_aspect_ratio && aspect_ratio <= cfg.filter_max_aspect_ratio);
@@ -604,15 +604,15 @@ static int FilterAndSelectBestFace(FaceBox* all_faces, int all_face_count, int w
                 (*filtered_count)++;
                 if (!is_valid) {
                     MicroPrintf("Filtered small box: [%d,%d,%d,%d] size=%dx%d, score=%.3f\r\n",
-                               all_faces[i].xmin, all_faces[i].ymin, all_faces[i].xmax, all_faces[i].ymax,
+                               all_faces[i].x1, all_faces[i].y1, all_faces[i].x2, all_faces[i].y2,
                                box_w, box_h, all_faces[i].score);
                 } else if (!has_good_aspect) {
                     MicroPrintf("Filtered bad aspect box: [%d,%d,%d,%d] size=%dx%d (ratio=%.2f), score=%.3f\r\n",
-                               all_faces[i].xmin, all_faces[i].ymin, all_faces[i].xmax, all_faces[i].ymax,
+                               all_faces[i].x1, all_faces[i].y1, all_faces[i].x2, all_faces[i].y2,
                                box_w, box_h, aspect_ratio, all_faces[i].score);
                 } else {
                     MicroPrintf("Filtered bad position box: [%d,%d,%d,%d] center=(%.2f,%.2f), score=%.3f\r\n",
-                               all_faces[i].xmin, all_faces[i].ymin, all_faces[i].xmax, all_faces[i].ymax,
+                               all_faces[i].x1, all_faces[i].y1, all_faces[i].x2, all_faces[i].y2,
                                center_x, center_y, all_faces[i].score);
                 }
             }
@@ -737,7 +737,7 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
     }
 
     // Parse detection results - collect ALL detections first
-    FaceBox all_faces[kMaxFaces];
+    Box all_faces[kMaxFaces];
     int all_face_count = 0;
     int filtered_count = 0;
 
@@ -765,7 +765,7 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
     SortFacesByScore(all_faces, all_face_count);
 
     // Filter and select best face
-    FaceBox best_face;
+    Box best_face;
     int best_face_idx = FilterAndSelectBestFace(all_faces, all_face_count, width, height,
                                                  &best_face, &filtered_count);
 
@@ -784,11 +784,11 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
         MicroPrintf("All high-score faces:\r\n");
         for (int i = 0; i < all_face_count; i++) {
             if (all_faces[i].score > cfg.score_threshold) {
-                int box_w = all_faces[i].xmax - all_faces[i].xmin;
-                int box_h = all_faces[i].ymax - all_faces[i].ymin;
+                int box_w = all_faces[i].x2 - all_faces[i].x1;
+                int box_h = all_faces[i].y2 - all_faces[i].y1;
                 float aspect_ratio = (box_h > 0) ? ((float)box_w / (float)box_h) : 0.0f;
-                float center_x = ((float)(all_faces[i].xmin + all_faces[i].xmax) / 2.0f) / (float)width;
-                float center_y = ((float)(all_faces[i].ymin + all_faces[i].ymax) / 2.0f) / (float)height;
+                float center_x = ((float)(all_faces[i].x1 + all_faces[i].x2) / 2.0f) / (float)width;
+                float center_y = ((float)(all_faces[i].y1 + all_faces[i].y2) / 2.0f) / (float)height;
                 bool is_valid = (box_w >= cfg.min_box_size_pixels && box_h >= cfg.min_box_size_pixels);
                 bool has_good_aspect = (aspect_ratio >= cfg.filter_min_aspect_ratio && aspect_ratio <= cfg.filter_max_aspect_ratio);
                 bool has_good_position = (center_x >= cfg.min_center_x && center_x <= cfg.max_center_x &&
@@ -796,7 +796,7 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
                 if (is_valid && has_good_aspect && has_good_position) {
                     MicroPrintf("  Face %d: score=%.3f, box=[%d,%d,%d,%d] size=%dx%d (ratio=%.2f) center=(%.2f,%.2f)\r\n",
                                i, all_faces[i].score,
-                               all_faces[i].xmin, all_faces[i].ymin, all_faces[i].xmax, all_faces[i].ymax,
+                               all_faces[i].x1, all_faces[i].y1, all_faces[i].x2, all_faces[i].y2,
                                box_w, box_h, aspect_ratio, center_x, center_y);
                 }
             }
@@ -815,10 +815,10 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
     }
 
     // Print only the best (highest score) face
-    int img_x1 = best_face.xmin;
-    int img_y1 = best_face.ymin;
-    int img_x2 = best_face.xmax;
-    int img_y2 = best_face.ymax;
+    int img_x1 = best_face.x1;
+    int img_y1 = best_face.y1;
+    int img_x2 = best_face.x2;
+    int img_y2 = best_face.y2;
     int img_w = img_x2 - img_x1;
     int img_h = img_y2 - img_y1;
 
@@ -829,7 +829,7 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
                 best_face.score, best_face.score * 100.0f);
     MicroPrintf("  Center: (%.1f, %.1f), Size: %d x %d\r\n",
                 x_center, y_center, img_w, img_h);
-    MicroPrintf("  BBox [xmin, ymin, xmax, ymax]: [%d, %d, %d, %d]\r\n",
+    MicroPrintf("  BBox [x1, y1, x2, y2]: [%d, %d, %d, %d]\r\n",
                 img_x1, img_y1, img_x2, img_y2);
     MicroPrintf("  Corners: (%d, %d) -> (%d, %d)\r\n",
                 img_x1, img_y1, img_x2, img_y2);
@@ -838,16 +838,16 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
 
     // Prepare face box for display - coordinates are in input image size (56x56)
     // box_detection_path_build will scale them to display size (1920x1088) and apply rotation
-    FaceBox faces[1];
-    faces[0].xmin = best_face.xmin;
-    faces[0].ymin = best_face.ymin;
-    faces[0].xmax = best_face.xmax;
-    faces[0].ymax = best_face.ymax;
+    Box faces[1];
+    faces[0].x1 = best_face.x1;
+    faces[0].y1 = best_face.y1;
+    faces[0].x2 = best_face.x2;
+    faces[0].y2 = best_face.y2;
     faces[0].score = best_face.score;
 
     // Debug: print coordinates before scaling
     MicroPrintf("Before scaling: face box [%d, %d, %d, %d] in %dx%d input image\r\n",
-                faces[0].xmin, faces[0].ymin, faces[0].xmax, faces[0].ymax, width, height);
+                faces[0].x1, faces[0].y1, faces[0].x2, faces[0].y2, width, height);
     MicroPrintf("Will scale to display: %dx%d\r\n", 1088, 1088);
 
     box_detection_path_build(faces, 1, 1, 0, width, height, 1088, 1088);

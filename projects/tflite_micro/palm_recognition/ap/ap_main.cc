@@ -141,11 +141,11 @@ static void detection_result_cb(int has_palm, float cx, float cy, float w, float
         return;
     }
     /* cx/cy/w/h are in model coordinates (256x256); use truncf to drop the fraction explicitly. */
-    FaceBox faces[1];
-    faces[0].xmin  = (short)truncf(cx);
-    faces[0].ymin  = (short)truncf(cy);
-    faces[0].xmax  = (short)truncf(cx + w);
-    faces[0].ymax  = (short)truncf(cy + h);
+    Box faces[1];
+    faces[0].x1    = (int)truncf(cx);
+    faces[0].y1    = (int)truncf(cy);
+    faces[0].x2    = (int)truncf(cx + w);
+    faces[0].y2    = (int)truncf(cy + h);
     faces[0].score = (float)has_palm;
 
     /* src = model input size (256x256), dst = display canvas size (1088x1088). */

@@ -18,22 +18,29 @@
 extern "C" {
 #endif//__cplusplus
 
-// Face detection box structure
+/**
+ * Generic 2D detection box used across all NN detection models in this module
+ * (faces, palms, gestures, ...).
+ *
+ *   x1, y1 : top-left corner    (inclusive)
+ *   x2, y2 : bottom-right corner (inclusive)
+ *   score  : confidence score (model-specific scale)
+ *
+ * All coordinates are in the source image's pixel space; conversion to the
+ * target canvas (rotation + scaling + clamping) is handled by
+ * box_detection_path_build().
+ */
 typedef struct {
-    float score;  // confidence score
-    short xmin;   // left top x
-    short ymin;   // left top y
-    short xmax;   // right bottom x
-    short ymax;   // right bottom y
-    short lm[0];  // if landmark enabled, elements of lm will be FACE_LANDMARK_POINTS * 2
-} FaceBox;
-
-typedef struct {
-    int x1, y1, x2, y2;
+    int   x1;
+    int   y1;
+    int   x2;
+    int   y2;
     float score;
 } Box;
 
-int box_detection_path_build(FaceBox *faces, int count, int buffer_count, int rotate, int src_width, int src_height, int dst_width, int dst_height);
+int  box_detection_path_build(Box *boxes, int count, int buffer_count, int rotate,
+                              int src_width, int src_height,
+                              int dst_width, int dst_height);
 void box_detection_path_clear(void);
 
 #ifdef  __cplusplus
