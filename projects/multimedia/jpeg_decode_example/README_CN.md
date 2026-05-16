@@ -14,8 +14,8 @@
 ### 1.1 测试环境
 
 - 硬件配置
-  - 核心板：`BK7258_QFN88_9X9_V3.2`
-  - PSRAM：`8M/16M`
+  - 核心板：**BK7259_QF128_12.3X12.3_V4.0**
+  - PSRAM：32M
 - 输入数据
   - 工程内置 JPEG 测试图片
 - 输出内容
@@ -157,6 +157,17 @@ CMDRSP:ERROR
 - 没有出现 `malloc failed`、`decoder init/open failed` 等错误日志
 - 解码流程持续向前推进，没有异常退出
 - 压力测试在执行 `stop` 后能够正常收尾退出
+
+#### 4.2.4 集成测试命令
+
+`.it.csv` 当前使用统一的 `vcdec` 结果日志：
+
+```text
+ap_cmd jpeg_decode vcdec_jpegd
+ap_cmd jpeg_decode vcdec_jpegd_flexa
+```
+
+期望结果分别匹配 `[RESULT][PASS] vcdec_jpeg_test success` 和 `[RESULT][PASS] vcdec_jpeg_flexa_test success`。
 
 ## 5. 注意事项
 

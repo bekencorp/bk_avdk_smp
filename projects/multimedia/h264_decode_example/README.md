@@ -20,8 +20,8 @@ In addition to initialization and CLI registration, the current `main()` also st
 ### 1.1 Test Environment
 
 - Hardware
-  - Core board: `BK7258_QFN88_9X9_V3.2`
-  - PSRAM: `8M/16M`
+  - Core board: **BK7259_QF128_12.3X12.3_V4.0**
+  - PSRAM: 32M
 - Input
   - Built-in H264 demo stream
 - Output
@@ -185,6 +185,19 @@ all decoded outputs sampled as zero
 failed to allocate ... buffer
 psram_dma_stress_start failed, ret=...
 ```
+
+#### 4.2.3 Integration Test Commands
+
+`.it.csv` currently covers both supported VCDEC H264 streams and both decode modes:
+
+```text
+ap_cmd h264_decode vcdec_h264d 1280x720
+ap_cmd h264_decode vcdec_h264d_flexa 1280x720
+ap_cmd h264_decode vcdec_h264d 256x128
+ap_cmd h264_decode vcdec_h264d_flexa 256x128
+```
+
+The expected result strings are the corresponding `[RESULT][PASS] vcdec_h264_test success` or `[RESULT][PASS] vcdec_h264_flexa_test success` logs.
 
 ## 5. Notes
 

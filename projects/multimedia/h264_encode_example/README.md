@@ -4,7 +4,14 @@
 
 ## 1. Project Overview
 
-This project is an H264 encoding test module designed to test H264 encoding functionality on the Beken platform. It provides a Command Line Interface (CLI) that supports H264 hardware encoding.
+This project demonstrates H264 encoding on the Beken platform. The current test path is based on the `bk_h264_encode_*` controller APIs and the VCENC H264 backend.
+
+The project provides:
+
+- Frame-mode VCENC H264 encode test: `h264_encode vcenc_h264e`
+- Software FLEXA VCENC H264 encode test: `h264_encode vcenc_h264e_flexa`
+- Boot-time VCENC H264 self-test when `CONFIG_BK_ENCODER` is enabled
+- Integration-test entries in `.it.csv`
 
 * For detailed information about H264 encoding, please refer to:
 
@@ -17,12 +24,12 @@ This project is an H264 encoding test module designed to test H264 encoding func
 ### 1.1 Test Environment
 
    * Hardware configuration:
-      * Core board, **BK7258_QFN88_9X9_V3.2**
-      * PSRAM 8M/16M
+      * Core board, **BK7259_QF128_12.3X12.3_V4.0**
+      * PSRAM 32M
    * Supports H264 hardware encoding
-      * YUV420, YUV422 formats
-      * Input: YUV frames from frame buffer
+      * Test input: built-in NV12 frame
       * Output: H264 encoded stream
+      * Test setting: GOP 15, total 30 encoded frames per run
 
 .. warning::
     Please use reference peripherals for familiarization and learning of the demo project. If peripheral specifications are different, the code may need to be reconfigured.
@@ -45,8 +52,9 @@ h264_encode_example/
 │   ├── ap_main.c         # AP main entry file
 │   ├── config/           # AP configuration directory
 │   └── h264_encode/      # H264 encode implementation
+│       ├── common/       # Built-in 256x128 NV12 test image
 │       ├── include/      # Header files
-│       └── src/          # Source code files
+│       └── src/          # CLI and VCENC H264 tests
 ├── cp/                   # CP-side code
 │   ├── CMakeLists.txt    # CP-side CMake build file
 │   ├── cp_main.c         # CP main entry file
@@ -60,31 +68,32 @@ h264_encode_example/
 
 ### 3.1 Main Features
 
-- Supports H264 hardware encoding
-- Provides CLI for encoding tests
-- Implements frame buffer management mechanism
-- Offers regular and abnormal scenario encoding test functionality
-- Supports asynchronous encoding
+- Supports VCENC H264 frame-mode encoding test
+- Supports VCENC H264 software FLEXA encoding test
+- Uses built-in `h264_encode_stream_256x128` NV12 input
+- Encodes 30 frames with GOP set to 15
+- Provides unified `[RESULT][PASS]` / `[RESULT][FAIL]` logs
+- Runs CLI-triggered tests in worker threads
+- Starts a boot-time encode demo when `CONFIG_BK_ENCODER` is enabled
 
 ### 3.2 Frame Buffer Management
 
-The project implements a frame buffer management mechanism for efficiently managing image buffers during H264 encoding:
+The project uses frame buffer heaps for input and output buffers during H264 encoding:
 
-- Supports H264 and YUV formats
-- Maintains separate free queues and ready queues for each format
-- Provides interfaces for buffer allocation, retrieval, and release operations
+- Input NV12 frame is copied to `MEM_SLAB_HEAP_UNCODED`
+- Encoded output buffers are allocated from `MEM_SLAB_HEAP_CODED`
+- Output buffers are released in the encode completion callback
 
 ### 3.3 H264 Encoding Process
 
-1. Initialize the H264 encoder
-2. Open the encoder
-3. Perform encoding operations:
-   - Get input YUV frame from frame buffer
-   - Request output buffer for encoded data
-   - Execute encoding (encoding is asynchronous, result is returned in callback)
-   - Release buffers in callback
-4. Close the encoder
-5. Delete the encoder instance
+1. Allocate and fill the 256x128 NV12 input frame
+2. Create the H264 controller
+   - Frame mode: `bk_h264_encode_frame_new()`
+   - FLEXA mode: `bk_h264_encode_sw_flexa_new()`
+3. Initialize and open the encoder
+4. Encode 30 frames with GOP set to 15
+5. Wait for completion callback for each frame
+6. Print final `[RESULT]` log and release resources
 
 ## 4. Compilation and Execution
 
@@ -92,163 +101,92 @@ The project implements a frame buffer management mechanism for efficiently manag
 
 Compile the project using the following command:
 
-```
-make bk7258 PROJECT=h264_encode_example
+```bash
+make bk7259 PROJECT=multimedia/h264_encode_example
 ```
 
 ### 4.2 Execution Method
 
-After successful compilation, flash the generated firmware to the development board and use the following commands through the serial terminal to test the H264 encoding functionality:
+After successful compilation, flash the generated firmware to the development board. If `CONFIG_BK_ENCODER` is enabled, `main()` starts a boot-time VCENC H264 demo task automatically. Manual tests can also be started from the serial terminal:
 
 Command execution success prints: "CMDRSP:OK"
 Command execution failure prints: "CMDRSP:ERROR"
 
-#### 4.2.1 Basic Encoding Commands
+#### 4.2.1 Current VCENC H264 Commands
 
-1. Initialize H264 encoder:
-```
-h264_encode init
-```
-
-2. Open the encoder:
-```
-h264_encode open
+```text
+h264_encode help
+h264_encode vcenc_h264e
+h264_encode vcenc_h264e_flexa
 ```
 
-3. Perform encoding operation:
-```
-h264_encode encode
-```
-
-4. Force IDR frame:
-```
-h264_encode force_idr
-```
-
-5. Close the encoder:
-```
-h264_encode close
-```
-
-6. Delete the encoder instance:
-```
-h264_encode delete
-```
-
-#### 4.2.2 Regular Test Commands
-
-1. Normal encoding test:
-```
-h264_encode_regular_test normal_test
-```
-
-2. Asynchronous encoding test:
-```
-h264_encode_regular_test async_test
-```
-
-#### 4.2.3 Error Test Commands
-
-1. NULL handle test:
-```
-h264_encode_error_test null_handle_test
-```
-
-2. Invalid config test:
-```
-h264_encode_error_test invalid_config_test
-```
+- `vcenc_h264e` runs the frame-mode encoder test.
+- `vcenc_h264e_flexa` runs the software FLEXA encoder test.
+- Both commands encode the built-in 256x128 NV12 frame for 30 frames with GOP 15.
+- `CMDRSP:OK` means the test task was created successfully; check `[RESULT]` logs for the final pass/fail status.
 
 ## 5. Test Examples
 
-### 5.1 Basic Encoding Test
+### 5.1 Frame-Mode VCENC H264 Test
 
-```
-h264_encode init
-h264_encode open
-h264_encode encode
-h264_encode close
-h264_encode delete
+```text
+h264_encode vcenc_h264e
 ```
 
-Normal log:
-```
-h264_enc_cli, XX, h264 encode init success!
-h264_enc_cli, XX, h264 encode open success!
-h264_enc_common, XX, h264 encode success! Encode time: XX ms
-h264_enc_cli, XX, h264 encode close success!
-h264_enc_cli, XX, h264 encode delete success!
+Expected final log:
+
+```text
+[RESULT][PASS] vcenc_h264_frame_test success, frames=30/30 encoded_size=... frame_type=...
 ```
 
-### 5.2 Regular Test
+### 5.2 Software FLEXA VCENC H264 Test
 
-#### 5.2.1 Normal Encoding Test
-
-```
-h264_encode_regular_test normal_test
+```text
+h264_encode vcenc_h264e_flexa
 ```
 
-Expected log:
-```
-h264_enc_regular, XX, H264 encode normal scenario test completed!
+Expected final log:
+
+```text
+[RESULT][PASS] vcenc_h264_flexa_test success, frames=30/30 encoded_size=... frame_type=...
 ```
 
-Abnormal log (indicating test failure):
-```
-CMDRSP:ERROR
+### 5.3 Integration Test Commands
+
+`.it.csv` contains:
+
+```text
+ap_cmd h264_encode vcenc_h264e
+ap_cmd h264_encode vcenc_h264e_flexa
 ```
 
-#### 5.2.2 Asynchronous Encoding Test
-
-```
-h264_encode_regular_test async_test
-```
-
-Expected log:
-```
-h264_enc_regular, XX, H264 encode async test completed!
-```
-
-Abnormal log (indicating test failure):
-```
-CMDRSP:ERROR
-```
+The expected result strings are the corresponding `[RESULT][PASS]` logs.
 
 ## 6. Configuration Options
 
 ### 6.1 Encoder Configuration
 
-The H264 encoder provides the following configuration options:
+The current VCENC H264 test uses the following fixed test configuration:
 
-- **buffer_request_cb**: Callback function for requesting output buffer
-  - Called when encoder needs a buffer for encoded data
-  - Should return a pointer to allocated buffer or NULL on failure
-
-- **buffer_complete_cb**: Callback function for encoding completion
-  - Called when encoding is complete
-  - Parameters: buffer pointer and result code
-
-- **chnl_id**: Channel ID for the encoder
-  - Default: 0
-
-- **param**: User-defined parameter
-  - Can be used to pass context to callbacks
+- Width: `256`
+- Height: `128`
+- Input format: `BK_PIXEL_FORMAT_NV12`
+- GOP: `15`
+- Frames per test: `30`
+- Frame-mode controller: `bk_h264_encode_frame_new()`
+- FLEXA controller: `bk_h264_encode_sw_flexa_new()`
 
 ## 7. Notes
 
-1. Ensure the encoder is properly initialized before use
-2. Remember to release related resources after encoding operations are completed
-3. H264 encoding requires YUV input frames from frame buffer
-4. Frame buffer resources are limited; avoid occupying too many buffers simultaneously
-5. Encoding is asynchronous by default; results are returned in the buffer_complete_cb callback
-6. The input frame should contain valid YUV data with correct width and height
-7. **Callback Function Usage Notes**:
+1. `h264_encode` only creates the test task. The final result is shown by `[RESULT][PASS]` or `[RESULT][FAIL]`.
+2. The boot demo and manual CLI tests both use encoder hardware. Avoid starting a manual test before the boot demo finishes.
+3. Frame buffer resources are limited; avoid occupying too many buffers simultaneously.
+4. Encoding is asynchronous; results are returned in the output complete callback.
+5. FLEXA mode feeds 16-line blocks. The test advances the write pointer from the FLEXA done callback until all 8 blocks of the 256x128 frame are provided.
+6. **Callback Function Usage Notes**:
    - Blocking operations (such as long waits, sleep, etc.) are not recommended in callback functions to avoid impacting encoding performance and system responsiveness
    - It is recommended to perform only lightweight operations in callback functions, such as setting flags, sending messages/semaphores, etc., and move time-consuming operations to other tasks
-8. **Buffer Management**:
-   - Input buffers are obtained from frame buffer display queue
-   - Output buffers are allocated via buffer_request_cb callback
+7. **Buffer Management**:
+   - Input buffers are allocated from `MEM_SLAB_HEAP_UNCODED`
+   - Output buffers are allocated from `MEM_SLAB_HEAP_CODED`
    - Both input and output buffers should be released after use
-9. **Force IDR Frame**:
-   - Use force_idr command to force the next frame to be encoded as an IDR frame
-   - Useful for stream synchronization or error recovery

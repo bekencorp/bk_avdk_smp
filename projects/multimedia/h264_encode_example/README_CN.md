@@ -4,7 +4,14 @@
 
 ## 1. 项目概述
 
-本项目是一个H264编码测试模块，用于测试Beken平台上的H264编码功能。该模块提供了命令行接口(CLI)，支持H264硬件编码。
+本项目用于演示 Beken 平台上的 H264 编码流程。当前测试路径基于 `bk_h264_encode_*` 控制器接口和 VCENC H264 后端。
+
+当前工程提供：
+
+- VCENC H264 整帧模式编码测试：`h264_encode vcenc_h264e`
+- VCENC H264 软件 FLEXA 模式编码测试：`h264_encode vcenc_h264e_flexa`
+- `CONFIG_BK_ENCODER` 使能时的上电自动编码自检
+- `.it.csv` 集成测试入口
 
 * 有关H264编码的详细信息，请参阅：
 
@@ -17,12 +24,12 @@
 ### 1.1 测试环境
 
    * 硬件配置：
-      * 核心板，**BK7258_QFN88_9X9_V3.2**
-      * PSRAM 8M/16M
+      * 核心板，**BK7259_QF128_12.3X12.3_V4.0**
+      * PSRAM 32M
    * 支持H264硬件编码
-      * YUV420、YUV422格式
-      * 输入：来自帧缓冲区的YUV帧
-      * 输出：H264编码流
+      * 测试输入：工程内置 NV12 图像
+      * 输出：H264 编码流
+      * 测试配置：GOP 为 15，每次测试编码 30 帧
 
 .. warning::
 
@@ -46,8 +53,9 @@ h264_encode_example/
 │   ├── ap_main.c         # AP主入口文件
 │   ├── config/           # AP配置目录
 │   └── h264_encode/      # H264编码实现
+│       ├── common/       # 内置 256x128 NV12 测试图像
 │       ├── include/      # 头文件
-│       └── src/          # 源代码文件
+│       └── src/          # CLI 与 VCENC H264 测试
 ├── cp/                   # CP端代码
 │   ├── CMakeLists.txt    # CP端CMake构建文件
 │   ├── cp_main.c         # CP主入口文件
@@ -61,23 +69,24 @@ h264_encode_example/
 
 ### 3.1 主要功能
 
-- 支持H264硬件编码
-- 提供命令行接口进行编码测试
-- 实现了帧缓冲管理机制
-- 提供了常规场景和异常场景的编码测试功能
-- 支持异步编码
+- 支持 VCENC H264 整帧编码测试
+- 支持 VCENC H264 软件 FLEXA 编码测试
+- 使用内置 `h264_encode_stream_256x128` NV12 输入图像
+- 每次测试编码 30 帧，GOP 设置为 15
+- 提供统一 `[RESULT][PASS]` / `[RESULT][FAIL]` 结果日志
+- CLI 触发的测试运行在独立线程中
+- `CONFIG_BK_ENCODER` 使能时，上电后自动运行编码 demo
 
 ### 3.2 H264编码流程
 
-1. 初始化H264编码器
-2. 打开编码器
-3. 执行编码操作：
-   - 从帧缓冲区获取输入YUV帧
-   - 请求输出缓冲区用于编码数据
-   - 执行编码（编码是异步的，结果在回调中返回）
-   - 在回调中释放缓冲区
-4. 关闭编码器
-5. 删除编码器实例
+1. 申请并填充 256x128 NV12 输入帧
+2. 创建 H264 控制器
+   - 整帧模式：`bk_h264_encode_frame_new()`
+   - FLEXA 模式：`bk_h264_encode_sw_flexa_new()`
+3. 初始化并打开编码器
+4. 以 GOP 15 连续编码 30 帧
+5. 每帧等待编码完成回调
+6. 打印最终 `[RESULT]` 日志并释放资源
 
 ## 4. 编译与运行
 
@@ -85,164 +94,93 @@ h264_encode_example/
 
 使用以下命令编译项目：
 
-```
-make bk7258 PROJECT=h264_encode_example
+```bash
+make bk7259 PROJECT=multimedia/h264_encode_example
 ```
 
 ### 4.2 运行方法
 
-编译完成后，将生成的固件烧录到开发板上，然后通过串口终端使用以下命令测试H264编码功能：
+编译完成后，将生成的固件烧录到开发板上。如果 `CONFIG_BK_ENCODER` 使能，`main()` 会自动启动一次 VCENC H264 boot demo。也可以通过串口终端手动触发以下命令：
 
 命令执行成功打印："CMDRSP:OK"
 
 命令执行失败打印："CMDRSP:ERROR"
 
-#### 4.2.1 基础编码命令
+#### 4.2.1 当前 VCENC H264 命令
 
-1. 初始化H264编码器：
-```
-h264_encode init
-```
-
-2. 打开编码器：
-```
-h264_encode open
+```text
+h264_encode help
+h264_encode vcenc_h264e
+h264_encode vcenc_h264e_flexa
 ```
 
-3. 执行编码操作：
-```
-h264_encode encode
-```
-
-4. 强制IDR帧：
-```
-h264_encode force_idr
-```
-
-5. 关闭编码器：
-```
-h264_encode close
-```
-
-6. 删除编码器实例：
-```
-h264_encode delete
-```
-
-#### 4.2.2 常规测试命令
-
-1. 正常编码测试：
-```
-h264_encode_regular_test normal_test
-```
-
-2. 异步编码测试：
-```
-h264_encode_regular_test async_test
-```
-
-#### 4.2.3 异常测试命令
-
-1. NULL句柄测试：
-```
-h264_encode_error_test null_handle_test
-```
-
-2. 无效配置测试：
-```
-h264_encode_error_test invalid_config_test
-```
+- `vcenc_h264e`：执行整帧模式编码测试
+- `vcenc_h264e_flexa`：执行软件 FLEXA 模式编码测试
+- 两个命令都使用内置 256x128 NV12 图像，GOP 为 15，共编码 30 帧
+- `CMDRSP:OK` 只表示测试线程创建成功，最终是否通过请看 `[RESULT]` 日志
 
 ## 5. 测试示例
 
-### 5.1 基础编码测试
+### 5.1 整帧模式 VCENC H264 测试
 
-```
-h264_encode init
-h264_encode open
-h264_encode encode
-h264_encode close
-h264_encode delete
+```text
+h264_encode vcenc_h264e
 ```
 
-正常log：
-```
-h264_enc_cli, XX, h264 encode init success!
-h264_enc_cli, XX, h264 encode open success!
-h264_enc_common, XX, h264 encode success! Encode time: XX ms
-h264_enc_cli, XX, h264 encode close success!
-h264_enc_cli, XX, h264 encode delete success!
+预期最终日志：
+
+```text
+[RESULT][PASS] vcenc_h264_frame_test success, frames=30/30 encoded_size=... frame_type=...
 ```
 
-### 5.2 常规测试
+### 5.2 软件 FLEXA 模式 VCENC H264 测试
 
-#### 5.2.1 正常编码测试
-
-```
-h264_encode_regular_test normal_test
+```text
+h264_encode vcenc_h264e_flexa
 ```
 
-预期log：
-```
-h264_enc_regular, XX, H264 encode normal scenario test completed!
+预期最终日志：
+
+```text
+[RESULT][PASS] vcenc_h264_flexa_test success, frames=30/30 encoded_size=... frame_type=...
 ```
 
-异常log（表示测试失败）：
-```
-CMDRSP:ERROR
+### 5.3 集成测试命令
+
+`.it.csv` 包含：
+
+```text
+ap_cmd h264_encode vcenc_h264e
+ap_cmd h264_encode vcenc_h264e_flexa
 ```
 
-#### 5.2.2 异步编码测试
-
-```
-h264_encode_regular_test async_test
-```
-
-预期log：
-```
-h264_enc_regular, XX, H264 encode async test completed!
-```
-
-异常log（表示测试失败）：
-```
-CMDRSP:ERROR
-```
+期望结果分别匹配对应的 `[RESULT][PASS]` 日志。
 
 ## 6. 配置选项
 
 ### 6.1 编码器配置
 
-H264编码器提供了以下配置选项：
+当前 VCENC H264 测试使用以下固定配置：
 
-- **buffer_request_cb**: 请求输出缓冲区的回调函数
-  - 当编码器需要缓冲区用于编码数据时调用
-  - 应返回分配的缓冲区指针，失败时返回NULL
-
-- **buffer_complete_cb**: 编码完成的回调函数
-  - 编码完成时调用
-  - 参数：缓冲区指针和结果代码
-
-- **chnl_id**: 编码器的通道ID
-  - 默认值：0
-
-- **param**: 用户自定义参数
-  - 可用于向回调传递上下文
+- 宽度：`256`
+- 高度：`128`
+- 输入格式：`BK_PIXEL_FORMAT_NV12`
+- GOP：`15`
+- 每次测试帧数：`30`
+- 整帧控制器：`bk_h264_encode_frame_new()`
+- FLEXA 控制器：`bk_h264_encode_sw_flexa_new()`
 
 ## 7. 注意事项
 
-1. 确保在使用编码器前正确初始化
-2. 编码操作完成后，记得释放相关资源
-3. H264编码需要来自帧缓冲区的YUV输入帧
-4. 帧缓冲资源有限，请避免同时占用过多缓冲区
-5. 编码默认是异步的；结果在buffer_complete_cb回调中返回
-6. 输入帧应包含有效的YUV数据，并具有正确的宽度和高度
-7. **回调函数使用注意事项**：
+1. `h264_encode` 只负责创建测试线程，最终结果以 `[RESULT][PASS]` 或 `[RESULT][FAIL]` 为准。
+2. 上电 demo 和手动 CLI 测试都会使用编码硬件，建议等待上电 demo 结束后再手动触发测试。
+3. 帧缓冲资源有限，请避免同时占用过多缓冲区。
+4. 编码是异步的；结果在输出完成回调中返回。
+5. FLEXA 模式按 16 行 block 供给输入；测试会在 FLEXA done 回调中推进写指针，直到 256x128 图像的 8 个 block 全部送入。
+6. **回调函数使用注意事项**：
    - 回调函数中不建议执行阻塞操作（如长时间等待、sleep等），以避免影响编码性能和系统响应
    - 建议在回调函数中仅进行轻量级操作，如设置标志位、发送消息/信号量等，将耗时操作放到其他任务中执行
-8. **缓冲区管理**：
-   - 输入缓冲区从帧缓冲区显示队列获取
-   - 输出缓冲区通过buffer_request_cb回调分配
+7. **缓冲区管理**：
+   - 输入缓冲区从 `MEM_SLAB_HEAP_UNCODED` 申请
+   - 输出缓冲区从 `MEM_SLAB_HEAP_CODED` 申请
    - 使用后应释放输入和输出缓冲区
-9. **强制IDR帧**：
-   - 使用force_idr命令强制下一帧编码为IDR帧
-   - 可用于流同步或错误恢复

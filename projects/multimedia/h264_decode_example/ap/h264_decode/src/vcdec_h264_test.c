@@ -828,7 +828,7 @@ cleanup:
 	return test_pass ? BK_OK : BK_FAIL;
 }
 
-void vcdec_h264_test(h264_decode_test_stream_t stream)
+void vcdec_h264_frame_test(h264_decode_test_stream_t stream)
 {
 	(void)vcdec_h264_run(VCDEC_H264_TEST_MODE_FRAME, stream);
 }
@@ -849,7 +849,7 @@ static void vcdec_h264_boot_demo_task_entry(void *arg)
 
 	rtos_delay_milliseconds(1000);
 	LOGI("vcdec_h264_test start\r\n");
-	vcdec_h264_test(H264_DECODE_TEST_STREAM_1280X720);
+	vcdec_h264_frame_test(H264_DECODE_TEST_STREAM_1280X720);
 	LOGI("vcdec_h264_test done\r\n");
 
 	s_vcdec_boot_demo_running = 0U;

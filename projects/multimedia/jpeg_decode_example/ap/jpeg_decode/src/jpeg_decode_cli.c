@@ -12,6 +12,31 @@
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
+#define USE_LEGACY_JPEGD 0
+
+/*
+ * Build requirement:
+ * - Enable BK JPEG component and its demo so `jpeg_decoder_test()` and
+ *   `jpeg_decoder_flexa_test()` are linked.
+ * If not enabled, the build will fail at link time due to missing symbols,
+ * which exposes the root cause early.
+ */
+#if USE_LEGACY_JPEGD
+extern void jpeg_decoder_test(void);
+extern void jpeg_decoder_flexa_test(void);
+#endif
+#ifdef CONFIG_BK_DECODER
+extern void vcdec_jpeg_frame_test(void);
+extern void vcdec_jpeg_flexa_test(void);
+#endif
+
+/* Run the test case in a dedicated task to avoid CLI task stack/latency issues. */
+#define JPEGD_TEST_TASK_PRIORITY    (BEKEN_DEFAULT_WORKER_PRIORITY)
+#define JPEGD_TEST_TASK_STACK_SIZE  (1024 * 16)
+
+static beken_thread_t s_jpegd_test_thread = NULL;
+static volatile uint8_t s_jpegd_test_running = 0;
+
 static void cli_write_rsp(char *pcWriteBuffer, int xWriteBufferLen, const char *msg)
 {
     size_t msg_len = 0;
@@ -29,27 +54,6 @@ static void cli_write_rsp(char *pcWriteBuffer, int xWriteBufferLen, const char *
     pcWriteBuffer[msg_len] = '\0';
 }
 
-/*
- * Build requirement:
- * - Enable BK JPEG component and its demo so `jpeg_decoder_test()` and
- *   `jpeg_decoder_flexa_test()` are linked.
- * If not enabled, the build will fail at link time due to missing symbols,
- * which exposes the root cause early.
- */
-extern void jpeg_decoder_test(void);
-extern void jpeg_decoder_flexa_test(void);
-#ifdef CONFIG_BK_DECODER
-extern void vcdec_jpeg_test(void);
-extern void vcdec_jpeg_flexa_test(void);
-#endif
-
-/* Run the test case in a dedicated task to avoid CLI task stack/latency issues. */
-#define JPEGD_TEST_TASK_PRIORITY    (BEKEN_DEFAULT_WORKER_PRIORITY)
-#define JPEGD_TEST_TASK_STACK_SIZE  (1024 * 16)
-
-static beken_thread_t s_jpegd_test_thread = NULL;
-static volatile uint8_t s_jpegd_test_running = 0;
-
 typedef enum {
     JPEGD_TEST_ID_JPEG = 0,
     JPEGD_TEST_ID_JPEG_FLEXA = 1,
@@ -61,17 +65,23 @@ static void jpegd_test_task_entry(void *arg)
 {
     jpegd_test_id_t test_id = (jpegd_test_id_t)(uintptr_t)arg;
 
+#ifdef CONFIG_BK_DECODER
+    if (test_id == JPEGD_TEST_ID_VCDEC_JPEG) {
+        vcdec_jpeg_frame_test();
+    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FLEXA) {
+        vcdec_jpeg_flexa_test();
+    }
+    else
+#endif
+#if USE_LEGACY_JPEGD
     if (test_id == JPEGD_TEST_ID_JPEG) {
         jpeg_decoder_test();
     } else if (test_id == JPEGD_TEST_ID_JPEG_FLEXA) {
         jpeg_decoder_flexa_test();
-#ifdef CONFIG_BK_DECODER
-    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG) {
-        vcdec_jpeg_test();
-    } else if (test_id == JPEGD_TEST_ID_VCDEC_JPEG_FLEXA) {
-        vcdec_jpeg_flexa_test();
+    }
+    else
 #endif
-    } else {
+    {
         LOGE("invalid test id=%u\r\n", (unsigned)test_id);
     }
 
@@ -117,21 +127,27 @@ void cli_jpeg_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         return;
     }
 
+#if CONFIG_BK_DECODER
+    if (os_strcmp(argv[1], "vcdec_jpegd") == 0) {
+        test_id = JPEGD_TEST_ID_VCDEC_JPEG;
+        task_name = "vcdec_jpegd_test";
+    } else if (os_strcmp(argv[1], "vcdec_jpegd_flexa") == 0) {
+        test_id = JPEGD_TEST_ID_VCDEC_JPEG_FLEXA;
+        task_name = "vcdec_jpegd_flexa_test";
+    }
+    else
+#endif
+#if USE_LEGACY_JPEGD
     if (os_strcmp(argv[1], "jpegd") == 0) {
         test_id = JPEGD_TEST_ID_JPEG;
         task_name = "jpegd_test";
     } else if (os_strcmp(argv[1], "jpegd_flexa") == 0) {
         test_id = JPEGD_TEST_ID_JPEG_FLEXA;
         task_name = "jpegd_flexa_test";
-#ifdef CONFIG_BK_DECODER
-    } else if (os_strcmp(argv[1], "vcdec_jpegd") == 0) {
-        test_id = JPEGD_TEST_ID_VCDEC_JPEG;
-        task_name = "vcdec_jpegd_test";
-    } else if (os_strcmp(argv[1], "vcdec_jpegd_flexa") == 0) {
-        test_id = JPEGD_TEST_ID_VCDEC_JPEG_FLEXA;
-        task_name = "vcdec_jpegd_flexa_test";
+    }
+    else
 #endif
-    } else {
+    {
         LOGE("%s: unknown subcommand: %s\r\n", __func__, argv[1]);
         jpeg_decode_print_usage();
         ret = BK_FAIL;

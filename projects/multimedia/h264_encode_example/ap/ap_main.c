@@ -28,12 +28,6 @@ static const struct cli_command s_h264_encode_commands[] =
 {
     // Encode command
     {"h264_encode", "h264_encode", cli_h264_encode_cmd},
-    // Low-level H264E API command
-    {"h264e_api", "h264e_api", cli_h264e_api_cmd},
-    // Regular test command
-    {"h264_encode_regular_test", "normal_test/async_test", cli_h264_encode_regular_test_cmd},
-    // Error test command
-    {"h264_encode_error_test", "null_handle_test/invalid_config_test", cli_h264_encode_error_test_cmd},
     // Legacy H264 encoder pressure test
     {"h264_encode_stress", "h264 encode pressure test", cli_h264_encode_stress_cmd},
     {"h264_encode_time_statisticsi", "frame|sw_flexa [n] GPIO32/33 timing", cli_h264_encode_time_statisticsi_cmd},
@@ -77,5 +71,8 @@ int main(void)
 #endif
 
     cli_h264_encode_init();
+#ifdef CONFIG_BK_ENCODER
+    vcenc_h264_run_boot_demo();
+#endif
     return 0;
 }

@@ -19,6 +19,9 @@ void cli_h264_encode_error_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, in
 void cli_h264_encode_regular_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 void cli_h264_encode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 void cli_h264e_api_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
+int vcenc_h264_run_frame(void);
+int vcenc_h264_run_flexa(void);
+void vcenc_h264_run_boot_demo(void);
 
 // Buffer callback functions
 void *h264_encode_outbuf_malloc(uint32_t size, void *args);

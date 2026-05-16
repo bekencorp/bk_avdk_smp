@@ -92,7 +92,7 @@ static void vcdec_jpeg_log_test_result(const char *case_name, uint8_t pass,
 	}
 }
 
-void vcdec_jpeg_test(void)
+void vcdec_jpeg_frame_test(void)
 {
 	uint8_t *stream_buf = NULL;
 	uint8_t *out_buf = NULL;
@@ -539,9 +539,9 @@ static void vcdec_jpeg_boot_demo_task_entry(void *arg)
 	LOGI("vcdec_jpeg_flexa_test done\r\n");
 
 	rtos_delay_milliseconds(1000);
-	LOGI("vcdec_jpeg_test start\r\n");
-	vcdec_jpeg_test();
-	LOGI("vcdec_jpeg_test done\r\n");
+	LOGI("vcdec_jpeg_frame_test start\r\n");
+	vcdec_jpeg_frame_test();
+	LOGI("vcdec_jpeg_frame_test done\r\n");
 
 	s_vcdec_boot_demo_running = 0;
 	s_vcdec_boot_demo_thread = NULL;

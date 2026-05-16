@@ -12,32 +12,8 @@
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
-/*
- * Build requirement:
- * - Enable BK H264D component and its demo so `h264_decoder_test()` and
- *   `h264_decoder_flexa_test()` are linked.
- * If not enabled, the build will fail at link time due to missing symbols,
- * which exposes the root cause early.
- */
-extern void h264_decoder_test(void);
-extern void h264_decoder_flexa_test(void);
+#define USE_LEGACY_H264D 0
 
-static void cli_write_rsp(char *pcWriteBuffer, int xWriteBufferLen, const char *msg)
-{
-    size_t msg_len = 0;
-
-    if (pcWriteBuffer == NULL || xWriteBufferLen <= 0 || msg == NULL) {
-        return;
-    }
-
-    msg_len = os_strlen(msg);
-    if (msg_len >= (size_t)xWriteBufferLen) {
-        msg_len = (size_t)xWriteBufferLen - 1;
-    }
-
-    os_memcpy(pcWriteBuffer, msg, msg_len);
-    pcWriteBuffer[msg_len] = '\0';
-}
 
 /* Run the test case in a dedicated task to avoid CLI task stack/latency issues. */
 #define H264D_TEST_TASK_PRIORITY    (BEKEN_DEFAULT_WORKER_PRIORITY)
@@ -59,6 +35,40 @@ typedef enum {
     ((h264d_test_id_t)((uint32_t)(uintptr_t)(arg) & 0xFFU))
 #define H264D_TEST_THREAD_STREAM(arg) \
     ((h264_decode_test_stream_t)(((uint32_t)(uintptr_t)(arg) >> 8U) & 0xFFU))
+
+/*
+ * Build requirement:
+ * - Enable BK H264D component and its demo so `h264_decoder_test()` and
+ *   `h264_decoder_flexa_test()` are linked.
+ * If not enabled, the build will fail at link time due to missing symbols,
+ * which exposes the root cause early.
+ */
+#if USE_LEGACY_H264D
+extern void h264_decoder_test(void);
+extern void h264_decoder_flexa_test(void);
+#endif
+
+#ifdef CONFIG_BK_DECODER
+extern void vcdec_h264_frame_test(h264_decode_test_stream_t stream);
+extern void vcdec_h264_flexa_test(h264_decode_test_stream_t stream);
+#endif
+
+static void cli_write_rsp(char *pcWriteBuffer, int xWriteBufferLen, const char *msg)
+{
+    size_t msg_len = 0;
+
+    if (pcWriteBuffer == NULL || xWriteBufferLen <= 0 || msg == NULL) {
+        return;
+    }
+
+    msg_len = os_strlen(msg);
+    if (msg_len >= (size_t)xWriteBufferLen) {
+        msg_len = (size_t)xWriteBufferLen - 1;
+    }
+
+    os_memcpy(pcWriteBuffer, msg, msg_len);
+    pcWriteBuffer[msg_len] = '\0';
+}
 
 static const char *h264_decode_stream_name(h264_decode_test_stream_t stream_id)
 {
@@ -99,17 +109,23 @@ static void h264d_test_task_entry(void *arg)
     LOGI("h264 test task start, mode=%u stream=%s\r\n",
          (unsigned)test_id, h264_decode_stream_name(stream_id));
 
+#ifdef CONFIG_BK_DECODER
+    if (test_id == H264D_TEST_ID_VCDEC_H264) {
+        vcdec_h264_frame_test(stream_id);
+    } else if (test_id == H264D_TEST_ID_VCDEC_H264_FLEXA) {
+        vcdec_h264_flexa_test(stream_id);
+    }
+    else
+#endif
+#if USE_LEGACY_H264D
     if (test_id == H264D_TEST_ID_H264) {
         h264_decoder_test();
     } else if (test_id == H264D_TEST_ID_H264_FLEXA) {
         h264_decoder_flexa_test();
-#ifdef CONFIG_BK_DECODER
-    } else if (test_id == H264D_TEST_ID_VCDEC_H264) {
-        vcdec_h264_test(stream_id);
-    } else if (test_id == H264D_TEST_ID_VCDEC_H264_FLEXA) {
-        vcdec_h264_flexa_test(stream_id);
+    }
+    else
 #endif
-    } else {
+    {
         LOGE("invalid test id=%u\r\n", (unsigned)test_id);
     }
 
@@ -159,14 +175,8 @@ void cli_h264_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         return;
     }
 
-    if (os_strcmp(argv[1], "h264d") == 0) {
-        test_id = H264D_TEST_ID_H264;
-        task_name = "h264d_test";
-    } else if (os_strcmp(argv[1], "h264d_flexa") == 0) {
-        test_id = H264D_TEST_ID_H264_FLEXA;
-        task_name = "h264d_flexa_test";
 #ifdef CONFIG_BK_DECODER
-    } else if (os_strcmp(argv[1], "vcdec_h264d") == 0) {
+    if (os_strcmp(argv[1], "vcdec_h264d") == 0) {
         test_id = H264D_TEST_ID_VCDEC_H264;
         task_name = "vcdec_h264d_test";
         need_stream_arg = 1U;
@@ -174,8 +184,20 @@ void cli_h264_decode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
         test_id = H264D_TEST_ID_VCDEC_H264_FLEXA;
         task_name = "vcdec_h264d_flexa_test";
         need_stream_arg = 1U;
+    }
+    else
 #endif
-    } else {
+#if USE_LEGACY_H264D
+    if (os_strcmp(argv[1], "h264d") == 0) {
+        test_id = H264D_TEST_ID_H264;
+        task_name = "h264d_test";
+    } else if (os_strcmp(argv[1], "h264d_flexa") == 0) {
+        test_id = H264D_TEST_ID_H264_FLEXA;
+        task_name = "h264d_flexa_test";
+    }
+    else
+#endif
+    {
         LOGE("%s: unknown subcommand: %s\r\n", __func__, argv[1]);
         h264_decode_print_usage();
         ret = BK_FAIL;

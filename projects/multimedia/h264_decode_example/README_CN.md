@@ -20,8 +20,8 @@
 ### 1.1 测试环境
 
 - 硬件配置
-  - 核心板：`BK7258_QFN88_9X9_V3.2`
-  - PSRAM：`8M/16M`
+  - 核心板：**BK7259_QF128_12.3X12.3_V4.0**
+  - PSRAM：32M
 - 输入数据
   - 工程内置 H264 码流
 - 输出内容
@@ -186,6 +186,19 @@ all decoded outputs sampled as zero
 failed to allocate ... buffer
 psram_dma_stress_start failed, ret=...
 ```
+
+#### 4.2.3 集成测试命令
+
+`.it.csv` 当前覆盖两组内置 VCDEC H264 码流以及两种解码模式：
+
+```text
+ap_cmd h264_decode vcdec_h264d 1280x720
+ap_cmd h264_decode vcdec_h264d_flexa 1280x720
+ap_cmd h264_decode vcdec_h264d 256x128
+ap_cmd h264_decode vcdec_h264d_flexa 256x128
+```
+
+期望结果分别匹配 `[RESULT][PASS] vcdec_h264_test success` 或 `[RESULT][PASS] vcdec_h264_flexa_test success` 日志。
 
 ## 5. 注意事项
 

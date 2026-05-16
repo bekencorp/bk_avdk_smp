@@ -1,120 +1,200 @@
-#include "bk_private/bk_init.h"
 #include <os/os.h>
 #include <os/str.h>
-#include <media_service.h>
-#include <components/bk_frame_buffer.h>
-#include "components/avdk_utils/avdk_error.h"
-#include "components/bk_encode/bk_h264_encode_ctlr.h"
+#include <os/mem.h>
+
+#include <avdk_error.h>
+#include <components/log.h>
+
 #include "h264_encode_test.h"
 
 #define TAG "h264_enc_cli"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
-#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-static bk_h264_encode_ctlr_handle_t h264_encode_handle = NULL;
-static bk_h264_encode_frame_config_t h264_encode_config = {
-    .outbuf_malloc = h264_encode_outbuf_malloc,
-    .outbuf_malloc_args = NULL,
-    .outbuf_complete = h264_encode_outbuf_complete,
-    .outbuf_complete_args = NULL,
-};
+#define USE_LEGACY_H264E 0
+
+typedef enum {
+    H264E_TEST_ID_API = 0,
+    H264E_TEST_ID_FLX = 1,
+    H264E_TEST_ID_VCENC_H264 = 2,
+    H264E_TEST_ID_VCENC_H264_FLEXA = 3,
+} h264e_test_id_t;
+
+
+#ifdef CONFIG_BK_ENCODER
+extern int vcenc_h264_frame_test(void);
+extern int vcenc_h264_flexa_test(void);
+#endif
+
+#if USE_LEGACY_H264E
+extern int bk_h264e_api_test(void);
+extern int bk_h264e_flx_test(void);
+#endif
+
+/* Run the test case in a dedicated task to avoid CLI task stack/latency issues. */
+#define H264E_TEST_TASK_PRIORITY    (BEKEN_DEFAULT_WORKER_PRIORITY)
+#define H264E_TEST_TASK_STACK_SIZE  (1024 * 16)
+
+static beken_thread_t s_h264e_test_thread = NULL;
+static volatile uint8_t s_h264e_test_running = 0;
+
+static void cli_write_rsp(char *pcWriteBuffer, int xWriteBufferLen, const char *msg)
+{
+    size_t msg_len = 0;
+
+    if (pcWriteBuffer == NULL || xWriteBufferLen <= 0 || msg == NULL) {
+        return;
+    }
+
+    msg_len = os_strlen(msg);
+    if (msg_len >= (size_t)xWriteBufferLen) {
+        msg_len = (size_t)xWriteBufferLen - 1;
+    }
+
+    os_memcpy(pcWriteBuffer, msg, msg_len);
+    pcWriteBuffer[msg_len] = '\0';
+}
+
+static const char *h264_encode_mode_name(h264e_test_id_t test_id)
+{
+    switch (test_id) {
+    case H264E_TEST_ID_VCENC_H264:
+        return "frame";
+    case H264E_TEST_ID_VCENC_H264_FLEXA:
+        return "flexa";
+    default:
+        return "unknown";
+    }
+}
+
+static void h264e_test_task_entry(void *arg)
+{
+    h264e_test_id_t test_id = (h264e_test_id_t)(uintptr_t)arg;
+    int test_ret = BK_FAIL;
+
+    LOGI("h264 encode task start, mode=%s\r\n", h264_encode_mode_name(test_id));
+
+#ifdef CONFIG_BK_ENCODER
+    if (test_id == H264E_TEST_ID_VCENC_H264) {
+        test_ret = vcenc_h264_frame_test();
+    } else if (test_id == H264E_TEST_ID_VCENC_H264_FLEXA) {
+        test_ret = vcenc_h264_flexa_test();
+    }
+    else
+#endif
+#if USE_LEGACY_H264E
+    if (test_id == H264E_TEST_ID_API) {
+        test_ret = bk_h264e_api_test();
+    } else if (test_id == H264E_TEST_ID_FLX) {
+        test_ret = bk_h264e_flx_test();
+    }
+    else
+#endif
+    {
+        LOGE("invalid test id=%u\r\n", (unsigned)test_id);
+    }
+    if (test_ret == BK_OK) {
+        LOGI("h264 encode task success, mode=%s\r\n", h264_encode_mode_name(test_id));
+    } else {
+        LOGE("h264 encode task failed, mode=%s ret=%d\r\n",
+             h264_encode_mode_name(test_id), test_ret);
+    }
+
+    s_h264e_test_running = 0;
+    s_h264e_test_thread = NULL;
+
+    /* Self-delete to release task resources. */
+    rtos_delete_thread(NULL);
+}
+
+static void h264_encode_print_usage(void)
+{
+    bk_printf("Usage:\r\n");
+    bk_printf("  h264_encode help | -h       - show this help\r\n");
+    bk_printf("  h264_encode vcenc_h264e     - vcenc H.264 encode test, frame mode, 256x128 NV12\r\n");
+    bk_printf("  h264_encode vcenc_h264e_flexa - vcenc H.264 encode test, FLEXA mode, 256x128 NV12\r\n");
+}
 
 void cli_h264_encode_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-    bk_err_t ret = BK_OK;
-    avdk_err_t avdk_ret = AVDK_ERR_OK;
+    avdk_err_t ret = BK_OK;
+    h264e_test_id_t test_id = H264E_TEST_ID_VCENC_H264;
+    const char *task_name = "vcenc_h264e";
 
-    if (argc < 2) {
-        LOGE("%s, %d, param error!\n", __func__, __LINE__);
+    if ((pcWriteBuffer == NULL) || (argv == NULL)) {
         ret = BK_FAIL;
         goto exit;
     }
 
-    if (os_strcmp(argv[1], "init") == 0) {
-        ret = create_and_open_encoder((void **)&h264_encode_handle, &h264_encode_config);
-        if (ret != BK_OK) {
-            LOGE("%s, %d, h264 encode init failed!\n", __func__, __LINE__);
-        } else {
-            LOGD("%s, %d, h264 encode init success!\n", __func__, __LINE__);
-        }
-    }
-    else if (os_strcmp(argv[1], "delete") == 0) {
-        ret = close_and_delete_encoder((void **)&h264_encode_handle);
-        if (ret != BK_OK) {
-            LOGE("%s, %d, h264 encode delete failed! ret: %d\n", __func__, __LINE__, ret);
-        } else {
-            LOGD("%s, %d, h264 encode delete success!\n", __func__, __LINE__);
-        }
-    }
-    else if (os_strcmp(argv[1], "open") == 0) {
-        if (h264_encode_handle != NULL) {
-            avdk_ret = bk_h264_encode_open(h264_encode_handle);
-            if (avdk_ret != AVDK_ERR_OK) {
-                LOGE("%s, %d, h264 encode open failed!\n", __func__, __LINE__);
-                ret = BK_FAIL;
-            } else {
-                LOGD("%s, %d, h264 encode open success!\n", __func__, __LINE__);
-            }
-        } else {
-            LOGE("%s, %d, h264 encode handle is NULL, please init first!\n", __func__, __LINE__);
-            ret = BK_FAIL;
-        }
-    }
-    else if (os_strcmp(argv[1], "close") == 0) {
-        if (h264_encode_handle != NULL) {
-            avdk_ret = bk_h264_encode_close(h264_encode_handle);
-            if (avdk_ret != AVDK_ERR_OK) {
-                LOGE("%s, %d, h264 encode close failed!\n", __func__, __LINE__);
-                ret = BK_FAIL;
-            } else {
-                LOGD("%s, %d, h264 encode close success!\n", __func__, __LINE__);
-            }
-        } else {
-            LOGE("%s, %d, h264 encode handle is NULL!\n", __func__, __LINE__);
-            ret = BK_FAIL;
-        }
-    }
-    else if (os_strcmp(argv[1], "encode") == 0) {
-        if (h264_encode_handle != NULL) {
-            ret = perform_h264_encode_test(h264_encode_handle, "manual");
-        } else {
-            LOGE("%s, %d, h264 encode handle is NULL, please init first!\n", __func__, __LINE__);
-            ret = BK_FAIL;
-        }
-    }
-    else if (os_strcmp(argv[1], "force_idr") == 0) {
-        if (h264_encode_handle != NULL) {
-            avdk_ret = bk_h264_encode_force_idr(h264_encode_handle);
-            if (avdk_ret != AVDK_ERR_OK) {
-                LOGE("%s, %d, h264 encode force_idr failed!\n", __func__, __LINE__);
-                ret = BK_FAIL;
-            } else {
-                LOGD("%s, %d, h264 encode force_idr success!\n", __func__, __LINE__);
-            }
-        } else {
-            LOGE("%s, %d, h264 encode handle is NULL, please init first!\n", __func__, __LINE__);
-            ret = BK_FAIL;
-        }
-    }
-    else {
-        LOGE("%s, %d, not found this cmd!\n", __func__, __LINE__);
+    if (argc < 2) {
+        LOGE("%s: invalid params\r\n", __func__);
+        h264_encode_print_usage();
         ret = BK_FAIL;
+        goto exit;
+    }
+
+    if ((os_strcmp(argv[1], "help") == 0) || (os_strcmp(argv[1], "-h") == 0)) {
+        h264_encode_print_usage();
+        cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_SUCCEED);
+        return;
+    }
+
+#if CONFIG_BK_ENCODER
+    if (os_strcmp(argv[1], "vcenc_h264e") == 0) {
+        test_id = H264E_TEST_ID_VCENC_H264;
+        task_name = "vcenc_h264e";
+    } else if (os_strcmp(argv[1], "vcenc_h264e_flexa") == 0) {
+        test_id = H264E_TEST_ID_VCENC_H264_FLEXA;
+        task_name = "vcenc_h264e_flexa";
+    }
+    else
+#endif
+#if USE_LEGACY_H264E
+    if (os_strcmp(argv[1], "h264e") == 0) {
+        test_id = H264E_TEST_ID_API;
+        task_name = "h264e";
+    } else if (os_strcmp(argv[1], "h264e_flexa") == 0) {
+        test_id = H264E_TEST_ID_FLX;
+        task_name = "h264e_flexa";
+    }
+    else
+#endif
+    {
+        LOGE("%s: unknown subcommand: %s\r\n", __func__, argv[1]);
+        h264_encode_print_usage();
+        ret = BK_FAIL;
+        goto exit;
     }
 
 exit:
-    {
-        char *msg = NULL;
-        if (ret != BK_OK) {
-            msg = CLI_CMD_RSP_ERROR;
-        } else {
-            msg = CLI_CMD_RSP_SUCCEED;
-        }
-
-        LOGI("%s ---complete\n", __func__);
-        os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
+    if (ret != BK_OK) {
+        cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+        return;
     }
+
+    if (s_h264e_test_running) {
+        LOGE("h264_encode task is already running\r\n");
+        cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+        return;
+    }
+
+    s_h264e_test_running = 1;
+    ret = rtos_create_thread(&s_h264e_test_thread,
+                             H264E_TEST_TASK_PRIORITY,
+                             task_name,
+                             (beken_thread_function_t)h264e_test_task_entry,
+                             H264E_TEST_TASK_STACK_SIZE,
+                             (beken_thread_arg_t)(uintptr_t)test_id);
+    if (ret != BK_OK) {
+        LOGE("create h264_encode task failed, ret=%d\r\n", ret);
+        s_h264e_test_running = 0;
+        s_h264e_test_thread = NULL;
+        cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_ERROR);
+        return;
+    }
+
+    LOGI("create h264_encode task, mode=%s\r\n", h264_encode_mode_name(test_id));
+    cli_write_rsp(pcWriteBuffer, xWriteBufferLen, CLI_CMD_RSP_SUCCEED);
 }
 

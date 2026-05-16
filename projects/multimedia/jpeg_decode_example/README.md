@@ -14,8 +14,8 @@ The project exposes serial CLI commands for normal decode, FLEXA decode, and str
 ### 1.1 Test Environment
 
 - Hardware
-  - Core board: `BK7258_QFN88_9X9_V3.2`
-  - PSRAM: `8M/16M`
+  - Core board: **BK7259_QF128_12.3X12.3_V4.0**
+  - PSRAM: 32M
 - Input
   - Built-in JPEG sample image
 - Output
@@ -156,6 +156,17 @@ The normal `jpegd` path and `jpeg_decode_stress` path do not currently print a u
 - No error log such as `malloc failed` or decoder init/open failure appears
 - The decode flow continues normally without abnormal termination
 - The stress task can be stopped and exits cleanly
+
+#### 4.2.4 Integration Test Commands
+
+`.it.csv` currently uses the unified `vcdec` result logs:
+
+```text
+ap_cmd jpeg_decode vcdec_jpegd
+ap_cmd jpeg_decode vcdec_jpegd_flexa
+```
+
+The expected result strings are `[RESULT][PASS] vcdec_jpeg_test success` and `[RESULT][PASS] vcdec_jpeg_flexa_test success`.
 
 ## 5. Notes
 
