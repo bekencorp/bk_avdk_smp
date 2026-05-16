@@ -8,6 +8,7 @@
 
 #include <common/bk_err.h>
 #include <driver/gpio_types.h>
+#include <driver/i2c_types.h>
 
 #ifdef __cplusplus
 extern "C" {
