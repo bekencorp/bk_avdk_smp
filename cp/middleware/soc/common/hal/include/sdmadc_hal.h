@@ -20,6 +20,7 @@
 #include "sdmadc_map.h"
 #include <common/bk_err.h>
 #include "hal_config.h"
+#include <modules/pm.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +36,7 @@ typedef struct {
 #define sdmadc_hal_disable_int()            sys_drv_int_group2_disable(SDMADC_INTERRUPT_CTRL_BIT)
 #define sdmadc_hal_enable_sample()          sdmadc_ll_set_REG0x4_sample_enable(1)
 #define sdmadc_hal_disable_sample()         sdmadc_ll_set_REG0x4_sample_enable(0)
-#define sdmadc_hal_enable_efuse_cken()      sys_drv_dev_clk_pwr_up(CLK_PWR_ID_EFUSE, CLK_PWR_CTRL_PWR_UP)
+#define sdmadc_hal_enable_efuse_cken()      bk_pm_clock_ctrl(CLK_PWR_ID_EFUSE, CLK_PWR_CTRL_PWR_UP)
 #define sdmadc_hal_enable_no_buffer()       sys_ll_set_ana_reg2_gadc_nobuf_enable(1);
 
 #define sdmadc_hal_set_sample_channel(id)	sdmadc_ll_set_REG0x5_sample_chsel(id)

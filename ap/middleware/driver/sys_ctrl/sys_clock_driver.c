@@ -15,8 +15,7 @@
 #include "sys_hal.h"
 #include "sys_driver.h"
 #include "sys_driver_common.h"
-
-bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state);
+#include <modules/pm.h>
 
 /*clock power control start*/
 
@@ -102,9 +101,9 @@ void sys_drv_sadc_pwr_down(void)
 void sys_driver_set_sdio_clk_en(uint32_t value)
 {
 	if (value) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SDIO, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_SDIO, CLK_PWR_CTRL_PWR_UP);
 	} else {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SDIO, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_SDIO, CLK_PWR_CTRL_PWR_DOWN);
 	}
 }
 
@@ -229,9 +228,9 @@ void sys_drv_timer_select_clock(sys_sel_timer_t num, timer_src_clk_t mode)
 void sys_drv_usb_clock_ctrl(bool ctrl, void *arg)
 {
 	if (ctrl) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_USB_1, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_USB_1, CLK_PWR_CTRL_PWR_UP);
 	} else {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_USB_1, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_USB_1, CLK_PWR_CTRL_PWR_DOWN);
 	}
 }
 
@@ -384,9 +383,9 @@ uint32_t sys_drv_i2s4_clock_en(uint32_t value)
 uint32_t sys_drv_i2s_clock_en(uint32_t value)
 {
 	if (value) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2S_1, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_I2S_1, CLK_PWR_CTRL_PWR_UP);
 	} else {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2S_1, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_I2S_1, CLK_PWR_CTRL_PWR_DOWN);
 	}
 	return SYS_DRV_SUCCESS;
 }
@@ -394,9 +393,9 @@ uint32_t sys_drv_i2s_clock_en(uint32_t value)
 uint32_t sys_drv_i2s1_clock_en(uint32_t value)
 {
 	if (value) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2S2, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_I2S2, CLK_PWR_CTRL_PWR_UP);
 	} else {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2S2, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_I2S2, CLK_PWR_CTRL_PWR_DOWN);
 	}
 	return SYS_DRV_SUCCESS;
 }
@@ -404,9 +403,9 @@ uint32_t sys_drv_i2s1_clock_en(uint32_t value)
 uint32_t sys_drv_i2s2_clock_en(uint32_t value)
 {
 	if (value) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2S3, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_I2S3, CLK_PWR_CTRL_PWR_UP);
 	} else {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2S3, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_I2S3, CLK_PWR_CTRL_PWR_DOWN);
 	}
 	return SYS_DRV_SUCCESS;
 }
@@ -454,32 +453,32 @@ void sys_drv_trng_disckg_set(uint32_t value)
 
 void sys_drv_yuv_buf_pwr_up(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_YUV, CLK_PWR_CTRL_PWR_UP);
+	bk_pm_clock_ctrl(CLK_PWR_ID_YUV, CLK_PWR_CTRL_PWR_UP);
 }
 
 void sys_drv_yuv_buf_pwr_down(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_YUV, CLK_PWR_CTRL_PWR_DOWN);
+	bk_pm_clock_ctrl(CLK_PWR_ID_YUV, CLK_PWR_CTRL_PWR_DOWN);
 }
 
 void sys_drv_h264_pwr_up(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_H264, CLK_PWR_CTRL_PWR_UP);
+	bk_pm_clock_ctrl(CLK_PWR_ID_H264, CLK_PWR_CTRL_PWR_UP);
 }
 
 void sys_drv_h264_pwr_down(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_H264, CLK_PWR_CTRL_PWR_DOWN);
+	bk_pm_clock_ctrl(CLK_PWR_ID_H264, CLK_PWR_CTRL_PWR_DOWN);
 }
 
 void sys_drv_slcd_clock_enable(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SLCD, CLK_PWR_CTRL_PWR_UP);
+	bk_pm_clock_ctrl(CLK_PWR_ID_SLCD, CLK_PWR_CTRL_PWR_UP);
 }
 
 void sys_drv_slcd_clock_disable(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SLCD, CLK_PWR_CTRL_PWR_DOWN);
+	bk_pm_clock_ctrl(CLK_PWR_ID_SLCD, CLK_PWR_CTRL_PWR_DOWN);
 }
 
 /* AHBP / SOC clock cksel and division (see driver/sys_pm.h) */

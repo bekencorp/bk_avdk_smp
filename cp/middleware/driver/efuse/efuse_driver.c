@@ -17,6 +17,7 @@
 #include <driver/efuse.h>
 #include "efuse_driver.h"
 #include "efuse_hal.h"
+#include <modules/pm.h>
 #include "sys_driver.h"
 
 typedef struct {
@@ -56,7 +57,7 @@ bk_err_t bk_efuse_driver_init(void)
 	efuse_hal_init(&s_efuse.hal);
 	s_efuse_driver_is_init = true;
 #if (CONFIG_SYSTEM_CTRL)
-	//sys_drv_dev_clk_pwr_up(CLK_PWR_ID_EFUSE, CLK_PWR_CTRL_PWR_UP);//Directly connect to xtal ,not need to ctrl
+	// bk_pm_clock_ctrl(CLK_PWR_ID_EFUSE, CLK_PWR_CTRL_PWR_UP);
 #endif
 
 	return BK_OK;
@@ -69,7 +70,7 @@ bk_err_t bk_efuse_driver_deinit(void)
 	}
 
 #if (CONFIG_SYSTEM_CTRL)
-	//sys_drv_dev_clk_pwr_up(CLK_PWR_ID_EFUSE, CLK_PWR_CTRL_PWR_DOWN);//Directly connect to xtal ,not need to ctrl
+	// bk_pm_clock_ctrl(CLK_PWR_ID_EFUSE, CLK_PWR_CTRL_PWR_DOWN);
 #endif
 	efuse_deinit_common();
 	s_efuse_driver_is_init = false;
