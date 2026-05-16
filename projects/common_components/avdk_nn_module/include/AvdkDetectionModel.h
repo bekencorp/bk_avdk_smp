@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <box.h>
+
 #include "common/avdk_pixel_types.h"
 
 
@@ -39,6 +41,13 @@ typedef enum {
     AVDK_NN_MODEL_TYPE_CPU,
     AVDK_NN_MODEL_TYPE_NPU,
 } avdk_nn_model_type_t;
+
+
+/* Function-pointer typedef. The leading `*` is REQUIRED: without it
+ * `boxDetectionCallbackT` would name a function *type* (not a pointer
+ * type), and `boxDetectionCallbackT m;` inside a class would silently
+ * declare a member function instead of a data member. */
+typedef void (*boxDetectionCallbackT)(Box *boxes, int count);
 
 class AvdkDetectionModel {
 
@@ -77,8 +86,13 @@ protected:
     int LoadModel();
     int UnloadModel();
 
+    boxDetectionCallbackT boxDetectionCallback;
+
 public:
-    AvdkDetectionModel();
+    AvdkDetectionModel() : boxDetectionCallback(nullptr) {}
+
+    void setBoxDetectionCallback(boxDetectionCallbackT cb) { boxDetectionCallback = cb; }
+    void onBoxDetectionCallback(Box *boxes, int count);
 
     virtual void resolverLoad() = 0;
     virtual void resourceLoad() = 0;

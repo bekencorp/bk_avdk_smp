@@ -17,7 +17,7 @@
 #define SYS_ANA_REG_BASE    (0x44010000)
 #define LDO_ANA_REG         (0x69)
 
-#include "AvdkVideoReator.h"
+#include "AvdkVideoReatorOSD.h"
 #include "AvdkDetectionModel.h"
 #include "YolofaceDetectionModel.h"
 
@@ -30,14 +30,28 @@ static void bk_auxldo_enable(void)
     REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
 }
 
-static AvdkVideoReator *video_reator = NULL;
+static AvdkVideoReatorOSD *video_reator = NULL;
 static YolofaceDetectionModel *model = NULL;
 
 int ai_main_start()
 {
     model = new YolofaceDetectionModel();
-    video_reator = new AvdkVideoReator(model);
-    video_reator->start(AVDK_VIDEO_REATOR_MODE_DISPLAY);
+
+    /* NOTE: Unlike PalmDetectionModel (which fires `onBoxDetectionCallback`
+     * after each successful detection), YolofaceDetectionModel currently does
+     * the box drawing INSIDE its own `run()` (see
+     * YolofaceDetectionModel.cc -> box_detection_path_build()). So there is
+     * no point in calling `model->setBoxDetectionCallback(...)` here -- it
+     * would never fire. To unify the two paths, move the
+     * `box_detection_path_build` call out of YolofaceDetectionModel::run()
+     * and replace it with `onBoxDetectionCallback(...)`, then this app can
+     * register a callback the same way palm_recognition does. */
+
+    video_reator = new AvdkVideoReatorOSD(model);
+    video_reator->init();
+    video_reator->OpenISPCamera();
+    video_reator->OpenDisplay();
+    video_reator->start();
 
     return 0;
 }
@@ -92,8 +106,8 @@ int main(void)
     gpu_board.flexa.dst_format = BK_PIXEL_FORMAT_ARGB8888;
     gpu_board.flexa.dst_compress = true;
     gpu_board.flexa.scale = false;
-    gpu_board.flexa.tess_width = 0;
-    gpu_board.flexa.tess_height = 0;
+    gpu_board.flexa.tess_width = 1920 / 4;
+    gpu_board.flexa.tess_height = 1080 / 4;
 
     bk_auxldo_enable();
     bk_frame_buffer_init();

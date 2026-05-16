@@ -208,16 +208,20 @@ int PalmDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t form
         LOGI("PalmDetectionModel: cx=%.1f cy=%.1f w=%.1f h=%.1f\n",
              palm_cx, palm_cy, palm_w, palm_h);
         /* Invoke per-instance callback if set. */
-        if (result_callback_ != nullptr)
-        {
-            result_callback_(has_palm, palm_cx, palm_cy, palm_w, palm_h, bk_aon_rtc_get_ms());
-        }
     } else if (best_score > 0.f) {
         LOGI("PalmDetectionModel: rejected (prob<%.2f or box small), no palm\n", kPalmScoreProbThreshold);
+        return 0;
     } else {
         LOGI("PalmDetectionModel: no palm detected\n");
-            result_callback_(0, 0, 0, 0, 0, bk_aon_rtc_get_ms());
     }
+
+    Box boxes[1];
+    boxes[0].x = palm_cx;
+    boxes[0].y = palm_cy;
+    boxes[0].w = palm_w;
+    boxes[0].h = palm_h;
+    boxes[0].score = (float)has_palm;
+    onBoxDetectionCallback(boxes, sizeof(boxes) / sizeof(boxes[0]));
 
     return 1;
 }

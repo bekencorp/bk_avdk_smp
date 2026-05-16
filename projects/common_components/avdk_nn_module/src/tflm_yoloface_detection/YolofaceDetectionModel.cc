@@ -363,10 +363,10 @@ MicroPrintf("  final pixel: [%d, %d, %d, %d] size=%dx%d (ratio=%.1f%%x%.1f%%) in
 }
 
 all_faces[*all_face_count].score = score;
-all_faces[*all_face_count].x1 = (int)xmin;
-all_faces[*all_face_count].y1 = (int)ymin;
-all_faces[*all_face_count].x2 = (int)xmax;
-all_faces[*all_face_count].y2 = (int)ymax;
+all_faces[*all_face_count].x = (float)xmin;
+all_faces[*all_face_count].y = (float)ymin;
+all_faces[*all_face_count].w = (float)(xmax - xmin);
+all_faces[*all_face_count].h = (float)(ymax - ymin);
 (*all_face_count)++;
 }
 }
@@ -427,10 +427,10 @@ else y1 = y2 - 1.0f;
 }
 
 all_faces[*all_face_count].score = score;
-all_faces[*all_face_count].x1 = (int)x1;
-all_faces[*all_face_count].y1 = (int)y1;
-all_faces[*all_face_count].x2 = (int)x2;
-all_faces[*all_face_count].y2 = (int)y2;
+all_faces[*all_face_count].x = x1;
+all_faces[*all_face_count].y = y1;
+all_faces[*all_face_count].w = x2 - x1;
+all_faces[*all_face_count].h = y2 - y1;
 (*all_face_count)++;
 }
 
@@ -490,10 +490,10 @@ else y1 = y2 - 1.0f;
 }
 
 all_faces[*all_face_count].score = score;
-all_faces[*all_face_count].x1 = (int)x1;
-all_faces[*all_face_count].y1 = (int)y1;
-all_faces[*all_face_count].x2 = (int)x2;
-all_faces[*all_face_count].y2 = (int)y2;
+all_faces[*all_face_count].x = x1;
+all_faces[*all_face_count].y = y1;
+all_faces[*all_face_count].w = x2 - x1;
+all_faces[*all_face_count].h = y2 - y1;
 (*all_face_count)++;
 }
 }
@@ -543,10 +543,10 @@ static int ProcessYoloOther(const TfLiteTensor* output, float output_scale, int3
         if (y2 > height) y2 = height;
 
         all_faces[*all_face_count].score = score;
-        all_faces[*all_face_count].x1 = (int)x1;
-        all_faces[*all_face_count].y1 = (int)y1;
-        all_faces[*all_face_count].x2 = (int)x2;
-        all_faces[*all_face_count].y2 = (int)y2;
+        all_faces[*all_face_count].x = x1;
+        all_faces[*all_face_count].y = y1;
+        all_faces[*all_face_count].w = x2 - x1;
+        all_faces[*all_face_count].h = y2 - y1;
         (*all_face_count)++;
     }
 
@@ -581,14 +581,15 @@ static int FilterAndSelectBestFace(Box* all_faces, int all_face_count, int width
 
     for (int i = 0; i < all_face_count; i++) {
         if (all_faces[i].score > cfg.score_threshold) {
-            int box_w = all_faces[i].x2 - all_faces[i].x1;
-            int box_h = all_faces[i].y2 - all_faces[i].y1;
-            float aspect_ratio = (box_h > 0) ? ((float)box_w / (float)box_h) : 0.0f;
+            float box_w = all_faces[i].w;
+            float box_h = all_faces[i].h;
+            float aspect_ratio = (box_h > 0.0f) ? (box_w / box_h) : 0.0f;
 
-            float center_x = ((float)(all_faces[i].x1 + all_faces[i].x2) / 2.0f) / (float)width;
-            float center_y = ((float)(all_faces[i].y1 + all_faces[i].y2) / 2.0f) / (float)height;
+            /* Center = top-left + half of size, normalized by image dimensions. */
+            float center_x = (all_faces[i].x + box_w * 0.5f) / (float)width;
+            float center_y = (all_faces[i].y + box_h * 0.5f) / (float)height;
 
-            bool is_valid = (box_w >= cfg.min_box_size_pixels && box_h >= cfg.min_box_size_pixels);
+            bool is_valid = (box_w >= (float)cfg.min_box_size_pixels && box_h >= (float)cfg.min_box_size_pixels);
             bool has_good_aspect = (aspect_ratio >= cfg.filter_min_aspect_ratio && aspect_ratio <= cfg.filter_max_aspect_ratio);
             bool has_good_position = (center_x >= cfg.min_center_x && center_x <= cfg.max_center_x &&
                                      center_y >= cfg.min_center_y && center_y <= cfg.max_center_y);
@@ -603,17 +604,14 @@ static int FilterAndSelectBestFace(Box* all_faces, int all_face_count, int width
             } else {
                 (*filtered_count)++;
                 if (!is_valid) {
-                    MicroPrintf("Filtered small box: [%d,%d,%d,%d] size=%dx%d, score=%.3f\r\n",
-                               all_faces[i].x1, all_faces[i].y1, all_faces[i].x2, all_faces[i].y2,
-                               box_w, box_h, all_faces[i].score);
+                    MicroPrintf("Filtered small box: xywh=[%.1f,%.1f,%.1fx%.1f], score=%.3f\r\n",
+                               all_faces[i].x, all_faces[i].y, box_w, box_h, all_faces[i].score);
                 } else if (!has_good_aspect) {
-                    MicroPrintf("Filtered bad aspect box: [%d,%d,%d,%d] size=%dx%d (ratio=%.2f), score=%.3f\r\n",
-                               all_faces[i].x1, all_faces[i].y1, all_faces[i].x2, all_faces[i].y2,
-                               box_w, box_h, aspect_ratio, all_faces[i].score);
+                    MicroPrintf("Filtered bad aspect box: xywh=[%.1f,%.1f,%.1fx%.1f] (ratio=%.2f), score=%.3f\r\n",
+                               all_faces[i].x, all_faces[i].y, box_w, box_h, aspect_ratio, all_faces[i].score);
                 } else {
-                    MicroPrintf("Filtered bad position box: [%d,%d,%d,%d] center=(%.2f,%.2f), score=%.3f\r\n",
-                               all_faces[i].x1, all_faces[i].y1, all_faces[i].x2, all_faces[i].y2,
-                               center_x, center_y, all_faces[i].score);
+                    MicroPrintf("Filtered bad position box: xywh=[%.1f,%.1f,%.1fx%.1f] center=(%.2f,%.2f), score=%.3f\r\n",
+                               all_faces[i].x, all_faces[i].y, box_w, box_h, center_x, center_y, all_faces[i].score);
                 }
             }
         } else {
@@ -784,20 +782,20 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
         MicroPrintf("All high-score faces:\r\n");
         for (int i = 0; i < all_face_count; i++) {
             if (all_faces[i].score > cfg.score_threshold) {
-                int box_w = all_faces[i].x2 - all_faces[i].x1;
-                int box_h = all_faces[i].y2 - all_faces[i].y1;
-                float aspect_ratio = (box_h > 0) ? ((float)box_w / (float)box_h) : 0.0f;
-                float center_x = ((float)(all_faces[i].x1 + all_faces[i].x2) / 2.0f) / (float)width;
-                float center_y = ((float)(all_faces[i].y1 + all_faces[i].y2) / 2.0f) / (float)height;
-                bool is_valid = (box_w >= cfg.min_box_size_pixels && box_h >= cfg.min_box_size_pixels);
+                float box_w = all_faces[i].w;
+                float box_h = all_faces[i].h;
+                float aspect_ratio = (box_h > 0.0f) ? (box_w / box_h) : 0.0f;
+                float center_x = (all_faces[i].x + box_w * 0.5f) / (float)width;
+                float center_y = (all_faces[i].y + box_h * 0.5f) / (float)height;
+                bool is_valid = (box_w >= (float)cfg.min_box_size_pixels && box_h >= (float)cfg.min_box_size_pixels);
                 bool has_good_aspect = (aspect_ratio >= cfg.filter_min_aspect_ratio && aspect_ratio <= cfg.filter_max_aspect_ratio);
                 bool has_good_position = (center_x >= cfg.min_center_x && center_x <= cfg.max_center_x &&
                                          center_y >= cfg.min_center_y && center_y <= cfg.max_center_y);
                 if (is_valid && has_good_aspect && has_good_position) {
-                    MicroPrintf("  Face %d: score=%.3f, box=[%d,%d,%d,%d] size=%dx%d (ratio=%.2f) center=(%.2f,%.2f)\r\n",
+                    MicroPrintf("  Face %d: score=%.3f, xywh=[%.1f,%.1f,%.1fx%.1f] (ratio=%.2f) center=(%.2f,%.2f)\r\n",
                                i, all_faces[i].score,
-                               all_faces[i].x1, all_faces[i].y1, all_faces[i].x2, all_faces[i].y2,
-                               box_w, box_h, aspect_ratio, center_x, center_y);
+                               all_faces[i].x, all_faces[i].y, box_w, box_h,
+                               aspect_ratio, center_x, center_y);
                 }
             }
         }
@@ -815,39 +813,39 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
     }
 
     // Print only the best (highest score) face
-    int img_x1 = best_face.x1;
-    int img_y1 = best_face.y1;
-    int img_x2 = best_face.x2;
-    int img_y2 = best_face.y2;
-    int img_w = img_x2 - img_x1;
-    int img_h = img_y2 - img_y1;
+    float img_x  = best_face.x;
+    float img_y  = best_face.y;
+    float img_w  = best_face.w;
+    float img_h  = best_face.h;
+    float img_x2 = img_x + img_w;
+    float img_y2 = img_y + img_h;
 
-    float x_center = (img_x1 + img_x2) / 2.0f;
-    float y_center = (img_y1 + img_y2) / 2.0f;
+    float x_center = img_x + img_w * 0.5f;
+    float y_center = img_y + img_h * 0.5f;
 
     MicroPrintf("Best Face (Score: %.3f = %.1f%%):\r\n",
                 best_face.score, best_face.score * 100.0f);
-    MicroPrintf("  Center: (%.1f, %.1f), Size: %d x %d\r\n",
+    MicroPrintf("  Center: (%.1f, %.1f), Size: %.1f x %.1f\r\n",
                 x_center, y_center, img_w, img_h);
-    MicroPrintf("  BBox [x1, y1, x2, y2]: [%d, %d, %d, %d]\r\n",
-                img_x1, img_y1, img_x2, img_y2);
-    MicroPrintf("  Corners: (%d, %d) -> (%d, %d)\r\n",
-                img_x1, img_y1, img_x2, img_y2);
+    MicroPrintf("  BBox xywh=[%.1f, %.1f, %.1f, %.1f]\r\n",
+                img_x, img_y, img_w, img_h);
+    MicroPrintf("  Corners: (%.1f, %.1f) -> (%.1f, %.1f)\r\n",
+                img_x, img_y, img_x2, img_y2);
     MicroPrintf("==========================================\r\n");
 
 
     // Prepare face box for display - coordinates are in input image size (56x56)
     // box_detection_path_build will scale them to display size (1920x1088) and apply rotation
     Box faces[1];
-    faces[0].x1 = best_face.x1;
-    faces[0].y1 = best_face.y1;
-    faces[0].x2 = best_face.x2;
-    faces[0].y2 = best_face.y2;
+    faces[0].x     = best_face.x;
+    faces[0].y     = best_face.y;
+    faces[0].w     = best_face.w;
+    faces[0].h     = best_face.h;
     faces[0].score = best_face.score;
 
     // Debug: print coordinates before scaling
-    MicroPrintf("Before scaling: face box [%d, %d, %d, %d] in %dx%d input image\r\n",
-                faces[0].x1, faces[0].y1, faces[0].x2, faces[0].y2, width, height);
+    MicroPrintf("Before scaling: face box xywh=[%.1f, %.1f, %.1f, %.1f] in %dx%d input image\r\n",
+                faces[0].x, faces[0].y, faces[0].w, faces[0].h, width, height);
     MicroPrintf("Will scale to display: %dx%d\r\n", 1088, 1088);
 
     box_detection_path_build(faces, 1, 1, 0, width, height, 1088, 1088);

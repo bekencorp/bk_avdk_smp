@@ -45,6 +45,35 @@ static void bk_auxldo_enable(void)
 static AvdkVideoReator *video_reator = NULL;
 static PalmDetectionModel *model = NULL;
 
+/**
+ * @brief Adapter: new Box-based detection callback -> old palm-result callback.
+ *
+ * `PalmDetectionModel` now publishes results through the generic
+ * `boxDetectionCallbackT(Box *boxes, int count)` interface inherited from
+ * `AvdkDetectionModel`. Per `PalmDetectionModel::run()` it always emits
+ * exactly one `Box`, with `score` repurposed as the `has_palm` flag (1.0f =
+ * palm detected, 0.0f = none).
+ *
+ * The car/gimbal business layer in app_event.c was written against the older
+ * `(has_palm, cx, cy, w, h)` callback shape and we want to keep it untouched,
+ * so this small adapter does the unpacking and forwards to the legacy callback
+ * obtained from `app_event_get_result_callback()`.
+ */
+static void on_box_detection(Box *boxes, int count)
+{
+    static palm_result_callback_t cb = nullptr;
+    if (cb == nullptr) {
+        cb = app_event_get_result_callback();
+    }
+    if (cb == nullptr || boxes == nullptr || count <= 0) {
+        return;
+    }
+    /* Center coordinates are already in model space (e.g. 256x256); see
+     * PalmDetectionModel.cc which writes palm_cx/cy/w/h directly into the Box. */
+    int has_palm = (boxes[0].score > 0.5f) ? 1 : 0;
+    cb(has_palm, boxes[0].x, boxes[0].y, boxes[0].w, boxes[0].h);
+}
+
 
 int ai_main_start()
 {
@@ -62,7 +91,7 @@ int ai_main_start()
     }
 
     model = new PalmDetectionModel();
-    model->setResultCallback(app_event_get_result_callback());
+    model->setBoxDetectionCallback(on_box_detection);
     video_reator = new AvdkVideoReator(model);
     video_reator->init_model();
     video_reator->OpenCameraWithoutDisplay();

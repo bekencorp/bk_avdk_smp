@@ -103,10 +103,15 @@ uint8_t GestureDetectionModel::post_process(int8_t *out_data, uint8_t *result)
             if(x2 > 191) x2 = 191;
             if(y2 > 191) y2 = 191;
 
-            boxes[boxes_num].x1 = x1;
-            boxes[boxes_num].y1 = y1;
-            boxes[boxes_num].x2 = x2;
-            boxes[boxes_num].y2 = y2;
+            /* x1/y1/x2/y2 are post-clamp INT coordinates (snapped into [0, 191]),
+             * so the source `w/h` from above is no longer valid here; recompute
+             * the clamped width/height from the clamped corners. The implicit
+             * int->float conversion is fine because Box.{x,y,w,h} are float and
+             * these clamped values fit losslessly in a float mantissa. */
+            boxes[boxes_num].x = (float)x1;
+            boxes[boxes_num].y = (float)y1;
+            boxes[boxes_num].w = (float)(x2 - x1);
+            boxes[boxes_num].h = (float)(y2 - y1);
             boxes[boxes_num].score = score;
             boxes_num++;
 

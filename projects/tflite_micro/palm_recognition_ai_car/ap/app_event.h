@@ -11,19 +11,26 @@
 
 #include <common/bk_include.h>
 
-/*
- * Do not include PalmDetectionModel.h here: it pulls in C++/TensorFlow headers (e.g. cstdarg).
- * app_event.c is compiled as C; define callback type here for C, get it from Palm in C++.
- */
-#ifdef __cplusplus
-#include "PalmDetectionModel.h"
-#else
-typedef void (*palm_result_callback_t)(int has_palm, float cx, float cy, float w, float h);
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*
+ * Stable C-level callback type the car/gimbal business layer wants to receive.
+ *
+ * NOTE: This is *not* the type PalmDetectionModel uses anymore. The model now
+ * fires `boxDetectionCallbackT(Box *boxes, int count)` (see AvdkDetectionModel.h),
+ * with `boxes[0].score` carrying `has_palm`. The C++ side (ap_main.cc) is
+ * expected to install a small adapter that converts the new Box-based callback
+ * into this old `(has_palm, cx, cy, w, h)` form, so app_event.c (which is
+ * compiled as C and only cares about palm tracking, not the Box struct layout)
+ * does not need to change.
+ *
+ * Defined unconditionally for both C and C++ so the same prototype is visible
+ * everywhere; do NOT pull in PalmDetectionModel.h from this header (it drags
+ * in TFLite C++ headers which would break C compilation of app_event.c).
+ */
+typedef void (*palm_result_callback_t)(int has_palm, float cx, float cy, float w, float h);
 
 /**
  * @brief One palm detection result (center and size in model coordinates, e.g. 256x256).
@@ -64,7 +71,10 @@ typedef struct
 bk_err_t app_event_init(const palm_tracking_config_t *tracking_config);
 
 /**
- * @brief Get callback to pass to PalmDetectionModel::setResultCallback().
+ * @brief Get the C-level result callback.
+ *
+ * The C++ caller (ap_main.cc) wraps this in a small adapter and installs it
+ * via `model->setBoxDetectionCallback(...)`. See ap_main.cc for the adapter.
  */
 palm_result_callback_t app_event_get_result_callback(void);
 

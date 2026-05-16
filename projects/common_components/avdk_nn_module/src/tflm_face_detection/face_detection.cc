@@ -278,10 +278,10 @@ int face_detection_run(void* handle, int8_t* data, uint16_t width, uint16_t heig
         MicroPrintf("Position: x=%.2f, y=%.2f, w=%.2f, h=%.2f\r\n", max_x, max_y, max_w, max_h);
         MicroPrintf("===================================\r\n");
         Box faces[1];
-        faces[0].x1    = (int)max_x;
-        faces[0].y1    = (int)max_y;
-        faces[0].x2    = (int)(max_x + max_w);
-        faces[0].y2    = (int)(max_y + max_h);
+        faces[0].x     = max_x;
+        faces[0].y     = max_y;
+        faces[0].w     = max_w;
+        faces[0].h     = max_h;
         faces[0].score = max_score;
         box_detection_path_build(faces, 1, 1, 90, width, height, 1080, 1920);
     } else {

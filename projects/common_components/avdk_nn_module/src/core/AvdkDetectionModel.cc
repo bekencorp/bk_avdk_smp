@@ -16,11 +16,6 @@ static const char* TAG = "det-model";
 #define LOGE(...) BK_LOGE((char*)TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD((char*)TAG, ##__VA_ARGS__)
 
-AvdkDetectionModel::AvdkDetectionModel()
-{
-
-}
-
 void *AvdkDetectionModel::allocMemory(avdk_nn_mem_type_t type, uint32_t size)
 {
     if (type == AVDK_NN_MEM_TYPE_HSRAM)
@@ -312,4 +307,12 @@ uint16_t AvdkDetectionModel::getHeight()
 bk_pixel_format_t AvdkDetectionModel::getFormat()
 {
     return format;
+}
+
+void AvdkDetectionModel::onBoxDetectionCallback(Box *boxes, int count)
+{
+    if (boxDetectionCallback != nullptr)
+    {
+        boxDetectionCallback(boxes, count);
+    }
 }

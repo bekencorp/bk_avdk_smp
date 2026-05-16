@@ -22,19 +22,21 @@ extern "C" {
  * Generic 2D detection box used across all NN detection models in this module
  * (faces, palms, gestures, ...).
  *
- *   x1, y1 : top-left corner    (inclusive)
- *   x2, y2 : bottom-right corner (inclusive)
- *   score  : confidence score (model-specific scale)
+ *   x, y  : top-left corner    (inclusive), in source-image pixel units
+ *   w, h  : box size in pixels (so the bottom-right corner is (x+w, y+h))
+ *   score : confidence score (model-specific scale)
  *
- * All coordinates are in the source image's pixel space; conversion to the
- * target canvas (rotation + scaling + clamping) is handled by
- * box_detection_path_build().
+ * Coordinates are float so that sub-pixel detection output (e.g. the raw
+ * cx/cy/w/h decoded from a model tensor before any rounding) can flow all
+ * the way through rotation/scaling/clamping with no precision loss; the
+ * final pixel-snap (cast to int) only happens at the very last step inside
+ * box_detection_path_build() when the GPU draw command is emitted.
  */
 typedef struct {
-    int   x1;
-    int   y1;
-    int   x2;
-    int   y2;
+    float x;
+    float y;
+    float w;
+    float h;
     float score;
 } Box;
 
