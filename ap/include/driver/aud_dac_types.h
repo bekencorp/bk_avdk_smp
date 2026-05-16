@@ -140,6 +140,20 @@ typedef struct {
         .clk_src        = AUD_CLK_XTAL,                      \
     }
 #elif CONFIG_AUD_DRIVER_V2
+
+/** Max digital gain in dB (maps to register full-scale linear, ~0x3FFFFFFF) */
+#define BK_AUD_DAC_DIG_GAIN_DB_MAX        (12.0f)
+/** dB returned when register linear gain is 0 (mute / -inf dB) */
+#define BK_AUD_DAC_DIG_GAIN_DB_SILENCE    (-100.0f)
+
+#define DAC_DIG_GAIN_FRAC_MASK   (0x0FFFFFFFu)
+#define DAC_DIG_GAIN_FRAC_SCALE  (268435456u) /* 1<<28 */
+
+#define DAC_ANA_GAIN_REG_MAX       (0x7u)
+#define DAC_ANA_GAIN_STEP_DB       (1)
+#define BK_AUD_DAC_ANA_GAIN_DB_MAX ((int32_t)DAC_ANA_GAIN_REG_MAX * DAC_ANA_GAIN_STEP_DB)
+
+
 typedef enum {
 	AUD_DAC_SOURCE_A2DP = 0,
 	AUD_DAC_SOURCE_CALL,
@@ -173,27 +187,19 @@ typedef struct {
 	 * bit[27:0] fraction; linear G = (sign?-1:1)*(int + frac/2^28),
 	 * dB = 20*log10(|G|), valid gain range about (-inf, +12] dB.
 	 */
-	int32_t dig_gain;
-	int16_t ana_gain;                       /**< AUD dac analog gain set */
+	float dig_gain;                         /**< AUD dac digital gain in dB, range: (-inf, 12.0] */
+	int32_t ana_gain;                       /**< AUD dac analog gain in dB, range: [0, 7], 1dB/step */
 	aud_dac_clk_invert_t dac_clk_invert;    /**< AUD dac output clock edge select */
 	aud_clk_t clk_src;
 } aud_dac_config_t;
-
-/** Max digital gain in dB (maps to register full-scale linear, ~0x3FFFFFFF) */
-#define BK_AUD_DAC_DIG_GAIN_DB_MAX        (12.0f)
-/** dB returned when register linear gain is 0 (mute / -inf dB) */
-#define BK_AUD_DAC_DIG_GAIN_DB_SILENCE    (-144.0f)
-
-#define DAC_DIG_GAIN_FRAC_MASK   (0x0FFFFFFFu)
-#define DAC_DIG_GAIN_FRAC_SCALE  (268435456u) /* 1<<28 */
 
 #define DEFAULT_AUD_DAC_CONFIG() {                      \
     .dac_chl     = AUD_DAC_CHL_LR,                      \
     .sample_rate = 16000,                               \
     .bits      = 16,                                    \
     .work_mode = AUD_DAC_WORK_MODE_DIFFEN,              \
-    .dig_gain  = 0x07000000,                            \
-    .ana_gain  = 0x01,                                  \
+    .dig_gain  = -7.0f,                                 \
+    .ana_gain  = 4,                                     \
     .dac_clk_invert = AUD_DAC_CLK_INVERT_RISING,        \
     .clk_src        = AUD_CLK_APLL,                     \
 }

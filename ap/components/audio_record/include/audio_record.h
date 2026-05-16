@@ -64,7 +64,7 @@ typedef struct
     uint8_t nChans;
     uint32_t sampRate;
     uint8_t bitsPerSample;
-    int adc_gain;
+    float adc_gain; /*!< mic digital gain in dB */
     audio_mic_mode_t mic_mode;
     uint32_t frame_size;
     uint32_t pool_size;
@@ -77,7 +77,7 @@ typedef struct
     .nChans = 1,                                     \
     .sampRate = 8000,                                \
     .bitsPerSample = 16,                             \
-    .adc_gain = 0x1c000,                             \
+    .adc_gain = 16.0f,                               \
     .mic_mode = AUDIO_MIC_MODE_DIFFEN,               \
     .frame_size = 320,                               \
     .pool_size  = 640,                               \
@@ -208,7 +208,7 @@ bk_err_t audio_record_control(audio_record_t *record, audio_record_ctl_t ctl);
  *    - BK_OK: success
  *    - NULL: failed
  */
-bk_err_t audio_play_set_adc_gain(audio_record_t *record, int value);
+bk_err_t audio_play_set_adc_gain(audio_record_t *record, float value);
 
 #ifdef __cplusplus
 }

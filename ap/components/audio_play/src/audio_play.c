@@ -339,18 +339,17 @@ bk_err_t audio_play_control(audio_play_t *play, audio_play_ctl_t ctl)
         case AUDIO_PLAY_UNMUTE:
             return onboard_speaker_stream_dac_mute_en(ctx->speaker, 0);
         case AUDIO_PLAY_SET_VOLUME:
-            return bk_aud_dac_set_dig_gain((uint32_t)play->config.volume);
+            return bk_aud_dac_set_dig_gain_db((float)play->config.volume);
         default:
             return BK_OK;
     }
 }
 
-bk_err_t audio_play_set_volume(audio_play_t *play, int volume)
+bk_err_t audio_play_set_volume(audio_play_t *play, float volume)
 {
     if (!play) {
         return BK_FAIL;
     }
-
     play->config.volume = volume;
     return audio_play_control(play, AUDIO_PLAY_SET_VOLUME);
 }

@@ -140,8 +140,8 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 		goto fail;
 	}
 
-	bk_aud_dac_set_dig_gain(dac_config->dig_gain);
-    bk_aud_dac_set_ana_gain(dac_config->ana_gain);
+	bk_aud_dac_set_dig_gain_db(dac_config->dig_gain);
+    bk_aud_dac_set_ana_gain_db(dac_config->ana_gain);
 
 	audio_reg_hal_set_dac_cfg_clk_dac_inv(dac_config->dac_clk_invert);
 
@@ -193,8 +193,8 @@ bk_err_t bk_aud_dac_deinit(void)
 
 	sys_drv_aud_dac_diffen_en(1);
 
-	bk_aud_dac_set_dig_gain(0);
-	bk_aud_dac_set_ana_gain(0);
+	bk_aud_dac_set_dig_gain_db(BK_AUD_DAC_DIG_GAIN_DB_SILENCE);
+	bk_aud_dac_set_ana_gain_db(0);
 	audio_reg_hal_set_dac_cfg_clk_dac_inv(0);
 
 	//aud_hal_set_dac_config0_dac_hpf1_bypass(0);
@@ -400,13 +400,166 @@ bk_err_t bk_aud_dac_set_ana_gain(uint32_t value)
 	return BK_OK;
 }
 
+static uint32_t bk_aud_dac_ana_gain_db_to_reg(int32_t db)
+{
+    if (db <= 0) {
+        return 0;
+    }
+    if (db > BK_AUD_DAC_ANA_GAIN_DB_MAX) {
+        db = (int32_t)BK_AUD_DAC_ANA_GAIN_DB_MAX;
+    }
+
+    {
+        uint32_t reg = (uint32_t)db; /* 1dB/step */
+        if (reg > DAC_ANA_GAIN_REG_MAX) {
+            reg = DAC_ANA_GAIN_REG_MAX;
+        }
+        return reg;
+    }
+}
+
+static int32_t bk_aud_dac_ana_gain_reg_to_db(uint32_t reg)
+{
+    if (reg > DAC_ANA_GAIN_REG_MAX) {
+        reg = DAC_ANA_GAIN_REG_MAX;
+    }
+    return (int32_t)reg;
+}
+
+bk_err_t bk_aud_dac_set_ana_gain_db(int32_t db)
+{
+    AUD_DAC_RETURN_ON_NOT_INIT();
+
+    if (db <= 0) {
+        db = 0;
+    } else if (db > BK_AUD_DAC_ANA_GAIN_DB_MAX) {
+        db = (int32_t)BK_AUD_DAC_ANA_GAIN_DB_MAX;
+    }
+
+    return bk_aud_dac_set_ana_gain(bk_aud_dac_ana_gain_db_to_reg(db));
+}
+
 /* get audio dac analog gain */
 bk_err_t bk_aud_dac_get_ana_gain(uint32_t *gain)
 {
-	AUD_DAC_RETURN_ON_NOT_INIT();
-	*gain = sys_drv_aud_dacg_get();
-	return BK_OK;
+    AUD_DAC_RETURN_ON_NOT_INIT();
+    *gain = sys_drv_aud_dacg_get();
+    return BK_OK;
 }
+
+bk_err_t bk_aud_dac_get_ana_gain_db(int32_t *db)
+{
+    AUD_DAC_RETURN_ON_NOT_INIT();
+    if (db == NULL) {
+        LOGE("%s,%d db is NULL!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    *db = bk_aud_dac_ana_gain_reg_to_db(sys_drv_aud_dacg_get());
+    return BK_OK;
+}
+
+static uint32_t bk_aud_dac_dig_gain_db_to_reg(float db)
+{
+    if (db != db) {
+        return 0;
+    }
+    if (db > BK_AUD_DAC_DIG_GAIN_DB_MAX) {
+        db = BK_AUD_DAC_DIG_GAIN_DB_MAX;
+    }
+    if (db <= BK_AUD_DAC_DIG_GAIN_DB_SILENCE) {
+        return 0;
+    }
+
+    float linear = powf(10.0f, db / 20.0f);
+    float linear_max = powf(10.0f, BK_AUD_DAC_DIG_GAIN_DB_MAX / 20.0f);
+
+    if (linear > linear_max) {
+        linear = linear_max;
+    }
+    if (linear <= 0.0f) {
+        return 0;
+    }
+
+    float reg_max_lin = 3.0f + (float)DAC_DIG_GAIN_FRAC_MASK / (float)DAC_DIG_GAIN_FRAC_SCALE;
+
+    if (linear > reg_max_lin) {
+        linear = reg_max_lin;
+    }
+
+    uint32_t int_part = (uint32_t)floorf(linear);
+
+    if (int_part > 3u) {
+        int_part = 3u;
+    }
+    float frac_f = linear - (float)int_part;
+    uint32_t frac = (uint32_t)(frac_f * (float)DAC_DIG_GAIN_FRAC_SCALE + 0.5f);
+
+    if (frac > DAC_DIG_GAIN_FRAC_MASK) {
+        frac = DAC_DIG_GAIN_FRAC_MASK;
+    }
+    return (int_part << 28) | frac;
+}
+
+static float bk_aud_dac_dig_gain_reg_to_db(uint32_t reg)
+{
+    uint32_t sign     = (reg >> 30) & 1u;
+    uint32_t int_part = (reg >> 28) & 3u;
+    uint32_t frac     = reg & DAC_DIG_GAIN_FRAC_MASK;
+    float mag         = (float)int_part + (float)frac / (float)DAC_DIG_GAIN_FRAC_SCALE;
+
+    if (sign) {
+        mag = -mag;
+    }
+    if (mag == 0.0f) {
+        return BK_AUD_DAC_DIG_GAIN_DB_SILENCE;
+    }
+    {
+        float a = (mag < 0.0f) ? -mag : mag;
+        return 20.0f * log10f(a);
+    }
+}
+
+bk_err_t bk_aud_dac_set_dig_gain_db(float db)
+{
+    if (db != db) {
+        LOGE("%s,%d db is NaN!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    if (db > BK_AUD_DAC_DIG_GAIN_DB_MAX) {
+        db = BK_AUD_DAC_DIG_GAIN_DB_MAX;
+    }
+    if (db <= BK_AUD_DAC_DIG_GAIN_DB_SILENCE) {
+        db = BK_AUD_DAC_DIG_GAIN_DB_SILENCE;
+    }
+    uint32_t reg = bk_aud_dac_dig_gain_db_to_reg(db);
+    //LOGD("set dig gain to %f dB, reg: 0x%x\r\n", db, reg);
+    bk_err_t ret = bk_aud_dac_set_dig_gain(reg);
+    if (ret != BK_OK) {
+        LOGE("%s,%d set dig gain to %f dB, reg: 0x%x fail!\n", __func__, __LINE__, db, reg);
+        return ret;
+    }
+
+    return ret;
+}
+
+bk_err_t bk_aud_dac_get_dig_gain_db(float *db)
+{
+    if (db == NULL) {
+        LOGE("%s,%d db is NULL!\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+    uint32_t reg = 0;
+    bk_err_t ret = bk_aud_dac_get_dig_gain(&reg);
+    if (ret != BK_OK) {
+        LOGE("%s,%d get dig gain fail!\n", __func__, __LINE__);
+        return ret;
+    }
+    *db = bk_aud_dac_dig_gain_reg_to_db(reg);
+    //LOGD("get dig gain from reg: 0x%x, db: %f\r\n", reg, *db);
+    return ret;
+}
+
 
 bk_err_t bk_aud_dac_mute(void)
 {
@@ -1031,103 +1184,5 @@ bk_err_t bk_aud_dac_get_fifo_addr(aud_dac_source_t dac_source, uint8_t ch, dma_d
     return ret;
 }
 
-static uint32_t bk_aud_dac_dig_gain_db_to_reg(float db)
-{
-    if (db != db) {
-        return 0;
-    }
-    if (db > BK_AUD_DAC_DIG_GAIN_DB_MAX) {
-        db = BK_AUD_DAC_DIG_GAIN_DB_MAX;
-    }
-    if (db <= BK_AUD_DAC_DIG_GAIN_DB_SILENCE) {
-        return 0;
-    }
 
-    float linear = powf(10.0f, db / 20.0f);
-    float linear_max = powf(10.0f, BK_AUD_DAC_DIG_GAIN_DB_MAX / 20.0f);
-
-    if (linear > linear_max) {
-        linear = linear_max;
-    }
-    if (linear <= 0.0f) {
-        return 0;
-    }
-
-    float reg_max_lin = 3.0f + (float)DAC_DIG_GAIN_FRAC_MASK / (float)DAC_DIG_GAIN_FRAC_SCALE;
-
-    if (linear > reg_max_lin) {
-        linear = reg_max_lin;
-    }
-
-    uint32_t int_part = (uint32_t)floorf(linear);
-
-    if (int_part > 3u) {
-        int_part = 3u;
-    }
-    float frac_f = linear - (float)int_part;
-    uint32_t frac = (uint32_t)(frac_f * (float)DAC_DIG_GAIN_FRAC_SCALE + 0.5f);
-
-    if (frac > DAC_DIG_GAIN_FRAC_MASK) {
-        frac = DAC_DIG_GAIN_FRAC_MASK;
-    }
-    return (int_part << 28) | frac;
-}
-
-static float bk_aud_dac_dig_gain_reg_to_db(uint32_t reg)
-{
-    uint32_t sign     = (reg >> 30) & 1u;
-    uint32_t int_part = (reg >> 28) & 3u;
-    uint32_t frac     = reg & DAC_DIG_GAIN_FRAC_MASK;
-    float mag         = (float)int_part + (float)frac / (float)DAC_DIG_GAIN_FRAC_SCALE;
-
-    if (sign) {
-        mag = -mag;
-    }
-    if (mag == 0.0f) {
-        return BK_AUD_DAC_DIG_GAIN_DB_SILENCE;
-    }
-    {
-        float a = (mag < 0.0f) ? -mag : mag;
-        return 20.0f * log10f(a);
-    }
-}
-
-bk_err_t bk_aud_dac_set_dig_gain_db(float db)
-{
-    if (db != db) {
-        LOGE("%s,%d db is NaN!\n", __func__, __LINE__);
-        return BK_FAIL;
-    }
-    if (db > BK_AUD_DAC_DIG_GAIN_DB_MAX) {
-        db = BK_AUD_DAC_DIG_GAIN_DB_MAX;
-    }
-    if (db <= BK_AUD_DAC_DIG_GAIN_DB_SILENCE) {
-        db = BK_AUD_DAC_DIG_GAIN_DB_SILENCE;
-    }
-    uint32_t reg = bk_aud_dac_dig_gain_db_to_reg(db);
-    //LOGD("set dig gain to %f dB, reg: 0x%x\r\n", db, reg);
-    bk_err_t ret = bk_aud_dac_set_dig_gain(reg);
-    if (ret != BK_OK) {
-        LOGE("%s,%d set dig gain to %f dB, reg: 0x%x fail!\n", __func__, __LINE__, db, reg);
-        return ret;
-    }
-    return ret;
-}
-
-bk_err_t bk_aud_dac_get_dig_gain_db(float *db)
-{
-    if (db == NULL) {
-        LOGE("%s,%d db is NULL!\n", __func__, __LINE__);
-        return BK_FAIL;
-    }
-    uint32_t reg = 0;
-    bk_err_t ret = bk_aud_dac_get_dig_gain(&reg);
-    if (ret != BK_OK) {
-        LOGE("%s,%d get dig gain fail!\n", __func__, __LINE__);
-        return ret;
-    }
-    *db = bk_aud_dac_dig_gain_reg_to_db(reg);
-    //LOGD("get dig gain from reg: 0x%x, db: %f\r\n", reg, *db);
-    return ret;
-}
 

@@ -155,8 +155,8 @@ typedef struct onboard_speaker_stream
 {
     uint8_t                  chl_num;                       /**< speaker channel number */
     uint32_t                 sample_rate[AUD_DAC_SOURCE_MAX];/**< speaker sample rate */
-    int32_t                  dig_gain;                      /**< audio dac digital gain: value range: , suggest: */
-    int32_t                  ana_gain;                      /**< audio dac analog gain: value range: , suggest: */
+    float                    dig_gain;                      /**< audio dac digital gain in dB */
+    int32_t                  ana_gain;                      /**< audio dac analog gain in dB */
     aud_dac_work_mode_t      work_mode;                     /**< audio dac mode: signal_ended/differen */
     uint8_t                  bits;                          /**< Bit wide (8, 16, 24, 32 bits) */
     aud_clk_t                clk_src;                       /**< audio clock: XTAL(26MHz)/APLL */
@@ -367,7 +367,7 @@ static void pa_ctrl_en(onboard_speaker_stream_t *onboard_spk, bool en, bool dela
             {
                 /* not need delay */
                 _pa_gpio_ctrl(onboard_spk->pa_ctrl_gpio, onboard_spk->pa_on_level, true);
-                if (onboard_spk->dig_gain > 0)
+                if (onboard_spk->dig_gain > BK_AUD_DAC_DIG_GAIN_DB_SILENCE)
                 {
                     bk_aud_dac_unmute();
                     BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
@@ -413,7 +413,7 @@ static void pa_turn_on_timer_callback(TimerHandle_t xTimer)
     /* turn on pa according to congfig */
     _pa_gpio_ctrl(onboard_spk->pa_ctrl_gpio, onboard_spk->pa_on_level, true);
 
-    if (onboard_spk->dig_gain > 0)
+    if (onboard_spk->dig_gain > BK_AUD_DAC_DIG_GAIN_DB_SILENCE)
     {
         bk_aud_dac_unmute();
         BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
@@ -728,7 +728,7 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
     }
     else
     {
-        if (onboard_spk->dig_gain > 0)
+        if (onboard_spk->dig_gain > BK_AUD_DAC_DIG_GAIN_DB_SILENCE)
         {
             rtos_delay_milliseconds(4);
             bk_aud_dac_unmute();
@@ -1789,7 +1789,7 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     aud_dac_cfg.clk_src   = config->clk_src;
     aud_dac_cfg.dig_gain  = config->dig_gain;
     aud_dac_cfg.ana_gain  = config->ana_gain;
-    BK_LOGD(TAG, "dac_cfg chl_num: %s, dig_gain: 0x%08x, clk_src: %s, dac_mode: %s \n",
+    BK_LOGD(TAG, "dac_cfg chl_num: %s, dig_gain_db: %.2f, clk_src: %s, dac_mode: %s \n",
             aud_dac_cfg.dac_chl == AUD_DAC_CHL_L ? "AUD_DAC_CHL_L" : "AUD_DAC_CHL_LR",
             aud_dac_cfg.dig_gain,
             aud_dac_cfg.clk_src == 1 ? "APLL" : "XTAL",
@@ -1803,7 +1803,7 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
         goto _onboard_speaker_init_exit;
     }
 
-    if (aud_dac_cfg.dig_gain == 0)
+    if (aud_dac_cfg.dig_gain <= BK_AUD_DAC_DIG_GAIN_DB_SILENCE)
     {
         bk_aud_dac_mute();
         BK_LOGV(TAG, "%s, line: %d, audio dac mute\n", __func__, __LINE__);
@@ -2167,14 +2167,14 @@ bk_err_t onboard_speaker_stream_set_digital_gain(audio_element_handle_t onboard_
     //     BK_LOGV(TAG, "%s, line: %d, audio dac unmute\n", __func__, __LINE__);
     // }
 
-    uint32_t res = 0;
-    err = bk_aud_dac_get_dig_gain(&res);
+    float res = 0.0f;
+    err = bk_aud_dac_get_dig_gain_db(&res);
     if (err != BK_OK)
     {
         BK_LOGE(TAG, "%s, line: %d, get dig gain fail \n", __func__, __LINE__);
         return err;
     }
-    BK_LOGD(TAG, "%s, line: %d, get dig gain: 0x%08x \n", __func__, __LINE__, res);
+    BK_LOGD(TAG, "%s, line: %d, get dig gain_db: %.2f \n", __func__, __LINE__, res);
     onboard_spk->dig_gain = res;
     audio_element_setdata(onboard_speaker_stream, onboard_spk);
 
@@ -2233,16 +2233,9 @@ bk_err_t onboard_speaker_stream_dac_mute_en(audio_element_handle_t onboard_speak
     return BK_OK;
 }
 
-bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_speaker_stream, uint8_t gain)
+bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_speaker_stream, int32_t gain_db)
 {
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
-
-    /* check param */
-    if (gain < 0 || gain > 0x7)
-    {
-        BK_LOGE(TAG, "gain: %d is out of range: 0x00 ~ 0x7 \n", gain);
-        return BK_FAIL;
-    }
 
     /* check param */
     if (onboard_spk == NULL)
@@ -2251,15 +2244,15 @@ bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_s
         return BK_FAIL;
     }
 
-    if (onboard_spk->ana_gain == gain)
+    if (onboard_spk->ana_gain == gain_db)
     {
         BK_LOGD(TAG, "not need update onboard spk analog gain \n");
         return BK_OK;
     }
 
-    if (BK_OK == bk_aud_set_ana_dac_gain(gain))
+    if (BK_OK == bk_aud_dac_set_ana_gain_db(gain_db))
     {
-        onboard_spk->ana_gain = gain;
+        onboard_spk->ana_gain = gain_db;
         audio_element_setdata(onboard_speaker_stream, onboard_spk);
     } else
     {
@@ -2269,13 +2262,13 @@ bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_s
     return BK_OK;
 }
 
-bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_speaker_stream, uint8_t *gain)
+bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_speaker_stream, int32_t *gain_db)
 {
     onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
     /* check param */
-    if (gain == NULL)
+    if (gain_db == NULL)
     {
-        BK_LOGE(TAG, "%s, line: %d, gain is NULL\n", __func__, __LINE__);
+        BK_LOGE(TAG, "%s, line: %d, gain_db is NULL\n", __func__, __LINE__);
         return BK_FAIL;
     }
     /* check param */
@@ -2285,7 +2278,7 @@ bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_s
         return BK_FAIL;
     }
 
-    *gain = onboard_spk->ana_gain;
+    *gain_db = onboard_spk->ana_gain;
     return BK_OK;
 }
 

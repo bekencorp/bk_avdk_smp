@@ -686,8 +686,8 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
         if(gl_onboard_mic->ch_bitmap & (1 << i))
         {
             gl_onboard_mic->adc_cfg.chl_cfg[i].bits = 16;//adc_bits;   // Force all channels to the same 16bits!
-            bk_aud_adc_set_ana_gain(i, config->adc_cfg.chl_cfg[i].ana_gain);
-            BK_LOGD(TAG, "adc_cfg chl_num: %d, adc_gain: 0x%02x, samp_rate: %d, clk_src: %s, adc_mode: %s \n",
+            bk_aud_adc_set_ana_gain_db(i, config->adc_cfg.chl_cfg[i].ana_gain);
+            BK_LOGD(TAG, "adc_cfg chl_num: %d, adc_gain_db: %.2f, samp_rate: %d, clk_src: %s, adc_mode: %s \n",
                 i, gl_onboard_mic->adc_cfg.chl_cfg[i].dig_gain, gl_onboard_mic->adc_cfg.sample_rate, gl_onboard_mic->adc_cfg.clk_src == 1 ? "APLL" : "XTAL", gl_onboard_mic->adc_cfg.chl_cfg[i].adc_mode == 1 ? "AUD_ADC_MODE_SIGNAL_END" : "AUD_ADC_MODE_DIFFEN");
         }
     }
@@ -740,16 +740,9 @@ _onboard_mic_init_exit:
     return NULL;
 }
 
-bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t gain, aud_adc_chl_t ch)
+bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_stream, float gain_db, aud_adc_chl_t ch)
 {
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
-
-    /* check param */
-    if (gain < 0 || gain > 0x3f)
-    {
-        BK_LOGE(TAG, "gain: %d is out of range: 0x00 ~ 0x3f \n", gain);
-        return BK_FAIL;
-    }
 
     /* check param */
     if (onboard_mic == NULL)
@@ -758,15 +751,15 @@ bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_
         return BK_FAIL;
     }
 
-    if (onboard_mic->adc_cfg.chl_cfg[ch].dig_gain == gain)
+    if (onboard_mic->adc_cfg.chl_cfg[ch].dig_gain == gain_db)
     {
         BK_LOGD(TAG, "not need update onboard mic digital gain \n");
         return BK_OK;
     }
 
-    if (BK_OK == bk_aud_adc_set_dig_gain(ch, gain))
+    if (BK_OK == bk_aud_adc_set_dig_gain_db(ch, gain_db))
     {
-        onboard_mic->adc_cfg.chl_cfg[ch].dig_gain = gain;
+        onboard_mic->adc_cfg.chl_cfg[ch].dig_gain = gain_db;
         audio_element_setdata(onboard_mic_stream, onboard_mic);
     }
     else
@@ -778,14 +771,14 @@ bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_
     return BK_OK;
 }
 
-bk_err_t onboard_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t *gain, aud_adc_chl_t ch)
+bk_err_t onboard_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_stream, float *gain_db, aud_adc_chl_t ch)
 {
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
 
     /* check param */
-    if (gain == NULL)
+    if (gain_db == NULL)
     {
-        BK_LOGE(TAG, "%s, line: %d, gain is NULL\n", __func__, __LINE__);
+        BK_LOGE(TAG, "%s, line: %d, gain_db is NULL\n", __func__, __LINE__);
         return BK_FAIL;
     }
 
@@ -796,21 +789,14 @@ bk_err_t onboard_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_
         return BK_FAIL;
     }
 
-    *gain = onboard_mic->adc_cfg.chl_cfg[ch].dig_gain;
+    *gain_db = onboard_mic->adc_cfg.chl_cfg[ch].dig_gain;
 
     return BK_OK;
 }
 
-bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_stream, uint8_t gain, aud_adc_chl_t ch)
+bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_stream, int32_t gain_db, aud_adc_chl_t ch)
 {
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
-
-    /* check param */
-    if (gain < 0 || gain > 0x3f)
-    {
-        BK_LOGE(TAG, "gain: %d is out of range: 0x00 ~ 0x3f \n", gain);
-        return BK_FAIL;
-    }
 
     /* check param */
     if (onboard_mic == NULL)
@@ -819,15 +805,15 @@ bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_s
         return BK_FAIL;
     }
 
-    if (onboard_mic->adc_cfg.chl_cfg[ch].ana_gain == gain)
+    if (onboard_mic->adc_cfg.chl_cfg[ch].ana_gain == gain_db)
     {
         BK_LOGD(TAG, "not need update onboard mic analog gain \n");
         return BK_OK;
     }
 
-    if (BK_OK == bk_aud_adc_set_dig_gain(ch, gain))
+    if (BK_OK == bk_aud_adc_set_ana_gain_db(ch, gain_db))
     {
-        onboard_mic->adc_cfg.chl_cfg[ch].ana_gain = gain;
+        onboard_mic->adc_cfg.chl_cfg[ch].ana_gain = gain_db;
         audio_element_setdata(onboard_mic_stream, onboard_mic);
     } else
     {
@@ -838,13 +824,13 @@ bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_s
     return BK_OK;
 }
 
-bk_err_t onboard_mic_stream_get_analog_gain(audio_element_handle_t onboard_mic_stream, uint8_t *gain, aud_adc_chl_t ch)
+bk_err_t onboard_mic_stream_get_analog_gain(audio_element_handle_t onboard_mic_stream, int32_t *gain_db, aud_adc_chl_t ch)
 {
     onboard_mic_stream_t *onboard_mic = (onboard_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
     /* check param */
-    if (gain == NULL)
+    if (gain_db == NULL)
     {
-        BK_LOGE(TAG, "%s, line: %d, gain is NULL\n", __func__, __LINE__);
+        BK_LOGE(TAG, "%s, line: %d, gain_db is NULL\n", __func__, __LINE__);
         return BK_FAIL;
     }
 
@@ -855,7 +841,7 @@ bk_err_t onboard_mic_stream_get_analog_gain(audio_element_handle_t onboard_mic_s
         return BK_FAIL;
     }
 
-    *gain = onboard_mic->adc_cfg.chl_cfg[ch].ana_gain;
+    *gain_db = onboard_mic->adc_cfg.chl_cfg[ch].ana_gain;
 
     return BK_OK;
 }

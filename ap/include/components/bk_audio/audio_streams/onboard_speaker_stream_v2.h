@@ -35,8 +35,8 @@ typedef struct
 {
     uint8_t                 chl_num;            /*!< speaker channel number */
     uint32_t                sample_rate[AUD_DAC_SOURCE_MAX];/*!< speaker sample rate */
-    int32_t                 dig_gain;           /*!< audio dac digital gain */
-    int32_t                 ana_gain;           /*!< audio dac analog gain: value range: 0x00 ~ 0x07(0db ~ 7db, 1db/step) */
+    float                   dig_gain;           /*!< audio dac digital gain in dB */
+    int32_t                 ana_gain;           /*!< audio dac analog gain in dB (integer step) */
     aud_dac_work_mode_t     work_mode;          /*!< audio dac mode: signal_ended/differen */
     uint8_t                 bits;               /*!< Bit wide (8, 16, 24, 32 bits) */
     aud_clk_t               clk_src;            /*!< audio clock: XTAL(26MHz)/APLL */
@@ -84,8 +84,8 @@ typedef struct
         .sample_rate[0] = 48000,                               \
         .sample_rate[1] = 16000,                               \
         .sample_rate[2] = 16000,                               \
-        .dig_gain = 0x07000000,                                \
-        .ana_gain = 0x01,                                      \
+        .dig_gain = -7.0f,                                     \
+        .ana_gain = 4,                                         \
         .work_mode = AUD_DAC_WORK_MODE_DIFFEN,                 \
         .bits = 16,                                            \
         .clk_src = AUD_CLK_APLL,                               \
@@ -207,25 +207,25 @@ bk_err_t onboard_speaker_stream_set_input_port_info(audio_element_handle_t onboa
  * @brief      Update onboard speaker stream analog gain.
  *
  * @param[in]      onboard_speaker_stream  element handle
- * @param[in]      gain  speaker analog gain, range: 0x00 ~ 0x07 (0db ~ 7db, 1db/step)
+ * @param[in]      gain_db  speaker analog gain in dB
  *
  * @return         Result
  *                 - BK_OK: success
  *                 - other: failed
  */
-bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_speaker_stream, uint8_t gain);
+bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_speaker_stream, int32_t gain_db);
 
 /**
  * @brief      Get onboard speaker stream analog gain.
  *
  * @param[in]      onboard_speaker_stream  element handle
- * @param[in,out]  gain  speaker analog gain
+ * @param[in,out]  gain_db  speaker analog gain in dB
  *
  * @return         Result
  *                 - BK_OK: success
  *                 - other: failed
  */
-bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_speaker_stream, uint8_t *gain);
+bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_speaker_stream, int32_t *gain_db);
 
 #ifdef __cplusplus
 }

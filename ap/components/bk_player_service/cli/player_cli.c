@@ -75,8 +75,8 @@ int player_event_handler(int data, void *params, void *args)
         audio_port_info_t port_info = {0};
         port_info.chl_num = music_info->channels;
         port_info.sample_rate = music_info->sample_rates;
-        port_info.dig_gain = 0x2d;
-        port_info.ana_gain = 0x01;
+        port_info.dig_gain = -7.0f;
+        port_info.ana_gain = 4;
         port_info.bits = music_info->bits;
         port_info.port_id = 1;
         port_info.priority = 1;
@@ -122,8 +122,8 @@ int player1_event_handler(int data, void *params, void *args)
         audio_port_info_t port_info = {0};
         port_info.chl_num = music_info->channels;
         port_info.sample_rate = music_info->sample_rates;
-        port_info.dig_gain = 0x2d;
-        port_info.ana_gain = 0x01;
+        port_info.dig_gain = -7.0f;
+        port_info.ana_gain = 4;
         port_info.bits = music_info->bits;
         port_info.port_id = 2;
         port_info.priority = 2;
@@ -545,8 +545,8 @@ void cli_player_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
             audio_port_info_t port_info = {0};
             port_info.chl_num = 1;
             port_info.sample_rate = 8000;
-            port_info.dig_gain = 0x2d;
-            port_info.ana_gain = 0x01;
+            port_info.dig_gain =-7.0f;
+            port_info.ana_gain = 4;
             port_info.bits = 16;
             if (tone_id == 1)
             {

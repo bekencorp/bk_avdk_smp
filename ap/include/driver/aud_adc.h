@@ -91,8 +91,12 @@ bk_err_t bk_aud_adc_set_samp_rate(uint32_t sample_rate);
 bk_err_t bk_aud_adc_set_gain(uint32_t value);
 #elif CONFIG_AUD_DRIVER_V2
 bk_err_t bk_aud_adc_set_ana_gain(aud_adc_chl_t chl, uint32_t value);
+bk_err_t bk_aud_adc_set_ana_gain_db(aud_adc_chl_t chl, int32_t db);
+bk_err_t bk_aud_adc_get_ana_gain_db(aud_adc_chl_t chl, int32_t *db);
 
 bk_err_t bk_aud_adc_set_dig_gain(aud_adc_chl_t chl, uint32_t value);
+bk_err_t bk_aud_adc_set_dig_gain_db(aud_adc_chl_t chl, float db);
+bk_err_t bk_aud_adc_get_dig_gain_db(aud_adc_chl_t chl, float *db);
 #endif
 
 /**

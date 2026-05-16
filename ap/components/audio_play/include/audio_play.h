@@ -69,7 +69,7 @@ typedef struct
     uint8_t nChans;
     uint32_t sampRate;
     uint8_t bitsPerSample;
-    int volume;
+    float volume;                  /*!< speaker digital gain in dB */
     audio_play_mode_t play_mode;
     uint32_t frame_size;            /*!< frame size unit byte */
     uint32_t pool_size;             /*!< the size (unit byte) of ringbuffer pool saved speaker data need to play */
@@ -83,7 +83,7 @@ typedef struct
     .nChans = 1,                            \
     .sampRate = 8000,                       \
     .bitsPerSample = 16,                    \
-    .volume = 0x07000000,                   \
+    .volume = -7.0f,                        \
     .play_mode = AUDIO_PLAY_MODE_DIFFEN,    \
     .frame_size = 320,                      \
     .pool_size = 640,                       \
@@ -215,7 +215,7 @@ bk_err_t audio_play_control(audio_play_t *play, audio_play_ctl_t ctl);
  *    - BK_OK: success
  *    - NULL: failed
  */
-bk_err_t audio_play_set_volume(audio_play_t *play, int volume);
+bk_err_t audio_play_set_volume(audio_play_t *play, float volume);
 
 #ifdef __cplusplus
 }

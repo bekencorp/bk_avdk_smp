@@ -52,8 +52,8 @@ typedef struct audio_port_info
 {
     uint8_t                 chl_num;            /*!< speaker channel number */
     uint32_t                sample_rate;        /*!< speaker sample rate */
-    int32_t                 dig_gain;           /*!< audio dac digital gain: value range: 0x00 ~ 0x3f(-45db ~ 18db, 0x2d: 0db), suggest: 0x2d */
-    int32_t                 ana_gain;           /*!< audio dac analog gain: value range: , suggest: */
+    float                   dig_gain;           /*!< audio dac digital gain in dB */
+    int32_t                 ana_gain;           /*!< audio dac analog gain in dB (integer step) */
     uint8_t                 bits;               /*!< Bit wide (8, 16, 24, 32 bits) */
     uint8_t                 port_id;            /*!< the valid audio port of currently reading speaker data, 0: element->in, >=1: element->multi_in */
     uint8_t                 priority;           /*!< the priority of the audio port. The lower the value, the higher the priority to be processed. The default value is 0 (highest priority). */
@@ -67,8 +67,8 @@ typedef struct audio_port_info
 #define DEFAULT_AUDIO_PORT_INFO() {     \
     .chl_num = 1,                       \
     .sample_rate = 8000,                \
-    .dig_gain = 0x07000000,             \
-    .ana_gain = 0x01,                   \
+    .dig_gain = -7.0f,                  \
+    .ana_gain = 4,                      \
     .bits = 16,                         \
     .port_id = 0,                       \
     .priority = 0,                      \

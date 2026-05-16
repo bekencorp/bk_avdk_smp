@@ -1002,16 +1002,9 @@ _onboard_mic_init_exit:
     return NULL;
 }
 
-bk_err_t onboard_dual_dmic_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t gain)
+bk_err_t onboard_dual_dmic_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_stream, float gain_db)
 {
     onboard_dual_dmic_mic_stream_t *onboard_mic = (onboard_dual_dmic_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
-
-    /* check param */
-    if (gain < 0 || gain > 0x3f)
-    {
-        BK_LOGE(TAG, "gain: %d is out of range: 0x00 ~ 0x3f \n", gain);
-        return BK_FAIL;
-    }
 
     /* check param */
     if (onboard_mic == NULL)
@@ -1020,15 +1013,15 @@ bk_err_t onboard_dual_dmic_mic_stream_set_digital_gain(audio_element_handle_t on
         return BK_FAIL;
     }
 
-    if (onboard_mic->adc_cfg.chl_cfg[AUD_ADC_CHL_0].dig_gain == gain)
+    if (onboard_mic->adc_cfg.chl_cfg[AUD_ADC_CHL_0].dig_gain == gain_db)
     {
         BK_LOGD(TAG, "not need updata onboard mic digital gain \n");
         return BK_OK;
     }
 
-    if (BK_OK == bk_aud_adc_set_dig_gain(AUD_ADC_CHL_0,gain))
+    if (BK_OK == bk_aud_adc_set_dig_gain_db(AUD_ADC_CHL_0, gain_db))
     {
-        onboard_mic->adc_cfg.chl_cfg[AUD_ADC_CHL_0].dig_gain = gain;
+        onboard_mic->adc_cfg.chl_cfg[AUD_ADC_CHL_0].dig_gain = gain_db;
         audio_element_setdata(onboard_mic_stream, onboard_mic);
     }
     else
@@ -1040,14 +1033,14 @@ bk_err_t onboard_dual_dmic_mic_stream_set_digital_gain(audio_element_handle_t on
     return BK_OK;
 }
 
-bk_err_t onboard_dual_dmic_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t *gain)
+bk_err_t onboard_dual_dmic_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_stream, float *gain_db)
 {
     onboard_dual_dmic_mic_stream_t *onboard_mic = (onboard_dual_dmic_mic_stream_t *)audio_element_getdata(onboard_mic_stream);
 
     /* check param */
-    if (gain == NULL)
+    if (gain_db == NULL)
     {
-        BK_LOGE(TAG, "%s, line: %d, gain is NULL\n", __func__, __LINE__);
+        BK_LOGE(TAG, "%s, line: %d, gain_db is NULL\n", __func__, __LINE__);
         return BK_FAIL;
     }
 
@@ -1058,7 +1051,7 @@ bk_err_t onboard_dual_dmic_mic_stream_get_digital_gain(audio_element_handle_t on
         return BK_FAIL;
     }
 
-    *gain = onboard_mic->adc_cfg.chl_cfg[AUD_ADC_CHL_0].dig_gain;
+    *gain_db = onboard_mic->adc_cfg.chl_cfg[AUD_ADC_CHL_0].dig_gain;
 
     return BK_OK;
 }

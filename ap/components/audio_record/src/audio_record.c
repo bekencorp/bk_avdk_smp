@@ -59,7 +59,7 @@ static void audio_record_build_mic_cfg(const audio_record_cfg_t *cfg, onboard_mi
     mic_cfg->adc_cfg.aec_en = 0;
     mic_cfg->adc_cfg.chl_cfg[0].bits     = cfg->bitsPerSample;
     mic_cfg->adc_cfg.chl_cfg[0].dig_gain = cfg->adc_gain;
-    mic_cfg->adc_cfg.chl_cfg[0].ana_gain = 0x07;
+    mic_cfg->adc_cfg.chl_cfg[0].ana_gain = 20;
     mic_cfg->adc_cfg.chl_cfg[0].adc_mode = AUD_ADC_MODE_DIFFEN;
     mic_cfg->frame_size     = cfg->frame_size;
     mic_cfg->out_block_size = cfg->frame_size;
@@ -301,13 +301,13 @@ bk_err_t audio_record_control(audio_record_t *record, audio_record_ctl_t ctl)
         case AUDIO_RECORD_RESUME:
             return audio_pipeline_resume(ctx->pipeline);
         case AUDIO_RECORD_SET_ADC_GAIN:
-            return onboard_mic_stream_set_digital_gain(ctx->mic, (uint8_t)record->config.adc_gain, AUD_ADC_CHL_0);
+            return onboard_mic_stream_set_digital_gain(ctx->mic, record->config.adc_gain, AUD_ADC_CHL_0);
         default:
             return BK_OK;
     }
 }
 
-bk_err_t audio_play_set_adc_gain(audio_record_t *record, int value)
+bk_err_t audio_play_set_adc_gain(audio_record_t *record, float value)
 {
     if (!record) {
         return BK_FAIL;

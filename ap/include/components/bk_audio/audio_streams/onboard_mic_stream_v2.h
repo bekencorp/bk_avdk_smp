@@ -68,20 +68,20 @@ typedef struct
                     .chl_cfg =                                          \
                     {                                                   \
                         {                                               \
-                            .dig_gain = 0x1c000,                        \
-                            .ana_gain = 0x07,                           \
+                            .dig_gain = 16.0f,                          \
+                            .ana_gain = 20,                             \
                             .adc_mode = AUD_ADC_MODE_DIFFEN,            \
                             .bits = 16,                                 \
                         },                                              \
                         {                                               \
-                            .dig_gain = 0x1c000,                        \
-                            .ana_gain = 0x07,                           \
+                            .dig_gain = 16.0f,                          \
+                            .ana_gain = 20,                             \
                             .adc_mode = AUD_ADC_MODE_DIFFEN,            \
                             .bits = 16,                                 \
                         },                                              \
                         {                                               \
-                            .dig_gain = 0x1c000,                        \
-                            .ana_gain = 0x07,                           \
+                            .dig_gain = 16.0f,                          \
+                            .ana_gain = 20,                             \
                             .adc_mode = AUD_ADC_MODE_DIFFEN,            \
                             .bits = 16,                                 \
                         },                                              \
@@ -118,53 +118,53 @@ audio_element_handle_t onboard_mic_stream_init(onboard_mic_stream_cfg_t *config)
  * @brief      Updata onboard mic stream digital gain.
  *
  * @param[in]      onboard_mic_stream  element handle
- * @param[in]      gain  mic digital gain, range: 0x00 ~ 0x3f(-45db ~ 18db, 0x2d: 0db)
+ * @param[in]      gain_db  mic digital gain in dB
  * @param[in]      ch    mic adc channel, range: AUD_ADC_CHL_0/AUD_ADC_CHL_1/AUD_ADC_CHL_2
  *
  * @return         Result
  *                 - BK_OK: success
  *                 - other: failed
  */
-bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t gain, aud_adc_chl_t ch);
+bk_err_t onboard_mic_stream_set_digital_gain(audio_element_handle_t onboard_mic_stream, float gain_db, aud_adc_chl_t ch);
 
 /**
  * @brief      Get onboard mic stream digital gain.
  *
  * @param[in]      onboard_mic_stream  element handle
- * @param[in,out]  gain  mic digital gain
+ * @param[in,out]  gain_db  mic digital gain in dB
  * @param[in]      ch    mic adc channel, range: AUD_ADC_CHL_0/AUD_ADC_CHL_1/AUD_ADC_CHL_2
  *
  * @return         Result
  *                 - BK_OK: success
  *                 - other: failed
  */
-bk_err_t onboard_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_stream, uint8_t *gain, aud_adc_chl_t ch);
+bk_err_t onboard_mic_stream_get_digital_gain(audio_element_handle_t onboard_mic_stream, float *gain_db, aud_adc_chl_t ch);
 
 /**
  * @brief      Update onboard mic stream analog gain.
  *
  * @param[in]      onboard_mic_stream  element handle
- * @param[in]      gain  mic analog gain, range: 0x00 ~ 0x3f
+ * @param[in]      gain_db  mic analog gain in dB
  * @param[in]      ch    mic adc channel, range: AUD_ADC_CHL_0/AUD_ADC_CHL_1/AUD_ADC_CHL_2
  *
  * @return         Result
  *                 - BK_OK: success
  *                 - other: failed
  */
-bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_stream, uint8_t gain, aud_adc_chl_t ch);
+bk_err_t onboard_mic_stream_set_analog_gain(audio_element_handle_t onboard_mic_stream, int32_t gain_db, aud_adc_chl_t ch);
 
 /**
  * @brief      Get onboard mic stream analog gain.
  *
  * @param[in]      onboard_mic_stream  element handle
- * @param[in,out]  gain  mic analog gain
+ * @param[in,out]  gain_db  mic analog gain in dB
  * @param[in]      ch    mic adc channel, range: AUD_ADC_CHL_0/AUD_ADC_CHL_1/AUD_ADC_CHL_2
  *
  * @return         Result
  *                 - BK_OK: success
  *                 - other: failed
  */
-bk_err_t onboard_mic_stream_get_analog_gain(audio_element_handle_t onboard_mic_stream, uint8_t *gain, aud_adc_chl_t ch);
+bk_err_t onboard_mic_stream_get_analog_gain(audio_element_handle_t onboard_mic_stream, int32_t *gain_db, aud_adc_chl_t ch);
 
 #ifdef __cplusplus
 }

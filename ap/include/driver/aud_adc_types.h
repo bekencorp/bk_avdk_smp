@@ -266,10 +266,25 @@ typedef struct {
         .adc_mode      = AUD_ADC_MODE_DIFFEN,                     \
         .clk_src       = AUD_CLK_APLL,                            \
     }
+
 #elif CONFIG_AUD_DRIVER_V2
+/** Max ADC digital gain in dB (maps to register full-scale linear, ~0x1FFFF) */
+#define BK_AUD_ADC_DIG_GAIN_DB_MAX        (18.0f)
+/** dB returned when register linear gain is 0 (mute / -inf dB) */
+#define BK_AUD_ADC_DIG_GAIN_DB_SILENCE    (-100.0f)
+
+#define ADC_DIG_GAIN_INT_MASK             (0x7u)
+#define ADC_DIG_GAIN_INT_SHIFT            (14u)
+#define ADC_DIG_GAIN_FRAC_MASK            (0x3FFFu)
+#define ADC_DIG_GAIN_FRAC_SCALE           (16384u) /* 1<<14 */
+                                          
+#define ADC_ANA_GAIN_REG_MAX              (0x0Fu)
+#define ADC_ANA_GAIN_STEP_DB              (2)
+#define BK_AUD_ADC_ANA_GAIN_DB_MAX        ((int32_t)ADC_ANA_GAIN_REG_MAX * ADC_ANA_GAIN_STEP_DB)
+
 typedef struct {
-	int32_t dig_gain;                   /**< AUD adc digital gain set */
-	int32_t ana_gain;                   /**< AUD adc analog gain set */
+	float dig_gain;                     /**< AUD adc digital gain in dB, range: (-inf, 18.0] */
+	int32_t ana_gain;                   /**< AUD adc analog gain in dB, range: [0, 30], 2dB/step */
 	aud_adc_mode_t adc_mode;            /**< AUD ADC mode select  single_end/differen */
 	uint8_t bits;                       /**< AUD ADC bits width 16/24 */
 } aud_adc_chl_config_t;
@@ -293,20 +308,20 @@ typedef struct {
     .aec_en  = 0,                                       \
     .chl_cfg = {                                        \
         {                                               \
-            .dig_gain = 0x4000,                         \
-            .ana_gain = 0x07,                           \
+            .dig_gain = 16.0f,                          \
+            .ana_gain = 20,                             \
             .adc_mode = AUD_ADC_MODE_DIFFEN,            \
             .bits = 16,                                 \
         },                                              \
         {                                               \
-            .dig_gain = 0x4000,                         \
-            .ana_gain = 0x07,                           \
+            .dig_gain = 16.0f,                          \
+            .ana_gain = 20,                             \
             .adc_mode = AUD_ADC_MODE_DIFFEN,            \
             .bits = 16,                                 \
         },                                              \
         {                                               \
-            .dig_gain = 0x4000,                         \
-            .ana_gain = 0x07,                           \
+            .dig_gain = 16.0f,                           \
+            .ana_gain = 20,                             \
             .adc_mode = AUD_ADC_MODE_DIFFEN,            \
             .bits = 16,                                 \
         },                                              \

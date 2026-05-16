@@ -116,6 +116,7 @@ bk_err_t bk_aud_dac_get_dig_gain_db(float *db);
 bk_err_t bk_aud_dac_set_ana_gain(uint8_t value);
 #elif CONFIG_AUD_DRIVER_V2
 bk_err_t bk_aud_dac_set_ana_gain(uint32_t value);
+bk_err_t bk_aud_dac_set_ana_gain_db(int32_t db);
 #endif
 /**
  * @brief     Get the dac analog gain
@@ -128,6 +129,9 @@ bk_err_t bk_aud_dac_set_ana_gain(uint32_t value);
  *    - others: other errors.
  */
 bk_err_t bk_aud_dac_get_ana_gain(uint32_t *gain);
+#if CONFIG_AUD_DRIVER_V2
+bk_err_t bk_aud_dac_get_ana_gain_db(int32_t *db);
+#endif
 
 /**
  * @brief     Mute audio dac

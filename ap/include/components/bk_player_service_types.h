@@ -157,8 +157,8 @@ typedef struct
         .sample_rate[0] = 48000,                                \
         .sample_rate[1] = 16000,                                \
         .sample_rate[2] = 16000,                                \
-        .dig_gain = 0x07000000,                                 \
-        .ana_gain = 0x01,                                       \
+        .dig_gain = -7.0f,                                      \
+        .ana_gain = 4,                                          \
         .work_mode = AUD_DAC_WORK_MODE_DIFFEN,                  \
         .bits = 16,                                             \
         .clk_src = AUD_CLK_APLL,                                \
