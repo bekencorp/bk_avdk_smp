@@ -4,6 +4,7 @@ set(srcs
 	src/avdk_utils.c
 	src/sw_i2c.c
 	src/avdk_pixel_types.c
+	src/avdk_pixel_convert.c
 )
 
 set(priv_req )

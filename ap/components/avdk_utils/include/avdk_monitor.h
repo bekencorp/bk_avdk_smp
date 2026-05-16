@@ -1,5 +1,8 @@
 #pragma once
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // #define ISP_LOGIC_DEBUG
 // #define GPU_LOGIC_DEBUG
@@ -136,3 +139,7 @@ void avdk_monitor_init(void);
 void avdk_monitor_start(void);
 void avdk_monitor_stop(void);
 void avdk_monitor_deinit(void);
+
+#ifdef __cplusplus
+}
+#endif

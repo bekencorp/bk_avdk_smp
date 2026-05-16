@@ -125,69 +125,6 @@ int AvdkVideoReatorOSD::init()
     return BK_OK;
 }
 
-
-static int argb8888_frame_to_rgb565(uint32_t *src, uint16_t *dst, uint32_t width, uint32_t height)
-{
-    if (src == NULL || dst == NULL || width == 0 || height == 0) {
-        LOGE("%s, %d src or dst is NULL or width or height is 0\r\n", __func__, __LINE__);
-        return BK_FAIL;
-    }
-
-    for (uint32_t i = 0; i < width * height; ++i) {
-        uint32_t argb = src[i];
-
-        uint8_t r = (argb >> 16) & 0xFF;
-        uint8_t g = (argb >> 8)  & 0xFF;
-        uint8_t b = (argb >> 0)  & 0xFF;
-
-        uint16_t r5 = (uint16_t)(r >> 3);
-        uint16_t g6 = (uint16_t)(g >> 2);
-        uint16_t b5 = (uint16_t)(b >> 3);
-
-        dst[i] = (uint16_t)((r5 << 11) | (g6 << 5) | b5);
-    }
-
-    return BK_OK;
-}
-
-static int rgb888_frame_to_rgb565(uint8_t *src, uint16_t *dst, uint32_t width, uint32_t height)
-{
-    if (src == NULL || dst == NULL || width == 0 || height == 0) {
-        LOGE("%s, %d src or dst is NULL or width or height is 0\r\n", __func__, __LINE__);
-        return BK_FAIL;
-    }
-
-    /*
-     * Input format assumption:
-     * - src is packed RGB888, 3 bytes per pixel: [R, G, B][R, G, B]...
-     * Output format:
-     * - dst is RGB565, 16-bit per pixel: R[4:0], G[5:0], B[4:0]
-     */
-    const uint64_t pixel_cnt = (uint64_t)width * (uint64_t)height;
-    const uint64_t src_bytes_needed = pixel_cnt * 3ULL;
-
-    /* Prevent 32-bit index overflow when computing i*3 */
-    if (pixel_cnt == 0 || src_bytes_needed > (uint64_t)UINT32_MAX) {
-        LOGE("%s, %d invalid size: width=%u height=%u\r\n", __func__, __LINE__, (unsigned)width, (unsigned)height);
-        return BK_FAIL;
-    }
-
-    for (uint32_t i = 0; i < (uint32_t)pixel_cnt; ++i) {
-        const uint32_t base = i * 3U;
-        const uint8_t r = src[base + 0U];
-        const uint8_t g = src[base + 1U];
-        const uint8_t b = src[base + 2U];
-
-        const uint16_t r5 = (uint16_t)(r >> 3);
-        const uint16_t g6 = (uint16_t)(g >> 2);
-        const uint16_t b5 = (uint16_t)(b >> 3);
-
-        dst[i] = (uint16_t)((r5 << 11) | (g6 << 5) | b5);
-    }
-
-    return BK_OK;
-}
-
 int AvdkVideoReatorOSD::start()
 {
     int ret = rtos_create_hsram_thread(&thread,
