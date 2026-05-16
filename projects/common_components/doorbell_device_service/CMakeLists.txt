@@ -19,10 +19,6 @@ if (CONFIG_USB_CAMERA)
 list(APPEND srcs src/app_uvc.c)
 endif()
 
-if (CONFIG_FACE_DETECTION_V2)
-list(APPEND priv_req detection_service)
-endif()
-
 list(APPEND priv_req unity include avdk_utils avdk_driver bk_peripheral bk_h264d bk_h264e media_service)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
