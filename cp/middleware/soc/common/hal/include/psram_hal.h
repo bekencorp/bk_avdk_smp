@@ -215,6 +215,9 @@ void psram_hal_set_voltage(psram_voltage_t voltage);
 void psram_hal_set_default_clk(void);
 void psram_hal_set_default_clk_with_id(psram_id_t psram_id);
 
+/** Set PSRAM interleave step (0=256B 1=128B 2=64B 3=32B). Used when CONFIG_PSRAM_INTERLEAVE. */
+void psram_hal_set_interleave_config(uint32_t step);
+
 #if CFG_HAL_DEBUG_PSRAM
 void psram_struct_dump(void);
 #else
