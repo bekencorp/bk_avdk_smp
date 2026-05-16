@@ -35,6 +35,36 @@ typedef struct {
 static vg_lite_buffer_t lv_dst_buf;
 static vg_lite_buffer_t lv_src_buf;
 static vg_lite_matrix_t lv_matrix;
+static bool s_compress_buffer_initialized;
+
+static vg_lite_color_t lv_partial_color_to_vg(lv_color_t color)
+{
+    lv_color32_t color32 = lv_color_to_32(color, LV_OPA_COVER);
+
+    return ((vg_lite_color_t)color32.alpha << 24) | ((vg_lite_color_t)color32.blue << 16) |
+           ((vg_lite_color_t)color32.green << 8) | (vg_lite_color_t)color32.red;
+}
+
+static vg_lite_color_t lv_partial_get_default_clear_color(void)
+{
+    lv_color_t color;
+
+#if LV_USE_THEME_DEFAULT
+    #if LV_THEME_DEFAULT_DARK
+        color = lv_color_hex(0x15171A);
+    #else
+        color = lv_palette_lighten(LV_PALETTE_GREY, 4);
+    #endif
+#elif LV_USE_THEME_SIMPLE
+    color = lv_palette_lighten(LV_PALETTE_GREY, 4);
+#elif LV_USE_THEME_MONO
+    color = lv_color_white();
+#else
+    color = lv_color_white();
+#endif
+
+    return lv_partial_color_to_vg(color);
+}
 
 static void lv_memcpy_one_line(void *dest_buf, const void *src_buf, uint32_t point_num)
 {
@@ -50,6 +80,7 @@ void lv_port_disp_partial_init(lv_vnd_data_t *vnd_data)
 #endif
 
     if (vnd_data->config.output_compress) {
+        s_compress_buffer_initialized = false;
         os_memset(&lv_dst_buf, 0, sizeof(vg_lite_buffer_t));
         #if (LV_COLOR_DEPTH == 16)
             lv_dst_buf.format = VG_LITE_BGR565;
@@ -89,6 +120,7 @@ void lv_port_disp_partial_deinit(lv_vnd_data_t *vnd_data)
 #endif
 
     if (vnd_data->config.output_compress) {
+        s_compress_buffer_initialized = false;
         vg_lite_free_without_free_data(&lv_src_buf);
         vg_lite_free_without_free_data(&lv_dst_buf);
     }
@@ -149,9 +181,22 @@ static void lv_partial_flush_compress(lv_vnd_data_t *vnd_data, lv_partial_flush_
     lv_dst_buf.height = vnd_data->config.disp_height;
     vg_lite_allocate_with_data(&lv_dst_buf, vnd_data->disp_buf, NULL, NULL, NULL);
 
+    if (!s_compress_buffer_initialized) {
+        if (vg_lite_clear(&lv_dst_buf, NULL, lv_partial_get_default_clear_color()) == VG_LITE_SUCCESS) {
+            vg_lite_finish();
+            s_compress_buffer_initialized = true;
+        } else {
+            LOGE("%s clear compressed frame buffer failed\n", __func__);
+        }
+    }
+
     vg_lite_identity(&lv_matrix);
     vg_lite_translate(ctx->area->x1, ctx->area->y1, &lv_matrix);
-    vg_lite_blit_rect(&lv_dst_buf, &lv_src_buf, &rect, &lv_matrix, VG_LITE_BLEND_SRC_OVER, 0, VG_LITE_FILTER_LINEAR);
+    vg_lite_error_t ret = vg_lite_blit_rect(&lv_dst_buf, &lv_src_buf, &rect, &lv_matrix, VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
+    if (ret != VG_LITE_SUCCESS) {
+        LOGE("%s blit compressed frame buffer failed, ret=%d, area=(%d,%d)-(%d,%d)\n",
+             __func__, ret, ctx->area->x1, ctx->area->y1, ctx->area->x2, ctx->area->y2);
+    }
     vg_lite_finish();
 }
 
