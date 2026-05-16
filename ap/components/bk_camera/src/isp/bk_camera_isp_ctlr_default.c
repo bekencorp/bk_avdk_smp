@@ -41,7 +41,7 @@ static void isp_camera_ctlr_task_entry(void *param)
 
         if (config->enable_flexa)
         {
-            LOGE("%s, %d flexa mode not supported read frame\n", __func__, __LINE__);
+            LOGE("%s, %d channel %d flexa mode not supported read frame\n", __func__, __LINE__, chnl_id);
             rtos_delay_milliseconds(1000);
             continue;
         }
