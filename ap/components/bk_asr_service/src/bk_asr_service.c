@@ -353,7 +353,7 @@ aud_asr_handle_t bk_aud_asr_init(aud_asr_cfg_t *cfg)
                          (beken_thread_arg_t)aud_asr_handle);
     #endif
     #else
-    ret = rtos_create_thread(&aud_asr_handle->aud_asr_task_hdl,
+    ret = rtos_create_hsram_thread(&aud_asr_handle->aud_asr_task_hdl,
                          aud_asr_handle->task_prio,
                          "aud_asr",
                          (beken_thread_function_t)aud_asr_task_main,

@@ -804,7 +804,7 @@ bk_err_t doorbell_devices_start(uint16_t img_format)
     }
 
     // need create task to read frame
-    bk_err_t ret = rtos_create_thread(&s_db_trans_cfg->transfer_thread,
+    bk_err_t ret = rtos_create_hsram_thread(&s_db_trans_cfg->transfer_thread,
                                 BEKEN_DEFAULT_WORKER_PRIORITY,
                                 "trs_task",
                                 (beken_thread_function_t)doorbell_devices_task_entry,
