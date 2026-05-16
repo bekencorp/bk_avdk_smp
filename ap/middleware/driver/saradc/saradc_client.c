@@ -32,7 +32,7 @@ static uint32_t s_saradc_err_log_cnt = 0;
 		BK_LOGI(TAG, "%s @%d, data=%d, cnt=%u.\r\n", __FUNCTION__, line_num, ret, s_saradc_err_log_cnt); \
 } while(0)
 
-#define SARADC_OPERATE_TIMEOUT         600
+#define SARADC_OPERATE_TIMEOUT         2000
 #define ADC_SAMPLE_CNT_DEFAULT         32
 
 static bool s_saradc_client_init = false;
