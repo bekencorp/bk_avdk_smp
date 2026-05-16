@@ -1,2 +1,0 @@
-#./dbuild.sh make bk7259
-#./dbuild.sh make bk7259 PROJECT=app BK_CONFIG_FILE=platform
