@@ -1,3 +1,5 @@
+#include <common/bk_include.h>
+#include "cmsis_gcc.h"
 #include <string.h>
 #include "mbox0_adapter.h"
 #include "cache.h"
@@ -26,6 +28,7 @@ static void mbox0_rx_isr(mbox0_message_t *msg)
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
 		flush_dcache((void *)msg->data[0], sizeof(data));
 #endif
+		__DMB();
 		memcpy(&data, (u8 *)msg->data[0], sizeof(data));
 	}
 	else
@@ -120,7 +123,9 @@ bk_err_t bk_mailbox_send(mailbox_data_t *data, mailbox_endpoint_t src, mailbox_e
 	message.data[1] = sizeof(mailbox_data_t);
 	message.dest_cpu = (uint8_t)dst;
 
+	__DMB();
 	ret_code = mbox0_drv_send_message(&message);
+	__DSB();
 
 	if(ret_code != MBOX0_HAL_OK)
 		return BK_ERR_MAILBOX_NOT_INIT;

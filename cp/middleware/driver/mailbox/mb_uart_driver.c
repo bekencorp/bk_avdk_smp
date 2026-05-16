@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <common/bk_include.h>
+#include "cmsis_gcc.h"
 #include <stdio.h>
 #include <string.h>
 #include <os/os.h>
@@ -208,6 +210,7 @@ static void rx_isr_data_handler(mb_uart_cb_t *chnl_cb, mb_uart_cmd_t * uart_cmd)
 	#if CONFIG_SUPPORT_CACHEABLE_SRAM
 	flush_dcache(uart_cmd->cmd_buff, uart_cmd->cmd_data_len);
 	#endif
+	__DMB();
 
 	u16    rem_len, cpy_len;
 

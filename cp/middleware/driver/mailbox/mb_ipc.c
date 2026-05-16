@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <common/bk_include.h>
+#include "cmsis_gcc.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -1993,6 +1995,7 @@ int mb_ipc_recv_async(u32 handle, u8 * user_cmd, u8 * data_buff, u32 buff_len)
 		else
 			flush_dcache(ipc_socket->rx_cmd.cmd_data_buff, ipc_socket->rx_cmd.cmd_data_len);
 		#endif
+		__DMB();
 
 		memcpy(data_buff, src_buf, read_len);
 		ipc_socket->rx_read_offset += read_len;

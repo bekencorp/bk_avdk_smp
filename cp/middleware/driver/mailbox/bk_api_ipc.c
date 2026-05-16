@@ -1,4 +1,5 @@
 #include <common/bk_include.h>
+#include "cmsis_gcc.h"
 #include <common/bk_err.h>
 #include <common/bk_assert.h>
 #include <os/os.h>
@@ -749,6 +750,7 @@ static void bk_ipc_mailbox_rx_isr(void *param, mb_chnl_cmd_t *cmd_buf)
 #if (CONFIG_SUPPORT_CACHEABLE_SRAM)
     flush_all_dcache();
 #endif
+    __DMB();
 
     LOGV("%s %d\n", __func__, __LINE__);
 
