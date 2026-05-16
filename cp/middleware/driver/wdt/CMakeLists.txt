@@ -1,5 +1,4 @@
 list(APPEND incs wdt)
-list(APPEND srcs wdt/wdt_driver.c)
 
 if (CONFIG_WDT_EN)
 	if (CONFIG_CLI AND CONFIG_WDT_TEST)

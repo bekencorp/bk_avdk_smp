@@ -15,8 +15,6 @@
 #pragma once
 
 #include "hal_config.h"
-#include "wdt_hw.h"
-#include "wdt_ll.h"
 #include <driver/hal/hal_wdt_types.h>
 
 #ifdef __cplusplus
@@ -25,18 +23,15 @@ extern "C" {
 
 typedef enum {
 	AON_WDT_ID = 0,  /**< AON_WDT_ID */
-	NMI_WDT_ID,      /**< NMI_WDT_ID */
 } wdt_id_t;
 
 typedef struct {
-	wdt_hw_t *hw;
 	wdt_unit_t id;
 } wdt_hal_t;
 
-#define wdt_hal_reset_config_to_default(hal) wdt_ll_reset_config_to_default((hal)->hw)
-
 bk_err_t wdt_hal_init(wdt_hal_t *hal);
 bk_err_t wdt_hal_init_wdt(wdt_hal_t *hal, uint32_t timeout);
+__attribute__((section(".itcm_sec_code"))) void wdt_hal_reset_config_to_default(wdt_hal_t *hal);
 void wdt_hal_close(void);
 void wdt_hal_force_feed(void);
 void wdt_hal_force_reboot(void);

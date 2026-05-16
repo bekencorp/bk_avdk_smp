@@ -268,8 +268,8 @@ void dlv_hook(void)
         GPIO_UP(27);//1
         GPIO_DOWN(27);
 #endif
-        extern void bk_wdt_close(void);
-        bk_wdt_close();
+
+        bk_wdt_force_feed();
         early_jtag_gpio_map();
     
         extern uint32_t __STACK_LIMIT;

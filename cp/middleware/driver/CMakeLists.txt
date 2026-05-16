@@ -84,17 +84,17 @@ endif()
 	list(APPEND srcs
 		common/driver.c
 		common/drv_model.c
- 		#icu/icu_driver.c
 		sys_ctrl/sys_bt_driver.c
 		sys_ctrl/sys_wifi_driver.c
-		##sys_ctrl/sys_audio_driver.c
 		sys_ctrl/sys_psram_driver.c
 		sys_ctrl/sys_touch_driver.c
+		wdt/wdt_driver.c
+		#icu/icu_driver.c
+		##sys_ctrl/sys_audio_driver.c
 		#pwr_clk/low_pwr_core.c
 		#pwr_clk/low_pwr_misc.c
 		#sys_ctrl/sys_ctrl.c
 		#timer/timer_driver.c
-		#wdt/wdt_driver.c
 		#gpio/gpio_driver_base.c
 		#uart/uart_driver.c
 		#uart/uart_statis.c

@@ -13,37 +13,26 @@
 // limitations under the License.
 
 #include "hal_config.h"
-#include "wdt_hw.h"
 #include "wdt_hal.h"
-#include "wdt_ll.h"
+#include "aon_wdt_ll.h"
 
 #if CFG_HAL_DEBUG_WDT
 
 void wdt_struct_dump(void)
 {
+	uint32_t ctrl = REG_READ(AON_WDT_R_CTRL);
+	uint32_t period = ((ctrl >> AON_WDT_CONFIG_WD_PERIOD_LOW_POS) & AON_WDT_CONFIG_WD_PERIOD_LOW_MASK) |
+		(((ctrl >> AON_WDT_CONFIG_WD_PERIOD_HIGH_POS) & AON_WDT_CONFIG_WD_PERIOD_HIGH_MASK) << 16);
+	uint32_t key = (ctrl >> AON_WDT_CONFIG_WD_KEY_POS) & AON_WDT_CONFIG_WD_KEY_MASK;
+
 	SOC_LOGD("system_0xa:%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0xa * 4));
 	SOC_LOGD("system_0xc:%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0xc * 4));
 	SOC_LOGD("system_0x20=0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x20 * 4));
 	SOC_LOGD("pmu_0x2=0x%x\r\n", REG_READ(SOC_AON_PMU_REG_BASE + 0x2 * 4));
-
-	wdt_hw_t *hw = (wdt_hw_t *)WDT_LL_REG_BASE(0);
-	SOC_LOGD("base=%x\r\n", (uint32_t)hw);
-
-	SOC_LOGD("  device_id=0x%x value=0x%x\n", &hw->dev_id, hw->dev_id);
-	SOC_LOGD("  dev_version=0x%x value=0x%x\n", &hw->dev_version, hw->dev_version);
-
-	SOC_LOGD("  global_ctrl=0x%x value=0x%x\n", &hw->global_ctrl, hw->global_ctrl.v);
-	SOC_LOGD("    soft_reset:      %x\n", hw->global_ctrl.soft_reset);
-	SOC_LOGD("    clk_gate_bypass: %x\n", hw->global_ctrl.clk_gate_bypass);
-	SOC_LOGD("    reserved:        %x\n", hw->global_ctrl.reserved);
-	SOC_LOGD("\r\n");
-
-	SOC_LOGD("  dev_status=0x%x value=0x%x\n", &hw->dev_status, hw->dev_status);
-	SOC_LOGD("\r\n");
-
-	SOC_LOGD("  ctrl=0x%x value=0x%x\n", &hw->ctrl, hw->ctrl.v);
-	SOC_LOGD("    period: 0x%x\n", hw->ctrl.period);
-	SOC_LOGD("    key: 0x%x\n", hw->ctrl.key);
+	SOC_LOGD("aon_wdt_base=%x\r\n", SOC_AON_WDT_REG_BASE);
+	SOC_LOGD("  ctrl=0x%x value=0x%x\n", AON_WDT_R_CTRL, ctrl);
+	SOC_LOGD("    period: 0x%x\n", period);
+	SOC_LOGD("    key: 0x%x\n", key);
 }
 
 #endif

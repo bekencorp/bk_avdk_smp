@@ -87,6 +87,7 @@ static void cli_wdt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		uint32_t timeout = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(bk_wdt_start(timeout));
 		CLI_LOGD("wdt start, timeout=%d\n", timeout);
+		CLI_LOGD("AON_WDT_REG_BASE=0x%08x\n", REG_READ(SOC_AON_WDT_REG_BASE));
 	} else if (os_strcmp(argv[1], "stop") == 0) {
 		BK_LOG_ON_ERR(bk_wdt_stop());
 #if (CONFIG_TASK_WDT)

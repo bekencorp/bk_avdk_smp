@@ -18,6 +18,7 @@
 #include <driver/wdt.h>
 #include "wdt_driver.h"
 #include "wdt_hal.h"
+#include "aon_wdt_hal.h"
 #include "reset_reason.h"
 #include "icu_driver.h"
 #include "power_driver.h"
@@ -65,14 +66,13 @@ typedef struct {
 	} while(0)
 
 #define WDT_RETURN_ON_INVALID_PERIOD(timeout) do {\
-		if ((timeout) > WDT_F_PERIOD_V) {\
+		if ((timeout) > AON_WDT_F_PERIOD_V) {\
 			WDT_LOGE("WDT invalid timeout\r\n");\
 			return BK_ERR_WDT_INVALID_PERIOD;\
 		}\
 	} while(0)
 
 #define WDT_BARK_TIME_MS    1000
-#define NMI_WDT_CLK_DIV_16  3
 
 static wdt_driver_t s_wdt = {0};
 static bool s_wdt_driver_is_init = false;
@@ -90,7 +90,7 @@ static uint32_t s_feed_watchdog_time = INT_WDG_FEED_PERIOD_TICK;
 
 __IRAM_SEC static void wdt_init_common(void)
 {
-	bk_pm_clock_ctrl(CLK_PWR_ID_WDG_CPU, CLK_PWR_CTRL_PWR_UP);
+	/* BK7259 uses AON_WDT for the public WDT driver; it is always on. */
 }
 
 __attribute__((section(".itcm_sec_code"))) static void wdt_deinit_common(void)
@@ -111,7 +111,6 @@ bk_err_t bk_wdt_driver_init(void)
 
 #if ((CONFIG_INT_WDT) || (CONFIG_TASK_WDT))
 	bk_timer_start(TIMER_ID2, WDT_BARK_TIME_MS, (timer_isr_t)bk_wdt_feed_handle);
-	sys_drv_nmi_wdt_set_clk_div(NMI_WDT_CLK_DIV_16);
 	aon_pmu_drv_wdt_rst_dev_enable();
 #endif
 	s_wdt_driver_is_init = true;

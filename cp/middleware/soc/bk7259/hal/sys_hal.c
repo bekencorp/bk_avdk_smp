@@ -3099,14 +3099,6 @@ void sys_hal_set_h264_clock_en(uint32_t value)
 {
 	return;
 }
-void sys_hal_nmi_wdt_set_clk_div(uint32_t value)
-{
-	return;
-}
-__IRAM_SEC uint32_t sys_hal_nmi_wdt_get_clk_div(void)
-{
-	return 0;
-}
 void sys_hal_set_ana_cb_cal_manu_val(uint32_t value)
 {
     sys_ll_set_ana_reg5_vbias(value);

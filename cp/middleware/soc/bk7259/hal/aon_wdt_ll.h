@@ -24,11 +24,20 @@ extern "C" {
 #endif
 
 #define AON_WDT_LL_REG_BASE(_aon_wdt_unit_id)    (SOC_AON_WDT_REG_BASE)
-#define AON_WDT_CONFIG_WD_KEY_POS (0)
-#define AON_WDT_CONFIG_WD_KEY_MASK (0xffff)
+#define AON_WDT_CONFIG_WD_KEY_POS (16)
+#define AON_WDT_CONFIG_WD_KEY_MASK (0xff)
 
-#define AON_WDT_CONFIG_WD_PERIOD_POS (16)
-#define AON_WDT_CONFIG_WD_PERIOD_MASK (0xff)
+#define AON_WDT_CONFIG_WD_PERIOD_LOW_POS (0)
+#define AON_WDT_CONFIG_WD_PERIOD_LOW_MASK (0xffff)
+#define AON_WDT_CONFIG_WD_PERIOD_HIGH_POS (24)
+#define AON_WDT_CONFIG_WD_PERIOD_HIGH_MASK (0xff)
+
+static inline uint32_t aon_wdt_ll_make_ctrl_value(uint32_t period, uint32_t key)
+{
+    return (period & AON_WDT_F_PERIOD_LOW_M) |
+        ((period & AON_WDT_F_PERIOD_HIGH_M) << AON_WDT_F_PERIOD_HIGH_REG_S) |
+        (key << AON_WDT_F_KEY_S);
+}
 
 static inline uint32_t aon_wdt_ll_get_wd_key(void)
 {
@@ -42,19 +51,19 @@ static inline uint32_t aon_wdt_ll_get_wd_period(void)
 {
     uint32_t reg_value;
     reg_value = REG_READ(AON_WDT_R_CTRL);
-    reg_value = ((reg_value >> AON_WDT_CONFIG_WD_PERIOD_POS) & AON_WDT_CONFIG_WD_PERIOD_MASK);
-    return reg_value;
+    return ((reg_value >> AON_WDT_CONFIG_WD_PERIOD_LOW_POS) & AON_WDT_CONFIG_WD_PERIOD_LOW_MASK) |
+        (((reg_value >> AON_WDT_CONFIG_WD_PERIOD_HIGH_POS) & AON_WDT_CONFIG_WD_PERIOD_HIGH_MASK) << 16);
 }
 
 static inline void aon_wdt_ll_set_period(uint32_t period)
 {
-	uint32_t ctrl_val = (period & AON_WDT_F_PERIOD_M) | (AON_WDT_V_KEY_1ST << AON_WDT_F_KEY_S);
+	uint32_t ctrl_val = aon_wdt_ll_make_ctrl_value(period, AON_WDT_V_KEY_1ST);
 	REG_WRITE(AON_WDT_R_CTRL, ctrl_val);
 
-	ctrl_val = (period & AON_WDT_F_PERIOD_M) | (AON_WDT_V_KEY_2ND << AON_WDT_F_KEY_S);
+	ctrl_val = aon_wdt_ll_make_ctrl_value(period, AON_WDT_V_KEY_2ND);
 	REG_WRITE(AON_WDT_R_CTRL, ctrl_val);
 }
 
 #ifdef __cplusplus
 }
-#endif
+#endif

@@ -5,7 +5,8 @@ menu "AON_Watchdog"
 
 	config INT_AON_WDT
 		bool "Enable Interrupt AON Watchdog"
-		default n
+		depends on AON_WDT
+		default y
 
 	config INT_AON_WDT_PERIOD_MS
 		int "Interrupt AON Watchdog Period(ms)"

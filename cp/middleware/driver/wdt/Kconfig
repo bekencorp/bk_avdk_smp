@@ -5,17 +5,17 @@ menu "Watchdog"
 
 	config INT_WDT
 		depends on WDT_EN
-		bool "Enable Interrupt Watchdog"
+		bool "Enable AON_WDT Interrupt Watchdog"
 		default y
 
 	config SUPPORT_AON_WDT
 		depends on WDT_EN
-		bool "Enable Interrupt Watchdog"
+		bool "Use AON Watchdog backend"
 		default y
 
 	config INT_WDT_PERIOD_MS
 		depends on WDT_EN
-		int "Interrupt Watchdog Period(ms)"
+		int "AON_WDT Interrupt Watchdog Period(ms)"
 		default 1000
 
 	config TASK_WDT
@@ -27,11 +27,6 @@ menu "Watchdog"
 		depends on WDT_EN
 		int "Task Watchdog Period(ms)"
 		default 60000
-
-	config NMI_WDT_EN
-		depends on WDT_EN
-		bool "Enable NMI Watchdog"
-		default n
 
 	config WDT_TEST
 		depends on INT_WDT && DRIVER_TEST

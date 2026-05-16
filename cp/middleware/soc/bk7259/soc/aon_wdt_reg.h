@@ -23,9 +23,12 @@ extern "C" {
 #define AON_WDT_R_CTRL                  (AON_WDT_R_BASE)
 
 #define AON_WDT_F_PERIOD                (BIT(0))
-#define AON_WDT_F_PERIOD_M              (0xffff)
-#define AON_WDT_F_PERIOD_V              (0xffff)
+#define AON_WDT_F_PERIOD_M              (0xffffff)
+#define AON_WDT_F_PERIOD_V              (0xffffff)
 #define AON_WDT_F_PERIOD_S              (0)
+#define AON_WDT_F_PERIOD_LOW_M          (0xffff)
+#define AON_WDT_F_PERIOD_HIGH_M         (0xff0000)
+#define AON_WDT_F_PERIOD_HIGH_REG_S     (8)
 
 #define AON_WDT_F_KEY                   (BIT(16))
 #define AON_WDT_F_KEY_M                 (0xff)
