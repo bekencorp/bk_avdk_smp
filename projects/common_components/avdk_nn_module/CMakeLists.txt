@@ -86,7 +86,7 @@ if (CONFIG_COMMON_LVGL_UI)
     list(APPEND srcs ${beken_generated_source})
 endif()
 
-set(priv_req bk_common unity include avdk_utils bk_tflite_micro doorbell_device_service lvgl bk_peripheral)
+set(priv_req bk_common unity include avdk_utils bk_tflite_micro multimedia_device_service lvgl bk_peripheral)
 
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")

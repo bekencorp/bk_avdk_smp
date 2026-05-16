@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 set(EXTRA_COMPONENTS_DIRS
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../common_components/doorbell_device_service
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../common_components/multimedia_device_service
     ${CMAKE_CURRENT_SOURCE_DIR}/../../common_components/smart_lock
 )
 

@@ -8,7 +8,7 @@ set(srcs ap_main.c
         video_player_cli/src/audio_player_device.c
         )
 
-set(priv_req media_service bk_vfs doorbell_device_service avdk_utils bk_peripheral)
+set(priv_req media_service bk_vfs multimedia_device_service avdk_utils bk_peripheral)
 
 if (CONFIG_AVI_PLAYER)
     list(APPEND priv_req bk_video_player)
