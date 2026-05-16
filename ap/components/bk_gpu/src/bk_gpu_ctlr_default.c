@@ -527,7 +527,11 @@ static inline void gpu_flex_data_line_pull_out(gpu_flex_data_t *data, gpu_vn_ctl
     /* Calculate read lines */
     data->read_lines = data->need_lines / data->output_height;
 #if HDMA_OPEN_ISR_ENABLE
-    rtos_get_semaphore(&data->transfer_sem, BEKEN_WAIT_FOREVER);
+if(rtos_get_semaphore(&data->transfer_sem, BEKEN_WAIT_FOREVER) != BK_OK)
+{
+    LOGE("%s, %d rtos_get_semaphore failed\n", __func__, __LINE__);
+    return;
+}
 #else
     while(bk_hpdma_get_next_ll_addr(data->gdma));
     while(bk_hpdma_get_enable_status(data->gdma));
