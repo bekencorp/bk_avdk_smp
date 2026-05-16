@@ -45,6 +45,10 @@ static void debug_rpc_gpio_command(char *pcWriteBuffer, int xWriteBufferLen, int
 static void debug_cpulock_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 static void debug_spinlock_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 
+#if CONFIG_SLAVE_HEART_BEAT
+static void debug_hb_status_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
+#endif
+
 static u8     ipc_inited = 0;
 
 spinlock_t SPINLOCK_SECTION gpio_spinlock;
@@ -69,6 +73,9 @@ const struct cli_command debug_cmds[] = {
 	{"ipc", "ipc [spinlock addr]", debug_ipc_command},
 	{"cpu_lock", "cpu_lock [timeout 1~20]", debug_cpulock_command},
 	{"spin_lock", "spin_lock [timeout 1~20]", debug_spinlock_command},
+#if CONFIG_SLAVE_HEART_BEAT
+	{"hb_status", "hb_status  -- show AP heartbeat state on CP", debug_hb_status_command},
+#endif
 #endif
 
 #ifdef CORE_MARK_ENABLED
@@ -225,6 +232,34 @@ static void debug_cpulock_command(char *pcWriteBuffer, int xWriteBufferLen, int 
 	}
 
 }
+
+#if CONFIG_SLAVE_HEART_BEAT
+static void debug_hb_status_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	extern void bk_ipc_heartbeat_get_status(u8 *state, u32 *last_ts, u32 *cur_ts, u8 *cpu_id);
+	extern int  bk_ipc_heartbeat_is_timeout(void);
+
+	static const char * const state_str[] = {"POWER_OFF", "STARTING", "POWER_ON"};
+
+	u8   state  = 0;
+	u32  last_ts = 0;
+	u32  cur_ts  = 0;
+	u8   cpu_id  = 0xFF;
+
+	bk_ipc_heartbeat_get_status(&state, &last_ts, &cur_ts, &cpu_id);
+
+	u32  elapsed = (cur_ts >= last_ts) ? (cur_ts - last_ts)
+	                                   : (cur_ts + (~last_ts) + 1);
+
+	snprintf(pcWriteBuffer, xWriteBufferLen,
+		"[hb_status] cpu_id=%d  state=%s  timeout_flag=%d\r\n"
+		"            last_hb=%ums ago  (last_ts=%u  now=%u)\r\n",
+		cpu_id,
+		(state <= 2) ? state_str[state] : "UNKNOWN",
+		bk_ipc_heartbeat_is_timeout(),
+		elapsed, last_ts, cur_ts);
+}
+#endif
 
 #endif
 #endif

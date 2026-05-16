@@ -46,6 +46,10 @@ static void debug_rpc_gpio_command(char *pcWriteBuffer, int xWriteBufferLen, int
 static void debug_cpulock_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 static void debug_spinlock_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
 
+#if CONFIG_SLAVE_HEART_BEAT
+static void debug_hb_test_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv);
+#endif
+
 static u8     ipc_inited = 0;
 
 spinlock_t SPINLOCK_SECTION gpio_spinlock;
@@ -70,6 +74,9 @@ const struct cli_command debug_cmds[] = {
 	{"ipc", "ipc [spinlock addr]", debug_ipc_command},
 	{"cpu_lock", "cpu_lock [timeout 1~20]", debug_cpulock_command},
 	{"spin_lock", "spin_lock [timeout 1~20]", debug_spinlock_command},
+#if CONFIG_SLAVE_HEART_BEAT
+	{"hb_test", "hb_test <stop|start>  -- pause/resume AP heartbeat to CP", debug_hb_test_command},
+#endif
 #endif
 
 #if CONFIG_ARCH_RISCV
@@ -169,6 +176,39 @@ static void debug_ipc_command(char *pcWriteBuffer, int xWriteBufferLen, int argc
 	snprintf(pcWriteBuffer, xWriteBufferLen, "spinlock_addr: 0x%x\r\n", gpio_spinlock_ptr);
 
 }
+
+#if CONFIG_SLAVE_HEART_BEAT
+static void debug_hb_test_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	extern void mb_ipc_heartbeat_pause(u8 pause);
+
+	if (argc < 2)
+	{
+		snprintf(pcWriteBuffer, xWriteBufferLen,
+			"usage: hb_test <stop|start>\r\n"
+			"  stop  -- pause heartbeat to simulate AP crash (CP will reboot after ~6s)\r\n"
+			"  start -- resume heartbeat sending\r\n");
+		return;
+	}
+
+	if (os_strcmp(argv[1], "stop") == 0)
+	{
+		mb_ipc_heartbeat_pause(1);
+		snprintf(pcWriteBuffer, xWriteBufferLen,
+			"[hb_test] heartbeat STOPPED. CP should detect timeout in ~6s and reboot.\r\n");
+	}
+	else if (os_strcmp(argv[1], "start") == 0)
+	{
+		mb_ipc_heartbeat_pause(0);
+		snprintf(pcWriteBuffer, xWriteBufferLen,
+			"[hb_test] heartbeat RESUMED.\r\n");
+	}
+	else
+	{
+		snprintf(pcWriteBuffer, xWriteBufferLen, "unknown arg: %s\r\n", argv[1]);
+	}
+}
+#endif
 
 static void debug_spinlock_command(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
