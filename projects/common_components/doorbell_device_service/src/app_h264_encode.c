@@ -57,25 +57,43 @@ static doorbell_pipeline_ctx_t *s_doorbell_pipeline = NULL;
 /* Software Flexa: buffer request callback for v2 encoder (returns frame for encoded output). */
 static void *doorbell_out_buffer_malloc_cb(uint32_t size, void *args)
 {
-    (void)size;
-    return bk_encoded_data_request();
+    frame_buffer_t *temp_buffer = NULL;
+    if (size > 0)
+    {
+        temp_buffer = (frame_buffer_t *)bk_encoded_data_request();
+        if(temp_buffer == NULL) {
+            return NULL;
+        }
+    }
+
+    return temp_buffer != NULL ? temp_buffer->frame : NULL;
 }
 
 /* Software Flexa: buffer complete callback; push frame to ready queue for consumer, update context and release consumer read count. */
-static uint32_t doorbell_out_buffer_complete_cb(void *buf, uint32_t status, void *args)
+static uint32_t doorbell_out_buffer_complete_cb(bk_h264_encode_outbuf_info_t *info)
 {
-    doorbell_pipeline_ctx_t *ctx = (doorbell_pipeline_ctx_t *)args;
-    if (ctx == NULL) {
+    if (info == NULL) {
         return 0;
     }
-    if (status != BK_OK) {
-        if (buf != NULL) {
-            bk_encoded_data_free_request(buf);
+
+    doorbell_pipeline_ctx_t *ctx = (doorbell_pipeline_ctx_t *)info->args;
+    if (ctx == NULL || info->outbuf == NULL) {
+        return 0;
+    }
+    uint32_t frame_size = ((sizeof(frame_buffer_t) + 63) >> 6) << 6;
+    frame_buffer_t *buffer = (frame_buffer_t *)((uint8_t *)info->outbuf - frame_size);
+    if (info->status != BK_OK) {
+        if (buffer != NULL) {
+            bk_encoded_data_free_request((uint8_t *)buffer);
         }
     }
     else
     {
-        bk_encoded_data_complete_request(buf);
+        buffer->length = info->length;
+        buffer->h264_type = info->type;
+        buffer->fmt = PIXEL_FMT_H264;
+        buffer->sequence = info->sequence;
+        bk_encoded_data_complete_request((uint8_t *)buffer);
     }
     return 0;
 }

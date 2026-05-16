@@ -33,6 +33,7 @@ static void uvc_camera_frame_complete(uint8_t port, bk_image_format_t format, fr
     if (result == AVDK_ERR_OK)
     {
         frame->h264_type = port; // record the port id of the frame, temporary solution
+        frame->fmt = PIXEL_FMT_JPEG;
         ret = bk_encoded_data_complete_request((uint8_t *)frame);
     }
 

@@ -225,7 +225,6 @@ typedef struct h264_enc_param_t
 	uint32_t in_buffer;
 	uint32_t in_lines;
 	vcenc_input_e in_type;
-	void *out_frame;
 	uint32_t out_buffer;
 	uint32_t out_len;
 	uint32_t idr_interval;

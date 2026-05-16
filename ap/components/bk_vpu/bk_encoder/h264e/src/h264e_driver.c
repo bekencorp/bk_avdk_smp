@@ -204,20 +204,12 @@ bk_err_t h264e_start_encode(h264_encoder_handle_t* handle, h264_encoder_paramete
         LOGE("%s %d invalid buffers %p %p\r\n", __func__, __LINE__, para->out_buf, para->pic_buf);
         return BK_ERR_PARAM;
     }
-    frame_buffer_t *frame = (frame_buffer_t *)para->out_buf;
-    if (frame->frame == NULL)
-    {
-        LOGE("%s %d output frame buffer is NULL\r\n", __func__, __LINE__);
-        return BK_ERR_PARAM;
-    }
     h264_encoder_context* context = (h264_encoder_context*)*handle;
-    context->param.out_frame = (void *)frame;
-    context->param.out_buffer = (uint32_t)frame->frame;
+    context->param.out_buffer = (uint32_t)para->out_buf;
     context->param.out_len = para->out_size;
     context->param.in_buffer = para->pic_buf;
     context->param.in_lines = para->pic_lines;
     context->param.force_idr_flag = context->force_idr;
-    frame->sequence = context->debug_info.all_frame_count;
     context->force_idr = 0;
     context->debug_info.all_frame_count++;
     vcenc_ret_e ret = h264_vcencoder_encode(&context->param);

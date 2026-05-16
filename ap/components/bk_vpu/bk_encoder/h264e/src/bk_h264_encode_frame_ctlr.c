@@ -21,13 +21,16 @@
 // Handle encoding failure
 static void handle_encode_error(private_h264_encode_frame_ctlr_t *ctrl, void *buffer, uint32_t size)
 {
-    frame_buffer_t *frame = (frame_buffer_t *)buffer;
-    if (frame != NULL) {
-        frame->length = size;
-    }
-
-    if (ctrl->config.outbuf_complete && ctrl->h264_encoder_param) {
-        ctrl->config.outbuf_complete(frame, BK_FAIL, ctrl->config.outbuf_complete_args);
+    if (buffer != NULL && ctrl->config.outbuf_complete && ctrl->h264_encoder_param) {
+        bk_h264_encode_outbuf_info_t info = {
+            .outbuf = buffer,
+            .length = size,
+            .type = 0,
+            .status = BK_FAIL,
+            .sequence = 0,
+            .args = ctrl->config.outbuf_complete_args,
+        };
+        ctrl->config.outbuf_complete(&info);
         ctrl->h264_encoder_param->out_buf = 0;
     }
     h264e_set_force_idr(&ctrl->h264e_handler);
@@ -37,10 +40,10 @@ static void handle_encode_error(private_h264_encode_frame_ctlr_t *ctrl, void *bu
 static void handle_video_frame(private_h264_encode_frame_ctlr_t *ctrl, void *buffer, uint32_t size, uint32_t type)
 {
     // Pre-allocate buffer for next frame
-    frame_buffer_t *next_buffer = NULL;
+    void *next_buffer = NULL;
     if (ctrl->config.outbuf_malloc) {
-        next_buffer = (frame_buffer_t *)ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER,
-                                                                   ctrl->config.outbuf_malloc_args);
+        next_buffer = ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER,
+                                                 ctrl->config.outbuf_malloc_args);
         if (!next_buffer) {
             LOGD("Failed to get next buffer, force IDR\r\n");
             handle_encode_error(ctrl, buffer, size);
@@ -48,15 +51,21 @@ static void handle_video_frame(private_h264_encode_frame_ctlr_t *ctrl, void *buf
         }
     }
 
-    // Fill current frame information
-    frame_buffer_t *frame = (frame_buffer_t *)buffer;
-    frame->h264_type = type;
-    frame->length = size;
-
     // Notify upper layer and save buffer for next frame
     if (ctrl->config.outbuf_complete && ctrl->h264_encoder_param) {
-        ctrl->config.outbuf_complete(frame, BK_OK, ctrl->config.outbuf_complete_args);
+        enc_h264_debug_t *debug_info = NULL;
+        h264e_get_debug_info(&ctrl->h264e_handler, &debug_info);
+        bk_h264_encode_outbuf_info_t info = {
+            .outbuf = buffer,
+            .length = size,
+            .type = type,
+            .status = BK_OK,
+            .sequence = debug_info ? debug_info->all_frame_count : 0,
+            .args = ctrl->config.outbuf_complete_args,
+        };
+        ctrl->config.outbuf_complete(&info);
         ctrl->h264_encoder_param->out_buf = (uint32_t)next_buffer;
+        ctrl->h264_encoder_param->out_size = CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER;
     }
 }
 
@@ -139,11 +148,11 @@ static void h264_encoder_entry(void *arg)
             break;
         }
         if (param.out_buf == 0 && ctrl->config.outbuf_malloc != NULL) {
-            frame_buffer_t *temp_buffer = (frame_buffer_t *)ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER,
-                                                                                       ctrl->config.outbuf_malloc_args);
+            void *temp_buffer = ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER,
+                                                           ctrl->config.outbuf_malloc_args);
             if (temp_buffer != NULL) {
                 param.out_buf = (uint32_t)temp_buffer;
-                param.out_size = temp_buffer->size;
+                param.out_size = CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER;
             } else {
                 param.out_buf = 0;
                 param.out_size = 0;

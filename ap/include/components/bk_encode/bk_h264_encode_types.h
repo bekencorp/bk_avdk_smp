@@ -48,6 +48,16 @@ typedef enum
 
 typedef struct
 {
+    void *outbuf;
+    uint32_t length;
+    uint32_t type;
+    uint32_t status;
+    uint32_t sequence;
+    void *args;
+} bk_h264_encode_outbuf_info_t;
+
+typedef struct
+{
     uint32_t width;
     uint32_t height;
     uint32_t pframe_number;
@@ -57,7 +67,7 @@ typedef struct
     uint32_t input_size;
     void *(*outbuf_malloc)(uint32_t outbuf_size, void *args);
     void *outbuf_malloc_args;
-    uint32_t (*outbuf_complete)(void *outbuf, uint32_t status, void *args);
+    uint32_t (*outbuf_complete)(bk_h264_encode_outbuf_info_t *info);
     void *outbuf_complete_args;
 } bk_h264_encode_frame_config_t;
 
@@ -72,7 +82,7 @@ typedef struct
     uint32_t input_size;
     void *(*outbuf_malloc)(uint32_t outbuf_size, void *args);
     void *outbuf_malloc_args;
-    uint32_t (*outbuf_complete)(void *outbuf, uint32_t status, void *args);
+    uint32_t (*outbuf_complete)(bk_h264_encode_outbuf_info_t *info);
     void *outbuf_complete_args;
 } bk_h264_encode_hw_flexa_config_t;
 
@@ -87,7 +97,7 @@ typedef struct
     uint32_t input_size;
     void *(*outbuf_malloc)(uint32_t outbuf_size, void *args);
     void *outbuf_malloc_args;
-    uint32_t (*outbuf_complete)(void *outbuf, uint32_t status, void *args);
+    uint32_t (*outbuf_complete)(bk_h264_encode_outbuf_info_t *info);
     void *outbuf_complete_args;
     void (*flexa_done)(uint32_t rd_blocks, void *arg);
     void *flexa_done_arg;

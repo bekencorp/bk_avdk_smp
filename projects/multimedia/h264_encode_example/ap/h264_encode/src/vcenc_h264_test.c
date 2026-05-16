@@ -57,48 +57,54 @@ static void *vcenc_h264_test_outbuf_malloc(uint32_t size, void *args)
 {
     (void)args;
 
+    uint32_t frame_size = ((sizeof(frame_buffer_t) + size + 63) >> 6) << 6;
     frame_buffer_t *frame = (frame_buffer_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED,
-                                                                     size + sizeof(frame_buffer_t) + 32U);
+                                                                    frame_size);
     if (frame == NULL) {
         LOGE("output frame malloc failed, size=%u\r\n", size);
         return NULL;
     }
 
-    frame->frame = (uint8_t *)((((uint32_t)(frame + 1) + 31U) >> 5) << 5);
+    frame->frame = ((uint8_t *)frame) + (((sizeof(frame_buffer_t) + 63) >> 6) << 6);
     frame->size = size;
     frame->length = 0;
     frame->width = VCENC_H264_TEST_WIDTH;
     frame->height = VCENC_H264_TEST_HEIGHT;
     // LOGI("output buffer ready, frame=%p payload=%p size=%u\r\n", frame, frame->frame, size);
-    return frame;
+    return frame->frame;
 }
 
-static uint32_t vcenc_h264_test_outbuf_complete(void *buffer, uint32_t status, void *args)
+static uint32_t vcenc_h264_test_outbuf_complete(bk_h264_encode_outbuf_info_t *info)
 {
-    vcenc_h264_test_ctx_t *ctx = (vcenc_h264_test_ctx_t *)args;
-    frame_buffer_t *frame = (frame_buffer_t *)buffer;
+    if (info == NULL) {
+        return BK_FAIL;
+    }
+
+    vcenc_h264_test_ctx_t *ctx = (vcenc_h264_test_ctx_t *)info->args;
 
     if (ctx != NULL) {
-        ctx->result = status;
-        ctx->frame_size = frame ? frame->length : 0;
-        ctx->frame_type = frame ? frame->h264_type : 0;
+        ctx->result = info->status;
+        ctx->frame_size = info->length;
+        ctx->frame_type = info->type;
         if (ctx->done_sem != NULL) {
             rtos_set_semaphore(&ctx->done_sem);
         }
     }
-    if (status == BK_OK) {
+    if (info->status == BK_OK) {
         LOGI("encode callback success, size=%u type=%u\r\n",
-             frame ? frame->length : 0, frame ? frame->h264_type : 0);
+             info->length, info->type);
     } else {
         LOGE("encode callback failed, status=%u size=%u type=%u\r\n",
-             status, frame ? frame->length : 0, frame ? frame->h264_type : 0);
+             info->status, info->length, info->type);
     }
 
-    if (frame != NULL) {
-        bk_frame_buffer_free(frame);
-        // LOGI("free output buffer\r\n");
+    if (info->outbuf == NULL) {
+        LOGE("output buffer is NULL\r\n");
+        return BK_FAIL;
     }
-
+    uint32_t frame_size = ((sizeof(frame_buffer_t) + 63) >> 6) << 6;
+    frame_buffer_t *frame = (frame_buffer_t *)((uint8_t *)info->outbuf - frame_size);
+    bk_frame_buffer_free(frame);
     return BK_OK;
 }
 

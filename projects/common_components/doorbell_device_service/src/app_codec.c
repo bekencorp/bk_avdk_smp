@@ -45,24 +45,38 @@ typedef struct
 
 void *encoder_buffer_request(uint32_t buffer_len, void *args)
 {
-    void *temp_buffer = NULL;
+    frame_buffer_t *temp_buffer = NULL;
     if (buffer_len > 0)
     {
-       temp_buffer = bk_encoded_data_request();
+        temp_buffer = (frame_buffer_t *)bk_encoded_data_request();
+        if(temp_buffer == NULL) {
+            return NULL;
+        }
     }
-    return temp_buffer;
+
+    return temp_buffer != NULL ? temp_buffer->frame : NULL;
 }
 
-uint32_t encoder_buffer_complete(void *buffer, uint32_t result, void *args)
+uint32_t encoder_buffer_complete(bk_h264_encode_outbuf_info_t *info)
 {
     bk_err_t ret = BK_OK;
-    if (result == BK_OK)
+    if (info == NULL || info->outbuf == NULL) {
+        return BK_FAIL;
+    }
+
+    uint32_t frame_size = ((sizeof(frame_buffer_t) + 63) >> 6) << 6;
+    frame_buffer_t *buffer = (frame_buffer_t *)((uint8_t *)info->outbuf - frame_size);
+    if (info->status == BK_OK)
     {
-        bk_encoded_data_complete_request(buffer);
+        buffer->length = info->length;
+        buffer->h264_type = info->type;
+        buffer->fmt = PIXEL_FMT_H264;
+        buffer->sequence = info->sequence;
+        bk_encoded_data_complete_request((uint8_t *)buffer);
     }
     else
     {
-        bk_encoded_data_free_request(buffer);
+        bk_encoded_data_free_request((uint8_t *)buffer);
     }
     return ret;
 }

@@ -79,21 +79,16 @@ bk_err_t bk_encoded_data_manager_init(void)
         for (int i = 0 ; i < MAX_QUE_LEN; i ++)
         {
             img_msg_t msg;
-            frame_buffer_t *frame = (frame_buffer_t *)os_malloc(sizeof(frame_buffer_t));
+            uint32_t frame_size = ((sizeof(frame_buffer_t) + FRAME_SIZE + 63) >> 6) << 6;
+            frame_buffer_t *frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, frame_size);
             if (frame == NULL)
-            {
-                LOGE("%s, %d, frame_buffer mallocs fail \n", __func__, __LINE__);
-                goto error;
-            }
-
-            os_memset(frame, 0, sizeof(frame_buffer_t));
-            frame->frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, FRAME_SIZE);
-            if (frame->frame == NULL)
             {
                 LOGE("%s, %d, frame_buffer_coded_data_mallocs fail \n", __func__, __LINE__);
                 goto error;
             }
 
+            os_memset(frame, 0, frame_size);
+            frame->frame = (uint8_t *)frame + frame_size - FRAME_SIZE;
             frame->size = FRAME_SIZE;
             msg.param = (uint32_t)frame;
             if (img_service->free_queue)
