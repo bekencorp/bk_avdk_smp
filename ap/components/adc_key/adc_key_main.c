@@ -4,6 +4,7 @@
 #include "modules/pm.h"
 #include <key_main.h>
 #include <multi_button.h>
+#include "sys_sw_regs.h"
 
 
 #if CONFIG_ADC_KEY
@@ -23,13 +24,14 @@ static adc_chan_t s_adc_chan2 = ADC_MAX;
 #endif
 
 #define ADCKEY_ERR_LOG_INTERVAL        500
-#define ADCKEY_REINIT_INTERVAL_TICKS   200
+#define ADCKEY_REINIT_INTERVAL_TICKS   25
 #define ADCKEY_REINIT_MAX_ATTEMPTS     0
 
 static bool s_adc_chan_ready = false;
 static uint32_t s_adc_err_count = 0;
 static uint32_t s_reinit_tick_counter = 0;
 static uint32_t s_reinit_attempts = 0;
+static bool s_use_cp_sampler = false;
 
 static bool adckey_try_adc_init(adc_chan_t chan)
 {
@@ -61,6 +63,16 @@ uint32_t adc_key_get_gpio_voltage(adc_chan_t chan)
 	uint32_t value = 0;
 	float cali_value = 0;
 	bk_err_t ret;
+
+	if (s_use_cp_sampler) {
+		adc_key_sample_info_t sample = {0};
+		if (bk_sys_sw_regs_get_adc_key_sample(&sample) &&
+		    sample.channel == (uint8_t)chan &&
+		    sample.status == 0) {
+			return sample.mv;
+		}
+		return 9999;
+	}
 
 	if (!s_adc_chan_ready) {
 		s_reinit_tick_counter++;
@@ -275,9 +287,12 @@ void bk_adc_key_init(gpio_id_t gpio_id, adc_chan_t adc_chan)
 
 	BK_LOG_ON_ERR(gpio_dev_unmap(gpio_id));
 	s_adc_chan = adc_chan;
-
-	if (!adckey_try_adc_init(adc_chan))
+	s_use_cp_sampler = (bk_adc_key_sampler_start(adc_chan, ADCKEY_TMR_DURATION) == BK_OK);
+	if (s_use_cp_sampler) {
+		ADC_KEY_LOGI("ADC key use CP sampler: chan=%d period=%dms\r\n", adc_chan, ADCKEY_TMR_DURATION);
+	} else if (!adckey_try_adc_init(adc_chan)) {
 		ADC_KEY_LOGW("ADC init deferred, will retry at runtime\r\n");
+	}
 
 	adc_key_configure();
 
@@ -323,7 +338,12 @@ void bk_adc_key_deinit(void)
 	else
 		return;
 
-	bk_adc_deinit(s_adc_chan);
+	if (s_use_cp_sampler) {
+		bk_adc_key_sampler_stop();
+		s_use_cp_sampler = false;
+	} else {
+		bk_adc_deinit(s_adc_chan);
+	}
 	adckey_unconfig();
 }
 
