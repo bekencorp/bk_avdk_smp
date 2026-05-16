@@ -1,0 +1,261 @@
+// Copyright 2020-2021 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Common MIPI-DSI panel driver.
+//
+// Implements the panel ops table (reset/init/del/disp_on_off/read_id)
+// for any panel described by ::bk_display_dsi_panel_t. Per-panel
+// behaviour is fully driven by the descriptor (init_cmds, reset
+// timing, custom_reset, custom_init); panel-specific drivers
+// register a descriptor and never touch this file.
+
+#include <os/os.h>
+#include <os/mem.h>
+#include <driver/gpio.h>
+#include "gpio_driver.h"
+#include <components/bk_display_bus.h>
+#include <components/bk_lcd_panel.h>
+#include <bk_lcd_panel_commands.h>
+#include <avdk_check.h>
+#include <components/log.h>
+
+#include "bk_display_bus_priv.h"
+#include "bk_lcd_panel_priv.h"
+
+#define TAG "lcd_panel_common"
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+
+typedef struct {
+    bk_avdk_lcd_panel_t base;
+    bk_display_bus_handle_t bus_handle;
+    const bk_display_dsi_panel_t *panel;
+    int reset_gpio;
+    uint8_t reset_active_level;
+    bk_display_reset_timing_t reset_timing;
+    bk_err_t (*custom_reset)(bk_avdk_lcd_panel_t *panel, void *priv);
+    bk_err_t (*custom_init)(bk_avdk_lcd_panel_t *panel, void *priv);
+} lcd_panel_common_t;
+
+static inline uint16_t lcd_panel_common_pick_ms(uint16_t value, uint16_t fallback)
+{
+    return value != 0u ? value : fallback;
+}
+
+static bk_err_t lcd_panel_common_init(bk_avdk_lcd_panel_t *panel)
+{
+    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+
+    bk_panel_clock_config_t clock_config = {
+        .clk = priv->panel->timing.clk,
+        .n_lanes = priv->panel->n_lanes,
+        .fps = priv->panel->fps,
+        .timing = priv->panel->timing,
+    };
+    AVDK_RETURN_ON_ERROR(bk_display_bus_set_clock(priv->bus_handle, &clock_config), TAG, "set clock failed");
+
+    if (priv->custom_init != NULL) {
+        LOGI("%s %s custom init start\n", __func__, priv->panel->name);
+        AVDK_RETURN_ON_ERROR(priv->custom_init(panel, priv), TAG, "custom init failed");
+        LOGI("%s %s custom init end\n", __func__, priv->panel->name);
+        return BK_OK;
+    }
+
+    if (priv->panel->init_cmds == NULL) {
+        LOGI("%s %s no init commands, skip init\n", __func__, priv->panel->name);
+        return BK_OK;
+    }
+
+    for (uint32_t i = 0; priv->panel->init_cmds[i].cmd != 0 || priv->panel->init_cmds[i].data != NULL; i++) {
+        if (priv->panel->init_cmds[i].cmd == 0 && priv->panel->init_cmds[i].data == NULL) {
+            break;
+        }
+        if (priv->panel->init_cmds[i].cmd == 0 && priv->panel->init_cmds[i].data_len == 0xFF
+            && priv->panel->init_cmds[i].data != NULL) {
+            rtos_delay_milliseconds(((const uint8_t *)priv->panel->init_cmds[i].data)[0]);
+            continue;
+        }
+        AVDK_RETURN_ON_ERROR(bk_display_bus_tx_param(priv->bus_handle,
+                                                    (int)priv->panel->init_cmds[i].cmd,
+                                                    priv->panel->init_cmds[i].data,
+                                                    priv->panel->init_cmds[i].data_len),
+                             TAG, "send init command failed");
+    }
+
+    return BK_OK;
+}
+
+static bk_err_t lcd_panel_common_reset(bk_avdk_lcd_panel_t *panel)
+{
+    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+    if (priv->custom_reset != NULL) {
+        LOGI("%s %s custom reset start\n", __func__, priv->panel->name);
+        return priv->custom_reset(panel, priv);
+    }
+    if (priv->reset_gpio < 0) {
+        LOGI("%s %s no reset pin %d, skip reset\n", __func__, priv->panel->name, priv->reset_gpio);
+        return BK_OK;
+    }
+
+    gpio_dev_unmap(priv->reset_gpio);
+    BK_LOG_ON_ERR(bk_gpio_enable_output(priv->reset_gpio));
+    bk_gpio_set_capacity(priv->reset_gpio, GPIO_DRIVER_CAPACITY_3);
+
+    const uint16_t idle_ms    = priv->reset_timing.idle_ms;
+    const uint16_t active_ms  = priv->reset_timing.active_ms;
+    const uint16_t release_ms = priv->reset_timing.release_ms;
+
+    if (!priv->reset_active_level) {
+        bk_gpio_set_output_high(priv->reset_gpio);
+        rtos_delay_milliseconds(idle_ms);
+        bk_gpio_set_output_low(priv->reset_gpio);
+        rtos_delay_milliseconds(active_ms);
+        bk_gpio_set_output_high(priv->reset_gpio);
+    } else {
+        bk_gpio_set_output_low(priv->reset_gpio);
+        rtos_delay_milliseconds(idle_ms);
+        bk_gpio_set_output_high(priv->reset_gpio);
+        rtos_delay_milliseconds(active_ms);
+        bk_gpio_set_output_low(priv->reset_gpio);
+    }
+    rtos_delay_milliseconds(release_ms);
+
+    return BK_OK;
+}
+
+static bk_err_t lcd_panel_common_read_id(bk_avdk_lcd_panel_t *panel, uint32_t *id)
+{
+    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv && priv->panel && id, BK_ERR_NULL_PARAM, TAG, "invalid arguments");
+
+    if (priv->panel->read_id_regs == NULL) {
+        return BK_ERR_NOT_SUPPORT;
+    }
+
+    uint8_t id_buf[3] = {0};
+    uint8_t read_bytes = priv->panel->read_id_bytes;
+
+    if (read_bytes == 0) {
+        for (int i = 0; i < 3 && priv->panel->read_id_regs[i] != 0; i++) {
+            read_bytes++;
+        }
+    }
+
+    if (read_bytes == 0 || read_bytes > 3) {
+        return BK_ERR_NOT_SUPPORT;
+    }
+
+    uint8_t cmd = priv->panel->read_id_regs[0];
+    bk_err_t ret = bk_display_bus_rx_param(priv->bus_handle, (int)cmd, id_buf, read_bytes);
+    if (ret != BK_OK) {
+        return ret;
+    }
+
+    rtos_delay_milliseconds(100);
+
+    if (read_bytes == 1) {
+        *id = id_buf[0];
+    } else if (read_bytes == 2) {
+        *id = (id_buf[0] << 8) | id_buf[1];
+    } else if (read_bytes == 3) {
+        *id = (id_buf[0] << 16) | (id_buf[1] << 8) | id_buf[2];
+    }
+
+    return BK_OK;
+}
+
+static bk_err_t lcd_panel_common_del(bk_avdk_lcd_panel_t *panel)
+{
+    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    if (priv) {
+        os_free(priv);
+    }
+    return BK_OK;
+}
+
+static bk_err_t lcd_panel_common_disp_on_off(bk_avdk_lcd_panel_t *panel, bool on_off)
+{
+    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+
+    uint8_t command = on_off ? LCD_CMD_DISPON : LCD_CMD_DISPOFF;
+    AVDK_RETURN_ON_ERROR(bk_display_bus_tx_param(priv->bus_handle, (int)command, NULL, 0),
+                         TAG, "send display on/off command failed");
+    rtos_delay_milliseconds(100);
+    return BK_OK;
+}
+
+static bk_err_t lcd_panel_common_tx_param(bk_avdk_lcd_panel_t *panel,
+                                          int lcd_cmd,
+                                          const void *param,
+                                          size_t param_size)
+{
+    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+    return bk_display_bus_tx_param(priv->bus_handle, lcd_cmd, param, param_size);
+}
+
+static bk_err_t lcd_panel_common_rx_param(bk_avdk_lcd_panel_t *panel,
+                                          int lcd_cmd,
+                                          void *param,
+                                          size_t param_size)
+{
+    lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+    return bk_display_bus_rx_param(priv->bus_handle, lcd_cmd, param, param_size);
+}
+
+bk_err_t bk_lcd_new_mipi_panel_common(bk_display_bus_handle_t bus_handle,
+                                      const bk_lcd_panel_dev_config_t *panel_dev_config,
+                                      const bk_display_dsi_panel_t *panel_desc,
+                                      bk_avdk_lcd_panel_handle_t *ret_panel)
+{
+    AVDK_RETURN_ON_FALSE(bus_handle && panel_dev_config && panel_desc && ret_panel,
+                         BK_ERR_NULL_PARAM, TAG, "invalid arguments");
+    AVDK_RETURN_ON_FALSE(panel_desc->name != NULL, BK_ERR_NULL_PARAM, TAG, "panel name is NULL");
+
+    lcd_panel_common_t *panel = os_malloc(sizeof(lcd_panel_common_t));
+    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NO_MEM, TAG, "malloc failed");
+
+    os_memset(panel, 0, sizeof(lcd_panel_common_t));
+
+    panel->bus_handle = bus_handle;
+    panel->panel = panel_desc;
+    panel->custom_reset = panel_desc->custom_reset;
+    panel->custom_init = panel_desc->custom_init;
+    panel->reset_gpio = panel_dev_config->reset_pin;
+    panel->reset_active_level = panel_dev_config->reset_active_level;
+    panel->reset_timing.idle_ms    = lcd_panel_common_pick_ms(panel_desc->reset_timing.idle_ms,
+                                                              BK_DISPLAY_RESET_IDLE_MS_DEFAULT);
+    panel->reset_timing.active_ms  = lcd_panel_common_pick_ms(panel_desc->reset_timing.active_ms,
+                                                              BK_DISPLAY_RESET_ACTIVE_MS_DEFAULT);
+    panel->reset_timing.release_ms = lcd_panel_common_pick_ms(panel_desc->reset_timing.release_ms,
+                                                              BK_DISPLAY_RESET_RELEASE_MS_DEFAULT);
+
+    panel->base.init            = lcd_panel_common_init;
+    panel->base.reset           = lcd_panel_common_reset;
+    panel->base.read_id         = lcd_panel_common_read_id;
+    panel->base.del             = lcd_panel_common_del;
+    panel->base.disp_on_off     = lcd_panel_common_disp_on_off;
+    panel->base.tx_param        = lcd_panel_common_tx_param;
+    panel->base.rx_param        = lcd_panel_common_rx_param;
+
+    *ret_panel = (bk_avdk_lcd_panel_handle_t)&panel->base;
+    return BK_OK;
+}

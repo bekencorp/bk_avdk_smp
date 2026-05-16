@@ -14,15 +14,24 @@
 
 #pragma once
 
+/**
+ * @file display_spi_bus_vn_ctlr.h
+ * @brief SPI bus virtual node controller. Internal to bk_display.
+ *        One controller object backs both ::BK_DISPLAY_SPI_BUS_MODE_HW
+ *        (avdk lcd_spi driver + DMA frame task) and ::BK_DISPLAY_SPI_BUS_MODE_SW
+ *        (GPIO bit-bang command channel for RGB panel SPI register init).
+ */
+
 #include <os/os.h>
 #include <components/bk_display_bus.h>
-#include <components/bk_lcd_types.h>
+#include <components/bk_lcd_panel.h>
+#include "bk_display_bus_priv.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
+/** HW-mode private context (lcd_spi DMA frame task + queue). */
 typedef struct
 {
     bool disp_task_running;
@@ -39,14 +48,21 @@ typedef struct
     bool lcd_display_flag;
 } private_display_spi_context_t;
 
-typedef struct
+/**
+ * SPI bus controller body.
+ *
+ * SW mode reads the @c cmd_width / @c csx_pin / @c sda_pin / @c clk_pin
+ * fields straight out of @c config, so no separate per-instance IO
+ * struct is needed. HW mode owns @c spi_context (lcd_spi DMA frame
+ * task + queue).
+ */
+typedef struct spi_bus_vn_ctlr_t
 {
     bk_display_spi_bus_config_t config;
-    bk_display_bus_ctlr_t ops;
+    bk_display_bus_ctlr_t ops;             /**< must stay first member of the public view */
     private_display_spi_context_t spi_context;
 } spi_bus_vn_ctlr_t;
 
 #ifdef __cplusplus
 }
 #endif
-

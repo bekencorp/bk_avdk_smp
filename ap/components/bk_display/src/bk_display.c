@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "components/bk_display.h"
+#include <avdk_check.h>
+#include <components/log.h>
+#include <components/bk_display.h>
+#include "bk_display_priv.h"
 
 #define TAG "bk_disp"
 
@@ -20,7 +23,6 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-
 
 avdk_err_t bk_display_init(bk_display_ctlr_handle_t handle)
 {
@@ -74,7 +76,7 @@ avdk_err_t bk_display_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioctl_cm
 avdk_err_t bk_display_pixel_format_set(bk_display_ctlr_handle_t handle, const bk_display_pixel_format_config_t *config)
 {
     AVDK_RETURN_ON_FALSE(handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
-    AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);    
+    AVDK_RETURN_ON_FALSE(config, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
     bk_display_pixel_format_config_t pixel_format_config = *config;
     return bk_display_ioctl(handle, BK_DISPLAY_IOCTL_DPU_PIXEL_FORMAT, (void *)&pixel_format_config);
-}         
+}

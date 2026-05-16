@@ -12,12 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Default DPU virtual node controller (::bk_display_ctlr_t backend).
+//
+// Owns the lifecycle state machine:
+//
+//   DEINIT --init--> INITED --open--> ACTIVE --flush--> ACTIVE
+//      ^               |  ^             |
+//      |               |  +---close-----+
+//      +-deinit--------+
+//
+// open() is idempotent and may be triggered implicitly by flush()
+// (lazy promotion via flush_lazy_promoted) so callers that just want
+// to push frames need not pair init/open manually.
+
 #include <os/os.h>
 #include <os/mem.h>
 #include <stdint.h>
 #include <common/bk_err.h>
+#include <avdk_check.h>
 #include "dpu_core.h"
-#include <components/bk_display_dpu_ctlr.h>
+#include <components/bk_display.h>
 #include "display_dpu_vn_ctlr.h"
 #include "avdk_monitor.h"
 #include "driver/sys_pm.h"
@@ -26,6 +40,7 @@
 #define TAG "bk_dpu"
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
 static dpu_vn_ctlr_t *dpu_ctlr_from_handle(bk_display_ctlr_handle_t handle)
@@ -117,7 +132,9 @@ static avdk_err_t dpu_ctlr_init(bk_display_ctlr_handle_t handle)
 
     AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
     AVDK_GOTO_ON_ERROR(dpu_ctlr_lock(control), lock_err, TAG, "controller lock failed");
-    if (control->state == DISP_STATE_READY)
+    if ((control->state == DISP_STATE_INITED) ||
+        (control->state == DISP_STATE_ACTIVE) ||
+        (control->state == DISP_STATE_CLOSED))
     {
         dpu_ctlr_unlock(control);
         return AVDK_ERR_OK;
@@ -131,8 +148,14 @@ static avdk_err_t dpu_ctlr_init(bk_display_ctlr_handle_t handle)
     dpu_ctlr_unlock(control);
 
     dpu_ctlr_build_core_config(&control->config, &dpu_config);
+
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_DPU, PM_POWER_MODULE_STATE_ON);
-    sys_drv_set_psram_dpu_qos(3);
+
+    {
+        const uint8_t qos = control->config.qos != 0u ? control->config.qos
+                                                      : BK_DISPLAY_DPU_QOS_DEFAULT;
+        sys_drv_set_psram_dpu_qos(qos);
+    }
 
     ret = dpu_core_init(&dpu_config, &control->dpu_handle);
     AVDK_GOTO_ON_ERROR(ret, err, TAG, "dpu core init err");
@@ -140,11 +163,10 @@ static avdk_err_t dpu_ctlr_init(bk_display_ctlr_handle_t handle)
     ret = dpu_core_layer_config(&dpu_config, &control->dpu_handle);
     AVDK_GOTO_ON_ERROR(ret, init_deinit, TAG, "dpu core layer config err");
 
-    AVDK_MONITOR_DPU_ENABLE();
     (void)dpu_ctlr_lock(control);
-    control->state = DISP_STATE_READY;
+    control->state = DISP_STATE_INITED;
     dpu_ctlr_unlock(control);
-    LOGI("%s complete\n", __func__);
+    LOGI("%s complete (INITED, awaiting open())\n", __func__);
     return AVDK_ERR_OK;
 
 init_deinit:
@@ -182,13 +204,21 @@ static avdk_err_t dpu_ctlr_deinit(bk_display_ctlr_handle_t handle)
         return AVDK_ERR_BUSY;
     }
 
-    if ((controller->state != DISP_STATE_READY) && (controller->state != DISP_STATE_CLOSED))
+    if ((controller->state != DISP_STATE_ACTIVE) &&
+        (controller->state != DISP_STATE_CLOSED) &&
+        (controller->state != DISP_STATE_INITED))
     {
         LOGE("%s invalid display state: %d\n", __func__, controller->state);
         dpu_ctlr_unlock(controller);
         return AVDK_ERR_GENERIC;
     }
+    bool was_active = (controller->state == DISP_STATE_ACTIVE);
     controller->state = DISP_STATE_DEINITING;
+
+    if (was_active)
+    {
+        (void)dpu_core_flush_stop(&controller->dpu_handle);
+    }
 
     ret = dpu_ctlr_wait_flush_idle(controller);
     if (ret != AVDK_ERR_OK)
@@ -239,21 +269,26 @@ static avdk_err_t dpu_ctlr_open(bk_display_ctlr_handle_t handle)
         return AVDK_ERR_GENERIC;
     }
 
-    if (controller->state == DISP_STATE_READY)
+    if (controller->state == DISP_STATE_ACTIVE)
     {
         dpu_ctlr_unlock(controller);
         return AVDK_ERR_OK;
     }
 
-    if (controller->state != DISP_STATE_CLOSED)
+    if ((controller->state != DISP_STATE_INITED) &&
+        (controller->state != DISP_STATE_CLOSED))
     {
         LOGE("%s invalid display state: %d\n", __func__, controller->state);
         dpu_ctlr_unlock(controller);
         return AVDK_ERR_GENERIC;
     }
 
-    controller->state = DISP_STATE_READY;
+    AVDK_MONITOR_DPU_ENABLE();
+    //(void)dpu_core_flush_restart(&controller->dpu_handle);
+
+    controller->state = DISP_STATE_ACTIVE;
     dpu_ctlr_unlock(controller);
+    LOGI("%s complete (ACTIVE)\n", __func__);
     return AVDK_ERR_OK;
 }
 
@@ -267,31 +302,41 @@ static avdk_err_t dpu_ctlr_close(bk_display_ctlr_handle_t handle)
         return AVDK_ERR_GENERIC;
     }
 
-    if ((controller->state == DISP_STATE_DEINIT) || (controller->state == DISP_STATE_CLOSED))
+    if ((controller->state == DISP_STATE_DEINIT) ||
+        (controller->state == DISP_STATE_CLOSED) ||
+        (controller->state == DISP_STATE_INITED))
     {
+        if (controller->state == DISP_STATE_INITED)
+        {
+            controller->state = DISP_STATE_CLOSED;
+        }
         dpu_ctlr_unlock(controller);
         return AVDK_ERR_OK;
     }
 
-    if (controller->state != DISP_STATE_READY)
+    if (controller->state != DISP_STATE_ACTIVE)
     {
         LOGE("%s invalid display state: %d\n", __func__, controller->state);
         dpu_ctlr_unlock(controller);
         return AVDK_ERR_GENERIC;
     }
 
+    (void)dpu_core_flush_stop(&controller->dpu_handle);
+
     controller->state = DISP_STATE_CLOSED;
     if (dpu_ctlr_wait_flush_idle(controller) != AVDK_ERR_OK)
     {
         if (dpu_ctlr_lock(controller) == AVDK_ERR_OK)
         {
-            controller->state = DISP_STATE_READY;
+            (void)dpu_core_flush_restart(&controller->dpu_handle);
+            controller->state = DISP_STATE_ACTIVE;
             dpu_ctlr_unlock(controller);
         }
         return AVDK_ERR_GENERIC;
     }
 
     dpu_ctlr_unlock(controller);
+    LOGI("%s complete (CLOSED)\n", __func__);
     return AVDK_ERR_OK;
 }
 
@@ -328,9 +373,20 @@ avdk_err_t dpu_ctlr_flush(bk_display_ctlr_handle_t handle, uint8_t *frame, flush
     {
         return AVDK_ERR_GENERIC;
     }
-    if (control->state != DISP_STATE_READY)
+    if (control->state == DISP_STATE_INITED)
     {
-        LOGE("%s display is not ready, state=%d\n", __func__, control->state);
+        if (!control->flush_lazy_promoted)
+        {
+            LOGW("%s missing bk_display_open(), auto-promoting to ACTIVE\n", __func__);
+            control->flush_lazy_promoted = true;
+        }
+        AVDK_MONITOR_DPU_ENABLE();
+        (void)dpu_core_flush_restart(&control->dpu_handle);
+        control->state = DISP_STATE_ACTIVE;
+    }
+    if (control->state != DISP_STATE_ACTIVE)
+    {
+        LOGE("%s display is not active, state=%d\n", __func__, control->state);
         dpu_ctlr_unlock(control);
         return AVDK_ERR_GENERIC;
     }
@@ -362,9 +418,9 @@ static avdk_err_t dpu_ctlr_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioc
     {
         return AVDK_ERR_GENERIC;
     }
-    if (control->state != DISP_STATE_READY)
+    if (control->state != DISP_STATE_ACTIVE)
     {
-        LOGE("%s display is not ready, state=%d\n", __func__, control->state);
+        LOGE("%s display is not active, state=%d\n", __func__, control->state);
         dpu_ctlr_unlock(control);
         return AVDK_ERR_GENERIC;
     }
