@@ -1855,4 +1855,112 @@ adc_calculate_exit:
 
 	return adc_calculate;
 }
+
+bk_err_t bk_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_period_ms)
+{
+	int ret_val = BK_FAIL;
+	int line_num = 0;
+
+	if (bk_saradc_driver_init() != BK_OK)
+		return BK_FAIL;
+
+	saradc_cmd_t cmd_buff;
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+	cmd_buff.config.chan = chan;
+	cmd_buff.timeout = sample_period_ms;
+
+	rtos_lock_mutex(&saradc_mutex);
+
+	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_ADC_KEY_SAMPLER_START,
+		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
+	if (ret != 0) {
+		line_num = __LINE__;
+		goto start_exit;
+	}
+
+	u8 user_cmd = INVALID_USER_CMD_ID;
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
+	if (ret != sizeof(cmd_buff)) {
+		line_num = __LINE__;
+		goto start_exit;
+	}
+
+	if (user_cmd != SARADC_CMD_ADC_KEY_SAMPLER_START) {
+		line_num = __LINE__;
+		ret = user_cmd;
+		goto start_exit;
+	}
+
+	if (cmd_buff.ret_status != BK_OK) {
+		line_num = __LINE__;
+		ret = cmd_buff.ret_status;
+		goto start_exit;
+	}
+
+	ret_val = BK_OK;
+
+start_exit:
+	rtos_unlock_mutex(&saradc_mutex);
+
+#if LOCAL_TRACE
+	if (ret_val != BK_OK)
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
+#endif
+	return ret_val;
+}
+
+bk_err_t bk_adc_key_sampler_stop(void)
+{
+	int ret_val = BK_FAIL;
+	int line_num = 0;
+
+	if (bk_saradc_driver_init() != BK_OK)
+		return BK_FAIL;
+
+	saradc_cmd_t cmd_buff;
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+
+	rtos_lock_mutex(&saradc_mutex);
+
+	int ret = mb_ipc_send(saradc_socket_handle, SARADC_CMD_ADC_KEY_SAMPLER_STOP,
+		(u8 *)&cmd_buff, sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
+	if (ret != 0) {
+		line_num = __LINE__;
+		goto stop_exit;
+	}
+
+	u8 user_cmd = INVALID_USER_CMD_ID;
+	memset(&cmd_buff, 0, sizeof(cmd_buff));
+	ret = mb_ipc_recv(saradc_socket_handle, &user_cmd, (u8 *)&cmd_buff,
+		sizeof(cmd_buff), SARADC_OPERATE_TIMEOUT);
+	if (ret != sizeof(cmd_buff)) {
+		line_num = __LINE__;
+		goto stop_exit;
+	}
+
+	if (user_cmd != SARADC_CMD_ADC_KEY_SAMPLER_STOP) {
+		line_num = __LINE__;
+		ret = user_cmd;
+		goto stop_exit;
+	}
+
+	if (cmd_buff.ret_status != BK_OK) {
+		line_num = __LINE__;
+		ret = cmd_buff.ret_status;
+		goto stop_exit;
+	}
+
+	ret_val = BK_OK;
+
+stop_exit:
+	rtos_unlock_mutex(&saradc_mutex);
+
+#if LOCAL_TRACE
+	if (ret_val != BK_OK)
+		SARADC_RATE_LIMITED_LOG(line_num, ret);
+#endif
+	return ret_val;
+}
 // eof

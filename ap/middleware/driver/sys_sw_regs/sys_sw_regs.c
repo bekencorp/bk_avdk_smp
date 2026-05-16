@@ -92,6 +92,29 @@ uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap
     return (info->valid == BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID) ? 1 : 0;
 }
 
+uint32_t bk_sys_sw_regs_get_adc_key_sample(adc_key_sample_info_t *info)
+{
+    uint32_t flags;
+
+    if (info == NULL) {
+        return 0;
+    }
+
+    flags = sys_sw_regs_lock();
+    info->valid = s_sys_sw_regs.adc_key_sample.valid;
+    info->seq = s_sys_sw_regs.adc_key_sample.seq;
+    info->sample_tick = s_sys_sw_regs.adc_key_sample.sample_tick;
+    info->raw = s_sys_sw_regs.adc_key_sample.raw;
+    info->mv = s_sys_sw_regs.adc_key_sample.mv;
+    info->status = s_sys_sw_regs.adc_key_sample.status;
+    info->channel = s_sys_sw_regs.adc_key_sample.channel;
+    info->reserved0 = s_sys_sw_regs.adc_key_sample.reserved0;
+    info->sample_period_ms = s_sys_sw_regs.adc_key_sample.sample_period_ms;
+    sys_sw_regs_unlock(flags);
+
+    return (info->valid == BK_SYS_SW_REGS_ADC_KEY_VALID) ? 1 : 0;
+}
+
 /* --------------------------------------------------------------------------
  * Write API
  * -------------------------------------------------------------------------- */
@@ -158,6 +181,23 @@ void bk_sys_sw_regs_update_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, uint32_t
     } else if (max_alloc_end > slot->max_alloc_end) {
         slot->max_alloc_end = max_alloc_end;
     }
+
+    sys_sw_regs_unlock(flags);
+}
+
+void bk_sys_sw_regs_set_adc_key_sample(uint16_t raw, uint16_t mv, uint8_t status, uint8_t channel, uint32_t sample_period_ms, uint32_t sample_tick)
+{
+    uint32_t flags = sys_sw_regs_lock();
+
+    s_sys_sw_regs.adc_key_sample.valid = 0U;
+    s_sys_sw_regs.adc_key_sample.raw = raw;
+    s_sys_sw_regs.adc_key_sample.mv = mv;
+    s_sys_sw_regs.adc_key_sample.status = status;
+    s_sys_sw_regs.adc_key_sample.channel = channel;
+    s_sys_sw_regs.adc_key_sample.sample_period_ms = sample_period_ms;
+    s_sys_sw_regs.adc_key_sample.sample_tick = sample_tick;
+    s_sys_sw_regs.adc_key_sample.seq += 1U;
+    s_sys_sw_regs.adc_key_sample.valid = BK_SYS_SW_REGS_ADC_KEY_VALID;
 
     sys_sw_regs_unlock(flags);
 }
