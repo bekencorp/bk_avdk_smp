@@ -20,6 +20,9 @@ typedef int avdk_err_t;
 #define AVDK_ERR_UNSUPPORTED    -11  /* unsupported */
 #define AVDK_ERR_NO_RESOURCE    -12  /* no resource */
 
+// End of file / end of stream
+// Used by container parsers and data sources to indicate clean EOF (not an error).
+#define AVDK_ERR_EOF             1   /* end of file */
 
 #define AVDK_ERR_INVAL_NULL_TEXT     "invalid argument: NULL pointer"
 #define AVDK_ERR_NOMEM_TEXT     "out of memory"

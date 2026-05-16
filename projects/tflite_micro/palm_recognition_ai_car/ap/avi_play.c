@@ -1,12 +1,18 @@
 #include <os/os.h>
+#include <os/mem.h>
 #include <components/bk_frame_buffer.h>
 #include <components/bk_display_bus.h>
 #include <components/bk_lcd_panel.h>
-#if CONFIG_FATFS
+#include <components/bk_video_player/bk_video_player_engine.h>
+#include <components/bk_video_player/container_parser/bk_video_player_avi_parser.h>
+#include <components/bk_video_player/video_decoder/bk_video_player_hw_jpeg_decoder.h>
+#if CONFIG_VFS
+#include "bk_partition.h"
+#include "bk_posix.h"
+#elif CONFIG_FATFS
 #include "ff.h"
 #include "diskio.h"
 #endif
-#include "avi_player.h"
 #include <driver/gpio.h>
 #include "gpio_driver.h"
 
@@ -21,11 +27,9 @@
 extern const bk_lcd_panel_t lcd_device_jd9853;
 
 static bk_display_bus_handle_t lcd_display_handle = NULL;
-static bk_avi_player_t *g_avi_player_handle = NULL;
-static beken_thread_t g_avi_player_thread = NULL;
-static beken_semaphore_t g_avi_player_sem = NULL;
-static bool g_avi_player_is_running = false;
-static uint16_t *g_rgb565_framebuffer = NULL;
+static bk_video_player_engine_handle_t g_video_player_handle = NULL;
+static bool g_video_player_opened = false;
+static bool g_rgb565_byte_swap = true;
 
 bk_display_spi_bus_config_t spi_ctlr_config = {
     .lcd_panel = &lcd_device_jd9853,
@@ -35,9 +39,33 @@ bk_display_spi_bus_config_t spi_ctlr_config = {
     .te_pin = 0,
 };
 
+#if CONFIG_VFS
+static int vfs_fd = -1;
+#elif CONFIG_FATFS
 static FATFS *pfs = NULL;
+#endif
 static void bk_sdcard_mount(void)
 {
+#if CONFIG_VFS
+	struct bk_fatfs_partition partition;
+	char *fs_name = NULL;
+
+	int ret;
+
+	fs_name = "fatfs";
+	partition.part_type = FATFS_DEVICE;
+	partition.part_dev.device_name = FATFS_DEV_SDCARD;
+	partition.mount_path = "fatfs";
+
+	ret = mount("SOURCE_NONE", partition.mount_path, fs_name, 0, &partition);
+	if (ret != BK_OK) {
+		LOGE("mount failed, ret=%d\r\n", ret);
+		return;
+	}
+
+	LOGD("mount success\r\n");
+
+#elif CONFIG_FATFS
     FRESULT fr;
     char cFileName[FF_MAX_LFN];
 
@@ -61,6 +89,7 @@ static void bk_sdcard_mount(void)
 
 failed_mount:
     LOGD("----- bk_sdcard_mount over  -----\r\n\r\n");
+#endif
 }
 
 avdk_err_t lcd_backlight_open(uint8_t bl_io)
@@ -75,216 +104,295 @@ avdk_err_t lcd_backlight_open(uint8_t bl_io)
 
 static avdk_err_t display_frame_free_cb(void *frame)
 {
+    if (frame != NULL) {
+        bk_frame_buffer_free(frame);
+    }
+
     return AVDK_ERR_OK;
 }
 
-static inline uint8_t clip_u8(int v)
+static avdk_err_t video_packet_buffer_alloc_cb(void *user_data, video_player_buffer_t *buffer)
 {
-    if (v < 0) return 0;
-    if (v > 255) return 255;
-    return (uint8_t)v;
+    (void)user_data;
+
+    if (buffer == NULL || buffer->length == 0) {
+        return AVDK_ERR_INVAL;
+    }
+
+    void *frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, buffer->length);
+    if (frame == NULL) {
+        buffer->data = NULL;
+        buffer->frame_buffer = NULL;
+        buffer->length = 0;
+        return AVDK_ERR_NOMEM;
+    }
+
+    buffer->data = frame;
+    buffer->frame_buffer = frame;
+    buffer->user_data = NULL;
+    return AVDK_ERR_OK;
 }
 
-/**
- * Convert one NV12 frame (YUV420) to RGB565.
- * Optional byte swap (high/low byte of each 16-bit pixel) for display endianness.
- *
- * NV12 layout:
- *  - Y plane:  width * height bytes
- *  - UV plane: width * height / 2 bytes, interleaved U V U V...
- *
- * @param src_nv12   Pointer to NV12 frame buffer.
- * @param width      Image width in pixels (must be > 0 and even).
- * @param height     Image height in pixels (must be > 0 and even).
- * @param dst_rgb565 Output buffer for RGB565 pixels, size >= width * height.
- * @param byte_swap  If true, swap high/low byte of each RGB565 word (e.g. for display bus).
- *
- * @return 0 on success, negative value on error.
- */
-int nv12_to_rgb565(const uint8_t *src_nv12,
-                   int width,
-                   int height,
-                   uint16_t *dst_rgb565,
-                   bool byte_swap)
+static void video_buffer_free_cb(void *user_data, video_player_buffer_t *buffer)
 {
-    if (!src_nv12 || !dst_rgb565) {
-        return -1; /* invalid pointer */
+    (void)user_data;
+
+    if (buffer == NULL) {
+        return;
     }
 
-    if (width <= 0 || height <= 0) {
-        return -2; /* invalid size */
+    if (buffer->frame_buffer != NULL) {
+        bk_frame_buffer_free(buffer->frame_buffer);
     }
 
-    /* NV12 requires even width and height for 4:2:0 chroma subsampling */
-    if ((width & 1) != 0 || (height & 1) != 0) {
-        return -3; /* width/height must be even */
-    }
-
-    /* avoid overflow in size computation */
-    size_t wh = (size_t)width * (size_t)height;
-    if (wh == 0) {
-        return -4;
-    }
-
-    const uint8_t *y_plane  = src_nv12;
-    const uint8_t *uv_plane = src_nv12 + wh;
-
-    /* Process two horizontal pixels per iteration (same UV pair) to reduce UV fetches and loop overhead. */
-    for (int y = 0; y < height; ++y) {
-        int uv_row = (y >> 1) * width;
-        for (int x = 0; x < width; x += 2) {
-            int uv_index = uv_row + x;
-            uint8_t U = uv_plane[uv_index + 0];
-            int E = (int)U - 128;
-            uint8_t V = uv_plane[uv_index + 1];
-            int F = (int)V - 128;
-
-            /* Precompute chroma terms shared by both pixels (ITU-R BT.601). */
-            int term_ug = -100 * E;
-            int term_vr = 409 * F;
-            int term_vg = -208 * F;
-            int term_ub = 516 * E;
-
-            for (int k = 0; k < 2; ++k) {
-                int xi = x + k;
-                int y_index = y * width + xi;
-                int C = (int)y_plane[y_index] - 16;
-                if (C < 0) {
-                    C = 0;
-                }
-
-                int R = (298 * C + term_vr + 128) >> 8;
-                int G = (298 * C + term_ug + term_vg + 128) >> 8;
-                int B = (298 * C + term_ub + 128) >> 8;
-
-                uint16_t r5 = (uint16_t)(clip_u8(R) >> 3);
-                uint16_t g6 = (uint16_t)(clip_u8(G) >> 2);
-                uint16_t b5 = (uint16_t)(clip_u8(B) >> 3);
-                uint16_t rgb565 = (r5 << 11) | (g6 << 5) | b5;
-
-                if (byte_swap) {
-                    rgb565 = (uint16_t)((rgb565 >> 8) | (rgb565 << 8));
-                }
-                dst_rgb565[y_index] = rgb565;
-            }
-        }
-    }
-
-    return 0;
+    buffer->data = NULL;
+    buffer->length = 0;
+    buffer->pts = 0;
+    buffer->frame_buffer = NULL;
+    buffer->user_data = NULL;
 }
 
-static void avi_player_thread(beken_thread_arg_t data)
+static avdk_err_t video_output_buffer_alloc_cb(void *user_data, video_player_buffer_t *buffer)
 {
-    bk_err_t ret;
-    uint32_t delay_time = 0;
-    uint32_t start_time, end_time;
+    (void)user_data;
 
-    g_avi_player_is_running = true;
-    rtos_set_semaphore(&g_avi_player_sem);
-
-    g_avi_player_handle->pos = 0;
-    delay_time = 1000 / (uint32_t)g_avi_player_handle->avi->fps;
-
-    while (g_avi_player_is_running)
-    {
-        if (g_avi_player_handle->pos == g_avi_player_handle->video_num) {
-            g_avi_player_handle->pos = 0;
-        }
-
-        start_time = rtos_get_time();
-        ret = bk_avi_player_video_parse();
-        if (ret < 0) {
-            LOGE("%s %d bk_avi_player_video_parse failed\r\n", __func__, __LINE__);
-            g_avi_player_handle->pos++;
-            continue;
-        }
-        g_avi_player_handle->pos++;
-
-        nv12_to_rgb565(g_avi_player_handle->framebuffer, g_avi_player_handle->avi->width, g_avi_player_handle->avi->height, g_rgb565_framebuffer, g_avi_player_handle->swap_flag);
-
-        bk_display_bus_flush(lcd_display_handle, (uint8_t *)g_rgb565_framebuffer, display_frame_free_cb);
-
-        end_time = rtos_get_time();
-        LOGV("bk_avi_player_video_parse time: %d ms\n", end_time - start_time);
-
-        if (end_time - start_time > delay_time) {
-            LOGV("bk_avi_player_video_parse time is too long, just delay 2ms, time: %d ms\n",  end_time - start_time);
-            rtos_delay_milliseconds(2);
-        } else {
-            rtos_delay_milliseconds(delay_time - (end_time - start_time));
-        }
+    if (buffer == NULL || buffer->length == 0) {
+        return AVDK_ERR_INVAL;
     }
 
-    g_avi_player_thread = NULL;
-    rtos_delete_thread(NULL);
+    void *frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, buffer->length);
+    if (frame == NULL) {
+        buffer->data = NULL;
+        buffer->frame_buffer = NULL;
+        buffer->length = 0;
+        return AVDK_ERR_NOMEM;
+    }
+
+    buffer->data = frame;
+    buffer->frame_buffer = frame;
+    buffer->user_data = NULL;
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t audio_buffer_alloc_cb(void *user_data, video_player_buffer_t *buffer)
+{
+    (void)user_data;
+
+    if (buffer == NULL || buffer->length == 0) {
+        return AVDK_ERR_INVAL;
+    }
+
+    buffer->data = os_malloc(buffer->length);
+    if (buffer->data == NULL) {
+        buffer->length = 0;
+        return AVDK_ERR_NOMEM;
+    }
+
+    buffer->frame_buffer = NULL;
+    buffer->user_data = NULL;
+    return AVDK_ERR_OK;
+}
+
+static void audio_buffer_free_cb(void *user_data, video_player_buffer_t *buffer)
+{
+    (void)user_data;
+
+    if (buffer == NULL) {
+        return;
+    }
+
+    if (buffer->data != NULL) {
+        os_free(buffer->data);
+    }
+
+    buffer->data = NULL;
+    buffer->length = 0;
+    buffer->pts = 0;
+    buffer->frame_buffer = NULL;
+    buffer->user_data = NULL;
+}
+
+static void audio_decode_complete_cb(void *user_data, const video_player_audio_packet_meta_t *meta, video_player_buffer_t *buffer)
+{
+    (void)user_data;
+    (void)meta;
+
+    audio_buffer_free_cb(NULL, buffer);
+}
+
+static void rgb565_byte_swap(uint8_t *data, uint32_t length)
+{
+    if (data == NULL) {
+        return;
+    }
+
+    uint16_t *pixels = (uint16_t *)data;
+    uint32_t pixel_count = length / sizeof(uint16_t);
+
+    for (uint32_t i = 0; i < pixel_count; i++) {
+        uint16_t pixel = pixels[i];
+        pixels[i] = (uint16_t)((pixel >> 8) | (pixel << 8));
+    }
+}
+
+static void video_decode_complete_cb(void *user_data, const video_player_video_frame_meta_t *meta, video_player_buffer_t *buffer)
+{
+    (void)user_data;
+    (void)meta;
+
+    if (buffer == NULL || buffer->data == NULL) {
+        return;
+    }
+
+    if (g_rgb565_byte_swap) {
+        rgb565_byte_swap(buffer->data, buffer->length);
+    }
+
+    if (lcd_display_handle == NULL) {
+        video_buffer_free_cb(NULL, buffer);
+        return;
+    }
+
+    avdk_err_t ret = bk_display_bus_flush(lcd_display_handle, buffer->data, display_frame_free_cb);
+    if (ret != AVDK_ERR_OK) {
+        LOGW("%s: bk_display_bus_flush failed, ret=%d\n", __func__, ret);
+        video_buffer_free_cb(NULL, buffer);
+        return;
+    }
+
+    buffer->data = NULL;
+    buffer->length = 0;
+    buffer->pts = 0;
+    buffer->frame_buffer = NULL;
+    buffer->user_data = NULL;
+}
+
+static void playback_finished_cb(void *user_data, const char *file_path)
+{
+    (void)user_data;
+
+    if (g_video_player_handle == NULL || file_path == NULL) {
+        return;
+    }
+
+    avdk_err_t ret = bk_video_player_engine_play_file(g_video_player_handle, file_path);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("%s: replay failed, ret=%d, file=%s\r\n", __func__, ret, file_path);
+    }
 }
 
 bk_err_t bk_avi_player_start(const char *file_path)
 {
-    bk_err_t ret = BK_OK;
-    bk_avi_player_config_t avi_player_config = {0};
+    avdk_err_t ret = AVDK_ERR_OK;
+
+    if (file_path == NULL) {
+        return BK_FAIL;
+    }
 
     bk_sdcard_mount();
 
-    avi_player_config.file_path = file_path;
-    avi_player_config.output_format = AVI_PLAYER_OUTPUT_FORMAT_YUYV;
-    avi_player_config.segment_flag = false;
-    avi_player_config.rgb565_byte_swap_flag = true;
+    if (g_video_player_handle != NULL && g_video_player_opened) {
+        ret = bk_video_player_engine_play_file(g_video_player_handle, file_path);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("bk_video_player_engine_play_file failed, ret=%d\r\n", ret);
+            return BK_FAIL;
+        }
 
-    ret = bk_avi_player_open(&avi_player_config);
-    if (ret != BK_OK) {
-        LOGE("bk_avi_player_open failed!\r\n");
-        return ret;
+        LOGI("%s replay complete\n", __func__);
+        return BK_OK;
     }
 
-    g_avi_player_handle = bk_avi_player_get_handle();
-    if (g_avi_player_handle == NULL) {
-        LOGE("bk_avi_player_get_g_avi_player_handle failed!\r\n");
-        return ret;
+    if (lcd_display_handle == NULL) {
+        ret = bk_display_spi_bus_new(&lcd_display_handle, &spi_ctlr_config);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("bk_display_spi_new failed, ret=%d!\n", ret);
+            goto fail;
+        }
+
+        LOGD("bk_display_spi_new success!\n");
+        ret = bk_display_bus_enable(lcd_display_handle);
+        if (ret != AVDK_ERR_OK) {
+            LOGE("bk_display_open failed, ret=%d!\n", ret);
+            goto fail;
+        }
+
+        lcd_backlight_open(GPIO_29);
     }
 
-    g_rgb565_framebuffer = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, 240 * 304 * 2);
-    if (g_rgb565_framebuffer == NULL) {
-        LOGE("g_rgb565_framebuffer malloc failed!\r\n");
-        return ret;
+    bk_video_player_config_t cfg;
+    os_memset(&cfg, 0, sizeof(cfg));
+
+    cfg.video.parser_to_decode_buffer_count = 2;
+    cfg.video.decode_to_output_buffer_count = 2;
+    cfg.video.packet_buffer_alloc_cb = video_packet_buffer_alloc_cb;
+    cfg.video.packet_buffer_free_cb = video_buffer_free_cb;
+    cfg.video.buffer_alloc_cb = video_output_buffer_alloc_cb;
+    cfg.video.buffer_free_cb = video_buffer_free_cb;
+    cfg.video.decode_complete_cb = video_decode_complete_cb;
+    cfg.video.output_format = PIXEL_FMT_RGB565;
+    cfg.audio.parser_to_decode_buffer_count = 2;
+    cfg.audio.decode_to_output_buffer_count = 2;
+    cfg.audio.buffer_alloc_cb = audio_buffer_alloc_cb;
+    cfg.audio.buffer_free_cb = audio_buffer_free_cb;
+    cfg.audio.decode_complete_cb = audio_decode_complete_cb;
+    cfg.playback_finished_cb = playback_finished_cb;
+
+    ret = bk_video_player_engine_new(&g_video_player_handle, &cfg);
+    if (ret != AVDK_ERR_OK || g_video_player_handle == NULL) {
+        LOGE("bk_video_player_engine_new failed, ret=%d\r\n", ret);
+        g_video_player_handle = NULL;
+        goto fail;
     }
 
-    ret = bk_display_spi_bus_new(&lcd_display_handle, &spi_ctlr_config);
+    ret = bk_video_player_engine_register_container_parser(g_video_player_handle, bk_video_player_get_avi_parser_ops());
     if (ret != AVDK_ERR_OK) {
-        LOGE("bk_display_spi_new failed!\n");
-        return ret;
+        LOGE("register avi parser failed, ret=%d\r\n", ret);
+        goto fail;
     }
 
-    LOGD("bk_display_spi_new success!\n");
-    ret = bk_display_bus_enable(lcd_display_handle);
+    ret = bk_video_player_engine_register_video_decoder(g_video_player_handle, bk_video_player_get_hw_jpeg_decoder_ops());
     if (ret != AVDK_ERR_OK) {
-        LOGE("bk_display_open failed!\n");
-        return ret;
+        LOGE("register hw jpeg decoder failed, ret=%d\r\n", ret);
+        goto fail;
     }
 
-    lcd_backlight_open(GPIO_29);
+    ret = bk_video_player_engine_open(g_video_player_handle);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("bk_video_player_engine_open failed, ret=%d\r\n", ret);
+        goto fail;
+    }
+    g_video_player_opened = true;
 
-    ret = rtos_init_semaphore_ex(&g_avi_player_sem, 1, 0);
-    if (ret != BK_OK) {
-        LOGE("rtos_init_semaphore_ex failed!\r\n");
-        return ret;
+    ret = bk_video_player_engine_set_file_path(g_video_player_handle, file_path);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("bk_video_player_engine_set_file_path failed, ret=%d\r\n", ret);
+        goto fail;
     }
 
-    ret = rtos_create_thread(&g_avi_player_thread,
-                             BEKEN_DEFAULT_WORKER_PRIORITY - 1,
-                             "avi_player_thread",
-                             (beken_thread_function_t)avi_player_thread,
-                             1024 * 4,
-                             NULL);
-
-    if (ret != BK_OK) {
-        LOGE("rtos_create_thread failed!\r\n");
-        return ret;
+    ret = bk_video_player_engine_play(g_video_player_handle);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("bk_video_player_engine_play failed, ret=%d\r\n", ret);
+        goto fail;
     }
-    
-    rtos_get_semaphore(&g_avi_player_sem, BEKEN_WAIT_FOREVER);
 
     LOGI("%s complete\n", __func__);
 
     return BK_OK;
+
+fail:
+    if (g_video_player_handle != NULL) {
+        if (g_video_player_opened) {
+            bk_video_player_engine_close(g_video_player_handle);
+            g_video_player_opened = false;
+        }
+        bk_video_player_engine_delete(g_video_player_handle);
+        g_video_player_handle = NULL;
+    }
+
+    if (lcd_display_handle != NULL) {
+        bk_display_bus_delete(lcd_display_handle);
+        lcd_display_handle = NULL;
+    }
+
+    return BK_FAIL;
 }

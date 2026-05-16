@@ -89,6 +89,7 @@ typedef enum
     BK_JPEG_DECODE_IMG_FMT_YUV422,        /*!< YUV 4:2:2 format - horizontal chroma subsampling by 2:1 */
     BK_JPEG_DECODE_IMG_FMT_YUV420,        /*!< YUV 4:2:0 format - horizontal and vertical chroma subsampling by 2:1 */
     BK_JPEG_DECODE_IMG_FMT_YUV400,        /*!< YUV 4:0:0 format - grayscale image with only luma component */
+    BK_JPEG_DECODE_IMG_FMT_MAX,
 } bk_jpeg_decode_img_fmt_t;
 
 typedef struct bk_jpeg_decode_img_info
