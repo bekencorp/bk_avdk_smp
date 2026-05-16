@@ -541,13 +541,13 @@ bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq)
 		case PM_CPU_FRQ_240M://cpu0:240m;cpu0 bus:240m
 			ret = sys_hal_core_bus_clock_ctrl(0x3,0x1,0x0,0x0,0x0);
 			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0 v
-			sys_hal_ctrl_vdddig_h_vol(0xD);//0.925V
+			sys_hal_ctrl_vdddig_h_vol(0xE);//0.95V=0.6+0.025*0xE
 			break;
 		case PM_CPU_FRQ_160M://cpu0:160m;bus:160m
 			ret = sys_hal_core_bus_clock_ctrl(0x2,0x1,0x0,0x0,0x0);
 			sys_hal_set_ram_low_speed();
 			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0v
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
+			sys_hal_ctrl_vdddig_h_vol(0xC);//0.9V
 			break;
 		case PM_CPU_FRQ_120M://cpu0:120m;bus:120m
 			#if CONFIG_DCO_CLK_ENABLE
@@ -556,7 +556,7 @@ bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq)
 			ret = sys_hal_core_bus_clock_ctrl(0x3,0x3,0x0,0x0,0x0);
 			#endif
 			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
+			sys_hal_ctrl_vdddig_h_vol(0xC);//0.9V
 
 			break;
 		case PM_CPU_FRQ_80M://cpu0:80m;bus:80m
@@ -596,18 +596,18 @@ bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq)
 	{
 		case PM_CPU_FRQ_240M://cpu0:240m;bus:240m
 			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0v
-			sys_hal_ctrl_vdddig_h_vol(0xD);//0.925V
+			sys_hal_ctrl_vdddig_h_vol(0xE);//0.95V=0.6+0.025*0xE
 			sys_hal_set_ram_high_speed();
 			ret = sys_hal_core_bus_clock_ctrl(0x3,0x1,0x0,0x0,0x0);
 			break;
 		case PM_CPU_FRQ_160M://cpu0:160m;bus:160m
 			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0v
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
+			sys_hal_ctrl_vdddig_h_vol(0xC);//0.9V
 			ret = sys_hal_core_bus_clock_ctrl(0x2,0x1,0x0,0x0,0x0);
 			break;
 		case PM_CPU_FRQ_120M://cpu0:120m;bus:120m
 			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
+			sys_hal_ctrl_vdddig_h_vol(0xC);//0.9V
 			#if CONFIG_DCO_CLK_ENABLE
 			ret = sys_hal_core_bus_clock_ctrl(0x1,0x1,0x0,0x0,0x0);
 			#else
@@ -3169,7 +3169,7 @@ static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		sys_ll_set_ana_reg10_spi_latch1v(1);
 		sys_ll_set_ana_reg9_pwd_hsldo(0);
 		sys_ll_set_ana_reg16_enhspw(1);
-		sys_ll_set_ana_reg16_vcorehssel(0x8);//0.9v (modify 20260202 siqing usb)
+		sys_ll_set_ana_reg16_vcorehssel(0xA);//0.7+0.025*0xA=0.95v
 		sys_ll_set_ana_reg10_spi_latch1v(0);
 
 		/*"M55S Access Secure*/
@@ -3214,7 +3214,7 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	sys_ll_set_ana_reg10_spi_latch1v(1);
 	sys_ll_set_ana_reg9_pwd_hsldo(0);
 	sys_ll_set_ana_reg16_enhspw(1);
-	sys_ll_set_ana_reg16_vcorehssel(0x8);//0.9v (modify 20260202 siqing usb)
+	sys_ll_set_ana_reg16_vcorehssel(0xA);//0.7+0.025*0xA=0.95v
 	sys_ll_set_ana_reg10_spi_latch1v(0);
 
 	regData = REG_READ(0x44000000 + 0x2*4);
