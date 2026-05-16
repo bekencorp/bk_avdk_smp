@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 #include "FreeRTOSConfig.h"
 #include "FreeRTOS.h"
 #include "semphr.h"
@@ -199,11 +200,125 @@ typedef struct onboard_speaker_stream
     aud_rsp_cfg_t            rsp_cfg[AUD_DAC_SOURCE_MAX];   /**< resampler config */
     uint16_t                *rsp_out_buff[AUD_DAC_SOURCE_MAX][MAX_CH_NUM];/**< resampler output buffer of speaker 0/1 */
     void                    *rsp_handler[AUD_DAC_SOURCE_MAX];/**< resampler handler */
+    onboard_speaker_stream_status_t status;                 /**< runtime status for upper layer */
+    uint8_t                         play_energy_threshold;  /**< voice-play enter threshold in range 0~100 */
+    uint8_t                         play_energy_hysteresis; /**< play-state hysteresis in range 0~100 */
+    onboard_speaker_status_cb_t     status_cb;              /**< status report callback */
+    void                            *status_cb_user_data;   /**< callback private data */
 } onboard_speaker_stream_t;
 
 static onboard_speaker_stream_t *gl_onboard_speaker = NULL;
 static uint32_t spk_dma_finish_bitmap = 0;
 static uint32_t open_cnt = 0;//workaround of aud dac dma stop issue
+
+static uint8_t onboard_spk_calc_energy_level(const uint8_t *data, uint32_t size, uint8_t bits)
+{
+    if (data == NULL || size == 0)
+    {
+        return 0;
+    }
+
+    uint64_t abs_sum = 0;
+    uint64_t full_scale = 0;
+    uint32_t sample_num = 0;
+
+    if (bits == 16)
+    {
+        const int16_t *samples = (const int16_t *)data;
+        sample_num = size / sizeof(int16_t);
+        full_scale = INT16_MAX;
+        for (uint32_t i = 0; i < sample_num; i++)
+        {
+            int32_t sample = samples[i];
+            uint64_t abs_val = (sample < 0) ? (uint64_t)(-sample) : (uint64_t)sample;
+            abs_sum += abs_val;
+        }
+    }
+    else
+    {
+        const int32_t *samples = (const int32_t *)data;
+        sample_num = size / sizeof(int32_t);
+        full_scale = INT32_MAX;
+        for (uint32_t i = 0; i < sample_num; i++)
+        {
+            int64_t sample = samples[i];
+            uint64_t abs_val = (sample < 0) ? (uint64_t)(-sample) : (uint64_t)sample;
+            abs_sum += abs_val;
+        }
+    }
+
+    if (full_scale == 0 || sample_num == 0)
+    {
+        return 0;
+    }
+
+    uint64_t denominator = full_scale * sample_num;
+    uint64_t level = (abs_sum * 100 + (denominator / 2)) / denominator;
+    return (level > 100) ? 100 : (uint8_t)level;
+}
+
+static void onboard_spk_notify_status(audio_element_handle_t self, onboard_speaker_stream_t *onboard_spk)
+{
+    if (onboard_spk && onboard_spk->status_cb)
+    {
+        onboard_spk->status_cb(self, &onboard_spk->status, onboard_spk->status_cb_user_data);
+    }
+}
+
+static bool onboard_spk_is_voice_playing(const onboard_speaker_stream_t *onboard_spk, uint8_t energy_level)
+{
+    uint8_t enter_threshold;
+    uint8_t exit_threshold;
+
+    if (onboard_spk == NULL || !onboard_spk->is_open)
+    {
+        return false;
+    }
+
+    enter_threshold = onboard_spk->play_energy_threshold;
+    exit_threshold = (enter_threshold > onboard_spk->play_energy_hysteresis) ?
+        (enter_threshold - onboard_spk->play_energy_hysteresis) : 0;
+
+    if (onboard_spk->status.is_playing)
+    {
+        return (energy_level > exit_threshold);
+    }
+
+    return (energy_level > enter_threshold);
+}
+
+static void onboard_spk_update_status(audio_element_handle_t self, onboard_speaker_stream_t *onboard_spk, bool is_playing, uint8_t energy_level, bool force_report)
+{
+    bool changed = false;
+
+    if (onboard_spk == NULL)
+    {
+        return;
+    }
+
+    if (onboard_spk->status.is_playing != is_playing)
+    {
+        onboard_spk->status.is_playing = is_playing;
+        changed = true;
+    }
+
+    if (onboard_spk->status.energy_level != energy_level)
+    {
+        onboard_spk->status.energy_level = energy_level;
+        changed = true;
+    }
+
+    if (force_report || changed)
+    {
+        onboard_spk_notify_status(self, onboard_spk);
+    }
+}
+
+static void onboard_spk_update_status_by_energy(audio_element_handle_t self, onboard_speaker_stream_t *onboard_spk, uint8_t energy_level, bool force_report)
+{
+    bool is_playing = onboard_spk_is_voice_playing(onboard_spk, energy_level);
+    onboard_spk_update_status(self, onboard_spk, is_playing, energy_level, force_report);
+}
 
 static inline uint32_t onboard_spk_active_dma_chl_num(const onboard_speaker_stream_t *onboard_spk)
 {
@@ -720,6 +835,7 @@ static bk_err_t _onboard_speaker_open(audio_element_handle_t self)
 
     onboard_spk->is_open = true;
     onboard_spk->valid_frame_count_in_spk_rb = 2;
+    onboard_spk_update_status_by_energy(self, onboard_spk, 0, true);
 
     /* turn on pa */
     if (onboard_spk->pa_ctrl_en)
@@ -1180,6 +1296,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                         ring_buffer_write(&onboard_spk->spk_rb[i][1], (uint8_t *)write_addr, write_size);
                     }
                     onboard_spk->wr_spk_rb_done[i] = true;
+                    onboard_spk_update_status_by_energy(self, onboard_spk, onboard_spk_calc_energy_level(write_addr, write_size, onboard_spk->bits), false);
                     /* write data to ref ring buffer */
                     audio_element_multi_output(self, (char *)onboard_spk->spk0_data, onboard_spk->frame_size[i], 0);
                     //read_data_valid_flag = false;
@@ -1217,6 +1334,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                         ring_buffer_write(&onboard_spk->spk_rb[i][1], (uint8_t *)onboard_spk->temp_buff, write_size);
                     }
                     onboard_spk->wr_spk_rb_done[i] = true;
+                    onboard_spk_update_status_by_energy(self, onboard_spk, 0, false);
                     /* write data to ref ring buffer */
                     audio_element_multi_output(self, (char *)onboard_spk->temp_buff, onboard_spk->frame_size[i], 0);
 
@@ -1247,6 +1365,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                         if (onboard_spk->valid_frame_count_in_spk_rb == 0)
                         {
                             w_size = r_size;
+                            onboard_spk_update_status(self, onboard_spk, false, 0, false);
                         }
                         else
                         {
@@ -1380,6 +1499,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                 ring_buffer_write(&onboard_spk->spk_rb[main_src][1], (uint8_t *)write_addr, write_size);
             }
             onboard_spk->wr_spk_rb_done[main_src] = true;
+            onboard_spk_update_status_by_energy(self, onboard_spk, onboard_spk_calc_energy_level(write_addr, write_size, onboard_spk->bits), false);
             /* write data to ref ring buffer */
             audio_element_multi_output(self, (char *)in_buffer, onboard_spk->frame_size[main_src], 0);
             //read_data_valid_flag = false;
@@ -1412,6 +1532,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
                 ring_buffer_write(&onboard_spk->spk_rb[main_src][1], (uint8_t *)onboard_spk->temp_buff, write_size);
             }
             onboard_spk->wr_spk_rb_done[main_src] = true;
+            onboard_spk_update_status_by_energy(self, onboard_spk, 0, false);
             /* write data to ref ring buffer */
             audio_element_multi_output(self, (char *)onboard_spk->temp_buff, onboard_spk->frame_size[main_src], 0);
 
@@ -1449,6 +1570,7 @@ static int _onboard_speaker_process(audio_element_handle_t self, char *in_buffer
             if (onboard_spk->valid_frame_count_in_spk_rb == 0)
             {
                 w_size = r_size;
+                onboard_spk_update_status(self, onboard_spk, false, 0, false);
             }
             else
             {
@@ -1548,6 +1670,7 @@ static bk_err_t _onboard_speaker_close(audio_element_handle_t self)
         onboard_spk->wr_spk_rb_done[i] = false;
     }
     onboard_spk->valid_frame_count_in_spk_rb = 0;
+    onboard_spk_update_status(self, onboard_spk, false, 0, true);
 
     return BK_OK;
 }
@@ -1723,6 +1846,12 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
     gl_onboard_speaker->work_mode = config->work_mode;
     gl_onboard_speaker->bits      = config->bits;
     gl_onboard_speaker->clk_src   = config->clk_src;
+    gl_onboard_speaker->status.is_playing = false;
+    gl_onboard_speaker->status.energy_level = 0;
+    gl_onboard_speaker->play_energy_threshold = (config->play_energy_threshold > 100) ? 100 : config->play_energy_threshold;
+    gl_onboard_speaker->play_energy_hysteresis = (config->play_energy_hysteresis > 100) ? 100 : config->play_energy_hysteresis;
+    gl_onboard_speaker->status_cb = config->status_cb;
+    gl_onboard_speaker->status_cb_user_data = config->status_cb_user_data;
 
     gl_onboard_speaker->pool_length      = config->pool_length;
     gl_onboard_speaker->pool_play_thold  = config->pool_play_thold;
@@ -2279,6 +2408,26 @@ bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_s
     }
 
     *gain_db = onboard_spk->ana_gain;
+    return BK_OK;
+}
+
+bk_err_t onboard_speaker_stream_get_status(audio_element_handle_t onboard_speaker_stream, onboard_speaker_stream_status_t *status)
+{
+    onboard_speaker_stream_t *onboard_spk = (onboard_speaker_stream_t *)audio_element_getdata(onboard_speaker_stream);
+
+    if (status == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, status is NULL\n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    if (onboard_spk == NULL)
+    {
+        BK_LOGE(TAG, "%s, line: %d, onboard_spk is not init \n", __func__, __LINE__);
+        return BK_FAIL;
+    }
+
+    *status = onboard_spk->status;
     return BK_OK;
 }
 

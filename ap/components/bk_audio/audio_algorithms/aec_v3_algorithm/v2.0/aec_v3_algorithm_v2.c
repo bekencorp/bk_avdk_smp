@@ -141,6 +141,7 @@ typedef struct aec_algorithm
     ec_out_callback  ec_out_cb;
     vad_state_callback vad_state_cb;
     aec_phase_callback aec_phase_cb;
+    aec_level_callback aec_level_cb;
     int16_t interleaved_out_phase_enable;
     int16_t *out_phase_interleave_buf; /*!< malloc when interleaved_out_phase_enable; size frame_size*2 bytes */
     /** when ec_only_output=1: 0=multi_output use aec out, 1=multi_output use ec out; when ec_only_output=0, multi_output always aec out */
@@ -930,6 +931,35 @@ static int16_t aec_clamp_phase_to_i16(int32_t phs32)
     return (int16_t)phs32;
 }
 
+static uint8_t aec_calc_output_level(const int16_t *data, uint32_t size)
+{
+    uint32_t sample_num = 0;
+    uint64_t abs_sum = 0;
+
+    if (data == NULL || size == 0)
+    {
+        return 0;
+    }
+
+    sample_num = size / sizeof(int16_t);
+    for (uint32_t i = 0; i < sample_num; i++)
+    {
+        int32_t sample = data[i];
+        uint64_t abs_val = (sample < 0) ? (uint64_t)(-sample) : (uint64_t)sample;
+        abs_sum += abs_val;
+    }
+
+    if (sample_num == 0)
+    {
+        return 0;
+    }
+
+    /* Map int16 mean abs value to percentage in range 0~100 */
+    uint64_t denominator = (uint64_t)32767 * sample_num;
+    uint64_t level = (abs_sum * 100 + (denominator / 2)) / denominator;
+    return (level > 100) ? 100 : (uint8_t)level;
+}
+
 static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffer, int in_len)
 {
     BK_LOGV(TAG, "[%s] %s, in_len: %d \n", audio_element_get_tag(self), __func__, in_len);
@@ -1096,6 +1126,16 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
 
         aec_phase_update(aec, aec->vad_state);
 
+        if (aec->aec_level_cb)
+        {
+            uint8_t level = aec_calc_output_level(aec->out_addr, aec->frame_size);
+            if (aec->vad_cfg.vad_enable && (aec->vad_state != VAD_SPEECH_START))
+            {
+                level = 0;
+            }
+            aec->aec_level_cb(level);
+        }
+
         if(aec->ec_out_cb && buff_ecout)
         {
             aec->ec_out_cb(buff_ecout, aec->frame_size);
@@ -1217,6 +1257,10 @@ static int _aec_v3_algorithm_process(audio_element_handle_t self, char *in_buffe
     }
     else
     {
+        if (aec->aec_level_cb)
+        {
+            aec->aec_level_cb(0);
+        }
         w_size = r_size;
     }
     AEC_PROCESS_END();
@@ -1368,6 +1412,7 @@ audio_element_handle_t aec_v3_algorithm_init(aec_v3_algorithm_cfg_t *config)
     aec_alg->ec_out_cb    = config->ec_out_cb;
     aec_alg->vad_state_cb = config->vad_state_cb;
     aec_alg->aec_phase_cb = config->aec_phase_cb;
+    aec_alg->aec_level_cb = config->aec_level_cb;
     aec_alg->interleaved_out_phase_enable = (config->interleaved_out_phase_enable != 0) ? 1 : 0;
     aec_alg->out_phase_interleave_buf = NULL;
 #if CONFIG_AEC_RUN_ON_M52
