@@ -29,6 +29,26 @@ extern "C" {
 #endif
 
 /**
+ * @brief   Onboard speaker runtime status.
+ */
+typedef struct
+{
+    bool is_playing;        /*!< valid voice output state based on threshold + hysteresis */
+    uint8_t energy_level;   /*!< energy level mapped to 0~100 for UI meter */
+} onboard_speaker_stream_status_t;
+
+/**
+ * @brief      Onboard speaker status callback.
+ *
+ * @param[in]  onboard_speaker_stream  element handle
+ * @param[in]  status                  current speaker status
+ * @param[in]  user_data               user private data passed by register api
+ */
+typedef void (*onboard_speaker_status_cb_t)(audio_element_handle_t onboard_speaker_stream,
+                                            const onboard_speaker_stream_status_t *status,
+                                            void *user_data);
+
+/**
  * @brief   Onboard Speaker Stream configurations, if any entry is zero then the configuration will be set to default values
  */
 typedef struct
@@ -56,6 +76,10 @@ typedef struct
     int                     task_prio;          /*!< Task priority (based on freeRTOS priority) */
     uint32_t                dac_source_bitmap;  /*!< bitmap of active dac source,bit[x]:0:source_x inactive;1:source_x active*/
     aud_dac_source_t        main_dac_source;    /*!< main input source mapped to element->in */
+    uint8_t                 play_energy_threshold; /*!< voice-play enter threshold in range 0~100, energy_level > threshold means enter playing */
+    uint8_t                 play_energy_hysteresis; /*!< hysteresis in range 0~100, exit threshold = max(0, play_energy_threshold - hysteresis) */
+    onboard_speaker_status_cb_t status_cb;      /*!< status callback registered at init */
+    void                    *status_cb_user_data;/*!< user data of status callback */
 } onboard_speaker_stream_cfg_t;
 
 #define ONBOARD_SPEAKER_STREAM_TASK_STACK          (1536)
@@ -107,6 +131,10 @@ typedef struct
         .task_prio  = ONBOARD_SPEAKER_STREAM_TASK_PRIO,        \
         .dac_source_bitmap = DEFAULT_ACTIVE_DAC_SOURCE_BITMAP, \
         .main_dac_source   = DEFAULT_DAC_SOURCE,               \
+        .play_energy_threshold = 5,                            \
+        .play_energy_hysteresis = 2,                           \
+        .status_cb = NULL,                                     \
+        .status_cb_user_data = NULL,                           \
     }
 
 /**
@@ -226,6 +254,18 @@ bk_err_t onboard_speaker_stream_set_analog_gain(audio_element_handle_t onboard_s
  *                 - other: failed
  */
 bk_err_t onboard_speaker_stream_get_analog_gain(audio_element_handle_t onboard_speaker_stream, int32_t *gain_db);
+
+/**
+ * @brief      Get onboard speaker stream runtime status.
+ *
+ * @param[in]      onboard_speaker_stream  element handle
+ * @param[in,out]  status  output runtime status, includes playing state and energy level
+ *
+ * @return         Result
+ *                 - BK_OK: success
+ *                 - other: failed
+ */
+bk_err_t onboard_speaker_stream_get_status(audio_element_handle_t onboard_speaker_stream, onboard_speaker_stream_status_t *status);
 
 #ifdef __cplusplus
 }

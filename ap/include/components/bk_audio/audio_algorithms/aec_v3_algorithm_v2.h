@@ -149,6 +149,7 @@ typedef struct {
 typedef int (*ec_out_callback)(int32_t *buffer, uint16_t len);
 typedef int (*vad_state_callback)(int32_t state);
 typedef int (*aec_phase_callback)(int32_t phase, int vad_flag);
+typedef int (*aec_level_callback)(int32_t level);
 
 /**
  * @brief      AEC algorithm configurations
@@ -168,6 +169,7 @@ typedef struct
     ec_out_callback         ec_out_cb;          /*!< echo cancellation output callback function */
     vad_state_callback      vad_state_cb;       /*!< VAD state callback function */
     aec_phase_callback      aec_phase_cb;       /*!< AEC phase callback function */
+    aec_level_callback      aec_level_cb;       /*!< AEC output level callback function, range: 0~100 */
     int16_t                 interleaved_out_phase_enable; /*!< 0: off; non-zero: malloc interleave buf and fill (out,phase) per frame */
 } aec_v3_algorithm_cfg_t;
 
@@ -239,6 +241,7 @@ typedef struct
     .ec_out_cb = NULL,                                      \
     .vad_state_cb = NULL,                                   \
     .aec_phase_cb = NULL,                                   \
+    .aec_level_cb = NULL,                                   \
     .interleaved_out_phase_enable = 0,                      \
 }
 
