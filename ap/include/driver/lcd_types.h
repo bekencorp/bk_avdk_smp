@@ -14,20 +14,29 @@
 
 #pragma once
 
-/*
- * NOTE: All legacy LCD types previously declared in this file have been
- * removed (they were wrapped in `#if 0` and unused). This header is now a
- * thin forwarding stub kept only for source-level backward compatibility:
- * it pulls in the QSPI/MCU-related typedefs so existing
- * `#include <driver/lcd_types.h>` lines keep compiling.
- *
- * New code SHOULD include the concrete headers directly:
- *   - `driver/lcd_qspi_types.h` for QSPI / SPI panel types
- *   - `components/bk_lcd_types.h` for `bk_lcd_panel_t` / panel device entry
- *   - `components/bk_display_types.h` for the new display framework types
- *
- * This stub will be removed entirely once all `#include` sites have been
- * migrated (planned C2 header-reorganization commit).
- */
-
+#include <stdint.h>
 #include "driver/lcd_qspi_types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief Rectangular region descriptor used by the partial-display path of the
+ *        SPI and QSPI LCD drivers (::bk_lcd_spi_partial_display() and
+ *        ::bk_lcd_qspi_partial_display()).
+ *
+ * Coordinates are inclusive end-points in pixels and follow the panel's
+ * native column/row addressing (i.e. matched by the column / page address-set
+ * commands the driver IC accepts).
+ */
+typedef struct {
+    uint16_t x_start;
+    uint16_t y_start;
+    uint16_t x_end;
+    uint16_t y_end;
+} lcd_display_area_t;
+
+#ifdef __cplusplus
+}
+#endif

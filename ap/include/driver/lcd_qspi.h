@@ -14,8 +14,9 @@
 
 #pragma once
 
-#include <components/bk_lcd_types.h>
+#include <components/bk_lcd_panel.h>
 #include <components/media_types.h>
+#include <driver/lcd_types.h>
 
 #ifdef __cplusplus
 extern "C" {
