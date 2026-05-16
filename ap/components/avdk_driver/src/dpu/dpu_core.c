@@ -9,7 +9,7 @@
  #include "sys_driver.h"
 #include "dpu_driver.h"
 #include "dpu_core.h"
-#include "components/bk_lcd_types.h"
+#include "components/bk_lcd_panel.h"
 #include <components/bk_hardware_ram.h>
 #include "sys_ahbp_reg.h"
 #include <int_types_impl.h>
@@ -83,9 +83,9 @@ void dpu_clk_src_set(dpu_clk_src_t clk_src)
 
 void dpu_clk_set(dpu_clk_src_t clk_src, lcd_clk_t clk)
 {
-    //clk_src = DPU_CLK_SRC_NANENG_DPHY_INTERNAL_DPLL;
-    //clk_src = DPU_CLK_SRC_320M_480M;
-    if (clk_src == DPU_CLK_SRC_320M_480M)
+    //clk_src = DPU_CLK_SRC_DPHY_DPLL;
+    //clk_src = DPU_CLK_SRC_SYSCLK;
+    if (clk_src == DPU_CLK_SRC_SYSCLK)
     {
 	    switch (clk)
 	    {

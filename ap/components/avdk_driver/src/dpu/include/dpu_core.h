@@ -13,8 +13,7 @@
 // limitations under the License.
 
 #pragma once
-#include <components/bk_display_types.h>
-#include "components/bk_lcd_types.h"
+#include <components/bk_display.h>
 #include <driver/dpu_types.h>
 
 
@@ -23,7 +22,6 @@ typedef void * dpu_handle_t;
 
 #define EVENT_BIT_AVAILABLE (1 << 0)
 
-/* dpu_clk_src_t is defined in components/bk_display_types.h */
 
 /**
  * @brief MIPI DSI DPI panel configuration structure
@@ -79,20 +77,84 @@ typedef struct  {
 }dpu_context_t;
 
 
+/**
+ * @brief Bring the DPU core up.
+ *
+ * Programs clocks, layer geometry, IRQ and prepares the flush path.
+ *
+ * @param[in]  dpu_config  Initial config (kept by the driver).
+ * @param[out] handle      Receives the DPU instance handle.
+ *
+ * @return BK_OK on success.
+ */
 bk_err_t dpu_core_init(dpu_config_t * dpu_config, dpu_handle_t *handle);
 
+/**
+ * @brief Tear down the DPU core and free the instance owned by @p handle.
+ *
+ * @param[in] handle DPU handle returned by ::dpu_core_init().
+ *
+ * @return BK_OK on success.
+ */
 bk_err_t dpu_core_deinit(dpu_handle_t *handle);
 
+/**
+ * @brief Reprogram layer geometry / format on a previously initialised DPU.
+ *
+ * @param[in] dpu_config New layer configuration.
+ * @param[in] handle     DPU handle.
+ *
+ * @return BK_OK on success.
+ */
 bk_err_t dpu_core_layer_config(dpu_config_t * dpu_config, dpu_handle_t *handle);
 
+/**
+ * @brief Submit a frame buffer for the given layer.
+ *
+ * @param[in] handle   DPU instance.
+ * @param[in] layer    Target layer (video/graphic).
+ * @param[in] buff     Frame buffer pointer.
+ * @param[in] free_cb  Optional free callback invoked when the buffer is released.
+ *
+ * @return BK_OK on success.
+ */
 bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flush_free_cb_t free_cb);
 
+/**
+ * @brief Return the current flush address (diagnostics / debug).
+ *
+ * @param[in] handle DPU instance.
+ *
+ * @return Flush address, or 0 on error.
+ */
 uint32_t dpu_core_get_flush_addr(dpu_handle_t *handle);
 
+/**
+ * @brief Pause refresh without releasing DPU programming.
+ *
+ * @param[in] handle DPU instance.
+ *
+ * @return BK_OK on success.
+ */
 bk_err_t dpu_core_flush_stop(dpu_handle_t *handle);
 
+/**
+ * @brief Resume refresh after ::dpu_core_flush_stop().
+ *
+ * @param[in] handle DPU instance.
+ *
+ * @return BK_OK on success.
+ */
 bk_err_t dpu_core_flush_restart(dpu_handle_t *handle);
 
+/**
+ * @brief Runtime swap of pixel format / decompress flag.
+ *
+ * @param[in] handle DPU instance.
+ * @param[in] config New pixel format / decompress configuration.
+ *
+ * @return BK_OK on success.
+ */
 bk_err_t dpu_core_runtime_switch(dpu_handle_t *handle, const bk_display_pixel_format_config_t *config);
 
 

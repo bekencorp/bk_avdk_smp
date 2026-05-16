@@ -14,41 +14,54 @@
 
 #pragma once
 
-#include "components/bk_lcd_types.h"
+/**
+ * @file dpu_types.h
+ * @brief Public DPU type definitions consumed by both the bk_display
+ *        component and direct avdk_driver users.
+ */
 
+#include <stdint.h>
+#include <stdbool.h>
+#include <avdk_error.h>
+#include <common/avdk_pixel_types.h>
+
+/** DPU layer index. */
 typedef enum {
-    DPU_LAYER_VIDEO,
-    DPU_LAYER_GRAPHIC,
+    DPU_LAYER_VIDEO,      /**< video / pixel layer (typical YUV/RGB frame) */
+    DPU_LAYER_GRAPHIC,    /**< graphics / OSD overlay layer */
     DPU_LAYER_MAX,
 } dpu_layer_t;
 
+/** Per-layer blend mode. */
 typedef enum {
     DPU_BLEND_MODE_CLEAR,
     DPU_BLEND_MODE_SRC,
     DPU_BLEND_MODE_DST,
-    DPU_BLEND_MODE_SRC_OVER = 12,   // dst alpha value must be 1
-    DPU_BLEND_MODE_DST_OVER = 13,   // dst alpha value must be 1
+    DPU_BLEND_MODE_SRC_OVER = 12,   /**< dst alpha must be 1 */
+    DPU_BLEND_MODE_DST_OVER = 13,   /**< dst alpha must be 1 */
 } dup_blend_mode_t;
 
+/** Video layer configuration. */
 typedef struct {
     bool enable;
-    bool decompress;
+    bool decompress;              /**< true = enable on-the-fly decompress */
     bk_pixel_format_t format;
-    uint32_t   disp_x;         /* Rectangle start point X coordinate */
-    uint32_t   disp_y;         /* Rectangle start point Y coordinate */
-    uint32_t   disp_w;         /* Rectangle width*/
-    uint32_t   disp_h;         /* Rectangle height */
+    uint32_t   disp_x;            /**< rectangle start X */
+    uint32_t   disp_y;            /**< rectangle start Y */
+    uint32_t   disp_w;            /**< rectangle width  */
+    uint32_t   disp_h;            /**< rectangle height */
 } dpu_video_layer_config_t;
 
+/** Graphics / OSD layer configuration. */
 typedef struct {
     bool enable;
     dup_blend_mode_t blend_mode;
     bk_pixel_format_t format;
-    uint32_t   disp_x;   
-    uint32_t   disp_y;       
-    uint32_t   disp_w;       
-    uint32_t   disp_h;       
+    uint32_t   disp_x;
+    uint32_t   disp_y;
+    uint32_t   disp_w;
+    uint32_t   disp_h;
 } dpu_graphic_layer_config_t;
 
-
+/** Async free callback for ::bk_display_flush() / dpu_core_flush(). */
 typedef avdk_err_t (*flush_free_cb_t)(void *args);

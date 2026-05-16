@@ -29,7 +29,13 @@ void hal_dsi_wait_for_dphy_pwrup(void);
 
 void hal_dsi_dphy_power_down(void);
 
-uint32_t dsi_dphy_bitrate_calc(lcd_clk_t dpu_clk, uint8_t n_lanes);
+/**
+ * @param[in] dpu_clk_mhz DPU pixel clock in MHz (matches ::lcd_clk_t enum
+ *                        literal values such as ``LCD_320M``/``LCD_240M``).
+ *                        Plain @c uint32_t to avoid pulling component-layer
+ *                        headers into this SoC-private hal interface.
+ */
+uint32_t dsi_dphy_bitrate_calc(uint32_t dpu_clk_mhz, uint8_t n_lanes);
 
 void hal_dsi_host_reset(void);
 

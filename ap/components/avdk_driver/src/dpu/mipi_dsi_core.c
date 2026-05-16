@@ -4,8 +4,7 @@
 #include "sys_driver.h"
 #include "mipi_dsi_host_reg.h"
 #include <mipi_dsi_types.h>
-#include <components/bk_lcd_types.h>
-#include <components/bk_display_types.h>
+#include <driver/dpu_types.h>
 #include <mipi_dsi_hal.h>
 #include <driver/mipi_dsi.h>
 #include <avdk_check.h>
@@ -16,21 +15,6 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
-
-typedef struct mipi_dsi_io_t mipi_dsi_io_t;
-
-struct mipi_dsi_io_t {
-    bk_lcd_bus_io_t base;         // Base class of generic lcd panel
-
-    uint8_t virtual_channel;      // Virtual channel ID, index from 0
-    int lcd_cmd_bits;             // Bit-width of LCD command
-    int lcd_param_bits;           // Bit-width of LCD parameter
-    void *user_ctx; // User context for the callback
-};
-
-static bk_err_t mipi_dsi_bus_io_del(bk_lcd_bus_io_t *io);
-static bk_err_t mipi_dsi_bus_io_tx_param(bk_lcd_bus_io_t *io, int lcd_cmd, const void *param, uint16_t param_size);
-static bk_err_t mipi_dsi_bus_io_rx_param(bk_lcd_bus_io_t *io, int lcd_cmd, void *param, uint16_t param_size);
 
 
 /**
@@ -177,13 +161,9 @@ void mipi_dsi_sys_init(void)
     hal_dsi_sys_clk_switch(1);
 }
 
-
-
-bk_err_t mipi_dsi_panel_set_pattern(bk_lcd_bus_io_t *panel, mipi_dsi_pattern_type_t pattern)
+bk_err_t mipi_dsi_panel_set_pattern(mipi_dsi_pattern_type_t pattern)
 {
-    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid argument");
-    //mipi_dsi_io_t *dsi_panel = __containerof(panel, mipi_dsi_io_t, base);
-
+    (void)pattern;
     reg_VID_MODE_CFG |= (0x0<<20);  // vpg mode: 0:colorbar, 1:berpattern
     reg_VID_MODE_CFG |= (0x1<<16);  // vpg_en
 
@@ -272,10 +252,8 @@ static void mipi_dsi_host_vid_hparams_asic(const bk_panel_clock_config_t *dsi, u
 #endif
 
 /** Naneng internal PLL path: hal_dsi_dphy_init_for_panel + byte-accurate VID timing (default for UNKNOWN / NANENG). */
-static bk_err_t mipi_dsi_clock_set_internal_pll_path(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)
+static bk_err_t mipi_dsi_clock_set_internal_pll_path(bk_panel_clock_config_t *dsi)
 {
-    (void)ret_panel;
-
     uint32_t lane_bitrate_mbps;
     mipi_dsi_host_vid_hparams_t hp;
     uint64_t pclk_hz = mipi_dsi_panel_pclk_hz(dsi);
@@ -320,10 +298,8 @@ static bk_err_t mipi_dsi_clock_set_internal_pll_path(bk_panel_clock_config_t *ds
 }
 
 /** Legacy 320M/480M root: dsi_dphy_bitrate_calc + hal_dsi_dphy_init + float-scaled VID timing. */
-static bk_err_t mipi_dsi_clock_set_legacy_ext_dphy_path(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)
+static bk_err_t mipi_dsi_clock_set_legacy_ext_dphy_path(bk_panel_clock_config_t *dsi)
 {
-    (void)ret_panel;
-
     float hsa_time = 0;
     float hbp_time = 0;
     float hline_time = 0;
@@ -369,52 +345,33 @@ static bk_err_t mipi_dsi_clock_set_legacy_ext_dphy_path(bk_panel_clock_config_t 
     return BK_OK;
 }
 
-bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)
+bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi)
 {
     if (dsi == NULL) {
         return BK_ERR_NULL_PARAM;
     }
 
-    if (dsi->clk_src == DPU_CLK_SRC_320M_480M) {
-        return mipi_dsi_clock_set_legacy_ext_dphy_path(dsi, ret_panel);
+    if (dsi->clk_src == DPU_CLK_SRC_SYSCLK) {
+        return mipi_dsi_clock_set_legacy_ext_dphy_path(dsi);
     }
 
-    /* DPU_CLK_SRC_UNKNOWN (default) and DPU_CLK_SRC_NANENG_DPHY_INTERNAL_DPLL */
-    return mipi_dsi_clock_set_internal_pll_path(dsi, ret_panel);
+    /* DPU_CLK_SRC_UNKNOWN (default) and DPU_CLK_SRC_DPHY_DPLL */
+    return mipi_dsi_clock_set_internal_pll_path(dsi);
 }
 
-bk_err_t mipi_dsi_bus_register(bk_panel_clock_config_t *dsi, bk_lcd_bus_io_t **ret_panel)   // dsi_init need dpu clk enable before
+bk_err_t mipi_dsi_init(void)
 {
-    bk_err_t ret = BK_OK;
-
-    mipi_dsi_io_t *dsi_panel = NULL;
-    dsi_panel = (mipi_dsi_io_t *)os_malloc(sizeof(mipi_dsi_io_t));
-    AVDK_GOTO_ON_FALSE(dsi_panel, BK_ERR_NO_MEM, err, TAG, "no memory for DSI panel");
-    os_memset(dsi_panel, 0, sizeof(mipi_dsi_io_t));
-
-    // mipi-sys-init
     mipi_dsi_sys_init();
-
-    dsi_panel->base.del = mipi_dsi_bus_io_del;
-    dsi_panel->base.tx_param = mipi_dsi_bus_io_tx_param;
-    dsi_panel->base.rx_param = mipi_dsi_bus_io_rx_param;
-    *ret_panel = &dsi_panel->base;
-    return ret;
-
-err:
-    LOGE("%s error\n: ", __func__);
-    return BK_FAIL;
+    return BK_OK;
 }
 
-static bk_err_t mipi_dsi_bus_io_del(bk_lcd_bus_io_t *panel)
+bk_err_t mipi_dsi_deinit(void)
 {
-    mipi_dsi_io_t *dsi_panel = __containerof(panel, mipi_dsi_io_t, base);
-	
     /* dsi power down */
     hal_dsi_host_reset();
     /* dphy power down */
     hal_dsi_dphy_power_down();
-    /* interrupt disable*/
+    /* interrupt disable */
 #if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_DSI, 0);
 #else
@@ -423,29 +380,6 @@ static bk_err_t mipi_dsi_bus_io_del(bk_lcd_bus_io_t *panel)
     bk_int_isr_unregister(INT_SRC_DSI);
     /* clk close */
     hal_dsi_sys_clk_switch(0);
-
-    os_free(dsi_panel);
-
-    return BK_OK;
-}
-
-static bk_err_t mipi_dsi_bus_io_tx_param(bk_lcd_bus_io_t *io, int lcd_cmd, const void *param, uint16_t param_size)
-{
-    AVDK_RETURN_ON_FALSE(io, BK_ERR_NULL_PARAM, TAG, "invalid argument");
-
-    //mipi_dsi_io_t *dsi_io = __containerof(io, mipi_dsi_io_t, base);
-
-    mipi_dsi_gen_write_dcs_command(lcd_cmd, param, param_size);
-
-    return BK_OK;
-}
-static bk_err_t mipi_dsi_bus_io_rx_param(bk_lcd_bus_io_t *io, int lcd_cmd, void *param, uint16_t param_size)
-{
-    AVDK_RETURN_ON_FALSE(io, BK_ERR_NULL_PARAM, TAG, "invalid argument");
-
-    //mipi_dsi_io_t *dsi_io = __containerof(io, mipi_dsi_io_t, base);
-
-    mipi_dsi_dcs_read(lcd_cmd,  param_size, param);
 
     return BK_OK;
 }

@@ -3,7 +3,7 @@
 #include <os/mem.h>
 #include "sys_driver.h"
 #include <driver/mipi_dsi_types.h>
-#include <components/bk_lcd_types.h>
+#include <components/bk_lcd_panel.h>
 #include "mipi_dsi_host_reg.h"
 #include "mipi_dsi_phy_reg.h"
 #include "mipi_dsi_hal.h"
@@ -771,7 +771,7 @@ void hal_dsi_dphy_init(uint32_t br)
     // LOGI("%s finish\n", __func__);
 }
 
-uint32_t dsi_dphy_bitrate_calc(lcd_clk_t dpu_clk, uint8_t n_lanes)
+uint32_t dsi_dphy_bitrate_calc(uint32_t dpu_clk, uint8_t n_lanes)
 {
     uint32_t bitrate = 0;
 
