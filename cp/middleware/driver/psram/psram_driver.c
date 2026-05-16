@@ -527,7 +527,11 @@ start_init:
 
 bk_err_t bk_psram_deinit(void)
 {
-	return bk_psram_deinit_with_id(PSRAM_ID_0);
+	s_psram_init_done[PSRAM_ID_0] = false;
+	s_psram_init_done[PSRAM_ID_1] = false;
+	bk_psram_deinit_with_id(PSRAM_ID_0);
+	//bk_psram_deinit_with_id(PSRAM_ID_1);
+	return BK_OK;
 }
 
 bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
@@ -540,7 +544,7 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
 		rtos_lock_mutex(&s_psram_mutex);
 	}
 
-	s_psram_init_done[psram_id] = false;
+	//s_psram_init_done[psram_id] = false;
 
 	// power down common resources only when all instances are de-inited
 	if (!bk_psram_any_init_done()) {

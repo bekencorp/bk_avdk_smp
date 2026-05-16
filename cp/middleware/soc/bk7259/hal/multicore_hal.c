@@ -227,6 +227,11 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 	case CPU2_CORE_ID:
 		multicore_hal_m55_core_init_common();
 		boot_addr = SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET;
+		/*
+		 * Keep AP in reset while CP patches the image into AP-visible memories.
+		 * On warm boot, sw_rstn may remain released from previous run.
+		 */
+		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(0);
 		sys_ahbp_ll_set_reg4_cpu0_offset((boot_addr) >> 8);
 		sys_ahbp_ll_set_reg4_cpu0_init_dtcm_en(1);
 		multicore_hal_m55_core_copy_code_and_data(boot_addr, false);
@@ -241,6 +246,7 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 	case CPU3_CORE_ID:
 		multicore_hal_m55_core_init_common();
 		boot_addr = SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET;
+		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(0);
 		sys_ahbp_ll_set_reg5_cpu1_offset((boot_addr) >> 8);
 		sys_ahbp_ll_set_reg5_cpu1_init_dtcm_en(1);
 		multicore_hal_m55_core_copy_code_and_data(boot_addr, false);

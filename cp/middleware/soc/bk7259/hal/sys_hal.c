@@ -3212,40 +3212,52 @@ static bk_err_t sys_hal_m55_clock_power_init()
 {
 	uint32_t regData = 0;
 	sys_ll_set_ana_reg10_spi_latch1v(1);
+	sys_ll_set_ana_reg9_pwd_hsldo(1);
+	bk_delay_us(20);
 	sys_ll_set_ana_reg9_pwd_hsldo(0);
+	bk_delay_us(200);
 	sys_ll_set_ana_reg16_enhspw(1);
+	bk_delay_us(200);
 	sys_ll_set_ana_reg16_vcorehssel(0xA);//0.7+0.025*0xA=0.95v
+	bk_delay_us(200);
 	sys_ll_set_ana_reg10_spi_latch1v(0);
 
+#if 1
 	regData = REG_READ(0x44000000 + 0x2*4);
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x1F<<21)|(  0<<19));
 	REG_WRITE(0x44000000 + 0x2*4, regData);
+	bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x1E<<21)|(  0<<19));
 	REG_WRITE(0x44000000 + 0x2*4, regData);
+	bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x1C<<21)|(  0<<19));
 	REG_WRITE(0x44000000 + 0x2*4, regData);
+	bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x18<<21)|(  0<<19));
 	REG_WRITE(0x44000000 + 0x2*4, regData);
+	bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x10<<21)|(  0<<19));
 	REG_WRITE(0x44000000 + 0x2*4, regData);
+	bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x00<<21)|(  0<<19));
 	REG_WRITE(0x44000000 + 0x2*4, regData);
-
+	bk_delay_us(20);
 	regData = REG_READ(0x44000000 + 0x2*4);
 	regData &= ~((0x1<<18));
 	regData |=  ((  1<<18));
 	REG_WRITE(0x44000000 + 0x2*4, regData);
+	bk_delay_us(20);
 
 	/* PMU M55S Clk On*/
 	regData = REG_READ(0x44000000 + 0x2*4);
@@ -3276,7 +3288,7 @@ static bk_err_t sys_hal_m55_clock_power_init()
 
 	/*PSRAM Enable*/
 	sys_ll_set_ana_reg14_enpsram(1);
-
+	bk_delay_us(10);
 	/*M55S Memory EMA switch to 1*/
 	REG_WRITE(0x48000000 + 0x50*4,  (0x5A<<24) | (0x441<<10) | (0x241));
 	REG_WRITE(0x48000000 + 0x50*4,  (0xA5<<24) | (0x441<<10) | (0x241));
@@ -3286,7 +3298,8 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	REG_WRITE(0x48000000 + 0x52*4,  (0xA5<<24) | (0x441<<10) | (0x241));
 	REG_WRITE(0x48000000 + 0x53*4,  (0x5A<<24) |               (0x901));
 	REG_WRITE(0x48000000 + 0x53*4,  (0xA5<<24) |               (0x901));
-
+	bk_delay_us(10);
+#endif
 	/*M55:Default enable all the clock source for bringup */
 	REG_WRITE(0x48000000 + 0xA*4, 0xFFFFFFFF);
 
@@ -3299,7 +3312,7 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	regData |= 0x0 << 2;
 	regData |= 0x1 << 0;
 	REG_WRITE(0x48000000 + 0x8*4, regData);
-
+	bk_delay_us(20);
 	return BK_OK;
 }
 static void sys_hal_dpll_cpu_flash_time_early_init(uint32_t chip_id)

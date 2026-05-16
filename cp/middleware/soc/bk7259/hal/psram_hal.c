@@ -504,7 +504,7 @@ void psram_hal_power_clk_enable(uint8_t enable)
 		bk_delay_us(1000);
 
 
-		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_ON);
+		//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_ON);
 
 
 		// psram bus clk always open
@@ -522,7 +522,7 @@ void psram_hal_power_clk_enable(uint8_t enable)
 	{
 		bk_psram_heap_init_flag_set(false);
 
-		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_OFF);
+		//bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_OFF);
 		psram_hal_set_sf_reset_with_id(PSRAM_ID_0, 0);
 		psram_hal_set_sf_reset_with_id(PSRAM_ID_1, 0);
 
