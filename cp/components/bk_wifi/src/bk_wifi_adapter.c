@@ -330,6 +330,11 @@ static uint32_t sys_drv_get_cpu_device_clk_enable_ofdm_cken_wrapper(void)
 	return sys_drv_dev_clk_pwr_is_enabled(PM_CLK_ID_OFDM);
 }
 
+static uint32_t sys_drv_get_cpu_device_clk_enable_btdm_cken_wrapper(void)
+{
+	return sys_drv_dev_clk_pwr_is_enabled(PM_CLK_ID_BTDM);
+}
+
 static uint32_t sys_drv_wifi_mac_reg_access_is_valid_wrapper(void)
 {
 	return sys_drv_wifi_mac_reg_access_is_valid();
@@ -1509,6 +1514,7 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_funcs_t g_wifi_os_funcs = {
 	._sys_drv_get_cpu_device_clk_enable_phy_cken = sys_drv_get_cpu_device_clk_enable_phy_cken_wrapper,
 	._sys_drv_get_cpu_device_clk_enable_rf_cken = sys_drv_get_cpu_device_clk_enable_rf_cken_wrapper,
 	._sys_drv_get_cpu_device_clk_enable_ofdm_cken = sys_drv_get_cpu_device_clk_enable_ofdm_cken_wrapper,
+	._sys_drv_get_cpu_device_clk_enable_btdm_cken = sys_drv_get_cpu_device_clk_enable_btdm_cken_wrapper,
 	._sys_drv_wifi_mac_reg_access_is_valid = sys_drv_wifi_mac_reg_access_is_valid_wrapper,
 	._sys_drv_wifi_phy_reg_access_is_valid = sys_drv_wifi_phy_reg_access_is_valid_wrapper,
 	._sys_drv_wifi_reg_access_status_get = sys_drv_wifi_reg_access_status_get_wrapper,

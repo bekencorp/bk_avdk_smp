@@ -139,6 +139,7 @@ typedef struct {
 	uint32_t (*_sys_drv_get_cpu_device_clk_enable_phy_cken)(void);
 	uint32_t (*_sys_drv_get_cpu_device_clk_enable_rf_cken)(void);
 	uint32_t (*_sys_drv_get_cpu_device_clk_enable_ofdm_cken)(void);
+	uint32_t (*_sys_drv_get_cpu_device_clk_enable_btdm_cken)(void);
 	uint32_t (*_sys_drv_wifi_mac_reg_access_is_valid)(void);
 	uint32_t (*_sys_drv_wifi_phy_reg_access_is_valid)(void);
 	void (*_sys_drv_wifi_reg_access_status_get)(uint32_t *clk_status, uint32_t *power_status);
