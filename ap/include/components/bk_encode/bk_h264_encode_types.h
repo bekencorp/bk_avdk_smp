@@ -38,6 +38,8 @@ typedef enum {
     BK_H264_ENCODE_IOCTL_REGISTER_BOND,      // arg: bk_h264_encode_sw_flexa_bond_ops_t* (see bk_encoder/h264e/include), or NULL
     BK_H264_ENCODE_IOCTL_UNREGISTER_BOND,      // arg: bk_h264_encode_sw_flexa_bond_ops_t* (see bk_encoder/h264e/include), or NULL
     BK_H264_ENCODE_IOCTL_STOP_ENCODE,      // arg: uint32_t*
+    BK_H264_ENCODE_IOCTL_SET_RATE_CTRL,      // arg: bk_h264_encode_rate_ctrl_t*
+    BK_H264_ENCODE_IOCTL_GET_RATE_CTRL,      // arg: bk_h264_encode_rate_ctrl_t*
 } bk_h264_encode_ioctl_cmd_t;
 
 typedef enum
@@ -46,6 +48,15 @@ typedef enum
 	BK_H264_ENCODE_FLEXA_MODE_SOFTWARE,
 	BK_H264_ENCODE_FLEXA_MODE_HARDWARE,
 } bk_h264_encode_flexa_mode_t;
+
+typedef struct
+{
+    uint32_t bitrate;    /* non-zero: bitrate RC mode; zero: fixed QP mode */
+    uint8_t qp_min_i;    /* I-frame min QP in RC mode, fixed I-frame QP in fixed mode */
+    uint8_t qp_max_i;    /* I-frame max QP in RC mode; 0 keeps internal value, ignored in fixed mode */
+    uint8_t qp_min_p;    /* P-frame min QP in RC mode, fixed P-frame QP in fixed mode */
+    uint8_t qp_max_p;    /* P-frame max QP in RC mode; 0 keeps internal value, ignored in fixed mode */
+} bk_h264_encode_rate_ctrl_t;
 
 typedef struct
 {

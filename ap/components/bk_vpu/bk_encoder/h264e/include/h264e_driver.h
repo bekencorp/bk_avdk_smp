@@ -111,12 +111,11 @@ typedef struct
 
 typedef struct
 {
-    uint16_t           width;
-    uint16_t           height;
-    uint8_t            qp_min;
-    uint8_t            qp_max;
-    uint8_t            fps;
     uint32_t           bitrate;
+    uint8_t            qp_min_i;
+    uint8_t            qp_max_i;
+    uint8_t            qp_min_p;
+    uint8_t            qp_max_p;
 } h264_encoder_rate_ctrl_t;
 
 typedef struct

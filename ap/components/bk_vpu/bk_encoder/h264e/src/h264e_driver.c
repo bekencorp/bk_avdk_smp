@@ -13,6 +13,8 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define H264E_QP_LOG_TAG "bk_h264_encode_ctlr"
+#define H264E_QP_LOGI(...) BK_LOGI(H264E_QP_LOG_TAG, ##__VA_ARGS__)
 #define CHECK_ENC_HANDLE(handle) \
     do { \
         if((handle) == NULL || *((uint32_t *)(handle)) != H264_ENC_TAG_INIT) {\
@@ -32,6 +34,8 @@ extern vcenc_ret_e h264_vcencoder_encode(h264_enc_param_t *enc_param);
 extern vcenc_ret_e h264_vcencoder_stop_encode(h264_enc_param_t *enc_param);
 extern vcenc_ret_e h264_vcencoder_deinit(h264_enc_param_t *enc_param);
 extern vcenc_ret_e h264_vcencoder_osd_config(h264_enc_param_t *enc_param, uint32_t index, void* buffer, uint32_t format, uint8_t alpha, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+extern vcenc_ret_e h264_vcencoder_rate_ctrl(h264_enc_param_t *enc_param, vcenc_rate_ctrl_t *rc);
+extern vcenc_ret_e h264_vcencoder_get_rate_ctrl(h264_enc_param_t *enc_param, vcenc_rate_ctrl_t *rc);
 extern uint32_t h264_vcencoder_get_encoded_lines(void);
 
 uint32_t h264e_get_encoded_lines(void)
@@ -181,7 +185,13 @@ bk_err_t h264e_deregister_callback(h264_encoder_handle_t* handle)
 bk_err_t h264e_open(h264_encoder_handle_t* handle)
 {
     CHECK_ENC_HANDLE(*handle);
-    // Reserved for future implementation
+    h264_encoder_rate_ctrl_t h264e_rate_ctrl = {0};
+    h264e_rate_ctrl.bitrate = 0;
+    h264e_rate_ctrl.qp_min_i = 23;
+    h264e_rate_ctrl.qp_max_i = 23;
+    h264e_rate_ctrl.qp_min_p = 26;
+    h264e_rate_ctrl.qp_max_p = 26;
+    h264e_set_rate_ctrl(handle, &h264e_rate_ctrl);
     return BK_OK;
 }
 
@@ -274,11 +284,114 @@ bk_err_t h264e_get_gop_frame_count(h264_encoder_handle_t* handle, uint32_t *gop_
 
 bk_err_t h264e_set_rate_ctrl(h264_encoder_handle_t* handle, h264_encoder_rate_ctrl_t* rate_ctrl)
 {
+    CHECK_ENC_HANDLE(*handle);
+
+    if (rate_ctrl == NULL)
+    {
+        LOGE("%s %d rate_ctrl is NULL\r\n", __func__, __LINE__);
+        return BK_ERR_PARAM;
+    }
+
+    if (rate_ctrl->qp_min_i > 51 || rate_ctrl->qp_max_i > 51 ||
+        rate_ctrl->qp_min_p > 51 || rate_ctrl->qp_max_p > 51 ||
+        (rate_ctrl->qp_min_i && rate_ctrl->qp_max_i && rate_ctrl->qp_min_i > rate_ctrl->qp_max_i) ||
+        (rate_ctrl->qp_min_p && rate_ctrl->qp_max_p && rate_ctrl->qp_min_p > rate_ctrl->qp_max_p))
+    {
+        LOGE("%s %d invalid rate_ctrl, bitrate=%u i=[%u,%u] p=[%u,%u]\r\n",
+             __func__, __LINE__, rate_ctrl->bitrate,
+             rate_ctrl->qp_min_i, rate_ctrl->qp_max_i,
+             rate_ctrl->qp_min_p, rate_ctrl->qp_max_p);
+        return BK_ERR_PARAM;
+    }
+
+    h264_encoder_context* context = (h264_encoder_context*)*handle;
+    vcenc_rate_ctrl_t vcenc_rc;
+    vcenc_ret_e ret = h264_vcencoder_get_rate_ctrl(&context->param, &vcenc_rc);
+    if (ret != VCENC_OK)
+    {
+        LOGE("%s %d h264_vcencoder_get_rate_ctrl failed with error %d\r\n", __func__, __LINE__, ret);
+        return BK_FAIL;
+    }
+
+    uint8_t has_qp_config = rate_ctrl->qp_min_i || rate_ctrl->qp_max_i ||
+                            rate_ctrl->qp_min_p || rate_ctrl->qp_max_p;
+    uint8_t fixed_qp = (rate_ctrl->bitrate == 0) ||
+                       (has_qp_config &&
+                        rate_ctrl->qp_min_i == rate_ctrl->qp_max_i &&
+                        rate_ctrl->qp_min_p == rate_ctrl->qp_max_p);
+
+    if (fixed_qp)
+    {
+        uint8_t qp_i = rate_ctrl->qp_min_i;
+        uint8_t qp_p = rate_ctrl->qp_min_p;
+        vcenc_rc.qp_min_i = qp_i;
+        vcenc_rc.qp_max_i = qp_i;
+        vcenc_rc.qp_min_pb = qp_p;
+        vcenc_rc.qp_max_pb = qp_p;
+    }
+    else
+    {
+        vcenc_rc.qp_min_i = rate_ctrl->qp_min_i;
+        vcenc_rc.qp_max_i = rate_ctrl->qp_max_i;
+        vcenc_rc.qp_min_pb = rate_ctrl->qp_min_p;
+        vcenc_rc.qp_max_pb = rate_ctrl->qp_max_p;
+        if (vcenc_rc.qp_min_i > vcenc_rc.qp_max_i || vcenc_rc.qp_min_pb > vcenc_rc.qp_max_pb)
+        {
+            LOGE("%s %d invalid effective rate_ctrl, bitrate=%u i=[%u,%u] p=[%u,%u]\r\n",
+                 __func__, __LINE__, rate_ctrl->bitrate,
+                 vcenc_rc.qp_min_i, vcenc_rc.qp_max_i,
+                 vcenc_rc.qp_min_pb, vcenc_rc.qp_max_pb);
+            return BK_ERR_PARAM;
+        }
+    }
+    if (fixed_qp)
+    {
+        vcenc_rc.qp_hdr = vcenc_rc.qp_min_i;
+        vcenc_rc.picture_rc = 0;
+        vcenc_rc.bit_per_second = 0;
+    }
+    else
+    {
+        vcenc_rc.qp_hdr = -1;
+        vcenc_rc.picture_rc = 1;
+        vcenc_rc.bit_per_second = rate_ctrl->bitrate;
+    }
+
+    ret = h264_vcencoder_rate_ctrl(&context->param, &vcenc_rc);
+    if (ret != VCENC_OK)
+    {
+        LOGE("%s %d h264_vcencoder_rate_ctrl failed with error %d\r\n", __func__, __LINE__, ret);
+        return BK_FAIL;
+    }
+
     return BK_OK;
 }
 
 bk_err_t h264e_get_rate_ctrl(h264_encoder_handle_t* handle, h264_encoder_rate_ctrl_t* rate_ctrl)
 {
+    CHECK_ENC_HANDLE(*handle);
+
+    if (rate_ctrl == NULL)
+    {
+        LOGE("%s %d rate_ctrl is NULL\r\n", __func__, __LINE__);
+        return BK_ERR_PARAM;
+    }
+
+    h264_encoder_context* context = (h264_encoder_context*)*handle;
+    vcenc_rate_ctrl_t vcenc_rc;
+    vcenc_ret_e ret = h264_vcencoder_get_rate_ctrl(&context->param, &vcenc_rc);
+    if (ret != VCENC_OK)
+    {
+        LOGE("%s %d h264_vcencoder_get_rate_ctrl failed with error %d\r\n", __func__, __LINE__, ret);
+        return BK_FAIL;
+    }
+
+    rate_ctrl->qp_min_i = vcenc_rc.qp_min_i;
+    rate_ctrl->qp_max_i = vcenc_rc.qp_max_i;
+    rate_ctrl->qp_min_p = vcenc_rc.qp_min_pb;
+    rate_ctrl->qp_max_p = vcenc_rc.qp_max_pb;
+    rate_ctrl->bitrate = vcenc_rc.picture_rc ? vcenc_rc.bit_per_second : 0;
+
     return BK_OK;
 }
 

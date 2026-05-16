@@ -1104,6 +1104,98 @@ void cli_avdk_doorbell_audio_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
     }
 }
 
+static bk_h264_encode_ctlr_handle_t cli_doorbell_h264_get_handle(void)
+{
+    bk_h264_encode_ctlr_handle_t enc_handle =
+        (bk_h264_encode_ctlr_handle_t)app_h264_encode_handle_get();
+
+    if (enc_handle == NULL)
+    {
+        (void)doorbell_h264_encode_get_handle(&enc_handle);
+    }
+
+    return enc_handle;
+}
+
+static void cli_avdk_doorbell_h264_qp_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    (void)pcWriteBuffer;
+    (void)xWriteBufferLen;
+
+    if (argc < 2 || argv[1] == NULL)
+    {
+        LOGE("Usage: h264_qp get | fixed <i_qp> [p_qp] | bitrate <bps> [i_min i_max p_min p_max]\n");
+        return;
+    }
+
+    bk_h264_encode_ctlr_handle_t enc_handle = cli_doorbell_h264_get_handle();
+    if (enc_handle == NULL)
+    {
+        LOGE("h264 encoder is not running\n");
+        return;
+    }
+
+    if (os_strcmp(argv[1], "get") == 0)
+    {
+        bk_h264_encode_rate_ctrl_t rate_ctrl = {0};
+        avdk_err_t ret = bk_h264_encode_get_rate_ctrl(enc_handle, &rate_ctrl);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGE("h264_qp get failed, ret=%d\n", ret);
+            return;
+        }
+        LOGI("h264_qp bitrate=%u i_range=[%u,%u] p_range=[%u,%u]\n",
+             rate_ctrl.bitrate, rate_ctrl.qp_min_i, rate_ctrl.qp_max_i,
+             rate_ctrl.qp_min_p, rate_ctrl.qp_max_p);
+        return;
+    }
+
+    if (os_strcmp(argv[1], "set") == 0)
+    {
+        if (argc < 7 || argv[2] == NULL || argv[3] == NULL ||
+            argv[4] == NULL || argv[5] == NULL || argv[6] == NULL)
+        {
+            LOGE("Usage: h264_qp set <bitrate> <i_min:0-51> <i_max:0-51> <p_min:0-51> <p_max:0-51>\n");
+            return;
+        }
+
+        uint32_t bitrate = os_strtoul(argv[2], NULL, 10);
+        uint32_t i_min = os_strtoul(argv[3], NULL, 10);
+        uint32_t i_max = os_strtoul(argv[4], NULL, 10);
+        uint32_t p_min = os_strtoul(argv[5], NULL, 10);
+        uint32_t p_max = os_strtoul(argv[6], NULL, 10);
+
+        if (i_min > 51 || i_max > 51 || p_min > 51 || p_max > 51 ||
+            (i_min && i_max && i_min > i_max) || (p_min && p_max && p_min > p_max))
+        {
+            LOGE("invalid h264_qp config, bitrate=%u i=[%u,%u] p=[%u,%u]\n",
+                 bitrate, i_min, i_max, p_min, p_max);
+            return;
+        }
+
+        bk_h264_encode_rate_ctrl_t rate_ctrl = {
+            .bitrate = bitrate,
+            .qp_min_i = (uint8_t)i_min,
+            .qp_max_i = (uint8_t)i_max,
+            .qp_min_p = (uint8_t)p_min,
+            .qp_max_p = (uint8_t)p_max,
+        };
+
+        avdk_err_t ret = bk_h264_encode_set_rate_ctrl(enc_handle, &rate_ctrl);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGE("h264_qp bitrate failed, ret=%d\n", ret);
+            return;
+        }
+
+        LOGI("h264_qp set bitrate=%u i=[%u,%u] p=[%u,%u] ok\n",
+             bitrate, i_min, i_max, p_min, p_max);
+        return;
+    }
+
+    LOGE("Usage: h264_qp get | set <bitrate> <i_min> <i_max> <p_min> <p_max>\n");
+}
+
 static const struct cli_command s_devices_cli_commands[] =
 {
     {"isp", "isp...", cli_avdk_doorbell_isp_cmd},
@@ -1112,6 +1204,7 @@ static const struct cli_command s_devices_cli_commands[] =
     {"uvc", "uvc...", cli_avdk_doorbell_uvc_cmd},
     {"doorbell", "doorbell...", cli_avdk_doorbell_cmd},
     {"audio", "audio...", cli_avdk_doorbell_audio_cmd},
+    {"h264_qp", "h264_qp get | set <bitrate> <i_min> <i_max> <p_min> <p_max>", cli_avdk_doorbell_h264_qp_cmd},
 };
 
 #define DEVICES_CLI_CMD_CNT  (sizeof(s_devices_cli_commands) / sizeof(struct cli_command))

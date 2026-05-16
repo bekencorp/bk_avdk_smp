@@ -416,6 +416,61 @@ static avdk_err_t h264_encode_ctlr_get_gop_frame_count(private_h264_encode_frame
     return AVDK_ERR_OK;
 }
 
+static avdk_err_t h264_encode_ctlr_set_rate_ctrl(private_h264_encode_frame_ctlr_t *control,
+                                                 bk_h264_encode_rate_ctrl_t *rate_ctrl)
+{
+    if (rate_ctrl == NULL) {
+        LOGE("rate_ctrl arg is NULL\r\n");
+        return AVDK_ERR_INVAL;
+    }
+    if (control->h264e_handler == NULL) {
+        LOGE("h264 encoder is not opened\r\n");
+        return AVDK_ERR_INVAL;
+    }
+
+    h264_encoder_rate_ctrl_t h264e_rc = {
+        .bitrate = rate_ctrl->bitrate,
+        .qp_min_i = rate_ctrl->qp_min_i,
+        .qp_max_i = rate_ctrl->qp_max_i,
+        .qp_min_p = rate_ctrl->qp_min_p,
+        .qp_max_p = rate_ctrl->qp_max_p,
+    };
+    bk_err_t ret = h264e_set_rate_ctrl(&control->h264e_handler, &h264e_rc);
+    if (ret != BK_OK) {
+        LOGE("set rate ctrl failed: %d\r\n", ret);
+        return AVDK_ERR_GENERIC;
+    }
+
+    return AVDK_ERR_OK;
+}
+
+static avdk_err_t h264_encode_ctlr_get_rate_ctrl(private_h264_encode_frame_ctlr_t *control,
+                                                 bk_h264_encode_rate_ctrl_t *rate_ctrl)
+{
+    if (rate_ctrl == NULL) {
+        LOGE("rate_ctrl arg is NULL\r\n");
+        return AVDK_ERR_INVAL;
+    }
+    if (control->h264e_handler == NULL) {
+        LOGE("h264 encoder is not opened\r\n");
+        return AVDK_ERR_INVAL;
+    }
+
+    h264_encoder_rate_ctrl_t h264e_rc = {0};
+    bk_err_t ret = h264e_get_rate_ctrl(&control->h264e_handler, &h264e_rc);
+    if (ret != BK_OK) {
+        LOGE("get rate ctrl failed: %d\r\n", ret);
+        return AVDK_ERR_GENERIC;
+    }
+
+    rate_ctrl->qp_min_i = h264e_rc.qp_min_i;
+    rate_ctrl->qp_max_i = h264e_rc.qp_max_i;
+    rate_ctrl->qp_min_p = h264e_rc.qp_min_p;
+    rate_ctrl->qp_max_p = h264e_rc.qp_max_p;
+    rate_ctrl->bitrate = h264e_rc.bitrate;
+    return AVDK_ERR_OK;
+}
+
 // Debug timer callback
 static void h264e_debug_callback(void *arg)
 {
@@ -496,6 +551,10 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             return h264_encode_ctlr_set_gop_frame_count(control, *(uint32_t *)arg);
         case BK_H264_ENCODE_IOCTL_GET_GOP_FRAME_COUNT:
             return h264_encode_ctlr_get_gop_frame_count(control, (uint32_t *)arg);
+        case BK_H264_ENCODE_IOCTL_SET_RATE_CTRL:
+            return h264_encode_ctlr_set_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
+        case BK_H264_ENCODE_IOCTL_GET_RATE_CTRL:
+            return h264_encode_ctlr_get_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
         case BK_H264_ENCODE_IOCTL_SET_FLEXA_LINES_READY: {
             h264e_flexa_input_linebuf_wrcnt_set(&control->h264e_handler, (uint32_t)arg);
             break;
