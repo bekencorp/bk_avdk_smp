@@ -46,6 +46,8 @@ void bk_coredump_write_prompt_data(uint8_t *data, uint32_t size);
 const char *bk_coredump_get_fault_type(void);
 
 void bk_coredump_memory(void);
+void bk_coredump_ap_memory(void);
+void bk_coredump_dump_ap_memory_for_trap(void);
 
 bk_mem_addr_t *bk_get_dump_sys_mem_info(void);
 uint32_t bk_get_dump_sys_mem_count(void);

@@ -8,6 +8,9 @@
 #include "reg_base.h"
 #include "bk_rtos_debug.h"
 #include "multicore_driver.h"
+#include "mb_ipc_cmd.h"
+#include "sys_sw_regs.h"
+#include "memory.h"
 
 #define BK_EXCEPTION_MAGIC 0xA55AA55A
 #define BK_ASSERT_MAGIC 0x55AA55AA
@@ -122,26 +125,43 @@ static void coredump_prompt_info(void)
 #endif
 }
 
-static inline bool is_valid_function_addr(void *func)
+static void coredump_notify_cp_begin(void)
 {
-    if (func <= (void *)0x20) {
-        return false;
+#if (CONFIG_CPU_CNT > 1)
+    if (ipc_send_trap_handle_begin() != BK_OK) {
+        BK_DUMP_OUT("warning: notify CP trap begin failed\r\n");
     }
-    if (((uint32_t)func & 0x1) == 0) {  // valid thumb function addr is odd number.
-        return false;
-    }
-    return true;
+#endif
 }
 
-static void coredump_execute_hook_function(void)
+static void coredump_notify_cp_end(void)
 {
-    
-    if (is_valid_function_addr(s_wifi_dump_func)) {
-        s_wifi_dump_func();
+#if (CONFIG_CPU_CNT > 1)
+    ipc_send_trap_handle_end();
+#endif
+}
+
+static void coredump_publish_ap_psram_windows(void)
+{
+#if CONFIG_PSRAM
+    bk_dump_mem_info_t mem_info = {0};
+
+    /*
+     * AP memory.c currently maps bk_get_psram_bss_info() to the actual
+     * .psram.data range, and bk_get_psram_data_info() to .psram.bss.
+     */
+    bk_get_psram_bss_info(&mem_info);
+    if ((mem_info.start_addr != 0U) && (mem_info.size != 0U)) {
+        bk_sys_sw_regs_update_ap_heap_dump(BK_SYS_SW_REGS_AP_HEAP_SRAM,
+            mem_info.start_addr, mem_info.start_addr + mem_info.size);
     }
-    if (is_valid_function_addr(s_ble_dump_func)) {
-        s_ble_dump_func();
+
+    bk_get_psram_data_info(&mem_info);
+    if ((mem_info.start_addr != 0U) && (mem_info.size != 0U)) {
+        bk_sys_sw_regs_update_ap_heap_dump(BK_SYS_SW_REGS_AP_HEAP_HSRAM,
+            mem_info.start_addr, mem_info.start_addr + mem_info.size);
     }
+#endif
 }
 
 static void bk_exception_dump_main(bk_exception_t *self)
@@ -152,13 +172,10 @@ static void bk_exception_dump_main(bk_exception_t *self)
 
     bk_coredump_registers(self);
 
+    coredump_publish_ap_psram_windows();
+    coredump_notify_cp_begin();
+
     coredump_prompt_prologue();
-
-    bk_coredump_memory();
-
-#if CONFIG_MEMDUMP_ALL
-    coredump_execute_hook_function();
-#endif
 
     coredump_prompt_info();
 
@@ -171,14 +188,21 @@ static void bk_exception_dump_main(bk_exception_t *self)
     coredump_prompt_epilogue();
 
     bk_coredump_writer_deinit();
+
+    coredump_notify_cp_end();
 }
 
 static void bk_exception_postprocess(bk_exception_t *self)
 {
+#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
+    while (1) {
+    }
+#else
     if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
         BK_LOG_FLUSH();
     }
     bk_reboot_ex(self->reset_reason);
+#endif
 }
 
 void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp)
@@ -227,6 +251,7 @@ void rtos_regist_plat_dump_hook(uint32_t mem_base_addr, uint32_t mem_size)
         if (s_dump_sys_mem_info[i].start_addr == 0 && s_dump_sys_mem_info[i].size == 0) {
             s_dump_sys_mem_info[i].start_addr = mem_base_addr;
             s_dump_sys_mem_info[i].size = mem_size;
+            bk_sys_sw_regs_update_ap_extra_dump((uint32_t)i, mem_base_addr, mem_size);
             return;
         }
     }

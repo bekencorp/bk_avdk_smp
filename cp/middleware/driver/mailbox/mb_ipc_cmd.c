@@ -35,6 +35,8 @@
 
 #define MOD_TAG		"IPC"
 
+extern void bk_coredump_dump_ap_memory_for_trap(void);
+
 
 #if (CONFIG_CPU_CNT > 1)
 
@@ -702,16 +704,16 @@ static u32 ipc_cmd_handler(ipc_chnl_cb_t *chnl_cb, mb_chnl_ack_t *ack_buf)
 				ipc_rsp->rsp_data_len = 0;
 				result = ACK_STATE_COMPLETE;
 
-                g_ap_dump_flag = 0;
-
 				u8   dump_cpu_id = GET_DST_CPU_ID(chnl_cb->chnl_id);
-				mb_ipc_dump_notify(dump_cpu_id, 0);
 				/* no params, no returns. */
 				#if (CONFIG_SHELL_ASYNCLOG)
 				shell_set_log_cpu(SHELL_MAX_CPU_CNT);
 				shell_log_flush();
 				#endif
 
+				bk_coredump_dump_ap_memory_for_trap();
+				g_ap_dump_flag = 0;
+				mb_ipc_dump_notify(dump_cpu_id, 0);
 				bk_wdt_force_reboot();
 
 			}

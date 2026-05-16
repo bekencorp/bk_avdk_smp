@@ -57,6 +57,15 @@ static inline volatile ap_heap_dump_info_t *sys_sw_regs_ap_heap_slot(bk_sys_sw_r
     return &s_sys_sw_regs.ap_heap_dump[id];
 }
 
+static inline volatile ap_extra_dump_info_t *sys_sw_regs_ap_extra_dump_slot(uint32_t index)
+{
+    if (index >= BK_SYS_SW_REGS_AP_EXTRA_DUMP_MAX) {
+        return NULL;
+    }
+
+    return &s_sys_sw_regs.ap_extra_dump[index];
+}
+
 /* --------------------------------------------------------------------------
  * Read API
  * -------------------------------------------------------------------------- */
@@ -90,6 +99,21 @@ uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap
     info->reserved = slot->reserved;
 
     return (info->valid == BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID) ? 1 : 0;
+}
+
+uint32_t bk_sys_sw_regs_get_ap_extra_dump(uint32_t index, ap_extra_dump_info_t *info)
+{
+    volatile ap_extra_dump_info_t *slot = sys_sw_regs_ap_extra_dump_slot(index);
+
+    if ((slot == NULL) || (info == NULL)) {
+        return 0;
+    }
+
+    info->valid_seq = slot->valid_seq;
+    info->start_addr = slot->start_addr;
+    info->size = slot->size;
+
+    return ((info->valid_seq & BK_SYS_SW_REGS_AP_EXTRA_DUMP_VALID_MASK) == BK_SYS_SW_REGS_AP_EXTRA_DUMP_VALID) ? 1 : 0;
 }
 
 uint32_t bk_sys_sw_regs_get_adc_key_sample(adc_key_sample_info_t *info)
@@ -206,6 +230,27 @@ void bk_sys_sw_regs_update_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, uint32_t
     } else if (max_alloc_end > slot->max_alloc_end) {
         slot->max_alloc_end = max_alloc_end;
     }
+
+    sys_sw_regs_unlock(flags);
+}
+
+void bk_sys_sw_regs_update_ap_extra_dump(uint32_t index, uint32_t start_addr, uint32_t size)
+{
+    volatile ap_extra_dump_info_t *slot = sys_sw_regs_ap_extra_dump_slot(index);
+    uint32_t flags;
+    uint32_t seq;
+
+    if ((slot == NULL) || (start_addr == 0U) || (size == 0U)) {
+        return;
+    }
+
+    flags = sys_sw_regs_lock();
+
+    seq = (slot->valid_seq + 1U) & BK_SYS_SW_REGS_AP_EXTRA_DUMP_SEQ_MASK;
+    slot->valid_seq = 0U;
+    slot->start_addr = start_addr;
+    slot->size = size;
+    slot->valid_seq = BK_SYS_SW_REGS_AP_EXTRA_DUMP_VALID | seq;
 
     sys_sw_regs_unlock(flags);
 }

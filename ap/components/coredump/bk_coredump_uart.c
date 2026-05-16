@@ -24,22 +24,39 @@ void bk_coredump_write_prompt_data(uint8_t *data, uint32_t size) __attribute__((
 #endif
 
 #define MEM_DUMP_MAX_LEN 4096
+static uint32_t s_coredump_uart_locked = 0;
+
+static void bk_coredump_uart_lock(void)
+{
+    if (s_coredump_uart_locked == 0U) {
+        bk_aspl_uart_log_lock();
+        s_coredump_uart_locked = 1U;
+    }
+}
+
+static void bk_coredump_uart_unlock(void)
+{
+    if (s_coredump_uart_locked != 0U) {
+        s_coredump_uart_locked = 0U;
+        bk_aspl_uart_log_unlock();
+    }
+}
 
 static void bk_coredump_uart_init(void)
 {
     // take uart lock
-    bk_aspl_uart_log_enter_critical();
+    bk_coredump_uart_lock();
 }
 
 void bk_coredump_lock(void)
 {
     // use uart lock as coredump lock
-    bk_aspl_uart_log_enter_critical();
+    bk_coredump_uart_lock();
 }
 
 static void bk_coredump_uart_deinit(void)
 {
-
+    bk_coredump_uart_unlock();
 }
 
 static void bk_coredump_uart_write_data(uint8_t *data, uint32_t size)

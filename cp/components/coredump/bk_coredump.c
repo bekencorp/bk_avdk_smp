@@ -157,6 +157,19 @@ static void bk_exception_dump_main(bk_exception_t *self)
     bk_coredump_writer_deinit();
 }
 
+void bk_coredump_dump_ap_memory_for_trap(void)
+{
+    bk_coredump_writer_init();
+    bk_coredump_write_prompt("***********************************************************************************************\r\n");
+    bk_coredump_write_prompt("*************************************AP memory dump begin**************************************\r\n");
+    bk_coredump_write_prompt("***********************************************************************************************\r\n");
+    bk_coredump_ap_memory();
+    bk_coredump_write_prompt("***********************************************************************************************\r\n");
+    bk_coredump_write_prompt("**************************************AP memory dump end***************************************\r\n");
+    bk_coredump_write_prompt("***********************************************************************************************\r\n");
+    bk_coredump_writer_deinit();
+}
+
 static void bk_exception_postprocess(bk_exception_t *self)
 {
     if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {

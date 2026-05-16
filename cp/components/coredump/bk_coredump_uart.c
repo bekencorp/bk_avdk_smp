@@ -11,6 +11,7 @@
 #include "memory.h"
 #include "common/bk_crc.h"
 #include "base_64.h"
+#include "wdt_driver.h"
 
 #if CONFIG_DUMP_BY_LOG_UART
 void bk_coredump_writer_init(void) __attribute__((alias("bk_coredump_uart_init")));
@@ -24,22 +25,39 @@ void bk_coredump_write_prompt_data(uint8_t *data, uint32_t size) __attribute__((
 #endif
 
 #define MEM_DUMP_MAX_LEN 4096
+static uint32_t s_coredump_uart_locked = 0;
+
+static void bk_coredump_uart_lock(void)
+{
+    if (s_coredump_uart_locked == 0U) {
+        bk_aspl_uart_log_lock();
+        s_coredump_uart_locked = 1U;
+    }
+}
+
+static void bk_coredump_uart_unlock(void)
+{
+    if (s_coredump_uart_locked != 0U) {
+        s_coredump_uart_locked = 0U;
+        bk_aspl_uart_log_unlock();
+    }
+}
 
 static void bk_coredump_uart_init(void)
 {
     // take uart lock
-    bk_aspl_uart_log_enter_critical();
+    bk_coredump_uart_lock();
 }
 
 void bk_coredump_lock(void)
 {
     // use uart lock as coredump lock
-    bk_aspl_uart_log_enter_critical();
+    bk_coredump_uart_lock();
 }
 
 static void bk_coredump_uart_deinit(void)
 {
-
+    bk_coredump_uart_unlock();
 }
 
 static void bk_coredump_uart_write_data(uint8_t *data, uint32_t size)
@@ -131,7 +149,7 @@ static void bk_coredump_uart_write_memory(const char *name, uint32_t stack_top, 
 
     while (sp < fp) {
 #if CONFIG_WDT_EN
-        // bk_wdt_force_feed();
+        bk_wdt_force_feed();
 #endif
         len = fp - sp > MEM_DUMP_MAX_LEN ? MEM_DUMP_MAX_LEN : fp - sp;
 #if CONFIG_DUMP_UART_MEM_ENCODING_ASCII

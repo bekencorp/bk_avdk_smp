@@ -79,6 +79,8 @@ extern unsigned char __psram_bss_end__;
 #define PSRAM_BSS_END_ADDRESS ((uint32_t)&__psram_bss_end__)
 #endif //#if (CONFIG_CP_PSRAM_SECTION_ADDR)
 
+#define AP_DTCM_CP_ALIAS_BASE 0x28200000U
+
 #if CONFIG_SOC_SMP
 extern unsigned char _estack_core0;
 extern unsigned char _estack_core1;
@@ -114,6 +116,25 @@ static void bk_get_ap_heap_info_common(bk_sys_sw_regs_ap_heap_id_t id, const cha
 
     info->start_addr = heap_info.pool_base;
     info->size = heap_info.max_alloc_end - heap_info.pool_base;
+}
+
+void bk_get_ap_ram_info(bk_dump_mem_info_t *info)
+{
+    info->name = "AP_RAM";
+    info->start_addr = CONFIG_AP_RAM_ADDR;
+    info->size = CONFIG_AP_RAM_SIZE;
+}
+
+void bk_get_ap_dtcm_info(bk_dump_mem_info_t *info)
+{
+    info->name = "AP_DTCM";
+#if CONFIG_DTCM_SIZE
+    info->start_addr = AP_DTCM_CP_ALIAS_BASE;
+    info->size = CONFIG_DTCM_SIZE;
+#else
+    info->start_addr = 0;
+    info->size = 0;
+#endif
 }
 
 const bk_dump_mem_info_t bk7259_sram_info[] = {
@@ -198,6 +219,80 @@ void bk_get_psram_heap_info(bk_dump_mem_info_t *info)
 void bk_get_ap_psram_heap_info(bk_dump_mem_info_t *info)
 {
     bk_get_ap_heap_info_common(BK_SYS_SW_REGS_AP_HEAP_PSRAM, "AP_PSRAM_HEAP", info);
+}
+
+void bk_get_ap_psram_data_info(bk_dump_mem_info_t *info)
+{
+    info->name = "AP_PSRAM_DATA";
+    bk_get_ap_heap_info_common(BK_SYS_SW_REGS_AP_HEAP_SRAM, "AP_PSRAM_DATA", info);
+}
+
+void bk_get_ap_psram_bss_info(bk_dump_mem_info_t *info)
+{
+    info->name = "AP_PSRAM_BSS";
+    bk_get_ap_heap_info_common(BK_SYS_SW_REGS_AP_HEAP_HSRAM, "AP_PSRAM_BSS", info);
+}
+
+static bool addr_range_is_inside(uint32_t addr, uint32_t size, uint32_t base, uint32_t range_size)
+{
+    uint32_t end = addr + size;
+    uint32_t range_end = base + range_size;
+
+    if ((addr == 0U) || (size == 0U) || (base == 0U) || (range_size == 0U)) {
+        return false;
+    }
+    if ((end < addr) || (range_end < base)) {
+        return false;
+    }
+
+    return (addr >= base) && (end <= range_end);
+}
+
+static bool addr_range_is_inside_info(uint32_t addr, uint32_t size, void (*getter)(bk_dump_mem_info_t *info))
+{
+    bk_dump_mem_info_t info = {0};
+
+    getter(&info);
+    return addr_range_is_inside(addr, size, info.start_addr, info.size);
+}
+
+static bool addr_range_is_inside_peri_regs(uint32_t addr, uint32_t size)
+{
+    uint32_t peri_reg_info_count = bk_get_peri_reg_info_count();
+    const bk_dump_mem_info_t *peri_reg_info_list = bk_get_peri_reg_info_list();
+
+    for (uint32_t i = 0; i < peri_reg_info_count; i++) {
+        if (addr_range_is_inside(addr, size, peri_reg_info_list[i].start_addr, peri_reg_info_list[i].size)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool addr_range_is_inside_sram(uint32_t addr, uint32_t size)
+{
+    uint32_t sram_info_count = bk_get_sram_info_count();
+    const bk_dump_mem_info_t *sram_info_list = bk_get_sram_info_list();
+
+    for (uint32_t i = 0; i < sram_info_count; i++) {
+        if (addr_range_is_inside(addr, size, sram_info_list[i].start_addr, sram_info_list[i].size)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool bk_check_addr_in_ap_dump_range(uint32_t addr, uint32_t size)
+{
+    return addr_range_is_inside_info(addr, size, bk_get_ap_ram_info) ||
+           addr_range_is_inside_sram(addr, size) ||
+           addr_range_is_inside_info(addr, size, bk_get_ap_dtcm_info) ||
+           addr_range_is_inside_info(addr, size, bk_get_ap_psram_heap_info) ||
+           addr_range_is_inside_info(addr, size, bk_get_ap_psram_data_info) ||
+           addr_range_is_inside_info(addr, size, bk_get_ap_psram_bss_info) ||
+           addr_range_is_inside_peri_regs(addr, size);
 }
 
 void bk_get_psram_bss_info(bk_dump_mem_info_t *info)
