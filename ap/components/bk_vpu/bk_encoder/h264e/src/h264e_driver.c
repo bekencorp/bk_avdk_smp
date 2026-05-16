@@ -85,6 +85,16 @@ static uint32_t h264e_slice_end_cb(uint8_t *yDst, uint8_t *uDst, uint8_t *vDst, 
     return ret;
 }
 
+static bk_err_t h264e_validate_gop_frame_count(uint32_t gop_frame_count)
+{
+    if (gop_frame_count == 0) {
+        LOGE("%s %d invalid GOP frame count: %u\r\n",
+             __func__, __LINE__, gop_frame_count);
+        return BK_ERR_PARAM;
+    }
+    return BK_OK;
+}
+
 bk_err_t h264e_init(h264_encoder_handle_t* handle, h264_encoder_config_t* in_config)
 {
     if (handle == NULL || in_config == NULL)
@@ -213,6 +223,7 @@ bk_err_t h264e_start_encode(h264_encoder_handle_t* handle, h264_encoder_paramete
     context->force_idr = 0;
     context->debug_info.all_frame_count++;
     vcenc_ret_e ret = h264_vcencoder_encode(&context->param);
+    context->param.update_flag = 0;
     if (ret == VCENC_FRAME_READY)
     {
         return BK_OK;
@@ -231,6 +242,33 @@ bk_err_t h264e_stop_encode(h264_encoder_handle_t* handle)
         LOGE("%s %d h264_vcencoder_stop_encode failed with error %d\r\n", __func__, __LINE__, ret);
         return BK_FAIL;
     }
+    return BK_OK;
+}
+
+bk_err_t h264e_set_gop_frame_count(h264_encoder_handle_t* handle, uint32_t gop_frame_count)
+{
+    CHECK_ENC_HANDLE(*handle);
+    bk_err_t ret = h264e_validate_gop_frame_count(gop_frame_count);
+    if (ret != BK_OK) {
+        return ret;
+    }
+
+    h264_encoder_context* context = (h264_encoder_context*)*handle;
+    context->param.idr_interval = gop_frame_count;
+    context->param.update_flag = 1;
+    return BK_OK;
+}
+
+bk_err_t h264e_get_gop_frame_count(h264_encoder_handle_t* handle, uint32_t *gop_frame_count)
+{
+    CHECK_ENC_HANDLE(*handle);
+    if (gop_frame_count == NULL) {
+        LOGE("%s %d gop_frame_count is NULL\r\n", __func__, __LINE__);
+        return BK_ERR_PARAM;
+    }
+
+    h264_encoder_context* context = (h264_encoder_context*)*handle;
+    *gop_frame_count = context->param.idr_interval;
     return BK_OK;
 }
 

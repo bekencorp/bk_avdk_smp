@@ -24,7 +24,7 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-#define MAX_QUE_LEN (10)//5 is too small, 10 is enough
+#define MAX_QUE_LEN (20)//5 is too small, 10 is enough
 #define FRAME_SIZE  (1024 * 200)//500K is too large, 200K is enough
 typedef struct
 {

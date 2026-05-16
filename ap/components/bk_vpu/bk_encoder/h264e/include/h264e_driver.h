@@ -148,6 +148,8 @@ bk_err_t h264e_close(h264_encoder_handle_t* handle);
 bk_err_t h264e_start_encode(h264_encoder_handle_t* handle, h264_encoder_parameters_t* para);
 bk_err_t h264e_stop_encode(h264_encoder_handle_t* handle);
 bk_err_t h264e_set_force_idr(h264_encoder_handle_t* handle);
+bk_err_t h264e_set_gop_frame_count(h264_encoder_handle_t* handle, uint32_t gop_frame_count);
+bk_err_t h264e_get_gop_frame_count(h264_encoder_handle_t* handle, uint32_t *gop_frame_count);
 
 bk_err_t h264e_set_rate_ctrl(h264_encoder_handle_t* handle, h264_encoder_rate_ctrl_t* rate_ctrl);
 bk_err_t h264e_get_rate_ctrl(h264_encoder_handle_t* handle, h264_encoder_rate_ctrl_t* rate_ctrl);

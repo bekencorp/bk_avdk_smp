@@ -215,7 +215,7 @@ int vcenc_h264_frame_test(void)
 
     config.width = VCENC_H264_TEST_WIDTH;
     config.height = VCENC_H264_TEST_HEIGHT;
-    config.pframe_number = VCENC_H264_TEST_GOP;
+    config.gop_frame_count = VCENC_H264_TEST_GOP;
     config.input_format = BK_PIXEL_FORMAT_NV12;
     config.input_flexa_cnt = 1;
     config.input_buf = (uint32_t)input;
@@ -328,7 +328,7 @@ int vcenc_h264_flexa_test(void)
 
     config.width = VCENC_H264_TEST_WIDTH;
     config.height = VCENC_H264_TEST_HEIGHT;
-    config.pframe_number = VCENC_H264_TEST_GOP;
+    config.gop_frame_count = VCENC_H264_TEST_GOP;
     config.input_format = BK_PIXEL_FORMAT_NV12;
     config.input_flexa_cnt = VCENC_H264_TEST_FLEXA_CNT;
     config.input_buf = (uint32_t)input;

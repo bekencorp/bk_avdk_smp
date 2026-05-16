@@ -24,28 +24,79 @@ avdk_err_t bk_h264_encode_hw_flexa_new(bk_h264_encode_ctlr_handle_t *handle, bk_
 avdk_err_t bk_h264_encode_sw_flexa_new(bk_h264_encode_ctlr_handle_t *handle, bk_h264_encode_sw_flexa_config_t *config);
 avdk_err_t bk_h264_encode_frame_new(bk_h264_encode_ctlr_handle_t *handle, bk_h264_encode_frame_config_t *config);
 
-// Initialize encoder
+/**
+ * @brief Initialize encoder
+ * @param handle Encoder handle
+ * @return AVSDK error code
+ */
 avdk_err_t bk_h264_encode_init(bk_h264_encode_ctlr_handle_t handle);
 
-// Deinitialize encoder
+/**
+ * @brief Deinitialize encoder
+ * @param handle Encoder handle
+ * @return AVSDK error code
+ */
 avdk_err_t bk_h264_encode_deinit(bk_h264_encode_ctlr_handle_t handle);
 
-// Open encoder
+/**
+ * @brief Open encoder
+ * @param handle Encoder handle
+ * @return AVSDK error code
+ */
 avdk_err_t bk_h264_encode_open(bk_h264_encode_ctlr_handle_t handle);
 
-// Close encoder
+/**
+ * @brief Close encoder
+ * @param handle Encoder handle
+ * @return AVSDK error code
+ */
 avdk_err_t bk_h264_encode_close(bk_h264_encode_ctlr_handle_t handle);
 
-// Execute encoding
+/**
+ * @brief Execute encoding
+ * @param handle Encoder handle
+ * @return AVSDK error code
+ */
 avdk_err_t bk_h264_encode_start(bk_h264_encode_ctlr_handle_t handle);
 
-// Control interface
+/**
+ * @brief Control interface
+ * @param handle Encoder handle
+ * @param cmd Command
+ * @param arg Argument
+ * @return AVSDK error code
+ */
 avdk_err_t bk_h264_encode_ioctl(bk_h264_encode_ctlr_handle_t handle, bk_h264_encode_ioctl_cmd_t cmd, void *arg);
-
-// Force IDR frame generation
+/**
+ * @brief Force IDR frame generation
+ * @param handle Encoder handle
+ * @return AVSDK error code
+ */
 avdk_err_t bk_h264_encode_force_idr(bk_h264_encode_ctlr_handle_t handle);
 
-// Delete encoder
+/**
+ * @brief Configure GOP frame count
+ * @param handle Encoder handle
+ * @param gop_frame_count Number of frames in one GOP
+ * @return AVSDK error code
+ */
+avdk_err_t bk_h264_encode_set_gop_frame_count(bk_h264_encode_ctlr_handle_t handle,
+                                              uint32_t gop_frame_count);
+
+/**
+ * @brief Get GOP frame count
+ * @param handle Encoder handle
+ * @param gop_frame_count Output GOP frame count
+ * @return AVSDK error code
+ */
+avdk_err_t bk_h264_encode_get_gop_frame_count(bk_h264_encode_ctlr_handle_t handle,
+                                              uint32_t *gop_frame_count);
+
+/**
+ * @brief Delete encoder
+ * @param handle Encoder handle
+ * @return AVSDK error code
+ */
 avdk_err_t bk_h264_encode_delete(bk_h264_encode_ctlr_handle_t handle);
 
 #ifdef __cplusplus

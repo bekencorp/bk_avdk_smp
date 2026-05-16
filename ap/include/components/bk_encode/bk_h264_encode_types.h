@@ -27,15 +27,16 @@ typedef enum
 	FLEXA_STREAM_ID_CR = 0x16,
 } flexa_stream_id_t;
 
-// ioctl 命令定义
+// IOCTL command definitions
 typedef enum {
-    BK_H264_ENCODE_IOCTL_DEBUG_START,    // 启动调试, arg: uint32_t* (时间间隔ms)
-    BK_H264_ENCODE_IOCTL_DEBUG_STOP,     // 停止调试, arg: NULL
-    BK_H264_ENCODE_IOCTL_SET_PARAM,      // 设置参数
+    BK_H264_ENCODE_IOCTL_DEBUG_START,    // Start debug logging, arg: uint32_t* (interval in ms)
+    BK_H264_ENCODE_IOCTL_DEBUG_STOP,     // Stop debug logging, arg: NULL
+    BK_H264_ENCODE_IOCTL_SET_GOP_FRAME_COUNT, // Set GOP frame count, arg: uint32_t*
+    BK_H264_ENCODE_IOCTL_GET_GOP_FRAME_COUNT, // Get GOP frame count, arg: uint32_t*
     BK_H264_ENCODE_IOCTL_SET_FLEXA_LINES_READY,  // Software Flexa: set input line buffer write count, arg: uint32_t*
     BK_H264_ENCODE_IOCTL_SET_FRAME_READY,      // Software Flexa: set frame done, arg: uint32_t*
-    BK_H264_ENCODE_IOCTL_REGISTER_BOND,      // arg: bk_h264_encode_sw_flexa_bond_ops_t*（见 bk_encoder/h264e/include），或 NULL
-    BK_H264_ENCODE_IOCTL_UNREGISTER_BOND,      // arg: bk_h264_encode_sw_flexa_bond_ops_t*（见 bk_encoder/h264e/include），或 NULL
+    BK_H264_ENCODE_IOCTL_REGISTER_BOND,      // arg: bk_h264_encode_sw_flexa_bond_ops_t* (see bk_encoder/h264e/include), or NULL
+    BK_H264_ENCODE_IOCTL_UNREGISTER_BOND,      // arg: bk_h264_encode_sw_flexa_bond_ops_t* (see bk_encoder/h264e/include), or NULL
     BK_H264_ENCODE_IOCTL_STOP_ENCODE,      // arg: uint32_t*
 } bk_h264_encode_ioctl_cmd_t;
 
@@ -60,7 +61,7 @@ typedef struct
 {
     uint32_t width;
     uint32_t height;
-    uint32_t pframe_number;
+    uint32_t gop_frame_count;
     uint32_t input_format;
     uint32_t input_flexa_cnt;
     uint32_t input_buf;
@@ -75,7 +76,7 @@ typedef struct
 {
     uint32_t width;
     uint32_t height;
-    uint32_t pframe_number;
+    uint32_t gop_frame_count;
     uint32_t input_format;
     uint32_t input_flexa_cnt;
     uint32_t input_buf;
@@ -90,7 +91,7 @@ typedef struct
 {
     uint32_t width;
     uint32_t height;
-    uint32_t pframe_number;
+    uint32_t gop_frame_count;
     uint32_t input_format;
     uint32_t input_flexa_cnt;
     uint32_t input_buf;

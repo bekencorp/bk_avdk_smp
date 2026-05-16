@@ -120,7 +120,7 @@ int app_h264e_turn_on(void)
         .width = isp_control->chn[chnl_id].chn_attr.chnFormat.width,
         .height = isp_control->chn[chnl_id].chn_attr.chnFormat.height,
         .input_format = BK_PIXEL_FORMAT_NV12,
-        .pframe_number = 30,
+        .gop_frame_count = 30,
         .input_flexa_cnt = 3,
         .input_buf = isp_control->chn[chnl_id].y_addr,
         .input_size = isp_control->chn[chnl_id].buf_cnt,

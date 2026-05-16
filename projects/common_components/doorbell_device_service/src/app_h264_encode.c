@@ -179,7 +179,7 @@ avdk_err_t doorbell_h264_encode_open(uint16_t width, uint16_t height)
     enc_config.input_buf = (uint32_t)(uintptr_t)ctx->decode_flexa_buf;
     enc_config.input_size = (uint32_t)ctx->aligned_height;
     enc_config.input_format = BK_PIXEL_FORMAT_NV12;
-    enc_config.pframe_number = 30;
+    enc_config.gop_frame_count = 30;
     enc_config.outbuf_malloc = doorbell_out_buffer_malloc_cb;
     enc_config.outbuf_malloc_args = ctx;
     enc_config.outbuf_complete = doorbell_out_buffer_complete_cb;
