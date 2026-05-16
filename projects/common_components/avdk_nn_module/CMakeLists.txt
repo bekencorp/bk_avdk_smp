@@ -23,6 +23,12 @@ if (CONFIG_TFLM_PET_DETECTION_V1)
 	)
 endif()
 
+if (CONFIG_TFLM_HAND_GESTURE_DETECTION_V1)
+	list(APPEND srcs
+		src/tflm_hand_gesture_detection/hand_gesture_detect_model_data.cc
+	)
+endif()
+
 if (CONFIG_TFLM_FACE_DETECTION_V1)
 	list(APPEND srcs
 		src/tflm_face_detection/swift_yolo_1xb16_300e_coco_300_model_data.c

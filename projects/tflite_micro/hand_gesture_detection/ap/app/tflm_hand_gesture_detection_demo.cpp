@@ -1,4 +1,4 @@
-#include "tflm_pet_detection_demo.h"
+#include "tflm_hand_gesture_detection_demo.h"
 
 /** 1: Invoke() 前后拉高/拉低 GPIO_55 供逻辑分析仪测时；0: 不编译 GPIO 相关代码（也可传 -DTFLM_INVOKE_TIME_TEST=0）。 */
 #ifndef TFLM_INVOKE_TIME_TEST
@@ -27,7 +27,7 @@ extern "C" {
 void *__dso_handle = 0;
 }
 
-#include "pet_image_input.h"
+#include "hand_gesture_image_input.h"
 #include "bk_ethosu.h"
 
 #include "tensorflow/lite/c/common.h"
@@ -37,12 +37,12 @@ void *__dso_handle = 0;
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/micro/kernels/conv.h"
 
-static char TAG[] = "pet_tflm";
+static char TAG[] = "hand_gst_tflm";
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
 // DWT interval logging (delta / 480 -> us at 480 MHz CPU; >= 1 ms printed as ms).
-static void pet_log_dwt_interval(const char *prefix, uint32_t start_cycles)
+static void hgd_log_dwt_interval(const char *prefix, uint32_t start_cycles)
 {
     uint32_t cycles = dwt_get_cycle_counter_val() - start_cycles;
     uint32_t us = cycles / 480U;
@@ -139,15 +139,15 @@ static uint8_t *g_model_data_raw = nullptr;
 static uint8_t *g_model_data = nullptr;
 static size_t g_model_data_size = 0;
 
-struct PetDet {
+struct HgdDet {
     float x1, y1, x2, y2;
     float score;
     int class_id;
 };
 
 static float g_boxes_xyxy[k_num_candidates][4];
-static float g_scores[k_num_candidates][2];
-static PetDet g_merge[k_num_candidates];
+static float g_scores[k_num_candidates][k_num_classes];
+static HgdDet g_merge[k_num_candidates];
 
 static float box_iou_xyxy(float x1a, float y1a, float x2a, float y2a, float x1b, float y1b, float x2b, float y2b)
 {
@@ -233,10 +233,10 @@ static int nms_subset(const int *idxs, int n, int class_id, float iou_thresh, in
 }
 
 static int postprocess_yolov8_int8(const int8_t *out_buf, float out_scale, int out_zp, float scale, int pad_top,
-                                                                    int pad_left, int orig_w, int orig_h, PetDet *out, int max_out)
+                                                                    int pad_left, int orig_w, int orig_h, HgdDet *out, int max_out)
 {
     for (int i = 0; i < k_num_candidates; i++) {
-        float row[6];
+        float row[k_out_channels];
         for (int k = 0; k < k_out_channels; k++) {
             int8_t q = out_buf[k * k_num_candidates + i];
             row[k] = ((float)q - (float)out_zp) * out_scale;
@@ -258,8 +258,10 @@ static int postprocess_yolov8_int8(const int8_t *out_buf, float out_scale, int o
     int nf = 0;
     for (int i = 0; i < k_num_candidates; i++) {
         float m = g_scores[i][0];
-        if (g_scores[i][1] > m) {
-            m = g_scores[i][1];
+        for (int c = 1; c < k_num_classes; c++) {
+            if (g_scores[i][c] > m) {
+                m = g_scores[i][c];
+            }
         }
         if (m > k_conf_threshold) {
             filt[nf++] = i;
@@ -303,7 +305,7 @@ static int postprocess_yolov8_int8(const int8_t *out_buf, float out_scale, int o
     for (int a = 0; a < nt - 1; a++) {
         for (int b = a + 1; b < nt; b++) {
             if (g_merge[b].score > g_merge[a].score) {
-                PetDet t = g_merge[a];
+                HgdDet t = g_merge[a];
                 g_merge[a] = g_merge[b];
                 g_merge[b] = t;
             }
@@ -359,7 +361,7 @@ static bk_err_t tflm_init_interpreter(void)
     }
 
     if (g_model_data == nullptr) {
-        g_model_data_size = (size_t)pet_detection_vela_tflite_len;
+        g_model_data_size = (size_t)hand_gesture_detection_vela_tflite_len;
         g_model_data_raw = (uint8_t *)tflm_runtime_alloc(g_model_data_size + 16, &g_model_data_src);
         if (g_model_data_raw == nullptr) {
             LOGE("alloc model failed, size=%u\r\n", (unsigned)(g_model_data_size + 16));
@@ -367,7 +369,7 @@ static bk_err_t tflm_init_interpreter(void)
         }
         uintptr_t aligned_addr = ((uintptr_t)g_model_data_raw + 15U) & ~(uintptr_t)15U;
         g_model_data = (uint8_t *)aligned_addr;
-        os_memcpy(g_model_data, pet_detection_vela_tflite, g_model_data_size);
+        os_memcpy(g_model_data, hand_gesture_detection_vela_tflite, g_model_data_size);
         LOGI("model -> %s %p size=%u\r\n", tflm_mem_src_name(g_model_data_src), g_model_data, (unsigned)g_model_data_size);
     }
     
@@ -414,7 +416,7 @@ static bk_err_t tflm_init_interpreter(void)
         return BK_FAIL;
     }
 
-    pet_log_dwt_interval("model load & init (scratch+ethosu+model+arena+AllocateTensors)", load_start_cycles);
+    hgd_log_dwt_interval("model load & init (scratch+ethosu+model+arena+AllocateTensors)", load_start_cycles);
     g_interpreter_initialized = true;
     return BK_OK;
 }
@@ -471,12 +473,12 @@ static bk_err_t run_one_embedded_image(const char *tag, const uint8_t *img, size
         return BK_FAIL;
     }
     os_snprintf(invoke_lbl, sizeof(invoke_lbl), "%s Invoke time", tag);
-    pet_log_dwt_interval(invoke_lbl, start_cycles);
+    hgd_log_dwt_interval(invoke_lbl, start_cycles);
 
     float out_scale = output->params.scale;
     int out_zp = output->params.zero_point;
 
-    static PetDet dets[32];
+    static HgdDet dets[32];
     int nd = postprocess_yolov8_int8(output->data.int8, out_scale, out_zp, scale, pad_top, pad_left, orig_w, orig_h, dets,
                                                                         32);
 
@@ -492,14 +494,15 @@ static bk_err_t run_one_embedded_image(const char *tag, const uint8_t *img, size
     return BK_OK;
 }
 
-bk_err_t tflm_pet_detection_run_demo(void)
+bk_err_t tflm_hand_gesture_detection_run_demo(void)
 {
-    bk_err_t r1 = run_one_embedded_image("cat_200", cat_200_model_input, cat_200_model_input_len, k_cat_orig_w, k_cat_orig_h);
+    bk_err_t r1 = run_one_embedded_image(
+        "test_hands_1", test_hands_1_model_input, test_hands_1_model_input_len, k_test_hands_1_orig_w, k_test_hands_1_orig_h);
     if (r1 != BK_OK) {
         return r1;
     }
-    bk_err_t r2 =
-            run_one_embedded_image("dog_204", dog_204_model_input, dog_204_model_input_len, k_dog_orig_w, k_dog_orig_h);
+    bk_err_t r2 = run_one_embedded_image("test_hands_2", test_hands_2_model_input, test_hands_2_model_input_len,
+                                        k_test_hands_2_orig_w, k_test_hands_2_orig_h);
     if (r2 != BK_OK) {
         return r2;
     }

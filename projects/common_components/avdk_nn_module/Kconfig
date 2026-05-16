@@ -10,6 +10,11 @@ menu "AVDK NN Module"
 		bool "Enable tflm PET (cat/dog YOLOv8) detection"
 		default n
 
+	config TFLM_HAND_GESTURE_DETECTION_V1
+		depends on TFLITE_MICRO
+		bool "Enable tflm hand gesture (YOLOv8) detection"
+		default n
+
 	config TFLM_FACE_DETECTION_V1
 		depends on TFLITE_MICRO
 		bool "Enable tflm FACE_DETECTION_V2"

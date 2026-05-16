@@ -119,32 +119,13 @@ ap1:pet_tflm:I(286):  [0] class_id=1 (class1) score=0.9515 bbox_orig: x1=133.38 
 
 ## 测试方案
 
-### PC 侧生成嵌入输入与参考输出
-
-使用 `ap/resource/tflite_int8_inference.py`（依赖 TensorFlow、OpenCV、NumPy 等，见脚本）：
-
-```bash
-cd ap/resource
-python3 tflite_int8_inference.py \
-  --model /path/to/yolov8n_full_integer_quant.tflite \
-  --input /path/to/test_images \
-  --output /path/to/out \
-  --conf 0.3 \
-  --iou 0.45
-```
-
-对每张图生成：
-
-- `{stem}_model_input.cc`：可合并进 `pet_image_input_*.cc`；  
-- `{stem}_output.txt`：含 `# model_input_shape`、`# orig_image_size`、后处理后的框与 `class_id` 等，**应与 `pet_image_input.h` 中阈值、原图宽高一致**。
-
-#### 与 `ap/resource/pet_image_input.h` 的对应修改
+### 与 `ap/resource/pet_image_input.h` 的对应修改
 
 该头文件把**后处理参数**、**每张嵌入样例的原图尺寸**与 **C 符号名** 和 `pet_image_input_*.cc` 绑定；换图、换脚本参数或增删样例时都需同步改这里及 `tflm_pet_detection_demo.cpp` 中的调用。
 
 | 内容 | 说明 |
 |------|------|
-| `k_conf_threshold` / `k_iou_threshold` | 与 `tflite_int8_inference.py` 的 `--conf`、`--iou` 及 `*_output.txt` 里 `# conf_threshold` / `# iou_threshold` **一致**，否则 PC 参考与板端后处理门限不同。 |
+| `k_conf_threshold` / `k_iou_threshold` | `--conf`、`--iou` 及 `*_output.txt` 里 `# conf_threshold` / `# iou_threshold` **一致**，否则 PC 参考与板端后处理门限不同。 |
 | `k_cat_orig_w` / `k_cat_orig_h`、`k_dog_orig_w` / `k_dog_orig_h` | 对应各嵌入输入在**原图**上的宽高（像素），需与 `*_output.txt` 中 `# orig_image_size` 及 `letterbox_params` 使用一致；换用其它图片样例时改为新原图尺寸。 |
 | `k_class_names[]` | 检测类别显示名；依赖 `tflm_pet_detection_model.h` 中的 `k_num_classes`，顺序与模型 `class_id` 一致（当前为 cat / dog）。类别数变化时需与模型头一致。 |
 | `extern` 的 `*_model_input` / `*_model_input_len` | 须与 `pet_image_input_*.cc` 里数组名、长度符号**完全一致**；增删 `.cc` 文件或改名时，在此处增删声明，并在 `tflm_pet_detection_demo.cpp` 的 `tflm_pet_detection_run_demo()` / `run_one_embedded_image()` 中传入匹配的标签与指针。 |
@@ -228,5 +209,4 @@ xxd -i -c 12 xxxx.tflite > xxxx.cc
 
 | 说明 | 路径 |
 |------|------|
-| 猫/狗 YOLO 训练、Vela、批量 `output` 样例 | `projects/tflite_micro/pet_detection/ap/resource` |
 | 通用 TFLM + Vela 例程（人形检测） | `tflite_micro/tflite_micro_example/` |
