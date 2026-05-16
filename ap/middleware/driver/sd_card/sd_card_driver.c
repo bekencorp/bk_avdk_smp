@@ -21,6 +21,7 @@
 
 #if CONFIG_SDIO_V2P0
 #include "sys_driver.h"
+#include <modules/pm.h>
 
 //TODO:These private API should move to private header file.
 extern void bk_sdio_host_reset_sd_state(void);
@@ -1475,7 +1476,7 @@ bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint3
 		return BK_ERR_SDIO_HOST_NOT_INIT;
 	}
 
-	//sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SDIO, true);
+	//bk_pm_clock_ctrl(CLK_PWR_ID_SDIO, true);
 	if(sd_card_check_continious_rw(SDCARD_OPS_WRITE, block_addr, block_num) != SDCARD_RW_STATE_WRITING)
 	{
 		error_state = bk_sdcard_wait_busy_to_idle(1000);
@@ -1524,7 +1525,7 @@ bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint3
 		//error_state = sd_card_cmd_stop_transmission();
 
 		//TODO:disable clock for low power
-		//sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SDIO, false);
+		//bk_pm_clock_ctrl(CLK_PWR_ID_SDIO, false);
 	}
 
 #if CONFIG_SDCARD_OPS_TRACE_EN
@@ -1566,7 +1567,7 @@ bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t blo
 
 	SD_CARD_LOGV("read[+]:rx data=0x%x,block_addr=0x%x,block_cnt=%d\r\n", data, block_addr, block_num);
 
-	//sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SDIO, true);
+	//bk_pm_clock_ctrl(CLK_PWR_ID_SDIO, true);
 
 	//check and do (send/no-send) multi-read CMD
 	if(sd_card_check_continious_rw(SDCARD_OPS_READ, block_addr, block_num) != SDCARD_RW_STATE_READING)

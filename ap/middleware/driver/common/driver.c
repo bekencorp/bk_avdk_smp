@@ -176,7 +176,7 @@ void power_clk_rf_init()
 	dev_clk_pwr_id_t devid = 0;
 	for(devid = 0; devid < 32; devid++)
 	{
-	    sys_drv_dev_clk_pwr_up(devid, CLK_PWR_CTRL_PWR_UP);
+	    bk_pm_clock_ctrl(devid, CLK_PWR_CTRL_PWR_UP);
     }
 	#endif
 

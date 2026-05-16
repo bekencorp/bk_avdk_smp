@@ -18,6 +18,7 @@
 #include "driver/int.h"
 #include "driver/irda.h"
 #include "sys_driver.h"
+#include <modules/pm.h>
 #include "gpio_driver.h"
 #include "irda_driver.h"
 #include "irda_hal.h"
@@ -52,14 +53,14 @@ static void irda_deinit_gpio(void)
  */
 static void irda_init_common(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_IRDA, CLK_PWR_CTRL_PWR_UP);
+	bk_pm_clock_ctrl(CLK_PWR_ID_IRDA, CLK_PWR_CTRL_PWR_UP);
 	sys_drv_int_enable(IRDA_INTERRUPT_CTRL_BIT);
 	irda_init_gpio();
 }
 
 static void irda_deinit_common(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_IRDA, CLK_PWR_CTRL_PWR_DOWN);
+	bk_pm_clock_ctrl(CLK_PWR_ID_IRDA, CLK_PWR_CTRL_PWR_DOWN);
 	sys_drv_int_disable(IRDA_INTERRUPT_CTRL_BIT);
 	irda_deinit_gpio();
 }

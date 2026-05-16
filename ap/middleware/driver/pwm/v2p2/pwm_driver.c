@@ -157,7 +157,7 @@ static void pwm_chan_init_gpio(pwm_chan_t sw_ch)
 
 static void pwm_chan_init_common(pwm_chan_t sw_ch)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM0, CLK_PWR_CTRL_PWR_UP);
+	bk_pm_clock_ctrl(CLK_PWR_ID_PWM0, CLK_PWR_CTRL_PWR_UP);
 	sys_drv_pwm_select_clock(SYS_SEL_PWM0, PWM_SCLK_XTAL);
 	pwm_chan_init_gpio(sw_ch);
 	s_pwm.chan_init_bits |= BIT(sw_ch);
@@ -285,7 +285,7 @@ static int pwm_pm_backup(uint64_t sleep_time, void *args)
 		pwm_hal_pm_backup(chan, s_pwm.pm_backup, PWM_PM_BACKUP_REG_NUM);
 		s_pwm.pm_bakeup_is_valid = 1;
 	}
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_DOWN);
+	bk_pm_clock_ctrl(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_DOWN);
 
 	return BK_OK;
 }
@@ -295,7 +295,7 @@ static int pwm_pm_restore(uint64_t sleep_time, void *args)
 	PWM_RETURN_ON_NOT_INIT();
 	uint32_t chan = (uint32_t)args;
 
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_UP);
+	bk_pm_clock_ctrl(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_UP);
 	if (s_pwm.pm_bakeup_is_valid) {
 		pwm_hal_pm_restore(chan, s_pwm.pm_backup, PWM_PM_BACKUP_REG_NUM);
 		s_pwm.pm_bakeup_is_valid = 0;

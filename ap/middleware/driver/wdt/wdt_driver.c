@@ -23,6 +23,7 @@
 #include "power_driver.h"
 #include <components/system.h>
 #include "sys_driver.h"
+#include <modules/pm.h>
 #include <driver/timer.h>
 #include "bk_wdt.h"
 #include "aon_pmu_driver.h"
@@ -89,7 +90,7 @@ static uint32_t s_feed_watchdog_time = INT_WDG_FEED_PERIOD_TICK;
 
 __IRAM_SEC static void wdt_init_common(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_WDG_CPU, CLK_PWR_CTRL_PWR_UP);
+	bk_pm_clock_ctrl(CLK_PWR_ID_WDG_CPU, CLK_PWR_CTRL_PWR_UP);
 }
 
 __attribute__((section(".itcm_sec_code"))) static void wdt_deinit_common(void)

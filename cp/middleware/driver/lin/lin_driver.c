@@ -90,7 +90,7 @@ static int lin_pm_backup(uint64_t sleep_time, void *args)
 	{
 		s_lin_pm_backup_is_valid = 1;
 		lin_hal_backup(&s_lin_pm_backup[0]);
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_LIN, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_LIN, CLK_PWR_CTRL_PWR_DOWN);
 	}
 
 	return BK_OK;
@@ -103,7 +103,7 @@ static int lin_pm_restore(uint64_t sleep_time, void *args)
 
 	if (s_lin_pm_backup_is_valid)
 	{
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_LIN, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_LIN, CLK_PWR_CTRL_PWR_UP);
 		lin_hal_restore(&s_lin_pm_backup[0]);
 		s_lin_pm_backup_is_valid = 0;
 	}

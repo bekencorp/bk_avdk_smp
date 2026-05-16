@@ -255,27 +255,27 @@ void uart_clock_enable(uart_id_t id)
 	switch(id)
 	{
 		case UART_ID_0:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART0, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART0, CLK_PWR_CTRL_PWR_UP);
 			break;
 		case UART_ID_1:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART1, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART1, CLK_PWR_CTRL_PWR_UP);
 			break;
 		case UART_ID_2:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART2, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART2, CLK_PWR_CTRL_PWR_UP);
 			break;
 #if (SOC_UART_ID_NUM_PER_UNIT >= 4)
 		case UART_ID_3:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART3, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART3, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 #if (SOC_UART_ID_NUM_PER_UNIT >= 5)
 		case UART_ID_4:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART4, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART4, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 #if (SOC_UART_ID_NUM_PER_UNIT >= 6)
 		case UART_ID_5:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART5, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART5, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 		default:
@@ -288,27 +288,27 @@ void uart_clock_disable(uart_id_t id)
 	switch(id)
 	{
 		case UART_ID_0:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART0, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART0, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 		case UART_ID_1:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART1, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART1, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 		case UART_ID_2:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART2, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART2, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #if (SOC_UART_ID_NUM_PER_UNIT  >= 4)
 		case UART_ID_3:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART3, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART3, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 #if (SOC_UART_ID_NUM_PER_UNIT >= 5)
 		case UART_ID_4:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART4, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART4, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 #if (SOC_UART_ID_NUM_PER_UNIT >= 6)
 		case UART_ID_5:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_UART5, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_UART5, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 		default:

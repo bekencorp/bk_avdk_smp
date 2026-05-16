@@ -22,6 +22,7 @@
 #include "qspi_driver.h"
 #include "qspi_statis.h"
 #include "sys_driver.h"
+#include <modules/pm.h>
 #include <driver/gpio.h>
 
 static qspi_driver_t s_qspi[SOC_QSPI_UNIT_NUM] = {
@@ -108,11 +109,11 @@ static void qspi_clock_enable(qspi_id_t id)
 	switch(id)
 	{
 		case QSPI_ID_0:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_QSPI0, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_QSPI0, CLK_PWR_CTRL_PWR_UP);
 			break;
 #if (SOC_QSPI_UNIT_NUM > 1)
 		case QSPI_ID_1:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_QSPI1, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_QSPI1, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 		default:
@@ -125,11 +126,11 @@ static void qspi_clock_disable(qspi_id_t id)
 	switch(id)
 	{
 		case QSPI_ID_0:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_QSPI0, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_QSPI0, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #if (SOC_QSPI_UNIT_NUM > 1)
 		case QSPI_ID_1:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_QSPI1, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_QSPI1, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 		default:

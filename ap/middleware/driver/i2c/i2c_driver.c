@@ -168,12 +168,12 @@ static void i2c_clock_enable(i2c_id_t id)
 	switch(id)
 	{
 		case I2C_ID_0:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2C1, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_I2C1, CLK_PWR_CTRL_PWR_UP);
 			break;
 
 #if (SOC_I2C_UNIT_NUM > 1)
 		case I2C_ID_1:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2C2, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_I2C2, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 		default:
@@ -186,11 +186,11 @@ static void i2c_clock_disable(i2c_id_t id)
 	switch(id)
 	{
 		case I2C_ID_0:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2C1, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_I2C1, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #if (SOC_I2C_UNIT_NUM > 1)
 		case I2C_ID_1:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_I2C2, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_I2C2, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 		default:

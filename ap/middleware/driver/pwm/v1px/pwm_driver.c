@@ -256,13 +256,13 @@ static void pwm_chan_init_common(pwm_chan_t sw_ch)
 	s_pwm[id].chan_init_bits |= BIT(hw_ch);
 
 	if(id == PWM_ID_0) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_UP);
 		sys_drv_pwm_select_clock(SYS_SEL_PWM0, PWM_SCLK_XTAL);
 		sys_drv_int_enable(PWM_INTERRUPT_CTRL_BIT);
 	}
 
 	if(id == PWM_ID_1) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_UP);
 		sys_drv_pwm_select_clock(SYS_SEL_PWM1, PWM_SCLK_XTAL);
 		sys_drv_int_group2_enable(PWM1_INTERRUPT_CTRL_BIT);
 	}
@@ -286,10 +286,10 @@ static bk_err_t pwm_chan_deinit_common(pwm_chan_t sw_ch)
 	pwm_hal_set_chan_enable(&s_pwm[unit_id].hal, hw_ch, false);
 	//all of the channels deinit, then power-down
 	if ((unit_id == 0) && ((s_pwm[unit_id].chan_init_bits & PWM_CHAN_MASK)== 0)) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_DOWN);
 	}
 	if ((unit_id == 1) && ((s_pwm[unit_id].chan_init_bits & PWM_CHAN_MASK)== 0)) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_DOWN);
 	}
 	return BK_OK;
 }
@@ -305,9 +305,9 @@ static int pwm_pm_backup(uint64_t sleep_time, void *args)
 		s_pwm[id].pm_bakeup_is_valid = 1;
 	}
 	if (id == PWM_ID_0) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_DOWN);
 	} else if (id == PWM_ID_1) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_DOWN);
 	}
 	return BK_OK;
 }
@@ -317,9 +317,9 @@ static int pwm_pm_restore(uint64_t sleep_time, void *args)
 	PWM_RETURN_ON_NOT_INIT();
 	pwm_id_t id = (pwm_id_t)args;
 	if (id == PWM_ID_0) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_UP);
 	} else if (id == PWM_ID_1) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_UP);
 	}
 	if (s_pwm[id].pm_bakeup_is_valid)
 	{

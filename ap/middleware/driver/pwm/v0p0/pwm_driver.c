@@ -23,6 +23,7 @@
 #include "power_driver.h"
 #include <driver/int.h>
 #include "sys_driver.h"
+#include <modules/pm.h>
 #include "gpio_driver.h"
 #include <driver/gpio.h>
 
@@ -228,11 +229,11 @@ static void pwm_chan_init_common(pwm_chan_t chan)
 #if (CONFIG_SYSTEM_CTRL)
 	//all of the channels deinit, then power-down
 	if ((unit_id == 0) && (s_pwm.chan_init_bits[unit_id] & PWM_CHAN_MASK)) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_UP);
 	}
 	//one of the channels init, then power-up
 	if ((unit_id == 1) && (s_pwm.chan_init_bits[unit_id] & PWM_CHAN_MASK)) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_UP);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_UP);
 	}
 #else
 	power_pwm_pwr_up(chan);
@@ -259,10 +260,10 @@ static void pwm_chan_deinit_common(uint32_t unit_id, pwm_chan_t drv_chan)
 #if (CONFIG_SYSTEM_CTRL)
 	//all of the channels deinit, then power-down
 	if ((unit_id == 0) && ((s_pwm.chan_init_bits[unit_id] & PWM_CHAN_MASK)== 0)) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_1, CLK_PWR_CTRL_PWR_DOWN);
 	}
 	if((unit_id == 1) && (((s_pwm.chan_init_bits[unit_id]) & PWM_CHAN_MASK)== 0)) {
-		sys_drv_dev_clk_pwr_up(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_DOWN);
+		bk_pm_clock_ctrl(CLK_PWR_ID_PWM_2, CLK_PWR_CTRL_PWR_DOWN);
 	}
 #else
 	power_pwm_pwr_down(drv_chan);

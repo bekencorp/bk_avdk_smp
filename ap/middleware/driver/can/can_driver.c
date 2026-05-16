@@ -86,14 +86,14 @@ bk_err_t bk_can_gpio_deinit(can_channel_t chn)
 bk_err_t bk_can_clock_enable(void)
 {
     sys_hal_can_set_sel_clk(1);
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_CAN, CLK_PWR_CTRL_PWR_UP);
+	bk_pm_clock_ctrl(CLK_PWR_ID_CAN, CLK_PWR_CTRL_PWR_UP);
 
 	return BK_OK;
 }
 
 bk_err_t bk_can_clock_disable(void)
 {
-	sys_drv_dev_clk_pwr_up(CLK_PWR_ID_CAN, CLK_PWR_CTRL_PWR_DOWN);
+	bk_pm_clock_ctrl(CLK_PWR_ID_CAN, CLK_PWR_CTRL_PWR_DOWN);
 
 	return BK_OK;
 }

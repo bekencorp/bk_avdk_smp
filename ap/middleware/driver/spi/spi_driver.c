@@ -285,21 +285,21 @@ static void spi_clock_enable(spi_id_t id)
 	switch(id)
 	{
 		case SPI_ID_0:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SPI1, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI1, CLK_PWR_CTRL_PWR_UP);
 			break;
 #if (SOC_SPI_UNIT_NUM > 1)
 		case SPI_ID_1:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SPI2, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI2, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 #if (SOC_SPI_UNIT_NUM > 2)
 		case SPI_ID_2:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SPI3, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI3, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 #if (SOC_SPI_UNIT_NUM > 3)
 		case SPI_ID_3:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SPI4, CLK_PWR_CTRL_PWR_UP);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI4, CLK_PWR_CTRL_PWR_UP);
 			break;
 #endif
 		default:
@@ -312,21 +312,21 @@ static void spi_clock_disable(spi_id_t id)
 	switch(id)
 	{
 		case SPI_ID_0:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SPI_1, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI_1, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #if (SOC_SPI_UNIT_NUM > 1)
 		case SPI_ID_1:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SPI_2, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI_2, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 #if (SOC_SPI_UNIT_NUM > 2)
 		case SPI_ID_2:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SPI_3, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI_3, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 #if (SOC_SPI_UNIT_NUM > 3)
 		case SPI_ID_3:
-			sys_drv_dev_clk_pwr_up(CLK_PWR_ID_SPI_4, CLK_PWR_CTRL_PWR_DOWN);
+			bk_pm_clock_ctrl(CLK_PWR_ID_SPI_4, CLK_PWR_CTRL_PWR_DOWN);
 			break;
 #endif
 		default:
