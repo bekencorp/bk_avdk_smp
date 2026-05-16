@@ -260,7 +260,7 @@ static void phy_sys_drv_modem_bus_clk_ctrl_on(void)
 }
 static void phy_sys_drv_modem_clk_ctrl_on(void)
 {
-    sys_drv_modem_clk_ctrl(SYS_DRV_CLK_ON);
+    bk_pm_clock_ctrl(PM_CLK_ID_PHY, PM_CLK_CTRL_PWR_UP);
 }
 
 static int bk_flash_read_bytes_wrapper(uint32_t address, uint8_t *user_buf, uint32_t size)

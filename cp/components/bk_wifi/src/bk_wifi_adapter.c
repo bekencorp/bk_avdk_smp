@@ -236,7 +236,7 @@ static uint32_t sys_drv_modem_bus_clk_ctrl_wrapper(bool clk_en)
 
 static uint32_t sys_drv_modem_clk_ctrl_wrapper(bool clk_en)
 {
-	return sys_drv_modem_clk_ctrl(clk_en);
+	return bk_pm_clock_ctrl(PM_CLK_ID_PHY, clk_en ? PM_CLK_CTRL_PWR_UP : PM_CLK_CTRL_PWR_DOWN);
 }
 
 static int32 sys_drv_int_enable_wrapper(uint32 param)

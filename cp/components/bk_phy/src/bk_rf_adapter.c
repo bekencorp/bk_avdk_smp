@@ -21,7 +21,7 @@ uint32_t sys_drv_modem_bus_clk_ctrl_ptr(bool clk_en)
 
 uint32_t sys_drv_modem_clk_ctrl_ptr(bool clk_en)
 {
-	return sys_drv_modem_clk_ctrl(clk_en);
+	return bk_pm_clock_ctrl(PM_CLK_ID_PHY, clk_en ? PM_CLK_CTRL_PWR_UP : PM_CLK_CTRL_PWR_DOWN);
 }
 
 void phy_exit_dsss_only_ptr(void)
