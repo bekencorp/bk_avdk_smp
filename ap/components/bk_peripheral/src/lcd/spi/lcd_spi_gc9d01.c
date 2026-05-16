@@ -14,6 +14,7 @@
 
 #include <common/bk_include.h>
 #include <driver/lcd_types.h>
+#include <components/bk_lcd_panel.h>
 
 
 static const lcd_qspi_init_cmd_t gc9d01_init_cmds[] =
@@ -89,6 +90,8 @@ const lcd_device_t lcd_device_gc9d01 =
     .init = NULL,
     .off = NULL,
 };
+
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_gc9d01, "gc9d01_spi_160x160", BK_LCD_PANEL_BUS_SPI);
 
 
 

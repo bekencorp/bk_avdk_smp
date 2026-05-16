@@ -74,6 +74,29 @@ menu "DSI LCD"
 			bool "1920x1080@30Hz"
 	endchoice
 
+	# LT8912B I2C pins are intentionally configured in this driver's own
+	# Kconfig (and not in the generic display board config) so that the
+	# bridge stays self-contained: the bk_display / panel common code
+	# never sees, allocates, or forwards a "side-channel I2C" object -
+	# that whole bus belongs to the bridge IC alone.
+	# Defaults match the BK7259 EVB wiring; override per-board via
+	# defconfig if your board routes LT8912B SCL/SDA differently.
+	config LCD_LT8912B_PIN_SCL
+		depends on LCD_LT8912B_MIPI_BRIDGE
+		int "LT8912B I2C SCL GPIO"
+		default 69
+		help
+		  GPIO index used for the LT8912B-private software I2C SCL
+		  line. Consumed by sw_i2c_init() inside lcd_mipi_lt8912b_bridge.c.
+
+	config LCD_LT8912B_PIN_SDA
+		depends on LCD_LT8912B_MIPI_BRIDGE
+		int "LT8912B I2C SDA GPIO"
+		default 70
+		help
+		  GPIO index used for the LT8912B-private software I2C SDA
+		  line. Consumed by sw_i2c_init() inside lcd_mipi_lt8912b_bridge.c.
+
 	config LCD_LT8912B_AVI_ENABLE
 		depends on LCD_LT8912B_MIPI_BRIDGE
 		bool "Enable LT8912B AVI infoframe and audio IIS config"

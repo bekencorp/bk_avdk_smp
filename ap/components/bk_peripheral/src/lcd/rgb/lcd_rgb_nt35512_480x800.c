@@ -20,9 +20,9 @@
  * Note: NT35512 uses 16-bit command values sent via 8-bit SPI interface.
  */
 
-#include <components/bk_display_types.h>
 
-#include <components/bk_lcd_types.h>
+
+#include <components/bk_lcd_panel.h>
 #include <common/avdk_pixel_types.h>
 
 
@@ -442,5 +442,5 @@ const bk_display_rgb_panel_t nt35512_rgb_panel = {
     .custom_reset = NULL,
 };
 
-BK_LCD_PANEL_DEVICE_SECTION(nt35512_rgb_panel, "nt35512_rgb_480x800", 0);
+BK_LCD_PANEL_DEVICE_SECTION(nt35512_rgb_panel, "nt35512_rgb_480x800", BK_LCD_PANEL_BUS_RGB);
 #endif

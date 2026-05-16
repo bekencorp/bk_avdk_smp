@@ -1,40 +1,42 @@
 #pragma once
 
-#include <components/bk_display_types.h>
+/**
+ * @file lcd_lt8912b_mipi_bridge.h
+ * @brief LT8912B MIPI-DSI to HDMI bridge driver public API + video
+ *        timing presets. The bridge is registered as a DSI panel via
+ *        ::lcd_device_lt8912b_mipi and configured through a private
+ *        software I2C side-channel owned end-to-end by this driver.
+ */
+
+#include <components/bk_lcd_panel.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #if  CONFIG_LCD_LT8912B_MIPI_BRIDGE
-/* LT8912B HDMI bridge common types and presets (similar to ESP lt8912b header). */
 
-/* Video timing structure for LT8912B HDMI output.
- * lcd_mipi_lt8912b_1920x1080.c uses the macros below for s_lt8912b_timing_current (single source of truth).
- */
+/** Video timing programmed into the LT8912B HDMI output stage. */
 typedef struct {
-    uint16_t hfp;
-    uint16_t hs;
-    uint16_t hbp;
-    uint16_t hact;
-    uint16_t htotal;
-    uint16_t vfp;
-    uint16_t vs;
-    uint16_t vbp;
-    uint16_t vact;
-    uint16_t vtotal;
+    uint16_t hfp;           /**< horizontal front porch (pixel clocks) */
+    uint16_t hs;            /**< HSYNC pulse width */
+    uint16_t hbp;           /**< horizontal back porch */
+    uint16_t hact;          /**< horizontal active pixels */
+    uint16_t htotal;        /**< horizontal total */
+    uint16_t vfp;           /**< vertical front porch (lines) */
+    uint16_t vs;            /**< VSYNC pulse width */
+    uint16_t vbp;           /**< vertical back porch */
+    uint16_t vact;          /**< vertical active lines */
+    uint16_t vtotal;        /**< vertical total */
     bool     h_polarity;
     bool     v_polarity;
-    uint16_t vic;
-    uint8_t  aspect_ratio;  /* 0=no data, 1=4:3, 2=16:9, 3=no data (reserved). */
-    uint32_t pclk_mhz;
+    uint16_t vic;           /**< CEA VIC code (0 if N/A) */
+    uint8_t  aspect_ratio;  /**< 0=no data, 1=4:3, 2=16:9 */
+    uint32_t pclk_mhz;      /**< pixel clock in MHz */
 } lt8912b_video_timing_t;
 
-/* Aspect ratio encoding used in LT8912B AVI infoframe. */
 #define LT8912B_ASPECT_RATIO_NO     0x00
 #define LT8912B_ASPECT_RATIO_4_3    0x01
 #define LT8912B_ASPECT_RATIO_16_9   0x02
-
-/* Predefined video timing presets, aligned with esp_lcd_lt8912b.h */
 
 /* 800x600@60Hz */
 #define LT8912B_VIDEO_TIMING_800x600_60()   \
@@ -136,15 +138,53 @@ typedef struct {
         .pclk_mhz     = 80,                 \
     }
 
-/* Check LT8912B HDMI ready status (HPD) via register 0xC1[7]. */
+/**
+ * @brief Check the LT8912B HDMI hot-plug-detect (HPD) status.
+ *
+ * @param[out] ready  Receives true when an HDMI sink is connected,
+ *                    false when unplugged.
+ *
+ * @return BK_OK on success.
+ * @return BK_ERR_NULL_PARAM if @p ready is NULL.
+ */
 bk_err_t lt8912b_is_ready(bool *ready);
 
-/* Enable LT8912B internal HDMI test pattern using current resolution.
- * This API is only available when CONFIG_LCD_LT8912B_MIPI_BRIDGE and ENABLE_TEST_PATTERN are enabled.
+/**
+ * @brief Drive the LT8912B internal HDMI test pattern.
+ *
+ * Programs the bridge to emit its built-in test pattern at the
+ * currently selected ::CONFIG_LCD_LT8912B_RES_* resolution. Useful for
+ * bring-up verification without a live MIPI source.
+ *
+ * @return BK_OK on success.
  */
 bk_err_t bk_lcd_lt8912b_send_test_pattern(void);
 
+/** DSI panel descriptor exposed by this bridge driver. */
 extern const bk_display_dsi_panel_t lcd_device_lt8912b_mipi;
+
+/** Board-specific I2C side-channel pin assignment for the LT8912B. */
+typedef struct {
+    int8_t scl_pin;   /**< SCL GPIO routed to LT8912B (>=0) */
+    int8_t sda_pin;   /**< SDA GPIO routed to LT8912B (>=0) */
+} bk_lcd_lt8912b_io_pins_t;
+
+/**
+ * @brief Override the LT8912B private I2C pin assignment.
+ *
+ * Call from application bring-up (typically the place that owns the
+ * board pin map, e.g. ``app_display.c``) BEFORE the DSI panel init
+ * triggers the bridge custom_init. If never called, the driver falls
+ * back to ``CONFIG_LCD_LT8912B_PIN_SCL`` / ``CONFIG_LCD_LT8912B_PIN_SDA``.
+ *
+ * @param[in] pins  Pin assignment, both fields must be >=0.
+ *
+ * @return BK_OK on success.
+ * @return BK_ERR_NULL_PARAM if @p pins is NULL.
+ * @return BK_ERR_PARAM if any pin is negative.
+ */
+bk_err_t bk_lcd_lt8912b_set_io_pins(const bk_lcd_lt8912b_io_pins_t *pins);
+
 #endif
 
 #ifdef __cplusplus

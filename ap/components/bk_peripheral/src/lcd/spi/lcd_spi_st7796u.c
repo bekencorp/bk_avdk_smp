@@ -14,6 +14,7 @@
 
 #include <common/bk_include.h>
 #include <driver/lcd_types.h>
+#include <components/bk_lcd_panel.h>
 
 
 static const lcd_qspi_init_cmd_t st7796u_init_cmds[] =
@@ -59,5 +60,7 @@ const lcd_device_t lcd_device_st7796u =
     .init = NULL,
     .off = NULL,
 };
+
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st7796u, "st7796u_spi_320x480", BK_LCD_PANEL_BUS_SPI);
 
 

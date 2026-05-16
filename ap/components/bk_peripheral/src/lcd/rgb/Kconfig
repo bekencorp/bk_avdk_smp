@@ -64,9 +64,4 @@ menu "RGB LCD"
 		bool "Enable LCD_AML01 API"
 		default n
 
-	config LCD_FPGA272P
-		depends on LCD_RGB
-		bool "Enable LCD_FPGA272P API"
-		default n
-
 endmenu

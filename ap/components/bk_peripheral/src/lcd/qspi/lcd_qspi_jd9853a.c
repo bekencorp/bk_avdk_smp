@@ -15,6 +15,7 @@
 
 #include <common/bk_include.h>
 #include <driver/lcd_types.h>
+#include <components/bk_lcd_panel.h>
 
 #define LCD_QSPI_JD9853A_REGISTER_WRITE_COMMAND        0x02
 #define LCD_QSPI_JD9853A_REGISTER_READ_COMMAND         0x03
@@ -82,3 +83,5 @@ const lcd_device_t lcd_device_jd9853a =
     .init = NULL,
     .off = NULL,
 };
+
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9853a, "jd9853a_qspi_240x320", BK_LCD_PANEL_BUS_QSPI);

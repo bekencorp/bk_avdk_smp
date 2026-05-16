@@ -51,8 +51,4 @@ if (CONFIG_LCD_AML01)
 	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_aml01_720x1280.c)
 endif()
 
-if (CONFIG_LCD_FPGA272P)
-	list(APPEND RGB_LCD_DEVICE_FILES ${RGB_LCD_PATH}/lcd_rgb_fpga272p_480x384.c)
-endif()
-
 # Common RGB panel driver has been moved to bk_display component

@@ -20,9 +20,9 @@
  * CASET/RASET adjusted for 360x390 active area.
  */
 
-#include <components/bk_display_types.h>
 
-#include <components/bk_lcd_types.h>
+
+#include <components/bk_lcd_panel.h>
 #include <driver/mipi_dsi_types.h>
 #include <common/avdk_pixel_types.h>
 
@@ -110,5 +110,5 @@ const bk_display_dsi_panel_t lcd_device_jd9855_mipi_360x390 = {
     .custom_init = NULL,
 };
 
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9855_mipi_360x390, "jd9855_mipi_360x390", 1);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9855_mipi_360x390, "jd9855_mipi_360x390", BK_LCD_PANEL_BUS_DSI);
 #endif

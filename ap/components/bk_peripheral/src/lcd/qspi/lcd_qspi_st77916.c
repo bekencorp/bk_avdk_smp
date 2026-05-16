@@ -15,6 +15,7 @@
 
 #include <common/bk_include.h>
 #include <driver/lcd_types.h>
+#include <components/bk_lcd_panel.h>
 
 
 #define LCD_QSPI_ST77916_REGISTER_WRITE_COMMAND        0x02
@@ -274,5 +275,7 @@ const lcd_device_t lcd_device_st77916 =
     .init = NULL,
     .off = NULL,
 };
+
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st77916, "st77916_qspi_360x360", BK_LCD_PANEL_BUS_QSPI);
 
 

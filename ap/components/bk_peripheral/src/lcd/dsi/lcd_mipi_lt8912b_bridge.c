@@ -1,23 +1,17 @@
 // Copyright 2024 Beken
 //
-// LT8912B MIPI-DSI to HDMI bridge panel description and init sequence.
+// LT8912B MIPI-DSI to HDMI bridge driver.
 //
-// This driver integrates the LT8912B HDMI bridge into the generic
-// bk_display / bk_lcd_panel framework as a MIPI DSI "panel":
-// - DPU outputs video over MIPI-DSI; resolution is selected by Kconfig.
-// - LT8912B is configured over a dedicated software I2C bus.
-// - Panel name depends on selected resolution (e.g. lt8912b_mipi_1280x720).
+// The bridge is registered as an avdk MIPI-DSI panel
+// (::lcd_device_lt8912b_mipi). custom_init() programs the LT8912B
+// over a private SW I2C bus owned by this driver - it is NEVER
+// shared with other components, NEVER routed through the public
+// ::bk_display_dsi_bus_t panel-IO channel, and NEVER carried in the
+// generic vendor_config slot.
 //
-// Usage (CLI example): open the panel name that matches your Kconfig resolution.
-//   lcd open lt8912b_mipi_1280x720 rgb565   (when CONFIG_LCD_LT8912B_RES_1280x720)
-//   lcd open lt8912b_mipi_1920x1080 rgb565 (when CONFIG_LCD_LT8912B_RES_1920x1080)
-//   etc.
-//
-// Supported resolutions (Kconfig: DSI -> LT8912B -> "LT8912B HDMI resolution"):
-//   800x600@60Hz, 1024x768@60Hz, 1280x720@60Hz, 1280x800@60Hz, 1920x1080@30Hz.
-//
-// I2C: SCL/SDA pins are configured in app (display_board_config.mipi.pin_scl, pin_sda).
-// The app provides I2C read/write callbacks via panel user_data; this driver does not use sw_i2c directly.
+// Pin assignment can be overridden at runtime via
+// ::bk_lcd_lt8912b_set_io_pins(); otherwise the driver falls back to
+// CONFIG_LCD_LT8912B_PIN_SCL / CONFIG_LCD_LT8912B_PIN_SDA.
 
 #include <os/os.h>
 #include <os/mem.h>
@@ -26,11 +20,10 @@
 #include "gpio_driver.h"
 
 #include <components/log.h>
-#include <components/bk_display_types.h>
-#include <components/bk_display_bus.h>
-#include <components/bk_lcd_types.h>
+#include <components/bk_lcd_panel.h>
 #include <driver/mipi_dsi_types.h>
 #include <common/avdk_pixel_types.h>
+#include <sw_i2c.h>
 
 #include <avdk_error.h>
 #include <avdk_check.h>
@@ -38,7 +31,6 @@
 
 #if CONFIG_LCD_LT8912B_MIPI_BRIDGE
 
-/* Set to 1 to enable LT8912B internal test pattern (for debug, no MIPI input needed) */
 #define ENABLE_TEST_PATTERN 1
 
 #define TAG "lt8912b_panel"
@@ -48,12 +40,10 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-// LT8912B I2C 7-bit addresses (same as ESP reference)
-#define LT8912B_I2C_ADDR_MAIN   (0x48)  //system control register + LVDS + HDMI analog part
-#define LT8912B_I2C_ADDR_CEC    (0x49) //config mipi dsi digital part
-#define LT8912B_I2C_ADDR_AVI    (0x4A) //AVI infoframe AUDIO
+#define LT8912B_I2C_ADDR_MAIN   (0x48)  /**< system control + LVDS + HDMI analog */
+#define LT8912B_I2C_ADDR_CEC    (0x49)  /**< MIPI DSI digital */
+#define LT8912B_I2C_ADDR_AVI    (0x4A)  /**< AVI infoframe + AUDIO */
 
-/* Use timing type and macros from header; only one resolution is compiled per Kconfig. */
 #if defined(CONFIG_LCD_LT8912B_RES_800x600)
 static const lt8912b_video_timing_t s_lt8912b_timing_current = LT8912B_VIDEO_TIMING_800x600_60();
 #define LT8912B_CURRENT_TIMING  s_lt8912b_timing_current
@@ -75,18 +65,15 @@ static const lt8912b_video_timing_t s_lt8912b_timing_current = LT8912B_VIDEO_TIM
 #define LT8912B_CURRENT_TIMING  s_lt8912b_timing_current
 
 #else
-/* Default: 1280x720@60Hz when no resolution macro is set (e.g. legacy Kconfig) */
 static const lt8912b_video_timing_t s_lt8912b_timing_current = LT8912B_VIDEO_TIMING_1280x720_60();
 #define LT8912B_CURRENT_TIMING  s_lt8912b_timing_current
 #endif
 
-// Simple register/data pair
 typedef struct {
     uint8_t cmd;
     uint8_t data;
 } lt8912b_reg_t;
 
-// Digital clock enable sequence
 static const lt8912b_reg_t s_cmd_digital_clock_en[] = {
     {0x02, 0xF7},
     {0x08, 0xFF},
@@ -211,41 +198,62 @@ static const lt8912b_reg_t s_cmd_dds_config[] = {
     {0x51, 0x00},
 };
 
-// Config bus handle pointer set from panel->user_data in custom_init; all reg access goes through display bus
-static bk_display_bus_handle_t *s_lt8912b_cfg_bus = NULL;
+static sw_i2c_handle_t *s_lt8912b_i2c = NULL;
 
-// Low-level write helper: write one register via display bus
+static bk_lcd_lt8912b_io_pins_t s_lt8912b_pins = {
+    .scl_pin = (int8_t)CONFIG_LCD_LT8912B_PIN_SCL,
+    .sda_pin = (int8_t)CONFIG_LCD_LT8912B_PIN_SDA,
+};
+
+bk_err_t bk_lcd_lt8912b_set_io_pins(const bk_lcd_lt8912b_io_pins_t *pins)
+{
+    if (pins == NULL) {
+        return BK_ERR_NULL_PARAM;
+    }
+    if (pins->scl_pin < 0 || pins->sda_pin < 0) {
+        LOGE("LT8912B set_io_pins: invalid pins scl=%d sda=%d\n",
+             pins->scl_pin, pins->sda_pin);
+        return BK_ERR_PARAM;
+    }
+    if (s_lt8912b_i2c != NULL &&
+        (s_lt8912b_pins.scl_pin != pins->scl_pin ||
+         s_lt8912b_pins.sda_pin != pins->sda_pin)) {
+        LOGW("LT8912B set_io_pins: ignored, bus already up on scl=%d sda=%d\n",
+             s_lt8912b_pins.scl_pin, s_lt8912b_pins.sda_pin);
+        return BK_OK;
+    }
+    s_lt8912b_pins = *pins;
+    return BK_OK;
+}
+
 static bk_err_t lt8912b_write_reg(uint8_t dev_addr, uint8_t reg, uint8_t value)
 {
-    if (s_lt8912b_cfg_bus == NULL || *s_lt8912b_cfg_bus == NULL) {
-        LOGE("LT8912B config bus not set\n");
+    if (s_lt8912b_i2c == NULL) {
+        LOGE("LT8912B sw_i2c not initialised (custom_init must run first)\n");
         return BK_ERR_NULL_PARAM;
     }
 
-    bk_display_bus_handle_t bus = *s_lt8912b_cfg_bus;
-    uint32_t cmd = (((uint32_t)dev_addr) << 8) | reg;
-    avdk_err_t ret = bk_display_bus_write(bus, BK_DISPLAY_BUS_RW_I2C_REG, cmd, &value, 1);
-    return (ret == AVDK_ERR_OK) ? BK_OK : BK_FAIL;
+    uint8_t buf[2] = { reg, value };
+    return sw_i2c_master_write(s_lt8912b_i2c, dev_addr, buf, sizeof(buf), 1000);
 }
 
-// Low-level read helper: read one register via display bus
 static bk_err_t lt8912b_read_reg(uint8_t dev_addr, uint8_t reg, uint8_t *value)
 {
-    if (s_lt8912b_cfg_bus == NULL || *s_lt8912b_cfg_bus == NULL) {
-        LOGE("LT8912B config bus not set\n");
+    if (s_lt8912b_i2c == NULL) {
+        LOGE("LT8912B sw_i2c not initialised (custom_init must run first)\n");
         return BK_ERR_NULL_PARAM;
     }
     if (value == NULL) {
         return BK_ERR_NULL_PARAM;
     }
 
-    bk_display_bus_handle_t bus = *s_lt8912b_cfg_bus;
-    uint32_t cmd = (((uint32_t)dev_addr) << 8) | reg;
-    avdk_err_t ret = bk_display_bus_read(bus, BK_DISPLAY_BUS_RW_I2C_REG, cmd, value, 1);
-    return (ret == AVDK_ERR_OK) ? BK_OK : BK_FAIL;
+    bk_err_t ret = sw_i2c_master_write(s_lt8912b_i2c, dev_addr, &reg, 1u, 1000);
+    if (ret != BK_OK) {
+        return ret;
+    }
+    return sw_i2c_master_read(s_lt8912b_i2c, dev_addr, value, 1u, 1000);
 }
 
-// Write array of register/value pairs to given device
 static bk_err_t lt8912b_write_array(uint8_t dev_addr, const lt8912b_reg_t *seq, uint32_t count)
 {
     bk_err_t ret = BK_OK;
@@ -944,16 +952,26 @@ static bk_err_t lt8912b_init_sequence(void)
     return BK_OK;
 }
 
-// Custom init callback used by common MIPI panel driver.
-// For LT8912B we only use this hook to run the HDMI bridge init sequence over config bus (I2C).
 static bk_err_t lt8912b_custom_init(bk_avdk_lcd_panel_t *panel, void *priv)
 {
     AVDK_RETURN_ON_FALSE(panel, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
 
-    s_lt8912b_cfg_bus = (bk_display_bus_handle_t *)panel->user_data;
-    if (s_lt8912b_cfg_bus == NULL || *s_lt8912b_cfg_bus == NULL) {
-        LOGE("LT8912B config bus not provided (set pin_scl/pin_sda in display_board_config)\n");
-        return BK_ERR_NULL_PARAM;
+    if (s_lt8912b_i2c == NULL) {
+        if (s_lt8912b_pins.scl_pin < 0 || s_lt8912b_pins.sda_pin < 0) {
+            LOGE("LT8912B I2C pins not configured; call bk_lcd_lt8912b_set_io_pins() "
+                 "or set CONFIG_LCD_LT8912B_PIN_SCL/_SDA\n");
+            return BK_ERR_NULL_PARAM;
+        }
+        sw_i2c_config_t cfg = {
+            .scl_pin = (gpio_id_t)s_lt8912b_pins.scl_pin,
+            .sda_pin = (gpio_id_t)s_lt8912b_pins.sda_pin,
+        };
+        s_lt8912b_i2c = sw_i2c_init(&cfg);
+        if (s_lt8912b_i2c == NULL) {
+            LOGE("sw_i2c_init(scl=%d, sda=%d) failed\n",
+                 s_lt8912b_pins.scl_pin, s_lt8912b_pins.sda_pin);
+            return BK_ERR_NO_MEM;
+        }
     }
 
     bk_err_t ret = lt8912b_init_sequence();
@@ -961,7 +979,6 @@ static bk_err_t lt8912b_custom_init(bk_avdk_lcd_panel_t *panel, void *priv)
         LOGE("LT8912B init sequence failed, err=%d\n", ret);
         return ret;
     }
-    // After init sequence, check if LT8912B reports HDMI ready (HPD) and log it
     bool ready = false;
     ret = lt8912b_is_ready(&ready);
     if (ret != BK_OK) {
@@ -981,9 +998,6 @@ static bk_err_t lt8912b_custom_reset(bk_avdk_lcd_panel_t *panel, void *priv)
     return BK_OK;
 }
 
-
-/* Panel descriptors: only one is built according to Kconfig resolution choice.
- * DSI timing and panel name match the selected LT8912B video timing. */
 
 #if defined(CONFIG_LCD_LT8912B_RES_800x600)
 const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
@@ -1007,7 +1021,7 @@ const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
     .custom_reset = lt8912b_custom_reset,
     .custom_init = lt8912b_custom_init,
 };
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_800x600", 1);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_800x600", BK_LCD_PANEL_BUS_DSI);
 
 #elif defined(CONFIG_LCD_LT8912B_RES_1024x768)
 const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
@@ -1031,7 +1045,7 @@ const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
     .custom_reset = lt8912b_custom_reset,
     .custom_init = lt8912b_custom_init,
 };
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1024x768", 1);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1024x768", BK_LCD_PANEL_BUS_DSI);
 
 #elif defined(CONFIG_LCD_LT8912B_RES_1280x720)
 const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
@@ -1055,7 +1069,7 @@ const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
     .custom_reset = lt8912b_custom_reset,
     .custom_init = lt8912b_custom_init,
 };
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1280x720", 1);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1280x720", BK_LCD_PANEL_BUS_DSI);
 
 #elif defined(CONFIG_LCD_LT8912B_RES_1280x800)
 const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
@@ -1079,7 +1093,7 @@ const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
     .custom_reset = lt8912b_custom_reset,
     .custom_init = lt8912b_custom_init,
 };
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1280x800", 1);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1280x800", BK_LCD_PANEL_BUS_DSI);
 
 #elif defined(CONFIG_LCD_LT8912B_RES_1920x1080)
 const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
@@ -1103,10 +1117,9 @@ const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
     .custom_reset = lt8912b_custom_reset,
     .custom_init = lt8912b_custom_init,
 };
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1920x1080", 1);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1920x1080", BK_LCD_PANEL_BUS_DSI);
 
 #else
-/* Default: 1280x720@60Hz when no resolution macro is set (e.g. legacy Kconfig). Match LT8912B_VIDEO_TIMING_1280x720_60() in header. */
 const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
     .id = 0x8912720,
     .name = "lt8912b_mipi_1280x720",
@@ -1128,7 +1141,7 @@ const bk_display_dsi_panel_t lcd_device_lt8912b_mipi = {
     .custom_reset = lt8912b_custom_reset,
     .custom_init = lt8912b_custom_init,
 };
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1280x720", 1);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_lt8912b_mipi, "lt8912b_mipi_1280x720", BK_LCD_PANEL_BUS_DSI);
 #endif
 
 #endif /* CONFIG_LCD_LT8912B_MIPI_1920x1080 */

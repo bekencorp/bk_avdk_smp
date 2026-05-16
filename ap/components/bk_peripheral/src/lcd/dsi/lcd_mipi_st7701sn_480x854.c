@@ -20,9 +20,9 @@
  * Panel configuration is defined in this file.
  */
 
-#include <components/bk_display_types.h>
 
-#include <components/bk_lcd_types.h>
+
+#include <components/bk_lcd_panel.h>
 #include <driver/mipi_dsi_types.h>
 #include <common/avdk_pixel_types.h>
 
@@ -98,5 +98,5 @@ const bk_display_dsi_panel_t lcd_device_st7701sn_mipi_480x854 = {
     .custom_init = NULL,
 };
 
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st7701sn_mipi_480x854, "st7701sn_mipi_480x854", 1);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st7701sn_mipi_480x854, "st7701sn_mipi_480x854", BK_LCD_PANEL_BUS_DSI);
 #endif

@@ -20,9 +20,9 @@
  * Panel configuration is defined in this file.
  */
 
-#include <components/bk_display_types.h>
 
-#include <components/bk_lcd_types.h>
+
+#include <components/bk_lcd_panel.h>
 #include <common/avdk_pixel_types.h>
 
 
@@ -228,5 +228,5 @@ const bk_display_rgb_panel_t aml01_rgb_panel = {
     .custom_reset = NULL,
 };
 
-BK_LCD_PANEL_DEVICE_SECTION(aml01_rgb_panel, "aml01_rgb_720x1280", 0);
+BK_LCD_PANEL_DEVICE_SECTION(aml01_rgb_panel, "aml01_rgb_720x1280", BK_LCD_PANEL_BUS_RGB);
 #endif

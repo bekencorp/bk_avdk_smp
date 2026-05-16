@@ -20,9 +20,9 @@
  * Panel configuration is defined in this file.
  */
 
-#include <components/bk_display_types.h>
 
-#include <components/bk_lcd_types.h>
+
+#include <components/bk_lcd_panel.h>
 #include <common/avdk_pixel_types.h>
 
 
@@ -50,5 +50,5 @@ const bk_display_rgb_panel_t st7282_rgb_panel = {
     .custom_reset = NULL,
 };
 
-BK_LCD_PANEL_DEVICE_SECTION(st7282_rgb_panel, "st7282_rgb_480x272", 0);
+BK_LCD_PANEL_DEVICE_SECTION(st7282_rgb_panel, "st7282_rgb_480x272", BK_LCD_PANEL_BUS_RGB);
 #endif

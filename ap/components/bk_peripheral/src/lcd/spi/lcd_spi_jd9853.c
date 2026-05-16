@@ -13,7 +13,8 @@
 // limitations under the License.
 
 #include <common/bk_include.h>
-#include <components/bk_lcd_types.h>
+#include <driver/lcd_types.h>
+#include <components/bk_lcd_panel.h>
 
 
 static const lcd_qspi_init_cmd_t jd9853_init_cmds[] =
@@ -58,17 +59,16 @@ static const lcd_spi_t lcd_spi_jd9853_config =
     .frame_len = 240 * 296 * CONFIG_LCD_SPI_COLOR_DEPTH_BYTE,
 };
 
-const bk_lcd_panel_t lcd_device_jd9853 =
+const lcd_device_t lcd_device_jd9853 =
 {
-    .id = 100,
+    .id = 0x9853,
     .name = "jd9853",
     .type = LCD_TYPE_SPI,
     .width = 240,
     .height = 296,
     .spi = &lcd_spi_jd9853_config,
     .init = NULL,
-    .lcd_off = NULL,
+    .off  = NULL,
 };
 
-
-
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9853, "jd9853_spi_240x296", BK_LCD_PANEL_BUS_SPI);

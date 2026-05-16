@@ -20,9 +20,9 @@
  * Panel configuration is defined in this file.
  */
 
-#include <components/bk_display_types.h>
 
-#include <components/bk_lcd_types.h>
+
+#include <components/bk_lcd_panel.h>
 #include <driver/mipi_dsi_types.h>
 #include <common/avdk_pixel_types.h>
 
@@ -127,5 +127,5 @@ const bk_display_dsi_panel_t lcd_device_gc9702_mipi_720x1280 = {
     .custom_init = NULL,
 };
 
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_gc9702_mipi_720x1280, "gc9702_mipi_720x1280", 1);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_gc9702_mipi_720x1280, "gc9702_mipi_720x1280", BK_LCD_PANEL_BUS_DSI);
 #endif

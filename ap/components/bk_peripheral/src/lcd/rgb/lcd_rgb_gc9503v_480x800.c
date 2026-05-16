@@ -20,9 +20,9 @@
  * Panel configuration is defined in this file.
  */
 
-#include <components/bk_display_types.h>
 
-#include <components/bk_lcd_types.h>
+
+#include <components/bk_lcd_panel.h>
 #include <common/avdk_pixel_types.h>
 
 
@@ -133,5 +133,5 @@ const bk_display_rgb_panel_t gc9503v_rgb_panel = {
     .custom_reset = gc9503v_custom_reset,
 };
 
-BK_LCD_PANEL_DEVICE_SECTION(gc9503v_rgb_panel, "gc9503v", 0);
+BK_LCD_PANEL_DEVICE_SECTION(gc9503v_rgb_panel, "gc9503v", BK_LCD_PANEL_BUS_RGB);
 #endif

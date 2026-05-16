@@ -20,8 +20,8 @@
  * Panel configuration is defined in this file.
  */
 
-#include <components/bk_display_types.h>
-#include <components/bk_lcd_types.h>
+
+#include <components/bk_lcd_panel.h>
 
 
 #if CONFIG_LCD_ST7701SN
@@ -100,5 +100,5 @@ const bk_display_rgb_panel_t st7701sn_rgb_panel = {
     .custom_reset = NULL,
 };
 
-BK_LCD_PANEL_DEVICE_SECTION(st7701sn_rgb_panel, "st7701sn_rgb_480x854", 0);
+BK_LCD_PANEL_DEVICE_SECTION(st7701sn_rgb_panel, "st7701sn_rgb_480x854", BK_LCD_PANEL_BUS_RGB);
 #endif

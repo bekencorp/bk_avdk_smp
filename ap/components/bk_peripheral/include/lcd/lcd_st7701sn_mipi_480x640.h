@@ -1,6 +1,6 @@
 #pragma once
 
-#include <components/bk_display_types.h>
+#include <components/bk_lcd_panel.h>
 
 #ifdef __cplusplus
 extern "C" {
