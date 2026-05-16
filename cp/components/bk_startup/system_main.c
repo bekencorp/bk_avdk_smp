@@ -306,26 +306,24 @@ int32_t vote_stop_cpu2_core(cpu2_user_id_t user_id)
 
 void bk_start_ap_system(void)
 {
+#if !CONFIG_PM_AP_POWERDOWN_WHEN_LV
+	static bool s_ap_system_started = false;
 
-static bool s_ap_system_started = false;
-
-if (s_ap_system_started) {
+	if (s_ap_system_started) {
 	BK_LOGD(NULL, "ap system already started\r\n");
 	return;
-}
-
-#if (CONFIG_SOC_BK7236XX)
-	// start smp(cpu1, cpu2)
-	bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
+	}
 #endif
+
 
 #if (CONFIG_SUPPORT_MULTICORE)
 	bk_printf("cp start ap system\r\n");
 	BK_LOG_ON_ERR(bk_multicore_start(CONFIG_AP_SYS_MASTER_CPU_ID)); // start ap system master cpu
 	bk_printf("ap system started\r\n");
 #endif
-
+#if !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	s_ap_system_started = true;
+#endif
 }
 
 void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {

@@ -20,7 +20,7 @@
 
 #include "pm_mailbox.h"
 #include "pm_debug.h"
-
+#include "pm_sleep.h"
 
 #define PM_CP1_SOC_AON_RTC_REG_BASE          (SOC_AON_RTC_REG_BASE)
 #define PM_AON_RTC_CNT_VAL_L_OFFSET          (0x3*4)

@@ -10,6 +10,7 @@ if (CONFIG_PM_ENABLE)
 			src/clients/bk_pm_client_power.c
 			src/clients/bk_pm_client_clock.c
 			src/clients/bk_pm_client_mailbox.c
+			src/clients/bk_pm_client_sleep.c
 		)
 	else()
 		list(APPEND srcs

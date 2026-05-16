@@ -502,10 +502,10 @@ void psram_hal_power_clk_enable(uint8_t enable)
 
 		sys_drv_psram_ldo_enable(1);
 		bk_delay_us(1000);
-		if(bk_pm_module_power_state_get(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM) != 0)
-		{
-			bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_ON);
-		}
+
+
+		bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_PSRAM, PM_POWER_MODULE_STATE_ON);
+
 
 		// psram bus clk always open
 		sys_drv_psram_psram0_disckg(1);

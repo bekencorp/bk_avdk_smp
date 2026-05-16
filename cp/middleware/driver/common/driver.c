@@ -387,13 +387,14 @@ int driver_init(void) {
 #if CONFIG_SUPPORT_IRDA
 	bk_irda_driver_init();
 #endif
-
+#if !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 #if (CONFIG_PSRAM)
 	extern bool is_psram_init_done;
 	if (!is_psram_init_done) {
 		bk_psram_init();
 		is_psram_init_done = true;
 	}
+#endif
 #endif
 	BK_LOGD(NULL,"driver_init end\r\n");
 

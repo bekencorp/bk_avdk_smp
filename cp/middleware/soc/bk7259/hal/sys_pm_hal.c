@@ -29,6 +29,8 @@
 #include "sys_pm_hal.h"
 #include "sys_pm_hal_ctrl.h"
 #include "modules/pm.h"
+
+#include "sys_sw_regs.h"
 #include <driver/pwr_clk.h>
 #include "driver/flash.h"
 #if CONFIG_INT_WDT
@@ -1829,6 +1831,8 @@ static int sys_hal_power_config_default()
 }
 void sys_hal_low_power_hardware_init()
 {
+	pm_shared_info_t shared_info = {0};
+
 #if !CONFIG_AON_PMU_REG0_REFACTOR_DEV
 	/*recover aon pmu reg0*/
 	uint32_t reg = aon_pmu_ll_get_r7b();
@@ -1869,6 +1873,9 @@ void sys_hal_low_power_hardware_init()
 
 	/*set rosc calib trig once*/
 	sys_hal_rosc_calibration(3, 0);
+
+	/* Early boot path: initialize shared PM info without lock dependency. */
+	bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL, BK_SYS_SW_REGS_LOCK_DISABLE);
 }
 
 #if CONFIG_PM_V3

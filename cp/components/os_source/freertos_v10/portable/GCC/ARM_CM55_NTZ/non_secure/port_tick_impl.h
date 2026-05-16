@@ -219,25 +219,30 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 	uint32_t ulReloadValue;
 	TickType_t xModifiableIdleTime;
 
-	if (rtos_get_core_id() == CPU0_CORE_ID) {
-		bk_pm_check_enter_lv_time_out();
+// 	if (rtos_get_core_id() == CPU0_CORE_ID) {
+// 		//bk_pm_check_enter_lv_time_out();
 
-#if (CONFIG_CPU_CNT > 1)
-#if CONFIG_PSRAM
-		uint32_t cp1_psram_malloc_count_state       = 0;
-		if(bk_pm_low_vol_vote_state_get())
-		{
-			cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count(0);
-			pm_cp1_psram_malloc_count_state_set(cp1_psram_malloc_count_state);
-			//pm_debug_module_state();
-		}
-#endif
-		if(bk_pm_cp1_recovery_all_state_get())
-		{
-			bk_pm_module_check_cp1_shutdown();
-		}
-#endif
-	}
+// #if (CONFIG_CPU_CNT > 1)
+// #if CONFIG_PSRAM
+// 		// uint32_t cp1_psram_malloc_count_state       = 0;
+// 		// if(bk_pm_low_vol_vote_state_get())
+// 		// {
+// 		// 	cp1_psram_malloc_count_state = bk_pm_get_cp1_psram_malloc_count(0);
+// 		// 	pm_cp1_psram_malloc_count_state_set(cp1_psram_malloc_count_state);
+// 		// 	//pm_debug_module_state();
+// 		// }
+// #endif
+// 		if(bk_pm_cp1_recovery_all_state_get())
+// 		{
+// 			// pm_shared_info_t info = {0};
+// 			// bk_sys_sw_regs_get_pm_shared_info(&info);
+// 			// if(info.pm_ap0_sleep_state == 0x1)//sleep
+// 			// {
+// 			// 	bk_pm_module_check_cp1_shutdown();
+// 			// }
+// 		}
+// #endif
+// 	}
 	/* Make sure the SysTick reload value does not overflow the counter. */
 	if( xExpectedIdleTime > xMaximumPossibleSuppressedTicks ) {
 		xExpectedIdleTime = xMaximumPossibleSuppressedTicks;

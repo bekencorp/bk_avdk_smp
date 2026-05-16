@@ -71,8 +71,10 @@ void pm_hardware_init(void)
 
 #if CONFIG_BAKP_POWER_DOMAIN_PM_CONTROL
 	/*pm vote power on ticket for bakp module*/
-	bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_BAKP_PM, PM_POWER_MODULE_STATE_ON);
+	//bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_BAKP_PM, PM_POWER_MODULE_STATE_ON);
 #endif
+
+	bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_BAKP_PM, PM_POWER_MODULE_STATE_ON);
 }
 
 /*=========================SLEEP STATE MACHINE START========================*/

@@ -24,6 +24,7 @@
 #define BK7259_SYS_SW_REGS_H
 
 #include <stdint.h>
+#include <modules/pm.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,6 +36,8 @@ extern "C" {
  */
 #define SYS_SW_REGS_SECTION_NAME    ".shared_memory"
 #define SYS_SW_REGS_SECTION         __attribute__((section(SYS_SW_REGS_SECTION_NAME)))
+#define BK_SYS_SW_REGS_LOCK_DISABLE (0U)
+#define BK_SYS_SW_REGS_LOCK_ENABLE  (1U)
 
 /**
  * @brief Shared configuration registers accessible by all cores.
@@ -105,6 +108,7 @@ typedef union {
         volatile uint32_t ap_reset_reason;  /**< AP reset reason code  */
         volatile riscv_usb_probe_t riscv_usb_probe; /**< AP/RISC-V USB host probe context */
         volatile ap_heap_dump_info_t ap_heap_dump[BK_SYS_SW_REGS_AP_HEAP_MAX]; /**< AP heap dump windows */
+		volatile pm_shared_info_t pm_shared_info;
         volatile adc_key_sample_info_t adc_key_sample; /**< CP ADC key latest sample */
         volatile uint32_t flash_init_done;  /**< CP flash init completion flag */
     };
@@ -145,6 +149,13 @@ uint32_t bk_sys_sw_regs_get_ap_reset_reason(void);
  * @return 1 if a valid heap dump window exists, otherwise 0.
  */
 uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap_dump_info_t *info);
+
+/**
+ * @brief Read PM info snapshot from shared registers.
+ * @param info Output buffer for PM info.
+ * @return BK_OK on success, BK_ERR_PARAM if info is NULL.
+ */
+bk_err_t bk_sys_sw_regs_get_pm_shared_info(pm_shared_info_t *info);
 uint32_t bk_sys_sw_regs_get_adc_key_sample(adc_key_sample_info_t *info);
 
 /* --------------------------------------------------------------------------
@@ -199,6 +210,14 @@ void bk_sys_sw_regs_set_adc_key_sample(uint16_t raw, uint16_t mv, uint8_t status
 void *bk_sys_sw_regs_get_sspl_list(void);
 volatile sys_sw_regs_t *bk_sys_sw_regs_ptr(void);
 
+/**
+ * @brief Update PM info fields selected by mask.
+ * @param info Input PM info values.
+ * @param field_mask Bitmask of bk_sys_sw_regs_pm_shared_info_field_t to update.
+ * @param use_lock BK_SYS_SW_REGS_LOCK_ENABLE to use lock, BK_SYS_SW_REGS_LOCK_DISABLE for early init.
+ * @return BK_OK on success, BK_ERR_PARAM if input is invalid.
+ */
+bk_err_t bk_sys_sw_regs_update_pm_shared_info(const pm_shared_info_t *info, uint32_t field_mask, uint8_t use_lock);
 #ifdef __cplusplus
 }
 #endif

@@ -899,24 +899,24 @@ typedef enum
 #define pm_power_module_name_e                         unsigned int
 
 /*----POWER DOMAIN DEFINE--------*/
-#define PM_POWER_MODULE_NAME_MEM1                      (POWER_MODULE_NAME_MEM1) //0
-#define PM_POWER_MODULE_NAME_MEM2                      (POWER_MODULE_NAME_MEM2) //1
-#define PM_POWER_MODULE_NAME_MEM3                      (POWER_MODULE_NAME_MEM3) //2
-#define PM_POWER_MODULE_NAME_ENCP                      (POWER_MODULE_NAME_ENCP) //3
-#define PM_POWER_MODULE_NAME_BAKP                      (POWER_MODULE_NAME_BAKP) //4
-#define PM_POWER_MODULE_NAME_AHBP                      (POWER_MODULE_NAME_AHBP) //5
-#define PM_POWER_MODULE_NAME_AUDP                      (POWER_MODULE_NAME_AUDP) //6
-#define PM_POWER_MODULE_NAME_VIDP                      (POWER_MODULE_NAME_VIDP) //7
+// #define PM_POWER_MODULE_NAME_MEM1                      (POWER_MODULE_NAME_MEM1) //0
+// #define PM_POWER_MODULE_NAME_MEM2                      (POWER_MODULE_NAME_MEM2) //1
+// #define PM_POWER_MODULE_NAME_MEM3                      (POWER_MODULE_NAME_MEM3) //2
+// #define PM_POWER_MODULE_NAME_ENCP                      (POWER_MODULE_NAME_ENCP) //3
+// #define PM_POWER_MODULE_NAME_BAKP                      (POWER_MODULE_NAME_BAKP) //4
+// #define PM_POWER_MODULE_NAME_AHBP                      (POWER_MODULE_NAME_AHBP) //5
+// #define PM_POWER_MODULE_NAME_AUDP                      (POWER_MODULE_NAME_AUDP) //6
+// #define PM_POWER_MODULE_NAME_VIDP                      (POWER_MODULE_NAME_VIDP) //7
 #define PM_POWER_MODULE_NAME_BTSP                      (POWER_MODULE_NAME_BTSP) //8
 #define PM_POWER_MODULE_NAME_WIFIP_MAC                 (POWER_MODULE_NAME_WIFIP_MAC)//9
 #define PM_POWER_MODULE_NAME_PHY                       (POWER_MODULE_NAME_WIFI_PHY) //10
-#define PM_POWER_MODULE_NAME_MEM0                      (POWER_MODULE_NAME_MEM0)     //11
-#define PM_POWER_MODULE_NAME_MEM4                      (POWER_MODULE_NAME_MEM4)     //12
-#define PM_POWER_MODULE_NAME_OFDM                      (POWER_MODULE_NAME_OFDM)     //13
+// #define PM_POWER_MODULE_NAME_MEM0                      (POWER_MODULE_NAME_MEM0)     //11
+// #define PM_POWER_MODULE_NAME_MEM4                      (POWER_MODULE_NAME_MEM4)     //12
+//#define PM_POWER_MODULE_NAME_OFDM                      (POWER_MODULE_NAME_OFDM)     //13
 #define PM_POWER_MODULE_NAME_THREAD                    (POWER_MODULE_NAME_THREAD)   //14
-#define PM_POWER_MODULE_NAME_TCM0_PGEN                 (POWER_MODULE_NAME_TCM0_PGEN)//14
-#define PM_POWER_MODULE_NAME_ROM_PGEN                  (POWER_MODULE_NAME_ROM_PGEN) //15
-#define PM_POWER_MODULE_NAME_TCM1_PGEN                 (POWER_MODULE_NAME_TCM1_PGEN)//16
+// #define PM_POWER_MODULE_NAME_TCM0_PGEN                 (POWER_MODULE_NAME_TCM0_PGEN)//14
+// #define PM_POWER_MODULE_NAME_ROM_PGEN                  (POWER_MODULE_NAME_ROM_PGEN) //15
+// #define PM_POWER_MODULE_NAME_TCM1_PGEN                 (POWER_MODULE_NAME_TCM1_PGEN)//16
 #define PM_POWER_MODULE_NAME_CPU1                      (POWER_MODULE_NAME_CPU1)     //17
 #define PM_POWER_MODULE_NAME_CPU2                      (POWER_MODULE_NAME_CPU2)     //18
 #define PM_POWER_MODULE_NAME_APP                       (POWER_MODULE_NAME_APP)      //19

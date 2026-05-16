@@ -20,13 +20,14 @@
 #include "bk_pm_internal_api.h"
 #include <driver/aon_rtc.h>
 #include <os/mem.h>
+#include <sys_sw_regs.h>
 #if CONFIG_PSRAM
 #include <driver/psram.h>
 #endif
 #if CONFIG_WDT_EN
 #include "wdt_driver.h"
 #endif
-//#include "driver/low_pwr_core.h"
+
 #include "pm_debug.h"
 #if CONFIG_PSRAM
 #include "pm_psram.h"
@@ -36,7 +37,7 @@
 
 /*=====================DEFINE  SECTION  START=====================*/
 #define PM_SEND_CMD_CP1_RESPONSE_TIEM        (100)  //100ms
-#define PM_BOOT_CP1_WAITING_TIEM             (500) // 0.5s
+#define PM_BOOT_CP1_WAITING_TIEM             (3000) // 3s
 #define PM_CP1_RECOVERY_DEFAULT_VALUE        (0xFFFFFFFFFFFFFFFF)
 #define PM_OPEN_CP1_TIMEOUT                  (20000) //20s
 #define PM_SEMA_WAIT_FOREVER                 (0xFFFFFFFF)    /*Wait Forever*/
@@ -44,6 +45,8 @@
 #define PM_BOOT_CP1_TRY_COUNT                (3)
 #define PM_CP_NOTIFY_AP_MAX_COUNT            (100)
 #define PM_CP_NOTIFY_DELAY_TIME_US           (10)  //10us
+#define PM_CHNL_STATE_BUSY                   (1)
+#define PM_CHNL_STATE_IDLE                   (0)
 /*=====================DEFINE  SECTION  END=====================*/
 
 
@@ -359,17 +362,12 @@ bk_err_t bk_pm_cp0_psram_malloc_state_set(pm_mailbox_communication_state_e state
 #if CONFIG_MAILBOX
 static bk_err_t pm_cp0_send_msg(uint32_t event, uint32_t param1,uint32_t param2,uint32_t param3)
 {
-	low_pwr_core_msg_t msg = {0};
+	pm_ap_core_msg_t msg = {0};
 	msg.event= event;
 	msg.param1 = param1;
 	msg.param2 = param2;
 	msg.param3 = param3;
-#if !CONFIG_SOC_BK7259 ///TODO:
-	return bk_low_pwr_core_send_msg(&msg);
-#else //!CONFIG_SOC_BK7259 ///TODO:
-	(void)msg;
-	return BK_OK;
-#endif //!CONFIG_SOC_BK7259 ///TODO:
+	return bk_pm_send_msg(&msg);
 }
 bk_err_t bk_pm_cp0_response_cp1(uint32_t cmd, uint32_t param1,uint32_t param2,uint32_t param3)
 {
@@ -380,7 +378,7 @@ static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t 
 	mb_chnl_cmd_t mb_cmd = {0};
 	int ret              = 0;
 	uint8_t  retry_count = 0;
-
+	//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_MAILBOX,0,0);
 	mb_cmd.hdr.cmd = cmd;
 	mb_cmd.param1 = param1;
 	mb_cmd.param2 = param2;
@@ -394,9 +392,11 @@ static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t 
         if(retry_count > 5)
         {
             LOGE("Mailbox send data fail[ret:%d]\r\n",ret);
+			//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_MAILBOX,1,0);
             return ret;
         }
 	}
+	//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_MAILBOX,1,0);
 	return BK_OK;
 }
 
@@ -538,24 +538,31 @@ bool bk_pm_cp1_recovery_all_state_get()
 
 static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 {
-	uint64_t previous_tick = 0;
-	uint64_t current_tick   = 0;
-	if(PM_POWER_MODULE_STATE_OFF == sys_drv_module_power_state_get(module))
+	// uint64_t previous_tick = 0;
+	// uint64_t current_tick   = 0;
+	//if(PM_POWER_MODULE_STATE_OFF == sys_drv_module_power_state_get(module))
 	{
-		if(module == PM_POWER_MODULE_NAME_CPU1)
+		if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
 		{
-boot_cp1:
-			//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
-            bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU1, PM_POWER_MODULE_STATE_ON);
-
-			#if defined(RECV_LOG_FROM_MBOX)
-			void reset_forward_log_status(void);
-			// reset cpu1's log transfer status on cpu0.
-			reset_forward_log_status();
+//boot_cp1:
+			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
+			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
 			#endif
+            bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_ON);
 
-            start_cpu1_core();
+			// #if defined(RECV_LOG_FROM_MBOX)
+			// void reset_forward_log_status(void);
+			// // reset cpu1's log transfer status on cpu0.
+			// reset_forward_log_status();
+			// #endif
+			#if CONFIG_PSRAM
+			bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
+            #endif
+            //start_cpu1_core();
+			extern void bk_start_ap_system(void);
+			bk_start_ap_system();
 
+			#if 0
 			previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 			current_tick = previous_tick;
 			while((current_tick - previous_tick) < (PM_BOOT_CP1_WAITING_TIEM*AON_RTC_MS_TICK_CNT))
@@ -573,8 +580,8 @@ boot_cp1:
 
 				/*Reset psram*/
 #if CONFIG_PSRAM
-				bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
-				bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
+				//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
+				//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
 #endif
 				s_pm_cp1_boot_try_count++;
 				if(s_pm_cp1_boot_try_count < PM_BOOT_CP1_TRY_COUNT)
@@ -588,30 +595,31 @@ boot_cp1:
 					#endif
 				}
 			}
+			#endif
 		}
 	}
 }
 bk_err_t bk_pm_module_check_cp1_shutdown()
 {
-	if(0x0 == s_pm_cp1_ctrl_state)
-	{
-		pm_module_shutdown_cpu1(PM_POWER_MODULE_NAME_CPU1);
-	}
+	// if(0x0 == s_pm_cp1_ctrl_state)
+	// {
+	// 	pm_module_shutdown_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
+	// }
     return BK_OK;
 }
 static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 {
 	bk_err_t ret = BK_OK;
 	GLOBAL_INT_DECLARATION();
-	if(PM_POWER_MODULE_STATE_ON == sys_drv_module_power_state_get(module))
+	//if(PM_POWER_MODULE_STATE_ON == sys_drv_module_power_state_get(module))
 	{
-		if(module == PM_POWER_MODULE_NAME_CPU1)
+		if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
 		{
-			stop_cpu1_core();
-#if CONFIG_PSRAM
+			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
 			//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
-#endif
-			bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU1, PM_POWER_MODULE_STATE_OFF);
+			#endif
+			//stop_cpu1_core();
+			bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_OFF);
 			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 
 			GLOBAL_INT_DISABLE();
@@ -628,9 +636,14 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			{
 				//rtos_deinit_semaphore(&s_sync_cp1_open_sema);
 			}
+			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
+			// extern void stop_cpu2_core(void);
+			// stop_cpu2_core();
+			//bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU2, PM_POWER_MODULE_STATE_OFF);
 
-			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
-			BK_LOGD(NULL, "Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count);
+			//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
+			#endif
+			bk_printf_nonblock(4,NULL,"Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count); //4:BK_LOG_DEBUG
 		}
 	}
 }
@@ -681,7 +694,7 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 		GLOBAL_INT_DISABLE();
 		s_pm_cp1_ctrl_state |= 0x1 << (module);
 		GLOBAL_INT_RESTORE();
-		pm_module_bootup_cpu1(PM_POWER_MODULE_NAME_CPU1);
+		pm_module_bootup_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
     }
     else //power down
     {
@@ -694,11 +707,31 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 			{
 				s_pm_cp1_closing = 1;
 				BK_LOGD(NULL, "boot_cp1 %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,s_pm_cp1_boot_ready);
-				pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
-				//pm_module_shutdown_cpu1(PM_POWER_MODULE_NAME_CPU1);
-				#if CONFIG_ATE_TEST
-					pm_module_shutdown_cpu1(PM_POWER_MODULE_NAME_CPU1);
-				#endif
+				//pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
+
+				pm_shared_info_t shared_info = {0};
+
+				shared_info.pm_cp0_sleep_state = 1;
+				bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_DISABLE);
+				//GPIO_UP(27);
+				//GPIO_DOWN(27);
+
+				LOGD("pm_cp0_sleep_state: %d,ap0_sleep_state: %d\r\n", shared_info.pm_cp0_sleep_state, shared_info.pm_ap0_sleep_state);
+				//bk_delay_us(1000);
+				while(!shared_info.pm_ap0_sleep_state)//sleep
+				{
+					bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+					// GPIO_UP(27);
+					// GPIO_DOWN(27);
+
+					if(shared_info.pm_ap0_sleep_state == 0x1)
+					{
+						pm_module_shutdown_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
+						GPIO_UP_DOWN(27);
+						LOGD("ap power off!!!\r\n");
+						break;
+					}
+				}
 			}
     	}
     }
@@ -707,7 +740,7 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 bk_err_t bk_pm_cp_wakeup_ap_from_wfi(uint8_t core_id)
 {
 	int ret                       = BK_OK;
-#if CONFIG_PM_LV_SUBCORES_ON
+#if CONFIG_PM_LV_SUBCORES_ON && !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	mb_chnl_cmd_t mb_cmd          = {0};
 
 	mb_cmd.hdr.cmd = PM_SLEEP_WAKEUP_NOTIFY_CMD;
@@ -889,7 +922,7 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 			{
 				bk_psram_deinit();
 				bk_pm_module_vote_vdddig_ctrl(PM_VDDDIG_MODULE_PSRAM,PM_VDDDIG_HIGH_STATE_OFF);
-				FIXED_ADDR_PSRAM_POWER_DOWN = PM_PSRAM_POWER_DOWN_MAGIC;
+				bk_sys_sw_regs_set_psram_power_down(PM_PSRAM_POWER_DOWN_MAGIC);
                 bk_pm_get_cp1_psram_malloc_count(0x1);
 			}
 			#endif
@@ -921,14 +954,7 @@ uint32_t bk_pm_get_psram_ctrl_state()
 	#endif
 	return psram_ctrl_state;
 }
-#if 0	///TODO: multiple definition of `bk_pm_module_vote_psram_ctrl
-bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_power_module_state_e power_state)
-{
-	bk_err_t ret = BK_OK;
-	ret = pm_psram_power_ctrl(module,power_state);
-	return ret;
-}
-#endif
+
 bk_err_t bk_pm_module_vote_ctrl_external_ldo(uint32_t module,gpio_id_t gpio_id,gpio_output_state_e value)
 {
 	bk_gpio_ctrl_external_ldo(module,gpio_id,value);
@@ -965,6 +991,12 @@ bk_err_t bk_pm_module_vote_vdddig_ctrl(pm_vdddig_module_e module,pm_vdddig_high_
 	}
 #endif
 	return BK_OK;
+}
+uint8_t bk_pm_cp_mb_busy(void)
+{
+    uint8_t state = 0;
+    mb_chnl_ctrl(MB_CHNL_PWC,MB_CHNL_GET_STATUS, &state);
+    return (state == PM_CHNL_STATE_BUSY) ? 1 : 0;
 }
 #endif // CONFIG_PM_SERVER
 /*=====================PM_SERVER  SECTION  END=================*/

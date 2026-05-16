@@ -78,5 +78,8 @@ menu "PM"
 		bool "Enable deep low voltage debug"
 		default n
 
+	config PM_AP_POWERDOWN_WHEN_LV
+		bool "Power down ap when sleep"
+		default n
 endmenu
 

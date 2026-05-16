@@ -59,7 +59,9 @@ bk_err_t sys_hal_ctrl_vdddig_h_vol(uint32_t vol_value);
 uint32_t sys_hal_vdddig_h_vol_get();
 static void sys_hal_delay(volatile uint32_t times);
 static bk_err_t sys_hal_m55_clock_power_init();
+static bk_err_t sys_hal_m55_clock_power_init();
 __IRAM_SEC int32 sys_hal_module_power_state_get(power_module_name_t module);
+static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state);
 
 bk_err_t sys_hal_init()
 {
@@ -206,11 +208,12 @@ __IRAM_SEC void sys_hal_module_power_ctrl(power_module_name_t module,power_modul
 			case PM_POWER_DOMAIN_3://POWER_DOMAIN_NAME_AP_CPU:
 				if(power_state == POWER_MODULE_STATE_ON)
 				{
-					sys_ahbp_ll_set_rege_pwd_m55(0);
+					//sys_hal_ap_clock_power_ctrl(power_state);
+					sys_hal_m55_clock_power_init();
 				}
 				else
 				{
-					sys_ahbp_ll_set_rege_pwd_m55(1);
+					sys_hal_ap_clock_power_ctrl(power_state);
 				}
 				break;
 			case PM_POWER_DOMAIN_4://POWER_DOMAIN_NAME_HSSUB_POWER:
@@ -3158,6 +3161,53 @@ uint32_t sys_hal_cali_dpll(uint32_t param)
     }
 	return 0;
 }
+static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
+{
+	uint32_t regData = 0;
+	if(power_state == POWER_MODULE_STATE_ON)
+	{
+		sys_ll_set_ana_reg10_spi_latch1v(1);
+		sys_ll_set_ana_reg9_pwd_hsldo(0);
+		sys_ll_set_ana_reg16_enhspw(1);
+		sys_ll_set_ana_reg16_vcorehssel(0x8);//0.9v (modify 20260202 siqing usb)
+		sys_ll_set_ana_reg10_spi_latch1v(0);
+
+		/*"M55S Access Secure*/
+		regData  = REG_READ(0x44050000 + 0xF*4);
+		regData &= ~((0x1<<3)|(0x1<<2));
+		regData |=  ((  0<<3)|(  0<<2));
+		REG_WRITE(0x44050000 + 0xF*4, regData);
+
+		/*M55:Default enable all the clock source for bringup */
+		REG_WRITE(0x48000000 + 0xA*4, 0xFFFFFFFF);
+
+		/*M55 cpu freq and bus 480M, subbus 240M */
+		regData = REG_READ(0x48000000 + 0x8*4);
+		regData |= 0x1 << 4;
+		REG_WRITE(0x48000000 + 0x8*4, regData);
+
+		regData = REG_READ(0x48000000 + 0x8*4);
+		regData |= 0x0 << 2;
+		regData |= 0x1 << 0;
+		REG_WRITE(0x48000000 + 0x8*4, regData);
+	}
+	else
+	{
+		//aon_pmu_ll_set_r2_m55_rstn(1); // rstn release
+		//aon_pmu_ll_set_r2_m55_clk_en(0); // clk enable
+
+		//sys_ll_set_ana_reg14_enpsram(0);
+
+		sys_ahbp_ll_set_rege_pwd_m55(1);
+
+		sys_ll_set_ana_reg10_spi_latch1v(1);
+		sys_ll_set_ana_reg16_enhspw(0);
+		sys_ll_set_ana_reg9_pwd_hsldo(1);
+		sys_ll_set_ana_reg10_spi_latch1v(0);
+	}
+
+	return BK_OK;
+}
 static bk_err_t sys_hal_m55_clock_power_init()
 {
 	uint32_t regData = 0;
@@ -3321,7 +3371,7 @@ void sys_hal_early_init(void)
 	sys_hal_dpll_cpu_flash_time_early_init(chip_id);
 
 	/*M55: clock power init*/
-	#if !CONFIG_PM_ONLY_CP_ENABLE
+	#if !CONFIG_PM_ONLY_CP_ENABLE && !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	sys_hal_m55_clock_power_init();
 	#endif
 }

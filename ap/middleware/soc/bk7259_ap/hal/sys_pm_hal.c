@@ -27,6 +27,7 @@
 #include <os/os.h>
 #include "sys_pm_hal.h"
 #include "sys_pm_hal_ctrl.h"
+#include "sys_sw_regs.h"
 #include "modules/pm.h"
 #include <driver/pwr_clk.h>
 #include "driver/flash.h"
@@ -36,6 +37,12 @@
 #endif
 #include "cache.h"
 #include "sys_ahbp_ll.h"
+extern uint64_t check_IRQ_pending(void);
+
+static inline uint32_t bk_dma_check_chn_status(void)
+{
+	return 0U;
+}
 
 #define portNVIC_SYSTICK_CTRL_REG             ( *( ( volatile uint32_t * ) 0xe000e010 ) )
 #define portNVIC_SYSTICK_LOAD_REG             ( *( ( volatile uint32_t * ) 0xe000e014 ) )
@@ -515,12 +522,184 @@ void sys_hal_gpio_ana_wakeup_enable(uint32_t count, uint32_t index, uint32_t typ
 
 void sys_hal_enter_cpu_wfi()
 {
-    arch_sleep();
+	pm_shared_info_t shared_info = {0};
+	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+	if(shared_info.pm_cp0_sleep_state == 0x1)
+	{
+		volatile uint32_t int_state;
+		uint32_t systick_ctrl_value = 0;
+
+		systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
+		//portNVIC_SYSTICK_CTRL_REG = 0;
+
+		int_state = sys_ahbp_ll_get_reg10_value();
+
+		/*Disable Int exclude mailbox,mailbox int for wakeup*/
+		sys_ahbp_ll_set_reg10_value(0x0);
+
+		__asm volatile( "nop" );
+		__asm volatile( "nop" );
+		__asm volatile( "nop" );
+		__asm volatile( "nop" );
+		__asm volatile( "nop" );
+
+		if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ll_get_cpu1_int_0_31_status_value()||(sys_ll_get_cpu1_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+		{
+			sys_ahbp_ll_set_reg10_value(int_state);
+			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+			return;
+		}
+
+		shared_info.pm_ap0_sleep_state = 1;
+		__DMB();
+		bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
+		__DMB();
+		flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+		__DMB();
+
+		arch_deep_sleep();
+
+		shared_info.pm_ap0_sleep_state = 0;
+		bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
+
+		portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+
+		sys_ahbp_ll_set_reg10_value(int_state);
+	}
 }
 
 void sys_hal_enter_normal_sleep(uint32_t peri_clk)
 {
+	#if 0//CONFIG_PM_LV_SUBCORES_ON
+	if(portGET_CORE_ID() == CPU0_CORE_ID)
+	{
+		if(aon_pmu_ll_get_r3_cp0_sleep_vote_state())
+		{
+			volatile uint32_t int_state1, int_state2;
+			uint32_t systick_ctrl_value = 0;
+
+			systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
+			portNVIC_SYSTICK_CTRL_REG = 0;
+
+			int_state1 = sys_ll_get_cpu1_int_0_31_en_value();
+			int_state2 = sys_ll_get_cpu1_int_32_63_en_value();
+			/*Disable Int exclude mailbox,mailbox int for wakeup*/
+			sys_ll_set_cpu1_int_0_31_en_value(0x0);
+			sys_ll_set_cpu1_int_32_63_en_value(0x0);
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ll_get_cpu1_int_0_31_status_value()||(sys_ll_get_cpu1_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+			{
+				sys_ll_set_cpu1_int_0_31_en_value(int_state1);
+				sys_ll_set_cpu1_int_32_63_en_value(int_state2);
+				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				//BK_LOGD(NULL, "Core0 pending irq:0x%llx,0x%x\r\n",check_IRQ_pending(),bk_dma_check_chn_status());
+				return;
+			}
+			sys_ll_set_cpu1_int_32_63_en_cpu1_mailbox_int_en(1);
+
+			bk_pm_handle_lv_sleep_callback(PM_LV_ENTER_SLEEP);
+			/*Set cpu1 wfi state*/
+			aon_pmu_ll_set_r3_cp1_enter_wfi_state(1);
+
+			FIXED_ADDR_WAKEUP_AP1_COUNT += 1;
+			/*Enter deep sleep*/
+			arch_deep_sleep();
+
+			/*Clear cpu1 wfi state*/
+			aon_pmu_ll_set_r3_cp1_enter_wfi_state(0);
+
+			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+
+			bk_pm_handle_lv_sleep_callback(PM_LV_EXIT_SLEEP);
+			bk_err_t ret = vPortYieldCore(1);
+			s_trigger_ap1_count = 0;
+			while(ret != BK_OK)
+			{
+				bk_delay_us(PM_AP_TRRIGER_DELAY_TIME_US);
+				ret = vPortYieldCore(1);
+				s_trigger_ap1_count++;
+				if(s_trigger_ap1_count > PM_TRRIGER_AP_MAX_COUNT)
+				{
+					LOGE("Wakeup AP1 failed[%d]\r\n",ret);
+					break;
+				}
+			}
+			sys_ll_set_cpu1_int_0_31_en_value(int_state1);
+			sys_ll_set_cpu1_int_32_63_en_value(int_state2);
+		}
+		else
+		{
+			arch_sleep();
+		}
+	}
+	else if(portGET_CORE_ID() == CPU1_CORE_ID)
+	{
+		if(aon_pmu_ll_get_r3_cp0_sleep_vote_state())
+		{
+			volatile uint32_t int1_state1, int1_state2;
+			uint32_t systick_ctrl_value = 0;
+
+			systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
+			portNVIC_SYSTICK_CTRL_REG = 0;
+
+			int1_state1 = sys_ll_get_cpu2_int_0_31_en_value();
+			int1_state2 = sys_ll_get_cpu2_int_32_63_en_value();
+			/*Disable Int exclude mailbox,mailbox int for wakeup*/
+			sys_ll_set_cpu2_int_0_31_en_value(0x0);
+			sys_ll_set_cpu2_int_32_63_en_value(0x0);
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ll_get_cpu2_int_0_31_status_value()||(sys_ll_get_cpu2_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+			{
+				sys_ll_set_cpu2_int_0_31_en_value(int1_state1);
+				sys_ll_set_cpu2_int_32_63_en_value(int1_state2);
+				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				//BK_LOGD(NULL, "Core1 pending irq:0x%llx,0x%x\r\n",check_IRQ_pending(),bk_dma_check_chn_status());
+				return;
+			}
+			sys_ll_set_cpu2_int_32_63_en_cpu2_mailbox_int_en(1);
+			/*Set cpu2 wfi state*/
+			aon_pmu_ll_set_r3_cp2_enter_wfi_state(1);
+
+			FIXED_ADDR_WAKEUP_AP1_DEBUG +=1;
+			/*Enter deep sleep*/
+			arch_deep_sleep();
+
+			/*Clear cpu2 wfi state*/
+			aon_pmu_ll_set_r3_cp2_enter_wfi_state(0);
+
+			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+			bk_err_t ret = vPortYieldCore(0);
+			s_trigger_ap0_count =  0;
+			while(ret != BK_OK)
+			{
+				bk_delay_us(PM_AP_TRRIGER_DELAY_TIME_US);
+				ret = vPortYieldCore(0);
+				s_trigger_ap0_count++;
+				if(s_trigger_ap0_count > PM_TRRIGER_AP_MAX_COUNT)
+				{
+					LOGE("Wakeup AP0 failed[%d]\r\n",ret);
+					break;
+				}
+			}
+			sys_ll_set_cpu2_int_0_31_en_value(int1_state1);
+			sys_ll_set_cpu2_int_32_63_en_value(int1_state2);
+		}
+		else
+		{
+			arch_sleep();
+		}
+	}
+#else
 	arch_sleep();
+#endif
 }
 
 void sys_hal_enter_normal_wakeup()

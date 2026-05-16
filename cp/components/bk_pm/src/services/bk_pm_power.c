@@ -60,7 +60,7 @@ bk_err_t bk_pm_module_power_on(uint32_t *pm_off_modules, uint32_t *pm_on_modules
 	GLOBAL_INT_DECLARATION();
 
 	if (module < PM_POWER_MODULE_NAME_NONE) {
-
+		LOGI("pm_module_power_on module[%d] NONE\r\n",module);
 	} else {
 		domain = module/PM_MODULE_SUB_POWER_DOMAIN_MAX;
 		submodule = module%PM_MODULE_SUB_POWER_DOMAIN_MAX;
@@ -106,17 +106,17 @@ bk_err_t bk_pm_module_power_on(uint32_t *pm_off_modules, uint32_t *pm_on_modules
 				//}
 			}
 				break;
-			case PM_POWER_DOMAIN_3://POWER_DOMAIN_NAME_AP_CPU:
+			case PM_POWER_DOMAIN_3://POWER_SUB_DOMAIN_NAME_AP_CPU:
 			{
+				if (s_pm_ap_cpu_state ==0)
+				{
+					sys_drv_module_power_ctrl(domain, PM_POWER_MODULE_STATE_ON);
+				}
 				GLOBAL_INT_DISABLE();
 				s_pm_ap_cpu_state |= (0x1 << submodule);
 				*pm_off_modules &= ~(0x1 << domain);
 				*pm_on_modules |= (0x1 << domain);
 				GLOBAL_INT_RESTORE();
-
-				if (sys_drv_module_power_state_get(domain)) {
-					sys_drv_module_power_ctrl(domain, PM_POWER_MODULE_STATE_ON);
-				}
 			}
 				break;
 			case PM_POWER_DOMAIN_4://POWER_DOMAIN_NAME_HSSUB_POWER:
@@ -381,7 +381,6 @@ void pm_power_modules_dump_with_sleep_mode(pm_sleep_mode_e sleep_mode)
 		s_pm_ahpb_pm_state, s_pm_video_pm_state, s_pm_audio_pm_state, s_pm_bakp_pm_state);
 }
 
-// TODO: rename or remove
 bk_err_t pm_debug_module_state(void)
 {
 	#if CONFIG_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
@@ -409,12 +408,6 @@ bk_err_t pm_debug_module_state(void)
 	{
 		LOGD("Cp1 not PD[state:0x%x]\r\n",bk_pm_module_power_state_get(PM_POWER_MODULE_NAME_CPU1));
 	}
-
-	// TODO: why not using bk_pm_module_power_state_get(PM_POWER_MODULE_NAME_CPU2) ?
-	// if(!(REG_READ(PM_DEBUG_SYS_REG_BASE+0x6*4)&0x2))
-	// {
-	// 	BK_LOGD(NULL, "Cp2 not PD[state:0x%x]\r\n",REG_READ(PM_DEBUG_SYS_REG_BASE+0x6*4));
-	// }
 
 	#if CONFIG_PSRAM && CONFIG_PSRAM_AS_SYS_MEMORY
 	pm_debug_psram();

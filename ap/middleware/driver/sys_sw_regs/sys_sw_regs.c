@@ -115,6 +115,31 @@ uint32_t bk_sys_sw_regs_get_adc_key_sample(adc_key_sample_info_t *info)
     return (info->valid == BK_SYS_SW_REGS_ADC_KEY_VALID) ? 1 : 0;
 }
 
+bk_err_t bk_sys_sw_regs_get_pm_shared_info(pm_shared_info_t *info)
+{
+   uint32_t flags;
+    uint32_t i;
+
+    if (info == NULL) {
+        return BK_ERR_PARAM;
+    }
+
+   flags = sys_sw_regs_lock();
+    info->pm_ap0_sleep_state = s_sys_sw_regs.pm_shared_info.pm_ap0_sleep_state;
+    info->pm_ap1_sleep_state = s_sys_sw_regs.pm_shared_info.pm_ap1_sleep_state;
+    info->pm_cp0_sleep_state = s_sys_sw_regs.pm_shared_info.pm_cp0_sleep_state;
+    info->pm_cp1_sleep_state = s_sys_sw_regs.pm_shared_info.pm_cp1_sleep_state;
+    info->wakeup_source = s_sys_sw_regs.pm_shared_info.wakeup_source;
+    for (i = 0; i <= ALARM_NAME_MAX_LEN; i++) {
+        info->wakeup_alarm_name[i] = s_sys_sw_regs.pm_shared_info.wakeup_alarm_name[i];
+    }
+    info->gpio_id = s_sys_sw_regs.pm_shared_info.gpio_id;
+    info->param0 = s_sys_sw_regs.pm_shared_info.param0;
+    info->param1 = s_sys_sw_regs.pm_shared_info.param1;
+    info->param2 = s_sys_sw_regs.pm_shared_info.param2;
+    sys_sw_regs_unlock(flags);
+    return BK_OK;
+}
 /* --------------------------------------------------------------------------
  * Write API
  * -------------------------------------------------------------------------- */
@@ -200,6 +225,56 @@ void bk_sys_sw_regs_set_adc_key_sample(uint16_t raw, uint16_t mv, uint8_t status
     s_sys_sw_regs.adc_key_sample.valid = BK_SYS_SW_REGS_ADC_KEY_VALID;
 
     sys_sw_regs_unlock(flags);
+}
+
+bk_err_t bk_sys_sw_regs_update_pm_shared_info(const pm_shared_info_t *info, uint32_t field_mask, uint8_t use_lock)
+{
+    uint32_t flags = 0;
+    uint32_t i;
+
+    if ((info == NULL) || (field_mask == 0U)) {
+        return BK_ERR_PARAM;
+    }
+
+    if (use_lock == BK_SYS_SW_REGS_LOCK_ENABLE) {
+        flags = sys_sw_regs_lock();
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE) != 0U) {
+        s_sys_sw_regs.pm_shared_info.pm_ap0_sleep_state = info->pm_ap0_sleep_state;
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP1_SLEEP_STATE) != 0U) {
+        s_sys_sw_regs.pm_shared_info.pm_ap1_sleep_state = info->pm_ap1_sleep_state;
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE) != 0U) {
+        s_sys_sw_regs.pm_shared_info.pm_cp0_sleep_state = info->pm_cp0_sleep_state;
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP1_SLEEP_STATE) != 0U) {
+        s_sys_sw_regs.pm_shared_info.pm_cp1_sleep_state = info->pm_cp1_sleep_state;
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE) != 0U) {
+        s_sys_sw_regs.pm_shared_info.wakeup_source = info->wakeup_source;
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_ALARM_NAME) != 0U) {
+        for (i = 0; i <= ALARM_NAME_MAX_LEN; i++) {
+            s_sys_sw_regs.pm_shared_info.wakeup_alarm_name[i] = info->wakeup_alarm_name[i];
+        }
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID) != 0U) {
+        s_sys_sw_regs.pm_shared_info.gpio_id = info->gpio_id;
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM0) != 0U) {
+        s_sys_sw_regs.pm_shared_info.param0 = info->param0;
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1) != 0U) {
+        s_sys_sw_regs.pm_shared_info.param1 = info->param1;
+    }
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM2) != 0U) {
+        s_sys_sw_regs.pm_shared_info.param2 = info->param2;
+    }
+    if (use_lock == BK_SYS_SW_REGS_LOCK_ENABLE) {
+        sys_sw_regs_unlock(flags);
+    }
+    return BK_OK;
 }
 
 void *bk_sys_sw_regs_get_sspl_list(void)

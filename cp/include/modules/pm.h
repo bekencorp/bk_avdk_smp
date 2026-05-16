@@ -10,6 +10,7 @@ extern "C" {
 #include "common/bk_err.h"
 /* SOC HAL: power domain enums and PM_POWER_SUB_DOMAIN_* macros (one include for PM + BLE/WIFI/etc.) */
 #include "sys_types.h"
+#include <driver/aon_rtc_types.h>
 
 /**
  * Sleep callback function type
@@ -548,6 +549,34 @@ typedef enum {
 	BK_PM_WAKEUP_HW_TIMER,      /* 6:Timer Expiration */
 	BK_PM_WAKEUP_SRC_COUNT,     /* 7:Source Count */
 } bk_pm_wakeup_reason_e;
+
+typedef struct {
+    volatile uint8_t pm_ap0_sleep_state;
+    volatile uint8_t pm_ap1_sleep_state;
+    volatile uint8_t pm_cp0_sleep_state;
+    volatile uint8_t pm_cp1_sleep_state;
+    volatile pm_wakeup_source_e wakeup_source;
+    volatile uint8_t wakeup_alarm_name[ALARM_NAME_MAX_LEN+1];
+    volatile uint8_t gpio_id;
+    volatile uint32_t param0;
+    volatile uint32_t param1;
+    volatile uint32_t param2;
+} pm_shared_info_t;
+
+typedef enum {
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE = (1U << 0),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP1_SLEEP_STATE = (1U << 1),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE = (1U << 2),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP1_SLEEP_STATE = (1U << 3),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE   = (1U << 4),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_ALARM_NAME = (1U << 5),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID         = (1U << 6),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM0          = (1U << 7),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1          = (1U << 8),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM2          = (1U << 9),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL             = (1U << 10) - 1U,
+} bk_sys_sw_regs_pm_shared_info_field_t;
+
 /*config the voltage at low vol*/
 #define PM_VOLTAGE_OF_LOW_VOL            (PM_LOW_VOL_VOLTAGE_0_6)
 
