@@ -483,6 +483,7 @@ if(CONFIG_LVGL)
 
 	list(APPEND incs
 		common/.
+		common/gpu_rotate
 		common/hpdma
 		common/img_utility
 	)
@@ -492,7 +493,7 @@ if(CONFIG_LVGL)
 		common/hpdma/lv_hpdma.c
 	)
 
-	if(CONFIG_LV_IMG_UTILITY_CUSTOMIZE)
+	if (CONFIG_LV_IMG_UTILITY_CUSTOMIZE)
 		list(APPEND srcs
 			common/img_utility/lv_img_utility.c
 			common/img_utility/lv_jpeg_hw_decode.c
@@ -500,16 +501,22 @@ if(CONFIG_LVGL)
 		)
 	endif()
 
-	if(CONFIG_VFS)
+	if (CONFIG_VFS)
 		list(APPEND srcs
 			common/vfs/lv_fs_bk_posix.c
+		)
+	endif()
+
+	if (CONFIG_LVGL_USE_GPU_ROTATE)
+		list(APPEND srcs
+			common/gpu_rotate/lv_gpu_rotate.c
 		)
 	endif()
 endif()
 
 armino_component_register(SRCS "${srcs}"
 	INCLUDE_DIRS "${incs}"
-	PRIV_REQUIRES include bk_vfs bk_display avdk_driver
+	PRIV_REQUIRES include bk_vfs avdk_driver
 	)
 
 if (CONFIG_LVGL)

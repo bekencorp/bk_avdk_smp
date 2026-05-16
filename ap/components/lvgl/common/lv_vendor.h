@@ -16,7 +16,7 @@ extern "C" {
 #include <driver/hal/hal_hpdma_types.h>
 
 
-#if CONFIG_LVGL_GPU_ROTATE_ENABLE
+#if CONFIG_LVGL_USE_GPU_ROTATE
 #define LV_USE_GPU_ROTATE    1
 #else
 #define LV_USE_GPU_ROTATE    0

@@ -9,7 +9,8 @@
 #include <os/os.h>
 #include "lv_port_disp_private.h"
 #include "../src/misc/lv_area_private.h"
-#include "hpdma/lv_hpdma.h"
+#include "lv_hpdma.h"
+#include "lv_gpu_rotate.h"
 #include <modules/vg_lite_gpu/vg_lite.h>
 
 #define TAG "LVGL_PARTIAL"
@@ -44,7 +45,11 @@ void lv_port_disp_partial_init(lv_vnd_data_t *vnd_data)
 {
     lv_hpdma_memcpy_init(vnd_data);
 
-    if (vnd_data->config.output_compress || (vnd_data->config.rotation != ROTATE_NONE && LV_USE_GPU_ROTATE)) {
+#if LV_USE_GPU_ROTATE
+    lv_gpu_rotate_init(vnd_data);
+#endif
+
+    if (vnd_data->config.output_compress) {
         os_memset(&lv_dst_buf, 0, sizeof(vg_lite_buffer_t));
         #if (LV_COLOR_DEPTH == 16)
             lv_dst_buf.format = VG_LITE_BGR565;
@@ -72,15 +77,6 @@ void lv_port_disp_partial_init(lv_vnd_data_t *vnd_data)
         lv_src_buf.compress_mode = VG_LITE_DEC_DISABLE;
 
         vg_lite_identity(&lv_matrix);
-        if (vnd_data->config.rotation == ROTATE_90) {
-            vg_lite_rotate(270.0f, &lv_matrix);
-        } else if (vnd_data->config.rotation == ROTATE_270) {
-            vg_lite_rotate(90.0f, &lv_matrix);
-        } else if (vnd_data->config.rotation == ROTATE_180) {
-            vg_lite_rotate(180.0f, &lv_matrix);
-        } else {
-            vg_lite_rotate(0.0f, &lv_matrix);
-        }
     }
 }
 
@@ -88,7 +84,11 @@ void lv_port_disp_partial_deinit(lv_vnd_data_t *vnd_data)
 {
     lv_hpdma_memcpy_deinit(vnd_data);
 
-    if (vnd_data->config.output_compress || (vnd_data->config.rotation != ROTATE_NONE && LV_USE_GPU_ROTATE)) {
+#if LV_USE_GPU_ROTATE
+    lv_gpu_rotate_deinit(vnd_data);
+#endif
+
+    if (vnd_data->config.output_compress) {
         vg_lite_free_without_free_data(&lv_src_buf);
         vg_lite_free_without_free_data(&lv_dst_buf);
     }
@@ -162,38 +162,7 @@ static void lv_partial_flush_rotate(lv_display_t *disp_drv, lv_vnd_data_t *vnd_d
 
     if (vnd_data->config.rotation != ROTATE_NONE) {
         #if LV_USE_GPU_ROTATE
-            lv_src_buf.width = ctx->width;
-            lv_src_buf.height = ctx->height;
-            vg_lite_allocate_with_data(&lv_src_buf, px_map, NULL, NULL, NULL);
-
-            if (vnd_data->config.rotation == ROTATE_90 || vnd_data->config.rotation == ROTATE_270) {
-                lv_dst_buf.width = ctx->height;
-                lv_dst_buf.height = ctx->width;
-            } else {
-                lv_dst_buf.width = ctx->width;
-                lv_dst_buf.height = ctx->height;
-            }
-            vg_lite_allocate_with_data(&lv_dst_buf, vnd_data->rotate_buffer, NULL, NULL, NULL);
-
-            switch (vnd_data->config.rotation) {
-                case ROTATE_90:
-                    lv_matrix.m[0][2] = 0.0f;
-                    lv_matrix.m[1][2] = ctx->width;
-                    break;
-                case ROTATE_270:
-                    lv_matrix.m[0][2] = ctx->height;
-                    lv_matrix.m[1][2] = 0.0f;
-                    break;
-                case ROTATE_180:
-                    lv_matrix.m[0][2] = ctx->width;
-                    lv_matrix.m[1][2] = ctx->height;
-                    break;
-                default:
-                    break;
-            }
-
-            vg_lite_blit(&lv_dst_buf, &lv_src_buf, &lv_matrix, VG_LITE_BLEND_NONE, 0, VG_LITE_FILTER_POINT);
-            vg_lite_finish();
+            lv_gpu_rotate_process(vnd_data, px_map, ctx->width, ctx->height);
         #else
             uint32_t w_stride = lv_draw_buf_width_to_stride(ctx->width, cf);
             uint32_t h_stride = lv_draw_buf_width_to_stride(ctx->height, cf);

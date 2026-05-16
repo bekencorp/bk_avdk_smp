@@ -57,6 +57,21 @@ menu "LVGL"
         help
             Show CPU usage and FPS count
 
+    config LV_COLOR_16_SWAP
+        depends on LVGL
+        bool "Enable Swap the 2 bytes of RGB565 color"
+        default n
+
+    config LV_ATTRIBUTE_FAST_MEM
+        depends on LVGL
+        bool "Enable Lv Attribute Fast Mem"
+        default n
+
+    config LV_IMG_UTILITY_CUSTOMIZE
+        depends on LVGL
+        bool "Enable LVGL use customized image decoding method"
+        default n
+
     config LVGL_TASK_PRIORITY
         depends on LVGL
         int "Set lvgl task priority"
@@ -79,28 +94,13 @@ menu "LVGL"
         int "Set lvgl task sleep time"
         default 10
 
-    config LV_COLOR_16_SWAP
-        depends on LVGL
-        bool "Enable Swap the 2 bytes of RGB565 color"
-        default n
-
-    config LV_ATTRIBUTE_FAST_MEM
-        depends on LVGL
-        bool "Enable Lv Attribute Fast Mem"
-        default n
-
-    config LV_IMG_UTILITY_CUSTOMIZE
-        depends on LVGL
-        bool "Enable LVGL use customized image decoding method"
-        default n
-
     config LVGL_FRAME_BUFFER_NUM
         depends on LVGL
         int "Set the display frame buffer number"
         default 2
 
-    config LVGL_GPU_ROTATE_ENABLE
+    config LVGL_USE_GPU_ROTATE
         depends on LVGL
-        bool "Enable LVGL GPU Rotate"
+        bool "Enable LVGL Use GPU Rotate"
         default n
 endmenu

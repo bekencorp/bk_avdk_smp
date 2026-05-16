@@ -12,6 +12,7 @@
 #include "lv_port_disp.h"
 #include "lv_vendor.h"
 #include "lv_hpdma.h"
+#include "lv_gpu_rotate.h"
 
 #define TAG "LVGL_DISP"
 
@@ -96,8 +97,10 @@ void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data)
     disp_drv.user_data = vnd_data;
 #endif
 
-    if (vnd_data->config.rotation != ROTATE_NONE) {
+    if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE && vnd_data->config.rotation != ROTATE_NONE) {
+#if !LV_USE_GPU_ROTATE
         disp_drv.sw_rotate = 1;
+#endif
         if (vnd_data->config.rotation == ROTATE_90) {
             disp_drv.rotated = LV_DISP_ROT_90;
         } else if (vnd_data->config.rotation == ROTATE_180) {
@@ -105,6 +108,14 @@ void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data)
         } else if (vnd_data->config.rotation == ROTATE_270) {
             disp_drv.rotated = LV_DISP_ROT_270;
         }
+
+#if LV_USE_GPU_ROTATE
+        vnd_data->rotate_buffer = lv_vendor_malloc(vnd_data->config.draw_pixel_size * sizeof(lv_color_t));
+        if (vnd_data->rotate_buffer == NULL) {
+            LOGE("%s lvgl rotate buffer malloc fail!\n", __func__);
+            return;
+        }
+#endif
     }
 
     lv_disp_drv_register(&disp_drv);
@@ -116,6 +127,13 @@ void lv_port_disp_deinit(lv_vnd_data_t *vnd_data)
         LOGE("%s vnd_data is NULL\n", __func__);
         return;
     }
+
+#if LV_USE_GPU_ROTATE
+    if (vnd_data->rotate_buffer) {
+        lv_vendor_free(vnd_data->rotate_buffer);
+        vnd_data->rotate_buffer = NULL;
+    }
+#endif
 
     disp_deinit(vnd_data);
     lv_disp_remove(lv_disp_get_default());
@@ -207,6 +225,9 @@ static void disp_init(lv_vnd_data_t *vnd_data)
         }
     } else {
         lv_hpdma_memcpy_init(vnd_data);
+#if LV_USE_GPU_ROTATE
+        lv_gpu_rotate_init(vnd_data);
+#endif
     }
 }
 
@@ -222,6 +243,9 @@ static void disp_deinit(lv_vnd_data_t *vnd_data)
             vnd_data->lv_disp_sem = NULL;
         }
     } else {
+#if LV_USE_GPU_ROTATE
+        lv_gpu_rotate_deinit(vnd_data);
+#endif
         lv_hpdma_memcpy_deinit(vnd_data);
     }
 }
@@ -264,6 +288,37 @@ static void lv_get_display_buffer(lv_vnd_data_t *vnd_data, const lv_area_t *area
     }
 #endif
 }
+
+#if LV_USE_GPU_ROTATE
+static void lv_partial_rotate_area(lv_disp_drv_t *disp_drv, rott_angle_t rotation,
+                                   const lv_area_t *src_area, lv_area_t *dst_area)
+{
+    *dst_area = *src_area;
+
+    switch (rotation) {
+        case ROTATE_90:
+            dst_area->x1 = src_area->y1;
+            dst_area->x2 = src_area->y2;
+            dst_area->y1 = disp_drv->ver_res - src_area->x2 - 1;
+            dst_area->y2 = disp_drv->ver_res - src_area->x1 - 1;
+            break;
+        case ROTATE_180:
+            dst_area->x1 = disp_drv->hor_res - src_area->x2 - 1;
+            dst_area->x2 = disp_drv->hor_res - src_area->x1 - 1;
+            dst_area->y1 = disp_drv->ver_res - src_area->y2 - 1;
+            dst_area->y2 = disp_drv->ver_res - src_area->y1 - 1;
+            break;
+        case ROTATE_270:
+            dst_area->x1 = disp_drv->hor_res - src_area->y2 - 1;
+            dst_area->x2 = disp_drv->hor_res - src_area->y1 - 1;
+            dst_area->y1 = src_area->x1;
+            dst_area->y2 = src_area->x2;
+            break;
+        default:
+            break;
+    }
+}
+#endif
 
 /* Enable updating the screen (the flushing process) when disp_flush() is called by LVGL
  */
@@ -381,6 +436,19 @@ static void lv_disp_flush_for_partial_mode(lv_disp_drv_t * disp_drv, const lv_ar
     lv_coord_t width = lv_area_get_width(area);
     lv_coord_t height = lv_area_get_height(area);
     lv_area_t dst_area = *area;
+
+#if LV_USE_GPU_ROTATE
+    if (vnd_data->config.rotation != ROTATE_NONE) {
+        lv_gpu_rotate_process(vnd_data, (uint8_t *)color_p, width, height);
+        color_ptr = (const lv_color_t *)vnd_data->rotate_buffer;
+        lv_partial_rotate_area(disp_drv, vnd_data->config.rotation, area, &dst_area);
+
+        if (vnd_data->config.rotation != ROTATE_180) {
+            width = lv_area_get_width(&dst_area);
+            height = lv_area_get_height(&dst_area);
+        }
+    }
+#endif
 
     lv_get_display_buffer(vnd_data, &dst_area);
     _lv_area_join(&vnd_data->d_area, &vnd_data->d_area, &dst_area);
