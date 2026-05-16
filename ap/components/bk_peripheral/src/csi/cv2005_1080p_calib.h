@@ -642,8 +642,8 @@ const static ISP_CALIB_DATA_S CV2005_1080P_CalibParam = {
                     .max =  300000,
                 },
                 .againRange = {
-                    .min = 3 * 1024,
-                    .max = 1056 * 1024,
+                    .min = 1 * 1024,
+                    .max = 256 * 1024,
                 },
                 .dgainRange = {
                     .min = 1024,
