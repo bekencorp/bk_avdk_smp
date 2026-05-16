@@ -164,6 +164,9 @@ static bk_err_t pm_message_handle(void)
                             {
                                 /* State changed - log and process */
                                // LOGI("Deep_LV RTC wakeup\r\n");
+                               bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP, PM_POWER_MODULE_STATE_ON);
+                               rtos_delay_milliseconds(1000);
+                               bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP, PM_POWER_MODULE_STATE_OFF);
                                 #if CONFIG_AON_RTC
                                 alarm_info_t low_valtage_alarm = {0};
                                 memcpy(low_valtage_alarm.name, "low_vol", sizeof("low_vol"));

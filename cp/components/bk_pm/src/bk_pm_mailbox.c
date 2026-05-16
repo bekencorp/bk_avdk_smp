@@ -672,6 +672,13 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			s_pm_cp1_boot_ready = 0;
 			s_pm_cp1_closing = 0;
 			s_pm_cp1_boot_try_count = 0;
+			pm_shared_info_t shared_info = {0};
+
+			shared_info.pm_cp0_sleep_state = 0;
+			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_DISABLE);
+			__DMB();
+			flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+			__DMB();
 			GLOBAL_INT_RESTORE();
 
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
