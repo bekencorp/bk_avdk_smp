@@ -72,7 +72,7 @@ CONFIG_NO_HOSTED=y
 #
 # Adc_key
 #
-CONFIG_ADC_KEY=y
+CONFIG_ADC_KEY=n
 # CONFIG_ADC_KEY_DUAL_CHANNEL is not set
 
 # KEY2 (ADC Key) Pin Config
