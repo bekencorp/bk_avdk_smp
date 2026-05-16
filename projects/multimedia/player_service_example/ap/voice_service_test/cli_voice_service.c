@@ -90,8 +90,6 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
 
     if (os_strcmp(argv[1], "start") == 0)
     {
-        if(1)
-        #if 0
         if (os_strcmp(argv[2], "onboard") == 0
             && os_strtoul(argv[3], NULL, 10) == 8000
             && os_strtoul(argv[4], NULL, 10) == 1
@@ -100,260 +98,11 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             && os_strcmp(argv[7], "onboard") == 0
             && os_strtoul(argv[8], NULL, 10) == 8000
             && os_strtoul(argv[9], NULL, 10) == 0)
-        #endif
         {
-            //voice_cfg_t voice_temp_cfg = DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_CONFIG();
-            //voice_temp_cfg.spk_cfg.onboard_spk_cfg.multi_in_port_num = 2;
-            //voice_cfg = voice_temp_cfg;
-
-            mic_type_t mic_type = MIC_TYPE_ONBOARD;
-            uint32_t mic_samp_rate = 0;
-            uint8_t aec_en = 0;
-            audio_enc_type_t enc_type = 0;
-            audio_dec_type_t dec_type = 0;
-            spk_type_t spk_type = SPK_TYPE_ONBOARD;
-            uint32_t spk_samp_rate = 0;
-
-            if (os_strcmp(argv[2], "onboard") == 0)
-            {
-                mic_type = MIC_TYPE_ONBOARD;
-            }
-            else
-            {
-                LOGE("%s, %d, mic_type: %s not right\n", __func__, __LINE__, argv[2]);
-                return;
-            }
-
-            mic_samp_rate = os_strtoul(argv[3], NULL, 10);
-            if (mic_samp_rate != 8000 && mic_samp_rate != 16000)
-            {
-                LOGE("%s, %d, mic_samp_rate: %s not right\n", __func__, __LINE__, mic_samp_rate);
-                return;
-            }
-
-            aec_en = os_strtoul(argv[4], NULL, 10);
-            if (aec_en != 0 && !((aec_en&0x1f) && (aec_en&0x1)))
-            {
-                LOGE("%s, %d, aec_en: %d not right\n", __func__, __LINE__, aec_en);
-                return;
-            }
-
-            if (os_strcmp(argv[5], "pcm") == 0)
-            {
-                enc_type = AUDIO_ENC_TYPE_PCM;
-            }
-            else if (os_strcmp(argv[5], "g711a") == 0)
-            {
-                enc_type = AUDIO_ENC_TYPE_G711A;
-            }
-            else if (os_strcmp(argv[5], "g711u") == 0)
-            {
-                enc_type = AUDIO_ENC_TYPE_G711U;
-            }
-            else
-            {
-                LOGE("%s, %d, enc_type: %s not support\n", __func__, __LINE__, argv[5]);
-                return;
-            }
-
-            if (os_strcmp(argv[6], "pcm") == 0)
-            {
-                dec_type = AUDIO_DEC_TYPE_PCM;
-            }
-            else if (os_strcmp(argv[6], "g711a") == 0)
-            {
-                dec_type = AUDIO_DEC_TYPE_G711A;
-            }
-            else if (os_strcmp(argv[6], "g711u") == 0)
-            {
-                dec_type = AUDIO_DEC_TYPE_G711U;
-            }
-            else
-            {
-                LOGE("%s, %d, dec_type: %s not support\n", __func__, __LINE__, argv[6]);
-                return;
-            }
-
-            if (os_strcmp(argv[7], "onboard") == 0)
-            {
-                spk_type = SPK_TYPE_ONBOARD;
-            }
-            else
-            {
-                LOGE("%s, %d, spk_type: %s not support\n", __func__, __LINE__, argv[7]);
-                return;
-            }
-
-            spk_samp_rate = os_strtoul(argv[8], NULL, 10);
-            if (spk_samp_rate != 8000 && spk_samp_rate != 16000)
-            {
-                LOGE("%s, %d, spk_samp_rate: %s not support\n", __func__, __LINE__, spk_samp_rate);
-                return;
-            }
-
-            /* voice config */
-            if (mic_type == MIC_TYPE_ONBOARD)
-            {
-                voice_cfg.mic_type = MIC_TYPE_ONBOARD;
-                onboard_mic_stream_cfg_t onboard_mic_cfg = ONBOARD_MIC_ADC_STREAM_CFG_DEFAULT();
-                onboard_mic_cfg.adc_cfg.sample_rate = mic_samp_rate;
-                /* one farme size, 20ms */
-                onboard_mic_cfg.frame_size = mic_samp_rate*20/1000*2;
-                onboard_mic_cfg.out_block_size = onboard_mic_cfg.frame_size;
-                voice_cfg.mic_cfg.onboard_mic_cfg = onboard_mic_cfg;
-            }
-            else
-            {
-                LOGE("%s, %d, mic_type:%d is invalid!\n", __func__, __LINE__,mic_type);
-                goto exit;
-            }
-
-            if (aec_en)
-            {
-                voice_cfg.aec_en = true;
-                {
-                    aec_v3_algorithm_cfg_t aec_v3_alg_cfg = DEFAULT_AEC_V3_ALGORITHM_CONFIG();
-                    aec_v3_alg_cfg.out_block_num = 1;
-                    aec_v3_alg_cfg.aec_cfg.fs = mic_samp_rate;
-                    if(mic_type == MIC_TYPE_ONBOARD_DUAL_DMIC_MIC)
-                    {
-                        aec_v3_alg_cfg.dual_ch = 1;
-                    }
-                    if(aec_v3_alg_cfg.vad_cfg.vad_enable)
-                    {
-                        voice_cfg.enc_common.frame_in_ms = 20;
-                        voice_cfg.enc_common.frame_in_size = mic_samp_rate*20/1000*2;
-                    }
-
-                    if(0x2 == (aec_en&0x2))
-                    {
-                        aec_v3_alg_cfg.aec_cfg.mode = AEC_MODE_HARDWARE;
-                    }
-
-                    if(0x4 == (aec_en&0x4))
-                    {
-                        aec_v3_alg_cfg.aec_cfg.dual_perp = DUAL_CH_90_DEGREE;
-                    }
-
-                    if(0x8 == (aec_en&0x8))
-                    {
-                        aec_v3_alg_cfg.aec_cfg.mic_swap = 1;
-                    }
-
-                    if(0x10 == (aec_en&0x10))
-                    {
-                        aec_v3_alg_cfg.aec_cfg.ec_only_output = 1;
-                    }
-
-                    voice_cfg.aec_cfg.aec_alg_cfg = aec_v3_alg_cfg;
-                }
-            }
-            else
-            {
-                voice_cfg.aec_en = aec_en;
-                voice_cfg.aec_cfg.reserve = 0;
-            }
-
-            voice_cfg.enc_type = enc_type;
-            if (enc_type == AUDIO_ENC_TYPE_G711A || enc_type == AUDIO_ENC_TYPE_G711U)
-            {
-                g711_encoder_cfg_t g711_enc_cfg = DEFAULT_G711_ENCODER_CONFIG();
-                if (enc_type == AUDIO_ENC_TYPE_G711A)
-                {
-                    g711_enc_cfg.enc_mode = G711_ENC_MODE_A_LOW;
-                }
-                else
-                {
-                    g711_enc_cfg.enc_mode = G711_ENC_MODE_U_LOW;
-                }
-
-                g711_enc_cfg.buf_sz = mic_samp_rate*20/1000*2;
-                g711_enc_cfg.out_block_size = (g711_enc_cfg.buf_sz>>1);
-                voice_cfg.write_pool_size = g711_enc_cfg.out_block_size;
-
-                voice_cfg.enc_cfg.g711_enc_cfg = g711_enc_cfg;
-            }
-            else if (enc_type == AUDIO_ENC_TYPE_PCM)
-            {
-                voice_cfg.enc_cfg.pcm_enc_cfg = 0;
-                voice_cfg.read_pool_size = mic_samp_rate*20/1000*2;
-            }
-            else
-            {
-                //noting todo
-            }
-
-            voice_cfg.dec_type = dec_type;
-            if (dec_type == AUDIO_DEC_TYPE_G711A || dec_type == AUDIO_DEC_TYPE_G711U)
-            {
-                g711_decoder_cfg_t g711_dec_cfg = DEFAULT_G711_DECODER_CONFIG();
-                if (dec_type == AUDIO_DEC_TYPE_G711A)
-                {
-                    g711_dec_cfg.dec_mode = G711_DEC_MODE_A_LOW;
-                }
-                else
-                {
-                    g711_dec_cfg.dec_mode = G711_DEC_MODE_U_LOW;
-                }
-
-                g711_dec_cfg.buf_sz = spk_samp_rate*20/1000;
-                g711_dec_cfg.out_block_size = (g711_dec_cfg.buf_sz<<1);
-                voice_cfg.write_pool_size = g711_dec_cfg.buf_sz;
-
-                voice_cfg.dec_cfg.g711_dec_cfg = g711_dec_cfg;
-            }
-            else if (dec_type == AUDIO_DEC_TYPE_PCM)
-            {
-                voice_cfg.dec_cfg.pcm_dec_cfg = 0;
-                voice_cfg.write_pool_size = spk_samp_rate*20/1000*2;
-            }
-            else
-            {
-                //noting todo
-            }
-
-            voice_cfg.spk_type = spk_type;
-            if (spk_type == SPK_TYPE_ONBOARD)
-            {
-                onboard_speaker_stream_cfg_t onboard_spk_cfg = ONBOARD_SPEAKER_STREAM_CFG_DEFAULT();
-                #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2
-                for(uint32_t i = 0; i < AUD_DAC_SOURCE_MAX; i++)
-                {
-                    onboard_spk_cfg.sample_rate[i] = spk_samp_rate;
-                    onboard_spk_cfg.frame_size[i] = spk_samp_rate*20/1000*2; //one frame size(20ms)
-                }
-                #else
-                onboard_spk_cfg.sample_rate = spk_samp_rate;
-                /* one farme size, 20ms */
-                onboard_spk_cfg.frame_size = spk_samp_rate*20/1000*2;
-                #endif
-                if(MIC_TYPE_ONBOARD_DUAL_DMIC_MIC == mic_type)
-                {
-                    onboard_spk_cfg.clk_src = AUD_CLK_APLL;
-                }
-
-                /* one farme size, 20ms */
-                if (aec_en)
-                {
-                    onboard_spk_cfg.multi_out_port_num = 1;
-                }
-                else
-                {
-                    onboard_spk_cfg.multi_out_port_num = 0;
-                }
-
-                voice_cfg.spk_cfg.onboard_spk_cfg = onboard_spk_cfg;
-            }
-            else
-            {
-
-            }
-
-            voice_cfg.spk_cfg.onboard_spk_cfg.multi_in_port_num = 2;
-            voice_cfg.event_handle = NULL;
-            voice_cfg.args = NULL;
+            voice_cfg_t voice_temp_cfg = DEFAULT_VOICE_BY_ONBOARD_MIC_SPK_CONFIG();
+            voice_temp_cfg.spk_cfg.onboard_spk_cfg.multi_in_port_num = 2;
+            voice_cfg = voice_temp_cfg;
         }
-        #if 0
         else if (os_strcmp(argv[2], "onboard") == 0
             && os_strtoul(argv[3], NULL, 10) == 16000
             && os_strtoul(argv[4], NULL, 10) == 1
@@ -429,12 +178,75 @@ void cli_voice_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
             voice_temp_cfg.spk_cfg.i2s_cfg.multi_in_port_num = 2;
             voice_cfg = voice_temp_cfg;
         }
-        #endif
         else
         {
             LOGE("%s, %d, test command not support\n", __func__, __LINE__);
             goto exit;
         }
+
+        uint32_t mic_sample_rate = os_strtoul(argv[3], NULL, 10);
+        uint32_t spk_sample_rate = os_strtoul(argv[8], NULL, 10);
+        uint8_t aec_en = (os_strtoul(argv[4], NULL, 10) & 0x1) ? 1 : 0;
+
+#if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2
+        if (voice_cfg.spk_type == SPK_TYPE_ONBOARD)
+        {
+            if (spk_sample_rate == 8000)
+            {
+                voice_cfg.spk_cfg.onboard_spk_cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_CALL_BIT
+                                                                      | ONBOARD_SPEAKER_STREAM_DAC_SOURCE_HINT_BIT;
+                voice_cfg.spk_cfg.onboard_spk_cfg.main_dac_source = AUD_DAC_SOURCE_CALL;
+                voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate[AUD_DAC_SOURCE_CALL] = spk_sample_rate;
+                voice_cfg.spk_cfg.onboard_spk_cfg.frame_size[AUD_DAC_SOURCE_CALL] = spk_sample_rate * 2 * 20 / 1000; 
+                voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate[AUD_DAC_SOURCE_HINT] = 16000;
+                voice_cfg.spk_cfg.onboard_spk_cfg.frame_size[AUD_DAC_SOURCE_HINT] = 16000 * 2 * 20 / 1000; 
+            }
+            else
+            {
+                voice_cfg.spk_cfg.onboard_spk_cfg.dac_source_bitmap = ONBOARD_SPEAKER_STREAM_DAC_SOURCE_A2DP_BIT
+                                                                      | ONBOARD_SPEAKER_STREAM_DAC_SOURCE_CALL_BIT;
+                voice_cfg.spk_cfg.onboard_spk_cfg.main_dac_source = AUD_DAC_SOURCE_A2DP;
+                voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate[AUD_DAC_SOURCE_A2DP] = spk_sample_rate;
+                voice_cfg.spk_cfg.onboard_spk_cfg.frame_size[AUD_DAC_SOURCE_A2DP] = spk_sample_rate * 2 * 20 / 1000; 
+                voice_cfg.spk_cfg.onboard_spk_cfg.sample_rate[AUD_DAC_SOURCE_CALL] = 16000;
+                voice_cfg.spk_cfg.onboard_spk_cfg.frame_size[AUD_DAC_SOURCE_CALL] = 16000 * 2 * 20 / 1000; 
+            }
+        }
+#endif
+
+#if CONFIG_ADK_ONBOARD_MIC_STREAM_V2
+        if (voice_cfg.mic_type == MIC_TYPE_ONBOARD)
+        {
+            voice_cfg.mic_cfg.onboard_mic_cfg.ch_bitmap = (1 << AUD_ADC_CHL_0);
+            voice_cfg.mic_cfg.onboard_mic_cfg.adc_cfg.chl_num = 0;
+            for (uint32_t j = 0; j < AUD_ADC_CHL_MAX; j++)
+            {
+                if (voice_cfg.mic_cfg.onboard_mic_cfg.ch_bitmap & (1 << j))
+                {
+                    voice_cfg.mic_cfg.onboard_mic_cfg.adc_cfg.chl_num++;
+                }
+            }
+            voice_cfg.mic_cfg.onboard_mic_cfg.adc_cfg.aec_en = aec_en;
+        }
+#endif
+
+        if (aec_en && voice_cfg.mic_type == MIC_TYPE_UAC && voice_cfg.spk_type == SPK_TYPE_UAC)
+        {
+            voice_cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode = AEC_MODE_SOFTWARE;
+            voice_cfg.aec_cfg.aec_alg_cfg.dual_ch = 0;
+            voice_cfg.aec_cfg.aec_alg_cfg.multi_in_port_num = 1;
+            voice_cfg.aec_cfg.aec_alg_cfg.aec_cfg.fs = mic_sample_rate;
+        }
+
+#if CONFIG_SOC_BK7259
+        if (aec_en && voice_cfg.mic_type == MIC_TYPE_ONBOARD && voice_cfg.spk_type == SPK_TYPE_ONBOARD)
+        {
+            voice_cfg.aec_cfg.aec_alg_cfg.dual_ch = 0;
+            voice_cfg.aec_cfg.aec_alg_cfg.aec_cfg.mode = AEC_MODE_HARDWARE;
+            voice_cfg.aec_cfg.aec_alg_cfg.multi_in_port_num = 0;
+            voice_cfg.aec_cfg.aec_alg_cfg.aec_cfg.fs = mic_sample_rate;
+        }
+#endif
 
         /* start voice */
         gl_voice_service_handle = bk_voice_init(&voice_cfg);

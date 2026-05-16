@@ -75,15 +75,9 @@ int player_not_playback_event_handler(int data, void *params, void *args)
         audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
         port_info.chl_num = music_info->channels;
         port_info.sample_rate = music_info->sample_rates;
-        #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2
-        port_info.dig_gain = 0x07000000;
-        port_info.ana_gain = 0x01;
-        #else
-        port_info.dig_gain = 0x2d;
-        port_info.ana_gain = 0x01;
-        #endif
+
         port_info.bits = music_info->bits;
-        port_info.port_id = 1;
+        port_info.port_id  = 1;
         port_info.priority = 1;
         port_info.port = gl_output_port_handle;
         port_info.notify_cb = player_not_playback_port_state_notify_handler;
@@ -165,16 +159,10 @@ int player1_not_playback_event_handler(int data, void *params, void *args)
         audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
         port_info.chl_num = music_info->channels;
         port_info.sample_rate = music_info->sample_rates;
-        #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2
-        port_info.dig_gain = 0x07000000;
-        port_info.ana_gain = 0x01;
-        #else
-        port_info.dig_gain = 0x2d;
-        port_info.ana_gain = 0x01;
-        #endif
+
         port_info.bits = music_info->bits;
-        port_info.port_id = 2;
-        port_info.priority = 2;
+        port_info.port_id  = 1;
+        port_info.priority = 1;
         port_info.port = gl_output_port1_handle;
         port_info.notify_cb = player1_not_playback_port_state_notify_handler;
         port_info.user_data = NULL;
@@ -295,7 +283,7 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                 for(uint32_t i = 0; i < AUD_DAC_SOURCE_MAX; i++)
                 {
                     player_cfg.spk_cfg.onboard_spk_cfg.sample_rate[i] = 16000;
-                    player_cfg.spk_cfg.onboard_spk_cfg.frame_size[i]  = 640;
+                    player_cfg.spk_cfg.onboard_spk_cfg.frame_size[i]  = 320;
                 }
                 #if 0
                 player_cfg.spk_cfg.onboard_spk_cfg.main_dac_source   = AUD_DAC_SOURCE_CALL;
@@ -549,14 +537,13 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                 audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
                 port_info.chl_num = 1;
                 port_info.sample_rate = 16000;
-                port_info.dig_gain = 0x2d;
-                port_info.ana_gain = 0x01;
+
                 port_info.bits = 16;
                 port_info.port = tmp_output_port_handle;
                 if (tone_id == 1)
                 {
-                    port_info.port_id = 2;
-                    port_info.priority = 2;
+                    port_info.port_id  = 1;
+                    port_info.priority = 1;
                     port_info.notify_cb = player1_not_playback_port_state_notify_handler;
                 }
                 else
@@ -615,17 +602,16 @@ void cli_player_service_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
             audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
             port_info.chl_num = 1;
             port_info.sample_rate = 8000;
-            port_info.dig_gain = 0x2d;
-            port_info.ana_gain = 0x01;
+
             port_info.bits = 16;
             if (tone_id == 1)
             {
-                port_info.port_id = 2;
-                port_info.priority = 2;
+                port_info.port_id  = 1;
+                port_info.priority = 1;
             }
             else
             {
-                port_info.port_id = 1;
+                port_info.port_id  = 1;
                 port_info.priority = 1;
             }
             port_info.port = NULL;
@@ -698,7 +684,7 @@ exit:
         if (gl_output_port_handle)
         {
             audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
-            port_info.port_id = 1;
+            port_info.port_id  = 1;
             port_info.priority = 1;
             port_info.port = NULL;
             onboard_speaker_stream_set_input_port_info(spk_element, &port_info);
@@ -717,8 +703,8 @@ exit:
         if (gl_output_port1_handle)
         {
             audio_port_info_t port_info = DEFAULT_AUDIO_PORT_INFO();
-            port_info.port_id = 2;
-            port_info.priority = 2;
+            port_info.port_id  = 1;
+            port_info.priority = 1;
             port_info.port = NULL;
             onboard_speaker_stream_set_input_port_info(spk_element, &port_info);
             bk_player_set_output_port(gl_player1_handle, NULL);
