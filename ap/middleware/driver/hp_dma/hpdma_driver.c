@@ -22,6 +22,7 @@
 #include <driver/hpdma.h>
 #include <driver/int.h>
 #include "sys_driver.h"
+#include "cmsis_gcc.h"
 
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
@@ -350,6 +351,7 @@ bk_err_t bk_hpdma_init(hpdma_id_t id, const hpdma_config_t *config)
         flush_dcache((void *)config->dst.start_addr, dst_total_size);
     }
 #endif
+    __DSB();
 
     // Create a modified config with ysize decremented by 1 for hardware
     // Hardware expects: ysize = 0 means 1 row, ysize = 1 means 2 rows, etc.
@@ -373,6 +375,7 @@ bk_err_t bk_hpdma_deinit(hpdma_id_t id)
 bk_err_t bk_hpdma_start(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
+    __DSB();
     hpdma_hal_start_common(&s_hpdma.hal, id);
     return BK_OK;
 }
@@ -438,6 +441,7 @@ bk_err_t bk_hpdma_disable_finish_interrupt(hpdma_id_t id)
 
     hpdma_hal_disable_finish_interrupt(&s_hpdma.hal, id);
     hpdma_hal_clear_finish_interrupt_status(&s_hpdma.hal, id);
+    __DSB();
     return BK_OK;
 }
 
@@ -455,6 +459,7 @@ bk_err_t bk_hpdma_disable_half_finish_interrupt(hpdma_id_t id)
 
     hpdma_hal_disable_half_finish_interrupt(&s_hpdma.hal, id);
     hpdma_hal_clear_half_finish_interrupt_status(&s_hpdma.hal, id);
+    __DSB();
     return BK_OK;
 }
 
@@ -472,6 +477,7 @@ bk_err_t bk_hpdma_disable_bus_err_interrupt(hpdma_id_t id)
 
     hpdma_hal_disable_bus_err_interrupt(&s_hpdma.hal, id);
     hpdma_hal_clear_bus_err_interrupt_status(&s_hpdma.hal, id);
+    __DSB();
     return BK_OK;
 }
 
@@ -831,6 +837,7 @@ bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_
     bk_hpdma_set_dest_sec_attr(cpy_chnl, HPDMA_ATTR_SEC);
 #endif
 
+    __DSB();
     hpdma_hal_start_common(&s_hpdma.hal, cpy_chnl);
     GLOBAL_INT_RESTORE();
 
@@ -841,6 +848,7 @@ bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_
     // Invalidate destination cache to ensure CPU reads DMA-written data
     flush_dcache((void *)out, len);
 #endif
+    __DMB();
 
     return BK_OK;
 }
@@ -955,6 +963,7 @@ void *bk_hpdma_link_init(uint32_t link_cnt)
     // This ensures next_desc_addr is visible to DMA
     flush_dcache((void *)first_desc_addr, link_cnt * desc_aligned_size);
 #endif
+    __DSB();
 
     return (void *)first_desc_addr;
 }
@@ -1033,6 +1042,7 @@ bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index,
     const uint32_t desc_aligned_size = (sizeof(hpdma_descriptor_t) + 15) & ~15;  // 32 bytes
     flush_dcache((void *)desc, desc_aligned_size);
 #endif
+    __DSB();
     return BK_OK;
 }
 
@@ -1141,9 +1151,11 @@ static void hpdma_isr_common(hpdma_unit_t hpdma_unit_id)
             HPDMA_LOGV("hpdma_isr HALF FINISH TRIGGERED! id: %d\r\n", id);
             //NOTES:clear intrrupt in condition because maybe multi-core(two CPU) access one DMA
             //it can't cleared peer-side channels status.
+            hpdma_hal_clear_half_finish_interrupt_status(hal, id);
+            __DSB();
+            __ISB();
             if (s_hpdma_half_finish_isr[id].callback) {
                 HPDMA_LOGV("hpdma_isr HALF_finish_isr! id: %d\r\n", id);
-                hpdma_hal_clear_half_finish_interrupt_status(hal, id);
                 s_hpdma_half_finish_isr[id].callback(channel, s_hpdma_half_finish_isr[id].user_data);
             }
         }
@@ -1152,18 +1164,22 @@ static void hpdma_isr_common(hpdma_unit_t hpdma_unit_id)
             flush_all_dcache();
 #endif
             HPDMA_LOGV("hpdma_isr ALL FINISH TRIGGERED! id: %d\r\n", id);
+            hpdma_hal_clear_finish_interrupt_status(hal, id);
+            __DSB();
+            __ISB();
             if (s_hpdma_finish_isr[id].callback) {
                 HPDMA_LOGV("hpdma_isr ALL_finish_isr! id: %d\r\n", id);
-                hpdma_hal_clear_finish_interrupt_status(hal, id);
                 s_hpdma_finish_isr[id].callback(channel, s_hpdma_finish_isr[id].user_data);
             }
         }
 
            if (hpdma_hal_is_bus_err_interrupt_triggered(hal, id)) {
            HPDMA_LOGE("hpdma_isr BUS ERR! id: %d\r\n", id);
+           hpdma_hal_clear_bus_err_interrupt_status(hal, id);
+           __DSB();
+           __ISB();
            if (s_hpdma_bus_err_isr[id].callback) {
                HPDMA_LOGE("hpdma_isr BUS ERR CALLBACK! id: %d\r\n", id);
-               hpdma_hal_clear_finish_interrupt_status(hal, id);
                s_hpdma_bus_err_isr[id].callback(channel, s_hpdma_bus_err_isr[id].user_data);
            }
         }

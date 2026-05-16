@@ -26,6 +26,7 @@
 #include "interrupt_base.h"
 #include "arch_interrupt.h"
 #include "interrupt.h"
+#include "cmsis_gcc.h"
 
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
@@ -327,6 +328,7 @@ bk_err_t bk_dma_init(dma_id_t id, const dma_config_t *config)
     flush_dcache((void *)config->src.start_addr, config->src.end_addr - config->src.start_addr);
     flush_dcache((void *)config->dst.start_addr, config->dst.end_addr - config->dst.start_addr);
 #endif
+    __DSB();
 
     dma_id_init_common(id);
     return dma_hal_init_dma(&s_dma.hal, id, config);
@@ -343,6 +345,7 @@ bk_err_t bk_dma_deinit(dma_id_t id)
 bk_err_t bk_dma_start(dma_id_t id)
 {
     DMA_RETURN_ON_NOT_INIT();
+    __DSB();
     dma_hal_start_common(&s_dma.hal, id);
     return BK_OK;
 }
@@ -404,6 +407,7 @@ bk_err_t bk_dma_write(dma_id_t id, const uint8_t *data, uint32_t size)
     dma_hal_set_src_start_addr(&s_dma.hal, id, (uintptr_t)data);
     dma_hal_set_src_loop_addr(&s_dma.hal, id, (uintptr_t)data, (uintptr_t)(data + size));
     dma_hal_set_transfer_len(&s_dma.hal, id, size);
+    __DSB();
     dma_hal_start_common(&s_dma.hal, id);
 
     return BK_OK;
@@ -419,6 +423,7 @@ bk_err_t bk_dma_read(dma_id_t id, uint8_t *data, uint32_t size)
     dma_hal_set_dest_start_addr(&s_dma.hal, id, (uintptr_t)data);
     dma_hal_set_dest_loop_addr(&s_dma.hal, id, (uintptr_t)data, (uintptr_t)(data + size));
     dma_hal_set_transfer_len(&s_dma.hal, id, size);
+    __DSB();
     dma_hal_start_common(&s_dma.hal, id);
 
     return BK_OK;
@@ -438,6 +443,7 @@ bk_err_t bk_dma_disable_finish_interrupt(dma_id_t id)
 
     dma_hal_disable_finish_interrupt(&s_dma.hal, id);
     dma_hal_clear_finish_interrupt_status(&s_dma.hal, id);
+    __DSB();
     return BK_OK;
 }
 
@@ -455,6 +461,7 @@ bk_err_t bk_dma_disable_half_finish_interrupt(dma_id_t id)
 
     dma_hal_disable_half_finish_interrupt(&s_dma.hal, id);
     dma_hal_clear_half_finish_interrupt_status(&s_dma.hal, id);
+    __DSB();
     return BK_OK;
 }
 
@@ -472,6 +479,7 @@ bk_err_t bk_dma_disable_bus_err_interrupt(dma_id_t id)
 
     dma_hal_disable_bus_err_interrupt(&s_dma.hal, id);
     dma_hal_clear_bus_err_interrupt_status(&s_dma.hal, id);
+    __DSB();
     return BK_OK;
 }
 
@@ -861,6 +869,7 @@ bk_err_t bk_dma_stateless_judgment_configuration(void *out, const void *in, uint
     flush_dcache((void *)dma_config.src.start_addr, dma_config.src.end_addr - dma_config.src.start_addr);
     flush_dcache((void *)dma_config.dst.start_addr, dma_config.dst.end_addr - dma_config.dst.start_addr);
 #endif
+    __DSB();
     dma_hal_init_dma(&s_dma.hal, cpy_chnl, &dma_config);
 
     /* register isr */
@@ -915,6 +924,7 @@ bk_err_t dma_memcpy_by_chnl(void *out, const void *in, uint32_t len, dma_id_t cp
     dma_hal_set_dest_sec_attr(&s_dma.hal, cpy_chnl, DMA_ATTR_SEC);
 #endif
 
+    __DSB();
     dma_hal_start_common(&s_dma.hal, cpy_chnl);
     GLOBAL_INT_RESTORE();
 
@@ -925,6 +935,7 @@ bk_err_t dma_memcpy_by_chnl(void *out, const void *in, uint32_t len, dma_id_t cp
     // Invalidate destination cache to ensure CPU reads DMA-written data
     flush_dcache((void *)out, len);
 #endif
+    __DMB();
 
     return BK_OK;
 
@@ -1041,6 +1052,7 @@ void *bk_dma_link_init(uint32_t link_cnt)
     // Flush descriptor table to ensure DMA sees latest data after initialization
     flush_dcache((void *)first_desc_addr, link_cnt * desc_size);
 #endif
+    __DSB();
     
     return (void *)first_desc_addr;
 }
@@ -1112,6 +1124,7 @@ bk_err_t bk_dma_link_set_desc(void *desc_table, uint32_t index,
     // using flush_all_dcache(), so no need to flush them here
     flush_dcache((void *)desc, sizeof(dma_descriptor_t));
 #endif
+    __DSB();
     return BK_OK;
 }
 
@@ -1198,6 +1211,7 @@ bk_err_t bk_dma_link_transfer(dma_id_t id, void *desc_table)
     // 3. All destination addresses (prepare for DMA write)
     flush_all_dcache();
 #endif
+    __DSB();
 
 #if CONFIG_SPE
     bk_dma_set_src_sec_attr(id, DMA_ATTR_SEC);
@@ -1227,9 +1241,10 @@ static void dma_isr_common(dma_unit_t dma_unit_id)
             DMA_LOGV("dma_isr HALF FINISH TRIGGERED! id: %d\r\n", id);
             //NOTES:clear intrrupt in condition because maybe multi-core(two CPU) access one DMA
             //it can't cleared peer-side channels status.
+            dma_hal_clear_half_finish_interrupt_status(hal, id);
+            __DSB();
             if (s_dma_half_finish_isr[id]) {
                 DMA_LOGV("dma_isr HALF_finish_isr! id: %d\r\n", id);
-                dma_hal_clear_half_finish_interrupt_status(hal, id);
                 s_dma_half_finish_isr[id](channel);
             }
         }
@@ -1238,18 +1253,20 @@ static void dma_isr_common(dma_unit_t dma_unit_id)
             flush_all_dcache();
 #endif
             DMA_LOGV("dma_isr ALL FINISH TRIGGERED! id: %d\r\n", id);
+            dma_hal_clear_finish_interrupt_status(hal, id);
+            __DSB();
             if (s_dma_finish_isr[id]) {
                 DMA_LOGV("dma_isr ALL_finish_isr! id: %d\r\n", id);
-                dma_hal_clear_finish_interrupt_status(hal, id);
                 s_dma_finish_isr[id](channel);
             }
         }
 
            if (dma_hal_is_bus_err_interrupt_triggered(hal, id)) {
            DMA_LOGE("dma_isr BUS ERR! id: %d\r\n", id);
+           dma_hal_clear_bus_err_interrupt_status(hal, id);
+           __DSB();
            if (s_dma_bus_err_isr[id]) {
                DMA_LOGE("dma_isr BUS ERR CALLBACK! id: %d\r\n", id);
-               dma_hal_clear_finish_interrupt_status(hal, id);
                s_dma_bus_err_isr[id](channel);
            }
         }

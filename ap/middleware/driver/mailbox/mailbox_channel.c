@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <common/bk_include.h>
+#include "cmsis_gcc.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -231,6 +233,7 @@ static u8 mb_phy_chnl_tx_cmd(u8 log_chnl)
 
 	phy_chnl_ptr->tx_hdr_cmd = cmd_ptr->hdr.cmd;
 
+	__DMB();
 	chnl_type = MB_PHY_CMD_CHNL;
 
 	mailbox_endpoint_t    dst_cpu = (mailbox_endpoint_t)(phy_chnl_idx);
@@ -854,6 +857,7 @@ bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf)
 
 	/* set to BUSY means there is data in tx-buff. mb_phy_chnl_rx_ack_isr will get it to send. */
 	log_chnl_cb_x[log_chnl_idx].tx_state = CHNL_STATE_BUSY;   /* MUST set to BUSY after data was copied. */
+	__DMB();
 
 	mb_phy_chnl_start_tx(log_chnl);
 

@@ -1,3 +1,5 @@
+#include <common/bk_include.h>
+#include "cmsis_gcc.h"
 #include "sdkconfig.h"
 #include "cpu_id.h"
 #include "mbox0_drv.h"
@@ -38,6 +40,7 @@ static void __BK_IRQ mbox0_drv_isr_handler(void)
 		if(fifo_status & RX_FIFO_STAT_NOT_EMPTY)
 		{
 			mbox0_drv_recieve_message(&message);
+			__DMB();
 
 			if(message.data[1] != 0)  /* message data len is not 0. */
 			{
@@ -58,6 +61,7 @@ static void __BK_IRQ mbox0_drv_isr_handler(void)
 			break;
 		}
 	} while(1);
+	__DSB();
 	
 }
 
