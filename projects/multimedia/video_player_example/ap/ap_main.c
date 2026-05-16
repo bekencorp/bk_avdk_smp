@@ -77,7 +77,9 @@ int main(void)
     gpu_board.flexa.src_format = BK_PIXEL_FORMAT_NV12;
     gpu_board.flexa.dst_format = BK_PIXEL_FORMAT_ARGB8888;
     gpu_board.flexa.dst_compress = true;
-    gpu_board.flexa.scale = false; 
+    gpu_board.flexa.scale = false;
+    gpu_board.flexa.tess_width = 0;
+    gpu_board.flexa.tess_height = 0;
 
 
     bk_auxldo_enable();

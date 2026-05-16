@@ -93,6 +93,8 @@ int main(void)
             .dst_format = BK_PIXEL_FORMAT_ARGB8888,
             .dst_compress = true,
             .scale = true,
+            .tess_width = 0,
+            .tess_height = 0,
         },
     };
 #endif

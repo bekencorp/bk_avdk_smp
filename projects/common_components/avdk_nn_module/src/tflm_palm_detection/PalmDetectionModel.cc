@@ -216,6 +216,7 @@ int PalmDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t form
         LOGI("PalmDetectionModel: rejected (prob<%.2f or box small), no palm\n", kPalmScoreProbThreshold);
     } else {
         LOGI("PalmDetectionModel: no palm detected\n");
+            result_callback_(0, 0, 0, 0, 0, bk_aon_rtc_get_ms());
     }
 
     return 1;

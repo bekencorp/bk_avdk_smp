@@ -410,6 +410,8 @@ void cli_avdk_doorbell_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
                 .dst_compress = true,
                 .scale = false,
                 .enable = true,
+                .tess_width = 0,
+                .tess_height = 0,
             },
         };
         app_gpu_board_config_set(&gpu_config);
@@ -731,6 +733,8 @@ void cli_avdk_doorbell_joint_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
             gpu_board.flexa.src_format = BK_PIXEL_FORMAT_NV12;
             gpu_board.flexa.dst_format = BK_PIXEL_FORMAT_ARGB8888;
             gpu_board.flexa.dst_compress = true;
+            gpu_board.flexa.tess_width = 0;
+            gpu_board.flexa.tess_height = 0;
             app_gpu_board_config_set(&gpu_board);
             ret = app_gpu_turn_on(app_gpu_board_config_get());
             if (ret != AVDK_ERR_OK) {
@@ -823,6 +827,8 @@ void cli_avdk_doorbell_joint_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
                 gpu_board_uvc.flexa.dst_format = BK_PIXEL_FORMAT_ARGB8888;
                 gpu_board_uvc.flexa.dst_compress = true;
                 gpu_board_uvc.flexa.scale = true;
+                gpu_board_uvc.flexa.tess_width = 0;
+                gpu_board_uvc.flexa.tess_height = 0;
                 app_gpu_board_config_set(&gpu_board_uvc);
             }
             ret = app_gpu_v2_turn_on(width, height);
