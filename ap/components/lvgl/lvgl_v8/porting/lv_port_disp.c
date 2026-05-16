@@ -3,7 +3,6 @@
  *
  */
 
- /*Copy this file as "lv_port_disp.c" and set this value to "1" to enable content*/
 #if 1
 
 /*********************
@@ -12,11 +11,7 @@
 #include <os/os.h>
 #include "lv_port_disp.h"
 #include "lv_vendor.h"
-#include <modules/image_scale.h>
-#include "frame_buffer.h"
-
-#include <driver/lcd_types.h>
-#include "lv_copy_method.h"
+#include "lv_hpdma.h"
 
 #define TAG "LVGL_DISP"
 
@@ -29,6 +24,11 @@
 /*********************
  *      DEFINES
  *********************/
+#if (LV_COLOR_DEPTH == 32)
+#define LV_FRAME_COLOR_SIZE 3
+#else
+#define LV_FRAME_COLOR_SIZE sizeof(lv_color_t)
+#endif
 
 /**********************
  *      TYPEDEFS
@@ -38,14 +38,11 @@
  *  STATIC PROTOTYPES
  **********************/
 
-static void disp_init(void);
+static void disp_init(lv_vnd_data_t *vnd_data);
 
-static void disp_deinit(void);
+static void disp_deinit(lv_vnd_data_t *vnd_data);
 
 static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p);
-
-//static void gpu_fill(lv_disp_drv_t * disp_drv, lv_color_t * dest_buf, lv_coord_t dest_width,
-//        const lv_area_t * fill_area, lv_color_t color);
 
 /**********************
  *  STATIC VARIABLES
@@ -58,137 +55,81 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
 /**********************
  *   GLOBAL FUNCTIONS
  **********************/
-extern lv_vnd_config_t vendor_config;
-extern media_debug_t *media_debug;
-static void *rotate_buffer = NULL;
-static frame_buffer_t *disp_buf = NULL;
-static frame_buffer_t *copy_buf = NULL;
-static bool lv_new_frame_flag = true;
-static beken_semaphore_t lv_disp_sem = NULL;
+volatile bool disp_flush_enabled = true;
 
 void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data)
 {
-    /*-------------------------
-     * Initialize your display
-     * -----------------------*/
-    disp_init();
-
-    /*-----------------------------
-     * Create a buffer for drawing
-     *----------------------------*/
-
-    /**
-     * LVGL requires a buffer where it internally draws the widgets.
-     * Later this buffer will passed to your display driver's `flush_cb` to copy its content to your display.
-     * The buffer has to be greater than 1 display row
-     *
-     * There are 3 buffering configurations:
-     * 1. Create ONE buffer:
-     *      LVGL will draw the display's content here and writes it to your display
-     *
-     * 2. Create TWO buffer:
-     *      LVGL will draw the display's content to a buffer and writes it your display.
-     *      You should use DMA to write the buffer's content to the display.
-     *      It will enable LVGL to draw the next part of the screen to the other buffer while
-     *      the data is being sent form the first buffer. It makes rendering and flushing parallel.
-     *
-     * 3. Double buffering
-     *      Set 2 screens sized buffers and set disp_drv.full_refresh = 1.
-     *      This way LVGL will always provide the whole rendered screen in `flush_cb`
-     *      and you only need to change the frame buffer's address.
-     */
-
-    /* Example for 1) */
-    //static lv_disp_draw_buf_t draw_buf_dsc_1;
-    //static lv_color_t buf_1[MY_DISP_HOR_RES * 10];                          /*A buffer for 10 rows*/
-    //lv_disp_draw_buf_init(&draw_buf_dsc_1, buf_1, NULL, MY_DISP_HOR_RES * 10);   /*Initialize the display buffer*/
-
-    /* Example for 2) */
-    static lv_disp_draw_buf_t draw_buf_dsc_2;
-
-    lv_disp_draw_buf_init(&draw_buf_dsc_2, vendor_config.draw_buf_2_1, vendor_config.draw_buf_2_2, vendor_config.draw_pixel_size);   /*Initialize the display buffer*/
-
-    LOGI("LVGL addr1:%x, addr2:%x, pixel size:%d, fb1:%x, fb2:%x\r\n", vendor_config.draw_buf_2_1, vendor_config.draw_buf_2_2,
-                                        vendor_config.draw_pixel_size, vendor_config.frame_buffer[0], vendor_config.frame_buffer[1]);
-
-    /* Example for 3) also set disp_drv.full_refresh = 1 below*/
-    //static lv_disp_draw_buf_t draw_buf_dsc_3;
-    //static lv_color_t buf_3_1[MY_DISP_HOR_RES * MY_DISP_VER_RES];            /*A screen sized buffer*/
-    //static lv_color_t buf_3_1[MY_DISP_HOR_RES * MY_DISP_VER_RES];            /*An other screen sized buffer*/
-    //lv_disp_draw_buf_init(&draw_buf_dsc_3, buf_3_1, buf_3_2, MY_DISP_VER_RES * LV_VER_RES_MAX);   /*Initialize the display buffer*/
-
-    /*-----------------------------------
-     * Register the display in LVGL
-     *----------------------------------*/
-    static lv_disp_drv_t disp_drv;                         /*Descriptor of a display driver*/
-    lv_disp_drv_init(&disp_drv);                    /*Basic initialization*/
-
-    /*Set up the functions to access to your display*/
-
-    /*Set the resolution of the display*/
-    if ((vendor_config.rotation == ROTATE_90) || (vendor_config.rotation == ROTATE_270)) {
-        disp_drv.hor_res = vendor_config.height;
-        disp_drv.ver_res = vendor_config.width;
-    } else {
-        disp_drv.hor_res = vendor_config.width;
-        disp_drv.ver_res = vendor_config.height;
+    if (vnd_data == NULL) {
+        LOGE("%s vnd_data is NULL\n", __func__);
+        return;
     }
 
-    if (vendor_config.render_mode == RENDER_DIRECT_MODE) {
+    disp_init(vnd_data);
+
+    static lv_disp_draw_buf_t draw_buf_dsc_2;
+    lv_disp_draw_buf_init(&draw_buf_dsc_2, vnd_data->config.draw_buf_2_1,
+                          vnd_data->config.draw_buf_2_2, vnd_data->config.draw_pixel_size);
+
+    LOGI("LVGL addr1:%x, addr2:%x, pixel size:%d, fb1:%x, fb2:%x\r\n",
+         vnd_data->config.draw_buf_2_1, vnd_data->config.draw_buf_2_2,
+         vnd_data->config.draw_pixel_size, vnd_data->config.frame_buffer[0],
+         vnd_data->config.frame_buffer[1]);
+
+    static lv_disp_drv_t disp_drv;
+    lv_disp_drv_init(&disp_drv);
+
+    disp_drv.hor_res = vnd_data->config.width;
+    disp_drv.ver_res = vnd_data->config.height;
+
+    if (vnd_data->config.render_mode == RENDER_DIRECT_MODE) {
         disp_drv.full_refresh = 0;
         disp_drv.direct_mode = 1;
-    } else if (vendor_config.render_mode == RENDER_FULL_MODE) {
+    } else if (vnd_data->config.render_mode == RENDER_FULL_MODE) {
         disp_drv.full_refresh = 1;
         disp_drv.direct_mode = 0;
     }
 
-    /*Used to copy the buffer's content to the display*/
     disp_drv.flush_cb = disp_flush;
-
-    /*Set a display buffer*/
     disp_drv.draw_buf = &draw_buf_dsc_2;
 
-    if (vendor_config.render_mode == RENDER_PARTIAL_MODE) {
-        if (vendor_config.rotation == ROTATE_90 || vendor_config.rotation == ROTATE_270) {
-            rotate_buffer = lv_vendor_malloc(vendor_config.draw_pixel_size * sizeof(lv_color_t));
-            if (rotate_buffer == NULL) {
-                LOGE("%s lvgl rotate buffer malloc fail!\n", __func__);
-                return;
-            }
+#if LV_USE_USER_DATA
+    disp_drv.user_data = vnd_data;
+#endif
+
+    if (vnd_data->config.rotation != ROTATE_NONE) {
+        disp_drv.sw_rotate = 1;
+        if (vnd_data->config.rotation == ROTATE_90) {
+            disp_drv.rotated = LV_DISP_ROT_90;
+        } else if (vnd_data->config.rotation == ROTATE_180) {
+            disp_drv.rotated = LV_DISP_ROT_180;
+        } else if (vnd_data->config.rotation == ROTATE_270) {
+            disp_drv.rotated = LV_DISP_ROT_270;
         }
     }
 
-    if (vendor_config.rotation == ROTATE_180) {
-        disp_drv.sw_rotate = 1;
-        disp_drv.rotated = LV_DISP_ROT_180;
-    }
-
-    /*Required for Example 3)*/
-    //disp_drv.full_refresh = 1
-
-    /* Fill a memory array with a color if you have GPU.
-     * Note that, in lv_conf.h you can enable GPUs that has built-in support in LVGL.
-     * But if you have a different GPU you can use with this callback.*/
-    //disp_drv.gpu_fill_cb = gpu_fill;
-
-    /*Finally register the driver*/
     lv_disp_drv_register(&disp_drv);
 }
 
-void lv_port_disp_deinit(void)
+void lv_port_disp_deinit(lv_vnd_data_t *vnd_data)
 {
-    if (vendor_config.render_mode == RENDER_PARTIAL_MODE) {
-        if ((vendor_config.rotation == ROTATE_90) || (vendor_config.rotation == ROTATE_270)) {
-            if (rotate_buffer) {
-                os_free(rotate_buffer);
-                rotate_buffer = NULL;
-            }
-        }
+    if (vnd_data == NULL) {
+        LOGE("%s vnd_data is NULL\n", __func__);
+        return;
     }
 
+    disp_deinit(vnd_data);
     lv_disp_remove(lv_disp_get_default());
+}
 
-    disp_deinit();
+static lv_vnd_data_t *lv_get_vnd_data(lv_disp_drv_t *disp_drv)
+{
+#if LV_USE_USER_DATA
+    if (disp_drv != NULL && disp_drv->user_data != NULL) {
+        return (lv_vnd_data_t *)disp_drv->user_data;
+    }
+#endif
+
+    return NULL;
 }
 
 /**********************
@@ -199,49 +140,130 @@ static void lv_memcpy_one_line(void *dest_buf, const void *src_buf, uint32_t poi
     os_memcpy(dest_buf, src_buf, point_num * sizeof(lv_color_t));
 }
 
-/*Initialize your display and the required peripherals.*/
-static void disp_init(void)
+#if (LV_COLOR_DEPTH == 32)
+static void lv_argb8888_to_rgb888_line(uint8_t *dst, const lv_color_t *src, uint32_t point_num)
 {
-    /*You code here*/
-    if (vendor_config.render_mode != RENDER_PARTIAL_MODE) {
-        bk_err_t ret = rtos_init_semaphore_ex(&lv_disp_sem, 1, 0);
+    for (uint32_t i = 0; i < point_num; i++) {
+        dst[i * 3 + 0] = src[i].ch.red;
+        dst[i * 3 + 1] = src[i].ch.green;
+        dst[i * 3 + 2] = src[i].ch.blue;
+    }
+}
+#endif
+
+static void lv_copy_draw_line_to_frame(void *dest_buf, const lv_color_t *src_buf, uint32_t point_num)
+{
+#if (LV_COLOR_DEPTH == 32)
+    lv_argb8888_to_rgb888_line((uint8_t *)dest_buf, src_buf, point_num);
+#else
+    lv_memcpy_one_line(dest_buf, src_buf, point_num);
+#endif
+}
+
+static bk_err_t lv_hpdma_copy_area(void *src, void *dst, uint32_t line_bytes, uint32_t height,
+                                   uint32_t src_step, uint32_t dst_step, bool wait_finish)
+{
+    bk_err_t ret = lv_hpdma_memcpy_start(src, dst, line_bytes, height, line_bytes, height,
+                                         src_step, dst_step);
+    if (ret != BK_OK) {
+        LOGE("%s lv_hpdma_memcpy_start failed, ret=%d\n", __func__, ret);
+        return ret;
+    }
+
+    if (wait_finish) {
+        ret = lv_hpdma_memcpy_wait_finish(1000);
+        if (ret != BK_OK) {
+            LOGE("%s lv_hpdma_memcpy_wait_finish failed, ret=%d\n", __func__, ret);
+        }
+    }
+
+    return ret;
+}
+
+static void lv_copy_draw_buffer_to_frame(void *dst_buf, const lv_color_t *src_buf,
+                                         lv_coord_t width, lv_coord_t height)
+{
+#if (LV_COLOR_DEPTH == 32)
+    uint8_t *dst = (uint8_t *)dst_buf;
+    const lv_color_t *src = src_buf;
+
+    for (lv_coord_t y = 0; y < height; y++) {
+        lv_argb8888_to_rgb888_line(dst, src, width);
+        dst += width * LV_FRAME_COLOR_SIZE;
+        src += width;
+    }
+#else
+    os_memcpy(dst_buf, src_buf, width * height * sizeof(lv_color_t));
+#endif
+}
+
+static void disp_init(lv_vnd_data_t *vnd_data)
+{
+    if (vnd_data->config.render_mode != RENDER_PARTIAL_MODE) {
+        bk_err_t ret = rtos_init_semaphore_ex(&vnd_data->lv_disp_sem, 1, 0);
         if (BK_OK != ret) {
             LOGE("%s lv_disp_sem init failed\n", __func__);
             return;
         }
     } else {
-        #if CONFIG_LV_FRAME_DMA2D_COPY
-            lv_dma2d_memcpy_init();
-        #else
-            lv_dma_memcpy_init();
-            if (vendor_config.draw_buf_2_2 != NULL) {
-                lv_dma2d_memcpy_init();
-            }
-        #endif
+        lv_hpdma_memcpy_init(vnd_data);
     }
 }
 
-static void disp_deinit(void)
+static void disp_deinit(lv_vnd_data_t *vnd_data)
 {
-    if (vendor_config.render_mode != RENDER_PARTIAL_MODE) {
-        bk_err_t ret = rtos_deinit_semaphore(&lv_disp_sem);
-        if (BK_OK != ret) {
-            LOGE("%s lv_disp_sem deinit failed\n", __func__);
-            return;
+    if (vnd_data->config.render_mode != RENDER_PARTIAL_MODE) {
+        if (vnd_data->lv_disp_sem != NULL) {
+            bk_err_t ret = rtos_deinit_semaphore(&vnd_data->lv_disp_sem);
+            if (BK_OK != ret) {
+                LOGE("%s lv_disp_sem deinit failed\n", __func__);
+                return;
+            }
+            vnd_data->lv_disp_sem = NULL;
         }
     } else {
-        #if CONFIG_LV_FRAME_DMA2D_COPY
-            lv_dma2d_memcpy_deinit();
-        #else
-            lv_dma_memcpy_deinit();
-            if (vendor_config.draw_buf_2_2 != NULL) {
-                lv_dma2d_memcpy_deinit();
-            }
-        #endif
+        lv_hpdma_memcpy_deinit(vnd_data);
     }
 }
 
-volatile bool disp_flush_enabled = true;
+
+static void *lv_wait_ready_frame_buffer(void)
+{
+    void *frame_buffer = NULL;
+
+    do {
+        frame_buffer = lv_vendor_get_ready_frame_buffer();
+        if (frame_buffer != NULL) {
+            break;
+        }
+    } while (frame_buffer == NULL);
+
+    return frame_buffer;
+}
+
+static void lv_get_display_buffer(lv_vnd_data_t *vnd_data, const lv_area_t *area)
+{
+#if (CONFIG_LVGL_FRAME_BUFFER_NUM > 1)
+    lv_hpdma_memcpy_wait_finish(BEKEN_WAIT_FOREVER);
+
+    if (vnd_data->lv_new_frame_flag) {
+        if (vnd_data->disp_buf == NULL) {
+            vnd_data->disp_buf = lv_wait_ready_frame_buffer();
+        } else {
+            vnd_data->disp_buf = vnd_data->copy_buf;
+            vnd_data->copy_buf = NULL;
+        }
+        vnd_data->lv_new_frame_flag = false;
+        vnd_data->d_area = *area;
+    }
+#else
+    if (vnd_data->lv_new_frame_flag) {
+        vnd_data->disp_buf = vnd_data->config.frame_buffer[0];
+        vnd_data->lv_new_frame_flag = false;
+        vnd_data->d_area = *area;
+    }
+#endif
+}
 
 /* Enable updating the screen (the flushing process) when disp_flush() is called by LVGL
  */
@@ -259,10 +281,24 @@ void disp_disable_update(void)
 
 static bk_err_t lvgl_frame_buffer_free_cb(void *frame)
 {
-    if (vendor_config.render_mode != RENDER_PARTIAL_MODE) {
-        rtos_set_semaphore(&lv_disp_sem);
+    lv_disp_t *disp = lv_disp_get_default();
+    if (disp == NULL || disp->driver == NULL) {
+        LOGE("%s disp or disp->driver is NULL\n", __func__);
+        return BK_FAIL;
+    }
+
+    lv_vnd_data_t *vnd_data = lv_get_vnd_data(disp->driver);
+    if (vnd_data == NULL) {
+        LOGE("%s vnd_data is NULL\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (vnd_data->config.render_mode != RENDER_PARTIAL_MODE) {
+        rtos_set_semaphore(&vnd_data->lv_disp_sem);
     } else {
+#if CONFIG_LVGL_FRAME_BUFFER_NUM > 1
         lv_vendor_set_ready_frame_buffer(frame);
+#endif
     }
 
     return BK_OK;
@@ -283,14 +319,13 @@ static lv_color_t *lv_update_dual_buffer_with_direct_mode(lv_disp_drv_t *disp_dr
         buf_cpy = disp_drv->draw_buf->buf1;
     }
 
-    LOGV("inv_p:%d, x1:%d, y1:%d, x2:%d, y2:%d, buf_cpy:%x\r\n", disp->inv_p, disp->inv_areas[0].x1, disp->inv_areas[0].y1, disp->inv_areas[0].x2, disp->inv_areas[0].y2, buf_cpy);
     for (i = 0; i < disp->inv_p; i++) {
-        if (disp->inv_area_joined[i])
-            continue;  /* Only copy areas which aren't part of another area */
+        if (disp->inv_area_joined[i]) {
+            continue;
+        }
 
         inv_area = &disp->inv_areas[i];
         w = lv_area_get_width(inv_area);
-
         offset = inv_area->y1 * hres + inv_area->x1;
 
         for (y = inv_area->y1; y <= inv_area->y2 && y < disp_drv->ver_res; y++) {
@@ -302,182 +337,128 @@ static lv_color_t *lv_update_dual_buffer_with_direct_mode(lv_disp_drv_t *disp_dr
     return buf_cpy;
 }
 
-static void lv_image_rotate90_anticlockwise(void *dst, void *src, lv_coord_t width, lv_coord_t height)
+static void lv_partial_copy_to_frame_buffer(lv_vnd_data_t *vnd_data, const lv_area_t *area,
+                                            const lv_color_t *color_ptr, lv_coord_t width,
+                                            lv_coord_t height, lv_coord_t lv_hor)
 {
-#if (LV_COLOR_DEPTH == 16)
-    rgb565_rotate_degree270((unsigned char *)src, (unsigned char *)dst, width, height);
-#elif (LV_COLOR_DEPTH == 32)
-    argb8888_rotate_degree270((unsigned char *)src, (unsigned char *)dst, width, height);
+    uint8_t *dst = (uint8_t *)vnd_data->disp_buf + (area->y1 * lv_hor + area->x1) * LV_FRAME_COLOR_SIZE;
+
+#if (LV_COLOR_DEPTH == 32)
+    for (lv_coord_t y = 0; y < height; y++) {
+        lv_copy_draw_line_to_frame(dst, color_ptr, width);
+        dst += lv_hor * LV_FRAME_COLOR_SIZE;
+        color_ptr += width;
+    }
+#else
+    uint32_t line_bytes = width * sizeof(lv_color_t);
+    uint32_t dst_step = (lv_hor - width) * sizeof(lv_color_t);
+    lv_hpdma_copy_area((void *)color_ptr, dst, line_bytes, height, 0, dst_step, true);
 #endif
 }
 
-static void lv_image_rotate90_clockwise(void *dst, void *src, lv_coord_t width, lv_coord_t height)
+static void lv_partial_copy_last_frame(lv_vnd_data_t *vnd_data, lv_coord_t lv_hor)
 {
-#if (LV_COLOR_DEPTH == 16)
-    rgb565_rotate_degree90((unsigned char *)src, (unsigned char *)dst, width, height);
-#elif (LV_COLOR_DEPTH == 32)
-    argb8888_rotate_degree90((unsigned char *)src, (unsigned char *)dst, width, height);
-#endif
+    uint32_t area_width = lv_area_get_width(&vnd_data->d_area);
+    uint32_t area_height = lv_area_get_height(&vnd_data->d_area);
+    uint32_t line_bytes = area_width * LV_FRAME_COLOR_SIZE;
+    uint32_t step_bytes = (lv_hor - area_width) * LV_FRAME_COLOR_SIZE;
+    void *src_start = (uint8_t *)vnd_data->disp_buf + (vnd_data->d_area.y1 * lv_hor + vnd_data->d_area.x1) * LV_FRAME_COLOR_SIZE;
+    void *dst_start = (uint8_t *)vnd_data->copy_buf + (vnd_data->d_area.y1 * lv_hor + vnd_data->d_area.x1) * LV_FRAME_COLOR_SIZE;
+
+    lv_hpdma_copy_area(src_start, dst_start, line_bytes, area_height, step_bytes, step_bytes, false);
 }
 
 static void lv_disp_flush_for_partial_mode(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p)
 {
-    lv_coord_t lv_hor = LV_HOR_RES;
-    lv_coord_t lv_ver = LV_VER_RES;
-
-    lv_color_t *color_ptr = color_p;
-    lv_coord_t width = lv_area_get_width(area);
-    lv_coord_t height = lv_area_get_height(area);
-
-    if (CONFIG_LVGL_FRAME_BUFFER_NUM > 1) {
-        #if CONFIG_LV_FRAME_DMA2D_COPY
-            lv_dma2d_memcpy_wait_transfer_finish();
-        #else
-            lv_dma_memcpy_wait_transfer_finish();
-        #endif
-
-        if (lv_new_frame_flag) {
-            if (disp_buf == NULL) {
-                do {
-                    disp_buf = lv_vendor_get_ready_frame_buffer();
-                    if (disp_buf != NULL) {
-                        break;
-                    }
-                } while (disp_buf == NULL);
-            } else {
-                disp_buf = copy_buf;
-                copy_buf = NULL;
-            }
-            lv_new_frame_flag = false;
-        }
-    } else {
-        if (lv_new_frame_flag) {
-            disp_buf = vendor_config.frame_buffer[0];
-            lv_new_frame_flag = false;
-        }
+    lv_vnd_data_t *vnd_data = lv_get_vnd_data(disp_drv);
+    if (vnd_data == NULL) {
+        LOGE("%s vnd_data is NULL\n", __func__);
+        return;
     }
 
-    #if (LV_COLOR_DEPTH == 32)
-        if ((ROTATE_NONE == vendor_config.rotation) || (ROTATE_180 == vendor_config.rotation)) {
-            if (vendor_config.draw_buf_2_2) {
-                lv_dma2d_memcpy_double_draw_buffer(color_ptr, width, height, disp_buf->frame, area->x1, area->y1);
-            } else {
-                lv_dma2d_memcpy_single_draw_buffer(color_ptr, width, height, disp_buf->frame, area->x1, area->y1);
-            }
-        } else if (ROTATE_270 == vendor_config.rotation) {
-            lv_image_rotate90_clockwise(rotate_buffer, color_p, width, height);
-            lv_dma2d_memcpy_single_draw_buffer(rotate_buffer, height, width, disp_buf->frame, lv_ver - area->y2 - 1, area->x1);
-        } else if (ROTATE_90 == vendor_config.rotation) {
-            lv_image_rotate90_anticlockwise(rotate_buffer, color_p, width, height);
-            lv_dma2d_memcpy_single_draw_buffer(rotate_buffer, height, width, disp_buf->frame, area->y1, lv_hor - (area->x2 + 1));
-        }
-    #else
-        int y = 0;
-        int offset = 0;
+    lv_coord_t lv_hor = disp_drv->hor_res;
+    const lv_color_t *color_ptr = color_p;
+    lv_coord_t width = lv_area_get_width(area);
+    lv_coord_t height = lv_area_get_height(area);
+    lv_area_t dst_area = *area;
 
-        if ((ROTATE_NONE == vendor_config.rotation) || (ROTATE_180 == vendor_config.rotation)) {
-            if (vendor_config.draw_buf_2_2) {
-                lv_dma2d_memcpy_double_draw_buffer(color_ptr, width, height, disp_buf->frame, area->x1, area->y1);
-            } else {
-                offset = area->y1 * lv_hor + area->x1;
-                for (y = area->y1; y <= area->y2 && y < disp_drv->ver_res; y++) {
-                    lv_memcpy_one_line(disp_buf->frame + offset * 2, color_ptr, width);
-                    offset += lv_hor;
-                    color_ptr += width;
-                }
-            }
-        } else if (ROTATE_270 == vendor_config.rotation) {
-            lv_color_t *dst_ptr = rotate_buffer;
-
-            lv_image_rotate90_clockwise(rotate_buffer, color_p, width, height);
-
-            offset = area->x1 * lv_ver + (lv_ver - area->y2 - 1);
-            for (y = area->x1; y <= area->x2 && y < disp_drv->hor_res; y++) {
-                lv_memcpy_one_line(disp_buf->frame + offset * 2, dst_ptr, height);
-                offset += lv_ver;
-                dst_ptr += height;
-            }
-        } else if (ROTATE_90 == vendor_config.rotation) {
-            lv_color_t *dst_ptr = rotate_buffer;
-
-            lv_image_rotate90_anticlockwise(rotate_buffer, color_p, width, height);
-
-            offset = (lv_hor - (area->x2 + 1)) * lv_ver + area->y1;
-            for (y = lv_hor - (area->x2 + 1); y <= lv_hor - (area->x1 + 1) && y < disp_drv->hor_res; y++) {
-                lv_memcpy_one_line(disp_buf->frame + offset * 2, dst_ptr, height);
-                offset += lv_ver;
-                dst_ptr += height;
-            }
-        }
-    #endif
+    lv_get_display_buffer(vnd_data, &dst_area);
+    _lv_area_join(&vnd_data->d_area, &vnd_data->d_area, &dst_area);
+    lv_partial_copy_to_frame_buffer(vnd_data, &dst_area, color_ptr, width, height, lv_hor);
 
     if (lv_disp_flush_is_last(disp_drv)) {
-        media_debug->lvgl_draw++;
-        #if (!CONFIG_LV_USE_DEMO_BENCHMARK)
-            if (vendor_config.draw_buf_2_2) {
-                lv_dma2d_memcpy_wait_transfer_finish();
-            }
-        #endif
+        vnd_data->config.flush_cb(vnd_data->config.args, vnd_data->disp_buf, lvgl_frame_buffer_free_cb);
+        vnd_data->lv_new_frame_flag = true;
 
-        bk_display_flush(vendor_config.handle, disp_buf, lvgl_frame_buffer_free_cb);
-        lv_new_frame_flag = true;
-
-        if (CONFIG_LVGL_FRAME_BUFFER_NUM > 1) {
-            if (copy_buf == NULL) {
-                do {
-                    copy_buf = lv_vendor_get_ready_frame_buffer();
-                    if (copy_buf != NULL) {
-                        break;
-                    }
-                } while(copy_buf == NULL);
-            }
-
-            #if CONFIG_LV_FRAME_DMA2D_COPY
-                #if LV_COLOR_DEPTH == 32
-                    lv_dma2d_memcpy_last_frame(disp_buf->frame, copy_buf->frame, lv_hor / 2 * 3, lv_ver, 0, 0);
-                #else
-                    lv_dma2d_memcpy_last_frame(disp_buf->frame, copy_buf->frame, lv_hor, lv_ver, 0, 0);
-                #endif
-            #else
-                lv_dma_memcpy_last_frame(disp_buf->frame, copy_buf->frame, lv_hor, lv_ver);
-            #endif
+#if CONFIG_LVGL_FRAME_BUFFER_NUM > 1
+        if (vnd_data->copy_buf == NULL) {
+            vnd_data->copy_buf = lv_wait_ready_frame_buffer();
         }
+        lv_partial_copy_last_frame(vnd_data, lv_hor);
+#endif
     }
 }
 
 static void lv_disp_flush_for_direct_mode(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p)
 {
     static bool first_flush = true;
+    void *frame_buffer = NULL;
+
+    lv_vnd_data_t *vnd_data = lv_get_vnd_data(disp_drv);
+    if (vnd_data == NULL) {
+        LOGE("%s vnd_data is NULL\n", __func__);
+        return;
+    }
 
     if (lv_disp_flush_is_last(disp_drv)) {
-        media_debug->lvgl_draw++;
-        if (color_p == vendor_config.draw_buf_2_1) {
-            bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[0], lvgl_frame_buffer_free_cb);
+        if (color_p == vnd_data->config.draw_buf_2_1) {
+            frame_buffer = vnd_data->config.frame_buffer[0];
         } else {
-            bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[1], lvgl_frame_buffer_free_cb);
+            frame_buffer = vnd_data->config.frame_buffer[1];
         }
+
+        vnd_data->config.flush_cb(vnd_data->config.args, frame_buffer, lvgl_frame_buffer_free_cb);
 
         if (first_flush) {
             first_flush = false;
         } else {
-            bk_err_t ret = rtos_get_semaphore(&lv_disp_sem, 1000);
+            bk_err_t ret = rtos_get_semaphore(&vnd_data->lv_disp_sem, 1000);
             if (ret != BK_OK) {
                 LOGE("%s rtos_get_semaphore failed\n", __func__);
             }
         }
 
-        lv_update_dual_buffer_with_direct_mode(disp_drv, area, (lv_color_t *)color_p);
+        lv_update_dual_buffer_with_direct_mode(disp_drv, area, color_p);
     }
 }
 
 static void lv_disp_flush_for_full_mode(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p)
 {
-    media_debug->lvgl_draw++;
-    if (color_p == vendor_config.draw_buf_2_1) {
-        bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[0], lvgl_frame_buffer_free_cb);
+    static bool first_flush = true;
+    void *frame_buffer = NULL;
+
+    lv_vnd_data_t *vnd_data = lv_get_vnd_data(disp_drv);
+    if (vnd_data == NULL) {
+        LOGE("%s vnd_data is NULL\n", __func__);
+        return;
+    }
+
+    if (color_p == vnd_data->config.draw_buf_2_1) {
+        frame_buffer = vnd_data->config.frame_buffer[0];
     } else {
-        bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[1], lvgl_frame_buffer_free_cb);
-    }   
+        frame_buffer = vnd_data->config.frame_buffer[1];
+    }
+
+    vnd_data->config.flush_cb(vnd_data->config.args, frame_buffer, lvgl_frame_buffer_free_cb);
+
+    if (first_flush) {
+        first_flush = false;
+    } else {
+        bk_err_t ret = rtos_get_semaphore(&vnd_data->lv_disp_sem, 1000);
+        if (ret != BK_OK) {
+            LOGE("%s rtos_get_semaphore failed\n", __func__);
+        }
+    }
 }
 
 /*Flush the content of the internal buffer the specific area on the display
@@ -485,10 +466,18 @@ static void lv_disp_flush_for_full_mode(lv_disp_drv_t * disp_drv, const lv_area_
  *'lv_disp_flush_ready()' has to be called when finished.*/
 static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p)
 {
+    lv_vnd_data_t *vnd_data = lv_get_vnd_data(disp_drv);
+
+    if (vnd_data == NULL) {
+        LOGE("%s vnd_data is NULL\n", __func__);
+        lv_disp_flush_ready(disp_drv);
+        return;
+    }
+
     if (disp_flush_enabled) {
-        if (vendor_config.render_mode == RENDER_PARTIAL_MODE) {
+        if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE) {
             lv_disp_flush_for_partial_mode(disp_drv, area, color_p);
-        } else if (vendor_config.render_mode == RENDER_DIRECT_MODE) {
+        } else if (vnd_data->config.render_mode == RENDER_DIRECT_MODE) {
             lv_disp_flush_for_direct_mode(disp_drv, area, color_p);
         } else {
             lv_disp_flush_for_full_mode(disp_drv, area, color_p);
@@ -498,27 +487,6 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
     lv_disp_flush_ready(disp_drv);
 }
 
-/*OPTIONAL: GPU INTERFACE*/
-
-/*If your MCU has hardware accelerator (GPU) then you can use it to fill a memory with a color*/
-//static void gpu_fill(lv_disp_drv_t * disp_drv, lv_color_t * dest_buf, lv_coord_t dest_width,
-//                    const lv_area_t * fill_area, lv_color_t color)
-//{
-//    /*It's an example code which should be done by your GPU*/
-//    int32_t x, y;
-//    dest_buf += dest_width * fill_area->y1; /*Go to the first line*/
-//
-//    for(y = fill_area->y1; y <= fill_area->y2; y++) {
-//        for(x = fill_area->x1; x <= fill_area->x2; x++) {
-//            dest_buf[x] = color;
-//        }
-//        dest_buf+=dest_width;    /*Go to the next line*/
-//    }
-//}
-
-
-#else /*Enable this file at the top*/
-
-/*This dummy typedef exists purely to silence -Wpedantic.*/
+#else
 typedef int keep_pedantic_happy;
 #endif

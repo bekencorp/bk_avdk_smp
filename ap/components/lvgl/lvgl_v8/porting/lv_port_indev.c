@@ -13,7 +13,6 @@
 #include "lv_port_indev.h"
 #include "driver/drv_tp.h"
 #include "lv_port_disp.h"
-#include "lv_vendor.h"
 
 
 /*********************
@@ -46,7 +45,6 @@ int __attribute__((weak)) drv_tp_read(tp_point_infor_t *point)
     return kGeneralErr;
 }
 
-extern lv_vnd_config_t vendor_config;
 /*Will be called by the library to read the touchpad*/
 static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
 {
@@ -77,20 +75,6 @@ static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
 
         indev_reset_count = 0;
 
-        if(vendor_config.rotation == ROTATE_90)
-        {
-            lv_coord_t tmp = point.m_y;
-            point.m_y = point.m_x;
-            point.m_x = LV_HOR_RES - tmp - 1;
-        }
-
-        if(vendor_config.rotation == ROTATE_270)
-        {
-            lv_coord_t tmp = point.m_x;
-            point.m_x = point.m_y;
-            point.m_y = LV_VER_RES - tmp - 1;
-        }
-
         last_x = point.m_x;
         last_y = point.m_y;
         last_state = point.m_state? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
@@ -99,7 +83,7 @@ static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
         {
             data->continue_reading = true;
         }
-    }while(0);
+    } while(0);
 
     /*Set the last pressed coordinates*/
     data->point.x = last_x;

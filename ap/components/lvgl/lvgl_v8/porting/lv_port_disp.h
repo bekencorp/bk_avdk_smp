@@ -16,6 +16,7 @@ extern "C" {
 /*********************
  *      INCLUDES
  *********************/
+#include "lv_vendor.h"
 #include "lvgl.h"
 
 /*********************
@@ -44,7 +45,7 @@ void disp_disable_update(void);
 
 void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data);
 
-void lv_port_disp_deinit(void);
+void lv_port_disp_deinit(lv_vnd_data_t *vnd_data);
 
 /**********************
  *      MACROS

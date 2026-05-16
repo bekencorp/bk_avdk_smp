@@ -301,15 +301,26 @@ fail:
 void lv_vendor_deinit(void)
 {
     bk_err_t ret;
-    lv_vnd_data_t *vnd_data = (lv_vnd_data_t *)lv_display_get_user_data(lv_display_get_default());
-
-    if (vnd_data == NULL) {
-        LOGE("%s vnd_data malloc failed\n", __func__);
-        return;
-    }
+    lv_vnd_data_t *vnd_data = NULL;
 
     if (lv_vendor_initialized == false) {
         LOGD("%s already deinit\n", __func__);
+        return;
+    }
+
+#if CONFIG_LVGL_V8
+    lv_disp_t *disp = lv_disp_get_default();
+    if ((disp != NULL) && (disp->driver != NULL)) {
+#if LV_USE_USER_DATA
+        vnd_data = (lv_vnd_data_t *)disp->driver->user_data;
+#endif
+    }
+#else
+    vnd_data = (lv_vnd_data_t *)lv_display_get_user_data(lv_display_get_default());
+#endif
+
+    if (vnd_data == NULL) {
+        LOGE("%s vnd_data is NULL\n", __func__);
         return;
     }
 
@@ -369,7 +380,19 @@ void lv_vendor_deinit(void)
         vnd_data->config.draw_buf_2_2 = NULL;
     }
 
-    lv_display_set_user_data(lv_display_get_default(), NULL);
+#if CONFIG_LVGL_V8
+    disp = lv_disp_get_default();
+    if ((disp != NULL) && (disp->driver != NULL)) {
+#if LV_USE_USER_DATA
+        disp->driver->user_data = NULL;
+#endif
+    }
+#else
+    lv_display_t *disp = lv_display_get_default();
+    if (disp != NULL) {
+        lv_display_set_user_data(disp, NULL);
+    }
+#endif
     os_free(vnd_data);
     vnd_data = NULL;
 
@@ -378,7 +401,7 @@ void lv_vendor_deinit(void)
     LOGD("%s complete\n", __func__);
 }
 
-static void lv_tast_entry(void *arg)
+static void lv_task_entry(void *arg)
 {
     uint32_t sleep_time;
 
@@ -418,7 +441,7 @@ void lv_vendor_start(void)
     ret = rtos_create_sram_thread(&g_disp_thread_handle,
                              CONFIG_LVGL_TASK_PRIORITY,
                              "lvgl",
-                             (beken_thread_function_t)lv_tast_entry,
+                             (beken_thread_function_t)lv_task_entry,
                              CONFIG_LVGL_TASK_STACK_SIZE,
                              (beken_thread_arg_t)0);
     if (BK_OK != ret) {

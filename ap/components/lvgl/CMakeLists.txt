@@ -449,7 +449,9 @@ if(CONFIG_LVGL)
 			lvgl_v9/src/widgets/win/lv_win.c
 			lvgl_v9/src/lv_init.c
 			lvgl_v9/porting/lv_port_disp.c
-			#lvgl_v9/porting/lv_port_disp_partial.c
+			lvgl_v9/porting/lv_port_disp_partial.c
+			lvgl_v9/porting/lv_port_disp_direct.c
+			lvgl_v9/porting/lv_port_disp_full.c
 			lvgl_v9/porting/lv_port_indev.c
 		)
 
@@ -481,11 +483,13 @@ if(CONFIG_LVGL)
 
 	list(APPEND incs
 		common/.
+		common/hpdma
 		common/img_utility
 	)
 
 	list(APPEND srcs
 		common/lv_vendor.c
+		common/hpdma/lv_hpdma.c
 	)
 
 	if(CONFIG_LV_IMG_UTILITY_CUSTOMIZE)

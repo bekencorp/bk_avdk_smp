@@ -542,25 +542,10 @@ static void refr_invalid_areas(void)
  * Refresh an area if there is Virtual Display Buffer
  * @param area_p  pointer to an area to refresh
  */
-#include "lv_vendor.h"
-#include "lv_copy_method.h"
-
-extern lv_vnd_config_t vendor_config;
-
 static void refr_area(const lv_area_t * area_p)
 {
     lv_draw_ctx_t * draw_ctx = disp_refr->driver->draw_ctx;
     draw_ctx->buf = disp_refr->driver->draw_buf->buf_act;
-
-    if (vendor_config.render_mode == RENDER_PARTIAL_MODE) {
-        if (LV_VER_RES == lv_area_get_height(area_p) && LV_HOR_RES == lv_area_get_width(area_p)) {
-            #if CONFIG_LV_FRAME_DMA2D_COPY
-                lv_dma2d_stop_memcpy_last_frame();
-            #else
-                lv_dma_stop_memcpy_last_frame();
-            #endif
-        }
-    }
 
     /*With full refresh just redraw directly into the buffer*/
     /*In direct mode draw directly on the absolute coordinates of the buffer*/
