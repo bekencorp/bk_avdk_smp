@@ -36,31 +36,16 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-// power definition.
-#ifndef TP_POWER_CTRL_EN
-	#define TP_POWER_CTRL_EN (0)
-#endif
-#ifndef TP_POWER_CTRL_ACTIVE_LEVEL
-	#define TP_POWER_CTRL_ACTIVE_LEVEL (1)
-#endif
-#ifndef TP_POWER_CTRL_GPIO_ID
-	#define TP_POWER_CTRL_GPIO_ID (GPIO_38)
-#endif
-
 // pin definition.
-#define TP_RST_GPIO_ID    CONFIG_TP_RST_GPIO_ID
+#define TP_RST_PIN      CONFIG_TP_RST_PIN
 
-#define TP_INT_GPIO_ID    CONFIG_TP_INT_GPIO_ID
+#define TP_INT_PIN      CONFIG_TP_INT_PIN
 
-#ifndef TP_I2C_SDA_PIN
-	#define TP_I2C_SDA_PIN (GPIO_1)
-#endif
-#ifndef TP_I2C_SCL_PIN
-	#define TP_I2C_SCL_PIN (GPIO_0)
-#endif
+#define TP_I2C_SDA_PIN  CONFIG_TP_I2C_SDA_PIN
+
+#define TP_I2C_SCL_PIN  CONFIG_TP_I2C_SCL_PIN
 
 // i2c parameters.
-#define TP_I2C_INIT_INNER (1)
 #define TP_I2C_ID (1)
 #define TP_I2C_TIMEOUT (2000)  // 2s
 
@@ -155,15 +140,7 @@ int tp_i2c_read_uint8(uint8_t addr, uint8_t reg, uint8_t *buff, uint16_t len)
 	mem_param.data_size = len;
 	mem_param.timeout_ms = TP_I2C_TIMEOUT;
 
-#if 0
-#if CONFIG_SIM_I2C_HW_BOARD_V3
-	return bk_i2c_memory_read_v2(TP_I2C_ID, &mem_param);
-#else
-	return bk_i2c_memory_read(TP_I2C_ID, &mem_param);
-#endif
-#else
 	return sw_i2c_memory_read(tp_i2c_handle, &mem_param);
-#endif
 }
 
 int tp_i2c_write_uint8(uint8_t addr, uint8_t reg, uint8_t *buff, uint16_t len)
@@ -189,15 +166,7 @@ int tp_i2c_write_uint8(uint8_t addr, uint8_t reg, uint8_t *buff, uint16_t len)
 	mem_param.data_size = len;
 	mem_param.timeout_ms = TP_I2C_TIMEOUT;
 
-#if 0
-#if CONFIG_SIM_I2C_HW_BOARD_V3
-	return bk_i2c_memory_write_v2(TP_I2C_ID, &mem_param);
-#else
-	return bk_i2c_memory_write(TP_I2C_ID, &mem_param);
-#endif
-#else
 	return sw_i2c_memory_write(tp_i2c_handle, &mem_param);
-#endif
 }
 
 int tp_i2c_read_uint16(uint8_t addr, uint16_t reg, uint8_t *buff, uint16_t len)
@@ -223,15 +192,7 @@ int tp_i2c_read_uint16(uint8_t addr, uint16_t reg, uint8_t *buff, uint16_t len)
 	mem_param.data_size = len;
 	mem_param.timeout_ms = TP_I2C_TIMEOUT;
 
-#if 0
-#if CONFIG_SIM_I2C_HW_BOARD_V3
-	return bk_i2c_memory_read_v2(TP_I2C_ID, &mem_param);
-#else
-	return bk_i2c_memory_read(TP_I2C_ID, &mem_param);
-#endif
-#else
 	return sw_i2c_memory_read(tp_i2c_handle, &mem_param);
-#endif
 }
 
 int tp_i2c_write_uint16(uint8_t addr, uint16_t reg, uint8_t *buff, uint16_t len)
@@ -257,46 +218,8 @@ int tp_i2c_write_uint16(uint8_t addr, uint16_t reg, uint8_t *buff, uint16_t len)
 	mem_param.data_size = len;
 	mem_param.timeout_ms = TP_I2C_TIMEOUT;
 
-#if 0
-#if CONFIG_SIM_I2C_HW_BOARD_V3
-	return bk_i2c_memory_write_v2(TP_I2C_ID, &mem_param);
-#else
-	return bk_i2c_memory_write(TP_I2C_ID, &mem_param);
-#endif
-#else
 	return sw_i2c_memory_write(tp_i2c_handle, &mem_param);
-#endif
 }
-
-#if (TP_POWER_CTRL_EN > 0)
-// tp power control initialization.
-bk_err_t bk_tp_power_ctrl_init(const tp_config_t *config)
-{
-	if(NULL == config)
-	{
-		LOGE("%s, pointer is null!\r\n", __func__);
-		return BK_FAIL;
-	}
-
-	gpio_config_t mode = {0};
-	gpio_id_t power_ctr_id = TP_POWER_CTRL_GPIO_ID;
-
-	// INT GPIO - output low
-	BK_LOG_ON_ERR(gpio_dev_unmap(power_ctr_id));
-	mode.io_mode = GPIO_OUTPUT_ENABLE;
-	mode.pull_mode = GPIO_PULL_DISABLE;
-	BK_LOG_ON_ERR(bk_gpio_set_config(power_ctr_id, &mode));
-	#if (TP_POWER_CTRL_ACTIVE_LEVEL > 0)
-		BK_LOG_ON_ERR(bk_gpio_set_output_high(power_ctr_id));
-	#else
-		BK_LOG_ON_ERR(bk_gpio_set_output_low(power_ctr_id));
-	#endif
-	// this delay time maybe can optimization.
-	rtos_delay_milliseconds(20);
-
-	return BK_OK;
-}
-#endif
 
 // tp gpio initialization and including sensor address select through controling gpio level.
 bk_err_t bk_tp_gpio_init(const tp_config_t *config)
@@ -308,8 +231,8 @@ bk_err_t bk_tp_gpio_init(const tp_config_t *config)
 	}
 
 	gpio_config_t mode = {0};
-	gpio_id_t rst_id = TP_RST_GPIO_ID;
-	gpio_id_t int_id = TP_INT_GPIO_ID;
+	gpio_id_t rst_id = TP_RST_PIN;
+	gpio_id_t int_id = TP_INT_PIN;
 
 	// INT GPIO - output high
 	BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
@@ -330,8 +253,10 @@ bk_err_t bk_tp_gpio_init(const tp_config_t *config)
 		rtos_delay_milliseconds(220);
 	#elif CONFIG_TP_FT6336
 		rtos_delay_milliseconds(20);
+	#elif CONFIG_TP_CST9217
+		rtos_delay_milliseconds(20);
 	#else
-		rtos_delay_milliseconds(2);
+		rtos_delay_milliseconds(10);
 	#endif
 	
     BK_LOG_ON_ERR(bk_gpio_set_output_high(rst_id));
@@ -373,35 +298,14 @@ static void tp_int_gpio_isr(gpio_id_t id)
 
 	if (false != tp_driver_init_flag)
 	{
-		bk_gpio_disable_interrupt(TP_INT_GPIO_ID);
+		bk_gpio_disable_interrupt(TP_INT_PIN);
 		rtos_set_semaphore(&tp_sema);
 	}
 }
 
 __bk_weak void bk_tp_read_info_callback(tp_data_t *tp_data)
 {
-#if 0
-	static uint32_t hisTimeStamp = 0;
 
-	// write tp data to queue
-	if (tp_data->event == TP_EVENT_TYPE_DOWN)
-	{
-		hisTimeStamp = tp_data->timestamp;
-		drv_tp_write(tp_data->x_coordinate, tp_data->y_coordinate, 1);
-	}
-	else if (tp_data->event == TP_EVENT_TYPE_MOVE)
-	{
-		if ( (tp_data->timestamp - hisTimeStamp) >= 5 )
-		{
-			hisTimeStamp = tp_data->timestamp;
-			drv_tp_write(tp_data->x_coordinate, tp_data->y_coordinate, 1);
-		}
-	}
-	else if (tp_data->event == TP_EVENT_TYPE_UP)
-	{
-		drv_tp_write(tp_data->x_coordinate, tp_data->y_coordinate, 0);
-	}
-#endif
 }
 
 // tp interrupt initialization.
@@ -414,7 +318,7 @@ bk_err_t bk_tp_int_init(const tp_config_t *config)
 	}
 
 	gpio_config_t mode = {0};
-	gpio_id_t int_id = TP_INT_GPIO_ID;
+	gpio_id_t int_id = TP_INT_PIN;
 	gpio_int_type_t int_type = 0;
 
 	BK_LOG_ON_ERR(gpio_dev_unmap(int_id));
@@ -447,7 +351,7 @@ bk_err_t bk_tp_int_init(const tp_config_t *config)
 
 bk_err_t bk_tp_int_deinit(void)
 {
-	gpio_id_t int_id = TP_INT_GPIO_ID;
+	gpio_id_t int_id = TP_INT_PIN;
 
 	BK_LOG_ON_ERR(bk_gpio_disable_interrupt(int_id));
 
@@ -494,7 +398,7 @@ void tp_process_task(beken_thread_arg_t arg)
 			}
 		}
 
-		BK_LOG_ON_ERR(bk_gpio_enable_interrupt(TP_INT_GPIO_ID));
+		BK_LOG_ON_ERR(bk_gpio_enable_interrupt(TP_INT_PIN));
 	}
 }
 
@@ -517,15 +421,6 @@ bk_err_t bk_tp_driver_init(tp_config_t *config)
 
 	LOGD("%s, ppi=%d, int_type=%d, refresh_rate=%d, tp_num=%d.\r\n", __func__, config->ppi, config->int_type, config->refresh_rate, config->tp_num);
 
-	#if (TP_POWER_CTRL_EN > 0)
-		// power control initialization.
-		if (BK_OK != bk_tp_power_ctrl_init((const tp_config_t *)config))
-		{
-			LOGE("%s, power ctrl init fail!\r\n", __func__);
-			return BK_FAIL;
-		}
-	#endif
-
 	// gpio initialization.
 	if (BK_OK != bk_tp_gpio_init((const tp_config_t *)config))
 	{
@@ -533,21 +428,10 @@ bk_err_t bk_tp_driver_init(tp_config_t *config)
 		return BK_FAIL;
 	}
 
-	#if (TP_I2C_INIT_INNER > 0)
-	// i2c initialization.
-#if 0
-	if (BK_OK != bk_tp_i2c_init((const tp_config_t *)config))
-	{
-		LOGE("%s, i2c init fail!\r\n", __func__);
-		return BK_FAIL;
-	}
-#else
 	sw_i2c_config_t i2c_cfg = {0};
 	i2c_cfg.sda_pin = TP_I2C_SDA_PIN;
 	i2c_cfg.scl_pin = TP_I2C_SCL_PIN;
 	tp_i2c_handle = sw_i2c_init(&i2c_cfg);
-#endif
-	#endif
 
 	rtos_delay_milliseconds(10);
 

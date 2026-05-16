@@ -3,15 +3,25 @@ menu "TP"
 		bool "Enable TP"
 		default n
 
-	config TP_RST_GPIO_ID
+	config TP_RST_PIN
 		depends on TP
-		int "Set TP RST GPIO PIN"
+		int "Set TP RST PIN"
 		default 5
 
-	config TP_INT_GPIO_ID
+	config TP_INT_PIN
 		depends on TP
-		int "Set TP INT GPIO PIN"
+		int "Set TP INT PIN"
 		default 6
+
+	config TP_I2C_SDA_PIN
+		depends on TP
+		int "Set TP I2C SDA PIN"
+		default 1
+
+	config TP_I2C_SCL_PIN
+		depends on TP
+		int "Set TP I2C SCL PIN"
+		default 0
 
 	config TP_GT911
 		depends on TP
@@ -36,5 +46,20 @@ menu "TP"
 	config TP_CST816D
 		depends on TP
 		bool "Enable TP_CST816D API"
+		default n
+
+	config TP_CST9217
+		depends on TP
+		bool "Enable TP_CST9217 API"
+		default n
+
+	config TP_CST328
+		depends on TP
+		bool "Enable TP_CST328 API"
+		default n
+
+	config TP_FT5316
+		depends on TP
+		bool "Enable TP_FT5316 API"
 		default n
 endmenu

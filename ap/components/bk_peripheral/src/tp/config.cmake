@@ -32,3 +32,18 @@ if (CONFIG_TP_CST816D)
 	list(APPEND TP_DEVICE_FILES ${TP_PATH}/tp_cst816d.c)
 	list(APPEND GLOBAL_FUNCTION_SYMBOLS "cst816d_detect_sensor")
 endif()
+
+if (CONFIG_TP_CST9217)
+	list(APPEND TP_DEVICE_FILES ${TP_PATH}/tp_cst9217.c)
+	list(APPEND GLOBAL_FUNCTION_SYMBOLS "cst9217_detect_sensor")
+endif()
+
+if (CONFIG_TP_CST328)
+	list(APPEND TP_DEVICE_FILES ${TP_PATH}/tp_cst328.c)
+	list(APPEND GLOBAL_FUNCTION_SYMBOLS "cst328_detect_sensor")
+endif()
+
+if (CONFIG_TP_FT5316)
+	list(APPEND TP_DEVICE_FILES ${TP_PATH}/tp_ft5316.c)
+	list(APPEND GLOBAL_FUNCTION_SYMBOLS "ft5316_detect_sensor")
+endif()
