@@ -203,7 +203,7 @@ bk_err_t bk_lp_vad_deepsleep_enter(void)
 	reg_data &= ~((0x7U << 8) | (0x3U << 6) | (0xFU << 2) | (0x3U << 0));
 	REG_WRITE(SOC_SYS_REG_BASE + (0x8 << 2), reg_data);
 	/* AON_PMU_Reg0x41: wakeup_ena, lpo_config, mem halt/ret (atomic batch write) */
-	wakeup_ena = REG_READ(0x44000104);
+	wakeup_ena = REG_READ(SOC_AON_PMU_REG_BASE + 0x104);
 	wakeup_ena |= (1U << 6);
 	wakeup_ena &= ~(0x3U << 0);
 	wakeup_ena |= (0x2U << 0);
@@ -220,7 +220,7 @@ bk_err_t bk_lp_vad_deepsleep_enter(void)
 		wakeup_ena |= (1U << 29);
 	}
 	wakeup_ena |= (1U << 28);
-	REG_WRITE(0x44000104, wakeup_ena);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x104, wakeup_ena);
 
 	/* sleep_ana_set_tmp(); */
 	lp_vad_sleep_ana_set_tmp();

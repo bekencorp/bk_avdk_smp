@@ -139,7 +139,7 @@ void bk_dvp_io_config(void)
     for (int i = GPIO_29; i <= GPIO_39; i++) {
         gpio_dev_unmap(i);
         //gpio_dev_map(i, GPIO_DVP_FUNC_VALUE);
-        *(volatile uint32_t*)(0x44000400 + i * 4) |= (GPIO_DVP_FUNC_VALUE << 24); // gpio dvp function map
+        *(volatile uint32_t*)(SOC_AON_GPIO_REG_BASE + i * 4) |= (GPIO_DVP_FUNC_VALUE << 24); // gpio dvp function map
     }
 }
 
@@ -149,18 +149,18 @@ void bk_mipi_csi_enable_debug_pin(void)
     for (int i = GPIO_2; i <= GPIO_4; i++) {
         gpio_dev_unmap(i);
         //gpio_dev_map(i, GPIO_DEBUG_FUNC_VALUE);
-        *(volatile uint32_t*)(0x44000400 + i * 4) |= (GPIO_DEBUG_FUNC_VALUE << 24); // gpio debug function map
+        *(volatile uint32_t*)(SOC_AON_GPIO_REG_BASE + i * 4) |= (GPIO_DEBUG_FUNC_VALUE << 24); // gpio debug function map
     }
 
     uint32_t reg = REG_READ(BASEADDR_CSI_EXT + 0x00000000);
     reg |= 0x40;// debug for 0x40
     REG_WRITE(BASEADDR_CSI_EXT + 0x00000000, reg);
 
-    REG_WRITE(0x44010000 + 0x39 * 4, 6); //mipi debug en
+    REG_WRITE(SOC_SYSTEM_REG_BASE + 0x39 * 4, 6); //mipi debug en
 
-    reg = REG_READ(0x48000000 + 0x23 * 4);
+    reg = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x23 * 4);
     reg |= 0x1;
-    REG_WRITE(0x48000000 + 0x23 * 4, reg); //mipi debug mode
+    REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x23 * 4, reg); //mipi debug mode
 
     bk_int_isr_register(INT_SRC_CSI, bk_csi_isr, NULL);
 #if CONFIG_SOC_SMP
@@ -173,5 +173,5 @@ void bk_mipi_csi_enable_debug_pin(void)
 void bk_mipi_csi_disable_debug_pin(void)
 {
     LOGI("%s\r\n", __func__);
-    REG_WRITE(0x44010000 + 0x39 * 4, 0); //mipi debug disable
+    REG_WRITE(SOC_SYSTEM_REG_BASE + 0x39 * 4, 0); //mipi debug disable
 }

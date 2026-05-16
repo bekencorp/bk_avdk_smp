@@ -718,7 +718,7 @@ static void aud_adc_i2s_ringbuf_test_cmd(UINT8 enable, UINT8 samplerate, UINT8 a
 			bk_i2s_driver_deinit();
 			return;
 		}
-		os_printf("Reg0x5B-1 : 0x%x\r\n", REG_READ(0x44010168));
+		os_printf("Reg0x5B-1 : 0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x168));
 
 		aud_hardware_reset();
 		for (uint32_t i = 0; i < AUD_MIC_CHL_NUM_MAX; i++) {
@@ -730,7 +730,7 @@ static void aud_adc_i2s_ringbuf_test_cmd(UINT8 enable, UINT8 samplerate, UINT8 a
 			adc_i2s_ringbuf_start_cleanup();
 			return;
 		}
-		os_printf("Reg0x5B-2 : 0x%x\r\n", REG_READ(0x44010168));
+		os_printf("Reg0x5B-2 : 0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x168));
 
 		ret = bk_dma_driver_init();
 		if (ret != BK_OK) {
@@ -962,7 +962,7 @@ static void aud_adc_i2s_ringbuf_test_cmd(UINT8 enable, UINT8 samplerate, UINT8 a
 		bk_dma_set_dest_sec_attr(adc_i2s_ringbuf_i2s_dma_id, DMA_ATTR_SEC);
 		bk_dma_set_src_sec_attr(adc_i2s_ringbuf_i2s_dma_id, DMA_ATTR_SEC);
 #endif
-		os_printf("Reg0x5B-3 : 0x%x\r\n", REG_READ(0x44010168));
+		os_printf("Reg0x5B-3 : 0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x168));
 
 		ret = bk_i2s_enable(I2S_ENABLE);
 		if (ret != BK_OK) {
@@ -976,7 +976,7 @@ static void aud_adc_i2s_ringbuf_test_cmd(UINT8 enable, UINT8 samplerate, UINT8 a
 			adc_i2s_ringbuf_start_cleanup();
 			return;
 		}
-		os_printf("Reg0x5B-4 : 0x%x\r\n", REG_READ(0x44010168));
+		os_printf("Reg0x5B-4 : 0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x168));
 
 		ret = bk_dma_start(adc_i2s_ringbuf_i2s_dma_id);
 		if (ret != BK_OK) {
@@ -991,7 +991,7 @@ static void aud_adc_i2s_ringbuf_test_cmd(UINT8 enable, UINT8 samplerate, UINT8 a
 			return;
 		}
 		
-		os_printf("Reg0x5B-5 : 0x%x\r\n", REG_READ(0x44010168));
+		os_printf("Reg0x5B-5 : 0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x168));
 		ret = bk_aud_adc_start(adc_chl);
 		if (ret != BK_OK) {
 			os_printf("bk_aud_adc_start failed: %d\n", ret);
@@ -999,7 +999,7 @@ static void aud_adc_i2s_ringbuf_test_cmd(UINT8 enable, UINT8 samplerate, UINT8 a
 		}
         bk_aud_adc_enable_used_channel(1<<adc_chl);
 
-		os_printf("Reg0x5B-6 : 0x%x\r\n", REG_READ(0x44010168));
+		os_printf("Reg0x5B-6 : 0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x168));
 		os_printf("dma_id:%d-----%d\r\n", adc_i2s_ringbuf_adc_dma_id, adc_i2s_ringbuf_i2s_dma_id);
 		g_adc_i2s_ringbuf_test_initialized = true;
 		os_printf("ADC -> ringbuf -> I2S out test started (sample_rate=%d, gpio_group=%d)\n", sample_rate, gpio_group);
@@ -1356,7 +1356,7 @@ static void aud_i2s_dac_ringbuf_test_cmd(UINT8 enable, UINT8 samplerate, UINT8 a
 		dac_dma_config.dst.addr_loop_en = DMA_ADDR_LOOP_DISABLE;
 		dac_dma_config.dst.start_addr   = dac_fifo_addr;
 		dac_dma_config.dst.end_addr     = dac_fifo_addr + 4;
-		os_printf("Reg0x5A-4 : 0x%x\r\n", REG_READ(0x44010168));
+		os_printf("Reg0x5A-4 : 0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x168));
 
 		ret = bk_dma_init(i2s_dac_ringbuf_dac_dma_id, &dac_dma_config);
 		if (ret != BK_OK) {
@@ -1412,7 +1412,7 @@ static void aud_i2s_dac_ringbuf_test_cmd(UINT8 enable, UINT8 samplerate, UINT8 a
 				return;
 			}
 		}
-		os_printf("Reg0x5A-3 : 0x%x\r\n", REG_READ(0x44010168));
+		os_printf("Reg0x5A-3 : 0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x168));
 
 		bk_aud_dac_spk0_source_enable(dac_source, 1);
 		ret = bk_i2s_enable(I2S_ENABLE);
@@ -1436,7 +1436,7 @@ static void aud_i2s_dac_ringbuf_test_cmd(UINT8 enable, UINT8 samplerate, UINT8 a
 			i2s_dac_ringbuf_start_cleanup();
 			return;
 		}
-		os_printf("Reg0x5A-2 : 0x%x\r\n", REG_READ(0x44010168));
+		os_printf("Reg0x5A-2 : 0x%x\r\n", REG_READ(SOC_SYSTEM_REG_BASE + 0x168));
 		ret = bk_dma_start(i2s_dac_ringbuf_dac_dma_id);
 		if (ret != BK_OK) {
 			os_printf("dac dma start failed\n");

@@ -317,14 +317,14 @@ bk_err_t bk_low_pwr_deepsleep_using_wdt_protect()
         if (sleep_count > 0)
         {
             /*Clear RTC INT */
-            uint32_t value = REG_READ(0x44000200);
+            uint32_t value = REG_READ(SOC_AON_RTC_REG_BASE);
             value  |= (0x1 >> 4);
             value  |= (0x1 >> 5);
-            REG_WRITE(0x44000200,value);
+            REG_WRITE(SOC_AON_RTC_REG_BASE,value);
 
-            value = REG_READ(0x44000200+0x3*4);
+            value = REG_READ(SOC_AON_RTC_REG_BASE+0x3*4);
             value = value+60000*32;
-            REG_WRITE(0x44000200+0x2*4,value);
+            REG_WRITE(SOC_AON_RTC_REG_BASE+0x2*4,value);
             aon_pmu_hal_set_wdt_deepsleep_pt_count(sleep_count,false);
             sys_drv_enter_deep_sleep(NULL);
         }

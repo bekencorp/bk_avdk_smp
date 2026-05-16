@@ -3166,23 +3166,23 @@ static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		// sys_ll_set_ana_reg10_spi_latch1v(0);
 
 		// /*"M55S Access Secure*/
-		// regData  = REG_READ(0x44050000 + 0xF*4);
+		// regData  = REG_READ(SOC_PPRO_REG_BASE + 0xF*4);
 		// regData &= ~((0x1<<3)|(0x1<<2));
 		// regData |=  ((  0<<3)|(  0<<2));
-		// REG_WRITE(0x44050000 + 0xF*4, regData);
+		// REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
 
 		// /*M55:Default enable all the clock source for bringup */
-		// REG_WRITE(0x48000000 + 0xA*4, 0xFFFFFFFF);
+		// REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0xA*4, 0xFFFFFFFF);
 
 		// /*M55 cpu freq and bus 480M, subbus 240M */
-		// regData = REG_READ(0x48000000 + 0x8*4);
+		// regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
 		// regData |= 0x1 << 4;
-		// REG_WRITE(0x48000000 + 0x8*4, regData);
+		// REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x8*4, regData);
 
-		// regData = REG_READ(0x48000000 + 0x8*4);
+		// regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
 		// regData |= 0x0 << 2;
 		// regData |= 0x1 << 0;
-		// REG_WRITE(0x48000000 + 0x8*4, regData);
+		// REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x8*4, regData);
 		sys_ll_set_ana_reg10_spi_latch1v(1);
 		sys_ll_set_ana_reg9_pwd_hsldo(1);
 		bk_delay_us(20);
@@ -3195,95 +3195,95 @@ static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		sys_ll_set_ana_reg10_spi_latch1v(0);
 
 	#if 1
-		regData = REG_READ(0x44000000 + 0x2*4);
+		regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 		regData &= ~((0x1F<<21)|(0x1<<19));
 		regData |=  ((0x1F<<21)|(  0<<19));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 		bk_delay_us(20);
 
 		regData &= ~((0x1F<<21)|(0x1<<19));
 		regData |=  ((0x1E<<21)|(  0<<19));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 		bk_delay_us(20);
 
 		regData &= ~((0x1F<<21)|(0x1<<19));
 		regData |=  ((0x1C<<21)|(  0<<19));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 		bk_delay_us(20);
 
 		regData &= ~((0x1F<<21)|(0x1<<19));
 		regData |=  ((0x18<<21)|(  0<<19));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 		bk_delay_us(20);
 
 		regData &= ~((0x1F<<21)|(0x1<<19));
 		regData |=  ((0x10<<21)|(  0<<19));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 		bk_delay_us(20);
 
 		regData &= ~((0x1F<<21)|(0x1<<19));
 		regData |=  ((0x00<<21)|(  0<<19));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 		//bk_delay_us(20);
-		regData = REG_READ(0x44000000 + 0x2*4);
+		regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 		regData &= ~((0x1<<18));
 		regData |=  ((  1<<18));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 		bk_delay_us(20);
 
 		/* PMU M55S Clk On*/
-		regData = REG_READ(0x44000000 + 0x2*4);
+		regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 		regData &= ~((0x1<<20));
 		regData |=  ((  1<<20));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
 		/* PMU M55S RstN On*/
-		regData = REG_READ(0x44000000 + 0x2*4);
+		regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 		regData &= ~((0x1<<17));
 		regData |=  ((  1<<17));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
 		/*Wait HS LDO RstN On*/
-		while(!REG_READ(0x44000000 + 0x74*4));
+		while(!REG_READ(SOC_AON_PMU_REG_BASE + 0x74*4));
 
 		/*PMU M55S ISO Off*/
-		regData  = REG_READ(0x44000000 + 0x2*4);
+		regData  = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 		regData &= ~((0x1<<16));
 		regData |=  ((0<<16));
-		REG_WRITE(0x44000000 + 0x2*4, regData);
+		REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
 		/*"M55S Access Secure*/
-		regData  = REG_READ(0x44050000 + 0xF*4);
+		regData  = REG_READ(SOC_PPRO_REG_BASE + 0xF*4);
 		regData &= ~((0x1<<3)|(0x1<<2));
 		regData |=  ((  0<<3)|(  0<<2));
-		REG_WRITE(0x44050000 + 0xF*4, regData);
+		REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
 
 		/*PSRAM Enable*/
 		sys_ll_set_ana_reg14_enpsram(1);
 		//bk_delay_us(10);
 		/*M55S Memory EMA switch to 1*/
-		REG_WRITE(0x48000000 + 0x50*4,  (0x5A<<24) | (0x441<<10) | (0x241));
-		REG_WRITE(0x48000000 + 0x50*4,  (0xA5<<24) | (0x441<<10) | (0x241));
-		REG_WRITE(0x48000000 + 0x51*4,  (0x5A<<24) |               (0x901));
-		REG_WRITE(0x48000000 + 0x51*4,  (0xA5<<24) |               (0x901));
-		REG_WRITE(0x48000000 + 0x52*4,  (0x5A<<24) | (0x441<<10) | (0x241));
-		REG_WRITE(0x48000000 + 0x52*4,  (0xA5<<24) | (0x441<<10) | (0x241));
-		REG_WRITE(0x48000000 + 0x53*4,  (0x5A<<24) |               (0x901));
-		REG_WRITE(0x48000000 + 0x53*4,  (0xA5<<24) |               (0x901));
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x50*4,  (0x5A<<24) | (0x441<<10) | (0x241));
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x50*4,  (0xA5<<24) | (0x441<<10) | (0x241));
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x51*4,  (0x5A<<24) |               (0x901));
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x51*4,  (0xA5<<24) |               (0x901));
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x52*4,  (0x5A<<24) | (0x441<<10) | (0x241));
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x52*4,  (0xA5<<24) | (0x441<<10) | (0x241));
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0x5A<<24) |               (0x901));
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0xA5<<24) |               (0x901));
 		bk_delay_us(10);
 	#endif
 		/*M55:Default enable all the clock source for bringup */
-		REG_WRITE(0x48000000 + 0xA*4, 0xFFFFFFFF);
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0xA*4, 0xFFFFFFFF);
 
 		/*M55 cpu freq and bus 480M, subbus 240M */
-		regData = REG_READ(0x48000000 + 0x8*4);
+		regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
 		regData |= 0x1 << 4;
-		REG_WRITE(0x48000000 + 0x8*4, regData);
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x8*4, regData);
 
-		regData = REG_READ(0x48000000 + 0x8*4);
+		regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
 		regData |= 0x0 << 2;
 		regData |= 0x1 << 0;
-		REG_WRITE(0x48000000 + 0x8*4, regData);
+		REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x8*4, regData);
 		bk_delay_us(20);
 	}
 	else
@@ -3318,95 +3318,95 @@ static bk_err_t sys_hal_m55_clock_power_init()
 	sys_ll_set_ana_reg10_spi_latch1v(0);
 
 #if 1
-	regData = REG_READ(0x44000000 + 0x2*4);
+	regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x1F<<21)|(  0<<19));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 	//bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x1E<<21)|(  0<<19));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 	//bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x1C<<21)|(  0<<19));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 	//bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x18<<21)|(  0<<19));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 	//bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x10<<21)|(  0<<19));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 	//bk_delay_us(20);
 
 	regData &= ~((0x1F<<21)|(0x1<<19));
 	regData |=  ((0x00<<21)|(  0<<19));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 	//bk_delay_us(20);
-	regData = REG_READ(0x44000000 + 0x2*4);
+	regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 	regData &= ~((0x1<<18));
 	regData |=  ((  1<<18));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 	//bk_delay_us(20);
 
 	/* PMU M55S Clk On*/
-	regData = REG_READ(0x44000000 + 0x2*4);
+	regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 	regData &= ~((0x1<<20));
 	regData |=  ((  1<<20));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
 	/* PMU M55S RstN On*/
-	regData = REG_READ(0x44000000 + 0x2*4);
+	regData = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 	regData &= ~((0x1<<17));
 	regData |=  ((  1<<17));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
 	/*Wait HS LDO RstN On*/
-	while(!REG_READ(0x44000000 + 0x74*4));
+	while(!REG_READ(SOC_AON_PMU_REG_BASE + 0x74*4));
 
 	/*PMU M55S ISO Off*/
-	regData  = REG_READ(0x44000000 + 0x2*4);
+	regData  = REG_READ(SOC_AON_PMU_REG_BASE + 0x2*4);
 	regData &= ~((0x1<<16));
 	regData |=  ((0<<16));
-	REG_WRITE(0x44000000 + 0x2*4, regData);
+	REG_WRITE(SOC_AON_PMU_REG_BASE + 0x2*4, regData);
 
 	/*"M55S Access Secure*/
-	regData  = REG_READ(0x44050000 + 0xF*4);
+	regData  = REG_READ(SOC_PPRO_REG_BASE + 0xF*4);
 	regData &= ~((0x1<<3)|(0x1<<2));
 	regData |=  ((  0<<3)|(  0<<2));
-	REG_WRITE(0x44050000 + 0xF*4, regData);
+	REG_WRITE(SOC_PPRO_REG_BASE + 0xF*4, regData);
 
 	/*PSRAM Enable*/
 	sys_ll_set_ana_reg14_enpsram(1);
 	//bk_delay_us(10);
 	/*M55S Memory EMA switch to 1*/
-	REG_WRITE(0x48000000 + 0x50*4,  (0x5A<<24) | (0x441<<10) | (0x241));
-	REG_WRITE(0x48000000 + 0x50*4,  (0xA5<<24) | (0x441<<10) | (0x241));
-	REG_WRITE(0x48000000 + 0x51*4,  (0x5A<<24) |               (0x901));
-	REG_WRITE(0x48000000 + 0x51*4,  (0xA5<<24) |               (0x901));
-	REG_WRITE(0x48000000 + 0x52*4,  (0x5A<<24) | (0x441<<10) | (0x241));
-	REG_WRITE(0x48000000 + 0x52*4,  (0xA5<<24) | (0x441<<10) | (0x241));
-	REG_WRITE(0x48000000 + 0x53*4,  (0x5A<<24) |               (0x901));
-	REG_WRITE(0x48000000 + 0x53*4,  (0xA5<<24) |               (0x901));
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x50*4,  (0x5A<<24) | (0x441<<10) | (0x241));
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x50*4,  (0xA5<<24) | (0x441<<10) | (0x241));
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x51*4,  (0x5A<<24) |               (0x901));
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x51*4,  (0xA5<<24) |               (0x901));
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x52*4,  (0x5A<<24) | (0x441<<10) | (0x241));
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x52*4,  (0xA5<<24) | (0x441<<10) | (0x241));
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0x5A<<24) |               (0x901));
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x53*4,  (0xA5<<24) |               (0x901));
 	//bk_delay_us(10);
 #endif
 	/*M55:Default enable all the clock source for bringup */
-	REG_WRITE(0x48000000 + 0xA*4, 0xFFFFFFFF);
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0xA*4, 0xFFFFFFFF);
 
 	/*M55 cpu freq and bus 480M, subbus 240M */
-	regData = REG_READ(0x48000000 + 0x8*4);
+	regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
 	regData |= 0x1 << 4;
-	REG_WRITE(0x48000000 + 0x8*4, regData);
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x8*4, regData);
 
-	regData = REG_READ(0x48000000 + 0x8*4);
+	regData = REG_READ(SOC_SYS_AHBP_REG_BASE + 0x8*4);
 	regData |= 0x0 << 2;
 	regData |= 0x1 << 0;
-	REG_WRITE(0x48000000 + 0x8*4, regData);
+	REG_WRITE(SOC_SYS_AHBP_REG_BASE + 0x8*4, regData);
 	//bk_delay_us(20);
 	return BK_OK;
 }

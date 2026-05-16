@@ -68,10 +68,10 @@ void bk_enable_swd(void)
     uint32_t reg = REG_READ(0xE000EE04);
     reg |= 0x2;
     REG_WRITE(0xE000EE04, reg);
-    REG_WRITE(0x44010000 + (0x3b << 2), 0x20000000);
-    reg = REG_READ(0x44050000 + (0xf << 2));
+    REG_WRITE(SOC_SYSTEM_REG_BASE + (0x3b << 2), 0x20000000);
+    reg = REG_READ(SOC_PPRO_REG_BASE + (0xf << 2));
     reg &= ~(0x8);
-    REG_WRITE(0x44050000 + (0xf << 2), reg);
+    REG_WRITE(SOC_PPRO_REG_BASE + (0xf << 2), reg);
 }
 
 /*----------------------------------------------------------------------------

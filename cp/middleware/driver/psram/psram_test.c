@@ -463,7 +463,7 @@ static void psram_calibrate_test(psram_debug_t *ctx)
 	if (diff > 100 ) { //TODO give a reasonable value
 		for (int i = 0; i < 63; i++) {
 			uint32_t v = (i & 7) | ((i & ~7) << 3);
-			REG_WRITE(0x46080000 + (5 << 2), v);
+			REG_WRITE(SOC_PSRAM_CAL_REG_BASE + (5 << 2), v);
 			err_cnt = psram_calibrate_read_write_test(base_addr, 10240);
 			if (err_cnt) {
 				BK_LOGD(NULL, "%d %d %d %d %d\r\n", cur_temperature, (i & 7), (i >> 6) & 3, (i >> 8) & 3, err_cnt);

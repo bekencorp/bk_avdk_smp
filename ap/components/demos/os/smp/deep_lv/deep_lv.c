@@ -64,6 +64,7 @@
 
 /* Library includes. */
 #include <stdint.h>
+#include <soc/soc.h>
 #include "deep_lv.h"
 #include "bk7236xx.h"
 #include "partition_bk7236xx.h"
@@ -245,10 +246,10 @@ void dlv_stack_frame_save_and_dlv(void)
 	);
 
 	//FIXME power down cpu1, TODO hard coding
-	reg = *((volatile uint32_t *)(0x44010000 + 0x5 * 4));
+	reg = *((volatile uint32_t *)(SOC_SYSTEM_REG_BASE + 0x5 * 4));
 	reg |= (1 << 1);       /* power down cpu1*/
 	reg &= (~(1 << 0));    /*clear reset cpu1 bit*/
-	*((volatile uint32_t *)(0x44010000 + 0x5 * 4)) = reg;
+	*((volatile uint32_t *)(SOC_SYSTEM_REG_BASE + 0x5 * 4)) = reg;
 }
 
 /*************************************************************/
