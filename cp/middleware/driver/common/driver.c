@@ -63,10 +63,6 @@
 #include <driver/spi.h>
 #endif
 
-#if CONFIG_JPEGENC_HW
-#include <driver/jpeg_enc.h>
-#endif
-
 #if CONFIG_CALENDAR
 #include <driver/calendar.h>
 #endif
@@ -81,10 +77,6 @@
 
 #if CONFIG_CHIP_SUPPORT
 #include "modules/chip_support.h"
-#endif
-
-#if CONFIG_H264
-#include <driver/h264.h>
 #endif
 
 #if CONFIG_SDMADC
@@ -341,14 +333,6 @@ int driver_init(void) {
 
 #if CONFIG_QSPI
 	bk_qspi_driver_init();
-#endif
-
-#if CONFIG_JPEGENC_HW
-	bk_jpeg_enc_driver_init();
-#endif
-
-#if CONFIG_H264
-	bk_h264_driver_init();
 #endif
 
 #if CONFIG_CALENDAR

@@ -118,11 +118,6 @@ static int cli_hexstr2bin(const char *hex, u8 *buf, size_t len)
 	return 0;
 }
 
-#if CONFIG_JPEGENC_HW
-#include "jpeg_hal.h"
-#endif
-
-
 static void cli_reg_write_read_cmd_common(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv, bool is_secure)
 {
 	UINT32 reg_addr = 0, reg_value = 0;
@@ -315,11 +310,7 @@ static void cli_reg_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 		aon_rtc_struct_dump();
 	}
 #endif
-#if CONFIG_JPEGENC_HW
-	else if (os_strcmp(argv[1], "jpeg") == 0) {
-		jpeg_struct_dump();
-	}
-#endif
+
 #if CONFIG_CALENDAR
 	else if (os_strcmp(argv[1], "calendar") == 0) {
 		calendar_struct_dump();
