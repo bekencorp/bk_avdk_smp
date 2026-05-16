@@ -71,49 +71,125 @@ typedef enum
     IMAGE_H265   = (1 << 4),
 } image_format_t;
 
+/**
+ * @brief Pixel format identifiers.
+ *
+ * Naming / byte-order convention used in this enum:
+ *   - The characters in the name are read LEFT -> RIGHT in increasing memory
+ *     address order (i.e. byte-order naming, the same convention used by
+ *     OpenGL/Vulkan and most LCD/DPU controllers, NOT the "high-bit-first
+ *     32-bit integer" convention).
+ *   - On a little-endian CPU (BK series), packing the four characters of e.g.
+ *     ARGB8888 into a uint32_t directly will give a different byte layout in
+ *     memory; always think in terms of bytes when interfacing with hardware.
+ *   - Numeric values are kept in the original (implicit) order so existing
+ *     switch/case code is unaffected.
+ */
 typedef enum {
-    BK_PIXEL_FORMAT_UNKNOW,         /**< unknow image format */
+    BK_PIXEL_FORMAT_UNKNOW       = 0,    /**< unknown / invalid format */
 
-    /* Pixel format for RAW8 */
-    BK_PIXEL_FORMAT_BGGR8,
-    BK_PIXEL_FORMAT_GBRG8,
-    BK_PIXEL_FORMAT_GRBG8,
-    BK_PIXEL_FORMAT_RGGB8,
-    BK_PIXEL_FORMAT_RAW8,
+    /* =========================================================================
+     *  RAW8 - Bayer mosaic, 1 byte per pixel.
+     *  The four characters describe the colour of each cell in a 2x2 block:
+     *      +----+----+
+     *      | C0 | C1 |   row 0  (top)
+     *      +----+----+
+     *      | C2 | C3 |   row 1  (bottom)
+     *      +----+----+
+     *  Bytes in memory go row-major: C0, C1, ..., next row, ...
+     * ========================================================================= */
+    BK_PIXEL_FORMAT_BGGR8        = 1,    /**< 2x2: B G / G R   (8-bit per cell) */
+    BK_PIXEL_FORMAT_GBRG8        = 2,    /**< 2x2: G B / R G   (8-bit per cell) */
+    BK_PIXEL_FORMAT_GRBG8        = 3,    /**< 2x2: G R / B G   (8-bit per cell) */
+    BK_PIXEL_FORMAT_RGGB8        = 4,    /**< 2x2: R G / G B   (8-bit per cell) */
+    BK_PIXEL_FORMAT_RAW8         = 5,    /**< Generic 8-bit raw, pattern unspecified */
 
-    /* Pixel format for RAW10 */
-    BK_PIXEL_FORMAT_BGGR10,
-    BK_PIXEL_FORMAT_GBRG10,
-    BK_PIXEL_FORMAT_GRBG10,
-    BK_PIXEL_FORMAT_RGGB10,
-    BK_PIXEL_FORMAT_RAW10,
-    /* Pixel format for RGB565 */
-    BK_PIXEL_FORMAT_RGB565,
-    BK_PIXEL_FORMAT_BGR565,
+    /* =========================================================================
+     *  RAW10 - same Bayer mosaic as above but each cell is 10-bit, packed in
+     *  2 bytes (LSB-aligned in a uint16_t). 2 bytes per pixel.
+     * ========================================================================= */
+    BK_PIXEL_FORMAT_BGGR10       = 6,    /**< 2x2: B G / G R   (10-bit per cell) */
+    BK_PIXEL_FORMAT_GBRG10       = 7,    /**< 2x2: G B / R G   (10-bit per cell) */
+    BK_PIXEL_FORMAT_GRBG10       = 8,    /**< 2x2: G R / B G   (10-bit per cell) */
+    BK_PIXEL_FORMAT_RGGB10       = 9,    /**< 2x2: R G / G B   (10-bit per cell) */
+    BK_PIXEL_FORMAT_RAW10        = 10,   /**< Generic 10-bit raw, pattern unspecified */
 
-    /* Pixel format for ARGB565 */
-    BK_PIXEL_FORMAT_ARGB8565,
-    BK_PIXEL_FORMAT_ABGR8565,
-    BK_PIXEL_FORMAT_RGBA5658,
-    BK_PIXEL_FORMAT_BGRA5658, 
+    /* =========================================================================
+     *  RGB565 - 2 bytes per pixel, no alpha. Bit layout inside the 16-bit
+     *  pixel value (MSB ... LSB):
+     *      RGB565: [15:11]=R5 [10:5]=G6 [4:0]=B5
+     *      BGR565: [15:11]=B5 [10:5]=G6 [4:0]=R5
+     *  Stored little-endian in memory: low 8 bits at +0, high 8 bits at +1.
+     * ========================================================================= */
+    BK_PIXEL_FORMAT_RGB565       = 11,   /**< 16-bit:  R5 G6 B5  (high -> low) */
+    BK_PIXEL_FORMAT_BGR565       = 12,   /**< 16-bit:  B5 G6 R5  (high -> low) */
 
-    /* Pixel format for RGB888 */
-    BK_PIXEL_FORMAT_RGB888,
-    BK_PIXEL_FORMAT_BGR888,
+    /* =========================================================================
+     *  RGB565 + 8-bit Alpha - 3 bytes per pixel. Memory order (low addr first):
+     *      ARGB8565:  [+0]=A8     [+1..+2]=RGB565
+     *      ABGR8565:  [+0]=A8     [+1..+2]=BGR565
+     *      RGBA5658:  [+0..+1]=RGB565   [+2]=A8
+     *      BGRA5658:  [+0..+1]=BGR565   [+2]=A8
+     * ========================================================================= */
+    BK_PIXEL_FORMAT_ARGB8565     = 13,   /**< +0=A   +1..+2=RGB565 */
+    BK_PIXEL_FORMAT_ABGR8565     = 14,   /**< +0=A   +1..+2=BGR565 */
+    BK_PIXEL_FORMAT_RGBA5658     = 15,   /**< +0..+1=RGB565  +2=A  */
+    BK_PIXEL_FORMAT_BGRA5658     = 16,   /**< +0..+1=BGR565  +2=A  */
 
-    /* Pixel format for ARGB888 */
-    BK_PIXEL_FORMAT_ARGB8888,
-    BK_PIXEL_FORMAT_ABGR8888,
-    BK_PIXEL_FORMAT_RGBA8888,
-    BK_PIXEL_FORMAT_BGRA8888,
+    /* =========================================================================
+     *  RGB888 - 3 bytes per pixel, no alpha. Memory order (low addr first):
+     *      RGB888:  +0=R  +1=G  +2=B
+     *      BGR888:  +0=B  +1=G  +2=R
+     * ========================================================================= */
+    BK_PIXEL_FORMAT_RGB888       = 17,   /**< +0=R  +1=G  +2=B */
+    BK_PIXEL_FORMAT_BGR888       = 18,   /**< +0=B  +1=G  +2=R */
 
-    /* Pixel format for YUV */
-    BK_PIXEL_FORMAT_NV12,        /**< \brief Yuv420sp format, y0, y1, y2, y3, y4, y5, y6, y7, u1, v1, u2, v2.*/
-    BK_PIXEL_FORMAT_NV21,        /**< \brief Yuv420sp format, y0, y1, y2, y3, y4, y5, y6, y7, v1, u1, v2, u2.*/
-    BK_PIXEL_FORMAT_YUYV,        /**< \brief YUV422 package format. */
-    BK_PIXEL_FORMAT_VYUY,        /**< \brief YUV422 package format. */
-    BK_PIXEL_FORMAT_UYVY,        /**< \brief YUV422 package format. */
-    BK_PIXEL_FORMAT_YYUV,        /**< \brief YUV422 package format. */
+    /* =========================================================================
+     *  RGB888 + 8-bit Alpha - 4 bytes per pixel. Memory order (low addr first).
+     *
+     *  Example for an opaque red pixel (A=0xFF, R=0xFF, G=0x00, B=0x00):
+     *
+     *           +0    +1    +2    +3
+     *           +-----+-----+-----+-----+
+     *  ARGB8888 | FF  | FF  | 00  | 00  |   (+0=A +1=R +2=G +3=B)
+     *           +-----+-----+-----+-----+
+     *  ABGR8888 | FF  | 00  | 00  | FF  |   (+0=A +1=B +2=G +3=R)
+     *           +-----+-----+-----+-----+
+     *  RGBA8888 | FF  | 00  | 00  | FF  |   (+0=R +1=G +2=B +3=A)
+     *           +-----+-----+-----+-----+
+     *  BGRA8888 | 00  | 00  | FF  | FF  |   (+0=B +1=G +2=R +3=A)
+     *           +-----+-----+-----+-----+
+     *
+     *  CPU-pack helpers (little-endian, so the lowest byte ends up at +0):
+     *      ARGB8888:  pixel = (B<<24) | (G<<16) | (R<<8) | A
+     *      ABGR8888:  pixel = (R<<24) | (G<<16) | (B<<8) | A
+     *      RGBA8888:  pixel = (A<<24) | (B<<16) | (G<<8) | R
+     *      BGRA8888:  pixel = (A<<24) | (R<<16) | (G<<8) | B
+     *
+     *  Note: ARGB <-> BGRA and RGBA <-> ABGR are byte-reverses of each other.
+     * ========================================================================= */
+    BK_PIXEL_FORMAT_ARGB8888     = 19,   /**< +0=A  +1=R  +2=G  +3=B */
+    BK_PIXEL_FORMAT_ABGR8888     = 20,   /**< +0=A  +1=B  +2=G  +3=R */
+    BK_PIXEL_FORMAT_RGBA8888     = 21,   /**< +0=R  +1=G  +2=B  +3=A */
+    BK_PIXEL_FORMAT_BGRA8888     = 22,   /**< +0=B  +1=G  +2=R  +3=A */
+
+    /* =========================================================================
+     *  YUV
+     *
+     *  NV12 / NV21 are PLANAR 4:2:0 (1.5 bytes per pixel):
+     *      [ Y plane: width*height bytes                  ]
+     *      [ UV plane: width*height/2 bytes, interleaved  ]
+     *
+     *  YUYV / VYUY / UYVY / YYUV are PACKED 4:2:2 (2 bytes per pixel). The
+     *  four characters give the byte order for every pair of adjacent pixels
+     *  (occupying 4 bytes total).
+     * ========================================================================= */
+    BK_PIXEL_FORMAT_NV12         = 23,   /**< 4:2:0 planar; UV-interleaved (U V U V ...) after Y plane */
+    BK_PIXEL_FORMAT_NV21         = 24,   /**< 4:2:0 planar; VU-interleaved (V U V U ...) after Y plane */
+    BK_PIXEL_FORMAT_YUYV         = 25,   /**< 4:2:2 packed; bytes per 2 pixels:  Y0  U   Y1  V  */
+    BK_PIXEL_FORMAT_VYUY         = 26,   /**< 4:2:2 packed; bytes per 2 pixels:  V   Y0  U   Y1 */
+    BK_PIXEL_FORMAT_UYVY         = 27,   /**< 4:2:2 packed; bytes per 2 pixels:  U   Y0  V   Y1 */
+    BK_PIXEL_FORMAT_YYUV         = 28,   /**< 4:2:2 packed; bytes per 2 pixels:  Y0  Y1  U   V  */
 } bk_pixel_format_t;
 
 // need optimize
