@@ -147,7 +147,8 @@ static int _sbc_encoder_process(audio_element_handle_t self, char *in_buffer, in
         int num_frames = r_size / frame_size;
 
         if (num_frames > 0) {
-            unsigned char *sbc_out_ptr = audio_malloc(BT_SBC_MAX_FRAME_SIZE * num_frames);
+            int max_frame_size = sbc_enc->msbc_mode ? (BT_SBC_MAX_FRAME_SIZE + 2) : BT_SBC_MAX_FRAME_SIZE;
+            unsigned char *sbc_out_ptr = audio_malloc(max_frame_size * num_frames);
             AUDIO_MEM_CHECK(TAG, sbc_out_ptr, return -1);
 
             int total_encoded_len = 0;
@@ -159,6 +160,14 @@ static int _sbc_encoder_process(audio_element_handle_t self, char *in_buffer, in
 
                 if (encoded_len > 0) {
                     // Copy encoded data to output buffer
+                    if (sbc_enc->msbc_mode) {
+                        /*
+                         * In mSBC mode, HFP voice path expects H2 sync header + mSBC payload.
+                         * Keep this behavior consistent with legacy HFP manual encode path.
+                         */
+                        memcpy(sbc_out_ptr + total_encoded_len, sbc_enc->enc_context.frame_id, 2);
+                        total_encoded_len += 2;
+                    }
                     memcpy(sbc_out_ptr + total_encoded_len, sbc_enc->enc_context.stream, encoded_len);
                     total_encoded_len += encoded_len;
                 } else {

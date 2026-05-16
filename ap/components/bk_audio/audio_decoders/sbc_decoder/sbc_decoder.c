@@ -84,6 +84,7 @@ typedef struct {
     struct sbc_frame  frame;
     uint32_t          sample_rate;
     uint8_t           channel_number;
+    bool              msbc_mode;
     uint8_t           pending[2048];
     uint32_t          pending_len;
     int16_t           pcml[SBC_MAX_SAMPLES];
@@ -175,81 +176,133 @@ static int _sbc_decoder_process(audio_element_handle_t self, char *in_buffer, in
     dec->pending_len += (uint32_t)r_size;
 
     uint32_t offset = 0;
-    while (offset < dec->pending_len) {
-        uint8_t *d = dec->pending + offset;
-        uint32_t remain = dec->pending_len - offset;
+    if (dec->msbc_mode) {
+        const uint32_t msbc_packet_size = 59; /* H2(2B) + mSBC payload(57B) */
+        const uint32_t msbc_payload_offset = 2;
+        const uint32_t msbc_payload_size = 57;
 
-        if (d[0] != 0x9C && d[0] != 0xAD) {
-            offset++;
-            continue;
-        }
-        if (remain < SBC_HEADER_SIZE) {
-            break;
-        }
-        if (sbc_probe(d, &dec->frame) < 0) {
-            offset++;
-            continue;
-        }
+        while ((dec->pending_len - offset) >= msbc_packet_size) {
+            uint8_t *d = dec->pending + offset;
 
-        uint32_t fsize = sbc_get_frame_size(&dec->frame);
-        if (fsize == 0 || remain < fsize) {
-            break;
-        }
-
-        int ret = sbc_decode(&dec->sbc, d, fsize, &dec->frame, dec->pcml, 1, dec->pcmr, 1);
-        if (ret < 0) {
-            BK_LOGW(TAG, "[%s] sbc_decode err, resync", audio_element_get_tag(self));
-            offset++;
-            continue;
-        }
-        offset += fsize;
-
-        int nch     = (dec->frame.mode == SBC_MODE_MONO) ? 1 : 2;
-        int pcm_len = dec->frame.nblocks * dec->frame.nsubbands;
-
-        if (music_info_report(self) != BK_OK) {
-            BK_LOGW(TAG, "[%s] report info failed", audio_element_get_tag(self));
-        }
-        int out_len = 0;
-        int output_size = 0;
-
-        if (nch == 1) {
-            output_size = pcm_len * (int)sizeof(int16_t);
-            out_len = audio_element_output(self, (char *)dec->pcml, output_size);
-            if (out_len > 0) {
-                w_size += out_len;
+            /* Resync by mSBC syncword at payload start. */
+            if (d[msbc_payload_offset] != 0xAD) {
+                offset++;
+                continue;
             }
-        } else {
-            for (int i = 0; i < pcm_len; i++) {
-                dec->pcm_out[2 * i]     = dec->pcml[i];
-                dec->pcm_out[2 * i + 1] = dec->pcmr[i];
+
+            int ret = sbc_decode(&dec->sbc, d + msbc_payload_offset, msbc_payload_size,
+                                 &dec->frame, dec->pcml, 1, dec->pcmr, 1);
+            if (ret < 0) {
+                BK_LOGW(TAG, "[%s] msbc decode err, resync", audio_element_get_tag(self));
+                offset++;
+                continue;
             }
-            output_size = pcm_len * 2 * (int)sizeof(int16_t);
-            out_len = audio_element_output(self, (char *)dec->pcm_out, output_size);
-            if (out_len > 0) {
-                w_size += out_len;
+            offset += msbc_packet_size;
+
+            int nch     = (dec->frame.mode == SBC_MODE_MONO) ? 1 : 2;
+            int pcm_len = dec->frame.nblocks * dec->frame.nsubbands;
+
+            if (music_info_report(self) != BK_OK) {
+                BK_LOGW(TAG, "[%s] report info failed", audio_element_get_tag(self));
+            }
+            int out_len = 0;
+            int output_size = 0;
+
+            if (nch == 1) {
+                output_size = pcm_len * (int)sizeof(int16_t);
+                out_len = audio_element_output(self, (char *)dec->pcml, output_size);
+                if (out_len > 0) {
+                    w_size += out_len;
+                }
+            } else {
+                for (int i = 0; i < pcm_len; i++) {
+                    dec->pcm_out[2 * i]     = dec->pcml[i];
+                    dec->pcm_out[2 * i + 1] = dec->pcmr[i];
+                }
+                output_size = pcm_len * 2 * (int)sizeof(int16_t);
+                out_len = audio_element_output(self, (char *)dec->pcm_out, output_size);
+                if (out_len > 0) {
+                    w_size += out_len;
+                }
             }
         }
-        if(is_aud_dump_valid(DUMP_TYPE_DEC_OUT_DATA))
-        {
-            /*update header*/
-            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_DEC_OUT_DATA, 0, DUMP_FILE_TYPE_PCM);
-            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_DEC_OUT_DATA, 0, out_len);
-            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_DEC_OUT_DATA);
+    } else {
+	    while (offset < dec->pending_len) {
+	        uint8_t *d = dec->pending + offset;
+	        uint32_t remain = dec->pending_len - offset;
 
-            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
-            DEBUG_DATA_DUMP_SUSPEND_ALL;
+	        if (d[0] != 0x9C && d[0] != 0xAD) {
+	            offset++;
+	            continue;
+	        }
+	        if (remain < SBC_HEADER_SIZE) {
+	            break;
+	        }
+	        if (sbc_probe(d, &dec->frame) < 0) {
+	            offset++;
+	            continue;
+	        }
 
-            /*dump header*/
-            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_DEC_OUT_DATA);
+	        uint32_t fsize = sbc_get_frame_size(&dec->frame);
+	        if (fsize == 0 || remain < fsize) {
+	            break;
+	        }
 
-            /*dump data*/
-            DEBUG_DATA_DUMP_BY_UART_DATA(dec->pcm_out, out_len);
-            DEBUG_DATA_DUMP_RESUME_ALL;
+	        int ret = sbc_decode(&dec->sbc, d, fsize, &dec->frame, dec->pcml, 1, dec->pcmr, 1);
+	        if (ret < 0) {
+	            BK_LOGW(TAG, "[%s] sbc_decode err, resync", audio_element_get_tag(self));
+	            offset++;
+	            continue;
+	        }
+	        offset += fsize;
 
-            /*update seq*/
-            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_DEC_OUT_DATA);
-        }
+	        int nch     = (dec->frame.mode == SBC_MODE_MONO) ? 1 : 2;
+	        int pcm_len = dec->frame.nblocks * dec->frame.nsubbands;
+
+	        if (music_info_report(self) != BK_OK) {
+	            BK_LOGW(TAG, "[%s] report info failed", audio_element_get_tag(self));
+	        }
+	        int out_len = 0;
+	        int output_size = 0;
+
+	        if (nch == 1) {
+	            output_size = pcm_len * (int)sizeof(int16_t);
+	            out_len = audio_element_output(self, (char *)dec->pcml, output_size);
+	            if (out_len > 0) {
+	                w_size += out_len;
+	            }
+	        } else {
+	            for (int i = 0; i < pcm_len; i++) {
+	                dec->pcm_out[2 * i]     = dec->pcml[i];
+	                dec->pcm_out[2 * i + 1] = dec->pcmr[i];
+	            }
+	            output_size = pcm_len * 2 * (int)sizeof(int16_t);
+	            out_len = audio_element_output(self, (char *)dec->pcm_out, output_size);
+	            if (out_len > 0) {
+	                w_size += out_len;
+	            }
+	        }
+	        if(is_aud_dump_valid(DUMP_TYPE_DEC_OUT_DATA))
+	        {
+	            /*update header*/
+	            DEBUG_DATA_DUMP_UPDATE_HEADER_DUMP_FILE_TYPE(DUMP_TYPE_DEC_OUT_DATA, 0, DUMP_FILE_TYPE_PCM);
+	            DEBUG_DATA_DUMP_UPDATE_HEADER_DATA_FLOW_LEN(DUMP_TYPE_DEC_OUT_DATA, 0, out_len);
+	            DEBUG_DATA_DUMP_UPDATE_HEADER_TIMESTAMP(DUMP_TYPE_DEC_OUT_DATA);
+
+	            /*dump data function is called by multi-thread,need suspend task scheduler until data dump finished*/
+	            DEBUG_DATA_DUMP_SUSPEND_ALL;
+
+	            /*dump header*/
+	            DEBUG_DATA_DUMP_BY_UART_HEADER(DUMP_TYPE_DEC_OUT_DATA);
+
+	            /*dump data*/
+	            DEBUG_DATA_DUMP_BY_UART_DATA(dec->pcm_out, out_len);
+	            DEBUG_DATA_DUMP_RESUME_ALL;
+
+	            /*update seq*/
+	            DEBUG_DATA_DUMP_UPDATE_HEADER_SEQ_NUM(DUMP_TYPE_DEC_OUT_DATA);
+	        }
+	    }
     }
 
     if (offset > 0 && offset <= dec->pending_len) {
@@ -299,6 +352,7 @@ audio_element_handle_t sbc_dec_init(sbc_decoder_cfg_t *config)
     el = audio_element_init(&cfg);
     AUDIO_MEM_CHECK(TAG, el, goto _sbc_decoder_init_exit);
     audio_element_setdata(el, sbc_dec);
+    sbc_dec->msbc_mode = config->msbc_mode;
 
     /* Set the initial SBC audio frame information */
     audio_element_info_t info = {0};
