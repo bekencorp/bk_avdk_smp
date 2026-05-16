@@ -145,6 +145,7 @@ static void app_display_teardown(display_ctx_t *ctx)
     }
 
     if (ctx->panel) {
+        bk_lcd_panel_reset(ctx->panel);
         (void)bk_lcd_panel_del(ctx->panel);
         ctx->panel = NULL;
     }
