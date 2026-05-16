@@ -33,19 +33,19 @@ static void bk_auxldo_enable(void)
 static AvdkVideoReatorOSD *video_reator = NULL;
 static YolofaceDetectionModel *model = NULL;
 
+static void detection_box_cb(Box *boxes, int count)
+{
+    bk_printf("detection_box_cb: score=%.3f, x=%.2f, y=%.2f, w=%.2f, h=%.2f\n",
+              boxes[0].score, boxes[0].x, boxes[0].y, boxes[0].w, boxes[0].h);
+
+    /* src = model input size (256x256), dst = display canvas size (1088x1088). */
+    box_detection_path_build(boxes, count, count, 0, model->getWidth(), model->getHeight(), 1088, 1088);
+}
+
 int ai_main_start()
 {
     model = new YolofaceDetectionModel();
-
-    /* NOTE: Unlike PalmDetectionModel (which fires `onBoxDetectionCallback`
-     * after each successful detection), YolofaceDetectionModel currently does
-     * the box drawing INSIDE its own `run()` (see
-     * YolofaceDetectionModel.cc -> box_detection_path_build()). So there is
-     * no point in calling `model->setBoxDetectionCallback(...)` here -- it
-     * would never fire. To unify the two paths, move the
-     * `box_detection_path_build` call out of YolofaceDetectionModel::run()
-     * and replace it with `onBoxDetectionCallback(...)`, then this app can
-     * register a callback the same way palm_recognition does. */
+    model->setBoxDetectionCallback(detection_box_cb);
 
     video_reator = new AvdkVideoReatorOSD(model);
     video_reator->init();
