@@ -12,7 +12,7 @@
 #include <components/bk_frame_buffer.h>
 #include <components/bk_display.h>          /* umbrella: bus + panel + display ctlr */
 #include <common/avdk_pixel_types.h>
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 
 #include "gpu_vn_ctlr_v2.h"
 

@@ -13,7 +13,7 @@
 #include "app_jpeg_decode.h"
 #include <components/bk_uvc_camera_types.h>
 #include "doorbell_img_manager.h"
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 #include "devices_mgmt.h"
 #include <sys_types.h>
 #include <modules/pm.h>

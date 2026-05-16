@@ -16,7 +16,7 @@
 #include "gpu_core.h"
 
 #include "tiger_paths.h"
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 
 
 #define TAG "app"

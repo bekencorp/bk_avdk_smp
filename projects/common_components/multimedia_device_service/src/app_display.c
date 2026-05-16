@@ -29,7 +29,7 @@
 #include "gpio_driver.h"
 #include "app_display.h"
 #if CONFIG_LCD_LT8912B_MIPI_BRIDGE
-#include <lcd/lcd_lt8912b_mipi_bridge.h>     /* bridge-private I2C pin setter */
+#include <lcd/lcd_mipi_lt8912b_bridge.h>     /* bridge-private I2C pin setter */
 #endif
 
 #define TAG "app-disp"

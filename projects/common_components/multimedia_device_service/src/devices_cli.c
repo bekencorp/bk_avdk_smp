@@ -23,8 +23,8 @@
 #include <components/bk_flexa_bond.h>
 #include "app_jpeg_decode.h"
 #include <components/bk_encode/bk_h264_encode_ctlr.h>
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
-#include <lcd/lcd_hx8394f_mipi_720x1280.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
+#include <lcd/lcd_mipi_hx8394f_720x1280.h>
 
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)

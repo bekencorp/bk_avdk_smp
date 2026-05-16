@@ -18,7 +18,7 @@
 #include "bk_smart_config.h"
 #include "doorbell_db_cam_cli.h"
 #endif
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 
 int main(void)
 {

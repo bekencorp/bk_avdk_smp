@@ -19,7 +19,7 @@
 #include "avdk_monitor.h"
 #include "doorbell_comm.h"
 #include "doorbell_kvs_network_transfer.h"
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 
 extern int kvs_webrtc_cli_init(void);
 extern void mm_test_cli_init(void);

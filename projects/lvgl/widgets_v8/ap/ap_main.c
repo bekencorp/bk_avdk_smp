@@ -14,7 +14,7 @@
 #include <components/bk_frame_buffer.h>
 #include <common/avdk_pixel_types.h>
 #include <components/bk_display.h>
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 #include <driver/gpio.h>
 #include "gpio_driver.h"
 

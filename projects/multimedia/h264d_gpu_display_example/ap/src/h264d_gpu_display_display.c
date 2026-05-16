@@ -7,7 +7,7 @@
 #include <components/log.h>
 #include <components/bk_display.h>
 #include <avdk_check.h>
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 #include "h264d_gpu_display_display.h"
 
 #define TAG "h264d_disp"

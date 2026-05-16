@@ -6,7 +6,7 @@
 #include <components/bk_frame_buffer.h>
 #include <components/log.h>
 #include <common/avdk_pixel_types.h>
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 
 // #include "h264_decoder_api.h"
 #include "encode_frame_que.h"

@@ -13,7 +13,7 @@
 #include "devices_mgmt.h"
 #include "app_gpu.h"
 #include "avdk_monitor.h"
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 
 #include "video_player_cli.h"
 

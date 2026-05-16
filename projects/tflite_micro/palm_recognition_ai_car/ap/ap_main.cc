@@ -11,7 +11,7 @@
 #include "devices_mgmt.h"
 #include "app_gpu.h"
 #include "avdk_monitor.h"
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
+#include <lcd/lcd_mipi_hx8399c_1080x1920.h>
 #define SYS_ANA_REG_BASE    (0x44010000)
 #define LDO_ANA_REG         (0x69)
 

@@ -27,7 +27,7 @@
 
 #include <avdk_error.h>
 #include <avdk_check.h>
-#include <lcd/lcd_lt8912b_mipi_bridge.h>
+#include <lcd/lcd_mipi_lt8912b_bridge.h>
 
 #if CONFIG_LCD_LT8912B_MIPI_BRIDGE
 
