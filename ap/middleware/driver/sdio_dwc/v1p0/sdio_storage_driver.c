@@ -1823,91 +1823,91 @@ void sdio_dwc_isr0(void)
     if(normal_int & CMD_COMPLETE_STAT_EN)
     {
         CMD_COMPLETE_STATE = 1;
-        SDIOD_LOGI("CMD_COMP\r\n");
+        SDIOD_LOGD("CMD_COMP\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_COMPLETE_STAT;
     }
     if(normal_int & XFER_COMPLETE_STAT_EN)
     {
         XFER_COMPLETE_STATE = 1;
-        SDIOD_LOGI("XFER_COMP\r\n");
+        SDIOD_LOGD("XFER_COMP\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_XFER_COMPLETE_STAT;
     }
     if(normal_int & BGAP_EVENT_STAT_EN)
     {
         BGAP_EVENT_STATE = 1;
-        SDIOD_LOGI("BGAP_EVENT\r\n");
+        SDIOD_LOGD("BGAP_EVENT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_BGAP_EVENT_STAT;
     }
     if(normal_int & DMA_INTERRUPT_STAT_EN)
     {
         DMA_INTERRUPT_STATE = 1;
-        SDIOD_LOGI("DMA_INT\r\n");
+        SDIOD_LOGD("DMA_INT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_DMA_INTERRUPT_STAT;
     }
     if(normal_int & BUF_WR_READY_STAT_EN)
     {
         BUF_WR_READY_STATE = 1;
-        SDIOD_LOGI("BUF_WR_READY\r\n");
+        SDIOD_LOGD("BUF_WR_READY\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_BUF_WR_READY_STAT;
     }
     if(normal_int & BUF_RD_READY_STAT_EN)
     {
         BUF_RD_READY_STATE = 1;
-        SDIOD_LOGI("BUF_RD_READY\r\n");
+        SDIOD_LOGD("BUF_RD_READY\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_BUF_RD_READY_STAT;
     }
     if(normal_int & CARD_INSERTION_STAT_EN)
     {
         CARD_INSERTION_STATE = 1;
-        SDIOD_LOGI("CARD_INSERTION\r\n");
+        SDIOD_LOGD("CARD_INSERTION\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CARD_INSERTION_STAT;//clear the card insertion bit
     }
     if(normal_int & CARD_REMOVAL_STAT_EN)
     {
         CARD_REMOVAL_STATE = 1;
-        SDIOD_LOGI("CARD_REMOVAL\r\n");
+        SDIOD_LOGD("CARD_REMOVAL\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CARD_REMOVAL_STAT;
     }
     if(normal_int & CARD_INTERRUPT_STAT_EN)
     {
         CARD_INTERRUPT_STATE = 1;
-        SDIOD_LOGI("CARD_INTERRUPT\r\n");
+        SDIOD_LOGD("CARD_INTERRUPT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CARD_INTERRUPT_STAT;
     }
     if(normal_int & INT_A_STAT_EN)
     {
         INT_A_STATE = 1;
-        SDIOD_LOGI("INT_A\r\n");
+        SDIOD_LOGD("INT_A\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_INT_A_STAT;
     }
     if(normal_int & INT_B_STAT_EN)
     {
         INT_B_STATE = 1;
-        SDIOD_LOGI("INT_B\r\n");
+        SDIOD_LOGD("INT_B\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_INT_B_STAT;
     }
     if(normal_int & INT_C_STAT_EN)
     {
         INT_C_STATE = 1;
-        SDIOD_LOGI("INT_C\r\n");
+        SDIOD_LOGD("INT_C\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_INT_C_STAT;
     }
     if(normal_int & RE_TUNE_EVENT_STAT_EN)
     {
         RE_TUNE_EVENT_STATE = 1;
-        SDIOD_LOGI("RE_TUNE_EVENT\r\n");
+        SDIOD_LOGD("RE_TUNE_EVENT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_RE_TUNE_EVENT_STAT;
     }
     if(normal_int & FX_EVENT_STAT_EN)
     {
         FX_EVENT_STATE = 1;
-        SDIOD_LOGI("FX_EVENT\r\n");
+        SDIOD_LOGD("FX_EVENT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_FX_EVENT_STAT;
     }
     if(normal_int & CQE_EVENT_STAT_EN)
     {
         CQE_EVENT_STATE = 1;
-        SDIOD_LOGI("CQE_EVENT\r\n");
+        SDIOD_LOGD("CQE_EVENT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_0_base)= CLR_CQE_EVENT_STAT;
     }
     if(error_int & ERROR_INTERRUPT_STAT_EN)
@@ -2026,91 +2026,91 @@ void sdio_dwc_isr1(void)
     if(normal_int & CMD_COMPLETE_STAT_EN)
     {
         CMD_COMPLETE_STATE = 1;
-        SDIOD_LOGI("CMD_COMP\r\n");
+        SDIOD_LOGD("CMD_COMP\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_CMD_COMPLETE_STAT;
     }
     if(normal_int & XFER_COMPLETE_STAT_EN)
     {
         XFER_COMPLETE_STATE = 1;
-        SDIOD_LOGI("XFER_COMP\r\n");
+        SDIOD_LOGD("XFER_COMP\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_XFER_COMPLETE_STAT;
     }
     if(normal_int & BGAP_EVENT_STAT_EN)
     {
         BGAP_EVENT_STATE = 1;
-        SDIOD_LOGI("BGAP_EVENT\r\n");
+        SDIOD_LOGD("BGAP_EVENT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_BGAP_EVENT_STAT;
     }
     if(normal_int & DMA_INTERRUPT_STAT_EN)
     {
         DMA_INTERRUPT_STATE = 1;
-        SDIOD_LOGI("DMA_INT\r\n");
+        SDIOD_LOGD("DMA_INT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_DMA_INTERRUPT_STAT;
     }
     if(normal_int & BUF_WR_READY_STAT_EN)
     {
         BUF_WR_READY_STATE = 1;
-        SDIOD_LOGI("BUF_WR_READY\r\n");
+        SDIOD_LOGD("BUF_WR_READY\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_BUF_WR_READY_STAT;
     }
     if(normal_int & BUF_RD_READY_STAT_EN)
     {
         BUF_RD_READY_STATE = 1;
-        SDIOD_LOGI("BUF_RD_READY\r\n");
+        SDIOD_LOGD("BUF_RD_READY\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_BUF_RD_READY_STAT;
     }
     if(normal_int & CARD_INSERTION_STAT_EN)
     {
         CARD_INSERTION_STATE = 1;
-        SDIOD_LOGI("CARD_INSERTION\r\n");
+        SDIOD_LOGD("CARD_INSERTION\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_CARD_INSERTION_STAT;//clear the card insertion bit
     }
     if(normal_int & CARD_REMOVAL_STAT_EN)
     {
         CARD_REMOVAL_STATE = 1;
-        SDIOD_LOGI("CARD_REMOVAL\r\n");
+        SDIOD_LOGD("CARD_REMOVAL\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_CARD_REMOVAL_STAT;
     }
     if(normal_int & CARD_INTERRUPT_STAT_EN)
     {
         CARD_INTERRUPT_STATE = 1;
-        SDIOD_LOGI("CARD_INTERRUPT\r\n");
+        SDIOD_LOGD("CARD_INTERRUPT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_CARD_INTERRUPT_STAT;
     }
     if(normal_int & INT_A_STAT_EN)
     {
         INT_A_STATE = 1;
-        SDIOD_LOGI("INT_A\r\n");
+        SDIOD_LOGD("INT_A\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_INT_A_STAT;
     }
     if(normal_int & INT_B_STAT_EN)
     {
         INT_B_STATE = 1;
-        SDIOD_LOGI("INT_B\r\n");
+        SDIOD_LOGD("INT_B\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_INT_B_STAT;
     }
     if(normal_int & INT_C_STAT_EN)
     {
         INT_C_STATE = 1;
-        SDIOD_LOGI("INT_C\r\n");
+        SDIOD_LOGD("INT_C\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_INT_C_STAT;
     }
     if(normal_int & RE_TUNE_EVENT_STAT_EN)
     {
         RE_TUNE_EVENT_STATE = 1;
-        SDIOD_LOGI("RE_TUNE_EVENT\r\n");
+        SDIOD_LOGD("RE_TUNE_EVENT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_RE_TUNE_EVENT_STAT;
     }
     if(normal_int & FX_EVENT_STAT_EN)
     {
         FX_EVENT_STATE = 1;
-        SDIOD_LOGI("FX_EVENT\r\n");
+        SDIOD_LOGD("FX_EVENT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_FX_EVENT_STAT;
     }
     if(normal_int & CQE_EVENT_STAT_EN)
     {
         CQE_EVENT_STATE = 1;
-        SDIOD_LOGI("CQE_EVENT\r\n");
+        SDIOD_LOGD("CQE_EVENT\r\n");
         NORMAL_INT_STAT_R(sdio_mshc_1_base)= CLR_CQE_EVENT_STAT;
     }
     if(error_int & ERROR_INTERRUPT_STAT_EN)
