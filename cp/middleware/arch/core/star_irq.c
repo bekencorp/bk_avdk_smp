@@ -35,6 +35,11 @@ uint32_t arch_int_get_enable_irq(uint32_t irq)
 	return NVIC_GetEnableIRQ(TO_NVIC_IRQ(irq));
 }
 
+void arch_int_clear_pending_irq(uint32_t irq)
+{
+	NVIC_ClearPendingIRQ(TO_NVIC_IRQ(irq));
+}
+
 void arch_int_set_target_state(uint32_t irq)
 {
 	NVIC_SetTargetState(TO_NVIC_IRQ(irq));

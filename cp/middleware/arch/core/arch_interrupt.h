@@ -38,6 +38,7 @@ void arch_interrupt_set_priority(uint32_t int_number, uint32_t int_priority);
 void arch_int_enable_irq(uint32_t irq);
 void arch_int_disable_irq(uint32_t irq);
 uint32_t arch_int_get_enable_irq(uint32_t irq);
+void arch_int_clear_pending_irq(uint32_t irq);
 void arch_int_set_target_state(uint32_t irq);
 void arch_int_clear_target_state(uint32_t irq);
 uint32_t arch_int_get_target_state(uint32_t irq);

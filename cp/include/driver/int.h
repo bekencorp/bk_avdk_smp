@@ -114,6 +114,17 @@ bk_err_t bk_int_isr_unregister(icu_int_src_t src);
  */
 bk_err_t bk_int_set_priority(icu_int_src_t src, uint32_t int_priority);
 
+/**
+ * @brief     Clear pending state of an interrupt source in NVIC
+ *
+ * @param src interrupt source device
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_INT_DEVICE_NONE: interrupt source is invalid
+ *    - others: other errors.
+ */
+bk_err_t bk_int_clear_pending(icu_int_src_t src);
 
 /**
  * @brief     set the interrupt group priority

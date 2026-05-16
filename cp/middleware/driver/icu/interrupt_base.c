@@ -59,6 +59,15 @@ bk_err_t bk_int_set_priority(icu_int_src_t int_src, uint32_t int_priority)
 	return BK_OK;
 }
 
+bk_err_t bk_int_clear_pending(icu_int_src_t src)
+{
+	ICU_RETURN_ON_INVALID_DEVS(src);
+
+	arch_int_clear_pending_irq(src);
+
+	return BK_OK;
+}
+
 bk_err_t bk_int_isr_unregister(icu_int_src_t src)
 {
 	ICU_RETURN_ON_INVALID_DEVS(src);
