@@ -1913,103 +1913,103 @@ void sdio_dwc_isr0(void)
     if(error_int & ERROR_INTERRUPT_STAT_EN)
     {
         ERROR_INTERRUPT_STATE = 1;
-        SDIOD_LOGI("ERROR_INTERRUPT\r\n");
+        SDIOD_LOGD("ERROR_INTERRUPT\r\n");
     }
 
     if(error_int & CMD_TOUT_ERR_STAT_EN)
     {
         CMD_TOUT_ERR_STATE = 1;
-        SDIOD_LOGI("CMD_TOUT_ERR, command timeout error\r\n");
+        SDIOD_LOGD("CMD_TOUT_ERR, command timeout error\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_TOUT_ERR_STAT;
     }
     if(error_int & CMD_CRC_ERR_STAT_EN)
     {
         CMD_CRC_ERR_STATE = 1;
-        SDIOD_LOGI("CMD_CRC_ERR\r\n");
+        SDIOD_LOGD("CMD_CRC_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_CRC_ERR_STAT;
     }
     if(error_int & CMD_END_BIT_ERR_STAT_EN)
     {
         CMD_END_BIT_ERR_STATE = 1;
-        SDIOD_LOGI("CMD_END_BIT_ERR\r\n");
+        SDIOD_LOGD("CMD_END_BIT_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_END_BIT_ERR_STAT;
     }
     if(error_int & CMD_IDX_ERR_STAT_EN)
     {
         CMD_IDX_ERR_STATE = 1;
-        SDIOD_LOGI("CMD_IDX_ERR\r\n");
+        SDIOD_LOGD("CMD_IDX_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CMD_IDX_ERR_STAT;
     }
     if(error_int & DATA_TOUT_ERR_STAT_EN)
     {
         DATA_TOUT_ERR_STATE = 1;
-        SDIOD_LOGI("DATA_TOUT_ERR\r\n");
+        SDIOD_LOGD("DATA_TOUT_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_DATA_TOUT_ERR_STAT;
     }
     if(error_int & DATA_CRC_ERR_STAT_EN)
     {
         DATA_CRC_ERR_STATE = 1;
-        SDIOD_LOGI("DATA_CRC_ERR\r\n");
+        SDIOD_LOGD("DATA_CRC_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_DATA_CRC_ERR_STAT;
     }
     if(error_int & DATA_END_BIT_ERR_STAT_EN)
     {
         DATA_END_BIT_ERR_STATE = 1;
-        SDIOD_LOGI("DATA_END_BIT_ERR\r\n");
+        SDIOD_LOGD("DATA_END_BIT_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_DATA_END_BIT_ERR_STAT;
     }
     if(error_int & CUR_LMT_ERR_STAT_EN)
     {
         CUR_LMT_ERR_STATE = 1;
-        SDIOD_LOGI("CUR_LMT_ERR\r\n");
+        SDIOD_LOGD("CUR_LMT_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_CUR_LMT_ERR_STAT;
     }
     if(error_int & AUTO_CMD_ERR_STAT_EN)
     {
         AUTO_CMD_ERR_STATE = 1;
-        SDIOD_LOGI("AUTO_CMD_ERR\r\n");
+        SDIOD_LOGD("AUTO_CMD_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_AUTO_CMD_ERR_STAT;
     }
     if(error_int & ADMA_ERR_STAT_EN)
     {
         ADMA_ERR_STATE = 1;
-        SDIOD_LOGI("ADMA_ERR\r\n");
+        SDIOD_LOGD("ADMA_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_ADMA_ERR_STAT;
     }
     if(error_int & TUNING_ERR_STAT_EN)
     {
         TUNING_ERR_STATE = 1;
-        SDIOD_LOGI("TUNING_ERR\r\n");
+        SDIOD_LOGD("TUNING_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_TUNING_ERR_STAT;
     }
     if(error_int & RESP_ERR_STAT_EN)
     {
         RESP_ERR_STATE = 1;
-        SDIOD_LOGI("RESP_ERR\r\n");
+        SDIOD_LOGD("RESP_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_RESP_ERR_STAT;
     }
     if(error_int & BOOT_ACK_ERR_STAT_EN)
     {
         BOOT_ACK_ERR_STATE = 1;
-        SDIOD_LOGI("BOOT_ACK_ERR\r\n");
+        SDIOD_LOGD("BOOT_ACK_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_BOOT_ACK_ERR_STAT;
     }
     if(error_int & VENDOR_ERR1_STAT_EN)
     {
         VENDOR_ERR1_STATE = 1;
-        SDIOD_LOGI("VENDOR_ERR1\r\n");
+        SDIOD_LOGD("VENDOR_ERR1\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_VENDOR_ERR1_STAT;
     }
     if(error_int & VENDOR_ERR2_STAT_EN)
     {
         VENDOR_ERR2_STATE = 1;
-        SDIOD_LOGI("VENDOR_ERR2\r\n");
+        SDIOD_LOGD("VENDOR_ERR2\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_VENDOR_ERR2_STAT;
     }
     if(error_int & VENDOR_ERR3_STAT_EN)
     {
         VENDOR_ERR3_STATE = 1;
-        SDIOD_LOGI("VENDOR_ERR3\r\n");
+        SDIOD_LOGD("VENDOR_ERR3\r\n");
         ERROR_INT_STAT_R(sdio_mshc_0_base)= CLR_VENDOR_ERR3_STAT;
     }
 
@@ -2116,103 +2116,103 @@ void sdio_dwc_isr1(void)
     if(error_int & ERROR_INTERRUPT_STAT_EN)
     {
         ERROR_INTERRUPT_STATE = 1;
-        SDIOD_LOGI("ERROR_INTERRUPT\r\n");
+        SDIOD_LOGD("ERROR_INTERRUPT\r\n");
     }
 
     if(error_int & CMD_TOUT_ERR_STAT_EN)
     {
         CMD_TOUT_ERR_STATE = 1;
-        SDIOD_LOGI("CMD_TOUT_ERR\r\n");
+        SDIOD_LOGD("CMD_TOUT_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_CMD_TOUT_ERR_STAT;
     }
     if(error_int & CMD_CRC_ERR_STAT_EN)
     {
         CMD_CRC_ERR_STATE = 1;
-        SDIOD_LOGI("CMD_CRC_ERR\r\n");
+        SDIOD_LOGD("CMD_CRC_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_CMD_CRC_ERR_STAT;
     }
     if(error_int & CMD_END_BIT_ERR_STAT_EN)
     {
         CMD_END_BIT_ERR_STATE = 1;
-        SDIOD_LOGI("CMD_END_BIT_ERR\r\n");
+        SDIOD_LOGD("CMD_END_BIT_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_CMD_END_BIT_ERR_STAT;
     }
     if(error_int & CMD_IDX_ERR_STAT_EN)
     {
         CMD_IDX_ERR_STATE = 1;
-        SDIOD_LOGI("CMD_IDX_ERR\r\n");
+        SDIOD_LOGD("CMD_IDX_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_CMD_IDX_ERR_STAT;
     }
     if(error_int & DATA_TOUT_ERR_STAT_EN)
     {
         DATA_TOUT_ERR_STATE = 1;
-        SDIOD_LOGI("DATA_TOUT_ERR\r\n");
+        SDIOD_LOGD("DATA_TOUT_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_DATA_TOUT_ERR_STAT;
     }
     if(error_int & DATA_CRC_ERR_STAT_EN)
     {
         DATA_CRC_ERR_STATE = 1;
-        SDIOD_LOGI("DATA_CRC_ERR\r\n");
+        SDIOD_LOGD("DATA_CRC_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_DATA_CRC_ERR_STAT;
     }
     if(error_int & DATA_END_BIT_ERR_STAT_EN)
     {
         DATA_END_BIT_ERR_STATE = 1;
-        SDIOD_LOGI("DATA_END_BIT_ERR\r\n");
+        SDIOD_LOGD("DATA_END_BIT_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_DATA_END_BIT_ERR_STAT;
     }
     if(error_int & CUR_LMT_ERR_STAT_EN)
     {
         CUR_LMT_ERR_STATE = 1;
-        SDIOD_LOGI("CUR_LMT_ERR\r\n");
+        SDIOD_LOGD("CUR_LMT_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_CUR_LMT_ERR_STAT;
     }
     if(error_int & AUTO_CMD_ERR_STAT_EN)
     {
         AUTO_CMD_ERR_STATE = 1;
-        SDIOD_LOGI("AUTO_CMD_ERR\r\n");
+        SDIOD_LOGD("AUTO_CMD_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_AUTO_CMD_ERR_STAT;
     }
     if(error_int & ADMA_ERR_STAT_EN)
     {
         ADMA_ERR_STATE = 1;
-        SDIOD_LOGI("ADMA_ERR\r\n");
+        SDIOD_LOGD("ADMA_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_ADMA_ERR_STAT;
     }
     if(error_int & TUNING_ERR_STAT_EN)
     {
         TUNING_ERR_STATE = 1;
-        SDIOD_LOGI("TUNING_ERR\r\n");
+        SDIOD_LOGD("TUNING_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_TUNING_ERR_STAT;
     }
     if(error_int & RESP_ERR_STAT_EN)
     {
         RESP_ERR_STATE = 1;
-        SDIOD_LOGI("RESP_ERR\r\n");
+        SDIOD_LOGD("RESP_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_RESP_ERR_STAT;
     }
     if(error_int & BOOT_ACK_ERR_STAT_EN)
     {
         BOOT_ACK_ERR_STATE = 1;
-        SDIOD_LOGI("BOOT_ACK_ERR\r\n");
+        SDIOD_LOGD("BOOT_ACK_ERR\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_BOOT_ACK_ERR_STAT;
     }
     if(error_int & VENDOR_ERR1_STAT_EN)
     {
         VENDOR_ERR1_STATE = 1;
-        SDIOD_LOGI("VENDOR_ERR1\r\n");
+        SDIOD_LOGD("VENDOR_ERR1\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_VENDOR_ERR1_STAT;
     }
     if(error_int & VENDOR_ERR2_STAT_EN)
     {
         VENDOR_ERR2_STATE = 1;
-        SDIOD_LOGI("VENDOR_ERR2\r\n");
+        SDIOD_LOGD("VENDOR_ERR2\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_VENDOR_ERR2_STAT;
     }
     if(error_int & VENDOR_ERR3_STAT_EN)
     {
         VENDOR_ERR3_STATE = 1;
-        SDIOD_LOGI("VENDOR_ERR3\r\n");
+        SDIOD_LOGD("VENDOR_ERR3\r\n");
         ERROR_INT_STAT_R(sdio_mshc_1_base)= CLR_VENDOR_ERR3_STAT;
     }
 }

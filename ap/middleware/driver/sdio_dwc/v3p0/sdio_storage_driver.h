@@ -131,8 +131,15 @@ struct cmd_param_t {
 #define sdio_mshc_0_base     0x48040000
 #define sdio_mshc_1_base     0x48050000
 
-/* Temporary switch for chip verification: 1 = use SDIO1, 0 = use SDIO0. Revert to 0 after verification. */
-#define SDIO_VERIFY_USE_SDIO1    1
+/* Selects which SDIO host controller (and matching GPIO pinmux group)
+ * the v3p0 driver targets:
+ *   0 = SDIO0 (host base 0x48040000, default pinmux group: GPIO 2/3/4/5
+ *       for CLK/CMD/DAT0/DAT1, plus GPIO 10/11 for DAT2/DAT3 in 4-wire).
+ *       This is the production wiring (P2/P3/P4/P5 silkscreen).
+ *   1 = SDIO1 (host base 0x48050000, pinmux group: GPIO 14..23). Used
+ *       only for early chip bring-up verification.
+ * Keep this at 0 unless you are doing SDIO1 controller verification. */
+#define SDIO_VERIFY_USE_SDIO1    0
 #if SDIO_VERIFY_USE_SDIO1
 #define SDIO_ACTIVE_BASE         sdio_mshc_1_base
 #else
