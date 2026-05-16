@@ -515,6 +515,7 @@ typedef struct {
 	char ssid[WIFI_SSID_STR_LEN];     /**< SSID to be scaned */
 	u8 scan_type;     /**< 0: active scan; 1: passive scan*/
 	u8 chan_cnt;     /**< scan channel cnt*/
+	u8 flag;
 	u8 chan_nb[WIFI_2BAND_MAX_CHAN_NUM];     /**< scan channel number 2.4g+5g*/
 	u32 duration;     /**< scan duration,ms*/
 } wifi_scan_config_t;
