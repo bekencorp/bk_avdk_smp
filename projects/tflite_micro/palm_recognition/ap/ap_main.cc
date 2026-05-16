@@ -18,7 +18,7 @@
 #define SYS_ANA_REG_BASE    (0x44010000)
 #define LDO_ANA_REG         (0x69)
 
-#include "AvdkVideoReator.h"
+#include "AvdkVideoReatorOSD.h"
 #include "AvdkDetectionModel.h"
 #include "PalmDetectionModel.h"
 #include "app_event.h"
@@ -33,7 +33,7 @@ static void bk_auxldo_enable(void)
     REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
 }
 
-static AvdkVideoReator *video_reator = NULL;
+static AvdkVideoReatorOSD *video_reator = NULL;
 static PalmDetectionModel *model = NULL;
 
 int ai_main_start()
@@ -53,9 +53,11 @@ int ai_main_start()
 
     model = new PalmDetectionModel();
     model->setResultCallback(app_event_get_result_callback());
-    video_reator = new AvdkVideoReator(model);
-    video_reator->start(AVDK_VIDEO_REATOR_MODE_DISPLAY);
-    //video_reator->start(AVDK_VIDEO_REATOR_MODE_NODISPLAY);
+    video_reator = new AvdkVideoReatorOSD(model);
+    video_reator->init();
+    video_reator->OpenISPCamera();
+    video_reator->OpenDisplay();
+    video_reator->start();
 
     return 0;
 }

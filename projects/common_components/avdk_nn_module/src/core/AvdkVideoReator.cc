@@ -38,7 +38,7 @@
 #include "beken_ui.h"
 #endif
 
-const char* TAG = "vi-reator";
+static const char* TAG = "vi-reator";
 
 #define LOGI(...) BK_LOGW((char*)TAG, ##__VA_ARGS__)
 #define LOGW(...) BK_LOGW((char*)TAG, ##__VA_ARGS__)
@@ -165,7 +165,7 @@ void AvdkVideoReator::WorkerThread()
 
         LOGV("read frame: %p, size: %d, %d\n", soruce_frame, frame_size, ret);
 
-        ret = detection_model->run(soruce_frame, frame_size, BK_PIXEL_FORMAT_RGBA8888);
+        ret = detection_model->run(soruce_frame, frame_size, BK_PIXEL_FORMAT_BGRA8888);
     }
 
     LOGI("############### Thread Exit ################\n");
@@ -237,7 +237,7 @@ void AvdkVideoReator::InferThread()
 
         LOGV("read frame: %p, size: %d, %d\n", soruce_frame, frame_size, ret);
 
-        ret = detection_model->run(soruce_frame, frame_size, BK_PIXEL_FORMAT_RGBA8888);
+        ret = detection_model->run(soruce_frame, frame_size, BK_PIXEL_FORMAT_BGRA8888);
     }
 
     /* Free allocated frame buffer */
@@ -255,7 +255,7 @@ void AvdkVideoReator::InferThread()
     rtos_delete_thread(NULL);
 }
 
-int argb8888_frame_to_rgb565(uint32_t *src, uint16_t *dst, uint32_t width, uint32_t height)
+static int argb8888_frame_to_rgb565(uint32_t *src, uint16_t *dst, uint32_t width, uint32_t height)
 {
     if (src == NULL || dst == NULL || width == 0 || height == 0) {
         LOGE("%s, %d src or dst is NULL or width or height is 0\r\n", __func__, __LINE__);
@@ -279,7 +279,7 @@ int argb8888_frame_to_rgb565(uint32_t *src, uint16_t *dst, uint32_t width, uint3
     return BK_OK;
 }
 
-int rgb888_frame_to_rgb565(uint8_t *src, uint16_t *dst, uint32_t width, uint32_t height)
+static int rgb888_frame_to_rgb565(uint8_t *src, uint16_t *dst, uint32_t width, uint32_t height)
 {
     if (src == NULL || dst == NULL || width == 0 || height == 0) {
         LOGE("%s, %d src or dst is NULL or width or height is 0\r\n", __func__, __LINE__);
@@ -378,7 +378,7 @@ void AvdkVideoReator::DisplayThread()
         #if (CONFIG_USB_CAMERA)
             ret = detection_model->run(display_frame, frame_size, BK_PIXEL_FORMAT_RGB888);
         #else
-            ret = detection_model->run(display_frame, frame_size, BK_PIXEL_FORMAT_RGBA8888);
+            ret = detection_model->run(display_frame, frame_size, BK_PIXEL_FORMAT_BGRA8888);
         #endif
         }
 

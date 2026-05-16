@@ -7,6 +7,7 @@ set(srcs
 	src/core/box.c
 	src/core/AvdkDetectionModel.cc
 	src/core/AvdkVideoReator.cc
+	src/core/AvdkVideoReatorOSD.cc
 )
 
 if (CONFIG_TFLM_PERSON_DETECTION_V1)

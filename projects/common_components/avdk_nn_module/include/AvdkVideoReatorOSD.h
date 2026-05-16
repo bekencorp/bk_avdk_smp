@@ -39,16 +39,12 @@ typedef enum {
 } avdk_video_reator_mode_t;
 
 
-class AvdkVideoReator {
+class AvdkVideoReatorOSD {
 
 protected:
     AvdkDetectionModel *detection_model;
 
-
-    isp_handle_t isp_handle;
-    mipi_csi_handle_t csi_handle;
-    bk_camera_sensor_handle_t sensor_handle;
-    bk_isp_camera_ctlr_handle_t camera_ctlr_handle;
+    void *isp_gpu_bond;
 
     beken_thread_t thread;
     beken_thread_t infer_thread;
@@ -69,7 +65,7 @@ protected:
 
 public:
 
-    AvdkVideoReator(AvdkDetectionModel *detection_model);
+    AvdkVideoReatorOSD(AvdkDetectionModel *detection_model);
 
     /**
      * @brief Initialize detection model.
@@ -78,61 +74,12 @@ public:
      *
      * @return BK_OK on success, negative or non-zero error code on failure.
      */
-    int init_model();
+    int init();
 
-    int start(avdk_video_reator_mode_t mode);
+    int start();
     int stop();
 
-    int start_detect();
-
-    int stop_detect();
-    /**
-     * @brief Start inference thread without opening peripherals.
-     *
-     * This will create a thread that reads camera frames and runs inference.
-     * Camera and display should be opened separately before calling this.
-     * Uses AVDK_VIDEO_REATOR_MODE_NODISPLAY mode by default.
-     *
-     * @return 0 on success, negative on error.
-     */
-    int start_infer();
-
-    /**
-     * @brief Stop inference thread.
-     *
-     * This will stop and destroy the inference thread created by start_infer().
-     *
-     * @return 0 on success, negative on error.
-     */
-    int stop_infer();
-
-    /**
-     * @brief Start display thread to fetch camera frames.
-     *
-     * This will create a thread that continuously reads camera frames by calling
-     * ReadCameraFrame(). Camera and display should be opened separately before
-     * calling this API. The display thread does not change camera/display state.
-     *
-     * @return 0 on success, negative on error.
-     */
-    int start_display();
-
-    /**
-     * @brief Stop display thread.
-     *
-     * This will stop and destroy the display thread created by start_display().
-     *
-     * @return 0 on success, negative on error.
-     */
-    int stop_display();
-
-    int OpenCameraWithDisplay();
-    int OpenCameraWithoutDisplay();
-
-#if CONFIG_USB_CAMERA
-    int OpenUVCCameraWithDisplay();
-    int CloseUVCCameraWithDisplay();
-#endif
+    int OpenISPCamera();
 
     int CloseCamera();
     int ReadCameraFrame(uint8_t *frame, uint32_t size, uint32_t timeout);
@@ -140,18 +87,7 @@ public:
     int OpenDisplay();
     int CloseDisplay();
 
-    int OpenDisplayWithoutGPU();
-    int CloseDisplayWithoutGPU();
-
-    int OpenGui();
-    int CloseGui();
-
     void WorkerThread();
-    void InferThread();
-    void DisplayThread();
-
-protected:
-    int start();
 };
 
 
