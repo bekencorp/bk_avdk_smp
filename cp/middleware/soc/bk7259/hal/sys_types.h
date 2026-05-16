@@ -118,7 +118,7 @@ extern "C" {
 #define LOW_POWER_DELAY_TIME_HARDWARE                    (500)
 #define LOW_POWER_EXTERN_32K_HARDWARE                    (1300)
 
-#define LOW_POWER_BOOTUP_RESTORE_TIME                    (1500+2800)//cpu 120Mhz
+#define LOW_POWER_BOOTUP_RESTORE_TIME                    (1500+1200)//cpu 120Mhz
 
 #define PM_POWER_ON_ROSC_STABILITY_TIME                  (TIMER_CLOCK_FREQ_XTAL*2)//about 2ms
 
