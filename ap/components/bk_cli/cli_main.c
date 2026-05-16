@@ -1494,6 +1494,10 @@ int bk_cli_init(void)
 	cli_os_init();
 #endif
 
+#if CONFIG_SOC_SMP
+	cli_ap_hotplug_init();
+#endif
+
 #if (CLI_CFG_SDIO_HOST == 1)
 	cli_sdio_host_init();
 #endif

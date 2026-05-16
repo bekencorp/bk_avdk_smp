@@ -24,6 +24,12 @@ list(APPEND srcs
 	cli_exception.c
 	)
 
+if (CONFIG_SOC_SMP)
+	list(APPEND srcs
+		cli_ap_hotplug.c
+	)
+endif()
+
 if (CONFIG_ARCH_CORTEX_M)
 	list(APPEND srcs
     	# cli_fpb.c

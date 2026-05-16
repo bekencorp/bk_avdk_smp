@@ -30,6 +30,8 @@ typedef struct
 int mbox0_drv_callback_register(mbox0_rx_callback_t callback);
 int mbox0_drv_send_message(mbox0_message_t* message);
 int mbox0_drv_get_send_stat(uint32_t dest_cpu, uint32_t *fifo_status);
+int mbox0_drv_core_int_enable(uint32_t core_id, uint32_t enable);
+int mbox0_init_on_current_core(int id);
 int mbox0_drv_init(void);
 int mbox0_drv_deinit(void);
 

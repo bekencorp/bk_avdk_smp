@@ -1783,6 +1783,20 @@ UBaseType_t uxTaskGetSystemState( TaskStatus_t * const pxTaskStatusArray,
                                   const UBaseType_t uxArraySize,
                                   configRUN_TIME_COUNTER_TYPE * const pulTotalRunTime ) PRIVILEGED_FUNCTION;
 
+#if ( configUSE_CPUHOTPLUG == 1 )
+void vSetCoreOnline( BaseType_t xCoreID,
+                     BaseType_t value ) PRIVILEGED_FUNCTION;
+BaseType_t xTaskIsCoreOnline( BaseType_t xCoreID ) PRIVILEGED_FUNCTION;
+void vSetCoreActive( BaseType_t xCoreID,
+                     BaseType_t value ) PRIVILEGED_FUNCTION;
+BaseType_t xTaskIsCoreActive( BaseType_t xCoreID ) PRIVILEGED_FUNCTION;
+void vTaskHotplugClearCurrentTCB( BaseType_t xCoreID ) PRIVILEGED_FUNCTION;
+void vTaskHotplugResetIdleTaskContext( BaseType_t xCoreID ) PRIVILEGED_FUNCTION;
+BaseType_t xTaskHotplugSetCurrentTaskCoreID( BaseType_t xCoreID ) PRIVILEGED_FUNCTION;
+BaseType_t xTaskHasTasksPinnedToCore( BaseType_t xCoreID ) PRIVILEGED_FUNCTION;
+void prvSelectHighestPriorityTaskAfterHotplug( const BaseType_t xCoreID ) PRIVILEGED_FUNCTION;
+#endif
+
 /**
  *
  * configUSE_TRACE_FACILITY and configUSE_STATS_FORMATTING_FUNCTIONS must

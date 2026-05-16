@@ -98,12 +98,15 @@ bk_err_t multicore_hal_start(uint32_t id)
 #else
 		boot_addr = SOC_FLASH_DATA_BASE + CONFIG_AP_VIRTUAL_PARTITION_OFFSET;
 #endif
+		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(0);
 		sys_ahbp_ll_set_reg5_cpu1_offset((boot_addr) >> 8);
 		sys_ahbp_ll_set_reg5_cpu1_init_dtcm_en(1);
+		sys_ahbp_ll_set_reg5_cpu1_wait(0);
+		sys_ahbp_ll_set_reg5_cpu1_wfe_pulse(0);
 		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(1);
 		break;
 	default:
-		break;
+		return BK_ERR_PARAM;
 	}
 
 	return BK_OK;
@@ -111,10 +114,37 @@ bk_err_t multicore_hal_start(uint32_t id)
 
 bk_err_t multicore_hal_reset(uint32_t id)
 {
+	switch (id) {
+	case CPU2_CORE_ID:
+		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(0);
+		delay_ms(1);
+		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
+		break;
+	case CPU3_CORE_ID:
+		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(0);
+		delay_ms(1);
+		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(1);
+		break;
+	default:
+		return BK_ERR_PARAM;
+	}
+
 	return BK_OK;
 }
 
 bk_err_t multicore_hal_stop(uint32_t id)
 {
+	switch (id) {
+	case CPU3_CORE_ID:
+		sys_ahbp_ll_set_reg5_cpu1_wfe_pulse(0);
+		sys_ahbp_ll_set_reg5_cpu1_wait(0);
+		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(0);
+		break;
+	case CPU2_CORE_ID:
+		return BK_ERR_NOT_SUPPORT;
+	default:
+		return BK_ERR_PARAM;
+	}
+
 	return BK_OK;
 }
