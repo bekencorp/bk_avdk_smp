@@ -81,11 +81,6 @@ bk_err_t bk_pm_module_vote_power_ctrl_ptr(unsigned int module, uint32_t power_st
 	return bk_pm_module_vote_power_ctrl((pm_power_module_name_e)module, (pm_power_module_state_e)power_state);
 }
 
-uint32_t sys_drv_rf_clk_ctrl_ptr(bool clk_en)
-{
-	return sys_drv_rf_clk_ctrl(clk_en);
-}
-
 bk_err_t bk_pm_clock_ctrl_ptr(uint32_t module, uint32_t clock_state)
 {
 	return bk_pm_clock_ctrl((pm_dev_clk_e)module, (pm_dev_clk_pwr_e)clock_state);
@@ -103,7 +98,6 @@ const rf_control_funcs_t g_rf_control_funcs = {
     ._sys_drv_set_ana_reg11_apfms = sys_drv_set_ana_reg11_apfms_ptr,
     ._sys_drv_set_ana_reg12_dpfms = sys_drv_set_ana_reg12_dpfms_ptr,
     ._bk_pm_module_vote_power_ctrl = bk_pm_module_vote_power_ctrl_ptr,
-    ._sys_drv_rf_clk_ctrl = sys_drv_rf_clk_ctrl_ptr,
     ._bk_pm_clock_ctrl = bk_pm_clock_ctrl_ptr,
 };
 
@@ -113,6 +107,7 @@ const rf_variable_t g_rf_variable = {
     ._pm_power_module_name_phy = PM_POWER_SUB_DOMAIN_PHY,
     ._pm_power_module_name_rf = PM_POWER_SUB_DOMAIN_RF,
     ._pm_module_phy = PM_CLK_ID_PHY,
+    ._pm_module_rf = PM_CLK_ID_RF,
     ._pm_clk_on = PM_CLK_CTRL_PWR_UP,
     ._pm_clk_off = PM_CLK_CTRL_PWR_DOWN,
 };
