@@ -37,6 +37,8 @@ static void bk_auxldo_enable(void)
 int main(void)
 {
     bk_init();
+    bk_printf("M55 main running...\r\n");
+    #if 0
     media_service_init();
 
     bk_printf("M55 main running...\r\n");
@@ -114,6 +116,8 @@ int main(void)
 #if CONFIG_VOICE_SERVICE_TEST
     int cli_voice_init(void);
     cli_voice_init();
+#endif
+
 #endif
 
     return 0;

@@ -562,10 +562,33 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 			extern void bk_delay_us(UINT32 us);
 			bk_delay_us(200);
 			#if CONFIG_PSRAM
+
 			bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
             #endif
-			bk_delay_us(200);
-            //start_cpu1_core();
+			bk_delay_us(1000);
+
+#if CONFIG_PSRAM
+			{
+				volatile uint32_t *psram_test_addr = (volatile uint32_t *)psram_malloc(sizeof(uint32_t));
+				const uint32_t test_value = 0x5A5AA5A5;
+				uint32_t read_value = 0;
+
+				if (psram_test_addr == NULL) {
+					BK_LOGE(NULL, "psram self test failed: malloc null\r\n");
+				} else {
+					*psram_test_addr = test_value;
+					read_value = *psram_test_addr;
+					if (read_value == test_value) {
+						BK_LOGI(NULL, "psram self test pass: addr=0x%x val=0x%x\r\n",
+								(uint32_t)psram_test_addr, read_value);
+					} else {
+						BK_LOGE(NULL, "psram self test failed: addr=0x%x wr=0x%x rd=0x%x\r\n",
+								(uint32_t)psram_test_addr, test_value, read_value);
+					}
+					psram_free((void *)psram_test_addr);
+				}
+			}
+#endif
 			extern void bk_start_ap_system(void);
 			bk_start_ap_system();
 			#if 0
@@ -639,9 +662,9 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 		if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
 		{
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
-			//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
+			bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
 			#endif
-			//stop_cpu1_core();
+
 			bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_OFF);
 			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 
@@ -650,19 +673,8 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			s_pm_cp1_closing = 0;
 			s_pm_cp1_boot_try_count = 0;
 			GLOBAL_INT_RESTORE();
-			if(s_sync_cp1_open_sema != NULL)
-			{
-				ret = rtos_set_semaphore(&s_sync_cp1_open_sema);
-			}
 
-			if(s_pm_cp1_sema_count == 0)
-			{
-				//rtos_deinit_semaphore(&s_sync_cp1_open_sema);
-			}
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
-			// extern void stop_cpu2_core(void);
-			// stop_cpu2_core();
-			//bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU2, PM_POWER_MODULE_STATE_OFF);
 
 			//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
 			#endif
@@ -685,10 +697,6 @@ bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_pow
 	rtos_lock_mutex(&s_pm_cp1_vote_mutex);
 
 	BK_LOGD(NULL, "boot_cp1 %d %d 0x%x [%d][0x%x]E_1\r\n",module, power_state,s_pm_cp1_ctrl_state,s_pm_cp1_closing,&s_sync_cp1_open_sema);
-	// if (NULL == s_sync_cp1_open_sema)
-	// {
-	// 	rtos_init_semaphore(&s_sync_cp1_open_sema, 1);
-	// }
 
 	BK_LOGD(NULL, "boot_cp1 %d %d 0x%x [%d]E_2\r\n",module, power_state,s_pm_cp1_ctrl_state,ret);
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on

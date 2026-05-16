@@ -10,7 +10,8 @@ extern void rtos_set_user_app_entry(beken_thread_function_t entry);
 
 
 void user_app_main(void) {
-    bk_start_ap_system();
+    //bk_start_ap_system();
+   bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP, PM_POWER_MODULE_STATE_ON);
 }
 
 int main(void)
@@ -19,7 +20,7 @@ int main(void)
     bk_init();
 
 #if (BK_IPC_UT_TEST)
-    bk_ipc_test_init();
+    //bk_ipc_test_init();
 #endif
 
     return 0;
