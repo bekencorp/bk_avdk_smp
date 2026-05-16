@@ -12,6 +12,9 @@
 #include "doorbell_img_manager.h"
 #include "app_codec.h"
 #include "app_jpeg_decode.h"
+#if CONFIG_NTWK_H264_DROP_POLICY
+#include "h264_backpressure_drop.h"
+#endif
 
 #define TAG "pipeline_test"
 
@@ -94,6 +97,11 @@ static uint32_t doorbell_out_buffer_complete_cb(bk_h264_encode_outbuf_info_t *in
         buffer->fmt = PIXEL_FMT_H264;
         buffer->sequence = info->sequence;
         bk_encoded_data_complete_request((uint8_t *)buffer);
+#if CONFIG_NTWK_H264_DROP_POLICY
+        if (ntwk_h264_backpressure_drop_consume_force_idr()) {
+            bk_h264_encode_force_idr(ctx->enc_ctlr_handle);
+        }
+#endif
     }
     return 0;
 }

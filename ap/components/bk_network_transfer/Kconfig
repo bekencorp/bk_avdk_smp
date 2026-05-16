@@ -18,6 +18,13 @@ menu "Bk Network Transfer"
 		help
 			Enable the common video transfer FPS calculation strategy.
 
+	config NTWK_H264_DROP_POLICY
+		bool "Enable Network H264 Backpressure Drop Policy"
+		depends on BK_NTWK_TRANSFER
+		default y
+		help
+			Enable H264 encoded frame dropping when the encoded-frame free queue is low.
+
 	config DATA_NODE_SIZE
 		int "Video RX Node Size"
 		default 1472

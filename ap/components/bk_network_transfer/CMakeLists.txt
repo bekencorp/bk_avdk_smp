@@ -35,6 +35,12 @@ list(APPEND srcs
 )
 endif()
 
+if (CONFIG_NTWK_H264_DROP_POLICY)
+list(APPEND srcs
+	common/bk_video_drop_policy/h264_backpressure_drop.c
+)
+endif()
+
 if (CONFIG_CS2_P2P_SERVER OR CONFIG_CS2_P2P_CLIENT)
 list(APPEND srcs
 	bk_network_service/bk_ntwk_cs2_service/ntwk_cs2_service.c

@@ -13,6 +13,9 @@
 #include "app_camera.h"
 #include "app_codec.h"
 #include "doorbell_img_manager.h"
+#if CONFIG_NTWK_H264_DROP_POLICY
+#include "h264_backpressure_drop.h"
+#endif
 
 #define TAG "db-codec"
 
@@ -73,6 +76,11 @@ uint32_t encoder_buffer_complete(bk_h264_encode_outbuf_info_t *info)
         buffer->fmt = PIXEL_FMT_H264;
         buffer->sequence = info->sequence;
         bk_encoded_data_complete_request((uint8_t *)buffer);
+#if CONFIG_NTWK_H264_DROP_POLICY
+        if (ntwk_h264_backpressure_drop_consume_force_idr() && doorbell_enc_handler != NULL) {
+            bk_h264_encode_force_idr(doorbell_enc_handler);
+        }
+#endif
     }
     else
     {
