@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "headset_user_config.h"
 
@@ -127,13 +128,52 @@ static beken_semaphore_t s_bt_avrcp_event_cb_sema = NULL;
 
 static audio_play_t *s_audio_play_obj;
 
-static uint32_t a2dp_vol_to_dac_dig_gain(uint8_t vol)
+
+#define BT_DAC_DB_MIN                  (-36.0f)
+#define BT_DAC_DB_MAX                  (8.0f)
+#define BT_DAC_DB_SMOOTH_GAMMA         (2.35f)
+
+#define AVRCP_GAIN_MAX (64 - 1) //see avrcp porotocl
+
+#ifndef BK_AUD_DAC_DIG_GAIN_DB_SILENCE
+#define BK_AUD_DAC_DIG_GAIN_DB_SILENCE    (BT_DAC_DB_MIN)//(-144.0f)
+#endif
+
+static float a2dp_vol_to_dac_dig_gain_db(uint8_t vol)
 {
-    /* v2 dac dig_gain register: use 0x07000000 as practical 0dB reference */
-    if (vol == 0) {
-        return 0;
+    if (vol == 0 || AVRCP_GAIN_MAX == 0) {
+        return BK_AUD_DAC_DIG_GAIN_DB_SILENCE;
     }
-    return (uint32_t)((uint64_t)0x07000000 * vol / 0x3F);
+
+    {
+        float norm = (float)vol / (float)AVRCP_GAIN_MAX;
+        float shaped = powf(norm, BT_DAC_DB_SMOOTH_GAMMA);
+        return BT_DAC_DB_MIN + (BT_DAC_DB_MAX - BT_DAC_DB_MIN) * shaped;
+    }
+}
+
+static float bk_bt_dac_set_gain(uint8_t gain)
+{
+    float dig_gain_db = a2dp_vol_to_dac_dig_gain_db(gain);
+    //LOGD("%s set gain step = %u dig_db = %lf\n", __func__, gain, dig_gain_db);
+    if(s_audio_play_obj)
+    {
+        audio_play_set_volume(s_audio_play_obj, dig_gain_db);
+
+        if (gain == 0)
+        {
+            audio_play_control(s_audio_play_obj, AUDIO_PLAY_MUTE);
+        }
+        else
+        {
+            audio_play_control(s_audio_play_obj, AUDIO_PLAY_UNMUTE);
+        }
+    }
+    else
+    {
+        LOGE("%s audio play not enable\n", __func__);
+    }
+    return dig_gain_db;
 }
 
 #if CONFIG_ADK_AAC_DECODER
@@ -164,30 +204,6 @@ static void adts_header_generate(uint8_t *header, uint32_t aac_len, uint8_t chan
     header[6] = 0xFC;
 }
 #endif
-
-static bk_err_t bk_bt_dac_set_gain(uint8_t gain)
-{
-    if(s_audio_play_obj)
-    {
-        uint32_t dig_gain = a2dp_vol_to_dac_dig_gain(gain);
-        LOGD("%s set gain step = 0x%x dig = 0x%x\n", __func__, gain, dig_gain);
-        audio_play_set_volume(s_audio_play_obj, dig_gain);
-
-        if (gain == 0)
-        {
-            audio_play_control(s_audio_play_obj, AUDIO_PLAY_MUTE);
-        }
-        else
-        {
-            audio_play_control(s_audio_play_obj, AUDIO_PLAY_UNMUTE);
-        }
-    }
-    else
-    {
-        LOGE("%s audio play not enable\n", __func__);
-    }
-    return BK_OK;
-}
 
 void avrcp_connect_timer_hdl(void *param, unsigned int ulparam)
 {
@@ -238,7 +254,7 @@ void bt_audio_sink_demo_main(void *arg)
     }
     else
     {
-        LOGI("%s find addr\n", __func__);
+        LOGI("%s find addr, s_a2dp_vol:%d\n", __func__, s_a2dp_vol);
         if(bluetooth_storage_find_volume_by_addr(recon_addr, &s_a2dp_vol) < 0)
         {
             s_a2dp_vol = DEFAULT_A2DP_VOLUME; //default vol
@@ -1388,11 +1404,11 @@ static void speaker_task(void *arg)
     bk_err_t ret = BK_OK;
 
     audio_play_cfg_t cfg = DEFAULT_AUDIO_PLAY_CONFIG();
-    LOGD("[+]%s\r\n", __func__);
+    LOGD("[+]%s, s_a2dp_vol:%d\r\n", __func__, s_a2dp_vol);
 
     cfg.nChans   = CONFIG_BOARD_AUDIO_CHANNLE_NUM;
     cfg.sampRate = (bt_audio_a2dp_sink_codec.type == CODEC_AUDIO_SBC ? bt_audio_a2dp_sink_codec.cie.sbc_codec.sample_rate : bt_audio_a2dp_sink_codec.cie.aac_codec.sample_rate);
-    cfg.volume   = 0x01000000;//a2dp_vol_to_dac_dig_gain(s_a2dp_vol >> 1);
+    cfg.volume   = bk_bt_dac_set_gain(s_a2dp_vol >> 1);
     cfg.frame_size = cfg.sampRate * cfg.nChans / 1000 * 20 * cfg.bitsPerSample / 8;
     cfg.pool_size  = cfg.frame_size * 2;
     cfg.decoder_type = (bt_audio_a2dp_sink_codec.type == CODEC_AUDIO_SBC) ? AUDIO_PLAY_DECODER_SBC : AUDIO_PLAY_DECODER_AAC;
@@ -1406,14 +1422,12 @@ static void speaker_task(void *arg)
     if(!s_audio_play_obj)
     {
         LOGE("%s create audio play err\n", __func__);
-
         goto end;
     }
 
     if((ret = audio_play_open(s_audio_play_obj)) != 0)
     {
         LOGE("%s open audio play err\n", __func__, ret);
-
         goto end;
     }
 

@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "hfp_hf_demo.h"
 
@@ -139,24 +140,40 @@ static int mic_task_init();
 
 int bt_audio_hf_demo_task_init(void);
 
-static uint32_t hfp_vol_to_dac_dig_gain(uint8_t vol)
+
+#define BT_DAC_DB_MIN                  (-36.0f)
+#define BT_DAC_DB_MAX                  (8.0f)
+#define BT_DAC_DB_SMOOTH_GAMMA         (2.35f)
+
+#ifndef BK_AUD_DAC_DIG_GAIN_DB_SILENCE
+#define BK_AUD_DAC_DIG_GAIN_DB_SILENCE    BT_DAC_DB_MIN//(-144.0f)
+#endif
+
+#define HFP_GAIN_MAX 15 //see hfp protocol
+
+static float hfp_vol_to_dac_dig_gain_db(uint8_t vol)
 {
-    /* HFP volume is 0~15, map to v2 DAC dig_gain register */
-    if (vol == 0) {
-        return 0;
+    if (vol == 0 || HFP_GAIN_MAX == 0) {
+        return BK_AUD_DAC_DIG_GAIN_DB_SILENCE;
     }
-    return 0x01000000;//(uint32_t)((uint64_t)0x07000000 * vol / 15);
+
+    {
+        float norm = (float)vol / (float)HFP_GAIN_MAX;
+        float shaped = powf(norm, BT_DAC_DB_SMOOTH_GAMMA);
+        return BT_DAC_DB_MIN + (BT_DAC_DB_MAX - BT_DAC_DB_MIN) * shaped;
+    }
 }
 
-static bk_err_t bk_bt_dac_set_gain(uint8_t hfp_vol)
+static float bk_bt_dac_set_gain(uint8_t hfp_vol)
 {
-    uint32_t gain = hfp_vol_to_dac_dig_gain(hfp_vol);
+    float gain_db = hfp_vol_to_dac_dig_gain_db(hfp_vol);
+    //LOGD("%s set hfp gain step = %u dig_db = %.2f\n", __func__, hfp_vol, gain_db);
 
     if(s_audio_play_obj)
     {
-        audio_play_set_volume(s_audio_play_obj, gain);
+        audio_play_set_volume(s_audio_play_obj, gain_db);
 
-        if (gain == 0)
+        if (hfp_vol == 0)
         {
             audio_play_control(s_audio_play_obj, AUDIO_PLAY_MUTE);
         }
@@ -170,7 +187,7 @@ static bk_err_t bk_bt_dac_set_gain(uint8_t hfp_vol)
         LOGE("%s audio play not enable\n", __func__);
     }
 
-    return BK_OK;
+    return gain_db;
 }
 
 void bt_audio_hfp_client_voice_data_ind(const uint8_t *data, uint16_t data_len)
@@ -363,7 +380,7 @@ void bk_bt_app_hfp_client_cb(bk_hf_client_cb_event_t event, bk_hf_client_cb_para
             if (param->volume_control.type == BK_HF_VOLUME_CONTROL_TARGET_SPK)
             {
                 LOGI("+VGS: HPF Speaker gain: %d \n", param->volume_control.volume);
-                //bk_bt_dac_set_gain(param->volume_control.volume);
+                bk_bt_dac_set_gain(param->volume_control.volume);
             }
             else if (param->volume_control.type == BK_HF_VOLUME_CONTROL_TARGET_MIC)
             {
@@ -909,7 +926,7 @@ static void mic_task(void *arg)
     cfg.nChans   = 1;
     cfg.sampRate = ((CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec) ? 16000 : 8000);
     cfg.bitsPerSample = 16;
-    cfg.adc_gain = 0x1c000;
+    cfg.adc_gain = 16.0;
     cfg.frame_size = cfg.sampRate * cfg.nChans / 1000 * 20 * cfg.bitsPerSample / 8;
     cfg.pool_size  = cfg.frame_size * 2;
     cfg.encoder_type = AUDIO_RECORD_ENCODER_PCM;
@@ -1051,7 +1068,7 @@ static void speaker_task(void *arg)
 
     cfg.nChans   = 1;
     cfg.sampRate = ((CODEC_VOICE_MSBC == bt_audio_hfp_hf_codec) ? 16000 : 8000);
-    cfg.volume   = 0x07000000;
+    cfg.volume   = -9.0;
     cfg.frame_size = cfg.sampRate * cfg.nChans / 1000 * 20 * cfg.bitsPerSample / 8;
     cfg.pool_size  = cfg.frame_size * 2;
     cfg.decoder_type = AUDIO_PLAY_DECODER_PCM;
@@ -1066,14 +1083,12 @@ static void speaker_task(void *arg)
     if(!s_audio_play_obj)
     {
         LOGE("%s create audio play err\n", __func__);
-
         goto end;
     }
 
     if((ret = audio_play_open(s_audio_play_obj)) != 0)
     {
         LOGE("%s open audio play err\n", __func__, ret);
-
         goto end;
     }
 
