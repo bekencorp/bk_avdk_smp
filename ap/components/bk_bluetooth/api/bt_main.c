@@ -133,6 +133,9 @@ bt_err_t bk_bluetooth_init(void)
         return ret;
     }
 
+#endif
+
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL || CONFIG_BLUETOOTH_HOST_ONLY
 #if defined (CONFIG_BLE_AT_ENABLE) && defined(CONFIG_BLE)
     extern void ble_at_cmd_init(void);
     ble_at_cmd_init();

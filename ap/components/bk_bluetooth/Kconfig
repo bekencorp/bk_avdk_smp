@@ -15,7 +15,7 @@ menu "Bk_ble"
 
 	config BLE
 		bool "Enable Ble"
-		depends on BLUETOOTH_HOST_ONLY
+		depends on (BLUETOOTH_HOST_ONLY || BLUETOOTH_SUPPORT_AP_PWD_ALL)
 		default y
 
 	config BLUETOOTH_AUTO_ENABLE
@@ -78,4 +78,8 @@ menu "Bk_ble"
 		depends on BLUETOOTH_AP
         default y
 
+    config BLUETOOTH_SUPPORT_AP_PWD_ALL
+        bool "bluetooth support ap power down all"
+		depends on BLUETOOTH_SUPPORT_IPC
+        default n
 endmenu

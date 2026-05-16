@@ -39,7 +39,7 @@ static doorbell_boarding_info_t *doorbell_boarding_info = NULL;
 #ifdef CONFIG_CS2_P2P_SERVER
 static p2p_cs2_key_t *p2p_cs2_key = NULL;
 #endif
-#if !CONFIG_BLUETOOTH_HOST_ONLY
+#if !CONFIG_BLUETOOTH_HOST_ONLY && !CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
 static int ble_boarding_notify(uint8_t *data, uint16_t length)
 {
     CIFD_CUST_DATA cust_req = {0};
@@ -78,7 +78,7 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
     {
         case BOARDING_OP_STATION_START:
         {
-#if CONFIG_BLUETOOTH_HOST_ONLY
+#if CONFIG_BLUETOOTH_HOST_ONLY || CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
             doorbell_msg_t msg;
 
             msg.event = DBEVT_WIFI_STATION_CONNECT;
@@ -337,7 +337,7 @@ void doorbell_boarding_operation_handle(uint16_t opcode, uint16_t length, uint8_
     }
 }
 
-#if CONFIG_BLUETOOTH_HOST_ONLY
+#if CONFIG_BLUETOOTH_HOST_ONLY || CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
 int doorbell_boarding_init(void)
 {
     uint8_t adv_data[ADV_MAX_SIZE] = {0};
@@ -413,7 +413,7 @@ int doorbell_boarding_init(void)
 
     doorbell_boarding_info->boarding_info.cb = doorbell_boarding_operation_handle;
 
-    ble_boarding_init(&doorbell_boarding_info->boarding_info);
+    ble_boarding_init_ex(&doorbell_boarding_info->boarding_info, 1);
     ble_boarding_adv_start(adv_data, adv_index);
 
     return BK_OK;

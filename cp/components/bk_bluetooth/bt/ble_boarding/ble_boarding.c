@@ -650,17 +650,23 @@ int ble_boarding_notify(uint8_t *data, uint16_t length)
     }
 }
 
-int ble_boarding_init(ble_boarding_info_t *info)
+int ble_boarding_init_ex(ble_boarding_info_t *info, uint8_t add_service)
 {
     bt_err_t ret = BK_FAIL;
     struct bk_ble_db_cfg ble_db_cfg;
 
     ble_boarding_info = info;
+    bk_ble_set_notice_cb(ble_at_legacy_notice_cb);
 
     ret = rtos_init_semaphore(&ble_boarding_sema, 1);
     if (ret != BK_OK)
     {
         goto error;
+    }
+
+    if (!add_service)
+    {
+        return BK_OK;
     }
 
     ble_db_cfg.att_db = (ble_attm_desc_t *)boarding_service_db;
@@ -670,8 +676,6 @@ int ble_boarding_init(ble_boarding_info_t *info)
     ble_db_cfg.svc_perm = BK_BLE_PERM_SET(SVC_UUID_LEN, UUID_16);
     ble_db_cfg.uuid[0] = BOARDING_SERVICE_UUID & 0xFF;
     ble_db_cfg.uuid[1] = BOARDING_SERVICE_UUID >> 8;
-
-    bk_ble_set_notice_cb(ble_at_legacy_notice_cb);
 
     ret = bk_ble_create_db(&ble_db_cfg);
 
@@ -698,6 +702,11 @@ int ble_boarding_init(ble_boarding_info_t *info)
 error:
 
     return BK_FAIL;
+}
+
+int ble_boarding_init(ble_boarding_info_t *info)
+{
+    return ble_boarding_init_ex(info, 1);
 }
 #if CONFIG_AT
 #include "at_server.h"

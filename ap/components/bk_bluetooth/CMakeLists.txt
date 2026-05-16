@@ -9,21 +9,24 @@ if (CONFIG_BLUETOOTH_AP)
     if (CONFIG_BLUETOOTH_SUPPORT_IPC)
         list(APPEND srcs
             ipc/src/bt_ipc_core.c
+            ipc/src/bt_ipc_vendor_event_handler.c
         )
         list(APPEND incs
             ipc/include
         )
     endif()
 
-	if (CONFIG_BLUETOOTH_HOST_ONLY)
-		list(APPEND srcs
-			"hci/hal_hci_core.c"
-			"hci/hci_distinguish.c"
-			"hci/hci_parse.c"
-			)
-		list(APPEND incs
-			hci
-			)
+	if (CONFIG_BLUETOOTH_HOST_ONLY OR CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL)
+		if (CONFIG_BLUETOOTH_HOST_ONLY)
+			list(APPEND srcs
+				"hci/hal_hci_core.c"
+				"hci/hci_distinguish.c"
+				"hci/hci_parse.c"
+				)
+			list(APPEND incs
+				hci
+				)
+		endif()
 
 		if(CONFIG_AT)
 			if(CONFIG_BT)
@@ -90,12 +93,24 @@ if (CONFIG_BLUETOOTH_AP)
 			.
 			)
 
-		list(APPEND srcs feat_config/bt_feature_config.c)
+		if (CONFIG_BLUETOOTH_HOST_ONLY)
+			list(APPEND srcs feat_config/bt_feature_config.c)
 
-		if (CONFIG_SOC_BK7259)
-			list(APPEND srcs
-				soc/bk7259/bluetooth.c
-				)
+			if (CONFIG_SOC_BK7259)
+				list(APPEND srcs
+					soc/bk7259/bluetooth.c
+					)
+			endif()
+		endif()
+
+		if (CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL)
+            list(APPEND srcs
+                adapter/ble_ipc_client.c
+                adapter/dm_ble_ipc_client.c
+            )
+            list(APPEND incs
+                adapter
+            )
 		endif()
 	endif()
 endif()

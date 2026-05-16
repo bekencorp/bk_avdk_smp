@@ -110,9 +110,19 @@ endif()#CONFIG_AT
     if (CONFIG_BLUETOOTH_SUPPORT_IPC)
         list(APPEND srcs
             ipc/src/bt_ipc_core.c
+            ipc/src/bt_ipc_vendor_cmd_handler.c
         )
         list(APPEND incs
             ipc/include
+        )
+    endif()
+
+    if (CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL)
+        list(APPEND srcs
+            adapter/ble_ipc_server.c
+        )
+        list(APPEND incs
+            adapter
         )
     endif()
 endif()

@@ -377,7 +377,7 @@ void doorbell_core_init(void)
     doorbell_audio_device_init();
 #endif
 
-#if CONFIG_BLUETOOTH_HOST_ONLY
+#if CONFIG_BLUETOOTH_HOST_ONLY || CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
     doorbell_boarding_init();
 #endif
 

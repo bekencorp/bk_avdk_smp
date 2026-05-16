@@ -1,7 +1,10 @@
 #ifndef __BT_IPC_CORE_H__
 #define __BT_IPC_CORE_H__
 
+#include <stdint.h>
+#include <common/bk_err.h>
 #include <driver/mailbox_channel.h>
+#include "bt_ipc_vendor_opcode.h"
 
 enum {
     BT_IPC_STATE_IDLE,
@@ -10,12 +13,6 @@ enum {
 
 #define BT_IPC_QUEUE_LEN      64
 #define BT_IPC_TASK_PRIO       4
-
-enum {
-    BT_VENDOR_SUB_OPCODE_INIT = 0x0001,
-    BT_VENDOR_SUB_OPCODE_DEINIT = 0x0002,
-    BT_VENDOR_SUB_OPCODE_SETPWR = 0x0003,
-};
 
 #define BT_EVENT_STATUS_NOERROR 0x00
 
@@ -81,11 +78,13 @@ enum
     HCI_SCO_DATA_PKT = 0x3,
     HCI_EVENT_PKT = 0x4, //M core
     HCI_FREE_PKT = 0xa,
+    BT_IPC_AP_BLE_READY_PKT = 0xf1,
 };
 
 typedef void (*bt_hci_send_cb_t)(uint8_t *buf, uint16_t len);
 
 void bt_ipc_init(void);
+int32_t bt_ipc_notify_ap_ble_ready(void);
 void bt_ipc_hci_send_vendor_event(uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_vendor_cmd(uint8_t *data, uint16_t len);
 void bk_bluetooth_init_deinit_compelete();

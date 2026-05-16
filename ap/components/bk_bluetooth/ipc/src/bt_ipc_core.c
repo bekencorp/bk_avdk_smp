@@ -3,6 +3,10 @@
 #include <components/log.h>
 #include <driver/mailbox_channel.h>
 #include "bt_ipc_core.h"
+#include "../include/bt_ipc_vendor_event_handler.h"
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+#include "ble_ipc_client.h"
+#endif
 #include "cli.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
 
@@ -50,10 +54,51 @@ enum
     BT_IPC_SCO_IND_MSG = 6,
 };
 
+static int32_t bt_ipc_mailbox_send_ctrl_msg(uint8_t pkt_type)
+{
+    bt_ipc_cmd_t bt_ipc_cmd;
+    int ret;
+
+    os_memset(&bt_ipc_cmd, 0, sizeof(bt_ipc_cmd));
+    bt_ipc_cmd.hci_hdr.pkt_type = pkt_type;
+
+    if (bt_ipc_env.send_sema) {
+        ret = rtos_get_semaphore(&bt_ipc_env.send_sema, BT_IPC_SEND_TIMEOUT_MS);
+        if (ret != BK_OK) {
+            LOGW("get bt ipc send_sema failed for ctrl pkt 0x%x\n", pkt_type);
+        }
+    }
+
+    ret = mb_chnl_write(BT_IPC_CMD_CHNL, (mb_chnl_cmd_t *)&bt_ipc_cmd);
+    if (ret != BK_OK) {
+        LOGW("mb_chnl_write ctrl pkt 0x%x failed\n", pkt_type);
+    }
+
+    return ret;
+}
+
+int32_t bt_ipc_notify_ap_ble_ready(void)
+{
+    return bt_ipc_mailbox_send_ctrl_msg(BT_IPC_AP_BLE_READY_PKT);
+}
+
+static void bt_ipc_free_local_msg_payload(hci_hdr_t *msg)
+{
+    if ((msg->pkt_type != HCI_FREE_PKT) && msg->hdr_ptr) {
+        os_free((void *)(uintptr_t)msg->hdr_ptr);
+        msg->hdr_ptr = 0;
+    }
+}
+
 static void bt_ipc_mailbox_rx_isr(void *param, void *cmd_buf)
 {
     hci_hdr_t *hci_hdr = (hci_hdr_t *)cmd_buf;
     switch(hci_hdr->pkt_type) {
+        case BT_IPC_AP_BLE_READY_PKT:
+        {
+        }
+        break;
+
         case HCI_COMMAND_PKT:
         {
             bt_ipc_msg_t bt_ipc_msg;
@@ -170,6 +215,7 @@ static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
     if (ret != BK_OK)
     {
         LOGW("mb_chnl_write failed\n");
+        bt_ipc_free_local_msg_payload(msg);
         return;
     }
 }
@@ -352,17 +398,10 @@ static void bt_ipc_message_handle(void)
                     //LOGD("evt_code 0x%02x, param_len %d\n",event_hdr->event_code, event_hdr->param_len);
                     if(event_hdr->event_code == HCI_VENDOR_EVT_CODE)
                     {
-                        if (event_hdr->param_len == 3) //init deinit opcode
+                        bk_err_t dispatch_ret = bt_ipc_vendor_event_handler_dispatch(event_hdr);
+                        if (dispatch_ret != BK_OK)
                         {
-                            uint16_t subop = (event_hdr->param[0])|(event_hdr->param[1]<<8);
-                            //LOGD("subop :0x%04x\n", subop);
-                            if(subop == BT_VENDOR_SUB_OPCODE_INIT || subop == BT_VENDOR_SUB_OPCODE_DEINIT)
-                            {
-                                if(event_hdr->param[2] == BT_EVENT_STATUS_NOERROR)//status
-                                {
-                                    bk_bluetooth_init_deinit_compelete();
-                                }
-                            }
+                            LOGW("%s, vendor event dispatch failed, ret:%d\r\n", __func__, dispatch_ret);
                         }
                     }
                     else
@@ -531,6 +570,10 @@ void bt_ipc_init(void)
         bt_ipc_env.thd = NULL;
         return;
     }
+
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+    ble_ipc_client_init();
+#endif
 
     bt_ipc_env.state = BT_IPC_STATE_READY;
     LOGD("%s success\n", __func__);

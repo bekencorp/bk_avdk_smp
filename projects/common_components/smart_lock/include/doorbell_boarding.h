@@ -1,7 +1,7 @@
 #ifndef __DOORBELL_BOARDING_H__
 #define __DOORBELL_BOARDING_H__
 
-#if CONFIG_BLUETOOTH_HOST_ONLY
+#if CONFIG_BLUETOOTH_HOST_ONLY || CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
 #include "ble_boarding.h"
 #else
 typedef enum
