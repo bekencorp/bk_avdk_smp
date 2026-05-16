@@ -23,6 +23,7 @@
 #include <os/rtos_ext.h>
 #include "adc_driver.h"
 #include <modules/pm.h>
+#include "sys_sw_regs.h"
 
 #define TAG		"saradc_s"
 
@@ -42,10 +43,17 @@
 #define SARADC_SVR_EVENTS         (SARADC_SVR_CONNECT_EVENTS | SARADC_SVR_QUIT_EVENT)
 
 #define SARADC_SVR_WAIT_TIME      50
+#define ADC_KEY_SAMPLER_PERIOD_MS_DEFAULT 80
+#define ADC_KEY_SAMPLER_PERIOD_MS_MIN     20
 
 static u8 s_saradc_svr_init = 0;
 static rtos_event_ext_t  saradc_svr_event;
 static u16 saradc_buff[32];
+static beken_timer_t s_adc_key_sample_timer;
+static bool s_adc_key_sampler_running = false;
+static bool s_adc_key_timer_inited = false;
+static uint32_t s_adc_key_sample_period_ms = ADC_KEY_SAMPLER_PERIOD_MS_DEFAULT;
+static adc_chan_t s_adc_key_sample_chan = ADC_4;
 
 static uint32_t calc_crc32(uint32_t crc, const uint8_t *buf, int len)
 {
@@ -63,6 +71,110 @@ static uint32_t calc_crc32(uint32_t crc, const uint8_t *buf, int len)
     }
 
     return crc;
+}
+
+static uint16_t saradc_raw_to_mv(uint16_t raw)
+{
+    float cali_value = ((float)raw / 4096.0f * 2.0f) * 1.2f;
+    return (uint16_t)(cali_value * 1000.0f);
+}
+
+static void saradc_adc_key_sample_timer_cb(void *param)
+{
+    (void)param;
+
+    if (!s_adc_key_sampler_running) {
+        return;
+    }
+
+    uint16_t raw = 0;
+    bk_err_t ret = bk_adc_set_channel(s_adc_key_sample_chan);
+    if (ret != BK_OK) {
+        bk_sys_sw_regs_set_adc_key_sample(0, 9999, (uint8_t)ret, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
+        return;
+    }
+
+    ret = bk_adc_read(&raw, 10);
+    if (ret != BK_OK) {
+        bk_sys_sw_regs_set_adc_key_sample(0, 9999, (uint8_t)ret, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
+        return;
+    }
+
+    bk_sys_sw_regs_set_adc_key_sample(raw, saradc_raw_to_mv(raw), 0, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
+}
+
+static bk_err_t saradc_adc_key_sampler_start(adc_chan_t chan, uint32_t sample_period_ms)
+{
+    adc_config_t config = {0};
+
+    if (sample_period_ms < ADC_KEY_SAMPLER_PERIOD_MS_MIN) {
+        sample_period_ms = ADC_KEY_SAMPLER_PERIOD_MS_MIN;
+    }
+
+    if (s_adc_key_sampler_running) {
+        return BK_OK;
+    }
+
+    config.chan = chan;
+    config.adc_mode = ADC_CONTINUOUS_MODE;
+    config.src_clk = ADC_SCLK_XTAL;
+    config.clk = 3203125;
+    config.saturate_mode = ADC_SATURATE_MODE_3;
+    config.steady_ctrl = 7;
+    config.adc_filter = 0;
+
+    if (bk_adc_acquire() != BK_OK ||
+        bk_adc_init(chan) != BK_OK ||
+        bk_adc_set_config(&config) != BK_OK ||
+        bk_adc_enable_bypass_clalibration() != BK_OK ||
+        bk_adc_start() != BK_OK) {
+        return BK_FAIL;
+    }
+
+    s_adc_key_sample_chan = chan;
+    s_adc_key_sample_period_ms = sample_period_ms;
+
+    if (!s_adc_key_timer_inited) {
+        if (rtos_init_timer(&s_adc_key_sample_timer, s_adc_key_sample_period_ms, saradc_adc_key_sample_timer_cb, NULL) != kNoErr) {
+            bk_adc_stop();
+            bk_adc_release();
+            bk_adc_deinit(chan);
+            return BK_FAIL;
+        }
+        s_adc_key_timer_inited = true;
+    } else {
+        rtos_change_period(&s_adc_key_sample_timer, s_adc_key_sample_period_ms);
+    }
+
+    if (rtos_start_timer(&s_adc_key_sample_timer) != kNoErr) {
+        bk_adc_stop();
+        bk_adc_release();
+        bk_adc_deinit(chan);
+        return BK_FAIL;
+    }
+
+    s_adc_key_sampler_running = true;
+    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 0, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
+    return BK_OK;
+}
+
+static bk_err_t saradc_adc_key_sampler_stop(void)
+{
+    if (!s_adc_key_sampler_running) {
+        return BK_OK;
+    }
+
+    s_adc_key_sampler_running = false;
+    if (s_adc_key_timer_inited && rtos_is_timer_running(&s_adc_key_sample_timer)) {
+        rtos_stop_timer(&s_adc_key_sample_timer);
+    }
+
+    bk_adc_stop();
+    bk_adc_release();
+    bk_adc_deinit(s_adc_key_sample_chan);
+
+    bk_sys_sw_regs_set_adc_key_sample(0, 9999, 1, (uint8_t)s_adc_key_sample_chan, s_adc_key_sample_period_ms, rtos_get_time());
+    return BK_OK;
 }
 
 static void saradc_error_handler(u32 handle, u8 user_cmd)
@@ -299,6 +411,22 @@ static void saradc_set_chan_handler(u32 handle, saradc_cmd_t *cmd_buff)
 		TRACE_I(TAG, "0x%x, deinit adc chan gpio%d: %d, %d.\r\n", handle, cmd_buff->config.chan, cmd_buff->ret_status, ret_val);
 }
 
+static void saradc_adc_key_sampler_start_handler(u32 handle, saradc_cmd_t *cmd_buff)
+{
+	cmd_buff->ret_status = saradc_adc_key_sampler_start(cmd_buff->config.chan, cmd_buff->timeout);
+	int ret_val = mb_ipc_send(handle, MB_SARADC_CMD_ADC_KEY_SAMPLER_START, (u8 *)cmd_buff, sizeof(saradc_cmd_t), SARADC_SVR_WAIT_TIME);
+	if(ret_val != 0)
+		TRACE_I(TAG, "0x%x, adc_key_sampler_start: %d, %d.\r\n", handle, cmd_buff->ret_status, ret_val);
+}
+
+static void saradc_adc_key_sampler_stop_handler(u32 handle, saradc_cmd_t *cmd_buff)
+{
+	cmd_buff->ret_status = saradc_adc_key_sampler_stop();
+	int ret_val = mb_ipc_send(handle, MB_SARADC_CMD_ADC_KEY_SAMPLER_STOP, (u8 *)cmd_buff, sizeof(saradc_cmd_t), SARADC_SVR_WAIT_TIME);
+	if(ret_val != 0)
+		TRACE_I(TAG, "0x%x, adc_key_sampler_stop: %d, %d.\r\n", handle, cmd_buff->ret_status, ret_val);
+}
+
 static void saradc_cmd_handler(u32 handle, u8 connect_id)
 {
 	saradc_cmd_t cmd_buff;
@@ -395,6 +523,14 @@ static void saradc_cmd_handler(u32 handle, u8 connect_id)
 
 		case MB_SARADC_CMD_SET_CHANNEL:
 			saradc_set_chan_handler(handle, &cmd_buff);
+			break;
+
+		case MB_SARADC_CMD_ADC_KEY_SAMPLER_START:
+			saradc_adc_key_sampler_start_handler(handle, &cmd_buff);
+			break;
+
+		case MB_SARADC_CMD_ADC_KEY_SAMPLER_STOP:
+			saradc_adc_key_sampler_stop_handler(handle, &cmd_buff);
 			break;
 
 		default:
@@ -509,6 +645,12 @@ static void saradc_svr_task(void *param)
 				saradc_svr_connect_handler(connect_handle, i);
 			}
 		}
+	}
+
+	saradc_adc_key_sampler_stop();
+	if (s_adc_key_timer_inited) {
+		rtos_deinit_timer(&s_adc_key_sample_timer);
+		s_adc_key_timer_inited = false;
 	}
 	mb_ipc_server_close(handle, SARADC_SVR_WAIT_TIME);
 	rtos_deinit_event_ex(&saradc_svr_event);

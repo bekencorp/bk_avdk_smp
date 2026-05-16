@@ -64,6 +64,7 @@ typedef struct {
 } riscv_usb_probe_t;
 
 #define BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID 0x41504844U
+#define BK_SYS_SW_REGS_ADC_KEY_VALID      0x41444B59U
 
 #if CONFIG_AP_EMUBOOT
 #define BK_SYS_SW_REGS_FLASH_INIT_NOT_DONE 0U
@@ -84,6 +85,18 @@ typedef struct {
     volatile uint32_t reserved;
 } ap_heap_dump_info_t;
 
+typedef struct {
+    volatile uint32_t valid;
+    volatile uint32_t seq;
+    volatile uint32_t sample_tick;
+    volatile uint16_t raw;
+    volatile uint16_t mv;
+    volatile uint8_t status;
+    volatile uint8_t channel;
+    volatile uint16_t reserved0;
+    volatile uint32_t sample_period_ms;
+} adc_key_sample_info_t;
+
 typedef union {
     struct {
         volatile sspl_data_t sspl_list[32];    /**< SSPL list */
@@ -92,6 +105,7 @@ typedef union {
         volatile uint32_t ap_reset_reason;  /**< AP reset reason code  */
         volatile riscv_usb_probe_t riscv_usb_probe; /**< AP/RISC-V USB host probe context */
         volatile ap_heap_dump_info_t ap_heap_dump[BK_SYS_SW_REGS_AP_HEAP_MAX]; /**< AP heap dump windows */
+        volatile adc_key_sample_info_t adc_key_sample; /**< CP ADC key latest sample */
         volatile uint32_t flash_init_done;  /**< CP flash init completion flag */
     };
     volatile uint32_t reserved[256];        /**< Reserved for future use */
@@ -131,6 +145,7 @@ uint32_t bk_sys_sw_regs_get_ap_reset_reason(void);
  * @return 1 if a valid heap dump window exists, otherwise 0.
  */
 uint32_t bk_sys_sw_regs_get_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, ap_heap_dump_info_t *info);
+uint32_t bk_sys_sw_regs_get_adc_key_sample(adc_key_sample_info_t *info);
 
 /* --------------------------------------------------------------------------
  * Write API (protected by lock)
@@ -175,6 +190,7 @@ void bk_sys_sw_regs_set_flash_init_done(uint32_t value);
  * @param max_alloc_end Monotonic allocation high-water end address.
  */
 void bk_sys_sw_regs_update_ap_heap_dump(bk_sys_sw_regs_ap_heap_id_t id, uint32_t pool_base, uint32_t max_alloc_end);
+void bk_sys_sw_regs_set_adc_key_sample(uint16_t raw, uint16_t mv, uint8_t status, uint8_t channel, uint32_t sample_period_ms, uint32_t sample_tick);
 
 /**
  * @brief Get the SSPL list.
