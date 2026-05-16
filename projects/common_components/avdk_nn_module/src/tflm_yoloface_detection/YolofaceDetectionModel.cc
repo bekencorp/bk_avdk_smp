@@ -305,7 +305,7 @@ int YolofaceDetectionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t 
             /* Quiet log when nothing close to a face is in the frame. */
             MicroPrintf("YolofaceDetection: no candidates above obj=%.2f\r\n", kObjScoreThreshold);
         }
-        box_detection_path_clear();
+        onBoxDetectionCallback(NULL, 0);
         return 0;
     }
 

@@ -35,6 +35,11 @@ static YolofaceDetectionModel *model = NULL;
 
 static void detection_box_cb(Box *boxes, int count)
 {
+    if (boxes == NULL || count <= 0) {
+        box_detection_path_clear();
+        return;
+    }
+
     bk_printf("detection_box_cb: score=%.3f, x=%.2f, y=%.2f, w=%.2f, h=%.2f\n",
               boxes[0].score, boxes[0].x, boxes[0].y, boxes[0].w, boxes[0].h);
 

@@ -37,15 +37,43 @@ static PalmDetectionModel *model = NULL;
 
 static void detection_box_cb(Box *boxes, int count)
 {
-    bk_printf("detection_box_cb: score=%.3f, x=%.2f, y=%.2f, w=%.2f, h=%.2f\n",
-              boxes[0].score, boxes[0].x, boxes[0].y, boxes[0].w, boxes[0].h);
+    if (boxes == NULL || count <= 0) {
+        box_detection_path_clear();
+        return;
+    }
 
-    /* src = model input size (256x256), dst = display canvas size (1088x1088). */
-    box_detection_path_build(boxes, count, 1, 0, model->getWidth(), model->getHeight(), 1088, 1088);
+    /* Pick the box with the largest area (w*h) to drive the servo.
+     *
+     * boxes[] arrives sorted by score (NMS output), but the highest-score box
+     * is not always the largest one -- a small but very distinct palm in a
+     * corner can outscore a partially-clipped larger palm in the center. For
+     * servo tracking we want "the palm closest to the camera", and box area
+     * is a robust proxy for that regardless of pose. When count==1 we skip
+     * the scan entirely. */
+    int target = 0;
+    if (count > 1) {
+        float best_area = boxes[0].w * boxes[0].h;
+        for (int i = 1; i < count; i++) {
+            float area = boxes[i].w * boxes[i].h;
+            if (area > best_area) {
+                best_area = area;
+                target = i;
+            }
+        }
+    }
 
-    /* Drive servo from the box center: top-left (x,y) + half size. */
-    palm_track_servo(boxes[0].x + boxes[0].w * 0.5f,
-                     boxes[0].y + boxes[0].h * 0.5f,
+    bk_printf("detection_box_cb: count=%d target=%d score=%.3f xywh=(%.2f,%.2f,%.2fx%.2f)\n",
+              count, target, boxes[target].score,
+              boxes[target].x, boxes[target].y, boxes[target].w, boxes[target].h);
+
+    /* Draw ALL detected palms. The user can still see secondary palms on the
+     * OSD even though the servo only follows the largest one.
+     * src = model input size (256x256), dst = display canvas size (1088x1088). */
+    box_detection_path_build(boxes, count, count, 0, model->getWidth(), model->getHeight(), 1088, 1088);
+
+    /* Drive servo from the chosen box's center: top-left (x,y) + half size. */
+    palm_track_servo(boxes[target].x + boxes[target].w * 0.5f,
+                     boxes[target].y + boxes[target].h * 0.5f,
                      model->getWidth(), model->getHeight());
 }
 
