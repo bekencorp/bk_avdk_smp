@@ -264,6 +264,7 @@ int doorbell_asr_turn_on(void)
         asr_cfg.aec_cfg.aec_alg_cfg.vad_cfg.vad_enable              = 0;
         asr_cfg.aec_cfg.aec_alg_cfg.aec_cfg.ec_only_output          = 1;
         asr_cfg.aec_cfg.aec_alg_cfg.aec_cfg.multi_output_use_ec_out = 1;
+        asr_cfg.aec_cfg.aec_alg_cfg.out_block_num = 4;
     } else
     {
         asr_cfg.aec_en = false;
