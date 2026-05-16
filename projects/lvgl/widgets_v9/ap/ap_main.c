@@ -13,10 +13,7 @@
 #include "media_service.h"
 #include <components/bk_frame_buffer.h>
 #include <common/avdk_pixel_types.h>
-#include <components/bk_display.h>
-#include <components/bk_display_dpu_ctlr.h>
-#include <components/bk_display_bus.h>
-#include <components/bk_lcd_panel.h>
+#include <components/bk_display.h>          /* umbrella: bus + panel + display ctlr */
 #include <lcd/lcd_hx8399c_mipi_1080x1920.h>
 #include <driver/gpio.h>
 #include "gpio_driver.h"
@@ -82,10 +79,7 @@ bk_err_t lvgl_app_widgets_init(void)
     const bk_lcd_panel_dev_config_t panel_dev_config =
     {
         .reset_pin = GPIO_60,
-        .rgb_ele_order = COLOR_RGB_ELEMENT_ORDER_RGB,
-        .data_endian = LCD_RGB_DATA_ENDIAN_BIG,
-        .bits_per_pixel = 16,
-        .flags.reset_active_level = 0,
+        .reset_active_level = false,
     };
 
     #define WIDTH (1080)
@@ -93,14 +87,12 @@ bk_err_t lvgl_app_widgets_init(void)
 
     // Create DSI bus
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&g_disp_ctx->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
-    AVDK_GOTO_ON_ERROR(bk_display_bus_enable(g_disp_ctx->dis_bus_handle), err, TAG, "display bus enable err\n");
-
     AVDK_GOTO_ON_ERROR(bk_lcd_mipi_panel_new(g_disp_ctx->dis_bus_handle, &panel_dev_config, &lcd_device_hx8399c_mipi_1080x1920, &g_disp_ctx->panel_handle),
                        err, TAG, "create panel err\n");
 
     bk_lcd_panel_reset(g_disp_ctx->panel_handle);
     bk_lcd_panel_init(g_disp_ctx->panel_handle);
-    bk_lcd_panel_get_disp_timing(g_disp_ctx->panel_handle, &dpu_config.timing);
+    dpu_config.timing = lcd_device_hx8399c_mipi_1080x1920.timing;
 
     dpu_config.video.disp_x = 0;
     dpu_config.video.disp_y = 0;

@@ -21,7 +21,7 @@ extern "C" {
 #include <stdbool.h>
 #include "avdk_error.h"
 #include "app_display_types.h"
-#include <components/bk_lcd_types.h>
+#include <components/bk_lcd_panel.h>
 
 #define DISP_DEBUG_TIMER_ENABLE   (1)
 #define DISP_DEBUG_TIMER_INTERVAL (5)

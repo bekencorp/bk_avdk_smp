@@ -10,10 +10,7 @@
 
 #include <components/bk_gpu_types.h>
 #include <components/bk_frame_buffer.h>
-#include <components/bk_display.h>
-#include <components/bk_display_dpu_ctlr.h>
-#include <components/bk_display_bus.h>
-#include <components/bk_lcd_panel.h>
+#include <components/bk_display.h>          /* umbrella: bus + panel + display ctlr */
 #include <common/avdk_pixel_types.h>
 #include <lcd/lcd_hx8399c_mipi_1080x1920.h>
 
@@ -53,14 +50,10 @@ static avdk_err_t lcd_example_dsi_open(app_display_config_t *display_config)
     const bk_lcd_panel_dev_config_t panel_dev_config = 
     {
         .reset_pin = GPIO_60,
-        .rgb_ele_order = COLOR_RGB_ELEMENT_ORDER_RGB,
-        .data_endian = LCD_RGB_DATA_ENDIAN_BIG,
-        .bits_per_pixel = 16,
-        .flags.reset_active_level = 0,
+        .reset_active_level = false,
     };
 
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&display_config->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
-    AVDK_GOTO_ON_ERROR(bk_display_bus_enable(display_config->dis_bus_handle), err, TAG, "display bus enable err\n");
 
     AVDK_GOTO_ON_ERROR(bk_lcd_mipi_panel_new(display_config->dis_bus_handle, &panel_dev_config, panel, &display_config->panel_handle),
                        err, TAG, "create panel err\n");
@@ -68,7 +61,7 @@ static avdk_err_t lcd_example_dsi_open(app_display_config_t *display_config)
 
     bk_lcd_panel_reset(display_config->panel_handle);
     bk_lcd_panel_init(display_config->panel_handle);
-    bk_lcd_panel_get_disp_timing(display_config->panel_handle, &dpu_config.timing);
+    dpu_config.timing = panel->timing;
 
     AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&display_config->dpu_ctlr_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(display_config->dpu_ctlr_handle), err, TAG, "display init err\n");
@@ -136,18 +129,13 @@ static avdk_err_t display_test_turn_off(void)
         return AVDK_ERR_OK;
     }
 
-    // TO FIX: display_test_turn_off should be called in the display thread
-#if 0
-    bk_display_close(display_config->dpu_ctlr_handle);
-    bk_display_dpu_ctlr_destroy(display_config->dpu_ctlr_handle);
-    bk_display_bus_disable(display_config->dis_bus_handle);
-    bk_display_bus_destroy(display_config->dis_bus_handle);
-    bk_lcd_panel_destroy(display_config->panel_handle);
-    bk_gpio_disable_output(GPIO_7);
-    bk_gpio_pull_down(GPIO_7);
-    bk_gpio_set_output_low(GPIO_7);
-    gpio_dev_unmap(GPIO_7);
-#endif
+    /* TODO: display_test_turn_off must be invoked from the display
+     * thread before tearing the pipeline down (close/delete order
+     * matters). The previous in-line teardown referenced API names
+     * (bk_display_dpu_ctlr_destroy / bk_display_bus_destroy /
+     * bk_lcd_panel_destroy / bk_display_bus_disable) that no longer
+     * exist after the lifecycle cleanup; intentionally left empty
+     * pending the threading rework. */
 
     os_free(display_config);
     s_display_config = NULL;

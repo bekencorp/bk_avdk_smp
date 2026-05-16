@@ -6,17 +6,9 @@
 #include "gpio_driver.h"
 #include <components/log.h>
 #include <components/bk_display.h>
-#include <components/bk_display_bus.h>
-#include <components/bk_display_dpu_ctlr.h>
-#include <components/bk_lcd_panel.h>
-#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
 #include <avdk_check.h>
-
+#include <lcd/lcd_hx8399c_mipi_1080x1920.h>
 #include "h264d_gpu_display_display.h"
-
-#if !CONFIG_LCD_HX8399C_MIPI_1080x1920
-extern const bk_display_dsi_panel_t lcd_device_hx8399c_mipi_1080x1920;
-#endif
 
 #define TAG "h264d_disp"
 
@@ -225,34 +217,10 @@ avdk_err_t h264d_gpu_display_display_open(void)
 	if (ret != BK_OK) {
 		goto error;
 	}
-	LOGI("display step: bus_enable\r\n");
-	ret = bk_display_bus_enable(ctx->dsi_bus_handle);
-	if (ret != BK_OK) {
-		goto error;
-	}
 
 	os_memset(&panel_cfg, 0, sizeof(panel_cfg));
-	if (s_display_board_config.mipi.pin_scl >= 0 &&
-	    s_display_board_config.mipi.pin_sda >= 0 &&
-	    (s_display_board_config.mipi.pin_scl != 0 ||
-	     s_display_board_config.mipi.pin_sda != 0)) {
-		bk_display_i2c_bus_config_t i2c_cfg = {
-			.scl_pin = (uint8_t)s_display_board_config.mipi.pin_scl,
-			.sda_pin = (uint8_t)s_display_board_config.mipi.pin_sda,
-		};
-
-		ret = bk_display_i2c_bus_new(&ctx->cfg_bus_handle, &i2c_cfg);
-		if (ret != BK_OK) {
-			goto error;
-		}
-	}
-
 	panel_cfg.reset_pin = s_display_board_config.mipi.pin_reset;
-	panel_cfg.rgb_ele_order = COLOR_RGB_ELEMENT_ORDER_RGB;
-	panel_cfg.data_endian = LCD_RGB_DATA_ENDIAN_BIG;
-	panel_cfg.bits_per_pixel = 16;
-	panel_cfg.vendor_config = (ctx->cfg_bus_handle != NULL) ?
-		&ctx->cfg_bus_handle : NULL;
+	panel_cfg.reset_active_level = false;
 
 	LOGI("display step: panel_new\r\n");
 	ret = bk_lcd_mipi_panel_new(ctx->dsi_bus_handle,
@@ -274,10 +242,7 @@ avdk_err_t h264d_gpu_display_display_open(void)
 		goto error;
 	}
 	LOGI("display step: get_timing\r\n");
-	ret = bk_lcd_panel_get_disp_timing(ctx->panel_handle, &dpu_cfg.timing);
-	if (ret != BK_OK) {
-		goto error;
-	}
+	dpu_cfg.timing = panel->timing;
 	LOGI("display step: dpu_new\r\n");
 	ret = bk_display_dpu_ctlr_new(&ctx->dpu_ctlr_handle, &dpu_cfg);
 	if (ret != BK_OK) {

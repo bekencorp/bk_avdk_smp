@@ -319,7 +319,6 @@ void cli_avdk_doorbell_isp_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 }
 
 
-extern display_board_config_t *display_board_config;
 extern gpu_board_config_t *gpu_board_config;
 static void *s_isp_gpu_bond = NULL;
 static void *s_isp_h264e_bond = NULL;
@@ -380,11 +379,12 @@ void cli_avdk_doorbell_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, int
 
         // If no panel found by name, try to use default from board config
         if (selected_panel == NULL) {
-            if (display_board_config && display_board_config->mipi.panel) {
-                selected_panel = display_board_config->mipi.panel;
+            display_board_config_t *cfg = app_display_board_config_get();
+            if (cfg && cfg->mipi.panel) {
+                selected_panel = cfg->mipi.panel;
                 panel_name = selected_panel->name;
                 LOGI("Using default panel from board config: %s\n", panel_name);
-            } 
+            }
         }
 
         // Parse GPU parameters (offset by param_offset)

@@ -8,10 +8,7 @@
 #include <driver/gpio.h>
 #include <driver/gpio_types.h>
 #include "gpio_driver.h"
-#include <components/bk_display.h>
-#include <components/bk_display_dpu_ctlr.h>
-#include <components/bk_display_bus.h>
-#include <components/bk_lcd_panel.h>
+#include <components/bk_display.h>          /* umbrella: bus + panel + display ctlr */
 #include <components/bk_frame_buffer.h>
 #include <common/avdk_pixel_types.h>
 #include <avdk_check.h>
@@ -80,24 +77,26 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
         .video.enable = true,
         .video.decompress = (format == BK_PIXEL_FORMAT_ARGB8888),
         .video.format = format,
+        .clk_src = DPU_CLK_SRC_SYSCLK,
     };
 
-    bk_display_rgb_bus_config_t rgb_bus_cfg = {
-        .reset_pin = GPIO_6,
+    /* RGB panels drive register-init through a private SW (GPIO bit-bang)
+     * SPI channel; pixel data flows through the parallel 24-bit RGB
+     * lanes muxed by the panel-common driver and pushed by the DPU.
+     *
+     * cmd_width is filled in below once the panel descriptor has been
+     * resolved, so the SW SPI bus' panel-IO is created with the
+     * correct wire format (8 = 9-bit SPI, 16 = 4-byte packed). */
+    bk_display_spi_bus_config_t rgb_cfg_bus = {
+        .mode    = BK_DISPLAY_SPI_BUS_MODE_SW,
         .clk_pin = GPIO_8,
         .csx_pin = GPIO_28,
         .sda_pin = GPIO_9,
     };
 
     bk_lcd_panel_dev_config_t panel_dev_config = {
-        .reset_pin = rgb_bus_cfg.reset_pin,
-        .clk_pin = rgb_bus_cfg.clk_pin,
-        .csx_pin = rgb_bus_cfg.csx_pin,
-        .sda_pin = rgb_bus_cfg.sda_pin,
-        .rgb_ele_order = COLOR_RGB_ELEMENT_ORDER_RGB,
-        .data_endian = LCD_RGB_DATA_ENDIAN_BIG,
-        .bits_per_pixel = 16,
-        .flags.reset_active_level = 0,
+        .reset_pin = GPIO_6,
+        .reset_active_level = false,
     };
 
     const bk_display_rgb_panel_t *rgb_panels[8];
@@ -135,13 +134,19 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
         }
     }
 
-    AVDK_GOTO_ON_ERROR(bk_display_rgb_bus_new(&context->dis_bus_handle, &rgb_bus_cfg), err, TAG, "display rgb bus new err\n");
-    AVDK_GOTO_ON_ERROR(bk_display_bus_enable(context->dis_bus_handle), err, TAG, "display bus enable err\n");
-    AVDK_GOTO_ON_ERROR(bk_lcd_rgb_panel_new(context->dis_bus_handle, &panel_dev_config, panel, &context->panel_handle), err, TAG, "create panel err\n");
+    /* Pin the SW SPI bus' panel-IO wire format to the chosen panel's
+     * protocol. spi_cmd_16bit is the panel descriptor's own metadata
+     * (single source of truth); the bus_cfg copy lets bus_new() build
+     * the panel-IO with the right encoding before any panel-common
+     * tx_param call. */
+    rgb_cfg_bus.cmd_width = panel->spi_cmd_16bit ? 16 : 8;
+
+    AVDK_GOTO_ON_ERROR(bk_display_spi_bus_new(&context->spi_bus_handle, &rgb_cfg_bus), err, TAG, "display rgb cfg-bus new err\n");
+    AVDK_GOTO_ON_ERROR(bk_lcd_rgb_panel_new(context->spi_bus_handle, &panel_dev_config, panel, &context->panel_handle), err, TAG, "create panel err\n");
 
     bk_lcd_panel_reset(context->panel_handle);
     bk_lcd_panel_init(context->panel_handle);
-    bk_lcd_panel_get_disp_timing(context->panel_handle, &dpu_config.timing);
+    dpu_config.timing = panel->timing;
 
     AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&context->dpu_ctlr_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(context->dpu_ctlr_handle), err, TAG, "display init err\n");
@@ -161,10 +166,10 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
     LOGI("RGB LCD opened: format=%d, %dx%d\n", format, context->width, context->height);
     return AVDK_ERR_OK;
 err:
-    if (context->dis_bus_handle)
+    if (context->spi_bus_handle)
     {
-        bk_display_bus_delete(context->dis_bus_handle);
-        context->dis_bus_handle = NULL;
+        bk_display_bus_delete(context->spi_bus_handle);
+        context->spi_bus_handle = NULL;
     }
     return ret;
 }
@@ -206,10 +211,10 @@ avdk_err_t lcd_example_rgb_close(display_ctx_t *context)
         bk_lcd_panel_del(context->panel_handle);
         context->panel_handle = NULL;
     }
-    if (context->dis_bus_handle)
+    if (context->spi_bus_handle)
     {
-        bk_display_bus_delete(context->dis_bus_handle);
-        context->dis_bus_handle = NULL;
+        bk_display_bus_delete(context->spi_bus_handle);
+        context->spi_bus_handle = NULL;
     }
     LOGI("RGB LCD closed\n");
     return AVDK_ERR_OK;
@@ -270,7 +275,7 @@ static void lcd_example_flush_thread(void *args)
             LOGE("bk_display_flush failed\n");
             bk_frame_buffer_free(frame);
         }
-        rtos_delay_milliseconds(50);
+        rtos_delay_milliseconds(500);
     }
 
     disp_ctx->thread = NULL;

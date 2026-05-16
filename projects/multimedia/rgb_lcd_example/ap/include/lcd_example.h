@@ -16,9 +16,7 @@
 
 #include <avdk_check.h>
 #include <common/avdk_pixel_types.h>
-#include <components/bk_display_types.h>
-#include <components/bk_display_bus.h>
-#include <components/bk_lcd_types.h>
+#include <components/bk_display.h>          /* umbrella: bus + panel + display ctlr */
 #include <os/os.h>
 
 #ifdef __cplusplus
@@ -44,7 +42,7 @@ typedef struct
 {
     uint8_t enable;
     bk_display_ctlr_handle_t dpu_ctlr_handle;
-    bk_display_bus_handle_t dis_bus_handle;
+    bk_display_bus_handle_t spi_bus_handle;
     bk_avdk_lcd_panel_handle_t panel_handle;
     beken_thread_t thread;
     beken_semaphore_t sem;

@@ -3,8 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <components/bk_display_types.h>
-
 #include "components/bk_video_player/bk_video_player_types.h"
 
 // Forward declaration

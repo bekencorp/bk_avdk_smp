@@ -8,18 +8,13 @@
 #include "cli.h"
 #include "sys_driver.h"
 
-#include <components/bk_lcd_types.h>
-#include "components/bk_display.h"
+#include <components/bk_display.h>          /* umbrella: bus + panel + display ctlr */
 #include <driver/gpio.h>
 #include <driver/gpio_types.h>
 #include "gpio_driver.h"
 
 #include "gpu_core.h"
 
-#include <components/bk_display.h>
-#include <components/bk_display_dpu_ctlr.h>
-#include <components/bk_display_bus.h>
-#include <components/bk_lcd_panel.h>
 #include "tiger_paths.h"
 #include <lcd/lcd_hx8399c_mipi_1080x1920.h>
 
@@ -286,14 +281,10 @@ avdk_err_t draw_tiger(void)
 	const bk_lcd_panel_dev_config_t panel_dev_config = 
 	{
 		.reset_pin = GPIO_60,
-		.rgb_ele_order = COLOR_RGB_ELEMENT_ORDER_RGB,
-		.data_endian = LCD_RGB_DATA_ENDIAN_BIG,
-		.bits_per_pixel = 16,
-		.flags.reset_active_level = 0,
+		.reset_active_level = false,
 	};
 
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&g_disp_ctx->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
-    AVDK_GOTO_ON_ERROR(bk_display_bus_enable(g_disp_ctx->dis_bus_handle), err, TAG, "display bus enable err\n");
 
 #if CONFIG_LCD_HX8399C_MIPI_1080x1920
     AVDK_GOTO_ON_ERROR(bk_lcd_mipi_panel_new(g_disp_ctx->dis_bus_handle, &panel_dev_config, &lcd_device_hx8399c_mipi_1080x1920, &g_disp_ctx->panel_handle),
@@ -302,7 +293,9 @@ avdk_err_t draw_tiger(void)
     bk_lcd_panel_reset(g_disp_ctx->panel_handle);
     bk_lcd_panel_init(g_disp_ctx->panel_handle);
     bk_lcd_panel_read_id(g_disp_ctx->panel_handle, &id);
-    bk_lcd_panel_get_disp_timing(g_disp_ctx->panel_handle, &dpu_config.timing);
+#if CONFIG_LCD_HX8399C_MIPI_1080x1920
+    dpu_config.timing = lcd_device_hx8399c_mipi_1080x1920.timing;
+#endif
     LOGI("read lcd id: 0x%x\n", id);
 
     dpu_config.video.disp_x = 0;
@@ -312,6 +305,7 @@ avdk_err_t draw_tiger(void)
     
     AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&g_disp_ctx->dpu_ctlr_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(g_disp_ctx->dpu_ctlr_handle), err, TAG, "display init err\n");
+    AVDK_GOTO_ON_ERROR(bk_display_open(g_disp_ctx->dpu_ctlr_handle), err, TAG, "display open err\n");
 
     /* enable backlight */
     gpio_dev_unmap(GPIO_7);

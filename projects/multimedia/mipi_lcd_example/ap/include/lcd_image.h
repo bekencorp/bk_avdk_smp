@@ -16,9 +16,7 @@
 
 #include <avdk_check.h>
 #include <common/avdk_pixel_types.h>
-#include <components/bk_display_types.h>
-#include <components/bk_display_bus.h>
-#include <components/bk_lcd_types.h>
+#include <components/bk_display.h>          /* umbrella: bus + panel + display ctlr */
 #include <os/os.h>
 
 #ifdef __cplusplus

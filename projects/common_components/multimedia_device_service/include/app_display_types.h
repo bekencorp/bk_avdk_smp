@@ -1,5 +1,6 @@
 #pragma once
-#include <components/bk_display_types.h>
+#include <components/bk_lcd_panel.h>      /* bk_display_dsi_panel_t */
+#include <common/avdk_pixel_types.h>      /* bk_pixel_format_t */
 #ifdef __cplusplus
 extern "C" {
 #endif

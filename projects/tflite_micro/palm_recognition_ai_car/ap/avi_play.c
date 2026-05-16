@@ -32,6 +32,7 @@ static bool g_video_player_opened = false;
 static bool g_rgb565_byte_swap = true;
 
 bk_display_spi_bus_config_t spi_ctlr_config = {
+    .mode = BK_DISPLAY_SPI_BUS_MODE_HW,
     .lcd_panel = &lcd_device_jd9853,
     .spi_id = 0,
     .dc_pin = GPIO_50,
@@ -310,12 +311,6 @@ bk_err_t bk_avi_player_start(const char *file_path)
         }
 
         LOGD("bk_display_spi_new success!\n");
-        ret = bk_display_bus_enable(lcd_display_handle);
-        if (ret != AVDK_ERR_OK) {
-            LOGE("bk_display_open failed, ret=%d!\n", ret);
-            goto fail;
-        }
-
         lcd_backlight_open(GPIO_29);
     }
 

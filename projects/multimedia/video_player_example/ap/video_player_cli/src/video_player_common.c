@@ -2,9 +2,6 @@
 #include <components/avdk_utils/avdk_error.h>
 #include <components/avdk_utils/avdk_check.h>
 #include <components/bk_display.h>
-#include <components/bk_display_bus.h>
-#include <components/bk_display_dpu_ctlr.h>
-#include <components/bk_lcd_panel.h>
 #include <os/str.h>
 #include <os/os.h>
 #include <os/mem.h>

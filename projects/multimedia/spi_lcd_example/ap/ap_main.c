@@ -25,6 +25,7 @@ extern const bk_lcd_panel_t lcd_device_jd9853;
 
 static bk_display_bus_handle_t lcd_display_handle = NULL;
 bk_display_spi_bus_config_t spi_ctlr_config = {
+    .mode = BK_DISPLAY_SPI_BUS_MODE_HW,
     .lcd_panel = &lcd_device_jd9853,
     .spi_id = 0,
     .dc_pin = GPIO_25,
@@ -69,16 +70,10 @@ void cli_spi_lcd_display_cmd(uint16_t color)
     if (!is_display_init) {
         ret = bk_display_spi_bus_new(&lcd_display_handle, &spi_ctlr_config);
         if (ret != AVDK_ERR_OK) {
-            LOGE("bk_display_spi_new failed!\n");
+            LOGE("bk_display_spi_bus_new failed!\n");
             return;
         }
-
-        LOGD("bk_display_spi_new success!\n");
-        ret = bk_display_bus_enable(lcd_display_handle);
-        if (ret != AVDK_ERR_OK) {
-            LOGE("bk_display_open failed!\n");
-            return;
-        }
+        LOGD("bk_display_spi_bus_new success!\n");
 
         frame_len = spi_ctlr_config.lcd_panel->width * spi_ctlr_config.lcd_panel->height * 2;
         disp_frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, frame_len);

@@ -6,8 +6,8 @@ extern "C" {
 #endif
 
 #include <components/avdk_utils/avdk_error.h>
-#include <components/bk_display_types.h>
 #include <driver/gpio.h>
+#include <components/bk_display.h>
 #include "video_player_cli.h"
 
 // Common definitions
