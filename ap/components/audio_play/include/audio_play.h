@@ -39,6 +39,7 @@ typedef enum
     AUDIO_PLAY_DECODER_PCM = 0,
     AUDIO_PLAY_DECODER_SBC,
     AUDIO_PLAY_DECODER_AAC,
+    AUDIO_PLAY_DECODER_MSBC,
 } audio_play_decoder_t;
 
 typedef enum {

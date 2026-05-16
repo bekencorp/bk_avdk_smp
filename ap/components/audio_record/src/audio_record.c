@@ -19,6 +19,7 @@
 #include <components/bk_audio/audio_pipeline/audio_event_iface.h>
 #include <components/bk_audio/audio_streams/raw_stream.h>
 #include <components/bk_audio/audio_streams/onboard_mic_stream_v2.h>
+#include <components/bk_audio/audio_encoders/sbc_enc.h>
 #include "audio_record.h"
 
 #define AUDIO_RECORD_TAG "aud_rec"
@@ -28,12 +29,34 @@
 typedef struct {
     audio_pipeline_handle_t pipeline;
     audio_element_handle_t mic;
+    audio_element_handle_t encoder;
     audio_element_handle_t raw_stream;
     audio_event_iface_handle_t listener_evt;
     beken_thread_t listener_thread;
     volatile bool listener_running;
     audio_record_sta_t state;
 } audio_record_ctx_t;
+
+static audio_element_handle_t audio_record_create_encoder(const audio_record_cfg_t *cfg)
+{
+    if (cfg->encoder_type == AUDIO_RECORD_ENCODER_PCM) {
+        return NULL;
+    }
+
+    if (cfg->encoder_type == AUDIO_RECORD_ENCODER_SBC) {
+#if CONFIG_ADK_SBC_ENCODER
+        sbc_encoder_cfg_t enc_cfg = DEFAULT_SBC_ENCODER_CONFIG();
+        enc_cfg.sample_rate = cfg->sampRate;
+        enc_cfg.channels    = cfg->nChans;
+        enc_cfg.msbc_mode   = true;
+        return sbc_enc_init(&enc_cfg);
+#else
+        return NULL;
+#endif
+    }
+
+    return NULL;
+}
 
 static void audio_record_event_listener_task(void *arg)
 {
@@ -136,6 +159,12 @@ bk_err_t audio_record_open(audio_record_t *record)
     if (!ctx->raw_stream) {
         goto fail;
     }
+
+    ctx->encoder = audio_record_create_encoder(&record->config);
+    if (record->config.encoder_type != AUDIO_RECORD_ENCODER_PCM && !ctx->encoder) {
+        BK_LOGE(AUDIO_RECORD_TAG, "%s, encoder init failed type:%d\n", __func__, record->config.encoder_type);
+        goto fail;
+    }
     /*
      * Avoid forever blocking in raw_stream_read().
      * HFP stop path waits thread exit by semaphore, so reader must wake up
@@ -146,11 +175,20 @@ bk_err_t audio_record_open(audio_record_t *record)
     if (BK_OK != audio_pipeline_register(ctx->pipeline, ctx->mic, "mic")) {
         goto fail;
     }
+    if (ctx->encoder && BK_OK != audio_pipeline_register(ctx->pipeline, ctx->encoder, "encoder")) {
+        goto fail;
+    }
     if (BK_OK != audio_pipeline_register(ctx->pipeline, ctx->raw_stream, "raw")) {
         goto fail;
     }
-    if (BK_OK != audio_pipeline_link(ctx->pipeline, (const char *[]) {"mic", "raw"}, 2)) {
-        goto fail;
+    if (ctx->encoder) {
+        if (BK_OK != audio_pipeline_link(ctx->pipeline, (const char *[]) {"mic", "encoder", "raw"}, 3)) {
+            goto fail;
+        }
+    } else {
+        if (BK_OK != audio_pipeline_link(ctx->pipeline, (const char *[]) {"mic", "raw"}, 2)) {
+            goto fail;
+        }
     }
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
     ctx->listener_evt = audio_event_iface_init(&evt_cfg);
@@ -200,6 +238,9 @@ fail:
         if (ctx->mic) {
             audio_element_deinit(ctx->mic);
         }
+        if (ctx->encoder) {
+            audio_element_deinit(ctx->encoder);
+        }
         if (ctx->raw_stream) {
             audio_element_deinit(ctx->raw_stream);
         }
@@ -240,6 +281,9 @@ bk_err_t audio_record_close(audio_record_t *record)
     if (ctx->pipeline && ctx->raw_stream) {
         audio_pipeline_unregister(ctx->pipeline, ctx->raw_stream);
     }
+    if (ctx->pipeline && ctx->encoder) {
+        audio_pipeline_unregister(ctx->pipeline, ctx->encoder);
+    }
     if (ctx->pipeline && ctx->mic) {
         audio_pipeline_unregister(ctx->pipeline, ctx->mic);
     }
@@ -249,6 +293,9 @@ bk_err_t audio_record_close(audio_record_t *record)
     }
     if (ctx->mic) {
         audio_element_deinit(ctx->mic);
+    }
+    if (ctx->encoder) {
+        audio_element_deinit(ctx->encoder);
     }
     if (ctx->pipeline) {
         audio_pipeline_deinit(ctx->pipeline);

@@ -15,6 +15,8 @@
 #ifndef _SBC_DEC_H_
 #define _SBC_DEC_H_
 
+#include <stdbool.h>
+
 #include <components/bk_audio/audio_pipeline/audio_element.h>
 
 #ifdef __cplusplus
@@ -32,6 +34,7 @@ typedef struct
     int                     task_stack;     /*!< Task stack size */
     int                     task_core;      /*!< Task running in core (0 or 1) */
     int                     task_prio;      /*!< Task priority (based on freeRTOS priority) */
+    bool                    msbc_mode;      /*!< Enable mSBC H2+57B frame input mode */
 } sbc_decoder_cfg_t;
 
 #define SBC_DECODER_TASK_STACK          (2 * 1024)
@@ -48,6 +51,7 @@ typedef struct
     .task_stack         = SBC_DECODER_TASK_STACK,       \
     .task_core          = SBC_DECODER_TASK_CORE,        \
     .task_prio          = SBC_DECODER_TASK_PRIO,        \
+    .msbc_mode          = false,                        \
 }
 
 /**

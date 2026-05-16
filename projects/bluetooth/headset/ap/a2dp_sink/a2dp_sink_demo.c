@@ -111,6 +111,7 @@ static uint16_t frame_length = 0;
 
 static beken_thread_t a2dp_speaker_thread_handle = NULL;
 static beken_semaphore_t a2dp_speaker_exit_sema = NULL;
+static beken_semaphore_t a2dp_speaker_stop_sema = NULL;
 //static beken_timer_t a2dp_speaker_tmr = {0};
 #endif
 
@@ -417,6 +418,10 @@ void bt_audio_sink_demo_main(void *arg)
                     if (kNoErr != rtos_init_semaphore(&a2dp_speaker_exit_sema, 1))
                     {
                         LOGE("init sema fail, %d \n", __LINE__);
+                    }
+                    if (a2dp_speaker_stop_sema)
+                    {
+                        rtos_set_semaphore(&a2dp_speaker_stop_sema);
                     }
                     LOGI("%s wait thread end\n", __func__);
                     if (a2dp_speaker_exit_sema)
@@ -1417,6 +1422,16 @@ static void speaker_task(void *arg)
     extern int32_t wait_hfp_speaker_mic_task_end(void);
     wait_hfp_speaker_mic_task_end();
 
+    if (!a2dp_speaker_stop_sema)
+    {
+        ret = rtos_init_semaphore(&a2dp_speaker_stop_sema, 1);
+        if (ret != kNoErr)
+        {
+            LOGE("%s init stop sema fail\n", __func__);
+            goto end;
+        }
+    }
+
     s_audio_play_obj = audio_play_create(AUDIO_PLAY_ONBOARD_SPEAKER, &cfg);
 
     if(!s_audio_play_obj)
@@ -1432,10 +1447,9 @@ static void speaker_task(void *arg)
     }
 
     LOGI("%s init a2dp success!! \r\n", __func__);
-
-    while (s_spk_is_started)
+    if (a2dp_speaker_stop_sema)
     {
-        rtos_delay_milliseconds(20);
+        rtos_get_semaphore(&a2dp_speaker_stop_sema, BEKEN_WAIT_FOREVER);
     }
 
 end:
@@ -1454,6 +1468,11 @@ end:
     }
 
     s_audio_play_obj = NULL;
+    if (a2dp_speaker_stop_sema)
+    {
+        rtos_deinit_semaphore(&a2dp_speaker_stop_sema);
+        a2dp_speaker_stop_sema = NULL;
+    }
 
     LOGD("%s a2dp end!!\r\n", __func__);
     if(s_spk_is_started)

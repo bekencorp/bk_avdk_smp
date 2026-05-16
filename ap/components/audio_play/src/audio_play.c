@@ -89,11 +89,13 @@ static audio_element_handle_t audio_play_create_decoder(const audio_play_cfg_t *
         return NULL;
     }
 
-    if (cfg->decoder_type == AUDIO_PLAY_DECODER_SBC) {
+    if (cfg->decoder_type == AUDIO_PLAY_DECODER_SBC ||
+        cfg->decoder_type == AUDIO_PLAY_DECODER_MSBC) {
 #if CONFIG_ADK_SBC_DECODER
         sbc_decoder_cfg_t dec_cfg = DEFAULT_SBC_DECODER_CONFIG();
         dec_cfg.out_block_size = cfg->frame_size;
         dec_cfg.out_block_num  = 2;
+        dec_cfg.msbc_mode = (cfg->decoder_type == AUDIO_PLAY_DECODER_MSBC);
         return sbc_dec_init(&dec_cfg);
 #else
         return NULL;
