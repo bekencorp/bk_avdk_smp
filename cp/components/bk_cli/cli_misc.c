@@ -283,7 +283,7 @@ static void boot_cpu_core(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		{
 			if(core == 1)
 			{
-				bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);//for test:using the app vote for boot cp1
+				bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);//for test:using the app vote for boot ap
 			}
 			if(core == 2)
 			{
@@ -295,7 +295,7 @@ static void boot_cpu_core(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 		{
 			if(core == 1)
 			{
-				bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_OFF);//for test:using the app vote for boot cp1
+				bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_OFF);//for test:using the app vote for boot ap
 			}
 			if(core == 2)
 			{
@@ -312,7 +312,7 @@ static void boot_cpu_core(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 			{
 				if(core == 1)
 				{
-					bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);//for test:using the app vote for boot cp1
+					bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);//for test:using the app vote for boot ap
 				}
 				if(core == 2)
 				{
@@ -324,7 +324,7 @@ static void boot_cpu_core(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
 					break;
 				if(core == 1)
 				{
-					bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_OFF);//for test:using the app vote for boot cp1
+					bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_OFF);//for test:using the app vote for boot cp1
 				}
 				if(core == 2)
 				{

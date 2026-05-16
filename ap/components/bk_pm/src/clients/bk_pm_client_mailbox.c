@@ -635,7 +635,7 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 	}
 }
 
-bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_power_module_state_e power_state)
+bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power_module_state_e power_state)
 {
 	bk_err_t ret = BK_OK;
 	GLOBAL_INT_DECLARATION();

@@ -626,7 +626,7 @@ static void pm_cp1_mailbox_init()
 // 	pm_ap_get_cp_data(PM_CP_DATE_TYPE_EXIT_LOW_VOL_WAKEUP_SOURCE, &wakeup_source);
 // 	return wakeup_source;
 // }
-// bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_power_module_state_e power_state)
+// bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power_module_state_e power_state)
 // {
 // #if CONFIG_MAILBOX
 

@@ -48,26 +48,26 @@ extern "C" {
 
 typedef enum
 {
-	PM_BOOT_CP1_MODULE_NAME_FFT          = 0,
-	PM_BOOT_CP1_MODULE_NAME_AUDP_SBC        ,// 1
-	PM_BOOT_CP1_MODULE_NAME_AUDP_AUDIO      ,// 2
-	PM_BOOT_CP1_MODULE_NAME_AUDP_I2S        ,// 3
-	PM_BOOT_CP1_MODULE_NAME_VIDP_JPEG_EN    ,// 4
-	PM_BOOT_CP1_MODULE_NAME_VIDP_JPEG_DE    ,// 5
-	PM_BOOT_CP1_MODULE_NAME_VIDP_DMA2D      ,// 6
-	PM_BOOT_CP1_MODULE_NAME_VIDP_LCD        ,// 7
-	PM_BOOT_CP1_MODULE_NAME_MULTIMEDIA      ,// 8
-	PM_BOOT_CP1_MODULE_NAME_APP             ,// 9
-	PM_BOOT_CP1_MODULE_NAME_VIDP_ROTATE     ,// 10
-	PM_BOOT_CP1_MODULE_NAME_VIDP_SCALE      ,// 11
-	PM_BOOT_CP1_MODULE_NAME_GET_MEDIA_MSG   ,// 12
-	PM_BOOT_CP1_MODULE_NAME_LVGL            ,// 13
-	PM_BOOT_CP1_MODULE_NAME_BT              ,// 14
-	PM_BOOT_CP1_MODULE_NAME_WIFI            ,// 15
-	PM_BOOT_CP1_MODULE_NAME_AOV             ,// 16
-	PM_BOOT_CP1_MODULE_NAME_BK_MODEM  ,// 17
-	PM_BOOT_CP1_MODULE_NAME_MAX             ,// attention: MAX value can not exceed 31.
-}pm_boot_cp1_module_name_e;
+	PM_BOOT_AP_MODULE_NAME_FFT          = 0,
+	PM_BOOT_AP_MODULE_NAME_AUDP_SBC        ,// 1
+	PM_BOOT_AP_MODULE_NAME_AUDP_AUDIO      ,// 2
+	PM_BOOT_AP_MODULE_NAME_AUDP_I2S        ,// 3
+	PM_BOOT_AP_MODULE_NAME_VIDP_JPEG_EN    ,// 4
+	PM_BOOT_AP_MODULE_NAME_VIDP_JPEG_DE    ,// 5
+	PM_BOOT_AP_MODULE_NAME_VIDP_DMA2D      ,// 6
+	PM_BOOT_AP_MODULE_NAME_VIDP_LCD        ,// 7
+	PM_BOOT_AP_MODULE_NAME_MULTIMEDIA      ,// 8
+	PM_BOOT_AP_MODULE_NAME_APP             ,// 9
+	PM_BOOT_AP_MODULE_NAME_VIDP_ROTATE     ,// 10
+	PM_BOOT_AP_MODULE_NAME_VIDP_SCALE      ,// 11
+	PM_BOOT_AP_MODULE_NAME_GET_MEDIA_MSG   ,// 12
+	PM_BOOT_AP_MODULE_NAME_LVGL            ,// 13
+	PM_BOOT_AP_MODULE_NAME_BT              ,// 14
+	PM_BOOT_AP_MODULE_NAME_WIFI            ,// 15
+	PM_BOOT_AP_MODULE_NAME_AOV             ,// 16
+	PM_BOOT_AP_MODULE_NAME_BK_MODEM  ,// 17
+	PM_BOOT_AP_MODULE_NAME_MAX             ,// attention: MAX value can not exceed 31.
+}pm_boot_ap_module_name_e;
 
 typedef enum
 {
@@ -535,7 +535,7 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
  * - others: other errors.
  *
  */
-bk_err_t bk_pm_module_vote_boot_cp1_ctrl(pm_boot_cp1_module_name_e module,pm_power_module_state_e power_state);
+bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power_module_state_e power_state);
 /**
  * @brief pm vote boot cp2 ctrl
  *

@@ -40,7 +40,7 @@ static void cli_pm_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP, 0x0, 0x0);
 
 	//BK_LOGD(NULL,"cli_pm_rtc_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
-	// // /* Always send message to ensure 10ms periodic processing */
+	/* Always send message to ensure 10ms periodic processing */
 	msg.event  = PM_CALLBACK_HANDLE_MSG;
 	msg.param1 = PM_MODE_LOW_VOLTAGE;
 	msg.param2 = PM_WAKEUP_SOURCE_INT_RTC;
@@ -981,7 +981,7 @@ static void cli_pm_boot_cp1(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	}
 	module_name   = os_strtoul(argv[1], NULL, 10);
 	boot_cp1_state   = os_strtoul(argv[2], NULL, 10);
-	bk_pm_module_vote_boot_cp1_ctrl(module_name,boot_cp1_state);
+	bk_pm_module_vote_boot_ap_ctrl(module_name,boot_cp1_state);
 #endif
 }
 #if (CONFIG_CPU_CNT > 2)

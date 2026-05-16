@@ -808,7 +808,7 @@ static void cli_pm_boot_cp1(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 // 	}
 // 	module_name   = os_strtoul(argv[1], NULL, 10);
 // 	boot_cp1_state   = os_strtoul(argv[2], NULL, 10);
-// 	bk_pm_module_vote_boot_cp1_ctrl(module_name,boot_cp1_state);
+// 	bk_pm_module_vote_boot_ap_ctrl(module_name,boot_cp1_state);
 // #endif
 }
 #endif//CONFIG_DEBUG_VERSION

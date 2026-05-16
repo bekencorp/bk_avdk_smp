@@ -12,7 +12,7 @@ extern int bk_ipc_init(void);
 
 void user_app_main(void) {
     // start smp(cpu1, cpu2)
-    bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
+    bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
 }
 
 

@@ -29,7 +29,7 @@ void pl_wakeup_host(uint32_t flag)
 {
     LOGI("%s %d\n", __func__, __LINE__);
     pl_set_wakeup_reason(flag);
-    bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
+    bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
     cif_power_up_host();
     bk_wifi_send_listen_interval_req(1);
     ka_disable_keepalive_with_server();
@@ -39,7 +39,7 @@ void pl_power_down_host(void)
 {
     LOGI("%s %d\n", __func__, __LINE__);
     pl_reset_wakeup_reason();
-    bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_APP,PM_POWER_MODULE_STATE_OFF);
+    bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_OFF);
     cif_power_down_host();
     bk_wifi_send_listen_interval_req(10);
 }

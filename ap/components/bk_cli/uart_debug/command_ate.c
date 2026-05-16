@@ -985,7 +985,7 @@ static void ate_pm_gpio_callback(gpio_id_t gpio_id)
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_APP,0x0,100000000);
 	bk_ate_ctrl(1);
 #if CONFIG_PM_SERVER && (CONFIG_CPU_CNT > 1)
-	bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_MAX,PM_POWER_MODULE_STATE_ON);
+	bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_MAX,PM_POWER_MODULE_STATE_ON);
 #endif
 }
 static void ate_pm_exit_lvsleep(uint64_t sleep_time, void *args)
@@ -1029,7 +1029,7 @@ int ate_enter_low_voltage()
 
 #if CONFIG_PM_SERVER && (CONFIG_CPU_CNT > 1)
 	bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
-	bk_pm_module_vote_boot_cp1_ctrl(PM_BOOT_CP1_MODULE_NAME_MAX,PM_POWER_MODULE_STATE_OFF);
+	bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_MAX,PM_POWER_MODULE_STATE_OFF);
 #endif
 #if (CONFIG_CPU_CNT > 2)
 	extern void stop_cpu2_core(void);
