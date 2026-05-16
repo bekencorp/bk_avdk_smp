@@ -675,8 +675,7 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			GLOBAL_INT_RESTORE();
 
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
-
-			//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
+			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
 			#endif
 			bk_printf_nonblock(4,NULL,"Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count); //4:BK_LOG_DEBUG
 		}
