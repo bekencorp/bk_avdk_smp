@@ -26,6 +26,13 @@
 #define CHNL_STATE_BUSY		1
 #define CHNL_STATE_IDLE		0
 
+/* If a physical channel stays BUSY longer than this (in milliseconds)
+ * without seeing the matching ACK from the peer CPU, mb_chnl_write() will
+ * forcibly recover it. Normal mailbox round-trips are << 1 ms, so 200 ms
+ * is well clear of any legitimate burst while still keeping the system
+ * responsive in the unlikely event the peer never replies. */
+#define MB_PHY_CHNL_BUSY_TIMEOUT_MS		200
+
 typedef struct
 {
 	volatile u8		tx_state;	/* physical channel tx state. */
@@ -34,6 +41,11 @@ typedef struct
 	u8		tx_hdr_cmd;
 	u32		rx_fault_cnt;
 	u32		tx_fault_cnt;
+	/* Wall-clock (ms via rtos_get_time()) at which tx_state was set to
+	 * CHNL_STATE_BUSY. Used by mb_chnl_write() to detect a physical
+	 * channel that has been BUSY abnormally long (peer lost / dropped
+	 * the ACK) and forcibly clear it. 0 means "channel is IDLE". */
+	volatile u32	busy_since_ms;
 } mb_phy_chnl_cb_t;
 
 
@@ -295,6 +307,33 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 		phy_chnl_ptr->rx_fault_cnt++;
 		phy_chnl_ptr->rx_fault_cnt |= 0x40000000;
 
+		/* Stale / mismatched ACK. The original implementation just
+		 * returned here, which left phy_chnl_ptr->tx_state stuck at
+		 * BUSY forever and deadlocked all subsequent mb_chnl_write()
+		 * on this physical channel. Recover the channel and re-dispatch
+		 * any pending logical-channel tx so we don't lose the link. */
+		{
+			u32 int_mask_stale = mb_chnl_enter_critical();
+			u8  i;
+
+			phy_chnl_ptr->tx_state      = CHNL_STATE_IDLE;
+			phy_chnl_ptr->busy_since_ms = 0;
+
+			for (i = 0; i < phy_chnl_log_chnl_num[phy_chnl_idx]; i++) {
+				if (log_chnl_cb_x[i].tx_state != CHNL_STATE_IDLE) {
+					u8 pending = CPX_LOG_CHNL_START(SELF_CPU, phy_chnl_idx) + i;
+					phy_chnl_ptr->tx_state      = CHNL_STATE_BUSY;
+					phy_chnl_ptr->busy_since_ms = rtos_get_time();
+					if (mb_phy_chnl_tx_cmd(pending) != 0) {
+						log_chnl_cb_x[i].tx_state   = CHNL_STATE_IDLE;
+						phy_chnl_ptr->tx_state      = CHNL_STATE_IDLE;
+						phy_chnl_ptr->busy_since_ms = 0;
+					}
+					break;
+				}
+			}
+			mb_chnl_exit_critical(int_mask_stale);
+		}
 		return;
 	}
 
@@ -321,18 +360,26 @@ static void mb_phy_chnl_rx_ack_isr(mb_phy_chnl_ack_t *ack_ptr)
 
 	if(log_chnl_idx >= phy_chnl_log_chnl_num[phy_chnl_idx])
 	{
-		phy_chnl_ptr->tx_state = CHNL_STATE_IDLE;
+		phy_chnl_ptr->tx_state      = CHNL_STATE_IDLE;
+		phy_chnl_ptr->busy_since_ms = 0;
 		mb_chnl_exit_critical(int_mask);
 		return;
 	}
 
 	log_chnl = CPX_LOG_CHNL_START(SELF_CPU, phy_chnl_idx) + log_chnl_idx;
 
+	/* About to dispatch the next pending tx on this physical channel:
+	 * refresh the busy-watchdog timestamp so its lifetime starts from
+	 * here rather than carrying over from the previous transaction. */
+	phy_chnl_ptr->busy_since_ms = rtos_get_time();
+
 	ret_code = mb_phy_chnl_tx_cmd(log_chnl);
 
 	if(ret_code != 0)
 	{
-		phy_chnl_ptr->tx_state = CHNL_STATE_IDLE;
+		log_chnl_cb_x[log_chnl_idx].tx_state = CHNL_STATE_IDLE;
+		phy_chnl_ptr->tx_state               = CHNL_STATE_IDLE;
+		phy_chnl_ptr->busy_since_ms          = 0;
 	}
 	mb_chnl_exit_critical(int_mask);
 
@@ -475,6 +522,7 @@ static void mb_phy_chnl_start_tx(u8 log_chnl)
 	if(phy_chnl_ptr->tx_state == CHNL_STATE_IDLE)
 	{
 		phy_chnl_ptr->tx_state = CHNL_STATE_BUSY;		/* MUST set channel state to BUSY firstly. */
+		phy_chnl_ptr->busy_since_ms = rtos_get_time();
 		/* start_tx->tx_cmd->tx_isr callback->mb_chnl_write->start_tx, it is a loop.
 		   break the loop by setting the phy_chnl_cb.tx_state to busy. */
 
@@ -482,7 +530,18 @@ static void mb_phy_chnl_start_tx(u8 log_chnl)
 
 		if(ret_code != 0)
 		{
+			/* tx_cmd failed before the data hit hardware: roll back BOTH
+			 * physical and logical state, so the caller can retry and so
+			 * the logical channel does not stay BUSY forever. */
+			u8                   log_chnl_idx_fail = GET_LOG_CHNL_ID(log_chnl);
+			mb_log_chnl_cb_t    *log_chnl_cb_x_fail =
+				(mb_log_chnl_cb_t *)(phy_chnl_log_chnl_list[phy_chnl_idx]);
+
+			if (log_chnl_idx_fail < phy_chnl_log_chnl_num[phy_chnl_idx]) {
+				log_chnl_cb_x_fail[log_chnl_idx_fail].tx_state = CHNL_STATE_IDLE;
+			}
 			phy_chnl_ptr->tx_state = CHNL_STATE_IDLE;
+			phy_chnl_ptr->busy_since_ms = 0;
 		}
 	}
 
@@ -760,6 +819,27 @@ bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf)
 		return BK_ERR_STATE;
 
 	u32 int_mask = mb_chnl_enter_critical();
+
+	/* If the physical channel has been BUSY abnormally long (peer never
+	 * sent ACK / lost interrupt / lost ack), forcibly recover it so this
+	 * and all future mb_chnl_write() calls on the channel don't deadlock. */
+	{
+		mb_phy_chnl_cb_t *phy_cb_chk = &phy_chnl_x_cb[phy_chnl_idx];
+
+		if ((phy_cb_chk->tx_state == CHNL_STATE_BUSY) && (phy_cb_chk->busy_since_ms != 0))
+		{
+			u32 now = rtos_get_time();
+			u32 age = now - phy_cb_chk->busy_since_ms;	/* unsigned wrap is fine for short windows */
+
+			if (age >= MB_PHY_CHNL_BUSY_TIMEOUT_MS)
+			{
+				phy_cb_chk->tx_fault_cnt++;
+				phy_cb_chk->tx_fault_cnt |= 0x20000000;	/* mark "BUSY-stuck recovered" */
+				phy_cb_chk->tx_state      = CHNL_STATE_IDLE;
+				phy_cb_chk->busy_since_ms = 0;
+			}
+		}
+	}
 
 	if(log_chnl_cb_x[log_chnl_idx].tx_state != CHNL_STATE_IDLE)
 	{
