@@ -323,6 +323,14 @@ int mb_ipc_cpu_is_power_off(u32 cpu_id)
 
 #define MB_IPC_HEARTBEAT_TIME		2000
 
+static volatile u8  s_hb_paused = 0;
+
+void mb_ipc_heartbeat_pause(u8 pause)
+{
+	s_hb_paused = pause;
+	BK_LOGI(MOD_TAG, "heartbeat %s\r\n", pause ? "paused" : "resumed");
+}
+
 static void mb_ipc_task( void *para )
 {
 	ipc_send_power_up();
@@ -330,7 +338,10 @@ static void mb_ipc_task( void *para )
 	while(1)
 	{
 		rtos_delay_milliseconds(MB_IPC_HEARTBEAT_TIME);
-		ipc_send_heart_beat(0);
+		if(!s_hb_paused)
+		{
+			ipc_send_heart_beat(0);
+		}
 	}
 }
 

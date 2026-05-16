@@ -58,6 +58,13 @@ int mb_ipc_cpu_is_power_off(u32 cpu_id)
 
 #define MB_IPC_ALL_FLAGS			(MB_IPC_START_CORE_FLAG | MB_IPC_STOP_CORE_FLAG | MB_IPC_POWER_UP_FLAG | MB_IPC_HEARTBEAT_FLAG)
 
+#define MB_IPC_HEARTBEAT_TIME       2000   /* slave sends heartbeat every 2s */
+#if CONFIG_WDT_EN
+#define HB_TIMEOUT_MS               CONFIG_INT_WDT_PERIOD_MS
+#else
+#define HB_TIMEOUT_MS               (MB_IPC_HEARTBEAT_TIME * 3)  /* 6s: allow 3 missed heartbeats */
+#endif
+
 enum
 {
 	CORE_POWER_OFF = 0,
@@ -90,6 +97,14 @@ int bk_ipc_heartbeat_is_timeout(void)
 	return cpu_x_heartbeat_timeout;
 }
 
+void bk_ipc_heartbeat_get_status(u8 *state, u32 *last_ts, u32 *cur_ts, u8 *cpu_id)
+{
+	if(state)  *state  = cpu_x_state;
+	if(last_ts) *last_ts = cpu_x_heartbeat_timestamp;
+	if(cur_ts)  *cur_ts  = (u32)rtos_get_time();
+	if(cpu_id)  *cpu_id  = cpu_x_id;
+}
+
 static int ipc_heartbeat_timeout(void)
 {
 	u32   cur_time;
@@ -115,13 +130,11 @@ static int ipc_heartbeat_timeout(void)
 		cur_time += (~(cpu_x_heartbeat_timestamp)) + 1;  // wrap around.
 	}
 
-	#if CONFIG_WDT_EN
-	if(cur_time < CONFIG_INT_WDT_PERIOD_MS)
+	if(cur_time < HB_TIMEOUT_MS)
 	{
 		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
 		return 0;
 	}
-	#endif
 
 	if (bk_pm_module_lv_sleep_state_get(PM_DEV_ID_DEFAULT))
 	{
@@ -285,9 +298,7 @@ static void mb_ipc_task( void *para )
 		}
 		else
 		{
-			#if CONFIG_WDT_EN
-			check_time = CONFIG_INT_WDT_PERIOD_MS;
-			#endif
+			check_time = HB_TIMEOUT_MS;
 		}
 	}
 }
@@ -320,7 +331,6 @@ void mb_ipc_heartbeat_notify(u32 cpu_id)
 	{
 		return;
 	}
-	rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_POWER_UP_FLAG);
 	rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_HEARTBEAT_FLAG);
 }
 
@@ -329,6 +339,12 @@ void mb_ipc_power_on_notify(u32 cpu_id)
 	if(check_cpu_id_ok(cpu_id) == 0)
 	{
 		return;
+	}
+
+	if(cpu_x_state == CORE_POWER_OFF)
+	{
+		cpu_x_state = CORE_STARTING;
+		rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_START_CORE_FLAG);
 	}
 
 	rtos_set_event_ex(&mb_ipc_heart_event, MB_IPC_POWER_UP_FLAG);
