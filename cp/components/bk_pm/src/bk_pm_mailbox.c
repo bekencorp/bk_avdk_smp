@@ -567,7 +567,7 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
             #endif
 			bk_delay_us(1000);
 
-#if CONFIG_PSRAM
+#if 0//CONFIG_PSRAM
 			{
 				volatile uint32_t *psram_test_addr = (volatile uint32_t *)psram_malloc(sizeof(uint32_t));
 				const uint32_t test_value = 0x5A5AA5A5;

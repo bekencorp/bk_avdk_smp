@@ -1020,7 +1020,7 @@ static void cli_pm_ldo(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 }
 static void cli_pm_psram(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-#if 1
+#if CONFIG_PSRAM
 	UINT32 module_name            = 0;
 	UINT32 power_psram_state      = 0;
 	if (argc != 3)

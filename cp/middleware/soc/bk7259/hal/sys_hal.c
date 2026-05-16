@@ -208,8 +208,8 @@ __IRAM_SEC void sys_hal_module_power_ctrl(power_module_name_t module,power_modul
 			case PM_POWER_DOMAIN_3://POWER_DOMAIN_NAME_AP_CPU:
 				if(power_state == POWER_MODULE_STATE_ON)
 				{
-					//sys_hal_ap_clock_power_ctrl(power_state);
-					sys_hal_m55_clock_power_init();
+					sys_hal_ap_clock_power_ctrl(power_state);
+					//sys_hal_m55_clock_power_init();
 				}
 				else
 				{
@@ -3166,11 +3166,99 @@ static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 	uint32_t regData = 0;
 	if(power_state == POWER_MODULE_STATE_ON)
 	{
+
+		// sys_ll_set_ana_reg10_spi_latch1v(1);
+		// sys_ll_set_ana_reg9_pwd_hsldo(0);
+		// sys_ll_set_ana_reg16_enhspw(1);
+		// sys_ll_set_ana_reg16_vcorehssel(0xA);//0.7+0.025*0xA=0.95v
+		// sys_ll_set_ana_reg10_spi_latch1v(0);
+
+		// /*"M55S Access Secure*/
+		// regData  = REG_READ(0x44050000 + 0xF*4);
+		// regData &= ~((0x1<<3)|(0x1<<2));
+		// regData |=  ((  0<<3)|(  0<<2));
+		// REG_WRITE(0x44050000 + 0xF*4, regData);
+
+		// /*M55:Default enable all the clock source for bringup */
+		// REG_WRITE(0x48000000 + 0xA*4, 0xFFFFFFFF);
+
+		// /*M55 cpu freq and bus 480M, subbus 240M */
+		// regData = REG_READ(0x48000000 + 0x8*4);
+		// regData |= 0x1 << 4;
+		// REG_WRITE(0x48000000 + 0x8*4, regData);
+
+		// regData = REG_READ(0x48000000 + 0x8*4);
+		// regData |= 0x0 << 2;
+		// regData |= 0x1 << 0;
+		// REG_WRITE(0x48000000 + 0x8*4, regData);
 		sys_ll_set_ana_reg10_spi_latch1v(1);
+		sys_ll_set_ana_reg9_pwd_hsldo(1);
+		bk_delay_us(20);
 		sys_ll_set_ana_reg9_pwd_hsldo(0);
+		bk_delay_us(200);
 		sys_ll_set_ana_reg16_enhspw(1);
+		bk_delay_us(200);
 		sys_ll_set_ana_reg16_vcorehssel(0xA);//0.7+0.025*0xA=0.95v
+		bk_delay_us(200);
 		sys_ll_set_ana_reg10_spi_latch1v(0);
+
+	#if 1
+		regData = REG_READ(0x44000000 + 0x2*4);
+		regData &= ~((0x1F<<21)|(0x1<<19));
+		regData |=  ((0x1F<<21)|(  0<<19));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
+		bk_delay_us(20);
+
+		regData &= ~((0x1F<<21)|(0x1<<19));
+		regData |=  ((0x1E<<21)|(  0<<19));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
+		bk_delay_us(20);
+
+		regData &= ~((0x1F<<21)|(0x1<<19));
+		regData |=  ((0x1C<<21)|(  0<<19));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
+		bk_delay_us(20);
+
+		regData &= ~((0x1F<<21)|(0x1<<19));
+		regData |=  ((0x18<<21)|(  0<<19));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
+		bk_delay_us(20);
+
+		regData &= ~((0x1F<<21)|(0x1<<19));
+		regData |=  ((0x10<<21)|(  0<<19));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
+		bk_delay_us(20);
+
+		regData &= ~((0x1F<<21)|(0x1<<19));
+		regData |=  ((0x00<<21)|(  0<<19));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
+		//bk_delay_us(20);
+		regData = REG_READ(0x44000000 + 0x2*4);
+		regData &= ~((0x1<<18));
+		regData |=  ((  1<<18));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
+		bk_delay_us(20);
+
+		/* PMU M55S Clk On*/
+		regData = REG_READ(0x44000000 + 0x2*4);
+		regData &= ~((0x1<<20));
+		regData |=  ((  1<<20));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
+
+		/* PMU M55S RstN On*/
+		regData = REG_READ(0x44000000 + 0x2*4);
+		regData &= ~((0x1<<17));
+		regData |=  ((  1<<17));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
+
+		/*Wait HS LDO RstN On*/
+		while(!REG_READ(0x44000000 + 0x74*4));
+
+		/*PMU M55S ISO Off*/
+		regData  = REG_READ(0x44000000 + 0x2*4);
+		regData &= ~((0x1<<16));
+		regData |=  ((0<<16));
+		REG_WRITE(0x44000000 + 0x2*4, regData);
 
 		/*"M55S Access Secure*/
 		regData  = REG_READ(0x44050000 + 0xF*4);
@@ -3178,6 +3266,20 @@ static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		regData |=  ((  0<<3)|(  0<<2));
 		REG_WRITE(0x44050000 + 0xF*4, regData);
 
+		/*PSRAM Enable*/
+		sys_ll_set_ana_reg14_enpsram(1);
+		//bk_delay_us(10);
+		/*M55S Memory EMA switch to 1*/
+		REG_WRITE(0x48000000 + 0x50*4,  (0x5A<<24) | (0x441<<10) | (0x241));
+		REG_WRITE(0x48000000 + 0x50*4,  (0xA5<<24) | (0x441<<10) | (0x241));
+		REG_WRITE(0x48000000 + 0x51*4,  (0x5A<<24) |               (0x901));
+		REG_WRITE(0x48000000 + 0x51*4,  (0xA5<<24) |               (0x901));
+		REG_WRITE(0x48000000 + 0x52*4,  (0x5A<<24) | (0x441<<10) | (0x241));
+		REG_WRITE(0x48000000 + 0x52*4,  (0xA5<<24) | (0x441<<10) | (0x241));
+		REG_WRITE(0x48000000 + 0x53*4,  (0x5A<<24) |               (0x901));
+		REG_WRITE(0x48000000 + 0x53*4,  (0xA5<<24) |               (0x901));
+		bk_delay_us(10);
+	#endif
 		/*M55:Default enable all the clock source for bringup */
 		REG_WRITE(0x48000000 + 0xA*4, 0xFFFFFFFF);
 
@@ -3190,6 +3292,7 @@ static bk_err_t sys_hal_ap_clock_power_ctrl(power_module_state_t power_state)
 		regData |= 0x0 << 2;
 		regData |= 0x1 << 0;
 		REG_WRITE(0x48000000 + 0x8*4, regData);
+		bk_delay_us(20);
 	}
 	else
 	{
@@ -3384,7 +3487,7 @@ void sys_hal_early_init(void)
 	sys_hal_dpll_cpu_flash_time_early_init(chip_id);
 
 	/*M55: clock power init*/
-	#if 1//!CONFIG_PM_ONLY_CP_ENABLE && !CONFIG_PM_AP_POWERDOWN_WHEN_LV
+	#if !CONFIG_PM_ONLY_CP_ENABLE && !CONFIG_PM_AP_POWERDOWN_WHEN_LV
 	sys_hal_m55_clock_power_init();
 	#endif
 }
