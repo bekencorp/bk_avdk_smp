@@ -22,6 +22,7 @@ extern "C" {
  *   - Post-sleep callback: Called after waking up from sleep
  */
 typedef void (*sleep_callback_t)(void *arg);
+typedef void (*ap_ctrl_callback_t)(void *arg);
 
 /* Standard priority definitions for callback execution order
  * Lower value = Higher priority = Executes first
@@ -743,6 +744,41 @@ bk_err_t bk_pm_post_sleep_callback_unregister(sleep_callback_t callback);
  * Time complexity: O(n)
  */
 bk_err_t bk_pm_post_sleep_callback_execute(void);
+
+/**
+ * @brief Register AP power-off callback
+ *
+ * Register callback for AP shutdown notification.
+ * Registered callbacks will be executed before AP is powered off.
+ *
+ * @param callback  Callback function to register
+ * @param arg       User data passed to callback
+ *
+ * @return  0  Success
+ *         -1  Invalid callback
+ *         -2  Out of memory
+ */
+bk_err_t bk_pm_ap_ctrl_callback_register(ap_ctrl_callback_t callback, void *arg);
+
+/**
+ * @brief Unregister AP power-off callback
+ *
+ * @param callback  Callback function to unregister
+ *
+ * @return  0  Success
+ *         -1  Invalid callback
+ *         -2  Callback not found
+ */
+bk_err_t bk_pm_ap_ctrl_callback_unregister(ap_ctrl_callback_t callback);
+
+/**
+ * @brief Execute all AP power-off callbacks
+ *
+ * This function is called internally before AP power-off.
+ *
+ * @return BK_OK on success
+ */
+bk_err_t bk_pm_ap_ctrl_callback_execute(void);
 /**
  * @brief set and save wakeup source of exiting  sleep
  *

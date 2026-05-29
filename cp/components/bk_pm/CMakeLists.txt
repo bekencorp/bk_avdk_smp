@@ -19,6 +19,7 @@ if (CONFIG_PM_ENABLE)
 			src/services/bk_pm_misc.c
 			src/services/bk_pm_thread.c
 			src/services/bk_pm_sleep_callback.c
+			src/services/bk_pm_ap_ctrl.c
 		)
 		if (CONFIG_PSRAM)
 			list(APPEND srcs
