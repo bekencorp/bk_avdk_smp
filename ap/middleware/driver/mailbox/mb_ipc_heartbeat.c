@@ -57,6 +57,7 @@ int mb_ipc_cpu_is_power_off(u32 cpu_id)
 #define MB_IPC_HEARTBEAT_FLAG		0x08
 
 #define MB_IPC_ALL_FLAGS			(MB_IPC_START_CORE_FLAG | MB_IPC_STOP_CORE_FLAG | MB_IPC_POWER_UP_FLAG | MB_IPC_HEARTBEAT_FLAG)
+#define MB_IPC_HEARTBEAT_TIMEOUT_MS	8000
 
 enum
 {
@@ -101,7 +102,7 @@ static int ipc_heartbeat_timeout(void)
 		cur_time += (~(cpu_x_heartbeat_timestamp)) + 1;  // wrap around. 
 	}
 	
-	if(cur_time < CONFIG_INT_WDT_PERIOD_MS)
+	if(cur_time < MB_IPC_HEARTBEAT_TIMEOUT_MS)
 	{
 		cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
 		return 0;
@@ -231,7 +232,7 @@ static void mb_ipc_task( void *para )
 		}
 		else
 		{
-			check_time = CONFIG_INT_WDT_PERIOD_MS;
+			check_time = MB_IPC_HEARTBEAT_TIMEOUT_MS;
 		}
 	}
 }

@@ -12,7 +12,6 @@
 #include <modules/pm.h>
 #include <driver/gpio.h>
 #include "bk_wdt.h"
-#include <driver/wdt.h>
 #if CONFIG_AT
 #include "atsvr_unite.h"
 #if CONFIG_AT_DATA_MODE
@@ -2453,9 +2452,6 @@ static u32 shell_ipc_rx_indication(u16 cmd, log_cmd_t *log_cmd, u16 cpu_id)
 	{
 		#if (CONFIG_TASK_WDT)
 		bk_task_wdt_feed();
-		#endif
-		#if (CONFIG_INT_WDT)
-		bk_wdt_feed();
 		#endif
 
 		shell_assert_raw(true, (char *)data, data_len);

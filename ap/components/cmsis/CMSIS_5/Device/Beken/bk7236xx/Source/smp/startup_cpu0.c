@@ -24,7 +24,6 @@
 #include "aon_pmu_driver.h"
 #include "sys_driver.h"
 #include "driver/uart.h"
-#include "wdt_driver.h"
 #include "bk_pm_internal_api.h"
 #include <modules/pm.h>
 #include <driver/pwr_clk.h>
@@ -41,8 +40,6 @@
 #if CONFIG_MPU
 #include "mpu.h"
 #endif
-
-#include <driver/wdt.h>
 
 #include "stack_base.h"
 #include <reset_reason.h>

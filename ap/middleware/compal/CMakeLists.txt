@@ -31,10 +31,6 @@ if(CONFIG_TEMP_DETECT)
 	list(APPEND srcs	common_io/iot_tsensor.c)
 endif()
 
-if(CONFIG_INT_WDT)
-	list(APPEND srcs	common_io/iot_watchdog.c)
-endif()
-
 	list(APPEND srcs
 				common_io/iot_test_common_io_internal.c
 				common_io/test/test_iot_adc.c
@@ -46,7 +42,6 @@ endif()
 				common_io/test/test_iot_flash.c
 				common_io/test/test_iot_timer.c
 				common_io/test/test_iot_tsensor.c
-				common_io/test/test_iot_watchdog.c
 				common_io/test/test_iot_reset.c
 				common_io/test/test_iot_efuse.c
 				common_io/test/test_iot_power.c

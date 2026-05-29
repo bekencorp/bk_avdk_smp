@@ -58,9 +58,6 @@ extern "C" {
 #else
 #define CLI_CFG_TIMER       0
 #endif
-#if (CONFIG_INT_WDT)
-#define CLI_CFG_WDT         1
-#endif
 #if (CONFIG_TRNG_SUPPORT)
 #define CLI_CFG_TRNG        1
 #else

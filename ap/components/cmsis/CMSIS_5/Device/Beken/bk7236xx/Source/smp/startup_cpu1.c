@@ -24,7 +24,6 @@
 #include "aon_pmu_driver.h"
 #include "sys_driver.h"
 #include "driver/uart.h"
-#include "wdt_driver.h"
 #include "bk_pm_internal_api.h"
 #include "smp.h"
 #include "bk_rtos_debug.h"

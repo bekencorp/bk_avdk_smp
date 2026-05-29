@@ -18,8 +18,6 @@
 #include <driver/aon_rtc.h>
 #include <driver/gpio.h>
 #include "gpio_driver.h"
-#include "wdt_driver.h"
-#include "driver/wdt.h"
 #include "driver/flash.h"
 #include <os/os.h>
 

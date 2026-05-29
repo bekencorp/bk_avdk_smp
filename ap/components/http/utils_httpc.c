@@ -10,7 +10,6 @@
 #include "bk_uart.h"
 #include <os/mem.h>
 #include <os/str.h>
-#include <driver/wdt.h>
 #include "security_ota.h"
 
 #if HTTP_WR_TO_FLASH

@@ -14,8 +14,10 @@
 #include "partitions.h"
 #include "CheckSumUtils.h"
 #include "security_ota.h"
-#include <driver/wdt.h>
 #include <components/log.h>
+#if CONFIG_TASK_WDT
+#include <bk_wdt.h>
+#endif
 
 #define OTA_MAGIC_WORD "\x42\x4B\x37\x32\x33\x36\x35\x38"
 #define MANIFEST_SIZE  (4 * 1024)
@@ -28,15 +30,8 @@ static ota_parse_t ota_parse = {0};
 
 #if (CONFIG_TFM_FWU)
 
-#if CONFIG_INT_WDT
-#include <driver/wdt.h>
-#include <bk_wdt.h>
-#endif
-
-
 #include "sys_ctrl/sys_driver.h"
 
-void wdt_init(void);
 static uint32_t ota_image_flag = 0;
 
 const ota_partition_info_t s_ota_partition_info[] = {
@@ -106,8 +101,7 @@ int bk_ota_check(psa_image_id_t ota_image)
 	psa_image_version_t dependency_version;
 	psa_image_info_t info;
 
-#if CONFIG_INT_WDT
-	bk_wdt_stop();
+#if CONFIG_TASK_WDT
 	bk_task_wdt_stop();
 #endif 
 
@@ -137,15 +131,9 @@ int bk_ota_check(psa_image_id_t ota_image)
 		goto _ret_fail;
 	}
 
-#if CONFIG_INT_WDT
-	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);
-#endif
 	return 0;
 
 _ret_fail:
-#if CONFIG_INT_WDT
-	wdt_init();
-#endif
 	return -1;
 }
 
@@ -312,7 +300,9 @@ static int security_ota_handle_image(uint8_t **data, int *len)
 	vPortDisableTimerInterrupt();
 
 	do {
-		bk_wdt_feed();
+#if CONFIG_TASK_WDT
+		bk_task_wdt_feed();
+#endif
 		if (ota_parse.offset == 0) {
 			BK_LOGI(TAG, "downloading OTA image%d, expected data len=%x...\r\n", ota_parse.index, ota_parse.ota_image_header[ota_parse.index].image_len);
 			ota_parse.percent = 0;

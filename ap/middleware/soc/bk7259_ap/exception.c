@@ -22,10 +22,6 @@
 #include <modules/pm.h>
 #include <reset_reason.h>
 
-#if CONFIG_WDT_EN
-#include "wdt_driver.h"
-#include <driver/wdt.h>
-#endif
 #if CONFIG_SUPPORT_WWDT
 #include <driver/wwdt.h>
 #endif

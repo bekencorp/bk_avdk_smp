@@ -23,9 +23,6 @@
 #if CONFIG_PSRAM
 #include <driver/psram.h>
 #endif
-#if CONFIG_WDT_EN
-#include "wdt_driver.h"
-#endif
 //#include "driver/low_pwr_core.h"
 #include "pm_debug.h"
 #if CONFIG_PSRAM
@@ -581,12 +578,6 @@ boot_cp1:
 				{
 					goto boot_cp1;
 				}
-				if(s_pm_cp1_boot_try_count == PM_BOOT_CP1_TRY_COUNT)
-				{
-					#if CONFIG_WDT_EN
-					bk_wdt_force_reboot();//try 3 times, if fail ,reboot.
-					#endif
-				}
 			}
 		}
 	}
@@ -867,9 +858,6 @@ static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power
 				if(ret != BK_OK)
 				{
 					LOGE("Psram_I err2:%d",ret);
-					#if CONFIG_WDT_EN
-					bk_wdt_force_reboot();//try 3 times, if fail ,reboot.
-					#endif
 				}
 			}
 		}

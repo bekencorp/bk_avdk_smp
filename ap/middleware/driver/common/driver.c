@@ -22,7 +22,6 @@
 #include <driver/gpio.h>
 #include <driver/dma.h>
 #include <driver/uart.h>
-#include <driver/wdt.h>
 #include <driver/wwdt.h>
 #include <driver/trng.h>
 #include <driver/efuse.h>
@@ -38,6 +37,7 @@
 #include <driver/ipi_driver.h>
 #include "bk_driver.h"
 #include "interrupt_base.h"
+#include "bk_wdt.h"
 #include <driver/otp.h>
 #include <driver/pwr_clk.h>
 #include "bk_rtos_debug.h"
@@ -310,8 +310,8 @@ int driver_init(void) {
 	bk_hpdma_driver_init();
 #endif
 
-#if (CONFIG_INT_WDT || CONFIG_TASK_WDT)
-	bk_wdt_driver_init();
+#if CONFIG_TASK_WDT
+	bk_task_wdt_driver_init();
 #endif
 
 #if CONFIG_SUPPORT_WWDT

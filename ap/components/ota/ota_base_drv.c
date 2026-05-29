@@ -14,9 +14,6 @@
 #ifdef CONFIG_TASK_WDT
 #include "bk_wdt.h"
 #endif
-#if CONFIG_INT_WDT
-#include <driver/wdt.h>
-#endif
 #ifdef CONFIG_HTTP_AB_PARTITION
 #include "modules/ota.h"
 #include "driver/flash_partition.h"
@@ -198,10 +195,6 @@ static int ota_do_process_data(f_ota_t* ota_ptr, uint16_t len, ota_update_type_t
     OTA_CHECK_POINTER(ota_ptr->wr_buf);
 
 #if (CONFIG_TASK_WDT)
-    bk_task_wdt_feed();
-#endif
-#if CONFIG_TASK_WDT
-    extern void bk_task_wdt_feed(void);
     bk_task_wdt_feed();
 #endif
 

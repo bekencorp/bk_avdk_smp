@@ -30,8 +30,7 @@
 #include "mmgmt.h"
 #endif
 
-#if CONFIG_WDT_EN
-#include <driver/wdt.h>
+#if CONFIG_TASK_WDT
 #include "bk_wdt.h"
 #endif
 
@@ -114,26 +113,10 @@ int random_init(void)
 
 __IRAM_SEC int wdt_init(void)
 {
-#if CONFIG_WDT_EN
-
-#if (CONFIG_FREERTOS)
-#if CONFIG_INT_WDT
-	BK_LOGV(TAG, "int watchdog enabled, period=%u\r\n", CONFIG_INT_WDT_PERIOD_MS);
-	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);
-#else
-	BK_LOGD(TAG, "watchdog disabled\r\n");
-	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);
-	bk_wdt_feed();
-	bk_wdt_stop();
-#endif //CONFIG_INT_WDT
-#endif //CONFIG_FREERTOS
-
 #if CONFIG_TASK_WDT
 	bk_task_wdt_start();
 	BK_LOGV(TAG, "task watchdog enabled, period=%u\r\n", CONFIG_TASK_WDT_PERIOD_MS);
 #endif
-
-#endif //CONFIG_WDT_EN
 	return BK_OK;
 }
 

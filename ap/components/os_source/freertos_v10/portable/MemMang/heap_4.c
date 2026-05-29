@@ -92,7 +92,6 @@ task.h is included from an application file. */
 #if CONFIG_MEM_DEBUG
 #include "bk_list.h"
 #include <os/str.h>
-#include <driver/wdt.h>
 #include "bk_wdt.h"
 #include "arch_interrupt.h"
 #endif
@@ -782,17 +781,9 @@ static inline void show_mem_info(BlockLink_t *pxLink)
 		pxLink->line);
 #endif
 
-#if CONFIG_WDT_EN
 #if (CONFIG_TASK_WDT)
 	bk_task_wdt_feed();
 #endif
-
-	if(arch_is_enter_exception()) {
-		void bk_wdt_force_feed(void);
-		bk_wdt_force_feed();
-	}
-
-#endif //CONFIG_WDT_EN
 }
 
 static inline void mem_overflow_check(BlockLink_t *pxLink)

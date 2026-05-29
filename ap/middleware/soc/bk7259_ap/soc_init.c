@@ -41,11 +41,6 @@
 #include "mpu.h"
 #endif
 
-#if CONFIG_WDT_EN
-#include "wdt_driver.h"
-#include <driver/wdt.h>
-#endif
-
 #include "multicore_driver.h"
 #include "interrupt.h"
 
@@ -204,11 +199,6 @@ __FLASH_BOOT_CODE void soc_prep_data_relocation(void)
 
 __FLASH_BOOT_CODE void soc_prep_hook(void)
 {
-#if (CONFIG_INT_WDT || CONFIG_TASK_WDT)
-/// TODO: add wwdt force feed
-// bk_wdt_force_feed();
-#endif
-
 //  reboot_tag_init();
 
 #if CONFIG_SUPPORT_FPU

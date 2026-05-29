@@ -353,18 +353,13 @@ static void debug_show_boot_time(char *pcWriteBuffer, int xWriteBufferLen, int a
 #ifdef CORE_MARK_ENABLED
 static void debug_core_mark(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	extern bk_err_t bk_wdt_stop(void);
-	extern bk_err_t bk_wdt_start(uint32_t timeout_ms);
-
 	extern void core_mark(int argc, char *argv[]);
 
-	bk_wdt_stop();
 	u32  int_mask = rtos_enter_critical();
 
 	core_mark(argc, argv);
 
 	rtos_exit_critical(int_mask);
-	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);
 }
 
 #include "./core_mark/core_main.c"

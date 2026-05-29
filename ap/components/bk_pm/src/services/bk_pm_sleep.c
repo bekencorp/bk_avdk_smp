@@ -18,8 +18,6 @@
 #include <driver/aon_rtc.h>
 #include <driver/gpio.h>
 #include "gpio_driver.h"
-#include "wdt_driver.h"
-#include "driver/wdt.h"
 #include "driver/flash.h"
 #include <os/os.h>
 
@@ -118,10 +116,6 @@ uint64_t pm_normal_sleep_process()
 	}
 	#endif
 
-	/*stop wdt*/
-	//bk_wdt_stop();
-	//close_wdt();
-
 	/* Execute pre-sleep callbacks */
 	//bk_pm_pre_sleep_callback_execute();
 
@@ -133,7 +127,6 @@ uint64_t pm_normal_sleep_process()
 	/*restore wdt*/
 	extern int wdt_init(void);
 	wdt_init();
-	//bk_wdt_feed();
 	#if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;
 	exit_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
@@ -393,11 +386,6 @@ void pm_low_voltage_bsp_restore(void)
 
 #if CONFIG_CKMN
 	bk_rosc_32k_ckest_prog(32);
-#endif
-
-#if CONFIG_INT_WDT
-	extern int wdt_init(void);
-	wdt_init();
 #endif
 
 	bk_pm_exit_low_vol_wakeup_source_set();

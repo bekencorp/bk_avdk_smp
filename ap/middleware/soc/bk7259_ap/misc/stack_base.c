@@ -21,9 +21,10 @@
 #include <components/log.h>
 #include <common/bk_assert.h>
 #include <os/mem.h>
-#include <driver/wdt.h>
 #include "partitions.h"
+#if CONFIG_TASK_WDT
 #include "bk_wdt.h"
+#endif
 #include "driver/flash_partition.h"
 
 #define STACK_CALLBACK_BUF_SIZE 32
@@ -52,12 +53,9 @@ void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom)
 		}
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE 
 		if((cnt & 0xff) == 0) {
-#if CONFIG_WDT_EN
 #if (CONFIG_TASK_WDT)
 			bk_task_wdt_feed();
 #endif
-			bk_wdt_feed();
-#endif //CONFIG_WDT_EN
 		}
 #endif //#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
 		BK_DUMP_OUT("%02x %02x %02x %02x ", data[0], data[1], data[2], data[3]);

@@ -29,7 +29,6 @@
 #include "timer_cap.h"
 #include "trng_cap.h"
 #include "uart_cap.h"
-#include "wdt_cap.h"
 #include "aon_rtc_cap.h"
 #include "aud_cap.h"
 #include "qspi_cap.h"

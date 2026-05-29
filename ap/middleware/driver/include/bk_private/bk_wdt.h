@@ -14,18 +14,19 @@
 
 #pragma once
 
+#include <common/bk_err.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define WDT_DEV_NAME                "wdt"
-
-void bk_int_wdt_feed(void);
+bk_err_t bk_task_wdt_driver_init(void);
+bk_err_t bk_task_wdt_driver_deinit(void);
 void bk_task_wdt_start(void);
 __attribute__((section(".itcm_sec_code")))void bk_task_wdt_stop(void);
 void bk_task_wdt_feed(void);
 void bk_task_wdt_timeout_check(void);
-void bk_wdt_feed_handle(void);
+void bk_task_wdt_feed_handle(void);
 
 #ifdef __cplusplus
 }

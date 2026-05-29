@@ -63,19 +63,6 @@
     #define IOT_TEST_COMMON_IO_UART_SUPPORTED    0
 #endif
 
-#if defined( IOT_TEST_COMMON_IO_WATCHDOG_SUPPORTED ) && ( IOT_TEST_COMMON_IO_WATCHDOG_SUPPORTED >= 1 )
-
-/**
- * Board specific Watchdog config set
- *
- * @param: testSet: number of config set to be test
- * @return None
- */
-    void SET_TEST_IOT_WATCHDOG_CONFIG( int testSet );
-#else
-    #define IOT_TEST_COMMON_IO_WATCHDOG_SUPPORTED    0
-#endif
-
 #if defined( IOT_TEST_COMMON_IO_RTC_SUPPORTED ) && ( IOT_TEST_COMMON_IO_RTC_SUPPORTED >= 1 )
 
 /**

@@ -20,8 +20,9 @@
 #include <os/os.h>
 #include "sys_driver.h"
 #include "gpio_driver.h"
-#include <driver/wdt.h>
+#if CONFIG_TASK_WDT
 #include <bk_wdt.h>
+#endif
 #include "driver/pm_ap_core.h"
 #include "bk_rtos_debug.h"
 #include <driver/flash_partition.h>
@@ -307,9 +308,6 @@ void bk_set_jtag_mode(uint32_t cpu_id, uint32_t group_id) {
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_120M);
 
 	/*close watchdog*/
-#if CONFIG_INT_WDT
-	bk_wdt_stop();
-#endif
 #if CONFIG_TASK_WDT
 	bk_task_wdt_stop();
 #endif

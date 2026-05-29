@@ -333,9 +333,6 @@ void bk_wwdt_feed_handle(void)
 	GLOBAL_INT_DECLARATION();
 	GLOBAL_INT_DISABLE();
 
-#if (CONFIG_INT_WDT)
-	bk_int_wdt_feed();
-#endif
 #if (CONFIG_TASK_WDT)
 	bk_task_wdt_timeout_check();
 #endif

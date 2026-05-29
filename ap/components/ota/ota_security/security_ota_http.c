@@ -7,8 +7,6 @@
 #include "_ota.h"
 #include "utils_httpc.h"
 #include "modules/wifi.h"
-#include <driver/wdt.h>
-#include <bk_wdt.h>
 #include "sys_ctrl/sys_driver.h"
 #include "security_ota.h"
 

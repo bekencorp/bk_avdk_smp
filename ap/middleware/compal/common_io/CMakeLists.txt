@@ -26,7 +26,6 @@ afr_module_sources(
         "${inc_dir}/iot_uart.h"
         "${inc_dir}/iot_usb_device.h"
         "${inc_dir}/iot_usb_host.h"
-        "${inc_dir}/iot_watchdog.h"
 )
 
 afr_module_include_dirs(
@@ -65,7 +64,6 @@ afr_module_sources(
         "${test_dir}/test_iot_timer.c"
         "${test_dir}/test_iot_tsensor.c"
         "${test_dir}/test_iot_uart.c"
-        "${test_dir}/test_iot_watchdog.c"
 )
 
 afr_module_include_dirs(

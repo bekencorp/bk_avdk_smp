@@ -16,11 +16,6 @@
 #include "sys_driver.h"
 #include <driver/pwr_clk.h>
 
-#if CONFIG_INT_WDT
-#include <driver/wdt.h>
-#include <bk_wdt.h>
-#endif
-
 #include "pm_power.h"
 #include "pm_psram.h"
 #include "pm_debug.h"

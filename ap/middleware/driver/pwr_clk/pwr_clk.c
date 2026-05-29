@@ -31,9 +31,6 @@
 #include "bk_pm_internal_api.h"
 #include <common/bk_kernel_err.h>
 #include "aon_pmu_hal.h"
-#if CONFIG_WDT_EN
-#include "wdt_driver.h"
-#endif
 #include "driver/pm_ap_core.h"
 
 /*=====================DEFINE  SECTION  START=====================*/

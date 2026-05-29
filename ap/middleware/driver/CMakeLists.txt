@@ -74,7 +74,7 @@ endif()
 		common/driver.c
 		common/drv_model.c
 		#timer/timer_driver.c
-		wdt/wdt_driver.c
+		wdt/task_wdt.c
 		#sys_ctrl/sys_ctrl.c
 		sys_ctrl/sys_wifi_driver.c
 		sys_ctrl/sys_bt_driver.c

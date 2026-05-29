@@ -165,10 +165,6 @@ bk_err_t bk_flash_erase_fast(uint32_t erase_off, uint32_t len)
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
 #endif
-#if CONFIG_INT_WDT
-#include <driver/wdt.h>
-#include "bk_wdt.h"
-#endif
 
 #define CEIL_ALIGN_34(addr)           (((addr) + 34 - 1) / 34 * 34)
 
@@ -356,15 +352,7 @@ void bk_flash_ota_erase(void)
 	uint32_t erase_addr = CONFIG_OTA_PHY_PARTITION_OFFSET;
 	uint32_t erase_size = CONFIG_OTA_PHY_PARTITION_SIZE;
 #endif
-#if CONFIG_INT_WDT
-	extern bk_err_t bk_wdt_stop(void);
-	extern bk_err_t bk_wdt_start(uint32_t timeout_ms);
-	bk_wdt_stop();
-#endif
 	bk_flash_erase_fast(erase_addr,erase_size);
-#if CONFIG_INT_WDT
-	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);
-#endif
 }
 
 #if CONFIG_DIRECT_XIP

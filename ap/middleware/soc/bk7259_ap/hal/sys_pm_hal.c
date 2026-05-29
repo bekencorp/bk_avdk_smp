@@ -31,10 +31,6 @@
 #include "modules/pm.h"
 #include <driver/pwr_clk.h>
 #include "driver/flash.h"
-#if CONFIG_INT_WDT
-#include <driver/wdt.h>
-#include <bk_wdt.h>
-#endif
 #include "cache.h"
 #include "sys_ahbp_ll.h"
 extern uint64_t check_IRQ_pending(void);

@@ -97,14 +97,6 @@ TEST_GROUP_RUNNER( Common_IO )
         }
     #endif
 
-    #ifdef IOT_TEST_COMMON_IO_WATCHDOG_SUPPORTED
-        for( i = 0; i < IOT_TEST_COMMON_IO_WATCHDOG_SUPPORTED; i++ )
-        {
-            SET_TEST_IOT_WATCHDOG_CONFIG( i );
-            RUN_TEST_GROUP( TEST_IOT_WATCHDOG );
-        }
-    #endif
-
     #ifdef IOT_TEST_COMMON_IO_RTC_SUPPORTED
         for( i = 0; i < IOT_TEST_COMMON_IO_RTC_SUPPORTED; i++ )
         {

@@ -24,7 +24,6 @@
 #include "aon_pmu_driver.h"
 #include "sys_driver.h"
 #include "driver/uart.h"
-#include "wdt_driver.h"
 #include "bk_pm_internal_api.h"
 #include <modules/pm.h>
 #include <driver/pwr_clk.h>
@@ -40,7 +39,6 @@
 
 #include "stack_base.h"
 
-#include <driver/wdt.h>
 #include <os/os.h>
 #include <driver/uart.h>
 #include <reset_reason.h>
@@ -472,8 +470,6 @@ void user_nmi_handler(uint32_t lr, uint32_t sp)
 	if(REBOOT_TAG_REQ == sys_get_reboot_tag()) {
 		while(1);
 	}
-
-	bk_wdt_feed();
 
 	dump_system_info(RESET_SOURCE_NMI_WDT, lr, sp);
 #else // nmi wdt without system info dump

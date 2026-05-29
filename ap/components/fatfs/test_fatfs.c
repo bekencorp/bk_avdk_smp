@@ -6,8 +6,7 @@
 #include <os/mem.h>
 #include "ff.h"
 
-#if (CONFIG_INT_WDT || CONFIG_TASK_WDT)
-#include <driver/wdt.h>
+#if CONFIG_TASK_WDT
 #include <bk_wdt.h>
 #endif
 
@@ -722,11 +721,8 @@ static void fatfs_test_concurrency_task(beken_thread_arg_t arg)
 			continue;
 		}
 
-#if CONFIG_WDT
-		bk_wdt_feed();
 #if CONFIG_TASK_WDT
 		bk_task_wdt_feed();
-#endif
 #endif
 
 		//read from SDCARD and compare
@@ -770,11 +766,8 @@ static void fatfs_test_concurrency_task(beken_thread_arg_t arg)
             continue;
         }
 
-#if CONFIG_WDT
-		bk_wdt_feed();
 #if CONFIG_TASK_WDT
 		bk_task_wdt_feed();
-#endif
 #endif
 
 		rtos_delay_milliseconds(20);

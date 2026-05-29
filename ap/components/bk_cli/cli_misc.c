@@ -7,8 +7,6 @@
 #include <components/system.h>
 #include <modules/wifi.h>
 #include "sys_driver.h"
-#include <driver/wdt.h>
-#include <bk_wdt.h>
 #include "gpio_driver.h"
 #include <driver/gpio.h>
 #include "bk_ps.h"

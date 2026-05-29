@@ -7,8 +7,9 @@
 #include "flash.h"
 #include <driver/psram.h>
 #include "bk_misc.h"
-#include "driver/wdt.h"
+#if CONFIG_TASK_WDT
 #include "bk_wdt.h"
+#endif
 #include <driver/aon_rtc.h>
 #include <common/bk_assert.h>
 
@@ -226,9 +227,6 @@ static bk_err_t test_flash_count_time(volatile uint32_t start_addr, uint32_t len
 				BK_DUMP_OUT("===============================\r\n");
 			}
 		}
-		#if (CONFIG_WDT_EN)
-			bk_wdt_feed();
-		#endif
 		#if (CONFIG_TASK_WDT)
 			bk_task_wdt_feed();
 		#endif

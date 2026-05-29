@@ -24,9 +24,6 @@ static void run_all_tests(void)
     //RUN_TEST_GROUP(TEST_IOT_TSENSOR);
 #endif
 
-#if(CONFIG_INT_WDT)
-    //RUN_TEST_GROUP(TEST_IOT_WATCHDOG);
-#endif
 
 
 #if(CONFIG_AON_RTC)

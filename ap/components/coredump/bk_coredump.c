@@ -3,7 +3,6 @@
 #include <stddef.h>
 #include <string.h>
 #include "bk_coredump.h"
-#include "wdt_driver.h"
 #include "os/mem.h"
 #include "reg_base.h"
 #include "bk_rtos_debug.h"

@@ -1009,7 +1009,6 @@ CONFIG_DEVICE_MAX_NAME_LEN=32
 #
 # Watchdog
 #
-# CONFIG_WDT_EN is not set
 # end of Watchdog
 
 CONFIG_SUPPORT_WWDT=y

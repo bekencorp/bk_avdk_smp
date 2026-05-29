@@ -17,9 +17,6 @@
 #include <driver/pwr_clk.h>
 #include <driver/psram.h>
 #include <os/mem.h>
-#if CONFIG_WDT_EN
-#include "wdt_driver.h"
-#endif
 
 #include "pm_psram.h"
 #include "pm_debug.h"
@@ -54,9 +51,6 @@ __IRAM_SEC bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e mo
 				if(ret != BK_OK)
 				{
 					LOGE("Psram_I err2:%d",ret);
-					#if CONFIG_WDT_EN
-					bk_wdt_force_reboot();//try 3 times, if fail ,reboot.
-					#endif
 				}
 			}
 		}
