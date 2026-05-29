@@ -13,6 +13,7 @@
 #include "cache.h"
 
 #if CONFIG_SUPPORT_WWDT
+#include <driver/wwdt.h>
 #include "wwdt_driver.h"
 #endif
 
@@ -349,8 +350,9 @@ static void bk_exception_dump_main(bk_exception_t *self)
 static void bk_exception_postprocess(bk_exception_t *self)
 {
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
-    while (1) {
-    }
+#if CONFIG_SUPPORT_WWDT
+    bk_wwdt_driver_deinit();
+#endif
 #else
     if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
         BK_LOG_FLUSH();
