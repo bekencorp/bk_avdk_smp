@@ -24,53 +24,50 @@
 #endif
 
 
-/* ADC using params */
+/* SARADC sampling parameters (component-internal, not board-specific). */
 #define BAT_DETECT_ONESHOT_TIMER          1
 #define BAT_DETEC_ADC_CLK                 203125
 #define BAT_DETEC_ADC_SAMPLE_RATE         0
 #define BAT_DETEC_ADC_STEADY_CTRL         7
 
-#define ADC_VOL_BUFFER_SIZE               (5 + 5)   /* The first 5 samples can be skipped */
+#define ADC_VOL_BUFFER_SIZE               (5 + 5)   /* first 5 samples are discarded */
 #define ADC_READ_SEMAPHORE_WAIT_TIME      1000      /* ms */
-#define BATTERY_STATE_MONITORING_PERIOD   60 * 1000  /* ms */
 
-
-/* On/Off toggle for configuration */
+/* Feature switches the solution can use to disable parts that the
+ * physical hardware doesn't actually wire (e.g. fuel-gauge IC). */
+#ifndef HARDWARE_SUPPORT_CURRENT
 #define HARDWARE_SUPPORT_CURRENT          0
+#endif
+#ifndef HARDWARE_SUPPORT_VOLTAGE
 #define HARDWARE_SUPPORT_VOLTAGE          1
+#endif
+#ifndef HARDWARE_SUPPORT_CHARGE_LVL
 #define HARDWARE_SUPPORT_CHARGE_LVL       0
+#endif
+#ifndef HARDWARE_BATTERY_PRESENT
 #define HARDWARE_BATTERY_PRESENT          1
+#endif
 
-/* Battery capacity threshold example (percentage) for simple determination */
-#define SHUTDOWN_CAPACITY_THRESHOLD       2
-#define LOW_CAPACITY_THRESHOLD            20
-#define FULL_CAPACITY_THRESHOLD           95
+/* --- Board-specific values come from Kconfig (with header fallbacks). --- */
 
-#define GPIO_CHARGE      GPIO_51  // GPIO for charging state
-#define GPIO_FULL        GPIO_26  // GPIO for fully charged state
+#define BAT_MON_GPIO_CHARGE     ((gpio_id_t)CONFIG_BAT_MONITOR_GPIO_CHARGE)
+#define BAT_MON_GPIO_FULL       ((gpio_id_t)CONFIG_BAT_MONITOR_GPIO_FULL)
+#define BAT_MON_ADC_CHAN        ((adc_chan_t)CONFIG_BAT_MONITOR_ADC_CHAN)
 
-/**
- * @brief Battery lookup table structure
- *  - voltageMV: Voltage value(unit: mV)
- *  - percent:   Corresponding battery percentage(unit: %)
- */
-typedef struct
-{
-    uint16_t voltageMV;  /*!< Voltage points（mV） */
-    uint8_t  percent;    /*!< Remaining battery percentage corresponding to the voltage point(0~100) */
-} BatteryLUT_t;
+#define BAT_MON_POLL_PERIOD_MS  CONFIG_BAT_MONITOR_POLL_PERIOD_MS
+#define BAT_MON_LOW_PERCENT     CONFIG_BAT_MONITOR_LOW_PERCENT
+#define BAT_MON_SHUTDOWN_PCT    CONFIG_BAT_MONITOR_SHUTDOWN_PERCENT
+#define BAT_MON_FULL_PERCENT    CONFIG_BAT_MONITOR_FULL_PERCENT
 
-/*
- * Example: Define several sampling points between 3.00V (3000mV) and 4.10V (4100mV).
- * !!!!The percentages mentioned here are for demonstration purposes only and may not represent real curves.!!!!
- * !!!!Please adjust according to your specific battery characteristics!!!!
- * !!!!Full charge state is determined by the external GPIO of the charging module.!!!!
- * !!!!Here, it is suggested to set the maximum percentage in the table to 99, while the fully charged state
- * is determined by the charging module.!!!!
- *
- */
+/* Re-export with the legacy names used elsewhere in this file. */
+#define BATTERY_STATE_MONITORING_PERIOD   BAT_MON_POLL_PERIOD_MS
+#define SHUTDOWN_CAPACITY_THRESHOLD       BAT_MON_SHUTDOWN_PCT
+#define LOW_CAPACITY_THRESHOLD            BAT_MON_LOW_PERCENT
+#define FULL_CAPACITY_THRESHOLD           BAT_MON_FULL_PERCENT
 
-static const BatteryLUT_t s_chargeLUT[] =
+/* Generic single-cell Li-ion fallback curve used when the solution
+ * doesn't override battery_monitor_get_lut(). */
+static const bat_lut_entry_t s_default_chargeLUT[] =
 {
     {3000,   0},   /* 3.00V ->   0% */
     {3400,  10},   /* 3.40V ->  10% */
@@ -84,6 +81,17 @@ static const BatteryLUT_t s_chargeLUT[] =
     {3980,  90},   /* 3.98V ->  90% */
     {4100,  99},   /* 4.10V ->  99% */
 };
+
+/* Weak default — solutions can re-implement this in their own .c to
+ * supply a battery-specific discharge curve. */
+__attribute__((weak))
+const bat_lut_entry_t * battery_monitor_get_lut(size_t *pCount)
+{
+    if (pCount) {
+        *pCount = sizeof(s_default_chargeLUT) / sizeof(s_default_chargeLUT[0]);
+    }
+    return s_default_chargeLUT;
+}
 
 #if CONFIG_BAT_MONITOR
 
@@ -137,6 +145,33 @@ int32_t battery_get_charge_level(uint8_t *pLevel)
     return iot_battery_chargeLevel(xGlobalHandle, pLevel);
 }
 
+/* Normalise the two charging-detect GPIOs to a polarity-independent
+ * pair of booleans:
+ *   bExternalPower : true when external power (VBUS) is present.
+ *   bChargingNow   : true when the charger reports "still charging"
+ *                    (i.e. NOT in standby/full state).
+ * The actual electrical polarity of the two pins is controlled by
+ * CONFIG_BAT_MONITOR_CHARGE_ACTIVE_HIGH and
+ * CONFIG_BAT_MONITOR_FULL_ACTIVE_HIGH so the component itself stays
+ * board-agnostic. */
+static inline void prvReadChargeGpios(bool *pbExternalPower, bool *pbChargingNow)
+{
+    int chg = bk_gpio_get_input(BAT_MON_GPIO_CHARGE);
+    int ful = bk_gpio_get_input(BAT_MON_GPIO_FULL);
+
+#if CONFIG_BAT_MONITOR_CHARGE_ACTIVE_HIGH
+    *pbExternalPower = (chg == 1);
+#else
+    *pbExternalPower = (chg == 0);
+#endif
+
+#if CONFIG_BAT_MONITOR_FULL_ACTIVE_HIGH
+    *pbChargingNow   = (ful == 1);
+#else
+    *pbChargingNow   = (ful == 0);
+#endif
+}
+
 static inline IotBatteryStatus_t battery_get_status_from_gpio(void)
 {
     if(!xGlobalHandle)
@@ -144,24 +179,15 @@ static inline IotBatteryStatus_t battery_get_status_from_gpio(void)
         return eBatteryUnknown;
     }
 
-    int charge_state = bk_gpio_get_input(GPIO_CHARGE);
-    int full_state   = bk_gpio_get_input(GPIO_FULL);
+    bool bExternalPower = false;
+    bool bChargingNow   = false;
+    prvReadChargeGpios(&bExternalPower, &bChargingNow);
 
-    if (charge_state == 1)
+    if (bExternalPower)
     {
-        if (full_state == 1)
-        {
-            return eBatteryCharging;
-        }
-        else
-        {
-            return eBatteryChargeFull;
-        }
+        return bChargingNow ? eBatteryCharging : eBatteryChargeFull;
     }
-    else
-    {
-        return eBatteryDischarging;
-    }
+    return eBatteryDischarging;
 }
 
 bool battery_if_is_charging(void)
@@ -199,8 +225,34 @@ static int hardware_read_voltage( uint16_t * pusVoltage )
     }
 
 	bk_err_t ret = prvStartBatteryAdcOneTime(pusVoltage);
-    return (ret == BK_OK) ? 0 : -1;
+	if (ret != BK_OK) {
+		return -1;
+	}
 
+	/*
+	 * pusVoltage is the voltage at the ADC pin in mV (after
+	 * prvStartBatteryAdcOneTime applies bk_adc_data_calculate()).
+	 *
+	 * Convert to the true VBAT using the external divider configured by
+	 * the solution:
+	 *   VBAT = V_pin * CONFIG_BAT_MONITOR_ADC_DIVIDER_X100 / 100
+	 *
+	 * If the divider-compensated VBAT exceeds CONFIG_BAT_MONITOR_VBAT_SANITY_MAX_MV
+	 * (a value impossible for a healthy single-cell Li-ion), fall back
+	 * to V_pin directly — this handles boards where the divider has
+	 * been DNP'd / shorted at production.  Finally hard-clamp to
+	 * CONFIG_BAT_MONITOR_VBAT_HARD_CLAMP_MV so callers never see garbage.
+	 */
+	uint16_t mv_at_pin = *pusVoltage;
+	uint32_t vbat = (uint32_t)mv_at_pin * (uint32_t)CONFIG_BAT_MONITOR_ADC_DIVIDER_X100 / 100U;
+	if (vbat > (uint32_t)CONFIG_BAT_MONITOR_VBAT_SANITY_MAX_MV) {
+		vbat = mv_at_pin;
+	}
+	if (vbat > (uint32_t)CONFIG_BAT_MONITOR_VBAT_HARD_CLAMP_MV) {
+		vbat = (uint32_t)CONFIG_BAT_MONITOR_VBAT_HARD_CLAMP_MV;
+	}
+	*pusVoltage = (uint16_t)vbat;
+	return 0;
 }
 
 static int hardware_read_current( uint16_t * pusCurrent )
@@ -261,8 +313,8 @@ IotBatteryHandle_t iot_battery_open( int32_t lBatteryInstance )
 
     /* Set default battery information */
     pxDesc->xBatteryInfo.xBatteryType     = eBatteryChargeable;
-    pxDesc->xBatteryInfo.usMinVoltage     = 3000;   /* mV */
-    pxDesc->xBatteryInfo.usMaxVoltage     = 4100;   /* mV */
+    pxDesc->xBatteryInfo.usMinVoltage     = CONFIG_BAT_MONITOR_BAT_MIN_MV;
+    pxDesc->xBatteryInfo.usMaxVoltage     = CONFIG_BAT_MONITOR_BAT_MAX_MV;
     pxDesc->xBatteryInfo.sMinTemperature  = 0;
     pxDesc->xBatteryInfo.lMaxTemperature  = 50;
     pxDesc->xBatteryInfo.usMaxCapacity    = 100;    /* Calculate based on 100% */
@@ -366,49 +418,44 @@ int32_t iot_battery_voltage( IotBatteryHandle_t const pxBatteryHandle,
         return IOT_BATTERY_READ_FAILED;
     }
 
-	//CONVERT TO REAL VOL
-	#if 1
-    uint32_t temp = (uint32_t)(*pusVoltage) * 667;
-	uint16_t practic_voltage = (uint16_t)((temp / 1000) + 40);
-	#else
-	float practic_voltage = (float)(s_raw_voltage_data[0] - saradc_val.low);
-    practic_voltage = (practic_voltage / (float)(saradc_val.high - saradc_val.low)) + 1;
-	#endif
-    //BAT_MONITOR_PRT("pusVoltage = %d, practic_voltage = %d.\r\n",*pusVoltage, practic_voltage);
-
-    *pusVoltage = practic_voltage;
-
-    pxDesc->usCurrentVoltage = practic_voltage;
+    /* hardware_read_voltage() already returns VBAT in mV
+     * (SDK calibration + R16/R13 divider compensation applied inside). */
+    pxDesc->usCurrentVoltage = *pusVoltage;
 
     return IOT_BATTERY_SUCCESS;
 }
 
 static uint8_t battery_voltage_to_percent(uint16_t voltageMV)
 {
-    const int LUT_SIZE = sizeof(s_chargeLUT) / sizeof(s_chargeLUT[0]);
+    size_t lut_size = 0;
+    const bat_lut_entry_t *lut = battery_monitor_get_lut(&lut_size);
+
+    if (lut == NULL || lut_size == 0) {
+        return 0;
+    }
 
     /* If it is below the minimum value, directly return the minimum percentage in the table*/
-    if(voltageMV <= s_chargeLUT[0].voltageMV)
+    if(voltageMV <= lut[0].voltageMV)
     {
-        return s_chargeLUT[0].percent;
+        return lut[0].percent;
     }
 
     /* If the value exceeds the maximum value, return the maximum percentage */
-    if(voltageMV >= s_chargeLUT[LUT_SIZE - 1].voltageMV)
+    if(voltageMV >= lut[lut_size - 1].voltageMV)
     {
-        return s_chargeLUT[LUT_SIZE - 1].percent;
+        return lut[lut_size - 1].percent;
     }
 
     /* Perform linear interpolation within the interval */
-    for(int i = 0; i < LUT_SIZE - 1; i++)
+    for(size_t i = 0; i < lut_size - 1; i++)
     {
-        uint16_t v1 = s_chargeLUT[i].voltageMV;
-        uint16_t v2 = s_chargeLUT[i+1].voltageMV;
+        uint16_t v1 = lut[i].voltageMV;
+        uint16_t v2 = lut[i+1].voltageMV;
 
         if(voltageMV >= v1 && voltageMV <= v2)
         {
-            uint8_t p1 = s_chargeLUT[i].percent;
-            uint8_t p2 = s_chargeLUT[i+1].percent;
+            uint8_t p1 = lut[i].percent;
+            uint8_t p2 = lut[i+1].percent;
 
             uint16_t dist  = (v2 - v1);
             uint16_t delta = (voltageMV - v1);
@@ -426,7 +473,7 @@ static uint8_t battery_voltage_to_percent(uint16_t voltageMV)
     }
 
     /* According to theory, it wouldn't be here for safety. */
-    return s_chargeLUT[LUT_SIZE - 1].percent;
+    return lut[lut_size - 1].percent;
 }
 
 /**
@@ -551,16 +598,19 @@ static bk_err_t prvStartBatteryAdcOneTime( uint16_t * vol )
     }
 
     BK_LOG_ON_ERR( bk_adc_acquire() );
-    BK_LOG_ON_ERR( bk_adc_init( ADC_0 ) );
+    /* GPIO-to-analog remap is done once in battery_monitor_init(); calling it
+     * every cycle floods the log with harmless but noisy "gpio_dev_unprotect_map"
+     * errors. */
+    BK_LOG_ON_ERR( bk_adc_init( BAT_MON_ADC_CHAN ) );
 
     adc_config_t config;
     os_memset( &config, 0, sizeof(config) );
 
-    config.chan          = ADC_0;
+    config.chan          = BAT_MON_ADC_CHAN;
     config.adc_mode      = ADC_CONTINUOUS_MODE;
-    config.src_clk       = ADC_SCLK_XTAL_26M;
+    config.src_clk       = ADC_SCLK_XTAL;
     config.clk           = BAT_DETEC_ADC_CLK;
-    config.saturate_mode = 4;
+    config.saturate_mode = ADC_SATURATE_MODE_3;
     config.steady_ctrl   = BAT_DETEC_ADC_STEADY_CTRL;
     config.adc_filter    = 0;
     config.sample_rate   = BAT_DETEC_ADC_SAMPLE_RATE;
@@ -589,8 +639,28 @@ static bk_err_t prvStartBatteryAdcOneTime( uint16_t * vol )
 
 ADC_EXIT:
     BK_LOG_ON_ERR( bk_adc_stop() );
-    BK_LOG_ON_ERR( bk_adc_deinit( ADC_0 ) );
+    BK_LOG_ON_ERR( bk_adc_deinit( BAT_MON_ADC_CHAN ) );
     BK_LOG_ON_ERR( bk_adc_release() );
+
+    /*
+     * Convert raw SARADC value to mV at the ADC pin using the SDK helper
+     * (which knows about per-channel cwt calibration and Vref).  The driver's
+     * original linear "raw * 0.667 + 40" formula was tuned for a different
+     * board and produced 10000+ mV on this hardware (raw values are ~16 bit
+     * here, not 12 bit).  After this conversion we still need to apply the
+     * external R16(3.3M)/R13(1M) divider in iot_battery_voltage().
+     */
+    if( ret == BK_OK && *vol != 0 )
+    {
+        uint16_t mv_at_pin = bk_adc_data_calculate( *vol, BAT_MON_ADC_CHAN );
+        /* Rate-limit to once per ~10 reads so the log isn't flooded when the
+         * page_2 timer is polling at 1 Hz. */
+        static uint32_t s_log_div;
+        if ((s_log_div++ % 10) == 0) {
+            BAT_MONITOR_PRT("bat raw=%u, mv@pin=%u\r\n", (unsigned)(*vol), mv_at_pin);
+        }
+        *vol = mv_at_pin;
+    }
 
 	return ret;
 }
@@ -608,14 +678,13 @@ static void prvCheckChargeStatus( IotBatteryHandle_t xHandle )
         return;
     }
 
-    int charge_state = bk_gpio_get_input( GPIO_CHARGE );
-    int full_state   = bk_gpio_get_input( GPIO_FULL );
+    bool bExternalPower = false;
+    bool bChargingNow   = false;
+    prvReadChargeGpios(&bExternalPower, &bChargingNow);
 
-    //printf("charge_state = %d,full_state = %d.\r\n",charge_state,full_state);
-
-    if( charge_state == 1 )
+    if( bExternalPower )
     {
-        if(full_state == 1)
+        if( bChargingNow )
         {
             pxDesc->xBatteryInfo.xBatteryStatus = eBatteryCharging;
             BAT_MONITOR_PRT("Device is charging...\r\n");
@@ -816,6 +885,42 @@ static bk_err_t prvBatteryMonitorTaskInit( void )
     return BK_OK;
 }
 
+static void prvInitChargeGpios(void)
+{
+    /*
+     * 5V_DET / FULL_DET are configured as digital inputs. The pull-up
+     * policy is selectable from Kconfig:
+     *   - external pull-up on the board   -> CONFIG_BAT_MONITOR_FULL_PULL_UP=n
+     *   - rely on the MCU's internal pull -> CONFIG_BAT_MONITOR_FULL_PULL_UP=y
+     */
+    gpio_config_t cfg_chg = {
+        .io_mode   = GPIO_INPUT_ENABLE,
+        .pull_mode = GPIO_PULL_DISABLE,
+        .func_mode = GPIO_SECOND_FUNC_DISABLE,
+    };
+    BK_LOG_ON_ERR(bk_gpio_set_config(BAT_MON_GPIO_CHARGE, &cfg_chg));
+
+    gpio_config_t cfg_full = {
+        .io_mode   = GPIO_INPUT_ENABLE,
+#if CONFIG_BAT_MONITOR_FULL_PULL_UP
+        .pull_mode = GPIO_PULL_UP_EN,
+#else
+        .pull_mode = GPIO_PULL_DISABLE,
+#endif
+        .func_mode = GPIO_SECOND_FUNC_DISABLE,
+    };
+    BK_LOG_ON_ERR(bk_gpio_set_config(BAT_MON_GPIO_FULL, &cfg_full));
+}
+
+static void prvInitBatteryAdcPin(void)
+{
+    /* Remap the BAT_ADC pin from default GPIO to analog input.
+     * This is a one-shot operation; doing it on every ADC read causes the
+     * gpio_dev_unprotect_map / "GPIO device N not supported" warnings to
+     * flood the log. */
+    BK_LOG_ON_ERR( bk_adc_chan_init_gpio( BAT_MON_ADC_CHAN ) );
+}
+
 void battery_monitor_init( void )
 {
     if( s_charging_init_status_flag )
@@ -823,6 +928,9 @@ void battery_monitor_init( void )
         BAT_MONITOR_PRT("Battery monitor has already been initialized.\n");
         return;
     }
+
+    prvInitChargeGpios();
+    prvInitBatteryAdcPin();
 
     bk_err_t ret = prvBatteryMonitorTaskInit();
     if( ret != BK_OK )

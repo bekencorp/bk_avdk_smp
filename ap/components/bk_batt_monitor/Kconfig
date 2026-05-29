@@ -1,5 +1,129 @@
 menu "bk_bat_monitor"
-	config BAT_MONITOR
-		bool "Enable BAT_MONITOR"
-		default n
+
+config BAT_MONITOR
+	bool "Enable battery monitor component"
+	default n
+	help
+	  Enable the bk_batt_monitor component. The component itself is
+	  hardware-agnostic; all board-specific parameters (charge-detect
+	  GPIOs, ADC channel for VBAT, voltage divider ratio, thresholds,
+	  poll period, etc.) must be configured by the solution via the
+	  options below or via the LUT override API in bat_monitor.h.
+
+if BAT_MONITOR
+
+	menu "Charging-detect GPIO"
+
+		config BAT_MONITOR_GPIO_CHARGE
+			int "5V / VBUS detect GPIO pin number"
+			default 55
+			help
+			  GPIO pin connected to the 5V_DET / VBUS-presence net
+			  (often driven by a resistive divider off the USB VBUS).
+
+		config BAT_MONITOR_CHARGE_ACTIVE_HIGH
+			bool "5V_DET pin reads HIGH when external power is present"
+			default y
+			help
+			  y : VBUS present -> GPIO reads 1 (default for resistive
+			      divider VBUS -> R -> GPIO -> R -> GND).
+			  n : VBUS present -> GPIO reads 0.
+
+		config BAT_MONITOR_GPIO_FULL
+			int "Charge-full status GPIO pin number"
+			default 13
+			help
+			  GPIO pin connected to the charger STDBY / FULL_DET net.
+
+		config BAT_MONITOR_FULL_PULL_UP
+			bool "Enable internal pull-up on FULL_DET pin"
+			default n
+			help
+			  Enable when the FULL_DET net has no reliable external
+			  pull-up (e.g. open-drain charger STDBY going through a
+			  Schottky diode to the MCU). With no internal pull-up
+			  the pin would float in the non-active state and produce
+			  random readings.
+
+		config BAT_MONITOR_FULL_ACTIVE_HIGH
+			bool "FULL_DET pin reads HIGH when battery is actively charging"
+			default y
+			help
+			  y (default): charging -> FULL_DET = 1,
+			               battery full -> FULL_DET = 0.
+			  n          : charging -> FULL_DET = 0,
+			               battery full -> FULL_DET = 1.
+
+	endmenu
+
+	menu "Battery voltage sensing"
+
+		config BAT_MONITOR_ADC_CHAN
+			int "ADC channel used for battery voltage"
+			default 13
+			help
+			  SARADC channel number connected (directly or via an
+			  external divider) to the battery.
+
+		config BAT_MONITOR_ADC_DIVIDER_X100
+			int "External voltage divider ratio x100 (VBAT / V_pin * 100)"
+			default 430
+			help
+			  Set to (R_top + R_bottom) / R_bottom * 100. For
+			  R_top = 3.3M, R_bottom = 1M => 4.3 * 100 = 430.
+			  Use 100 when the ADC pin is connected directly to
+			  the battery (no divider).
+
+		config BAT_MONITOR_VBAT_SANITY_MAX_MV
+			int "Sanity max VBAT (mV) before falling back to V_pin"
+			default 4500
+			help
+			  If the divider-compensated VBAT exceeds this value
+			  (impossible for a healthy single-cell Li-ion), the
+			  driver assumes the divider has been bypassed/DNP on
+			  this board and uses V_pin directly as VBAT.
+
+		config BAT_MONITOR_VBAT_HARD_CLAMP_MV
+			int "Hard upper clamp on reported VBAT (mV)"
+			default 5000
+
+		config BAT_MONITOR_BAT_MIN_MV
+			int "Battery minimum voltage (mV)"
+			default 3000
+
+		config BAT_MONITOR_BAT_MAX_MV
+			int "Battery maximum voltage (mV)"
+			default 4100
+
+	endmenu
+
+	menu "Monitor task & thresholds"
+
+		config BAT_MONITOR_POLL_PERIOD_MS
+			int "Monitor task poll period (ms)"
+			default 5000
+			help
+			  Interval at which the monitor task re-reads charging
+			  GPIOs and battery voltage. Note that
+			  iot_battery_chargeLevel() also reads the GPIO live
+			  on every call, so this value mostly controls the
+			  rate of background voltage averaging and event
+			  notification.
+
+		config BAT_MONITOR_LOW_PERCENT
+			int "Low battery warning threshold (%)"
+			default 20
+
+		config BAT_MONITOR_SHUTDOWN_PERCENT
+			int "Shutdown threshold (%)"
+			default 2
+
+		config BAT_MONITOR_FULL_PERCENT
+			int "Full charge threshold (%)"
+			default 95
+
+	endmenu
+
+endif # BAT_MONITOR
+
 endmenu

@@ -3,6 +3,7 @@
 
 #include "bk_gpio.h"
 #include "bk_uart.h"
+#include <stddef.h>
 
 #define BAT_MONITOR_DEBUG
 
@@ -20,6 +21,89 @@
 #define IOT_BATTERY_NOT_EXIST                 ( 2 )
 #define IOT_BATTERY_READ_FAILED               ( 3 )
 #define IOT_BATTERY_FUNCTION_NOT_SUPPORTED    ( 4 )
+
+/* -------------------------------------------------------------------------
+ * Solution-level configuration with Kconfig overrides.
+ *
+ * bk_batt_monitor is a hardware-agnostic component; all of the values
+ * below must be supplied by the solution (via Kconfig in defconfig).
+ * The fallbacks here exist only so that the component still builds
+ * stand-alone in unit-test / demo scenarios.
+ * ------------------------------------------------------------------------- */
+
+#ifndef CONFIG_BAT_MONITOR_GPIO_CHARGE
+#define CONFIG_BAT_MONITOR_GPIO_CHARGE              55
+#endif
+#ifndef CONFIG_BAT_MONITOR_CHARGE_ACTIVE_HIGH
+#define CONFIG_BAT_MONITOR_CHARGE_ACTIVE_HIGH       1
+#endif
+#ifndef CONFIG_BAT_MONITOR_GPIO_FULL
+#define CONFIG_BAT_MONITOR_GPIO_FULL                13
+#endif
+#ifndef CONFIG_BAT_MONITOR_FULL_PULL_UP
+#define CONFIG_BAT_MONITOR_FULL_PULL_UP             0
+#endif
+#ifndef CONFIG_BAT_MONITOR_FULL_ACTIVE_HIGH
+#define CONFIG_BAT_MONITOR_FULL_ACTIVE_HIGH         1
+#endif
+
+#ifndef CONFIG_BAT_MONITOR_ADC_CHAN
+#define CONFIG_BAT_MONITOR_ADC_CHAN                 13
+#endif
+#ifndef CONFIG_BAT_MONITOR_ADC_DIVIDER_X100
+#define CONFIG_BAT_MONITOR_ADC_DIVIDER_X100         430
+#endif
+#ifndef CONFIG_BAT_MONITOR_VBAT_SANITY_MAX_MV
+#define CONFIG_BAT_MONITOR_VBAT_SANITY_MAX_MV       4500
+#endif
+#ifndef CONFIG_BAT_MONITOR_VBAT_HARD_CLAMP_MV
+#define CONFIG_BAT_MONITOR_VBAT_HARD_CLAMP_MV       5000
+#endif
+#ifndef CONFIG_BAT_MONITOR_BAT_MIN_MV
+#define CONFIG_BAT_MONITOR_BAT_MIN_MV               3000
+#endif
+#ifndef CONFIG_BAT_MONITOR_BAT_MAX_MV
+#define CONFIG_BAT_MONITOR_BAT_MAX_MV               4100
+#endif
+
+#ifndef CONFIG_BAT_MONITOR_POLL_PERIOD_MS
+#define CONFIG_BAT_MONITOR_POLL_PERIOD_MS           5000
+#endif
+#ifndef CONFIG_BAT_MONITOR_LOW_PERCENT
+#define CONFIG_BAT_MONITOR_LOW_PERCENT              20
+#endif
+#ifndef CONFIG_BAT_MONITOR_SHUTDOWN_PERCENT
+#define CONFIG_BAT_MONITOR_SHUTDOWN_PERCENT         2
+#endif
+#ifndef CONFIG_BAT_MONITOR_FULL_PERCENT
+#define CONFIG_BAT_MONITOR_FULL_PERCENT             95
+#endif
+
+/**
+ * @brief Battery voltage -> percent look-up table entry.
+ */
+typedef struct {
+	uint16_t voltageMV;  /*!< voltage point (mV) */
+	uint8_t  percent;    /*!< remaining capacity (0~100) corresponding to voltageMV */
+} bat_lut_entry_t;
+
+/**
+ * @brief Solution-level override: provide a custom battery curve.
+ *
+ * The component ships with a generic single-cell Li-ion LUT
+ * (3000 mV ~ 4100 mV / 0 % ~ 99 %).  If your battery has a different
+ * discharge curve, implement this function in the solution and return
+ * a pointer to your LUT (sorted by voltage ascending; the last entry's
+ * percent should be <= 99 because 100 % is reserved for the
+ * "battery full" state reported by the charger).
+ *
+ * If the solution doesn't override this function, the built-in
+ * default LUT is used.
+ *
+ * @param[out] pCount  Number of entries in the returned table.
+ * @return  Pointer to a LUT array of @p *pCount entries.
+ */
+const bat_lut_entry_t * battery_monitor_get_lut(size_t *pCount);
 
 /* Battery Type */
 typedef enum
@@ -164,8 +248,10 @@ int32_t battery_get_charge_level(uint8_t *pLevel);
 /**
  * @brief  Reads the battery charging-related GPIO pins and returns the current battery status.
  *
- * @note   This function internally checks the GPIO_CHARGE and GPIO_FULL pins to determine
- *         whether the battery is charging, full, or discharging.
+ * @note   This function internally checks the charge-detect / full-detect
+ *         GPIOs configured via CONFIG_BAT_MONITOR_GPIO_CHARGE /
+ *         CONFIG_BAT_MONITOR_GPIO_FULL to determine whether the battery
+ *         is charging, full, or discharging.
  *
  * @return
  *   - eBatteryCharging    The battery is charging.
