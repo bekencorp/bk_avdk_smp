@@ -237,6 +237,11 @@ void sys_hal_set_cpu2_reset(uint32_t reset_value)
 	sys_ahbp_ll_set_reg4_cpu0_sw_rstn(reset_value);
 }
 
+void sys_hal_set_npu_reset(uint32_t reset_value)
+{
+	sys_ahbp_ll_set_reg6_npu_sw_rstn(reset_value);
+}
+
 void sys_hal_set_cpu1_pwr_dw(uint32_t is_pwr_down)
 {
 	sys_ll_set_cpu1_int_halt_clk_op_cpu1_pwr_dw(is_pwr_down);

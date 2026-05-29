@@ -7,7 +7,10 @@
 
 #include <os/os.h>
 #include <os/mem.h>
-#include <driver/int.h>
+#include <soc/soc.h>
+#include "driver/int.h"
+#include "driver/int_types.h"
+#include "sys_driver.h"
 #include <ethosu_driver.h>
 #include <components/log.h>
 #include "modules/pm.h"
@@ -37,10 +40,6 @@ int bk_ethosu_init(void *fast_memory, uint32_t fast_memory_size)
 {
     int ret = 0;
 
-    // Enable NPU interrupts for m55a and m55b
-    (*(volatile unsigned int*)(0x48000000 + 0x10 * 4)) |= 1<<6;//Enable m55a NPU interrupt
-    (*(volatile unsigned int*)(0x48000000 + 0x12 * 4)) |= 1<<7;//Enable m55b NPU interrupt
-
     // Disable NPU power down (if needed)
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_NPU, PM_POWER_MODULE_STATE_ON);
 
@@ -48,18 +47,20 @@ int bk_ethosu_init(void *fast_memory, uint32_t fast_memory_size)
     bk_pm_clock_ctrl(PM_CLK_ID_NPU, CLK_PWR_CTRL_PWR_UP);
 
     // npu memory not enter deep sleep
-    (*(volatile unsigned int*)(0x48000000 + 0x0D * 4)) |= 1<<16;
+    //todo use pm api to control npu memory sleep
 
     // Wait for clock to stabilize
     bk_delay_us(1000);
 
     // Release NPU nRESET
-    (*(volatile unsigned int*)(0x48000000 + 0x06 * 4)) |= 1;//Release NPU nRESET
+    sys_drv_set_npu_reset(1);
 
     // Register NPU interrupt handler
-    bk_int_isr_register((icu_int_src_t)6, (int_group_isr_t)&bk_npu_int_isr, NULL);
+    bk_int_isr_register(INT_SRC_NPU, (int_group_isr_t)&bk_npu_int_isr, NULL);
 
-    ret = ethosu_init(&ethosu0_driver, (void*)0x48200000, fast_memory, fast_memory_size, 1, 1);
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_NPU, 1);
+
+    ret = ethosu_init(&ethosu0_driver, (void *)SOC_NPU_REG_BASE, fast_memory, fast_memory_size, 1, 1);
 
     LOGI("Ethos-U driver initialized successfully, ret=%d\r\n", ret);
 

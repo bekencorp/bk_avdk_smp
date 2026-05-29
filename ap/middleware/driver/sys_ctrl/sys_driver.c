@@ -298,6 +298,13 @@ void sys_drv_set_cpu2_rxevt_sel(uint32 value) {
     sys_hal_set_cpu2_rxevt_sel(value);
 }
 
+void sys_drv_set_npu_reset(uint32_t reset_value)
+{
+	uint32_t int_level = sys_drv_enter_critical();
+	sys_hal_set_npu_reset(reset_value);
+	sys_drv_exit_critical(int_level);
+}
+
 void sys_drv_set_otp_clk_enable(uint32_t value) 
 {
     sys_hal_set_cpu_device_clk_enable_otp_cken(value);
