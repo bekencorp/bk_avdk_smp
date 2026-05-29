@@ -176,7 +176,7 @@ typedef enum{
 	GPIO_TIME_SHARING_MULTIPLEX_ENABLE =1,     /*enable gpio time sharing multiplex*/
 } gpio_time_sharing_multiplex_t;
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 typedef enum {
 	GPIO_LOW_POWER_DISCARD_IO_STATUS = 0,	//low power switch to no-input,no-output,wakeup restore status
 	GPIO_LOW_POWER_KEEP_INPUT_STATUS = 1,

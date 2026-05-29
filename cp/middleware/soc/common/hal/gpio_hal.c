@@ -354,7 +354,7 @@ bk_err_t gpio_hal_wakeup_interrupt_clear()
 }
 #endif
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 
 static inline bool is_gpio_for_current_cpu(int gpio_id)
 {
@@ -483,17 +483,5 @@ And the security world uses GPIO0 and GPIO1, so use macro CONFIG_CPU_CNT to isol
 #endif
 
 	return BK_OK;	
-}
-#endif
-
-#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
-bk_err_t gpio_hal_dump_map_dev_cfg(gpio_hal_t *hal)
-{
-	for(int i = 0; i < SOC_GPIO_NUM; i++)
-	{
-		gpio_hal_map_check(hal, i);
-	}
-
-	return BK_OK;
 }
 #endif

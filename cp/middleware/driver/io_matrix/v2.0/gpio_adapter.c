@@ -64,7 +64,7 @@ static gpio_dynamic_keep_status_t s_gpio_lowpower_keep_config[CONFIG_GPIO_DYNAMI
 #endif
 
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 static void gpio_default_map_init(void);
 #endif
 
@@ -110,7 +110,7 @@ bk_err_t bk_gpio_driver_init(void)
 #endif
 #endif
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 	gpio_default_map_init();
 #endif
 
@@ -279,7 +279,7 @@ bk_err_t bk_gpio_set_interrupt_type(gpio_id_t gpio_id, gpio_int_type_t type)
 	return bk_iomx_set_interrupt_type(gpio_id, type);
 }
 
-IOMX_CODE_T contert_gpio_dev_to_iomx_code(gpio_dev_t dev)
+IOMX_CODE_T convert_gpio_dev_to_iomx_code(gpio_dev_t dev)
 {
 	IOMX_CODE_T func_code = FUNC_CODE_INVALID;
 
@@ -837,7 +837,7 @@ bk_err_t bk_gpio_unregister_wakeup_source(gpio_id_t gpio_id)
 static void gpio_keep_status_init(void)
 {
 	//has configured in default map with static mode
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 	const gpio_default_map_t default_map[] = GPIO_DEFAULT_DEV_CONFIG;
 
 	for (uint32_t i = 0; i < sizeof(default_map)/sizeof(gpio_default_map_t); i++)
@@ -976,7 +976,7 @@ bk_err_t bk_gpio_unregister_lowpower_keep_status(gpio_id_t gpio_id)
 #endif
 #endif
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 static void gpio_default_map_init(void)
 {
 	const gpio_default_map_t default_map[] = GPIO_DEFAULT_DEV_CONFIG;
@@ -1004,7 +1004,7 @@ static void gpio_default_map_init(void)
 
 		//function mode
 		if (default_map[i].second_func_en) {
-			code = contert_gpio_dev_to_iomx_code(default_map[i].second_func_dev);
+			code = convert_gpio_dev_to_iomx_code(default_map[i].second_func_dev);
 			bk_iomx_set_gpio_func(gpio_id, code);
 		}
 

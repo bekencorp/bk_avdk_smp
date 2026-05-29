@@ -44,9 +44,9 @@ typedef struct {
 	uint32_t ldo_state;
 } gpio_ctrl_ldo_t;
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 typedef struct {
-	uint32_t gpio_id:				6;	//gpio_id_t
+	uint32_t gpio_id:				7;	//gpio_id_t (7 bits to cover GPIO_0..GPIO_71)
 
 	/* if second func en,then second_func_dev value is valid */
 	uint32_t second_func_en:		1;	//gpio_func_mode_t
@@ -72,7 +72,12 @@ bk_err_t gpio_dev_unprotect_map(gpio_id_t gpio_id, gpio_dev_t dev);
 bk_err_t gpio_dev_unprotect_unmap(gpio_id_t gpio_id);
 bk_err_t gpio_jtag_sel(gpio_jtag_map_group_t gpio_jtag_sel_mode);
 bk_err_t gpio_scr_sel(gpio_scr_map_group_t mode);
-IOMX_CODE_T contert_gpio_dev_to_iomx_code(gpio_dev_t dev);
+IOMX_CODE_T convert_gpio_dev_to_iomx_code(gpio_dev_t dev);
+bk_err_t bk_gpio_dump_pin_status(void);
+
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+bk_err_t bk_gpio_dump_default_map_init_effect(void);
+#endif
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 bk_err_t gpio_enter_low_power(void *param);

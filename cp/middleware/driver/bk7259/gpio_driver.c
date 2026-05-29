@@ -71,7 +71,7 @@ bk_err_t gpio_dev_unprotect_map(gpio_id_t gpio_id, gpio_dev_t dev)
 	// This is optimized for high-frequency flexible map devices (UART, SPI, I2C, PWM, etc.)
 	// Note: Flexible map and fixed map are mutually exclusive, so no need to check fixed map
 	//       if device is found in flexible map
-	func_code = contert_gpio_dev_to_iomx_code(dev);
+	func_code = convert_gpio_dev_to_iomx_code(dev);
 
 	if (func_code != FUNC_CODE_INVALID) {
 		// Found in flexible mux map, all GPIOs can be used for this dev
@@ -129,7 +129,7 @@ bk_err_t gpio_scr_sel(gpio_scr_map_group_t mode)
 	return BK_OK;
 }
 
-IOMX_CODE_T contert_gpio_dev_to_iomx_code(gpio_dev_t dev)
+IOMX_CODE_T convert_gpio_dev_to_iomx_code(gpio_dev_t dev)
 {
 	// Handle special cases first
 	if (dev == GPIO_DEV_INVALID || dev == GPIO_DEV_NONE) {

@@ -69,30 +69,7 @@ typedef struct {
 	uint32_t ldo_state;
 } gpio_ctrl_ldo_t;
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
-typedef struct {
-	uint32_t gpio_id:				6;	//gpio_id_t
-
-	/* if second func en,then second_func_dev value is valid */
-	uint32_t second_func_en:		1;	//gpio_func_mode_t
-	uint32_t second_func_dev:		12;	//gpio_dev_t
-
-	uint32_t io_mode:				2;	//gpio_io_mode_t
-	uint32_t pull_mode:				2;	//gpio_pull_mode_t
-
-	/* if int en and then int_type is valid */
-	uint32_t int_en:				1;	//gpio_int_mode_t
-	uint32_t int_type:				2;	//gpio_int_type_t
-
-	uint32_t low_power_io_ctrl:		2;	//gpio_lowpower_mode_t
-
-	uint32_t driver_capacity:		2;	//gpio_driver_capacity_t
-
-  uint32_t gpio_init:    1; //gpio_init_t
-
-  uint32_t gpio_time_sharing_multiplex: 1; //gpio_time_sharing_multiplex_t
-}gpio_default_map_t;
-
+#if CONFIG_USR_GPIO_CFG_EN
 bk_err_t gpio_hal_default_map_init(gpio_hal_t *hal);
 #endif
 
@@ -120,7 +97,6 @@ bk_err_t gpio_hal_set_config(gpio_hal_t *hal, gpio_id_t gpio_id, const gpio_conf
 bk_err_t gpio_hal_devs_map(gpio_hal_t *hal, uint64 gpios, gpio_dev_t *devs, uint8 dev_num);
 
 bk_err_t gpio_hal_enable_interrupt(gpio_hal_t *hal, gpio_id_t gpio_id);
-bk_err_t gpio_hal_dump_map_dev_cfg(gpio_hal_t *hal);
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 bk_err_t gpio_hal_bak_configs(uint16_t *gpio_cfg, uint32_t count);
@@ -136,10 +112,6 @@ bk_err_t gpio_hal_reg_save(uint32_t*  gpio_cfg);
 bk_err_t gpio_hal_reg_restore(uint32_t*  gpio_cfg);
 bk_err_t gpio_hal_wakeup_enable(int64_t index, uint64_t type_l, uint64_t type_h);
 bk_err_t gpio_hal_wakeup_interrupt_clear();
-#endif
-
-#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
-bk_err_t gpio_hal_dump_map_dev_cfg(gpio_hal_t *hal);
 #endif
 
 #define gpio_hal_disable_interrupt(hal, id)			gpio_ll_disable_interrupt((hal)->hw, id)
