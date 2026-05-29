@@ -20,7 +20,7 @@
 #include <modules/pm.h>
 
 #define MOD_TAG		"hrt"
-#define BEKEN_HEARTBEAT_PRIORITY 1
+#define BEKEN_HEARTBEAT_PRIORITY 0
 
 #if (CONFIG_CPU_CNT > 1)
 
