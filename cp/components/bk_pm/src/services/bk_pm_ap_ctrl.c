@@ -221,12 +221,13 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 				extern void sys_hal_mailbox_regs_restore(void);
 				sys_hal_mailbox_regs_restore();
 				sys_hal_mailbox_saved_regs_dump();
+				mb_ipc_reset_notify(1, 1);
 				g_enter_sleep = 0x0;
 			}
 			#endif
             bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_ON);
 			/* Keep mailbox heartbeat state machine aligned with AP power transitions. */
-			mb_ipc_reset_notify(1, 1);
+
 			LOGI("pm_dbg ap_power_on: vote_on + reset_notify(on)\r\n");
 			// #if defined(RECV_LOG_FROM_MBOX)
 			// void reset_forward_log_status(void);
