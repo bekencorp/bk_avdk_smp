@@ -58,7 +58,11 @@ int bk_ethosu_init(void *fast_memory, uint32_t fast_memory_size)
     // Register NPU interrupt handler
     bk_int_isr_register(INT_SRC_NPU, (int_group_isr_t)&bk_npu_int_isr, NULL);
 
+#if CONFIG_SOC_SMP
+    sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_NPU, 1);
+#else
     sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_NPU, 1);
+#endif
 
     ret = ethosu_init(&ethosu0_driver, (void *)SOC_NPU_REG_BASE, fast_memory, fast_memory_size, 1, 1);
 
@@ -70,9 +74,14 @@ int bk_ethosu_init(void *fast_memory, uint32_t fast_memory_size)
 void bk_ethosu_deinit(void)
 {
     ethosu_deinit(&ethosu0_driver);
+#if CONFIG_SOC_SMP
+    sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_NPU, 0);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_NPU, 0);
+#endif
+    bk_int_isr_unregister(INT_SRC_NPU);
 
     bk_pm_clock_ctrl(PM_CLK_ID_NPU, CLK_PWR_CTRL_PWR_DOWN);
-
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_NPU, PM_POWER_MODULE_STATE_OFF);
 }
 
