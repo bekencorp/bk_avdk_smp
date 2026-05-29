@@ -333,11 +333,6 @@ static int pm_low_voltage_resource_set()
 	pm_psram_malloc_state_and_power_ctrl();
 	#endif
 	pm_lv_enter_time_out_clear();
-	#if CONFIG_PM_LV_WDT_PROTECTION
-		#if CONFIG_AON_WDT
-		bk_aon_wdt_feed();
-		#endif
-	#endif
 	#endif
 
 	bk_pm_exit_low_vol_wakeup_source_clear();
@@ -403,11 +398,6 @@ void pm_low_voltage_bsp_restore(void)
 #if CONFIG_INT_WDT
 	extern int wdt_init(void);
 	wdt_init();
-#endif
-#if CONFIG_PM_LV_WDT_PROTECTION
-	#if CONFIG_AON_WDT
-		bk_aon_wdt_stop();
-	#endif
 #endif
 
 	bk_pm_exit_low_vol_wakeup_source_set();

@@ -42,7 +42,6 @@
 
 #include <driver/wdt.h>
 #include <os/os.h>
-#include "bk_aon_wdt.h"
 #include <driver/uart.h>
 #include <reset_reason.h>
 #include "arch_interrupt.h"

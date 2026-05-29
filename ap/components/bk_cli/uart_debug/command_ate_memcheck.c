@@ -108,11 +108,6 @@ void cmd_start_softreset(uint8_t vcore, uint8_t wdt_delay)
     REG_SET(SOC_WDT_REG_BASE + 4 * 2, 0, 0, 1);
     uart_send_byte_for_ate(0x55);
     uart_send_byte_for_ate(0x33);
-#if CONFIG_SUPPORT_AON_WDT
-    //disable always on wdt to avoid dog time when MBIST
-    REG_WRITE(SOC_AON_WDT_REG_BASE, 0x5A0000);
-    REG_WRITE(SOC_AON_WDT_REG_BASE, 0xA50000);
-#endif
 	//(*(volatile uint32_t *)(SOC_AON_GPIO_REG_BASE + 18 * 4)) = 2; //for test by xiaodi
     REG_WRITE(SOC_WDT_REG_BASE + 4 * 4, 0x5A0000 | wdt_delay);
     REG_WRITE(SOC_WDT_REG_BASE + 4 * 4, 0xA50000 | wdt_delay);

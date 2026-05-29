@@ -20,9 +20,6 @@
 #include <driver/wdt.h>
 #include <bk_wdt.h>
 #endif
-#if CONFIG_AON_WDT
-#include <driver/aon_wdt.h>
-#endif
 
 #include "pm_power.h"
 #include "pm_psram.h"
