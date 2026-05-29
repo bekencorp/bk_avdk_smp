@@ -1,6 +1,14 @@
 list(APPEND incs wdt)
 
 if (CONFIG_WDT_EN)
+	if (CONFIG_TASK_WDT)
+		list(APPEND srcs wdt/task_wdt.c)
+
+		if (CONFIG_CLI AND CONFIG_TASK_WDT_TEST)
+			list(APPEND srcs wdt/task_wdt_test.c)
+		endif()
+	endif()
+
 	if (CONFIG_CLI AND CONFIG_WDT_TEST)
 		list(APPEND srcs wdt/wdt_test.c)
 	endif()

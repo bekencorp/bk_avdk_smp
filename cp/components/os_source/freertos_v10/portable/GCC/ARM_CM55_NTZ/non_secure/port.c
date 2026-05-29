@@ -835,6 +835,10 @@ void soc_systick_handler( void ) /* PRIVILEGED_FUNCTION */
 
     ulPreviousMask = portSET_INTERRUPT_MASK_FROM_ISR();
     {
+#if CONFIG_TASK_WDT
+        bk_task_wdt_systick_check();
+#endif
+
         /* Increment the RTOS tick. */
         if( xTaskIncrementTick() != pdFALSE )
         {

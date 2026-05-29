@@ -333,9 +333,6 @@ void bk_wwdt_feed_handle(void)
 	GLOBAL_INT_DECLARATION();
 	GLOBAL_INT_DISABLE();
 
-#if (CONFIG_TASK_WDT)
-	bk_task_wdt_timeout_check();
-#endif
 	bk_wwdt_feed();
 	GLOBAL_INT_RESTORE();
 }
@@ -356,21 +353,6 @@ void bk_wwdt_force_reboot(void)
 
 	GLOBAL_INT_DISABLE();
 	wwdt_hal_force_reboot();
-// #if CONFIG_GPIO_RETENTION_SUPPORT
-// 	// lock gpio if retention map is set up
-// 	// Attention: hot-flash-write will not work if gpio locked
-// 	if (0 != gpio_retention_map_get())
-// 	{
-// #if CONFIG_AON_PMU_REG0_REFACTOR_DEV
-// 		aon_pmu_drv_gpio_state_lock(false);
-// #else
-// 		sys_hal_gpio_state_switch(true);
-// #endif
-// 	}
-// #endif
-// #if CONFIG_AON_PMU_REG0_REFACTOR_DEV
-// 	aon_pmu_drv_r0_latch_to_r7b();
-// #endif
 	while(1);
 	GLOBAL_INT_RESTORE();
 }

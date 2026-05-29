@@ -40,11 +40,7 @@ typedef struct {
 	uint8_t init_bits;
 } wdt_driver_t;
 
-#define DUMP_THREAD_WHEN_TASK_WDG_TIGGERED 1
-#define DUMP_STACK_WHEN_TASK_WDG_TIGGERED 1
-
 #define INT_WDG_FEED_PERIOD_TICK ((BK_MS_TO_TICKS(CONFIG_INT_WDT_PERIOD_MS)) >> 4)
-#define TASK_WDG_PERIOD_TICK (BK_MS_TO_TICKS(CONFIG_TASK_WDT_PERIOD_MS))
 
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 #define GET_TASK_CURRENT_TICK()  (BK_MS_TO_TICKS(bk_aon_rtc_get_us()/1000))
@@ -78,12 +74,6 @@ static wdt_driver_t s_wdt = {0};
 static bool s_wdt_driver_is_init = false;
 static uint32_t s_wdt_period = CONFIG_INT_WDT_PERIOD_MS;
 
-#if (CONFIG_TASK_WDT)
-static uint64_t s_last_task_wdt_feed_tick = 0;
-static uint64_t s_last_task_wdt_log_tick = 0;
-static bool s_task_wdt_enabled = true;
-#endif
-
 # if (CONFIG_INT_WDT)
 static uint32_t s_feed_watchdog_time = INT_WDG_FEED_PERIOD_TICK;
 #endif
@@ -115,6 +105,10 @@ bk_err_t bk_wdt_driver_init(void)
 #endif
 	s_wdt_driver_is_init = true;
 
+#if CONFIG_TASK_WDT
+	bk_task_wdt_driver_init();
+#endif
+
 #if CONFIG_CLI && CONFIG_WDT_TEST
         int bk_wdt_register_cli_test_feature(void);
         bk_wdt_register_cli_test_feature();
@@ -138,6 +132,11 @@ bk_err_t bk_wdt_driver_deinit(void)
 #if ((CONFIG_INT_WDT) || (CONFIG_TASK_WDT))
 	bk_timer_stop(TIMER_ID2);
 #endif
+
+#if CONFIG_TASK_WDT
+	bk_task_wdt_driver_deinit();
+#endif
+
 	s_wdt_driver_is_init = false;
 
 	return BK_OK;
@@ -208,42 +207,6 @@ void bk_wdt_set_feed_time(uint32_t dw_set_time)
 
 #endif
 
-#if (CONFIG_TASK_WDT)
-__IRAM_SEC void bk_task_wdt_start()
-{
-	s_task_wdt_enabled = true;
-}
-
-__attribute__((section(".itcm_sec_code"))) void bk_task_wdt_stop()
-{
-	s_task_wdt_enabled = false;
-}
-
-void bk_task_wdt_feed(void)
-{
-	s_last_task_wdt_feed_tick = GET_TASK_CURRENT_TICK();
-}
-
-void bk_task_wdt_timeout_check(void)
-{
-	if (s_last_task_wdt_feed_tick && s_task_wdt_enabled) {
-		const uint64_t c_last_feed_tick = s_last_task_wdt_feed_tick;
-		const uint64_t current_tick = GET_TASK_CURRENT_TICK();
-
-		if(current_tick > c_last_feed_tick) {
-			if ((current_tick - c_last_feed_tick) > TASK_WDG_PERIOD_TICK) {
-				if ((current_tick - s_last_task_wdt_log_tick) > TASK_WDG_PERIOD_TICK) {
-					WDT_LOGW("task watchdog triggered\r\n");
-					s_last_task_wdt_log_tick = current_tick;
-					BK_ASSERT(0);
-				}
-			}
-		}
-	}
-}
-
-#endif
-
 bool bk_wdt_is_driver_inited()
 {
 	return s_wdt_driver_is_init;
@@ -258,9 +221,6 @@ void bk_wdt_feed_handle(void)
 	bk_int_wdt_feed();
 #endif
 
-#if (CONFIG_TASK_WDT)
-	bk_task_wdt_timeout_check();
-#endif
 	GLOBAL_INT_RESTORE();
 }
 

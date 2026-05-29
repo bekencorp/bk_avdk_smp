@@ -38,6 +38,7 @@
 
 /* Portasm includes. */
 #include "portasm.h"
+#include "bk_wdt.h"
 
 #if ( configENABLE_TRUSTZONE == 1 )
     /* Secure components includes. */
@@ -749,6 +750,10 @@ void SysTick_Handler( void ) /* PRIVILEGED_FUNCTION */
 
     ulPreviousMask = portSET_INTERRUPT_MASK_FROM_ISR();
     {
+#if CONFIG_TASK_WDT
+        bk_task_wdt_systick_check();
+#endif
+
         /* Increment the RTOS tick. */
         if( xTaskIncrementTick() != pdFALSE )
         {
