@@ -133,8 +133,11 @@ static int isp_int_isr_unregister_wrapper(uint8_t type)
 
 static int isp_int_enable_wrapper(uint32_t int_num, uint32_t int_en)
 {
-    uint32_t core_id = rtos_get_core_id();
-    return sys_drv_set_int_en(core_id, int_num, int_en);
+#if CONFIG_SOC_SMP
+    return sys_drv_set_int_en(CPU3_CORE_ID, int_num, int_en);
+#else
+    return sys_drv_set_int_en(rtos_get_core_id(), int_num, int_en);
+#endif
 }
 
 static uint32_t nano_enter_critical_wrapper(void)
