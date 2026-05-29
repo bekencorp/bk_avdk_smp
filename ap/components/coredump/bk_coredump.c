@@ -12,6 +12,10 @@
 #include "sys_sw_regs.h"
 #include "memory.h"
 
+#if CONFIG_SUPPORT_WWDT
+#include "wwdt_driver.h"
+#endif
+
 #define BK_EXCEPTION_MAGIC 0xA55AA55A
 #define BK_ASSERT_MAGIC 0x55AA55AA
 static volatile bk_assert_info_t s_bk_assert_info;
@@ -24,6 +28,13 @@ static hook_func s_ble_dump_func = NULL;
 #if CONFIG_INTERRUPT_DEBUG_RECORDER
 extern void bk_interrupt_dump_recorder(void);
 #endif
+
+static inline void coredump_feed_watchdogs(void)
+{
+#if CONFIG_SUPPORT_WWDT
+    bk_wwdt_force_feed();
+#endif
+}
 
 bool bk_check_assert(void)
 {
@@ -64,7 +75,7 @@ static void bk_exception_preprocess(bk_exception_t *self)
     s_core_id = rtos_get_core_id();
     coredump_stop_other_cores();
 
-    // bk_wdt_force_feed();
+    coredump_feed_watchdogs();
     bk_misc_set_reset_reason(self->reset_reason);
     
     bk_set_printf_sync(true);  // set printf sync
