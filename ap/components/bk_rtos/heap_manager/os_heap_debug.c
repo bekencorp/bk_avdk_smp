@@ -4,6 +4,10 @@
 #include "os_heap_debug.h"
 #include "bk_heap/port/port_heap.h"
 
+#if CONFIG_SUPPORT_WWDT
+#include "wwdt_driver.h"
+#endif
+
 #define MEM_OVERFLOW_TAG        0xcd
 
 void bk_heap_debug_add_debug_info(struct list_head *list, void *ptr,
@@ -33,16 +37,18 @@ static void show_mem_info(bk_heap_debug_info_t *info)
     BK_DUMP_OUT("%-8d   0x%-8x   %-4d   %-5d   %-32s   %-16s\r\n",
                 info->allocTime, bk_heap_debug_get_ptr(info), info->wantedSize,
                 info->line, info->funcName, info->taskName);
-#if CONFIG_WDT_EN
+
 #if (CONFIG_TASK_WDT)
     bk_task_wdt_feed();
 #endif
+
     if (arch_is_enter_exception())
     {
-        void bk_wdt_force_feed(void);
-        bk_wdt_force_feed();
+    #if CONFIG_SUPPORT_WWDT
+        bk_wwdt_force_feed();
+    #endif
     }
-#endif // CONFIG_WDT_EN
+
 }
 
 int bk_heap_debug_dump_mem_stats(uint32_t start_tick, uint32_t ticks_since_malloc, const char *task, struct list_head *list)
