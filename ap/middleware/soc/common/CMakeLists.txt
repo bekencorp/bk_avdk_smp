@@ -19,12 +19,6 @@ if (CONFIG_AON_GPIO)
 	)
 endif()
 
-if (CONFIG_AON_WDT)
-	list(APPEND srcs
-		hal/aon_wdt_hal.c
-	)
-endif()
-
 if (CONFIG_PWM)
 if (CONFIG_PWM_V1PX)
 	list(APPEND srcs

@@ -16,7 +16,6 @@
 
 #include "adc.h"
 #include "aon_rtc.h"
-#include "aon_wdt.h"
 #include "aud.h"
 #include "bk_queue.h"
 #include "calendar.h"

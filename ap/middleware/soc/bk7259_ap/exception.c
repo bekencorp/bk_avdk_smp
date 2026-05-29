@@ -21,11 +21,13 @@
 #include "bk_pm_internal_api.h"
 #include <modules/pm.h>
 #include <reset_reason.h>
-#include "bk_aon_wdt.h"
 
 #if CONFIG_WDT_EN
 #include "wdt_driver.h"
 #include <driver/wdt.h>
+#endif
+#if CONFIG_SUPPORT_WWDT
+#include <driver/wwdt.h>
 #endif
 
 void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp);
@@ -53,7 +55,6 @@ __STATIC_FORCEINLINE void dump_system_info(uint32_t rr, uint32_t lr, uint32_t sp
 	while(1);\
 }
 
-extern bk_err_t bk_wwdt_feed(void);
 void user_nmi_handler(uint32_t lr, uint32_t sp)
 {
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE

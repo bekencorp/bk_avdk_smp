@@ -23,7 +23,6 @@
 #include <driver/dma.h>
 #include <driver/uart.h>
 #include <driver/wdt.h>
-#include <driver/aon_wdt.h>
 #include <driver/wwdt.h>
 #include <driver/trng.h>
 #include <driver/efuse.h>
@@ -317,10 +316,6 @@ int driver_init(void) {
 
 #if CONFIG_SUPPORT_WWDT
 	bk_wwdt_driver_init();
-#endif
-
-#if CONFIG_AON_WDT && !CONFIG_INT_AON_WDT
-	bk_aon_wdt_stop();
 #endif
 
 #if CONFIG_MAILBOX

@@ -24,8 +24,7 @@ extern "C" {
 #endif
 
 typedef enum {
-	AON_WDT_ID = 0,  /**< AON_WDT_ID */
-	NMI_WDT_ID,      /**< NMI_WDT_ID */
+	NMI_WDT_ID = 0,  /**< NMI_WDT_ID */
 } wdt_id_t;
 
 typedef struct {

@@ -9,11 +9,6 @@ menu "Watchdog"
 		bool "Enable Interrupt Watchdog"
 		default n
 
-	config SUPPORT_AON_WDT
-		depends on WDT_EN
-		bool "Enable Interrupt Watchdog"
-		default n
-
 	config INT_WDT_PERIOD_MS
 		depends on WDT_EN
 		int "Interrupt Watchdog Period(ms)"

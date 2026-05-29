@@ -47,7 +47,6 @@ extern "C" {
 #define CFG_HAL_DEBUG_CALENDAR   1
 #define CFG_HAL_DEBUG_FLASH      1
 #define CFG_HAL_DEBUG_SDIO_HOST  1
-#define CFG_HAL_DEBUG_AON_WDT    1
 #define CFG_HAL_DEBUG_DMA2D      1
 #define CFG_HAL_DEBUG_JPEG_DEC   1
 #define CFG_HAL_DEBUG_YUV_BUF    1
@@ -79,7 +78,6 @@ extern "C" {
 #define CFG_HAL_DEBUG_CALENDAR   0
 #define CFG_HAL_DEBUG_FLASH      0
 #define CFG_HAL_DEBUG_SDIO_HOST  0
-#define CFG_HAL_DEBUG_AON_WDT    0
 #define CFG_HAL_DEBUG_DMA2D      0
 #define CFG_HAL_DEBUG_JPEG_DEC   0
 #define CFG_HAL_DEBUG_YUV_BUF    0

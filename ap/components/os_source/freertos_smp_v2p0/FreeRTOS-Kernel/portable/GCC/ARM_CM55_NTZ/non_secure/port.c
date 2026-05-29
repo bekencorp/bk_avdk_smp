@@ -41,7 +41,6 @@
 
 #include "cmsis_gcc.h"
 #include "bk_wdt.h"
-#include "bk_aon_wdt.h"
 #if CONFIG_SUPPORT_WWDT
 #include "wwdt_driver.h"
 #endif

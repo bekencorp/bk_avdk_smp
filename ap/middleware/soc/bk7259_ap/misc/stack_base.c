@@ -22,7 +22,6 @@
 #include <common/bk_assert.h>
 #include <os/mem.h>
 #include <driver/wdt.h>
-#include "bk_aon_wdt.h"
 #include "partitions.h"
 #include "bk_wdt.h"
 #include "driver/flash_partition.h"
@@ -58,9 +57,6 @@ void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom)
 			bk_task_wdt_feed();
 #endif
 			bk_wdt_feed();
-#if (CONFIG_INT_AON_WDT)
-			bk_int_aon_wdt_feed();
-#endif
 #endif //CONFIG_WDT_EN
 		}
 #endif //#if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE

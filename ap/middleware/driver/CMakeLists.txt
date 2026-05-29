@@ -91,17 +91,6 @@ if (CONFIG_RESET_REASON)
 	list(APPEND srcs reset_reason/reset_reason.c)
 endif()
 
-if (CONFIG_AON_WDT)
-	list(APPEND incs
-		aon_wdt
-	)
-
-	list(APPEND srcs
-		aon_wdt/aon_wdt_driver.c
-	)
-endif()
-
-
 if (NOT CMAKE_BUILD_EARLY_EXPANSION)
 	add_subdirectory(common)
 	add_subdirectory(rtc)
