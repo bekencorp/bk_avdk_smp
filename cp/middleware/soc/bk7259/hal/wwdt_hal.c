@@ -20,7 +20,7 @@ bk_err_t wwdt_hal_init(wwdt_hal_t *hal)
 	hal->id = CPU_WWDT_ID;
 	hal->hw = (wwdt_hw_t *)WWDT_LL_REG_BASE;
 
-	// sys_hal_enable_32k_hz_clock();
+	sys_hal_clk_pwr_ctrl(CLK_PWR_ID_32KS, CLK_PWR_CTRL_PWR_UP);
 	wwdt_hal_set_smb_clkrst_soft_reset(1);
 
 	return BK_OK;

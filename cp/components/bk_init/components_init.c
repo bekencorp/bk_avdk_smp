@@ -62,7 +62,6 @@
 #if (CONFIG_SUPPORT_WWDT)
 #include <driver/wwdt.h>
 #endif
-
 #define TAG "init"
 
 
@@ -165,9 +164,12 @@ __IRAM_SEC int wdt_init(void)
 #endif
 
 #if CONFIG_SUPPORT_WWDT
-	bk_wwdt_driver_init();
-	bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0);
-	BK_LOGV(TAG, "wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
+	/*
+	 * Start the boot core WWDT before the scheduler starts. The other cores
+	 * start/feed their own WWDT from their per-core SysTick after scheduling.
+	 */
+	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
+	BK_LOGI(TAG, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
 #endif
 
 #endif //CONFIG_WDT_EN

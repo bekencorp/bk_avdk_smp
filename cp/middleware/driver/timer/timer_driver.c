@@ -193,11 +193,19 @@ static void timer_interrupt_enable(timer_id_t id)
 	switch(group_index)
 	{
 		case 0:
+#if CONFIG_SOC_SMP
+            sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_TIMER, 1);
+#else
             sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_TIMER, 1);
+#endif
 			break;
 
 		case 1:
+#if CONFIG_SOC_SMP
+            sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_TIMER1, 1);
+#else
             sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_TIMER1, 1);
+#endif
 			break;
 		default:
 			break;

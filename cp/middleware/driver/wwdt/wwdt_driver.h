@@ -26,8 +26,24 @@
 
 #define WWDT_BARK_TIME_MS       (1000)
 
+/* Internal WWDT helpers for OS tick, coredump, and reboot paths. */
 void bk_wwdt_feed_handle(void);
+
+/* Feed the current core from task context; starts the core WWDT on first use. */
+void bk_wwdt_feed_current_core(void);
+
+/* Lightweight current-core feed path for SysTick/ISR context. */
+void bk_wwdt_feed_current_core_from_isr(void);
+
 void bk_wwdt_close(void);
+
+/* Direct HAL-level helpers used after interrupts or scheduling are stopped. */
 void bk_wwdt_force_feed(void);
 void bk_wwdt_force_reboot(void);
+
+#if CONFIG_WWDT_TEST
+bk_err_t bk_wwdt_set_skip_feed_core(uint32_t core_id, bool skip);
+uint32_t bk_wwdt_get_skip_feed_bits(void);
+#endif
+
 // eof

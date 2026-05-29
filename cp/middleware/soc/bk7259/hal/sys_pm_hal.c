@@ -38,7 +38,7 @@
 #include <bk_wdt.h>
 #endif
 #if CONFIG_SUPPORT_WWDT
-#include "wwdt_driver.h"
+#include <driver/wwdt.h>
 #endif
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"

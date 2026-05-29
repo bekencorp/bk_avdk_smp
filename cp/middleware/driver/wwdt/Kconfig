@@ -7,7 +7,7 @@ menu "Watchdog"
 	config INT_WWDT_PERIOD_MS
 		depends on SUPPORT_WWDT
 		int "Interrupt Watchdog Period(ms)"
-		default 8000
+		default 2000
 
 	config WWDT_TEST
 		depends on SUPPORT_WWDT && DRIVER_TEST

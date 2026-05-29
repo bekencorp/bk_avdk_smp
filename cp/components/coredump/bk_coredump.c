@@ -8,6 +8,10 @@
 #include "reg_base.h"
 #include "bk_rtos_debug.h"
 
+#if CONFIG_SUPPORT_WWDT
+#include "wwdt_driver.h"
+#endif
+
 #define BK_EXCEPTION_MAGIC 0xA55AA55A
 #define BK_ASSERT_MAGIC 0x55AA55AA
 static volatile bk_assert_info_t s_bk_assert_info;
@@ -16,6 +20,16 @@ static volatile uint32_t s_core_id = 0;
 
 static hook_func s_wifi_dump_func = NULL;
 static hook_func s_ble_dump_func = NULL;
+
+static inline void coredump_feed_watchdogs(void)
+{
+#if CONFIG_WDT_EN
+    bk_wdt_force_feed();
+#endif
+#if CONFIG_SUPPORT_WWDT
+    bk_wwdt_force_feed();
+#endif
+}
 
 bool bk_check_assert(void)
 {
@@ -48,7 +62,7 @@ static void bk_exception_preprocess(bk_exception_t *self)
     s_core_id = rtos_get_core_id();
     coredump_stop_other_cores();
 
-    bk_wdt_force_feed();
+    coredump_feed_watchdogs();
     bk_misc_set_reset_reason(self->reset_reason);
     
     bk_set_printf_sync(true);  // set printf sync
@@ -121,15 +135,20 @@ static void coredump_execute_hook_function(void)
 {
     
     if (is_valid_function_addr(s_wifi_dump_func)) {
+        coredump_feed_watchdogs();
         s_wifi_dump_func();
+        coredump_feed_watchdogs();
     }
     if (is_valid_function_addr(s_ble_dump_func)) {
+        coredump_feed_watchdogs();
         s_ble_dump_func();
+        coredump_feed_watchdogs();
     }
 }
 
 static void bk_exception_dump_main(bk_exception_t *self)
 {
+    coredump_feed_watchdogs();
     bk_coredump_writer_init();
 
     bk_coredump_meta_info();
@@ -138,16 +157,19 @@ static void bk_exception_dump_main(bk_exception_t *self)
 
     coredump_prompt_prologue();
 
+    coredump_feed_watchdogs();
     bk_coredump_memory();
 
 #if CONFIG_MEMDUMP_ALL
     coredump_execute_hook_function();
 #endif
 
+    coredump_feed_watchdogs();
     coredump_prompt_info();
 
 #if CONFIG_CM_BACKTRACE
     if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
+        coredump_feed_watchdogs();
         cm_backtrace_fault(self->lr, self->sp);
     }
 #endif
@@ -159,10 +181,12 @@ static void bk_exception_dump_main(bk_exception_t *self)
 
 void bk_coredump_dump_ap_memory_for_trap(void)
 {
+    coredump_feed_watchdogs();
     bk_coredump_writer_init();
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
     bk_coredump_write_prompt("*************************************AP memory dump begin**************************************\r\n");
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
+    coredump_feed_watchdogs();
     bk_coredump_ap_memory();
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
     bk_coredump_write_prompt("**************************************AP memory dump end***************************************\r\n");

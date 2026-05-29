@@ -178,6 +178,12 @@ bk_err_t bk_wdt_feed(void)
 	WDT_RETURN_ON_DRIVER_NOT_INIT();
 	WDT_RETURN_ON_NOT_INIT();
 
+#if CONFIG_SOC_SMP
+	if (rtos_get_core_id() != CPU0_CORE_ID) {
+		return BK_OK;
+	}
+#endif
+
 	wdt_hal_init_wdt(&s_wdt.hal, s_wdt_period);
 
 	return BK_OK;
@@ -188,6 +194,12 @@ void bk_int_wdt_feed(void)
 {
 	static uint64_t s_last_int_wdt_feed_tick = 0;
 	uint64_t current_tick = GET_TASK_CURRENT_TICK();
+
+#if CONFIG_SOC_SMP
+	if (rtos_get_core_id() != CPU0_CORE_ID) {
+		return;
+	}
+#endif
 
 	if ((current_tick - s_last_int_wdt_feed_tick) >= s_feed_watchdog_time) {
 		bk_wdt_feed();
@@ -273,6 +285,12 @@ __attribute__((section(".itcm_sec_code"))) void close_wdt(void)
 
 void bk_wdt_force_feed(void)
 {
+#if CONFIG_SOC_SMP
+	if (rtos_get_core_id() != CPU0_CORE_ID) {
+		return;
+	}
+#endif
+
 	wdt_hal_force_feed();
 }
 

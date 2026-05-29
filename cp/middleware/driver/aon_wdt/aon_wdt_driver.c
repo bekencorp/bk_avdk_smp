@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <os/mem.h>
+#include <os/os.h>
 #include "reset_reason.h"
 
 #include "driver/aon_wdt_types.h"
@@ -72,6 +73,12 @@ bk_err_t bk_aon_wdt_stop(void)
 
 bk_err_t bk_aon_wdt_feed(void)
 {
+#if CONFIG_SOC_SMP
+	if (rtos_get_core_id() != CPU0_CORE_ID) {
+		return BK_OK;
+	}
+#endif
+
 	aon_wdt_hal_set_period(s_aon_wdt_period);
 
 	bk_misc_set_reset_reason(RESET_SOURCE_WATCHDOG);

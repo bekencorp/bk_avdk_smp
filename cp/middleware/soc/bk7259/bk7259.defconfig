@@ -727,6 +727,11 @@ CONFIG_INT_AON_WDT_PERIOD_MS=8000
 # end of AON_Watchdog
 
 #
+# WWDT
+#
+CONFIG_SUPPORT_WWDT=y
+
+#
 # Wakeup
 #
 # CONFIG_WAKEUP is not set

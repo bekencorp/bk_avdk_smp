@@ -13,6 +13,10 @@
 #include "base_64.h"
 #include "wdt_driver.h"
 
+#if CONFIG_SUPPORT_WWDT
+#include "wwdt_driver.h"
+#endif
+
 #if CONFIG_DUMP_BY_LOG_UART
 void bk_coredump_writer_init(void) __attribute__((alias("bk_coredump_uart_init")));
 void bk_coredump_writer_deinit(void) __attribute__((alias("bk_coredump_uart_deinit")));
@@ -25,7 +29,18 @@ void bk_coredump_write_prompt_data(uint8_t *data, uint32_t size) __attribute__((
 #endif
 
 #define MEM_DUMP_MAX_LEN 4096
+#define COREDUMP_WDT_FEED_BYTES 256
 static uint32_t s_coredump_uart_locked = 0;
+
+static inline void coredump_feed_watchdogs(void)
+{
+#if CONFIG_WDT_EN
+    bk_wdt_force_feed();
+#endif
+#if CONFIG_SUPPORT_WWDT
+    bk_wwdt_force_feed();
+#endif
+}
 
 static void bk_coredump_uart_lock(void)
 {
@@ -62,7 +77,11 @@ static void bk_coredump_uart_deinit(void)
 
 static void bk_coredump_uart_write_data(uint8_t *data, uint32_t size)
 {
+    coredump_feed_watchdogs();
     for (uint32_t i = 0; i < size; i++) {
+        if ((i != 0U) && ((i & (COREDUMP_WDT_FEED_BYTES - 1U)) == 0U)) {
+            coredump_feed_watchdogs();
+        }
         bk_uart_write_byte_unsafe(BK_DUMP_PRINT_UART_PORT, data[i]); // TODO decouple from uart id here
     }
 }
@@ -148,9 +167,7 @@ static void bk_coredump_uart_write_memory(const char *name, uint32_t stack_top, 
     }
 
     while (sp < fp) {
-#if CONFIG_WDT_EN
-        bk_wdt_force_feed();
-#endif
+        coredump_feed_watchdogs();
         len = fp - sp > MEM_DUMP_MAX_LEN ? MEM_DUMP_MAX_LEN : fp - sp;
 #if CONFIG_DUMP_UART_MEM_ENCODING_ASCII
         coredump_uart_write_memory_ascii(name, sp, sp + len);
