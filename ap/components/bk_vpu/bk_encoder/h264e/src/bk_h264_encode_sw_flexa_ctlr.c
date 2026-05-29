@@ -548,8 +548,9 @@ static void h264e_debug_callback(void *arg)
         return;
     }
     uint32_t frame_count = (debug->all_frame_count - ctrl->last_debug_info.all_frame_count) * 1000 / ctrl->debug_time_ms;
-    uint32_t frame_size = (debug->all_frame_size - ctrl->last_debug_info.all_frame_size) * 1000 / ctrl->debug_time_ms;
-    LOGI("%s %d(fps:%d\t%dbps\tmax_i:%d\tmax_p:%d)\n", __func__, __LINE__, frame_count, frame_size, debug->max_i_frame_size, debug->max_p_frame_size);
+    uint32_t bytes_per_second = (debug->all_frame_size - ctrl->last_debug_info.all_frame_size) * 1000 / ctrl->debug_time_ms;
+    uint32_t bit_rate_kbps = bytes_per_second * 8 / 1024;
+    LOGI("%s %d(fps:%d\t%dBytes/s\tbit_rate:%dkbps\tmax_i:%d\tmax_p:%d)\n", __func__, __LINE__, frame_count, bytes_per_second, bit_rate_kbps, debug->max_i_frame_size, debug->max_p_frame_size);
     os_memcpy(&ctrl->last_debug_info, debug, sizeof(enc_h264_debug_t));
 }
 
