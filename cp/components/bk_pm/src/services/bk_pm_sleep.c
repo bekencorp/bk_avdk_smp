@@ -22,6 +22,7 @@
 #include "driver/wdt.h"
 #include "driver/flash.h"
 #include <os/os.h>
+#include "sys_sw_regs.h"
 
 #include "pm_sleep.h"
 #include "pm_power.h"
@@ -160,7 +161,7 @@ uint64_t pm_normal_sleep_process()
 
 extern uint32_t pm_disable_int(void);
 extern void pm_enable_int(uint32_t irq_level);
-
+uint32_t g_enter_sleep = 0;
 uint64_t pm_low_voltage_process()
 {
 	GLOBAL_INT_DECLARATION();
@@ -190,12 +191,13 @@ uint64_t pm_low_voltage_process()
 	pm_enter_low_voltage();
 
 	/* Execute post-sleep (wakeup) callbacks */
-
+	g_enter_sleep = 0x1;
 	/*Debug pd,lpo,psram start*/
 	pm_debug_low_vol_wakeup_hook();
 	/*Debug pd,lpo,psram end*/
 
 	pm_low_voltage_resource_restore();
+	bk_sys_sw_regs_set_ap_reset_reason(RESET_SOURCE_SLEEP_RTC);
 
 	if (pm_debug_mode() & 0x2)
 		BK_LOGD(NULL, "low voltage int open before\r\n");

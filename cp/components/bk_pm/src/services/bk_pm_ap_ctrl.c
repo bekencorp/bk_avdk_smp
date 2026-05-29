@@ -23,6 +23,8 @@
 #include "cache.h"
 #include "pm_debug.h"
 
+extern void mb_ipc_reset_notify(u32 cpu_id, u32 power_on);
+
 typedef struct ap_ctrl_callback_node {
 	ap_ctrl_callback_t callback;
 	void *arg;
@@ -52,6 +54,23 @@ static ap_ctrl_callback_node_t *s_ap_ctrl_callback_head                         
 
 
 
+/*
+ * Example:
+ * static void ap_poweroff_notify_cb(void *arg)
+ * {
+ *     uint32_t module_id = (uint32_t)(uintptr_t)arg;
+ *     BK_LOGI(NULL, "module %u prepare for ap power off\r\n", module_id);
+ * }
+ *
+ * void example_ap_ctrl_cb_register(void)
+ * {
+ *     // Register callback, arg will be passed back on callback execution
+ *     bk_pm_ap_ctrl_callback_register(ap_poweroff_notify_cb, (void *)1);
+ *
+ *     // If needed, unregister callback later
+ *     // bk_pm_ap_ctrl_callback_unregister(ap_poweroff_notify_cb);
+ * }
+ */
 bk_err_t bk_pm_ap_ctrl_callback_register(ap_ctrl_callback_t callback, void *arg)
 {
 	ap_ctrl_callback_node_t *new_node = NULL;
@@ -134,17 +153,24 @@ bk_err_t bk_pm_ap_ctrl_callback_execute(void)
 bk_err_t bk_pm_module_check_cp1_shutdown(void);
 pm_mailbox_communication_state_e bk_pm_cp0_psram_malloc_state_get(void);
 bk_err_t bk_pm_cp0_psram_malloc_state_set(pm_mailbox_communication_state_e state);
-
+#if CONFIG_DEEP_LV
+extern void sys_hal_mailbox_regs_backup();
+extern void sys_hal_mailbox_saved_regs_dump();
+#endif
 static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1, uint32_t param2, uint32_t param3)
 {
 	mb_chnl_cmd_t mb_cmd = {0};
+	bk_err_t ret = BK_OK;
 
 	mb_cmd.hdr.cmd = cmd;
 	mb_cmd.param1 = param1;
 	mb_cmd.param2 = param2;
 	mb_cmd.param3 = param3;
 
-	return mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
+	ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
+	LOGD("pm_dbg mb_send cmd=0x%x p1=0x%x p2=0x%x p3=0x%x ret=%d\r\n",
+		cmd, param1, param2, param3, ret);
+	return ret;
 }
 
 bk_err_t bk_pm_cp1_recovery_module_state_ctrl(pm_cp1_prepare_close_module_name_e module,pm_cp1_module_recovery_state_e state)
@@ -174,7 +200,9 @@ bool bk_pm_cp1_recovery_all_state_get()
 	}
 	return cp1_all_module_recovery;
 }
-
+#if CONFIG_DEEP_LV
+extern uint32_t g_enter_sleep;
+#endif
 static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 {
 	// uint64_t previous_tick = 0;
@@ -187,8 +215,19 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
 			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
 			#endif
-
+			#if CONFIG_DEEP_LV
+			if(g_enter_sleep == 0x1)
+			{
+				extern void sys_hal_mailbox_regs_restore(void);
+				sys_hal_mailbox_regs_restore();
+				sys_hal_mailbox_saved_regs_dump();
+				g_enter_sleep = 0x0;
+			}
+			#endif
             bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_ON);
+			/* Keep mailbox heartbeat state machine aligned with AP power transitions. */
+			mb_ipc_reset_notify(1, 1);
+			LOGI("pm_dbg ap_power_on: vote_on + reset_notify(on)\r\n");
 			// #if defined(RECV_LOG_FROM_MBOX)
 			// void reset_forward_log_status(void);
 			// // reset cpu1's log transfer status on cpu0.
@@ -226,6 +265,7 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 #endif
 			extern void bk_start_ap_system(void);
 			bk_start_ap_system();
+			LOGI("pm_dbg ap_power_on: bk_start_ap_system done\r\n");
 			#if 0
 			previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 			current_tick = previous_tick;
@@ -301,6 +341,9 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			#endif
 
 			bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_OFF);
+			/* AP power is cut, force heartbeat state to OFF immediately. */
+			mb_ipc_reset_notify(1, 0);
+			LOGI("pm_dbg ap_power_off: vote_off + reset_notify(off)\r\n");
 			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 
 			GLOBAL_INT_DISABLE();
@@ -320,6 +363,7 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
 			#endif
 			bk_printf_nonblock(4,NULL,"Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count); //4:BK_LOG_DEBUG
+			LOGI("pm_dbg ap_power_off: shutdown done closing=%d sema=%d\r\n", s_pm_cp1_closing, s_pm_cp1_sema_count);
 		}
 	}
 }
@@ -362,7 +406,9 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 			{
 				s_pm_cp1_closing = 1;
 				BK_LOGD(NULL, "boot_cp1 %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,bk_pm_cp1_work_state_get());
-				//pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
+				/* Ask AP to run registered stop notifications before power-off. */
+				pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
+				LOGI("pm_dbg ap_close: send recovery cmd\r\n");
 
 				pm_shared_info_t shared_info = {0};
 
@@ -377,6 +423,7 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				uint64_t previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 				uint64_t current_tick = previous_tick;
 				bool ap_sleep_ready = false;
+				uint64_t next_log_tick = previous_tick + (500 * AON_RTC_MS_TICK_CNT);
 
 				while ((current_tick - previous_tick) < (PM_WAIT_AP_SLEEP_TIMEOUT_MS * AON_RTC_MS_TICK_CNT))
 				{
@@ -388,14 +435,26 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 
 					if (shared_info.pm_ap0_sleep_state == 0x1)
 					{
-						bk_pm_ap_ctrl_callback_execute();
+						#if CONFIG_DEEP_LV
+						sys_hal_mailbox_regs_backup();
+						sys_hal_mailbox_saved_regs_dump();
+						#endif
+						LOGI("pm_dbg ap_close: ap_sleep_state ready, start shutdown\r\n");
 						pm_module_shutdown_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
+						bk_pm_ap_ctrl_callback_execute();
 						LOGD("ap power off!!!\r\n");
 						ap_sleep_ready = true;
 						s_pm_cp1_closing = 0;
 						break;
 					}
 					current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+					if (current_tick >= next_log_tick)
+					{
+						LOGD("pm_dbg ap_close_wait: cp0_sleep=%d ap0_sleep=%d elapsed_ms=%llu\r\n",
+							shared_info.pm_cp0_sleep_state, shared_info.pm_ap0_sleep_state,
+							(current_tick - previous_tick) / AON_RTC_MS_TICK_CNT);
+						next_log_tick += (500 * AON_RTC_MS_TICK_CNT);
+					}
 				}
 
 				if (!ap_sleep_ready)

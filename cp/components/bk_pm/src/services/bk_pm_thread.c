@@ -18,7 +18,7 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
-#define PM_THREAD_STACK_SIZE              (1024)  /* Keep 1024 due to limited SRAM */
+#define PM_THREAD_STACK_SIZE              (1536)  /* Keep 1024 due to limited SRAM */
 #define PM_QUEUE_NUMBER_OF_MESSAGE        (20)   /* Reduced to 20 to save SRAM (~240B queue) */
 #define PM_THREAD_PRIORITY                (BEKEN_DEFAULT_WORKER_PRIORITY - 3)/* With priority 3 thread, 200ms buffer (20*10ms) is sufficient */
 
@@ -165,7 +165,7 @@ static bk_err_t pm_message_handle(void)
                                 /* State changed - log and process */
                                // LOGI("Deep_LV RTC wakeup\r\n");
                                bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP, PM_POWER_MODULE_STATE_ON);
-                               rtos_delay_milliseconds(1000);
+                               rtos_delay_milliseconds(2000);
                                bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP, PM_POWER_MODULE_STATE_OFF);
                                 #if CONFIG_AON_RTC
                                 alarm_info_t low_valtage_alarm = {0};
