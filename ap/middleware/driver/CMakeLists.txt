@@ -74,7 +74,6 @@ endif()
 		common/driver.c
 		common/drv_model.c
 		#timer/timer_driver.c
-		wdt/task_wdt.c
 		#sys_ctrl/sys_ctrl.c
 		sys_ctrl/sys_wifi_driver.c
 		sys_ctrl/sys_bt_driver.c
@@ -111,6 +110,7 @@ if (NOT CMAKE_BUILD_EARLY_EXPANSION)
 	#add_subdirectory(i2s)
 	add_subdirectory(psram)
 	add_subdirectory(irda)
+	add_subdirectory(wdt)
 	add_subdirectory(wwdt)
 	add_subdirectory(mailbox)
 	add_subdirectory(multicore)

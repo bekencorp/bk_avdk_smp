@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <common/bk_include.h>
 #include <common/bk_err.h>
 
 #ifdef __cplusplus
@@ -26,7 +27,14 @@ void bk_task_wdt_start(void);
 __attribute__((section(".itcm_sec_code")))void bk_task_wdt_stop(void);
 void bk_task_wdt_feed(void);
 void bk_task_wdt_timeout_check(void);
-void bk_task_wdt_feed_handle(void);
+void bk_task_wdt_systick_check(void);
+
+#if CONFIG_TASK_WDT_TEST
+bk_err_t bk_task_wdt_set_skip_feed_core(uint32_t core_id, bool skip);
+uint32_t bk_task_wdt_get_feed_bits(void);
+uint32_t bk_task_wdt_get_skip_feed_bits(void);
+uint64_t bk_task_wdt_get_last_feed_tick(uint32_t core_id);
+#endif
 
 #ifdef __cplusplus
 }

@@ -15,7 +15,6 @@
 #include <common/bk_include.h>
 #include <common/bk_assert.h>
 #include <components/log.h>
-#include <driver/timer.h>
 #include <os/os.h>
 #include "bk_wdt.h"
 
@@ -27,27 +26,69 @@
 
 #define TASK_WDT_TAG "task_wdt"
 #define TASK_WDT_LOGW(...) BK_LOGW(TASK_WDT_TAG, ##__VA_ARGS__)
+#define TASK_WDT_LOGE(...) BK_LOGE(TASK_WDT_TAG, ##__VA_ARGS__)
 
-#define TASK_WDT_BARK_TIME_MS    1000
+#define TASK_WDT_CHECK_PERIOD_TICK (BK_MS_TO_TICKS(1000))
 #define TASK_WDT_PERIOD_TICK     (BK_MS_TO_TICKS(CONFIG_TASK_WDT_PERIOD_MS))
 
+#if CONFIG_SOC_SMP
+#define TASK_WDT_CORE_NUM CONFIG_SMP_CORE_CNT
+#else
+#define TASK_WDT_CORE_NUM 1
+#endif
+
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
-#define GET_TASK_CURRENT_TICK()  (BK_MS_TO_TICKS(bk_aon_rtc_get_us() / 1000))
+#define GET_TASK_CURRENT_TICK()  (BK_MS_TO_TICKS(bk_aon_rtc_get_ms()))
 #else
 #define GET_TASK_CURRENT_TICK()  (bk_get_tick())
 #endif
 
 static bool s_task_wdt_driver_is_init = false;
-static uint64_t s_last_task_wdt_feed_tick = 0;
-static uint64_t s_last_task_wdt_log_tick = 0;
-static bool s_task_wdt_enabled = true;
+/* Per-core task WDT state used by feed/check paths. */
+static uint64_t s_last_task_wdt_feed_tick[TASK_WDT_CORE_NUM] = {0};
+/* Per-core timestamp used to throttle repeated timeout logs. */
+static uint64_t s_last_task_wdt_log_tick[TASK_WDT_CORE_NUM] = {0};
+static uint64_t s_last_task_wdt_check_tick = 0;
+static uint32_t s_task_wdt_feed_bits = 0;
+static bool s_task_wdt_enabled = false;
+#if CONFIG_TASK_WDT_TEST
+static uint32_t s_task_wdt_skip_feed_bits = 0;
+#endif
 
-void bk_task_wdt_feed_handle(void)
+static inline uint32_t task_wdt_get_current_core_id(void)
 {
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
-	bk_task_wdt_timeout_check();
-	GLOBAL_INT_RESTORE();
+#if CONFIG_SOC_SMP
+	return rtos_get_core_id() & 0x1;
+#else
+	return 0;
+#endif
+}
+
+static void task_wdt_reset_state(void)
+{
+	uint32_t core_id;
+
+	for (core_id = 0; core_id < TASK_WDT_CORE_NUM; core_id++) {
+		s_last_task_wdt_feed_tick[core_id] = 0;
+		s_last_task_wdt_log_tick[core_id] = 0;
+	}
+
+	s_last_task_wdt_check_tick = 0;
+	s_task_wdt_feed_bits = 0;
+	s_task_wdt_enabled = false;
+#if CONFIG_TASK_WDT_TEST
+	s_task_wdt_skip_feed_bits = 0;
+#endif
+}
+
+void bk_task_wdt_systick_check(void)
+{
+	uint64_t current_tick = GET_TASK_CURRENT_TICK();
+
+	if ((current_tick - s_last_task_wdt_check_tick) >= TASK_WDT_CHECK_PERIOD_TICK) {
+		s_last_task_wdt_check_tick = current_tick;
+		bk_task_wdt_timeout_check();
+	}
 }
 
 bk_err_t bk_task_wdt_driver_init(void)
@@ -56,8 +97,13 @@ bk_err_t bk_task_wdt_driver_init(void)
 		return BK_OK;
 	}
 
-	bk_timer_start(TIMER_ID2, TASK_WDT_BARK_TIME_MS, (timer_isr_t)bk_task_wdt_feed_handle);
+	task_wdt_reset_state();
 	s_task_wdt_driver_is_init = true;
+
+#if CONFIG_CLI && CONFIG_TASK_WDT_TEST
+	int bk_task_wdt_register_cli_test_feature(void);
+	bk_task_wdt_register_cli_test_feature();
+#endif
 
 	return BK_OK;
 }
@@ -68,7 +114,7 @@ bk_err_t bk_task_wdt_driver_deinit(void)
 		return BK_OK;
 	}
 
-	bk_timer_stop(TIMER_ID2);
+	task_wdt_reset_state();
 	s_task_wdt_driver_is_init = false;
 
 	return BK_OK;
@@ -76,6 +122,18 @@ bk_err_t bk_task_wdt_driver_deinit(void)
 
 __IRAM_SEC void bk_task_wdt_start(void)
 {
+	uint32_t core_id;
+	uint64_t current_tick = GET_TASK_CURRENT_TICK();
+
+	s_task_wdt_feed_bits = 0;
+	s_last_task_wdt_check_tick = current_tick;
+
+	for (core_id = 0; core_id < TASK_WDT_CORE_NUM; core_id++) {
+		s_last_task_wdt_feed_tick[core_id] = current_tick;
+		s_last_task_wdt_log_tick[core_id] = current_tick;
+		s_task_wdt_feed_bits |= BIT(core_id);
+	}
+
 	s_task_wdt_enabled = true;
 }
 
@@ -86,25 +144,84 @@ __attribute__((section(".itcm_sec_code"))) void bk_task_wdt_stop(void)
 
 void bk_task_wdt_feed(void)
 {
-	s_last_task_wdt_feed_tick = GET_TASK_CURRENT_TICK();
+	uint32_t core_id = task_wdt_get_current_core_id();
+
+	if (core_id >= TASK_WDT_CORE_NUM) {
+		return;
+	}
+
+#if CONFIG_TASK_WDT_TEST
+	if (s_task_wdt_skip_feed_bits & BIT(core_id)) {
+		return;
+	}
+#endif
+
+	s_last_task_wdt_feed_tick[core_id] = GET_TASK_CURRENT_TICK();
+	s_task_wdt_feed_bits |= BIT(core_id);
 }
 
 void bk_task_wdt_timeout_check(void)
 {
-	if (s_last_task_wdt_feed_tick && s_task_wdt_enabled) {
-		const uint64_t c_last_feed_tick = s_last_task_wdt_feed_tick;
-		const uint64_t current_tick = GET_TASK_CURRENT_TICK();
+	uint32_t core_id;
+	const uint64_t current_tick = GET_TASK_CURRENT_TICK();
+
+	if (!s_task_wdt_enabled) {
+		return;
+	}
+
+	for (core_id = 0; core_id < TASK_WDT_CORE_NUM; core_id++) {
+		if (!(s_task_wdt_feed_bits & BIT(core_id))) {
+			continue;
+		}
+
+		const uint64_t c_last_feed_tick = s_last_task_wdt_feed_tick[core_id];
 
 		if (current_tick > c_last_feed_tick) {
 			if ((current_tick - c_last_feed_tick) > TASK_WDT_PERIOD_TICK) {
-				if ((current_tick - s_last_task_wdt_log_tick) > TASK_WDT_PERIOD_TICK) {
-					TASK_WDT_LOGW("task watchdog triggered\r\n");
-					s_last_task_wdt_log_tick = current_tick;
+				if ((current_tick - s_last_task_wdt_log_tick[core_id]) > TASK_WDT_PERIOD_TICK) {
+					BK_DUMP_OUT("task watchdog triggered, core:%u\r\n", core_id);
+					s_last_task_wdt_log_tick[core_id] = current_tick;
 					BK_ASSERT(0);
 				}
 			}
 		}
 	}
 }
+
+#if CONFIG_TASK_WDT_TEST
+bk_err_t bk_task_wdt_set_skip_feed_core(uint32_t core_id, bool skip)
+{
+	if (core_id >= TASK_WDT_CORE_NUM) {
+		return BK_FAIL;
+	}
+
+	if (skip) {
+		s_task_wdt_skip_feed_bits |= BIT(core_id);
+	} else {
+		s_task_wdt_skip_feed_bits &= ~BIT(core_id);
+	}
+
+	return BK_OK;
+}
+
+uint32_t bk_task_wdt_get_feed_bits(void)
+{
+	return s_task_wdt_feed_bits;
+}
+
+uint32_t bk_task_wdt_get_skip_feed_bits(void)
+{
+	return s_task_wdt_skip_feed_bits;
+}
+
+uint64_t bk_task_wdt_get_last_feed_tick(uint32_t core_id)
+{
+	if (core_id >= TASK_WDT_CORE_NUM) {
+		return 0;
+	}
+
+	return s_last_task_wdt_feed_tick[core_id];
+}
+#endif
 
 #endif // CONFIG_TASK_WDT
