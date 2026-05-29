@@ -41,7 +41,6 @@ void sys_drv_int_enable_temp(uint32 param);
 void sys_drv_int_disable_temp(uint32 param);
 
 
-
 /* dpu_dcnano_dpi_clkgate
 *  0:enable clock gate, 1: disable clock gate.
 */
@@ -396,10 +395,9 @@ static int dpu_flush_complete_handle(void *param)
             {
                 DPU_VIDEO_FRAME_END();
             }
+            rtos_set_event_flags(&context->dpu_event_handle, EVENT_BIT_AVAILABLE);
         }
     }
-    rtos_set_event_flags(&context->dpu_event_handle, EVENT_BIT_AVAILABLE);
-    
     DPU_VIDEO_ISR_END();
     return BK_OK;
 }
@@ -586,7 +584,7 @@ bk_err_t dpu_core_runtime_switch(dpu_handle_t *handle, const bk_display_pixel_fo
 
     rtos_lock_mutex(&context->flush_mutex);
 
-    if (context->update_frame[DPU_LAYER_VIDEO])
+    while (context->update_frame[DPU_LAYER_VIDEO])
     {
         wait_event = rtos_wait_for_event_flags(&context->dpu_event_handle,
                 EVENT_BIT_AVAILABLE, true, WAIT_FOR_ANY_EVENT, BEKEN_WAIT_FOREVER);
@@ -645,35 +643,39 @@ bk_err_t dpu_core_deinit(dpu_handle_t *handle)
     {
         rtos_deinit_event_flags(&context->dpu_event_handle);
     }
+    {
+        GLOBAL_INT_DECLARATION();
+        for (uint8_t layer = 0; layer < DPU_LAYER_MAX; layer++)
+        {
+            void *uf = NULL;
+            flush_free_cb_t ucb = NULL;
+            void *df = NULL;
+            flush_free_cb_t dcb = NULL;
 
-    if (context->update_frame)
-    {
-        for (uint8_t layer = 0; layer < DPU_LAYER_MAX; layer++)
-        {
-            if (context->update_frame[layer])
+            GLOBAL_INT_DISABLE();
+            uf = context->update_frame[layer];
+            ucb = context->update_cb[layer];
+            df = context->display_frame[layer];
+            dcb = context->display_cb[layer];
+            context->update_frame[layer] = NULL;
+            context->update_cb[layer] = NULL;
+            context->display_frame[layer] = NULL;
+            context->display_cb[layer] = NULL;
+            GLOBAL_INT_RESTORE();
+
+            if (uf && ucb)
             {
-                LOGV("%s free update frame %p\n", __func__, context->update_frame[layer]);
-                if (context->update_cb[layer])
-                {
-                    context->update_cb[layer](context->update_frame[layer]);
-                }
+                LOGV("%s free update frame %p\n", __func__, uf);
+                ucb(uf);
+            }
+            if (df && dcb && df != uf)
+            {
+                LOGV("%s free display frame %p\n", __func__, df);
+                dcb(df);
             }
         }
     }
-    if (context->display_frame)
-    {
-        for (uint8_t layer = 0; layer < DPU_LAYER_MAX; layer++)
-        {
-            if (context->display_frame[layer])
-            {
-                LOGV("%s free display frame %p\n", __func__, context->display_frame[layer]);
-                if (context->display_cb[layer])
-                {
-                    context->display_cb[layer](context->display_frame[layer]);
-                }
-            }
-        }
-    }
+
     if (context->flush_mutex)
     {
         rtos_deinit_mutex(&context->flush_mutex);
@@ -741,18 +743,19 @@ bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flu
             {
                 old_display_cb(old_display_frame);
             }
+            LOGI("%s commit success, cb: %p, buff: %p \n", __func__, cb, buff);
         }
         else if (cb)
         {
             cb(buff);
+            LOGI("%s commit fail, cb: %p, buff: %p \n", __func__, cb, buff);
         }
-        LOGI("%s %s, cb: %p \n", __func__, (ret == BK_OK) ? "success" : "fail", cb);
     }
     else
     {
         beken_event_flags_t wait_event = 0;
 
-        if (context->update_frame[layer])
+        while (context->update_frame[layer])
         {
             wait_event = rtos_wait_for_event_flags (&context->dpu_event_handle,
                     EVENT_BIT_AVAILABLE, true, WAIT_FOR_ANY_EVENT, BEKEN_WAIT_FOREVER);
@@ -760,13 +763,6 @@ bk_err_t dpu_core_flush(dpu_handle_t *handle, dpu_layer_t layer, void *buff, flu
             if ((wait_event & EVENT_BIT_AVAILABLE) != EVENT_BIT_AVAILABLE)
             {
                 LOGE("%s bit error\n", __func__);
-                ret = BK_FAIL;
-                goto exit;
-            }
-
-            if (context->update_frame[layer])
-            {
-                LOGE("%s frame error\n", __func__);
                 ret = BK_FAIL;
                 goto exit;
             }
