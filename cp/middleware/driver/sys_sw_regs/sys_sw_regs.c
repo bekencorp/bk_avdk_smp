@@ -193,9 +193,9 @@ void bk_sys_sw_regs_set_ap_reset_reason(uint32_t value)
 uint32_t bk_sys_sw_regs_get_flash_init_done(void)
 {
     flush_dcache((void *)&s_sys_sw_regs.flash_init_done, sizeof(s_sys_sw_regs.flash_init_done));
-    __DMB();
+    __DSB();
     uint32_t value = s_sys_sw_regs.flash_init_done;
-    __DMB();
+    __DSB();
     return value;
 }
 
@@ -203,9 +203,9 @@ void bk_sys_sw_regs_set_flash_init_done(uint32_t value)
 {
     uint32_t flags = sys_sw_regs_lock();
     s_sys_sw_regs.flash_init_done = value;
-    __DMB();
+    __DSB();
     flush_dcache((void *)&s_sys_sw_regs.flash_init_done, sizeof(s_sys_sw_regs.flash_init_done));
-    __DMB();
+    __DSB();
     sys_sw_regs_unlock(flags);
 }
 #endif

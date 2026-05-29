@@ -136,9 +136,9 @@ void _soc_start(void)
 //     is_psram_init_done = true;
 // #endif
 	bk_sys_sw_regs_ptr()->flash_init_done = BK_SYS_SW_REGS_FLASH_INIT_NOT_DONE;
-	__DMB();
+	__DSB();
 	flush_dcache((void *)&bk_sys_sw_regs_ptr()->flash_init_done, sizeof(bk_sys_sw_regs_ptr()->flash_init_done));
-	__DMB();
+	__DSB();
 	bk_start_ap_system();
 #endif
 
