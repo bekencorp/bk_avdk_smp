@@ -2,7 +2,7 @@
 # The occupied space is the configured partition size; bootloader is 64K (0x10000),,,,
 FLASH_CAPACITY=8M
 #Name,Offset,Size,Type,Read,Write
-primary_bootloader,,64k,code,TRUE,FALSE
+#primary_bootloader,,64k,code,TRUE,FALSE
 primary_cp_app,,1224k,code,TRUE,FALSE
 primary_ap_app,,1700k,code,TRUE,FALSE
 ota,,1360K,data,TRUE,TRUE
