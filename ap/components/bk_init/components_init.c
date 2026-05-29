@@ -240,6 +240,9 @@ int components_init(void)
 	if(driver_init())
 		return BK_FAIL;
 
+	if(wdt_init())
+		return BK_FAIL;
+
 #if CONFIG_SUPPORT_WWDT
 	/*
 	 * Start the AP boot core WWDT before the scheduler starts. The other AP
