@@ -73,6 +73,14 @@ static bk_err_t bt_ipc_vendor_cmd_init_cb(uint16_t sub_opcode, const uint8_t *da
         LOGW("%s, bk_bluetooth_init failed, ret:%d\r\n", __func__, ret);
     }
 
+    /* AP has reached bk_enable_bt (this vendor cmd is sent from there), which
+     * means its IPC channel is live. Mark the peer as ready BEFORE sending
+     * the status response so that bt_ipc_mailbox_send_msg takes the fast
+     * path (no wakeup/wait dance). This also unblocks any CP thread that
+     * voted AP boot and is waiting on ap_ble_ready_sema.
+     */
+    bt_ipc_set_state(BT_IPC_STATE_PEEP_READY);
+
     bt_ipc_vendor_cmd_send_status(sub_opcode, BT_EVENT_STATUS_NOERROR);
     return ret;
 }
@@ -88,6 +96,18 @@ static bk_err_t bt_ipc_vendor_cmd_deinit_cb(uint16_t sub_opcode, const uint8_t *
         LOGW("%s, bk_bluetooth_deinit failed, ret:%d\r\n", __func__, ret);
     }
 
+    /* DO NOT downgrade bt_ipc_env.state to LOCAL_READY here:
+     *  - bt_ipc_message_handle() will call bt_ipc_hci_free_pkt() right after
+     *    we return, which itself goes through bt_ipc_mailbox_send_msg(). If
+     *    we already flipped state to LOCAL_READY, that FREE pkt would hit
+     *    the slow path and end up voting AP boot via bt_ipc_wakeup_ap()
+     *    while AP just told us to deinit -- net effect: we re-wake the AP
+     *    we are tearing down with, drop the FREE pkt after 4s timeout, and
+     *    leak the AP-side cmd buffer.
+     *  - DEINIT does not necessarily mean AP is about to power off; PEEP_READY
+     *    means "AP IPC link is alive" and that is still true here. The state
+     *    is brought back to LOCAL_READY at actual AP power-off via
+     *    bt_ipc_notify_ap_power_off(). */
     bt_ipc_vendor_cmd_send_status(sub_opcode, BT_EVENT_STATUS_NOERROR);
     return ret;
 }

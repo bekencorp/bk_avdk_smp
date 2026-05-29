@@ -805,9 +805,6 @@ void bk_ble_set_notice_cb(ble_notice_cb_t func)
 
     s_notice_cb = func;
     ble_ipc_client_send_vendor_cmd_ex(BT_VENDOR_SUB_OPCODE_BLE_SET_NOTICE, &enable, sizeof(enable));
-    if (enable) {
-        bt_ipc_notify_ap_ble_ready();
-    }
 }
 
 ble_err_t bk_ble_create_db(struct bk_ble_db_cfg *ble_db_cfg)

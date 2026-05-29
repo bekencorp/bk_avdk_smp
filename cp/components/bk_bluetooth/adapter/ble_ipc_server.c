@@ -25,6 +25,10 @@
 #define BLE_IPC_FRAG_REASM_MAX_LEN 2048U
 #define BLE_IPC_FRAG_FLAG_START 0x01U
 #define BLE_IPC_FRAG_FLAG_END 0x02U
+/* Max time bt_ipc_server_notice_cb() will block waiting for AP to (re)register
+ * notice_cb after CP sends BT_VENDOR_SUB_OPCODE_AP_WAKEUP_TRIGGER. Must cover
+ * an AP cold boot through to bk_ble_set_notice_cb() being called by AP app. */
+#define BLE_IPC_NOTICE_READY_TIMEOUT_MS 5000U
 
 typedef struct {
     uint8_t valid;
@@ -110,6 +114,19 @@ static ble_ipc_server_db_ctx_t *s_db_ctx_list = NULL;
 static uint8_t s_frag_seq_id;
 static ble_ipc_frag_ctx_t s_cmd_frag_ctx;
 
+/* AP-side notice_cb registration tracking.
+ *
+ * s_notice_cb_ready == 1 iff AP has issued BT_VENDOR_SUB_OPCODE_BLE_SET_NOTICE
+ * with payload[0] != 0 since the last clear. Cleared on:
+ *   - SET_NOTICE(0) from AP (clean deregistration)
+ *   - bt_ipc_on_ap_power_off_hook() (AP went down without DEINIT/SET_NOTICE(0))
+ *
+ * The semaphore is posted on every 0->1 transition so that any BLE-task thread
+ * blocked in ble_ipc_server_notice_cb() can wake up and forward the event.
+ */
+static volatile uint8_t s_notice_cb_ready = 0;
+static beken_semaphore_t s_notice_cb_ready_sema = NULL;
+
 static void ble_ipc_server_release_db_ctx(uint8_t prf_id);
 
 static void ble_ipc_server_init_pending_lock(void)
@@ -117,6 +134,32 @@ static void ble_ipc_server_init_pending_lock(void)
     if (s_pending_mutex == NULL) {
         rtos_init_mutex(&s_pending_mutex);
     }
+}
+
+static void ble_ipc_server_init_notice_ready(void)
+{
+    if (s_notice_cb_ready_sema == NULL) {
+        rtos_init_semaphore(&s_notice_cb_ready_sema, 1);
+    }
+}
+
+static void ble_ipc_server_mark_notice_cb_ready(uint8_t ready)
+{
+    ble_ipc_server_init_notice_ready();
+    s_notice_cb_ready = ready ? 1 : 0;
+    if (s_notice_cb_ready && s_notice_cb_ready_sema) {
+        rtos_set_semaphore(&s_notice_cb_ready_sema);
+    }
+}
+
+/* Strong override of the weak hook in bt_ipc_core.c. Called from
+ * bt_ipc_notify_ap_power_off() when AP goes down outside the normal
+ * SET_NOTICE(0) / DEINIT handshake. Drop the cached "AP has notice_cb"
+ * flag so the next BLE notice will go through the query/wait dance.
+ */
+void bt_ipc_on_ap_power_off_hook(void)
+{
+    s_notice_cb_ready = 0;
 }
 
 static uint16_t ble_ipc_get_le16(const uint8_t *data)
@@ -318,8 +361,53 @@ static void ble_ipc_server_send_read_notice_evt(const ble_read_req_t *read_req)
 }
 
 
+/* Block until AP has registered notice_cb on its side.
+ *
+ * If s_notice_cb_ready is already 1, returns BK_OK immediately. Otherwise,
+ * sends BT_VENDOR_SUB_OPCODE_AP_WAKEUP_TRIGGER to AP. The send itself goes
+ * through bt_ipc_mailbox_send_msg() which votes AP boot via bt_ipc_wakeup_ap()
+ * when state != PEEP_READY, so a powered-down AP gets started as a side
+ * effect; the opcode payload itself is intentionally a no-op on AP side.
+ * Once AP's app layer (re-)calls bk_ble_set_notice_cb() as part of its
+ * normal init, CP receives BT_VENDOR_SUB_OPCODE_BLE_SET_NOTICE and
+ * ble_ipc_server_mark_notice_cb_ready(1) posts the semaphore.
+ */
+static int32_t ble_ipc_server_wait_notice_cb_ready(uint32_t timeout_ms)
+{
+    ble_ipc_server_init_notice_ready();
+
+    if (s_notice_cb_ready) {
+        return BK_OK;
+    }
+
+    /* Drain any stale post so the rtos_get_semaphore() below only succeeds on
+     * the next genuine 0->1 transition. */
+    if (s_notice_cb_ready_sema) {
+        while (rtos_get_semaphore(&s_notice_cb_ready_sema, BEKEN_NO_WAIT) == BK_OK) {
+        }
+    }
+
+    ble_ipc_server_send_vendor_event_raw(
+        BT_VENDOR_SUB_OPCODE_AP_WAKEUP_TRIGGER, NULL, 0);
+
+    if (s_notice_cb_ready_sema == NULL) {
+        return BK_FAIL;
+    }
+    if (rtos_get_semaphore(&s_notice_cb_ready_sema, timeout_ms) != BK_OK) {
+        return BK_FAIL;
+    }
+    return s_notice_cb_ready ? BK_OK : BK_FAIL;
+}
+
 static void ble_ipc_server_notice_cb(ble_notice_t notice, void *param)
 {
+    if (!s_notice_cb_ready) {
+        if (ble_ipc_server_wait_notice_cb_ready(BLE_IPC_NOTICE_READY_TIMEOUT_MS) != BK_OK) {
+            LOGW("ap notice_cb not ready, drop notice %d\n", (int)notice);
+            return;
+        }
+    }
+
     switch (notice) {
     case BLE_5_CREATE_DB:
         if (param != NULL) {
@@ -806,6 +894,7 @@ static bk_err_t ble_ipc_server_handle_set_notice(const uint8_t *payload, uint16_
     }
 
     bk_ble_set_notice_cb(payload[0] ? ble_ipc_server_notice_cb : NULL);
+    ble_ipc_server_mark_notice_cb_ready(payload[0]);
     return BK_OK;
 }
 

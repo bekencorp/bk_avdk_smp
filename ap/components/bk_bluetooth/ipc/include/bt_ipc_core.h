@@ -78,16 +78,13 @@ enum
     HCI_SCO_DATA_PKT = 0x3,
     HCI_EVENT_PKT = 0x4, //M core
     HCI_FREE_PKT = 0xa,
-    BT_IPC_AP_BLE_READY_PKT = 0xf1,
 };
 
 typedef void (*bt_hci_send_cb_t)(uint8_t *buf, uint16_t len);
 
 void bt_ipc_init(void);
-int32_t bt_ipc_notify_ap_ble_ready(void);
 void bt_ipc_hci_send_vendor_event(uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_vendor_cmd(uint8_t *data, uint16_t len);
-void bk_bluetooth_init_deinit_compelete();
 void bt_ipc_hci_send_acl_data(uint16_t hdl_flags, uint8_t *data, uint16_t len);
 void bt_ipc_hci_send_cmd(uint16_t opcode, uint8_t *data, uint16_t len);
 void bt_ipc_register_hci_send_callback(bt_hci_send_cb_t cb);

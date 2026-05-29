@@ -33,6 +33,12 @@ enum {
     BT_VENDOR_SUB_OPCODE_BLE_FIND_MASTER_STATE_IDX = 0x001D,
     BT_VENDOR_SUB_OPCODE_BLE_GET_BT_ADDRESS = 0x001E,
     BT_VENDOR_SUB_OPCODE_BLE_FRAG = 0x001F,
+    /* CP->AP: empty-payload command whose sole purpose is to be sent through
+     * bt_ipc_mailbox_send_msg() so that, when AP is powered down, the state
+     * machine slow path votes AP boot via bt_ipc_wakeup_ap(). AP side is
+     * expected to drop/ignore this opcode -- AP recovery happens implicitly
+     * by going through its normal boot/init sequence. */
+    BT_VENDOR_SUB_OPCODE_AP_WAKEUP_TRIGGER = 0x0020,
     BT_VENDOR_SUB_OPCODE_COUNT,
 };
 

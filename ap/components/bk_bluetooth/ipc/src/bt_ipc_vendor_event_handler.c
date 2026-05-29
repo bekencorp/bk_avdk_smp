@@ -9,6 +9,7 @@
 #define TAG  "bt_ipc"
 
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 
 typedef bk_err_t (*bt_ipc_vendor_event_cb_t)(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 
@@ -21,6 +22,7 @@ typedef struct
 static bk_err_t bt_ipc_vendor_event_init_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 static bk_err_t bt_ipc_vendor_event_deinit_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+static bk_err_t bt_ipc_vendor_event_ap_wakeup_trigger_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 static bk_err_t bt_ipc_vendor_event_ble_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len);
 #endif
 
@@ -28,6 +30,7 @@ static bt_ipc_vendor_event_handler_t s_bt_ipc_vendor_event_handlers[BT_IPC_VENDO
     {BT_VENDOR_SUB_OPCODE_INIT, bt_ipc_vendor_event_init_cb},
     {BT_VENDOR_SUB_OPCODE_DEINIT, bt_ipc_vendor_event_deinit_cb},
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+    {BT_VENDOR_SUB_OPCODE_AP_WAKEUP_TRIGGER, bt_ipc_vendor_event_ap_wakeup_trigger_cb},
     {BT_VENDOR_SUB_OPCODE_BLE_CMD_EVT, bt_ipc_vendor_event_ble_cb},
     {BT_VENDOR_SUB_OPCODE_BLE_NOTICE_EVT, bt_ipc_vendor_event_ble_cb},
     {BT_VENDOR_SUB_OPCODE_BLE_QUERY_RSP, bt_ipc_vendor_event_ble_cb},
@@ -56,6 +59,24 @@ static bk_err_t bt_ipc_vendor_event_deinit_cb(uint16_t sub_opcode, const uint8_t
 }
 
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+/* AP_WAKEUP_TRIGGER carries no payload and intentionally has no business
+ * semantics on AP side: CP only sends it so that the send itself goes through
+ * bt_ipc_mailbox_send_msg() and votes AP boot via the state-machine slow
+ * path. By the time this handler runs AP is obviously up, so we just log and
+ * return success to keep the upper dispatch loop quiet (no "no callback" or
+ * "dispatch failed" warnings). Gated on AP-power-down config since that is
+ * the only build where CP ever sends this opcode.
+ */
+static bk_err_t bt_ipc_vendor_event_ap_wakeup_trigger_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len)
+{
+    (void)sub_opcode;
+    (void)data;
+    (void)len;
+
+    LOGI("ap wakeup trigger received!\r\n");
+    return BK_OK;
+}
+
 static bk_err_t bt_ipc_vendor_event_ble_cb(uint16_t sub_opcode, const uint8_t *data, uint16_t len)
 {
     return ble_ipc_client_handle_vendor_event(sub_opcode, data, len) ? BK_OK : BK_ERR_NOT_FOUND;

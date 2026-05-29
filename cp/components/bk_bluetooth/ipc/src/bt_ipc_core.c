@@ -4,6 +4,8 @@
 #include <driver/mailbox_channel.h>
 #include "bt_ipc_core.h"
 #include "bt_ipc_vendor_cmd_handler.h"
+#include <modules/pm.h>
+#include <driver/pwr_clk.h>
 
 #define TAG  "bt_ipc"
 
@@ -16,7 +18,6 @@
 typedef struct
 {
     uint8_t state;
-    uint8_t ap_ble_ready;
     beken_thread_t thd;
     beken_queue_t queue;
     beken_semaphore_t send_sema;
@@ -26,7 +27,6 @@ typedef struct
 
 bt_ipc_t bt_ipc_env = {
     .state = BT_IPC_STATE_IDLE,
-    .ap_ble_ready = 1,
     .thd = NULL,
     .queue = NULL,
     .send_sema = NULL,
@@ -53,54 +53,65 @@ enum
     BT_IPC_SCO_IND_MSG = 6,
 };
 
-__attribute__((weak)) uint8_t bt_ipc_ap_ble_need_wakeup(void)
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+static int32_t bt_ipc_wakeup_ap(void)
 {
-    return 0;
-}
-
-__attribute__((weak)) int32_t bt_ipc_ap_ble_wakeup(void)
-{
+    bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP, PM_POWER_MODULE_STATE_ON);
     return BK_OK;
 }
+#endif
 
-void bt_ipc_ap_ble_set_ready(void)
+void bt_ipc_set_state(uint8_t state)
 {
-    bt_ipc_env.ap_ble_ready = 1;
-    if (bt_ipc_env.ap_ble_ready_sema) {
-        rtos_set_semaphore(&bt_ipc_env.ap_ble_ready_sema);
-    }
-}
+    uint8_t prev = bt_ipc_env.state;
 
-void bt_ipc_ap_ble_set_not_ready(void)
-{
-    bt_ipc_env.ap_ble_ready = 0;
-    if (bt_ipc_env.ap_ble_ready_sema) {
-        while (rtos_get_semaphore(&bt_ipc_env.ap_ble_ready_sema, BEKEN_NO_WAIT) == BK_OK) {
+    bt_ipc_env.state = state;
+
+    /* On any transition INTO PEEP_READY (AP just confirmed alive via INIT
+     * vendor cmd), release any CP thread that voted AP boot and is now
+     * blocked in bt_ipc_wait_ap_ble_ready.
+     */
+    if (state == BT_IPC_STATE_PEEP_READY && prev != BT_IPC_STATE_PEEP_READY) {
+        if (bt_ipc_env.ap_ble_ready_sema) {
+            rtos_set_semaphore(&bt_ipc_env.ap_ble_ready_sema);
         }
     }
 }
 
-static int32_t bt_ipc_mailbox_send_ctrl_msg(uint8_t pkt_type)
+uint8_t bt_ipc_get_state(void)
 {
-    bt_ipc_cmd_t bt_ipc_cmd;
-    int ret;
+    return bt_ipc_env.state;
+}
 
-    os_memset(&bt_ipc_cmd, 0, sizeof(bt_ipc_cmd));
-    bt_ipc_cmd.hci_hdr.pkt_type = pkt_type;
+/* Weak hook invoked from bt_ipc_notify_ap_power_off(). Adapters that hold
+ * per-peer cached state (e.g. ble_ipc_server's notice_cb_ready flag) can
+ * override this symbol to be told about an external AP power-off without
+ * having bt_ipc_core depend on them directly. Always built so generic
+ * callers do not need to gate on CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL.
+ */
+__attribute__((weak)) void bt_ipc_on_ap_power_off_hook(void)
+{
+}
 
-    if (bt_ipc_env.send_sema) {
-        ret = rtos_get_semaphore(&bt_ipc_env.send_sema, BT_IPC_SEND_TIMEOUT_MS);
-        if (ret != BK_OK) {
-            LOGW("get bt ipc send_sema failed for ctrl pkt 0x%x\n", pkt_type);
-        }
+/* External notification that the AP has been powered off (e.g. by the PM
+ * framework or a debug CLI command) without going through the normal
+ * BT_VENDOR_SUB_OPCODE_DEINIT handshake. Rewinds the bt_ipc state machine to
+ * LOCAL_READY so that the next CP-originated bt_ipc_mailbox_send_msg() will
+ * vote AP boot via bt_ipc_wait_ap_ble_ready() instead of blindly writing the
+ * mailbox to a powered-down peer, and notifies any adapter that cached
+ * AP-side readiness state via the bt_ipc_on_ap_power_off_hook() weak hook.
+ *
+ * Always built (does not depend on AP_PWD_ALL): on non-AP_PWD_ALL builds the
+ * state machine never reaches PEEP_READY, so the body is effectively a no-op
+ * apart from the hook callback -- which is what we want so that generic
+ * callers (e.g. cli_pwr) can call this unconditionally.
+ */
+void bt_ipc_notify_ap_power_off(void)
+{
+    bt_ipc_on_ap_power_off_hook();
+    if (bt_ipc_env.state == BT_IPC_STATE_PEEP_READY) {
+        bt_ipc_set_state(BT_IPC_STATE_LOCAL_READY);
     }
-
-    ret = mb_chnl_write(BT_IPC_CMD_CHNL, (mb_chnl_cmd_t *)&bt_ipc_cmd);
-    if (ret != BK_OK) {
-        LOGW("mb_chnl_write ctrl pkt 0x%x failed\n", pkt_type);
-    }
-
-    return ret;
 }
 
 static void bt_ipc_free_local_msg_payload(hci_hdr_t *msg)
@@ -111,22 +122,21 @@ static void bt_ipc_free_local_msg_payload(hci_hdr_t *msg)
     }
 }
 
-int32_t bt_ipc_wait_ap_ble_ready(uint32_t timeout_ms)
+#if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+static int32_t bt_ipc_wait_ap_ble_ready(uint32_t timeout_ms)
 {
     int32_t ret;
 
-    if (BT_IPC_STATE_READY != bt_ipc_env.state) {
-        LOGW("%s bt ipc is not ready!\r\n", __func__);
-        return BK_FAIL;
+    /* Drain any stale post on the ready sema so the rtos_get_semaphore()
+     * below only returns when the next state-machine transition to
+     * BT_IPC_STATE_PEEP_READY actually happens.
+     */
+    if (bt_ipc_env.ap_ble_ready_sema) {
+        while (rtos_get_semaphore(&bt_ipc_env.ap_ble_ready_sema, BEKEN_NO_WAIT) == BK_OK) {
+        }
     }
 
-    if (bt_ipc_env.ap_ble_ready && !bt_ipc_ap_ble_need_wakeup()) {
-        return BK_OK;
-    }
-
-    bt_ipc_ap_ble_set_not_ready();
-
-    ret = bt_ipc_ap_ble_wakeup();
+    ret = bt_ipc_wakeup_ap();
     if (ret != BK_OK) {
         LOGW("wake AP BLE failed, ret:%d\n", ret);
         return ret;
@@ -140,17 +150,12 @@ int32_t bt_ipc_wait_ap_ble_ready(uint32_t timeout_ms)
 
     return BK_OK;
 }
+#endif
 
 static void bt_ipc_mailbox_rx_isr(void *param, void *cmd_buf)
 {
     hci_hdr_t *hci_hdr = (hci_hdr_t *)cmd_buf;
     switch(hci_hdr->pkt_type) {
-        case BT_IPC_AP_BLE_READY_PKT:
-        {
-            bt_ipc_ap_ble_set_ready();
-        }
-        break;
-
         case HCI_COMMAND_PKT:
         {
             bt_ipc_msg_t bt_ipc_msg;
@@ -246,15 +251,19 @@ static void bt_ipc_mailbox_tx_cmpl_isr(void *param, mb_chnl_ack_t *ack_buf)
 
 static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
 {
-    if (BT_IPC_STATE_READY != bt_ipc_env.state)
+    /* Fast path: peer (AP) has already confirmed it is alive via INIT vendor
+     * cmd, mailbox can be written directly.
+     *
+     * Slow path: state is IDLE (bt_ipc_init not yet done) or LOCAL_READY
+     * (AP has never talked to us yet since bt_ipc_init, or has DEINIT-ed):
+     *   - AP_PWD_ALL build  : vote AP boot and block until the state machine
+     *                         transitions to PEEP_READY (driven by AP's INIT
+     *                         vendor cmd in bt_ipc_vendor_cmd_init_cb).
+     *   - non-AP_PWD_ALL    : no wakeup mechanism available, just drop.
+     */
+    if (bt_ipc_env.state != BT_IPC_STATE_PEEP_READY)
     {
-        LOGW("%s bt ipc is not ready!\r\n", __func__);
-        return;
-    }
-
 #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
-    if ((!bt_ipc_env.ap_ble_ready) || bt_ipc_ap_ble_need_wakeup())
-    {
         int32_t ret = bt_ipc_wait_ap_ble_ready(BT_IPC_SEND_TIMEOUT_MS);
         if (ret != BK_OK)
         {
@@ -262,8 +271,12 @@ static void bt_ipc_mailbox_send_msg(hci_hdr_t *msg)
             bt_ipc_free_local_msg_payload(msg);
             return;
         }
-    }
+#else
+        LOGW("%s bt ipc not ready (state %d), drop pkt type %d\r\n", __func__, bt_ipc_env.state, msg->pkt_type);
+        bt_ipc_free_local_msg_payload(msg);
+        return;
 #endif
+    }
 
     bt_ipc_cmd_t bt_ipc_cmd;
     int ret = BK_OK;
@@ -588,7 +601,7 @@ void bt_ipc_register_hci_send_callback(bt_hci_send_cb_t cb)
 
 int32_t bt_ipc_init(void)
 {
-    if (BT_IPC_STATE_READY == bt_ipc_env.state)
+    if (BT_IPC_STATE_IDLE != bt_ipc_env.state)
     {
         LOGW("%s bt ipc already initialised\r\n", __func__);
         return 1;
@@ -647,9 +660,8 @@ int32_t bt_ipc_init(void)
         bt_ipc_env.send_sema = NULL;
         return -1;
     }
-    bt_ipc_ap_ble_set_ready();
 
-    bt_ipc_env.state = BT_IPC_STATE_READY;
+    bt_ipc_env.state = BT_IPC_STATE_LOCAL_READY;
     LOGD("%s success\n", __func__);
 
     return 0;

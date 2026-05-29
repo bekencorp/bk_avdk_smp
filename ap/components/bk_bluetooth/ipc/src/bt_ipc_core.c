@@ -54,34 +54,6 @@ enum
     BT_IPC_SCO_IND_MSG = 6,
 };
 
-static int32_t bt_ipc_mailbox_send_ctrl_msg(uint8_t pkt_type)
-{
-    bt_ipc_cmd_t bt_ipc_cmd;
-    int ret;
-
-    os_memset(&bt_ipc_cmd, 0, sizeof(bt_ipc_cmd));
-    bt_ipc_cmd.hci_hdr.pkt_type = pkt_type;
-
-    if (bt_ipc_env.send_sema) {
-        ret = rtos_get_semaphore(&bt_ipc_env.send_sema, BT_IPC_SEND_TIMEOUT_MS);
-        if (ret != BK_OK) {
-            LOGW("get bt ipc send_sema failed for ctrl pkt 0x%x\n", pkt_type);
-        }
-    }
-
-    ret = mb_chnl_write(BT_IPC_CMD_CHNL, (mb_chnl_cmd_t *)&bt_ipc_cmd);
-    if (ret != BK_OK) {
-        LOGW("mb_chnl_write ctrl pkt 0x%x failed\n", pkt_type);
-    }
-
-    return ret;
-}
-
-int32_t bt_ipc_notify_ap_ble_ready(void)
-{
-    return bt_ipc_mailbox_send_ctrl_msg(BT_IPC_AP_BLE_READY_PKT);
-}
-
 static void bt_ipc_free_local_msg_payload(hci_hdr_t *msg)
 {
     if ((msg->pkt_type != HCI_FREE_PKT) && msg->hdr_ptr) {
@@ -94,11 +66,6 @@ static void bt_ipc_mailbox_rx_isr(void *param, void *cmd_buf)
 {
     hci_hdr_t *hci_hdr = (hci_hdr_t *)cmd_buf;
     switch(hci_hdr->pkt_type) {
-        case BT_IPC_AP_BLE_READY_PKT:
-        {
-        }
-        break;
-
         case HCI_COMMAND_PKT:
         {
             bt_ipc_msg_t bt_ipc_msg;

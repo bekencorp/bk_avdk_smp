@@ -234,7 +234,7 @@ ble_err_t bk_ble_tx_power_set(float pwr_gain)
 }
 #endif
 
-void bk_bluetooth_init_deinit_compelete()
+void bk_bluetooth_init_deinit_compelete(void)
 {
     if(bt_sem)
     {
