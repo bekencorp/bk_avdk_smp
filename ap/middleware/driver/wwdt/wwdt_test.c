@@ -128,6 +128,8 @@ static void wwdt_hang_core_task(beken_thread_arg_t arg)
 	CLI_LOGI("wwdt hang start, physical_cpu=%u, smp_core=%u, wwdt_cpu=%u\r\n",
 		rtos_get_core_id(), portGET_CORE_ID(), bk_wwdt_get_cpu_id());
 
+	BK_LOG_ON_ERR(bk_wwdt_feed());
+
 	GLOBAL_INT_DISABLE();
 	while (1) {
 		;

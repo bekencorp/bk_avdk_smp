@@ -184,7 +184,7 @@ bk_err_t bk_wwdt_driver_init(void)
 
 	os_memset(&s_wwdt, 0, sizeof(s_wwdt));
 	wwdt_hal_init(&s_wwdt.hal);
-	//bk_timer_start(TIMER_ID1, WWDT_BARK_TIME_MS, (timer_isr_t)bk_wwdt_feed_handle);
+
 	s_wwdt_driver_is_init = true;
 
 #if CONFIG_CLI && CONFIG_WWDT_TEST

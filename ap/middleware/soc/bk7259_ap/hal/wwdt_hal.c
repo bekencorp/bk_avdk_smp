@@ -22,8 +22,6 @@ static void wwdt_hal_enable_32k_clock(void)
 	uint32_t reg_val;
 
 	/* M55 CPU WWDT is driven by the 32 kHz low-speed clock, so enable both the clock gate and XTALL source. */
-	sys_hal_clk_pwr_ctrl(CLK_PWR_ID_32KS, CLK_PWR_CTRL_PWR_UP);
-
 	reg_val = REG_READ(SYS_ANA_REG5_ADDR);
 	reg_val &= ~(SYS_ANA_REG5_ITUNE_XTALL_MASK << SYS_ANA_REG5_ITUNE_XTALL_POS);
 	reg_val |= ((WWDT_XTALL_ITUNE_VALUE & SYS_ANA_REG5_ITUNE_XTALL_MASK) << SYS_ANA_REG5_ITUNE_XTALL_POS);
