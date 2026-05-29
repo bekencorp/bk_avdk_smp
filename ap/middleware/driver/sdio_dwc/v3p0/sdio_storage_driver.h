@@ -137,9 +137,20 @@ struct cmd_param_t {
  *       for CLK/CMD/DAT0/DAT1, plus GPIO 10/11 for DAT2/DAT3 in 4-wire).
  *       This is the production wiring (P2/P3/P4/P5 silkscreen).
  *   1 = SDIO1 (host base 0x48050000, pinmux group: GPIO 14..23). Used
- *       only for early chip bring-up verification.
- * Keep this at 0 unless you are doing SDIO1 controller verification. */
+ *       on boards whose SD card / SD-NAND is wired to GPIO14~19
+ *       (e.g. BK7259 Robot V1 AI kit, U14 MKDV4GCL-ABB).
+ *
+ * The default keeps SDIO0 for backward compatibility. Boards that need
+ * SDIO1 should set CONFIG_SDIO_USE_GROUP1=y in the project defconfig,
+ * or define SDIO_VERIFY_USE_SDIO1=1 at the compiler command line. */
+#ifndef SDIO_VERIFY_USE_SDIO1
+#if defined(CONFIG_SDIO_USE_GROUP1) && CONFIG_SDIO_USE_GROUP1
+#define SDIO_VERIFY_USE_SDIO1    1
+#else
 #define SDIO_VERIFY_USE_SDIO1    0
+#endif
+#endif
+
 #if SDIO_VERIFY_USE_SDIO1
 #define SDIO_ACTIVE_BASE         sdio_mshc_1_base
 #else
