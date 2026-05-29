@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+import time
 from pathlib import Path
 
 from ap_dump_lib.dat_parser import parse_dat
@@ -10,6 +12,27 @@ from ap_dump_lib.elf_symbols import ElfSymbols
 from ap_dump_lib.interrupt_analysis import summarize_interrupts
 from ap_dump_lib.report import render_report
 from ap_dump_lib.stack_analysis import analyze
+
+DEBUG_LOG_PATH = Path("/home/gang.peng/bk_avdk_smp_dev_7259v2_version/.cursor/debug-7095db.log")
+DEBUG_SESSION_ID = "7095db"
+DEBUG_RUN_ID = "ap-heartbeat-20260516-night"
+
+
+def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
+    try:
+        payload = {
+            "sessionId": DEBUG_SESSION_ID,
+            "runId": DEBUG_RUN_ID,
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with DEBUG_LOG_PATH.open("a", encoding="utf-8") as fp:
+            fp.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+    except Exception:
+        pass
 
 
 def discover_elf(cwd: Path) -> Path:
@@ -71,6 +94,45 @@ def main(argv: list[str] | None = None) -> int:
     symbols = ElfSymbols(elf_path)
     analysis = analyze(session, symbols)
     interrupts = summarize_interrupts(session, symbols)
+    _agent_debug_log(
+        "H1-H4",
+        "tools/dump_tools/analyze_ap_dump.py:76",
+        "offline AP dump analysis summary",
+        {
+            "elf": str(elf_path),
+            "dat": str(dat_path),
+            "session_index": session.index,
+            "session_lines": [session.start_line, session.end_line],
+            "dump_reason": session.dump_reason,
+            "stack_regions": len(session.stack_regions),
+            "tracebacks": len(session.tracebacks),
+            "likely_stuck": analysis.likely_stuck,
+            "current_cores": [
+                {
+                    "core": core.core,
+                    "tcb": core.tcb_address,
+                    "task": core.task.name if core.task else None,
+                    "source": core.source,
+                    "note": core.note,
+                }
+                for core in analysis.current_cores
+            ],
+            "last_interrupts": [
+                {
+                    "core": summary.core,
+                    "total": summary.total,
+                    "depth": summary.depth,
+                    "source": summary.source,
+                    "last_irq": summary.records[-1].irq if summary.records else None,
+                    "last_seq": summary.records[-1].seq if summary.records else None,
+                    "last_enter": summary.records[-1].enter if summary.records else None,
+                    "last_exit": summary.records[-1].exit if summary.records else None,
+                    "incomplete": [{"irq": r.irq, "seq": r.seq, "enter": r.enter, "exit": r.exit} for r in summary.incomplete],
+                }
+                for summary in interrupts
+            ],
+        },
+    )
     report = render_report(elf_path, dat_path, len(sessions), session, symbols, analysis, interrupts)
 
     if args.output:
