@@ -35,6 +35,7 @@
 #endif
 
 #include "reset_reason.h"
+#include <driver/pwr_clk.h>
 
 #if CONFIG_EASY_FLASH
 #include "easyflash.h"
@@ -222,9 +223,7 @@ int components_early_init(void)
 	bandgap_init();
 	random_init();
 
-#if (!CONFIG_SOC_BK7259) ///TODO: BK7259_BringUP
 	bk_pm_mailbox_init();
-#endif //#if (!CONFIG_SOC_BK7259) ///TODO: BK7259_BringUP
 
 	bk_stack_guard_setup();
     set_ap_startup_index(AP_EXIT_COMPONTENT_EARLY_INIT);
