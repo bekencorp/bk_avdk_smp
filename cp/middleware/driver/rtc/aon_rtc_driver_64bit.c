@@ -772,11 +772,19 @@ static void aon_rtc_interrupt_enable(aon_rtc_id_t id)
 	switch(id)
 	{
 		case AON_RTC_ID_1:
+#if CONFIG_SOC_SMP
+			sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_RTC, 1);
+#else
 			sys_drv_set_int_en(rtos_get_core_id(),INT_SRC_RTC,1);
+#endif
 			break;
 #if (SOC_AON_RTC_UNIT_NUM > 1)
 		case AON_RTC_ID_2:
+#if CONFIG_SOC_SMP
+			sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_RTC2, 1);
+#else
 			sys_drv_set_int_en(rtos_get_core_id(),INT_SRC_RTC2,1);
+#endif
 			break;
 #endif
 		default:
@@ -789,11 +797,19 @@ static void aon_rtc_interrupt_disable(aon_rtc_id_t id)
 	switch(id)
 	{
 		case AON_RTC_ID_1:
+#if CONFIG_SOC_SMP
+			sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_RTC, 0);
+#else
 			sys_drv_set_int_en(rtos_get_core_id(),INT_SRC_RTC,0);
+#endif
 			break;
 #if (SOC_AON_RTC_UNIT_NUM > 1)
 		case AON_RTC_ID_2:
+#if CONFIG_SOC_SMP
+			sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_RTC2, 0);
+#else
 			sys_drv_set_int_en(rtos_get_core_id(),INT_SRC_RTC2,0);
+#endif
 			break;
 #endif
 		default:
@@ -845,7 +861,6 @@ bk_err_t bk_aon_rtc_driver_init(void)
 {
 	AON_RTC_LOGV("%s[+]\r\n", __func__);
 
-	//TOTO: Enter critical protect
 	for (int id = AON_RTC_ID_1; id < AON_RTC_ID_MAX; id++) {
 		if(!s_aon_rtc[id].inited)
 		{
@@ -856,7 +871,6 @@ bk_err_t bk_aon_rtc_driver_init(void)
 		}
 	}
 
-	//TOTO: exit critical protect
 	AON_RTC_LOGV("%s[-]\r\n", __func__);
 
 	return BK_OK;

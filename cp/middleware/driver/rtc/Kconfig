@@ -1,6 +1,7 @@
 menu "AON_RTC"
 	config AON_RTC
 		bool "Enable AON_RTC"
+		select AON_RTC_64BIT
 		default n
 
 	config ANA_RTC
@@ -25,8 +26,8 @@ menu "AON_RTC"
 		default n
 
 	config AON_RTC_64BIT
-		bool "Enable AON_RTC_64BIT"
-		default n
+		bool
+		default y if AON_RTC
 
 	config AON_RTC_MANY_USERS
 		bool "Enable AON_RTC support many users"

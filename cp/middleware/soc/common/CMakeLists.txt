@@ -84,15 +84,9 @@ endif()
 
 
 if(CONFIG_AON_RTC)
-if(CONFIG_AON_RTC_64BIT)
 	list(APPEND srcs
 		"hal/aon_rtc_hal_64bit.c"
 	)
-else()
-	list(APPEND srcs
-		"hal/aon_rtc_hal.c"
-	)
-endif()
 endif()
 
 if (CONFIG_SDIO_V2P0 OR CONFIG_SDIO_V2P1)
