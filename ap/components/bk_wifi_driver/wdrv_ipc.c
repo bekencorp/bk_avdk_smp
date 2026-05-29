@@ -4,6 +4,10 @@
 
 wdrv_ipc_t wdrv_ipc_env[IPC_MAX] = {0};
 
+#if CONFIG_SOC_SMP
+static SPINLOCK_SECTION volatile spinlock_t wdrv_ipc_tx_locks[IPC_MAX] = {SPIN_LOCK_INIT, SPIN_LOCK_INIT};
+#endif
+
 uint8_t wdrv_map_to_ipc_chnl(uint8_t channel)
 {
     switch(channel)
@@ -79,7 +83,7 @@ bk_err_t wdrv_ipc_init()
             return ret;
         }
         /* register mailbox logical channel rx callbcak */
-        wdrv_ipc_env[i].cb_register(wdrv_ipc_env[i].channel, MB_CHNL_SET_RX_ISR, wdrv_recv_buffer);
+        ret = wdrv_ipc_env[i].cb_register(wdrv_ipc_env[i].channel, MB_CHNL_SET_RX_ISR, wdrv_recv_buffer);
         if(ret != BK_OK)
         {
             WDRV_LOGE("ipc rx callback register fail\n");
@@ -87,11 +91,14 @@ bk_err_t wdrv_ipc_init()
         }
 
         co_list_init((struct co_list *)&wdrv_ipc_env[i].tx_list);
+#if CONFIG_SOC_SMP
+        wdrv_ipc_env[i].tx_lock = &wdrv_ipc_tx_locks[i];
+#endif
     }
 
 
     /* register mailbox logical channel txc callbcak */
-    wdrv_ipc_env[IPC_CMD].cb_register(wdrv_ipc_env[IPC_CMD].channel, MB_CHNL_SET_TX_CMPL_ISR, wdrv_tx_msg_complete);
+    ret = wdrv_ipc_env[IPC_CMD].cb_register(wdrv_ipc_env[IPC_CMD].channel, MB_CHNL_SET_TX_CMPL_ISR, wdrv_tx_msg_complete);
     if(ret != BK_OK)
     {
         WDRV_LOGE("ipc txc callback register fail\n");
@@ -99,7 +106,7 @@ bk_err_t wdrv_ipc_init()
     }
 
     /* register mailbox logical channel txc callbcak */
-    wdrv_ipc_env[IPC_DATA].cb_register(wdrv_ipc_env[IPC_DATA].channel, MB_CHNL_SET_TX_CMPL_ISR, wdrv_tx_complete);
+    ret = wdrv_ipc_env[IPC_DATA].cb_register(wdrv_ipc_env[IPC_DATA].channel, MB_CHNL_SET_TX_CMPL_ISR, wdrv_tx_complete);
     if(ret != BK_OK)
     {
         WDRV_LOGE("ipc txc callback register fail\n");

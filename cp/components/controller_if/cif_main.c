@@ -236,13 +236,15 @@ bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_retry)
     {
         BK_LOGV(NULL,"%s,%d,p:0x%x,ipc_chnl:%d\n",__func__,__LINE__,(struct pbuf*)head-1,ipc_chnl);
         //add to tx pending list tail
-        CIF_IRQ_DISABLE(int_level);
+        CIF_IPC_LOCK(&cif_ipc_env[ipc_chnl], int_level);
         co_list_push_back((struct co_list *)&cif_ipc_env[ipc_chnl].rx_list,(struct co_list_hdr *)head);
-        CIF_IRQ_ENABLE(int_level);
+        CIF_IPC_UNLOCK(&cif_ipc_env[ipc_chnl], int_level);
     }
 
+    CIF_IPC_LOCK(&cif_ipc_env[ipc_chnl], int_level);
     if(cif_ipc_env[ipc_chnl].sending_flag) 
     {
+        CIF_IPC_UNLOCK(&cif_ipc_env[ipc_chnl], int_level);
         return BK_OK;
     }
     else
@@ -253,6 +255,7 @@ bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_retry)
     first = (void*)cif_ipc_env[ipc_chnl].rx_list.first;
     last = (void*)cif_ipc_env[ipc_chnl].rx_list.last;
     num = co_list_cnt((void*)&cif_ipc_env[ipc_chnl].rx_list);
+    CIF_IPC_UNLOCK(&cif_ipc_env[ipc_chnl], int_level);
 
     if(((first != NULL)&&(last!= NULL))&&(num == 0)) BK_ASSERT(0);
 
@@ -266,32 +269,45 @@ bk_err_t cif_rxdata_pre_process(uint8_t channel,void* head,uint8_t need_retry)
         CIF_LOGE("%s,ipc send fail,0x%x\n",__func__,ret);
     }
     else{
+        CIF_IPC_LOCK(&cif_ipc_env[ipc_chnl], int_level);
         co_list_init((void*)&(cif_ipc_env[ipc_chnl].rx_list));
+        CIF_IPC_UNLOCK(&cif_ipc_env[ipc_chnl], int_level);
         return BK_OK;
     }
 ERR_EXIT:
+    CIF_IPC_LOCK(&cif_ipc_env[ipc_chnl], int_level);
     cif_ipc_env[ipc_chnl].sending_flag = 0;
+    CIF_IPC_UNLOCK(&cif_ipc_env[ipc_chnl], int_level);
     return BK_OK;
 }
 
 void cif_rx_data_complete(void *param, void *ack_buf)
 {
+    CIF_IPC_ISR_LOCK(&cif_ipc_env[IPC_DATA]);
     cif_ipc_env[IPC_DATA].sending_flag = 0;
     cif_stats_ptr->ipc_txc_cnt++;
-    //BK_LOGD(NULL,"%s,%d\n",__func__,__LINE__);
     if(cif_ipc_env[IPC_DATA].rx_list.first != NULL)
     {
+        CIF_IPC_ISR_UNLOCK(&cif_ipc_env[IPC_DATA]);
         cif_msg_sender(NULL,CIF_TASK_MSG_RX_DATA,1);
+    }
+    else
+    {
+        CIF_IPC_ISR_UNLOCK(&cif_ipc_env[IPC_DATA]);
     }
 }
 void cif_rx_evt_complete(void *param, void *ack_buf)
 {
+    CIF_IPC_ISR_LOCK(&cif_ipc_env[IPC_CMD]);
     cif_ipc_env[IPC_CMD].sending_flag = 0;
-    
-    //BK_LOGD(NULL,"%s,%d\n",__func__,__LINE__);
     if(cif_ipc_env[IPC_CMD].rx_list.first != NULL)
     {
+        CIF_IPC_ISR_UNLOCK(&cif_ipc_env[IPC_CMD]);
         cif_msg_sender(NULL,CIF_TASK_MSG_EVT,1);
+    }
+    else
+    {
+        CIF_IPC_ISR_UNLOCK(&cif_ipc_env[IPC_CMD]);
     }
 }
 

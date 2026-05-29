@@ -13,6 +13,9 @@ extern "C" {
 #include <driver/pwr_clk.h>
 #include <components/log.h>
 #include <driver/mailbox_channel.h>
+#if CONFIG_SOC_SMP
+#include "spinlock.h"
+#endif
 #include "cif_main.h"
 #define WIFI_IPC_CMD_CHNL      MB_CHNL_WIFI_CMD
 #define WIFI_IPC_DATA_CHNL     MB_CHNL_WIFI_DATA
@@ -34,6 +37,9 @@ typedef struct
     
     //For rx pending list
     struct co_list rx_list;//For rx data and tx confirm data, both is pbuf data.
+#if CONFIG_SOC_SMP
+    volatile spinlock_t *tx_lock;
+#endif
 }cif_ipc_t;
 
 typedef struct
@@ -69,6 +75,42 @@ enum wifi_data_type
     IPC_MAX
 };
 
+
+static inline uint32_t cif_ipc_lock(cif_ipc_t *ipc)
+{
+	uint32_t flags = rtos_disable_int();
+#if CONFIG_SOC_SMP
+	spin_lock(ipc->tx_lock);
+#endif
+	return flags;
+}
+
+static inline void cif_ipc_unlock(cif_ipc_t *ipc, uint32_t flags)
+{
+#if CONFIG_SOC_SMP
+	spin_unlock(ipc->tx_lock);
+#endif
+	rtos_enable_int(flags);
+}
+
+static inline void cif_ipc_isr_lock(cif_ipc_t *ipc)
+{
+#if CONFIG_SOC_SMP
+	spin_lock(ipc->tx_lock);
+#endif
+}
+
+static inline void cif_ipc_isr_unlock(cif_ipc_t *ipc)
+{
+#if CONFIG_SOC_SMP
+	spin_unlock(ipc->tx_lock);
+#endif
+}
+
+#define CIF_IPC_LOCK(ipc, int_level)    do { int_level = cif_ipc_lock(ipc); } while(0)
+#define CIF_IPC_UNLOCK(ipc, int_level)  do { cif_ipc_unlock(ipc, int_level); } while(0)
+#define CIF_IPC_ISR_LOCK(ipc)           do { cif_ipc_isr_lock(ipc); } while(0)
+#define CIF_IPC_ISR_UNLOCK(ipc)         do { cif_ipc_isr_unlock(ipc); } while(0)
 
 uint8_t cif_map_to_rx_wifi_type(uint8_t channel);
 uint8_t cif_map_to_ipc_chnl(uint8_t channel);

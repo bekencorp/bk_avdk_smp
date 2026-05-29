@@ -204,13 +204,15 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
         }
         //bk_mem_dump("process",PTR_TO_U32(head),50);
 
-        WDRV_IRQ_DISABLE(int_level);
+        WDRV_IPC_LOCK(&wdrv_ipc_env[ipc_chnl], int_level);
         co_list_push_back((struct co_list *)&wdrv_ipc_env[ipc_chnl].tx_list,(struct co_list_hdr *)head);
-        WDRV_IRQ_ENABLE(int_level);
+        WDRV_IPC_UNLOCK(&wdrv_ipc_env[ipc_chnl], int_level);
     }
 
+    WDRV_IPC_LOCK(&wdrv_ipc_env[ipc_chnl], int_level);
     if(wdrv_ipc_env[ipc_chnl].sending_flag) 
     {
+        WDRV_IPC_UNLOCK(&wdrv_ipc_env[ipc_chnl], int_level);
         return;
     }
     else
@@ -221,6 +223,7 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
     first = (void*)wdrv_ipc_env[ipc_chnl].tx_list.first;
     last = (void*)wdrv_ipc_env[ipc_chnl].tx_list.last;
     num = co_list_cnt((void*)&wdrv_ipc_env[ipc_chnl].tx_list);
+    WDRV_IPC_UNLOCK(&wdrv_ipc_env[ipc_chnl], int_level);
 
     if(((first != NULL)&&(last!= NULL))&&(num == 0)) BK_ASSERT(0);
 
@@ -234,13 +237,17 @@ void wdrv_txdata_pre_process(uint8_t channel, void* head,uint8_t need_retry)
         WDRV_LOGE("%s,ipc send fail,0x%x\n",__func__,ret);
     }
     else{
+        WDRV_IPC_LOCK(&wdrv_ipc_env[ipc_chnl], int_level);
         co_list_init((void*)&wdrv_ipc_env[ipc_chnl].tx_list);
+        WDRV_IPC_UNLOCK(&wdrv_ipc_env[ipc_chnl], int_level);
         if(channel == TX_MSDU_DATA)
             WDRV_STATS_RESET(tx_list_num,0);
         return;
     }
 ERR_EXIT:
+    WDRV_IPC_LOCK(&wdrv_ipc_env[ipc_chnl], int_level);
     wdrv_ipc_env[ipc_chnl].sending_flag = 0;
+    WDRV_IPC_UNLOCK(&wdrv_ipc_env[ipc_chnl], int_level);
     if(ret != BK_OK) {
         BK_LOGD(NULL, "%s,%d,set_sema fail\n",__func__,__LINE__);
     }
@@ -248,29 +255,31 @@ ERR_EXIT:
 
 void wdrv_tx_complete(void *param, mb_chnl_ack_t *ack_buf)
 {
-    //bk_err_t ret =BK_OK;
-    //ret = 
-    //rtos_set_semaphore(&wdrv_ipc_env[IPC_DATA].sema);
+    WDRV_IPC_ISR_LOCK(&wdrv_ipc_env[IPC_DATA]);
     wdrv_ipc_env[IPC_DATA].sending_flag = 0;
     wdrv_stats_ptr->ipc_txc_cnt++;
-    //BK_LOGD(NULL, "%s,%d,set_sema:%d\n",__func__,__LINE__,ret);
     if(wdrv_ipc_env[IPC_DATA].tx_list.first != NULL)
     {
+        WDRV_IPC_ISR_UNLOCK(&wdrv_ipc_env[IPC_DATA]);
         wdrv_msg_sender(0,WDRV_TASK_MSG_TXDATA,1);
+    }
+    else
+    {
+        WDRV_IPC_ISR_UNLOCK(&wdrv_ipc_env[IPC_DATA]);
     }
 }
 void wdrv_tx_msg_complete(void *param, mb_chnl_ack_t *ack_buf)
 {
-    //bk_err_t ret =BK_OK;
-    //ret = 
-    //rtos_set_semaphore(&wdrv_ipc_env[IPC_DATA].sema);
-    
+    WDRV_IPC_ISR_LOCK(&wdrv_ipc_env[IPC_CMD]);
     wdrv_ipc_env[IPC_CMD].sending_flag = 0;
-    //BK_LOGD(NULL, "%s,%d,set_sema:%d\n",__func__,__LINE__,ret);
-    
     if(wdrv_ipc_env[IPC_CMD].tx_list.first != NULL)
     {
+        WDRV_IPC_ISR_UNLOCK(&wdrv_ipc_env[IPC_CMD]);
         wdrv_msg_sender(0,WDRV_TASK_MSG_CMD,1);
+    }
+    else
+    {
+        WDRV_IPC_ISR_UNLOCK(&wdrv_ipc_env[IPC_CMD]);
     }
 }
 
