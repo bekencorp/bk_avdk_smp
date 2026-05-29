@@ -34,6 +34,14 @@
 #include "ble_boarding.h"
 #include "components/bluetooth/bk_dm_bluetooth.h"
 
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+
+#define TAG "dm_brd"
+
 static beken_semaphore_t ble_boarding_sema = NULL;
 static ble_err_t s_at_cmd_status = BK_ERR_BLE_SUCCESS;
 static uint8_t s_boarding_ssid[64];
@@ -116,7 +124,7 @@ static uint32_t dm_ble_event_cb(ble_event_enum_t notice, void *param)
         case BK_DM_BLE_EVENT_MTU_CHANGE:
         {
             ble_mtu_change_t *m_ind = (ble_mtu_change_t *)param;
-            BK_LOGD(NULL,"%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
+            LOGD("%s m_ind:conn_idx:%d, mtu_size:%d\r\n", __func__, m_ind->conn_idx, m_ind->mtu_size);
             break;
         }
 
@@ -130,14 +138,14 @@ static uint32_t dm_ble_event_cb(ble_event_enum_t notice, void *param)
         case BK_DM_BLE_EVENT_DISCONNECT:
         {
             ble_conn_att_t *d_ind = (typeof(d_ind))param;
-            BK_LOGD(NULL,"disconnect :conn_idx:%d,reason:%d\r\n", d_ind->conn_handle, d_ind->event_result);
+            LOGD("disconnect :conn_idx:%d,reason:%d\r\n", d_ind->conn_handle, d_ind->event_result);
             s_conn_ind = ~0;
             break;
         }
 
         case BK_DM_BLE_EVENT_CREATE_DB:
         {
-            BK_LOGD(NULL,"BK_DM_BLE_EVENT_CREATE_DB OK\n");
+            LOGD("BK_DM_BLE_EVENT_CREATE_DB OK\n");
 
             break;
         }
@@ -148,7 +156,7 @@ static uint32_t dm_ble_event_cb(ble_event_enum_t notice, void *param)
         case BK_DM_BLE_EVENT_CONN_UPDATA:
         {
             ble_conn_update_param_compl_ind_t *updata_param = (typeof(updata_param))param;
-            BK_LOGD(NULL,"BK_DM_BLE_EVENT_CONN_UPDATA:conn_interval:0x%04x, con_latency:0x%04x, sup_to:0x%04x\n",
+            LOGD("BK_DM_BLE_EVENT_CONN_UPDATA:conn_interval:0x%04x, con_latency:0x%04x, sup_to:0x%04x\n",
                       updata_param->conn_interval, updata_param->conn_latency, updata_param->supervision_timeout);
             break;
         }
@@ -172,7 +180,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
     if (argc != 2)
     {
-        BK_LOGD(NULL,"\nThe number of param is wrong!\n");
+        LOGD("\nThe number of param is wrong!\n");
         retval = kParamErr;
         goto error;
     }
@@ -215,7 +223,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: BT_gatt_db_add_service() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: BT_gatt_db_add_service() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
     else
@@ -242,7 +250,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
     else
@@ -276,7 +284,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: bk_ble_gatt_db_add_characteristic_descriptor() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: bk_ble_gatt_db_add_characteristic_descriptor() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
 
@@ -299,7 +307,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
     else
@@ -326,7 +334,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
     else
@@ -338,7 +346,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
     if (retval != 0)
     {
-        BK_LOGD(NULL,"%s GATT Database Registration err: 0x%04X\n", __func__, retval);
+        LOGD("%s GATT Database Registration err: 0x%04X\n", __func__, retval);
         goto error;
     }
 
@@ -346,7 +354,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
     if (retval != 0)
     {
-        BK_LOGD(NULL,"%s bk_ble_gatt_db_set_callback err: 0x%04X\n", __func__, retval);
+        LOGD("%s bk_ble_gatt_db_set_callback err: 0x%04X\n", __func__, retval);
         goto error;
     }
 
@@ -408,7 +416,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
     if (adv_len > 31 || adv_len != os_strlen(argv[0]) / 2)
     {
-        BK_LOGD(NULL,"input adv len over limited\n");
+        LOGD("input adv len over limited\n");
         retval = kParamErr;
         goto error;
     }
@@ -454,7 +462,7 @@ int dm_ble_boarding_handle(int sync, int argc, char **argv)
 
 error:
 
-    BK_LOGD(NULL,"%s failed. \n", __func__);
+    LOGD("%s failed. \n", __func__);
 
     atsvr_cmd_rsp_error();
     if (ble_boarding_sema != NULL)
@@ -479,7 +487,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (argc != 2)
     {
-        BK_LOGD(NULL,"\nThe number of param is wrong!\n");
+        LOGD("\nThe number of param is wrong!\n");
         retval = kParamErr;
         goto error;
     }
@@ -522,7 +530,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: BT_gatt_db_add_service() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: BT_gatt_db_add_service() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
     else
@@ -549,7 +557,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
     else
@@ -583,7 +591,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: bk_ble_gatt_db_add_characteristic_descriptor() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: bk_ble_gatt_db_add_characteristic_descriptor() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
 
@@ -606,7 +614,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
     else
@@ -633,7 +641,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (0 != retval)
     {
-        BK_LOGD(NULL,"%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
+        LOGD("%s: bk_ble_gatt_db_add_characteristic() failed. Result: 0x%04X\n", __func__, retval);
         goto error;
     }
     else
@@ -645,7 +653,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (retval != 0)
     {
-        BK_LOGD(NULL,"%s GATT Database Registration err: 0x%04X\n", __func__, retval);
+        LOGD("%s GATT Database Registration err: 0x%04X\n", __func__, retval);
         goto error;
     }
 
@@ -653,7 +661,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (retval != 0)
     {
-        BK_LOGD(NULL,"%s bk_ble_gatt_db_set_callback err: 0x%04X\n", __func__, retval);
+        LOGD("%s bk_ble_gatt_db_set_callback err: 0x%04X\n", __func__, retval);
         goto error;
     }
 
@@ -715,7 +723,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
     if (adv_len > 31 || adv_len != os_strlen(argv[0]) / 2)
     {
-        BK_LOGD(NULL,"input adv len over limited\n");
+        LOGD("input adv len over limited\n");
         retval = kParamErr;
         goto error;
     }
@@ -762,7 +770,7 @@ int dm_ble_boarding_handle(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 
 error:
 
-    BK_LOGD(NULL,"%s failed. \n", __func__);
+    LOGD("%s failed. \n", __func__);
 
     msg = AT_CMD_RSP_ERROR;
     os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
@@ -793,11 +801,11 @@ static bk_err_t gatt_db_boarding_gatt_char_handler(uint8_t conn_handle, GATT_DB_
 
                     if (GATT_CLI_CNFG_NOTIFICATION == config)
                     {
-                        BK_LOGD(NULL,"client notify config open\r\n");
+                        LOGD("client notify config open\r\n");
                     }
                     else if (GATT_CLI_CNFG_DEFAULT == config)
                     {
-                        BK_LOGD(NULL,"client notify config close\r\n");
+                        LOGD("client notify config close\r\n");
                     }
                     else
                     {
@@ -813,13 +821,13 @@ static bk_err_t gatt_db_boarding_gatt_char_handler(uint8_t conn_handle, GATT_DB_
                 {
                     ATT_VALUE param;
                     bk_ble_gatt_get_char_val(handle, &param);
-                    BK_LOGD(NULL,"Borading read PASS:%s, %d \r\n", param.val, param.actual_len);
+                    LOGD("Borading read PASS:%s, %d \r\n", param.val, param.actual_len);
                 }
                 else if (handle->char_id == boarding_env.chara_ssid_handle)
                 {
                     ATT_VALUE param;
                     bk_ble_gatt_get_char_val(handle, &param);
-                    BK_LOGD(NULL,"Borading read SSID:%s, %d \r\n", param.val, param.actual_len);
+                    LOGD("Borading read SSID:%s, %d \r\n", param.val, param.actual_len);
                 }
                 else
                 {
@@ -836,7 +844,7 @@ static bk_err_t gatt_db_boarding_gatt_char_handler(uint8_t conn_handle, GATT_DB_
                     os_memset((uint8_t *)s_boarding_password, 0, sizeof(s_boarding_password) / sizeof(s_boarding_password[0]));
                     os_memcpy((uint8_t *)s_boarding_password, params->value.val, params->value.len);
                     s_boarding_password_len = params->value.len;
-                    BK_LOGD(NULL,"Boarding write PASS:%s, %d, %d\r\n", s_boarding_password, s_boarding_password_len, params->value.actual_len);
+                    LOGD("Boarding write PASS:%s, %d, %d\r\n", s_boarding_password, s_boarding_password_len, params->value.actual_len);
 #if CONFIG_WIFI_ENABLE
                     demo_sta_app_init((char *)s_boarding_ssid, (char *)s_boarding_password);
 #endif
@@ -847,7 +855,7 @@ static bk_err_t gatt_db_boarding_gatt_char_handler(uint8_t conn_handle, GATT_DB_
                     os_memset((uint8_t *)s_boarding_ssid, 0, sizeof(s_boarding_ssid) / sizeof(s_boarding_ssid[0]));
                     os_memcpy((uint8_t *)s_boarding_ssid, params->value.val, params->value.len);
                     s_boarding_ssid_len = params->value.len;
-                    BK_LOGD(NULL,"Boarding write SSID:%s, %d, %d\r\n", s_boarding_ssid, s_boarding_ssid_len, params->value.actual_len);
+                    LOGD("Boarding write SSID:%s, %d, %d\r\n", s_boarding_ssid, s_boarding_ssid_len, params->value.actual_len);
                 }
                 else
                 {
@@ -857,7 +865,7 @@ static bk_err_t gatt_db_boarding_gatt_char_handler(uint8_t conn_handle, GATT_DB_
             break;
 
             default:
-                //                BK_LOGD(NULL,
+                //                LOGD(
                 //                "No Specific Application Handling Required for Operation 0x%02X\n",
                 //                params->db_op);
                 break;
