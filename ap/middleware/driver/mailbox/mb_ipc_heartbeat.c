@@ -17,9 +17,14 @@
 
 #include <os/os.h>
 #include "mb_ipc_cmd.h"
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+#include <driver/ipi_driver.h>
+#include <soc/soc.h>
+#endif
 
 #define MOD_TAG		"hrt"
 #define BEKEN_HEARTBEAT_PRIORITY 0
+#define MB_IPC_HEARTBEAT_TASK_STACK_SIZE 1024
 
 #if (CONFIG_CPU_CNT > 1)
 
@@ -324,8 +329,17 @@ int mb_ipc_cpu_is_power_off(u32 cpu_id)
 #if defined(SLAVE_HB_TASK)
 
 #define MB_IPC_HEARTBEAT_TIME		2000
+#define MB_IPC_HEARTBEAT_IPI_EVENT_POWER_UP		1
+#define MB_IPC_HEARTBEAT_IPI_EVENT_HEARTBEAT	2
 
 static volatile u8  s_hb_paused = 0;
+
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+static bk_err_t mb_ipc_heartbeat_ipi_send(uint8_t event)
+{
+	return bk_ipi_send_domain(IPI_CP_CORE0, IPI_DOMAIN_HEARTBEAT, event, CPU2_CORE_ID);
+}
+#endif
 
 void mb_ipc_heartbeat_pause(u8 pause)
 {
@@ -335,14 +349,40 @@ void mb_ipc_heartbeat_pause(u8 pause)
 
 static void mb_ipc_task( void *para )
 {
-	ipc_send_power_up();
+	bk_err_t ret;
+
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+	ret = mb_ipc_heartbeat_ipi_send(MB_IPC_HEARTBEAT_IPI_EVENT_POWER_UP);
+	if(ret != BK_OK)
+	{
+		BK_LOGE(MOD_TAG, "send power-up IPI failed: %d\r\n", ret);
+	}
+#else
+	ret = ipc_send_power_up();
+	if(ret != BK_OK)
+	{
+		BK_LOGE(MOD_TAG, "send power-up mailbox failed: %d\r\n", ret);
+	}
+#endif
 
 	while(1)
 	{
 		rtos_delay_milliseconds(MB_IPC_HEARTBEAT_TIME);
 		if(!s_hb_paused)
 		{
-			ipc_send_heart_beat(0);
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+			ret = mb_ipc_heartbeat_ipi_send(MB_IPC_HEARTBEAT_IPI_EVENT_HEARTBEAT);
+			if(ret != BK_OK)
+			{
+				BK_LOGE(MOD_TAG, "send heartbeat IPI failed: %d\r\n", ret);
+			}
+#else
+			ret = ipc_send_heart_beat(0);
+			if(ret != BK_OK)
+			{
+				BK_LOGE(MOD_TAG, "send heartbeat mailbox failed: %d\r\n", ret);
+			}
+#endif
 		}
 	}
 }
@@ -354,7 +394,7 @@ bk_err_t mb_ipc_heartbeat_init(void)
 	bk_err_t	ret_val = BK_FAIL;
 
 #if defined(MASTER_HB_TASK) || defined(SLAVE_HB_TASK)
-	ret_val = rtos_create_thread(NULL, BEKEN_HEARTBEAT_PRIORITY, "heartbeat", mb_ipc_task, 512, 0);
+	ret_val = rtos_create_thread(NULL, BEKEN_HEARTBEAT_PRIORITY, "heartbeat", mb_ipc_task, MB_IPC_HEARTBEAT_TASK_STACK_SIZE, 0);
 #endif
 
 	if(ret_val != BK_OK)

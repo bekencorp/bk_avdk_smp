@@ -145,7 +145,7 @@ static bk_err_t ipi_send_value(ipi_core_id_t core_id, uint32_t value)
 		return BK_FAIL;
 	}
 
-	IPI_LOGD("IPI send: from_cpu=%u -> core_id=%d, value=0x%08X\r\n",
+	IPI_LOGV("IPI send: from_cpu=%u -> core_id=%d, value=0x%08X\r\n",
 	         (unsigned)rtos_get_core_id(), core_id, value);
 	BK_LOG_ON_ERR(ipi_hal_send(&s_ipi_hal, core_id, value));
 

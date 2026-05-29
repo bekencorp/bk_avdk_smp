@@ -15,4 +15,11 @@ menu "MAILBOX"
 		depends on MAILBOX
 		bool "Enable heartbeat mechanism when dual core communication"
 		default n
+
+	config SLAVE_HEART_BEAT_USE_IPI
+		depends on SLAVE_HEART_BEAT && IPI
+		bool "Use IPI for heartbeat transport"
+		default y
+		help
+			Send heartbeat notifications through IPI_DOMAIN_HEARTBEAT instead of mailbox.
 endmenu

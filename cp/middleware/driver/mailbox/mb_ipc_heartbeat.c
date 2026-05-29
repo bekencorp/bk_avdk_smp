@@ -18,6 +18,9 @@
 #include <os/os.h>
 #include "mb_ipc_cmd.h"
 #include <modules/pm.h>
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+#include <driver/ipi_driver.h>
+#endif
 
 #define MOD_TAG		"hrt"
 #define BEKEN_HEARTBEAT_PRIORITY 0
@@ -60,6 +63,8 @@ int mb_ipc_cpu_is_power_off(u32 cpu_id)
 #define MB_IPC_ALL_FLAGS			(MB_IPC_START_CORE_FLAG | MB_IPC_STOP_CORE_FLAG | MB_IPC_POWER_UP_FLAG | MB_IPC_HEARTBEAT_FLAG)
 
 #define MB_IPC_HEARTBEAT_TIME       2000   /* slave sends heartbeat every 2s */
+#define MB_IPC_HEARTBEAT_IPI_EVENT_POWER_UP     1
+#define MB_IPC_HEARTBEAT_IPI_EVENT_HEARTBEAT    2
 #if CONFIG_WDT_EN
 #define HB_TIMEOUT_MS               CONFIG_INT_WDT_PERIOD_MS
 #else
@@ -86,6 +91,9 @@ static volatile u8                  cpu_x_id = 0xFF;   /* invalid ID, */
 static volatile u8                  cpu_x_dump = 0;
 static volatile u8                  cpu_x_heartbeat_timeout = 0;
 static volatile mb_ipc_work_state_e s_mb_ipc_work_state = MB_IPC_WORKING;
+
+void mb_ipc_heartbeat_notify(u32 cpu_id);
+void mb_ipc_power_on_notify(u32 cpu_id);
 
 extern void start_cpu1_core(void);
 extern void stop_cpu1_core(void);
@@ -189,6 +197,33 @@ static int check_cpu_id_ok(u32 cpu_id)
 
 	return 1;
 }
+
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+static void mb_ipc_heartbeat_ipi_callback(ipi_core_id_t core_id, uint32_t value,
+	uint8_t src_cpu, uint8_t event, uint16_t payload, void *param)
+{
+	u32 cpu_id = payload;
+
+	(void)core_id;
+	(void)value;
+	(void)src_cpu;
+	(void)param;
+
+	if (cpu_id == 0) {
+		cpu_id = src_cpu;
+	}
+
+	if (event == MB_IPC_HEARTBEAT_IPI_EVENT_POWER_UP) {
+		mb_ipc_power_on_notify(cpu_id);
+	} else if (event == MB_IPC_HEARTBEAT_IPI_EVENT_HEARTBEAT) {
+		if (cpu_x_state == CORE_POWER_OFF) {
+			mb_ipc_power_on_notify(cpu_id);
+		}
+		mb_ipc_heartbeat_notify(cpu_id);
+	}
+}
+#endif
+
 static bk_err_t mb_ipc_exit_lv(uint64_t sleep_time, void *args)
 {
 	cpu_x_heartbeat_timestamp = (u32)rtos_get_time();
@@ -227,6 +262,17 @@ static void mb_ipc_task( void *para )
 		rtos_delete_thread(NULL);
 		return;
 	}
+
+#if CONFIG_SLAVE_HEART_BEAT_USE_IPI
+	ret_val = bk_ipi_register_domain_callback(IPI_DOMAIN_HEARTBEAT,
+		mb_ipc_heartbeat_ipi_callback, NULL);
+	if(ret_val != BK_OK)
+	{
+		BK_LOGE(MOD_TAG, "register heartbeat IPI callback failed: %d\r\n", ret_val);
+		rtos_delete_thread(NULL);
+		return;
+	}
+#endif
 
 	while(1)
 	{
