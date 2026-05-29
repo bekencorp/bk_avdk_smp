@@ -7,7 +7,9 @@
 #if CONFIG_SUPPORT_WWDT
 #include "wwdt_driver.h"
 #endif
-
+#if CONFIG_TASK_WDT
+#include "bk_wdt.h"
+#endif
 #define MEM_OVERFLOW_TAG        0xcd
 
 void bk_heap_debug_add_debug_info(struct list_head *list, void *ptr,
