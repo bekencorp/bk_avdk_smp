@@ -43,7 +43,7 @@ THIS_DIR = Path(__file__).resolve().parent
 if str(THIS_DIR) not in sys.path:
     sys.path.insert(0, str(THIS_DIR))
 
-from heartbeat_timeout import core, extract, msp_walk, peri_regs, report  # noqa: E402
+from heartbeat_timeout import core, decoders, extract, msp_walk, peri_regs, report  # noqa: E402
 from heartbeat_timeout.symbols import load_symbols  # noqa: E402
 
 
@@ -103,8 +103,13 @@ def main(argv: list[str] | None = None) -> int:
     msp0 = msp_walk.walk_core(memmap, elf, sym, 0)
     msp1 = msp_walk.walk_core(memmap, elf, sym, 1)
     peri_report = peri_regs.decode_peripherals(memmap, regions)
+    decoder_summary = decoders.summarise_for_report(elf, peri_report, memmap)
+    decoder_text = decoders.render_extras(elf, peri_report, memmap)
     header = report._scan_header(log)
-    report_md = report.render_report(log, elf, header, extract_result, msp0, msp1, peri_report)
+    report_md = report.render_report(
+        log, elf, header, extract_result, msp0, msp1, peri_report,
+        decoder_summary=decoder_summary,
+    )
 
     # Resolve output targets.
     default_dir = log.parent / f"{log.stem}_analysis"
@@ -123,7 +128,10 @@ def main(argv: list[str] | None = None) -> int:
         _write(out_dir / "extract.txt", extract.render_extract_text(log, regions, memmap, extract_result))
         _write(out_dir / "msp_core0.txt", msp_walk.render_msp_text(msp0))
         _write(out_dir / "msp_core1.txt", msp_walk.render_msp_text(msp1))
-        _write(out_dir / "peri.txt", peri_regs.render_peri_text(peri_report))
+        _write(
+            out_dir / "peri.txt",
+            peri_regs.render_peri_text(peri_report) + decoder_text,
+        )
 
     if report_path is not None:
         _write(report_path, report_md)

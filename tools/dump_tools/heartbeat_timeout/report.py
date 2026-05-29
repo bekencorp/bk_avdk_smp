@@ -4,6 +4,7 @@ Combines the structured outputs from :mod:`extract`, :mod:`msp_walk`, and
 :mod:`peri_regs` into a single Markdown summary aimed at team review:
 
   * banner with build / runtime / reason
+  * pre-dump CPU exception banner (when present in the firmware preamble)
   * smoking-gun panel: per-core last IRQ recorder entry + done=0 flag
   * MSP exception-frame summary highlighting EXC_RETURN -> ISR chain
   * "hang fingerprint" probes (PSRAM0 Reg 0x10, PPHS sresp, etc.)
@@ -13,10 +14,12 @@ from __future__ import annotations
 
 import re
 import struct
-from dataclasses import dataclass
+import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .core import irq_name
+from .decoders import DecoderSummary
 from .extract import ExtractResult, IRQRecorderSummary, IRQRecord
 from .msp_walk import MspWalkResult, ExceptionFrame
 from .peri_regs import PeriRegion, PeriReport
@@ -27,6 +30,27 @@ DUMP_REASON_RE = re.compile(r"@Dump-reason:\s*(.+)", re.IGNORECASE)
 ASSERT_AT_RE = re.compile(r"Assert at:\s*([^\s].*)", re.IGNORECASE)
 SESSION_FILENAME_RE = re.compile(r"(\d+)min", re.IGNORECASE)
 
+CPU_BANNER_RE = re.compile(r"CPU(\d+) Current regs:", re.IGNORECASE)
+# Match register lines like:  "0 r0 x 0x40fb948"  or "16 pc x 0x4006900"
+CPU_REG_LINE_RE = re.compile(
+    r"^\s*\d+\s+([A-Za-z_][A-Za-z0-9_]*)\s+x\s+(0x[0-9a-fA-F]+)"
+)
+TRACEBACK_RE = re.compile(r"arm-none-eabi-addr2line\s+-piaf\s+-e\s+\S+\s+(.+?)\s*$")
+
+
+@dataclass
+class CpuExceptionBanner:
+    """The pre-dump 'CPUx Current regs: ...' banner emitted by some builds.
+
+    Older defconfigs (e.g. the 1080PUVC night build) emit a CP-side dump
+    preamble even when the AP recorders/TCBs are not yet captured; this
+    structure preserves what we can extract for those cases.
+    """
+
+    cpu: int
+    regs: dict[str, int] = field(default_factory=dict)
+    traceback: list[int] = field(default_factory=list)
+
 
 @dataclass
 class HeaderInfo:
@@ -34,15 +58,46 @@ class HeaderInfo:
     dump_reason: str | None
     assert_at: str | None
     session_label: str | None
+    cpu_banners: list[CpuExceptionBanner] = field(default_factory=list)
 
 
 def _scan_header(log_path: Path) -> HeaderInfo:
+    """Scan the log for build / dump-reason / assert lines.
+
+    These markers appear inside the dump preamble.  In short tests they sit
+    near the top of the file (<200 lines in idle reproductions), but for a
+    multi-hour stress test the preceding telemetry can push them tens of
+    thousands of lines down.  We therefore keep scanning until either all
+    three are found, the first ``>>>>stack mem dump begin`` marker is hit
+    (after which only memory blocks follow), or 200k lines have been
+    examined.
+    """
     build = reason = assert_at = None
+    DUMP_BEGIN = ">>>>stack mem dump begin"
+    cpu_banners: list[CpuExceptionBanner] = []
+    current_banner: CpuExceptionBanner | None = None
+    in_traceback = False
+    # Strip per-line timestamp prefixes (see ``core.TS_RE`` for the same set
+    # of supported formats); copied here to avoid an import-cycle / so this
+    # module's banner scanner works even if ``core`` is refactored.
+    strip_ts = re.compile(
+        r"^\["
+        r"(?:"
+        r"(?:Serial|UART)[^\]]+"
+        r"|\d{8}-\d{2}:\d{2}:\d{2}(?:\.\d+)?"
+        r"|\d{2}:\d{2}:\d{2}[-.]\d{1,4}"
+        r")"
+        r"\]\s*"
+    )
     try:
         with log_path.open("r", encoding="utf-8", errors="ignore") as fh:
-            for _, line in zip(range(15000), fh):
-                if build and reason and assert_at:
+            for idx, raw_line in enumerate(fh):
+                if idx >= 200_000:
                     break
+                if DUMP_BEGIN in raw_line:
+                    # Base64 dump body starts here; stop scanning preamble.
+                    break
+                line = strip_ts.sub("", raw_line)
                 if not build:
                     m = BUILD_TIME_RE.search(line)
                     if m:
@@ -55,13 +110,122 @@ def _scan_header(log_path: Path) -> HeaderInfo:
                     m = ASSERT_AT_RE.search(line)
                     if m:
                         assert_at = m.group(1).strip()
+
+                m = CPU_BANNER_RE.search(line)
+                if m:
+                    current_banner = CpuExceptionBanner(cpu=int(m.group(1)))
+                    cpu_banners.append(current_banner)
+                    in_traceback = False
+                    continue
+                if current_banner is not None:
+                    if line.strip().lower().startswith("traceback"):
+                        in_traceback = True
+                        continue
+                    if in_traceback:
+                        m = TRACEBACK_RE.search(line)
+                        if m:
+                            for tok in m.group(1).split():
+                                try:
+                                    current_banner.traceback.append(int(tok, 16))
+                                except ValueError:
+                                    pass
+                            current_banner = None
+                            in_traceback = False
+                            continue
+                    rm = CPU_REG_LINE_RE.match(line)
+                    if rm:
+                        try:
+                            current_banner.regs[rm.group(1).lower()] = int(rm.group(2), 16)
+                        except ValueError:
+                            pass
+                    elif line.strip().startswith("***"):
+                        # End-of-banner sentinel (e.g. "***user except handler begin***")
+                        current_banner = None
+                        in_traceback = False
     except OSError:
         pass
     session_label = None
     m = SESSION_FILENAME_RE.search(log_path.name)
     if m:
         session_label = f"{m.group(1)} min session"
-    return HeaderInfo(build, reason, assert_at, session_label)
+    return HeaderInfo(build, reason, assert_at, session_label, cpu_banners)
+
+
+def _decode_cfsr(cfsr: int) -> str:
+    if cfsr == 0:
+        return "0x0 (no fault recorded)"
+    mmfsr = cfsr & 0xFF
+    bfsr = (cfsr >> 8) & 0xFF
+    ufsr = (cfsr >> 16) & 0xFFFF
+    bits: list[str] = []
+    mm_names = [
+        (0x01, "IACCVIOL"), (0x02, "DACCVIOL"), (0x08, "MUNSTKERR"),
+        (0x10, "MSTKERR"), (0x20, "MLSPERR"), (0x80, "MMARVALID"),
+    ]
+    for mask, n in mm_names:
+        if mmfsr & mask:
+            bits.append(f"MM:{n}")
+    bf_names = [
+        (0x01, "IBUSERR"), (0x02, "PRECISERR"), (0x04, "IMPRECISERR"),
+        (0x08, "UNSTKERR"), (0x10, "STKERR"), (0x20, "LSPERR"),
+        (0x80, "BFARVALID"),
+    ]
+    for mask, n in bf_names:
+        if bfsr & mask:
+            bits.append(f"BF:{n}")
+    uf_names = [
+        (0x0001, "UNDEFINSTR"), (0x0002, "INVSTATE"), (0x0004, "INVPC"),
+        (0x0008, "NOCP"), (0x0010, "STKOF"), (0x0100, "UNALIGNED"),
+        (0x0200, "DIVBYZERO"),
+    ]
+    for mask, n in uf_names:
+        if ufsr & mask:
+            bits.append(f"UF:{n}")
+    return f"0x{cfsr:08x} (" + ", ".join(bits) + ")" if bits else f"0x{cfsr:08x}"
+
+
+def _decode_hfsr(hfsr: int) -> str:
+    if hfsr == 0:
+        return "0x0 (no hard fault)"
+    bits: list[str] = []
+    if hfsr & (1 << 1):
+        bits.append("VECTTBL")
+    if hfsr & (1 << 30):
+        bits.append("FORCED")
+    if hfsr & (1 << 31):
+        bits.append("DEBUGEVT")
+    return f"0x{hfsr:08x} (" + ", ".join(bits) + ")" if bits else f"0x{hfsr:08x}"
+
+
+def _decode_exc_return(value: int) -> str:
+    if (value & 0xFFFFFFF0) != 0xFFFFFFF0:
+        return f"0x{value:08x} (not an EXC_RETURN sentinel)"
+    bits: list[str] = []
+    bits.append("Thread" if (value & 0x8) else "Handler")
+    bits.append("PSP" if (value & 0x4) else "MSP")
+    bits.append("noFP" if (value & 0x10) else "FP-stacked")
+    if (value & 0x40):
+        bits.append("S")
+    else:
+        bits.append("NS")
+    return f"0x{value:08x} (" + ", ".join(bits) + ")"
+
+
+def _addr2line_resolve(elf: Path, addrs: list[int]) -> dict[int, str]:
+    if not addrs or not elf.exists():
+        return {}
+    try:
+        out = subprocess.run(
+            ["arm-none-eabi-addr2line", "-piaf", "-e", str(elf), *[f"0x{a:x}" for a in addrs]],
+            check=False, capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    lines = [l for l in out.stdout.splitlines() if l.strip()]
+    result: dict[int, str] = {}
+    for addr, ln in zip(addrs, lines):
+        result[addr] = ln.strip()
+    return result
 
 
 def _summarize_last_irq(summary: IRQRecorderSummary | None) -> str:
@@ -156,6 +320,7 @@ def render_report(
     msp0: MspWalkResult,
     msp1: MspWalkResult,
     peri: PeriReport,
+    decoder_summary: DecoderSummary | None = None,
 ) -> str:
     lines: list[str] = []
     lines.append(f"# Heartbeat-timeout RCA — {log_path.name}")
@@ -172,6 +337,110 @@ def render_report(
         lines.append(f"| Assert at | `{header.assert_at}` |")
     if header.session_label:
         lines.append(f"| Session | {header.session_label} |")
+
+    # ------------------------------------------------------------------
+    # Pre-dump CPU exception banner (older builds emit this even when
+    # the v3 peripheral coverage is missing)
+    # ------------------------------------------------------------------
+    if header.cpu_banners:
+        lines.append("")
+        lines.append("## 0a. Pre-dump CPU exception banner")
+        for banner in header.cpu_banners:
+            r = banner.regs
+            lines.append("")
+            lines.append(f"### CPU{banner.cpu}")
+            interesting = [
+                ("pc", "PC"), ("lr", "LR"), ("sp", "SP"), ("xpsr", "xPSR"),
+                ("msp", "MSP"), ("psp", "PSP"), ("primask", "PRIMASK"),
+                ("basepri", "BASEPRI"), ("control", "CONTROL"),
+                ("er", "EXC_RETURN"), ("cfsr", "CFSR"), ("hfsr", "HFSR"),
+                ("mmfar", "MMFAR"), ("bfar", "BFAR"),
+            ]
+            lines.append("")
+            lines.append("| Reg | Value | Decoded |")
+            lines.append("|---|---|---|")
+            for key, label in interesting:
+                if key not in r:
+                    continue
+                val = r[key]
+                decoded = ""
+                if key == "cfsr":
+                    decoded = _decode_cfsr(val)
+                elif key == "hfsr":
+                    decoded = _decode_hfsr(val)
+                elif key == "er":
+                    decoded = _decode_exc_return(val)
+                lines.append(f"| {label} | 0x{val:08x} | {decoded} |")
+            if banner.traceback:
+                lines.append("")
+                lines.append("**Traceback (per pre-dump banner):**")
+                resolved = _addr2line_resolve(elf_path, banner.traceback)
+                lines.append("")
+                lines.append("```")
+                unresolved_count = 0
+                for a in banner.traceback:
+                    sym = resolved.get(a, "").strip()
+                    # addr2line `-piaf` emits `0xADDR: file:line\n  (inlined ...)`;
+                    # strip the leading address token if present so we don't
+                    # print it twice.
+                    if sym.lower().startswith("0x"):
+                        sym = sym.split(":", 1)[1].strip() if ":" in sym else sym
+                    if sym in ("", "?? ??:0"):
+                        sym = "<not in supplied ELF>"
+                        unresolved_count += 1
+                    lines.append(f"  0x{a:08x}: {sym}")
+                lines.append("```")
+                if unresolved_count == len(banner.traceback):
+                    lines.append(
+                        "> _Note: traceback addresses do not resolve with the supplied AP "
+                        "ELF — these are CP-side addresses (the assert is fired by CP's "
+                        "`mb_ipc_task`). Provide the matching CP ELF to decode them._"
+                    )
+
+    # ------------------------------------------------------------------
+    # Dump coverage — flag mismatches between dumped ranges and ELF
+    # data sections so users can tell at a glance when the supplied
+    # ELF doesn't match the build (or when the dump truncated before
+    # AP user-data was emitted).
+    # ------------------------------------------------------------------
+    if extract.memmap:
+        lines.append("")
+        lines.append("## 0b. Dump coverage")
+        lines.append("")
+        # Compress contiguous blocks for readable display.
+        blocks = sorted(extract.memmap, key=lambda b: b[0])
+        merged: list[tuple[int, int]] = []
+        for start, data in blocks:
+            end = start + len(data)
+            if merged and start == merged[-1][1]:
+                merged[-1] = (merged[-1][0], end)
+            else:
+                merged.append((start, end))
+        lines.append("**Dumped memory ranges:**")
+        lines.append("")
+        lines.append("```")
+        for s, e in merged:
+            lines.append(f"  0x{s:08x} .. 0x{e:08x}  ({e - s} B)")
+        lines.append("```")
+        # Compare to AP ELF symbol clusters: if every probed FreeRTOS
+        # global address sits outside the merged ranges, this means the
+        # dump (or the ELF) doesn't match the AP user-data area.
+        probed_addrs = [g.addr for g in extract.globals]
+        in_dump = sum(
+            1 for a in probed_addrs
+            if any(s <= a < e for s, e in merged)
+        )
+        if probed_addrs and in_dump == 0:
+            sym_lo = min(probed_addrs)
+            sym_hi = max(probed_addrs)
+            lines.append("")
+            lines.append(
+                f"> ⚠️ The supplied AP ELF places its FreeRTOS globals at "
+                f"0x{sym_lo:08x}..0x{sym_hi:08x}, which is **not** covered by "
+                "any dumped memory range. Either the build does not match "
+                "this log or the dump was truncated before AP user-data was "
+                "emitted; recorder/TCB analysis is therefore unavailable."
+            )
 
     # ------------------------------------------------------------------
     # Smoking gun — IRQ recorder
@@ -306,6 +575,58 @@ def render_report(
             "- v2/v3-patch regions (PPHS/PPRO/SYS_AHBP/DPU/GPU/ISP_MI) "
             "**not present** — build predates the patches"
         )
+
+    # ------------------------------------------------------------------
+    # HPDMA / HSPL decoder summary (v3 patch builds only)
+    # ------------------------------------------------------------------
+    if decoder_summary is not None and (
+        decoder_summary.hpdma_block_present
+        or decoder_summary.hspl_locked
+    ):
+        lines.append("")
+        lines.append("## 6b. HPDMA / HSPL decoded snapshot")
+        if decoder_summary.hpdma_block_present:
+            if decoder_summary.hpdma_active_channels:
+                ch_list = ", ".join(f"ch{c}" for c in decoder_summary.hpdma_active_channels)
+                lines.append(f"- HPDMA active channels: {ch_list}")
+                for ch in decoder_summary.hpdma_active_channels:
+                    lines.append(
+                        f"  - ch{ch}: {decoder_summary.hpdma_channel_summary.get(ch, '?')}"
+                    )
+                    cb = decoder_summary.hpdma_finish_callback.get(ch)
+                    if cb:
+                        lines.append(f"      finish_cb -> {cb}")
+            else:
+                lines.append("- HPDMA captured but no channel programmed")
+            pending = decoder_summary.hpdma_finish_int_channels
+            errs = decoder_summary.hpdma_busy_int_channels
+            if pending:
+                lines.append(
+                    "- HPDMA channels with **finish_int pending** at hang: "
+                    + ", ".join(f"ch{c}" for c in pending)
+                )
+            if errs:
+                lines.append(
+                    "- HPDMA channels with **bus/fifo error** at hang: "
+                    + ", ".join(f"ch{c}" for c in errs)
+                )
+        else:
+            lines.append("- HPDMA region not in dump (older build)")
+        if decoder_summary.hspl_locked:
+            lines.append("")
+            lines.append("**HSPL channels currently locked:**")
+            for hspl_id, ch, res, owner in decoder_summary.hspl_locked:
+                lines.append(
+                    f"- HSPL{hspl_id} ch{ch} ({res}): owner_id={owner}"
+                )
+            if any(hspl_id == 1 for hspl_id, *_ in decoder_summary.hspl_locked):
+                lines.append(
+                    "  - _HSPL1 is AP SMP-internal only; CP cannot lock HSPL1 "
+                    "channels (see `ap/middleware/driver/hspl/README.md`). The "
+                    "owner_id is an AP-side master-ID, never CP._"
+                )
+        else:
+            lines.append("- HSPL: no channel has owner_valid=1 in dump")
 
     # ------------------------------------------------------------------
     # Next steps

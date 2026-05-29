@@ -9,10 +9,23 @@ from pathlib import Path
 from typing import Iterable
 
 # region:HPDMA, stack_top=4c300000, stack end=4c300140
-# The serial logger prepends "[Serial-COM*-YYYYMMDD-HH:MM:SS.mmm]" timestamps
-# which must be stripped before base64 decode (every line is otherwise off-
-# alignment by the embedded timestamp bytes).
-TS_RE = re.compile(r"^\[(?:Serial|UART)-[^\]]+\]\s*")
+# Different serial loggers prepend different per-line timestamp prefixes
+# which must be stripped before base64 decode (otherwise every line is
+# off-alignment by the embedded timestamp bytes). Known formats:
+#   "[Serial-COM4-20260518-22:51:25]"      (Junjie's logger)
+#   "[Serial-COM14 (2)20260518-23:31:41]"  (Junjie's variant with " (n)")
+#   "[20260518-23:25:51]"                  (Wei Feng's bare-date logger)
+#   "[04:44:17-795]"                       (Hangxun's HH:MM:SS-ms logger)
+#   "[UART-COMx-YYYYMMDD-...]"             (older builds)
+TS_RE = re.compile(
+    r"^\["
+    r"(?:"
+    r"(?:Serial|UART)[^\]]+"                    # Serial-/UART- prefixed
+    r"|\d{8}-\d{2}:\d{2}:\d{2}(?:\.\d+)?"       # YYYYMMDD-HH:MM:SS[.ms]
+    r"|\d{2}:\d{2}:\d{2}[-.]\d{1,4}"            # HH:MM:SS-mmm or HH:MM:SS.mmm
+    r")"
+    r"\]\s*"
+)
 BEGIN_RE = re.compile(
     r">>>>stack mem dump begin,\s*region:\s*(?P<region>\S+?),"
     r"\s*stack_top=(?P<top>[0-9a-fA-F]+),\s*stack end=(?P<end>[0-9a-fA-F]+)"
