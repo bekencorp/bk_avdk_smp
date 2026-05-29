@@ -263,6 +263,14 @@ int driver_early_init(void)
 int driver_init(void) {
 	sys_drv_init();
 
+#if CONFIG_FLASH && CONFIG_AP_EMUBOOT
+	/* CP programs flash / mux first; AP must not touch UART/IPC/flash until CP sets
+	 * flash_init_done. A blind long delay used to mask this race; wait explicitly here. */
+	if (wait_for_cp_flash_init_done() != BK_OK) {
+		return BK_FAIL;
+	}
+#endif
+
 	bk_gpio_driver_init();
 
 	//Important notice!!!!!
@@ -324,10 +332,6 @@ int driver_init(void) {
 
 #if CONFIG_FLASH
 #if CONFIG_AP_EMUBOOT
-	if (wait_for_cp_flash_init_done() != BK_OK) {
-		return BK_FAIL;
-	}
-
 	if (bk_flash_driver_init() != BK_OK) {
 		BK_LOGE(NULL, "ap flash driver init failed\r\n");
 		return BK_FAIL;
