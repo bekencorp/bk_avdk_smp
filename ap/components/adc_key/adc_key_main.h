@@ -49,10 +49,18 @@ extern "C" {
 #define ADC_KEY1_SADC_CHAN_ID  CONFIG_ADC_KEY1_ADC_CHAN
 #endif
 
-#define ADCKEY_TMR_DURATION      80
-#define ADCKEY_TICKS_INTERVAL    80	//ms
-#define ADCKEY_DEBOUNCE_TICKS    1	//MAX 8
-#define ADCKEY_SHORT_TICKS       (400 / ADCKEY_TICKS_INTERVAL)
+/*
+ * ADC key timing aligned with GPIO key (multi_button) for comparable
+ * short-press latency. CP sampler clamps period to >= 20 ms
+ * (ADC_KEY_SAMPLER_PERIOD_MS_MIN in cp/.../saradc_server.c), so 20 ms
+ * is the practical lower bound on AP side as well. If ADC noise causes
+ * state-machine bounce after this tuning, raise ADCKEY_DEBOUNCE_TICKS
+ * to 2 or 3 (max 8 -- limited by debounce_cnt:uint8_t).
+ */
+#define ADCKEY_TMR_DURATION      20
+#define ADCKEY_TICKS_INTERVAL    20	//ms, must equal ADCKEY_TMR_DURATION
+#define ADCKEY_DEBOUNCE_TICKS    1	//MAX 8 (1 tick = 20ms, vs GPIO 18ms)
+#define ADCKEY_SHORT_TICKS       (100 / ADCKEY_TICKS_INTERVAL)
 #define ADCKEY_LONG_TICKS        ((CONFIG_ADC_KEY_LONG_PRESS_MS + ADCKEY_TICKS_INTERVAL - 1) / ADCKEY_TICKS_INTERVAL)
 
 typedef void (*adc_key_callback)(void *);
