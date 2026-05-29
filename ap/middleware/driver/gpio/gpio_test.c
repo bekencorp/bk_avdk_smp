@@ -549,11 +549,15 @@ static void cli_gpio_clk_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc,
 #endif
 }
 
-#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
-static void cli_gpio_dump_map_dev_cfg_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+static void cli_gpio_dump_pin_status_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
-	extern bk_err_t gpio_dump_map_dev_cfg(void);
-	gpio_dump_map_dev_cfg();
+	bk_gpio_dump_pin_status();
+}
+
+#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
+static void cli_gpio_dump_default_map_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+	bk_gpio_dump_default_map_init_effect();
 }
 #endif
 
@@ -577,8 +581,9 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_gpio_commands[] = {
 	{"gpio_uart_write", "[index][div(baud_rate=1Mbps/(1+div))][string]", cli_gpio_simulate_uart_write_cmd},
 #endif
 	{"gpio_cpu1_set_id", "[gpio_cpu1_set_id] [cpu1_output_gpio_id]", cli_gpio_cpu1_set_id_cmd},
+	{"gpio_dump", "gpio_dump    print function/pull/level/int state of every GPIO pin", cli_gpio_dump_pin_status_cmd},
 #if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
-	{"gpio_dump_map_dev_cfg", "gpio_dump_map_dev_cfg", cli_gpio_dump_map_dev_cfg_cmd}
+	{"gpio_default_map", "gpio_default_map    diff before/after gpio_default_map_init()", cli_gpio_dump_default_map_cmd},
 #endif
 };
 

@@ -138,7 +138,7 @@ static void i2c1_isr(void);
 static void i2c2_isr(void);
 #endif
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 //if the special hardware/board needs to over-write the I2C GPIO,please implement it here like i2c_init_gpio
 #else
 static void i2c_init_gpio(i2c_id_t id)
@@ -273,7 +273,7 @@ static void i2c_id_init_common(i2c_id_t id)
 	i2c_clock_enable(id);
 	i2c_interrupt_enable(id);
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 	/*
 	 * GPIO info is setted in GPIO_DEFAULT_DEV_CONFIG and
 	 * inited in bk_gpio_driver_init->gpio_hal_default_map_init.

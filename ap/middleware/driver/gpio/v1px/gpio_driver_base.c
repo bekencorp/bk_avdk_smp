@@ -154,7 +154,7 @@ bk_err_t bk_gpio_driver_init(void)
 #endif
 #endif
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 	gpio_hal_default_map_init(&s_gpio.hal);
 #endif
 
@@ -616,7 +616,7 @@ static void gpio_config_wakeup_function(void)
 		s_gpio_is_setted_wake_status |= ((uint64_t)1 << gpio_wakeup_map[i].id);
 	}
 
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 	const gpio_default_map_t default_map[] = GPIO_DEFAULT_DEV_CONFIG;
 	for(i = 0; i < sizeof(default_map)/sizeof(gpio_default_map_t); i++)
 	{
@@ -849,7 +849,7 @@ static void gpio_lowpower_keep_status_init(void)
 	uint32_t i = 0;
 
 	//has configured in default map with static mode
-#if CONFIG_GPIO_DEFAULT_SET_SUPPORT
+#if CONFIG_USR_GPIO_CFG_EN
 	const gpio_default_map_t default_map[] = GPIO_DEFAULT_DEV_CONFIG;
 
 	for(i = 0; i < sizeof(default_map)/sizeof(gpio_default_map_t); i++)
@@ -1258,12 +1258,5 @@ bk_err_t bk_gpio_ana_register_wakeup_source(gpio_id_t gpio_id, gpio_int_type_t i
 	enter_conf.args = NULL;
 
 	return bk_pm_sleep_register_cb(PM_MODE_SUPER_DEEP_SLEEP, PM_DEV_ID_GPIO, &enter_conf, NULL);
-}
-#endif
-
-#if CONFIG_GPIO_DUMP_MAP_DEV_DEBUG
-bk_err_t gpio_dump_map_dev_cfg(void)
-{
-	return gpio_hal_dump_map_dev_cfg(&s_gpio.hal);
 }
 #endif

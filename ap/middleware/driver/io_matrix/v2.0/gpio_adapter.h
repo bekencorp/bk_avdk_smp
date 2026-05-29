@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-IOMX_CODE_T contert_gpio_dev_to_iomx_code(gpio_dev_t dev);
+IOMX_CODE_T convert_gpio_dev_to_iomx_code(gpio_dev_t dev);
 
 #ifdef __cplusplus
 }

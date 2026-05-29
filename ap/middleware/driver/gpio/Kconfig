@@ -53,10 +53,6 @@ menu "GPIO"
 		bool "Enable GPIO simulate uart write data"
 		default n
 
-	config GPIO_DEFAULT_SET_SUPPORT
-		bool "Enable GPIO default set devs"
-		default n
-
 	config GPIO_ANA_WAKEUP_SUPPORT
 		bool "Enable GPIO wakeup system from analog channel"
 		default n
@@ -75,7 +71,6 @@ menu "GPIO"
 
 	config USR_GPIO_CFG_EN
 		bool "Enable user-defined GPIO config for each project"
-		depends on GPIO_DEFAULT_SET_SUPPORT
 		default n
 
 	config GPIO_TEST
@@ -85,6 +80,7 @@ menu "GPIO"
 
 	config GPIO_DUMP_MAP_DEV_DEBUG
 		bool "Enable GPIO MAP DEV DEBUG CODE"
+		depends on USR_GPIO_CFG_EN
 		default n
 
 	config LDO3V3_CTRL_GPIO
