@@ -525,6 +525,13 @@ if (CONFIG_LVGL)
 		target_compile_definitions(${COMPONENT_LIB} PUBLIC LV_CONF_PATH="${_project_lv_conf_custom}")
 	endif()
 
+	if(CONFIG_LVGL_V9)
+		# Keep lv_memset/lv_memcpy from being emitted as wide stores on PSRAM buffers.
+		set_source_files_properties(lvgl_v9/src/stdlib/builtin/lv_string_builtin.c
+			PROPERTIES COMPILE_OPTIONS "-fno-tree-vectorize"
+		)
+	endif()
+
 	target_compile_options(${COMPONENT_LIB} PRIVATE -O3)
 endif()
 
