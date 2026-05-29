@@ -12,3 +12,5 @@ CONFIG_FREERTOS_V10=y
 # CONFIG_WIFI_CLI_DEBUG is not set
 # CONFIG_WIFI_VNET_CONTROLLER is not set
 # CONFIG_PSRAM is not set
+# CONFIG_PHY_MB is not set
+# CONFIG_SARADC_MB is not set
