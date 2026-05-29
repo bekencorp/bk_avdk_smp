@@ -21,10 +21,15 @@
 #define IPI_TEST_LOGI(...) BK_LOGI(IPI_TEST_TAG, ##__VA_ARGS__)
 #define IPI_TEST_LOGD(...) BK_LOGD(IPI_TEST_TAG, ##__VA_ARGS__)
 
-/* Test callback for IPI interrupt */
-static void ipi_test_callback(ipi_core_id_t core_id, uint32_t value, void *param)
+#define IPI_TEST_VALUE_TO_EVENT(value)   (((value) >> IPI_VALUE_EVENT_POS) & 0xFF)
+#define IPI_TEST_VALUE_TO_PAYLOAD(value) ((value) & IPI_VALUE_PAYLOAD_MASK)
+
+/* TEST-domain callback for IPI interrupt */
+static void ipi_test_callback(ipi_core_id_t core_id, uint32_t value,
+	uint8_t src_cpu, uint8_t event, uint16_t payload, void *param)
 {
-	IPI_TEST_LOGI("IPI callback: core_id=%d, value=0x%08X, param=0x%p\r\n", core_id, value, param);
+	IPI_TEST_LOGI("IPI callback: core_id=%d, value=0x%08X, src=%u, event=0x%02X, payload=0x%04X, param=0x%p\r\n",
+		core_id, value, src_cpu, event, payload, param);
 }
 
 static void cli_ipi_help(void)
@@ -60,23 +65,23 @@ static void cli_ipi_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
 		 * Default: only enable local CP channels (0/1) to avoid interfering with AP/DSP.
 		 * Use `ipi_driver init all` if you want to enable all channels.
 		 */
+		BK_LOG_ON_ERR(bk_ipi_register_domain_callback(IPI_DOMAIN_TEST, ipi_test_callback, NULL));
 		for (core_id = 0; core_id < IPI_CORE_MAX; core_id++) {
 			if (!init_all && (core_id != IPI_CP_CORE0) && (core_id != IPI_CP_CORE1)) {
 				continue;
 			}
-			BK_LOG_ON_ERR(bk_ipi_register_callback(core_id, ipi_test_callback, (void *)(unsigned long)core_id));
 			BK_LOG_ON_ERR(bk_ipi_enable(core_id));
 		}
 
-		CLI_LOGD("IPI test callbacks registered successfully\r\n");
+		CLI_LOGD("IPI TEST-domain callback registered successfully\r\n");
 
 	} else if (os_strcmp(argv[1], "deinit") == 0) {
 		/* Only disable channels/unregister callbacks; keep driver initialized */
 		for (core_id = 0; core_id < IPI_CORE_MAX; core_id++) {
 			BK_LOG_ON_ERR(bk_ipi_disable(core_id));
-			BK_LOG_ON_ERR(bk_ipi_unregister_callback(core_id));
 		}
-		CLI_LOGD("IPI test callbacks unregistered successfully\r\n");
+		BK_LOG_ON_ERR(bk_ipi_unregister_domain_callback(IPI_DOMAIN_TEST));
+		CLI_LOGD("IPI TEST-domain callback unregistered successfully\r\n");
 	} else {
 		cli_ipi_help();
 		return;
@@ -97,12 +102,12 @@ static void cli_ipi_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char
 		}
 		ipi_core_id_t core_id = (ipi_core_id_t)os_strtoul(argv[2], NULL, 10);
 		uint32_t raw_value = os_strtoul(argv[3], NULL, 16);
-		uint32_t src_cpu = rtos_get_core_id() & 0xF;
-		uint32_t value = (raw_value & 0x0FFFFFFF) | (src_cpu << 28);
-		bk_err_t ret = bk_ipi_send(core_id, value);
+		uint8_t event = IPI_TEST_VALUE_TO_EVENT(raw_value);
+		uint16_t payload = IPI_TEST_VALUE_TO_PAYLOAD(raw_value);
+		bk_err_t ret = bk_ipi_send_domain(core_id, IPI_DOMAIN_TEST, event, payload);
 		if (ret == BK_OK) {
-			CLI_LOGD("Sent IPI: from_cpu=%u -> core %d, raw=0x%08X, encoded=0x%08X\r\n",
-			         (unsigned)rtos_get_core_id(), core_id, raw_value, value);
+			CLI_LOGD("Sent TEST-domain IPI: from_cpu=%u -> core %d, raw=0x%08X, event=0x%02X, payload=0x%04X\r\n",
+			         (unsigned)rtos_get_core_id(), core_id, raw_value, event, payload);
 		} else {
 			CLI_LOGE("Failed to send IPI: %d\r\n", ret);
 		}

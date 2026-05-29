@@ -298,10 +298,15 @@ void usbh_musb_disconnect_set_status(void);
 void usbh_musb_connect_set_status(void);
 
 #if CONFIG_IPI
-static void usb_hc_riscv_ipi_cb(ipi_core_id_t core_id, uint32_t value, void *param)
+static void usb_hc_riscv_ipi_cb(ipi_core_id_t core_id, uint32_t value,
+                                uint8_t src_cpu, uint8_t event, uint16_t payload,
+                                void *param)
 {
     (void)core_id;
     (void)value;
+    (void)src_cpu;
+    (void)event;
+    (void)payload;
     (void)param;
     usb_hc_riscv_poll_events();
 }
@@ -406,9 +411,9 @@ static bk_err_t usb_hc_riscv_ipi_enable(void)
         return ret;
     }
 
-    ret = bk_ipi_register_callback(IPI_AP_CORE0, usb_hc_riscv_ipi_cb, NULL);
+    ret = bk_ipi_register_domain_callback(IPI_DOMAIN_USB, usb_hc_riscv_ipi_cb, NULL);
     if (ret != BK_OK) {
-        USB_LOG_ERR("%s register callback failed: %d\r\n", __func__, ret);
+        USB_LOG_ERR("%s register domain callback failed: %d\r\n", __func__, ret);
         return ret;
     }
 

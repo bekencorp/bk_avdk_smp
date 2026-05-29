@@ -28,15 +28,14 @@
 #define IPI_LOGE(...) BK_LOGE(IPI_TAG, ##__VA_ARGS__)
 #define IPI_LOGD(...) BK_LOGD(IPI_TAG, ##__VA_ARGS__)
 
-/* Callback structure */
 typedef struct {
-	ipi_callback_t callback;
+	ipi_domain_callback_t callback;
 	void *param;
-} ipi_callback_info_t;
+} ipi_domain_callback_info_t;
 
 /* Driver state */
 static bool s_ipi_driver_init = false;
-static ipi_callback_info_t s_ipi_callbacks[IPI_CORE_MAX] = {0};
+static ipi_domain_callback_info_t s_ipi_domain_callbacks[IPI_DOMAIN_MAX] = {0};
 static ipi_hal_t s_ipi_hal;
 
 static void bk_ipi_isr_dispatch(void);
@@ -58,9 +57,9 @@ bk_err_t bk_ipi_driver_init(void)
 	BK_LOG_ON_ERR(ipi_hal_init(&s_ipi_hal));
 
 	/* Initialize callbacks */
-	for (int i = 0; i < IPI_CORE_MAX; i++) {
-		s_ipi_callbacks[i].callback = NULL;
-		s_ipi_callbacks[i].param = NULL;
+	for (int i = 0; i < IPI_DOMAIN_MAX; i++) {
+		s_ipi_domain_callbacks[i].callback = NULL;
+		s_ipi_domain_callbacks[i].param = NULL;
 	}
 
 	/* Clear all interrupts */
@@ -123,9 +122,9 @@ bk_err_t bk_ipi_driver_deinit(void)
 	}
 
 	/* Clear all callbacks */
-	for (int i = 0; i < IPI_CORE_MAX; i++) {
-		s_ipi_callbacks[i].callback = NULL;
-		s_ipi_callbacks[i].param = NULL;
+	for (int i = 0; i < IPI_DOMAIN_MAX; i++) {
+		s_ipi_domain_callbacks[i].callback = NULL;
+		s_ipi_domain_callbacks[i].param = NULL;
 	}
 
 	s_ipi_driver_init = false;
@@ -133,7 +132,7 @@ bk_err_t bk_ipi_driver_deinit(void)
 	return BK_OK;
 }
 
-bk_err_t bk_ipi_send(ipi_core_id_t core_id, uint32_t value)
+static bk_err_t ipi_send_value(ipi_core_id_t core_id, uint32_t value)
 {
 	if (!s_ipi_driver_init) {
 		IPI_LOGE("IPI driver not initialized\r\n");
@@ -148,6 +147,22 @@ bk_err_t bk_ipi_send(ipi_core_id_t core_id, uint32_t value)
 	BK_LOG_ON_ERR(ipi_hal_send(&s_ipi_hal, core_id, value));
 
 	return BK_OK;
+}
+
+bk_err_t bk_ipi_send_domain(ipi_core_id_t core_id, ipi_domain_t domain, uint8_t event, uint16_t payload)
+{
+	uint32_t src_cpu;
+	uint32_t value;
+
+	if ((domain <= IPI_DOMAIN_RESERVED) || (domain >= IPI_DOMAIN_MAX)) {
+		IPI_LOGE("Invalid IPI domain: %d\r\n", domain);
+		return BK_FAIL;
+	}
+
+	src_cpu = rtos_get_core_id() & 0xF;
+	value = IPI_VALUE_MAKE(src_cpu, domain, event, payload);
+
+	return ipi_send_value(core_id, value);
 }
 
 uint32_t bk_ipi_get_status(ipi_core_id_t core_id)
@@ -217,38 +232,38 @@ bk_err_t bk_ipi_disable(ipi_core_id_t core_id)
 	return ipi_hal_disable_channel(&s_ipi_hal, core_id);
 }
 
-bk_err_t bk_ipi_register_callback(ipi_core_id_t core_id, ipi_callback_t callback, void *param)
+bk_err_t bk_ipi_register_domain_callback(ipi_domain_t domain, ipi_domain_callback_t callback, void *param)
 {
 	if (!s_ipi_driver_init) {
 		IPI_LOGE("IPI driver not initialized\r\n");
 		return BK_FAIL;
 	}
 
-	if (!ipi_is_valid_core(core_id)) {
-		IPI_LOGE("Invalid core ID: %d\r\n", core_id);
+	if ((domain <= IPI_DOMAIN_RESERVED) || (domain >= IPI_DOMAIN_MAX) || (callback == NULL)) {
+		IPI_LOGE("Invalid IPI domain callback: domain=%d callback=0x%p\r\n", domain, callback);
 		return BK_FAIL;
 	}
 
-	s_ipi_callbacks[core_id].callback = callback;
-	s_ipi_callbacks[core_id].param = param;
+	s_ipi_domain_callbacks[domain].callback = callback;
+	s_ipi_domain_callbacks[domain].param = param;
 
 	return BK_OK;
 }
 
-bk_err_t bk_ipi_unregister_callback(ipi_core_id_t core_id)
+bk_err_t bk_ipi_unregister_domain_callback(ipi_domain_t domain)
 {
 	if (!s_ipi_driver_init) {
 		IPI_LOGE("IPI driver not initialized\r\n");
 		return BK_FAIL;
 	}
 
-	if (!ipi_is_valid_core(core_id)) {
-		IPI_LOGE("Invalid core ID: %d\r\n", core_id);
+	if ((domain <= IPI_DOMAIN_RESERVED) || (domain >= IPI_DOMAIN_MAX)) {
+		IPI_LOGE("Invalid IPI domain: %d\r\n", domain);
 		return BK_FAIL;
 	}
 
-	s_ipi_callbacks[core_id].callback = NULL;
-	s_ipi_callbacks[core_id].param = NULL;
+	s_ipi_domain_callbacks[domain].callback = NULL;
+	s_ipi_domain_callbacks[domain].param = NULL;
 
 	return BK_OK;
 }
@@ -283,12 +298,17 @@ static void bk_ipi_isr_dispatch(void)
 
 			IPI_LOGD("IPI recv: on_cpu=%u <- src_cpu=%u, value=0x%08X\r\n",
 			         (unsigned)rtos_get_core_id(),
-			         (unsigned)((ipig_val >> 28) & 0xF),
+			         (unsigned)IPI_VALUE_GET_SRC(ipig_val),
 			         (unsigned)ipig_val);
 
-			/* Call registered callback if available */
-			if (s_ipi_callbacks[core_id].callback) {
-				s_ipi_callbacks[core_id].callback(core_id, ipig_val, s_ipi_callbacks[core_id].param);
+			/* All public IPI users are domain encoded. */
+			uint8_t domain = IPI_VALUE_GET_DOMAIN(ipig_val);
+			if ((domain > IPI_DOMAIN_RESERVED) &&
+			    (domain < IPI_DOMAIN_MAX) &&
+			    s_ipi_domain_callbacks[domain].callback) {
+				s_ipi_domain_callbacks[domain].callback(core_id, ipig_val,
+					IPI_VALUE_GET_SRC(ipig_val), IPI_VALUE_GET_EVENT(ipig_val),
+					IPI_VALUE_GET_PAYLOAD(ipig_val), s_ipi_domain_callbacks[domain].param);
 			}
 
 			/* Clear the interrupt */
@@ -300,17 +320,7 @@ static void bk_ipi_isr_dispatch(void)
 #if CONFIG_IPI_DUMP
 void bk_ipi_dump_info(void)
 {
-	const char *core_names[] = {
-		"IPI_CP_CORE0",
-		"IPI_CP_CORE1",
-		"IPI_AP_CORE0",
-		"IPI_AP_CORE1",
-		"IPI_DSP_CORE"
-	};
-
-	ipi_core_id_t core_id;
-
-	IPI_LOGI("=== IPI Callbacks Dump ===\r\n");
+	IPI_LOGI("=== IPI Domain Callbacks Dump ===\r\n");
 	IPI_LOGI("Driver initialized: %s\r\n", s_ipi_driver_init ? "Yes" : "No");
 
 	if (!s_ipi_driver_init) {
@@ -318,22 +328,18 @@ void bk_ipi_dump_info(void)
 		return;
 	}
 
-	for (core_id = 0; core_id < IPI_CORE_MAX; core_id++) {
-		const char *core_name = (core_id < sizeof(core_names) / sizeof(core_names[0])) 
-		                         ? core_names[core_id] : "UNKNOWN";
-		
-		if (s_ipi_callbacks[core_id].callback) {
-			IPI_LOGI("Core[%d] %s: callback=0x%p, param=0x%p\r\n",
-			         core_id,
-			         core_name,
-			         s_ipi_callbacks[core_id].callback,
-			         s_ipi_callbacks[core_id].param);
+	for (uint32_t domain = 1; domain < IPI_DOMAIN_MAX; domain++) {
+		if (s_ipi_domain_callbacks[domain].callback) {
+			IPI_LOGI("Domain[%u]: callback=0x%p, param=0x%p\r\n",
+			         domain,
+			         s_ipi_domain_callbacks[domain].callback,
+			         s_ipi_domain_callbacks[domain].param);
 		} else {
-			IPI_LOGI("Core[%d] %s: callback=NULL\r\n", core_id, core_name);
+			IPI_LOGI("Domain[%u]: callback=NULL\r\n", domain);
 		}
 	}
 
-	IPI_LOGI("=== End of IPI Callbacks Dump ===\r\n");
+	IPI_LOGI("=== End of IPI Domain Callbacks Dump ===\r\n");
 }
 #endif
 
