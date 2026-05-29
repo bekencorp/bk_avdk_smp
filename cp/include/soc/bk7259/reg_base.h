@@ -196,6 +196,12 @@
 #define SOC_UART5_REG_BASE       (0x48110000 + SOC_ADDR_OFFSET)
 #define SOC_TIMER4_REG_BASE      (0x48120000 + SOC_ADDR_OFFSET)
 #define SOC_TIMER5_REG_BASE      (0x48130000 + SOC_ADDR_OFFSET)
+
+/* AP-side peripherals visible on the shared SoC bus; CP needs these
+ * physical bases solely for AP heartbeat-timeout register snapshots. */
+#define SOC_HPDMA_REG_BASE       (0x4C300000 + SOC_ADDR_OFFSET)
+#define SOC_ISP_REG_BASE         (0x4C040000 + SOC_ADDR_OFFSET)
+#define SOC_H26E_REG_BASE        (0x4C100000 + SOC_ADDR_OFFSET)
 /* M55 end */
 
 

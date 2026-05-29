@@ -185,8 +185,16 @@ const bk_dump_mem_info_t bk7259_peri_reg_info[] = {
     {"AON_RTC", (uint32_t)SOC_AON_RTC_REG_BASE, (0x0a*4)},
 #endif
 #if CONFIG_PSRAM
-    {"PSRAM", (uint32_t)SOC_PSRAM_REG_BASE, (0x17*4)},
+    {"PSRAM0", (uint32_t)SOC_PSRAM0_REG_BASE, (0x18*4)},
+    {"PSRAM1", (uint32_t)SOC_PSRAM1_REG_BASE, (0x18*4)},
 #endif
+    /* Bus-stall forensics: HPDMA (master), ISP MI/FE (heavy PSRAM writers),
+     * H26E (encode engine). These are AP-side peripherals but reachable via
+     * the shared SoC address space; CP must include them in peri_reg_info[]
+     * to allow CP-side dump for AP heartbeat-timeout flow. */
+    {"HPDMA",  (uint32_t)SOC_HPDMA_REG_BASE,    (0x50*4)},
+    {"ISP",    (uint32_t)SOC_ISP_REG_BASE,      (0x80*4)},
+    {"H26E",   (uint32_t)SOC_H26E_REG_BASE,     (0x80*4)},
 };
 
 const bk_dump_mem_info_t* bk_get_peri_reg_info_list(void)

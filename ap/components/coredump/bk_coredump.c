@@ -11,6 +11,7 @@
 #include "mb_ipc_cmd.h"
 #include "sys_sw_regs.h"
 #include "memory.h"
+#include "cache.h"
 
 #if CONFIG_SUPPORT_WWDT
 #include "wwdt_driver.h"
@@ -18,6 +19,8 @@
 
 #define BK_EXCEPTION_MAGIC 0xA55AA55A
 #define BK_ASSERT_MAGIC 0x55AA55AA
+#define COREDUMP_IRAM __attribute__((section(".iram"), noinline))
+#define PSRAM_CODE_COMPARE_GRANULARITY 32U
 static volatile bk_assert_info_t s_bk_assert_info;
 static volatile uint32_t s_bk_exception_magic = 0;
 static volatile uint32_t s_core_id = 0;
@@ -118,6 +121,8 @@ static inline void coredump_prompt_epilogue(void)
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
 }
 
+extern void bk_dump_peri_regs(void);
+
 static void coredump_prompt_info(void)
 {
 
@@ -127,8 +132,13 @@ static void coredump_prompt_info(void)
 #endif
 
 #if CONFIG_INTERRUPT_DEBUG_RECORDER
-    bk_interrupt_dump_recorder();
+    // bk_interrupt_dump_recorder();
 #endif
+    /* Snapshot bus-master and bus-slave controller registers (HPDMA, ISP,
+     * H26E, PSRAM0/1) before backtrace, so that even if the CP-side AP
+     * memory pull fails (severe bus hang), the AP's own UART dump still
+     * captures the peripherals most relevant to AXI/PSRAM stalls. */
+    bk_dump_peri_regs();
     rtos_dump_backtrace();
     rtos_dump_task_list();
 #if CONFIG_FREERTOS
@@ -149,6 +159,138 @@ static void coredump_notify_cp_end(void)
 {
 #if (CONFIG_CPU_CNT > 1)
     ipc_send_trap_handle_end();
+#endif
+}
+
+static COREDUMP_IRAM bool coredump_memory_is_different(uint32_t run_addr, uint32_t load_addr, uint32_t size)
+{
+    uint32_t offset = 0;
+
+    while ((offset + sizeof(uint32_t)) <= size) {
+        volatile const uint32_t *run = (volatile const uint32_t *)(run_addr + offset);
+        volatile const uint32_t *load = (volatile const uint32_t *)(load_addr + offset);
+
+        if (*run != *load) {
+            return true;
+        }
+        offset += sizeof(uint32_t);
+    }
+
+    while (offset < size) {
+        volatile const uint8_t *run = (volatile const uint8_t *)(run_addr + offset);
+        volatile const uint8_t *load = (volatile const uint8_t *)(load_addr + offset);
+
+        if (*run != *load) {
+            return true;
+        }
+        offset++;
+    }
+
+    return false;
+}
+
+static COREDUMP_IRAM bool coredump_publish_ap_extra_dump_range(uint32_t start_addr, uint32_t size)
+{
+    ap_extra_dump_info_t info = {0};
+
+    for (uint32_t i = 0; i < BK_SYS_SW_REGS_AP_EXTRA_DUMP_MAX; i++) {
+        if (bk_sys_sw_regs_get_ap_extra_dump(i, &info)) {
+            if ((info.start_addr == start_addr) && (info.size == size)) {
+                return true;
+            }
+            continue;
+        }
+
+        bk_sys_sw_regs_update_ap_extra_dump(i, start_addr, size);
+        return true;
+    }
+
+    return false;
+}
+
+static COREDUMP_IRAM void coredump_report_psram_code_range(uint32_t start_addr, uint32_t end_addr,
+    uint32_t range_index, uint32_t *published_count, uint32_t *dropped_count)
+{
+    uint32_t size = end_addr - start_addr;
+    bool published = coredump_publish_ap_extra_dump_range(start_addr, size);
+
+    if (published) {
+        (*published_count)++;
+    } else {
+        (*dropped_count)++;
+    }
+
+    BK_DUMP_OUT("AP_PSRAM_CODE modified range[%lu]: start=0x%08lx, end=0x%08lx, size=0x%08lx, publish=%lu\r\n",
+        range_index, start_addr, end_addr, size, published ? 1UL : 0UL);
+}
+
+static COREDUMP_IRAM void coredump_check_psram_code(void)
+{
+#if CONFIG_PSRAM
+    bk_psram_code_info_t info = {0};
+    uint32_t range_start = 0;
+    uint32_t range_end = 0;
+    uint32_t range_count = 0;
+    uint32_t published_count = 0;
+    uint32_t dropped_count = 0;
+
+    bk_get_psram_code_info(&info);
+    if ((info.run_addr == 0U) || (info.load_addr == 0U) || (info.size == 0U)) {
+        BK_DUMP_OUT("AP_PSRAM_CODE empty window, skip compare\r\n");
+        return;
+    }
+
+#if CONFIG_DCACHE
+    arch_dcache_flush_and_invd_range((void *)info.run_addr, info.size);
+    __DSB();
+    BK_DUMP_OUT("AP_PSRAM_CODE compare after dcache clean-invalidate, run=0x%08lx, load=0x%08lx, size=0x%08lx\r\n",
+        info.run_addr, info.load_addr, info.size);
+#else
+    BK_DUMP_OUT("AP_PSRAM_CODE compare, run=0x%08lx, load=0x%08lx, size=0x%08lx\r\n",
+        info.run_addr, info.load_addr, info.size);
+#endif
+
+    for (uint32_t offset = 0; offset < info.size; offset += PSRAM_CODE_COMPARE_GRANULARITY) {
+        uint32_t chunk_size = info.size - offset;
+        uint32_t chunk_start = info.run_addr + offset;
+
+        if (chunk_size > PSRAM_CODE_COMPARE_GRANULARITY) {
+            chunk_size = PSRAM_CODE_COMPARE_GRANULARITY;
+        }
+
+        if (coredump_memory_is_different(chunk_start, info.load_addr + offset, chunk_size)) {
+            if (range_start == 0U) {
+                range_start = chunk_start;
+            }
+            range_end = chunk_start + chunk_size;
+        } else if (range_start != 0U) {
+            coredump_report_psram_code_range(range_start, range_end, range_count,
+                &published_count, &dropped_count);
+            range_count++;
+            range_start = 0;
+            range_end = 0;
+        }
+    }
+
+    if (range_start != 0U) {
+        coredump_report_psram_code_range(range_start, range_end, range_count,
+            &published_count, &dropped_count);
+        range_count++;
+    }
+
+    BK_DUMP_OUT("AP_PSRAM_CODE compare done, modified_ranges=%lu, published=%lu, dropped=%lu\r\n",
+        range_count, published_count, dropped_count);
+#else
+    BK_DUMP_OUT("AP_PSRAM_CODE compare skipped, PSRAM disabled\r\n");
+#endif
+}
+
+static COREDUMP_IRAM void coredump_flush_for_cp_dump(void)
+{
+#if CONFIG_DCACHE
+    arch_dcache_flush_all();
+    __DSB();
+    BK_DUMP_OUT("AP coredump dcache flushed before CP RAM dump\r\n");
 #endif
 }
 
@@ -184,6 +326,7 @@ static void bk_exception_dump_main(bk_exception_t *self)
     bk_coredump_registers(self);
 
     coredump_publish_ap_psram_windows();
+    coredump_check_psram_code();
     coredump_notify_cp_begin();
 
     coredump_prompt_prologue();
@@ -200,6 +343,7 @@ static void bk_exception_dump_main(bk_exception_t *self)
 
     bk_coredump_writer_deinit();
 
+    coredump_flush_for_cp_dump();
     coredump_notify_cp_end();
 }
 
