@@ -104,13 +104,6 @@ typedef void (*bt_hci_send_cb_t)(uint8_t *buf, uint16_t len);
 int32_t bt_ipc_init(void);
 void bt_ipc_set_state(uint8_t state);
 uint8_t bt_ipc_get_state(void);
-/* Notify bt_ipc that the AP has been powered off outside the normal
- * BT_VENDOR_SUB_OPCODE_DEINIT handshake (e.g. PM framework, debug CLI).
- * Always provided so generic callers (e.g. cli_pwr) do not need to know
- * about CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL; on builds where AP power
- * management is not used the call is effectively a no-op because state
- * never reaches PEEP_READY. */
-void bt_ipc_notify_ap_power_off(void);
 /* Weak hook invoked from bt_ipc_notify_ap_power_off(). Adapters that need
  * to be told about an external AP power-off should provide a strong
  * definition; the default implementation is a no-op. */

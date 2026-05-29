@@ -93,21 +93,10 @@ __attribute__((weak)) void bt_ipc_on_ap_power_off_hook(void)
 {
 }
 
-/* External notification that the AP has been powered off (e.g. by the PM
- * framework or a debug CLI command) without going through the normal
- * BT_VENDOR_SUB_OPCODE_DEINIT handshake. Rewinds the bt_ipc state machine to
- * LOCAL_READY so that the next CP-originated bt_ipc_mailbox_send_msg() will
- * vote AP boot via bt_ipc_wait_ap_ble_ready() instead of blindly writing the
- * mailbox to a powered-down peer, and notifies any adapter that cached
- * AP-side readiness state via the bt_ipc_on_ap_power_off_hook() weak hook.
- *
- * Always built (does not depend on AP_PWD_ALL): on non-AP_PWD_ALL builds the
- * state machine never reaches PEEP_READY, so the body is effectively a no-op
- * apart from the hook callback -- which is what we want so that generic
- * callers (e.g. cli_pwr) can call this unconditionally.
- */
-void bt_ipc_notify_ap_power_off(void)
+static void bt_ipc_notify_ap_power_off(void *arg)
 {
+    (void)arg;
+    LOGD("bt_ipc_notify_ap_power_off\n");
     bt_ipc_on_ap_power_off_hook();
     if (bt_ipc_env.state == BT_IPC_STATE_PEEP_READY) {
         bt_ipc_set_state(BT_IPC_STATE_LOCAL_READY);
@@ -662,6 +651,11 @@ int32_t bt_ipc_init(void)
     }
 
     bt_ipc_env.state = BT_IPC_STATE_LOCAL_READY;
+
+    #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
+    bk_pm_ap_ctrl_callback_register(bt_ipc_notify_ap_power_off, NULL);
+    #endif
+
     LOGD("%s success\n", __func__);
 
     return 0;
