@@ -396,6 +396,7 @@ int app_isp_mipi_camera_mp_turn_on(const camera_board_config_t *config, bk_isp_c
     if (ret != AVDK_ERR_OK)
     {
         LOGE("%s, %d, bk_isp_camera_channel_open failed ret: %d\n", __func__, __LINE__, ret);
+        return ret;
     }
 
     return AVDK_ERR_OK;
@@ -596,6 +597,7 @@ int app_isp_camera_sp_channel_turn_on(const camera_board_config_t *config)
     if (ret != AVDK_ERR_OK)
     {
         LOGE("%s, %d, bk_isp_camera_channel_open failed ret: %d\n", __func__, __LINE__, ret);
+        return ret;
     }
 
     return AVDK_ERR_OK;

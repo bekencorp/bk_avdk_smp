@@ -43,4 +43,12 @@ menu "AVDK NN Module"
 	config COMMON_LVGL_UI
 		bool "Enable common LVGL UI"
 		default y
+
+	config AVDK_VIDEO_REATOR_OSD_WORKER_PRIORITY
+		int "AVDK video reator OSD worker task priority"
+		default 6
+
+	config AVDK_VIDEO_REATOR_OSD_WORKER_STACK_SIZE
+		int "AVDK video reator OSD worker task stack size"
+		default 10240
 endmenu

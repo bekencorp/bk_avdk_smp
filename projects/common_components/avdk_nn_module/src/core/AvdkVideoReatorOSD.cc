@@ -57,6 +57,7 @@ AvdkVideoReatorOSD::AvdkVideoReatorOSD(AvdkDetectionModel *detection_model)
     this->display_thread = NULL;
     this->thread = NULL;
     this->detect_enable = 0;
+    this->mode = AVDK_VIDEO_REATOR_MODE_DISPLAY;
 
     this->isp_gpu_bond = NULL;
 
@@ -103,7 +104,12 @@ int AvdkVideoReatorOSD::init()
     LOGI("AvdkVideoReatorOSD::init\n");
 
     detection_model->LogEnable(true);
-    detection_model->init();
+    int ret = detection_model->init();
+    if (ret != BK_OK)
+    {
+        LOGE("detection_model init failed, ret: %d\n", ret);
+        return ret;
+    }
 
     if (BK_PIXEL_FORMAT_RGB888 == detection_model->getFormat())
     {
@@ -112,6 +118,11 @@ int AvdkVideoReatorOSD::init()
     else
     {
         frame_size = bk_image_size_get(detection_model->getWidth(), detection_model->getHeight(), detection_model->getFormat());
+    }
+    if (frame_size == 0)
+    {
+        LOGE("invalid model frame format: %d\n", detection_model->getFormat());
+        return BK_FAIL;
     }
 
     soruce_frame = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, frame_size);
@@ -128,31 +139,44 @@ int AvdkVideoReatorOSD::init()
 int AvdkVideoReatorOSD::start()
 {
     int ret = rtos_create_hsram_thread(&thread,
-        BEKEN_DEFAULT_WORKER_PRIORITY,
+        CONFIG_AVDK_VIDEO_REATOR_OSD_WORKER_PRIORITY,
         "worker_thread",
         (beken_thread_function_t)WorkerThreadEntry,
-        1024 * 20,
+        CONFIG_AVDK_VIDEO_REATOR_OSD_WORKER_STACK_SIZE,
         (void *)this);
 
     if (ret != BK_OK)
     {
-    LOGE("create worker_thread fail\n");
+        LOGE("create worker_thread fail\n");
+        return ret;
     }
 
-    return 0;
+    return BK_OK;
 }
 
 int AvdkVideoReatorOSD::OpenISPCamera()
 {
     LOGI("AvdkVideoReatorOSD::OpenISPCamera\n");
+    int ret = BK_OK;
 
     camera_board_config_t *board_config = app_camera_board_config_get();
     board_config->isp.sp_width = detection_model->getWidth();
     board_config->isp.sp_height = detection_model->getHeight();
     board_config->isp.sp_format = detection_model->getFormat();
 
-    app_isp_mipi_camera_turn_on(app_camera_board_config_get());
-    app_isp_camera_sp_channel_turn_on(board_config);
+    ret = app_isp_mipi_camera_turn_on(app_camera_board_config_get());
+    if (ret != BK_OK)
+    {
+        LOGE("app_isp_mipi_camera_turn_on failed, ret: %d\n", ret);
+        return ret;
+    }
+
+    ret = app_isp_camera_sp_channel_turn_on(board_config);
+    if (ret != BK_OK)
+    {
+        LOGE("app_isp_camera_sp_channel_turn_on failed, ret: %d\n", ret);
+        return ret;
+    }
 
     return 0;
 }
