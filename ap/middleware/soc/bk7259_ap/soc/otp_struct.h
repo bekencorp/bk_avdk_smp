@@ -168,6 +168,14 @@ typedef volatile union {
 
 typedef volatile union {
 	struct {
+		uint32_t puf_hck_cfg      : 32; /**<bit[0 : 31] PUF health check pre-config, vendor-required write of 0x31D0303 before do_puf_health_check*/
+	};
+	uint32_t v;
+} puf_hck_cfg_t;
+
+
+typedef volatile union {
+	struct {
 		uint32_t intrpt_st        : 10; /**<bit[0 : 9] 		[0] 1: problem with power supply
 															[1] 1: conflict on output data
 															[2] 1: input parity check fail
@@ -366,23 +374,25 @@ typedef volatile struct {
 	volatile cde_psmask_t    cde_mask[2];                  /*reg 0xA0-0xA1*/
 	volatile uint32_t        reserved6[6];                 /*reg 0xA2-0xA7*/
 	volatile random_value_t  random_value;                 /*reg 0xA8*/
-	volatile uint32_t        reserved7[3];                 /*reg 0xA9-0xAB*/
+	volatile uint32_t        reserved7;                    /*reg 0xA9*/
+	volatile puf_hck_cfg_t   puf_hck_cfg;                  /*reg 0xAA*/
+	volatile uint32_t        reserved8;                    /*reg 0xAB*/
 	volatile intrpt_t        intrpt;                       /*reg 0xAC*/
 	volatile otp_psmask_t    otp_mask[2];                  /*reg 0xAD-0xAE*/
 	volatile puf_psmask_t    puf_mask;                     /*reg 0xAF*/
 	volatile version_t       version;                      /*reg 0xB0*/
 	volatile status_t        status;                       /*reg 0xB1*/
 	volatile otp_hard_t      hardware;                     /*reg 0xB2*/
-	volatile uint32_t        reserved8;                    /*reg 0xB3*/
+	volatile uint32_t        reserved9;                    /*reg 0xB3*/
 	volatile auto_repair_t   auto_repair;                  /*reg 0xB4*/
 	volatile ini_off_chk_t   ini_off_check;                /*reg 0xB5*/
-	volatile uint32_t        reserved9[2];                 /*reg 0xB6-0xB7*/
+	volatile uint32_t        reserved10[2];                /*reg 0xB6-0xB7*/
 	volatile puf_qty_chk_t   puf_qty_chk;                  /*reg 0xB8*/
 	volatile puf_enroll_t    puf_enroll;                   /*reg 0xB9*/
 	volatile puf_zeroize_t   puf_zeroize;                  /*reg 0xBA*/
 	volatile set_flag_t      set_flag;                     /*reg 0xBB*/
 	volatile otp_zeroize_t   otp_zeroize;                  /*reg 0xBC*/
-	volatile uint32_t        reserved10[3];                 /*reg 0xBD-0xBF*/
+	volatile uint32_t        reserved11[3];                /*reg 0xBD-0xBF*/
 	volatile puf_t           puf[64];                      /*reg 0xC0-0xFF*/
 	volatile otp_t           otp[256];                     /*reg 0x100-0x1FF*/
 } otp_hw_t;

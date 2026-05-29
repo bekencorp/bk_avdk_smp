@@ -563,6 +563,11 @@ extern "C" {
 #define OTP__RANDOM_VALUE_POS (0)
 #define OTP__RANDOM_VALUE_MASK (0xffffffff)
 
+#define OTP__ADDR (SOC_OTP_REG_BASE + (0xaa << 2))
+
+#define OTP__PUF_HCK_CFG_POS (0)
+#define OTP__PUF_HCK_CFG_MASK (0xffffffff)
+
 #define OTP__ADDR (SOC_OTP_REG_BASE + (0xac << 2))
 
 #define OTP__INTRPT_ST_POS (0)

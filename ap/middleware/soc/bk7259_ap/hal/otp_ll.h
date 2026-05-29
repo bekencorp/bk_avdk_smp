@@ -329,9 +329,13 @@ static inline uint32_t otp_ll_do_puf_quality_check(otp_hw_t *hw)
 
 static inline uint32_t otp_ll_do_puf_health_check(otp_hw_t *hw)
 {
-	REG_READ(0x4B100000+0x2A8);
-	REG_WRITE(0x4B100000+0x2A8,0x31D0303);
-	REG_READ(0x4B100000+0x2A8);
+	/* OTP reg 0xAA (puf_hck_cfg): vendor-required pre-configuration for the
+	 * PUF health check. The dummy read before/after the write keeps the
+	 * original APB access sequence used to flush state and commit the
+	 * configuration. */
+	(void)hw->puf_hck_cfg.v;
+	hw->puf_hck_cfg.v = 0x31D0303;
+	(void)hw->puf_hck_cfg.v;
 	hw->puf_qty_chk.v = 0xdc;
 	while(otp_ll_check_busy(hw));
 	return hw->status.v & 0x1F;
