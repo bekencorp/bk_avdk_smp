@@ -68,16 +68,38 @@ menu "ASR Service"
 
 	config BEKEN_KWS_ARENA_USE_PSRAM
 		depends on BEKEN_KWS && PSRAM
-		bool "Enable BEKEN_KWS_ARENA_USE_PSRAM"
+		bool "Place KWS TFLM tensor arena in PSRAM"
 		default y
 		help
-			Enable BEKEN_KWS_ARENA_USE_PSRAM
+			Allocate the TFLM tensor arena (~70 KB) from PSRAM via psram_malloc.
+			This is the highest-priority placement; if y, BEKEN_KWS_ARENA_USE_HSRAM
+			is ignored.
+
+	config BEKEN_KWS_ARENA_USE_HSRAM
+		depends on BEKEN_KWS && !BEKEN_KWS_ARENA_USE_PSRAM
+		bool "Place KWS TFLM tensor arena in HSRAM"
+		default n
+		help
+			Allocate the TFLM tensor arena (~70 KB) from HSRAM via hsram_malloc.
+			Falls back to os_malloc when both _USE_PSRAM and _USE_HSRAM are n.
 
 	config BEKEN_KWS_SCRATCH_USE_PSRAM
 		depends on BEKEN_KWS && PSRAM
-		bool "Enable BEKEN_KWS_SCRATCH_USE_PSRAM"
+		bool "Place KWS NPU fast-memory scratch in PSRAM"
 		default y
 		help
-			Enable BEKEN_KWS_SCRATCH_USE_PSRAM
+			Allocate the Ethos-U NPU scratch_fast buffer (~28 KB) from PSRAM via
+			psram_malloc. This is the highest-priority placement; if y,
+			BEKEN_KWS_SCRATCH_USE_HSRAM is ignored.
+
+	config BEKEN_KWS_SCRATCH_USE_HSRAM
+		depends on BEKEN_KWS && !BEKEN_KWS_SCRATCH_USE_PSRAM
+		bool "Place KWS NPU fast-memory scratch in HSRAM"
+		default n
+		help
+			Allocate the Ethos-U NPU scratch_fast buffer (~28 KB) from HSRAM via
+			hsram_malloc. HSRAM has lower latency than PSRAM, so for performance
+			this is preferable when HSRAM has enough free space. Falls back to
+			os_malloc when both _USE_PSRAM and _USE_HSRAM are n.
 
 endmenu
