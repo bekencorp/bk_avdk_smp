@@ -120,5 +120,15 @@ menu "Arch::Cm"
 			help
 				interrupt recorder count
 
+		config INTERRUPT_GAP_DETECT_US
+			depends on INTERRUPT_DEBUG_RECORDER
+			int "ISR exit-to-exit silence threshold (microseconds)"
+			default 50000
+			help
+				When the AON-RTC delta between two consecutive ISR exits
+				exceeds this threshold, record an IRQ-silence event in the
+				interrupt recorder dump for postmortem analysis. This is not
+				the current IRQ handler execution time.
+
 	endmenu
 endmenu

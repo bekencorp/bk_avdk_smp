@@ -94,6 +94,12 @@ extern unsigned char __psram_text_start__;
 extern unsigned char __psram_text_end__;
 #endif
 
+#if CONFIG_PSRAM
+extern unsigned char __psram_code_lma;
+extern unsigned char __psram_code_start__;
+extern unsigned char __psram_code_end__;
+#endif
+
 #define FLASH_CODE_REGION_START (uint32_t)&_stext
 #define FLASH_CODE_REGION_END (uint32_t)&__etext
 
@@ -157,8 +163,15 @@ const bk_dump_mem_info_t bk7259_peri_reg_info[] = {
     {"AON_RTC", (uint32_t)SOC_AON_RTC_REG_BASE, (0x0a*4)},
 #endif
 #if CONFIG_PSRAM
-    {"PSRAM", (uint32_t)SOC_PSRAM_REG_BASE, (0x17*4)},
+    {"PSRAM0", (uint32_t)SOC_PSRAM0_REG_BASE, (0x18*4)},
+    {"PSRAM1", (uint32_t)SOC_PSRAM1_REG_BASE, (0x18*4)},
 #endif
+    /* Bus-stall forensics: HPDMA (master), ISP MI/FE (heavy PSRAM writers),
+     * H26E (encode engine). Sizes chosen to cover status/config registers
+     * without overlapping reserved tail address ranges. */
+    {"HPDMA",  (uint32_t)SOC_HPDMA_REG_BASE,    (0x50*4)},
+    {"ISP",    (uint32_t)SOC_ISP_REG_BASE,      (0x80*4)},
+    {"H26E",   (uint32_t)SOC_H26E_REG_BASE,     (0x80*4)},
 };
 
 const bk_dump_mem_info_t* bk_get_peri_reg_info_list(void)
@@ -209,6 +222,28 @@ void bk_get_psram_data_info(bk_dump_mem_info_t *info)
 #else
     info->start_addr = 0;
     info->size = 0;
+#endif
+}
+
+__attribute__((section(".iram"), noinline)) void bk_get_psram_code_info(bk_psram_code_info_t *info)
+{
+    if (info == NULL) {
+        return;
+    }
+
+    info->run_addr = 0;
+    info->load_addr = 0;
+    info->size = 0;
+
+#if CONFIG_PSRAM
+    uint32_t start = (uint32_t)&__psram_code_start__;
+    uint32_t end = (uint32_t)&__psram_code_end__;
+
+    if (end > start) {
+        info->run_addr = start;
+        info->load_addr = (uint32_t)&__psram_code_lma;
+        info->size = end - start;
+    }
 #endif
 }
 

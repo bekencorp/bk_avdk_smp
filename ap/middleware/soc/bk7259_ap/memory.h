@@ -28,6 +28,12 @@ typedef struct bk_dump_mem_info {
     uint32_t size;
 } bk_dump_mem_info_t;
 
+typedef struct bk_psram_code_info {
+    uint32_t run_addr;
+    uint32_t load_addr;
+    uint32_t size;
+} bk_psram_code_info_t;
+
 const bk_dump_mem_info_t* bk_get_peri_reg_info_list(void);
 uint32_t bk_get_peri_reg_info_count(void);
 const bk_dump_mem_info_t* bk_get_sram_info_list(void);
@@ -36,6 +42,7 @@ uint32_t bk_get_sram_info_count(void);
 void bk_get_psram_heap_info(bk_dump_mem_info_t *info);
 void bk_get_psram_bss_info(bk_dump_mem_info_t *info);
 void bk_get_psram_data_info(bk_dump_mem_info_t *info);
+void bk_get_psram_code_info(bk_psram_code_info_t *info);
 
 bool bk_check_addr_in_code_section(uint32_t addr);
 bool bk_check_addr_in_ram(uint32_t addr);
