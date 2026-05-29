@@ -194,6 +194,7 @@ typedef struct {
     int(*_bk_feature_phy_log_enable)(void);
     int(*_bk_feature_wifi_signal_cert_enable)(void);
     bool(*_me_is_connect_with_instrument)(void);
+    void(*_bk_epa_gpio_config)(UINT32 rx_gpio, UINT32 tx_gpio, UINT32 lna_gpio);
 } phy_os_funcs_t;
 
 

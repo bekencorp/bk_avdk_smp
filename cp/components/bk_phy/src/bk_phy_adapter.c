@@ -217,12 +217,27 @@ static uint32_t aon_pmu_get_device_id(void)
 
 static int gpio_dev_map_rxen(uint32_t gpio_id)
 {
-    return gpio_dev_map(gpio_id, GPIO_DEV_RXEN);
+    return gpio_dev_map(gpio_id, GPIO_DEV_WIFI_RX_EN);
 }
 
 static int gpio_dev_map_txen(uint32_t gpio_id)
 {
-    return gpio_dev_map(gpio_id, GPIO_DEV_TXEN);
+    return gpio_dev_map(gpio_id, GPIO_DEV_WIFI_TX_EN);
+}
+
+static int gpio_dev_map_elna(uint32_t gpio_id)
+{
+    return gpio_dev_map(gpio_id, GPIO_DEV_FEM_LNA_EN);
+}
+
+static void bk_epa_gpio_config(UINT32 rx_gpio, UINT32 tx_gpio, UINT32 lna_gpio)
+{
+    gpio_dev_unmap(tx_gpio);
+    gpio_dev_map_txen(tx_gpio);
+    gpio_dev_unmap(rx_gpio);
+    gpio_dev_map_rxen(rx_gpio);
+    gpio_dev_unmap(lna_gpio);
+    gpio_dev_map_elna(lna_gpio);
 }
 
 static bk_err_t bk_pm_clock_ctrl_saradc_pwrup(void)
@@ -755,6 +770,7 @@ const phy_os_funcs_t g_phy_os_funcs = {
     ._bk_feature_phy_log_enable             = bk_feature_phy_log_enable,
     ._bk_feature_wifi_signal_cert_enable    = bk_feature_wifi_signal_cert_enable,
     ._me_is_connect_with_instrument         = me_is_connect_with_instrument,
+    ._bk_epa_gpio_config                    = bk_epa_gpio_config,
 };
 
 const phy_os_variable_t g_phy_os_variable = {

@@ -63,7 +63,7 @@ int8_t shift_pwr_idx_g_ch13   = -8;
 
 const UINT32 g_default_xtal   = DEFAULT_TXID_XTAL;
 char *vnd_cal_version         = "24-04-10 00:00:00";
-
+#if CONFIG_EPA_ENABLE_FLAG
 /**
  * pwr_gain<09:00> pregain in cfg_power_table.pregain
  * pwr_gain<13:10> pactrl in TRX_C<11:8>, F at present
@@ -73,8 +73,19 @@ char *vnd_cal_version         = "24-04-10 00:00:00";
  * pwr_gain<29:26> Dia in TRX_A<31:28>, 8 at present
  * pwr_gain<31:31> 1:11g/n 0:11b
  */
-const UINT32 pwr_gain_base_gain_b     = 0x18FABC00;//0x00233C00;
-const UINT32 pwr_gain_base_gain_g   = 0x98FABC00;//0x80233C00;
+const UINT32 pwr_gain_base_gain_b         = 0x18F05000;
+const UINT32 pwr_gain_base_gain_g         = 0x98F85000;
+const UINT32 pwr_gain_base_gain_ble       = 0x18F94C00;
+#else
+const UINT32 pwr_gain_base_gain_b         = 0x18FABC00;//0x00233C00;
+const UINT32 pwr_gain_base_gain_g         = 0x98FABC00;//0x80233C00;
+#if CONFIG_BLE_USE_HIGH_POWER_LEVEL
+const UINT32 pwr_gain_base_gain_ble       = 0x18F94C00;
+#else
+const UINT32 pwr_gain_base_gain_ble       = 0x18F94C00;
+#endif
+#endif
+
 #define TPC_PAMAP_TAB_LEN             (128)
 const PWR_REGS cfg_tab[TPC_PAMAP_TAB_LEN] = {
 	// pregain
@@ -207,11 +218,7 @@ const PWR_REGS cfg_tab[TPC_PAMAP_TAB_LEN] = {
 	PWRI(0x3E1),	//126	5.75db
 	PWRI(0x3FE),	//127	6db
 };
-#if CONFIG_BLE_USE_HIGH_POWER_LEVEL
-const UINT32 pwr_gain_base_gain_ble         = 0x18F94C00;
-#else
-const UINT32 pwr_gain_base_gain_ble         = 0x18F94C00;
-#endif
+
 #define TPC_PAMAP_TAB_BT_LEN                (65)
 const PWR_REGS cfg_tab_bt[TPC_PAMAP_TAB_BT_LEN] = {
 	// pregain
@@ -390,10 +397,10 @@ void vnd_cal_overlay(void)
 {
     vnd_cal_set_auto_pwr_thred(auto_pwr);
     //EPA
-#if EPA_ENABLE_FLAG
-    vnd_cal_set_epa_config(1, GPIO_28, GPIO_26, pwr_gain_base_gain_b, pwr_gain_base_gain_g);
+#if CONFIG_EPA_ENABLE_FLAG
+    vnd_cal_set_epa_config(1, GPIO_28, GPIO_26, GPIO_27);
 #else
-    vnd_cal_set_epa_config(0, GPIO_28, GPIO_26, pwr_gain_base_gain_b, pwr_gain_base_gain_g);
+    vnd_cal_set_epa_config(0, GPIO_28, GPIO_26, GPIO_27);
 #endif
     vnd_cal_version_log(vnd_cal_version);
     /*only used in SRRC adaptive testing !!!
