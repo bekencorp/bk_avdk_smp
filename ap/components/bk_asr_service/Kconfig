@@ -66,4 +66,18 @@ menu "ASR Service"
 		depends on TFLITE_MICRO && ASR_SERVICE
 		default n
 
+	config BEKEN_KWS_ARENA_USE_PSRAM
+		depends on BEKEN_KWS && PSRAM
+		bool "Enable BEKEN_KWS_ARENA_USE_PSRAM"
+		default y
+		help
+			Enable BEKEN_KWS_ARENA_USE_PSRAM
+
+	config BEKEN_KWS_SCRATCH_USE_PSRAM
+		depends on BEKEN_KWS && PSRAM
+		bool "Enable BEKEN_KWS_SCRATCH_USE_PSRAM"
+		default y
+		help
+			Enable BEKEN_KWS_SCRATCH_USE_PSRAM
+
 endmenu

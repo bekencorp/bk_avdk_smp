@@ -22,6 +22,9 @@ if (CONFIG_BEKEN_KWS)
 	list(APPEND incs
 		bk_kws
 	)
+	list(APPEND srcs
+		bk_kws/bk_kws_asr_intf.c
+	)
 
 endif()
 

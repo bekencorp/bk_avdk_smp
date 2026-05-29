@@ -19,10 +19,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-void bk_kws_init(void *arg);
-int  bk_tflite_ASR_Recog(short *buf, int buf_len, const char **text, float *score,int16_t *result);
-
 // kws words
 // {
     // 7 if 'Volume Down_' in f else  #
@@ -46,6 +42,48 @@ typedef enum {
     BK_KWS_VOLUME_DOWN = 7,
     BK_KWS_MAX_WORDS,
 } bk_kws_word_t;
+
+
+
+/**
+ * @brief Initialize TFLite ASR service.
+ *
+ * This function prepares the KWS/ASR runtime and related resources.
+ *
+ * @return
+ *      - 1: initialization succeeded
+ *      - Other values: initialization failed
+ */
+int bk_tflite_asr_init(void);
+
+/**
+ * @brief Run one-shot ASR recognition.
+ *
+ * @param read_buf Input PCM buffer pointer.
+ * @param read_size Input PCM buffer size in bytes.
+ * @param p1 Output text pointer container (implementation dependent).
+ * @param p2 Output score pointer container (implementation dependent).
+ *
+ * @return
+ *      - 1: recognition succeeded
+ *      - 0: recognition failed or no valid keyword
+ *
+ * @note
+ *      - The recognized keyword content is returned in `text`
+ *        (mapped to `p1` in this wrapper), not by this function's
+ *        return value.
+ */
+int bk_tflite_asr_recog(void *read_buf, uint32_t read_size, void *p1, void *p2);
+
+/**
+ * @brief Deinitialize TFLite ASR service.
+ *
+ * Release runtime resources allocated by @ref bk_tflite_asr_init.
+ *
+ */
+void bk_tflite_asr_deinit(void);
+
+
 
 #ifdef __cplusplus
 }
