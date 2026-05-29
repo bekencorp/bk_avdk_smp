@@ -651,6 +651,7 @@ typedef struct {
     volatile uint8_t pm_ap1_sleep_state;
     volatile uint8_t pm_cp0_sleep_state;
     volatile uint8_t pm_cp1_sleep_state;
+	volatile bool pm_ap_first_boot;
     volatile pm_wakeup_source_e wakeup_source;
     volatile uint8_t wakeup_alarm_name[ALARM_NAME_MAX_LEN+1];
     volatile uint8_t gpio_id;
@@ -664,13 +665,14 @@ typedef enum {
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP1_SLEEP_STATE = (1U << 1),
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE = (1U << 2),
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP1_SLEEP_STATE = (1U << 3),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE   = (1U << 4),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_ALARM_NAME = (1U << 5),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID         = (1U << 6),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM0          = (1U << 7),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1          = (1U << 8),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM2          = (1U << 9),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL             = (1U << 10) - 1U,
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_FIRST_BOOT   = (1U << 4),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE   = (1U << 5),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_ALARM_NAME = (1U << 6),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID         = (1U << 7),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM0          = (1U << 8),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1          = (1U << 9),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM2          = (1U << 10),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL             = (1U << 11) - 1U,
 } bk_sys_sw_regs_pm_shared_info_field_t;
 
 /*config the voltage at low vol*/
@@ -686,6 +688,12 @@ typedef enum {
 #define PM_CP1_AUTO_POWER_DOWN_CTRL      (PM_CP1_AUTO_POWER_DOWN_ENABLE)
 
 /*=====================CONFIG  SECTION  END=======================*/
+/**
+ * @brief get whether this is the first AP boot
+ *
+ * @return true if first AP boot, false otherwise
+ */
+bool bk_pm_ap_first_boot_get(void);
 /****************************************************************************
  * Name: bk_pm_auxldo_ctrl_vote
  *

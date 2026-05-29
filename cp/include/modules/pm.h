@@ -556,6 +556,7 @@ typedef struct {
     volatile uint8_t pm_ap1_sleep_state;
     volatile uint8_t pm_cp0_sleep_state;
     volatile uint8_t pm_cp1_sleep_state;
+	volatile bool pm_ap_first_boot;
     volatile pm_wakeup_source_e wakeup_source;
     volatile uint8_t wakeup_alarm_name[ALARM_NAME_MAX_LEN+1];
     volatile uint8_t gpio_id;
@@ -569,13 +570,14 @@ typedef enum {
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP1_SLEEP_STATE = (1U << 1),
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE = (1U << 2),
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP1_SLEEP_STATE = (1U << 3),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE   = (1U << 4),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_ALARM_NAME = (1U << 5),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID         = (1U << 6),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM0          = (1U << 7),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1          = (1U << 8),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM2          = (1U << 9),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL             = (1U << 10) - 1U,
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_FIRST_BOOT   = (1U << 4),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE   = (1U << 5),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_ALARM_NAME = (1U << 6),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID         = (1U << 7),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM0          = (1U << 8),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1          = (1U << 9),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM2          = (1U << 10),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL             = (1U << 11) - 1U,
 } bk_sys_sw_regs_pm_shared_info_field_t;
 
 /*config the voltage at low vol*/
@@ -779,6 +781,15 @@ bk_err_t bk_pm_ap_ctrl_callback_unregister(ap_ctrl_callback_t callback);
  * @return BK_OK on success
  */
 bk_err_t bk_pm_ap_ctrl_callback_execute(void);
+
+/**
+ * @brief set whether this is the first AP boot
+ *
+ * @param is_first_boot true for first boot, false otherwise
+ * @return BK_OK on success
+ */
+bk_err_t bk_pm_ap_first_boot_set(bool is_first_boot);
+
 /**
  * @brief set and save wakeup source of exiting  sleep
  *

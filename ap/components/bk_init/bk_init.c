@@ -351,7 +351,7 @@ int bk_init(void)
 #if CONFIG_ETH
 	app_eth_init();
 #endif
-
+	BK_LOGD(TAG, "First Boot: %d\r\n", bk_pm_ap_first_boot_get());
     set_ap_startup_index(AP_EXIT_BK_INIT);
 	return 0;
 }

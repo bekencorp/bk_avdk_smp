@@ -149,6 +149,19 @@ bk_err_t bk_pm_ap_ctrl_callback_execute(void)
 	return BK_OK;
 }
 
+bk_err_t bk_pm_ap_first_boot_set(bool is_first_boot)
+{
+	pm_shared_info_t shared_info = {0};
+
+	shared_info.pm_ap_first_boot = is_first_boot;
+	bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_FIRST_BOOT, BK_SYS_SW_REGS_LOCK_ENABLE);
+	__DSB();
+	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+	__DSB();
+	return BK_OK;
+}
+
+
 #if (CONFIG_CPU_CNT > 1)
 bk_err_t bk_pm_module_check_cp1_shutdown(void);
 pm_mailbox_communication_state_e bk_pm_cp0_psram_malloc_state_get(void);
@@ -355,9 +368,11 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 
 			shared_info.pm_cp0_sleep_state = 0;
 			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_DISABLE);
-			__DMB();
+			__DSB();
 			flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
-			__DMB();
+			__DSB();
+
+			bk_pm_ap_first_boot_set(false);
 			GLOBAL_INT_RESTORE();
 
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
@@ -415,9 +430,9 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 
 				shared_info.pm_cp0_sleep_state = 1;
 				bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_DISABLE);
-				__DMB();
+				__DSB();
 				flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
-				__DMB();
+				__DSB();
 
 				LOGD("pm_cp0_sleep_state: %d,ap0_sleep_state: %d\r\n", shared_info.pm_cp0_sleep_state, shared_info.pm_ap0_sleep_state);
 
@@ -428,11 +443,11 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 
 				while ((current_tick - previous_tick) < (PM_WAIT_AP_SLEEP_TIMEOUT_MS * AON_RTC_MS_TICK_CNT))
 				{
-					__DMB();
+					__DSB();
 					flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
-					__DMB();
+					__DSB();
 					bk_sys_sw_regs_get_pm_shared_info(&shared_info);
-					__DMB();
+					__DSB();
 
 					if (shared_info.pm_ap0_sleep_state == 0x1)
 					{

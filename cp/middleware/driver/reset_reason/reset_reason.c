@@ -17,6 +17,7 @@
 #include "bk_uart.h"
 #include "bk_arm_arch.h"
 #include "bk_sys_ctrl.h"
+#include <modules/pm.h>
 #include "reset_reason.h"
 #include <components/log.h>
 #include "aon_pmu_hal.h"
@@ -172,6 +173,11 @@ void show_reset_reason(void)
 		BK_LOGD(TAG, "by gpio - %d\r\n", bk_gpio_get_wakeup_gpio_id());
 #endif
 #endif
+	}
+
+	if(s_start_type == RESET_SOURCE_POWERON)
+	{
+		bk_pm_ap_first_boot_set(true);
 	}
 	BK_LOGD(TAG, "regs - %x, %x, %x\r\n", s_start_type, s_misc_value_save, s_mem_value_save);
 }
