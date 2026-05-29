@@ -64,7 +64,8 @@ static void cli_hpdma_help(void)
     CLI_LOGD("hpdma {id} {init|deinit|start|stop}\n");
     CLI_LOGD("hpdma_int {id} {reg|enable|disable}\n");
     CLI_LOGD("hpdma_chnl alloc \n");
-    CLI_LOGD("hpdma_chnl_free free {id} \n");
+    CLI_LOGD("hpdma_chnl_free free {id}\n");
+    CLI_LOGD("hpdma_chnl_free force {id}     (S0/C: HPDMA review - reclaim wedged channel)\n");
     CLI_LOGD("hpdma_memcopy_test {copy} {count|in_number1|in_number2|out_number1|out_number2} (numbers in hex)\r\n");
     CLI_LOGD("hpdma_link_test_1d {link_cnt} {trans_len}\r\n");
     CLI_LOGD("hpdma_link_test_2d {link_cnt} {xsize} {ysize} {step}\r\n");
@@ -209,7 +210,30 @@ static void cli_hpdma_chnl_free(char *pcWriteBuffer, int xWriteBufferLen, int ar
     if (os_strcmp(argv[1], "free") == 0) {
         id = os_strtoul(argv[2], NULL, 10);
         ret = bk_hpdma_free(HPDMA_DEV_DTCM, id);
-        CLI_LOGD("hpdma channel free id:%d ret:%d\n", id, ret);
+        /*
+         * S0/C (HPDMA review):
+         *   bk_hpdma_free now performs stop + wait-to-idle internally
+         *   and may return BK_ERR_HPDMA_TIMEOUT when the engine refuses
+         *   to halt. Surface the error to the operator and hint at the
+         *   force-reclaim escape hatch instead of pretending success.
+         */
+        if (ret == BK_ERR_HPDMA_TIMEOUT) {
+            CLI_LOGE("hpdma channel free id:%u TIMEOUT - engine wedged; "
+                     "use 'hpdma_chnl_free force {id}' to recover\r\n", id);
+        } else if (ret != BK_OK) {
+            CLI_LOGE("hpdma channel free id:%u failed ret=%d\r\n", id, ret);
+        } else {
+            CLI_LOGD("hpdma channel free id:%u OK\r\n", id);
+        }
+    } else if (os_strcmp(argv[1], "force") == 0) {
+        /*
+         * S0/C (HPDMA review): operator-only escape hatch matching
+         *   bk_hpdma_force_reclaim(); leaves the engine in a clean
+         *   per-channel state but may discard in-flight data.
+         */
+        id = os_strtoul(argv[2], NULL, 10);
+        ret = bk_hpdma_force_reclaim(HPDMA_DEV_DTCM, id);
+        CLI_LOGD("hpdma channel force reclaim id:%u ret:%d\n", id, ret);
     } else {
         CLI_LOGD("cli_hpdma_chnl_free NOT free\n");
         cli_hpdma_help();
@@ -406,7 +430,7 @@ DRV_CLI_CMD_EXPORT static const struct cli_command s_hpdma_commands[] = {
     {"hpdma", "hpdma {id} {init|deinit|start|stop|get_remain_len}", cli_hpdma_cmd},
     {"hpdma_int", "hpdma_int {id} {reg|enable_hf_fini|disable_hf_fini|enable_fini|disable_fini}", cli_hpdma_int_cmd},
     {"hpdma_chnl", "hpdma_chnl alloc", cli_hpdma_chnl_alloc},
-    {"hpdma_chnl_free", "hpdma_chnl_free {id}", cli_hpdma_chnl_free},
+    {"hpdma_chnl_free", "hpdma_chnl_free {free|force} {id}", cli_hpdma_chnl_free},
     {"hpdma_link_test_1d", "hpdma_link_test_1d {link_cnt} {trans_len}", cli_hpdma_link_test_1d},
     {"hpdma_copy", "copy {src} {dst} {len}", cli_hpdma_copy},
 };

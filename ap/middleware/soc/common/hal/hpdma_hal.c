@@ -46,8 +46,20 @@ bk_err_t hpdma_hal_init_dma(hpdma_hal_t *hal, hpdma_id_t id, const hpdma_config_
     hpdma_ll_set_src_start_addr(hal->hw, id, config->src.start_addr);
     hpdma_ll_set_dest_start_addr(hal->hw, id, config->dst.start_addr);
 
+    /*
+     * P0 (HPDMA review):
+     *   The previous code only enabled inc / loop when the new config
+     *   requested them, but never disabled them when the new config
+     *   cleared them. On channel re-use (e.g. first config uses
+     *   addr_loop, second config does not) the stale bit stayed set in
+     *   ctrl, causing the second transfer to behave like a loop and
+     *   producing silent corruption. Mirror what bk_dma's hal_init does:
+     *   for every inc / loop bit, both branches drive hardware.
+     */
     if (config->src.addr_inc_en) {
         hpdma_ll_enable_src_addr_inc(hal->hw, id);
+    } else {
+        hpdma_ll_disable_src_addr_inc(hal->hw, id);
     }
 
     if (config->src.addr_loop_en) {
@@ -63,10 +75,14 @@ bk_err_t hpdma_hal_init_dma(hpdma_hal_t *hal, hpdma_id_t id, const hpdma_config_
         }
         hpdma_ll_set_src_loop_end_addr(hal->hw, id, src_loop_end_addr);
         hpdma_ll_enable_src_addr_loop(hal->hw, id);
+    } else {
+        hpdma_ll_disable_src_addr_loop(hal->hw, id);
     }
 
     if (config->dst.addr_inc_en) {
         hpdma_ll_enable_dest_addr_inc(hal->hw, id);
+    } else {
+        hpdma_ll_disable_dest_addr_inc(hal->hw, id);
     }
 
     if (config->dst.addr_loop_en) {
@@ -82,6 +98,8 @@ bk_err_t hpdma_hal_init_dma(hpdma_hal_t *hal, hpdma_id_t id, const hpdma_config_
         }
         hpdma_ll_set_dest_loop_end_addr(hal->hw, id, dst_loop_end_addr);
         hpdma_ll_enable_dest_addr_loop(hal->hw, id);
+    } else {
+        hpdma_ll_disable_dest_addr_loop(hal->hw, id);
     }
     // Configure X-direction and Y-direction sizes (Reg20 and Reg22)
     hpdma_ll_set_xsize(hal->hw, id, config->src.xsize, config->dst.xsize);
@@ -103,6 +121,19 @@ bk_err_t hpdma_hal_start_common(hpdma_hal_t *hal, hpdma_id_t id)
 bk_err_t hpdma_hal_stop_common(hpdma_hal_t *hal, hpdma_id_t id)
 {
     hpdma_ll_clear_interrupt_status(hal->hw, id);
+    hpdma_ll_disable(hal->hw, id);
+    return BK_OK;
+}
+
+/*
+ * S1/D (HPDMA review):
+ *   Halt the channel without clobbering interrupt status. Used by code
+ *   paths whose caller may want to observe finish/half/bus/fifo status
+ *   after the channel is parked (e.g. bk_hpdma_set_dest_start_addr +
+ *   hpdma_wait_to_idle, bk_hpdma_free's defensive stop).
+ */
+bk_err_t hpdma_hal_stop_disable_only(hpdma_hal_t *hal, hpdma_id_t id)
+{
     hpdma_ll_disable(hal->hw, id);
     return BK_OK;
 }

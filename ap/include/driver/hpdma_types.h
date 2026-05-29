@@ -34,6 +34,7 @@ extern "C" {
 #define BK_ERR_HPDMA_INVALID_ADDR   (BK_ERR_HPDMA_BASE - 5) /**< HPDMA addr is invalid */
 #define BK_ERR_HPDMA_ID_REINIT      (BK_ERR_HPDMA_BASE - 6) /**< HPDMA id has inited, if reinit,please de-init firstly */
 #define BK_ERR_HPDMA_TRANS_LEN      (BK_ERR_HPDMA_BASE - 7) /**< HPDMA  trans len  is invalid */
+#define BK_ERR_HPDMA_TIMEOUT        (BK_ERR_HPDMA_BASE - 8) /**< HPDMA wait-to-idle timeout (channel still busy) */
 
 /**
  * @brief DMA interrupt service routine

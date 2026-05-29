@@ -130,11 +130,28 @@ static inline void hpdma_ll_disable_bus_err_interrupt(hpdma_hw_t *hw, hpdma_id_t
 	hw->config_group[id].req_mux.bus_err_int_en = 0;
 }
 
+/*
+ * P0 (HPDMA review): fifo_err is the 4th hardware error class on Reg23/Reg28.
+ *   Previously there was no enable / disable / clear / triggered helper, so
+ *   the driver could neither route fifo_err to a callback nor reliably W1C
+ *   clear bit17 in status. The pair below mirrors bus_err.
+ */
+static inline void hpdma_ll_enable_fifo_err_interrupt(hpdma_hw_t *hw, hpdma_id_t id)
+{
+	hw->config_group[id].req_mux.fifo_err_int_en = 1;
+}
+
+static inline void hpdma_ll_disable_fifo_err_interrupt(hpdma_hw_t *hw, hpdma_id_t id)
+{
+	hw->config_group[id].req_mux.fifo_err_int_en = 0;
+}
+
 static inline void hpdma_ll_enable_interrupt(hpdma_hw_t *hw, hpdma_id_t id)
 {
 	hpdma_ll_enable_half_finish_interrupt(hw, id);
 	hpdma_ll_enable_finish_interrupt(hw, id);
 	hpdma_ll_enable_bus_err_interrupt(hw,id);
+	hpdma_ll_enable_fifo_err_interrupt(hw, id);
 }
 
 static inline void hpdma_ll_disable_interrupt(hpdma_hw_t *hw, hpdma_id_t id)
@@ -142,6 +159,7 @@ static inline void hpdma_ll_disable_interrupt(hpdma_hw_t *hw, hpdma_id_t id)
 	hpdma_ll_disable_half_finish_interrupt(hw, id);
 	hpdma_ll_disable_finish_interrupt(hw, id);
 	hpdma_ll_disable_bus_err_interrupt(hw,id);
+	hpdma_ll_disable_fifo_err_interrupt(hw, id);
 }
 
 static inline void hpdma_ll_clear_finish_interrupt_status(hpdma_hw_t *hw, hpdma_id_t id)
@@ -162,13 +180,29 @@ static inline void hpdma_ll_clear_bus_err_interrupt_status(hpdma_hw_t *hw, hpdma
 	hw->config_group[id].status.v |= BIT(HPDMA_BUS_ERR_INT_POS);
 }
 
+/*
+ * P0 (HPDMA review): added fifo_err W1C and a helper to clear *all* W1C
+ *   status bits in one shot. The previous implementation skipped bit17
+ *   (fifo_err) entirely, so once fifo_err was triggered the status bit
+ *   stayed set forever.
+ */
+static inline void hpdma_ll_clear_fifo_err_interrupt_status(hpdma_hw_t *hw, hpdma_id_t id)
+{
+	/*other interrupt bit also wirte 1 to clear, so should not effect other bits*/
+	hw->config_group[id].status.v |= BIT(HPDMA_FIFO_ERR_INT_POS);
+}
+
+static inline bool hpdma_ll_is_fifo_err_interrupt_triggered(hpdma_hw_t *hw, hpdma_id_t id)
+{
+	return !!(hw->config_group[id].status.fifo_err_int & 0x1);
+}
 
 static inline void hpdma_ll_clear_interrupt_status(hpdma_hw_t *hw, hpdma_id_t id)
 {
 	hpdma_ll_clear_half_finish_interrupt_status(hw, id);
 	hpdma_ll_clear_finish_interrupt_status(hw, id);
 	hpdma_ll_clear_bus_err_interrupt_status(hw, id);
-
+	hpdma_ll_clear_fifo_err_interrupt_status(hw, id);
 }
 
 static inline uint32_t hpdma_ll_repeat_wr_pause(hpdma_hw_t *hw, hpdma_id_t id)

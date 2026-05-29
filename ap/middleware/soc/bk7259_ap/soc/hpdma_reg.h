@@ -28,6 +28,13 @@ extern "C" {
 #define HPDMA_V_REQ_MUX_UART5            (0x1)
 #define HPDMA_V_REQ_MUX_UART5_RX         (0x2)
 
+/*
+ * P0 (HPDMA review): Reg28 status interrupt bit positions per HPDMA spec.
+ *   bit17 fifo_err_int was previously missing; without it, fifo_err
+ *   interrupt status could not be W1C cleared and a triggered fifo_err
+ *   would stick and re-fire indefinitely once unmasked.
+ */
+#define HPDMA_FIFO_ERR_INT_POS           (17)
 #define HPDMA_HALF_FINISH_INT_POS        (18)
 #define HPDMA_FINISH_INT_POS             (19)
 #define HPDMA_BUS_ERR_INT_POS            (20)

@@ -97,6 +97,45 @@ hpdma_id_t bk_fixed_hpdma_alloc(u16 user_id, hpdma_id_t fixed_chnl_id);
 bk_err_t bk_hpdma_free(u16 user_id, hpdma_id_t id);
 
 /**
+ * @brief     Force release a channel that bk_hpdma_free() refused to release
+ *            (S0/C: HPDMA stability review escape hatch).
+ *
+ * bk_hpdma_free() now performs a defensive stop + wait-to-idle and leaves the
+ * channel reserved if the engine does not honour the stop within
+ * HPDMA_MAX_BUSY_TIME us. This API is the only sanctioned way to recover that
+ * stuck channel for re-use. It performs a per-channel register reset (NOT a
+ * full controller soft_reset), clears the channel's ISR callbacks and finally
+ * releases the bitmap entry. Any data the engine had not yet committed is
+ * lost; callers must release their associated buffers AFTER the channel is
+ * reclaimed (or with full awareness of the data-loss risk).
+ *
+ * @note Task context only. Do NOT call from ISR or with interrupts disabled.
+ *
+ * @param user_id Same applicant token passed to bk_hpdma_alloc().
+ * @param chnl_id Channel id originally returned by bk_hpdma_alloc().
+ *
+ * @return
+ *    - BK_OK: channel reclaimed
+ *    - BK_ERR_HPDMA_NOT_INIT / BK_ERR_HPDMA_ID / BK_ERR_PARAM otherwise
+ */
+bk_err_t bk_hpdma_force_reclaim(u16 user_id, hpdma_id_t chnl_id);
+
+/**
+ * @brief     Recover global HPDMA controller registers after low-voltage
+ *            wakeup (S2: HPDMA stability review).
+ *
+ * The controller-wide registers (soft_reset / secure_attr / privileged_attr /
+ * prio_mode) are powered down with the rest of the chip during low-voltage
+ * sleep and read back as zero on wakeup. Call this once from the PM wakeup
+ * hook BEFORE any client invokes bk_hpdma_init() / bk_hpdma_start().
+ *
+ * @note Do not call from per-transfer paths; that was the historical bug.
+ *
+ * @return BK_OK on success.
+ */
+bk_err_t bk_hpdma_recover_after_low_voltage(void);
+
+/**
  * @brief     get the user of DMA channel
  *
  * @param id DMA channel
@@ -159,6 +198,25 @@ bk_err_t bk_hpdma_start(hpdma_id_t id);
  */
 bk_err_t bk_hpdma_stop(hpdma_id_t id);
 
+/**
+ * @brief     Wait until the given DMA channel becomes idle (S1: hpdma stability).
+ *
+ * Polls the channel's hardware enable bit (and for HPDMA_WORK_MODE_REPEAT
+ * issues a stop first) up to HPDMA_MAX_BUSY_TIME microseconds.
+ *
+ * Callers should invoke this before touching channel registers (e.g. changing
+ * the destination address / data width) or before tearing down DMA target
+ * buffers, to avoid the use-after-free / mid-transfer write hazards described
+ * in the HPDMA stability review.
+ *
+ * @param id DMA channel
+ *
+ * @return
+ *    - BK_OK: channel is idle
+ *    - BK_ERR_HPDMA_TIMEOUT: channel still busy after HPDMA_MAX_BUSY_TIME us
+ *    - other negative: parameter / not-initialized errors
+ */
+bk_err_t bk_hpdma_wait_to_idle(hpdma_id_t id);
 
 /**
  * @brief     Enable DMA finish intterrup
@@ -274,6 +332,30 @@ bk_err_t bk_hpdma_register_isr(hpdma_id_t id, hpdma_isr_t half_finish_isr, void 
  *    - others: other errors.
  */
 bk_err_t bk_hpdma_register_bus_err_isr(hpdma_id_t id, hpdma_isr_t bus_err_isr, void *user_data);
+
+/**
+ * @brief     Register a callback for the fifo_err interrupt class
+ *            (P0: HPDMA review).
+ *
+ * fifo_err is the 4th error class on Reg23/Reg28 (bit17 in status). It was
+ * previously not wired up; callers that enable it via
+ * bk_hpdma_enable_fifo_err_interrupt() can use this to be notified after the
+ * ISR has halted the engine.
+ *
+ * @param id DMA channel
+ * @param fifo_err_isr Callback (NULL to clear)
+ * @param user_data Opaque user pointer
+ *
+ * @return BK_OK on success.
+ */
+bk_err_t bk_hpdma_register_fifo_err_isr(hpdma_id_t id, hpdma_isr_t fifo_err_isr, void *user_data);
+
+/**
+ * @brief     Enable / disable the fifo_err interrupt for a DMA channel
+ *            (P0: HPDMA review).
+ */
+bk_err_t bk_hpdma_enable_fifo_err_interrupt(hpdma_id_t id);
+bk_err_t bk_hpdma_disable_fifo_err_interrupt(hpdma_id_t id);
 
 
 /**

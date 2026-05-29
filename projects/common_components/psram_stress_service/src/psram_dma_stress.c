@@ -22,7 +22,27 @@ struct psram_dma_stress {
 
 static void psram_dma_stress_cleanup_locked(psram_dma_stress_handle_t handle)
 {
+    /*
+     * S0 (HPDMA stability review):
+     *   The previous cleanup just unregister-ed the ISR and called
+     *   bk_hpdma_free, with the finish ISR still able to kick a fresh
+     *   bk_hpdma_link_transfer in between (continuous-restart pattern).
+     *   That left a window where the HPDMA could still be running against
+     *   handle->desc_table / src_addr / dst_addr after we returned.
+     *
+     *   New ordering:
+     *     1) mark the handle as "no longer running" *before* touching the
+     *        ISR, so an in-flight finish callback bails out instead of
+     *        restarting the transfer (see psram_dma_stress_complete_cb).
+     *     2) disable the finish interrupt and clear the ISR callbacks.
+     *     3) hand the channel back via bk_hpdma_free, which now performs
+     *        stop + wait-to-idle internally (S0 contract of bk_hpdma_free).
+     *     4) free the descriptor table only after the channel is idle.
+     */
+    handle->running = 0;
+
     if (handle->dma_id < HPDMA_ID_MAX) {
+        bk_hpdma_disable_finish_interrupt(handle->dma_id);
         bk_hpdma_register_isr(handle->dma_id, NULL, NULL, NULL, NULL);
         bk_hpdma_free(HPDMA_DEV_DTCM, handle->dma_id);
         handle->dma_id = HPDMA_ID_MAX;
@@ -33,7 +53,6 @@ static void psram_dma_stress_cleanup_locked(psram_dma_stress_handle_t handle)
         handle->desc_table = NULL;
     }
 
-    handle->running = 0;
     handle->src_addr = NULL;
     handle->dst_addr = NULL;
     handle->transfer_size = 0;

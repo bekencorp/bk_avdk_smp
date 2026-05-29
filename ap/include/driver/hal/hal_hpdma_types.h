@@ -111,10 +111,20 @@ typedef enum {
 } hpdma_sec_attr_t;
 
 
+/*
+ * P1 (HPDMA review): Reg23 hardware encodes 4 burst lengths in 2 bits:
+ *   0=SINGLE, 1=INC4, 2=INC8, 3=INC16.
+ * Previously the enum stopped at INC8 while LVGL/GPU passed the raw
+ * value 0x03 to bk_hpdma_set_*_burst_len(); the named constant was
+ * missing, making intent unclear and breaking the few sites that tried
+ * to use HPDMA_BURST_LEN_INC16 (e.g. the #if 0 block in
+ * bk_hpdma_link_transfer).
+ */
 typedef enum {
 	HPDMA_BURST_LEN_SINGLE = 0,
 	HPDMA_BURST_LEN_INC4,
 	HPDMA_BURST_LEN_INC8,
+	HPDMA_BURST_LEN_INC16,
 } hpdma_burst_len_t;
 
 typedef enum {

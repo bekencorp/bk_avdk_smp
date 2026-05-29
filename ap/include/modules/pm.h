@@ -452,8 +452,23 @@ typedef enum
 	PM_DEV_ID_KEY,          //42
 	PM_DEV_ID_CIF,          //43
 	PM_DEV_ID_MAILBOX,      //44
+	/*
+	 * S2 (HPDMA review):
+	 *   New PM device id for the High-Performance DMA controller. The
+	 *   global HPDMA registers (soft_reset / secure_attr /
+	 *   privileged_attr / prio_mode) are powered down with the chip
+	 *   during low-voltage sleep and read back as zero on wakeup; the
+	 *   HPDMA driver uses this id to register an exit-low-voltage
+	 *   callback that invokes bk_hpdma_recover_after_low_voltage()
+	 *   exactly once per wakeup, before any client of HPDMA runs.
+	 *
+	 *   PM_DEV_ID_DEFAULT remains the sentinel for the "default cpu
+	 *   frequency" pseudo-device, so it is intentionally renumbered to
+	 *   46. PM_DEV_ID_MAX still fits the "max 63" limit.
+	 */
+	PM_DEV_ID_HPDMA,        //45
 
-	PM_DEV_ID_DEFAULT,      //45  it is used by pm module set default cpu frequency
+	PM_DEV_ID_DEFAULT,      //46  it is used by pm module set default cpu frequency
 
 	PM_DEV_ID_MAX       //attention:max 63
 }pm_dev_id_e;

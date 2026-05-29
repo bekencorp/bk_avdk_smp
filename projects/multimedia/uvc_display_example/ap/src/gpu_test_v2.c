@@ -409,8 +409,11 @@ static void gpu_flex_init_dma_for_rotation(gpu_flex_data_v2_t *data, uint16_t ro
             return;
         }
 
-        bk_hpdma_set_dest_burst_len(data->gdma, 0x03);
-        bk_hpdma_set_src_burst_len(data->gdma, 0x03);
+            /* P1 (HPDMA review): use HPDMA_BURST_LEN_INC16 enum; driver
+             *   downgrades to INC8 at start time when src/dst share a
+             *   physical SMEM block. */
+            bk_hpdma_set_dest_burst_len(data->gdma, HPDMA_BURST_LEN_INC16);
+            bk_hpdma_set_src_burst_len(data->gdma, HPDMA_BURST_LEN_INC16);
     }
 }
 

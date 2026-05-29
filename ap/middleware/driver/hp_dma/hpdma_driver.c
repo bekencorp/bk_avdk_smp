@@ -20,9 +20,12 @@
 #include "hpdma_driver.h"
 #include "hpdma_hal.h"
 #include <driver/hpdma.h>
+#include <driver/hal/hal_hpdma_types.h>
 #include <driver/int.h>
 #include "sys_driver.h"
 #include "cmsis_gcc.h"
+#include <soc/soc.h>
+#include <soc/reg_base.h>
 
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
 #include "cache.h"
@@ -31,6 +34,18 @@
 #include "bk_misc.h"
 
 #include <os/mem.h>
+
+/*
+ * S2 (HPDMA review):
+ *   Pull PM API in so bk_hpdma_driver_init() can register an
+ *   exit-low-voltage callback for the controller's global registers
+ *   (soft_reset / secure_attr / privileged_attr / prio_mode), which are
+ *   powered down across low-voltage sleep. See
+ *   bk_hpdma_recover_after_low_voltage().
+ */
+#if CONFIG_PM_ENABLE
+#include <modules/pm.h>
+#endif
 
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
@@ -70,6 +85,11 @@ static hpdma_driver_t s_hpdma;
 static hpdma_isr_info_t s_hpdma_finish_isr[SOC_HPDMA_CHAN_NUM_PER_UNIT] = {{NULL, NULL}};
 static hpdma_isr_info_t s_hpdma_half_finish_isr[SOC_HPDMA_CHAN_NUM_PER_UNIT] = {{NULL, NULL}};
 static hpdma_isr_info_t s_hpdma_bus_err_isr[SOC_HPDMA_CHAN_NUM_PER_UNIT] = {{NULL, NULL}};
+/*
+ * P0 (HPDMA review): fifo_err is now a first-class interrupt class. Each
+ *   channel can register its own callback, paralleling bus_err.
+ */
+static hpdma_isr_info_t s_hpdma_fifo_err_isr[SOC_HPDMA_CHAN_NUM_PER_UNIT] = {{NULL, NULL}};
 
 static bool s_hpdma_driver_is_init = false;
 static hpdma_chnl_pool_t s_hpdma_chnl_pool = {0};
@@ -102,6 +122,57 @@ static hpdma_chnl_pool_t s_hpdma_chnl_pool = {0};
             return BK_ERR_HPDMA_INVALID_ADDR;\
         }\
     } while(0)
+
+/*
+ * New P0 (HPDMA review):
+ *   Forward declaration so bk_hpdma_start() / hpdma_memcpy_by_chnl()
+ *   can defer SMEM-same-block burst evaluation to the moment the
+ *   channel actually has real src/dst addresses. The definition lives
+ *   alongside the rest of the SMEM helpers further down in this file.
+ */
+static void hpdma_apply_smem_burst_policy_at_start(hpdma_id_t id);
+
+/*
+ * Forward declaration: hpdma_wait_to_idle() is defined further down in
+ * this file but bk_hpdma_free() (above) needs to call it on the
+ * single-shot path to make sure the engine actually honoured dma_en=0
+ * before the channel bitmap bit is released.
+ */
+bk_err_t hpdma_wait_to_idle(hpdma_id_t id);
+
+#if CONFIG_PM_ENABLE
+/*
+ * S2 (HPDMA review):
+ *   Adapter that matches the PM module's pm_cb signature
+ *   (int (*)(uint64_t sleep_time, void *args)). Registered as the
+ *   exit-low-voltage callback under PM_DEV_ID_HPDMA. The PM core calls
+ *   this once per wakeup, before any peripheral driver runs, which is
+ *   exactly the contract bk_hpdma_recover_after_low_voltage() needs.
+ *
+ *   Returning a non-zero on failure follows the convention used by
+ *   other peripheral PM callbacks in this SDK.
+ */
+static int hpdma_pm_exit_low_voltage_cb(uint64_t sleep_time, void *args)
+{
+    (void)sleep_time;
+    (void)args;
+    bk_err_t ret = bk_hpdma_recover_after_low_voltage();
+    if (ret != BK_OK) {
+        HPDMA_LOGE("PM low-voltage exit: recover failed ret=%d\r\n", ret);
+    }
+    return (int)ret;
+}
+
+/*
+ * pm_cb_conf_t must be passed by non-const pointer per PM API; the
+ * struct is owned by this driver and lives for the lifetime of the
+ * registration (until bk_hpdma_driver_deinit unregisters it).
+ */
+static pm_cb_conf_t s_hpdma_pm_exit_cfg = {
+    .cb = hpdma_pm_exit_low_voltage_cb,
+    .args = NULL,
+};
+#endif /* CONFIG_PM_ENABLE */
 
 static void hpdma_id_init_common(hpdma_id_t id)
 {
@@ -215,6 +286,7 @@ bk_err_t bk_hpdma_driver_init(void)
     os_memset(&s_hpdma_finish_isr, 0, sizeof(s_hpdma_finish_isr));
     os_memset(&s_hpdma_half_finish_isr, 0, sizeof(s_hpdma_half_finish_isr));
     os_memset(&s_hpdma_bus_err_isr, 0, sizeof(s_hpdma_bus_err_isr));
+    os_memset(&s_hpdma_fifo_err_isr, 0, sizeof(s_hpdma_fifo_err_isr));  /* P0 (HPDMA review) */
 
     bk_int_isr_register(INT_SRC_HPDMA, hpdma_isr, NULL);
 
@@ -225,6 +297,29 @@ bk_err_t bk_hpdma_driver_init(void)
 	}
 
     s_hpdma_driver_is_init = true;
+
+#if CONFIG_PM_ENABLE
+    /*
+     * S2 (HPDMA review):
+     *   Wire bk_hpdma_recover_after_low_voltage() into the PM
+     *   exit-low-voltage path. Without this, the first HPDMA transfer
+     *   after wakeup would silently fail because soft_reset /
+     *   secure_attr / privileged_attr come back as zero from sleep.
+     *
+     *   Registered here (driver_init), unregistered in driver_deinit.
+     *   No enter-low-voltage callback is needed: HPDMA has no in-RAM
+     *   state worth saving - the channel pool is software-only and the
+     *   controller registers are always reprogrammed on the next init.
+     */
+    bk_err_t pm_ret = bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE,
+                                              PM_DEV_ID_HPDMA,
+                                              NULL,
+                                              &s_hpdma_pm_exit_cfg);
+    if (pm_ret != BK_OK) {
+        HPDMA_LOGE("PM low-voltage exit cb register failed ret=%d\r\n", pm_ret);
+        /* Non-fatal: HPDMA still works without low-voltage support. */
+    }
+#endif
 
 #if CONFIG_HIGH_PERFORMANCE_DMA_TEST
     extern int bk_hpdma_register_cli_test_feature(void);
@@ -245,6 +340,15 @@ bk_err_t bk_hpdma_driver_deinit(void)
     }
 
 #if CONFIG_PM_ENABLE
+    /*
+     * S2 (HPDMA review):
+     *   Unregister the exit-low-voltage callback paired with the one
+     *   installed in bk_hpdma_driver_init(). Both enter and exit cb
+     *   flags are set to true to mirror the bk_pm_sleep_unregister_cb
+     *   pattern used by other drivers (e.g. i2c_driver.c) even though
+     *   we never registered an enter cb.
+     */
+    bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_HPDMA, true, true);
     // bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_DMA0, PM_POWER_MODULE_STATE_OFF);
     // bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_DMA1, PM_POWER_MODULE_STATE_OFF);
 #endif
@@ -300,6 +404,54 @@ bk_err_t bk_hpdma_free(u16 user_id, hpdma_id_t chnl_id)
         return BK_ERR_HPDMA_NOT_INIT;
     }
 
+    /*
+     * S0 (HPDMA stability review):
+     *   Previously bk_hpdma_free only cleared the software bitmap, leaving
+     *   the hardware channel possibly still transferring. The next allocator
+     *   of the same chnl_id would race with the previous owner's DMA (seen
+     *   in GPU thread_exit, psram_dma_stress cleanup, CLI hpdma chnl free).
+     *
+     *   Defensive teardown contract for this API is now:
+     *     1) stop the hardware channel,
+     *     2) wait until dma_en clears (bounded by HPDMA_MAX_BUSY_TIME us),
+     *     3) only then return the channel to the pool.
+     *
+     *   On timeout we deliberately KEEP the channel reserved (the bitmap is
+     *   not cleared) and return BK_ERR_HPDMA_TIMEOUT, so a still-running DMA
+     *   cannot be handed out as a fresh channel. Callers should then either
+     *   retry or treat it as a fatal teardown error.
+     */
+    if (chnl_id < HPDMA_ID_MAX)
+    {
+        /*
+         * S1/D (HPDMA review):
+         *   Use stop_disable_only here instead of hpdma_hal_stop_common.
+         *   The latter W1C-clears half/finish/bus/fifo status as a side
+         *   effect, which previously corrupted any caller's interrupt
+         *   counter / status snapshot taken right after a free attempt.
+         *   wait_to_idle below also uses stop_disable_only for the same
+         *   reason.
+         */
+        hpdma_hal_stop_disable_only(&s_hpdma.hal, chnl_id);
+        bk_err_t wait_ret = hpdma_wait_to_idle(chnl_id);
+        if (wait_ret != BK_OK)
+        {
+            /*
+             * S0/C (HPDMA review):
+             *   wait_to_idle timeout means the DMA engine itself did not
+             *   honour `dma_en=0` within HPDMA_MAX_BUSY_TIME. We deliber-
+             *   ately leave the bitmap bit set so the same chnl_id is not
+             *   handed out to a fresh allocator while the engine may
+             *   still touch memory. Callers can recover via
+             *   bk_hpdma_force_reclaim() (per-channel reset, no global
+             *   soft_reset) when they accept the data-loss risk.
+             */
+            HPDMA_LOGE("hpdma_free: ch%d still busy, keep channel reserved; call bk_hpdma_force_reclaim() to recover\r\n",
+                       chnl_id);
+            return BK_ERR_HPDMA_TIMEOUT;
+        }
+    }
+
     u32  int_mask = hpdma_enter_critical();
 
     bk_err_t ret_val = hpdma_chnl_free(user_id, chnl_id);
@@ -321,6 +473,12 @@ uint32_t bk_hpdma_user(hpdma_id_t chnl_id)
 
 bk_err_t bk_hpdma_init(hpdma_id_t id, const hpdma_config_t *config)
 {
+    HPDMA_RETURN_ON_NOT_INIT();
+    HPDMA_RETURN_ON_INVALID_ID(id);
+    if (config == NULL) {
+        return BK_ERR_NULL_PARAM;
+    }
+
     // Validate ysize: user input should be >= 1 (1 = 1 row, 2 = 2 rows, etc.)
     if (config->src.ysize == 0) {
         HPDMA_LOGE("Source ysize must be >= 1 (1 = 1 row, 2 = 2 rows, etc.)\r\n");
@@ -331,7 +489,36 @@ bk_err_t bk_hpdma_init(hpdma_id_t id, const hpdma_config_t *config)
         return BK_ERR_PARAM;
     }
 
-    hpdma_hal_init_without_channels(&s_hpdma.hal);	//TODO:special codes for DMA init after enter low voltage
+    /*
+     * P1 (HPDMA review):
+     *   Reg20/Reg22 require src_xsize*src_ysize == dst_xsize*dst_ysize.
+     *   The hardware silently produces shifted/garbled output when the
+     *   two byte counts differ; previously nothing validated this. Link
+     *   mode (xsize == 0 by convention because the real sizes live in
+     *   the descriptors) is exempted.
+     */
+    if (config->src.xsize != 0 && config->dst.xsize != 0) {
+        uint32_t src_bytes = (uint32_t)config->src.xsize * config->src.ysize;
+        uint32_t dst_bytes = (uint32_t)config->dst.xsize * config->dst.ysize;
+        if (src_bytes != dst_bytes) {
+            HPDMA_LOGE("src bytes (%u) != dst bytes (%u)\r\n", src_bytes, dst_bytes);
+            return BK_ERR_HPDMA_TRANS_LEN;
+        }
+    }
+
+    /*
+     * S2 (HPDMA review):
+     *   The previous code called hpdma_hal_init_without_channels() on
+     *   every bk_hpdma_init(), which on a fresh boot is a NOP (after the
+     *   first soft_reset) but after a low-voltage wakeup performs a full
+     *   controller soft_reset including overwriting secure_attr /
+     *   privileged_attr. If another channel was mid-transfer at the
+     *   moment of wakeup recovery, that channel would be silently
+     *   aborted. Recovery now has its own explicit entry point
+     *   bk_hpdma_recover_after_low_voltage() that the PM module should
+     *   call exactly once on wakeup; bk_hpdma_init() no longer touches
+     *   global controller state.
+     */
 
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     // Calculate total transfer size for cache flush
@@ -368,13 +555,40 @@ bk_err_t bk_hpdma_deinit(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
     hpdma_id_deinit_common(id);
+    /*
+     * S0 / P0 (HPDMA review):
+     *   Previously deinit only cleared the finish/half-finish callbacks.
+     *   bus_err and the newly added fifo_err callbacks survived,
+     *   so a fresh allocator of the same chnl_id could still get an
+     *   interrupt routed to the previous owner's callback with the
+     *   previous owner's user_data - a classic dangling callback bug.
+     */
     bk_hpdma_register_isr(id, NULL, NULL, NULL, NULL);
+    bk_hpdma_register_bus_err_isr(id, NULL, NULL);
+    bk_hpdma_register_fifo_err_isr(id, NULL, NULL);
     return BK_OK;
 }
 
 bk_err_t bk_hpdma_start(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
+    HPDMA_RETURN_ON_INVALID_ID(id);
+    /*
+     * P1 (HPDMA review):
+     *   Macro existed but was never used. Starting an un-initialized
+     *   channel writes a still-zeroed ctrl reg and produces an immediate
+     *   bus_err.
+     */
+    HPDMA_RETURN_ON_ID_NOT_INIT(0, id);
+
+    /*
+     * New P0 (HPDMA review - SMEM burst policy timing fix):
+     *   Re-evaluate the "same physical SMEM block -> INC8" override
+     *   here, when the channel's src/dst registers actually hold the
+     *   real transfer addresses. See apply_smem_burst_policy_at_start().
+     */
+    hpdma_apply_smem_burst_policy_at_start(id);
+
     __DSB();
     hpdma_hal_start_common(&s_hpdma.hal, id);
     return BK_OK;
@@ -383,6 +597,12 @@ bk_err_t bk_hpdma_start(hpdma_id_t id)
 bk_err_t bk_hpdma_stop(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
+    HPDMA_RETURN_ON_INVALID_ID(id);
+    /*
+     * P1 (HPDMA review): see bk_hpdma_start. Stopping an un-init'd
+     *   channel is harmless on hardware but masks API misuse.
+     */
+    HPDMA_RETURN_ON_ID_NOT_INIT(0, id);
 
     hpdma_hal_stop_common(&s_hpdma.hal, id);
     return BK_OK;
@@ -398,33 +618,57 @@ uint32_t bk_hpdma_get_enable_status(hpdma_id_t id)
 }
 
 #define HPDMA_MAX_BUSY_TIME (10000)  //us
-uint32_t hpdma_wait_to_idle(hpdma_id_t id)
+/*
+ * S1 (HPDMA stability review):
+ *   Previously this returned uint32_t (the spin count) and treated timeout
+ *   as "idle". Callers that change channel registers right after were left
+ *   to touch a still-running DMA, producing bus_err / wrong addr writes.
+ *
+ *   Now it returns bk_err_t:
+ *     - HPDMA_WORK_MODE_SINGLE : poll dma_en up to HPDMA_MAX_BUSY_TIME us;
+ *                                 timeout -> BK_ERR_HPDMA_TIMEOUT.
+ *     - HPDMA_WORK_MODE_REPEAT : hardware never auto-clears dma_en, so we
+ *                                 must stop it first, then poll briefly.
+ */
+bk_err_t hpdma_wait_to_idle(hpdma_id_t id)
 {
-	if(hpdma_hal_get_work_mode(&s_hpdma.hal, id) == HPDMA_WORK_MODE_SINGLE)
+	hpdma_work_mode_t mode = hpdma_hal_get_work_mode(&s_hpdma.hal, id);
+
+	if (mode == HPDMA_WORK_MODE_REPEAT)
 	{
-		uint32_t i = 0;
-		while(hpdma_hal_get_enable_status(&s_hpdma.hal, id))
+		/*
+		 * S1: repeat mode keeps dma_en=1 by design; stop it before polling.
+		 * S1/D: use stop_disable_only so we do not silently W1C-clear the
+		 *       channel's half/finish/bus/fifo interrupt status (which the
+		 *       caller may still want to consume).
+		 */
+		hpdma_hal_stop_disable_only(&s_hpdma.hal, id);
+	}
+
+	uint32_t i = 0;
+	while (hpdma_hal_get_enable_status(&s_hpdma.hal, id))
+	{
+		bk_delay_us(1);
+
+		i++;
+		if (i > HPDMA_MAX_BUSY_TIME)
 		{
-			bk_delay_us(1);
-
-			i++;
-			if(i > HPDMA_MAX_BUSY_TIME)
-			{
-				HPDMA_LOGE("ch%d busy,remain len=%d,dst_addr=%x\r\n", id,
-							hpdma_hal_get_remain_len(&s_hpdma.hal, id),
-							hpdma_hal_get_dest_write_addr(&s_hpdma.hal, id));
-				break;
-			}
+			HPDMA_LOGE("ch%d busy,remain len=%d,dst_addr=%x\r\n", id,
+				   hpdma_hal_get_remain_len(&s_hpdma.hal, id),
+				   hpdma_hal_get_dest_write_addr(&s_hpdma.hal, id));
+			/* S1: do NOT pretend the channel is idle on timeout. */
+			return BK_ERR_HPDMA_TIMEOUT;
 		}
-
-		return i;
-	}
-	else
-	{
-		//TODO:
 	}
 
-	return 0;
+	return BK_OK;
+}
+
+bk_err_t bk_hpdma_wait_to_idle(hpdma_id_t id)
+{
+	HPDMA_RETURN_ON_NOT_INIT();
+	HPDMA_RETURN_ON_INVALID_ID(id);
+	return hpdma_wait_to_idle(id);
 }
 
 bk_err_t bk_hpdma_enable_finish_interrupt(hpdma_id_t id)
@@ -511,10 +755,60 @@ bk_err_t bk_hpdma_register_bus_err_isr(hpdma_id_t id, hpdma_isr_t bus_err_isr, v
     return BK_OK;
 }
 
+/*
+ * P0 (HPDMA review):
+ *   Companion of bk_hpdma_register_bus_err_isr for the newly-exposed
+ *   fifo_err class. Clients that opt-in via
+ *   bk_hpdma_enable_fifo_err_interrupt() can use this to be notified
+ *   from the ISR after the engine has been halted.
+ */
+bk_err_t bk_hpdma_register_fifo_err_isr(hpdma_id_t id, hpdma_isr_t fifo_err_isr, void *user_data)
+{
+    HPDMA_RETURN_ON_NOT_INIT();
+    HPDMA_RETURN_ON_INVALID_ID(id);
+    GLOBAL_INT_DECLARATION();
+    GLOBAL_INT_DISABLE();
+    s_hpdma_fifo_err_isr[id].callback = fifo_err_isr;
+    s_hpdma_fifo_err_isr[id].user_data = user_data;
+    GLOBAL_INT_RESTORE();
+
+    return BK_OK;
+}
+
+bk_err_t bk_hpdma_enable_fifo_err_interrupt(hpdma_id_t id)
+{
+    HPDMA_RETURN_ON_INVALID_ID(id);
+    hpdma_id_enable_interrupt_common(id);
+    hpdma_hal_enable_fifo_err_interrupt(&s_hpdma.hal, id);
+    return BK_OK;
+}
+
+bk_err_t bk_hpdma_disable_fifo_err_interrupt(hpdma_id_t id)
+{
+    HPDMA_RETURN_ON_INVALID_ID(id);
+
+    hpdma_hal_disable_fifo_err_interrupt(&s_hpdma.hal, id);
+    hpdma_hal_clear_fifo_err_interrupt_status(&s_hpdma.hal, id);
+    __DSB();
+    return BK_OK;
+}
+
 bk_err_t bk_hpdma_set_src_start_addr(hpdma_id_t id, uint32_t start_addr)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    /*
+     * S1/E (HPDMA review):
+     *   Asymmetric with set_dest_start_addr previously: set_src skipped
+     *   wait_to_idle entirely. Changing src_start_addr mid-transfer is
+     *   just as dangerous (immediate bus_err / wrong source read), so
+     *   mirror the wait + error-return pattern.
+     */
+    bk_err_t wait_ret = hpdma_wait_to_idle(id);
+    if (wait_ret != BK_OK) {
+        HPDMA_LOGE("set_src_start_addr: ch%d busy, refuse to update\r\n", id);
+        return wait_ret;
+    }
     hpdma_hal_set_src_start_addr(&s_hpdma.hal, id, start_addr);
     return BK_OK;
 }
@@ -523,7 +817,19 @@ bk_err_t bk_hpdma_set_dest_start_addr(hpdma_id_t id, uint32_t start_addr)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
-    hpdma_wait_to_idle(id);
+    /*
+     * S1/E (HPDMA review):
+     *   Previously the return value of hpdma_wait_to_idle was thrown
+     *   away, so a busy / timed-out channel would still get its
+     *   dest_start_addr re-written - exactly the bus_err / corruption
+     *   hazard that wait_to_idle was changed to report. Now we refuse
+     *   to touch the register and propagate the error up.
+     */
+    bk_err_t wait_ret = hpdma_wait_to_idle(id);
+    if (wait_ret != BK_OK) {
+        HPDMA_LOGE("set_dest_start_addr: ch%d busy, refuse to update\r\n", id);
+        return wait_ret;
+    }
     hpdma_hal_set_dest_start_addr(&s_hpdma.hal, id, start_addr);
     return BK_OK;
 }
@@ -639,7 +945,12 @@ bk_err_t bk_hpdma_set_src_data_width(hpdma_id_t id, hpdma_data_width_t data_widt
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
-    hpdma_wait_to_idle(id);
+    /* S1/E (HPDMA review): see bk_hpdma_set_dest_start_addr. */
+    bk_err_t wait_ret = hpdma_wait_to_idle(id);
+    if (wait_ret != BK_OK) {
+        HPDMA_LOGE("set_src_data_width: ch%d busy, refuse to update\r\n", id);
+        return wait_ret;
+    }
     hpdma_hal_set_src_data_width(&s_hpdma.hal, id, data_width);
     return BK_OK;
 }
@@ -649,7 +960,12 @@ bk_err_t bk_hpdma_set_dest_data_width(hpdma_id_t id, hpdma_data_width_t data_wid
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
-    hpdma_wait_to_idle(id);
+    /* S1/E (HPDMA review): see bk_hpdma_set_dest_start_addr. */
+    bk_err_t wait_ret = hpdma_wait_to_idle(id);
+    if (wait_ret != BK_OK) {
+        HPDMA_LOGE("set_dest_data_width: ch%d busy, refuse to update\r\n", id);
+        return wait_ret;
+    }
     hpdma_hal_set_dest_data_width(&s_hpdma.hal, id, data_width);
     return BK_OK;
 }
@@ -710,11 +1026,151 @@ bk_err_t bk_hpdma_set_src_sec_attr(hpdma_id_t id, hpdma_sec_attr_t attr)
     return BK_OK;
 }
 
+/*
+ * Same-physical-SMEM burst override (HPDMA review request):
+ *
+ *   Hardware constraint: when HPDMA's source and destination both live in the
+ *   *same* physical SMEM block (smem3/4/5/6 on BK7259), bursts longer than
+ *   INC8 expose a read/write contention inside that SMEM and can corrupt
+ *   data. The contention exists for the 3 alias windows that map to the same
+ *   physical block:
+ *     - main window      : +0x00000000
+ *     - NS / peer view   : +SOC_S_NS_ADDR_DIFF (0x10000000)
+ *     - cacheable view   : +0x04000000
+ *
+ *   This helper maps an address to a physical SMEM block id (3..6, encoded
+ *   as 0..3) regardless of which alias window it sits in. -1 means "not in
+ *   smem3..smem6".
+ *
+ *   Callers must only consult the *start* address as the user requested -
+ *   range overlap across blocks is not handled here.
+ */
+static int hpdma_resolve_smem_block(uint32_t addr)
+{
+    /* Reduce the 3 alias windows to one canonical secure / main view. */
+    if (addr >= 0x38000000 && addr < 0x40000000) {
+        addr -= SOC_S_NS_ADDR_DIFF;          /* NS  -> secure */
+    } else if (addr >= 0x2C000000 && addr < 0x30000000) {
+        addr -= 0x04000000;                  /* cacheable -> non-cacheable */
+    }
+
+    const struct {
+        uint32_t base;
+        uint32_t size;
+    } smem_blocks[] = {
+        { 0x28100000, SOC_SRAM3_DATA_SIZE },  /* smem3 */
+        { 0x28140000, SOC_SRAM4_DATA_SIZE },  /* smem4 */
+        { 0x28180000, SOC_SRAM5_DATA_SIZE },  /* smem5 */
+        { 0x281C0000, SOC_SRAM6_DATA_SIZE },  /* smem6 */
+    };
+
+    for (int i = 0; i < (int)(sizeof(smem_blocks) / sizeof(smem_blocks[0])); i++) {
+        if (addr >= smem_blocks[i].base &&
+            addr < smem_blocks[i].base + smem_blocks[i].size) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/*
+ * Return BK_OK and fill *src and *dst with the start addresses the channel
+ * will actually use:
+ *   - Plain (non-link) mode: read from channel registers.
+ *   - Link mode: channel registers may still be 0 between set_burst() and
+ *     link_transfer(); fall back to the first descriptor pointed to by
+ *     next_ll_addr.
+ */
+static bk_err_t hpdma_get_effective_addrs(hpdma_id_t id, uint32_t *src, uint32_t *dst)
+{
+    uint32_t s = hpdma_hal_get_src_start_addr(&s_hpdma.hal, id);
+    uint32_t d = hpdma_hal_get_dest_start_addr(&s_hpdma.hal, id);
+
+    if (s == 0 || d == 0) {
+        uint32_t ll = hpdma_hal_get_next_ll_addr(&s_hpdma.hal, id);
+        if (ll != 0) {
+            const hpdma_descriptor_t *desc = (const hpdma_descriptor_t *)ll;
+            if (s == 0) s = desc->src_addr;
+            if (d == 0) d = desc->dst_addr;
+        }
+    }
+
+    *src = s;
+    *dst = d;
+    return BK_OK;
+}
+
+/*
+ * New P0 (HPDMA review - SMEM burst policy timing fix):
+ *
+ *   The previous implementation hooked the "same physical SMEM block ->
+ *   force INC8" policy inside bk_hpdma_set_src/dest_burst_len(). All
+ *   real callers (LVGL, GPU) invoke set_burst_len BEFORE link_transfer
+ *   / start, when the channel's src/dst registers are either zero (fresh
+ *   alloc) or stale (previous transfer's addresses). The policy
+ *   therefore either silently no-op'd (first transfer) or judged the
+ *   wrong addresses (subsequent transfers), leaving INC16 active for
+ *   transfers that genuinely needed INC8 - the exact SMEM contention
+ *   the policy was supposed to prevent.
+ *
+ *   Fix:
+ *     - set_burst_len() reverts to its plain meaning: write the
+ *       hardware register to the requested value.
+ *     - apply_smem_burst_policy_at_start() is invoked from
+ *       bk_hpdma_start() and bk_hpdma_link_transfer() - i.e. the last
+ *       moments before the engine actually starts. By then the channel
+ *       has the real src/dst (plain mode: written by hpdma_hal_init_dma;
+ *       link mode: derivable via next_ll_addr -> first descriptor),
+ *       so the policy sees ground truth and may downgrade the already-
+ *       programmed burst_len from INC16 to INC8 in-place.
+ *
+ *   The user-visible API surface is unchanged.
+ */
+static void hpdma_apply_smem_burst_policy_at_start(hpdma_id_t id)
+{
+    uint32_t src_addr = 0;
+    uint32_t dst_addr = 0;
+
+    if (hpdma_get_effective_addrs(id, &src_addr, &dst_addr) != BK_OK) {
+        return;
+    }
+    if (src_addr == 0 || dst_addr == 0) {
+        return;
+    }
+
+    int src_blk = hpdma_resolve_smem_block(src_addr);
+    int dst_blk = hpdma_resolve_smem_block(dst_addr);
+    if (src_blk < 0 || dst_blk < 0 || src_blk != dst_blk) {
+        return;
+    }
+
+    uint32_t src_burst = hpdma_hal_get_src_burst_len(&s_hpdma.hal, id);
+    uint32_t dst_burst = hpdma_hal_get_dest_burst_len(&s_hpdma.hal, id);
+
+    if (src_burst > HPDMA_BURST_LEN_INC8) {
+        HPDMA_LOGI("ch%d src in smem%d, downgrade src burst %u->INC8\r\n",
+                   id, 3 + src_blk, src_burst);
+        hpdma_hal_set_src_burst_len(&s_hpdma.hal, id, HPDMA_BURST_LEN_INC8);
+    }
+    if (dst_burst > HPDMA_BURST_LEN_INC8) {
+        HPDMA_LOGI("ch%d dst in smem%d, downgrade dst burst %u->INC8\r\n",
+                   id, 3 + dst_blk, dst_burst);
+        hpdma_hal_set_dest_burst_len(&s_hpdma.hal, id, HPDMA_BURST_LEN_INC8);
+    }
+}
+
 bk_err_t bk_hpdma_set_dest_burst_len(hpdma_id_t id, hpdma_burst_len_t len)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /*
+     * New P0 (HPDMA review):
+     *   The SMEM-same-block override moved out of this setter and into
+     *   apply_smem_burst_policy_at_start(), which runs at real start
+     *   time when the channel actually knows its src/dst addresses.
+     *   Here we just write what the caller asked for.
+     */
     hpdma_hal_set_dest_burst_len(&s_hpdma.hal, id, len);
     return BK_OK;
 }
@@ -732,6 +1188,7 @@ bk_err_t bk_hpdma_set_src_burst_len(hpdma_id_t id, hpdma_burst_len_t len)
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /* New P0 (HPDMA review): see bk_hpdma_set_dest_burst_len. */
     hpdma_hal_set_src_burst_len(&s_hpdma.hal, id, len);
     return BK_OK;
 }
@@ -837,12 +1294,43 @@ bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_
     bk_hpdma_set_dest_sec_attr(cpy_chnl, HPDMA_ATTR_SEC);
 #endif
 
+    /*
+     * New P0 (HPDMA review): apply SMEM-same-block burst override here
+     *   too. hpdma_memcpy_by_chnl bypasses bk_hpdma_start() and calls
+     *   hpdma_hal_start_common directly, so it would otherwise miss the
+     *   policy that now lives in bk_hpdma_start().
+     */
+    hpdma_apply_smem_burst_policy_at_start(cpy_chnl);
+
     __DSB();
     hpdma_hal_start_common(&s_hpdma.hal, cpy_chnl);
     GLOBAL_INT_RESTORE();
 
-    //TODO:I think no need to wait copy data finish,just confirm before copy start, the previous one is finish.
-    BK_WHILE(hpdma_hal_get_enable_status(&s_hpdma.hal, cpy_chnl));
+    /*
+     * S1 (HPDMA review):
+     *   Previously this was a raw BK_WHILE(enable) - a permanent spin
+     *   if the channel never auto-clears dma_en (broken int routing,
+     *   bus_err, hardware hang). bk_hpdma_memcpy is on the PSRAM stress
+     *   hot path, so an unbounded wait there directly translates to a
+     *   WDT reset. Now bounded by HPDMA_MAX_BUSY_TIME us, with explicit
+     *   teardown on timeout via hpdma_hal_stop_disable_only so the
+     *   channel reaches a known-dead state without disturbing the
+     *   interrupt status the caller may still want to read.
+     */
+    {
+        uint32_t spun_us = 0;
+        while (hpdma_hal_get_enable_status(&s_hpdma.hal, cpy_chnl)) {
+            bk_delay_us(1);
+            if (++spun_us > HPDMA_MAX_BUSY_TIME) {
+                HPDMA_LOGE("memcpy: ch%d hung; remain=%u dst_wr=0x%x\r\n",
+                           cpy_chnl,
+                           hpdma_hal_get_remain_len(&s_hpdma.hal, cpy_chnl),
+                           hpdma_hal_get_dest_write_addr(&s_hpdma.hal, cpy_chnl));
+                hpdma_hal_stop_disable_only(&s_hpdma.hal, cpy_chnl);
+                return BK_ERR_HPDMA_TIMEOUT;
+            }
+        }
+    }
 
 #if CONFIG_SUPPORT_CACHEABLE_SRAM
     // Invalidate destination cache to ensure CPU reads DMA-written data
@@ -869,6 +1357,114 @@ bk_err_t bk_hpdma_memcpy(void *out, const void *in, uint32_t len)
     bk_hpdma_free(HPDMA_DEV_DTCM, cpy_chnl);
 
     return ret;
+}
+
+/*
+ * P0 (HPDMA review):
+ *   The header declared bk_hpdma_flush_src_buffer() for parity with the
+ *   regular DMA's bk_dma_flush_src_buffer(), but the symbol was never
+ *   defined - any link that referenced it (e.g. generic DMA wrappers
+ *   built with HPDMA) would simply fail at link time, while builds that
+ *   didn't reference it carried a phantom API.
+ *
+ *   On BK7259 HPDMA there is no dedicated "flush fifo" status bit
+ *   exposed in the Reg23/Reg28 spec; the engine drains its internal
+ *   buffers when the channel is disabled and dma_en reads back 0.
+ *   The implementation therefore boils down to "park the channel and
+ *   wait until the engine reports idle", with stop_disable_only to
+ *   avoid clobbering interrupt status that the caller may consume.
+ */
+bk_err_t bk_hpdma_flush_src_buffer(hpdma_id_t id)
+{
+    HPDMA_RETURN_ON_NOT_INIT();
+    HPDMA_RETURN_ON_INVALID_ID(id);
+    HPDMA_RETURN_ON_ID_NOT_INIT(0, id);
+
+    hpdma_hal_stop_disable_only(&s_hpdma.hal, id);
+    return hpdma_wait_to_idle(id);
+}
+
+/*
+ * S0/C (HPDMA review - bk_hpdma_free timeout escape hatch):
+ *
+ *   When bk_hpdma_free()'s internal stop + wait_to_idle hits a
+ *   HPDMA_MAX_BUSY_TIME timeout (engine wedged), we deliberately keep
+ *   the bitmap bit set so the channel cannot be silently handed to a
+ *   new owner. Without an escape hatch the chnl_id would leak forever
+ *   and the 4-channel pool would eventually be exhausted.
+ *
+ *   bk_hpdma_force_reclaim:
+ *     1) verifies the bitmap still tracks the original allocator
+ *        (the same user_id contract enforced by bk_hpdma_free).
+ *     2) resets *just this channel's* registers to their power-on
+ *        defaults via hpdma_ll_reset_config_to_default - this is the
+ *        per-channel equivalent of soft_reset and avoids the full
+ *        controller reset that hpdma_hal_init_without_channels would
+ *        do (which would disturb peer channels).
+ *     3) clears the channel ISR callbacks and releases the bitmap.
+ *
+ *   Data already partially written to the destination is lost; that's
+ *   the price of recovering from a wedged engine. Callers that hold
+ *   buffers on behalf of the channel must NOT free them until they
+ *   accept this loss.
+ */
+bk_err_t bk_hpdma_force_reclaim(u16 user_id, hpdma_id_t chnl_id)
+{
+    if (!s_hpdma_driver_is_init) {
+        return BK_ERR_HPDMA_NOT_INIT;
+    }
+    if (chnl_id >= HPDMA_ID_MAX) {
+        return BK_ERR_HPDMA_ID;
+    }
+    if (s_hpdma_chnl_pool.chnl_user[chnl_id] != user_id) {
+        return BK_ERR_PARAM;
+    }
+
+    HPDMA_LOGW("force reclaim ch%d (user=0x%x): DMA may have left partial writes\r\n",
+               chnl_id, user_id);
+
+    hpdma_hal_stop_disable_only(&s_hpdma.hal, chnl_id);
+    /* Per-channel reset: ctrl/req_mux/status/addresses all back to 0. */
+    hpdma_hal_reset_config_to_default(&s_hpdma.hal, chnl_id);
+    s_hpdma.id_init_bits &= ~BIT(chnl_id);
+
+    u32 int_mask = hpdma_enter_critical();
+    s_hpdma_half_finish_isr[chnl_id].callback = NULL;
+    s_hpdma_half_finish_isr[chnl_id].user_data = NULL;
+    s_hpdma_finish_isr[chnl_id].callback = NULL;
+    s_hpdma_finish_isr[chnl_id].user_data = NULL;
+    s_hpdma_bus_err_isr[chnl_id].callback = NULL;
+    s_hpdma_bus_err_isr[chnl_id].user_data = NULL;
+    s_hpdma_fifo_err_isr[chnl_id].callback = NULL;
+    s_hpdma_fifo_err_isr[chnl_id].user_data = NULL;
+    s_hpdma_chnl_pool.chnl_bitmap &= ~(0x01 << chnl_id);
+    s_hpdma_chnl_pool.chnl_user[chnl_id] = -1;
+    hpdma_exit_critical(int_mask);
+
+    return BK_OK;
+}
+
+/*
+ * S2 (HPDMA review):
+ *   The controller-wide registers (soft_reset / secure_attr /
+ *   privileged_attr / prio_mode) are powered down with the rest of the
+ *   chip during low-voltage sleep and read back as zeros on wakeup.
+ *
+ *   Previously bk_hpdma_init() called hpdma_hal_init_without_channels()
+ *   on *every* invocation to paper over this; that turned every init
+ *   into a potential global reset that silently aborted any peer
+ *   channel that happened to be mid-transfer (e.g. GPU running while
+ *   LVGL kicks a new memcpy after wakeup).
+ *
+ *   PM should now call bk_hpdma_recover_after_low_voltage() exactly
+ *   once on wakeup, BEFORE any client calls bk_hpdma_init / start.
+ *   This is the only place that may touch global controller state.
+ */
+bk_err_t bk_hpdma_recover_after_low_voltage(void)
+{
+    HPDMA_RETURN_ON_NOT_INIT();
+    hpdma_hal_init_without_channels(&s_hpdma.hal);
+    return BK_OK;
 }
 
 
@@ -1160,9 +1756,18 @@ static void hpdma_isr_common(hpdma_unit_t hpdma_unit_id)
             }
         }
         if (hpdma_hal_is_finish_interrupt_triggered(hal, id)) {
-#if CONFIG_SUPPORT_CACHEABLE_SRAM
-            flush_all_dcache();
-#endif
+            /*
+             * S1 (HPDMA review):
+             *   The old code called flush_all_dcache() on every finish
+             *   ISR. On high-frame-rate GPU / LVGL paths this turned a
+             *   16-microsecond ISR into a multi-millisecond ISR (whole
+             *   D-cache walked back to RAM) and serialized every other
+             *   core / task behind the cache controller. Per-callback
+             *   cache maintenance is the caller's responsibility (LVGL /
+             *   GPU already flush the specific buffer they read after
+             *   waiting on the completion semaphore); we no longer pay
+             *   a global cost from interrupt context.
+             */
             HPDMA_LOGV("hpdma_isr ALL FINISH TRIGGERED! id: %d\r\n", id);
             hpdma_hal_clear_finish_interrupt_status(hal, id);
             __DSB();
@@ -1173,17 +1778,52 @@ static void hpdma_isr_common(hpdma_unit_t hpdma_unit_id)
             }
         }
 
-           if (hpdma_hal_is_bus_err_interrupt_triggered(hal, id)) {
-           HPDMA_LOGE("hpdma_isr BUS ERR! id: %d\r\n", id);
-           hpdma_hal_clear_bus_err_interrupt_status(hal, id);
-           __DSB();
-           __ISB();
-           if (s_hpdma_bus_err_isr[id].callback) {
-               HPDMA_LOGE("hpdma_isr BUS ERR CALLBACK! id: %d\r\n", id);
-               s_hpdma_bus_err_isr[id].callback(channel, s_hpdma_bus_err_isr[id].user_data);
-           }
+        if (hpdma_hal_is_bus_err_interrupt_triggered(hal, id)) {
+            /*
+             * S1 (HPDMA review):
+             *   On bus_err the channel is in a known-bad state (it has
+             *   either touched an illegal addr or violated security).
+             *   Previously the ISR only cleared status and called back;
+             *   leaving dma_en=1 caused the engine to re-attempt the
+             *   same access immediately, producing an interrupt storm
+             *   and, on production silicon, ultimately a watchdog. We
+             *   now disable the channel BEFORE running the callback so
+             *   the callback always observes a halted engine and
+             *   subsequent ISRs cannot re-fire for the same fault.
+             *   stop_disable_only() is used (not stop_common) so the
+             *   half/finish/fifo status bits are preserved for the
+             *   callback to inspect.
+             */
+            HPDMA_LOGE("hpdma_isr BUS ERR! id: %d\r\n", id);
+            hpdma_hal_stop_disable_only(hal, id);
+            hpdma_hal_clear_bus_err_interrupt_status(hal, id);
+            __DSB();
+            __ISB();
+            if (s_hpdma_bus_err_isr[id].callback) {
+                HPDMA_LOGE("hpdma_isr BUS ERR CALLBACK! id: %d\r\n", id);
+                s_hpdma_bus_err_isr[id].callback(channel, s_hpdma_bus_err_isr[id].user_data);
+            }
         }
 
+        /*
+         * P0 (HPDMA review):
+         *   fifo_err handling was completely absent. If enabled by a
+         *   client (via bk_hpdma_enable_fifo_err_interrupt) the bit
+         *   would latch in status and never be W1C'd, generating an
+         *   immediate re-entry once the line was unmasked. Mirror the
+         *   bus_err handling: halt first, then clear, then notify.
+         */
+        if (hpdma_hal_is_fifo_err_interrupt_triggered(hal, id)) {
+            HPDMA_LOGE("hpdma_isr FIFO ERR! id: %d\r\n", id);
+            hpdma_hal_stop_disable_only(hal, id);
+            hpdma_hal_clear_fifo_err_interrupt_status(hal, id);
+            __DSB();
+            __ISB();
+            if (s_hpdma_fifo_err_isr[id].callback) {
+                HPDMA_LOGE("hpdma_isr FIFO ERR CALLBACK! id: %d\r\n", id);
+                s_hpdma_fifo_err_isr[id].callback(channel, s_hpdma_fifo_err_isr[id].user_data);
+            }
+        }
    }
 }
 

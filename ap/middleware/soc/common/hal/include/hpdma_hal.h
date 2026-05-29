@@ -47,6 +47,12 @@ typedef struct {
 #define hpdma_hal_enable_bus_err_interrupt(hal, id) hpdma_ll_enable_bus_err_interrupt((hal)->hw, id)
 #define hpdma_hal_disable_bus_err_interrupt(hal, id) hpdma_ll_disable_bus_err_interrupt((hal)->hw, id)
 
+/* P0 (HPDMA review): forward fifo_err helpers - see hpdma_ll.h. */
+#define hpdma_hal_clear_fifo_err_interrupt_status(hal, id) hpdma_ll_clear_fifo_err_interrupt_status((hal)->hw, (id))
+#define hpdma_hal_is_fifo_err_interrupt_triggered(hal, id) hpdma_ll_is_fifo_err_interrupt_triggered((hal)->hw, (id))
+#define hpdma_hal_enable_fifo_err_interrupt(hal, id) hpdma_ll_enable_fifo_err_interrupt((hal)->hw, (id))
+#define hpdma_hal_disable_fifo_err_interrupt(hal, id) hpdma_ll_disable_fifo_err_interrupt((hal)->hw, (id))
+
 #define hpdma_hal_reset_config_to_default(hal, id) hpdma_ll_reset_config_to_default((hal)->hw, (id))
 #define hpdma_hal_is_id_started(hal, id) hpdma_ll_is_id_started((hal)->hw, (id))
 #define hpdma_hal_get_transfer_len_max(hal) hpdma_ll_get_transfer_len_max((hal)->hw)
@@ -113,6 +119,19 @@ void hpdma_hal_init_without_channels(hpdma_hal_t *hal);
 bk_err_t hpdma_hal_init_dma(hpdma_hal_t *hal, hpdma_id_t id, const hpdma_config_t *config);
 bk_err_t hpdma_hal_start_common(hpdma_hal_t *hal, hpdma_id_t id);
 bk_err_t hpdma_hal_stop_common(hpdma_hal_t *hal, hpdma_id_t id);
+
+/*
+ * S1/D (HPDMA review):
+ *   hpdma_hal_stop_common() both disables the channel AND W1C-clears its
+ *   half/finish/bus/fifo interrupt status. That last side effect made
+ *   bk_hpdma_set_dest_start_addr() / bk_hpdma_wait_to_idle() destructive
+ *   for any caller relying on interrupt status / counter snapshots.
+ *
+ *   stop_disable_only() exists for code paths that only want to halt
+ *   transfers without touching status (e.g. wait_to_idle, free, force
+ *   reclaim).
+ */
+bk_err_t hpdma_hal_stop_disable_only(hpdma_hal_t *hal, hpdma_id_t id);
 
 
 

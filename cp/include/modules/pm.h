@@ -358,8 +358,17 @@ typedef enum
 	PM_DEV_ID_KEY,          //42
 	PM_DEV_ID_CIF,          //43
 	PM_DEV_ID_MAILBOX,      //44
+	/*
+	 * S2 (HPDMA review):
+	 *   Keep CP-side PM device id table in lock-step with the AP side.
+	 *   PM_DEV_ID_HPDMA is consumed only by the AP HPDMA driver (CP has
+	 *   no HPDMA presence today), but the enum is part of the cross-
+	 *   core PM ABI: shifting PM_DEV_ID_DEFAULT to a different ordinal
+	 *   on one core would silently misalign any cross-core PM tables.
+	 */
+	PM_DEV_ID_HPDMA,        //45
 
-	PM_DEV_ID_DEFAULT,      //45  it is used by pm module set default cpu frequency
+	PM_DEV_ID_DEFAULT,      //46  it is used by pm module set default cpu frequency
 
 	PM_DEV_ID_MAX
 }pm_dev_id_e;
