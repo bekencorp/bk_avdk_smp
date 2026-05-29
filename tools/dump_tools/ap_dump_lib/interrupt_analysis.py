@@ -10,6 +10,16 @@ from .elf_symbols import ElfSymbols
 EXIT_FLAG = 0xF0000000
 RECORDER_STRUCT_SIZE = 24
 
+# Firmware struct layout (interrupt_recorder_dump_t):
+#   [+0]  uint32_t count            (4 B)
+#   [+4]  padding for uint64        (4 B)
+#   [+8]  recorder[N]               (N * 24 B)
+#   [tail] optional extension fields (IRQ-silence monitor, may be absent in old fw)
+RECORDER_ARRAY_OFFSET = 8
+# Known tail-extension size (last_isr_exit_us..gap_threshold_us). Older builds
+# don't have this; we detect which layout the dump uses by struct total size.
+RECORDER_EXT_SIZE = 40
+
 
 @dataclass
 class CoreInterruptSummary:
@@ -43,17 +53,24 @@ def decode_recorder_from_memory(session: DumpSession, symbols: ElfSymbols) -> li
             continue
         off = sym.address - region.start
         available = min(sym.size, len(region.data) - off)
-        if available < 4 + RECORDER_STRUCT_SIZE:
+        if available < RECORDER_ARRAY_OFFSET + RECORDER_STRUCT_SIZE:
             continue
         blob = region.data[off:off + available]
         total = int.from_bytes(blob[:4], "little")
-        capacity = (available - 4) // RECORDER_STRUCT_SIZE
+        # Detect capacity from the ELF struct size, distinguishing old (no
+        # IRQ-silence extension) from new (recorder + 40 B tail) layouts.
+        # New: (sym.size - 8 - 40) / 24 is exact; Old: (sym.size - 8) / 24.
+        if sym.size >= RECORDER_ARRAY_OFFSET + RECORDER_EXT_SIZE + RECORDER_STRUCT_SIZE \
+                and (sym.size - RECORDER_ARRAY_OFFSET - RECORDER_EXT_SIZE) % RECORDER_STRUCT_SIZE == 0:
+            capacity = (sym.size - RECORDER_ARRAY_OFFSET - RECORDER_EXT_SIZE) // RECORDER_STRUCT_SIZE
+        else:
+            capacity = (available - RECORDER_ARRAY_OFFSET) // RECORDER_STRUCT_SIZE
         depth = min(total, capacity)
         start = max(0, total - depth)
         records: list[InterruptRecord] = []
         for seq in range(start, total):
             rec_idx = seq % capacity
-            rec_off = 4 + rec_idx * RECORDER_STRUCT_SIZE
+            rec_off = RECORDER_ARRAY_OFFSET + rec_idx * RECORDER_STRUCT_SIZE
             int_flag = int.from_bytes(blob[rec_off:rec_off + 4], "little")
             current_cnt = int.from_bytes(blob[rec_off + 4:rec_off + 8], "little")
             enter = _read_u64(blob, rec_off + 8)
