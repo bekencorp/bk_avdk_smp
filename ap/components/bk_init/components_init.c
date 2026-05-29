@@ -259,9 +259,12 @@ int components_init(void)
 		return BK_FAIL;
 
 #if CONFIG_SUPPORT_WWDT
-	bk_wwdt_driver_init();
-	// bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0);
-	BK_LOGV(TAG, "wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
+	/*
+	 * Start the AP boot core WWDT before the scheduler starts. The other AP
+	 * core starts/feeds its own WWDT from per-core SysTick after scheduling.
+	 */
+	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
+	BK_LOGI(TAG, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
 #endif
 #if CONFIG_UT_REG
 	ut_reg_init();

@@ -40,6 +40,7 @@
 #include "cmsis_gcc.h"
 #include "bk_wdt.h"
 #include "bk_aon_wdt.h"
+#include "wwdt_driver.h"
 #include "sys_hal.h"
 
 #if CONFIG_DEEP_LV
@@ -841,6 +842,10 @@ void vPortExitCritical( void ) /* PRIVILEGED_FUNCTION */
 void soc_systick_handler( void ) /* PRIVILEGED_FUNCTION */
 {
     uint32_t ulPreviousMask;
+
+#if CONFIG_SUPPORT_WWDT
+    bk_wwdt_feed_current_core_from_isr();
+#endif
 
     ulPreviousMask = portSET_INTERRUPT_MASK_FROM_ISR();
     {

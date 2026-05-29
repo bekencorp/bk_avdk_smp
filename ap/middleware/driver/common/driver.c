@@ -24,6 +24,7 @@
 #include <driver/uart.h>
 #include <driver/wdt.h>
 #include <driver/aon_wdt.h>
+#include <driver/wwdt.h>
 #include <driver/trng.h>
 #include <driver/efuse.h>
 #include <driver/ckmn.h>
@@ -312,6 +313,10 @@ int driver_init(void) {
 
 #if (CONFIG_INT_WDT || CONFIG_TASK_WDT)
 	bk_wdt_driver_init();
+#endif
+
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_driver_init();
 #endif
 
 #if CONFIG_AON_WDT && !CONFIG_INT_AON_WDT

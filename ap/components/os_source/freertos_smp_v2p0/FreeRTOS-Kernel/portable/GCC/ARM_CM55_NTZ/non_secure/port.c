@@ -42,6 +42,7 @@
 #include "cmsis_gcc.h"
 #include "bk_wdt.h"
 #include "bk_aon_wdt.h"
+#include "wwdt_driver.h"
 #include "sys_ll.h"
 #include "driver/mailbox_types.h"
 #include "driver/mailbox.h"
@@ -707,6 +708,10 @@ void soc_systick_handler( void ) /* PRIVILEGED_FUNCTION */
 {
     uint32_t ulPreviousMask;
     BaseType_t xCoreID = portGET_CORE_ID();
+
+#if CONFIG_SUPPORT_WWDT
+    bk_wwdt_feed_current_core_from_isr();
+#endif
 
     //other cores
     if (xCoreID != ucPrimaryCoreNum)
