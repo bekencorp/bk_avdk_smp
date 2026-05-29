@@ -455,6 +455,10 @@ pm_mailbox_communication_state_e bk_pm_cp1_cpu_freq_ctrl_state_get();
  *
  */
 bk_err_t bk_pm_cp1_cpu_freq_ctrl_state_set(pm_mailbox_communication_state_e state);
+pm_mailbox_communication_state_e bk_pm_cp1_external_ldo_ctrl_state_get(void);
+bk_err_t bk_pm_cp1_external_ldo_ctrl_state_set(pm_mailbox_communication_state_e state);
+pm_mailbox_communication_state_e bk_pm_cp1_psram_power_state_get(void);
+bk_err_t bk_pm_cp1_psram_power_state_set(pm_mailbox_communication_state_e state);
 /**
  * @brief get cpu1 boot ctrl state
  *

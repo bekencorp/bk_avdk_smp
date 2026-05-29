@@ -16,7 +16,8 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
 #define PM_AP_CORE_STACK_SIZE              (1536)
-#define PM_AP_CORE_QUEUE_NUMBER_OF_MESSAGE (10)
+#define PM_AP_CORE_QUEUE_NUMBER_OF_MESSAGE (30)
+#define PM_AP_CORE_THREAD_PRIORITY         (2)
 
 /*=====================DEFINE  SECTION  END=====================*/
 
@@ -55,7 +56,7 @@ bk_err_t bk_pm_ap_core_send_msg(pm_ap_core_msg_t *msg)
 
         if (BK_OK != ret)
         {
-            LOGE("%s failed\n", __func__);
+            LOGE("%s failed[%d]\n", __func__,ret);
             return BK_FAIL;
         }
 
@@ -95,7 +96,7 @@ static bk_err_t pm_ap_core_message_handle(void)
                     //     ret = portYIELD_CORE(1);
                     //     LOGE("Wakeup cpu2 failed[%d]\r\n",ret);
                     // }
-                    FIXED_ADDR_WAKEUP_AP0_COUNT += 1;
+
                     bk_pm_ap_system_wakeup_handle_callback(&msg);
                 }
                 break;
@@ -135,7 +136,7 @@ static bk_err_t pm_ap_core_message_handle(void)
 	return  ret;
 }
 
-bk_err_t bk_pm_ap_core_init(void)
+bk_err_t bk_pm_ap_thread_main(void)
 {
     bk_err_t ret = BK_OK;
 
@@ -177,15 +178,24 @@ bk_err_t bk_pm_ap_core_init(void)
         goto error;
     }
 
+#if CONFIG_SOC_SMP
     ret = rtos_core0_create_thread(&s_pm_info->thd,
-                             BEKEN_DEFAULT_WORKER_PRIORITY - 2,/*pm contrl cmd thread priority need higher*/
+                             PM_AP_CORE_THREAD_PRIORITY,/*pm contrl cmd thread priority need higher*/
                              "pm_info->thd",
                              (beken_thread_function_t)pm_ap_core_message_handle,
                              PM_AP_CORE_STACK_SIZE,
                              NULL);
+#else
+    ret = rtos_create_thread(&s_pm_info->thd,
+                             PM_AP_CORE_THREAD_PRIORITY,/*pm contrl cmd thread priority need higher*/
+                             "pm_info->thd",
+                             (beken_thread_function_t)pm_ap_core_message_handle,
+                             PM_AP_CORE_STACK_SIZE,
+                             NULL);
+#endif
     if (ret != BK_OK)
     {
-        LOGE("create thread fail\n");
+        LOGE("create thread fail[%d]\n",ret);
         goto error;
     }
 

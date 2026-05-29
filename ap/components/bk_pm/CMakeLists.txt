@@ -12,29 +12,9 @@ if (CONFIG_PM_ENABLE)
 			src/clients/bk_pm_client_mailbox.c
 			src/clients/bk_pm_client_sleep.c
 			src/clients/bk_pm_client_ap_ctrl.c
+			src/clients/bk_pm_client_thread.c
+			src/clients/bk_pm_client_misc.c
 		)
-	else()
-		list(APPEND srcs
-			src/core/bk_pm_core.c
-			src/services/bk_pm_power.c
-			src/services/bk_pm_sleep.c
-			src/services/bk_pm_clock.c
-			src/services/bk_pm_wakeup_source.c
-			src/services/bk_pm_debug.c
-			src/services/bk_pm_misc.c
-			src/services/bk_pm_thread.c
-			src/services/bk_pm_sleep_callback.c
-		)
-		if (CONFIG_PSRAM)
-			list(APPEND srcs
-				src/services/bk_pm_psram.c
-			)
-		endif()
-		if (CONFIG_MAILBOX)
-			list(APPEND srcs
-				src/bk_pm_mailbox.c
-		)
-		endif()
 	endif()
 
 endif()

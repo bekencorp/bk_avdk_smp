@@ -1,4 +1,4 @@
-// Copyright 2021-2025 Beken
+// Copyright 2020-2021 Beken
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,24 +14,36 @@
 
 #include <common/bk_include.h>
 #include <driver/pwr_clk.h>
+#if CONFIG_MAILBOX
 #include <driver/mailbox_channel.h>
+#endif
 #include <modules/pm.h>
 #include "sys_driver.h"
-#include "bk_pm_internal_api.h"
-#include <driver/aon_rtc.h>
-#include <os/mem.h>
 #if CONFIG_PSRAM
 #include <driver/psram.h>
 #endif
-//#include "driver/low_pwr_core.h"
-#include "pm_debug.h"
-#if CONFIG_PSRAM
-#include "pm_psram.h"
+#include <os/mem.h>
+#include "sys_types.h"
+#include <driver/aon_rtc.h>
+#include <os/os.h>
+#include <driver/psram.h>
+#include <components/system.h>
+#include "bk_pm_internal_api.h"
+#include <common/bk_kernel_err.h>
+#include "aon_pmu_hal.h"
+#if CONFIG_WDT_EN
+#include "wdt_driver.h"
 #endif
-
-#define CONFIG_PM_SERVER                     (!CONFIG_PM_CLIENT)
+#include "driver/pm_ap_core.h"
 
 /*=====================DEFINE  SECTION  START=====================*/
+#define TAG "AP"
+
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 #define PM_SEND_CMD_CP1_RESPONSE_TIEM        (100)  //100ms
 #define PM_BOOT_CP1_WAITING_TIEM             (500) // 0.5s
 #define PM_CP1_RECOVERY_DEFAULT_VALUE        (0xFFFFFFFFFFFFFFFF)
@@ -39,13 +51,12 @@
 #define PM_SEMA_WAIT_FOREVER                 (0xFFFFFFFF)    /*Wait Forever*/
 
 #define PM_BOOT_CP1_TRY_COUNT                (3)
-#define PM_CP_NOTIFY_AP_MAX_COUNT            (100)
-#define PM_CP_NOTIFY_DELAY_TIME_US           (10)  //10us
+
+
 /*=====================DEFINE  SECTION  END=====================*/
 
-
 /*=====================VARIABLE  SECTION  START=================*/
-#if CONFIG_PM_CLIENT && CONFIG_PM_CLIENT_MAILBOX
+
 static volatile  pm_mailbox_communication_state_e s_pm_cp1_pwr_finish            = 0;
 static volatile  pm_mailbox_communication_state_e s_pm_cp1_clk_finish            = 0;
 static volatile  pm_mailbox_communication_state_e s_pm_cp1_sleep_finish          = 0;
@@ -53,23 +64,21 @@ static volatile  pm_mailbox_communication_state_e s_pm_cp1_cpu_freq_finish      
 static volatile  pm_mailbox_communication_state_e s_pm_cp1_init                  = 0;
 static volatile  pm_mailbox_communication_state_e s_pm_external_ldo_ctrl         = 0;
 static volatile  pm_mailbox_communication_state_e s_pm_psram_power_ctrl          = 0;
-#else // CONFIG_PM_SERVER
-static volatile  pm_mailbox_communication_state_e s_pm_cp1_boot_ready            = 0;
+static volatile  pm_mailbox_communication_state_e s_pm_cp2_rtc_deepsleep_finish  = 0;
+static volatile  pm_mailbox_communication_state_e s_pm_ap_get_cp_data_finish     = 0;
+static volatile  pm_mailbox_communication_state_e s_pm_cp2_ctrl_state_finish     = 0;
+static volatile  pm_mailbox_communication_state_e s_pm_cp2_deepsleep_finish      = 0;
+static volatile  pm_mailbox_communication_state_e s_pm_cp2_wakeup_src_cfg_finish = 0;
+
+static mb_chnl_cmd_t                              s_pm_mb_data                   = {0};
+
 static volatile  uint32_t                         s_pm_cp1_boot_try_count        = 0;
-static volatile  pm_mailbox_communication_state_e s_pm_cp1_psram_malloc_state    = 0;
-static volatile  uint32_t                         s_pm_cp1_psram_malloc_count    = 0;
-static volatile  uint64_t                         s_pm_cp1_module_recovery_state = PM_CP1_RECOVERY_DEFAULT_VALUE;
-#if (CONFIG_CPU_CNT > 1)
-static beken_semaphore_t                          s_sync_cp1_open_sema           = NULL;
-#endif
-static volatile  uint32_t                         s_pm_cp1_closing               = 0;
-static volatile  uint32_t                         s_pm_cp1_sema_count            = 0;
-#endif
+
 /*=====================VARIABLE  SECTION  END=================*/
 
+/*================FUNCTION DECLARATION  SECTION  START========*/
 
-/*================FUNCTION  DECLARATION  START========*/
-#if CONFIG_PM_CLIENT && CONFIG_PM_CLIENT_MAILBOX
+#if CONFIG_MAILBOX
 static void pm_cp1_mailbox_init();
 bk_err_t pm_cp1_mailbox_response(uint32_t cmd, int ret);
 bk_err_t bk_pm_cp1_ctrl_state_set(pm_mailbox_communication_state_e state);
@@ -77,43 +86,74 @@ pm_mailbox_communication_state_e bk_pm_cp1_ctrl_state_get();
 bk_err_t pm_cp1_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t param2,uint32_t param3);
 #endif
 
-#if CONFIG_PM_SERVER && (CONFIG_CPU_CNT > 1)
-static void pm_cp0_mailbox_init();
-static void pm_module_shutdown_cpu1(pm_power_module_name_e module);
-bk_err_t bk_pm_cp1_recovery_module_state_ctrl(pm_cp1_prepare_close_module_name_e module,pm_cp1_module_recovery_state_e state);
-static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t param2,uint32_t param3);
-#endif
-/*================FUNCTION  DECLARATION  END========*/
 
-/*================INITIAL FUNCTION  START========*/
+/*================FUNCTION DECLARATION  SECTION  END========*/
 bk_err_t bk_pm_mailbox_init()
 {
-#if CONFIG_PM_CLIENT && CONFIG_PM_CLIENT_MAILBOX
-	/*cp1 mailbox init*/
+#if CONFIG_MAILBOX
 	pm_cp1_mailbox_init();
-#endif
-
-#if CONFIG_PM_SERVER
-	/*cp0 mailbox init*/
-	#if (CONFIG_CPU_CNT > 1)
-	pm_cp0_mailbox_init();
-	#endif
 #endif
 
 	return BK_OK;
 }
-/*================INITIAL FUNCTION  END========*/
 
-/*=====================PM_CLIENT  SECTION  START=================*/
-#if CONFIG_PM_CLIENT && CONFIG_PM_CLIENT_MAILBOX
+#if CONFIG_MAILBOX
 bk_err_t bk_pm_cp1_boot_ok_response_set()
 {
 	if(bk_pm_cp1_ctrl_state_get() == 0x0)
 	{
 		bk_pm_cp1_ctrl_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
-		pm_cp1_mailbox_response(PM_CPU1_BOOT_READY_CMD, 0x1);
+        pm_cp1_mailbox_send_data(PM_CPU1_BOOT_READY_CMD,0x1,0,0);
 	}
 	return BK_OK;
+}
+pm_mailbox_communication_state_e bk_pm_ap_wakeup_source_config_state_get()
+{
+    return s_pm_cp2_wakeup_src_cfg_finish;
+}
+bk_err_t bk_pm_ap_wakeup_source_config_state_set(pm_mailbox_communication_state_e state)
+{
+    s_pm_cp2_wakeup_src_cfg_finish = state;
+    return BK_OK;
+}
+pm_mailbox_communication_state_e bk_pm_ap_enter_deepsleep_state_get()
+{
+    return s_pm_cp2_deepsleep_finish;
+}
+bk_err_t bk_pm_ap_enter_deepsleep_state_set(pm_mailbox_communication_state_e state)
+{
+    s_pm_cp2_deepsleep_finish = state;
+    return BK_OK;
+}
+
+pm_mailbox_communication_state_e bk_pm_ap_ctrl_state_get()
+{
+    return s_pm_cp2_ctrl_state_finish;
+}
+bk_err_t bk_pm_ap_ctrl_state_set(pm_mailbox_communication_state_e state)
+{
+    s_pm_cp2_ctrl_state_finish = state;
+    return BK_OK;
+}
+
+pm_mailbox_communication_state_e bk_pm_ap_getting_cp_data_state_get()
+{
+    return s_pm_ap_get_cp_data_finish;
+}
+bk_err_t bk_pm_ap_getting_cp_data_state_set(pm_mailbox_communication_state_e state)
+{
+    s_pm_ap_get_cp_data_finish = state;
+    return BK_OK;
+}
+
+pm_mailbox_communication_state_e bk_pm_ap_rtc_deepsleep_state_get()
+{
+    return s_pm_cp2_rtc_deepsleep_finish;
+}
+bk_err_t bk_pm_ap_rtc_deepsleep_state_set(pm_mailbox_communication_state_e state)
+{
+    s_pm_cp2_rtc_deepsleep_finish = state;
+    return BK_OK;
 }
 pm_mailbox_communication_state_e bk_pm_cp1_pwr_ctrl_state_get()
 {
@@ -188,31 +228,28 @@ bk_err_t bk_pm_cp1_recovery_response(uint32_t cmd, pm_cp1_prepare_close_module_n
 }
 bk_err_t pm_cp1_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t param2,uint32_t param3)
 {
-	bk_err_t ret = BK_OK;
+	bk_err_t ret         = BK_OK;
 	mb_chnl_cmd_t mb_cmd = {0};
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
+    uint8_t  retry_count = 0;
+
 	mb_cmd.hdr.cmd = cmd;
 	mb_cmd.param1 = param1;
 	mb_cmd.param2 = param2;
 	mb_cmd.param3 = param3;
+
 	ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
-	GLOBAL_INT_RESTORE();
-	BK_LOGD(NULL, "cp1 send data %d\r\n",ret);
-	return ret;
-}
-bk_err_t pm_cp1_mailbox_response(uint32_t cmd, int ret)
-{
-	mb_chnl_cmd_t mb_cmd = {0};
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
-	mb_cmd.hdr.cmd = cmd;
-	mb_cmd.param1 = ret;
-	mb_cmd.param2 = 0;
-	mb_cmd.param3 = 0;
-	mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
-	GLOBAL_INT_RESTORE();
-	return BK_OK;
+    while(ret != BK_OK)
+	{
+	    retry_count++;
+		ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
+		rtos_delay_milliseconds(2);
+        if(retry_count > 5)
+        {
+            LOGE("Mailbox send data fail[ret:%d]\r\n",ret);
+            return ret;
+        }
+	}
+    return BK_OK;
 }
 static void pm_cp1_mailbox_tx_cmpl_isr(int *pm_mb, mb_chnl_ack_t *cmd_buf)
 {
@@ -220,8 +257,8 @@ static void pm_cp1_mailbox_tx_cmpl_isr(int *pm_mb, mb_chnl_ack_t *cmd_buf)
 static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 {
 	bk_err_t ret = BK_OK;
-	uint32_t used_count;
-
+	//uint32_t used_count;
+    pm_ap_core_msg_t msg = {0};
 	GLOBAL_INT_DECLARATION();
 	GLOBAL_INT_DISABLE();
 	switch(cmd_buf->hdr.cmd) {
@@ -248,7 +285,7 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 		 case PM_SLEEP_CTRL_CMD:
 			if(cmd_buf->param1 == BK_OK)
 			{
-				s_pm_cp1_sleep_finish = PM_MAILBOX_COMMUNICATION_FINISH;
+				bk_pm_cp1_sleep_ctrl_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
 			}
 			else
 			{
@@ -276,26 +313,82 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			}
 			break;
 		case PM_CTRL_PSRAM_POWER_CMD:
-			if(cmd_buf->param1 == BK_OK)
+			if(cmd_buf->param1 == PM_POWER_MODULE_STATE_ON)
 			{
-				s_pm_psram_power_ctrl = PM_MAILBOX_COMMUNICATION_FINISH;
+				msg.event= PM_AP_CORE_PSRAM_STATE_NOTIFY;
+				msg.param1 = PM_AP_PSRAM_POWER_ON;//cmd_buf->param1;
+				msg.param2 = cmd_buf->param2;
+				bk_pm_ap_core_send_msg(&msg);
+			}
+			else if(cmd_buf->param1 ==PM_POWER_MODULE_STATE_OFF)
+			{
+
 			}
 			else
 			{
 				ret = BK_FAIL;
 			}
+			s_pm_psram_power_ctrl = PM_MAILBOX_COMMUNICATION_FINISH;
 			break;
 		case PM_CP1_PSRAM_MALLOC_STATE_CMD:
-			used_count = bk_psram_heap_get_used_count();
-			pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,0x1,used_count,0);
+			if(cmd_buf->param1 == PM_AP_PSRAM_POWER_OFF)//recovery resource in ap when psram power off in cp
+			{
+				msg.event= PM_AP_CORE_PSRAM_STATE_NOTIFY;
+				msg.param1 = PM_AP_PSRAM_POWER_OFF;
+				msg.param2 = cmd_buf->param2;
+				bk_pm_ap_core_send_msg(&msg);
+			}
+			else if(cmd_buf->param1 == 0x0)
+			{
+				// used_count = bk_psram_heap_get_used_count();
+				// pm_cp1_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,PM_CP1_PSRAM_MALLOC_STATE_CMD,used_count,0);
+				msg.event= PM_AP_CORE_PSRAM_STATE_NOTIFY;
+				msg.param1 = PM_CP1_PSRAM_MALLOC_STATE_CMD;
+				msg.param2 = cmd_buf->param2;
+				bk_pm_ap_core_send_msg(&msg);
+			}
 			//BK_LOGD(NULL, "cp1 bk_psram_heap_get_used_count[%d]\r\n", bk_psram_heap_get_used_count());
 			break;
 		case PM_CP1_DUMP_PSRAM_MALLOC_INFO_CMD:
 			bk_psram_heap_get_used_state();
 			break;
 		case PM_CP1_RECOVERY_CMD:
-			stop_cpu1_handle_notifications();
+            msg.event= PM_AP_CORE_AP_RECOVERY;
+			msg.param1 = cmd_buf->param1;
+			msg.param2 = cmd_buf->param2;
+			bk_pm_ap_core_send_msg(&msg);
 			bk_pm_cp1_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+			break;
+        case PM_RTC_DEEPSLEEP_CMD:
+			if(cmd_buf->param1 == BK_OK)
+			{
+				bk_pm_ap_rtc_deepsleep_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
+			}
+			else
+			{
+				ret = BK_FAIL;
+			}
+			break;
+		case PM_GET_PM_DATA_CMD:
+			memset(&s_pm_mb_data,0x0,sizeof(mb_chnl_cmd_t));
+			memcpy(&s_pm_mb_data,cmd_buf,sizeof(mb_chnl_cmd_t));
+			bk_pm_ap_getting_cp_data_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
+			break;
+		case PM_CTRL_AP_STATE_CMD:
+			bk_pm_ap_ctrl_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
+			break;
+		case PM_ENTER_DEEP_SLEEP_CMD:
+			bk_pm_ap_enter_deepsleep_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
+			break;
+		case PM_WAKEUP_CONFIG_CMD:
+			bk_pm_ap_wakeup_source_config_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
+			break;
+		case PM_SLEEP_WAKEUP_NOTIFY_CMD:
+			msg.event= PM_AP_CORE_SLEEP_WAKEUP_NOTIFY;
+			msg.param1 = cmd_buf->param1;
+			msg.param2 = cmd_buf->param2;
+			msg.param3 = cmd_buf->param3;
+			bk_pm_ap_core_send_msg(&msg);
 			break;
 		default:
 			break;
@@ -304,13 +397,13 @@ static void pm_cp1_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 
 	if(ret != BK_OK)
 	{
-		BK_LOGD(NULL, "cp1 resps:cp0 rev msg error\r\n");
+		LOGV("cp1 response: cp0 handle msg error\r\n");
 	}
 	//if(pm_debug_mode()&0x2)
 	{
       if(cmd_buf->hdr.cmd != PM_CP1_PSRAM_MALLOC_STATE_CMD)
       {
-		BK_LOGD(NULL, "cp1_mb_rx_isr %d %d %d\r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2);
+		LOGV("enter cp1_mailbox_rx_isr %d %d %d \r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2);
       }
 	}
 }
@@ -328,632 +421,297 @@ static void pm_cp1_mailbox_init()
 	if (pm_cp1_mailbox_tx_cmpl_isr != NULL)
 		mb_chnl_ctrl(MB_CHNL_PWC, MB_CHNL_SET_TX_CMPL_ISR, pm_cp1_mailbox_tx_cmpl_isr);
 }
-#endif // CONFIG_PM_CLIENT && CONFIG_PM_CLIENT_MAILBOX
-/*=====================PM_CLIENT  SECTION  END=================*/
-
-
-/*=====================PM_SERVER  SECTION  START=================*/
-#if CONFIG_PM_SERVER
-#if (CONFIG_CPU_CNT > 1)
-pm_mailbox_communication_state_e bk_pm_cp1_work_state_get()
-{
-	return s_pm_cp1_boot_ready;
-}
-bk_err_t bk_pm_cp1_work_state_set(pm_mailbox_communication_state_e state)
-{
-	s_pm_cp1_boot_ready = state;
-	return BK_OK;
-}
-pm_mailbox_communication_state_e bk_pm_cp0_psram_malloc_state_get()
-{
-	return s_pm_cp1_psram_malloc_state;
-}
-bk_err_t bk_pm_cp0_psram_malloc_state_set(pm_mailbox_communication_state_e state)
-{
-	s_pm_cp1_psram_malloc_state = state;
-	return BK_OK;
-}
-#if CONFIG_MAILBOX
-static bk_err_t pm_cp0_send_msg(uint32_t event, uint32_t param1,uint32_t param2,uint32_t param3)
-{
-	low_pwr_core_msg_t msg = {0};
-	msg.event= event;
-	msg.param1 = param1;
-	msg.param2 = param2;
-	msg.param3 = param3;
-#if !CONFIG_SOC_BK7259 ///TODO:
-	return bk_low_pwr_core_send_msg(&msg);
-#else //!CONFIG_SOC_BK7259 ///TODO:
-	(void)msg;
-	return BK_OK;
-#endif //!CONFIG_SOC_BK7259 ///TODO:
-}
-bk_err_t bk_pm_cp0_response_cp1(uint32_t cmd, uint32_t param1,uint32_t param2,uint32_t param3)
-{
-	return pm_cp0_mailbox_send_data(cmd,param1,param2,param3);
-}
-static bk_err_t pm_cp0_mailbox_send_data(uint32_t cmd, uint32_t param1,uint32_t param2,uint32_t param3)
-{
-	mb_chnl_cmd_t mb_cmd = {0};
-	int ret              = 0;
-	uint8_t  retry_count = 0;
-
-	mb_cmd.hdr.cmd = cmd;
-	mb_cmd.param1 = param1;
-	mb_cmd.param2 = param2;
-	mb_cmd.param3 = param3;
-	ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
-    while(ret != BK_OK)
-	{
-	    retry_count++;
-		ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
-		rtos_delay_milliseconds(2);
-        if(retry_count > 5)
-        {
-            LOGE("Mailbox send data fail[ret:%d]\r\n",ret);
-            return ret;
-        }
-	}
-	return BK_OK;
-}
-
-static void pm_cp0_mailbox_response(uint32_t cmd, int ret)
-{
-	pm_cp0_mailbox_send_data(cmd,ret,0,0);
-}
-
-static void pm_cp0_mailbox_tx_cmpl_isr(int *pm_mb, mb_chnl_ack_t *cmd_buf)
-{
-}
-
-static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
-{
-	bk_err_t ret = BK_OK;
-
-	GLOBAL_INT_DECLARATION();
-	GLOBAL_INT_DISABLE();
-	switch(cmd_buf->hdr.cmd) {
-		case PM_POWER_CTRL_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_POWER_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_CLK_CTRL_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_CLK_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_SLEEP_CTRL_CMD:
-			//bk_pm_cp0_response_cp1(PM_SLEEP_CTRL_CMD,BK_OK,0,0);//for more quick when enter lv
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_SLEEP_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_CPU_FREQ_CTRL_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_FREQ_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_CTRL_EXTERNAL_LDO_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_EXTERNAL_LDO, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_CTRL_PSRAM_POWER_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_PSRAM_POWER, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_CPU1_BOOT_READY_CMD:
-			if(cmd_buf->param1 == 0x1)
-			{
-				s_pm_cp1_boot_ready = PM_MAILBOX_COMMUNICATION_FINISH;
-			}
-			//if(pm_debug_mode()&0x2)//for temp debug
-				BK_LOGD(NULL,"cpu0 receive the cpu1 boot success event [%d]\r\n",cmd_buf->param1);
-			break;
-		case PM_CP1_PSRAM_MALLOC_STATE_CMD:
-			if(cmd_buf->param1 == PM_CP1_PSRAM_MALLOC_STATE_CMD)//Get the psram malloc count
-			{
-				s_pm_cp1_psram_malloc_count = cmd_buf->param2;
-			}
-			bk_pm_cp0_psram_malloc_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
-			break;
-		case PM_CP1_RECOVERY_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_CP2_RECOVERY, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_RTC_DEEPSLEEP_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_RTC_DEEPSLEEP, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_GET_PM_DATA_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_GET_CP_DATA, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_CTRL_AP_STATE_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_CTRL_CP2_STATE, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_ENTER_DEEP_SLEEP_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_STATE_ENTER_DEEPSLEEP, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		case PM_WAKEUP_CONFIG_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_WAKEUP_SRC_CFG, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
-			break;
-		default:
-			break;
-	}
-	GLOBAL_INT_RESTORE();
-	if(ret != BK_OK)
-	{
-		BK_LOGD(NULL,"cp0 handle cp1 message error\r\n");
-	}
-
-	//if(pm_debug_mode()&0x2)
-	{
-		if(cmd_buf->hdr.cmd != PM_CP1_PSRAM_MALLOC_STATE_CMD)
-		{
-			BK_LOGV(NULL,"cp0_mb_rx_isr %d %d %d %d %d\r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2,cmd_buf->param3,ret);
-		}
-	}
-
-}
-static void pm_cp0_mailbox_tx_isr(int *pm_mb)
-{
-}
-static void pm_cp0_mailbox_init()
-{
-	mb_chnl_open(MB_CHNL_PWC, NULL);
-	if (pm_cp0_mailbox_rx_isr != NULL)
-		mb_chnl_ctrl(MB_CHNL_PWC, MB_CHNL_SET_RX_ISR, pm_cp0_mailbox_rx_isr);
-	if (pm_cp0_mailbox_tx_isr != NULL)
-		mb_chnl_ctrl(MB_CHNL_PWC, MB_CHNL_SET_TX_ISR, pm_cp0_mailbox_tx_isr);
-	if (pm_cp0_mailbox_tx_cmpl_isr != NULL)
-		mb_chnl_ctrl(MB_CHNL_PWC, MB_CHNL_SET_TX_CMPL_ISR, pm_cp0_mailbox_tx_cmpl_isr);
-}
 #endif //CONFIG_MAILBOX
-#endif //(CONFIG_CPU_CNT > 1)
 
-
-#if (CONFIG_CPU_CNT > 1)
-static uint32_t s_pm_cp1_ctrl_state           = 0;
-extern void start_cpu1_core(void);
-extern void stop_cpu1_core(void);
-
-bk_err_t bk_pm_cp1_recovery_module_state_ctrl(pm_cp1_prepare_close_module_name_e module,pm_cp1_module_recovery_state_e state)
-{
-	if(state == PM_CP1_MODULE_RECOVERY_STATE_INIT)
-	{
-		s_pm_cp1_module_recovery_state &= ~(0x1ULL << module);
-	}
-	else
-	{
-		s_pm_cp1_module_recovery_state |= (0x1ULL << module);
-	}
-	LOGD("pm_cp1_rcv:0x%llx %d %d %d\r\n",s_pm_cp1_module_recovery_state,bk_pm_cp1_work_state_get(),bk_pm_cp1_recovery_all_state_get(),s_pm_cp1_ctrl_state);
-	if(bk_pm_cp1_recovery_all_state_get())
-	{
-		bk_pm_module_check_cp1_shutdown();
-	}
-	return BK_OK;
-}
-
-bool bk_pm_cp1_recovery_all_state_get()
-{
-	bool cp1_all_module_recovery = false;
-	if(bk_pm_cp1_work_state_get())
-	{
-		cp1_all_module_recovery = (s_pm_cp1_module_recovery_state == PM_CP1_RECOVERY_DEFAULT_VALUE);
-	}
-	return cp1_all_module_recovery;
-}
-
-static void pm_module_bootup_cpu1(pm_power_module_name_e module)
-{
-	uint64_t previous_tick = 0;
-	uint64_t current_tick   = 0;
-	if(PM_POWER_MODULE_STATE_OFF == sys_drv_module_power_state_get(module))
-	{
-		if(module == PM_POWER_MODULE_NAME_CPU1)
-		{
-boot_cp1:
-			//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
-            bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU1, PM_POWER_MODULE_STATE_ON);
-
-			#if defined(RECV_LOG_FROM_MBOX)
-			void reset_forward_log_status(void);
-			// reset cpu1's log transfer status on cpu0.
-			reset_forward_log_status();
-			#endif
-
-            start_cpu1_core();
-
-			previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-			current_tick = previous_tick;
-			while((current_tick - previous_tick) < (PM_BOOT_CP1_WAITING_TIEM*AON_RTC_MS_TICK_CNT))
-			{
-				if (bk_pm_cp1_work_state_get()) // wait the cp1 response
-				{
-					break;
-				}
-				current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-			}
-
-			if(!bk_pm_cp1_work_state_get())
-			{
-				BK_LOGD(NULL, "cp0 boot cp1[%d] time out, boot cp1 fail!!!\r\n",s_pm_cp1_boot_try_count);
-
-				/*Reset psram*/
-#if CONFIG_PSRAM
-				bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
-				bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
-#endif
-				s_pm_cp1_boot_try_count++;
-				if(s_pm_cp1_boot_try_count < PM_BOOT_CP1_TRY_COUNT)
-				{
-					goto boot_cp1;
-				}
-			}
-		}
-	}
-}
-bk_err_t bk_pm_module_check_cp1_shutdown()
-{
-	if(0x0 == s_pm_cp1_ctrl_state)
-	{
-		pm_module_shutdown_cpu1(PM_POWER_MODULE_NAME_CPU1);
-	}
-    return BK_OK;
-}
-static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
-{
-	bk_err_t ret = BK_OK;
-	GLOBAL_INT_DECLARATION();
-	if(PM_POWER_MODULE_STATE_ON == sys_drv_module_power_state_get(module))
-	{
-		if(module == PM_POWER_MODULE_NAME_CPU1)
-		{
-			stop_cpu1_core();
-#if CONFIG_PSRAM
-			//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
-#endif
-			bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU1, PM_POWER_MODULE_STATE_OFF);
-			//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
-
-			GLOBAL_INT_DISABLE();
-			s_pm_cp1_boot_ready = 0;
-			s_pm_cp1_closing = 0;
-			s_pm_cp1_boot_try_count = 0;
-			GLOBAL_INT_RESTORE();
-			if(s_sync_cp1_open_sema != NULL)
-			{
-				ret = rtos_set_semaphore(&s_sync_cp1_open_sema);
-			}
-
-			if(s_pm_cp1_sema_count == 0)
-			{
-				//rtos_deinit_semaphore(&s_sync_cp1_open_sema);
-			}
-
-			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
-			BK_LOGD(NULL, "Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count);
-		}
-	}
-}
-
-bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power_module_state_e power_state)
-{
-	bk_err_t ret = BK_OK;
-	GLOBAL_INT_DECLARATION();
-
-	BK_LOGD(NULL, "boot_cp1 %d %d 0x%x [%d][0x%x]E_1\r\n",module, power_state,s_pm_cp1_ctrl_state,s_pm_cp1_closing,&s_sync_cp1_open_sema);
-	if (NULL == s_sync_cp1_open_sema)
-	{
-		rtos_init_semaphore(&s_sync_cp1_open_sema, 1);
-	}
-	if(s_pm_cp1_closing)
-	{
-		GLOBAL_INT_DISABLE();
-		s_pm_cp1_sema_count++;
-		GLOBAL_INT_RESTORE();
-		BK_LOGD(NULL, "boot_cp1 get sema[%d][0x%x]\r\n",s_pm_cp1_sema_count,&s_sync_cp1_open_sema);
-
-		/*add protect:init again when the s_sync_cp1_open_sema free*/
-		if (NULL == s_sync_cp1_open_sema)
-		{
-			rtos_init_semaphore(&s_sync_cp1_open_sema, 1);
-		}
-		ret = rtos_get_semaphore(&s_sync_cp1_open_sema, PM_OPEN_CP1_TIMEOUT);
-
-		GLOBAL_INT_DISABLE();
-		s_pm_cp1_sema_count--;
-		GLOBAL_INT_RESTORE();
-		if(ret == kTimeoutErr)
-		{
-			BK_LOGD(NULL, "boot_cp1[%d]0x%llx %d %d %d\r\n",ret,s_pm_cp1_module_recovery_state,bk_pm_cp1_work_state_get(),bk_pm_cp1_recovery_all_state_get(),s_pm_cp1_ctrl_state);
-			if(bk_pm_cp1_recovery_all_state_get())
-			{
-				bk_pm_module_check_cp1_shutdown();
-			}
-		}
-	}
-	BK_LOGD(NULL, "boot_cp1 %d %d 0x%x [%d]E_2\r\n",module, power_state,s_pm_cp1_ctrl_state,ret);
-    if(power_state == PM_POWER_MODULE_STATE_ON)//power on
-    {
-		//bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_480M);
-#if CONFIG_PSRAM
-		//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
-#endif
-		GLOBAL_INT_DISABLE();
-		s_pm_cp1_ctrl_state |= 0x1 << (module);
-		GLOBAL_INT_RESTORE();
-		pm_module_bootup_cpu1(PM_POWER_MODULE_NAME_CPU1);
-    }
-    else //power down
-    {
-		if(s_pm_cp1_ctrl_state&(0x1 << (module)))
-		{
-			GLOBAL_INT_DISABLE();
-			s_pm_cp1_ctrl_state &= ~(0x1 << (module));
-			GLOBAL_INT_RESTORE();
-			if(0x0 == s_pm_cp1_ctrl_state)
-			{
-				s_pm_cp1_closing = 1;
-				BK_LOGD(NULL, "boot_cp1 %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,s_pm_cp1_boot_ready);
-				pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
-				//pm_module_shutdown_cpu1(PM_POWER_MODULE_NAME_CPU1);
-				#if CONFIG_ATE_TEST
-					pm_module_shutdown_cpu1(PM_POWER_MODULE_NAME_CPU1);
-				#endif
-			}
-    	}
-    }
-    return BK_OK;
-}
-bk_err_t bk_pm_cp_wakeup_ap_from_wfi(uint8_t core_id)
-{
-	int ret                       = BK_OK;
-#if CONFIG_PM_LV_SUBCORES_ON
-	mb_chnl_cmd_t mb_cmd          = {0};
-
-	mb_cmd.hdr.cmd = PM_SLEEP_WAKEUP_NOTIFY_CMD;
-	mb_cmd.param1 = 0;
-	mb_cmd.param2 = 0;
-	mb_cmd.param3 = 0;
-	ret = mb_chnl_write(MB_CHNL_PWC, &mb_cmd);
-	if(ret == BK_ERR_BUSY)
-	{
-		BK_LOGI(NULL,"Mb busy[%d]wait next wakeup\r\n",ret);
-		ret = BK_FAIL;
-	}
-	else if(ret == BK_OK)
-	{
-	}
-	else
-	{
-		BK_LOGE(NULL,"Mb write error[%d]\r\n",ret);
-	}
-	FIXED_ADDR_WAKEUP_CP_COUNT += 1;
-
-#endif
-	return ret;
-}
-/*Get the cp1 heap malloc count*/
-uint32_t bk_pm_get_cp1_psram_malloc_count(uint32_t using_psram_type)
-{
-	uint64_t previous_tick = 0;
-	uint64_t current_tick   = 0;
-	if(s_pm_cp1_boot_ready)
-	{
-		bk_pm_cp0_psram_malloc_state_set(PM_MAILBOX_COMMUNICATION_INIT);
-		pm_cp0_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,using_psram_type,0,0);
-		if(using_psram_type == 0x0)
-		{
-			s_pm_cp1_psram_malloc_count = 0;
-			previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-			current_tick = previous_tick;
-			while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*AON_RTC_MS_TICK_CNT))
-			{
-				if (bk_pm_cp0_psram_malloc_state_get()) // wait the cp1 response
-				{
-					break;
-				}
-				current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-			}
-			if(!bk_pm_cp0_psram_malloc_state_get())
-			{
-				BK_LOGD(NULL,"cp0 get the psram malloc state[%d] time out > 100ms\r\n",using_psram_type);
-			}
-
-			return s_pm_cp1_psram_malloc_count;
-		}
-	}
-	else
-	{
-		return 0;
-	}
-	return 0;
-}
-
-/*trigger the cp1 heap malloc dump*/
-bk_err_t bk_pm_dump_cp1_psram_malloc_info()
-{
-	if(s_pm_cp1_boot_ready)
-	{
-		pm_cp0_mailbox_send_data(PM_CP1_DUMP_PSRAM_MALLOC_INFO_CMD,0,0,0);
-	}
-    return BK_OK;
-}
-#endif
-
-#if (CONFIG_CPU_CNT > 2)
-static volatile  pm_mailbox_communication_state_e s_pm_cp2_boot_ready        = 0;
-static uint32_t s_pm_cp2_ctrl_state           = 0;
-extern void start_cpu2_core(void);
-extern void stop_cpu2_core(void);
-static void pm_module_bootup_cpu2(pm_power_module_name_e module)
-{
-	if(PM_POWER_MODULE_STATE_OFF == sys_drv_module_power_state_get(module))
-	{
-		if(module == PM_POWER_MODULE_NAME_CPU2)
-		{
-            bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU2, PM_POWER_MODULE_STATE_ON);
-            start_cpu2_core();
-            //while(!s_pm_cp2_boot_ready);
-		}
-	}
-}
-static void pm_module_shutdown_cpu2(pm_power_module_name_e module)
-{
-	GLOBAL_INT_DECLARATION();
-	if(PM_POWER_MODULE_STATE_ON == sys_drv_module_power_state_get(module))
-	{
-		if(module == PM_POWER_MODULE_NAME_CPU2)
-		{
-            stop_cpu2_core();
-		    bk_pm_module_vote_power_ctrl(PM_POWER_MODULE_NAME_CPU2, PM_POWER_MODULE_STATE_OFF);
-			GLOBAL_INT_DISABLE();
-			s_pm_cp2_boot_ready = 0;
-			GLOBAL_INT_RESTORE();
-		}
-	}
-}
-bk_err_t bk_pm_module_vote_boot_cp2_ctrl(pm_boot_cp2_module_name_e module,pm_power_module_state_e power_state)
-{
-	GLOBAL_INT_DECLARATION();
-
-    if(power_state == PM_POWER_MODULE_STATE_ON)//power on
-    {
-        GLOBAL_INT_DISABLE();
-        s_pm_cp2_ctrl_state |= 0x1 << (module);
-        GLOBAL_INT_RESTORE();
-        pm_module_bootup_cpu2(PM_POWER_MODULE_NAME_CPU2);
-    }
-    else //power down
-    {
-		GLOBAL_INT_DISABLE();
-		s_pm_cp2_ctrl_state &= ~(0x1 << (module));
-		GLOBAL_INT_RESTORE();
-		if(0x0 == s_pm_cp2_ctrl_state)
-		{
-			pm_module_shutdown_cpu2(PM_POWER_MODULE_NAME_CPU2);
-		}
-    }
-    return BK_OK;
-}
-#endif
-
-#if CONFIG_PSRAM
-static uint32_t s_pm_psram_ctrl_state     = 0;
-
-#endif
-static bk_err_t pm_psram_power_ctrl(pm_power_psram_module_name_e module,pm_power_module_state_e power_state)
-{
-#if CONFIG_PSRAM
-	bk_err_t ret = BK_OK;
-	GLOBAL_INT_DECLARATION();
-	//BK_LOGD(NULL,"%s %d %d 0x%x\r\n",__func__, module, power_state,s_pm_psram_ctrl_state);
-    if(power_state == PM_POWER_MODULE_STATE_ON)//power on
-    {
-		if(s_pm_psram_ctrl_state == 0)
-		{
-			bk_pm_module_vote_vdddig_ctrl(PM_VDDDIG_MODULE_PSRAM,PM_VDDDIG_HIGH_STATE_ON);
-		}
-		ret = bk_psram_init();
-		if(ret != BK_OK)
-		{
-			LOGE("Psram_I err0:%d",ret);
-			bk_psram_deinit();
-			ret = bk_psram_init();
-			if(ret != BK_OK)
-			{
-				LOGE("Psram_I err1:%d",ret);
-				bk_psram_deinit();
-				ret = bk_psram_init();
-				if(ret != BK_OK)
-				{
-					LOGE("Psram_I err2:%d",ret);
-				}
-			}
-		}
-		GLOBAL_INT_DISABLE();
-        s_pm_psram_ctrl_state |= 0x1 << (module);
-        GLOBAL_INT_RESTORE();
-	}
-    else //power down
-    {
-		if(s_pm_psram_ctrl_state&(0x1 << (module)))
-		{
-			GLOBAL_INT_DISABLE();
-			s_pm_psram_ctrl_state &= ~(0x1 << (module));
-			GLOBAL_INT_RESTORE();
-			#if !CONFIG_PM_PSRAM_FORCE_ON
-			if(0x0 == s_pm_psram_ctrl_state)
-			{
-				bk_psram_deinit();
-				bk_pm_module_vote_vdddig_ctrl(PM_VDDDIG_MODULE_PSRAM,PM_VDDDIG_HIGH_STATE_OFF);
-				FIXED_ADDR_PSRAM_POWER_DOWN = PM_PSRAM_POWER_DOWN_MAGIC;
-                bk_pm_get_cp1_psram_malloc_count(0x1);
-			}
-			#endif
-		}
-	}
-#endif
-	return BK_OK;
-}
-bk_err_t pm_debug_pwr_clk_state()
-{
-#if CONFIG_PSRAM
-    pm_debug_psram_state();
-#endif
-#if (CONFIG_CPU_CNT > 1)
-	BK_LOGD(NULL, "pm_cp1_ctr:0x%x \r\n",s_pm_cp1_ctrl_state);
-#endif
-	BK_LOGD(NULL, "pm_cp1_boot_ready:0x%x 0x%x\r\n",s_pm_cp1_boot_ready,s_pm_cp1_module_recovery_state);
-
-	return BK_OK;
-}
-uint32_t bk_pm_get_psram_ctrl_state()
-{
-	uint32_t psram_ctrl_state = 0x1;//Default psram used and power on
-	#if CONFIG_PSRAM
-	if(s_pm_psram_ctrl_state == 0x0)
-	{
-		psram_ctrl_state = 0x0;//psram state:power off
-	}
-	#endif
-	return psram_ctrl_state;
-}
-#if 0	///TODO: multiple definition of `bk_pm_module_vote_psram_ctrl
 bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_power_module_state_e power_state)
 {
+
+#if CONFIG_MAILBOX
+	uint64_t previous_tick  = 0;
+	uint64_t current_tick   = 0;
+	bk_err_t ret            =  BK_OK;
+	bk_pm_cp1_psram_power_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+
+    ret = pm_cp1_mailbox_send_data(PM_CTRL_PSRAM_POWER_CMD, module,power_state,0);
+    if(ret != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+	previous_tick = pm_cp1_aon_rtc_counter_get();
+	current_tick = previous_tick;
+	while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*PM_AON_RTC_DEFAULT_TICK_COUNT))
+	{
+	    if (bk_pm_cp1_psram_power_state_get()) // wait the cp0 response
+	    {
+			break;
+	    }
+	    current_tick = pm_cp1_aon_rtc_counter_get();
+	}
+
+	if(!bk_pm_cp1_psram_power_state_get())
+	{
+	    LOGE("cp1 get psram state time out\r\n");
+	}
+
+	if(power_state == PM_POWER_MODULE_STATE_ON)
+	{
+		bk_pm_ap_psram_power_state_handle_callback(module,power_state);
+	}
+	LOGD("Ap vote psram_P E\r\n");
+#endif
+	return BK_OK;
+
+}
+
+// bk_err_t bk_pm_module_vote_ctrl_external_ldo(uint32_t module,gpio_id_t gpio_id,gpio_output_state_e value)
+// {
+// #if CONFIG_GPIO_CTRL_LDO_IN_CP
+// 	#if CONFIG_MAILBOX
+// 	uint64_t previous_tick  = 0;
+// 	uint64_t current_tick   = 0;
+//     int ret = 0;
+// 	bk_pm_cp1_external_ldo_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+
+//     ret = pm_cp1_mailbox_send_data(PM_CTRL_EXTERNAL_LDO_CMD, module,gpio_id,value);
+//     if(ret != BK_OK)
+//     {
+//         return BK_FAIL;
+//     }
+// 	previous_tick = pm_cp1_aon_rtc_counter_get();
+// 	current_tick = previous_tick;
+// 	while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*PM_AON_RTC_DEFAULT_TICK_COUNT))
+// 	{
+// 	    if (bk_pm_cp1_external_ldo_ctrl_state_get()) // wait the cp0 response
+// 	    {
+// 			break;
+// 	    }
+// 	    current_tick = pm_cp1_aon_rtc_counter_get();
+// 	}
+
+// 	if(!bk_pm_cp1_external_ldo_ctrl_state_get())
+// 	{
+// 	    LOGE("cp1 ctr extLdo timeout\r\n");
+// 	}
+
+// 	LOGD("cp1 vote ctr_extLdo\r\n");
+// 	#endif
+// #else
+// 	bk_gpio_ctrl_external_ldo(module,gpio_id,value);
+// #endif
+// 	return BK_OK;
+// }
+
+bk_err_t bk_pm_ap_rtc_enter_deepsleep(pm_ap_rtc_enter_deepsleep_module_name_e module,uint32_t sleep_time)
+{
+
+#if CONFIG_MAILBOX
+	uint64_t previous_tick  = 0;
+	uint64_t current_tick   = 0;
+    int ret                 = 0;
+	bk_pm_ap_rtc_deepsleep_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+
+    ret = pm_cp1_mailbox_send_data(PM_RTC_DEEPSLEEP_CMD, module,sleep_time,0);
+    if(ret != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+	previous_tick = pm_cp1_aon_rtc_counter_get();
+	current_tick = previous_tick;
+	while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*PM_AON_RTC_DEFAULT_TICK_COUNT))
+	{
+	    if (bk_pm_ap_rtc_deepsleep_state_get()) // wait the cp0 response
+	    {
+			break;
+	    }
+	    current_tick = pm_cp1_aon_rtc_counter_get();
+	}
+	if(!bk_pm_ap_rtc_deepsleep_state_get())
+	{
+	    LOGE("ap:rtc deepsleep time out\r\n");
+	}
+#endif
+
+    return BK_OK;
+}
+static bk_err_t pm_ap_get_cp_data(uint32_t type, uint32_t *data)
+{
+	#if CONFIG_MAILBOX
+    uint64_t previous_tick  = 0;
+    uint64_t current_tick   = 0;
+    int ret = 0;
+
+	if(data == NULL)
+	{
+		return BK_FAIL;
+	}
+
+    bk_pm_ap_getting_cp_data_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+    ret = pm_cp1_mailbox_send_data(PM_GET_PM_DATA_CMD,type,0,0);
+    if(ret != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    previous_tick = pm_cp1_aon_rtc_counter_get();
+    current_tick = previous_tick;
+    while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*PM_AON_RTC_DEFAULT_TICK_COUNT))
+    {
+        if (bk_pm_ap_getting_cp_data_state_get()) // wait the cp0 response
+        {
+            break;
+        }
+        current_tick = pm_cp1_aon_rtc_counter_get();
+    }
+
+    if(!bk_pm_ap_getting_cp_data_state_get())
+    {
+        LOGE("AP get cp data time out\r\n");
+    }
+    *data = s_pm_mb_data.param2;
+
+#endif//CONFIG_MAILBOX
+	return BK_OK;
+}
+bk_err_t bk_pm_ap_misc_get_time_interval_from_startup(uint32_t* time_interval)
+{
 	bk_err_t ret = BK_OK;
-	ret = pm_psram_power_ctrl(module,power_state);
+	ret = pm_ap_get_cp_data(PM_CP_DATE_TYPE_TIME_INTERVAL_FROM_STARTUP, time_interval);
 	return ret;
 }
-#endif
-bk_err_t bk_pm_module_vote_ctrl_external_ldo(uint32_t module,gpio_id_t gpio_id,gpio_output_state_e value)
+pm_wakeup_source_e bk_pm_deep_sleep_wakeup_source_get()
 {
-	bk_gpio_ctrl_external_ldo(module,gpio_id,value);
+	uint32_t wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
+	pm_ap_get_cp_data(PM_CP_DATE_TYPE_DEEP_SLEEP_WAKEUP_SOURCE, &wakeup_source);
+	return wakeup_source;
+}
+pm_wakeup_source_e bk_pm_exit_low_vol_wakeup_source_get()
+{
+	uint32_t wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
+	pm_ap_get_cp_data(PM_CP_DATE_TYPE_EXIT_LOW_VOL_WAKEUP_SOURCE, &wakeup_source);
+	return wakeup_source;
+}
+bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power_module_state_e power_state)
+{
+#if CONFIG_MAILBOX
+
+    uint64_t previous_tick  = 0;
+    uint64_t current_tick   = 0;
+    bk_err_t ret            = 0;
+    bk_pm_ap_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+
+    ret = pm_cp1_mailbox_send_data(PM_CTRL_AP_STATE_CMD, module,power_state,0);
+    if(ret != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    previous_tick = pm_cp1_aon_rtc_counter_get();
+    current_tick = previous_tick;
+    while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*PM_AON_RTC_DEFAULT_TICK_COUNT))
+    {
+        if (bk_pm_ap_ctrl_state_get()) // wait the cp0 response
+        {
+            break;
+        }
+        current_tick = pm_cp1_aon_rtc_counter_get();
+    }
+
+    if(!bk_pm_ap_ctrl_state_get())
+    {
+        LOGE("ap vote ctrl ap time out\r\n");
+    }
+#endif//CONFIG_MAILBOX
+
+    return BK_OK;
+}
+bk_err_t bk_pm_ap_sleep_mode_set(pm_sleep_mode_e sleep_mode)
+{
+    #if CONFIG_MAILBOX
+    uint64_t previous_tick  = 0;
+    uint64_t current_tick   = 0;
+    int ret                 = 0;
+
+    bk_pm_ap_enter_deepsleep_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+
+    ret = pm_cp1_mailbox_send_data(PM_ENTER_DEEP_SLEEP_CMD, sleep_mode,0,0);
+    if(ret != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    previous_tick = pm_cp1_aon_rtc_counter_get();
+    current_tick = previous_tick;
+    while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*PM_AON_RTC_DEFAULT_TICK_COUNT))
+    {
+        if (bk_pm_ap_enter_deepsleep_state_get()) // wait the cp0 response
+        {
+            break;
+        }
+        current_tick = pm_cp1_aon_rtc_counter_get();
+    }
+
+    if(!bk_pm_ap_enter_deepsleep_state_get())
+    {
+        LOGE("set sleep mode time out\r\n");
+    }
+    #endif//CONFIG_MAILBOX
+
 	return BK_OK;
 }
-bk_err_t bk_pm_module_vote_vdddig_ctrl(pm_vdddig_module_e module,pm_vdddig_high_state_e state)
+static bk_err_t pm_wakeup_source_config(pm_sleep_mode_e sleep_mode,pm_wakeup_source_e wakeup_source,uint32_t data)
 {
-#if CONFIG_SYS_CPU0
-	if(state == PM_VDDDIG_HIGH_STATE_ON)
-	{
-		/*The VDDDIG voltage must be ramped up prior to PRRAM power-on. During CPU operation at high frequencies, the voltage should be increased in conjunction with CPU frequency scaling events.*/
-		if((module == PM_VDDDIG_MODULE_PSRAM)&&(s_pm_vdddig_ctrl_state == 0x0))
-		{
-			sys_hal_set_vdddig_h_vol(PM_VDDDIG_095);
-		}
-		s_pm_vdddig_ctrl_state |= 0x1 << module;
-	}
-	else
-	{
-		s_pm_vdddig_ctrl_state &= ~(0x1 << module);
-		if((module == PM_VDDDIG_MODULE_PSRAM)&&(s_pm_vdddig_ctrl_state == 0x0))
-		{
-			pm_cpu_freq_e  cpu_freq = bk_pm_current_max_cpu_freq_get();
-			const cpu_freq_vdddig_t cpu_freq_vdddig_map[] = CPU_FREQ_VDDDIG_MAP;
+    #if CONFIG_MAILBOX
+    uint64_t previous_tick  = 0;
+    uint64_t current_tick   = 0;
+    int ret                 = 0;
+    bk_pm_ap_wakeup_source_config_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+	LOGD("wakeup data:%d\r\n",data);
+    ret = pm_cp1_mailbox_send_data(PM_WAKEUP_CONFIG_CMD, sleep_mode,wakeup_source,data);
+    if(ret != BK_OK)
+    {
+        return BK_FAIL;
+    }
 
-			for(int i = 0; i < sizeof(cpu_freq_vdddig_map)/sizeof(cpu_freq_vdddig_t); i++)
-			{
-				if(cpu_freq == cpu_freq_vdddig_map[i].cpu_freq)
-				{
-					sys_hal_set_vdddig_h_vol(cpu_freq_vdddig_map[i].vdddig);
-				}
-			}
-		}
-	}
-#endif
+    previous_tick = pm_cp1_aon_rtc_counter_get();
+    current_tick = previous_tick;
+    while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*PM_AON_RTC_DEFAULT_TICK_COUNT))
+    {
+        if (bk_pm_ap_wakeup_source_config_state_get()) // wait the cp0 response
+        {
+            break;
+        }
+        current_tick = pm_cp1_aon_rtc_counter_get();
+    }
+
+    if(!bk_pm_ap_wakeup_source_config_state_get())
+    {
+        LOGE("Wakeup src cfg time out\r\n");
+    }
+
+    #endif//CONFIG_MAILBOX
 	return BK_OK;
 }
-#endif // CONFIG_PM_SERVER
-/*=====================PM_SERVER  SECTION  END=================*/
-
+bk_err_t bk_pm_ap_rtc_wakeup_source_config(pm_sleep_mode_e sleep_mode,pm_wakeup_source_e wakeup_source,pm_rtc_wakeup_config_t *prtc_wakeup_cfg)
+{
+	int ret =  BK_OK;
+	if(prtc_wakeup_cfg == NULL)
+	{
+		return BK_FAIL;
+	}
+	ret = pm_wakeup_source_config(sleep_mode,wakeup_source,(uint32_t)prtc_wakeup_cfg);
+	return ret;
+}
+bk_err_t bk_pm_ap_gpio_wakeup_source_config(pm_sleep_mode_e sleep_mode,pm_wakeup_source_e wakeup_source,pm_gpio_wakeup_config_t* pgpio_wakeup_cfg)
+{
+	int ret =  BK_OK;
+	if(pgpio_wakeup_cfg == NULL)
+	{
+		return BK_FAIL;
+	}
+	uint32_t data = pgpio_wakeup_cfg->gpio_id & 0xFFFF;
+	data |= pgpio_wakeup_cfg->int_type << 16;
+	ret = pm_wakeup_source_config(sleep_mode,wakeup_source,data);
+	return ret;
+}

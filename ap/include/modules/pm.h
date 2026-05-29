@@ -241,6 +241,7 @@ typedef struct
     uint32_t param1;
 	uint32_t param2;
     uint32_t param3;
+	uint32_t param4;
 } pm_ap_core_msg_t;
 
 typedef enum
@@ -688,6 +689,22 @@ typedef enum {
 #define PM_CP1_AUTO_POWER_DOWN_CTRL      (PM_CP1_AUTO_POWER_DOWN_ENABLE)
 
 /*=====================CONFIG  SECTION  END=======================*/
+
+/**
+ * @brief set sleep mode for AP
+ *
+ * set sleep mode for AP.
+ *
+ * @attention
+ * - This API set sleep mode for AP
+ *
+ * @param sleep mode:0x0:NORMAL_SLEEP;0x1:LOW_VOLTAGE;0x2:DEEP_SLEEP;0x3:DEFAULT(if it meet low voltage,enter low voltage,otherwise enter normal sleep);
+ *
+ * @return
+ * - BK_OK: succeed
+ * - others: other errors.
+ */
+bk_err_t bk_pm_ap_sleep_mode_set(pm_sleep_mode_e sleep_mode);
 /**
  * @brief get whether this is the first AP boot
  *

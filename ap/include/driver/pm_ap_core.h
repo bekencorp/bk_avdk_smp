@@ -262,7 +262,7 @@ bk_err_t bk_pm_ap_misc_rtc_enter_deepsleep(uint32_t time_interval , aon_rtc_isr_
  * - BK_OK: succeed
  * - others: other errors.
  */
-bk_err_t bk_pm_ap_core_init();
+bk_err_t bk_pm_ap_thread_main(void);
 /**
  * @brief send pwr_core msg
  *

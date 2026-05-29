@@ -27,8 +27,8 @@
 #include "driver/pm_ap_core.h"
 #include <driver/gpio.h>
 #include <driver/hal/hal_gpio_types.h>
-#include "gpio_hal.h"
-#include "gpio_driver_base.h"
+//#include "gpio_hal.h"
+//#include "gpio_driver_base.h"
 #include "gpio_driver.h"
 #include <os/mem.h>
 /*=====================DEFINE  SECTION  START=====================*/
