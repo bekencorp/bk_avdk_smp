@@ -100,7 +100,7 @@ class bk_ota_partition:
 
         for p in sorted(part_table_temp, key=lambda x: x.Offset):
             magic = "0x45503130"
-            if p.Name == "s_app" or p.Execute:
+            if self.crc_enable and (p.Name == "s_app" or p.Execute):
                 flash_name = "beken_onchip_crc"
             else:
                 flash_name = "beken_onchip"
@@ -145,7 +145,7 @@ class bk_ota_partition:
 
         for p in sorted(part_table_temp, key=lambda x: x.Offset):
             magic = "0x45503130"
-            flash_name = "beken_onchip_crc" if p.Execute else "beken_onchip"
+            flash_name = "beken_onchip_crc" if self.crc_enable and p.Execute else "beken_onchip"
             ota_part = ota_partition(
                 magic, p.Name, flash_name, f"0x{p.Offset:08x}", format_size(p.Size)
             )
