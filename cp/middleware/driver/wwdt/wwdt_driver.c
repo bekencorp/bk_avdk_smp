@@ -18,6 +18,7 @@
 #include <os/mem.h>
 #include <driver/wwdt.h>
 #include <driver/timer.h>
+#include <driver/aon_rtc.h>
 #include "wwdt_driver.h"
 #include "wwdt_hal.h"
 #include "reset_reason.h"
@@ -58,6 +59,12 @@ typedef struct {
 #define WWDT_CORE_NUM CONFIG_SMP_CORE_CNT
 #else
 #define WWDT_CORE_NUM 1
+#endif
+
+#if CONFIG_AON_RTC || CONFIG_ANA_RTC
+#define GET_WWDT_CURRENT_TICK()  (BK_MS_TO_TICKS(bk_aon_rtc_get_ms()))
+#else
+#define GET_WWDT_CURRENT_TICK()  (bk_get_tick())
 #endif
 
 static wwdt_driver_t s_wwdt = {0};
@@ -127,7 +134,7 @@ static bk_err_t wwdt_start_current_core(uint32_t timeout_ms, bool is_enable_wind
 	}
 
 	s_wwdt.init_bits |= BIT(core_id);
-	s_last_wwdt_feed_tick[core_id] = bk_get_tick();
+	s_last_wwdt_feed_tick[core_id] = GET_WWDT_CURRENT_TICK();
 	if (log_enable) {
 		WWDT_LOGI("bk_wwdt_start, core:%u, wwdt_cpu:%u, init_bits:%x\r\n",
 			core_id, bk_wwdt_get_cpu_id(), s_wwdt.init_bits);
@@ -139,6 +146,7 @@ static bk_err_t wwdt_start_current_core(uint32_t timeout_ms, bool is_enable_wind
 static bk_err_t wwdt_feed_current_core(void)
 {
 	uint32_t core_id = wwdt_get_current_core_id();
+	uint64_t current_tick;
 
 	if (!s_wwdt_driver_is_init) {
 		return BK_ERR_WWDT_DRIVER_NOT_INIT;
@@ -148,8 +156,9 @@ static bk_err_t wwdt_feed_current_core(void)
 		return BK_ERR_WWDT_NOT_INIT;
 	}
 
+	current_tick = GET_WWDT_CURRENT_TICK();
 	wwdt_hal_init_wwdt(&s_wwdt.hal, s_wwdt_period);
-	s_last_wwdt_feed_tick[core_id] = bk_get_tick();
+	s_last_wwdt_feed_tick[core_id] = current_tick;
 
 	return BK_OK;
 }
@@ -233,7 +242,7 @@ bk_err_t bk_wwdt_feed(void)
 void bk_wwdt_feed_current_core(void)
 {
 	uint32_t core_id = wwdt_get_current_core_id();
-	uint64_t current_tick = bk_get_tick();
+	uint64_t current_tick = GET_WWDT_CURRENT_TICK();
 
 	if (!s_wwdt_driver_is_init) {
 		return;
@@ -274,7 +283,7 @@ void bk_wwdt_feed_current_core_from_isr(void)
 	}
 #endif
 
-	current_tick = bk_get_tick();
+	current_tick = GET_WWDT_CURRENT_TICK();
 	if ((current_tick - s_last_wwdt_feed_tick[core_id]) >= wwdt_get_feed_time()) {
 		(void)wwdt_feed_current_core();  
 	}

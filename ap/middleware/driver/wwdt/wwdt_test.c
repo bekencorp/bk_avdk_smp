@@ -90,6 +90,16 @@ static bk_err_t wwdt_create_core_thread(beken_thread_t *thread, uint32_t core_id
 #endif
 }
 
+static uint32_t wwdt_get_physical_cpu_id_from_smp_core(uint32_t core_id)
+{
+#if CONFIG_SOC_SMP
+	/* AP SMP core 0/1 map to physical CPU2/CPU3. */
+	return core_id + CPU2_CORE_ID;
+#else
+	return core_id;
+#endif
+}
+
 static void wwdt_busy_core_task(beken_thread_arg_t arg)
 {
 	uint32_t seconds = (uint32_t)arg;
@@ -115,8 +125,8 @@ static void wwdt_hang_core_task(beken_thread_arg_t arg)
 	(void)arg;
 	GLOBAL_INT_DECLARATION();
 
-	CLI_LOGI("wwdt hang start, core=%u, wwdt_cpu=%u\r\n",
-		rtos_get_core_id(), bk_wwdt_get_cpu_id());
+	CLI_LOGI("wwdt hang start, physical_cpu=%u, smp_core=%u, wwdt_cpu=%u\r\n",
+		rtos_get_core_id(), portGET_CORE_ID(), bk_wwdt_get_cpu_id());
 
 	GLOBAL_INT_DISABLE();
 	while (1) {
@@ -251,7 +261,8 @@ static void cli_wwdt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		core_id = os_strtoul(argv[2], NULL, 10);
 		BK_LOG_ON_ERR(wwdt_create_core_thread(&s_wwdt_hang_thread, core_id,
 			"wwdt_hang", wwdt_hang_core_task, (beken_thread_arg_t)0));
-		CLI_LOGI("wwdt hang_core scheduled, core=%u\r\n", core_id);
+		CLI_LOGI("wwdt hang_core scheduled, smp_core=%u, physical_cpu=%u\r\n",
+			core_id, wwdt_get_physical_cpu_id_from_smp_core(core_id));
 	}else if (os_strcmp(argv[1], "while") == 0) {
 		GLOBAL_INT_DECLARATION();
 		GLOBAL_INT_DISABLE();

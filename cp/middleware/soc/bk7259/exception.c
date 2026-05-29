@@ -28,6 +28,9 @@
 #include <driver/wdt.h>
 #endif
 
+#if CONFIG_SUPPORT_WWDT
+#include "wwdt_driver.h"
+#endif
 void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp);
 
 __STATIC_FORCEINLINE void dump_system_info(uint32_t rr, uint32_t lr, uint32_t sp) {
@@ -64,12 +67,11 @@ void user_nmi_handler(uint32_t lr, uint32_t sp)
 		while(1);
 	}
 
-	if(reboot_tag_is_reboot()) {
-		while(1);
-	}
-
 #if CONFIG_WDT_EN
-	bk_wdt_feed();
+	bk_wdt_force_feed();
+#endif
+#if CONFIG_SUPPORT_WWDT
+	bk_wwdt_force_feed();
 #endif
 
 	dump_system_info(RESET_SOURCE_NMI_WDT, lr, sp);
