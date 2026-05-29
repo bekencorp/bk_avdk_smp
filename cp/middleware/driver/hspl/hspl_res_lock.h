@@ -104,14 +104,14 @@ bk_err_t bk_hspl_res_unlock_irqrestore(bk_hspl_res_t res, uint32_t flags);
 bk_err_t bk_hspl_res_unlock(bk_hspl_res_t res);
 
 /**
- * @brief Lock a resource using HSPL with busy-wait (can be used in interrupt context)
+ * @brief Lock a resource using HSPL (blocking until acquired or timeout)
  *
- * @note This function will spin until the lock is acquired. It can be used in
- *       interrupt context but may cause system hang if the lock is held for too long.
- *       Use with caution and ensure the lock holder releases it quickly.
+ * @note FLASH uses CONFIG_HSPL_MUST_LOCK_TIMEOUT_MS_FLASH; other resources use
+ *       CONFIG_HSPL_MUST_LOCK_TIMEOUT_MS_DEFAULT (0 = wait forever).
+ *       On timeout BK_ASSERT is triggered.
  *
  * @param res Resource id
- * @return BK_OK on success, BK_ERR_PARAM on invalid parameter
+ * @return BK_OK on success, BK_ERR_PARAM / BK_ERR_NOT_SUPPORTED / BK_ERR_TIMEOUT
  */
 bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res);
 

@@ -11,5 +11,21 @@ menu "HSPL"
 		default n
 		help
 			Enable HSPL driver CLI test commands.
+
+	config HSPL_MUST_LOCK_TIMEOUT_MS_DEFAULT
+		depends on HSPL
+		int "must_lock timeout for non-FLASH resources (ms)"
+		range 0 60000
+		default 500
+		help
+			Timeout for all HSPL resources except FLASH. 0 means wait forever.
+
+	config HSPL_MUST_LOCK_TIMEOUT_MS_FLASH
+		depends on HSPL
+		int "must_lock timeout for FLASH resource (ms)"
+		range 0 5000
+		default 5000
+		help
+			FLASH erase/program may take longer; max 5000 ms. 0 means wait forever.
 endmenu
 

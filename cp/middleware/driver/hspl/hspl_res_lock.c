@@ -14,7 +14,9 @@
 
 #include "hspl_res_lock.h"
 #include "hspl_driver.h"
+#include <common/bk_assert.h>
 #include <os/os.h>
+
 #if CONFIG_AON_RTC
 #include <driver/aon_rtc.h>
 #endif
@@ -203,11 +205,73 @@ bk_err_t bk_hspl_res_unlock(bk_hspl_res_t res)
 	return ret;
 }
 
+static inline uint32_t hspl_res_must_lock_timeout_ms(bk_hspl_res_t res)
+{
+	if (res == BK_HSPL_RES_FLASH) {
+		return (uint32_t)CONFIG_HSPL_MUST_LOCK_TIMEOUT_MS_FLASH;
+	}
+
+	return (uint32_t)CONFIG_HSPL_MUST_LOCK_TIMEOUT_MS_DEFAULT;
+}
+
+static void hspl_res_must_lock_assert_timeout(bk_hspl_res_t res, uint32_t timeout_ms)
+{
+	BK_ASSERT_EX(0, "HSPL res %u must_lock timeout %ums\r\n", (unsigned int)res, timeout_ms);
+}
+
+static inline uint32_t hspl_must_lock_elapsed_ms(uint32_t start_ms, uint32_t now_ms, uint32_t cap_ms)
+{
+	if (now_ms >= start_ms) {
+		return now_ms - start_ms;
+	}
+
+	return cap_ms;
+}
+
+static bk_err_t hspl_res_must_lock_acquire_hw(bk_hspl_res_t res, uint8_t hspl_id, uint8_t channel)
+{
+	uint32_t timeout_ms = hspl_res_must_lock_timeout_ms(res);
+
+	if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
+		return BK_OK;
+	}
+
+	if (timeout_ms == 0U) {
+		while (bk_hspl_try_lock(hspl_id, channel, NULL) != BK_OK) {
+		}
+		return BK_OK;
+	}
+
+	if (rtos_is_in_interrupt_context()) {
+		hspl_res_must_lock_assert_timeout(res, timeout_ms);
+		return BK_ERR_TIMEOUT;
+	}
+
+	{
+		uint32_t start_ms = hspl_get_time_ms();
+
+		while (1) {
+			uint32_t now_ms;
+
+			if (bk_hspl_try_lock(hspl_id, channel, NULL) == BK_OK) {
+				return BK_OK;
+			}
+
+			now_ms = hspl_get_time_ms();
+			if (hspl_must_lock_elapsed_ms(start_ms, now_ms, timeout_ms) >= timeout_ms) {
+				hspl_res_must_lock_assert_timeout(res, timeout_ms);
+				return BK_ERR_TIMEOUT;
+			}
+		}
+	}
+}
+
 bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res)
 {
 	uint8_t hspl_id, channel;
 	uint8_t core_id;
 	uint32_t flags;
+	bk_err_t ret;
 
 	if (res >= BK_HSPL_RES_MAX) {
 		BK_ASSERT(0);
@@ -232,9 +296,9 @@ bk_err_t bk_hspl_res_must_lock(bk_hspl_res_t res)
 	}
 	rtos_enable_int(flags);
 
-	/* Busy-wait until lock is acquired */
-	while (bk_hspl_try_lock(hspl_id, channel, NULL) != BK_OK) {
-		/* Spin until lock is acquired */
+	ret = hspl_res_must_lock_acquire_hw(res, hspl_id, channel);
+	if (ret != BK_OK) {
+		return ret;
 	}
 
 	hspl_sync_barrier();

@@ -181,12 +181,31 @@ static void cli_hspl_help(void)
 	CLI_LOGD("hspl timeout_irq {hspl_id} {enable|disable|clear}\r\n");
 	CLI_LOGD("hspl raw_sta {hspl_id} {ch}      - Read STA raw\r\n");
 	CLI_LOGD("hspl raw_lock {ch}               - Read LOCK raw on HSPL_ID_0 (NOTE: reading LOCK triggers lock attempt)\r\n");
-	CLI_LOGD("hspl res_lock {flash|clock|os|user1|user2} {timeout_us}\r\n");
-	CLI_LOGD("hspl res_unlock {flash|clock|os|user1|user2}\r\n");
+	CLI_LOGD("hspl res_lock {flash|clock|sys_sw_regs|uart_log|os|user1|user2} {timeout_us}\r\n");
+	CLI_LOGD("hspl res_must_lock {flash|clock|sys_sw_regs|uart_log|os|user1|user2}\r\n");
+	CLI_LOGD("hspl res_unlock {flash|clock|sys_sw_regs|uart_log|os|user1|user2}\r\n");
 	CLI_LOGD("hspl stress {hspl_id} {ch} {iter} {hold_ms} - Parallel stress test (CPU0 vs CPU2)\r\n");
 	CLI_LOGD("hspl stress_auto {hspl_id} {ch} {iter} {hold_ms} - Auto parallel stress test (auto start on CPU0 & CPU2)\r\n");
 	CLI_LOGD("hspl stress_stop                  - Stop stress test\r\n");
 	CLI_LOGD("hspl stress_stat                  - Show stress test statistics\r\n");
+}
+
+static bool cli_hspl_parse_res(const char *name, bk_hspl_res_t *res)
+{
+	if (!name || !res) {
+		return false;
+	}
+
+	if (os_strcmp(name, "flash") == 0) *res = BK_HSPL_RES_FLASH;
+	else if (os_strcmp(name, "clock") == 0) *res = BK_HSPL_RES_CLOCK;
+	else if (os_strcmp(name, "sys_sw_regs") == 0) *res = BK_HSPL_RES_SYS_SW_REGS;
+	else if (os_strcmp(name, "uart_log") == 0) *res = BK_HSPL_RES_UART_LOG;
+	else if (os_strcmp(name, "os") == 0) *res = BK_HSPL_RES_OS;
+	else if (os_strcmp(name, "user1") == 0) *res = BK_HSPL_RES_USER1;
+	else if (os_strcmp(name, "user2") == 0) *res = BK_HSPL_RES_USER2;
+	else return false;
+
+	return true;
 }
 
 static void cli_hspl_driver_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
@@ -368,16 +387,11 @@ static void cli_hspl_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		CLI_LOGD("LOCK[%u]=0x%08X\r\n", ch, v);
 	} else if (os_strcmp(argv[1], "res_lock") == 0) {
 		if (argc < 4) {
-			CLI_LOGE("Usage: hspl res_lock {flash|clock|os|user1|user2} {timeout_us}\r\n");
+			CLI_LOGE("Usage: hspl res_lock {flash|clock|sys_sw_regs|uart_log|os|user1|user2} {timeout_us}\r\n");
 			return;
 		}
 		bk_hspl_res_t res = BK_HSPL_RES_MAX;
-		if (os_strcmp(argv[2], "flash") == 0) res = BK_HSPL_RES_FLASH;
-		else if (os_strcmp(argv[2], "clock") == 0) res = BK_HSPL_RES_CLOCK;
-		else if (os_strcmp(argv[2], "os") == 0) res = BK_HSPL_RES_OS;
-		else if (os_strcmp(argv[2], "user1") == 0) res = BK_HSPL_RES_USER1;
-		else if (os_strcmp(argv[2], "user2") == 0) res = BK_HSPL_RES_USER2;
-		if (res == BK_HSPL_RES_MAX) {
+		if (!cli_hspl_parse_res(argv[2], &res)) {
 			CLI_LOGE("unknown res\r\n");
 			return;
 		}
@@ -390,18 +404,31 @@ static void cli_hspl_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		} else {
 			CLI_LOGE("res_lock fail: %d\r\n", ret);
 		}
-	} else if (os_strcmp(argv[1], "res_unlock") == 0) {
+	} else if (os_strcmp(argv[1], "res_must_lock") == 0) {
 		if (argc < 3) {
-			CLI_LOGE("Usage: hspl res_unlock {flash|clock|os|user1|user2}\r\n");
+			CLI_LOGE("Usage: hspl res_must_lock {flash|clock|sys_sw_regs|uart_log|os|user1|user2}\r\n");
 			return;
 		}
 		bk_hspl_res_t res = BK_HSPL_RES_MAX;
-		if (os_strcmp(argv[2], "flash") == 0) res = BK_HSPL_RES_FLASH;
-		else if (os_strcmp(argv[2], "clock") == 0) res = BK_HSPL_RES_CLOCK;
-		else if (os_strcmp(argv[2], "os") == 0) res = BK_HSPL_RES_OS;
-		else if (os_strcmp(argv[2], "user1") == 0) res = BK_HSPL_RES_USER1;
-		else if (os_strcmp(argv[2], "user2") == 0) res = BK_HSPL_RES_USER2;
-		if (res == BK_HSPL_RES_MAX) {
+		if (!cli_hspl_parse_res(argv[2], &res)) {
+			CLI_LOGE("unknown res\r\n");
+			return;
+		}
+		bk_err_t ret = bk_hspl_res_must_lock(res);
+		if (ret == BK_OK) {
+			uint8_t hspl_id, ch;
+			bk_hspl_res_get_map(res, &hspl_id, &ch);
+			CLI_LOGD("res_must_lock ok: %s (hspl_id=%u ch=%u)\r\n", argv[2], hspl_id, ch);
+		} else {
+			CLI_LOGE("res_must_lock fail: %d\r\n", ret);
+		}
+	} else if (os_strcmp(argv[1], "res_unlock") == 0) {
+		if (argc < 3) {
+			CLI_LOGE("Usage: hspl res_unlock {flash|clock|sys_sw_regs|uart_log|os|user1|user2}\r\n");
+			return;
+		}
+		bk_hspl_res_t res = BK_HSPL_RES_MAX;
+		if (!cli_hspl_parse_res(argv[2], &res)) {
 			CLI_LOGE("unknown res\r\n");
 			return;
 		}
