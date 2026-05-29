@@ -1135,6 +1135,9 @@ static inline void flash_ab_info_restore(flash_ab_reg_t *p_flash_ab_reg)
 #if CONFIG_DEEP_LV
 static uint32_t s_sys_saved_regs[18] = {0};
 static uint32_t s_sys_ana_regs[32] = {0};
+static uint32_t s_mailbox_saved_regs[0x59] = {0};
+__attribute__((section(".iram")))  void sys_hal_mailbox_regs_backup(void);
+__attribute__((section(".iram")))  void sys_hal_mailbox_regs_restore(void);
 //static uint32_t s_saved_sram[4] = {0};
 
 __attribute__((section(".iram"))) static void _deep_lv_enter_(void)
@@ -1188,10 +1191,80 @@ __attribute__((section(".iram"))) void sys_hal_regs_save(void)
 		s_sys_ana_regs[i] = sys_hal_analog_get(ANALOG_REG0 + i);
 	}
 
+	//sys_hal_mailbox_regs_backup();
+
 	// for (uint32_t i = 0; i < 4; i++) {
 	// 	s_saved_sram[i] = REG_READ(0x2801FFF0 + (i << 2));
 	// }
 }
+
+__attribute__((section(".iram")))  void sys_hal_mailbox_regs_backup(void)
+{
+	static const uint8_t s_mailbox_backup_start[] = {0x10, 0x20, 0x30, 0x40, 0x50};
+
+	s_mailbox_saved_regs[0x2] = REG_READ(SOC_MBOX0_REG_BASE + (0x2 << 2));
+
+	for (uint32_t i = 0; i < sizeof(s_mailbox_backup_start) / sizeof(s_mailbox_backup_start[0]); i++) {
+		uint32_t start = s_mailbox_backup_start[i];
+		uint32_t end = start + 0x8;
+
+		for (uint32_t reg_idx = start; reg_idx <= end; reg_idx++) {
+			s_mailbox_saved_regs[reg_idx] = REG_READ(SOC_MBOX0_REG_BASE + (reg_idx << 2));
+		}
+	}
+}
+
+void sys_hal_mailbox_saved_regs_dump(void)
+{
+	return;
+	static const uint8_t s_mailbox_dump_start[] = {0x10, 0x20, 0x30, 0x40, 0x50};
+
+	PM_HAL_LOGD("mailbox backup regs dump start\r\n");
+	PM_HAL_LOGD("mbox reg[0x02]=0x%08x\r\n", s_mailbox_saved_regs[0x2]);
+	for (uint32_t i = 0; i < sizeof(s_mailbox_dump_start) / sizeof(s_mailbox_dump_start[0]); i++) {
+		uint32_t start = s_mailbox_dump_start[i];
+		uint32_t end = start + 0x8;
+
+		for (uint32_t reg_idx = start; reg_idx <= end; reg_idx++) {
+			PM_HAL_LOGD("mbox reg[0x%02x]=0x%08x\r\n", reg_idx, s_mailbox_saved_regs[reg_idx]);
+		}
+	}
+	PM_HAL_LOGD("mailbox backup regs dump end\r\n");
+}
+
+__attribute__((section(".iram"))) void sys_hal_mailbox_regs_restore(void)
+{
+	static const uint8_t s_mailbox_restore_start[] = {0x10, 0x20, 0x30, 0x40, 0x50};
+	uint32_t mailbox_reg_0x2 = REG_READ(SOC_MBOX0_REG_BASE + (0x2 << 2));
+	uint32_t mailbox_saved_reg_0x2 = s_mailbox_saved_regs[0x2];
+
+	/* clear bit0 of reg_0x2 before restoring mailbox registers */
+	mailbox_reg_0x2 &= ~BIT(0);
+	REG_WRITE(SOC_MBOX0_REG_BASE + (0x2 << 2), mailbox_reg_0x2);
+
+	mailbox_reg_0x2 |= BIT(0);
+	REG_WRITE(SOC_MBOX0_REG_BASE + (0x2 << 2), mailbox_reg_0x2);
+
+	for (uint32_t i = 0; i < sizeof(s_mailbox_restore_start) / sizeof(s_mailbox_restore_start[0]); i++) {
+		uint32_t start = s_mailbox_restore_start[i];
+		uint32_t end = start + 0x4; /* only restore writable regs, skip RO status/data regs */
+
+		for (uint32_t reg_idx = start; reg_idx <= end; reg_idx++) {
+			uint32_t reg_val = s_mailbox_saved_regs[reg_idx];
+
+			/* wrerr/rderr/wrfull bits are W1C in reg_x0 */
+			if ((reg_idx == 0x10) || (reg_idx == 0x20) || (reg_idx == 0x30) || (reg_idx == 0x40) || (reg_idx == 0x50)) {
+				reg_val &= ~(0x7 << 16);
+			}
+
+			REG_WRITE(SOC_MBOX0_REG_BASE + (reg_idx << 2), reg_val);
+		}
+	}
+
+	/* restore reg_0x2 from backup value */
+	REG_WRITE(SOC_MBOX0_REG_BASE + (0x2 << 2), mailbox_saved_reg_0x2);
+}
+
 __attribute__((section(".iram"))) void sys_hal_regs_digital_restore(void)
 {
 	sys_ll_set_reserver_reg0xd_value(s_sys_saved_regs[5]); //reg 0xd
@@ -1220,6 +1293,8 @@ __attribute__((section(".iram"))) void sys_hal_regs_digital_restore(void)
 	// sys_ll_set_m55sub_int_0_31_en_value(s_sys_saved_regs[15]); // reg_0x1a
 	// sys_ll_set_m55sub_int_32_63_en_value(s_sys_saved_regs[16]); // reg_0x1b
 	// sys_ll_set_m55sub_int_64_95_en_value(s_sys_saved_regs[17]); // reg_0x1c
+
+	sys_hal_mailbox_regs_restore();
 }
 __attribute__((section(".iram"))) void sys_hal_regs_analog_restore(void)
 {
