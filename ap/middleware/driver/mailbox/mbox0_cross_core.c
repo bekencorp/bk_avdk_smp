@@ -34,9 +34,19 @@ void crosscore_smp_cmd_handler(uint8_t src_core, uint32_t cmd)
 bk_err_t bk_mailbox_master_send(mailbox_data_t *data, uint8_t src, uint8_t dst)
 {
 	mbox0_message_t msg;
+	uint32_t fifo_status = 0;
 
 	if(dst >= CONFIG_CPU_CNT)
 		return BK_ERR_PARAM;
+
+	/* Keep cross-core IPIs from being silently dropped when the
+	 * destination RX FIFO is full. The regular mailbox send path uses the
+	 * same guard before writing the HW mailbox registers. */
+	if(mbox0_drv_get_send_stat((uint32_t)dst, &fifo_status) != MBOX0_HAL_OK)
+		return BK_ERR_MAILBOX_SRC_DST;
+
+	if(fifo_status & RX_FIFO_STAT_FULL)
+		return BK_ERR_MAILBOX_TIMEOUT;
 
 	msg.dest_cpu = dst;
 	msg.data[0] = data->param2;  /* cmd id. */

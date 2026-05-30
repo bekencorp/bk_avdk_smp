@@ -1094,6 +1094,15 @@ static bk_err_t crosscore_int_send(int xCoreID, uint32_t cmd)
 	if(old_busy == 0)
     {
 		ret = bk_mailbox_master_send(&data, core, xCoreID);
+		if(ret != BK_OK)
+		{
+			/* Send failed, e.g. the destination mailbox RX FIFO is full.
+			 * Keep the accumulated cmd bits and clear busy so the next
+			 * cross-core command retries the hardware mailbox send. */
+			spin_lock(&crosscore_spin_lock);
+			crosscore_mb_busy[core - CONFIG_CPU_ID_OFFSET] = 0;
+			spin_unlock(&crosscore_spin_lock);
+		}
     }
     else
     {

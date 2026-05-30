@@ -38,7 +38,7 @@
 
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
-static volatile spinlock_t dma_spin_lock = SPIN_LOCK_INIT;
+static SPINLOCK_SECTION volatile spinlock_t dma_spin_lock = SPIN_LOCK_INIT;
 #endif // CONFIG_FREERTOS_SMP
 
 static inline uint32_t dma_enter_critical()
