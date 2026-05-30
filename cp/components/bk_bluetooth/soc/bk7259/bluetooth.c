@@ -1226,7 +1226,7 @@ static void bt_delay_us(uint32_t us)
 
 static uint16_t bt_get_low_voltage_wakeup_margin_cycles(void)
 {
-    return 208;//about 6.5ms
+    return 218;//about 6.8ms
 }
 
 //warning: bt_osi_funcs must be data section, otherwise a2dp_source_pcm and a2dp_source_decode will trig watchdog !!!!!!!!
