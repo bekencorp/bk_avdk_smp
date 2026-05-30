@@ -33,6 +33,8 @@
 #include "driver/flash.h"
 #include "cache.h"
 #include "sys_ahbp_ll.h"
+#include "multicore_driver.h"
+
 extern uint64_t check_IRQ_pending(void);
 
 static inline uint32_t bk_dma_check_chn_status(void)
@@ -518,49 +520,69 @@ void sys_hal_gpio_ana_wakeup_enable(uint32_t count, uint32_t index, uint32_t typ
 
 void sys_hal_enter_cpu_wfi()
 {
-	pm_shared_info_t shared_info = {0};
-	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
-	if(shared_info.pm_cp0_sleep_state == 0x1)
+	if(portGET_CORE_ID() == CPU0_CORE_ID)
 	{
-		volatile uint32_t int_state;
-		uint32_t systick_ctrl_value = 0;
-
-		systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
-		//portNVIC_SYSTICK_CTRL_REG = 0;
-
-		int_state = sys_ahbp_ll_get_reg10_value();
-
-		/*Disable Int exclude mailbox,mailbox int for wakeup*/
-		sys_ahbp_ll_set_reg10_value(0x0);
-
-		__asm volatile( "nop" );
-		__asm volatile( "nop" );
-		__asm volatile( "nop" );
-		__asm volatile( "nop" );
-		__asm volatile( "nop" );
-
-		if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ll_get_cpu1_int_0_31_status_value()||(sys_ll_get_cpu1_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+		//bk_printf("CPU0_CORE_ID\r\n");
+		pm_shared_info_t shared_info = {0};
+		bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+		if(shared_info.pm_cp0_sleep_state == 0x1)
 		{
-			sys_ahbp_ll_set_reg10_value(int_state);
+			volatile uint32_t int_state;
+			uint32_t systick_ctrl_value = 0;
+
+			systick_ctrl_value = portNVIC_SYSTICK_CTRL_REG;
+			//portNVIC_SYSTICK_CTRL_REG = 0;
+
+			int_state = sys_ahbp_ll_get_reg10_value();
+
+			/*Disable Int exclude mailbox,mailbox int for wakeup*/
+			sys_ahbp_ll_set_reg10_value(0x0);
+
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+			__asm volatile( "nop" );
+
+			if(check_IRQ_pending()||bk_dma_check_chn_status()||(sys_ll_get_cpu1_int_0_31_status_value()||(sys_ll_get_cpu1_int_32_63_status_value()))||(portNVIC_INT_CTRL_REG&portNVIC_SYSTICKSET_BIT))
+			{
+				sys_ahbp_ll_set_reg10_value(int_state);
+				portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
+				return;
+			}
+
+#if CONFIG_SOC_SMP
+			bk_cpu_offline(CPU1_CORE_ID);
+#endif
+
+			shared_info.pm_ap0_sleep_state = 1;
+			__DMB();
+			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
+			__DMB();
+			flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+			__DMB();
+
+			arch_deep_sleep();
+
+			shared_info.pm_ap0_sleep_state = 0;
+			bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
+
 			portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
-			return;
+
+#if CONFIG_SOC_SMP
+			bk_cpu_online(CPU1_CORE_ID);
+#endif
+
+			sys_ahbp_ll_set_reg10_value(int_state);
 		}
-
-		shared_info.pm_ap0_sleep_state = 1;
-		__DMB();
-		bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
-		__DMB();
-		flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
-		__DMB();
-
-		arch_deep_sleep();
-
-		shared_info.pm_ap0_sleep_state = 0;
-		bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
-
-		portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
-
-		sys_ahbp_ll_set_reg10_value(int_state);
+		else
+		{
+			arch_sleep();
+		}
+	}
+	else
+	{
+		arch_sleep();
 	}
 }
 
