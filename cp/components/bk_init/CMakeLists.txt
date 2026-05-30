@@ -32,19 +32,9 @@ set(srcs
 	components_init.c
 	)
 
-if (CONFIG_VND_CAL AND CONFIG_OVERRIDE_VND_CAL)
-	list(APPEND incs
-		$ENV{PROJECT_DIR}/cp
-	)
-endif()
-
 set(priv_req bk_common bk_netif bk_ate driver easy_flash bk_libs bk_bluetooth bk_wifi bk_phy temp_detect)
 
-if (CONFIG_VND_CAL AND CONFIG_OVERRIDE_VND_CAL)
-	list(APPEND priv_req cp)
-else()
-	list(APPEND priv_req vnd_cal)
-endif()
+list(APPEND priv_req vnd_cal)
 
 armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES "${priv_req}")
 target_compile_definitions(${COMPONENT_LIB} PRIVATE
