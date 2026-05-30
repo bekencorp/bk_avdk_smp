@@ -118,6 +118,14 @@ menu "Bk_rtos"
 				Allow call some OS API in irq disabled, and scheduler will not enable
 				the irq but left the user app to restore previous irq status.
 
+		config FREERTOS_SMP_CROSS_CORE_IPI
+			depends on FREERTOS_SMP && IPI
+			bool "Use IPI for FreeRTOS SMP cross-core interrupt"
+			default n
+			help
+				Use IPI_DOMAIN_SMP as the SMP cross-core doorbell. If disabled,
+				the SMP port keeps using the existing mailbox notification path.
+
 		config FREERTOS_RTT_MONITOR
 			depends on FREERTOS_SMP
 			bool "FreeRTOS Segger Real-Time Transfer"

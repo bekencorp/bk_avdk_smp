@@ -49,6 +49,9 @@
 #include "driver/mailbox_types.h"
 #include "driver/mailbox.h"
 #include "bk_mailbox.h"
+#if defined(CONFIG_FREERTOS_SMP_CROSS_CORE_IPI)
+#include <driver/ipi_driver.h>
+#endif
 #include <modules/pm.h>
 
 #if ( configENABLE_TRUSTZONE == 1 )
@@ -1042,6 +1045,32 @@ static uint32_t  dwt_addr, dwt_data;
 extern void arch_dwt_trap_write(uint32_t addr, uint32_t data);
 extern void arch_dwt_trap_disable(void);
 extern void dwt_set_data_address_write(uint32_t data_address);
+void crosscore_mb_rx_isr(mailbox_data_t *data);
+
+#if defined(CONFIG_FREERTOS_SMP_CROSS_CORE_IPI)
+#define SMP_IPI_EVENT_DOORBELL 0x5AU
+
+static void crosscore_ipi_rx_callback(ipi_core_id_t core_id, uint32_t value,
+	uint8_t src_cpu, uint8_t event, uint16_t payload, void *param)
+{
+	mailbox_data_t data = {payload, core_id, 0, 0};
+
+	(void)value;
+	(void)src_cpu;
+	(void)param;
+
+	if (event != SMP_IPI_EVENT_DOORBELL) {
+		return;
+	}
+
+	crosscore_mb_rx_isr(&data);
+}
+
+static bk_err_t crosscore_ipi_init(void)
+{
+	return bk_ipi_register_domain_callback(IPI_DOMAIN_SMP, crosscore_ipi_rx_callback, NULL);
+}
+#endif
 
 // message send between cores
 // xCoreID: to where the message will send
@@ -1049,7 +1078,9 @@ static bk_err_t crosscore_int_send(int xCoreID, uint32_t cmd)
 {
     bk_err_t ret = BK_OK;
     int core = rtos_get_core_id();     //portGET_CORE_ID();
+#if !defined(CONFIG_FREERTOS_SMP_CROSS_CORE_IPI)
     mailbox_data_t data = {core, xCoreID, 0, 0};
+#endif
 
 	if(cmd > 31)
 		return 0;
@@ -1066,12 +1097,18 @@ static bk_err_t crosscore_int_send(int xCoreID, uint32_t cmd)
 
 	if(old_busy == 0)
 	{
+#if defined(CONFIG_FREERTOS_SMP_CROSS_CORE_IPI)
+		ret = bk_ipi_send_domain((ipi_core_id_t)xCoreID, IPI_DOMAIN_SMP,
+			SMP_IPI_EVENT_DOORBELL, (uint16_t)core);
+#else
 		ret = bk_mailbox_master_send(&data, core, xCoreID);
+#endif
 		if(ret != BK_OK)
 		{
-			/* Send failed, e.g. the destination mailbox RX FIFO is full.
+			/* Send failed, e.g. the destination mailbox RX FIFO is full
+			 * or the IPI doorbell could not be delivered.
 			 * Keep the accumulated cmd bits and clear busy so the next
-			 * cross-core command retries the hardware mailbox send. */
+			 * cross-core command retries the hardware doorbell. */
 			spin_lock(&crosscore_spin_lock);
 			crosscore_mb_busy[core - CONFIG_CPU_ID_OFFSET] = 0;
 			spin_unlock(&crosscore_spin_lock);
@@ -1261,7 +1298,12 @@ BaseType_t xPortStartScheduler( void )
     #if configNUM_CORES > 1
         configASSERT( portGET_CORE_ID() == 0) ; // we must be started on core 0
 
+#if defined(CONFIG_FREERTOS_SMP_CROSS_CORE_IPI)
+		bk_err_t ret = crosscore_ipi_init();
+		configASSERT(ret == BK_OK);
+#else
 		bk_mailbox_cc_init();
+#endif
 
         multicore_launch_core1(prvDisableInterruptsAndPortStartSchedulerOnCore);
     #endif

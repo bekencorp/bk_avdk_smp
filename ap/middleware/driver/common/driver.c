@@ -256,6 +256,10 @@ int driver_early_init(void)
 	bk_hspl_driver_init();
 #endif
 
+#if CONFIG_IPI
+	bk_ipi_driver_init();
+#endif
+
     set_ap_startup_index(AP_EXIT_DRIVER_EARLY_INIT);
 	return 0;
 }
@@ -296,10 +300,6 @@ int driver_init(void) {
 
 #if CONFIG_TIMER
 	bk_timer_driver_init();
-#endif
-
-#if CONFIG_IPI
-	bk_ipi_driver_init();
 #endif
 
 #if CONFIG_GENERAL_DMA

@@ -77,6 +77,14 @@ menu "Bk_rtos"
 			bool "FreeRTOS Segger Real-Time Transfer"
 			default n
 
+		config FREERTOS_SMP_CROSS_CORE_IPI
+			depends on FREERTOS_SMP && IPI
+			bool "Use IPI for FreeRTOS SMP cross-core interrupt"
+			default n
+			help
+				Use IPI_DOMAIN_SMP as the SMP cross-core doorbell. If disabled,
+				the SMP port keeps using the existing mailbox notification path.
+
 		config FREERTOS_USE_TICKLESS_IDLE
 			depends on FREERTOS_V10 || FREERTOS_SMP
 			int "Set FreeRTOS Use Tickless Idle"
