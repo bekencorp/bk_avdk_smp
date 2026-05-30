@@ -577,12 +577,12 @@ void sys_hal_enter_cpu_wfi()
 		}
 		else
 		{
-			arch_sleep();
+			//arh_sleep();
 		}
 	}
 	else
 	{
-		arch_sleep();
+		//arch_sleep();
 	}
 }
 
