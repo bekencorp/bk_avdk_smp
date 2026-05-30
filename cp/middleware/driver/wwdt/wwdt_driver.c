@@ -138,7 +138,7 @@ static bk_err_t wwdt_start_current_core(uint32_t timeout_ms, bool is_enable_wind
 	s_wwdt.init_bits |= BIT(core_id);
 	s_last_wwdt_feed_tick[core_id] = GET_WWDT_CURRENT_TICK();
 	if (log_enable) {
-		WWDT_LOGI("bk_wwdt_start, core:%u, wwdt_cpu:%u, init_bits:%x\r\n",
+		WWDT_LOGV("bk_wwdt_start, core:%u, wwdt_cpu:%u, init_bits:%x\r\n",
 			core_id, bk_wwdt_get_cpu_id(), s_wwdt.init_bits);
 	}
 
