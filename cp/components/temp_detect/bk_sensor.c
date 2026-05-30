@@ -124,7 +124,7 @@ static bk_err_t bk_sensor_load_adc_cali_value(void)
 
     uint16_t vol_values[2];
     uint16_t temp_values[1];
-    result = bk_otp_apb_read(OTP_GADC_CALIBRATION, (uint8_t *)&vol_values[0], sizeof(vol_values));
+    result = bk_otp_ahb_read(OTP_GADC_CALIBRATION, (uint8_t *)&vol_values[0], sizeof(vol_values));
 
     if ((result != BK_OK) || (vol_values[0] == 0) || (vol_values[1] == 0))
     {

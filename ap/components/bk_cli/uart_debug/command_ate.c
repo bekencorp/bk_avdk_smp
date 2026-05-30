@@ -1421,7 +1421,7 @@ int set_mac_address_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_bu
     }
 
     for (; retry_times < 3; retry_times++) {
-	    ret = bk_otp_apb_update(OTP_MAC_ADDRESS, mac_address_write, sizeof(mac_address_write));
+	    ret = bk_otp_ahb_update(OTP_MAC_ADDRESS_1, mac_address_write, sizeof(mac_address_write));
 		if (ret == BK_OK) {
 			break;
 		}
@@ -1444,14 +1444,14 @@ int set_mac_address_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_bu
             tx_buffer[2] = 0xff;
         }
 
-        bk_otp_apb_read(OTP_MAC_ADDRESS, tx_buffer + 3, MAC_ADDR_LEN);
+        bk_otp_ahb_read(OTP_MAC_ADDRESS_1, tx_buffer + 3, MAC_ADDR_LEN);
         uart_send_bytes_for_ate(tx_buffer, 3 + MAC_ADDR_LEN);
 
         return BK_FAIL;
 	}
 
     tx_buffer[1] = 0x88;
-    bk_otp_apb_read(OTP_MAC_ADDRESS, tx_buffer + 2, MAC_ADDR_LEN);
+    bk_otp_ahb_read(OTP_MAC_ADDRESS_1, tx_buffer + 2, MAC_ADDR_LEN);
     uart_send_bytes_for_ate(tx_buffer, 2 + MAC_ADDR_LEN);
 
     return BK_OK;

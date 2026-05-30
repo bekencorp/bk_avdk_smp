@@ -108,12 +108,12 @@ int bandgap_init(void)
 
 	old_bandgap = (uint8_t)sys_drv_get_bgcalm();
 
-	result = bk_otp_apb_read(OTP_VDDDIG_BANDGAP, &new_bandgap, sizeof(new_bandgap));
+	result = bk_otp_ahb_read(OTP_VDDDIG_BANDGAP, &new_bandgap, sizeof(new_bandgap));
 	if ((result != BK_OK) || (new_bandgap == 0) || (new_bandgap > 0x3F)) {
 		goto default_bandgap;
 	}
 
-	result = bk_otp_apb_read(OTP_DEVICE_ID, device_id, sizeof(device_id));
+	result = bk_otp_ahb_read(OTP_DEVICE_ID, device_id, sizeof(device_id));
 	if ((result != BK_OK) || ((device_id[0] == 0x32) && (device_id[1] == 0x31))) {
 		goto default_bandgap;
 	}
@@ -138,6 +138,21 @@ int random_init(void)
 #if (CONFIG_TRNG_SUPPORT)
 	BK_LOGV(TAG, "create srand seed\r\n");
 	srand(bk_rand());
+#endif
+	return BK_OK;
+}
+
+static int product_id_boot_check(void)
+{
+#if (CONFIG_BK_PID_BOOT_CHECK && CONFIG_OTP_V1)
+	uint8_t product_id[16] = {0};
+	bk_err_t ret = bk_otp_ahb_read(OTP_PRODUCT_ID, product_id, sizeof(product_id));
+	if (ret != BK_OK) {
+		BK_LOGE(TAG, "read OTP product ID failed: %d\r\n", ret);
+		return ret;
+	}
+
+	BK_LOGI(TAG, "product ID boot check hook enabled\r\n");
 #endif
 	return BK_OK;
 }
@@ -288,6 +303,8 @@ int components_early_init(void)
 
 	bandgap_init();
 	random_init();
+	if (product_id_boot_check())
+		return BK_FAIL;
 
 	bk_stack_guard_setup();
 

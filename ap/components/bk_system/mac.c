@@ -48,7 +48,7 @@ static int write_base_mac_to_otp1(const uint8_t *mac)
     int ret = BK_FAIL;
     uint8_t mac_r[] = DEFAULT_MAC_ADDR;
 
-    ret = bk_otp_apb_read(OTP_MAC_ADDRESS, mac_r, BASE_MAC_LEN);
+    ret = bk_otp_ahb_read(OTP_MAC_ADDRESS_1, mac_r, BASE_MAC_LEN);
     if(ret == 0)
     {
         for(UINT8 i = 0; i < BASE_MAC_LEN; i++)
@@ -60,7 +60,7 @@ static int write_base_mac_to_otp1(const uint8_t *mac)
         }
         if(ret == BASE_MAC_LEN)
         {
-           ret = bk_otp_apb_update(OTP_MAC_ADDRESS, (uint8_t *)mac, BASE_MAC_LEN);
+           ret = bk_otp_ahb_update(OTP_MAC_ADDRESS_1, (uint8_t *)mac, BASE_MAC_LEN);
            if(ret == 0)
                return BK_OK;
            else
@@ -80,7 +80,7 @@ static int read_base_mac_to_otp1(uint8_t *mac)
 #if CONFIG_OTP_V1
     int ret = BK_FAIL;
     uint8_t buf[6];
-    ret = bk_otp_apb_read(OTP_MAC_ADDRESS, buf, BASE_MAC_LEN);
+    ret = bk_otp_ahb_read(OTP_MAC_ADDRESS_1, buf, BASE_MAC_LEN);
     if ((ret == BK_OK) && ((buf[0] != 0) || (buf[1] != 0) || (buf[2] != 0) || (buf[3] != 0) || (buf[4] != 0) || (buf[5] != 0)))
     {
         os_memcpy(mac, buf, sizeof(buf));
