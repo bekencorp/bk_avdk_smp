@@ -230,9 +230,43 @@ void __gcov_call_constructors(void);
 
 #ifdef GCOV_OPT_PROVIDE_PRINTF_IMITATION
 void gcov_printf(const char *fmt, ...);
+
+typedef int (*gcov_write_fn)(const char *buf, unsigned int len);
+
+/**
+ * Initialize gcov output via a specific UART port.
+ * @param uart_id  UART port to use (e.g. UART_ID_0 ~ UART_ID_5)
+ * @param cfg      UART configuration, or NULL to use default 115200/8N1
+ *
+ * If not called, defaults to UART5 with 115200 baud.
+ */
+void gcov_output_init_uart(unsigned int uart_id, const void *cfg);
+
+/**
+ * Initialize gcov output via a custom write callback.
+ * @param write_cb  User-provided function: int cb(const char *buf, unsigned int len)
+ *
+ * When set, all gcov output goes through this callback instead of UART.
+ */
+void gcov_output_init_callback(gcov_write_fn write_cb);
+
+/**
+ * Deinitialize gcov output.
+ * If UART mode was used, the UART port will be deinitialized.
+ * After calling this, gcov output is disabled until re-initialized.
+ */
+void gcov_output_deinit(void);
 #endif
 
-void gcov_cli_init(void);
+/**
+ * Initialize gcov with UART output and register CLI command (gcov_dump).
+ */
+void gcov_init_uart(unsigned int uart_id, const void *cfg);
+
+/**
+ * Initialize gcov with custom callback and register CLI command (gcov_dump).
+ */
+void gcov_init_callback(gcov_write_fn write_cb);
 
 #endif // __GCOV_PUBLIC_H__
 
