@@ -74,6 +74,38 @@ static void pm_clock_vote_record(uint32_t module, uint32_t clock_state, uint32_t
 #endif
 
 
+static const char *pm_dev_id_to_string(uint32_t dev_id)
+{
+	static const char *dev_id_strings[] = {
+		"TIMER_0", "I2C1", "SPI_1", "UART1", "AIRPLAY", "TIMER_1", "SARADC", "IRDA",
+		"EFUSE", "I2C2", "SPI_2", "UART2", "UART3", "PWM_2", "TIMER_2", "TIMER_3",
+		"TOUCH", "I2S_1", "USB_1", "CAN", "PSRAM", "QSPI_1", "QSPI_2", "SDIO",
+		"AUXS", "BTDM", "WPAS", "MAC", "PHY", "JPEG", "DISP", "AUDIO", "RTC",
+		"GPIO", "DECODER", "LIN", "PWM_1", "SECURE_WORLD", "UART4", "TRNG",
+		"CPU1", "PHY_DPD_CALI", "KEY", "CIF", "MAILBOX", "HPDMA", "DEFAULT",
+	};
+
+	if (dev_id >= PM_DEV_ID_MAX) {
+		return "UNKNOWN";
+	}
+
+	return dev_id_strings[dev_id];
+}
+
+static const char *pm_cpu_freq_to_string(uint32_t cpu_freq)
+{
+	static const char *cpu_freq_strings[] = {
+		"XTAL", "60M", "80M", "120M", "160M", "240M", "320M", "480M",
+		"HIGHEST", "DEFAULT",
+	};
+
+	if (cpu_freq > PM_CPU_FRQ_DEFAULT) {
+		return "UNKNOWN";
+	}
+
+	return cpu_freq_strings[cpu_freq];
+}
+
 /*=========================CLK/FREQ CTRL START========================*/
 bk_err_t pm_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core, uint32_t ckdiv_bus, uint32_t ckdiv_cpu0, uint32_t ckdiv_cpu1)
 {
@@ -190,11 +222,31 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 
 	if (pm_debug_mode() & 0x2)
 	{
-		LOGI("Switch cpu freq %d %d\r\n", freq_max, freq_max_index);
+		LOGI("Switch cpu freq %u(%s) %u(%s)\r\n", freq_max, pm_cpu_freq_to_string(freq_max),
+			freq_max_index, pm_dev_id_to_string(freq_max_index));
 	}
 	return BK_OK;
 }
 
+bk_err_t bk_pm_cpu_freq_dump(void)
+{
+	uint32_t i = 0;
+	uint32_t freq_max = 0;
+	uint32_t freq_max_index = 0;
+	freq_max = s_pm_cpu_freq[0];
+	for (i = 1; i < PM_DEV_ID_MAX; i++)
+	{
+		if (freq_max < s_pm_cpu_freq[i])
+		{
+			freq_max = s_pm_cpu_freq[i];
+			freq_max_index = i;
+		}
+	}
+	LOGI("pm vote freq:%u(%s),%u(%s)\r\n", freq_max_index,
+		pm_dev_id_to_string(freq_max_index), freq_max, pm_cpu_freq_to_string(freq_max));
+	sys_hal_cpu_freq_dump();
+	return BK_OK;
+}
 bk_err_t bk_pm_clock_ctrl(pm_dev_clk_e module, pm_dev_clk_pwr_e clock_state)
 {
 	GLOBAL_INT_DECLARATION();
