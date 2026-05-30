@@ -20,4 +20,9 @@ menu "Bk_thirdparty::agora-iot-sdk"
 		help
 			Agora RTC thread bind cpu id
 
+	config AGORA_RTC_USE_STRING_UID
+		bool "Use string UID for Agora RTC"
+		depends on AGORA_IOT_SDK
+		default n
+
 endmenu
