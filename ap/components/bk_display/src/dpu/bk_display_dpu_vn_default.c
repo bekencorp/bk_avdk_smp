@@ -33,6 +33,7 @@
 #include "dpu_core.h"
 #include <components/bk_display.h>
 #include "display_dpu_vn_ctlr.h"
+#include "bk_lcd_panel_priv.h"   /* bk_avdk_lcd_panel_t layout (bus, timing, pixel_clock_hz, clk_src) */
 #include "avdk_monitor.h"
 #include "driver/sys_pm.h"
 #include "sys_types.h"
@@ -113,15 +114,15 @@ static avdk_err_t dpu_ctlr_wait_flush_idle(dpu_vn_ctlr_t *control)
     return ret;
 }
 
-static void dpu_ctlr_build_core_config(const bk_display_dpu_config_t *config, dpu_config_t *dpu_config)
+static void dpu_ctlr_build_core_config(const dpu_vn_ctlr_t *control, dpu_config_t *dpu_config)
 {
     os_memset(dpu_config, 0, sizeof(*dpu_config));
 
-    dpu_config->dpu_clk_src = config->clk_src;
-    dpu_config->dpi_clock_freq_mhz = config->timing.clk;
-    dpu_config->video_timing = config->timing;
-    dpu_config->video = config->video;
+    dpu_config->video          = control->config.video;
     dpu_config->graphic.enable = false;
+    dpu_config->dpu_clk_src    = control->panel->clk_src;
+    dpu_config->video_timing   = control->panel->timing;
+    dpu_config->pixel_clock_hz = control->panel->pixel_clock_hz;
 }
 
 static avdk_err_t dpu_ctlr_init(bk_display_ctlr_handle_t handle)
@@ -147,15 +148,11 @@ static avdk_err_t dpu_ctlr_init(bk_display_ctlr_handle_t handle)
     }
     dpu_ctlr_unlock(control);
 
-    dpu_ctlr_build_core_config(&control->config, &dpu_config);
+    dpu_ctlr_build_core_config(control, &dpu_config);
 
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_DPU, PM_POWER_MODULE_STATE_ON);
 
-    {
-        const uint8_t qos = control->config.qos != 0u ? control->config.qos
-                                                      : BK_DISPLAY_DPU_QOS_DEFAULT;
-        sys_drv_set_psram_dpu_qos(qos);
-    }
+    sys_drv_set_psram_dpu_qos(BK_DISPLAY_DPU_QOS_DEFAULT);
 
     ret = dpu_core_init(&dpu_config, &control->dpu_handle);
     AVDK_GOTO_ON_ERROR(ret, err, TAG, "dpu core init err");
@@ -451,10 +448,12 @@ static avdk_err_t dpu_ctlr_ioctl(bk_display_ctlr_handle_t handle, bk_display_ioc
     return ret;
 }
 
-avdk_err_t bk_display_dpu_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_dpu_config_t *config)
+avdk_err_t bk_display_dpu_ctlr_new(bk_display_ctlr_handle_t *handle,
+                                   bk_avdk_lcd_panel_handle_t panel,
+                                   const bk_display_dpu_config_t *config)
 {
     avdk_err_t ret = AVDK_ERR_OK;
-    AVDK_RETURN_ON_FALSE(config && handle, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
+    AVDK_RETURN_ON_FALSE(config && handle && panel, AVDK_ERR_INVAL, TAG, AVDK_ERR_INVAL_NULL_TEXT);
 
     dpu_vn_ctlr_t *controller = os_malloc(sizeof(dpu_vn_ctlr_t));
     AVDK_RETURN_ON_FALSE(controller, AVDK_ERR_NOMEM, TAG, AVDK_ERR_NOMEM_TEXT);
@@ -480,6 +479,7 @@ avdk_err_t bk_display_dpu_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_
     }
 
     os_memcpy(&controller->config, config, sizeof(bk_display_dpu_config_t));
+    controller->panel = panel;
 
     controller->ops.init = dpu_ctlr_init;
     controller->ops.open = dpu_ctlr_open;

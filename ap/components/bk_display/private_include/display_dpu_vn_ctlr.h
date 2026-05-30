@@ -51,6 +51,7 @@ typedef struct
     uint32_t inflight_flush;
     dpu_handle_t dpu_handle;
     bk_display_dpu_config_t config;
+    bk_avdk_lcd_panel_handle_t panel;   /**< panel bound at ::bk_display_dpu_ctlr_new() */
     bk_display_ctlr_t ops;
     bool flush_lazy_promoted;     /**< true once a flush implicitly armed the bus */
 } dpu_vn_ctlr_t;

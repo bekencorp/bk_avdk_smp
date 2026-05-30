@@ -29,7 +29,8 @@ typedef void * dpu_handle_t;
 typedef struct {
     dpu_clk_src_t dpu_clk_src;
     uint8_t virtual_channel;                   /*!< Virtual channel ID, index from 0 */
-    uint32_t dpi_clock_freq_mhz;               /*!< DPI clock frequency in MHz */
+    /** Parallel RGB: nominal DPI pixel clock in Hz (rounded from PLL/div ladder). MIPI: 0. */
+    uint32_t pixel_clock_hz;
     bk_display_timing_t video_timing;       /*!< Video timing */
 
     dpu_video_layer_config_t video;

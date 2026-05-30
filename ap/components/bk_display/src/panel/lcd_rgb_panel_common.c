@@ -165,6 +165,7 @@ static bk_err_t lcd_rgb_panel_common_reset(bk_avdk_lcd_panel_t *panel)
         bk_gpio_set_output_low(priv->reset_gpio);
     }
     rtos_delay_milliseconds(release_ms);
+    BK_LOGI(TAG, "reset done %x %d", priv->reset_gpio, priv->reset_active_level);
     return BK_OK;
 }
 
@@ -233,11 +234,11 @@ static bk_err_t lcd_rgb_panel_common_rx_param(bk_avdk_lcd_panel_t *panel,
 }
 
 bk_err_t bk_lcd_new_rgb_panel_common(bk_display_bus_handle_t bus_handle,
-                                     const bk_lcd_panel_dev_config_t *panel_dev_config,
+                                     const bk_lcd_panel_config_t *panel_config,
                                      const bk_display_rgb_panel_t *panel_desc,
                                      bk_avdk_lcd_panel_handle_t *ret_panel)
 {
-    AVDK_RETURN_ON_FALSE(bus_handle && panel_dev_config && panel_desc && ret_panel,
+    AVDK_RETURN_ON_FALSE(bus_handle && panel_config && panel_desc && ret_panel,
                          BK_ERR_NULL_PARAM, TAG, "invalid arguments");
     AVDK_RETURN_ON_FALSE(panel_desc->name != NULL, BK_ERR_NULL_PARAM, TAG, "panel name is NULL");
 
@@ -248,8 +249,8 @@ bk_err_t bk_lcd_new_rgb_panel_common(bk_display_bus_handle_t bus_handle,
 
     panel->bus_handle = bus_handle;
     panel->panel = panel_desc;
-    panel->reset_gpio = panel_dev_config->reset_pin;
-    panel->reset_active_level = panel_dev_config->reset_active_level;
+    panel->reset_gpio = panel_config->reset_pin;
+    panel->reset_active_level = panel_config->reset_active_level;
     panel->reset_timing.idle_ms    = lcd_rgb_panel_pick_ms(panel_desc->reset_timing.idle_ms,
                                                            BK_DISPLAY_RESET_IDLE_MS_RGB_DEFAULT);
     panel->reset_timing.active_ms  = lcd_rgb_panel_pick_ms(panel_desc->reset_timing.active_ms,
@@ -260,12 +261,24 @@ bk_err_t bk_lcd_new_rgb_panel_common(bk_display_bus_handle_t bus_handle,
 
     lcd_rgb_panel_pinmux_init();
 
-    panel->base.init = lcd_rgb_panel_common_init;
-    panel->base.reset = lcd_rgb_panel_common_reset;
-    panel->base.read_id = lcd_rgb_panel_common_read_id;
-    panel->base.del = lcd_rgb_panel_common_del;
-    panel->base.tx_param = lcd_rgb_panel_common_tx_param;
-    panel->base.rx_param = lcd_rgb_panel_common_rx_param;
+    /* RGB has no DSI PHY: clk_src is always SYSCLK (see how_to_add_rgb_panel.md). */
+    if (panel_config->clk_src != DPU_CLK_SRC_UNKNOWN &&
+        panel_config->clk_src != DPU_CLK_SRC_SYSCLK) {
+        BK_LOGW(TAG, "RGB panel '%s': ignoring clk_src=%d, forcing DPU_CLK_SRC_SYSCLK\n",
+                panel_desc->name, (int)panel_config->clk_src);
+    }
+
+    panel->base.bus                = bus_handle;
+    panel->base.timing             = panel_desc->timing;
+    panel->base.pixel_clock_hz     = panel_desc->pixel_clock_hz;
+    panel->base.clk_src            = DPU_CLK_SRC_SYSCLK;
+
+    panel->base.init               = lcd_rgb_panel_common_init;
+    panel->base.reset              = lcd_rgb_panel_common_reset;
+    panel->base.read_id            = lcd_rgb_panel_common_read_id;
+    panel->base.del                = lcd_rgb_panel_common_del;
+    panel->base.tx_param           = lcd_rgb_panel_common_tx_param;
+    panel->base.rx_param           = lcd_rgb_panel_common_rx_param;
 
     *ret_panel = (bk_avdk_lcd_panel_handle_t)&panel->base;
     return BK_OK;

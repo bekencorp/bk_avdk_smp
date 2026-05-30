@@ -49,8 +49,8 @@
 | **像素通道**（24-bit RGB） | 持续输出像素数据 | 24 根 RGB 数据线 + HSYNC/VSYNC/DE/PCLK，由 DPU 驱动 |
 | **配置通道**（3-wire SPI） | 上电时下发屏厂初始化命令 | CSX / SDA / CLK + RESET 4 根 GPIO，软件 bit-bang |
 
-像素通道由 `bk_display_rgb_bus_new()` 内自动 pinmux；
-配置通道的 4 根 GPIO 由你在 `bk_display_rgb_bus_config_t` 中指定。
+像素通道由 DPU 在 `bk_display_init()` 中自动 pinmux（24 条数据线 + 同步信号是固定 IO_FUNCTION，不需要配置）；
+配置通道是一条 **SW 模式的 SPI bus**（`bk_display_spi_bus_new` + `BK_DISPLAY_SPI_BUS_MODE_SW`），4 根 GPIO 由你在 `bk_display_spi_bus_config_t` 中指定。屏 RESET 引脚走 `bk_lcd_panel_dev_config_t.reset_pin`。
 
 **你不需要做的**：
 - ❌ 不需要写任何寄存器配置代码
@@ -97,7 +97,7 @@
 | 项 | 描述 | 写入字段 |
 |---|---|---|
 | 分辨率 | 如 480×854 | `timing.h_size` / `timing.v_size` |
-| PCLK 频率 | 一般 20~50MHz，取屏厂典型值 | `timing.clk`（用 `lcd_clk_t` 枚举） |
+| PCLK 频率 | 一般 20~50MHz，取屏厂典型值 | `pixel_clock_hz`（用 `BK_RGB_PIXEL_CLK_HZ(MHz)`） |
 | 水平时序 | hsync 脉宽 / 后沿 / 前沿 | `timing.hsync_pulse_width` / `hsync_back_porch` / `hsync_front_porch` |
 | 垂直时序 | vsync 脉宽 / 后沿 / 前沿 | `timing.vsync_pulse_width` / `vsync_back_porch` / `vsync_front_porch` |
 | 配置命令位宽 | 8-bit 或 16-bit SPI | `spi_cmd_16bit`（0/1） |
@@ -107,14 +107,22 @@
 **估算公式**：
 
 ```
-fps = timing.clk × 1MHz
+fps = pixel_clock_hz
       ÷ (h_size + h_pulse + h_back + h_front)
       ÷ (v_size + v_pulse + v_back + v_front)
 ```
 
-例：`LCD_30M, 480×854, 时序之和 H=576/V=904`，fps ≈ 30M / 576 / 904 ≈ 57Hz。
+例：`30 MHz, 480×854, 时序之和 H=576/V=904`，fps ≈ 30 000 000 / 576 / 904 ≈ 57Hz。
 
-> ⚠ 与 MIPI 屏不同，**RGB 屏的 `timing.clk` 必须填**（DPI 像素时钟），否则 fps 不对会撕裂或闪屏。
+> ⚠ 与 MIPI 屏不同，**RGB 屏的 `pixel_clock_hz` 必须填**（DPI 像素时钟），否则 fps 不对会撕裂或闪屏。
+>
+> 另外：**RGB 屏不需要应用层选择 `clk_src`**。RGB 通路没有 DSI PHY，DPI 像素时钟只能由 DPU 从系统时钟阶梯（SYSCLK）分频得到，`DPU_CLK_SRC_DPHY_DPLL` 在 RGB 路径上没有物理意义。因此 `bk_lcd_rgb_panel_new()` 内部会**无条件把 panel 句柄的时钟源锁定为 `DPU_CLK_SRC_SYSCLK`**：
+>
+> - `bk_lcd_panel_dev_config_t.clk_src` 留空 (`DPU_CLK_SRC_UNKNOWN`) 是推荐写法；
+> - 仍然显式填 `DPU_CLK_SRC_SYSCLK` 也合法，无副作用；
+> - 若误填 `DPU_CLK_SRC_DPHY_DPLL`，driver 会忽略并打印一行 `LOGW("RGB panel ...: ignoring clk_src=%d, forcing DPU_CLK_SRC_SYSCLK")`。
+>
+> 时钟原理详见 MIPI 文档 §15（与 RGB 屏的差异：RGB 屏无 PHY，没有 "lane:pclk" 约束，公式不适用）。
 
 ---
 
@@ -165,10 +173,10 @@ static const uint8_t <vendor>_rgb_<WxH>_read_id_regs[] = {0xA1, 0};
 
 /* ---- 3) Panel 描述符 ---- */
 const bk_display_rgb_panel_t lcd_device_<vendor>_rgb_<WxH> = {
-    .id            = 0x9903,                      /* 屏 IC ID */
-    .name          = "<vendor>_rgb_<WxH>",        /* CLI 按此查找 */
+    .id              = 0x9903,                      /* 屏 IC ID */
+    .name            = "<vendor>_rgb_<WxH>",        /* CLI 按此查找 */
+    .pixel_clock_hz  = BK_RGB_PIXEL_CLK_HZ(30),     /* DPI PCLK，单位 Hz；30 MHz */
     .timing = {
-        .clk               = LCD_30M,             /* DPI PCLK，必须填 */
         .h_size            = 480,
         .v_size            = 854,
         .hsync_pulse_width = 2,
@@ -288,7 +296,7 @@ for (uint32_t i = 0; i < n; i++) {
 |---|---|---|---|
 | `id` | `uint32_t` | 推荐 | 屏 IC ID，`bk_lcd_panel_read_id` 校验用 |
 | `name` | `const char *` | **必填** | CLI / 段查找用，建议 `<vendor>_rgb_<WxH>` |
-| `timing.clk` | `uint32_t`(`lcd_clk_t`) | **必填** | DPI PCLK 频率，使用 `LCD_xxM` 枚举（如 `LCD_30M`） |
+| `pixel_clock_hz` | `uint32_t` | **必填** | DPI PCLK 频率（Hz），用 `BK_RGB_PIXEL_CLK_HZ(MHz)` 宏。如 `BK_RGB_PIXEL_CLK_HZ(30)` |
 | `timing.h_size` | `uint16_t` | **必填** | 水平有效像素 |
 | `timing.v_size` | `uint16_t` | **必填** | 垂直有效像素 |
 | `timing.hsync_pulse_width` | `uint16_t` | **必填** | hsync 脉宽（单位 pclk） |
@@ -303,9 +311,7 @@ for (uint32_t i = 0; i < n; i++) {
 | `read_id_bytes` | `uint8_t` | 与 `read_id_regs` 配套 | 1~3，读几字节拼成 ID |
 | `custom_reset` | 函数指针 | 可选 | NULL 用通用 reset；特殊屏见 §10 |
 
-> **`bk_lcd_panel_dev_config_t`**（`bk_lcd_rgb_panel_new` 第 2 参）当前版本只有 `reset_pin` 真正生效；
-> `clk_pin` / `csx_pin` / `sda_pin` 应填 RGB bus config 中已经传过的同一组 GPIO（沿用方便）；
-> `rgb_ele_order` / `data_endian` / `bits_per_pixel` 这 3 个字段**不再使用**，保留只为向后兼容，新代码可以填 0。
+> **`bk_lcd_panel_dev_config_t`**（`bk_lcd_rgb_panel_new` 第 2 参）现在只需要填 `reset_pin` 与 `reset_active_level` 两个字段；`clk_src` 对 RGB 屏不必填（driver 内部强制为 `DPU_CLK_SRC_SYSCLK`，详见上一节）。其它历史字段（`clk_pin` / `csx_pin` / `sda_pin` / `rgb_ele_order` / `data_endian` / `bits_per_pixel` 等）已从结构体里移除，旧代码若仍引用需一并删除。`clk_src` 在 panel 创建时立即推送到 bus，DPU 控制器随后从 panel 句柄读回。
 
 ---
 
@@ -439,23 +445,26 @@ static struct {
 
 int my_rgb_lcd_open(void)
 {
-    /* 1. 配置 RGB bus（4 个配置 GPIO + RGB 像素引脚自动 pinmux） */
-    bk_display_rgb_bus_config_t rgb_bus_cfg = {
-        .reset_pin = GPIO_6,    /* 板子上屏 RESET 接的 GPIO */
-        .clk_pin   = GPIO_8,    /* 配置 SPI 的 CLK */
-        .csx_pin   = GPIO_28,   /* 配置 SPI 的 CSX */
-        .sda_pin   = GPIO_9,    /* 配置 SPI 的 SDA */
+    /* 1. 配置 SPI bus（SW 模式：bit-bang 下发 init 命令）。
+     *    24-bit 并行 RGB 像素引脚由 DPU 直接驱动，不归本 bus 管。 */
+    bk_display_spi_bus_config_t rgb_cfg_bus = {
+        .mode       = BK_DISPLAY_SPI_BUS_MODE_SW,
+        .clk_pin    = GPIO_8,    /* 配置 SPI 的 CLK */
+        .csx_pin    = GPIO_28,   /* 配置 SPI 的 CSX */
+        .sda_pin    = GPIO_9,    /* 配置 SPI 的 SDA */
+        .cmd_width  = 8,         /* 等 panel 选好后改为 panel->spi_cmd_16bit ? 16 : 8 */
     };
-    bk_display_rgb_bus_new(&ctx.dis_bus_handle, &rgb_bus_cfg);
-    bk_display_bus_enable(ctx.dis_bus_handle);
+    bk_display_spi_bus_new(&ctx.dis_bus_handle, &rgb_cfg_bus);
 
-    /* 2. 创建 panel 句柄 */
+    /* 2. 创建 panel 句柄。RGB 屏 *不需要* 传 clk_src：
+     *    RGB 通路没有 DSI PHY，DPI pclk 只能由 DPU 从 SYSCLK 阶梯分频得到，
+     *    bk_lcd_rgb_panel_new() 内部会无条件把 panel 句柄的时钟源锁定为
+     *    DPU_CLK_SRC_SYSCLK。若你照旧填 DPU_CLK_SRC_SYSCLK 也合法、无副作用；
+     *    若误填 DPU_CLK_SRC_DPHY_DPLL，会被忽略并打印一行 LOGW。 */
     bk_lcd_panel_dev_config_t panel_dev_cfg = {
-        .reset_pin = rgb_bus_cfg.reset_pin,    /* 与 bus 同一根 GPIO */
-        .clk_pin   = rgb_bus_cfg.clk_pin,
-        .csx_pin   = rgb_bus_cfg.csx_pin,
-        .sda_pin   = rgb_bus_cfg.sda_pin,
-        /* 其余字段不用填，已废弃 */
+        .reset_pin          = GPIO_6,
+        .reset_active_level = false,
+        /* .clk_src 留空（=DPU_CLK_SRC_UNKNOWN）：driver 内部强制 SYSCLK */
     };
     bk_lcd_rgb_panel_new(ctx.dis_bus_handle, &panel_dev_cfg,
                          &lcd_device_<vendor>_rgb_<WxH>,
@@ -464,9 +473,8 @@ int my_rgb_lcd_open(void)
     bk_lcd_panel_reset(ctx.panel_handle);
     bk_lcd_panel_init(ctx.panel_handle);
 
-    /* 3. 建 DPU 控制器：把 panel 句柄传进去，timing 与目标 DPI
-     *    像素时钟 (pixel_clock_hz) 都由 DPU 内部通过 panel 句柄取，
-     *    应用层不要再手动往 dpu_cfg 里塞 .timing / .pixel_clock_hz。 */
+    /* 3. 建 DPU 控制器：timing / pixel_clock_hz / clk_src 都在 panel
+     *    句柄上，DPU 控制器内部直接读取，dpu_cfg 只承载层与像素格式意图。 */
     bk_display_dpu_config_t dpu_cfg = {
         .video.enable = true,
         .video.format = BK_PIXEL_FORMAT_RGB565,

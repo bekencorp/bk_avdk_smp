@@ -116,7 +116,6 @@ static avdk_err_t bk_display_dsi_set_clock(bk_display_bus_ctlr_t *controller, bk
 
     bk_panel_clock_config_t dsi =
     {
-        .clk = clock->clk,
         .n_lanes = clock->n_lanes,
         .fps = clock->fps,
         .clk_src = bus->dsi_clk_src,

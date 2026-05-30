@@ -14,13 +14,11 @@
 
 /**
  * @file lcd_mipi_jd9855_360x390.c
- * @brief JD9855 MIPI DSI panel (360x390)
+ * @brief JD9855 MIPI DSI panel (360x390, 1-lane).
  *
- * Init sequence from W_C_JD9855_CTC1.996_WH020IA-01A_320x385_QSPI_2H_V2.0_G2.2_20.txt;
- * CASET/RASET adjusted for 360x390 active area.
+ * Application must set bk_lcd_panel_config_t::clk_src = DPU_CLK_SRC_SYSCLK
+ * (1-lane / 24bpp exceeds PHY pixdiv); see how_to_add_mipi_panel.md §15.1.
  */
-
-
 
 #include <components/bk_lcd_panel.h>
 #include <driver/mipi_dsi_types.h>

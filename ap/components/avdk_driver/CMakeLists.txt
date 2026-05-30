@@ -47,13 +47,6 @@ if (CONFIG_SOC_BK7259)
 endif()
 
 if (CONFIG_DPU_DRIVER)
-
-	# 注意：这里传回父目录的路径，必须以 driver 组件目录为基准
-	# 所以需要带上前缀 dpu/，参考 general_dma 的写法
-	list(APPEND incs
-		src/dpu/include
-		src/dpu/soc)
-
 	list(APPEND srcs
 		src/dpu/dpu_core.c)
 

@@ -42,14 +42,14 @@ typedef struct
  * ops table from the descriptor.
  *
  * @param[in]  bus_handle        DSI bus.
- * @param[in]  panel_dev_config  Reset pin + reset polarity.
+ * @param[in]  panel_config  Reset pin + reset polarity.
  * @param[in]  panel_desc        Panel descriptor.
  * @param[out] ret_panel         Receives the new panel handle.
  *
  * @return BK_OK on success.
  */
 bk_err_t bk_lcd_new_mipi_panel_common(bk_display_bus_handle_t bus_handle,
-                                      const bk_lcd_panel_dev_config_t *panel_dev_config,
+                                      const bk_lcd_panel_config_t *panel_config,
                                       const bk_display_dsi_panel_t *panel_desc,
                                       bk_avdk_lcd_panel_handle_t *ret_panel);
 
@@ -59,14 +59,14 @@ bk_err_t bk_lcd_new_mipi_panel_common(bk_display_bus_handle_t bus_handle,
  * Backs the public ::bk_lcd_rgb_panel_new().
  *
  * @param[in]  bus_handle        SW SPI bus that carries the register-init channel.
- * @param[in]  panel_dev_config  Reset pin + reset polarity.
+ * @param[in]  panel_config  Reset pin + reset polarity.
  * @param[in]  panel_desc        RGB panel descriptor.
  * @param[out] ret_panel         Receives the new panel handle.
  *
  * @return BK_OK on success.
  */
 bk_err_t bk_lcd_new_rgb_panel_common(bk_display_bus_handle_t bus_handle,
-                                     const bk_lcd_panel_dev_config_t *panel_dev_config,
+                                     const bk_lcd_panel_config_t *panel_config,
                                      const bk_display_rgb_panel_t *panel_desc,
                                      bk_avdk_lcd_panel_handle_t *ret_panel);
 

@@ -74,20 +74,21 @@ bk_err_t bk_lcd_panel_rx_param(bk_avdk_lcd_panel_handle_t panel,
     return panel->rx_param(panel, lcd_cmd, param, param_size);
 }
 
+
 bk_err_t bk_lcd_mipi_panel_new(bk_display_bus_handle_t bus_handle,
-                               const bk_lcd_panel_dev_config_t *panel_dev_config,
+                               const bk_lcd_panel_config_t *panel_config,
                                const bk_display_dsi_panel_t *panel,
                                bk_avdk_lcd_panel_handle_t *ret_panel)
 {
     AVDK_RETURN_ON_FALSE(panel != NULL, BK_ERR_NULL_PARAM, TAG, "panel is NULL");
-    return bk_lcd_new_mipi_panel_common(bus_handle, panel_dev_config, panel, ret_panel);
+    return bk_lcd_new_mipi_panel_common(bus_handle, panel_config, panel, ret_panel);
 }
 
 bk_err_t bk_lcd_rgb_panel_new(bk_display_bus_handle_t bus_handle,
-                              const bk_lcd_panel_dev_config_t *panel_dev_config,
+                              const bk_lcd_panel_config_t *panel_config,
                               const bk_display_rgb_panel_t *panel,
                               bk_avdk_lcd_panel_handle_t *ret_panel)
 {
     AVDK_RETURN_ON_FALSE(panel != NULL, BK_ERR_NULL_PARAM, TAG, "panel is NULL");
-    return bk_lcd_new_rgb_panel_common(bus_handle, panel_dev_config, panel, ret_panel);
+    return bk_lcd_new_rgb_panel_common(bus_handle, panel_config, panel, ret_panel);
 }

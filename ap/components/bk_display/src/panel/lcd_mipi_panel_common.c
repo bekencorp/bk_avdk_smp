@@ -62,7 +62,6 @@ static bk_err_t lcd_panel_common_init(bk_avdk_lcd_panel_t *panel)
     AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
 
     bk_panel_clock_config_t clock_config = {
-        .clk = priv->panel->timing.clk,
         .n_lanes = priv->panel->n_lanes,
         .fps = priv->panel->fps,
         .timing = priv->panel->timing,
@@ -222,13 +221,15 @@ static bk_err_t lcd_panel_common_rx_param(bk_avdk_lcd_panel_t *panel,
 }
 
 bk_err_t bk_lcd_new_mipi_panel_common(bk_display_bus_handle_t bus_handle,
-                                      const bk_lcd_panel_dev_config_t *panel_dev_config,
+                                      const bk_lcd_panel_config_t *panel_config,
                                       const bk_display_dsi_panel_t *panel_desc,
                                       bk_avdk_lcd_panel_handle_t *ret_panel)
 {
-    AVDK_RETURN_ON_FALSE(bus_handle && panel_dev_config && panel_desc && ret_panel,
+    AVDK_RETURN_ON_FALSE(bus_handle && panel_config && panel_desc && ret_panel,
                          BK_ERR_NULL_PARAM, TAG, "invalid arguments");
     AVDK_RETURN_ON_FALSE(panel_desc->name != NULL, BK_ERR_NULL_PARAM, TAG, "panel name is NULL");
+    AVDK_RETURN_ON_FALSE(panel_desc->fps != 0U, BK_ERR_PARAM, TAG,
+                         "panel %s descriptor .fps must be non-zero", panel_desc->name);
 
     lcd_panel_common_t *panel = os_malloc(sizeof(lcd_panel_common_t));
     AVDK_RETURN_ON_FALSE(panel, BK_ERR_NO_MEM, TAG, "malloc failed");
@@ -239,8 +240,8 @@ bk_err_t bk_lcd_new_mipi_panel_common(bk_display_bus_handle_t bus_handle,
     panel->panel = panel_desc;
     panel->custom_reset = panel_desc->custom_reset;
     panel->custom_init = panel_desc->custom_init;
-    panel->reset_gpio = panel_dev_config->reset_pin;
-    panel->reset_active_level = panel_dev_config->reset_active_level;
+    panel->reset_gpio = panel_config->reset_pin;
+    panel->reset_active_level = panel_config->reset_active_level;
     panel->reset_timing.idle_ms    = lcd_panel_common_pick_ms(panel_desc->reset_timing.idle_ms,
                                                               BK_DISPLAY_RESET_IDLE_MS_DEFAULT);
     panel->reset_timing.active_ms  = lcd_panel_common_pick_ms(panel_desc->reset_timing.active_ms,
@@ -248,13 +249,29 @@ bk_err_t bk_lcd_new_mipi_panel_common(bk_display_bus_handle_t bus_handle,
     panel->reset_timing.release_ms = lcd_panel_common_pick_ms(panel_desc->reset_timing.release_ms,
                                                               BK_DISPLAY_RESET_RELEASE_MS_DEFAULT);
 
-    panel->base.init            = lcd_panel_common_init;
-    panel->base.reset           = lcd_panel_common_reset;
-    panel->base.read_id         = lcd_panel_common_read_id;
-    panel->base.del             = lcd_panel_common_del;
-    panel->base.disp_on_off     = lcd_panel_common_disp_on_off;
-    panel->base.tx_param        = lcd_panel_common_tx_param;
-    panel->base.rx_param        = lcd_panel_common_rx_param;
+    const uint32_t h_total = (uint32_t)panel_desc->timing.h_size
+                           + (uint32_t)panel_desc->timing.hsync_pulse_width
+                           + (uint32_t)panel_desc->timing.hsync_back_porch
+                           + (uint32_t)panel_desc->timing.hsync_front_porch;
+    const uint32_t v_total = (uint32_t)panel_desc->timing.v_size
+                           + (uint32_t)panel_desc->timing.vsync_pulse_width
+                           + (uint32_t)panel_desc->timing.vsync_back_porch
+                           + (uint32_t)panel_desc->timing.vsync_front_porch;
+    panel->base.bus                = bus_handle;
+    panel->base.timing             = panel_desc->timing;
+    panel->base.pixel_clock_hz     = h_total * v_total * (uint32_t)panel_desc->fps;
+    panel->base.clk_src            = panel_config->clk_src;
+
+    panel->base.init               = lcd_panel_common_init;
+    panel->base.reset              = lcd_panel_common_reset;
+    panel->base.read_id            = lcd_panel_common_read_id;
+    panel->base.del                = lcd_panel_common_del;
+    panel->base.disp_on_off        = lcd_panel_common_disp_on_off;
+    panel->base.tx_param           = lcd_panel_common_tx_param;
+    panel->base.rx_param           = lcd_panel_common_rx_param;
+
+    /* Latch clk_src on the DSI bus before the first set_clock(). */
+    (void)bk_display_bus_set_clock_src(bus_handle, panel_config->clk_src);
 
     *ret_panel = (bk_avdk_lcd_panel_handle_t)&panel->base;
     return BK_OK;

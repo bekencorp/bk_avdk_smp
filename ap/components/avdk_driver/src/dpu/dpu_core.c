@@ -1,6 +1,7 @@
 #include <os/os.h>
 #include <os/mem.h>
-#include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <common/bk_include.h>
 #include <components/log.h>
 #include <avdk_error.h>
@@ -80,160 +81,67 @@ void dpu_clk_src_set(dpu_clk_src_t clk_src)
     dcreg_DPU_Beken_01 = 0x00000002 + clk_src;  // bit:0,  0: dpu clk from 320M/480M; 1: dpu clk from naneng-DPHY internal dpll
 }
 
-void dpu_clk_set(dpu_clk_src_t clk_src, lcd_clk_t clk)
+typedef struct {
+    uint8_t sel;
+    uint8_t div;
+} dpu_sysclk_div_pair_t;
+
+/* Matches legacy ::dpu_clk_sel_div ladder: sel 0 = 240 MHz root, sel 1 = 320 MHz root. */
+static const dpu_sysclk_div_pair_t s_dpu_sysclk_pairs[] = {
+    {1, 1}, {0, 1}, {1, 2}, {0, 2}, {1, 3}, {0, 3},
+    {1, 5}, {0, 4}, {1, 6}, {0, 5}, {1, 7}, {0, 6},
+    {1, 9}, {0, 7}, {1, 10}, {0, 8}, {1, 11}, {0, 9},
+    {0, 10}, {1, 14}, {0, 11}, {0, 12}, {0, 13}, {0, 14},
+    {0, 15}, {0, 16}, {0, 17}, {0, 18}, {0, 20}, {0, 21},
+    {0, 24}, {0, 26}, {0, 30}, {0, 32},
+};
+
+static uint64_t dpu_sysclk_pair_hz(uint32_t sel, uint32_t div)
 {
-    //clk_src = DPU_CLK_SRC_DPHY_DPLL;
-    //clk_src = DPU_CLK_SRC_SYSCLK;
-    if (clk_src == DPU_CLK_SRC_SYSCLK)
-    {
-	    switch (clk)
-	    {
-	        case LCD_320M:
-	            dpu_clk_sel_div(1, 1);    // 320/1 = 320Mhz
-	            break;
+    const uint64_t root_hz = (sel != 0u) ? 320000000ULL : 240000000ULL;
+    return root_hz / (uint64_t)div;
+}
 
-	        case LCD_240M:
-	            dpu_clk_sel_div(0, 1);    // 240/1 = 240Mhz
-	            break;
+void dpu_clk_set(dpu_clk_src_t clk_src, uint32_t pixel_clock_hz)
+{
+    if (clk_src == DPU_CLK_SRC_SYSCLK) {
+        uint32_t req_hz = pixel_clock_hz;
 
-	        case LCD_160M:
-	            dpu_clk_sel_div(1, 2);    // 320/2 = 160Mhz
-	            break;
+        if (req_hz == 0u) {
+            LOGW("%s: pixel_clock_hz=0, using 20 MHz default\n", __func__);
+            req_hz = 20000000u;
+        }
 
-	        case LCD_120M:
-	            dpu_clk_sel_div(0, 2);    // 240/2 = 120Mhz
-	            break;
+        size_t best_i = 0;
+        uint64_t best_hz = 0;
+        uint64_t best_diff = UINT64_MAX;
 
-	        case LCD_106M:
-	            dpu_clk_sel_div(1, 3);    // 320/3 = 106.67Mhz (106M)
-	            break;
+        for (size_t i = 0; i < sizeof(s_dpu_sysclk_pairs) / sizeof(s_dpu_sysclk_pairs[0]); i++) {
+            uint64_t hz = dpu_sysclk_pair_hz(s_dpu_sysclk_pairs[i].sel, s_dpu_sysclk_pairs[i].div);
+            uint64_t diff = (hz > (uint64_t)req_hz) ? (hz - (uint64_t)req_hz)
+                                                    : ((uint64_t)req_hz - hz);
+            if (diff < best_diff) {
+                best_diff = diff;
+                best_i = i;
+                best_hz = hz;
+            }
+        }
 
-	        case LCD_80M:
-	            dpu_clk_sel_div(0, 3);    // 240/3 = 80Mhz
-	            break;
+        if (best_diff != 0u) {
+            const uint64_t warn_abs = 100000ULL;
+            const uint64_t warn_rel = (uint64_t)req_hz / 200ULL;
 
-	        case LCD_64M:
-	            dpu_clk_sel_div(1, 5);    // 320/5 = 64Mhz
-	            break;
+            if (best_diff > warn_abs && best_diff > warn_rel) {
+                LOGW("%s: requested %u Hz, applied ~%llu Hz (nearest SYSCLK divider ladder)\n",
+                     __func__, (unsigned)req_hz, (unsigned long long)best_hz);
+            }
+        }
 
-	        case LCD_60M:
-	            dpu_clk_sel_div(0, 4);    // 240/4 = 60Mhz
-	            break;
-
-	        case LCD_53M:
-	            dpu_clk_sel_div(1, 6);    // 320/6 = 53.33Mhz (53M)
-	            break;
-
-	        case LCD_48M:
-	            dpu_clk_sel_div(0, 5);    // 240/5 = 48Mhz
-	            break;
-
-	        case LCD_45M:
-	            dpu_clk_sel_div(1, 7);    // 320/7 = 45.71Mhz (45M)
-	            break;
-
-	        case LCD_40M:
-	            dpu_clk_sel_div(0, 6);    // 240/6 = 40Mhz
-	            break;
-
-	        case LCD_35M:
-	            dpu_clk_sel_div(1, 9);    // 320/9 = 35.56Mhz (35M)
-	            break;
-
-	        case LCD_34M:
-	            dpu_clk_sel_div(0, 7);    // 240/7 = 34.29Mhz (34M)
-	            break;
-
-	        case LCD_32M:
-	            dpu_clk_sel_div(1, 10);   // 320/10 = 32Mhz
-	            break;
-
-	        case LCD_30M:
-	            dpu_clk_sel_div(0, 8);    // 240/8 = 30Mhz
-	            break;
-
-	        case LCD_29M:
-	            dpu_clk_sel_div(1, 11);   // 320/11 = 29.09Mhz (29M)
-	            break;
-
-	        case LCD_26M:
-	            dpu_clk_sel_div(0, 9);    // 240/9 = 26.67Mhz (26M)
-	            break;
-
-	        case LCD_24M:
-	            dpu_clk_sel_div(0, 10);   // 240/10 = 24Mhz
-	            break;
-
-	        case LCD_22M:
-	            dpu_clk_sel_div(1, 14);   // 320/14 = 22.86Mhz (22M)
-	            break;
-
-	        case LCD_21M:
-	            dpu_clk_sel_div(0, 11);   // 240/11 = 21.82Mhz (21M)
-	            break;
-
-	        case LCD_20M:
-	            dpu_clk_sel_div(0, 12);   // 240/12 = 20Mhz
-	            break;
-
-	        case LCD_18M:
-	            dpu_clk_sel_div(0, 13);   // 240/13 = 18.46Mhz (18M)
-	            break;
-
-	        case LCD_17M:
-	            dpu_clk_sel_div(0, 14);   // 240/14 = 17.14Mhz (17M)
-	            break;
-
-	        case LCD_16M:
-	            dpu_clk_sel_div(0, 15);   // 240/15 = 16Mhz
-	            break;
-
-	        case LCD_15M:
-	            dpu_clk_sel_div(0, 16);   // 240/16 = 15Mhz
-	            break;
-
-	        case LCD_14M:
-	            dpu_clk_sel_div(0, 17);   // 240/17 = 14.12Mhz (14M)
-	            break;
-
-	        case LCD_13M:
-	            dpu_clk_sel_div(0, 18);   // 240/18 = 13.33Mhz (13M)
-	            break;
-
-	        case LCD_12M:
-	            dpu_clk_sel_div(0, 20);   // 240/20 = 12Mhz
-	            break;
-
-	        case LCD_11M:
-	            dpu_clk_sel_div(0, 21);   // 240/21 = 11.43Mhz (11M)
-	            break;
-
-	        case LCD_10M:
-	            dpu_clk_sel_div(0, 24);   // 240/24 = 10Mhz
-	            break;
-
-	        case LCD_9M:
-	            dpu_clk_sel_div(0, 26);   // 240/26 = 9.23Mhz (9M)
-	            break;
-
-	        case LCD_8M:
-	            dpu_clk_sel_div(0, 30);   // 240/30 = 8Mhz
-	            break;
-
-	        case LCD_7M:
-	            dpu_clk_sel_div(0, 32);   // 240/32 = 7.5Mhz (7M)
-	            break;
-            
-	        default:
-	            dpu_clk_sel_div(0, 12);   // 240/12 = 20Mhz default
-	            bk_printf("%s unknow clk: %d\n", __FUNCTION__, clk);
-	            break;
-	    }
-        dpu_clk_src_set(0);   
-    }
-    else 
-    {
-        dpu_clk_src_set(1); 
+        dpu_clk_sel_div((uint32_t)s_dpu_sysclk_pairs[best_i].sel,
+                        (uint32_t)s_dpu_sysclk_pairs[best_i].div);
+        dpu_clk_src_set(0);
+    } else {
+        dpu_clk_src_set(1);
     }
     dpu_clk_en(1);
 }
@@ -465,8 +373,9 @@ bk_err_t dpu_core_init(dpu_config_t * dpu_config, dpu_handle_t *handle)
         goto err;
     }
     dpu_sys_interrupt_init();
-    LOGI("%s clk_src: %d, dpi_clock_freq_mhz: %d\n", __func__, dpu_config->dpu_clk_src, dpu_config->dpi_clock_freq_mhz);
-    dpu_clk_set(dpu_config->dpu_clk_src, dpu_config->dpi_clock_freq_mhz);
+    LOGI("%s clk_src: %d, pixel_clock_hz: %u\n", __func__, dpu_config->dpu_clk_src,
+         (unsigned)dpu_config->pixel_clock_hz);
+    dpu_clk_set(dpu_config->dpu_clk_src, dpu_config->pixel_clock_hz);
     uint32_t viv_dc_get_dc_core_len(void);
     uint32_t dpu_buffer_len = viv_dc_get_dc_core_len();
     void viv_dc_set_dc_core(uint8_t *buffer);

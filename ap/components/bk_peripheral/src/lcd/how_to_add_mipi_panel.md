@@ -21,7 +21,13 @@
 12. [现有 panel 一览（可参考）](#12-现有-panel-一览可参考)
 13. [应用代码模板（拷贝即用）](#13-应用代码模板拷贝即用)
 14. [验证清单](#14-验证清单)
-15. [常见问题速查](#15-常见问题速查)
+15. [DPU 时钟源（`clk_src`）选择 与 DPHY PLL 工作区间](#15-dpu-时钟源clk_src选择-与-dphy-pll-工作区间)
+    - 15.1 90 秒结论（小白看这一段就够）
+    - 15.2 边界提醒
+    - 15.3 想自己算一下（公式 + 例子，进阶）
+    - 15.4 DPHY PLL 物理参数（参考）
+    - 15.5 注意事项
+16. [常见问题速查](#16-常见问题速查)
 
 ---
 
@@ -287,7 +293,6 @@ for (uint32_t i = 0; i < n; i++) {
 | `timing.vsync_pulse_width` | `uint16_t` | **必填** | vsync 脉宽，单位 line |
 | `timing.vsync_back_porch` | `uint16_t` | **必填** | vsync 后沿 |
 | `timing.vsync_front_porch` | `uint16_t` | **必填** | vsync 前沿 |
-| `timing.clk` | `uint32_t` | 留 0 | DSI 屏不需要填，DPI 时钟由 fps × 总像素自动算；只对 RGB 屏有效 |
 | `init_cmds` | `const lcd_mipi_init_cmd_t *` | **必填** | 初始化命令序列，必须以 `{0x00, NULL, 0}` 结尾 |
 | `read_id_regs` | `const uint8_t *` | 可选 | ID 寄存器地址数组，以 `0` 结尾。NULL 则 `bk_lcd_panel_read_id` 返回错 |
 | `read_id_bytes` | `uint8_t` | 与 `read_id_regs` 配套 | 1~3，表示读几个字节拼成 ID |
@@ -493,10 +498,15 @@ int my_lcd_open(void)
     bk_display_dsi_bus_new(&ctx.dis_bus_handle, NULL);
     bk_display_bus_enable(ctx.dis_bus_handle);
 
-    /* 2. 建 panel 句柄 */
+    /* 2. 建 panel 句柄。
+     *    clk_src 按 panel.n_lanes 选：1 lane → SYSCLK；≥ 2 lane →
+     *    DPHY_DPLL（详见 §15.1）。panel-common 工厂会把它立刻推到
+     *    bus，所以紧接着的 bk_lcd_panel_init() 配 DSI 时钟时就能选对
+     *    PHY 路径，没有时序竞态。 */
     bk_lcd_panel_dev_config_t panel_cfg = {
-        .reset_pin     = GPIO_60,                /* 改成你板子上的实际 GPIO */
-        .vendor_config = NULL,                    /* 没 bridge 时 NULL */
+        .reset_pin = GPIO_60,                  /* 改成你板子上的实际 GPIO */
+        .reset_active_level = false,
+        .clk_src = DPU_CLK_SRC_DPHY_DPLL,      /* 多 lane 屏；1 lane 改 DPU_CLK_SRC_SYSCLK */
     };
     bk_lcd_mipi_panel_new(ctx.dis_bus_handle, &panel_cfg,
                           &lcd_device_<vendor>_mipi_<WxH>,
@@ -505,11 +515,13 @@ int my_lcd_open(void)
     bk_lcd_panel_reset(ctx.panel_handle);
     bk_lcd_panel_init(ctx.panel_handle);
 
-    /* 3. 建 DPU 控制器：把 panel 句柄传进去，timing 和 RGB 的目标
-     *    像素时钟都在 panel 创建时已缓存到句柄上，DPU 控制器内部
-     *    直接读取，应用层不要再手动往 dpu_cfg 里塞 .timing /
-     *    .pixel_clock_hz。 */
-    bk_display_dpu_config_t dpu_cfg = { /* clk_src / video 按工程约定填 */ };
+    /* 3. DPU 控制器：timing / pixel_clock_hz / clk_src 都已缓存在
+     *    panel 句柄上，DPU 控制器内部直接读取，dpu_cfg 只承载层
+     *    与像素格式意图。 */
+    bk_display_dpu_config_t dpu_cfg = {
+        .video.enable = true,
+        /* video.format / video.decompress 按工程约定填 */
+    };
 
     /* 4. 建 DPU 控制器并启动 */
     bk_display_dpu_ctlr_new(&ctx.dpu_ctlr_handle, ctx.panel_handle, &dpu_cfg);
@@ -565,7 +577,110 @@ if (panel == NULL) { LOGE(TAG, "panel not found"); return; }
 
 ---
 
-## 15. 常见问题速查
+## 15. DPU 时钟源（`clk_src`）选择 与 DPHY PLL 工作区间
+
+`bk_lcd_panel_dev_config_t.clk_src` 决定两件事：① DPU 寄存器侧从哪条时钟取 pclk；② DSI PHY 是按"为 panel 精确求解 PLL"还是"使用固定档"两种方式配置。该字段在 `bk_lcd_mipi_panel_new()` 时立即被推送到 bus，因此随后的 `bk_lcd_panel_init()` 配 DSI 时钟时就已经知道选哪条路径——没有时序竞态。
+
+### 15.1 90 秒结论（小白看这一段就够）
+
+24bpp DSI 屏（绝大多数 panel）按 lane 数选：
+
+| panel `.n_lanes` | 推荐 `panel_dev_config.clk_src` |
+|---|---|
+| `DSI_ACTIVE_LANES_1`（1 lane） | `DPU_CLK_SRC_SYSCLK` |
+| `DSI_ACTIVE_LANES_2/3/4`（≥ 2 lane） | `DPU_CLK_SRC_DPHY_DPLL` |
+
+> **为什么？** 24bpp + 1 lane 时，DSI 链路需要 `24 × 1.3 = 31.2` 倍于 pclk 的 lane 速率，已经超过 PHY `pixdiv` 字段能给出的最大分频比 16，PLL 反推无解；只能让 DPU 走 SYSCLK 自己分频，PHY 锁固定档把数据吐出去。≥ 2 lane 时 `31.2 / n_lanes ≤ 16`，PLL 路径恢复可用，精度更高。
+>
+> **如果填错了会怎样？** 启动时 `lcd_panel_common_init` 会失败，串口报：
+>
+> ```
+> dsi_core: internal PLL cannot satisfy pclk=... lanes=1 ...
+>           Set panel_dev_config.clk_src = DPU_CLK_SRC_SYSCLK and retry.
+> ```
+>
+> 照提示改一行重编即可，不会损坏硬件。
+
+### 15.2 边界提醒（30 秒）
+
+**单 lane 屏的物理上限**：PHY 单 lane 最高 1600 Mbps，SYSCLK 兜底固定 800 Mbps。24bpp 24 × pclk_MHz ≤ 800 ⇒ **1 lane × 24bpp 实际可驱 pclk ≤ ~33 MHz**，对应 60fps 下大约 **480×854** 上限。再大的分辨率屏，**屏厂规格本身就会要求 ≥ 2 lane**，不会给到你 1 lane × 720p 的 datasheet。
+
+**所以高分辨率 1-lane 这条路径不存在**，规则表 §15.1 已覆盖所有"屏厂真实可能给的组合"。
+
+### 15.3 想自己算一下（公式 + 例子，进阶）
+
+如果你对屏的参数不放心，或者屏比较奇葩（30fps、低 bpp、超高刷新率），按下面两步算一下：
+
+**关卡 A：路径能不能走 PLL（lane:pclk 比例）**
+
+```
+ratio = bpp × (1 + overhead) / n_lanes      // bpp=24, overhead≈0.30
+ratio ≤ 16  → 可以走 DPU_CLK_SRC_DPHY_DPLL  （PHY 把 pclk 精确锁到 panel 要求）
+ratio > 16  → 必须走 DPU_CLK_SRC_SYSCLK     （DPU 自己分 sysclk，PHY 锁固定档）
+```
+
+24bpp 屏 ratio 表（前面 §15.1 推出的同一张）：
+
+| n_lanes | ratio (24×1.3/n) | 走哪条路 |
+|---|---|---|
+| 1 | 31.2 | SYSCLK |
+| 2 | 15.6 | DPHY_DPLL |
+| 3 | 10.4 | DPHY_DPLL |
+| 4 |  7.8 | DPHY_DPLL |
+
+**关卡 B：物理带宽够不够（链路总速率）**
+
+```
+pclk_hz            = (h_size + h_porch_sum) × (v_size + v_porch_sum) × fps
+need_per_lane_mbps = pclk_hz × bpp × (1 + overhead) / n_lanes / 1e6
+
+要求：
+  走 DPHY_DPLL → need_per_lane_mbps ≤ 1600
+  走 SYSCLK    → need_per_lane_mbps ≤ 800
+```
+
+公式里的 `1e6` 就是 **10⁶ = 1,000,000**，作用是把 `bit/s` 换算成 `Mbit/s`（驱动里也是这么写的，见 `mipi_dsi_hal.c` 的 `den = lane_cnt * 1000000ULL * 1000ULL`，前者把 bps 转 Mbps，后者把 `overhead_permille` 千分比转倍数）。
+
+**Worked example：ST7701S 412×960 / 2 lane / 60fps / 24bpp**
+
+```
+h_total = 412 + (10 + 28 + 50)  ≈ 500          // 实际查 datasheet 填
+v_total = 960 + ( 2 +  8 + 10)  ≈ 980
+pclk_hz = 500 × 980 × 60       ≈ 29.4 MHz
+ratio   = 24 × 1.3 / 2          = 15.6  ≤ 16   → 可走 DPHY_DPLL ✓
+need    = 29.4e6 × 24 × 1.3 / 2 / 1e6 ≈ 459 Mbps ≤ 1600 → 带宽 ✓
+结论    : .clk_src = DPU_CLK_SRC_DPHY_DPLL
+```
+
+**Worked example：JD9855 360×390 / 1 lane / 60fps / 24bpp**
+
+```
+pclk_hz ≈ 360 × 390 × 60 × 1.x (porch) ≈ 13.3 MHz   // 实测打印为 13307520 Hz
+ratio   = 24 × 1.3 / 1 = 31.2  > 16   → DPHY_DPLL 解不出，必须 SYSCLK
+need    = 13.3e6 × 24 × 1.3 / 1 / 1e6 ≈ 415 Mbps ≤ 800  → SYSCLK 800 Mbps 带宽够 ✓
+结论    : .clk_src = DPU_CLK_SRC_SYSCLK
+```
+
+### 15.4 DPHY PLL 物理参数（参考）
+
+```
+FVCO ∈ [1.2 GHz, 3.2 GHz]
+lane_hs_bitrate = FVCO / 2^rate          (rate ∈ 0..7)
+pclk            = lane_hs_bitrate / (pixdiv + 2)    (pixdiv ∈ 0..14 ⇒ 分频比 [2, 16])
+工程有效区间    : 100 Mbps ~ 1600 Mbps（analog timing 查表覆盖范围）
+SYSCLK 兜底     : 单 lane 固定 800 Mbps；其余分辨率走查表挡位
+```
+
+### 15.5 注意事项
+
+- **不要**自己往 `dpu_cfg` 里塞 `.timing` / `.pixel_clock_hz` / `.clk_src`——这三者都在 panel 句柄里，DPU 控制器内部直接读取。
+- 改 `clk_src` **不需要**改 panel 描述符；同一份 panel 描述符可同时支持两条时钟路径，应用层只需切 `panel_dev_config.clk_src`。
+- DSI 命令模式（low-power）发 `init_cmds` 时由 byteclk 驱动，与 `clk_src` 选择无关；这一段只影响进 video 模式之后的 HS 链路。
+- 看到串口 `internal PLL cannot satisfy pclk=…` 报错，直接切 SYSCLK；看到 `no table entry for clk=… defaulting to 800 Mbps`，是 SYSCLK 兜底没在查表挡位里——一般无害，但若 EMI 敏感可让屏厂调 `fps` / 改 2 lane。
+
+---
+
+## 16. 常见问题速查
 
 | 现象 | 排查首项 | 排查次项 |
 |---|---|---|
@@ -573,6 +688,7 @@ if (panel == NULL) { LOGE(TAG, "panel not found"); return; }
 | 整屏黑、电流异常 | VCC_LCD / 屏背光 | AUXLDO 2.8V/3V vote 是否打开 |
 | `read_id` 返回全 0 / 0xFF | VCC_LCD 是否上电 | `read_id_regs` 与 `read_id_bytes` 是否填错 |
 | 闪屏 / 帧率不稳 | DSI lane bit-rate 偏离屏 spec 推荐范围 | 调 `fps` 或 `n_lanes` 重新算 |
+| 启动报 `no PLL: pclk:... min_lane_mbps:...` | `panel_dev_config.clk_src=DPHY_DPLL` 但 panel 超出 PLL 求解范围 | 改 `DPU_CLK_SRC_SYSCLK`，详见 §15.1 |
 | 整屏黄/绿/蓝条带 | DPU FIFO underflow（PSRAM 带宽不够） | 确认 dpu QoS=3；其它高带宽模块（camera/h264）是否同时跑 |
 | 撕裂 | flush 频率高于 panel 实际帧率 | 降低 flush 频率或 fps |
 | 切像素格式后花屏 | 切换瞬间仍有 inflight flush | 切换前先停 flush 线程 → ioctl → 再启 flush |
