@@ -49,6 +49,8 @@
 #define PM_CLOCK_MODE_1_POS                 (32)
 #define PM_CLOCK_MODE_2_POS                 (64)
 
+#define SYS_HAL_SWD_CORESIGHT_VALID         (1)
+
 static sys_hal_t s_sys_hal;
 static uint32_t s_pm_wireless_clock_state = 0;
 
@@ -67,6 +69,11 @@ bk_err_t sys_hal_init()
 {
 	s_sys_hal.hw = (sys_hw_t *)SOC_SYS_REG_BASE;
 	return BK_OK;
+}
+
+void sys_hal_enable_swd(void)
+{
+	sys_ll_set_reserver_reg0x3b_coresight_valid(SYS_HAL_SWD_CORESIGHT_VALID);
 }
 
 void sys_hal_usb_enable_clk(bool en)

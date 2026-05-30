@@ -15,6 +15,7 @@
 #include "sdkconfig.h"
 #include "cmsis_compiler.h"
 #include "wdt_driver.h"
+#include "sys_hal.h"
 
 /*----------------------------------------------------------------------------
   External References
@@ -107,33 +108,7 @@ __attribute__((naked)) void Default_Handler(void)
 
 void bk_enable_swd(void)
 {
-  #define GPIO_BASE_ADDRESS 0x44000400
-  #define SYSTEM_BASE_ADDRESS              (0x44010000)
-  #define OTP_APB_BASE_ADDRESS             (0x4b100000)
-  #define MEM_CHECK_BASE_ADDRESS           (0x44890000)
-  #define PPRO_BASE_ADDRESS                (0x44050000)
-
-	// allow external debug
-	uint32_t reg = REG_READ(0xE000EE04);
-	reg |= 0x2;
-	REG_WRITE(0xE000EE04, reg);
-
-#if CONFIG_FPGA // This Code just for FPGA Debug
-	// use GPIO 0 and 1, instead of 20 and 21
-	REG_WRITE(GPIO_BASE_ADDRESS + (0 << 2), 0x1E000000);
-	REG_WRITE(GPIO_BASE_ADDRESS + (1 << 2), 0x1F000000);
-
-	REG_WRITE(GPIO_BASE_ADDRESS + (20 << 2), 0x0);
-	REG_WRITE(GPIO_BASE_ADDRESS + (21 << 2), 0x0);
-#endif
-
-	// open coresight system
-	REG_WRITE(SYSTEM_BASE_ADDRESS + (0x3b << 2), 0x20000000);
-
-	//set jtag_nonsec = 0
-	reg = REG_READ(PPRO_BASE_ADDRESS + (0xf << 2));
-	reg &= ~(0x8);
-	REG_WRITE(PPRO_BASE_ADDRESS + (0xf << 2), reg);
+	sys_hal_enable_swd();
 }
 
 

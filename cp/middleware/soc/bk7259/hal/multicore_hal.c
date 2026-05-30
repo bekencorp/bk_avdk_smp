@@ -37,11 +37,35 @@ extern uint32_t __vector_core1_table;
 #define BK_OPTIMIZE_O3
 #endif
 
+#define M55S_RAM_EMA_KEY_POS             (24U)
+#define M55S_RAM_EMA_UNLOCK_KEY          (0x5AU)
+#define M55S_RAM_EMA_LOCK_KEY            (0xA5U)
+#define M55S_RAM_EMA_SP_CFG_POS          (10U)
+#define M55S_RAM_EMA_SPS_CFG             (0x241U)
+#define M55S_RAM_EMA_SPB_CFG             (0x441U)
+#define M55S_RAM_EMA_STP_CFG             (0x901U)
+#define M55S_RAM_EMA_SPSP_CFG            ((M55S_RAM_EMA_SPB_CFG << M55S_RAM_EMA_SP_CFG_POS) | M55S_RAM_EMA_SPS_CFG)
+#define M55S_RAM_EMA_SET_KEY(key)        ((key) << M55S_RAM_EMA_KEY_POS)
+
+static void multicore_hal_m55s_ram_ema_switch_to_high_speed(void)
+{
+	uint32_t spsp_cfg = M55S_RAM_EMA_SPSP_CFG;
+	uint32_t stp_cfg = M55S_RAM_EMA_STP_CFG;
+
+	sys_ahbp_ll_set_reg50_value(M55S_RAM_EMA_SET_KEY(M55S_RAM_EMA_UNLOCK_KEY) | spsp_cfg);
+	sys_ahbp_ll_set_reg50_value(M55S_RAM_EMA_SET_KEY(M55S_RAM_EMA_LOCK_KEY) | spsp_cfg);
+	sys_ahbp_ll_set_reg51_value(M55S_RAM_EMA_SET_KEY(M55S_RAM_EMA_UNLOCK_KEY) | stp_cfg);
+	sys_ahbp_ll_set_reg51_value(M55S_RAM_EMA_SET_KEY(M55S_RAM_EMA_LOCK_KEY) | stp_cfg);
+	sys_ahbp_ll_set_reg52_value(M55S_RAM_EMA_SET_KEY(M55S_RAM_EMA_UNLOCK_KEY) | spsp_cfg);
+	sys_ahbp_ll_set_reg52_value(M55S_RAM_EMA_SET_KEY(M55S_RAM_EMA_LOCK_KEY) | spsp_cfg);
+	sys_ahbp_ll_set_reg53_value(M55S_RAM_EMA_SET_KEY(M55S_RAM_EMA_UNLOCK_KEY) | stp_cfg);
+	sys_ahbp_ll_set_reg53_value(M55S_RAM_EMA_SET_KEY(M55S_RAM_EMA_LOCK_KEY) | stp_cfg);
+}
+
 static void multicore_hal_m55_core_init_common(void)
 {
 	uint32_t reg_val = 0;
 	volatile uint32_t *ppro_cfg = (volatile uint32_t *)0x44050000;
-	volatile uint32_t *m55s_sys_cfg = (volatile uint32_t *)0x48000000;
 
 	if (aon_pmu_ll_get_r2_m55_auto_sel() == 1) {
 		aon_pmu_ll_set_r2_m55_mem_auto_set(0); // m55 power seq on
@@ -85,14 +109,7 @@ static void multicore_hal_m55_core_init_common(void)
 	sys_ll_set_ana_reg14_enpsram(1);
 
 	/* M55S Memory EMA switch to 1 */
-	m55s_sys_cfg[0x50] = (0x5A << 24) | (0x441 << 10) | (0x241);
-	m55s_sys_cfg[0x50] = (0xA5 << 24) | (0x441 << 10) | (0x241);
-	m55s_sys_cfg[0x51] = (0x5A << 24) | (0x901);
-	m55s_sys_cfg[0x51] = (0xA5 << 24) | (0x901);
-	m55s_sys_cfg[0x52] = (0x5A << 24) | (0x441 << 10) | (0x241);
-	m55s_sys_cfg[0x52] = (0xA5 << 24) | (0x441 << 10) | (0x241);
-	m55s_sys_cfg[0x53] = (0x5A << 24) | (0x901);
-	m55s_sys_cfg[0x53] = (0xA5 << 24) | (0x901);
+	multicore_hal_m55s_ram_ema_switch_to_high_speed();
 }
 
 #define AP_DTCM_BASE 0x20000000

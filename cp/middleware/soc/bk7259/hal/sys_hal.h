@@ -40,6 +40,7 @@ typedef struct {
 
 /** Platform Misc Start **/
 bk_err_t sys_hal_init(void);
+void sys_hal_enable_swd(void);
 /** Platform Misc End **/
 
 /** Platform USB Start **/

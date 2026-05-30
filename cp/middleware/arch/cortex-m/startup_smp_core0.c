@@ -19,6 +19,7 @@
 #include "bk_arch.h"
 #include <stdint.h>
 #include "wdt_driver.h"
+#include "sys_hal.h"
 
 /*----------------------------------------------------------------------------
   External References
@@ -65,13 +66,7 @@ __attribute__((naked)) void Default_Handler(void)
 
 void bk_enable_swd(void)
 {
-    uint32_t reg = REG_READ(0xE000EE04);
-    reg |= 0x2;
-    REG_WRITE(0xE000EE04, reg);
-    REG_WRITE(SOC_SYSTEM_REG_BASE + (0x3b << 2), 0x20000000);
-    reg = REG_READ(SOC_PPRO_REG_BASE + (0xf << 2));
-    reg &= ~(0x8);
-    REG_WRITE(SOC_PPRO_REG_BASE + (0xf << 2), reg);
+    sys_hal_enable_swd();
 }
 
 /*----------------------------------------------------------------------------
