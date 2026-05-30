@@ -192,6 +192,8 @@ int pthread_mutex_timedlock( pthread_mutex_t * mutex,
     pthread_mutex_internal_t * pxMutex = ( pthread_mutex_internal_t * ) ( mutex );
     TickType_t xDelay = portMAX_DELAY;
     BaseType_t xFreeRTOSMutexTakeStatus = pdFALSE;
+    TaskHandle_t xHolderBefore = NULL;
+    TaskHandle_t xCurrentTask = xTaskGetCurrentTaskHandle();
 
     /* If mutex in uninitialized, perform initialization. */
     prvInitializeStaticMutex( pxMutex );
@@ -223,10 +225,12 @@ int pthread_mutex_timedlock( pthread_mutex_t * mutex,
         }
     }
 
+    xHolderBefore = xSemaphoreGetMutexHolder( ( SemaphoreHandle_t ) &pxMutex->xMutex );
+
     /* Check if trying to lock a currently owned mutex. */
     if( ( iStatus == 0 ) &&
         ( pxMutex->xAttr.iType == PTHREAD_MUTEX_ERRORCHECK ) &&  /* Only PTHREAD_MUTEX_ERRORCHECK type detects deadlock. */
-        ( pxMutex->xTaskOwner == xTaskGetCurrentTaskHandle() ) ) /* Check if locking a currently owned mutex. */
+        ( xHolderBefore == xCurrentTask ) ) /* Check if locking a currently owned mutex. */
     {
         iStatus = EDEADLK;
     }
@@ -246,7 +250,7 @@ int pthread_mutex_timedlock( pthread_mutex_t * mutex,
         /* If the mutex was successfully taken, set its owner. */
         if( xFreeRTOSMutexTakeStatus == pdPASS )
         {
-            pxMutex->xTaskOwner = xTaskGetCurrentTaskHandle();
+            pxMutex->xTaskOwner = xCurrentTask;
         }
         /* Otherwise, the mutex take timed out. */
         else
@@ -289,20 +293,34 @@ int pthread_mutex_unlock( pthread_mutex_t * mutex )
     int iStatus = 0;
     pthread_mutex_internal_t * pxMutex = ( pthread_mutex_internal_t * ) ( mutex );
     BaseType_t xFreeRTOSMutexGiveStatus = pdFALSE;
+    TaskHandle_t xWrapperOwnerBefore = NULL;
+    TaskHandle_t xHolderBefore = NULL;
+    TaskHandle_t xCurrentTask = xTaskGetCurrentTaskHandle();
+    BaseType_t xReleasesMutex = pdTRUE;
 
     /* If mutex in uninitialized, perform initialization. */
     prvInitializeStaticMutex( pxMutex );
 
+    xWrapperOwnerBefore = pxMutex->xTaskOwner;
+    xHolderBefore = xSemaphoreGetMutexHolder( ( SemaphoreHandle_t ) &pxMutex->xMutex );
     /* Check if trying to unlock an unowned mutex. */
     if( ( ( pxMutex->xAttr.iType == PTHREAD_MUTEX_ERRORCHECK ) ||
           ( pxMutex->xAttr.iType == PTHREAD_MUTEX_RECURSIVE ) ) &&
-        ( pxMutex->xTaskOwner != xTaskGetCurrentTaskHandle() ) )
+        ( xHolderBefore != xCurrentTask ) )
     {
         iStatus = EPERM;
     }
 
     if( iStatus == 0 )
     {
+        xReleasesMutex = ( pxMutex->xAttr.iType != PTHREAD_MUTEX_RECURSIVE ) ||
+                         ( pxMutex->xMutex.u.uxDummy2 <= 1 );
+
+        if( xReleasesMutex == pdTRUE )
+        {
+            pxMutex->xTaskOwner = NULL;
+        }
+
         /* Call the correct FreeRTOS mutex unlock function based on mutex type. */
         if( pxMutex->xAttr.iType == PTHREAD_MUTEX_RECURSIVE )
         {
@@ -316,12 +334,14 @@ int pthread_mutex_unlock( pthread_mutex_t * mutex )
         if( xFreeRTOSMutexGiveStatus != pdPASS )
         {
             iStatus = EPERM;
+            pxMutex->xTaskOwner = xWrapperOwnerBefore;
         }
         else
         {
-            /* A recursive mutex may still have an owner. Query the kernel so
-             * deadlock detection keeps tracking the current holder correctly. */
-            pxMutex->xTaskOwner = xSemaphoreGetMutexHolder( ( SemaphoreHandle_t ) &pxMutex->xMutex );
+            if( xReleasesMutex == pdFALSE )
+            {
+                pxMutex->xTaskOwner = xCurrentTask;
+            }
         }
     }
 
