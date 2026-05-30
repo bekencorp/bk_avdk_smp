@@ -38,7 +38,8 @@ void bk_reboot_ex(uint32_t reset_reason)
 		entry_cnt++;
 
 		if (reset_reason < RESET_SOURCE_UNKNOWN) {
-			bk_misc_set_reset_reason(reset_reason);
+			bk_misc_set_cp_reset_reason(reset_reason);
+			bk_misc_set_ap_reset_reason(reset_reason);
 		}
 
 		BK_LOGD(TAG, "bk_reboot\r\n");
@@ -47,8 +48,7 @@ void bk_reboot_ex(uint32_t reset_reason)
 
 		BK_LOGD(TAG, "wdt reboot\r\n");
 #if CONFIG_WDT_EN
-		/* Stop the periodic auto-feed path before forcing a reboot in SMP. */
-		(void)bk_timer_stop(TIMER_ID2);
+        (void)bk_timer_stop(TIMER_ID2);
 #endif
 		rtos_disable_int();
 	}

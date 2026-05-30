@@ -32,6 +32,8 @@ extern "C" {
 
 void show_reset_reason(void);
 uint32_t reset_reason_init(void);
+void bk_misc_set_cp_reset_reason(uint32_t type);
+void bk_misc_set_ap_reset_reason(uint32_t type);
 
 
 

@@ -40,7 +40,8 @@ void bk_reboot_ex(uint32_t reset_reason)
 		entry_cnt++;
 
 		if (reset_reason < RESET_SOURCE_UNKNOWN) {
-			bk_misc_set_reset_reason(reset_reason);
+			bk_misc_set_cp_reset_reason(reset_reason);
+			bk_misc_set_ap_reset_reason(reset_reason);
 		}
 
 		BK_LOGD(TAG, "bk_reboot\r\n");
@@ -50,7 +51,8 @@ void bk_reboot_ex(uint32_t reset_reason)
 		BK_LOGD(TAG, "system reboot\r\n");
 		rtos_disable_int();
 		if (reset_reason < RESET_SOURCE_UNKNOWN) {
-			bk_misc_set_reset_reason(reset_reason);
+			bk_misc_set_cp_reset_reason(reset_reason);
+			bk_misc_set_ap_reset_reason(reset_reason);
 		}
 	}
 	//fix reboot hang 16s issue

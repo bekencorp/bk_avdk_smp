@@ -31,6 +31,8 @@ extern "C" {
 
 extern void show_reset_reason(void);
 extern uint32_t reset_reason_init(void);
+void bk_misc_set_cp_reset_reason(uint32_t type);
+void bk_misc_set_ap_reset_reason(uint32_t type);
 extern void reboot_tag_set(void);
 extern uint32_t reboot_tag_is_reboot(void);
 void reboot_tag_init(void);

@@ -187,7 +187,7 @@ void aon_pmu_hal_r0_latch_to_r7b(void)
 #if CONFIG_AON_PMU_REG0_REFACTOR_DEV
 uint32_t aon_pmu_hal_get_reset_reason(void)
 {
-	return aon_pmu_ll_get_r7b_reset_reason();
+	return aon_pmu_ll_get_r7b();
 }
 
 void aon_pmu_hal_set_reset_reason(uint32_t value, bool write_immediately)
@@ -198,6 +198,7 @@ void aon_pmu_hal_set_reset_reason(uint32_t value, bool write_immediately)
 		aon_pmu_ll_set_r0(r7b);
 		aon_pmu_ll_set_r0_reset_reason(value);
 		aon_pmu_hal_r0_latch_to_r7b();
+        delay_us(5);    //add delay to make sure ana value is set successfully
 		aon_pmu_ll_set_r0(r0);
 		aon_pmu_ll_set_r0_reset_reason(value);
 	} else {
@@ -240,7 +241,7 @@ void aon_pmu_hal_set_gpio_retention_bitmap(uint32_t value)
 #else
 uint32_t aon_pmu_hal_get_reset_reason(void)
 {
-	return aon_pmu_ll_get_r0_reset_reason();
+	return aon_pmu_ll_get_r7b();
 }
 
 void aon_pmu_hal_set_reset_reason(uint32_t value)
