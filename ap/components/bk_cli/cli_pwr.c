@@ -820,7 +820,7 @@ static void cli_pm_demo_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
 	if (os_strcmp(argv[1], "init") == 0)
 	{
 		CLI_LOGD("pm demo init\r\n");
-		//pm_demo_thread_main();
+		pm_demo_thread_main();
 	} 
 	else if (os_strcmp(argv[1], "deep_sleep") == 0) 
 	{

@@ -28,6 +28,7 @@ extern void mb_ipc_reset_notify(u32 cpu_id, u32 power_on);
 typedef struct ap_ctrl_callback_node {
 	ap_ctrl_callback_t callback;
 	void *arg;
+	pm_ap_ctrl_cb_type_t type;
 	struct ap_ctrl_callback_node *next;
 } ap_ctrl_callback_node_t;
 
@@ -65,13 +66,13 @@ static ap_ctrl_callback_node_t *s_ap_ctrl_callback_head                         
  * void example_ap_ctrl_cb_register(void)
  * {
  *     // Register callback, arg will be passed back on callback execution
- *     bk_pm_ap_ctrl_callback_register(ap_poweroff_notify_cb, (void *)1);
+ *     bk_pm_ap_ctrl_callback_register(ap_poweroff_notify_cb, (void *)1, PM_AP_CTRL_CB_TYPE_POWER_OFF);
  *
  *     // If needed, unregister callback later
- *     // bk_pm_ap_ctrl_callback_unregister(ap_poweroff_notify_cb);
+ *     // bk_pm_ap_ctrl_callback_unregister(ap_poweroff_notify_cb, PM_AP_CTRL_CB_TYPE_POWER_OFF);
  * }
  */
-bk_err_t bk_pm_ap_ctrl_callback_register(ap_ctrl_callback_t callback, void *arg)
+bk_err_t bk_pm_ap_ctrl_callback_register(ap_ctrl_callback_t callback, void *arg, pm_ap_ctrl_cb_type_t type)
 {
 	ap_ctrl_callback_node_t *new_node = NULL;
 	uint32_t int_level = 0;
@@ -87,6 +88,7 @@ bk_err_t bk_pm_ap_ctrl_callback_register(ap_ctrl_callback_t callback, void *arg)
 
 	new_node->callback = callback;
 	new_node->arg = arg;
+	new_node->type = type;
 
 	int_level = rtos_disable_int();
 	new_node->next = s_ap_ctrl_callback_head;
@@ -96,7 +98,7 @@ bk_err_t bk_pm_ap_ctrl_callback_register(ap_ctrl_callback_t callback, void *arg)
 	return BK_OK;
 }
 
-bk_err_t bk_pm_ap_ctrl_callback_unregister(ap_ctrl_callback_t callback)
+bk_err_t bk_pm_ap_ctrl_callback_unregister(ap_ctrl_callback_t callback, pm_ap_ctrl_cb_type_t type)
 {
 	ap_ctrl_callback_node_t *curr = NULL;
 	ap_ctrl_callback_node_t *prev = NULL;
@@ -110,7 +112,7 @@ bk_err_t bk_pm_ap_ctrl_callback_unregister(ap_ctrl_callback_t callback)
 
 	curr = s_ap_ctrl_callback_head;
 	while (curr) {
-		if (curr->callback == callback) {
+		if ((curr->callback == callback) && (curr->type == type)) {
 			if (prev) {
 				prev->next = curr->next;
 			} else {
@@ -130,7 +132,7 @@ bk_err_t bk_pm_ap_ctrl_callback_unregister(ap_ctrl_callback_t callback)
 	return -2;
 }
 
-bk_err_t bk_pm_ap_ctrl_callback_execute(void)
+bk_err_t bk_pm_ap_ctrl_callback_execute(pm_ap_ctrl_cb_type_t type)
 {
 	ap_ctrl_callback_node_t *curr = NULL;
 	uint32_t int_level = 0;
@@ -140,7 +142,7 @@ bk_err_t bk_pm_ap_ctrl_callback_execute(void)
 	rtos_enable_int(int_level);
 
 	while (curr) {
-		if (curr->callback) {
+		if (curr->callback && (curr->type == type)) {
 			curr->callback(curr->arg);
 		}
 		curr = curr->next;
@@ -280,6 +282,7 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 			extern void bk_start_ap_system(void);
 			bk_start_ap_system();
 			LOGI("pm_dbg ap_power_on: bk_start_ap_system done\r\n");
+			bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
 			#if 0
 			previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
 			current_tick = previous_tick;
@@ -457,7 +460,7 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 						#endif
 						LOGI("pm_dbg ap_close: ap_sleep_state ready, start shutdown\r\n");
 						pm_module_shutdown_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
-						bk_pm_ap_ctrl_callback_execute();
+						bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_OFF);
 						LOGD("ap power off!!!\r\n");
 						ap_sleep_ready = true;
 						s_pm_cp1_closing = 0;

@@ -395,9 +395,8 @@ static void app_main_thread(void *arg)
 #if CONFIG_TFM_FWU
 	bk_ota_accept_image();
 #endif
-#if !CONFIG_SOC_BK7259 ///TODO:
-    bk_pm_ap_core_init();
-#endif //!CONFIG_SOC_BK7259 ///TODO:
+	bk_pm_ap_thread_main();
+
 	main();
 
 #if CONFIG_MATTER_START && CONFIG_SUPPORT_MATTER

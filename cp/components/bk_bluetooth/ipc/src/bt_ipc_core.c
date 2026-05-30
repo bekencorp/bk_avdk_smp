@@ -653,7 +653,7 @@ int32_t bt_ipc_init(void)
     bt_ipc_env.state = BT_IPC_STATE_LOCAL_READY;
 
     #if CONFIG_BLUETOOTH_SUPPORT_AP_PWD_ALL
-    bk_pm_ap_ctrl_callback_register(bt_ipc_notify_ap_power_off, NULL);
+    bk_pm_ap_ctrl_callback_register(bt_ipc_notify_ap_power_off, NULL, PM_AP_CTRL_CB_TYPE_POWER_OFF);
     #endif
 
     LOGD("%s success\n", __func__);

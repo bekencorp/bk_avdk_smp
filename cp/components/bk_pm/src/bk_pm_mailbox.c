@@ -416,23 +416,23 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 	GLOBAL_INT_DISABLE();
 	switch(cmd_buf->hdr.cmd) {
 		case PM_POWER_CTRL_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_POWER_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_POWER_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_CLK_CTRL_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_CLK_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_CLK_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_SLEEP_CTRL_CMD:
 			//bk_pm_cp0_response_cp1(PM_SLEEP_CTRL_CMD,BK_OK,0,0);//for more quick when enter lv
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_SLEEP_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_SLEEP_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_CPU_FREQ_CTRL_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_FREQ_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_FREQ_CTRL, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_CTRL_EXTERNAL_LDO_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_EXTERNAL_LDO, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_EXTERNAL_LDO, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_CTRL_PSRAM_POWER_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_PSRAM_POWER, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_PSRAM_POWER, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_CPU1_BOOT_READY_CMD:
 			if(cmd_buf->param1 == 0x1)
@@ -450,22 +450,22 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			bk_pm_cp0_psram_malloc_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
 			break;
 		case PM_CP1_RECOVERY_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_CP2_RECOVERY, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_CP2_RECOVERY, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_RTC_DEEPSLEEP_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_RTC_DEEPSLEEP, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_RTC_DEEPSLEEP, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_GET_PM_DATA_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_GET_CP_DATA, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_GET_CP_DATA, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_CTRL_AP_STATE_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_CTRL_CP2_STATE, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_CTRL_CP2_STATE, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_ENTER_DEEP_SLEEP_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_STATE_ENTER_DEEPSLEEP, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_STATE_ENTER_DEEPSLEEP, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_WAKEUP_CONFIG_CMD:
-			ret = pm_cp0_send_msg(LOW_PWR_CORE_WAKEUP_SRC_CFG, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_WAKEUP_SRC_CFG, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		default:
 			break;
@@ -480,7 +480,7 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 	{
 		if(cmd_buf->hdr.cmd != PM_CP1_PSRAM_MALLOC_STATE_CMD)
 		{
-			BK_LOGV(NULL,"cp0_mb_rx_isr %d %d %d %d %d\r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2,cmd_buf->param3,ret);
+			BK_LOGD(NULL,"cp0_mb_rx_isr %d %d %d %d %d\r\n",cmd_buf->hdr.cmd,cmd_buf->param1,cmd_buf->param2,cmd_buf->param3,ret);
 		}
 	}
 

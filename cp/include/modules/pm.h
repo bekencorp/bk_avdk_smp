@@ -24,6 +24,11 @@ extern "C" {
 typedef void (*sleep_callback_t)(void *arg);
 typedef void (*ap_ctrl_callback_t)(void *arg);
 
+typedef enum {
+	PM_AP_CTRL_CB_TYPE_POWER_ON = 0,  /**< Execute after AP power-on */
+	PM_AP_CTRL_CB_TYPE_POWER_OFF = 1, /**< Execute after AP power-off */
+} pm_ap_ctrl_cb_type_t;
+
 /* Standard priority definitions for callback execution order
  * Lower value = Higher priority = Executes first
  * Range: 0 (highest) to 255 (lowest)
@@ -757,39 +762,45 @@ bk_err_t bk_pm_post_sleep_callback_unregister(sleep_callback_t callback);
 bk_err_t bk_pm_post_sleep_callback_execute(void);
 
 /**
- * @brief Register AP power-off callback
+ * @brief Register AP power control callback
  *
- * Register callback for AP shutdown notification.
- * Registered callbacks will be executed before AP is powered off.
+ * Register callback for AP power-on or power-off notification.
+ * Call this API twice if you need both power-on and power-off callbacks.
  *
  * @param callback  Callback function to register
  * @param arg       User data passed to callback
+ * @param type      Callback trigger type:
+ *                  - PM_AP_CTRL_CB_TYPE_POWER_ON
+ *                  - PM_AP_CTRL_CB_TYPE_POWER_OFF
  *
  * @return  0  Success
  *         -1  Invalid callback
  *         -2  Out of memory
  */
-bk_err_t bk_pm_ap_ctrl_callback_register(ap_ctrl_callback_t callback, void *arg);
+bk_err_t bk_pm_ap_ctrl_callback_register(ap_ctrl_callback_t callback, void *arg, pm_ap_ctrl_cb_type_t type);
 
 /**
- * @brief Unregister AP power-off callback
+ * @brief Unregister AP power control callback
  *
  * @param callback  Callback function to unregister
+ * @param type      Callback type used at registration
  *
  * @return  0  Success
  *         -1  Invalid callback
  *         -2  Callback not found
  */
-bk_err_t bk_pm_ap_ctrl_callback_unregister(ap_ctrl_callback_t callback);
+bk_err_t bk_pm_ap_ctrl_callback_unregister(ap_ctrl_callback_t callback, pm_ap_ctrl_cb_type_t type);
 
 /**
- * @brief Execute all AP power-off callbacks
+ * @brief Execute AP power control callbacks by type
  *
- * This function is called internally before AP power-off.
+ * This function is called internally by PM flow.
+ *
+ * @param type  Callback type to execute
  *
  * @return BK_OK on success
  */
-bk_err_t bk_pm_ap_ctrl_callback_execute(void);
+bk_err_t bk_pm_ap_ctrl_callback_execute(pm_ap_ctrl_cb_type_t type);
 
 /**
  * @brief set whether this is the first AP boot
