@@ -20,7 +20,7 @@ PIXEL_FORMAT_E isp_camera_format_convert(bk_pixel_format_t bk_format)
         case BK_PIXEL_FORMAT_RGGB10:
             return PIXEL_FORMAT_RGGB10;
         case BK_PIXEL_FORMAT_GRBG10:
-            return PIXEL_FORMAT_RGGB10;
+            return PIXEL_FORMAT_GRBG10;
         case BK_PIXEL_FORMAT_GBRG10:
             return PIXEL_FORMAT_GBRG10;
         case BK_PIXEL_FORMAT_BGGR10:
