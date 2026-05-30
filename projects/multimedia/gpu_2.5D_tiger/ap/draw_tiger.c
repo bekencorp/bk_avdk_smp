@@ -45,6 +45,13 @@ typedef struct
 } display_ctx_t;
 
 static display_ctx_t *g_disp_ctx = NULL;
+static beken_semaphore_t s_buf_ready_sem = NULL;
+
+static int on_frame_released(void *frame)
+{
+    rtos_set_semaphore(&s_buf_ready_sem);
+    return BK_OK;
+}
 
 static int zoomOut    = 0;
 static int scaleCount = 0;
@@ -241,22 +248,33 @@ static void render_tiger_task(void *arg)
 
     LOGI("render_tiger_task\r\n");
 
+    // GPU rendering: redraw the tiger animation into the current frame buffer
+    redraw(&g_disp_ctx->draw_buffer, &matrix);
+
+    // Submit the drawn buffer to DPU for display
+    bk_display_flush(g_disp_ctx->dpu_ctlr_handle,
+                     g_disp_ctx->frame_buffer[g_disp_ctx->frame_buffer_index],
+                     on_frame_released);
+
     while (1)
     {
-        // GPU rendering: redraw the tiger animation into the current frame buffer
-        redraw(&g_disp_ctx->draw_buffer, &matrix);
-
-        // Submit the drawn buffer to DPU for display
-        bk_display_flush(g_disp_ctx->dpu_ctlr_handle, g_disp_ctx->frame_buffer[g_disp_ctx->frame_buffer_index], NULL);
-
         // Swap frame buffer.
         g_disp_ctx->frame_buffer_index = (g_disp_ctx->frame_buffer_index + 1) % 2;
         vg_lite_allocate_with_data(&g_disp_ctx->draw_buffer,
                                    g_disp_ctx->frame_buffer[g_disp_ctx->frame_buffer_index],
-                                   NULL,
-                                   NULL, NULL);
-    }
+                                   NULL, NULL, NULL);
 
+        // Wait for DPU to release this buffer
+        rtos_get_semaphore(&s_buf_ready_sem, BEKEN_WAIT_FOREVER);
+
+        // GPU rendering: redraw the tiger animation into the current frame buffer
+        redraw(&g_disp_ctx->draw_buffer, &matrix);
+
+        // Submit the drawn buffer to DPU for display
+        bk_display_flush(g_disp_ctx->dpu_ctlr_handle,
+                         g_disp_ctx->frame_buffer[g_disp_ctx->frame_buffer_index],
+                         on_frame_released);
+    }
 }
 
 avdk_err_t draw_tiger(void)
@@ -331,6 +349,8 @@ avdk_err_t draw_tiger(void)
                                g_disp_ctx->frame_buffer[g_disp_ctx->frame_buffer_index],
                                NULL,
                                NULL, NULL);
+
+    rtos_init_semaphore_ex(&s_buf_ready_sem, 1, 1);
 
     AVDK_RETURN_ON_ERROR(rtos_create_thread(&g_disp_ctx->draw_thd,
                        BEKEN_DEFAULT_WORKER_PRIORITY,
