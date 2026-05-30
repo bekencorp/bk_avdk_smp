@@ -1139,6 +1139,11 @@ bk_err_t bk_aon_rtc_open_rtc_wakeup(rtc_tick_t period)
 }
 #endif
 
+__IRAM_SEC uint64_t bk_aon_rtc_get_upper_val(aon_rtc_id_t id)
+{
+	return (aon_rtc_hal_get_upper_val(&s_aon_rtc[id].hal));
+}
+
 __IRAM_SEC uint64_t bk_aon_rtc_get_current_tick(aon_rtc_id_t id)
 {
 	if(id >= AON_RTC_ID_MAX)
