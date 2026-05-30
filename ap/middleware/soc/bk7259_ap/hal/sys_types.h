@@ -163,7 +163,7 @@ extern "C" {
 #define PM_FREQUNCY_DIV_CPU_MAX                          (1)
 
 #define PM_MODULE_SUB_POWER_DOMAIN_MAX                   (32)
-#define WAKEUP_SOURCE_MARK                               (0x3F)
+#define WAKEUP_SOURCE_MARK                               (0x7F)
 
 typedef struct {
 	uint8_t enum_name;
@@ -763,12 +763,13 @@ typedef enum
 typedef enum
 {
 	WAKEUP_SOURCE_INT_GPIO = 0,
-	WAKEUP_SOURCE_INT_RTC ,
-	WAKEUP_SOURCE_INT_WIFI ,
-	WAKEUP_SOURCE_INT_BT ,
-	WAKEUP_SOURCE_INT_TOUCHED ,
-	WAKEUP_SOURCE_INT_USBPLUG ,
-	WAKEUP_SOURCE_INT_NONE ,
+	WAKEUP_SOURCE_INT_RTC,
+	WAKEUP_SOURCE_INT_WIFI,
+	WAKEUP_SOURCE_INT_BT,
+	WAKEUP_SOURCE_INT_USBPLUG,
+	WAKEUP_SOURCE_INT_TOUCHED,
+	WAKEUP_SOURCE_INT_VAD,
+	WAKEUP_SOURCE_INT_NONE,
 }wakeup_source_t;
 
 typedef enum

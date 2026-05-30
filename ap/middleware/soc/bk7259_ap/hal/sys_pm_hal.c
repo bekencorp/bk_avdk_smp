@@ -376,7 +376,7 @@ static inline void sys_hal_power_on_pd(volatile uint32_t v_sys_r10)
 
 static inline void sys_hal_set_wakeup_source(void)
 {
-	aon_pmu_ll_set_r41_wakeup_ena(0x3f);
+	aon_pmu_ll_set_r41_wakeup_ena(0x7f);
 }
 
 static inline void sys_hal_clear_wakeup_status(void)
