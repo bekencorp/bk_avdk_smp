@@ -1437,22 +1437,14 @@ void rtos_wait_for_interrupt(void)
 
 #if (configSUPPORT_STATIC_ALLOCATION == 1)
 
+static __attribute__((aligned(8))) StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
+static __attribute__((aligned(8))) StaticTask_t xIdleTaskTCB;
+
 /* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an
 implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
 used by the Idle task. */
 void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize )
 {
-/* If the buffers to be provided to the Idle task are declared inside this
-function then they must be declared static - otherwise they will be allocated on
-the stack and so not exists after this function exits. */
-#if CONFIG_SOFTWARE_DECODE_SRAM_MAPPING
-static StaticTask_t xIdleTaskTCB;
-static StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
-#else
-static __attribute__((section(".dtcm_sec_data "))) StaticTask_t xIdleTaskTCB;
-static __attribute__((section(".dtcm_sec_data "))) StackType_t uxIdleTaskStack[ configMINIMAL_STACK_SIZE ];
-#endif
-
     /* Pass out a pointer to the StaticTask_t structure in which the Idle task's
     state will be stored. */
     *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
