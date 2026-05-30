@@ -22,6 +22,12 @@ list(APPEND srcs
 	cli_reg.c
 	)
 
+if (CONFIG_SOC_SMP)
+	list(APPEND srcs
+		cli_cp_hotplug.c
+	)
+endif()
+
 	list(APPEND srcs
     	cli_fpb.c
     	cli_dwt.c

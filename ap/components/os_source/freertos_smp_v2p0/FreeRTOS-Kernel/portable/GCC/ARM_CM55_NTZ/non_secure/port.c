@@ -1013,8 +1013,6 @@ void xPortDebug(const char *str)
 BaseType_t xPortStartSchedulerOnCore( void ) /* PRIVILEGED_FUNCTION */
 {
     #if ( configUSE_CPUHOTPLUG == 1 )
-        vSetCoreOnline( portGET_CORE_ID(), pdTRUE );
-        vSetCoreActive( portGET_CORE_ID(), pdTRUE );
         bk_ap_cpu_hotplug_core_online();
     #endif
 

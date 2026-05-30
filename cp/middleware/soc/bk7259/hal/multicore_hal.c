@@ -289,5 +289,13 @@ bk_err_t multicore_hal_reset(uint32_t id)
 
 bk_err_t multicore_hal_stop(uint32_t id)
 {
+	switch (id) {
+	case CPU1_CORE_ID:
+		sys_drv_set_cpu1_reset(0);
+		break;
+	default:
+		return BK_ERR_NOT_SUPPORT;
+	}
+
 	return BK_OK;
 }

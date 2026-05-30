@@ -3897,6 +3897,27 @@ get_next_task:
         } while( pxTCBCur != pxTCBFirst ); /* Check to see if we've walked the entire list */
     }
 
+    #if ( configUSE_CPUHOTPLUG == 1 )
+    {
+        /* If no task could be scheduled while the current core is marked
+         * inactive (e.g., the primary core has just initiated a CPU hot-unplug
+         * on this core but the stop IPI has not been fully processed yet),
+         * fall back to running this core's IDLE task. The IDLE task is always
+         * the safe last-resort task to keep this core executing until the
+         * stop ISR fully quiesces it. Without this fallback, taskIS_AFFINITY_
+         * COMPATIBLE() rejects every task (including IDLE) the moment
+         * xCoreActive[xCurCoreID] becomes pdFALSE, which races with PendSV /
+         * SysTick on the dying core and triggers configASSERT below. */
+        if( ( xTaskScheduled == pdFALSE ) &&
+            ( taskIS_CORE_ACTIVE( xCurCoreID ) == pdFALSE ) &&
+            ( xIdleTaskHandle[ xCurCoreID ] != NULL ) )
+        {
+            pxCurrentTCBs[ xCurCoreID ] = ( TCB_t * ) xIdleTaskHandle[ xCurCoreID ];
+            xTaskScheduled = pdTRUE;
+        }
+    }
+    #endif /* configUSE_CPUHOTPLUG */
+
     configASSERT( xTaskScheduled == pdTRUE ); /* At this point, a task MUST have been scheduled */
 }
 

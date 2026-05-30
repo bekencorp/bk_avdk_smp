@@ -354,6 +354,10 @@ bk_err_t bk_mailbox_master_send(mailbox_data_t *data, mailbox_endpoint_t src, ma
 bk_err_t bk_mailbox_slave_send(mailbox_data_t *data, mailbox_endpoint_t src, mailbox_endpoint_t dst);
 void bk_core_mbox_enable_int(int core_id,mailbox_endpoint_t mbox);
 void vSetCoreOnline( BaseType_t xCoreID, BaseType_t value );
+void vSetCoreActive( BaseType_t xCoreID, BaseType_t value );
+BaseType_t xTaskIsCoreActive( BaseType_t xCoreID );
+extern void bk_cp_cpu_hotplug_core_stop_isr(void);
+extern void bk_cp_cpu_hotplug_core_online(void);
 
 #if ( configENABLE_MPU == 1 )
 
@@ -984,7 +988,7 @@ void xPortDebug(const char *str)
 BaseType_t xPortStartSchedulerOnCore( void ) /* PRIVILEGED_FUNCTION */
 {
     #if ( configUSE_CPUHOTPLUG == 1 )
-        vSetCoreOnline( portGET_CORE_ID(), pdTRUE );
+        bk_cp_cpu_hotplug_core_online();
     #endif
 
     //if( ucPrimaryCoreNum == portGET_CORE_ID())
@@ -1061,13 +1065,22 @@ static bk_err_t crosscore_int_send(int xCoreID, uint32_t cmd)
 	spin_unlock(&crosscore_spin_lock);
 
 	if(old_busy == 0)
-    {
+	{
 		ret = bk_mailbox_master_send(&data, core, xCoreID);
-    }
-    else
-    {
-        ret = BK_FAIL;
-    }
+		if(ret != BK_OK)
+		{
+			/* Send failed, e.g. the destination mailbox RX FIFO is full.
+			 * Keep the accumulated cmd bits and clear busy so the next
+			 * cross-core command retries the hardware mailbox send. */
+			spin_lock(&crosscore_spin_lock);
+			crosscore_mb_busy[core - CONFIG_CPU_ID_OFFSET] = 0;
+			spin_unlock(&crosscore_spin_lock);
+		}
+	}
+	else
+	{
+		ret = BK_FAIL;
+	}
 
 	rtos_enable_int(flag);
 
@@ -1132,6 +1145,11 @@ void crosscore_mb_rx_isr(mailbox_data_t *data)
 	{
 		arch_dwt_trap_disable();
 	}
+
+	if(cmd & (0x01 << CC_HOTPLUG_STOP))
+	{
+		bk_cp_cpu_hotplug_core_stop_isr();
+	}
 	
 	return;
 }
@@ -1155,6 +1173,11 @@ bk_err_t crosscore_int_send_dwt_set(int xCoreID)
 bk_err_t crosscore_int_send_dwt_clr(int xCoreID)
 {
 	return crosscore_int_send(xCoreID, CC_CLR_DWT);
+}
+
+bk_err_t crosscore_int_send_hotplug_stop(int xCoreID)
+{
+	return crosscore_int_send(xCoreID, CC_HOTPLUG_STOP);
 }
 
 void smp_arch_dwt_trap_write(uint32_t addr, uint32_t data)
@@ -1198,6 +1221,12 @@ static void prvDisableInterruptsAndPortStartSchedulerOnCore( void )
 bk_err_t vPortYieldCore(int xCoreID)
 {
     bk_err_t ret = BK_OK;
+    #if ( configUSE_CPUHOTPLUG == 1 )
+    if (xTaskIsCoreActive(xCoreID) == pdFALSE)
+    {
+        return BK_ERR_STATE;
+    }
+    #endif
     #if configDEBUG_SMP
         if (xCoreID == 0)
         {
@@ -1471,6 +1500,16 @@ void port_check_isr_stack(void)
 unsigned port_interruptNesting[portNUM_PROCESSORS] = {0};  // Interrupt nesting level. Increased/decreased in portasm.c, _frxt_int_enter/_frxt_int_exit
 BaseType_t port_uxCriticalNesting[portNUM_PROCESSORS] = {0};
 BaseType_t port_uxOldInterruptState[portNUM_PROCESSORS] = {0};
+
+void vPortHotplugResetCoreState(BaseType_t xCoreID)
+{
+    if ((xCoreID >= 0) && (xCoreID < portNUM_PROCESSORS))
+    {
+        port_interruptNesting[xCoreID] = 0;
+        port_uxCriticalNesting[xCoreID] = 0;
+        port_uxOldInterruptState[xCoreID] = 0;
+    }
+}
 
 // --------------------- Interrupts ------------------------
 

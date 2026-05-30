@@ -16,6 +16,12 @@ static int mbox0_drv_recieve_message(mbox0_message_t* message)
 	return mbox0_dev.chn_drv[SELF_CHNL]->chn_recv(&mbox0_dev.hal, message);
 }
 
+/* GCC 14+ requires compilation with general-regs-only for interrupt handlers
+ * when FPU is enabled; the function attribute alone does not satisfy -Werror.
+ */
+#pragma GCC push_options
+#pragma GCC target("general-regs-only")
+
 static void __BK_IRQ mbox0_drv_isr_handler(void)
 {
 	uint32_t int_status;
@@ -59,6 +65,8 @@ static void __BK_IRQ mbox0_drv_isr_handler(void)
 	
 }
 
+#pragma GCC pop_options
+
 int mbox0_drv_get_send_stat(uint32_t dest_cpu, uint32_t *fifo_status)
 {
 	if((dest_cpu >= MBOX_CHNL_NUM) || (fifo_status == NULL))
@@ -79,6 +87,17 @@ int mbox0_drv_send_message(mbox0_message_t* message)
 int mbox0_drv_callback_register(mbox0_rx_callback_t callback)
 {
 	mbox0_dev.rx_callback = callback;
+
+	return 0;
+}
+
+int mbox0_drv_core_int_enable(uint32_t core_id, uint32_t enable)
+{
+	if ((mbox0_init == 0) || (core_id >= MBOX_CHNL_NUM) || (mbox0_dev.chn_drv[core_id] == NULL))
+		return MBOX0_HAL_SW_PARAM_ERR;
+
+	mbox0_dev.chn_drv[core_id]->chn_int_enable(&mbox0_dev.hal, enable ? 1 : 0);
+	sys_drv_set_int_en(core_id, INT_SRC_MAILBOX, enable ? 1 : 0);
 
 	return 0;
 }

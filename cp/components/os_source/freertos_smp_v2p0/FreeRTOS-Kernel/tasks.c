@@ -157,7 +157,15 @@
  *
  * This macro will always return true on single core as the concept of core
  * affinity doesn't exist. */
-#define taskIS_AFFINITY_COMPATIBLE( xCore, pxTCB )    ( ( ( ( pxTCB )->xCoreID == xCore ) || ( ( pxTCB )->xCoreID == tskNO_AFFINITY ) ) ? pdTRUE : pdFALSE )
+#if ( configUSE_CPUHOTPLUG == 1 )
+    #define taskIS_CORE_ONLINE( xCore )    ( ( xCoreOnline[ ( xCore ) ] == pdTRUE ) ? pdTRUE : pdFALSE )
+    #define taskIS_CORE_ACTIVE( xCore )    ( ( xCoreActive[ ( xCore ) ] == pdTRUE ) ? pdTRUE : pdFALSE )
+    #define taskIS_AFFINITY_COMPATIBLE( xCore, pxTCB )    ( ( ( taskIS_CORE_ACTIVE( xCore ) == pdTRUE ) && ( ( ( pxTCB )->xCoreID == xCore ) || ( ( pxTCB )->xCoreID == tskNO_AFFINITY ) ) ) ? pdTRUE : pdFALSE )
+#else
+    #define taskIS_CORE_ONLINE( xCore )    ( pdTRUE )
+    #define taskIS_CORE_ACTIVE( xCore )    ( pdTRUE )
+    #define taskIS_AFFINITY_COMPATIBLE( xCore, pxTCB )    ( ( ( ( pxTCB )->xCoreID == xCore ) || ( ( pxTCB )->xCoreID == tskNO_AFFINITY ) ) ? pdTRUE : pdFALSE )
+#endif
 
 /*-----------------------------------------------------------*/
 
@@ -452,6 +460,16 @@ PRIVILEGED_DATA static volatile BaseType_t xNumOfOverflows = ( BaseType_t ) 0;
 PRIVILEGED_DATA static UBaseType_t uxTaskNumber = ( UBaseType_t ) 0U;
 PRIVILEGED_DATA static volatile TickType_t xNextTaskUnblockTime = ( TickType_t ) 0U;     /* Initialised to portMAX_DELAY before the scheduler starts. */
 PRIVILEGED_DATA static TaskHandle_t xIdleTaskHandle[ configNUMBER_OF_CORES ] = { NULL }; /*< Holds the handle of the idle task.  The idle task is created automatically when the scheduler is started. */
+#if ( configUSE_CPUHOTPLUG == 1 )
+PRIVILEGED_DATA static volatile BaseType_t xCoreOnline[ configNUMBER_OF_CORES ] = {
+    [ 0 ] = pdTRUE,
+    [ 1 ] = pdTRUE
+};
+PRIVILEGED_DATA static volatile BaseType_t xCoreActive[ configNUMBER_OF_CORES ] = {
+    [ 0 ] = pdTRUE,
+    [ 1 ] = pdTRUE
+};
+#endif
 
 /* Improve support for OpenOCD. The kernel tracks Ready tasks via priority lists.
  * For tracking the state of remote threads, OpenOCD uses uxTopUsedPriority
@@ -485,6 +503,267 @@ TimerHandle_t xCpupTimer;
 /* Spinlock required for SMP critical sections. This lock protects all of the
  * kernel's data structures such as various tasks lists, flags, and tick counts. */
 PRIVILEGED_DATA static SPINLOCK_SECTION portMUX_TYPE xKernelLock = portMUX_INITIALIZER_UNLOCKED;
+
+#if ( configUSE_CPUHOTPLUG == 1 )
+static portTASK_FUNCTION_PROTO( prvIdleTask, pvParameters ) PRIVILEGED_FUNCTION;
+
+static BaseType_t prvListHasTaskPinnedToCore( const List_t * const pxList,
+                                              const BaseType_t xCoreID )
+{
+    ListItem_t * pxIterator;
+
+    if( pxList == NULL )
+    {
+        return pdFALSE;
+    }
+
+    for( pxIterator = listGET_HEAD_ENTRY( pxList );
+         pxIterator != listGET_END_MARKER( pxList );
+         pxIterator = listGET_NEXT( pxIterator ) )
+    {
+        TCB_t * const pxTCB = ( TCB_t * ) listGET_LIST_ITEM_OWNER( pxIterator );
+
+        if( ( pxTCB != NULL ) &&
+            ( pxTCB != xIdleTaskHandle[ xCoreID ] ) &&
+            ( pxTCB->xCoreID == xCoreID ) )
+        {
+            return pdTRUE;
+        }
+    }
+
+    return pdFALSE;
+}
+
+void vSetCoreOnline( BaseType_t xCoreID,
+                     BaseType_t value )
+{
+    if( taskVALID_CORE_ID( xCoreID ) == pdTRUE )
+    {
+        xCoreOnline[ xCoreID ] = ( value == pdFALSE ) ? pdFALSE : pdTRUE;
+    }
+}
+
+BaseType_t xTaskIsCoreOnline( BaseType_t xCoreID )
+{
+    if( taskVALID_CORE_ID( xCoreID ) == pdFALSE )
+    {
+        return pdFALSE;
+    }
+
+    return xCoreOnline[ xCoreID ];
+}
+
+void vSetCoreActive( BaseType_t xCoreID,
+                     BaseType_t value )
+{
+    if( taskVALID_CORE_ID( xCoreID ) == pdTRUE )
+    {
+        xCoreActive[ xCoreID ] = ( value == pdFALSE ) ? pdFALSE : pdTRUE;
+    }
+}
+
+BaseType_t xTaskIsCoreActive( BaseType_t xCoreID )
+{
+    if( taskVALID_CORE_ID( xCoreID ) == pdFALSE )
+    {
+        return pdFALSE;
+    }
+
+    return xCoreActive[ xCoreID ];
+}
+
+void vTaskHotplugClearCurrentTCB( BaseType_t xCoreID )
+{
+    if( taskVALID_CORE_ID( xCoreID ) == pdTRUE )
+    {
+        pxCurrentTCBs[ xCoreID ] = xIdleTaskHandle[ xCoreID ];
+        uxSchedulerSuspended[ xCoreID ] = ( UBaseType_t ) pdFALSE;
+        xYieldPending[ xCoreID ] = pdFALSE;
+    }
+}
+
+void vTaskHotplugResetIdleTaskContext( BaseType_t xCoreID )
+{
+    TCB_t * pxIdleTCB;
+    StackType_t * pxTopOfStack;
+    uint32_t ulStackDepth;
+
+    if( taskVALID_CORE_ID( xCoreID ) == pdFALSE )
+    {
+        return;
+    }
+
+    pxIdleTCB = ( TCB_t * ) xIdleTaskHandle[ xCoreID ];
+    if( pxIdleTCB == NULL )
+    {
+        return;
+    }
+
+    #if configBK_FREERTOS
+    {
+        ulStackDepth = pxIdleTCB->ulStackSize / sizeof( StackType_t );
+    }
+    #else
+    {
+        ulStackDepth = configMINIMAL_STACK_SIZE;
+    }
+    #endif
+
+    #if ( tskSET_NEW_STACKS_TO_KNOWN_VALUE == 1 )
+    {
+        ( void ) memset( pxIdleTCB->pxStack, ( int ) tskSTACK_FILL_BYTE, ( size_t ) ulStackDepth * sizeof( StackType_t ) );
+    }
+    #endif
+
+    #if ( portSTACK_GROWTH < 0 )
+    {
+        pxTopOfStack = &( pxIdleTCB->pxStack[ ulStackDepth - ( uint32_t ) 1 ] );
+        pxTopOfStack = ( StackType_t * ) ( ( ( portPOINTER_SIZE_TYPE ) pxTopOfStack ) & ( ~( ( portPOINTER_SIZE_TYPE ) portBYTE_ALIGNMENT_MASK ) ) );
+    }
+    #else
+    {
+        pxTopOfStack = pxIdleTCB->pxStack;
+    }
+    #endif
+
+    #if ( portUSING_MPU_WRAPPERS == 1 )
+    {
+        #if ( portHAS_STACK_OVERFLOW_CHECKING == 1 )
+        {
+            #if ( portSTACK_GROWTH < 0 )
+            {
+                pxIdleTCB->pxTopOfStack = pxPortInitialiseStack( pxTopOfStack, pxIdleTCB->pxStack, prvIdleTask, NULL, pdTRUE );
+            }
+            #else
+            {
+                pxIdleTCB->pxTopOfStack = pxPortInitialiseStack( pxTopOfStack, pxIdleTCB->pxEndOfStack, prvIdleTask, NULL, pdTRUE );
+            }
+            #endif
+        }
+        #else
+        {
+            pxIdleTCB->pxTopOfStack = pxPortInitialiseStack( pxTopOfStack, prvIdleTask, NULL, pdTRUE );
+        }
+        #endif
+    }
+    #else
+    {
+        #if ( portHAS_STACK_OVERFLOW_CHECKING == 1 )
+        {
+            #if ( portSTACK_GROWTH < 0 )
+            {
+                pxIdleTCB->pxTopOfStack = pxPortInitialiseStack( pxTopOfStack, pxIdleTCB->pxStack, prvIdleTask, NULL );
+            }
+            #else
+            {
+                pxIdleTCB->pxTopOfStack = pxPortInitialiseStack( pxTopOfStack, pxIdleTCB->pxEndOfStack, prvIdleTask, NULL );
+            }
+            #endif
+        }
+        #else
+        {
+            pxIdleTCB->pxTopOfStack = pxPortInitialiseStack( pxTopOfStack, prvIdleTask, NULL );
+        }
+        #endif
+    }
+    #endif
+
+    pxCurrentTCBs[ xCoreID ] = pxIdleTCB;
+    uxSchedulerSuspended[ xCoreID ] = ( UBaseType_t ) pdFALSE;
+    xYieldPending[ xCoreID ] = pdFALSE;
+}
+
+BaseType_t xTaskHotplugSetCurrentTaskCoreID( BaseType_t xCoreID )
+{
+    TCB_t * pxTCB;
+    BaseType_t xOldCoreID;
+
+    if( ( xCoreID != tskNO_AFFINITY ) && ( taskVALID_CORE_ID( xCoreID ) == pdFALSE ) )
+    {
+        return tskNO_AFFINITY;
+    }
+
+    taskENTER_CRITICAL( &xKernelLock );
+    {
+        pxTCB = pxCurrentTCBs[ portGET_CORE_ID() ];
+        xOldCoreID = pxTCB->xCoreID;
+        pxTCB->xCoreID = xCoreID;
+    }
+    taskEXIT_CRITICAL( &xKernelLock );
+
+    return xOldCoreID;
+}
+
+BaseType_t xTaskHasTasksPinnedToCore( BaseType_t xCoreID )
+{
+    UBaseType_t uxPriority;
+    BaseType_t xHasPinnedTask = pdFALSE;
+
+    if( taskVALID_CORE_ID( xCoreID ) == pdFALSE )
+    {
+        return pdFALSE;
+    }
+
+    taskENTER_CRITICAL( &xKernelLock );
+    {
+        for( uxPriority = 0; uxPriority < configMAX_PRIORITIES; uxPriority++ )
+        {
+            if( prvListHasTaskPinnedToCore( &( pxReadyTasksLists[ uxPriority ] ), xCoreID ) == pdTRUE )
+            {
+                xHasPinnedTask = pdTRUE;
+                break;
+            }
+        }
+
+        if( xHasPinnedTask == pdFALSE )
+        {
+            xHasPinnedTask = prvListHasTaskPinnedToCore( pxDelayedTaskList, xCoreID );
+        }
+
+        if( xHasPinnedTask == pdFALSE )
+        {
+            xHasPinnedTask = prvListHasTaskPinnedToCore( pxOverflowDelayedTaskList, xCoreID );
+        }
+
+        if( xHasPinnedTask == pdFALSE )
+        {
+            for( uxPriority = 0; uxPriority < configNUMBER_OF_CORES; uxPriority++ )
+            {
+                if( prvListHasTaskPinnedToCore( &( xPendingReadyList[ uxPriority ] ), xCoreID ) == pdTRUE )
+                {
+                    xHasPinnedTask = pdTRUE;
+                    break;
+                }
+            }
+        }
+
+        #if ( INCLUDE_vTaskSuspend == 1 )
+        if( xHasPinnedTask == pdFALSE )
+        {
+            xHasPinnedTask = prvListHasTaskPinnedToCore( &xSuspendedTaskList, xCoreID );
+        }
+        #endif
+
+        if( ( xHasPinnedTask == pdFALSE ) &&
+            ( pxCurrentTCBs[ xCoreID ] != NULL ) &&
+            ( pxCurrentTCBs[ xCoreID ] != xIdleTaskHandle[ xCoreID ] ) )
+        {
+            xHasPinnedTask = pdTRUE;
+        }
+    }
+    taskEXIT_CRITICAL( &xKernelLock );
+
+    return xHasPinnedTask;
+}
+
+void prvSelectHighestPriorityTaskAfterHotplug( const BaseType_t xCoreID )
+{
+    if( taskVALID_CORE_ID( xCoreID ) == pdTRUE )
+    {
+        xYieldPending[ xCoreID ] = pdTRUE;
+    }
+}
+#endif
 
 /*lint -restore */
 
@@ -776,7 +1055,8 @@ static BaseType_t prvCheckTaskCanBeScheduled( TCB_t * pxTCB )
     {
         /* Task is unpinned. As long as one core has not suspended
          * scheduling, the task can be scheduled. */
-        if( ( uxSchedulerSuspended[ 0 ] == ( UBaseType_t ) 0U ) || ( uxSchedulerSuspended[ 1 ] == ( UBaseType_t ) 0U ) )
+        if( ( ( taskIS_CORE_ACTIVE( 0 ) == pdTRUE ) && ( uxSchedulerSuspended[ 0 ] == ( UBaseType_t ) 0U ) ) ||
+            ( ( taskIS_CORE_ACTIVE( 1 ) == pdTRUE ) && ( uxSchedulerSuspended[ 1 ] == ( UBaseType_t ) 0U ) ) )
         {
             xReturn = pdTRUE;
         }
@@ -785,7 +1065,8 @@ static BaseType_t prvCheckTaskCanBeScheduled( TCB_t * pxTCB )
             xReturn = pdFALSE;
         }
     }
-    else if( uxSchedulerSuspended[ pxTCB->xCoreID ] == ( UBaseType_t ) 0U )
+    else if( ( taskIS_CORE_ACTIVE( pxTCB->xCoreID ) == pdTRUE ) &&
+             ( uxSchedulerSuspended[ pxTCB->xCoreID ] == ( UBaseType_t ) 0U ) )
     {
         /* The task is pinned to a core. If it's pinned core has not
          * suspended scheduling, the task can be scheduled. */
@@ -3620,6 +3901,27 @@ get_next_task:
             listGET_OWNER_OF_NEXT_ENTRY( pxTCBCur, &( pxReadyTasksLists[ uxCurPriority ] ) );
         } while( pxTCBCur != pxTCBFirst ); /* Check to see if we've walked the entire list */
     }
+
+    #if ( configUSE_CPUHOTPLUG == 1 )
+    {
+        /* If no task could be scheduled while the current core is marked
+         * inactive (e.g., the primary core has just initiated a CPU hot-unplug
+         * on this core but the stop IPI has not been fully processed yet),
+         * fall back to running this core's IDLE task. The IDLE task is always
+         * the safe last-resort task to keep this core executing until the
+         * stop ISR fully quiesces it. Without this fallback, taskIS_AFFINITY_
+         * COMPATIBLE() rejects every task (including IDLE) the moment
+         * xCoreActive[xCurCoreID] becomes pdFALSE, which races with PendSV /
+         * SysTick on the dying core and triggers configASSERT below. */
+        if( ( xTaskScheduled == pdFALSE ) &&
+            ( taskIS_CORE_ACTIVE( xCurCoreID ) == pdFALSE ) &&
+            ( xIdleTaskHandle[ xCurCoreID ] != NULL ) )
+        {
+            pxCurrentTCBs[ xCurCoreID ] = ( TCB_t * ) xIdleTaskHandle[ xCurCoreID ];
+            xTaskScheduled = pdTRUE;
+        }
+    }
+    #endif /* configUSE_CPUHOTPLUG */
 
     configASSERT( xTaskScheduled == pdTRUE ); /* At this point, a task MUST have been scheduled */
 }

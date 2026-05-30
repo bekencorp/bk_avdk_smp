@@ -118,6 +118,7 @@
 #define portCRITICAL_NESTING_IN_TCB                1
 #define configUSE_CORE_AFFINITY                    1
 #define configRUN_MULTIPLE_PRIORITIES              1
+#define configUSE_CPUHOTPLUG                       1
 #if CONFIG_FREERTOS_ALLOW_OS_API_IN_IRQ_DISABLED
 #define configUSE_OS_API_IN_IRQ_DISABLED           1
 #endif

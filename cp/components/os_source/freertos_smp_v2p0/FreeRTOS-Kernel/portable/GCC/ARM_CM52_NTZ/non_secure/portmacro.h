@@ -288,11 +288,13 @@ enum
 	CC_DUMP_CORE,
 	CC_SET_DWT,
 	CC_CLR_DWT,
+	CC_HOTPLUG_STOP,
 };
 
 bk_err_t crosscore_int_send_dump(int xCoreID);
 bk_err_t crosscore_int_send_dwt_set(int xCoreID);
 bk_err_t crosscore_int_send_dwt_clr(int xCoreID);
+bk_err_t crosscore_int_send_hotplug_stop(int xCoreID);
 void smp_arch_dwt_trap_write(uint32_t addr, uint32_t data);
 void smp_dwt_set_data_write(uint32_t addr);
 void smp_arch_dwt_trap_disable(void);

@@ -82,6 +82,7 @@ int cli_lwip_init(void);
 
 int cli_iperf_init(void);
 int cli_pwr_init(void);
+int cli_cp_hotplug_init(void);
 int cli_os_init(void);
 int cli_ota_init(void);
 
