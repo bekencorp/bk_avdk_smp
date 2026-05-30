@@ -28,6 +28,8 @@
 #if CONFIG_MAILBOX
 #include "bk_api_ipc.h"
 #endif
+#include <modules/pm.h>
+#include <driver/pwr_clk.h>
 #if CONFIG_USR_GPIO_CFG_EN
 #include "gpio_driver.h"     /* SOC-specific helpers: convert_gpio_dev_to_iomx_code, etc */
 #endif
@@ -105,6 +107,31 @@ static uint64_t s_gpio_is_setted_wake_status;
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
 static gpio_dynamic_wakeup_t s_gpio_dynamic_wakeup_source_map[CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT];
 #endif
+
+/* Latched + register-on-arrival GPIO-wakeup dispatch state.
+ *
+ * When AP is brought back up by a GPIO wake-source, the GPIO interrupt has
+ * already been serviced and cleared by CP. To make the application-layer
+ * callback fire once (and only once) symmetrically with the AP-online case,
+ * the v2px driver "latches" the wake-source gpio id at boot time
+ * (gpio_wakeup_latch_init) and delivers it the moment a matching
+ * bk_gpio_register_isr() call arrives on AP - regardless of whether the
+ * registration happens in bk_init, user_main, or any later runtime point.
+ *
+ * s_gpio_wakeup_pending[id] : true if id is the boot-time wake-source and
+ *                             its callback has not been replayed yet.
+ * s_gpio_wakeup_int_type[id]: int_type recorded by bk_gpio_set_wakeup(),
+ *                             also used as a "this id was registered as
+ *                             a wake source on AP" guard.
+ */
+static bool s_gpio_wakeup_pending[SOC_GPIO_NUM];
+static gpio_int_type_t s_gpio_wakeup_int_type[SOC_GPIO_NUM];
+static beken_thread_t s_gpio_wakeup_dispatcher_task;
+static beken_queue_t s_gpio_wakeup_dispatcher_queue;
+static bool s_gpio_wakeup_dispatcher_ready;
+
+#define GPIO_WAKEUP_DISPATCHER_QUEUE_DEPTH (8)
+#define GPIO_WAKEUP_DISPATCHER_STACK_SIZE  (1024)
 #endif
 
 #if CONFIG_GPIO_KPSTAT_SUPPORT
@@ -122,6 +149,9 @@ static void gpio_default_map_init(void);
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 static void gpio_wakeup_source_config(void);
 static void gpio_record_wakeup_pin_id(void);
+static void gpio_wakeup_latch_init(void);
+static void gpio_wakeup_dispatcher_thread(void *arg);
+static bk_err_t gpio_wakeup_dispatcher_start(void);
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
 static void gpio_dynamic_wakeup_source_init(void);
 #endif
@@ -164,6 +194,12 @@ bk_err_t bk_gpio_driver_init(void)
 #if CONFIG_ANA_GPIO
 	ana_gpio_wakeup_init();
 #endif
+
+	/* Start the wake-up callback dispatcher first, then latch the boot-time
+	 * wake-source so that any pending event published into pm_shared_info by
+	 * CP can be replayed once an application later calls bk_gpio_register_isr. */
+	gpio_wakeup_dispatcher_start();
+	gpio_wakeup_latch_init();
 #endif
 
 #if CONFIG_USR_GPIO_CFG_EN
@@ -392,6 +428,38 @@ bk_err_t bk_gpio_register_isr(gpio_id_t gpio_id, gpio_isr_t isr)
 	GPIO_RETURN_ON_INVALID_ID(gpio_id);
 
 	s_gpio_isr[gpio_id] = isr;
+
+#if CONFIG_GPIO_WAKEUP_SUPPORT
+	/* Latched wake-up replay: if AP boot was triggered by a GPIO wake-source
+	 * and the application is now (potentially much later than driver init)
+	 * registering its callback, push the gpio_id into the dispatcher queue
+	 * so the callback is invoked exactly once on a task context. NULL ISR
+	 * is treated as an explicit unregister - do not replay in that case. */
+	if (isr && s_gpio_wakeup_pending[gpio_id] && s_gpio_wakeup_dispatcher_ready) {
+		gpio_id_t pending_id = gpio_id;
+		s_gpio_wakeup_pending[gpio_id] = false;
+		if (rtos_push_to_queue(&s_gpio_wakeup_dispatcher_queue, &pending_id,
+					BEKEN_NO_WAIT) != kNoErr) {
+			GPIO_LOGW("%s:dispatch wake replay failed gpio_id=%d\r\n",
+				__func__, gpio_id);
+		}
+	}
+#endif
+
+	return BK_OK;
+}
+
+bk_err_t bk_gpio_unregister_isr(gpio_id_t gpio_id)
+{
+	GPIO_RETURN_ON_INVALID_ID(gpio_id);
+
+	s_gpio_isr[gpio_id] = NULL;
+
+#if CONFIG_GPIO_WAKEUP_SUPPORT
+	/* Drop any pending replay so a future register_isr does not deliver
+	 * a stale wake-up to the wrong owner. */
+	s_gpio_wakeup_pending[gpio_id] = false;
+#endif
 
 	return BK_OK;
 }
@@ -776,6 +844,86 @@ static void gpio_record_wakeup_pin_id(void)
 	/* AP does not scan wakeup GPIO; CP fills pm_shared_info.gpio_id via shared memory */
 }
 
+/* Worker that delivers latched GPIO wake-up events to the application
+ * callback in a task context. Sharing s_gpio_isr[] with the AP-online ISR
+ * keeps the application-visible callback path identical between the two
+ * scenarios. */
+static void gpio_wakeup_dispatcher_thread(void *arg)
+{
+	gpio_id_t id = SOC_GPIO_NUM;
+
+	(void)arg;
+
+	for (;;) {
+		if (rtos_pop_from_queue(&s_gpio_wakeup_dispatcher_queue, &id,
+					BEKEN_WAIT_FOREVER) != kNoErr) {
+			continue;
+		}
+
+		if (id >= SOC_GPIO_NUM) {
+			continue;
+		}
+
+		gpio_isr_t cb = s_gpio_isr[id];
+		if (cb) {
+			GPIO_LOGD("%s:replay wake-up callback gpio_id=%d\r\n", __func__, id);
+			cb(id);
+		}
+	}
+}
+
+static bk_err_t gpio_wakeup_dispatcher_start(void)
+{
+	bk_err_t ret;
+
+	if (s_gpio_wakeup_dispatcher_ready) {
+		return BK_OK;
+	}
+
+	ret = rtos_init_queue(&s_gpio_wakeup_dispatcher_queue,
+				"gpio_wk_q",
+				sizeof(gpio_id_t),
+				GPIO_WAKEUP_DISPATCHER_QUEUE_DEPTH);
+	if (ret != BK_OK) {
+		GPIO_LOGE("%s:queue init failed=%d\r\n", __func__, ret);
+		return ret;
+	}
+
+	ret = rtos_create_thread(&s_gpio_wakeup_dispatcher_task,
+				BEKEN_DEFAULT_WORKER_PRIORITY,
+				"gpio_wk_thd",
+				(beken_thread_function_t)gpio_wakeup_dispatcher_thread,
+				GPIO_WAKEUP_DISPATCHER_STACK_SIZE,
+				NULL);
+	if (ret != BK_OK) {
+		GPIO_LOGE("%s:thread create failed=%d\r\n", __func__, ret);
+		rtos_deinit_queue(&s_gpio_wakeup_dispatcher_queue);
+		return ret;
+	}
+
+	s_gpio_wakeup_dispatcher_ready = true;
+	return BK_OK;
+}
+
+/* Mark the boot-time wake-source GPIO as "callback pending". The
+ * application's bk_gpio_register_isr() will detect this and trigger a
+ * one-shot delivery via the dispatcher queue. Cold boots set
+ * PM_AP_WORK_STATE_FIRST_BOOT and skip latching. */
+static void gpio_wakeup_latch_init(void)
+{
+	if (bk_pm_ap_first_boot_get()) {
+		return;
+	}
+
+	gpio_id_t id = bk_gpio_get_wakeup_gpio_id();
+	if (id >= SOC_GPIO_NUM) {
+		return;
+	}
+
+	s_gpio_wakeup_pending[id] = true;
+	GPIO_LOGD("%s:latched wake-source gpio_id=%d\r\n", __func__, id);
+}
+
 bk_err_t gpio_enable_interrupt_mult_for_wake(void)
 {
 #if CONFIG_ANA_GPIO
@@ -893,7 +1041,76 @@ static void gpio_dynamic_wakeup_source_init(void)
 
 	GPIO_LOGV("%s[-]\r\n", __func__);
 }
-#else
+
+/* One-call helper that wires up everything required for a GPIO to act
+ * as a wake-up source under the unified API model:
+ *
+ *   1. Push the dynamic wake source row into CP via gpio_ipc, so CP keeps
+ *      the wake table refreshed before AP enters low-voltage.
+ *   2. Tell CP-PM (via MB_CHNL_PWC) to install pm_core_gpio_callback on
+ *      this pin, so a GPIO edge after AP power-off can vote AP back on.
+ *   3. Mirror the AP-side bookkeeping (s_gpio_is_setted_wake_status and
+ *      s_gpio_wakeup_int_type[]) so that the AP-online gpio_isr also
+ *      publishes the latest wake-source id into pm_shared_info.
+ *
+ * Pairing this call with bk_gpio_register_isr() lets the application use
+ * one callback for both the AP-online interrupt path and the AP-offline
+ * latched-replay path (see gpio_wakeup_latch_init / register_isr).
+ */
+bk_err_t bk_gpio_set_wakeup(gpio_id_t gpio_id, gpio_int_type_t int_type, bool enable)
+{
+	bk_err_t ret;
+
+	GPIO_RETURN_ON_INVALID_ID(gpio_id);
+
+	if (enable) {
+		GPIO_RETURN_ON_INVALID_INT_TYPE_MODE(int_type);
+
+		ret = bk_gpio_register_wakeup_source(gpio_id, int_type);
+		if (ret != BK_OK) {
+			GPIO_LOGW("%s:register wake source failed=%d gpio_id=%d\r\n",
+				__func__, ret, gpio_id);
+			return ret;
+		}
+
+#if CONFIG_PM_CLIENT
+		/* CONFIG_PM_CLIENT is the linkable side of bk_pm_ap_gpio_wakeup_source_config
+		 * on AP (defined in bk_pm/src/clients/bk_pm_client_mailbox.c). When the
+		 * client side of PM is disabled the helper is unavailable, so we only
+		 * push the IPC dynamic wake row and let the application know it must
+		 * provide its own LV wake-up bring-up on AP. */
+		pm_gpio_wakeup_config_t gpio_wakeup = {
+			.gpio_id = (uint16_t)gpio_id,
+			.int_type = (uint16_t)int_type,
+		};
+		ret = bk_pm_ap_gpio_wakeup_source_config(PM_MODE_LOW_VOLTAGE,
+				PM_WAKEUP_SOURCE_INT_GPIO,
+				&gpio_wakeup);
+		if (ret != BK_OK) {
+			GPIO_LOGW("%s:cp pm gpio wake config failed=%d gpio_id=%d\r\n",
+				__func__, ret, gpio_id);
+			bk_gpio_unregister_wakeup_source(gpio_id);
+			return ret;
+		}
+#endif
+
+		s_gpio_is_setted_wake_status |= ((uint64_t)0x1 << gpio_id);
+		s_gpio_wakeup_int_type[gpio_id] = int_type;
+	} else {
+		ret = bk_gpio_unregister_wakeup_source(gpio_id);
+		if (ret != BK_OK) {
+			GPIO_LOGW("%s:unregister wake source failed=%d gpio_id=%d\r\n",
+				__func__, ret, gpio_id);
+		}
+
+		s_gpio_is_setted_wake_status &= ~((uint64_t)0x1 << gpio_id);
+		s_gpio_wakeup_int_type[gpio_id] = 0;
+		s_gpio_wakeup_pending[gpio_id] = false;
+	}
+
+	return ret;
+}
+#else /* CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT */
 bk_err_t bk_gpio_register_wakeup_source(gpio_id_t gpio_id,
                                                  gpio_int_type_t int_type)
 {
@@ -904,7 +1121,23 @@ bk_err_t bk_gpio_unregister_wakeup_source(gpio_id_t gpio_id)
 {
 	return BK_OK;
 }
+
+bk_err_t bk_gpio_set_wakeup(gpio_id_t gpio_id, gpio_int_type_t int_type, bool enable)
+{
+	(void)gpio_id;
+	(void)int_type;
+	(void)enable;
+	return BK_ERR_NOT_SUPPORT;
+}
 #endif
+#else /* CONFIG_GPIO_WAKEUP_SUPPORT */
+bk_err_t bk_gpio_set_wakeup(gpio_id_t gpio_id, gpio_int_type_t int_type, bool enable)
+{
+	(void)gpio_id;
+	(void)int_type;
+	(void)enable;
+	return BK_ERR_NOT_SUPPORT;
+}
 #endif
 
 #if CONFIG_GPIO_KPSTAT_SUPPORT

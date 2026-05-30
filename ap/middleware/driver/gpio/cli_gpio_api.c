@@ -23,6 +23,20 @@
 extern void print_help(const char *progname, void **argtable);
 extern void common_cmd_handler(int argc, char **argv, void **argtable, int argtable_size, void (*handler)(void **argtable));
 
+#if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
+/* End-to-end test hook for the unified GPIO wake-up API. The same callback
+ * is delivered both for AP-online interrupts and for the latched replay
+ * after AP is woken from low-voltage by CP. The CLI just registers the
+ * callback and arms the wake source - it does NOT vote AP into sleep, so
+ * it can be combined with the existing pm CLI commands to sequence the
+ * full LV scenario from a single shell session. */
+static void cli_gpio_wakeup_test_callback(gpio_id_t gpio_id)
+{
+	CLI_LOGI("wakeup callback fired on gpio_id=%d (ts=%u)\r\n",
+		(int)gpio_id, (unsigned)rtos_get_time());
+}
+#endif
+
 static void cli_gpio_api_cmd_handler(void **argtable)
 {
     struct arg_lit *help = (struct arg_lit *)argtable[0];
@@ -189,6 +203,22 @@ static void cli_gpio_api_cmd_handler(void **argtable)
             CLI_LOGD("GPIO %d driver unregister wakeup successfully\r\n", gpio_id);
         } else if (strcmp(wake_up->sval[0], "get_id") == 0) {
             CLI_LOGD("GET wakeup gpio id: %d\r\n", bk_gpio_get_wakeup_gpio_id());
+        } else if (strcmp(wake_up->sval[0], "test_on") == 0) {
+            /* arggpio -i <id> -w test_on -m <int_type>
+             *   Wires bk_gpio_register_isr + bk_gpio_set_wakeup so that
+             *   the same callback fires whether AP is online or the chip
+             *   is brought back up from low-voltage by this GPIO. */
+            gpio_int_type_t int_type = (gpio_int_type_t)gpio_mode;
+            BK_LOG_ON_ERR(bk_gpio_register_isr(gpio_id, cli_gpio_wakeup_test_callback));
+            BK_LOG_ON_ERR(bk_gpio_set_interrupt_type(gpio_id, int_type));
+            BK_LOG_ON_ERR(bk_gpio_enable_interrupt(gpio_id));
+            BK_LOG_ON_ERR(bk_gpio_set_wakeup(gpio_id, int_type, true));
+            CLI_LOGD("GPIO %d wakeup_test armed (int_type=%d)\r\n", gpio_id, int_type);
+        } else if (strcmp(wake_up->sval[0], "test_off") == 0) {
+            BK_LOG_ON_ERR(bk_gpio_set_wakeup(gpio_id, 0, false));
+            BK_LOG_ON_ERR(bk_gpio_disable_interrupt(gpio_id));
+            BK_LOG_ON_ERR(bk_gpio_unregister_isr(gpio_id));
+            CLI_LOGD("GPIO %d wakeup_test disarmed\r\n", gpio_id);
         } else {
             CLI_LOGE("Invalid parameter for wake up: %s\r\n", wake_up->sval[0]);
         }
@@ -273,7 +303,7 @@ static void cli_arggpio_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, 
     struct arg_str *type = arg_str0("t", "type", "<0/1/2/3>", "GPIO interrupt type");
     struct arg_str *get = arg_str0("g", "get", "<input/value>", "GPIO get informaiton");
     struct arg_str *intterrupt = arg_str0("n", "gpio_intterrupt", "<enable/disable/clear>", "GPIO intterrupt config");
-    struct arg_str *wake_up = arg_str0("w", "wake_up", "<register/unregister/get_id>", "GPIO wake up config");
+    struct arg_str *wake_up = arg_str0("w", "wake_up", "<register/unregister/get_id/test_on/test_off>", "GPIO wake up config (test_on/off uses the unified bk_gpio_set_wakeup API)");
     struct arg_str *status = arg_str0("u", "lowpower_keep_status", "<register/unregister/external_ldo>", "Control the external ldo,multi modules power on use one gpio control");
     struct arg_str *io_mode = arg_str0("o", "io_mode", "<0/1/2>", "Set gpio io mode");
     struct arg_str *retention = arg_str0("r", "gpio_retention", "<set/clr>", "Set GPIO retention config");

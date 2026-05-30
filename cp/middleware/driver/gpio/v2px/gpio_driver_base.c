@@ -362,6 +362,15 @@ bk_err_t bk_gpio_register_isr(gpio_id_t gpio_id, gpio_isr_t isr)
 	return BK_OK;
 }
 
+bk_err_t bk_gpio_unregister_isr(gpio_id_t gpio_id)
+{
+	GPIO_RETURN_ON_INVALID_ID(gpio_id);
+
+	s_gpio_isr[gpio_id] = NULL;
+
+	return BK_OK;
+}
+
 //This function just enable the select GPIO can report IRQ to CPU
 bk_err_t bk_gpio_enable_interrupt(gpio_id_t gpio_id)
 {
@@ -1156,6 +1165,11 @@ static uint32_t bk_ipc_set_ap_wakeup(uint8_t *data, uint32_t size, void *param, 
 			GPIO_LOGD("%s:unregister wakeup source gpio_id = %d \r\n", __func__,
 				lowerpower_info->header.gpio_id);
 			bk_gpio_unregister_wakeup_source(lowerpower_info->header.gpio_id);
+			/* Disable points to pm_core_gpio_callback installed by
+			 * bk_pm_ap_gpio_wakeup_source_config(). Drop it here so that
+			 * a subsequent GPIO edge cannot vote AP back up via stale
+			 * PM bookkeeping after the source has been retired. */
+			bk_gpio_unregister_isr(lowerpower_info->header.gpio_id);
 			break;
 
 #if CONFIG_GPIO_KPSTAT_SUPPORT && CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT

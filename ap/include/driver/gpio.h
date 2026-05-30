@@ -512,6 +512,37 @@ bk_err_t bk_gpio_wakeup_interrupt_clear();
 
 #endif
 
+/**
+ * @brief     Enable / disable a GPIO as a system-wide wake-up source.
+ *
+ * Convenience wrapper around bk_gpio_register_wakeup_source() and
+ * bk_pm_ap_gpio_wakeup_source_config(). When paired with
+ * bk_gpio_register_isr(), the same callback is invoked once in either of
+ * these scenarios:
+ *   - AP is online: the standard GPIO interrupt path delivers the callback.
+ *   - AP was powered off in low-voltage: CP catches the GPIO edge, brings
+ *     AP back up, and the GPIO driver replays the callback exactly once on
+ *     a worker task as soon as the application calls
+ *     bk_gpio_register_isr().
+ *
+ * Calling with enable=false unregisters the wake source on CP, drops the
+ * AP-side bookkeeping, and clears any pending replay event so it cannot be
+ * delivered to a later registrant.
+ *
+ * @param gpio_id   GPIO id to (un)configure as a wake source.
+ * @param int_type  Trigger type for the wake source (ignored when enable=false).
+ * @param enable    true: register; false: unregister.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_GPIO_INVALID_ID / BK_ERR_GPIO_INVALID_INT_TYPE: bad input
+ *    - BK_ERR_GPIO_WAKESOURCE_OVER_MAX_CNT: too many wake sources on CP
+ *    - BK_ERR_NOT_SUPPORT: CONFIG_GPIO_WAKEUP_SUPPORT or
+ *      CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT is disabled
+ *    - others: passthrough errors from the underlying IPC / mailbox calls.
+ */
+bk_err_t bk_gpio_set_wakeup(gpio_id_t gpio_id, gpio_int_type_t int_type, bool enable);
+
 #if CONFIG_GPIO_ANA_WAKEUP_SUPPORT
 /**
  * @brief     Register the GPIO analog channel to wakeup system with select int type.

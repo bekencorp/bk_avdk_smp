@@ -4,6 +4,8 @@
 #include <components/shell_task.h>
 #include <driver/mailbox.h>
 #include "cli.h"
+#include <driver/gpio.h>
+#include <driver/gpio_types.h>
 #include <driver/pwr_clk.h>
 #include <modules/pm.h>
 #include "driver/pm_ap_core.h"
@@ -129,21 +131,12 @@ static bk_err_t pm_demo_message_handle(void)
 					low_power_info.param_p                    = NULL;
 					bk_pm_ap_rtc_regsiter_wakeup(PM_MODE_LOW_VOLTAGE,&low_power_info);
 
-					/*config gpio wakeup source*/
+					/* Single-call wake source config: register the GPIO ISR
+					 * (used both for AP-online edges and for the latched replay
+					 * after CP wakes AP back up) and arm the wake source on CP. */
 					#if CONFIG_GPIO_WAKEUP_SUPPORT
 					bk_gpio_register_isr(gpio_id, pm_demo_gpio_callback);
-					bk_gpio_register_wakeup_source(gpio_id,gpio_wakeup_int_type);
-					/* Tell CP-PM to install pm_core_gpio_callback on this pin so the
-					 * GPIO edge can boot AP back up after AP is powered off in LV. */
-					{
-						pm_gpio_wakeup_config_t gpio_wakeup = {
-							(uint16_t)gpio_id,
-							(uint16_t)gpio_wakeup_int_type
-						};
-						bk_pm_ap_gpio_wakeup_source_config(PM_MODE_LOW_VOLTAGE,
-						                                   PM_WAKEUP_SOURCE_INT_GPIO,
-						                                   &gpio_wakeup);
-					}
+					bk_gpio_set_wakeup(gpio_id, (gpio_int_type_t)gpio_wakeup_int_type, true);
 					#endif //CONFIG_GPIO_WAKEUP_SUPPORT
 
 					/*APP vote enter low voltage*/
@@ -176,21 +169,10 @@ static bk_err_t pm_demo_message_handle(void)
 					low_power_info.param_p                    = NULL;
 					bk_pm_ap_rtc_regsiter_wakeup(PM_MODE_DEEP_SLEEP,&low_power_info);
 
-					/*config gpio wakeup source*/
+					/* Same unified path for deep-sleep GPIO wake. */
 					#if CONFIG_GPIO_WAKEUP_SUPPORT
 					bk_gpio_register_isr(gpio_id, pm_demo_gpio_callback);
-					bk_gpio_register_wakeup_source(gpio_id,gpio_wakeup_int_type);
-					/* Same as LV branch: hand the wake source to CP-PM so that CP
-					 * installs pm_core_gpio_callback for the deep-sleep GPIO wake. */
-					{
-						pm_gpio_wakeup_config_t gpio_wakeup = {
-							(uint16_t)gpio_id,
-							(uint16_t)gpio_wakeup_int_type
-						};
-						bk_pm_ap_gpio_wakeup_source_config(PM_MODE_DEEP_SLEEP,
-						                                   PM_WAKEUP_SOURCE_INT_GPIO,
-						                                   &gpio_wakeup);
-					}
+					bk_gpio_set_wakeup(gpio_id, (gpio_int_type_t)gpio_wakeup_int_type, true);
 					#endif //CONFIG_GPIO_WAKEUP_SUPPORT
 
 					/*Enter deep sleep*/
