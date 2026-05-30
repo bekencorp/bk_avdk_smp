@@ -25,6 +25,14 @@ menu "Ota"
 		default n
 		help
 			enable ota evade method
+	config OTA_HTTP
+		depends on HTTP
+		bool "Enable Ota Http"
+		default y if NO_HOSTED
+		default n if !NO_HOSTED
+		help
+			Enable HTTP OTA. Requires CONFIG_HTTP (which itself requires LWIP_V2_1),
+			because the implementation calls httpclient_common() from utils_httpc.c.
 	config OTA_HTTPS
 		depends on LWIP
 		bool "Enable Https ota"
