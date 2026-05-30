@@ -271,6 +271,7 @@ static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 boot_ap:
 		#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
 		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
+		bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_240M);
 		#endif
 		#if CONFIG_DEEP_LV
 		if(g_enter_sleep == 0x1)
@@ -416,6 +417,7 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
 			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 1, 0);
+			bk_pm_module_vote_cpu_freq(PM_DEV_ID_CPU1,PM_CPU_FRQ_DEFAULT);
 			#endif
 			bk_printf_nonblock(4,NULL,"Shutdown_cp1[%d][%d][%d]\r\n",s_pm_cp1_closing,ret,s_pm_cp1_sema_count); //4:BK_LOG_DEBUG
 			LOGI("pm_dbg ap_power_off: shutdown done closing=%d sema=%d\r\n", s_pm_cp1_closing, s_pm_cp1_sema_count);
