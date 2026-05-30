@@ -78,6 +78,30 @@ void usb_hc_riscv_stop_firmware(void)
     s_host_started = 0U;
 }
 
+/* MILESTONE A: device-side bridge entry stub.
+ *
+ * Intentionally returns -1 so usb_dc_low_level_init() in
+ * usb_dc_beken_musb_mhdrc.c keeps registering USBD_IRQHandler on the M55
+ * and the device path runs unchanged. The full device path (load a
+ * dual-role RISC-V firmware, route INT_SRC_USB_HS to RISC-V, publish the
+ * shared-memory device region with riscv_usbd_probe_t fields, ack-back
+ * via IPI) is staged in the follow-up milestone -- see
+ * docs/USB重构/07-M55_RISCV_USB桥设计.md §5.
+ *
+ * Implementation note for the follow-up: most of the heavy lifting is
+ * already provided by usb_hc_riscv_start_firmware() above (power-on,
+ * IRQ route to RISC-V, fw memcpy, boot_param hand-off, core release).
+ * The device variant only needs (a) a dual-role firmware blob from
+ * bk_riscv_usb_dual_fw_addr/_len(), (b) to set
+ * sys_sw_regs_ptr()->riscv_usb_probe.role = RISCV_USB_ROLE_DEVICE before
+ * starting the core, and (c) a refcount-aware start/stop policy that
+ * matches bk_usb_open/bk_usb_close.
+ */
+int usb_dc_riscv_device_prepare(void)
+{
+    return -1;
+}
+
 int usb_hc_riscv_host_prepare(void)
 {
     const unsigned char *fw = bk_riscv_usb_host_fw_addr();

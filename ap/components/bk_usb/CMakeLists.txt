@@ -86,6 +86,21 @@ if (CONFIG_USB)
 		endif() # CONFIG_USBD_HID
 	endif() # CONFIG_USB_DEVICE
 
+	# RISC-V USB bridge plumbing is shared by the host AND device paths.
+	# Pull it in once at the CONFIG_USB level so a device-only build (e.g.
+	# usb_example/ap/config/bk7259_ap/defconfig with USB_DEVICE=y +
+	# USBD_MSC=y) can also opt into CONFIG_USB_RISCV_BRIDGE without first
+	# forcing CONFIG_USB_HOST=y. The host call site (usb_hc_beken_musb.c)
+	# is itself still gated by CONFIG_USB_HOST below.
+	if (CONFIG_USB_RISCV_BRIDGE)
+		list(APPEND incs
+			CherryUSB/port/beken_musb/riscv_bridge
+		)
+		list(APPEND srcs
+			CherryUSB/port/beken_musb/riscv_bridge/riscv_usb_bridge.c
+		)
+	endif() # CONFIG_USB_RISCV_BRIDGE
+
 	if (CONFIG_USB_HOST)
 		list(APPEND incs
 			CherryUSB/demo/beken/usb_host
@@ -94,15 +109,6 @@ if (CONFIG_USB)
 			CherryUSB/core/usbh_core.c
 			CherryUSB/port/beken_musb/usb_hc_beken_musb.c
 		)
-
-		if (CONFIG_USB_RISCV_BRIDGE)
-			list(APPEND incs
-				CherryUSB/port/beken_musb/riscv_bridge
-			)
-			list(APPEND srcs
-				CherryUSB/port/beken_musb/riscv_bridge/riscv_usb_bridge.c
-			)
-		endif() # CONFIG_USB_RISCV_BRIDGE
 
 		if (CONFIG_USB_HUB)
 			list(APPEND srcs

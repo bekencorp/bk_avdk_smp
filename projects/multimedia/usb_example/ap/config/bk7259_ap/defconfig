@@ -141,7 +141,17 @@ CONFIG_INTERRUPT_GAP_DETECT_US=50000
 
 CONFIG_TASK_WDT=n
 
-
+# MILESTONE A (docs/USB重构/07-M55_RISCV_USB桥设计.md §5 step 1):
+# Turn on the RISC-V USB bridge plumbing in a device-only build. At this
+# milestone the device-side bridge entry usb_dc_riscv_device_prepare()
+# is a -1 stub, so usb_dc_low_level_init() in
+# CherryUSB/port/beken_musb/usb_dc_beken_musb_mhdrc.c falls back to the
+# legacy M55-resident USBD_IRQHandler path -- USBD MSC behaviour is
+# expected to be byte-for-byte identical to the CONFIG_USB_RISCV_BRIDGE=n
+# build. Look for the bring-up log:
+#   [usb_dc_ll] RISC-V device bridge unavailable (rc=-1); using M55 USBD_IRQHandler path
+# to confirm the fallback fired correctly.
+CONFIG_USB_RISCV_BRIDGE=y
 CONFIG_SDCARD=y
 CONFIG_FATFS=y
 CONFIG_FATFS_SDCARD=y
@@ -150,7 +160,3 @@ CONFIG_USB=y
 CONFIG_USB_DEVICE=y
 CONFIG_USBD_MSC=y
 CONFIG_SUPPORT_WWDT=n
-CONFIG_USB_RISCV_BRIDGE=n
-CONFIG_FREERTOS_SMP=n
-CONFIG_FREERTOS_V10=y
-CONFIG_SOC_SMP=n

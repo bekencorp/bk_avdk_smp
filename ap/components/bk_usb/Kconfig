@@ -124,13 +124,24 @@ menu "Bk_usb"
 			default n
 
 		config USB_RISCV_BRIDGE
-			depends on USB_HOST
+			depends on USB_HOST || USB_DEVICE
 			depends on IPI
 			bool "Enable RISC-V USB bridge"
 			default y
 			help
 				Enable the RISC-V USB bridge path. USB interrupt handling runs on
 				RISC-V and events are reported back to AP through shared memory + IPI.
+
+				Host mode: fully implemented; AP-side USBH IRQ is owned by RISC-V
+				firmware (see riscv_usb_bridge.c::usb_hc_riscv_host_prepare()).
+
+				Device mode: scaffolding only at this milestone. With
+				CONFIG_USB_DEVICE=y the bridge code links in, but
+				usb_dc_riscv_device_prepare() is a stub returning -1; the
+				CherryUSB device port detects the stub failure and falls back to
+				the original M55-resident USBD_IRQHandler path. The shared
+				memory protocol + RISC-V firmware device path will be wired up
+				in the follow-up milestone (see docs/USB重构/07-*.md §5).
 
 		config USB_RISCV_LOG_UART
 			depends on USB_RISCV_BRIDGE

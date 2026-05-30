@@ -11,6 +11,8 @@
 
 #include <components/usb.h>
 
+#include "riscv_bridge/riscv_usb_bridge.h"
+
 #define HWREG(x) \
     (*((volatile uint32_t *)(x)))
 #define HWREGH(x) \
@@ -238,19 +240,39 @@ __WEAK void usb_dc_low_level_init(void)
      * jump to PC=0 -- exactly the MemFault pattern we are debugging
      * (see cmds/input.txt). Defensive: we still register so the
      * crash, if any, is reproducible, but we LOUDLY warn first. */
-    USB_LOG_INFO("[usb_dc_ll] register INT_SRC_USB_HS isr=%p\r\n", (void*)USBD_IRQHandler);
-    if (USBD_IRQHandler == NULL) {
-        USB_LOG_ERR("[usb_dc_ll] USBD_IRQHandler is NULL -- next USB IRQ will MemFault\r\n");
+    /* MILESTONE A: try the RISC-V USB bridge first. The stub currently
+     * returns -1 (see riscv_usb_bridge.c::usb_dc_riscv_device_prepare()),
+     * so we always fall through to the legacy M55 path below. The probe
+     * is wired here, so the follow-up milestone only needs to flip the
+     * stub return value -- the call site is already in place and the
+     * regression behaviour (M55 fallback on bridge failure) is the safe
+     * default. */
+    int riscv_bridge_rc = -1;
+#if CONFIG_USB_RISCV_BRIDGE
+    riscv_bridge_rc = usb_dc_riscv_device_prepare();
+    if (riscv_bridge_rc == 0) {
+        USB_LOG_INFO("[usb_dc_ll] USBD IRQ now owned by RISC-V bridge; skip M55 ISR registration\r\n");
+    } else {
+        USB_LOG_INFO("[usb_dc_ll] RISC-V device bridge unavailable (rc=%d); using M55 USBD_IRQHandler path\r\n",
+                     riscv_bridge_rc);
     }
-    bk_int_isr_register(INT_SRC_USB_HS, USBD_IRQHandler, NULL);
-    bk_int_set_priority(INT_SRC_USB_HS, 2);
-#if CONFIG_SOC_SMP
-    USB_LOG_INFO("[usb_dc_ll] enable INT_SRC_USB_HS on CPU2 (SMP)\r\n");
-    sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_USB_HS, 1);
-#else
-    USB_LOG_INFO("[usb_dc_ll] enable INT_SRC_USB_HS on current core\r\n");
-    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_USB_HS, 1);
 #endif
+
+    if (riscv_bridge_rc != 0) {
+        USB_LOG_INFO("[usb_dc_ll] register INT_SRC_USB_HS isr=%p\r\n", (void*)USBD_IRQHandler);
+        if (USBD_IRQHandler == NULL) {
+            USB_LOG_ERR("[usb_dc_ll] USBD_IRQHandler is NULL -- next USB IRQ will MemFault\r\n");
+        }
+        bk_int_isr_register(INT_SRC_USB_HS, USBD_IRQHandler, NULL);
+        bk_int_set_priority(INT_SRC_USB_HS, 2);
+#if CONFIG_SOC_SMP
+        USB_LOG_INFO("[usb_dc_ll] enable INT_SRC_USB_HS on CPU2 (SMP)\r\n");
+        sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_USB_HS, 1);
+#else
+        USB_LOG_INFO("[usb_dc_ll] enable INT_SRC_USB_HS on current core\r\n");
+        sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_USB_HS, 1);
+#endif
+    }
 #else  /* CONFIG_SOC_BK7259 */
     sys_drv_int_enable(USB_INTERRUPT_CTRL_BIT);
 

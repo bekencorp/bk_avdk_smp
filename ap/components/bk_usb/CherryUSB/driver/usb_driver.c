@@ -345,7 +345,7 @@ bk_err_t bk_usb_open(uint32_t usb_mode)
 	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_USB_1, 0, 0);
 	USB_DRIVER_LOGI("USB_DRV_USB_OPEN!\r\n");
 	if(usb_mode == USB_HOST_MODE) {
-#if CONFIG_USB_HOST	
+#if CONFIG_USB_HOST
 		bk_analog_layer_usb_sys_related_ops(USB_HOST_MODE, true);
 		usbh_initialize();
 #endif
