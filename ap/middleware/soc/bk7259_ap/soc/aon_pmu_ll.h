@@ -1126,9 +1126,9 @@ static inline uint32_t aon_pmu_ll_get_r7d_value(void) {
 	return r->v;
 }
 
-static inline uint32_t aon_pmu_ll_get_r7d_lcal(void) {
+static inline uint32_t aon_pmu_ll_get_r7d_lcal_dac(void) {
 	aon_pmu_r7d_t *r = (aon_pmu_r7d_t*)(SOC_AON_PMU_REG_BASE + (0x7d << 2));
-	return r->lcal;
+	return r->lcal_dac;
 }
 
 static inline uint32_t aon_pmu_ll_get_r7d_l(void) {
@@ -1151,9 +1151,34 @@ static inline uint32_t aon_pmu_ll_get_r7d_sig_26mpll_unlock(void) {
 	return r->sig_26mpll_unlock;
 }
 
-static inline uint32_t aon_pmu_ll_get_r7d_dpll_unlock(void) {
+static inline uint32_t aon_pmu_ll_get_r7d_dpll_unlock_l(void) {
 	aon_pmu_r7d_t *r = (aon_pmu_r7d_t*)(SOC_AON_PMU_REG_BASE + (0x7d << 2));
-	return r->dpll_unlock;
+	return r->dpll_unlock_l;
+}
+
+static inline uint32_t aon_pmu_ll_get_r7d_dpll_unlock_h(void) {
+	aon_pmu_r7d_t *r = (aon_pmu_r7d_t*)(SOC_AON_PMU_REG_BASE + (0x7d << 2));
+	return r->dpll_unlock_h;
+}
+
+static inline uint32_t aon_pmu_ll_get_r7d_apll_unlock(void) {
+	aon_pmu_r7d_t *r = (aon_pmu_r7d_t*)(SOC_AON_PMU_REG_BASE + (0x7d << 2));
+	return r->apll_unlock;
+}
+
+static inline uint32_t aon_pmu_ll_get_r7d_btpll_unlock(void) {
+	aon_pmu_r7d_t *r = (aon_pmu_r7d_t*)(SOC_AON_PMU_REG_BASE + (0x7d << 2));
+	return r->btpll_unlock;
+}
+
+static inline uint32_t aon_pmu_ll_get_r7d_calfail_btpll(void) {
+	aon_pmu_r7d_t *r = (aon_pmu_r7d_t*)(SOC_AON_PMU_REG_BASE + (0x7d << 2));
+	return r->calfail_btpll;
+}
+
+static inline uint32_t aon_pmu_ll_get_r7d_dpll_band(void) {
+	aon_pmu_r7d_t *r = (aon_pmu_r7d_t*)(SOC_AON_PMU_REG_BASE + (0x7d << 2));
+	return r->dpll_band;
 }
 
 static inline uint32_t aon_pmu_ll_get_r7d_h(void) {
@@ -1183,9 +1208,19 @@ static inline uint32_t aon_pmu_ll_get_r7e_ad_state(void) {
 	return r->ad_state;
 }
 
-static inline uint32_t aon_pmu_ll_get_r7e_td_states1(void) {
+static inline uint32_t aon_pmu_ll_get_r7e_bandcal(void) {
 	aon_pmu_r7e_t *r = (aon_pmu_r7e_t*)(SOC_AON_PMU_REG_BASE + (0x7e << 2));
-	return r->td_states1;
+	return r->bandcal;
+}
+
+static inline uint32_t aon_pmu_ll_get_r7e_cap_mod2_ls(void) {
+	aon_pmu_r7e_t *r = (aon_pmu_r7e_t*)(SOC_AON_PMU_REG_BASE + (0x7e << 2));
+	return r->cap_mod2_ls;
+}
+
+static inline uint32_t aon_pmu_ll_get_r7e_cap_mod2_hs(void) {
+	aon_pmu_r7e_t *r = (aon_pmu_r7e_t*)(SOC_AON_PMU_REG_BASE + (0x7e << 2));
+	return r->cap_mod2_hs;
 }
 
 static inline uint32_t aon_pmu_ll_get_r7e_h(void) {

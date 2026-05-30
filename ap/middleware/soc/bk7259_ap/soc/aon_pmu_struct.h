@@ -282,13 +282,18 @@ typedef volatile union {
 
 typedef volatile union {
 	struct {
-		uint32_t lcal                             :  8; /**<bit[0 : 7] */
+		uint32_t lcal_dac                         :  8; /**<bit[0 : 7] */
 		uint32_t l                                :  1; /**<bit[8 : 8] */
 		uint32_t adc_cal                          :  6; /**<bit[9 : 14] */
 		uint32_t bgcal                            :  6; /**<bit[15 : 20] */
 		uint32_t sig_26mpll_unlock                :  1; /**<bit[21 : 21] */
-		uint32_t dpll_unlock                      :  1; /**<bit[22 : 22] */
-		uint32_t h                                :  9; /**<bit[23 : 31] */
+		uint32_t dpll_unlock_l                    :  1; /**<bit[22 : 22] */
+		uint32_t dpll_unlock_h                    :  1; /**<bit[23 : 23] */
+		uint32_t apll_unlock                      :  1; /**<bit[24 : 24] */
+		uint32_t btpll_unlock                     :  1; /**<bit[25 : 25] */
+		uint32_t calfail_btpll                    :  1; /**<bit[26 : 26] */
+		uint32_t dpll_band                        :  4; /**<bit[27 : 30] */
+		uint32_t h                                :  1; /**<bit[31 : 31] */
 	};
 	uint32_t v;
 } aon_pmu_r7d_t;
@@ -297,9 +302,11 @@ typedef volatile union {
 typedef volatile union {
 	struct {
 		uint32_t cbcal                            :  5; /**<bit[0 : 4] */
-		uint32_t ad_state                         :  4; /**<bit[5 : 8] */
-		uint32_t td_states1                       : 13; /**<bit[9 : 21] */
-		uint32_t h                                : 10; /**<bit[22 : 31] */
+		uint32_t ad_state                         :  3; /**<bit[5 : 7] */
+		uint32_t bandcal                          :  8; /**<bit[8 : 15] */
+		uint32_t cap_mod2_ls                      :  7; /**<bit[16 : 22] */
+		uint32_t cap_mod2_hs                      :  8; /**<bit[23 : 30] */
+		uint32_t h                                :  1; /**<bit[31 : 31] */
 	};
 	uint32_t v;
 } aon_pmu_r7e_t;

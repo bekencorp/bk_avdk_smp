@@ -279,12 +279,17 @@ static void aon_pmu_dump_r7d(void)
 	aon_pmu_r7d_t *r = (aon_pmu_r7d_t *)(SOC_AON_PMU_REG_BASE + (0x7d << 2));
 
 	SOC_LOGI("r7d: %8x\r\n", REG_READ(SOC_AON_PMU_REG_BASE + (0x7d << 2)));
-	SOC_LOGI("	lcal: %8x\r\n", r->lcal);
+	SOC_LOGI("	lcal_dac: %8x\r\n", r->lcal_dac);
 	SOC_LOGI("	l: %8x\r\n", r->l);
 	SOC_LOGI("	adc_cal: %8x\r\n", r->adc_cal);
 	SOC_LOGI("	bgcal: %8x\r\n", r->bgcal);
 	SOC_LOGI("	sig_26mpll_unlock: %8x\r\n", r->sig_26mpll_unlock);
-	SOC_LOGI("	dpll_unlock: %8x\r\n", r->dpll_unlock);
+	SOC_LOGI("	dpll_unlock_l: %8x\r\n", r->dpll_unlock_l);
+	SOC_LOGI("	dpll_unlock_h: %8x\r\n", r->dpll_unlock_h);
+	SOC_LOGI("	apll_unlock: %8x\r\n", r->apll_unlock);
+	SOC_LOGI("	btpll_unlock: %8x\r\n", r->btpll_unlock);
+	SOC_LOGI("	calfail_btpll: %8x\r\n", r->calfail_btpll);
+	SOC_LOGI("	dpll_band: %8x\r\n", r->dpll_band);
 	SOC_LOGI("	h: %8x\r\n", r->h);
 }
 
@@ -295,7 +300,9 @@ static void aon_pmu_dump_r7e(void)
 	SOC_LOGI("r7e: %8x\r\n", REG_READ(SOC_AON_PMU_REG_BASE + (0x7e << 2)));
 	SOC_LOGI("	cbcal: %8x\r\n", r->cbcal);
 	SOC_LOGI("	ad_state: %8x\r\n", r->ad_state);
-	SOC_LOGI("	td_states1: %8x\r\n", r->td_states1);
+	SOC_LOGI("	bandcal: %8x\r\n", r->bandcal);
+	SOC_LOGI("	cap_mod2_ls: %8x\r\n", r->cap_mod2_ls);
+	SOC_LOGI("	cap_mod2_hs: %8x\r\n", r->cap_mod2_hs);
 	SOC_LOGI("	h: %8x\r\n", r->h);
 }
 
