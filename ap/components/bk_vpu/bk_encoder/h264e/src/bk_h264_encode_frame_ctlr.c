@@ -169,6 +169,7 @@ static void h264_encoder_entry(void *arg)
 
         hw_encoder_msg_t msg = {
             .type = HW_ENCODER_MSG_ENCODE,
+            .encoder_type = HW_ENCODER_TYPE_H264,
             .callback = h264_encode_msg_callback,
             .param = ctrl,
             .sem = NULL

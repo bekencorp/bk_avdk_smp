@@ -19,7 +19,7 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-/** 与解码侧 DECODE_FLEXA_LINES 一致：每 Flexa 块行数 */
+/** Lines per Flexa block; matches decoder-side DECODE_FLEXA_LINES. */
 #define H264_SW_FLEXA_LINES_PER_BLOCK (16U)
 
 // Handle encoding failure
@@ -200,6 +200,7 @@ static void h264_encoder_entry(void *arg)
 
         hw_encoder_msg_t msg = {
             .type = HW_ENCODER_MSG_ENCODE,
+            .encoder_type = HW_ENCODER_TYPE_H264,
             .callback = h264_encode_msg_callback,
             .param = ctrl,
             .sem = &ctrl->enc_done_sem,

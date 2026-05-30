@@ -36,29 +36,32 @@
 #define HW_ENCODER_TASK_STACK_SIZE  (4 * 1024)
 #define HW_ENCODER_QUEUE_SIZE       16
 
-// 编码器注册信息
+/* Registered encoder list node */
 typedef struct encoder_node {
     hw_encoder_type_t type;
     void *encoder_id;
     struct encoder_node *next;
 } encoder_node_t;
 
-// 硬件编码器控制器（单例）
+/* Hardware encoder controller singleton */
 typedef struct {
-    beken_thread_t task;
-    beken_queue_t msg_queue;
-    beken_mutex_t mutex;
-    
-    encoder_node_t *encoder_list;  // 注册的编码器链表
-    uint32_t encoder_count;        // 注册的编码器数量
-    bool hw_initialized;           // 硬件是否已初始化
+	beken_thread_t task;
+	beken_queue_t msg_queue;
+	beken_mutex_t mutex;
+
+	encoder_node_t *encoder_list;
+	uint32_t encoder_count;
+	bool hw_initialized;
+	volatile hw_encoder_type_t active_encoder_type;
 } hw_encoder_ctlr_t;
 
 // TODO FIX
 #define REG_SYS_BASE_ADDR  0x48000000
 
-extern void h264_vcenc_memalloc_register(void* (*pmalloc)(size_t), void (*pfree)(void*));
+extern void h264_vcenc_memalloc_register(void *(*pmalloc)(size_t), void (*pfree)(void *));
+extern void jpeg_vcenc_memalloc_register(void *(*pmalloc)(size_t), void (*pfree)(void *));
 extern void h264_vcenc_isr(void);
+extern void jpeg_vcenc_isr(void);
 
 static hw_encoder_ctlr_t *g_hw_encoder_ctlr = NULL;
 
@@ -80,14 +83,31 @@ void encode_free(void* pbuf){
 }
 #endif // CONFIG_H264_ENCODER_USE_OS_MALLOC
 
-static void encoder_int_isr()
+/*
+ * Same idea as hw_decoder_ctlr: dispatch IRQ by active encoder type so H.264 ISR
+ * does not clear state needed by JPEG polling; JPEG path only acks via jpeg_vcenc_isr.
+ */
+static void vcenc_shared_enc_isr(void)
 {
-    h264_vcenc_isr();
+	hw_encoder_type_t type = hw_encoder_get_active_encoder_type();
+
+	switch (type) {
+	case HW_ENCODER_TYPE_JPEG:
+		jpeg_vcenc_isr();
+		break;
+	case HW_ENCODER_TYPE_H264:
+		h264_vcenc_isr();
+		break;
+	default:
+		LOGW("spurious encoder irq, active_encoder_type=%d\r\n", type);
+		jpeg_vcenc_isr();
+		break;
+	}
 }
 
 static void encoder_int_register(void)
 {
-    bk_int_isr_register(INT_SRC_H26E, (int_group_isr_t)&encoder_int_isr, NULL);
+    bk_int_isr_register(INT_SRC_H26E, (int_group_isr_t)&vcenc_shared_enc_isr, NULL);
 #if CONFIG_SOC_SMP
     sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_H26E, 1);
 #else
@@ -105,7 +125,7 @@ static void encoder_int_deregister(void)
     bk_int_isr_unregister(INT_SRC_H26E);
 }
 
-// 硬件初始化（根据实际硬件实现）
+/* Hardware bring-up (clock/power/IRQ and VCENC alloc hooks) */
 static avdk_err_t hw_encoder_hw_init(void)
 {
     LOGI("Hardware encoder init\r\n");
@@ -119,13 +139,14 @@ static avdk_err_t hw_encoder_hw_init(void)
     // h264e clock enable
     bk_pm_clock_ctrl(PM_CLK_ID_H26E, PM_CLK_CTRL_PWR_UP);
 
-    encoder_int_register();
-    h264_vcenc_memalloc_register(encoder_malloc, encode_free);
+	encoder_int_register();
+	h264_vcenc_memalloc_register(encoder_malloc, encode_free);
+	jpeg_vcenc_memalloc_register(encoder_malloc, encode_free);
 
-    return AVDK_ERR_OK;
+	return AVDK_ERR_OK;
 }
 
-// 硬件反初始化
+/* Hardware shutdown */
 static avdk_err_t hw_encoder_hw_deinit(void)
 {
     LOGI("Hardware encoder deinit\r\n");
@@ -141,7 +162,7 @@ static avdk_err_t hw_encoder_hw_deinit(void)
     return AVDK_ERR_OK;
 }
 
-// 硬件控制器任务
+/* Worker task: dequeue and run encode callbacks */
 static void hw_encoder_task(void *arg)
 {
     hw_encoder_msg_t msg;
@@ -151,15 +172,16 @@ static void hw_encoder_task(void *arg)
     
     while (1) {
         if (rtos_pop_from_queue(&g_hw_encoder_ctlr->msg_queue, &msg, BEKEN_WAIT_FOREVER) == kNoErr) {
-            // 执行回调函数
-            if (msg.callback) {
-                ret = msg.callback(msg.param);
-                if (ret != AVDK_ERR_OK) {
-                    LOGE("%s %d Callback execution failed: %d\r\n", __func__, __LINE__, ret);
-                }
-            }
+			if (msg.callback) {
+				g_hw_encoder_ctlr->active_encoder_type = msg.encoder_type;
+				ret = msg.callback(msg.param);
+				g_hw_encoder_ctlr->active_encoder_type = HW_ENCODER_TYPE_MAX;
+				if (ret != AVDK_ERR_OK) {
+					LOGE("%s %d Callback execution failed: %d\r\n", __func__, __LINE__, ret);
+				}
+			}
             
-            // 如果有信号量，通知完成
+            /* Optional completion semaphore */
             if (msg.sem) {
                 rtos_set_semaphore(msg.sem);
             }
@@ -167,13 +189,13 @@ static void hw_encoder_task(void *arg)
     }
 }
 
-// 创建硬件控制器
+/* Create singleton controller (mutex, queue, task) */
 static avdk_err_t hw_encoder_ctlr_create(void)
 {
     avdk_err_t ret;
     
     if (g_hw_encoder_ctlr != NULL) {
-        return AVDK_ERR_OK;  // 已创建
+        return AVDK_ERR_OK;  /* already created */
     }
     
     g_hw_encoder_ctlr = (hw_encoder_ctlr_t *)os_malloc(sizeof(hw_encoder_ctlr_t));
@@ -182,9 +204,9 @@ static avdk_err_t hw_encoder_ctlr_create(void)
         return AVDK_ERR_NOMEM;
     }
     
-    os_memset(g_hw_encoder_ctlr, 0, sizeof(hw_encoder_ctlr_t));
+	os_memset(g_hw_encoder_ctlr, 0, sizeof(hw_encoder_ctlr_t));
+	g_hw_encoder_ctlr->active_encoder_type = HW_ENCODER_TYPE_MAX;
     
-    // 创建互斥锁
     ret = rtos_init_mutex(&g_hw_encoder_ctlr->mutex);
     if (ret != kNoErr) {
         LOGE("Create mutex failed\r\n");
@@ -193,7 +215,7 @@ static avdk_err_t hw_encoder_ctlr_create(void)
         return AVDK_ERR_NO_RESOURCE;
     }
     
-    // 创建消息队列
+    /* Message queue */
     ret = rtos_init_queue(&g_hw_encoder_ctlr->msg_queue, 
                           "hw_enc_queue",
                           sizeof(hw_encoder_msg_t),
@@ -206,7 +228,7 @@ static avdk_err_t hw_encoder_ctlr_create(void)
         return AVDK_ERR_NO_RESOURCE;
     }
     
-    // 创建任务
+    /* Worker thread */
     ret = rtos_create_hsram_thread(&g_hw_encoder_ctlr->task,
                             HW_ENCODER_TASK_PRIO,
                             "hw_encoder",
@@ -226,26 +248,23 @@ static avdk_err_t hw_encoder_ctlr_create(void)
     return AVDK_ERR_OK;
 }
 
-// 销毁硬件控制器
+/* Tear down singleton controller */
 static avdk_err_t hw_encoder_ctlr_destroy(void)
 {
     if (!g_hw_encoder_ctlr) {
         return AVDK_ERR_OK;
     }
     
-    // 删除任务
+    /* Stop worker */
     if (g_hw_encoder_ctlr->task) {
         rtos_delete_thread(&g_hw_encoder_ctlr->task);
         g_hw_encoder_ctlr->task = NULL;
     }
     
-    // 删除队列
     rtos_deinit_queue(&g_hw_encoder_ctlr->msg_queue);
-    
-    // 删除互斥锁
+
     rtos_deinit_mutex(&g_hw_encoder_ctlr->mutex);
-    
-    // 释放内存
+
     os_free(g_hw_encoder_ctlr);
     g_hw_encoder_ctlr = NULL;
     
@@ -263,7 +282,7 @@ avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id)
         return AVDK_ERR_INVAL;
     }
     
-    // 创建控制器（如果还未创建）
+    /* Lazily create controller on first register */
     if (!g_hw_encoder_ctlr) {
         ret = hw_encoder_ctlr_create();
         if (ret != AVDK_ERR_OK) {
@@ -273,7 +292,7 @@ avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id)
     
     rtos_lock_mutex(&g_hw_encoder_ctlr->mutex);
     
-    // 检查是否已注册
+    /* Reject duplicate registration */
     node = g_hw_encoder_ctlr->encoder_list;
     while (node) {
         if (node->encoder_id == encoder_id) {
@@ -284,7 +303,7 @@ avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id)
         node = node->next;
     }
     
-    // 创建新节点
+    /* Prepend new list node */
     node = (encoder_node_t *)os_malloc(sizeof(encoder_node_t));
     if (!node) {
         LOGE("Malloc encoder node failed\r\n");
@@ -298,7 +317,7 @@ avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id)
     g_hw_encoder_ctlr->encoder_list = node;
     g_hw_encoder_ctlr->encoder_count++;
     
-    // 如果是第一个注册的编码器，初始化硬件
+    /* First client: power up VCENC and register allocators/ISR */
     if (g_hw_encoder_ctlr->encoder_count == 1 && !g_hw_encoder_ctlr->hw_initialized) {
         ret = hw_encoder_hw_init();
         if (ret == AVDK_ERR_OK) {
@@ -325,7 +344,7 @@ avdk_err_t hw_encoder_unregister(void *encoder_id)
     
     rtos_lock_mutex(&g_hw_encoder_ctlr->mutex);
     
-    // 查找并删除节点
+    /* Unlink matching node */
     node = g_hw_encoder_ctlr->encoder_list;
     while (node) {
         if (node->encoder_id == encoder_id) {
@@ -340,12 +359,12 @@ avdk_err_t hw_encoder_unregister(void *encoder_id)
             
             LOGI("Encoder unregistered, count=%d\r\n", g_hw_encoder_ctlr->encoder_count);
             
-            // 如果所有编码器都注销了，反初始化硬件
+            /* Last client: power down and destroy controller */
             if (g_hw_encoder_ctlr->encoder_count == 0 && g_hw_encoder_ctlr->hw_initialized) {
                 ret = hw_encoder_hw_deinit();
                 g_hw_encoder_ctlr->hw_initialized = false;
-                
-                // 销毁控制器
+                g_hw_encoder_ctlr->active_encoder_type = HW_ENCODER_TYPE_MAX;
+
                 rtos_unlock_mutex(&g_hw_encoder_ctlr->mutex);
                 hw_encoder_ctlr_destroy();
                 return ret;
@@ -364,14 +383,19 @@ avdk_err_t hw_encoder_unregister(void *encoder_id)
 
 avdk_err_t hw_encoder_send_msg(hw_encoder_msg_t *msg, uintptr_t timeout)
 {
-    if (!msg || !g_hw_encoder_ctlr) {
-        return AVDK_ERR_INVAL;
-    }
-    
-    if (rtos_push_to_queue(&g_hw_encoder_ctlr->msg_queue, msg, timeout) != kNoErr) {
-        LOGE("Push message to queue failed\r\n");
-        return AVDK_ERR_GENERIC;
-    }
-    return AVDK_ERR_OK;
+	if (!msg || !g_hw_encoder_ctlr)
+		return AVDK_ERR_INVAL;
+
+	if (rtos_push_to_queue(&g_hw_encoder_ctlr->msg_queue, msg, timeout) != kNoErr) {
+		LOGE("Push message to queue failed\r\n");
+		return AVDK_ERR_GENERIC;
+	}
+	return AVDK_ERR_OK;
 }
 
+hw_encoder_type_t hw_encoder_get_active_encoder_type(void)
+{
+	if (g_hw_encoder_ctlr == NULL)
+		return HW_ENCODER_TYPE_MAX;
+	return g_hw_encoder_ctlr->active_encoder_type;
+}

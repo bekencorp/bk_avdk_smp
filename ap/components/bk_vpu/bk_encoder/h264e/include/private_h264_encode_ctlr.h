@@ -32,73 +32,73 @@ typedef enum
 
 typedef struct
 {
-    void *h264e_handler;              // H.264编码器句柄
-    beken_thread_t thread;            // 编码线程
-    beken_semaphore_t sem;            // 同步信号量
-    beken_semaphore_t enc_start_sem;  // 编码启动信号量
-    uint32_t enc_start_flag;          // 编码启动标志
-    uint32_t enc_start_first;         // 首次编码标志
-    uint32_t enc_line_cnt;            // 编码行计数
-    uint8_t enc_status;               // 编码状态
-    beken_timer_t debug_timer;        // 调试定时器
-    uint32_t debug_time_ms;           // 调试时间间隔
-    enc_h264_debug_t last_debug_info; // 上次调试信息
-    h264_encoder_parameters_t *h264_encoder_param;  // 编码器参数指针
-    beken_semaphore_t enc_done_sem;   // Signalled when one frame encode completes (in h264e_end_cb)
+    void *h264e_handler;              /* H.264 encoder driver handle */
+    beken_thread_t thread;            /* Encoder worker thread */
+    beken_semaphore_t sem;            /* Thread startup handshake */
+    beken_semaphore_t enc_start_sem;  /* Kick off one encode */
+    uint32_t enc_start_flag;          /* Encode start flag */
+    uint32_t enc_start_first;         /* First-frame flag */
+    uint32_t enc_line_cnt;            /* Encoded line counter */
+    uint8_t enc_status;               /* Encode state */
+    beken_timer_t debug_timer;        /* Debug timer */
+    uint32_t debug_time_ms;           /* Debug interval (ms) */
+    enc_h264_debug_t last_debug_info; /* Last debug snapshot */
+    h264_encoder_parameters_t *h264_encoder_param;  /* Encoder parameters */
+    beken_semaphore_t enc_done_sem;   /* Posted when one frame encode completes (h264e_end_cb). */
 
-    bk_flexa_bond_t *bond;      // Bond operations
+    bk_flexa_bond_t *bond;            /* Bond callbacks */
 
-    bk_h264_encode_frame_config_t config;   // 编码器配置
-    bk_h264_encode_ctlr_t ops;        // 操作接口
+    bk_h264_encode_frame_config_t config;   /* User configuration */
+    bk_h264_encode_ctlr_t ops;        /* Control vtable */
 } private_h264_encode_frame_ctlr_t;
 
 typedef struct
 {
-    void *h264e_handler;              // H.264编码器句柄
-    beken_thread_t thread;            // 编码线程
-    beken_semaphore_t sem;            // 同步信号量
-    beken_semaphore_t enc_start_sem;  // 编码启动信号量
-    uint32_t enc_start_flag;          // 编码启动标志
-    uint32_t enc_start_first;         // 首次编码标志
-    uint32_t enc_line_cnt;            // 编码行计数
-    uint8_t enc_status;               // 编码状态
-    beken_timer_t debug_timer;        // 调试定时器
-    uint32_t debug_time_ms;           // 调试时间间隔
-    enc_h264_debug_t last_debug_info; // 上次调试信息
-    h264_encoder_parameters_t *h264_encoder_param;  // 编码器参数指针
-    uint32_t encode_result;            // 编码结果
-    beken_semaphore_t enc_done_sem;   // Signalled when one frame encode completes (in h264e_end_cb)
+    void *h264e_handler;              /* H.264 encoder driver handle */
+    beken_thread_t thread;            /* Encoder worker thread */
+    beken_semaphore_t sem;            /* Thread startup handshake */
+    beken_semaphore_t enc_start_sem;  /* Kick off one encode */
+    uint32_t enc_start_flag;          /* Encode start flag */
+    uint32_t enc_start_first;         /* First-frame flag */
+    uint32_t enc_line_cnt;            /* Encoded line counter */
+    uint8_t enc_status;               /* Encode state */
+    beken_timer_t debug_timer;        /* Debug timer */
+    uint32_t debug_time_ms;           /* Debug interval (ms) */
+    enc_h264_debug_t last_debug_info; /* Last debug snapshot */
+    h264_encoder_parameters_t *h264_encoder_param;  /* Encoder parameters */
+    uint32_t encode_result;            /* Last encode result */
+    beken_semaphore_t enc_done_sem;   /* Posted when one frame encode completes (h264e_end_cb). */
 
-    bk_flexa_bond_t *bond;      // Bond operations
+    bk_flexa_bond_t *bond;            /* Bond callbacks */
 
-    bk_h264_encode_hw_flexa_config_t config;   // 编码器配置
-    bk_h264_encode_ctlr_t ops;        // 操作接口
+    bk_h264_encode_hw_flexa_config_t config;   /* User configuration */
+    bk_h264_encode_ctlr_t ops;        /* Control vtable */
 } private_h264_encode_hw_flexa_ctlr_t;
 
 typedef struct
 {
-    void *h264e_handler;              // H.264编码器句柄
-    beken_thread_t thread;            // 编码线程
-    beken_semaphore_t sem;            // 同步信号量
-    beken_semaphore_t enc_start_sem;  // 编码启动信号量
-    uint32_t enc_start_flag;          // 编码启动标志
-    uint32_t enc_start_first;         // 首次编码标志
-    uint32_t enc_line_cnt;            // 编码行计数
-    uint8_t enc_status;               // 编码状态
-    beken_timer_t debug_timer;        // 调试定时器
-    uint32_t debug_time_ms;           // 调试时间间隔
-    enc_h264_debug_t last_debug_info; // 上次调试信息
-    h264_encoder_parameters_t *h264_encoder_param;  // 编码器参数指针
-    beken_semaphore_t enc_done_sem;   // Signalled when one frame encode completes (in h264e_end_cb)
+    void *h264e_handler;              /* H.264 encoder driver handle */
+    beken_thread_t thread;            /* Encoder worker thread */
+    beken_semaphore_t sem;            /* Thread startup handshake */
+    beken_semaphore_t enc_start_sem;  /* Kick off one encode */
+    uint32_t enc_start_flag;          /* Encode start flag */
+    uint32_t enc_start_first;         /* First-frame flag */
+    uint32_t enc_line_cnt;            /* Encoded line counter */
+    uint8_t enc_status;               /* Encode state */
+    beken_timer_t debug_timer;        /* Debug timer */
+    uint32_t debug_time_ms;           /* Debug interval (ms) */
+    enc_h264_debug_t last_debug_info; /* Last debug snapshot */
+    h264_encoder_parameters_t *h264_encoder_param;  /* Encoder parameters */
+    beken_semaphore_t enc_done_sem;   /* Posted when one frame encode completes (h264e_end_cb). */
 
-    bk_flexa_bond_t *bond;      // Bond operations
-    /** 每帧 Flexa 块数（height / 16），供 rd_blocks 钳位 */
+    bk_flexa_bond_t *bond;            /* Bond callbacks */
+    /** Flexa blocks per frame (height / 16); used to clamp rd_blocks */
     uint32_t flexa_blocks_per_frame;
-    /** 上一档 flexa_done 给出的 rd_blocks，用于检测行回绕 */
+    /** Last rd_blocks from flexa_done; used to detect line counter wrap */
     uint32_t last_flexa_line;
 
-    bk_h264_encode_sw_flexa_config_t config;   // 编码器配置
-    bk_h264_encode_ctlr_t ops;        // 操作接口
+    bk_h264_encode_sw_flexa_config_t config;   /* User configuration */
+    bk_h264_encode_ctlr_t ops;        /* Control vtable */
 } private_h264_encode_sw_flexa_ctlr_t;
 
 avdk_err_t bk_h264_encode_frame_ctlr_new(bk_h264_encode_ctlr_handle_t *handle, bk_h264_encode_frame_config_t *config);

@@ -22,8 +22,9 @@ extern "C" {
 #endif
 
 typedef enum {
-    HW_ENCODER_TYPE_H264,
-    HW_ENCODER_TYPE_JPEG,
+	HW_ENCODER_TYPE_H264,
+	HW_ENCODER_TYPE_JPEG,
+	HW_ENCODER_TYPE_MAX,
 } hw_encoder_type_t;
 
 typedef enum {
@@ -32,45 +33,48 @@ typedef enum {
     HW_ENCODER_MSG_RESET,
 } hw_encoder_msg_type_t;
 
-// 硬件编码器消息回调函数
+// Hardware encoder message callback
 typedef avdk_err_t (*hw_encoder_msg_cb_t)(void *param);
 
-// 硬件编码器消息
+// Hardware encoder message
 typedef struct {
-    hw_encoder_msg_type_t type;
-    hw_encoder_msg_cb_t callback;
-    void *param;
-    beken_semaphore_t *sem;  // 用于同步等待
+	hw_encoder_msg_type_t type;
+	hw_encoder_type_t encoder_type;
+	hw_encoder_msg_cb_t callback;
+	void *param;
+	beken_semaphore_t *sem;
 } hw_encoder_msg_t;
 
 /**
- * @brief 注册编码器到硬件控制器
- * 
- * @param type 编码器类型
- * @param encoder_id 编码器ID（用于标识）
- * 
- * @return avdk_err_t 
+ * @brief Register an encoder with the hardware encoder controller.
+ *
+ * @param type Encoder type (H.264 or JPEG).
+ * @param encoder_id Opaque client handle used to identify this registration.
+ *
+ * @return avdk_err_t
  */
 avdk_err_t hw_encoder_register(hw_encoder_type_t type, void *encoder_id);
 
 /**
- * @brief 从硬件控制器注销编码器
- * 
- * @param encoder_id 编码器ID
- * 
- * @return avdk_err_t 
+ * @brief Unregister an encoder from the hardware encoder controller.
+ *
+ * @param encoder_id Same handle passed to hw_encoder_register().
+ *
+ * @return avdk_err_t
  */
 avdk_err_t hw_encoder_unregister(void *encoder_id);
 
 /**
- * @brief 发送消息给硬件控制器
- * 
- * @param msg 消息结构
- * @param timeout 超时时间
- * 
- * @return avdk_err_t 
+ * @brief Post a message to the hardware encoder worker task.
+ *
+ * @param msg Message payload.
+ * @param timeout Queue push timeout.
+ *
+ * @return avdk_err_t
  */
 avdk_err_t hw_encoder_send_msg(hw_encoder_msg_t *msg, uintptr_t timeout);
+
+hw_encoder_type_t hw_encoder_get_active_encoder_type(void);
 
 #ifdef __cplusplus
 }

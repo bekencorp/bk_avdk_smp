@@ -1,16 +1,17 @@
 set(incs ./
     h264e/include
+    jpege/include
     common
 )
 
 set(srcs "")
 
-# 硬件编码器控制器 - 总是编译
+# Hardware encoder controller (always built)
 list(APPEND srcs
     common/hw_encoder_ctlr.c
 )
 
-# H.264 编码器 CONFIG_H264E
+# H.264 and JPEG encoder sources when CONFIG_BK_ENCODER
 if (CONFIG_BK_ENCODER)
     list(APPEND srcs
         h264e/src/bk_h264_encode.c
@@ -18,6 +19,10 @@ if (CONFIG_BK_ENCODER)
         h264e/src/bk_h264_encode_hw_flexa_ctlr.c
         h264e/src/bk_h264_encode_sw_flexa_ctlr.c
         h264e/src/h264e_driver.c
+        jpege/src/bk_jpeg_encode.c
+        jpege/src/bk_jpeg_encode_frame_ctlr.c
+        jpege/src/bk_jpeg_encode_hw_flexa_ctlr.c
+        jpege/src/bk_jpeg_encode_sw_flexa_ctlr.c
     )
 endif()
 
