@@ -24,6 +24,8 @@
 #include <reset_reason.h>
 #include "cache.h"
 #include <driver/psram.h>
+#include "sys_hal.h"
+#include "driver/aon_rtc.h"
 
 #if CONFIG_AP_EMUBOOT
 #include "cmsis_gcc.h"
@@ -267,11 +269,13 @@ void dlv_hook(void)
 #if CONFIG_DEEP_LV_DEBUG
         GPIO_UP(27);//1
         GPIO_DOWN(27);
+		early_jtag_gpio_map();
 #endif
+		bk_wdt_force_feed();
+		bk_rtc_update_base_time();
+		uint64_t current = bk_aon_rtc_get_us();
+		sys_hal_set_low_voltage_wakeup_time_us(current);
 
-        bk_wdt_force_feed();
-        early_jtag_gpio_map();
-    
         extern uint32_t __STACK_LIMIT;
         __set_MSPLIM((uint32_t)(&__STACK_LIMIT));
 

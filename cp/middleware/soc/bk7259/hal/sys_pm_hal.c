@@ -1529,8 +1529,10 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	timer_hal_us_init(0);
 	#endif
 
+	// extern void bk_rtc_update_base_time(void);
+	// bk_rtc_update_base_time();
 	uint64_t current = bk_aon_rtc_get_us();
-	sys_hal_set_low_voltage_wakeup_time_us(current);
+	// sys_hal_set_low_voltage_wakeup_time_us(current);
 	sys_hal_set_low_voltage_sleep_duration_us(current - before);
 	#if CONFIG_LV_FLASH_ENTER_LP_ENABLE
 	bk_flash_exit_deep_sleep();

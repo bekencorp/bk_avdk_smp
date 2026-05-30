@@ -202,7 +202,9 @@ uint64_t pm_low_voltage_process()
     //extern uint64_t check_IRQ_pending(void);
 	//LOGD("LV IRQ_pending:0x%llx", check_IRQ_pending());
 	//if (pm_debug_mode() & 0x2)
-		//BK_LOGD(NULL, "low voltage int open before[%d][0x%x]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),aon_pmu_drv_reg_get(PMU_REG0x71));
+	//uint64_t current_time = bk_aon_rtc_get_us();
+	//uint64_t wakeup_time = sys_hal_get_low_voltage_wakeup_time_us();
+	//BK_LOGD(NULL, "low voltage int open before[%d][0x%x][0x%llx][0x%llx]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),current_time-wakeup_time,current_time,wakeup_time);
 
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;
@@ -411,9 +413,6 @@ static int pm_low_voltage_resource_set()
 __attribute__((section(".iram"))) void pm_low_voltage_bsp_restore(void)
 {
 	bk_flash_power_saving_exit();
-
-	extern void bk_rtc_update_base_time(void);
-	bk_rtc_update_base_time();
 
 #if CONFIG_CKMN
 	bk_rosc_32k_ckest_prog(32);

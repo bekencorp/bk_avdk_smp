@@ -312,6 +312,20 @@ float bk_rtc_get_ms_tick_count(void);
 uint32_t bk_rtc_get_clock_freq(void);
 
 /**
+ * @brief  Update AON RTC base time reference
+ *
+ * This API accumulates the elapsed time since the last base tick into
+ * the internal base time (s_time_base_us), and resets the base tick
+ * (s_time_base_tick) to the current RTC tick. It should be called before
+ * changing the RTC clock frequency or after sleep/wakeup to keep the
+ * monotonic time (bk_aon_rtc_get_us) continuous.
+ *
+ * @return
+ *    NA
+ */
+void bk_rtc_update_base_time(void);
+
+/**
  * @brief  Set aon rtc ticks of per ms while dynamic swith clock
  *
  * @ms_tick_cnt: aon rtc clock freq
