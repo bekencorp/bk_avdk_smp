@@ -32,28 +32,25 @@
 
 ## 2. 目录结构
 
-项目采用 AP-CP 双核结构，主要业务逻辑位于 AP 侧：
+项目采用 AP-CP 双核结构。AP 侧承担业务逻辑（媒体服务、蓝牙管理、A2DP Sink / HFP HF demo、CLI），CP 侧仅负责拉起 AP：
 
 ```text
 headset/
-├── README.md
-├── README_CN.md
 ├── ap/
-│   ├── ap_main.c                    # AP 主入口，初始化媒体服务、蓝牙 demo 和 CLI
+│   ├── ap_main.c                       # AP 入口：bk_init → media_service_init → bt_manager_init → 各 demo → CLI
+│   ├── Kconfig.projbuild               # A2DP_SINK_DEMO / HFP_HF_DEMO 开关
+│   ├── headset_user_config.h           # LOCAL_NAME、page/scan、重连策略、声道数等
+│   ├── a2dp_sink_demo_cli.c            # `headset` CLI 命令实现
 │   ├── a2dp_sink/
-│   │   ├── a2dp_sink_demo.c         # A2DP Sink 与 AVRCP 控制逻辑
-│   │   ├── ring_buffer_node.c       # A2DP 播放缓存
-│   │   └── mpeg4_latm_dec.c         # AAC LATM 解码辅助逻辑
-│   ├── hfp_hf/
-│   │   ├── hfp_hf_demo.c            # HFP HF 通话与 SCO 音频逻辑
-│   │   └── ring_buffer_particle.c   # HFP 语音缓存
-│   ├── a2dp_sink_demo_cli.c         # headset CLI 实现
-│   ├── bt_manager.c                 # 蓝牙管理初始化与状态处理
-│   └── storage/bluetooth_storage.c  # 蓝牙配对信息存储
-├── cp/
-├── bk7259_bsp.ld
-└── .it.csv
+│   │   ├── a2dp_sink_demo.c            # A2DP Sink 与 AVRCP 控制逻辑
+│   │   └── a2dp_sink_audio.c           # 播放 / 混音 / 音量 / SBC|AAC 解码链路
+│   ├── hfp_hf/hfp_hf_demo.c            # HFP HF 通话与 SCO 音频链路
+│   └── config/bk7259_ap/defconfig      # AP 侧 Kconfig 默认覆盖（音频 / ADK / BT）
+└── cp/
+    ├── cp_main.c                       # CP 入口：非 ATE 模式下调用 bk_start_ap_system
+    └── config/bk7259/defconfig         # CP 侧 Kconfig 默认覆盖（BT controller / PWM / 低功耗）
 ```
+
 
 ## 3. 功能说明
 
@@ -80,7 +77,7 @@ make bk7259 PROJECT=bluetooth/headset
 
 #### 4.2.1 默认配置
 
-AP 侧默认配置已使能蓝牙和音频相关能力：
+AP 侧默认配置位于 `ap/config/bk7259_ap/defconfig`，关键开关如下：
 
 ```text
 CONFIG_BT=y
@@ -96,8 +93,8 @@ CONFIG_HFP_HF_DEMO=y
 当前启动代码中使用：
 
 ```text
-a2dp_sink_demo_init(0)
-hfp_hf_demo_init(0)
+a2dp_sink_demo_init(0, 1)   // aac_supported=0, auto_accept_conn=1
+hfp_hf_demo_init(0)         // msbc_supported=0
 ```
 
 因此默认 A2DP AAC 支持和 HFP mSBC 支持没有打开，验证时优先使用 SBC 音乐播放和 CVSD 通话链路。
@@ -134,7 +131,7 @@ A2DP 延时控制命令：
 
 AVRCP 属性查询命令：
 
-- `ap_cmd headset get_attr 1`：查询远端播放器的指定媒体属性，参数为属性 ID；示例中的 `1` 表示查询 ID 为 1 的属性，具体属性含义以 AVRCP 协议和远端设备实现为准。
+- `ap_cmd headset get_attr 1`：查询远端播放器的指定媒体属性，参数为属性 ID；示例中的 `1` 表示查询 ID 为 1 的属性，具体属性含义见 bk_avrcp_media_attr_id_t。
 
 HFP HF 通话控制命令：
 
@@ -161,8 +158,7 @@ CMDRSP:ERROR
 
 A2DP 播放验证建议检查：
 
-- 手机端成功连接到设备，设备名默认为 `soundbar`
-- 执行播放命令后，串口无连接失败、解码失败或音频播放错误日志
+- 手机端成功连接到设备，对外广播名为 `soundbar_XXYYZZ`，后缀为本机 BT MAC 的末 3 字节；
 - 本地扬声器能够输出远端音乐
 
 HFP 通话验证建议检查：
@@ -185,6 +181,6 @@ AT+RST
 
 1. 本工程依赖外部经典蓝牙设备，测试前请确认手机或音源设备支持 A2DP、AVRCP 和 HFP。
 2. CLI 中的 MAC 地址解析顺序与底层接口要求匹配，输入格式应固定为 `XX:XX:XX:XX:XX:XX`。
-3. 默认本地设备名为 `soundbar`，可在 `headset_user_config.h` 或 HFP demo 中按需求调整。
+3. 默认本地设备名前缀为 `soundbar`，可在 `headset_user_config.h` 或 HFP demo 中按需求调整。
 4. A2DP 与 HFP 都会使用音频播放链路，切换业务时建议先观察当前 profile 状态，避免并发场景影响判断。
 5. 如果需要验证 AAC 或 mSBC，需要同步调整初始化参数、Kconfig 和远端设备能力。

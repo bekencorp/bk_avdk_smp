@@ -27,32 +27,30 @@ At boot, the project initializes the Bluetooth manager, media service, A2DP Sink
   - HFP call and voice path logs
 
 .. warning::
+
     Please use the reference board and audio peripherals when evaluating this demo. If the peripheral specification is different, audio channel, gain, and board-level configuration changes may be required.
 
 ## 2. Directory Structure
 
-The project uses an AP-CP dual-core layout, with the main application logic on the AP side:
+The project uses an AP-CP dual-core layout. AP carries the application logic (media service, Bluetooth manager, A2DP Sink / HFP HF demos, CLI), and CP only boots the AP system:
 
 ```text
 headset/
-├── README.md
-├── README_CN.md
 ├── ap/
-│   ├── ap_main.c                    # AP entry, media service, Bluetooth demo, and CLI initialization
+│   ├── ap_main.c                       # AP entry: bk_init → media_service_init → bt_manager_init → demos → CLI
+│   ├── Kconfig.projbuild               # A2DP_SINK_DEMO / HFP_HF_DEMO toggles
+│   ├── headset_user_config.h           # LOCAL_NAME, page/scan, reconnect policy, channel count
+│   ├── a2dp_sink_demo_cli.c            # `headset` CLI command implementation
 │   ├── a2dp_sink/
-│   │   ├── a2dp_sink_demo.c         # A2DP Sink and AVRCP control logic
-│   │   ├── ring_buffer_node.c       # A2DP playback buffering
-│   │   └── mpeg4_latm_dec.c         # AAC LATM decode helper
-│   ├── hfp_hf/
-│   │   ├── hfp_hf_demo.c            # HFP HF call and SCO audio logic
-│   │   └── ring_buffer_particle.c   # HFP voice buffering
-│   ├── a2dp_sink_demo_cli.c         # headset CLI implementation
-│   ├── bt_manager.c                 # Bluetooth manager initialization and state handling
-│   └── storage/bluetooth_storage.c  # Bluetooth pairing information storage
-├── cp/
-├── bk7259_bsp.ld
-└── .it.csv
+│   │   ├── a2dp_sink_demo.c            # A2DP Sink + AVRCP control logic
+│   │   └── a2dp_sink_audio.c           # Playback / mix / volume / SBC|AAC decode pipeline
+│   ├── hfp_hf/hfp_hf_demo.c            # HFP HF call control and SCO audio path
+│   └── config/bk7259_ap/defconfig      # AP-side Kconfig overrides (audio / ADK / BT)
+└── cp/
+    ├── cp_main.c                       # CP entry: forwards to bk_start_ap_system unless in ATE mode
+    └── config/bk7259/defconfig         # CP-side Kconfig overrides (BT controller / PWM / LP)
 ```
+
 
 ## 3. Features
 
@@ -79,7 +77,7 @@ After flashing the firmware, use the serial console to observe boot logs and run
 
 #### 4.2.1 Default Configuration
 
-The AP-side default configuration enables Bluetooth and audio features:
+The AP-side defconfig is located at `ap/config/bk7259_ap/defconfig`; key options are:
 
 ```text
 CONFIG_BT=y
@@ -95,8 +93,8 @@ CONFIG_HFP_HF_DEMO=y
 The current boot code uses:
 
 ```text
-a2dp_sink_demo_init(0)
-hfp_hf_demo_init(0)
+a2dp_sink_demo_init(0, 1)   // aac_supported=0, auto_accept_conn=1
+hfp_hf_demo_init(0)         // msbc_supported=0
 ```
 
 So A2DP AAC support and HFP mSBC support are disabled by default. Use SBC music playback and CVSD call audio as the primary validation paths.
@@ -133,7 +131,7 @@ A2DP delay control commands:
 
 AVRCP attribute query command:
 
-- `ap_cmd headset get_attr 1`: Query a media attribute from the remote player. The parameter is the attribute ID; `1` queries attribute ID 1. The exact meaning depends on AVRCP and the remote-device implementation.
+- `ap_cmd headset get_attr 1`: Query a media attribute from the remote player. The parameter is the attribute ID; `1` queries attribute ID 1. See `bk_avrcp_media_attr_id_t` for the attribute definition.
 
 HFP HF call control commands:
 
@@ -156,12 +154,11 @@ CMDRSP:ERROR
 
 #### 4.2.3 How To Judge Pass Or Fail
 
-`CMDRSP:OK` only means the CLI command was accepted. It does not mean the Bluetooth operation has already completed.
+`CMDRSP:OK` only means the CLI command was accepted. It does not mean the Bluetooth operation has already completed. Judge by combining Bluetooth profile state, audio playback, and call-path logs.
 
 For A2DP playback validation, check that:
 
-- The phone connects to the device successfully. The default device name is `soundbar`
-- No connection failure, decode failure, or audio playback error appears after playback starts
+- The phone connects to the device successfully. The advertised device name is `soundbar_XXYYZZ`, where the suffix is the last three bytes of the local BT MAC;
 - The local speaker outputs music from the remote device
 
 For HFP call validation, check that:
@@ -184,6 +181,6 @@ The expected result string is `wakeup`. A2DP/HFP behavior requires an external B
 
 1. This project depends on an external classic Bluetooth device. Before testing, confirm that the phone or audio source supports A2DP, AVRCP, and HFP.
 2. The MAC address passed to CLI commands must use the fixed `XX:XX:XX:XX:XX:XX` format.
-3. The default local device name is `soundbar`; adjust `headset_user_config.h` or the HFP demo if a different name is required.
+3. The default local device name prefix is `soundbar`; adjust it in `headset_user_config.h` or the HFP demo if needed.
 4. A2DP and HFP both use the audio playback path, so check the current profile state before switching scenarios.
 5. To validate AAC or mSBC, update the initialization parameters, Kconfig, and remote-device capability accordingly.
