@@ -242,12 +242,11 @@ bk_err_t adk_mp3_decoder_test_case_0(void)
 }
 
 #if CONFIG_ADK_VFS_STREAM
+static bool is_mounted = false;
 /* mount sdcard */
 static int vfs_mount_sd0_fatfs(void)
 {
 	int ret = BK_OK;
-	static bool is_mounted = false;
-
 	if(!is_mounted) {
 		struct bk_fatfs_partition partition;
 		char *fs_name = NULL;
@@ -257,13 +256,14 @@ static int vfs_mount_sd0_fatfs(void)
 		partition.mount_path = VFS_SD_0_PATITION_0;
 		ret = mount("SOURCE_NONE", partition.mount_path, fs_name, 0, &partition);
 		is_mounted = true;
-        BK_LOGI(TAG, "func %s, mount /sd0 \n", __func__);
+		BK_LOGI(TAG, "func %s, mount : %s\n", __func__, partition.mount_path);
 	}
 	return ret;
 }
 
 static bk_err_t vfs_unmount_sd0_fatfs(void)
 {
+    is_mounted = false;
     return umount(VFS_SD_0_PATITION_0);
 }
 
