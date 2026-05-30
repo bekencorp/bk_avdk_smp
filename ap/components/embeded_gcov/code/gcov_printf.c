@@ -36,8 +36,34 @@
  *
  * @return -1 if error, otherwise returns byte count written to UART
  */
-#include <stdio.h>
-#define write_bytes(fd, buf, n) putchar((int)(*(buf)))
+#include <driver/uart.h>
+#include <driver/hal/hal_uart_types.h>
+
+static int s_gcov_uart5_inited = 0;
+
+static void gcov_ensure_uart5_init(void)
+{
+	if (!s_gcov_uart5_inited) {
+		uart_config_t cfg = {0};
+		cfg.baud_rate = 115200;
+		cfg.data_bits = UART_DATA_8_BITS;
+		cfg.parity = UART_PARITY_NONE;
+		cfg.stop_bits = UART_STOP_BITS_1;
+		cfg.flow_ctrl = UART_FLOWCTRL_DISABLE;
+		cfg.src_clk = UART_SCLK_APLL;
+		if (bk_uart_init(UART_ID_5, &cfg) == 0) {
+			s_gcov_uart5_inited = 1;
+		}
+	}
+}
+
+static inline int gcov_write_uart5(int fd, const char *buf, unsigned int n)
+{
+	gcov_ensure_uart5_init();
+	return bk_uart_write_bytes(UART_ID_5, buf, n);
+}
+
+#define write_bytes(fd, buf, n) gcov_write_uart5((fd), (buf), (n))
 
 /***********************************************************************
  * The following functions support gcov_printf and are not meant to be

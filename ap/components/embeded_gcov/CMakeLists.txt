@@ -7,7 +7,8 @@ set(srcs
 	code/gcov_public.c
 	code/gcov_gcc.c
 	code/gcov_printf.c
+	code/gcov_cli.c
 	)
 endif()
 
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common)
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common bk_peripheral bk_cli)

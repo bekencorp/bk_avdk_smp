@@ -103,6 +103,9 @@ struct gcov_info {
 	gcov_unsigned_t version;
 	struct gcov_info *next;
 	gcov_unsigned_t stamp;
+#if (__GNUC__ >= 12)
+	gcov_unsigned_t checksum;
+#endif
 	const char *filename;
 	gcov_merge_fn merge[GCOV_COUNTERS];
 	unsigned n_functions;
@@ -229,6 +232,9 @@ size_t gcov_convert_to_gcda(gcov_unsigned_t *buffer, struct gcov_info *gi_ptr)
 	/* File header. */
 	pos += store_gcov_tag_length(buffer, pos, GCOV_DATA_MAGIC, gi_ptr->version);
 	pos += store_gcov_unsigned(buffer, pos, gi_ptr->stamp);
+#if (__GNUC__ >= 12)
+	pos += store_gcov_unsigned(buffer, pos, gi_ptr->checksum);
+#endif
 
 	/* Write execution counts for each function.  */
 	for (fi_idx = 0; fi_idx < gi_ptr->n_functions; fi_idx++) {

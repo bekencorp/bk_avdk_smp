@@ -61,7 +61,9 @@
 /* Compare to gcc/gcov-counter.def and gcc/gcov-io.h */
 /* GCC has changed this back and forth over time, do not know exact GCC versions */
 /* This has been used with GCC 7.5.0 and GCC 11.1.0 */
-#if (__GNUC__ >= 10)
+#if (__GNUC__ >= 14)
+#define GCOV_COUNTERS			9
+#elif (__GNUC__ >= 10)
 #define GCOV_COUNTERS			8
 #elif (__GNUC__ >= 5) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 9)
 #define GCOV_COUNTERS			9
@@ -76,14 +78,18 @@
  * gcc and need to be kept as close to the original definition as possible to
  * remain compatible.
  * Compare to gcc/gcov-io.h
- * (gcc 11.1.0 (but not 11.2.0) multiplied counter length by 2*4,
- * but we do not need to duplicate that glitch(?))
+ * GCC 14+ changed tag length units from words to bytes (GCOV_WORD_SIZE=4).
  */
 #define GCOV_DATA_MAGIC		((gcov_unsigned_t) 0x67636461)
 #define GCOV_TAG_FUNCTION	((gcov_unsigned_t) 0x01000000)
+#if (__GNUC__ >= 14)
+#define GCOV_TAG_FUNCTION_LENGTH	(3 * 4)
+#define GCOV_TAG_COUNTER_LENGTH(NUM) ((NUM) * 2 * 4)
+#else
 #define GCOV_TAG_FUNCTION_LENGTH	(3)
-#define GCOV_TAG_COUNTER_BASE	((gcov_unsigned_t) 0x01a10000)
 #define GCOV_TAG_COUNTER_LENGTH(NUM) ((NUM) * 2)
+#endif
+#define GCOV_TAG_COUNTER_BASE	((gcov_unsigned_t) 0x01a10000)
 #define GCOV_TAG_FOR_COUNTER(count) (GCOV_TAG_COUNTER_BASE + ((gcov_unsigned_t) (count) << 17))
 
 /* Interface to access gcov_info data  */
