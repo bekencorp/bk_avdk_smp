@@ -192,6 +192,8 @@ void bk_coredump_dump_ap_memory_for_trap(void)
     bk_coredump_write_prompt("**************************************AP memory dump end***************************************\r\n");
     bk_coredump_write_prompt("***********************************************************************************************\r\n");
     bk_coredump_writer_deinit();
+    
+    coredump_prompt_epilogue();
 }
 
 static void bk_exception_postprocess(bk_exception_t *self)

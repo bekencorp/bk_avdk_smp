@@ -141,10 +141,10 @@ const bk_dump_mem_info_t bk7259_sram_info[] = {
     {"SRAM0", SOC_SRAM0_DATA_BASE, SOC_SRAM0_DATA_SIZE},
     {"SRAM1", SOC_SRAM1_DATA_BASE, SOC_SRAM1_DATA_SIZE},
     {"SRAM2", SOC_SRAM2_DATA_BASE, SOC_SRAM2_DATA_SIZE},
-    {"SRAM3", SOC_SRAM3_DATA_BASE, SOC_SRAM3_DATA_SIZE},
-    {"SRAM4", SOC_SRAM4_DATA_BASE, SOC_SRAM4_DATA_SIZE},
     {"SRAM5", SOC_SRAM5_DATA_BASE, SOC_SRAM5_DATA_SIZE},
     {"SRAM6", SOC_SRAM6_DATA_BASE, SOC_SRAM6_DATA_SIZE},
+    {"SRAM3", SOC_SRAM3_DATA_BASE, SOC_SRAM3_DATA_SIZE},
+    {"SRAM4", SOC_SRAM4_DATA_BASE, SOC_SRAM4_DATA_SIZE},
 };
 
 const bk_dump_mem_info_t* bk_get_sram_info_list(void)
@@ -160,6 +160,17 @@ uint32_t bk_get_sram_info_count(void)
 
 const bk_dump_mem_info_t bk7259_peri_reg_info[] = {
     {"SYS", (uint32_t)SOC_SYS_REG_BASE, (0x5c*4)},
+    /* M55 SYSTEM block @ 0x48000000 (AHB-peri side).  Contains:
+     *   Reg 0..0x1F : PLL / clock divider / reset / power-domain ctrl
+     *                 (e.g. cpu/h26e/isp/dpu/gpu/npu/psram clock enables,
+     *                  reset releases, power-domain on/off).
+     *   Reg 0x20    : per-master AHB QoS (enet/h26e/isp/dpu/npu).
+     *   Reg 0x21    : DPU sub-block gating (cpu / videopost / ...).
+     *   Reg 0x22..0x53 : DMA flexa / debug counters.
+     * Without this we cannot tell whether a victim peripheral was clock-
+     * gated or in reset at hang time.  0x60*4 = 384B covers all known
+     * regs up to 0x53. */
+    {"SYS_AHBP", (uint32_t)SOC_SYS_AHBP_REG_BASE,       (0x60*4)},
     // flash regs warning!!!
     {"FLASH", (uint32_t)SOC_FLASH_REG_BASE, (0x20*4)},
     {"HSPL0_CFG", (uint32_t)SOC_HSPL0_REG_BASE, (0x10*4)},
@@ -221,17 +232,7 @@ const bk_dump_mem_info_t bk7259_peri_reg_info[] = {
      * whom and whether bus-error response is enabled at hang time. */
     {"PPHS",   (uint32_t)SOC_PPHS_REG_BASE,             (0x10*4)},
     {"PPRO",   (uint32_t)SOC_PPRO_REG_BASE,             (0x24*4)},
-    /* M55 SYSTEM block @ 0x48000000 (AHB-peri side).  Contains:
-     *   Reg 0..0x1F : PLL / clock divider / reset / power-domain ctrl
-     *                 (e.g. cpu/h26e/isp/dpu/gpu/npu/psram clock enables,
-     *                  reset releases, power-domain on/off).
-     *   Reg 0x20    : per-master AHB QoS (enet/h26e/isp/dpu/npu).
-     *   Reg 0x21    : DPU sub-block gating (cpu / videopost / ...).
-     *   Reg 0x22..0x53 : DMA flexa / debug counters.
-     * Without this we cannot tell whether a victim peripheral was clock-
-     * gated or in reset at hang time.  0x60*4 = 384B covers all known
-     * regs up to 0x53. */
-    {"SYS_AHBP", (uint32_t)SOC_SYS_AHBP_REG_BASE,       (0x60*4)},
+
 };
 
 const bk_dump_mem_info_t* bk_get_peri_reg_info_list(void)

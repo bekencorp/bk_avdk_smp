@@ -331,7 +331,7 @@ static void bk_exception_dump_main(bk_exception_t *self)
 
     coredump_prompt_prologue();
 
-    coredump_prompt_info();
+    // coredump_prompt_info();
 
 #if CONFIG_CM_BACKTRACE
     if (self->reset_reason != RESET_SOURCE_CRASH_ASSERT) {
@@ -339,7 +339,7 @@ static void bk_exception_dump_main(bk_exception_t *self)
     }
 #endif
 
-    coredump_prompt_epilogue();
+    // coredump_prompt_epilogue();
 
     bk_coredump_writer_deinit();
 
