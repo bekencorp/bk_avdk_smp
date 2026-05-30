@@ -684,25 +684,22 @@ static inline void gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
 
     /* Swap frame buffer */
     uint32_t frame_size = bk_pixel_size_get(config->dst_format) * (config->compress ? data->output_width / 4 : data->output_width) * data->output_height;
-    void *new_buffer = config->malloc(frame_size);
+    void *new_buffer = config->frame_malloc(frame_size);
     //void *new_buffer = NULL;
     if (new_buffer)
     {
-        if(config->frame_display)
-        {
-            config->frame_display(data->dpu_frame_buffers, frame_size, config->frame_display_args);
-        }
+        void *done_frame = data->dpu_frame_buffers;
         data->dpu_frame_buffers = new_buffer;
         AVDK_MONITOR_GPU_FRAME_PLUS();
+
+        if (config->frame_done)
+        {
+            config->frame_done(done_frame, frame_size, config->frame_done_args);
+        }
     }
 
     if (gpu_vn_ctlr->bond != NULL && gpu_vn_ctlr->bond->frame_done != NULL) {
         gpu_vn_ctlr->bond->frame_done(BK_OK, gpu_vn_ctlr->bond);
-    }
-
-    if (config->frame_done)
-    {
-        config->frame_done(data->dpu_frame_buffers, frame_size, config->frame_done_args);
     }
     /* Reset state for next frame */
     //rtos_get_semaphore(&gpu_vn_ctlr->gpu_process_sem, BEKEN_NO_WAIT);
@@ -783,7 +780,7 @@ static void gpu_flex_main_entry(void *arg)
     vg_lite_rotate((float)config->rotate_degree, &flex->draw_matrix);
 
     /* Allocate initial frame buffer */
-    flex->dpu_frame_buffers = config->malloc(bk_pixel_size_get(config->dst_format) * (config->compress ? flex->output_width / 4 : flex->output_width) * flex->output_height);
+    flex->dpu_frame_buffers = config->frame_malloc(bk_pixel_size_get(config->dst_format) * (config->compress ? flex->output_width / 4 : flex->output_width) * flex->output_height);
     if (flex->dpu_frame_buffers == NULL)
     {
         LOGE("Failed to allocate flex->dpu_frame_buffers\r\n");
@@ -903,9 +900,9 @@ thread_exit:
         }
     }
 
-    if (flex->dpu_frame_buffers != NULL && config->free != NULL)
+    if (flex->dpu_frame_buffers != NULL && config->frame_free != NULL)
     {
-        config->free(flex->dpu_frame_buffers);
+        config->frame_free(flex->dpu_frame_buffers);
         flex->dpu_frame_buffers = NULL;
     }
 

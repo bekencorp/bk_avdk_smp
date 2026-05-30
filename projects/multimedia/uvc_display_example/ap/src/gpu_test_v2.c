@@ -747,20 +747,22 @@ static inline void gpu_flex_data_frame_done(gpu_flex_data_v2_t *data, gpu_vn_ctl
     uint32_t frame_size = bk_pixel_size_get(config->dst_format) *
                           (config->compress ? data->output_width / 4 : data->output_width) *
                           data->output_height;
-    void *new_buffer = config->malloc(frame_size);
+    void *new_buffer = config->frame_malloc(frame_size);
     //void *new_buffer = NULL;
     if (new_buffer != NULL)
     {
-        if (config->frame_display == NULL)
+        if (config->frame_done == NULL)
         {
-            LOGE("%s, %d frame_display is NULL\n", __func__, __LINE__);
-            config->free(new_buffer);
+            LOGE("%s, %d frame_done is NULL\n", __func__, __LINE__);
+            config->frame_free(new_buffer);
             return;
         }
 
-        config->frame_display(data->dpu_frame_buffers, frame_size, config->frame_display_args);
+        void *done_frame = data->dpu_frame_buffers;
         data->dpu_frame_buffers = new_buffer;
         AVDK_MONITOR_GPU_FRAME_PLUS();
+
+        config->frame_done(done_frame, frame_size, config->frame_done_args);
     }
     /* Reset state for next frame */
     //rtos_get_semaphore(&gpu_vn_ctlr->gpu_process_sem, BEKEN_NO_WAIT);
@@ -844,7 +846,7 @@ static void gpu_flex_main_entry(void *arg)
     uint32_t frame_size = bk_pixel_size_get(config->dst_format) *
                           (config->compress ? flex->output_width / 4 : flex->output_width) *
                           flex->output_height;
-    flex->dpu_frame_buffers = config->malloc(frame_size);
+    flex->dpu_frame_buffers = config->frame_malloc(frame_size);
     if (flex->dpu_frame_buffers == NULL)
     {
         LOGE("Failed to allocate flex->dpu_frame_buffers, size %d(%d * %d)\r\n",

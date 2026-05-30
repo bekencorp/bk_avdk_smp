@@ -210,10 +210,10 @@ static bk_err_t display_test_enable_gpu(void)
     gpu_config.dst_format = BK_PIXEL_FORMAT_ARGB8888;
     gpu_config.compress = true;
     gpu_config.scale = true;
-    gpu_config.malloc = display_test_frame_malloc;
-    gpu_config.free = display_test_frame_free;
-    gpu_config.frame_display = display_test_frame_display;
-    gpu_config.frame_display_args = NULL;
+    gpu_config.frame_malloc = display_test_frame_malloc;
+    gpu_config.frame_free = display_test_frame_free;
+    gpu_config.frame_done = display_test_frame_display;
+    gpu_config.frame_done_args = NULL;
 
     ret = bk_gpu_test_ctlr_new(&display_config->gpu_handle, &gpu_config);
 

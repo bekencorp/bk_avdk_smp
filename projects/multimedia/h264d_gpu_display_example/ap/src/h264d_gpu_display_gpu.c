@@ -59,26 +59,6 @@ static avdk_err_t h264d_gpu_display_frame_free(void *ptr)
 	return AVDK_ERR_OK;
 }
 
-static void h264d_gpu_display_frame_display(void *frame, uint32_t frame_size, void *args)
-{
-#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
-	avdk_err_t ret;
-#endif
-
-	(void)frame_size;
-	(void)args;
-
-#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
-	ret = h264d_gpu_display_display_flush(frame, h264d_gpu_display_frame_free);
-	if (ret != AVDK_ERR_OK) {
-		LOGW("display flush failed, drop frame ret=%d\r\n", (int)ret);
-		(void)h264d_gpu_display_frame_free(frame);
-	}
-#else
-	(void)h264d_gpu_display_frame_free(frame);
-#endif
-}
-
 static void h264d_gpu_display_line_done(uint32_t done_lines, void *args)
 {
 	(void)args;
@@ -90,11 +70,25 @@ static void h264d_gpu_display_line_done(uint32_t done_lines, void *args)
 
 static void h264d_gpu_display_frame_done(void *frame, uint32_t frame_size, void *args)
 {
+#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+	avdk_err_t ret;
+#endif
+
 	(void)args;
 
 	if (s_gpu_ctx.frame_done_cb != NULL) {
 		s_gpu_ctx.frame_done_cb(frame, frame_size, s_gpu_ctx.frame_done_args);
 	}
+
+#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+	ret = h264d_gpu_display_display_flush(frame, h264d_gpu_display_frame_free);
+	if (ret != AVDK_ERR_OK) {
+		LOGW("display flush failed, drop frame ret=%d\r\n", (int)ret);
+		(void)h264d_gpu_display_frame_free(frame);
+	}
+#else
+	(void)h264d_gpu_display_frame_free(frame);
+#endif
 }
 
 avdk_err_t h264d_gpu_display_gpu_open(uint8_t *src_buffer,
@@ -138,10 +132,8 @@ avdk_err_t h264d_gpu_display_gpu_open(uint8_t *src_buffer,
 	gpu_cfg.flexa = true;
 	gpu_cfg.flexa_lines = H264D_GPU_DISPLAY_GPU_FLEXA_LINES;
 	gpu_cfg.flexa_buff_cnt = flexa_buffer_count;
-	gpu_cfg.malloc = h264d_gpu_display_frame_malloc;
-	gpu_cfg.free = h264d_gpu_display_frame_free;
-	gpu_cfg.frame_display = h264d_gpu_display_frame_display;
-	gpu_cfg.frame_display_args = NULL;
+	gpu_cfg.frame_malloc = h264d_gpu_display_frame_malloc;
+	gpu_cfg.frame_free = h264d_gpu_display_frame_free;
 	gpu_cfg.flexa_line_done = h264d_gpu_display_line_done;
 	gpu_cfg.flexa_line_done_args = NULL;
 	gpu_cfg.frame_done = h264d_gpu_display_frame_done;

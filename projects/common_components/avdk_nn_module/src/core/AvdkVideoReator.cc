@@ -628,10 +628,8 @@ static avdk_err_t gpu_turn_on(uint16_t width, uint16_t height, uint16_t dst_widt
     gpu_config.dst_format = BK_PIXEL_FORMAT_RGB888;
     gpu_config.compress = false;
     gpu_config.scale = true;
-    gpu_config.malloc = gpu_frame_malloc;
-    gpu_config.free = NULL;
-    gpu_config.frame_display = gpu_frame_display;
-    gpu_config.frame_display_args = NULL;
+    gpu_config.frame_malloc = gpu_frame_malloc;
+    gpu_config.frame_free = NULL;
 
     uint8_t *decode_buffer = NULL;
     uint8_t decode_buf_cnt = 0;
@@ -647,7 +645,7 @@ static avdk_err_t gpu_turn_on(uint16_t width, uint16_t height, uint16_t dst_widt
     gpu_config.flexa_buff_cnt = decode_buf_cnt;
     gpu_config.flexa_line_done = NULL;
     gpu_config.flexa_line_done_args = NULL;
-    gpu_config.frame_done = NULL;
+    gpu_config.frame_done = gpu_frame_display;
     gpu_config.frame_done_args = NULL;
 
     ret = bk_gpu_ctlr_new(&s_gpu_handle, &gpu_config);

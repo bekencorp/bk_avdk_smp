@@ -53,10 +53,8 @@ typedef struct
     uint8_t flexa_lines;
     uint8_t flexa_buff_cnt;
 
-    void *(*malloc)(uint32_t size);
-    avdk_err_t (*free)(void *ptr);
-    void (*frame_display)(void *frame, uint32_t frame_size, void *args);
-    void *frame_display_args;
+    void *(*frame_malloc)(uint32_t size);
+    avdk_err_t (*frame_free)(void *ptr);
     void (*flexa_line_done)(uint32_t done_lines, void *args);
     void *flexa_line_done_args;
     void (*frame_done)(void *frame, uint32_t frame_size, void *args);
