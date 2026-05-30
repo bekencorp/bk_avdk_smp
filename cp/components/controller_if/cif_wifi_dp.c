@@ -3,6 +3,8 @@
 #include "lwip/prot/ethernet.h"
 #include "lwip/prot/ip4.h"
 #include "lwip/prot/ip.h"
+#include "lwip/prot/ip6.h"
+#include "lwip/prot/icmp6.h"
 #include "lwip/prot/udp.h"
 #include "lwip/prot/tcp.h"
 #include "lwip/prot/icmp.h"
@@ -282,6 +284,42 @@ bool cif_filter_check_ip_data(struct pbuf *p)
     return upload2ctrl;
 }
 
+#if CONFIG_IPV6
+static bool cif_filter_check_ip6_data(struct pbuf *p)
+{
+    bool upload2ctrl = false;
+
+    if (p->len < (s16_t)(SIZEOF_ETH_HDR + IP6_HLEN + 1))
+        return false;
+
+    u8_t *payload = (u8_t *)p->payload;
+    u8_t nexth    = payload[SIZEOF_ETH_HDR + 6];
+
+    switch (nexth)
+    {
+        case IP6_NEXTH_ICMP6:
+            if (2 == get_ping_state()) //PING_STATE_STARTED
+            {
+                upload2ctrl = true;
+            } else {
+                upload2ctrl = false;
+            }
+            break;
+        case IP6_NEXTH_UDP:
+            upload2ctrl = false;
+            break;
+        case IP6_NEXTH_TCP:
+            upload2ctrl = false;
+            break;
+        default:
+            upload2ctrl = false;
+            break;
+    }
+
+    return upload2ctrl;
+}
+#endif
+
 #if CONFIG_BK_RAW_LINK
 /**
  * @brief Send memory free request to AP side
@@ -480,6 +518,81 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
             }
             break;
         }
+#if CONFIG_IPV6
+        case ETHTYPE_IPV6:
+        {
+            u8_t nexth      = (p->tot_len >= SIZEOF_ETH_HDR + 7)
+                            ? ((u8_t*)p->payload)[SIZEOF_ETH_HDR + 6] : 0;
+            u8_t icmp6_type = (nexth == IP6_NEXTH_ICMP6 && p->tot_len >= SIZEOF_ETH_HDR + IP6_HLEN + 1)
+                            ? ((u8_t*)p->payload)[SIZEOF_ETH_HDR + IP6_HLEN] : 0;
+             /*
+              * Packets that CP lwIP must also process (copy to both sides):
+              *   1. NDP: NS/NA/RS/RA (icmp6 133~136), nexth=58
+              *   2. MLD: Multicast Listener Discovery (icmp6 130~132,143), nexth=0 (Hop-by-Hop)
+              *      MLD uses Hop-by-Hop extension header, so nexth != 58; treat all nexth=0
+              *      multicast-dst packets as "need CP copy" to keep CP multicast state correct.
+              */
+            bool is_nd = (nexth == IP6_NEXTH_ICMP6)
+                         && (icmp6_type >= ICMP6_TYPE_MLQ && icmp6_type <= ICMP6_TYPE_RD);
+            bool is_mld = (nexth == 0);
+            bool need_copy = is_nd || is_mld;
+            if (need_copy)
+            {
+                struct pbuf* p_copy = pbuf_alloc(PBUF_RAW, p->len + sizeof(cpdu_t), PBUF_RAM_RX);
+                //os_printf("[ipv6 nd] pbuf_alloc p_copy=%p\r\n", p_copy);
+                if (p_copy == NULL)
+                {
+                    CIF_LOGW("[ipv6 nd] alloc fail, CP-only\r\n");
+                    break;
+                }
+                pbuf_header(p_copy, -(s16_t)sizeof(cpdu_t));
+                memcpy(p_copy->payload, p->payload, p->len);
+
+                struct cpdu_t *cpdu_nd = (struct cpdu_t*)(p_copy + 1);
+                cpdu_nd->co_hdr.length       = p_copy->len - sizeof(struct pbuf);
+                cpdu_nd->co_hdr.type         = RX_MSDU_DATA;
+                cpdu_nd->co_hdr.need_free    = 0;
+                cpdu_nd->co_hdr.special_type = 0;
+                cpdu_nd->co_hdr.vif_idx      = wifi_netif_vif_to_netif_type(vif);
+                cpdu_nd->co_hdr.dst_index    = dst_idx;
+
+                ret = cif_msg_sender(cpdu_nd, CIF_TASK_MSG_RX_DATA, 0);
+                if (ret != BK_OK)
+                    pbuf_free(p_copy);
+                else
+                    cif_stats_ptr->cif_rx_cnt++;
+            }
+            else if (cif_filter_check_ip6_data(p) == false)
+            {
+                struct pbuf* p_data = p;
+                upload2ctrl = false;
+
+                struct cpdu_t *cpdu_data = (struct cpdu_t*)(p_data + 1);
+                cpdu_data->co_hdr.length       = p_data->len - sizeof(struct pbuf);
+                cpdu_data->co_hdr.type         = RX_MSDU_DATA;
+                cpdu_data->co_hdr.need_free    = 0;
+                cpdu_data->co_hdr.special_type = 0;
+                cpdu_data->co_hdr.vif_idx      = wifi_netif_vif_to_netif_type(vif);
+                cpdu_data->co_hdr.dst_index    = dst_idx;
+
+                ret = cif_msg_sender(cpdu_data, CIF_TASK_MSG_RX_DATA, 0);
+                if (ret != BK_OK)
+                {
+                    upload2ctrl = true;
+                    CIF_LOGW("[ipv6 data] fwd fail, fallback to CP\r\n");
+                }
+                else
+                {
+                    cif_stats_ptr->cif_rx_cnt++;
+                }
+            }
+            else
+            {
+                upload2ctrl = true;
+            }
+            break;
+        }
+#endif
         default:
         {
             upload2ctrl = true;
