@@ -392,10 +392,8 @@ typedef enum
 	PM_CPU_FRQ_120M,     // 3:CPU0:120M,BUS:120M
 	PM_CPU_FRQ_160M,     // 4:CPU0:160M,BUS:160M
 	PM_CPU_FRQ_240M,     // 5:CPU0:240M,BUS:240M
-	PM_CPU_FRQ_320M,     // 6:CPU0:160m,CPU1:320M,BUS:160M
-	PM_CPU_FRQ_480M,     // 7:CPU0:240m,CPU1:480M,BUS:240M
 
-	PM_CPU_FRQ_HIGHEST,  // 8:(Appli do not need to be concerned with the specific CPU frequency)
+	PM_CPU_FRQ_HIGHEST,  // 6:(Appli do not need to be concerned with the specific CPU frequency)
 	PM_CPU_FRQ_DEFAULT   // default cpu frequency which control by pm module
 }pm_cpu_freq_e;
 typedef enum
@@ -1488,7 +1486,7 @@ pm_cpu_freq_e bk_pm_current_max_cpu_freq_get(void);
  * - This API is used to vote ,then select the cpu frequency
  *
  * @param
- * -module:module id;cpu_freq:cpu frequency(320M,240M,120M,26M)
+ * -module:module id;cpu_freq:cpu frequency(240M,160M,120M,26M)
  * @return
  *  - BK_OK: succeed
  *  - others: other errors.

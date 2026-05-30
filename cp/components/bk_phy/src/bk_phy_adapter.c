@@ -787,9 +787,8 @@ const phy_os_variable_t g_phy_os_variable = {
     ._pm_cpu_frq_60m         = PM_CPU_FRQ_60M,
     ._pm_cpu_frq_80m         = PM_CPU_FRQ_80M,
     ._pm_cpu_frq_120m        = PM_CPU_FRQ_120M,
+    ._pm_cpu_frq_160m        = PM_CPU_FRQ_160M,
     ._pm_cpu_frq_240m        = PM_CPU_FRQ_240M,
-    ._pm_cpu_frq_320m        = PM_CPU_FRQ_320M,
-    ._pm_cpu_frq_480m        = PM_CPU_FRQ_480M,
     ._pm_cpu_frq_default     = PM_CPU_FRQ_DEFAULT,
 
     ._pm_dev_id_phy          = PM_DEV_ID_PHY,

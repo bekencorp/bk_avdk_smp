@@ -32,7 +32,7 @@ void sae_overclock_set(bool enable)
 {
 #ifdef CONFIG_SAE_OVERCLOCK
 	if (enable) {
-		bk_pm_module_vote_cpu_freq(PM_DEV_ID_WPAS, PM_CPU_FRQ_320M);
+		bk_pm_module_vote_cpu_freq(PM_DEV_ID_WPAS, PM_CPU_FRQ_160M);
 	} else {
 		bk_pm_module_vote_cpu_freq(PM_DEV_ID_WPAS, PM_CPU_FRQ_DEFAULT);
 	}

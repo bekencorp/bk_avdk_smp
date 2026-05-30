@@ -269,8 +269,6 @@ bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 
 	switch(cpu_bus_freq)
 	{
-		case PM_CPU_FRQ_480M:
-		case PM_CPU_FRQ_320M:
 		case PM_CPU_FRQ_240M:
 		case PM_CPU_FRQ_120M:
 		case PM_CPU_FRQ_160M:

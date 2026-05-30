@@ -95,7 +95,7 @@ static const char *pm_dev_id_to_string(uint32_t dev_id)
 static const char *pm_cpu_freq_to_string(uint32_t cpu_freq)
 {
 	static const char *cpu_freq_strings[] = {
-		"XTAL", "60M", "80M", "120M", "160M", "240M", "320M", "480M",
+		"XTAL", "60M", "80M", "120M", "160M", "240M",
 		"HIGHEST", "DEFAULT",
 	};
 

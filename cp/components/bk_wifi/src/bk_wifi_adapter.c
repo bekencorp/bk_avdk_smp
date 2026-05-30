@@ -1746,11 +1746,11 @@ __attribute__((section(".dtcm_sec_data "))) wifi_os_variable_t g_wifi_os_variabl
 	._pm_cpu_frq_80m = PM_CPU_FRQ_80M,
 	._pm_cpu_frq_120m = PM_CPU_FRQ_120M,
 	#if (CONFIG_SOC_BK7236XX)
-	._pm_cpu_frq_high = PM_CPU_FRQ_480M,
+	._pm_cpu_frq_high = PM_CPU_FRQ_240M,
 	#elif (CONFIG_SOC_BK7259)
 	._pm_cpu_frq_high = PM_CPU_FRQ_240M,
 	#else
-	._pm_cpu_frq_high = PM_CPU_FRQ_320M,
+	._pm_cpu_frq_high = PM_CPU_FRQ_160M,
 	#endif
 	._pm_cpu_frq_default = PM_CPU_FRQ_120M,
 	._pm_32k_step_begin = PM_32K_STEP_BEGIN,

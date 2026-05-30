@@ -489,7 +489,7 @@ static void test_fluscache(int count) {
     uint32_t diff_us = 0;
 
 	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_120M);
-	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_480M);
+	bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_240M);
 
     uint32_t intbk = rtos_enter_critical();
 
