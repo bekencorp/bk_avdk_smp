@@ -943,6 +943,7 @@ static const bk_camera_sensor_format_t f58_format_array[] = {
         .width = 1920,
         .height = 1080,
         .fps = 30,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB10,
     }
 };
 

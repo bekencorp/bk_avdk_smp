@@ -454,6 +454,7 @@ static const bk_camera_sensor_format_t gc0308_format_array[] = {
         .width = 640,
         .height = 480,
         .fps = 30,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB8,
     },
 };
 

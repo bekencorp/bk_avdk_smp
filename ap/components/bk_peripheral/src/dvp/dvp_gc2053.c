@@ -262,21 +262,25 @@ static const bk_camera_sensor_format_t gc2053_format_array[] = {
         .width = 1280,
         .height = 720,
         .fps = 30,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB8,
     },
     {
         .width = 1280,
         .height = 720,
         .fps = 25,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB8,
     },
     {
         .width = 1280,
         .height = 720,
         .fps = 20,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB8,
     },
     {
         .width = 1920,
         .height = 1080,
         .fps = 20,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB8,
     },
 };
 

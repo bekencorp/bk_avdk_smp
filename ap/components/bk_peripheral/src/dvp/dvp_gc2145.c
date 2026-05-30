@@ -2057,16 +2057,19 @@ static const bk_camera_sensor_format_t gc2145_format_array[] = {
         .width = 1280,
         .height = 720,
         .fps = 30,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB8,
     },
     {
         .width = 640,
         .height = 480,
         .fps = 30,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB8,
     },
     {
         .width = 480,
         .height = 480,
         .fps = 30,
+        .output_pixel_fmt = BK_PIXEL_FORMAT_RGGB8,
     },
 };
 
