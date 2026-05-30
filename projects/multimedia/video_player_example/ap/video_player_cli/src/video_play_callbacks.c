@@ -9,10 +9,10 @@
 #include "video_play_callbacks.h"
 #include "audio_player_device.h"
 #include <components/bk_frame_buffer.h>
+#include <components/bk_video_player/bk_video_player_types.h>
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
 #include <components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h>
 #endif
-#include <common/avdk_pixel_types.h>
 
 #define TAG "video_play_callbacks"
 
@@ -31,7 +31,7 @@ static video_play_lcd_video_fmt_t s_runtime_lcd_fmt = VIDEO_PLAY_LCD_VIDEO_FMT_N
 static bool s_runtime_lcd_fmt_valid = false;
 
 static void video_play_lcd_sync_format_for_output_frame(bk_display_ctlr_handle_t handle,
-                                                        const frame_buffer_t *fb_meta)
+                                                        uint32_t decoder_pixel_fmt)
 {
     if (handle == NULL)
     {
@@ -40,14 +40,12 @@ static void video_play_lcd_sync_format_for_output_frame(bk_display_ctlr_handle_t
 
     video_play_lcd_video_fmt_t need = VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
-    /* H264 flexa-GPU output is compressed ARGB8888 in GPU/PSRAM, not HSRAM.
-     * is_hsram_output_frame() therefore must not drive DPU format selection. */
-    if (fb_meta != NULL && fb_meta->fmt == PIXEL_FMT_ARGB8888)
+    if (decoder_pixel_fmt == PIXEL_FMT_ARGB8888)
     {
         need = VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
     }
 #else
-    (void)fb_meta;
+    (void)decoder_pixel_fmt;
 #endif
 
     if (s_runtime_lcd_fmt_valid && need == s_runtime_lcd_fmt)
@@ -129,21 +127,27 @@ static avdk_err_t display_frame_free_cb(void *frame)
     return AVDK_ERR_OK;
 }
 
- static void video_play_free_video_pixel(void *pixel)
- {
-     if (pixel == NULL)
-     {
-         return;
-     }
- 
- #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
-     (void)bk_video_player_hw_h264_decoder_free_output_frame(pixel);
- #else
-     bk_frame_buffer_free(pixel);
- #endif
- }
- 
- #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+static void video_play_free_output_pixel(uint32_t decoder_pixel_fmt, void *pixel)
+{
+    if (pixel == NULL)
+    {
+        return;
+    }
+
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+    if (decoder_pixel_fmt == PIXEL_FMT_ARGB8888)
+    {
+        (void)bk_video_player_hw_h264_decoder_free_output_frame(pixel);
+        return;
+    }
+#else
+    (void)decoder_pixel_fmt;
+#endif
+
+    bk_frame_buffer_free(pixel);
+}
+
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
  /* LCD-flush completion callback for HW H.264 GPU output frames. The frame
   * may live in HSRAM (zero-copy fast path) or in PSRAM (fallback), so we
   * must use the allocator-aware free instead of the plain
@@ -275,15 +279,12 @@ avdk_err_t video_play_video_buffer_alloc_yuv_cb(void *user_data, video_player_bu
         return AVDK_ERR_INVAL;
     }
 
-    /* See VIDEO_PACKET_BUFFER_SAFETY_PAD_BYTES rationale above. The decoded
-     * NV12/YUV output is consumed by the LCD path which may also DMA in
-     * 64-bit/128-bit bursts past the nominal frame size. Pad to be safe. */
     const uint32_t requested = buffer->length;
     const uint32_t alloc_size = video_play_slab_alloc_size(
         requested + VIDEO_FRAME_BUFFER_SAFETY_PAD_BYTES);
 
-    frame_buffer_t *fb_meta = (frame_buffer_t *)os_malloc(sizeof(frame_buffer_t));
-    if (fb_meta == NULL)
+    void *frame = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, alloc_size);
+    if (frame == NULL)
     {
         buffer->data = NULL;
         buffer->frame_buffer = NULL;
@@ -291,23 +292,8 @@ avdk_err_t video_play_video_buffer_alloc_yuv_cb(void *user_data, video_player_bu
         return AVDK_ERR_NOMEM;
     }
 
-    void *pixel = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, alloc_size);
-    if (pixel == NULL)
-    {
-        os_free(fb_meta);
-        buffer->data = NULL;
-        buffer->frame_buffer = NULL;
-        buffer->length = 0;
-        return AVDK_ERR_NOMEM;
-    }
-
-    os_memset(fb_meta, 0, sizeof(*fb_meta));
-    fb_meta->frame  = (uint8_t *)pixel;
-    fb_meta->size   = requested;
-    fb_meta->length = requested;
-
-    buffer->data         = pixel;
-    buffer->frame_buffer = fb_meta;
+    buffer->data         = frame;
+    buffer->frame_buffer = NULL;
     buffer->length       = requested;
     buffer->user_data    = NULL;
     return AVDK_ERR_OK;
@@ -323,17 +309,9 @@ void video_play_video_buffer_free_yuv_cb(void *user_data, video_player_buffer_t 
         return;
     }
 
-    /* Free the pixel buffer (UNCODED PSRAM) and the small frame_buffer_t
-     * metadata struct independently. Either may be NULL if the buffer was
-     * already handed to the LCD layer (decode_complete_cb null'd them). */
     if (buffer->data != NULL)
     {
-        video_play_free_video_pixel(buffer->data);
-    }
-
-    if (buffer->frame_buffer != NULL)
-    {
-        os_free(buffer->frame_buffer);
+        bk_frame_buffer_free(buffer->data);
     }
 
     buffer->data         = NULL;
@@ -351,9 +329,9 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
     }
 
     video_play_user_ctx_t *ctx = (video_play_user_ctx_t *)user_data;
-    void *pixel       = buffer->data;          /* decoded/compressed pixel buffer */
-    void *fb_meta     = buffer->frame_buffer;  /* frame_buffer_t struct (regular heap) */
-    uint32_t pixel_len = buffer->length;       /* nominal raw frame size from alloc_yuv_cb */
+    void *pixel        = buffer->data;
+    uint32_t pixel_len = buffer->length;
+    const uint32_t decoder_pixel_fmt = (meta != NULL) ? (uint32_t)meta->output_format : 0U;
 
 #if VIDEO_PLAY_DUMP_FRAME_ENABLE
     
@@ -371,38 +349,23 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
     (void)pixel_len;
 #endif
 
-    /* No matter which branch we take below, we transfer ownership of `pixel`
-     * out of the engine and we free `fb_meta` ourselves. Null the buffer
-     * fields up-front so the engine's buffer_free_yuv_cb is a no-op for this
-     * buffer and we never double-free. */
+    /* Transfer ownership out of the engine; null fields so buffer_free_yuv_cb
+     * is a no-op and we never double-free. */
     buffer->data         = NULL;
     buffer->frame_buffer = NULL;
     buffer->length       = 0;
 
-    /* If LCD is not ready, free the pixel buffer here to avoid leaks. */
     if (ctx == NULL || ctx->lcd_handle == NULL)
     {
-        video_play_free_video_pixel(pixel);
-        if (fb_meta != NULL)
-        {
-            os_free(fb_meta);
-        }
+        video_play_free_output_pixel(decoder_pixel_fmt, pixel);
         return;
     }
 
-    video_play_lcd_sync_format_for_output_frame(ctx->lcd_handle, (const frame_buffer_t *)fb_meta);
+    video_play_lcd_sync_format_for_output_frame(ctx->lcd_handle, decoder_pixel_fmt);
 
-    /*
-     * NOTE: bk_display_flush() ultimately forwards the second argument to
-     * dpu_frame_commit(uint8_t *buff) which treats it as the raw pixel
-     * source address for the DPU. We therefore MUST pass `buffer->data`
-     * (the pixel buffer) and NOT the `frame_buffer_t *` metadata struct.
-     * The metadata struct exists only because the H.264/JPEG decoders write
-     * descriptive fields into it; the LCD path does not consume it.
-     */
     avdk_err_t (*free_cb)(void *) = display_frame_free_cb;
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
-    if (bk_video_player_hw_h264_decoder_is_hsram_output_frame(pixel))
+    if (decoder_pixel_fmt == PIXEL_FMT_ARGB8888)
     {
         free_cb = display_h264_output_frame_free_cb;
     }
@@ -411,12 +374,7 @@ void video_play_video_decode_complete_cb(void *user_data, const video_player_vid
     if (ret != AVDK_ERR_OK)
     {
         LOGW("%s: bk_display_flush failed, ret=%d\n", __func__, ret);
-        video_play_free_video_pixel(pixel);
-    }
-
-    if (fb_meta != NULL)
-    {
-        os_free(fb_meta);
+        (void)free_cb(pixel);
     }
 }
 

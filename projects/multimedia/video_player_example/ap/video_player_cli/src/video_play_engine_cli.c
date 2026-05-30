@@ -522,7 +522,6 @@ static void video_play_engine_destroy_runtime(bool close_lcd)
         s_video_player_core_handle = NULL;
         s_video_player_core_opened = false;
         s_video_player_core_started = false;
-        video_play_mark_engine_active(false);
     }
 
     if (s_audio_player_handle != NULL)
@@ -549,7 +548,6 @@ static void video_play_engine_destroy_runtime(bool close_lcd)
 void video_play_engine_runtime_shutdown(void)
 {
     video_play_engine_destroy_runtime(true);
-    video_play_mark_engine_active(false);
 }
 
 // CLI command:
@@ -726,7 +724,6 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             goto exit;
         }
         s_video_player_core_opened = true;
-        video_play_mark_engine_active(true);
         s_h264_decoder_mode = requested_h264_decoder_mode;
 
         // Probe media info first, then decide whether to open audio output.
@@ -740,7 +737,6 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             bk_video_player_engine_delete(s_video_player_core_handle);
             s_video_player_core_handle = NULL;
             s_video_player_core_opened = false;
-            video_play_mark_engine_active(false);
             goto exit;
         }
 
@@ -824,7 +820,6 @@ audio_init_done:
             bk_video_player_engine_delete(s_video_player_core_handle);
             s_video_player_core_handle = NULL;
             s_video_player_core_opened = false;
-            video_play_mark_engine_active(false);
             goto exit;
         }
 
@@ -837,7 +832,6 @@ audio_init_done:
             bk_video_player_engine_delete(s_video_player_core_handle);
             s_video_player_core_handle = NULL;
             s_video_player_core_opened = false;
-            video_play_mark_engine_active(false);
             goto exit;
         }
 
@@ -879,7 +873,7 @@ audio_init_done:
     }
     else if (os_strcmp(argv[1], "stop") == 0)
     {
-        video_play_stop_all_and_unmount_sd();
+        video_play_engine_runtime_shutdown();
         LOGI("%s: Video playback stopped (Engine CLI, all layers)\n", __func__);
         msg = CLI_CMD_RSP_SUCCEED;
     }

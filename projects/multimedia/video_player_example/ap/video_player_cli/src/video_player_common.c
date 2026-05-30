@@ -12,6 +12,9 @@
 #include "bk_partition.h"
 #include "bk_posix.h"
 #include "app_display.h"
+#if CONFIG_SDCARD
+#include <driver/sd_card.h>
+#endif
 
 #define TAG "video_player_common"
 
@@ -20,71 +23,59 @@
 #define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
+#define SD_CARD_MOUNT_MAX_RETRIES           (3U)
+#define SD_CARD_POST_UNMOUNT_SETTLE_MS     (100U)
+
 // SD card mount status (shared by recording and SD card test)
 static bool sd_card_mounted = false;
 
-static bool s_engine_playback_active = false;
-static bool s_playlist_playback_active = false;
-void video_play_mark_engine_active(bool active)
+#if CONFIG_SDCARD
+static void sd_card_reset_hw(void)
 {
-    s_engine_playback_active = active;
+    (void)bk_sd_card_deinit();
 }
-void video_play_mark_playlist_active(bool active)
+#else
+static void sd_card_reset_hw(void)
 {
-    s_playlist_playback_active = active;
 }
-void video_play_stop_all_and_unmount_sd(void)
+#endif
+
+static int sd_card_do_mount(void)
 {
-    video_play_engine_runtime_shutdown();
-    video_play_playlist_runtime_shutdown();
-    video_play_mark_engine_active(false);
-    video_play_mark_playlist_active(false);
+    struct bk_fatfs_partition partition;
+    const char *fs_name = "fatfs";
 
-    rtos_delay_milliseconds(50);
+    os_memset(&partition, 0, sizeof(partition));
+    partition.part_type = FATFS_DEVICE;
+    partition.part_dev.device_name = FATFS_DEV_SDCARD;
+    partition.mount_path = VFS_SD_0_PATITION_0;
 
-    int um_ret = sd_card_unmount();
-    if (um_ret != BK_OK)
-    {
-        LOGE("%s: sd_card_unmount failed, ret=%d\n", __func__, um_ret);
-    }
+    LOGD("%s: Calling mount() with path=%s, fs_name=%s\n", __func__, partition.mount_path, fs_name);
+    return mount("SOURCE_NONE", partition.mount_path, fs_name, 0, &partition);
 }
-
 
 // Mount SD card to /sd0
 int sd_card_mount(void)
 {
-    int ret = BK_OK;
-
     LOGD("%s: Starting SD card mount, current status: %s\n", __func__, sd_card_mounted ? "mounted" : "not mounted");
 
-    if (!sd_card_mounted)
-    {
-        struct bk_fatfs_partition partition;
-        char *fs_name = NULL;
-        fs_name = "fatfs";
-        partition.part_type = FATFS_DEVICE;
-        partition.part_dev.device_name = FATFS_DEV_SDCARD;
-        partition.mount_path = VFS_SD_0_PATITION_0;
-
-        LOGD("%s: Calling mount() with path=%s, fs_name=%s\n", __func__, partition.mount_path, fs_name);
-        ret = mount("SOURCE_NONE", partition.mount_path, fs_name, 0, &partition);
-        LOGD("%s: mount() returned: %d\n", __func__, ret);
-
-        if (ret == BK_OK)
-        {
-            sd_card_mounted = true;
-            LOGI("%s: SD card mounted to /sd0 successfully\n", __func__);
-        }
-        else
-        {
-            LOGE("%s: Failed to mount SD card, ret=%d\n", __func__, ret);
-        }
-    }
-    else
+    if (sd_card_mounted)
     {
         LOGD("%s: SD card already mounted\n", __func__);
+        return BK_OK;
     }
 
+    int ret = BK_FAIL;
+    ret = sd_card_do_mount();
+    if (ret == BK_OK)
+    {
+        sd_card_mounted = true;
+        LOGI("%s: SD card mounted to /sd0 successfully\n", __func__);
+        return BK_OK;
+    }
+    sd_card_reset_hw();
+    LOGE("%s: Failed to mount SD card after %u attempts, ret=%d\n",
+         __func__, (unsigned)SD_CARD_MOUNT_MAX_RETRIES, ret);
     return ret;
 }
 
@@ -103,6 +94,7 @@ int sd_card_unmount(void)
         }
         else
         {
+            sd_card_mounted = false;
             LOGE("%s: Failed to unmount SD card, ret=%d\n", __func__, ret);
         }
     }
@@ -110,6 +102,11 @@ int sd_card_unmount(void)
     {
         LOGD("%s: SD card not mounted\n", __func__);
     }
+
+    /* Reset SDIO so the next mount() re-initializes cleanly (avoids stale
+     * "sd card has inited" state after heavy playback + umount). */
+    sd_card_reset_hw();
+    rtos_delay_milliseconds(SD_CARD_POST_UNMOUNT_SETTLE_MS);
 
     return ret;
 }

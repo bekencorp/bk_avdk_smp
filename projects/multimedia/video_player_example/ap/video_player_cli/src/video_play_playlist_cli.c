@@ -269,6 +269,43 @@ static bool video_play_parse_int32_dec_range(const char *s, int32_t min_v, int32
     return true;
 }
 
+static void video_play_playlist_release_player_handle(void)
+{
+    if (s_video_player_app_handle == NULL)
+    {
+        return;
+    }
+
+    if (s_video_player_app_opened)
+    {
+        (void)bk_video_player_playlist_close(s_video_player_app_handle);
+    }
+
+    (void)bk_video_player_playlist_delete(s_video_player_app_handle);
+    s_video_player_app_handle = NULL;
+    s_video_player_app_opened = false;
+    s_video_player_app_started = false;
+}
+
+static void video_play_playlist_release_media_outputs(void)
+{
+    if (s_audio_player_handle != NULL)
+    {
+        audio_player_device_stop(s_audio_player_handle);
+        audio_player_device_deinit(s_audio_player_handle);
+        s_audio_player_handle = NULL;
+        s_play_user_ctx.audio_player_handle = NULL;
+    }
+
+    if (s_lcd_display_handle != NULL)
+    {
+        (void)video_play_lcd_close();
+        s_lcd_display_handle = NULL;
+        s_play_user_ctx.lcd_handle = NULL;
+        video_play_lcd_runtime_format_reset();
+    }
+}
+
 void video_play_playlist_runtime_shutdown(void)
 {
     avdk_err_t ret = AVDK_ERR_OK;
@@ -280,44 +317,11 @@ void video_play_playlist_runtime_shutdown(void)
         {
             LOGW("%s: playlist stop failed, ret=%d\n", __func__, ret);
         }
-
-        ret = bk_video_player_playlist_close(s_video_player_app_handle);
-        if (ret != AVDK_ERR_OK)
-        {
-            LOGW("%s: playlist close failed, ret=%d\n", __func__, ret);
-        }
-
-        ret = bk_video_player_playlist_delete(s_video_player_app_handle);
-        if (ret != AVDK_ERR_OK)
-        {
-            LOGW("%s: playlist delete failed, ret=%d\n", __func__, ret);
-        }
-
-        s_video_player_app_handle = NULL;
-        s_video_player_app_opened = false;
-        s_video_player_app_started = false;
     }
 
-    if (s_audio_player_handle != NULL)
-    {
-        audio_player_device_stop(s_audio_player_handle);
-        audio_player_device_deinit(s_audio_player_handle);
-        s_audio_player_handle = NULL;
-        s_play_user_ctx.audio_player_handle = NULL;
-    }
+    video_play_playlist_release_player_handle();
+    video_play_playlist_release_media_outputs();
 
-    if (s_lcd_display_handle != NULL)
-    {
-        if (video_play_lcd_close() != AVDK_ERR_OK)
-        {
-            LOGW("%s: video_play_lcd_close failed\n", __func__);
-        }
-        s_lcd_display_handle = NULL;
-        s_play_user_ctx.lcd_handle = NULL;
-        video_play_lcd_runtime_format_reset();
-    }
-
-    video_play_mark_playlist_active(false);
 }
 
 static void video_play_app_reset_audio_output(void)
@@ -546,12 +550,10 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
     {
         const char *file_path = (argc >= 3) ? argv[2] : NULL;
 
-        // Allow re-start if already started:
-        // - if file_path is provided, restart playback for that file from 0ms
-        // - if file_path is not provided, keep current state
-        if (s_video_player_app_started)
+        // Allow re-start if playlist is still open (same model as video_play_engine).
+        if (s_video_player_app_handle != NULL && s_video_player_app_opened)
         {
-            if (s_video_player_app_handle != NULL && s_video_player_app_opened && file_path != NULL)
+            if (file_path != NULL)
             {
                 ret = video_play_playlist_prepare_lcd_for_file(file_path);
                 if (ret != AVDK_ERR_OK)
@@ -566,6 +568,7 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                     goto exit;
                 }
 
+                s_video_player_app_started = true;
                 LOGI("%s: Video playback restarted (Playlist layer), file: %s\n", __func__, file_path);
                 msg = CLI_CMD_RSP_SUCCEED;
                 goto exit;
@@ -660,22 +663,12 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
             goto exit;
         }
         s_video_player_app_opened = true;
-        video_play_mark_playlist_active(true);
 
         ret = video_play_playlist_prepare_lcd_for_file(file_path);
         if (ret != AVDK_ERR_OK)
         {
-            if (s_lcd_display_handle != NULL)
-            {
-                (void)video_play_lcd_close();
-                s_lcd_display_handle = NULL;
-                s_play_user_ctx.lcd_handle = NULL;
-            }
-
-            bk_video_player_playlist_close(s_video_player_app_handle);
-            bk_video_player_playlist_delete(s_video_player_app_handle);
-            s_video_player_app_handle = NULL;
-            s_video_player_app_opened = false;
+            video_play_playlist_release_player_handle();
+            video_play_playlist_release_media_outputs();
             goto exit;
         }
 
@@ -753,11 +746,8 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
             if (ret != AVDK_ERR_OK)
             {
                 LOGE("%s: video player playlist play failed, ret=%d\n", __func__, ret);
-                bk_video_player_playlist_close(s_video_player_app_handle);
-                bk_video_player_playlist_delete(s_video_player_app_handle);
-                s_video_player_app_handle = NULL;
-                s_video_player_app_opened = false;
-                video_play_mark_playlist_active(false);
+                video_play_playlist_release_player_handle();
+                video_play_playlist_release_media_outputs();
                 goto exit;
             }
         }
@@ -769,7 +759,7 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
     }
     else if (os_strcmp(argv[1], "stop") == 0)
     {
-        video_play_stop_all_and_unmount_sd();
+        video_play_playlist_runtime_shutdown();
         LOGI("%s: Video playback stopped (Playlist CLI, all layers)\n", __func__);
         msg = CLI_CMD_RSP_SUCCEED;
     }

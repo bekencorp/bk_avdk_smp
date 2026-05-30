@@ -42,13 +42,9 @@ int sd_card_mount(void);
 int sd_card_unmount(void);
 bool sd_card_is_mounted(void);
 
-void video_play_mark_engine_active(bool active);
-void video_play_mark_playlist_active(bool active);
-
 /* Tear down engine/playlist/LCD/audio started by either CLI, then umount SD. */
 void video_play_engine_runtime_shutdown(void);
 void video_play_playlist_runtime_shutdown(void);
-void video_play_stop_all_and_unmount_sd(void);
 
 #ifdef __cplusplus
 }

@@ -41,6 +41,9 @@
 #define SYS_ANA_REG_BASE    (0x44010000)
 #define LDO_ANA_REG         (0x69)
 
+#define TAG "ap_main"
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+
 
 static void bk_auxldo_enable(void)
 {
@@ -67,7 +70,7 @@ static void bk_auxldo_enable(void)
  */
 static void h264_hw_decoder_prewarm(void)
 {
-    bk_printf("====== h264_prewarm: ENTER, free heap=%u ======\r\n",
+    LOGI("====== h264_prewarm: ENTER, free heap=%u ======\r\n",
               (unsigned)rtos_get_free_heap_size());
 
     bk_h264_decode_ctlr_handle_t handle = NULL;
@@ -80,24 +83,24 @@ static void h264_hw_decoder_prewarm(void)
     cfg.frame_done_args = NULL;
 
     if (bk_h264_decode_frame_ctlr_new(&handle, &cfg) != BK_OK || handle == NULL) {
-        bk_printf("====== h264_prewarm: ctlr_new FAILED ======\r\n");
+        LOGI("====== h264_prewarm: ctlr_new FAILED ======\r\n");
         return;
     }
-    bk_printf("====== h264_prewarm: ctlr_new OK, free heap=%u ======\r\n",
+    LOGI("====== h264_prewarm: ctlr_new OK, free heap=%u ======\r\n",
               (unsigned)rtos_get_free_heap_size());
 
     if (bk_h264_decode_init(handle) != BK_OK) {
-        bk_printf("====== h264_prewarm: init FAILED, free heap=%u ======\r\n",
+        LOGI("====== h264_prewarm: init FAILED, free heap=%u ======\r\n",
                   (unsigned)rtos_get_free_heap_size());
         (void)bk_h264_decode_delete(handle);
         return;
     }
-    bk_printf("====== h264_prewarm: init OK, free heap=%u ======\r\n",
+    LOGI("====== h264_prewarm: init OK, free heap=%u ======\r\n",
               (unsigned)rtos_get_free_heap_size());
 
     (void)bk_h264_decode_deinit(handle);
     (void)bk_h264_decode_delete(handle);
-    bk_printf("====== h264_prewarm: DONE, free heap=%u ======\r\n",
+    LOGI("====== h264_prewarm: DONE, free heap=%u ======\r\n",
               (unsigned)rtos_get_free_heap_size());
 }
 #endif
@@ -107,7 +110,7 @@ int main(void)
     bk_init();
     media_service_init();
 
-    bk_printf("M55 main running...\r\n");
+    LOGI("M55 main running...\r\n");
 
     camera_board_config_t camera_board = {0};
     display_board_config_t display_board = {0};
@@ -159,13 +162,6 @@ int main(void)
 #if CONFIG_BK_DECODER && CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
     /* Prewarm AFTER LDO/frame_buffer init but BEFORE board config / devices_mgmt. */
     h264_hw_decoder_prewarm();
-
-    /* Tell the H264 decoder how much rotation to apply on the GPU side. The
-     * decoder reads this value when init() runs at play() time, so changing
-     * it between videos requires a stop/play cycle but mid-stream changes
-     * are not expected. */
-    bk_video_player_hw_h264_decoder_set_output_rotation(
-        VIDEO_PLAYER_H264_DECODER_OUTPUT_ROTATION_DEG);
 
 #endif
 
