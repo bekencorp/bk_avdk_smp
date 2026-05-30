@@ -254,11 +254,11 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 		multicore_hal_m55_core_copy_code_and_data(boot_addr, false);
 		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
 
-		sys_ahbp_ll_set_reg4_cpu0_wait(1); // wait for AP to finish init
-		sys_ahbp_ll_set_reg4_cpu0_init_dtcm_en(1);
-		multicore_hal_m55_core_copy_code_and_data(boot_addr, true);
-		sys_ahbp_ll_set_reg4_cpu0_wait(0); // wait for AP to finish init
-		sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
+		// sys_ahbp_ll_set_reg4_cpu0_wait(1); // wait for AP to finish init
+		// sys_ahbp_ll_set_reg4_cpu0_init_dtcm_en(1);
+		// multicore_hal_m55_core_copy_code_and_data(boot_addr, true);
+		// sys_ahbp_ll_set_reg4_cpu0_wait(0); // wait for AP to finish init
+		// sys_ahbp_ll_set_reg4_cpu0_sw_rstn(1);
 		break;
 	case CPU3_CORE_ID:
 		multicore_hal_m55_core_init_common();
@@ -269,11 +269,11 @@ __IRAM_SEC bk_err_t multicore_hal_start(uint32_t id)
 		multicore_hal_m55_core_copy_code_and_data(boot_addr, false);
 		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(1);
 
-		sys_ahbp_ll_set_reg5_cpu1_wait(1); // wait for AP to finish init
-		sys_ahbp_ll_set_reg5_cpu1_init_dtcm_en(1);
-		multicore_hal_m55_core_copy_code_and_data(boot_addr, true);
-		sys_ahbp_ll_set_reg5_cpu1_wait(0); // wait for AP to finish init
-		sys_ahbp_ll_set_reg5_cpu1_sw_rstn(1);
+		// sys_ahbp_ll_set_reg5_cpu1_wait(1); // wait for AP to finish init
+		// sys_ahbp_ll_set_reg5_cpu1_init_dtcm_en(1);
+		// multicore_hal_m55_core_copy_code_and_data(boot_addr, true);
+		// sys_ahbp_ll_set_reg5_cpu1_wait(0); // wait for AP to finish init
+		// sys_ahbp_ll_set_reg5_cpu1_sw_rstn(1);
 		break;
 	default:
 		break;
