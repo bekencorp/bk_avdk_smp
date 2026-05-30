@@ -323,6 +323,7 @@ static bk_err_t pm_message_handle(void)
 					{
 						bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
 					}
+					bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x1,0x0);
 				}
 				break;
 				case PM_CP_CORE_GPIO_WAKEUPED:
@@ -332,6 +333,7 @@ static bk_err_t pm_message_handle(void)
 					{
 						bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
 					}
+					bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x1,0x0);
 				}
 				break;
 				default:
