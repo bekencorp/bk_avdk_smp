@@ -32,8 +32,11 @@ extern "C" {
 #define CIF_LOGV(...)       BK_LOGV(CIF_TAG, ##__VA_ARGS__)
 #define CIF_LOG_RAW(...)    BK_LOG_RAW(CIF_TAG, ##__VA_ARGS__)
 
-#define CIF_STATS_INC(x) do{uint32_t int_level = 0;int_level = rtos_disable_int();++cif_stats_ptr->x;rtos_enable_int(int_level);BK_ASSERT(cif_stats_ptr->x >= 0);}while(0)
-#define CIF_STATS_DEC(x) do{uint32_t int_level = 0;int_level = rtos_disable_int();--cif_stats_ptr->x;rtos_enable_int(int_level);BK_ASSERT(cif_stats_ptr->x >= 0);}while(0)
+uint32_t cif_stats_enter_critical(void);
+void cif_stats_exit_critical(uint32_t flags);
+
+#define CIF_STATS_INC(x) do{uint32_t int_level = cif_stats_enter_critical();++cif_stats_ptr->x;cif_stats_exit_critical(int_level);BK_ASSERT(cif_stats_ptr->x >= 0);}while(0)
+#define CIF_STATS_DEC(x) do{uint32_t int_level = cif_stats_enter_critical();uint8_t valid = (cif_stats_ptr->x > 0);if(valid){--cif_stats_ptr->x;}cif_stats_exit_critical(int_level);BK_ASSERT(valid);}while(0)
 
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
 #define CNTRL_IF_QUEUE_LEN                          300

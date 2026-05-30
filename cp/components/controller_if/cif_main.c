@@ -1,8 +1,31 @@
 #include "cif_main.h"
 #include "cif_ipc.h"
+#if CONFIG_SOC_SMP
+#include "spinlock.h"
+#endif
 
 struct cif_env_t cif_env = {0};
 struct cif_stats * cif_stats_ptr = &(cif_env.stats);
+#if CONFIG_SOC_SMP
+SPINLOCK_SECTION volatile spinlock_t cif_stats_spin_lock = SPIN_LOCK_INIT;
+#endif
+
+__IRAM_SEC uint32_t cif_stats_enter_critical(void)
+{
+    uint32_t flags = rtos_disable_int();
+#if CONFIG_SOC_SMP
+    spin_lock(&cif_stats_spin_lock);
+#endif
+    return flags;
+}
+
+__IRAM_SEC void cif_stats_exit_critical(uint32_t flags)
+{
+#if CONFIG_SOC_SMP
+    spin_unlock(&cif_stats_spin_lock);
+#endif
+    rtos_enable_int(flags);
+}
 
 extern void stack_mem_dump(uint32_t stack_top, uint32_t stack_bottom);
 extern bk_err_t cif_free_rxdata(struct common_header* co_hdr);
