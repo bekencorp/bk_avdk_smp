@@ -33,8 +33,11 @@
 #include <driver/xdac_types.h>
 #include <modules/pm.h>
 
+#define PM_CLKSEL_CORE_26M                  (0)
+#define PM_CLKSEL_CORE_DCO                  (1)
 #define PM_CLKSEL_CORE_320M                 (2)
 #define PM_CLKSEL_CORE_480M                 (3)
+#define PM_SYS_REG_0x8                      (SOC_SYS_REG_BASE + (0x8 << 2))
 #define PM_CLKSEL_FLASH_480M                (0x1)
 #define PM_CLKDIV_CORE_0                    (0)
 #define PM_CLKDIV_CORE_1                    (1)
@@ -3521,6 +3524,29 @@ void sys_hal_set_cpu_power_sleep_wakeup_ticktimer_32k_enable(uint32_t value)
 
 bk_err_t sys_hal_cpu_freq_dump()
 {
+	uint32_t value_8 = REG_READ(PM_SYS_REG_0x8);
+	uint32_t cksel_core = value_8 & 0x3;
+	uint32_t ckdiv_core = (value_8 >> 2) & 0xF;
+	uint32_t cp0_div = ckdiv_core + 1;
+
+	switch (cksel_core) {
+	case PM_CLKSEL_CORE_26M:
+		os_printf("Cur freq: CP:(26/%d)M\r\n", cp0_div);
+		break;
+	case PM_CLKSEL_CORE_DCO:
+		os_printf("Cur freq: CP:(240/%d)M\r\n", cp0_div);
+		break;
+	case PM_CLKSEL_CORE_320M:
+		os_printf("Cur freq: CP:(320/%d)M\r\n", cp0_div);
+		break;
+	case PM_CLKSEL_CORE_480M:
+		os_printf("Cur freq: CP:(480/%d)M\r\n", cp0_div);
+		break;
+	default:
+		break;
+	}
+	os_printf("Freq_reg:0x%x\r\n", value_8);
+
 	return BK_OK;
 }
 
