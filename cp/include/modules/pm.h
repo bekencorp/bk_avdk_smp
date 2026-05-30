@@ -55,6 +55,7 @@ typedef enum {
 #define PM_WAKEUP_SOURCE_INT_WIFI        (WAKEUP_SOURCE_INT_WIFI)
 #define PM_WAKEUP_SOURCE_INT_BT          (WAKEUP_SOURCE_INT_BT)
 #define PM_WAKEUP_SOURCE_INT_USBPLUG     (WAKEUP_SOURCE_INT_USBPLUG)
+#define PM_WAKEUP_SOURCE_INT_VAD         (WAKEUP_SOURCE_INT_VAD)
 #define PM_WAKEUP_SOURCE_INT_NONE        (WAKEUP_SOURCE_INT_NONE)
 /*--------------------------WAKEUP SOURCE DEFINE  END--------------------------------*/
 
@@ -1048,7 +1049,7 @@ uint64_t bk_pm_module_lv_sleep_state_get(pm_dev_id_e module);
  * @param
  * -void
  * @return
- * - wakeup source(0x0:WAKEUP SOURCE OF GPIO;0x1:WAKEUP SOURCE OF RTC;0x2:WAKEUP SOURCE OF WIFI OR BT;0x4:WAKEUP SOURCE OF TOUCHED;0x5:NONE WAKEUP_SOURCE)
+ * - wakeup source(0:GPIO;1:RTC;2:WIFI;3:BT;4:USBPLUG;5:TOUCHED;6:VAD;7:NONE)
  */
 pm_wakeup_source_e bk_pm_deep_sleep_wakeup_source_get(void);
 /**
@@ -1094,7 +1095,7 @@ bk_err_t bk_pm_exit_low_vol_wakeup_source_set(void);
  * @param
  * -void
  * @return
- * - wakeup source(0x0:WAKEUP SOURCE OF GPIO;0x1:WAKEUP SOURCE OF RTC;0x2:WAKEUP SOURCE OF WIFI OR BT;0x4:WAKEUP SOURCE OF TOUCHED;0x5:NONE WAKEUP_SOURCE)
+ * - wakeup source(0:GPIO;1:RTC;2:WIFI;3:BT;4:USBPLUG;5:TOUCHED;6:VAD;7:NONE)
  */
 pm_wakeup_source_e bk_pm_exit_low_vol_wakeup_source_get(void);
 /**

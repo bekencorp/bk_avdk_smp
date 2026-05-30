@@ -73,13 +73,14 @@ uint32_t aon_pmu_hal_get_dpll_band(void)
 }
 
 /**
- * WAKEUP SOURCE
+ * WAKEUP SOURCE (reg41 wakeup_ena[10:4] / reg71 wakeup_source[26:20])
  * BIT0(0x1): GPIO
  * BIT1(0x2): RTC
  * BIT2(0x4): WIFI
  * BIT3(0x8): BT
- * BIT4(0x10): TOUCHED
- * BIT5(0x20): USBPLUG
+ * BIT4(0x10): USBPLUG
+ * BIT5(0x20): TOUCHED
+ * BIT6(0x40): VAD
  * - write r41 to enable/disable wakeup source before sleep
  * - read r71 to identify the wakeup source after wakeup
 */

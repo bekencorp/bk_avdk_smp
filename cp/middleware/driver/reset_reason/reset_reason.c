@@ -255,13 +255,15 @@ uint32_t reset_reason_deep_sleep_check(void)
 	case 0x2: // rtc
 		misc_value = RESET_SOURCE_DEEPPS_RTC;
 		break;
-	case 0x10: // touch
-		misc_value = RESET_SOURCE_DEEPPS_TOUCH;
-		break;
-	case 0x20: // usb
+	case 0x10: // usbplug
 		misc_value = RESET_SOURCE_DEEPPS_USB;
 		break;
-
+	case 0x20: // touch
+		misc_value = RESET_SOURCE_DEEPPS_TOUCH;
+		break;
+	case 0x40: // vad
+		misc_value = RESET_SOURCE_DEEPPS_VAD;
+		break;
 	default:
 		misc_value = 0;
 		break;

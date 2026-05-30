@@ -691,7 +691,7 @@ static inline void aon_pmu_ll_set_reg40_halt_clkena(uint32_t value)
 #define AON_PMU_REG41_FLSHSCK_IOCAP_MASK (0x3)
 
 #define AON_PMU_REG41_WAKEUP_ENA_POS (4)
-#define AON_PMU_REG41_WAKEUP_ENA_MASK (0x1F)
+#define AON_PMU_REG41_WAKEUP_ENA_MASK (0x7F)
 
 #define AON_PMU_REG41_PSRAM_IODRV_POS (9)
 #define AON_PMU_REG41_PSRAM_IODRV_MASK (0x3)
@@ -745,7 +745,7 @@ static inline void aon_pmu_ll_set_reg41_flshsck_iocap(uint32_t value)
     REG_WRITE(AON_PMU_REG41_ADDR,reg_value);
 }
 
-/* REG_0x41:reg41->wakeup_ena:0x41[8:4],[8]:int_touched                                                                 [7]:int_usbplug                                                                    [6]:system_wake                                                                   [5]:int_rtc                                                                                 [4]:int_gpio,None,R/W*/
+/* REG_0x41:reg41->wakeup_ena:0x41[10:4],[10]:int_vad [9]:int_touched [8]:int_usbplug [7]:bt wake [6]:wifi wake [5]:int_rtc [4]:int_gpio,None,R/W*/
 static inline uint32_t aon_pmu_ll_get_reg41_wakeup_ena(void)
 {
     uint32_t reg_value;
@@ -946,7 +946,7 @@ static inline uint32_t aon_pmu_ll_get_reg70_int_usbplug(void)
 #define AON_PMU_REG71_RESERVED0_MASK (0x7) 
 
 #define AON_PMU_REG71_WAKEUP_SOURCE_POS (20) 
-#define AON_PMU_REG71_WAKEUP_SOURCE_MASK (0x1F) 
+#define AON_PMU_REG71_WAKEUP_SOURCE_MASK (0x7F)
 
 #define AON_PMU_REG71_RESERVED1_POS (25) 
 #define AON_PMU_REG71_RESERVED1_MASK (0x7F) 

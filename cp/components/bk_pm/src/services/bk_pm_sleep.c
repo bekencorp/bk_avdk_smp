@@ -197,10 +197,9 @@ uint64_t pm_low_voltage_process()
 	/*Debug pd,lpo,psram end*/
 
 	pm_low_voltage_resource_restore();
-	bk_sys_sw_regs_set_ap_reset_reason(RESET_SOURCE_SLEEP_RTC);
 
-	if (pm_debug_mode() & 0x2)
-		BK_LOGD(NULL, "low voltage int open before\r\n");
+	//if (pm_debug_mode() & 0x2)
+		//BK_LOGD(NULL, "low voltage int open before[%d][0x%x]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),aon_pmu_drv_reg_get(PMU_REG0x71));
 
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	uint64_t exit_tick          = 0ULL;

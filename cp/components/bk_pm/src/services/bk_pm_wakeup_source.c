@@ -131,6 +131,9 @@ bk_err_t bk_pm_wakeup_source_set(pm_wakeup_source_e wakeup_source, void *source_
 		os_memcpy(&s_touch_wakeup_param, (touch_wakeup_param_t *)source_param, sizeof(touch_wakeup_param_t));
 		break;
 
+	case PM_WAKEUP_SOURCE_INT_VAD:
+		break;
+
 	default:
 		break;
 	}
@@ -229,13 +232,16 @@ void pm_deep_sleep_wakeup_source_set()
 			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_RTC);
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_RTC;
 			break;
-		case 0x10: // bk7256 use touch and bk7236 use usb
-			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_TOUCH);
-			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_TOUCHED;
+		case 0x10: // usbplug
+			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_USB);
+			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_USBPLUG;
 			break;
 		case 0x20: // touch
 			bk_misc_set_reset_reason(RESET_SOURCE_DEEPPS_TOUCH);
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_TOUCHED;
+			break;
+		case 0x40: // vad
+			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_VAD;
 			break;
 		default:
 			s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
@@ -274,14 +280,17 @@ bk_err_t bk_pm_exit_low_vol_wakeup_source_set()
 		case 0x4: // WIFI wakeup
 			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_WIFI;
 			break;
-		case 0x8: // bk7256 use usb and bk7236 use BT wakeup
+		case 0x8: // BT wakeup
 			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_BT;
 			break;
-		case 0x10: // bk7256 use touch and bk7236 use usb wakeup
+		case 0x10: // usbplug wakeup
+			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_USBPLUG;
+			break;
+		case 0x20: // touch wakeup
 			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_TOUCHED;
 			break;
-		case 0x20: // touch
-			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_TOUCHED;
+		case 0x40: // vad wakeup
+			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_VAD;
 			break;
 		default:
 			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
