@@ -1352,11 +1352,11 @@ uint8_t *bk_rtc_get_first_alarm_name(void)
 	{
 		// Return pointer to the name field
 		name = first_node->name;
-		AON_RTC_LOGD("%s: first alarm name=%s\r\n", __func__, name);
+		AON_RTC_LOGV("%s: first alarm name=%s\r\n", __func__, name);
 	}
 	else
 	{
-		AON_RTC_LOGD("%s: no alarm registered\r\n", __func__);
+		AON_RTC_LOGV("%s: no alarm registered\r\n", __func__);
 	}
 
 	rtc_exit_critical(int_level);
