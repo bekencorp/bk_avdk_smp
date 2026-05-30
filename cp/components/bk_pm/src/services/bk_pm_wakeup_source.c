@@ -389,7 +389,7 @@ bk_pm_wakeup_reason_e bk_pm_sleep_wakeup_reason_get()
 	if(s_sleep_wakeup_irq_id != INT_SRC_NONE)
 	{
 		/*Debug*/
-		LOGI("NS wakeup irq: %d,0x%llx", s_sleep_wakeup_irq_id,s_sleep_wakeup_irq);
+		//LOGI("NS wakeup irq: %d,0x%llx", s_sleep_wakeup_irq_id,s_sleep_wakeup_irq);
 	}
 	bk_pm_wakeup_reason_e wakeup_reason = BK_PM_WAKEUP_UNKNOWN;
 	switch (s_sleep_wakeup_irq_id)
