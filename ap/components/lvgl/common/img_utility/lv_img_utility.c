@@ -1,6 +1,6 @@
 #include "os/os.h"
 #include "os/mem.h"
-#include "driver/lcd.h"
+#include <common/avdk_pixel_types.h>
 #include "components/media_types.h"
 #include "modules/jpeg_decode_sw.h"
 #include "driver/psram.h"

@@ -28,25 +28,27 @@ extern "C" {
 #define mipi_int1_lp_rece_tmout               1<<1
 #define mipi_int1_hs_tran_tmour               1<<0
 
-typedef enum  {
-    DPHY_BR_100M  = 100,          // dsi byteclk 12.5Mhz
-    DPHY_BR_200M  = 200,          // dsi byteclk 25Mhz
-    DPHY_BR_300M  = 250,          // dsi byteclk 37.5Mhz
-    DPHY_BR_400M  = 400,          // dsi byteclk 50Mhz
-    DPHY_BR_440M  = 440,          // dsi byteclk 55Mhz
-    DPHY_BR_500M  = 500,          // dsi byteclk 62.5Mhz
-    DPHY_BR_600M  = 600,          // dsi byteclk 75Mhz
-    DPHY_BR_700M  = 700,          // dsi byteclk 53Mhz
-    DPHY_BR_750M  = 750,          // dsi byteclk 90Mhz
-    DPHY_BR_800M  = 800,          // dsi byteclk 96Mhz
-    DPHY_BR_900M  = 900,          // dsi byteclk 100Mhz
-    DPHY_BR_950M  = 950,          // dsi byteclk 102Mhz
-    DPHY_BR_1000M = 1000,         // dsi byteclk 125Mhz
-    DPHY_BR_1200M = 1200,         // dsi byteclk 150Mhz
-    DPHY_BR_1400M = 1400,         // dsi byteclk 175Mhz
-    DPHY_BR_1500M = 1500,         // dsi byteclk 187.5Mhz
-    DPHY_BR_1600M = 1600,         // dsi byteclk 200Mhz
-}nn_dphy_bitrate;
+/* Naneng D-PHY lane HS bit-rate buckets (Mbps) used by the register
+ * lookup tables in mipi_dsi_hal.c. */
+enum {
+    DPHY_BR_100M  = 100,
+    DPHY_BR_200M  = 200,
+    DPHY_BR_300M  = 250,
+    DPHY_BR_400M  = 400,
+    DPHY_BR_440M  = 440,
+    DPHY_BR_500M  = 500,
+    DPHY_BR_600M  = 600,
+    DPHY_BR_700M  = 700,
+    DPHY_BR_750M  = 750,
+    DPHY_BR_800M  = 800,
+    DPHY_BR_900M  = 900,
+    DPHY_BR_950M  = 950,
+    DPHY_BR_1000M = 1000,
+    DPHY_BR_1200M = 1200,
+    DPHY_BR_1400M = 1400,
+    DPHY_BR_1500M = 1500,
+    DPHY_BR_1600M = 1600,
+};
 
 /**
  * @brief Supported clock sources for modules (CPU, peripherals, RTC, etc.)

@@ -175,7 +175,7 @@ avdk_err_t h264d_gpu_display_display_open(void)
 	bk_err_t ret;
 	h264d_gpu_display_ctx_t *ctx;
 	bk_display_dpu_config_t dpu_cfg;
-	bk_lcd_panel_dev_config_t panel_cfg;
+	bk_lcd_panel_config_t panel_cfg;
 	const bk_display_dsi_panel_t *panel;
 
 	ret = h264d_gpu_display_lock();
@@ -241,10 +241,8 @@ avdk_err_t h264d_gpu_display_display_open(void)
 	if (ret != BK_OK) {
 		goto error;
 	}
-	LOGI("display step: get_timing\r\n");
-	dpu_cfg.timing = panel->timing;
 	LOGI("display step: dpu_new\r\n");
-	ret = bk_display_dpu_ctlr_new(&ctx->dpu_ctlr_handle, &dpu_cfg);
+	ret = bk_display_dpu_ctlr_new(&ctx->dpu_ctlr_handle, ctx->panel_handle, &dpu_cfg);
 	if (ret != BK_OK) {
 		goto error;
 	}

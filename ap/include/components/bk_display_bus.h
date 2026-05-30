@@ -135,25 +135,7 @@ avdk_err_t bk_display_spi_bus_new(bk_display_bus_handle_t *handle, bk_display_sp
  */
 avdk_err_t bk_display_bus_delete(bk_display_bus_handle_t handle);
 
-/**
- * @brief Forward the DPU clock source into the bus' fast-path cache.
- *
- * Transitional API: callers must invoke this once between
- * ::bk_display_dsi_bus_new() and ::bk_lcd_mipi_panel_new() so the DSI
- * backend programs its D-PHY divider against the right reference clock.
- * Buses without a clock-source notion return ::AVDK_ERR_UNSUPPORTED.
- *
- * Will be removed once panel-common drives the clock setup directly
- * off the panel descriptor.
- *
- * @param[in] handle  Bus handle.
- * @param[in] clk_src Clock source picked by the DPU configuration. 
- *
- * @return AVDK_ERR_OK on success.
- * @return AVDK_ERR_INVAL on NULL @p handle.
- * @return AVDK_ERR_UNSUPPORTED for buses without a clock-source notion.
- */
-avdk_err_t bk_display_bus_set_clock_src(bk_display_bus_handle_t handle, dpu_clk_src_t clk_src);
+
 
 /**
  * @brief Submit a frame through the bus' pixel path.

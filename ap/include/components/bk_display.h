@@ -42,18 +42,13 @@
 extern "C" {
 #endif
 
-/** Default PSRAM/DPU AXI QoS weight when ::bk_display_dpu_config_t::qos is 0. */
+/** Fixed PSRAM/DPU AXI QoS weight (not user-configurable). */
 #define BK_DISPLAY_DPU_QOS_DEFAULT                3
 
-/**
- * @brief DPU controller creation parameters.
- */
+
 typedef struct
 {
-    dpu_clk_src_t clk_src;            /**< DPU clock mux + MIPI DSI PHY init path */
-    bk_display_timing_t timing;       /**< DPU video timing */
     dpu_video_layer_config_t video;   /**< DPU video layer config */
-    uint8_t qos;                      /**< AXI QoS weight; 0 = ::BK_DISPLAY_DPU_QOS_DEFAULT */
 } bk_display_dpu_config_t;
 
 /**
@@ -79,14 +74,23 @@ typedef struct bk_display_ctlr_t *bk_display_ctlr_handle_t;
 /**
  * @brief Create a DPU display controller instance (state = DEINIT).
  *
+ * The controller binds to a specific panel and queries the panel's
+ * video timing (and, for RGB, the target DPI pixel clock) directly
+ * from the panel handle - callers never copy timing or pixel-clock
+ * fields into @p config themselves.
+ *
  * @param[out] handle  Receives the new controller handle.
+ * @param[in]  panel   Panel handle previously created via
+ *                     ::bk_lcd_mipi_panel_new() / ::bk_lcd_rgb_panel_new().
  * @param[in]  config  Controller configuration (must remain valid until delete).
  *
  * @return AVDK_ERR_OK on success.
- * @return AVDK_ERR_INVAL if @p handle or @p config is NULL.
+ * @return AVDK_ERR_INVAL if @p handle, @p panel or @p config is NULL.
  * @return AVDK_ERR_NO_MEM if allocation fails.
  */
-avdk_err_t bk_display_dpu_ctlr_new(bk_display_ctlr_handle_t *handle, bk_display_dpu_config_t *config);
+avdk_err_t bk_display_dpu_ctlr_new(bk_display_ctlr_handle_t *handle,
+                                   bk_avdk_lcd_panel_handle_t panel,
+                                   const bk_display_dpu_config_t *config);
 
 /**
  * @brief Bring the controller from DEINIT to INITED.

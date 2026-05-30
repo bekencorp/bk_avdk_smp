@@ -20,17 +20,28 @@
 #include <common/avdk_pixel_types.h>      /* bk_pixel_format_t */
 
 /**
- * @brief MIPI DPU / DSI clock root.
+ * @brief DPU register clock mux selector.
  *
- * Selects the DPU register clock mux and the DSI PHY init path used by
- * mipi_dsi_clock_set(). Lives in the driver-layer header so that the
- * driver source files can depend on it without pulling in the
- * higher-level component headers (R1.1 strict layering).
+ * Carried on each panel via ::bk_lcd_panel_config_t::clk_src; the
+ * panel-common factory pushes it to the bus at creation time and the
+ * DPU controller reads it back when programming the DPU clock mux. The
+ * DSI D-PHY itself is always brought up by the unified
+ * mipi_dsi_clock_set(); the PHY register layout is the same regardless
+ * of this enum value, only the fallback strategy when the PHY's
+ * internal PLL cannot satisfy the panel's lane:pclk ratio differs:
+ *
+ *   - ::DPU_CLK_SRC_SYSCLK    : DPU sources DPI from the SYSCLK ladder;
+ *                               the PHY's unused dpi_clk lets us fall
+ *                               back to a fixed-rate lane lookup (and
+ *                               default 800 Mbps as last resort).
+ *   - ::DPU_CLK_SRC_DPHY_DPLL : DPU consumes the PHY's dpi_clk directly,
+ *                               so a PLL miss is a hard error - retry
+ *                               with ::DPU_CLK_SRC_SYSCLK.
  */
 typedef enum {
-    DPU_CLK_SRC_UNKNOWN = 0,                     /**< default: Naneng DPHY internal PLL + byte-cycle VID timing */
-    DPU_CLK_SRC_SYSCLK = 1,                   /**< legacy: fixed DPHY table from dsi_dphy_bitrate_calc + hal_dsi_dphy_init */
-    DPU_CLK_SRC_DPHY_DPLL = 2,                /**< DPHY internal PLL + hal_dsi_dphy_init_for_panel */
+    DPU_CLK_SRC_UNKNOWN   = 0,                /**< treated as DPU_CLK_SRC_DPHY_DPLL */
+    DPU_CLK_SRC_SYSCLK    = 1,                /**< DPU clock from SYSCLK ladder via dpu_clk_sel_div() */
+    DPU_CLK_SRC_DPHY_DPLL = 2,                /**< DPU clock from Naneng D-PHY internal dpi_clk output */
 } dpu_clk_src_t;
 
 typedef enum {
@@ -72,7 +83,6 @@ typedef avdk_err_t (*flush_free_cb_t)(void *args);
 
 /** Video timing parameters shared by panel descriptors / bus clock / DPU. */
 typedef struct {
-    uint32_t clk;
     uint16_t h_size;            /*!< Horizontal resolution (active pixels) */
     uint16_t v_size;            /*!< Vertical resolution (active lines) */
     uint16_t hsync_pulse_width; /*!< HSYNC width, in pixel clocks */
@@ -88,12 +98,14 @@ typedef struct {
  *
  * Lives in the driver-layer header so mipi_dsi_clock_set() can take it
  * without pulling in component-layer headers (R1.1 strict layering).
+ * The actual DPI pixel clock is derived from @c fps * (h_total *
+ * v_total) inside the driver; the panel descriptor no longer carries a
+ * pre-computed @c clk value.
  */
 typedef struct bk_panel_clock_config_t
 {
-    uint32_t clk;                /**< MIPI lcd clock */
     uint8_t  n_lanes;            /**< MIPI active data lanes (1~4) */
     uint8_t  fps;                /**< frame rate */
-    dpu_clk_src_t clk_src;       /**< DSI PHY / VID timing path */
+    dpu_clk_src_t clk_src;       /**< DPU register clock mux selector */
     bk_display_timing_t timing;  /**< DPU video timing */
 } bk_panel_clock_config_t;

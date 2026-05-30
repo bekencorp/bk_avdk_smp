@@ -36,7 +36,7 @@ extern "C" {
 /**
  * @brief Drive the panel reset waveform.
  *
- * Toggles the reset GPIO (taken from ::bk_lcd_panel_dev_config_t and the
+ * Toggles the reset GPIO (taken from ::bk_lcd_panel_config_t and the
  * panel descriptor's reset_timing) per the configured polarity.
  *
  * @param[in] panel Panel handle returned by ::bk_lcd_mipi_panel_new() / ::bk_lcd_rgb_panel_new().
@@ -156,14 +156,14 @@ bk_err_t bk_lcd_panel_rx_param(bk_avdk_lcd_panel_handle_t panel,
  * @brief Create a MIPI-DSI panel handle.
  *
  * @param[in]  bus_handle        DSI bus the panel is attached to.
- * @param[in]  panel_dev_config  Reset pin + reset polarity.
+ * @param[in]  panel_config  Reset pin + reset polarity.
  * @param[in]  panel_desc        Panel descriptor (timing + init_cmds + read_id_regs ...).
  * @param[out] ret_panel         Receives the new panel handle.
  *
  * @return BK_OK on success, BK_ERR_NULL_PARAM if any required argument is NULL.
  */
 bk_err_t bk_lcd_mipi_panel_new(bk_display_bus_handle_t bus_handle,
-                               const bk_lcd_panel_dev_config_t *panel_dev_config,
+                               const bk_lcd_panel_config_t *panel_config,
                                const bk_display_dsi_panel_t *panel_desc,
                                bk_avdk_lcd_panel_handle_t *ret_panel);
 
@@ -171,14 +171,14 @@ bk_err_t bk_lcd_mipi_panel_new(bk_display_bus_handle_t bus_handle,
  * @brief Create an RGB panel handle.
  *
  * @param[in]  bus_handle        SW SPI bus carrying the register-init channel.
- * @param[in]  panel_dev_config  Reset pin + reset polarity.
+ * @param[in]  panel_config  Reset pin + reset polarity.
  * @param[in]  panel_desc        RGB panel descriptor.
  * @param[out] ret_panel         Receives the new panel handle.
  *
  * @return BK_OK on success.
  */
 bk_err_t bk_lcd_rgb_panel_new(bk_display_bus_handle_t bus_handle,
-                              const bk_lcd_panel_dev_config_t *panel_dev_config,
+                              const bk_lcd_panel_config_t *panel_config,
                               const bk_display_rgb_panel_t *panel_desc,
                               bk_avdk_lcd_panel_handle_t *ret_panel);
 

@@ -47,7 +47,7 @@ static avdk_err_t lcd_example_dsi_open(app_display_config_t *display_config)
     dpu_config.video.format = BK_PIXEL_FORMAT_ARGB8888;
 
     // Configure panel device
-    const bk_lcd_panel_dev_config_t panel_dev_config = 
+    const bk_lcd_panel_config_t panel_config = 
     {
         .reset_pin = GPIO_60,
         .reset_active_level = false,
@@ -55,15 +55,14 @@ static avdk_err_t lcd_example_dsi_open(app_display_config_t *display_config)
 
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&display_config->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
 
-    AVDK_GOTO_ON_ERROR(bk_lcd_mipi_panel_new(display_config->dis_bus_handle, &panel_dev_config, panel, &display_config->panel_handle),
+    AVDK_GOTO_ON_ERROR(bk_lcd_mipi_panel_new(display_config->dis_bus_handle, &panel_config, panel, &display_config->panel_handle),
                        err, TAG, "create panel err\n");
 
 
     bk_lcd_panel_reset(display_config->panel_handle);
     bk_lcd_panel_init(display_config->panel_handle);
-    dpu_config.timing = panel->timing;
 
-    AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&display_config->dpu_ctlr_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
+    AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&display_config->dpu_ctlr_handle, display_config->panel_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(display_config->dpu_ctlr_handle), err, TAG, "display init err\n");
     AVDK_GOTO_ON_ERROR(bk_display_open(display_config->dpu_ctlr_handle), err, TAG, "display open err\n");
 

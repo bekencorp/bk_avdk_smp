@@ -77,7 +77,6 @@ typedef struct {
 typedef enum
 {
     LCD_TYPE_RGB,     /**< parallel RGB */
-    LCD_TYPE_MCU8080, /**< 8080 MCU bus */
     LCD_TYPE_QSPI,    /**< QSPI */
     LCD_TYPE_SPI,     /**< SPI */
     LCD_TYPE_DSI      /**< MIPI DSI */
@@ -103,16 +102,6 @@ typedef enum
     LCD_QSPI_40M = 40, LCD_QSPI_32M = 32, LCD_QSPI_30M = 30, LCD_QSPI_24M = 24,
 } lcd_qspi_clk_t;
 
-/** MCU/8080 bus configuration (legacy ::lcd_device_t arm). */
-typedef struct
-{
-    lcd_clk_t clk;
-    bk_err_t (*set_xy_swap)(bool swap_axes);
-    bk_err_t (*set_mirror)(bool mirror_x, bool mirror_y);
-    void (*set_display_area)(uint16 xs, uint16 xe, uint16 ys, uint16 ye);
-    void (*start_transform)(void);
-    void (*continue_transform)(void);
-} lcd_mcu_t;
 
 /** QSPI bus configuration (legacy ::lcd_device_t arm). */
 typedef struct
@@ -161,18 +150,44 @@ typedef struct {
     uint8_t data_len;       /**< number of data bytes/words; or delay ms when cmd==0xFF/0xFFFF && data_len==0xFF */
 } lcd_rgb_spi_init_cmd_t;
 
-/** Per-panel reset pin + polarity. */
-typedef struct bk_lcd_panel_dev_config_t bk_lcd_panel_dev_config_t;
-struct bk_lcd_panel_dev_config_t {
+/** Per-panel hardware-bring-up parameters consumed by
+ *  ::bk_lcd_mipi_panel_new() / ::bk_lcd_rgb_panel_new(). */
+typedef struct bk_lcd_panel_config_t bk_lcd_panel_config_t;
+struct bk_lcd_panel_config_t {
     int8_t reset_pin;                   /**< LCD reset GPIO (-1 to disable) */
     bool reset_active_level;            /**< true = active-high, false = active-low */
+    dpu_clk_src_t clk_src;
 };
+
+/** Convert integer megahertz (e.g. @p mhz == 32 for 32 MHz) to pixel-clock Hz for RGB panels. */
+#define BK_RGB_PIXEL_CLK_HZ(mhz)  ((uint32_t)(mhz) * 1000000U)
+
+/** Panel id for legacy SPI/QSPI descriptors (::lcd_device_t). */
+typedef enum {
+    LCD_DEVICE_UNKNOW = 0,
+    LCD_DEVICE_SH8601A,
+    LCD_DEVICE_ST77903_WX20114,
+    LCD_DEVICE_ST77903_SAT61478M,
+    LCD_DEVICE_ST77903_H0165Y008T,
+    LCD_DEVICE_SPD2010,
+    LCD_DEVICE_GC9C01,
+    LCD_DEVICE_JD9855,
+    LCD_DEVICE_JD9855_K18XJ15,
+    LCD_DEVICE_ST77916,
+    LCD_DEVICE_JD9853,
+    LCD_DEVICE_JD9853A,
+    LCD_DEVICE_ST7796U,
+    LCD_DEVICE_GC9D01,
+    LCD_DEVICE_ST7789V2,
+} lcd_device_id_t;
 
 /** RGB panel descriptor. */
 typedef struct
 {
     uint32_t id;
     const char *name;
+    /** Target parallel-RGB DPI pixel clock (Hz). Hardware picks nearest PLL/div; see ::BK_RGB_PIXEL_CLK_HZ. */
+    uint32_t pixel_clock_hz;
     bk_display_timing_t timing;
     const lcd_rgb_spi_init_cmd_t *init_cmds;    /**< terminated by ``{0, NULL, 0}`` */
     /**
@@ -206,48 +221,12 @@ typedef struct
     bk_err_t (*custom_init)(bk_avdk_lcd_panel_t *panel, void *priv);    /**< optional per-panel init hook (used by HDMI bridge) */
 } bk_display_dsi_panel_t;
 
-/** Panel id used by legacy SPI/QSPI panel descriptors. */
-typedef enum {
-    LCD_DEVICE_UNKNOW = 0,
-    LCD_DEVICE_ST7282,            /**< 480X270 RGB  */
-    LCD_DEVICE_HX8282,            /**< 1024X600 RGB */
-    LCD_DEVICE_GC9503V,           /**< 480X800 RGB  */
-    LCD_DEVICE_NT35510,           /**< 480X854 RGB  */
-    LCD_DEVICE_H050IWV,           /**< 800X480 RGB  */
-    LCD_DEVICE_MD0430R,           /**< 800X480 RGB  */
-    LCD_DEVICE_MD0700R,           /**< 1024X600 RGB */
-    LCD_DEVICE_ST7701S_LY,        /**< 480X480 RGB  */
-    LCD_DEVICE_ST7701S,           /**< 480X480 RGB  */
-    LCD_DEVICE_ST7701SN,          /**< 480X480 RGB  */
-    LCD_DEVICE_AML01,             /**< 720X1280 RGB */
-
-    LCD_DEVICE_ST7796S,           /**< 320X480 MCU  */
-    LCD_DEVICE_NT35512,           /**< 480X800 MCU  */
-    LCD_DEVICE_NT35510_MCU,       /**< 480X800 MCU  */
-    LCD_DEVICE_ST7789V,           /**< 170X320 MCU  */
-    LCD_DEVICE_ST7789T3,          /**< 240X320 MCU  */
-
-    LCD_DEVICE_SH8601A,           /**< 454X454 QSPI */
-    LCD_DEVICE_ST77903_WX20114,   /**< 400X400 QSPI */
-    LCD_DEVICE_ST77903_SAT61478M, /**< 400X400 QSPI */
-    LCD_DEVICE_ST77903_H0165Y008T,/**< 360X480 QSPI */
-    LCD_DEVICE_SPD2010,           /**< 412X412 QSPI */
-    LCD_DEVICE_GC9C01,            /**< 360X360 QSPI */
-    LCD_DEVICE_JD9855,            /**< 360X360 QSPI */
-    LCD_DEVICE_JD9855_K18XJ15,    /**< 360X360 QSPI */
-    LCD_DEVICE_ST77916,           /**< 360X360 QSPI */
-    LCD_DEVICE_JD9853A,           /**< 240X320 QSPI */
-
-    LCD_DEVICE_ST7796U,           /**< 320X480 SPI  */
-    LCD_DEVICE_GC9D01,            /**< 160X160 SPI  */
-    LCD_DEVICE_ST7789V2,          /**< 240X320 SPI  */
-} lcd_device_id_t;
-
 /**
- * @brief Legacy SPI/QSPI/MCU panel descriptor.
+ * @brief Legacy SPI/QSPI panel descriptor.
  *
- * BK7259 has no MCU/8080 bus on silicon; the @c .mcu union arm is kept
- * only for ABI symmetry with sibling SoCs.
+ * RGB and MIPI-DSI panels use ::bk_display_rgb_panel_t and
+ * ::bk_display_dsi_panel_t. Panel lookup uses
+ * ::BK_LCD_PANEL_DEVICE_SECTION entry names, not fields here.
  */
 typedef struct {
     int id;                                      /**< ::lcd_device_id_t */
@@ -255,16 +234,10 @@ typedef struct {
     uint8_t type;                                /**< ::lcd_type_t */
     uint16_t width;                              /**< active pixels  */
     uint16_t height;                             /**< active lines   */
-    uint8_t src_fmt;                             /**< source pixel format */
-    uint8_t out_fmt;                             /**< output pixel format */
     union {
-        const void      *rgb;                    /**< reserved (RGB panels use ::bk_display_rgb_panel_t) */
-        const lcd_mcu_t *mcu;                    /**< MCU/8080 bus configuration */
-        const lcd_qspi_t *qspi;                  /**< QSPI bus configuration     */
-        const lcd_spi_t *spi;                    /**< SPI bus configuration      */
+        const lcd_qspi_t *qspi;                  /**< QSPI bus configuration */
+        const lcd_spi_t *spi;                    /**< SPI bus configuration  */
     };
-    bk_err_t (*init)(const void *handle);        /**< optional power-on / init */
-    bk_err_t (*off)(const void *handle);         /**< optional power-off / display-off */
 } lcd_device_t;
 
 /** @deprecated Historical alias; new code should use ::lcd_device_t directly. */
@@ -276,7 +249,6 @@ typedef enum {
     BK_LCD_PANEL_BUS_DSI  = 1,    /**< MIPI-DSI panel (incl. DSI bridges) */
     BK_LCD_PANEL_BUS_SPI  = 2,    /**< pure SPI panel */
     BK_LCD_PANEL_BUS_QSPI = 3,    /**< QSPI / quad-SPI panel */
-    BK_LCD_PANEL_BUS_MCU  = 4,    /**< 8080 / 6800 / I80 - unused on BK7259 */
     BK_LCD_PANEL_BUS_MAX,
 } bk_lcd_panel_bus_type_t;
 

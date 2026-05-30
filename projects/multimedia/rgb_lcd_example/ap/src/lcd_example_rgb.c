@@ -77,7 +77,6 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
         .video.enable = true,
         .video.decompress = (format == BK_PIXEL_FORMAT_ARGB8888),
         .video.format = format,
-        .clk_src = DPU_CLK_SRC_SYSCLK,
     };
 
     /* RGB panels drive register-init through a private SW (GPIO bit-bang)
@@ -94,7 +93,7 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
         .sda_pin = GPIO_9,
     };
 
-    bk_lcd_panel_dev_config_t panel_dev_config = {
+    bk_lcd_panel_config_t panel_config = {
         .reset_pin = GPIO_6,
         .reset_active_level = false,
     };
@@ -142,18 +141,17 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
     rgb_cfg_bus.cmd_width = panel->spi_cmd_16bit ? 16 : 8;
 
     AVDK_GOTO_ON_ERROR(bk_display_spi_bus_new(&context->spi_bus_handle, &rgb_cfg_bus), err, TAG, "display rgb cfg-bus new err\n");
-    AVDK_GOTO_ON_ERROR(bk_lcd_rgb_panel_new(context->spi_bus_handle, &panel_dev_config, panel, &context->panel_handle), err, TAG, "create panel err\n");
+    AVDK_GOTO_ON_ERROR(bk_lcd_rgb_panel_new(context->spi_bus_handle, &panel_config, panel, &context->panel_handle), err, TAG, "create panel err\n");
 
     bk_lcd_panel_reset(context->panel_handle);
     bk_lcd_panel_init(context->panel_handle);
-    dpu_config.timing = panel->timing;
 
-    AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&context->dpu_ctlr_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
+    AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&context->dpu_ctlr_handle, context->panel_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(context->dpu_ctlr_handle), err, TAG, "display init err\n");
     AVDK_GOTO_ON_ERROR(bk_display_open(context->dpu_ctlr_handle), err, TAG, "display open err\n");
 
-    context->width = dpu_config.timing.h_size;
-    context->height = dpu_config.timing.v_size;
+    context->width = panel->timing.h_size;
+    context->height = panel->timing.v_size;
     context->format = format;
     context->pixel_width = (format == BK_PIXEL_FORMAT_ARGB8888) ? 4 : 2;
 
