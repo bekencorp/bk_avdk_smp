@@ -29,6 +29,12 @@ typedef enum {
 	PM_AP_CTRL_CB_TYPE_POWER_OFF = 1, /**< Execute after AP power-off */
 } pm_ap_ctrl_cb_type_t;
 
+
+#define PM_WIFI_RTC_ALARM_NAME    "bk_wifi"
+#define PM_BT_RTC_ALARM_NAME      "bk_bt"
+#define PM_APP_RTC_ALARM_NAME     "bk_app"
+#define PM_MM_RTC_ALARM_NAME      "mm_rtc"
+
 /* Standard priority definitions for callback execution order
  * Lower value = Higher priority = Executes first
  * Range: 0 (highest) to 255 (lowest)
@@ -634,6 +640,7 @@ typedef enum
 #define PM_CP1_AUTO_POWER_DOWN_CTRL      (PM_CP1_AUTO_POWER_DOWN_ENABLE)
 
 /*=====================CONFIG  SECTION  END=======================*/
+
 /**
  * @brief send message to pm thread for enter deepsleep or low voltage
  *
@@ -868,6 +875,26 @@ bk_err_t bk_pm_ap_first_boot_set(bool is_first_boot);
  *
  */
 bk_err_t bk_pm_sleep_wakeup_reason_set(uint64_t wakeup_irq);
+/**
+ * @brief parse RTC wakeup reason from alarm name
+ *
+ * When normal sleep is woken by RTC interrupt, multiple modules (WiFi, BLE,
+ * application timer, etc.) may share the same RTC interrupt source. This API
+ * inspects the first triggered RTC alarm name and maps it to a specific
+ * bk_pm_wakeup_reason_e value (e.g. BK_PM_WAKEUP_WIFI, BK_PM_WAKEUP_BLE,
+ * BK_PM_WAKEUP_HW_TIMER).
+ *
+ * @attention
+ * - Call this API after bk_pm_sleep_wakeup_reason_set() when the wakeup
+ *   interrupt source is INT_SRC_RTC or INT_SRC_ANA_RTC.
+ * - The parsed result is saved internally for subsequent wakeup reason query.
+ * - MM RTC alarm is ignored because it is not a valid wakeup source.
+ *
+ * @return
+ * - BK_OK: succeed
+ * - others: other errors.
+ */
+bk_err_t bk_pm_rtc_wakeup_reason_parse();
 /**
  * @brief clear wakeup source of exiting  sleep process
  *

@@ -184,6 +184,14 @@ bool bk_pm_ap_boot_success_get(void)
 	return (shared_info.pm_ap_work_state & PM_AP_WORK_STATE_BOOT_SUCCESS) != 0;
 }
 
+bool bk_pm_ap_first_boot_get(void)
+{
+	pm_shared_info_t shared_info = {0};
+
+	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+	return (shared_info.pm_ap_work_state & PM_AP_WORK_STATE_FIRST_BOOT) != 0;
+}
+
 bk_err_t bk_pm_ap_first_boot_set(bool is_first_boot)
 {
 	pm_shared_info_t shared_info = {0};

@@ -1357,6 +1357,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 #endif
 
 	bk_pm_module_lv_sleep_state_set();
+	bk_pm_sleep_wakeup_reason_clear();
 
 	//sys_hal_backup_disable_int(&int_state1, &int_state2);
 	sys_hal_backup_set_core_26m(&cksel_core, &clkdiv_core, &clkdiv_bus);
@@ -1671,6 +1672,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	#if CONFIG_DEEP_LV
 	sys_hal_regs_digital_restore();
 	#endif
+
 	sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
 	sys_hal_restore_flash_freq(cksel_flash, clkdiv_flash);
 
@@ -1680,6 +1682,8 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	#endif
 
 	sys_hal_restore_int(int_state1, int_state2, int_state3);
+	bk_pm_sleep_wakeup_reason_set(check_IRQ_pending());
+
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 	#if CONFIG_DEEP_LV_DEBUG

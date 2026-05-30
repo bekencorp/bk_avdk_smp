@@ -47,7 +47,7 @@
 
 #include <driver/aon_rtc.h>
 
-#define PM_BT_LP_RTC_ALARM_NAME "bt_lp"
+#define PM_BT_LP_RTC_ALARM_NAME  PM_BT_RTC_ALARM_NAME
 
 typedef struct
 {

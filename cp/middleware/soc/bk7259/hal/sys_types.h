@@ -798,9 +798,10 @@ typedef struct {
 typedef enum
 {
 	PMU_REG0 = 0,
-	PMU_REG1,
 	PMU_REG2,
 	PMU_REG3,
+	PMU_REG4,
+	PMU_REG5,
 	PMU_REG0x25,
 	PMU_REG0x40,
 	PMU_REG0x41,
@@ -808,6 +809,10 @@ typedef enum
 	PMU_REG0x43,
 	PMU_REG0x70,
 	PMU_REG0x71,
+	PMU_REG0x74,
+	PMU_REG0x75,
+	PMU_REG0x78,
+	PMU_REG0x79,
 	PMU_REG0x7c,
 	PMU_NONE
 } pmu_reg_e;
@@ -816,6 +821,8 @@ typedef enum
 	{PMU_REG0, AON_PMU_R0_ADDR, }, \
 	{PMU_REG2, AON_PMU_R2_ADDR, }, \
 	{PMU_REG3, AON_PMU_R3_ADDR, }, \
+	{PMU_REG4, AON_PMU_R4_ADDR, }, \
+	{PMU_REG5, AON_PMU_R5_ADDR, }, \
 	{PMU_REG0x25, AON_PMU_R25_ADDR, }, \
 	{PMU_REG0x40, AON_PMU_R40_ADDR, }, \
 	{PMU_REG0x41, AON_PMU_R41_ADDR, }, \
@@ -823,6 +830,10 @@ typedef enum
 	{PMU_REG0x43, AON_PMU_R43_ADDR, }, \
 	{PMU_REG0x70, AON_PMU_R70_ADDR, }, \
 	{PMU_REG0x71, AON_PMU_R71_ADDR, }, \
+	{PMU_REG0x74, AON_PMU_R74_ADDR, }, \
+	{PMU_REG0x75, AON_PMU_R75_ADDR, }, \
+	{PMU_REG0x78, AON_PMU_R78_ADDR, }, \
+	{PMU_REG0x79, AON_PMU_R79_ADDR, }, \
 	{PMU_REG0x7c, AON_PMU_R7C_ADDR, }, \
 }
 typedef struct {

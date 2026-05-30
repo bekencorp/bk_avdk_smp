@@ -197,7 +197,10 @@ uint64_t pm_low_voltage_process()
 	/*Debug pd,lpo,psram end*/
 
 	pm_low_voltage_resource_restore();
+	bk_pm_rtc_wakeup_reason_parse();
 
+    //extern uint64_t check_IRQ_pending(void);
+	//LOGD("LV IRQ_pending:0x%llx", check_IRQ_pending());
 	//if (pm_debug_mode() & 0x2)
 		//BK_LOGD(NULL, "low voltage int open before[%d][0x%x]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),aon_pmu_drv_reg_get(PMU_REG0x71));
 
@@ -409,6 +412,9 @@ __attribute__((section(".iram"))) void pm_low_voltage_bsp_restore(void)
 {
 	bk_flash_power_saving_exit();
 
+	extern void bk_rtc_update_base_time(void);
+	bk_rtc_update_base_time();
+
 #if CONFIG_CKMN
 	bk_rosc_32k_ckest_prog(32);
 #endif
@@ -422,8 +428,7 @@ __attribute__((section(".iram"))) void pm_low_voltage_bsp_restore(void)
 		bk_aon_wdt_stop();
 	#endif
 #endif
-	extern void bk_rtc_update_base_time(void);
-	bk_rtc_update_base_time();
+
 
 	bk_pm_exit_low_vol_wakeup_source_set();
 }
@@ -762,7 +767,6 @@ bk_err_t bk_pm_light_sleep_unregister_cb(bool enter_cb, bool exit_cb)
 /*=========================SLEEP CB REGISTER API END========================*/
 
 /*=========================WIFI ALARM START========================*/
-#define PM_WIFI_RTC_ALARM_NAME "wifi"
 
 void bk_pm_wifi_rtc_set(uint32_t tick, void *callback)
 {

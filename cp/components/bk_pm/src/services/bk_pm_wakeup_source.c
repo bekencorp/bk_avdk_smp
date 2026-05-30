@@ -36,8 +36,9 @@ static pm_wakeup_source_e s_pm_exit_low_vol_wakeup_source   = PM_WAKEUP_SOURCE_I
 static pm_wakeup_source_e s_pm_exit_deepsleep_wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
 
 static touch_wakeup_param_t s_touch_wakeup_param;
-static uint64_t s_normal_sleep_wakeup_irq                   = 0;
-static icu_int_src_t s_normal_sleep_wakeup_irq_id           = INT_SRC_NONE;
+static uint64_t s_sleep_wakeup_irq                   = 0;
+static icu_int_src_t s_sleep_wakeup_irq_id           = INT_SRC_NONE;
+static bk_pm_wakeup_reason_e s_sleep_rtc_wakeup_source      = BK_PM_WAKEUP_UNKNOWN;
 /*=====================VARIABLE SECTION END=================*/
 
 /*================FUNCTION DECLARATION SECTION START========*/
@@ -55,7 +56,7 @@ static void pm_core_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 }
 static void pm_core_gpio_callback(gpio_id_t gpio_id)
 {
-	//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
+	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
 	pm_ap_core_msg_t msg = {0};
 	msg.event= PM_CP_CORE_GPIO_WAKEUPED;
 	msg.param1 = gpio_id;
@@ -68,7 +69,7 @@ static bk_err_t pm_core_rtc_wakeup_config(const pm_ap_core_msg_t *msg)
 
 #if CONFIG_AON_RTC || CONFIG_ANA_RTC
 	alarm_info_t lv_alarm = {
-						"lv_rtc",
+						PM_APP_RTC_ALARM_NAME,
 						(rtc_cfg->rtc_period)*AON_RTC_MS_TICK_CNT,
 						rtc_cfg->rtc_cnt,
 						pm_core_rtc_callback,
@@ -263,40 +264,39 @@ pm_wakeup_source_e bk_pm_exit_low_vol_wakeup_source_get()
 bk_err_t bk_pm_exit_low_vol_wakeup_source_set()
 {
 	uint32_t pmu_state = 0;
-	//if (aon_pmu_drv_reg_get(PMU_REG2) & BIT(BIT_SLEEP_FLAG_LOW_VOLTAGE))
-	{
-		pmu_state = 0;
-		pmu_state = aon_pmu_drv_reg_get(PMU_REG0x71);
-		pmu_state = (pmu_state >> 20) & PM_WAKEUP_SOURCE_MARK;
 
-		switch (pmu_state)
-		{
-		case 0x1: // gpio
-			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_GPIO;
-			break;
-		case 0x2: // rtc
-			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_RTC;
-			break;
-		case 0x4: // WIFI wakeup
-			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_WIFI;
-			break;
-		case 0x8: // BT wakeup
-			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_BT;
-			break;
-		case 0x10: // usbplug wakeup
-			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_USBPLUG;
-			break;
-		case 0x20: // touch wakeup
-			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_TOUCHED;
-			break;
-		case 0x40: // vad wakeup
-			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_VAD;
-			break;
-		default:
-			s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
-			break;
-		}
+	pmu_state = 0;
+	pmu_state = aon_pmu_drv_reg_get(PMU_REG0x71);
+	pmu_state = (pmu_state >> 20) & PM_WAKEUP_SOURCE_MARK;
+
+	switch (pmu_state)
+	{
+	case 0x1: // gpio
+		s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_GPIO;
+		break;
+	case 0x2: // rtc
+		s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_RTC;
+		break;
+	case 0x4: // WIFI wakeup
+		s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_WIFI;
+		break;
+	case 0x8: // BT wakeup
+		s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_BT;
+		break;
+	case 0x10: // usbplug wakeup
+		s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_USBPLUG;
+		break;
+	case 0x20: // touch wakeup
+		s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_TOUCHED;
+		break;
+	case 0x40: // vad wakeup
+		s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_VAD;
+		break;
+	default:
+		s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
+		break;
 	}
+
 	return BK_OK;
 }
 
@@ -307,39 +307,92 @@ bk_err_t bk_pm_exit_low_vol_wakeup_source_clear()
 	pmu_state = aon_pmu_drv_reg_get(PMU_REG0x43);
 	pmu_state |= (0x1 << 17);
 	aon_pmu_drv_reg_set(PMU_REG0x43, pmu_state);
+
+	pmu_state = aon_pmu_drv_reg_get(PMU_REG0x43);
+	pmu_state &= ~(0x1 << 17);
+	aon_pmu_drv_reg_set(PMU_REG0x43, pmu_state);
 	s_pm_exit_low_vol_wakeup_source = PM_WAKEUP_SOURCE_INT_NONE;
 	return BK_OK;
 }
 
 __attribute__((section(".iram")))  bk_err_t bk_pm_sleep_wakeup_reason_clear()
 {
-	s_normal_sleep_wakeup_irq    = 0;
-	s_normal_sleep_wakeup_irq_id = 0;
+	s_sleep_wakeup_irq    = 0;
+	s_sleep_wakeup_irq_id = 0;
+	s_sleep_rtc_wakeup_source    = BK_PM_WAKEUP_UNKNOWN;
 	return BK_OK;
 }
 
 __attribute__((section(".iram")))  bk_err_t bk_pm_sleep_wakeup_reason_set(uint64_t wakeup_irq)
 {
-	s_normal_sleep_wakeup_irq = wakeup_irq;
+	s_sleep_wakeup_irq = wakeup_irq;
 	for(int i = 0; i < INT_SRC_NONE; i++)
 	{
 		if(wakeup_irq & (1ULL << i))
 		{
-			s_normal_sleep_wakeup_irq_id = i;
+			s_sleep_wakeup_irq_id = i;
 		}
 	}
 	return BK_OK;
 }
+bk_err_t bk_pm_rtc_wakeup_reason_parse()
+{
+	bk_pm_wakeup_reason_e wakeup_reason = BK_PM_WAKEUP_UNKNOWN;
+	uint32_t int_src = 0;
+	#if CONFIG_ANA_RTC
+	int_src =  INT_SRC_ANA_RTC;
+	#else
+	int_src = INT_SRC_RTC;
+	#endif
 
+	if(s_sleep_wakeup_irq_id == int_src)
+	{
+		uint8_t *alarm_name = bk_rtc_get_first_alarm_name();
+
+		if(alarm_name != NULL)
+		{
+			const char *alarm_name_str = (const char *)alarm_name;
+
+			if(strncmp(alarm_name_str, PM_WIFI_RTC_ALARM_NAME, sizeof(PM_WIFI_RTC_ALARM_NAME)) == 0)
+			{
+				wakeup_reason = BK_PM_WAKEUP_WIFI;
+			}
+			else if(strncmp(alarm_name_str, PM_BT_RTC_ALARM_NAME, sizeof(PM_BT_RTC_ALARM_NAME)) == 0)
+			{
+				wakeup_reason = BK_PM_WAKEUP_BLE;
+			}
+			else if(strncmp(alarm_name_str, PM_APP_RTC_ALARM_NAME, sizeof(PM_APP_RTC_ALARM_NAME)) == 0)
+			{
+				wakeup_reason = BK_PM_WAKEUP_HW_TIMER;
+			}
+			else if(strncmp(alarm_name_str, PM_MM_RTC_ALARM_NAME, sizeof(PM_MM_RTC_ALARM_NAME)) == 0)
+			{
+				/*mm rtc alarm is on wifi on, it is not a wakeup source, ignore it*/
+			}
+			else
+			{
+				wakeup_reason = BK_PM_WAKEUP_HW_TIMER;
+			}
+			//LOGI("bk_pm_sleep_wakeup_reason_get: alarm name=%s\r\n", alarm_name_str);
+		}
+		else
+		{
+			//LOGI("bk_pm_sleep_wakeup_reason_get: no alarm name\r\n");
+			wakeup_reason = BK_PM_WAKEUP_HW_TIMER;
+		}
+		s_sleep_rtc_wakeup_source = wakeup_reason;
+	}
+	return BK_OK;
+}
 bk_pm_wakeup_reason_e bk_pm_sleep_wakeup_reason_get()
 {
-	if(s_normal_sleep_wakeup_irq_id != INT_SRC_NONE)
+	if(s_sleep_wakeup_irq_id != INT_SRC_NONE)
 	{
 		/*Debug*/
-		//LOGI("NS wakeup irq: %d,0x%llx", s_normal_sleep_wakeup_irq_id,s_normal_sleep_wakeup_irq);
+		LOGI("NS wakeup irq: %d,0x%llx", s_sleep_wakeup_irq_id,s_sleep_wakeup_irq);
 	}
 	bk_pm_wakeup_reason_e wakeup_reason = BK_PM_WAKEUP_UNKNOWN;
-	switch (s_normal_sleep_wakeup_irq_id)
+	switch (s_sleep_wakeup_irq_id)
 	{
 		#if CONFIG_ANA_GPIO
 		case INT_SRC_ANA_GPIO:
@@ -353,7 +406,13 @@ bk_pm_wakeup_reason_e bk_pm_sleep_wakeup_reason_get()
 		#else
 		case INT_SRC_RTC:
 		#endif
-		    wakeup_reason = BK_PM_WAKEUP_HW_TIMER;
+		if(s_sleep_rtc_wakeup_source != BK_PM_WAKEUP_UNKNOWN)
+		{
+			wakeup_reason = s_sleep_rtc_wakeup_source;
+		}
+		else
+		{
+		}
 			break;
 		case INT_SRC_MAC_GENERAL:
 		    wakeup_reason = BK_PM_WAKEUP_WIFI;

@@ -318,8 +318,7 @@ static bk_err_t pm_message_handle(void)
 				break;
 				case PM_CP_CORE_RTC_WAKEUPED:
 				{
-					//bk_pm_cp0_response_cp1(PM_SLEEP_WAKEUP_NOTIFY_CMD,PM_MODE_LOW_VOLTAGE,PM_WAKEUP_SOURCE_INT_RTC,0);
-					LOGD("rtc_cb[%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),bk_pm_ap_boot_success_get());
+					LOGD("rtc_cb[%d][%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),bk_pm_ap_boot_success_get(),bk_pm_sleep_wakeup_reason_get());
 					if(!bk_pm_ap_boot_success_get())
 					{
 						bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
@@ -328,9 +327,8 @@ static bk_err_t pm_message_handle(void)
 				break;
 				case PM_CP_CORE_GPIO_WAKEUPED:
 				{
-					bk_pm_cp0_response_cp1(PM_SLEEP_WAKEUP_NOTIFY_CMD,PM_MODE_LOW_VOLTAGE,PM_WAKEUP_SOURCE_INT_GPIO,msg.param1);
-					LOGD("gpio_cb[%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),msg.param1);
-					if(!bk_pm_cp1_work_state_get())
+					LOGD("gpio_cb[%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),msg.param1,bk_pm_sleep_wakeup_reason_get());
+					if(!bk_pm_ap_boot_success_get())
 					{
 						bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
 					}
