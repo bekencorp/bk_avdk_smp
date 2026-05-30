@@ -51,6 +51,7 @@ MEMORY
   RAM (rwx)             : ORIGIN = CONFIG_AP_RAM_ADDR, LENGTH = CONFIG_AP_RAM_SIZE
   SWAP (rwx)            : ORIGIN = CONFIG_SWAP_ADDR, LENGTH = CONFIG_SWAP_SIZE
 
+  DTCM (rwx)            : ORIGIN = SOC_DTCM_DATA_BASE + 0, LENGTH = CONFIG_DTCM_SIZE
 #if CONFIG_PSRAM
 #if (CONFIG_PSRAM_AS_SYS_MEMORY)
   PSRAM_HEAP (rwx)      : ORIGIN = CONFIG_AP_PSRAM_HEAP_ADDR, LENGTH = CONFIG_AP_PSRAM_HEAP_SIZE
@@ -263,6 +264,10 @@ SECTIONS
         LONG (__data_start__)
         LONG ((__data_end__ - __data_start__) / 4)
 
+        LONG (__dtcm_content)
+        LONG (__dtcm_start__)
+        LONG ((__dtcm_end__ - __dtcm_start__) / 4)
+
 #if CONFIG_PSRAM
         LONG (__psram_code_lma)
         LONG (__psram_code_start__)
@@ -289,6 +294,16 @@ SECTIONS
     #endif
         __zero_table_end__ = .;
     } > FLASH
+
+    .dtcm :
+    {
+        . = ALIGN(4);
+
+        PROVIDE(__dtcm_content = LOADADDR(.dtcm));
+        __dtcm_start__ = .;
+
+        __dtcm_end__ = .;
+    } > DTCM AT > FLASH
 
     .iram :
     {
@@ -386,11 +401,9 @@ SECTIONS
         . = ALIGN(4);
 #endif
         *(.sram_spinlock_section)
-        __dtcm_start__ = .;
         *(.dtcm)
         *(.dtcm_section*)
         *(.dtcm_sec_data*)
-        __dtcm_end__ = .;
         *(.data)
         *(".data.*")
         *(.sdata)
