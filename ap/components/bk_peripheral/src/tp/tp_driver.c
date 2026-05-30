@@ -51,7 +51,7 @@
 
 // task parameters.
 #define TP_THREAD_PRIORITY   (4)
-#define TP_THREAD_STACK_SIZE (1024)
+#define TP_THREAD_STACK_SIZE (1024 * 2)
 
 
 static beken_semaphore_t tp_sema = NULL;

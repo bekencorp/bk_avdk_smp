@@ -70,21 +70,38 @@ static int cst9217_exit_debug_to_normal(const tp_i2c_callback_t *cb)
 {
     uint8_t scratch[8];
     uint8_t normal_mode = CST9217_TP_MODE_NORMAL_CMD;
+    int ret = SENSOR_I2C_READ(CST9217_TP_FW_EXTRA_REG, scratch, sizeof(scratch));
 
-    if (BK_OK != SENSOR_I2C_READ(CST9217_TP_FW_EXTRA_REG, scratch, sizeof(scratch)))
+    if (BK_OK != ret)
     {
         LOGE("%s, read 0x%04X fail!\r\n", __func__, CST9217_TP_FW_EXTRA_REG);
         return BK_FAIL;
     }
 
-    if (BK_OK != SENSOR_I2C_READ(CST9217_TP_MODULE_ID_REG, scratch, 1))
+    scratch[0] = 0;
+    ret = SENSOR_I2C_READ(CST9217_TP_MODULE_ID_REG, scratch, 1);
+    if (BK_OK != ret)
     {
         LOGV("%s, read optional module id 0x%04X fail, continue normal mode switch\r\n",
              __func__, CST9217_TP_MODULE_ID_REG);
     }
 
-    if (BK_OK != SENSOR_I2C_WRITE_CMD(CST9217_TP_CMD_REG, &normal_mode, sizeof(normal_mode)))
+    ret = SENSOR_I2C_WRITE_CMD(CST9217_TP_CMD_REG, &normal_mode, sizeof(normal_mode));
+    if (BK_OK != ret)
     {
+        uint8_t point_probe[8] = {0};
+        uint8_t debug_probe[4] = {0};
+        int point_ret = SENSOR_I2C_READ(CST9217_TP_POINT_ADDR_START_REG, point_probe, 7);
+        int debug_ret = SENSOR_I2C_READ(CST9217_TP_FRM_VER_CODE_REG, debug_probe, sizeof(debug_probe));
+
+        if ((BK_OK == point_ret) && (BK_OK == debug_ret)
+            && (0x00 == debug_probe[0]) && (0x00 == debug_probe[1])
+            && (0x00 == debug_probe[2]) && (0x00 == debug_probe[3]))
+        {
+            LOGW("%s, normal mode command no ack but state probe indicates normal mode\r\n", __func__);
+            return BK_OK;
+        }
+
         LOGE("%s, i2c addr 0x%02X reg 0x%02X write 0x%02X no ack, enter normal mode fail!\r\n",
              __func__, CST9217_I2C_ADDR_DEFAULT, CST9217_TP_CMD_REG, normal_mode);
         return BK_FAIL;
@@ -106,7 +123,8 @@ static bool cst9217_detect(const tp_i2c_callback_t *cb)
     uint16_t product_id = 0;
 
     uint8_t enter_debug = CST9217_TP_MODE_DEBUG_CMD;
-    if (BK_OK != SENSOR_I2C_WRITE_CMD(CST9217_TP_CMD_REG, &enter_debug, sizeof(enter_debug)))
+    int ret = SENSOR_I2C_WRITE_CMD(CST9217_TP_CMD_REG, &enter_debug, sizeof(enter_debug));
+    if (BK_OK != ret)
     {
         LOGE("%s, i2c addr 0x%02X reg 0x%02X write 0x%02X no ack, enter debug mode fail!\r\n",
                 __func__, CST9217_I2C_ADDR_DEFAULT, CST9217_TP_CMD_REG, enter_debug);
@@ -114,7 +132,8 @@ static bool cst9217_detect(const tp_i2c_callback_t *cb)
     }
     LOGV("%s, i2c addr 0x%02X ack\r\n", __func__, CST9217_I2C_ADDR_DEFAULT);
 
-    if (BK_OK != SENSOR_I2C_READ(CST9217_TP_FRM_VER_CODE_REG, info, sizeof(info)))
+    ret = SENSOR_I2C_READ(CST9217_TP_FRM_VER_CODE_REG, info, sizeof(info));
+    if (BK_OK != ret)
     {
         LOGE("%s, read verification code reg fail!\r\n", __func__);
         return false;
@@ -128,7 +147,8 @@ static bool cst9217_detect(const tp_i2c_callback_t *cb)
         return false;
     }
 
-    if (BK_OK != SENSOR_I2C_READ(CST9217_TP_CHIP_INFO_REG, info, sizeof(info)))
+    ret = SENSOR_I2C_READ(CST9217_TP_CHIP_INFO_REG, info, sizeof(info));
+    if (BK_OK != ret)
     {
         LOGE("%s, read chip info reg fail!\r\n", __func__);
         return false;
