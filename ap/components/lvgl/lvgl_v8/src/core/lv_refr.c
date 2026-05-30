@@ -18,6 +18,7 @@
 #include "../draw/lv_draw.h"
 #include "../font/lv_font_fmt_txt.h"
 #include "../extra/others/snapshot/lv_snapshot.h"
+#include "lv_hpdma.h"
 
 #if LV_USE_PERF_MONITOR || LV_USE_MEM_MONITOR
     #include "../widgets/lv_label.h"
@@ -565,6 +566,10 @@ static void refr_area(const lv_area_t * area_p)
             refr_area_part(draw_ctx);
         }
         return;
+    } else {
+        if (LV_VER_RES == lv_area_get_height(area_p) && LV_HOR_RES == lv_area_get_width(area_p)) {
+            lv_hpdma_memcpy_stop();
+        }
     }
 
     /*Normal refresh: draw the area in parts*/

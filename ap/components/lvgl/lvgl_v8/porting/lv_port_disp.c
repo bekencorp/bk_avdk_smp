@@ -88,6 +88,9 @@ void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data)
     } else if (vnd_data->config.render_mode == RENDER_FULL_MODE) {
         disp_drv.full_refresh = 1;
         disp_drv.direct_mode = 0;
+    } else {
+        disp_drv.full_refresh = 0;
+        disp_drv.direct_mode = 0;
     }
 
     disp_drv.flush_cb = disp_flush;

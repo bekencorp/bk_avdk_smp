@@ -24,6 +24,7 @@
 #include "../font/lv_font_fmt_txt.h"
 #include "../stdlib/lv_string.h"
 #include "lv_global.h"
+#include "lv_hpdma.h"
 
 /*********************
  *      DEFINES
@@ -689,6 +690,10 @@ static void refr_area(const lv_area_t * area_p, int32_t y_offset)
     layer->partial_y_offset = y_offset;
 
     if(disp_refr->render_mode == LV_DISPLAY_RENDER_MODE_PARTIAL) {
+        if (LV_VER_RES == lv_area_get_height(area_p) && LV_HOR_RES == lv_area_get_width(area_p)) {
+            lv_hpdma_memcpy_stop();
+        }
+
         /*In partial mode render this area to the buffer*/
         layer->buf_area = *area_p;
         layer_reshape_draw_buf(layer, LV_STRIDE_AUTO);

@@ -202,3 +202,24 @@ bk_err_t lv_hpdma_memcpy_wait_finish(uint32_t timeout_ms)
 
     return ret;
 }
+
+bk_err_t lv_hpdma_memcpy_stop(void)
+{
+    lv_vnd_data_t *vnd_data = lv_hpdma_get_vnd_data();
+    if (vnd_data == NULL) {
+        LOGE("%s vnd_data is NULL\n", __func__);
+        return BK_FAIL;
+    }
+
+    if (vnd_data->lv_hpdma_in_use) {
+        bk_err_t ret = bk_hpdma_stop(vnd_data->lv_hpdma_id);
+        if (ret != BK_OK) {
+            LOGE("%s bk_hpdma_stop failed, ret=%d\n", __func__, ret);
+            return ret;
+        }
+        vnd_data->lv_hpdma_in_use = false;
+    }
+
+    return BK_OK;
+}
+
