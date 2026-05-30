@@ -126,70 +126,10 @@ SECTIONS
 #if CONFIG_ALL_CODE_IN_PSRAM
     EXCLUDE_FILE(*) *(.text .text.* .rodata .rodata.*)
 #else /*CONFIG_ALL_CODE_IN_PSRAM*/
-#if CONFIG_SPE
-	EXCLUDE_FILE (
-        tasks.c.obj
-        queue.c.obj
-        list.c.obj
-        timers.c.obj
-        port.c.obj
-        rtos_pub.c.obj
-        heap_4.c.obj
-        mem_arch.c.obj
-        gpio_driver_base.c.obj
-        flash_driver.c.obj
-        ckmn_driver.c.obj
-        arch_interrupt.c.obj
-        hal_machw.c.obj
-        interrupts.c.obj
-        rw_task.c.obj
-        ke_event.c.obj
-        me_strategy.c.obj
-        chan.c.obj
-        vif_mgmt.c.obj
-        rxl_cntrl.c.obj
-        rxl_hwdesc.c.obj
-        mm_time.c.obj
-        rwnx.c.obj
-        rwnx_rx.c.obj
-        ps.c.obj
-        mm.c.obj
-        rf_cntrl.c.obj
-        mcc.c.obj
-        phy_karst_bk7236.c.obj
-        crm.c.obj
-        bk7236_cal.c.obj
-        manual_cal_bk7236.c.obj
-        bk_cal_common.c.obj
-        nv_parameters.c.obj
-        macif_fhost.c.obj
-        rc_driver.c.obj
-        sys_wifi_driver.c.obj
-        wifi_v2.c.obj
-        bk_feature.c.obj
-        pm.c.obj
-        sys_ps_driver.c.obj
-        sys_pm_hal.c.obj
-        bk_wifi_adapter.c.obj
-        net_param.c.obj
-        wifi_api_wrapper.c.obj
-        bk_rf_adapter.c.obj
-        bk_phy_adapter.c.obj
-        shell_task.c.obj
-        shell_uart.c.obj
-        uart_driver.c.obj
-        uart_hal.c.obj
-    #if CONFIG_PSRAM
-        *libbk_cli.a:*.c.obj
-        *libtensorflow-microlite.a:*.o
-    #endif
-	) *(.text .text.* .rodata .rodata.*)
-#else /*CONFIG_SPE*/
         *(.text)
         *(.text.*)
         *(.rodata)
         *(.rodata.*)
-#endif /*CONFIG_SPE*/
 #endif /*CONFIG_ALL_CODE_IN_PSRAM*/
         . = ALIGN(4);
         __devconfig_start = .;
@@ -318,34 +258,15 @@ SECTIONS
 
         PROVIDE(__dtcm_content = LOADADDR(.dtcm));
         __dtcm_start__ = .;
-#if 0        
-#if (CONFIG_SOC_SMP)
-        . = ALIGN(512);
-        KEEP(*(.vectors_iram))
 
-        . = ALIGN(512);
-        __vector_core1_table = .;
-        KEEP(*(.vectors_core1))
-#else
-        . = ALIGN(512);
-        KEEP(*(.vectors_iram))
-#endif
-
+        . = ALIGN(4);
 
         *(.dtcm)
         *(.dtcm_section*)
         *(.dtcm_sec_data*)
         . = ALIGN(4);
 
-        __itcm_start__ = .;
-        *(.itcm)
-        *(.itcm_section*)
-        *(.itcm_sec_code*)
-        *(.interrupt)
-        __itcm_end__ = .;
-        . = ALIGN(4);
 
-#endif
         __dtcm_end__ = .;
     } > DTCM AT > FLASH
 
@@ -355,7 +276,7 @@ SECTIONS
         PROVIDE(__iram_flash_begin = LOADADDR(.iram));
         __iram_start__ = .;
         *(.iram)
-	
+        . = ALIGN(4);
         __itcm_start__ = .;
         *(.itcm)
         *(.itcm_section*)
@@ -363,61 +284,6 @@ SECTIONS
         *(.interrupt)
         __itcm_end__ = .;
 
-
-
-#if CONFIG_SPE
-        tasks.c.obj*(.text .text.* .rodata .rodata.*)
-        queue.c.obj*(.text .text.* .rodata .rodata.*)
-        list.c.obj*(.text .text.* .rodata .rodata.*)
-        timers.c.obj*(.text .text.* .rodata .rodata.*)
-        port.c.obj*(.text .text.* .rodata .rodata.*)
-        rtos_pub.c.obj*(.text .text.* .rodata .rodata.*)
-        heap_4.c.obj*(.text .text.* .rodata .rodata.*)
-        mem_arch.c.obj*(.text .text.* .rodata .rodata.*)
-        gpio_driver_base.c.obj*(.text .text.* .rodata .rodata.*)
-        flash_driver.c.obj*(.text .text.* .rodata .rodata.*)
-        ckmn_driver.c.obj*(.text .text.* .rodata .rodata.*)
-        arch_interrupt.c.obj*(.text .text.* .rodata .rodata.*)
-        hal_machw.c.obj*(.text .text.* .rodata .rodata.*)
-        interrupts.c.obj*(.text .text.* .rodata .rodata.*)
-        rw_task.c.obj*(.text .text.* .rodata .rodata.*)
-        ke_event.c.obj*(.text .text.* .rodata .rodata.*)
-        me_strategy.c.obj*(.text .text.* .rodata .rodata.*)
-        chan.c.obj*(.text .text.* .rodata .rodata.*)
-        vif_mgmt.c.obj*(.text .text.* .rodata .rodata.*)
-        rxl_cntrl.c.obj*(.text .text.* .rodata .rodata.*)
-        rxl_hwdesc.c.obj*(.text .text.* .rodata .rodata.*)
-        mm_time.c.obj*(.text .text.* .rodata .rodata.*)
-        rwnx.c.obj*(.text .text.* .rodata .rodata.*)
-        rwnx_rx.c.obj*(.text .text.* .rodata .rodata.*)
-        ps.c.obj*(.text .text.* .rodata .rodata.*)
-        mm.c.obj*(.text .text.* .rodata .rodata.*)
-        rf_cntrl.c.obj*(.text .text.* .rodata .rodata.*)
-        mcc.c.obj*(.text .text.* .rodata .rodata.*)
-        phy_karst_bk7236.c.obj*(.text .text.* .rodata .rodata.*)
-        crm.c.obj*(.text .text.* .rodata .rodata.*)
-        bk7236_cal.c.obj*(.text .text.* .rodata .rodata.*)
-        manual_cal_bk7236.c.obj*(.text .text.* .rodata .rodata.*)
-        bk_cal_common.c.obj*(.text .text.* .rodata .rodata.*)
-        nv_parameters.c.obj*(.text .text.* .rodata *.rodata.*)
-        macif_fhost.c.obj*(.text .text.* .rodata .rodata.*)
-        rc_driver.c.obj*(.text .text.* .rodata .rodata.*)
-        sys_wifi_driver.c.obj*(.text .text.* .rodata .rodata.*)
-        wifi_v2.c.obj*(.text .text.* .rodata .rodata.*)
-        bk_feature.c.obj*(.text .text.* .rodata .rodata.*)
-        pm.c.obj*(.text .text.* .rodata .rodata.*)
-        sys_ps_driver.c.obj*(.text .text.* .rodata .rodata.*)
-        sys_pm_hal.c.obj*(.text .text.* .rodata .rodata.*)
-        bk_wifi_adapter.c.obj*(.text .text.* .rodata .rodata.*)
-        net_param.c.obj*(.text .text.* .rodata .rodata.*)
-        wifi_api_wrapper.c.obj*(.text .text.* .rodata .rodata.*)
-        bk_rf_adapter.c.obj*(.text .text.* .rodata .rodata.*)
-        bk_phy_adapter.c.obj*(.text .text.* .rodata .rodata.*)
-        shell_task.c.obj*(.text .text.* .rodata .rodata.*)
-        shell_uart.c.obj*(.text .text.* .rodata .rodata.*)
-        uart_driver.c.obj*(.text .text.* .rodata .rodata.*)
-        uart_hal.c.obj*(.text .text.* .rodata .rodata.*)
-#endif
         . = ALIGN(4);
         __iram_end__ = .;
     } > IRAM AT > FLASH
@@ -438,7 +304,7 @@ SECTIONS
 
         . = ALIGN(512);
         KEEP(*(.vectors_iram))
-	
+
 #if CONFIG_SOC_SMP
         . = ALIGN(512);
         __vector_core1_table = .;
@@ -586,8 +452,25 @@ SECTIONS
         *(.psram.code)
         *(.psram.code*)
 
-        *libbk_cli.a:*.c.obj(.text .text.* .rodata .rodata.*)
-        *libtensorflow-microlite.a:*.o(.text .text.* .rodata .rodata.*)
+        __psram_sys_code_start__ = .;
+        *(.psram_sys_code)
+        *(.psram_sys_code*)
+        __psram_sys_code_end__ = .;
+
+        __psram_wifi_code_start__ = .;
+        *(.psram_wifi_code)
+        *(.psram_wifi_code*)
+        __psram_wifi_code_end__ = .;
+
+        __psram_ble_code_start__ = .;
+        *(.psram_ble_code)
+        *(.psram_ble_code*)
+        __psram_ble_code_end__ = .;
+
+        __psram_multimedia_code_start__ = .;
+        *(.psram_multimedia_code)
+        *(.psram_multimedia_code*)
+        __psram_multimedia_code_end__ = .;
 
 #if CONFIG_ALL_CODE_IN_PSRAM
          *(.text .text.* .rodata .rodata.*)
