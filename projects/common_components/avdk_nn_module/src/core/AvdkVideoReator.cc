@@ -106,6 +106,7 @@ static void aoo_detection_flush_cb(void *args, void *frame_buffer, int (*cb)(voi
         .src_format = BK_PIXEL_FORMAT_RGB565,
         .dst_x = 0,
         .dst_y = WIDTH,
+        .rotate_degree = 0,
         .args = (void*)cb,
         .free = aov_frame_buffer_free,
     };

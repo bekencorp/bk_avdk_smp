@@ -1,10 +1,7 @@
 #pragma once
 
 #include <components/bk_gpu.h>
-
-#ifndef H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
-#define H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY 1
-#endif
+#include "h264d_gpu_display_config.h"
 
 #ifdef __cplusplus
 extern "C" {

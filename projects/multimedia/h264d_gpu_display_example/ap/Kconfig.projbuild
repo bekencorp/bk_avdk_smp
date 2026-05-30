@@ -1,0 +1,89 @@
+menu "H264D GPU Display Example Configuration"
+
+	config H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+		bool "Enable MIPI display output"
+		default y
+		help
+			Enable the MIPI panel output path. Disable this to run the
+			H.264 decoder to GPU pipeline without flushing frames to display.
+
+	choice H264D_GPU_DISPLAY_TEST_STREAM_CHOICE
+		prompt "H.264 test stream"
+		default H264D_GPU_DISPLAY_TEST_STREAM_1280X720
+
+		config H264D_GPU_DISPLAY_TEST_STREAM_720X1280
+			bool "720x1280"
+
+		config H264D_GPU_DISPLAY_TEST_STREAM_1280X720
+			bool "1280x720"
+	endchoice
+
+	config H264D_GPU_DISPLAY_ENABLE_ISP_PIP
+		bool "Enable ISP picture-in-picture overlay"
+		default y
+		help
+			Bring up the on-board CSI sensor and ISP channel, then
+			composite the ISP small picture onto the H.264 decoded big
+			picture via the GPU blit overlay path. Disable to run
+			the demo with H.264 + GPU + MIPI only.
+
+	config H264D_GPU_DISPLAY_ENABLE_ISP_PIP_ROTATE
+		bool "Enable ISP picture-in-picture rotation"
+		depends on H264D_GPU_DISPLAY_ENABLE_ISP_PIP
+		default y
+		help
+			Rotate the ISP small picture during the GPU blit overlay
+			stage. This keeps the sensor/ISP output in landscape while
+			displaying the PIP correctly on a portrait panel.
+
+	choice H264D_GPU_DISPLAY_ISP_PIP_ROTATE_CHOICE
+		prompt "ISP picture-in-picture rotation angle"
+		depends on H264D_GPU_DISPLAY_ENABLE_ISP_PIP_ROTATE
+		default H264D_GPU_DISPLAY_ISP_PIP_ROTATE_90
+
+		config H264D_GPU_DISPLAY_ISP_PIP_ROTATE_90
+			bool "90 degrees"
+
+		config H264D_GPU_DISPLAY_ISP_PIP_ROTATE_270
+			bool "270 degrees"
+	endchoice
+
+	config H264D_GPU_DISPLAY_ISP_SENSOR_DEFAULT_WIDTH
+		int "Default sensor input width"
+		depends on H264D_GPU_DISPLAY_ENABLE_ISP_PIP
+		default 1280
+
+	config H264D_GPU_DISPLAY_ISP_SENSOR_DEFAULT_HEIGHT
+		int "Default sensor input height"
+		depends on H264D_GPU_DISPLAY_ENABLE_ISP_PIP
+		default 720
+
+	config H264D_GPU_DISPLAY_ISP_SENSOR_DEFAULT_FPS
+		int "Default sensor frame rate"
+		depends on H264D_GPU_DISPLAY_ENABLE_ISP_PIP
+		default 20
+
+	config H264D_GPU_DISPLAY_ISP_PIP_DEFAULT_WIDTH
+		int "Default ISP (PIP) output width"
+		depends on H264D_GPU_DISPLAY_ENABLE_ISP_PIP
+		default 640
+		help
+			Default output width
+
+	config H264D_GPU_DISPLAY_ISP_PIP_DEFAULT_HEIGHT
+		int "Default ISP (PIP) output height"
+		depends on H264D_GPU_DISPLAY_ENABLE_ISP_PIP
+		default 360
+
+	config H264D_GPU_DISPLAY_ISP_PIP_DEFAULT_DST_X
+		int "Default overlay X position on GPU output frame"
+		depends on H264D_GPU_DISPLAY_ENABLE_ISP_PIP
+		default 696 if H264D_GPU_DISPLAY_ENABLE_ISP_PIP_ROTATE
+		default 416
+
+	config H264D_GPU_DISPLAY_ISP_PIP_DEFAULT_DST_Y
+		int "Default overlay Y position on GPU output frame"
+		depends on H264D_GPU_DISPLAY_ENABLE_ISP_PIP
+		default 32
+
+endmenu

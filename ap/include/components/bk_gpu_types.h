@@ -70,6 +70,7 @@ typedef struct
     bk_pixel_format_t src_format;
     uint16_t dst_x;
     uint16_t dst_y;
+    uint16_t rotate_degree;
     void *args;
     void (*free)(void *frame, void *args);
 } bk_gpu_blit_config_t;

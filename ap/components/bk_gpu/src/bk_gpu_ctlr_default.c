@@ -103,10 +103,50 @@ vg_lite_buffer_format_t gpu_format_convert(bk_pixel_format_t bk_format)
     return vg_format;
 }
 
+static vg_lite_buffer_format_t gpu_blit_format_convert(bk_pixel_format_t bk_format)
+{
+    if (bk_format == BK_PIXEL_FORMAT_BGRA8888) {
+        /*
+         * The ISP SP path uses this public format as 32bpp BGRX. When a
+         * rotated blit forces an alpha-aware path in VG-Lite, treating X as A
+         * can make the overlay fully transparent.
+         */
+        return VG_LITE_BGRX8888;
+    }
+
+    return gpu_format_convert(bk_format);
+}
+
+static void *gpu_blit_uv_plane_get(const bk_gpu_blit_config_t *blit_config, void *front_frame)
+{
+    if (blit_config == NULL || front_frame == NULL) {
+        return NULL;
+    }
+
+    if (blit_config->src_format == BK_PIXEL_FORMAT_NV12) {
+        return (uint8_t *)front_frame +
+               ((uint32_t)blit_config->src_width * (uint32_t)blit_config->src_height);
+    }
+
+    return NULL;
+}
+
 #define CHECK_ERROR
+static bool gpu_blit_rotate_degree_is_valid(uint16_t rotate_degree);
+
 static avdk_err_t gpu_blit_set(bk_gpu_ctlr_handle_t handle, void *src_buffer, bk_gpu_blit_config_t *blit_config)
 {
     gpu_vn_ctlr_t *controller =  __containerof(handle, gpu_vn_ctlr_t, ops);
+
+    if (blit_config == NULL) {
+        LOGW("%s %d blit config is NULL\r\n", __func__, __LINE__);
+        return AVDK_ERR_INVAL;
+    }
+    if (!gpu_blit_rotate_degree_is_valid(blit_config->rotate_degree)) {
+        LOGW("%s %d unsupported blit rotate %u\r\n",
+             __func__, __LINE__, (unsigned)blit_config->rotate_degree);
+        return AVDK_ERR_INVAL;
+    }
 
     rtos_lock_mutex(&controller->blit_mutex);
     controller->update_blit_buffer = src_buffer;
@@ -187,6 +227,12 @@ static int gpu_draw_path_process(vg_lite_matrix_t *matrix, vg_lite_path_t *path,
 	CHECK_ERROR(vg_lite_draw(buffer, path, VG_LITE_FILL_EVEN_ODD, matrix, VG_LITE_BLEND_NONE, 0xFFFFFFFF));
     CHECK_ERROR(vg_lite_finish());
     return 0;
+}
+
+static bool gpu_blit_rotate_degree_is_valid(uint16_t rotate_degree)
+{
+    return rotate_degree == 0 || rotate_degree == 90 ||
+           rotate_degree == 180 || rotate_degree == 270;
 }
 
 static void gpu_isp_line_done_handle(uint32_t line, void *arg)
@@ -602,8 +648,12 @@ static void gpu_flex_data_frame_done_blit(gpu_flex_data_t *flex, const bk_gpu_ct
     memset(&front_buffer , 0, sizeof(front_buffer));
     front_buffer.width = blit_config->src_width;
     front_buffer.height = blit_config->src_height;
-    front_buffer.format = gpu_format_convert(blit_config->src_format);
-    vg_lite_allocate_with_data(&front_buffer, front_frame, NULL, NULL, NULL);
+    front_buffer.format = gpu_blit_format_convert(blit_config->src_format);
+    vg_lite_allocate_with_data(&front_buffer,
+                               front_frame,
+                               gpu_blit_uv_plane_get(blit_config, front_frame),
+                               NULL,
+                               NULL);
 
     memset(&display_matrix , 0, sizeof(display_matrix));
     vg_lite_identity(&display_matrix);
@@ -616,7 +666,32 @@ static void gpu_flex_data_frame_done_blit(gpu_flex_data_t *flex, const bk_gpu_ct
         .height = blit_config->src_height,
     };
 
-    vg_lite_translate(blit_config->dst_x, blit_config->dst_y, &display_matrix);
+    switch (blit_config->rotate_degree)
+    {
+        case 90:
+            vg_lite_rotate(90.0f, &display_matrix);
+            display_matrix.m[0][2] = (vg_lite_float_t)blit_config->dst_x +
+                                     (vg_lite_float_t)blit_config->src_height;
+            display_matrix.m[1][2] = (vg_lite_float_t)blit_config->dst_y;
+            break;
+        case 180:
+            vg_lite_rotate(180.0f, &display_matrix);
+            display_matrix.m[0][2] = (vg_lite_float_t)blit_config->dst_x +
+                                     (vg_lite_float_t)blit_config->src_width;
+            display_matrix.m[1][2] = (vg_lite_float_t)blit_config->dst_y +
+                                     (vg_lite_float_t)blit_config->src_height;
+            break;
+        case 270:
+            vg_lite_rotate(270.0f, &display_matrix);
+            display_matrix.m[0][2] = (vg_lite_float_t)blit_config->dst_x;
+            display_matrix.m[1][2] = (vg_lite_float_t)blit_config->dst_y +
+                                     (vg_lite_float_t)blit_config->src_width;
+            break;
+        case 0:
+        default:
+            vg_lite_translate(blit_config->dst_x, blit_config->dst_y, &display_matrix);
+            break;
+    }
 
     int ret = vg_lite_blit_rect(
         &display_buffer,
@@ -676,7 +751,11 @@ static inline void gpu_flex_data_frame_done(gpu_flex_data_t *data, gpu_vn_ctlr_t
 
         if (gpu_vn_ctlr->display_blit_buffer)
         {
-            gpu_flex_data_frame_done_blit(data, config, &gpu_vn_ctlr->display_blit_config, gpu_vn_ctlr->display_blit_buffer, data->dpu_frame_buffers);
+            gpu_flex_data_frame_done_blit(data,
+                                          config,
+                                          &gpu_vn_ctlr->display_blit_config,
+                                          gpu_vn_ctlr->display_blit_buffer,
+                                          data->dpu_frame_buffers);
         }
     }
 
