@@ -107,7 +107,11 @@ static uint32_t hw_jpeg_calc_output_size(uint32_t width, uint32_t height, pixel_
     {
         case PIXEL_FMT_NV12:
         case PIXEL_FMT_YUV420SP:
-            return (width * height * 3U) / 2U;
+        {
+            const uint32_t stride_w = (width + 15U) & ~15U;
+            const uint32_t stride_h = (height + 15U) & ~15U;
+            return (stride_w * stride_h * 3U) / 2U;
+        }
         case PIXEL_FMT_RGB888:
             return width * height * 3U;
         case PIXEL_FMT_RGB565:
@@ -437,22 +441,11 @@ static avdk_err_t hw_jpeg_decoder_decode(struct video_player_video_decoder_ops_s
     AVDK_RETURN_ON_FALSE(out_buffer->data, AVDK_ERR_INVAL, TAG, "out_buffer->data is NULL");
     AVDK_RETURN_ON_FALSE(ctx->hw_decoder_handle, AVDK_ERR_GENERIC, TAG, "Hardware decoder not initialized");
     AVDK_RETURN_ON_FALSE(ctx->is_initialized, AVDK_ERR_GENERIC, TAG, "Hardware decoder not initialized");
-    AVDK_RETURN_ON_FALSE(out_buffer->frame_buffer, AVDK_ERR_INVAL, TAG, "out_buffer->frame_buffer is NULL");
 
-    // Output format is provided by caller via out_buffer->frame_buffer->fmt.
-    // bk_decoder outputs NV12, so non-NV12 requests are converted before returning.
-    frame_buffer_t *out_frame = (frame_buffer_t *)out_buffer->frame_buffer;
-
-    // out_fmt is the expected output pixel format for this decode call.
-    // Keep backward compatibility: if out_fmt is not set, fall back to out_frame->fmt.
     pixel_format_t requested_fmt = out_fmt;
     if (requested_fmt == PIXEL_FMT_UNKNOW || requested_fmt == 0)
     {
-        requested_fmt = out_frame->fmt;
-    }
-    if (requested_fmt == PIXEL_FMT_UNKNOW || requested_fmt == 0)
-    {
-        requested_fmt = PIXEL_FMT_YUYV;
+        requested_fmt = PIXEL_FMT_NV12;
     }
 
     uint32_t pixel_bytes = 0;
@@ -469,8 +462,17 @@ static avdk_err_t hw_jpeg_decoder_decode(struct video_player_video_decoder_ops_s
     avdk_err_t ret = bk_jpeg_decode_get_img_info(&img_info);
     if (ret != AVDK_ERR_OK)
     {
-        LOGW("%s: Failed to get JPEG image info via bk_decoder, fallback to SW, ret=%d\n", __func__, ret);
-        return AVDK_ERR_UNSUPPORTED;
+        if (ctx->video_params.width == 0U || ctx->video_params.height == 0U ||
+            ((ctx->video_params.width & 1U) != 0U) || ((ctx->video_params.height & 1U) != 0U))
+        {
+            LOGW("%s: Failed to get JPEG image info via bk_decoder, ret=%d\n", __func__, ret);
+            return AVDK_ERR_UNSUPPORTED;
+        }
+
+        LOGW("%s: Failed to get JPEG image info via bk_decoder (ret=%d), using container size %ux%u\n",
+             __func__, ret, ctx->video_params.width, ctx->video_params.height);
+        img_info.width = ctx->video_params.width;
+        img_info.height = ctx->video_params.height;
     }
 
     if (((img_info.width & 1U) != 0U) || ((img_info.height & 1U) != 0U))
@@ -544,13 +546,6 @@ static avdk_err_t hw_jpeg_decoder_decode(struct video_player_video_decoder_ops_s
 
     if (hw_jpeg_needs_direct_nv12(requested_fmt))
     {
-        out_frame->frame = out_buffer->data;
-        out_frame->size = required_out_size;
-        out_frame->length = required_out_size;
-        out_frame->width = img_info.width;
-        out_frame->height = img_info.height;
-        out_frame->fmt = requested_fmt;
-        out_frame->timestamp = (uint32_t)in_buffer->pts;
         out_buffer->length = required_out_size;
         out_buffer->pts = in_buffer->pts;
         return AVDK_ERR_OK;
@@ -578,13 +573,6 @@ static avdk_err_t hw_jpeg_decoder_decode(struct video_player_video_decoder_ops_s
         return ret;
     }
 
-    out_frame->width = img_info.width;
-    out_frame->height = img_info.height;
-    out_frame->fmt = requested_fmt;
-    out_frame->frame = out_buffer->data;
-    out_frame->size = required_out_size;
-    out_frame->length = required_out_size;
-    out_frame->timestamp = (uint32_t)in_buffer->pts;
     out_buffer->length = required_out_size;
     out_buffer->pts = in_buffer->pts;
 

@@ -25,12 +25,12 @@ if (CONFIG_AVI_PLAYER)
     endif()
 
     if (CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_JPEG_VIDEO_DECODER)
-        list(APPEND srcs modules/video_decoder/bk_video_player_hw_jpeg_decoder.c)
+        list(APPEND srcs modules/video_decoder/bk_video_player_jpeg_decoder.c)
     endif()
     if (CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER)
         list(APPEND srcs
-            modules/video_decoder/bk_video_player_hw_h264_decoder.c
-            modules/video_decoder/bk_video_player_hw_h264_frame_decoder.c
+            modules/video_decoder/bk_video_player_h264_flexa_decoder.c
+            modules/video_decoder/bk_video_player_h264_frame_decoder.c
         )
     endif()
     if (CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER)

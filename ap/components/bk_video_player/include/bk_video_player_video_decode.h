@@ -58,6 +58,14 @@ avdk_err_t bk_video_player_video_decoder_list_add(private_video_player_ctlr_t *c
  */
 void bk_video_player_video_decoder_list_clear(private_video_player_ctlr_t *controller);
 
+/**
+ * @brief Fill decode_complete meta for a decoded video frame.
+ */
+void video_player_fill_video_frame_meta(private_video_player_ctlr_t *controller,
+                                        video_player_video_decoder_ops_t *active_decoder,
+                                        const video_player_buffer_t *out_buffer,
+                                        video_player_video_frame_meta_t *meta);
+
 #ifdef __cplusplus
 }
 #endif

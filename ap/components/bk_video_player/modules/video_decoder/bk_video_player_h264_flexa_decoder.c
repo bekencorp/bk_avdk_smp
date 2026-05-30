@@ -82,7 +82,6 @@
  #include "components/bk_gpu.h"
  #include "components/bk_gpu_ctlr.h"
  #include "components/bk_gpu_types.h"
- #include "common/avdk_pixel_types.h"
  #include "components/bk_video_player/bk_video_player_types.h"
  #include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
  
@@ -154,7 +153,6 @@
   * size the semaphore accordingly. */
  #define H264_DECODER_FRAME_SEM_DEPTH        H264_DECODER_GPU_FLEXA_BUFF_CNT
  
- static volatile uint32_t s_h264_decoder_rotate_degree = 0U;
  
  static bool h264_decoder_ptr_is_hsram(const void *ptr)
  {
@@ -169,12 +167,6 @@
      return false;
  #endif
  }
- 
-
- bool bk_video_player_hw_h264_decoder_is_hsram_output_frame(const void *frame)
-{
-    return h264_decoder_ptr_is_hsram(frame);
-}
 
  avdk_err_t bk_video_player_hw_h264_decoder_free_output_frame(void *frame)
  {
@@ -195,18 +187,6 @@
      return AVDK_ERR_OK;
  }
  
- void bk_video_player_hw_h264_decoder_set_output_rotation(uint32_t rotate_degree)
- {
-     if (rotate_degree != 0U && rotate_degree != 90U &&
-         rotate_degree != 180U && rotate_degree != 270U)
-     {
-         LOGW("%s: unsupported rotate_degree=%u, falling back to 0\n",
-              __func__, rotate_degree);
-         rotate_degree = 0U;
-     }
-     s_h264_decoder_rotate_degree = rotate_degree;
-     LOGI("%s: H264 decoder GPU output rotation set to %u\n", __func__, rotate_degree);
- }
  
  // ---------------------------------------------------------------------------
  // Per-instance context
@@ -221,7 +201,6 @@
      uint16_t mb_h;       /* MB-aligned src height (16 px aligned) */
      uint16_t out_w;      /* Post-rotation visible width  (reported to engine) */
      uint16_t out_h;      /* Post-rotation visible height (reported to engine) */
-     uint16_t rotate_degree;
      bool     scale_enable;
  
      /* HW handles */
@@ -782,17 +761,11 @@ static uint32_t hw_h264_calc_flexa_pp_size(uint16_t mb_w)
         3U / 2U;
 }
 
-/* Panel dimensions the GPU output must match exactly so the DEC400 tile grid
-* the DPU walks at scan-out lines up with the tile grid the GPU wrote.
-* Hard-coded for the current hx8399c_mipi_1080x1920 board; if more boards
-* appear later this should become a set/get pair injected by the app layer
-* (mirroring bk_video_player_hw_h264_decoder_set_output_rotation). */
 #define H264_DECODER_PANEL_WIDTH   1080U
 #define H264_DECODER_PANEL_HEIGHT  1920U
 
 static void hw_h264_decoder_resolve_dims(hw_h264_decoder_ctx_t *ctx,
-                                        uint16_t width, uint16_t height,
-                                        uint32_t rotate_degree)
+                                        uint16_t width, uint16_t height)
 {
     ctx->src_w = width;
     ctx->src_h = height;
@@ -801,73 +774,9 @@ static void hw_h264_decoder_resolve_dims(hw_h264_decoder_ctx_t *ctx,
     ctx->mb_w  = (uint16_t)((width  + 15U) & ~15U);
     ctx->mb_h  = (uint16_t)((height + 15U) & ~15U);
 
-    /* Auto-pick a rotation that makes the post-rotation source orientation
-    * match the panel. The GPU's vg_lite + Flexa pipeline cannot reliably do
-    * a non-uniform scale (e.g. 1.76x in X with 0.57x in Y) when combined
-    * with rotate+compress: with scale_y < 1 the H264 IP fills the Flexa
-    * ring much faster than the GPU can drain it and the H264 watchdog fires
-    * (irq_status=0x401 / "decode timeout"). Forcing the rotation to match
-    * orientations keeps the scale factors close to 1.0 in BOTH axes.
-    *
-    * The externally-set rotation (set_output_rotation) is treated as a
-    * preference: we honor it only when src and panel already share an
-    * orientation (so picking 0 vs 180 / 90 vs 270 is purely cosmetic). When
-    * orientations differ we override with 90 and warn so the misconfig is
-    * visible in the log. */
-    const bool src_landscape   = (width  > height);
-    const bool panel_landscape =
-        (H264_DECODER_PANEL_WIDTH > H264_DECODER_PANEL_HEIGHT);
 
-    uint32_t effective_rotate = rotate_degree;
-    if (src_landscape != panel_landscape)
-    {
-        if (effective_rotate != 90U && effective_rotate != 270U)
-        {
-            LOGW("%s: src %ux%u (%s) on panel %ux%u (%s) requires 90/270 rotation, "
-                "overriding requested rotate_degree=%u with 90\n",
-                __func__, width, height, src_landscape ? "landscape" : "portrait",
-                H264_DECODER_PANEL_WIDTH, H264_DECODER_PANEL_HEIGHT,
-                panel_landscape ? "landscape" : "portrait",
-                (unsigned)effective_rotate);
-            effective_rotate = 90U;
-        }
-    }
-    else
-    {
-        if (effective_rotate == 90U || effective_rotate == 270U)
-        {
-            LOGW("%s: src %ux%u and panel %ux%u share orientation, "
-                "overriding requested rotate_degree=%u with 0\n",
-                __func__, width, height,
-                H264_DECODER_PANEL_WIDTH, H264_DECODER_PANEL_HEIGHT,
-                (unsigned)effective_rotate);
-            effective_rotate = 0U;
-        }
-    }
-    ctx->rotate_degree = (uint16_t)effective_rotate;
-
-    /* Visible dims reported to the engine are the post-rotation source dims.
-    * (The actual GPU output buffer is mb-aligned, see setup_pipeline.) */
-    if (ctx->rotate_degree == 90U || ctx->rotate_degree == 270U)
-    {
-        ctx->out_w = height;
-        ctx->out_h = width;
-    }
-    else
-    {
-        ctx->out_w = width;
-        ctx->out_h = height;
-    }
-
-    /* IMPORTANT: must stay false in (compress=true) mode. DEC400 requires
-    * the compressed render target to be 16-aligned in BOTH dimensions; any
-    * non-16-aligned dst (e.g. 1080) makes vg_lite_set_render_target() fail
-    * with "dec align error" and the GPU produces no usable frames.
-    *
-    * To keep the buffer 16-aligned we leave dst == src_mb (both are 16-px
-    * aligned by construction in mb_w/mb_h). The 8-px MB padding on the
-    * right side is tolerated by the DPU at scan-out (same as the legacy
-    * 1920x1080 -> 1088x1920 path that has always worked on this panel). */
+    ctx->out_w = width;
+    ctx->out_h = height;
     ctx->scale_enable = false;
 }
 
@@ -904,7 +813,7 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
 
     bk_gpu_ctlr_config_t gpu_cfg;
     os_memset(&gpu_cfg, 0, sizeof(gpu_cfg));
-    gpu_cfg.rotate_degree     = ctx->rotate_degree;
+    gpu_cfg.rotate_degree     = 0U;
     gpu_cfg.src_width         = ctx->mb_w;
     gpu_cfg.src_height        = ctx->mb_h;
     gpu_cfg.dst_width         = dst_w;
@@ -998,9 +907,9 @@ static avdk_err_t hw_h264_decoder_setup_pipeline(hw_h264_decoder_ctx_t *ctx)
     }
 
     ctx->need_inject_params = true;
-    LOGI("%s: pipeline up: src=%ux%u (mb=%ux%u) out=%ux%u rotate=%u\n",
+    LOGI("%s: pipeline up: src=%ux%u (mb=%ux%u) out=%ux%u\n",
         __func__, ctx->src_w, ctx->src_h, ctx->mb_w, ctx->mb_h,
-        ctx->out_w, ctx->out_h, ctx->rotate_degree);
+        ctx->out_w, ctx->out_h);
     return AVDK_ERR_OK;
 
 fail_bond:
@@ -1181,8 +1090,7 @@ static avdk_err_t hw_h264_decoder_init(struct video_player_video_decoder_ops_s *
 
     hw_h264_decoder_resolve_dims(ctx,
                                 (uint16_t)params->width,
-                                (uint16_t)params->height,
-                                s_h264_decoder_rotate_degree);
+                                (uint16_t)params->height);
 
     s_active_ctx = ctx;
 
@@ -1342,25 +1250,11 @@ static avdk_err_t hw_h264_decoder_decode(struct video_player_video_decoder_ops_s
         return AVDK_ERR_GENERIC;
     }
 
+    /* Drop unused engine pre-alloc; GPU path replaces data with its own frame buffer. */
     if (out_buffer->data != NULL)
     {
         bk_frame_buffer_free(out_buffer->data);
         out_buffer->data = NULL;
-    }
-
-    if (out_buffer->frame_buffer != NULL)
-    {
-        frame_buffer_t *out_frame = (frame_buffer_t *)out_buffer->frame_buffer;
-        out_frame->frame     = (uint8_t *)gpu_frame;
-        out_frame->size      = gpu_frame_size;
-        out_frame->length    = gpu_frame_size;
-        out_frame->width     = ctx->out_w;
-        out_frame->height    = ctx->out_h;
-        /* The DPU consumes this as ARGB8888 compressed; we report the
-        * un-compressed format because PIXEL_FMT_ARGB8888 is what the
-        * existing display path keys on. */
-        out_frame->fmt       = PIXEL_FMT_ARGB8888;
-        out_frame->timestamp = (uint32_t)in_buffer->pts;
     }
 
     out_buffer->data   = (uint8_t *)gpu_frame;

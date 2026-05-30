@@ -3,7 +3,6 @@
 
 #include "components/avdk_utils/avdk_types.h"
 #include "components/avdk_utils/avdk_check.h"
-#include "common/avdk_pixel_types.h"
 #include "bk_video_player_ctlr.h"
 #include "bk_video_player_video_decode.h"
 #if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
@@ -24,7 +23,64 @@
 
 #include "bk_video_player_thread_config.h"
 
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+static bool video_player_is_hw_h264_gpu_decoder(const video_player_video_decoder_ops_t *ops)
+{
+    video_player_video_decoder_ops_t *tmpl = bk_video_player_get_hw_h264_decoder_ops();
+    return (ops != NULL && tmpl != NULL && ops->decode == tmpl->decode);
+}
+#endif
 
+
+
+void video_player_fill_video_frame_meta(private_video_player_ctlr_t *controller,
+                                        video_player_video_decoder_ops_t *active_decoder,
+                                        const video_player_buffer_t *out_buffer,
+                                        video_player_video_frame_meta_t *meta)
+{
+    if (controller == NULL || meta == NULL)
+    {
+        return;
+    }
+
+    meta->video = controller->current_media_info.video;
+    meta->output_format = controller->config.video.output_format;
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+    if (video_player_is_hw_h264_gpu_decoder(active_decoder))
+    {
+        meta->output_format = PIXEL_FMT_ARGB8888;
+    }
+#endif
+    meta->video.width = (uint16_t)controller->current_media_info.video.width;
+    meta->video.height = (uint16_t)controller->current_media_info.video.height;
+
+    if (out_buffer != NULL)
+    {
+        meta->pts_ms = out_buffer->pts;
+        meta->payload_size = out_buffer->length;
+    }
+
+    // #region agent log
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+    {
+        static uint32_t s_dbg_meta_cnt = 0;
+        if (s_dbg_meta_cnt < 5U)
+        {
+            video_player_video_decoder_ops_t *h264_tmpl = bk_video_player_get_hw_h264_decoder_ops();
+            const int ptr_eq = (active_decoder == h264_tmpl) ? 1 : 0;
+            const int decode_eq = (active_decoder != NULL && h264_tmpl != NULL &&
+                                   active_decoder->decode == h264_tmpl->decode) ? 1 : 0;
+            s_dbg_meta_cnt++;
+            LOGI("[DBG92bf62] hyp=A meta_fill n=%u active=%p tmpl=%p ptr_eq=%d decode_eq=%d "
+                      "out_fmt=%u w=%u h=%u pay=%u vid_fmt=%u\n",
+                      (unsigned)s_dbg_meta_cnt, active_decoder, h264_tmpl, ptr_eq, decode_eq,
+                      (unsigned)meta->output_format, (unsigned)meta->video.width, (unsigned)meta->video.height,
+                      (unsigned)meta->payload_size, (unsigned)controller->current_media_info.video.format);
+        }
+    }
+#endif
+    // #endregion
+}
 
 static uint64_t video_player_get_current_time_ms(private_video_player_ctlr_t *controller)
 {
@@ -252,9 +308,8 @@ static void bk_video_player_video_decode_thread(void *arg)
         video_player_buffer_t out_buffer = {0};
         if (controller->config.video.buffer_alloc_cb != NULL)
         {
-            // Output buffer format is decided by upper layer and passed via controller->config.video.output_format.
-            // We pass this information to decoder via out_buffer.frame_buffer->fmt (frame_buffer_t),
-            // and allocate buffer size based on the target format's packed size.
+            // Output buffer format is decided by upper layer via controller->config.video.output_format.
+            // Allocate buffer size based on the target format's packed size.
             out_buffer.length = video_player_calc_output_buffer_size(controller->current_media_info.video.width,
                                                                      controller->current_media_info.video.height,
                                                                      controller->config.video.output_format);
@@ -293,13 +348,6 @@ static void bk_video_player_video_decode_thread(void *arg)
             }
             buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, in_buffer_node);
             continue;
-        }
-
-        // Pass expected output format to decoder via out_buffer.frame_buffer->fmt when possible.
-        if (out_buffer.frame_buffer != NULL)
-        {
-            frame_buffer_t *fb = (frame_buffer_t *)out_buffer.frame_buffer;
-            fb->fmt = controller->config.video.output_format;
         }
 
         /*
@@ -643,9 +691,8 @@ static void bk_video_player_video_decode_thread(void *arg)
 
                     video_player_video_frame_meta_t meta;
                     os_memset(&meta, 0, sizeof(meta));
-                    meta.video = controller->current_media_info.video;
                     meta.frame_index = delivered_frame_index;
-                    meta.pts_ms = out_buffer.pts;
+                    video_player_fill_video_frame_meta(controller, active_decoder, &out_buffer, &meta);
 
                     controller->config.video.decode_complete_cb(controller->config.user_data, &meta, &out_buffer);
                     handed_to_user = true;

@@ -526,8 +526,7 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
     hw_h264_decoder_frame_instance_t *self = __containerof(ops, hw_h264_decoder_frame_instance_t, ops);
     AVDK_RETURN_ON_FALSE(self, AVDK_ERR_INVAL, TAG, "instance is NULL");
     AVDK_RETURN_ON_FALSE(in_buffer && in_buffer->data, AVDK_ERR_INVAL, TAG, "invalid input buffer");
-    AVDK_RETURN_ON_FALSE(out_buffer && out_buffer->data && out_buffer->frame_buffer,
-                         AVDK_ERR_INVAL, TAG, "invalid output buffer");
+    AVDK_RETURN_ON_FALSE(out_buffer && out_buffer->data, AVDK_ERR_INVAL, TAG, "invalid output buffer");
 
     hw_h264_decoder_frame_ctx_t *ctx = &self->ctx;
     AVDK_RETURN_ON_FALSE(ctx->hw_decoder_handle, AVDK_ERR_GENERIC, TAG, "decoder not initialized");
@@ -628,15 +627,6 @@ static avdk_err_t hw_h264_decoder_frame_decode(struct video_player_video_decoder
                                     height,
                                     coded_width,
                                     coded_height);
-
-    frame_buffer_t *out_frame = (frame_buffer_t *)out_buffer->frame_buffer;
-    out_frame->frame = out_buffer->data;
-    out_frame->size = visible_out_size;
-    out_frame->length = visible_out_size;
-    out_frame->width = width;
-    out_frame->height = height;
-    out_frame->fmt = requested_fmt;
-    out_frame->timestamp = (uint32_t)in_buffer->pts;
 
     out_buffer->length = visible_out_size;
     out_buffer->pts = in_buffer->pts;

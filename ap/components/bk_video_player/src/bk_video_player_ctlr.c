@@ -7,7 +7,6 @@
 
 #include "components/avdk_utils/avdk_types.h"
 #include "components/avdk_utils/avdk_check.h"
-#include "common/avdk_pixel_types.h"
 #include "bk_video_player_ctlr.h"
 #include "bk_video_player_buffer_pool.h"
 #include "bk_video_player_pipeline.h"
@@ -47,10 +46,6 @@ static avdk_err_t video_player_init_h264_preview_out(video_player_buffer_t *out)
      * consume an engine-owned output frame buffer at all: it submits the AU
      * to the H264 IP, waits for GPU/Flexa to finish, then writes the GPU-owned
      * compressed output pointer back to out->data / out->length.
-     *
-     * Keep both out->data and out->frame_buffer NULL here. Allocating either
-     * a PSRAM pixel buffer or a frame_buffer_t metadata object is unnecessary
-     * for this path and can put preview decode on the slow frame-buffer route.
      */
     out->data = NULL;
     out->frame_buffer = NULL;
@@ -1848,12 +1843,6 @@ static avdk_err_t video_player_ctlr_seek_preview(bk_video_player_ctlr_handle_t h
                 LOGE("%s: buffer_alloc_cb failed, ret=%d\n", __func__, ret);
                 return ret;
             }
-
-            if (out.frame_buffer != NULL)
-            {
-                frame_buffer_t *fb = (frame_buffer_t *)out.frame_buffer;
-                fb->fmt = controller->config.video.output_format;
-            }
         }
 
         rtos_lock_mutex(&controller->active_mutex);
@@ -1895,9 +1884,8 @@ static avdk_err_t video_player_ctlr_seek_preview(bk_video_player_ctlr_handle_t h
         {
             video_player_video_frame_meta_t meta;
             os_memset(&meta, 0, sizeof(meta));
-            meta.video = controller->current_media_info.video;
             meta.frame_index = 0; // Seek preview frame is not part of normal playback sequence.
-            meta.pts_ms = out.pts;
+            video_player_fill_video_frame_meta(controller, decoder, &out, &meta);
 
             controller->config.video.decode_complete_cb(controller->config.user_data, &meta, &out);
         }
