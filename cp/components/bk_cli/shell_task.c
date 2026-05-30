@@ -1591,9 +1591,17 @@ static void shell_rx_wakeup(int gpio_id)
 static void shell_log_tx_init(void)
 {
 	u16		i;
+	uint32_t init_int_mask;
 
 	if(log_tx_init_ok != 0)
 		return;
+
+	init_int_mask = shell_task_enter_critical();
+	if(log_tx_init_ok != 0)
+	{
+		shell_task_exit_critical(init_int_mask);
+		return;
+	}
 
 	for(i = 0; i < SHELL_LOG_BUF1_NUM; i++)
 	{
@@ -1617,11 +1625,22 @@ static void shell_log_tx_init(void)
 	log_dev->dev_drv->open(log_dev, shell_log_tx_complete, NULL);  // tx log.
 
 	#if defined(FWD_CMD_TO_MBOX) || defined(RECV_LOG_FROM_MBOX)
-	ipc_dev->dev_drv->init(ipc_dev);
-	ipc_dev->dev_drv->open(ipc_dev, (shell_ipc_rx_t)shell_ipc_rx_indication, (shell_ipc_tx_complete_t)shell_ipc_tx_complete);   /* register rx-callback to copy log data to buffer. */
+	if(!ipc_dev->dev_drv->init(ipc_dev))
+	{
+		shell_task_exit_critical(init_int_mask);
+		return;
+	}
+	if(!ipc_dev->dev_drv->open(ipc_dev, (shell_ipc_rx_t)shell_ipc_rx_indication,
+		(shell_ipc_tx_complete_t)shell_ipc_tx_complete))
+	{
+		shell_task_exit_critical(init_int_mask);
+		return;
+	}
 	#endif
 
 	log_tx_init_ok = 1;
+
+	shell_task_exit_critical(init_int_mask);
 
 	{
 		pm_cb_conf_t enter_config;

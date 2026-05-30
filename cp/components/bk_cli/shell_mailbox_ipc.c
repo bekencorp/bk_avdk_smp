@@ -167,9 +167,10 @@ static bool_t shell_ipc_open(shell_dev_ipc_t * dev_ipc, shell_ipc_rx_t rx_callba
 
 	bk_err_t	ret_code = mb_chnl_open(ipc_ext->chnl_id, ipc_ext);
 
-	if(ret_code != BK_OK)
+	/* Channel may already be open (e.g. shell_log_tx_init raced with ipc_init). */
+	if((ret_code != BK_OK) && (ret_code != BK_ERR_OPEN))
 		return bFALSE;
-	
+
 	// call chnl driver to register isr callback;
 	mb_chnl_ctrl(ipc_ext->chnl_id, MB_CHNL_SET_RX_ISR, (void *)shell_ipc_rx_isr);
 	mb_chnl_ctrl(ipc_ext->chnl_id, MB_CHNL_SET_TX_CMPL_ISR, (void *)shell_ipc_tx_cmpl_isr);
