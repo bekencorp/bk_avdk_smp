@@ -18,6 +18,7 @@
 #include "gpio_hw.h"
 #include "gpio_ll.h"
 
+#include <driver/hal/hal_gpio_types.h>
 #include <driver/hal/hal_io_matrix_types.h>
 
 #ifdef __cplusplus
@@ -33,6 +34,26 @@ typedef struct {
 	gpio_id_t id;
 	gpio_int_type_t int_type;
 } gpio_wakeup_t;
+
+typedef enum {
+	GPIO_WAKEUP_UP_EVENT = 0,
+	GPIO_CANCEL_WAKEUP_EVENT,
+	GPIO_KEEP_STATUS_EVENT,
+	GPIO_CANCEL_STATUS_EVENT
+} gpio_lower_power_event_t;
+
+typedef struct {
+	gpio_id_t gpio_id;
+	gpio_lower_power_event_t event;
+} gpio_header_info_t;
+
+typedef struct {
+	gpio_header_info_t header;
+	union {
+		gpio_int_type_t int_type;
+		gpio_config_t config;
+	} data;
+} gpio_lowerpower_t;
 #endif
 
 bk_err_t gpio_hal_init(void);

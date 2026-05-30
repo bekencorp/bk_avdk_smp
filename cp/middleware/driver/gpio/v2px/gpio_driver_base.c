@@ -23,6 +23,9 @@
 #include "ana_gpio_driver.h"
 #endif
 #include "bk_misc.h"
+#if CONFIG_MAILBOX
+#include "bk_api_ipc.h"
+#endif
 #if CONFIG_USR_GPIO_CFG_EN
 #include "gpio_driver.h"
 #include "usr_gpio_cfg.h"
@@ -1029,6 +1032,52 @@ bk_err_t bk_gpio_unregister_lowpower_keep_status(gpio_id_t gpio_id)
 	return BK_FAIL;
 }
 #endif
+#endif
+
+#if CONFIG_GPIO_WAKEUP_SUPPORT && CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT && CONFIG_MAILBOX
+static uint32_t bk_ipc_set_ap_wakeup(uint8_t *data, uint32_t size, void *param, ipc_obj_t ipc_obj)
+{
+	gpio_lowerpower_t *lowerpower_info = (gpio_lowerpower_t *)data;
+
+	switch (lowerpower_info->header.event) {
+		case GPIO_WAKEUP_UP_EVENT:
+			GPIO_LOGD("%s:register wakeup source gpio_id = %d, int_type = %d \r\n", __func__,
+				lowerpower_info->header.gpio_id, lowerpower_info->data.int_type);
+			bk_gpio_register_wakeup_source(lowerpower_info->header.gpio_id, lowerpower_info->data.int_type);
+			break;
+
+		case GPIO_CANCEL_WAKEUP_EVENT:
+			GPIO_LOGD("%s:unregister wakeup source gpio_id = %d \r\n", __func__,
+				lowerpower_info->header.gpio_id);
+			bk_gpio_unregister_wakeup_source(lowerpower_info->header.gpio_id);
+			break;
+
+#if CONFIG_GPIO_KPSTAT_SUPPORT && CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT
+		case GPIO_KEEP_STATUS_EVENT:
+			GPIO_LOGD("%s:register keep status gpio_id = %d, io_mode = %d, pull_mode = %d, func_mode = %d \r\n",
+				__func__, lowerpower_info->header.gpio_id,
+				lowerpower_info->data.config.io_mode,
+				lowerpower_info->data.config.pull_mode,
+				lowerpower_info->data.config.func_mode);
+			bk_gpio_register_lowpower_keep_status(lowerpower_info->header.gpio_id, &lowerpower_info->data.config);
+			break;
+
+		case GPIO_CANCEL_STATUS_EVENT:
+			GPIO_LOGD("%s:unregister keep status gpio_id = %d \r\n", __func__,
+				lowerpower_info->header.gpio_id);
+			bk_gpio_unregister_lowpower_keep_status(lowerpower_info->header.gpio_id);
+			break;
+#endif
+
+		default:
+			break;
+	}
+
+	return BK_OK;
+}
+
+BK_IPC_CHANNEL_DEF(gpio_ipc);
+BK_IPC_CHANNEL_REGISTER(gpio_ipc, IPC_ROUTE_CPU0_CPU1, bk_ipc_set_ap_wakeup, NULL, NULL);
 #endif
 
 #if CONFIG_USR_GPIO_CFG_EN

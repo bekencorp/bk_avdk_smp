@@ -24,6 +24,9 @@
 #include "ana_gpio_driver.h"
 #endif
 #include "bk_misc.h"
+#if CONFIG_MAILBOX
+#include "bk_api_ipc.h"
+#endif
 #if CONFIG_USR_GPIO_CFG_EN
 #include "gpio_driver.h"     /* SOC-specific helpers: convert_gpio_dev_to_iomx_code, etc */
 #endif
@@ -65,6 +68,14 @@ typedef struct
 	gpio_int_type_t int_type;
 	//gpio_isr_t isr;
 } gpio_dynamic_wakeup_t;
+
+#if CONFIG_GPIO_WAKEUP_SUPPORT
+typedef struct
+{
+	gpio_id_t id;
+	gpio_int_type_t int_type;
+} gpio_wakeup_t;
+#endif
 
 typedef struct
 {
@@ -119,6 +130,11 @@ static void gpio_keep_status_init(void);
 #if CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT
 static void gpio_keep_status_config(void);
 #endif
+#endif
+
+#if CONFIG_GPIO_WAKEUP_SUPPORT && CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT && CONFIG_MAILBOX
+BK_IPC_CHANNEL_DEF(gpio_ipc);
+BK_IPC_CHANNEL_REGISTER(gpio_ipc, IPC_ROUTE_CPU0_CPU1, NULL, NULL, NULL);
 #endif
 
 static void gpio_isr(void);
@@ -742,7 +758,7 @@ bk_err_t gpio_enable_interrupt_mult_for_wake(void)
 	ana_gpio_config_wakeup_source(s_gpio_is_setted_wake_status);
 #endif
 
-	return gpio_enable_multi_interrupts(s_gpio_is_setted_wake_status);
+	return gpio_hal_enable_multi_interrupts(s_gpio_is_setted_wake_status);
 }
 
 static void gpio_set_wakeup_config(gpio_id_t gpio_id, gpio_int_type_t int_type)
@@ -801,86 +817,43 @@ static void gpio_wakeup_source_config(void)
 }
 
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
-bk_err_t bk_gpio_register_wakeup_source(gpio_id_t gpio_id, gpio_int_type_t int_type)
+bk_err_t bk_gpio_register_wakeup_source(gpio_id_t gpio_id,
+                                                 gpio_int_type_t int_type)
 {
-	uint32_t i = 0;
-
-	GPIO_RETURN_ON_INVALID_ID(gpio_id);
-	GPIO_RETURN_ON_INVALID_INT_TYPE_MODE(int_type);
-
-	//search the same id and replace it.
-	for (i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
-	{
-		if (s_gpio_dynamic_wakeup_source_map[i].id == gpio_id)
-		{
-			s_gpio_dynamic_wakeup_source_map[i].int_type = int_type;
-
-			//NOTES:If doesn't set int type, exit lowpower, if the ISR has reported by rising/falling type
-			//Then restore to level type, entry GPIO ISR caused the int status lost.
-			bk_gpio_set_interrupt_type(gpio_id, int_type);
-			//s_gpio_dynamic_wakeup_source_map[i].isr = isr;
-
-			GPIO_LOGV("gpio=%d,int_type=%d replace previous wake src\r\n", gpio_id, int_type);
-			return BK_OK;
-		}
+	bk_err_t ret = BK_OK;
+#if CONFIG_MAILBOX
+	gpio_lowerpower_t lowerpower_info = {
+		.header = {
+			.gpio_id = gpio_id,
+			.event = GPIO_WAKEUP_UP_EVENT
+		},
+		.data.int_type = int_type
+	};
+	GPIO_LOGD("%s:register wakeup source gpio_id = %d, int_type = %d \r\n", __func__, gpio_id, int_type);
+	ret = bk_ipc_send(&gpio_ipc, &lowerpower_info, sizeof(lowerpower_info), MIPC_CHAN_SEND_FLAG_SYNC, 0);
+	if (ret != BK_OK) {
+		GPIO_LOGW("%s:register wakeup source gpio_id = %d, int_type = %d failed \r\n", __func__, gpio_id, int_type);
 	}
-
-	//serach the first idle id
-	for (i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
-	{
-		if (s_gpio_dynamic_wakeup_source_map[i].id == GPIO_WAKE_SOURCE_IDLE_ID)
-		{
-			s_gpio_dynamic_wakeup_source_map[i].id = gpio_id;
-			s_gpio_dynamic_wakeup_source_map[i].int_type = int_type;
-
-			//NOTES:If doesn't set int type, exit lowpower, if the ISR has reported by rising/falling type
-			//Then restore to level type, entry GPIO ISR caused the int status lost.
-			bk_gpio_set_interrupt_type(gpio_id, int_type);
-			//s_gpio_dynamic_wakeup_source_map[i].isr = isr;
-			s_gpio_is_setted_wake_status |= ((uint64_t)1 << s_gpio_dynamic_wakeup_source_map[i].id);
-
-			GPIO_LOGV("gpio=%d,int_type=%d register wake src\r\n", gpio_id, int_type);
-
-			return BK_OK;
-		}
-	}
-
-	GPIO_LOGE("too much(%d) GPIO is setted wake src\r\n", CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT);
-	for (i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
-	{
-		GPIO_LOGE("gpio id:%d is using \r\n", s_gpio_dynamic_wakeup_source_map[i].id);
-	}
-	return BK_FAIL;
+#endif
+	return ret;
 }
 
 bk_err_t bk_gpio_unregister_wakeup_source(gpio_id_t gpio_id)
 {
-	uint32_t i = 0;
-
-	// GPIO_RETURN_ON_INVALID_ID(gpio_id);
-
-	/* search the same id and replace it.*/
-	for (i = 0; i < CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT; i++)
-	{
-		if (s_gpio_dynamic_wakeup_source_map[i].id == gpio_id)
-		{
-			s_gpio_is_setted_wake_status &= ~(((uint64_t)1 << s_gpio_dynamic_wakeup_source_map[i].id));
-			s_gpio_dynamic_wakeup_source_map[i].id = GPIO_WAKE_SOURCE_IDLE_ID;
-			s_gpio_dynamic_wakeup_source_map[i].int_type = GPIO_INT_TYPE_MAX;
-			//s_gpio_dynamic_wakeup_source_map[i].isr = NULL;
-
-			/* Clear the hardware status during deregister */
-			bk_gpio_disable_input(gpio_id);
-			bk_gpio_disable_interrupt(gpio_id);
-
-			GPIO_LOGV("%s[-]gpioid=%d\r\n", __func__, gpio_id);
-
-			return BK_OK;
+	bk_err_t ret = BK_OK;
+#if CONFIG_MAILBOX
+	gpio_lowerpower_t lowerpower_info = {
+		.header = {
+			.gpio_id = gpio_id,
+			.event = GPIO_CANCEL_WAKEUP_EVENT
 		}
+	};
+	ret = bk_ipc_send(&gpio_ipc, &lowerpower_info, sizeof(lowerpower_info), MIPC_CHAN_SEND_FLAG_SYNC, 0);
+	if (ret != BK_OK) {
+		GPIO_LOGW("%s:unregister wakeup source gpio_id = %d failed \r\n", __func__, gpio_id);
 	}
-
-	GPIO_LOGE("gpio id:%d is not using \r\n", gpio_id);
-	return BK_FAIL;
+#endif
+	return ret;
 }
 
 static void gpio_dynamic_wakeup_source_init(void)
