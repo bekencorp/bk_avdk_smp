@@ -1491,6 +1491,7 @@ typedef struct
                             },                                              \
                         },                                                  \
                    },                                                       \
+        .dmic_en = 0,                                          \
         .frame_size = 320,                                      \
         .out_block_size = 320,                                  \
         .out_block_num = 2,                                     \
@@ -1629,6 +1630,7 @@ typedef struct
                 },                                                              \
             },                                                                  \
         },                                                                      \
+        .dmic_en = 0,                                                           \
         .frame_size = 640,                                                      \
         .out_block_size = 640,                                                  \
         .out_block_num = 2,                                                     \
@@ -1887,6 +1889,7 @@ typedef struct
                 },                                                              \
             },                                                                  \
         },                                                                      \
+        .dmic_en = 0,                                                           \
         .frame_size = 320,                                                      \
         .out_block_size = 320,                                                  \
         .out_block_num = 2,                                                     \
@@ -2040,6 +2043,7 @@ typedef struct
                 },                                                              \
             },                                                                  \
         },                                                                      \
+        .dmic_en = 0,                                                           \
         .frame_size = 640,                                                      \
         .out_block_size = 640,                                                  \
         .out_block_num = 2,                                                     \
@@ -2325,6 +2329,7 @@ typedef struct
                 },                                                              \
             },                                                                  \
         },                                                                      \
+        .dmic_en = 0,                                                           \
         .frame_size = 320,                                                      \
         .out_block_size = 320,                                                  \
         .out_block_num = 2,                                                     \
@@ -2502,6 +2507,7 @@ typedef struct
                 },                                                              \
             },                                                                  \
         },                                                                      \
+        .dmic_en = 0,                                                           \
         .frame_size = 640,                                                      \
         .out_block_size = 640,                                                  \
         .out_block_num = 2,                                                     \
@@ -2646,6 +2652,7 @@ typedef struct
                 },                                                              \
             },                                                                  \
         },                                                                      \
+        .dmic_en = 0,                                                           \
         .frame_size = 640,                                                      \
         .out_block_size = 640,                                                  \
         .out_block_num = 2,                                                     \

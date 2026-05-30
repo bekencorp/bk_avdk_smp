@@ -188,6 +188,7 @@ typedef struct asr * asr_handle_t;
                 },                                              \
             },                                                  \
         },                                                      \
+    .dmic_en = 0,                                               \
     .frame_size = 320,                                          \
     .out_block_size = 320,                                      \
     .out_block_num = 2,                                         \

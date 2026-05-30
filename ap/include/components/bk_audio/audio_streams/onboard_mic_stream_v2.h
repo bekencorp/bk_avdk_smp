@@ -32,6 +32,7 @@ typedef struct
 {
     aud_adc_config_t        adc_cfg;            /*!< ADC mode configuration */
     aud_dmic_config_t       dmic_cfg;           /*!< DMIC mode configuration */
+    uint8_t                 dmic_en;            /*!< 0:disable dmic path, non-zero:enable dmic init */
     uint32_t                frame_size;         /*!< the length of one frame (bytes) */
     int                     out_block_size;     /*!< Size of output block */
     int                     out_block_num;      /*!< Number of output block */
@@ -93,6 +94,7 @@ typedef struct
                     .dmic_mode      = AUD_DMIC_MODE_1,                  \
                     .channel        = AUD_DMIC_CHANNEL_L,               \
                 },                                                      \
+    .dmic_en        = 0,                                                \
     .frame_size     = 320,                                              \
     .out_block_size = 320,                                              \
     .out_block_num  = 2,                                                \
