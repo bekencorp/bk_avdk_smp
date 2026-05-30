@@ -37,13 +37,24 @@ typedef struct
 
 /**
  * @brief Camera sensor format configuration structure
+ *
+ * Each entry describes one operating mode that the sensor natively supports.
+ * `output_pixel_fmt` declares the raw Bayer/pixel format the sensor emits in
+ * this mode (e.g. RGGB8 for DVP sensors, RGGB10 for MIPI raw sensors). It is
+ * a property of the sensor/mode itself, not an application-time choice, so
+ * device drivers must populate it inside their `xxx_format_array[]`.
+ *
+ * On the downstream side, applications should copy this value into
+ * `bk_isp_camera_ctlr_config_t.input_pixel_fmt` (sensor output == ISP input)
+ * after locating the matched mode via `bk_camera_sensor_query_support_formats()`.
  */
 typedef struct
 {
-    uint16_t width;     /**< Image width (pixels) */
-    uint16_t height;    /**< Image height (pixels) */
-    uint16_t fps;       /**< Frame rate (frames/second) */
-    uint32_t xclk;      /**< External clock frequency (Hz) */
+    uint16_t width;                     /**< Image width (pixels) */
+    uint16_t height;                    /**< Image height (pixels) */
+    uint16_t fps;                       /**< Frame rate (frames/second) */
+    uint32_t xclk;                      /**< External clock frequency (Hz) */
+    bk_pixel_format_t output_pixel_fmt; /**< Sensor output pixel format (e.g. RGGB8 / RGGB10) */
 } bk_camera_sensor_format_t;
 
 /**

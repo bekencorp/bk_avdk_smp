@@ -19,6 +19,13 @@ extern "C" {
 #endif
 
 
+/*
+ * NOTE: `input_pixel_fmt` is intentionally NOT set here. It is a property of
+ * the sensor/mode, declared in each device's `xxx_format_array[]`, and the
+ * application is expected to copy it from the matched format entry (via
+ * `bk_camera_sensor_query_support_formats()`) into `isp_ctlr_config` after
+ * the sensor is detected.
+ */
 #define CAM_CSI_DEFAULT_RAW10_CONFIG(w, h, f) {             \
     .port_id = ISP_MIPI_PORT_ID,                            \
     .width = w,                                             \
@@ -26,7 +33,6 @@ extern "C" {
     .fps = f,                                               \
     .isp_mode = BK_ISP_MODE_RAW,                            \
     .hdr_mode = BK_ISP_HDR_MODE_LINEAR,                     \
-    .input_pixel_fmt = BK_PIXEL_FORMAT_RGGB10,              \
     .clk = 60000000,                                        \
     .input_type = BK_ISP_INPUT_TYPE_CSI_SENSOR,             \
     .input_rect = {0, 0, w, h},                             \
@@ -40,7 +46,6 @@ extern "C" {
     .fps = f,                                               \
     .isp_mode = BK_ISP_MODE_RAW,                            \
     .hdr_mode = BK_ISP_HDR_MODE_LINEAR,                     \
-    .input_pixel_fmt = BK_PIXEL_FORMAT_RGGB8,               \
     .clk = 60000000,                                        \
     .input_type = BK_ISP_INPUT_TYPE_CSI_SENSOR/**there is a bug use BK_ISP_INPUT_TYPE_CSI_SENSOR for dvp frame buffer mode, need to fix it in the future*/,             \
     .input_rect = {0, 0, w, h},                             \
