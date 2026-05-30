@@ -1332,90 +1332,29 @@ void aon_rtc_check_list(aon_rtc_id_t id)
 	AON_RTC_LOGD("cnt=%d,istimeout=0x%x\r\n",cnt, is_timeout);
 }
 
-#if CONFIG_AON_RTC_DEBUG
-void bk_64bits_test(void)
+uint8_t *bk_rtc_get_first_alarm_name(void)
 {
-	uint64_t val_64bits = 0xffffffffffff;
-	uint64_t x1 = 0x111111111, x2 = 0x222222222, x3 = 0x333333333, t = 0;
-	uint32_t xh1 = 0x1, xl1 = 0x11111111;
-	//uint32_t xh2 = 0x2, xl2 = 0x22222222;
-	//uint32_t xh3 = 0x3, xl3 = 0x33333333;
-	//uint32_t th1 = 0, tl1 = 0;
-	
-	t = xh1;
-	t = t<<32;
-	t += xl1;
-	if (t == 0x111111111)
+	alarm_node_t *first_node = NULL;
+	uint32_t int_level = 0;
+	uint8_t *name = NULL;
+
+	int_level = rtc_enter_critical();
+
+	// Get the first node (head of the sorted list)
+	first_node = s_aon_rtc[AON_RTC_ID_1].alarm_head_p;
+
+	if (first_node != NULL)
 	{
-		AON_RTC_LOGV("left move 0x1<<32 is right\r\n");
+		// Return pointer to the name field
+		name = first_node->name;
+		AON_RTC_LOGD("%s: first alarm name=%s\r\n", __func__, name);
+	}
+	else
+	{
+		AON_RTC_LOGD("%s: no alarm registered\r\n", __func__);
 	}
 
-	if (t == x1)
-	{
-		AON_RTC_LOGV("uint64 compare is right\r\n");
-	}
+	rtc_exit_critical(int_level);
 
-	if ((t & 0xffffffff) == xl1)
-	{
-		AON_RTC_LOGV("uint64 low 32bits is right\r\n");
-	}
-
-	if ((t >> 32) == xh1)
-	{
-		AON_RTC_LOGV("right move uint64 high 32bits is right\r\n");
-	}
-
-	if(x1 + x2 == x3)
-	{
-		AON_RTC_LOGV("uint64 add is right\r\n");
-	}
-
-	if(x3 - x2 == x1)
-	{
-		AON_RTC_LOGV("uint64 minus is right\r\n");
-	}
-
-	if((x1 * 2) == x2)
-	{
-		AON_RTC_LOGV("uint64 multi is right\r\n");
-	}	
-
-	if((x2 / 2) == x1)
-	{
-		AON_RTC_LOGV("uint64 divide2 is right\r\n");
-	}	
-
-	if((x2 / 32) == 0x11111111)
-	{
-		AON_RTC_LOGV("uint64 divide32 is right\r\n");
-	}	
-
-	//pass:only output low 32 bits valid data
-	for(uint32_t i = 0; i < 64; i++)
-		AON_RTC_LOGV("0xffffffffffff>>%d == 0x%llx\r\n", i, val_64bits>>i);		//64 bits printf is error
-
-	//print:BIT64(i) low 32 bits
-	for(uint32_t i = 0; i < 64; i++)
-		AON_RTC_LOGV("Bit[%d] = 0x%llx, &=0x%llx\r\n", i, BIT64(i), (val_64bits & BIT64(i)));
-
-	AON_RTC_LOGV("64bits move\r\n");
-	for(uint64_t i = 0; i < 64; i++)
-		AON_RTC_LOGV("Bit[%d] = 0x%llx, &=0x%llx\r\n", i, BIT64(i), (val_64bits & BIT64(i)));
-
-	AON_RTC_LOGV("32bits move\r\n");
-	val_64bits = 0xa0a0a0a0a0a0a0a0;
-	for(uint32_t i = 0; i < 64; i++)
-	{
-		uint64_t ret = val_64bits & BIT64(i);
-		AON_RTC_LOGV("ret[%d] = 0x%llx = 0x%llx \r\n", i, ret, ret);	//print ret twice as 64 bits
-	}
-
-	AON_RTC_LOGV("64bits move\r\n");
-	val_64bits = 0xa0a0a0a0a0a0a0a0;
-	for(uint64_t i = 0; i < 64; i++)
-	{
-		uint64_t ret = val_64bits & BIT64(i);
-		AON_RTC_LOGV("ret[%d] = 0x%llx = 0x%llx \r\n", i, i, ret);		//print i twice as 64 bits
-	}
+	return name;
 }
-#endif
