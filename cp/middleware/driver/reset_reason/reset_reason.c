@@ -175,7 +175,7 @@ void show_reset_reason(void)
 #endif
 	}
 
-	if(s_start_type == RESET_SOURCE_POWERON)
+	if((s_start_type == RESET_SOURCE_POWERON) || (s_start_type == RESET_SOURCE_REBOOT) || (s_start_type == RESET_SOURCE_WATCHDOG))
 	{
 		bk_pm_ap_first_boot_set(true);
 	}
