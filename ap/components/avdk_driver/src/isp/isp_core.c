@@ -266,13 +266,6 @@ static void isp_isr_callback(uint32_t state, void *args)
             }
         }
     }
-    uint32_t isp_err = (*(volatile uint32_t *)(0x4c040000 + 0x63C));
-    if (isp_err) {
-        /* ISP_ERR_CLR is write-1-clear (see Vivante ISP register spec).
-         * Writing 0 here was a no-op, which left ISP_ERR set and kept the
-         * error interrupt re-firing. Write back the captured bits to clear. */
-        (*(volatile uint32_t *)(0x4c040000 + 0x640)) = isp_err;
-    }
 }
 
 static void isp_isr_callback_ext(vsi_u32_t state, void *args)
@@ -475,9 +468,14 @@ bk_err_t bk_isp_clock_enable(uint32_t clk, uint8_t enable)
 
 bk_err_t bk_cis_auxs_clock_enable(uint32_t clk, uint32_t gpio, uint8_t enable)
 {
+    gpio_id_t pin = (gpio_id_t)gpio;
+
+    (void)clk;
+
     if (enable)
     {
-        *(volatile uint32_t*)(0x44000400 + 0x3b * 4) |= (129 << 24); // gpio 59 for csi clk
+        gpio_dev_unmap(pin);
+        gpio_dev_map(pin, GPIO_DEV_CLK_AUXS_CIS);
 
         // sel 1, 240MHz, div 10
         sys_drv_cis_auxs_cksel_set(CKSEL_CIS_AUXS_240M);
@@ -490,17 +488,21 @@ bk_err_t bk_cis_auxs_clock_enable(uint32_t clk, uint32_t gpio, uint8_t enable)
     {
         // disable csi auxs clock
         bk_pm_clock_ctrl(PM_CLK_ID_CSI, PM_CLK_CTRL_PWR_DOWN);
+        gpio_dev_unmap(pin);
     }
     return BK_OK;
 }
 
 bk_err_t bk_cis_mclk_clock_enable(uint32_t clk, uint8_t gpio, uint8_t enable)
 {
+    gpio_id_t pin = (gpio_id_t)gpio;
+
+    (void)clk;
+
     if (enable)
     {
-        *(volatile uint32_t*)(0x44000400 + 0x1b * 4) |= (131 << 24); // gpio 27 for vsync
-        //gpio_dev_unmap(gpio);
-        //gpio_dev_map(GPIO_27, GPIO_DEV_CLK_AUXS_CIS);
+        gpio_dev_unmap(pin);
+        gpio_dev_map(pin, GPIO_DEV_JPEG_MCLK);
 
         // csi mclk clock configuration, default 24MHz
         // default sel 1, 240MHz div 10
@@ -513,7 +515,7 @@ bk_err_t bk_cis_mclk_clock_enable(uint32_t clk, uint8_t gpio, uint8_t enable)
     {
         // disable csi mclk clock
         bk_pm_clock_ctrl(PM_CLK_ID_CSI, PM_CLK_CTRL_PWR_DOWN);
-        //gpio_dev_unmap(gpio);
+        gpio_dev_unmap(pin);
     }
     return BK_OK;
 }
