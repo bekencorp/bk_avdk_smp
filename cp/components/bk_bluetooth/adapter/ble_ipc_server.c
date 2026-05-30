@@ -435,6 +435,10 @@ static void ble_ipc_server_notice_cb(ble_notice_t notice, void *param)
         ble_ipc_server_send_notice_evt(notice, param, sizeof(ble_conn_param_t));
         break;
 
+    case BLE_5_GAP_CMD_CMP_EVENT:
+        ble_ipc_server_send_notice_evt(notice, param, sizeof(ble_cmd_cmp_evt_t));
+        break;
+
     case BLE_5_TX_DONE:
         ble_ipc_server_send_notice_evt(notice, param, sizeof(bk_ble_gatt_cmp_evt_t));
         break;
@@ -448,6 +452,7 @@ static void ble_ipc_server_notice_cb(ble_notice_t notice, void *param)
         break;
 
     default:
+        LOGW("unhandled notice %d\n", (int)notice);
         break;
     }
 }
