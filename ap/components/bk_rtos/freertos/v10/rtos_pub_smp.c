@@ -542,16 +542,31 @@ bk_err_t rtos_deinit_semaphore( beken_semaphore_t* semaphore )
 static SPINLOCK_SECTION volatile spinlock_t rtos_spin_lock = SPIN_LOCK_INIT;
 uint32_t rtos_enter_critical( void )
 {
-	uint32_t flags = rtos_disable_int();
-	spin_lock(&rtos_spin_lock);
-	return flags;
+    uint32_t flags = rtos_disable_int();
+    spin_lock(&rtos_spin_lock);
+    return flags;
 }
 
 void rtos_exit_critical( uint32_t state )
 {
-	spin_unlock(&rtos_spin_lock);
-	rtos_enable_int(state);
+    spin_unlock(&rtos_spin_lock);
+    rtos_enable_int(state);
 }
+
+static SPINLOCK_SECTION volatile spinlock_t rtos_global_spin_lock = SPIN_LOCK_INIT;
+uint32_t rtos_enter_global_critical( void )
+{
+    uint32_t flags = rtos_disable_int();
+    spin_lock(&rtos_global_spin_lock);
+    return flags;
+}
+
+void rtos_exit_global_critical( uint32_t state )
+{
+    spin_unlock(&rtos_global_spin_lock);
+    rtos_enable_int(state);
+}
+
 
 #if (CONFIG_FREERTOS_SMP)
 

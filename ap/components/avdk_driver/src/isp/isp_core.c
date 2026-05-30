@@ -193,7 +193,11 @@ static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type,
                     isp_isr_handler[isr_type][i].enable = true;
                 }
 
-                if (isp_isr_handler[isr_type][i].enable)
+                /* deregister race: bk_isp_deregister_isr_callback memsets the
+                 * slot under isp_mutex while ISR runs lock-free. NULL-check
+                 * isr_handler so we degrade to a no-op instead of jumping to 0. */
+                if (isp_isr_handler[isr_type][i].enable
+                    && isp_isr_handler[isr_type][i].isr_handler != NULL)
                 {
                     isp_isr_handler[isr_type][i].isr_handler(control->chn[chnl_id].sequence,
                         control->chn[chnl_id].line, chnl_id, ok,

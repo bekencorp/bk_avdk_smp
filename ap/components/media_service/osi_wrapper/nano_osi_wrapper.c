@@ -3,6 +3,7 @@
 #include "nano_osi_wrapper.h"
 #include "sys_driver.h"
 #include "aspl_lock.h"
+#include "spinlock.h"
 
 static void *nano_malloc_wrapper(uint32_t size)
 {
@@ -140,14 +141,35 @@ static int isp_int_enable_wrapper(uint32_t int_num, uint32_t int_en)
 #endif
 }
 
+#if CONFIG_SOC_SMP
+static SPINLOCK_SECTION volatile spinlock_t nano_spin_lock = SPIN_LOCK_INIT;
+#endif
+
+uint32_t nano_enter_critical( void )
+{
+    uint32_t flags = rtos_disable_int();
+#if CONFIG_SOC_SMP
+    spin_lock(&nano_spin_lock);
+#endif
+    return flags;
+}
+
+void nano_exit_critical( uint32_t state )
+{
+#if CONFIG_SOC_SMP
+    spin_unlock(&nano_spin_lock);
+#endif
+    rtos_enable_int(state);
+}
+
 static uint32_t nano_enter_critical_wrapper(void)
 {
-    return rtos_enter_critical();
+    return nano_enter_critical();
 }
 
 static void nano_exit_critical_wrapper(uint32_t flags)
 {
-    rtos_exit_critical(flags);
+    nano_exit_critical(flags);
 }
 
 static uint32_t nano_module_enter_critical_wrapper(bk_nano_module_t module)
@@ -163,7 +185,7 @@ static uint32_t nano_module_enter_critical_wrapper(bk_nano_module_t module)
         return bk_aspl_isp_enter_critical();
     }
     else {
-        return rtos_enter_critical();
+        return nano_enter_critical();
     }
 #else
     return 0;
@@ -183,7 +205,7 @@ static void nano_module_exit_critical_wrapper(bk_nano_module_t module, uint32_t 
         bk_aspl_isp_exit_critical(flags);
     }
     else {
-        rtos_exit_critical(flags);
+        nano_exit_critical(flags);
     }
 #else
 #endif

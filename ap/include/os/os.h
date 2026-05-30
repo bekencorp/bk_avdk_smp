@@ -122,9 +122,9 @@ typedef enum {
 
 /// OS timer handle struct type
 typedef struct {
-	void           *handle;    /**< OS timer handle pointer */
-	timer_handler_t function;  /**< OS timer handle callback function */
-	void           *arg;       /**< OS timer handle callback argument */
+    void           *handle;    /**< OS timer handle pointer */
+    timer_handler_t function;  /**< OS timer handle callback function */
+    void           *arg;       /**< OS timer handle callback argument */
     uint32_t        stop_flag : 1;       /**< stop flag */ 
     uint32_t        deinit_flag:1;       /**< deinit flag */ 
     uint32_t        reserved : 30;
@@ -132,25 +132,25 @@ typedef struct {
 
 /// OS worker thread handle struct type
 typedef struct {
-	beken_thread_t thread;       /**< OS thread handle */
-	beken_queue_t  event_queue;  /**< OS event queue */
+    beken_thread_t thread;       /**< OS thread handle */
+    beken_queue_t  event_queue;  /**< OS event queue */
 } beken_worker_thread_t;
 
 /// OS timer event struct type
 typedef struct {
-	event_handler_t        function; /**< OS event callback function */
-	void                  *arg;      /**< OS event callback argument */
-	beken_timer_t           timer;   /**< OS timer handle */
-	beken_worker_thread_t  *thread;  /**< OS work thread handle */
+    event_handler_t        function; /**< OS event callback function */
+    void                  *arg;      /**< OS event callback argument */
+    beken_timer_t           timer;   /**< OS timer handle */
+    beken_worker_thread_t  *thread;  /**< OS work thread handle */
 } beken_timed_event_t;
 
 /// OS timer handle struct type
 typedef struct {
-	void           *handle;      /**< OS timer handle pointer */
-	timer_2handler_t function;   /**< OS timer handle callback function */
-	void           *left_arg;    /**< OS timer handle callback first argument */
-	void           *right_arg;   /**< OS timer handle callback second argument */
-	uint32_t        beken_magic; /**< OS timer magic word */
+    void           *handle;      /**< OS timer handle pointer */
+    timer_2handler_t function;   /**< OS timer handle callback function */
+    void           *left_arg;    /**< OS timer handle callback first argument */
+    void           *right_arg;   /**< OS timer handle callback second argument */
+    uint32_t        beken_magic; /**< OS timer magic word */
     uint32_t        stop_flag : 1;   /**< stop flag */ 
     uint32_t        deinit_flag:1;   /**< deinit flag */ 
     uint32_t        reserved : 30;
@@ -182,6 +182,18 @@ uint32_t rtos_enter_critical(void);
   */
 void rtos_exit_critical(uint32_t flags);
 
+/** @brief Enter a critical session, all interrupts are disabled
+  *
+  * @return    irq flags
+  */
+uint32_t rtos_enter_global_critical(void);
+
+/** @brief Exit a critical session, all interrupts are enabled
+  * @param flags : irq flags
+  *
+  * @return none
+  */
+void rtos_exit_global_critical(uint32_t flags);
 
 /** @brief   Get system time value in milliseconds
   *
@@ -1456,9 +1468,9 @@ bk_err_t rtos_core1_create_hsram_thread( beken_thread_t* thread, uint8_t priorit
 /*
  * Lots of our codes use `GLOBAL_INT_DISABLE` to make the code excuted in critical section.
  * But in SMP, disable local CPU irq is insufficient. So here `GLOBAL_INT_DISABLE'
- * is redefined to `rtos_enter_critical'.
+ * is redefined to `rtos_enter_global_critical'.
  *
- * In further, codes may explicitly use `rtos_enter_critical' instead of `GLOBAL_INT_DISABLE',
+ * In further, codes may explicitly use `rtos_enter_global_critical' instead of `GLOBAL_INT_DISABLE',
  * and `GLOBAL_INT_DISABLE' still represents disable local cpu irq.
  *
  * And a global spin lock may be defined, for example, global_spin_lock. and redefine
@@ -1469,9 +1481,9 @@ bk_err_t rtos_core1_create_hsram_thread( beken_thread_t* thread, uint8_t priorit
  * refer: portSET_INTERRUPT_MASK_FROM_ISR and portCLEAR_INTERRUPT_MASK_FROM_ISR
  */
 #undef GLOBAL_INT_DISABLE
-#define GLOBAL_INT_DISABLE() do { irq_level = rtos_enter_critical(); } while (0)
+#define GLOBAL_INT_DISABLE() do { irq_level = rtos_enter_global_critical(); } while (0)
 
 #undef GLOBAL_INT_RESTORE
-#define GLOBAL_INT_RESTORE() do { rtos_exit_critical(irq_level); } while (0)
+#define GLOBAL_INT_RESTORE() do { rtos_exit_global_critical(irq_level); } while (0)
 #endif
 
