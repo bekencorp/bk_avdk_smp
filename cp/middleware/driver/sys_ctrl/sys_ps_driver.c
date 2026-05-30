@@ -48,9 +48,9 @@ void sys_drv_enter_low_voltage()
 
 void sys_drv_enter_cpu_wfi()
 {
-	uint32_t int_level = sys_drv_enter_critical();
+	//uint32_t int_level = sys_drv_enter_critical();
 	sys_hal_enter_cpu_wfi();
-	sys_drv_exit_critical(int_level);
+	//sys_drv_exit_critical(int_level);
 }
 
 /*for low power function start*/
