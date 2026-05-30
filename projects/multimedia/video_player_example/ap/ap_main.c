@@ -17,6 +17,27 @@
 
 #include "video_player_cli.h"
 
+#include "video_player_common.h"
+
+#if CONFIG_BK_DECODER && CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+#include "components/bk_decode/bk_h264_decode_ctlr.h"
+#include "components/bk_decode/bk_h264_decode_types.h"
+#include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
+#endif
+
+/*
+ * GPU rotation applied by the H264 decoder during NV12 -> compressed ARGB
+ * blit. Pick to match (source orientation, panel orientation):
+ *   1080x1920 portrait source on 1080x1920 portrait panel -> 0
+ *   1920x1080 landscape source on 1080x1920 portrait panel -> 90 (CW)
+ * 180/270 are also supported by VG-Lite.
+ *
+ * The new H264 path runs the rotation on the GPU as part of the same blit
+ * that produces the compressed ARGB output, so the cost is essentially
+ * free compared to the old CPU-side rotation.
+ */
+#define VIDEO_PLAYER_H264_DECODER_OUTPUT_ROTATION_DEG   0U
+
 #define SYS_ANA_REG_BASE    (0x44010000)
 #define LDO_ANA_REG         (0x69)
 
@@ -30,6 +51,56 @@ static void bk_auxldo_enable(void)
     REG_WRITE(SYS_ANA_REG_BASE + LDO_ANA_REG * 4, reg);
 }
 
+#if CONFIG_BK_DECODER && CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+/*
+ * Pre-warm the H264 hardware decoder once at boot. Without this prewarm,
+ * the first vcdec_h264_init() call from the video_player path fails because
+ * some hardware/driver lazy initialization has not been triggered, which
+ * surfaces as `vcdec_h2:E: parse NALU type=7 failed` on every AU and
+ * eventually a bk_mem_slab_free assert from the leaking annexb buffers.
+ * h264_decode_example does the same thing implicitly via vcdec_h264_run_boot_demo().
+ *
+ * We use the frame-mode controller for the prewarm even though the runtime
+ * path is flexa-mode: the underlying vcdec IP is the same; the prewarm
+ * exists to fault in the kernel-side resources, not to exercise a specific
+ * mode.
+ */
+static void h264_hw_decoder_prewarm(void)
+{
+    bk_printf("====== h264_prewarm: ENTER, free heap=%u ======\r\n",
+              (unsigned)rtos_get_free_heap_size());
+
+    bk_h264_decode_ctlr_handle_t handle = NULL;
+    bk_h264_decode_frame_config_t cfg = DEFAULT_H264_DECODE_FRAME_CONFIG;
+    cfg.timeout_ms      = 1000U;
+    cfg.out_width       = 1280U;
+    cfg.out_height      = 720U;
+    cfg.out_format      = BK_PIXEL_FORMAT_NV12;
+    cfg.frame_done_cb   = NULL;
+    cfg.frame_done_args = NULL;
+
+    if (bk_h264_decode_frame_ctlr_new(&handle, &cfg) != BK_OK || handle == NULL) {
+        bk_printf("====== h264_prewarm: ctlr_new FAILED ======\r\n");
+        return;
+    }
+    bk_printf("====== h264_prewarm: ctlr_new OK, free heap=%u ======\r\n",
+              (unsigned)rtos_get_free_heap_size());
+
+    if (bk_h264_decode_init(handle) != BK_OK) {
+        bk_printf("====== h264_prewarm: init FAILED, free heap=%u ======\r\n",
+                  (unsigned)rtos_get_free_heap_size());
+        (void)bk_h264_decode_delete(handle);
+        return;
+    }
+    bk_printf("====== h264_prewarm: init OK, free heap=%u ======\r\n",
+              (unsigned)rtos_get_free_heap_size());
+
+    (void)bk_h264_decode_deinit(handle);
+    (void)bk_h264_decode_delete(handle);
+    bk_printf("====== h264_prewarm: DONE, free heap=%u ======\r\n",
+              (unsigned)rtos_get_free_heap_size());
+}
+#endif
 
 int main(void)
 {
@@ -84,6 +155,19 @@ int main(void)
 
     bk_auxldo_enable();
     bk_frame_buffer_init();
+
+#if CONFIG_BK_DECODER && CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+    /* Prewarm AFTER LDO/frame_buffer init but BEFORE board config / devices_mgmt. */
+    h264_hw_decoder_prewarm();
+
+    /* Tell the H264 decoder how much rotation to apply on the GPU side. The
+     * decoder reads this value when init() runs at play() time, so changing
+     * it between videos requires a stop/play cycle but mid-stream changes
+     * are not expected. */
+    bk_video_player_hw_h264_decoder_set_output_rotation(
+        VIDEO_PLAYER_H264_DECODER_OUTPUT_ROTATION_DEG);
+
+#endif
 
     /* Board config for Multimedia config */
     app_camera_board_config_set(&camera_board);

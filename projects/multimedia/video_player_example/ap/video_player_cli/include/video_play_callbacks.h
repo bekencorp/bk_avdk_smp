@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "components/bk_video_player/bk_video_player_types.h"
+#include "video_player_common.h"
 
 // Forward declaration
 typedef void *audio_player_device_handle_t;
@@ -36,6 +37,9 @@ void video_play_video_buffer_free_yuv_cb(void *user_data, video_player_buffer_t 
 // ====== Decode complete callbacks ======
 void video_play_video_decode_complete_cb(void *user_data, const video_player_video_frame_meta_t *meta, video_player_buffer_t *buffer);
 void video_play_audio_decode_complete_cb(void *user_data, const video_player_audio_packet_meta_t *meta, video_player_buffer_t *buffer);
+
+void video_play_lcd_runtime_format_reset(void);
+void video_play_lcd_runtime_format_mark(video_play_lcd_video_fmt_t fmt);
 
 #ifdef __cplusplus
 }

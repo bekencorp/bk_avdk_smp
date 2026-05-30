@@ -29,6 +29,12 @@
 #include "components/bk_video_player/container_parser/bk_video_player_avi_parser.h"
 #include "components/bk_video_player/container_parser/bk_video_player_mp4_parser.h"
 #include "components/bk_video_player/video_decoder/bk_video_player_hw_jpeg_decoder.h"
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+#include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
+#endif
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER
+#include "components/bk_video_player/audio_decoder/bk_video_player_aac_decoder.h"
+#endif
 #include "modules/mp4lib.h"
 #include "modules/avilib.h"
 #include "bk_partition.h"
@@ -58,6 +64,36 @@ static audio_player_device_handle_t s_audio_player_handle = NULL;
 
 // Playback runtime context passed to callbacks via cfg.user_data.
 static video_play_user_ctx_t s_play_user_ctx = {0};
+
+static avdk_err_t video_play_playlist_prepare_lcd_for_file(const char *file_path)
+{
+    video_play_lcd_video_fmt_t fmt = VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW;
+
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+    fmt = VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
+#endif
+
+    if (file_path != NULL && s_video_player_app_handle != NULL)
+    {
+        video_player_media_info_t media_info;
+        os_memset(&media_info, 0, sizeof(media_info));
+        if (bk_video_player_playlist_get_media_info(s_video_player_app_handle, file_path, &media_info) == AVDK_ERR_OK)
+        {
+            fmt = video_play_lcd_format_for_video_codec(media_info.video.format);
+        }
+    }
+
+    avdk_err_t ret = video_play_lcd_ensure_open(&s_lcd_display_handle, fmt);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s: video_play_lcd_ensure_open failed, ret=%d\n", __func__, ret);
+        return ret;
+    }
+
+    s_play_user_ctx.lcd_handle = s_lcd_display_handle;
+    video_play_lcd_runtime_format_mark(fmt);
+    return AVDK_ERR_OK;
+}
 
 void bk_video_player_playlist_register_avi_container_parser(void *handle)
 {
@@ -122,6 +158,52 @@ void bk_video_player_playlist_register_hw_jpeg_video_decoder(void *handle)
     }
 }
 
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+void bk_video_player_playlist_register_hw_h264_video_decoder(void *handle)
+{
+    if (handle == NULL)
+    {
+        return;
+    }
+
+    video_player_video_decoder_ops_t *ops = bk_video_player_get_hw_h264_decoder_ops();
+    if (ops == NULL)
+    {
+        LOGE("%s: get_hw_h264_decoder_ops failed\n", __func__);
+        return;
+    }
+
+    avdk_err_t ret = bk_video_player_playlist_register_video_decoder((bk_video_player_playlist_handle_t)handle, ops);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s: register_hw_h264_video_decoder failed, ret=%d\n", __func__, ret);
+    }
+}
+#endif
+
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER
+void bk_video_player_playlist_register_aac_audio_decoder(void *handle)
+{
+    if (handle == NULL)
+    {
+        return;
+    }
+
+    const video_player_audio_decoder_ops_t *ops = bk_video_player_get_aac_decoder_ops();
+    if (ops == NULL)
+    {
+        LOGE("%s: get_aac_decoder_ops failed\n", __func__);
+        return;
+    }
+
+    avdk_err_t ret = bk_video_player_playlist_register_audio_decoder((bk_video_player_playlist_handle_t)handle, ops);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s: register_aac_audio_decoder failed, ret=%d\n", __func__, ret);
+    }
+}
+#endif
+
 static bool video_play_parse_int32_dec_range(const char *s, int32_t min_v, int32_t max_v, int32_t *out_v)
 {
     if (out_v == NULL)
@@ -185,6 +267,57 @@ static bool video_play_parse_int32_dec_range(const char *s, int32_t min_v, int32
 
     *out_v = (int32_t)v;
     return true;
+}
+
+void video_play_playlist_runtime_shutdown(void)
+{
+    avdk_err_t ret = AVDK_ERR_OK;
+
+    if (s_video_player_app_handle != NULL && s_video_player_app_opened)
+    {
+        ret = bk_video_player_playlist_stop(s_video_player_app_handle);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGW("%s: playlist stop failed, ret=%d\n", __func__, ret);
+        }
+
+        ret = bk_video_player_playlist_close(s_video_player_app_handle);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGW("%s: playlist close failed, ret=%d\n", __func__, ret);
+        }
+
+        ret = bk_video_player_playlist_delete(s_video_player_app_handle);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGW("%s: playlist delete failed, ret=%d\n", __func__, ret);
+        }
+
+        s_video_player_app_handle = NULL;
+        s_video_player_app_opened = false;
+        s_video_player_app_started = false;
+    }
+
+    if (s_audio_player_handle != NULL)
+    {
+        audio_player_device_stop(s_audio_player_handle);
+        audio_player_device_deinit(s_audio_player_handle);
+        s_audio_player_handle = NULL;
+        s_play_user_ctx.audio_player_handle = NULL;
+    }
+
+    if (s_lcd_display_handle != NULL)
+    {
+        if (video_play_lcd_close() != AVDK_ERR_OK)
+        {
+            LOGW("%s: video_play_lcd_close failed\n", __func__);
+        }
+        s_lcd_display_handle = NULL;
+        s_play_user_ctx.lcd_handle = NULL;
+        video_play_lcd_runtime_format_reset();
+    }
+
+    video_play_mark_playlist_active(false);
 }
 
 static void video_play_app_reset_audio_output(void)
@@ -420,6 +553,12 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
         {
             if (s_video_player_app_handle != NULL && s_video_player_app_opened && file_path != NULL)
             {
+                ret = video_play_playlist_prepare_lcd_for_file(file_path);
+                if (ret != AVDK_ERR_OK)
+                {
+                    goto exit;
+                }
+
                 ret = bk_video_player_playlist_play_file(s_video_player_app_handle, file_path);
                 if (ret != AVDK_ERR_OK)
                 {
@@ -448,19 +587,6 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
             }
         }
 
-        // Initialize LCD display
-        if (s_lcd_display_handle == NULL)
-        {
-            ret = video_play_lcd_open(&s_lcd_display_handle);
-            if (ret != AVDK_ERR_OK)
-            {
-                LOGE("%s: video_play_lcd_open failed, ret:%d\n", __func__, ret);
-                goto exit;
-            }
-
-            LOGI("%s: LCD display opened successfully\n", __func__);
-        }
-
         // Initialize video player playlist configuration
         bk_video_player_config_t cfg;
         os_memset(&cfg, 0, sizeof(cfg));
@@ -481,8 +607,11 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
         cfg.audio.decode_complete_cb = video_play_audio_decode_complete_cb;
         cfg.video.decode_complete_cb = video_play_video_decode_complete_cb;
 
-        cfg.video.output_format = PIXEL_FMT_YUYV;
-        s_play_user_ctx.lcd_handle = s_lcd_display_handle;
+        /* MJPEG/JPEG uses NV12 into the DPU; H264 flexa GPU emits compressed
+         * ARGB8888 and needs the matching DPU runtime (see
+         * video_play_playlist_prepare_lcd_for_file()). */
+        cfg.video.output_format = PIXEL_FMT_NV12;
+        s_play_user_ctx.lcd_handle = NULL;
         // Audio output may be opened later after probing media info.
         s_play_user_ctx.audio_player_handle = NULL;
         s_play_user_ctx.audio_volume = 100;
@@ -515,7 +644,12 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
         bk_video_player_playlist_register_avi_container_parser(s_video_player_app_handle);
         bk_video_player_playlist_register_mp4_container_parser(s_video_player_app_handle);
         bk_video_player_playlist_register_hw_jpeg_video_decoder(s_video_player_app_handle);
-
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+        bk_video_player_playlist_register_hw_h264_video_decoder(s_video_player_app_handle);
+#endif
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER
+        bk_video_player_playlist_register_aac_audio_decoder(s_video_player_app_handle);
+#endif
         // Open player playlist
         ret = bk_video_player_playlist_open(s_video_player_app_handle);
         if (ret != AVDK_ERR_OK)
@@ -526,6 +660,26 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
             goto exit;
         }
         s_video_player_app_opened = true;
+        video_play_mark_playlist_active(true);
+
+        ret = video_play_playlist_prepare_lcd_for_file(file_path);
+        if (ret != AVDK_ERR_OK)
+        {
+            if (s_lcd_display_handle != NULL)
+            {
+                (void)video_play_lcd_close();
+                s_lcd_display_handle = NULL;
+                s_play_user_ctx.lcd_handle = NULL;
+            }
+
+            bk_video_player_playlist_close(s_video_player_app_handle);
+            bk_video_player_playlist_delete(s_video_player_app_handle);
+            s_video_player_app_handle = NULL;
+            s_video_player_app_opened = false;
+            goto exit;
+        }
+
+        LOGI("%s: LCD display opened successfully\n", __func__);
 
         // Probe media info first (if file_path is provided), then decide whether to open audio output.
         if (file_path != NULL && s_audio_player_handle == NULL)
@@ -603,6 +757,7 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
                 bk_video_player_playlist_delete(s_video_player_app_handle);
                 s_video_player_app_handle = NULL;
                 s_video_player_app_opened = false;
+                video_play_mark_playlist_active(false);
                 goto exit;
             }
         }
@@ -614,64 +769,8 @@ void cli_video_play_playlist_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
     }
     else if (os_strcmp(argv[1], "stop") == 0)
     {
-        if (s_video_player_app_handle != NULL && s_video_player_app_opened)
-        {
-            ret = bk_video_player_playlist_stop(s_video_player_app_handle);
-            if (ret != AVDK_ERR_OK)
-            {
-                LOGE("%s: video player playlist stop failed, ret=%d\n", __func__, ret);
-            }
-
-            ret = bk_video_player_playlist_close(s_video_player_app_handle);
-            if (ret != AVDK_ERR_OK)
-            {
-                LOGE("%s: video player playlist close failed, ret=%d\n", __func__, ret);
-            }
-
-            ret = bk_video_player_playlist_delete(s_video_player_app_handle);
-            if (ret != AVDK_ERR_OK)
-            {
-                LOGE("%s: video player playlist delete failed, ret=%d\n", __func__, ret);
-            }
-
-            s_video_player_app_handle = NULL;
-            s_video_player_app_opened = false;
-            s_video_player_app_started = false;
-        }
-
-        // Close audio output
-        if (s_audio_player_handle != NULL)
-        {
-            audio_player_device_stop(s_audio_player_handle);
-            audio_player_device_deinit(s_audio_player_handle);
-            s_audio_player_handle = NULL;
-        }
-
-        // Close LCD display
-        if (s_lcd_display_handle != NULL)
-        {
-            ret = video_play_lcd_close();
-            if (ret != AVDK_ERR_OK)
-            {
-                LOGW("%s: video_play_lcd_close failed, ret=%d\n", __func__, ret);
-            }
-            s_lcd_display_handle = NULL;
-            s_play_user_ctx.lcd_handle = NULL;
-        }
-
-        /*
-         * Unmount SD card to release FatFs mount allocations (e.g. _bk_fatfs_mount)
-         * so that "memleak" does not report persistent mount buffers after stop.
-         */
-        int um_ret = sd_card_unmount();
-        if (um_ret != BK_OK)
-        {
-            LOGE("%s: sd_card_unmount failed, ret=%d\n", __func__, um_ret);
-            msg = CLI_CMD_RSP_ERROR;
-            goto exit;
-        }
-
-        LOGI("%s: Video playback stopped (Playlist layer)\n", __func__);
+        video_play_stop_all_and_unmount_sd();
+        LOGI("%s: Video playback stopped (Playlist CLI, all layers)\n", __func__);
         msg = CLI_CMD_RSP_SUCCEED;
     }
     else if (os_strcmp(argv[1], "pause") == 0)

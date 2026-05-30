@@ -18,7 +18,7 @@
 #include <components/avdk_utils/avdk_error.h>
 #include <components/bk_audio/audio_pipeline/audio_pipeline.h>
 #include <components/bk_audio/audio_streams/raw_stream.h>
-#include <components/bk_audio/audio_streams/onboard_speaker_stream.h>
+#include <components/bk_audio/audio_streams/onboard_speaker_stream_v2.h>
 #include <os/mem.h>
 #include <os/str.h>
 
@@ -32,6 +32,13 @@
 // Speaker digital gain
 #define AUDIO_PLAYER_DIG_GAIN_MAX       (0x3F)
 #define AUDIO_PLAYER_DIG_GAIN_DEFAULT   (0x3F) // +17dB
+
+// Board PA control for this example.
+#define AUDIO_PLAYER_PA_CTRL_ENABLE     (1)
+#define AUDIO_PLAYER_PA_CTRL_GPIO       (29)
+#define AUDIO_PLAYER_PA_ON_LEVEL        (1)
+#define AUDIO_PLAYER_PA_ON_DELAY_MS     (2)
+#define AUDIO_PLAYER_PA_OFF_DELAY_MS    (0)
 
 // Audio player device context
 typedef struct
@@ -141,10 +148,27 @@ avdk_err_t audio_player_device_init(const audio_player_device_cfg_t *cfg, audio_
     // Initialize onboard speaker stream
     onboard_speaker_stream_cfg_t speaker_cfg = ONBOARD_SPEAKER_STREAM_CFG_DEFAULT();
     speaker_cfg.chl_num = cfg->channels;
-    speaker_cfg.sample_rate = cfg->sample_rate;
+
+    aud_dac_source_t main_src = (cfg->sample_rate <= 16000)
+        ? AUD_DAC_SOURCE_CALL
+        : AUD_DAC_SOURCE_A2DP;
+
+    for (int i = 0; i < AUD_DAC_SOURCE_MAX; i++) {
+        speaker_cfg.sample_rate[i] = cfg->sample_rate;
+        speaker_cfg.frame_size[i]  = cfg->frame_size;
+    }
+    speaker_cfg.dac_source_bitmap = (1u << main_src);
+    speaker_cfg.main_dac_source   = main_src;
+
     speaker_cfg.bits = cfg->bits_per_sample;
     speaker_cfg.dig_gain = ctx->current_dig_gain;
-    speaker_cfg.frame_size = cfg->frame_size;
+#if AUDIO_PLAYER_PA_CTRL_ENABLE
+    speaker_cfg.pa_ctrl_en   = true;
+    speaker_cfg.pa_ctrl_gpio = AUDIO_PLAYER_PA_CTRL_GPIO;
+    speaker_cfg.pa_on_level  = AUDIO_PLAYER_PA_ON_LEVEL;
+    speaker_cfg.pa_on_delay  = AUDIO_PLAYER_PA_ON_DELAY_MS;
+    speaker_cfg.pa_off_delay = AUDIO_PLAYER_PA_OFF_DELAY_MS;
+#endif
     speaker_cfg.multi_in_port_num = 0;
     speaker_cfg.multi_out_port_num = 0;
     ctx->onboard_speaker_stream = onboard_speaker_stream_init(&speaker_cfg);

@@ -32,6 +32,12 @@
 #include "components/bk_video_player/container_parser/bk_video_player_avi_parser.h"
 #include "components/bk_video_player/container_parser/bk_video_player_mp4_parser.h"
 #include "components/bk_video_player/video_decoder/bk_video_player_hw_jpeg_decoder.h"
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+#include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
+#endif
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER
+#include "components/bk_video_player/audio_decoder/bk_video_player_aac_decoder.h"
+#endif
 
 #include "bk_partition.h"
 #include <sys/stat.h>
@@ -56,6 +62,67 @@ static bool s_video_player_core_started = false;
 static bool s_video_player_core_opened = false;
 static bk_display_ctlr_handle_t s_lcd_display_handle = NULL;
 static audio_player_device_handle_t s_audio_player_handle = NULL;
+
+typedef enum
+{
+    VIDEO_PLAY_ENGINE_H264_DECODER_FLEXA_GPU = 0,
+    VIDEO_PLAY_ENGINE_H264_DECODER_FRAME,
+} video_play_engine_h264_decoder_mode_t;
+
+static video_play_engine_h264_decoder_mode_t s_h264_decoder_mode = VIDEO_PLAY_ENGINE_H264_DECODER_FLEXA_GPU;
+
+static const char *video_play_engine_h264_decoder_mode_name(video_play_engine_h264_decoder_mode_t mode)
+{
+    return (mode == VIDEO_PLAY_ENGINE_H264_DECODER_FRAME) ? "frame" : "flexa_gpu";
+}
+
+static video_play_lcd_video_fmt_t video_play_engine_lcd_format_for_h264_decoder(
+    video_play_engine_h264_decoder_mode_t mode)
+{
+    return (mode == VIDEO_PLAY_ENGINE_H264_DECODER_FRAME)
+        ? VIDEO_PLAY_LCD_VIDEO_FMT_NV12_RAW
+        : VIDEO_PLAY_LCD_VIDEO_FMT_ARGB8888_COMPRESSED;
+}
+
+static bool video_play_engine_parse_h264_decoder_mode(int argc,
+                                                      char **argv,
+                                                      video_play_engine_h264_decoder_mode_t *mode)
+{
+    if (mode == NULL)
+    {
+        return false;
+    }
+
+    *mode = VIDEO_PLAY_ENGINE_H264_DECODER_FLEXA_GPU;
+    if (argc < 4)
+    {
+        return true;
+    }
+
+    if (argc > 4)
+    {
+        LOGE("%s: too many start arguments, usage: start <file_path> [frame|gpu|flexa]\n", __func__);
+        return false;
+    }
+
+    if (os_strcmp(argv[3], "frame") == 0)
+    {
+        *mode = VIDEO_PLAY_ENGINE_H264_DECODER_FRAME;
+        return true;
+    }
+
+    if (os_strcmp(argv[3], "gpu") == 0 || os_strcmp(argv[3], "flexa") == 0)
+    {
+        *mode = VIDEO_PLAY_ENGINE_H264_DECODER_FLEXA_GPU;
+        return true;
+    }
+
+    LOGE("%s: unsupported decoder mode '%s', usage: start <file_path> [frame|gpu|flexa]\n",
+         __func__, argv[3]);
+    return false;
+}
+
+
 
 void bk_video_player_engine_register_avi_container_parser(void *handle)
 {
@@ -119,6 +186,74 @@ void bk_video_player_engine_register_hw_jpeg_video_decoder(void *handle)
         LOGE("%s: register_hw_jpeg_video_decoder failed, ret=%d\n", __func__, ret);
     }
 }
+
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+void bk_video_player_engine_register_hw_h264_video_decoder(void *handle)
+{
+    if (handle == NULL)
+    {
+        return;
+    }
+
+    video_player_video_decoder_ops_t *ops = bk_video_player_get_hw_h264_decoder_ops();
+    if (ops == NULL)
+    {
+        LOGE("%s: get_hw_h264_decoder_ops failed\n", __func__);
+        return;
+    }
+
+    avdk_err_t ret = bk_video_player_engine_register_video_decoder((bk_video_player_engine_handle_t)handle, ops);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s: register_hw_h264_video_decoder failed, ret=%d\n", __func__, ret);
+    }
+}
+
+void bk_video_player_engine_register_hw_h264_frame_video_decoder(void *handle)
+{
+    if (handle == NULL)
+    {
+        return;
+    }
+
+    video_player_video_decoder_ops_t *ops = bk_video_player_get_hw_h264_decoder_frame_ops();
+    if (ops == NULL)
+    {
+        LOGE("%s: get_hw_h264_decoder_frame_ops failed\n", __func__);
+        return;
+    }
+
+    avdk_err_t ret = bk_video_player_engine_register_video_decoder((bk_video_player_engine_handle_t)handle, ops);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s: register_hw_h264_frame_video_decoder failed, ret=%d\n", __func__, ret);
+    }
+}
+
+#endif
+
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER
+void bk_video_player_engine_register_aac_audio_decoder(void *handle)
+{
+    if (handle == NULL)
+    {
+        return;
+    }
+
+    const video_player_audio_decoder_ops_t *ops = bk_video_player_get_aac_decoder_ops();
+    if (ops == NULL)
+    {
+        LOGE("%s: get_aac_decoder_ops failed\n", __func__);
+        return;
+    }
+
+    avdk_err_t ret = bk_video_player_engine_register_audio_decoder((bk_video_player_engine_handle_t)handle, ops);
+    if (ret != AVDK_ERR_OK)
+    {
+        LOGE("%s: register_aac_audio_decoder failed, ret=%d\n", __func__, ret);
+    }
+}
+#endif
 
 static bool video_play_parse_int32_dec_range(const char *s, int32_t min_v, int32_t max_v, int32_t *out_v)
 {
@@ -359,8 +494,66 @@ static avdk_err_t video_play_audio_output_config_cb(void *user_data, const video
 // Playback runtime context passed to callbacks via cfg.user_data.
 static video_play_user_ctx_t s_play_user_ctx = {0};
 
+static void video_play_engine_destroy_runtime(bool close_lcd)
+{
+    if (s_video_player_core_handle != NULL)
+    {
+        if (s_video_player_core_opened)
+        {
+            avdk_err_t ret = bk_video_player_engine_stop(s_video_player_core_handle);
+            if (ret != AVDK_ERR_OK)
+            {
+                LOGW("%s: video player engine stop failed, ret=%d\n", __func__, ret);
+            }
+
+            ret = bk_video_player_engine_close(s_video_player_core_handle);
+            if (ret != AVDK_ERR_OK)
+            {
+                LOGW("%s: video player engine close failed, ret=%d\n", __func__, ret);
+            }
+        }
+
+        avdk_err_t ret = bk_video_player_engine_delete(s_video_player_core_handle);
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGW("%s: video player engine delete failed, ret=%d\n", __func__, ret);
+        }
+
+        s_video_player_core_handle = NULL;
+        s_video_player_core_opened = false;
+        s_video_player_core_started = false;
+        video_play_mark_engine_active(false);
+    }
+
+    if (s_audio_player_handle != NULL)
+    {
+        audio_player_device_stop(s_audio_player_handle);
+        audio_player_device_deinit(s_audio_player_handle);
+        s_audio_player_handle = NULL;
+        s_play_user_ctx.audio_player_handle = NULL;
+    }
+
+    if (close_lcd && s_lcd_display_handle != NULL)
+    {
+        avdk_err_t ret = video_play_lcd_close();
+        if (ret != AVDK_ERR_OK)
+        {
+            LOGW("%s: video_play_lcd_close failed, ret=%d\n", __func__, ret);
+        }
+        s_lcd_display_handle = NULL;
+        s_play_user_ctx.lcd_handle = NULL;
+        video_play_lcd_runtime_format_reset();
+    }
+}
+
+void video_play_engine_runtime_shutdown(void)
+{
+    video_play_engine_destroy_runtime(true);
+    video_play_mark_engine_active(false);
+}
+
 // CLI command:
-// video_play_engine start [file_path] / stop / pause / resume / seek [time_ms] / ff [time_ms] / rewind [time_ms] /
+// video_play_engine start <file_path> [frame|gpu|flexa] / stop / pause / resume / seek [time_ms] / ff [time_ms] / rewind [time_ms] /
 // volume [0-100] / vol_up [step] / vol_down [step] / mute [on|off] / avsync [offset_ms] / status / info
 void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -377,11 +570,37 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
     if (os_strcmp(argv[1], "start") == 0)
     {
         const char *file_path = (argc >= 3) ? argv[2] : NULL;
+        video_play_engine_h264_decoder_mode_t requested_h264_decoder_mode = VIDEO_PLAY_ENGINE_H264_DECODER_FLEXA_GPU;
 
         if (file_path == NULL)
         {
             LOGE("%s: file_path is required\n", __func__);
             goto exit;
+        }
+
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+        if (!video_play_engine_parse_h264_decoder_mode(argc, argv, &requested_h264_decoder_mode))
+        {
+            goto exit;
+        }
+#else
+        if (argc >= 4)
+        {
+            LOGE("%s: H264 decoder mode argument requires CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER\n",
+                 __func__);
+            goto exit;
+        }
+#endif
+
+        if (s_video_player_core_handle != NULL &&
+            s_video_player_core_opened &&
+            requested_h264_decoder_mode != s_h264_decoder_mode)
+        {
+            LOGI("%s: switching H264 decoder mode %s -> %s, recreating engine\n",
+                 __func__,
+                 video_play_engine_h264_decoder_mode_name(s_h264_decoder_mode),
+                 video_play_engine_h264_decoder_mode_name(requested_h264_decoder_mode));
+            video_play_engine_destroy_runtime(true);
         }
 
         /*
@@ -417,7 +636,9 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         // Initialize LCD display
         if (s_lcd_display_handle == NULL)
         {
-            ret = video_play_lcd_open(&s_lcd_display_handle);
+            ret = video_play_lcd_open_with_format(
+                &s_lcd_display_handle,
+                video_play_engine_lcd_format_for_h264_decoder(requested_h264_decoder_mode));
             if (ret != AVDK_ERR_OK)
             {
                 LOGE("%s: video_play_lcd_open failed, ret:%d\n", __func__, ret);
@@ -447,7 +668,10 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         cfg.audio.decode_complete_cb = video_play_audio_decode_complete_cb;
         cfg.video.decode_complete_cb = video_play_video_decode_complete_cb;
 
-        cfg.video.output_format = PIXEL_FMT_YUYV;
+        /* H264 frame mode uses NV12 output and switches the DPU to NV12.
+         * Flexa GPU mode ignores this requested format and emits compressed
+         * ARGB8888 for the board-default DPU DEC400 path. */
+        cfg.video.output_format = PIXEL_FMT_NV12;
         s_play_user_ctx.lcd_handle = s_lcd_display_handle;
         // Audio output may be opened later after probing media info.
         s_play_user_ctx.audio_player_handle = NULL;
@@ -465,7 +689,8 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         cfg.audio.audio_output_config_user_data = NULL; // Use cfg.user_data
 
         // Create video player engine instance
-        LOGI("%s: Creating video player engine instance\n", __func__);
+        LOGI("%s: Creating video player engine instance, h264_decoder=%s\n",
+             __func__, video_play_engine_h264_decoder_mode_name(requested_h264_decoder_mode));
         ret = bk_video_player_engine_new(&s_video_player_core_handle, &cfg);
         if (ret != AVDK_ERR_OK || s_video_player_core_handle == NULL)
         {
@@ -477,6 +702,19 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
         bk_video_player_engine_register_avi_container_parser(s_video_player_core_handle);
         bk_video_player_engine_register_mp4_container_parser(s_video_player_core_handle);
         bk_video_player_engine_register_hw_jpeg_video_decoder(s_video_player_core_handle);
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+        if (requested_h264_decoder_mode == VIDEO_PLAY_ENGINE_H264_DECODER_FRAME)
+        {
+            bk_video_player_engine_register_hw_h264_frame_video_decoder(s_video_player_core_handle);
+        }
+        else
+        {
+            bk_video_player_engine_register_hw_h264_video_decoder(s_video_player_core_handle);
+        }
+#endif
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER
+        bk_video_player_engine_register_aac_audio_decoder(s_video_player_core_handle);
+#endif
 
         // Open player engine
         ret = bk_video_player_engine_open(s_video_player_core_handle);
@@ -488,6 +726,8 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             goto exit;
         }
         s_video_player_core_opened = true;
+        video_play_mark_engine_active(true);
+        s_h264_decoder_mode = requested_h264_decoder_mode;
 
         // Probe media info first, then decide whether to open audio output.
         video_player_media_info_t start_media_info;
@@ -500,6 +740,7 @@ void cli_video_play_engine_cmd(char *pcWriteBuffer, int xWriteBufferLen, int arg
             bk_video_player_engine_delete(s_video_player_core_handle);
             s_video_player_core_handle = NULL;
             s_video_player_core_opened = false;
+            video_play_mark_engine_active(false);
             goto exit;
         }
 
@@ -583,6 +824,7 @@ audio_init_done:
             bk_video_player_engine_delete(s_video_player_core_handle);
             s_video_player_core_handle = NULL;
             s_video_player_core_opened = false;
+            video_play_mark_engine_active(false);
             goto exit;
         }
 
@@ -595,11 +837,13 @@ audio_init_done:
             bk_video_player_engine_delete(s_video_player_core_handle);
             s_video_player_core_handle = NULL;
             s_video_player_core_opened = false;
+            video_play_mark_engine_active(false);
             goto exit;
         }
 
         s_video_player_core_started = true;
-        LOGI("%s: Video playback started (Engine layer), file: %s\n", __func__, file_path);
+        LOGI("%s: Video playback started (Engine layer), file: %s, h264_decoder=%s\n",
+             __func__, file_path, video_play_engine_h264_decoder_mode_name(s_h264_decoder_mode));
         msg = CLI_CMD_RSP_SUCCEED;
     }
     else if (os_strcmp(argv[1], "info") == 0)
@@ -635,64 +879,8 @@ audio_init_done:
     }
     else if (os_strcmp(argv[1], "stop") == 0)
     {
-        if (s_video_player_core_handle != NULL && s_video_player_core_opened)
-        {
-            ret = bk_video_player_engine_stop(s_video_player_core_handle);
-            if (ret != AVDK_ERR_OK)
-            {
-                LOGE("%s: video player engine stop failed, ret=%d\n", __func__, ret);
-            }
-
-            ret = bk_video_player_engine_close(s_video_player_core_handle);
-            if (ret != AVDK_ERR_OK)
-            {
-                LOGE("%s: video player engine close failed, ret=%d\n", __func__, ret);
-            }
-
-            ret = bk_video_player_engine_delete(s_video_player_core_handle);
-            if (ret != AVDK_ERR_OK)
-            {
-                LOGE("%s: video player engine delete failed, ret=%d\n", __func__, ret);
-            }
-
-            s_video_player_core_handle = NULL;
-            s_video_player_core_opened = false;
-            s_video_player_core_started = false;
-        }
-
-        // Close audio output
-        if (s_audio_player_handle != NULL)
-        {
-            audio_player_device_stop(s_audio_player_handle);
-            audio_player_device_deinit(s_audio_player_handle);
-            s_audio_player_handle = NULL;
-        }
-
-        // Close LCD display
-        if (s_lcd_display_handle != NULL)
-        {
-            ret = video_play_lcd_close();
-            if (ret != AVDK_ERR_OK)
-            {
-                LOGW("%s: video_play_lcd_close failed, ret=%d\n", __func__, ret);
-            }
-            s_lcd_display_handle = NULL;
-            s_play_user_ctx.lcd_handle = NULL;
-        }
-
-        /*
-         * Unmount SD card to release FatFs mount allocations (e.g. _bk_fatfs_mount)
-         * so that "memleak" does not report persistent mount buffers after stop.
-         */
-        int um_ret = sd_card_unmount();
-        if (um_ret != BK_OK)
-        {
-            LOGE("%s: sd_card_unmount failed, ret=%d\n", __func__, um_ret);
-            msg = CLI_CMD_RSP_ERROR;
-            goto exit;
-        }
-
-        LOGI("%s: Video playback stopped (Engine layer)\n", __func__);
+        video_play_stop_all_and_unmount_sd();
+        LOGI("%s: Video playback stopped (Engine CLI, all layers)\n", __func__);
         msg = CLI_CMD_RSP_SUCCEED;
     }
     else if (os_strcmp(argv[1], "pause") == 0)

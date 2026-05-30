@@ -11,3 +11,14 @@ doorbell_03,isp open hx8399c_mipi_1080x1920DRSP:OK,5
  doorbell_04，isp open 
               display open
 
+video_play_engine_start,ap_cmd video_play_engine start /sd0/original_1080x1920_6fps_h264_yuv420p_aac_mono_no_bframes.mp4,1,CMDRSP:OK,15
+video_play_engine_pause,ap_cmd video_play_engine pause,1,CMDRSP:OK,10
+video_play_engine_resume,ap_cmd video_play_engine resume,1,CMDRSP:OK,10
+video_play_engine_stop,ap_cmd video_play_engine stop,1,CMDRSP:OK,10
+video_play_playlist_start,ap_cmd video_play_playlist start /sd0/original_1080x1920_6fps_h264_yuv420p_aac_mono_no_bframes.mp4,1,CMDRSP:OK,15
+video_play_playlist_add,ap_cmd video_play_playlist add /sd0/est_1080_6fps.mp4,1,CMDRSP:OK,10
+video_play_playlist_pause,ap_cmd video_play_playlist pause,1,CMDRSP:OK,10
+video_play_playlist_resume,ap_cmd video_play_playlist resume,1,CMDRSP:OK,10
+video_play_playlist_next,ap_cmd video_play_playlist next,1,CMDRSP:OK,10
+video_play_playlist_prev,ap_cmd video_play_playlist prev,1,CMDRSP:OK,10
+video_play_playlist_stop,ap_cmd video_play_playlist stop,1,CMDRSP:OK,10
