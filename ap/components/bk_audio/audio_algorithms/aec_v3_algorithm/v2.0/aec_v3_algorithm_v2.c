@@ -580,11 +580,10 @@ static int aec_vad_proc(aec_v3_algorithm_t *aec)
 
 #if CONFIG_ADK_AEC_V3_USE_DTCM
 #define AEC_BUF_ADD 0x20000000
-uint32 AEC_DTCM_BUFFER[32*1024/4] __attribute__((section(".dtcm_sec_data")));
 static void *aec_dtcm_malloc(uint32_t size)
 {
     void *data = NULL;
-    data = (void *)AEC_DTCM_BUFFER;
+    data = (void *)AEC_BUF_ADD;
     if (data)
     {
         os_memset(data, 0, size);
