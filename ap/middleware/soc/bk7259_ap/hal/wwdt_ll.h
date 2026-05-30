@@ -71,6 +71,16 @@ static inline uint32_t wwdt_ll_get_smb_clkrst_value(void) {
 	return r->v;
 }
 
+static inline void wwdt_ll_set_smb_clkrst_clkg_bypass(uint32_t v) {
+	wwdt_smb_clkrst_t *r = (wwdt_smb_clkrst_t*)(SOC_WWDT_REG_BASE + (0x2 << 2));
+	r->clkg_bypass = v;
+}
+
+static inline uint32_t wwdt_ll_get_smb_clkrst_clkg_bypass(void) {
+	wwdt_smb_clkrst_t *r = (wwdt_smb_clkrst_t*)(SOC_WWDT_REG_BASE + (0x2 << 2));
+	return r->clkg_bypass;
+}
+
 static inline void wwdt_ll_set_smb_clkrst_soft_reset(uint32_t v) {
 	wwdt_smb_clkrst_t *r = (wwdt_smb_clkrst_t*)(SOC_WWDT_REG_BASE + (0x2 << 2));
 	r->soft_reset = v;

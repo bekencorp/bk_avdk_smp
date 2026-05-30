@@ -52,18 +52,21 @@ bk_err_t wwdt_hal_init_wwdt(wwdt_hal_t *hal, uint32_t timeout_ms)
 
 __attribute__((section(".itcm_sec_code"))) void wwdt_hal_close(void)
 {
+	wwdt_hal_set_smb_clkrst_clkg_bypass(1);
 	wwdt_hal_1st_set_wdt_config_period(0);
 	wwdt_hal_2nd_set_wdt_config_period(0);
 }
 
 void wwdt_hal_force_feed(void)
 {
+	wwdt_hal_set_smb_clkrst_clkg_bypass(1);
 	wwdt_hal_1st_set_wdt_config_period(WWDT_F_PERIOD_MAX_V);
 	wwdt_hal_2nd_set_wdt_config_period(WWDT_F_PERIOD_MAX_V);
 }
 
 void wwdt_hal_force_reboot(void)
 {
+	wwdt_hal_set_smb_clkrst_clkg_bypass(1);
 	wwdt_hal_1st_set_wdt_config_period(WWDT_F_PERIOD_MIN_V);
 	wwdt_hal_2nd_set_wdt_config_period(WWDT_F_PERIOD_MIN_V);
 }

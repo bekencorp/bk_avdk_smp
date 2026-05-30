@@ -165,6 +165,14 @@ static void cli_wwdt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 		BK_LOG_ON_ERR(bk_wwdt_feed());
 		CLI_LOGI("wwdt feed once, core=%u, wwdt_cpu=%u\r\n",
 			rtos_get_core_id(), bk_wwdt_get_cpu_id());
+	}else if (os_strcmp(argv[1], "close") == 0) {
+		bk_wwdt_close();
+		CLI_LOGI("wwdt close, core=%u, wwdt_cpu=%u\r\n",
+			rtos_get_core_id(), bk_wwdt_get_cpu_id());
+	} else if (os_strcmp(argv[1], "force_feed") == 0) {
+		bk_wwdt_force_feed();
+		CLI_LOGI("wwdt force feed, core=%u, wwdt_cpu=%u\r\n",
+			rtos_get_core_id(), bk_wwdt_get_cpu_id());
 	} else if (os_strcmp(argv[1], "set_feed_time") == 0) {
 		uint32_t feed_time;
 
@@ -273,7 +281,7 @@ static void cli_wwdt_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 #define WDT_CMD_CNT (sizeof(s_wwdt_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_wwdt_commands[] = {
 	{"wwdt_driver", "{init|deinit}", cli_wwdt_driver_cmd},
-	{"wwdt", "wwdt {start|stop|status|feed_once|feed_timer|skip_feed_core|resume_feed_core|busy_core|hang_core} [...]", cli_wwdt_cmd}
+	{"wwdt", "wwdt {start|stop|status|feed_once|close|force_feed|feed_timer|skip_feed_core|resume_feed_core|busy_core|hang_core} [...]", cli_wwdt_cmd}
 };
 
 int bk_wwdt_register_cli_test_feature(void)

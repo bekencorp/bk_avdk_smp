@@ -37,7 +37,8 @@ typedef struct {
 #define MULTI_VAL_MS              (WWDT_CLK_SRC / 1000)
 
 #define wwdt_hal_reset_config_to_default(hal) wwdt_ll_reset_config_to_default((hal)->hw)
-#define wwdt_hal_set_smb_clkrst_soft_reset(val)       wwdt_ll_set_smb_clkrst_soft_reset(val)
+#define wwdt_hal_set_smb_clkrst_clkg_bypass(val) wwdt_ll_set_smb_clkrst_clkg_bypass(val)
+#define wwdt_hal_set_smb_clkrst_soft_reset(val)  wwdt_ll_set_smb_clkrst_soft_reset(val)
 #define wwdt_hal_1st_set_wdt_config_period(val)  wwdt_ll_1st_set_wdt_config_period(val)
 #define wwdt_hal_2nd_set_wdt_config_period(val)  wwdt_ll_2nd_set_wdt_config_period(val)
 #define wwdt_hal_set_wdt_win_set_win_val(val)    wwdt_ll_set_wdt_win_set_win_val(val)

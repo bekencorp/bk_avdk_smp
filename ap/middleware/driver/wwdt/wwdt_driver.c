@@ -73,6 +73,7 @@ static uint32_t s_wwdt_period = CONFIG_INT_WWDT_PERIOD_MS;
 static uint64_t s_last_wwdt_feed_tick[WWDT_CORE_NUM] = {0};
 static uint32_t s_feed_wwdt_time = 0;
 static uint8_t s_debug_started_log_bits = 0;
+static volatile uint8_t s_wwdt_auto_start_disable_bits = 0;
 #if CONFIG_WWDT_TEST
 static uint8_t s_skip_feed_bits = 0;
 #endif
@@ -121,6 +122,7 @@ static bk_err_t wwdt_start_current_core(uint32_t timeout_ms, bool is_enable_wind
 		timeout_ms = CONFIG_INT_WWDT_PERIOD_MS;
 	}
 
+	s_wwdt_auto_start_disable_bits &= ~BIT(core_id);
 	s_wwdt_period = timeout_ms;
 	if (is_enable_window) {
 		wwdt_hal_set_wdt_win_1st_set_win_val(window_val);
@@ -184,6 +186,7 @@ bk_err_t bk_wwdt_driver_init(void)
 	}
 
 	os_memset(&s_wwdt, 0, sizeof(s_wwdt));
+	s_wwdt_auto_start_disable_bits = 0;
 	wwdt_hal_init(&s_wwdt.hal);
 
 	s_wwdt_driver_is_init = true;
@@ -223,12 +226,8 @@ uint32_t bk_wwdt_get_window_val(void)
 
 __attribute__((section(".itcm_sec_code"))) bk_err_t bk_wwdt_stop(void)
 {
-	uint32_t core_id = wwdt_get_current_core_id();
-
 	WWDT_RETURN_ON_DRIVER_NOT_INIT();
 	wwdt_deinit_common();
-	s_wwdt.init_bits &= ~(BIT(core_id));
-	s_last_wwdt_feed_tick[core_id] = 0;
 
 	return BK_OK;
 }
@@ -251,6 +250,10 @@ void bk_wwdt_feed_current_core(void)
 	}
 
 	if (!(s_wwdt.init_bits & BIT(core_id))) {
+		if (s_wwdt_auto_start_disable_bits & BIT(core_id)) {
+			return;
+		}
+
 		BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
 		return;
 	}
@@ -270,6 +273,10 @@ void bk_wwdt_feed_current_core_from_isr(void)
 	}
 
 	if (!(s_wwdt.init_bits & BIT(core_id))) {
+		if (s_wwdt_auto_start_disable_bits & BIT(core_id)) {
+			return;
+		}
+
 		(void)wwdt_start_current_core(CONFIG_INT_WWDT_PERIOD_MS, false, 0, false);
 		if (!(s_debug_started_log_bits & BIT(core_id))) {
 			s_debug_started_log_bits |= BIT(core_id);
@@ -339,7 +346,15 @@ void bk_wwdt_feed_handle(void)
 
 __attribute__((section(".itcm_sec_code"))) void bk_wwdt_close(void)
 {
+	uint32_t core_id = wwdt_get_current_core_id();
+	GLOBAL_INT_DECLARATION();
+
+	GLOBAL_INT_DISABLE();
+	s_wwdt_auto_start_disable_bits |= BIT(core_id);
+	s_wwdt.init_bits &= ~BIT(core_id);
+	s_last_wwdt_feed_tick[core_id] = 0;
 	wwdt_hal_close();
+	GLOBAL_INT_RESTORE();
 }
 
 void bk_wwdt_force_feed(void)
