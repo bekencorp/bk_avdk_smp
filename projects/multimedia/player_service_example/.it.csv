@@ -6,15 +6,15 @@ player_service_start_test_case_02,ap_cmd player_service playback start array 1,1
 player_service_stop_test_case_02,ap_cmd player_service playback stop,1,CMDRSP:OK,5
 player_service_start_test_case_03,ap_cmd player_service playback start array 2,1,CMDRSP:OK,5
 player_service_stop_test_case_03,ap_cmd player_service playback stop,1,CMDRSP:OK,5
-player_service_start_test_case_04,ap_cmd voice_service start onboard 8000 1 g711a g711a onboard 8000 0,1,CMDRSP:OK,5
+player_service_start_test_case_04,ap_cmd voice_service start onboard 8000 1 g711a g711a onboard 8000 1,1,CMDRSP:OK,5
 player_service_start_test_case_04,ap_cmd player_service prompt_tone start 1 array 0,1,CMDRSP:OK,5
 player_service_start_test_case_04,ap_cmd player_service prompt_tone stop 1,1,CMDRSP:OK,5
-player_service_stop_test_case_04,ap_cmd voice_service stop onboard 8000 1 g711a g711a onboard 8000 0,1,CMDRSP:OK,5
-player_service_start_test_case_05,ap_cmd voice_service start onboard 8000 1 g711a g711a onboard 8000 0,1,CMDRSP:OK,5
+player_service_stop_test_case_04,ap_cmd voice_service stop onboard 8000 1 g711a g711a onboard 8000 1,1,CMDRSP:OK,5
+player_service_start_test_case_05,ap_cmd voice_service start onboard 8000 1 g711a g711a onboard 8000 1,1,CMDRSP:OK,5
 player_service_start_test_case_05,ap_cmd player_service prompt_tone start 1 array 1,1,CMDRSP:OK,5
 player_service_start_test_case_05,ap_cmd player_service prompt_tone stop 1,1,CMDRSP:OK,5
-player_service_stop_test_case_05,ap_cmd voice_service stop onboard 8000 1 g711a g711a onboard 8000 0,1,CMDRSP:OK,5
-player_service_start_test_case_06,ap_cmd voice_service start onboard 8000 1 g711a g711a onboard 8000 0,1,CMDRSP:OK,5
+player_service_stop_test_case_05,ap_cmd voice_service stop onboard 8000 1 g711a g711a onboard 8000 1,1,CMDRSP:OK,5
+player_service_start_test_case_06,ap_cmd voice_service start onboard 8000 1 g711a g711a onboard 8000 1,1,CMDRSP:OK,5
 player_service_start_test_case_06,ap_cmd player_service prompt_tone start 1 array 2,1,CMDRSP:OK,5
 player_service_start_test_case_06,ap_cmd player_service prompt_tone stop 1,1,CMDRSP:OK,5
-player_service_stop_test_case_06,ap_cmd voice_service stop onboard 8000 1 g711a g711a onboard 8000 0,1,CMDRSP:OK,5
+player_service_stop_test_case_06,ap_cmd voice_service stop onboard 8000 1 g711a g711a onboard 8000 1,1,CMDRSP:OK,5

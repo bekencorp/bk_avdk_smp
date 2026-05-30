@@ -84,19 +84,29 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
     sys_drv_aud_dac_idacl_en(1);
     sys_drv_aud_dac_idacr_en(1);
     sys_drv_aud_dac_drv_en(1);
-    sys_drv_aud_dacl_en(1);
-    sys_drv_aud_dacr_en(1);
+
+    /* Silicon limitation: keep both DAC digital L/R enables asserted, even when only one output channel is used. */
+    audio_reg_hal_set_dac_cfg_dac_enable_l(1);
+    audio_reg_hal_set_dac_cfg_dac_enable_r(1);
 
     sys_drv_aud_looprst0v9_en(1);
     bk_timer_delay_us(1000);
     sys_drv_aud_looprst0v9_en(0);
 
 	audio_reg_hal_set_dac_cfg_dac_tx_anc_d2(2);
-	audio_reg_hal_set_dac_cfg_mono_sel(2);
 	if (dac_config->bits == 24) {
-		audio_reg_hal_set_dac_cfg_stereo_en(0);
+        LOGW("%s, Unsupported bits width: %d\n", __func__, dac_config->bits);
+        ret = BK_FAIL;
+        goto fail;
 	} else {
-		audio_reg_hal_set_dac_cfg_stereo_en(5);
+		/* 16bit LR: L/R packed in one 32bit word; stereo_en HW-splits to dacl/dacr */
+		if (dac_config->dac_chl == AUD_DAC_CHL_LR) {
+			audio_reg_hal_set_dac_cfg_mono_sel(0x0);
+			audio_reg_hal_set_dac_cfg_stereo_en(0x7);
+		} else {
+			audio_reg_hal_set_dac_cfg_mono_sel(0x7);
+			audio_reg_hal_set_dac_cfg_stereo_en(0x0);
+		}
 	}
 	audio_reg_hal_set_dac_cfg_drc_bypass(1);
 
@@ -1010,21 +1020,17 @@ bk_err_t bk_aud_dac_spk1_source_enable(aud_dac_source_t source, uint32_t enable)
 
 bk_err_t bk_aud_dac_source_enable(uint8_t spk, aud_dac_source_t source, uint32_t enable)
 {
-     bk_err_t ret = BK_OK;
-     switch (spk) {
-        case 0://spk0
-            ret = bk_aud_dac_spk0_source_enable(source, enable);
-            break;
+    bk_err_t ret = BK_OK;
 
-        case 1://spk1
-            ret = bk_aud_dac_spk1_source_enable(source, enable);
-            break;
+    (void)spk;
 
-        default:
-            return BK_FAIL;
-     }
+    ret = bk_aud_dac_spk0_source_enable(source, enable);
+    if (ret != BK_OK)
+    {
+        return ret;
+    }
 
-     return ret;
+    return bk_aud_dac_spk1_source_enable(source, enable);
 }
 
 bk_err_t bk_aud_dac_start(aud_dac_chl_t dac_chl)
@@ -1032,16 +1038,18 @@ bk_err_t bk_aud_dac_start(aud_dac_chl_t dac_chl)
     AUD_DAC_RETURN_ON_NOT_INIT();
     switch (dac_chl) {
         case AUD_DAC_CHL_L:
-            audio_reg_hal_set_dac_cfg_dac_enable_l(1);
+            sys_drv_aud_dacl_en(1);
+            sys_drv_aud_dacr_en(1);   ///
             break;
 
         case AUD_DAC_CHL_R:
-            audio_reg_hal_set_dac_cfg_dac_enable_r(1);
+            sys_drv_aud_dacl_en(1);   ///
+            sys_drv_aud_dacr_en(1);
             break;
 
         case AUD_DAC_CHL_LR:
-            audio_reg_hal_set_dac_cfg_dac_enable_l(1);
-            audio_reg_hal_set_dac_cfg_dac_enable_r(1);
+            sys_drv_aud_dacl_en(1);
+            sys_drv_aud_dacr_en(1);
             break;
 
         default:
@@ -1049,8 +1057,8 @@ bk_err_t bk_aud_dac_start(aud_dac_chl_t dac_chl)
             return BK_FAIL;
             break;
     }
-	bk_aud_apll_spi_trigger();
-	return BK_OK;
+    bk_aud_apll_spi_trigger();
+    return BK_OK;
 }
 
 bk_err_t bk_aud_dac_stop(aud_dac_chl_t dac_chl)

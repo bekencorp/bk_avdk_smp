@@ -154,14 +154,17 @@ bk_err_t bk_aud_adc_init(aud_adc_config_t *adc_config)
     bk_aud_adc_set_bits_width(AUD_ADC_CHL_1, adc_config->chl_cfg[1].bits);
     bk_aud_adc_set_bits_width(AUD_ADC_CHL_2, adc_config->chl_cfg[2].bits);
 
-    /* Configure AEC loopback when AEC is enabled */
-    if (adc_config->aec_en) {
-        audio_reg_hal_set_adc_cfg_aec_en(0x1);
-        audio_reg_hal_set_adc_cfg_aec_16b_sel(0x1);
-    } else
+    /* Configure AEC loopback: 0=off, 1/2/3=hardware loopback mode */
     {
-        audio_reg_hal_set_adc_cfg_aec_en(0x0);
-        audio_reg_hal_set_adc_cfg_aec_16b_sel(0x0);
+        uint8_t aec_en = adc_config->aec_en & 0x3;
+        if (aec_en) {
+            audio_reg_hal_set_adc_cfg_aec_en(1);//(aec_en);
+            audio_reg_hal_set_adc_cfg_aec_16b_sel(1);//(aec_en);
+        } else
+		{
+            audio_reg_hal_set_adc_cfg_aec_en(0);
+            audio_reg_hal_set_adc_cfg_aec_16b_sel(0);
+		}
     }
 
     audio_reg_hal_set_adc_cfg_clk_adc_inv(adc_config->adc_samp_edge);

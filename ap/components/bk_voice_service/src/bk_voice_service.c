@@ -1170,14 +1170,6 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
             return BK_FAIL;
         }
 
-        #if CONFIG_ADK_ONBOARD_MIC_STREAM_V1
-        if (cfg.mic_cfg.onboard_mic_cfg.adc_cfg.bits != 16)
-        {
-            BK_LOGE(TAG, "%s, %d, onboard mic adc bits: %d is not support\n", __func__, __LINE__, cfg.mic_cfg.onboard_mic_cfg.adc_cfg.bits);
-            return BK_FAIL;
-        }
-        #endif
-
         /*
             When aec enable,
             if aec mode is AEC_MODE_HARDWARE, mic channel is 2 (one channel is mic data, other channel is ref data from speaker)
@@ -1276,9 +1268,38 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
             return BK_FAIL;
         }
 #endif
-        if (cfg.spk_cfg.onboard_spk_cfg.bits != 16 || cfg.spk_cfg.onboard_spk_cfg.chl_num != 1)
+        if (cfg.spk_cfg.onboard_spk_cfg.bits != 16)
         {
-            BK_LOGE(TAG, "%s, %d, onboard spk dac bits: %d, chl_num: %d is not right\n", __func__, __LINE__, cfg.spk_cfg.onboard_spk_cfg.bits, cfg.spk_cfg.onboard_spk_cfg.chl_num);
+            BK_LOGE(TAG, "%s, %d, onboard spk dac bits: %d is not right\n", __func__, __LINE__, cfg.spk_cfg.onboard_spk_cfg.bits);
+            return BK_FAIL;
+        }
+        if (cfg.spk_cfg.onboard_spk_cfg.chl_num != 1
+            && cfg.spk_cfg.onboard_spk_cfg.chl_num != 2)
+        {
+            BK_LOGE(TAG, "%s, %d, onboard spk chl_num: %d invalid (use 1=mono, 2=stereo)\n",
+                __func__, __LINE__, cfg.spk_cfg.onboard_spk_cfg.chl_num);
+            return BK_FAIL;
+        }
+
+        if (cfg.spk_cfg.onboard_spk_cfg.dac_chl >= AUD_DAC_CHL_MAX)
+        {
+            BK_LOGE(TAG, "%s, %d, onboard spk dac_chl: %d invalid\n",
+                __func__, __LINE__, cfg.spk_cfg.onboard_spk_cfg.dac_chl);
+            return BK_FAIL;
+        }
+        if (cfg.spk_cfg.onboard_spk_cfg.dac_chl == AUD_DAC_CHL_LR)
+        {
+            if (cfg.spk_cfg.onboard_spk_cfg.chl_num != 2)
+            {
+                BK_LOGE(TAG, "%s, %d, dac_chl LR requires chl_num=2, got %d\n",
+                    __func__, __LINE__, cfg.spk_cfg.onboard_spk_cfg.chl_num);
+                return BK_FAIL;
+            }
+        }
+        else if (cfg.spk_cfg.onboard_spk_cfg.chl_num != 1)
+        {
+            BK_LOGE(TAG, "%s, %d, dac_chl L/R requires chl_num=1, got %d\n",
+                __func__, __LINE__, cfg.spk_cfg.onboard_spk_cfg.chl_num);
             return BK_FAIL;
         }
 
@@ -1334,6 +1355,16 @@ static bk_err_t voice_config_check(voice_cfg_t cfg)
 
 voice_handle_t bk_voice_init(voice_cfg_t *cfg)
 {
+
+    if (cfg && cfg->spk_type == SPK_TYPE_ONBOARD
+        && cfg->spk_cfg.onboard_spk_cfg.chl_num == 1
+        && cfg->spk_cfg.onboard_spk_cfg.dac_chl == AUD_DAC_CHL_LR)
+    {
+        BK_LOGW(TAG, "%s, %d, chl_num=1 with dac_chl=LR, fallback dac_chl to AUD_DAC_CHL_L\n",
+            __func__, __LINE__);
+        cfg->spk_cfg.onboard_spk_cfg.dac_chl = AUD_DAC_CHL_L;
+    }
+
     if (BK_OK != voice_config_check(*cfg))
     {
         BK_LOGE(TAG, "%s, %d, check voice config\n", __func__, __LINE__);

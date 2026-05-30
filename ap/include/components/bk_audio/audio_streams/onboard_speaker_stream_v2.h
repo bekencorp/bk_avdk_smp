@@ -53,7 +53,8 @@ typedef void (*onboard_speaker_status_cb_t)(audio_element_handle_t onboard_speak
  */
 typedef struct
 {
-    uint8_t                 chl_num;            /*!< speaker channel number */
+    uint8_t                 chl_num;            /*!< PCM channel count: 1 mono, 2 interleaved stereo */
+    aud_dac_chl_t           dac_chl;            /*!< chl_num=1: L default, R if set; chl_num=2: ignored, use LR */
     uint32_t                sample_rate[AUD_DAC_SOURCE_MAX];/*!< speaker sample rate */
     float                   dig_gain;           /*!< audio dac digital gain in dB */
     int32_t                 ana_gain;           /*!< audio dac analog gain in dB (integer step) */
@@ -105,6 +106,7 @@ typedef struct
 
 #define DEFAULT_ONBOARD_SPEAKER_STREAM_CONFIG() {              \
         .chl_num = 1,                                          \
+        .dac_chl = AUD_DAC_CHL_L,                              \
         .sample_rate[0] = 48000,                               \
         .sample_rate[1] = 16000,                               \
         .sample_rate[2] = 16000,                               \

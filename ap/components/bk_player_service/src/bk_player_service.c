@@ -54,6 +54,7 @@ struct player
     audio_element_handle_t  spk_dec;            /**< speaker decoder handle */
     spk_type_t              spk_type;           /**< onboard speaker or uac speaker */
     audio_element_handle_t  spk_str;            /**< speaker stream handle */
+    aud_dac_source_t        onboard_main_dac_source; /**< main dac source for onboard speaker */
 
     audio_event_iface_handle_t play_evt;        /**< play event handle */
 
@@ -572,7 +573,11 @@ static void listener_task_main(beken_thread_arg_t param_data)
                         {
                             //audio_element_setinfo(player_handle->spk_str, &music_info);
                             #if CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2
-                            onboard_speaker_stream_set_param(player_handle->spk_str, music_info.sample_rates, music_info.bits, music_info.channels, AUD_DAC_SOURCE_A2DP);
+                            onboard_speaker_stream_set_param(player_handle->spk_str,
+                                                             music_info.sample_rates,
+                                                             music_info.bits,
+                                                             music_info.channels,
+                                                             player_handle->onboard_main_dac_source);
                             #else
                             onboard_speaker_stream_set_param(player_handle->spk_str, music_info.sample_rates, music_info.bits, music_info.channels);
                             #endif
@@ -779,6 +784,7 @@ bk_player_handle_t bk_player_create(bk_player_cfg_t *cfg)
     player_handle->spk_type = cfg->spk_type;
     if (player_handle->spk_type == SPK_TYPE_ONBOARD)
     {
+        player_handle->onboard_main_dac_source = cfg->spk_cfg.onboard_spk_cfg.main_dac_source;
         player_handle->spk_str = onboard_speaker_stream_init(&cfg->spk_cfg.onboard_spk_cfg);
     }
 #if CONFIG_ADK_UAC_SPEAKER_STREAM
