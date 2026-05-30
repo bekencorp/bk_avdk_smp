@@ -82,7 +82,9 @@ void bk_lv_port_disp_init(lv_vnd_data_t *vnd_data)
     LOGI("LVGL addr1:%x, addr2:%x, pixel size:%d, fb1:%x, fb2:%x\r\n", vnd_data->config.draw_buf_2_1, vnd_data->config.draw_buf_2_2,
                                         vnd_data->config.draw_pixel_size, vnd_data->config.frame_buffer[0], vnd_data->config.frame_buffer[1]);
 
-    if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE && vnd_data->config.rotation != ROTATE_NONE) {
+    if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE &&
+        vnd_data->config.rotation != ROTATE_NONE &&
+        !vnd_data->config.output_compress) {
         vnd_data->rotate_buffer = lv_vendor_malloc(vnd_data->config.draw_pixel_size);
         if (vnd_data->rotate_buffer == NULL) {
             LOGE("%s lvgl rotate buffer malloc fail!\n", __func__);
@@ -98,7 +100,9 @@ void lv_port_disp_deinit(lv_vnd_data_t *vnd_data)
         return;
     }
 
-    if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE && vnd_data->config.rotation != ROTATE_NONE) {
+    if (vnd_data->config.render_mode == RENDER_PARTIAL_MODE &&
+        vnd_data->config.rotation != ROTATE_NONE &&
+        !vnd_data->config.output_compress) {
         if (vnd_data->rotate_buffer) {
             lv_vendor_free(vnd_data->rotate_buffer);
             vnd_data->rotate_buffer = NULL;
