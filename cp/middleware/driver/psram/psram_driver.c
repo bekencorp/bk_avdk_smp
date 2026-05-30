@@ -559,6 +559,191 @@ bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id)
 	return BK_OK;
 }
 
+/* ============================================================
+ * PSRAM data-retention helpers (used when AP / M55 subsystem
+ * is powered down while CP keeps PSRAM contents alive).
+ *
+ * Retention path (replaces bk_psram_deinit() before AP power-off):
+ *   1. flush PSRAM controller write buffer for each instance, so
+ *      no dirty data is left in the controller when its clock is
+ *      gated off together with the AHBP/M55 sub-system.
+ *   2. latch PSRAM I/O pads at 3V (ana_reg5.gpio_latch=1) so the
+ *      pad state stays valid while the M55 LDO is off.
+ *   3. DO NOT call psram_hal_power_clk_enable(0); the PSRAM
+ *      voltage LDO must stay on to keep external PSRAM cell data.
+ *   4. mark instances as "in retention" so the recovery path knows
+ *      to run; the SW init-done flag is kept untouched (cells &
+ *      pads are still alive, no full re-init is required).
+ *
+ * Recover path (replaces bk_psram_init() after AP power-on):
+ *   1. release GPIO/PSRAM pad latch.
+ *   2. for each previously-active instance, redo the minimum
+ *      controller sequence equivalent to the reference
+ *      psram_recovery():
+ *        - clock-gating bypass (REG2 bit1)
+ *        - reselect 320M source, /2 divider, enable controller clock
+ *        - soft-reset controller (REG2 bit0)
+ *        - re-load mode register with PSRAM_MODE9 (the chip-mode
+ *          value matching the current PSRAM die / clock).
+ *
+ * NOTE: this path assumes the PSRAM voltage rail was NOT cut. It
+ * is the caller's responsibility to ensure that. With the standard
+ * pm_module_shutdown_cpu1() path on bk7259, only the AP_CPU power
+ * domain is gated; the PSRAM voltage and AHBP_PSRAM stay alive.
+ * ============================================================ */
+
+#define PSRAM_RETENTION_FLUSH_BIT      (0x1U << 3)
+#define PSRAM_RETENTION_CKG_BYPASS_BIT (0x1U << 1)
+/* Fallback mode register value used only when no snapshot was taken
+ * (e.g. retention helper called before any real PSRAM access). The
+ * normal path always restores the snapshotted REG4 read live from
+ * the controller right before pad-latch. PSRAM_MODE9 = 0xBC0F4049
+ * matches the SCB18X128XX 240MHz setting used by bk7259 default
+ * init flow (see psram_hal.c). */
+#define PSRAM_RETENTION_MODE_REG_FALLBACK   (PSRAM_MODE9)
+
+/* TEMP / LOCAL VERIFICATION SWITCH:
+ *
+ * The PSRAM bus-clock muxer (sys_ahbp REG8/9 cksel/ckdiv + REGA
+ * pramX_cken) lives in the AHBP_PSRAM sub-domain. Under the default
+ * pm_module_shutdown_cpu1() policy, only POWER_SUB_DOMAIN_NAME_AP_CPU
+ * is gated; AHBP_PSRAM stays powered, so those registers should be
+ * preserved across the AP power cycle. In that case re-issuing the
+ * cksel / ckdiv / cken writes inside recovery is redundant.
+ *
+ * Set this to 0 to skip the (presumably redundant) clock re-setup
+ * and verify locally that PSRAM still recovers correctly. Keep it
+ * as 1 for production / when AHBP_PSRAM may also be cycled, since
+ * the writes are then required for a clean controller comeback and
+ * also match the reference psram_recovery() exactly.
+ *
+ * After verification, either:
+ *   - leave it 1 (defensive, matches reference, ~no cost), or
+ *   - keep 0 if profiling shows the writes really are no-ops AND a
+ *     comment makes the dependency on AHBP_PSRAM-stays-on explicit.
+ */
+#ifndef PM_PSRAM_RECOVER_RESET_CLOCK
+#define PM_PSRAM_RECOVER_RESET_CLOCK 0
+#endif
+
+static volatile bool     s_psram_retention_active[PSRAM_ID_MAX]    = {false};
+static uint32_t          s_psram_retention_saved_mode[PSRAM_ID_MAX] = {0};
+static bool              s_psram_retention_mode_valid[PSRAM_ID_MAX] = {false};
+
+static void psram_retention_flush(psram_id_t psram_id)
+{
+	uint32_t v = psram_hal_get_reg8_value_with_id(psram_id);
+	psram_hal_set_reg8_value_with_id(psram_id, v | PSRAM_RETENTION_FLUSH_BIT);
+	while (psram_hal_get_reg8_value_with_id(psram_id) & PSRAM_RETENTION_FLUSH_BIT) {
+		/* spin until controller clears flush bit */
+	}
+}
+
+static void psram_retention_save_mode(psram_id_t psram_id)
+{
+	s_psram_retention_saved_mode[psram_id] = psram_hal_get_mode_value_with_id(psram_id);
+	s_psram_retention_mode_valid[psram_id] = true;
+}
+
+static uint32_t psram_retention_get_restore_mode(psram_id_t psram_id)
+{
+	if (s_psram_retention_mode_valid[psram_id]) {
+		return s_psram_retention_saved_mode[psram_id];
+	}
+	return PSRAM_RETENTION_MODE_REG_FALLBACK;
+}
+
+static void psram_retention_recovery_one(psram_id_t psram_id)
+{
+	uint32_t v;
+	uint32_t mode = psram_retention_get_restore_mode(psram_id);
+
+	/* PSRAM REG2 bit1 = 1 : clock-gating bypass before clk re-select. */
+	v = psram_hal_get_reg2_value_with_id(psram_id);
+	v |= PSRAM_RETENTION_CKG_BYPASS_BIT;
+	psram_hal_set_reg2_value_with_id(psram_id, v);
+
+#if PM_PSRAM_RECOVER_RESET_CLOCK
+	/* Restore PSRAMx bus clock: 320M source / (1+1) = 160MHz.
+	 * All three writes go through sys_drv layer (id-routed, with
+	 * critical-section). Disabled by default since AHBP_PSRAM stays
+	 * powered through the AP power cycle in the current PM policy;
+	 * see PM_PSRAM_RECOVER_RESET_CLOCK comment for the rationale. */
+	sys_drv_psram_clk_sel_with_id((uint32_t)psram_id, 0);    /* 320M source */
+	sys_drv_psram_set_clkdiv_with_id((uint32_t)psram_id, 1); /* /(1+1) -> 160MHz */
+	sys_drv_psram_disckg_with_id((uint32_t)psram_id, 1);     /* bus clk enable */
+#endif
+
+	/* PSRAM REG2 bit0 = 1 : soft-reset controller. */
+	psram_hal_set_sf_reset_with_id(psram_id, 1);
+
+	/* Re-load the snapshotted REG4 so the controller comes back with
+	 * the exact same mode/latency setting it had before retention,
+	 * regardless of which PSRAM die / clock was in use. */
+	psram_hal_set_mode_value_with_id(psram_id, mode);
+}
+
+bk_err_t bk_psram_data_retention(void)
+{
+	for (int i = 0; i < (int)PSRAM_ID_MAX; i++) {
+		if (!s_psram_init_done[i]) {
+			s_psram_retention_active[i] = false;
+			s_psram_retention_mode_valid[i] = false;
+			continue;
+		}
+
+		/* Snapshot the live PSRAM mode register BEFORE we flush /
+		 * latch / gate clocks, so the recovery path can restore the
+		 * exact same value. */
+		psram_retention_save_mode((psram_id_t)i);
+
+		psram_retention_flush((psram_id_t)i);
+		s_psram_retention_active[i] = true;
+	}
+
+	/* Latch PSRAM I/O pads at 3V. Covers PSRAM0 + PSRAM1. */
+	sys_drv_set_psram_pad_latch(1);
+
+	MEM_STATIC_LOGI("psram_data_retention: pads latched, p0=%d p1=%d, mode0=0x%08x mode1=0x%08x\r\n",
+				   s_psram_retention_active[PSRAM_ID_0],
+				   s_psram_retention_active[PSRAM_ID_1],
+				   s_psram_retention_saved_mode[PSRAM_ID_0],
+				   s_psram_retention_saved_mode[PSRAM_ID_1]);
+	return BK_OK;
+}
+
+bk_err_t bk_psram_data_retention_recover(void)
+{
+	bool any_active = false;
+	for (int i = 0; i < (int)PSRAM_ID_MAX; i++) {
+		if (s_psram_retention_active[i]) {
+			any_active = true;
+			break;
+		}
+	}
+
+	if (!any_active) {
+		MEM_STATIC_LOGW("psram_data_retention_recover: no active retention, fall back to bk_psram_init\r\n");
+		return bk_psram_init();
+	}
+
+	/* Release PSRAM pad latch before the controller drives them again. */
+	sys_drv_set_psram_pad_latch(0);
+	bk_delay_us(50);
+
+	for (int i = 0; i < (int)PSRAM_ID_MAX; i++) {
+		if (!s_psram_retention_active[i]) {
+			continue;
+		}
+		psram_retention_recovery_one((psram_id_t)i);
+		s_psram_init_done[i] = true;
+		s_psram_retention_active[i] = false;
+	}
+
+	MEM_STATIC_LOGI("psram_data_retention_recover: done\r\n");
+	return BK_OK;
+}
+
 bk_err_t bk_psram_memcpy(uint8_t *start_addr, uint8_t *data_buf, uint32_t len)
 {
 	int i;

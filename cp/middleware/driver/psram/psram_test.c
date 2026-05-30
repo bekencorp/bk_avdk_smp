@@ -25,6 +25,11 @@
 #include "psram_hal.h"
 #include "cache.h"
 #include "bk_sensor_internal.h"
+#include "aon_pmu_ll.h"
+#include "sys_ll.h"
+#include "sys_ahbp_ll.h"
+#include "sys_driver.h"
+#include "bk_misc.h"
 
 #if (CONFIG_PSRAM_AUTO_DETECT)
 #include "bk_ef.h"
@@ -1309,6 +1314,326 @@ static void cli_psram_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
 #endif
 
 
+/* ============================================================
+ * psram_test_ext m55pwd_retention [psram_id] [size_kb] [retention_ms]
+ *
+ * Purpose:
+ *   Verify PSRAM data retention while the M55 (AP) subsystem is powered
+ *   down. PSRAM I/O pads are latched at 3V before the M55 LDO is cut, so
+ *   external PSRAM keeps its data while M55 is dark. After re-powering
+ *   M55 and unlatching the pads, the PSRAM controller is "recovered"
+ *   (clock-gating bypass + soft-reset + mode-register rewrite) and the
+ *   stored pattern is read back and compared.
+ *
+ *   The pad-latch (ana_reg5.gpio_latch) covers both PSRAM0 and PSRAM1
+ *   pads, and the PSRAM controllers sit on the CP power domain, so the
+ *   same test flow works for either PSRAM instance. The psram_id
+ *   argument selects which one is exercised (default 0 = PSRAM0).
+ *
+ * Bit-level mapping (BK7259 confirmed):
+ *   ana_reg5.gpio_latch     bit 7  - 1 = latch GPIO/PSRAM pad at 3V
+ *   aon_pmu_r2.m55_iso_en   bit 16 - 1 = isolate M55 subsystem
+ *   aon_pmu_r2.m55_rstn     bit 17 - 0 = assert M55 reset, 1 = release
+ *   aon_pmu_r2.m55_clk_en   bit 20 - 1 = enable M55 clock
+ *   aon_pmu_r74.por_corehs_n       - poll for HS LDO POR ready
+ *   ana_reg9.pwd_hsldo      bit 13 - 1 = HS LDO power-down (M55 LDO)
+ *   ana_reg16.enhspw               - HS power switch enable
+ *   ana_reg16.vcorehssel           - HS LDO voltage select (0xA = 0.95V)
+ *   ana_reg10.spi_latch1v   bit 9  - 1 = SPI latch 1V (gate around LDO writes)
+ *   sys_ahbp_rege.pwd_m55          - M55 sub-system soft power-down hint
+ *
+ * psram_recovery() port (literal mapping of user's reference, PSRAM0
+ * variant; PSRAM1 routes through the same sys_drv APIs with id=1):
+ *   setf_PSRAM_Ckg_Bypass(PSRAMx)      -> psram_hal REG2 bit 1 = 1
+ *   set_SYSTEM_Reg0x8_cksel_pram0(0)   -> sys_drv_psram_clk_sel_with_id(id, 0)
+ *   set_SYSTEM_Reg0x8_ckdiv_pram0(1)   -> sys_drv_psram_set_clkdiv_with_id(id, 1)
+ *   setf_SYSTEM_Reg0xA_pram0_cken      -> sys_drv_psram_disckg_with_id(id, 1)
+ *   setf_PSRAM_Soft_Reset(PSRAMx)      -> psram_hal_set_sf_reset_with_id()
+ *   addPSRAMx_Reg0x4 = 0xd8054049      -> psram_hal_set_mode_value_with_id()
+ *
+ * NOTE: the 3 clock-setup writes (cksel / ckdiv / cken) are guarded
+ * by PM_PSRAM_M55PWD_RECOVER_RESET_CLOCK and skipped by default,
+ * because AHBP_PSRAM stays powered through the M55 power cycle in
+ * the current PM policy and the muxer state is therefore preserved.
+ *
+ * Test region (per PSRAM instance):
+ *   PSRAM0 -> PSRAM_TEST_CPU  : 0x60000000 .. 0x60400000 (4MB)
+ *   PSRAM1 -> PSRAM1_TEST_CPU : 0x64000000 .. 0x64100000 (1MB)
+ *   The PSRAM1 cap is intentionally small to keep clear of
+ *   AP_PSRAM_HEAP / AP_PSRAM_DATA_SECTION / AP_PSRAM_CODE_SECTION
+ *   which live further inside PSRAM1.
+ *   Default size = 32KB (matches the legacy reference test).
+ * ============================================================ */
+
+#define PSRAM_M55PWD_REGION0_BASE     (0x60000000U)
+#define PSRAM_M55PWD_REGION0_SIZE     (4U * 1024U * 1024U)  /* PSRAM_TEST_CPU = 4MB */
+#define PSRAM_M55PWD_REGION1_BASE     (0x64000000U)
+#define PSRAM_M55PWD_REGION1_SIZE     (1U * 1024U * 1024U)  /* PSRAM1_TEST_CPU = 1MB */
+
+#define PSRAM_M55PWD_DEFAULT_WORDS    (8U * 1024U)          /* 32KB, matches legacy code */
+#define PSRAM_M55PWD_PRINT_ERR_MAX    (10U)
+#define PSRAM_M55PWD_FLUSH_BIT        (0x1U << 3)
+#define PSRAM_M55PWD_CKG_BYPASS_BIT   (0x1U << 1)
+#define PSRAM_M55PWD_DEFAULT_HOLD_MS  (500U)
+/* Fallback only - used when no live snapshot was taken. The normal
+ * flow reads the actual PSRAM REG4 right before pad-latch and writes
+ * it back in psram_m55pwd_recovery(). */
+#define PSRAM_M55PWD_MODE_REG_FALLBACK  (PSRAM_MODE9)
+
+/* See PM_PSRAM_RECOVER_RESET_CLOCK in psram_driver.c for the full
+ * rationale. Mirror the same switch here so the m55pwd_retention
+ * test path validates the same code shape as production retention. */
+#ifndef PM_PSRAM_M55PWD_RECOVER_RESET_CLOCK
+#define PM_PSRAM_M55PWD_RECOVER_RESET_CLOCK 0
+#endif
+
+static uint32_t s_psram_m55pwd_saved_mode[PSRAM_ID_MAX] = {0};
+static bool     s_psram_m55pwd_mode_valid[PSRAM_ID_MAX] = {false};
+
+static inline uint32_t psram_m55pwd_region_base(psram_id_t psram_id)
+{
+	return (psram_id == PSRAM_ID_1) ? PSRAM_M55PWD_REGION1_BASE
+									: PSRAM_M55PWD_REGION0_BASE;
+}
+
+static inline uint32_t psram_m55pwd_region_max_words(psram_id_t psram_id)
+{
+	uint32_t bytes = (psram_id == PSRAM_ID_1) ? PSRAM_M55PWD_REGION1_SIZE
+											  : PSRAM_M55PWD_REGION0_SIZE;
+	return bytes / 4U;
+}
+
+static void psram_m55pwd_flush(psram_id_t psram_id)
+{
+	uint32_t v = psram_hal_get_reg8_value_with_id(psram_id);
+	psram_hal_set_reg8_value_with_id(psram_id, v | PSRAM_M55PWD_FLUSH_BIT);
+	while (psram_hal_get_reg8_value_with_id(psram_id) & PSRAM_M55PWD_FLUSH_BIT) {
+		/* spin until controller clears flush bit */
+	}
+}
+
+static void psram_m55pwd_save_mode(psram_id_t psram_id)
+{
+	s_psram_m55pwd_saved_mode[psram_id] = psram_hal_get_mode_value_with_id(psram_id);
+	s_psram_m55pwd_mode_valid[psram_id] = true;
+	CLI_LOGI("m55pwd_retention: snapshot PSRAM%d mode=0x%08x\r\n",
+			 psram_id, s_psram_m55pwd_saved_mode[psram_id]);
+}
+
+static uint32_t psram_m55pwd_get_restore_mode(psram_id_t psram_id)
+{
+	if (s_psram_m55pwd_mode_valid[psram_id]) {
+		return s_psram_m55pwd_saved_mode[psram_id];
+	}
+	CLI_LOGW("m55pwd_retention: no PSRAM%d mode snapshot, use fallback 0x%08x\r\n",
+			 psram_id, (uint32_t)PSRAM_M55PWD_MODE_REG_FALLBACK);
+	return PSRAM_M55PWD_MODE_REG_FALLBACK;
+}
+
+/*
+ * Bring the M55 (AP / HS) subsystem down. The PSRAM pad must already be
+ * latched at 3V before this is called.
+ *
+ * Sequence is the reverse of sys_hal_m55_clock_power_init() / power_ctrl()
+ * in cp/middleware/soc/bk7259/hal/sys_hal.c.
+ */
+static void psram_m55pwd_power_down_m55(void)
+{
+	/* Isolate before cutting the rail. */
+	aon_pmu_ll_set_r2_m55_iso_en(1);
+
+	/* Hold M55 in reset and gate its clock to stop bus activity. */
+	aon_pmu_ll_set_r2_m55_rstn(0);
+	aon_pmu_ll_set_r2_m55_clk_en(0);
+
+	/* Optional sub-system power-down hint (mirrors existing pwr-off path). */
+	sys_ahbp_ll_set_rege_pwd_m55(1);
+
+	/* Cut the M55 HS LDO. Writes are gated by spi_latch1v. */
+	sys_ll_set_ana_reg10_spi_latch1v(1);
+	sys_ll_set_ana_reg16_enhspw(0);
+	sys_ll_set_ana_reg9_pwd_hsldo(1);
+	sys_ll_set_ana_reg10_spi_latch1v(0);
+}
+
+/*
+ * Bring the M55 subsystem back up. We do not reload AP firmware; the AP
+ * application will not resume, but PSRAM data is the artefact we care
+ * about and the M55 needs to be powered to keep the SoC stable.
+ */
+static void psram_m55pwd_power_up_m55(void)
+{
+	sys_ll_set_ana_reg10_spi_latch1v(1);
+	sys_ll_set_ana_reg9_pwd_hsldo(1);
+	bk_delay_us(20);
+	sys_ll_set_ana_reg9_pwd_hsldo(0);
+	bk_delay_us(200);
+	sys_ll_set_ana_reg16_enhspw(1);
+	bk_delay_us(200);
+	sys_ll_set_ana_reg16_vcorehssel(0xA); /* 0.7 + 0.025 * 0xA = 0.95V */
+	bk_delay_us(200);
+	sys_ll_set_ana_reg10_spi_latch1v(0);
+
+	/* Wait for HS LDO POR to assert before releasing reset / iso. */
+	while (aon_pmu_ll_get_r74_por_corehs_n() == 0) {
+		/* spin */
+	}
+
+	sys_ahbp_ll_set_rege_pwd_m55(0);
+	aon_pmu_ll_set_r2_m55_clk_en(1);
+	aon_pmu_ll_set_r2_m55_rstn(1);
+	bk_delay_us(20);
+	aon_pmu_ll_set_r2_m55_iso_en(0);
+}
+
+/*
+ * Direct port of the reference psram_recovery():
+ *   setf_PSRAM_Ckg_Bypass(BASEADDR_PSRAMx);
+ *   set_SYSTEM_Reg0x8_cksel_pram0(0) / Reg0x9_cksel_pram1(0);   // 320M source
+ *   set_SYSTEM_Reg0x8_ckdiv_pram0(1) / Reg0x9_ckdiv_pram1(1);   // /2 -> 160MHz
+ *   setf_SYSTEM_Reg0xA_pram0_cken    / pram1_cken;
+ *   setf_PSRAM_Soft_Reset(BASEADDR_PSRAMx);
+ *   addPSRAMx_Reg0x4 = 0xd8054049;
+ */
+static void psram_m55pwd_recovery(psram_id_t psram_id)
+{
+	uint32_t v = 0;
+	uint32_t mode = psram_m55pwd_get_restore_mode(psram_id);
+
+	/* PSRAM REG2 bit1 = 1 : clock-gating bypass */
+	v = psram_hal_get_reg2_value_with_id(psram_id);
+	v |= PSRAM_M55PWD_CKG_BYPASS_BIT;
+	psram_hal_set_reg2_value_with_id(psram_id, v);
+
+#if PM_PSRAM_M55PWD_RECOVER_RESET_CLOCK
+	/* PSRAMx bus clock: 320M source / (1+1) = 160MHz.
+	 * sys_drv_psram_disckg_with_id() / clk_sel_with_id() /
+	 * set_clkdiv_with_id() route to reg8/reg9/rega internally
+	 * based on psram_id and wrap each bit-write inside a
+	 * critical-section. Disabled by default since AHBP_PSRAM
+	 * stays powered through the M55 power cycle in current PM
+	 * policy; see PM_PSRAM_M55PWD_RECOVER_RESET_CLOCK. */
+	sys_drv_psram_clk_sel_with_id((uint32_t)psram_id, 0);    /* 320M source */
+	sys_drv_psram_set_clkdiv_with_id((uint32_t)psram_id, 1); /* /(1+1) -> 160MHz */
+	sys_drv_psram_disckg_with_id((uint32_t)psram_id, 1);     /* bus clk enable */
+#endif
+
+	/* PSRAM REG2 bit0 = 1 : soft-reset PSRAM controller */
+	psram_hal_set_sf_reset_with_id(psram_id, 1);
+
+	/* Restore the snapshotted PSRAM mode register, so the controller
+	 * comes back exactly to the state it had before retention. */
+	psram_hal_set_mode_value_with_id(psram_id, mode);
+	CLI_LOGI("m55pwd_retention: restore PSRAM%d mode=0x%08x\r\n", psram_id, mode);
+}
+
+static int psram_m55pwd_retention_test(psram_id_t psram_id, uint32_t test_words,
+									   uint32_t retention_ms)
+{
+	uint32_t base_addr = psram_m55pwd_region_base(psram_id);
+	uint32_t max_words = psram_m55pwd_region_max_words(psram_id);
+	uint32_t i = 0;
+	uint32_t err_cnt = 0;
+	uint32_t printed = 0;
+
+	if (psram_id >= PSRAM_ID_MAX) {
+		CLI_LOGE("m55pwd_retention: invalid psram_id %d\r\n", psram_id);
+		return -1;
+	}
+
+	if (test_words == 0) {
+		test_words = PSRAM_M55PWD_DEFAULT_WORDS;
+	}
+	if (test_words > max_words) {
+		CLI_LOGW("m55pwd_retention: clamp words %u -> %u for PSRAM%d\r\n",
+				 test_words, max_words, psram_id);
+		test_words = max_words;
+	}
+	if (retention_ms == 0) {
+		retention_ms = PSRAM_M55PWD_DEFAULT_HOLD_MS;
+	}
+
+	CLI_LOGI("m55pwd_retention start: PSRAM%d region=[0x%08x-0x%08x), "
+			 "words=%u (%uKB), hold=%ums\r\n",
+			 psram_id, base_addr, base_addr + test_words * 4U,
+			 test_words, (test_words * 4U) >> 10, retention_ms);
+
+	/* Step 1: ensure both PSRAMs are initialized (controllers + voltage are
+	 * shared, init-once is cheap; we always need PSRAM0 controller alive
+	 * because the AP image lives in PSRAM1 too if CONFIG_ALL_CODE_IN_PSRAM=y). */
+	if (bk_psram_init_with_id(PSRAM_ID_0) != BK_OK) {
+		CLI_LOGE("m55pwd_retention: psram0 init failed\r\n");
+		return -1;
+	}
+	if (psram_id == PSRAM_ID_1 && bk_psram_init_with_id(PSRAM_ID_1) != BK_OK) {
+		CLI_LOGE("m55pwd_retention: psram1 init failed\r\n");
+		return -1;
+	}
+
+	/* Step 2: write deterministic pattern. */
+	for (i = 0; i < test_words; i++) {
+		write_data(base_addr + i * 4U, 0x11111111U + i);
+	}
+
+	/* Step 3a: snapshot the live PSRAM mode register so the recovery
+	 * path can restore the exact same controller state, regardless of
+	 * which die / mode is in use. */
+	psram_m55pwd_save_mode(psram_id);
+
+	/* Step 3b: flush PSRAM controller write buffer for the instance under test. */
+	psram_m55pwd_flush(psram_id);
+	rtos_delay_milliseconds(5);
+
+	CLI_LOGI("m55pwd_retention: latch psram pad 3v & power down M55\r\n");
+
+	/* Step 4: latch PSRAM pads at 3V (ana_reg5 bit7).
+	 * NOTE: gpio_latch covers both PSRAM0 and PSRAM1 pads. */
+	sys_drv_set_psram_pad_latch(1);
+
+	/* Step 5: power down M55 subsystem. */
+	psram_m55pwd_power_down_m55();
+
+	/* Step 6: hold the M55 in powered-down state. */
+	rtos_delay_milliseconds(retention_ms);
+
+	CLI_LOGI("m55pwd_retention: power M55 back up\r\n");
+
+	/* Step 7: power M55 back up. */
+	psram_m55pwd_power_up_m55();
+
+	/* Step 8: release PSRAM pad latch. */
+	sys_drv_set_psram_pad_latch(0);
+	rtos_delay_milliseconds(5);
+
+	/* Step 9: recover PSRAM controller (port of reference psram_recovery). */
+	psram_m55pwd_recovery(psram_id);
+
+	/* Step 10: read back and compare. */
+	CLI_LOGI("m55pwd_retention: read back from 0x%08x\r\n", base_addr);
+	for (i = 0; i < test_words; i++) {
+		uint32_t val = get_addr_data(base_addr + i * 4U);
+		uint32_t exp = 0x11111111U + i;
+		if (val != exp) {
+			if (printed < PSRAM_M55PWD_PRINT_ERR_MAX) {
+				CLI_LOGE("m55pwd_retention ERR @0x%08x: got 0x%08x expect 0x%08x xor 0x%08x\r\n",
+						 base_addr + i * 4U, val, exp, val ^ exp);
+				printed++;
+			}
+			err_cnt++;
+		}
+	}
+
+	if (err_cnt) {
+		CLI_LOGE("m55pwd_retention FAIL: PSRAM%d error_num=%u (total=%u)\r\n",
+				 psram_id, err_cnt, test_words);
+		return -1;
+	}
+
+	CLI_LOGI("m55pwd_retention PASS: PSRAM%d total=%u words verified\r\n",
+			 psram_id, test_words);
+	return 0;
+}
+
 static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	uint32_t addr = SOC_PSRAM_DATA_BASE;
@@ -1586,6 +1911,42 @@ static void cli_psram_cmd_handle_ext(char *pcWriteBuffer, int xWriteBufferLen, i
 		bk_psram_deinit();
 		msg = CLI_CMD_RSP_SUCCEED;
 	}
+	else if (os_strcmp(argv[1], "m55pwd_retention") == 0)
+	{
+		/* psram_test_ext m55pwd_retention [psram_id] [size_kb] [retention_ms]
+		 *   psram_id    : 0 = PSRAM0 (default), 1 = PSRAM1
+		 *   size_kb     : test region size in KB (default 32; clamped to per-id max)
+		 *   retention_ms: M55 hold-off time in ms (default 500)
+		 */
+		psram_id_t target_id = PSRAM_ID_0;
+		uint32_t size_kb = 32;
+		uint32_t retention_ms = 500;
+		uint32_t test_words = 0;
+		int ret = 0;
+
+		if (argc >= 3) {
+			uint32_t id_arg = os_strtoul(argv[2], NULL, 10);
+			if (id_arg >= PSRAM_ID_MAX) {
+				CLI_LOGE("psram_id must be 0 or 1\r\n");
+				msg = CLI_CMD_RSP_ERROR;
+				goto out;
+			}
+			target_id = (psram_id_t)id_arg;
+		}
+		if (argc >= 4) {
+			size_kb = os_strtoul(argv[3], NULL, 10);
+			if (size_kb == 0) {
+				size_kb = 32;
+			}
+		}
+		if (argc >= 5) {
+			retention_ms = os_strtoul(argv[4], NULL, 10);
+		}
+
+		test_words = (size_kb * 1024) / 4;
+		ret = psram_m55pwd_retention_test(target_id, test_words, retention_ms);
+		msg = (ret == 0) ? CLI_CMD_RSP_SUCCEED : CLI_CMD_RSP_ERROR;
+	}
 
 out:
 	os_memcpy(pcWriteBuffer, msg, os_strlen(msg));
@@ -1639,7 +2000,7 @@ static void cli_delete_psram_task_handle(char *pcWriteBuffer, int xWriteBufferLe
 
 #define PSRAM_CNT (sizeof(s_psram_commands) / sizeof(struct cli_command))
 DRV_CLI_CMD_EXPORT static const struct cli_command s_psram_commands[] = {
-	{"psram_test_ext", "init|byte|word|rewirte|deinit", cli_psram_cmd_handle_ext},
+	{"psram_test_ext", "init|byte|word|rewirte|deinit|m55pwd_retention", cli_psram_cmd_handle_ext},
 	{"psram_test", "start|stop", cli_psram_cmd_handle},
 	{"psram_cache", "psram_cache <addr> <size>", cli_test_psram_cache_cmd},
 #if (CONFIG_MPC)

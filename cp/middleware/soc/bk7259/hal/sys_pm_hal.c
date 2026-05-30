@@ -985,11 +985,13 @@ __attribute__((section(".iram")))  void sys_hal_enter_deep_sleep(void *param)
 	sys_hal_disable_hf_clock();
 
 	sys_hal_enable_spi_latch();
-	/*disable psram*/
+	/*disable psram (skipped when PSRAM data retention is required across CP sleep)*/
+	#if !CONFIG_PSRAM_DATA_RETENTION_ENABLE
 	if(sys_ll_get_ana_reg14_enpsram() != 0x0)
 	{
 		sys_ll_set_ana_reg14_enpsram(0x0);
 	}
+	#endif
 
 	/*power optimization*/
 	if(sys_ll_get_ana_reg12_enpowa() != 0x0)
@@ -1427,7 +1429,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 
 	sys_hal_enable_spi_latch();
 
-	#if CONFIG_PSRAM_POWER_DOMAIN_LV_DISABLE
+	#if CONFIG_PSRAM_POWER_DOMAIN_LV_DISABLE && !CONFIG_PSRAM_DATA_RETENTION_ENABLE
 	uint32_t psram_state = sys_ll_get_ana_reg14_enpsram();
 	if(psram_state != 0x0)
 	{

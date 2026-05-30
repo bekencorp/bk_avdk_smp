@@ -2992,6 +2992,17 @@ void sys_hal_psram_psram1_disckg(uint32_t value)
 	sys_ahbp_ll_set_rega_pram1_cken(value);
 	return;
 }
+void sys_hal_psram_disckg_with_id(uint32_t id, uint32_t value)
+{
+	if (id == PSRAM_ID_0)
+	{
+		sys_ahbp_ll_set_rega_pram0_cken(value);
+	}
+	else
+	{
+		sys_ahbp_ll_set_rega_pram1_cken(value);
+	}
+}
 /**  psram End **/
 /* REG_0x03:cpu_storage_connect_op_select->flash_sel:0: normal flash operation 1:flash download by spi,R/W,0x3[9]*/
 uint32_t sys_hal_get_cpu_storage_connect_op_select_flash_sel(void)

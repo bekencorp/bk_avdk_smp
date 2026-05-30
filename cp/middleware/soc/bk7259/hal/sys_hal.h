@@ -649,6 +649,8 @@ void sys_hal_psram_psldo_vsel(uint32_t value);
 void sys_hal_psram_psldo_vset(uint32_t output_voltage, uint32_t is_add_200mv);
 void sys_hal_psram_psram0_disckg(uint32_t value);
 void sys_hal_psram_psram1_disckg(uint32_t value);
+/* PSRAM bus-clock enable (rega.pramX_cken) routed by id. */
+void sys_hal_psram_disckg_with_id(uint32_t id, uint32_t value);
 
 /**  psram End **/
 
