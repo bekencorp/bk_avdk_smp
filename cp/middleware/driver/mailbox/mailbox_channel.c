@@ -677,8 +677,40 @@ bk_err_t mb_chnl_init(void)
 
 	mb_log_chnl_cb_t * log_chnl_cb_x;
 
+	/*
+	 * mb_chnl_init() is reached from mb_chnl_open(), which is called by
+	 * many subsystems (shell log forwarding, ipc_init, mb_uart, ...).
+	 * Each one of those callers runs on its own FreeRTOS task and they
+	 * can race here:
+	 *
+	 *   Task A: enters mb_chnl_open(MB_CHNL_LOG), sees mb_chnnl_init_ok==0,
+	 *           enters mb_chnl_init(), runs all the memset's, sets
+	 *           mb_chnnl_init_ok=1, returns. Caller then sets
+	 *           log_chnl_cb2[15].in_used=1 and installs rx_isr.
+	 *   Task B (preempted in the middle of mb_chnl_open before the
+	 *           init_ok check finishes): comes back, sees init_ok still
+	 *           == 0 (because it sampled before A set it), enters
+	 *           mb_chnl_init() AGAIN, and the memset wipes the
+	 *           log_chnl_cb_x[] array that A just populated.
+	 *
+	 * DWT caught exactly this pattern (the second mb_chnl_init() called
+	 * from ipc_init() via mb_chnl_open(MB_CHNL_HW_CTRL) zeroing out
+	 * MB_CHNL_LOG's slot that shell_log_tx_init() had set up).
+	 *
+	 * Fix: serialize the body with the existing critical section so the
+	 * "if (init_ok) return; ... init_ok = 1;" sequence is atomic w.r.t.
+	 * other tasks. The double-check pattern still keeps the fast path
+	 * lock-free once init has completed.
+	 */
 	if(mb_chnnl_init_ok)
 	{
+		return BK_OK;
+	}
+
+	uint32_t init_int_mask = mb_chnl_enter_critical();
+	if(mb_chnnl_init_ok)
+	{
+		mb_chnl_exit_critical(init_int_mask);
 		return BK_OK;
 	}
 
@@ -700,6 +732,7 @@ bk_err_t mb_chnl_init(void)
 	ret_code = bk_mailbox_init();
 	if(ret_code != BK_OK)
 	{
+		mb_chnl_exit_critical(init_int_mask);
 		return ret_code;
 	}
 
@@ -713,6 +746,8 @@ bk_err_t mb_chnl_init(void)
 	}
 
 	mb_chnnl_init_ok = 1;
+
+	mb_chnl_exit_critical(init_int_mask);
 
 	return BK_OK;
 }
@@ -891,7 +926,7 @@ bk_err_t mb_chnl_write(u8 log_chnl, mb_chnl_cmd_t * cmd_buf)
 	if(log_chnl_cb_x[log_chnl_idx].tx_state != CHNL_STATE_IDLE)
 	{
 		mb_chnl_exit_critical(int_mask);
-		
+
 		return BK_ERR_BUSY;
 	}
 
