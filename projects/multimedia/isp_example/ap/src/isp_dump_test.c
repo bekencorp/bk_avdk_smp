@@ -268,6 +268,29 @@ static avdk_err_t isp_dump_init_mipi_camera(uint16_t width, uint16_t height, uin
         }
         isp_ctlr_config.sensor_object = sensor_object;
 
+        /* Pull the raw pixel format from the matched sensor mode (the macro no
+         * longer hard-codes it); falls back to the first entry if no exact
+         * (w,h,fps) match is found. */
+        {
+            bk_camera_sensor_format_array_t fmt_arr = {0};
+            if (bk_camera_sensor_query_support_formats(s_isp_dump_cam.sensor_handle, &fmt_arr) == AVDK_ERR_OK
+                && fmt_arr.size > 0)
+            {
+                uint32_t i;
+                isp_ctlr_config.input_pixel_fmt = fmt_arr.format_array[0].output_pixel_fmt;
+                for (i = 0; i < fmt_arr.size; i++)
+                {
+                    if (fmt_arr.format_array[i].width == width
+                        && fmt_arr.format_array[i].height == height
+                        && fmt_arr.format_array[i].fps == fps)
+                    {
+                        isp_ctlr_config.input_pixel_fmt = fmt_arr.format_array[i].output_pixel_fmt;
+                        break;
+                    }
+                }
+            }
+        }
+
         ret = bk_camera_isp_ctlr_new(&s_isp_dump_cam.camera_ctlr_handle);
         if (ret != AVDK_ERR_OK)
         {

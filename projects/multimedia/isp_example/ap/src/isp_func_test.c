@@ -295,6 +295,29 @@ static avdk_err_t isp_init_mipi_camera(uint16_t width, uint16_t height, uint16_t
     if (mini_code == 0) {
         bk_isp_camera_ctlr_config_t isp_ctlr_config = CAM_CSI_DEFAULT_RAW10_CONFIG(width, height, fps);
 
+        /* Pull the raw pixel format from the matched sensor mode (the macro
+         * no longer hard-codes it); falls back to the first entry if no exact
+         * (w,h,fps) match is found. */
+        {
+            bk_camera_sensor_format_array_t fmt_arr = {0};
+            if (bk_camera_sensor_query_support_formats(s_isp_camera_handle.sensor_handle, &fmt_arr) == AVDK_ERR_OK
+                && fmt_arr.size > 0)
+            {
+                uint32_t i;
+                isp_ctlr_config.input_pixel_fmt = fmt_arr.format_array[0].output_pixel_fmt;
+                for (i = 0; i < fmt_arr.size; i++)
+                {
+                    if (fmt_arr.format_array[i].width == width
+                        && fmt_arr.format_array[i].height == height
+                        && fmt_arr.format_array[i].fps == fps)
+                    {
+                        isp_ctlr_config.input_pixel_fmt = fmt_arr.format_array[i].output_pixel_fmt;
+                        break;
+                    }
+                }
+            }
+        }
+
         // Step 4: Get sensor object
         const void *sensor_object = bk_camera_sensor_get_sensor_object(s_isp_camera_handle.sensor_handle);
         if (!sensor_object)
@@ -564,6 +587,29 @@ static avdk_err_t isp_init_dvp_camera(uint16_t width, uint16_t height, uint16_t 
         goto err;
     }
     isp_ctlr_config.sensor_object = sensor_object;
+
+    /* Pull the raw pixel format from the matched sensor mode (the macro no
+     * longer hard-codes it); falls back to the first entry if no exact
+     * (w,h,fps) match is found. */
+    {
+        bk_camera_sensor_format_array_t fmt_arr = {0};
+        if (bk_camera_sensor_query_support_formats(s_isp_camera_handle.sensor_handle, &fmt_arr) == AVDK_ERR_OK
+            && fmt_arr.size > 0)
+        {
+            uint32_t i;
+            isp_ctlr_config.input_pixel_fmt = fmt_arr.format_array[0].output_pixel_fmt;
+            for (i = 0; i < fmt_arr.size; i++)
+            {
+                if (fmt_arr.format_array[i].width == width
+                    && fmt_arr.format_array[i].height == height
+                    && fmt_arr.format_array[i].fps == fps)
+                {
+                    isp_ctlr_config.input_pixel_fmt = fmt_arr.format_array[i].output_pixel_fmt;
+                    break;
+                }
+            }
+        }
+    }
 
     // Step 5: Create and init camera controller
     ret = bk_camera_isp_ctlr_new(&s_isp_camera_handle.camera_ctlr_handle);
