@@ -169,7 +169,7 @@ __IRAM_SEC int wdt_init(void)
 	 * start/feed their own WWDT from their per-core SysTick after scheduling.
 	 */
 	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
-	BK_LOGI(TAG, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
+	BK_LOGV(TAG, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
 #endif
 
 #endif //CONFIG_WDT_EN
