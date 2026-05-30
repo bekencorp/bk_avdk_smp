@@ -226,28 +226,33 @@ static int msc_storage_class_interface_request_handler(struct usb_setup_packet *
 
 void msc_storage_notify_handler(uint8_t event, void *arg)
 {
+    /* BK7259 bring-up: IRQ-context callbacks -- USB stack invokes this
+     * from usbd_irq_handler. Keep at USB_LOG_DBG so we don't starve the
+     * IPC heartbeat the way INFO-level prints did (see cmds/input.txt
+     * section 17). */
     switch (event) {
         case USBD_EVENT_ERROR:
         case USBD_EVENT_RESET:
-            USB_LOG_VBS("%s ,line:%d,USBD_EVENT_RESET\r\n",__FILE__,__LINE__);
+            USB_LOG_DBG("[msc_evt] RESET (host triggered, re-arm CBW reader)\r\n");
             usbd_msc_reset();
             thread_op = MSC_THREAD_OP_RESET;
             usb_osal_sem_give(msc_sem);
             break;
         case USBD_EVENT_CONFIGURED:
-            USB_LOG_VBS("Start reading cbw\r\n");
+            USB_LOG_DBG("[msc_evt] CONFIGURED -> start_read CBW on OUT EP 0x%02x\r\n",
+                         mass_ep_data[MSD_OUT_EP_IDX].ep_addr);
             usbd_ep_start_read(mass_ep_data[MSD_OUT_EP_IDX].ep_addr, (uint8_t *)&usbd_msc_cfg.cbw, USB_SIZEOF_MSC_CBW);
             break;
         case USBD_EVENT_SUSPEND:
-            USB_LOG_VBS("%s ,line:%d,USBD_EVENT_SUSPEND\r\n",__FILE__,__LINE__);
+            USB_LOG_DBG("[msc_evt] SUSPEND\r\n");
             thread_op = MSC_THREAD_OP_SUSPEND;
             usb_osal_sem_give(msc_sem);
             break;
         case USBD_EVENT_RESUME:
-
-            USB_LOG_VBS("%s ,line:%d,USBD_EVENT_RESUME\r\n",__FILE__,__LINE__);
+            USB_LOG_DBG("[msc_evt] RESUME\r\n");
             break;
         default:
+            USB_LOG_DBG("[msc_evt] event=%u (unhandled)\r\n", event);
             break;
     }
 }
@@ -975,6 +980,32 @@ static bool SCSI_CBWDecode(uint32_t nbytes)
 
 void mass_storage_bulk_out(uint8_t ep, uint32_t nbytes)
 {
+#if CONFIG_USBD_MSC_CBW_DEBUG_LOG
+    /* BK7259 bring-up: this is the USB bulk-OUT IRQ callback. Per-CBW
+     * USB_LOG_INFO was observed to back up the UART TX FIFO inside the
+     * ISR and starve the IPC heartbeat (cmds/input.txt section 17).
+     * Keep at USB_LOG_DBG; the counter still increments so we can dump
+     * it from outside the ISR. Common opcodes for reference:
+     *   0x12 INQUIRY, 0x25 READ_CAPACITY10, 0x28 READ10,
+     *   0x2A WRITE10, 0x1A MODE_SENSE6, 0x00 TEST_UNIT_READY.
+     *
+     * Gated by CONFIG_USBD_MSC_CBW_DEBUG_LOG (default n) -- even at
+     * USB_LOG_DBG this still fires from IRQ context once the global log
+     * level is DEBUG, which is exactly what was observed on the bench
+     * (ap0:CHERRY_U:D(...):[msc_cbw #N] spam during enumeration). */
+    static uint32_t s_bulk_out_dbg_count = 0;
+    if (s_bulk_out_dbg_count < 30 && usbd_msc_cfg.stage == MSC_READ_CBW) {
+        s_bulk_out_dbg_count++;
+        USB_LOG_DBG("[msc_cbw #%u] ep=0x%02x nbytes=%u SCSI op=0x%02x lun=%u\r\n",
+                     (unsigned)s_bulk_out_dbg_count, ep, (unsigned)nbytes,
+                     usbd_msc_cfg.cbw.CB[0], usbd_msc_cfg.cbw.bLUN);
+    }
+#else
+    /* ep is only used by the CBW debug print above; nbytes is still
+     * consumed below by the MSC_READ_CBW / MSC_DATA_OUT switch. */
+    (void)ep;
+#endif
+
     switch (usbd_msc_cfg.stage) {
         case MSC_READ_CBW:
             if (SCSI_CBWDecode(nbytes) == false) {
@@ -1061,11 +1092,6 @@ static void usbd_msc_thread(void *argument)
                 break;
             case MSC_THREAD_OP_RESET:
 #if CONFIG_VFS
-		#if CONFIG_SDIO_HOST
-		    bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_SDIO, SDCARD_LDO_CTRL_GPIO, GPIO_OUTPUT_STATE_HIGH);
-		    extern bk_err_t bk_sd_card_init(void);
-		    bk_sd_card_init();
-		#endif
 		if(flag_vfs_init == 0) {
 			flag_vfs_init = 1;
 			lv_vfs_init();
@@ -1142,9 +1168,34 @@ static void usbd_set_status(uint8_t status)
    gs_status = status;
 }
 
+/* MSC <-> SD-card backend selector.
+ *
+ * The CherryUSB MSC class needs a block-storage backend underneath
+ * (READ_CAPACITY / READ10 / WRITE10 SCSI commands map onto these four
+ * helpers). On Beken SoCs there are TWO mutually exclusive SD card
+ * drivers that both export the same `bk_sd_card_*` symbol set:
+ *
+ *   1) BK7258 / legacy "SDIO host" stack
+ *      (middleware/driver/sd_card/sd_card_driver.c, gated by
+ *      CONFIG_SDIO_HOST + CONFIG_SDCARD).
+ *
+ *   2) BK7259 DWC v3p0 stack
+ *      (middleware/driver/sdio_dwc/v3p0/sd_card_driver.c, gated by
+ *      CONFIG_SDIO_V3P0 / CONFIG_SUPPORT_SDIO_DWC). Same bk_sd_card_*
+ *      symbols, so the same call sites work.
+ *
+ * Originally only path (1) was wired up here, so on a BK7259 image
+ * (where (1) is intentionally OFF -- it would race the v3p0 stack on
+ * the same controller registers) the MSC backend silently became
+ * "0 blocks of 0 bytes". The PC sees the device but the very first
+ * READ_CAPACITY hangs the host and the CherryUSB worker locks up,
+ * eventually tripping the AP-CP IPC heartbeat watchdog. Allow EITHER
+ * backend to satisfy the #if. See cmds/input.txt section 11.2. */
+#define MSC_SD_BACKEND_AVAILABLE (CONFIG_SDIO_HOST || CONFIG_SDIO_V3P0)
+
 void usbd_msc_get_cap(uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 {
-#if CONFIG_SDIO_HOST
+#if MSC_SD_BACKEND_AVAILABLE
     extern uint32_t bk_sd_card_get_card_size(void);
     *block_num = bk_sd_card_get_card_size();
     *block_size = 512;
@@ -1154,7 +1205,7 @@ void usbd_msc_get_cap(uint8_t lun, uint32_t *block_num, uint16_t *block_size)
 
 int usbd_msc_sector_read(uint32_t sector, uint8_t *buffer, uint32_t length)
 {
-#if CONFIG_SDIO_HOST
+#if MSC_SD_BACKEND_AVAILABLE
     extern bk_err_t bk_sd_card_read_blocks(uint8_t *data, uint32_t block_addr, uint32_t block_num);
     return bk_sd_card_read_blocks(buffer, sector, length/512);
 #else
@@ -1164,7 +1215,7 @@ int usbd_msc_sector_read(uint32_t sector, uint8_t *buffer, uint32_t length)
 
 int usbd_msc_sector_write(uint32_t sector, uint8_t *buffer, uint32_t length)
 {
-#if CONFIG_SDIO_HOST
+#if MSC_SD_BACKEND_AVAILABLE
     extern bk_err_t bk_sd_card_write_blocks(const uint8_t *data, uint32_t block_addr, uint32_t block_num);
     return bk_sd_card_write_blocks(buffer, sector, length/512);
 #else
@@ -1176,27 +1227,38 @@ int msc_storage_init(void)
 {
     int ret = BK_OK;
 
-#if CONFIG_SDIO_HOST
-    bk_pm_module_vote_ctrl_external_ldo(GPIO_CTRL_LDO_MODULE_SDIO, SDCARD_LDO_CTRL_GPIO, GPIO_OUTPUT_STATE_HIGH);
-    extern bk_err_t bk_sd_card_init(void);
-    ret = bk_sd_card_init(); 
-    if(ret != BK_OK) {
-        return ret;
-    }
-#endif
+    /* Phase prints. These intentionally use USB_LOG_INFO (not _DBG) so
+     * they are on by default. The bring-up dumps on BK7259 (cmds/input.txt
+     * section 11) all happened with PC=0 and r4..r11 still showing the
+     * FreeRTOS task-stack fill markers, i.e. the worker thread spawned
+     * by usbd_initialize() had a NULL entry. The only way to localize
+     * which line the chain reached before the dump is to print at every
+     * boundary -- the dump itself only shows a Traceback PC. */
+    USB_LOG_INFO("[msc_init] enter (s_msc_storage_init=%d)\r\n", s_msc_storage_init);
 
     if(!s_msc_storage_init)
     {
+        USB_LOG_INFO("[msc_init] phase 3: usbd_desc_register(%p)\r\n", (void*)msc_storage_descriptor);
         usbd_desc_register(msc_storage_descriptor);
+
+        USB_LOG_INFO("[msc_init] phase 4: usbd_bos_desc_register\r\n");
         usbd_bos_desc_register(&msc_storage_bos_descriptor);
+
+        USB_LOG_INFO("[msc_init] phase 5: usbd_msc_init_intf -> add interface\r\n");
         usbd_add_interface(usbd_msc_init_intf(&gs_intf0, MSC_OUT_EP, MSC_IN_EP));
+
+        USB_LOG_INFO("[msc_init] phase 6: usbd_initialize() -- spawns CherryUSB MSC worker thread\r\n");
         ret = usbd_initialize();
+        USB_LOG_INFO("[msc_init] phase 6: usbd_initialize -> %d\r\n", ret);
         if(ret != BK_OK) {
             return ret;
         }
         s_msc_storage_init = 1;
+    } else {
+        USB_LOG_INFO("[msc_init] already initialized; skipping phase 3..6\r\n");
     }
 
+    USB_LOG_INFO("[msc_init] leave OK\r\n");
     return ret;
 
 }

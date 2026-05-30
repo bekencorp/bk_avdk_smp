@@ -22,6 +22,28 @@ if (CONFIG_USB)
 		CherryUSB/osal/usb_osal_adaptor.c
 	)
 	if (CONFIG_USB_DEVICE)
+		# BK7259 USB device controller (MUSB-MHDRC) lives on a HIGH-SPEED
+		# phy (SOC_USB_HS_BASE = 0x480A0000). The CherryUSB device port
+		# usb_dc_beken_musb_mhdrc.c::usb_dc_init() gates the
+		#   HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_HSENAB;
+		# write behind #ifdef CONFIG_USB_HS; without that macro the
+		# controller advertises USB 1.1 Full-Speed (mps=64) over a phy
+		# that is still configured for HS (480 MHz), enumeration goes
+		# sideways on the PC and the device shows up as "USB device not
+		# recognised" or just hangs the AP cluster.
+		#
+		# The BK7258 SDK injected the macro via
+		#   ap/components/bk_usb/CherryUSB/CMakeLists.txt:15
+		#     sdk_compile_definitions(-DCONFIG_USB_HS)
+		# but that file is gated by `if(CONFIG_CHERRYUSB_DEVICE)`, a
+		# kconfig symbol that doesn't exist on this project (we use the
+		# bk-armino-native `CONFIG_USB_DEVICE` instead). So on BK7259
+		# the macro never reached the compile line and the device side
+		# of USB ran in FS. We restore HS here unconditionally for all
+		# BK7259 device-mode builds. See cmds/input.txt section 15 for
+		# the full story of the BK7258 reference log that proved
+		# mps=512 / HS is the right mode.
+		add_compile_definitions(CONFIG_USB_HS)
 		list(APPEND srcs
 			CherryUSB/core/usbd_core.c
 			CherryUSB/port/beken_musb/usb_dc_beken_musb_mhdrc.c
@@ -34,6 +56,18 @@ if (CONFIG_USB)
 			list(APPEND srcs
 				CherryUSB/class/msc/usbd_msc.c
 			)
+			# usbd_msc.c references lv_vfs_init / lv_vfs_deinit
+			# whenever CONFIG_VFS=y. The implementation file was
+			# dropped from the BK7259 SDK, so we restore it here.
+			# Without this the link fails with
+			#   undefined reference to `lv_vfs_init` / `lv_vfs_deinit'
+			# and the compile fails earlier still with
+			#   fatal error: usb_vfs.h: No such file or directory
+			if (CONFIG_VFS)
+				list(APPEND srcs
+					CherryUSB/class/msc/usb_vfs.c
+				)
+			endif() # CONFIG_VFS
 		endif() # CONFIG_USBD_MSC
 
 		if (CONFIG_USBD_UVC)
@@ -163,4 +197,8 @@ if (CONFIG_ATE_TEST)
 		)
 endif() # CONFIG_ATE
 
-armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common driver)
+# bk_vfs is added to PRIV_REQUIRES so that CherryUSB/class/msc/usb_vfs.c
+# can see bk_posix.h / bk_partition.h when CONFIG_USBD_MSC && CONFIG_VFS.
+# Following the same pattern as bk_video_player / etc. that also need
+# the VFS public headers.
+armino_component_register(SRCS "${srcs}" INCLUDE_DIRS "${incs}" PRIV_REQUIRES bk_common driver bk_vfs)

@@ -748,26 +748,40 @@ static void usbd_class_event_notify_handler(uint8_t event, void *arg)
 
 void usbd_event_connect_handler(void)
 {
+    /* BK7259 bring-up: these used to be USB_LOG_INFO so the user could
+     * see enumeration progress at a glance. EMPIRICALLY: these handlers
+     * run on the USB IRQ context (called from usbd_irq_handler /
+     * USBD_IRQHandler in the MUSB port). Once SCSI traffic starts they
+     * fire faster than the UART TX FIFO can drain at 115200 baud, the
+     * ISR returns later and later, AP starves the CP-side IPC heartbeat,
+     * and mb_ipc_task asserts ~8 s into the run. Keep the prints in
+     * source as USB_LOG_DBG (off at INFO, on at DBG) so we can still
+     * turn them back on for a single targeted bring-up if needed. */
+    USB_LOG_DBG("[usbd_evt] CONNECT\r\n");
     usbd_class_event_notify_handler(USBD_EVENT_CONNECTED, NULL);
 }
 
 void usbd_event_disconnect_handler(void)
 {
+    USB_LOG_DBG("[usbd_evt] DISCONNECT\r\n");
     usbd_class_event_notify_handler(USBD_EVENT_DISCONNECTED, NULL);
 }
 
 void usbd_event_resume_handler(void)
 {
+    USB_LOG_DBG("[usbd_evt] RESUME\r\n");
     usbd_class_event_notify_handler(USBD_EVENT_RESUME, NULL);
 }
 
 void usbd_event_suspend_handler(void)
 {
+    USB_LOG_DBG("[usbd_evt] SUSPEND\r\n");
     usbd_class_event_notify_handler(USBD_EVENT_SUSPEND, NULL);
 }
 
 void usbd_event_reset_handler(void)
 {
+    USB_LOG_DBG("[usbd_evt] RESET (bus reset from host -> addr=0, config=0)\r\n");
     usbd_set_address(0);
     usbd_core_cfg.configured = 0;
     usbd_core_cfg.configuration = 0;
@@ -792,6 +806,16 @@ void usbd_event_ep0_setup_complete_handler(uint8_t *psetup)
     struct usb_setup_packet *setup = &usbd_core_cfg.setup;
 
     memcpy(setup, psetup, 8);
+    /* BK7259 bring-up: SETUP packets are HIGH-FREQUENCY during string-
+     * descriptor enumeration -- Windows can issue 10+ in a single ms.
+     * This is also IRQ context (called from usbd_irq_handler), so
+     * leaving the print as INFO crashes the IPC heartbeat (see
+     * cmds/input.txt section 17). Keep as DBG. The usb-dbg watchdog
+     * thread in usb_storage.c provides a quieter periodic snapshot. */
+    USB_LOG_DBG("[usbd_setup] bmReq=0x%02x bReq=0x%02x wValue=0x%04x "
+                 "wIndex=0x%04x wLen=%u\r\n",
+                 setup->bmRequestType, setup->bRequest,
+                 setup->wValue, setup->wIndex, setup->wLength);
 #ifdef CONFIG_USBDEV_SETUP_LOG_PRINT
     usbd_print_setup(setup);
 #endif

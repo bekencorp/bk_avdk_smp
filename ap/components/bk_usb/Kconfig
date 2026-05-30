@@ -82,6 +82,43 @@ menu "Bk_usb"
 			bool "Enable Usb Device MSC"
 			default n
 
+		config USBD_MSC_CBW_DEBUG_LOG
+			bool "Enable per-CBW bulk-OUT debug log (BK7259 bring-up)"
+			depends on USBD_MSC
+			default n
+			help
+				When enabled, mass_storage_bulk_out() prints a one-shot
+				"[msc_cbw #N] ep=... SCSI op=..." line for the first 30
+				CBWs it receives. Useful for bringing up a new host /
+				re-enumerating SD-NAND as USB MSC, but very chatty under
+				normal traffic (a Windows host fires READ_CAPACITY10 /
+				READ10 hundreds of times per second). Keep disabled in
+				production builds; the print runs from the bulk-OUT IRQ
+				context and can starve other USB / IPC traffic if the
+				UART TX FIFO backs up.
+
+		config USBD_IRQ_DEBUG_LOG
+			bool "Enable per-IRQ MUSB state debug log (BK7259 bring-up)"
+			depends on USB_DEVICE
+			default n
+			help
+				When enabled, USBD_IRQHandler() prints a verbose
+				"[usbd_irq #N] IS=... TX=... RX=... LPM=... POWER=...
+				DEVCTL=... FADDR=... RESET/SOF/RESUME/SUSPEND" line for
+				the first USBD_IRQ_DEBUG_PRINT_COUNT interrupts (default
+				8 in usb_dc_beken_musb_mhdrc.c). Useful for catching
+				enumeration glitches (RESET -> SETADDR -> GET_DESCRIPTOR
+				-> SET_CONFIG) on a new board without external tools.
+
+				Disabled by default because the call sits inside the
+				USBD IRQ; once SCSI traffic starts every block read is
+				an IRQ on each EP, and even an USB_LOG_DBG that flushes
+				through the UART TX FIFO can stretch the ISR enough to
+				starve the CP heartbeat (see the bring-up notes above
+				the call site). The g_usbd_irq_count / g_usbd_last_
+				intrusb counters are always kept so the user-space
+				watchdog can still snapshot state from outside the ISR.
+
 		config USBH_UVC
 			bool "Enable Usb Host Uvc"
 			default n

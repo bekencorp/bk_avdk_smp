@@ -9,6 +9,8 @@
 #include <driver/int.h>
 #include "bk_misc.h"
 
+#include <components/usb.h>
+
 #define HWREG(x) \
     (*((volatile uint32_t *)(x)))
 #define HWREGH(x) \
@@ -199,15 +201,62 @@ static uint32_t musb_get_fifo_size(uint16_t mps, uint16_t *used)
 
 __WEAK void usb_dc_low_level_init(void)
 {
-    bk_pm_module_vote_cpu_freq(PM_DEV_ID_USB_1, PM_CPU_FRQ_120M);
+    USB_LOG_INFO("[usb_dc_ll] enter; vote CPU freq + enable analog phy + USB clock\r\n");
 
-    sys_hal_usb_analog_phy_en(true);
+    extern void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops);
+    bk_analog_layer_usb_sys_related_ops(USB_DEVICE_MODE, true);
 
-    sys_drv_usb_clock_ctrl(true, NULL);
+#if CONFIG_SOC_BK7259
+    /* BK7259 has a different system-control / interrupt model than
+     * BK7258. The legacy macro USB_INTERRUPT_CTRL_BIT (defined in
+     * middleware/soc/bk7259_ap/hal/sys_types.h:44) tries to expand
+     * SYS_CPU0_INT_0_31_EN_CPU0_USB_INT_EN_POS, which is a BK7258
+     * register-bit symbol that does NOT exist on the BK7259 system
+     * controller -- instead it ships a pair of explicit USB_FS / USB_HS
+     * interrupt sources (INT_SRC_USB_FS=7, INT_SRC_USB_HS=8 in
+     * include/soc/bk7259/int_types_impl.h). Likewise INT_SRC_USB itself
+     * is not defined on BK7259.
+     *
+     * The USB device controller this file drives (MUSB-MHDRC) sits on
+     * the high-speed USB phy on BK7259, so we route its interrupt the
+     * same way the host driver (CherryUSB/port/beken_musb/
+     * usb_hc_beken_musb.c L856-861) does: register the ISR against
+     * INT_SRC_USB_HS and enable that interrupt line on the core that
+     * actually services it (CPU2 on the SMP build, current core
+     * otherwise).
+     *
+     * cmds/input.txt section 11 has the full incident write-up; this
+     * patch is the first half ("BK7258 -> BK7259 interrupt model
+     * adaptation"). The second half lives in usbd_msc.c
+     * (MSC_SD_BACKEND_AVAILABLE) and sd_card_driver.c (clock-gate
+     * ordering). All three must coexist for U-disk over MSC to work
+     * on BK7259. */
+    /* Sanity-check the ISR address before we register it. If the
+     * link picked up a __WEAK NULL stub for USBD_IRQHandler (which
+     * could happen if the device port file got compiled without a
+     * concrete usbd_irq path) the very first USB interrupt would
+     * jump to PC=0 -- exactly the MemFault pattern we are debugging
+     * (see cmds/input.txt). Defensive: we still register so the
+     * crash, if any, is reproducible, but we LOUDLY warn first. */
+    USB_LOG_INFO("[usb_dc_ll] register INT_SRC_USB_HS isr=%p\r\n", (void*)USBD_IRQHandler);
+    if (USBD_IRQHandler == NULL) {
+        USB_LOG_ERR("[usb_dc_ll] USBD_IRQHandler is NULL -- next USB IRQ will MemFault\r\n");
+    }
+    bk_int_isr_register(INT_SRC_USB_HS, USBD_IRQHandler, NULL);
+    bk_int_set_priority(INT_SRC_USB_HS, 2);
+#if CONFIG_SOC_SMP
+    USB_LOG_INFO("[usb_dc_ll] enable INT_SRC_USB_HS on CPU2 (SMP)\r\n");
+    sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_USB_HS, 1);
+#else
+    USB_LOG_INFO("[usb_dc_ll] enable INT_SRC_USB_HS on current core\r\n");
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_USB_HS, 1);
+#endif
+#else  /* CONFIG_SOC_BK7259 */
     sys_drv_int_enable(USB_INTERRUPT_CTRL_BIT);
 
     bk_int_isr_register(INT_SRC_USB, USBD_IRQHandler, NULL);
     bk_int_set_priority(INT_SRC_USB, 2);
+#endif /* CONFIG_SOC_BK7259 */
 
     REG_USB_USR_710 |= (0x1<<15);
     REG_USB_USR_710 |= (0x1<<14);
@@ -225,14 +274,31 @@ __WEAK void usb_dc_low_level_init(void)
     REG_USB_USR_710 |= (0x1<< 7);
 
     REG_USB_USR_708 = 0x1;
+    USB_LOG_INFO("[usb_dc_ll] leave; USB device controller phy/IRQ live\r\n");
 }
 
 __WEAK void usb_dc_low_level_deinit(void)
 {
     bk_pm_module_vote_cpu_freq(PM_DEV_ID_USB_1, PM_CPU_FRQ_DEFAULT);
+
+#if CONFIG_SOC_BK7259
+    /* Mirror image of low_level_init above: tear the per-core IRQ
+     * enable down BEFORE unregistering the ISR, otherwise a tail
+     * interrupt could fire into the now-unregistered slot. */
+#if CONFIG_SOC_SMP
+    sys_drv_set_int_en(CPU2_CORE_ID, INT_SRC_USB_HS, 0);
+#else
+    sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_USB_HS, 0);
+#endif
+    bk_int_isr_unregister(INT_SRC_USB_HS);
+
+    sys_hal_usb_analog_phy_en(false);
+#else  /* CONFIG_SOC_BK7259 */
     bk_int_isr_unregister(INT_SRC_USB);
     sys_hal_usb_analog_phy_en(false);
     sys_drv_int_disable(USB_INTERRUPT_CTRL_BIT);
+#endif /* CONFIG_SOC_BK7259 */
+
     sys_drv_usb_clock_ctrl(false, NULL);
 }
 
@@ -665,6 +731,27 @@ static void handle_ep0(void)
     }
 }
 
+/* ------------------------------------------------------------------
+ * BK7259 USB bring-up diagnostics (2026-05-19 U-disk debugging).
+ *
+ * usb_storage.c on the app side externs these as weak symbols. They
+ * give an easy way to tell from the UART log whether the USB IRQ is
+ * actually being delivered to AP CPU2 after the manual PHY power-up.
+ * The two variables here are intentionally non-static so the linker
+ * makes them visible to the app's extern declaration.
+ * ------------------------------------------------------------------ */
+volatile uint32_t g_usbd_irq_count = 0;
+volatile uint8_t  g_usbd_last_intrusb = 0;
+
+#ifndef USBD_IRQ_DEBUG_PRINT_COUNT
+/* How many of the first IRQs to print verbose state for. After this
+ * many, only the periodic watchdog dump in usb_storage.c keeps the
+ * log alive. 8 is enough to see RESET + SETADDR + GET_DESCRIPTOR +
+ * SET_CONFIG transitions but not enough to drown out other logs once
+ * the SCSI traffic starts. */
+#define USBD_IRQ_DEBUG_PRINT_COUNT 8
+#endif
+
 void USBD_IRQHandler(void)
 {
     uint32_t is;
@@ -682,6 +769,40 @@ void USBD_IRQHandler(void)
     HWREGB(USB_BASE + MUSB_INTRUSB_OFFSET) = is;
     HWREGB(USB_BASE + MUSB_LPM_INTR_OFFSET) = lpmris;
     old_ep_idx = musb_get_active_ep();
+
+    /* BK7259 bring-up: counter + first-N-times verbose dump. The
+     * sub-cost is one increment + one byte store, no allocation. The
+     * counters themselves are ALWAYS compiled in -- they're snapshotted
+     * by the user-space usb-dbg watchdog thread (see g_usbd_irq_count /
+     * g_usbd_last_intrusb externs in usb_storage.c) and we want that
+     * path available in production builds too. */
+    g_usbd_irq_count++;
+    g_usbd_last_intrusb = (uint8_t)is;
+#if CONFIG_USBD_IRQ_DEBUG_LOG
+    /* The verbose per-IRQ print itself is gated by Kconfig (default n).
+     *
+     * IRQ-context printf was empirically observed to wedge the bring-up:
+     * once SCSI traffic starts, the per-IRQ INFO line backs up on the
+     * UART TX FIFO inside the ISR, the ISR returns later and later, and
+     * eventually the AP cluster stops servicing the CP heartbeat ->
+     * mb_ipc_task asserts ~8 s later. We further bound the damage by
+     * only printing the first USBD_IRQ_DEBUG_PRINT_COUNT interrupts so
+     * the trace still survives enumeration (RESET / SETADDR / GET_DESC
+     * / SET_CONFIG) without bleeding into the SCSI data phase. */
+    if (g_usbd_irq_count <= USBD_IRQ_DEBUG_PRINT_COUNT) {
+        USB_LOG_DBG("[usbd_irq #%u] IS=0x%02x TX=0x%04x RX=0x%04x "
+                     "LPM=0x%02x POWER=0x%02x DEVCTL=0x%02x FADDR=%u%s%s%s%s\r\n",
+                     (unsigned)g_usbd_irq_count, (unsigned)is,
+                     (unsigned)txis, (unsigned)rxis, (unsigned)lpmris,
+                     HWREGB(USB_BASE + MUSB_POWER_OFFSET),
+                     HWREGB(USB_BASE + MUSB_DEVCTL_OFFSET),
+                     HWREGB(USB_BASE + MUSB_FADDR_OFFSET),
+                     (is & USB_IS_RESET)   ? " RESET"   : "",
+                     (is & USB_IS_SOF)     ? " SOF"     : "",
+                     (is & USB_IS_RESUME)  ? " RESUME"  : "",
+                     (is & USB_IS_SUSPEND) ? " SUSPEND" : "");
+    }
+#endif
 
     /* Receive a reset signal from the USB bus */
     if (is & USB_IS_RESET) {

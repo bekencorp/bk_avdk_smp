@@ -258,7 +258,7 @@ extern void delay(INT32 num);
 //     REG_USB_USR_02 |=R02_USB_USR_SOFT_RESETN;
 // }
 
-static void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops)
+void bk_analog_layer_usb_sys_related_ops(uint32_t usb_mode, bool ops)
 {
 	extern void delay(INT32 num);
 
