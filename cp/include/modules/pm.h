@@ -605,8 +605,8 @@ typedef enum
 {
 	/* Use a dedicated range to avoid clashing with PM thread local events (0~2). */
 	PM_CP_CORE_STATE_ENTER_DEEPSLEEP = 0x100,
-	PM_CP_CORE_CTRL_CP2_STATE,
-	PM_CP_CORE_CP2_RECOVERY,
+	PM_CP_CORE_CTRL_AP_STATE,
+	PM_CP_CORE_AP_RECOVERY,
 	PM_CP_CORE_RTC_DEEPSLEEP,
 	PM_CP_CORE_GET_CP_DATA,
 	PM_CP_CORE_POWER_CTRL,

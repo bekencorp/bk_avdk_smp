@@ -448,7 +448,7 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			bk_pm_cp0_psram_malloc_state_set(PM_MAILBOX_COMMUNICATION_FINISH);
 			break;
 		case PM_CP1_RECOVERY_CMD:
-			ret = pm_cp0_send_msg(PM_CP_CORE_CP2_RECOVERY, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_AP_RECOVERY, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_RTC_DEEPSLEEP_CMD:
 			ret = pm_cp0_send_msg(PM_CP_CORE_RTC_DEEPSLEEP, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
@@ -457,7 +457,7 @@ static void pm_cp0_mailbox_rx_isr(int *pm_mb, mb_chnl_cmd_t *cmd_buf)
 			ret = pm_cp0_send_msg(PM_CP_CORE_GET_CP_DATA, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_CTRL_AP_STATE_CMD:
-			ret = pm_cp0_send_msg(PM_CP_CORE_CTRL_CP2_STATE, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
+			ret = pm_cp0_send_msg(PM_CP_CORE_CTRL_AP_STATE, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);
 			break;
 		case PM_ENTER_DEEP_SLEEP_CMD:
 			ret = pm_cp0_send_msg(PM_CP_CORE_STATE_ENTER_DEEPSLEEP, cmd_buf->param1,cmd_buf->param2,cmd_buf->param3);

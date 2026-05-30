@@ -14,9 +14,52 @@
 
 #include <common/bk_include.h>
 #include <modules/pm.h>
+#include <driver/pwr_clk.h>
 #include <sys_sw_regs.h>
 #include "cache.h"
 #include "pm_debug.h"
+#include "bk_pm_internal_api.h"
+
+#define PM_SEND_CMD_CP1_RESPONSE_TIEM        (100)  //100ms
+
+#if CONFIG_MAILBOX
+pm_mailbox_communication_state_e bk_pm_ap_ctrl_state_get(void);
+bk_err_t bk_pm_ap_ctrl_state_set(pm_mailbox_communication_state_e state);
+#endif
+
+bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power_module_state_e power_state)
+{
+#if CONFIG_MAILBOX
+    uint64_t previous_tick  = 0;
+    uint64_t current_tick   = 0;
+    bk_err_t ret            = 0;
+    bk_pm_ap_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
+
+    ret = pm_cp1_mailbox_send_data(PM_CTRL_AP_STATE_CMD, module,power_state,0);
+    if(ret != BK_OK)
+    {
+        return BK_FAIL;
+    }
+
+    previous_tick = pm_cp1_aon_rtc_counter_get();
+    current_tick = previous_tick;
+    while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*PM_AON_RTC_DEFAULT_TICK_COUNT))
+    {
+        if (bk_pm_ap_ctrl_state_get()) // wait the cp0 response
+        {
+            break;
+        }
+        current_tick = pm_cp1_aon_rtc_counter_get();
+    }
+
+    if(!bk_pm_ap_ctrl_state_get())
+    {
+        LOGE("ap vote ctrl ap time out\r\n");
+    }
+#endif//CONFIG_MAILBOX
+
+    return BK_OK;
+}
 
 bool bk_pm_ap_first_boot_get(void)
 {

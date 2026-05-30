@@ -285,11 +285,7 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime )
 		configPRE_SLEEP_PROCESSING( xModifiableIdleTime );
 
 		if( xModifiableIdleTime > 0 ) {
-#if CONFIG_PM
-			pm_suspend(xModifiableIdleTime);
-#else
 			bk_pm_suppress_ticks_and_sleep(xModifiableIdleTime);
-#endif
 		}
 
 		configPOST_SLEEP_PROCESSING( xExpectedIdleTime );

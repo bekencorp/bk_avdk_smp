@@ -236,13 +236,13 @@ static bk_err_t pm_message_handle(void)
 					bk_pm_sleep_mode_set(msg.param1);
 				}
 				break;
-				case PM_CP_CORE_CTRL_CP2_STATE:
+				case PM_CP_CORE_CTRL_AP_STATE:
 				{
 					bk_pm_cp0_response_cp1(PM_CTRL_AP_STATE_CMD, BK_OK,0,0);
 					bk_pm_module_vote_boot_ap_ctrl(msg.param1,msg.param2);
 				}
 				break;
-				case PM_CP_CORE_CP2_RECOVERY:
+				case PM_CP_CORE_AP_RECOVERY:
 				{
 					bk_pm_cp1_recovery_module_state_ctrl(msg.param1,msg.param2);
 				}
@@ -318,9 +318,9 @@ static bk_err_t pm_message_handle(void)
 				break;
 				case PM_CP_CORE_RTC_WAKEUPED:
 				{
-					bk_pm_cp0_response_cp1(PM_SLEEP_WAKEUP_NOTIFY_CMD,PM_MODE_LOW_VOLTAGE,PM_WAKEUP_SOURCE_INT_RTC,0);
-					LOGD("rtc_cb[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
-					if(!bk_pm_cp1_work_state_get())
+					//bk_pm_cp0_response_cp1(PM_SLEEP_WAKEUP_NOTIFY_CMD,PM_MODE_LOW_VOLTAGE,PM_WAKEUP_SOURCE_INT_RTC,0);
+					LOGD("rtc_cb[%d][%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get(),bk_pm_ap_boot_success_get());
+					if(!bk_pm_ap_boot_success_get())
 					{
 						bk_pm_module_vote_boot_ap_ctrl(PM_BOOT_AP_MODULE_NAME_APP,PM_POWER_MODULE_STATE_ON);
 					}

@@ -592,40 +592,6 @@ pm_wakeup_source_e bk_pm_exit_low_vol_wakeup_source_get()
 	pm_ap_get_cp_data(PM_CP_DATE_TYPE_EXIT_LOW_VOL_WAKEUP_SOURCE, &wakeup_source);
 	return wakeup_source;
 }
-bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power_module_state_e power_state)
-{
-#if CONFIG_MAILBOX
-
-    uint64_t previous_tick  = 0;
-    uint64_t current_tick   = 0;
-    bk_err_t ret            = 0;
-    bk_pm_ap_ctrl_state_set(PM_MAILBOX_COMMUNICATION_INIT);
-
-    ret = pm_cp1_mailbox_send_data(PM_CTRL_AP_STATE_CMD, module,power_state,0);
-    if(ret != BK_OK)
-    {
-        return BK_FAIL;
-    }
-
-    previous_tick = pm_cp1_aon_rtc_counter_get();
-    current_tick = previous_tick;
-    while((current_tick - previous_tick) < (PM_SEND_CMD_CP1_RESPONSE_TIEM*PM_AON_RTC_DEFAULT_TICK_COUNT))
-    {
-        if (bk_pm_ap_ctrl_state_get()) // wait the cp0 response
-        {
-            break;
-        }
-        current_tick = pm_cp1_aon_rtc_counter_get();
-    }
-
-    if(!bk_pm_ap_ctrl_state_get())
-    {
-        LOGE("ap vote ctrl ap time out\r\n");
-    }
-#endif//CONFIG_MAILBOX
-
-    return BK_OK;
-}
 bk_err_t bk_pm_ap_sleep_mode_set(pm_sleep_mode_e sleep_mode)
 {
     #if CONFIG_MAILBOX
@@ -667,7 +633,7 @@ static bk_err_t pm_wakeup_source_config(pm_sleep_mode_e sleep_mode,pm_wakeup_sou
     uint64_t current_tick   = 0;
     int ret                 = 0;
     bk_pm_ap_wakeup_source_config_state_set(PM_MAILBOX_COMMUNICATION_INIT);
-	LOGD("wakeup data:%d\r\n",data);
+	LOGD("wakeup data:0x%x\r\n",data);
     ret = pm_cp1_mailbox_send_data(PM_WAKEUP_CONFIG_CMD, sleep_mode,wakeup_source,data);
     if(ret != BK_OK)
     {

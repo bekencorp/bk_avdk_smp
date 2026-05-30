@@ -141,14 +141,14 @@ uint32_t bk_sys_sw_regs_get_adc_key_sample(adc_key_sample_info_t *info)
 
 bk_err_t bk_sys_sw_regs_get_pm_shared_info(pm_shared_info_t *info)
 {
-    uint32_t flags;
+    //uint32_t flags;
     uint32_t i;
 
     if (info == NULL) {
         return BK_ERR_PARAM;
     }
 
-    flags = sys_sw_regs_lock();
+    //flags = sys_sw_regs_lock();
     info->pm_ap0_sleep_state = s_sys_sw_regs.pm_shared_info.pm_ap0_sleep_state;
     info->pm_ap1_sleep_state = s_sys_sw_regs.pm_shared_info.pm_ap1_sleep_state;
     info->pm_cp0_sleep_state = s_sys_sw_regs.pm_shared_info.pm_cp0_sleep_state;
@@ -162,7 +162,7 @@ bk_err_t bk_sys_sw_regs_get_pm_shared_info(pm_shared_info_t *info)
     info->param0 = s_sys_sw_regs.pm_shared_info.param0;
     info->param1 = s_sys_sw_regs.pm_shared_info.param1;
     info->param2 = s_sys_sw_regs.pm_shared_info.param2;
-    sys_sw_regs_unlock(flags);
+    //sys_sw_regs_unlock(flags);
     return BK_OK;
 }
 /* --------------------------------------------------------------------------

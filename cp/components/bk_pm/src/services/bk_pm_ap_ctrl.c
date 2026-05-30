@@ -37,7 +37,7 @@ typedef struct ap_ctrl_callback_node {
 #define PM_WAIT_AP_SLEEP_TIMEOUT_MS          (3000)
 #define PM_CP1_RECOVERY_DEFAULT_VALUE        (0xFFFFFFFFFFFFFFFFULL)
 
-#define PM_BOOT_AP_WAITING_TIEM             (3000) // 3s
+#define PM_BOOT_AP_WAITING_TIEM             (30000) // 30s
 #define PM_BOOT_AP_TRY_COUNT                (3)
 
 /*=====================VARIABLE  SECTION  START=================*/
@@ -277,7 +277,7 @@ boot_ap:
 		bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_ON);
 		/* Keep mailbox heartbeat state machine aligned with AP power transitions. */
 
-		LOGI("pm_dbg ap_power_on: vote_on + reset_notify(on)\r\n");
+		LOGI("Ap_power_on: vote_on + reset_notify(on)\r\n");
 		// #if defined(RECV_LOG_FROM_MBOX)
 		// void reset_forward_log_status(void);
 		// // reset cpu1's log transfer status on cpu0.
@@ -286,7 +286,6 @@ boot_ap:
 		extern void bk_delay_us(UINT32 us);
 		bk_delay_us(200);
 		#if CONFIG_PSRAM
-
 		bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
 		#endif
 		bk_delay_us(1000);
@@ -429,14 +428,13 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 
 	rtos_lock_mutex(&s_pm_cp1_vote_mutex);
 
-	BK_LOGD(NULL, "boot_cp1 %d %d 0x%x [%d][0x%x]E_1\r\n",module, power_state,s_pm_cp1_ctrl_state,s_pm_cp1_closing,&s_pm_cp1_vote_mutex);
+	BK_LOGD(NULL, "boot_ap %d %d 0x%x [%d][0x%x]E_1\r\n",module, power_state,s_pm_cp1_ctrl_state,s_pm_cp1_closing,&s_pm_cp1_vote_mutex);
 
-	BK_LOGD(NULL, "boot_cp1 %d %d 0x%x [%d]E_2\r\n",module, power_state,s_pm_cp1_ctrl_state,ret);
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on
     {
 		if(s_pm_cp1_ctrl_state == 0)
 		{
-			LOGD("boot_cp1 %d %d 0x%x [%d]E_3\r\n",module, power_state,s_pm_cp1_ctrl_state,ret);
+			LOGD("boot_ap %d %d 0x%x [%d]E_2\r\n",module, power_state,s_pm_cp1_ctrl_state,ret);
 			pm_module_bootup_cpu1(POWER_SUB_DOMAIN_NAME_AP_CPU);
 		}
 		GLOBAL_INT_DISABLE();
@@ -453,10 +451,10 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 			if(0x0 == s_pm_cp1_ctrl_state)
 			{
 				s_pm_cp1_closing = 1;
-				BK_LOGD(NULL, "boot_cp1 %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,bk_pm_ap_boot_success_get());
+				BK_LOGD(NULL, "boot_ap %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,bk_pm_ap_boot_success_get());
 				/* Ask AP to run registered stop notifications before power-off. */
 				pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
-				LOGI("pm_dbg ap_close: send recovery cmd\r\n");
+				LOGI("ap_close: send recovery cmd\r\n");
 
 				pm_shared_info_t shared_info = {0};
 

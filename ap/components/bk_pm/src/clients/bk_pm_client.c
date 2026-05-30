@@ -240,7 +240,7 @@ bk_err_t bk_pm_module_vote_power_ctrl(pm_power_module_name_e module, pm_power_mo
 
 bk_err_t bk_pm_module_vote_sleep_ctrl(pm_sleep_module_name_e module, uint32_t sleep_state, uint32_t sleep_time)
 {
-#if CONFIG_PM_AP_CPU_FREQ_VOTE_CLIENT
+#if 1//CONFIG_PM_AP_CPU_FREQ_VOTE_CLIENT
 #if CONFIG_MAILBOX
 	uint64_t previous_tick  = 0;
 	uint64_t current_tick   = 0;

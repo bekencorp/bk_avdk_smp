@@ -48,7 +48,7 @@ static bk_err_t pm_core_gpio_wakeup_config(const pm_ap_core_msg_t *msg);
 /*================FUNCTION DECLARATION SECTION END========*/
 static void pm_core_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
 {
-	//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
+	bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
 	pm_ap_core_msg_t msg = {0};
 	msg.event= PM_CP_CORE_RTC_WAKEUPED;
 	bk_pm_send_msg(&msg);
@@ -257,7 +257,7 @@ pm_wakeup_source_e bk_pm_exit_low_vol_wakeup_source_get()
 bk_err_t bk_pm_exit_low_vol_wakeup_source_set()
 {
 	uint32_t pmu_state = 0;
-	if (aon_pmu_drv_reg_get(PMU_REG2) & BIT(BIT_SLEEP_FLAG_LOW_VOLTAGE))
+	//if (aon_pmu_drv_reg_get(PMU_REG2) & BIT(BIT_SLEEP_FLAG_LOW_VOLTAGE))
 	{
 		pmu_state = 0;
 		pmu_state = aon_pmu_drv_reg_get(PMU_REG0x71);
