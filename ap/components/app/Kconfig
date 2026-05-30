@@ -50,4 +50,9 @@ menu "App"
 	config FTP_SERVER
 		bool "Enable FTP server"
 		default n
+
+	config FTP_USE_PSARM_MEM
+		bool "FTP use psram memory"
+		depends on PSRAM
+		default y
 endmenu
