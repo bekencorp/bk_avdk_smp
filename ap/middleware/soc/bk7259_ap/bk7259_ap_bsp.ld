@@ -318,12 +318,34 @@ SECTIONS
 
         PROVIDE(__dtcm_content = LOADADDR(.dtcm));
         __dtcm_start__ = .;
+#if 0        
+#if (CONFIG_SOC_SMP)
+        . = ALIGN(512);
+        KEEP(*(.vectors_iram))
+
+        . = ALIGN(512);
+        __vector_core1_table = .;
+        KEEP(*(.vectors_core1))
+#else
+        . = ALIGN(512);
+        KEEP(*(.vectors_iram))
+#endif
+
 
         *(.dtcm)
         *(.dtcm_section*)
         *(.dtcm_sec_data*)
         . = ALIGN(4);
 
+        __itcm_start__ = .;
+        *(.itcm)
+        *(.itcm_section*)
+        *(.itcm_sec_code*)
+        *(.interrupt)
+        __itcm_end__ = .;
+        . = ALIGN(4);
+
+#endif
         __dtcm_end__ = .;
     } > DTCM AT > FLASH
 
@@ -432,6 +454,9 @@ SECTIONS
         . = ALIGN(4);
 #endif
         *(.sram_spinlock_section)
+        *(.dtcm)
+        *(.dtcm_section*)
+        *(.dtcm_sec_data*)
         *(.data)
         *(".data.*")
         *(.sdata)

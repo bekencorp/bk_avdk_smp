@@ -18,8 +18,8 @@
 
 #define START_TYPE_ADDR        (SOC_AON_PMU_REG_BASE + (3 << 2))
 /*REBOOT_TAG_ADDR For CPU0-APP set reset tag in nmi wdt reboot*/
-#define REBOOT_TAG_ADDR        (0x0FFF8 + SOC_DTCM_DATA_BASE)
-#define PERSIST_MEMORY_ADDR    (0x0FFFC + SOC_DTCM_DATA_BASE)
+#define REBOOT_TAG_ADDR        (0x03FF8 + SOC_DTCM_DATA_BASE)
+#define PERSIST_MEMORY_ADDR    (0x03FFC + SOC_DTCM_DATA_BASE)
 
 uint32_t rr_hal_get_persist_mem_addr(void)
 {
