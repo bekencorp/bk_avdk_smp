@@ -197,3 +197,18 @@ void pm_debug_psram_state(void);
  *
  ****************************************************************************/
 const char *pm_sleep_mode_to_string(pm_sleep_mode_e sleep_mode);
+
+/****************************************************************************
+ * Name: pm_sleep_module_name_to_string
+ *
+ * Description:
+ *   Convert sleep module vote enumeration value to human-readable string.
+ *
+ * Input Parameters:
+ *   module - The sleep module vote to convert
+ *
+ * Returns:
+ *   Pointer to constant string representing the module name
+ *
+ ****************************************************************************/
+const char *pm_sleep_module_name_to_string(pm_sleep_module_name_e module);

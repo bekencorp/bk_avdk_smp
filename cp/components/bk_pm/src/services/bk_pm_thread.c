@@ -9,8 +9,8 @@
 #include <driver/hal/hal_aon_rtc_types.h>
 #include <driver/aon_rtc_types.h>
 #include <driver/aon_rtc.h>
-#include <driver/low_pwr_core.h>
 #include "bk_pm_internal_api.h"
+#include "pm_wakeup_source.h"
 
 /*=====================DEFINE  SECTION  START=====================*/
 #define TAG "pm"
@@ -40,21 +40,7 @@ extern UINT32 s_pm_rtc_sleep_count;
 
 /*================FUNCTION DECLARATION  SECTION  START==========*/
 bk_err_t bk_pm_send_msg(pm_ap_core_msg_t *msg);
-static void low_pwr_core_wakeup_src_cfg_handle(const pm_ap_core_msg_t *msg);
 /*================FUNCTION DECLARATION  SECTION  END===========*/
-
-static void low_pwr_core_wakeup_src_cfg_handle(const pm_ap_core_msg_t *msg)
-{
-	if (msg == NULL) {
-		return;
-	}
-
-	/* CP1 passes wakeup-source configuration through mailbox:
-	 * param1: sleep mode, param2: wakeup source, param3: optional source config pointer.
-	 * CP side currently consumes wakeup source registration directly.
-	 */
-	bk_pm_wakeup_source_set((pm_wakeup_source_e)msg->param2, (void *)msg->param3);
-}
 
 #if CONFIG_AON_RTC
 static void pm_deep_lv_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
@@ -327,7 +313,7 @@ static bk_err_t pm_message_handle(void)
 				case PM_CP_CORE_WAKEUP_SRC_CFG:
 				{
 					bk_pm_cp0_response_cp1(PM_WAKEUP_CONFIG_CMD, ret,0,0);
-					low_pwr_core_wakeup_src_cfg_handle(&msg);
+					pm_core_wakeup_src_cfg_handle(&msg);
 				}
 				break;
 				case PM_CP_CORE_RTC_WAKEUPED:

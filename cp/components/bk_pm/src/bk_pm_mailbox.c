@@ -27,7 +27,6 @@
 #if CONFIG_WDT_EN
 #include "wdt_driver.h"
 #endif
-#include "driver/low_pwr_core.h"
 #include "pm_debug.h"
 #include "cache.h"
 #if CONFIG_PSRAM

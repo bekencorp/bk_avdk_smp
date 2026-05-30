@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <common/bk_include.h>
+#include <modules/pm.h>
 
 /****************************************************************************
  * Name: bk_pm_wakeup_source_get
@@ -125,3 +126,21 @@ bk_err_t pm_wakeup_from_deepsleep_handle(void);
  *
  ****************************************************************************/
 void pm_deep_sleep_wakeup_source_set(void);
+
+/****************************************************************************
+ * Name: pm_core_wakeup_src_cfg_handle
+ *
+ * Description:
+ *   Handle wakeup source configuration requests from AP core.
+ *   Parses mailbox message fields and configures RTC or GPIO wakeup
+ *   sources for low voltage or deep sleep mode.
+ *
+ * Input Parameters:
+ *   msg - PM core message pointer. param1: sleep mode, param2: wakeup
+ *         source, param3: optional source configuration pointer.
+ *
+ * Returns:
+ *   BK_OK on success, BK_FAIL if msg is NULL
+ *
+ ****************************************************************************/
+bk_err_t pm_core_wakeup_src_cfg_handle(const pm_ap_core_msg_t *msg);

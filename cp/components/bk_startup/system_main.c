@@ -23,7 +23,6 @@
 #include <driver/wdt.h>
 #include <bk_wdt.h>
 #include <partitions.h>
-#include "driver/low_pwr_core.h"
 
 #include <modules/pm.h>
 #include <modules/ota.h>

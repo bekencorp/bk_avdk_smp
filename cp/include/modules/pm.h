@@ -601,6 +601,25 @@ typedef enum {
 	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL             = (1U << 11) - 1U,
 } bk_sys_sw_regs_pm_shared_info_field_t;
 
+typedef enum
+{
+	/* Use a dedicated range to avoid clashing with PM thread local events (0~2). */
+	PM_CP_CORE_STATE_ENTER_DEEPSLEEP = 0x100,
+	PM_CP_CORE_CTRL_CP2_STATE,
+	PM_CP_CORE_CP2_RECOVERY,
+	PM_CP_CORE_RTC_DEEPSLEEP,
+	PM_CP_CORE_GET_CP_DATA,
+	PM_CP_CORE_POWER_CTRL,
+	PM_CP_CORE_CLK_CTRL,
+	PM_CP_CORE_SLEEP_CTRL,
+	PM_CP_CORE_FREQ_CTRL,
+	PM_CP_CORE_EXTERNAL_LDO,
+	PM_CP_CORE_PSRAM_POWER,
+	PM_CP_CORE_WAKEUP_SRC_CFG,
+	PM_CP_CORE_RTC_WAKEUPED,
+	PM_CP_CORE_GPIO_WAKEUPED,
+	PM_CP_CORE_STATE_MAX
+}pm_cp_core_state_e;
 /*config the voltage at low vol*/
 #define PM_VOLTAGE_OF_LOW_VOL            (PM_LOW_VOL_VOLTAGE_0_6)
 

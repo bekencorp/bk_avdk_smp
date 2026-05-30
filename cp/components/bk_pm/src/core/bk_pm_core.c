@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <modules/pm.h>
+#include <os/str.h>
+#include <os/mem.h>
 #include "sys_driver.h"
 #include "aon_pmu_driver.h"
 #include <driver/aon_rtc.h>
@@ -473,9 +475,65 @@ uint32_t pm_check_protect_time(uint64_t current_tick, uint64_t previous_tick)
 /*=========================PM FEATURE END========================*/
 
 /*=========================DEBUG/TEST CTRL START========================*/
+#define PM_SLEEP_MODULES_DIFF_BUF_SIZE    (256)
+
+static void pm_sleep_modules_mask_to_string(char *buf, uint32_t buf_size, uint64_t modules_mask)
+{
+	uint32_t i;
+	char *ptr = buf;
+	uint32_t remain = buf_size;
+	int len;
+
+	if ((buf == NULL) || (buf_size == 0)) {
+		return;
+	}
+
+	buf[0] = '\0';
+
+	if (modules_mask == 0) {
+		os_snprintf(buf, buf_size, "none");
+		return;
+	}
+
+	for (i = 0; i < PM_SLEEP_MODULE_NAME_MAX; i++) {
+		if (modules_mask & (0x1ULL << i)) {
+			len = os_snprintf(ptr, remain, "%s%s", (ptr == buf) ? "" : ",",
+				pm_sleep_module_name_to_string((pm_sleep_module_name_e)i));
+			if (len <= 0 || (uint32_t)len >= remain) {
+				break;
+			}
+			ptr += len;
+			remain -= len;
+		}
+	}
+}
+
 void pm_core_dump(void)
 {
-	LOGI("pm low vol[module:0x%llx] [need module:0x%llx]\r\n",s_pm_sleeped_modules,s_pm_enter_low_vol_modules);
+	char *not_sleeped_buf = NULL;
+	char *extra_sleeped_buf = NULL;
+	uint64_t not_sleeped_modules = s_pm_enter_low_vol_modules & ~s_pm_sleeped_modules;
+	uint64_t extra_sleeped_modules = s_pm_sleeped_modules & ~s_pm_enter_low_vol_modules;
+
+	not_sleeped_buf = (char *)os_malloc(PM_SLEEP_MODULES_DIFF_BUF_SIZE);
+	extra_sleeped_buf = (char *)os_malloc(PM_SLEEP_MODULES_DIFF_BUF_SIZE);
+	if ((not_sleeped_buf != NULL) && (extra_sleeped_buf != NULL)) {
+		pm_sleep_modules_mask_to_string(not_sleeped_buf, PM_SLEEP_MODULES_DIFF_BUF_SIZE, not_sleeped_modules);
+		pm_sleep_modules_mask_to_string(extra_sleeped_buf, PM_SLEEP_MODULES_DIFF_BUF_SIZE, extra_sleeped_modules);
+		LOGI("pm low vol[module:0x%llx][need module:0x%llx][not_sleeped:%s][extra_sleeped:%s]\r\n",
+			s_pm_sleeped_modules, s_pm_enter_low_vol_modules, not_sleeped_buf, extra_sleeped_buf);
+	} else {
+		LOGI("pm low vol[module:0x%llx][need module:0x%llx][not_sleeped:malloc_fail][extra_sleeped:malloc_fail]\r\n",
+			s_pm_sleeped_modules, s_pm_enter_low_vol_modules);
+	}
+
+	if (not_sleeped_buf != NULL) {
+		os_free(not_sleeped_buf);
+	}
+	if (extra_sleeped_buf != NULL) {
+		os_free(extra_sleeped_buf);
+	}
+
 	LOGI("pm deepsleep[module:0x%x][need module:0x%x]\r\n",s_pm_off_modules,s_pm_enter_deep_sleep_modules);
 	LOGI("pm normal sleep[module:0x%llx][need module:0x%llx]\r\n",s_pm_sleeped_modules,s_pm_enter_normal_sleep_modules);
 	LOGI("pm normal sleep wakeup src:%d\r\n",bk_pm_sleep_wakeup_reason_get());

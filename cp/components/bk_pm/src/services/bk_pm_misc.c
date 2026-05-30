@@ -188,6 +188,55 @@ const char *pm_sleep_mode_to_string(pm_sleep_mode_e sleep_mode)
     return sleep_mode_strings[sleep_mode];
 }
 
+const char *pm_sleep_module_name_to_string(pm_sleep_module_name_e module)
+{
+	static const char *module_name_strings[] = {
+		"I2C1",       // PM_SLEEP_MODULE_NAME_I2C1 = 0
+		"SPI_1",      // PM_SLEEP_MODULE_NAME_SPI_1
+		"UART1",      // PM_SLEEP_MODULE_NAME_UART1
+		"PWM_1",      // PM_SLEEP_MODULE_NAME_PWM_1
+		"TIMER_1",    // PM_SLEEP_MODULE_NAME_TIMER_1
+		"SARADC",     // PM_SLEEP_MODULE_NAME_SARADC
+		"AUDP",       // PM_SLEEP_MODULE_NAME_AUDP
+		"VIDP",       // PM_SLEEP_MODULE_NAME_VIDP
+		"BTSP",       // PM_SLEEP_MODULE_NAME_BTSP
+		"WIFIP_MAC",  // PM_SLEEP_MODULE_NAME_WIFIP_MAC
+		"WIFI_PHY",   // PM_SLEEP_MODULE_NAME_WIFI_PHY
+		"TIMER_2",    // PM_SLEEP_MODULE_NAME_TIMER_2
+		"APP",        // PM_SLEEP_MODULE_NAME_APP
+		"OTP",        // PM_SLEEP_MODULE_NAME_OTP
+		"I2S_1",      // PM_SLEEP_MODULE_NAME_I2S_1
+		"USB_1",      // PM_SLEEP_MODULE_NAME_USB_1
+		"CAN",        // PM_SLEEP_MODULE_NAME_CAN
+		"PSRAM",      // PM_SLEEP_MODULE_NAME_PSRAM
+		"QSPI_1",     // PM_SLEEP_MODULE_NAME_QSPI_1
+		"QSPI_2",     // PM_SLEEP_MODULE_NAME_QSPI_2
+		"SDIO",       // PM_SLEEP_MODULE_NAME_SDIO
+		"AUXS",       // PM_SLEEP_MODULE_NAME_AUXS
+		"LOG",        // PM_SLEEP_MODULE_NAME_LOG
+		"AT",         // PM_SLEEP_MODULE_NAME_AT
+		"I2C2",       // PM_SLEEP_MODULE_NAME_I2C2
+		"UART2",      // PM_SLEEP_MODULE_NAME_UART2
+		"UART3",      // PM_SLEEP_MODULE_NAME_UART3
+		"WDG",        // PM_SLEEP_MODULE_NAME_WDG
+		"TIMER_3",    // PM_SLEEP_MODULE_NAME_TIMER_3
+		"APP1",       // PM_SLEEP_MODULE_NAME_APP1
+		"CPU1",       // PM_SLEEP_MODULE_NAME_CPU1
+		"ROSC_PROG",  // PM_SLEEP_MODULE_NAME_ROSC_PROG
+		"ROSC",       // PM_SLEEP_MODULE_NAME_ROSC
+		"FLASH_OP",   // PM_SLEEP_MODULE_NAME_FLASH_OP
+		"LV_WAKEUP",  // PM_SLEEP_MODULE_NAME_LV_WAKEUP
+		"BK_MODEM",   // PM_SLEEP_MODULE_NAME_BK_MODEM
+		"ENCP",       // PM_SLEEP_MODULE_NAME_ENCP
+	};
+
+	if (module >= PM_SLEEP_MODULE_NAME_MAX) {
+		return "UNKNOWN";
+	}
+
+	return module_name_strings[module];
+}
+
 void pm_printf_current_temperature(void)
 {
 #if CONFIG_TEMP_DETECT

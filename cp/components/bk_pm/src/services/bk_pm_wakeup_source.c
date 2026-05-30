@@ -18,6 +18,10 @@
 #include <os/mem.h>
 #include "pm_debug.h"
 #include "driver/int_types.h"
+#include <driver/gpio.h>
+#include <driver/hal/hal_aon_rtc_types.h>
+#include <driver/aon_rtc_types.h>
+#include <driver/aon_rtc.h>
 #include "pm_wakeup_source.h"
 #include "pm_sleep.h"
 
@@ -37,9 +41,65 @@ static icu_int_src_t s_normal_sleep_wakeup_irq_id           = INT_SRC_NONE;
 /*=====================VARIABLE SECTION END=================*/
 
 /*================FUNCTION DECLARATION SECTION START========*/
-
+static void pm_core_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param);
+static void pm_core_gpio_callback(gpio_id_t gpio_id);
+static bk_err_t pm_core_rtc_wakeup_config(const pm_ap_core_msg_t *msg);
+static bk_err_t pm_core_gpio_wakeup_config(const pm_ap_core_msg_t *msg);
 /*================FUNCTION DECLARATION SECTION END========*/
+static void pm_core_rtc_callback(aon_rtc_id_t id, uint8_t *name_p, void *param)
+{
+	//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
+	pm_ap_core_msg_t msg = {0};
+	msg.event= PM_CP_CORE_RTC_WAKEUPED;
+	bk_pm_send_msg(&msg);
+}
+static void pm_core_gpio_callback(gpio_id_t gpio_id)
+{
+	//bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_LV_WAKEUP,0x0,0x0);
+	pm_ap_core_msg_t msg = {0};
+	msg.event= PM_CP_CORE_GPIO_WAKEUPED;
+	msg.param1 = gpio_id;
+	bk_pm_send_msg(&msg);
+}
+static bk_err_t pm_core_rtc_wakeup_config(const pm_ap_core_msg_t *msg)
+{
+	bk_err_t ret = BK_OK;
+	pm_rtc_wakeup_config_t *rtc_cfg = (pm_rtc_wakeup_config_t*)msg->param3;
 
+#if CONFIG_AON_RTC || CONFIG_ANA_RTC
+	alarm_info_t lv_alarm = {
+						"lv_rtc",
+						(rtc_cfg->rtc_period)*AON_RTC_MS_TICK_CNT,
+						rtc_cfg->rtc_cnt,
+						pm_core_rtc_callback,
+						NULL
+						};
+
+	bk_alarm_unregister(AON_RTC_ID_1, lv_alarm.name);
+	bk_alarm_register(AON_RTC_ID_1, &lv_alarm);
+#endif //CONFIG_AON_RTC
+	bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_RTC, NULL);
+	return ret;
+}
+static bk_err_t pm_core_gpio_wakeup_config(const pm_ap_core_msg_t *msg)
+{
+	bk_err_t ret = BK_OK;
+	int gpio_id;
+	gpio_int_type_t int_type;
+	if(msg == NULL)
+	{
+		return BK_FAIL;
+	}
+	gpio_id = msg->param3&0xFFFF;
+	int_type = (msg->param3 >> 16)&0xFFFF;
+	LOGD("gpio cfg[%d][%d]\r\n",gpio_id,int_type);
+	#if CONFIG_GPIO_WAKEUP_SUPPORT || CONFIG_ANA_GPIO
+	bk_gpio_register_isr(gpio_id , pm_core_gpio_callback);
+	bk_gpio_register_wakeup_source(gpio_id ,int_type);
+	bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_GPIO, NULL);
+	#endif //CONFIG_GPIO_WAKEUP_SUPPORT
+	return ret;
+}
 bk_err_t bk_pm_wakeup_source_set(pm_wakeup_source_e wakeup_source, void *source_param)
 {
 	GLOBAL_INT_DECLARATION();
@@ -76,6 +136,45 @@ bk_err_t bk_pm_wakeup_source_set(pm_wakeup_source_e wakeup_source, void *source_
 	}
 	GLOBAL_INT_RESTORE();
 	return BK_OK;
+}
+
+bk_err_t pm_core_wakeup_src_cfg_handle(const pm_ap_core_msg_t *msg)
+{
+	bk_err_t ret = BK_OK;
+	if(msg == NULL)
+	{
+		return BK_FAIL;
+	}
+	pm_sleep_mode_e sleep_mode = msg->param1;
+	pm_wakeup_source_e wakeup_source = msg->param2;
+
+	switch(sleep_mode)
+	{
+		case PM_MODE_LOW_VOLTAGE:
+			if(wakeup_source == WAKEUP_SOURCE_INT_RTC)
+			{
+				pm_core_rtc_wakeup_config(msg);
+			}
+			else if(wakeup_source == WAKEUP_SOURCE_INT_GPIO)
+			{
+				pm_core_gpio_wakeup_config(msg);
+			}
+		break;
+		case PM_MODE_DEEP_SLEEP:
+			if(wakeup_source == WAKEUP_SOURCE_INT_RTC)
+			{
+				pm_core_rtc_wakeup_config(msg);
+			}
+			else if(wakeup_source == WAKEUP_SOURCE_INT_GPIO)
+			{
+				pm_core_gpio_wakeup_config(msg);
+			}
+		break;
+        default:
+			break;
+	}
+
+	return ret;
 }
 
 pm_wakeup_source_e bk_pm_wakeup_source_get(void)
