@@ -261,19 +261,15 @@ static void mipi_dsi_host_vid_hparams_asic(const bk_panel_clock_config_t *dsi, u
  *
  *   - First, try @c hal_dsi_dphy_init_for_panel(): build @c R5c so the
  *     PHY's internal divider emits DPI pclk == panel pclk exactly. This
- *     is the precise path used when @c panel_config.clk_src is
- *     ::DPU_CLK_SRC_DPHY_DPLL.
+ *     is the precise path used when @c dsi->clk_src is
+ *     ::DPU_CLK_SRC_DPHY_DPLL (the default).
  *   - If the panel's required lane:pclk ratio exceeds the PHY's 4-bit
- *     @c pixdiv field (max = 17), the precise path returns BK_FAIL. The
- *     fallback then depends on the user-selected DPU clock source:
- *       * ::DPU_CLK_SRC_SYSCLK : DPU is sourcing DPI from the SYSCLK
- *         ladder, so the PHY's internal @c dpi_clk is unused; we just
- *         need a safe lane rate. Pick one from the legacy lookup table
- *         (or default 800 Mbps if no match) and program @c R5c through
- *         @c hal_dsi_dphy_init().
- *       * Any other clk_src : DPU's DPI input depends on the PHY's
- *         internal dpi_clk; we cannot satisfy it. Print a directed
- *         error message and fail.
+ *     @c pixdiv field (max = 17), the precise path returns BK_FAIL.
+ *     We then transparently fall back to the SYSCLK ladder, pick a safe
+ *     lane rate from the legacy lookup table, log a warning, and write
+ *     ::DPU_CLK_SRC_SYSCLK back into @c dsi->clk_src so the caller's
+ *     bus/panel/DPU state stay synchronised. A caller that explicitly
+ *     passed ::DPU_CLK_SRC_SYSCLK takes the same SYSCLK path silently.
  *
  * VID_HSA / VID_HBP / VID_HLINE byte cycles are computed from the
  * achieved lane bitrate in both branches (no more float scaling).
@@ -298,39 +294,47 @@ bk_err_t mipi_dsi_clock_set(bk_panel_clock_config_t *dsi)
     mipi_dsi_host_vid_hparams_fpga(&dsi->timing, &hp);
     hal_dsi_wait_fpga_dphy_done();
 #else
-    if (hal_dsi_dphy_init_for_panel(pclk_hz, dsi->n_lanes, 24u,
-                                    DSI_LINK_BANDWIDTH_OVERHEAD_PERMILLE,
-                                    &lane_bitrate_mbps) != BK_OK) {
-        /* PHY pixdiv field (4-bit, pdiv max = 17) cannot reach the
-         * required lane:pclk ratio for this panel. */
-        if (dsi->clk_src == DPU_CLK_SRC_SYSCLK) {
-            /* DPU is driving DPI from the SYSCLK ladder; the PHY only
-             * needs a valid lane rate. */
-            uint32_t clk_mhz = (uint32_t)((pclk_hz + 500000ULL) / 1000000ULL);
-            uint32_t bitrate = dsi_dphy_bitrate_calc(clk_mhz, dsi->n_lanes);
-            if (bitrate == 0u) {
-                bitrate = DPHY_BR_800M;
-                LOGW("%s no table entry for clk=%u MHz lanes=%u, defaulting to 800 Mbps\n",
-                     __func__, (unsigned)clk_mhz, (unsigned)(dsi->n_lanes + 1U));
-            }
-            hal_dsi_dphy_init(bitrate);
-            lane_bitrate_mbps = bitrate;
-        } else {
-            uint32_t lane_cnt    = (uint32_t)dsi->n_lanes + 1u;
-            uint32_t need_ratio  = (24u * 1300u + (lane_cnt * 1000u - 1u)) / (lane_cnt * 1000u);
-            LOGE("%s internal PLL cannot satisfy pclk=%llu Hz lanes=%u "
-                 "(lane:pclk needed >= %u, PHY pixdiv max = 17).\n"
-                 "       Set panel_config.clk_src = DPU_CLK_SRC_SYSCLK and retry.\n",
+    /* DPHY_DPLL is the default when caller doesn't pin anything else. */
+    if (dsi->clk_src != DPU_CLK_SRC_SYSCLK) {
+        dsi->clk_src = DPU_CLK_SRC_DPHY_DPLL;
+    }
+
+    bool tried_dphy_dpll = (dsi->clk_src == DPU_CLK_SRC_DPHY_DPLL);
+    bool dphy_dpll_ok = false;
+
+    if (tried_dphy_dpll) {
+        dphy_dpll_ok = (hal_dsi_dphy_init_for_panel(pclk_hz, dsi->n_lanes, 24u,
+                                                   DSI_LINK_BANDWIDTH_OVERHEAD_PERMILLE,
+                                                   &lane_bitrate_mbps) == BK_OK);
+        if (!dphy_dpll_ok) {
+            uint32_t lane_cnt   = (uint32_t)dsi->n_lanes + 1u;
+            uint32_t need_ratio = (24u * 1300u + (lane_cnt * 1000u - 1u)) / (lane_cnt * 1000u);
+            LOGW("%s PHY PLL miss for pclk=%llu Hz lanes=%u (need lane:pclk >= %u, "
+                 "PHY pixdiv max = 17); auto-fallback to DPU_CLK_SRC_SYSCLK\n",
                  __func__, (unsigned long long)pclk_hz, (unsigned)lane_cnt,
                  (unsigned)need_ratio);
-            return BK_FAIL;
+            dsi->clk_src = DPU_CLK_SRC_SYSCLK;
         }
+    }
+
+    if (!dphy_dpll_ok) {
+        uint32_t clk_mhz = (uint32_t)((pclk_hz + 500000ULL) / 1000000ULL);
+        uint32_t bitrate = dsi_dphy_bitrate_calc(clk_mhz, dsi->n_lanes);
+        if (bitrate == 0u) {
+            bitrate = DPHY_BR_800M;
+            LOGW("%s no table entry for clk=%u MHz lanes=%u, defaulting to 800 Mbps\n",
+                 __func__, (unsigned)clk_mhz, (unsigned)(dsi->n_lanes + 1U));
+        }
+        hal_dsi_dphy_init(bitrate);
+        lane_bitrate_mbps = bitrate;
     }
     mipi_dsi_host_vid_hparams_asic(dsi, lane_bitrate_mbps, pclk_hz, &hp);
 #endif
 
-    LOGI("%s clk_src:%d n_lanes:%u lane:%u Mbps pclk:%llu Hz -> VID_HSA:%u VID_HBP:%u VID_HLINE:%u\n",
-         __func__, (int)dsi->clk_src, (unsigned)(dsi->n_lanes + 1U),
+    LOGI("%s using %s n_lanes:%u lane:%u Mbps pclk:%llu Hz -> VID_HSA:%u VID_HBP:%u VID_HLINE:%u\n",
+         __func__,
+         (dsi->clk_src == DPU_CLK_SRC_DPHY_DPLL) ? "DPU_CLK_SRC_DPHY_DPLL" : "DPU_CLK_SRC_SYSCLK",
+         (unsigned)(dsi->n_lanes + 1U),
          (unsigned)lane_bitrate_mbps, (unsigned long long)pclk_hz,
          (unsigned)hp.hsa, (unsigned)hp.hbp, (unsigned)hp.hline);
 

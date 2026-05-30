@@ -373,7 +373,8 @@ bk_err_t dpu_core_init(dpu_config_t * dpu_config, dpu_handle_t *handle)
         goto err;
     }
     dpu_sys_interrupt_init();
-    LOGI("%s clk_src: %d, pixel_clock_hz: %u\n", __func__, dpu_config->dpu_clk_src,
+    LOGI("%s clk_src: %s, pixel_clock_hz: %u\n", __func__,
+         (dpu_config->dpu_clk_src == DPU_CLK_SRC_DPHY_DPLL) ? "DPU_CLK_SRC_DPHY_DPLL" : "DPU_CLK_SRC_SYSCLK",
          (unsigned)dpu_config->pixel_clock_hz);
     dpu_clk_set(dpu_config->dpu_clk_src, dpu_config->pixel_clock_hz);
     uint32_t viv_dc_get_dc_core_len(void);
