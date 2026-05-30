@@ -18,7 +18,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .core import irq_name
+from .core import addr2line, irq_name
 from .decoders import DecoderSummary
 from .extract import ExtractResult, IRQRecorderSummary, IRQRecord
 from .msp_walk import MspWalkResult, ExceptionFrame
@@ -264,26 +264,105 @@ def _frame_chain_line(frame: ExceptionFrame) -> str:
     return " · ".join(bits)
 
 
-def _psram_reg_check(peri: PeriReport) -> tuple[str, str] | None:
-    """Check PSRAM0 Reg 0x10 hang fingerprint.
+def _psram_cover_window_decode(peri: PeriReport) -> list[str]:
+    """Decode PSRAM0 / PSRAM1 write-through cover-window-0 start/stop.
 
-    Baseline (idle): 0x00000000.  All hang dumps observed so far: 0x03xxxxxx.
-    Inspects the region with start 0x48060000 (called ``PSRAM`` in 0516
-    builds and ``PSRAM0`` in 0518+ builds).
+    PSRAM Reg 0x10 (offset 0x40) and Reg 0x11 (offset 0x44) are the
+    ``PSRAM_REG_COVER_START(0)`` / ``PSRAM_REG_COVER_STOP_ENA(0)`` pair, used by
+    ``bk_psram_enable_write_through()`` to enable write-through over a specific
+    PSRAM byte range. Encoding:
+
+      * value << 5 = byte address (so ``0x03xxxxxx << 5 = 0x60xxxxxx``)
+      * STOP register: bit31 = enable for that cover range
+
+    Earlier RCA notes called ``Reg 0x10 = 0x03xxxxxx`` a "hang fingerprint";
+    cross-dump analysis on 9 dumps proved the value is just the GPU output
+    buffer's write-through window (always contains the live HPDMA ch0 dst),
+    not a fault state. This helper now prints the decoded range so reviewers
+    don't repeat that misreading.
     """
-    for region in peri.regions:
-        if region.start != 0x48060000:
+    out: list[str] = []
+    for inst, base in (("PSRAM0", 0x48060000), ("PSRAM1", 0x48070000)):
+        region = next((r for r in peri.regions if r.start == base), None)
+        if region is None:
             continue
         buf = region.raw_dump_block or region.data
-        if buf is None or len(buf) < 0x44:
-            return None
+        if buf is None or len(buf) < 0x48:
+            continue
         reg10 = struct.unpack_from("<I", buf, 0x40)[0]
-        if (reg10 >> 24) == 0x03:
-            return ("HIT", f"PSRAM0 Reg 0x10 = 0x{reg10:08x} — matches hang fingerprint 0x03xxxxxx")
-        if reg10 == 0:
-            return ("CLEAR", "PSRAM0 Reg 0x10 = 0x00000000 — baseline / idle value")
-        return ("UNKNOWN", f"PSRAM0 Reg 0x10 = 0x{reg10:08x} — value outside known patterns")
-    return None
+        reg11 = struct.unpack_from("<I", buf, 0x44)[0]
+        if reg10 == 0 and reg11 == 0:
+            out.append(f"- {inst} write-through cover-window 0: disabled (Reg 0x10/0x11 both 0)")
+            continue
+        start = (reg10 & 0x7FFFFFFF) << 5
+        stop = (reg11 & 0x7FFFFFFF) << 5
+        enable = (reg11 >> 31) & 1
+        out.append(
+            f"- {inst} write-through cover-window 0: "
+            f"Reg 0x10=0x{reg10:08x} (start=0x{start:08x}), "
+            f"Reg 0x11=0x{reg11:08x} (stop=0x{stop:08x}, enable={enable})"
+        )
+        out.append(
+            f"    range = [0x{start:08x} .. 0x{stop:08x}]  "
+            f"_(this is PSRAM write-through config for the GPU buffer, not a hang state)_"
+        )
+    return out
+
+
+def _sys_ahbp_pc_readout(peri: PeriReport, elf_path: Path) -> list[str]:
+    """Decode SYS_AHBP REG_0x23 / REG_0x25 to surface AP CPU0 PC when dbug_mux=4.
+
+    The ap_main.c bringup patch writes ``REG_0x23 dbug_mux = 4`` so that
+    ``REG_0x25 gpio_dbug_readout`` exposes AP M55 core0's PC over the AHB
+    debug mux. When the patch is in the running build, this helper:
+
+      * confirms dbug_mux = 4 in the dump,
+      * reads REG_0x25 as AP CPU0 PC,
+      * resolves it via addr2line.
+
+    Other dbug_mux values are surfaced verbatim with their hardware meaning.
+    """
+    out: list[str] = []
+    region = next((r for r in peri.regions if r.name == "SYS_AHBP"), None)
+    if region is None:
+        return out
+    buf = region.raw_dump_block or region.data
+    if buf is None or len(buf) < 0x98:
+        return out
+    reg23 = struct.unpack_from("<I", buf, 0x23 * 4)[0]
+    reg25 = struct.unpack_from("<I", buf, 0x25 * 4)[0]
+    dbug_mux = reg23 & 0xF
+    mux_names = {
+        0x0: "dbug_config0", 0x1: "csi", 0x2: "vid_post", 0x3: "usbhs",
+        0x4: "cpu0pc", 0x5: "cpu0fault[31:0]", 0x6: "cpu0fault[42:32]",
+        0x7: "cpu0pc", 0x8: "cpu0fault[31:0]", 0x9: "cpu0fault[42:32]",
+        0xA: "[17:9]cpu1_INTNUM,[8:0]cpu0_INTNUM",
+        0xB: "[17]trace_clk,[16]trace_ctrl,[15:0]trace_data",
+    }
+    mux_label = mux_names.get(dbug_mux, f"reserved(0x{dbug_mux:x})")
+    out.append(
+        f"- SYS_AHBP REG_0x23 dbug_mux = 0x{dbug_mux:x} ({mux_label}); "
+        f"REG_0x25 gpio_dbug_readout = 0x{reg25:08x}"
+    )
+    if dbug_mux in (0x4, 0x7) and reg25 != 0:
+        try:
+            resolved = addr2line(elf_path, [reg25])
+            head = resolved[0].split("\n", 1)[0].strip() if resolved else ""
+        except Exception:
+            head = ""
+        if head:
+            out.append(f"    AP CPU0 PC -> {head}")
+        else:
+            out.append(
+                "    AP CPU0 PC did not resolve with the supplied ELF "
+                "(may be in CP code, ROM, or PSRAM region beyond ELF)."
+            )
+        out.append(
+            "    _Note: this PC was captured when CP halted AP for the "
+            "dump; if it lands in an IPI/dump handler it's the dump-trigger "
+            "path, not the hang victim._"
+        )
+    return out
 
 
 def _msp_smoking_gun(walk: MspWalkResult) -> ExceptionFrame | None:
@@ -551,11 +630,8 @@ def render_report(
     # ------------------------------------------------------------------
     lines.append("")
     lines.append("## 6. Peripheral fingerprint")
-    psram = _psram_reg_check(peri)
-    if psram is not None:
-        verdict, msg = psram
-        emoji = {"HIT": "🔥", "CLEAR": "✅", "UNKNOWN": "⚠️"}.get(verdict, "")
-        lines.append(f"- {emoji} {msg}")
+    lines.extend(_psram_cover_window_decode(peri))
+    lines.extend(_sys_ahbp_pc_readout(peri, elf_path))
     captured = [r for r in peri.regions if r.captured]
     missing = [r.name for r in peri.regions if not r.captured]
     lines.append(f"- regions captured: {len(captured)} / {len(peri.regions)}")
