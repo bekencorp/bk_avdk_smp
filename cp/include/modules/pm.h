@@ -565,33 +565,40 @@ typedef enum {
 	BK_PM_WAKEUP_SRC_COUNT,     /* 7:Source Count */
 } bk_pm_wakeup_reason_e;
 
+typedef enum {
+	PM_AP_WORK_STATE_FIRST_BOOT   = (1U << 0), /**< first AP boot */
+	PM_AP_WORK_STATE_BOOT_SUCCESS = (1U << 1), /**< AP boot success */
+	PM_AP_WORK_STATE_RESERVED2    = (1U << 2), /**< reserved for extension */
+	PM_AP_WORK_STATE_RESERVED3    = (1U << 3), /**< reserved for extension */
+} pm_ap_work_state_e;
+
 typedef struct {
-    volatile uint8_t pm_ap0_sleep_state;
-    volatile uint8_t pm_ap1_sleep_state;
-    volatile uint8_t pm_cp0_sleep_state;
-    volatile uint8_t pm_cp1_sleep_state;
-	volatile bool pm_ap_first_boot;
-    volatile pm_wakeup_source_e wakeup_source;
-    volatile uint8_t wakeup_alarm_name[ALARM_NAME_MAX_LEN+1];
-    volatile uint8_t gpio_id;
-    volatile uint32_t param0;
-    volatile uint32_t param1;
-    volatile uint32_t param2;
+	volatile uint8_t pm_ap0_sleep_state;
+	volatile uint8_t pm_ap1_sleep_state;
+	volatile uint8_t pm_cp0_sleep_state;
+	volatile uint8_t pm_cp1_sleep_state;
+	volatile uint8_t pm_ap_work_state;
+	volatile pm_wakeup_source_e wakeup_source;
+	volatile uint8_t wakeup_alarm_name[ALARM_NAME_MAX_LEN+1];
+	volatile uint8_t gpio_id;
+	volatile uint32_t param0;
+	volatile uint32_t param1;
+	volatile uint32_t param2;
 } pm_shared_info_t;
 
 typedef enum {
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE = (1U << 0),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP1_SLEEP_STATE = (1U << 1),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE = (1U << 2),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP1_SLEEP_STATE = (1U << 3),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_FIRST_BOOT   = (1U << 4),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE   = (1U << 5),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_ALARM_NAME = (1U << 6),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID         = (1U << 7),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM0          = (1U << 8),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1          = (1U << 9),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM2          = (1U << 10),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL             = (1U << 11) - 1U,
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP0_SLEEP_STATE = (1U << 0),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP1_SLEEP_STATE = (1U << 1),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE = (1U << 2),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP1_SLEEP_STATE = (1U << 3),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE   = (1U << 4),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE   = (1U << 5),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_ALARM_NAME = (1U << 6),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID         = (1U << 7),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM0          = (1U << 8),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM1          = (1U << 9),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_PARAM2          = (1U << 10),
+	BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_ALL             = (1U << 11) - 1U,
 } bk_sys_sw_regs_pm_shared_info_field_t;
 
 /*config the voltage at low vol*/
@@ -801,6 +808,21 @@ bk_err_t bk_pm_ap_ctrl_callback_unregister(ap_ctrl_callback_t callback, pm_ap_ct
  * @return BK_OK on success
  */
 bk_err_t bk_pm_ap_ctrl_callback_execute(pm_ap_ctrl_cb_type_t type);
+
+/**
+ * @brief set whether AP boot completed successfully
+ *
+ * @param boot_success true to set PM_AP_WORK_STATE_BOOT_SUCCESS, false to clear
+ * @return BK_OK on success
+ */
+bk_err_t bk_pm_ap_boot_success_set(bool boot_success);
+
+/**
+ * @brief get whether AP boot completed successfully
+ *
+ * @return true if AP boot success (PM_AP_WORK_STATE_BOOT_SUCCESS), false otherwise
+ */
+bool bk_pm_ap_boot_success_get(void);
 
 /**
  * @brief set whether this is the first AP boot

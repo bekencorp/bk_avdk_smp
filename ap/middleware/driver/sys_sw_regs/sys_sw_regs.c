@@ -153,7 +153,7 @@ bk_err_t bk_sys_sw_regs_get_pm_shared_info(pm_shared_info_t *info)
     info->pm_ap1_sleep_state = s_sys_sw_regs.pm_shared_info.pm_ap1_sleep_state;
     info->pm_cp0_sleep_state = s_sys_sw_regs.pm_shared_info.pm_cp0_sleep_state;
     info->pm_cp1_sleep_state = s_sys_sw_regs.pm_shared_info.pm_cp1_sleep_state;
-    info->pm_ap_first_boot = s_sys_sw_regs.pm_shared_info.pm_ap_first_boot;
+    info->pm_ap_work_state = s_sys_sw_regs.pm_shared_info.pm_ap_work_state;
     info->wakeup_source = s_sys_sw_regs.pm_shared_info.wakeup_source;
     for (i = 0; i <= ALARM_NAME_MAX_LEN; i++) {
         info->wakeup_alarm_name[i] = s_sys_sw_regs.pm_shared_info.wakeup_alarm_name[i];
@@ -297,8 +297,8 @@ bk_err_t bk_sys_sw_regs_update_pm_shared_info(const pm_shared_info_t *info, uint
     if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP1_SLEEP_STATE) != 0U) {
         s_sys_sw_regs.pm_shared_info.pm_cp1_sleep_state = info->pm_cp1_sleep_state;
     }
-    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_FIRST_BOOT) != 0U) {
-        s_sys_sw_regs.pm_shared_info.pm_ap_first_boot = info->pm_ap_first_boot;
+    if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE) != 0U) {
+        s_sys_sw_regs.pm_shared_info.pm_ap_work_state = info->pm_ap_work_state;
     }
     if ((field_mask & BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE) != 0U) {
         s_sys_sw_regs.pm_shared_info.wakeup_source = info->wakeup_source;

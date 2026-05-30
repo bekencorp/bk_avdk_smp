@@ -662,12 +662,19 @@ typedef enum {
 	BK_PM_WAKEUP_SRC_COUNT,     /* 7:Source Count */
 } bk_pm_wakeup_reason_e;
 
+typedef enum {
+	PM_AP_WORK_STATE_FIRST_BOOT   = (1U << 0), /**< first AP boot */
+	PM_AP_WORK_STATE_BOOT_SUCCESS = (1U << 1), /**< AP boot success */
+	PM_AP_WORK_STATE_RESERVED2    = (1U << 2), /**< reserved for extension */
+	PM_AP_WORK_STATE_RESERVED3    = (1U << 3), /**< reserved for extension */
+} pm_ap_work_state_e;
+
 typedef struct {
     volatile uint8_t pm_ap0_sleep_state;
     volatile uint8_t pm_ap1_sleep_state;
     volatile uint8_t pm_cp0_sleep_state;
     volatile uint8_t pm_cp1_sleep_state;
-	volatile bool pm_ap_first_boot;
+	volatile uint8_t pm_ap_work_state;
     volatile pm_wakeup_source_e wakeup_source;
     volatile uint8_t wakeup_alarm_name[ALARM_NAME_MAX_LEN+1];
     volatile uint8_t gpio_id;
@@ -681,7 +688,7 @@ typedef enum {
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP1_SLEEP_STATE = (1U << 1),
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP0_SLEEP_STATE = (1U << 2),
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_CP1_SLEEP_STATE = (1U << 3),
-    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_FIRST_BOOT   = (1U << 4),
+    BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE   = (1U << 4),
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_SOURCE   = (1U << 5),
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_WAKEUP_ALARM_NAME = (1U << 6),
     BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID         = (1U << 7),
@@ -726,6 +733,16 @@ bk_err_t bk_pm_ap_sleep_mode_set(pm_sleep_mode_e sleep_mode);
  * @return true if first AP boot, false otherwise
  */
 bool bk_pm_ap_first_boot_get(void);
+
+/**
+ * @brief set whether AP boot completed successfully
+ *
+ * Weak symbol: applications may override this function.
+ *
+ * @param boot_success true to set PM_AP_WORK_STATE_BOOT_SUCCESS, false to clear
+ * @return BK_OK on success
+ */
+bk_err_t bk_pm_ap_boot_success_set(bool boot_success);
 /****************************************************************************
  * Name: bk_pm_auxldo_ctrl_vote
  *

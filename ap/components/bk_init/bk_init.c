@@ -353,5 +353,9 @@ int bk_init(void)
 #endif
 	BK_LOGD(TAG, "First Boot: %d\r\n", bk_pm_ap_first_boot_get());
     set_ap_startup_index(AP_EXIT_BK_INIT);
+
+	/*Set AP boot success*/
+	bk_pm_ap_boot_success_set(BK_TRUE);
+
 	return 0;
 }

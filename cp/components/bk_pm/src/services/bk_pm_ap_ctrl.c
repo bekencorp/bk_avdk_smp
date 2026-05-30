@@ -37,6 +37,8 @@ typedef struct ap_ctrl_callback_node {
 #define PM_WAIT_AP_SLEEP_TIMEOUT_MS          (3000)
 #define PM_CP1_RECOVERY_DEFAULT_VALUE        (0xFFFFFFFFFFFFFFFFULL)
 
+#define PM_BOOT_AP_WAITING_TIEM             (3000) // 3s
+#define PM_BOOT_AP_TRY_COUNT                (3)
 
 /*=====================VARIABLE  SECTION  START=================*/
 #if (CONFIG_CPU_CNT > 1)
@@ -54,6 +56,10 @@ static ap_ctrl_callback_node_t *s_ap_ctrl_callback_head                         
 /*=====================VARIABLE  SECTION  END=================*/
 
 
+/*===================FUNCTION  DECLARATION  START=============*/
+extern void bk_wdt_force_reboot(void);
+
+/*==================FUNCTION  DECLARATION  END================*/
 
 /*
  * Example:
@@ -150,13 +156,45 @@ bk_err_t bk_pm_ap_ctrl_callback_execute(pm_ap_ctrl_cb_type_t type)
 
 	return BK_OK;
 }
+bk_err_t bk_pm_ap_boot_success_set(bool boot_success)
+{
+	pm_shared_info_t shared_info = {0};
+
+	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+	if (boot_success) {
+		shared_info.pm_ap_work_state |= PM_AP_WORK_STATE_BOOT_SUCCESS;
+	} else {
+		shared_info.pm_ap_work_state &= (uint8_t)~PM_AP_WORK_STATE_BOOT_SUCCESS;
+	}
+	bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
+	__DSB();
+	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+	__DSB();
+	return BK_OK;
+}
+
+bool bk_pm_ap_boot_success_get(void)
+{
+	pm_shared_info_t shared_info = {0};
+
+	__DSB();
+	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
+	__DSB();
+	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+	return (shared_info.pm_ap_work_state & PM_AP_WORK_STATE_BOOT_SUCCESS) != 0;
+}
 
 bk_err_t bk_pm_ap_first_boot_set(bool is_first_boot)
 {
 	pm_shared_info_t shared_info = {0};
 
-	shared_info.pm_ap_first_boot = is_first_boot;
-	bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_FIRST_BOOT, BK_SYS_SW_REGS_LOCK_ENABLE);
+	bk_sys_sw_regs_get_pm_shared_info(&shared_info);
+	if (is_first_boot) {
+		shared_info.pm_ap_work_state |= PM_AP_WORK_STATE_FIRST_BOOT;
+	} else {
+		shared_info.pm_ap_work_state &= (uint8_t)~PM_AP_WORK_STATE_FIRST_BOOT;
+	}
+	bk_sys_sw_regs_update_pm_shared_info(&shared_info, BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_AP_WORK_STATE, BK_SYS_SW_REGS_LOCK_ENABLE);
 	__DSB();
 	flush_dcache((void *)&bk_sys_sw_regs_ptr()->pm_shared_info, sizeof(bk_sys_sw_regs_ptr()->pm_shared_info));
 	__DSB();
@@ -198,7 +236,7 @@ bk_err_t bk_pm_cp1_recovery_module_state_ctrl(pm_cp1_prepare_close_module_name_e
 	{
 		s_pm_cp1_module_recovery_state |= (0x1ULL << module);
 	}
-	LOGD("pm_cp1_rcv:0x%llx %d %d %d\r\n",s_pm_cp1_module_recovery_state,bk_pm_cp1_work_state_get(),bk_pm_cp1_recovery_all_state_get(),s_pm_cp1_ctrl_state);
+	LOGD("pm_cp1_rcv:0x%llx %d %d %d\r\n",s_pm_cp1_module_recovery_state,bk_pm_ap_boot_success_get(),bk_pm_cp1_recovery_all_state_get(),s_pm_cp1_ctrl_state);
 	if(bk_pm_cp1_recovery_all_state_get())
 	{
 		bk_pm_module_check_cp1_shutdown();
@@ -209,7 +247,7 @@ bk_err_t bk_pm_cp1_recovery_module_state_ctrl(pm_cp1_prepare_close_module_name_e
 bool bk_pm_cp1_recovery_all_state_get()
 {
 	bool cp1_all_module_recovery = false;
-	if(bk_pm_cp1_work_state_get())
+	if(bk_pm_ap_boot_success_get())
 	{
 		cp1_all_module_recovery = (s_pm_cp1_module_recovery_state == PM_CP1_RECOVERY_DEFAULT_VALUE);
 	}
@@ -220,103 +258,93 @@ extern uint32_t g_enter_sleep;
 #endif
 static void pm_module_bootup_cpu1(pm_power_module_name_e module)
 {
-	// uint64_t previous_tick = 0;
-	// uint64_t current_tick   = 0;
-	//if(PM_POWER_MODULE_STATE_OFF == sys_drv_module_power_state_get(module))
+	if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
 	{
-		if(module == POWER_SUB_DOMAIN_NAME_AP_CPU)
+boot_ap:
+		#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
+		bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
+		#endif
+		#if CONFIG_DEEP_LV
+		if(g_enter_sleep == 0x1)
 		{
-//boot_cp1:
-			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
-			bk_pm_module_vote_sleep_ctrl(PM_SLEEP_MODULE_NAME_CPU1, 0, 0);
-			#endif
-			#if CONFIG_DEEP_LV
-			if(g_enter_sleep == 0x1)
-			{
-				extern void sys_hal_mailbox_regs_restore(void);
-				sys_hal_mailbox_regs_restore();
-				sys_hal_mailbox_saved_regs_dump();
-				mb_ipc_reset_notify(1, 1);
-				g_enter_sleep = 0x0;
-			}
-			#endif
-            bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_ON);
-			/* Keep mailbox heartbeat state machine aligned with AP power transitions. */
+			extern void sys_hal_mailbox_regs_restore(void);
+			sys_hal_mailbox_regs_restore();
+			sys_hal_mailbox_saved_regs_dump();
+			mb_ipc_reset_notify(1, 1);
+			g_enter_sleep = 0x0;
+		}
+		#endif
+		bk_pm_module_vote_power_ctrl(POWER_SUB_DOMAIN_NAME_AP_CPU, PM_POWER_MODULE_STATE_ON);
+		/* Keep mailbox heartbeat state machine aligned with AP power transitions. */
 
-			LOGI("pm_dbg ap_power_on: vote_on + reset_notify(on)\r\n");
-			// #if defined(RECV_LOG_FROM_MBOX)
-			// void reset_forward_log_status(void);
-			// // reset cpu1's log transfer status on cpu0.
-			// reset_forward_log_status();
-			// #endif
-			extern void bk_delay_us(UINT32 us);
-			bk_delay_us(200);
-			#if CONFIG_PSRAM
+		LOGI("pm_dbg ap_power_on: vote_on + reset_notify(on)\r\n");
+		// #if defined(RECV_LOG_FROM_MBOX)
+		// void reset_forward_log_status(void);
+		// // reset cpu1's log transfer status on cpu0.
+		// reset_forward_log_status();
+		// #endif
+		extern void bk_delay_us(UINT32 us);
+		bk_delay_us(200);
+		#if CONFIG_PSRAM
 
-			bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
-            #endif
-			bk_delay_us(1000);
+		bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
+		#endif
+		bk_delay_us(1000);
 
-#if 0//CONFIG_PSRAM
-			{
-				volatile uint32_t *psram_test_addr = (volatile uint32_t *)psram_malloc(sizeof(uint32_t));
-				const uint32_t test_value = 0x5A5AA5A5;
-				uint32_t read_value = 0;
+		#if 0//CONFIG_PSRAM
+		{
+			volatile uint32_t *psram_test_addr = (volatile uint32_t *)psram_malloc(sizeof(uint32_t));
+			const uint32_t test_value = 0x5A5AA5A5;
+			uint32_t read_value = 0;
 
-				if (psram_test_addr == NULL) {
-					BK_LOGE(NULL, "psram self test failed: malloc null\r\n");
+			if (psram_test_addr == NULL) {
+				BK_LOGE(NULL, "psram self test failed: malloc null\r\n");
+			} else {
+				*psram_test_addr = test_value;
+				read_value = *psram_test_addr;
+				if (read_value == test_value) {
+					BK_LOGI(NULL, "psram self test pass: addr=0x%x val=0x%x\r\n",
+							(uint32_t)psram_test_addr, read_value);
 				} else {
-					*psram_test_addr = test_value;
-					read_value = *psram_test_addr;
-					if (read_value == test_value) {
-						BK_LOGI(NULL, "psram self test pass: addr=0x%x val=0x%x\r\n",
-								(uint32_t)psram_test_addr, read_value);
-					} else {
-						BK_LOGE(NULL, "psram self test failed: addr=0x%x wr=0x%x rd=0x%x\r\n",
-								(uint32_t)psram_test_addr, test_value, read_value);
-					}
-					psram_free((void *)psram_test_addr);
+					BK_LOGE(NULL, "psram self test failed: addr=0x%x wr=0x%x rd=0x%x\r\n",
+							(uint32_t)psram_test_addr, test_value, read_value);
 				}
+				psram_free((void *)psram_test_addr);
 			}
-#endif
-			extern void bk_start_ap_system(void);
-			bk_start_ap_system();
-			LOGI("pm_dbg ap_power_on: bk_start_ap_system done\r\n");
-			bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
-			#if 0
-			previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
-			current_tick = previous_tick;
-			while((current_tick - previous_tick) < (PM_BOOT_CP1_WAITING_TIEM*AON_RTC_MS_TICK_CNT))
+		}
+		#endif
+		extern void bk_start_ap_system(void);
+		bk_start_ap_system();
+		LOGI("bk_start_ap_system done\r\n");
+		bk_pm_ap_ctrl_callback_execute(PM_AP_CTRL_CB_TYPE_POWER_ON);
+		uint64_t previous_tick = 0;
+		uint64_t current_tick  = 0;
+		previous_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+		current_tick = previous_tick;
+		while((current_tick - previous_tick) < (PM_BOOT_AP_WAITING_TIEM*AON_RTC_MS_TICK_CNT))
+		{
+			if (bk_pm_ap_boot_success_get()) // wait AP boot success
 			{
-				if (bk_pm_cp1_work_state_get()) // wait the cp1 response
-				{
-					break;
-				}
-				current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+				break;
 			}
+			current_tick = bk_aon_rtc_get_current_tick(AON_RTC_ID_1);
+		}
 
-			if(!bk_pm_cp1_work_state_get())
+		if(!bk_pm_ap_boot_success_get())
+		{
+			BK_LOGD(NULL, "CP boot AP[%d] time out, boot AP fail!!!\r\n",s_pm_cp1_boot_try_count);
+
+			s_pm_cp1_boot_try_count++;
+			if(s_pm_cp1_boot_try_count < PM_BOOT_AP_TRY_COUNT)
 			{
-				BK_LOGD(NULL, "cp0 boot cp1[%d] time out, boot cp1 fail!!!\r\n",s_pm_cp1_boot_try_count);
-
-				/*Reset psram*/
-#if CONFIG_PSRAM
-				//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_OFF);
-				//bk_pm_module_vote_psram_ctrl(PM_POWER_PSRAM_MODULE_NAME_MEDIA, PM_POWER_MODULE_STATE_ON);
-#endif
-				s_pm_cp1_boot_try_count++;
-				if(s_pm_cp1_boot_try_count < PM_BOOT_CP1_TRY_COUNT)
-				{
-					goto boot_cp1;
-				}
-				if(s_pm_cp1_boot_try_count == PM_BOOT_CP1_TRY_COUNT)
-				{
-					#if CONFIG_WDT_EN
-					bk_wdt_force_reboot();//try 3 times, if fail ,reboot.
-					#endif
-				}
+				goto boot_ap;
 			}
-			#endif
+			if(s_pm_cp1_boot_try_count == PM_BOOT_AP_TRY_COUNT)
+			{
+				#if CONFIG_WDT_EN
+				bk_wdt_force_reboot();//try 3 times, if fail ,reboot.
+				#endif
+			}
 		}
 	}
 }
@@ -376,6 +404,7 @@ static void pm_module_shutdown_cpu1(pm_power_module_name_e module)
 			__DSB();
 
 			bk_pm_ap_first_boot_set(false);
+			bk_pm_ap_boot_success_set(false);
 			GLOBAL_INT_RESTORE();
 
 			#if CONFIG_PM_AP_POWERDOWN_WHEN_LV
@@ -424,7 +453,7 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 			if(0x0 == s_pm_cp1_ctrl_state)
 			{
 				s_pm_cp1_closing = 1;
-				BK_LOGD(NULL, "boot_cp1 %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,bk_pm_cp1_work_state_get());
+				BK_LOGD(NULL, "boot_cp1 %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,bk_pm_ap_boot_success_get());
 				/* Ask AP to run registered stop notifications before power-off. */
 				pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
 				LOGI("pm_dbg ap_close: send recovery cmd\r\n");
@@ -520,7 +549,7 @@ uint32_t bk_pm_get_cp1_psram_malloc_count(uint32_t using_psram_type)
 {
 	uint64_t previous_tick = 0;
 	uint64_t current_tick   = 0;
-	if(bk_pm_cp1_work_state_get())
+	if(bk_pm_ap_boot_success_get())
 	{
 		bk_pm_cp0_psram_malloc_state_set(PM_MAILBOX_COMMUNICATION_INIT);
 		pm_cp0_mailbox_send_data(PM_CP1_PSRAM_MALLOC_STATE_CMD,using_psram_type,0,0);
@@ -555,7 +584,7 @@ uint32_t bk_pm_get_cp1_psram_malloc_count(uint32_t using_psram_type)
 /*trigger the cp1 heap malloc dump*/
 bk_err_t bk_pm_dump_cp1_psram_malloc_info()
 {
-	if(bk_pm_cp1_work_state_get())
+	if(bk_pm_ap_boot_success_get())
 	{
 		pm_cp0_mailbox_send_data(PM_CP1_DUMP_PSRAM_MALLOC_INFO_CMD,0,0,0);
 	}
