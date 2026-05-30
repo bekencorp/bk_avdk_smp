@@ -12,7 +12,7 @@ SRAM3_TEST,              SRAM, 0x28100000, 0x040000
 SRAM4_TEST,              SRAM,           , 0x040000
 SRAM5_TEST,              SRAM,           , 0x020000
 SRAM6_TEST,              SRAM,           , 0x008000
-AP_RAM,                  SRAM,           , 0x018000
+AP_RAM,                  SRAM,           , 0x01B000
 PSRAM_TEST_CPU,          PSRAM, 0x60000000, 0x400000
 PSRAM_TEST_TASK,         PSRAM,           , 0x200000
 PSRAM_MEM_SLAB_UNCODED,  PSRAM,           , 0x600000
