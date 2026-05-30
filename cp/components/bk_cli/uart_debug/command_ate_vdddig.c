@@ -139,7 +139,7 @@ int sctrl_load_vdddig_from_efuse(void)
     bk_err_t result;
     uint8_t new_bandgap = 0xFF;
 
-    result = bk_otp_apb_read(OTP_VDDDIG_BANDGAP, (uint8_t *)&new_bandgap, sizeof(new_bandgap));
+    result = bk_otp_ahb_read(OTP_VDDDIG_BANDGAP, (uint8_t *)&new_bandgap, sizeof(new_bandgap));
     if ((BK_OK != result) || (0x00 == new_bandgap) || (0xFF == new_bandgap))
     {
         return -1;
@@ -193,7 +193,7 @@ int sctrl_set_bandgap_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_
 	tx_buffer[0] = 0x55;
     if (cnt < 3)
     {
-        if (bk_otp_apb_read(OTP_VDDDIG_BANDGAP, &bandgap, sizeof(bandgap)) == 0)
+        if (bk_otp_ahb_read(OTP_VDDDIG_BANDGAP, &bandgap, sizeof(bandgap)) == 0)
         {
             /* success */
             tx_buffer[0] = 0x0E;
@@ -216,7 +216,7 @@ int sctrl_set_bandgap_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_
         return -1;
     }
 
-    if (bk_otp_apb_update(OTP_VDDDIG_BANDGAP, &bandgap, sizeof(bandgap)) == 0)
+    if (bk_otp_ahb_update(OTP_VDDDIG_BANDGAP, &bandgap, sizeof(bandgap)) == 0)
     {
         /* success */
         sys_hal_set_bgcalm(bandgap);
@@ -265,7 +265,7 @@ int sctrl_set_dia_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buff
 	tx_buffer[0] = 0x55;
     if (cnt < 3)
     {
-        if (bk_otp_apb_read(OTP_DIA, &dia, sizeof(dia)) == 0)
+        if (bk_otp_ahb_read(OTP_DIA, &dia, sizeof(dia)) == 0)
         {
             /* success */
             rwnx_cal_set_reg_mod_pa(0, dia);
@@ -289,7 +289,7 @@ int sctrl_set_dia_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buff
         return -1;
     }
 
-    if (bk_otp_apb_update(OTP_DIA, &dia, sizeof(dia)) == 0)
+    if (bk_otp_ahb_update(OTP_DIA, &dia, sizeof(dia)) == 0)
     {
         /* success */
         tx_buffer[1] = 0x33;

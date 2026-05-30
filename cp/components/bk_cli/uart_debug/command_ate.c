@@ -24,6 +24,7 @@
 #include <driver/pwr_clk.h>
 
 #include <driver/flash.h>
+#include "CheckSumUtils.h"
 #include "sys_driver.h"
 
 
@@ -87,6 +88,7 @@ extern void evm_del_key(uint8_t key_idx);
 extern void ble_dut_start(uint8_t uart_id);
 
 extern uint32_t bk_otp_fully_flow_test();
+extern uint32_t bk_otp_partical_clean_check_customer(void);
 
 #if CONFIG_MAC802154_ENABLE
 extern uint8_t mac80154_ate(uint8_t * cmd,uint8_t len,uint8_t *out_rsp,uint8_t *out_size);
@@ -859,6 +861,98 @@ static void psram_function_test(void)
 	uart_send_bytes_for_ate(&tx_buffer, 1);
 }
 
+#if CONFIG_OTP_V1
+typedef enum {
+    OTP_OP_READ  = 0x01u,
+    OTP_OP_WRITE = 0x02u,
+} ate_otp_op_t;
+
+static bool ate_otp_check_crc8(const uint8_t *buf, size_t buflen)
+{
+    CRC8_Context crc8;
+    uint8_t cal_value;
+
+    if ((buf == NULL) || (buflen == 0)) {
+        return false;
+    }
+
+    CRC8_Init(&crc8);
+    CRC8_Update(&crc8, buf, buflen - 1);
+    CRC8_Final(&crc8, &cal_value);
+
+    return cal_value == buf[buflen - 1];
+}
+
+static void ate_otp_write_common(otp2_id_t otp_addr, const uint8_t *content, uint32_t content_len)
+{
+    uint8_t tx_local[2 + 32] = {0};
+    uint32_t data_len = content_len - 1;
+
+    tx_local[0] = 0x55;
+    tx_local[1] = 0xCC;
+
+    if (!ate_otp_check_crc8(content, content_len)) {
+        bk_printf("ate_otp_write_common: crc check failed total_len=%d\r\n", content_len);
+        goto fail;
+    }
+
+    if (bk_otp_ahb_update(otp_addr, (uint8_t *)content, content_len) != BK_OK) {
+        bk_printf("ate_otp_write_common: ahb_update failed addr=0x%X len=%d\r\n", otp_addr, content_len);
+        goto fail;
+    }
+
+    tx_local[1] = 0x33;
+    bk_otp_ahb_read(otp_addr, tx_local + 2, data_len);
+    uart_send_bytes_for_ate(tx_local, 2 + data_len);
+    return;
+
+fail:
+    uart_send_bytes_for_ate(tx_local, 2);
+}
+
+static void ate_otp_read_common(otp2_id_t otp_addr, uint32_t read_len)
+{
+    uint8_t tx_local[1 + 32] = {0};
+    int ret;
+
+    tx_local[0] = 0x0E;
+
+    ret = bk_otp_ahb_read(otp_addr, tx_local + 1, read_len);
+    if (ret != BK_OK) {
+        bk_printf("ate_otp_read_common: ahb_read failed addr=0x%X read_len=%d ret=%x\r\n", otp_addr, read_len, ret);
+        tx_local[0] = 0x55;
+        tx_local[1] = 0xBB;
+        uart_send_bytes_for_ate(tx_local, 2);
+        return;
+    }
+
+    uart_send_bytes_for_ate(tx_local, read_len + 1);
+}
+
+static void ate_otp_rw_common(otp2_id_t otp_addr, const uint8_t *content, uint32_t len, ate_otp_op_t op)
+{
+    if (op == OTP_OP_READ) {
+        ate_otp_read_common(otp_addr, len);
+    } else if (op == OTP_OP_WRITE) {
+        ate_otp_write_common(otp_addr, content, len);
+    }
+}
+
+int sctrl_check_otp(const unsigned char *content, int cnt, UINT8 *tx_buffer)
+{
+    uint32_t result = bk_otp_partical_clean_check_customer();
+
+    tx_buffer[0] = 0x0E;
+    tx_buffer[1] = result & 0x00FF;
+    tx_buffer[2] = (result >> 8) & 0x00FF;
+    tx_buffer[3] = (result >> 16) & 0x00FF;
+    tx_buffer[4] = (result >> 24) & 0x00FF;
+    uart_send_bytes_for_ate(tx_buffer, 5);
+
+    return result;
+}
+#endif
+
 #if ((CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX) || (CONFIG_SOC_BK7259))
 int set_device_id_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buffer)
 {
@@ -904,7 +998,7 @@ int set_device_id_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buff
     }
 
     for (; retry_times < 3; retry_times++) {
-	    ret = bk_otp_apb_update(OTP_DEVICE_ID, device_id_write, sizeof(device_id_write));
+	    ret = bk_otp_ahb_update(OTP_DEVICE_ID, device_id_write, sizeof(device_id_write));
 		if (ret == BK_OK) {
 			break;
 		}
@@ -927,14 +1021,14 @@ int set_device_id_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_buff
             tx_buffer[2] = 0xff;
         }
 
-        bk_otp_apb_read(OTP_DEVICE_ID, tx_buffer + 3, EFUSE_DEVICE_ID_BYTE_NUM);
+        bk_otp_ahb_read(OTP_DEVICE_ID, tx_buffer + 3, EFUSE_DEVICE_ID_BYTE_NUM);
         uart_send_bytes_for_ate(tx_buffer, 3 + EFUSE_DEVICE_ID_BYTE_NUM);
 
         return BK_FAIL;
 	}
 
     tx_buffer[1] = 0x88;
-    bk_otp_apb_read(OTP_DEVICE_ID, tx_buffer + 2, EFUSE_DEVICE_ID_BYTE_NUM);
+    bk_otp_ahb_read(OTP_DEVICE_ID, tx_buffer + 2, EFUSE_DEVICE_ID_BYTE_NUM);
     uart_send_bytes_for_ate(tx_buffer, 2 + EFUSE_DEVICE_ID_BYTE_NUM);
 
     return BK_OK;
@@ -960,7 +1054,7 @@ int set_mac_address_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_bu
     }
 
     for (; retry_times < 3; retry_times++) {
-	    ret = bk_otp_apb_update(OTP_MAC_ADDRESS, mac_address_write, sizeof(mac_address_write));
+	    ret = bk_otp_ahb_update(OTP_MAC_ADDRESS_1, mac_address_write, sizeof(mac_address_write));
 		if (ret == BK_OK) {
 			break;
 		}
@@ -983,14 +1077,14 @@ int set_mac_address_to_efuse(const unsigned char *content, int cnt, UINT8 *tx_bu
             tx_buffer[2] = 0xff;
         }
 
-        bk_otp_apb_read(OTP_MAC_ADDRESS, tx_buffer + 3, MAC_ADDR_LEN);
+        bk_otp_ahb_read(OTP_MAC_ADDRESS_1, tx_buffer + 3, MAC_ADDR_LEN);
         uart_send_bytes_for_ate(tx_buffer, 3 + MAC_ADDR_LEN);
 
         return BK_FAIL;
 	}
 
     tx_buffer[1] = 0x88;
-    bk_otp_apb_read(OTP_MAC_ADDRESS, tx_buffer + 2, MAC_ADDR_LEN);
+    bk_otp_ahb_read(OTP_MAC_ADDRESS_1, tx_buffer + 2, MAC_ADDR_LEN);
     uart_send_bytes_for_ate(tx_buffer, 2 + MAC_ADDR_LEN);
 
     return BK_OK;
@@ -1359,9 +1453,25 @@ int bkreg_run_command1(unsigned char *content, int cnt)
             }
 
 #if ((CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX) || (CONFIG_SOC_BK7259)) && (CONFIG_OTP_V1)
+            case 0x3C:  // OTP_FACTORY_ID read and write
+            case 0x3F:  // OTP_PRODUCT_ID read and write
+            {
+                otp2_id_t id = (content[1] == 0x3C) ? OTP_FACTORY_ID : OTP_PRODUCT_ID;
+                ate_otp_op_t op = (ate_otp_op_t)content[2];
+
+                if (op == OTP_OP_READ) {
+                    uint32_t len = (content[1] == 0x3C) ? 3 : 15;
+                    ate_otp_rw_common(id, NULL, len, op);
+                } else if (op == OTP_OP_WRITE) {
+                    uint32_t len = (content[1] == 0x3C) ? 4 : 16;
+                    ate_otp_rw_common(id, (uint8_t *)content + 3, len, op);
+                }
+                break;
+            }
+
             case 0x40: //read otp
             {
-                if (content[2] == OTP_MAC_ADDRESS) {
+                if (content[2] == OTP_MAC_ADDRESS_1) {
                     data = 6;
                 } else if (content[2] == OTP_VDDDIG_BANDGAP) {
                     data = 1;
@@ -1375,7 +1485,7 @@ int bkreg_run_command1(unsigned char *content, int cnt)
                 if (data) {
                     tx_buffer[0] = 0x0E;
                     os_memset(tx_buffer + 1, 0x00, (uint32_t)data);
-                    bk_otp_apb_read(content[2], tx_buffer + 1, (uint32_t)data);
+                    bk_otp_ahb_read(content[2], tx_buffer + 1, (uint32_t)data);
                     uart_send_bytes_for_ate(tx_buffer, data + 1);
                 }
                 break;
@@ -1406,7 +1516,7 @@ int bkreg_run_command1(unsigned char *content, int cnt)
                     if (addr == 0x11)
                     {
                         //BANDGAP in efuse for legacy
-                        bk_otp_apb_read(OTP_VDDDIG_BANDGAP, &data, (uint32_t)sizeof(data));
+                        bk_otp_ahb_read(OTP_VDDDIG_BANDGAP, &data, (uint32_t)sizeof(data));
                         tx_buffer[0] = 0x0E;
                         tx_buffer[1] = data;
                         uart_send_bytes_for_ate(tx_buffer, 2);
@@ -1435,6 +1545,12 @@ int bkreg_run_command1(unsigned char *content, int cnt)
                 /* write macaddr in efuse/OTP */
                 set_mac_address_to_efuse(content, cnt, tx_buffer);
                 break;
+#if CONFIG_OTP_V1
+            case 0x46:
+                /* check partial otp: 0E xx xx xx xx, return first !0 address, 0 means clean */
+                sctrl_check_otp((const unsigned char *)content, cnt, tx_buffer);
+                break;
+#endif
 #if 0
             case 0x50:
                 if ((cnt > 2) && ((unsigned char) content[2] < 80))

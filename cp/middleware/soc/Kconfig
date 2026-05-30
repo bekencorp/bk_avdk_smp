@@ -70,6 +70,19 @@ menu "SOC_CONFIG"
 		help
 			For all code in psram
 
+	config PRODUCT_ID
+		bool "Enable product ID"
+		default n
+		help
+			Enable Product ID insertion for anti-channel-conflict builds.
+
+	config BK_PID_BOOT_CHECK
+		bool "Enable product ID boot check"
+		depends on PRODUCT_ID
+		default n
+		help
+			Compare firmware and OTP Product IDs during boot for production builds.
+
 	choice STACK_CHECK_MODE
 	prompt "Compile stack check mode"
 	default COMPILER_STACK_CHECK_MODE_NORM

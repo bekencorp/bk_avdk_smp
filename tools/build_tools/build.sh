@@ -114,6 +114,40 @@ if [ "${need_build_properties_lib}" == "1" ]; then
 	${ARMINO_TOOL} -B ${PROPERTIES_LIB_BUILD_DIR} -P ${PROPERTIES_LIB_DIR} ${ARMINO_TARGET}
 	# echo "${ARMINO_TOOLS_DIR}/build_tools/copy_internal_libs.sh ${ARMINO_SOC} ${ARMINO_DIR} ${PROPERTIES_LIB_BUILD_DIR} ${PROJECT}"
 	${ARMINO_TOOLS_DIR}/build_tools/copy_internal_libs.sh ${ARMINO_SOC} ${ARMINO_DIR} ${PROPERTIES_LIB_BUILD_DIR} ${PROJECT} ${ARMINO_TOOLS_DIR}
+
+	WRITE_PRODUCT_ID_SCRIPT="${ARMINO_TOOLS_DIR}/build_tools/write_product_id.py"
+	PRODUCT_ID_FILE="${ARMINO_DIR}/properties/soc/${ARMINO_SOC}/spid.txt"
+	SDKCONFIG_FILE="${PROPERTIES_LIB_BUILD_DIR}/sdkconfig"
+	SDKCONFIG_H="${PROPERTIES_LIB_BUILD_DIR}/config/sdkconfig.h"
+	NORMAL_BOOTLOADER_BIN="${ARMINO_DIR}/components/bk_libs/${ARMINO_SOC}/bootloader/normal_bootloader/bootloader.bin"
+	AB_BOOTLOADER_BIN="${ARMINO_DIR}/components/bk_libs/${ARMINO_SOC}/bootloader/ab_bootloader/bootloader.bin"
+
+	if [ -f "${PRODUCT_ID_FILE}" ] && [ -f "${WRITE_PRODUCT_ID_SCRIPT}" ]; then
+		PRODUCT_STRING=$(tr -d '\r' < "${PRODUCT_ID_FILE}" | xargs)
+
+		CONFIG_PRODUCT_ID_ENABLED=0
+		if [ -f "${SDKCONFIG_FILE}" ] && grep -q "^CONFIG_PRODUCT_ID=y" "${SDKCONFIG_FILE}" 2>/dev/null; then
+			CONFIG_PRODUCT_ID_ENABLED=1
+		elif [ -f "${SDKCONFIG_H}" ] && grep -Eq "^#define[[:space:]]+CONFIG_PRODUCT_ID[[:space:]]+1" "${SDKCONFIG_H}" 2>/dev/null; then
+			CONFIG_PRODUCT_ID_ENABLED=1
+		fi
+
+		if [ "${CONFIG_PRODUCT_ID_ENABLED}" != "1" ]; then
+			PRODUCT_STRING="0"
+		fi
+
+		if [ -n "${PRODUCT_STRING}" ]; then
+			if [ -f "${NORMAL_BOOTLOADER_BIN}" ]; then
+				echo "Writing product ID to ${NORMAL_BOOTLOADER_BIN}..."
+				python3 "${WRITE_PRODUCT_ID_SCRIPT}" "${NORMAL_BOOTLOADER_BIN}" "${PRODUCT_STRING}"
+			fi
+
+			if [ -f "${AB_BOOTLOADER_BIN}" ]; then
+				echo "Writing product ID to ${AB_BOOTLOADER_BIN}..."
+				python3 "${WRITE_PRODUCT_ID_SCRIPT}" "${AB_BOOTLOADER_BIN}" "${PRODUCT_STRING}"
+			fi
+		fi
+	fi
 fi
 
 if [ "${need_build_soc}" == "1" ]; then

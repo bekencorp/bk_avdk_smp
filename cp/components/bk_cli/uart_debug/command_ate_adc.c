@@ -108,7 +108,7 @@ void sctrl_cal_adc(const unsigned char *content, UINT8 *tx_buffer)
             /* EFUSE_21 Bb Ba B9 B8 Ab Aa A9 A8 - 2V<15:8> */
             /* note: Ax for 1Volt Bx for 2Volt */
 #if ((CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX) || (CONFIG_SOC_BK7259))
-            ret = bk_otp_apb_update(OTP_GADC_CALIBRATION, (uint8_t *)values, sizeof(values));
+            ret = bk_otp_ahb_update(OTP_GADC_CALIBRATION, (uint8_t *)values, sizeof(values));
             if (ret != BK_OK)
             {
 	            tx_buffer[1] = 0xCC;
@@ -229,7 +229,7 @@ void ate_cali_adc(const unsigned char *content, UINT8 *tx_buffer)
     {
         tx_buffer[0] = 0x0E;
 #if ((CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX) || (CONFIG_SOC_BK7259))
-        ret = bk_otp_apb_read(OTP_GADC_CALIBRATION, tx_buffer + 1, 4);
+        ret = bk_otp_ahb_read(OTP_GADC_CALIBRATION, tx_buffer + 1, 4);
         if (ret != BK_OK)
         {
             tx_buffer[0] = 0x55;
@@ -265,7 +265,7 @@ void ate_cali_adc(const unsigned char *content, UINT8 *tx_buffer)
         /* EFUSE_21 Bb Ba B9 B8 Ab Aa A9 A8 - 2V<15:8> */
         /* note: Ax for 1Volt Bx for 2Volt */
 #if ((CONFIG_SOC_BK7236XX) || (CONFIG_SOC_BK7239XX) || (CONFIG_SOC_BK7286XX) || (CONFIG_SOC_BK7259))
-        ret = bk_otp_apb_update(OTP_GADC_CALIBRATION, (uint8_t *)values, sizeof(values));
+        ret = bk_otp_ahb_update(OTP_GADC_CALIBRATION, (uint8_t *)values, sizeof(values));
         if (ret != BK_OK)
         {
             tx_buffer[1] = 0xCC;

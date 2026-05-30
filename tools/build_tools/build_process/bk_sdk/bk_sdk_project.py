@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import csv
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from bk_project import app_info, bk_project
@@ -222,6 +225,53 @@ class bk_sdk_project(bk_project):
 
         ota_bin = ota_pack()
         self.build_summary += f"ota binary: {ota_bin}\n"
+        self._write_product_id_to_all_app_bin()
+
+    def _read_product_id_from_bootloader(self) -> tuple[str, str] | None:
+        magic_map = (
+            (0x100, 0x108, "NO_CRC"),
+            (0x110, 0x118, "CRC"),
+        )
+        magic_strings = (b"BEKEN", b"BK.SB", b"BK7236", b"BK7259")
+
+        bootloader = self.bootloader_archive_path
+        if not bootloader.exists():
+            return None
+
+        data = bootloader.read_bytes()
+        for magic_offset, product_offset, crc_mode in magic_map:
+            for magic in magic_strings:
+                if data[magic_offset:magic_offset + len(magic)] == magic:
+                    product_bytes = data[product_offset:product_offset + 15]
+                    product_id = product_bytes.split(b"\0", 1)[0].decode("ascii", "ignore").strip()
+                    if product_id:
+                        return product_id, crc_mode
+                    return None
+
+        return None
+
+    def _write_product_id_to_all_app_bin(self) -> None:
+        product_info = self._read_product_id_from_bootloader()
+        if product_info is None:
+            return
+
+        product_id, crc_mode = product_info
+        if product_id == "0":
+            return
+
+        all_app_bin = self.project_build_package_dir / "all-app.bin"
+        write_product_id_script = self.tools_path / "build_tools/write_product_id.py"
+        if not all_app_bin.exists() or not write_product_id_script.exists():
+            return
+
+        subprocess.check_call(
+            ["python3", str(write_product_id_script), str(all_app_bin), product_id]
+        )
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        spid_firmware = self.project_build_dir / f"{product_id}_{crc_mode}_{timestamp}.bin"
+        shutil.copy(all_app_bin, spid_firmware)
+        self.build_summary += f"spid firmware: {spid_firmware}\n"
 
     def _copy_bootloader_to_pack_dir(self, pack_dir: Path):
         """override super class method"""

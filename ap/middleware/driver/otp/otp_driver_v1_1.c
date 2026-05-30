@@ -373,6 +373,38 @@ bk_err_t bk_otp_apb_read_by_offset(uint32_t item_offset, uint8_t* buf, uint32_t 
 	return BK_OK;
 }
 
+static uint32_t bk_otp2_check_clean_range(uint32_t start_offset, uint32_t end_offset)
+{
+	uint32_t start_location = start_offset >> 2;
+	uint32_t end_location = (end_offset + 3) >> 2;
+
+	for (uint32_t location = start_location; location < end_location; location++) {
+		uint32_t value = otp2_read_otp(location);
+		if (value != 0) {
+			uint8_t *value_byte = (uint8_t *)&value;
+			for (uint32_t byte = 0; byte < 4; byte++) {
+				uint32_t offset = (location << 2) + byte;
+				if ((offset >= start_offset) && (offset < end_offset) && (value_byte[byte] != 0)) {
+					return SOC_OTP_AHB_BASE + offset;
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+uint32_t bk_otp_partical_clean_check_customer(void)
+{
+	uint32_t result;
+
+	OTP_ACTIVE(2)
+
+	result = bk_otp2_check_clean_range(0x588, 0x600);
+	OTP_SLEEP()
+	return result;
+}
+
 /**
  * update APB OTP value in little endian with item ID:
  * 1. allowed start address of item not aligned
