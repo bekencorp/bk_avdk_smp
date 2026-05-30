@@ -414,16 +414,17 @@ __attribute__((section(".iram"))) void pm_low_voltage_bsp_restore(void)
 	bk_rosc_32k_ckest_prog(32);
 #endif
 
-
-#if CONFIG_INT_WDT //temp debug
-	// extern int wdt_init(void);
-	// wdt_init();
+#if CONFIG_INT_WDT
+	extern int wdt_init(void);
+	wdt_init();
 #endif
 #if CONFIG_PM_LV_WDT_PROTECTION
 	#if CONFIG_AON_WDT
 		bk_aon_wdt_stop();
 	#endif
 #endif
+	extern void bk_rtc_update_base_time(void);
+	bk_rtc_update_base_time();
 
 	bk_pm_exit_low_vol_wakeup_source_set();
 }
