@@ -200,6 +200,38 @@ static void hpdma_id_enable_interrupt_common(hpdma_id_t id)
 #endif
 }
 
+static void hpdma_clear_channel_interrupt_state(hpdma_id_t id)
+{
+    if (id >= HPDMA_ID_MAX) {
+        return;
+    }
+
+    uint32_t flags = hpdma_enter_critical();
+
+    hpdma_hal_disable_half_finish_interrupt(&s_hpdma.hal, id);
+    hpdma_hal_disable_finish_interrupt(&s_hpdma.hal, id);
+    hpdma_hal_disable_bus_err_interrupt(&s_hpdma.hal, id);
+    hpdma_hal_disable_fifo_err_interrupt(&s_hpdma.hal, id);
+
+    hpdma_hal_clear_half_finish_interrupt_status(&s_hpdma.hal, id);
+    hpdma_hal_clear_finish_interrupt_status(&s_hpdma.hal, id);
+    hpdma_hal_clear_bus_err_interrupt_status(&s_hpdma.hal, id);
+    hpdma_hal_clear_fifo_err_interrupt_status(&s_hpdma.hal, id);
+
+    s_hpdma_half_finish_isr[id].callback = NULL;
+    s_hpdma_half_finish_isr[id].user_data = NULL;
+    s_hpdma_finish_isr[id].callback = NULL;
+    s_hpdma_finish_isr[id].user_data = NULL;
+    s_hpdma_bus_err_isr[id].callback = NULL;
+    s_hpdma_bus_err_isr[id].user_data = NULL;
+    s_hpdma_fifo_err_isr[id].callback = NULL;
+    s_hpdma_fifo_err_isr[id].user_data = NULL;
+
+    hpdma_exit_critical(flags);
+    __DSB();
+    __ISB();
+}
+
 /* used internally, called in context of interrupt disabled. */
 u8 hpdma_chnl_alloc(u32 user_id)
 {
@@ -450,6 +482,8 @@ bk_err_t bk_hpdma_free(u16 user_id, hpdma_id_t chnl_id)
                        chnl_id);
             return BK_ERR_HPDMA_TIMEOUT;
         }
+
+        hpdma_clear_channel_interrupt_state(chnl_id);
     }
 
     u32  int_mask = hpdma_enter_critical();
@@ -555,17 +589,7 @@ bk_err_t bk_hpdma_deinit(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
     hpdma_id_deinit_common(id);
-    /*
-     * S0 / P0 (HPDMA review):
-     *   Previously deinit only cleared the finish/half-finish callbacks.
-     *   bus_err and the newly added fifo_err callbacks survived,
-     *   so a fresh allocator of the same chnl_id could still get an
-     *   interrupt routed to the previous owner's callback with the
-     *   previous owner's user_data - a classic dangling callback bug.
-     */
-    bk_hpdma_register_isr(id, NULL, NULL, NULL, NULL);
-    bk_hpdma_register_bus_err_isr(id, NULL, NULL);
-    bk_hpdma_register_fifo_err_isr(id, NULL, NULL);
+    hpdma_clear_channel_interrupt_state(id);
     return BK_OK;
 }
 
@@ -1605,6 +1629,12 @@ bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index,
     if (config->dst_ysize == 0) {
         HPDMA_LOGE("Destination ysize must be >= 1 (1 = 1 row, 2 = 2 rows, etc.)\r\n");
         return BK_ERR_PARAM;
+    }
+
+    if ((config->src_addr & 0xFU) != 0 || (config->dst_addr & 0xFU) != 0) {
+        HPDMA_LOGE("Descriptor address must be 128-bit aligned, src=0x%x dst=0x%x\r\n",
+                   config->src_addr, config->dst_addr);
+        return BK_ERR_HPDMA_HAL_INVALID_ALIGN;
     }
 
     // Get descriptor by index (handles 16-byte alignment spacing)
