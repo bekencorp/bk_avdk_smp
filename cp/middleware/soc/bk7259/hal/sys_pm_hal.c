@@ -1364,6 +1364,9 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	sys_hal_backup_set_flash_26m(&cksel_flash, &clkdiv_flash);
 
 #if CONFIG_INT_WDT
+	extern void close_wdt(void);
+	close_wdt();
+
 #if CONFIG_SUPPORT_WWDT
     bk_wwdt_stop();
 #endif
@@ -1375,6 +1378,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 #if CONFIG_TASK_WDT
 	bk_task_wdt_stop();
 #endif
+
 #endif
 
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
