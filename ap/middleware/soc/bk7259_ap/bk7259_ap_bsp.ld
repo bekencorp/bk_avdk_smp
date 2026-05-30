@@ -320,9 +320,6 @@ SECTIONS
         . = ALIGN(4);
 #endif
         *(.sram_spinlock_section)
-        *(.dtcm)
-        *(.dtcm_section*)
-        *(.dtcm_sec_data*)
         *(.data)
         *(".data.*")
         *(.sdata)

@@ -96,6 +96,19 @@ __FLASH_BOOT_CODE __attribute__((optimize("-O3"))) void b_data_copy(void)
   }
 }
 
+extern unsigned char __dtcm_content;
+extern unsigned char __dtcm_start__;
+extern unsigned char __dtcm_end__;
+
+__FLASH_BOOT_CODE __attribute__((optimize("-O3"))) void b_data_copy_dtcm(void)
+{
+	uint32_t size = (uint32_t)&__dtcm_end__ - (uint32_t)&__dtcm_start__;
+	if (size == 0) {
+		return;
+	}
+	sys_memcpy_word((void *)&__dtcm_content, (void *)&__dtcm_start__, size / 4);
+}
+
 
 #if (CONFIG_SUPPORT_FPU)
 __FLASH_BOOT_CODE static inline void b_arm_floating_point_init(void)
@@ -165,10 +178,21 @@ __FLASH_BOOT_CODE void b_prep_entry_main(void)
 #endif
 	soc_prep_data_relocation();
 
-#if 0 //Code is already copied by CP, so no need to zero and copy again
-	b_bss_zero();
-	b_data_copy();
+
+#if CONFIG_SOC_SMP
+    uint32_t core_id = portGET_CORE_ID();
+    if (core_id == 0) {
 #endif
+	#if 0 //Code is already copied by CP, so no need to zero and copy again
+		b_bss_zero();
+		b_data_copy();
+	#else //Just cp dtcm data to AP
+		b_data_copy_dtcm();
+	#endif
+#if CONFIG_SOC_SMP
+	}
+#endif
+
 
 #if CONFIG_NULL_POINTER_EXCEPTION_DETECTION_DWT
 	z_arm_debug_enable_null_pointer_detection();
