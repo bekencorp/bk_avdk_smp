@@ -7,6 +7,14 @@ set(incs .
 set(srcs
     cp_main.c
 )
+if (CONFIG_VND_CAL)
+if (CONFIG_OVERRIDE_VND_CAL)
+    list(APPEND srcs
+        vnd_cal.c
+    )
+endif()
+endif()
+
 
 
 list(APPEND srcs
