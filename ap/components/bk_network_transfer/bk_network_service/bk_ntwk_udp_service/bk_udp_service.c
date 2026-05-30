@@ -94,8 +94,13 @@ bk_err_t bk_udp_trans_service_init(char *service_name)
     if (ctxt->cntrl_chan != NULL)
     {
         ctxt->cntrl_chan->type = NTWK_TRANS_CHAN_CTRL;
+#if CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
+        ctxt->cntrl_chan->pack = NULL;
+        ctxt->cntrl_chan->unpack = NULL;
+#else
         ctxt->cntrl_chan->pack = ntwk_pack_ctrl_pack;
         ctxt->cntrl_chan->unpack = ntwk_pack_ctrl_unpack;
+#endif
         ctxt->cntrl_chan->fragment = NULL;
         ctxt->cntrl_chan->unfragment = NULL;
 
@@ -104,17 +109,25 @@ bk_err_t bk_udp_trans_service_init(char *service_name)
         ctxt->cntrl_chan->send = ntwk_udp_ctrl_chan_send;
         ntwk_in_register_ctrl_start_cb(ntwk_udp_ctrl_chan_start);
         ntwk_in_register_ctrl_stop_cb(ntwk_udp_ctrl_chan_stop);
+#if CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
+        ntwk_udp_ctrl_register_receive_cb(ntwk_trans_ctrl_recv_handler);
+#else
         ntwk_pack_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_pack_rx_handler);
         ntwk_pack_chan_start(ctxt->cntrl_chan->type, NTWK_TRANS_CMD_BUFFER,NTWK_TRANS_CMD_BUFFER);
         ntwk_udp_ctrl_register_receive_cb(ntwk_trans_ctrl_recv_handler);
+#endif
 #else
         // Client mode
         ctxt->cntrl_chan->send = ntwk_udp_ctrl_client_chan_send;
         ntwk_in_register_ctrl_start_cb(ntwk_udp_ctrl_client_chan_start);
         ntwk_in_register_ctrl_stop_cb(ntwk_udp_ctrl_client_chan_stop);
+#if CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
+        ntwk_udp_ctrl_client_register_receive_cb(ntwk_trans_ctrl_recv_handler);
+#else
         ntwk_pack_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_pack_rx_handler);
         ntwk_pack_chan_start(ctxt->cntrl_chan->type, NTWK_TRANS_CMD_BUFFER,NTWK_TRANS_CMD_BUFFER);
         ntwk_udp_ctrl_client_register_receive_cb(ntwk_trans_ctrl_recv_handler);
+#endif
 #endif // CONFIG_NTWK_CLIENT_SERVICE_ENABLE
     }
 
@@ -208,7 +221,9 @@ bk_err_t bk_udp_trans_service_deinit(void)
     }
 
 
+#if !CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
     ntwk_pack_chan_stop(NTWK_TRANS_CHAN_CTRL);
+#endif
 
     ntwk_fragment_stop(NTWK_TRANS_CHAN_VIDEO);
     ntwk_pack_chan_stop(NTWK_TRANS_CHAN_VIDEO);

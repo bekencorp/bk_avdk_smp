@@ -80,7 +80,7 @@ static void ntwk_msg_message_handle(void)
                     // Call user registered event callback
                     if (ntwk_in_cfg && ntwk_in_cfg->event_cb != NULL)
                     {
-                        LOGV("%s, event:%d, param:%d, chan_type:%d\n", __func__, msg.code, msg.param, msg.chan_type);
+                        LOGW("%s, event:%d, param:%d, chan_type:%d\n", __func__, msg.code, msg.param, msg.chan_type);
                         // Convert internal msg format to ntwk_trans_event_t
                         ntwk_trans_event_t event;
                         event.chan_type = msg.chan_type;

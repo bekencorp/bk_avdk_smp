@@ -59,19 +59,28 @@ bk_err_t bk_cs2_trans_service_init(char *service_name)
        // ctxt->cntrl_chan->start = ntwk_cs2_ctrl_chan_start;
        // ctxt->cntrl_chan->stop = ntwk_cs2_ctrl_chan_stop;
         ctxt->cntrl_chan->send = ntwk_cs2_p2p_ctrl_send;
+#if CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
+        ctxt->cntrl_chan->pack = NULL;
+        ctxt->cntrl_chan->unpack = NULL;
+#else
         ctxt->cntrl_chan->pack = ntwk_pack_ctrl_pack;
         ctxt->cntrl_chan->unpack = ntwk_pack_ctrl_unpack;
+#endif
         ctxt->cntrl_chan->fragment = NULL;
         ctxt->cntrl_chan->unfragment = NULL;
 
         
         ntwk_in_register_ctrl_start_cb(ntwk_cs2_ctrl_chan_start);
         ntwk_in_register_ctrl_stop_cb(ntwk_cs2_ctrl_chan_stop);
+#if CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
+        ntwk_cs2_ctrl_register_receive_cb(ntwk_trans_ctrl_recv_handler);
+#else
         ntwk_pack_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_pack_rx_handler);
            //configure ctrl channel
         ntwk_pack_chan_start(ctxt->cntrl_chan->type, NTWK_TRANS_DATA_MAX_SIZE, NTWK_TRANS_DATA_MAX_SIZE);
 
         ntwk_cs2_ctrl_register_receive_cb(ntwk_trans_ctrl_recv_handler);
+#endif
     }
 
     if (ctxt->video_chan != NULL)
@@ -144,7 +153,9 @@ bk_err_t bk_cs2_trans_service_deinit(void)
         return BK_FAIL;
     }
 
+#if !CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
     ntwk_pack_chan_stop(NTWK_TRANS_CHAN_CTRL);
+#endif
     ntwk_video_drop_stop();
     ntwk_fragment_stop(NTWK_TRANS_CHAN_VIDEO);
     ntwk_pack_chan_stop(NTWK_TRANS_CHAN_VIDEO);
