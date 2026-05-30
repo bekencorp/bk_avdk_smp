@@ -463,8 +463,8 @@ bk_err_t bk_pm_module_vote_boot_ap_ctrl(pm_boot_ap_module_name_e module,pm_power
 				s_pm_cp1_closing = 1;
 				BK_LOGD(NULL, "boot_ap %d %d close 0x%llx %d\r\n",module, power_state,s_pm_cp1_module_recovery_state,bk_pm_ap_boot_success_get());
 				/* Ask AP to run registered stop notifications before power-off. */
-				pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
-				LOGI("ap_close: send recovery cmd\r\n");
+				//pm_cp0_mailbox_send_data(PM_CP1_RECOVERY_CMD,0,0,0);
+				//LOGI("ap_close: send recovery cmd\r\n");
 
 				pm_shared_info_t shared_info = {0};
 
