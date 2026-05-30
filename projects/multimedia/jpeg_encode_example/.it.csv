@@ -1,0 +1,3 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+reboot,reboot,1,[RESULT][PASS] bk_jpeg_encode_frame_test success,60
+bk_jpeg_frame_01,ap_cmd jpeg_encode frame,1,[RESULT][PASS] bk_jpeg_encode_frame_test success,60

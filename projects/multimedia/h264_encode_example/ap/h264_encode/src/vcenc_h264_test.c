@@ -160,7 +160,7 @@ static void vcenc_h264_test_flexa_done(uint32_t rd_blocks, void *arg)
      * SW flexa starts with a small lead window. After HW consumes one block,
      * advance WR pointer to keep feeding the remaining 16-line blocks.
      */
-    next_wr_blocks = rd_blocks + 2U;
+    next_wr_blocks = rd_blocks + 1U;
     if (next_wr_blocks > VCENC_H264_TEST_FLEXA_CNT) {
         next_wr_blocks = VCENC_H264_TEST_FLEXA_CNT;
     }
