@@ -797,11 +797,18 @@ bk_err_t mb_chnl_open(u8 log_chnl, void * callback_param)
 	if(log_chnl_idx >= phy_chnl_log_chnl_num[phy_chnl_idx])
 		return BK_ERR_PARAM;
 
+	u32 int_mask = mb_chnl_enter_critical();
+
 	if(log_chnl_cb_x[log_chnl_idx].in_used)
+	{
+		mb_chnl_exit_critical(int_mask);
 		return BK_ERR_OPEN;
+	}
 
 	log_chnl_cb_x[log_chnl_idx].in_used = 1;		/* chnl in used. */
 	log_chnl_cb_x[log_chnl_idx].isr_param = callback_param;
+
+	mb_chnl_exit_critical(int_mask);
 
 	return BK_OK;
 }
@@ -838,11 +845,15 @@ bk_err_t mb_chnl_close(u8 log_chnl)
 	if(log_chnl_cb_x[log_chnl_idx].in_used == 0)
 		return BK_ERR_STATE;
 
+	u32 int_mask = mb_chnl_enter_critical();
+
 	log_chnl_cb_x[log_chnl_idx].in_used = 0;
 	log_chnl_cb_x[log_chnl_idx].tx_state = CHNL_STATE_IDLE;
 	log_chnl_cb_x[log_chnl_idx].rx_isr = NULL;
 	log_chnl_cb_x[log_chnl_idx].tx_isr = NULL;
 	log_chnl_cb_x[log_chnl_idx].tx_cmpl_isr = NULL;
+
+	mb_chnl_exit_critical(int_mask);
 
 	return BK_OK;
 }
@@ -987,25 +998,50 @@ bk_err_t mb_chnl_ctrl(u8 log_chnl, u8 cmd, void * param)
 	switch(cmd)
 	{
 		case MB_CHNL_GET_STATUS:
+		{
+			u32 int_mask = mb_chnl_enter_critical();
 
 			if(param == NULL)
+			{
+				mb_chnl_exit_critical(int_mask);
 				return BK_ERR_NULL_PARAM;
+			}
 
 			*((u8 *)param) = log_chnl_cb_x[log_chnl_idx].tx_state;
-			
+
+			mb_chnl_exit_critical(int_mask);
 			break;
+		}
 
 		case MB_CHNL_SET_RX_ISR:
+		{
+			u32 int_mask = mb_chnl_enter_critical();
+
 			log_chnl_cb_x[log_chnl_idx].rx_isr = (chnl_rx_isr_t)param;
+
+			mb_chnl_exit_critical(int_mask);
 			break;
+		}
 
 		case MB_CHNL_SET_TX_ISR:
+		{
+			u32 int_mask = mb_chnl_enter_critical();
+
 			log_chnl_cb_x[log_chnl_idx].tx_isr = (chnl_tx_isr_t)param;
+
+			mb_chnl_exit_critical(int_mask);
 			break;
+		}
 
 		case MB_CHNL_SET_TX_CMPL_ISR:
+		{
+			u32 int_mask = mb_chnl_enter_critical();
+
 			log_chnl_cb_x[log_chnl_idx].tx_cmpl_isr = (chnl_tx_cmpl_isr_t)param;
+
+			mb_chnl_exit_critical(int_mask);
 			break;
+		}
 
 		case MB_CHNL_WRITE_SYNC:
 			if(param == NULL)
