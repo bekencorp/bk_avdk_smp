@@ -22,24 +22,17 @@
 /**
  * @brief DPU register clock mux selector.
  *
- * Carried on each panel via ::bk_lcd_panel_config_t::clk_src; the
- * panel-common factory pushes it to the bus at creation time and the
- * DPU controller reads it back when programming the DPU clock mux. The
- * DSI D-PHY itself is always brought up by the unified
- * mipi_dsi_clock_set(); the PHY register layout is the same regardless
- * of this enum value, only the fallback strategy when the PHY's
- * internal PLL cannot satisfy the panel's lane:pclk ratio differs:
- *
- *   - ::DPU_CLK_SRC_SYSCLK    : DPU sources DPI from the SYSCLK ladder;
- *                               the PHY's unused dpi_clk lets us fall
- *                               back to a fixed-rate lane lookup (and
- *                               default 800 Mbps as last resort).
- *   - ::DPU_CLK_SRC_DPHY_DPLL : DPU consumes the PHY's dpi_clk directly,
- *                               so a PLL miss is a hard error - retry
- *                               with ::DPU_CLK_SRC_SYSCLK.
+ * The DSI bus defaults to ::DPU_CLK_SRC_DPHY_DPLL. mipi_dsi_clock_set()
+ * automatically falls back to ::DPU_CLK_SRC_SYSCLK when the PHY's
+ * internal PLL cannot satisfy the panel's lane:pclk ratio (lane:pclk
+ * needed > 17). The actual choice is latched back onto the bus and
+ * onto the panel handle, so the DPU controller programs the right mux
+ * regardless of fallback. Applications can pin a source with
+ * ::bk_display_bus_set_clock_src() between
+ * ::bk_display_dsi_bus_new() and ::bk_lcd_mipi_panel_new(); RGB is
+ * always ::DPU_CLK_SRC_SYSCLK.
  */
 typedef enum {
-    DPU_CLK_SRC_UNKNOWN   = 0,                /**< treated as DPU_CLK_SRC_DPHY_DPLL */
     DPU_CLK_SRC_SYSCLK    = 1,                /**< DPU clock from SYSCLK ladder via dpu_clk_sel_div() */
     DPU_CLK_SRC_DPHY_DPLL = 2,                /**< DPU clock from Naneng D-PHY internal dpi_clk output */
 } dpu_clk_src_t;

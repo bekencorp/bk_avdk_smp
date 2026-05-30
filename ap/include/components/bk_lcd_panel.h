@@ -34,133 +34,16 @@ extern "C" {
 #endif
 
 /**
- * @brief Drive the panel reset waveform.
- *
- * Toggles the reset GPIO (taken from ::bk_lcd_panel_config_t and the
- * panel descriptor's reset_timing) per the configured polarity.
- *
- * @param[in] panel Panel handle returned by ::bk_lcd_mipi_panel_new() / ::bk_lcd_rgb_panel_new().
- *
- * @return BK_OK on success.
- * @return BK_ERR_NULL_PARAM if @p panel is NULL.
- * @return BK_ERR_NOT_SUPPORT if the backend has no reset op.
- */
-bk_err_t bk_lcd_panel_reset(bk_avdk_lcd_panel_handle_t panel);
-
-/**
- * @brief Run the panel initialisation sequence.
- *
- * Sends the descriptor's @c init_cmds over the bus' panel-IO channel,
- * or invokes the descriptor's @c custom_init() hook (used by HDMI bridges).
- *
- * @param[in] panel Panel handle.
- * @return BK_OK on success, BK_ERR_NULL_PARAM if @p panel is NULL.
- */
-bk_err_t bk_lcd_panel_init(bk_avdk_lcd_panel_handle_t panel);
-
-/**
- * @brief Free the panel handle.
- *
- * The owning bus is NOT released - call ::bk_display_bus_delete() when
- * the bus is no longer needed.
- *
- * @param[in] panel Panel handle.
- * @return BK_OK on success.
- */
-bk_err_t bk_lcd_panel_del(bk_avdk_lcd_panel_handle_t panel);
-
-/**
- * @brief Send DISPON / DISPOFF to the panel.
- *
- * @param[in] panel   Panel handle.
- * @param[in] on_off  true = display ON, false = display OFF.
- * @return BK_OK on success.
- */
-bk_err_t bk_lcd_panel_disp_on_off(bk_avdk_lcd_panel_handle_t panel, bool on_off);
-
-/**
- * @brief Read the panel chip ID via the descriptor's @c read_id_regs.
- *
- * @param[in]  panel Panel handle.
- * @param[out] id    Receives the concatenated ID bytes.
- * @return BK_OK on success.
- */
-bk_err_t bk_lcd_panel_read_id(bk_avdk_lcd_panel_handle_t panel, uint32_t *id);
-
-/**
- * @brief Send a single command (with optional payload) to the panel.
- *
- * Runtime equivalent of one entry in the panel descriptor's @c init_cmds
- * array. The command is dispatched through the panel's bus command
- * channel (DSI generic write / SPI 9-bit or 16-bit / ...).
- *
- * Typical use cases: bring-up debugging (re-send DISPON / SLPOUT,
- * tweak MADCTL at runtime), brightness control (0x51), runtime
- * orientation switch, etc.
- *
- * Equivalent to calling ::bk_display_bus_tx_param() with the underlying
- * bus handle - convenient when callers already hold a panel handle and
- * the bus handle is hidden inside a higher-level wrapper (e.g. BSP).
- *
- * Example - re-send display-on after a hot-recover sequence:
- * @code
- * bk_lcd_panel_tx_param(panel, 0x11, NULL, 0);   // SLPOUT
- * rtos_delay_milliseconds(120);
- * bk_lcd_panel_tx_param(panel, 0x29, NULL, 0);   // DISPON
- * @endcode
- *
- * @param[in] panel       Panel handle.
- * @param[in] lcd_cmd     Command byte; pass -1 to send raw data only.
- * @param[in] param       Optional parameter buffer.
- * @param[in] param_size  Size of @p param in bytes (0 = no payload).
- *
- * @return BK_OK on success.
- * @return BK_ERR_NULL_PARAM if @p panel is NULL.
- * @return BK_ERR_NOT_SUPPORT if the bus does not implement command writes.
- */
-bk_err_t bk_lcd_panel_tx_param(bk_avdk_lcd_panel_handle_t panel,
-                               int lcd_cmd,
-                               const void *param,
-                               size_t param_size);
-
-/**
- * @brief Send a command and read parameter bytes back from the panel.
- *
- * Runtime read on the same command channel used by ::bk_lcd_panel_read_id().
- * Useful for reading display status (0x09), power mode (0x0A), MADCTL (0x0B),
- * NVM / OTP registers, etc.
- *
- * Equivalent to ::bk_display_bus_rx_param() with the underlying bus handle.
- *
- * Example - read display status:
- * @code
- * uint8_t dstat[4] = {0};
- * bk_lcd_panel_rx_param(panel, 0x09, dstat, sizeof(dstat));
- * @endcode
- *
- * @param[in]  panel       Panel handle.
- * @param[in]  lcd_cmd     Command byte to send.
- * @param[out] param       Buffer that receives the readback bytes.
- * @param[in]  param_size  Number of bytes to read into @p param.
- *
- * @return BK_OK on success.
- * @return BK_ERR_NULL_PARAM if @p panel or @p param is NULL.
- * @return BK_ERR_NOT_SUPPORT if the bus does not implement command reads.
- */
-bk_err_t bk_lcd_panel_rx_param(bk_avdk_lcd_panel_handle_t panel,
-                               int lcd_cmd,
-                               void *param,
-                               size_t param_size);
-
-/**
  * @brief Create a MIPI-DSI panel handle.
  *
- * @param[in]  bus_handle        DSI bus the panel is attached to.
- * @param[in]  panel_config  Reset pin + reset polarity.
- * @param[in]  panel_desc        Panel descriptor (timing + init_cmds + read_id_regs ...).
- * @param[out] ret_panel         Receives the new panel handle.
+ * Reset polarity / timing live on the descriptor; @p panel_config only
+ * carries the RESETn GPIO.
  *
- * @return BK_OK on success, BK_ERR_NULL_PARAM if any required argument is NULL.
+ * @param[in]  bus_handle    DSI bus the panel is attached to.
+ * @param[in]  panel_config  Reset pin wiring.
+ * @param[in]  panel_desc    Panel descriptor (timing / init_cmds / read_id_regs ...).
+ * @param[out] ret_panel     Receives the new panel handle.
+ * @return BK_OK; BK_ERR_NULL_PARAM / BK_ERR_NO_MEM on failure.
  */
 bk_err_t bk_lcd_mipi_panel_new(bk_display_bus_handle_t bus_handle,
                                const bk_lcd_panel_config_t *panel_config,
@@ -170,17 +53,110 @@ bk_err_t bk_lcd_mipi_panel_new(bk_display_bus_handle_t bus_handle,
 /**
  * @brief Create an RGB panel handle.
  *
- * @param[in]  bus_handle        SW SPI bus carrying the register-init channel.
- * @param[in]  panel_config  Reset pin + reset polarity.
- * @param[in]  panel_desc        RGB panel descriptor.
- * @param[out] ret_panel         Receives the new panel handle.
+ * The SW SPI bus carries the register-init channel; reset polarity /
+ * timing live on the descriptor.
  *
- * @return BK_OK on success.
+ * @param[in]  bus_handle    SW SPI bus.
+ * @param[in]  panel_config  Reset pin wiring.
+ * @param[in]  panel_desc    RGB panel descriptor.
+ * @param[out] ret_panel     Receives the new panel handle.
+ * @return BK_OK; BK_ERR_NULL_PARAM / BK_ERR_NO_MEM on failure.
  */
 bk_err_t bk_lcd_rgb_panel_new(bk_display_bus_handle_t bus_handle,
                               const bk_lcd_panel_config_t *panel_config,
                               const bk_display_rgb_panel_t *panel_desc,
                               bk_avdk_lcd_panel_handle_t *ret_panel);
+
+/**
+ * @brief Free the panel handle. Does not release the owning bus.
+ *
+ * @param[in] panel Panel handle.
+ * @return BK_OK; BK_ERR_NULL_PARAM if @p panel is NULL.
+ */
+bk_err_t bk_lcd_panel_delete(bk_avdk_lcd_panel_handle_t panel);
+
+/**
+ * @brief Read the panel chip ID via the descriptor's @c read_id_regs.
+ *
+ * Only valid after ::bk_display_init() (which drives reset + runs
+ * @c init_cmds, leaving the panel in a state where DCS reads work).
+ *
+ * @param[in]  panel Panel handle.
+ * @param[out] id    Concatenated ID bytes.
+ * @return BK_OK; BK_ERR_NOT_SUPPORT when @c read_id_regs is NULL.
+ */
+bk_err_t bk_lcd_panel_read_id(bk_avdk_lcd_panel_handle_t panel, uint32_t *id);
+
+/**
+ * @brief Send a single command (with optional payload) to the panel.
+ *
+ * Runtime equivalent of one @c init_cmds entry. Use for brightness
+ * control (0x51), runtime MADCTL, hot-recover SLPOUT/DISPON, ...
+ *
+ * @param[in] panel       Panel handle.
+ * @param[in] lcd_cmd     Command byte; pass -1 to send raw data only.
+ * @param[in] param       Optional parameter buffer.
+ * @param[in] param_size  Payload size in bytes (0 = no payload).
+ * @return BK_OK; BK_ERR_NULL_PARAM / BK_ERR_NOT_SUPPORT.
+ */
+bk_err_t bk_lcd_panel_tx_param(bk_avdk_lcd_panel_handle_t panel,
+                               int lcd_cmd,
+                               const void *param,
+                               size_t param_size);
+
+/**
+ * @brief Send a command and read parameter bytes back from the panel.
+ *
+ * Use for status readback (0x09), power mode (0x0A), MADCTL (0x0B),
+ * NVM / OTP, ...
+ *
+ * @param[in]  panel       Panel handle.
+ * @param[in]  lcd_cmd     Command byte to send.
+ * @param[out] param       Buffer that receives the readback bytes.
+ * @param[in]  param_size  Number of bytes to read into @p param.
+ * @return BK_OK; BK_ERR_NULL_PARAM / BK_ERR_NOT_SUPPORT.
+ */
+bk_err_t bk_lcd_panel_rx_param(bk_avdk_lcd_panel_handle_t panel,
+                               int lcd_cmd,
+                               void *param,
+                               size_t param_size);
+
+/**
+ * @name Default panel @c init / @c reset implementations
+ *
+ * Plug into ::bk_display_dsi_panel_t / ::bk_display_rgb_panel_t. A custom
+ * impl may compose by calling the default first.
+ * @{
+ */
+
+/**
+ * @brief Send the descriptor's @c init_cmds DCS sequence (DSI).
+ * @param[in] panel Panel handle.
+ * @return BK_OK; channel error code on bus failure.
+ */
+bk_err_t bk_lcd_mipi_default_init(bk_avdk_lcd_panel_t *panel);
+
+/**
+ * @brief Drive the GPIO reset waveform per @c reset_active_level + @c reset_timing (DSI).
+ * @param[in] panel Panel handle.
+ * @return BK_OK; no-op when @c reset_pin < 0.
+ */
+bk_err_t bk_lcd_mipi_default_reset(bk_avdk_lcd_panel_t *panel);
+
+/**
+ * @brief Send the descriptor's @c init_cmds SPI sequence (RGB).
+ * @param[in] panel Panel handle.
+ * @return BK_OK; channel error code on bus failure.
+ */
+bk_err_t bk_lcd_rgb_default_init(bk_avdk_lcd_panel_t *panel);
+
+/**
+ * @brief Drive the GPIO reset waveform per @c reset_active_level + @c reset_timing (RGB).
+ * @param[in] panel Panel handle.
+ * @return BK_OK; no-op when @c reset_pin < 0.
+ */
+bk_err_t bk_lcd_rgb_default_reset(bk_avdk_lcd_panel_t *panel);
+/** @} */
 
 /**
  * @name Section-based panel registry helpers
@@ -195,7 +171,6 @@ bk_err_t bk_lcd_rgb_panel_new(bk_display_bus_handle_t bus_handle,
 
 /**
  * @brief Enumerate all registered MIPI-DSI panels.
- *
  * @param[out] panels    Output array.
  * @param[in]  max_count Capacity of @p panels.
  * @return Number of entries written.
@@ -204,7 +179,6 @@ uint32_t bk_lcd_get_mipi_panel_list(const bk_display_dsi_panel_t **panels, uint3
 
 /**
  * @brief Enumerate all registered parallel RGB panels.
- *
  * @param[out] panels    Output array.
  * @param[in]  max_count Capacity of @p panels.
  * @return Number of entries written.
@@ -213,7 +187,6 @@ uint32_t bk_lcd_get_rgb_panel_list(const bk_display_rgb_panel_t **panels, uint32
 
 /**
  * @brief Enumerate all registered SPI panels.
- *
  * @param[out] panels    Output array.
  * @param[in]  max_count Capacity of @p panels.
  * @return Number of entries written.
@@ -222,7 +195,6 @@ uint32_t bk_lcd_get_spi_panel_list(const lcd_device_t **panels, uint32_t max_cou
 
 /**
  * @brief Enumerate all registered QSPI panels.
- *
  * @param[out] panels    Output array.
  * @param[in]  max_count Capacity of @p panels.
  * @return Number of entries written.
@@ -230,30 +202,30 @@ uint32_t bk_lcd_get_spi_panel_list(const lcd_device_t **panels, uint32_t max_cou
 uint32_t bk_lcd_get_qspi_panel_list(const lcd_device_t **panels, uint32_t max_count);
 
 /**
- * @brief Find a registered MIPI-DSI panel by name.
- * @param[in] name Panel name (must match the descriptor's @c .name).
- * @return Panel descriptor on success, NULL when no match.
+ * @brief Find a registered MIPI-DSI panel by name (matches descriptor's @c .name).
+ * @param[in] name Panel name.
+ * @return Panel descriptor, or NULL when no match.
  */
 const bk_display_dsi_panel_t *bk_lcd_find_mipi_panel_by_name(const char *name);
 
 /**
  * @brief Find a registered RGB panel by name.
  * @param[in] name Panel name.
- * @return Panel descriptor on success, NULL when no match.
+ * @return Panel descriptor, or NULL when no match.
  */
 const bk_display_rgb_panel_t *bk_lcd_find_rgb_panel_by_name(const char *name);
 
 /**
  * @brief Find a registered SPI panel by name.
  * @param[in] name Panel name.
- * @return Panel descriptor on success, NULL when no match.
+ * @return Panel descriptor, or NULL when no match.
  */
 const lcd_device_t *bk_lcd_find_spi_panel_by_name(const char *name);
 
 /**
  * @brief Find a registered QSPI panel by name.
  * @param[in] name Panel name.
- * @return Panel descriptor on success, NULL when no match.
+ * @return Panel descriptor, or NULL when no match.
  */
 const lcd_device_t *bk_lcd_find_qspi_panel_by_name(const char *name);
 /** @} */

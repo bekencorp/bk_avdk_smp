@@ -203,6 +203,23 @@ bk_err_t bk_display_bus_rx_param(bk_display_bus_handle_t handle,
                                  void *param,
                                  size_t param_size);
 
+/**
+ * @brief Override the DPU register clock source for a MIPI-DSI bus.
+ *
+ * Call between ::bk_display_dsi_bus_new() and ::bk_lcd_mipi_panel_new()
+ * to force a specific clock source. When not called, MIPI-DSI defaults
+ * to ::DPU_CLK_SRC_DPHY_DPLL with automatic SYSCLK fallback if the PHY
+ * PLL cannot satisfy the panel's lane:pclk ratio.
+ *
+ * @param[in] handle  Bus handle.
+ * @param[in] clk_src DPU register clock mux source.
+ *
+ * @return AVDK_ERR_OK on success.
+ * @return AVDK_ERR_INVAL on NULL @p handle.
+ * @return AVDK_ERR_UNSUPPORTED for buses without a clock-source notion (SPI).
+ */
+avdk_err_t bk_display_bus_set_clock_src(bk_display_bus_handle_t handle, dpu_clk_src_t clk_src);
+
 #ifdef __cplusplus
 }
 #endif

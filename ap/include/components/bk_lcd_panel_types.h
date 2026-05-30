@@ -151,12 +151,20 @@ typedef struct {
 } lcd_rgb_spi_init_cmd_t;
 
 /** Per-panel hardware-bring-up parameters consumed by
- *  ::bk_lcd_mipi_panel_new() / ::bk_lcd_rgb_panel_new(). */
+ *  ::bk_lcd_mipi_panel_new() / ::bk_lcd_rgb_panel_new().
+ *
+ * Reset polarity is now a panel-IC property and lives on the descriptor
+ * (::bk_display_dsi_panel_t / ::bk_display_rgb_panel_t).
+ *
+ * The DPU clock source is no longer carried here. MIPI panels default
+ * to ::DPU_CLK_SRC_DPHY_DPLL with automatic SYSCLK fallback when the
+ * PHY PLL cannot satisfy the panel's lane:pclk ratio; RGB panels are
+ * always SYSCLK. To force a specific source, call
+ * ::bk_display_bus_set_clock_src() between ::bk_display_dsi_bus_new()
+ * and ::bk_lcd_mipi_panel_new(). */
 typedef struct bk_lcd_panel_config_t bk_lcd_panel_config_t;
 struct bk_lcd_panel_config_t {
     int8_t reset_pin;                   /**< LCD reset GPIO (-1 to disable) */
-    bool reset_active_level;            /**< true = active-high, false = active-low */
-    dpu_clk_src_t clk_src;
 };
 
 /** Convert integer megahertz (e.g. @p mhz == 32 for 32 MHz) to pixel-clock Hz for RGB panels. */
@@ -201,8 +209,15 @@ typedef struct
     uint8_t spi_cmd_16bit;
     const uint8_t *read_id_regs;     /**< ID register addresses (terminated by 0) */
     uint8_t read_id_bytes;           /**< number of bytes to read for ID (1-3, 0 = auto) */
+    bool reset_active_level;         /**< true = active-high RST, false = active-low RST */
     bk_display_reset_timing_t reset_timing;     /**< zero fields fall back to ::BK_DISPLAY_RESET_*_MS_RGB_DEFAULT */
-    bk_err_t (*custom_reset)(bk_avdk_lcd_panel_t *panel, void *priv);   /**< optional per-panel reset hook */
+    /** Reset hook driven by ::bk_display_init(). ::bk_lcd_rgb_default_reset
+     *  for the standard GPIO H/L/H, NULL to skip, or a custom function. */
+    bk_err_t (*reset)(bk_avdk_lcd_panel_t *panel);
+    /** Init hook driven by ::bk_display_init() (after the bus clock is set).
+     *  ::bk_lcd_rgb_default_init to send @c init_cmds, NULL to skip, or
+     *  a custom function (may compose by calling the default first). */
+    bk_err_t (*init)(bk_avdk_lcd_panel_t *panel);
 } bk_display_rgb_panel_t;
 
 /** MIPI-DSI panel descriptor. */
@@ -216,9 +231,15 @@ typedef struct
     const lcd_mipi_init_cmd_t *init_cmds;       /**< terminated by ``{0, NULL, 0}`` */
     const uint8_t *read_id_regs;
     uint8_t read_id_bytes;
+    bool reset_active_level;        /**< true = active-high RST, false = active-low RST */
     bk_display_reset_timing_t reset_timing;     /**< zero fields fall back to ::BK_DISPLAY_RESET_*_MS_DEFAULT */
-    bk_err_t (*custom_reset)(bk_avdk_lcd_panel_t *panel, void *priv);   /**< optional per-panel reset hook */
-    bk_err_t (*custom_init)(bk_avdk_lcd_panel_t *panel, void *priv);    /**< optional per-panel init hook (used by HDMI bridge) */
+    /** Reset hook driven by ::bk_display_init(). ::bk_lcd_mipi_default_reset
+     *  for the standard GPIO H/L/H, NULL to skip, or a custom function. */
+    bk_err_t (*reset)(bk_avdk_lcd_panel_t *panel);
+    /** Init hook driven by ::bk_display_init() (after the bus clock is set).
+     *  ::bk_lcd_mipi_default_init to send @c init_cmds, NULL to skip, or
+     *  a custom function (may compose by calling the default first). */
+    bk_err_t (*init)(bk_avdk_lcd_panel_t *panel);
 } bk_display_dsi_panel_t;
 
 /**
