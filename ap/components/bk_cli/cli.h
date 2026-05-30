@@ -87,7 +87,6 @@ int cli_iperf_init(void);
 int cli_pwr_init(void);
 int cli_ap_hotplug_init(void);
 int cli_os_init(void);
-int cli_ota_init(void);
 int cli_https_ota_init(void);
 int cli_keyVaule_init(void);
 int cli_psram_init(void);

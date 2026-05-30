@@ -27,6 +27,36 @@ extern void bk_ble_register_sleep_state_callback(ble_sleep_state_cb cb);
 extern void ble_sleep_cb(uint8_t is_sleeping, uint32_t slp_period);
 extern int ble_callback_deal_handler(uint32_t deal_flash_time);
 
+/**
+ * Log the OTA download progress, throttled to one line per 5% boundary
+ * (plus a guaranteed line at 100%). Auto-resets across OTA sessions:
+ * ota_do_init() zeros received_total_size, so on the next run cur_pct
+ * drops below last_pct and the guard restores last_pct to -5.
+ *
+ * Designed for a single OTA in flight at a time (WIFI XOR BLE), which
+ * matches the existing module assumption (one shared f_ota_func_t).
+ */
+static void ota_log_progress_throttled(f_ota_t *ota_ptr)
+{
+    static int last_pct = -5;
+    int cur_pct;
+
+    if (ota_ptr == NULL || ota_ptr->image_size == 0) {
+        return;
+    }
+
+    cur_pct = (int)((((float)ota_ptr->received_total_size)
+                     / ota_ptr->image_size) * 100);
+
+    if (cur_pct < last_pct) {
+        last_pct = -5;
+    }
+    if ((cur_pct - last_pct) >= 5 || cur_pct == 100) {
+        OTA_LOGI("cyg_recvlen_per:(%d%%)\r\n", cur_pct);
+        last_pct = cur_pct;
+    }
+}
+
 static int ota_do_init(f_ota_t* ota_ptr)
 {
     OTA_CHECK_POINTER(ota_ptr);
@@ -185,11 +215,195 @@ static int ota_do_write_flash(f_ota_t* ota_ptr, uint16_t len)
     return BK_OK;
 }
 
-static int ota_do_process_data(f_ota_t* ota_ptr, uint16_t len, ota_update_type_t ota_type, ota_wr_callback wr_callback)
+/* ============================================================
+ *  L1: Per-media data processors.
+ *  Each ota_update_type_t gets its own self-contained function.
+ *  Keep them small and easy to debug — no nested if/else for media
+ *  selection here. The dispatcher below picks the right one.
+ * ============================================================ */
+
+static int ota_do_process_data_wifi(f_ota_t *ota_ptr, uint16_t len, ota_wr_callback wr_callback)
 {
     int ret = BK_FAIL;
     uint32_t write_len = 0, i = 0;
 
+    OTA_LOGD("wr_addr:0x%x, len :0x%x \r\n", ota_ptr->wr_address, len);
+    while (i < len)
+    {
+        write_len = MIN(len - i, (OTA_FLASH_BUFFER_LENGTH - ota_ptr->wr_last_len));
+        os_memcpy((ota_ptr->wr_buf + ota_ptr->wr_last_len), (ota_ptr->wr_tmp_buf + i), write_len);
+
+        i += write_len;
+        ota_ptr->wr_last_len += write_len;
+        ota_ptr->received_total_size += write_len;
+        OTA_LOGD("received_size:0x%x,image_size :0x%x, wr_last_len :0x%x \r\n", ota_ptr->received_total_size, ota_ptr->image_size, ota_ptr->wr_last_len);
+        ota_log_progress_throttled(ota_ptr);
+
+        if (ota_ptr->received_total_size == ota_ptr->image_size)    /*the last package*/
+        {
+            while (ota_ptr->wr_last_len > OTA_FLASH_BUFFER_LENGTH)
+            {
+                if (wr_callback(ota_ptr, OTA_FLASH_BUFFER_LENGTH) == BK_OK)
+                {
+                    OTA_LOGI("wr the last 1k data \r\n");
+                    ota_ptr->wr_last_len -= OTA_FLASH_BUFFER_LENGTH;
+                }
+                else
+                {
+                    OTA_LOGE("wr the last 1k data fail \r\n");
+                    return BK_FAIL;
+                }
+            }
+
+            if (wr_callback(ota_ptr, ota_ptr->wr_last_len) == BK_OK)
+            {
+                OTA_LOGI("wr the last remain data \r\n");
+                ret = BK_OK;
+            }
+            else
+            {
+                OTA_LOGE("wr the last remain data fail \r\n");
+                ret = BK_FAIL;
+            }
+        }
+        else    /*not the last package*/
+        {
+            if (ota_ptr->wr_last_len >= OTA_FLASH_BUFFER_LENGTH)
+            {
+                if (wr_callback(ota_ptr, OTA_FLASH_BUFFER_LENGTH) == BK_OK)
+                {
+                    OTA_LOGD("wr 1k data \r\n");
+                    ota_ptr->wr_last_len = 0;
+                    ret = BK_OK;
+                }
+                else
+                {
+                    OTA_LOGE("wr 1k data fail \r\n");
+                    ret = BK_FAIL;
+                }
+            }
+            else
+            {
+                OTA_LOGD("do adding data \r\n");
+                ret = BK_OK;
+            }
+        }
+    }
+
+    return ret;
+}
+
+static int ota_do_process_data_ble(f_ota_t *ota_ptr, uint16_t len, ota_wr_callback wr_callback)
+{
+    /* BLE path writes flash via ota_do_write_flash() directly (different
+     * buffering model than WIFI). wr_callback is kept in the signature
+     * only for dispatch-table symmetry. */
+    (void)wr_callback;
+
+    int ret = BK_FAIL;
+    uint32_t write_len = 0, i = 0;
+
+    OTA_LOGV("wr_addr:0x%x, new_seq:0x%x, curr_seq :0x%x,len :0x%x \r\n",
+             ota_ptr->wr_address, ota_ptr->new_sequence_number, ota_ptr->curr_sequence_number, len);
+
+    if (ota_ptr->curr_sequence_number != ota_ptr->new_sequence_number)
+    {
+        while (i < len)
+        {
+            write_len = MIN(len - i, (OTA_FLASH_BUFFER_LENGTH - ota_ptr->wr_last_len));
+            OTA_LOGV("write_len:0x%x \r\n", write_len);
+            os_memcpy((ota_ptr->wr_buf + ota_ptr->wr_last_len), (ota_ptr->wr_tmp_buf + i), write_len);
+            ota_ptr->curr_sequence_number = ota_ptr->new_sequence_number;
+            OTA_LOGV("ota_ptr->wr_buf:0x%x--0x%x--0x%x--0x%x--0x%x---0x%x \r\n", ota_ptr->wr_buf[0], ota_ptr->wr_buf[1], ota_ptr->wr_buf[2], ota_ptr->wr_buf[3], ota_ptr->wr_buf[4], ota_ptr->wr_buf[5]);
+
+            i += write_len;
+            ota_ptr->wr_last_len += write_len;
+            ota_ptr->received_total_size += write_len;
+            OTA_LOGV("ota_ptr->received_total_size:0x%x, ota_ptr->wr_last_len :0x%x \r\n", ota_ptr->received_total_size, ota_ptr->wr_last_len);
+            ota_log_progress_throttled(ota_ptr);
+            if (ota_ptr->received_total_size == ota_ptr->image_size)    /*the last package*/
+            {
+                ota_ptr->wr_flash_flag = 0;
+                if (ota_do_write_flash(ota_ptr, ota_ptr->wr_last_len) == BK_OK)
+                {
+                    OTA_LOGD("wr the last data \r\n");
+                    return BK_OK;
+                }
+            }
+            else    /*not the last package*/
+            {
+                if (ota_ptr->wr_last_len >= OTA_FLASH_BUFFER_LENGTH)
+                {
+                    if (ota_do_write_flash(ota_ptr, OTA_FLASH_BUFFER_LENGTH) == BK_OK)
+                    {
+                        OTA_LOGV("wr 1k data \r\n");
+                        ret = BK_OK;
+                    }
+                    ota_ptr->wr_last_len = 0;
+                }
+                else
+                {
+                    OTA_LOGV("do adding data \r\n");
+                    ret = BK_OK;
+                }
+            }
+        }
+    }
+    else
+    {
+        OTA_LOGD("exception logic ota_ptr->wr_last_len :0x%x, len :0x%x ,ota_ptr->wr_address :0x%x\r\n", ota_ptr->wr_last_len, len, ota_ptr->wr_address);
+        if (ota_ptr->wr_last_len < len)
+        {
+            OTA_LOGW("the wr_buf has exceeded 1024 bytes \r\n");
+            // /*need read flash out firstly , repackage and write*/
+            uint8_t *retry_wr_bufer = NULL;
+            uint32_t retry_len = ota_ptr->wr_address % FLASH_SECTOR_SIZE;
+            OTA_MALLOC(retry_wr_bufer, FLASH_SECTOR_SIZE);
+            OTA_LOGD("ota_ptr->wr_address :0x%x, retry_len :0x%x \r\n", ota_ptr->wr_address, retry_len);
+
+            bk_flash_read_bytes((ota_ptr->wr_address - retry_len), retry_wr_bufer, retry_len);
+            if (retry_len > len)
+            {
+                os_memcpy(&retry_wr_bufer[retry_len - len], ota_ptr->wr_tmp_buf, len);
+                bk_flash_erase_sector(ota_ptr->wr_address - retry_len);
+                bk_flash_write_bytes((ota_ptr->wr_address - retry_len), retry_wr_bufer, retry_len);
+                ret = BK_OK;
+            }
+            else
+            {
+                ret = BK_FAIL;
+                OTA_LOGE("the input len is exception \r\n");
+            }
+            OTA_FREE(retry_wr_bufer);
+        }
+        else /*ota_ptr->wr_last_len >= len*/
+        {
+            OTA_LOGW("when the wr_buf is not exceed 1024 bytes \r\n");
+            ota_ptr->wr_last_len -= len;
+            os_memcpy(ota_ptr->wr_buf + ota_ptr->wr_last_len, ota_ptr->wr_tmp_buf, len);
+            ota_ptr->wr_last_len += len;
+            ret = BK_OK;
+        }
+    }
+
+    return ret;
+}
+
+/* ============================================================
+ *  L2: Dispatch table.
+ *  Adding a new ota_update_type_t = add one row here + one
+ *  per-media function above. The dispatcher itself never changes.
+ * ============================================================ */
+
+typedef int (*ota_process_data_impl_fn)(f_ota_t *, uint16_t, ota_wr_callback);
+
+static const ota_process_data_impl_fn s_process_data_table[] = {
+    [OTA_TYPE_WIFI] = ota_do_process_data_wifi,
+    [OTA_TYPE_BLE ] = ota_do_process_data_ble,
+};
+
+static int ota_do_process_data(f_ota_t *ota_ptr, uint16_t len, ota_update_type_t ota_type, ota_wr_callback wr_callback)
+{
     OTA_CHECK_POINTER(ota_ptr);
     OTA_CHECK_POINTER(ota_ptr->wr_tmp_buf);
     OTA_CHECK_POINTER(ota_ptr->wr_buf);
@@ -198,157 +412,12 @@ static int ota_do_process_data(f_ota_t* ota_ptr, uint16_t len, ota_update_type_t
     bk_task_wdt_feed();
 #endif
 
-    if(ota_type == OTA_TYPE_WIFI)
-    {
-        OTA_LOGD("wr_addr:0x%x, len :0x%x \r\n", ota_ptr->wr_address,len);
-        while (i < len)
-        {
-            write_len = MIN(len - i, (OTA_FLASH_BUFFER_LENGTH - ota_ptr->wr_last_len));
-            os_memcpy((ota_ptr->wr_buf + ota_ptr->wr_last_len), (ota_ptr->wr_tmp_buf + i), write_len);
-
-            i += write_len;
-            ota_ptr->wr_last_len += write_len;
-            ota_ptr->received_total_size += write_len;
-            OTA_LOGD("received_size:0x%x,image_size :0x%x, wr_last_len :0x%x \r\n", ota_ptr->received_total_size, ota_ptr->image_size, ota_ptr->wr_last_len);
-            OTA_LOGI("cyg_recvlen_per:(%.2f)%%\r\n",(((float)(ota_ptr->received_total_size))/(ota_ptr->image_size))*100);
-
-            if(ota_ptr->received_total_size == ota_ptr->image_size)    /*the last package*/
-            {
-                while(ota_ptr->wr_last_len > OTA_FLASH_BUFFER_LENGTH)
-                {
-                    if(wr_callback(ota_ptr, OTA_FLASH_BUFFER_LENGTH) == BK_OK)
-                    {
-                        OTA_LOGI("wr the last 1k data \r\n");
-                        ota_ptr->wr_last_len -= OTA_FLASH_BUFFER_LENGTH;
-                    }
-                    else
-                    {
-                        OTA_LOGE("wr the last 1k data fail \r\n");
-                        return BK_FAIL;
-                    }
-                }
-
-                if(wr_callback(ota_ptr, ota_ptr->wr_last_len) == BK_OK)
-                {
-                    OTA_LOGI("wr the last remain data \r\n");
-                    ret = BK_OK;
-                }
-                else
-                {
-                    OTA_LOGE("wr the last remain data fail \r\n");
-                    ret = BK_FAIL;
-                }
-            }
-            else    /*not the last package*/
-            {
-                if (ota_ptr->wr_last_len >= OTA_FLASH_BUFFER_LENGTH)
-                {
-                    if(wr_callback(ota_ptr, OTA_FLASH_BUFFER_LENGTH) == BK_OK)
-                    {
-                        OTA_LOGD("wr 1k data \r\n");
-                        ota_ptr->wr_last_len = 0;
-                        ret = BK_OK;
-                    }
-                    else
-                    {
-                        OTA_LOGE("wr 1k data fail \r\n");
-                        ret = BK_FAIL;
-                    }
-                }
-                else
-                {
-                    OTA_LOGD("do adding data \r\n");
-                    ret = BK_OK;
-                }
-            }
-        }
+    if ((unsigned)ota_type >= (sizeof(s_process_data_table) / sizeof(s_process_data_table[0]))
+        || s_process_data_table[ota_type] == NULL) {
+        OTA_LOGE("unknown ota_type:%d\r\n", (int)ota_type);
+        return BK_FAIL;
     }
-    else if(ota_type == OTA_TYPE_BLE)
-    {
-        OTA_LOGV("wr_addr:0x%x, new_seq:0x%x, curr_seq :0x%x,len :0x%x \r\n", ota_ptr->wr_address,ota_ptr->new_sequence_number, ota_ptr->curr_sequence_number,len);
-        if(ota_ptr->curr_sequence_number != ota_ptr->new_sequence_number)
-        {
-            while (i < len)
-            {
-                write_len = MIN(len - i, (OTA_FLASH_BUFFER_LENGTH - ota_ptr->wr_last_len));
-                OTA_LOGV("write_len:0x%x \r\n", write_len);
-                os_memcpy((ota_ptr->wr_buf + ota_ptr->wr_last_len), (ota_ptr->wr_tmp_buf + i), write_len);
-                ota_ptr->curr_sequence_number = ota_ptr->new_sequence_number;
-                OTA_LOGV("ota_ptr->wr_buf:0x%x--0x%x--0x%x--0x%x--0x%x---0x%x \r\n", ota_ptr->wr_buf[0],ota_ptr->wr_buf[1],ota_ptr->wr_buf[2],ota_ptr->wr_buf[3],ota_ptr->wr_buf[4],ota_ptr->wr_buf[5]);
-
-                i += write_len;
-                ota_ptr->wr_last_len += write_len;
-                ota_ptr->received_total_size += write_len;
-                OTA_LOGV("ota_ptr->received_total_size:0x%x, ota_ptr->wr_last_len :0x%x \r\n", ota_ptr->received_total_size, ota_ptr->wr_last_len);
-                OTA_LOGD("cyg_recvlen_per:(%.2f)%%\r\n",(((float)(ota_ptr->received_total_size))/(ota_ptr->image_size))*100);
-                if(ota_ptr->received_total_size == ota_ptr->image_size)    /*the last package*/
-                {
-                    ota_ptr->wr_flash_flag = 0;
-                    if(ota_do_write_flash(ota_ptr, ota_ptr->wr_last_len) == BK_OK)
-                    {
-                        OTA_LOGD("wr the last data \r\n");
-                        return  BK_OK;
-                    }
-                }
-                else    /*not the last package*/
-                {
-                    if (ota_ptr->wr_last_len >= OTA_FLASH_BUFFER_LENGTH)
-                    {
-                        if(ota_do_write_flash(ota_ptr, OTA_FLASH_BUFFER_LENGTH) == BK_OK)
-                        {
-                            OTA_LOGV("wr 1k data \r\n");
-                            ret = BK_OK;
-                        }
-                        ota_ptr->wr_last_len = 0;
-                    }
-                    else
-                    {
-                        OTA_LOGV("do adding data \r\n");
-                        ret = BK_OK;
-                    }
-                }
-            }
-        }
-        else
-        {
-            OTA_LOGD("exception logic ota_ptr->wr_last_len :0x%x, len :0x%x ,ota_ptr->wr_address :0x%x\r\n", ota_ptr->wr_last_len, len, ota_ptr->wr_address);
-            if(ota_ptr->wr_last_len < len)
-            {
-                OTA_LOGW("the wr_buf has exceeded 1024 bytes \r\n");
-                // /*need read flash out firstly , repackage and write*/
-                uint8_t *retry_wr_bufer = NULL;
-                uint32_t retry_len = ota_ptr->wr_address % FLASH_SECTOR_SIZE;
-                OTA_MALLOC(retry_wr_bufer, FLASH_SECTOR_SIZE);
-                OTA_LOGD("ota_ptr->wr_address :0x%x, retry_len :0x%x \r\n", ota_ptr->wr_address, retry_len);
-
-                bk_flash_read_bytes((ota_ptr->wr_address - retry_len), retry_wr_bufer, retry_len);
-                if(retry_len >len)
-                {
-                    os_memcpy(&retry_wr_bufer[retry_len - len], ota_ptr->wr_tmp_buf, len);
-                    bk_flash_erase_sector(ota_ptr->wr_address - retry_len);
-                    bk_flash_write_bytes((ota_ptr->wr_address - retry_len), retry_wr_bufer, retry_len);
-                    ret = BK_OK;
-                }
-                else
-                {
-                    ret = BK_FAIL;
-                    OTA_LOGE("the input len is exception \r\n");
-                }
-                OTA_FREE(retry_wr_bufer);
-
-            }
-            else /*ota_ptr->wr_last_len >= len*/
-            {
-                OTA_LOGW("when the wr_buf is not exceed 1024 bytes \r\n");
-                ota_ptr->wr_last_len -= len;
-                os_memcpy(ota_ptr->wr_buf + ota_ptr->wr_last_len, ota_ptr->wr_tmp_buf, len);
-                ota_ptr->wr_last_len += len;
-                ret = BK_OK;
-            }
-        }
-    }
-
-    return ret;
+    return s_process_data_table[ota_type](ota_ptr, len, wr_callback);
 }
 
 static int ota_do_check_crc(f_ota_t* ota_ptr,uint32_t in_crc)

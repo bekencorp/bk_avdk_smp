@@ -124,7 +124,7 @@ uint16_t calculate_crc16(const uint8_t *data, size_t length)
 
 static unsigned int crc32_table[256];
 
-static unsigned int make_crc32_table(void)
+unsigned int make_crc32_table(void)
 {
 	static int bFlag = 0;
 	if (bFlag == 1)return(0);

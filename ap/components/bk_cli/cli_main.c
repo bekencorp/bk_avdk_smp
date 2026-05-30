@@ -1600,11 +1600,10 @@ int bk_cli_init(void)
 
 #endif// CONFIG_CODE_SIZE_OPTIMIZE
 
-
 #if (CLI_CFG_OTA == 1)
-	cli_ota_init();
+	extern int bk_ota_register_cli_test_feature(void);
+	bk_ota_register_cli_test_feature();
 #endif
-
 
 #if (CONFIG_PSA_MBEDTLS_TEST && CONFIG_PSA_MBEDTLS)
 	cli_psa_crypto_init();

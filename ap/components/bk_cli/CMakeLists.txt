@@ -50,12 +50,6 @@ if (CONFIG_PM_CLI_ENABLE)
 	)
 endif()
 
-if (CONFIG_OTA_TFTP OR CONFIG_OTA_HTTP)
-	list(APPEND srcs
-		cli_ota.c
-	)
-endif()
-
 if (CONFIG_WIFI_CLI_ENABLE)
 	list(APPEND srcs
 		cli_wifi.c
