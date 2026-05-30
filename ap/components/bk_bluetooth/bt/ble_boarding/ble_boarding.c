@@ -251,7 +251,8 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
         {
             ble_write_req_t *w_req = (ble_write_req_t *)param;
             LOGD("write_cb:conn_idx:%d, prf_id:%d, att_idx:%d, len:%d, data[0]:0x%02x\r\n",
-                      w_req->conn_idx, w_req->prf_id, w_req->att_idx, w_req->len, w_req->value[0]);
+                      w_req->conn_idx, w_req->prf_id, w_req->att_idx, w_req->len,
+                      (w_req->len > 0 && w_req->value) ? w_req->value[0] : 0x00);
             //#if (CONFIG_BTDM_5_2)
 
             if (bk_ble_get_controller_stack_type() == BK_BLE_CONTROLLER_STACK_TYPE_BTDM_5_2
@@ -286,7 +287,7 @@ static void ble_at_legacy_notice_cb(ble_notice_t notice, void *param)
 
                         if (w_req->len < 2)
                         {
-                            LOGW("error input: operation code length: " + w_req->len);
+                            LOGW("error input: operation code length: %d", w_req->len);
                             break;
                         }
 
