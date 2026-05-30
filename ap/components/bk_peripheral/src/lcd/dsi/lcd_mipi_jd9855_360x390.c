@@ -93,7 +93,6 @@ const bk_display_dsi_panel_t lcd_device_jd9855_mipi_360x390 = {
     .n_lanes = DSI_ACTIVE_LANES_1,
     .fps = 58,
     .timing = {
-        .clk = LCD_13M,
         .h_size = PIXEL_360,
         .v_size = PIXEL_390,
         .hsync_pulse_width = 40,

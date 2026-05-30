@@ -108,8 +108,6 @@ const lcd_device_t lcd_device_jd9855_k18xj15 =
     .width = 360,
     .height = 360,
     .qspi = &lcd_qspi_jd9855_k18xj15_config,
-    .init = NULL,
-    .off = NULL,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9855_k18xj15,

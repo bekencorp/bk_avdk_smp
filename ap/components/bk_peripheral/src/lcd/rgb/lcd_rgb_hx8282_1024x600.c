@@ -31,8 +31,8 @@
 const bk_display_rgb_panel_t hx8282_rgb_panel = {
     .id = 0x8282,
     .name = "hx8282_rgb_1024x600",
+    .pixel_clock_hz = BK_RGB_PIXEL_CLK_HZ(32),
     .timing = {
-        .clk = LCD_32M,
         .h_size = 1024,
         .v_size = 600,
         .hsync_pulse_width = 2,

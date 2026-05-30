@@ -99,14 +99,12 @@ static const lcd_qspi_t lcd_qspi_st77903_h0165y008t_config =
 //st77903 screen without display ram, and need to send data continuously.
 const lcd_device_t lcd_device_st77903_h0165y008t =
 {
-	.id = LCD_DEVICE_ST77903_H0165Y008T,
-	.name = "st77903_h0165y008t",
-	.type = LCD_TYPE_QSPI,
-	.width = 400,
-	.height = 400,
-	.qspi = &lcd_qspi_st77903_h0165y008t_config,
-	.init = NULL,
-	.off = NULL,
+    .id = LCD_DEVICE_ST77903_H0165Y008T,
+    .name = "st77903_h0165y008t",
+    .type = LCD_TYPE_QSPI,
+    .width = 400,
+    .height = 400,
+    .qspi = &lcd_qspi_st77903_h0165y008t_config,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st77903_h0165y008t,

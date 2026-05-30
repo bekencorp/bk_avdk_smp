@@ -58,14 +58,12 @@ static const lcd_qspi_t lcd_qspi_sh8601a_config =
 
 const lcd_device_t lcd_device_sh8601a =
 {
-	.id = LCD_DEVICE_SH8601A,
-	.name = "sh8601a",
-	.type = LCD_TYPE_QSPI,
-	.width = 454,
-	.height = 454,
-	.qspi = &lcd_qspi_sh8601a_config,
-	.init = NULL,
-	.off = NULL,
+    .id = LCD_DEVICE_SH8601A,
+    .name = "sh8601a",
+    .type = LCD_TYPE_QSPI,
+    .width = 454,
+    .height = 454,
+    .qspi = &lcd_qspi_sh8601a_config,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_sh8601a, "sh8601a_qspi_454x454", BK_LCD_PANEL_BUS_QSPI);

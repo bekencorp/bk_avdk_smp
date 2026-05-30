@@ -61,14 +61,12 @@ static const lcd_spi_t lcd_spi_jd9853_config =
 
 const lcd_device_t lcd_device_jd9853 =
 {
-    .id = 0x9853,
+    .id = LCD_DEVICE_JD9853,
     .name = "jd9853",
     .type = LCD_TYPE_SPI,
     .width = 240,
     .height = 296,
     .spi = &lcd_spi_jd9853_config,
-    .init = NULL,
-    .off  = NULL,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9853, "jd9853_spi_240x296", BK_LCD_PANEL_BUS_SPI);

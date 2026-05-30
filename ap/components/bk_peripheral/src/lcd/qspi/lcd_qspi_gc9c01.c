@@ -109,8 +109,6 @@ const lcd_device_t lcd_device_gc9c01 =
     .width = 360,
     .height = 360,
     .qspi = &lcd_qspi_gc9c01_config,
-    .init = NULL,
-    .off = NULL,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_gc9c01, "gc9c01_qspi_360x360", BK_LCD_PANEL_BUS_QSPI);

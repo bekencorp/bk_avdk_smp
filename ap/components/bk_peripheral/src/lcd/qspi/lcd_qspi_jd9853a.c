@@ -80,8 +80,6 @@ const lcd_device_t lcd_device_jd9853a =
     .width = 240,
     .height = 320,
     .qspi = &lcd_qspi_jd9853a_config,
-    .init = NULL,
-    .off = NULL,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9853a, "jd9853a_qspi_240x320", BK_LCD_PANEL_BUS_QSPI);

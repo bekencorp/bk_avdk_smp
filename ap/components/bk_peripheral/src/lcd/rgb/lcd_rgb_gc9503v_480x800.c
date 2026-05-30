@@ -115,8 +115,8 @@ static bk_err_t gc9503v_custom_reset(bk_avdk_lcd_panel_t *panel, void *priv)
 const bk_display_rgb_panel_t gc9503v_rgb_panel = {
     .id = 0x9503,
     .name = "gc9503v",
+    .pixel_clock_hz = BK_RGB_PIXEL_CLK_HZ(20),
     .timing = {
-        .clk = LCD_20M,
         .h_size = 480,
         .v_size = 800,
         .hsync_pulse_width = 2,

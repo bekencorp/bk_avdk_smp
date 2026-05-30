@@ -56,8 +56,6 @@ const lcd_device_t lcd_device_st7789v2 =
     .width = 240,
     .height = 320,
     .spi = &lcd_spi_st7789v2_config,
-    .init = NULL,
-    .off = NULL,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st7789v2, "st7789v2_spi_240x320", BK_LCD_PANEL_BUS_SPI);

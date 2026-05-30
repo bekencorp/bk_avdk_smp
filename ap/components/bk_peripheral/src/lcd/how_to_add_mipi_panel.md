@@ -505,12 +505,14 @@ int my_lcd_open(void)
     bk_lcd_panel_reset(ctx.panel_handle);
     bk_lcd_panel_init(ctx.panel_handle);
 
-    /* 3. 拿 panel timing 喂给 DPU */
+    /* 3. 建 DPU 控制器：把 panel 句柄传进去，timing 和 RGB 的目标
+     *    像素时钟都在 panel 创建时已缓存到句柄上，DPU 控制器内部
+     *    直接读取，应用层不要再手动往 dpu_cfg 里塞 .timing /
+     *    .pixel_clock_hz。 */
     bk_display_dpu_config_t dpu_cfg = { /* clk_src / video 按工程约定填 */ };
-    bk_lcd_panel_get_disp_timing(ctx.panel_handle, &dpu_cfg.timing);
 
     /* 4. 建 DPU 控制器并启动 */
-    bk_display_dpu_ctlr_new(&ctx.dpu_ctlr_handle, &dpu_cfg);
+    bk_display_dpu_ctlr_new(&ctx.dpu_ctlr_handle, ctx.panel_handle, &dpu_cfg);
     bk_display_init(ctx.dpu_ctlr_handle);
     bk_display_open(ctx.dpu_ctlr_handle);
     return 0;

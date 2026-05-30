@@ -32,8 +32,8 @@
 const bk_display_rgb_panel_t st7282_rgb_panel = {
     .id = 0x7282,
     .name = "st7282_rgb_480x272",
+    .pixel_clock_hz = BK_RGB_PIXEL_CLK_HZ(8),
     .timing = {
-        .clk = LCD_8M,
         .h_size = 480,
         .v_size = 272,
         .hsync_pulse_width = 2,

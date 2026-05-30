@@ -443,7 +443,7 @@ static const lcd_qspi_t lcd_qspi_spd2010_config =
 	.refresh_method = LCD_QSPI_REFRESH_BY_FRAME,
 	.reg_write_cmd = LCD_QSPI_SPD2010_REGISTER_WRITE_COMMAND,
 	.reg_read_cmd = LCD_QSPI_SPD2010_REGISTER_READ_COMMAND,
-	.reg_read_config.dummy_clk = 0,
+	.reg_read_config.dummy_clk = 0,  
 	.reg_read_config.dummy_mode = LCD_QSPI_NO_INSERT_DUMMMY_CLK,
 	.pixel_write_config.cmd = spd2010_cmd,
 	.pixel_write_config.cmd_len = sizeof(spd2010_cmd),
@@ -455,14 +455,12 @@ static const lcd_qspi_t lcd_qspi_spd2010_config =
 
 const lcd_device_t lcd_device_spd2010 =
 {
-	.id = LCD_DEVICE_SPD2010,
-	.name = "spd2010",
-	.type = LCD_TYPE_QSPI,
-	.width = 412,
-	.height = 412,
-	.qspi = &lcd_qspi_spd2010_config,
-	.init = NULL,
-	.off = NULL,
+    .id = LCD_DEVICE_SPD2010,
+    .name = "spd2010",
+    .type = LCD_TYPE_QSPI,
+    .width = 412,
+    .height = 412,
+    .qspi = &lcd_qspi_spd2010_config,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_spd2010, "spd2010_qspi_412x412", BK_LCD_PANEL_BUS_QSPI);

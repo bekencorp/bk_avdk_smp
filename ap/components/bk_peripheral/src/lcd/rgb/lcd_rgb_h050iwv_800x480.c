@@ -33,8 +33,8 @@
 const bk_display_rgb_panel_t h050iwv_rgb_panel = {
     .id = 0x0500,
     .name = "h050iwv_rgb_800x480",
+    .pixel_clock_hz = BK_RGB_PIXEL_CLK_HZ(30),
     .timing = {
-        .clk = LCD_30M,
         .h_size = 800,
         .v_size = 480,
         .hsync_pulse_width = 2,

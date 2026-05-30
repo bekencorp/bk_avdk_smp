@@ -87,8 +87,6 @@ const lcd_device_t lcd_device_gc9d01 =
     .width = 160,
     .height = 160,
     .spi = &lcd_spi_gc9d01_config,
-    .init = NULL,
-    .off = NULL,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_gc9d01, "gc9d01_spi_160x160", BK_LCD_PANEL_BUS_SPI);
