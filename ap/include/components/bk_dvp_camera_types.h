@@ -31,7 +31,6 @@ typedef struct
 {
     char *name;  /**< sensor name */
     mclk_freq_t  clk;  /**< sensor work clk in config fps and ppi */
-    bk_pixel_format_t fmt; /**< sensor input data format */
     sync_level_t vsync; /**< sensor vsync active level  */
     sync_level_t hsync; /**< sensor hsync active level  */
     uint16_t default_width;

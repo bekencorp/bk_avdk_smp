@@ -1202,7 +1202,6 @@ const dvp_sensor_config_t dvp_sensor_ov2640 =
 {
     .name = "ov2640",
     .clk = MCLK_16M,
-    .fmt = BK_PIXEL_FORMAT_YUYV,
     .vsync = SYNC_HIGH_LEVEL,
     .hsync = SYNC_HIGH_LEVEL,
     /* default config */

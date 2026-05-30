@@ -549,7 +549,6 @@ const dvp_sensor_config_t dvp_sensor_SC101 =
 {
     .name = "SC101",
     .clk = MCLK_24M,
-    .fmt = BK_PIXEL_FORMAT_YUYV,
     .vsync = SYNC_HIGH_LEVEL,
     .hsync = SYNC_HIGH_LEVEL,
     /* default config */

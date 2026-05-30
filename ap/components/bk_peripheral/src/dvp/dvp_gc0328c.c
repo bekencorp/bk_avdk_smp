@@ -541,7 +541,6 @@ const dvp_sensor_config_t dvp_sensor_gc0328c =
 {
     .name = "gc0328c",
     .clk = MCLK_24M,
-    .fmt = BK_PIXEL_FORMAT_YUYV,
     .vsync = SYNC_LOW_LEVEL,
     .hsync = SYNC_HIGH_LEVEL,
     /* default config */

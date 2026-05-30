@@ -11,7 +11,6 @@
 #include <components/bk_camera_bus.h>
 #include "sw_i2c.h"
 #include "isp_camera_ctlr.h"
-#include "isp_cam_sensor.h"
 #include <components/bk_camera_sensor.h>
 
 #define TAG "bk_cam_bus"
