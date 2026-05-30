@@ -236,11 +236,6 @@ static bk_err_t hspl_res_must_lock_acquire_hw(bk_hspl_res_t res, uint8_t hspl_id
 		return BK_OK;
 	}
 
-	if (rtos_is_in_interrupt_context()) {
-		hspl_res_must_lock_assert_timeout(res, timeout_ms);
-		return BK_ERR_TIMEOUT;
-	}
-
 	{
 		uint32_t start_ms = hspl_get_time_ms();
 
