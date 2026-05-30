@@ -129,6 +129,7 @@ int isp_set_port_attribute(ISP_PORT IspPort, ISP_PUB_ATTR_S *pPubAttr)
     portAttr.hdrMode                   = pPubAttr->hdrMode;
     portAttr.stichMode                 = pPubAttr->stichMode;
     portAttr.pixelFormat               = pPubAttr->pixelFormat;
+    portAttr.snsFps                    = pPubAttr->snsFps;
     portAttr.snsRect.width          = pPubAttr->snsRect.width;
     portAttr.snsRect.height         = pPubAttr->snsRect.height;
     portAttr.inFormRect.top         = pPubAttr->inFormRect.top;

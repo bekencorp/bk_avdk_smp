@@ -28,7 +28,7 @@ static void bk_csi_isr(void)
 
 bk_err_t bk_mipi_csi_controller_init(uint16_t width, uint16_t height, uint8_t data_type)
 {
-    data_type = 0x2B; // default raw10
+    uint8_t type = data_type; // default raw10
 
     // CSI PHY
     LOGI("%s %d %d format[0x%x] \r\n", __func__, width, height, data_type);
@@ -45,7 +45,7 @@ bk_err_t bk_mipi_csi_controller_init(uint16_t width, uint16_t height, uint8_t da
     *((volatile unsigned int *)(BASEADDR_CSI + 0x000000ac)) = 0x0 << 24 | /*0x1f*/0x00 << 17 | 0x00<<16;
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000080)) = 0x01<<24 | 0x01<<16 | 0x01<<8 | 0x00<<0;
     *((volatile unsigned int *)(BASEADDR_CSI + 0x00000084)) = 0x0; // ipi vc = 0x00
-    *((volatile unsigned int *)(BASEADDR_CSI + 0x00000088)) = data_type; // embedded data() | data type(0x2c)
+    *((volatile unsigned int *)(BASEADDR_CSI + 0x00000088)) = type; // embedded data() | data type(0x2c)
     *((volatile unsigned int *)(BASEADDR_CSI + 0x0000008c)) = 0x01<<8; // autoAttr flush
 #if 0 // test pattern enable
     uint16_t ipi_hsa = 0x08; // h sync pulse width(clock cycles of pixclk)
