@@ -64,41 +64,6 @@ video_player_video_decoder_ops_t *bk_video_player_get_hw_h264_decoder_ops(void);
 video_player_video_decoder_ops_t *bk_video_player_get_hw_h264_decoder_frame_ops(void);
 
 /**
- * @brief Configure the GPU's rotation applied to the decoded NV12 picture
- *        before it is compressed and handed back to the engine.
- *
- * The H.264 IP itself always writes the recon in its native orientation; the
- * GPU performs the rotation as part of the same VG-Lite blit that converts
- * NV12 to compressed ARGB8888, so the cost is essentially free compared to a
- * CPU rotation.
- *
- * Typical use cases:
- *  - source 1920x1080 landscape on 1080x1920 portrait panel: set 90
- *  - source 1080x1920 portrait on 1080x1920 portrait panel: leave at 0
- *
- * The value is read at decoder init() time. Changing it between videos
- * therefore takes effect at the next open() / play() cycle, not mid-stream.
- *
- * Supported values: 0, 90, 180, 270 (the VG-Lite GPU supports all four).
- * Other values fall back to 0 with a warning.
- *
- * @param rotate_degree One of {0, 90, 180, 270}.
- */
-void bk_video_player_hw_h264_decoder_set_output_rotation(uint32_t rotate_degree);
-
-/**
- * @brief Check whether a GPU-produced H.264 output frame is backed by HSRAM.
- *
- * The Flexa + GPU decoder can allocate output frames from HSRAM or fall back
- * to the frame-buffer heap. Callers that need allocator-specific ownership
- * decisions can use this helper before choosing a free callback.
- *
- * @param frame Pixel buffer pointer returned by the H.264 decoder.
- * @return true if frame points into the configured HSRAM heap.
- */
-bool bk_video_player_hw_h264_decoder_is_hsram_output_frame(const void *frame);
-
-/**
  * @brief Free a GPU-produced H.264 output frame using the matching allocator.
  *
  * HSRAM frames are released with hsram_free()/os_free, while PSRAM fallback

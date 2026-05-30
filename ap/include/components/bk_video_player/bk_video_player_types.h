@@ -130,7 +130,7 @@ typedef struct video_player_buffer_s
     uint8_t *data;           // Buffer data pointer
     uint32_t length;         // Buffer data length
     uint64_t pts;            // Presentation timestamp (in milliseconds)
-    void *frame_buffer;      // External allocated structure pointer (e.g., frame_buffer_t)
+    void *frame_buffer;      // Deprecated (Phase 1): must be NULL; use decode_complete meta instead
     void *user_data;         // User data for buffer management (reserved for future use)
 } video_player_buffer_t;
 
@@ -178,6 +178,10 @@ typedef struct
     video_player_video_params_t video;  // Video stream parameters for current file
     uint64_t frame_index;               // 1-based index of delivered decoded frame
     uint64_t pts_ms;                    // Frame PTS in milliseconds (copied from buffer->pts)
+
+    /* Per-frame decode output (filled by engine before decode_complete_cb). */
+    pixel_format_t output_format;       // Actual pixel format (e.g. NV12, ARGB8888)
+    uint32_t payload_size;              // Decoded payload size (matches buffer->length)
 } video_player_video_frame_meta_t;
 
 typedef struct
