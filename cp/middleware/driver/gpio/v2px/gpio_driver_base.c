@@ -22,6 +22,10 @@
 #if CONFIG_ANA_GPIO
 #include "ana_gpio_driver.h"
 #endif
+#if CONFIG_AON_PMU
+#include "aon_pmu_driver.h"
+#endif
+#include "sys_sw_regs.h"
 #include "bk_misc.h"
 #if CONFIG_MAILBOX
 #include "bk_api_ipc.h"
@@ -109,6 +113,11 @@ static void gpio_default_map_init(void);
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 static void gpio_wakeup_source_config(void);
 static void gpio_record_wakeup_pin_id(void);
+#if !CONFIG_ANA_GPIO
+static bool bk_gpio_get_aon_pmu_deepsleep_flag(void);
+#endif
+static void bk_gpio_set_wakeup_gpio_id(gpio_id_t gpio_id);
+static void gpio_update_wakeup_gpio_id_from_isr(gpio_id_t gpio_id);
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
 static void gpio_dynamic_wakeup_source_init(void);
 #endif
@@ -406,6 +415,18 @@ static void gpio_isr(void)
 			}
 
 			if(i == sizeof(default_map)/sizeof(gpio_default_map_t)) {
+				/* GPIO fired an interrupt but it is NOT declared in
+				 * GPIO_DEFAULT_DEV_CONFIG. Falling through to `continue`
+				 * without silencing it would let the pending status
+				 * (or a held high/low level) re-enter this ISR forever
+				 * and eventually trip the watchdog / overflow the stack.
+				 * Disable this channel's IRQ enable and clear the
+				 * hardware status so the storm stops. The pin can still
+				 * be opted-in later via bk_gpio_enable_interrupt() once
+				 * its owner has been resolved. */
+				gpio_hal_disable_interrupt(gpio_id);
+				gpio_hal_clear_chan_interrupt_status(gpio_id);
+				GPIO_LOGW("gpio %d: spurious int, not in usr_gpio_cfg - silenced\r\n", gpio_id);
 				continue;
 			}
 #endif
@@ -413,6 +434,16 @@ static void gpio_isr(void)
 				GPIO_LOGV("gpio int: index:%d \r\n",gpio_id);
 				s_gpio_isr[gpio_id](gpio_id);
 			}
+#if CONFIG_GPIO_WAKEUP_SUPPORT
+			/* Record the wake-source GPIO id (and propagate to AP via
+			 * pm_shared_info) so that bk_gpio_get_wakeup_gpio_id() returns
+			 * a meaningful value after a low-voltage sleep wake-up.
+			 * Deep-sleep wake-up is already handled at boot scan time in
+			 * gpio_record_wakeup_pin_id(). */
+			if (s_gpio_is_setted_wake_status & ((uint64_t)0x1 << gpio_id)) {
+				gpio_update_wakeup_gpio_id_from_isr(gpio_id);
+			}
+#endif
 			#if CONFIG_PM_ONLY_CP_ENABLE
 			bk_gpio_clear_interrupt(gpio_id);
 			#endif
@@ -706,10 +737,85 @@ gpio_id_t bk_gpio_get_wakeup_gpio_id(void)
 	return s_gpio_wakeup_gpio_id;
 }
 
+#if !CONFIG_ANA_GPIO
+static bool bk_gpio_get_aon_pmu_deepsleep_flag(void)
+{
+#if CONFIG_AON_PMU
+	return (aon_pmu_drv_reg_get(PMU_REG2) & BIT(BIT_SLEEP_FLAG_DEEP_SLEEP));
+#else
+	return false;
+#endif
+}
+#endif
+
+/*
+ * Update the local wake-source GPIO id and publish it to AP via the
+ * pm_shared_info shared-memory window. Used by both the deep-sleep boot
+ * scan and the runtime ISR path (low-voltage sleep wake-up).
+ */
+static void gpio_publish_wakeup_gpio_id(gpio_id_t gpio_id)
+{
+	s_gpio_wakeup_gpio_id = gpio_id;
+
+	pm_shared_info_t info = {0};
+	info.gpio_id = (uint8_t)gpio_id;
+	bk_sys_sw_regs_update_pm_shared_info(&info,
+		BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID,
+		BK_SYS_SW_REGS_LOCK_DISABLE);
+}
+
+static void bk_gpio_set_wakeup_gpio_id(gpio_id_t gpio_id)
+{
+	/* Latch the first triggered wake-source GPIO and propagate to AP via shared memory */
+	if (s_gpio_wakeup_gpio_id == SOC_GPIO_NUM) {
+		gpio_publish_wakeup_gpio_id(gpio_id);
+		bk_gpio_disable_interrupt(gpio_id);
+	}
+}
+
+/*
+ * Called from gpio_isr() when a GPIO that has been registered as a low-vol
+ * sleep wake-source actually fires. Unlike bk_gpio_set_wakeup_gpio_id() this
+ * always overwrites the recorded id so that subsequent wake events can be
+ * observed without an explicit reset, and it does NOT disable the interrupt
+ * (the user ISR is still expected to keep running on later edges).
+ */
+static void gpio_update_wakeup_gpio_id_from_isr(gpio_id_t gpio_id)
+{
+	gpio_publish_wakeup_gpio_id(gpio_id);
+}
+
 static void gpio_record_wakeup_pin_id(void)
 {
+	/*
+	 * Two wake-source detection paths are supported, picked at build time:
+	 *   - CONFIG_ANA_GPIO=y : read latched ANA_GPIO status from AON_PMU
+	 *   - otherwise         : scan digital GPIO interrupt status (7258 style)
+	 * In either case the resulting GPIO ID is published to AP via shared
+	 * memory inside bk_gpio_set_wakeup_gpio_id().
+	 */
 #if CONFIG_ANA_GPIO
-	s_gpio_wakeup_gpio_id = ana_gpio_get_wakeup_pin();
+	gpio_id_t gpio_id = ana_gpio_get_wakeup_pin();
+
+	if (gpio_id < SOC_GPIO_NUM) {
+		bk_gpio_set_wakeup_gpio_id(gpio_id);
+	}
+#else
+	gpio_interrupt_status_t gpio_status;
+	gpio_id_t gpio_id;
+
+	if (!bk_gpio_get_aon_pmu_deepsleep_flag()) {
+		return;
+	}
+
+	gpio_hal_get_interrupt_status(&gpio_status);
+	for (gpio_id = GPIO_0; gpio_id < SOC_GPIO_NUM; gpio_id++) {
+		if (gpio_hal_is_interrupt_triggered(gpio_id, &gpio_status)) {
+			gpio_hal_clear_chan_interrupt_status(gpio_id);
+			bk_gpio_set_wakeup_gpio_id(gpio_id);
+			return;
+		}
+	}
 #endif
 }
 

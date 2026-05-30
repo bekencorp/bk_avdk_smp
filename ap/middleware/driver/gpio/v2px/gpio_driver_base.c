@@ -23,6 +23,7 @@
 #if CONFIG_ANA_GPIO
 #include "ana_gpio_driver.h"
 #endif
+#include "sys_sw_regs.h"
 #include "bk_misc.h"
 #if CONFIG_MAILBOX
 #include "bk_api_ipc.h"
@@ -62,13 +63,6 @@
 	}\
 } while(0)
 
-typedef struct
-{
-	gpio_id_t id;
-	gpio_int_type_t int_type;
-	//gpio_isr_t isr;
-} gpio_dynamic_wakeup_t;
-
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 typedef struct
 {
@@ -76,6 +70,13 @@ typedef struct
 	gpio_int_type_t int_type;
 } gpio_wakeup_t;
 #endif
+
+typedef struct
+{
+	gpio_id_t id;
+	gpio_int_type_t int_type;
+	//gpio_isr_t isr;
+} gpio_dynamic_wakeup_t;
 
 typedef struct
 {
@@ -99,7 +100,8 @@ static bool     s_gpio_default_map_snapshot_valid;
 
 #if CONFIG_GPIO_WAKEUP_SUPPORT
 static uint64_t s_gpio_is_setted_wake_status;
-static gpio_id_t s_gpio_wakeup_gpio_id = SOC_GPIO_NUM;
+/* s_gpio_wakeup_gpio_id is no longer maintained on AP; the ID is owned by CP
+ * and propagated to AP via pm_shared_info.gpio_id (see bk_gpio_get_wakeup_gpio_id). */
 #if CONFIG_GPIO_DYNAMIC_WAKEUP_SUPPORT
 static gpio_dynamic_wakeup_t s_gpio_dynamic_wakeup_source_map[CONFIG_GPIO_DYNAMIC_WAKEUP_SOURCE_MAX_CNT];
 #endif
@@ -454,6 +456,20 @@ static void gpio_isr(void)
 				GPIO_LOGV("gpio int: index:%d \r\n",gpio_id);
 				s_gpio_isr[gpio_id](gpio_id);
 			}
+#if CONFIG_GPIO_WAKEUP_SUPPORT
+			/* If the firing GPIO has been registered on AP as a wake source,
+			 * publish its id into pm_shared_info so bk_gpio_get_wakeup_gpio_id()
+			 * keeps working symmetrically when the wake-up ISR runs on AP
+			 * instead of CP. CP also performs the same update from its own
+			 * gpio_isr; the shared-memory window holds the most recent value. */
+			if (s_gpio_is_setted_wake_status & ((uint64_t)0x1 << gpio_id)) {
+				pm_shared_info_t info = {0};
+				info.gpio_id = (uint8_t)gpio_id;
+				bk_sys_sw_regs_update_pm_shared_info(&info,
+					BK_SYS_SW_REGS_PM_SHARED_INFO_FIELD_GPIO_ID,
+					BK_SYS_SW_REGS_LOCK_DISABLE);
+			}
+#endif
 			bk_gpio_clear_interrupt(gpio_id);
 		}
 	}
@@ -739,17 +755,25 @@ static void gpio_low_power_config(void)
 	gpio_hal_switch_to_low_power_status(skip_io);
 }
 
-#if CONFIG_GPIO_WAKEUP_SUPPORT
+/*
+ * The wake-source GPIO ID is detected on CP and propagated through shared
+ * memory; AP simply reads it back so this getter is always available even when
+ * CONFIG_GPIO_WAKEUP_SUPPORT is not enabled on the AP side.
+ */
 gpio_id_t bk_gpio_get_wakeup_gpio_id(void)
 {
-	return s_gpio_wakeup_gpio_id;
+	pm_shared_info_t info = {0};
+
+	if (bk_sys_sw_regs_get_pm_shared_info(&info) != BK_OK) {
+		return SOC_GPIO_NUM;
+	}
+	return (gpio_id_t)info.gpio_id;
 }
 
+#if CONFIG_GPIO_WAKEUP_SUPPORT
 static void gpio_record_wakeup_pin_id(void)
 {
-#if CONFIG_ANA_GPIO
-	s_gpio_wakeup_gpio_id = ana_gpio_get_wakeup_pin();
-#endif
+	/* AP does not scan wakeup GPIO; CP fills pm_shared_info.gpio_id via shared memory */
 }
 
 bk_err_t gpio_enable_interrupt_mult_for_wake(void)

@@ -89,7 +89,7 @@ void cli_pm_gpio_callback(gpio_id_t gpio_id)
 		bk_pm_module_vote_sleep_ctrl(s_pm_vote2,0x0,0x0);
 		bk_pm_module_vote_sleep_ctrl(s_pm_vote3,0x0,0x0);
 	}
-	BK_LOGD(NULL,"cli_pm_gpio_callback[%d]\r\n",bk_pm_exit_low_vol_wakeup_source_get());
+	BK_LOGD(NULL,"cli_pm_gpio_callback[%d], gpio_id: %d.\r\n",bk_pm_exit_low_vol_wakeup_source_get(), gpio_id);
 }
 
 #define PM_MANUAL_LOW_VOL_VOTE_ENABLE    (0)

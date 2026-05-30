@@ -208,7 +208,8 @@ static void cli_pm_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char 
 			#if CONFIG_GPIO_WAKEUP_SUPPORT
 			bk_gpio_register_isr(pm_param1, cli_pm_gpio_callback);
 			bk_gpio_register_wakeup_source(pm_param1,pm_param2);
-			bk_pm_wakeup_source_set(PM_WAKEUP_SOURCE_INT_GPIO, NULL);
+			pm_gpio_wakeup_config_t gpio_wakeup = {pm_param1, pm_param2};
+			bk_pm_ap_gpio_wakeup_source_config(pm_sleep_mode, PM_WAKEUP_SOURCE_INT_GPIO, &gpio_wakeup);
 			#endif //CONFIG_GPIO_WAKEUP_SUPPORT
 		}
 	}

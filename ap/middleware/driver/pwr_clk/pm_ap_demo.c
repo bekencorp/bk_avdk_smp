@@ -133,6 +133,17 @@ static bk_err_t pm_demo_message_handle(void)
 					#if CONFIG_GPIO_WAKEUP_SUPPORT
 					bk_gpio_register_isr(gpio_id, pm_demo_gpio_callback);
 					bk_gpio_register_wakeup_source(gpio_id,gpio_wakeup_int_type);
+					/* Tell CP-PM to install pm_core_gpio_callback on this pin so the
+					 * GPIO edge can boot AP back up after AP is powered off in LV. */
+					{
+						pm_gpio_wakeup_config_t gpio_wakeup = {
+							(uint16_t)gpio_id,
+							(uint16_t)gpio_wakeup_int_type
+						};
+						bk_pm_ap_gpio_wakeup_source_config(PM_MODE_LOW_VOLTAGE,
+						                                   PM_WAKEUP_SOURCE_INT_GPIO,
+						                                   &gpio_wakeup);
+					}
 					#endif //CONFIG_GPIO_WAKEUP_SUPPORT
 
 					/*APP vote enter low voltage*/
@@ -169,6 +180,17 @@ static bk_err_t pm_demo_message_handle(void)
 					#if CONFIG_GPIO_WAKEUP_SUPPORT
 					bk_gpio_register_isr(gpio_id, pm_demo_gpio_callback);
 					bk_gpio_register_wakeup_source(gpio_id,gpio_wakeup_int_type);
+					/* Same as LV branch: hand the wake source to CP-PM so that CP
+					 * installs pm_core_gpio_callback for the deep-sleep GPIO wake. */
+					{
+						pm_gpio_wakeup_config_t gpio_wakeup = {
+							(uint16_t)gpio_id,
+							(uint16_t)gpio_wakeup_int_type
+						};
+						bk_pm_ap_gpio_wakeup_source_config(PM_MODE_DEEP_SLEEP,
+						                                   PM_WAKEUP_SOURCE_INT_GPIO,
+						                                   &gpio_wakeup);
+					}
 					#endif //CONFIG_GPIO_WAKEUP_SUPPORT
 
 					/*Enter deep sleep*/
