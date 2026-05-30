@@ -9,15 +9,6 @@ menu "App"
 		bool "Enable Ftpd Upgrade"
 		default n
 
-	config OTA_HTTP
-		depends on HTTP
-		bool "Enable Ota Http"
-		default y if NO_HOSTED
-		default n if !NO_HOSTED
-		help
-			Enable HTTP OTA. Requires CONFIG_HTTP (which itself requires LWIP_V2_1),
-			because the implementation calls httpclient_common() from utils_httpc.c.
-
 	#TODO what's the relationship between HTTP and TFTP OTA, exculsive?
 	config OTA_TFTP
 		bool "Enable Ota Tftp"
