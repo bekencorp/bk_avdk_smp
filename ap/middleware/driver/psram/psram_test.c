@@ -2704,6 +2704,11 @@ static void rapid_task_main(void *arg)
 		}
 
 		pat_idx++;
+
+		/* Yield one tick so the IDLE task can run and feed task_wdt; otherwise
+		 * this busy loop starves IDLE on its core and triggers task_wdt assert
+		 * after CONFIG_TASK_WDT_PERIOD_MS. */
+		rtos_delay_milliseconds(1);
 	}
 
 	CLI_LOGD("psram_rapid stopped: pass=%u, fail=%u, err_words=%u\r\n",
