@@ -20,7 +20,7 @@ extern "C" {
 
 #include <common/bk_err.h>
 
-#define BK_ERR_HPDMA_HAL_INVALID_ALIGN (BK_ERR_HPDMA_HAL_BASE - 1) /**< HPDMA addr is not 128-bit aligned */
+#define BK_ERR_HPDMA_HAL_INVALID_ALIGN (BK_ERR_HPDMA_HAL_BASE - 1) /**< HPDMA loop window is not 128-bit aligned */
 #define BK_ERR_HPDMA_HAL_INVALID_YSIZE (BK_ERR_HPDMA_HAL_BASE - 2) /**< HPDMA ysize must be 0 when addr loop is enabled */
 
 

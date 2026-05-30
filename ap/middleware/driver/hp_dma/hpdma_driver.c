@@ -540,6 +540,23 @@ bk_err_t bk_hpdma_init(hpdma_id_t id, const hpdma_config_t *config)
         }
     }
 
+    if (config->src.addr_loop_en) {
+        uint32_t src_loop_end_addr = config->src.start_addr + config->src.xsize;
+        if (((config->src.start_addr | src_loop_end_addr) & 0xFU) != 0) {
+            HPDMA_LOGE("src loop window must be 128-bit aligned, start=0x%x end=0x%x\r\n",
+                       config->src.start_addr, src_loop_end_addr);
+            return BK_ERR_HPDMA_HAL_INVALID_ALIGN;
+        }
+    }
+    if (config->dst.addr_loop_en) {
+        uint32_t dst_loop_end_addr = config->dst.start_addr + config->dst.xsize;
+        if (((config->dst.start_addr | dst_loop_end_addr) & 0xFU) != 0) {
+            HPDMA_LOGE("dst loop window must be 128-bit aligned, start=0x%x end=0x%x\r\n",
+                       config->dst.start_addr, dst_loop_end_addr);
+            return BK_ERR_HPDMA_HAL_INVALID_ALIGN;
+        }
+    }
+
     /*
      * S2 (HPDMA review):
      *   The previous code called hpdma_hal_init_without_channels() on
@@ -1629,12 +1646,6 @@ bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index,
     if (config->dst_ysize == 0) {
         HPDMA_LOGE("Destination ysize must be >= 1 (1 = 1 row, 2 = 2 rows, etc.)\r\n");
         return BK_ERR_PARAM;
-    }
-
-    if ((config->src_addr & 0xFU) != 0 || (config->dst_addr & 0xFU) != 0) {
-        HPDMA_LOGE("Descriptor address must be 128-bit aligned, src=0x%x dst=0x%x\r\n",
-                   config->src_addr, config->dst_addr);
-        return BK_ERR_HPDMA_HAL_INVALID_ALIGN;
     }
 
     // Get descriptor by index (handles 16-byte alignment spacing)

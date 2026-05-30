@@ -340,12 +340,7 @@ static void cli_hpdma_copy(char *pcWriteBuffer, int xWriteBufferLen, int argc, c
     uint32_t src = os_strtoul(argv[1], NULL, 16);
     uint32_t dst = os_strtoul(argv[2], NULL, 16);
     uint32_t len = os_strtoul(argv[3], NULL, 10);
-    
-    // Ensure 128-bit (16-byte) alignment
-    src = (src + 15) & ~15;
-    dst = (dst + 15) & ~15;
-    len = (len + 15) & ~15;  // Align length to 16 bytes
-    
+
     bk_err_t ret = bk_hpdma_memcpy((void*)dst, (const void*)src, len);
     if (ret == BK_OK) {
         CLI_LOGD("hpdma copy: src=0x%x dst=0x%x len=%u SUCCESS\r\n", src, dst, len);
@@ -402,32 +397,27 @@ static void cli_hpdma_link_test_1d(char *pcWriteBuffer, int xWriteBufferLen, int
 
     uint32_t link_cnt = os_strtoul(argv[1], NULL, 10);
     uint32_t trans_len = os_strtoul(argv[2], NULL, 10);
-    
-    // Ensure 128-bit alignment
-    trans_len = (trans_len + 15) & ~15;
-    
+
     CLI_LOGD("hpdma_link_test_1d: link_cnt=%d trans_len=%d\r\n", link_cnt, trans_len);
-    
+
     // Allocate source and destination buffers
     uint32_t total_len = link_cnt * trans_len;
-    uint8_t *src_buf = (uint8_t *)os_malloc(total_len + 16);
-    uint8_t *dst_buf = (uint8_t *)os_malloc(total_len + 16);
-    
+    uint8_t *src_buf = (uint8_t *)os_malloc(total_len);
+    uint8_t *dst_buf = (uint8_t *)os_malloc(total_len);
+
     if (src_buf == NULL || dst_buf == NULL) {
         CLI_LOGE("Failed to allocate buffers\r\n");
+        if (src_buf) os_free(src_buf);
+        if (dst_buf) os_free(dst_buf);
         return;
     }
-    
-    // Align buffers to 16-byte boundary
-    uint8_t *src_aligned = (uint8_t *)(((uintptr_t)src_buf + 15) & ~15);
-    uint8_t *dst_aligned = (uint8_t *)(((uintptr_t)dst_buf + 15) & ~15);
-    
+
     // Initialize source buffer with test pattern
     for (uint32_t i = 0; i < total_len; i++) {
-        src_aligned[i] = (uint8_t)(i & 0xFF);
+        src_buf[i] = (uint8_t)(i & 0xFF);
     }
-    os_memset(dst_aligned, 0, total_len);
-    
+    os_memset(dst_buf, 0, total_len);
+
     // Initialize descriptor table
     void *desc_table = bk_hpdma_link_init(link_cnt);
     if (desc_table == NULL) {
@@ -436,12 +426,12 @@ static void cli_hpdma_link_test_1d(char *pcWriteBuffer, int xWriteBufferLen, int
         os_free(dst_buf);
         return;
     }
-    
+
     // Configure descriptors for 1D transfer
     hpdma_link_config_t configs[link_cnt];
     for (uint32_t i = 0; i < link_cnt; i++) {
-        configs[i].src_addr = (uint32_t)(src_aligned + i * trans_len);
-        configs[i].dst_addr = (uint32_t)(dst_aligned + i * trans_len);
+        configs[i].src_addr = (uint32_t)(src_buf + i * trans_len);
+        configs[i].dst_addr = (uint32_t)(dst_buf + i * trans_len);
         configs[i].src_xsize = trans_len;
         configs[i].src_ysize = 1;  // 1D: 1 row
         configs[i].dst_xsize = trans_len;
@@ -451,10 +441,10 @@ static void cli_hpdma_link_test_1d(char *pcWriteBuffer, int xWriteBufferLen, int
         configs[i].finish_int_en = (i == link_cnt - 1) ? 1 : 0;  // Enable interrupt on last descriptor
         configs[i].half_finish_int_en = 0;
     }
-    
+
     // Set all descriptors
     BK_LOG_ON_ERR(bk_hpdma_link_set_descs(desc_table, configs, link_cnt));
-    
+
     // Allocate DMA channel (application layer allocates)
     hpdma_id_t dma_id = bk_hpdma_alloc(HPDMA_DEV_DTCM);
     if (dma_id >= HPDMA_ID_MAX) {
@@ -464,7 +454,7 @@ static void cli_hpdma_link_test_1d(char *pcWriteBuffer, int xWriteBufferLen, int
         os_free(dst_buf);
         return;
     }
-    
+
     CLI_LOGD("Starting 1D linked list transfer with channel %d...\r\n", dma_id);
 
     // Create semaphore for synchronization
@@ -482,13 +472,12 @@ static void cli_hpdma_link_test_1d(char *pcWriteBuffer, int xWriteBufferLen, int
     // Register ISR with semaphore as user_data
     BK_LOG_ON_ERR(bk_hpdma_register_isr(dma_id, NULL, NULL, hpdma_link_transfer_complete_callback, (void *)&transfer_sem));
     BK_LOG_ON_ERR(bk_hpdma_enable_finish_interrupt(dma_id));
-    
+
     // Start transfer (asynchronous)
     BK_LOG_ON_ERR(bk_hpdma_link_transfer(dma_id, desc_table));
 
-    
     CLI_LOGD("Waiting for transfer completion...\r\n");
-    
+
     // Wait for semaphore (transfer completion signal from callback)
     bk_err_t wait_ret = rtos_get_semaphore(&transfer_sem, BEKEN_WAIT_FOREVER);
     if (wait_ret != BK_OK) {
@@ -500,11 +489,11 @@ static void cli_hpdma_link_test_1d(char *pcWriteBuffer, int xWriteBufferLen, int
         os_free(dst_buf);
         return;
     }
-    
+
     CLI_LOGD("Transfer completed, verifying data...\r\n");
-    
+
     // Verify data consistency after getting semaphore
-    if (cli_hpdma_compare_buffer(src_aligned, dst_aligned, total_len) == 0) {
+    if (cli_hpdma_compare_buffer(src_buf, dst_buf, total_len) == 0) {
         CLI_LOGD("hpdma_link_test_1d: SUCCESS\r\n");
     } else {
         CLI_LOGE("hpdma_link_test_1d: FAILED - Data mismatch\r\n");
@@ -512,8 +501,8 @@ static void cli_hpdma_link_test_1d(char *pcWriteBuffer, int xWriteBufferLen, int
         uint32_t mismatch_count = 0;
         uint32_t max_print = (total_len < 32 ? total_len : 32);
         for (uint32_t i = 0; i < total_len && mismatch_count < max_print; i++) {
-            if (src_aligned[i] != dst_aligned[i]) {
-                CLI_LOGE("Mismatch at offset %d: src=0x%02x dst=0x%02x\r\n", i, src_aligned[i], dst_aligned[i]);
+            if (src_buf[i] != dst_buf[i]) {
+                CLI_LOGE("Mismatch at offset %d: src=0x%02x dst=0x%02x\r\n", i, src_buf[i], dst_buf[i]);
                 mismatch_count++;
             }
         }
@@ -521,7 +510,7 @@ static void cli_hpdma_link_test_1d(char *pcWriteBuffer, int xWriteBufferLen, int
             CLI_LOGE("No mismatch found in first %d bytes, but comparison failed\r\n", max_print);
         }
     }
-    
+
     // Cleanup
     hpdma_test_release_dma_channel(&dma_id);
     rtos_deinit_semaphore(&transfer_sem);
@@ -607,7 +596,6 @@ static int hpdma_test_run_link_1d(uint32_t link_cnt, uint32_t trans_len)
     if (link_cnt == 0 || trans_len == 0) {
         return -1;
     }
-    trans_len = (trans_len + 15U) & ~15U;
     uint32_t total_len = link_cnt * trans_len;
 
     src = (uint8_t *)hpdma_test_aligned_alloc(total_len, HPDMA_TEST_DEFAULT_ALIGN);
@@ -709,20 +697,12 @@ static int hpdma_test_run_link_2d(uint32_t link_cnt, uint16_t xsize,
     if (link_cnt == 0 || xsize == 0 || ysize == 0) {
         return -1;
     }
-    uint32_t aligned_xsize = ((uint32_t)xsize + 15U) & ~15U;
-    if (aligned_xsize > 0xFFFFU) {
-        HPDMA_TEST_ERR("link_2d xsize align overflow\r\n");
-        return -1;
-    }
-    xsize = (uint16_t)aligned_xsize;
-
     uint32_t src_pitch = step;
     if (src_pitch == 0 || src_pitch < xsize) {
         src_pitch = xsize;
     }
-    src_pitch = (src_pitch + 15U) & ~15U;
     if (src_pitch > 0xFFFFU) {
-        HPDMA_TEST_ERR("link_2d step align overflow\r\n");
+        HPDMA_TEST_ERR("link_2d step overflow\r\n");
         return -1;
     }
 
@@ -846,7 +826,6 @@ static void cli_hpdma_concurrent_test(char *pcWriteBuffer, int xWriteBufferLen,
         CLI_LOGE("hpdma_concurrent_test: bad params (max chan=%d)\r\n", HPDMA_ID_MAX);
         return;
     }
-    trans_len = (trans_len + 15U) & ~15U;
 
     /* Per-channel state arrays. */
     void *desc_table[HPDMA_ID_MAX] = {0};
@@ -1048,7 +1027,6 @@ static int hpdma_stress_start_locked(uint32_t size, uint32_t chan_cnt)
         HPDMA_TEST_ERR("stress: bad chan_cnt=%u max=%u\r\n", chan_cnt, HPDMA_ID_MAX);
         return -1;
     }
-    size = (size + 15U) & ~15U;
     if (size == 0) {
         return -1;
     }
@@ -1371,21 +1349,23 @@ static int hpdma_test_run_neg(void)
         bk_err_t r = bk_hpdma_register_isr(HPDMA_ID_MAX, NULL, NULL, NULL, NULL);
         HPDMA_NEG_CASE("register_isr bad_id", r == BK_OK);
     }
-    /* 7. link_set_desc with non-aligned src addr. */
+    /* 7. Loop mode still requires 16-byte-aligned loop window start/end. */
     {
-        void *desc = bk_hpdma_link_init(1);
-        if (desc) {
-            hpdma_link_config_t cfg = {0};
-            cfg.src_addr = 0x30000003; /* deliberately not 16B aligned */
-            cfg.dst_addr = 0x30001000;
-            cfg.src_xsize = 64;
-            cfg.src_ysize = 1;
-            cfg.dst_xsize = 64;
-            cfg.dst_ysize = 1;
-            bk_err_t r = bk_hpdma_link_set_desc(desc, 0, &cfg);
-            HPDMA_NEG_CASE("link_set_desc bad_align", r == BK_OK);
-            bk_hpdma_link_deinit(desc);
-        }
+        hpdma_config_t bad = good;
+        bad.src.addr_loop_en = HPDMA_ADDR_LOOP_ENABLE;
+        bad.src.start_addr = 0x30000003;
+        bk_err_t r = bk_hpdma_init(HPDMA_ID_0, &bad);
+        HPDMA_NEG_CASE("init loop_start_align", r == BK_OK);
+        if (r == BK_OK) (void)bk_hpdma_deinit(HPDMA_ID_0);
+    }
+    {
+        hpdma_config_t bad = good;
+        bad.src.addr_loop_en = HPDMA_ADDR_LOOP_ENABLE;
+        bad.src.xsize = 63;
+        bad.dst.xsize = 63;
+        bk_err_t r = bk_hpdma_init(HPDMA_ID_0, &bad);
+        HPDMA_NEG_CASE("init loop_len_align", r == BK_OK);
+        if (r == BK_OK) (void)bk_hpdma_deinit(HPDMA_ID_0);
     }
     /* 8. link_set_descs NULL desc_table. */
     {

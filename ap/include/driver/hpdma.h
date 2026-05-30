@@ -768,12 +768,12 @@ void bk_hpdma_link_deinit(void *desc_table);
  *
  * @param desc_table Descriptor table pointer
  * @param index Descriptor index
- * @param config Transfer configuration (for 1D: set ysize=0, step=0)
+ * @param config Transfer configuration (for 1D: set ysize=1, step=0)
  *
  * @return
  *    - BK_OK: succeed
  *    - BK_ERR_NULL_PARAM: invalid parameters
- *    - BK_ERR_PARAM: address not 128-bit aligned
+ *    - BK_ERR_PARAM: invalid parameters
  */
 bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index, const hpdma_link_config_t *config);
 
@@ -784,7 +784,7 @@ bk_err_t bk_hpdma_link_set_desc(void *desc_table, uint32_t index, const hpdma_li
  * Supports both 1D and 2D transfers.
  *
  * @param desc_table Descriptor table pointer
- * @param configs Configuration array (for 1D: set ysize=0, step=0)
+ * @param configs Configuration array (for 1D: set ysize=1, step=0)
  * @param link_cnt Number of descriptors to configure
  *
  * @return
