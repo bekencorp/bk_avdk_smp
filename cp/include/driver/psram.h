@@ -322,6 +322,39 @@ bk_err_t bk_psram_deinit(void);
 bk_err_t bk_psram_deinit_with_id(psram_id_t psram_id);
 
 /**
+ * @brief Prepare PSRAM for data-retention across an AP/M55 power-down.
+ *
+ * Replaces bk_psram_deinit() in scenarios where PSRAM cell data must
+ * survive the AP power cycle. Unlike bk_psram_deinit() this function:
+ *   - flushes the controller write buffer (no dirty data lost when
+ *     AHBP clock is gated together with the M55 power-domain);
+ *   - latches PSRAM I/O pads at 3V (ana_reg5.gpio_latch=1);
+ *   - keeps PSRAM voltage LDO ON.
+ *
+ * Pair with bk_psram_data_retention_recover() after AP power-on.
+ *
+ * @return BK_OK on success.
+ */
+bk_err_t bk_psram_data_retention(void);
+
+/**
+ * @brief Recover the PSRAM controller after a retention cycle.
+ *
+ * Pair function of bk_psram_data_retention(). Releases the GPIO/PSRAM
+ * pad latch and rebuilds the minimum controller state (clock-gating
+ * bypass + clock re-select + soft-reset + mode-register reload) so
+ * that the external PSRAM cells, whose data was preserved, become
+ * addressable again without going through the full bk_psram_init()
+ * detection sequence.
+ *
+ * If bk_psram_data_retention() was not called before (i.e. no active
+ * retention state), this falls back to bk_psram_init().
+ *
+ * @return BK_OK on success.
+ */
+bk_err_t bk_psram_data_retention_recover(void);
+
+/**
  * @brief     continue write data to psram
  *
  * This API will write more fast than dtim

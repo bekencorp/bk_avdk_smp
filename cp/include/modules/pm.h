@@ -858,6 +858,18 @@ bool bk_pm_ap_boot_success_get(void);
 bk_err_t bk_pm_ap_first_boot_set(bool is_first_boot);
 
 /**
+ * @brief get whether this is the first AP boot since cold power-on
+ *
+ * Mirrors the AP-side getter so CP services can branch on it. The
+ * underlying flag (PM_AP_WORK_STATE_FIRST_BOOT) is asserted by
+ * reset_reason.c on RESET_SOURCE_POWERON and cleared by
+ * pm_module_shutdown_cpu1() after the first successful AP power-off.
+ *
+ * @return true if PM_AP_WORK_STATE_FIRST_BOOT is set, false otherwise
+ */
+bool bk_pm_ap_first_boot_get(void);
+
+/**
  * @brief set and save wakeup source of exiting  sleep
  *
  * set and save wakeup source of exiting  sleep
