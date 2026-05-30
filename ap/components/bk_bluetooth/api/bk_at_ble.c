@@ -3298,15 +3298,7 @@ int ble_update_conn_param_handle(int sync, int argc, char **argv)
     bd_addr_t connect_addr;
     ble_conn_param_t conn_param;
     uint8_t conn_idx;
-    uint8_t central_count = 0;
     uint8_t addr_type = 1;
-
-    if (!bk_ble_if_support_central(&central_count) || central_count == 0)
-    {
-        LOGW("not support central\n");
-        err = kParamErr;
-        goto error;
-    }
 
     if (argc > 6)
     {
