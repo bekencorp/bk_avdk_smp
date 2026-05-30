@@ -31,6 +31,7 @@ typedef enum
 {
     ISP_MB_LINE_DONE = 0, /*isp mp & sp marco block line int*/
     ISP_FRAME_END_DONE, /*isp mp & sp frame end int*/
+    ISP_STREAM_ERROR,   /*isp stream error int (size_err / dataloss). dispatched from isp_isr_callback. */
     ISP_ISR_MAX,
 } isp_isr_type_t;
 

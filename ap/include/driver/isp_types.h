@@ -82,6 +82,7 @@ typedef struct {
 typedef struct {
     uint8_t enable : 1;
     uint8_t enable_flexa : 1;
+    uint8_t sbi_enable_pending : 1;
     uint8_t buf_cnt;
     uint8_t total_line;
     uint8_t line;

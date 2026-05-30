@@ -18,7 +18,17 @@
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 #define LOGV(...) BK_LOGV(TAG, ##__VA_ARGS__)
 
-// Handle encoding failure
+static void notify_bond_encode_result(private_h264_encode_hw_flexa_ctlr_t *ctrl, uint32_t status)
+{
+    if (ctrl == NULL || ctrl->bond == NULL || ctrl->bond->frame_done == NULL) {
+        return;
+    }
+    ctrl->bond->frame_done(status, ctrl->bond);
+}
+
+// Reclaim the in-flight output buffer and request the next IDR frame.
+// NOTE: Does NOT notify the bond — every frame's bond->frame_done is sent
+// exactly once from h264_encoder_entry based on ctrl->encode_result.
 static void handle_encode_error(private_h264_encode_hw_flexa_ctlr_t *ctrl, void *buffer, uint32_t size)
 {
     if (buffer != NULL && ctrl->config.outbuf_complete && ctrl->h264_encoder_param) {
@@ -36,21 +46,21 @@ static void handle_encode_error(private_h264_encode_hw_flexa_ctlr_t *ctrl, void 
     h264e_set_force_idr(&ctrl->h264e_handler);
 }
 
-// Handle video frames (I-frame or P-frame)
+// Handle a successfully encoded frame (I or P). On out-of-memory for the
+// next buffer, mark this frame as failed via ctrl->encode_result so the
+// single notify in h264_encoder_entry sends BK_FAIL.
 static void handle_video_frame(private_h264_encode_hw_flexa_ctlr_t *ctrl, void *buffer, uint32_t size, uint32_t type)
 {
-    // Pre-allocate buffer for next frame
     void *next_buffer = NULL;
     if (ctrl->config.outbuf_malloc) {
         next_buffer = ctrl->config.outbuf_malloc(CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER, ctrl->config.outbuf_malloc_args);
         if (!next_buffer) {
-            // LOGD("Failed to get next buffer, force IDR\r\n");
+            ctrl->encode_result = BK_FAIL;
             handle_encode_error(ctrl, buffer, size);
             return;
         }
     }
 
-    // Notify upper layer and save buffer for next frame
     if (ctrl->config.outbuf_complete && ctrl->h264_encoder_param) {
         enc_h264_debug_t *debug_info = NULL;
         h264e_get_debug_info(&ctrl->h264e_handler, &debug_info);
@@ -65,28 +75,32 @@ static void handle_video_frame(private_h264_encode_hw_flexa_ctlr_t *ctrl, void *
         ctrl->config.outbuf_complete(&info);
         ctrl->h264_encoder_param->out_buf = (uint32_t)next_buffer;
         ctrl->h264_encoder_param->out_size = CONFIG_BK_ENCODER_H264_MAX_OUTPUT_BUFFER;
+        ctrl->encode_result = BK_OK;
     }
 }
 
-// H.264 encoding completion callback
+// H.264 encode-done callback (driven from vcenc IRQ via h264e_start_encode).
+// Only updates ctrl->encode_result and outbuf state. The bond->frame_done()
+// notification is sent once from h264_encoder_entry after enc_done_sem.
 static void h264e_end_cb(void *buffer, uint32_t size, uint32_t type, uint32_t result, uint32_t param)
 {
     ENCODE_FRAME_DONE;
-    // Validate parameters
-    if (!param || !buffer) {
+    if (!param) {
         LOGE("Invalid parameters in h264e_end_cb\r\n");
-        return;
-    }
-
-    if (type != VCENC_OUT_IFRAME && type != VCENC_OUT_PFRAME) {
-        LOGE("Invalid frame type in h264e_end_cb\r\n");
         return;
     }
 
     private_h264_encode_hw_flexa_ctlr_t *ctrl = (private_h264_encode_hw_flexa_ctlr_t *)param;
 
-    // Handle encoding failure
     if (result != BK_OK) {
+        ctrl->encode_result = BK_FAIL;
+        handle_encode_error(ctrl, buffer, size);
+        return;
+    }
+
+    if (!buffer || (type != VCENC_OUT_IFRAME && type != VCENC_OUT_PFRAME)) {
+        LOGE("Invalid frame output in h264e_end_cb, buffer=%p type=%d\r\n", buffer, type);
+        ctrl->encode_result = BK_FAIL;
         handle_encode_error(ctrl, buffer, size);
         return;
     }
@@ -94,7 +108,10 @@ static void h264e_end_cb(void *buffer, uint32_t size, uint32_t type, uint32_t re
     handle_video_frame(ctrl, buffer, size, type);
 }
 
-// Callback run in hw_encoder task: start one frame encode
+// Runs in hw_encoder task. encode_result is owned by h264e_end_cb /
+// handle_video_frame (set in vcenc IRQ path before h264e_start_encode
+// returns). We never overwrite it to BK_OK on the success path — that was
+// the source of the "fake BK_OK -> ISP SBI deadlock" issue.
 static avdk_err_t h264_encode_msg_callback(void *param)
 {
     if (param == NULL) {
@@ -107,16 +124,16 @@ static avdk_err_t h264_encode_msg_callback(void *param)
         return AVDK_ERR_INVAL;
     }
     ENCODE_FRAME_START;
-    bk_err_t ret= h264e_start_encode(&ctrl->h264e_handler, ctrl->h264_encoder_param);
+    ctrl->encode_result = BK_FAIL;
+    bk_err_t ret = h264e_start_encode(&ctrl->h264e_handler, ctrl->h264_encoder_param);
     if (ret != BK_OK) {
         LOGE("h264e_start_encode failed: %d\r\n", ret);
-        ctrl->encode_result = ret;
+        ctrl->encode_result = BK_FAIL;
         ENCODE_FRAME_END;
         rtos_get_semaphore(&ctrl->enc_start_sem, BEKEN_NO_WAIT);
         return AVDK_ERR_GENERIC;
     }
     ENCODE_FRAME_END;
-    ctrl->encode_result = BK_OK;
     return AVDK_ERR_OK;
 }
 
@@ -150,10 +167,9 @@ static void h264_encoder_entry(void *arg)
         }
         if (param.out_buf == 0) {
             LOGW("Failed to get output buffer, skip this frame\r\n");
+            ctrl->encode_result = BK_FAIL;
             handle_encode_error(ctrl, (void *)param.out_buf, 0);
-            if(ctrl->bond != NULL && ctrl->bond->frame_done != NULL) {
-                ctrl->bond->frame_done(BK_FAIL, ctrl->bond);
-            }
+            notify_bond_encode_result(ctrl, BK_FAIL);
             continue;
         }
         param.pic_buf = ctrl->config.input_buf;
@@ -166,28 +182,22 @@ static void h264_encoder_entry(void *arg)
             .param = ctrl,
             .sem = &ctrl->enc_done_sem
         };
+        ctrl->encode_result = BK_FAIL;
         avdk_err_t ret = hw_encoder_send_msg(&msg, BEKEN_WAIT_FOREVER);
         if (ret != AVDK_ERR_OK) {
             LOGE("hw_encoder_send_msg failed: %d\r\n", ret);
             handle_encode_error(ctrl, (void *)param.out_buf, 0);
+            notify_bond_encode_result(ctrl, BK_FAIL);
             continue;
         }
-        ret = rtos_get_semaphore(&ctrl->enc_done_sem, 1000);
-        if(ret != BK_OK) {
+        ret = rtos_get_semaphore(&ctrl->enc_done_sem, 3000);
+        if (ret != BK_OK) {
             LOGE("get semaphore failed: %d\r\n", ret);
             handle_encode_error(ctrl, (void *)param.out_buf, 0);
-            if(ctrl->bond != NULL && ctrl->bond->frame_done != NULL) {
-                ctrl->bond->frame_done(BK_FAIL, ctrl->bond);
-            }
+            notify_bond_encode_result(ctrl, BK_FAIL);
             continue;
         }
-        if(ctrl->bond != NULL && ctrl->bond->frame_done != NULL) {
-            if (ctrl->encode_result != BK_OK) {
-                ctrl->bond->frame_done(BK_FAIL, ctrl->bond);
-            } else {
-                ctrl->bond->frame_done(BK_OK, ctrl->bond);
-            }
-        }
+        notify_bond_encode_result(ctrl, ctrl->encode_result == BK_OK ? BK_OK : BK_FAIL);
     }
     // Clean up resources
     if (param.out_buf != 0) {

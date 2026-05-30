@@ -6,9 +6,9 @@ extern "C" {
 
 // #define ISP_LOGIC_DEBUG
 // #define GPU_LOGIC_DEBUG
-//#define DPU_LOGIC_DEBUG
-//#define DECODE_LOGIC_DEBUG
-//#define ENCODE_LOGIC_DEBUG
+// #define DPU_LOGIC_DEBUG
+// #define DECODE_LOGIC_DEBUG
+// #define ENCODE_LOGIC_DEBUG
 
 #ifdef ISP_LOGIC_DEBUG
 #define ISP_MP_FRAME_START() do {GPIO_UP(0); } while (0);
@@ -87,7 +87,7 @@ extern "C" {
 #define ENCODE_FRAME_END        do { GPIO_DOWN(37); } while (0);
 #define ENCODE_LINE_START       do {GPIO_UP(38); } while (0);
 #define ENCODE_LINE_END         do { GPIO_DOWN(38); } while (0);
-#define ENCODE_FRAME_DONE       do {GPIO_UP(39); } while (0);
+#define ENCODE_FRAME_DONE       do {GPIO_UP(39); GPIO_DOWN(39); } while (0);
 #else
 #define ENCODE_FRAME_START
 #define ENCODE_FRAME_END
