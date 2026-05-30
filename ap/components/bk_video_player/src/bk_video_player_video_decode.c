@@ -3,8 +3,12 @@
 
 #include "components/avdk_utils/avdk_types.h"
 #include "components/avdk_utils/avdk_check.h"
+#include "common/avdk_pixel_types.h"
 #include "bk_video_player_ctlr.h"
 #include "bk_video_player_video_decode.h"
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+#include "components/bk_video_player/video_decoder/bk_video_player_hw_h264_decoder.h"
+#endif
 #include <stdint.h>
 
 #define TAG "video_decode"
@@ -19,6 +23,8 @@
 #include "bk_video_player_pipeline.h"
 
 #include "bk_video_player_thread_config.h"
+
+
 
 static uint64_t video_player_get_current_time_ms(private_video_player_ctlr_t *controller)
 {
@@ -77,6 +83,8 @@ static void bk_video_player_video_decode_thread(void *arg)
     uint32_t last_seen_session_id = 0;
     uint64_t delivered_frame_index = 0;
 
+    bool drop_until_keyframe = false;
+
     LOGI("%s: Video decode thread started\n", __func__);
 
     rtos_set_semaphore(&controller->video_decode_sem);
@@ -125,6 +133,10 @@ static void bk_video_player_video_decode_thread(void *arg)
             last_video_time_ms = rtos_get_time();
             last_seen_session_id = iter_session_id;
             delivered_frame_index = 0;
+            /* New session starts with a fresh decoder DPB (the parser will
+             * feed an IDR first). Clear the GOP-aware catch-up state so we
+             * don't spuriously hold off the first decode of the new stream. */
+            drop_until_keyframe = false;
         }
 
         // Drop stale packets from previous playback sessions (e.g. stop/start or seek restart).
@@ -178,20 +190,62 @@ static void bk_video_player_video_decode_thread(void *arg)
 
         if (controller->clock_source == VIDEO_PLAYER_CLOCK_AUDIO && in_pts_ms > 0)
         {
-            const uint64_t drop_threshold_ms = 200; // tolerate small jitter without dropping
+            
+            const uint64_t drop_threshold_ms = 500;
             uint64_t cur_time_ms = video_player_get_effective_audio_time_ms_for_video(controller);
+            bool seek_drop_protect = (seek_drop_enable && in_pts_ms < seek_drop_until_pts_ms);
+            bool too_late = (cur_time_ms > 0 && in_pts_ms + drop_threshold_ms < cur_time_ms);
 
-            if (!(seek_drop_enable && in_pts_ms < seek_drop_until_pts_ms) &&
-                cur_time_ms > 0 && in_pts_ms + drop_threshold_ms < cur_time_ms)
+            rtos_lock_mutex(&controller->active_mutex);
+            const bool has_gop_drop = controller->video_predecode_gop_drop_enable;
+            rtos_unlock_mutex(&controller->active_mutex);
+
+            if (!seek_drop_protect)
             {
-                LOGI("%s: Dropping packet before decode, pts=%llu, cur_time_ms=%llu\n",
-                     __func__, (unsigned long long)in_pts_ms, (unsigned long long)cur_time_ms);
-                if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
+                if (has_gop_drop)
                 {
-                    controller->config.video.packet_buffer_free_cb(controller->config.user_data, &in_buffer_node->buffer);
+                    if (drop_until_keyframe || too_late)
+                    {
+                        
+                        if (!drop_until_keyframe)
+                        {
+                            LOGI("%s: GOP-aware catch-up ON (audio ahead), waiting for next keyframe, pts=%llu, cur_time_ms=%llu\n",
+                                    __func__, (unsigned long long)in_pts_ms, (unsigned long long)cur_time_ms);
+                        }
+                        drop_until_keyframe = true;
+                        if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
+                        {
+                            controller->config.video.packet_buffer_free_cb(controller->config.user_data, &in_buffer_node->buffer);
+                        }
+                        buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, in_buffer_node);
+                        continue;
+                        
+
+                        if (drop_until_keyframe)
+                        {
+                            LOGI("%s: GOP-aware catch-up OFF on keyframe, resuming decode at pts=%llu (cur_time_ms=%llu)\n",
+                                 __func__, (unsigned long long)in_pts_ms, (unsigned long long)cur_time_ms);
+                            drop_until_keyframe = false;
+                        }
+                        /* fall through and decode this keyframe -- better to
+                         * show a slightly-late IDR than to wait a whole GOP for
+                         * the next one. */
+                    }
                 }
-                buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, in_buffer_node);
-                continue;
+                else
+                {
+                    if (too_late)
+                    {
+                        LOGI("%s: Dropping packet before decode, pts=%llu, cur_time_ms=%llu\n",
+                             __func__, (unsigned long long)in_pts_ms, (unsigned long long)cur_time_ms);
+                        if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
+                        {
+                            controller->config.video.packet_buffer_free_cb(controller->config.user_data, &in_buffer_node->buffer);
+                        }
+                        buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, in_buffer_node);
+                        continue;
+                    }
+                }
             }
         }
 
@@ -200,13 +254,10 @@ static void bk_video_player_video_decode_thread(void *arg)
         {
             // Output buffer format is decided by upper layer and passed via controller->config.video.output_format.
             // We pass this information to decoder via out_buffer.frame_buffer->fmt (frame_buffer_t),
-            // and allocate buffer size based on bytes-per-pixel of target format.
-            uint32_t bytes_per_pixel = 2; // default YUYV/RGB565
-            if (controller->config.video.output_format == PIXEL_FMT_RGB888)
-            {
-                bytes_per_pixel = 3;
-            }
-            out_buffer.length = controller->current_media_info.video.width * controller->current_media_info.video.height * bytes_per_pixel;
+            // and allocate buffer size based on the target format's packed size.
+            out_buffer.length = video_player_calc_output_buffer_size(controller->current_media_info.video.width,
+                                                                     controller->current_media_info.video.height,
+                                                                     controller->config.video.output_format);
             ret = controller->config.video.buffer_alloc_cb(controller->config.user_data, &out_buffer);
             if (ret != AVDK_ERR_OK)
             {
@@ -251,13 +302,31 @@ static void bk_video_player_video_decode_thread(void *arg)
             fb->fmt = controller->config.video.output_format;
         }
 
-        // For now, video decode is handled synchronously in this thread (no async decode).
+        /*
+         * For now, video decode is handled synchronously in this thread (no async decode).
+         *
+         * IMPORTANT - mutex hold time:
+         * Only hold active_mutex long enough to capture the decoder pointer. Releasing
+         * it before the (potentially very long) decoder->decode() call prevents the
+         * shared active_mutex from serializing this thread with the audio decode
+         * thread (which acquires the same mutex around its own decode() to fetch
+         * controller->active_audio_decoder). With a hardware H.264 decoder a single
+         * decode() can take >150 ms; if we held the mutex across it, the audio
+         * decode thread would be blocked for that whole window, audio would only
+         * deliver at the video decode rate (~6 fps worth of audio packets per
+         * second), the audio-driven master clock (current_time_ms) would advance at
+         * ~20% of wall clock, and video sync (which uses that clock) would scale
+         * the whole playback down to the same ~20% speed. The decoder pointer is
+         * still safe to use after unlock because deinit_active_decoders() only
+         * runs from controller close paths after this thread has been joined.
+         */
         rtos_lock_mutex(&controller->active_mutex);
         video_player_video_decoder_ops_t *active_decoder = controller->active_video_decoder;
+        rtos_unlock_mutex(&controller->active_mutex);
+
         if (active_decoder == NULL)
         {
             // Decoder was deinitialized concurrently (e.g. stop), drop this frame safely.
-            rtos_unlock_mutex(&controller->active_mutex);
             ret = AVDK_ERR_INVAL;
         }
         else
@@ -279,8 +348,6 @@ static void bk_video_player_video_decode_thread(void *arg)
             controller->video_parse_thread_running = false;
             controller->module_status.status = VIDEO_PLAYER_STATUS_FINISHED;
         }
-
-        rtos_unlock_mutex(&controller->active_mutex);
 
         // Always release encoded packet buffer after decode (or retry) completes.
         if (controller->config.video.packet_buffer_free_cb != NULL && in_buffer_node->buffer.data != NULL)
@@ -318,7 +385,30 @@ static void bk_video_player_video_decode_thread(void *arg)
                     // - If video is too far behind audio clock, drop it to catch up.
                     // - If video is ahead of audio clock, wait until clock catches up.
                     uint64_t cur_time_ms = video_player_get_effective_audio_time_ms_for_video(controller);
-                    const uint64_t drop_threshold_ms = 200; // tolerate small jitter without dropping
+
+                    /*
+                     * Post-decode drop threshold.
+                     *
+                     * Generous (2 seconds) on purpose. With slow hardware decoders
+                     * (1080p H.264 on GPU = ~160 ms per frame) the AU we just
+                     * decoded is naturally that decode latency behind real-time
+                     * by the time the frame is ready. The pre-decode GOP-aware
+                     * stage above already throws away P/B frames that we cannot
+                     * keep up with; whatever survives to here (typically an IDR
+                     * we explicitly chose to decode even when late) is the best
+                     * picture we have for "now" and is worth showing.
+                     *
+                     * A tighter 200 ms threshold caused the visible "stuck on
+                     * one frame" symptom: every IDR we managed to decode landed
+                     * ~350 ms behind audio, was dropped here, and the DPU never
+                     * saw a second frame. The 2 s budget covers steady-state
+                     * decode lag plus a full GOP's worth of catch-up without
+                     * dropping the only valid restart point we have.
+                     *
+                     * We still drop when "wildly stale" (e.g. clock jumped after
+                     * pause/seek) which keeps the engine self-correcting.
+                     */
+                    const uint64_t drop_threshold_ms = 2000;
 
                     // IMPORTANT:
                     // If seek preroll drop is enabled, do NOT drop frames based on audio clock before
@@ -649,6 +739,12 @@ avdk_err_t bk_video_player_video_decoder_list_add(private_video_player_ctlr_t *c
     }
 
     new_node->ops = decoder_ops;
+#if CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+    new_node->enable_predecode_gop_drop =
+        (decoder_ops == bk_video_player_get_hw_h264_decoder_ops());
+#else
+    new_node->enable_predecode_gop_drop = false;
+#endif
     new_node->next = NULL;
 
     // Insert at tail to maintain registration order (first registered decoder should be tried first)

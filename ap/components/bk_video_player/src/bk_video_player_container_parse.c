@@ -39,6 +39,20 @@
 
 #include "bk_video_player_thread_config.h"
 
+static bool vp_video_parse_should_exit(private_video_player_ctlr_t *controller)
+{
+    return (controller == NULL) ||
+           controller->video_parse_thread_exit ||
+           !controller->video_parse_thread_running;
+}
+
+static bool vp_audio_parse_should_exit(private_video_player_ctlr_t *controller)
+{
+    return (controller == NULL) ||
+           controller->audio_parse_thread_exit ||
+           !controller->audio_parse_thread_running;
+}
+
 static uint64_t video_player_get_current_time_ms(private_video_player_ctlr_t *controller)
 {
     if (controller == NULL || controller->time_mutex == NULL)
@@ -259,6 +273,11 @@ static void bk_video_player_container_video_parse_thread(void *arg)
                         continue;
                     }
                 }
+                if (vp_video_parse_should_exit(controller))
+                {
+                    buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, buffer_node);
+                    break;
+                }
                 LOGE("%s: Failed to get video packet size from container parser, ret=%d, size=%u\n",
                      __func__, ret, estimated_buffer_size);
                 buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, buffer_node);
@@ -311,6 +330,10 @@ static void bk_video_player_container_video_parse_thread(void *arg)
             {
                 rtos_unlock_mutex(&controller->active_mutex);
                 buffer_pool_put_empty(&controller->video_pipeline.parser_to_decode_pool, buffer_node);
+                if (vp_video_parse_should_exit(controller))
+                {
+                    break;
+                }
                 rtos_delay_milliseconds(1);
                 continue;
             }
@@ -378,6 +401,10 @@ static void bk_video_player_container_video_parse_thread(void *arg)
                         rtos_delay_milliseconds(10);
                         continue;
                     }
+                }
+                if (vp_video_parse_should_exit(controller))
+                {
+                    break;
                 }
                 rtos_delay_milliseconds(1);
                 continue;
@@ -665,6 +692,11 @@ void bk_video_player_container_audio_parse_thread(void *arg)
                         break;
                     }
                 }
+                if (vp_audio_parse_should_exit(controller))
+                {
+                    buffer_pool_put_empty(&controller->audio_pipeline.parser_to_decode_pool, buffer_node);
+                    break;
+                }
                 LOGE("%s: Failed to get audio packet size from container parser, ret=%d, size=%u (failures=%u)\n",
                      __func__, ret, estimated_buffer_size, consecutive_failures);
                 buffer_pool_put_empty(&controller->audio_pipeline.parser_to_decode_pool, buffer_node);
@@ -766,6 +798,10 @@ void bk_video_player_container_audio_parse_thread(void *arg)
                         rtos_delay_milliseconds(10);
                         continue;
                     }
+                }
+                if (vp_audio_parse_should_exit(controller))
+                {
+                    break;
                 }
                 LOGE("%s: Container audio parse failed, ret=%d\n", __func__, ret);
                 rtos_delay_milliseconds(1);

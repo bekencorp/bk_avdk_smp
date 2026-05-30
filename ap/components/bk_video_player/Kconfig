@@ -17,6 +17,24 @@ menu "Bk_video_player"
     config BK_VIDEO_PLAYER_ENABLE_HW_JPEG_VIDEO_DECODER
         bool "Enable HW JPEG video decoder"
         default y
+    config BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER
+        bool "Enable HW H264 video decoder"
+        default n
+        help
+            Enable the hardware H264 video decoder for bk_video_player.
+            Requires CONFIG_BK_DECODER and BK7259-class SoC. The decoder
+            wraps bk_h264_decode_ctlr (frame mode) and outputs NV12 with
+            optional CPU conversion to YUYV/RGB565/RGB888.
+
+    config BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER
+        bool "Enable AAC software audio decoder"
+        default n
+        help
+            Enable the Helix-based AAC software audio decoder for bk_video_player.
+            Required to play the audio stream of typical MP4 (mp4a) files such
+            as those produced by ffmpeg with the AAC encoder. Decoded output is
+            16-bit PCM, interleaved when stereo. Pulls in the aacdec library
+            from properties/modules/audio_codec/aacdec.
 
     endif # AVI_PLAYER
 

@@ -377,15 +377,13 @@ static void bk_video_player_audio_decode_thread(void *arg)
                 video_player_audio_decoder_ops_t *decoder = controller->active_audio_decoder;
                 if (decoder == NULL)
                 {
-                    rtos_unlock_mutex(&controller->active_mutex);
                     ret = AVDK_ERR_NODEV;
                 }
                 else
                 {
                     ret = decoder->decode(decoder, &in_buffer->buffer, &out_buffer);
-                    rtos_unlock_mutex(&controller->active_mutex);
                 }
-
+                rtos_unlock_mutex(&controller->active_mutex);
                 if (controller->config.audio.buffer_free_cb != NULL && in_buffer->buffer.data != NULL)
                 {
                     controller->config.audio.buffer_free_cb(controller->config.user_data, &in_buffer->buffer);

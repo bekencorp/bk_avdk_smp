@@ -4,6 +4,7 @@
 #include "components/avdk_utils/avdk_types.h"
 #include "components/avdk_utils/avdk_check.h"
 #include "bk_video_player_buffer_pool.h"
+#include "common/avdk_pixel_types.h"
 
 #define TAG "buffer_pool"
 
@@ -28,6 +29,28 @@ static void buffer_pool_used_inc(video_player_buffer_pool_t *pool)
     {
         // Keep it best-effort: do not wrap-around.
         LOGW("%s: used_count overflow (used=%u,count=%u)\n", __func__, pool->used_count, pool->count);
+    }
+}
+uint32_t video_player_calc_output_buffer_size(uint32_t width, uint32_t height, pixel_format_t format)
+{
+    const uint32_t pixels = width * height;
+    const uint32_t mb_aligned_width = (width + 15U) & ~15U;
+    const uint32_t mb_aligned_height = (height + 15U) & ~15U;
+
+    switch (format)
+    {
+        case PIXEL_FMT_NV12:
+        case PIXEL_FMT_NV21:
+        case PIXEL_FMT_I420:
+        case PIXEL_FMT_YV12:
+        case PIEXL_FMT_YUV420P:
+        case PIXEL_FMT_YUV420SP:
+        case PIXEL_FMT_YUV420:
+            return (mb_aligned_width * mb_aligned_height * 3U) / 2U;
+        case PIXEL_FMT_RGB888:
+            return pixels * 3U;
+        default:
+            return pixels * 2U;
     }
 }
 

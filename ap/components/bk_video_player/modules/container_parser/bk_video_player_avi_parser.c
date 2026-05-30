@@ -626,6 +626,9 @@ static avdk_err_t avi_parser_parse_video_info(struct video_player_container_pars
     video_params->fps = (uint32_t)(ctx->video_fps + 0.5);
     video_params->format = ctx->video_format;
     video_params->jpeg_subsampling = ctx->jpeg_subsampling;
+    // AVI does not provide H.264 codec_config (avcC). Decoder must use in-band SPS/PPS.
+    video_params->codec_config = NULL;
+    video_params->codec_config_size = 0;
 
     LOGI("%s: Video info: width=%d, height=%d, fps=%d, format=%d, jpeg_subsampling=%u\n",
          __func__, video_params->width, video_params->height,

@@ -49,6 +49,8 @@ typedef struct video_player_audio_decoder_node_s
 typedef struct video_player_video_decoder_node_s
 {
     video_player_video_decoder_ops_t *ops;
+    // Private registration metadata used to seed the current session's catch-up policy.
+    bool enable_predecode_gop_drop;
     struct video_player_video_decoder_node_s *next;
 } video_player_video_decoder_node_t;
 
@@ -119,6 +121,8 @@ typedef struct private_video_player_ctlr_s
     video_player_audio_decoder_ops_t *active_audio_decoder;
     video_player_video_decoder_ops_t *active_video_decoder;
     video_player_container_parser_ops_t *active_container_parser;
+    // Video catch-up policy for the current active decoder/session.
+    bool video_predecode_gop_drop_enable;
     // Per-track enable flags for current file.
     // These flags decouple "stream exists in container" from "stream is playable".
     // - If a stream exists but no suitable decoder is found, the track is disabled and playback continues with the other track.

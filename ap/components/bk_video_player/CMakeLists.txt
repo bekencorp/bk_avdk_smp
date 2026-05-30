@@ -27,11 +27,31 @@ if (CONFIG_AVI_PLAYER)
     if (CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_JPEG_VIDEO_DECODER)
         list(APPEND srcs modules/video_decoder/bk_video_player_hw_jpeg_decoder.c)
     endif()
+    if (CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER)
+        list(APPEND srcs
+            modules/video_decoder/bk_video_player_hw_h264_decoder.c
+            modules/video_decoder/bk_video_player_hw_h264_frame_decoder.c
+        )
+    endif()
+    if (CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER)
+        list(APPEND srcs modules/audio_decoder/bk_video_player_aac_decoder.c)
+    endif()
+endif()
+
+set(_priv_requires bk_common include avdk_utils lvgl bk_h264d bk_vfs)
+if (CONFIG_BK_VIDEO_PLAYER_ENABLE_AAC_AUDIO_DECODER)
+    list(APPEND _priv_requires aacdec)
+endif()
+if (CONFIG_BK_VIDEO_PLAYER_ENABLE_HW_H264_VIDEO_DECODER)
+    # The HW H264 decoder runs Flexa segment mode bonded to the GPU (VG-Lite)
+    # for NV12 -> compressed ARGB conversion. Pull in bk_gpu for the GPU
+    # controller and media_service for bk_flexa_h264d_gpu_bond_*.
+    list(APPEND _priv_requires bk_gpu media_service)
 endif()
 
 armino_component_register(
     SRCS "${srcs}"
     INCLUDE_DIRS "${incs}"
-    PRIV_REQUIRES bk_common include avdk_utils lvgl bk_h264d bk_vfs
+    PRIV_REQUIRES "${_priv_requires}"
 )
 

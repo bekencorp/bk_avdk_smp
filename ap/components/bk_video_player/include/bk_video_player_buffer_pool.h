@@ -121,6 +121,16 @@ video_player_buffer_node_t *buffer_pool_try_get_filled(video_player_buffer_pool_
  */
 void buffer_pool_put_empty(video_player_buffer_pool_t *pool, video_player_buffer_node_t *node);
 
+/**
+ * @brief Calculate the size of the output buffer
+ *
+ * @param width Width of the video
+ * @param height Height of the video
+ * @param format Format of the video
+ * @return uint32_t Size of the output buffer
+ */
+uint32_t video_player_calc_output_buffer_size(uint32_t width, uint32_t height, pixel_format_t format);
+
 #ifdef __cplusplus
 }
 #endif

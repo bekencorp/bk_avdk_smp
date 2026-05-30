@@ -531,7 +531,9 @@ static avdk_err_t mp4_parser_parse_video_info(struct video_player_container_pars
     video_params->height = ctx->video_height;
     video_params->fps = (uint32_t)(ctx->video_fps + 0.5);
     video_params->jpeg_subsampling = ctx->jpeg_subsampling;
-    
+    video_params->codec_config = NULL;
+    video_params->codec_config_size = 0;
+
     // Map MP4 codec type to video format
     if (ctx->video_codec == MP4_CODEC_H264)
     {
@@ -545,11 +547,21 @@ static avdk_err_t mp4_parser_parse_video_info(struct video_player_container_pars
     {
         video_params->format = VIDEO_PLAYER_VIDEO_FORMAT_UNKNOWN;
     }
-    
-    LOGV("%s: Video info: width=%u, height=%u, fps=%u, format=%u, jpeg_subsampling=%u\n",
+
+    if (video_params->format == VIDEO_PLAYER_VIDEO_FORMAT_H264)
+    {
+        video_params->codec_config = MP4_video_codec_config(ctx->mp4_handle, &video_params->codec_config_size);
+        if (video_params->codec_config == NULL || video_params->codec_config_size == 0)
+        {
+            LOGW("%s: H264 stream has no avcC codec_config (decoder may fail to parse first NALU)\n", __func__);
+        }
+    }
+
+    LOGV("%s: Video info: width=%u, height=%u, fps=%u, format=%u, jpeg_subsampling=%u, cfg_size=%u\n",
          __func__, video_params->width, video_params->height,
-         video_params->fps, video_params->format, video_params->jpeg_subsampling);
-    
+         video_params->fps, video_params->format, video_params->jpeg_subsampling,
+         video_params->codec_config_size);
+
     return AVDK_ERR_OK;
 }
 
