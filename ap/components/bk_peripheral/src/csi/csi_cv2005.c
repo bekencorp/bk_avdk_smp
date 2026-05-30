@@ -693,6 +693,7 @@ static int CV2005_Exit(ISP_PORT IspPort)
     if (CV2005_1080P_CalibParam_dynamic != NULL)
     {
         os_free(CV2005_1080P_CalibParam_dynamic);
+        CV2005_1080P_CalibParam_dynamic = NULL;
     }
     return  BK_OK;
 }

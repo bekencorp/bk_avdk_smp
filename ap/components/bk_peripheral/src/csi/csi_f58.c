@@ -219,6 +219,7 @@ static int F58_Exit(ISP_PORT IspPort)
     if (F58_720P_CalibParam_dynamic != NULL)
     {
         os_free(F58_720P_CalibParam_dynamic);
+        F58_720P_CalibParam_dynamic = NULL;
     }
     return  0;
 }

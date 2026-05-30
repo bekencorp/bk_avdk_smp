@@ -261,6 +261,7 @@ static int GC4653_Exit(ISP_PORT IspPort)
     if (GC4653_720P_CalibParam_dynamic != NULL)
     {
         os_free(GC4653_720P_CalibParam_dynamic);
+        GC4653_720P_CalibParam_dynamic = NULL;
     }
     return  BK_OK;
 }
@@ -1449,7 +1450,6 @@ avdk_err_t gc4653_detect(bk_camera_sensor_handle_t *handle, bk_camera_sensor_con
     csi_sensor->ops.get_sensor_object = gc4653_get_sensor_object;
     csi_sensor->ops.get_sensor_cfg = gc4653_get_sensor_cfg;
     csi_sensor->ops.query_support_formats = gc4653_query_support_formats;
-    // csi_sensor->ops.get_sensor_pixelFormat = gc4653_get_sensor_pixelFormat;
     csi_sensor->isp_pub_attr = &gc4653_mipi_linear_attr;
     csi_sensor->sensor_config = &csi_sensor_gc4653;
     *handle = (bk_camera_sensor_handle_t)&csi_sensor->ops;

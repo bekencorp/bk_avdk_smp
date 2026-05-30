@@ -32,6 +32,10 @@ if (CONFIG_CSI_CAMERA)
 		list(APPEND CSI_CAMERA_FUNCTION_SYMBOLS "sc4336_detect")
 	endif()
 
+	if (CONFIG_CSI_SC3336)
+		list(APPEND CSI_CAMERA_DEVICE_FILES ${CSI_CAMERA_PATH}/csi_sc3336.c)
+		list(APPEND GLOBAL_FUNCTION_SYMBOLS "sc3336_detect")
+	endif()
 endif()
 
 

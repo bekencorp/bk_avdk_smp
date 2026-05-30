@@ -388,6 +388,7 @@ static int SC4336_Exit(ISP_PORT IspPort)
     if (SC4336_720P_CalibParam_dynamic != NULL)
     {
         os_free(SC4336_720P_CalibParam_dynamic);
+        SC4336_720P_CalibParam_dynamic = NULL;
     }
     return  BK_OK;
 }

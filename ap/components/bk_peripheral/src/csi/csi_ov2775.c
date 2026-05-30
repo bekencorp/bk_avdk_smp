@@ -214,6 +214,7 @@ static int OV2775_Exit(ISP_PORT IspPort)
     if (OV2775_1080P_CalibParam_dynamic != NULL)
     {
         os_free(OV2775_1080P_CalibParam_dynamic);
+        OV2775_1080P_CalibParam_dynamic = NULL;
     }
 
     return  BK_OK;
