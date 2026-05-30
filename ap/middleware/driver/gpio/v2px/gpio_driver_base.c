@@ -1316,12 +1316,16 @@ static void gpio_default_map_init(void)
 		/* Detach IRQ first so a transient state during reconfig does not fire. */
 		gpio_hal_disable_interrupt(id);
 
-		/* 1. function / direction selection */
+		/* 1. function / direction selection.
+		 *    For second-function pins we must go through gpio_dev_unprotect_map():
+		 *    it consults both GPIO_DEV_TO_IOMX_CODE_MAP (flexible mux: UART/I2C/
+		 *    SPI/PWM/...) and MAP_FUNC_CODE_FIX_GPIO (fixed mux: SDIO1/USB/JTAG/
+		 *    LCD-DPI/...). Using convert_gpio_dev_to_iomx_code() alone silently
+		 *    drops fixed-mux devs (e.g. SDIO1_HOST_CLK/CMD/DATA0 on P14-P16,
+		 *    which only exist in the fixed map as FUNC_CODE_129), leaving the
+		 *    function selector untouched. */
 		if (m->second_func_en) {
-			IOMX_CODE_T code = convert_gpio_dev_to_iomx_code((gpio_dev_t)m->second_func_dev);
-			if (code != FUNC_CODE_INVALID) {
-				gpio_hal_set_func_code(id, code);
-			}
+			(void)gpio_dev_unprotect_map(id, (gpio_dev_t)m->second_func_dev);
 		} else {
 			switch (m->io_mode) {
 			case GPIO_IO_DISABLE:
