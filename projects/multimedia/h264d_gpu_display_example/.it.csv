@@ -1,0 +1,9 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+reboot,reboot,1,[RESULT][PASS],60
+h264d_gpu_display_01,ap_cmd h264d_gpu_display start 2,1,[RESULT][PASS],60
+h264d_gpu_display_02,ap_cmd h264d_gpu_display start 20,1,loop 1 start,60
+h264d_gpu_display_02,ap_cmd h264d_gpu_display stop,1,[RESULT][PASS],60
+h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display isp_open,1,CMDRSP:OK,60
+h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display start,1,loop 1 start,60
+h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display isp_close,1,CMDRSP:OK,60
+h264d_gpu_display_PIP_01,ap_cmd h264d_gpu_display stop,1,[RESULT][PASS],60

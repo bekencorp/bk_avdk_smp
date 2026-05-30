@@ -93,6 +93,14 @@ static void h264d_gpu_dpu_unlock(void)
 	}
 }
 
+static void h264d_gpu_dpu_mutex_deinit(void)
+{
+	if (s_dpu_mutex != NULL) {
+		(void)rtos_deinit_mutex(&s_dpu_mutex);
+		s_dpu_mutex = NULL;
+	}
+}
+
 static void h264d_gpu_dpu_destroy_ctx(h264d_gpu_dpu_ctx_t *ctx)
 {
 	if (ctx == NULL) {
@@ -107,8 +115,7 @@ static void h264d_gpu_dpu_destroy_ctx(h264d_gpu_dpu_ctx_t *ctx)
 	}
 
 	if (ctx->panel_handle != NULL) {
-		(void)bk_lcd_panel_reset(ctx->panel_handle);
-		(void)bk_lcd_panel_del(ctx->panel_handle);
+		(void)bk_lcd_panel_delete(ctx->panel_handle);
 		ctx->panel_handle = NULL;
 	}
 
@@ -143,12 +150,14 @@ avdk_err_t h264d_gpu_display_dpu_open(void)
 	panel = h264d_gpu_dpu_panel_get();
 	if (panel == NULL) {
 		h264d_gpu_dpu_unlock();
+		h264d_gpu_dpu_mutex_deinit();
 		return AVDK_ERR_INVAL;
 	}
 
 	ctx = (h264d_gpu_dpu_ctx_t *)os_malloc(sizeof(*ctx));
 	if (ctx == NULL) {
 		h264d_gpu_dpu_unlock();
+		h264d_gpu_dpu_mutex_deinit();
 		return AVDK_ERR_NOMEM;
 	}
 	os_memset(ctx, 0, sizeof(*ctx));
@@ -166,7 +175,6 @@ avdk_err_t h264d_gpu_display_dpu_open(void)
 
 	os_memset(&panel_cfg, 0, sizeof(panel_cfg));
 	panel_cfg.reset_pin = s_dpu_panel_reset_pin;
-	panel_cfg.reset_active_level = false;
 
 	LOGI("dpu step: panel_new\r\n");
 	ret = bk_lcd_mipi_panel_new(ctx->dsi_bus_handle,
@@ -177,16 +185,6 @@ avdk_err_t h264d_gpu_display_dpu_open(void)
 		goto error;
 	}
 
-	LOGI("dpu step: panel_reset\r\n");
-	ret = bk_lcd_panel_reset(ctx->panel_handle);
-	if (ret != BK_OK) {
-		goto error;
-	}
-	LOGI("dpu step: panel_init\r\n");
-	ret = bk_lcd_panel_init(ctx->panel_handle);
-	if (ret != BK_OK) {
-		goto error;
-	}
 	LOGI("dpu step: dpu_new\r\n");
 	ret = bk_display_dpu_ctlr_new(&ctx->dpu_ctlr_handle, ctx->panel_handle, &dpu_cfg);
 	if (ret != BK_OK) {
@@ -215,6 +213,7 @@ avdk_err_t h264d_gpu_display_dpu_open(void)
 error:
 	h264d_gpu_dpu_destroy_ctx(ctx);
 	h264d_gpu_dpu_unlock();
+	h264d_gpu_dpu_mutex_deinit();
 	LOGE("dpu open failed, ret=%d\r\n", (int)ret);
 	return AVDK_ERR_GENERIC;
 }
@@ -236,6 +235,7 @@ void h264d_gpu_display_dpu_close(void)
 		h264d_gpu_dpu_destroy_ctx(ctx);
 		LOGI("dpu closed\r\n");
 	}
+	h264d_gpu_dpu_mutex_deinit();
 }
 
 avdk_err_t h264d_gpu_display_dpu_flush(void *frame, avdk_err_t (*free_cb)(void *args))

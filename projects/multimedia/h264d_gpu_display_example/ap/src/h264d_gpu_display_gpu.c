@@ -130,8 +130,19 @@ static avdk_err_t h264d_gpu_display_frame_pool_init(uint32_t buf_size)
 		s_frame_pool[i].buf = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, buf_size);
 		s_frame_pool[i].in_use = 0U;
 		if (s_frame_pool[i].buf == NULL) {
+			uint32_t j;
+
 			LOGE("frame pool init: alloc slot %u (size=%u) failed\r\n",
 			     (unsigned)i, (unsigned)buf_size);
+			for (j = 0U; j < i; j++) {
+				if (s_frame_pool[j].buf != NULL) {
+					bk_frame_buffer_free(s_frame_pool[j].buf);
+					s_frame_pool[j].buf = NULL;
+					s_frame_pool[j].in_use = 0U;
+				}
+			}
+			s_frame_pool_init_count = 0U;
+			s_frame_pool_buf_size = 0U;
 			return AVDK_ERR_NOMEM;
 		}
 	}
@@ -145,6 +156,29 @@ static avdk_err_t h264d_gpu_display_frame_pool_init(uint32_t buf_size)
 	return AVDK_ERR_OK;
 }
 
+void h264d_gpu_display_gpu_frame_pool_deinit(void)
+{
+	void *bufs[GPU_FRAME_POOL_COUNT] = {0};
+	uint32_t i;
+	uint32_t flags;
+
+	flags = rtos_enter_critical();
+	for (i = 0U; i < GPU_FRAME_POOL_COUNT; i++) {
+		bufs[i] = s_frame_pool[i].buf;
+		s_frame_pool[i].buf = NULL;
+		s_frame_pool[i].in_use = 0U;
+	}
+	s_frame_pool_init_count = 0U;
+	s_frame_pool_buf_size = 0U;
+	rtos_exit_critical(flags);
+
+	for (i = 0U; i < GPU_FRAME_POOL_COUNT; i++) {
+		if (bufs[i] != NULL) {
+			bk_frame_buffer_free(bufs[i]);
+		}
+	}
+}
+
 static void h264d_gpu_display_line_done(uint32_t done_lines, void *args)
 {
 	(void)args;
@@ -155,6 +189,17 @@ static void h264d_gpu_display_line_done(uint32_t done_lines, void *args)
 }
 
 #if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+static void h264d_gpu_display_release_sem_deinit(void)
+{
+	if (s_gpu_ctx.display_release_sem != NULL) {
+		beken_semaphore_t sem = s_gpu_ctx.display_release_sem;
+
+		s_gpu_ctx.display_release_sem = NULL;
+		(void)rtos_deinit_semaphore(&sem);
+	}
+	s_gpu_ctx.display_pushed = 0U;
+}
+
 static avdk_err_t h264d_gpu_display_dpu_release(void *ptr)
 {
 	(void)h264d_gpu_display_frame_free(ptr);
@@ -249,6 +294,9 @@ avdk_err_t h264d_gpu_display_gpu_open(uint8_t *src_buffer,
 		if (pool_ret != AVDK_ERR_OK) {
 			LOGE("frame pool init failed=%d (size=%u)\r\n",
 			     (int)pool_ret, (unsigned)pool_buf_size);
+#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+			h264d_gpu_display_release_sem_deinit();
+#endif
 			return pool_ret;
 		}
 	}
@@ -338,6 +386,9 @@ error:
 	s_gpu_ctx.line_done_args = NULL;
 	s_gpu_ctx.frame_done_cb = NULL;
 	s_gpu_ctx.frame_done_args = NULL;
+#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+	h264d_gpu_display_release_sem_deinit();
+#endif
 	LOGE("gpu open failed: %d\r\n", (int)ret);
 	return ret;
 }
@@ -355,6 +406,9 @@ void h264d_gpu_display_gpu_close(void)
 	s_gpu_ctx.line_done_args = NULL;
 	s_gpu_ctx.frame_done_cb = NULL;
 	s_gpu_ctx.frame_done_args = NULL;
+#if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
+	h264d_gpu_display_release_sem_deinit();
+#endif
 	LOGI("gpu closed\r\n");
 }
 

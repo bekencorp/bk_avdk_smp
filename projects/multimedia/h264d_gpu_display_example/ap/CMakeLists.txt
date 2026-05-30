@@ -5,6 +5,7 @@ set(incs
 
 set(srcs
     ap_main.c
+    src/h264d_gpu_display_boot.c
     src/h264d_gpu_display_demo.c
     src/h264d_gpu_display_h264_parser.c
     src/h264d_gpu_display_gpu.c

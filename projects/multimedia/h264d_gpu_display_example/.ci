@@ -1,0 +1,1 @@
+./dbuild.sh make bk7259 PROJECT=multimedia/h264d_gpu_display_example

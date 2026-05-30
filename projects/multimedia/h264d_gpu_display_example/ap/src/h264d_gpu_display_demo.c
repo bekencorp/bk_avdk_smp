@@ -439,6 +439,7 @@ cleanup:
 #if H264D_GPU_DISPLAY_ENABLE_MIPI_DISPLAY
 	h264d_gpu_display_dpu_close();
 #endif
+	h264d_gpu_display_gpu_frame_pool_deinit();
 	if (decoder != NULL) {
 		(void)bk_h264_decode_close(decoder);
 		(void)bk_h264_decode_deinit(decoder);
@@ -502,7 +503,7 @@ static void h264d_gpu_display_print_usage(void)
 #endif
 }
 
-static avdk_err_t h264d_gpu_display_start_task(uint32_t max_loops)
+avdk_err_t h264d_gpu_display_start(uint32_t max_loops)
 {
 	avdk_err_t ret;
 
@@ -595,7 +596,7 @@ static void cli_h264d_gpu_display_cmd(char *pcWriteBuffer, int xWriteBufferLen, 
 		if (argc >= 3) {
 			loops = (uint32_t)os_strtoul(argv[2], NULL, 10);
 		}
-		ret = h264d_gpu_display_start_task(loops);
+		ret = h264d_gpu_display_start(loops);
 		h264d_gpu_display_write_rsp(pcWriteBuffer,
 					       xWriteBufferLen,
 					       (ret == AVDK_ERR_OK) ? CLI_CMD_RSP_SUCCEED : CLI_CMD_RSP_ERROR);

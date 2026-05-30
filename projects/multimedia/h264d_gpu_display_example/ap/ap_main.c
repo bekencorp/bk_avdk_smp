@@ -5,6 +5,7 @@
 
 #include "cli.h"
 #include "media_service.h"
+#include "h264d_gpu_display_boot.h"
 #include "h264d_gpu_display_demo.h"
 
 #define SYS_ANA_REG_BASE    (0x44010000)
@@ -32,5 +33,8 @@ int main(void)
 #endif
 
 	cli_h264d_gpu_display_init();
+#ifdef CONFIG_BK_DECODER
+	h264d_gpu_display_run_boot_case();
+#endif
 	return 0;
 }
