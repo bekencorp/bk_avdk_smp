@@ -153,6 +153,8 @@ typedef struct
     uint32_t fps;           // Frames per second
     video_player_video_format_t format; // Video format
     video_player_jpeg_subsampling_t jpeg_subsampling; // JPEG subsampling format, VIDEO_PLAYER_JPEG_SUBSAMPLING_NONE if not applicable
+    const uint8_t *codec_config;
+    uint32_t       codec_config_size;
 } video_player_video_params_t;
 
 // Media information for current file (container-level info + stream params)
