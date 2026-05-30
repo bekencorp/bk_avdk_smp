@@ -1229,6 +1229,18 @@ static uint16_t bt_get_low_voltage_wakeup_margin_cycles(void)
     return PM_SLEEP_WAKEUP_COMSUME_ALL_TIME_TICKS;//about 7.4ms
 }
 
+static void bt_sys_drv_rf_ctrl(bool en)
+{
+    if (en)
+    {
+        sys_hal_rf_ctrl(RF_CTRL_BT);
+    }
+    else
+    {
+        sys_hal_rf_ctrl(RF_CTRL_PTA);
+    }
+}
+
 //warning: bt_osi_funcs must be data section, otherwise a2dp_source_pcm and a2dp_source_decode will trig watchdog !!!!!!!!
 static struct bt_osi_funcs_t bt_osi_funcs =
 {
@@ -1347,6 +1359,7 @@ static struct bt_osi_funcs_t bt_osi_funcs =
     ._get_rtc_max_value     = bt_get_rtc_max_value,
     ._bt_delay_us           = bt_delay_us,
     ._bt_get_low_voltage_wakeup_margin_cycles = bt_get_low_voltage_wakeup_margin_cycles,
+    ._bt_sys_drv_rf_ctrl = bt_sys_drv_rf_ctrl,
 };
 
 int bk_bt_os_adapter_init(void)
