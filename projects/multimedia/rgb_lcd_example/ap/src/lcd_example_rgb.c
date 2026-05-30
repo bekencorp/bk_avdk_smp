@@ -95,7 +95,6 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
 
     bk_lcd_panel_config_t panel_config = {
         .reset_pin = GPIO_6,
-        .reset_active_level = false,
     };
 
     const bk_display_rgb_panel_t *rgb_panels[8];
@@ -142,9 +141,6 @@ avdk_err_t lcd_example_rgb_open(display_ctx_t *context, const char *panel_name, 
 
     AVDK_GOTO_ON_ERROR(bk_display_spi_bus_new(&context->spi_bus_handle, &rgb_cfg_bus), err, TAG, "display rgb cfg-bus new err\n");
     AVDK_GOTO_ON_ERROR(bk_lcd_rgb_panel_new(context->spi_bus_handle, &panel_config, panel, &context->panel_handle), err, TAG, "create panel err\n");
-
-    bk_lcd_panel_reset(context->panel_handle);
-    bk_lcd_panel_init(context->panel_handle);
 
     AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&context->dpu_ctlr_handle, context->panel_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(context->dpu_ctlr_handle), err, TAG, "display init err\n");
@@ -205,8 +201,7 @@ avdk_err_t lcd_example_rgb_close(display_ctx_t *context)
 
     if (context->panel_handle)
     {
-        bk_lcd_panel_reset(context->panel_handle);
-        bk_lcd_panel_del(context->panel_handle);
+        bk_lcd_panel_delete(context->panel_handle);
         context->panel_handle = NULL;
     }
     if (context->spi_bus_handle)

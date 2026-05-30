@@ -12,15 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Common RGB panel driver.
-//
-// Implements the panel ops table (reset/init/del/disp_on_off) for any
-// panel described by ::bk_display_rgb_panel_t. Two GPIO domains are
-// managed:
-//   * 24-bit parallel RGB pixel lanes muxed through bk_lcd_rgb_pixel_pinmux().
-//   * private SW SPI (CLK/CS/SDA) for panel register-init - owned by the
-//     SPI bus in ::BK_DISPLAY_SPI_BUS_MODE_SW and accessed through the
-//     bus' tx_param op via ::bk_display_bus_tx_param().
+// Common RGB panel driver. See the MIPI counterpart for the .init / .reset
+// dispatch model; RGB additionally muxes the 24-bit parallel pixel lanes
+// and uses the SW-SPI bus' tx_param channel for register init.
 
 #include <os/os.h>
 #include <os/mem.h>
@@ -87,9 +81,8 @@ typedef struct {
     bk_display_bus_handle_t bus_handle;
     const bk_display_rgb_panel_t *panel;
     int reset_gpio;
-    uint8_t reset_active_level;
+    bool reset_active_level;
     bk_display_reset_timing_t reset_timing;
-    bk_err_t (*custom_reset)(bk_avdk_lcd_panel_t *panel, void *priv);
 } lcd_rgb_panel_common_t;
 
 static inline uint16_t lcd_rgb_panel_pick_ms(uint16_t value, uint16_t fallback)
@@ -97,7 +90,7 @@ static inline uint16_t lcd_rgb_panel_pick_ms(uint16_t value, uint16_t fallback)
     return value != 0u ? value : fallback;
 }
 
-static bk_err_t lcd_rgb_panel_common_init(bk_avdk_lcd_panel_t *panel)
+bk_err_t bk_lcd_rgb_default_init(bk_avdk_lcd_panel_t *panel)
 {
     lcd_rgb_panel_common_t *priv = (lcd_rgb_panel_common_t *)panel;
     AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
@@ -130,14 +123,10 @@ static bk_err_t lcd_rgb_panel_common_init(bk_avdk_lcd_panel_t *panel)
     return BK_OK;
 }
 
-static bk_err_t lcd_rgb_panel_common_reset(bk_avdk_lcd_panel_t *panel)
+bk_err_t bk_lcd_rgb_default_reset(bk_avdk_lcd_panel_t *panel)
 {
     lcd_rgb_panel_common_t *priv = (lcd_rgb_panel_common_t *)panel;
     AVDK_RETURN_ON_FALSE(priv, BK_ERR_NULL_PARAM, TAG, "invalid panel");
-
-    if (priv->custom_reset != NULL) {
-        return priv->custom_reset(panel, priv);
-    }
 
     if (priv->reset_gpio < 0) {
         return BK_OK;
@@ -167,6 +156,30 @@ static bk_err_t lcd_rgb_panel_common_reset(bk_avdk_lcd_panel_t *panel)
     rtos_delay_milliseconds(release_ms);
     BK_LOGI(TAG, "reset done %x %d", priv->reset_gpio, priv->reset_active_level);
     return BK_OK;
+}
+
+static bk_err_t lcd_rgb_panel_common_init(bk_avdk_lcd_panel_t *panel)
+{
+    lcd_rgb_panel_common_t *priv = (lcd_rgb_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+
+    if (priv->panel->init == NULL) {
+        BK_LOGI(TAG, "%s %s: init is NULL, skip", __func__, priv->panel->name);
+        return BK_OK;
+    }
+    return priv->panel->init(panel);
+}
+
+static bk_err_t lcd_rgb_panel_common_reset(bk_avdk_lcd_panel_t *panel)
+{
+    lcd_rgb_panel_common_t *priv = (lcd_rgb_panel_common_t *)panel;
+    AVDK_RETURN_ON_FALSE(priv && priv->panel, BK_ERR_NULL_PARAM, TAG, "invalid panel");
+
+    if (priv->panel->reset == NULL) {
+        BK_LOGI(TAG, "%s %s: reset is NULL, skip", __func__, priv->panel->name);
+        return BK_OK;
+    }
+    return priv->panel->reset(panel);
 }
 
 static bk_err_t lcd_rgb_panel_common_read_id(bk_avdk_lcd_panel_t *panel, uint32_t *id)
@@ -250,23 +263,15 @@ bk_err_t bk_lcd_new_rgb_panel_common(bk_display_bus_handle_t bus_handle,
     panel->bus_handle = bus_handle;
     panel->panel = panel_desc;
     panel->reset_gpio = panel_config->reset_pin;
-    panel->reset_active_level = panel_config->reset_active_level;
+    panel->reset_active_level = panel_desc->reset_active_level;
     panel->reset_timing.idle_ms    = lcd_rgb_panel_pick_ms(panel_desc->reset_timing.idle_ms,
                                                            BK_DISPLAY_RESET_IDLE_MS_RGB_DEFAULT);
     panel->reset_timing.active_ms  = lcd_rgb_panel_pick_ms(panel_desc->reset_timing.active_ms,
                                                            BK_DISPLAY_RESET_ACTIVE_MS_RGB_DEFAULT);
     panel->reset_timing.release_ms = lcd_rgb_panel_pick_ms(panel_desc->reset_timing.release_ms,
                                                            BK_DISPLAY_RESET_RELEASE_MS_RGB_DEFAULT);
-    panel->custom_reset = panel_desc->custom_reset;
 
     lcd_rgb_panel_pinmux_init();
-
-    /* RGB has no DSI PHY: clk_src is always SYSCLK (see how_to_add_rgb_panel.md). */
-    if (panel_config->clk_src != DPU_CLK_SRC_UNKNOWN &&
-        panel_config->clk_src != DPU_CLK_SRC_SYSCLK) {
-        BK_LOGW(TAG, "RGB panel '%s': ignoring clk_src=%d, forcing DPU_CLK_SRC_SYSCLK\n",
-                panel_desc->name, (int)panel_config->clk_src);
-    }
 
     panel->base.bus                = bus_handle;
     panel->base.timing             = panel_desc->timing;

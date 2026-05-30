@@ -55,7 +55,9 @@ const bk_display_rgb_panel_t md0700r_rgb_panel = {
     .spi_cmd_16bit = 0,
     .read_id_regs = md0700r_rgb_1024x600_read_id_regs,
     .read_id_bytes = 3,
-    .custom_reset = NULL,
+    .reset_active_level = false,
+    .reset = bk_lcd_rgb_default_reset,
+    .init  = bk_lcd_rgb_default_init,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(md0700r_rgb_panel, "md0700r_rgb_1024x600", BK_LCD_PANEL_BUS_RGB);

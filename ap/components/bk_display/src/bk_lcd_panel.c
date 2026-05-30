@@ -32,18 +32,11 @@ bk_err_t bk_lcd_panel_init(bk_avdk_lcd_panel_handle_t panel)
     return panel->init(panel);
 }
 
-bk_err_t bk_lcd_panel_del(bk_avdk_lcd_panel_handle_t panel)
+bk_err_t bk_lcd_panel_delete(bk_avdk_lcd_panel_handle_t panel)
 {
     AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
     AVDK_RETURN_ON_FALSE(panel->del, BK_ERR_NOT_SUPPORT, TAG, "del not supported");
     return panel->del(panel);
-}
-
-bk_err_t bk_lcd_panel_disp_on_off(bk_avdk_lcd_panel_handle_t panel, bool on_off)
-{
-    AVDK_RETURN_ON_FALSE(panel, BK_ERR_NULL_PARAM, TAG, "invalid panel handle");
-    AVDK_RETURN_ON_FALSE(panel->disp_on_off, BK_ERR_NOT_SUPPORT, TAG, "disp_on_off not supported");
-    return panel->disp_on_off(panel, on_off);
 }
 
 bk_err_t bk_lcd_panel_read_id(bk_avdk_lcd_panel_handle_t panel, uint32_t *id)

@@ -114,6 +114,11 @@ static avdk_err_t bk_display_dsi_set_clock(bk_display_bus_ctlr_t *controller, bk
     dsi_bus_vn_ctlr_t *bus = __containerof(controller, dsi_bus_vn_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(bus, AVDK_ERR_INVAL, TAG, "bus is NULL");
 
+    /* Feed the bus' currently-selected clk_src into mipi_dsi_clock_set();
+     * the driver may downgrade it to SYSCLK on PHY PLL miss and writes
+     * the actual choice back via the same field. Mirror that choice into
+     * both the bus and the caller's clock_config so the panel handle and
+     * the DPU mux end up synchronised. */
     bk_panel_clock_config_t dsi =
     {
         .n_lanes = clock->n_lanes,
@@ -124,6 +129,8 @@ static avdk_err_t bk_display_dsi_set_clock(bk_display_bus_ctlr_t *controller, bk
 
     AVDK_RETURN_ON_ERROR(mipi_dsi_clock_set(&dsi), (char *)TAG, "mipi dsi clock set err");
 
+    bus->dsi_clk_src = dsi.clk_src;
+    clock->clk_src   = dsi.clk_src;
     return AVDK_ERR_OK;
 }
 
@@ -158,8 +165,9 @@ avdk_err_t bk_display_dsi_bus_new(bk_display_bus_handle_t *handle, bk_display_ds
 
     os_memset(bus, 0, sizeof(dsi_bus_vn_ctlr_t));
     (void)config;  /* reserved for future per-board options */
-    /* dsi_clk_src starts as DPU_CLK_SRC_UNKNOWN (=0); the DPU pushes the
-     * real source through set_clock_src() before the first set_clock(). */
+    /* Default to DPHY_DPLL; applications may override via
+     * bk_display_bus_set_clock_src() before bk_lcd_mipi_panel_new(). */
+    bus->dsi_clk_src = DPU_CLK_SRC_DPHY_DPLL;
 
     bus->ops.set_clock = bk_display_dsi_set_clock;
     bus->ops.set_clock_src = bk_display_dsi_set_clock_src;

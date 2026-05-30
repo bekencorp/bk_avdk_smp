@@ -94,8 +94,9 @@ const bk_display_dsi_panel_t lcd_device_jd9522z_mipi_1080x1920 = {
     .init_cmds = jd9522z_mipi_1080x1920_init_cmds,
     .read_id_regs = jd9522z_mipi_1080x1920_read_id_regs,
     .read_id_bytes = 3,
-    .custom_reset = NULL,
-    .custom_init = NULL,
+    .reset_active_level = false,
+    .reset = bk_lcd_mipi_default_reset,
+    .init  = bk_lcd_mipi_default_init,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9522z_mipi_1080x1920, "jd9522z_mipi_1080x1920", BK_LCD_PANEL_BUS_DSI);

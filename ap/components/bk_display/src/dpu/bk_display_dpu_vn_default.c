@@ -148,6 +148,19 @@ static avdk_err_t dpu_ctlr_init(bk_display_ctlr_handle_t handle)
     }
     dpu_ctlr_unlock(control);
 
+    /* Drive panel reset waveform and run init_cmds before reading
+     * panel->clk_src in dpu_ctlr_build_core_config(). */
+    ret = bk_lcd_panel_reset(control->panel);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("%s panel reset err: %d\n", __func__, ret);
+        return ret;
+    }
+    ret = bk_lcd_panel_init(control->panel);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("%s panel init err: %d\n", __func__, ret);
+        return ret;
+    }
+
     dpu_ctlr_build_core_config(control, &dpu_config);
 
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_DPU, PM_POWER_MODULE_STATE_ON);
@@ -251,6 +264,9 @@ static avdk_err_t dpu_ctlr_deinit(bk_display_ctlr_handle_t handle)
     controller->state = DISP_STATE_DEINIT;
     dpu_ctlr_unlock(controller);
     bk_pm_module_vote_power_ctrl(PM_POWER_SUB_DOMAIN_DPU, PM_POWER_MODULE_STATE_OFF);
+
+    /* Park RESETn at idle level (no-op when reset_pin < 0 or .reset is NULL). */
+    (void)bk_lcd_panel_reset(controller->panel);
     LOGI("%s complete\n", __func__);
 
     return BK_OK;

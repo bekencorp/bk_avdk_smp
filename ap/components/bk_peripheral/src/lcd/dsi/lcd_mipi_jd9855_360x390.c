@@ -16,8 +16,10 @@
  * @file lcd_mipi_jd9855_360x390.c
  * @brief JD9855 MIPI DSI panel (360x390, 1-lane).
  *
- * Application must set bk_lcd_panel_config_t::clk_src = DPU_CLK_SRC_SYSCLK
- * (1-lane / 24bpp exceeds PHY pixdiv); see how_to_add_mipi_panel.md §15.1.
+ * 1-lane / 24bpp exceeds the PHY pixdiv (lane:pclk ratio > 17), so the
+ * default DPHY_DPLL path returns BK_FAIL on bring-up and the driver
+ * automatically falls back to DPU_CLK_SRC_SYSCLK; see
+ * how_to_add_mipi_panel.md §15.1.
  */
 
 #include <components/bk_lcd_panel.h>
@@ -103,8 +105,9 @@ const bk_display_dsi_panel_t lcd_device_jd9855_mipi_360x390 = {
     .init_cmds = jd9855_mipi_360x390_init_cmds,
     .read_id_regs = jd9855_mipi_360x390_read_id_regs,
     .read_id_bytes = 3,
-    .custom_reset = NULL,
-    .custom_init = NULL,
+    .reset_active_level = false,
+    .reset = bk_lcd_mipi_default_reset,
+    .init  = bk_lcd_mipi_default_init,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9855_mipi_360x390, "jd9855_mipi_360x390", BK_LCD_PANEL_BUS_DSI);

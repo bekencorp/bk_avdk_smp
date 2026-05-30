@@ -2,8 +2,8 @@
  * SPDX-FileCopyrightText: 2024 Beken Corp.
  * SPDX-License-Identifier: Apache-2.0
  *
- * Internal panel ops table consumed only by panel-common
- * (lcd_mipi/rgb_panel_common.c). Not part of the public ABI.
+ * Internal panel ops table + bring-up helpers consumed by the DPU
+ * controller and the panel-common backends. Not part of the public ABI.
  */
 #pragma once
 
@@ -22,18 +22,10 @@ extern "C" {
  *
  * panel-common casts a private struct (whose first member is a
  * ::bk_avdk_lcd_panel_t) to / from the public
- * ::bk_avdk_lcd_panel_handle_t cookie.
- *
- * @c bus is the bus handle the panel was created on. The DPU
- * controller reads @c clk_src back during dpu_ctlr_build_core_config()
- * to program the DPU register clock mux; the bus side @c dsi_clk_src
- * was already pushed by the panel-common factory so the unified
- * mipi_dsi_clock_set() inside ::bk_lcd_panel_init() picks the right
- * fallback strategy.
- *
- * @c timing and @c pixel_clock_hz are cached from the panel descriptor
- * at creation time; DSI derives @c pixel_clock_hz from @c fps *
- * h_total * v_total.
+ * ::bk_avdk_lcd_panel_handle_t cookie. @c clk_src is latched by the
+ * panel @c init op and consumed by the DPU controller to program the
+ * register clock mux. @c pixel_clock_hz is cached at panel creation
+ * (DSI: fps * h_total * v_total).
  */
 struct bk_avdk_lcd_panel_t {
     bk_display_bus_handle_t bus;
@@ -44,7 +36,6 @@ struct bk_avdk_lcd_panel_t {
     bk_err_t (*reset)(bk_avdk_lcd_panel_t *panel);
     bk_err_t (*init)(bk_avdk_lcd_panel_t *panel);
     bk_err_t (*del)(bk_avdk_lcd_panel_t *panel);
-    bk_err_t (*disp_on_off)(bk_avdk_lcd_panel_t *panel, bool on_off);
     bk_err_t (*read_id)(bk_avdk_lcd_panel_t *panel, uint32_t *id);
     bk_err_t (*tx_param)(bk_avdk_lcd_panel_t *panel,
                          int lcd_cmd,
@@ -55,6 +46,26 @@ struct bk_avdk_lcd_panel_t {
                          void *param,
                          size_t param_size);
 };
+
+/**
+ * @brief Drive the descriptor's @c reset op (called by dpu_ctlr_init / deinit).
+ *
+ * Apps don't call this directly - bring-up / tear-down is implicit in
+ * ::bk_display_init() / ::bk_display_deinit().
+ *
+ * @param[in] panel Panel handle.
+ * @return BK_OK; BK_ERR_NULL_PARAM if @p panel is NULL.
+ */
+bk_err_t bk_lcd_panel_reset(bk_avdk_lcd_panel_handle_t panel);
+
+/**
+ * @brief Set the bus clock and dispatch to the descriptor's @c init op
+ *        (called by dpu_ctlr_init).
+ *
+ * @param[in] panel Panel handle.
+ * @return BK_OK; BK_ERR_NULL_PARAM / channel error code on failure.
+ */
+bk_err_t bk_lcd_panel_init(bk_avdk_lcd_panel_handle_t panel);
 
 #ifdef __cplusplus
 }

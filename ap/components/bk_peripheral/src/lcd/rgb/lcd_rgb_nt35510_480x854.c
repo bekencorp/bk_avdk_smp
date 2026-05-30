@@ -439,7 +439,9 @@ const bk_display_rgb_panel_t nt35510_rgb_panel = {
     .spi_cmd_16bit = 1,
     .read_id_regs = nt35510_rgb_480x854_read_id_regs,
     .read_id_bytes = 3,
-    .custom_reset = NULL,
+    .reset_active_level = false,
+    .reset = bk_lcd_rgb_default_reset,
+    .init  = bk_lcd_rgb_default_init,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(nt35510_rgb_panel, "nt35510_rgb_480x854", BK_LCD_PANEL_BUS_RGB);

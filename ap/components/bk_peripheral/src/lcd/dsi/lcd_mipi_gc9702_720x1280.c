@@ -123,8 +123,9 @@ const bk_display_dsi_panel_t lcd_device_gc9702_mipi_720x1280 = {
     .init_cmds = gc9702_mipi_720x1280_init_cmds,
     .read_id_regs = gc9702_mipi_720x1280_read_id_regs,
     .read_id_bytes = 3,
-    .custom_reset = NULL,
-    .custom_init = NULL,
+    .reset_active_level = false,
+    .reset = bk_lcd_mipi_default_reset,
+    .init  = bk_lcd_mipi_default_init,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_gc9702_mipi_720x1280, "gc9702_mipi_720x1280", BK_LCD_PANEL_BUS_DSI);

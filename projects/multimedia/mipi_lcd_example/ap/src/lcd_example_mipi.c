@@ -209,7 +209,6 @@ avdk_err_t lcd_example_dsi_open(display_ctx_t *context, const char *panel_name, 
 
     const bk_lcd_panel_config_t panel_config = {
         .reset_pin = GPIO_60,
-        .reset_active_level = false,
     };
 
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&context->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
@@ -236,8 +235,6 @@ avdk_err_t lcd_example_dsi_open(display_ctx_t *context, const char *panel_name, 
 
     AVDK_GOTO_ON_ERROR(bk_lcd_mipi_panel_new(context->dis_bus_handle, &panel_config, panel, &context->panel_handle),
                        err, TAG, "create panel err\n");
-    bk_lcd_panel_reset(context->panel_handle);
-    bk_lcd_panel_init(context->panel_handle);
     AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&context->dpu_ctlr_handle, context->panel_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(context->dpu_ctlr_handle), err, TAG, "display init err\n");
     AVDK_GOTO_ON_ERROR(bk_display_open(context->dpu_ctlr_handle), err, TAG, "display open err\n");
@@ -276,8 +273,7 @@ avdk_err_t lcd_example_dsi_close(display_ctx_t *context)
 
     if (context->panel_handle)
     {
-        bk_lcd_panel_reset(context->panel_handle);
-        bk_lcd_panel_del(context->panel_handle);
+        bk_lcd_panel_delete(context->panel_handle);
         context->panel_handle = NULL;
     }
     if (context->dis_bus_handle)

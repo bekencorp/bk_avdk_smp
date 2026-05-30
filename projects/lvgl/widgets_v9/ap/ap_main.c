@@ -79,7 +79,6 @@ bk_err_t lvgl_app_widgets_init(void)
     const bk_lcd_panel_config_t panel_config =
     {
         .reset_pin = GPIO_60,
-        .reset_active_level = false,
     };
 
     #define WIDTH (1080)
@@ -89,9 +88,6 @@ bk_err_t lvgl_app_widgets_init(void)
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&g_disp_ctx->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
     AVDK_GOTO_ON_ERROR(bk_lcd_mipi_panel_new(g_disp_ctx->dis_bus_handle, &panel_config, &lcd_device_hx8399c_mipi_1080x1920, &g_disp_ctx->panel_handle),
                        err, TAG, "create panel err\n");
-
-    bk_lcd_panel_reset(g_disp_ctx->panel_handle);
-    bk_lcd_panel_init(g_disp_ctx->panel_handle);
 
     dpu_config.video.disp_x = 0;
     dpu_config.video.disp_y = 0;
@@ -161,8 +157,7 @@ err:
         }
 
         if (g_disp_ctx->panel_handle) {
-            bk_lcd_panel_reset(g_disp_ctx->panel_handle);
-            bk_lcd_panel_del(g_disp_ctx->panel_handle);
+            bk_lcd_panel_delete(g_disp_ctx->panel_handle);
             g_disp_ctx->panel_handle = NULL;
         }
 

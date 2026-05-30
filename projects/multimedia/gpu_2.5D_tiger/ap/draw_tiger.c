@@ -281,7 +281,6 @@ avdk_err_t draw_tiger(void)
 	const bk_lcd_panel_config_t panel_config = 
 	{
 		.reset_pin = GPIO_60,
-		.reset_active_level = false,
 	};
 
     AVDK_GOTO_ON_ERROR(bk_display_dsi_bus_new(&g_disp_ctx->dis_bus_handle, NULL), err, TAG, "display dsi bus new err\n");
@@ -290,10 +289,6 @@ avdk_err_t draw_tiger(void)
     AVDK_GOTO_ON_ERROR(bk_lcd_mipi_panel_new(g_disp_ctx->dis_bus_handle, &panel_config, &lcd_device_hx8399c_mipi_1080x1920, &g_disp_ctx->panel_handle),
                        err, TAG, "create panel err\n");
 #endif
-    bk_lcd_panel_reset(g_disp_ctx->panel_handle);
-    bk_lcd_panel_init(g_disp_ctx->panel_handle);
-    bk_lcd_panel_read_id(g_disp_ctx->panel_handle, &id);
-    LOGI("read lcd id: 0x%x\n", id);
 
     const bk_display_timing_t *panel_timing = &lcd_device_hx8399c_mipi_1080x1920.timing;
 
@@ -304,6 +299,8 @@ avdk_err_t draw_tiger(void)
 
     AVDK_GOTO_ON_ERROR(bk_display_dpu_ctlr_new(&g_disp_ctx->dpu_ctlr_handle, g_disp_ctx->panel_handle, &dpu_config), err, TAG, "display dpu ctlr new err\n");
     AVDK_GOTO_ON_ERROR(bk_display_init(g_disp_ctx->dpu_ctlr_handle), err, TAG, "display init err\n");
+    bk_lcd_panel_read_id(g_disp_ctx->panel_handle, &id);
+    LOGI("read lcd id: 0x%x\n", id);
     AVDK_GOTO_ON_ERROR(bk_display_open(g_disp_ctx->dpu_ctlr_handle), err, TAG, "display open err\n");
 
     /* enable backlight */

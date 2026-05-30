@@ -91,8 +91,9 @@ const bk_display_dsi_panel_t lcd_device_st7701s_mipi_412x960 = {
     .init_cmds = st7701s_mipi_412x960_init_cmds,
     .read_id_regs = st7701s_mipi_412x960_read_id_regs,
     .read_id_bytes = 2,
-    .custom_reset = NULL,
-    .custom_init = NULL,
+    .reset_active_level = false,
+    .reset = bk_lcd_mipi_default_reset,
+    .init  = bk_lcd_mipi_default_init,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(lcd_device_st7701s_mipi_412x960, "st7701s_mipi_412x960", BK_LCD_PANEL_BUS_DSI);

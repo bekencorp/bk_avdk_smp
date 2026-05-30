@@ -47,7 +47,9 @@ const bk_display_rgb_panel_t st7282_rgb_panel = {
     .spi_cmd_16bit = 0,
     .read_id_regs = NULL,
     .read_id_bytes = 3,
-    .custom_reset = NULL,
+    .reset_active_level = false,
+    .reset = bk_lcd_rgb_default_reset,
+    .init  = bk_lcd_rgb_default_init,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(st7282_rgb_panel, "st7282_rgb_480x272", BK_LCD_PANEL_BUS_RGB);

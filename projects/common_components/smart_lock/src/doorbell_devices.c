@@ -172,7 +172,12 @@ int doorbell_camera_turn_on(camera_parameters_t *parameters)
             LOGE("%s, app_uvc_turn_on failed, ret = %d\n", __func__, ret);
             goto err;
         }
-
+        ret = devices_mgmt_set_display_source(DISPLAY_STREAM_ID_PORT_0_UVC, NULL);
+        if (ret != BK_OK)
+        {
+            LOGE("%s, devices_mgmt_set_display_source failed, ret = %d\n", __func__, ret);
+            goto err;
+        }
         ret = doorbell_jpeg_decode_open(parameters->width, parameters->height, BK_IMAGE_FORMAT_MJPEG, 1);
         if (ret != BK_OK)
         {

@@ -81,36 +81,6 @@ static const lcd_rgb_spi_init_cmd_t gc9503v_rgb_480x800_init_cmds[] = {
 
 static const uint8_t gc9503v_rgb_480x800_read_id_regs[] = {0x04, 0};  // RDDID command
 
-// Custom reset function for GC9503V (low -> high, with specific delays)
-static bk_err_t gc9503v_custom_reset(bk_avdk_lcd_panel_t *panel, void *priv)
-{
-    typedef struct {
-        bk_display_bus_handle_t bus_handle;
-        bk_avdk_lcd_panel_t base;
-        const bk_display_rgb_panel_t *panel;
-        int reset_gpio;
-        uint8_t reset_active_high;
-    } lcd_rgb_panel_common_t;
-    
-    lcd_rgb_panel_common_t *p = (lcd_rgb_panel_common_t *)priv;
-    
-    if (p->reset_gpio < 0) {
-        return BK_OK;
-    }
-    
-    gpio_dev_unmap(p->reset_gpio);
-    bk_gpio_enable_output(p->reset_gpio);
-    bk_gpio_set_capacity(p->reset_gpio, GPIO_DRIVER_CAPACITY_3);
-    
-    // GC9503V specific reset sequence: low -> high
-    bk_gpio_set_output_low(p->reset_gpio);
-    rtos_delay_milliseconds(15);
-    bk_gpio_set_output_high(p->reset_gpio);
-    rtos_delay_milliseconds(120);
-    
-    return BK_OK;
-}
-
 // Panel descriptor - single source of truth for GC9503V RGB panel
 const bk_display_rgb_panel_t gc9503v_rgb_panel = {
     .id = 0x9503,
@@ -130,7 +100,12 @@ const bk_display_rgb_panel_t gc9503v_rgb_panel = {
     .spi_cmd_16bit = 0,
     .read_id_regs = gc9503v_rgb_480x800_read_id_regs,
     .read_id_bytes = 3,
-    .custom_reset = gc9503v_custom_reset,
+    .reset_active_level = false,
+    /* GC9503V wants a short active pulse (~15ms) followed by a long
+     * release delay (~120ms) for the internal boot to finish. */
+    .reset_timing = { .idle_ms = 1, .active_ms = 15, .release_ms = 120 },
+    .reset = bk_lcd_rgb_default_reset,
+    .init  = bk_lcd_rgb_default_init,
 };
 
 BK_LCD_PANEL_DEVICE_SECTION(gc9503v_rgb_panel, "gc9503v", BK_LCD_PANEL_BUS_RGB);

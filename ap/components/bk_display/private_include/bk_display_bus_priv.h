@@ -74,24 +74,7 @@ struct bk_display_bus_ctlr_t
  */
 avdk_err_t bk_display_bus_set_clock(bk_display_bus_handle_t handle, bk_panel_clock_config_t *clock);
 
-/**
- * @brief Forward the DPU register-clock source into the bus.
- *
- * Called by the panel-common factories
- * (::bk_lcd_mipi_panel_new() / ::bk_lcd_rgb_panel_new()) right after
- * binding the bus, so the unified mipi_dsi_clock_set() invoked from
- * ::bk_lcd_panel_init() knows whether it can fall back to a fixed lane
- * rate (SYSCLK) or must hard-fail (DPHY_DPLL). Not exposed to
- * applications.
- *
- * @param[in] handle  Bus handle.
- * @param[in] clk_src DPU register clock mux source.
- *
- * @return AVDK_ERR_OK on success.
- * @return AVDK_ERR_INVAL on NULL @p handle.
- * @return AVDK_ERR_UNSUPPORTED for buses without a clock-source notion (SPI).
- */
-avdk_err_t bk_display_bus_set_clock_src(bk_display_bus_handle_t handle, dpu_clk_src_t clk_src);
+/* ::bk_display_bus_set_clock_src() is now public; see <components/bk_display_bus.h>. */
 
 #ifdef __cplusplus
 }
