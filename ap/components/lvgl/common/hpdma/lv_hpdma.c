@@ -156,8 +156,16 @@ bk_err_t lv_hpdma_memcpy_start(void *src_buf, void *dst_buf, uint16_t src_xsize,
         return ret;
     }
 
-    bk_hpdma_set_dest_burst_len(vnd_data->lv_hpdma_id, 0x03);
-    bk_hpdma_set_src_burst_len(vnd_data->lv_hpdma_id, 0x03);
+    /*
+     * P1 (HPDMA review): use the new HPDMA_BURST_LEN_INC16 enum instead of
+     *   the magic literal 0x03. The actual SMEM-same-block downgrade now
+     *   happens inside the driver at start time (see
+     *   hpdma_apply_smem_burst_policy_at_start), so a request for INC16
+     *   here may be silently programmed as INC8 when src and dst share a
+     *   physical SMEM block - this is the intended safe behaviour.
+     */
+    bk_hpdma_set_dest_burst_len(vnd_data->lv_hpdma_id, HPDMA_BURST_LEN_INC16);
+    bk_hpdma_set_src_burst_len(vnd_data->lv_hpdma_id, HPDMA_BURST_LEN_INC16);
 
     bk_hpdma_register_isr(vnd_data->lv_hpdma_id, NULL, NULL, lv_hpdma_transfer_complete_callback, NULL);
     bk_hpdma_enable_finish_interrupt(vnd_data->lv_hpdma_id);
