@@ -74,8 +74,6 @@ static void isp_camera_ctlr_task_entry(void *param)
         isp_control->free_buf(config->channel, &buf);
     }
 
-    cam_control->thread = NULL;
-    rtos_set_semaphore(&cam_control->sem);
     rtos_delete_thread(NULL);
 }
 
@@ -167,10 +165,14 @@ static avdk_err_t isp_camera_ctlr_deinit(bk_isp_camera_ctlr_handle_t handle)
     if (control->thread_enable)
     {
         control->thread_enable = false;
-        // Wait for thread to exit (thread will set semaphore before exiting)
+
+        if (control->thread)
+        {
+            rtos_thread_join(&control->thread);
+            control->thread = NULL;
+        }
         if (control->sem)
         {
-            rtos_get_semaphore(&control->sem, 1000);  // Wait up to 1 second
             rtos_deinit_semaphore(&control->sem);
         }
     }
