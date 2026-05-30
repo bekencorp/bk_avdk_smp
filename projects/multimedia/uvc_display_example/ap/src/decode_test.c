@@ -24,7 +24,7 @@ typedef struct {
     uint8_t flexa_mode;
     uint8_t ring_buffer_cnt;
     bk_image_format_t input_format;
-    bk_image_format_t output_format;
+    bk_pixel_format_t output_format;
     uint16_t width;
     uint16_t height;
     uint16_t aligned_height;
@@ -208,7 +208,9 @@ static void app_decode_thread_entry(void *arg)
         // temp code for flexa mode
         if (decoder_config->flexa_mode == false || DECODE_DUMP_FRAME_ENABLE) {
             uint32_t aligned_height = (decoder_config->height + DECODE_FLEXA_ALIGN_SIZE - 1) & ~(DECODE_FLEXA_ALIGN_SIZE - 1);
-            frame_size = decoder_config->width * aligned_height * 3 / 2;
+            frame_size = bk_image_size_get(decoder_config->width,
+                                           aligned_height,
+                                           decoder_config->output_format);
             if (decoder_config->yuv_frame == NULL) {
                 decoder_config->yuv_frame = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
                 if (decoder_config->yuv_frame == NULL) {
@@ -224,7 +226,9 @@ static void app_decode_thread_entry(void *arg)
         }
         else {
             // flexa mode
-            decode_buffer_size = decoder_config->width * DECODE_FLEXA_LINES * 3 / 2 * decoder_config->ring_buffer_cnt;
+            decode_buffer_size = bk_image_size_get(decoder_config->width,
+                                                   DECODE_FLEXA_LINES * decoder_config->ring_buffer_cnt,
+                                                   decoder_config->output_format);
             decode_buffer = decoder_config->decode_buffer;
         }
 
@@ -442,7 +446,9 @@ avdk_err_t decode_test_open(uint16_t width,
 
     if (flexa_mode) { // flexa mode
         decoder_config->ring_buffer_cnt = DECODE_BUFFER_CNT;
-        decoder_config->flexa_size = width * DECODE_FLEXA_LINES * 3 / 2 * DECODE_BUFFER_CNT;
+        decoder_config->flexa_size = bk_image_size_get(width,
+                                                       DECODE_FLEXA_LINES * DECODE_BUFFER_CNT,
+                                                       decoder_config->output_format);
         decoder_config->decode_buffer = (uint8_t *)hsram_aligned_malloc(64, decoder_config->flexa_size);
         if (decoder_config->decode_buffer == NULL) {
             LOGE("%s, %d, malloc 64-byte aligned decode buffer:%dbytes failed\n", __func__, __LINE__, decoder_config->flexa_size);
@@ -453,7 +459,9 @@ avdk_err_t decode_test_open(uint16_t width,
     }
 
     if (decoder_config->enable_nv12_output && flexa_mode) {
-        uint32_t frame_size = (uint32_t)decoder_config->width * decoder_config->aligned_height * 3 / 2;
+        uint32_t frame_size = bk_image_size_get(decoder_config->width,
+                                                decoder_config->aligned_height,
+                                                decoder_config->output_format);
         decoder_config->nv12_buffers[0] = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
         decoder_config->nv12_buffers[1] = (uint8_t *)bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, frame_size);
         if (decoder_config->nv12_buffers[0] == NULL || decoder_config->nv12_buffers[1] == NULL) {

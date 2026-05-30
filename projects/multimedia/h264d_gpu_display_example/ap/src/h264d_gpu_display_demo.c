@@ -5,6 +5,7 @@
 #include <components/log.h>
 #include <components/bk_frame_buffer.h>
 #include <components/bk_hardware_ram.h>
+#include <common/avdk_pixel_types.h>
 #include <components/bk_decode/bk_h264_decode_ctlr.h>
 #include <components/bk_flexa_bond.h>
 
@@ -98,8 +99,9 @@ static void h264d_gpu_display_hsram_aligned_free(void *ptr)
 
 static uint32_t h264d_gpu_display_flexa_buffer_size(uint32_t width)
 {
-	return width * 16U * H264D_GPU_DISPLAY_SEG_HEIGHT_MB *
-	       H264D_GPU_DISPLAY_SEG_NUM * 3U / 2U;
+	return bk_image_size_get((uint16_t)width,
+	                         16U * H264D_GPU_DISPLAY_SEG_HEIGHT_MB * H264D_GPU_DISPLAY_SEG_NUM,
+	                         BK_PIXEL_FORMAT_NV12);
 }
 
 static int h264d_gpu_display_find_start_code(const uint8_t *buf, uint32_t len,

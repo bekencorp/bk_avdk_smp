@@ -16,6 +16,7 @@
 #include <os/str.h>
 #include <os/mem.h>
 #include <components/bk_frame_buffer.h>
+#include <common/avdk_pixel_types.h>
 #include <driver/gpio.h>
 #include <driver/gpio_types.h>
 #include "gpio_driver.h"
@@ -301,8 +302,10 @@ static bk_err_t h264_stat_run_sw_flexa_mode(uint32_t num_frames)
 	const uint32_t orig_h = (uint32_t)H264_STAT_HEIGHT;
 	const uint32_t aligned_h = (orig_h + (H264_STAT_FLEXA_BLOCK_LINES - 1U)) & ~(H264_STAT_FLEXA_BLOCK_LINES - 1U);
 	const uint32_t y_size_al = width * aligned_h;
-	const uint32_t yuv_size_al = y_size_al * 3U / 2U;
-	const uint32_t ring_bytes = width * H264_STAT_FLEXA_BLOCK_LINES * H264_STAT_FLEXA_RING_BLOCKS * 3U / 2U;
+	const uint32_t yuv_size_al = bk_image_size_get((uint16_t)width, (uint16_t)aligned_h, BK_PIXEL_FORMAT_NV12);
+	const uint32_t ring_bytes = bk_image_size_get((uint16_t)width,
+	                                              H264_STAT_FLEXA_BLOCK_LINES * H264_STAT_FLEXA_RING_BLOCKS,
+	                                              BK_PIXEL_FORMAT_NV12);
 
 	uint32_t fb_out = H264_STAT_OUT_SIZE + sizeof(frame_buffer_t) + 32U;
 

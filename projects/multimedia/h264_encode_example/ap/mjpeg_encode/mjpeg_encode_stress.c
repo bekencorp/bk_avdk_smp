@@ -13,6 +13,7 @@
 #include <os/mem.h>
 #include <os/str.h>
 #include <components/bk_frame_buffer.h>
+#include <common/avdk_pixel_types.h>
 #include "h264_encoder_api.h"
 #include "psram_dma_stress.h"
 #include "dwt.h"
@@ -676,7 +677,7 @@ void cli_mjpeg_encode_stress_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
 			const uint32_t aligned_h = (MJPEG_ENCODE_HEIGHT + (MJPEG_FLEXA_BLOCK_LINES - 1U)) & ~(MJPEG_FLEXA_BLOCK_LINES - 1U);
 			const uint32_t width = (uint32_t)MJPEG_ENCODE_WIDTH;
 			const uint32_t y_size_aligned = width * aligned_h;
-			const uint32_t yuv_size_aligned = y_size_aligned * 3U / 2U;
+			const uint32_t yuv_size_aligned = bk_image_size_get((uint16_t)width, (uint16_t)aligned_h, BK_PIXEL_FORMAT_NV12);
 
 			s_flexa_src_height_aligned = aligned_h;
 			s_flexa_src_yuv_aligned = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, yuv_size_aligned);
@@ -719,7 +720,9 @@ void cli_mjpeg_encode_stress_cmd(char *pcWriteBuffer, int xWriteBufferLen, int a
 
 			/* Allocate 3-block ring buffer for flexa input (Y + UV), 64-byte aligned. */
 			{
-				const uint32_t ring_bytes = width * MJPEG_FLEXA_BLOCK_LINES * MJPEG_FLEXA_RING_BLOCKS * 3U / 2U;
+				const uint32_t ring_bytes = bk_image_size_get((uint16_t)width,
+				                                              MJPEG_FLEXA_BLOCK_LINES * MJPEG_FLEXA_RING_BLOCKS,
+				                                              BK_PIXEL_FORMAT_NV12);
 				s_flexa_ring_raw = (uint8_t *)os_malloc(ring_bytes + 64U);
 				if (s_flexa_ring_raw == NULL) {
 					bk_printf("%s: flexa ring malloc failed, size=%u\n", TAG, (unsigned)(ring_bytes + 64U));
@@ -900,7 +903,7 @@ void cli_mjpeg_flexa_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 		const uint32_t aligned_h = (MJPEG_ENCODE_HEIGHT + (MJPEG_FLEXA_BLOCK_LINES - 1U)) & ~(MJPEG_FLEXA_BLOCK_LINES - 1U);
 		const uint32_t width = (uint32_t)MJPEG_ENCODE_WIDTH;
 		const uint32_t y_size_aligned = width * aligned_h;
-		const uint32_t yuv_size_aligned = y_size_aligned * 3U / 2U;
+		const uint32_t yuv_size_aligned = bk_image_size_get((uint16_t)width, (uint16_t)aligned_h, BK_PIXEL_FORMAT_NV12);
 		const uint32_t orig_h = (uint32_t)MJPEG_ENCODE_HEIGHT;
 		const uint32_t orig_y_size = width * orig_h;
 		const uint32_t orig_uv_size = orig_y_size / 2U;
@@ -947,7 +950,9 @@ void cli_mjpeg_flexa_dump_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc
 
 		/* Allocate 3-block ring buffer, 64-byte aligned. */
 		{
-			const uint32_t ring_bytes = width * MJPEG_FLEXA_BLOCK_LINES * MJPEG_FLEXA_RING_BLOCKS * 3U / 2U;
+			const uint32_t ring_bytes = bk_image_size_get((uint16_t)width,
+			                                              MJPEG_FLEXA_BLOCK_LINES * MJPEG_FLEXA_RING_BLOCKS,
+			                                              BK_PIXEL_FORMAT_NV12);
 			s_mjpeg_one_shot_ring_raw = (uint8_t *)os_malloc(ring_bytes + 64U);
 			if (s_mjpeg_one_shot_ring_raw == NULL) {
 				bk_printf("%s: ring malloc failed, size=%u\n", TAG, (unsigned)(ring_bytes + 64U));

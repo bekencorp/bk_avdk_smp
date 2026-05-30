@@ -3,6 +3,7 @@
 #include <os/str.h>
 #include "h264_decoder_api.h"
 #include <components/bk_frame_buffer.h>
+#include <common/avdk_pixel_types.h>
 #include "jpeg_data_1920_1080.h"
 #include "psram_dma_stress.h"
 #include <driver/gpio.h>
@@ -194,7 +195,7 @@ void cli_jpeg_decode_stress_cmd(char *pcWriteBuffer, int xWriteBufferLen, int ar
         os_memcpy(s_jpeg_buffer, JPEGData_1920_1080, sizeof(JPEGData_1920_1080));
 
         if (s_jpeg_decode_mode == VCDEC_FLEXA_MODE_FLEXA) {
-            s_output_buffer = hsram_malloc(JPEG_DECODE_WIDTH * 16 * 3 / 2 * 2);
+            s_output_buffer = hsram_malloc(bk_image_size_get(JPEG_DECODE_WIDTH, 16 * 2, BK_PIXEL_FORMAT_NV12));
         } else {
             s_output_buffer = bk_frame_buffer_malloc(MEM_SLAB_HEAP_UNCODED, JPEG_DECODE_SIZE);
         }

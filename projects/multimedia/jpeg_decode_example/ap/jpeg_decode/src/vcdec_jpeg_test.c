@@ -9,6 +9,7 @@
 #include "os/mem.h"
 #include "components/log.h"
 #include "components/bk_frame_buffer.h"
+#include <common/avdk_pixel_types.h>
 #include "components/bk_decode/bk_jpeg_decode_ctlr.h"
 #include "bk_flexa_bond_types.h"
 #include "jpeg_176_144.h"
@@ -119,7 +120,7 @@ void vcdec_jpeg_frame_test(void)
 	}
 	out_width = img_info.width;
 	out_height = img_info.height;
-	out_size = out_width * out_height * 3U / 2U;
+	out_size = bk_image_size_get((uint16_t)out_width, (uint16_t)out_height, BK_PIXEL_FORMAT_NV12);
 	LOGI("image info: width=%u height=%u out_size=%u format=NV12\r\n",
 		(unsigned)out_width, (unsigned)out_height, (unsigned)out_size);
 
@@ -368,9 +369,9 @@ void vcdec_jpeg_flexa_test(void)
 	out_width = img_info.width;
 	out_height = img_info.height;
 	/* Full-frame output buffer (Y + C). */
-	out_size = out_width * out_height * 3U / 2U;
+	out_size = bk_image_size_get((uint16_t)out_width, (uint16_t)out_height, BK_PIXEL_FORMAT_NV12);
 	/* Pingpong buffer for HW Flexa output (2 x 16 rows). */
-	pp_size = out_width * seg_rows * 3U / 2U;
+	pp_size = bk_image_size_get((uint16_t)out_width, (uint16_t)seg_rows, BK_PIXEL_FORMAT_NV12);
 	LOGI("image info: width=%u height=%u out_size=%u pp_size=%u seg_num=%u seg_rows=%u\r\n",
 		(unsigned)out_width, (unsigned)out_height, (unsigned)out_size,
 		(unsigned)pp_size, (unsigned)seg_num, (unsigned)seg_rows);

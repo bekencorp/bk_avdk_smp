@@ -4,6 +4,7 @@
 #include "os/str.h"
 #include <components/bk_frame_buffer.h>
 #include <components/log.h>
+#include <common/avdk_pixel_types.h>
 #include "h264_decoder_api.h"
 #include "h264_decode_flexa_test.h"
 #include "h264_decode_stream_1280x720.h"
@@ -75,7 +76,7 @@ static void h264d_flexa_dump_nv12_frame(const char *tag, uint8_t *y, uint32_t wi
         return;
     }
 
-    dump_size = width * height * 3U / 2U;
+    dump_size = bk_image_size_get((uint16_t)width, (uint16_t)height, BK_PIXEL_FORMAT_NV12);
     dump_aligned = (dump_size + 3U) & ~3U;
 
     irq_flags = rtos_enter_critical();

@@ -3,6 +3,7 @@
 #include "os/mem.h"
 #include <components/log.h>
 #include <components/bk_frame_buffer.h>
+#include <common/avdk_pixel_types.h>
 #include <components/bk_decode/bk_h264_decode_ctlr.h>
 #include "bk_flexa_bond_types.h"
 #include "h264_decode_test.h"
@@ -88,13 +89,14 @@ static volatile uint8_t s_vcdec_boot_demo_running = 0;
 
 static uint32_t vcdec_h264_frame_size(uint32_t width, uint32_t height)
 {
-	return width * height * 3U / 2U;
+	return bk_image_size_get((uint16_t)width, (uint16_t)height, BK_PIXEL_FORMAT_NV12);
 }
 
 static uint32_t vcdec_h264_flexa_size(uint32_t width)
 {
-	return width * 16U * VCDEC_H264_TEST_FLEXA_SEG_HEIGHT_MB *
-	       VCDEC_H264_TEST_FLEXA_SEG_NUM * 3U / 2U;
+	return bk_image_size_get((uint16_t)width,
+	                         16U * VCDEC_H264_TEST_FLEXA_SEG_HEIGHT_MB * VCDEC_H264_TEST_FLEXA_SEG_NUM,
+	                         BK_PIXEL_FORMAT_NV12);
 }
 
 static const vcdec_h264_test_stream_cfg_t *vcdec_h264_get_stream_cfg(h264_decode_test_stream_t stream)
