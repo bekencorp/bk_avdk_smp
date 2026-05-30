@@ -78,6 +78,16 @@ static uint32_t s_wdt_period = CONFIG_INT_WDT_PERIOD_MS;
 static uint32_t s_feed_watchdog_time = INT_WDG_FEED_PERIOD_TICK;
 #endif
 
+static void wdt_init_runtime_resources(void)
+{
+	wdt_hal_init(&s_wdt.hal);
+
+#if ((CONFIG_INT_WDT) || (CONFIG_TASK_WDT))
+	bk_timer_start(TIMER_ID2, WDT_BARK_TIME_MS, (timer_isr_t)bk_wdt_feed_handle);
+	aon_pmu_drv_wdt_rst_dev_enable();
+#endif
+}
+
 __IRAM_SEC static void wdt_init_common(void)
 {
 	/* BK7259 uses AON_WDT for the public WDT driver; it is always on. */
@@ -97,12 +107,8 @@ bk_err_t bk_wdt_driver_init(void)
 	}
 
 	os_memset(&s_wdt, 0, sizeof(s_wdt));
-	wdt_hal_init(&s_wdt.hal);
+	wdt_init_runtime_resources();
 
-#if ((CONFIG_INT_WDT) || (CONFIG_TASK_WDT))
-	bk_timer_start(TIMER_ID2, WDT_BARK_TIME_MS, (timer_isr_t)bk_wdt_feed_handle);
-	aon_pmu_drv_wdt_rst_dev_enable();
-#endif
 	s_wdt_driver_is_init = true;
 
 #if CONFIG_TASK_WDT
@@ -170,6 +176,35 @@ __attribute__((section(".itcm_sec_code"))) bk_err_t bk_wdt_stop(void)
 	s_wdt.init_bits &= ~BIT(0);
 	//WDT_LOGV("bk_wdt_stop, s_wdt.init_bits:%x\n", s_wdt.init_bits);
 	return BK_OK;
+}
+
+__attribute__((section(".itcm_sec_code"))) bk_err_t bk_wdt_suspend(void)
+{
+	if (!s_wdt_driver_is_init) {
+		return BK_OK;
+	}
+
+#if ((CONFIG_INT_WDT) || (CONFIG_TASK_WDT))
+	bk_timer_stop(TIMER_ID2);
+#endif
+	close_wdt();
+	s_wdt.init_bits &= ~BIT(0);
+
+	return BK_OK;
+}
+
+bk_err_t bk_wdt_resume(void)
+{
+	uint32_t timeout_ms;
+
+	if (!s_wdt_driver_is_init) {
+		return BK_ERR_WDT_DRIVER_NOT_INIT;
+	}
+
+	wdt_init_runtime_resources();
+	timeout_ms = s_wdt_period ? s_wdt_period : CONFIG_INT_WDT_PERIOD_MS;
+
+	return bk_wdt_start(timeout_ms);
 }
 
 bk_err_t bk_wdt_feed(void)

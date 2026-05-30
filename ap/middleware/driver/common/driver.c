@@ -310,7 +310,7 @@ int driver_init(void) {
 	bk_hpdma_driver_init();
 #endif
 
-#if CONFIG_TASK_WDT
+#if (CONFIG_TASK_WDT)
 	bk_task_wdt_driver_init();
 #endif
 

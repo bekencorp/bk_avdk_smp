@@ -30,20 +30,15 @@
 #include "gpio_driver.h"
 #endif
 
-typedef struct {
-	wwdt_hal_t hal;
-	uint8_t init_bits;
-} wwdt_driver_t;
-
 #define WWDT_RETURN_ON_DRIVER_NOT_INIT() do {\
-	if (!s_wwdt_driver_is_init) {\
+	if (!s_wwdt.driver_inited) {\
 		WWDT_LOGE("WWDT driver not init\r\n");\
 		return BK_ERR_WWDT_DRIVER_NOT_INIT;\
 	}\
 } while(0)
 
-#define WWDT_RETURN_ON_CORE_NOT_INIT(core) do {\
-	if (!(s_wwdt.init_bits & BIT(core))) {\
+#define WWDT_RETURN_ON_CORE_NOT_INIT(core_id_arg) do {\
+	if (!s_wwdt.core[(core_id_arg)].active) {\
 		return BK_ERR_WWDT_NOT_INIT;\
 	}\
 } while(0)
@@ -67,16 +62,25 @@ typedef struct {
 #define GET_WWDT_CURRENT_TICK()  (bk_get_tick())
 #endif
 
-static wwdt_driver_t s_wwdt = {0};
-static bool s_wwdt_driver_is_init = false;
-static uint32_t s_wwdt_period = CONFIG_INT_WWDT_PERIOD_MS;
-static uint64_t s_last_wwdt_feed_tick[WWDT_CORE_NUM] = {0};
-static uint32_t s_feed_wwdt_time = 0;
-static uint8_t s_debug_started_log_bits = 0;
-static volatile uint8_t s_wwdt_auto_start_disable_bits = 0;
+typedef struct {
+	bool active; /* Software view of whether this core's WWDT has been explicitly started. */
+	bool auto_start_disabled; /* Set by stop/close to prevent SysTick from auto-starting this core again. */
+	uint64_t last_feed_tick; /* Last successful feed/start timestamp, used to throttle periodic feeding. */
+} wwdt_core_state_t;
+
+typedef struct {
+	wwdt_hal_t hal; /* HAL object for the current CPU's private WWDT register window. */
+	wwdt_core_state_t core[WWDT_CORE_NUM]; /* Per-core software state; WWDT hardware itself is also per CPU/core. */
+	bool driver_inited; /* Driver software init flag; it does not imply WWDT registers survived sleep. */
+	uint32_t period_ms; /* Last configured timeout in milliseconds, reused by feed paths. */
+	uint32_t feed_interval_tick; /* Optional feed interval override in OS ticks; 0 means use the default interval. */
+	uint8_t debug_started_log_bits; /* One-shot log mask for SysTick auto-start messages, one bit per core. */
 #if CONFIG_WWDT_TEST
-static uint8_t s_skip_feed_bits = 0;
+	uint8_t skip_feed_bits; /* Test-only mask to skip SysTick feeding on selected cores. */
 #endif
+} wwdt_driver_t;
+
+static wwdt_driver_t s_wwdt = {0}; /* Process-wide WWDT driver state kept in SRAM across low-power modes. */
 
 static inline uint32_t wwdt_get_current_core_id(void)
 {
@@ -85,6 +89,20 @@ static inline uint32_t wwdt_get_current_core_id(void)
 #else
 	return CPU0_CORE_ID;
 #endif
+}
+
+static uint32_t wwdt_get_active_bits(void)
+{
+	uint32_t core_id;
+	uint32_t active_bits = 0;
+
+	for (core_id = 0; core_id < WWDT_CORE_NUM; core_id++) {
+		if (s_wwdt.core[core_id].active) {
+			active_bits |= BIT(core_id);
+		}
+	}
+
+	return active_bits;
 }
 
 static uint32_t wwdt_get_default_feed_time(void)
@@ -96,7 +114,7 @@ static uint32_t wwdt_get_default_feed_time(void)
 
 static uint32_t wwdt_get_feed_time(void)
 {
-	return s_feed_wwdt_time ? s_feed_wwdt_time : wwdt_get_default_feed_time();
+	return s_wwdt.feed_interval_tick ? s_wwdt.feed_interval_tick : wwdt_get_default_feed_time();
 }
 
 static bk_err_t wwdt_start_current_core(uint32_t timeout_ms, bool is_enable_window,
@@ -104,7 +122,7 @@ static bk_err_t wwdt_start_current_core(uint32_t timeout_ms, bool is_enable_wind
 {
 	uint32_t core_id = wwdt_get_current_core_id();
 
-	if (!s_wwdt_driver_is_init) {
+	if (!s_wwdt.driver_inited) {
 		if (log_enable) {
 			WWDT_LOGE("WWDT driver not init\r\n");
 		}
@@ -122,8 +140,11 @@ static bk_err_t wwdt_start_current_core(uint32_t timeout_ms, bool is_enable_wind
 		timeout_ms = CONFIG_INT_WWDT_PERIOD_MS;
 	}
 
-	s_wwdt_auto_start_disable_bits &= ~BIT(core_id);
-	s_wwdt_period = timeout_ms;
+	s_wwdt.core[core_id].auto_start_disabled = false;
+	s_wwdt.period_ms = timeout_ms;
+	/* Deep sleep may retain SRAM while losing WWDT registers/clocks. */
+	wwdt_hal_init(&s_wwdt.hal);
+
 	if (is_enable_window) {
 		wwdt_hal_set_wdt_win_1st_set_win_val(window_val);
 		wwdt_hal_set_wdt_win_2nd_set_win_val(window_val);
@@ -136,11 +157,11 @@ static bk_err_t wwdt_start_current_core(uint32_t timeout_ms, bool is_enable_wind
 		wwdt_hal_set_wdt_win_2nd_set_win_en(1);
 	}
 
-	s_wwdt.init_bits |= BIT(core_id);
-	s_last_wwdt_feed_tick[core_id] = GET_WWDT_CURRENT_TICK();
+	s_wwdt.core[core_id].active = true;
+	s_wwdt.core[core_id].last_feed_tick = GET_WWDT_CURRENT_TICK();
 	if (log_enable) {
-		WWDT_LOGI("bk_wwdt_start, core:%u, wwdt_cpu:%u, init_bits:%x\r\n",
-			core_id, bk_wwdt_get_cpu_id(), s_wwdt.init_bits);
+		WWDT_LOGV("bk_wwdt_start, core:%u, wwdt_cpu:%u, active_bits:%x\r\n",
+			core_id, bk_wwdt_get_cpu_id(), wwdt_get_active_bits());
 	}
 
 	return BK_OK;
@@ -151,24 +172,24 @@ static bk_err_t wwdt_feed_current_core(void)
 	uint32_t core_id = wwdt_get_current_core_id();
 	uint64_t current_tick;
 
-	if (!s_wwdt_driver_is_init) {
+	if (!s_wwdt.driver_inited) {
 		return BK_ERR_WWDT_DRIVER_NOT_INIT;
 	}
 
-	if (!(s_wwdt.init_bits & BIT(core_id))) {
+	if (!s_wwdt.core[core_id].active) {
 		return BK_ERR_WWDT_NOT_INIT;
 	}
 
 	current_tick = GET_WWDT_CURRENT_TICK();
-	wwdt_hal_init_wwdt(&s_wwdt.hal, s_wwdt_period);
-	s_last_wwdt_feed_tick[core_id] = current_tick;
+	wwdt_hal_init_wwdt(&s_wwdt.hal, s_wwdt.period_ms);
+	s_wwdt.core[core_id].last_feed_tick = current_tick;
 
 	return BK_OK;
 }
 
 __attribute__((section(".itcm_sec_code"))) static void wwdt_deinit_common(void)
 {
-	s_wwdt_period = CONFIG_INT_WWDT_PERIOD_MS;
+	s_wwdt.period_ms = CONFIG_INT_WWDT_PERIOD_MS;
 	wwdt_hal_reset_config_to_default(&s_wwdt.hal);
 	bk_wwdt_close();
 }
@@ -181,15 +202,15 @@ bk_err_t bk_wwdt_soft_reset(void)
 
 bk_err_t bk_wwdt_driver_init(void)
 {
-	if (s_wwdt_driver_is_init) {
+	if (s_wwdt.driver_inited) {
 		return BK_OK;
 	}
 
 	os_memset(&s_wwdt, 0, sizeof(s_wwdt));
-	s_wwdt_auto_start_disable_bits = 0;
+	s_wwdt.period_ms = CONFIG_INT_WWDT_PERIOD_MS;
 	wwdt_hal_init(&s_wwdt.hal);
 
-	s_wwdt_driver_is_init = true;
+	s_wwdt.driver_inited = true;
 
 #if CONFIG_CLI && CONFIG_WWDT_TEST
 	int bk_wwdt_register_cli_test_feature(void);
@@ -201,15 +222,15 @@ bk_err_t bk_wwdt_driver_init(void)
 
 bk_err_t bk_wwdt_driver_deinit(void)
 {
-	if (!s_wwdt_driver_is_init) {
+	if (!s_wwdt.driver_inited) {
 		return BK_OK;
 	}
 
 	wwdt_deinit_common();
-	// bk_timer_stop(TIMER_ID2);
-	s_wwdt.init_bits = 0;
 
-	s_wwdt_driver_is_init = false;
+	os_memset(s_wwdt.core, 0, sizeof(s_wwdt.core));
+
+	s_wwdt.driver_inited = false;
 
 	return BK_OK;
 }
@@ -245,12 +266,12 @@ void bk_wwdt_feed_current_core(void)
 	uint32_t core_id = wwdt_get_current_core_id();
 	uint64_t current_tick = GET_WWDT_CURRENT_TICK();
 
-	if (!s_wwdt_driver_is_init) {
+	if (!s_wwdt.driver_inited) {
 		return;
 	}
 
-	if (!(s_wwdt.init_bits & BIT(core_id))) {
-		if (s_wwdt_auto_start_disable_bits & BIT(core_id)) {
+	if (!s_wwdt.core[core_id].active) {
+		if (s_wwdt.core[core_id].auto_start_disabled) {
 			return;
 		}
 
@@ -258,7 +279,7 @@ void bk_wwdt_feed_current_core(void)
 		return;
 	}
 
-	if ((current_tick - s_last_wwdt_feed_tick[core_id]) >= wwdt_get_feed_time()) {
+	if ((current_tick - s_wwdt.core[core_id].last_feed_tick) >= wwdt_get_feed_time()) {
 		BK_LOG_ON_ERR(bk_wwdt_feed());
 	}
 }
@@ -268,32 +289,32 @@ void bk_wwdt_feed_current_core_from_isr(void)
 	uint32_t core_id = wwdt_get_current_core_id();
 	uint64_t current_tick;
 
-	if (!s_wwdt_driver_is_init) {
+	if (!s_wwdt.driver_inited) {
 		return;
 	}
 
-	if (!(s_wwdt.init_bits & BIT(core_id))) {
-		if (s_wwdt_auto_start_disable_bits & BIT(core_id)) {
+	if (!s_wwdt.core[core_id].active) {
+		if (s_wwdt.core[core_id].auto_start_disabled) {
 			return;
 		}
 
 		(void)wwdt_start_current_core(CONFIG_INT_WWDT_PERIOD_MS, false, 0, false);
-		if (!(s_debug_started_log_bits & BIT(core_id))) {
-			s_debug_started_log_bits |= BIT(core_id);
-			WWDT_LOGI("wwdt start from systick core=%u, wwdt_cpu=%u\r\n",
+		if (!(s_wwdt.debug_started_log_bits & BIT(core_id))) {
+			s_wwdt.debug_started_log_bits |= BIT(core_id);
+			WWDT_LOGV("wwdt start from systick core=%u, wwdt_cpu=%u\r\n",
 				core_id, bk_wwdt_get_cpu_id());
 		}
 		return;
 	}
 
 #if CONFIG_WWDT_TEST
-	if (s_skip_feed_bits & BIT(core_id)) {
+	if (s_wwdt.skip_feed_bits & BIT(core_id)) {
 		return;
 	}
 #endif
 
 	current_tick = GET_WWDT_CURRENT_TICK();
-	if ((current_tick - s_last_wwdt_feed_tick[core_id]) >= wwdt_get_feed_time()) {
+	if ((current_tick - s_wwdt.core[core_id].last_feed_tick) >= wwdt_get_feed_time()) {
 		(void)wwdt_feed_current_core();
 	}
 }
@@ -305,7 +326,7 @@ uint32_t bk_wwdt_get_feed_time(void)
 
 void bk_wwdt_set_feed_time(uint32_t dw_set_time)
 {
-	s_feed_wwdt_time = dw_set_time;
+	s_wwdt.feed_interval_tick = dw_set_time;
 }
 
 #if CONFIG_WWDT_TEST
@@ -316,9 +337,9 @@ bk_err_t bk_wwdt_set_skip_feed_core(uint32_t core_id, bool skip)
 	}
 
 	if (skip) {
-		s_skip_feed_bits |= BIT(core_id);
+		s_wwdt.skip_feed_bits |= BIT(core_id);
 	} else {
-		s_skip_feed_bits &= ~BIT(core_id);
+		s_wwdt.skip_feed_bits &= ~BIT(core_id);
 	}
 
 	return BK_OK;
@@ -326,13 +347,13 @@ bk_err_t bk_wwdt_set_skip_feed_core(uint32_t core_id, bool skip)
 
 uint32_t bk_wwdt_get_skip_feed_bits(void)
 {
-	return s_skip_feed_bits;
+	return s_wwdt.skip_feed_bits;
 }
 #endif
 
 bool bk_wwdt_is_driver_inited()
 {
-	return s_wwdt_driver_is_init;
+	return s_wwdt.driver_inited;
 }
 
 void bk_wwdt_feed_handle(void)
@@ -350,9 +371,9 @@ __attribute__((section(".itcm_sec_code"))) void bk_wwdt_close(void)
 	GLOBAL_INT_DECLARATION();
 
 	GLOBAL_INT_DISABLE();
-	s_wwdt_auto_start_disable_bits |= BIT(core_id);
-	s_wwdt.init_bits &= ~BIT(core_id);
-	s_last_wwdt_feed_tick[core_id] = 0;
+	s_wwdt.core[core_id].auto_start_disabled = true;
+	s_wwdt.core[core_id].active = false;
+	s_wwdt.core[core_id].last_feed_tick = 0;
 	wwdt_hal_close();
 	GLOBAL_INT_RESTORE();
 }

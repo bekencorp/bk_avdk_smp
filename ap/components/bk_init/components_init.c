@@ -118,6 +118,15 @@ __IRAM_SEC int wdt_init(void)
 	bk_task_wdt_start();
 	BK_LOGV(TAG, "task watchdog enabled, period=%u\r\n", CONFIG_TASK_WDT_PERIOD_MS);
 #endif
+
+#if CONFIG_SUPPORT_WWDT
+	/*
+	 * Start the boot core WWDT before the scheduler starts. The other cores
+	 * start/feed their own WWDT from their per-core SysTick after scheduling.
+	 */
+	BK_LOG_ON_ERR(bk_wwdt_start(CONFIG_INT_WWDT_PERIOD_MS, false, 0));
+	BK_LOGV(TAG, "boot core wwdt enabled, period=%u\r\n", CONFIG_INT_WWDT_PERIOD_MS);
+#endif
 	return BK_OK;
 }
 

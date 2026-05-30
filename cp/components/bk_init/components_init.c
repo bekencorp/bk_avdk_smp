@@ -149,7 +149,7 @@ __IRAM_SEC int wdt_init(void)
 #if (CONFIG_FREERTOS)
 #if CONFIG_INT_WDT
 	BK_LOGV(TAG, "int watchdog enabled, period=%u\r\n", CONFIG_INT_WDT_PERIOD_MS);
-	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);
+	bk_wdt_resume();
 #else
 	BK_LOGD(TAG, "watchdog disabled\r\n");
 	bk_wdt_start(CONFIG_INT_WDT_PERIOD_MS);

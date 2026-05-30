@@ -88,6 +88,30 @@ bk_err_t bk_wdt_start(uint32_t timeout_ms);
 __attribute__((section(".itcm_sec_code"))) bk_err_t bk_wdt_stop(void);
 
 /**
+ * @brief     Suspend AON_WDT before entering low power
+ *
+ * This API closes AON_WDT hardware and stops its periodic feed timer, while
+ * keeping retained software state for wakeup recovery.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+__attribute__((section(".itcm_sec_code"))) bk_err_t bk_wdt_suspend(void);
+
+/**
+ * @brief     Resume AON_WDT after exiting low power
+ *
+ * This API restores AON_WDT HAL state, periodic feed timer and PMU watchdog
+ * reset path, then restarts AON_WDT with the retained timeout.
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_wdt_resume(void);
+
+/**
  * @brief     Feed the WDT
  *
  * @return

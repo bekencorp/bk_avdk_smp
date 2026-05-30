@@ -1365,12 +1365,15 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 #if CONFIG_INT_WDT
 #if CONFIG_SUPPORT_WWDT
     bk_wwdt_stop();
-#else
-	bk_wdt_stop();
 #endif
-	#if CONFIG_TASK_WDT
+
+#if INT_AON_WDT
+	bk_wdt_suspend();
+#endif
+
+#if CONFIG_TASK_WDT
 	bk_task_wdt_stop();
-	#endif
+#endif
 #endif
 
 #if CONFIG_OTA_POSITION_INDEPENDENT_AB || CONFIG_DIRECT_XIP
