@@ -35,7 +35,6 @@ typedef struct {
 static vg_lite_buffer_t lv_dst_buf;
 static vg_lite_buffer_t lv_src_buf;
 static vg_lite_matrix_t lv_matrix;
-static bool s_compress_buffer_initialized;
 
 static vg_lite_color_t lv_partial_color_to_vg(lv_color_t color)
 {
@@ -80,7 +79,6 @@ void lv_port_disp_partial_init(lv_vnd_data_t *vnd_data)
 #endif
 
     if (vnd_data->config.output_compress) {
-        s_compress_buffer_initialized = false;
         os_memset(&lv_dst_buf, 0, sizeof(vg_lite_buffer_t));
         #if (LV_COLOR_DEPTH == 16)
             lv_dst_buf.format = VG_LITE_BGR565;
@@ -120,7 +118,6 @@ void lv_port_disp_partial_deinit(lv_vnd_data_t *vnd_data)
 #endif
 
     if (vnd_data->config.output_compress) {
-        s_compress_buffer_initialized = false;
         vg_lite_free_without_free_data(&lv_src_buf);
         vg_lite_free_without_free_data(&lv_dst_buf);
     }
@@ -181,14 +178,13 @@ static void lv_partial_flush_compress(lv_vnd_data_t *vnd_data, lv_partial_flush_
     lv_dst_buf.height = vnd_data->config.disp_height;
     vg_lite_allocate_with_data(&lv_dst_buf, vnd_data->disp_buf, NULL, NULL, NULL);
 
-    if (!s_compress_buffer_initialized) {
-        if (vg_lite_clear(&lv_dst_buf, NULL, lv_partial_get_default_clear_color()) == VG_LITE_SUCCESS) {
-            vg_lite_finish();
-            s_compress_buffer_initialized = true;
-        } else {
-            LOGE("%s clear compressed frame buffer failed\n", __func__);
-        }
-    }
+    vg_lite_rectangle_t clear_rect = {
+        .x = ctx->area->x1,
+        .y = ctx->area->y1,
+        .width = ctx->width,
+        .height = ctx->height,
+    };
+    vg_lite_clear(&lv_dst_buf, &clear_rect, lv_partial_get_default_clear_color());
 
     vg_lite_identity(&lv_matrix);
     vg_lite_translate(ctx->area->x1, ctx->area->y1, &lv_matrix);
