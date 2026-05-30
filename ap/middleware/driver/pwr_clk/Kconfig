@@ -36,6 +36,19 @@ menu "PWR_CLK"
 	config PSRAM_POWER_DOMAIN_LV_DISABLE
 		 bool "psram power domain disable"
 		default n
+	config PSRAM_DATA_RETENTION_ENABLE
+		 bool "keep PSRAM voltage (ana_reg14.enpsram) on across CP deep-sleep / low-voltage sleep to preserve PSRAM cell data"
+		default n
+		help
+			When enabled, sys_hal_enter_deep_sleep() and
+			sys_hal_enter_low_voltage() skip the
+			sys_ll_set_ana_reg14_enpsram(0) call that would
+			otherwise cut the PSRAM cell LDO, so PSRAM contents
+			are preserved across CP sleep. PSRAM controller
+			recovery (clock-gating bypass + soft-reset + mode
+			reg restore) is the user's responsibility via the
+			bk_psram_data_retention() / bk_psram_data_retention_recover()
+			helpers.
 	config DCO_CLK_ENABLE
 		bool "Enable dco clk"
 		default n
