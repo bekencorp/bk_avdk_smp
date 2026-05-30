@@ -367,8 +367,17 @@ bk_err_t bk_hpdma_driver_deinit(void)
         return BK_OK;
     }
 
+    /*
+     * S0 (HPDMA SMP review):
+     *   hpdma_id_deinit_common touches each channel's ctrl / req_mux /
+     *   status (W1C) and the shared id_init_bits bitmap. Defensive lock
+     *   here protects against any peer-core task or routed-core ISR
+     *   that is still in flight when the driver is being torn down.
+     */
     for (int id = 0; id < (SOC_HPDMA_CHAN_NUM_PER_UNIT*SOC_HPDMA_UNIT_NUM); id++) {
+        uint32_t int_mask = hpdma_enter_critical();
         hpdma_id_deinit_common(id);
+        hpdma_exit_critical(int_mask);
     }
 
 #if CONFIG_PM_ENABLE
@@ -463,8 +472,17 @@ bk_err_t bk_hpdma_free(u16 user_id, hpdma_id_t chnl_id)
          *   counter / status snapshot taken right after a free attempt.
          *   wait_to_idle below also uses stop_disable_only for the same
          *   reason.
+         * S0 (HPDMA SMP review):
+         *   stop_disable_only is a ctrl RMW; serialize it. Do NOT
+         *   extend the lock across hpdma_wait_to_idle - that polls for
+         *   up to HPDMA_MAX_BUSY_TIME us (10 ms) and would be a hard
+         *   real-time violation under SMP.
          */
-        hpdma_hal_stop_disable_only(&s_hpdma.hal, chnl_id);
+        {
+            uint32_t int_mask = hpdma_enter_critical();
+            hpdma_hal_stop_disable_only(&s_hpdma.hal, chnl_id);
+            hpdma_exit_critical(int_mask);
+        }
         bk_err_t wait_ret = hpdma_wait_to_idle(chnl_id);
         if (wait_ret != BK_OK)
         {
@@ -598,14 +616,38 @@ bk_err_t bk_hpdma_init(hpdma_id_t id, const hpdma_config_t *config)
     hw_config.src.ysize = config->src.ysize - 1;
     hw_config.dst.ysize = config->dst.ysize - 1;
 
+    /*
+     * S0 (HPDMA SMP review):
+     *   hpdma_id_init_common() and hpdma_hal_init_dma() between them
+     *   issue ~14 RMW writes that touch ctrl/req_mux bitfields,
+     *   id_init_bits software state, and the channel's address /
+     *   xsize / ysize / step registers. Without serialization, a peer
+     *   core's task or the routed-core HPDMA ISR (which writes ctrl on
+     *   bus_err / fifo_err) can interleave with this configuration and
+     *   produce ctrl/req_mux corruption that surfaces only as silent
+     *   data loss or random bus_err on the next start.
+     */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_id_init_common(id);
-    return hpdma_hal_init_dma(&s_hpdma.hal, id, &hw_config);
+    bk_err_t ret = hpdma_hal_init_dma(&s_hpdma.hal, id, &hw_config);
+    hpdma_exit_critical(int_mask);
+    return ret;
 }
 
 bk_err_t bk_hpdma_deinit(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
+    /*
+     * S0 (HPDMA SMP review):
+     *   hpdma_id_deinit_common writes ctrl / req_mux / status /
+     *   id_init_bits. hpdma_clear_channel_interrupt_state already
+     *   takes the same lock internally; the recursive spinlock makes
+     *   this a no-op on the inner call.
+     */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_id_deinit_common(id);
+    hpdma_exit_critical(int_mask);
+
     hpdma_clear_channel_interrupt_state(id);
     return BK_OK;
 }
@@ -623,15 +665,19 @@ bk_err_t bk_hpdma_start(hpdma_id_t id)
     HPDMA_RETURN_ON_ID_NOT_INIT(0, id);
 
     /*
-     * New P0 (HPDMA review - SMEM burst policy timing fix):
-     *   Re-evaluate the "same physical SMEM block -> INC8" override
-     *   here, when the channel's src/dst registers actually hold the
-     *   real transfer addresses. See apply_smem_burst_policy_at_start().
+     * S0 (HPDMA SMP review):
+     *   apply_smem_burst_policy_at_start may downgrade burst_len in
+     *   req_mux (RMW), and hpdma_hal_start_common writes ctrl.enable
+     *   (RMW). On bus_err / fifo_err the routed-core ISR also touches
+     *   ctrl on the same channel via stop_disable_only, so this whole
+     *   "apply policy + flag DSB + raise enable" sequence must run as
+     *   one atomic block from the hardware's point of view.
      */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_apply_smem_burst_policy_at_start(id);
-
     __DSB();
     hpdma_hal_start_common(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -645,7 +691,11 @@ bk_err_t bk_hpdma_stop(hpdma_id_t id)
      */
     HPDMA_RETURN_ON_ID_NOT_INIT(0, id);
 
+    /* S0 (HPDMA SMP review): see bk_hpdma_start. stop_common writes
+     * ctrl.enable (RMW) and clears status (W1C). */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_stop_common(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -682,8 +732,17 @@ bk_err_t hpdma_wait_to_idle(hpdma_id_t id)
 		 * S1/D: use stop_disable_only so we do not silently W1C-clear the
 		 *       channel's half/finish/bus/fifo interrupt status (which the
 		 *       caller may still want to consume).
+		 * S0 (HPDMA SMP review):
+		 *       stop_disable_only is a ctrl RMW; serialize against the
+		 *       routed-core ISR (which writes ctrl on bus_err/fifo_err)
+		 *       and any peer-core task. The polling loop below reads
+		 *       ctrl.enable as a single 32-bit load, so it is safe to
+		 *       observe outside the critical section - and must be,
+		 *       because it can spin up to HPDMA_MAX_BUSY_TIME us.
 		 */
+		uint32_t int_mask = hpdma_enter_critical();
 		hpdma_hal_stop_disable_only(&s_hpdma.hal, id);
+		hpdma_exit_critical(int_mask);
 	}
 
 	uint32_t i = 0;
@@ -712,11 +771,23 @@ bk_err_t bk_hpdma_wait_to_idle(hpdma_id_t id)
 	return hpdma_wait_to_idle(id);
 }
 
+/*
+ * S0 (HPDMA SMP review):
+ *   All enable/disable per-interrupt helpers below RMW the channel's
+ *   req_mux register (one bitfield each). hpdma_id_enable_interrupt_common
+ *   additionally RMWs the controller-wide int_allocate register and the
+ *   system intc enable. The routed-core HPDMA ISR can preempt any of
+ *   these on a peer core. Wrap the full sequence so the bitfield write
+ *   and the W1C status clear are atomic against ISR, peer tasks, and
+ *   peer-channel concurrent configuration.
+ */
 bk_err_t bk_hpdma_enable_finish_interrupt(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_id_enable_interrupt_common(id);
     hpdma_hal_enable_finish_interrupt(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -724,8 +795,10 @@ bk_err_t bk_hpdma_disable_finish_interrupt(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_disable_finish_interrupt(&s_hpdma.hal, id);
     hpdma_hal_clear_finish_interrupt_status(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     __DSB();
     return BK_OK;
 }
@@ -733,8 +806,10 @@ bk_err_t bk_hpdma_disable_finish_interrupt(hpdma_id_t id)
 bk_err_t bk_hpdma_enable_half_finish_interrupt(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_id_enable_interrupt_common(id);
     hpdma_hal_enable_half_finish_interrupt(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -742,8 +817,10 @@ bk_err_t bk_hpdma_disable_half_finish_interrupt(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_disable_half_finish_interrupt(&s_hpdma.hal, id);
     hpdma_hal_clear_half_finish_interrupt_status(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     __DSB();
     return BK_OK;
 }
@@ -751,8 +828,10 @@ bk_err_t bk_hpdma_disable_half_finish_interrupt(hpdma_id_t id)
 bk_err_t bk_hpdma_enable_bus_err_interrupt(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_id_enable_interrupt_common(id);
     hpdma_hal_enable_bus_err_interrupt(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -760,8 +839,10 @@ bk_err_t bk_hpdma_disable_bus_err_interrupt(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_disable_bus_err_interrupt(&s_hpdma.hal, id);
     hpdma_hal_clear_bus_err_interrupt_status(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     __DSB();
     return BK_OK;
 }
@@ -772,13 +853,22 @@ bk_err_t bk_hpdma_register_isr(hpdma_id_t id, hpdma_isr_t half_finish_isr, void 
     HPDMA_RETURN_ON_NOT_INIT();
 
     HPDMA_RETURN_ON_INVALID_ID(id);
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    /*
+     * S0 (HPDMA SMP review):
+     *   GLOBAL_INT_DISABLE only masks IRQs on the calling core. The HPDMA
+     *   ISR is routed to a fixed core (see hpdma_id_enable_interrupt_common),
+     *   so on FreeRTOS-SMP a task running on a different core could observe
+     *   a half-updated {callback, user_data} pair (e.g. new callback +
+     *   stale user_data) and dereference into freed memory. Use the same
+     *   driver-wide critical section the ISR uses so the update is atomic
+     *   from every observer's point of view.
+     */
+    uint32_t int_mask = hpdma_enter_critical();
     s_hpdma_half_finish_isr[id].callback = half_finish_isr;
     s_hpdma_half_finish_isr[id].user_data = half_finish_data;
     s_hpdma_finish_isr[id].callback = finish_isr;
     s_hpdma_finish_isr[id].user_data = finish_data;
-    GLOBAL_INT_RESTORE();
+    hpdma_exit_critical(int_mask);
 
     return BK_OK;
 }
@@ -787,11 +877,11 @@ bk_err_t bk_hpdma_register_bus_err_isr(hpdma_id_t id, hpdma_isr_t bus_err_isr, v
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    /* S0 (HPDMA SMP review): see bk_hpdma_register_isr. */
+    uint32_t int_mask = hpdma_enter_critical();
     s_hpdma_bus_err_isr[id].callback = bus_err_isr;
     s_hpdma_bus_err_isr[id].user_data = user_data;
-    GLOBAL_INT_RESTORE();
+    hpdma_exit_critical(int_mask);
 
     return BK_OK;
 }
@@ -807,11 +897,11 @@ bk_err_t bk_hpdma_register_fifo_err_isr(hpdma_id_t id, hpdma_isr_t fifo_err_isr,
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
-    GLOBAL_INT_DECLARATION();
-    GLOBAL_INT_DISABLE();
+    /* S0 (HPDMA SMP review): see bk_hpdma_register_isr. */
+    uint32_t int_mask = hpdma_enter_critical();
     s_hpdma_fifo_err_isr[id].callback = fifo_err_isr;
     s_hpdma_fifo_err_isr[id].user_data = user_data;
-    GLOBAL_INT_RESTORE();
+    hpdma_exit_critical(int_mask);
 
     return BK_OK;
 }
@@ -819,8 +909,10 @@ bk_err_t bk_hpdma_register_fifo_err_isr(hpdma_id_t id, hpdma_isr_t fifo_err_isr,
 bk_err_t bk_hpdma_enable_fifo_err_interrupt(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_id_enable_interrupt_common(id);
     hpdma_hal_enable_fifo_err_interrupt(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -828,8 +920,10 @@ bk_err_t bk_hpdma_disable_fifo_err_interrupt(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_disable_fifo_err_interrupt(&s_hpdma.hal, id);
     hpdma_hal_clear_fifo_err_interrupt_status(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     __DSB();
     return BK_OK;
 }
@@ -850,7 +944,17 @@ bk_err_t bk_hpdma_set_src_start_addr(hpdma_id_t id, uint32_t start_addr)
         HPDMA_LOGE("set_src_start_addr: ch%d busy, refuse to update\r\n", id);
         return wait_ret;
     }
+    /*
+     * S0 (HPDMA SMP review):
+     *   start_addr is a full 32-bit register write so the per-store is
+     *   atomic, but the lock here keeps the {wait_to_idle outcome ->
+     *   write address} contract valid against a peer-core start that
+     *   would otherwise re-arm the channel between our wait and our
+     *   write.
+     */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_src_start_addr(&s_hpdma.hal, id, start_addr);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -871,15 +975,27 @@ bk_err_t bk_hpdma_set_dest_start_addr(hpdma_id_t id, uint32_t start_addr)
         HPDMA_LOGE("set_dest_start_addr: ch%d busy, refuse to update\r\n", id);
         return wait_ret;
     }
+    /* S0 (HPDMA SMP review): see bk_hpdma_set_src_start_addr. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_dest_start_addr(&s_hpdma.hal, id, start_addr);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
+/*
+ * S0 (HPDMA SMP review):
+ *   The four addr_inc / addr_loop pairs and the data-width setters all
+ *   touch ctrl bitfields (RMW). The routed-core ISR also writes ctrl
+ *   on bus_err / fifo_err (via stop_disable_only) so each setter must
+ *   serialize with both peer tasks and the ISR.
+ */
 bk_err_t bk_hpdma_enable_src_addr_increase(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_enable_src_addr_inc(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -887,7 +1003,9 @@ bk_err_t bk_hpdma_disable_src_addr_increase(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_disable_src_addr_inc(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -895,7 +1013,9 @@ bk_err_t bk_hpdma_enable_src_addr_loop(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_enable_src_addr_loop(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -903,7 +1023,9 @@ bk_err_t bk_hpdma_disable_src_addr_loop(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_disable_src_addr_loop(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -911,7 +1033,9 @@ bk_err_t bk_hpdma_enable_dest_addr_increase(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_enable_dest_addr_inc(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -919,7 +1043,9 @@ bk_err_t bk_hpdma_disable_dest_addr_increase(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_disable_dest_addr_inc(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -927,7 +1053,9 @@ bk_err_t bk_hpdma_enable_dest_addr_loop(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_enable_dest_addr_loop(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -935,7 +1063,9 @@ bk_err_t bk_hpdma_disable_dest_addr_loop(hpdma_id_t id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_disable_dest_addr_loop(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -950,7 +1080,11 @@ bk_err_t hpdma_set_src_pause_addr(hpdma_id_t id, uint32_t addr)
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /* S0 (HPDMA SMP review): full 32-bit register write but lock to
+     * keep configuration ordering against the routed-core ISR. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_src_pause_addr(&s_hpdma.hal, id, addr);
+    hpdma_exit_critical(int_mask);
 
     return BK_OK;
 }
@@ -960,7 +1094,10 @@ bk_err_t hpdma_set_dst_pause_addr(hpdma_id_t id, uint32_t addr)
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /* S0 (HPDMA SMP review): see hpdma_set_src_pause_addr. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_dest_pause_addr(&s_hpdma.hal, id, addr);
+    hpdma_exit_critical(int_mask);
 
     return BK_OK;
 }
@@ -992,7 +1129,10 @@ bk_err_t bk_hpdma_set_src_data_width(hpdma_id_t id, hpdma_data_width_t data_widt
         HPDMA_LOGE("set_src_data_width: ch%d busy, refuse to update\r\n", id);
         return wait_ret;
     }
+    /* S0 (HPDMA SMP review): ctrl.src_data_width is a 3-bit RMW. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_src_data_width(&s_hpdma.hal, id, data_width);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1007,7 +1147,10 @@ bk_err_t bk_hpdma_set_dest_data_width(hpdma_id_t id, hpdma_data_width_t data_wid
         HPDMA_LOGE("set_dest_data_width: ch%d busy, refuse to update\r\n", id);
         return wait_ret;
     }
+    /* S0 (HPDMA SMP review): ctrl.dest_data_width is a 3-bit RMW. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_dest_data_width(&s_hpdma.hal, id, data_width);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1017,8 +1160,10 @@ bk_err_t bk_hpdma_set_pixel_trans_type(hpdma_id_t id, hpdma_pixel_trans_type_t t
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
-
+    /* S0 (HPDMA SMP review): req_mux.pixel_trans_type is a 2-bit RMW. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_pixel_trans_type(&s_hpdma.hal, id, type);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1036,7 +1181,10 @@ bk_err_t bk_hpdma_bus_err_int_enable(hpdma_id_t id)
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /* S0 (HPDMA SMP review): req_mux.bus_err_int_en is a 1-bit RMW. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_bus_err_int_enable(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1045,7 +1193,10 @@ bk_err_t bk_hpdma_bus_err_int_diable(hpdma_id_t id)
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /* S0 (HPDMA SMP review): req_mux.bus_err_int_en is a 1-bit RMW. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_bus_err_int_disable(&s_hpdma.hal, id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1054,7 +1205,10 @@ bk_err_t bk_hpdma_set_dest_sec_attr(hpdma_id_t id, hpdma_sec_attr_t attr)
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /* S0 (HPDMA SMP review): req_mux.dest_sec_attr is a 1-bit RMW. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_dest_sec_attr(&s_hpdma.hal, id, attr);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1063,7 +1217,10 @@ bk_err_t bk_hpdma_set_src_sec_attr(hpdma_id_t id, hpdma_sec_attr_t attr)
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /* S0 (HPDMA SMP review): req_mux.src_sec_attr is a 1-bit RMW. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_src_sec_attr(&s_hpdma.hal, id, attr);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1211,8 +1368,15 @@ bk_err_t bk_hpdma_set_dest_burst_len(hpdma_id_t id, hpdma_burst_len_t len)
      *   apply_smem_burst_policy_at_start(), which runs at real start
      *   time when the channel actually knows its src/dst addresses.
      *   Here we just write what the caller asked for.
+     * S0 (HPDMA SMP review):
+     *   req_mux.dtst_burst_len is a 2-bit RMW. apply_smem_burst_policy_at_start
+     *   runs from bk_hpdma_start (already locked) and from
+     *   hpdma_memcpy_by_chnl (also locked) - both already hold this
+     *   lock, the recursive spinlock makes that safe.
      */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_dest_burst_len(&s_hpdma.hal, id, len);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1230,7 +1394,10 @@ bk_err_t bk_hpdma_set_src_burst_len(hpdma_id_t id, hpdma_burst_len_t len)
     HPDMA_RETURN_ON_INVALID_ID(id);
 
     /* New P0 (HPDMA review): see bk_hpdma_set_dest_burst_len. */
+    /* S0 (HPDMA SMP review): req_mux.src_burst_len is a 2-bit RMW. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_src_burst_len(&s_hpdma.hal, id, len);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1247,7 +1414,16 @@ bk_err_t bk_hpdma_set_sec_attr(hpdma_id_t id, hpdma_sec_attr_t attr)
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /*
+     * S0 (HPDMA SMP review):
+     *   secure_attr is a *controller-wide* register where each channel
+     *   owns one bit out of 4. The setter is a per-bit RMW. Two cores
+     *   configuring different channels on this controller concurrently
+     *   would otherwise race and silently lose one of the writes.
+     */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_sec_attr(&s_hpdma.hal, id, attr);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1256,7 +1432,10 @@ bk_err_t bk_hpdma_set_privileged_attr(hpdma_id_t id, hpdma_sec_attr_t attr)
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
 
+    /* S0 (HPDMA SMP review): see bk_hpdma_set_sec_attr. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_privileged_attr(&s_hpdma.hal, id, attr);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1264,7 +1443,16 @@ bk_err_t bk_hpdma_set_int_allocate(hpdma_id_t id, hpdma_int_id_t int_id)
 {
     HPDMA_RETURN_ON_NOT_INIT();
     HPDMA_RETURN_ON_INVALID_ID(id);
+    /*
+     * S0 (HPDMA SMP review):
+     *   int_allocate is a controller-wide register where each channel
+     *   owns 3 contiguous bits. The setter is a 3-bit RMW. Concurrent
+     *   peer-channel configuration from different cores would clobber
+     *   each other.
+     */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_int_allocate(&s_hpdma.hal, id, int_id);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1321,11 +1509,34 @@ bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_
 
     HPDMA_LOGV("hpdma_memcpy cpy_chnl: %d\r\n", cpy_chnl);
 
-    GLOBAL_INT_DECLARATION();
-    
-    GLOBAL_INT_DISABLE();
+    /*
+     * S0 (HPDMA SMP review):
+     *   The previous version bracketed the whole "wait + init + start"
+     *   sequence with GLOBAL_INT_DISABLE. That had two problems:
+     *     1. GLOBAL_INT_DISABLE only masks IRQs on the calling core,
+     *        so on FreeRTOS-SMP a peer core's task or the routed-core
+     *        HPDMA ISR could still preempt the configuration sequence.
+     *     2. hpdma_wait_to_idle can spin for up to HPDMA_MAX_BUSY_TIME
+     *        us (10 ms). Holding IRQs off across that window stalls
+     *        every higher-priority task on the local core; this was the
+     *        kind of thing that produced the heartbeat / scheduler
+     *        hangs we tracked down in the SMP MIPI logs.
+     *
+     *   The wait is now done out of any critical section. The actual
+     *   configuration sequence (bk_hpdma_init -> sec_attr -> burst
+     *   policy -> DSB -> hpdma_hal_start_common) is wrapped in
+     *   hpdma_enter_critical so it is atomic against peer cores AND
+     *   the routed-core ISR. Each inner bk_hpdma_* call also takes the
+     *   same lock; the recursive spinlock turns those nested takes
+     *   into cheap counter increments.
+     */
+    bk_err_t pre_wait = hpdma_wait_to_idle(cpy_chnl);
+    if (pre_wait != BK_OK) {
+        HPDMA_LOGE("memcpy: ch%d busy before reconfig, ret=%d\r\n", cpy_chnl, pre_wait);
+        return pre_wait;
+    }
 
-    hpdma_wait_to_idle(cpy_chnl);
+    uint32_t int_mask = hpdma_enter_critical();
 
     // Note: Cache operations for source and destination are handled in bk_hpdma_init
     // which flushes both source and destination cache before DMA transfer starts
@@ -1345,7 +1556,7 @@ bk_err_t hpdma_memcpy_by_chnl(void *out, const void *in, uint32_t len, hpdma_id_
 
     __DSB();
     hpdma_hal_start_common(&s_hpdma.hal, cpy_chnl);
-    GLOBAL_INT_RESTORE();
+    hpdma_exit_critical(int_mask);
 
     /*
      * S1 (HPDMA review):
@@ -1421,7 +1632,17 @@ bk_err_t bk_hpdma_flush_src_buffer(hpdma_id_t id)
     HPDMA_RETURN_ON_INVALID_ID(id);
     HPDMA_RETURN_ON_ID_NOT_INIT(0, id);
 
-    hpdma_hal_stop_disable_only(&s_hpdma.hal, id);
+    /*
+     * S0 (HPDMA SMP review):
+     *   stop_disable_only is a ctrl RMW. Lock JUST the stop; the wait
+     *   below polls without the lock to keep the busy-wait window out
+     *   of any critical section.
+     */
+    {
+        uint32_t int_mask = hpdma_enter_critical();
+        hpdma_hal_stop_disable_only(&s_hpdma.hal, id);
+        hpdma_exit_critical(int_mask);
+    }
     return hpdma_wait_to_idle(id);
 }
 
@@ -1464,12 +1685,20 @@ bk_err_t bk_hpdma_force_reclaim(u16 user_id, hpdma_id_t chnl_id)
     HPDMA_LOGW("force reclaim ch%d (user=0x%x): DMA may have left partial writes\r\n",
                chnl_id, user_id);
 
+    /*
+     * S0 (HPDMA SMP review):
+     *   Extend the critical section to cover stop_disable_only +
+     *   reset_config_to_default + id_init_bits clear. All three touch
+     *   bitfields or shared software state and must serialize with
+     *   peer cores and the routed-core ISR. Previously only the ISR
+     *   table NULL-ing and the channel pool update were locked.
+     */
+    u32 int_mask = hpdma_enter_critical();
     hpdma_hal_stop_disable_only(&s_hpdma.hal, chnl_id);
     /* Per-channel reset: ctrl/req_mux/status/addresses all back to 0. */
     hpdma_hal_reset_config_to_default(&s_hpdma.hal, chnl_id);
     s_hpdma.id_init_bits &= ~BIT(chnl_id);
 
-    u32 int_mask = hpdma_enter_critical();
     s_hpdma_half_finish_isr[chnl_id].callback = NULL;
     s_hpdma_half_finish_isr[chnl_id].user_data = NULL;
     s_hpdma_finish_isr[chnl_id].callback = NULL;
@@ -1504,7 +1733,17 @@ bk_err_t bk_hpdma_force_reclaim(u16 user_id, hpdma_id_t chnl_id)
 bk_err_t bk_hpdma_recover_after_low_voltage(void)
 {
     HPDMA_RETURN_ON_NOT_INIT();
+    /*
+     * S0 (HPDMA SMP review):
+     *   hpdma_hal_init_without_channels writes the controller-wide
+     *   prio_mode (with soft_reset bit), secure_attr, and
+     *   privileged_attr registers. Even on PM wakeup these may race
+     *   against tasks on the other core that already started running
+     *   before this PM exit callback completes. Lock them.
+     */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_init_without_channels(&s_hpdma.hal);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1513,7 +1752,11 @@ bk_err_t bk_hpdma_set_next_ll_addr(hpdma_id_t id, uint32_t ll_addr)
 {
 	HPDMA_RETURN_ON_NOT_INIT();
 	HPDMA_RETURN_ON_INVALID_ID(id);
+    /* S0 (HPDMA SMP review): full 32-bit register write but lock to
+     * keep configuration ordering against peer cores and the ISR. */
+    uint32_t int_mask = hpdma_enter_critical();
     hpdma_hal_set_next_ll_addr(&s_hpdma.hal, id, ll_addr);
+    hpdma_exit_critical(int_mask);
     return BK_OK;
 }
 
@@ -1777,95 +2020,157 @@ bk_err_t bk_hpdma_link_transfer(hpdma_id_t id, void *desc_table)
     return BK_OK;
 }
 
+/*
+ * S0 (HPDMA SMP review):
+ *   The ISR coordinates with peer-core tasks via the same hpdma_spin_lock
+ *   that wraps every register-touch API. For each event class on each
+ *   channel we:
+ *     1. Take the lock.
+ *     2. Re-check the status bit (it may have been cleared by a peer
+ *        already), perform the W1C clear and, for error classes, the
+ *        ctrl.enable RMW that halts the channel.
+ *     3. Snapshot the {callback, user_data} pair so we have a stable
+ *        copy independent of any concurrent register/unregister.
+ *     4. Release the lock.
+ *     5. Run the user callback OUTSIDE the lock. This is mandatory:
+ *        clients post semaphores / queue work / take their own mutexes,
+ *        and they must not do that under our spinlock or we risk
+ *        priority inversion / deadlock.
+ *
+ *   Re-checking the triggered bit after taking the lock is important:
+ *   between "is_triggered() true" outside the lock and grabbing the lock,
+ *   a peer could have already W1C-cleared the status (e.g. a CLI command
+ *   probing status on the other core). Without the re-check we would
+ *   call the callback for an event that is no longer pending and may
+ *   dereference stale user_data.
+ */
 static void hpdma_isr_common(hpdma_unit_t hpdma_unit_id)
 {
     hpdma_hal_t *hal = &s_hpdma.hal;
-    uint32_t channel = 0;
+
     for (int id = 0; id < SOC_HPDMA_CHAN_NUM_PER_UNIT; id++) {
-        channel = id + hpdma_unit_id * SOC_HPDMA_CHAN_NUM_PER_UNIT;
+        const uint32_t channel = id + hpdma_unit_id * SOC_HPDMA_CHAN_NUM_PER_UNIT;
+        hpdma_isr_t cb;
+        void *cb_data;
+        bool fire;
 
-        if (hpdma_hal_is_half_finish_interrupt_triggered(hal, id)) {
-            HPDMA_LOGV("hpdma_isr HALF FINISH TRIGGERED! id: %d\r\n", id);
-            //NOTES:clear intrrupt in condition because maybe multi-core(two CPU) access one DMA
-            //it can't cleared peer-side channels status.
-            hpdma_hal_clear_half_finish_interrupt_status(hal, id);
-            __DSB();
-            __ISB();
-            if (s_hpdma_half_finish_isr[id].callback) {
-                HPDMA_LOGV("hpdma_isr HALF_finish_isr! id: %d\r\n", id);
-                s_hpdma_half_finish_isr[id].callback(channel, s_hpdma_half_finish_isr[id].user_data);
+        /* ---- half-finish ---- */
+        fire = false;
+        cb = NULL;
+        cb_data = NULL;
+        {
+            uint32_t int_mask = hpdma_enter_critical();
+            if (hpdma_hal_is_half_finish_interrupt_triggered(hal, id)) {
+                hpdma_hal_clear_half_finish_interrupt_status(hal, id);
+                cb = s_hpdma_half_finish_isr[id].callback;
+                cb_data = s_hpdma_half_finish_isr[id].user_data;
+                fire = true;
             }
+            hpdma_exit_critical(int_mask);
         }
-        if (hpdma_hal_is_finish_interrupt_triggered(hal, id)) {
-            /*
-             * S1 (HPDMA review):
-             *   The old code called flush_all_dcache() on every finish
-             *   ISR. On high-frame-rate GPU / LVGL paths this turned a
-             *   16-microsecond ISR into a multi-millisecond ISR (whole
-             *   D-cache walked back to RAM) and serialized every other
-             *   core / task behind the cache controller. Per-callback
-             *   cache maintenance is the caller's responsibility (LVGL /
-             *   GPU already flush the specific buffer they read after
-             *   waiting on the completion semaphore); we no longer pay
-             *   a global cost from interrupt context.
-             */
-            HPDMA_LOGV("hpdma_isr ALL FINISH TRIGGERED! id: %d\r\n", id);
-            hpdma_hal_clear_finish_interrupt_status(hal, id);
+        if (fire) {
             __DSB();
             __ISB();
-            if (s_hpdma_finish_isr[id].callback) {
-                HPDMA_LOGV("hpdma_isr ALL_finish_isr! id: %d\r\n", id);
-                s_hpdma_finish_isr[id].callback(channel, s_hpdma_finish_isr[id].user_data);
+            HPDMA_LOGV("hpdma_isr HALF FINISH ch%u\r\n", channel);
+            if (cb) {
+                cb(channel, cb_data);
             }
         }
 
-        if (hpdma_hal_is_bus_err_interrupt_triggered(hal, id)) {
-            /*
-             * S1 (HPDMA review):
-             *   On bus_err the channel is in a known-bad state (it has
-             *   either touched an illegal addr or violated security).
-             *   Previously the ISR only cleared status and called back;
-             *   leaving dma_en=1 caused the engine to re-attempt the
-             *   same access immediately, producing an interrupt storm
-             *   and, on production silicon, ultimately a watchdog. We
-             *   now disable the channel BEFORE running the callback so
-             *   the callback always observes a halted engine and
-             *   subsequent ISRs cannot re-fire for the same fault.
-             *   stop_disable_only() is used (not stop_common) so the
-             *   half/finish/fifo status bits are preserved for the
-             *   callback to inspect.
-             */
-            HPDMA_LOGE("hpdma_isr BUS ERR! id: %d\r\n", id);
-            hpdma_hal_stop_disable_only(hal, id);
-            hpdma_hal_clear_bus_err_interrupt_status(hal, id);
+        /* ---- finish ---- */
+        fire = false;
+        cb = NULL;
+        cb_data = NULL;
+        {
+            uint32_t int_mask = hpdma_enter_critical();
+            if (hpdma_hal_is_finish_interrupt_triggered(hal, id)) {
+                /*
+                 * S1 (HPDMA review):
+                 *   Old code called flush_all_dcache() on every finish
+                 *   ISR. Whole-cache flush from interrupt context is a
+                 *   millisecond-class stall. Per-callback cache
+                 *   maintenance is the caller's responsibility (LVGL /
+                 *   GPU already flush the specific buffer they read
+                 *   after waiting on the completion semaphore).
+                 */
+                hpdma_hal_clear_finish_interrupt_status(hal, id);
+                cb = s_hpdma_finish_isr[id].callback;
+                cb_data = s_hpdma_finish_isr[id].user_data;
+                fire = true;
+            }
+            hpdma_exit_critical(int_mask);
+        }
+        if (fire) {
             __DSB();
             __ISB();
-            if (s_hpdma_bus_err_isr[id].callback) {
-                HPDMA_LOGE("hpdma_isr BUS ERR CALLBACK! id: %d\r\n", id);
-                s_hpdma_bus_err_isr[id].callback(channel, s_hpdma_bus_err_isr[id].user_data);
+            HPDMA_LOGV("hpdma_isr FINISH ch%u\r\n", channel);
+            if (cb) {
+                cb(channel, cb_data);
             }
         }
 
+        /* ---- bus_err ---- */
+        fire = false;
+        cb = NULL;
+        cb_data = NULL;
+        {
+            uint32_t int_mask = hpdma_enter_critical();
+            if (hpdma_hal_is_bus_err_interrupt_triggered(hal, id)) {
+                /*
+                 * S1 (HPDMA review):
+                 *   On bus_err the channel is in a known-bad state.
+                 *   Disable the channel BEFORE running the callback so
+                 *   the callback always observes a halted engine and
+                 *   subsequent ISRs cannot re-fire for the same fault.
+                 *   stop_disable_only() preserves half/finish/fifo
+                 *   status bits for the callback to inspect.
+                 */
+                hpdma_hal_stop_disable_only(hal, id);
+                hpdma_hal_clear_bus_err_interrupt_status(hal, id);
+                cb = s_hpdma_bus_err_isr[id].callback;
+                cb_data = s_hpdma_bus_err_isr[id].user_data;
+                fire = true;
+            }
+            hpdma_exit_critical(int_mask);
+        }
+        if (fire) {
+            __DSB();
+            __ISB();
+            HPDMA_LOGE("hpdma_isr BUS ERR ch%u\r\n", channel);
+            if (cb) {
+                cb(channel, cb_data);
+            }
+        }
+
+        /* ---- fifo_err ---- */
         /*
-         * P0 (HPDMA review):
-         *   fifo_err handling was completely absent. If enabled by a
-         *   client (via bk_hpdma_enable_fifo_err_interrupt) the bit
-         *   would latch in status and never be W1C'd, generating an
-         *   immediate re-entry once the line was unmasked. Mirror the
-         *   bus_err handling: halt first, then clear, then notify.
+         * P0 (HPDMA review): fifo_err handling was previously absent;
+         *   bit17 in status would never get W1C'd, latching the line.
+         *   Mirror bus_err: halt first, then clear, then notify.
          */
-        if (hpdma_hal_is_fifo_err_interrupt_triggered(hal, id)) {
-            HPDMA_LOGE("hpdma_isr FIFO ERR! id: %d\r\n", id);
-            hpdma_hal_stop_disable_only(hal, id);
-            hpdma_hal_clear_fifo_err_interrupt_status(hal, id);
+        fire = false;
+        cb = NULL;
+        cb_data = NULL;
+        {
+            uint32_t int_mask = hpdma_enter_critical();
+            if (hpdma_hal_is_fifo_err_interrupt_triggered(hal, id)) {
+                hpdma_hal_stop_disable_only(hal, id);
+                hpdma_hal_clear_fifo_err_interrupt_status(hal, id);
+                cb = s_hpdma_fifo_err_isr[id].callback;
+                cb_data = s_hpdma_fifo_err_isr[id].user_data;
+                fire = true;
+            }
+            hpdma_exit_critical(int_mask);
+        }
+        if (fire) {
             __DSB();
             __ISB();
-            if (s_hpdma_fifo_err_isr[id].callback) {
-                HPDMA_LOGE("hpdma_isr FIFO ERR CALLBACK! id: %d\r\n", id);
-                s_hpdma_fifo_err_isr[id].callback(channel, s_hpdma_fifo_err_isr[id].user_data);
+            HPDMA_LOGE("hpdma_isr FIFO ERR ch%u\r\n", channel);
+            if (cb) {
+                cb(channel, cb_data);
             }
         }
-   }
+    }
 }
 
 static void hpdma_isr(void)
