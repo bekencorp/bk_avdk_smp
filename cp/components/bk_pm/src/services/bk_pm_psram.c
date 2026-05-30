@@ -294,12 +294,28 @@ static bk_err_t bk_pm_psram_init_and_check(void)
 	return BK_OK;
 }
 
+/*
+ * NOTE: do NOT add BK_LOGI / BK_LOGE / BK_LOGD (or any path going through
+ * the async shell logger) inside this function.
+ *
+ * When CONFIG_PSRAM_AS_SYS_MEMORY=y, the shell dynamic-log allocator
+ * LOG_MALLOC == psram_malloc. The first vote-on happens *before* the
+ * PSRAM heap is initialized, so psram_malloc_cm() calls back into
+ * bk_pm_module_vote_psram_ctrl(... STATE_ON) to bring PSRAM up. Any
+ * BK_LOGx in this function would then need a dynamic-log block, which
+ * re-enters this same function and causes unbounded recursion / stack
+ * overflow at boot.
+ *
+ * If absolutely needed, use BK_DUMP_OUT() instead -- it uses a fixed
+ * shell_assert_buff[] and writes synchronously to UART, bypassing
+ * LOG_MALLOC. Otherwise put diagnostics in the callee (bk_psram_init /
+ * bk_psram_data_retention_recover) where the heap is already up.
+ */
 bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_power_module_state_e power_state)
 {
 	bk_err_t ret = BK_OK;
 
 	GLOBAL_INT_DECLARATION();
-	//BK_LOGD(NULL, "%s %d %d 0x%x\r\n",__func__, module, power_state,s_pm_psram_ctrl_state);
     if(power_state == PM_POWER_MODULE_STATE_ON)//power on
     {
         GLOBAL_INT_DISABLE();
@@ -324,25 +340,19 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 		 * init branch and every subsequent ON lands in the recover branch. */
 		bool is_first_boot = bk_pm_ap_first_boot_get();
 		if (is_first_boot) {
-			BK_LOGI("pm_psram", "vote_on: first boot -> bk_psram_init()\r\n");
 			ret = bk_pm_psram_init_and_check();
 		} else {
-			BK_LOGI("pm_psram", "vote_on: not first boot -> bk_psram_data_retention_recover()\r\n");
 			ret = bk_psram_data_retention_recover();
 			if (ret != BK_OK) {
 				/* Controller-side recovery failed (PSRAM cells may still
 				 * hold the data, but the controller is in an unknown
 				 * state). Fall back to full re-init so the controller is
 				 * at least usable and AP can boot; cell data is lost in
-				 * this case. */
-				BK_LOGE("pm_psram",
-						"data_retention_recover failed (%d), fallback to bk_psram_init()\r\n",
-						ret);
+				 * this case. No log here -- see WARN at function head. */
 				ret = bk_pm_psram_init_and_check();
 			}
 		}
 #else  /* !CONFIG_PSRAM_DATA_RETENTION_ENABLE: original init-only path */
-		BK_LOGI("pm_psram", "vote_on: retention disabled -> bk_psram_init()\r\n");
 		ret = bk_pm_psram_init_and_check();
 #endif /* CONFIG_PSRAM_DATA_RETENTION_ENABLE */
 
@@ -400,14 +410,11 @@ bk_err_t bk_pm_module_vote_psram_ctrl(pm_power_psram_module_name_e module,pm_pow
 					/* Retention setup failed; the controller may be left in
 					 * an inconsistent state. Fall back to a clean deinit so
 					 * the next vote_on starts from a known state via
-					 * bk_psram_init(). Cell data WILL be lost in this case. */
-					BK_LOGE("pm_psram",
-							"data_retention failed (%d), fallback to bk_psram_deinit()\r\n",
-							ret);
+					 * bk_psram_init(). Cell data WILL be lost in this case.
+					 * No log here -- see WARN at function head. */
 					bk_psram_deinit();
 				}
 #else  /* !CONFIG_PSRAM_DATA_RETENTION_ENABLE: original deinit path */
-				BK_LOGI("pm_psram", "vote_off: retention disabled -> bk_psram_deinit()\r\n");
 				bk_psram_deinit();
 #endif /* CONFIG_PSRAM_DATA_RETENTION_ENABLE */
 			}
