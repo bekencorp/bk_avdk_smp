@@ -22,6 +22,7 @@
 #include "audio_play.h"
 #include "audio_record.h"
 #include "bk_gpio.h"
+#include "a2dp_sink/a2dp_sink_demo.h"
 
 #define TAG "hfp_client"
 
@@ -900,8 +901,7 @@ static void mic_task(void *arg)
     cfg.ch_bitmap = ONBOARD_MIC_ADC_ACTIVE_CH_0_BIT;
 
     LOGI("%s wait a2dp task end\n", __func__);
-    extern int32_t wait_a2dp_speaker_task_end(void);
-    wait_a2dp_speaker_task_end();
+    a2dp_sink_demo_wait_player_end();
 
 #if CONFIG_AUDIO_RECORD
     s_audio_record_obj = audio_record_create(AUDIO_RECORD_ONBOARD_MIC, &cfg);
@@ -1033,8 +1033,7 @@ static void speaker_task(void *arg)
     cfg.main_dac_source   = AUD_DAC_SOURCE_CALL;
 
     LOGI("%s wait a2dp task end\n", __func__);
-    extern int32_t wait_a2dp_speaker_task_end(void);
-    wait_a2dp_speaker_task_end();
+    a2dp_sink_demo_wait_player_end();
 
     s_audio_play_obj = audio_play_create(AUDIO_PLAY_ONBOARD_SPEAKER, &cfg);
     if(!s_audio_play_obj)

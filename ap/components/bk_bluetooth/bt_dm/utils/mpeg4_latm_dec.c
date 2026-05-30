@@ -105,13 +105,13 @@ enum AudioObjectType
     AOT_LD_SURROUND      = 44, ///< N                       Low Delay MPEG Surround
 };
 
-static const int ff_mpeg4audio_sample_rates[16] =
+static const int ff_mpeg4audio_sample_rates[16] __attribute__((unused)) =
 {
     96000, 88200, 64000, 48000, 44100, 32000,
     24000, 22050, 16000, 12000, 11025, 8000, 7350
 };
 
-static const uint8_t ff_mpeg4audio_channels[15] =
+static const uint8_t ff_mpeg4audio_channels[15] __attribute__((unused)) =
 {
     0,
     1, // mono (1/0)
@@ -606,7 +606,7 @@ static int latm_decode_audio_specific_config(struct LATMContext *latmctx, GetBit
 
 static int read_stream_mux_config(struct LATMContext *latmctx, GetBitContext *gb)
 {
-    int ret, audio_mux_version = get_bits(gb, 1);
+    int audio_mux_version = get_bits(gb, 1);
     int layers = 0;
     uint8_t unexpect_payload = 0;
 
@@ -877,7 +877,7 @@ int mpeg4_latm_decode(uint8_t *input, uint32_t input_len, uint8_t **output, uint
 {
     static struct LATMContext latmctx;
     GetBitContext gb;
-    int muxlength = 0, err = 0;
+    int err = 0;
 
     os_memset(&gb, 0, sizeof(gb));
 

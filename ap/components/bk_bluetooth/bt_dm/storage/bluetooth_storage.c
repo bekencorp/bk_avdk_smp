@@ -9,11 +9,12 @@
 #include <stdio.h>
 
 #include "bluetooth_storage.h"
-//#include "bk_factory_config.h"
 
 #if CONFIG_EASY_FLASH
-#include "easyflash.h"
+    #include "easyflash.h"
 #endif
+
+#include "driver/uart.h"
 
 static bt_user_storage_t *s_bt_user_storage;
 static const uint8_t s_bt_empty_addr[6] = {0};
@@ -39,7 +40,7 @@ static int32_t bluetooth_storage_alloc_linkkey_info(uint8_t *addr)
     for (int i = 0; i < sizeof(s_bt_user_storage->linkkey) / sizeof(s_bt_user_storage->linkkey[0]); ++i)
     {
         if (!memcmp(s_bt_empty_addr, s_bt_user_storage->linkkey[i].addr, sizeof(s_bt_user_storage->linkkey[i].addr)) ||
-            !memcmp(s_bt_invaild_addr, s_bt_user_storage->linkkey[i].addr, sizeof(s_bt_user_storage->linkkey[i].addr)))
+                !memcmp(s_bt_invaild_addr, s_bt_user_storage->linkkey[i].addr, sizeof(s_bt_user_storage->linkkey[i].addr)))
         {
             memcpy(s_bt_user_storage->linkkey[i].addr, addr, sizeof(s_bt_user_storage->linkkey[i].addr));
             memset(s_bt_user_storage->linkkey[i].link_key, 0, sizeof(s_bt_user_storage->linkkey[i].link_key));
@@ -146,7 +147,7 @@ int32_t bluetooth_storage_save_linkkey_info(uint8_t *addr, uint8_t *key)
     }
 
     memcpy(&s_bt_user_storage->linkkey[i - 1], &tmp_key, sizeof(tmp_key));
-#if CONFIG_EASY_FLASH_V4
+#if 0//CONFIG_EASY_FLASH_V4
     ret = ef_set_env_blob(BT_STORAGE_KEY, s_bt_user_storage, sizeof(*s_bt_user_storage));
 
     if (ret)
@@ -194,7 +195,7 @@ int32_t bluetooth_storage_update_to_newest(uint8_t *addr)
     }
 
     memcpy(&s_bt_user_storage->linkkey[i - 1], &tmp_key, sizeof(tmp_key));
-#if CONFIG_EASY_FLASH_V4
+#if 0//CONFIG_EASY_FLASH_V4
     ret = ef_set_env_blob(BT_STORAGE_KEY, s_bt_user_storage, sizeof(*s_bt_user_storage));
 
     if (ret)
@@ -220,7 +221,7 @@ int32_t bluetooth_storage_get_newest_linkkey_info(uint8_t *addr, uint8_t *key)
     for (i = sizeof(s_bt_user_storage->linkkey) / sizeof(s_bt_user_storage->linkkey[0]) - 1; i >= 0; --i)
     {
         if (memcmp(s_bt_empty_addr, s_bt_user_storage->linkkey[i].addr, sizeof(s_bt_user_storage->linkkey[i].addr)) &&
-            memcmp(s_bt_invaild_addr, s_bt_user_storage->linkkey[i].addr, sizeof(s_bt_user_storage->linkkey[i].addr)))
+                memcmp(s_bt_invaild_addr, s_bt_user_storage->linkkey[i].addr, sizeof(s_bt_user_storage->linkkey[i].addr)))
         {
             int j = 0;
 
@@ -299,6 +300,120 @@ int32_t bluetooth_storage_save_volume(uint8_t *addr, uint8_t volume)
     return 0;
 }
 
+int32_t bluetooth_storage_find_hfp_volume_by_addr(uint8_t *addr, uint8_t *mic_vol, uint8_t *spk_vol)
+{
+    if (!s_bt_user_storage)
+    {
+        os_printf("%s not init\n", __func__);
+        return -1;
+    }
+
+    for (int i = 0; i < sizeof(s_bt_user_storage->linkkey) / sizeof(s_bt_user_storage->linkkey[0]); ++i)
+    {
+        if (!memcmp(addr, s_bt_user_storage->linkkey[i].addr, sizeof(s_bt_user_storage->linkkey[i].addr)))
+        {
+            if (mic_vol)
+            {
+                *mic_vol = s_bt_user_storage->linkkey[i].hfp_mic_vol;
+            }
+
+            if (spk_vol)
+            {
+                *spk_vol = s_bt_user_storage->linkkey[i].hfp_spk_vol;
+            }
+
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int32_t bluetooth_storage_save_hfp_volume(uint8_t *addr, uint8_t type, uint8_t volume)
+{
+    int32_t index = 0;
+
+    if (!s_bt_user_storage)
+    {
+        os_printf("%s not init\n", __func__);
+        return -1;
+    }
+
+    index = bluetooth_storage_find_linkkey_info_index(addr, NULL);
+
+    if (index >= 0)
+    {
+        switch (type)
+        {
+        case 0:
+            s_bt_user_storage->linkkey[index].hfp_mic_vol = volume;
+            break;
+
+        case 1:
+            s_bt_user_storage->linkkey[index].hfp_spk_vol = volume;
+            break;
+        }
+    }
+    else
+    {
+        os_printf("%s, not find the device info, %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
+                  addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
+        return -1;
+    }
+
+    return 0;
+}
+
+int32_t bluetooth_storage_find_addr_by_hash(uint8_t *addr, uint32_t hash)
+{
+    if (!s_bt_user_storage)
+    {
+        os_printf("%s not init\n", __func__);
+        return -1;
+    }
+
+    for (int i = 0; i < sizeof(s_bt_user_storage->linkkey) / sizeof(s_bt_user_storage->linkkey[0]); ++i)
+    {
+        if (hash == s_bt_user_storage->linkkey[i].hash)
+        {
+            if (addr)
+            {
+                os_memcpy(addr, s_bt_user_storage->linkkey[i].addr, 6);
+            }
+
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int32_t bluetooth_storage_save_hash(uint8_t *addr, uint32_t hash)
+{
+    int32_t index = 0;
+
+    if (!s_bt_user_storage)
+    {
+        os_printf("%s not init\n", __func__);
+        return -1;
+    }
+
+    index = bluetooth_storage_find_linkkey_info_index(addr, NULL);
+
+    if (index >= 0)
+    {
+        s_bt_user_storage->linkkey[index].hash = hash;
+    }
+    else
+    {
+        os_printf("%s, not find the device info, %02X:%02X:%02X:%02X:%02X:%02X\n", __func__,
+                  addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
+        return -1;
+    }
+
+    return 0;
+}
+
 int32_t bluetooth_storage_del_linkkey_info(uint8_t *addr)
 {
     int32_t ret = 0;
@@ -323,7 +438,7 @@ int32_t bluetooth_storage_del_linkkey_info(uint8_t *addr)
         memset(&s_bt_user_storage->linkkey[i - 1], 0, sizeof(s_bt_user_storage->linkkey[0]));
     }
 
-#if CONFIG_EASY_FLASH_V4
+#if 0//CONFIG_EASY_FLASH_V4
     ret = ef_set_env_blob(BT_STORAGE_KEY, s_bt_user_storage, sizeof(*s_bt_user_storage));
 
     if (ret)
@@ -347,7 +462,7 @@ int32_t bluetooth_storage_clean_linkkey_info(void)
 
     memset(s_bt_user_storage->linkkey, 0, sizeof(s_bt_user_storage->linkkey));
 
-#if CONFIG_EASY_FLASH_V4
+#if 0//CONFIG_EASY_FLASH_V4
     ret = ef_set_env_blob(BT_STORAGE_KEY, s_bt_user_storage, sizeof(*s_bt_user_storage));
 
     if (ret)
@@ -371,6 +486,11 @@ int32_t bluetooth_storage_sync_to_flash(void)
 
 #if CONFIG_EASY_FLASH_V4
 
+#if 0//CONFIG_BLUETOOTH_MULTI_CONTROLLER && CONFIG_UART_SW_FLOW_CTRL
+    bk_usfc_hw_set_rts(CONFIG_BLUETOOTH_BSC_UART_ID, 1);
+    bk_usfc_sw_set_rts(CONFIG_BLUETOOTH_BSC_UART_ID, 1);
+#endif
+
     ret = ef_set_env_blob(BT_STORAGE_KEY, s_bt_user_storage, sizeof(*s_bt_user_storage));
 
     if (ret)
@@ -380,13 +500,17 @@ int32_t bluetooth_storage_sync_to_flash(void)
 
     ret = ef_save_env();
 
+#if 0//CONFIG_BLUETOOTH_MULTI_CONTROLLER && CONFIG_UART_SW_FLOW_CTRL
+    bk_usfc_sw_set_rts(CONFIG_BLUETOOTH_BSC_UART_ID, 0);
+    bk_usfc_hw_set_rts(CONFIG_BLUETOOTH_BSC_UART_ID, 0);
+#endif
+
     if (ret)
     {
         os_printf("%s ef_save_env err %d\n", __func__, ret);
     }
 
 #endif
-    //bk_config_write(BT_STORAGE_KEY, s_bt_user_storage, sizeof(bt_user_storage_t));
     return ret;
 }
 
@@ -417,7 +541,7 @@ int32_t bluetooth_storage_linkkey_debug(void)
     return 0;
 }
 
-#if 0//CONFIG_BLE
+#if CONFIG_BLE
 
 int32_t bluetooth_storage_save_ble_key_info(bk_ble_bond_dev_t *list, uint32_t count)
 {
@@ -507,6 +631,68 @@ int32_t bluetooth_storage_read_local_key(bk_ble_local_keys_t *key)
 
 #endif
 
+static uint8_t bluetooth_storage_is_addr_valid(uint8_t *addr)
+{
+    uint8_t sum_ff = 0xff, sum_zero = 0;
+
+    for (int i = 0; i < 6; ++i)
+    {
+        sum_ff &= addr[i];
+        sum_zero |= addr[i];
+    }
+
+    return sum_ff != 0xff && sum_zero != 0;
+}
+
+uint8_t bluetooth_storage_get_bond_device_num(void)
+{
+    if (!s_bt_user_storage)
+    {
+        os_printf("%s not init\n", __func__);
+        return 0;
+    }
+
+    uint8_t count = 0;
+
+    for (int i = 0; i < sizeof(s_bt_user_storage->linkkey) / sizeof(s_bt_user_storage->linkkey[0]); ++i)
+    {
+        if (bluetooth_storage_is_addr_valid(s_bt_user_storage->linkkey[i].addr))
+        {
+            count++;
+        }
+    }
+
+    return count;
+}
+
+uint32_t bluetooth_storage_get_bond_hash(uint16_t hasharray[], uint32_t arraylen )
+{
+    if (!s_bt_user_storage)
+    {
+        os_printf("%s not init\n", __func__);
+        return 0;
+    }
+
+    uint8_t count = 0;
+
+    for (int i = 0; i < sizeof(s_bt_user_storage->linkkey) / sizeof(s_bt_user_storage->linkkey[0]); ++i)
+    {
+        if (bluetooth_storage_is_addr_valid(s_bt_user_storage->linkkey[i].addr))
+        {
+            uint16_t temp_hash = s_bt_user_storage->linkkey[i].hash;
+            os_memcpy(&hasharray[count], &temp_hash, sizeof(temp_hash));
+            count++;
+
+            if (count == arraylen)
+            {
+                break;
+            }
+        }
+    }
+
+    return count;
+}
+
 int32_t bluetooth_storage_init(void)
 {
     int32_t ret = 0;
@@ -539,6 +725,7 @@ int32_t bluetooth_storage_init(void)
 
 #endif
     }
+
     (void)saved_len;
     (void)ret;
     return 0;

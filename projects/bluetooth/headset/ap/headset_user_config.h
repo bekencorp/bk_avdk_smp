@@ -30,6 +30,7 @@
 
 #define CONFIG_PAGE_TIMEOUT  16000   //unit of 0.625ms
 #define CONFIG_RECONN_INTERVAL  2000   //unit of 1ms
+#define CONFIG_MAX_RECONN_COUNT  3
 
 #define CONFIG_WIFI_COEX_SCHEME  0
 

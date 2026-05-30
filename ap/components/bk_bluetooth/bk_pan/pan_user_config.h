@@ -16,6 +16,8 @@
 
 #define LOCAL_NAME "PANU"
 
+#define PAN_DEVICE_CLASS 0x022804
+
 #define BT_PAN_SERVICE_MSG_COUNT          (60)
 #define BT_PAN_SERVICE_TASK_PRIORITY      (4)
 

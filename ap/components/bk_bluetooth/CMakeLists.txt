@@ -112,6 +112,26 @@ if (CONFIG_BLUETOOTH_AP)
                 adapter
             )
 		endif()
+
+		if (CONFIG_BT AND CONFIG_BLUETOOTH_BTDM_COMPONENT_ENABLE)
+			list(APPEND srcs
+				bt_dm/utils/mpeg4_latm_dec.c
+				bt_dm/utils/ring_buffer_node.c
+				bt_dm/utils/ring_buffer_particle.c
+				bt_dm/bt_manager/bt_manager.c
+				bt_dm/storage/bluetooth_storage.c
+				bt_dm/a2dp/bk_a2dp_sink_service.c
+				bt_dm/avrcp/bk_avrcp_ct_service.c
+				bt_dm/avrcp/bk_avrcp_tg_service.c
+				)
+			list(APPEND incs
+				bt_dm/utils
+				bt_dm/bt_manager
+				bt_dm/storage
+				bt_dm/a2dp
+				bt_dm/avrcp
+				)
+		endif ()
 	endif()
 endif()
 

@@ -8,11 +8,12 @@
 
 #include "pan_service.h"
 #include "bt_comm_list.h"
+#include "components/bluetooth/bk_dm_bluetooth.h"
 #include "components/bluetooth/bk_dm_bluetooth_types.h"
 #include "components/bluetooth/bk_dm_bt_types.h"
 #include "components/bluetooth/bk_dm_bt.h"
 #include "components/bluetooth/bk_dm_pan.h"
-#include "storage/bluetooth_storage.h"
+#include "bluetooth_storage.h"
 #include "pan_user_config.h"
 #include "bt_manager.h"
 #include "net.h"
@@ -105,7 +106,7 @@ static int pan_push_tx_data_to_list(void *data, uint16_t len)
 
 void bt_pan_reconnect_failure_handler(void)
 {
-    bt_clear_reconnect_info();
+    bt_manager_clear_reconnect_info();
     bt_manager_set_mode(BT_MNG_MODE_IDLE);
 
 #if 0
@@ -528,7 +529,36 @@ int pan_service_init(void)
         return 0;
     }
 
-    bt_manager_init(0);
+    uint8_t bt_mac[6] = {0};
+	char local_name[30] = {0};
+	bk_err_t err = bk_bluetooth_get_address(bt_mac);
+	if (err == BK_OK)
+	{
+		snprintf(local_name,
+				 sizeof(local_name),
+				 "%s_%02x%02x%02x",
+				 LOCAL_NAME,
+				 bt_mac[2],
+				 bt_mac[1],
+				 bt_mac[0]);
+	}
+	else
+	{
+		snprintf(local_name, sizeof(local_name), "%s", LOCAL_NAME);
+	}
+
+    bt_manager_cfg_t bt_manager_cfg =
+    {
+        .local_name = local_name,
+        .device_class = PAN_DEVICE_CLASS,
+        .page_scan_interval = PAGE_SCAN_INTV,
+        .page_scan_window = PAGE_SCAN_WIN,
+        .page_timeout = CONFIG_PAGE_TIMEOUT,
+        .reconnect_interval_ms = CONFIG_RECONN_INTERVAL,
+        .max_reconnect_count = CONFIG_MAX_RECONN_COUNT,
+        .io_capability = BK_BT_IO_CAP_NONE,
+    };
+    bt_manager_init(&bt_manager_cfg);
 
     btm_callback_s btm_cb =
     {
@@ -536,6 +566,7 @@ int pan_service_init(void)
         .start_connect_cb = bk_pan_connect,
         .start_disconnect_cb = bk_pan_disconnect,
         .stop_connect_cb = NULL,
+        .reconnect_fail_cb = bt_pan_reconnect_failure_handler,
     };
     bt_manager_register_callback(&btm_cb);
 

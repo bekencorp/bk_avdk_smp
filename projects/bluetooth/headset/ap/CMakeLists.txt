@@ -27,22 +27,17 @@ if (CONFIG_BT)
 	list(APPEND incs
 		hfp_hf
 		a2dp_sink
-		storage
 	)
 
 	list(APPEND srcs
 		a2dp_sink/a2dp_sink_demo.c
-		a2dp_sink/ring_buffer_node.c
-		a2dp_sink/mpeg4_latm_dec.c
+		a2dp_sink/a2dp_sink_audio.c
 		a2dp_sink_demo_cli.c
 		hfp_hf/hfp_hf_demo.c
-		hfp_hf/ring_buffer_particle.c
-		bt_manager.c
-		storage/bluetooth_storage.c
 		)
 endif()
 
-set(priv_req  bk_init media_service bk_cli audio_play audio_record lwip_intf_v2_1)
+set(priv_req  bk_init media_service bk_cli audio_play audio_record lwip_intf_v2_1 bk_bluetooth)
 
 if ("${ARMINO_SOC}" STREQUAL "bk7258")
 list(APPEND priv_req)

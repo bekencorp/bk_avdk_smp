@@ -1,7 +1,9 @@
 #include "cli.h"
 #include "components/bluetooth/bk_dm_a2dp.h"
+#include "bk_avrcp_ct_service.h"
 #include "a2dp_sink/a2dp_sink_demo.h"
 #include "hfp_hf/hfp_hf_demo.h"
+#include "bt_manager.h"
 
 static void headset_usage(void)
 {
@@ -134,23 +136,35 @@ static void cmd_headset_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc,
     }
     else if (os_strcmp(argv[1], "play") == 0)
     {
-        void bk_bt_app_avrcp_ct_play(void);
-        bk_bt_app_avrcp_ct_play();
+        ret = bk_avrcp_ct_play();
+        if (ret)
+        {
+            goto __error;
+        }
     }
     else if (os_strcmp(argv[1], "pause") == 0)
     {
-        void bk_bt_app_avrcp_ct_pause(void);
-        bk_bt_app_avrcp_ct_pause();
+        ret = bk_avrcp_ct_pause();
+        if (ret)
+        {
+            goto __error;
+        }
     }
     else if (os_strcmp(argv[1], "prev") == 0)
     {
-        void bk_bt_app_avrcp_ct_prev(void);
-        bk_bt_app_avrcp_ct_prev();
+        ret = bk_avrcp_ct_prev();
+        if (ret)
+        {
+            goto __error;
+        }
     }
     else if (os_strcmp(argv[1], "next") == 0)
     {
-        void bk_bt_app_avrcp_ct_next(void);
-        bk_bt_app_avrcp_ct_next();
+        ret = bk_avrcp_ct_next();
+        if (ret)
+        {
+            goto __error;
+        }
     }
     else if (os_strcmp(argv[1], "rewind") == 0)
     {
@@ -167,8 +181,11 @@ static void cmd_headset_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc,
             }
         }
 
-        void bk_bt_app_avrcp_ct_rewind(uint32_t ms);
-        bk_bt_app_avrcp_ct_rewind(option);
+        ret = bk_avrcp_ct_rewind(option);
+        if (ret)
+        {
+            goto __error;
+        }
     }
     else if (os_strcmp(argv[1], "fast_forward") == 0)
     {
@@ -185,23 +202,31 @@ static void cmd_headset_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc,
             }
         }
 
-        void bk_bt_app_avrcp_ct_fast_forward(uint32_t ms);
-        bk_bt_app_avrcp_ct_fast_forward(option);
+        ret = bk_avrcp_ct_fast_forward(option);
+        if (ret)
+        {
+            goto __error;
+        }
     }
     else if (os_strcmp(argv[1], "vol_up") == 0)
     {
-        void bk_bt_app_avrcp_ct_vol_up(void);
-        bk_bt_app_avrcp_ct_vol_up();
+        ret = bk_avrcp_ct_vol_up();
+        if (ret)
+        {
+            goto __error;
+        }
     }
     else if (os_strcmp(argv[1], "vol_down") == 0)
     {
-        void bk_bt_app_avrcp_ct_vol_down(void);
-        bk_bt_app_avrcp_ct_vol_down();
+        ret = bk_avrcp_ct_vol_down();
+        if (ret)
+        {
+            goto __error;
+        }
     }
     else if (os_strcmp(argv[1], "pair_mode") == 0)
     {
-        void bk_bt_enter_pairing_mode(void);
-        bk_bt_enter_pairing_mode();
+        bk_bt_enter_pairing_mode(1);
     }
     else if (os_strcmp(argv[1], "set_delay_value") == 0)
     {
@@ -245,7 +270,11 @@ static void cmd_headset_demo(char *pcWriteBuffer, int xWriteBufferLen, int argc,
             }
         }
 
-        bk_bt_app_avrcp_ct_get_attr(attr);
+        ret = bk_avrcp_ct_get_attr(attr);
+        if (ret)
+        {
+            goto __error;
+        }
     }
     else if(os_strcmp(argv[1], "vr") == 0 && argc >= 3)
     {
