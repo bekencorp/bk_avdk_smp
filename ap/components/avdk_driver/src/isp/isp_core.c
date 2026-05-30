@@ -53,8 +53,6 @@ enum {
 #define ISP_FLEXA_STREAM_ID_Y 0x14
 #define ISP_FLEXA_STREAM_ID_CB 0x15
 #define ISP_FLEXA_STREAM_ID_CR 0x16
-#define ISP_FLEXA_SBI_PRODUCER_TIMEOUT 0
-#define ISP_FLEXA_SBI_CONSUMER_TIMEOUT 0xFFFF
 
 static isp_isr_handler_t isp_isr_handler[ISP_ISR_MAX][ISP_ISR_MODULE_MAX] = {0};
 
@@ -156,86 +154,6 @@ int isp_set_port_attribute(ISP_PORT IspPort, ISP_PUB_ATTR_S *pPubAttr)
     return VSI_SUCCESS;
 }
 
-static bk_err_t isp_flexa_sbi_config_apply(isp_control_t *control, uint8_t chnl, uint8_t enable)
-{
-    bk_err_t ret = BK_FAIL;
-    VSI_FLEXA_SYNC_ATTR_S flexa_sync = {0};
-    ISP_SBI_ATTR_S *isp_sbi_config = &control->chn[chnl].sbi_attr;
-
-    if (enable)
-    {
-        isp_sbi_config->streamAttr[0].streamId = ISP_FLEXA_STREAM_ID_Y;
-        isp_sbi_config->streamAttr[1].streamId = ISP_FLEXA_STREAM_ID_CB;
-        isp_sbi_config->streamAttr[2].streamId = ISP_FLEXA_STREAM_ID_CR;
-        isp_sbi_config->onLine = 1;
-        isp_sbi_config->streamAttr[0].exceptionID = ISP_SBI_NO_EXCEPTION;
-        isp_sbi_config->streamAttr[1].exceptionID = ISP_SBI_NO_EXCEPTION;
-        isp_sbi_config->streamAttr[2].exceptionID = ISP_SBI_DISABLED;
-
-        switch(control->chn[chnl].chn_attr.chnFormat.pixelFormat) {
-            case PIXEL_FORMAT_NV12:
-                //sbi config
-                isp_sbi_config->entryCnt = control->chn[chnl].buf_cnt;
-                isp_sbi_config->streamNum = 2; //y & uv
-                isp_sbi_config->streamAttr[0].entrySize = FLEXA_LINES;
-                isp_sbi_config->streamAttr[0].streamEnable = 1;
-                isp_sbi_config->streamAttr[1].entrySize = FLEXA_LINES / 2;
-                isp_sbi_config->streamAttr[1].streamEnable = 1;
-                isp_sbi_config->streamAttr[2].entrySize = 0;
-                isp_sbi_config->streamAttr[2].streamEnable = 0;
-                break;
-
-            default:
-                LOGE("Invalid pixel format %d\n", control->chn[chnl].chn_attr.chnFormat.pixelFormat);
-                return ret;
-        }
-    }
-    else
-    {
-        isp_sbi_config->onLine = 0;
-        isp_sbi_config->streamAttr[0].streamEnable = 0;
-        isp_sbi_config->streamAttr[1].streamEnable = 0;
-        isp_sbi_config->streamAttr[2].streamEnable = 0;
-        isp_sbi_config->streamAttr[0].exceptionID = ISP_SBI_DISABLED;
-        isp_sbi_config->streamAttr[1].exceptionID = ISP_SBI_DISABLED;
-        isp_sbi_config->streamAttr[2].exceptionID = ISP_SBI_DISABLED;
-    }
-
-    flexa_sync.streamNum = enable ? isp_sbi_config->streamNum : 0;
-    flexa_sync.streamAttr[0].streamId = ISP_FLEXA_STREAM_ID_Y;
-    flexa_sync.streamAttr[0].entryCnt = isp_sbi_config->entryCnt;
-    flexa_sync.streamAttr[0].producerTimeOut = ISP_FLEXA_SBI_PRODUCER_TIMEOUT;
-    flexa_sync.streamAttr[0].consumerTimeOut = ISP_FLEXA_SBI_CONSUMER_TIMEOUT;
-    flexa_sync.streamAttr[1].streamId = ISP_FLEXA_STREAM_ID_CB;
-    flexa_sync.streamAttr[1].entryCnt = isp_sbi_config->entryCnt;
-    flexa_sync.streamAttr[1].producerTimeOut = ISP_FLEXA_SBI_PRODUCER_TIMEOUT;
-    flexa_sync.streamAttr[1].consumerTimeOut = ISP_FLEXA_SBI_CONSUMER_TIMEOUT;
-    flexa_sync.streamAttr[2].streamId = ISP_FLEXA_STREAM_ID_CR;
-    flexa_sync.streamAttr[2].entryCnt = isp_sbi_config->entryCnt;
-    flexa_sync.streamAttr[2].producerTimeOut = ISP_FLEXA_SBI_PRODUCER_TIMEOUT;
-    flexa_sync.streamAttr[2].consumerTimeOut = ISP_FLEXA_SBI_CONSUMER_TIMEOUT;
-    if (enable)
-    {
-        VSI_FLEXA_SetSyncAttr(control->chn[chnl].channel, &flexa_sync);
-        ret = VSI_MPI_ISP_SetSbiProducer(control->chn[chnl].channel, isp_sbi_config);
-    }
-    else
-    {
-        ret = VSI_MPI_ISP_SetSbiProducer(control->chn[chnl].channel, isp_sbi_config);
-        VSI_FLEXA_SetSyncAttr(control->chn[chnl].channel, &flexa_sync);
-    }
-    if (ret != BK_OK)
-    {
-        LOGE("%s, %d, set sbi producer fail, %d\n", __func__, __LINE__, ret);
-    }
-
-    return ret;
-}
-
-
-/* Forward declaration: defined later in this file. Needed because
- * isp_isr_callback dispatches ISP_STREAM_ERROR through it. */
-static void isp_mi_isr_callback_handle(isp_control_t *control, uint8_t isr_type, uint8_t chnl_id, uint8_t ok);
 
 static void isp_isr_callback(uint32_t state, void *args)
 {
@@ -250,19 +168,6 @@ static void isp_isr_callback(uint32_t state, void *args)
             if (error_count > 1000) {
                 LOGW("%s, %d, error state: %d\n", __func__, __LINE__, state);
                 error_count = 0;
-            }
-
-            /* SBI producer ran into size_err / dataloss. ISP backend is
-             * compromised: FRAME_END will not come and SBI cannot recover
-             * via the normal sbi_enable_pending path. Close SBI right here
-             * to clear the producer anomaly, then ask the bond layer to
-             * arrange recovery (force IDR + re-arm set_sbi_flag). */
-            uint8_t chnl = ISP_MP_CHN_ID;
-            if (control->chn[chnl].enable_flexa)
-            {
-                control->chn[chnl].sbi_enable_pending = 0;
-                (void)isp_flexa_sbi_config_apply(control, chnl, 0);
-                isp_mi_isr_callback_handle(control, ISP_STREAM_ERROR, chnl, 0);
             }
         }
     }
@@ -386,12 +291,6 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
                 isp_mi_isr_callback_handle(control, ISP_FRAME_END_DONE, ISP_MP_CHN_ID, true);
             }
 
-            if (control->chn[ISP_MP_CHN_ID].sbi_enable_pending)
-            {
-                control->chn[ISP_MP_CHN_ID].sbi_enable_pending = 0;
-                (void)isp_flexa_sbi_config_apply(control, ISP_MP_CHN_ID, 1);
-            }
-
             control->chn[ISP_MP_CHN_ID].sequence++;
             control->chn[ISP_MP_CHN_ID].line = 0;
             ISP_MP_LINE_END();
@@ -423,12 +322,6 @@ static void isp_mi_isr_callback(uint32_t state, void *args)
             {
                 isp_mi_isr_callback_handle(control, ISP_MB_LINE_DONE, ISP_SP_CHN_ID, true);
                 isp_mi_isr_callback_handle(control, ISP_FRAME_END_DONE, ISP_SP_CHN_ID, true);
-            }
-
-            if (control->chn[ISP_SP_CHN_ID].sbi_enable_pending)
-            {
-                control->chn[ISP_SP_CHN_ID].sbi_enable_pending = 0;
-                (void)isp_flexa_sbi_config_apply(control, ISP_SP_CHN_ID, 1);
             }
 
             control->chn[ISP_SP_CHN_ID].sequence++;
@@ -1126,15 +1019,63 @@ bk_err_t bk_isp_flexa_sbi_config(isp_handle_t *handle, uint8_t chnl, uint8_t ena
     }
 
     isp_control_t *control = (isp_control_t *)*handle;
+    VSI_FLEXA_SYNC_ATTR_S flexa_sync = {0};
+
+    ISP_SBI_ATTR_S *isp_sbi_config = &control->chn[chnl].sbi_attr;
 
     if (enable)
     {
-        control->chn[chnl].sbi_enable_pending = 1;
-        return BK_OK;
+        if (isp_sbi_config->onLine)
+        {
+            return BK_OK;
+        }
+
+        isp_sbi_config->streamAttr[0].streamId = ISP_FLEXA_STREAM_ID_Y;
+        isp_sbi_config->streamAttr[1].streamId = ISP_FLEXA_STREAM_ID_CB;
+        isp_sbi_config->streamAttr[2].streamId = ISP_FLEXA_STREAM_ID_CR;
+        isp_sbi_config->onLine = 1;
+
+        switch(control->chn[chnl].chn_attr.chnFormat.pixelFormat) {
+            case PIXEL_FORMAT_NV12:
+                //sbi config
+                isp_sbi_config->entryCnt = control->chn[chnl].buf_cnt;
+                isp_sbi_config->streamNum = 2; //y & uv
+                isp_sbi_config->streamAttr[0].entrySize = FLEXA_LINES;
+                isp_sbi_config->streamAttr[0].streamEnable = 1;
+                isp_sbi_config->streamAttr[1].entrySize = FLEXA_LINES / 2;
+                isp_sbi_config->streamAttr[1].streamEnable = 1;
+                break;
+
+            default:
+                LOGE("Invalid pixel format %d\n", control->chn[chnl].chn_attr.chnFormat.pixelFormat);
+                return ret;
+        }
+    }
+    else
+    {
+        if (!isp_sbi_config->onLine)
+        {
+            return BK_OK;
+        }
+
+        isp_sbi_config->onLine = 0;
     }
 
-    control->chn[chnl].sbi_enable_pending = 0;
-    return isp_flexa_sbi_config_apply(control, chnl, 0);
+    flexa_sync.streamNum = isp_sbi_config->streamNum;
+    flexa_sync.streamAttr[0].streamId = ISP_FLEXA_STREAM_ID_Y;
+    flexa_sync.streamAttr[0].entryCnt = isp_sbi_config->streamAttr[0].entrySize;
+    flexa_sync.streamAttr[1].streamId = ISP_FLEXA_STREAM_ID_CB;
+    flexa_sync.streamAttr[1].entryCnt = isp_sbi_config->streamAttr[1].entrySize;
+    flexa_sync.streamAttr[2].streamId = ISP_FLEXA_STREAM_ID_CR;
+    flexa_sync.streamAttr[2].entryCnt = isp_sbi_config->streamAttr[2].entrySize;
+    VSI_FLEXA_SetSyncAttr(control->chn[chnl].channel, &flexa_sync);
+    ret = VSI_MPI_ISP_SetSbiProducer(control->chn[chnl].channel, isp_sbi_config);
+    if (ret != BK_OK)
+    {
+        LOGE("%s, %d, set sbi producer fail, %d\n", __func__, __LINE__, ret);
+    }
+
+    return ret;
 }
 
 bk_err_t bk_isp_register_isr_callback(isp_handle_t *handle, isp_isr_type_t type, isp_isr_t cb, void *arg)

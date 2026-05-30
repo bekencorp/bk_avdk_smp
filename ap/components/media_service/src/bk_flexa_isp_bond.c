@@ -98,39 +98,6 @@ static void isp_h264e_bond_isp_stream_error(uint32_t reason, void *args)
     (void)in_stream;
 }
 
-/* ISP_STREAM_ERROR callback: invoked from isp_isr_callback when ISP reports
- * size_err / dataloss. The ISP driver has already closed SBI hardware in
- * place; here we drive the software-side recovery so the next ISP FRAME_END
- * brings SBI back up cleanly:
- *   1. Force the H264 encoder to emit an IDR next frame (its reference
- *      state is suspect because the previous frame was dropped mid-flight).
- *   2. Re-arm set_sbi_flag so isp_h264e_handle_frame_end_cb will re-enable
- *      SBI at the upcoming ISP MP FRAME_END (which will fire again now
- *      that SBI was closed and the producer anomaly cleared).
- * Signature matches isp_isr_t (seq, line, chnl, error, param).
- */
-static void isp_h264e_handle_stream_error_cb(uint32_t seq, uint32_t line, uint8_t chnl, uint8_t ok, void *arg)
-{
-    bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)arg;
-    (void)seq;
-    (void)line;
-    (void)chnl;
-    (void)ok;
-
-    if (in_stream == NULL || in_stream->bond_config == NULL) {
-        return;
-    }
-    if (in_stream->error != NULL) {
-        in_stream->error(0, in_stream);
-    }
-    bk_flexa_bond_t *out_stream = (bk_flexa_bond_t *)in_stream->bond_config->out_stream;
-    if (out_stream != NULL && out_stream->handle != NULL) {
-        bk_h264_encode_ctlr_handle_t enc = (bk_h264_encode_ctlr_handle_t)out_stream->handle;
-        (void)bk_h264_encode_force_idr(enc);
-    }
-    in_stream->bond_config->set_sbi_flag = 1;
-}
-
 avdk_err_t bk_flexa_isp_h264e_bond_start(void **bond, void *isp, bk_h264_encode_ctlr_handle_t h264)
 {
     avdk_err_t ret = AVDK_ERR_OK;
@@ -210,17 +177,11 @@ avdk_err_t bk_flexa_isp_h264e_bond_start(void **bond, void *isp, bk_h264_encode_
         LOGW("%s ISP_FRAME_END_DONE register ret %d\r\n", __func__, br);
     }
 
-    br = bk_isp_register_isr_callback(&isp_h, ISP_STREAM_ERROR, isp_h264e_handle_stream_error_cb, in_stream);
-    if (br != BK_OK) {
-        LOGW("%s ISP_STREAM_ERROR register ret %d\r\n", __func__, br);
-    }
-
     *bond = bond_new;
     LOGI("%s %d bond started\r\n", __func__, __LINE__);
     return ret;
 
 error:
-    (void)bk_isp_deregister_isr_callback(&isp_h, ISP_STREAM_ERROR, in_stream);
     (void)bk_isp_deregister_isr_callback(&isp_h, ISP_FRAME_END_DONE, in_stream);
     if (in_stream != NULL) {
         os_free(in_stream);
@@ -251,7 +212,6 @@ void bk_flexa_isp_h264e_bond_stop(void *bond)
     bk_flexa_bond_t *in_stream = bond_p->in_stream;
     if (in_stream != NULL && in_stream->handle != NULL) {
         isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
-        (void)bk_isp_deregister_isr_callback(&isp_h, ISP_STREAM_ERROR, in_stream);
         (void)bk_isp_deregister_isr_callback(&isp_h, ISP_FRAME_END_DONE, in_stream);
     }
     bk_flexa_bond_t *out_stream = bond_p->out_stream;

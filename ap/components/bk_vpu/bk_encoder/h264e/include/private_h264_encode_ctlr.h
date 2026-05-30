@@ -89,7 +89,6 @@ typedef struct
     uint32_t debug_time_ms;           /* Debug interval (ms) */
     enc_h264_debug_t last_debug_info; /* Last debug snapshot */
     h264_encoder_parameters_t *h264_encoder_param;  /* Encoder parameters */
-    uint32_t encode_result;            /* Last encode result, set by h264e_end_cb */
     beken_semaphore_t enc_done_sem;   /* Posted when one frame encode completes (h264e_end_cb). */
 
     bk_flexa_bond_t *bond;            /* Bond callbacks */
