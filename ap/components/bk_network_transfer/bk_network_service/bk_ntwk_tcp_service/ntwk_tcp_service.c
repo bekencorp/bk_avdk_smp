@@ -197,6 +197,10 @@ static void ntwk_tcp_ctrl_server_thread(beken_thread_arg_t data)
 
     while (1)
     {
+        if (ntwl_tcp_ctrl_info->chan_state == NTWK_TRANS_CHAN_STOP ||
+            ntwl_tcp_ctrl_info->server_fd < 0)
+            break;
+
         FD_ZERO(&watchfd);
         FD_SET(ntwl_tcp_ctrl_info->server_fd, &watchfd);
 
@@ -205,6 +209,8 @@ static void ntwk_tcp_ctrl_server_thread(beken_thread_arg_t data)
         ret = select(ntwl_tcp_ctrl_info->server_fd + 1, &watchfd, NULL, NULL, NULL);
         if (ret <= 0)
         {
+            if (ntwl_tcp_ctrl_info->chan_state == NTWK_TRANS_CHAN_STOP)
+                break;
             LOGE("select ret:%d\n", ret);
             continue;
         }
@@ -437,6 +443,10 @@ static void ntwk_tcp_video_server_thread(beken_thread_arg_t data)
 
     while (1)
     {
+        if (video_tcp_service->chan_state == NTWK_TRANS_CHAN_STOP ||
+            video_tcp_service->video_server_fd < 0)
+            break;
+
         FD_ZERO(&watchfd);
         FD_SET(video_tcp_service->video_server_fd, &watchfd);
         video_tcp_service->chan_state = NTWK_TRANS_CHAN_WAITING_CONNECTED;
@@ -445,6 +455,8 @@ static void ntwk_tcp_video_server_thread(beken_thread_arg_t data)
         ret = select(video_tcp_service->video_server_fd + 1, &watchfd, NULL, NULL, NULL);
         if (ret <= 0)
         {
+            if (video_tcp_service->chan_state == NTWK_TRANS_CHAN_STOP)
+                break;
             LOGE("select ret:%d\n", ret);
             continue;
         }
@@ -644,6 +656,10 @@ static void ntwk_tcp_audio_server_thread(beken_thread_arg_t data)
 
     while (1)
     {
+        if (aud_tcp_service->chan_state == NTWK_TRANS_CHAN_STOP ||
+            aud_tcp_service->aud_server_fd < 0)
+            break;
+
         FD_ZERO(&watchfd);
         FD_SET(aud_tcp_service->aud_server_fd, &watchfd);
         aud_tcp_service->chan_state = NTWK_TRANS_CHAN_WAITING_CONNECTED;
@@ -652,6 +668,8 @@ static void ntwk_tcp_audio_server_thread(beken_thread_arg_t data)
         ret = select(aud_tcp_service->aud_server_fd + 1, &watchfd, NULL, NULL, NULL);
         if (ret <= 0)
         {
+            if (aud_tcp_service->chan_state == NTWK_TRANS_CHAN_STOP)
+                break;
             LOGE("select ret:%d\n", ret);
             continue;
         }
