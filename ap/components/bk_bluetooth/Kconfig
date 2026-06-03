@@ -78,4 +78,8 @@ menu "Bk_ble"
 		depends on BLUETOOTH_AP
         default y
 
+	config BLUTOOTH_ENABLE_BT_DUT_TEST
+		bool "enable manual bt dut test"
+		depends on BT
+		default n
 endmenu

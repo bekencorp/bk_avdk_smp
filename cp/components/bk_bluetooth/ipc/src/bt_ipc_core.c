@@ -365,6 +365,17 @@ static void bt_ipc_message_handle(void)
                                 os_memcpy(&pwr_gain, &cmd_hdr->param[2], 4);
                                 LOGD("pwr_gain :%f\n", pwr_gain);
                                 bk_ble_tx_power_set(pwr_gain);
+                            }else if(op == BT_VENDOR_SUB_OPCODE_BLE_DUT_START)
+                            {
+                                uint8_t uart_id = cmd_hdr->param[2];
+                                LOGD("ipc: ble dut start uart_id :%d\n", uart_id);
+                                extern void ble_dut_start(uint8_t uart_id);
+                                ble_dut_start(uart_id);
+                            }else if(op == BT_VENDOR_SUB_OPCODE_BLE_DUT_STOP)
+                            {
+                                LOGD("ipc: ble dut stop\n");
+                                extern void ble_dut_stop(void);
+                                ble_dut_stop();
                             }
                         }
                     }

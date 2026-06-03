@@ -97,6 +97,11 @@ if (CONFIG_BLUETOOTH_AP)
 				soc/bk7236/bluetooth.c
 				)
 		endif()
+
+		if (CONFIG_BLUTOOTH_ENABLE_BT_DUT_TEST)
+			list(APPEND srcs
+				bt/dut/dut_test.c)
+		endif()
 	endif()
 endif()
 
