@@ -3,10 +3,6 @@ menu "VENDOR CAL CONFIG"
 		bool "Enable vendor cal"
 		default n
 
-	config OVERRIDE_VND_CAL
-		bool "Enable Override vnd_cal"
-		default y
-
 	config BLE_USE_HIGH_POWER_LEVEL
 		bool "Enable high power level"
 		default n
