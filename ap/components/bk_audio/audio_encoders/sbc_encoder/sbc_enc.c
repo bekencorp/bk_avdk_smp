@@ -159,6 +159,10 @@ static int _sbc_encoder_process(audio_element_handle_t self, char *in_buffer, in
 
                 if (encoded_len > 0) {
                     // Copy encoded data to output buffer
+                    if (sbc_enc->msbc_mode) {
+                        memcpy(sbc_out_ptr + total_encoded_len, sbc_enc->enc_context.frame_id, 2);
+                        total_encoded_len += 2;
+                    }
                     memcpy(sbc_out_ptr + total_encoded_len, sbc_enc->enc_context.stream, encoded_len);
                     total_encoded_len += encoded_len;
                 } else {
