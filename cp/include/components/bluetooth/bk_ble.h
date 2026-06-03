@@ -947,6 +947,21 @@ ble_err_t bk_ble_sec_send_auth_mode(uint8_t con_idx, uint8_t mode, uint8_t iocap
 ble_err_t bk_ble_sec_send_auth_mode_ext(uint8_t con_idx, uint8_t mode, uint8_t iocap, uint8_t sec_req, uint8_t oob, uint8_t initiator_key_distr, uint8_t responder_key_distr);
 
 /**
+ * @brief As slaver, reject a pairing request from peer
+ *
+ * @param
+ *    - con_idx: the index of connection
+ *
+ * @attention used in the BLE_5_PAIRING_REQ event handler when the local side wants to reject
+ *            the pairing request initiated by the peer.
+ *
+ * @return
+ * - BK_ERR_BLE_SUCCESS: succeed
+ * - others: fail
+ */
+ble_err_t bk_ble_reject_pairing(uint8_t con_idx);
+
+/**
  * @brief ble init function,this api is deprecated,please use bk_bluetooth_init.
  *
  * @param
