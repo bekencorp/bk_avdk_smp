@@ -1680,12 +1680,13 @@ bk_err_t bk_wifi_csi_demo_turn_on_light(uint8_t color, bool flicker);
  *
  * Usage example:
  *
- *     k_bridge_config_t br_config = {0};
+ *     bk_bridge_config_t br_config = {0};
  *
- *     os_strncpy(br_config.bridge_ssid, "ssid", WIFI_SSID_STR_LEN);
- *     os_strncpy(br_config.ext_sta_ssid, "ext_sta_ssid", WIFI_SSID_STR_LEN);
- *     os_strncpy(br_config.ext_sta_password, "ext_sta_password", WIFI_PASSWORD_LEN);
- *     //more initialization here
+ *     os_strncpy(br_config.sta_config.ssid, "ext_sta_ssid", WIFI_SSID_STR_LEN);
+ *     os_strncpy(br_config.sta_config.password, "password", WIFI_PASSWORD_LEN);
+ *     os_strncpy(br_config.br_info.ssid, "bridge_softap", WIFI_SSID_STR_LEN);
+ *     br_config.br_info.disable_dns_server = 1;
+ *     br_config.keep_sta_on_close = 0; // 1: keep STA on bridge close
  *     BK_LOG_ON_ERR(bk_bridge_start(&br_config));
  *
  * @param br_config the bridge configuration

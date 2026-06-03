@@ -2696,9 +2696,7 @@ static const struct cli_command s_wifi_commands[] = {
 	{"rlk_cfg", "rlk config", cli_rlk_cfg_cmd},
 	#endif
 	{"close_coex_csa","close csa in coexist mode {1|0}", cli_wifi_close_coex_csa_cmd},
-#if 0//CONFIG_BRIDGE
-	{"bridge", "bridge open|close", cli_wifi_open_bridge_cmd},
-#endif
+	/* bridge CLI is registered on AP core (cli_wifi_bridge_cmd); CP must not duplicate */
 #if CONFIG_WIFI_CSI_EN
 	
 	{"csi_alg_config","csi_alg_config 8 16 8 5 3 8 15000 100", cli_wifi_csi_alg_config_cmd},

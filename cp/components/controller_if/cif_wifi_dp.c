@@ -110,6 +110,24 @@ bk_err_t cif_handle_txdata(void *head)
 #endif
 
 #if CONFIG_CONTROLLER_AP_BUFFER_COPY
+    /*
+     * In bridge mode AP-side bridgeif_send_to_port() already pbuf_clone's into
+     * a PBUF_RAW_TX TX-headroom buffer (see bridgeif.c:1386). Cloning again on
+     * CP wastes ~1.5KB heap per frame and serializes TX. Skip the second clone
+     * when bridge is ENABLED and pass the pbuf to bmsg_tx_sender directly.
+     */
+#if CONFIG_BRIDGE
+    if (bk_wifi_get_bridge_state() == BRIDGE_STATE_ENABLED)
+    {
+        ret = bmsg_tx_sender(pbuf, vif_id);
+        if (ret != BK_OK)
+        {
+            cif_free_ap_txbuf(pbuf);
+            ret = false;
+        }
+        return ret;
+    }
+#endif
 
     struct pbuf* p_copy = pbuf_clone(PBUF_RAW_TX,PBUF_RAM,pbuf);
 
@@ -372,28 +390,36 @@ bool cif_rx_local_packet_check(struct pbuf **p_ptr, struct eth_hdr * ethhdr,void
             CIF_LOGV("ARP RX\n");
 
 #if CONFIG_CONTROLLER_RX_DIRECT_PSH
-            p_copy = pbuf_alloc(PBUF_RAW,p->len+sizeof(cpdu_t),PBUF_RAM_RX);
 #if CONFIG_BRIDGE
-            upload2ctrl = false;
-#endif
-            if(p_copy)
+            /*
+             * Zero-copy ARP when bridge is ENABLED — same pattern as the
+             * IP fast-path above. ARP processing (proxy reply / flood) is
+             * owned by AP bridgeif, so we pass the original pbuf directly.
+             */
+            if (bk_wifi_get_bridge_state() == BRIDGE_STATE_ENABLED)
             {
-                pbuf_header(p_copy, -(s16)sizeof(struct cpdu_t));
-                memcpy(p_copy->payload,p->payload,p->len);
+                p_copy = p;
+                upload2ctrl = false;
             }
             else
-            {
-                return upload2ctrl;
-            }
-#if CONFIG_BRIDGE
-            pbuf_free(p);
-#else
-            if(cif_is_arp_request(p))
-            {
-                upload2ctrl = false;
-                pbuf_free(p);
-            }
 #endif
+            {
+                p_copy = pbuf_alloc(PBUF_RAW,p->len+sizeof(cpdu_t),PBUF_RAM_RX);
+                if(p_copy)
+                {
+                    pbuf_header(p_copy, -(s16)sizeof(struct cpdu_t));
+                    memcpy(p_copy->payload,p->payload,p->len);
+                }
+                else
+                {
+                    return upload2ctrl;
+                }
+                if(cif_is_arp_request(p))
+                {
+                    upload2ctrl = false;
+                    pbuf_free(p);
+                }
+            }
 #else
             p_copy = (struct pbuf*)cif_maclloc_rx_buf();
 

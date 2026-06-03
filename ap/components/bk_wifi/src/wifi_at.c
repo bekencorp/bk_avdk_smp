@@ -616,6 +616,86 @@ error:
     return -1;
 }
 
+#if CONFIG_BRIDGE
+#include "modules/wifi.h"
+#include <../../lwip_intf_v2_1/lwip-2.1.2/port/net.h>
+
+/*
+ * AT+NETBRIDGE=OPEN,<bridge_softap_ssid>,<router_ssid>[,<key>]
+ * AT+NETBRIDGE=CLOSE
+ */
+static int at_wlan_bridge_cmd(int sync, int argc, char **argv)
+{
+	char resultbuf[200];
+	bk_bridge_config_t br_config = {0};
+	const char *bridge_ssid;
+	const char *router_ssid;
+	const char *key;
+
+	if (argc < 1) {
+		os_snprintf(resultbuf, sizeof(resultbuf),
+			    "Usage: AT+NETBRIDGE=OPEN,<bridge_ssid>,<router_ssid>[,<key>]\r\n"
+			    "       AT+NETBRIDGE=CLOSE\r\n");
+		atsvr_output_msg(resultbuf);
+		atsvr_cmd_rsp_ok();
+		return 0;
+	}
+
+	if (!os_strcmp(argv[0], "OPEN")) {
+		if (argc < 3) {
+			os_snprintf(resultbuf, sizeof(resultbuf),
+				    "Usage: AT+NETBRIDGE=OPEN,<bridge_ssid>,<router_ssid>[,<key>]\r\n");
+			atsvr_output_msg(resultbuf);
+			atsvr_cmd_rsp_error();
+			return -1;
+		}
+
+		bridge_ssid = argv[1];
+		router_ssid = argv[2];
+		key = (argc >= 4) ? argv[3] : "";
+
+		if (!bridge_ssid[0] || !router_ssid[0]) {
+			atsvr_cmd_rsp_error();
+			return -1;
+		}
+		if (os_strlen(bridge_ssid) >= WIFI_SSID_STR_LEN ||
+		    os_strlen(router_ssid) >= WIFI_SSID_STR_LEN) {
+			atsvr_cmd_rsp_error();
+			return -1;
+		}
+
+		os_strncpy(br_config.sta_config.ssid, router_ssid,
+			   sizeof(br_config.sta_config.ssid) - 1);
+		if (key[0]) {
+			os_strncpy(br_config.sta_config.password, key,
+				   sizeof(br_config.sta_config.password) - 1);
+		}
+		os_strncpy(br_config.br_info.ssid, bridge_ssid,
+			   sizeof(br_config.br_info.ssid) - 1);
+		br_config.br_info.disable_dns_server = 1;
+
+		if (bk_bridge_start(&br_config) != BK_OK) {
+			atsvr_cmd_rsp_error();
+			return -1;
+		}
+		atsvr_cmd_rsp_ok();
+		return 0;
+	}
+
+	if (!os_strcmp(argv[0], "CLOSE")) {
+		if (bk_bridge_stop() != BK_OK) {
+			atsvr_cmd_rsp_error();
+			return -1;
+		}
+		atsvr_cmd_rsp_ok();
+		return 0;
+	}
+
+	atsvr_cmd_rsp_error();
+	return -1;
+}
+#endif /* CONFIG_BRIDGE */
+
 #if 0
 
 static void at_wlan_get_station_mac_address(unsigned char *mac)
@@ -902,11 +982,23 @@ static int at_wlan_get_station_status(int sync, int argc, char **argv)
 	
 	bool is_sta_ipup = status.is_sta_up;
 	bool is_ap_ipup = status.is_ap_up;
+#if CONFIG_BRIDGE
+	int br_up = bridge_ip_is_start();
+	int ap_report = is_ap_ipup;
+
+	if (br_up) {
+		ap_report = 0;
+	}
+#endif
 	os_memset(resultbuf,0,200);
 	if (argc == 0) 
 	{
 		char ssid[33] = {0};
-#if CONFIG_WIFI4
+#if CONFIG_BRIDGE
+		snprintf(resultbuf, sizeof(resultbuf), "sta: %d, ap: %d, bridge: %d b/g/n\r\n",
+			 is_sta_ipup, ap_report, br_up);
+		atsvr_output_msg(resultbuf);
+#elif CONFIG_WIFI4
 		snprintf(resultbuf,sizeof(resultbuf), "sta: %d, ap: %d, b/g/n\r\n",is_sta_ipup,is_ap_ipup);
 		atsvr_output_msg(resultbuf);	
 #else
@@ -926,19 +1018,25 @@ static int at_wlan_get_station_status(int sync, int argc, char **argv)
 		if (is_ap_ipup) 
 		{
 			os_memcpy(ssid, status.ap_info.ssid, 32);
-			//BK_LOGD(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
-			//		ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
 			os_memset(resultbuf,0,200);
-			snprintf(resultbuf,sizeof(resultbuf), "EVT:softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
-					ssid, status.ap_info.channel, wifi_sec_type_string(status.ap_info.security));
-			atsvr_output_msg(resultbuf);
+#if CONFIG_BRIDGE
+			if (br_up) {
+				snprintf(resultbuf, sizeof(resultbuf),
+					 "EVT:bridge:softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
+					 ssid, status.ap_info.channel,
+					 wifi_sec_type_string(status.ap_info.security));
+			} else
+#endif
+			{
+				snprintf(resultbuf,sizeof(resultbuf), "EVT:softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
+						ssid, status.ap_info.channel, wifi_sec_type_string(status.ap_info.security));
+				atsvr_output_msg(resultbuf);
 
-			os_memset(resultbuf,0,200);
-			//BK_LOGD(TAG, "[KW:]ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
-			//		ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
-			snprintf(resultbuf,sizeof(resultbuf), "EVT:ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
-					status.ap_ip4_info.ip, status.ap_ip4_info.gateway, status.ap_ip4_info.mask, status.ap_ip4_info.dns);
-			atsvr_output_msg(resultbuf);	
+				os_memset(resultbuf,0,200);
+				snprintf(resultbuf,sizeof(resultbuf), "EVT:ap_ip=%s,ap_gate=%s,ap_mask=%s,ap_dns=%s\r\n",
+						status.ap_ip4_info.ip, status.ap_ip4_info.gateway, status.ap_ip4_info.mask, status.ap_ip4_info.dns);
+			}
+			atsvr_output_msg(resultbuf);
 		}
 		atsvr_cmd_rsp_ok();
 	}
@@ -2131,6 +2229,10 @@ const struct _atsvr_command wifi_cmds_table[] = {
 #endif
 	ATSVR_CMD_HADLER("AT+CLOSECSA","AT+CLOSECSA=0/1",
 					NULL,at_wlan_wifi_close_coex_csa_cmd,false,0,0,NULL,false),
+#if CONFIG_BRIDGE
+	ATSVR_CMD_HADLER("AT+NETBRIDGE","AT+NETBRIDGE=OPEN,<bridge_ssid>,<router_ssid>[,<key>]/CLOSE",
+					NULL,at_wlan_bridge_cmd,false,0,0,NULL,false),
+#endif
 
 };
 

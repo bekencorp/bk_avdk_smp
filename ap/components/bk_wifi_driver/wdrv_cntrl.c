@@ -33,6 +33,9 @@
 #include "components/event.h"
 #include "wifi_api_ipc.h"
 #include "lwip/stats.h"
+#if CONFIG_BRIDGE
+#include "bk_bridge.h"
+#endif
 #define TAG "wdrv_cntrl"
 
 wdrv_wlan wdrv_host_env;
@@ -172,14 +175,16 @@ void wdrv_notify_sta_connected(void)
 void wdrv_notify_sta_disconnected(void *data, uint16_t len)
 {
     wifi_event_sta_disconnected_t sta_disconnected = {0};
+    wifi_linkstate_reason_t info = {0};
     os_memcpy(&sta_disconnected, data, len);
+
+    info.state = WIFI_LINKSTATE_STA_DISCONNECTED;
+    info.reason_code = sta_disconnected.disconnect_reason;
+    mhdr_set_station_status(info);
 
     /* post event */
     WDRV_LOGV("sta disconnect reason %d,local %d\n",
     sta_disconnected.disconnect_reason, sta_disconnected.local_generated);
-#if CONFIG_BRIDGE
-    bk_wifi_switch_bridge_to_sta();
-#endif
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_STA_DISCONNECTED,
                              &sta_disconnected, sizeof(sta_disconnected), BEKEN_NEVER_TIMEOUT));
 }
@@ -211,8 +216,7 @@ void wdrv_notify_sap_sta_disconnected(void)
     os_memset(&ap_disconnected, 0, sizeof(ap_disconnected));
     os_memcpy(ap_disconnected.mac, wdrv_host_env.ap_assoc_sta_addr_ind.sub_sta_addr, ETH_ALEN);
 #if CONFIG_BRIDGE
-extern void bk_bridge_event_hapd_sta_disconnected(uint8_t *mac);
-    bk_bridge_event_hapd_sta_disconnected(ap_disconnected.mac);
+    bk_bridge_hook_sta_disconnected(ap_disconnected.mac);
 #endif
     BK_LOG_ON_ERR(bk_event_post(EVENT_MOD_WIFI, EVENT_WIFI_AP_DISCONNECTED,
                                 &ap_disconnected, sizeof(ap_disconnected), BEKEN_NEVER_TIMEOUT));
@@ -311,9 +315,6 @@ void wdrv_notify_sta_got_ip(void)
     /* post event GOT_IP4 */
     netif_event_got_ip4_t event_data = {0};
     event_data.netif_if = NETIF_IF_STA;
-#if CONFIG_BRIDGE
-    bk_wifi_start_softap_for_bridge();
-#endif
 #if CONFIG_P2P
     //TODO current not support p2p coexist with sta or softap
     if (bk_wifi_is_p2p_enabled()) {

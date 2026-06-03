@@ -8,6 +8,11 @@ list(APPEND srcs
 	src/phy_notify.c
 	src/wifi_demo.c
 )
+if(CONFIG_BRIDGE)
+list(APPEND srcs
+	src/bk_bridge_ctrl.c
+)
+endif()
 #endif()
 
 

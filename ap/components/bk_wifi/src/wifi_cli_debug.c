@@ -19,11 +19,6 @@
 #if CONFIG_WIFI6_CODE_STACK
 #include "bk_wifi.h"
 #endif
-#if CONFIG_BRIDGE
-#include "netif/bridgeif.h"
-#include "lwip/netifapi.h"
-#include "lwip/inet.h"
-#endif
 
 #if CONFIG_ENABLE_WIFI_DEFAULT_CONNECT
 #include "driver/flash.h"
@@ -2600,9 +2595,6 @@ static const struct cli_command s_wifi_debug_commands[] = {
 	{"rlk_cfg", "rlk config", wifi_cli_rlk_cfg_cmd},
 	#endif
 	{"close_coex_csa","close csa in coexist mode {1|0}", wifi_cli_close_coex_csa_cmd},
-#if CONFIG_BRIDGE
-	{"bridge", "bridge open|close", wifi_cli_open_bridge_cmd},
-#endif
 #if CONFIG_WIFI_CSI_EN
 	
 	{"csi_alg_config","csi_alg_config 8 16 8 5 3 8 15000 100", wifi_cli_csi_alg_config_cmd},

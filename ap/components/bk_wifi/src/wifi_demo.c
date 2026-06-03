@@ -226,17 +226,28 @@ int demo_state_app_init(void)
 				   link_status.channel, wifi_sec_type_string(link_status.security));
 	}
 
+#if CONFIG_BRIDGE
+	if (bk_wifi_get_bridge_state() != BRIDGE_STATE_DISABLED) {
+		int br_channel = link_status.channel;
+
+		os_memset(&ap_info, 0x0, sizeof(ap_info));
+		BK_RETURN_ON_ERR(bk_wifi_ap_get_config(&ap_info));
+		os_memcpy(ssid, ap_info.ssid, 32);
+		if (br_channel == 0) {
+			br_channel = ap_info.channel;
+		}
+		BK_LOGD(TAG, "[KW:]bridge: ssid=%s, channel=%d, cipher_type=%s\r\n",
+				   ssid, br_channel, wifi_sec_type_string(ap_info.security));
+	} else
+#endif
 	if (uap_ip_is_start()) {
 		os_memset(&ap_info, 0x0, sizeof(ap_info));
 		BK_RETURN_ON_ERR(bk_wifi_ap_get_config(&ap_info));
 		os_memcpy(ssid, ap_info.ssid, 32);
-#if CONFIG_BRIDGE
-		BK_LOGD(TAG, "[KW:]bridge: ssid=%s, channel=%d, cipher_type=%s\r\n",
-				   ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
-#else
-		BK_LOGD(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
-				   ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
+		// BK_LOGD(TAG, "[KW:]softap: ssid=%s, channel=%d, cipher_type=%s\r\n",
+		// 		   ssid, ap_info.channel, wifi_sec_type_string(ap_info.security));
 
+#if !CONFIG_BRIDGE
 		BK_RETURN_ON_ERR(bk_netif_get_ip4_config(NETIF_IF_AP, &ap_ip4_info));
 		BK_LOGD(TAG, "[KW:]ip=%s,gate=%s,mask=%s,dns=%s\r\n",
 				   ap_ip4_info.ip, ap_ip4_info.gateway, ap_ip4_info.mask, ap_ip4_info.dns);
