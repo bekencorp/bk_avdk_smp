@@ -17,6 +17,7 @@
 #include "codec_api.h"
 #include "source_api.h"
 #include "player_osal.h"
+#include "ring_buffer.h"
 #include <components/bk_audio_player/bk_audio_player_types.h>
 
 #define FLAC_DEC_MIN_BLOCK_SAMPLES      4096
@@ -46,6 +47,7 @@ typedef struct flac_decoder_priv
     bool runing;
     bool decoder_opened;
     bool end_of_stream;
+    bool read_timeout;
 
     flac_dec_setup_t setup;
     flac_dec_data_t dec_data;
@@ -153,11 +155,10 @@ static int flac_parse_utf8_uint(const uint8_t *buffer, int available, uint32_t *
 
 static unsigned int flac_decoder_read_callback(unsigned char *buffer, long unsigned int bytes, void *data)
 {
-    unsigned int size = 0;
+    int size = 0;
     flac_dec_data_t *dec_data = (flac_dec_data_t *)data;
     flac_decoder_priv_t *priv = (flac_decoder_priv_t *)dec_data->usr_param;
     bk_audio_player_decoder_t *decoder = priv->decoder;
-    int retry_cnt = 5;
 
     /* Guard invalid arguments before attempting any IO. */
     if ((buffer == NULL) || (bytes == 0) || (decoder == NULL))
@@ -166,42 +167,33 @@ static unsigned int flac_decoder_read_callback(unsigned char *buffer, long unsig
         return 0;
     }
 
-    while (retry_cnt-- > 0)
+    if (priv->total_samples > 0 && priv->decoded_samples >= priv->total_samples)
     {
-        if (priv->total_samples > 0 && priv->decoded_samples >= priv->total_samples)
-        {
-            priv->end_of_stream = true;
-            return 0;
-        }
-
-        size = audio_source_read_data(decoder->source, (char *)buffer, bytes);
-
-        if (size == AUDIO_PLAYER_TIMEOUT)
-        {
-            continue;
-        }
-        else if (size == 0)
-        {
-            priv->end_of_stream = true;
-            BK_LOGI(AUDIO_PLAYER_TAG, "FLAC read reach end of stream\n");
-            return 0;
-        }
-        else if (size < 0)
-        {
-            priv->runing = false;
-            BK_LOGE(AUDIO_PLAYER_TAG, "FLAC read error:%d\n", size);
-            return 0;
-        }
-        else
-        {
-            return size;
-        }
+        priv->end_of_stream = true;
+        return 0;
     }
 
-    priv->runing = false;
-    BK_LOGE(AUDIO_PLAYER_TAG, "FLAC read abort due to timeout\n");
+    size = audio_source_read_data(decoder->source, (char *)buffer, bytes);
+    if (size == AUDIO_PLAYER_TIMEOUT)
+    {
+        priv->read_timeout = true;
+        return 0;
+    }
+    else if (size == 0 || size == RB_DONE)
+    {
+        priv->end_of_stream = true;
+        BK_LOGI(AUDIO_PLAYER_TAG, "FLAC read reach end of stream\n");
+        return 0;
+    }
+    else if (size < 0)
+    {
+        priv->runing = false;
+        BK_LOGE(AUDIO_PLAYER_TAG, "FLAC read error:%d\n", size);
+        return 0;
+    }
 
-    return 0;
+    priv->read_timeout = false;
+    return (unsigned int)size;
 }
 
 static unsigned int flac_decoder_write_callback(unsigned char *buffer, long unsigned int bytes, void *data)
@@ -494,6 +486,7 @@ int flac_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int 
 
         priv->dec_phase = FALC_PHASE_INIT;
         priv->end_of_stream = false;
+        priv->read_timeout = false;
         priv->runing = true;
 
         // Reparse metadata (same as initial startup)
@@ -546,6 +539,7 @@ int flac_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int 
         priv->pending_seek_samples = 0;
         priv->dec_buffer_offset = 0;
         priv->end_of_stream = false;
+        priv->read_timeout = false;
         priv->dec_phase = FLAC_DECODE_STARTING;
         priv->runing = true;
     }
@@ -562,6 +556,7 @@ int flac_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int 
     priv->dec_buffer_size = (uint32_t)len;
     priv->dec_phase = FLAC_DECODE_STARTING;
     priv->end_of_stream = false;
+    priv->read_timeout = false;
 
     beken_time_get_time(&start_time);
 
@@ -574,6 +569,12 @@ int flac_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int 
             return priv->dec_buffer_offset > 0 ? priv->dec_buffer_offset : 0;
         }
 
+        if (priv->read_timeout)
+        {
+            priv->read_timeout = false;
+            return priv->dec_buffer_offset > 0 ? priv->dec_buffer_offset : AUDIO_PLAYER_TIMEOUT;
+        }
+
         if (!priv->runing)
         {
             return -1;
@@ -581,6 +582,11 @@ int flac_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int 
 
         if (bk_aud_flac_dec_process() != BK_OK)
         {
+            if (priv->read_timeout)
+            {
+                priv->read_timeout = false;
+                return priv->dec_buffer_offset > 0 ? priv->dec_buffer_offset : AUDIO_PLAYER_TIMEOUT;
+            }
             BK_LOGE(AUDIO_PLAYER_TAG, "FLAC process frame fail\n");
             return 0;
         }
@@ -589,7 +595,7 @@ int flac_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int 
         if ((now_time - start_time) > 1000)
         {
             //BK_LOGD(AUDIO_PLAYER_TAG, "FLAC: decode timeout after 1s, returning %u bytes\n", priv->dec_buffer_offset);
-            return 0;
+            return priv->dec_buffer_offset > 0 ? priv->dec_buffer_offset : AUDIO_PLAYER_TIMEOUT;
         }
 
         rtos_delay_milliseconds(20);

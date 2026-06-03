@@ -189,17 +189,12 @@ static bk_audio_player_source_t *ogg_create_prefetch_source(bk_audio_player_sour
 static int ogg_read_exact(bk_audio_player_source_t *source, uint8_t *buffer, size_t bytes)
 {
     size_t total = 0;
-    int retry = OGG_READ_RETRY;
 
     while (total < bytes)
     {
         int ret = audio_source_read_data(source, (char *)buffer + total, (int)(bytes - total));
         if (ret == AUDIO_PLAYER_TIMEOUT)
         {
-            if (--retry <= 0)
-            {
-                return AUDIO_PLAYER_TIMEOUT;
-            }
             rtos_delay_milliseconds(20);
             continue;
         }

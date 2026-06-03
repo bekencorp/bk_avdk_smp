@@ -21,8 +21,17 @@
 #include "sockets.h"
 
 
-#define NET_PIPE_SIZE   (8 * 1024)
+#ifndef CONFIG_AUDIO_PLAYER_NET_PIPE_SIZE
+#define CONFIG_AUDIO_PLAYER_NET_PIPE_SIZE   (8 * 1024)
+#endif
+
+#ifndef CONFIG_AUDIO_PLAYER_WEB_RETRY_COUNT
+#define CONFIG_AUDIO_PLAYER_WEB_RETRY_COUNT (10)
+#endif
+
+#define NET_PIPE_SIZE   CONFIG_AUDIO_PLAYER_NET_PIPE_SIZE
 #define NET_CHUNK_SIZE  (128)
+#define WEB_RETRY_COUNT CONFIG_AUDIO_PLAYER_WEB_RETRY_COUNT
 
 
 typedef struct net_source_priv_s
@@ -41,9 +50,6 @@ typedef struct net_source_priv_s
     int net_buffer_len;
     char *url;
 } net_source_priv_t;
-
-
-#define WEB_RETRY_COUNT         (10)
 
 static void net_set_socket_timeout(struct webclient_session *session, uint32_t timeout_ms)
 {
@@ -146,9 +152,32 @@ static void *_net_source_bg_thread(void *param)
                 {
                     webclient_close(priv->session);
                     priv->session = webclient_session_create(2048);
-                    webclient_get_position(priv->session, priv->url, priv->finish_bytes);
+                    if (!priv->session)
+                    {
+                        BK_LOGE(AUDIO_PLAYER_TAG, "webclient_session_create retry failed\n");
+                        priv->result = -1;
+                        break;
+                    }
+                    ret = webclient_get_position(priv->session, priv->url, priv->finish_bytes);
+                    if (ret <= 0)
+                    {
+                        BK_LOGE(AUDIO_PLAYER_TAG, "webclient_get_position retry failed, ret=%d\n", ret);
+                        priv->result = -1;
+                        break;
+                    }
+                }
+                else
+                {
+                    BK_LOGE(AUDIO_PLAYER_TAG, "retry without valid webclient session\n");
+                    priv->result = -1;
+                    break;
                 }
                 continue;
+            }
+            if (priv->content_length > priv->finish_bytes)
+            {
+                BK_LOGW(AUDIO_PLAYER_TAG, "retry exhausted, content_length=%d, actual_length=%d\n", priv->content_length, priv->finish_bytes);
+                priv->result = -1;
             }
             break;
         }
@@ -160,8 +189,30 @@ static void *_net_source_bg_thread(void *param)
         }
     }
 
-    BK_LOGD(AUDIO_PLAYER_TAG, "%s %d thread exit \r\n", __func__, __LINE__);
-    rb_done_write(priv->pipe);
+    /* Distinguish a clean end-of-stream from an aborted/incomplete download so the
+     * decoder can decide whether to decode the tail (RB_DONE) or drop a truncated
+     * residual frame (RB_ABORT). */
+    int stream_complete;
+    if (priv->content_length > 0)
+    {
+        stream_complete = (priv->finish_bytes >= priv->content_length) ? 1 : 0;
+    }
+    else
+    {
+        stream_complete = (priv->result != -1) ? 1 : 0;
+    }
+
+    BK_LOGI(AUDIO_PLAYER_TAG, "%s thread exit, complete=%d, result=%d, content_length=%d, finish_bytes=%d\n",
+            __func__, stream_complete, priv->result, priv->content_length, priv->finish_bytes);
+
+    if (stream_complete)
+    {
+        rb_done_write(priv->pipe);
+    }
+    else
+    {
+        rb_abort(priv->pipe);
+    }
     osal_post_sema(&priv->thread_sem);
     osal_delete_thread(NULL);
     return NULL;
@@ -362,6 +413,24 @@ static int net_source_get_codec_type(bk_audio_player_source_t *source)
     return priv->codec_type;
 }
 
+static uint32_t net_source_get_total_bytes(bk_audio_player_source_t *source)
+{
+    net_source_priv_t *priv;
+
+    if (!source)
+    {
+        return 0;
+    }
+
+    priv = (net_source_priv_t *)source->source_priv;
+    if (!priv || priv->content_length <= 0)
+    {
+        return 0;
+    }
+
+    return (uint32_t)priv->content_length;
+}
+
 /*
 #define NET_READ_RETRY 3
 static int net_source_read_direct(bk_audio_player_source_t *source, char *buffer, int len)
@@ -401,6 +470,10 @@ static int net_source_read(bk_audio_player_source_t *source, char *buffer, int l
     priv = (net_source_priv_t *)source->source_priv;
 
     ret = rb_read(priv->pipe, buffer, len, 300 / portTICK_RATE_MS);
+    if (ret == RB_TIMEOUT)
+    {
+        return AUDIO_PLAYER_TIMEOUT;
+    }
 
     return ret;
 }
@@ -472,7 +545,7 @@ const bk_audio_player_source_ops_t net_source_ops =
 {
     .open = net_source_open,
     .get_codec_type = net_source_get_codec_type,
-    .get_total_bytes = NULL,
+    .get_total_bytes = net_source_get_total_bytes,
     .read = net_source_read,
     .seek = net_source_seek,
     .close = net_source_close,

@@ -174,28 +174,17 @@ __scan_done:
 
 static int bk_vorbis_stream_read(bk_audio_player_decoder_t *decoder, char *buffer, size_t request_bytes)
 {
-    int retry = BK_VORBIS_READ_RETRY;
-
-    while (retry-- > 0)
+    int bytes = audio_source_read_data(decoder->source, buffer, request_bytes);
+    if (bytes > 0)
     {
-        int bytes = audio_source_read_data(decoder->source, buffer, request_bytes);
-        if (bytes == AUDIO_PLAYER_TIMEOUT)
+        vorbis_decoder_priv_t *priv = (vorbis_decoder_priv_t *)decoder->decoder_priv;
+        if (priv)
         {
-            rtos_delay_milliseconds(20);
-            continue;
+            priv->stream_offset += (uint32_t)bytes;
         }
-        if (bytes > 0)
-        {
-            vorbis_decoder_priv_t *priv = (vorbis_decoder_priv_t *)decoder->decoder_priv;
-            if (priv)
-            {
-                priv->stream_offset += (uint32_t)bytes;
-            }
-        }
-        return bytes;
     }
 
-    return AUDIO_PLAYER_TIMEOUT;
+    return bytes;
 }
 
 static int bk_vorbis_stream_fill(bk_audio_player_decoder_t *decoder, vorbis_decoder_priv_t *priv)
@@ -312,8 +301,8 @@ static int bk_vorbis_parse_headers(bk_audio_player_decoder_t *decoder, vorbis_de
             int bytes = bk_vorbis_stream_fill(decoder, priv);
             if (bytes == AUDIO_PLAYER_TIMEOUT)
             {
-                BK_LOGE(AUDIO_PLAYER_TAG, "vorbis: read timeout while parsing header\n");
-                return AUDIO_PLAYER_ERR;
+                rtos_delay_milliseconds(5);
+                continue;
             }
             if (bytes <= 0)
             {
@@ -577,8 +566,7 @@ int bk_vorbis_stream_decoder_get_data(bk_audio_player_decoder_t *decoder, char *
         }
         else if (ret == AUDIO_PLAYER_TIMEOUT)
         {
-            rtos_delay_milliseconds(5);
-            continue;
+            return total_written > 0 ? total_written : AUDIO_PLAYER_TIMEOUT;
         }
 
         return ret;

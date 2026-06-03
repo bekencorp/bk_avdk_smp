@@ -14,9 +14,11 @@
 
 #include <modules/ts_format.h>
 #include <modules/aacdec.h>
+#include <stdbool.h>
 #include "codec_api.h"
 #include "source_api.h"
 #include "player_osal.h"
+#include "ring_buffer.h"
 #include <components/bk_audio_player/bk_audio_player_types.h>
 
 #define AAC_AUDIO_BUF_SZ    (AAC_MAINBUF_SIZE) /* feel free to change this, but keep big enough for >= one frame(AAC_MAINBUF_SIZE) at high bitrates */
@@ -35,6 +37,7 @@ typedef struct ts_decoder_priv
     uint8_t *read_buffer;
     uint8_t *read_ptr;
     uint32_t bytes_left;
+    bool stream_done;
 
     int current_sample_rate;
 
@@ -77,9 +80,13 @@ static int32_t ts_fill_buffer(bk_audio_player_decoder_t *decoder)
 {
     int bytes_read;
     size_t bytes_to_read;
-    int retry_cnt = 5;
 
     ts_decoder_priv_t *priv = (ts_decoder_priv_t *)decoder->decoder_priv;
+
+    if (priv->stream_done)
+    {
+        return RB_DONE;
+    }
 
     /* Set thread-local source so _read callback uses this instance's source */
     ts_decoder_tl_source = decoder->source;
@@ -102,26 +109,34 @@ static int32_t ts_fill_buffer(bk_audio_player_decoder_t *decoder)
     bytes_to_read = AAC_AUDIO_BUF_SZ - priv->bytes_left;
     //    BK_LOGI(AUDIO_PLAYER_TAG,"need size: %d \n", bytes_to_read);
 
-__retry:
     bytes_read = ts_format_stream_read_aac_data(&priv->ts_stream, priv->read_buffer + priv->bytes_left, bytes_to_read);
     if (bytes_read > 0)
     {
         priv->bytes_left = priv->bytes_left + bytes_read;
+        priv->stream_done = false;
         return 0;
     }
-    else
+    else if (bytes_read == AUDIO_PLAYER_TIMEOUT)
     {
-        if (bytes_read == AUDIO_PLAYER_TIMEOUT && (retry_cnt--) > 0)
-        {
-            goto __retry;
-        }
-        else if (priv->bytes_left != 0)
+        return AUDIO_PLAYER_TIMEOUT;
+    }
+    else if (bytes_read == 0 || bytes_read == RB_DONE)
+    {
+        priv->stream_done = true;
+        if (priv->bytes_left != 0)
         {
             return 0;
         }
+
+        BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, end of stream. left=%d \n", priv->bytes_left);
+        return RB_DONE;
+    }
+    else if (priv->bytes_left != 0)
+    {
+        return 0;
     }
 
-    BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, end of stream. left=%d \n", priv->bytes_left);
+    BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, ret=%d, left=%d \n", bytes_read, priv->bytes_left);
     return -1;
 }
 
@@ -243,7 +258,17 @@ static int ts_decoder_get_info(bk_audio_player_decoder_t *decoder, audio_info_t 
 __retry:
     if ((priv->read_ptr == NULL) || priv->bytes_left < AAC_MAINBUF_SIZE)
     {
-        if (ts_fill_buffer(decoder) != 0)
+        int fill_ret = ts_fill_buffer(decoder);
+        if (fill_ret == AUDIO_PLAYER_TIMEOUT)
+        {
+            rtos_delay_milliseconds(5);
+            goto __retry;
+        }
+        if (fill_ret == RB_DONE)
+        {
+            /* fall through to the short-buffer EOF check below */
+        }
+        else if (fill_ret != 0)
         {
             BK_LOGE(AUDIO_PLAYER_TAG, "%s, ts_fill_buffer fail, %d\n", __func__, __LINE__);
             return AUDIO_PLAYER_ERR;
@@ -253,7 +278,12 @@ __retry:
     /* Protect aac decoder to avoid decoding assert when data is insufficient. */
     if (priv->bytes_left < AAC_MAINBUF_SIZE)
     {
+        if (priv->stream_done)
+        {
+            return AUDIO_PLAYER_ERR;
+        }
         BK_LOGI(AUDIO_PLAYER_TAG, "%s, bytes_left: %d < %d \n", __func__, priv->bytes_left, AAC_MAINBUF_SIZE);
+        rtos_delay_milliseconds(5);
         goto __retry;
     }
 
@@ -327,19 +357,37 @@ int ts_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int le
 
 __retry:
 
-    if ((priv->read_ptr == NULL) || priv->bytes_left < 2 * AAC_MAINBUF_SIZE)
+    /* The read buffer holds at most AAC_AUDIO_BUF_SZ == AAC_MAINBUF_SIZE bytes.
+     * The fill threshold must not exceed the buffer capacity, otherwise a full
+     * buffer keeps re-entering ts_fill_buffer with bytes_to_read == 0, which the
+     * stream reader reports as 0 bytes and is mis-detected as end-of-stream. */
+    while (((priv->read_ptr == NULL) || priv->bytes_left < AAC_MAINBUF_SIZE) && !priv->stream_done)
     {
-        if (ts_fill_buffer(decoder) != 0)
+        int fill_ret = ts_fill_buffer(decoder);
+        if (fill_ret == AUDIO_PLAYER_TIMEOUT)
         {
-            return -1;
+            return AUDIO_PLAYER_TIMEOUT;
+        }
+        if (fill_ret == RB_DONE)
+        {
+            break;
+        }
+        if (fill_ret != 0)
+        {
+            return AUDIO_PLAYER_ERR;
         }
     }
 
     /* Protect aac decoder to avoid decoding assert when data is insufficient. */
     if (priv->bytes_left < AAC_MAINBUF_SIZE)
     {
-        BK_LOGE(AUDIO_PLAYER_TAG, "%s, bytes_left: %d < %d , %d\n", __func__, priv->bytes_left, AAC_MAINBUF_SIZE, __LINE__);
-        goto __retry;
+        if (priv->stream_done)
+        {
+            priv->bytes_left = 0;
+            return 0;
+        }
+        BK_LOGW(AUDIO_PLAYER_TAG, "%s, wait for more data, bytes_left: %d < %d , %d\n", __func__, priv->bytes_left, AAC_MAINBUF_SIZE, __LINE__);
+        return AUDIO_PLAYER_TIMEOUT;
     }
 
     ec = AACDecode(priv->decoder, &priv->read_ptr, (int *)&priv->bytes_left, (short *)buffer);
@@ -377,7 +425,11 @@ __retry:
     {
         if (ec == ERR_AAC_INDATA_UNDERFLOW)
         {
-            BK_LOGW(AUDIO_PLAYER_TAG, "%s, aac_decoder_decode finish, ec: %d, %d\n", __func__, ec, __LINE__);
+            if (priv->stream_done)
+            {
+                return 0;
+            }
+            BK_LOGW(AUDIO_PLAYER_TAG, "%s, aac_decoder_decode need more data, ec: %d, %d\n", __func__, ec, __LINE__);
             goto __retry;
         }
 

@@ -828,7 +828,12 @@ int play_sm_chunk(bk_audio_player_handle_t player)
             play_sm_notify_seek_result(player, player->seek_deferred_status, player->seek_deferred_second);
         }
     }
-    if (len < 0)
+    if (len == AUDIO_PLAYER_TIMEOUT)
+    {
+        ret = CHUNK_CONTINUE;
+        event = AUDIO_PLAYER_EVENT_LAST;
+    }
+    else if (len < 0)
     {
         BK_LOGE(AUDIO_PLAYER_TAG, "play_sm_chunk : codec return = %d\n", len);
         ret = CHUNK_CODEC_ERR;

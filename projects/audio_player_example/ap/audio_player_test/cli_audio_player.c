@@ -23,6 +23,11 @@
 #include <components/bk_audio_player/plugins/decoders/bk_audio_player_wav_decoder.h>
 #include <components/bk_audio_player/plugins/decoders/bk_audio_player_ts_decoder.h>
 #include <components/bk_audio_player/plugins/decoders/bk_audio_player_aac_decoder.h>
+#include <components/bk_audio_player/plugins/decoders/bk_audio_player_m4a_decoder.h>
+#include <components/bk_audio_player/plugins/decoders/bk_audio_player_amr_decoder.h>
+#include <components/bk_audio_player/plugins/decoders/bk_audio_player_flac_decoder.h>
+#include <components/bk_audio_player/plugins/decoders/bk_audio_player_ogg_decoder.h>
+#include <components/bk_audio_player/plugins/decoders/bk_audio_player_opus_decoder.h>
 #include <components/bk_audio_player/plugins/sources/bk_audio_player_file_source.h>
 #include <components/bk_audio_player/plugins/sources/bk_audio_player_net_source.h>
 #include <components/bk_audio_player/plugins/sources/bk_audio_player_hls_source.h>
@@ -42,6 +47,43 @@
 #define CLI_CMD_RSP_ERROR                 "CMDRSP:ERROR\r\n"
 
 static bk_audio_player_handle_t s_player_handle = NULL;
+
+typedef struct
+{
+    const char *ext_name;
+    const bk_audio_player_decoder_ops_t *(*get_ops)(void);
+} audio_player_decoder_plugin_t;
+
+static const audio_player_decoder_plugin_t s_decoder_plugins[] =
+{
+    {".mp3", bk_audio_player_get_mp3_decoder_ops},
+    {".wav", bk_audio_player_get_wav_decoder_ops},
+    {".ts",  bk_audio_player_get_ts_decoder_ops},
+    {".aac", bk_audio_player_get_aac_decoder_ops},
+    {".m4a", bk_audio_player_get_m4a_decoder_ops},
+    {".amr", bk_audio_player_get_amr_decoder_ops},
+    {".flac", bk_audio_player_get_flac_decoder_ops},
+    {".ogg", bk_audio_player_get_ogg_decoder_ops},
+    {".opus", bk_audio_player_get_opus_decoder_ops},
+};
+
+static bool audio_player_is_decoder_supported(const char *ext_name)
+{
+    if (!ext_name)
+    {
+        return false;
+    }
+
+    for (int i = 0; i < sizeof(s_decoder_plugins) / sizeof(s_decoder_plugins[0]); i++)
+    {
+        if (strcasecmp(ext_name, s_decoder_plugins[i].ext_name) == 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 /* mount sdcard */
 static int vfs_mount_sd0_fatfs(void)
@@ -89,7 +131,6 @@ static int scan_media_files(bk_audio_player_handle_t handle, const char *path, i
         }
 
         snprintf(full_path, MAX_PATH_LEN, "%s/%s", path, entry->d_name);
-        ext_name = entry->d_name + strlen(entry->d_name) - 4;
         if (entry->d_type == DT_DIR)
         {
             if (depth > 0)
@@ -103,12 +144,8 @@ static int scan_media_files(bk_audio_player_handle_t handle, const char *path, i
         }
         else if (entry->d_type == DT_REG)
         {
-            if ((strcasecmp(ext_name, ".mp3") == 0) ||
-                (strcasecmp(ext_name, ".wav") == 0)  ||
-                (strcasecmp(ext_name, ".m4a") == 0)  ||
-                (strcasecmp(ext_name, ".amr") == 0)  ||
-                (strcasecmp(ext_name + 1, ".ts") == 0)  ||
-                (strcasecmp(ext_name, ".aac") == 0))
+            ext_name = strrchr(entry->d_name, '.');
+            if (audio_player_is_decoder_supported(ext_name))
             {
                 LOGD("=== %s====\r\n", full_path);
                 if (handle)
@@ -168,32 +205,15 @@ static int audio_player_register_default_plugins(bk_audio_player_handle_t handle
     }
 
     /* Register built-in audio decoders */
-    ret = bk_audio_player_register_decoder(handle, bk_audio_player_get_mp3_decoder_ops());
-    if (ret != AUDIO_PLAYER_OK)
+    for (int i = 0; i < sizeof(s_decoder_plugins) / sizeof(s_decoder_plugins[0]); i++)
     {
-        LOGE("bk_audio_player_register_decoder(mp3) failed, ret=%d\n", ret);
-        return ret;
-    }
-
-    ret = bk_audio_player_register_decoder(handle, bk_audio_player_get_wav_decoder_ops());
-    if (ret != AUDIO_PLAYER_OK)
-    {
-        LOGE("bk_audio_player_register_decoder(wav) failed, ret=%d\n", ret);
-        return ret;
-    }
-
-    ret = bk_audio_player_register_decoder(handle, bk_audio_player_get_ts_decoder_ops());
-    if (ret != AUDIO_PLAYER_OK)
-    {
-        LOGE("bk_audio_player_register_decoder(ts) failed, ret=%d\n", ret);
-        return ret;
-    }
-
-    ret = bk_audio_player_register_decoder(handle, bk_audio_player_get_aac_decoder_ops());
-    if (ret != AUDIO_PLAYER_OK)
-    {
-        LOGE("bk_audio_player_register_decoder(aac) failed, ret=%d\n", ret);
-        return ret;
+        const bk_audio_player_decoder_ops_t *ops = s_decoder_plugins[i].get_ops();
+        ret = bk_audio_player_register_decoder(handle, ops);
+        if (ret != AUDIO_PLAYER_OK)
+        {
+            LOGE("bk_audio_player_register_decoder(%s) failed, ret=%d\n", ops ? ops->name : "null", ret);
+            return ret;
+        }
     }
 
     return AUDIO_PLAYER_OK;
@@ -277,6 +297,19 @@ void cli_audio_player_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, ch
     else if (os_strcmp(argv[1], "resume") == 0)
     {
         ret = (s_player_handle ? bk_audio_player_resume(s_player_handle) : AUDIO_PLAYER_NOT_INIT);
+    }
+    else if (os_strcmp(argv[1], "seek") == 0)
+    {
+        if (argc > 2 && s_player_handle)
+        {
+            int second = os_strtoul(argv[2], NULL, 10);
+            ret = bk_audio_player_seek(s_player_handle, second);
+        }
+        else
+        {
+            LOGE("usage: audio_player seek <second>\n");
+            ret = s_player_handle ? AUDIO_PLAYER_INVALID : AUDIO_PLAYER_NOT_INIT;
+        }
     }
     else if (os_strcmp(argv[1], "prev") == 0)
     {

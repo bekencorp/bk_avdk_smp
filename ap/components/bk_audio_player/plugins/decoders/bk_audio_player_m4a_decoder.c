@@ -19,6 +19,7 @@
 #include "codec_api.h"
 #include "source_api.h"
 #include "player_osal.h"
+#include "ring_buffer.h"
 #include <components/bk_audio_player/bk_audio_player_types.h>
 
 #define M4A_AUDIO_BUF_SZ        (AAC_MAINBUF_SIZE)
@@ -109,6 +110,7 @@ typedef struct m4a_decoder_priv
     uint8_t *aac_read_ptr;
     uint32_t aac_bytes_left;
     bool     input_eof;
+    bool     stream_aborted;
 
     uint16_t pcm_format;
     uint8_t is_pcm;
@@ -2091,7 +2093,6 @@ static int32_t m4a_fill_aac_buffer(bk_audio_player_decoder_t *decoder, m4a_decod
 {
     int bytes_read;
     size_t bytes_to_read;
-    int retry_cnt = 5;
     uint8_t enforce_data_limit = 0;
     uint64_t mdat_end = 0;
 
@@ -2144,23 +2145,40 @@ static int32_t m4a_fill_aac_buffer(bk_audio_player_decoder_t *decoder, m4a_decod
         return 0;
     }
 
-__retry:
     bytes_read = audio_source_read_data(decoder->source, (char *)(priv->aac_read_buffer + priv->aac_bytes_left), bytes_to_read);
     if (bytes_read > 0)
     {
         priv->input_eof = false;
+        priv->stream_aborted = false;
         priv->aac_bytes_left = priv->aac_bytes_left + bytes_read;
         priv->stream_offset += (uint64_t)bytes_read;
         return 0;
     }
-    if (bytes_read == 0)
+    if (bytes_read == AUDIO_PLAYER_TIMEOUT)
     {
+        return AUDIO_PLAYER_TIMEOUT;
+    }
+    if (bytes_read == 0 || bytes_read == RB_DONE)
+    {
+        /* normal end of stream: tail data is complete and should be decoded */
         priv->input_eof = true;
+        priv->stream_aborted = false;
+        if (priv->aac_bytes_left == 0)
+        {
+            return RB_DONE;
+        }
         return 0;
     }
-    if (bytes_read == AUDIO_PLAYER_TIMEOUT && (retry_cnt--) > 0)
+    if (bytes_read == RB_ABORT)
     {
-        goto __retry;
+        /* aborted stream: residual tail may be a truncated frame and must be dropped */
+        priv->input_eof = true;
+        priv->stream_aborted = true;
+        if (priv->aac_bytes_left == 0)
+        {
+            return RB_DONE;
+        }
+        return 0;
     }
     if (priv->aac_bytes_left != 0)
     {
@@ -2269,6 +2287,7 @@ static int calc_m4a_position(bk_audio_player_decoder_t *decoder, int second)
     priv->aac_bytes_left = 0;
     priv->aac_read_ptr = priv->aac_read_buffer;
     priv->input_eof = false;
+    priv->stream_aborted = false;
     AACFlushCodec(priv->decoder);
 
     BK_LOGI(AUDIO_PLAYER_TAG, "%s, seek second=%d -> sample=%u, offset=%llu (raw=%llu)\n",
@@ -2329,6 +2348,7 @@ static int m4a_decoder_open(audio_format_t format, void *param, bk_audio_player_
     priv->aac_read_ptr = priv->aac_read_buffer;
     priv->aac_bytes_left = 0;
     priv->input_eof = false;
+    priv->stream_aborted = false;
     priv->is_pcm = 0;
     priv->pcm_frame_bytes = 0;
     priv->pcm_total_frames = 0;
@@ -2344,7 +2364,6 @@ static int m4a_decoder_get_info(bk_audio_player_decoder_t *decoder, audio_info_t
     int ec;
     m4a_decoder_priv_t *priv;
     priv = (m4a_decoder_priv_t *)decoder->decoder_priv;
-    int read_retry_cnt = 5;
 
     // Parse MP4 structure
     if (parse_mp4_structure(decoder, priv) != 0)
@@ -2401,11 +2420,26 @@ static int m4a_decoder_get_info(bk_audio_player_decoder_t *decoder, audio_info_t
         }
     }
 
+    priv->aac_read_ptr = priv->aac_read_buffer;
+    priv->aac_bytes_left = 0;
+    priv->input_eof = false;
+    priv->stream_aborted = false;
+
     // Fill buffer and decode first frame to get AAC info
 __retry:
     if (priv->aac_bytes_left < AAC_MAINBUF_SIZE)
     {
-        if (m4a_fill_aac_buffer(decoder, priv) != 0)
+        int fill_ret = m4a_fill_aac_buffer(decoder, priv);
+        if (fill_ret == AUDIO_PLAYER_TIMEOUT)
+        {
+            rtos_delay_milliseconds(5);
+            goto __retry;
+        }
+        if (fill_ret == RB_DONE)
+        {
+            /* fall through to the short-buffer EOF check below */
+        }
+        else if (fill_ret != 0)
         {
             return AUDIO_PLAYER_ERR;
         }
@@ -2413,15 +2447,12 @@ __retry:
 
     if (priv->aac_bytes_left < AAC_MAINBUF_SIZE)
     {
-        if ((read_retry_cnt--) > 0)
+        if (priv->input_eof)
         {
-            goto __retry;
-        }
-        else
-        {
-            BK_LOGE(AUDIO_PLAYER_TAG, "%s, cannot read enough data, read: %d < %d, %d \n", __func__, priv->aac_bytes_left, AAC_MAINBUF_SIZE, __LINE__);
             return AUDIO_PLAYER_ERR;
         }
+        rtos_delay_milliseconds(5);
+        goto __retry;
     }
 
     // Decode first frame
@@ -2589,11 +2620,20 @@ static int m4a_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer
     priv = (m4a_decoder_priv_t *)decoder->decoder_priv;
 
 __retry:
-    if (priv->aac_bytes_left < 2 * AAC_MAINBUF_SIZE)
+    while (priv->aac_bytes_left < AAC_MAINBUF_SIZE && !priv->input_eof)
     {
-        if (m4a_fill_aac_buffer(decoder, priv) != 0)
+        int fill_ret = m4a_fill_aac_buffer(decoder, priv);
+        if (fill_ret == AUDIO_PLAYER_TIMEOUT)
         {
-            return -1;
+            return AUDIO_PLAYER_TIMEOUT;
+        }
+        if (fill_ret == RB_DONE)
+        {
+            break;
+        }
+        if (fill_ret != 0)
+        {
+            return AUDIO_PLAYER_ERR;
         }
     }
 
@@ -2614,11 +2654,20 @@ __retry:
                 BK_LOGI(AUDIO_PLAYER_TAG, "%s, AAC data drained at end of stream, %d\n", __func__, __LINE__);
                 return 0;
             }
+            if (priv->stream_aborted)
+            {
+                /* Aborted stream: residual is likely a truncated frame, drop it instead
+                 * of feeding a partial frame into the decoder. */
+                BK_LOGW(AUDIO_PLAYER_TAG, "%s, aborted, drop tail: %d < %d, %d\n", __func__, priv->aac_bytes_left, AAC_MAINBUF_SIZE, __LINE__);
+                priv->aac_bytes_left = 0;
+                return 0;
+            }
+            /* clean end of stream: fall through and decode the remaining whole frame(s) */
         }
         else
         {
-            BK_LOGE(AUDIO_PLAYER_TAG, "%s, cannot read enough data, read: %d < %d, %d \n", __func__, priv->aac_bytes_left, AAC_MAINBUF_SIZE, __LINE__);
-            return -1;
+            BK_LOGW(AUDIO_PLAYER_TAG, "%s, wait for more data, read: %d < %d, %d \n", __func__, priv->aac_bytes_left, AAC_MAINBUF_SIZE, __LINE__);
+            return AUDIO_PLAYER_TIMEOUT;
         }
     }
 
@@ -2637,7 +2686,7 @@ __retry:
                 BK_LOGI(AUDIO_PLAYER_TAG, "%s, AAC decoder reached end of stream (underflow), %d\n", __func__, __LINE__);
                 return 0;
             }
-            BK_LOGW(AUDIO_PLAYER_TAG, "%s, aac_decoder_decode finish, ec: %d, %d\n", __func__, ec, __LINE__);
+            BK_LOGW(AUDIO_PLAYER_TAG, "%s, aac_decoder_decode need more data, ec: %d, %d\n", __func__, ec, __LINE__);
             goto __retry;
         }
         else if (ec == ERR_AAC_NCHANS_TOO_HIGH)

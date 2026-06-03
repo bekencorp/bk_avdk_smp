@@ -205,7 +205,7 @@ bk_err_t bk_aud_dac_set_samp_rate(uint32_t samp_rate)
 
 	if (samp_rate == 8000) {
 		aud_hal_set_audio_config_samp_rate_dac(0x0);
-	} else if (samp_rate == 110250) {
+	} else if (samp_rate == 11025) {
 		aud_hal_set_extend_cfg_dac_fracmod_manual(0x1);
 		aud_hal_set_dac_fracmod_value(CONST_DIV_44_1K << 2);
 		aud_hal_set_audio_config_samp_rate_dac(0x2);

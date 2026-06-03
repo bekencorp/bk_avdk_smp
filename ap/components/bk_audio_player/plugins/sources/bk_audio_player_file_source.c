@@ -15,6 +15,7 @@
 #include "player_osal.h"
 #include "source_api.h"
 #include "codec_api.h"
+#include "ring_buffer.h"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -133,6 +134,15 @@ static int file_source_read(bk_audio_player_source_t *source, char *buffer, int 
     ret = read(priv->fd, buffer, len);
     //bk_printf("file read ret:%d offset:%d\r\n",ret,offset);
     //BK_LOGI(AUDIO_PLAYER_TAG, "file_source_read : len=%d, actual=%d\n", len, ret);
+
+    /* read() == 0 is a normal EOF (decoder keeps RB_DONE semantics and decodes the
+     * tail). A negative result is an actual read error (e.g. FS/SD failure): surface
+     * it as RB_ABORT so the decoder treats the residual as a truncated stream. */
+    if (ret < 0)
+    {
+        BK_LOGE(AUDIO_PLAYER_TAG, "%s, read error: %d, %d\n", __func__, ret, __LINE__);
+        return RB_ABORT;
+    }
 
     return ret;
 }

@@ -22,6 +22,7 @@
 #include "codec_api.h"
 #include "source_api.h"
 #include "player_osal.h"
+#include "ring_buffer.h"
 #include <components/bk_audio_player/bk_audio_player_types.h>
 
 #define MP3_ID3V2_HEADER_SIZE 10
@@ -113,6 +114,8 @@ typedef struct mp3_decoder_priv
     /* mp3 read session */
     uint8_t *read_buffer, *read_ptr;
     uint32_t bytes_left;
+    bool stream_done;
+    bool stream_aborted;
 
     int current_sample_rate;
     uint32_t base_sample_rate;
@@ -1237,6 +1240,7 @@ static void mp3_align_after_seek(bk_audio_player_decoder_t *decoder)
     priv->seek_pending_check = true;
     priv->read_ptr = priv->read_buffer;
     priv->bytes_left = 0;
+    priv->stream_done = false;
     BK_LOGI(AUDIO_PLAYER_TAG, "%s, aligned header:%u, start:%u\n", __func__, header_offset, start_offset);
 }
 
@@ -1261,6 +1265,8 @@ static int mp3_reset_decoder_state(mp3_decoder_priv_t *priv)
 
     priv->read_ptr = priv->read_buffer;
     priv->bytes_left = 0;
+    priv->stream_done = false;
+    priv->stream_aborted = false;
     priv->frames = 0;
     priv->frames_decoded = 0;
     priv->samples_per_frame = 0;
@@ -1654,10 +1660,13 @@ static int32_t codec_mp3_fill_buffer(bk_audio_player_decoder_t *decoder)
 {
     int bytes_read;
     size_t bytes_to_read;
-    int retry_cnt = 5;
 
     mp3_decoder_priv_t *priv = (mp3_decoder_priv_t *)decoder->decoder_priv;
 
+    if (priv->stream_done)
+    {
+        return RB_DONE;
+    }
 
     /* adjust read ptr */
     if (priv->bytes_left > 0xffff0000)
@@ -1673,27 +1682,56 @@ static int32_t codec_mp3_fill_buffer(bk_audio_player_decoder_t *decoder)
     priv->read_ptr = priv->read_buffer;
 
     bytes_to_read = (MP3_AUDIO_BUF_SZ - priv->bytes_left) & ~(512 - 1);
+    if (bytes_to_read == 0)
+    {
+        return 0;
+    }
 
-__retry:
     bytes_read = audio_source_read_data(decoder->source, (char *)(priv->read_buffer + priv->bytes_left), bytes_to_read);
     if (bytes_read > 0)
     {
         priv->bytes_left = priv->bytes_left + bytes_read;
+        priv->stream_done = false;
+        priv->stream_aborted = false;
         return 0;
     }
-    else
+    else if (bytes_read == AUDIO_PLAYER_TIMEOUT)
     {
-        if (bytes_read == AUDIO_PLAYER_TIMEOUT && (retry_cnt--) > 0)
-        {
-            goto __retry;
-        }
-        else if (priv->bytes_left != 0)
+        return AUDIO_PLAYER_TIMEOUT;
+    }
+    else if (bytes_read == 0 || bytes_read == RB_DONE)
+    {
+        /* normal end of stream: tail data is complete and should be decoded */
+        priv->stream_done = true;
+        priv->stream_aborted = false;
+        if (priv->bytes_left != 0)
         {
             return 0;
         }
+
+        BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, end of stream. left=%d\n", priv->bytes_left);
+        return RB_DONE;
+    }
+    else if (bytes_read == RB_ABORT)
+    {
+        /* aborted stream (network drop / read error): residual tail may be a truncated
+         * frame and must be dropped instead of decoded */
+        priv->stream_done = true;
+        priv->stream_aborted = true;
+        if (priv->bytes_left != 0)
+        {
+            return 0;
+        }
+
+        BK_LOGW(AUDIO_PLAYER_TAG, "stream aborted, end of stream. left=%d\n", priv->bytes_left);
+        return RB_DONE;
+    }
+    else if (priv->bytes_left != 0)
+    {
+        return 0;
     }
 
-    BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, end of stream. left=%d\n", priv->bytes_left);
+    BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, ret=%d, left=%d\n", bytes_read, priv->bytes_left);
     return -1;
 }
 
@@ -1771,7 +1809,12 @@ static int mp3_decoder_get_info(bk_audio_player_decoder_t *decoder, audio_info_t
 __retry:
     if ((priv->read_ptr == NULL) || priv->bytes_left < 2 * MAINBUF_SIZE)
     {
-        if (codec_mp3_fill_buffer(decoder) != 0)
+        int fill_ret = codec_mp3_fill_buffer(decoder);
+        if (fill_ret == AUDIO_PLAYER_TIMEOUT)
+        {
+            goto __retry;
+        }
+        if (fill_ret != 0)
         {
             BK_LOGE(AUDIO_PLAYER_TAG, "%s, codec_mp3_fill_buffer fail, %d \n", __func__, __LINE__);
             return AUDIO_PLAYER_ERR;
@@ -1798,7 +1841,7 @@ __retry:
     if (read_offset < 0)
     {
         /* discard this data */
-        BK_LOGE(AUDIO_PLAYER_TAG, "%s, MP3FindSyncWord fail, outof sync, byte left: %d, %d\n", __func__, priv->bytes_left, __LINE__);
+        BK_LOGI(AUDIO_PLAYER_TAG, "%s, MP3FindSyncWord fail, outof sync, byte left: %d, %d\n", __func__, priv->bytes_left, __LINE__);
         /* maybe bytes_left is not enough, need fill buffer again */
         //TODO
         priv->bytes_left = 0;
@@ -2041,6 +2084,7 @@ int mp3_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
 {
     int err;
     int read_offset;
+    int fill_ret;
 
     mp3_decoder_priv_t *priv = (mp3_decoder_priv_t *)decoder->decoder_priv;
 
@@ -2101,7 +2145,7 @@ int mp3_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
         mp3_align_after_seek(decoder);
     }
 
-    if ((priv->read_ptr == NULL) || priv->bytes_left < 2 * MAINBUF_SIZE)
+    while (((priv->read_ptr == NULL) || priv->bytes_left < 2 * MAINBUF_SIZE) && !priv->stream_done)
     {
 
 #ifdef WIFI_READ_DATA_TIME_DEBUG
@@ -2119,9 +2163,18 @@ int mp3_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
 #endif      //#ifdef WIFI_READ_DATA_TIME_DEBUG
 
         //GPIO_UP(44);
-        if (codec_mp3_fill_buffer(decoder) != 0)
+        fill_ret = codec_mp3_fill_buffer(decoder);
+        if (fill_ret == AUDIO_PLAYER_TIMEOUT)
         {
-            return -1;
+            return AUDIO_PLAYER_TIMEOUT;
+        }
+        if (fill_ret == RB_DONE)
+        {
+            break;
+        }
+        if (fill_ret != 0)
+        {
+            return AUDIO_PLAYER_ERR;
         }
         //GPIO_DOWN(44);
 
@@ -2152,34 +2205,56 @@ int mp3_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
     /* Protect mp3 decoder to avoid decoding assert when data is insufficient. */
     if (priv->bytes_left < MAINBUF_SIZE)
     {
-        BK_LOGE(AUDIO_PLAYER_TAG, "%s, connot read enough data, read: %d < %d, %d\n", __func__, priv->bytes_left, MAINBUF_SIZE, __LINE__);
-        return AUDIO_PLAYER_ERR;
+        if (priv->stream_done)
+        {
+            if (priv->stream_aborted || priv->bytes_left == 0)
+            {
+                /* Aborted stream: drop the (likely truncated) residual frame. Empty
+                 * buffer: nothing left to decode. */
+                if (priv->bytes_left != 0)
+                {
+                    BK_LOGW(AUDIO_PLAYER_TAG, "%s, aborted, drop tail: %d < %d, %d\n", __func__, priv->bytes_left, MAINBUF_SIZE, __LINE__);
+                }
+                priv->bytes_left = 0;
+                return 0;
+            }
+
+            /* Clean end of stream with residual data: fall through and let the remaining
+             * whole frame(s) be decoded below. MP3Decode returns ERR_MP3_INDATA_UNDERFLOW
+             * once no full frame is left, which ends playback without truncating the tail. */
+            BK_LOGI(AUDIO_PLAYER_TAG, "%s, end of stream, decode tail: %d < %d, %d\n", __func__, priv->bytes_left, MAINBUF_SIZE, __LINE__);
+        }
+        else
+        {
+            BK_LOGW(AUDIO_PLAYER_TAG, "%s, wait for more data, read: %d < %d, %d\n", __func__, priv->bytes_left, MAINBUF_SIZE, __LINE__);
+            return AUDIO_PLAYER_TIMEOUT;
+        }
     }
 
     int sync_attempts = 0;
     while (1)
     {
-    read_offset = MP3FindSyncWord(priv->read_ptr, priv->bytes_left);
-    if (read_offset < 0)
-    {
-        BK_LOGE(AUDIO_PLAYER_TAG, "%s, MP3FindSyncWord fail, outof sync, byte left: %d, %d\n", __func__, priv->bytes_left, __LINE__);
-        priv->bytes_left = 0;
-            goto __sync_retry;
-    }
+        read_offset = MP3FindSyncWord(priv->read_ptr, priv->bytes_left);
+        if (read_offset < 0)
+        {
+            BK_LOGI(AUDIO_PLAYER_TAG, "%s, MP3FindSyncWord fail, outof sync, byte left: %d, %d\n", __func__, priv->bytes_left, __LINE__);
+            priv->bytes_left = 0;
+                goto __sync_retry;
+        }
 
         if ((uint32_t)read_offset > priv->bytes_left)
-    {
-        BK_LOGE(AUDIO_PLAYER_TAG, "%s, find sync exception, read_offset:%d > bytes_left:%d, %d\n", __func__, read_offset, priv->bytes_left, __LINE__);
-        priv->read_ptr += priv->bytes_left;
-        priv->bytes_left = 0;
-            goto __sync_retry;
-    }
+        {
+            BK_LOGE(AUDIO_PLAYER_TAG, "%s, find sync exception, read_offset:%d > bytes_left:%d, %d\n", __func__, read_offset, priv->bytes_left, __LINE__);
+            priv->read_ptr += priv->bytes_left;
+            priv->bytes_left = 0;
+                goto __sync_retry;
+        }
 
         priv->read_ptr += read_offset;
         priv->bytes_left -= read_offset;
 
         if (check_mp3_sync_word(decoder) == 0)
-    {
+        {
             mp3_commit_seek_bias(priv);
             priv->seek_pending_check = false;
             priv->seek_retry = 0;
@@ -2316,10 +2391,19 @@ __sync_done:
             case ERR_MP3_INDATA_UNDERFLOW:
                 // LOG_E("ERR_MP3_INDATA_UNDERFLOW.");
                 // codec_mp3->bytes_left = 0;
-                if (codec_mp3_fill_buffer(decoder) != 0)
+                fill_ret = codec_mp3_fill_buffer(decoder);
+                if (fill_ret == AUDIO_PLAYER_TIMEOUT)
+                {
+                    return AUDIO_PLAYER_TIMEOUT;
+                }
+                if (fill_ret == RB_DONE)
+                {
+                    return 0;
+                }
+                if (fill_ret != 0)
                 {
                     /* release this memory block */
-                    return -1;
+                    return AUDIO_PLAYER_ERR;
                 }
                 break;
 

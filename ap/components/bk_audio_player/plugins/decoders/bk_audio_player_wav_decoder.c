@@ -23,6 +23,7 @@
 #include "codec_api.h"
 #include "source_api.h"
 #include "player_osal.h"
+#include "ring_buffer.h"
 #include <components/bk_audio_player/bk_audio_player_types.h>
 
 // 48k per 20ms : 48 * 1000 * 4 / (1000 / 20) = 3840
@@ -560,17 +561,18 @@ static int wav_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer
         default:
         {
             int ret;
-            int retry_cnt = 5;
 
-        read_pcm_again:
             ret = audio_source_read_data(decoder->source, buffer, len);
-
-            if (ret == AUDIO_PLAYER_TIMEOUT && (retry_cnt--) > 0)
+            if (ret == AUDIO_PLAYER_TIMEOUT)
             {
-                goto read_pcm_again;
+                return AUDIO_PLAYER_TIMEOUT;
             }
 
-            if (ret <= 0)
+            if (ret == 0 || ret == RB_DONE || ret == RB_ABORT)
+            {
+                return 0;
+            }
+            if (ret < 0)
             {
                 return -1;
             }
@@ -601,6 +603,7 @@ static int wav_decode_g711(bk_audio_player_decoder_t *decoder, char *buffer, int
     int samples_out = 0;
 
     uint8_t temp[256];
+    bool source_done = false;
 
     while (samples_out < samples_needed)
     {
@@ -610,17 +613,20 @@ static int wav_decode_g711(bk_audio_player_decoder_t *decoder, char *buffer, int
             to_read = sizeof(temp);
         }
 
-        int retry = 5;
         int ret;
-    read_g711_again:
         ret = audio_source_read_data(decoder->source, (char *)temp, to_read);
-        if (ret == AUDIO_PLAYER_TIMEOUT && (retry--) > 0)
+        if (ret == AUDIO_PLAYER_TIMEOUT)
         {
-            goto read_g711_again;
+            return samples_out > 0 ? samples_out * 2 : AUDIO_PLAYER_TIMEOUT;
         }
-        if (ret <= 0)
+        if (ret == 0 || ret == RB_DONE || ret == RB_ABORT)
         {
+            source_done = true;
             break;
+        }
+        if (ret < 0)
+        {
+            return samples_out > 0 ? samples_out * 2 : AUDIO_PLAYER_ERR;
         }
 
         for (int i = 0; i < ret; i++)
@@ -640,7 +646,7 @@ static int wav_decode_g711(bk_audio_player_decoder_t *decoder, char *buffer, int
 
     if (samples_out == 0)
     {
-        return -1;
+        return source_done ? 0 : -1;
     }
 
     return samples_out * 2;
@@ -801,6 +807,7 @@ static int wav_decode_adpcm(bk_audio_player_decoder_t *decoder, char *buffer, in
     int16_t *out = (int16_t *)buffer;
     int samples_needed = len / 2;
     int samples_out = 0;
+    bool source_done = false;
 
     if (!priv->block_buffer || !priv->pcm_buffer)
     {
@@ -811,17 +818,20 @@ static int wav_decode_adpcm(bk_audio_player_decoder_t *decoder, char *buffer, in
     {
         if (priv->pcm_buffer_pos >= priv->pcm_buffer_filled)
         {
-            int retry = 5;
             int ret;
-        read_adpcm_block_again:
             ret = audio_source_read_data(decoder->source, (char *)priv->block_buffer, priv->block_align);
-            if (ret == AUDIO_PLAYER_TIMEOUT && (retry--) > 0)
+            if (ret == AUDIO_PLAYER_TIMEOUT)
             {
-                goto read_adpcm_block_again;
+                return samples_out > 0 ? samples_out * 2 : AUDIO_PLAYER_TIMEOUT;
             }
-            if (ret <= 0)
+            if (ret == 0 || ret == RB_DONE || ret == RB_ABORT)
             {
+                source_done = true;
                 break;
+            }
+            if (ret < 0)
+            {
+                return samples_out > 0 ? samples_out * 2 : AUDIO_PLAYER_ERR;
             }
 
             priv->pcm_buffer_filled = wav_decode_adpcm_block(priv, priv->block_buffer, ret);
@@ -844,7 +854,7 @@ static int wav_decode_adpcm(bk_audio_player_decoder_t *decoder, char *buffer, in
 
     if (samples_out == 0)
     {
-        return -1;
+        return source_done ? 0 : -1;
     }
 
     return samples_out * 2;

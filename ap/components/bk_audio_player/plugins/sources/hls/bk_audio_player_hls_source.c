@@ -27,10 +27,16 @@
 #include "m3u8_work.h"
 
 
-#define HLS_NET_PIPE_SIZE       (8 * 1024)
+#ifndef CONFIG_AUDIO_PLAYER_HLS_NET_PIPE_SIZE
+#define CONFIG_AUDIO_PLAYER_HLS_NET_PIPE_SIZE   (8 * 1024)
+#endif
+#define HLS_NET_PIPE_SIZE       CONFIG_AUDIO_PLAYER_HLS_NET_PIPE_SIZE
 #define HLS_NET_CHUNK_SIZE      (128)
 
-#define WEB_RETRY_COUNT         (10)
+#ifndef CONFIG_AUDIO_PLAYER_WEB_RETRY_COUNT
+#define CONFIG_AUDIO_PLAYER_WEB_RETRY_COUNT (10)
+#endif
+#define WEB_RETRY_COUNT         CONFIG_AUDIO_PLAYER_WEB_RETRY_COUNT
 
 #define M3U8_ITEM_SZ            (128)
 #define M3U8_ITEM_MAX           (5)
@@ -51,10 +57,10 @@ typedef struct hls_source_priv_s
     char *net_buffer;
     int net_buffer_len;
     char *url;      //net url
+    int read_timeout_cnt;   /* consecutive rb_read timeouts in hls_source_read */
 
     m3u8_session_t m3u8_session;
 } hls_source_priv_t;
-
 
 static void hls_net_set_socket_timeout(struct webclient_session *session, uint32_t timeout_ms)
 {
@@ -535,6 +541,22 @@ static int hls_source_read(bk_audio_player_source_t *source, char *buffer, int l
 
     ret = rb_read(priv->pipe, buffer, len, 300 / portTICK_RATE_MS);
 
+    if (ret == RB_TIMEOUT)
+    {
+        /* Poor network: pipe underran. Treat as a transient timeout so the
+         * TS parser keeps waiting, for up to WEB_RETRY_COUNT consecutive tries
+         * (~WEB_RETRY_COUNT * 300ms). If still no data, actively end so the
+         * player tears down and auto-restarts (same intent as net_source). */
+        if (++priv->read_timeout_cnt < WEB_RETRY_COUNT)
+        {
+            return AUDIO_PLAYER_TIMEOUT;   /* -200: ts_format retries */
+        }
+        BK_LOGW(AUDIO_PLAYER_TAG, "%s, read timeout %d times, end stream\n", __func__, priv->read_timeout_cnt);
+        priv->read_timeout_cnt = 0;
+        return ret;                        /* -4: ts_format ends the segment */
+    }
+
+    priv->read_timeout_cnt = 0;            /* data (>0) or RB_DONE: reset */
     return ret;
 }
 

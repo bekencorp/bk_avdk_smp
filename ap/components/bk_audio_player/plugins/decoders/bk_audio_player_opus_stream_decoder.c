@@ -88,24 +88,13 @@ static uint32_t bk_opus_default_chunk_bytes(uint32_t channels, uint32_t sample_r
 static int bk_opus_stream_read(bk_audio_player_decoder_t *decoder, char *buffer, size_t request_bytes)
 {
     opus_decoder_priv_t *priv = (opus_decoder_priv_t *)decoder->decoder_priv;
-    int retry = BK_OPUS_READ_RETRY;
-
-    while (retry-- > 0)
+    int bytes = audio_source_read_data(decoder->source, buffer, request_bytes);
+    if (bytes > 0 && priv)
     {
-        int bytes = audio_source_read_data(decoder->source, buffer, request_bytes);
-        if (bytes == AUDIO_PLAYER_TIMEOUT)
-        {
-            rtos_delay_milliseconds(20);
-            continue;
-        }
-        if (bytes > 0 && priv)
-        {
-            priv->stream_offset += (uint32_t)bytes;
-        }
-        return bytes;
+        priv->stream_offset += (uint32_t)bytes;
     }
 
-    return AUDIO_PLAYER_TIMEOUT;
+    return bytes;
 }
 
 /* Feed additional ogg bytes into the sync buffer. */
@@ -272,8 +261,8 @@ static int bk_opus_parse_head(bk_audio_player_decoder_t *decoder, opus_decoder_p
             int bytes = bk_opus_stream_fill(decoder, priv);
             if (bytes == AUDIO_PLAYER_TIMEOUT)
             {
-                BK_LOGE(AUDIO_PLAYER_TAG, "opus: read timeout while parsing header\n");
-                return AUDIO_PLAYER_ERR;
+                rtos_delay_milliseconds(5);
+                continue;
             }
             if (bytes <= 0)
             {
@@ -466,8 +455,7 @@ int bk_opus_stream_decoder_get_data(bk_audio_player_decoder_t *decoder, char *bu
         int bytes = bk_opus_stream_fill(decoder, priv);
         if (bytes == AUDIO_PLAYER_TIMEOUT)
         {
-            BK_LOGE(AUDIO_PLAYER_TAG, "opus: read timeout during decode\n");
-            return AUDIO_PLAYER_ERR;
+            return AUDIO_PLAYER_TIMEOUT;
         }
         if (bytes <= 0)
         {

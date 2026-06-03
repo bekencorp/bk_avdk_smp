@@ -16,6 +16,7 @@
 #include "codec_api.h"
 #include "source_api.h"
 #include "player_osal.h"
+#include "ring_buffer.h"
 #include <components/bk_audio_player/bk_audio_player_types.h>
 
 //#define AAC_AUDIO_BUF_SZ    (8 * 1024) /* feel free to change this, but keep big enough for >= one frame(AAC_MAINBUF_SIZE) at high bitrates */
@@ -58,6 +59,7 @@ typedef struct aac_decoder_priv
     uint32_t lead_bytes;       // bytes of leading metadata/config frames
     uint32_t lead_frames;      // number of leading metadata/config frames
     uint8_t eos_reached;
+    uint8_t stream_aborted;
     uint32_t analyze_frame_min;
     uint32_t analyze_frame_max;
     uint64_t analyze_frame_sum;
@@ -70,9 +72,13 @@ static int32_t codec_aac_fill_buffer(bk_audio_player_decoder_t *codec)
 {
     int bytes_read;
     size_t bytes_to_read;
-    int retry_cnt = 5;
 
     aac_decoder_priv_t *priv = (aac_decoder_priv_t *)codec->decoder_priv;
+
+    if (priv->eos_reached)
+    {
+        return RB_DONE;
+    }
 
     /* adjust read ptr */
     if (priv->bytes_left > 0xffff0000)
@@ -91,44 +97,64 @@ static int32_t codec_aac_fill_buffer(bk_audio_player_decoder_t *codec)
     //    bytes_to_read = (AAC_AUDIO_BUF_SZ - priv->bytes_left) & ~(512 - 1);
     bytes_to_read = AAC_AUDIO_BUF_SZ - priv->bytes_left;
     //    BK_LOGI(AUDIO_PLAYER_TAG,"need size: %d \n", bytes_to_read);
+    if (bytes_to_read == 0)
+    {
+        return 0;
+    }
 
-__retry:
     bytes_read = audio_source_read_data(codec->source, (char *)(priv->read_buffer + priv->bytes_left), bytes_to_read);
     if (bytes_read > 0)
     {
         priv->bytes_left = priv->bytes_left + bytes_read;
-        if ((size_t)bytes_read < bytes_to_read && audio_source_get_total_bytes(codec->source))
-        {
-            priv->eos_reached = 1;
-        }
-        else
-        {
-            priv->eos_reached = 0;
-        }
+        priv->eos_reached = 0;
+        priv->stream_aborted = 0;
         return 0;
     }
-    else
+    else if (bytes_read == AUDIO_PLAYER_TIMEOUT)
     {
-        if (bytes_read == AUDIO_PLAYER_TIMEOUT && (retry_cnt--) > 0)
-        {
-            goto __retry;
-        }
-        else if (bytes_read == 0)
-        {
-            priv->eos_reached = 1;
-            if (priv->bytes_left != 0)
-            {
-                return 0;
-            }
-        }
-        else if (priv->bytes_left != 0)
+        return AUDIO_PLAYER_TIMEOUT;
+    }
+    else if (bytes_read == 0 || bytes_read == RB_DONE)
+    {
+        /* normal end of stream: tail data is complete and should be decoded */
+        priv->eos_reached = 1;
+        priv->stream_aborted = 0;
+        if (priv->bytes_left != 0)
         {
             return 0;
         }
+
+        BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, end of stream. left=%d \n", priv->bytes_left);
+        return RB_DONE;
+    }
+    else if (bytes_read == RB_ABORT)
+    {
+        /* aborted stream: residual tail may be a truncated frame and must be dropped */
+        priv->eos_reached = 1;
+        priv->stream_aborted = 1;
+        if (priv->bytes_left != 0)
+        {
+            return 0;
+        }
+
+        BK_LOGW(AUDIO_PLAYER_TAG, "stream aborted, end of stream. left=%d \n", priv->bytes_left);
+        return RB_DONE;
+    }
+    else if (priv->bytes_left != 0)
+    {
+        return 0;
     }
 
-    BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, end of stream. left=%d \n", priv->bytes_left);
+    BK_LOGW(AUDIO_PLAYER_TAG, "can't read more data, ret=%d, left=%d \n", bytes_read, priv->bytes_left);
     return -1;
+}
+
+static void aac_reset_read_state(aac_decoder_priv_t *priv)
+{
+    priv->read_ptr = priv->read_buffer;
+    priv->bytes_left = 0;
+    priv->eos_reached = 0;
+    priv->stream_aborted = 0;
 }
 
 #if 0
@@ -154,8 +180,7 @@ static int codec_aac_skip_id3v2(bk_audio_player_decoder_t *codec)
     aac_decoder_priv_t *priv = (aac_decoder_priv_t *)codec->decoder_priv;
 
     /* Reset read pointer */
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
 
     /* Read first 3 bytes to check for ID3 signature */
     if (audio_source_read_data(codec->source, (char *)tag, 3) != 3)
@@ -208,7 +233,7 @@ static int codec_aac_skip_id3v2(bk_audio_player_decoder_t *codec)
                 }
             }
 
-            priv->bytes_left = 0;
+            aac_reset_read_state(priv);
         }
 
         BK_LOGI(AUDIO_PLAYER_TAG, "%s, skipped ID3v2 tag, offset: %d\n", __func__, offset);
@@ -222,8 +247,7 @@ __exit:
     {
         BK_LOGW(AUDIO_PLAYER_TAG, "%s, failed to seek to beginning\n", __func__);
     }
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
     return offset;
 }
 
@@ -237,8 +261,7 @@ static uint32_t aac_adts_bitrate_calc(bk_audio_player_decoder_t *codec)
     aac_decoder_priv_t *priv = (aac_decoder_priv_t *)codec->decoder_priv;
 
     /* reset read_ptr */
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
     priv->analyze_frame_min = 0xFFFFFFFF;
     priv->analyze_frame_max = 0;
     priv->analyze_frame_sum = 0;
@@ -342,15 +365,13 @@ static uint32_t aac_adts_bitrate_calc(bk_audio_player_decoder_t *codec)
                     BK_LOGE(AUDIO_PLAYER_TAG, "%s, audio_source_seek fail, %d\n", __func__, __LINE__);
                     break;
                 }
-                priv->read_ptr = priv->read_buffer;
-                priv->bytes_left = 0;
+                aac_reset_read_state(priv);
             }
         }
         else
         {
             /* reset read_ptr again */
-            priv->read_ptr = priv->read_buffer;
-            priv->bytes_left = 0;
+            aac_reset_read_state(priv);
         }
 
         codec_aac_fill_buffer(codec);
@@ -372,8 +393,7 @@ static uint32_t aac_adts_bitrate_calc(bk_audio_player_decoder_t *codec)
         BK_LOGE(AUDIO_PLAYER_TAG, "%s, audio_source_seek fail, %d\n", __func__, __LINE__);
     }
     /* reset read_ptr */
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
 
     return bite_rate;
 }
@@ -533,8 +553,7 @@ static uint32_t find_next_frame_header(bk_audio_player_decoder_t *codec, aac_dec
         return 0;
     }
 
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
 
     // Fill buffer
     if (codec_aac_fill_buffer(codec) != 0)
@@ -607,6 +626,7 @@ static uint32_t align_to_frame_header(bk_audio_player_decoder_t *codec, aac_deco
     // Save current state
     uint8_t *saved_read_ptr = priv->read_ptr;
     uint32_t saved_bytes_left = priv->bytes_left;
+    uint8_t saved_eos_reached = priv->eos_reached;
 
     // Seek to search start position
     if (audio_source_seek(codec->source, search_start, SEEK_SET) != 0)
@@ -614,12 +634,14 @@ static uint32_t align_to_frame_header(bk_audio_player_decoder_t *codec, aac_deco
         return offset;
     }
 
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
 
     // Fill buffer
     if (codec_aac_fill_buffer(codec) != 0)
     {
+        priv->read_ptr = saved_read_ptr;
+        priv->bytes_left = saved_bytes_left;
+        priv->eos_reached = saved_eos_reached;
         return offset;
     }
 
@@ -692,6 +714,7 @@ static uint32_t align_to_frame_header(bk_audio_player_decoder_t *codec, aac_deco
     // Restore state (read_ptr and bytes_left will be reset when seek is called)
     priv->read_ptr = saved_read_ptr;
     priv->bytes_left = saved_bytes_left;
+    priv->eos_reached = saved_eos_reached;
 
     // Verify the selected frame by checking frame sequence continuity
     // This helps filter out false positives that pass parameter verification
@@ -751,8 +774,7 @@ static uint32_t align_to_frame_header(bk_audio_player_decoder_t *codec, aac_deco
 
         if (audio_source_seek(codec->source, wider_start, SEEK_SET) == 0)
         {
-            priv->read_ptr = priv->read_buffer;
-            priv->bytes_left = 0;
+            aac_reset_read_state(priv);
 
             if (codec_aac_fill_buffer(codec) == 0)
             {
@@ -773,6 +795,7 @@ static uint32_t align_to_frame_header(bk_audio_player_decoder_t *codec, aac_deco
                                                __func__, wider_pos, __LINE__);
                                     priv->read_ptr = saved_read_ptr;
                                     priv->bytes_left = saved_bytes_left;
+                                    priv->eos_reached = saved_eos_reached;
                                     return wider_pos;
                                 }
                             }
@@ -798,6 +821,7 @@ static uint32_t align_to_frame_header(bk_audio_player_decoder_t *codec, aac_deco
     // Restore state
     priv->read_ptr = saved_read_ptr;
     priv->bytes_left = saved_bytes_left;
+    priv->eos_reached = saved_eos_reached;
 
     // Last resort: return the best candidate even if sequence verification failed
     if (best_before > 0)
@@ -832,6 +856,7 @@ static int verify_frame_sequence(bk_audio_player_decoder_t *codec, aac_decoder_p
 {
     uint8_t *saved_read_ptr = priv->read_ptr;
     uint32_t saved_bytes_left = priv->bytes_left;
+    uint8_t saved_eos_reached = priv->eos_reached;
     int ret = 0;
 
     // Seek to frame position
@@ -840,14 +865,14 @@ static int verify_frame_sequence(bk_audio_player_decoder_t *codec, aac_decoder_p
         return 0;
     }
 
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
 
     // Fill buffer
     if (codec_aac_fill_buffer(codec) != 0)
     {
         priv->read_ptr = saved_read_ptr;
         priv->bytes_left = saved_bytes_left;
+        priv->eos_reached = saved_eos_reached;
         return 0;
     }
 
@@ -859,6 +884,7 @@ static int verify_frame_sequence(bk_audio_player_decoder_t *codec, aac_decoder_p
     {
         priv->read_ptr = saved_read_ptr;
         priv->bytes_left = saved_bytes_left;
+        priv->eos_reached = saved_eos_reached;
         return 0;
     }
 
@@ -867,6 +893,7 @@ static int verify_frame_sequence(bk_audio_player_decoder_t *codec, aac_decoder_p
     {
         priv->read_ptr = saved_read_ptr;
         priv->bytes_left = saved_bytes_left;
+        priv->eos_reached = saved_eos_reached;
         return 0;
     }
 
@@ -885,14 +912,15 @@ static int verify_frame_sequence(bk_audio_player_decoder_t *codec, aac_decoder_p
         {
             priv->read_ptr = saved_read_ptr;
             priv->bytes_left = saved_bytes_left;
+            priv->eos_reached = saved_eos_reached;
             return 0;
         }
-        priv->read_ptr = priv->read_buffer;
-        priv->bytes_left = 0;
+        aac_reset_read_state(priv);
         if (codec_aac_fill_buffer(codec) != 0)
         {
             priv->read_ptr = saved_read_ptr;
             priv->bytes_left = saved_bytes_left;
+            priv->eos_reached = saved_eos_reached;
             return 0;
         }
     }
@@ -918,6 +946,7 @@ static int verify_frame_sequence(bk_audio_player_decoder_t *codec, aac_decoder_p
     // Restore state
     priv->read_ptr = saved_read_ptr;
     priv->bytes_left = saved_bytes_left;
+    priv->eos_reached = saved_eos_reached;
 
     return ret;
 }
@@ -931,6 +960,7 @@ static uint32_t advance_frames_forward(bk_audio_player_decoder_t *codec, aac_dec
 
     uint8_t *saved_read_ptr = priv->read_ptr;
     uint32_t saved_bytes_left = priv->bytes_left;
+    uint8_t saved_eos_reached = priv->eos_reached;
     uint32_t saved_offset = start_offset;
     uint32_t current_offset = start_offset;
     uint32_t skipped = 0;
@@ -942,8 +972,7 @@ static uint32_t advance_frames_forward(bk_audio_player_decoder_t *codec, aac_dec
             break;
         }
 
-        priv->read_ptr = priv->read_buffer;
-        priv->bytes_left = 0;
+        aac_reset_read_state(priv);
 
         if (codec_aac_fill_buffer(codec) != 0)
         {
@@ -964,6 +993,7 @@ static uint32_t advance_frames_forward(bk_audio_player_decoder_t *codec, aac_dec
     audio_source_seek(codec->source, saved_offset, SEEK_SET);
     priv->read_ptr = saved_read_ptr;
     priv->bytes_left = saved_bytes_left;
+    priv->eos_reached = saved_eos_reached;
 
     if (skipped == frames_to_skip)
     {
@@ -1230,8 +1260,7 @@ static uint32_t calc_aac_position_vbr(bk_audio_player_decoder_t *codec, aac_deco
     }
 
     // Reset read buffer
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
 
     // Find next frame header from estimated position
     uint32_t frame_start = find_next_frame_header(codec, priv, start_offset);
@@ -1252,8 +1281,7 @@ static uint32_t calc_aac_position_vbr(bk_audio_player_decoder_t *codec, aac_deco
         return priv->stream_offset;
     }
 
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
 
     // Calculate initial time based on estimated frame position
     double current_time = 0.0;
@@ -1277,8 +1305,7 @@ static uint32_t calc_aac_position_vbr(bk_audio_player_decoder_t *codec, aac_deco
                     BK_LOGE(AUDIO_PLAYER_TAG, "%s, seek to audio_start failed, %d\n", __func__, __LINE__);
                     return audio_start;
                 }
-                priv->read_ptr = priv->read_buffer;
-                priv->bytes_left = 0;
+                aac_reset_read_state(priv);
             }
         }
     }
@@ -1354,8 +1381,7 @@ static uint32_t calc_aac_position_vbr(bk_audio_player_decoder_t *codec, aac_deco
                 break;
             }
             current_offset += frame_length;
-            priv->read_ptr = priv->read_buffer;
-            priv->bytes_left = 0;
+            aac_reset_read_state(priv);
         }
 
         // Check if exceeded file size
@@ -1490,8 +1516,7 @@ static int calc_aac_position(bk_audio_player_decoder_t *codec, int second)
     }
 
     // Reset decoder buffer so playback restarts cleanly from new offset
-    priv->read_ptr = priv->read_buffer;
-    priv->bytes_left = 0;
+    aac_reset_read_state(priv);
     AACFlushCodec(priv->decoder);
 
     BK_LOGI(AUDIO_PLAYER_TAG, "%s, final offset=%d for request=%d (effective %.3f s), %d\n",
@@ -1639,7 +1664,6 @@ static int aac_decoder_get_info(bk_audio_player_decoder_t *decoder, audio_info_t
     int ec;
     aac_decoder_priv_t *priv;
     priv = (aac_decoder_priv_t *)decoder->decoder_priv;
-    int read_retry_cnt = 5;
 
     /* Set the default object type and samplerate */
     /* This is useful for RAW AAC files */
@@ -1706,10 +1730,22 @@ static int aac_decoder_get_info(bk_audio_player_decoder_t *decoder, audio_info_t
         }
     }
 
+    aac_reset_read_state(priv);
+
 __retry:
     if ((priv->read_ptr == NULL) || priv->bytes_left < AAC_MAINBUF_SIZE)
     {
-        if (codec_aac_fill_buffer(decoder) != 0)
+        int fill_ret = codec_aac_fill_buffer(decoder);
+        if (fill_ret == AUDIO_PLAYER_TIMEOUT)
+        {
+            rtos_delay_milliseconds(5);
+            goto __retry;
+        }
+        if (fill_ret == RB_DONE)
+        {
+            /* fall through to the short-buffer EOF check below */
+        }
+        else if (fill_ret != 0)
         {
             if (priv->bytes_left == 0)
             {
@@ -1729,14 +1765,10 @@ __retry:
                 return AUDIO_PLAYER_ERR;
             }
         }
-        else if ((read_retry_cnt--) > 0)
-        {
-            goto __retry;
-        }
         else
         {
-            BK_LOGE(AUDIO_PLAYER_TAG, "%s, connot read enough data, read: %d < %d, %d \n", __func__, priv->bytes_left, AAC_MAINBUF_SIZE, __LINE__);
-            return AUDIO_PLAYER_ERR;
+            rtos_delay_milliseconds(5);
+            goto __retry;
         }
     }
 
@@ -1877,14 +1909,20 @@ int aac_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
 
 __retry:
 
-    if ((priv->read_ptr == NULL) || priv->bytes_left < 2 * AAC_MAINBUF_SIZE)
+    while (((priv->read_ptr == NULL) || priv->bytes_left < AAC_MAINBUF_SIZE) && !priv->eos_reached)
     {
-        if (codec_aac_fill_buffer(decoder) != 0)
+        int fill_ret = codec_aac_fill_buffer(decoder);
+        if (fill_ret == AUDIO_PLAYER_TIMEOUT)
         {
-            if (priv->bytes_left == 0)
-            {
-                return -1;
-            }
+            return AUDIO_PLAYER_TIMEOUT;
+        }
+        if (fill_ret == RB_DONE)
+        {
+            break;
+        }
+        if (fill_ret != 0)
+        {
+            return AUDIO_PLAYER_ERR;
         }
     }
 
@@ -1896,13 +1934,22 @@ __retry:
             if (priv->bytes_left == 0)
             {
                 BK_LOGW(AUDIO_PLAYER_TAG, "%s, AAC source end reached\n", __func__);
-                return -1;
+                return 0;
             }
+            if (priv->stream_aborted)
+            {
+                /* Aborted stream: residual is likely a truncated frame, drop it instead
+                 * of feeding a partial frame into the decoder. */
+                BK_LOGW(AUDIO_PLAYER_TAG, "%s, aborted, drop tail: %d < %d\n", __func__, priv->bytes_left, AAC_MAINBUF_SIZE);
+                priv->bytes_left = 0;
+                return 0;
+            }
+            /* clean end of stream: fall through and decode the remaining whole frame(s) */
         }
         else
         {
-            BK_LOGE(AUDIO_PLAYER_TAG, "%s, connot read enough data, read: %d < %d, %d \n", __func__, priv->bytes_left, AAC_MAINBUF_SIZE, __LINE__);
-            return -1;
+            BK_LOGW(AUDIO_PLAYER_TAG, "%s, wait for more data, read: %d < %d, %d \n", __func__, priv->bytes_left, AAC_MAINBUF_SIZE, __LINE__);
+            return AUDIO_PLAYER_TIMEOUT;
         }
     }
 
@@ -1972,7 +2019,11 @@ __retry:
     {
         if (ec == ERR_AAC_INDATA_UNDERFLOW)
         {
-            BK_LOGW(AUDIO_PLAYER_TAG, "%s, aac_decoder_decode finish, ec: %d, %d\n", __func__, ec, __LINE__);
+            if (priv->eos_reached)
+            {
+                return 0;
+            }
+            BK_LOGW(AUDIO_PLAYER_TAG, "%s, aac_decoder_decode need more data, ec: %d, %d\n", __func__, ec, __LINE__);
             goto __retry;
         }
 

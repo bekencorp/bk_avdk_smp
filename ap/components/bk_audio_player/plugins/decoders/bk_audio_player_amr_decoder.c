@@ -21,6 +21,7 @@
 #include "codec_api.h"
 #include "source_api.h"
 #include "player_osal.h"
+#include "ring_buffer.h"
 #include <components/bk_audio_player/bk_audio_player_types.h>
 
 static const char *AMR_MAGIC_NUMBER = "#!AMR\n";
@@ -29,6 +30,32 @@ static const int amr_frame[] = { 12, 13, 15, 17, 19, 20, 26, 31, 5, 6, 5, 5, 0, 
 #define AMR_FRAMES_PER_SECOND        50
 #define AMR_MAX_FRAME_PAYLOAD_BYTES  31
 #define AMR_RESYNC_BYTES_LIMIT       4096
+
+static int amr_read_exact(bk_audio_player_decoder_t *decoder, char *buffer, int len)
+{
+    int total = 0;
+
+    while (total < len)
+    {
+        int ret = audio_source_read_data(decoder->source, buffer + total, len - total);
+        if (ret > 0)
+        {
+            total += ret;
+            continue;
+        }
+        if (ret == AUDIO_PLAYER_TIMEOUT)
+        {
+            return total > 0 ? total : AUDIO_PLAYER_TIMEOUT;
+        }
+        if (ret == 0 || ret == RB_DONE || ret == RB_ABORT)
+        {
+            return total > 0 ? total : 0;
+        }
+        return ret;
+    }
+
+    return total;
+}
 
 
 typedef struct amr_decoder_priv
@@ -126,18 +153,17 @@ static int amr_decoder_get_info(bk_audio_player_decoder_t *decoder, audio_info_t
     priv = (amr_decoder_priv_t *)decoder->decoder_priv;
 
     char amr_header[6 + 1];
-    int retry_cnt = 5;
     int len;
 
     len  = strlen(AMR_MAGIC_NUMBER);
     amr_header[len] = 0;
 
 __retry:
-    bytes_read = audio_source_read_data(decoder->source, amr_header, len);
+    bytes_read = amr_read_exact(decoder, amr_header, len);
 
     if (bytes_read != len)
     {
-        if ((bytes_read == AUDIO_PLAYER_TIMEOUT) && (retry_cnt--) > 0)
+        if (bytes_read == AUDIO_PLAYER_TIMEOUT)
         {
             BK_LOGW(AUDIO_PLAYER_TAG, "read timeout,try again\r\n");
             rtos_delay_milliseconds(20);
@@ -191,10 +217,18 @@ int amr_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
     int bytes_read;
 
     /* get amr frame header. */
-    bytes_read = audio_source_read_data(decoder->source, &amr_data[0], 1);
+    bytes_read = amr_read_exact(decoder, &amr_data[0], 1);
 
     if (bytes_read != 1)
     {
+        if (bytes_read == AUDIO_PLAYER_TIMEOUT)
+        {
+            return AUDIO_PLAYER_TIMEOUT;
+        }
+        if (bytes_read == 0 || bytes_read == RB_DONE || bytes_read == RB_ABORT)
+        {
+            return 0;
+        }
         BK_LOGE(AUDIO_PLAYER_TAG, "read amr frame header err, break!");
         priv->stream_offset_valid = false;
         return -1;
@@ -216,10 +250,18 @@ int amr_decoder_get_data(bk_audio_player_decoder_t *decoder, char *buffer, int l
         bfi = 1;
     }
 
-    bytes_read = audio_source_read_data(decoder->source, &amr_data[1], amr_size);
+    bytes_read = amr_read_exact(decoder, &amr_data[1], amr_size);
 
     if (bytes_read != amr_size)
     {
+        if (bytes_read == AUDIO_PLAYER_TIMEOUT || bytes_read > 0)
+        {
+            return AUDIO_PLAYER_TIMEOUT;
+        }
+        if (bytes_read == 0 || bytes_read == RB_DONE || bytes_read == RB_ABORT)
+        {
+            return 0;
+        }
         BK_LOGE(AUDIO_PLAYER_TAG, "read amr_size err, %d:%d.", amr_size, bytes_read);
         priv->stream_offset_valid = false;
         return -1;
