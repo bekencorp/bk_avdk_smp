@@ -347,13 +347,26 @@ int volc_sockopt_set_buffer_size(int __fd, bool _is_send_buffer,int buffer_size)
         (*count)++;
         cur = cur->ai_next;
     }
+    if (*count == 0) {
+        freeaddrinfo(res);
+        return VOLC_FAILED;
+    }
     *addrs = (volc_ip_addr_t*)volc_malloc(sizeof(volc_ip_addr_t) * (*count));
+    if (*addrs == NULL) {
+        freeaddrinfo(res);
+        *count = 0;
+        return VOLC_FAILED;
+    }
     cur = res;
     while (cur) {
         _volc_ip_addr_from_socket_addr(&(*addrs)[index], (struct sockaddr_in*)cur->ai_addr);
         index++;
         cur = cur->ai_next;
     }
+    /* free the addrinfo chain returned by getaddrinfo to avoid NETDB pool leak
+     * (each entry in lwip's MEMP_NETDB pool is allocated from heap when
+     * MEMP_MEM_MALLOC is enabled, and not freeing it leaks SRAM each call). */
+    freeaddrinfo(res);
     return VOLC_SUCCESS;
 }
 
