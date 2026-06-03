@@ -234,23 +234,27 @@ ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
     }
 
 #if CONFIG_BRIDGE
-    /* need to forward */
+    /*
+     * CP-side intra-BSS forward fast-path.
+     *
+     * For SAP-rx frames, when dst_idx points to a STA under the same vif we
+     * forward via low_level_output here. Multicast/broadcast is forwarded
+     * intra-BSS and ALSO uploaded to AP (host stack consumes a copy).
+     * Pure intra-BSS unicast is fully handled by CP — uploading would only
+     * loop through AP bridgeif and be dropped by split-horizon, so we free
+     * the original pbuf and skip the IPC entirely.
+     */
     if (wifi_netif_vif_to_netif_type(vif) == NETIF_IF_AP) {
-        // If dest sta is known, or packet is multicast, forward this packet
         if ((ethhdr->dest.addr[0] & 1) || dst_idx != 0xff) {
-            // check if is arp request to us, doesn't need to forward
             struct pbuf *q;
+            bool intra_bss_unicast = false;
 
-            // unicast frame, check da staidx
-            // for softap+ap, if sta under softap sends packets to router,
-            // dst_idx will be valid, and packets will be forwarded in our
-            // softap bss.
             if (!(ethhdr->dest.addr[0] & 1) && dst_idx < NX_REMOTE_STA_MAX) {
                 void *sta = sta_mgmt_get_entry(dst_idx);
-                // if STA doesn't belong to this vif
                 if (mac_sta_mgmt_get_inst_nbr(sta) != mac_vif_mgmt_get_index(vif)) {
                     goto process;
                 }
+                intra_bss_unicast = true;
             }
 
             if (ethhdr->type == PP_HTONS(ETHTYPE_ARP)) {
@@ -259,7 +263,6 @@ ethernetif_input(int iface, struct pbuf *p, uint8_t dst_idx)
                     goto forward;
 
                 if (!memcmp(&hdr->dipaddr, &netif->ip_addr, 4)) {
-                    // BK_LOGD(NULL, "DIP TO SOFTAP\n");
                     goto process;
                 }
             }
@@ -270,6 +273,11 @@ forward:
                 pbuf_free(q);
             } else {
                 LWIP_LOGE("alloc pbuf failed, don't forward\r\n");
+            }
+
+            if (intra_bss_unicast) {
+                pbuf_free(p);
+                return;
             }
         }
     }

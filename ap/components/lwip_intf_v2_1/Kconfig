@@ -40,6 +40,13 @@ menu "Lwip_intf_v2_1"
 	config BRIDGE
                 bool "Enable LWIP BRIDGE"
                 default n
+                help
+                  Enable the IEEE 802.1D bridge (sta + uap -> br0).  This
+                  symbol MUST be set identically on the AP and CP cores —
+                  the data plane (cif_rx_local_packet_check, wlanif
+                  forward) and control plane (bk_wifi_sync_bridge_state)
+                  assume both cores agree.  Use the same value in
+                  projects/app/ap/.../defconfig and projects/app/cp/.../defconfig.
 
 	config NET_PAN
 		bool "Enable BT Personal Area Networking"
@@ -50,7 +57,6 @@ menu "Lwip_intf_v2_1"
                 default n
 
 	config IP_FORWARD_ALLOW_TX_ON_RX_NETIF
-		depends on BRIDGE
 		bool "enable IP forward on rx interface"
 		default n
 
@@ -58,6 +64,10 @@ menu "Lwip_intf_v2_1"
 		depends on BRIDGE
 		int "enable min DHCP release time"
 		default 0
+		help
+		  Minimum DHCP lease time (seconds) enforced in bridge mode.
+		  Set the same value on AP and CP (both defconfig / menuconfig).
+		  0 disables the clamp (default).
 
 	config FUZZ_TEST
 		bool "fuzz test config"

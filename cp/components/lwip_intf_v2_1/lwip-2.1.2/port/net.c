@@ -598,27 +598,41 @@ static void beken_reset_bridge(struct netif *netif)
 	netif_set_flags((struct netif *)net_get_sta_handle(), NETIF_FLAG_ETHARP);
 	netif_set_client_data((struct netif *)net_get_uap_handle(), bridgeif_netif_client_id, NULL);
 	netif_set_flags((struct netif *)net_get_uap_handle(), NETIF_FLAG_ETHARP);
+#if LWIP_NETIF_CLIENT_DATA
+	if (netif != NULL) {
+		netif_set_client_data(netif, LWIP_NETIF_CLIENT_DATA_INDEX_DHCP, NULL);
+	}
+#else
+	LWIP_UNUSED_ARG(netif);
+#endif
 	LWIP_LOGD("bridg ip down\r\n");
 	netif_set_status_callback(&g_br.netif, NULL);
 }
 
+void bridge_netif_teardown(void)
+{
+	struct netif *br = (struct netif *)net_get_br_handle();
+
+	if (br == NULL || br->state == NULL) {
+		bridge_ip_start_flag = false;
+		return;
+	}
+
+	netifapi_netif_common(br, beken_reset_bridge, NULL);
+	netifapi_netif_remove(br);
+	netifapi_netif_common(br, bridgeif_deinit, NULL);
+#if LWIP_IPV6
+	for (u8_t addr_idx = 1; addr_idx < LWIP_IPV6_NUM_ADDRESSES; addr_idx++) {
+		netif_ip6_addr_set(&g_br.netif, addr_idx, (const ip6_addr_t *)IP6_ADDR_ANY);
+		g_br.netif.ip6_addr_state[addr_idx] = IP6_ADDR_INVALID;
+	}
+#endif
+	bridge_ip_start_flag = false;
+}
+
 void bridge_ip_stop(void)
 {
-	if (bridge_ip_start_flag) {
-		struct netif *br = (struct netif *)net_get_br_handle();
-
-		netifapi_netif_common(br, beken_reset_bridge, NULL);
-		netifapi_netif_remove(br);
-		netifapi_netif_common(br, bridgeif_deinit, NULL);
-#if LWIP_IPV6
-		for (u8_t addr_idx = 1; addr_idx < LWIP_IPV6_NUM_ADDRESSES; addr_idx++) {
-			netif_ip6_addr_set(&g_br.netif, addr_idx, (const ip6_addr_t *)IP6_ADDR_ANY);
-			g_br.netif.ip6_addr_state[addr_idx] = IP6_ADDR_INVALID;
-		}
-#endif
-
-		bridge_ip_start_flag = false;
-	}
+	bridge_netif_teardown();
 }
 
 uint32_t bridge_ip_is_start(void)

@@ -648,7 +648,7 @@ dhcp_handle_ack(struct netif *netif, struct dhcp_msg *msg_in)
     /* remember offered lease time */
     dhcp->offered_t0_lease = dhcp_get_option_value(dhcp, DHCP_OPTION_IDX_LEASE_TIME);
 #if CONFIG_BK_DHCP_RELEASE_TIME && CONFIG_BRIDGE
-    if ((bk_wifi_get_bridge_state() == BK_WIFI_BRIDGE_STATE_ENABLED) && dhcp->offered_t0_lease < BK_DHCP_RELEASE_TIME)
+    if ((bk_wifi_get_bridge_state() == BRIDGE_STATE_ENABLED) && dhcp->offered_t0_lease < BK_DHCP_RELEASE_TIME)
       dhcp->offered_t0_lease = BK_DHCP_RELEASE_TIME;
 #endif
   }

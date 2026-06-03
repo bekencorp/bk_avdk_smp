@@ -42,6 +42,9 @@
  */
 
 #include "netif/bridgeif.h"
+#if BK_LWIP
+#include "bk_bridge.h"
+#endif /* BK_LWIP */
 #include "lwip/sys.h"
 #include "lwip/mem.h"
 #include "lwip/timeouts.h"
@@ -187,10 +190,6 @@ bridgeif_age_tmr(void *arg)
   sys_timeout(BRIDGEIF_AGE_TIMER_MS, bridgeif_age_tmr, arg);
 }
 
-#if BK_LWIP
-bridgeif_dfdb_t *g_fdb;
-#endif
-
 /**
  * @ingroup bridgeif_fdb
  * Init our simple fdb list
@@ -211,7 +210,7 @@ bridgeif_fdb_init(u16_t max_fdb_entries)
   fdb->fdb = (bridgeif_dfdb_entry_t *)(fdb + 1);
 
 #if BK_LWIP
-  g_fdb = fdb;
+  bk_bridge_hook_fdb_init(fdb);
 #endif
 
   sys_timeout(BRIDGEIF_AGE_TIMER_MS, bridgeif_age_tmr, fdb);
@@ -220,29 +219,29 @@ bridgeif_fdb_init(u16_t max_fdb_entries)
 }
 
 #if BK_LWIP
-void print_fdb()
-{
-  int i;
-  bridgeif_dfdb_t *fdb = (bridgeif_dfdb_t *)g_fdb;
-  BRIDGEIF_DECL_PROTECT(lev);
-  BRIDGEIF_READ_PROTECT(lev);
-
-  if (!fdb)
-    return;
-
-  for (i = 0; i < fdb->max_fdb_entries; i++) {
-    bridgeif_dfdb_entry_t *e = &fdb->fdb[i];
-    if (e->used && e->ts) {
-      BK_LOGD(NULL, "%pm, eport %d, ts %d\n", &e->addr, e->port, e->ts);
-    }
-  }
-  BRIDGEIF_READ_UNPROTECT(lev);
-}
-
 void bridgeif_fdb_deinit(bridgeif_private_t *br)
 {
   sys_untimeout(bridgeif_age_tmr, br->fdbd);
   mem_free(br->fdbd);
   br->fdbd = NULL;
 }
-#endif
+
+void bridgeif_fdb_for_each(void *fdb_ptr, bridgeif_fdb_iter_cb_t cb, void *arg)
+{
+  int i;
+  bridgeif_dfdb_t *fdb = (bridgeif_dfdb_t *)fdb_ptr;
+  BRIDGEIF_DECL_PROTECT(lev);
+
+  if (fdb == NULL || cb == NULL)
+    return;
+
+  BRIDGEIF_READ_PROTECT(lev);
+  for (i = 0; i < fdb->max_fdb_entries; i++) {
+    bridgeif_dfdb_entry_t *e = &fdb->fdb[i];
+    if (e->used && e->ts) {
+      cb(&e->addr, e->port, e->ts, arg);
+    }
+  }
+  BRIDGEIF_READ_UNPROTECT(lev);
+}
+#endif /* BK_LWIP */

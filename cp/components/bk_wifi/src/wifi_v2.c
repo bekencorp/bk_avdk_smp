@@ -3243,7 +3243,19 @@ void bk_wifi_scan_free_result(wifi_scan_result_t *scan_result)
 }
 
 #if CONFIG_BRIDGE
-static bk_bridge_state_t bridge_state = BRIDGE_STATE_DISABLED;
+/*
+ * CP-local bridge_state.
+ *   - volatile: 4-byte word, only read/written on non-ISR contexts
+ *     (cif handler task / wifi/lwip threads on CP). The IPC handler that
+ *     mutates it (cif_handle_wifi_api_cmd → bk_wifi_sync_bridge_state)
+ *     returns synchronously to AP only after the write completes, giving
+ *     us a happens-before edge with AP's next IPC.
+ *   - Fast-path checks compare exactly == BRIDGE_STATE_ENABLED, so any
+ *     transitional state (ENABLING/DISABLING) is treated as "slow path,
+ *     ship to AP" — that's the conservative behaviour we want during
+ *     bridge setup/teardown windows.
+ */
+static volatile bk_bridge_state_t bridge_state = BRIDGE_STATE_DISABLED;
 #endif
 bk_err_t bk_wifi_ap_start(void)
 {
