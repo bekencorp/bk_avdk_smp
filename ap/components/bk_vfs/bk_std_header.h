@@ -1,6 +1,9 @@
 #ifndef __BK_STD_HEADER_H_
 #define __BK_STD_HEADER_H_
 
+#include <stdint.h>
+#include <time.h>
+
 #ifndef O_WRONLY
 #define O_WRONLY 1
 #endif
@@ -33,7 +36,12 @@ struct statfs {
 struct dirent {
 	uint8_t d_ino;
 	uint8_t d_type;
+	uint8_t d_stat_valid;
+	uint8_t d_reserved;
 	uint16_t d_reclen;
+	long d_size;
+	time_t d_mtime;
+	unsigned int d_mode;
 	char d_name[MAX_PATH_LEN];
 };
 

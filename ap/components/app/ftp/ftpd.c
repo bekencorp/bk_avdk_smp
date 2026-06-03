@@ -45,6 +45,7 @@
 #include <stdarg.h>
 #include <ctype.h>
 #include <string.h>
+#include <errno.h>
 #if CONFIG_VFS
 #include "bk_posix.h"
 #endif
@@ -172,7 +173,7 @@ uint32_t ftp_is_running = 0;
 #define msg553 "553 Requested action not taken."
 
 
-#define msg_FEAT   "211-Extension supported\r\n UTF8\r\n MLSD\r\n CLNT\r\n SIZE\r\n211 End."
+#define msg_FEAT   "211-Extension supported\r\n UTF8\r\n MLSD\r\n MLST\r\n CLNT\r\n SIZE\r\n211 End."
 
 /*
              File name not allowed.
@@ -190,6 +191,34 @@ enum ftpd_state_e {
 	FTPD_QUIT,
 	FTPD_MLSD,
 };
+
+static const char *ftpd_state_name(enum ftpd_state_e state)
+{
+	switch (state) {
+	case FTPD_USER:
+		return "USER";
+	case FTPD_PASS:
+		return "PASS";
+	case FTPD_IDLE:
+		return "IDLE";
+	case FTPD_NLST:
+		return "NLST";
+	case FTPD_LIST:
+		return "LIST";
+	case FTPD_RETR:
+		return "RETR";
+	case FTPD_RNFR:
+		return "RNFR";
+	case FTPD_STOR:
+		return "STOR";
+	case FTPD_QUIT:
+		return "QUIT";
+	case FTPD_MLSD:
+		return "MLSD";
+	default:
+		return "UNKNOWN";
+	}
+}
 
 static const char *month_table[12] = {
 	"Jan",
@@ -272,6 +301,17 @@ typedef struct sfifo_t {
 #define FULL_PATH_SIZE 640
 #define MAX_PRE_READ_BUFFER_SIZE 30*1024//8000
 #define MAX_READ_BUFFER_SIZE 30*1024//8*1024
+#define FTPD_DIR_ENTRY_BATCH 64
+#define FTP_TIMEZONE_OFFSET_SECONDS (8 * 60 * 60)
+
+static time_t ftpd_time_to_utc(time_t local_time)
+{
+#if CONFIG_NTP_SYNC_RTC
+	if (local_time >= FTP_TIMEZONE_OFFSET_SECONDS)
+		return local_time - FTP_TIMEZONE_OFFSET_SECONDS;
+#endif
+	return local_time;
+}
 
 static char *strprepend(char *dest,int size,const char *pre_str)
 {
@@ -366,32 +406,212 @@ struct ftpd_msgstate {
 
 static void send_msg(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm, char *msg, ...);
 
+static const char *ftp_path_skip_extra_root_slash(const char *path)
+{
+	if (path && path[0] == '/' && path[1] == '/')
+		return path + 1;
+
+	return path;
+}
+
+static const char *ftp_mount_name(void)
+{
+	const char *name = strrchr(FTP_MOUNT_PATH, '/');
+
+	return name ? name + 1 : FTP_MOUNT_PATH;
+}
+
+static int ftp_path_has_mount_prefix(const char *path)
+{
+	size_t mount_len = strlen(FTP_MOUNT_PATH);
+
+	path = ftp_path_skip_extra_root_slash(path);
+	if (!path)
+		return 0;
+
+	return (strncmp(path, FTP_MOUNT_PATH, mount_len) == 0) &&
+		(path[mount_len] == '\0' || path[mount_len] == '/');
+}
+
+static int ftp_append_path_segment(char *out, size_t out_size, const char *seg, size_t seg_len)
+{
+	size_t out_len = strlen(out);
+
+	if ((out_len + 1 + seg_len + 1) > out_size)
+		return -1;
+
+	out[out_len++] = '/';
+	memcpy(out + out_len, seg, seg_len);
+	out[out_len + seg_len] = '\0';
+
+	return 0;
+}
+
+static int ftp_normalize_mount_path(const char *path, char *out, size_t out_size)
+{
+	char input[MAX_PATH_LEN] = {0};
+	const char *p;
+	size_t mount_len = strlen(FTP_MOUNT_PATH);
+
+	if (!path || !out || out_size <= mount_len)
+		return -1;
+
+	snprintf(input, sizeof(input), "%s", path);
+	snprintf(out, out_size, "%s", FTP_MOUNT_PATH);
+	p = ftp_path_skip_extra_root_slash(input);
+	if (!p)
+		return -1;
+
+	if (ftp_path_has_mount_prefix(p)) {
+		p += mount_len;
+		if (*p == '/')
+			p++;
+	} else if (*p == '/') {
+		p++;
+	}
+
+	while (*p != '\0') {
+		const char *seg = p;
+		size_t seg_len;
+
+		while (*p != '\0' && *p != '/')
+			p++;
+		seg_len = p - seg;
+
+		if (seg_len == 0 || (seg_len == 1 && seg[0] == '.')) {
+			/* skip */
+		} else if (seg_len == 2 && seg[0] == '.' && seg[1] == '.') {
+			if (strlen(out) > mount_len) {
+				char *last_slash = strrchr(out, '/');
+
+				if (last_slash && last_slash > out)
+					*last_slash = '\0';
+			}
+		} else if (ftp_append_path_segment(out, out_size, seg, seg_len) != 0) {
+			return -1;
+		}
+
+		while (*p == '/')
+			p++;
+	}
+
+	return 0;
+}
+
+static int ftp_make_path(const char *arg, char *out, size_t out_size)
+{
+	char cwd[MAX_PATH_LEN] = {0};
+	char base[MAX_PATH_LEN] = {0};
+	char candidate[MAX_PATH_LEN] = {0};
+	char *cwd_ret;
+	const char *cwd_path;
+	const char *mount_name = ftp_mount_name();
+	size_t mount_name_len = strlen(mount_name);
+
+	if (!arg || arg[0] == '\0' || !out)
+		return -1;
+
+	cwd_ret = getcwd(cwd, MAX_PATH_LEN);
+	cwd_path = ftp_path_skip_extra_root_slash(cwd_ret);
+	if (!cwd_path || cwd_path[0] == '\0' || (cwd_path[0] == '/' && cwd_path[1] == '\0')) {
+		snprintf(base, sizeof(base), "%s", FTP_MOUNT_PATH);
+	} else if (ftp_normalize_mount_path(cwd_path, base, sizeof(base)) != 0) {
+		return -1;
+	}
+
+	if (arg[0] == '/' && arg[1] == '\0') {
+		snprintf(candidate, sizeof(candidate), "%s", FTP_MOUNT_PATH);
+	} else if (ftp_path_has_mount_prefix(arg)) {
+		snprintf(candidate, sizeof(candidate), "%s", ftp_path_skip_extra_root_slash(arg));
+	} else if (arg[0] == '/') {
+		snprintf(candidate, sizeof(candidate), "%s%s", FTP_MOUNT_PATH, arg);
+	} else if ((strcmp(base, FTP_MOUNT_PATH) == 0) &&
+		   (strncmp(arg, mount_name, mount_name_len) == 0) &&
+		   (arg[mount_name_len] == '\0' || arg[mount_name_len] == '/')) {
+		snprintf(candidate, sizeof(candidate), "%s", FTP_MOUNT_PATH);
+		if (arg[mount_name_len] == '/')
+			snprintf(candidate, sizeof(candidate), "%s/%s", FTP_MOUNT_PATH, arg + mount_name_len + 1);
+	} else {
+		snprintf(candidate, sizeof(candidate), "%s/%s", base, arg);
+	}
+
+	return ftp_normalize_mount_path(candidate, out, out_size);
+}
+
+static int ftpd_is_list_state(enum ftpd_state_e state)
+{
+	return state == FTPD_LIST || state == FTPD_NLST || state == FTPD_MLSD;
+}
+
+static void ftpd_data_cleanup_resources(struct ftpd_datastate *fsd)
+{
+	if (!fsd)
+		return;
+
+	if (fsd->vfs_dir) {
+		closedir(fsd->vfs_dir);
+		fsd->vfs_dir = NULL;
+		fsd->vfs_dirent = NULL;
+	}
+	if (fsd->fd != -1) {
+		close(fsd->fd);
+		fsd->fd = -1;
+	}
+}
+
 static void ftpd_dataerr(void *arg, err_t err)
 {
 	struct ftpd_datastate *fsd = arg;
+	struct ftpd_msgstate *fsm;
 
-	LOGE("ftpd_dataerr: %s (%i)\r\n", lwip_strerr(err), err);
 	if (fsd == NULL)
 		return;
-	fsd->msgfs->datafs = NULL;
-	fsd->msgfs->state = FTPD_IDLE;
+	fsm = fsd->msgfs;
+	LOGE("ftpd_dataerr: %s (%i) fsd=0x%x fsm=0x%x state=%s datafs=0x%x datapcb=0x%x connected=%d fd=%d vfs_dir=0x%x fifo_used=%d fifo_space=%d\r\n",
+		lwip_strerr(err), err, (unsigned int)fsd, (unsigned int)fsm,
+		fsm ? ftpd_state_name(fsm->state) : "(null)",
+		fsm ? (unsigned int)fsm->datafs : 0,
+		fsm ? (unsigned int)fsm->datapcb : 0,
+		fsd->connected, fsd->fd, (unsigned int)fsd->vfs_dir,
+		sfifo_used(&fsd->fifo), sfifo_space(&fsd->fifo));
+	ftpd_data_cleanup_resources(fsd);
+	sfifo_close(&fsd->fifo);
+	if (fsm) {
+		fsm->datafs = NULL;
+		fsm->datapcb = NULL;
+		fsm->passive = 0;
+		fsm->state = FTPD_IDLE;
+	}
 	os_free(fsd);
 }
 
 static void ftpd_dataclose(struct tcp_pcb *pcb, struct ftpd_datastate *fsd)
 {
+	struct ftpd_msgstate *fsm = fsd ? fsd->msgfs : NULL;
+	err_t close_err;
+
+	LOGV("ftpd_dataclose: begin pcb=0x%x pcb_state=%d fsd=0x%x fsm=0x%x state=%s connected=%d fd=%d vfs_dir=0x%x fifo_used=%d fifo_space=%d\r\n",
+		(unsigned int)pcb, pcb ? pcb->state : -1, (unsigned int)fsd,
+		(unsigned int)fsm, fsm ? ftpd_state_name(fsm->state) : "(null)",
+		fsd ? fsd->connected : -1, fsd ? fsd->fd : -1,
+		fsd ? (unsigned int)fsd->vfs_dir : 0,
+		fsd ? sfifo_used(&fsd->fifo) : -1,
+		fsd ? sfifo_space(&fsd->fifo) : -1);
 	tcp_arg(pcb, NULL);
 	tcp_sent(pcb, NULL);
 	tcp_recv(pcb, NULL);
 	fsd->msgfs->datafs = NULL;
 	fsd->msgfs->passive = 0;
+	ftpd_data_cleanup_resources(fsd);
 	sfifo_close(&fsd->fifo);
 	os_free(fsd);
 	tcp_arg(pcb, NULL);
-	tcp_close(pcb);
+	close_err = tcp_close(pcb);
+	LOGV("ftpd_dataclose: tcp_close pcb=0x%x ret=%d\r\n",
+		(unsigned int)pcb, close_err);
 }
 
-static void send_data(struct tcp_pcb *pcb, struct ftpd_datastate *fsd)
+static int send_data(struct tcp_pcb *pcb, struct ftpd_datastate *fsd)
 {
 	err_t err;
 	u16_t len;
@@ -406,25 +626,51 @@ static void send_data(struct tcp_pcb *pcb, struct ftpd_datastate *fsd)
 		else
 			len = (u16_t) sfifo_used(&fsd->fifo);
 
+		if (len == 0) {
+			LOGV("send_data: wait sndbuf state=%s pcb=0x%x pcb_state=%d fsd=0x%x fifo_used=%d fifo_space=%d\r\n",
+				fsd->msgfs ? ftpd_state_name(fsd->msgfs->state) : "(null)",
+				(unsigned int)pcb, pcb ? pcb->state : -1,
+				(unsigned int)fsd, sfifo_used(&fsd->fifo),
+				sfifo_space(&fsd->fifo));
+			return 0;
+		}
+
+		LOGV("send_data: state=%s pcb=0x%x pcb_state=%d fsd=0x%x sndbuf=%u fifo_used=%d fifo_space=%d send_len=%u\r\n",
+			fsd->msgfs ? ftpd_state_name(fsd->msgfs->state) : "(null)",
+			(unsigned int)pcb, pcb ? pcb->state : -1, (unsigned int)fsd,
+			pcb ? tcp_sndbuf(pcb) : 0, sfifo_used(&fsd->fifo),
+			sfifo_space(&fsd->fifo), len);
 		i = fsd->fifo.readpos;
 		if ((i + len) > fsd->fifo.size) {
 			err = tcp_write(pcb, fsd->fifo.buffer + i, (u16_t)(fsd->fifo.size - i), 1);
 			if (err != ERR_OK) {
-				LOGE("send_data: error writing! err %d\r\n",err);
-				return;
+				LOGE("send_data: error writing first chunk! state=%s err=%d pcb=0x%x pcb_state=%d len=%u fifo_used=%d\r\n",
+					fsd->msgfs ? ftpd_state_name(fsd->msgfs->state) : "(null)",
+					err, (unsigned int)pcb, pcb ? pcb->state : -1,
+					(u16_t)(fsd->fifo.size - i), sfifo_used(&fsd->fifo));
+				return -1;
 			}
 			len -= fsd->fifo.size - i;
 			fsd->fifo.readpos = 0;
 			i = 0;
 		}
 
-		err = tcp_write(pcb, fsd->fifo.buffer + i, len, 1);
-		if (err != ERR_OK) {
-			LOGE("send_data: error writing! err %d\r\n",err);
-			return;
+		if (len > 0) {
+			err = tcp_write(pcb, fsd->fifo.buffer + i, len, 1);
+			if (err != ERR_OK) {
+				LOGE("send_data: error writing second chunk! state=%s err=%d pcb=0x%x pcb_state=%d len=%u fifo_used=%d\r\n",
+					fsd->msgfs ? ftpd_state_name(fsd->msgfs->state) : "(null)",
+					err, (unsigned int)pcb, pcb ? pcb->state : -1,
+					len, sfifo_used(&fsd->fifo));
+				return -1;
+			}
+			fsd->fifo.readpos += len;
 		}
-		fsd->fifo.readpos += len;
+		tcp_output(pcb);
+		return 1;
 	}
+
+	return 0;
 }
 
 static void send_file(struct ftpd_datastate *fsd, struct tcp_pcb *pcb)
@@ -504,6 +750,10 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 	char *buffer = NULL;
 	char *path = NULL;
 	int len;
+	int processed = 0;
+	time_t current_time = {0};
+	int current_year = 0;
+	struct tm *current_tm = NULL;
 
 	LOGV("%s list_type %d\r\n",__func__,list_type);
 
@@ -526,7 +776,26 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 	}
 	os_memset(cwd_buffer, 0, MAX_PATH_LEN);
 
-	while (1) {
+	if (sfifo_used(&fsd->fifo) > 0 && tcp_sndbuf(pcb) == 0)
+		goto exit;
+
+	cwd_path = getcwd(cwd_buffer, MAX_PATH_LEN);
+	if (!cwd_path || ftp_normalize_mount_path(cwd_path, cwd_buffer, MAX_PATH_LEN) != 0)
+		snprintf(cwd_buffer, MAX_PATH_LEN, "%s", FTP_MOUNT_PATH);
+
+#if CONFIG_NTP_SYNC_RTC
+	{
+		extern time_t timestamp_get();
+		current_time = timestamp_get();
+	}
+#else
+	/* Fallback to time() if NTP is not configured */
+	current_time = time(NULL);
+#endif
+	current_tm = gmtime(&current_time);
+	current_year = current_tm ? current_tm->tm_year : 0;
+
+	while (processed < FTPD_DIR_ENTRY_BATCH) {
 		if (fsd->vfs_dirent == NULL) {
 			fsd->vfs_dirent = readdir(fsd->vfs_dir);
 		}
@@ -543,41 +812,30 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 				LOGV("NLST : %s",buffer);
 			} else {
 				struct stat st = {0};
-				time_t current_time = {0};
-				int current_year = 0;
 				struct tm *s_time = NULL;
+				time_t entry_time = 0;
+				int stat_ok = 0;
 
-#if CONFIG_NTP_SYNC_RTC
-				extern time_t timestamp_get();
-				current_time = timestamp_get();
-#else
-				/* Fallback to time() if NTP is not configured */
-				current_time = time(NULL);
-#endif
-
-				s_time = gmtime(&current_time);
-				current_year = s_time->tm_year;
-				memset(cwd_buffer,0,MAX_PATH_LEN);
-				cwd_path = getcwd(cwd_buffer, MAX_PATH_LEN);
-				LOGV("%s cwd_path %s\r\n",__func__,cwd_path);
-				if (!cwd_path || cwd_path[0] == '\0' || (cwd_path[0] == '/' && cwd_path[1] == '\0')) {
-					snprintf(path, FULL_PATH_SIZE, "%s/%s", FTP_MOUNT_PATH, fsd->vfs_dirent->d_name);
-				} else {
-					if (cwd_path[0] == '/' && cwd_path[1] == '/')
-						cwd_path++;
-					snprintf(path, FULL_PATH_SIZE, "%s/%s", cwd_path, fsd->vfs_dirent->d_name);
-				}
+				LOGV("%s cwd_path %s\r\n",__func__,cwd_buffer);
+				snprintf(path, MAX_PATH_LEN, "%s/%s", cwd_buffer, fsd->vfs_dirent->d_name);
 				LOGV("%s path %s\r\n",__func__,path);
-				stat(path, &st);
+				if (fsd->vfs_dirent->d_stat_valid) {
+					st.st_size = fsd->vfs_dirent->d_size;
+					st.st_mtime = fsd->vfs_dirent->d_mtime;
+					st.st_mode = fsd->vfs_dirent->d_mode;
+					stat_ok = 1;
+				} else if (list_type == FTPD_LIST || list_type == FTPD_MLSD) {
+					stat_ok = (stat(path, &st) == 0);
+				}
 
 				/* If st_mtime is 0 (file system doesn't support timestamps),
 				 * use current time instead */
-				if (st.st_mtime == 0) {
-					/* Display UTC (Greenwich Mean Time) */
-					s_time = gmtime(&current_time);
-				} else {
-					s_time = gmtime(&st.st_mtime);
-				}
+				entry_time = (!stat_ok || st.st_mtime == 0) ? current_time : st.st_mtime;
+				if (list_type == FTPD_MLSD)
+					entry_time = ftpd_time_to_utc(entry_time);
+				s_time = gmtime(&entry_time);
+				if (!s_time)
+					goto exit;
 				if(list_type == FTPD_LIST){
 					if (s_time->tm_year == current_year) {
 						len = sprintf(buffer, "-rw-rw-rw-   1 user     ftp  %11ld %s %02i %02i:%02i %s\r\n", st.st_size, month_table[s_time->tm_mon], s_time->tm_mday, s_time->tm_hour, s_time->tm_min, fsd->vfs_dirent->d_name);
@@ -589,7 +847,7 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 					LOGV("LIST : %s",buffer);
 				} else {
 					//MLSD
-					if (S_ISDIR(st.st_mode))
+					if (stat_ok && S_ISDIR(st.st_mode))
 					{
 						/* MLSD format: modify=YYYYMMDDHHmmss */
 						len = sprintf(buffer, "type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d; %s\r\n",
@@ -604,22 +862,32 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 					} 
 					else 
 					{
-						/* MLSD format: modify=YYYYMMDDHHmmss */
-						len = sprintf(buffer, "type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d;size=%ld; %s\r\n", 
-									"file","rwx",
-									s_time->tm_year + 1900,
-									s_time->tm_mon + 1,
-									s_time->tm_mday,
-									s_time->tm_hour,
-									s_time->tm_min,
-									s_time->tm_sec,
-									st.st_size,
-									fsd->vfs_dirent->d_name);
+						if (stat_ok) {
+							/* MLSD format: modify=YYYYMMDDHHmmss */
+							len = sprintf(buffer, "type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d;size=%ld; %s\r\n",
+										"file","rwx",
+										s_time->tm_year + 1900,
+										s_time->tm_mon + 1,
+										s_time->tm_mday,
+										s_time->tm_hour,
+										s_time->tm_min,
+										s_time->tm_sec,
+										st.st_size,
+										fsd->vfs_dirent->d_name);
+						} else {
+							len = sprintf(buffer, "type=file;perm=rwx; %s\r\n",
+								fsd->vfs_dirent->d_name);
+						}
 					}
 				}
 				LOGV("MLSD : %s",buffer);
 
 				if (sfifo_space(&fsd->fifo) < len) {
+					LOGV("send_next_directory: fifo full state=%s fsd=0x%x vfs_dir=0x%x entry=%s need=%d used=%d space=%d\r\n",
+						fsd->msgfs ? ftpd_state_name(fsd->msgfs->state) : "(null)",
+						(unsigned int)fsd, (unsigned int)fsd->vfs_dir,
+						fsd->vfs_dirent ? fsd->vfs_dirent->d_name : "(null)",
+						len, sfifo_used(&fsd->fifo), sfifo_space(&fsd->fifo));
 					send_data(pcb, fsd);
 					goto exit;
 				}
@@ -627,6 +895,7 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 				sfifo_write(&fsd->fifo, buffer, len);
 				fsd->vfs_dirent = NULL;
 			} 
+			processed++;
 		} else {
 			struct ftpd_msgstate *fsm;
 			struct tcp_pcb *msgpcb;
@@ -641,6 +910,10 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 				closedir(fsd->vfs_dir);
 				fsd->vfs_dir = NULL;
 			}
+			LOGV("send_next_directory: complete state=%s fsd=0x%x pcb=0x%x fifo_used=%d fifo_space=%d\r\n",
+				fsm ? ftpd_state_name(fsm->state) : "(null)",
+				(unsigned int)fsd, (unsigned int)pcb,
+				sfifo_used(&fsd->fifo), sfifo_space(&fsd->fifo));
 			ftpd_dataclose(pcb, fsd);
 			fsm->datapcb = NULL;
 			fsm->datafs = NULL;
@@ -649,6 +922,9 @@ static void send_next_directory(struct ftpd_datastate *fsd, struct tcp_pcb *pcb,
 			goto exit;
 		}
 	}
+
+	if (sfifo_used(&fsd->fifo) > 0)
+		send_data(pcb, fsd);
 
 exit:
 	if (path)
@@ -662,6 +938,14 @@ exit:
 static err_t ftpd_datasent(void *arg, struct tcp_pcb *pcb, u16_t len)
 {
 	struct ftpd_datastate *fsd = arg;
+	struct ftpd_msgstate *fsm = fsd ? fsd->msgfs : NULL;
+
+	LOGV("ftpd_datasent: ack_len=%u pcb=0x%x pcb_state=%d fsd=0x%x state=%s fd=%d vfs_dir=0x%x fifo_used=%d fifo_space=%d\r\n",
+		len, (unsigned int)pcb, pcb ? pcb->state : -1, (unsigned int)fsd,
+		fsm ? ftpd_state_name(fsm->state) : "(null)",
+		fsd ? fsd->fd : -1, fsd ? (unsigned int)fsd->vfs_dir : 0,
+		fsd ? sfifo_used(&fsd->fifo) : -1,
+		fsd ? sfifo_space(&fsd->fifo) : -1);
 
 	switch (fsd->msgfs->state) {
 	case FTPD_LIST:
@@ -682,10 +966,27 @@ static err_t ftpd_datasent(void *arg, struct tcp_pcb *pcb, u16_t len)
 static err_t ftpd_datarecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t err)
 {
 	struct ftpd_datastate *fsd = arg;
+	struct ftpd_msgstate *fsm = fsd ? fsd->msgfs : NULL;
+
+	LOGV("ftpd_datarecv: err=%d p=0x%x p_tot_len=%u pcb=0x%x pcb_state=%d fsd=0x%x state=%s fd=%d vfs_dir=0x%x fifo_used=%d fifo_space=%d\r\n",
+		err, (unsigned int)p, p ? p->tot_len : 0, (unsigned int)pcb,
+		pcb ? pcb->state : -1, (unsigned int)fsd,
+		fsm ? ftpd_state_name(fsm->state) : "(null)",
+		fsd ? fsd->fd : -1, fsd ? (unsigned int)fsd->vfs_dir : 0,
+		fsd ? sfifo_used(&fsd->fifo) : -1,
+		fsd ? sfifo_space(&fsd->fifo) : -1);
 
 	if (err == ERR_OK && p != NULL) {
 		struct pbuf *q;
 		u16_t tot_len = 0;
+
+		if (fsm && fsm->state != FTPD_STOR) {
+			LOGE("ftpd_datarecv: unexpected payload on non-upload data connection state=%s p_tot_len=%u fd=%d\r\n",
+				ftpd_state_name(fsm->state), p->tot_len, fsd->fd);
+			tcp_recved(pcb, p->tot_len);
+			pbuf_free(p);
+			return ERR_OK;
+		}
 
 		for (q = p; q != NULL; q = q->next) {
 			int len;
@@ -705,9 +1006,23 @@ static err_t ftpd_datarecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t
 
 		fsm = fsd->msgfs;
 		msgpcb = fsd->msgpcb;
-		if(-1 != fsd->fd) {
-			close(fsd->fd);
-			fsd->fd = -1;
+		LOGV("ftpd_datarecv: remote closed data connection, state=%s datafs=0x%x datapcb=0x%x fd=%d vfs_dir=0x%x fifo_used=%d fifo_space=%d\r\n",
+			fsm ? ftpd_state_name(fsm->state) : "(null)",
+			fsm ? (unsigned int)fsm->datafs : 0,
+			fsm ? (unsigned int)fsm->datapcb : 0,
+			fsd->fd, (unsigned int)fsd->vfs_dir,
+			sfifo_used(&fsd->fifo), sfifo_space(&fsd->fifo));
+		if (fsm && ftpd_is_list_state(fsm->state)) {
+			LOGE("ftpd_datarecv: list data connection closed by peer before server close, state=%s vfs_dir=0x%x fifo_used=%d\r\n",
+				ftpd_state_name(fsm->state), (unsigned int)fsd->vfs_dir,
+				sfifo_used(&fsd->fifo));
+			ftpd_dataclose(pcb, fsd);
+			fsm->datapcb = NULL;
+			fsm->datafs = NULL;
+			fsm->passive = 0;
+			fsm->state = FTPD_IDLE;
+			send_msg(msgpcb, fsm, msg426);
+			return ERR_OK;
 		}
 		ftpd_dataclose(pcb, fsd);
 		fsm->datapcb = NULL;
@@ -726,6 +1041,10 @@ static err_t ftpd_dataconnected(void *arg, struct tcp_pcb *pcb, err_t err)
 
 	fsd->msgfs->datapcb = pcb;
 	fsd->connected = 1;
+	LOGV("ftpd_dataconnected: err=%d state=%s pcb=0x%x pcb_state=%d fsd=0x%x fd=%d vfs_dir=0x%x sndbuf=%u\r\n",
+		err, ftpd_state_name(fsd->msgfs->state), (unsigned int)pcb,
+		pcb ? pcb->state : -1, (unsigned int)fsd, fsd->fd,
+		(unsigned int)fsd->vfs_dir, pcb ? tcp_sndbuf(pcb) : 0);
 
 	tcp_recv(pcb, ftpd_datarecv);
 	tcp_sent(pcb, ftpd_datasent);
@@ -751,6 +1070,13 @@ static err_t ftpd_dataaccept(void *arg, struct tcp_pcb *pcb, err_t err)
 {
 	struct ftpd_datastate *fsd = arg;
 
+	LOGV("ftpd_dataaccept: err=%d state=%s listen_pcb=0x%x listen_state=%d new_pcb=0x%x new_state=%d datafs=0x%x fd=%d vfs_dir=0x%x sndbuf=%u\r\n",
+		err, ftpd_state_name(fsd->msgfs->state),
+		(unsigned int)fsd->msgfs->datapcb,
+		fsd->msgfs->datapcb ? fsd->msgfs->datapcb->state : -1,
+		(unsigned int)pcb, pcb ? pcb->state : -1,
+		(unsigned int)fsd, fsd->fd, (unsigned int)fsd->vfs_dir,
+		pcb ? tcp_sndbuf(pcb) : 0);
 	tcp_close(fsd->msgfs->datapcb);
 	fsd->msgfs->datapcb = pcb;
 	fsd->connected = 1;
@@ -778,6 +1104,9 @@ static err_t ftpd_dataaccept(void *arg, struct tcp_pcb *pcb, err_t err)
 static int open_dataconnection(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
 	if (fsm->passive) {
+		LOGV("open_dataconnection: passive state=%s datafs=0x%x datapcb=0x%x\r\n",
+			ftpd_state_name(fsm->state), (unsigned int)fsm->datafs,
+			(unsigned int)fsm->datapcb);
 		return 0;
 	}
 
@@ -789,6 +1118,7 @@ static int open_dataconnection(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 	memset(fsm->datafs, 0, sizeof(struct ftpd_datastate));
 	fsm->datafs->msgfs = fsm;
 	fsm->datafs->msgpcb = pcb;
+	fsm->datafs->fd = -1;
 	sfifo_init(&fsm->datafs->fifo, MAX_PRE_READ_BUFFER_SIZE);
 	fsm->datapcb = tcp_new();
 	ip_set_option(fsm->datapcb, SOF_REUSEADDR);
@@ -797,6 +1127,9 @@ static int open_dataconnection(struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 	ip_addr_t dataip;
 	ip_addr_copy(dataip, fsm->dataip);
 	tcp_connect(fsm->datapcb, &dataip, fsm->dataport, ftpd_dataconnected);
+	LOGV("open_dataconnection: active state=%s datafs=0x%x datapcb=0x%x port=%u\r\n",
+		ftpd_state_name(fsm->state), (unsigned int)fsm->datafs,
+		(unsigned int)fsm->datapcb, fsm->dataport);
 
 	return 0;
 }
@@ -852,9 +1185,7 @@ static void cmd_quit(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 static void cmd_cwd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	char *last_flash = NULL;
 	char *new_path = NULL;
-	char *path = NULL;
 
 	new_path = os_malloc(MAX_PATH_LEN);
 	if(new_path == NULL) {
@@ -863,49 +1194,23 @@ static void cmd_cwd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *
 	}
 	os_memset(new_path, 0, MAX_PATH_LEN);
 
-	if (strcmp(arg, "..") == 0) {
-		if (chdir("..") != 0) {
-			LOGE("%s chdir feiled\r\n",__func__);
-			send_msg(pcb, fsm, msg550);
-			goto exit;
-		}
+	if (arg == NULL || arg[0] == '\0') {
+		send_msg(pcb, fsm, msg501);
+		goto exit;
+	}
 
-		path = getcwd(new_path, MAX_PATH_LEN);
+	if (ftp_make_path(arg, new_path, MAX_PATH_LEN) != 0) {
+		send_msg(pcb, fsm, msg550);
+		goto exit;
+	}
 
-		if ((last_flash = strrchr(path,'/')) != NULL) {
-			if (strcmp(last_flash,"/..") == 0) {
-				*last_flash = '\0';
-			}
-
-			char *prev_slash = strrchr(path,'/');
-			if (prev_slash != NULL) {
-				*prev_slash = '\0';
-			}
-
-			if (path == NULL || path[0] == '\0') {
-				path = "/";
-			}
-		}
-
-		if (path[0] == '\0' || (path[0] == '/' && path[1] == '\0')) {
-			if (chdir(FTP_MOUNT_PATH) != 0)
-				send_msg(pcb, fsm, msg550);
-			else
-				send_msg(pcb, fsm, msg250);
-		} else {
-			if (chdir(path) != 0)
-				send_msg(pcb, fsm, msg550);
-			else
-				send_msg(pcb, fsm, msg250);
-		}
-	} else {
-		const char *dir = arg;
-		if (arg[0] == '\0' || (arg[0] == '/' && arg[1] == '\0') || strcmp(arg, FTP_MOUNT_PATH) == 0)
-			dir = FTP_MOUNT_PATH;
-		if (chdir(dir) == 0)
-			send_msg(pcb, fsm, msg250);
-		else
-			send_msg(pcb, fsm, msg550);
+	LOGI("cmd_cwd: arg=%s dir=%s\r\n", arg, new_path);
+	errno = 0;
+	if (chdir(new_path) == 0)
+		send_msg(pcb, fsm, msg250);
+	else {
+		LOGE("cmd_cwd: chdir failed dir=%s errno=%d\r\n", new_path, errno);
+		send_msg(pcb, fsm, msg550);
 	}
 
 exit:
@@ -915,9 +1220,7 @@ exit:
 
 static void cmd_cdup(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	char *last_flash = NULL;
 	char *new_path = NULL;
-	char *path = NULL;
 
 	new_path = os_malloc(MAX_PATH_LEN);
 	if(new_path == NULL) {
@@ -926,31 +1229,17 @@ static void cmd_cdup(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	}
 	os_memset(new_path, 0, MAX_PATH_LEN);
 
-	path = getcwd(new_path, MAX_PATH_LEN);
-
-	if (chdir("..") != 0) {
-		LOGE("%s chdir feiled\r\n",__func__);
+	if (ftp_make_path("..", new_path, MAX_PATH_LEN) != 0) {
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
 
-	path = getcwd(new_path, MAX_PATH_LEN);
-	if (path && (path[0] == '\0' || (path[0] == '/' && path[1] == '\0')))
-		chdir(FTP_MOUNT_PATH);
-
-	if ((last_flash = strrchr(path,'/')) != NULL) {
-		if (strcmp(last_flash,"/..") == 0) {
-			*last_flash = '\0';
-		}
-
-		char *prev_slash = strrchr(path,'/');
-		if (prev_slash != NULL) {
-			*prev_slash = '\0';
-		}
-
-		if (path == NULL || path[0] == '\0') {
-			path = "/";
-		}
+	LOGI("cmd_cdup: dir=%s\r\n", new_path);
+	errno = 0;
+	if (chdir(new_path) != 0) {
+		LOGE("cmd_cdup: chdir failed dir=%s errno=%d\r\n", new_path, errno);
+		send_msg(pcb, fsm, msg550);
+		goto exit;
 	}
 
 	send_msg(pcb, fsm, msg250,"CDUP");
@@ -975,11 +1264,9 @@ static void cmd_pwd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *
 	path = getcwd(buffer, MAX_PATH_LEN);
 	if (!path)
 		goto exit;
-	if (path[0] == '/' && path[1] == '/')
-		path++;
-	if (path[0] == '\0' || (path[0] == '/' && path[1] == '\0'))
-		path = (char *)FTP_MOUNT_PATH;
-	send_msg(pcb, fsm, msg257PWD, path);
+	if (ftp_normalize_mount_path(path, buffer, MAX_PATH_LEN) != 0)
+		goto exit;
+	send_msg(pcb, fsm, msg257PWD, buffer);
 
 exit:
 	if (buffer)
@@ -1008,25 +1295,39 @@ static void cmd_list_common(const char *arg, struct tcp_pcb *pcb, struct ftpd_ms
 	os_memset(path, 0, MAX_PATH_LEN);
 	
 	do {
+		errno = 0;
 		cwd = getcwd(buffer, MAX_PATH_LEN);
 		if ((!cwd)) {
+			LOGE("cmd_list_common: getcwd failed, list_type=%d errno=%d passive=%d datafs=0x%x datapcb=0x%x\r\n",
+				list_type, errno, fsm->passive, (unsigned int)fsm->datafs,
+				(unsigned int)fsm->datapcb);
 			send_msg(pcb, fsm, msg451);
 			break;
 		}
 		if (cwd[0] == '/' && cwd[1] == '/')
 			cwd++;
-		if (cwd[0] == '\0' || (cwd[0] == '/' && cwd[1] == '\0'))
-			snprintf(path, MAX_PATH_LEN, "%s", FTP_MOUNT_PATH);
-		else
-			snprintf(path, MAX_PATH_LEN, "%s", cwd);
-		LOGV("%s %d path %s\r\n",__func__,__LINE__,path);
+		if (ftp_normalize_mount_path(cwd, path, MAX_PATH_LEN) != 0) {
+			LOGE("cmd_list_common: normalize failed cwd=%s\r\n", cwd);
+			send_msg(pcb, fsm, msg451);
+			break;
+		}
+		LOGV("cmd_list_common: list_type=%d cwd=%s path=%s passive=%d datafs=0x%x datapcb=0x%x\r\n",
+			list_type, cwd, path, fsm->passive, (unsigned int)fsm->datafs,
+			(unsigned int)fsm->datapcb);
+		errno = 0;
 		vfs_dir = opendir(path);
 		if (!vfs_dir) {
+			LOGE("cmd_list_common: opendir failed path=%s errno=%d passive=%d datafs=0x%x datapcb=0x%x\r\n",
+				path, errno, fsm->passive, (unsigned int)fsm->datafs,
+				(unsigned int)fsm->datapcb);
 			send_msg(pcb, fsm, msg451);
 			break;
 		}
 
 		if (open_dataconnection(pcb, fsm) != 0) {
+			LOGE("cmd_list_common: open data connection failed path=%s passive=%d datafs=0x%x datapcb=0x%x\r\n",
+				path, fsm->passive, (unsigned int)fsm->datafs,
+				(unsigned int)fsm->datapcb);
 			closedir(vfs_dir);
 			break;
 		}
@@ -1061,11 +1362,9 @@ static void cmd_retr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 {
 	int ret = -1;
 	int fd = -1;
-	struct stat st;
+	struct stat st = {0};
 	off_t transfer_size;
 	char *path = NULL;
-	char *temp_path = NULL;
-	char *buffer = NULL;
 
 	path = os_malloc(MAX_PATH_LEN);
 	if(path == NULL) {
@@ -1074,54 +1373,48 @@ static void cmd_retr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	}
 	os_memset(path, 0, MAX_PATH_LEN);
 
-	buffer = os_malloc(MAX_PATH_LEN);
-	if(buffer == NULL) {
-		LOGE("cmd_pwd: Out of memory\r\n");
-		goto exit;
-	}
-	os_memset(buffer, 0, MAX_PATH_LEN);
-
 	if (arg == NULL || *arg == '\0') {
 		send_msg(pcb, fsm, msg501);
 		goto exit;
 	}
 
-	temp_path = getcwd(buffer, MAX_PATH_LEN);
-	if (temp_path && temp_path[0] == '/' && temp_path[1] == '/')
-		temp_path++;
-	if ((!temp_path || temp_path[0] == '\0') || (temp_path[0] == '/' && temp_path[1] == '\0')) {
-		snprintf(path, MAX_PATH_LEN, "%s/%s", FTP_MOUNT_PATH, arg[0] == '/' ? arg + 1 : arg);
-	} else {
-		if (arg[0] == '/') {
-			if (strncmp(arg, FTP_MOUNT_PATH, strlen(FTP_MOUNT_PATH)) == 0 &&
-			    (arg[strlen(FTP_MOUNT_PATH)] == '\0' || arg[strlen(FTP_MOUNT_PATH)] == '/'))
-				snprintf(path, MAX_PATH_LEN, "%s", arg);
-			else
-				snprintf(path, MAX_PATH_LEN, "%s%s", FTP_MOUNT_PATH, arg);
-		} else {
-			snprintf(path, MAX_PATH_LEN, "%s/%s", temp_path, arg);
-		}
-	}
-	LOGV("%s path %s\r\n",__func__,path);
-	ret = stat(path, &st);
-	if (0 != ret || !S_ISREG(st.st_mode)) {
+	if (ftp_make_path(arg, path, MAX_PATH_LEN) != 0) {
+		LOGE("cmd_retr: make path failed arg=%s\r\n", arg);
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
+	LOGI("cmd_retr: arg=%s path=%s\r\n", arg, path);
+	errno = 0;
+	ret = stat(path, &st);
+	if (0 != ret || !S_ISREG(st.st_mode)) {
+		LOGE("cmd_retr: stat/type failed ret=%d errno=%d path=%s mode=0x%x size=%ld\r\n",
+			ret, errno, path, (unsigned int)st.st_mode, (long)st.st_size);
+		send_msg(pcb, fsm, msg550);
+		goto exit;
+	}
+	LOGV("cmd_retr: stat success path=%s mode=0x%x size=%ld restart_offset=%ld\r\n",
+		path, (unsigned int)st.st_mode, (long)st.st_size, (long)fsm->restart_offset);
+	errno = 0;
 	fd = open(path, O_RDONLY);
 	if (-1 == fd) {
+		LOGE("cmd_retr: open failed path=%s errno=%d\r\n", path, errno);
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
 
 	if (fsm->restart_offset > 0) {
+		errno = 0;
 		if (lseek(fd, fsm->restart_offset, SEEK_SET) == (off_t)-1) {
+			LOGE("cmd_retr: lseek failed path=%s offset=%ld errno=%d\r\n",
+				path, (long)fsm->restart_offset, errno);
 			close(fd);
 			send_msg(pcb, fsm, msg550);
 			goto exit;
 		}
 
 		if (fsm->restart_offset >= st.st_size) {
+			LOGE("cmd_retr: restart offset out of range path=%s offset=%ld size=%ld\r\n",
+				path, (long)fsm->restart_offset, (long)st.st_size);
 			close(fd);
 			send_msg(pcb, fsm, msg550);
 			goto exit;
@@ -1145,23 +1438,12 @@ static void cmd_retr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 exit:
 	if (path)
 		os_free(path);
-	if (buffer)
-		os_free(buffer);
 }
 
 static void cmd_stor(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
 	int fd = -1; //vfs_file_t *vfs_file;
 	char *path = NULL;
-	char *buffer = NULL;
-	char *temp_path = NULL;
-
-	buffer = os_malloc(MAX_PATH_LEN);
-	if(buffer == NULL) {
-		LOGE("cmd_pwd: Out of memory\r\n");
-		goto exit;
-	}
-	os_memset(buffer, 0, MAX_PATH_LEN);
 
 	path = os_malloc(MAX_PATH_LEN);
 	if(path == NULL) {
@@ -1170,23 +1452,16 @@ static void cmd_stor(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	}
 	os_memset(path, 0, MAX_PATH_LEN);
 
-	temp_path = getcwd(buffer, MAX_PATH_LEN);
-	if (temp_path && temp_path[0] == '/' && temp_path[1] == '/')
-		temp_path++;
-	if ((!temp_path || temp_path[0] == '\0') || (temp_path[0] == '/' && temp_path[1] == '\0')) {
-		snprintf(path, MAX_PATH_LEN, "%s/%s", FTP_MOUNT_PATH, arg[0] == '/' ? arg + 1 : arg);
-	} else {
-		if (arg[0] == '/') {
-			if (strncmp(arg, FTP_MOUNT_PATH, strlen(FTP_MOUNT_PATH)) == 0 &&
-			    (arg[strlen(FTP_MOUNT_PATH)] == '\0' || arg[strlen(FTP_MOUNT_PATH)] == '/'))
-				snprintf(path, MAX_PATH_LEN, "%s", arg);
-			else
-				snprintf(path, MAX_PATH_LEN, "%s%s", FTP_MOUNT_PATH, arg);
-		} else {
-			snprintf(path, MAX_PATH_LEN, "%s/%s", temp_path, arg);
-		}
+	if (arg == NULL || *arg == '\0') {
+		send_msg(pcb, fsm, msg501);
+		goto exit;
 	}
-	LOGV("%s path %s\r\n",__func__,path);
+
+	if (ftp_make_path(arg, path, MAX_PATH_LEN) != 0) {
+		send_msg(pcb, fsm, msg550);
+		goto exit;
+	}
+	LOGI("cmd_stor: arg=%s path=%s\r\n", arg, path);
 	fd = open(path, O_RDWR | O_CREAT | O_APPEND);
 	if (-1 == fd) {
 		send_msg(pcb, fsm, msg550);
@@ -1206,8 +1481,6 @@ static void cmd_stor(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 exit:
 	if (path)
 		os_free(path);
-    if (buffer)
-	    os_free(buffer);
 }
 
 static void cmd_noop(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
@@ -1233,11 +1506,14 @@ static void cmd_pasv(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 		return;
 	}
 	memset(fsm->datafs, 0, sizeof(struct ftpd_datastate));
+	fsm->datafs->msgfs = fsm;
+	fsm->datafs->fd = -1;
 
 	fsm->datapcb = tcp_new();
 
 	if (!fsm->datapcb) {
 		os_free(fsm->datafs);
+		fsm->datafs = NULL;
 		send_msg(pcb, fsm, msg451);
 		return;
 	}
@@ -1268,7 +1544,6 @@ static void cmd_pasv(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 		}
 	}
 
-	fsm->datafs->msgfs = fsm;
 	temppcb = tcp_listen(fsm->datapcb);
 
 	if (!temppcb) {
@@ -1290,18 +1565,26 @@ static void cmd_pasv(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 static void cmd_abrt(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
+	LOGI("cmd_abrt: datafs=0x%x datapcb=0x%x passive=%d state=%d\r\n",
+		(unsigned int)fsm->datafs, (unsigned int)fsm->datapcb, fsm->passive, fsm->state);
 	if (fsm->datafs != NULL) {
-		tcp_arg(fsm->datapcb, NULL);
-		tcp_sent(fsm->datapcb, NULL);
-		tcp_recv(fsm->datapcb, NULL);
-		tcp_arg(fsm->datapcb, NULL);
-		tcp_abort(pcb);
-		sfifo_close(&fsm->datafs->fifo);
-		os_free(fsm->datafs);
+		if (fsm->datapcb != NULL) {
+			LOGI("cmd_abrt: close data connection datapcb=0x%x datafs=0x%x\r\n",
+				(unsigned int)fsm->datapcb, (unsigned int)fsm->datafs);
+			ftpd_dataclose(fsm->datapcb, fsm->datafs);
+		} else {
+			LOGI("cmd_abrt: free datafs without datapcb datafs=0x%x\r\n",
+				(unsigned int)fsm->datafs);
+			ftpd_data_cleanup_resources(fsm->datafs);
+			sfifo_close(&fsm->datafs->fifo);
+			os_free(fsm->datafs);
+			fsm->passive = 0;
+		}
+		fsm->datapcb = NULL;
 		fsm->datafs = NULL;
-		fsm->passive = 0;
 	}
 	fsm->state = FTPD_IDLE;
+	send_msg(pcb, fsm, msg226);
 }
 
 static void cmd_type(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
@@ -1318,6 +1601,8 @@ static void cmd_mode(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 
 static void cmd_rnfr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
+	char *path = NULL;
+
 	if (arg == NULL) {
 		send_msg(pcb, fsm, msg501);
 		return;
@@ -1326,42 +1611,37 @@ static void cmd_rnfr(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 		send_msg(pcb, fsm, msg501);
 		return;
 	}
-	if (fsm->renamefrom)
+	if (fsm->renamefrom) {
 		os_free(fsm->renamefrom);
-	fsm->renamefrom = (char *)ftp_malloc(strlen(arg) + 1);
-	if (fsm->renamefrom == NULL) {
+		fsm->renamefrom = NULL;
+	}
+
+	path = (char *)os_malloc(MAX_PATH_LEN);
+	if (path == NULL) {
 		send_msg(pcb, fsm, msg451);
 		return;
 	}
-	strcpy(fsm->renamefrom, arg);
+	os_memset(path, 0, MAX_PATH_LEN);
+	if (ftp_make_path(arg, path, MAX_PATH_LEN) != 0) {
+		os_free(path);
+		send_msg(pcb, fsm, msg550);
+		return;
+	}
+
+	fsm->renamefrom = path;
+	LOGI("cmd_rnfr: arg=%s path=%s\r\n", arg, fsm->renamefrom);
 	fsm->state = FTPD_RNFR;
 	send_msg(pcb, fsm, msg350);
 }
 
 static void cmd_rnto(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
-	char *cwd_path = NULL;
-	char *buffer = NULL;
-	char *old_full_path = NULL;
 	char *new_full_path = NULL;
 
-	buffer = os_malloc(MAX_PATH_LEN);
-	if (buffer == NULL) {
-		LOGE("%s: memory malloc failed\r\n",__func__);
-		send_msg(pcb, fsm, msg451);
-		goto exit;
-	}
-	os_memset(buffer, 0, MAX_PATH_LEN);
-	old_full_path = os_malloc(MAX_PATH_LEN);
-	if (old_full_path == NULL) {
-		LOGE("%s: memory malloc failed\r\n",__func__);
-		send_msg(pcb, fsm, msg451);
-		goto exit;
-	}
-	os_memset(old_full_path, 0, MAX_PATH_LEN);
 	new_full_path = os_malloc(MAX_PATH_LEN);
 	if (new_full_path == NULL) {
 		LOGE("%s: memory malloc failed\r\n",__func__);
+		send_msg(pcb, fsm, msg451);
 		goto exit;
 	}
 	os_memset(new_full_path, 0, MAX_PATH_LEN);
@@ -1377,48 +1657,27 @@ static void cmd_rnto(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	}
 	fsm->state = FTPD_IDLE;
 
-	cwd_path = getcwd(buffer, MAX_PATH_LEN);
-	if (cwd_path == NULL) {
+	if (ftp_make_path(arg, new_full_path, MAX_PATH_LEN) != 0) {
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
-	if (cwd_path[0] == '/' && cwd_path[1] == '/')
-		cwd_path++;
-	if (cwd_path[0] == '\0' || (cwd_path[0] == '/' && cwd_path[1] == '\0')) {
-		snprintf(old_full_path, MAX_PATH_LEN, "%s/%s", FTP_MOUNT_PATH, fsm->renamefrom[0] == '/' ? fsm->renamefrom + 1 : fsm->renamefrom);
-		snprintf(new_full_path, MAX_PATH_LEN, "%s/%s", FTP_MOUNT_PATH, arg[0] == '/' ? arg + 1 : arg);
-	} else {
-		snprintf(old_full_path, MAX_PATH_LEN, "%s/%s", cwd_path, fsm->renamefrom[0] == '/' ? fsm->renamefrom + 1 : fsm->renamefrom);
-		snprintf(new_full_path, MAX_PATH_LEN, "%s/%s", cwd_path, arg[0] == '/' ? arg + 1 : arg);
-	}
-	LOGV("%s old_full_path %s new_full_path %s\r\n",__func__,old_full_path,new_full_path);
-	if (rename(old_full_path, new_full_path))
+
+	LOGI("cmd_rnto: old=%s new=%s\r\n", fsm->renamefrom, new_full_path);
+	if (rename(fsm->renamefrom, new_full_path))
 		send_msg(pcb, fsm, msg450);
 	else
 		send_msg(pcb, fsm, msg250);
+	os_free(fsm->renamefrom);
+	fsm->renamefrom = NULL;
 
 exit:
-	if (old_full_path)
-		os_free(old_full_path);
 	if (new_full_path)
 		os_free(new_full_path);
-	if (buffer)
-		os_free(buffer);
 }
 
 static void cmd_mkd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
 	char *full_path = NULL;
-	char *buffer = NULL;
-	char *temp_path = NULL;
-
-	buffer = os_malloc(MAX_PATH_LEN);
-	if (buffer == NULL) {
-		LOGE("%s: memory malloc failed\r\n",__func__);
-		send_msg(pcb, fsm, msg451);
-		goto exit;
-	}
-	os_memset(buffer, 0, MAX_PATH_LEN);
 
 	full_path = os_malloc(MAX_PATH_LEN);
 	if (full_path == NULL) {
@@ -1433,46 +1692,28 @@ static void cmd_mkd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *
 		goto exit;
 	}
 
-	temp_path = getcwd(buffer, MAX_PATH_LEN);
-	if (temp_path && temp_path[0] == '/' && temp_path[1] == '/')
-		temp_path++;
-	if ((!temp_path || temp_path[0] == '\0') || (temp_path[0] == '/' && temp_path[1] == '\0')) {
-		snprintf(full_path, MAX_PATH_LEN, "%s/%s", FTP_MOUNT_PATH, arg[0] == '/' ? arg + 1 : arg);
-	} else if (arg[0] == '/' && strncmp(arg, FTP_MOUNT_PATH, strlen(FTP_MOUNT_PATH)) == 0 &&
-		   (arg[strlen(FTP_MOUNT_PATH)] == '\0' || arg[strlen(FTP_MOUNT_PATH)] == '/')) {
-		snprintf(full_path, MAX_PATH_LEN, "%s", arg);
-	} else if (arg[0] == '/') {
-		snprintf(full_path, MAX_PATH_LEN, "%s%s", FTP_MOUNT_PATH, arg);
-	} else {
-		snprintf(full_path, MAX_PATH_LEN, "%s/%s", temp_path, arg);
-	}
-	LOGV("%s full_path %s\r\n",__func__,full_path);
-	if (mkdir(full_path, 0777) != 0)
+	if (ftp_make_path(arg, full_path, MAX_PATH_LEN) != 0) {
 		send_msg(pcb, fsm, msg550);
-	else
+		goto exit;
+	}
+	LOGI("cmd_mkd: arg=%s full_path=%s\r\n", arg, full_path);
+	errno = 0;
+	if (mkdir(full_path, 0777) != 0) {
+		LOGE("cmd_mkd: mkdir failed path=%s errno=%d\r\n", full_path, errno);
+		send_msg(pcb, fsm, msg550);
+	} else {
 		send_msg(pcb, fsm, msg257, arg);
+	}
 
 exit:
 	if (full_path)
 		os_free(full_path);
-	if (buffer)
-		os_free(buffer);
 }
 
 static void cmd_rmd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
 	struct stat st;
 	char *full_path = NULL;
-	char *buffer = NULL;
-	char *temp_path = NULL;
-
-	buffer = os_malloc(MAX_PATH_LEN);
-	if (buffer == NULL) {
-		LOGE("%s: memory malloc failed\r\n",__func__);
-		send_msg(pcb, fsm, msg451);
-		goto exit;
-	}
-	os_memset(buffer, 0, MAX_PATH_LEN);
 
 	full_path = os_malloc(MAX_PATH_LEN);
 	if (full_path == NULL) {
@@ -1487,54 +1728,40 @@ static void cmd_rmd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *
 		goto exit;
 	}
 
-	temp_path = getcwd(buffer, MAX_PATH_LEN);
-	if (temp_path && temp_path[0] == '/' && temp_path[1] == '/')
-		temp_path++;
-	if ((!temp_path || temp_path[0] == '\0') || (temp_path[0] == '/' && temp_path[1] == '\0')) {
-		snprintf(full_path, MAX_PATH_LEN, "%s/%s", FTP_MOUNT_PATH, arg[0] == '/' ? arg + 1 : arg);
-	} else if (arg[0] == '/' && strncmp(arg, FTP_MOUNT_PATH, strlen(FTP_MOUNT_PATH)) == 0 &&
-		   (arg[strlen(FTP_MOUNT_PATH)] == '\0' || arg[strlen(FTP_MOUNT_PATH)] == '/')) {
-		snprintf(full_path, MAX_PATH_LEN, "%s", arg);
-	} else if (arg[0] == '/') {
-		snprintf(full_path, MAX_PATH_LEN, "%s%s", FTP_MOUNT_PATH, arg);
-	} else {
-		snprintf(full_path, MAX_PATH_LEN, "%s/%s", temp_path, arg);
+	if (ftp_make_path(arg, full_path, MAX_PATH_LEN) != 0) {
+		send_msg(pcb, fsm, msg550);
+		goto exit;
 	}
-	LOGV("%s full_path %s\r\n",__func__,full_path);
+
+	LOGI("cmd_rmd: arg=%s full_path=%s\r\n", arg, full_path);
+	errno = 0;
 	if (stat(full_path, &st) != 0) {
+		LOGE("cmd_rmd: stat failed path=%s errno=%d\r\n", full_path, errno);
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
 	if (!S_ISDIR(st.st_mode)) {
+		LOGE("cmd_rmd: not dir path=%s mode=0x%x\r\n", full_path, (unsigned int)st.st_mode);
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
-	if (rmdir(full_path) != 0)
+	errno = 0;
+	if (rmdir(full_path) != 0) {
+		LOGE("cmd_rmd: rmdir failed path=%s errno=%d\r\n", full_path, errno);
 		send_msg(pcb, fsm, msg550);
-	else
+	} else {
 		send_msg(pcb, fsm, msg250);
+	}
 
 exit:
 	if (full_path)
 		os_free(full_path);
-	if (buffer)
-		os_free(buffer);
 }
 
 static void cmd_dele(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
 {
 	struct stat st;
-	char *cwd_path;
-	char *buffer = NULL;
 	char *full_path = NULL;
-
-	buffer = os_malloc(MAX_PATH_LEN);
-	if (buffer == NULL) {
-		LOGE("%s: memory malloc failed\r\n",__func__);
-		send_msg(pcb, fsm, msg451);
-		goto exit;
-	}
-	os_memset(buffer, 0, MAX_PATH_LEN);
 
 	full_path = os_malloc(MAX_PATH_LEN);
 	if (full_path == NULL) {
@@ -1549,57 +1776,46 @@ static void cmd_dele(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 		goto exit;
 	}
 
-	cwd_path = getcwd(buffer, MAX_PATH_LEN);
-	if (cwd_path == NULL) {
+	if (ftp_make_path(arg, full_path, MAX_PATH_LEN) != 0) {
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
-	if (cwd_path[0] == '/' && cwd_path[1] == '/')
-		cwd_path++;
-	if (cwd_path[0] == '\0' || (cwd_path[0] == '/' && cwd_path[1] == '\0')) {
-		snprintf(full_path, MAX_PATH_LEN, "%s/%s", FTP_MOUNT_PATH, arg[0] == '/' ? arg + 1 : arg);
-	} else if (arg[0] == '/' && strncmp(arg, FTP_MOUNT_PATH, strlen(FTP_MOUNT_PATH)) == 0 &&
-		   (arg[strlen(FTP_MOUNT_PATH)] == '\0' || arg[strlen(FTP_MOUNT_PATH)] == '/')) {
-		snprintf(full_path, MAX_PATH_LEN, "%s", arg);
-	} else if (arg[0] == '/') {
-		snprintf(full_path, MAX_PATH_LEN, "%s%s", FTP_MOUNT_PATH, arg);
-	} else {
-		snprintf(full_path, MAX_PATH_LEN, "%s/%s", cwd_path, arg);
-	}
-	LOGV("%s full_path %s\r\n",__func__,full_path);
+
+	LOGI("cmd_dele: arg=%s full_path=%s\r\n", arg, full_path);
+	errno = 0;
 	if (stat(full_path, &st) != 0) {
+		LOGE("cmd_dele: stat failed path=%s errno=%d\r\n", full_path, errno);
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
 	if (!S_ISREG(st.st_mode)) {
+		LOGE("cmd_dele: not regular path=%s mode=0x%x\r\n", full_path, (unsigned int)st.st_mode);
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
-	if (unlink(full_path) != 0)
+	errno = 0;
+	if (unlink(full_path) != 0) {
+		LOGE("cmd_dele: unlink failed path=%s errno=%d\r\n", full_path, errno);
 		send_msg(pcb, fsm, msg550);
-	else
+	} else {
 		send_msg(pcb, fsm, msg250);
+	}
 
 exit:
 	if (full_path)
 		os_free(full_path);
-	if (buffer)
-		os_free(buffer);
 }
 
 static void cmd_size(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
 	struct stat st;
 	char *path = NULL;
-	char *buffer = NULL;
-	char *temp_path = NULL;
 
-	buffer = os_malloc(MAX_PATH_LEN);
-	if (buffer == NULL) {
-		LOGE("%s: memory malloc failed\r\n",__func__);
-		send_msg(pcb, fsm, msg451);
-		goto exit;
-	}
-	os_memset(buffer, 0, MAX_PATH_LEN);
+	char cwd[MAX_PATH_LEN] = {0};
+	char *cwd_ret = getcwd(cwd, MAX_PATH_LEN);
+	int stat_errno = 0;
+
+	LOGI("cmd_size: arg=%s cwd=%s\r\n",
+		arg ? arg : "(null)", cwd_ret ? cwd_ret : "(null)");
 
 	path = os_malloc(MAX_PATH_LEN);
 	if (path == NULL) {
@@ -1608,44 +1824,38 @@ static void cmd_size(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 		goto exit;
 	}
 	os_memset(path, 0, MAX_PATH_LEN);
-	
+
 	if (arg == NULL || *arg == '\0') {
 		send_msg(pcb, fsm, msg501);
 		goto exit;
 	}
 
-	temp_path = getcwd(buffer, MAX_PATH_LEN);
-	if (temp_path && temp_path[0] == '/' && temp_path[1] == '/')
-		temp_path++;
-	if ((!temp_path || temp_path[0] == '\0') || (temp_path[0] == '/' && temp_path[1] == '\0')) {
-		snprintf(path, MAX_PATH_LEN, "%s/%s", FTP_MOUNT_PATH, arg[0] == '/' ? arg + 1 : arg);
-	} else {
-		if (arg[0] == '/') {
-			if (strncmp(arg, FTP_MOUNT_PATH, strlen(FTP_MOUNT_PATH)) == 0 &&
-			    (arg[strlen(FTP_MOUNT_PATH)] == '\0' || arg[strlen(FTP_MOUNT_PATH)] == '/'))
-				snprintf(path, MAX_PATH_LEN, "%s", arg);
-			else
-				snprintf(path, MAX_PATH_LEN, "%s%s", FTP_MOUNT_PATH, arg);
-		} else {
-			snprintf(path, MAX_PATH_LEN, "%s/%s", temp_path, arg);
-		}
+	if (ftp_make_path(arg, path, MAX_PATH_LEN) != 0) {
+		send_msg(pcb, fsm, msg550);
+		goto exit;
 	}
-	LOGV("%s path %s\r\n",__func__,path);
+	LOGI("cmd_size: arg=%s path=%s\r\n", arg, path);
+	errno = 0;
 	if (stat(path, &st) != 0) {
+		stat_errno = errno;
+		LOGI("cmd_size: stat failed arg=%s cwd=%s path=%s errno=%d\r\n",
+			arg, cwd_ret ? cwd_ret : "(null)", path, stat_errno);
+
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
 	if (!S_ISREG(st.st_mode)) {
+		LOGI("cmd_size: not regular arg=%s mode=0x%x\r\n",
+			arg, (unsigned int)st.st_mode);
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
+	LOGI("cmd_size: success arg=%s size=%ld\r\n", arg, (long)st.st_size);
 	send_msg(pcb, fsm, msg213, st.st_size);
 
 exit:
 	if (path)
 		os_free(path);
-	if (buffer)
-		os_free(buffer);
 }
 
 static void cmd_reset(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm)
@@ -1713,16 +1923,6 @@ static void cmd_appe(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 {
 	int fd = -1;
 	char *path = NULL;
-	char *buffer = NULL;
-	char *temp_path = NULL;
-
-	buffer = os_malloc(MAX_PATH_LEN);
-	if (buffer == NULL) {
-		LOGE("%s: memory malloc failed\r\n",__func__);
-		send_msg(pcb, fsm, msg451);
-		goto exit;
-	}
-	os_memset(buffer, 0, MAX_PATH_LEN);
 
 	path = os_malloc(MAX_PATH_LEN);
 	if (path == NULL) {
@@ -1737,20 +1937,11 @@ static void cmd_appe(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 		goto exit;
 	}
 
-	temp_path = getcwd(buffer, MAX_PATH_LEN);
-	if (temp_path && temp_path[0] == '/' && temp_path[1] == '/')
-		temp_path++;
-	if ((!temp_path || temp_path[0] == '\0') || (temp_path[0] == '/' && temp_path[1] == '\0')) {
-		snprintf(path, MAX_PATH_LEN, "%s/%s", FTP_MOUNT_PATH, arg[0] == '/' ? arg + 1 : arg);
-	} else if (arg[0] == '/' && strncmp(arg, FTP_MOUNT_PATH, strlen(FTP_MOUNT_PATH)) == 0 &&
-		   (arg[strlen(FTP_MOUNT_PATH)] == '\0' || arg[strlen(FTP_MOUNT_PATH)] == '/')) {
-		snprintf(path, MAX_PATH_LEN, "%s", arg);
-	} else if (arg[0] == '/') {
-		snprintf(path, MAX_PATH_LEN, "%s%s", FTP_MOUNT_PATH, arg);
-	} else {
-		snprintf(path, MAX_PATH_LEN, "%s/%s", temp_path, arg);
+	if (ftp_make_path(arg, path, MAX_PATH_LEN) != 0) {
+		send_msg(pcb, fsm, msg550);
+		goto exit;
 	}
-	LOGV("%s path %s\r\n",__func__,path);
+	LOGI("cmd_appe: arg=%s path=%s\r\n", arg, path);
 	fd = open(path, O_RDWR | O_CREAT | O_APPEND);
 	if (-1 == fd) {
 		send_msg(pcb, fsm, msg550);
@@ -1770,8 +1961,6 @@ static void cmd_appe(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 exit:
 	if (path)
 		os_free(path);
-	if (buffer)
-		os_free(buffer);
 }
 
 static void cmd_mlsd(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate *fsm) {
@@ -1782,6 +1971,8 @@ static void cmd_mlst(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	struct stat st = {0};
 	struct tm *s_time = NULL;
 	time_t current_time = {0};
+	time_t modify_time = {0};
+	int ret = -1;
 	char *buffer = NULL;
 	char *path_to_stat = NULL;
 	char *cwd = NULL;
@@ -1805,26 +1996,6 @@ static void cmd_mlst(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	current_time = time(NULL);
 #endif
 
-	/* If no argument, use current directory */
-	if (arg == NULL || *arg == '\0') {
-		cwd_buffer = os_malloc(MAX_PATH_LEN);
-		os_memset(cwd_buffer, 0, MAX_PATH_LEN);
-		if (cwd_buffer == NULL) {
-			LOGE("%s: memory malloc failed\r\n",__func__);
-			send_msg(pcb, fsm, msg451);
-			goto exit;
-		}
-		cwd = getcwd(cwd_buffer, MAX_PATH_LEN);
-		if (cwd == NULL) {
-			LOGE("%s: getcwd failed\r\n",__func__);
-			send_msg(pcb, fsm, msg550);
-			goto exit;
-		}
-		path_to_stat = cwd;
-	} else {
-		path_to_stat = (char *)arg;
-	}
-
 	full_path = os_malloc(FULL_PATH_SIZE);
 	if (full_path == NULL) {
 		LOGE("%s: memory malloc failed\r\n",__func__);
@@ -1833,35 +2004,48 @@ static void cmd_mlst(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 	}
 	os_memset(full_path, 0, FULL_PATH_SIZE);
 
-	char *tmp = strchr(path_to_stat,'/');
-	if(tmp) {
-		path_to_stat = ++tmp;
+	/* If no argument, use current directory */
+	if (arg == NULL || *arg == '\0') {
+		cwd_buffer = os_malloc(MAX_PATH_LEN);
+		if (cwd_buffer == NULL) {
+			LOGE("%s: memory malloc failed\r\n",__func__);
+			send_msg(pcb, fsm, msg451);
+			goto exit;
+		}
+		os_memset(cwd_buffer, 0, MAX_PATH_LEN);
+		cwd = getcwd(cwd_buffer, MAX_PATH_LEN);
+		if (cwd == NULL || ftp_normalize_mount_path(cwd, full_path, FULL_PATH_SIZE) != 0) {
+			LOGE("%s: getcwd/normalize failed\r\n",__func__);
+			send_msg(pcb, fsm, msg550);
+			goto exit;
+		}
+	} else if (ftp_make_path(arg, full_path, FULL_PATH_SIZE) != 0) {
+		send_msg(pcb, fsm, msg550);
+		goto exit;
 	}
 
+	path_to_stat = full_path;
 	LOGV("%s path_to_stat %s\r\n",__func__,path_to_stat);
-	snprintf(full_path, FULL_PATH_SIZE, "%s/%s", FTP_MOUNT_PATH, path_to_stat);
 	/* Get file/directory information */
-	if (stat(full_path, &st) == -1) {
-		LOGE("%s: stat failed\r\n",__func__);
+	errno = 0;
+	ret = stat(full_path, &st);
+	if (ret != 0) {
+		LOGE("%s: stat failed path=%s ret=%d errno=%d\r\n",
+			__func__, full_path, ret, errno);
 		send_msg(pcb, fsm, msg550);
 		goto exit;
 	}
 
 	/* If st_mtime is 0 (file system doesn't support timestamps),
 	 * use current time instead */
-	if (st.st_mtime == 0) {
-		s_time = gmtime(&current_time);
-	} else {
-		s_time = gmtime(&st.st_mtime);
-	}
+	modify_time = st.st_mtime == 0 ? current_time : st.st_mtime;
+	modify_time = ftpd_time_to_utc(modify_time);
+	s_time = gmtime(&modify_time);
 
-	/* MLST command returns MLSD format on control connection
-	 * Format: 250- <MLSD line>
-	 *         250 End
-	 */
+	/* MLST returns one machine-readable facts line on the control connection. */
 	if (S_ISDIR(st.st_mode)) {
 		/* MLSD format: modify=YYYYMMDDHHmmss */
-		sprintf(buffer, "250- type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d; %s",
+		sprintf(buffer, " type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d; %s",
 				"dir","elrwx",
 				s_time->tm_year + 1900,
 				s_time->tm_mon + 1,
@@ -1872,7 +2056,7 @@ static void cmd_mlst(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 				path_to_stat);
 	} else {
 		/* MLSD format: modify=YYYYMMDDHHmmss */
-		sprintf(buffer, "250- type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d;size=%ld; %s",
+		sprintf(buffer, " type=%s;perm=%s;modify=%04d%02d%02d%02d%02d%02d;size=%ld; %s",
 				"file","rwx",
 				s_time->tm_year + 1900,
 				s_time->tm_mon + 1,
@@ -1884,10 +2068,9 @@ static void cmd_mlst(const char *arg, struct tcp_pcb *pcb, struct ftpd_msgstate 
 				path_to_stat);
 	}
 
-	/* Send MLSD line on control connection */
-	send_msg(pcb, fsm, buffer);
-	/* Send final 250 response */
-	send_msg(pcb, fsm, msg250);
+	send_msg(pcb, fsm, "250-Listing %s", path_to_stat);
+	send_msg(pcb, fsm, "%s", buffer);
+	send_msg(pcb, fsm, "250 End");
 
 exit:
 	if (full_path)
@@ -1936,7 +2119,7 @@ static struct ftpd_command ftpd_commands[] = {
 	{"APPE", cmd_appe},
 	{"REST", cmd_reset},
 	{"SIZE", cmd_size},
-	//{"MLST", cmd_mlst},
+	{"MLST", cmd_mlst},
 	{NULL, NULL}
 };
 
@@ -2011,9 +2194,14 @@ static void ftpd_msgerr(void *arg, err_t err)
 {
 	struct ftpd_msgstate *fsm = arg;
 
-	LOGE("ftpd_msgerr: %s (%i)\r\n", lwip_strerr(err), err);
 	if (fsm == NULL)
 		return;
+	LOGE("ftpd_msgerr: %s (%i) fsm=0x%x state=%s datafs=0x%x datapcb=0x%x passive=%d renamefrom=0x%x fifo_used=%d fifo_space=%d\r\n",
+		lwip_strerr(err), err, (unsigned int)fsm,
+		ftpd_state_name(fsm->state), (unsigned int)fsm->datafs,
+		(unsigned int)fsm->datapcb, fsm->passive,
+		(unsigned int)fsm->renamefrom, sfifo_used(&fsm->fifo),
+		sfifo_space(&fsm->fifo));
 	if (fsm->datafs) {
 		ftpd_dataclose(fsm->datapcb, fsm->datafs);
 	}
@@ -2117,6 +2305,10 @@ static err_t ftpd_msgrecv(void *arg, struct tcp_pcb *pcb, struct pbuf *p, err_t 
 		pbuf_free(p);
 	}
 	else if ((err == ERR_OK && p == NULL)) {
+		LOGV("ftpd_msgrecv: control connection closed by peer fsm=0x%x state=%s datafs=0x%x datapcb=0x%x\r\n",
+			(unsigned int)fsm, fsm ? ftpd_state_name(fsm->state) : "(null)",
+			fsm ? (unsigned int)fsm->datafs : 0,
+			fsm ? (unsigned int)fsm->datapcb : 0);
 		ftpd_msgclose(pcb, fsm);
 	}
 

@@ -622,12 +622,21 @@ static int _bk_lfs_readdir(bk_dir *dir, struct dirent *entry) {
 		return -1;
 
 	entry->d_ino = 0;
-	if (info.type == LFS_TYPE_REG)
+	entry->d_stat_valid = 1;
+	entry->d_reserved = 0;
+	entry->d_size = info.size;
+	entry->d_mtime = 0;
+	if (info.type == LFS_TYPE_REG) {
 		entry->d_type = DT_REG;
-	else if (info.type == LFS_TYPE_DIR)
+		entry->d_mode = S_IFREG;
+	} else if (info.type == LFS_TYPE_DIR) {
 		entry->d_type = DT_DIR;
-	else
+		entry->d_mode = S_IFDIR;
+	} else {
 		entry->d_type = DT_UNKNOWN;
+		entry->d_mode = 0;
+		entry->d_stat_valid = 0;
+	}
 	entry->d_reclen = sizeof(struct dirent);
 
 	if (sizeof(entry->d_name) - 1 < strlen(info.name))

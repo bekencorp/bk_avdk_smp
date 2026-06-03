@@ -529,10 +529,20 @@ static int _bk_fatfs_readdir(bk_dir *dir, struct dirent *entry) {
 		return -1;
 
 	entry->d_ino = 0;
-	if (file_info.fattrib & AM_DIR)
-		entry->d_type = DT_DIR;
+	entry->d_stat_valid = 1;
+	entry->d_reserved = 0;
+	entry->d_size = file_info.fsize;
+	if (file_info.fdate != 0 || file_info.ftime != 0)
+		entry->d_mtime = fatfs_time_to_time_t(file_info.fdate, file_info.ftime);
 	else
+		entry->d_mtime = 0;
+	if (file_info.fattrib & AM_DIR) {
+		entry->d_type = DT_DIR;
+		entry->d_mode = S_IFDIR;
+	} else {
 		entry->d_type = DT_REG;
+		entry->d_mode = S_IFREG;
+	}
 	entry->d_reclen = sizeof(struct dirent);
 
 	if (sizeof(entry->d_name) - 1 < strlen(file_info.fname))
