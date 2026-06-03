@@ -199,7 +199,7 @@ menu "LVGL"
         default 10
 
     config LV_COLOR_16_SWAP
-        depends on LVGL_V8
+        depends on LVGL
         bool "Enable Swap the 2 bytes of RGB565 color"
         default n
 

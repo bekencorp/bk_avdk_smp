@@ -75,6 +75,11 @@ void lv_port_disp_init(void)
      * -----------------------------------*/
     lv_display_t * disp = NULL;
     disp = lv_display_create(vendor_config.width, vendor_config.height);
+
+    #if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
+        lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
+    #endif
+
     lv_display_set_flush_cb(disp, disp_flush);
 
     lv_display_set_rotation(disp, vendor_config.rotation);
@@ -217,8 +222,6 @@ static bk_err_t lvgl_frame_buffer_free_cb(void *frame)
     return BK_OK;
 }
 
-
-
 static void lv_disp_flush_for_partial_mode(lv_display_t * disp_drv, const lv_area_t * area, uint8_t * px_map)
 {
     lv_coord_t lv_hor = 0;
@@ -232,9 +235,6 @@ static void lv_disp_flush_for_partial_mode(lv_display_t * disp_drv, const lv_are
         lv_ver = LV_HOR_RES;
     }
 
-#if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
-    lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
-#endif
     bk_color_t *color_ptr = NULL;
     int y = 0, offset = 0;
 
@@ -338,28 +338,6 @@ static void lv_disp_flush_for_direct_mode(lv_display_t * disp_drv, const lv_area
 {
     static bool first_flush = true;
 
-    #if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
-        if (first_flush) {
-            lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
-        } else {
-            uint16_t *color_ptr = (uint16_t *)px_map;
-            uint16_t width = lv_area_get_width(area);
-            int offset = 0, y = 0;
-
-            offset = area->y1 * LV_HOR_RES + area->x1;
-            for (y = area->y1; y <= area->y2; y++) {
-                uint16_t *buf16 = color_ptr + offset;
-                if ((int)buf16 % 4) {
-                    buf16[0] = ((buf16[0] & 0xff00) >> 8) | ((buf16[0] & 0x00ff) << 8);
-                    lv_draw_sw_rgb565_swap(buf16 + 1, width - 1);
-                } else {
-                    lv_draw_sw_rgb565_swap(buf16, width);
-                }
-                offset += LV_HOR_RES;
-            }
-        }
-    #endif
-
     if (lv_disp_flush_is_last(disp_drv)) {
         media_debug->lvgl_draw++;
         if (px_map == vendor_config.draw_buf_2_1) {
@@ -381,9 +359,7 @@ static void lv_disp_flush_for_direct_mode(lv_display_t * disp_drv, const lv_area
 static void lv_disp_flush_for_full_mode(lv_display_t * disp_drv, const lv_area_t * area, uint8_t * px_map)
 {
     media_debug->lvgl_draw++;
-#if (CONFIG_LV_COLOR_DEPTH == 16 && CONFIG_LV_COLOR_16_SWAP)
-    lv_draw_sw_rgb565_swap(px_map, lv_area_get_size(area));
-#endif
+
     if (px_map == vendor_config.draw_buf_2_1) {
         bk_display_flush(vendor_config.handle, vendor_config.frame_buffer[0], lvgl_frame_buffer_free_cb);
     } else {
