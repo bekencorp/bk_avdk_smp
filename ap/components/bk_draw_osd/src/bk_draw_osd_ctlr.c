@@ -285,6 +285,61 @@ static bk_err_t osd_ctlr_task_send_msg(osd_ctlr_context_t *context, uint8_t type
 
 
 /**
+ * @brief Stop osd background task and deinit queue/semaphore
+ */
+static void osd_ctlr_task_stop(osd_ctlr_context_t *context)
+{
+    if (context == NULL) {
+        return;
+    }
+
+    if (context->task_running) {
+        if (osd_ctlr_task_send_msg(context, OSD_EXIT, 0, 0) == BK_OK) {
+            rtos_get_semaphore(&context->task_sem, BEKEN_NEVER_TIMEOUT);
+        } else {
+            LOGE("%s send OSD_EXIT failed\n", __func__);
+        }
+        context->task_running = false;
+    }
+
+    if (context->queue) {
+        rtos_deinit_queue(&context->queue);
+        context->queue = NULL;
+    }
+
+    rtos_deinit_semaphore(&context->task_sem);
+    context->task = NULL;
+}
+
+/**
+ * @brief Release all resources allocated in osd_ctlr_new
+ */
+static void osd_ctlr_destroy(private_draw_osd_ctlr_t *priv_ctl, bool stop_task)
+{
+    if (priv_ctl == NULL) {
+        return;
+    }
+
+    if (stop_task) {
+        osd_ctlr_task_stop(&priv_ctl->context);
+    }
+
+    if (priv_ctl->context.icon_handle) {
+        bk_draw_icon_delete(priv_ctl->context.icon_handle);
+        priv_ctl->context.icon_handle = NULL;
+    }
+
+    if (priv_ctl->context.dyn_array.entry) {
+        os_free(priv_ctl->context.dyn_array.entry);
+        priv_ctl->context.dyn_array.entry = NULL;
+        priv_ctl->context.dyn_array.size = 0;
+        priv_ctl->context.dyn_array.capacity = 0;
+    }
+
+    os_free(priv_ctl);
+}
+
+/**
  * @brief delete osd controller
  */
 static avdk_err_t osd_ctlr_delete(bk_draw_osd_ctlr_handle_t handle)
@@ -292,18 +347,7 @@ static avdk_err_t osd_ctlr_delete(bk_draw_osd_ctlr_handle_t handle)
     private_draw_osd_ctlr_t *priv_ctl = __containerof(handle, private_draw_osd_ctlr_t, ops);
     AVDK_RETURN_ON_FALSE(priv_ctl, AVDK_ERR_INVAL, TAG, "control is NULL");
 
-    // free dynamic array
-    if (priv_ctl->context.dyn_array.entry)
-    {
-        os_free(priv_ctl->context.dyn_array.entry);
-        priv_ctl->context.dyn_array.entry = NULL;
-        priv_ctl->context.dyn_array.size = 0;
-        priv_ctl->context.dyn_array.capacity = 0;
-    }
-    
-    // free osd controller memory
-    os_free(priv_ctl);
-    priv_ctl = NULL;
+    osd_ctlr_destroy(priv_ctl, true);
 
     LOGI("OSD controller deleted successfully \n");
     return AVDK_ERR_OK;
@@ -775,8 +819,12 @@ avdk_err_t osd_ctlr_new(bk_draw_osd_ctlr_handle_t *handle, osd_ctlr_config_t *co
     icon_ctlr_config_t icon_config = {
         .draw_in_psram = config->draw_in_psram,
     };
-    bk_draw_icon_new(&priv_ctl->context.icon_handle, &icon_config);
-    AVDK_RETURN_ON_FALSE(priv_ctl->context.icon_handle, AVDK_ERR_NOMEM, TAG, "icon_handle is NULL");
+    ret = bk_draw_icon_new(&priv_ctl->context.icon_handle, &icon_config);
+    if (ret != AVDK_ERR_OK) {
+        LOGE("%s bk_draw_icon_new failed\n", __func__);
+        os_free(priv_ctl);
+        return ret;
+    }
 
     priv_ctl->context.blend_assets = config->blend_assets;
     priv_ctl->context.blend_info = config->blend_info;
@@ -786,7 +834,7 @@ avdk_err_t osd_ctlr_new(bk_draw_osd_ctlr_handle_t *handle, osd_ctlr_config_t *co
     if (ret != AVDK_ERR_OK)
     {
         LOGE("%s dynamic_array_init failed\n", __func__);
-        os_free(priv_ctl);
+        osd_ctlr_destroy(priv_ctl, false);
         return ret;
     }
     LOGE("%s dynamic_array_init size = %u\n", __func__, priv_ctl->context.dyn_array.size);
@@ -794,10 +842,18 @@ avdk_err_t osd_ctlr_new(bk_draw_osd_ctlr_handle_t *handle, osd_ctlr_config_t *co
     copy_existing_blend_info_to_dynamic_array(&priv_ctl->context.dyn_array, priv_ctl->context.blend_info);
 
     ret = rtos_init_semaphore(&priv_ctl->context.task_sem, 1);
-    AVDK_RETURN_ON_ERROR(ret, TAG, "task_sem init failed");
+    if (ret != AVDK_ERR_OK) {
+        LOGE("%s task_sem init failed\n", __func__);
+        osd_ctlr_destroy(priv_ctl, false);
+        return ret;
+    }
 
     ret = osd_ctlr_task_start(&priv_ctl->context);
-    AVDK_RETURN_ON_ERROR(ret, TAG, "osd ctlr task init failed");
+    if (ret != AVDK_ERR_OK) {
+        LOGE("%s osd ctlr task init failed\n", __func__);
+        osd_ctlr_destroy(priv_ctl, true);
+        return ret;
+    }
 
     // set osd controller ops
     priv_ctl->ops.delete = osd_ctlr_delete;
