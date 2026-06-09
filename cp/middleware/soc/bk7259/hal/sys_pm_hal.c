@@ -2449,7 +2449,7 @@ device_t *pm_convert_sleep_module_enum_to_device_ptr(pm_sleep_module_name_e modu
 			return (device_t *)DEVICE_ID2PTR(uart2);
 		case PM_SLEEP_MODULE_NAME_UART3: // 26
 			return (device_t *)DEVICE_ID2PTR(uart3);
-		case PM_SLEEP_MODULE_NAME_TIMER_3: // 28
+		case PM_SLEEP_MODULE_NAME_AUDIO_ASR: // 28
 			return (device_t *)DEVICE_ID2PTR(timer3);
 		case PM_SLEEP_MODULE_NAME_CPU1: // 30
 			return (device_t *)DEVICE_ID2PTR(cpu1);

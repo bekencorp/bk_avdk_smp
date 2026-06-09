@@ -214,7 +214,7 @@ const char *pm_sleep_module_name_to_string(pm_sleep_module_name_e module)
 		"UART2",      // PM_SLEEP_MODULE_NAME_UART2
 		"UART3",      // PM_SLEEP_MODULE_NAME_UART3
 		"WDG",        // PM_SLEEP_MODULE_NAME_WDG
-		"TIMER_3",    // PM_SLEEP_MODULE_NAME_TIMER_3
+		"AUDIO_ASR",  // PM_SLEEP_MODULE_NAME_AUDIO_ASR
 		"APP1",       // PM_SLEEP_MODULE_NAME_APP1
 		"CPU1",       // PM_SLEEP_MODULE_NAME_CPU1
 		"ROSC_PROG",  // PM_SLEEP_MODULE_NAME_ROSC_PROG
