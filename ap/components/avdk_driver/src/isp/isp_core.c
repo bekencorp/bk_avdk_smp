@@ -980,21 +980,21 @@ bk_err_t bk_isp_close(isp_handle_t *handle, uint8_t chnl)
 
     if (chnl_closed && control->state == ISP_FSM_CHN_ENABLE)
     {
-        isp_unregister_sensor_callbacks(control);
-
         ret = VSI_MPI_ISP_DisablePort(control->port);
         if (ret != BK_OK)
         {
-            LOGE("%s, %d, enable port fail, ret=%d\n", __func__, __LINE__, ret);
+            LOGE("%s, %d, disable port fail, ret=%d\n", __func__, __LINE__, ret);
             return ret;
         }
 
         ret = VSI_MPI_ISP_DisableDev(control->dev);
         if (ret != BK_OK)
         {
-            LOGE("%s, %d, enable dev fail, ret=%d\n", __func__, __LINE__, ret);
+            LOGE("%s, %d, disable dev fail, ret=%d\n", __func__, __LINE__, ret);
             return ret;
         }
+
+        isp_unregister_sensor_callbacks(control);
 
         control->state = ISP_FSM_INIT;
     }
