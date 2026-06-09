@@ -15,6 +15,7 @@
 #pragma once
 #include <common/bk_include.h>
 #include <driver/pwm_types.h>
+#include <driver/hal/hal_gpio_types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -76,6 +77,28 @@ bk_err_t bk_pwm_driver_deinit(void);
  *    - others: other errors.
  */
 bk_err_t bk_pwm_init(pwm_chan_t chan, const pwm_init_config_t *config);
+
+/**
+ * @brief     Override the GPIO pad bound to a PWM channel
+ *
+ * By default each PWM channel is routed to a fixed pad (see GPIO_PWM_MAP_TABLE).
+ * Call this API to route the channel to a custom GPIO instead, so the caller
+ * does not need to remap the GPIO outside the driver. Pass GPIO_NUM to restore
+ * the default pad.
+ *
+ * Call it before bk_pwm_init() to take effect at init time (the default pad is
+ * then never mapped); if the channel is already initialized the pad is remapped
+ * immediately.
+ *
+ * @param chan     PWM channel
+ * @param gpio_id  target GPIO id, or GPIO_NUM to use the default pad
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - BK_ERR_PWM_NOT_INIT: PWM driver not init
+ *    - BK_ERR_PWM_CHAN_ID: invalid PWM channel
+ */
+bk_err_t bk_pwm_set_gpio(pwm_chan_t chan, gpio_id_t gpio_id);
 
 /**
  * @brief     Deinit a PWM channel
