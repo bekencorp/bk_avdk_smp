@@ -6,23 +6,25 @@
  * manages the handle pointer, with no internal global state or ID mapping.
  * 
  * Features:
- *  - No global variables
+ *  - No per-ID global mapping
  *  - No i2c_id_t parameter (removed for simplicity)
  *  - Caller manages handle lifecycle
  *  - Configurable GPIO pins per instance
  *  - Multiple instances supported (limited only by memory)
  * 
  * Thread Safety:
- *   Each handle can be used by one thread at a time. If multiple threads
- *   need to share a handle, external synchronization is required.
+ *   Software I2C transactions are serialized globally because different
+ *   handles may still target the same GPIO pins.
  * 
  *****************************************************************************/
 
 #include <driver/gpio.h>
 #include "gpio_driver.h"
+#include <os/os.h>
 #include <os/mem.h>
 #include <common/bk_err.h>
 #include <driver/i2c_types.h>
+#include <stdbool.h>
 
 
 
@@ -33,6 +35,29 @@
 
 /* Disable this macro by default, as gpio api way would cost more time to switch output level */
 #define SIM_I2C_GPIO_API_EN
+
+static beken_mutex_t s_sw_i2c_bus_mutex;
+static bool s_sw_i2c_bus_mutex_inited;
+
+static bk_err_t sw_i2c_bus_lock(void)
+{
+	if (!s_sw_i2c_bus_mutex_inited) {
+		if (rtos_init_mutex(&s_sw_i2c_bus_mutex) != BK_OK) {
+			return BK_FAIL;
+		}
+		s_sw_i2c_bus_mutex_inited = true;
+	}
+
+	rtos_lock_mutex(&s_sw_i2c_bus_mutex);
+	return BK_OK;
+}
+
+static void sw_i2c_bus_unlock(void)
+{
+	if (s_sw_i2c_bus_mutex_inited) {
+		rtos_unlock_mutex(&s_sw_i2c_bus_mutex);
+	}
+}
 
 /* Software I2C Handle Structure */
 typedef struct {
@@ -410,11 +435,17 @@ sw_i2c_handle_t* sw_i2c_init(const sw_i2c_config_t *cfg)
 	
 	if (cfg == NULL)
 		return NULL;
+
+	if (sw_i2c_bus_lock() != BK_OK)
+		return NULL;
 	
 	// Allocate handle
 	handle = (sw_i2c_handle_t *)os_malloc(sizeof(sw_i2c_handle_t));
 	if (handle == NULL)
+	{
+		sw_i2c_bus_unlock();
 		return NULL;
+	}
 	
 	// Set GPIO pins from config
 	handle->sda_pin = cfg->sda_pin;
@@ -429,6 +460,7 @@ sw_i2c_handle_t* sw_i2c_init(const sw_i2c_config_t *cfg)
 	// Initialize I2C
 	i2c_init(handle);
 
+	sw_i2c_bus_unlock();
 	return handle;
 }
 
@@ -436,10 +468,15 @@ bk_err_t sw_i2c_deinit(sw_i2c_handle_t *handle)
 {
 	if (handle == NULL)
 		return BK_ERR_NULL_PARAM;
+
+	if (sw_i2c_bus_lock() != BK_OK)
+		return BK_FAIL;
 	
 	// Set pins to low before deinit
 	i2c_set_scl_low(handle);
 	i2c_set_sda_low(handle);
+
+	sw_i2c_bus_unlock();
 	
 	// Free handle
 	os_free(handle);
@@ -548,26 +585,40 @@ static bool i2c_mem_read(sw_i2c_handle_t *handle, uint32_t dev_addr, uint32_t me
 
 bk_err_t sw_i2c_memory_write(sw_i2c_handle_t *handle, i2c_mem_param_t *mem_param)
 {
+	bk_err_t ret = BK_OK;
+
 	if (handle == NULL || mem_param == NULL || mem_param->data == NULL)
 		return BK_ERR_NULL_PARAM;
+
+	ret = sw_i2c_bus_lock();
+	if (ret != BK_OK)
+		return ret;
 	
 	if (!i2c_mem_write(handle, mem_param->dev_addr, mem_param->mem_addr, 
 	                   mem_param->mem_addr_size, mem_param->data, mem_param->data_size))
-		return BK_FAIL;
+		ret = BK_FAIL;
 	
-	return BK_OK;
+	sw_i2c_bus_unlock();
+	return ret;
 }
 
 bk_err_t sw_i2c_memory_read(sw_i2c_handle_t *handle, i2c_mem_param_t *mem_param)
 {
+	bk_err_t ret = BK_OK;
+
 	if (handle == NULL || mem_param == NULL || mem_param->data == NULL)
 		return BK_ERR_NULL_PARAM;
+
+	ret = sw_i2c_bus_lock();
+	if (ret != BK_OK)
+		return ret;
 	
 	if (!i2c_mem_read(handle, mem_param->dev_addr, mem_param->mem_addr,
 	                  mem_param->mem_addr_size, mem_param->data, mem_param->data_size))
-		return BK_FAIL;
+		ret = BK_FAIL;
 	
-	return BK_OK;
+	sw_i2c_bus_unlock();
+	return ret;
 }
 
 bk_err_t sw_i2c_master_write(sw_i2c_handle_t *handle, uint32_t dev_addr, const uint8_t *data, uint32_t size, uintptr_t timeout_ms)
@@ -575,7 +626,11 @@ bk_err_t sw_i2c_master_write(sw_i2c_handle_t *handle, uint32_t dev_addr, const u
 	if (handle == NULL)
 		return BK_ERR_NULL_PARAM;
 
+	if (sw_i2c_bus_lock() != BK_OK)
+		return BK_FAIL;
+
 	i2c_write(handle, dev_addr, data, size);
+	sw_i2c_bus_unlock();
 
 	return BK_OK;
 }
@@ -585,7 +640,11 @@ bk_err_t sw_i2c_master_read(sw_i2c_handle_t *handle, uint32_t dev_addr, uint8_t 
 	if (handle == NULL)
 		return BK_ERR_NULL_PARAM;
 
+	if (sw_i2c_bus_lock() != BK_OK)
+		return BK_FAIL;
+
 	i2c_read(handle, dev_addr, data, size);
+	sw_i2c_bus_unlock();
 
 	return BK_OK;
 }

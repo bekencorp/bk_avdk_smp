@@ -61,8 +61,8 @@ typedef struct {
  * sw_i2c_deinit(handle);
  * @endcode
  * 
- * @note Thread Safety: Each handle can be used by one thread at a time.
- *       External synchronization required for shared access.
+ * @note Thread Safety: Software I2C transactions are serialized in the
+ *       driver, including transactions from different handles.
  */
 typedef struct {
 	gpio_id_t sda_pin;         /**< SDA GPIO pin number */
