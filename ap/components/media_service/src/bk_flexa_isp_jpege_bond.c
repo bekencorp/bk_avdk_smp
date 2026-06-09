@@ -1,0 +1,229 @@
+// Copyright 2020-2021 Beken
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS-IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <os/os.h>
+#include <os/mem.h>
+#include "isp_core.h"
+#include <driver/isp.h>
+#include <driver/isp_base.h>
+#include <components/bk_encode/bk_jpeg_encode_ctlr.h>
+
+#include "bk_flexa_bond_types.h"
+
+#define TAG "bk_flexa_isp_jpege_bond"
+
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+
+static void isp_jpege_handle_frame_end_cb(uint32_t seq, uint32_t line, uint8_t chnl, uint8_t ok, void *arg)
+{
+	bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)arg;
+	(void)seq;
+	(void)line;
+	(void)chnl;
+	(void)ok;
+
+	if (in_stream == NULL || in_stream->bond_config == NULL) {
+		return;
+	}
+	bk_flexa_bond_t *out_stream = (bk_flexa_bond_t *)in_stream->bond_config->out_stream;
+	if (out_stream == NULL) {
+		return;
+	}
+	bk_jpeg_encode_ctlr_handle_t enc = (bk_jpeg_encode_ctlr_handle_t)out_stream->handle;
+	if (enc == NULL) {
+		return;
+	}
+	if (in_stream->bond_config->set_sbi_flag == 1) {
+		in_stream->bond_config->set_sbi_flag = 0;
+		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
+		if (in_stream->bond_config->flexa_sbi == 1) {
+			bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 1);
+		} else {
+			bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
+			rtos_set_semaphore(&in_stream->bond_config->sem);
+		}
+	}
+	(void)bk_jpeg_encode_ioctl(enc, BK_JPEG_ENCODE_IOCTL_SET_FRAME_READY, (void *)0);
+}
+
+static void isp_jpege_enc_frame_done(uint32_t status, void *args)
+{
+	bk_flexa_bond_t *out_stream = (bk_flexa_bond_t *)args;
+	if (out_stream == NULL || out_stream->handle == NULL) {
+		return;
+	}
+	bk_flexa_bond_t *in_stream = out_stream->bond_config->in_stream;
+	if (in_stream == NULL || in_stream->handle == NULL) {
+		return;
+	}
+	isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
+	if (isp_h == NULL) {
+		return;
+	}
+	if (status == BK_FAIL) {
+		bk_isp_flexa_sbi_config(&isp_h, ISP_MP_CHN_ID, 0);
+		out_stream->bond_config->set_sbi_flag = 1;
+	}
+}
+
+static void isp_jpege_bond_isp_stream_error(uint32_t reason, void *args)
+{
+	(void)reason;
+	bk_flexa_bond_t *in_stream = (bk_flexa_bond_t *)args;
+	(void)in_stream;
+}
+
+avdk_err_t bk_flexa_isp_jpege_bond_start(void **bond, void *isp, bk_jpeg_encode_ctlr_handle_t jpege)
+{
+	avdk_err_t ret = AVDK_ERR_OK;
+	bk_err_t br;
+	bk_flexa_bond_config_t *bond_new = NULL;
+	bk_flexa_bond_t *in_stream = NULL;
+	bk_flexa_bond_t *out_stream = NULL;
+	isp_handle_t isp_h = NULL;
+
+	if (bond == NULL || isp == NULL || jpege == NULL) {
+		LOGE("%s invalid args bond %p isp %p jpege %p\r\n", __func__, bond, isp, jpege);
+		return AVDK_ERR_INVAL;
+	}
+	if (*bond != NULL) {
+		LOGE("%s already started\r\n", __func__);
+		return AVDK_ERR_INVAL;
+	}
+
+	bond_new = (bk_flexa_bond_config_t *)os_malloc(sizeof(bk_flexa_bond_config_t));
+	if (bond_new == NULL) {
+		LOGE("%s malloc bond_config failed\r\n", __func__);
+		return AVDK_ERR_NOMEM;
+	}
+	os_memset(bond_new, 0, sizeof(bk_flexa_bond_config_t));
+
+	in_stream = (bk_flexa_bond_t *)os_malloc(sizeof(bk_flexa_bond_t));
+	if (in_stream == NULL) {
+		LOGE("%s malloc in_stream failed\r\n", __func__);
+		goto error;
+	}
+	os_memset(in_stream, 0, sizeof(bk_flexa_bond_t));
+
+	out_stream = (bk_flexa_bond_t *)os_malloc(sizeof(bk_flexa_bond_t));
+	if (out_stream == NULL) {
+		LOGE("%s malloc out_stream failed\r\n", __func__);
+		goto error;
+	}
+	os_memset(out_stream, 0, sizeof(bk_flexa_bond_t));
+
+	bond_new->in_stream = in_stream;
+	bond_new->out_stream = out_stream;
+	bond_new->in_stream_type = BK_FLEXA_TYPE_ISP;
+	bond_new->out_stream_type = BK_FLEXA_TYPE_MJPEGE;
+	bond_new->set_sbi_flag = 1;
+	bond_new->flexa_sbi = 1;
+
+	ret = rtos_init_semaphore(&bond_new->sem, 1);
+	if (ret != BK_OK) {
+		LOGE("%s init semaphore failed %d\r\n", __func__, ret);
+		goto error;
+	}
+
+	in_stream->handle = isp;
+	in_stream->error = isp_jpege_bond_isp_stream_error;
+	in_stream->bond_config = bond_new;
+
+	isp_h = (isp_handle_t)isp;
+	{
+		isp_control_t *isp_control = (isp_control_t *)isp_h;
+
+		out_stream->max_lines_per_frame =
+			(isp_control->chn[ISP_MP_CHN_ID].chn_attr.chnFormat.height + 15) / 16;
+	}
+
+	out_stream->handle = (void *)jpege;
+	out_stream->frame_done = isp_jpege_enc_frame_done;
+	out_stream->bond_config = bond_new;
+
+	ret = bk_jpeg_encode_ioctl(jpege, BK_JPEG_ENCODE_IOCTL_REGISTER_BOND, out_stream);
+	if (ret != AVDK_ERR_OK) {
+		LOGE("%s JPEGE REGISTER_BOND failed %d\r\n", __func__, ret);
+		goto error;
+	}
+
+	br = bk_isp_register_isr_callback(&isp_h, ISP_FRAME_END_DONE, isp_jpege_handle_frame_end_cb, in_stream);
+	if (br != BK_OK) {
+		LOGW("%s ISP_FRAME_END_DONE register ret %d\r\n", __func__, br);
+	}
+
+	*bond = bond_new;
+	LOGI("%s bond started\r\n", __func__);
+	return ret;
+
+error:
+	if (isp_h != NULL && in_stream != NULL) {
+		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_FRAME_END_DONE, in_stream);
+	}
+	if (out_stream != NULL && out_stream->handle != NULL) {
+		(void)bk_jpeg_encode_ioctl(jpege, BK_JPEG_ENCODE_IOCTL_UNREGISTER_BOND, out_stream);
+	}
+	if (in_stream != NULL) {
+		os_free(in_stream);
+	}
+	if (out_stream != NULL) {
+		os_free(out_stream);
+	}
+	if (bond_new != NULL) {
+		if (bond_new->sem != NULL) {
+			rtos_deinit_semaphore(&bond_new->sem);
+		}
+		os_free(bond_new);
+	}
+	LOGE("%s bond failed\r\n", __func__);
+	return ret;
+}
+
+void bk_flexa_isp_jpege_bond_stop(void *bond)
+{
+	bk_flexa_bond_config_t *bond_p = (bk_flexa_bond_config_t *)bond;
+	if (bond_p == NULL) {
+		return;
+	}
+	bond_p->flexa_sbi = 0;
+	bond_p->set_sbi_flag = 1;
+	rtos_get_semaphore(&bond_p->sem, BEKEN_WAIT_FOREVER);
+
+	bk_flexa_bond_t *in_stream = bond_p->in_stream;
+	if (in_stream != NULL && in_stream->handle != NULL) {
+		isp_handle_t isp_h = (isp_handle_t)in_stream->handle;
+		(void)bk_isp_deregister_isr_callback(&isp_h, ISP_FRAME_END_DONE, in_stream);
+	}
+	bk_flexa_bond_t *out_stream = bond_p->out_stream;
+	if (out_stream != NULL && out_stream->handle != NULL) {
+		(void)bk_jpeg_encode_ioctl((bk_jpeg_encode_ctlr_handle_t)out_stream->handle,
+					   BK_JPEG_ENCODE_IOCTL_STOP_ENCODE, NULL);
+		(void)bk_jpeg_encode_ioctl((bk_jpeg_encode_ctlr_handle_t)out_stream->handle,
+					   BK_JPEG_ENCODE_IOCTL_UNREGISTER_BOND, out_stream);
+	}
+	if (in_stream != NULL) {
+		os_free(in_stream);
+	}
+	if (out_stream != NULL) {
+		os_free(out_stream);
+	}
+	if (bond_p->sem != NULL) {
+		rtos_deinit_semaphore(&bond_p->sem);
+	}
+	os_free(bond_p);
+	LOGI("%s bond stopped\r\n", __func__);
+}

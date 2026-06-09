@@ -4,9 +4,12 @@ set(srcs)
 if(CONFIG_MEDIA_SERVICE)
 
 list(APPEND srcs src/media_service.c
-	src/bk_flexa_mjpeg_bond.c
-	src/bk_flexa_h264d_bond.c
-	src/bk_flexa_isp_bond.c
+	src/bk_flexa_isp_h264e_bond.c
+	src/bk_flexa_isp_jpege_bond.c
+	src/bk_flexa_isp_gpu_bond.c
+	src/bk_flexa_mjpegd_h264e_bond.c
+	src/bk_flexa_mjpegd_gpu_bond.c
+	src/bk_flexa_h264d_gpu_bond.c
 )
 
 list(APPEND incs bk_private)

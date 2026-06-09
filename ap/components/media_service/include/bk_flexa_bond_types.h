@@ -25,8 +25,9 @@ typedef enum {
 	BK_FLEXA_TYPE_H264E = 0,
 	BK_FLEXA_TYPE_GPU = 1,
 	BK_FLEXA_TYPE_ISP = 2,
-	BK_FLEXA_TYPE_MJPEG = 3,
+	BK_FLEXA_TYPE_MJPEGD = 3,
 	BK_FLEXA_TYPE_H264D = 4,
+	BK_FLEXA_TYPE_MJPEGE = 5,
 } bk_flexa_bond_kind_t;
 
 typedef struct bk_flexa_bond_config {
