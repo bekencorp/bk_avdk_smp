@@ -3927,7 +3927,7 @@ typedef struct  task_list_recorder
 {
     uint32_t tick;        /*os tick */
 
-    uint32_t time;        /*aon tick */
+    uint32_t time;        /*aon rtc time in us, low 32 bits */
 
     TCB_t * TCB_ptr;     /*task TCB pointer*/
 
@@ -3942,11 +3942,13 @@ typedef struct  task_list_recorder
 __attribute__((__used__)) static volatile  uint32_t s_task_cnt_core0 = 0;
 __attribute__((__used__)) static volatile  uint32_t s_task_cnt_core1 = 0;
 
- __attribute__((__used__)) static volatile  task_list_recorder_t  s_task_recorder_core0[FREERTOS_TASK_RECORDER_CNT];
-  __attribute__((__used__)) static volatile  task_list_recorder_t  s_task_recorder_core1[FREERTOS_TASK_RECORDER_CNT];
+__attribute__((__used__)) static volatile  task_list_recorder_t  s_task_recorder_core0[FREERTOS_TASK_RECORDER_CNT];
+__attribute__((__used__)) static volatile  task_list_recorder_t  s_task_recorder_core1[FREERTOS_TASK_RECORDER_CNT];
 
- #define GET_AON_RTC_TIME    (REG_READ(SOC_AON_RTC_REG_BASE + (0x3 << 2)))
- #endif
+extern uint64_t bk_aon_rtc_get_us(void);
+
+#define GET_AON_RTC_TIME_US    ((uint32_t)bk_aon_rtc_get_us())
+#endif
 
 void vTaskSwitchContext( void )
 {
@@ -4021,7 +4023,7 @@ void vTaskSwitchContext( void )
              if (xCurCoreID == 0)
              {  
                 s_task_recorder_core0[s_task_cnt_core0].tick = xTickCount;
-                s_task_recorder_core0[s_task_cnt_core0].time = GET_AON_RTC_TIME;  
+                s_task_recorder_core0[s_task_cnt_core0].time = GET_AON_RTC_TIME_US;  
                 s_task_recorder_core0[s_task_cnt_core0].TCB_ptr = pxCurrentTCBs[0];           
                 s_task_recorder_core0[s_task_cnt_core0].stack_top = (uint32_t) pxCurrentTCBs[0]->pxTopOfStack;
                 s_task_recorder_core0[s_task_cnt_core0].stack_bottom = (uint32_t)(pxCurrentTCBs[0]->pxStack + pxCurrentTCBs[0]->ulStackSize);    
@@ -4030,7 +4032,7 @@ void vTaskSwitchContext( void )
                 s_task_cnt_core0 = s_task_cnt_core0 % FREERTOS_TASK_RECORDER_CNT;
             } else {
                 s_task_recorder_core1[s_task_cnt_core1].tick = xTickCount;
-                s_task_recorder_core1[s_task_cnt_core1].time = GET_AON_RTC_TIME;  
+                s_task_recorder_core1[s_task_cnt_core1].time = GET_AON_RTC_TIME_US;  
                 s_task_recorder_core1[s_task_cnt_core1].TCB_ptr = pxCurrentTCBs[1];           
                 s_task_recorder_core1[s_task_cnt_core1].stack_top = (uint32_t) pxCurrentTCBs[1]->pxTopOfStack;
                 s_task_recorder_core1[s_task_cnt_core1].stack_bottom = (uint32_t)(pxCurrentTCBs[1]->pxStack + pxCurrentTCBs[1]->ulStackSize);    

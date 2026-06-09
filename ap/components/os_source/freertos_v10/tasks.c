@@ -2388,8 +2388,8 @@ BaseType_t xTaskResumeAll( void )
                                     xPendedCounts = xConstTickNext + 1;
                                 }
                             }
-
-                           if( xTaskIncrementTick() != pdFALSE )
+                          
+                            if( xTaskIncrementTick() != pdFALSE )
                             {
                                 xYieldPending = pdTRUE;
                             }
@@ -3216,7 +3216,7 @@ typedef struct  task_list_recorder
 {
     uint32_t tick;        /*os tick */
 
-    uint32_t time;        /*aon tick */
+    uint32_t time;        /*aon rtc time in us, low 32 bits */
 
     TCB_t * TCB_ptr;     /*task TCB pointer*/
 
@@ -3232,12 +3232,12 @@ __attribute__((__used__)) static volatile  uint32_t s_task_cnt = 0;
 
 __attribute__((__used__)) static volatile  task_list_recorder_t  s_task_recorder[FREERTOS_TASK_RECORDER_CNT];
 
-#if (CONFIG_AON_RTC)
-#define GET_AON_RTC_TIME    (REG_READ(SOC_AON_RTC_REG_BASE + (0x3 << 2)))
-#elif (CONFIG_ANA_RTC)
-#define GET_AON_RTC_TIME    (REG_READ(SOC_SYS_REG_BASE + (0x4D << 2)))
+extern uint64_t bk_aon_rtc_get_us(void);
+
+#if (CONFIG_AON_RTC || CONFIG_ANA_RTC)
+#define GET_AON_RTC_TIME_US    ((uint32_t)bk_aon_rtc_get_us())
 #else
-#define GET_AON_RTC_TIME    0
+#define GET_AON_RTC_TIME_US    0
 #endif
 #endif
 
@@ -3310,7 +3310,7 @@ void vTaskSwitchContext( void )
     #if FREERTOS_TASK_RECORDER
         {  
             s_task_recorder[s_task_cnt].tick = xTickCount;
-            s_task_recorder[s_task_cnt].time = GET_AON_RTC_TIME;  
+            s_task_recorder[s_task_cnt].time = GET_AON_RTC_TIME_US;  
             s_task_recorder[s_task_cnt].TCB_ptr = pxCurrentTCB;           
             s_task_recorder[s_task_cnt].stack_top = (uint32_t) pxCurrentTCB->pxTopOfStack;
             s_task_recorder[s_task_cnt].stack_bottom = (uint32_t)(pxCurrentTCB->pxStack + pxCurrentTCB->ulStackSize);    
@@ -3318,7 +3318,8 @@ void vTaskSwitchContext( void )
             s_task_cnt++;
             s_task_cnt = s_task_cnt % FREERTOS_TASK_RECORDER_CNT;
         }
-#endif
+    #endif
+
         /* After the new task is switched in, update the global errno. */
         #if ( configUSE_POSIX_ERRNO == 1 )
         {

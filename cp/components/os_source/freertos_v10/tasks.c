@@ -741,6 +741,24 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
 #endif /* portUSING_MPU_WRAPPERS */
 /*-----------------------------------------------------------*/
 
+#include <os/mem.h>
+static inline void *task_malloc(size_t size, beken_mem_type_t eMemType)
+{
+    switch (eMemType)
+    {
+    case HEAP_MEM_TYPE_PSRAM:
+#if CONFIG_PSRAM_AS_SYS_MEMORY
+        return psram_malloc(size);
+#else
+        return NULL;
+#endif
+    case HEAP_MEM_TYPE_SRAM:
+        return os_sram_malloc(size);
+    default:
+        return os_malloc(size);
+    }
+}
+
 #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
 
     BaseType_t xTaskCreate_ex( TaskFunction_t pxTaskCode,
@@ -758,16 +776,12 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
          * does not grow into the TCB.  Likewise if the stack grows up then allocate
          * the TCB then the stack. */
         #if ( portSTACK_GROWTH > 0 )
-        switch (eMemType)
-        {
-        case HEAP_MEM_TYPE_PSRAM:
-#if CONFIG_PSRAM_AS_SYS_MEMORY
             {
                 /* Allocate space for the TCB.  Where the memory comes from depends on
                  * the implementation of the port malloc function and whether or not static
                  * allocation is being used. */
 
-                pxNewTCB = ( TCB_t * ) psram_malloc( sizeof( TCB_t ) );
+                pxNewTCB = ( TCB_t * ) task_malloc( sizeof( TCB_t ), eMemType );
 
                 if( pxNewTCB != NULL )
                 {
@@ -775,7 +789,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
                     /* Allocate space for the stack used by the task being created.
                      * The base of the stack memory stored in the TCB so the task can
                      * be deleted later if required. */
-                    pxNewTCB->pxStack = ( StackType_t * ) psram_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
+                    pxNewTCB->pxStack = ( StackType_t * ) task_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ), eMemType ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
 
                     if( pxNewTCB->pxStack == NULL )
                     {
@@ -785,56 +799,18 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
                     }
                 }
             }
-#else //#if CONFIG_PSRAM_AS_SYS_MEMORY
-            BK_LOGW(TAG,"CONFIG_PSRAM_AS_SYS_MEMORY is not enabled.\r\n.");
-            return pdFAIL;
-#endif //#if CONFIG_PSRAM_AS_SYS_MEMORY
-            break;
-        
-        case HEAP_MEM_TYPE_DEFAULT:
-        default:
-            {
-                /* Allocate space for the TCB.  Where the memory comes from depends on
-                 * the implementation of the port malloc function and whether or not static
-                 * allocation is being used. */
-
-                pxNewTCB = ( TCB_t * ) pvPortMalloc( sizeof( TCB_t ) );
-
-                if( pxNewTCB != NULL )
-                {
-                    memset( ( void * ) pxNewTCB, 0x00, sizeof( TCB_t ) );
-                    /* Allocate space for the stack used by the task being created.
-                     * The base of the stack memory stored in the TCB so the task can
-                     * be deleted later if required. */
-                    pxNewTCB->pxStack = ( StackType_t * ) pvPortMallocStack( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e961 MISRA exception as the casts are only redundant for some ports. */
-
-                    if( pxNewTCB->pxStack == NULL )
-                    {
-                        /* Could not allocate the stack.  Delete the allocated TCB. */
-                        vPortFree( pxNewTCB );
-                        pxNewTCB = NULL;
-                    }
-                }
-            }
-            break;
-        }
 
         #else /* portSTACK_GROWTH */
-
-        switch (eMemType)
-        {
-        case HEAP_MEM_TYPE_PSRAM:
-#if CONFIG_PSRAM_AS_SYS_MEMORY
             {
                 StackType_t * pxStack;
 
                 /* Allocate space for the stack used by the task being created. */
-                pxStack = psram_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
+                pxStack = task_malloc( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ), eMemType ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
 
                 if( pxStack != NULL )
                 {
                     /* Allocate space for the TCB. */
-                    pxNewTCB = ( TCB_t * ) psram_malloc( sizeof( TCB_t ) ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
+                    pxNewTCB = ( TCB_t * ) task_malloc( sizeof( TCB_t ), eMemType ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
 
                     if( pxNewTCB != NULL )
                     {
@@ -855,45 +831,6 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
                     pxNewTCB = NULL;
                 }
             }
-#else //#if CONFIG_PSRAM_AS_SYS_MEMORY
-            BK_LOGW(TAG,"CONFIG_PSRAM_AS_SYS_MEMORY is not enabled.\r\n.");
-            return pdFAIL;
-#endif //#if CONFIG_PSRAM_AS_SYS_MEMORY
-            break;
-        
-        case HEAP_MEM_TYPE_DEFAULT:
-        default:
-            {
-                StackType_t * pxStack;
-
-                /* Allocate space for the stack used by the task being created. */
-                pxStack = pvPortMallocStack( ( ( ( size_t ) usStackDepth ) * sizeof( StackType_t ) ) ); /*lint !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack and this allocation is the stack. */
-
-                if( pxStack != NULL )
-                {
-                    /* Allocate space for the TCB. */
-                    pxNewTCB = ( TCB_t * ) pvPortMalloc( sizeof( TCB_t ) ); /*lint !e9087 !e9079 All values returned by pvPortMalloc() have at least the alignment required by the MCU's stack, and the first member of TCB_t is always a pointer to the task's stack. */
-
-                    if( pxNewTCB != NULL )
-                    {
-                        memset( ( void * ) pxNewTCB, 0x00, sizeof( TCB_t ) );
-                        /* Store the stack location in the TCB. */
-                        pxNewTCB->pxStack = pxStack;
-                    }
-                    else
-                    {
-                        /* The stack cannot be used as the TCB was not created.  Free
-                         * it again. */
-                        vPortFreeStack( pxStack );
-                    }
-                }
-                else
-                {
-                    pxNewTCB = NULL;
-                }
-            }
-            break;
-        }
 
         #endif /* portSTACK_GROWTH */
 
@@ -3257,7 +3194,7 @@ typedef struct  task_list_recorder
 {
     uint32_t tick;        /*os tick */
 
-    uint32_t time;        /*aon tick */
+    uint32_t time;        /*aon rtc time in us, low 32 bits */
 
     TCB_t * TCB_ptr;     /*task TCB pointer*/
 
@@ -3271,9 +3208,15 @@ typedef struct  task_list_recorder
 
 __attribute__((__used__)) static volatile  uint32_t s_task_cnt = 0;
 
- __attribute__((__used__)) static volatile  task_list_recorder_t  s_task_recorder[FREERTOS_TASK_RECORDER_CNT];
+__attribute__((__used__)) static volatile  task_list_recorder_t  s_task_recorder[FREERTOS_TASK_RECORDER_CNT];
 
- #define GET_AON_RTC_TIME    (REG_READ(SOC_AON_RTC_REG_BASE + (0x3 << 2)))
+extern uint64_t bk_aon_rtc_get_us(void);
+
+#if (CONFIG_AON_RTC || CONFIG_ANA_RTC)
+#define GET_AON_RTC_TIME_US    ((uint32_t)bk_aon_rtc_get_us())
+#else
+#define GET_AON_RTC_TIME_US    0
+#endif
 #endif
 
 void vTaskSwitchContext( void )
@@ -3345,7 +3288,7 @@ void vTaskSwitchContext( void )
     #if FREERTOS_TASK_RECORDER
         {  
             s_task_recorder[s_task_cnt].tick = xTickCount;
-            s_task_recorder[s_task_cnt].time = GET_AON_RTC_TIME;  
+            s_task_recorder[s_task_cnt].time = GET_AON_RTC_TIME_US;  
             s_task_recorder[s_task_cnt].TCB_ptr = pxCurrentTCB;           
             s_task_recorder[s_task_cnt].stack_top = (uint32_t) pxCurrentTCB->pxTopOfStack;
             s_task_recorder[s_task_cnt].stack_bottom = (uint32_t)(pxCurrentTCB->pxStack + pxCurrentTCB->ulStackSize);    
