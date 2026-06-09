@@ -74,7 +74,7 @@ static void handle_video_frame(private_h264_encode_sw_flexa_ctlr_t *ctrl, void *
 }
 
 /*
- * H.264 frame-done callback, registered directly on enc_param.frame_done_cb.
+ * H.264 frame-done callback, registered directly on vcenc_config_t.frame_done_cb.
  * Debug-stats accumulation that used to live in h264e_driver's
  * h264e_frame_end_cb is folded in here.
  */
@@ -123,7 +123,7 @@ static void h264e_end_cb(void *buffer, uint32_t size, uint32_t type, uint32_t re
 
 /*
  * Slice-done (a.k.a. flexa-done) callback, registered directly on
- * enc_param.slice_done_cb. Used to live behind h264e_driver's
+ * vcenc_config_t.slice_done_cb. Used to live behind h264e_driver's
  * h264_encoder_callback_t::fcb dispatcher.
  */
 static uint32_t h264_encode_flexa_done_cb(uint8_t *yDst, uint8_t *uDst, uint8_t *vDst, uint32_t param)
@@ -183,15 +183,15 @@ static avdk_err_t h264_encode_msg_callback(void *param)
      * cleared post-kick because vcenc latches any pending param changes on
      * this one call.
      */
-    ctrl->enc_param.in_buffer = ctrl->pending_in_buf;
-    ctrl->enc_param.in_lines = ctrl->pending_in_lines;
-    ctrl->enc_param.out_buffer = ctrl->pending_out_buf;
-    ctrl->enc_param.out_len = ctrl->pending_out_size;
-    ctrl->enc_param.force_idr_flag = ctrl->force_idr ? 1U : 0U;
+    ctrl->frame_cfg.in_buffer = ctrl->pending_in_buf;
+    ctrl->frame_cfg.in_lines = ctrl->pending_in_lines;
+    ctrl->frame_cfg.out_buffer = ctrl->pending_out_buf;
+    ctrl->frame_cfg.out_len = ctrl->pending_out_size;
+    ctrl->frame_cfg.force_idr_flag = ctrl->force_idr ? 1U : 0U;
     ctrl->force_idr = false;
     ctrl->debug_info.all_frame_count++;
-    vcenc_ret_e venc_ret = vcenc_h264_encode_frame(&ctrl->enc_param);
-    ctrl->enc_param.update_flag = 0;
+    vcenc_ret_e venc_ret = vcenc_h264_encode_frame(ctrl->handle, &ctrl->frame_cfg);
+    ctrl->frame_cfg.update_flag = 0;
     if (venc_ret != VCENC_FRAME_READY && venc_ret != VCENC_OK) {
         LOGE("vcenc_h264_encode_frame failed: %d\r\n", venc_ret);
         ENCODE_FRAME_END;
@@ -337,33 +337,50 @@ static avdk_err_t h264_encode_ctlr_open(bk_h264_encode_ctlr_handle_t handle)
      * Bring up the vcenc instance: frame-done + slice-done callbacks are
      * wired straight at this controller via args, no h264e_driver dispatcher.
      */
-    os_memset(&control->enc_param, 0, sizeof(control->enc_param));
-    control->enc_param.enc_mode = (vcenc_mode_e)BK_H264_ENCODE_FLEXA_MODE_SOFTWARE;
-    control->enc_param.idr_interval = control->config.gop_frame_count;
-    control->enc_param.slice_count = control->config.input_flexa_cnt;
-    control->enc_param.width = (uint16_t)control->config.width;
-    control->enc_param.height = (uint16_t)control->config.height;
-    control->enc_param.in_type = VCENC_INPUT_NV12;
-    control->enc_param.slice_done_cb = h264_encode_flexa_done_cb;
-    control->enc_param.frame_done_cb = h264e_end_cb;
-    control->enc_param.args = (uint32_t)control;
+    vcenc_config_t      common_cfg = {
+        .mode          = (vcenc_mode_e)BK_H264_ENCODE_FLEXA_MODE_SOFTWARE,
+        .timeout_ms    = 0,
+        .frame_done_cb = h264e_end_cb,
+        .slice_done_cb = h264_encode_flexa_done_cb,
+        .args          = control,
+    };
+    vcenc_h264_config_t h264_cfg = {
+        .width        = (uint16_t)control->config.width,
+        .height       = (uint16_t)control->config.height,
+        .in_type      = VCENC_INPUT_NV12,
+        .idr_interval = control->config.gop_frame_count,
+        .slice_count  = control->config.input_flexa_cnt,
+    };
+    os_memset(&control->frame_cfg, 0, sizeof(control->frame_cfg));
+    control->frame_cfg.width  = (uint16_t)control->config.width;
+    control->frame_cfg.height = (uint16_t)control->config.height;
+    control->frame_cfg.idr_interval = control->config.gop_frame_count;
 
-    vcenc_ret_e venc_ret = vcenc_h264_init(&control->enc_param);
+    control->handle = NULL;
+    vcenc_ret_e venc_ret = vcenc_h264_init(&control->handle, &common_cfg, &h264_cfg);
     if (venc_ret != VCENC_OK) {
         LOGE("vcenc_h264_init failed: %d\r\n", venc_ret);
         return AVDK_ERR_GENERIC;
     }
-    venc_ret = vcenc_h264_open(&control->enc_param);
+    venc_ret = vcenc_h264_memalloc_register(control->handle, hw_encoder_malloc, hw_encoder_free);
+    if (venc_ret != VCENC_OK) {
+        LOGE("vcenc_h264_memalloc_register failed: %d\r\n", venc_ret);
+        (void)vcenc_h264_deinit(control->handle);
+        control->handle = NULL;
+        return AVDK_ERR_GENERIC;
+    }
+    venc_ret = vcenc_h264_open(control->handle);
     if (venc_ret != VCENC_OK) {
         LOGE("vcenc_h264_open failed: %d\r\n", venc_ret);
-        (void)vcenc_h264_deinit(&control->enc_param);
+        (void)vcenc_h264_deinit(control->handle);
+        control->handle = NULL;
         return AVDK_ERR_GENERIC;
     }
     control->encoder_inited = true;
 
     /* Apply legacy open-time fixed-QP defaults. */
     vcenc_rate_ctrl_t rc;
-    if (vcenc_h264_get_rate_ctrl(&control->enc_param, &rc) == VCENC_OK) {
+    if (vcenc_h264_get_rate_ctrl(control->handle, &rc) == VCENC_OK) {
         rc.qp_min_i = H264_ENCODE_DEFAULT_OPEN_QP_I;
         rc.qp_max_i = H264_ENCODE_DEFAULT_OPEN_QP_I;
         rc.qp_min_pb = H264_ENCODE_DEFAULT_OPEN_QP_P;
@@ -371,7 +388,7 @@ static avdk_err_t h264_encode_ctlr_open(bk_h264_encode_ctlr_handle_t handle)
         rc.qp_hdr = (int)rc.qp_min_i;
         rc.picture_rc = 0;
         rc.bit_per_second = 0;
-        (void)vcenc_h264_set_rate_ctrl(&control->enc_param, &rc);
+        (void)vcenc_h264_set_rate_ctrl(control->handle, &rc);
     }
 
     control->enc_line_cnt = 0;
@@ -386,8 +403,8 @@ static avdk_err_t h264_encode_ctlr_open(bk_h264_encode_ctlr_handle_t handle)
     if (ret != BK_OK) {
         LOGE("Create thread failed: %d\r\n", ret);
         control->enc_status = 0;
-        (void)vcenc_h264_close(&control->enc_param);
-        (void)vcenc_h264_deinit(&control->enc_param);
+        (void)vcenc_h264_close(control->handle);
+        (void)vcenc_h264_deinit(control->handle);
         control->encoder_inited = false;
         return AVDK_ERR_GENERIC;
     }
@@ -431,8 +448,8 @@ static avdk_err_t h264_encode_ctlr_close(bk_h264_encode_ctlr_handle_t handle)
     }
 
     if (control->encoder_inited) {
-        (void)vcenc_h264_close(&control->enc_param);
-        (void)vcenc_h264_deinit(&control->enc_param);
+        (void)vcenc_h264_close(control->handle);
+        (void)vcenc_h264_deinit(control->handle);
         control->encoder_inited = false;
     }
     LOGI("H.264 encoder closed\r\n");
@@ -482,8 +499,8 @@ static avdk_err_t h264_encode_ctlr_set_gop_frame_count(private_h264_encode_sw_fl
 
     control->config.gop_frame_count = gop_frame_count;
     if (control->encoder_inited) {
-        control->enc_param.idr_interval = gop_frame_count;
-        control->enc_param.update_flag = 1;
+        control->frame_cfg.idr_interval = gop_frame_count;
+        control->frame_cfg.update_flag = 1;
     }
 
     LOGI("H.264 GOP frame count set, count=%u\r\n", gop_frame_count);
@@ -499,7 +516,7 @@ static avdk_err_t h264_encode_ctlr_get_gop_frame_count(private_h264_encode_sw_fl
     }
 
     if (control->encoder_inited) {
-        *gop_frame_count = control->enc_param.idr_interval;
+        *gop_frame_count = control->frame_cfg.idr_interval;
     } else {
         *gop_frame_count = control->config.gop_frame_count;
     }
@@ -530,7 +547,7 @@ static avdk_err_t h264_encode_ctlr_set_rate_ctrl(private_h264_encode_sw_flexa_ct
     }
 
     vcenc_rate_ctrl_t vcenc_rc;
-    if (vcenc_h264_get_rate_ctrl(&control->enc_param, &vcenc_rc) != VCENC_OK) {
+    if (vcenc_h264_get_rate_ctrl(control->handle, &vcenc_rc) != VCENC_OK) {
         LOGE("vcenc_h264_get_rate_ctrl failed\r\n");
         return AVDK_ERR_GENERIC;
     }
@@ -569,7 +586,7 @@ static avdk_err_t h264_encode_ctlr_set_rate_ctrl(private_h264_encode_sw_flexa_ct
         vcenc_rc.bit_per_second = rate_ctrl->bitrate;
     }
 
-    if (vcenc_h264_set_rate_ctrl(&control->enc_param, &vcenc_rc) != VCENC_OK) {
+    if (vcenc_h264_set_rate_ctrl(control->handle, &vcenc_rc) != VCENC_OK) {
         LOGE("vcenc_h264_set_rate_ctrl failed\r\n");
         return AVDK_ERR_GENERIC;
     }
@@ -589,7 +606,7 @@ static avdk_err_t h264_encode_ctlr_get_rate_ctrl(private_h264_encode_sw_flexa_ct
     }
 
     vcenc_rate_ctrl_t vcenc_rc;
-    if (vcenc_h264_get_rate_ctrl(&control->enc_param, &vcenc_rc) != VCENC_OK) {
+    if (vcenc_h264_get_rate_ctrl(control->handle, &vcenc_rc) != VCENC_OK) {
         LOGE("vcenc_h264_get_rate_ctrl failed\r\n");
         return AVDK_ERR_GENERIC;
     }
@@ -685,7 +702,7 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             return h264_encode_ctlr_get_rate_ctrl(control, (bk_h264_encode_rate_ctrl_t *)arg);
         case BK_H264_ENCODE_IOCTL_SET_FLEXA_LINES_READY: {
             if (control->encoder_inited) {
-                (void)vcenc_h264_update_slice_wr_cnt(&control->enc_param, (uint32_t)arg);
+                (void)vcenc_h264_update_slice_wr_cnt(control->handle, (uint32_t)arg);
             }
             ENCODE_LINE_START;
             break;
@@ -713,7 +730,7 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
             bk_flexa_bond_t *bond = (bk_flexa_bond_t *)arg;
             if (control->bond == bond) {
                 if (control->encoder_inited) {
-                    (void)vcenc_h264_abort(&control->enc_param);
+                    (void)vcenc_h264_abort(control->handle);
                 }
                 control->bond = NULL;
             }
@@ -725,7 +742,7 @@ static avdk_err_t h264_encode_ctlr_ioctl(bk_h264_encode_ctlr_handle_t handle, ui
         }
         case BK_H264_ENCODE_IOCTL_STOP_ENCODE: {
             if (control->encoder_inited) {
-                (void)vcenc_h264_abort(&control->enc_param);
+                (void)vcenc_h264_abort(control->handle);
             }
             break;
         }

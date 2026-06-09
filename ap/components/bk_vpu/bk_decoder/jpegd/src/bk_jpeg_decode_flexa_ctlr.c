@@ -213,6 +213,14 @@ static avdk_err_t jpeg_decode_ctlr_init(bk_jpeg_decode_ctlr_handle_t handle)
         goto error;
     }
 
+    if (vcdec_jpeg_memalloc_register(ctrl->vcdec_handle, jpeg_decode_mem_malloc, jpeg_decode_mem_free) != VCDEC_OK) {
+        LOGE("vcdec_jpeg_memalloc_register failed\r\n");
+        vcdec_jpeg_deinit(ctrl->vcdec_handle);
+        ctrl->vcdec_handle = NULL;
+        ret = AVDK_ERR_GENERIC;
+        goto error;
+    }
+
     LOGI("%s %d JPEG decoder registered to hw controller\r\n", __func__, __LINE__);
     return AVDK_ERR_OK;
 
@@ -343,6 +351,31 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
     ret = rtos_get_semaphore(&ctrl->decode_done_sem, 2000);
     if (ret != AVDK_ERR_OK) {
         LOGE("%s %d rtos_get_semaphore failed: %d\r\n", __func__, __LINE__, ret);
+
+        /*
+         * decode_done_sem timeout means the hw_decoder_task callback is
+         * still running vcdec_jpeg_decode_frame on ctrl->decode_config /
+         * ctrl->vcdec_handle, which is itself referencing the caller's
+         * input/output buffers. Returning here would let the caller free
+         * those buffers while vcdec is still DMA'ing into them (UAF),
+         * and the late callback set_semaphore would also leave a stale
+         * post that pollutes the next decode_frame call.
+         *
+         * Solution: nudge vcdec to bail out via vcdec_jpeg_abort (now
+         * SMP-safe -- writes HWIF_DEC_ABORT_E=1 to MMIO, clears the
+         * active publication, posts the per-handle decode_sem so vcdec's
+         * own sem_wait returns immediately) and then wait FOREVER for
+         * the callback to finish and set decode_done_sem. After the wait
+         * vcdec has already been stopped and active==NULL, so the next
+         * queued msg (jpeg or h264) is unaffected.
+         *
+         * vcdec_jpeg_abort is a no-op when active != this handle (e.g.
+         * the worker has already returned and a different decoder is
+         * the new active), so it is safe to call unconditionally.
+         */
+        vcdec_jpeg_abort(ctrl->vcdec_handle);
+        (void)rtos_get_semaphore(&ctrl->decode_done_sem, BEKEN_WAIT_FOREVER);
+
         if (ctrl->config.frame_done_cb != NULL)
         {
             ctrl->config.frame_done_cb(BK_FAIL, ctrl->config.frame_done_args);
@@ -360,6 +393,13 @@ static avdk_err_t jpeg_decode_ctlr_decode_frame(bk_jpeg_decode_ctlr_handle_t han
     }
 
     if(ctrl->decode_result != BK_OK) {
+        /*
+         * Callback returned: vcdec_jpeg_decode_frame has already stopped
+         * and cleared the hardware on every failure path it returned
+         * through (timeout/error/abort), so no extra abort is needed
+         * here. The timeout branch above handles the case where the
+         * callback has not finished yet.
+         */
         if (ctrl->config.frame_done_cb != NULL)
         {
             ctrl->config.frame_done_cb(BK_FAIL, ctrl->config.frame_done_args);
@@ -406,6 +446,14 @@ static avdk_err_t jpeg_decode_ctlr_close(bk_jpeg_decode_ctlr_handle_t handle)
     AVDK_RETURN_ON_FALSE(ctrl, AVDK_ERR_INVAL, TAG, "control is NULL");
 
     if (ctrl->vcdec_handle) {
+        /*
+         * Caller must guarantee no new decode_frame is dispatched after
+         * close, but a callback may still be running on hw_decoder_task.
+         * Abort first to make any in-flight vcdec_jpeg_decode_frame
+         * sem_wait return immediately; abort is a no-op when this handle
+         * is not the active one (e.g. h264 has already taken over).
+         */
+        vcdec_jpeg_abort(ctrl->vcdec_handle);
         vcdec_jpeg_close(ctrl->vcdec_handle);
     }
     LOGI("JPEG decoder closed\r\n");

@@ -70,23 +70,28 @@ typedef struct {
 
 static hw_encoder_ctlr_t *g_hw_encoder_ctlr = NULL;
 
+/*
+ * Shared encoder buffer allocator. Exposed through hw_encoder_ctlr.h so that
+ * each per-controller _open() can register it via the per-instance
+ * vcenc_xxx_memalloc_register() right after vcenc_xxx_init().
+ */
+void *hw_encoder_malloc(size_t size)
+{
 #ifdef CONFIG_H264_ENCODER_USE_OS_MALLOC
-static void* encoder_malloc(size_t size) {
-    return os_malloc(size);
-}
-
-static void encode_free(void* pbuf){
-    os_free(pbuf);
-}
+	return os_malloc(size);
 #else
-void* encoder_malloc(size_t size) {
-    return bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, size);
+	return bk_frame_buffer_malloc(MEM_SLAB_HEAP_CODED, size);
+#endif
 }
 
-void encode_free(void* pbuf){
-    bk_frame_buffer_free(pbuf);
+void hw_encoder_free(void *pbuf)
+{
+#ifdef CONFIG_H264_ENCODER_USE_OS_MALLOC
+	os_free(pbuf);
+#else
+	bk_frame_buffer_free(pbuf);
+#endif
 }
-#endif // CONFIG_H264_ENCODER_USE_OS_MALLOC
 
 static void encoder_int_register(void)
 {
@@ -123,9 +128,12 @@ static avdk_err_t hw_encoder_hw_init(void)
     bk_pm_clock_ctrl(PM_CLK_ID_H26E, PM_CLK_CTRL_PWR_UP);
 
 	encoder_int_register();
-	vcenc_h264_memalloc_register(encoder_malloc, encode_free);
-	vcenc_jpeg_memalloc_register(encoder_malloc, encode_free);
 
+	/*
+	 * Per-instance memalloc hooks are registered by each controller _open()
+	 * after vcenc_xxx_init() but before vcenc_xxx_open(); the global init
+	 * path here only owns clock / power / IRQ bring-up.
+	 */
 	return AVDK_ERR_OK;
 }
 

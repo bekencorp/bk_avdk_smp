@@ -19,8 +19,8 @@
  * once the audit showed no external caller relied on them.
  *
  * Codec-specific public types live in dedicated headers:
- *   - vcenc_jpeg_types.h  (JPEG-only types, e.g. jpeg_enc_param_t)
- *   - vcenc_h264_types.h  (H264-only types, e.g. h264_enc_param_t)
+ *   - vcenc_jpeg_types.h  (JPEG-only types: vcenc_jpeg_config_t / vcenc_jpeg_frame_config_t)
+ *   - vcenc_h264_types.h  (H264-only types: vcenc_h264_config_t / vcenc_h264_frame_config_t)
  */
 
 #include <stdint.h>
@@ -179,6 +179,21 @@ typedef void (*vcenc_frame_done_cb)(void *, uint32_t, uint32_t, uint32_t, uint32
 
 /** Slice / line-buffer-done callback. Invoked from the encoder ISR context. */
 typedef uint32_t (*vcenc_slice_done_cb)(uint8_t *, uint8_t *, uint8_t *, uint32_t);
+
+/**
+ * @brief Encoder init configuration passed to every codec's _init().
+ *
+ * Codec-agnostic fields that describe the session lifecycle (slicing mode,
+ * hardware wait timeout, completion callbacks). Per-frame buffer pointers and
+ * per-codec geometry live in the codec-specific init / frame config structs.
+ */
+typedef struct vcenc_config_t {
+	vcenc_mode_e        mode;          /* frame / sw slice / hw slice */
+	uint32_t            timeout_ms;    /* 0 = use codec default */
+	vcenc_frame_done_cb frame_done_cb;
+	vcenc_slice_done_cb slice_done_cb;
+	void               *args;
+} vcenc_config_t;
 
 #ifdef __cplusplus
 }

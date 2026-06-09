@@ -74,6 +74,17 @@ avdk_err_t hw_encoder_unregister(void *encoder_id);
  */
 avdk_err_t hw_encoder_send_msg(hw_encoder_msg_t *msg, uintptr_t timeout);
 
+/**
+ * @brief Shared encoder buffer allocator (frame-buffer slab or os_malloc).
+ *
+ * Pass directly to vcenc_h264_memalloc_register() /
+ * vcenc_jpeg_memalloc_register() in each controller _open() so the per-instance
+ * VCENC memory hooks resolve to the same backing allocator the original global
+ * register API used.
+ */
+void *hw_encoder_malloc(size_t size);
+void  hw_encoder_free(void *pbuf);
+
 #ifdef __cplusplus
 }
 #endif

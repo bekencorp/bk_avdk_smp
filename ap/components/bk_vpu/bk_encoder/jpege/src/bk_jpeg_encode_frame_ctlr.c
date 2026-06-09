@@ -82,7 +82,7 @@ static avdk_err_t jpeg_encode_msg_callback(void *param)
 	if (ctrl == NULL)
 		return AVDK_ERR_INVAL;
 
-	ctrl->last_ret = vcenc_jpeg_encode_frame(&ctrl->jpeg_param);
+	ctrl->last_ret = vcenc_jpeg_encode_frame(ctrl->handle, &ctrl->frame_cfg);
 	signal_jpeg_encode_done(ctrl);
 	return jpeg_vcenc_ret_to_avdk(ctrl->last_ret);
 }
@@ -121,8 +121,8 @@ static void jpeg_encoder_entry(void *arg)
 		}
 
 		if (ctrl->pending_input.out_buf != 0) {
-			ctrl->jpeg_param.out_buffer = ctrl->pending_input.out_buf;
-			ctrl->jpeg_param.out_len = ctrl->pending_input.out_size ?
+			ctrl->frame_cfg.out_buffer = ctrl->pending_input.out_buf;
+			ctrl->frame_cfg.out_len = ctrl->pending_input.out_size ?
 							   ctrl->pending_input.out_size :
 							   out_cap;
 		} else if (ctrl->config.outbuf_malloc) {
@@ -133,8 +133,8 @@ static void jpeg_encoder_entry(void *arg)
 				signal_jpeg_encode_done(ctrl);
 				continue;
 			}
-			ctrl->jpeg_param.out_buffer = (uint32_t)(uintptr_t)out_ptr;
-			ctrl->jpeg_param.out_len = out_cap;
+			ctrl->frame_cfg.out_buffer = (uint32_t)(uintptr_t)out_ptr;
+			ctrl->frame_cfg.out_len = out_cap;
 		} else {
 			LOGE("no output buffer\r\n");
 			ctrl->last_ret = VCENC_INVALID_ARGUMENT;
@@ -142,7 +142,7 @@ static void jpeg_encoder_entry(void *arg)
 			continue;
 		}
 
-		ctrl->jpeg_param.in_buffer = in_base;
+		ctrl->frame_cfg.in_buffer = in_base;
 
 		hw_encoder_msg_t msg = {
 			.type = HW_ENCODER_MSG_ENCODE,
@@ -223,24 +223,43 @@ static avdk_err_t jpeg_encode_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 
 	AVDK_RETURN_ON_FALSE(control, AVDK_ERR_INVAL, TAG, "control is NULL");
 
-	os_memset(&control->jpeg_param, 0, sizeof(control->jpeg_param));
-	control->jpeg_param.width = (uint16_t)control->config.width;
-	control->jpeg_param.height = (uint16_t)control->config.height;
-	control->jpeg_param.in_type = jpeg_map_input_format(control->config.input_format);
-	control->jpeg_param.quality = control->config.quality;
-	control->jpeg_param.frame_done_cb = jpeg_encode_done_cb;
-	control->jpeg_param.args = (uint32_t)(uintptr_t)control;
+	vcenc_config_t      common_cfg = {
+		.mode          = VCENC_FRAME_MODE,
+		.timeout_ms    = 0,
+		.frame_done_cb = jpeg_encode_done_cb,
+		.slice_done_cb = NULL,
+		.args          = control,
+	};
+	vcenc_jpeg_config_t jpeg_cfg = {
+		.width   = (uint16_t)control->config.width,
+		.height  = (uint16_t)control->config.height,
+		.in_type = jpeg_map_input_format(control->config.input_format),
+	};
+	os_memset(&control->frame_cfg, 0, sizeof(control->frame_cfg));
+	control->frame_cfg.width   = (uint16_t)control->config.width;
+	control->frame_cfg.height  = (uint16_t)control->config.height;
+	control->frame_cfg.quality = control->config.quality;
 
-	vcenc_ret_e jr = vcenc_jpeg_init(&control->jpeg_param);
+	control->handle = NULL;
+	vcenc_ret_e jr = vcenc_jpeg_init(&control->handle, &common_cfg, &jpeg_cfg);
 	if (jr != VCENC_OK) {
 		LOGE("vcenc_jpeg_init failed: %d\r\n", jr);
 		return jpeg_vcenc_ret_to_avdk(jr);
 	}
 
-	jr = vcenc_jpeg_open(&control->jpeg_param);
+	jr = vcenc_jpeg_memalloc_register(control->handle, hw_encoder_malloc, hw_encoder_free);
+	if (jr != VCENC_OK) {
+		LOGE("vcenc_jpeg_memalloc_register failed: %d\r\n", jr);
+		(void)vcenc_jpeg_deinit(control->handle);
+		control->handle = NULL;
+		return jpeg_vcenc_ret_to_avdk(jr);
+	}
+
+	jr = vcenc_jpeg_open(control->handle);
 	if (jr != VCENC_OK) {
 		LOGE("vcenc_jpeg_open failed: %d\r\n", jr);
-		(void)vcenc_jpeg_deinit(&control->jpeg_param);
+		(void)vcenc_jpeg_deinit(control->handle);
+		control->handle = NULL;
 		return jpeg_vcenc_ret_to_avdk(jr);
 	}
 
@@ -257,8 +276,8 @@ static avdk_err_t jpeg_encode_ctlr_open(bk_jpeg_encode_ctlr_handle_t handle)
 		LOGE("Create JPEG encoder thread failed: %d\r\n", tr);
 		control->enc_status = 0;
 		control->opened = 0;
-		(void)vcenc_jpeg_close(&control->jpeg_param);
-		(void)vcenc_jpeg_deinit(&control->jpeg_param);
+		(void)vcenc_jpeg_close(control->handle);
+		(void)vcenc_jpeg_deinit(control->handle);
 		return AVDK_ERR_GENERIC;
 	}
 
@@ -281,8 +300,8 @@ static avdk_err_t jpeg_encode_ctlr_close(bk_jpeg_encode_ctlr_handle_t handle)
 	rtos_get_semaphore(&control->sem, BEKEN_WAIT_FOREVER);
 
 	if (control->opened) {
-		(void)vcenc_jpeg_close(&control->jpeg_param);
-		(void)vcenc_jpeg_deinit(&control->jpeg_param);
+		(void)vcenc_jpeg_close(control->handle);
+		(void)vcenc_jpeg_deinit(control->handle);
 		control->opened = 0;
 	}
 
@@ -322,7 +341,7 @@ static avdk_err_t jpeg_encode_ctlr_ioctl(bk_jpeg_encode_ctlr_handle_t handle, ui
 		if (arg == NULL)
 			return AVDK_ERR_INVAL;
 		control->config.quality = *(uint8_t *)arg;
-		control->jpeg_param.quality = control->config.quality;
+		control->frame_cfg.quality = control->config.quality;
 		return AVDK_ERR_OK;
 	default:
 		return AVDK_ERR_UNSUPPORTED;
