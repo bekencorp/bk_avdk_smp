@@ -9,7 +9,15 @@
 
 struct usbh_class_info *usbh_class_info_table_begin = NULL;
 struct usbh_class_info *usbh_class_info_table_end = NULL;
-static uint8_t usbh_class_info_table[64];
+/* Each registered host class driver copies one struct usbh_class_info
+ * (12 bytes) into this table at init. The original 64-byte buffer only held 5
+ * entries, but the build registers more than that (hub, msc, video/UVC,
+ * audio/UAC, cdc_acm, cdc_data, ch34x ...). Once MSC + HUB are enabled the
+ * registrations overflow the buffer: the MSC entry lands in corrupted memory
+ * and usbh_find_class_driver() then dispatches the U-disk to the wrong class
+ * driver (observed: audio/UAC connect on an MSC device -> MemFault). Size the
+ * table for 24 entries so all class drivers fit with margin. */
+static uint8_t usbh_class_info_table[24 * sizeof(struct usbh_class_info)];
 
 uint32_t __usbh_class_info_start__ = (uint32_t)&usbh_class_info_table[0];
 uint32_t __usbh_class_info_end__ = (uint32_t)&usbh_class_info_table[0];

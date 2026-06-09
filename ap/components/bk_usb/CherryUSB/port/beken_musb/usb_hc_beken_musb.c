@@ -476,6 +476,7 @@ void usb_hc_riscv_poll_events(void)
     switch (event) {
         case RISCV_USB_PROBE_EVT_CONNECT:
             HWREGB(USB_PHY_BASE + NANENG_PHY_FC_REG0C) = 0xE0;
+            HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_HSENAB;
             USB_LOG_VBS("%s CONNECT from riscv\r\n", __func__);
             usbh_roothub_thread_send_queue(1, (void *)usbh_musb_connect_set_status);
             break;
@@ -835,6 +836,14 @@ static int usbh_reset_port(const uint8_t port)
     //202629 ASIC to restore default value
     //20260312 ASIC to restore default value
     // HWREGB(USB_PHY_BASE + NANENG_PHY_FC_REG0C) = 0xE1;
+
+    /* Keep HS chirp enabled across reset retries. Some high-speed storage
+     * devices can be transiently reported as FS after the first reset; clearing
+     * HSENAB here would lock all following retries into the FS path. */
+    if (!(HWREGB(USB_BASE + MUSB_POWER_OFFSET) & USB_POWER_HSMODE)) {
+        HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_HSENAB;
+    }
+
     g_musb_hcd.port_pe = 1;
     return 0;
 }
@@ -2144,6 +2153,10 @@ void USBH_IRQHandler(void)
     } else if (is & USB_IS_CONN) {
         ///202629 ASIC to set
         HWREGB(USB_PHY_BASE + NANENG_PHY_FC_REG0C) = 0xE0;
+        /* Re-arm HS chirp per attachment; usbh_reset_port() clears HSENAB again
+         * for FS/LS devices (FS U-disk adaptation) so HS peripherals still work
+         * after a full-speed device without a power cycle. */
+        HWREGB(USB_BASE + MUSB_POWER_OFFSET) |= USB_POWER_HSENAB;
         USB_LOG_DBG("%s USB_IS_CONN\r\n", __func__);
         usbh_roothub_thread_send_queue(1, (void *)usbh_musb_connect_set_status);
         musb_set_active_ep(old_ep_idx);

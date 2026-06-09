@@ -151,6 +151,12 @@ CONFIG_TASK_WDT=n
 # build. Look for the bring-up log:
 #   [usb_dc_ll] RISC-V device bridge unavailable (rc=-1); using M55 USBD_IRQHandler path
 # to confirm the fallback fired correctly.
+#
+# USB-host U-disk case: route the host controller through the RISC-V USB
+# bridge. The M55 PHY id_dig fix in usb_driver.c puts the PHY in A-host role
+# before the RISC-V firmware takes over the controller, so the CP-side host
+# firmware can enumerate the inserted U-disk. Device MSC stays byte-for-byte
+# identical (M55 fallback, see note above).
 CONFIG_USB_RISCV_BRIDGE=y
 CONFIG_SDCARD=y
 CONFIG_FATFS=y
@@ -159,4 +165,10 @@ CONFIG_FATFS_SDCARD=y
 CONFIG_USB=y
 CONFIG_USB_DEVICE=y
 CONFIG_USBD_MSC=y
+# Add USB HOST + host MSC so the firmware can switch to host at runtime and
+# enumerate an inserted U-disk (FatFs drive "2:"). Device MSC stays the
+# power-up default; the `udisk` CLI flips to host on demand.
+CONFIG_USB_HOST=y
+CONFIG_USB_HUB=y
+CONFIG_USBH_MSC=y
 CONFIG_SUPPORT_WWDT=n

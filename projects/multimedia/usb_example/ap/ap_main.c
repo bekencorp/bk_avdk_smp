@@ -1,6 +1,8 @@
 #include "bk_private/bk_init.h"
 #include <components/system.h>
 #include <os/os.h>
+#include <os/mem.h>
+#include <os/str.h>
 #include <components/shell_task.h>
 #include <components/bk_frame_buffer.h>
 #include <stdint.h>
@@ -8,18 +10,24 @@
 #include <driver/gpio_types.h>
 #include "gpio_driver.h"
 
-/* Brings in SOC_USB_HS_BASE for the MUSB register dump. The SDK
- * port file usb_dc_beken_musb_mhdrc.c uses the same header. */
-#if CONFIG_SOC_BK7259
-#include <soc/bk7259/reg_base.h>
-#endif
-
 #if CONFIG_FATFS
 #include "ff.h"
 #endif
 
+#if CONFIG_CLI
+#include "cli.h"
+#endif
+
+#if (CONFIG_USB_HOST && CONFIG_USBH_MSC)
+#include <components/usb.h>
+#include <components/usb_types.h>
+#include <components/cherryusb/usbh_core.h>
+#include <components/cherryusb/usbh_msc.h>
+#endif
+
 extern void sys_ana_usb_phy_op(uint8_t en);
 extern int msc_storage_init(void);
+extern int msc_storage_deinit(void);
 
 static beken_thread_t s_msc_init_thread = NULL;
 
@@ -52,6 +60,470 @@ bk_err_t usb_storage_enable(void)
     return BK_OK;
 }
 
+/* =======================================================================
+ *  USB HOST mode: enumerate an inserted U-disk and do a file R/W test.
+ *
+ *  The board powers up as a USB *device* (MSC gadget) by default (see
+ *  msc_storage_init() below). The `udisk` CLI lets a developer flip the
+ *  same MUSB controller into *host* mode at runtime, enumerate a plugged
+ *  U-disk, and run a FatFs write+read+verify round-trip on it.
+ *
+ *  Host bring-up uses the standard SDK path (the same one the UVC host
+ *  camera uses): bk_usb_driver_init() once, then the OTG helper
+ *  bk_usb_otg_manual_convers_mod() which internally tears down the device
+ *  gadget and calls bk_usb_open(USB_HOST_MODE). FatFs reaches the U-disk
+ *  through drive "2:" (DISK_NUMBER_UDISK -> driver_udisk.c ->
+ *  usbh_device_read/write).
+ * ===================================================================== */
+#if (CONFIG_USB_HOST && CONFIG_USBH_MSC && CONFIG_FATFS)
+
+/* No public header for the OTG helper; it is linked in whenever both
+ * CONFIG_USB_DEVICE and CONFIG_USB_HOST are enabled. */
+extern bk_err_t bk_usb_otg_manual_convers_mod(E_USB_MODE close_mod, E_USB_MODE open_mod);
+
+#define UDISK_DRIVE_PATH        "2:"
+#define UDISK_TEST_FILE         "2:/bk_udisk_test.txt"
+#define UDISK_TEST_PAYLOAD      512u
+#define UDISK_ENUM_WAIT_MS      8000u
+#define UDISK_ENUM_POLL_MS      100u
+
+static volatile int s_udisk_driver_inited;   /* bk_usb_driver_init() done once */
+static volatile int s_udisk_in_host_mode;    /* 1 = host, 0 = device(default) */
+static volatile int s_udisk_device_active = 1; /* device gadget is enabled at boot */
+
+static void udisk_ensure_driver_init(void)
+{
+    if (!s_udisk_driver_inited) {
+        bk_err_t ret = bk_usb_driver_init();
+        LOGI("bk_usb_driver_init ret=%d\n", ret);
+        s_udisk_driver_inited = 1;
+    }
+}
+
+/* Wait for the host stack to finish SCSI INQUIRY + READ CAPACITY on the
+ * inserted U-disk. usbh_ms_media_get_status() flips to non-zero once the
+ * MSC class driver's connect callback has succeeded. */
+static int udisk_wait_media(uint32_t timeout_ms)
+{
+    uint32_t waited = 0;
+    while (waited < timeout_ms) {
+        if (usbh_ms_media_get_status()) {
+            LOGI("U-disk media READY after %u ms\n", (unsigned)waited);
+            return 0;
+        }
+        rtos_delay_milliseconds(UDISK_ENUM_POLL_MS);
+        waited += UDISK_ENUM_POLL_MS;
+    }
+    LOGW("U-disk media NOT ready after %u ms (no disk / enum failed)\n",
+         (unsigned)timeout_ms);
+    return -1;
+}
+
+static int udisk_switch_to_host(void)
+{
+    if (s_udisk_in_host_mode) {
+        LOGI("already in HOST mode\n");
+        return 0;
+    }
+
+    udisk_ensure_driver_init();
+
+    bk_err_t ret;
+    if (s_udisk_device_active) {
+        LOGI("switching DEVICE -> HOST ...\n");
+        /* close device gadget (msc_storage_deinit) + open host. */
+        ret = bk_usb_otg_manual_convers_mod(USB_DEVICE_MODE, USB_HOST_MODE);
+        if (ret != BK_OK) {
+            LOGE("otg DEVICE->HOST failed ret=%d\n", ret);
+            return -1;
+        }
+        s_udisk_device_active = 0;
+    } else {
+        /* Clean bring-up (no prior device mode), same as UVC host examples. */
+        LOGI("opening HOST from clean state ...\n");
+        ret = bk_usb_open(USB_HOST_MODE);
+        if (ret != BK_OK) {
+            LOGE("bk_usb_open(HOST) failed ret=%d\n", ret);
+            return -1;
+        }
+    }
+    s_udisk_in_host_mode = 1;
+    LOGI("HOST mode active (VBUS supplied externally; plug U-disk into host port)\n");
+    return 0;
+}
+
+static int udisk_switch_to_device(void)
+{
+    if (!s_udisk_in_host_mode) {
+        LOGI("already in DEVICE mode\n");
+        return 0;
+    }
+
+    LOGI("switching HOST -> DEVICE ...\n");
+    bk_err_t ret = bk_usb_otg_manual_convers_mod(USB_HOST_MODE, USB_DEVICE_MODE);
+    if (ret != BK_OK) {
+        LOGE("otg HOST->DEVICE failed ret=%d\n", ret);
+        return -1;
+    }
+    s_udisk_in_host_mode = 0;
+    s_udisk_device_active = 1;
+    LOGI("DEVICE (MSC gadget) mode restored\n");
+    return 0;
+}
+
+#define UDISK_SCAN_MAX_DEPTH    4
+#define UDISK_SCAN_PATH_MAX     256
+
+/* Recursively walk one directory, printing every file and sub-directory with
+ * indentation by depth and accumulating the total entry count via *count.
+ * DIR/FILINFO are heap allocated per level (not on the PSRAM task stack) and the
+ * recursion is bounded by UDISK_SCAN_MAX_DEPTH to keep memory/stack bounded. */
+static FRESULT udisk_scan_dir(char *path, int depth, int *count)
+{
+    DIR *dir = (DIR *)os_malloc(sizeof(DIR));
+    FILINFO *fno = (FILINFO *)os_malloc(sizeof(FILINFO));
+    FRESULT fr = FR_NOT_ENOUGH_CORE;
+    size_t base_len = os_strlen(path);
+
+    if (!dir || !fno) {
+        goto out;
+    }
+    fr = f_opendir(dir, path);
+    if (fr != FR_OK) {
+        LOGE("f_opendir(%s) failed fr=%d\n", path, fr);
+        goto out;
+    }
+    while (1) {
+        fr = f_readdir(dir, fno);
+        if (fr != FR_OK || fno->fname[0] == 0) {
+            break;
+        }
+        (*count)++;
+        if (fno->fattrib & AM_DIR) {
+            LOGI("%*s<DIR>  %s/\n", depth * 2, "", fno->fname);
+            if (depth + 1 < UDISK_SCAN_MAX_DEPTH) {
+                const char *sep = (base_len && path[base_len - 1] == '/') ? "" : "/";
+                int n = os_snprintf(path + base_len,
+                                    UDISK_SCAN_PATH_MAX - base_len,
+                                    "%s%s", sep, fno->fname);
+                if (n > 0 && (base_len + (size_t)n) < UDISK_SCAN_PATH_MAX) {
+                    udisk_scan_dir(path, depth + 1, count);
+                }
+                path[base_len] = '\0';   /* restore parent path */
+            }
+        } else {
+            LOGI("%*s<FIL>  %s  %lu B\n", depth * 2, "",
+                 fno->fname, (unsigned long)fno->fsize);
+        }
+    }
+    f_closedir(dir);
+
+out:
+    if (dir)  os_free(dir);
+    if (fno)  os_free(fno);
+    return fr;
+}
+
+static FRESULT udisk_scan_root(const char *title)
+{
+    char *path = (char *)os_malloc(UDISK_SCAN_PATH_MAX);
+    FRESULT fr = FR_NOT_ENOUGH_CORE;
+    int count = 0;
+
+    if (!path) {
+        return fr;
+    }
+    os_strcpy(path, UDISK_DRIVE_PATH "/");
+    LOGI("---- U-disk file list (%s) ----\n", title ? title : "recursive");
+    fr = udisk_scan_dir(path, 0, &count);
+    LOGI("---- %d entries total ----\n", count);
+
+    os_free(path);
+    return fr;
+}
+
+/* Full headline test: switch to host, enumerate, mount, write a pattern,
+ * read it back, verify, list the root directory, unmount. */
+static int udisk_run_rw_test(void)
+{
+    FATFS  *fs = NULL;
+    FIL    *fp = NULL;
+    uint8_t *tx = NULL;
+    uint8_t *rx = NULL;
+    FRESULT fr;
+    UINT bw = 0, br = 0;
+    int  mounted = 0;
+    int  rc = -1;
+
+    LOGI("==== U-disk host R/W test BEGIN ====\n");
+
+    if (udisk_switch_to_host() != 0) {
+        return -1;
+    }
+    if (udisk_wait_media(UDISK_ENUM_WAIT_MS) != 0) {
+        LOGE("no U-disk media; abort test\n");
+        return -1;
+    }
+
+    fs = (FATFS *)os_malloc(sizeof(FATFS));
+    fp = (FIL *)os_malloc(sizeof(FIL));
+    tx = (uint8_t *)os_malloc(UDISK_TEST_PAYLOAD);
+    rx = (uint8_t *)os_malloc(UDISK_TEST_PAYLOAD);
+    if (!fs || !fp || !tx || !rx) {
+        LOGE("os_malloc failed\n");
+        goto out_free;
+    }
+
+    for (uint32_t i = 0; i < UDISK_TEST_PAYLOAD; i++) {
+        tx[i] = (uint8_t)(i & 0xFF);
+    }
+    os_memcpy(tx, "BK7259-UDISK-HOST-RW-TEST\n", 26);
+
+    fr = f_mount(fs, UDISK_DRIVE_PATH, 1);
+    if (fr != FR_OK) {
+        LOGE("f_mount(%s) failed fr=%d (3=NOT_READY, 13=NO_FILESYSTEM)\n",
+             UDISK_DRIVE_PATH, fr);
+        goto out_free;
+    }
+    mounted = 1;
+    LOGI("mounted %s\n", UDISK_DRIVE_PATH);
+    (void)udisk_scan_root("before write");
+
+    /* write */
+    fr = f_open(fp, UDISK_TEST_FILE, FA_CREATE_ALWAYS | FA_WRITE);
+    if (fr != FR_OK) {
+        LOGE("f_open(WR) failed fr=%d\n", fr);
+        goto out_unmount;
+    }
+    fr = f_write(fp, tx, UDISK_TEST_PAYLOAD, &bw);
+    (void)f_close(fp);
+    if (fr != FR_OK || bw != UDISK_TEST_PAYLOAD) {
+        LOGE("f_write failed fr=%d bw=%u\n", fr, (unsigned)bw);
+        goto out_unmount;
+    }
+    LOGI("wrote %u bytes -> %s\n", (unsigned)bw, UDISK_TEST_FILE);
+
+    /* read back + verify */
+    fr = f_open(fp, UDISK_TEST_FILE, FA_READ);
+    if (fr != FR_OK) {
+        LOGE("f_open(RD) failed fr=%d\n", fr);
+        goto out_unmount;
+    }
+    os_memset(rx, 0, UDISK_TEST_PAYLOAD);
+    fr = f_read(fp, rx, UDISK_TEST_PAYLOAD, &br);
+    (void)f_close(fp);
+    if (fr != FR_OK || br != UDISK_TEST_PAYLOAD) {
+        LOGE("f_read failed fr=%d br=%u\n", fr, (unsigned)br);
+        goto out_unmount;
+    }
+    if (os_memcmp(tx, rx, UDISK_TEST_PAYLOAD) != 0) {
+        LOGE("DATA MISMATCH!\n");
+        goto out_unmount;
+    }
+    LOGI("read-back PASS (%u bytes verified)\n", (unsigned)br);
+
+    (void)udisk_scan_root("after write");
+    rc = 0;
+
+out_unmount:
+    if (mounted) {
+        fr = f_mount(NULL, UDISK_DRIVE_PATH, 0);
+        if (fr != FR_OK) {
+            LOGW("f_unmount fr=%d\n", fr);
+        } else {
+            LOGI("unmounted %s\n", UDISK_DRIVE_PATH);
+        }
+    }
+out_free:
+    if (fs) os_free(fs);
+    if (fp) os_free(fp);
+    if (tx) os_free(tx);
+    if (rx) os_free(rx);
+
+    LOGI("==== U-disk host R/W test %s ====\n", rc == 0 ? "PASS" : "FAIL");
+    return rc;
+}
+
+static const char *udisk_speed_str(uint8_t speed)
+{
+    switch (speed) {
+    case USB_SPEED_LOW:  return "low (1.5Mbps)";
+    case USB_SPEED_FULL: return "full (12Mbps)";
+    case USB_SPEED_HIGH: return "high (480Mbps)";
+    default:             return "unknown";
+    }
+}
+
+/* Pretty-print the standard descriptors of one enumerated device: the device
+ * descriptor, then every interface and its endpoints. */
+static void udisk_print_hubport(struct usbh_hubport *hport)
+{
+    const struct usb_device_descriptor *dd = &hport->device_desc;
+
+    LOGI("  [dev addr %u] speed=%s\n", hport->dev_addr, udisk_speed_str(hport->speed));
+    LOGI("    VID:PID=%04x:%04x bcdUSB=%04x bcdDevice=%04x\n",
+         dd->idVendor, dd->idProduct, dd->bcdUSB, dd->bcdDevice);
+    LOGI("    class=%02x sub=%02x proto=%02x ep0_mps=%u numConfig=%u\n",
+         dd->bDeviceClass, dd->bDeviceSubClass, dd->bDeviceProtocol,
+         dd->bMaxPacketSize0, dd->bNumConfigurations);
+    if (hport->iManufacturer) LOGI("    Manufacturer: %s\n", hport->iManufacturer);
+    if (hport->iProduct)      LOGI("    Product     : %s\n", hport->iProduct);
+    if (hport->iSerialNumber) LOGI("    Serial      : %s\n", hport->iSerialNumber);
+
+    uint8_t nif = hport->config.config_desc.bNumInterfaces;
+    if (nif > CONFIG_USBHOST_MAX_INTERFACES) {
+        nif = CONFIG_USBHOST_MAX_INTERFACES;
+    }
+    LOGI("    interfaces=%u\n", nif);
+    for (uint8_t i = 0; i < nif; i++) {
+        const struct usb_interface_descriptor *id =
+            &hport->config.intf[i].altsetting[0].intf_desc;
+        LOGI("    if[%u] class=%02x sub=%02x proto=%02x numEp=%u\n",
+             i, id->bInterfaceClass, id->bInterfaceSubClass,
+             id->bInterfaceProtocol, id->bNumEndpoints);
+        uint8_t nep = id->bNumEndpoints;
+        if (nep > CONFIG_USBHOST_MAX_ENDPOINTS) {
+            nep = CONFIG_USBHOST_MAX_ENDPOINTS;
+        }
+        for (uint8_t e = 0; e < nep; e++) {
+            const struct usb_endpoint_descriptor *ed =
+                &hport->config.intf[i].altsetting[0].ep[e].ep_desc;
+            LOGI("      ep 0x%02x attr=0x%02x mps=%u interval=%u\n",
+                 ed->bEndpointAddress, ed->bmAttributes,
+                 ed->wMaxPacketSize, ed->bInterval);
+        }
+    }
+}
+
+/* Scan the root hub for enumerated devices (device addresses are assigned
+ * starting at 1) and print each one. Returns the number of devices found. */
+static int udisk_print_enumerated_devices(void)
+{
+    int found = 0;
+    for (uint8_t addr = 1; addr <= 8; addr++) {
+        struct usbh_hubport *hport = usbh_find_hubport(addr);
+        if (hport && hport->connected) {
+            udisk_print_hubport(hport);
+            found++;
+        }
+    }
+    return found;
+}
+
+/* Enumeration case: switch to host, wait for an inserted device to enumerate,
+ * then print its descriptors. Does NOT mount a filesystem (works for any USB
+ * device class, not just U-disk). */
+static int udisk_run_enum(void)
+{
+    LOGI("==== USB host enumeration BEGIN ====\n");
+    if (udisk_switch_to_host() != 0) {
+        LOGE("cannot enter host mode\n");
+        LOGI("==== USB host enumeration FAIL ====\n");
+        return -1;
+    }
+
+    LOGI("waiting for a device to be plugged in / enumerated ...\n");
+    int devs = 0;
+    uint32_t waited = 0;
+    while (waited < UDISK_ENUM_WAIT_MS) {
+        devs = udisk_print_enumerated_devices();
+        if (devs > 0) {
+            break;
+        }
+        rtos_delay_milliseconds(UDISK_ENUM_POLL_MS);
+        waited += UDISK_ENUM_POLL_MS;
+    }
+
+    if (devs == 0) {
+        LOGW("no device enumerated within %u ms (check cable / power / speed)\n",
+             (unsigned)UDISK_ENUM_WAIT_MS);
+        LOGI("==== USB host enumeration FAIL ====\n");
+        return -1;
+    }
+
+    LOGI("enumerated %d device(s)\n", devs);
+    LOGI("==== USB host enumeration PASS ====\n");
+    return 0;
+}
+
+#if CONFIG_CLI
+static void cli_udisk_help(void)
+{
+    LOGI("usage:\n");
+    LOGI("  udisk host    - switch USB to HOST and enumerate the U-disk\n");
+    LOGI("  udisk dev     - switch USB back to DEVICE (MSC gadget, default)\n");
+    LOGI("  udisk enum    - host + wait for inserted device + print descriptors\n");
+    LOGI("  udisk test    - host + enumerate + mount + write/read/verify + ls\n");
+    LOGI("  udisk ls      - list root dir of the mounted U-disk\n");
+    LOGI("  udisk status  - print current mode + media status\n");
+}
+
+static void cli_udisk_status(void)
+{
+    LOGI("mode=%s, driver_init=%d, host_media=%s\n",
+         s_udisk_in_host_mode ? "host" : "device",
+         s_udisk_driver_inited,
+         (s_udisk_in_host_mode && usbh_ms_media_get_status()) ? "ready" : "not_ready");
+}
+
+static void cli_udisk_cmd(char *pcWriteBuffer, int xWriteBufferLen,
+                          int argc, char **argv)
+{
+    (void)pcWriteBuffer;
+    (void)xWriteBufferLen;
+
+    if (argc < 2) {
+        cli_udisk_help();
+        cli_udisk_status();
+        return;
+    }
+
+    const char *sub = argv[1];
+    if (os_strcmp(sub, "host") == 0) {
+        if (udisk_switch_to_host() == 0) {
+            (void)udisk_wait_media(UDISK_ENUM_WAIT_MS);
+        }
+        cli_udisk_status();
+    } else if (os_strcmp(sub, "dev") == 0) {
+        (void)udisk_switch_to_device();
+        cli_udisk_status();
+    } else if (os_strcmp(sub, "enum") == 0) {
+        (void)udisk_run_enum();
+    } else if (os_strcmp(sub, "test") == 0) {
+        (void)udisk_run_rw_test();
+    } else if (os_strcmp(sub, "ls") == 0) {
+        (void)udisk_scan_root("manual ls");
+    } else if (os_strcmp(sub, "status") == 0) {
+        cli_udisk_status();
+    } else {
+        cli_udisk_help();
+    }
+}
+
+/* Register through the linker .cli_cmdtabl section so bk_cli_init() picks the
+ * `udisk` command up automatically, independent of which core runs main() and
+ * of CLI-subsystem init ordering. The previous explicit cli_register_commands()
+ * from main() raced the CLI bring-up and (because msc_init/main float between
+ * ap0/ap1) intermittently left `udisk` missing from the console table
+ * ("cmd NOT found: udisk"). */
+COMPONENTS_CLI_CMD_EXPORT
+static const struct cli_command s_udisk_cmds[] = {
+    {"udisk", "udisk host|dev|enum|test|ls|status", cli_udisk_cmd},
+};
+
+static void udisk_cli_register(void)
+{
+    /* No-op: s_udisk_cmds is auto-registered via the .cli_cmdtabl section. */
+    LOGI("udisk CLI available via auto-register (try: udisk status)\n");
+}
+#else  /* !CONFIG_CLI */
+static void udisk_cli_register(void) {}
+#endif /* CONFIG_CLI */
+
+#else  /* host MSC not enabled */
+static void udisk_cli_register(void) {}
+#endif /* CONFIG_USB_HOST && CONFIG_USBH_MSC && CONFIG_FATFS */
+
 static void msc_storage_init_task(void *arg)
 {
     (void)arg;
@@ -78,21 +550,16 @@ static void msc_storage_init_task(void *arg)
 
     LOGI("[%s] msc_init: ENTER\r\n", TAG);
     ret = usb_storage_enable();
-    LOGI("[%s] msc_init: RET=%d (see [udisk]/[usb-dbg] lines for detail)\r\n",
-              TAG, ret);
+    LOGI("[%s] msc_init: RET=%d\r\n", TAG, ret);
+
+    /* CLI now registered from main(); nothing to do here. */
 
     /* Bring-up done. The CherryUSB "usbd_msc" worker thread keeps
      * the MSC pipeline alive on its own; the usb_dbg watchdog
      * (spawned inside usb_storage_enable()) handles "is it still
      * running?" diagnostics from here on out. This task has no
      * steady-state work, so self-delete to release its stack/TCB
-     * back to FreeRTOS.
-     *
-     * NOTE: do NOT print a "still alive +Ns" heartbeat here -- the
-     * usb_dbg watchdog already does that, every 2 s for up to 30 s,
-     * with much richer information (FADDR, INTRUSB, irq_cnt, PHY
-     * VCC bits, ...). A second heartbeat would just interleave with
-     * those dumps and add no signal. */
+     * back to FreeRTOS. */
     LOGI("[%s] msc_init: task done, self-deleting\r\n", TAG);
     s_msc_init_thread = NULL;
     rtos_delete_thread(NULL);
@@ -103,6 +570,12 @@ int main(void)
     bk_init();
 
     LOGI("M55 main running...\r\n");
+
+    /* Register the `udisk` host-test CLI from main() (console core, after the
+     * CLI subsystem is up). Doing it here instead of from the early msc_init
+     * task avoids a registration race that left `udisk` missing from the
+     * shell command table. */
+    udisk_cli_register();
 
     bk_err_t cret = rtos_create_thread(&s_msc_init_thread,
         USB_MSC_INIT_TASK_PRIORITY,

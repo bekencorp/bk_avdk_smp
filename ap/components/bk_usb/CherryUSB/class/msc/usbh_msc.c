@@ -14,7 +14,12 @@ static uint32_t g_devinuse = 0;
 static uint8_t media_ready = false;
 struct usbh_msc *current_msc_class = NULL;
 
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_msc_buf[32];
+/* Must be at least one bulk max-packet (512B HS) large. The Beken MUSB host
+ * RX path transfers whatever the device places in the FIFO, and SCSI INQUIRY
+ * alone returns 36 bytes, so the original 32-byte buffer was overrun by device
+ * data during class load (memory corruption / hard fault while loading the MSC
+ * driver right after enumeration). Size it to a full max-packet. */
+USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t g_msc_buf[512];
 
 static int usbh_msc_devno_alloc(struct usbh_msc *msc_class)
 {
