@@ -210,7 +210,14 @@ static void animateTiger_sequence(vg_lite_matrix_t* matrix, uint32_t width, uint
     if (frame_counter >= state_durations[current_state])
     {
         frame_counter = 0;
+        anim_state_t prev_state = current_state;
         current_state = (anim_state_t)((current_state + 1) % ANIM_STATE_MAX);
+
+        /* One full round (scale -> rotate -> translate) just finished */
+        if (prev_state == ANIM_STATE_TRANSLATE)
+        {
+            LOGI("tiger animation round complete\r\n");
+        }
     }
 }
 
