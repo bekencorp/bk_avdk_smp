@@ -41,6 +41,16 @@ uint32_t timer_hal_cal_end_count(timer_id_t chan, uint64_t time, uint32_t div, t
 		case 1:
 			timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER1);
 			break;
+#if (SOC_TIMER_GROUP_NUM > 2)
+		case 2:
+			timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER2);
+			break;
+#endif
+#if (SOC_TIMER_GROUP_NUM > 3)
+		case 3:
+			timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER3);
+			break;
+#endif
 		default:
 			break;
 	}
@@ -61,7 +71,9 @@ bk_err_t timer_hal_init(timer_hal_t *hal)
 {
     hal->hw = (timer_hw_t *)TIMER_LL_REG_BASE(hal->id);
 
-    for (int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_UNIT; chan++) {
+    /* Boot initializes TIMER0/1 only; TIMER2/3 are initialized lazily after
+     * their clocks are enabled by the driver. */
+    for (int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_GROUP * 2; chan++) {
         timer_ll_init(hal->hw, chan);
     }
 

@@ -9,10 +9,11 @@ menu "TIMER"
 
 	config TIMER_SUPPORT_ID_BITS
 		int "timer support id bits"
-		range 0 255
+		range 0 4095
 		default 0
 		help
-		0 indicates that all IDs are supported by default, no configuration required
+		Bitmask of supported timer IDs. 0 means all IDs are supported.
+		For 12 channels use 4095 (0xFFF).
 
 	config TIMER_US
 		bool "Enable timer0 as microsecond timer"

@@ -1259,6 +1259,18 @@ void sys_hal_timer_select_clock(sys_sel_timer_t num, timer_src_clk_t mode)
 			else
 				sys_ll_set_cpu_clk_div_mode2_cksel_tim1(sel_clk32);
 			break;
+		case SYS_SEL_TIMER2:
+			if(mode == TIMER_SCLK_XTAL)
+				sys_ll_set_cpu_clk_div_mode2_cksel_tim2(sel_xtal);
+			else
+				sys_ll_set_cpu_clk_div_mode2_cksel_tim2(sel_clk32);
+			break;
+		case SYS_SEL_TIMER3:
+			if(mode == TIMER_SCLK_XTAL)
+				sys_ll_set_cpu_clk_div_mode2_cksel_tim3(sel_xtal);
+			else
+				sys_ll_set_cpu_clk_div_mode2_cksel_tim3(sel_clk32);
+			break;
 
 		default:
 			break;
@@ -1279,6 +1291,16 @@ uint32_t sys_hal_timer_select_clock_get(sys_sel_timer_t id)
         case SYS_SEL_TIMER1:
         {
             ret = sys_ll_get_cpu_clk_div_mode2_cksel_tim1();
+            break;
+        }
+        case SYS_SEL_TIMER2:
+        {
+            ret = sys_ll_get_cpu_clk_div_mode2_cksel_tim2();
+            break;
+        }
+        case SYS_SEL_TIMER3:
+        {
+            ret = sys_ll_get_cpu_clk_div_mode2_cksel_tim3();
             break;
         }
         default:

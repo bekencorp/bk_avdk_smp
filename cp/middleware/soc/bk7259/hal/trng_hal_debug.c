@@ -17,7 +17,7 @@
 #include "trng_hal.h"
 #include "trng_ll.h"
 
-#if CFG_HAL_DEBUG_TRNG
+#if CFG_HAL_DEBUG_TRNG && CONFIG_TRNG_SUPPORT
 
 void trng_struct_dump(void)
 {

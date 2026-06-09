@@ -24,8 +24,14 @@
 #include "sys_driver.h"
 #include "timer_driver.h"
 
-#if (SOC_TIMER_INTERRUPT_NUM > 1)
+#if (SOC_TIMER_GROUP_NUM > 1)
 static void timer1_isr(void) __BK_SECTION(".itcm");
+#endif
+#if (SOC_TIMER_GROUP_NUM > 2)
+static void timer2_isr(void) __BK_SECTION(".itcm");
+#endif
+#if (SOC_TIMER_GROUP_NUM > 3)
+static void timer3_isr(void) __BK_SECTION(".itcm");
 #endif
 static void timer_isr(void) __BK_SECTION(".itcm");
 
@@ -42,6 +48,7 @@ typedef struct {
 static timer_driver_t s_timer = {0};
 static timer_isr_t s_timer_isr[SOC_TIMER_CHAN_NUM_PER_UNIT] = {NULL};
 static bool s_timer_driver_is_init = false;
+static bool s_timer_chan_hw_inited[SOC_TIMER_CHAN_NUM_PER_UNIT] = {false};
 
 #define TIMER_RETURN_ON_NOT_INIT() do {\
         if (!s_timer_driver_is_init) {\
@@ -87,6 +94,18 @@ static void timer_restore_regs(uint32_t group_id)
             bk_pm_module_lv_sleep_state_clear(PM_DEV_ID_TIMER_1);
         }
         break;
+    case 2:
+        if (bk_pm_module_lv_sleep_state_get(PM_DEV_ID_TIMER_2)) {
+            timer_pm_restore(0, (void *)group_id);
+            bk_pm_module_lv_sleep_state_clear(PM_DEV_ID_TIMER_2);
+        }
+        break;
+    case 3:
+        if (bk_pm_module_lv_sleep_state_get(PM_DEV_ID_TIMER_3)) {
+            timer_pm_restore(0, (void *)group_id);
+            bk_pm_module_lv_sleep_state_clear(PM_DEV_ID_TIMER_3);
+        }
+        break;
     default:
         break;
     }
@@ -117,6 +136,16 @@ void bk_timer_clock_select(timer_id_t id, timer_src_clk_t mode)
 		case 1:
 			sys_drv_timer_select_clock(SYS_SEL_TIMER1, mode);
 			break;
+#if (SOC_TIMER_GROUP_NUM > 2)
+		case 2:
+			sys_drv_timer_select_clock(SYS_SEL_TIMER2, mode);
+			break;
+#endif
+#if (SOC_TIMER_GROUP_NUM > 3)
+		case 3:
+			sys_drv_timer_select_clock(SYS_SEL_TIMER3, mode);
+			break;
+#endif
 		default:
 			break;
 	}
@@ -136,6 +165,16 @@ uint32_t bk_timer_get_clock_src(timer_id_t timer_id)
 		case 1:
 			timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER1);
 			break;
+#if (SOC_TIMER_GROUP_NUM > 2)
+		case 2:
+			timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER2);
+			break;
+#endif
+#if (SOC_TIMER_GROUP_NUM > 3)
+		case 3:
+			timer_clock = sys_hal_timer_select_clock_get(SYS_SEL_TIMER3);
+			break;
+#endif
 		default:
 			break;
 	}
@@ -156,9 +195,16 @@ static void timer_clock_enable(timer_id_t id)
 		case 1:
             sys_hal_clk_pwr_ctrl(CLK_PWR_ID_TIMER1, CLK_PWR_CTRL_PWR_UP);
 			break;
+#if (SOC_TIMER_GROUP_NUM > 2)
 		case 2:
             sys_hal_clk_pwr_ctrl(CLK_PWR_ID_TIMER2, CLK_PWR_CTRL_PWR_UP);
 			break;
+#endif
+#if (SOC_TIMER_GROUP_NUM > 3)
+		case 3:
+            sys_hal_clk_pwr_ctrl(CLK_PWR_ID_TIMER3, CLK_PWR_CTRL_PWR_UP);
+			break;
+#endif
 		default:
 			break;
 	}
@@ -177,9 +223,16 @@ static void timer_clock_disable(timer_id_t id)
 		case 1:
             sys_hal_clk_pwr_ctrl(CLK_PWR_ID_TIMER1, CLK_PWR_CTRL_PWR_DOWN);
 			break;
+#if (SOC_TIMER_GROUP_NUM > 2)
 		case 2:
             sys_hal_clk_pwr_ctrl(CLK_PWR_ID_TIMER2, CLK_PWR_CTRL_PWR_DOWN);
 			break;
+#endif
+#if (SOC_TIMER_GROUP_NUM > 3)
+		case 3:
+            sys_hal_clk_pwr_ctrl(CLK_PWR_ID_TIMER3, CLK_PWR_CTRL_PWR_DOWN);
+			break;
+#endif
 		default:
 			break;
 	}
@@ -207,6 +260,24 @@ static void timer_interrupt_enable(timer_id_t id)
             sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_TIMER1, 1);
 #endif
 			break;
+#if (SOC_TIMER_GROUP_NUM > 2)
+		case 2:
+#if CONFIG_SOC_SMP
+            sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_TIMER2, 1);
+#else
+            sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_TIMER2, 1);
+#endif
+			break;
+#endif
+#if (SOC_TIMER_GROUP_NUM > 3)
+		case 3:
+#if CONFIG_SOC_SMP
+            sys_drv_set_int_en(CPU0_CORE_ID, INT_SRC_TIMER3, 1);
+#else
+            sys_drv_set_int_en(rtos_get_core_id(), INT_SRC_TIMER3, 1);
+#endif
+			break;
+#endif
 		default:
 			break;
 	}
@@ -214,8 +285,11 @@ static void timer_interrupt_enable(timer_id_t id)
 
 static void timer_chan_init_common(timer_id_t timer_id)
 {
-    bk_timer_clock_select(timer_id, TIMER_SCLK_XTAL);
 	timer_clock_enable(timer_id);
+	if (!s_timer_chan_hw_inited[timer_id]) {
+		timer_ll_init(s_timer.hal.hw, timer_id);
+		s_timer_chan_hw_inited[timer_id] = true;
+	}
 }
 
 static void timer_chan_deinit_common(timer_id_t timer_id)
@@ -291,6 +365,14 @@ static void timer_register_lvsleep_cb(uint32_t group_id)
             bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_TIMER_1, &timer_enter_config, &timer_exit_config);
             bk_pm_module_lv_sleep_state_clear(PM_DEV_ID_TIMER_1);
             break;
+        case 2:
+            bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_TIMER_2, &timer_enter_config, &timer_exit_config);
+            bk_pm_module_lv_sleep_state_clear(PM_DEV_ID_TIMER_2);
+            break;
+        case 3:
+            bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_TIMER_3, &timer_enter_config, &timer_exit_config);
+            bk_pm_module_lv_sleep_state_clear(PM_DEV_ID_TIMER_3);
+            break;
         default:
             break;
     }
@@ -308,6 +390,12 @@ static void timer_unregister_lvsleep_cb(uint32_t group_id)
         case 1:
             bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_TIMER_1, true, true);
             bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_BAKP_TIMER1, PM_POWER_MODULE_STATE_OFF);
+            break;
+        case 2:
+            bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_TIMER_2, true, true);
+            break;
+        case 3:
+            bk_pm_sleep_unregister_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_TIMER_3, true, true);
             break;
         default:
             break;
@@ -331,11 +419,25 @@ bk_err_t bk_timer_driver_init(void)
     }
 #endif
 
+    for (uint32_t group = 0; group < SOC_TIMER_GROUP_NUM; group++) {
+        bk_timer_clock_select(group * SOC_TIMER_CHAN_NUM_PER_GROUP, TIMER_SCLK_XTAL);
+    }
+
     bk_int_isr_register(INT_SRC_TIMER, timer_isr, NULL);
-#if (SOC_TIMER_INTERRUPT_NUM > 1)
+#if (SOC_TIMER_GROUP_NUM > 1)
     bk_int_isr_register(INT_SRC_TIMER1, timer1_isr, NULL);
 #endif
+#if (SOC_TIMER_GROUP_NUM > 2)
+    bk_int_isr_register(INT_SRC_TIMER2, timer2_isr, NULL);
+#endif
+#if (SOC_TIMER_GROUP_NUM > 3)
+    bk_int_isr_register(INT_SRC_TIMER3, timer3_isr, NULL);
+#endif
+
     timer_hal_init(&s_timer.hal);
+    for (int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_GROUP * 2; chan++) {
+        s_timer_chan_hw_inited[chan] = true;
+    }
 
     s_timer_driver_is_init = true;
 
@@ -539,41 +641,47 @@ uint32_t timer_clear_isr_status(void)
 #pragma GCC push_options
 #pragma GCC target("general-regs-only")
 
-static void __BK_IRQ timer_isr(void)
+static void timer_group_isr(uint32_t group)
 {
     uint32_t int_status;
     timer_hal_t *hal = &s_timer.hal;
+    uint32_t chan_base = group * SOC_TIMER_CHAN_NUM_PER_GROUP;
 
-    int_status = timer_clear_isr_status();
+    int_status = timer_hal_get_group_interrupt_status(hal, group);
+    timer_hal_clear_group_interrupt_status(hal, group, int_status);
 
-#if (SOC_TIMER_INTERRUPT_NUM > 1)
-     for(int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_GROUP; chan++) {
-#else
-    for(int chan = 0; chan < SOC_TIMER_CHAN_NUM_PER_UNIT; chan++) {
-#endif
-        if(timer_hal_is_interrupt_triggered(hal, chan, int_status)) {
-            if(s_timer_isr[chan]) {
-                s_timer_isr[chan](chan);
+    for (int i = 0; i < SOC_TIMER_CHAN_NUM_PER_GROUP; i++) {
+        if (int_status & BIT(i)) {
+            if (s_timer_isr[chan_base + i]) {
+                s_timer_isr[chan_base + i](chan_base + i);
             }
         }
     }
 }
 
-#if (SOC_TIMER_INTERRUPT_NUM > 1)
-static void __BK_IRQ timer1_isr(void)
+static void timer_isr(void)
 {
-    uint32_t int_status;
-    timer_hal_t *hal = &s_timer.hal;
+    timer_group_isr(0);
+}
 
-    int_status = timer_clear_isr_status();
+#if (SOC_TIMER_GROUP_NUM > 1)
+static void timer1_isr(void)
+{
+    timer_group_isr(1);
+}
+#endif
 
-    for(int chan = SOC_TIMER_CHAN_NUM_PER_GROUP; chan < SOC_TIMER_CHAN_NUM_PER_UNIT; chan++) {
-        if(timer_hal_is_interrupt_triggered(hal, chan, int_status)) {
-            if(s_timer_isr[chan]) {
-                s_timer_isr[chan](chan);
-            }
-        }
-    }
+#if (SOC_TIMER_GROUP_NUM > 2)
+static void timer2_isr(void)
+{
+    timer_group_isr(2);
+}
+#endif
+
+#if (SOC_TIMER_GROUP_NUM > 3)
+static void timer3_isr(void)
+{
+    timer_group_isr(3);
 }
 #endif
 
