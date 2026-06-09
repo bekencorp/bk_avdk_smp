@@ -204,6 +204,16 @@ DSTATUS disk_initialize (
 				FATFS_LOGI("%s retry count:%d\r\n", __func__, i);
 				bk_sd_card_deinit();
 				sdcard_ldo_power_enable(1);
+				/* bk_sd_card_deinit()->sdio_reset() turns SD_CLK off
+				 * for only ~10us before bk_sd_card_init() restarts it.
+				 * That window is too short for the SD card to observe
+				 * a clock-loss and execute its internal soft reset, so
+				 * back-to-back retries usually fail the same way as the
+				 * first attempt. Give the card 10ms with CLK quiet so
+				 * it actually re-enters the power-on-reset state, then
+				 * the +50ms inside sd_card_init() will let POR finish
+				 * before CMD0. */
+				rtos_delay_milliseconds(10);
 				result = bk_sd_card_init();
 				if(result != RES_OK) {
 					FATFS_LOGI("%s ERROR result:%d\r\n", __func__, result);
