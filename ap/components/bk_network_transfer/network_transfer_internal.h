@@ -66,6 +66,11 @@ bk_err_t ntwk_in_register_audio_stop_cb(ntwk_in_stop_cb_t cb);
 bk_err_t ntwk_in_start(chan_type_t chan_type, void *param);
 bk_err_t ntwk_in_stop(chan_type_t chan_type);
 
+#if CONFIG_NTWK_CTRL_CHAN_JSON
+int ntwk_trans_json_tx_handler(chan_type_t chan, uint8_t *data, uint32_t length);
+int ntwk_trans_json_rx_handler(chan_type_t chan, uint8_t *data, uint32_t length);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

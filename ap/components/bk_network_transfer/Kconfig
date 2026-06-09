@@ -50,13 +50,23 @@ menu "Bk Network Transfer"
 		help
 			Enable network client service
 
-	config NTWK_CTRL_CHAN_PASSTHROUGH
-		bool "Enable control channel passthrough"
+	config NTWK_CTRL_CHAN_JSON
+		bool "Enable control channel JSON framing"
 		depends on BK_NTWK_TRANSFER
 		default n
 		help
-			Do not pack or unpack control channel payloads. Use this when the
-			application protocol already frames commands, such as JSON-RPC 2.0.
+			Frame control-channel JSON methods in the common network transfer layer.
+			When enabled, one application JSON method can be split across multiple
+			transport packets and is reassembled before the application callback.
+			When disabled, the existing control-channel pack/unpack path is used.
+
+	config NTWK_CTRL_JSON_RX_MAX_SIZE
+		int "Control channel max JSON method size"
+		depends on NTWK_CTRL_CHAN_JSON
+		default 8192
+		help
+			Maximum complete JSON method size accepted by the common JSON
+			reassembly layer.
 
 	config NTWK_PKT_USE_PSARM_MEM
 		bool "Use PSRAM for Network Transfer Packet Memory Allocation"

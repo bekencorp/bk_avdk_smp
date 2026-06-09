@@ -9,6 +9,7 @@
 #include "common/bk_ntwk_pack/ntwk_fragmentation.h"
 #include "common/bk_video_drop_policy/video_drop.h"
 #include "common/bk_ntwk_sdp/ntwk_sdp.h"
+#include "common/bk_ntwk_js_ctrl/ntwk_json.h"
 #include "ntwk_udp_service.h"
 #include "network_type.h"
 #include "network_transfer_internal.h"
@@ -94,22 +95,27 @@ bk_err_t bk_udp_trans_service_init(char *service_name)
     if (ctxt->cntrl_chan != NULL)
     {
         ctxt->cntrl_chan->type = NTWK_TRANS_CHAN_CTRL;
-#if CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
+#if CONFIG_NTWK_CTRL_CHAN_JSON
         ctxt->cntrl_chan->pack = NULL;
         ctxt->cntrl_chan->unpack = NULL;
+        ctxt->cntrl_chan->fragment = ntwk_json_ctrl_fragment;
+        ctxt->cntrl_chan->unfragment = ntwk_json_ctrl_unfragment;
 #else
         ctxt->cntrl_chan->pack = ntwk_pack_ctrl_pack;
         ctxt->cntrl_chan->unpack = ntwk_pack_ctrl_unpack;
-#endif
         ctxt->cntrl_chan->fragment = NULL;
         ctxt->cntrl_chan->unfragment = NULL;
+#endif
 
 #if !CONFIG_NTWK_CLIENT_SERVICE_ENABLE
         // Server mode
         ctxt->cntrl_chan->send = ntwk_udp_ctrl_chan_send;
         ntwk_in_register_ctrl_start_cb(ntwk_udp_ctrl_chan_start);
         ntwk_in_register_ctrl_stop_cb(ntwk_udp_ctrl_chan_stop);
-#if CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
+#if CONFIG_NTWK_CTRL_CHAN_JSON
+        ntwk_json_register_send_cb(ctxt->cntrl_chan->type, ntwk_trans_json_tx_handler);
+        ntwk_json_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_json_rx_handler);
+        ntwk_json_chan_start(ctxt->cntrl_chan->type, NTWK_TRANS_CMD_BUFFER);
         ntwk_udp_ctrl_register_receive_cb(ntwk_trans_ctrl_recv_handler);
 #else
         ntwk_pack_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_pack_rx_handler);
@@ -121,7 +127,10 @@ bk_err_t bk_udp_trans_service_init(char *service_name)
         ctxt->cntrl_chan->send = ntwk_udp_ctrl_client_chan_send;
         ntwk_in_register_ctrl_start_cb(ntwk_udp_ctrl_client_chan_start);
         ntwk_in_register_ctrl_stop_cb(ntwk_udp_ctrl_client_chan_stop);
-#if CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
+#if CONFIG_NTWK_CTRL_CHAN_JSON
+        ntwk_json_register_send_cb(ctxt->cntrl_chan->type, ntwk_trans_json_tx_handler);
+        ntwk_json_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_json_rx_handler);
+        ntwk_json_chan_start(ctxt->cntrl_chan->type, NTWK_TRANS_CMD_BUFFER);
         ntwk_udp_ctrl_client_register_receive_cb(ntwk_trans_ctrl_recv_handler);
 #else
         ntwk_pack_register_recv_cb(ctxt->cntrl_chan->type, ntwk_trans_pack_rx_handler);
@@ -221,7 +230,9 @@ bk_err_t bk_udp_trans_service_deinit(void)
     }
 
 
-#if !CONFIG_NTWK_CTRL_CHAN_PASSTHROUGH
+#if CONFIG_NTWK_CTRL_CHAN_JSON
+    ntwk_json_chan_stop(NTWK_TRANS_CHAN_CTRL);
+#else
     ntwk_pack_chan_stop(NTWK_TRANS_CHAN_CTRL);
 #endif
 
