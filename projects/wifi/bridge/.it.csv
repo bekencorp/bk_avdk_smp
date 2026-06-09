@@ -1,0 +1,4 @@
+case名称,测试命令（必填）,输入设备（1代表设备1，2代表设备2以此类推，不填默认为设备1）,期望结果（选填）,超时时间(s)
+bridge_open,bridge open demo_test_ap 12345678,1,CMDRSP:OK,120
+bridge_state,state,1,bridge:,60
+bridge_close,bridge close,1,CMDRSP:OK,60
