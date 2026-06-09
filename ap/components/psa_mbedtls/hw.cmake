@@ -60,6 +60,7 @@ if (CONFIG_TRUSTENGINE)
 
 		${TE_DIR}/dubhe_lib/bignum.c
 		${TE_DIR}/dubhe_lib/bignum_delta.c
+		${TE_DIR}/dubhe_lib/bignum_366_compat.c
 		${TE_DIR}/dubhe_lib/cipher.c
 		${TE_DIR}/dubhe_lib/cipher_wrap.c
 		${TE_DIR}/dubhe_lib/ctr_drbg.c
@@ -87,7 +88,7 @@ set(hw_defs
 	DUBHE_SECURE
 	ARM_CE_DUBHE_SCA
 	ARM_CE_DUBHE_TRNG
-	#ARM_CE_DUBHE_OTP
+	ARM_CE_DUBHE_OTP
 	ARM_CE_DUBHE_HASH
 	ARM_CE_DUBHE_ACA
 	DUBHE_FOR_RUNTIME

@@ -34,7 +34,7 @@
 #include "mbedtls/platform.h"
 #else
 #include <stdio.h>
-#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
+#define mbedtls_printf printf
 #endif /* MBEDTLS_PLATFORM_C */
 #endif /* MBEDTLS_SELF_TEST */
 
@@ -381,7 +381,7 @@ int te200_aes_cbc_large_data_test(uint32_t encrypt_len)
 	for(i =0; i < encrypt_len; i++)
 	{
 		if(input_p[i] != (i%0xff)){
-			BK_LOGD(NULL, "aes-cbc test fail i=%d val=%2x \r\n",i, input_p[i]);
+			BK_LOGD(NULL,"aes-cbc test fail i=%d val=%2x \r\n",i, input_p[i]);
 			ret = 2;
 			goto exit;
 		}
@@ -545,7 +545,7 @@ int te200_aes_gcm_large_data_test(uint32_t encrypt_len)
 	for(i = 0; i < encrypt_len; i++)
 	{
 		if(input_p[i] != (i%0xff)){
-			BK_LOGD(NULL, "aes-gcm test fail i=%d val=%2x \r\n",i, input_p[i]);
+			BK_LOGD(NULL,"aes-gcm test fail i=%d val=%2x \r\n",i, input_p[i]);
 			ret = 2;
 			goto exit;
 		}

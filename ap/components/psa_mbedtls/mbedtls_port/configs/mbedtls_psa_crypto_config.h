@@ -19,32 +19,8 @@
 #include <os/mem.h>
 #include "sdkconfig.h"
 
-#ifdef CONFIG_MBEDTLS_CUSTOM_CONFIG_FILE
-/**
- * \brief Custom mbedtls configuration file
- * 
- * When CONFIG_MBEDTLS_CUSTOM_CONFIG_FILE is enabled, this file should exist
- * in the project configuration directory: {PROJECT_DIR}/ap/config/ARMINO_SOC_ap/
- * 
- * Example path: projects/app/ap/config/bk7258_ap/mbedtls_custom_config_file.h
- * 
- * If the custom config file is not found, the default configuration below will be used.
- */
-#ifdef __has_include
-    #if __has_include("mbedtls_custom_config_file.h")
-        #include "mbedtls_custom_config_file.h"
-        #define MBEDTLS_NOT_USE_DEFAULT_CONFIG
-    #else
-        #pragma message "mbedtls_custom_config_file.h not found, using default configuration"
-    #endif
-#else
-    /* Fallback for compilers without __has_include support */
-    #include "mbedtls_custom_config_file.h"
-    #define MBEDTLS_NOT_USE_DEFAULT_CONFIG
-#endif
-#endif
+#define MBEDTLS_CONFIG_VERSION 0x03060600
 
-#ifndef MBEDTLS_NOT_USE_DEFAULT_CONFIG
 #if CONFIG_FULL_MBEDTLS
 
 /**
@@ -54,7 +30,7 @@
  * It is equal to the #MBEDTLS_VERSION_NUMBER of the Mbed TLS version that
  * introduced the config format we want to be compatible with.
  */
-//#define MBEDTLS_CONFIG_VERSION 0x03000000
+//#define MBEDTLS_CONFIG_VERSION 0x03060600
 
 /**
  * \name SECTION: System support
@@ -241,17 +217,6 @@
  * Enable this layer to allow use of alternative memory allocators.
  */
 #define MBEDTLS_PLATFORM_MEMORY
-#if defined( MBEDTLS_PLATFORM_MEMORY )
-extern void *tls_mbedtls_mem_calloc(size_t n, size_t size);
-extern void tls_mbedtls_mem_free(void *ptr);
-#define MBEDTLS_PLATFORM_STD_CALLOC             tls_mbedtls_mem_calloc
-#define MBEDTLS_PLATFORM_STD_FREE               tls_mbedtls_mem_free
-#endif
-#define MBEDTLS_PLATFORM_STD_SNPRINTF        snprintf
-#define os_calloc(nmemb,size)   ((size) && (nmemb) > (~( unsigned int) 0)/(size))?0:os_zalloc((nmemb)*(size))
-//#define MBEDTLS_PLATFORM_CALLOC_MACRO        os_calloc /**< Default allocator macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_CALLOC for requirements. */
-//#define MBEDTLS_PLATFORM_FREE_MACRO            os_free /**< Default free macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_FREE for requirements. */
-#define MBEDTLS_PLATFORM_PRINTF_MACRO        os_printf /**< Default printf macro to use, can be undefined */
 
 /**
  * \def MBEDTLS_PLATFORM_NO_STD_FUNCTIONS
@@ -1232,10 +1197,8 @@ extern void tls_mbedtls_mem_free(void *ptr);
  * mbedtls_x509_crt_parse_file (e.g. load cert from SD path in kvs_aws_sample).
  * MBEDTLS_NO_POSIX_DIRENT: arm-none-eabi has no <dirent.h>; parse_path is stubbed.
  */
-#if CONFIG_FULL_MBEDTLS
 #define MBEDTLS_FS_IO
 #define MBEDTLS_NO_POSIX_DIRENT
-#endif
 
 /**
  * \def MBEDTLS_NO_DEFAULT_ENTROPY_SOURCES
@@ -1998,11 +1961,8 @@ extern void tls_mbedtls_mem_free(void *ptr);
  * Requires: MBEDTLS_SSL_PROTO_DTLS
  *
  * Uncomment this to enable support for use_srtp extension.
- * Enabled when CONFIG_FULL_MBEDTLS (e.g. kvs_aws_sample WebRTC needs DTLS-SRTP).
  */
-#if CONFIG_FULL_MBEDTLS
 #define MBEDTLS_SSL_DTLS_SRTP
-#endif
 
 /**
  * \def MBEDTLS_SSL_DTLS_CLIENT_PORT_REUSE
@@ -3933,16 +3893,17 @@ extern void tls_mbedtls_mem_free(void *ptr);
 //#define MBEDTLS_PLATFORM_STD_NV_SEED_WRITE  mbedtls_platform_std_nv_seed_write /**< Default nv_seed_write function to use, can be undefined */
 //#define MBEDTLS_PLATFORM_STD_NV_SEED_FILE  "seedfile" /**< Seed file to read/write with default implementation */
 
-//#define os_calloc(nmemb,size)   ((size) && (nmemb) > (~( unsigned int) 0)/(size))?0:os_zalloc((nmemb)*(size))
+#define os_calloc(nmemb,size)   ((size) && (nmemb) > (~( unsigned int) 0)/(size))?0:os_zalloc((nmemb)*(size))
 /* To use the following function macros, MBEDTLS_PLATFORM_C must be enabled. */
 /* MBEDTLS_PLATFORM_XXX_MACRO and MBEDTLS_PLATFORM_XXX_ALT cannot both be defined */
-//#define MBEDTLS_PLATFORM_CALLOC_MACRO        os_calloc /**< Default allocator macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_CALLOC for requirements. */
+#define MBEDTLS_PLATFORM_CALLOC_MACRO        os_calloc /**< Default allocator macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_CALLOC for requirements. */
+#define MBEDTLS_PLATFORM_FREE_MACRO            os_free /**< Default free macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_FREE for requirements. */
 //#define MBEDTLS_PLATFORM_EXIT_MACRO            exit /**< Default exit macro to use, can be undefined */
 //#define MBEDTLS_PLATFORM_SETBUF_MACRO      setbuf /**< Default setbuf macro to use, can be undefined */
 //#define MBEDTLS_PLATFORM_TIME_MACRO            time /**< Default time macro to use, can be undefined. MBEDTLS_HAVE_TIME must be enabled */
 //#define MBEDTLS_PLATFORM_TIME_TYPE_MACRO       time_t /**< Default time macro to use, can be undefined. MBEDTLS_HAVE_TIME must be enabled */
 //#define MBEDTLS_PLATFORM_FPRINTF_MACRO      fprintf /**< Default fprintf macro to use, can be undefined */
-//#define MBEDTLS_PLATFORM_PRINTF_MACRO        os_printf /**< Default printf macro to use, can be undefined */
+#define MBEDTLS_PLATFORM_PRINTF_MACRO        os_printf /**< Default printf macro to use, can be undefined */
 /* Note: your snprintf must correctly zero-terminate the buffer! */
 // #define MBEDTLS_PLATFORM_SNPRINTF_MACRO    snprintf /**< Default snprintf macro to use, can be undefined */
 //#define MBEDTLS_PLATFORM_VSNPRINTF_MACRO    vsnprintf /**< Default vsnprintf macro to use, can be undefined */
@@ -4219,7 +4180,6 @@ extern void tls_mbedtls_mem_free(void *ptr);
 #define MBEDTLS_ENTROPY_C
 #define MBEDTLS_ECP_FIXED_POINT_OPTIM 0
 #define MBEDTLS_HKDF_C
-#define MBEDTLS_MD5_C
 #define MBEDTLS_OID_C
 #define MBEDTLS_PEM_PARSE_C
 #define MBEDTLS_PK_C
@@ -4243,19 +4203,15 @@ extern void tls_mbedtls_mem_free(void *ptr);
 #define MBEDTLS_PLATFORM_SNPRINTF_ALT
 #endif
 
+#define MBEDTLS_MD5_C
+
 #define MBEDTLS_THREADING_ALT
 #define MBEDTLS_THREADING_C
 #define MBEDTLS_PLATFORM_MEMORY
-#if defined( MBEDTLS_PLATFORM_MEMORY )
-extern void *tls_mbedtls_mem_calloc(size_t n, size_t size);
-extern void tls_mbedtls_mem_free(void *ptr);
-#define MBEDTLS_PLATFORM_STD_CALLOC             tls_mbedtls_mem_calloc
-#define MBEDTLS_PLATFORM_STD_FREE               tls_mbedtls_mem_free
-#endif
 #define MBEDTLS_PLATFORM_STD_SNPRINTF        snprintf
 #define os_calloc(nmemb,size)   ((size) && (nmemb) > (~( unsigned int) 0)/(size))?0:os_zalloc((nmemb)*(size))
-//#define MBEDTLS_PLATFORM_CALLOC_MACRO        os_calloc /**< Default allocator macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_CALLOC for requirements. */
-//#define MBEDTLS_PLATFORM_FREE_MACRO            os_free /**< Default free macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_FREE for requirements. */
+#define MBEDTLS_PLATFORM_CALLOC_MACRO        os_calloc /**< Default allocator macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_CALLOC for requirements. */
+#define MBEDTLS_PLATFORM_FREE_MACRO            os_free /**< Default free macro to use, can be undefined. See MBEDTLS_PLATFORM_STD_FREE for requirements. */
 #define MBEDTLS_PLATFORM_PRINTF_MACRO        os_printf /**< Default printf macro to use, can be undefined */
 
 #endif //CONFIG_FULL_MBEDTLS
@@ -4280,7 +4236,5 @@ extern void tls_mbedtls_mem_free(void *ptr);
 #endif
 
 // #include "mbedtls/check_config.h"
-
-#endif
 
 #endif /* MBEDTLS_PSA_CRYPTO_CONFIG_H */

@@ -8,9 +8,8 @@
 #include <stdio.h>
 #include "common.h"
 
-#if CONFIG_TRNG_SUPPORT
-#include <driver/trng.h>
-#endif
+#include <stdint.h>
+#include <stdlib.h>
 
 #if defined(MBEDTLS_PLATFORM_C)
 
@@ -406,45 +405,43 @@ void mbedtls_platform_teardown(mbedtls_platform_context *ctx)
 
 #endif /* MBEDTLS_PLATFORM_C */
 
-int myrand( void *rng_state, unsigned char *output, size_t len )
+
+int myrand(void *rng_state, unsigned char *output, size_t len)
 {
-	if (output == NULL || len == 0) {
-		return -1;
-	}
+    if (output == NULL || len == 0) {
+        return -1;
+    }
 
 #if CONFIG_TRUSTENGINE
-	(void) rng_state;
-	extern int arm_ce_seed_read( unsigned char *buf, size_t buf_len );
-	arm_ce_seed_read(output, len);
+    (void) rng_state;
+    extern int arm_ce_seed_read(unsigned char *buf, size_t buf_len);
+    arm_ce_seed_read(output, len);
 
 #elif CONFIG_OTP_V1
-	bk_err_t bk_otp_read_random_number(uint32_t* value, uint32_t size);
-	uint32_t rand_num = 0;
-	for (int i = 0; i < len; i++)
-	{
-		if ((i % 4) == 0)
-		{
-			bk_otp_read_random_number(&rand_num, 1);
-		}
-		output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
-	}
+    bk_err_t bk_otp_read_random_number(uint32_t *value, uint32_t size);
+    uint32_t rand_num = 0;
+    for (size_t i = 0; i < len; i++) {
+        if ((i % 4) == 0) {
+            bk_otp_read_random_number(&rand_num, 1);
+        }
+        output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
+    }
 
 #elif CONFIG_TRNG_SUPPORT
-	uint32_t rand_num = 0;
-	for (int i = 0; i < len; i++)
-	{
-		if ((i % 4) == 0)
-		{
-			rand_num = bk_rand();
-		}
-		output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
-	}
+    uint32_t rand_num = 0;
+    for (size_t i = 0; i < len; i++) {
+        if ((i % 4) == 0) {
+            rand_num = ((rand()) & RAND_MAX); /* FIXME: use bk_rand(). */
+        }
+        output[i] = (rand_num >> (8 * (i % 4))) & 0xff;
+    }
 
 #else
-	for (int i = 0; i < len; i++) {
-		output[i] = ((rand()) & 0xff);
-	}
+    (void) rng_state;
+    for (size_t i = 0; i < len; i++) {
+        output[i] = ((rand()) & 0xff);
+    }
 #endif
 
-	return( 0 );
+    return 0;
 }

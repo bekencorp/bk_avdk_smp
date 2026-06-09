@@ -29,8 +29,11 @@
 
 #include "mbedtls/rsa.h"
 #include "bignum_core.h"
+#include "bignum_internal.h"
 #include "rsa_alt_helpers.h"
+#include "rsa_internal.h"
 #include "mbedtls/oid.h"
+#include "mbedtls/asn1write.h"
 #include "mbedtls/platform_util.h"
 #include "mbedtls/error.h"
 #include "constant_time_internal.h"
@@ -45,6 +48,369 @@
 
 #include "mbedtls/platform.h"
 
+/*
+ * Wrapper around mbedtls_asn1_get_mpi() that rejects zero.
+ *
+ * The value zero is:
+ * - never a valid value for an RSA parameter
+ * - interpreted as "omitted, please reconstruct" by mbedtls_rsa_complete().
+ *
+ * Since values can't be omitted in PKCS#1, passing a zero value to
+ * rsa_complete() would be incorrect, so reject zero values early.
+ */
+static int asn1_get_nonzero_mpi(unsigned char **p,
+                                const unsigned char *end,
+                                mbedtls_mpi *X)
+{
+    int ret;
+
+    ret = mbedtls_asn1_get_mpi(p, end, X);
+    if (ret != 0) {
+        return ret;
+    }
+
+    if (mbedtls_mpi_cmp_int(X, 0) == 0) {
+        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
+    }
+
+    return 0;
+}
+
+int mbedtls_rsa_parse_key(mbedtls_rsa_context *rsa, const unsigned char *key, size_t keylen)
+{
+    int ret, version;
+    size_t len;
+    unsigned char *p, *end;
+
+    mbedtls_mpi T;
+    mbedtls_mpi_init(&T);
+
+    p = (unsigned char *) key;
+    end = p + keylen;
+
+    /*
+     * This function parses the RSAPrivateKey (PKCS#1)
+     *
+     *  RSAPrivateKey ::= SEQUENCE {
+     *      version           Version,
+     *      modulus           INTEGER,  -- n
+     *      publicExponent    INTEGER,  -- e
+     *      privateExponent   INTEGER,  -- d
+     *      prime1            INTEGER,  -- p
+     *      prime2            INTEGER,  -- q
+     *      exponent1         INTEGER,  -- d mod (p-1)
+     *      exponent2         INTEGER,  -- d mod (q-1)
+     *      coefficient       INTEGER,  -- (inverse of q) mod p
+     *      otherPrimeInfos   OtherPrimeInfos OPTIONAL
+     *  }
+     */
+    if ((ret = mbedtls_asn1_get_tag(&p, end, &len,
+                                    MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) != 0) {
+        return ret;
+    }
+
+    if (end != p + len) {
+        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
+    }
+
+    if ((ret = mbedtls_asn1_get_int(&p, end, &version)) != 0) {
+        return ret;
+    }
+
+    if (version != 0) {
+        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
+    }
+
+    /* Import N */
+    if ((ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = mbedtls_rsa_import(rsa, &T, NULL, NULL,
+                                  NULL, NULL)) != 0) {
+        goto cleanup;
+    }
+
+    /* Import E */
+    if ((ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = mbedtls_rsa_import(rsa, NULL, NULL, NULL,
+                                  NULL, &T)) != 0) {
+        goto cleanup;
+    }
+
+    /* Import D */
+    if ((ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = mbedtls_rsa_import(rsa, NULL, NULL, NULL,
+                                  &T, NULL)) != 0) {
+        goto cleanup;
+    }
+
+    /* Import P */
+    if ((ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = mbedtls_rsa_import(rsa, NULL, &T, NULL,
+                                  NULL, NULL)) != 0) {
+        goto cleanup;
+    }
+
+    /* Import Q */
+    if ((ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = mbedtls_rsa_import(rsa, NULL, NULL, &T,
+                                  NULL, NULL)) != 0) {
+        goto cleanup;
+    }
+
+#if !defined(MBEDTLS_RSA_NO_CRT) && !defined(MBEDTLS_RSA_ALT)
+    /*
+     * The RSA CRT parameters DP, DQ and QP are nominally redundant, in
+     * that they can be easily recomputed from D, P and Q. However by
+     * parsing them from the PKCS1 structure it is possible to avoid
+     * recalculating them which both reduces the overhead of loading
+     * RSA private keys into memory and also avoids side channels which
+     * can arise when computing those values, since all of D, P, and Q
+     * are secret. See https://eprint.iacr.org/2020/055 for a
+     * description of one such attack.
+     */
+
+    /* Import DP */
+    if ((ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = mbedtls_mpi_copy(&rsa->DP, &T)) != 0) {
+        goto cleanup;
+    }
+
+    /* Import DQ */
+    if ((ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = mbedtls_mpi_copy(&rsa->DQ, &T)) != 0) {
+        goto cleanup;
+    }
+
+    /* Import QP */
+    if ((ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = mbedtls_mpi_copy(&rsa->QP, &T)) != 0) {
+        goto cleanup;
+    }
+
+#else
+    /* Verify existence of the CRT params */
+    if ((ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0 ||
+        (ret = asn1_get_nonzero_mpi(&p, end, &T)) != 0) {
+        goto cleanup;
+    }
+#endif
+
+    /* rsa_complete() doesn't complete anything with the default
+     * implementation but is still called:
+     * - for the benefit of alternative implementation that may want to
+     *   pre-compute stuff beyond what's provided (eg Montgomery factors)
+     * - as is also sanity-checks the key
+     *
+     * Furthermore, we also check the public part for consistency with
+     * mbedtls_pk_parse_pubkey(), as it includes size minima for example.
+     */
+    if ((ret = mbedtls_rsa_complete(rsa)) != 0 ||
+        (ret = mbedtls_rsa_check_pubkey(rsa)) != 0) {
+        goto cleanup;
+    }
+
+    if (p != end) {
+        ret = MBEDTLS_ERR_ASN1_LENGTH_MISMATCH;
+    }
+
+cleanup:
+
+    mbedtls_mpi_free(&T);
+
+    if (ret != 0) {
+        mbedtls_rsa_free(rsa);
+    }
+
+    return ret;
+}
+
+int mbedtls_rsa_parse_pubkey(mbedtls_rsa_context *rsa, const unsigned char *key, size_t keylen)
+{
+    unsigned char *p = (unsigned char *) key;
+    unsigned char *end = (unsigned char *) (key + keylen);
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+    size_t len;
+
+    /*
+     *  RSAPublicKey ::= SEQUENCE {
+     *      modulus           INTEGER,  -- n
+     *      publicExponent    INTEGER   -- e
+     *  }
+     */
+
+    if ((ret = mbedtls_asn1_get_tag(&p, end, &len,
+                                    MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) != 0) {
+        return ret;
+    }
+
+    if (end != p + len) {
+        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
+    }
+
+    /* Import N */
+    if ((ret = mbedtls_asn1_get_tag(&p, end, &len, MBEDTLS_ASN1_INTEGER)) != 0) {
+        return ret;
+    }
+
+    if ((ret = mbedtls_rsa_import_raw(rsa, p, len, NULL, 0, NULL, 0,
+                                      NULL, 0, NULL, 0)) != 0) {
+        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
+    }
+
+    p += len;
+
+    /* Import E */
+    if ((ret = mbedtls_asn1_get_tag(&p, end, &len, MBEDTLS_ASN1_INTEGER)) != 0) {
+        return ret;
+    }
+
+    if ((ret = mbedtls_rsa_import_raw(rsa, NULL, 0, NULL, 0, NULL, 0,
+                                      NULL, 0, p, len)) != 0) {
+        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
+    }
+
+    p += len;
+
+    if (mbedtls_rsa_complete(rsa) != 0 ||
+        mbedtls_rsa_check_pubkey(rsa) != 0) {
+        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
+    }
+
+    if (p != end) {
+        return MBEDTLS_ERR_ASN1_LENGTH_MISMATCH;
+    }
+
+    return 0;
+}
+
+int mbedtls_rsa_write_key(const mbedtls_rsa_context *rsa, unsigned char *start,
+                          unsigned char **p)
+{
+    size_t len = 0;
+    int ret;
+
+    mbedtls_mpi T; /* Temporary holding the exported parameters */
+
+    /*
+     * Export the parameters one after another to avoid simultaneous copies.
+     */
+
+    mbedtls_mpi_init(&T);
+
+    /* Export QP */
+    if ((ret = mbedtls_rsa_export_crt(rsa, NULL, NULL, &T)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    /* Export DQ */
+    if ((ret = mbedtls_rsa_export_crt(rsa, NULL, &T, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    /* Export DP */
+    if ((ret = mbedtls_rsa_export_crt(rsa, &T, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    /* Export Q */
+    if ((ret = mbedtls_rsa_export(rsa, NULL, NULL, &T, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    /* Export P */
+    if ((ret = mbedtls_rsa_export(rsa, NULL, &T, NULL, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    /* Export D */
+    if ((ret = mbedtls_rsa_export(rsa, NULL, NULL, NULL, &T, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    /* Export E */
+    if ((ret = mbedtls_rsa_export(rsa, NULL, NULL, NULL, NULL, &T)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    /* Export N */
+    if ((ret = mbedtls_rsa_export(rsa, &T, NULL, NULL, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+end_of_export:
+
+    mbedtls_mpi_free(&T);
+    if (ret < 0) {
+        return ret;
+    }
+
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_int(p, start, 0));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(p, start, len));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(p, start,
+                                                     MBEDTLS_ASN1_CONSTRUCTED |
+                                                     MBEDTLS_ASN1_SEQUENCE));
+
+    return (int) len;
+}
+
+/*
+ *  RSAPublicKey ::= SEQUENCE {
+ *      modulus           INTEGER,  -- n
+ *      publicExponent    INTEGER   -- e
+ *  }
+ */
+int mbedtls_rsa_write_pubkey(const mbedtls_rsa_context *rsa, unsigned char *start,
+                             unsigned char **p)
+{
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+    size_t len = 0;
+    mbedtls_mpi T;
+
+    mbedtls_mpi_init(&T);
+
+    /* Export E */
+    if ((ret = mbedtls_rsa_export(rsa, NULL, NULL, NULL, NULL, &T)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+    /* Export N */
+    if ((ret = mbedtls_rsa_export(rsa, &T, NULL, NULL, NULL, NULL)) != 0 ||
+        (ret = mbedtls_asn1_write_mpi(p, start, &T)) < 0) {
+        goto end_of_export;
+    }
+    len += ret;
+
+end_of_export:
+
+    mbedtls_mpi_free(&T);
+    if (ret < 0) {
+        return ret;
+    }
+
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_len(p, start, len));
+    MBEDTLS_ASN1_CHK_ADD(len, mbedtls_asn1_write_tag(p, start, MBEDTLS_ASN1_CONSTRUCTED |
+                                                     MBEDTLS_ASN1_SEQUENCE));
+
+    return (int) len;
+}
 
 #if defined(MBEDTLS_PKCS1_V15) && defined(MBEDTLS_RSA_C) && !defined(MBEDTLS_RSA_ALT)
 
@@ -652,13 +1018,20 @@ int mbedtls_rsa_get_md_alg(const mbedtls_rsa_context *ctx)
 }
 
 /*
+ * Get length in bits of RSA modulus
+ */
+size_t mbedtls_rsa_get_bitlen(const mbedtls_rsa_context *ctx)
+{
+    return mbedtls_mpi_bitlen(&ctx->N);
+}
+
+/*
  * Get length in bytes of RSA modulus
  */
 size_t mbedtls_rsa_get_len(const mbedtls_rsa_context *ctx)
 {
     return ctx->len;
 }
-
 
 #if defined(MBEDTLS_GENPRIME)
 
@@ -674,7 +1047,7 @@ int mbedtls_rsa_gen_key(mbedtls_rsa_context *ctx,
                         unsigned int nbits, int exponent)
 {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
-    mbedtls_mpi H, G, L;
+    mbedtls_mpi H;
     int prime_quality = 0;
 
     /*
@@ -687,8 +1060,6 @@ int mbedtls_rsa_gen_key(mbedtls_rsa_context *ctx,
     }
 
     mbedtls_mpi_init(&H);
-    mbedtls_mpi_init(&G);
-    mbedtls_mpi_init(&L);
 
     if (exponent < 3 || nbits % 2 != 0) {
         ret = MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
@@ -726,35 +1097,27 @@ int mbedtls_rsa_gen_key(mbedtls_rsa_context *ctx,
             mbedtls_mpi_swap(&ctx->P, &ctx->Q);
         }
 
-        /* Temporarily replace P,Q by P-1, Q-1 */
-        MBEDTLS_MPI_CHK(mbedtls_mpi_sub_int(&ctx->P, &ctx->P, 1));
-        MBEDTLS_MPI_CHK(mbedtls_mpi_sub_int(&ctx->Q, &ctx->Q, 1));
-        MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&H, &ctx->P, &ctx->Q));
-
-        /* check GCD( E, (P-1)*(Q-1) ) == 1 (FIPS 186-4 §B.3.1 criterion 2(a)) */
-        MBEDTLS_MPI_CHK(mbedtls_mpi_gcd(&G, &ctx->E, &H));
-        if (mbedtls_mpi_cmp_int(&G, 1) != 0) {
+        /* Compute D = E^-1 mod LCM(P-1, Q-1) (FIPS 186-4 §B.3.1 criterion 3(b))
+         * if it exists (FIPS 186-4 §B.3.1 criterion 2(a)) */
+        ret = mbedtls_rsa_deduce_private_exponent(&ctx->P, &ctx->Q, &ctx->E, &ctx->D);
+        if (ret == MBEDTLS_ERR_MPI_NOT_ACCEPTABLE) {
             continue;
         }
+        if (ret != 0) {
+            goto cleanup;
+        }
 
-        /* compute smallest possible D = E^-1 mod LCM(P-1, Q-1) (FIPS 186-4 §B.3.1 criterion 3(b)) */
-        MBEDTLS_MPI_CHK(mbedtls_mpi_gcd(&G, &ctx->P, &ctx->Q));
-        MBEDTLS_MPI_CHK(mbedtls_mpi_div_mpi(&L, NULL, &H, &G));
-        MBEDTLS_MPI_CHK(mbedtls_mpi_inv_mod(&ctx->D, &ctx->E, &L));
-
-        if (mbedtls_mpi_bitlen(&ctx->D) <= ((nbits + 1) / 2)) {      // (FIPS 186-4 §B.3.1 criterion 3(a))
+        /* (FIPS 186-4 §B.3.1 criterion 3(a)) */
+        if (mbedtls_mpi_bitlen(&ctx->D) <= ((nbits + 1) / 2)) {
             continue;
         }
 
         break;
     } while (1);
 
-    /* Restore P,Q */
-    MBEDTLS_MPI_CHK(mbedtls_mpi_add_int(&ctx->P,  &ctx->P, 1));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_add_int(&ctx->Q,  &ctx->Q, 1));
 
+    /* N = P * Q */
     MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&ctx->N, &ctx->P, &ctx->Q));
-
     ctx->len = mbedtls_mpi_size(&ctx->N);
 
 #if !defined(MBEDTLS_RSA_NO_CRT)
@@ -773,8 +1136,6 @@ int mbedtls_rsa_gen_key(mbedtls_rsa_context *ctx,
 cleanup:
 
     mbedtls_mpi_free(&H);
-    mbedtls_mpi_free(&G);
-    mbedtls_mpi_free(&L);
 
     if (ret != 0) {
         mbedtls_rsa_free(ctx);
@@ -887,7 +1248,7 @@ int mbedtls_rsa_public(mbedtls_rsa_context *ctx,
     }
 
     olen = ctx->len;
-    MBEDTLS_MPI_CHK(mbedtls_mpi_exp_mod(&T, &T, &ctx->E, &ctx->N, &ctx->RN));
+    MBEDTLS_MPI_CHK(mbedtls_mpi_exp_mod_unsafe(&T, &T, &ctx->E, &ctx->N, &ctx->RN));
     MBEDTLS_MPI_CHK(mbedtls_mpi_write_binary(&T, output, olen));
 
 cleanup:
@@ -906,6 +1267,117 @@ cleanup:
     return 0;
 }
 
+#if !defined(MBEDTLS_RSA_NO_CRT)
+/*
+ * Compute T such that T = TP mod P and T = TQ mod Q.
+ * (This is the Chinese Remainder Theorem - CRT.)
+ */
+static int rsa_apply_crt(mbedtls_mpi *T,
+                         const mbedtls_mpi *TP,
+                         const mbedtls_mpi *TQ,
+                         const mbedtls_rsa_context *ctx)
+{
+    int ret;
+
+    /*
+     * Set T = ((TP - TQ) * (Q^-1 mod P) mod P) * Q + TQ
+     *
+     * That way we have both:
+     * mod P: T = (TP - TQ) * (Q^-1 * Q) + TQ = (TP - TQ) * 1 + TQ = TP
+     * mod Q: T = (...) * Q + TQ = TQ
+     */
+    MBEDTLS_MPI_CHK(mbedtls_mpi_sub_mpi(T, TP, TQ));        // T = TP - TQ
+    MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(T, T, &ctx->QP));   // T *= Q^-1 mod P
+    MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(T, T, &ctx->P));    // T %= P
+    MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(T, T, &ctx->Q));    // T *= Q
+    MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(T, T, TQ));         // T += TQ
+
+cleanup:
+    return ret;
+}
+#endif
+
+/* Generate random A and B such that A^-1 = B mod N */
+static int rsa_gen_rand_with_inverse(const mbedtls_rsa_context *ctx,
+                                     mbedtls_mpi *A,
+                                     mbedtls_mpi *B,
+                                     int (*f_rng)(void *, unsigned char *, size_t),
+                                     void *p_rng)
+{
+#if defined(MBEDTLS_RSA_NO_CRT)
+    int ret;
+    mbedtls_mpi G;
+
+    mbedtls_mpi_init(&G);
+
+    MBEDTLS_MPI_CHK(mbedtls_mpi_random(A, 1, &ctx->N, f_rng, p_rng));
+    MBEDTLS_MPI_CHK(mbedtls_mpi_gcd_modinv_odd(&G, B, A, &ctx->N));
+
+    if (mbedtls_mpi_cmp_int(&G, 1) != 0) {
+        /* This happens if we're unlucky enough to draw a multiple of P or Q,
+         * or if (at least) one of them is not a prime, and we drew a multiple
+         * of one of its factors. */
+        ret = MBEDTLS_ERR_RSA_RNG_FAILED;
+        goto cleanup;
+    }
+
+cleanup:
+    mbedtls_mpi_free(&G);
+
+    return ret;
+#else
+    int ret;
+    mbedtls_mpi Ap, Aq, Bp, Bq, G;
+
+    mbedtls_mpi_init(&Ap); mbedtls_mpi_init(&Aq);
+    mbedtls_mpi_init(&Bp); mbedtls_mpi_init(&Bq);
+    mbedtls_mpi_init(&G);
+
+    /*
+     * Instead of generating A, B = A^-1 (mod N) directly, generate one Ap, Bp
+     * pair (mod P) and one pair (mod Q) and use Chinese Remainder Theorem to
+     * construct an A and B from those.
+     *
+     * This works because the CRT correspondence is a ring isomorphism between
+     * Z/NZ (integers mod N) and Z/PZ x Z/QZ (pairs of integers mod P and Q):
+     * - it is a bijection (one-to-one correspondence);
+     * - doing a ring operation (modular +, -, *, ^-1 when possible) on one side is
+     *   the same as doing it on the other side.
+     * So, drawing uniformly at random an invertible A mod N is the same as
+     * drawing uniformly at random pairs of invertible Ap mod P, Aq mod Q.
+     */
+
+    /* Generate Ap in [1, P) and compute Bp = Ap^-1 mod P */
+    MBEDTLS_MPI_CHK(mbedtls_mpi_random(&Ap, 1, &ctx->P, f_rng, p_rng));
+    MBEDTLS_MPI_CHK(mbedtls_mpi_gcd_modinv_odd(&G, &Bp, &Ap, &ctx->P));
+    if (mbedtls_mpi_cmp_int(&G, 1) != 0) {
+        /* This can only happen if P was not a prime. */
+        ret = MBEDTLS_ERR_RSA_RNG_FAILED;
+        goto cleanup;
+    }
+
+    /* Generate Aq in [1, Q) and compute Bq = Aq^-1 mod Q */
+    MBEDTLS_MPI_CHK(mbedtls_mpi_random(&Aq, 1, &ctx->Q, f_rng, p_rng));
+    MBEDTLS_MPI_CHK(mbedtls_mpi_gcd_modinv_odd(&G, &Bq, &Aq, &ctx->Q));
+    if (mbedtls_mpi_cmp_int(&G, 1) != 0) {
+        /* This can only happen if Q was not a prime. */
+        ret = MBEDTLS_ERR_RSA_RNG_FAILED;
+        goto cleanup;
+    }
+
+    /* Reconstruct A and B */
+    MBEDTLS_MPI_CHK(rsa_apply_crt(A, &Ap, &Aq, ctx));
+    MBEDTLS_MPI_CHK(rsa_apply_crt(B, &Bp, &Bq, ctx));
+
+cleanup:
+    mbedtls_mpi_free(&Ap); mbedtls_mpi_free(&Aq);
+    mbedtls_mpi_free(&Bp); mbedtls_mpi_free(&Bq);
+    mbedtls_mpi_free(&G);
+
+    return ret;
+#endif
+}
+
 /*
  * Generate or update blinding values, see section 10 of:
  *  KOCHER, Paul C. Timing attacks on implementations of Diffie-Hellman, RSA,
@@ -915,10 +1387,7 @@ cleanup:
 static int rsa_prepare_blinding(mbedtls_rsa_context *ctx,
                                 int (*f_rng)(void *, unsigned char *, size_t), void *p_rng)
 {
-    int ret, count = 0;
-    mbedtls_mpi R;
-
-    mbedtls_mpi_init(&R);
+    int ret;
 
     if (ctx->Vf.p != NULL) {
         /* We already have blinding values, just update them by squaring */
@@ -926,47 +1395,17 @@ static int rsa_prepare_blinding(mbedtls_rsa_context *ctx,
         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(&ctx->Vi, &ctx->Vi, &ctx->N));
         MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&ctx->Vf, &ctx->Vf, &ctx->Vf));
         MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(&ctx->Vf, &ctx->Vf, &ctx->N));
-
         goto cleanup;
     }
 
     /* Unblinding value: Vf = random number, invertible mod N */
-    do {
-        if (count++ > 10) {
-            ret = MBEDTLS_ERR_RSA_RNG_FAILED;
-            goto cleanup;
-        }
-
-        MBEDTLS_MPI_CHK(mbedtls_mpi_fill_random(&ctx->Vf, ctx->len - 1, f_rng, p_rng));
-
-        /* Compute Vf^-1 as R * (R Vf)^-1 to avoid leaks from inv_mod. */
-        MBEDTLS_MPI_CHK(mbedtls_mpi_fill_random(&R, ctx->len - 1, f_rng, p_rng));
-        MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&ctx->Vi, &ctx->Vf, &R));
-        MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(&ctx->Vi, &ctx->Vi, &ctx->N));
-
-        /* At this point, Vi is invertible mod N if and only if both Vf and R
-         * are invertible mod N. If one of them isn't, we don't need to know
-         * which one, we just loop and choose new values for both of them.
-         * (Each iteration succeeds with overwhelming probability.) */
-        ret = mbedtls_mpi_inv_mod(&ctx->Vi, &ctx->Vi, &ctx->N);
-        if (ret != 0 && ret != MBEDTLS_ERR_MPI_NOT_ACCEPTABLE) {
-            goto cleanup;
-        }
-
-    } while (ret == MBEDTLS_ERR_MPI_NOT_ACCEPTABLE);
-
-    /* Finish the computation of Vf^-1 = R * (R Vf)^-1 */
-    MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&ctx->Vi, &ctx->Vi, &R));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(&ctx->Vi, &ctx->Vi, &ctx->N));
+    MBEDTLS_MPI_CHK(rsa_gen_rand_with_inverse(ctx, &ctx->Vf, &ctx->Vi, f_rng, p_rng));
 
     /* Blinding value: Vi = Vf^(-e) mod N
      * (Vi already contains Vf^-1 at this point) */
     MBEDTLS_MPI_CHK(mbedtls_mpi_exp_mod(&ctx->Vi, &ctx->Vi, &ctx->E, &ctx->N, &ctx->RN));
 
-
 cleanup:
-    mbedtls_mpi_free(&R);
-
     return ret;
 }
 
@@ -1166,19 +1605,7 @@ int mbedtls_rsa_private(mbedtls_rsa_context *ctx,
 
     MBEDTLS_MPI_CHK(mbedtls_mpi_exp_mod(&TP, &T, &DP_blind, &ctx->P, &ctx->RP));
     MBEDTLS_MPI_CHK(mbedtls_mpi_exp_mod(&TQ, &T, &DQ_blind, &ctx->Q, &ctx->RQ));
-
-    /*
-     * T = (TP - TQ) * (Q^-1 mod P) mod P
-     */
-    MBEDTLS_MPI_CHK(mbedtls_mpi_sub_mpi(&T, &TP, &TQ));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&TP, &T, &ctx->QP));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_mod_mpi(&T, &TP, &ctx->P));
-
-    /*
-     * T = TQ + T * Q
-     */
-    MBEDTLS_MPI_CHK(mbedtls_mpi_mul_mpi(&TP, &T, &ctx->Q));
-    MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(&T, &TQ, &TP));
+    MBEDTLS_MPI_CHK(rsa_apply_crt(&T, &TP, &TQ, ctx));
 #endif /* MBEDTLS_RSA_NO_CRT */
 
     /* Verify the result to prevent glitching attacks. */
@@ -1644,12 +2071,12 @@ int mbedtls_rsa_rsaes_oaep_decrypt(mbedtls_rsa_context *ctx,
         goto cleanup;
     }
 
-    if (ilen - (p - buf) > output_max_len) {
+    if (ilen - ((size_t) (p - buf)) > output_max_len) {
         ret = MBEDTLS_ERR_RSA_OUTPUT_TOO_LARGE;
         goto cleanup;
     }
 
-    *olen = ilen - (p - buf);
+    *olen = ilen - ((size_t) (p - buf));
     if (*olen != 0) {
         memcpy(output, p, *olen);
     }
@@ -1736,14 +2163,14 @@ int mbedtls_rsa_pkcs1_decrypt(mbedtls_rsa_context *ctx,
 }
 
 #if defined(MBEDTLS_PKCS1_V21)
-static int rsa_rsassa_pss_sign(mbedtls_rsa_context *ctx,
-                               int (*f_rng)(void *, unsigned char *, size_t),
-                               void *p_rng,
-                               mbedtls_md_type_t md_alg,
-                               unsigned int hashlen,
-                               const unsigned char *hash,
-                               int saltlen,
-                               unsigned char *sig)
+static int rsa_rsassa_pss_sign_no_mode_check(mbedtls_rsa_context *ctx,
+                                             int (*f_rng)(void *, unsigned char *, size_t),
+                                             void *p_rng,
+                                             mbedtls_md_type_t md_alg,
+                                             unsigned int hashlen,
+                                             const unsigned char *hash,
+                                             int saltlen,
+                                             unsigned char *sig)
 {
     size_t olen;
     unsigned char *p = sig;
@@ -1751,12 +2178,9 @@ static int rsa_rsassa_pss_sign(mbedtls_rsa_context *ctx,
     size_t slen, min_slen, hlen, offset = 0;
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     size_t msb;
+    mbedtls_md_type_t hash_id;
 
     if ((md_alg != MBEDTLS_MD_NONE || hashlen != 0) && hash == NULL) {
-        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
-    }
-
-    if (ctx->padding != MBEDTLS_RSA_PKCS_V21) {
         return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
     }
 
@@ -1778,7 +2202,11 @@ static int rsa_rsassa_pss_sign(mbedtls_rsa_context *ctx,
         }
     }
 
-    hlen = mbedtls_md_get_size_from_type((mbedtls_md_type_t) ctx->hash_id);
+    hash_id = (mbedtls_md_type_t) ctx->hash_id;
+    if (hash_id == MBEDTLS_MD_NONE) {
+        hash_id = md_alg;
+    }
+    hlen = mbedtls_md_get_size_from_type(hash_id);
     if (hlen == 0) {
         return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
     }
@@ -1821,7 +2249,7 @@ static int rsa_rsassa_pss_sign(mbedtls_rsa_context *ctx,
     p += slen;
 
     /* Generate H = Hash( M' ) */
-    ret = hash_mprime(hash, hashlen, salt, slen, p, (mbedtls_md_type_t) ctx->hash_id);
+    ret = hash_mprime(hash, hashlen, salt, slen, p, hash_id);
     if (ret != 0) {
         return ret;
     }
@@ -1832,8 +2260,7 @@ static int rsa_rsassa_pss_sign(mbedtls_rsa_context *ctx,
     }
 
     /* maskedDB: Apply dbMask to DB */
-    ret = mgf_mask(sig + offset, olen - hlen - 1 - offset, p, hlen,
-                   (mbedtls_md_type_t) ctx->hash_id);
+    ret = mgf_mask(sig + offset, olen - hlen - 1 - offset, p, hlen, hash_id);
     if (ret != 0) {
         return ret;
     }
@@ -1845,6 +2272,37 @@ static int rsa_rsassa_pss_sign(mbedtls_rsa_context *ctx,
     *p++ = 0xBC;
 
     return mbedtls_rsa_private(ctx, f_rng, p_rng, sig, sig);
+}
+
+static int rsa_rsassa_pss_sign(mbedtls_rsa_context *ctx,
+                               int (*f_rng)(void *, unsigned char *, size_t),
+                               void *p_rng,
+                               mbedtls_md_type_t md_alg,
+                               unsigned int hashlen,
+                               const unsigned char *hash,
+                               int saltlen,
+                               unsigned char *sig)
+{
+    if (ctx->padding != MBEDTLS_RSA_PKCS_V21) {
+        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
+    }
+    if ((ctx->hash_id == MBEDTLS_MD_NONE) && (md_alg == MBEDTLS_MD_NONE)) {
+        return MBEDTLS_ERR_RSA_BAD_INPUT_DATA;
+    }
+    return rsa_rsassa_pss_sign_no_mode_check(ctx, f_rng, p_rng, md_alg, hashlen, hash, saltlen,
+                                             sig);
+}
+
+int mbedtls_rsa_rsassa_pss_sign_no_mode_check(mbedtls_rsa_context *ctx,
+                                              int (*f_rng)(void *, unsigned char *, size_t),
+                                              void *p_rng,
+                                              mbedtls_md_type_t md_alg,
+                                              unsigned int hashlen,
+                                              const unsigned char *hash,
+                                              unsigned char *sig)
+{
+    return rsa_rsassa_pss_sign_no_mode_check(ctx, f_rng, p_rng, md_alg,
+                                             hashlen, hash, MBEDTLS_RSA_SALT_LEN_ANY, sig);
 }
 
 /*
@@ -1863,7 +2321,6 @@ int mbedtls_rsa_rsassa_pss_sign_ext(mbedtls_rsa_context *ctx,
     return rsa_rsassa_pss_sign(ctx, f_rng, p_rng, md_alg,
                                hashlen, hash, saltlen, sig);
 }
-
 
 /*
  * Implementation of the PKCS#1 v2.1 RSASSA-PSS-SIGN function
@@ -2215,7 +2672,7 @@ int mbedtls_rsa_rsassa_pss_verify_ext(mbedtls_rsa_context *ctx,
         return MBEDTLS_ERR_RSA_INVALID_PADDING;
     }
 
-    observed_salt_len = hash_start - p;
+    observed_salt_len = (size_t) (hash_start - p);
 
     if (expected_salt_len != MBEDTLS_RSA_SALT_LEN_ANY &&
         observed_salt_len != (size_t) expected_salt_len) {
@@ -2443,7 +2900,6 @@ void mbedtls_rsa_free(mbedtls_rsa_context *ctx)
 
 #if defined(MBEDTLS_SELF_TEST)
 
-#include "mbedtls/md.h"
 
 /*
  * Example RSA-1024 keypair, for test purposes

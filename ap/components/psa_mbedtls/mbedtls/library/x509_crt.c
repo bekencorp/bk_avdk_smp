@@ -22,6 +22,7 @@
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
 
 #include "mbedtls/x509_crt.h"
+#include "x509_internal.h"
 #include "mbedtls/error.h"
 #include "mbedtls/oid.h"
 #include "mbedtls/platform_util.h"
@@ -35,7 +36,7 @@
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
 #include "psa/crypto.h"
 #include "psa_util_internal.h"
-#include "md_psa.h"
+#include "mbedtls/psa_util.h"
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
 #include "pk_internal.h"
 
@@ -47,7 +48,9 @@
 
 #if defined(MBEDTLS_HAVE_TIME)
 #if defined(_WIN32) && !defined(EFIX64) && !defined(EFI32)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #else
 #include <time.h>
@@ -63,7 +66,7 @@
 #include <platform/mbed_retarget.h>
 #elif !defined(MBEDTLS_NO_POSIX_DIRENT)
 #include <dirent.h>
-#endif /* __MBED__ / MBEDTLS_NO_POSIX_DIRENT */
+#endif /* __MBED__ */
 #include <errno.h>
 #endif /* !_WIN32 || EFIX64 || EFI32 */
 #endif
@@ -222,7 +225,7 @@ static int x509_profile_check_key(const mbedtls_x509_crt_profile *profile,
     if (pk_alg == MBEDTLS_PK_ECDSA ||
         pk_alg == MBEDTLS_PK_ECKEY ||
         pk_alg == MBEDTLS_PK_ECKEY_DH) {
-        const mbedtls_ecp_group_id gid = mbedtls_pk_get_group_id(pk);
+        const mbedtls_ecp_group_id gid = mbedtls_pk_get_ec_group_id(pk);
 
         if (gid == MBEDTLS_ECP_DP_NONE) {
             return -1;
@@ -1108,7 +1111,7 @@ static int x509_crt_parse_der_core(mbedtls_x509_crt *crt,
     }
 
     end = crt_end = p + len;
-    crt->raw.len = crt_end - buf;
+    crt->raw.len = (size_t) (crt_end - buf);
     if (make_copy != 0) {
         /* Create and populate a new buffer for the raw field. */
         crt->raw.p = p = mbedtls_calloc(1, crt->raw.len);
@@ -1138,7 +1141,7 @@ static int x509_crt_parse_der_core(mbedtls_x509_crt *crt,
     }
 
     end = p + len;
-    crt->tbs.len = end - crt->tbs.p;
+    crt->tbs.len = (size_t) (end - crt->tbs.p);
 
     /*
      * Version  ::=  INTEGER  {  v1(0), v2(1), v3(2)  }
@@ -1185,7 +1188,7 @@ static int x509_crt_parse_der_core(mbedtls_x509_crt *crt,
         return ret;
     }
 
-    crt->issuer_raw.len = p - crt->issuer_raw.p;
+    crt->issuer_raw.len = (size_t) (p - crt->issuer_raw.p);
 
     /*
      * Validity ::= SEQUENCE {
@@ -1215,7 +1218,7 @@ static int x509_crt_parse_der_core(mbedtls_x509_crt *crt,
         return ret;
     }
 
-    crt->subject_raw.len = p - crt->subject_raw.p;
+    crt->subject_raw.len = (size_t) (p - crt->subject_raw.p);
 
     /*
      * SubjectPublicKeyInfo
@@ -1225,7 +1228,7 @@ static int x509_crt_parse_der_core(mbedtls_x509_crt *crt,
         mbedtls_x509_crt_free(crt);
         return ret;
     }
-    crt->pk_raw.len = p - crt->pk_raw.p;
+    crt->pk_raw.len = (size_t) (p - crt->pk_raw.p);
 
     /*
      *  issuerUniqueID  [1]  IMPLICIT UniqueIdentifier OPTIONAL,
@@ -1588,11 +1591,10 @@ int mbedtls_x509_crt_parse_path(mbedtls_x509_crt *chain, const char *path)
 cleanup:
     FindClose(hFind);
 #elif defined(MBEDTLS_NO_POSIX_DIRENT)
-    /* No opendir/readdir on this platform (e.g. arm-none-eabi); use parse_file for single file only. */
-    (void) path;
-    (void) chain;
-    return MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE;
-#else /* _WIN32 and !MBEDTLS_NO_POSIX_DIRENT */
+    ((void) chain);
+    ((void) path);
+    ret = MBEDTLS_ERR_PLATFORM_FEATURE_UNSUPPORTED;
+#else /* _WIN32 */
     int t_ret;
     int snp_ret;
     struct stat sb;
@@ -1659,7 +1661,7 @@ cleanup:
     }
 #endif /* MBEDTLS_THREADING_C */
 
-#endif /* _WIN32 / MBEDTLS_NO_POSIX_DIRENT */
+#endif /* _WIN32 */
 
     return ret;
 }
@@ -2750,22 +2752,25 @@ static int x509_inet_pton_ipv6(const char *src, void *dst)
             if (*p == '\0') {
                 break;
             } else if (*p == '.') {
-                /* Don't accept IPv4 too early or late */
-                if ((nonzero_groups == 0 && zero_group_start == -1) ||
+                /* Don't accept IPv4 too early or late:
+                 * - The first 6 nonzero groups must be 16 bit pieces of address delimited by ':'
+                 * - This might be fully or partially represented with compressed syntax (a zero
+                 *   group "::")
+                 */
+                if ((nonzero_groups < 6 && zero_group_start == -1) ||
                     nonzero_groups >= 7) {
                     break;
                 }
 
-                /* Walk back to prior ':', then parse as IPv4-mapped */
-                int steps = 4;
+                /* Walk back to prior ':', then parse as IPv4-mapped.
+                 * At this point nonzero_groups == 6 or zero_group_start >= 0. Either way we have a
+                 * ':' before the current position and still inside the buffer. Thus it is safe to
+                 * search back for that ':' without any further checks.
+                 */
                 do {
                     p--;
-                    steps--;
-                } while (*p != ':' && steps > 0);
+                } while (*p != ':');
 
-                if (*p != ':') {
-                    break;
-                }
                 p++;
                 nonzero_groups--;
                 if (x509_inet_pton_ipv4((const char *) p,
@@ -3237,10 +3242,7 @@ void mbedtls_x509_crt_free(mbedtls_x509_crt *crt)
         mbedtls_pk_free(&cert_cur->pk);
 
 #if defined(MBEDTLS_X509_RSASSA_PSS_SUPPORT)
-        if (cert_cur->sig_opts != NULL) {
-            mbedtls_free(cert_cur->sig_opts);
-            cert_cur->sig_opts = NULL;
-        }
+        mbedtls_free(cert_cur->sig_opts);
 #endif
 
         mbedtls_asn1_free_named_data_list_shallow(cert_cur->issuer.next);
@@ -3296,5 +3298,13 @@ void mbedtls_x509_crt_restart_free(mbedtls_x509_crt_restart_ctx *ctx)
     mbedtls_x509_crt_restart_init(ctx);
 }
 #endif /* MBEDTLS_ECDSA_C && MBEDTLS_ECP_RESTARTABLE */
+
+int mbedtls_x509_crt_get_ca_istrue(const mbedtls_x509_crt *crt)
+{
+    if ((crt->ext_types & MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) != 0) {
+        return crt->MBEDTLS_PRIVATE(ca_istrue);
+    }
+    return MBEDTLS_ERR_X509_INVALID_EXTENSIONS;
+}
 
 #endif /* MBEDTLS_X509_CRT_PARSE_C */

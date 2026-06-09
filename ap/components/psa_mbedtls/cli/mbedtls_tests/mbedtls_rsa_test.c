@@ -41,7 +41,7 @@
 #include "mbedtls/platform.h"
 #else
 #include <stdio.h>
-#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
+#define mbedtls_printf printf
 #define mbedtls_calloc calloc
 #define mbedtls_free   free
 #endif
