@@ -48,6 +48,12 @@ __attribute__((weak)) void *__wrap__malloc_r(void *p, size_t size)
 
 __attribute__((weak)) void __wrap_free(void *pv)
 {
+	/* C standard: free(NULL) must be a no-op. newlib (e.g. _tzset_unlocked_r
+	 * freeing prev_tzenv on its first call) and many third-party libraries
+	 * rely on this. os_free()/psram_free() assert on a non-heap pointer, so
+	 * guard NULL here to keep libc free() semantics. */
+	if (!pv)
+		return;
 #if CONFIG_PSRAM_AS_SYS_MEMORY
     psram_free(pv);
 #else
