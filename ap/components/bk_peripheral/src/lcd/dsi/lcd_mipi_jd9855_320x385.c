@@ -13,8 +13,8 @@
 // limitations under the License.
 
 /**
- * @file lcd_mipi_jd9855_360x390.c
- * @brief JD9855 MIPI DSI panel (360x390, 1-lane).
+ * @file lcd_mipi_jd9855_320x385.c
+ * @brief JD9855 MIPI DSI panel (320x385, 1-lane).
  *
  * 1-lane / 24bpp exceeds the PHY pixdiv (lane:pclk ratio > 17), so the
  * default DPHY_DPLL path returns BK_FAIL on bring-up and the driver
@@ -26,9 +26,9 @@
 #include <driver/mipi_dsi_types.h>
 #include <common/avdk_pixel_types.h>
 
-#if CONFIG_LCD_JD9855_MIPI_360x390
+#if CONFIG_LCD_JD9855_MIPI_320x385
 
-static const lcd_mipi_init_cmd_t jd9855_mipi_360x390_init_cmds[] = {
+static const lcd_mipi_init_cmd_t jd9855_mipi_320x385_init_cmds[] = {
     {0xDE, (const uint8_t []){0x00}, 1},
     {0xDF, (const uint8_t []){0x98, 0x55}, 2},
     {0xB2, (const uint8_t []){0x30}, 1},
@@ -41,7 +41,6 @@ static const lcd_mipi_init_cmd_t jd9855_mipi_360x390_init_cmds[] = {
     {0xC8, (const uint8_t []){0x3F, 0x36, 0x30, 0x2D, 0x2F, 0x31, 0x2D, 0x2C, 0x2A, 0x26, 0x22, 0x15, 0x10, 0x0A, 0x06, 0x02,
                         0x3F, 0x36, 0x30, 0x2D, 0x2F, 0x31, 0x2D, 0x2C, 0x2A, 0x26, 0x22, 0x15, 0x10, 0x0A, 0x06, 0x02}, 32},
     {0xD3, (const uint8_t []){0x28, 0x13}, 2},
-    //{0xD7, (const uint8_t []){0x1B, 0x30}, 2}, //param1: BYPASS RAM=0X1B,  PASSRAM=0X18; param2: VIDEO=0X31, COMMON=0X30
     {0xDE, (const uint8_t []){0x01}, 1},
     {0xB7, (const uint8_t []){0x13, 0xE7, 0x64, 0x39, 0x06, 0x36, 0x18, 0x18}, 8},
     {0xBE, (const uint8_t []){0x00}, 1},
@@ -72,9 +71,9 @@ static const lcd_mipi_init_cmd_t jd9855_mipi_360x390_init_cmds[] = {
     {0x4C, (const uint8_t []){0x01}, 1},
     {0x00, (const uint8_t []){10}, 0xFF},
     {0x4C, (const uint8_t []){0x00}, 1},
-    /* CASET: 0..359 (0x0167), RASET: 0..389 (0x0185) for 360x390 */
-    {0x2A, (const uint8_t []){0x00, 0x00, 0x01, 0x67}, 4},
-    {0x2B, (const uint8_t []){0x00, 0x00, 0x01, 0x85}, 4},
+    /* CASET: 0..319 (0x013F), RASET: 0..384 (0x0180) for 320x385 */
+    {0x2A, (const uint8_t []){0x00, 0x00, 0x01, 0x3F}, 4},
+    {0x2B, (const uint8_t []){0x00, 0x00, 0x01, 0x80}, 4},
     {0x35, NULL, 0},
     {0x36, (const uint8_t []){0x00}, 1},
     {0x3A, (const uint8_t []){0x55}, 1},
@@ -84,17 +83,17 @@ static const lcd_mipi_init_cmd_t jd9855_mipi_360x390_init_cmds[] = {
     {0x29, (const uint8_t []){0x00}, 0},
     {0x00, NULL, 0},
 };
-    
-static const uint8_t jd9855_mipi_360x390_read_id_regs[] = {0x04, 0};
 
-const bk_display_dsi_panel_t lcd_device_jd9855_mipi_360x390 = {
+static const uint8_t jd9855_mipi_320x385_read_id_regs[] = {0x04, 0};
+
+const bk_display_dsi_panel_t lcd_device_jd9855_mipi_320x385 = {
     .id = 0x985500,
-    .name = "jd9855_mipi_360x390",
+    .name = "jd9855_mipi_320x385",
     .n_lanes = DSI_ACTIVE_LANES_1,
     .fps = 58,
     .timing = {
-        .h_size = PIXEL_360,
-        .v_size = PIXEL_390,
+        .h_size = PIXEL_320,
+        .v_size = 385,
         .hsync_pulse_width = 40,
         .vsync_pulse_width = 8,
         .hsync_back_porch = 40,
@@ -102,13 +101,13 @@ const bk_display_dsi_panel_t lcd_device_jd9855_mipi_360x390 = {
         .vsync_back_porch = 40,
         .vsync_front_porch = 40,
     },
-    .init_cmds = jd9855_mipi_360x390_init_cmds,
-    .read_id_regs = jd9855_mipi_360x390_read_id_regs,
+    .init_cmds = jd9855_mipi_320x385_init_cmds,
+    .read_id_regs = jd9855_mipi_320x385_read_id_regs,
     .read_id_bytes = 3,
     .reset_active_level = false,
     .reset = bk_lcd_mipi_default_reset,
     .init  = bk_lcd_mipi_default_init,
 };
 
-BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9855_mipi_360x390, "jd9855_mipi_360x390", BK_LCD_PANEL_BUS_DSI);
+BK_LCD_PANEL_DEVICE_SECTION(lcd_device_jd9855_mipi_320x385, "jd9855_mipi_320x385", BK_LCD_PANEL_BUS_DSI);
 #endif
