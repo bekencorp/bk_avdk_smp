@@ -165,6 +165,11 @@ extern "C" {
 #define PM_MODULE_SUB_POWER_DOMAIN_MAX                   (32)
 #define WAKEUP_SOURCE_MARK                               (0x7F)
 
+#define PM_CLKSEL_CORE_26M                               (0)
+#define PM_CLKSEL_CORE_DCO                               (1)
+#define PM_CLKSEL_CORE_320M                              (2)
+#define PM_CLKSEL_CORE_480M                              (3)
+
 typedef struct {
 	uint8_t enum_name;
 	uint32_t freq;

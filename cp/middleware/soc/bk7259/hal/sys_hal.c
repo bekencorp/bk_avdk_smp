@@ -33,10 +33,6 @@
 #include <driver/xdac_types.h>
 #include <modules/pm.h>
 
-#define PM_CLKSEL_CORE_26M                  (0)
-#define PM_CLKSEL_CORE_DCO                  (1)
-#define PM_CLKSEL_CORE_320M                 (2)
-#define PM_CLKSEL_CORE_480M                 (3)
 #define PM_SYS_REG_0x8                      (SOC_SYS_REG_BASE + (0x8 << 2))
 #define PM_CLKSEL_FLASH_480M                (0x1)
 #define PM_CLKDIV_CORE_0                    (0)

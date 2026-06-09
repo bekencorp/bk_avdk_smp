@@ -1280,12 +1280,18 @@ __attribute__((section(".iram"))) void sys_hal_regs_digital_restore(void)
 	s_sys_saved_regs[0] |= (0x3 << 6);
 	s_sys_saved_regs[0] |= (0x3 << 8);
 	sys_ll_set_cpu_clk_div_mode1_value(s_sys_saved_regs[0]); // reg_0x8
-
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(37);//18
+	GPIO_DOWN(37);
+	#endif
 	sys_ll_set_cpu_clk_div_mode2_value(s_sys_saved_regs[1]); // reg_0x9
 	sys_ll_set_cpu_clk_div_mode3_value(s_sys_saved_regs[2]); // reg_0xa
 	sys_ll_set_cpu_anaspi_freq_value(s_sys_saved_regs[3]); // reg_0xb
 	sys_ll_set_cpu_device_clk_enable_value(s_sys_saved_regs[4]); // reg_0xc
-
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(37);//19
+	GPIO_DOWN(37);
+	#endif
 	sys_ll_set_reserver_reg0xf_value(s_sys_saved_regs[6]); // reg_0xf
 	//sys_ll_set_reserver_reg0x10_value(s_sys_saved_regs[7]); // reg_0x10
 	sys_ll_set_cpu_power_sleep_wakeup_value(s_sys_saved_regs[8]); // reg_0x11
@@ -1298,8 +1304,15 @@ __attribute__((section(".iram"))) void sys_hal_regs_digital_restore(void)
 	// sys_ll_set_m55sub_int_0_31_en_value(s_sys_saved_regs[15]); // reg_0x1a
 	// sys_ll_set_m55sub_int_32_63_en_value(s_sys_saved_regs[16]); // reg_0x1b
 	// sys_ll_set_m55sub_int_64_95_en_value(s_sys_saved_regs[17]); // reg_0x1c
-
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(37);//20
+	GPIO_DOWN(37);
+	#endif
 	sys_hal_mailbox_regs_restore();
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(37);//21
+	GPIO_DOWN(37);
+	#endif
 }
 __attribute__((section(".iram"))) void sys_hal_regs_analog_restore(void)
 {
@@ -1367,6 +1380,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	//sys_hal_backup_disable_int(&int_state1, &int_state2);
 	sys_hal_backup_set_core_26m(&cksel_core, &clkdiv_core, &clkdiv_bus);
 	sys_hal_backup_set_flash_26m(&cksel_flash, &clkdiv_flash);
+	sys_hal_set_ram_low_speed();
 
 #if CONFIG_INT_WDT
 	extern void close_wdt(void);
@@ -1686,12 +1700,35 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	#if CONFIG_DEEP_LV
 	sys_hal_regs_digital_restore();
 	#endif
-
+	#if CONFIG_DEEP_LV_DEBUG
+	GPIO_UP(37);//22
+	GPIO_DOWN(37);
+	#endif
+	switch (cksel_core) {
+		case PM_CLKSEL_CORE_26M:
+			break;
+		case PM_CLKSEL_CORE_DCO:
+			break;
+		case PM_CLKSEL_CORE_320M:
+			if(clkdiv_core <= 1)// >=160M
+			{
+				sys_hal_set_ram_high_speed();
+			}
+			break;
+		case PM_CLKSEL_CORE_480M:
+			if(clkdiv_core <= 2)// >=160M
+			{
+				sys_hal_set_ram_high_speed();
+			}
+			break;
+		default:
+			break;
+	}
 	sys_hal_restore_core_freq(cksel_core, clkdiv_core, clkdiv_bus);
 	sys_hal_restore_flash_freq(cksel_flash, clkdiv_flash);
 
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//18
+	GPIO_UP(37);//23
 	GPIO_DOWN(37);
 	#endif
 
@@ -1701,7 +1738,7 @@ __attribute__((section(".iram"))) void sys_hal_enter_low_voltage(void)
 	portNVIC_SYSTICK_LOAD_REG = PM_EXIT_LOWVOL_SYSTICK_RELOAD_TIME;
 	portNVIC_SYSTICK_CTRL_REG = systick_ctrl_value;
 	#if CONFIG_DEEP_LV_DEBUG
-	GPIO_UP(37);//19
+	GPIO_UP(37);//24
 	GPIO_DOWN(37);
 	#endif
 }
