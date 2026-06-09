@@ -1,0 +1,69 @@
+#
+# Audio player example - AP (M55) project default config.
+# This file contains only differences compared to the board defconfig.
+# You can update it with menuconfig [D] option.
+#
+
+# CONFIG_SOC_SMP is not set
+# CONFIG_ALL_CODE_IN_PSRAM is not set
+
+# --- RTOS ---
+CONFIG_FREERTOS_V10=y
+# CONFIG_FREERTOS_SMP is not set
+CONFIG_FREERTOS_USE_QUEUE_SETS=y
+CONFIG_TASK_STACK_IN_PSRAM=y
+CONFIG_QUEUE_IN_PSRAM=y
+
+# --- PSRAM ---
+CONFIG_PSRAM=y
+
+# --- log / console ---
+CONFIG_SYS_PRINT_DEV_UART=n
+CONFIG_SYS_PRINT_DEV_MAILBOX=y
+CONFIG_UART_PRINT_BAUD_RATE=115200
+
+# --- media service framework (ap_main calls media_service_init) ---
+CONFIG_MEDIA_SERVICE=y
+
+# --- file system (SD card / local file playback) ---
+
+# SD card driver (DWC SDIO V3P0 is already enabled by the board defconfig).
+# FATFS / FATFS_SDCARD depend on SDCARD, which the board defconfig leaves off,
+# so it must be explicitly enabled here for the /sd0 FATFS mount to succeed.
+#CONFIG_SDCARD=y
+#CONFIG_SDCARD_POWER_GPIO_CTRL=y
+#CONFIG_FATFS=y
+#CONFIG_FATFS_SDCARD=y
+#CONFIG_EASY_FLASH_V4=y
+#CONFIG_LITTLEFS=y
+
+
+CONFIG_SDCARD=y
+CONFIG_FATFS=y
+CONFIG_FATFS_SDCARD=y
+CONFIG_VFS=y
+CONFIG_VFS_TEST=y
+
+# --- network (net source / hls source) ---
+CONFIG_WEBCLIENT=y
+
+# --- audio driver (V2) ---
+CONFIG_AUDIO=y
+CONFIG_AUD_DRIVER_V2=y
+CONFIG_AUDIO_ADC=y
+CONFIG_AUDIO_DAC=y
+CONFIG_AUD_PARAM_CTRL=y
+
+# --- ADK audio pipeline & streams ---
+CONFIG_ADK=y
+CONFIG_ADK_USE_PSRAM=y
+CONFIG_ADK_ONBOARD_SPEAKER_STREAM=y
+CONFIG_ADK_ONBOARD_SPEAKER_STREAM_V2=y
+CONFIG_ADK_RAW_STREAM=y
+
+# --- bk_audio_player ---
+CONFIG_AUDIO_PLAYER=y
+CONFIG_AUDIO_PLAYER_USE_PSRAM=y
+
+CONFIG_DMA_LOGIC_CHAN_ID_MIN=4
+CONFIG_XTAL_FREQ=26000000

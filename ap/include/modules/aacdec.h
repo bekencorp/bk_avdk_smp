@@ -79,16 +79,23 @@ extern "C" {
 #endif //  HELIX_FEATURE_AUDIO_CODEC_AAC_SBR.
 #define AAC_ENABLE_MPEG4
 
-enum {
-	ERR_AAC_NONE                          =   0,
-	ERR_AAC_INDATA_UNDERFLOW              =  -1,
-	ERR_AAC_NULL_POINTER                  =  -2,
-	ERR_AAC_INVALID_ADTS_HEADER           =  -3,
-	ERR_AAC_INVALID_ADIF_HEADER           =  -4,
-	ERR_AAC_INVALID_FRAME                 =  -5,
-	ERR_AAC_MPEG4_UNSUPPORTED             =  -6,
-	ERR_AAC_CHANNEL_MAP                   =  -7,
-	ERR_AAC_SYNTAX_ELEMENT                =  -8,
+typedef enum
+{
+    AAC_MEM_TYPE_SRAM = 0,
+    AAC_MEM_TYPE_PSRAM
+} aac_mem_type_t;
+
+enum
+{
+    ERR_AAC_NONE                          =   0,
+    ERR_AAC_INDATA_UNDERFLOW              =  -1,
+    ERR_AAC_NULL_POINTER                  =  -2,
+    ERR_AAC_INVALID_ADTS_HEADER           =  -3,
+    ERR_AAC_INVALID_ADIF_HEADER           =  -4,
+    ERR_AAC_INVALID_FRAME                 =  -5,
+    ERR_AAC_MPEG4_UNSUPPORTED             =  -6,
+    ERR_AAC_CHANNEL_MAP                   =  -7,
+    ERR_AAC_SYNTAX_ELEMENT                =  -8,
 
 	ERR_AAC_DEQUANT                       =  -9,
 	ERR_AAC_STEREO_PROCESS                = -10,
@@ -234,6 +241,19 @@ int AACSetRawBlockParams(HAACDecoder hAACDecoder, int copyLast, AACFrameInfo *aa
  */
 int AACFlushCodec(HAACDecoder hAACDecoder);
 
+/**
+ * @brief     This function is called to check and parse ADTS header. Frame length is returned if ADTS header is parsed successfully.
+ *
+ * @param[in]     hAACDecoder: valid AAC decoder instance pointer (HAACDecoder)
+ * @param[in]     buf: buffer to search for sync word
+ * @param[in]     nBytes: max number of bytes to search in buffer
+ *
+ * @return
+ *    - > 0: Frame length
+ *    - 0: not find ADTS header or parse fail
+ */
+int AACParseAdtsHeader(HAACDecoder hAACDecoder, unsigned char *inbuf, int nBytes);
+
 #ifdef BK_CONFIG_AAC_GENERATE_TRIGTABS_FLOAT
 /**
  * @brief     This function is called to generate AAC decoder tables using floating-point math library.
@@ -257,6 +277,29 @@ int AACInitTrigtabsFloat(void);
  */
 void AACFreeTrigtabsFloat(void);
 #endif
+
+/**
+ * @brief    This function is called to set memory type used by AAC decoder.
+ *
+ * @param    mem_type: memory type(0: sram, 1: psram)
+ *
+ * @return
+ *    - 0: successful
+ *    - others: error code (< 0) if error
+ */
+int AACSetMemType(aac_mem_type_t mem_type);
+
+/**
+ * @brief    This function is called to get memory type used by AAC decoder.
+ *
+ * @param    none
+ *
+ * @return
+ *    - 0: sram
+ *    - 1: psram
+ */
+aac_mem_type_t AACGetMemType(void);
+
 
 #ifdef __cplusplus
 }

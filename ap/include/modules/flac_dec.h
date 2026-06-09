@@ -16,6 +16,7 @@
 #ifndef _FLAC_DECODER_H
 #define _FLAC_DECODER_H
 
+#include <os/os.h>
 #include "flac_dec_types.h"
 
 #ifdef  __cplusplus
@@ -63,6 +64,15 @@ bk_err_t bk_aud_flac_dec_deinit(void);
  *    - others: other errors.
  */
 bk_err_t bk_aud_flac_dec_process(void);
+
+/**
+ * @brief     Flush internal decoder state/buffers
+ *
+ * @return
+ *    - BK_OK: succeed
+ *    - others: other errors.
+ */
+bk_err_t bk_aud_flac_dec_flush(void);
 
 #ifdef __cplusplus
 }
