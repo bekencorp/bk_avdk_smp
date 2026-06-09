@@ -62,6 +62,7 @@ CONFIG_NO_HOSTED=y
 # CONFIG_FULLY_HOSTED is not set
 # CONFIG_WIFI_SENSOR is not set
 # CONFIG_BLUETOOTH is not set
+# CONFIG_BK24G is not set
 # end of Features Configuration
 
 #
