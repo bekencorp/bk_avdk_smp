@@ -23,13 +23,25 @@
 #include "dubhe_otp.h"
 #include "dubhe_driver.h"
 #include "system_hw.h"
-#include <modules/pm.h>
 #include "bk_misc.h"
 #include <driver/int.h>
-#include "sys_driver.h"
+#include "interrupt.h"
+#include <soc/bk7259/int_types_impl.h>
+#include <modules/pm.h>
 
 unsigned long _g_Dubhe_RegBase;
 static int do_dubhe_driver_init( unsigned long dbh_base_addr );
+bool dubhe_inited = false;
+
+static void dubhe_delay_us(uint32 num) {
+
+	volatile uint32 i, j, us_count;
+	us_count = 4;
+	for (i = 0; i < num; i++)
+		for (j = 0; j < us_count; j++)
+			;
+
+}
 
 static void dubhe_dma_disable(void)
 {
@@ -125,25 +137,26 @@ static void dubhe_lv_init(void)
     bk_pm_sleep_register_cb(PM_MODE_LOW_VOLTAGE, PM_DEV_ID_SECURE_WORLD, &enter, &exit);
 }
 
-static void te200_isr(void)
+/* GCC 14+: ISR must be compiled with general-regs-only when FPU is enabled. */
+#pragma GCC push_options
+#pragma GCC target("general-regs-only")
+static void __BK_IRQ te200_isr(void)
 {
-	extern int dubhe_intr_handler( void );
+	extern int dubhe_intr_handler(void);
 	dubhe_intr_handler();
 }
+#pragma GCC pop_options
 
 static int do_dubhe_driver_init( unsigned long dbh_base_addr )
 {
-    if (sys_ll_get_cpu_power_sleep_wakeup_pwd_encp() != 0) {
-        sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(0);
-        bk_delay_us(100);
-    }
+    uint32_t int_level = rtos_disable_int();
+
+    bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
+    dubhe_delay_us(100);
 
     _g_Dubhe_RegBase = dbh_base_addr;
 
-#if !defined(TEE_M)
-    bk_int_isr_register(INT_SRC_ENC_SEC,  te200_isr,  NULL);
-    sys_drv_int_enable(ENCP_SEC_INTERRUPT_CTRL_BIT);
-#endif
+    bk_interrupt_register_m55sub_int(INT_SRC_CP_ENC_SEC, te200_isr);
 
 #if DUBHE_SECURE
     dubhe_dma_disable();
@@ -170,12 +183,12 @@ static int do_dubhe_driver_init( unsigned long dbh_base_addr )
     dubhe_event_init( );
 #endif
 
+    rtos_enable_int(int_level);
     return 0;
 }
 
 int dubhe_driver_init( unsigned long dbh_base_addr )
 {
-    static bool dubhe_inited = false;
     bool need_init_driver = false;
     int ret = 0;
 
@@ -183,14 +196,11 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
         dubhe_inited = true;
         need_init_driver = true;
 
-    	dubhe_lv_init();
-        if (sys_ll_get_cpu_power_sleep_wakeup_pwd_encp() != 0) {
-            sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(0);
-            bk_delay_us(500); //for power-on init, bk7239n need more delay before dubhe can work correctly
-        }
+        dubhe_lv_init();
+        bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_ON);
     }
 
-    if ((need_init_driver == true) || (sys_ll_get_cpu_power_sleep_wakeup_pwd_encp() != 0)) {
+    if (need_init_driver == true) {
         ret = do_dubhe_driver_init(dbh_base_addr);
     }
 
@@ -200,10 +210,7 @@ int dubhe_driver_init( unsigned long dbh_base_addr )
 void dubhe_driver_cleanup( void )
 {
 
-#if !defined(TEE_M)
-    sys_drv_int_disable(ENCP_SEC_INTERRUPT_CTRL_BIT);
-    bk_int_isr_unregister(INT_SRC_ENC_SEC);
-#endif
+    bk_interrupt_unregister_m55sub_int(INT_SRC_CP_ENC_SEC);
 
 #if defined( ARM_CE_DUBHE_ACA )
     dubhe_aca_driver_cleanup( );
@@ -212,8 +219,8 @@ void dubhe_driver_cleanup( void )
 #endif
 
     dubhe_event_cleanup( );
-    //bk_delay_us(100);
-    sys_ll_set_cpu_power_sleep_wakeup_pwd_encp(1);
+    bk_pm_module_vote_power_ctrl(POWER_SUB_MODULE_NAME_ENCP_TRUSTENGINE, PM_POWER_MODULE_STATE_OFF);
+    dubhe_delay_us(100);
 }
 
 /*************************** The End Of File*****************************/

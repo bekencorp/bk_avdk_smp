@@ -29,7 +29,7 @@
 #include "mbedtls/platform.h"
 #else
 #include <stdio.h>
-#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
+#define mbedtls_printf printf
 #endif /* MBEDTLS_PLATFORM_C */
 
 int mbedtls_get_otp_info( mbedtls_otp_info_t type, uint32_t *output, size_t size, uint32_t offset )

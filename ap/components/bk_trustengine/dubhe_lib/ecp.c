@@ -95,7 +95,7 @@
 #else
 #include <stdlib.h>
 #include <stdio.h>
-#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
+#define mbedtls_printf     printf
 #define mbedtls_calloc    calloc
 #define mbedtls_free       free
 #endif
@@ -1521,9 +1521,6 @@ int mbedtls_ecp_mul_restartable( mbedtls_ecp_group *grp, mbedtls_ecp_point *R,
     ECP_VALIDATE_RET( R   != NULL );
     ECP_VALIDATE_RET( m   != NULL );
     ECP_VALIDATE_RET( P   != NULL );
-
-    if( f_rng == NULL )
-        return( MBEDTLS_ERR_ECP_BAD_INPUT_DATA );
 
     return( ecp_mul_restartable_internal( grp, R, m, P, f_rng, p_rng, rs_ctx ) );
 }

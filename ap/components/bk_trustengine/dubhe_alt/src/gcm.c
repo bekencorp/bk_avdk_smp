@@ -45,7 +45,7 @@
 #if defined(MBEDTLS_SELF_TEST) && defined(MBEDTLS_AES_C)
 #include <stdio.h>
 #include "mbedtls/aes.h"
-#define mbedtls_printf(...) BK_LOGD(NULL, ##__VA_ARGS__)
+#define mbedtls_printf printf
 #endif /* MBEDTLS_SELF_TEST && MBEDTLS_AES_C */
 #endif /* MBEDTLS_PLATFORM_C */
 
@@ -825,6 +825,10 @@ int mbedtls_gcm_finish( mbedtls_gcm_context *ctx,
     switch (ctx->cipher) {
         case MBEDTLS_CIPHER_ID_AES:
         case MBEDTLS_CIPHER_ID_SM4:
+            ret = arm_ce_gcm_update(ctx->armgcm, 0, NULL, NULL);
+            if (ret != 0) {
+                break;
+            }
             ret = arm_ce_gcm_finish( ctx->armgcm, tag, tag_len );
         break;
         default:
