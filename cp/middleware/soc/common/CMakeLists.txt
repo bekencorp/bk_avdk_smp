@@ -22,14 +22,6 @@ if (CONFIG_AON_WDT)
 	)
 endif()
 
-if (CONFIG_PWM)
-if (CONFIG_PWM_V1PX)
-	list(APPEND srcs
-		hal/pwm_hal_v1px.c
-		)
-endif()
-endif()
-
 if (CONFIG_FLASH)
 	list(APPEND srcs
 		hal/flash_hal.c

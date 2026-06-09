@@ -3,21 +3,6 @@ menu "PWM"
 		bool "Enable pwm"
 		default n
 
-	choice PWM_VERSION
-		prompt "ASIC PWM IP Version"
-		default PWM_V2P2
-
-		config PWM_V1PX
-			bool "PWM_V1PX"
-			help
-			    "ASIC PWM IP Version V1P1:BK7236XX...,the chips MP after 2023-04"
-
-		config PWM_V2P2
-			bool "PWM_V2P2"
-			help
-				ASIC PWM Version ID: V2.2
-	endchoice
-
 	config PWM_PM_CB_SUPPORT
 		bool "PWM PM Support"
 		default n
