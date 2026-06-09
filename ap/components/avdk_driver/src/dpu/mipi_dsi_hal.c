@@ -15,6 +15,29 @@
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 #define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
 
+#define DSI_CMD_PKT_WAIT_TIMEOUT_MS  20
+#define DSI_CMD_PKT_STATUS_FULL      (1U << 1)
+#define DSI_CMD_PKT_STATUS_BUSY      (1U << 6)
+
+static void hal_dsi_gen_read_restore(uint32_t save_mode)
+{
+    reg_PCKHDL_CFG &= ~(1U << 2);
+    hal_dsi_operation_mode_set(save_mode);
+}
+
+static bool hal_dsi_wait_cmd_pkt_clear(uint32_t mask, const char *what)
+{
+    for (uint32_t t = 0; t < DSI_CMD_PKT_WAIT_TIMEOUT_MS; t++) {
+        if ((reg_CMD_PKT_STATUS & mask) == 0) {
+            return true;
+        }
+        rtos_delay_milliseconds(1);
+    }
+
+    LOGE("%s %s timeout, status=0x%x\n", __func__, what, reg_CMD_PKT_STATUS);
+    return false;
+}
+
 void hal_dsi_wait_fpga_dphy_done(void)
 {
 #if(SFT_VERSION == FPGA_7259_CM55)
@@ -836,19 +859,28 @@ uint16_t hal_dsi_gen_read_pkt(  uint8_t vc, uint8_t data_type,
 
     save_mode = hal_dsi_operation_mode_get();       // save mode
     hal_dsi_operation_mode_set(1);                  // in cmd mode
-    reg_PCKHDL_CFG |= 1 << 2;                       // BTA enable
+    reg_PCKHDL_CFG |= 1U << 2;                      // BTA enable
 
-    while(reg_CMD_PKT_STATUS & ( 1 << 1))  LOGE("%s cmd full 1\n", __func__);
+    if (!hal_dsi_wait_cmd_pkt_clear(DSI_CMD_PKT_STATUS_FULL, "cmd full")) {
+        hal_dsi_gen_read_restore(save_mode);
+        return false;
+    }
 
     reg_GEN_HDR = (bytes_to_read << 8 ) | ((vc << 6) | 0x37);                      // set maximum return packet size
 
-    while(reg_CMD_PKT_STATUS & ( 1 << 1))  LOGE("%s cmd full 2\n", __func__);
+    if (!hal_dsi_wait_cmd_pkt_clear(DSI_CMD_PKT_STATUS_FULL, "cmd full")) {
+        hal_dsi_gen_read_restore(save_mode);
+        return false;
+    }
 
     reg_GEN_HDR = (msb_byte <<  16) | (lsb_byte << 8 ) | ((vc << 6) | data_type);  // short read with 0, 1, 2 parameters
 
     rtos_delay_milliseconds(1);                     // delay for reg_GEN_HDR is done
 
-    while(reg_CMD_PKT_STATUS & ( 1 << 6))  LOGE("%s cmd busy\n", __func__);
+    if (!hal_dsi_wait_cmd_pkt_clear(DSI_CMD_PKT_STATUS_BUSY, "cmd busy")) {
+        hal_dsi_gen_read_restore(save_mode);
+        return false;
+    }
 
     for(uint8_t i = 0; i < bytes_to_read; i += 4)
     {
@@ -863,8 +895,7 @@ uint16_t hal_dsi_gen_read_pkt(  uint8_t vc, uint8_t data_type,
         }
     }
 
-    reg_PCKHDL_CFG &= ~(1 << 2);                    // BTA disable
-    hal_dsi_operation_mode_set(save_mode);          // save mode write back
+    hal_dsi_gen_read_restore(save_mode);
 
     // LOGI("%s, cmd:%x, len:%d\n", __func__, lsb_byte, bytes_to_read);
 

@@ -155,38 +155,58 @@ static bk_err_t lcd_panel_common_reset(bk_avdk_lcd_panel_t *panel)
 static bk_err_t lcd_panel_common_read_id(bk_avdk_lcd_panel_t *panel, uint32_t *id)
 {
     lcd_panel_common_t *priv = (lcd_panel_common_t *)panel;
+    uint8_t id_buf[3] = {0};
+    uint8_t reg_count = 0;
+    uint8_t read_bytes;
+    bk_err_t ret;
+
     AVDK_RETURN_ON_FALSE(priv && priv->panel && id, BK_ERR_NULL_PARAM, TAG, "invalid arguments");
 
     if (priv->panel->read_id_regs == NULL) {
         return BK_ERR_NOT_SUPPORT;
     }
 
-    uint8_t id_buf[3] = {0};
-    uint8_t read_bytes = priv->panel->read_id_bytes;
-
-    if (read_bytes == 0) {
-        for (int i = 0; i < 3 && priv->panel->read_id_regs[i] != 0; i++) {
-            read_bytes++;
-        }
+    while (reg_count < 3 && priv->panel->read_id_regs[reg_count] != 0) {
+        reg_count++;
+    }
+    if (reg_count == 0) {
+        return BK_ERR_NOT_SUPPORT;
     }
 
+    read_bytes = priv->panel->read_id_bytes;
+    if (read_bytes == 0) {
+        read_bytes = reg_count;
+    }
     if (read_bytes == 0 || read_bytes > 3) {
         return BK_ERR_NOT_SUPPORT;
     }
 
-    uint8_t cmd = priv->panel->read_id_regs[0];
-    bk_err_t ret = bk_display_bus_rx_param(priv->bus_handle, (int)cmd, id_buf, read_bytes);
-    if (ret != BK_OK) {
-        return ret;
+    if (reg_count == 1) {
+        ret = bk_display_bus_rx_param(priv->bus_handle,
+                                      (int)priv->panel->read_id_regs[0],
+                                      id_buf, read_bytes);
+        if (ret != BK_OK) {
+            return ret;
+        }
+    } else {
+        if (reg_count != read_bytes) {
+            return BK_ERR_NOT_SUPPORT;
+        }
+        for (int i = 0; i < reg_count; i++) {
+            ret = bk_display_bus_rx_param(priv->bus_handle,
+                                          (int)priv->panel->read_id_regs[i],
+                                          &id_buf[i], 1);
+            if (ret != BK_OK) {
+                return ret;
+            }
+        }
     }
-
-    rtos_delay_milliseconds(100);
 
     if (read_bytes == 1) {
         *id = id_buf[0];
     } else if (read_bytes == 2) {
         *id = (id_buf[0] << 8) | id_buf[1];
-    } else if (read_bytes == 3) {
+    } else {
         *id = (id_buf[0] << 16) | (id_buf[1] << 8) | id_buf[2];
     }
 

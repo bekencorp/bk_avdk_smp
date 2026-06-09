@@ -10,6 +10,7 @@
 #include <os/os.h>
 #include <os/mem.h>
 #include <avdk_check.h>
+#include <common/bk_err.h>
 #include <components/log.h>
 #include <components/bk_display.h>
 #include <driver/mipi_dsi.h>
@@ -102,7 +103,9 @@ static bk_err_t dsi_rx_param(bk_display_bus_ctlr_t *controller, int lcd_cmd,
                              void *param, uint16_t param_size)
 {
     (void)controller;
-    mipi_dsi_dcs_read((uint8_t)lcd_cmd, (uint8_t)param_size, param);
+    if (!mipi_dsi_dcs_read((uint8_t)lcd_cmd, (uint8_t)param_size, param)) {
+        return BK_ERR_TIMEOUT;
+    }
     return BK_OK;
 }
 
