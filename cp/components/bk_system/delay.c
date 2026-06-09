@@ -29,7 +29,7 @@ __IRAM_SEC void bk_delay_us(UINT32 us)
 
 void delay_ms(UINT32 ms)
 {
-#if 0//CONFIG_TIMER_US bk7259 v2 bringup,to do
+#if CONFIG_TIMER_US
 	bk_timer_delay_us(1000 * ms);
 #else
 	arch_delay_us(1000 * ms);

@@ -47,17 +47,10 @@ void bk_reboot_ex(uint32_t reset_reason)
 		bk_pm_module_vote_cpu_freq(PM_DEV_ID_DEFAULT,PM_CPU_FRQ_60M);
 
 		BK_LOGD(TAG, "wdt reboot\r\n");
-#if CONFIG_WDT_EN
-        (void)bk_timer_stop(TIMER_ID2);
-#endif
 		rtos_disable_int();
 	}
 	//fix reboot hang 16s issue
 	bk_flash_power_saving_enter();
-#if CONFIG_AON_PMU_REG0_REFACTOR_DEV
-    aon_pmu_drv_r0_latch_to_r7b();
-#endif
-
 #if CONFIG_AON_WDT
 	bk_wdt_force_reboot();
 #endif
