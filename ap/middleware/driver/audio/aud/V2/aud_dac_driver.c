@@ -1066,16 +1066,18 @@ bk_err_t bk_aud_dac_stop(aud_dac_chl_t dac_chl)
 	AUD_DAC_RETURN_ON_NOT_INIT();
 	switch (dac_chl) {
 		case AUD_DAC_CHL_L:
-			audio_reg_hal_set_dac_cfg_dac_enable_l(0);
+			sys_drv_aud_dacl_en(0);
+			sys_drv_aud_dacr_en(0);
 			break;
 
 		case AUD_DAC_CHL_R:
-			audio_reg_hal_set_dac_cfg_dac_enable_r(0);
+			sys_drv_aud_dacl_en(0);
+			sys_drv_aud_dacr_en(0);
 			break;
 
 		case AUD_DAC_CHL_LR:
-			audio_reg_hal_set_dac_cfg_dac_enable_l(0);
-			audio_reg_hal_set_dac_cfg_dac_enable_r(0);
+			sys_drv_aud_dacl_en(0);
+			sys_drv_aud_dacr_en(0);
 			break;
 
 		default:
