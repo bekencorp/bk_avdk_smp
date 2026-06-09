@@ -119,8 +119,8 @@ int usb_dc_riscv_device_prepare(void)
 
 int usb_hc_riscv_host_prepare(void)
 {
-    const unsigned char *fw = bk_riscv_usb_host_fw_addr();
-    const unsigned int fw_len = bk_riscv_usb_host_fw_len();
+    const unsigned char *fw = bk_riscv_usb_fw_addr();
+    const unsigned int fw_len = bk_riscv_usb_fw_len();
 #if CONFIG_USB_RISCV_LOG_UART && (CONFIG_UART_PRINT_PORT != RISCV_USB_LOG_UART_ID)
     const uart_config_t config =
     {
