@@ -202,7 +202,7 @@ bk_err_t bk_pm_module_vote_cpu_freq(pm_dev_id_e module, pm_cpu_freq_e cpu_freq)
 	}
 	else
 	{
-		ret = sys_drv_switch_cpu_bus_freq(freq_max);
+		ret = sys_drv_switch_cpu_bus_freq_unlocked(freq_max);
 	}
 	if (ret == BK_OK)
 	{
