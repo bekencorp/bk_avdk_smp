@@ -12,6 +12,7 @@
 #include <driver/uart.h>
 #include <driver/hal/hal_uart_types.h>
 #include "gcov_public.h"
+#include "cli.h"
 #endif
 
 #define SYS_ANA_REG_BASE    (0x44010000)
@@ -67,6 +68,18 @@ static void bk_lodoen_enable(void)
 }
 
 
+#if CONFIG_GCOV
+static void cli_gcov_dump_test_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
+{
+    __gcov_exit();
+    bk_printf("[RESULT][PASS] gcov_dump success\r\n");
+}
+
+static const struct cli_command s_gcov_test_cmds[] = {
+    { "gcov_dump_test", "dump gcov data then print test result", cli_gcov_dump_test_cmd },
+};
+#endif
+
 int main(void)
 {
     bk_init();
@@ -81,6 +94,7 @@ int main(void)
         gcov_uart_cfg.flow_ctrl = UART_FLOWCTRL_DISABLE;
         gcov_uart_cfg.src_clk = UART_SCLK_APLL;
         gcov_init_uart(UART_ID_5, &gcov_uart_cfg);
+        cli_register_commands(s_gcov_test_cmds, sizeof(s_gcov_test_cmds) / sizeof(s_gcov_test_cmds[0]));
     }
 #endif
 
