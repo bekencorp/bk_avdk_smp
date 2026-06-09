@@ -43,7 +43,6 @@ int main(void)
 	bk_init();
     media_service_init();
 
-    bk_printf("M55 main running...\r\n");
 #if 0
     camera_board_config_t config = {
         .mipi = {
@@ -124,5 +123,6 @@ int main(void)
     cli_voice_service_init();
 #endif
 
+    bk_printf("M55 main running...\r\n");
 	return 0;
 }
