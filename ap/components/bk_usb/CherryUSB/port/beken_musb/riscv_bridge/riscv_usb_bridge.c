@@ -6,6 +6,7 @@
 
 #include "bk_uart.h"
 #include "riscv_usb_bridge.h"
+#include "sys_sw_regs.h"
 
 #define USB_HS_BASE            SOC_USB_HS_BASE
 #define REG_USB_USR_105        (*(volatile uint32_t *)(USB_HS_BASE + 0x714U))
@@ -30,6 +31,18 @@ typedef struct {
 
 static uint32_t s_host_started = 0U;
 
+static volatile riscv_usb_probe_t s_riscv_probe = {0};
+
+volatile riscv_usb_probe_t *get_riscv_usb_probe(void)
+{
+    return &s_riscv_probe;
+}
+
+void riscv_usb_probe_init(void)
+{
+    bk_sys_sw_regs_ptr()->riscv_swap = (void *)&s_riscv_probe;
+}
+
 static void usb_hc_riscv_power_on(void)
 {
     REG_USB_USR_105 |= (1U << 14);
@@ -51,6 +64,8 @@ void usb_hc_riscv_start_core(uint32_t reset_vec)
 int usb_hc_riscv_start_firmware(const unsigned char *fw, unsigned int fw_len, uint32_t reset_vec)
 {
     volatile riscv_boot_param_t *boot_param = (volatile riscv_boot_param_t *)(RISCV_TCM_ADDR + RISCV_BOOT_PARAM_OFFSET);
+
+    riscv_usb_probe_init();
 
     usb_hc_riscv_power_on();
     usb_hc_route_irq_to_riscv();

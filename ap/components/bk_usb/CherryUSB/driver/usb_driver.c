@@ -53,7 +53,7 @@ extern void spitrig_toggle(void);
 static bool usb_hs_irq_should_be_managed_by_ap(void)
 {
 #if CONFIG_USB_RISCV_BRIDGE
-	volatile riscv_usb_probe_t *probe = &bk_sys_sw_regs_ptr()->riscv_usb_probe;
+	volatile riscv_usb_probe_t *probe = get_riscv_usb_probe();
 
 	if ((probe->magic == RISCV_USB_PROBE_MAGIC) &&
 	    (probe->owner == RISCV_USB_PROBE_OWNER_RISCV)) {

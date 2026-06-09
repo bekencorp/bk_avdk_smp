@@ -1,13 +1,16 @@
-#ifndef RISCV_USB_BRIDGE_H
-#define RISCV_USB_BRIDGE_H
+#pragma once
 
 #include <stdint.h>
-
-#if CONFIG_USB_RISCV_BRIDGE
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#if CONFIG_USB_RISCV_BRIDGE
+
+#include "modules/bk_riscv_types.h"
+volatile riscv_usb_probe_t *get_riscv_usb_probe(void);
+void riscv_usb_probe_init(void);
 
 void usb_hc_riscv_start_core(uint32_t reset_vec);
 int usb_hc_riscv_start_firmware(const unsigned char *fw, unsigned int fw_len, uint32_t reset_vec);
@@ -31,10 +34,6 @@ int usb_hc_riscv_host_prepare(void);
  * failure (caller MUST keep registering USBD_IRQHandler on the M55).
  */
 int usb_dc_riscv_device_prepare(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #else
 
@@ -67,4 +66,6 @@ static inline int usb_dc_riscv_device_prepare(void)
 
 #endif
 
+#ifdef __cplusplus
+}
 #endif

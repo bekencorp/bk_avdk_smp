@@ -51,22 +51,6 @@ extern "C" {
 #define SSPL_SIZE (CPU_CNT_MAX + 1)
 typedef uint32_t sspl_data_t[SSPL_SIZE];
 
-/** Must match sys_sw_regs_shared.h / RISC-V firmware */
-#define RISCV_USB_PROBE_PIPE_NUM 16U
-
-typedef struct {
-    volatile uint32_t magic;
-    volatile uint32_t owner;
-    volatile uint32_t irq_seq;
-    volatile uint32_t event;
-    volatile uint32_t event_data;
-    volatile uint32_t g_musb_hcd_addr;
-    volatile uint32_t usb_ep0_state_addr;
-    volatile uint32_t pending_ep0;
-    volatile uint32_t pending_pipe_tx[RISCV_USB_PROBE_PIPE_NUM];
-    volatile uint32_t pending_pipe_rx[RISCV_USB_PROBE_PIPE_NUM];
-} riscv_usb_probe_t;
-
 #define BK_SYS_SW_REGS_AP_HEAP_DUMP_VALID 0x41504844U
 #define BK_SYS_SW_REGS_AP_EXTRA_DUMP_VALID_MASK 0xFFFF0000U
 #define BK_SYS_SW_REGS_AP_EXTRA_DUMP_VALID      0x41500000U
@@ -117,7 +101,7 @@ typedef union {
         volatile uint32_t psram_power_down; /**< PSRAM power-down flag */
         volatile uint32_t cp_reset_reason;  /**< CP reset reason code  */
         volatile uint32_t ap_reset_reason;  /**< AP reset reason code  */
-        volatile riscv_usb_probe_t riscv_usb_probe; /**< AP/RISC-V USB host probe context */
+        volatile void* riscv_swap; /**< AP/RISC-V USB host probe context */
         volatile ap_heap_dump_info_t ap_heap_dump[BK_SYS_SW_REGS_AP_HEAP_MAX]; /**< AP heap dump windows */
         volatile ap_extra_dump_info_t ap_extra_dump[BK_SYS_SW_REGS_AP_EXTRA_DUMP_MAX]; /**< AP extra dump windows */
         volatile pm_shared_info_t pm_shared_info;

@@ -22,6 +22,8 @@
 #include "riscv_bridge/riscv_usb_probe_defs.h"
 #endif
 
+#include "modules/bk_riscv_types.h"
+
 #ifdef CONFIG_FREERTOS_SMP
 #include "spinlock.h"
 static SPINLOCK_SECTION volatile  spinlock_t usb_spin_lock = SPIN_LOCK_INIT;
@@ -368,14 +370,9 @@ static void usb_hc_riscv_complete_pipe(uint32_t event, uint32_t event_data)
 
 }
 
-static volatile riscv_usb_probe_t *usb_hc_riscv_probe(void)
-{
-    return &bk_sys_sw_regs_ptr()->riscv_usb_probe;
-}
-
 static bool usb_hc_riscv_enabled(void)
 {
-    volatile riscv_usb_probe_t *ctx = usb_hc_riscv_probe();
+    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
 
     return (ctx->magic == RISCV_USB_PROBE_MAGIC) &&
            (ctx->owner == RISCV_USB_PROBE_OWNER_RISCV);
@@ -383,7 +380,7 @@ static bool usb_hc_riscv_enabled(void)
 
 static void usb_hc_riscv_probe_init(void)
 {
-    volatile riscv_usb_probe_t *ctx = usb_hc_riscv_probe();
+    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
 
     s_riscv_probe_last_irq_seq = 0;
     ctx->magic = RISCV_USB_PROBE_MAGIC;
@@ -435,7 +432,7 @@ static bk_err_t usb_hc_riscv_ipi_enable(void)
 
 void usb_hc_riscv_poll_events(void)
 {
-    volatile riscv_usb_probe_t *ctx = usb_hc_riscv_probe();
+    volatile riscv_usb_probe_t *ctx = get_riscv_usb_probe();
     uint32_t event;
     // uint32_t event_data;
 
@@ -851,7 +848,7 @@ __WEAK void usb_hc_low_level_init(void)
             USB_LOG_ERR("%s enable riscv IPI failed\r\n", __func__);
         }
 #endif
-        usb_hc_riscv_probe()->owner = RISCV_USB_PROBE_OWNER_RISCV;
+        get_riscv_usb_probe()->owner = RISCV_USB_PROBE_OWNER_RISCV;
         USB_LOG_INFO("%s use riscv probe path\r\n", __func__);
         return;
     }
@@ -998,7 +995,7 @@ __WEAK void usb_hc_low_level_deinit(void)
 {
 #if CONFIG_USB_RISCV_BRIDGE
     if (usb_hc_riscv_enabled()) {
-        usb_hc_riscv_probe()->owner = RISCV_USB_PROBE_OWNER_NONE;
+        get_riscv_usb_probe()->owner = RISCV_USB_PROBE_OWNER_NONE;
         usb_hc_route_irq_to_ap();
         return;
     }
