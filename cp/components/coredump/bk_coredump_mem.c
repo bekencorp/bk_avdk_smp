@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <stdbool.h>
 #include "common/bk_assert.h"
 #include "bk_arch.h"
 #include "os/mem.h"
@@ -6,6 +7,65 @@
 #include "memory.h"
 #include "sys_sw_regs.h"
 #include "reg_base.h"
+#include <modules/pm.h>
+
+/*
+ * AP-power gating for the CP self-coredump.
+ *
+ * On AP-powerdown low-power builds (CONFIG_PM_AP_POWERDOWN_WHEN_LV) the CP can
+ * assert while the AP / PSRAM power domain is off. A CP RAM read into a
+ * powered-down domain stalls the shared SoC bus; the dump loop then stops
+ * feeding the WWDT, so the NMI watchdog fires (reset reason "nmi watchdog")
+ * and resets the chip mid-dump - truncating the coredump after the CP-local
+ * SRAM regions and dropping the task list, backtrace and the "user except
+ * handler end" marker. Skip those windows when the AP is not powered so the
+ * dump always completes. Peripheral-register reads go through the CP-local
+ * AHBP path and stay safe even when an AP bank is wedged, so only RAM windows
+ * are gated here.
+ */
+static bool bk_coredump_window_needs_ap_power(uint32_t addr, uint32_t size)
+{
+    uint32_t end = addr + size;
+
+    /* AP-shared SRAM banks (SRAM3..SRAM6), above the CP-local SRAM0..SRAM2. */
+    if ((addr < SOC_SRAM_DATA_END) && (end > SOC_SRAM3_DATA_BASE)) {
+        return true;
+    }
+    /* M55 (AP) TCM alias window. */
+    if ((addr < SOC_USB_TCM_BASE) && (end > SOC_M55_TCM_BASE)) {
+        return true;
+    }
+    /* PSRAM / QSPI media memory (AP / media power domain). */
+    if ((addr < (SOC_QSPI1_DATA_BASE + SOC_QSPI1_DATA_SIZE)) &&
+        (end > SOC_PSRAM0_DATA_BASE)) {
+        return true;
+    }
+    return false;
+}
+
+static bool bk_coredump_window_readable(uint32_t addr, uint32_t size)
+{
+    if (!bk_coredump_window_needs_ap_power(addr, size)) {
+        return true;
+    }
+    return bk_pm_ap_boot_success_get();
+}
+
+/*
+ * Power-aware wrapper around bk_coredump_write_memory(): dump the window when
+ * it is reachable, otherwise emit a skip marker (so the offline parser sees an
+ * explicit gap instead of silence) and return without touching the bus.
+ */
+static void bk_coredump_write_memory_checked(const char *name, uint32_t start_addr, uint32_t end_addr)
+{
+    if (!bk_coredump_window_readable(start_addr, end_addr - start_addr)) {
+        bk_coredump_write_prompt(
+            ">>>>skip mem dump, region: %s, stack_top=%08x, stack end=%08x (ap powered down)\r\n",
+            name, start_addr, end_addr);
+        return;
+    }
+    bk_coredump_write_memory(name, start_addr, end_addr);
+}
 
 /*
  * SYS_AHBP debug-mux capture.
@@ -429,7 +489,9 @@ void bk_dump_peri_regs(void)
     uint32_t peri_reg_info_count = bk_get_peri_reg_info_count();
     const bk_dump_mem_info_t *peri_reg_info_list = bk_get_peri_reg_info_list();
 
-    /* Register banks first (RAM banks are dumped by bk_dump_all_sram). */
+    /* Register banks first (RAM banks are dumped by bk_dump_all_sram). These
+     * reads go through the CP-local AHBP path and stay safe even when an AP
+     * bank is wedged, so they are not power-gated. */
     for (uint32_t i = 0; i < peri_reg_info_count; i++) {
         bk_coredump_write_memory(
             peri_reg_info_list[i].name,
@@ -438,10 +500,17 @@ void bk_dump_peri_regs(void)
         );
     }
 
-    /* Diagnostic probes last (live write probes + hang-prone sub-bank sweep). */
-    bk_dump_psram0_base_write_probe();
-    bk_dump_ap_sram_dtcm_write_probes();
-    bk_coredump_probe_wedge_sram_banks();
+    /* Diagnostic probes last (live write probes + hang-prone sub-bank sweep).
+     * They write/read PSRAM and AP SRAM/DTCM, which stall the bus when the AP
+     * power domain is down - skip them entirely in that case so the NMI
+     * watchdog cannot truncate the dump. */
+    if (bk_pm_ap_boot_success_get()) {
+        bk_dump_psram0_base_write_probe();
+        bk_dump_ap_sram_dtcm_write_probes();
+        bk_coredump_probe_wedge_sram_banks();
+    } else {
+        bk_coredump_write_prompt(">>>>skip ap/psram diagnostic probes (ap powered down)\r\n");
+    }
 }
 
 extern void bk_get_dtcm_info(bk_mem_addr_t *info);
@@ -459,7 +528,7 @@ void bk_dump_all_sram(void)
     uint32_t sram_info_count = bk_get_sram_info_count();
     const bk_dump_mem_info_t *sram_info_list = bk_get_sram_info_list();
     for (int i = 0; i < sram_info_count; i++) {
-        bk_coredump_write_memory(
+        bk_coredump_write_memory_checked(
             sram_info_list[i].name,
             sram_info_list[i].start_addr,
             sram_info_list[i].start_addr + sram_info_list[i].size
@@ -473,7 +542,7 @@ void bk_dump_extra_mem(void)
     uint32_t dump_sys_mem_count = bk_get_dump_sys_mem_count();
     bk_mem_addr_t *dump_sys_mem_info = bk_get_dump_sys_mem_info();
     for (int i = 0; i < dump_sys_mem_count; i++) {
-        bk_coredump_write_memory("EXTRA_MEM", dump_sys_mem_info[i].start_addr, dump_sys_mem_info[i].start_addr + dump_sys_mem_info[i].size);
+        bk_coredump_write_memory_checked("EXTRA_MEM", dump_sys_mem_info[i].start_addr, dump_sys_mem_info[i].start_addr + dump_sys_mem_info[i].size);
     }
 }
 
@@ -512,18 +581,23 @@ void bk_dump_psram_mem(void)
     bk_dump_mem_info_t mem_info;
     bk_get_psram_heap_info(&mem_info);
     if (mem_info.start_addr != 0 && mem_info.size != 0) {
-        bk_coredump_write_memory(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
+        bk_coredump_write_memory_checked(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
     }
     // dump psram bss
     bk_get_psram_bss_info(&mem_info);
     if (mem_info.start_addr != 0 && mem_info.size != 0) {
-        bk_coredump_write_memory(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
+        bk_coredump_write_memory_checked(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
     }
     // dump psram data
     bk_get_psram_data_info(&mem_info);
     if (mem_info.start_addr != 0 && mem_info.size != 0) {
-        bk_coredump_write_memory(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
+        bk_coredump_write_memory_checked(mem_info.name, mem_info.start_addr, mem_info.start_addr + mem_info.size);
     }
 
-    bk_dump_ap_heap_mem();
+    /* AP PSRAM heap lives in the AP/media power domain; skip it when AP is off. */
+    if (bk_pm_ap_boot_success_get()) {
+        bk_dump_ap_heap_mem();
+    } else {
+        bk_coredump_write_prompt(">>>>skip mem dump, region: AP_PSRAM_HEAP (ap powered down)\r\n");
+    }
 }

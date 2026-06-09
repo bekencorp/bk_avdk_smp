@@ -201,11 +201,16 @@ static uint32_t bk_sys_get_uart_base(uint32_t uart_id)
 
 #define ENTRY_SECTION  __attribute__((naked, section(".fix.reset_entry")))
 
+/* Records that the reset handler was entered, for postmortem/hang debugging
+ * (e.g. when a reboot stalls before the system is re-initialized). */
+volatile uint32_t g_reset_entry_state = 0;
+
 /*----------------------------------------------------------------------------
   Reset Handler called on controller reset
  *----------------------------------------------------------------------------*/
 __NO_RETURN ENTRY_SECTION void Reset_Handler(void)
 {
+  g_reset_entry_state = 1;
   // dlv_hook();
 
   __set_MSPLIM((uint32_t)(&__STACK_LIMIT));

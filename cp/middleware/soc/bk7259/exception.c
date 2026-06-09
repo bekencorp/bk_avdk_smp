@@ -33,11 +33,25 @@
 #endif
 void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp);
 
+/* NMI / exception flow-state tracker for postmortem debugging. It is updated at
+ * key milestones of the fault/NMI flow so that a debugger (or a later dump) can
+ * tell how far the flow progressed - this is especially useful when the reboot
+ * itself hangs and triggers a second watchdog event. */
+typedef enum {
+	BK_NMI_FLOW_NONE = 0,
+	BK_NMI_FLOW_NMI_ENTER,
+	BK_NMI_FLOW_SECONDARY,
+	BK_NMI_FLOW_FEED_WDT,
+	BK_NMI_FLOW_DUMP_ENTER,
+} bk_nmi_flow_state_t;
+volatile uint32_t g_nmi_flow_state = BK_NMI_FLOW_NONE;
+
 __STATIC_FORCEINLINE void dump_system_info(uint32_t rr, uint32_t lr, uint32_t sp) {
 #if (CONFIG_SWD_DEBUG_MODE)
 	volatile uint32_t g_test18 = 1;
 	while (g_test18);
 #endif
+	g_nmi_flow_state = BK_NMI_FLOW_DUMP_ENTER;
 	bk_exception_handler(rr, lr, sp);
 }
 
@@ -58,9 +72,11 @@ __STATIC_FORCEINLINE void dump_system_info(uint32_t rr, uint32_t lr, uint32_t sp
 
 void user_nmi_handler(uint32_t lr, uint32_t sp)
 {
+	g_nmi_flow_state = BK_NMI_FLOW_NMI_ENTER;
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE
 	if(arch_is_enter_exception())
 	{
+		g_nmi_flow_state = BK_NMI_FLOW_SECONDARY;
 		//For nmi wdt reset
 		aon_pmu_drv_wdt_change_not_rosc_clk();
 		aon_pmu_drv_wdt_rst_dev_enable();
@@ -73,6 +89,7 @@ void user_nmi_handler(uint32_t lr, uint32_t sp)
 #if CONFIG_SUPPORT_WWDT
 	bk_wwdt_force_feed();
 #endif
+	g_nmi_flow_state = BK_NMI_FLOW_FEED_WDT;
 
 	dump_system_info(RESET_SOURCE_NMI_WDT, lr, sp);
 #else // nmi wdt without system info dump

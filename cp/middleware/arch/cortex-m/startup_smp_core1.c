@@ -97,11 +97,16 @@ uint32_t get_core1_vtor_addr(void)
 
 #define ENTRY_SECTION __attribute__((naked, section(".fix.reset_entry")))
 
+/* Records that the core1 reset handler was entered, for postmortem/hang
+ * debugging (e.g. when a reboot stalls before the system is re-initialized). */
+volatile uint32_t g_reset_entry_state_core1 = 0;
+
 /*----------------------------------------------------------------------------
   Reset Handler called on controller reset
  *----------------------------------------------------------------------------*/
 __NO_RETURN ENTRY_SECTION void Reset_Handler_Core1(void)
 {
+    g_reset_entry_state_core1 = 1;
     __set_MSPLIM((uint32_t)(&__STACK_LIMIT_CORE1));
 
     __disable_irq();

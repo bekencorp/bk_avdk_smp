@@ -179,11 +179,16 @@ __attribute__((used, section(".vectors_core0"))) const VECTOR_ENTRY_TYPE __VECTO
 
 #define ENTRY_SECTION __attribute__((naked, section(".fix.reset_entry")))
 
+/* Records that the core0 reset handler was entered, for postmortem/hang
+ * debugging (e.g. when a reboot stalls before the system is re-initialized). */
+volatile uint32_t g_reset_entry_state_core0 = 0;
+
 /*----------------------------------------------------------------------------
   Reset Handler called on controller reset
  *----------------------------------------------------------------------------*/
 __NO_RETURN ENTRY_SECTION void Reset_Handler_Core0(void)
 {
+    g_reset_entry_state_core0 = 1;
     dlv_hook();
 
     __set_MSPLIM((uint32_t)(&__STACK_LIMIT_CORE0));

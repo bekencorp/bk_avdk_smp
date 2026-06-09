@@ -216,11 +216,16 @@ const VECTOR_ENTRY_TYPE __VECTOR_TABLE[] __VECTOR_TABLE_ATTRIBUTE = {
 
 #define ENTRY_SECTION  __attribute__((naked, section(".fix.reset_entry")))
 
+/* Records that the reset handler was entered, for postmortem/hang debugging
+ * (e.g. when a reboot stalls before the system is re-initialized). */
+volatile uint32_t g_reset_entry_state = 0;
+
 /*----------------------------------------------------------------------------
   Reset Handler called on controller reset
  *----------------------------------------------------------------------------*/
 __NO_RETURN ENTRY_SECTION void Reset_Handler(void)
 {
+  g_reset_entry_state = 1;
   __disable_irq();
   dlv_hook();
 

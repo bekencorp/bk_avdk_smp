@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <string.h>
 #include "bk_coredump.h"
+#include "bk_arch.h"
 #include "os/mem.h"
 #include "reg_base.h"
 #include "bk_rtos_debug.h"
@@ -68,14 +69,24 @@ static inline void coredump_stop_other_cores(void)
 
 static void bk_exception_preprocess(bk_exception_t *self)
 {
+    bool secondary;
+
     rtos_disable_int();
+
+    /* Mark "in exception" BEFORE taking any resource lock, so the HSPL/SSPL
+     * lock layer (see arch_is_enter_exception()) skips its blocking/assert path
+     * while a peer core might still hold a shared lock. Otherwise the UART_LOG
+     * lock taken by bk_coredump_lock() below could spin/assert and trigger a
+     * secondary exception. */
+    secondary = (s_bk_exception_magic == BK_EXCEPTION_MAGIC);
+    s_bk_exception_magic = BK_EXCEPTION_MAGIC;
+    s_core_id = rtos_get_core_id();
+
     bk_coredump_lock();
-    if (s_bk_exception_magic == BK_EXCEPTION_MAGIC) {
+    if (secondary) {
         BK_DUMP_OUT("A secondary exception occurred, reset_reason: 0x%x\r\n", self->reset_reason);
         bk_reboot_ex(self->reset_reason);
     }
-    s_bk_exception_magic = BK_EXCEPTION_MAGIC;
-    s_core_id = rtos_get_core_id();
     coredump_stop_other_cores();
 
     coredump_feed_watchdogs();
@@ -366,10 +377,17 @@ void bk_exception_handler(uint32_t reset_reason, uint32_t lr, uint32_t sp)
     if (bk_check_assert()) {
         reset_reason = RESET_SOURCE_CRASH_ASSERT;
     }
+    /* Capture the special registers here, before bk_exception_preprocess()
+     * disables interrupts, so PRIMASK/BASEPRI/FAULTMASK/CONTROL reflect the
+     * real pre-exception state instead of the dump handler's own state. */
     bk_exception_t exception = {
         .lr = lr,
         .sp = sp,
         .reset_reason = reset_reason,
+        .primask = __get_PRIMASK(),
+        .basepri = __get_BASEPRI(),
+        .faultmask = __get_FAULTMASK(),
+        .control = __get_CONTROL(),
     };
     bk_exception_preprocess(&exception);
 #if CONFIG_DEBUG_VERSION || CONFIG_DUMP_ENABLE

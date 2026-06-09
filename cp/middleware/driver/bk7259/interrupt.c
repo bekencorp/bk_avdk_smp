@@ -22,12 +22,23 @@
 #include "cmsis_gcc.h"
 #include <common/bk_assert.h>
 #include "interrupt_controller.h"
+#include "stack_base.h"
 
 #if CONFIG_FREERTOS_TRACE
 #include "trcRecorder.h"
 #endif
 
+#if CONFIG_INTERRUPT_DEBUG_RECORDER
+#include <driver/aon_rtc.h>
+#include <string.h>
+#include "components/log.h"
+#endif
+
 #include "bk_arch.h"
+
+#if CONFIG_SUPPORT_WWDT
+#include "wwdt_driver.h"
+#endif
 
 #if CONFIG_ARCH_INT_STATIS
 static uint32_t s_int_statis[InterruptMAX_IRQn] = {0};
@@ -42,6 +53,165 @@ static uint32_t s_int_statis[InterruptMAX_IRQn] = {0};
 #else
 #define IRQ_TRACE_BEGIN(irq)
 #define IRQ_TRACE_END()
+#endif
+
+#if CONFIG_INTERRUPT_DEBUG_RECORDER
+#define BK_INTERRUPT_DEBUG_EXIT_FLAG 0xF0000000U
+#ifndef CONFIG_INTERRUPT_GAP_DETECT_US
+#define CONFIG_INTERRUPT_GAP_DETECT_US 50000U
+#endif
+/* Skip warmup events (cold start cache fills, slow paths) before statistics. */
+#define BK_INTERRUPT_GAP_WARMUP 32U
+
+typedef struct {
+	uint32_t int_flag;
+	uint32_t current_cnt;
+	uint64_t enter_time;
+	uint64_t exit_time;
+} interrupt_recorder_t;
+
+typedef struct {
+	volatile uint32_t count;
+	/* Layout preserved: 'recorder' stays at offset 8 due to uint64 alignment.
+	 * Extension fields placed after the recorder array stay backward-compatible
+	 * with parsers that only read `count` (+0) and `recorder[]` (+8).
+	 */
+	volatile interrupt_recorder_t recorder[CONFIG_INTERRUPT_RECORDER_CNT];
+	/* AON interrupt-silence monitor extension */
+	volatile uint64_t last_isr_exit_us;       /* AON-RTC us of previous ISR exit */
+	volatile uint64_t max_gap_us;             /* largest ISR-exit silence since boot */
+	volatile uint64_t last_warn_print_us;     /* reserved; kept for dump ABI stability */
+	volatile uint32_t max_gap_irq;            /* IRQ that ended the max silence window */
+	volatile uint32_t max_gap_cnt;            /* recorder cnt at max gap */
+	volatile uint32_t gap_event_total;        /* total silence windows > threshold */
+	volatile uint32_t gap_threshold_us;       /* compiled threshold */
+} interrupt_recorder_dump_t;
+
+__attribute__((__used__)) static volatile interrupt_recorder_dump_t s_interrupt_core0_dump;
+__attribute__((__used__)) static volatile interrupt_recorder_dump_t s_interrupt_core1_dump;
+static volatile uint32_t s_interrupt_debug_dump_registered = 0;
+
+static inline volatile interrupt_recorder_dump_t *bk_interrupt_debug_get_core_dump(uint32_t core_id)
+{
+	return (core_id == 0) ? &s_interrupt_core0_dump : &s_interrupt_core1_dump;
+}
+
+void bk_interrupt_debug_isr_enter(uint32_t irq)
+{
+	uint32_t core_id = portGET_CORE_ID();
+	volatile interrupt_recorder_dump_t *core_dump = bk_interrupt_debug_get_core_dump(core_id);
+	uint32_t current_cnt = core_dump->count;
+	uint32_t index = current_cnt % CONFIG_INTERRUPT_RECORDER_CNT;
+
+	core_dump->recorder[index].int_flag = irq;
+	core_dump->recorder[index].current_cnt = current_cnt;
+	core_dump->recorder[index].enter_time = bk_aon_rtc_get_us();
+	core_dump->recorder[index].exit_time = 0;
+}
+
+void bk_interrupt_debug_isr_exit(uint32_t irq)
+{
+	uint32_t core_id = portGET_CORE_ID();
+	volatile interrupt_recorder_dump_t *core_dump = bk_interrupt_debug_get_core_dump(core_id);
+	uint32_t current_cnt = core_dump->count;
+	uint32_t index = current_cnt % CONFIG_INTERRUPT_RECORDER_CNT;
+	uint64_t exit_us = bk_aon_rtc_get_us();
+
+	core_dump->recorder[index].int_flag = irq | BK_INTERRUPT_DEBUG_EXIT_FLAG;
+	core_dump->recorder[index].exit_time = exit_us;
+
+	/* AON-RTC IRQ-silence statistics: ISR-exit to ISR-exit on this core.
+	 * This is NOT the current IRQ handler cost (that is exit_time - enter_time).
+	 * The IRQ saved in max_gap_irq is the first IRQ that completed after the
+	 * silence window, not necessarily the IRQ that caused the stall.
+	 */
+	uint64_t prev_exit = core_dump->last_isr_exit_us;
+	if ((prev_exit != 0U) && (current_cnt >= BK_INTERRUPT_GAP_WARMUP) && (exit_us > prev_exit)) {
+		uint64_t gap_us = exit_us - prev_exit;
+		if (gap_us > core_dump->max_gap_us) {
+			core_dump->max_gap_us = gap_us;
+			core_dump->max_gap_irq = irq;
+			core_dump->max_gap_cnt = current_cnt;
+		}
+		if (gap_us >= (uint64_t)CONFIG_INTERRUPT_GAP_DETECT_US) {
+			core_dump->gap_event_total++;
+		}
+	}
+	core_dump->last_isr_exit_us = exit_us;
+	core_dump->count = current_cnt + 1;
+}
+
+static void bk_interrupt_debug_dump_core_recorder(const char *core_name, volatile interrupt_recorder_dump_t *core_dump)
+{
+	uint32_t total_cnt = core_dump->count;
+	uint32_t recorder_cnt = (total_cnt < CONFIG_INTERRUPT_RECORDER_CNT) ? total_cnt : CONFIG_INTERRUPT_RECORDER_CNT;
+	uint32_t start_cnt;
+
+	BK_DUMP_OUT("interrupt recorder %s total=%u depth=%u last_isr_exit_us=%llu max_silence_us=%llu post_silence_irq=%u post_silence_cnt=%u silence_event_total=%u silence_threshold_us=%u\r\n",
+		core_name, total_cnt, recorder_cnt,
+		(unsigned long long)core_dump->last_isr_exit_us,
+		(unsigned long long)core_dump->max_gap_us,
+		(unsigned)core_dump->max_gap_irq,
+		(unsigned)core_dump->max_gap_cnt,
+		(unsigned)core_dump->gap_event_total,
+		(unsigned)core_dump->gap_threshold_us);
+	if (recorder_cnt == 0) {
+		BK_DUMP_OUT("interrupt recorder %s empty\r\n", core_name);
+		return;
+	}
+
+	start_cnt = total_cnt - recorder_cnt;
+	for (uint32_t seq = start_cnt; seq < total_cnt; seq++) {
+		uint32_t index = seq % CONFIG_INTERRUPT_RECORDER_CNT;
+		const volatile interrupt_recorder_t *rec = &core_dump->recorder[index];
+		uint32_t irq = rec->int_flag & ~BK_INTERRUPT_DEBUG_EXIT_FLAG;
+		uint32_t completed = (rec->int_flag & BK_INTERRUPT_DEBUG_EXIT_FLAG) ? 1 : 0;
+	#if CONFIG_SUPPORT_WWDT
+		bk_wwdt_force_feed();
+	#endif
+		BK_DUMP_OUT("  [%s][%u] irq=%u done=%u enter=%llu exit=%llu\r\n",
+			core_name,
+			rec->current_cnt,
+			irq,
+			completed,
+			(unsigned long long)rec->enter_time,
+			(unsigned long long)rec->exit_time);
+	}
+}
+
+void bk_interrupt_dump_recorder(void)
+{
+	bk_interrupt_debug_dump_core_recorder("core0", &s_interrupt_core0_dump);
+	bk_interrupt_debug_dump_core_recorder("core1", &s_interrupt_core1_dump);
+}
+
+static void bk_interrupt_debug_init(void)
+{
+	memset((void *)&s_interrupt_core0_dump, 0, sizeof(s_interrupt_core0_dump));
+	memset((void *)&s_interrupt_core1_dump, 0, sizeof(s_interrupt_core1_dump));
+	s_interrupt_core0_dump.gap_threshold_us = (uint32_t)CONFIG_INTERRUPT_GAP_DETECT_US;
+	s_interrupt_core1_dump.gap_threshold_us = (uint32_t)CONFIG_INTERRUPT_GAP_DETECT_US;
+
+	if (s_interrupt_debug_dump_registered == 0) {
+		rtos_regist_plat_dump_hook((uint32_t)&s_interrupt_core0_dump, sizeof(s_interrupt_core0_dump));
+		rtos_regist_plat_dump_hook((uint32_t)&s_interrupt_core1_dump, sizeof(s_interrupt_core1_dump));
+		s_interrupt_debug_dump_registered = 1;
+	}
+}
+#else
+void bk_interrupt_debug_isr_enter(uint32_t irq)
+{
+	(void)irq;
+}
+
+void bk_interrupt_debug_isr_exit(uint32_t irq)
+{
+	(void)irq;
+}
+
+void bk_interrupt_dump_recorder(void)
+{
+}
 #endif
 
 extern uint32_t get_relocate_vector_table(void);
@@ -60,6 +230,9 @@ void soc_isr_init(void)
 	arch_isr_entry_init();
 	
 	if (portGET_CORE_ID() == 0) {
+#if CONFIG_INTERRUPT_DEBUG_RECORDER
+		bk_interrupt_debug_init();
+#endif
     	primary_intc = int_controller_create(INT_CONTROLLER_ID_PRIMARY, __INT_NUMBER_MAX, (void *)vtor_addr); /* primary controller with capacity 16 */
 		BK_ASSERT(NULL != primary_intc);
 

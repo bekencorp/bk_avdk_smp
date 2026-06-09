@@ -38,6 +38,13 @@ typedef struct {
     uint32_t bfar;
     uint32_t cfsr;
     uint32_t hfsr;
+    uint32_t dfsr;
+    uint32_t afsr;
+    uint32_t shcsr;
+    uint32_t icsr;
+    uint32_t vtor;
+    uint32_t msplim;
+    uint32_t psplim;
 } bk_coredump_regs_t;
 
 static inline bool is_dump_from_thread(uint32_t lr)
@@ -80,9 +87,11 @@ static void coredump_save_registers(bk_exception_t *self, bk_coredump_regs_t *re
     regs->msp = __get_MSP();
     regs->psp = __get_PSP();
 
-    regs->primask = __get_PRIMASK();
-    regs->basepri = __get_BASEPRI();
-    regs->faultmask = __get_FAULTMASK();
+    /* Use the values captured at exception entry (before interrupts were
+     * disabled); reading them here would always show PRIMASK=1 etc. */
+    regs->primask = self->primask;
+    regs->basepri = self->basepri;
+    regs->faultmask = self->faultmask;
 
     regs->fpscr = __get_FPSCR();
 
@@ -107,11 +116,18 @@ static void coredump_save_registers(bk_exception_t *self, bk_coredump_regs_t *re
     regs->pc = except_stack[6];
     regs->xpsr = except_stack[7];
     regs->exception_lr = lr;
-    regs->control = __get_CONTROL();
+    regs->control = self->control;
     regs->mmfar = SCB->MMFAR;
     regs->bfar = SCB->BFAR;
     regs->cfsr = SCB->CFSR;
     regs->hfsr = SCB->HFSR;
+    regs->dfsr = SCB->DFSR;     // debug fault status
+    regs->afsr = SCB->AFSR;     // auxiliary (vendor) fault status
+    regs->shcsr = SCB->SHCSR;   // system handler control/state
+    regs->icsr = SCB->ICSR;     // active/pending exception numbers
+    regs->vtor = SCB->VTOR;     // vector table base
+    regs->msplim = __get_MSPLIM();
+    regs->psplim = __get_PSPLIM();
 
     if(is_need_padding_word(regs->xpsr)) { //  padding word flag
         stack_adj += 1 * sizeof(uint32_t);
@@ -157,6 +173,13 @@ static void coredump_write_arm_registers(bk_coredump_regs_t *regs)
     bk_coredump_write_registers("41 BFAR", regs->bfar);
     bk_coredump_write_registers("42 CFSR", regs->cfsr);
     bk_coredump_write_registers("43 HFSR", regs->hfsr);
+    bk_coredump_write_registers("44 DFSR", regs->dfsr);
+    bk_coredump_write_registers("45 AFSR", regs->afsr);
+    bk_coredump_write_registers("46 SHCSR", regs->shcsr);
+    bk_coredump_write_registers("47 ICSR", regs->icsr);
+    bk_coredump_write_registers("48 VTOR", regs->vtor);
+    bk_coredump_write_registers("49 MSPLIM", regs->msplim);
+    bk_coredump_write_registers("50 PSPLIM", regs->psplim);
 }
 
 static void coredump_traceback(bk_coredump_regs_t *regs)
@@ -208,11 +231,24 @@ static void coredump_check_stack_overflow(bk_coredump_regs_t *regs)
     }
 }
 
+static void coredump_check_fault_addr_valid(bk_coredump_regs_t *regs)
+{
+    /* MMFAR/BFAR only hold a meaningful address when the corresponding VALID
+     * bit in CFSR is set; otherwise their value is stale and must be ignored. */
+    if ((regs->cfsr & SCB_CFSR_MMARVALID_Msk) == 0) {
+        bk_coredump_write_prompt("Note: MMFAR invalid (CFSR.MMARVALID=0), ignore its value.\r\n");
+    }
+    if ((regs->cfsr & SCB_CFSR_BFARVALID_Msk) == 0) {
+        bk_coredump_write_prompt("Note: BFAR invalid (CFSR.BFARVALID=0), ignore its value.\r\n");
+    }
+}
+
 static void bk_coredump_registers_arm(bk_exception_t *self)
 {
     bk_coredump_regs_t regs;
     coredump_save_registers(self, &regs);
     coredump_write_arm_registers(&regs);
+    coredump_check_fault_addr_valid(&regs);
     coredump_check_stack_overflow(&regs);
     coredump_traceback(&regs);
 }

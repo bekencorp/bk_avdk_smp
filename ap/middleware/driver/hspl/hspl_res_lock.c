@@ -18,6 +18,7 @@
 #include <common/bk_assert.h>
 
 #include <os/os.h>
+#include "arch_interrupt.h"
 
 #if CONFIG_AON_RTC
 #include <driver/aon_rtc.h>
@@ -211,6 +212,14 @@ static inline uint32_t hspl_res_must_lock_timeout_ms(bk_hspl_res_t res)
 
 static void hspl_res_must_lock_assert_timeout(bk_hspl_res_t res, uint32_t timeout_ms)
 {
+	/* In exception/coredump context, do NOT assert: a peer core may have been
+	 * stopped while holding this lock and can never release it, so asserting
+	 * here would only trigger a secondary exception. Give up hardware mutual
+	 * exclusion (interrupts are already disabled and other cores stopped) and
+	 * let the dump/reboot flow continue. */
+	if (arch_is_enter_exception()) {
+		return;
+	}
 	BK_ASSERT_EX(0, "HSPL res %u must_lock timeout %ums\r\n", (unsigned int)res, timeout_ms);
 }
 
@@ -233,6 +242,11 @@ static bk_err_t hspl_res_must_lock_acquire_hw(bk_hspl_res_t res, uint8_t hspl_id
 
 	if (timeout_ms == 0U) {
 		while (bk_hspl_try_lock(hspl_id, channel, NULL) != BK_OK) {
+			/* Never spin forever inside an exception/coredump: bail out so the
+			 * dump/reboot is not blocked by a stopped lock-holder. */
+			if (arch_is_enter_exception()) {
+				return BK_ERR_TIMEOUT;
+			}
 		}
 		return BK_OK;
 	}

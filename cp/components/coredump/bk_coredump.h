@@ -15,6 +15,12 @@ typedef struct
     uint32_t lr;
     uint32_t sp;
     uint32_t reset_reason;
+    /* Captured at exception entry, BEFORE interrupts are disabled, so they
+     * reflect the real pre-exception state (these are not auto-stacked by HW). */
+    uint32_t primask;
+    uint32_t basepri;
+    uint32_t faultmask;
+    uint32_t control;
 } bk_exception_t;
 
 /* coredump writer api */

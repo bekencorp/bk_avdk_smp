@@ -3,6 +3,7 @@
 #include "szymanski_lock/src/szymanski_lock.h"
 #include "sys_sw_regs.h"
 #include "hspl/hspl_res_lock.h"
+#include "arch_interrupt.h"
 
 static bk_err_t sspl_res_lock_impl(bk_hspl_res_t res)
 {
@@ -81,8 +82,14 @@ bk_err_t bk_sspl_res_lock(bk_hspl_res_t res)
     }
     rtos_enable_int(flags);
 
-    /* Busy-wait until lock is acquired */
-    sspl_res_lock_impl(res);
+    /* Busy-wait until lock is acquired.
+     * In exception/coredump context skip the (un-timed) busy-wait: a stopped
+     * peer core may hold this lock forever, and there is no real concurrency to
+     * guard (interrupts disabled, other cores stopped). Avoid a hard hang that
+     * would lead to a second watchdog timeout. */
+    if (!arch_is_enter_exception()) {
+        sspl_res_lock_impl(res);
+    }
 
     flags = rtos_disable_int();
     s_rec_count[res][core_id] = 1;
