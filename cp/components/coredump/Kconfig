@@ -15,6 +15,20 @@ menu "Coredump"
 			help
 				Dump all memory when exception happen
 
+	config CP_HANG_DUMP_BY_AP
+			bool "Enable AP-side CP hang dump debug feature"
+			depends on IPI && (DEBUG_VERSION || DUMP_ENABLE)
+			default n
+			help
+				Debug-only feature. CP sends a private IPI heartbeat to AP.
+				If AP observes CP heartbeat timeout, AP dumps CP-visible
+				context and reboots the board without relying on CP.
+
+	config CP_HANG_DUMP_BY_AP_PERIOD_MS
+			int "CP to AP debug heartbeat period(ms)"
+			depends on CP_HANG_DUMP_BY_AP
+			default 1000
+
 	choice DUMP_UART_MEM_ENCODING
 		prompt "Config DumpUart Memory Encoding"
 		default DUMP_UART_MEM_ENCODING_ASCII

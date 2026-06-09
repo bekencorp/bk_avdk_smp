@@ -16,6 +16,10 @@
 #include "wwdt_driver.h"
 #endif
 
+#if CONFIG_CP_HANG_DUMP_BY_AP
+extern void bk_cp_hang_dump_by_ap_feed_aon_wdt(void);
+#endif
+
 #if CONFIG_DUMP_BY_LOG_UART
 void bk_coredump_writer_init(void) __attribute__((alias("bk_coredump_uart_init")));
 void bk_coredump_writer_deinit(void) __attribute__((alias("bk_coredump_uart_deinit")));
@@ -35,6 +39,9 @@ static inline void coredump_feed_watchdogs(void)
 {
 #if CONFIG_SUPPORT_WWDT
     bk_wwdt_force_feed();
+#endif
+#if CONFIG_CP_HANG_DUMP_BY_AP
+    bk_cp_hang_dump_by_ap_feed_aon_wdt();
 #endif
 }
 

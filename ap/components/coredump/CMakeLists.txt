@@ -24,6 +24,12 @@ list(APPEND srcs
 	memdump_strategies/memdump_all.c
 )
 
+if (CONFIG_CP_HANG_DUMP_BY_AP)
+	list(APPEND srcs
+		bk_coredump_cp_hang.c
+	)
+endif()
+
 list(APPEND priv_incs .)
 
 armino_component_register(

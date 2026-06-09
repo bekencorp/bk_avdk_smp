@@ -472,6 +472,11 @@ void entry_main(void)
 	extern bk_err_t mb_ipc_heartbeat_init(void);
 	mb_ipc_heartbeat_init();
 #endif
+
+#if CONFIG_CP_HANG_DUMP_BY_AP
+	extern bk_err_t bk_cp_hang_dump_by_ap_init(void);
+	bk_cp_hang_dump_by_ap_init();
+#endif
     set_ap_startup_index(AP_ENTER_RTOS_START_SCHEDULER);
 	rtos_start_scheduler();
 }

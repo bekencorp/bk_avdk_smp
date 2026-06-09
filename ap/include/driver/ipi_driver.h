@@ -62,6 +62,7 @@ typedef enum {
 	IPI_DOMAIN_HEARTBEAT = 1,
 	IPI_DOMAIN_SMP = 2,
 	IPI_DOMAIN_USB = 3,
+	IPI_DOMAIN_CP_HANG_DEBUG = 4,
 	IPI_DOMAIN_TEST = 7,
 	IPI_DOMAIN_MAX = 8
 } ipi_domain_t;

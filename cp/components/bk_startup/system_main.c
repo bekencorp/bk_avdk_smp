@@ -510,6 +510,11 @@ void entry_main(void)
 	mb_ipc_heartbeat_init();
 #endif
 
+#if CONFIG_CP_HANG_DUMP_BY_AP
+	extern bk_err_t bk_cp_hang_debug_heartbeat_init(void);
+	bk_cp_hang_debug_heartbeat_init();
+#endif
+
 	rtos_start_scheduler();
 }
 // eof
