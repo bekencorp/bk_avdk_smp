@@ -56,95 +56,6 @@ static qspi_callback_t s_qspi_tx_isr = {NULL};
 static qspi_callback_t s_qspi_rx_isr = {NULL};
 
 
-#if(CONFIG_QSPI_LINE_MODE == 1)
-
-#define QSPI_SET_PIN(id) do {\
-	gpio_dev_unmap(QSPI##id##_LL_CSN_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_CLK_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_IO0_PIN);\
-	gpio_dev_map(QSPI##id##_LL_CSN_PIN, GPIO_DEV_QSPI##id##_CSN);\
-	gpio_dev_map(QSPI##id##_LL_CLK_PIN, GPIO_DEV_QSPI##id##_CLK);\
-	gpio_dev_map(QSPI##id##_LL_IO0_PIN, GPIO_DEV_QSPI##id##_IO0);\
-	bk_gpio_pull_up(QSPI##id##_LL_CSN_PIN);\
-	bk_gpio_pull_up(QSPI##id##_LL_IO0_PIN);\
-	bk_gpio_set_capacity(QSPI##id##_LL_CSN_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_CLK_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_IO0_PIN, 3);\
-} while(0)
-
-#else
-#if (CONFIG_QSPI_LINE_MODE == 2)
-
-#define QSPI_SET_PIN(id) do {\
-	gpio_dev_unmap(QSPI##id##_LL_CSN_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_CLK_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_IO0_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_IO1_PIN);\
-	gpio_dev_map(QSPI##id##_LL_CSN_PIN, GPIO_DEV_QSPI##id##_CSN);\
-	gpio_dev_map(QSPI##id##_LL_CLK_PIN, GPIO_DEV_QSPI##id##_CLK);\
-	gpio_dev_map(QSPI##id##_LL_IO0_PIN, GPIO_DEV_QSPI##id##_IO0);\
-	gpio_dev_map(QSPI##id##_LL_IO1_PIN, GPIO_DEV_QSPI##id##_IO1);\
-	bk_gpio_pull_up(QSPI##id##_LL_CSN_PIN);\
-	bk_gpio_pull_up(QSPI##id##_LL_IO0_PIN);\
-	bk_gpio_pull_up(QSPI##id##_LL_IO1_PIN);\
-	bk_gpio_set_capacity(QSPI##id##_LL_CSN_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_CLK_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_IO0_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_IO1_PIN, 3);\
-} while(0)
-
-#else
-
-#define QSPI_SET_PIN(id) do {\
-	gpio_dev_unmap(QSPI##id##_LL_CSN_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_CLK_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_IO0_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_IO1_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_IO2_PIN);\
-	gpio_dev_unmap(QSPI##id##_LL_IO3_PIN);\
-	gpio_dev_map(QSPI##id##_LL_CSN_PIN, GPIO_DEV_QSPI##id##_CSN);\
-	gpio_dev_map(QSPI##id##_LL_CLK_PIN, GPIO_DEV_QSPI##id##_CLK);\
-	gpio_dev_map(QSPI##id##_LL_IO0_PIN, GPIO_DEV_QSPI##id##_IO0);\
-	gpio_dev_map(QSPI##id##_LL_IO1_PIN, GPIO_DEV_QSPI##id##_IO1);\
-	gpio_dev_map(QSPI##id##_LL_IO2_PIN, GPIO_DEV_QSPI##id##_IO2);\
-	gpio_dev_map(QSPI##id##_LL_IO3_PIN, GPIO_DEV_QSPI##id##_IO3);\
-	bk_gpio_pull_up(QSPI##id##_LL_CSN_PIN);\
-	bk_gpio_pull_up(QSPI##id##_LL_IO0_PIN);\
-	bk_gpio_pull_up(QSPI##id##_LL_IO1_PIN);\
-	bk_gpio_pull_up(QSPI##id##_LL_IO2_PIN);\
-	bk_gpio_pull_up(QSPI##id##_LL_IO3_PIN);\
-	bk_gpio_set_capacity(QSPI##id##_LL_CSN_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_CLK_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_IO0_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_IO1_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_IO2_PIN, 3);\
-	bk_gpio_set_capacity(QSPI##id##_LL_IO3_PIN, 3);\
-} while(0)
-
-#endif
-#endif
-
-static void qspi_init_gpio(qspi_id_t id)
-{
-	switch (id) {
-	case QSPI_ID_0:
-		QSPI_SET_PIN(0);
-		break;
-#if (SOC_QSPI_UNIT_NUM > 1)
-	case QSPI_ID_1:
-		QSPI_SET_PIN(1);
-		break;
-#endif
-#if (SOC_QSPI_UNIT_NUM > 2)
-	case QSPI_ID_2:
-		QSPI_SET_PIN(2);
-		break;
-#endif
-	default:
-		break;
-	}
-}
-
 static void qspi_clock_enable(qspi_id_t id)
 {
 	switch(id)
@@ -221,7 +132,6 @@ static void qspi_interrupt_disable(qspi_id_t id)
 static void qspi_id_init_common(qspi_id_t id)
 {
 	qspi_clock_enable(id);
-	qspi_init_gpio(id);
 	qspi_interrupt_enable(id);
 
 	qspi_hal_init_common(&s_qspi[id].hal);

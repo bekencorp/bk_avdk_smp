@@ -115,12 +115,6 @@ static bool sd_card_get_insert_status(void)
 {
 	gpio_id_t check_insert_gpio_id = CONFIG_SDCARD_CHECK_INSERTION_GPIO_ID;
 
-	gpio_dev_unmap(check_insert_gpio_id);
-	BK_LOG_ON_ERR(bk_gpio_disable_output(check_insert_gpio_id));
-	BK_LOG_ON_ERR(bk_gpio_enable_input(check_insert_gpio_id));
-	BK_LOG_ON_ERR(bk_gpio_enable_pull(check_insert_gpio_id));
-	BK_LOG_ON_ERR(bk_gpio_pull_up(check_insert_gpio_id));
-
 	return bk_gpio_get_input(check_insert_gpio_id);
 }
 #endif

@@ -598,22 +598,18 @@ bk_err_t bk_modem_uart_init(uint32_t baud_rate)
                                                             CONFIG_UART_NIC_SLAVE_READY_GPIO);
         
         /* Configure MASTER_MRDY_GPIO pin (host ready signal) */
+#if CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT
         gpio_config_t cfg;
-        gpio_dev_unmap(MASTER_MRDY_GPIO);
         cfg.func_mode = GPIO_SECOND_FUNC_DISABLE;
         cfg.io_mode = GPIO_OUTPUT_ENABLE;
         cfg.pull_mode = GPIO_PULL_DOWN_EN;
-        bk_gpio_set_config(MASTER_MRDY_GPIO, &cfg);
+#endif
         #if CONFIG_GPIO_DYNAMIC_KPSTAT_SUPPORT
         bk_gpio_register_lowpower_keep_status(MASTER_MRDY_GPIO, &cfg);
         #endif
         bk_gpio_set_output_low(MASTER_MRDY_GPIO);
 
         /* Configure MASTER_SRDY_GPIO pin (slave ready signal) */
-        cfg.func_mode = GPIO_SECOND_FUNC_DISABLE;
-        cfg.io_mode = GPIO_INPUT_ENABLE;
-        cfg.pull_mode = GPIO_PULL_UP_EN;     
-        bk_gpio_set_config(MASTER_SRDY_GPIO, &cfg);
         bk_gpio_set_interrupt_type(MASTER_SRDY_GPIO, GPIO_INT_TYPE_FALLING_EDGE);
         /* Register SRDY pin interrupt handler */
         bk_gpio_register_isr(MASTER_SRDY_GPIO, bk_modem_uart_sdry_int_cb);

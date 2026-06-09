@@ -76,8 +76,6 @@ bk_err_t bk_aud_dmic_init(aud_dmic_config_t *dmic_config)
     AUD_ADC_RETURN_ON_NULL(dmic_config);
     AUD_ADC_RETURN_ON_NOT_INIT();
 
-    uint32_t clk_gpio          = dmic_config->dmic_clk_gpio;
-    uint32_t data_gpio         = dmic_config->dmic_data_gpio;
     aud_dmic_mode_t dmic_mode  = dmic_config->dmic_mode;
     aud_dmic_channel_t channel = dmic_config->channel;
 
@@ -86,17 +84,9 @@ bk_err_t bk_aud_dmic_init(aud_dmic_config_t *dmic_config)
 
     switch (dmic_mode) {
         case AUD_DMIC_MODE_0:
-            gpio_dev_unmap(clk_gpio);
-            gpio_dev_map(clk_gpio, GPIO_DEV_DMIC1_CLK);
-            gpio_dev_unmap(data_gpio);
-            gpio_dev_map(data_gpio, GPIO_DEV_DMIC1_DAT);
             bk_aud_dmic_en(0x1);  // '001
             break;
         case AUD_DMIC_MODE_1:
-            gpio_dev_unmap(clk_gpio);
-            gpio_dev_map(clk_gpio, GPIO_DEV_DMIC2_CLK);
-            gpio_dev_unmap(data_gpio);
-            gpio_dev_map(data_gpio, GPIO_DEV_DMIC2_DAT);
             bk_aud_dmic_en(0x6);  // '110
             break;
         default:

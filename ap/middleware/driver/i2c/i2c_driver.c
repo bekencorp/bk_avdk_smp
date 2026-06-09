@@ -99,16 +99,6 @@ typedef struct bkTimerCallback{
 	}\
 } while(0)
 
-#define I2C_SET_PIN(id) do {\
-	i2c_hal_set_pin(&s_i2c[id].hal);\
-	gpio_dev_unmap(I2C##id##_LL_SDA_PIN);\
-	gpio_dev_unmap(I2C##id##_LL_SCL_PIN);\
-	gpio_dev_map(I2C##id##_LL_SCL_PIN, GPIO_DEV_I2C##id##_SCL);\
-	gpio_dev_map(I2C##id##_LL_SDA_PIN, GPIO_DEV_I2C##id##_SDA);\
-	bk_gpio_pull_up(I2C##id##_LL_SCL_PIN);\
-	bk_gpio_pull_up(I2C##id##_LL_SDA_PIN);\
-} while(0)
-
 #if CONFIG_SPE
 #define I2C_CHECK_SECURE(id) do {\
 	switch (id) {\
@@ -136,31 +126,6 @@ static void i2c1_isr(void);
 #endif
 #if (SOC_I2C_UNIT_NUM > 2)
 static void i2c2_isr(void);
-#endif
-
-#if CONFIG_USR_GPIO_CFG_EN
-//if the special hardware/board needs to over-write the I2C GPIO,please implement it here like i2c_init_gpio
-#else
-static void i2c_init_gpio(i2c_id_t id)
-{
-	switch(id) {
-	case I2C_ID_0:
-		I2C_SET_PIN(0);
-		break;
-#if (SOC_I2C_UNIT_NUM > 1)
-	case I2C_ID_1:
-		I2C_SET_PIN(1);
-		break;
-#endif
-#if (SOC_I2C_UNIT_NUM > 2)
-	case I2C_ID_2:
-		I2C_SET_PIN(2);
-		break;
-#endif
-	default:
-		break;
-	}
-}
 #endif
 
 static void i2c_clock_enable(i2c_id_t id)
@@ -273,15 +238,6 @@ static void i2c_id_init_common(i2c_id_t id)
 	i2c_clock_enable(id);
 	i2c_interrupt_enable(id);
 
-#if CONFIG_USR_GPIO_CFG_EN
-	/*
-	 * GPIO info is setted in GPIO_DEFAULT_DEV_CONFIG and
-	 * inited in bk_gpio_driver_init->gpio_hal_default_map_init.
-	 * If needs to re-config GPIO, can deal it here.
-	 */
-#else
-	i2c_init_gpio(id);
-#endif
 	if (s_i2c[id].tx_sema == NULL) {
 		ret = rtos_init_semaphore(&(s_i2c[id].tx_sema), 1);
 		BK_ASSERT(kNoErr == ret);

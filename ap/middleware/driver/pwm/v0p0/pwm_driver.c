@@ -124,72 +124,10 @@ static bool s_pwm_driver_is_init = false;
 #define PWM_RETURN_ON_CHAN_NOT_STOP(chan) do {\
 	} while(0)
 
-#define PWM_SET_PIN(id) do {\
-	gpio_dev_unmap(PWM##id##_LL_PIN);\
-	gpio_dev_map(PWM##id##_LL_PIN, GPIO_DEV_PWM##id);\
-	bk_gpio_pull_up(PWM##id##_LL_PIN);\
-} while(0)
-
-static void pwm_init_gpio(pwm_id_t id)
-{
-	switch(id) {
-	case PWM_ID_0:
-		PWM_SET_PIN(0);
-		break;
-
-	case PWM_ID_1:
-		PWM_SET_PIN(1);
-		break;
-
-	case PWM_ID_2:
-		PWM_SET_PIN(2);
-		break;
-
-	case PWM_ID_3:
-		PWM_SET_PIN(3);
-		break;
-
-	case PWM_ID_4:
-		PWM_SET_PIN(4);
-		break;
-
-	case PWM_ID_5:
-		PWM_SET_PIN(5);
-		break;
-
-	case PWM_ID_6:
-		PWM_SET_PIN(6);
-		break;
-
-	case PWM_ID_7:
-		PWM_SET_PIN(7);
-		break;
-
-	case PWM_ID_8:
-		PWM_SET_PIN(8);
-		break;
-
-	case PWM_ID_9:
-		PWM_SET_PIN(9);
-		break;
-
-	case PWM_ID_10:
-		PWM_SET_PIN(10);
-		break;
-
-	case PWM_ID_11:
-		PWM_SET_PIN(11);
-		break;
-
-	default:
-		break;
-	}
-}
-
 //TODO call it via gpio hal
 static void pwm_set_gpio(pwm_chan_t chan)
 {
-	pwm_init_gpio(chan);
+	(void)chan;
 }
 
 static void pwm_chan_enable_interrupt_common(pwm_chan_t chan)

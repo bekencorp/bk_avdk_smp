@@ -56,17 +56,6 @@ bk_err_t bk_can_gpio_init(can_channel_t chn)
 		CAN_LOGV("unsupported can chnnal\r\n");
 		return BK_ERR_PARAM;
 	}
-	BK_LOG_ON_ERR(gpio_dev_unmap(s_can_gpio[chn].tx.id));
-	BK_LOG_ON_ERR(gpio_dev_map(s_can_gpio[chn].tx.id, s_can_gpio[chn].tx.dev));
-	bk_gpio_set_value(s_can_gpio[chn].tx.id, 0x348);
-
-	BK_LOG_ON_ERR(gpio_dev_unmap(s_can_gpio[chn].rx.id));
-	BK_LOG_ON_ERR(gpio_dev_map(s_can_gpio[chn].rx.id, s_can_gpio[chn].rx.dev));
-	bk_gpio_set_value(s_can_gpio[chn].rx.id, 0x37c);
-
-	BK_LOG_ON_ERR(gpio_dev_unmap(s_can_gpio[chn].standby.id));
-	BK_LOG_ON_ERR(gpio_dev_map(s_can_gpio[chn].standby.id, s_can_gpio[chn].standby.dev));
-	bk_gpio_set_value(s_can_gpio[chn].standby.id, 0x348);
 	return BK_OK;
 }
 
@@ -76,9 +65,6 @@ bk_err_t bk_can_gpio_deinit(can_channel_t chn)
 		CAN_LOGV("unsupported can chnnal\r\n");
 		return BK_ERR_PARAM;
 	}
-	BK_LOG_ON_ERR(gpio_dev_unmap(s_can_gpio[chn].tx.id));
-	BK_LOG_ON_ERR(gpio_dev_unmap(s_can_gpio[chn].rx.id));
-	BK_LOG_ON_ERR(gpio_dev_unmap(s_can_gpio[chn].standby.id));
 
 	return BK_OK;
 }

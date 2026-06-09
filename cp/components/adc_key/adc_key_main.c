@@ -199,7 +199,7 @@ void bk_adc_key_init(gpio_id_t gpio_id, adc_chan_t adc_chan)
 	if(s_adckey_inited_flag)
 		return;
 
-	BK_LOG_ON_ERR(gpio_dev_unmap(gpio_id));
+	(void)gpio_id;
 	s_adc_chan = adc_chan;
 	adckey_adc_config(adc_chan);
 	adc_key_configure();

@@ -83,14 +83,8 @@ void key_unconfig(void)
 }
 static void key_gpio_config(uint32_t gpio_id, uint8_t active_level)
 {
-	gpio_dev_unmap(gpio_id);
-	BK_LOG_ON_ERR(bk_gpio_disable_output(gpio_id));
-	BK_LOG_ON_ERR(bk_gpio_enable_input(gpio_id));
-	BK_LOG_ON_ERR(bk_gpio_enable_pull(gpio_id));
-	if(active_level)
-		BK_LOG_ON_ERR(bk_gpio_pull_down(gpio_id));
-	else
-		BK_LOG_ON_ERR(bk_gpio_pull_up(gpio_id));
+	(void)gpio_id;
+	(void)active_level;
 }
 
 #if USING_DEMO_BOARD

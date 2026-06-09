@@ -40,27 +40,6 @@ bk_err_t uart_util_create(uart_util_handle_t uart_util, uart_id_t id, uint32_t b
 
     uart_config_t config = {0};
     os_memset(&config, 0, sizeof(uart_config_t));
-    if (id == 0)
-    {
-        gpio_dev_unmap(GPIO_10);
-        gpio_dev_map(GPIO_10, GPIO_DEV_UART0_RXD);
-        gpio_dev_unmap(GPIO_11);
-        gpio_dev_map(GPIO_11, GPIO_DEV_UART0_TXD);
-    }
-    else if (id == 2)
-    {
-        gpio_dev_unmap(GPIO_40);
-        gpio_dev_map(GPIO_40, GPIO_DEV_UART2_RXD);
-        gpio_dev_unmap(GPIO_41);
-        gpio_dev_map(GPIO_41, GPIO_DEV_UART2_TXD);
-    }
-    else
-    {
-        gpio_dev_unmap(GPIO_0);
-        gpio_dev_map(GPIO_0, GPIO_DEV_UART1_TXD);
-        gpio_dev_unmap(GPIO_1);
-        gpio_dev_map(GPIO_1, GPIO_DEV_UART1_RXD);
-    }
 
     config.baud_rate = baud_rate;
     config.data_bits = UART_DATA_8_BITS;
@@ -87,22 +66,6 @@ bk_err_t uart_util_destroy(uart_util_handle_t uart_util)
     if (!uart_util)
     {
         return BK_OK;
-    }
-
-    if (uart_util->id == 0)
-    {
-        gpio_dev_unmap(GPIO_10);
-        gpio_dev_unmap(GPIO_11);
-    }
-    else if (uart_util->id == 2)
-    {
-        gpio_dev_unmap(GPIO_40);
-        gpio_dev_unmap(GPIO_41);
-    }
-    else
-    {
-        gpio_dev_unmap(GPIO_0);
-        gpio_dev_unmap(GPIO_1);
     }
 
     if (bk_uart_deinit(uart_util->id) != BK_OK)

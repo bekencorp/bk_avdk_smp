@@ -534,24 +534,10 @@ static void uart_enable_wrapper(uint8_t uart_id, uint8_t enable, uint32_t band)
         switch (uart_id)
         {
             case UART_ID_0:
-                gpio_dev_unmap(GPIO_10);
-                gpio_dev_unmap(GPIO_11);
                 break;
-#if 0
-            case UART_ID_1:
-                gpio_dev_unmap(GPIO_0);
-                gpio_dev_unmap(GPIO_1);
-                break;
-
-            case UART_ID_2:
-                gpio_dev_unmap(GPIO_40);
-                gpio_dev_unmap(GPIO_41);
-                break;
-#endif
             default:
                 BK_LOGD(NULL,"%s uart_id err %d\n", __func__, uart_id);
                 return;
-                break;
         }
 
         ret = bk_uart_init(uart_id, &config);
@@ -573,77 +559,7 @@ static void uart_enable_wrapper(uint8_t uart_id, uint8_t enable, uint32_t band)
 
 void enable_debug_gpio_wrapper(void)
 {
-    //gpio2-8
-    gpio_dev_unmap(GPIO_2);
-    gpio_dev_map(GPIO_2, GPIO_DEV_DEBUG0);
-    gpio_dev_unmap(GPIO_3);
-    gpio_dev_map(GPIO_3, GPIO_DEV_DEBUG1);
-    gpio_dev_unmap(GPIO_4);
-    gpio_dev_map(GPIO_4, GPIO_DEV_DEBUG2);
-    gpio_dev_unmap(GPIO_5);
-    gpio_dev_map(GPIO_5, GPIO_DEV_DEBUG3);
-    gpio_dev_unmap(GPIO_6);
-    gpio_dev_map(GPIO_6, GPIO_DEV_DEBUG4);
-    gpio_dev_unmap(GPIO_7);
-    gpio_dev_map(GPIO_7, GPIO_DEV_DEBUG5);
-    gpio_dev_unmap(GPIO_8);
-    gpio_dev_map(GPIO_8, GPIO_DEV_DEBUG6);
-    gpio_dev_unmap(GPIO_9);
-    gpio_dev_map(GPIO_9, GPIO_DEV_DEBUG7);
-
-    //gpio14-19,24-25
-    gpio_dev_unmap(GPIO_14);
-    gpio_dev_map(GPIO_14, GPIO_DEV_DEBUG8);
-    gpio_dev_unmap(GPIO_15);
-    gpio_dev_map(GPIO_15, GPIO_DEV_DEBUG9);
-    gpio_dev_unmap(GPIO_16);
-    gpio_dev_map(GPIO_16, GPIO_DEV_DEBUG10);
-    gpio_dev_unmap(GPIO_17);
-    gpio_dev_map(GPIO_17, GPIO_DEV_DEBUG11);
-    gpio_dev_unmap(GPIO_18);
-    gpio_dev_map(GPIO_18, GPIO_DEV_DEBUG12);
-    gpio_dev_unmap(GPIO_19);
-    gpio_dev_map(GPIO_19, GPIO_DEV_DEBUG13);
-    gpio_dev_unmap(GPIO_24);
-    gpio_dev_map(GPIO_24, GPIO_DEV_DEBUG14);
-    gpio_dev_unmap(GPIO_25);
-    gpio_dev_map(GPIO_25, GPIO_DEV_DEBUG15);
-
-    //gpio26-33
-    gpio_dev_unmap(GPIO_26);
-    gpio_dev_map(GPIO_26, GPIO_DEV_DEBUG16);
-    gpio_dev_unmap(GPIO_27);
-    gpio_dev_map(GPIO_27, GPIO_DEV_DEBUG17);
-    gpio_dev_unmap(GPIO_28);
-    gpio_dev_map(GPIO_28, GPIO_DEV_DEBUG18);
-    gpio_dev_unmap(GPIO_29);
-    gpio_dev_map(GPIO_29, GPIO_DEV_DEBUG19);
-    gpio_dev_unmap(GPIO_30);
-    gpio_dev_map(GPIO_30, GPIO_DEV_DEBUG20);
-    gpio_dev_unmap(GPIO_31);
-    gpio_dev_map(GPIO_31, GPIO_DEV_DEBUG21);
-    gpio_dev_unmap(GPIO_32);
-    gpio_dev_map(GPIO_32, GPIO_DEV_DEBUG22);
-    gpio_dev_unmap(GPIO_33);
-    gpio_dev_map(GPIO_33, GPIO_DEV_DEBUG23);
-
-    //gpio34-39,42-43
-    gpio_dev_unmap(GPIO_34);
-    gpio_dev_map(GPIO_34, GPIO_DEV_DEBUG24);
-    gpio_dev_unmap(GPIO_35);
-    gpio_dev_map(GPIO_35, GPIO_DEV_DEBUG25);
-    gpio_dev_unmap(GPIO_36);
-    gpio_dev_map(GPIO_36, GPIO_DEV_DEBUG26);
-    gpio_dev_unmap(GPIO_37);
-    gpio_dev_map(GPIO_37, GPIO_DEV_DEBUG27);
-    gpio_dev_unmap(GPIO_38);
-    gpio_dev_map(GPIO_38, GPIO_DEV_DEBUG28);
-    gpio_dev_unmap(GPIO_39);
-    gpio_dev_map(GPIO_39, GPIO_DEV_DEBUG29);
-    gpio_dev_unmap(GPIO_42);
-    gpio_dev_map(GPIO_42, GPIO_DEV_DEBUG30);
-    gpio_dev_unmap(GPIO_43);
-    gpio_dev_map(GPIO_43, GPIO_DEV_DEBUG31);
+    return;
 }
 
 

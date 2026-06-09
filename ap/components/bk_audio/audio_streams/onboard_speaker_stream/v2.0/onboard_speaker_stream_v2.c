@@ -2091,8 +2091,6 @@ audio_element_handle_t onboard_speaker_stream_init(onboard_speaker_stream_cfg_t 
         }
 
         /* config gpio to output */
-        gpio_dev_unmap(gl_onboard_speaker->pa_ctrl_gpio);
-        bk_gpio_enable_output(gl_onboard_speaker->pa_ctrl_gpio);
     }
 
     spk_dma_finish_bitmap = 0;

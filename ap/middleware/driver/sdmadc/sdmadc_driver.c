@@ -155,10 +155,7 @@ static void sdmadc_init_gpio(sdmadc_chan_t chan)
 	sdmadc_gpio_map_t sdmadc_map_table[] = SDMADC_DEV_MAP;
 	sdmadc_gpio_map_t *sdmadc_map = &sdmadc_map_table[chan];
 
-	gpio_dev_map(sdmadc_map->gpio_id, sdmadc_map->gpio_dev);
-	bk_gpio_disable_pull(sdmadc_map->gpio_id);
-	bk_gpio_disable_input(sdmadc_map->gpio_id);
-	bk_gpio_disable_output(sdmadc_map->gpio_id);
+	(void)sdmadc_map;
 }
 
 

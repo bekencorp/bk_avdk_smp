@@ -36,17 +36,6 @@ static irda_driver_t s_irda = {0};
 
 static void irda_isr(void);
 
-static void irda_init_gpio(void)
-{
-	gpio_dev_unmap(IRDA_PIN);
-	gpio_dev_map(IRDA_PIN, GPIO_DEV_IRDA);
-}
-
-static void irda_deinit_gpio(void)
-{
-	gpio_dev_unmap(IRDA_PIN);
-}
-
 /* 1) power up irda
  * 2) enable system irda interrupt
  * 3) init irda gpio
@@ -55,14 +44,12 @@ static void irda_init_common(void)
 {
 	bk_pm_clock_ctrl(CLK_PWR_ID_IRDA, CLK_PWR_CTRL_PWR_UP);
 	sys_drv_int_enable(IRDA_INTERRUPT_CTRL_BIT);
-	irda_init_gpio();
 }
 
 static void irda_deinit_common(void)
 {
 	bk_pm_clock_ctrl(CLK_PWR_ID_IRDA, CLK_PWR_CTRL_PWR_DOWN);
 	sys_drv_int_disable(IRDA_INTERRUPT_CTRL_BIT);
-	irda_deinit_gpio();
 }
 
 static void irda_sw_init(void)

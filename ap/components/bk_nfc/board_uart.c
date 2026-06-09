@@ -52,16 +52,10 @@ void nfc_isr(gpio_id_t gpio_id)
 
 static void mfrc522_gpio_config(gpio_id_t index, gpio_io_mode_t dir, gpio_pull_mode_t pull, gpio_func_mode_t peir)
 {
-    if(index >= GPIO_NUM)
-    {
-        return;
-    }
-    gpio_dev_unmap(index);
-    gpio_config_t cfg;
-    cfg.io_mode = dir;
-    cfg.pull_mode = pull;
-    cfg.func_mode = peir;
-    bk_gpio_set_config(index, &cfg);
+    (void)index;
+    (void)dir;
+    (void)pull;
+    (void)peir;
 }
 
 /**

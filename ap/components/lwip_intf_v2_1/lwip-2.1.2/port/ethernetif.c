@@ -1046,48 +1046,6 @@ void HAL_ETH_MspInit(ETH_HandleTypeDef* ethHandle)
   //LWIP_LOGD("HW DeviceID: 0x%x\n", REG_READ((ETH_BASE + 0x800*4)));
   //LWIP_LOGD("HW VersionID: 0x%x\n", REG_READ((ETH_BASE + 0x801*4)));
 
-  gpio_dev_unmap(GPIO_55);  // PHY INT
-  gpio_dev_unmap(GPIO_47);  // MDC
-  gpio_dev_unmap(GPIO_48);  // MDIO     1
-  gpio_dev_unmap(GPIO_51);  // RXD[0]
-  gpio_dev_unmap(GPIO_52);  // RXD[1]
-  gpio_dev_unmap(GPIO_50);  // RXDV
-  gpio_dev_unmap(GPIO_44);  // TXD[0]
-  gpio_dev_unmap(GPIO_43);  // TXD[1]
-  gpio_dev_unmap(GPIO_45);  // TXEN
-  gpio_dev_unmap(GPIO_49);  // REF_CLK
-  #ifdef CONFIG_ETH_GPHY
-  gpio_dev_unmap(GPIO_53);      //P53
-  gpio_dev_unmap(GPIO_54);      //P54
-  gpio_dev_unmap(GPIO_40);      //P40
-  gpio_dev_unmap(GPIO_41);      //P41
-  gpio_dev_unmap(GPIO_42);      //P42
-  #endif
-
-  gpio_dev_map(GPIO_55, GPIO_DEV_ENET_PHY_INT);   //P55
-  gpio_dev_map(GPIO_47, GPIO_DEV_ENET_MDC);       //P47
-  gpio_dev_map(GPIO_48, GPIO_DEV_ENET_MDIO);      //P48
-  gpio_dev_map(GPIO_51, GPIO_DEV_ENET_RXD0);      //P51
-  gpio_dev_map(GPIO_52, GPIO_DEV_ENET_RXD1);      //P52
-  #ifdef CONFIG_ETH_GPHY
-  gpio_dev_map(GPIO_53, GPIO_DEV_ENET_RXD2);      //P53
-  gpio_dev_map(GPIO_54, GPIO_DEV_ENET_RXD3);      //P54
-  #endif
-  gpio_dev_map(GPIO_50, GPIO_DEV_ENET_RXDV);      //P50
-  gpio_dev_map(GPIO_44, GPIO_DEV_ENET_TXD0);      //P44
-  gpio_dev_map(GPIO_43, GPIO_DEV_ENET_TXD1);      //P43
-  #ifdef CONFIG_ETH_GPHY
-  gpio_dev_map(GPIO_42, GPIO_DEV_ENET_TXD2);      //P42
-  gpio_dev_map(GPIO_41, GPIO_DEV_ENET_TXD3);      //P41
-  #endif
-  gpio_dev_map(GPIO_45, GPIO_DEV_ENET_TXEN);       //P45
-  #ifdef CONFIG_ETH_GPHY
-  gpio_dev_map(GPIO_49, GPIO_DEV_ENET_GRCLK);    //P49
-  gpio_dev_map(GPIO_40, GPIO_DEV_ENET_GTCLK);    //P40
-  #else
-  gpio_dev_map(GPIO_49, GPIO_DEV_ENET_REF_CLK);    //P49
-  #endif
-
   // Power On AHBP 
   bk_pm_module_vote_power_ctrl(PM_POWER_SUB_MODULE_NAME_AHBP_ENET, PM_POWER_MODULE_STATE_ON);
 

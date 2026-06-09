@@ -550,10 +550,6 @@ bk_err_t bk_i2c_driver_deinit(void)
 
 bk_err_t bk_i2c_init(i2c_id_t id, const i2c_config_t *cfg)
 {
-	bk_gpio_pull_down(HWD_GPIO_I2C_SDA);
-	bk_gpio_pull_down(HWD_GPIO_I2C_SCL);
-	gpio_dev_unmap(HWD_GPIO_I2C_SDA);
-	gpio_dev_unmap(HWD_GPIO_I2C_SCL);
 	I2cInit();
 
 	return BK_OK;

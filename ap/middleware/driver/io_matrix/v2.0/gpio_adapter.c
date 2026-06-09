@@ -375,19 +375,19 @@ IOMX_CODE_T convert_gpio_dev_to_iomx_code(gpio_dev_t dev)
 	case GPIO_DEV_I2C1_SDA:
 		func_code = FUNC_CODE_I2C1_SDA;
 		break;
-	case GPIO_DEV_I2S1_MCLK:
+	case GPIO_DEV_I2S0_MCLK:
 		func_code = FUNC_CODE_I2S_MCLK;
 		break;
-	case GPIO_DEV_I2S1_DIN:
+	case GPIO_DEV_I2S0_DIN:
 		func_code = FUNC_CODE_I2S0_DIN;
 		break;
-	case GPIO_DEV_I2S1_DOUT:
+	case GPIO_DEV_I2S0_DOUT:
 		func_code = FUNC_CODE_I2S0_DOUT;
 		break;
-	case GPIO_DEV_I2S1_CLK:
+	case GPIO_DEV_I2S0_CLK:
 		func_code = FUNC_CODE_I2S0_SCK;
 		break;
-	case GPIO_DEV_I2S1_SYNC:
+	case GPIO_DEV_I2S0_SYNC:
 		func_code = FUNC_CODE_I2S0_SYNC;
 		break;
 	case GPIO_DEV_LEDC:

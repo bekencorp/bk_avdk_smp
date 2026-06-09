@@ -940,38 +940,12 @@ static int32_t uart_debug_enable(uint8_t uart_id, uint8_t enable, uint32_t band)
         switch (uart_id)
         {
         case UART_ID_0:
-            gpio_dev_unmap(GPIO_10);
-            gpio_dev_unmap(GPIO_11);
-            gpio_dev_map(GPIO_10, GPIO_DEV_UART0_RXD);
-            gpio_dev_map(GPIO_11, GPIO_DEV_UART0_TXD);
-
-            // gpio_dev_unmap(GPIO_12);
-            // gpio_dev_unmap(GPIO_13);
-            //s_bsc_config.uart_config.flow_ctrl = UART_FLOWCTRL_CTS_RTS;
-            break;
-
         case UART_ID_1:
-            gpio_dev_unmap(GPIO_0);
-            gpio_dev_unmap(GPIO_1);
-            gpio_dev_map(GPIO_0, GPIO_DEV_UART1_TXD);
-            gpio_dev_map(GPIO_1, GPIO_DEV_UART1_RXD);
-            break;
-
         case UART_ID_2:
-            gpio_dev_unmap(GPIO_30);
-            gpio_dev_unmap(GPIO_31);
-            gpio_dev_map(GPIO_30, GPIO_DEV_UART2_RXD);
-            gpio_dev_map(GPIO_31, GPIO_DEV_UART2_TXD);
-            // gpio_dev_unmap(GPIO_40);
-            // gpio_dev_unmap(GPIO_41);
-            // gpio_dev_map(GPIO_40, GPIO_DEV_UART2_RXD);
-            // gpio_dev_map(GPIO_41, GPIO_DEV_UART2_TXD);
             break;
-
         default:
             LOGE("uart_id err %d", uart_id);
             return -1;
-            break;
         }
 
         //LOGD("before init uart %d", uart_id);

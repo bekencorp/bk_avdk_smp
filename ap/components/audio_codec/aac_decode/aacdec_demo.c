@@ -39,10 +39,6 @@ static void uart_dump_init(void)
 	/* init uart */
 	uart_config_t config = {0};
 	os_memset(&config, 0, sizeof(uart_config_t));
-	gpio_dev_unmap(GPIO_0);
-	gpio_dev_map(GPIO_0, GPIO_DEV_UART2_TXD);
-	gpio_dev_unmap(GPIO_1);
-	gpio_dev_map(GPIO_1, GPIO_DEV_UART2_RXD);
 	config.baud_rate = 2000000;
 	config.data_bits = UART_DATA_8_BITS;
 	config.parity = UART_PARITY_NONE;

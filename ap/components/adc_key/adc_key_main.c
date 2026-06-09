@@ -285,7 +285,7 @@ void bk_adc_key_init(gpio_id_t gpio_id, adc_chan_t adc_chan)
 	if(s_adckey_inited_flag)
 		return;
 
-	BK_LOG_ON_ERR(gpio_dev_unmap(gpio_id));
+	(void)gpio_id;
 	s_adc_chan = adc_chan;
 	s_use_cp_sampler = (bk_adc_key_sampler_start(adc_chan, ADCKEY_TMR_DURATION) == BK_OK);
 	if (s_use_cp_sampler) {
@@ -468,14 +468,8 @@ extern beken2_timer_t g_key_timer;
 
 static void gpio_key_pin_config(gpio_id_t gpio_id, uint8_t active_level)
 {
-	gpio_dev_unmap(gpio_id);
-	BK_LOG_ON_ERR(bk_gpio_disable_output(gpio_id));
-	BK_LOG_ON_ERR(bk_gpio_enable_input(gpio_id));
-	BK_LOG_ON_ERR(bk_gpio_enable_pull(gpio_id));
-	if(active_level)
-		BK_LOG_ON_ERR(bk_gpio_pull_down(gpio_id));
-	else
-		BK_LOG_ON_ERR(bk_gpio_pull_up(gpio_id));
+	(void)gpio_id;
+	(void)active_level;
 }
 
 static uint8_t gpio_key1_get_value(BUTTON_S *handle)
@@ -560,7 +554,6 @@ void bk_adc_key_dual_init(void)
 {
 	bk_adc_key_init(ADC_KEY2_GPIO_ID, ADC_KEY2_SADC_CHAN_ID);
 
-	BK_LOG_ON_ERR(gpio_dev_unmap(ADC_KEY1_GPIO_ID));
 	s_adc_chan2 = ADC_KEY1_SADC_CHAN_ID;
 	if (!adckey_try_adc_init(s_adc_chan2))
 		ADC_KEY_LOGW("ADC chan2 init deferred\r\n");

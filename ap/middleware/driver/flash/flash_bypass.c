@@ -1114,10 +1114,6 @@ void flash_bypass_init(void) {
 
 	/*step 4, gpioi of SPI0 are set as high-impedance state or input state ,
 	          for spi mux with them*/
-	gpio_dev_unmap(SPI0_LL_CSN_PIN);
-	gpio_dev_unmap(SPI0_LL_SCK_PIN);
-	gpio_dev_unmap(SPI0_LL_MOSI_PIN);
-	gpio_dev_unmap(SPI0_LL_MISO_PIN);
 }
 
 __attribute__((section(".itcm_sec_code"))) void flash_bypass_quad_enable(void)

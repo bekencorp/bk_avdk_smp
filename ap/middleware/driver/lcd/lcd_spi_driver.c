@@ -96,16 +96,9 @@ static void lcd_spi_device_gpio_init(uint8_t reset_pin, uint8_t dc_pin)
 {
     BK_LOG_ON_ERR(bk_gpio_driver_init());
 
-    gpio_config_t config;
-    config.io_mode = GPIO_OUTPUT_ENABLE;
-    config.pull_mode = GPIO_PULL_DISABLE;
-    config.func_mode = GPIO_SECOND_FUNC_DISABLE;
-
-    BK_LOG_ON_ERR(gpio_dev_unmap(reset_pin));
-    BK_LOG_ON_ERR(gpio_dev_unmap(dc_pin));
-    bk_gpio_set_config(reset_pin, &config);
-    bk_gpio_set_config(dc_pin, &config);
-
+    /* The following set_output_high/low forms the LCD reset pulse sequence
+     * and the DC idle level. These are runtime control and MUST always be
+     * executed. */
     BK_LOG_ON_ERR(bk_gpio_set_output_high(reset_pin));
     BK_LOG_ON_ERR(bk_gpio_set_output_high(dc_pin));
 

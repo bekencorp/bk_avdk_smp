@@ -75,9 +75,6 @@ uint8_t sensor_gc0328c_init_talbe_test1[][2] =
 
 static void gpio_debug(uint32_t gpio_id)
 {
-	gpio_dev_unmap(gpio_id);
-	BK_LOG_ON_ERR(bk_gpio_disable_input(gpio_id));
-	BK_LOG_ON_ERR(bk_gpio_enable_output(gpio_id));
 	bk_gpio_set_output_high(gpio_id);
 	bk_gpio_set_output_low(gpio_id);
 	bk_gpio_set_output_high(gpio_id);
