@@ -635,9 +635,13 @@ bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq)
 	if(ret != BK_OK)
 		return ret;
 
-	if(cpu_bus_freq == PM_CPU_FRQ_160M)
+	if(cpu_bus_freq < PM_CPU_FRQ_160M)
 	{
 		sys_hal_set_ram_low_speed();
+	}
+	else
+	{
+		sys_hal_set_ram_high_speed();
 	}
 
 	sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
@@ -656,7 +660,11 @@ bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq)
 	sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
 	sys_hal_ctrl_vdddig_h_vol(cfg->vdddig_vol);
 
-	if(cpu_bus_freq == PM_CPU_FRQ_240M)
+	if(cpu_bus_freq < PM_CPU_FRQ_160M)
+	{
+		sys_hal_set_ram_low_speed();
+	}
+	else
 	{
 		sys_hal_set_ram_high_speed();
 	}
