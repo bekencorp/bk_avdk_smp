@@ -224,7 +224,7 @@ uint64_t bk_aon_rtc_get_current_tick_with_compensation(aon_rtc_id_t id);
  * @return
  *    - BK_OK: succeed
  */
-bk_err_t bk_rtc_ana_register_wakeup_source(rtc_tick_t period);
+bk_err_t bk_rtc_ana_register_wakeup_source(uint32_t period);
 #endif
 
 #if CONFIG_AON_RTC_DEBUG

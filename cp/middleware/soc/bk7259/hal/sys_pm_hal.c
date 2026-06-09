@@ -1024,20 +1024,23 @@ __attribute__((section(".iram")))  void sys_hal_enter_deep_sleep(void *param)
 	sys_ll_set_ana_reg9_valoldosel(PM_LOW_VOL_AON_LDO_SEL); //0x2:0.7V aon voltage
 	sys_hal_disable_spi_latch();
 
-	if (param && *(uint8_t *)param) {
-#if CONFIG_AON_PMU_REG0_REFACTOR_DEV
+	if (param && *(uint8_t *)param)
+	{
+		#if CONFIG_AON_PMU_REG0_REFACTOR_DEV
 		aon_pmu_hal_set_gpio_sleep(1, false);
 		aon_pmu_hal_r0_latch_to_r7b();
-#else
+		#else
 		sys_hal_gpio_state_switch(true);
-#endif
+		#endif
 		aon_pmu_ll_set_r3_shutdown_flag(1);
 		sys_ll_set_ana_reg11_sd(1);//shutdown directly
-	} else {
-#if CONFIG_AON_PMU_REG0_REFACTOR_DEV
+	}
+	else
+	{
+		#if CONFIG_AON_PMU_REG0_REFACTOR_DEV
 		aon_pmu_hal_r0_latch_to_r7b();
-#endif
-	/*-----enter deep sleep-------*/
+		#endif
+		/*-----enter deep sleep-------*/
 		arch_deep_sleep();
 	}
 
@@ -1729,18 +1732,33 @@ void sys_hal_rtc_wakeup_enable(uint32_t value)
 
 void sys_hal_rtc_ana_wakeup_enable(uint32_t period)
 {
+	#ifdef CONFIG_EXTERN_32K
+	sys_ll_set_ana_reg9_clk_sel(1);
+	#else
+	sys_ll_set_ana_reg9_clk_sel(0);
+	#endif
+
 	sys_hal_enable_spi_latch();
+
+	/* disable spi timer wakeup before updating the rtc/timer count */
+	sys_ll_set_ana_reg11_spi_timerwken(0);
+	sys_ll_set_ana_reg18_timer_set(0xffffffff);
+	sys_ll_set_ana_reg17_rtc_set(period);
+
+	sys_ll_set_ana_reg11_gpio_wkrst1v(1);
+	sys_ll_set_ana_reg11_timer_wkrstn(0);
+
+	/* pulse rst_wks to latch the new rtc wakeup config */
+	sys_ll_set_ana_reg10_rtc_wkrstn(0);
+	sys_ll_set_ana_reg10_rst_wks(1);
+	sys_ll_set_ana_reg10_rst_wks(0);
+	sys_ll_set_ana_reg10_rtc_wkrstn(1);
+
 	sys_ll_set_ana_reg11_spi_timerwken(1);
 
-	// period =0: 32ms, ... =5: 1s, =6: 2s ... =15: 1024s
-	//TODO: sys_ll_set_ana_reg10_timer_sel(period);
-#if CONFIG_EXTERN_32K
-	// set xtll as rtc clk
-	//TODO: sys_ll_set_ana_reg12_clk_sel(1);
-#else
-	// set rosc as rtc clk
-	//TODO: sys_ll_set_ana_reg12_clk_sel(0);
-#endif
+	/* bypass 32k power down so the rtc keeps counting during shutdown */
+	sys_ll_set_ana_reg11_spi_byp32pwd(1);
+
 	sys_hal_disable_spi_latch();
 }
 

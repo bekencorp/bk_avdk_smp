@@ -1176,7 +1176,7 @@ static int ana_wakesource_rtc_enter_cb(uint64_t sleep_time, void *args)
 	return 0;
 }
 
-bk_err_t bk_rtc_ana_register_wakeup_source(rtc_tick_t period)
+bk_err_t bk_rtc_ana_register_wakeup_source(uint32_t period)
 {
 	pm_cb_conf_t enter_conf;
 
