@@ -1,1 +1,1 @@
-make bk7259 PROJECT=wifi/bridge
+./dbuild.sh make bk7259 PROJECT=wifi/bridge
