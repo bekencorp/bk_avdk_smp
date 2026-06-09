@@ -23,12 +23,126 @@ extern int arch_dcache_invd_range(void *addr, size_t size);
 
 static struct ethosu_driver ethosu0_driver = {0};
 
-extern void sys_drv_int_enable_temp(uint32 param);
 extern void bk_delay_us(UINT32 us);
 
 static char TAG[] = "ethosu";
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+
+#define BK_ETHOSU_SEMAPHORE_MAX_COUNT 1
+
+static uint32_t bk_ethosu_timeout_to_ms(uint64_t timeout)
+{
+    if (timeout == ETHOSU_SEMAPHORE_WAIT_FOREVER)
+    {
+        return BEKEN_WAIT_FOREVER;
+    }
+
+    if (timeout > UINT32_MAX)
+    {
+        return BEKEN_WAIT_FOREVER;
+    }
+
+    return (uint32_t)timeout;
+}
+
+void *ethosu_mutex_create(void)
+{
+    beken_mutex_t mutex = NULL;
+
+    if (rtos_init_mutex(&mutex) != kNoErr)
+    {
+        LOGE("Failed to create Ethos-U mutex\r\n");
+        return NULL;
+    }
+
+    return mutex;
+}
+
+void ethosu_mutex_destroy(void *mutex)
+{
+    beken_mutex_t handle = (beken_mutex_t)mutex;
+
+    if (mutex == NULL)
+    {
+        return;
+    }
+
+    rtos_deinit_mutex(&handle);
+}
+
+int ethosu_mutex_lock(void *mutex)
+{
+    beken_mutex_t handle = (beken_mutex_t)mutex;
+
+    if (mutex == NULL)
+    {
+        return -1;
+    }
+
+    return rtos_lock_mutex(&handle) == kNoErr ? 0 : -1;
+}
+
+int ethosu_mutex_unlock(void *mutex)
+{
+    beken_mutex_t handle = (beken_mutex_t)mutex;
+
+    if (mutex == NULL)
+    {
+        return -1;
+    }
+
+    return rtos_unlock_mutex(&handle) == kNoErr ? 0 : -1;
+}
+
+void *ethosu_semaphore_create(void)
+{
+    beken_semaphore_t semaphore = NULL;
+
+    if (rtos_init_semaphore(&semaphore, BK_ETHOSU_SEMAPHORE_MAX_COUNT) != kNoErr)
+    {
+        LOGE("Failed to create Ethos-U semaphore\r\n");
+        return NULL;
+    }
+
+    return semaphore;
+}
+
+void ethosu_semaphore_destroy(void *sem)
+{
+    beken_semaphore_t handle = (beken_semaphore_t)sem;
+
+    if (sem == NULL)
+    {
+        return;
+    }
+
+    rtos_deinit_semaphore(&handle);
+}
+
+int ethosu_semaphore_take(void *sem, uint64_t timeout)
+{
+    beken_semaphore_t handle = (beken_semaphore_t)sem;
+
+    if (sem == NULL)
+    {
+        return -1;
+    }
+
+    return rtos_get_semaphore(&handle, bk_ethosu_timeout_to_ms(timeout)) == kNoErr ? 0 : -1;
+}
+
+int ethosu_semaphore_give(void *sem)
+{
+    beken_semaphore_t handle = (beken_semaphore_t)sem;
+
+    if (sem == NULL)
+    {
+        return -1;
+    }
+
+    return rtos_set_semaphore(&handle) == kNoErr ? 0 : -1;
+}
 
 void bk_npu_int_isr(void)
 {
