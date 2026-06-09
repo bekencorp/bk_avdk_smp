@@ -103,6 +103,8 @@ bk_err_t bk_aud_dac_init(aud_dac_config_t *dac_config)
 		if (dac_config->dac_chl == AUD_DAC_CHL_LR) {
 			audio_reg_hal_set_dac_cfg_mono_sel(0x0);
 			audio_reg_hal_set_dac_cfg_stereo_en(0x7);
+			audio_reg_hal_set_interface_matrix_dac_l_chn_sel(0);
+			audio_reg_hal_set_interface_matrix_dac_r_chn_sel(1);
 		} else {
 			audio_reg_hal_set_dac_cfg_mono_sel(0x7);
 			audio_reg_hal_set_dac_cfg_stereo_en(0x0);
