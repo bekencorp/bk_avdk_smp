@@ -31,6 +31,8 @@ typedef enum
     BK_GPU_IOCTL_UNREGISTER_BOND,
     BK_GPU_IOCTL_FLEXA_ADDR_MAPPING,
     BK_GPU_IOCTL_FLEXA_ADDR_UNMAPPING,
+    BK_GPU_IOCTL_LOCK,
+    BK_GPU_IOCTL_UNLOCK,
 } bk_gpu_ioctl_cmd_t;
 
 typedef struct

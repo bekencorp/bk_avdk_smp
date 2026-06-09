@@ -75,6 +75,7 @@ typedef struct
     void *update_blit_buffer;
     bk_gpu_blit_config_t update_blit_config;
     beken_mutex_t blit_mutex;
+    beken_mutex_t gpu_mutex;
 
     bk_gpu_ctlr_config_t config;
     gpu_flex_data_t flex;
