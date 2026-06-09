@@ -257,16 +257,8 @@ uint32_t sys_drv_bandgap_cali_get()
 	return sys_hal_bandgap_cali_get();
 }
 
-static pm_cpu_freq_e s_cpu_freq = PM_CPU_FRQ_XTAL;
-bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
+static bool sys_drv_is_valid_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 {
-	int32_t i;
-	bk_err_t ret = BK_FAIL;
-	pm_cpu_freq_e prev_freq = s_cpu_freq;
-
-	if(prev_freq == cpu_bus_freq)
-		return BK_OK;
-
 	switch(cpu_bus_freq)
 	{
 		case PM_CPU_FRQ_240M:
@@ -275,33 +267,35 @@ bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 		case PM_CPU_FRQ_80M:
 		case PM_CPU_FRQ_60M:
 		case PM_CPU_FRQ_XTAL:
-			break;
+			return true;
 
 		default:
-			return BK_FAIL;
-			break;
+			return false;
 	}
+}
+
+bk_err_t sys_drv_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
+{
+	bk_err_t ret;
+
+	if(!sys_drv_is_valid_cpu_bus_freq(cpu_bus_freq))
+		return BK_FAIL;
 
 	uint32_t int_level = sys_drv_enter_critical();
-	if(prev_freq < cpu_bus_freq)
-	{
-		for(i = prev_freq + 1; i <= cpu_bus_freq; i ++)
-		{
-			ret = sys_hal_switch_cpu_bus_freq(i);
-		}
-	}
-	else
-	{
-		for(i = prev_freq - 1; i >= cpu_bus_freq; i --)
-		{
-			ret = sys_hal_switch_cpu_bus_freq(i);
-		}
-	}
 
-	s_cpu_freq = cpu_bus_freq;
+	ret = sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
+
 	sys_drv_exit_critical(int_level);
 
 	return ret;
+}
+
+bk_err_t sys_drv_switch_cpu_bus_freq_unlocked(pm_cpu_freq_e cpu_bus_freq)
+{
+	if(!sys_drv_is_valid_cpu_bus_freq(cpu_bus_freq))
+		return BK_FAIL;
+
+	return sys_hal_switch_cpu_bus_freq(cpu_bus_freq);
 }
 
 bk_err_t sys_drv_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1)

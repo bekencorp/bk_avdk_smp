@@ -15,7 +15,6 @@
 #include <driver/aon_rtc_types.h>
 #include <driver/aon_rtc.h>
 #include <driver/timer.h>
-#include <driver/trng.h>
 #include <driver/pwr_clk.h>
 #include <driver/rosc_32k.h>
 #include <driver/rosc_ppm.h>
@@ -435,34 +434,474 @@ static void cli_pm_power(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	bk_pm_module_vote_power_ctrl(pm_module_id,pm_power_state);
 
 }
+
+#define CLI_PM_FREQ_RANDOM_TEST_COUNT      (64)
+#define CLI_PM_FREQ_RANDOM_TEST_MAX_COUNT  (1000000)
+
+static const pm_cpu_freq_e s_cli_pm_cpu_freq_test_list[] = {
+	PM_CPU_FRQ_XTAL,
+	PM_CPU_FRQ_60M,
+	PM_CPU_FRQ_80M,
+	PM_CPU_FRQ_120M,
+	PM_CPU_FRQ_160M,
+	PM_CPU_FRQ_240M,
+};
+
+static uint32_t s_cli_pm_freq_rand_seed = 0x12345678;
+
+static uint32_t cli_pm_freq_soft_rand(void)
+{
+	s_cli_pm_freq_rand_seed = s_cli_pm_freq_rand_seed * 1103515245 + 12345;
+	return s_cli_pm_freq_rand_seed;
+}
+
+static int cli_pm_cpu_freq_from_reg(pm_cpu_freq_e *cpu_freq, uint32_t *freq_reg)
+{
+	uint32_t reg = sys_drv_all_modules_clk_div_get(CLK_DIV_REG0);
+	uint32_t cksel_core = reg & 0x3;
+	uint32_t ckdiv_core = (reg >> 2) & 0xF;
+	uint32_t cp0_div = ckdiv_core + 1;
+
+	if(freq_reg != NULL)
+	{
+		*freq_reg = reg;
+	}
+
+	switch(cksel_core)
+	{
+		case 0:
+			*cpu_freq = PM_CPU_FRQ_XTAL;
+			return 0;
+
+		case 1:
+			if(cp0_div == 4)
+			{
+				*cpu_freq = PM_CPU_FRQ_60M;
+				return 0;
+			}
+			else if(cp0_div == 3)
+			{
+				*cpu_freq = PM_CPU_FRQ_80M;
+				return 0;
+			}
+			else if(cp0_div == 2)
+			{
+				*cpu_freq = PM_CPU_FRQ_120M;
+				return 0;
+			}
+			break;
+
+		case 2:
+			if(cp0_div == 2)
+			{
+				*cpu_freq = PM_CPU_FRQ_160M;
+				return 0;
+			}
+			break;
+
+		case 3:
+			if(cp0_div == 2)
+			{
+				*cpu_freq = PM_CPU_FRQ_240M;
+				return 0;
+			}
+			else if(cp0_div == 4)
+			{
+				*cpu_freq = PM_CPU_FRQ_120M;
+				return 0;
+			}
+			else if(cp0_div == 6)
+			{
+				*cpu_freq = PM_CPU_FRQ_80M;
+				return 0;
+			}
+			else if(cp0_div == 8)
+			{
+				*cpu_freq = PM_CPU_FRQ_60M;
+				return 0;
+			}
+			break;
+
+		default:
+			break;
+	}
+
+	return -1;
+}
+
+static pm_cpu_freq_e cli_pm_cpu_freq_expected_freq(pm_cpu_freq_e cpu_freq)
+{
+	if(cpu_freq == PM_CPU_FRQ_HIGHEST)
+	{
+		return (pm_cpu_freq_e)CONFIG_PM_CPU_FRQ_HIGHEST;
+	}
+
+	return cpu_freq;
+}
+
+static bk_err_t cli_pm_check_cpu_freq(pm_cpu_freq_e expected_freq)
+{
+	pm_cpu_freq_e reg_freq = 0;
+	uint32_t freq_reg = 0;
+
+	expected_freq = cli_pm_cpu_freq_expected_freq(expected_freq);
+	if(cli_pm_cpu_freq_from_reg(&reg_freq, &freq_reg) != 0)
+	{
+		BK_LOGD(NULL,"pm cpu freq check error: unknown freq reg: 0x%x\r\n", freq_reg);
+		return BK_FAIL;
+	}
+
+	if(reg_freq == expected_freq)
+	{
+		BK_LOGD(NULL,"pm cpu freq check correct: reg freq: %d, expected freq: %d, reg: 0x%x\r\n",
+			reg_freq, expected_freq, freq_reg);
+		return BK_OK;
+	}
+
+	BK_LOGD(NULL,"pm cpu freq check error: reg freq: %d, expected freq: %d, reg: 0x%x\r\n",
+		reg_freq, expected_freq, freq_reg);
+	return BK_FAIL;
+}
+
+static int cli_pm_is_dec_string(const char *str)
+{
+	if((str == NULL) || (*str == '\0'))
+		return 0;
+
+	while(*str != '\0')
+	{
+		if((*str < '0') || (*str > '9'))
+			return 0;
+
+		str++;
+	}
+
+	return 1;
+}
+
+typedef struct {
+	uint32_t total;
+	uint32_t success;
+	uint32_t fail;
+} cli_pm_freq_test_stat_t;
+
+static void cli_pm_freq_test_stat_update(cli_pm_freq_test_stat_t *stat, bk_err_t ret)
+{
+	stat->total++;
+	if(ret == BK_OK)
+	{
+		stat->success++;
+	}
+	else
+	{
+		stat->fail++;
+	}
+}
+
+static void cli_pm_freq_test_stat_dump(const char *test_name, const cli_pm_freq_test_stat_t *stat)
+{
+	BK_LOGD(NULL,"pm cpu freq %s test stat: total: %d, success: %d, fail: %d\r\n",
+		test_name, stat->total, stat->success, stat->fail);
+}
+
+static bk_err_t cli_pm_vote_cpu_freq_once(UINT32 pm_module_id, pm_cpu_freq_e pm_freq)
+{
+	bk_err_t ret;
+	bk_err_t check_ret = BK_OK;
+	pm_cpu_freq_e module_freq = 0;
+	pm_cpu_freq_e current_max_freq = 0;
+
+	GPIO_UP(36);
+	GPIO_DOWN(36);
+	ret = bk_pm_module_vote_cpu_freq((pm_dev_id_e)pm_module_id, pm_freq);
+	GPIO_UP(36);
+	GPIO_DOWN(36);
+
+	module_freq = bk_pm_module_current_cpu_freq_get((pm_dev_id_e)pm_module_id);
+	current_max_freq = bk_pm_current_max_cpu_freq_get();
+
+	BK_LOGD(NULL,"pm cpu freq test id: %d; vote freq: %d; module freq: %d; current max cpu freq: %d; ret: %d\r\n",
+		pm_module_id, pm_freq, module_freq, current_max_freq, ret);
+	if(ret == BK_OK)
+	{
+		check_ret = cli_pm_check_cpu_freq(current_max_freq);
+	}
+
+	return (ret == BK_OK) ? check_ret : ret;
+}
+
+static void cli_pm_freq_test_up(UINT32 pm_module_id)
+{
+	uint32_t i;
+	bk_err_t ret;
+	cli_pm_freq_test_stat_t stat = {0};
+
+	BK_LOGD(NULL,"pm cpu freq up test start, module id: %d\r\n", pm_module_id);
+	for(i = 0; i < sizeof(s_cli_pm_cpu_freq_test_list) / sizeof(s_cli_pm_cpu_freq_test_list[0]); i++)
+	{
+		ret = cli_pm_vote_cpu_freq_once(pm_module_id, s_cli_pm_cpu_freq_test_list[i]);
+		cli_pm_freq_test_stat_update(&stat, ret);
+		if(ret != BK_OK)
+		{
+			BK_LOGD(NULL,"pm cpu freq up test fail at index: %d\r\n", i);
+		}
+	}
+	cli_pm_freq_test_stat_dump("up", &stat);
+	BK_LOGD(NULL,"pm cpu freq up test done\r\n");
+}
+
+static void cli_pm_freq_test_down(UINT32 pm_module_id)
+{
+	int32_t i;
+	bk_err_t ret;
+	cli_pm_freq_test_stat_t stat = {0};
+
+	BK_LOGD(NULL,"pm cpu freq down test start, module id: %d\r\n", pm_module_id);
+	for(i = (int32_t)(sizeof(s_cli_pm_cpu_freq_test_list) / sizeof(s_cli_pm_cpu_freq_test_list[0])) - 1; i >= 0; i--)
+	{
+		ret = cli_pm_vote_cpu_freq_once(pm_module_id, s_cli_pm_cpu_freq_test_list[i]);
+		cli_pm_freq_test_stat_update(&stat, ret);
+		if(ret != BK_OK)
+		{
+			BK_LOGD(NULL,"pm cpu freq down test fail at index: %d\r\n", i);
+		}
+	}
+	cli_pm_freq_test_stat_dump("down", &stat);
+	BK_LOGD(NULL,"pm cpu freq down test done\r\n");
+}
+
+static void cli_pm_freq_test_random(UINT32 pm_module_id, uint32_t test_count)
+{
+	uint32_t i;
+	uint32_t rand_num;
+	uint32_t freq_count = sizeof(s_cli_pm_cpu_freq_test_list) / sizeof(s_cli_pm_cpu_freq_test_list[0]);
+	bk_err_t ret;
+	cli_pm_freq_test_stat_t stat = {0};
+
+	BK_LOGD(NULL,"pm cpu freq random test start, module id: %d, count: %d\r\n", pm_module_id, test_count);
+	s_cli_pm_freq_rand_seed ^= (pm_module_id << 16) ^ test_count;
+
+	for(i = 0; i < test_count; i++)
+	{
+		rand_num = cli_pm_freq_soft_rand() % freq_count;
+		ret = cli_pm_vote_cpu_freq_once(pm_module_id, s_cli_pm_cpu_freq_test_list[rand_num]);
+		cli_pm_freq_test_stat_update(&stat, ret);
+		if(ret != BK_OK)
+		{
+			BK_LOGD(NULL,"pm cpu freq random test fail at index: %d, rand: %d\r\n", i, rand_num);
+		}
+	}
+	cli_pm_freq_test_stat_dump("random", &stat);
+	BK_LOGD(NULL,"pm cpu freq random test done\r\n");
+}
+
+typedef struct {
+	pm_dev_id_e module;
+	pm_cpu_freq_e freq;
+} cli_pm_freq_multi_vote_t;
+
+static const cli_pm_freq_multi_vote_t s_cli_pm_freq_multi_votes[][4] = {
+	{
+		{PM_DEV_ID_TIMER_0, PM_CPU_FRQ_60M},
+		{PM_DEV_ID_I2C1, PM_CPU_FRQ_80M},
+		{PM_DEV_ID_SPI_1, PM_CPU_FRQ_120M},
+		{PM_DEV_ID_UART1, PM_CPU_FRQ_240M},
+	},
+	{
+		{PM_DEV_ID_TIMER_0, PM_CPU_FRQ_240M},
+		{PM_DEV_ID_I2C1, PM_CPU_FRQ_60M},
+		{PM_DEV_ID_SPI_1, PM_CPU_FRQ_80M},
+		{PM_DEV_ID_UART1, PM_CPU_FRQ_160M},
+	},
+	{
+		{PM_DEV_ID_TIMER_0, PM_CPU_FRQ_80M},
+		{PM_DEV_ID_I2C1, PM_CPU_FRQ_240M},
+		{PM_DEV_ID_SPI_1, PM_CPU_FRQ_60M},
+		{PM_DEV_ID_UART1, PM_CPU_FRQ_160M},
+	},
+	{
+		{PM_DEV_ID_TIMER_0, PM_CPU_FRQ_160M},
+		{PM_DEV_ID_I2C1, PM_CPU_FRQ_120M},
+		{PM_DEV_ID_SPI_1, PM_CPU_FRQ_240M},
+		{PM_DEV_ID_UART1, PM_CPU_FRQ_80M},
+	},
+};
+
+static pm_cpu_freq_e cli_pm_freq_multi_expected_freq(const cli_pm_freq_multi_vote_t *votes, uint32_t vote_count)
+{
+	uint32_t i;
+	pm_cpu_freq_e expected_freq = PM_CPU_FRQ_XTAL;
+
+	for(i = 0; i < vote_count; i++)
+	{
+		if(expected_freq < votes[i].freq)
+		{
+			expected_freq = votes[i].freq;
+		}
+	}
+
+	return expected_freq;
+}
+
+static bk_err_t cli_pm_freq_multi_run_one(uint32_t index, const cli_pm_freq_multi_vote_t *votes, uint32_t vote_count)
+{
+	uint32_t i;
+	bk_err_t ret = BK_OK;
+	pm_cpu_freq_e expected_freq = cli_pm_freq_multi_expected_freq(votes, vote_count);
+	pm_cpu_freq_e current_max_freq = 0;
+
+	BK_LOGD(NULL,"pm cpu freq multi test case %d start, expected max freq: %d\r\n", index, expected_freq);
+	for(i = 0; i < vote_count; i++)
+	{
+		ret = bk_pm_module_vote_cpu_freq(votes[i].module, votes[i].freq);
+		BK_LOGD(NULL,"pm cpu freq multi vote case: %d, index: %d, module: %d, freq: %d, ret: %d\r\n",
+			index, i, votes[i].module, votes[i].freq, ret);
+		if(ret != BK_OK)
+		{
+			return ret;
+		}
+	}
+
+	current_max_freq = cli_pm_cpu_freq_expected_freq(bk_pm_current_max_cpu_freq_get());
+	if(current_max_freq != expected_freq)
+	{
+		BK_LOGD(NULL,"pm cpu freq multi check error: current max freq: %d, expected max freq: %d\r\n",
+			current_max_freq, expected_freq);
+		return BK_FAIL;
+	}
+
+	ret = cli_pm_check_cpu_freq(expected_freq);
+	if(ret == BK_OK)
+	{
+		BK_LOGD(NULL,"pm cpu freq multi check correct: case: %d, expected max freq: %d\r\n",
+			index, expected_freq);
+	}
+	else
+	{
+		BK_LOGD(NULL,"pm cpu freq multi check error: case: %d, expected max freq: %d\r\n",
+			index, expected_freq);
+	}
+
+	return ret;
+}
+
+static void cli_pm_freq_test_multi(void)
+{
+	uint32_t i;
+	bk_err_t ret;
+	cli_pm_freq_test_stat_t stat = {0};
+	uint32_t case_count = sizeof(s_cli_pm_freq_multi_votes) / sizeof(s_cli_pm_freq_multi_votes[0]);
+
+	BK_LOGD(NULL,"pm cpu freq multi test start, case count: %d\r\n", case_count);
+	for(i = 0; i < case_count; i++)
+	{
+		ret = cli_pm_freq_multi_run_one(i, s_cli_pm_freq_multi_votes[i],
+			sizeof(s_cli_pm_freq_multi_votes[i]) / sizeof(s_cli_pm_freq_multi_votes[i][0]));
+		cli_pm_freq_test_stat_update(&stat, ret);
+	}
+	cli_pm_freq_test_stat_dump("multi", &stat);
+	BK_LOGD(NULL,"pm cpu freq multi test done\r\n");
+}
+
 static void cli_pm_freq(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
 	UINT32 pm_freq  = 0;
 	UINT32 pm_module_id  = 0;
-	pm_cpu_freq_e module_freq = 0;
-	pm_cpu_freq_e current_max_freq = 0;
-	if (argc != 3)
+	uint32_t test_count = CLI_PM_FREQ_RANDOM_TEST_COUNT;
+	bk_err_t ret;
+	cli_pm_freq_test_stat_t stat = {0};
+
+	if ((argc < 2) || (argc > 4))
+	{
+		BK_LOGD(NULL,"set pm freq parameter invalid %d\r\n",argc);
+		return;
+	}
+
+	if (os_strcmp(argv[1], "multi") == 0)
+	{
+		if(argc != 2)
+		{
+			BK_LOGD(NULL,"set pm freq multi parameter invalid %d\r\n",argc);
+			return;
+		}
+
+		cli_pm_freq_test_multi();
+		return;
+	}
+
+	if ((argc != 3) && (argc != 4))
 	{
 		BK_LOGD(NULL,"set pm freq parameter invalid %d\r\n",argc);
 		return;
 	}
 
 	pm_module_id = os_strtoul(argv[1], NULL, 10);
+	if (pm_module_id >= PM_DEV_ID_MAX)
+	{
+		BK_LOGD(NULL,"set pm freq module invalid %d\r\n",pm_module_id);
+		return;
+	}
+
+	if (os_strcmp(argv[2], "up") == 0)
+	{
+		if(argc != 3)
+		{
+			BK_LOGD(NULL,"set pm freq up parameter invalid %d\r\n",argc);
+			return;
+		}
+
+		cli_pm_freq_test_up(pm_module_id);
+		return;
+	}
+	else if (os_strcmp(argv[2], "down") == 0)
+	{
+		if(argc != 3)
+		{
+			BK_LOGD(NULL,"set pm freq down parameter invalid %d\r\n",argc);
+			return;
+		}
+
+		cli_pm_freq_test_down(pm_module_id);
+		return;
+	}
+	else if (os_strcmp(argv[2], "random") == 0)
+	{
+		if(argc == 4)
+		{
+			if(!cli_pm_is_dec_string(argv[3]))
+			{
+				BK_LOGD(NULL,"set pm freq random count invalid %s\r\n", argv[3]);
+				return;
+			}
+
+			test_count = os_strtoul(argv[3], NULL, 10);
+			if((test_count == 0) || (test_count > CLI_PM_FREQ_RANDOM_TEST_MAX_COUNT))
+			{
+				BK_LOGD(NULL,"set pm freq random count invalid %d\r\n", test_count);
+				return;
+			}
+		}
+
+		cli_pm_freq_test_random(pm_module_id, test_count);
+		return;
+	}
+
+	if((argc != 3) || !cli_pm_is_dec_string(argv[2]))
+	{
+		BK_LOGD(NULL,"set pm freq value invalid %s\r\n", argv[2]);
+		return;
+	}
+
 	pm_freq = os_strtoul(argv[2], NULL, 10);
-	if ((pm_freq > PM_CPU_FRQ_DEFAULT) || (pm_module_id > PM_DEV_ID_MAX))
+	if (pm_freq > PM_CPU_FRQ_DEFAULT)
 	{
 		BK_LOGD(NULL,"set pm freq value invalid %d %d \r\n",pm_freq,pm_module_id);
 		return;
 	}
 
-	bk_pm_module_vote_cpu_freq(pm_module_id,pm_freq);
-
-	module_freq =  bk_pm_module_current_cpu_freq_get(pm_module_id);
-
-	current_max_freq = bk_pm_current_max_cpu_freq_get();
-
-	BK_LOGD(NULL,"pm cpu freq test id: %d; freq: %d; current max cpu freq: %d;\r\n",pm_module_id,module_freq,current_max_freq);
-
+	ret = cli_pm_vote_cpu_freq_once(pm_module_id, (pm_cpu_freq_e)pm_freq);
+	cli_pm_freq_test_stat_update(&stat, ret);
+	cli_pm_freq_test_stat_dump("single", &stat);
 }
 static void cli_pm_lpo(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
 {
@@ -588,154 +1027,6 @@ static void cli_dvfs_cmd(char *pcWriteBuffer, int xWriteBufferLen, int argc, cha
 	pm_core_bus_clock_ctrl(cksel_core, ckdiv_core,ckdiv_bus, ckdiv_cpu0,ckdiv_cpu1);
 	GLOBAL_INT_RESTORE();
 	BK_LOGD(NULL,"switch cpu frequency ok 0x%x 0x%x 0x%x\r\n",sys_drv_all_modules_clk_div_get(CLK_DIV_REG0),sys_drv_cpu_clk_div_get(0),sys_drv_cpu_clk_div_get(1));
-}
-
-typedef struct{
-	uint32_t cksel_core;  // 0:XTAL       1 : clk_DCO      2 : 320M      3 : 480M
-	uint32_t ckdiv_core;  // Frequency division : F/(1+N), N is the data of the reg value 0--15
-	uint32_t ckdiv_bus;   // Frequency division : F/(1+N), N is the data of the reg value:0--1
-	uint32_t ckdiv_cpu0;  // Frequency division : F/(1+N), N is the data of the reg value:0--15
-	uint32_t ckdiv_cpu1;  // 0: cpu0,cpu1 and bus  sel same clock frequence 1: cpu0_clk and  bus_clk is half cpu1_clk
-}core_bus_clock_ctrl_t;
-
-#define CORE_BUS_CLOCK_AUTO_TEST 0
-#if CORE_BUS_CLOCK_AUTO_TEST
-#define CORE_BUS_CLOCK_MAP \
-{ \
-	{0x0,0x0,0x0,0x0,0x0 },  /*0:XTAL */\
-	{0x2,0x1,0x0,0x0,0x0 },  /*2 : 320M  ckdiv_cpu1 = 0 */ \
-	{0x2,0x2,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0x3,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0x4,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0x5,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0x6,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0x7,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0x8,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0x9,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0xA,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0xB,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0xC,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0xD,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0xE,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0xF,0x0,0x0,0x0 },  /*2 : 320M */ \
-	{0x2,0x0,0x0,0x0,0x1 },  /*2 : 320M  ckdiv_cpu1 = 1*/ \
-	{0x2,0x1,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0x2,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0x3,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0x4,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0x5,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0x6,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0x7,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0x8,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0x9,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0xA,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0xB,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0xC,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0xD,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0xE,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x2,0xF,0x0,0x0,0x1 },  /*2 : 320M */ \
-	{0x3,0x2,0x0,0x0,0x0 },  /*3 : 480M ckdiv_cpu1 = 0*/ \
-	{0x3,0x3,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0x4,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0x5,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0x6,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0x7,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0x8,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0x9,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0xA,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0xB,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0xC,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0xD,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0xE,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0xF,0x0,0x0,0x0 },  /*3 : 480M */ \
-	{0x3,0x1,0x0,0x0,0x1 },  /*3 : 480M ckdiv_cpu1 = 1*/ \
-	{0x3,0x2,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0x3,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0x4,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0x5,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0x6,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0x7,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0x8,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0x9,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0xA,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0xB,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0xC,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0xD,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0xE,0x0,0x0,0x1 },  /*3 : 480M */ \
-	{0x3,0xF,0x0,0x0,0x1 },  /*3 : 480M */ \
-}
-#else
-#define CORE_BUS_CLOCK_MAP \
-{ \
-	{0x0,0x0,0x0,0x0,0x0 },  /*0:XTAL */\
-	{0x2,0x1,0x0,0x0,0x0 },  /*2 : 320M  ckdiv_cpu1 = 0 */ \
-	{0x3,0x2,0x0,0x0,0x0 },  /*3 : 480M  ckdiv_cpu1 = 0 */ \
-	{0x3,0x1,0x0,0x0,0x1 },  /*3 : 480M  ckdiv_cpu1 = 1 */ \
-}
-#endif
-#define DVFS_AUTO_TEST_COUNT (2)
-extern void bk_delay_us(uint32 num);
-static void cli_dvfs_auto_test_timer_isr(timer_id_t chan)
-{
-	uint8_t rand_num;
-	uint8_t i;
-	for(i=0; i<DVFS_AUTO_TEST_COUNT; i++)
-	{
-		rand_num = (uint32_t)bk_rand()%PM_CPU_FRQ_DEFAULT;
-		//BK_LOGD(NULL,"dvfs random %d \r\n",rand_num);
-		bk_delay_us(5);
-		sys_drv_switch_cpu_bus_freq(rand_num);
-	}
-}
-
-core_bus_clock_ctrl_t core_bus_clock[] = CORE_BUS_CLOCK_MAP;
-static void cli_dvfs_auto_test_all_timer_isr(timer_id_t chan)
-{
-#if 1
-	uint8_t rand_num;
-	uint8_t i;
-	
-	for(i=0; i<DVFS_AUTO_TEST_COUNT; i++)
-	{
-		rand_num = (uint32_t)bk_rand()%(sizeof(core_bus_clock)/sizeof(core_bus_clock_ctrl_t));
-		//BK_LOGD(NULL,"dvfs random %d \r\n",rand_num);
-		//BK_LOGD(NULL,"[cksel:%d] [ckdiv_core:%d] [ckdiv_bus:%d] [ckdiv_cpu0:%d] [ckdiv_cpu1:%d]\r\n",
-			//core_bus_clock[rand_num].cksel_core, core_bus_clock[rand_num].ckdiv_core, core_bus_clock[rand_num].ckdiv_bus, core_bus_clock[rand_num].ckdiv_cpu0, core_bus_clock[rand_num].ckdiv_cpu1);
-		bk_delay_us(5);
-		pm_core_bus_clock_ctrl(core_bus_clock[rand_num].cksel_core, core_bus_clock[rand_num].ckdiv_core, core_bus_clock[rand_num].ckdiv_bus, core_bus_clock[rand_num].ckdiv_cpu0, core_bus_clock[rand_num].ckdiv_cpu1);
-	}
-#endif
-}
-
-static void cli_dvfs_auto_test(char *pcWriteBuffer, int xWriteBufferLen, int argc, char **argv)
-{
-#if 1
-	uint32_t period_us;
-	
-	if (argc != 3)
-	{
-		BK_LOGD(NULL,"set dvfs_auto_test parameter invalid %d\r\n",argc);
-		return;
-	}
-	period_us = os_strtoul(argv[1], NULL, 10);
-	BK_LOGD(NULL,"dvfs auto test period set %d us!\r\n",period_us);
-
-	bk_trng_driver_init();
-	bk_trng_start();
-	
-	if (os_strcmp(argv[2], "default") == 0)
-	{
-		bk_timer_delay_with_callback(TIMER_ID5,period_us,cli_dvfs_auto_test_timer_isr);
-	}
-	else if (os_strcmp(argv[2], "all") == 0)
-	{
-		bk_timer_delay_with_callback(TIMER_ID5,period_us,cli_dvfs_auto_test_all_timer_isr);
-	}
-	else
-	{
-		bk_timer_delay_with_callback(TIMER_ID5,period_us,cli_dvfs_auto_test_timer_isr);
-	}
-#endif
 }
 
 #if CONFIG_AON_RTC
@@ -1119,14 +1410,13 @@ static const struct cli_command s_pwr_commands[] = {
 #if 1//CONFIG_DEBUG_VERSION
 	{"pm", "pm [sleep_mode] [wake_source] [vote1] [vote2] [vote3] [param1] [param2] [param3]", cli_pm_cmd},
 	{"dvfs", "dvfs [cksel_core] [ckdiv_core] [ckdiv_bus] [ckdiv_cpu0] [ckdiv_cpu1]", cli_dvfs_cmd},
-	{"dvfs_auto_test", "dvfs_auto_test [period]", cli_dvfs_auto_test},
 	{"pm_vote", "pm_vote [pm_sleep_mode] [pm_vote] [pm_vote_value] [pm_sleep_time]", cli_pm_vote_cmd},
 	{"pm_debug", "pm_debug [debug_en_value]", cli_pm_debug},
 	{"pm_lpo", "pm_lpo [lpo_type]", cli_pm_lpo},
 	{"pm_vol", "pm_vol [vol_value]", cli_pm_vol},
 	{"pm_clk", "pm_clk [module_name][clk_state]", cli_pm_clk},
 	{"pm_power", "pm_power [module_name][ power state]", cli_pm_power},
-	{"pm_freq", "pm_freq [module_name][ frequency]", cli_pm_freq},
+	{"pm_freq", "pm_freq [module_name] [frequency|up|down|random] [random_count] | pm_freq multi", cli_pm_freq},
 	{"pm_ctrl", "pm_ctrl [ctrl_value]", cli_pm_ctrl},
 	{"pm_pwr_state", "pm_pwr_state [pwr_state]", cli_pm_pwr_state},
 	{"pm_auto_vote", "pm_auto_vote [auto_vote_value]", cli_pm_auto_vote},

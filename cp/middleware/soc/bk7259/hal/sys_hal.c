@@ -41,8 +41,14 @@
 #define PM_CLKSEL_FLASH_480M                (0x1)
 #define PM_CLKDIV_CORE_0                    (0)
 #define PM_CLKDIV_CORE_1                    (1)
+#define PM_CLKSEL_CORE_POS                  (0)
+#define PM_CLKSEL_CORE_MASK                 (0x3 << PM_CLKSEL_CORE_POS)
+#define PM_CLKDIV_CORE_POS                  (2)
+#define PM_CLKDIV_CORE_MASK                 (0xF << PM_CLKDIV_CORE_POS)
 #define PM_VDDD_H_VOL_1V                    (0x6)
+#define PM_VDDDIG_H_VOL_0V825               (0x9)
 #define PM_VDDDIG_H_VOL_0v9                 (0xC)
+#define PM_VDDDIG_H_VOL_0V95                (0xE)
 #define PM_CLKDV_CPU1_1                     (0x1)
 #define PM_CLKDV_CPU0_0                     (0x0)
 #define SYS_SWITCH_VDDDIG_VOL_DELAY_TIME    (2600)
@@ -56,6 +62,26 @@
 
 static sys_hal_t s_sys_hal;
 static uint32_t s_pm_wireless_clock_state = 0;
+
+typedef struct {
+	pm_cpu_freq_e freq;
+	uint32_t cksel_core;
+	uint32_t ckdiv_core;
+	uint32_t ckdiv_bus;
+	uint32_t ckdiv_cpu0;
+	uint32_t ckdiv_cpu1;
+	uint32_t vdddig_vol;
+} sys_hal_cpu_bus_freq_cfg_t;
+
+
+static const sys_hal_cpu_bus_freq_cfg_t s_cpu_bus_freq_cfg[] = {
+	{PM_CPU_FRQ_XTAL, PM_CLKSEL_CORE_26M, 0x0, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V825},
+	{PM_CPU_FRQ_60M, PM_CLKSEL_CORE_480M, 0x7, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V825},
+	{PM_CPU_FRQ_80M, PM_CLKSEL_CORE_480M, 0x5, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V825},
+	{PM_CPU_FRQ_120M, PM_CLKSEL_CORE_480M, 0x3, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0v9},
+	{PM_CPU_FRQ_160M, PM_CLKSEL_CORE_320M, 0x1, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0v9},
+	{PM_CPU_FRQ_240M, PM_CLKSEL_CORE_480M, 0x1, 0x0, 0x0, 0x0, PM_VDDDIG_H_VOL_0V95},
+};
 
 // static pm_cpu_freq_e s_pre_cpu_freq = PM_CPU_FRQ_120M;
 uint32 sys_hal_get_int_group2_status(uint32_t core_id);
@@ -464,7 +490,10 @@ uint32_t sys_hal_bandgap_cali_get()
 }
 bk_err_t sys_hal_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,uint32_t ckdiv_bus, uint32_t ckdiv_cpu0,uint32_t ckdiv_cpu1)
 {
-	uint32_t clk_param  = 0;
+	uint32_t clk_param;
+	uint32_t next_clk_param;
+	uint32_t target_cksel_core = cksel_core << PM_CLKSEL_CORE_POS;
+	uint32_t target_ckdiv_core = ckdiv_core << PM_CLKDIV_CORE_POS;
 	if(cksel_core > PM_CLKSEL_CORE_MAX)
 	{
 		os_printf("Set dvfs cksel core > %d invalid\r\n",PM_CLKSEL_CORE_MAX);
@@ -482,39 +511,40 @@ bk_err_t sys_hal_core_bus_clock_ctrl(uint32_t cksel_core, uint32_t ckdiv_core,ui
 		return BK_FAIL;
 	}
 
-	clk_param = 0;
-	clk_param = sys_hal_all_modules_clk_div_get(CLK_DIV_REG0);
-	if(((clk_param >> 0x0)&0x3) > cksel_core)//when it from the higher frequency to lower frequency
+	clk_param = sys_ll_get_cpu_clk_div_mode1_value();
+	if(((clk_param & PM_CLKSEL_CORE_MASK) >> PM_CLKSEL_CORE_POS) > cksel_core)//when it from the higher frequency to lower frequency
 	{
 		/*1.core clk select*/
-		clk_param = 0;
-		clk_param = sys_hal_all_modules_clk_div_get(CLK_DIV_REG0);
-		clk_param &=  ~(0x3 << 0);
-		clk_param |=  cksel_core << 0;
-		sys_hal_all_modules_clk_div_set(CLK_DIV_REG0,clk_param);
+		next_clk_param = (clk_param & ~PM_CLKSEL_CORE_MASK) | target_cksel_core;
+		if(next_clk_param != clk_param)
+		{
+			sys_ll_set_cpu_clk_div_mode1_value(next_clk_param);
+			clk_param = next_clk_param;
+		}
 
 		/*2.config bus and core clk div*/
-		clk_param = 0;
-		clk_param = sys_hal_all_modules_clk_div_get(CLK_DIV_REG0);
-		clk_param &=  ~(0xF << 2);
-		clk_param |=  ckdiv_core << 2;
-		sys_hal_all_modules_clk_div_set(CLK_DIV_REG0,clk_param);
+		next_clk_param = (clk_param & ~PM_CLKDIV_CORE_MASK) | target_ckdiv_core;
+		if(next_clk_param != clk_param)
+		{
+			sys_ll_set_cpu_clk_div_mode1_value(next_clk_param);
+		}
 	}
 	else//when it from the lower frequency to higher frequency
 	{
 		/*1.config bus and core clk div*/
-		clk_param = 0;
-		clk_param = sys_hal_all_modules_clk_div_get(CLK_DIV_REG0);
-		clk_param &=  ~(0xF << 2);
-		clk_param |=  ckdiv_core << 2;
-		sys_hal_all_modules_clk_div_set(CLK_DIV_REG0,clk_param);
+		next_clk_param = (clk_param & ~PM_CLKDIV_CORE_MASK) | target_ckdiv_core;
+		if(next_clk_param != clk_param)
+		{
+			sys_ll_set_cpu_clk_div_mode1_value(next_clk_param);
+			clk_param = next_clk_param;
+		}
 
 		/*2.core clk select*/
-		clk_param = 0;
-		clk_param = sys_hal_all_modules_clk_div_get(CLK_DIV_REG0);
-		clk_param &=  ~(0x3 << 0);
-		clk_param |=  cksel_core << 0;
-		sys_hal_all_modules_clk_div_set(CLK_DIV_REG0,clk_param);
+		next_clk_param = (clk_param & ~PM_CLKSEL_CORE_MASK) | target_cksel_core;
+		if(next_clk_param != clk_param)
+		{
+			sys_ll_set_cpu_clk_div_mode1_value(next_clk_param);
+		}
 	}
 
 	return BK_OK;
@@ -528,12 +558,29 @@ bk_err_t sys_hal_ctrl_vddd_h_vol(uint32_t vol_value)
 
 bk_err_t sys_hal_ctrl_vdddig_h_vol(uint32_t vol_value)
 {
-	if(sys_ll_get_ana_reg10_vcorehsel() != vol_value)
+	uint32_t cur_vol = sys_ll_get_ana_reg10_vcorehsel();
+	uint32_t next_vol;
+
+	if(cur_vol == vol_value)
+	{
+		return BK_OK;
+	}
+
+	if(cur_vol > vol_value)
 	{
 		sys_ll_set_ana_reg10_spi_latch1v(1);
 		sys_ll_set_ana_reg10_vcorehsel(vol_value);
 		sys_ll_set_ana_reg10_spi_latch1v(0);
-		sys_hal_delay(SYS_SWITCH_VDDDIG_VOL_DELAY_TIME);//when cpu0 max freq 240m ,it delay 10uS for voltage stability
+		return BK_OK;
+	}
+
+	for(next_vol = cur_vol + 1; next_vol <= vol_value; next_vol++)
+	{
+		sys_ll_set_ana_reg10_spi_latch1v(1);
+		sys_ll_set_ana_reg10_vcorehsel(next_vol);
+		sys_ll_set_ana_reg10_spi_latch1v(0);
+		//sys_hal_delay(SYS_SWITCH_VDDDIG_VOL_DELAY_TIME);//delay 10uS for each VDDDIG step-up
+		bk_delay_us(10);
 	}
 
 	return BK_OK;
@@ -543,113 +590,78 @@ uint32_t sys_hal_vdddig_h_vol_get()
 {
 	return sys_ll_get_ana_reg10_vcorehsel();
 }
+
+static const sys_hal_cpu_bus_freq_cfg_t *sys_hal_get_cpu_bus_freq_cfg(pm_cpu_freq_e cpu_bus_freq)
+{
+	if((cpu_bus_freq < PM_CPU_FRQ_XTAL) || (cpu_bus_freq > PM_CPU_FRQ_240M))
+		return NULL;
+
+	return &s_cpu_bus_freq_cfg[cpu_bus_freq];
+}
+
+static bk_err_t sys_hal_set_cpu_bus_freq_clock(const sys_hal_cpu_bus_freq_cfg_t *cfg)
+{
+#if CONFIG_DCO_CLK_ENABLE
+	if(cfg->freq == PM_CPU_FRQ_60M)
+	{
+		return sys_hal_core_bus_clock_ctrl(PM_CLKSEL_CORE_DCO, 0x3, cfg->ckdiv_bus,
+			cfg->ckdiv_cpu0, cfg->ckdiv_cpu1);
+	}
+	else if(cfg->freq == PM_CPU_FRQ_80M)
+	{
+		return sys_hal_core_bus_clock_ctrl(PM_CLKSEL_CORE_DCO, 0x2, cfg->ckdiv_bus,
+			cfg->ckdiv_cpu0, cfg->ckdiv_cpu1);
+	}
+	else if(cfg->freq == PM_CPU_FRQ_120M)
+	{
+		return sys_hal_core_bus_clock_ctrl(PM_CLKSEL_CORE_DCO, 0x1, cfg->ckdiv_bus,
+			cfg->ckdiv_cpu0, cfg->ckdiv_cpu1);
+	}
+#endif
+
+	return sys_hal_core_bus_clock_ctrl(cfg->cksel_core, cfg->ckdiv_core, cfg->ckdiv_bus,
+		cfg->ckdiv_cpu0, cfg->ckdiv_cpu1);
+}
+
 bk_err_t sys_hal_switch_cpu_bus_freq_high_to_low(pm_cpu_freq_e cpu_bus_freq)
 {
-	bk_err_t ret = BK_OK;
-	switch(cpu_bus_freq)
+	const sys_hal_cpu_bus_freq_cfg_t *cfg = sys_hal_get_cpu_bus_freq_cfg(cpu_bus_freq);
+	bk_err_t ret;
+
+	if(cfg == NULL)
+		return BK_FAIL;
+
+	ret = sys_hal_set_cpu_bus_freq_clock(cfg);
+	if(ret != BK_OK)
+		return ret;
+
+	if(cpu_bus_freq == PM_CPU_FRQ_160M)
 	{
-		case PM_CPU_FRQ_240M://cpu0:240m;cpu0 bus:240m
-			ret = sys_hal_core_bus_clock_ctrl(0x3,0x1,0x0,0x0,0x0);
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0 v
-			sys_hal_ctrl_vdddig_h_vol(0xE);//0.95V=0.6+0.025*0xE
-			break;
-		case PM_CPU_FRQ_160M://cpu0:160m;bus:160m
-			ret = sys_hal_core_bus_clock_ctrl(0x2,0x1,0x0,0x0,0x0);
-			sys_hal_set_ram_low_speed();
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0v
-			sys_hal_ctrl_vdddig_h_vol(0xC);//0.9V
-			break;
-		case PM_CPU_FRQ_120M://cpu0:120m;bus:120m
-			#if CONFIG_DCO_CLK_ENABLE
-			ret = sys_hal_core_bus_clock_ctrl(0x1,0x1,0x0,0x0,0x0);
-			#else
-			ret = sys_hal_core_bus_clock_ctrl(0x3,0x3,0x0,0x0,0x0);
-			#endif
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0xC);//0.9V
-
-			break;
-		case PM_CPU_FRQ_80M://cpu0:80m;bus:80m
-			#if CONFIG_DCO_CLK_ENABLE
-			ret = sys_hal_core_bus_clock_ctrl(0x1,0x2,0x0,0x0,0x0);
-			#else
-			ret = sys_hal_core_bus_clock_ctrl(0x3,0x5,0x0,0x0,0x0);
-			#endif
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
-
-			break;
-		case PM_CPU_FRQ_60M://cpu0:60m;bus:60m
-			#if CONFIG_DCO_CLK_ENABLE
-			ret = sys_hal_core_bus_clock_ctrl(0x1,0x3,0x0,0x0,0x0);
-			#else
-			ret = sys_hal_core_bus_clock_ctrl(0x3,0x7,0x0,0x0,0x0);
-			#endif
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
-			break;
-		case PM_CPU_FRQ_XTAL://cpu0:26m;bus:26m
-			ret = sys_hal_core_bus_clock_ctrl(0x0,0x0,0x0,0x0,0x0);
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
-			break;
-		default:
-			break;
+		sys_hal_set_ram_low_speed();
 	}
+
+	sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
+	sys_hal_ctrl_vdddig_h_vol(cfg->vdddig_vol);
 
 	return ret;
 }
 bk_err_t sys_hal_switch_cpu_bus_freq_low_to_high(pm_cpu_freq_e cpu_bus_freq)
 {
-	bk_err_t ret = BK_OK;
-	switch(cpu_bus_freq)
+	const sys_hal_cpu_bus_freq_cfg_t *cfg = sys_hal_get_cpu_bus_freq_cfg(cpu_bus_freq);
+	bk_err_t ret;
+
+	if(cfg == NULL)
+		return BK_FAIL;
+
+	sys_hal_ctrl_vddd_h_vol(PM_VDDD_H_VOL_1V);
+	sys_hal_ctrl_vdddig_h_vol(cfg->vdddig_vol);
+
+	if(cpu_bus_freq == PM_CPU_FRQ_240M)
 	{
-		case PM_CPU_FRQ_240M://cpu0:240m;bus:240m
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0v
-			sys_hal_ctrl_vdddig_h_vol(0xE);//0.95V=0.6+0.025*0xE
-			sys_hal_set_ram_high_speed();
-			ret = sys_hal_core_bus_clock_ctrl(0x3,0x1,0x0,0x0,0x0);
-			break;
-		case PM_CPU_FRQ_160M://cpu0:160m;bus:160m
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0v
-			sys_hal_ctrl_vdddig_h_vol(0xC);//0.9V
-			ret = sys_hal_core_bus_clock_ctrl(0x2,0x1,0x0,0x0,0x0);
-			break;
-		case PM_CPU_FRQ_120M://cpu0:120m;bus:120m
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0xC);//0.9V
-			#if CONFIG_DCO_CLK_ENABLE
-			ret = sys_hal_core_bus_clock_ctrl(0x1,0x1,0x0,0x0,0x0);
-			#else
-			ret = sys_hal_core_bus_clock_ctrl(0x3,0x3,0x0,0x0,0x0);
-			#endif
-			break;
-		case PM_CPU_FRQ_80M://cpu0:80m;bus:80m
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
-			#if CONFIG_DCO_CLK_ENABLE
-			ret = sys_hal_core_bus_clock_ctrl(0x1,0x2,0x0,0x0,0x0);
-			#else
-			ret = sys_hal_core_bus_clock_ctrl(0x3,0x5,0x0,0x0,0x0);
-			#endif
-			break;
-		case PM_CPU_FRQ_60M://cpu0:60m;bus:60m
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
-			#if CONFIG_DCO_CLK_ENABLE
-			ret = sys_hal_core_bus_clock_ctrl(0x1,0x3,0x0,0x0,0x0);
-			#else
-			ret = sys_hal_core_bus_clock_ctrl(0x3,0x7,0x0,0x0,0x0);
-			#endif
-			break;
-		case PM_CPU_FRQ_XTAL://cpu0:26m;bus:26m
-			sys_hal_ctrl_vddd_h_vol(0x6);// 1.0V
-			sys_hal_ctrl_vdddig_h_vol(0x9);//0.825V
-			ret = sys_hal_core_bus_clock_ctrl(0x0,0x0,0x0,0x1,0x1);
-			break;
-		default:
-			break;
+		sys_hal_set_ram_high_speed();
 	}
+
+	ret = sys_hal_set_cpu_bus_freq_clock(cfg);
 	return ret;
 }
 
@@ -663,15 +675,18 @@ bk_err_t sys_hal_switch_cpu_bus_freq(pm_cpu_freq_e cpu_bus_freq)
 	if(prev_freq == cpu_bus_freq)
 		return BK_OK;
 
-	if(prev_freq > cpu_bus_freq)// eg: 480->60
+	if(prev_freq > cpu_bus_freq)// eg: 240->60
 	{
-		sys_hal_switch_cpu_bus_freq_high_to_low(cpu_bus_freq);
+		ret = sys_hal_switch_cpu_bus_freq_high_to_low(cpu_bus_freq);
 	}
-	else // eg: 60-480
+	else // eg: 60-240
 	{
-		sys_hal_switch_cpu_bus_freq_low_to_high(cpu_bus_freq);
+		ret = sys_hal_switch_cpu_bus_freq_low_to_high(cpu_bus_freq);
 	}
-	s_pre_cpu_freq = cpu_bus_freq;
+	if(ret == BK_OK)
+	{
+		s_pre_cpu_freq = cpu_bus_freq;
+	}
 	return ret;
 }
 
