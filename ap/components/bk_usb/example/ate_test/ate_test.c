@@ -53,10 +53,6 @@ bk_err_t bk_usb_ate_bist_test(uint32_t state)
 	uint32_t reg = 0;
 	extern void delay(INT32 num);
 	if(state == 1) {
-	gpio_dev_unprotect_unmap(12);
-	gpio_dev_unprotect_unmap(13);
-	gpio_dev_unprotect_map(12, GPIO_DEV_USB0_DP);
-	gpio_dev_unprotect_map(13, GPIO_DEV_USB0_DN);
 
 	/* Make sure of properly connection for all power and ground pins */
 	reg = *((volatile unsigned long *) (0x44010000+0x10*4));
@@ -130,10 +126,6 @@ bk_err_t bk_usb_ate_voh_vol_test(uint32_t state)
 	extern void delay(INT32 num);
 
 	if(state == 1) {
-		gpio_dev_unprotect_unmap(12);
-		gpio_dev_unprotect_unmap(13);
-		gpio_dev_unprotect_map(12, GPIO_DEV_USB0_DP);
-		gpio_dev_unprotect_map(13, GPIO_DEV_USB0_DN);
 		SYS_REG_DPDN_CAP_43 |= 0xFF;
 		//sys_drv_usb_clock_ctrl(true, NULL);
 		SYS_REG_CLOCK_0C |= (0x1<<17);
@@ -194,10 +186,6 @@ bk_err_t bk_usb_ate_rterm_test(uint32_t state)
 	extern void delay(INT32 num);
 
 	if(state == 1) {
-		gpio_dev_unprotect_unmap(12);
-		gpio_dev_unprotect_unmap(13);
-		gpio_dev_unprotect_map(12, GPIO_DEV_USB0_DP);
-		gpio_dev_unprotect_map(13, GPIO_DEV_USB0_DN);
 		SYS_REG_DPDN_CAP_43 |= 0xFF;
 		//sys_drv_usb_clock_ctrl(true, NULL);
 		SYS_REG_CLOCK_0C |= (0x1<<17);
@@ -256,10 +244,6 @@ bk_err_t bk_usb_ate_rx_dc_input_test(uint32_t state)
 	extern void delay(INT32 num);
 
 	if(state == 1) {
-		gpio_dev_unprotect_unmap(12);
-		gpio_dev_unprotect_unmap(13);
-		gpio_dev_unprotect_map(12, GPIO_DEV_USB0_DP);
-		gpio_dev_unprotect_map(13, GPIO_DEV_USB0_DN);
 		/* Input REFCLK into IP with frequency of 12MHz set REFCLK_MODE/PLL to high*/
 		//sys_drv_usb_clock_ctrl(true, NULL);
 		SYS_REG_CLOCK_0C |= (0x1<<17);
